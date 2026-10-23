@@ -48,6 +48,42 @@ ColonizeColony* colonies_get_mut(ColonizeColonyPool* pool, int colony_id) {
   return NULL;
 }
 
+/*
+ * DOS colony index of a port colony id: the ordinal among active slots, which
+ * is exactly the order col1_bridge writes the COL1 colony array (DOS compacts
+ * on delete, raw 58156-58166; the port keeps holes). -1 when absent.
+ */
+int colonies_dos_index(const ColonizeColonyPool* pool, int colony_id) {
+  if (!pool || colony_id < 0) {
+    return -1;
+  }
+  int idx = 0;
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    if (!pool->colonies[i].active) {
+      continue;
+    }
+    if (pool->colonies[i].id == colony_id) {
+      return idx;
+    }
+    idx++;
+  }
+  return -1;
+}
+
+/* Inverse of colonies_dos_index: port colony id at DOS index `idx`, -1 if none. */
+int colonies_id_at_dos_index(const ColonizeColonyPool* pool, int idx) {
+  if (!pool || idx < 0) {
+    return -1;
+  }
+  int n = 0;
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    if (pool->colonies[i].active && n++ == idx) {
+      return pool->colonies[i].id;
+    }
+  }
+  return -1;
+}
+
 int colonies_id_at(const ColonizeColonyPool* pool, int x, int y) {
   if (!pool) {
     return -1;

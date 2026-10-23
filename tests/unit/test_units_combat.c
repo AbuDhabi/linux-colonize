@@ -1853,6 +1853,76 @@ static int unit_reset_hooks_clears_wiring(void) {
   return 0;
 }
 
+/*
+ * port_bugs.md #1177c: DOS rolls BEFORE the Combat Analysis dialog (FUN_5fef_1b0e
+ * raw 100571 -> FUN_2a1f_0704), so the presenter sees the final weights and the
+ * drawn roll for the cheat footer; the draw is the same first RNG output a
+ * fresh stream gives. Without the cheat bit the footer flag stays clear.
+ */
+static ColonizeCombatEngagement s_footer_seen;
+static int s_footer_calls;
+
+static void footer_presenter(const ColonizeCombatEngagement* eng, void* user) {
+  (void)user;
+  s_footer_seen = *eng;
+  s_footer_calls++;
+}
+
+static int unit_combat_cheat_footer_roll_before_dialog(void) {
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  pool.type_count = 2;
+  snprintf(pool.types[0].name, sizeof(pool.types[0].name), "Soldiers");
+  pool.types[0].attack = 3;
+  pool.types[0].defense = 2;
+  pool.types[0].movement = 1;
+  snprintf(pool.types[1].name, sizeof(pool.types[1].name), "Soldiers");
+  pool.types[1].attack = 1;
+  pool.types[1].defense = 2;
+  pool.types[1].movement = 1;
+  ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  col1.player[0].control = 0;
+  col1.player[1].control = 1;
+  col1.head.game_options.combat_analysis = 1;
+  col1.head.difficulty = 2;
+  units_set_ff_col1(&col1);
+  units_set_combat_human_nation(0);
+  combat_analysis_set_presenter(footer_presenter, NULL);
+  int rc = 0;
+  for (int cheat = 0; cheat < 2 && rc == 0; ++cheat) {
+    col1.head.game_options.cheats_enabled = cheat ? 1 : 0;
+    const int aid = units_spawn_allow_stack(&pool, 0, 5, 5);
+    const int did = units_spawn_allow_stack(&pool, 1, 6, 5);
+    units_get(&pool, aid)->nation_id = 0;
+    units_get(&pool, did)->nation_id = 1;
+    ColonizeDosRng rng;
+    dos_rng_seed(&rng, 4242);
+    ColonizeDosRng probe = rng;
+    s_footer_calls = 0;
+    memset(&s_footer_seen, 0, sizeof(s_footer_seen));
+    (void)units_resolve_land_combat_ff_w(
+      &(ColonizeWorld){.units = &pool, .col1 = &col1, .col1_ok = true, .rng = &rng}, aid, did
+    );
+    const int total = s_footer_seen.w_atk + s_footer_seen.w_def;
+    if (s_footer_calls != 1 || s_footer_seen.cheat_footer != (cheat != 0) || total <= 0) {
+      fprintf(stderr, "footer cheat=%d: calls=%d flag=%d total=%d\n", cheat, s_footer_calls,
+              (int)s_footer_seen.cheat_footer, total);
+      rc = 1;
+    } else if (s_footer_seen.cheat_roll != dos_rng_range(&probe, 1, total) ||
+               s_footer_seen.cheat_roll < 1 || s_footer_seen.cheat_roll > total) {
+      fprintf(stderr, "footer cheat=%d: roll %d is not the first draw of 1..%d\n", cheat,
+              s_footer_seen.cheat_roll, total);
+      rc = 1;
+    }
+    units_despawn(&pool, aid);
+    units_despawn(&pool, did);
+  }
+  combat_analysis_set_presenter(NULL, NULL);
+  units_set_combat_human_nation(-1);
+  return rc;
+}
+
 static int unit_naval_stack_sweep(void) {
   ColonizeMsgCatalog names;
   assets_msg_init(&names);
@@ -1966,6 +2036,7 @@ static const TestCase k_cases[] = {
   {"unit_1b0e_resolve_handicaps", unit_1b0e_resolve_handicaps},
   {"unit_1b0e_defender_bonus_live", unit_1b0e_defender_bonus_live},
   {"unit_naval_stack_sweep", unit_naval_stack_sweep},
+  {"unit_combat_cheat_footer_roll_before_dialog", unit_combat_cheat_footer_roll_before_dialog},
   {"unit_reset_hooks_clears_wiring", unit_reset_hooks_clears_wiring},
 };
 TEST_MAIN_WRAPPED(k_cases, diag_init(0, NULL), diag_shutdown())

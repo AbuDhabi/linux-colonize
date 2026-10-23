@@ -39,7 +39,7 @@ static bool game_found_finalize(ColonizeGameState* game, int uid, const char* ch
 static void game_open_landho_name_entry(ColonizeGameState* game);
 static void game_landho_default_region(const ColonizeGameState* game, char* out, size_t out_size);
 static void game_apply_name_entry_result(ColonizeGameState* game);
-void game_try_prompt_landho(ColonizeGameState* game);
+void game_try_prompt_landho(ColonizeGameState* game, int dest_x, int dest_y);
 bool game_handle_modal_input(ColonizeGameState* game, const ColonizeInputState* input);
 static void game_apply_howmuch_result(ColonizeGameState* game);
 static void game_do_buy_construction(ColonizeGameState* game, int colony_id);
@@ -173,6 +173,29 @@ void game_service_europe_bar(ColonizeGameState* game) {
   }
 }
 
+/*
+ * The same status-line ring on the colony screen (port_bugs.md #1182): DOS's
+ * FUN_1009_02cc paints DS:0x2d54 over the top strip of whatever screen is up,
+ * so the `U` line and the red @MISC 22 refusal replace the colony title line
+ * for their dwell. Like the Europe screen nothing blocks; the text and ink are
+ * handed to the view for the draw.
+ */
+void game_service_colony_bar(ColonizeGameState* game) {
+  if (!game) {
+    return;
+  }
+  ColonyScreenView* csv = &game->colony_screen;
+  csv->bar_text[0] = '\0';
+  if (ai_popup_bar_message(&game->ai_popups)) {
+    (void)ai_popup_bar_service(&game->ai_popups, game->elapsed_ms, false);
+  }
+  const char* bar = ai_popup_bar_message(&game->ai_popups);
+  if (bar) {
+    snprintf(csv->bar_text, sizeof(csv->bar_text), "%s", bar);
+    csv->bar_ink = ai_popup_bar_message_color(&game->ai_popups);
+  }
+}
+
 bool game_try_enter_europe(ColonizeGameState* game) {
   if (!game || !game->europe_ok) {
     return false;
@@ -245,16 +268,10 @@ void game_emit_warehouse_full(
 }
 
 /*
- * Complete human FOUND at founder unit tile (after gates / @NOPORT confirm).
- * FUN_4cc6_07c2 Indian homeland purchase via colonies_found_with_indian_land —
- * same charge/Minuit-free gate as AI euro FOUND. Cite: Colonization.pdf Indian
- * Land / Peter Minuit (FF 2). smoke_game_flow has no tribe fixture; covered by
- * unit_founding_fathers + unit_ai_euro_expand indian-land cases.
- */
-/*
- * DOS encroachment CHOICE kinds — the three GAME.TXT sections that share one
- * dialog shape ("respect" / "offer {N} gold" / "take it"): @INDIANLAND
- * (found colony, FUN_479b tile-buy site), @INDIANFOREST (pioneer clear order,
+ * DOS encroachment CHOICE kinds -- the three GAME.TXT sections that share one
+ * dialog shape ("respect" / "offer {N} gold" / "take it"): @INDIANLAND (the
+ * colony-screen plot drop, FUN_2f2b_2f3e raw ~82264-82487 -- NOT Build Colony,
+ * which founds free on tribal land), @INDIANFOREST (pioneer clear order,
  * thunk_FUN_1000_91fc), @INDIANROAD (pioneer road order, thunk_FUN_1000_9304).
  * Cite: original_sources_annotated/ai/indian_actions_menu.md §encroachment.
  */
@@ -269,13 +286,15 @@ enum {
 /*
  * Enqueue the encroachment CHOICE when DOS would: tile is tribal land with a
  * real price (Minuit / already-purchased → 0 → no dialog), the human is at
- * PEACE (relation bit 0x40, FUN_1000_8c28) with the owning tribe, and for
- * FOREST the tile is a forest class (8..23). "Offer gold" is greyed out in
- * DOS when the treasury cannot cover it (func_0x000193a6(dlg, 2, 1)); this
- * port drops the row instead. "Take it" has no immediate consequence in any
- * of the three DOS sites — encroachment friction accrues through the
- * already-ported FUN_4d56_152e village growth pass. Returns true when a
- * dialog was queued (caller must stop and wait for the result).
+ * PEACE (relation bit 0x40, FUN_281f_0a38) with the owning tribe, and for
+ * FOREST the tile is a forest class (8..23). PLOT asks the viewed colony's
+ * FUN_15eb_26e4 claim table instead of the tribe-radius test (`uid` = the
+ * plot's tile_index, x/y the plot). "Offer gold" is greyed out in DOS when
+ * the treasury cannot cover it (FUN_291f_01b6(dlg, 2, 1)); this port drops
+ * the row instead. "Take it" has no immediate consequence at the three
+ * sites; at the plot drop the assignment then seats the worker and
+ * FUN_15eb_06d2 charges the alarm. Returns true when a dialog was queued
+ * (caller must stop and wait for the result).
  */
 /* ===================== Colony founding: indian land choice, site survey & confirm chain (game_request_indian_land_choice .. game_try_found_colony_at_cursor) ===================== */
 bool game_request_indian_land_choice(
@@ -313,7 +332,18 @@ bool game_request_indian_land_choice(
       return false;
     }
   }
-  const int tribe_i = colonies_indian_land_owner_tribe(col1, &game->world_map, x, y);
+  int tribe_i;
+  if (kind == GAME_INDIAN_LAND_PLOT) {
+    /* FUN_2f2b_2f3e raw 82272: the 8d9e claim-table entry for the plot. */
+    const ColonizeColony* viewed = colonies_get(&game->colonies, game->colony_view_id);
+    if (!viewed) {
+      return false;
+    }
+    const ColonizeWorld w = game_world(game);
+    tribe_i = colonies_indian_claim_tribe_from_w(&w, hn, viewed->x, viewed->y, x, y);
+  } else {
+    tribe_i = colonies_indian_land_owner_tribe(col1, &game->world_map, x, y);
+  }
   if (tribe_i < 0 || !col1->tribe) {
     return false;
   }
@@ -515,7 +545,9 @@ static void game_found_open_colony_name(ColonizeGameState* game, int uid) {
   const char* seed = colonies_peek_next_name(&game->colonies, game->human_nation);
   game->found_open_colony_id = -1;
   game->found_pending_unit_plus1 = uid + 1;
-  if (!name_entry_open(&game->name_entry, NAME_ENTRY_KIND_FOUND, prompt, seed, -1)) {
+  if (name_entry_open(&game->name_entry, NAME_ENTRY_KIND_FOUND, prompt, seed, -1)) {
+    name_entry_set_label(&game->name_entry, howmuch_amount_label(&game->messages, "COLONY", ""));
+  } else {
     /* No prompt to answer means nothing will fire the tail — found anyway
      * rather than silently eating the order. */
     game->found_pending_unit_plus1 = 0;
@@ -524,7 +556,7 @@ static void game_found_open_colony_name(ColonizeGameState* game, int uid) {
   }
 }
 
-bool game_do_found_colony_at_unit(ColonizeGameState* game, int uid, bool land_resolved) {
+bool game_do_found_colony_at_unit(ColonizeGameState* game, int uid) {
   if (!game || !game->world_map_ok || uid < 0) {
     return false;
   }
@@ -545,18 +577,9 @@ bool game_do_found_colony_at_unit(ColonizeGameState* game, int uid, bool land_re
   }
 
   /*
-   * @INDIANLAND: DOS asks respect / offer gold / take before founding on
-   * tribal land (FUN_479b tile-buy site). land_resolved = the CHOICE already
-   * ran (paid via colonies_indian_land_pay, or "take it") — found free.
-   */
-  if (!land_resolved && game_request_indian_land_choice(game, GAME_INDIAN_LAND_FOUND, uid, cx, cy)) {
-    return true;
-  }
-  /*
-   * No dialog (not at peace with the owner, Minuit, already bought, AI-free
-   * tile): DOS founds without charging — the tile-buy only ever runs inside
-   * the @INDIANLAND "offer gold" arm. The old "need N gold" hard block and
-   * silent auto-pay are gone with it.
+   * Tribal land: founding is free. DOS's Build handler (FUN_479b_076e) never
+   * asks -- @INDIANLAND lives only in the colony-screen plot drop
+   * (port_bugs.md #1175).
    */
   /*
    * port_bugs.md #682: the name prompt is the LAST gate. Everything that touches
@@ -681,7 +704,7 @@ static void game_found_confirm_chain(ColonizeGameState* game, int uid, int stage
       return;
     }
   }
-  (void)game_do_found_colony_at_unit(game, uid, false);
+  (void)game_do_found_colony_at_unit(game, uid);
 }
 
 /* @NOPORT CHOICE when founding inland (no ocean access). */
@@ -1221,6 +1244,14 @@ void game_request_disband_confirm(ColonizeGameState* game) {
   const int y = game->map_cursor_y;
   const bool cheats = game_cheats_enabled(game);
   int uid = view ? -1 : game->units.selected_id;
+  if (!view && uid >= 0 && !cheats) {
+    /* Port: unit mode skips DOS's owner-nibble gate (the port's owner stamp can lag
+     * behind the active unit), so it is limited to the player's own units instead. */
+    const ColonizeUnit* su = units_get_const(&game->units, uid);
+    if (!su || su->nation_id != game->human_nation) {
+      return;
+    }
+  }
   if (view || uid < 0) {
     if (!cheats && (!game->world_map_ok ||
                     units_tile_owner_nibble(&game->world_map, x, y) !=
@@ -1319,7 +1350,7 @@ void game_colony_present_now(ColonizeGameState* game, AiPopupTag tag) {
 /*
  * FUN_38fd_2dfe (viceroy_unpacked.c:60904) — the Europe market strip's
  * boycott buy-back asks before it pays. DOS sets %STRING0 to the cargo name
- * and %STRING1 to the player's country, quotes the back taxes in %NUMBER0,
+ * and %STRING1 to the home port city (@HOMEPORT), quotes the back taxes in %NUMBER0,
  * then runs `FUN_281f_0652(0x1033, 2)` = the @KISSUP two-row CHOICE and acts
  * only when the answer is row 2, "Pay {%NUMBER0$}." (row 1 is the refusal,
  * "This is taxation without representation! Unfair!"). The purse test and its
@@ -1344,13 +1375,13 @@ void game_europe_ask_boycott_buyback(ColonizeGameState* game, int cargo_type) {
   }
   const char* cname =
     eu->cargo[cargo_type].name[0] ? eu->cargo[cargo_type].name : "";
-  const char* country = col1_player_country_name(&game->col1, human)[0]
-                          ? col1_player_country_name(&game->col1, human)
-                          : "";
+  /* %STRING1 = DS:(0x9e12*2 - 0x7c74) = DS:0x838c, the @HOMEPORT pointer table
+   * (the port's eu->port_city, as @PRICEUP uses it): the Europe city, not the
+   * colony country (port_bugs.md #1177 extra). */
   PopupMsgTokens tok;
   memset(&tok, 0, sizeof(tok));
   tok.string0 = cname;
-  tok.string1 = country;
+  tok.string1 = eu->port_city;
   tok.number0 = cost;
   tok.has_number0 = true;
   char body[AI_POPUP_BODY_LEN];
@@ -1389,6 +1420,220 @@ bool game_europe_boycott_gate(ColonizeGameState* game, int cargo_type) {
   }
   game_europe_ask_boycott_buyback(game, cargo_type);
   return true;
+}
+
+/* ===================== Europe ship menu & U / - / _ sell keys (game_europe_refusal .. game_europe_unload_all) ===================== */
+
+/* Red status-strip refusal (DOS arm kind 3) with LABELS `section` row `index`;
+ * a catalog miss shows nothing. */
+void game_europe_refusal(ColonizeGameState* game, const char* section, int index) {
+  const char* text = reports_labels_field(section, index);
+  if (game && text && text[0]) {
+    (void)ai_popup_enqueue_bar_refusal(&game->ai_popups, text);
+  }
+}
+
+/* First hold slot carrying `ctype` (FUN_281f_0c2c), -1 when none. */
+static int game_europe_first_hold_slot(const EuropeHarborShip* ship, int ctype) {
+  for (int i = 0; i < EUROPE_SHIP_CARGO_MAX; ++i) {
+    if (ship->hold_goods_amount[i] > 0 && ship->hold_goods_amount[i] < 255 &&
+        ship->hold_goods_type[i] == ctype) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+/* FUN_38fd_23c4 param_3 != 0 arm: the @HOWMUCH5 amount prompt for one hold
+ * (commit: HOWMUCH_KIND_SELL -> europe_sell_hold_partial). */
+void game_europe_open_sell_prompt(ColonizeGameState* game, int hidx, int hold) {
+  EuropeScreen* eu = &game->europe;
+  if (hidx < 0 || hidx >= eu->harbor_ships || hold < 0 || hold >= EUROPE_SHIP_CARGO_MAX) {
+    return;
+  }
+  const EuropeHarborShip* ship = &eu->harbor[hidx];
+  if (ship->hold_goods_amount[hold] <= 0 || ship->hold_goods_amount[hold] >= 255) {
+    return;
+  }
+  const int ctype = ship->hold_goods_type[hold];
+  const int max_amt = ship->hold_goods_amount[hold];
+  char prompt[AI_POPUP_BODY_LEN];
+  PopupMsgTokens tok;
+  memset(&tok, 0, sizeof(tok));
+  tok.string0 = (ctype >= 0 && ctype < eu->cargo_count) ? eu->cargo[ctype].name : "";
+  tok.string1 = ship->name;
+  /* FUN_38fd_23c4: STRING2 = the nation's Europe port name, the DS:0x838c table
+   * (@HOMEPORT), the same one the @PRICEDOWN popup names. */
+  tok.string2 = eu->port_city;
+  tok.number0 = max_amt;
+  tok.has_number0 = true;
+  tok.number1 = europe_sell_price(eu, ctype);
+  tok.has_number1 = true;
+  popup_msg_fill(&game->messages, "HOWMUCH5", &tok, "", prompt, sizeof(prompt));
+  howmuch_open(
+    &game->howmuch, HOWMUCH_KIND_SELL, prompt,
+    howmuch_amount_label(&game->messages, "HOWMUCH5", ""), max_amt, max_amt, ctype, hold
+  );
+}
+
+/*
+ * FUN_38fd_23c4(ship, cargo, mode) (raw 60507-60640), the `-` / `_` keys and
+ * the tail of `U`: FUN_281f_0c2c finds the FIRST hold slot carrying `cargo`.
+ * None: the red bar CMESSAGE 9 + cargo name + CMESSAGE 10 ("No ... in cargo
+ * hold!"), only while the Europe screen is up (DS:0x892). Else mode 0 sells
+ * that whole slot (cap 100, FUN_15eb_32a0) with the sale line and price
+ * popups; `prompt` (mode != 0, the `_` key) asks the amount first. The boycott
+ * gate is the caller's, as in DOS.
+ */
+void game_europe_sell_first_hold(ColonizeGameState* game, int hidx, int cargo, bool prompt) {
+  if (!game || !game->europe_ok) {
+    return;
+  }
+  EuropeScreen* eu = &game->europe;
+  if (hidx < 0 || hidx >= eu->harbor_ships) {
+    return;
+  }
+  const int slot = game_europe_first_hold_slot(&eu->harbor[hidx], cargo);
+  if (slot < 0) {
+    if (game->in_europe) {
+      /* reports_labels_field returns one static buffer: copy the first word out. */
+      char no[64];
+      const char* w9 = reports_labels_field("CMESSAGE", 9);
+      snprintf(no, sizeof(no), "%s", w9 ? w9 : "");
+      const char* in_hold = reports_labels_field("CMESSAGE", 10);
+      const char* cname = (cargo >= 0 && cargo < eu->cargo_count) ? eu->cargo[cargo].name : "";
+      char line[AI_POPUP_BAR_MSG_LEN];
+      snprintf(line, sizeof(line), "%s %s %s", no, cname, in_hold ? in_hold : "");
+      if (no[0] || (in_hold && in_hold[0])) {
+        (void)ai_popup_enqueue_bar_refusal(&game->ai_popups, line);
+      }
+    }
+    return;
+  }
+  if (prompt) {
+    game_europe_open_sell_prompt(game, hidx, slot);
+    return;
+  }
+  (void)europe_sell_hold(eu, &game->col1, game->human_nation, hidx, slot);
+  game_europe_drain_price_events(game);
+}
+
+/*
+ * U on the European Status: FUN_38fd_4f6e 38fd:5140-5158 -> FUN_479b_0f60(ship, 1)
+ * (raw 77343-77431). No harbor ship: nothing. Empty ship: the red bar @MISC 22
+ * ("No cargo on board!"). Else europe_dos_0f60_pick names the cargo of the
+ * LOWEST sort key; a boycotted one raises @KISSUP and stops (no fall-through);
+ * otherwise FUN_38fd_23c4(ship, cargo, 0) sells the first slot holding it. One
+ * hold per press.
+ */
+void game_europe_sell_best_hold(ColonizeGameState* game, int hidx) {
+  if (!game || !game->europe_ok || hidx < 0 || hidx >= game->europe.harbor_ships) {
+    return;
+  }
+  EuropeScreen* eu = &game->europe;
+  const int slot = europe_dos_0f60_pick(
+    eu, game->col1_ok ? &game->col1 : NULL, game->human_nation, hidx
+  );
+  if (slot < 0) {
+    game_europe_refusal(game, "MISC", 22);
+    return;
+  }
+  const int cargo = eu->harbor[hidx].hold_goods_type[slot];
+  if (game_europe_boycott_gate(game, cargo)) {
+    return;
+  }
+  game_europe_sell_first_hold(game, hidx, cargo, false);
+}
+
+/*
+ * Row 3 of the Europe ship menu, "Unload all cargo", FUN_38fd_2bfe (raw
+ * 60787-60900). Hold slots walk from count-1 DOWN to 0; each pass first
+ * resets the notice flag (asm 38fd:2d8c, not a latch), a boycotted hold
+ * (FUN_38fd_05e8) sets it and is skipped, anything else is sold whole
+ * (FUN_38fd_23c4, no amount prompt; it sells the FIRST hold of that cargo,
+ * FUN_15eb_32a0). After the loop a set flag raises @SOMEBOYCOTT (0x1027) as an
+ * OK modal -- so DOS only shows it when the last-examined slot 0 was
+ * boycotted (DOS quirk, kept). Price popups come before it. No summary line.
+ */
+static void game_europe_unload_all(ColonizeGameState* game, int hidx) {
+  EuropeScreen* eu = &game->europe;
+  const EuropeHarborShip* ship = &eu->harbor[hidx];
+  int count = 0;
+  while (europe_hold_slot_kth(ship, count) >= 0) {
+    ++count;
+  }
+  int boycotted = 0;
+  for (int k = count - 1; k >= 0; --k) {
+    boycotted = 0;
+    const int slot = europe_hold_slot_kth(ship, k);
+    if (slot < 0) {
+      break;
+    }
+    const int ctype = ship->hold_goods_type[slot];
+    if (europe_cargo_boycotted_ex(eu, &game->col1, game->human_nation, ctype)) {
+      boycotted = 1;
+      continue;
+    }
+    (void)europe_sell_hold(
+      eu, &game->col1, game->human_nation, hidx, game_europe_first_hold_slot(ship, ctype)
+    );
+  }
+  game_europe_drain_price_events(game);
+  if (boycotted) {
+    char body[AI_POPUP_BODY_LEN];
+    popup_msg_fill(&game->messages, "SOMEBOYCOTT", NULL, "", body, sizeof(body));
+    ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+  }
+}
+
+/*
+ * The Europe harbor ship menu, FUN_38fd_2bfe(ship, 0) (raw 60787-60900), opened
+ * by a mouse release over a ship icon (FUN_38fd_2edc) and by S / Space / Enter
+ * with a ship selected (FUN_38fd_4f6e 38fd:5364-5491). Title @EUROPESHIPCLICK
+ * (STRING0 = the ship's type name, STRING1 empty); the rows are the lines of
+ * @EUROPESHIPOPTIONS, kept under their DOS ids 1 Move to front, 2 Set sail for
+ * the New World, 3 Unload all cargo, 4 No changes. Row 2 is DOS-gated on the
+ * ship not being damaged (unit +2 bit 7); harbor ships here carry no damage
+ * flag, so it is always offered. Row 3 only while a goods hold is occupied.
+ */
+void game_europe_open_ship_menu(ColonizeGameState* game, int hidx) {
+  if (!game || !game->europe_ok) {
+    return;
+  }
+  EuropeScreen* eu = &game->europe;
+  if (hidx < 0 || hidx >= eu->harbor_ships) {
+    return;
+  }
+  char rows[4][POPUP_MSG_CHOICE_LEN];
+  const int nrows =
+    popup_msg_rows(assets_msg_find(&game->messages, "EUROPESHIPOPTIONS"), rows, 4);
+  if (nrows <= 0) {
+    return;
+  }
+  eu->selected_harbor = hidx;
+  const EuropeHarborShip* ship = &eu->harbor[hidx];
+  PopupMsgTokens tok;
+  memset(&tok, 0, sizeof(tok));
+  tok.string0 = ship->name;
+  tok.string1 = "";
+  char body[AI_POPUP_BODY_LEN];
+  popup_msg_fill(&game->messages, "EUROPESHIPCLICK", &tok, "", body, sizeof(body));
+  const char* labels[4];
+  int ids[4];
+  int n = 0;
+  for (int id = 1; id <= nrows; ++id) {
+    if (id == 3 && europe_hold_slot_kth(ship, 0) < 0) {
+      continue;
+    }
+    labels[n] = rows[id - 1];
+    ids[n] = id;
+    ++n;
+  }
+  if (ai_popup_enqueue_choice_ctx(
+        &game->ai_popups, AI_POPUP_TAG_EUROPE_SHIP_MENU, hidx, -1, 0, NULL, body, labels, ids, n
+      )) {
+    (void)ai_popup_present_now(&game->ai_popups, AI_POPUP_TAG_EUROPE_SHIP_MENU);
+  }
 }
 
 void game_request_buy_construction_confirm(ColonizeGameState* game) {
@@ -1665,9 +1910,19 @@ static void game_landho_default_region(const ColonizeGameState* game, char* out,
     str_copy_trunc(out, out_size, "");
     return;
   }
-  /* Seed from the human nation's @COLONYNAME — do not trust a stale
-   * europe.colony_region left by europe_load (always nation 0 / New England). */
   const int nation = game->human_nation;
+  /* DOS FUN_2b5a_001e (2b5a:0023-0036) passes FUN_291f_0120 the buffer
+   * nation*0x34 + 0x5426 = player[turn].country_name, so the field opens on the
+   * live country name; GAME.TXT's `@default=America` is only read when no buffer
+   * is passed (FUN_6f74_32a4's @DEFAULT arm tests DS:0xa5b4 == 0) and is dead
+   * for @LANDHO. A new game writes NAMES @COLONYNAME into it (original_saves/
+   * COLONY00.SAV: "New England" / "New France" / ...). Port_bugs.md #1181. */
+  if (game->col1_ok && nation >= 0 && nation <= 3) {
+    str_copy_trunc(out, out_size, col1_player_country_name(&game->col1, nation));
+    return;
+  }
+  /* No save bound (headless): the same default straight from NAMES @COLONYNAME;
+   * do not trust a stale europe.colony_region (europe_load: always nation 0). */
   if (game->names_ok && nation >= 0 && nation <= 3) {
     const ColonizeMsgSection* reg = assets_msg_find(&game->names, "COLONYNAME");
     if (reg && nation < reg->line_count) {
@@ -1706,9 +1961,11 @@ static void game_open_landho_name_entry(ColonizeGameState* game) {
   );
   char seed[48];
   game_landho_default_region(game, seed, sizeof(seed));
-  if (!name_entry_open(
+  if (name_entry_open(
         &game->name_entry, NAME_ENTRY_KIND_LANDHO, prompt, seed, -1
       )) {
+    name_entry_set_label(&game->name_entry, howmuch_amount_label(&game->messages, "LANDHO", ""));
+  } else {
     /* Fallback: mark discovery so DOS woodcut one-shot does not re-fire. */
     if (game->col1_ok) {
       col1_bridge_mark_new_world_discovered(&game->col1, game->human_nation);
@@ -1808,7 +2065,7 @@ static void game_apply_name_entry_result(ColonizeGameState* game) {
   game->name_entry.has_result = false;
 }
 
-void game_try_prompt_landho(ColonizeGameState* game) {
+void game_try_prompt_landho(ColonizeGameState* game, int dest_x, int dest_y) {
   if (!game || !game->col1_ok || !game->world_map_ok) {
     return;
   }
@@ -1821,15 +2078,25 @@ void game_try_prompt_landho(ColonizeGameState* game) {
   if (game->col1.player[game->human_nation].named_new_world) {
     return;
   }
-  if (!col1_bridge_human_has_seen_land(&game->world_map, game->human_nation)) {
+  /*
+   * DOS-LITERAL FUN_4720_049e tail (viceroy_unpacked.c 76122-76142, asm
+   * 4720:061c-06b2), run after FUN_2a1f_0142 committed the human's move: while
+   * the mover's named_new_world bit (player+0x30 & 0x80) is clear, scan the 3x3
+   * around the DESTINATION (y outer, x inner, FUN_281f_0768 = FUN_13e4_0074
+   * water test); the first non-water tile sets the bit and calls FUN_281f_0f6c
+   * -> FUN_2b5a_001e: woodcut 1 (once per game via the event bit), then the
+   * FUN_291f_0120(0x17) name dialog. Nothing else in the EXE sets bit 0x80 —
+   * no turn-start, load, select or Europe-arrival check (port_bugs.md #1178).
+   */
+  bool land = false;
+  for (int y = dest_y - 1; !land && y <= dest_y + 1; ++y) {
+    for (int x = dest_x - 1; !land && x <= dest_x + 1; ++x) {
+      land = map_tile_is_land(&game->world_map, x, y);
+    }
+  }
+  if (!land) {
     return;
   }
-  /*
-   * FUN_4720_049e: the ring scan that first finds land sets the nation's
-   * named_new_world bit and immediately calls FUN_281f_0f6c → FUN_2b5a_001e
-   * → woodcut 1. The @LANDHO naming prompt opens behind it and takes input
-   * once the woodcut is dismissed.
-   */
   (void)woodcut_fire(&game->col1, WOODCUT_DISCOVERY_OF_THE_NEW_WORLD);
   game_open_landho_name_entry(game);
 }
@@ -1936,9 +2203,11 @@ static void game_trade_service_screen_request(ColonizeGameState* game) {
         &game->messages, "TRADENAME", NULL, "",
         prompt, sizeof(prompt)
       );
-      (void)name_entry_open(
-        &game->name_entry, NAME_ENTRY_KIND_TRADE_RENAME, prompt, r->name, ts->route
-      );
+      if (name_entry_open(
+            &game->name_entry, NAME_ENTRY_KIND_TRADE_RENAME, prompt, r->name, ts->route
+          )) {
+        name_entry_set_label(&game->name_entry, howmuch_amount_label(&game->messages, "TRADENAME", ""));
+      }
       break;
     }
     case TRADE_SCREEN_REQ_DEST:
@@ -2231,6 +2500,72 @@ void game_colony_unload_hold(
   (void)game_colony_unload_hold_commit(game, unit_id, hold, 0, empty_msg);
 }
 
+/*
+ * The DOS colony-screen `U` status line, FUN_479b_0f60 mode 0 (raw 77406-77418):
+ * FUN_281f_0056(1) flush, then @MISC 24 "Unloading" (FUN_281f_0dd6(0x18)), the
+ * qty (DS:0x8dc4), the cargo name (DS:0x97c0 + 2*cargo), @MISC 26 "in" (0x1a)
+ * and the colony name, armed with FUN_281f_0dc2(1, 0x78, 0) on the map-strip
+ * ring (every append leaves one trailing space; the strip trims it visually).
+ * Wording from LABELS only: a catalog miss leaves that word out.
+ */
+static void game_colony_u_status(ColonizeGameState* game, int ctype, int qty) {
+  char line[AI_POPUP_BAR_MSG_LEN];
+  size_t n = 0;
+  line[0] = '\0';
+  const ColonizeColony* col = colonies_get(&game->colonies, game->colony_view_id);
+  const char* cargo = (ctype >= 0 && ctype < COLONIZE_CARGO_COUNT) ? game->europe.cargo[ctype].name : "";
+  char qty_s[16];
+  snprintf(qty_s, sizeof(qty_s), "%d", qty);
+  char unloading[64], in_word[64];
+  const char* w = reports_labels_field("MISC", 24);
+  snprintf(unloading, sizeof(unloading), "%s", w ? w : "");
+  w = reports_labels_field("MISC", 26);
+  snprintf(in_word, sizeof(in_word), "%s", w ? w : "");
+  const char* parts[] = {unloading, qty_s, cargo, in_word, col ? col->name : ""};
+  for (size_t i = 0; i < sizeof(parts) / sizeof(parts[0]); ++i) {
+    if (parts[i][0]) {
+      n += (size_t)snprintf(line + n, sizeof(line) - n, "%s%s", n ? " " : "", parts[i]);
+    }
+  }
+  (void)ai_popup_enqueue_bar_message(&game->ai_popups, line);
+}
+
+/*
+ * U on the colony screen: 2f2b:6694-66a3 -> FUN_479b_0f60(FUN_281f_0b32(DS:0x33e), 0)
+ * (raw 77343-77431, mode 0). No ship selected (DS:0x33c == 0): nothing, no message.
+ * Empty ship: the red bar @MISC 22. Else the pick is the LOWEST (price << 4) * qty
+ * key (europe_dos_0f60_pick_holds, the Europe `U` pick, Muskets/Tools 0, Horses 1),
+ * the @WAREHOUSEFULL confirm runs first when the warehouse would overflow
+ * (answer != 2 leaves the hold alone), then the whole hold goes ashore and the
+ * status line above is armed. One hold per press.
+ */
+void game_colony_unload_best_hold(ColonizeGameState* game) {
+  if (!game || !game->in_colony || !game->units_ok) {
+    return;
+  }
+  const int unit_id = game->colony_screen.transport_unit_id;
+  const ColonizeUnit* u = unit_id >= 0 ? units_get_const(&game->units, unit_id) : NULL;
+  if (!u) {
+    return;
+  }
+  const int hold = europe_dos_0f60_pick_holds(
+    &game->europe, game->col1_ok ? &game->col1 : NULL, u->nation_id, u->hold_goods_type,
+    u->hold_goods_amount, units_goods_hold_count(&game->units, unit_id)
+  );
+  if (hold < 0) {
+    game_europe_refusal(game, "MISC", 22);
+    return;
+  }
+  const int ctype = u->hold_goods_type[hold];
+  if (game_colony_unload_ask(game, unit_id, hold, 0, GAME_UNLOAD_PAYLOAD_U_STATUS)) {
+    return;
+  }
+  const int moved = game_colony_unload_hold_commit(game, unit_id, hold, 0, NULL);
+  if (moved > 0) {
+    game_colony_u_status(game, ctype, moved);
+  }
+}
+
 /* ===================== Howmuch popup apply (game_apply_howmuch_result) ===================== */
 static void game_apply_howmuch_result(ColonizeGameState* game) {
   if (!game || game->howmuch.result_cancelled || game->howmuch.result_amount <= 0) {
@@ -2376,8 +2711,13 @@ static bool game_apply_popup_map_and_colony(ColonizeGameState* game) {
     const int amount = payload & 0xfffff;
     const bool unload_all = (payload & (1 << 20)) != 0;
     if (go && game->in_colony) {
-      (void)game_colony_unload_hold_commit(game, unit_id, hold, amount, NULL);
+      const ColonizeUnit* pu = units_get_const(&game->units, unit_id);
+      const int pctype = (pu && hold >= 0 && hold < COLONIZE_UNIT_CARGO_MAX) ? pu->hold_goods_type[hold] : -1;
+      const int pmoved = game_colony_unload_hold_commit(game, unit_id, hold, amount, NULL);
       colony_screen_set_status(&game->colony_screen, game->status);
+      if ((payload & GAME_UNLOAD_PAYLOAD_U_STATUS) && pmoved > 0) {
+        game_colony_u_status(game, pctype, pmoved);
+      }
       if (unload_all) {
         /* 99b8 case 5 loops until a hold refuses or the unit runs dry. */
         game_colony_unload_all_cargo(game, unit_id);
@@ -2487,6 +2827,7 @@ static bool game_apply_popup_contact(ColonizeGameState* game) {
    * @INDIANLAND / @INDIANFOREST / @INDIANROAD result (DOS 1-based): 1 respect
    * → cancel the order; 2 offer gold → colonies_indian_land_pay + @INDIANBRIBE,
    * then proceed; 3 take → proceed unpaid (no immediate DOS consequence).
+   * @INDIANLAND (PLOT): `nation_a` is the plot's tile_index, not a unit id.
    */
   if (game->ai_popups.result_tag == AI_POPUP_TAG_INDIAN_LAND) {
     const int uid = game->ai_popups.result_nation_a;
@@ -2497,6 +2838,11 @@ static bool game_apply_popup_contact(ColonizeGameState* game) {
                                                         : game->ai_popups.result_choice_id;
     ai_popup_consume_result(&game->ai_popups);
     if (choice == GAME_INDIAN_LAND_RESPECT) {
+      if (kind == GAME_INDIAN_LAND_PLOT) {
+        /* FUN_2f2b_2f3e raw 82344-82487: respect jumps to the exit
+         * (`0xbb8 = 0`) before any write -- the drop is simply aborted. */
+        return true;
+      }
       /*
        * DOS-LITERAL FUN_2b5a_123e raw 42496-42499 (FUN_2b5a_1454 raw
        * 42587-42590): the "respect their wishes" arm is
@@ -2520,13 +2866,13 @@ static bool game_apply_popup_contact(ColonizeGameState* game) {
     const int hn = game->human_nation;
     if (choice == GAME_INDIAN_LAND_OFFER && game->col1_ok && hn >= 0 && hn < 4) {
       ColonizeCol1Save* col1 = &game->col1;
-      /* Stamp → pay-by-pointer → pull: the one place an absolute copy is
-       * legitimate, because the pay helper writes the record directly (G3). */
-      europe_gold_stamp_record(&game->europe, col1);
       const int price = colonies_indian_land_purchase_gold(col1, &game->world_map, x, y, hn);
-      if (price > 0 && col1->nation[hn].gold >= (uint32_t)price) {
-        colonies_indian_land_pay(col1, &game->world_map, x, y, hn, &col1->nation[hn].gold, price);
-        game->europe.gold = (int)col1->nation[hn].gold;
+      if (price > 0 && europe_nation_gold(&game->europe, col1, hn) >= (uint32_t)price) {
+        /* gold = NULL: the spend goes through europe_nation_gold_add, the one
+         * sanctioned writer; land_pay does lands_bought++ + the 0x10 stamp
+         * (FUN_281f_0af6, INC indian+5, FUN_15eb_0668). */
+        colonies_indian_land_pay(col1, &game->world_map, x, y, hn, NULL, price);
+        europe_nation_gold_add(&game->europe, col1, hn, -(long)price);
         char body[AI_POPUP_BODY_LEN];
         popup_msg_fill(
           &game->messages,
@@ -2537,11 +2883,14 @@ static bool game_apply_popup_contact(ColonizeGameState* game) {
           sizeof(body)
         );
         ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+        /* The plot drop runs inside the colony screen: the blocking
+         * @INDIANBRIBE (FUN_291f_019c) opens on the spot, not at close. */
+        game_colony_present_now(game, AI_POPUP_TAG_INFO);
       }
     }
     switch (kind) {
-      case GAME_INDIAN_LAND_FOUND:
-        (void)game_do_found_colony_at_unit(game, uid, true);
+      case GAME_INDIAN_LAND_PLOT:
+        game_colony_plot_land_resume(game, uid);
         break;
       case GAME_INDIAN_LAND_FOREST:
       case GAME_INDIAN_LAND_ROAD: {
@@ -2689,6 +3038,23 @@ static bool game_apply_popup_diplo_and_scout(ColonizeGameState* game) {
     }
     (void)europe_buyback_boycott(eu, &game->col1, game->human_nation, cargo_type);
   return true;
+  }
+  /* Europe ship menu (FUN_38fd_2bfe): 1 Move to front, 2 Set sail (the usual
+   * @SAILAWAY confirm), 3 Unload all cargo; 4 / Esc change nothing. */
+  if (game->ai_popups.result_tag == AI_POPUP_TAG_EUROPE_SHIP_MENU) {
+    const int hidx = game->ai_popups.result_nation_a;
+    const int row = game->ai_popups.result_cancelled ? 4 : game->ai_popups.result_choice_id;
+    ai_popup_consume_result(&game->ai_popups);
+    if (game->europe_ok && hidx >= 0 && hidx < game->europe.harbor_ships) {
+      if (row == 1) {
+        (void)europe_harbor_move_to_front(&game->europe, hidx);
+      } else if (row == 2) {
+        game_europe_request_sail(game, hidx);
+      } else if (row == 3) {
+        game_europe_unload_all(game, hidx);
+      }
+    }
+    return true;
   }
   /* @OVERBOARD hold pick (port_bugs.md #984): id 99 / cancel = keep the cargo. */
   if (game->ai_popups.result_tag == AI_POPUP_TAG_OVERBOARD_WHICH) {

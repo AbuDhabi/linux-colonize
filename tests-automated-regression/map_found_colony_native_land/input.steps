@@ -1,15 +1,14 @@
-# Found colonies on Tupi (peace) land: the @INDIANLAND respect / offer gold / take it choice. Fixture: Peter
-# Minuit removed from France (FF 2), gold 1500; three colonists (128..130), full moves, on coastal forest next to
-# Tupi villages, selected in id order (every other French unit sentried so none auto-cycles in first).
+# Found colonies on Tupi (peace) land: Build Colony asks nothing and charges nothing (the native-land prompt
+# lives on the colony-screen plot drop, colony_tile_native_land). Fixture: Peter Minuit removed from France
+# (FF 2), gold 1500; three colonists (128..130), full moves, on coastal forest next to Tupi villages, selected
+# in id order (every other French unit sentried so none auto-cycles in first).
 # Tiles (45,22) beside village (46,22), (47,25) and (45,27) beside village (46,26).
-key b                      # colonist at (45,22): @INDIANLAND "trespassing" (offer 422)
-click 150 101              # row 1 "respect your wishes": no colony, colonist's moves spent, next colonist selected
-key b                      # colonist at (47,25): @INDIANLAND again, 422
-click 150 113              # row 2 "offer 422": gold 1500 -> 1078, Tupi lands_bought 0 -> 1, tile bought, @INDIANBRIBE
+key b                      # colonist at (45,22): name prompt at once, no @INDIANLAND
 key Return                 # name prompt (default): colony founded, colony screen opens
-key Return                 # dismiss @INDIANBRIBE "we withdraw our objection"
 key Escape                 # back to the map; next colonist selected
-key b                      # colonist at (45,27): @INDIANLAND, price now 455 (lands_bought raised it)
-click 150 123              # row 3 "this is OUR land now": colony founded, nothing charged
-key Return                 # name prompt (default)
-key Escape                 # back to the map
+key b                      # colonist at (47,25)
+key Return
+key Escape
+key b                      # colonist at (45,27)
+key Return
+key Escape

@@ -3354,6 +3354,106 @@ static int case_colony_delete_appends_next(void) {
   return rc;
 }
 
+/* port_bugs.md #1179, FUN_364b_1e64 raw 58170-58188: live trade-route stops are DOS
+ * colony indices, so a colony delete drops the stops at it, shifts later ones
+ * down and walks the unit cursor (FUN_647e_060e); a hole-fill founding shifts
+ * them back up. */
+static int case_colony_delete_remaps_trade_stops(void) {
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  char err[256];
+  if (!map_load_mp("COLONIZE/AMER2.MP", &map, err, sizeof(err))) {
+    return 1;
+  }
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  int ids[4];
+  int n = 0;
+  for (int y = 2; y < (int)map.height - 2 && n < 4; y += 4) {
+    for (int x = 2; x < (int)map.width - 2 && n < 4; x += 4) {
+      if (colonies_can_found(&pool, &map, x, y)) {
+        ids[n++] = colonies_found(&pool, &map, x, y, 0, -1, UNITS_JOB_NONE, 0, 0, 0);
+      }
+    }
+  }
+  if (n != 4) {
+    fprintf(stderr, "trade stops: wanted 4 colonies, founded %d\n", n);
+    map_free(&map);
+    return 1;
+  }
+  ColonizeCol1Save* col1 = (ColonizeCol1Save*)calloc(1, sizeof(*col1));
+  ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
+  units_reset(&units);
+  if (!col1) {
+    map_free(&map);
+    return 1;
+  }
+  const uint16_t start[3][2] = {{0, 2}, {1, 999}, {3, 1}};
+  const uint8_t dests[3] = {3, 2, 2};
+  col1->head.trade_route_count = 3;
+  col1->trade_route[0].stop[0].colony_index = 0;
+  col1->trade_route[0].stop[1].colony_index = 2;
+  col1->trade_route[0].stop[2].colony_index = 3;
+  for (int r = 1; r < 3; ++r) {
+    col1->trade_route[r].stop[0].colony_index = start[r][0];
+    col1->trade_route[r].stop[1].colony_index = start[r][1];
+  }
+  for (int r = 0; r < 3; ++r) {
+    col1->trade_route[r].dest_count = dests[r];
+  }
+  units.units[0].active = true;
+  units.units[0].id = 1;
+  units.units[0].orders = UNITS_ORDER_TRADE_ROUTE;
+  units.units[0].follow_unit_id = 1;
+  units.units[0].col1_counter16 = 1;
+  units_pool_sync(&units);
+  colonies_set_units_context(&units);
+  colonies_set_col1_context(col1);
+  int rc = !colonies_abandon(&pool, ids[1]);
+  const ColonizeCol1TradeRoute* t = col1->trade_route;
+  if (rc || t[0].dest_count != 3 || t[0].stop[0].colony_index != 0 ||
+      t[0].stop[1].colony_index != 1 || t[0].stop[2].colony_index != 2 ||
+      t[1].dest_count != 1 || t[1].stop[0].colony_index != 999 || t[2].dest_count != 1 ||
+      t[2].stop[0].colony_index != 2 || units.units[0].col1_counter16 != 0 ||
+      colonies_id_at_dos_index(&pool, 2) != ids[3] || colonies_dos_index(&pool, ids[3]) != 2) {
+    fprintf(stderr, "trade stops after delete: r0 %u/%u/%u(%u) r1 %u(%u) r2 %u(%u) cursor %d\n",
+            t[0].stop[0].colony_index, t[0].stop[1].colony_index, t[0].stop[2].colony_index,
+            t[0].dest_count, t[1].stop[0].colony_index, t[1].dest_count,
+            t[2].stop[0].colony_index, t[2].dest_count, units.units[0].col1_counter16);
+    rc = 1;
+  }
+  /* Hole-fill: with the last slot live the new colony takes the hole at DOS
+   * index 1, so stops {0,1,2} (idx 1 = old ids[2]) move to {0,2,3}. */
+  if (!rc) {
+    pool.colonies[COLONIZE_COLONIES_MAX - 1].active = true;
+    pool.colonies[COLONIZE_COLONIES_MAX - 1].id = 9999;
+    int fx = -1, fy = -1;
+    for (int y = 40; y < (int)map.height - 2 && fx < 0; y += 3) {
+      for (int x = 2; x < (int)map.width - 2 && fx < 0; x += 3) {
+        if (colonies_can_found(&pool, &map, x, y)) {
+          fx = x;
+          fy = y;
+        }
+      }
+    }
+    const int nid = fx < 0 ? -1 : colonies_found(&pool, &map, fx, fy, 0, -1, UNITS_JOB_NONE, 0, 0, 0);
+    if (nid < 0 || colonies_dos_index(&pool, nid) != 1 || t[0].stop[0].colony_index != 0 ||
+        t[0].stop[1].colony_index != 2 || t[0].stop[2].colony_index != 3 ||
+        t[1].stop[0].colony_index != 999) {
+      fprintf(stderr, "trade stops after hole-fill: new %d r0 %u/%u/%u\n", nid,
+              t[0].stop[0].colony_index, t[0].stop[1].colony_index, t[0].stop[2].colony_index);
+      rc = 1;
+    }
+  }
+  colonies_set_col1_context(NULL);
+  colonies_set_units_context(NULL);
+  free(col1);
+  map_free(&map);
+  return rc;
+}
+
 /*
  * port_bugs.md #1108: buildability is keyed on the @BUILDING row, not the name. A
  * catalog miss on the owned lower tier (blank Stockade name) must not read as
@@ -3492,6 +3592,7 @@ static int unit_colony_cheat_helpers(void) {
 static const TestCase k_cases[] = {
     {"unit_colonies_core", case_colonies_core},
     {"colony_delete_appends_next", case_colony_delete_appends_next},
+    {"colony_delete_remaps_trade_stops", case_colony_delete_remaps_trade_stops},
     {"unit_found_chrome", unit_found_chrome},
     {"unit_alreadyhave_chrome", unit_alreadyhave_chrome},
     {"unit_noteacher_chrome", unit_noteacher_chrome},

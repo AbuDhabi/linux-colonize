@@ -1146,8 +1146,60 @@ static void map_panel_orders_text(
   snprintf(out, out_size, "%s %s", label, tname);
 }
 
+/*
+ * port_bugs.md #1177b — FUN_49dd_0424's cheat / special-view lines.
+ * `special` (asm 0x43712 / 0x4339a / 0x433a1: cmp [0x53a2],0 ; cmp [0x53a4],0)
+ * is `show_entire_map != 0 || fixed_nation_map_view != 0` on the raw u16s, so
+ * the 0xffff "none" of a normal game counts and only a fixed view of nation 0
+ * skips it. B1 (tile-only block, raw 77501) appends " <layer3 & 0xf>" (FUN_137f_01ca,
+ * the raw region id, 1 = open ocean, water included) to the Locat line with NO
+ * cheat test; B2 (raw 77586, unit block) is the same suffix behind the cheat bit;
+ * B3 (raw 77596) prefixes the Nationality/Type line, and B4 (raw 77950) each
+ * stack row's orders line, with "<unit index> " when the cheat bit and
+ * show_entire_map are both set.
+ */
+static bool map_panel_special_view(const ColonizeCol1Save* col1) {
+  return col1 && (col1->head.show_entire_map != 0 || col1->head.fixed_nation_map_view != 0);
+}
+
+static bool map_panel_cheat_bit(const ColonizeCol1Save* col1) {
+  return col1 && col1->head.game_options.cheats_enabled;
+}
+
+/* "<label> (x,y)" plus the B1/B2 region suffix: `need_cheat` false = B1 (the
+ * tile-only block), true = B2 (the unit block). */
+COLONIZE_INTERNAL void map_panel_format_locat(
+  char* out,
+  size_t size,
+  const char* label,
+  const ColonizeCol1Save* col1,
+  const ColonizeWorldMap* map,
+  int x,
+  int y,
+  bool need_cheat
+) {
+  const int n = snprintf(out, size, "%s (%d,%d)", label ? label : "", x, y);
+  if (n > 0 && (size_t)n + 1 < size && map_panel_special_view(col1) &&
+      (!need_cheat || map_panel_cheat_bit(col1))) {
+    snprintf(
+      out + n, size - (size_t)n, " %u", (unsigned)(map_get_layer3(map, x, y) & MAP_L3_CONTINENT_MASK)
+    );
+  }
+}
+
+/* B3 / B4: the unit's DOS record index when the cheat bit and show_entire_map
+ * are both set, else -1 (no prefix). */
+COLONIZE_INTERNAL int map_panel_cheat_index(
+  const ColonizeCol1Save* col1, const ColonizeUnitPool* units, int unit_id
+) {
+  return map_panel_cheat_bit(col1) && col1->head.show_entire_map
+           ? units_dos_index(units, unit_id)
+           : -1;
+}
+
 /* One tile-stack row: chrome icon at the text column, then the row's text
- * (cargo icons instead, for a loaded transport). Advances *y by one row. */
+ * (cargo icons instead, for a loaded transport). Advances *y by one row.
+ * `cheat_index` >= 0 prefixes the orders line with "<index> " (B4). */
 static void map_panel_draw_stack_row(
   const ColonizeUnitPool* units,
   const ColonizeUnit* u,
@@ -1161,6 +1213,7 @@ static void map_panel_draw_stack_row(
   const ColonizePalette* active_palette,
   ColonizeFramebuffer8* fb,
   int stack_n,
+  int cheat_index,
   int* y
 ) {
   const int sprite = units_map_sprite(units, u->id);
@@ -1175,7 +1228,7 @@ static void map_panel_draw_stack_row(
       *y,
       units_display_type_index(units, u->id),
       u->nation_id,
-      u->orders,
+      unit_chrome_plan_badge_index(u->nation_id, u->col1_ai_plan, u->orders, u->orders),
       false, /* DOS passes 0 here: every unit in the stack gets its own row */
       /* DOS's 4th badge arm is Artillery + damaged (+0x3148 bit7), not
        * "aboard a ship" — unit_chrome_corner_for_type. */
@@ -1229,7 +1282,11 @@ static void map_panel_draw_stack_row(
     );
   }
 
-  map_panel_orders_text(units, u, colonies, map, names, labels, line, sizeof(line));
+  size_t pre = 0;
+  if (cheat_index >= 0) {
+    pre = (size_t)snprintf(line, sizeof(line), "%d ", cheat_index);
+  }
+  map_panel_orders_text(units, u, colonies, map, names, labels, line + pre, sizeof(line) - pre);
   font_draw_text(font, fb, x, orders_y, line, MAP_PANEL_COL_TEXT);
   *y += MAP_PANEL_ROW_H;
 }
@@ -1471,7 +1528,9 @@ COLONIZE_INTERNAL void map_panel_render_selected_block(MapPanelRenderCtx* c) {
       icon_y,
       units_display_type_index(units, selected->id),
       selected->nation_id,
-      selected->orders,
+      unit_chrome_plan_badge_index(
+        selected->nation_id, selected->col1_ai_plan, selected->orders, selected->orders
+      ),
       false,
       (selected->col1_flags15 & 0x80u) != 0,
       active_palette
@@ -1489,21 +1548,23 @@ COLONIZE_INTERNAL void map_panel_render_selected_block(MapPanelRenderCtx* c) {
   units_format_mp(units_remaining_mp(units, selected->id), mp_text, sizeof(mp_text));
   snprintf(line, sizeof(line), "%s %s", panel ? panel->label_moves : "", mp_text);
   map_panel_draw_line(font, framebuffer, indent_x, &side_y, line_h, y_limit, line, MAP_PANEL_COL_TEXT);
-  snprintf(
-    line,
-    sizeof(line),
-    "%s (%d,%d)",
-    panel ? panel->label_locat : "",
-    selected->x,
-    selected->y
+  /* B2: the region id on the Locat line, behind the cheat bit. */
+  map_panel_format_locat(
+    line, sizeof(line), panel ? panel->label_locat : "", c->col1, map, selected->x, selected->y, true
   );
   map_panel_draw_line(font, framebuffer, indent_x, &side_y, line_h, y_limit, line, MAP_PANEL_COL_TEXT);
 
   c->text_y = icon_y + MAP_PANEL_ROW_H;
 
+  /* B3: "<unit index> " ahead of the Nationality / Type line (cheat + Complete Map). */
+  size_t idx_len = 0;
+  const int sel_index = map_panel_cheat_index(c->col1, units, selected->id);
+  if (sel_index >= 0) {
+    idx_len = (size_t)snprintf(line, sizeof(line), "%d ", sel_index);
+  }
   snprintf(
-    line,
-    sizeof(line),
+    line + idx_len,
+    sizeof(line) - idx_len,
     "%s %s",
     map_panel_nationality(selected->nation_id),
     map_panel_unit_type_name(units, selected)
@@ -1551,8 +1612,10 @@ COLONIZE_INTERNAL void map_panel_render_cursor_block(MapPanelRenderCtx* c) {
    * (only on explored land — DOS skips the line over water and fog).
    */
   char line[72];
-  snprintf(
-    line, sizeof(line), "%s (%d,%d)", panel ? panel->label_locat : "", cursor_x, cursor_y
+  /* B1: the raw layer3 region id follows the position, no cheat test (the user
+   * saw "1" at sea in View mode on real DOS). */
+  map_panel_format_locat(
+    line, sizeof(line), panel ? panel->label_locat : "", col1, map, cursor_x, cursor_y, false
   );
   map_panel_draw_line(font, framebuffer, text_x, &c->text_y, line_h, y_limit, line, MAP_PANEL_COL_TEXT);
 
@@ -1835,7 +1898,6 @@ COLONIZE_INTERNAL void map_panel_render_stack(MapPanelRenderCtx* c) {
   const int fog_nation = c->fog_nation;
   const ColonizePalette* active_palette = c->active_palette;
   ColonizeFramebuffer8* framebuffer = c->framebuffer;
-  const int resolved_human = c->resolved_human;
   const int text_x = c->text_x;
   const int indent_x = c->indent_x;
   const int line_h = c->line_h;
@@ -1854,8 +1916,11 @@ COLONIZE_INTERNAL void map_panel_render_stack(MapPanelRenderCtx* c) {
     int ids[COLONIZE_UNITS_MAX];
     const int stack_n = map_panel_collect_stack(units, info_x, info_y, ids, COLONIZE_UNITS_MAX);
     const ColonizeUnit* top = stack_n > 0 ? units_get_const(units, ids[0]) : NULL;
-    /* Own-ness is about the player, not the fog view — see resolved_human. */
-    const bool own_stack = top && top->nation_id == resolved_human;
+    /* DOS FUN_49dd_0424 asm 0x43f1b-0x43f2e: the stack lists in full unless
+     * `top.nation != curr_nation_map_view (DS:0x5396) && !show_entire_map` -
+     * i.e. the VIEWER's own units (fog_nation is that nation; -1 = Complete
+     * Map), not the save's human (port_bugs.md #1177b). */
+    const bool own_stack = top && (fog_nation < 0 || top->nation_id == fog_nation);
 
     if (top && !own_stack) {
       const bool visible =
@@ -1872,7 +1937,7 @@ COLONIZE_INTERNAL void map_panel_render_stack(MapPanelRenderCtx* c) {
             c->text_y,
             units_display_type_index(units, top->id),
             top->nation_id,
-            top->orders,
+            unit_chrome_plan_badge_index(top->nation_id, top->col1_ai_plan, top->orders, top->orders),
             stack_n > 1,
             (top->col1_flags15 & 0x80u) != 0,
             active_palette
@@ -1932,6 +1997,7 @@ COLONIZE_INTERNAL void map_panel_render_stack(MapPanelRenderCtx* c) {
           active_palette,
           framebuffer,
           stack_n,
+          map_panel_cheat_index(col1, units, u->id),
           &c->text_y
         );
       }
@@ -2042,12 +2108,13 @@ void map_panel_render_w(
    * called human_nation until this comment was written, which is how the leak
    * below happened twice.
    * Every fog read below (map_tile_seen_by, the col1_vis_mask tests) wants
-   * exactly that and must keep using the raw value. The two consumers that
-   * ask "is this the actual human player?" — the own-stack listing and the
-   * colony country name — must not, or the player's own stack collapses to a
-   * foreign one-liner and their custom country name never appears on their
-   * own colonies (smell audit 2026-09-10 §H #1; the same sentinel leak #100
-   * fixed inside map_panel_draw_tribe_chrome). Resolve it here once.
+   * exactly that and must keep using the raw value (the stack listing too since
+   * #1177b: DOS collapses a stack that is not the VIEWER's, unless Complete
+   * Map). The consumers that ask "is this the actual human player?" — the
+   * colony country name and the tribe chrome — must not, or the player's custom
+   * country name never appears on their own colonies (smell audit 2026-09-10
+   * §H #1; the same sentinel leak #100 fixed inside map_panel_draw_tribe_chrome).
+   * Resolve it here once.
    *
    * Note this is a different question from the one the tribe chrome asks:
    * that one wants the map-VIEW nation (DS:0x5396), so a SETVIEW nation is

@@ -1,0 +1,27 @@
+# Fixture: europe_sell_goods' Europe base (60000 gold, tax 6%) with two ships in the harbor: a Galleon (selected) holding Cotton 40 /
+# Rum 20 / Furs 10 and an empty Caravel behind it. Ship icons: Galleon x 146-163, Caravel x 165-177, y 148-161 (logical pixels).
+# A mouse release over a ship icon opens its menu (FUN_38fd_2bfe, @EUROPESHIPCLICK + @EUROPESHIPOPTIONS); so do S, Space and Enter with a ship selected.
+# Rows keep their DOS ids: Move to front, Set sail, [Unload all cargo only while a goods hold is occupied], No changes.
+key e                    # open the European Status screen
+wait 10
+click 172 155            # Caravel icon: its menu has 3 rows (no cargo to unload)
+click 150 92             # row 1 Move to front: harbor order becomes Caravel, Galleon; Caravel selected
+click 172 155            # Galleon icon (now second): menu with 4 rows
+click 150 121            # row 4 No changes: nothing happens
+click 172 155            # Galleon menu again
+key Escape               # Esc changes nothing either
+click 200 155            # empty space of the Loading box: selects the first ship (the Caravel) but opens no menu
+shot
+key s                    # S opens the menu for the selected ship (3 rows: the Caravel is empty)
+key Escape
+key space                # Space opens it too
+key Escape
+key Return               # and so does Enter
+click 150 115            # row 3 No changes
+click 172 155            # Galleon icon: selects it, menu with 4 rows
+key Escape
+key s                    # S with the Galleon selected: its 4-row menu
+click 150 109            # row 3 Unload all cargo: the holds are sold last first (Furs 10, Rum 20, Cotton 40)
+wait 30
+shot
+key e                    # leave Europe

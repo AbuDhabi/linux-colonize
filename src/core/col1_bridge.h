@@ -104,22 +104,10 @@ bool col1_contact_adjacent_tribe(
 );
 
 /*
- * FUN_4720_049e / head.event: mark New World discovery + named_new_world so
- * DOS does not re-fire the woodcut on load. No-op if already set.
+ * FUN_4720_049e / head.event: mark New World discovery + named_new_world once
+ * the @LANDHO name is answered (game_try_prompt_landho opens it after a human
+ * move reveals land; capture and load never set these).
  */
 void col1_bridge_mark_new_world_discovered(ColonizeCol1Save* save, int human_nation);
-
-/* True if human has any seen land tile (candidate for @LANDHO). */
-bool col1_bridge_human_has_seen_land(const ColonizeWorldMap* map, int human_nation);
-
-/*
- * If human has seen any land tile and discovery flags are still clear, set them.
- * Capture / mid-campaign load safety net — live play opens @LANDHO instead.
- */
-void col1_bridge_sync_new_world_discovery(
-  ColonizeCol1Save* save,
-  const ColonizeWorldMap* map,
-  int human_nation
-);
 
 #endif

@@ -685,7 +685,10 @@ static const TravelDestWho* game_trade_phantom(
     s_trade_phantom.y = -1;
     const ColonizeColony* first =
       r->dest_count > 0 && r->stop[0].colony_index != TRAVEL_DEST_EUROPE
-        ? colonies_get(&game->colonies, r->stop[0].colony_index)
+        ? colonies_get(
+            &game->colonies,
+            colonies_id_at_dos_index(&game->colonies, r->stop[0].colony_index)
+          )
         : NULL;
     if (first) {
       s_trade_phantom.x = first->x;
@@ -1032,11 +1035,19 @@ void game_trade_wizard_open_name(ColonizeGameState* game) {
     &game->messages, "TRADENAME", NULL, "",
     prompt, sizeof(prompt)
   );
-  if (!name_entry_open(
+  if (name_entry_open(
         &game->name_entry, NAME_ENTRY_KIND_TRADE_NAME, prompt, def_name, -1
       )) {
+    name_entry_set_label(&game->name_entry, howmuch_amount_label(&game->messages, "TRADENAME", ""));
+  } else {
     game->trade_create_stage = 0;
   }
+}
+
+/* Picker id (colony id / TRAVEL_DEST_EUROPE) -> stop word. Live stops hold the DOS
+ * colony index (colonies_abandon remaps them); -1 when the colony is gone. */
+static int game_trade_stop_word(const ColonizeGameState* game, int id) {
+  return id == TRAVEL_DEST_EUROPE ? TRAVEL_DEST_EUROPE : colonies_dos_index(&game->colonies, id);
 }
 
 /*
@@ -1070,7 +1081,9 @@ void game_apply_trade_dest(ColonizeGameState* game, int id) {
         break;
       }
     }
-    if (slot < 0) {
+    const int word0 = game_trade_stop_word(game, game->trade_create_dest1);
+    const int word1 = game_trade_stop_word(game, id);
+    if (slot < 0 || word0 < 0 || word1 < 0) {
       return;
     }
     ColonizeCol1TradeRoute* r = &game->col1.trade_route[slot];
@@ -1081,8 +1094,8 @@ void game_apply_trade_dest(ColonizeGameState* game, int id) {
     }
     r->sea = game->trade_create_sea;
     r->dest_count = 2;
-    r->stop[0].colony_index = (uint16_t)game->trade_create_dest1;
-    r->stop[1].colony_index = (uint16_t)id;
+    r->stop[0].colony_index = (uint16_t)word0;
+    r->stop[1].colony_index = (uint16_t)word1;
     if (game->col1.head.trade_route_count < (uint16_t)(slot + 1)) {
       game->col1.head.trade_route_count = (uint16_t)(slot + 1);
     }
@@ -1121,13 +1134,17 @@ void game_apply_trade_dest(ColonizeGameState* game, int id) {
     }
     return;
   }
+  const int word = game_trade_stop_word(game, id);
+  if (word < 0) {
+    return;
+  }
   if (stop_i < (int)r->dest_count) {
-    r->stop[stop_i].colony_index = (uint16_t)id;
+    r->stop[stop_i].colony_index = (uint16_t)word;
   } else if (r->dest_count < 4) {
     /* Append — DOS FUN_647e_05ec: set colony, clear both cargo lists. */
     ColonizeCol1TradeStop* st = &r->stop[r->dest_count];
     memset(st, 0, sizeof(*st));
-    st->colony_index = (uint16_t)id;
+    st->colony_index = (uint16_t)word;
     r->dest_count++;
   }
 }

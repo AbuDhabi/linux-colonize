@@ -369,8 +369,9 @@ obsolete.) Full decode:
   `@RAIDWIN*` was an invented section name; real tags are
   `@INDIANWIN0/1/2` + `@INDIANWINCOLONY(2)`.
 - [x] P8.5 [auto] 2026-08-28 — all three encroachment CHOICEs
-  (`@INDIANLAND`/`@INDIANFOREST`/`@INDIANROAD`). "Take it" has no
-  immediate consequence (friction is the 152e pass); dialog only at PEACE
+  (`@INDIANLAND`/`@INDIANFOREST`/`@INDIANROAD`; @INDIANLAND = colony-screen plot
+  drop, `FUN_2f2b_2f3e`, #1175). "Take it" has no
+  immediate consequence (the seat charges the alarm); dialog only at PEACE
   — outside it DOS acts **free** (silent auto-pay and hard block removed).
   Tribal-land radius = tech tier (Inca 3 / Aztec 2 / others 1).
 - [x] P8.6 [auto] 2026-08-29 — tribe portrait sheets `IND{tribe}A{tier}.SS`,

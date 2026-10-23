@@ -32,7 +32,7 @@
  * Shown after strengths are known, before the combat roll / outcome UI.
  */
 
-#define COMBAT_ANALYSIS_LINES_MAX 12
+#define COMBAT_ANALYSIS_LINES_MAX 14 /* 12 modifier rows + the 2 cheat footer rows */
 #define COMBAT_ANALYSIS_LINE_LEN 40
 #define COMBAT_ANALYSIS_VALUE_LEN 12
 
@@ -98,6 +98,16 @@ typedef struct ColonizeCombatEngagement {
   /* port_bugs.md #261: unit-less attacker (coastal Fort/Fortress battery) — the
    * header name when attacker_id < 0. Empty for normal unit engagements. */
   char atk_label[COMBAT_ANALYSIS_LINE_LEN];
+  /* port_bugs.md #1177c: FUN_636c_0000 0f00-1088 cheat footer (DS:0x5383 bit 5).
+   * DOS rolls BEFORE the dialog (FUN_5fef_1b0e raw 91467-91483: the weights
+   * local_92 / local_a8 and the roll iVar23 are FUN_2a1f_0704's last three
+   * arguments), so the engagement carries the final post-handicap weights and
+   * the roll for the footer even though roll / atk_wins are zeroed in the
+   * dialog's own copy. */
+  bool cheat_footer;
+  int w_atk;
+  int w_def;
+  int cheat_roll;
 } ColonizeCombatEngagement;
 
 typedef struct CombatAnalysisSideChrome {

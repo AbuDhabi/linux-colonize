@@ -80,6 +80,17 @@ static void combat_analysis_push_row(
   (*count)++;
 }
 
+/* One cheat-footer row (port_bugs.md #1177c): label left, "+<n>" right. */
+static void combat_analysis_push_cheat_row(
+  CombatAnalysisRow* rows, int* count, const char* label, int n
+) {
+  const int at = *count;
+  combat_analysis_push_row(rows, count, label, 0);
+  if (*count > at) {
+    snprintf(rows[at].value, sizeof(rows[at].value), "+%d", n);
+  }
+}
+
 /*
  * Same row, plus the picture DOS blits at the column's left edge before the
  * label (FUN_636c_0000 draws the icon at the row's top-left and then bumps
@@ -514,7 +525,8 @@ static void combat_analysis_snap_chrome(
   chrome->sprite = units_map_sprite(pool, unit_id);
   chrome->display_type = units_display_type_index(pool, unit_id);
   chrome->nation_id = u->nation_id;
-  chrome->orders = u->orders;
+  /* #1177a: the header chrome is FUN_112b_01ba too, so the AI plan glyph shows. */
+  chrome->orders = unit_chrome_plan_badge_index(u->nation_id, u->col1_ai_plan, u->orders, u->orders);
   /* DOS FUN_112b_01ba's 4th badge arm is Artillery + the damaged bit
    * (+0x3148 bit7), not "aboard a ship" — see unit_chrome.h. */
   chrome->damaged = (u->col1_flags15 & 0x80u) != 0;
@@ -557,6 +569,22 @@ bool combat_analysis_open(
   combat_analysis_fill_mods(
     dlg->def_rows, &dlg->def_line_count, &eng->def_flags, 0, false
   );
+  if (eng->cheat_footer) {
+    /* FUN_636c_0000 636c:0f00-1088, per column, two more 0x14-pitch rows: the
+     * header's own name with "+" final weight, then an empty label with "+" the
+     * roll (attacker column) / the weight sum (defender column) - the 0146
+     * sign prefix and 0182 number, no percent suffix. */
+    combat_analysis_push_cheat_row(
+      dlg->atk_rows, &dlg->atk_line_count, dlg->atk_name, eng->w_atk
+    );
+    combat_analysis_push_cheat_row(dlg->atk_rows, &dlg->atk_line_count, "", eng->cheat_roll);
+    combat_analysis_push_cheat_row(
+      dlg->def_rows, &dlg->def_line_count, dlg->def_name, eng->w_def
+    );
+    combat_analysis_push_cheat_row(
+      dlg->def_rows, &dlg->def_line_count, "", eng->w_atk + eng->w_def
+    );
+  }
   return true;
 }
 

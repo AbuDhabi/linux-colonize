@@ -1362,6 +1362,26 @@ void colonies_col1_rebel_divisor_adjust(ColonizeCol1Save* col1, int x, int y, in
    * independence-seed-100: Jamestown saves 1479/1439). Readers cap SoL. */
 }
 
+/*
+ * Hole-fill founding (pool full to its end): the new colony lands mid-order, so
+ * every later DOS index shifts up one, and with it the live trade-route stops
+ * that name them (colonies_trade_stops_on_delete's inverse; colony_build.c).
+ */
+static void colonies_trade_stops_on_insert(ColonizeCol1Save* col1, int rank) {
+  if (!col1 || rank < 0) {
+    return;
+  }
+  for (int route = 0; route < (int)COLONIZE_COL1_TRADE_ROUTE_COUNT; ++route) {
+    ColonizeCol1TradeRoute* r = &col1->trade_route[route];
+    for (int j = 0; j < (int)r->dest_count; ++j) {
+      uint16_t* p = &r->stop[j].colony_index;
+      if (*p != 999 && *p >= rank) {
+        (*p)++;
+      }
+    }
+  }
+}
+
 int colonies_found(
   ColonizeColonyPool* pool,
   const ColonizeWorldMap* map,
@@ -1402,6 +1422,10 @@ int colonies_found(
     return -1;
   }
   ColonizeColony* slot = &pool->colonies[pick];
+  bool mid_order = false;
+  for (int i = pick + 1; i < COLONIZE_COLONIES_MAX; ++i) {
+    mid_order = mid_order || pool->colonies[i].active;
+  }
 
   memset(slot, 0, sizeof(*slot));
   slot->id = pool->next_id++;
@@ -1411,6 +1435,9 @@ int colonies_found(
   slot->building_in_production = -1;
   slot->specialty_cargo = 0xff;
   slot->active = true;
+  if (mid_order) {
+    colonies_trade_stops_on_insert(g_colonies_col1, colonies_dos_index(pool, slot->id));
+  }
   for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
     slot->tiles[t] = -1;
   }

@@ -267,9 +267,11 @@ Full opaque-field inventory and RE phases: **[save_format_map.md](save_format_ma
   use owner `0` (`path=x1`). Capture nudges settler-ish euros off village tiles
   and boards same-tile orphans onto own ships (DOS "Illegal entry into village"
   / ocean sentry).
-- Discovery: live play opens `@LANDHO` then sets `discovery_of_the_new_world` +
-  `named_new_world` on confirm; capture/load still uses
-  `col1_bridge_sync_new_world_discovery` as a safety net.
+- Discovery: `@LANDHO` opens only from the human move executor's tail
+  (`FUN_4720_049e`: a move whose destination 3x3 holds land while the mover's
+  `named_new_world` is clear, `game_try_prompt_landho`) and sets
+  `discovery_of_the_new_world` + `named_new_world` on confirm; capture, load,
+  select and Europe arrival never set them (port_bugs.md #1178).
 - **Human Europe ships (2026-08-29, P10.1).** The Europe screen's
   `harbor[]` / `expected[]` / `bound[]` lists are the only home of a human
   ship once it sails for Europe (`units_despawn_ship_with_cargo`), so capture

@@ -31,6 +31,14 @@ Built locally in `colony_screen_draw_top_bar` (other screens keep the plain
 `turn_format_date()`). `COLONY_TOP_BAR_H` = 7 (separator native y=7);
 `COLONY_MIDDLE_Y` etc. derive from it.
 
+An armed DOS status line (`DS:0x2d54`, `FUN_1009_02cc`) paints over this same
+top 7 px strip: the `U` unload line ("Unloading 39 Furs in Quebec", gold ink)
+and the red refusal (@MISC 22 "No cargo on board!"). The port feeds them through
+the `ai_popup` status ring: `game_service_colony_bar` copies the line in front
+into `ColonyScreenView.bar_text` / `bar_ink` each frame and
+`colony_screen_draw_top_bar` draws it instead of the title line (port_bugs.md
+#1182). Nothing blocks, as on the Europe screen.
+
 ### SoL bonus belongs in every badge
 
 Area-view field-tile badges and settlement (per-building) badges both used

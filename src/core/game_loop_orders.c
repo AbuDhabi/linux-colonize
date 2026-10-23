@@ -1132,9 +1132,9 @@ int game_issue_goto(ColonizeGameState* game, int uid, int dest_x, int dest_y) {
 
 /*
  * FUN_281f_07a0 for one of the human's / any Euro unit plus the human-only
- * chrome that hangs off it: @LANDHO naming and the DISCOVERY OF THE PACIFIC
- * OCEAN woodcut (FUN_13f1_0158 DS:0x1e8 arm → FUN_12fd_006c(6), once per
- * game through the event bit).
+ * chrome that hangs off it: the DISCOVERY OF THE PACIFIC OCEAN woodcut
+ * (FUN_13f1_0158 DS:0x1e8 arm → FUN_12fd_006c(6), once per game through the
+ * event bit).
  */
 void game_reveal_sight_for_unit(ColonizeGameState* game, const ColonizeUnit* u) {
   if (!game || !u || !game->world_map_ok || !units_is_on_map(u)) {
@@ -1145,7 +1145,6 @@ void game_reveal_sight_for_unit(ColonizeGameState* game, const ColonizeUnit* u) 
   if (!game->col1_ok || u->nation_id != game->human_nation) {
     return;
   }
-  game_try_prompt_landho(game);
   if (pacific) {
     /* FUN_13f1_0158's DS:0x1e8 arm calls FUN_12fd_006c(6) directly — the
      * woodcut is the whole notification, there is no popup behind it. */
@@ -1168,6 +1167,11 @@ void game_after_unit_action(ColonizeGameState* game) {
   }
   if (game->world_map_ok && u->nation_id >= 0 && u->nation_id <= 3 && units_is_on_map(u)) {
     game_reveal_sight_for_unit(game, u);
+    /* @LANDHO belongs to the human move executor's tail (FUN_4720_049e), not to
+     * the reveal: it runs after a move, at the unit's new tile (port_bugs.md #1178). */
+    if (u->nation_id == game->human_nation) {
+      game_try_prompt_landho(game, u->x, u->y);
+    }
   }
   /* LCR: Scout on rumour clears + rolls a manual outcome (Fountain of Youth,
    * Cibola, treasure, burial mounds, …); de Soto keeps outcomes positive. */

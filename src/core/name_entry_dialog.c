@@ -70,14 +70,23 @@ bool name_entry_open(
     sizeof(dlg->prompt),
     prompt && prompt[0] ? prompt : ""
   );
-  dlg->name_cap = (kind == NAME_ENTRY_KIND_FOUND || kind == NAME_ENTRY_KIND_RENAME)
-                    ? NAME_ENTRY_COLONY_NAME_CHARS + 1
-                    : sizeof(dlg->name);
+  /* FUN_291f_0120's max length: 0x17 for @COLONY / @RENAMECOLONY / @LANDHO
+   * (raw 40204, 76999), 0x1f for @TRADENAME (647e:1126). */
+  dlg->name_cap = kind == NAME_ENTRY_KIND_TRADE_NAME || kind == NAME_ENTRY_KIND_TRADE_RENAME
+                    ? sizeof(dlg->name)
+                    : NAME_ENTRY_COLONY_NAME_CHARS + 1;
+  dlg->width = popup_msg_take_pending_width();
   str_copy_trunc(dlg->name, dlg->name_cap, initial_name ? initial_name : "");
   /* DOS opens the field with bit 0x80 set — whole text selected. */
   text_edit_reset(&dlg->edit, dlg->name, true);
   dlg->open = true;
   return true;
+}
+
+void name_entry_set_label(NameEntryDialog* dlg, const char* label) {
+  if (dlg) {
+    str_copy_trunc(dlg->label, sizeof(dlg->label), label ? label : "");
+  }
 }
 
 bool name_entry_handle_input(NameEntryDialog* dlg, const ColonizeInputState* input) {
@@ -133,44 +142,29 @@ void name_entry_render(
   if (!dlg || !dlg->open || !framebuffer || !framebuffer->pixels) {
     return;
   }
-  const int line_h = popup_dialog_line_h(font);
-  const int pad = 6;
-  const int dialog_w = 200;
-  /* Last line_h is the input field; it also carries a frame pad above and below. */
-  const int dialog_h = POPUP_FRAME_INSET * 2 + pad + line_h * 3 + pad + line_h * 2 +
-                       TEXT_EDIT_FRAME_PAD * 2 + pad;
-  PopupPromptGeom g;
-  popup_prompt_frame(
-    framebuffer, font, wood_tile, colors, dialog_w, dialog_h, pad, dlg->prompt, 3,
-    text_color, &g
+  /* The DOS text-entry layout (FUN_291f_0120): caption, then the field box,
+   * the whole default pre-selected. See popup.h popup_field_frame. */
+  PopupFieldGeom g;
+  popup_field_frame(
+    framebuffer, font, wood_tile, colors, dlg->width, dlg->prompt, dlg->label,
+    (int)dlg->name_cap - 1, text_color, &g
   );
   dlg->dialog_x = g.frame.x;
   dlg->dialog_y = g.frame.y;
-  dlg->dialog_w = dialog_w;
+  dlg->dialog_w = g.frame.w;
   dlg->dialog_h = g.frame.h;
   if (!font) {
     return;
   }
-  const int ix = g.frame.inner_x;
-  const int iw = g.frame.inner_w;
-  int ty = g.text_y + 2;
-  ty += line_h + TEXT_EDIT_FRAME_PAD;
   dlg->field_font = font;
-  dlg->field_x = ix + pad;
-  dlg->field_y = ty;
-  dlg->field_h = line_h;
-  /* Green input box spanning the popup's inner width, same chrome as the
-   * new-game wizard's leader-name field. */
-  int fx = 0, fy = 0, fw = 0, fh = 0;
-  text_edit_frame_rect(
-    font, dlg->field_x, ty, iw - pad * 2, &fx, &fy, &fw, &fh
-  );
-  text_edit_draw_frame(framebuffer, fx, fy, fw, fh, text_color);
+  dlg->field_x = g.text_x;
+  dlg->field_y = g.text_y;
+  dlg->field_h = g.text_h;
   TextEditColors edit_colors;
   text_edit_default_colors(&edit_colors);
   edit_colors.text = text_color;
   edit_colors.selection = select_color;
   text_edit_render(
-    &dlg->edit, dlg->name, font, framebuffer, dlg->field_x, dlg->field_y, line_h, &edit_colors
+    &dlg->edit, dlg->name, font, framebuffer, g.text_x, g.text_y, g.text_h, &edit_colors
   );
 }

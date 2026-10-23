@@ -896,7 +896,38 @@ int europe_buy_unit_cargo_w(
   int cargo_type,
   int amount
 );
-int europe_best_sell_hold(const EuropeScreen* eu, int harbor_index);
+/* Occupied hold slots, k-th in DOS's compacted order (FUN_15eb_2ff2); -1 past the end. */
+int europe_hold_slot_kth(const EuropeHarborShip* ship, int k);
+/* FUN_479b_0f60 mode-1 pick behind the Europe `U` key: hold slot of the LOWEST
+ * (price << 4) * qty key (Muskets/Tools 0, Horses 1) after DOS's ascending sort;
+ * -1 for an empty ship. `col1` may be NULL (the screen's own track is used). */
+int europe_dos_0f60_pick(
+  const EuropeScreen* eu, const struct ColonizeCol1Save* col1, int nation, int harbor_index
+);
+/* Same pick over a raw (types, amounts) hold pair of n_slots: the colony-screen
+ * `U` (mode 0) runs it on a unit's goods holds. Returns the slot index or -1. */
+int europe_dos_0f60_pick_holds(
+  const EuropeScreen* eu,
+  const struct ColonizeCol1Save* col1,
+  int nation,
+  const int* hold_types,
+  const int* hold_amounts,
+  int n_slots
+);
+/* Move harbor ship `harbor_index` to the front of the harbor list and select it
+ * (FUN_281f_089e, the ship menu's "Move to front" row). */
+bool europe_harbor_move_to_front(EuropeScreen* eu, int harbor_index);
+/* Harbor ship whose OWN icon (not a passenger, not empty box space) is under
+ * (mx,my), else -1 -- the exact test FUN_38fd_2edc runs; europe_hit_test_ex
+ * falls back to the selected ship on empty space. */
+int europe_harbor_ship_icon_at(
+  const EuropeScreen* eu,
+  const ColonizeUnitPool* units,
+  const ColonizeSpriteSheet* unit_icons,
+  int transit_line_h,
+  int mx,
+  int my
+);
 
 EuropeHitResult europe_hit_test(const EuropeScreen* eu, int mx, int my);
 

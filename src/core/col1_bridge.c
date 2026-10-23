@@ -3165,18 +3165,7 @@ COLONIZE_INTERNAL void col1_bridge_capture_unit_records(Col1CaptureCtx* ctx) {
        * deleted colony compacts the array (raw 58156-58200). */
       dst->origin = src->col1_origin;
       if (colonies && src->col1_origin < 0x80) {
-        int idx = 0;
-        int found = -1;
-        for (int ci = 0; ci < COLONIZE_COLONIES_MAX && found < 0; ++ci) {
-          const ColonizeColony* c = &colonies->colonies[ci];
-          if (!c->active) {
-            continue;
-          }
-          if (c->id == (int)src->col1_origin) {
-            found = idx;
-          }
-          idx++;
-        }
+        const int found = colonies_dos_index(colonies, (int)src->col1_origin);
         dst->origin = found >= 0 ? (uint8_t)found : 0xff;
       }
     } else {
@@ -3782,7 +3771,6 @@ COLONIZE_INTERNAL void col1_bridge_capture_occupancy(Col1CaptureCtx* ctx) {
   const ColonizeWorldMap* map = ctx->map;
   ColonizeUnitPool* units = ctx->units;
   const ColonizeColonyPool* colonies = ctx->colonies;
-  const int human_nation = ctx->human_nation;
   /*
    * DOS UNITFLAG/COLONYFLAG: mask has_unit/has_city must match pools. Rebuild
    * from live units/colonies + tribe villages (not stale layer2 spawn bits).
@@ -3798,9 +3786,6 @@ COLONIZE_INTERNAL void col1_bridge_capture_occupancy(Col1CaptureCtx* ctx) {
     );
     col1_stuff_census_fill_blank_w(&cw, &save->stuff);
   }
-
-  /* Mid-campaign: do not leave discovery unset for DOS woodcut re-fire. */
-  col1_bridge_sync_new_world_discovery(save, map, human_nation);
 }
 
 /* Port extension chunks: VTIN village intel, BQUE build queues. */
@@ -3917,43 +3902,6 @@ void col1_bridge_mark_new_world_discovered(ColonizeCol1Save* save, int human_nat
   }
   save->head.event.discovery_of_the_new_world = 1;
   save->player[human_nation].named_new_world = 1;
-}
-
-bool col1_bridge_human_has_seen_land(const ColonizeWorldMap* map, int human_nation) {
-  if (!map || !map->terrain || !map->seen || human_nation < 0 || human_nation > 3) {
-    return false;
-  }
-  const int w = (int)map->width;
-  const int h = (int)map->height;
-  for (int y = 0; y < h; ++y) {
-    for (int x = 0; x < w; ++x) {
-      if (!map_tile_seen_by(map, x, y, human_nation)) {
-        continue;
-      }
-      if (map_tile_is_land(map, x, y)) {
-        return true;
-      }
-    }
-  }
-  return false;
-}
-
-void col1_bridge_sync_new_world_discovery(
-  ColonizeCol1Save* save,
-  const ColonizeWorldMap* map,
-  int human_nation
-) {
-  if (!save || human_nation < 0 || human_nation > 3) {
-    return;
-  }
-  if (save->head.event.discovery_of_the_new_world &&
-      save->player[human_nation].named_new_world) {
-    return;
-  }
-  if (!col1_bridge_human_has_seen_land(map, human_nation)) {
-    return;
-  }
-  col1_bridge_mark_new_world_discovered(save, human_nation);
 }
 
 bool col1_contact_adjacent_tribe(

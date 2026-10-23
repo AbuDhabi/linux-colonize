@@ -88,7 +88,8 @@ flowchart TD
 | Activate / Wait | Stack picker / next unit with MP | `unit_stack` + Wait | Done |
 | AI | Sets order bytes + goto / follow | `ai_euro` / `ai_king` / `ai_contact` | Done (structural) |
 | Colony docked units | `FUN_2f2b_5746` sentry/fortify/… popup | Second click on the selected icon → wood popup (`colony_screen_open_dock_orders`), from either the Transport strip (ships/wagons) or the Multifunction Units tab (land units + Artillery, DOS `FUN_2f2b_1e46`/`59a0`) | Done thin |
-| Europe dock | Don’t board / Board / Move front (`@EUROPESHIPOPTIONS` / dock) | `EUROPE_MENU_DOCK` | Done |
+| Europe dock | Don’t board / Board / Move front (`@ARMOPTIONS` dock rows) | `EUROPE_MENU_DOCK` | Done |
+| Europe harbor ship | Move to front / Set sail / Unload all cargo / No changes (`@EUROPESHIPOPTIONS`, `FUN_38fd_2bfe`) | `game_europe_open_ship_menu` (ship-icon release, S / Space / Enter), `AI_POPUP_TAG_EUROPE_SHIP_MENU` | Done (Set sail always offered) |
 | Ship options chrome | `@SHIPOPTIONS` (anchor / sentry / unload) | Colony dock popup wired (sea); land uses `@UNITOPTIONS`; VGA-identical chrome PARKED | Done thin |
 
 ---

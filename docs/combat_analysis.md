@@ -131,8 +131,18 @@ dual column. Shown **before** the combat roll (strengths known; no outcome yet).
   1`; native attacker with pop == 1 → colony destroyed (`FUN_291f_0254`),
   tribe gains horses/muskets if the town held any. All three already live in
   `units_try_capture_foreign_colony`.
-- Still not ported from DOS 636c: the cheat-mode (`0x5383&0x20`) final-weight
-  footer rows.
+- **Cheat footer (port_bugs.md #1177c).** With `head.game_options.cheats_enabled`
+  (`0x5383&0x20`) 636c:0f00-1088 adds two 0x14-pitch rows per column: the
+  header's own name with `+<final weight>` (`ColonizeCombatEngagement.w_atk` /
+  `w_def`, the post-1b0e-handicap weights = FUN_2a1f_0704's params 11/12), then
+  an empty label with `+<roll>` (attacker) / `+<w_atk + w_def>` (defender); no
+  percent suffix. DOS rolls BEFORE the dialog (`FUN_281f_04d4` raw 91467, then
+  `FUN_2a1f_0704` raw 91483 gets the roll as its last argument), so
+  `units_combat_present_and_roll` and the coastal-fort path in
+  `units_fort_vs_ship` now draw the roll ahead of the presenter (same RNG
+  stream; the popup pump runs first, so answered popups still precede the draw)
+  and hand it over as `cheat_roll`; the dialog's own copy still zeroes
+  `roll` / `atk_wins`. `COMBAT_ANALYSIS_LINES_MAX` is 14 for the two extra rows.
 - **WoI support row labels — fixed 2026-09-08.** DOS's rows read `0x2ec2` /
   `0x2ec4` = LABELS lines 147/148 **"Tory Unrest" / "Rebel Unrest"**. Address →
   line is `addr = 0x2d9c + 2*line` (anchors: `0x2e52` = line 91 "Fatigue",

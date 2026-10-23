@@ -255,6 +255,8 @@ void game_colony_area_tile_drop(
   const ColonizeWorldMap* cmap,
   int tile_index
 );
+/* @INDIANLAND answered (offer / take): re-run the plot drop past the gate. */
+void game_colony_plot_land_resume(ColonizeGameState* game, int tile_index);
 void game_colony_assign_building_drop(ColonizeGameState* game, int building_index);
 ColoniesBuildableOpts game_colony_buildable_opts(const ColonizeGameState* game);
 void game_colony_commit_construction(ColonizeGameState* game, int bid);

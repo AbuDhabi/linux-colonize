@@ -43,7 +43,7 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@NOCITY` | Done | OK when no colonies |
 | `@VICEROY` | Done | new-game wizard |
 | `@VICEROY2` | Done | new-game wizard |
-| `@LANDHO` | Done | first land sight → name New World |
+| `@LANDHO` | Done | human move with land in the destination 3x3 (`FUN_4720_049e` tail) → name New World |
 | `@COLONY` | Done | name entry after found |
 | `@RENAMECOLONY` | Done | colony title-bar click (DOS) or **R** (port extra) rename |
 | `@LANDFALL` | Done | AI_POPUP_TAG_LANDFALL |
@@ -153,7 +153,7 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@INDIANBEGFOOD` | Done | `ai_contact_try_village_beg_food`/`ai_contact_apply_beg_food` — real accept/decline CHOICE, `AI_POPUP_TAG_CONTACT_BEGFOOD` (2026-08-14, was unwired; sign convention resolved via live user gameplay testimony, see `settlement_record_8d4a.md`) |
 | `@INDIANWAR` | n/a — dead GAME.TXT | no `INDIANWAR` DS string (only `INDIANWARPATH`/`INDIANWARPATH2`/`INDIANWARFARE`), 2026-09-16. The port's raid-time "declare war" sentence stays as OpenCol chrome and no longer claims this section |
 | `@INDIANGRUDGE` | Done | WoI tribe defection (`ai_contact_indian_woi_defect`): DOS `FUN_4d56_1816` item 2 flushes tag 0x14f6 with both tribe name forms right before the ±100 alarm pair (viceroy_unpacked.asm 136388). Popup wired 2026-09-16 (was a status line only, id unresolved) |
-| `@INDIANLAND` | Done | colony encroachment CHOICE (`game_loop.c` `AI_POPUP_TAG_INDIAN_LAND`) — real GAME.TXT body + rows. Confirmed 2026-09-16 |
+| `@INDIANLAND` | Done | colony-screen plot-drop encroachment CHOICE (`game_colony_plot_land_gate` → `game_request_indian_land_choice`, `AI_POPUP_TAG_INDIAN_LAND`; DOS `FUN_2f2b_2f3e`, claim table 26e4; not Build Colony) — real GAME.TXT body + rows. Moved from the founding site 2026-10-23 (#1175) |
 | `@INDIANROAD` | Done | as `@INDIANLAND` (road flavor) |
 | `@INDIANFOREST` | Done | as `@INDIANLAND` (forest flavor); DOS `2b5a` LEAs 0x944 directly |
 | `@INDIANFOREST2` | n/a — dead GAME.TXT | no `INDIANFOREST2` DS string, and the one `@INDIANFOREST` site (`2b5a:1384`, `LEA AX,[0x944]`) takes the tag as a plain literal with no digit patch (2026-09-16) |
@@ -296,12 +296,12 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@SHIPRUN` | Done | `units_ship_slow_scan`: roll beat the adjacent warship, either side human |
 | `@FORTFIRE` | Done | `units_coastal_fort_fire_pulse_w` (`units_combat_resolve.c`) now enqueues the real OK popup (fort/fortress, colony, ship nation+type tokens) before resolving the fort-vs-ship roll, gated to human involvement |
 | `@EUROPEARM` | Done | Europe dock / arm chrome |
-| `@EUROPESHIPCLICK` | Done | Europe dock / arm chrome |
+| `@EUROPESHIPCLICK` | Done | Title of the Europe harbor ship menu (`game_europe_open_ship_menu`, STRING0 = ship type name; port_bugs.md #1176) |
 | `@ARMOPTIONS` | Done | Europe dock immigrant click — 12 GAME.TXT rows, DOS `FUN_38fd_37xx` |
 | `@COLONYUNIT` | Done | colony dock-orders popup title (`colony_screen_open_dock_orders`) |
 | `@UNITOPTIONS` | Done thin | colony dock-orders popup, land transport; chrome thin |
 | `@SHIPOPTIONS` | Done thin | colony dock-orders popup, sea transport; chrome thin |
-| `@EUROPESHIPOPTIONS` | Done | Europe dock / arm chrome |
+| `@EUROPESHIPOPTIONS` | Done | Rows of the Europe harbor ship menu, `FUN_38fd_2bfe` (`AI_POPUP_TAG_EUROPE_SHIP_MENU`, DOS row ids 1-4: Move to front / Set sail / Unload all cargo / No changes; Set sail always offered, Unload only with goods aboard) |
 | `@KINGFRIGATE` | Done | `ai_king_frigate_offer` Yes/No (FUN_3844_00f2 tail, 2026-08-29) |
 | `@KINGGALLEON2` | Done (structural) | `FUN_5fef_1908` CHOICE (tag built at runtime); VGA PARKED |
 | `@KINGGALLEON3` | Done (structural) | Cortes free-transport arm of the same function; VGA PARKED |
@@ -478,7 +478,7 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@ARTILLERY2` | Done | already real (`units_combat.c` `units_apply_land_loss_outcome` `units_combat_enqueue_tok`) — verified against DOS FUN_5fef_016c raw 99486 |
 | `@TIMECHANGE` | Done thin | `FUN_130d_0290` calendar-help — `LEA BX,[0x141]` (Ghidra-dropped tag arg, asm-confirmed) then `CALLF FUN_281f_03fe`, fired once at year==1600 && season==0 (the exact turn the calendar splits into Spring/Autumn) — `turn.c` `turn_processor_advance` TURN_PROC_SETUP, `popup_chrome_ok("TIMECHANGE", …)`; no tutorial-hints gate in DOS |
 | `@TEACHCONVERT` | Done | "Live among the natives" with a Convert (`ai_contact_actions.c`) — real GAME.TXT body. Confirmed 2026-09-16 |
-| `@SOMEBOYCOTT` | Done | OK notice after the Europe `U` unload-all loop (`game_europe_unload_all`, FUN_38fd_2bfe row 3) when the last-examined hold slot was boycotted; the market-cell click raises `@KISSUP` (FUN_38fd_2dfe), not this |
+| `@SOMEBOYCOTT` | Done | OK notice after the Europe ship menu's row 3 "Unload all cargo" loop (`game_europe_unload_all`, FUN_38fd_2bfe) when the last-examined hold slot was boycotted; the market-cell click raises `@KISSUP` (FUN_38fd_2dfe), not this |
 | `@KEEPSTOCKADE` | Done | stockade min-pop OK message |
 | `@MORETHANTHREE` | Done | building-slot-full OK (§4; not stockade min-pop — that's `@KEEPSTOCKADE`) |
 | `@LOOTWAGONS` | Dead tag | GAME.TXT-only: absent from VICEROY.EXE's DS (only `LOOT`/`LOOT2`/`LOOTCASH`/`LOOTCAPTURE`/`LOOTFOREIGN` exist, and no bare `WAGONS` to assemble one from). DOS reports `@INDIANWIN0` for a native-killed Wagon Train (`units_combat.c`); nothing to port. |

@@ -2538,10 +2538,6 @@ void game_commit_new_campaign(ColonizeGameState* game) {
         }
         map_reveal_radius(&game->world_map, c->x, c->y, game->human_nation, 2);
       }
-      if (game->col1_ok) {
-        /* Live play prompts @LANDHO; do not silent-mark on campaign start. */
-        game_try_prompt_landho(game);
-      }
     }
     if (game->units.selected_id >= 0) {
       const ColonizeUnit* u = units_get_const(&game->units, game->units.selected_id);

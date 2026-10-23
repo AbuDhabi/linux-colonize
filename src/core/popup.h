@@ -227,32 +227,52 @@ void popup_list_render(
   PopupListGeom* out
 );
 
-typedef struct PopupPromptGeom {
+/*
+ * DOS text-entry dialog (FUN_291f_0120 -> FUN_6f74_37fc: the generic compositor
+ * with one edit-field row, port_bugs.md #1181). Layout read from the asm:
+ *   FUN_6f74_0d44  label = GAME.TXT row after the blank + " ", label_w = its
+ *                  width; field text width = width("W") * max_len; the dialog
+ *                  content width grows to label_w + that + 10.
+ *   FUN_6f74_14c6  content C = max(80, @width, the above); frame W = C + 6,
+ *                  H = body_h + glyph_h + 20 (body_h = rows * (glyph_h + 1));
+ *                  centred at (160 - W/2, 100 - H/2).
+ *   FUN_6f74_1198  body rows wrapped to C - 4, drawn at (x + 5, y + 6 + k*(glyph_h+1)).
+ *   FUN_6f74_1e14  Y0 = y + 9 + body_h. Label at (x + 5, Y0 + 3). Field box at
+ *                  (x + 5 + label_w, Y0), (text_w + 6) x (glyph_h + 5), a 1px
+ *                  outline in the normal text ink (struct +2) around a wood
+ *                  fill that matches the frame; first glyph at (box + 3, box + 3);
+ *                  pre-selected default text gets a select-ink bar
+ *                  (box + 2, box + 2, text width + 2, glyph_h + 1).
+ */
+typedef struct PopupFieldGeom {
   PopupFrameGeom frame;
-  int line_h;
-  int text_y; /* y just past the last prompt row slot */
-} PopupPromptGeom;
+  int glyph_h;
+  int box_x; /* field outline rect */
+  int box_y;
+  int box_w;
+  int box_h;
+  int text_x; /* first glyph of the field text */
+  int text_y;
+  int text_h; /* selection bar height / hit height: glyph_h + 1 */
+} PopupFieldGeom;
 
 /*
- * Fixed-width prompt dialog (name_entry / howmuch): centre a w x h frame with
- * the menu-bar floor and draw the prompt word-wrapped to the frame width with
- * {} emphasis (popup_wrap_text + popup_draw_text_markup), shadowed. h holds
- * `rows` prompt rows; a prompt that wraps to more grows the frame, so read
- * the final size from out->frame. Draws nothing past the frame when font is
- * NULL.
+ * Draws the frame, the wrapped prompt, the label and the field outline of the
+ * DOS text-entry dialog and returns where the field text goes. `width` is the
+ * section's @width (0 = none), `label` the field caption ("" = none). A NULL
+ * font draws the frame only.
  */
-void popup_prompt_frame(
+void popup_field_frame(
   ColonizeFramebuffer8* framebuffer,
   const ColonizeFont* font,
   const ColonizeSpriteSheet* wood_tile,
   const ColonizePopupColors* colors,
-  int w,
-  int h,
-  int pad,
+  int width,
   const char* prompt,
-  int rows,
+  const char* label,
+  int max_len,
   uint8_t text_color,
-  PopupPromptGeom* out
+  PopupFieldGeom* out
 );
 
 /*

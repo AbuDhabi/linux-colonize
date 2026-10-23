@@ -123,6 +123,28 @@ UnitChromeCorner unit_chrome_corner_for_type(int dos_unit_type_id, bool damaged)
 #define UNIT_CHROME_ORDERS_PRIVATEER_X 0x200
 /* Same routine: a foreign hull's goods-hold count digit (ordinary ink). */
 #define UNIT_CHROME_ORDERS_HOLDS_BASE 0x300
+/*
+ * port_bugs.md #1177a. FUN_112b_01ba (viceroy_unpacked_2.c ~2134, asm
+ * 0x3959-0x3986): for an AI / withdrawn Euro nation (`nation < 4 &&
+ * player[nation].control != 0`) with the cheat bit (head.game_options.
+ * cheats_enabled) and Debug Info Flags DS:0x894 & 8 ("Foreign AI planning
+ * modes"), the badge glyph is the unit's AI plan byte (+0x314b, `ai_plan`;
+ * >= 0x80 reads 'E'; plan 0 = an empty string, a 3px box). It lands after the
+ * hold digit / Privateer 'X' and before the damaged repair digit (last write
+ * wins). The ink still follows the real orders byte, so the index carries both:
+ * PLAN_BASE + (glyph << 4) + (orders & 15). unit_chrome_order_letter returns
+ * the glyph (possibly NUL); unit_chrome_letter_color decodes the orders.
+ */
+#define UNIT_CHROME_ORDERS_PLAN_BASE 0x1000
+/* Nations (bit n = nation n, 0..3) whose units wear the plan glyph; the game
+ * loop recomputes it every frame (cheat bit && flag 8 && control != 0). */
+void unit_chrome_set_plan_nations(unsigned mask);
+/* `cur` (the order / hold / X index the caller already settled on) when the
+ * nation is not in the mask, else the plan index above. `orders` is the unit's
+ * real @ORDERS byte, `plan` its +0x314b. Apply before the repair badge. */
+int unit_chrome_plan_badge_index(int nation_id, unsigned plan, int orders, int cur);
+/* Real @ORDERS byte behind an index (for ink); plan indices carry it, others are it. */
+int unit_chrome_real_orders(int orders_index);
 /* Repair digit ink (raw 2290-2296): 12 for nation 2, else 15. */
 bool unit_chrome_is_repair_badge(int orders_index);
 int unit_chrome_repair_badge_index(

@@ -7,6 +7,7 @@
 
 #include "core/font.h"
 #include "core/popup.h"
+#include "core/popup_msg.h"
 #include "core/text_edit.h"
 #include "core/ss.h"
 #include "platform/platform.h"
@@ -20,8 +21,8 @@
 #define NAME_ENTRY_PROMPT_LEN 240
 /* 32: trade-route names are 31 chars + NUL (DOS FUN_1000_9310 limit 0x1f). */
 #define NAME_ENTRY_NAME_LEN 32
-/* @COLONY / @RENAMECOLONY: DOS FUN_291f_0120(0x17) (raw 40204, 76999) takes
- * at most 23 chars; the save's colony name field is 24 bytes. */
+/* @COLONY / @RENAMECOLONY / @LANDHO: DOS FUN_291f_0120(0x17) (raw 40204, 76999)
+ * takes at most 23 chars; the save's colony / country name fields are 24 bytes. */
 #define NAME_ENTRY_COLONY_NAME_CHARS 0x17
 
 typedef enum NameEntryKind {
@@ -39,6 +40,8 @@ typedef struct NameEntryDialog {
   char prompt[NAME_ENTRY_PROMPT_LEN];
   char name[NAME_ENTRY_NAME_LEN];
   size_t name_cap; /* buffer capacity incl. NUL used for this kind */
+  char label[POPUP_MSG_CHOICE_LEN]; /* the field caption ("Name:"), GAME.TXT's row after the prompt */
+  int width;                        /* the section's @width (0 = none), taken at open */
   TextEditState edit;
 
   bool has_result;
@@ -67,6 +70,9 @@ bool name_entry_open(
   const char* initial_name,
   int colony_id
 );
+
+/* Field caption of the dialog just opened (name_entry_open clears it). */
+void name_entry_set_label(NameEntryDialog* dlg, const char* label);
 
 bool name_entry_handle_input(NameEntryDialog* dlg, const ColonizeInputState* input);
 

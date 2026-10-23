@@ -9,8 +9,6 @@ key n alt
 key F5 shift
 key Return               # English
 wait 30
-key Return               # @LANDHO name prompt for England (named_new_world is false in this save), default accepted (port_bugs.md #1178)
-wait 30
 shot
 key e                    # English European Status
 wait 30

@@ -693,8 +693,11 @@ COLONIZE_INTERNAL void game_move_watch_w(
             slide_dtype,
             unit->nation_id,
             /* Same chrome the unit wears standing still: real order letter,
-             * not a forced '-' (port_bugs.md). */
-            unit->orders,
+             * not a forced '-' (port_bugs.md); the AI plan glyph under the
+             * cheat flags (#1177a). */
+            unit_chrome_plan_badge_index(
+              unit->nation_id, unit->col1_ai_plan, unit->orders, unit->orders
+            ),
             slide_stacked,
             slide_damaged,
             /* port_bugs.md: NULL here fell back to the raw ICONS.SS fill index,
@@ -836,7 +839,8 @@ void game_combat_watch(
       syp + ddy * k_step[f],
       bump_dtype,
       atk->nation_id,
-      atk->orders, /* as above: the lunging piece keeps its own letter */
+      /* as above: the lunging piece keeps its own letter (or plan glyph, #1177a) */
+      unit_chrome_plan_badge_index(atk->nation_id, atk->col1_ai_plan, atk->orders, atk->orders),
       bump_stacked,
       bump_damaged,
       /* port_bugs.md: same palette rule as the move slide — raw index went pink. */

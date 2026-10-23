@@ -378,6 +378,9 @@ int colonies_found_with_indian_land_w(
 const ColonizeColony* colonies_get(const ColonizeColonyPool* pool, int colony_id);
 ColonizeColony* colonies_get_mut(ColonizeColonyPool* pool, int colony_id);
 int colonies_id_at(const ColonizeColonyPool* pool, int x, int y);
+/* DOS colony index (ordinal among active slots = COL1 array order) <-> port colony id. */
+int colonies_dos_index(const ColonizeColonyPool* pool, int colony_id);
+int colonies_id_at_dos_index(const ColonizeColonyPool* pool, int idx);
 /* row-indexed identity rationale (see docs/colony.md#colonizebuildingrow) */
 typedef enum ColonizeBuildingRow {
   COLONY_BUILDING_STOCKADE = 0,
