@@ -1183,18 +1183,24 @@ static int test_colony_shift_pick_moves_highlight(void) {
     const ColoniesBuildableOpts bopts = game_colony_buildable_opts(&game);
     colony_screen_open_construction(&game.colony_screen, &game.colonies, col->id, &bopts);
     ColonyScreenView* csv = &game.colony_screen;
-    if (csv->construction_selection != 0) {
-      rc = fail("an idle colony must open the picker on the (no production) row");
-      break;
-    }
     int want_church = -1;
     int want_stockade = -1;
+    int want_carpenter = -1;
     for (int i = 0; i < csv->buildable_count; ++i) {
       if (csv->buildable_ids[i] == church) {
         want_church = i + 1;
       } else if (csv->buildable_ids[i] == stockade) {
         want_stockade = i + 1;
+      } else if (csv->buildable_ids[i] == carpenter) {
+        want_carpenter = i + 1;
       }
+    }
+    /* Nothing in production opens on the (no production) row; a built current
+     * project stays listed (FUN_15eb_3650 tail, port_bugs.md #1218) and has the bar. */
+    if (csv->construction_selection != (pass == 0 ? 0 : want_carpenter) ||
+        (pass == 1 && want_carpenter <= 0)) {
+      rc = fail("the picker must open on the current project's row");
+      break;
     }
     if (want_church <= 0 || want_stockade <= 0) {
       rc = fail("picker fixture must list Church and Stockade");
@@ -1653,6 +1659,63 @@ static int test_colony_construction_page_default(void) {
   return rc;
 }
 
+/*
+ * port_bugs.md #1218 / #1215 on a live list: a colony with all seven unit
+ * projects and fourteen buildings open, whose current project (the Shipyard)
+ * was just built, keeps that row (FUN_15eb_3650 tail), so the CHANGE box has 23
+ * rows and two pages; the bar follows the #1215 rule across the page turns.
+ */
+static int test_colony_construction_two_pages_live(void) {
+  static ColonizeGameState game;
+  ColonizeMsgCatalog names;
+  if (!jobs_menu_fixture(&game, &names)) {
+    return fail("jobs fixture");
+  }
+  ColonizeColony* col = &game.colonies.colonies[0];
+  ColonyScreenView* csv = &game.colony_screen;
+  static const ColonizeBuildingRow k_own[] = {
+    COLONY_BUILDING_TOWN_HALL, COLONY_BUILDING_WEAVERS_HOUSE, COLONY_BUILDING_TOBACCONISTS_HOUSE,
+    COLONY_BUILDING_RUM_DISTILLERS_HOUSE, COLONY_BUILDING_FUR_TRADERS_HOUSE,
+    COLONY_BUILDING_BLACKSMITHS_HOUSE, COLONY_BUILDING_DOCKS, COLONY_BUILDING_DRYDOCK,
+    COLONY_BUILDING_SHIPYARD, COLONY_BUILDING_ARMORY,
+  };
+  for (size_t i = 0; i < sizeof(k_own) / sizeof(k_own[0]); ++i) {
+    col->has_building[colonies_building_row(&game.colonies, k_own[i])] = true;
+  }
+  col->population = 10;
+  const int shipyard = colonies_building_row(&game.colonies, COLONY_BUILDING_SHIPYARD);
+  col->building_in_production = shipyard;
+  ColoniesBuildableOpts bopts = game_colony_buildable_opts(&game);
+  bopts.has_adam_smith = true;
+  bopts.has_peter_stuyvesant = true;
+  colony_screen_open_construction(csv, &game.colonies, col->id, &bopts);
+  int row = -1;
+  for (int i = 0; i < csv->buildable_count; ++i) {
+    if (csv->buildable_ids[i] == shipyard) {
+      row = i + 1;
+    }
+  }
+  int rc = 0;
+  if (csv->buildable_count + 1 != 23 || row <= 0 || row >= 0x10) {
+    rc = fail("the built Shipyard keeps its row: 23 rows, on page 0");
+  }
+  if (rc == 0 && (csv->construction_selection != row || csv->more_selected)) {
+    rc = fail("page 0 opens with the bar on the current project");
+  }
+  colony_screen_construction_next_page(csv);
+  if (rc == 0 && (csv->construction_selection != 0x10 || !csv->more_selected)) {
+    rc = fail("page 1 without the project bars its back (More) row");
+  }
+  colony_screen_construction_next_page(csv);
+  if (rc == 0 && (csv->construction_selection != row || csv->more_selected)) {
+    rc = fail("back on page 0 the bar is on the project again");
+  }
+  colony_screen_close_construction(csv);
+  fx_map_free(&game.world_map);
+  assets_msg_free(&names);
+  return rc;
+}
+
 /* port_bugs.md #1091: an open map pull-down is modal (DOS runs it as a blocking
  * loop), so game_modal_open is true and the unit/turn hand-off defers. */
 static int test_map_pulldown_is_modal(void) {
@@ -1768,6 +1831,7 @@ static const TestCase k_cases[] = {
     {"test_colony_list_keys_wrap", test_colony_list_keys_wrap},
     {"test_colony_custom_house_keys", test_colony_custom_house_keys},
     {"test_colony_construction_page_default", test_colony_construction_page_default},
+    {"test_colony_construction_two_pages_live", test_colony_construction_two_pages_live},
     {"test_indian_land_offer_row_greyed", test_indian_land_offer_row_greyed},
 };
 

@@ -715,7 +715,7 @@ helpers; every helper had a live twin in ai_euro.c/ai.c).
     portraits now fit with 0 palette violations.
   - *Hall of Fame golden* — **blocked, deliberately not faked.** No
     screenshot, no `HALLFAME.DAT` and no HoF-bearing memory dump exists
-    anywhere in the repo. `docs/reports.md` "Why there is still no Hall of
+    anywhere in the repo. `docs/reports_score.md` "Why there is still no Hall of
     Fame golden" lists what a capture must contain (a committed `.DAT`
     beside the PNG, ≥5 rows, mixed declared/achieved/difficulty, same DOS
     install) and the `render_report` hook a test would need.
