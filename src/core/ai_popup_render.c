@@ -745,7 +745,8 @@ static void ai_popup_render_frame(
 
 /* Stage 6: title, body lines, option rows + selection bar. */
 static void ai_popup_render_text(
-  AiPopupRenderCtx* c, uint8_t text_color, uint8_t hilite_color, uint8_t select_color
+  AiPopupRenderCtx* c, const ColonizePopupColors* colors, uint8_t text_color,
+  uint8_t hilite_color, uint8_t select_color
 ) {
   /* DOS DS:0x1f62 starts 0 per popup and carries across every line the
    * writer emits — title, body, then the option rows (FUN_6f74_0538). */
@@ -754,7 +755,7 @@ static void ai_popup_render_text(
   if (c->req->title[0] && c->font) {
     popup_draw_text_markup(
       c->font, c->fb, c->inner_x + c->pad_x, text_y, c->req->title, text_color,
-      hilite_color, true, true, &emph
+      hilite_color, colors, &emph
     );
     text_y += c->title_h;
   }
@@ -773,7 +774,7 @@ static void ai_popup_render_text(
     }
     popup_draw_text_markup(
       c->font, c->fb, line_x, text_y, c->wrapped[i], text_color,
-      hilite_color, true, true, &emph
+      hilite_color, colors, &emph
     );
     text_y += c->line_h;
   }
@@ -807,7 +808,7 @@ static void ai_popup_render_text(
     if (c->font) {
       popup_draw_text_markup(
         c->font, c->fb, c->inner_x + c->pad_x + c->row_dx, row_y, c->req->choices[i], text_color,
-        hilite_color, true, true, &emph
+        hilite_color, colors, &emph
       );
     }
   }
@@ -846,6 +847,6 @@ void ai_popup_render(
   ai_popup_render_pick_graphic(&c);
   ai_popup_render_place(&c);
   ai_popup_render_frame(&c, wood_tile, colors);
-  ai_popup_render_text(&c, text_color, hilite_color, select_color);
+  ai_popup_render_text(&c, colors, text_color, hilite_color, select_color);
 }
 

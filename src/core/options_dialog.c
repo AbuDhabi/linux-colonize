@@ -376,7 +376,6 @@ void options_dialog_render(
    * FUN_281f_0998), default FONTINTR, box[+0x22] 4, rows marked up. */
   PopupListMetrics metrics;
   popup_list_metrics_dos6f74(font, &metrics);
-  metrics.markup_text = true;
   PopupListGeom geom;
   popup_list_render(
     framebuffer,

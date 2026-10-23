@@ -509,15 +509,17 @@ Colours come from `NAMES.TXT` `@COLORS` (`src/core/ui_colors.h`), under the
 
 | role | @COLORS | index | RGB |
 | --- | --- | --- | --- |
-| text | `basic` | 68 | 85,150,52 (green) |
-| drop shadow | `enhance` | 128 | 121,73,52 (brown-orange) |
+| text (glyph shade 1) | `basic` | 68 | 85,150,52 (green) |
+| glyph shade 2 | `enhance` | 128 | 121,73,52 (brown-orange) |
+| glyph shade 3 | `shadow` | 47 | 12,12,12 (near-black) |
 | selection fill | `select` | 138 | 60,32,24 (dark brown) |
 
-Note the field's shadow is the warm `enhance` brown, not the black
-`popup_draw_text_shadowed` puts under the surrounding captions. Both fields are
+The text and its `_` caret are drawn once through the dialog writer's shade map,
+like every caption around it (DOS `FUN_6f74_1e14` -> `FUN_6f74_0538`; no drop-shadow
+pass, port_bugs.md #1191, [popups.md](popups.md) "Dialog text shading"). Both fields are
 boxed by the same 1px green rectangle (`basic` ink). The wizard's box comes from
 `text_edit_frame_rect` (a `TEXT_EDIT_FRAME_PAD` 3px gap around the font's real ink
-rows plus the drop-shadow row). The in-game dialogs (`@COLONY` / `@RENAMECOLONY` /
+rows). The in-game dialogs (`@COLONY` / `@RENAMECOLONY` /
 `@LANDHO` / `@TRADENAME` / `@HOWMUCH*`) are laid out by `popup_field_frame`
 (popup.c; geometry in popup.h, port_bugs.md #1181): the GAME.TXT line after the
 prompt is the field's caption, and the box is `width("W") * max length + 6` wide

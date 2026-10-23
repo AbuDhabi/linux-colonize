@@ -20,6 +20,8 @@ void popup_colors_from_ui(ColonizePopupColors* out) {
   out->mid = COLONIZE_COL_BORDER0;
   out->light = COLONIZE_COL_BORDER1;
   out->dark = COLONIZE_COL_BORDER2;
+  out->enhance = COLONIZE_COL_ENHANCE;
+  out->shadow = COLONIZE_COL_SHADOW;
 }
 
 void popup_colors_remap(
@@ -37,6 +39,8 @@ void popup_colors_remap(
   const uint8_t mid = colors->mid;
   const uint8_t light = colors->light;
   const uint8_t dark = colors->dark;
+  const uint8_t enhance = colors->enhance;
+  const uint8_t shadow = colors->shadow;
   colors->mid = assets_palette_nearest_rgb(
     target_palette,
     source_palette->rgb[mid][0],
@@ -54,6 +58,18 @@ void popup_colors_remap(
     source_palette->rgb[dark][0],
     source_palette->rgb[dark][1],
     source_palette->rgb[dark][2]
+  );
+  colors->enhance = assets_palette_nearest_rgb(
+    target_palette,
+    source_palette->rgb[enhance][0],
+    source_palette->rgb[enhance][1],
+    source_palette->rgb[enhance][2]
+  );
+  colors->shadow = assets_palette_nearest_rgb(
+    target_palette,
+    source_palette->rgb[shadow][0],
+    source_palette->rgb[shadow][1],
+    source_palette->rgb[shadow][2]
   );
 }
 
@@ -208,12 +224,16 @@ int popup_draw_text_markup(
   const char* text,
   uint8_t base_color,
   uint8_t hilite_color,
-  bool unbold,
-  bool shadow,
+  const ColonizePopupColors* colors,
   bool* inout_hilite
 ) {
   if (!font || !text) {
     return x;
+  }
+  ColonizePopupColors ui;
+  if (!colors) {
+    popup_colors_from_ui(&ui);
+    colors = &ui;
   }
   bool hi = inout_hilite ? *inout_hilite : false;
   int cx = x;
@@ -233,7 +253,8 @@ int popup_draw_text_markup(
     while (*p && *p != '{' && *p != '}') {
       ++p;
     }
-    const uint8_t ink = hi ? hilite_color : base_color;
+    /* FUN_6f74_04f6 -> FUN_1c28_000a: DS:0x269e = {skip, ink, style+8, style+0xa}. */
+    const uint8_t shades[4] = {0, hi ? hilite_color : base_color, colors->enhance, colors->shadow};
     size_t left = (size_t)(p - start);
     while (left > 0) { /* slice runs longer than the scratch buffer */
       char run[256];
@@ -241,17 +262,7 @@ int popup_draw_text_markup(
       memcpy(run, start, n);
       run[n] = '\0';
       if (framebuffer) {
-        if (unbold) {
-          if (shadow) {
-            font_draw_text_unbold(font, framebuffer, cx + 1, y + 1, run, 0);
-          }
-          font_draw_text_unbold(font, framebuffer, cx, y, run, ink);
-        } else {
-          if (shadow) {
-            font_draw_text(font, framebuffer, cx + 1, y + 1, run, 0);
-          }
-          font_draw_text(font, framebuffer, cx, y, run, ink);
-        }
+        font_draw_text_shaded(font, framebuffer, cx, y, run, shades);
       }
       cx += font_text_width(font, run);
       start += n;
@@ -353,32 +364,6 @@ void popup_list_metrics_dos6f74(const ColonizeFont* font, PopupListMetrics* out)
   out->pad_y = 3; /* prompt top frame + 6 */
   out->label_dx = 4; /* box[+0x22], FUN_6f74_06d0 default; FUN_6f74_0a00 widens by it too */
   out->sel_h = glyph_h + 2;
-  /* A FONTTINY dialog draws no drop shadow (original_screenshots/europe/train.png, #1187). */
-  out->shadow_text = glyph_h != 5;
-}
-
-static void popup_list_draw_row_text(
-  const ColonizeFont* font,
-  ColonizeFramebuffer8* framebuffer,
-  const PopupListMetrics* m,
-  int x,
-  int y,
-  const char* text,
-  uint8_t text_color,
-  uint8_t hilite_color
-) {
-  if (!font || !text) {
-    return;
-  }
-  if (m->markup_text) {
-    popup_draw_text_markup(
-      font, framebuffer, x, y, text, text_color, hilite_color, true, true, NULL
-    );
-  } else if (m->shadow_text) {
-    popup_draw_text_shadowed(font, framebuffer, x, y, text, text_color);
-  } else {
-    font_draw_text(font, framebuffer, x, y, text, text_color);
-  }
 }
 
 void popup_list_render(
@@ -449,16 +434,12 @@ void popup_list_render(
   geom.line_h = m->option_h;
 
   const int text_y = geom.frame.inner_y + m->pad_y;
+  /* Prompt (FUN_6f74_116c) and rows (FUN_6f74_1b7c) both go through FUN_6f74_0538. */
   if (has_prompt && font) {
-    if (m->shadow_text) {
-      popup_draw_text_shadowed(
-        font, framebuffer, geom.frame.inner_x + m->pad_x, text_y, prompt, text_color
-      );
-    } else {
-      font_draw_text(
-        font, framebuffer, geom.frame.inner_x + m->pad_x, text_y, prompt, text_color
-      );
-    }
+    popup_draw_text_markup(
+      font, framebuffer, geom.frame.inner_x + m->pad_x, text_y, prompt, text_color, hilite_color,
+      colors, NULL
+    );
   }
   /* list_y0 is row 0's bar top and the text sits one px lower (FUN_6f74_1b7c). */
   geom.list_y0 = popup_dos_list_y0(geom.frame.y, prompt_h);
@@ -477,9 +458,9 @@ void popup_list_render(
       );
     }
     const char* label = label_fn ? label_fn(user, i) : NULL;
-    popup_list_draw_row_text(
-      font, framebuffer, m, geom.frame.inner_x + m->pad_x + m->label_dx, row_y, label,
-      text_color, hilite_color
+    popup_draw_text_markup(
+      font, framebuffer, geom.frame.inner_x + m->pad_x + m->label_dx, row_y, label, text_color,
+      hilite_color, colors, NULL
     );
   }
 
@@ -694,12 +675,12 @@ void popup_field_frame(
       }
       popup_draw_text_markup(
         font, framebuffer, lx, y + 6 + i * (gh + 1), lines[i], text_color, COLONIZE_COL_HILITE,
-        true, true, &emph /* unbold: same FONTINTR body style as every popup (port_bugs.md #1180) */
+        colors, &emph
       );
     }
     if (label && label[0]) {
       popup_draw_text_markup(
-        font, framebuffer, x + 5, y0 + 3, label, text_color, COLONIZE_COL_HILITE, true, true, &emph
+        font, framebuffer, x + 5, y0 + 3, label, text_color, COLONIZE_COL_HILITE, colors, &emph
       );
     }
   }

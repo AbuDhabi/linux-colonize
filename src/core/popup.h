@@ -28,13 +28,16 @@ typedef struct ColonizePopupColors {
   uint8_t mid; /* wood brown, all sides */
   uint8_t light; /* top + right bevel */
   uint8_t dark; /* bottom + left bevel */
+  uint8_t enhance; /* dialog text glyph shade 2 (@COLORS enhance, DS:0x1f50) */
+  uint8_t shadow; /* dialog text glyph shade 3 (@COLORS shadow, DS:0x1f52) */
 } ColonizePopupColors;
 
-/* Fill from NAMES.TXT @COLORS border0/1/2 (+ outer 0) on WOODPANL / in-game indices. */
+/* Fill from NAMES.TXT @COLORS border0/1/2, enhance, shadow (+ outer 0) on WOODPANL /
+ * in-game indices. */
 void popup_colors_from_ui(ColonizePopupColors* out);
 
 /*
- * Remap mid/light/dark onto target_palette by nearest RGB, using source_palette
+ * Remap mid/light/dark/enhance/shadow onto target_palette by nearest RGB, using source_palette
  * as the reference for the @COLORS indices. Outer stays 0.
  * If either palette is NULL, leaves colors unchanged (aside from ensuring outer=0).
  */
@@ -63,7 +66,8 @@ void popup_draw(
   int* out_inner_h
 );
 
-/* Nation-wizard / ai_popup style: FONTINTR unbold + black (0) drop-shadow. */
+/* Port style for the non-compositor screens (combat analysis, trade route): unbold +
+ * black (0) +1,+1 drop shadow. DOS dialog text has no shadow pass: popup_draw_text_markup. */
 void popup_draw_text_shadowed(
   const ColonizeFont* font,
   ColonizeFramebuffer8* framebuffer,
@@ -91,12 +95,14 @@ void popup_draw_text_shadowed(
 int popup_markup_text_width(const ColonizeFont* font, const char* text);
 
 /*
- * Draw text honoring the DOS dialog writer's {} emphasis markup
- * (FUN_6f74_0538): '{' switches to hilite ink, '}' back to base, both
- * zero-width. shadow draws a 1px black drop shadow first. unbold selects
- * font_draw_text_unbold (FONTINTR captions). inout_hilite carries the
- * emphasis state across lines the way DS:0x1f62 does (NULL = start off,
- * discard). fb may be NULL (measure only). Returns the end x.
+ * Draw text the way the DOS dialog writer does (FUN_6f74_0538): '{' switches to
+ * hilite ink, '}' back to base, both zero-width. Each glyph is blitted once
+ * (FUN_1c11_000c) through the 4-entry shade map FUN_6f74_04f6 loads: shade 0
+ * transparent, 1 the ink, 2 colors->enhance, 3 colors->shadow (NULL = popup_colors_from_ui).
+ * There is no drop-shadow pass; FONTINTR / FONT-NP carry their own edge shades,
+ * FONTTINY / FONTSMAL only shade 1 (port_bugs.md #1191). inout_hilite carries the
+ * emphasis state across lines the way DS:0x1f62 does (NULL = start off, discard).
+ * fb may be NULL (measure only). Returns the end x.
  */
 int popup_draw_text_markup(
   const ColonizeFont* font,
@@ -106,8 +112,7 @@ int popup_draw_text_markup(
   const char* text,
   uint8_t base_color,
   uint8_t hilite_color,
-  bool unbold,
-  bool shadow,
+  const ColonizePopupColors* colors,
   bool* inout_hilite
 );
 
@@ -159,8 +164,6 @@ typedef struct PopupListMetrics {
   int pad_y; /* first text row's inset from the inner rect's top */
   int label_dx; /* box[+0x22]: row text indent (4, FUN_6f74_06d0 default) */
   int sel_h; /* selection bar height */
-  bool shadow_text; /* popup_draw_text_shadowed instead of font_draw_text */
-  bool markup_text; /* row labels via popup_draw_text_markup (unbold + shadow) */
 } PopupListMetrics;
 
 void popup_list_metrics_dos6f74(const ColonizeFont* font, PopupListMetrics* out);
@@ -182,7 +185,7 @@ typedef const char* (*PopupListLabelFn)(void* user, int index);
  * comes back in `out` for the caller to stash (dialog_x/y/w/h, line_h, list_y0).
  * `width` is the dialog's declared content width (GAME.TXT @width; DOS floor 0x50),
  * widened to the widest row (FUN_6f74_0a00: text + 2 * box[+0x48] + box[+0x22]).
- * hilite_color is only read when metrics->markup_text.
+ * Prompt and rows go through popup_draw_text_markup ({} in hilite_color, shades from colors).
  */
 void popup_list_render(
   ColonizeFramebuffer8* framebuffer,

@@ -9,6 +9,7 @@
  * basic  — normal dialog / menu / Colonizopedia link text (index under WOODPANL /
  *          in-game palettes; OPENMENU remaps by RGB — see game_loop menu_col_*)
  * hilite — {braced} emphasis (and hover highlight)
+ * enhance / shadow — dialog text glyph shades 2 / 3 (FUN_6f74_04f6, port_bugs.md #1191)
  * select — selection fill / chrome
  * border0/1/2 — popup frame mid / light bevel / dark bevel (`src/core/popup.c`)
  */

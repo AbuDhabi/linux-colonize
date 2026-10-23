@@ -103,7 +103,7 @@ static ColonyDosLayout colony_screen_open_dos_dialog(
   for (int i = 0; i < n; ++i) {
     popup_draw_text_markup(
       font, framebuffer, lay.text_x, pl.y + 6 + i * (lay.glyph_h + 1), lines[i], prose_ink,
-      COLONIZE_COL_HILITE, false, false, &hi
+      COLONIZE_COL_HILITE, &colors, &hi
     );
   }
   if (footer) {

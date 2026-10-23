@@ -1,7 +1,7 @@
 /*
  * port_bugs.md #1180 / #1181 guards on popup_field_frame, the DOS text-entry
- * dialog (FUN_291f_0120): the body must be the FONTINTR unbold + shadow markup
- * draw every other popup uses, and the geometry must be the one the asm yields
+ * dialog (FUN_291f_0120): the body must be the FONTINTR markup draw every other
+ * popup uses (#1191: one shaded pass), and the geometry must be the one the asm yields
  * (FUN_6f74_0d44 / 14c6 / 1198 / 1e14, written out in popup.h).
  */
 #include <stdio.h>
@@ -30,44 +30,94 @@ static bool load_font(ColonizeFont* font) {
 
 /* The wrapped body, label and box of popup_field_frame, redrawn by hand from
  * the geometry it reports; any other pixel difference is stray chrome. */
-static int case_field_body_is_unbold_markup(void) {
+static int case_field_body_is_markup(void) {
   ColonizeFont font;
   if (!load_font(&font)) {
     return TR_SKIP;
   }
-  static uint8_t a[W * H], b[W * H], c[W * H];
+  static uint8_t a[W * H], b[W * H];
   ColonizeFramebuffer8 fa = {.width = W, .height = H, .pixels = a};
   ColonizeFramebuffer8 fb = {.width = W, .height = H, .pixels = b};
-  ColonizeFramebuffer8 fc = {.width = W, .height = H, .pixels = c};
   const char* prompt = "Found {Quebec} here?";
-  const uint8_t ink = 15;
+  const uint8_t ink = COLONIZE_COL_BASIC;
 
   PopupFieldGeom g;
   popup_field_frame(&fa, &font, NULL, NULL, 190, prompt, "Name:", 23, ink, NULL, &g);
 
-  for (int pass = 0; pass < 2; ++pass) {
-    ColonizeFramebuffer8* f = pass == 0 ? &fb : &fc;
-    popup_draw(f, g.frame.x, g.frame.y, g.frame.w, g.frame.h, NULL, NULL, NULL, NULL, NULL, NULL);
-    bool emph = false;
-    popup_draw_text_markup(
-      &font, f, g.frame.x + 5, g.frame.y + 6, prompt, ink, COLONIZE_COL_HILITE, pass == 0, true,
-      &emph
-    );
-    popup_draw_text_markup(
-      &font, f, g.frame.x + 5, g.box_y + 3, "Name:", ink, COLONIZE_COL_HILITE, pass == 0, true,
-      &emph
-    );
-    fb_rect_outline(f, g.box_x, g.box_y, g.box_w, g.box_h, ink, ink);
-  }
+  popup_draw(&fb, g.frame.x, g.frame.y, g.frame.w, g.frame.h, NULL, NULL, NULL, NULL, NULL, NULL);
+  bool emph = false;
+  popup_draw_text_markup(
+    &font, &fb, g.frame.x + 5, g.frame.y + 6, prompt, ink, COLONIZE_COL_HILITE, NULL, &emph
+  );
+  popup_draw_text_markup(
+    &font, &fb, g.frame.x + 5, g.box_y + 3, "Name:", ink, COLONIZE_COL_HILITE, NULL, &emph
+  );
+  fb_rect_outline(&fb, g.box_x, g.box_y, g.box_w, g.box_h, ink, ink);
   int rc = 0;
   if (memcmp(a, b, sizeof(a)) != 0) {
-    fprintf(stderr, "popup_field_frame body is not the unbold shadowed markup draw\n");
+    fprintf(stderr, "popup_field_frame body is not the dialog markup draw\n");
     rc = 1;
   }
-  /* Control: the bold default must differ, or this test guards nothing. */
-  if (memcmp(b, c, sizeof(b)) == 0) {
-    fprintf(stderr, "control failed: unbold and bold draw identical pixels\n");
+  font_file_free(&font);
+  return rc;
+}
+
+/* FUN_1c11_000c glyph layout, decoded here independently of font.c: rows MSB-first,
+ * 4 px per byte, ((w - 1) >> 2) + 1 bytes per row; shade s paints map[s], 0 skips. */
+static int expect_run(const ColonizeFont* f, uint8_t* px, int x, int y, const char* s,
+                      const uint8_t map[4]) {
+  for (; *s; ++s) {
+    const unsigned char ch = (unsigned char)*s;
+    const int w = f->char_widths[ch];
+    const int bpr = ((w - 1) >> 2) + 1;
+    const uint8_t* g = f->section_data + f->char_offsets[ch];
+    for (int r = 0; r < f->max_height; ++r) {
+      for (int c = 0; c < w; ++c) {
+        const int shade = (g[r * bpr + (c >> 2)] >> (6 - 2 * (c & 3))) & 3;
+        if (shade) {
+          px[(y + r) * W + x + c] = map[shade];
+        }
+      }
+    }
+    x += w;
+  }
+  return x;
+}
+
+/* port_bugs.md #1191: DOS dialog text is one blit per glyph through the shade map
+ * FUN_6f74_04f6 loads ({skip, ink, @COLORS enhance 128, @COLORS shadow 47}); no +1,+1
+ * drop-shadow pass. purchase.png's 1240 (12,12,12) and 655 (121,73,52) pixels are
+ * exactly FONTINTR's shade-3 and shade-2 pixels. */
+static int case_dialog_text_is_dos_shaded(void) {
+  ColonizeFont font;
+  if (!load_font(&font)) {
+    return TR_SKIP;
+  }
+  static uint8_t got[W * H], want[W * H];
+  memset(got, 0xcc, sizeof(got));
+  memset(want, 0xcc, sizeof(want));
+  ColonizeFramebuffer8 fb = {.width = W, .height = H, .pixels = got};
+  popup_draw_text_markup(
+    &font, &fb, 20, 30, "available.{Which}", COLONIZE_COL_BASIC, COLONIZE_COL_HILITE, NULL, NULL
+  );
+  const uint8_t base[4] = {0, COLONIZE_COL_BASIC, COLONIZE_COL_ENHANCE, COLONIZE_COL_SHADOW};
+  const uint8_t hi[4] = {0, COLONIZE_COL_HILITE, COLONIZE_COL_ENHANCE, COLONIZE_COL_SHADOW};
+  expect_run(&font, want, expect_run(&font, want, 20, 30, "available.", base), 30, "Which", hi);
+  int n2 = 0, n3 = 0;
+  for (int i = 0; i < W * H; ++i) {
+    n2 += want[i] == COLONIZE_COL_ENHANCE;
+    n3 += want[i] == COLONIZE_COL_SHADOW;
+  }
+  int rc = 0;
+  if (n2 == 0 || n3 == 0) {
+    fprintf(stderr, "control: FONTINTR run has %d shade-2 / %d shade-3 pixels\n", n2, n3);
     rc = 1;
+  }
+  for (int i = 0; i < W * H && !rc; ++i) {
+    if (got[i] != want[i]) {
+      fprintf(stderr, "(%d,%d) drawn %u, DOS shade map %u\n", i % W, i / W, got[i], want[i]);
+      rc = 1;
+    }
   }
   font_file_free(&font);
   return rc;
@@ -457,7 +507,8 @@ static int case_units_present_is_dos(void) {
 }
 
 static const TestCase k_cases[] = {
-  {"field_body_is_unbold_markup", case_field_body_is_unbold_markup},
+  {"field_body_is_markup", case_field_body_is_markup},
+  {"dialog_text_is_dos_shaded", case_dialog_text_is_dos_shaded},
   {"field_geometry_is_dos", case_field_geometry_is_dos},
   {"field_decoration_is_dos", case_field_decoration_is_dos},
   {"place_dos", case_place_dos},
