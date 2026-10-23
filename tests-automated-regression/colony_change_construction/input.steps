@@ -5,11 +5,11 @@ click 168 128              # open Quebec (map tile 45,24)
 wait 10
 click 282 141              # CHANGE: construction picker opens, highlight on the current project
 wait 5
-click 150 147              # pick Church (building, 64 hammers): project becomes Church
+click 150 143              # pick Church (building, 64 hammers): project becomes Church
 wait 5
 click 282 141              # CHANGE again
 wait 5
-click 150 163              # pick Artillery (unit project, 192 hammers 40 tools)
+click 150 159              # pick Artillery (unit project, 192 hammers 40 tools)
 wait 5
 key c                      # keyboard: C opens the picker, highlight on Artillery
 wait 5
@@ -27,7 +27,7 @@ click 20 100               # click outside the picker also closes it, project un
 wait 5
 click 282 141              # CHANGE
 wait 5
-click 150 43               # "(No Production)" row clears the project
+click 150 39               # "(No Production)" row clears the project
 wait 5
 key c                      # C: highlight starts on (No Production)
 wait 5

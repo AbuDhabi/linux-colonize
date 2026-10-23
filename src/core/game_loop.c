@@ -432,6 +432,18 @@ const ColonizeFont* game_popup_font(const ColonizeGameState* game) {
 }
 
 /*
+ * The save / load picker's font: FUN_7562_0052 switches the dialog font to FONTTINY
+ * (FUN_2a1f_07c4(DS:0x89e, ...) raw 119634) around the box build, trims the leader name
+ * in it too, and puts FONTINTR back at raw 119711 (port_bugs.md #1193).
+ */
+const ColonizeFont* save_load_font(const ColonizeGameState* game) {
+  if (game && game->colony_font_ok) {
+    return &game->colony_font;
+  }
+  return game_popup_font(game);
+}
+
+/*
  * port_bugs.md: the animated piece (move slide / combat lunge) is blitted onto the
  * finished 320x200 frame, while the standing piece is drawn into the offscreen
  * map composite that `game_render` then copies into the 240x192 viewport. The
@@ -1579,6 +1591,7 @@ COLONIZE_INTERNAL bool game_render_screen(
       ai_popup_render(
         (AiPopupState*)&game->ai_popups,
         popup_font,
+        game->colony_font_ok ? &game->colony_font : NULL,
         wood,
         &popup_cols,
         COLONIZE_COL_BASIC,
@@ -1653,6 +1666,7 @@ COLONIZE_INTERNAL bool game_render_screen(
       ai_popup_render(
         (AiPopupState*)&game->ai_popups,
         popup_font,
+        game->colony_font_ok ? &game->colony_font : NULL,
         wood,
         &popup_cols,
         COLONIZE_COL_BASIC,
@@ -1760,7 +1774,7 @@ COLONIZE_INTERNAL bool game_render_screen(
       if (game->save_load.open) {
         save_load_render(
           (SaveLoadDialog*)&game->save_load,
-          font,
+          save_load_font(game),
           wood,
           &game->menu_popup_colors,
           game->menu_col_basic,
@@ -1772,6 +1786,7 @@ COLONIZE_INTERNAL bool game_render_screen(
         ai_popup_render(
           (AiPopupState*)&game->ai_popups,
           font,
+          game->colony_font_ok ? &game->colony_font : NULL,
           wood,
           &game->menu_popup_colors,
           game->menu_col_basic,
@@ -2198,11 +2213,9 @@ COLONIZE_INTERNAL void game_render_map_dialogs(
     if (game->save_load.open) {
       ColonizePopupColors popup_cols;
       popup_colors_from_ui(&popup_cols);
-      /* DOS uses the FONTINTR dialog font here, not the FONTTINY HUD one. */
-      const ColonizeFont* popup_font = game_popup_font(game);
       save_load_render(
         (SaveLoadDialog*)&game->save_load,
-        popup_font,
+        save_load_font(game),
         wood,
         &popup_cols,
         COLONIZE_COL_BASIC,
@@ -2215,7 +2228,9 @@ COLONIZE_INTERNAL void game_render_map_dialogs(
       popup_colors_from_ui(&popup_cols);
       cheat_list_render(
         (CheatListDialog*)&game->cheat_list,
-        hud_font,
+        /* DOS dialog font FONTINTR; the cargo picker FUN_647e_0e80 switches to FONTTINY. */
+        game->cheat_list.kind == CHEAT_LIST_KIND_TRADE_CARGO_ONE ? hud_font
+                                                                 : game_popup_font(game),
         wood,
         &popup_cols,
         COLONIZE_COL_BASIC,
@@ -2274,6 +2289,7 @@ COLONIZE_INTERNAL void game_render_map_dialogs(
       ai_popup_render(
         (AiPopupState*)&game->ai_popups,
         popup_font,
+        game->colony_font_ok ? &game->colony_font : NULL,
         wood,
         &popup_cols,
         COLONIZE_COL_BASIC,
@@ -2290,11 +2306,11 @@ COLONIZE_INTERNAL void game_render_map_dialogs(
         &game->units,
         game->unit_icons_ok ? &game->unit_icons : NULL,
         &game->names,
-        hud_font,
+        /* FUN_2b5a_1b5a builds the box with FONTINTR (DS:0x268a). */
+        game_popup_font(game),
         wood,
         &popup_cols,
         COLONIZE_COL_BASIC,
-        COLONIZE_COL_SELECT,
         palette,
         game->col1_ok ? &game->col1 : NULL,
         framebuffer

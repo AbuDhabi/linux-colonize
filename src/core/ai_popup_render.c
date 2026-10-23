@@ -17,6 +17,7 @@
 #include "core/font.h"
 #include "core/popup.h"
 #include "core/popup_msg.h"
+#include "core/reports.h"
 #include "core/ss.h"
 #include "core/ui_button.h"
 #include "core/ui_colors.h"
@@ -384,6 +385,7 @@ typedef struct AiPopupRenderCtx {
   AiPopupState* st;
   const AiPopupRequest* req;
   const ColonizeFont* font;
+  const ColonizeFont* tiny_font; /* FONTTINY: the "(F1 for Help)" footer face */
   ColonizeFramebuffer8* fb;
   /* measure */
   int glyph_h;
@@ -392,7 +394,10 @@ typedef struct AiPopupRenderCtx {
   int pad_x;
   int text_max_w;
   int title_h;
+  int prose_h; /* title + body lines: FUN_6f74_14c6 prose height */
   int options_h;
+  int row_dx; /* box[+0x22]: option text indent past the margin */
+  bool help_footer; /* DS:0x1f66 set by the builder */
   char wrapped[AI_POPUP_WRAP_MAX][AI_POPUP_BODY_LEN];
   bool wrapped_center[AI_POPUP_WRAP_MAX];
   int wrapped_count;
@@ -458,6 +463,26 @@ static void ai_popup_render_measure(AiPopupRenderCtx* c) {
   /* FUN_6f74_14c6: option rows advance by glyph_h + box[+0x46] (= 3). */
   c->option_h = c->glyph_h + 3;
   c->pad_x = 2;
+  /*
+   * box[+0x22]: FUN_6f74_06d0 default 4; the builders behind these three dialogs set 8
+   * right after FUN_291f_0182 (FUN_38fd_4884 raw 64722: Fountain of Youth / Brewster
+   * picks; FUN_4345_06d2 raw 73243: Congress). FUN_6f74_0a00 widens the box by it and
+   * FUN_6f74_1b7c indents the row text by it (port_bugs.md #1189). The same two
+   * builders set DS:0x1f66 before FUN_291f_016a (raw 64747, 73263), so FUN_6f74_14c6
+   * adds the footer height and FUN_6f74_1a78 draws it (port_bugs.md #1192).
+   */
+  switch (c->req->tag) {
+    case AI_POPUP_TAG_FOUNTAIN_YOUTH:
+    case AI_POPUP_TAG_BREWSTER_PICK:
+    case AI_POPUP_TAG_FF_CONGRESS:
+      c->row_dx = 8;
+      c->help_footer = true;
+      break;
+    default:
+      c->row_dx = 4;
+      c->help_footer = false;
+      break;
+  }
   const int title_gap = c->req->title[0] ? 2 : 0;
 
   int content_w = c->req->width > 0 ? c->req->width : AI_POPUP_DEFAULT_WIDTH;
@@ -486,7 +511,8 @@ static void ai_popup_render_measure(AiPopupRenderCtx* c) {
    */
   if (c->font) {
     for (int i = 0; i < c->req->choice_count; ++i) {
-      const int w = popup_markup_text_width(c->font, c->req->choices[i]) + 2 * c->pad_x;
+      const int w =
+        popup_markup_text_width(c->font, c->req->choices[i]) + 2 * c->pad_x + c->row_dx;
       if (w > content_w) {
         content_w = w;
       }
@@ -498,9 +524,11 @@ static void ai_popup_render_measure(AiPopupRenderCtx* c) {
   c->dialog_w = content_w + 6;
 
   c->title_h = c->req->title[0] ? c->line_h + title_gap : 0;
-  const int body_h = c->wrapped_count * c->line_h;
+  c->prose_h = c->title_h + c->wrapped_count * c->line_h;
   c->options_h = c->req->choice_count * c->option_h;
-  c->dialog_h = 12 + c->title_h + body_h + c->options_h;
+  c->dialog_h = popup_dos_list_height(
+    c->glyph_h, c->prose_h, c->req->choice_count, c->help_footer, c->glyph_h == 5
+  );
   if (c->dialog_h > c->fb->height) {
     c->dialog_h = c->fb->height;
   }
@@ -749,9 +777,11 @@ static void ai_popup_render_text(
     );
     text_y += c->line_h;
   }
-  c->st->list_y0 = text_y;
+  /* FUN_6f74_1b7c: row k's bar tops at list_y0 + k * option_h, its text one px lower
+   * (port_bugs.md #1189; the hit test reads the same list_y0 / line_h). */
+  c->st->list_y0 = popup_dos_list_y0(c->dialog_y, c->prose_h);
   for (int i = 0; i < c->req->choice_count; ++i) {
-    const int row_y = text_y + i * c->option_h;
+    const int row_y = c->st->list_y0 + i * c->option_h + 1;
     if (i == c->st->selection) {
       /*
        * FUN_6f74_1b7c selection bar, OVL24 0x1c5b–0x1c9b. Its x is
@@ -776,16 +806,23 @@ static void ai_popup_render_text(
     }
     if (c->font) {
       popup_draw_text_markup(
-        c->font, c->fb, c->inner_x + c->pad_x, row_y, c->req->choices[i], text_color,
+        c->font, c->fb, c->inner_x + c->pad_x + c->row_dx, row_y, c->req->choices[i], text_color,
         hilite_color, true, true, &emph
       );
     }
+  }
+  if (c->help_footer) {
+    popup_dos_draw_help_footer(
+      c->fb, c->tiny_font, c->dialog_x, c->dialog_y, c->dialog_w, c->dialog_h, c->glyph_h == 5,
+      reports_misc_display_word(189, ""), hilite_color
+    );
   }
 }
 
 void ai_popup_render(
   AiPopupState* st,
   const ColonizeFont* font,
+  const ColonizeFont* tiny_font,
   const ColonizeSpriteSheet* wood_tile,
   const ColonizePopupColors* colors,
   uint8_t text_color,
@@ -802,6 +839,7 @@ void ai_popup_render(
   c.st = st;
   c.req = &st->current;
   c.font = font;
+  c.tiny_font = tiny_font;
   c.fb = framebuffer;
   ai_popup_render_measure(&c);
   ai_popup_render_pick_portrait(&c);

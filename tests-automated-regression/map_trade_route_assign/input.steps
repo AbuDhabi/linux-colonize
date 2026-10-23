@@ -5,12 +5,12 @@ click 110 101          # Begin Trade Route: route picker (only land routes for a
 key Escape             # cancel the route picker: no orders given
 click 88 3             # ORDERS menu again
 click 110 101          # Begin Trade Route
-click 100 100          # route 1 "Land Haul": starting-stop picker (3 stops)
+click 100 108          # route 1 "Land Haul": starting-stop picker (3 stops)
 key Escape             # cancel the starting-stop picker: still no orders
 click 88 3             # ORDERS menu again
 click 110 101          # Begin Trade Route
-click 100 100          # route 1 "Land Haul"
-click 100 103          # start at stop 2, Quebec: the wagon rides to Quebec, unloads lumber + ore, loads cotton, aims at Montreal
+click 100 108          # route 1 "Land Haul"
+click 100 108          # start at stop 2, Quebec: the wagon rides to Quebec, unloads lumber + ore, loads cotton, aims at Montreal
 wait 60
 # Back to the next unit (88). Three Wait-for-next-unit presses reach Caravel B in Quebec (12 moves, tobacco aboard).
 key w                  # Scout
@@ -18,6 +18,6 @@ key w                  # Colonist
 key w                  # Caravel B (126)
 click 88 3             # ORDERS menu
 click 110 101          # Begin Trade Route: route picker (only sea routes for a ship)
-click 100 100          # route 2 "Sea Ferry": starting-stop picker
-click 100 95           # start at stop 1, Quebec (where the ship lies): loads the 83 food into the free hold, sails for Montreal
+click 100 108          # route 2 "Sea Ferry": starting-stop picker
+click 100 96           # start at stop 1, Quebec (where the ship lies): loads the 83 food into the free hold, sails for Montreal
 wait 60

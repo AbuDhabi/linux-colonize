@@ -146,36 +146,23 @@ void popup_center_frame(
  * copies in options_dialog and ai_popup dropped. */
 int popup_row_at_y(int list_y0, int line_h, int count, int mouse_y);
 
-/* The port's classic wood-dialog row pitch (font->max_height + 2; 8 unfonted). */
-int popup_dialog_line_h(const ColonizeFont* font);
-
 /*
- * Metrics for popup_list_render. Two documented sets exist:
- *   popup_list_metrics_classic  — the port's INSET-based wood list
- *                                 (cheat_list, pick_music, options_dialog).
- *   popup_list_metrics_dos6f74  — the DOS FUN_6f74_14c6 compositor metrics
- *                                 (save_load_dialog; ai_popup_render's own).
- * Fill one of those, then override the few fields your dialog differs in.
+ * Metrics for popup_list_render: the DOS FUN_6f74_14c6 compositor (save/load, options,
+ * pick music, cheat / goto lists; ai_popup_render keeps its own copy). Fill with
+ * popup_list_metrics_dos6f74, then set the builder's own box[+0x22] in label_dx.
+ * Height popup_dos_list_height, row 0's bar top popup_dos_list_y0, text one px lower.
  */
 typedef struct PopupListMetrics {
   int line_h; /* prompt row pitch */
   int option_h; /* list row pitch — this is the hit-test pitch */
   int pad_x; /* text inset from the inner rect's left edge */
   int pad_y; /* first text row's inset from the inner rect's top */
-  int bottom_pad; /* space kept under the last row inside the inner rect */
-  int prompt_gap; /* extra px after the prompt row */
-  int label_dx; /* extra x for row labels (options_dialog's checkbox column) */
-  int min_h; /* minimum outer height; 0 = none */
-  int frame_pad; /* outer width = content width + this */
-  int screen_margin_w; /* outer width clamped to framebuffer width minus this */
-  int screen_margin_h; /* outer height clamped to framebuffer height minus this */
+  int label_dx; /* box[+0x22]: row text indent (4, FUN_6f74_06d0 default) */
   int sel_h; /* selection bar height */
-  bool widen_to_rows; /* FUN_6f74_14c6: grow the box to the widest emitted row */
   bool shadow_text; /* popup_draw_text_shadowed instead of font_draw_text */
   bool markup_text; /* row labels via popup_draw_text_markup (unbold + shadow) */
 } PopupListMetrics;
 
-void popup_list_metrics_classic(const ColonizeFont* font, PopupListMetrics* out);
 void popup_list_metrics_dos6f74(const ColonizeFont* font, PopupListMetrics* out);
 
 typedef struct PopupListGeom {
@@ -186,26 +173,15 @@ typedef struct PopupListGeom {
 
 /* Label for row index; NULL draws nothing for that row. */
 typedef const char* (*PopupListLabelFn)(void* user, int index);
-/*
- * Optional per-row decoration, run after the selection bar and before the
- * label. row_x is the label's own x, so a checkbox column sits at
- * row_x - metrics->label_dx.
- */
-typedef void (*PopupListRowFn)(
-  void* user,
-  int index,
-  ColonizeFramebuffer8* framebuffer,
-  int row_x,
-  int row_y,
-  int line_h
-);
 
 /*
- * The whole wood list dialog: height from the prompt + rows, height/width
- * clamps, DOS 14c6 centring (popup_center_frame), popup_colors_from_ui fallback,
- * popup_draw, prompt row, selection bar, row labels. Geometry comes back in
- * `out` for the caller to stash (dialog_x/y/w/h, line_h, list_y0).
- * `width` is the dialog's declared content width (GAME.TXT @width).
+ * The whole wood list dialog (FUN_6f74_14c6 sizes, popup_place_dos centring via
+ * popup_center_frame, popup_colors_from_ui fallback): one prompt line at (frame + 5,
+ * frame + 6), rows at popup_dos_list_y0 + k * option_h with the text one px lower at
+ * frame + 5 + label_dx, the glyph_h + 2 bar at frame + 4 .. frame + w - 5. Geometry
+ * comes back in `out` for the caller to stash (dialog_x/y/w/h, line_h, list_y0).
+ * `width` is the dialog's declared content width (GAME.TXT @width; DOS floor 0x50),
+ * widened to the widest row (FUN_6f74_0a00: text + 2 * box[+0x48] + box[+0x22]).
  * hilite_color is only read when metrics->markup_text.
  */
 void popup_list_render(
@@ -219,7 +195,6 @@ void popup_list_render(
   int count,
   int selection,
   PopupListLabelFn label_fn,
-  PopupListRowFn row_fn,
   void* user,
   uint8_t text_color,
   uint8_t hilite_color,
@@ -266,6 +241,35 @@ int popup_dos_glyph_h(const ColonizeFont* font);
  * frame_y + h - 7 (FONTTINY dialogs h - 9), FUN_6f74_1a78.
  */
 int popup_dos_list_height(int glyph_h, int prose_h, int rows, bool help_footer, bool tiny_font);
+
+/*
+ * FUN_6f74_14c6 box[+0x26]: top of option row 0's selection bar, frame_y + 6, plus
+ * box[+0x46] (3) + prose_h when the dialog has prose. FUN_6f74_1b7c steps it by
+ * glyph_h + 3 per row and draws each row's text one px lower, at x frame_x + 5 +
+ * box[+0x22] (FUN_6f74_06d0 default 4). Hit tests take rows from here too.
+ */
+int popup_dos_list_y0(int frame_y, int prose_h);
+
+/*
+ * The DS:0x1f66 "(F1 for Help)" footer, FUN_6f74_1a78: LABELS @MISC 189 (DS:0x2f34,
+ * passed as `word`) right-aligned to frame_x + w - 2, text top frame_y + h - 7 (- 9 when
+ * the dialog font is FONTTINY, DS:0x89e), in the FONTTINY face (every DOS shot), no drop
+ * shadow. DOS raises the flag only in FUN_2f2b_348c (jobs / leave-as), FUN_2f2b_5bd2
+ * (construction), FUN_38fd_41ce / 4884 / 4b50 (Train, Recruit / Fountain of Youth /
+ * Brewster, Purchase) and FUN_4345_06d2 (Congress); the height it costs is
+ * popup_dos_list_height's help_footer term.
+ */
+void popup_dos_draw_help_footer(
+  ColonizeFramebuffer8* framebuffer,
+  const ColonizeFont* tiny_font,
+  int frame_x,
+  int frame_y,
+  int w,
+  int h,
+  bool tiny_dialog,
+  const char* word,
+  uint8_t color
+);
 
 /*
  * DOS text-entry dialog (FUN_291f_0120 -> FUN_6f74_37fc: the generic compositor

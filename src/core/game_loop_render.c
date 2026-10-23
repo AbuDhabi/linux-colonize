@@ -768,9 +768,10 @@ const ColonizeSpriteSheet* europe_menu_decoration(const ColonizeGameState* game)
  *              glyph_h + 1.
  *   rows       FUN_6f74_1b7c: row k's bar tops at list_y0 = frame_y + 9 + prose_h, pitch
  *              glyph_h + 3, text at (frame + 5 + box[+0x22], bar top + 1). FUN_38fd_4884 /
- *              4b50 / 41ce / 3694 set box[+0x22] = 8; the @REALLYBUY confirm is a plain
- *              FUN_281f_0652 popup (box default +0x22 = 4, FUN_6f74_06d0) and DOS clears
- *              DS:0x1f66 when each dialog exits (FUN_6f74_2580), so it has no footer.
+ *              4b50 / 41ce set box[+0x22] = 8 and DS:0x1f66; the dock list (FUN_38fd_3746)
+ *              and the @REALLYBUY confirm (a plain FUN_281f_0652 popup) set neither (box
+ *              default +0x22 = 4, FUN_6f74_06d0), and DOS clears DS:0x1f66 when each dialog
+ *              exits (FUN_6f74_2580), so they have no footer.
  * DOS shots (original_screenshots/europe/): recruit 196x103 at (62,88), purchase 196x119
  * at (62,80), train 196x180 at (62,10).
  */
@@ -809,9 +810,12 @@ bool europe_menu_layout(
     default:
       return false;
   }
-  const bool confirm = eu->menu == EUROPE_MENU_PURCHASE && eu->purchase_confirming;
-  out->help_footer = !confirm;
-  out->row_dx = confirm ? 4 : 8;
+  /* The dock @EUROPEARM list (FUN_38fd_3746) writes neither DS:0x1f66 nor box[+0x22]
+   * (no such store in 38fd:3746-3c86), so it keeps the 06d0 default 4 and has no footer. */
+  const bool plain = eu->menu == EUROPE_MENU_DOCK ||
+                     (eu->menu == EUROPE_MENU_PURCHASE && eu->purchase_confirming);
+  out->help_footer = !plain;
+  out->row_dx = plain ? 4 : 8;
   /*
    * Width comes from the menu section's own GAME.TXT @width directive, the
    * same directive every other popup honours (popup_msg_section_width):
@@ -871,7 +875,7 @@ bool europe_menu_layout(
   }
   out->text_x = out->dialog_x + POPUP_FRAME_INSET + 2;
   out->prose_y = out->dialog_y + 6;
-  out->list_y0 = out->dialog_y + (out->prose_h ? 9 + out->prose_h : 6);
+  out->list_y0 = popup_dos_list_y0(out->dialog_y, out->prose_h);
   return true;
 }
 
@@ -1040,15 +1044,11 @@ static void europe_render_menu_popup(
   }
 
   if (lay.help_footer) {
-    /* FUN_6f74_1a78: text top at frame bottom - 7 (FONTTINY dialogs - 9), right edge
-     * frame + w - 2; the glyph rows in every DOS shot are the 6-row FONTTINY face. */
-    const ColonizeFont* ff = game->colony_font_ok ? &game->colony_font : font;
-    const char* footer_word = reports_misc_display_word(189, "");
-    const int fw = font_text_width(ff, footer_word);
     /* Highlight ink, no drop shadow (original_screenshots/europe/purchase.png). */
-    font_draw_text_unbold(
-      ff, framebuffer, lay.dialog_x + lay.dialog_w - 2 - fw,
-      lay.dialog_y + lay.dialog_h - (lay.tiny ? 9 : 7), footer_word, COLONIZE_COL_HILITE
+    popup_dos_draw_help_footer(
+      framebuffer, game->colony_font_ok ? &game->colony_font : font, lay.dialog_x, lay.dialog_y,
+      lay.dialog_w, lay.dialog_h, lay.tiny, reports_misc_display_word(189, ""),
+      COLONIZE_COL_HILITE
     );
   }
 

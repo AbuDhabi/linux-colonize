@@ -9,9 +9,12 @@
 #include "core/cheat_list_dialog.h"
 #include "core/font_file.h"
 #include "core/map.h"
+#include "core/popup.h"
 #include "core/popup_msg.h"
+#include "core/reports.h"
 #include "core/ss.h"
 #include "core/trade_screen.h"
+#include "core/ui_colors.h"
 #include "core/units.h"
 #include "core/units_cargo.h"
 #include "core/world.h"
@@ -2938,7 +2941,116 @@ static int unit_hit_test_stage_seam(void) {
   return 0;
 }
 
+/*
+ * port_bugs.md #1190: the colony sub-dialogs take the FUN_6f74_14c6 sizes of their DOS
+ * builders. FONTTINY (glyph_h 5) construction (FUN_2f2b_5bd2: content max(0x50, rows), footer
+ * +6) and jobs / leave-as (FUN_2f2b_348c: @width 190, box[+0x22] 8, footer +6), the @CUSTOM
+ * checklist (FUN_2f2b_4424: all 16 cargos, @width 190, no footer) and the @COLONYUNIT dock
+ * orders (FUN_2f2b_51ec: FONTINTR, @width 190 + the 22 px icon column, no footer). Rows from
+ * frame_y + 9 + prose_h at glyph_h + 3; the footer is LABELS @MISC 189 in the hilite ink.
+ */
+static int footer_ink(const uint8_t* px, const ColonyDialogRect* r) {
+  int n = 0;
+  for (int y = r->y + r->h - 9; y < r->y + r->h - 3; ++y) {
+    for (int x = r->x + r->w - 60; x < r->x + r->w - 2; ++x) {
+      n += px[y * 320 + x] == COLONIZE_COL_HILITE;
+    }
+  }
+  return n;
+}
+
+static int unit_sub_dialogs_are_dos(void) {
+  static ColonyScreenView view;
+  char err[256];
+  if (!colony_screen_load(&view, "COLONIZE", err, sizeof(err))) {
+    fprintf(stderr, "SKIP: %s\n", err);
+    return TR_SKIP;
+  }
+  reports_names_load_catalogs("COLONIZE");
+  ColonizeFont tiny;
+  if (!font_file_load("COLONIZE/FONTTINY.FF", &tiny, err, sizeof(err))) {
+    colony_screen_free(&view);
+    fprintf(stderr, "SKIP: %s\n", err);
+    return TR_SKIP;
+  }
+  static ColonizeUnitPool units;
+  static ColonizeColonyPool pool;
+  static ColonizeColony colony;
+  memset(&units, 0, sizeof(units));
+  colonies_init(&pool);
+  memset(&colony, 0, sizeof(colony));
+  colony.active = true;
+  colony.custom_house_bits = 0;
+  ColonizeWorld w = world_make(&units, &pool, NULL, NULL, false, NULL, NULL);
+  static uint8_t px[320 * 200];
+  ColonizeFramebuffer8 fb = {.width = 320, .height = 200, .pixels = px};
+  int rc = 0;
+#define RENDER() colony_screen_render_w(&w, &view, &colony, NULL, NULL, 1600, 0, 0, &tiny, false, \
+                                        NULL, &fb)
+
+  view.construction_open = true;
+  view.buildable_count = 0;
+  view.construction_selection = 0;
+  RENDER();
+  const ColonyDialogRect* c = &view.construction_rect;
+  /* One "(No Production)" row leaves the 0x50 box, so @CTITLE[4] (78 px) wraps at 76
+   * (FUN_6f74_1198): 3 + 6 + prose 2 * 6 + 1 row * 8 + 3 + footer 6. */
+  if (c->h != 38 || c->w != 0x50 + 6 || c->line_h != 8 || c->list_y0 != c->y + 21 ||
+      c->y != 100 - 19 || footer_ink(px, c) == 0) {
+    fprintf(stderr, "construction: %dx%d y %d list_y0 %d line_h %d footer %d\n", c->w, c->h,
+            c->y, c->list_y0, c->line_h, footer_ink(px, c));
+    rc = 1;
+  }
+  view.construction_open = false;
+
+  view.jobs_open = true;
+  view.job_count = 2;
+  view.job_ids[0] = 0;
+  view.job_ids[1] = 1;
+  view.selected_colonist = -1;
+  RENDER();
+  const ColonyDialogRect* j = &view.jobs_rect;
+  if (j->h != 9 + 6 + 16 + 3 + 6 || j->w != 196 || j->list_y0 != j->y + 15 || !footer_ink(px, j)) {
+    fprintf(stderr, "jobs: %dx%d list_y0 %d (y %d) footer %d\n", j->w, j->h, j->list_y0, j->y,
+            footer_ink(px, j));
+    rc = 1;
+  }
+  view.jobs_open = false;
+
+  colony_screen_open_custom_house(&view, &colony, NULL);
+  view.custom_house_width = 190;
+  view.custom_house_smallfont = true; /* @CUSTOM's @smallfont; no catalog = no prose */
+  RENDER();
+  const ColonyDialogRect* h = &view.custom_house_rect;
+  if (view.custom_house_count != 16 || h->w != 196 || h->h != 9 + 16 * 8 + 3 ||
+      footer_ink(px, h) != 0) {
+    fprintf(stderr, "custom house: %d rows %dx%d footer %d\n", view.custom_house_count, h->w, h->h,
+            footer_ink(px, h));
+    rc = 1;
+  }
+  colony_screen_close_custom_house(&view);
+
+  view.dock_orders_open = true;
+  view.dock_orders_count = 3;
+  view.dock_orders_width = 190;
+  view.dock_orders_unit_id = -1;
+  snprintf(view.dock_orders_title, sizeof(view.dock_orders_title), "Options");
+  RENDER();
+  const ColonyDialogRect* d = &view.dock_orders_rect;
+  const int g = view.dialog_font_ok ? 9 : 5;
+  if (d->w != 190 + 6 + 22 || d->h != 9 + (g + 1) + 3 * (g + 3) + 3 || d->line_h != g + 3) {
+    fprintf(stderr, "dock orders: %dx%d line_h %d\n", d->w, d->h, d->line_h);
+    rc = 1;
+  }
+  view.dock_orders_open = false;
+#undef RENDER
+  font_file_free(&tiny);
+  colony_screen_free(&view);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
+    {"unit_sub_dialogs_are_dos", unit_sub_dialogs_are_dos},
     {"unit_plot_eviction_1080", unit_plot_eviction_1080},
     {"unit_buyme1_tokens", unit_buyme1_tokens},
     {"unit_building_click_reaches_owned", unit_building_click_reaches_owned},

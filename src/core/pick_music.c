@@ -288,8 +288,10 @@ void pick_music_render(
   if (!dlg || !dlg->open || !framebuffer || !framebuffer->pixels) {
     return;
   }
+  /* @PICKMUSIC through the generic parser (FUN_291f_0182, 2b5a:253c): @smallfont,
+   * @width=220, default box (box[+0x22] 4), no footer. */
   PopupListMetrics metrics;
-  popup_list_metrics_classic(font, &metrics);
+  popup_list_metrics_dos6f74(font, &metrics);
   PopupListGeom geom;
   popup_list_render(
     framebuffer,
@@ -302,7 +304,6 @@ void pick_music_render(
     dlg->option_count,
     dlg->selection,
     pick_music_row_label,
-    NULL,
     dlg,
     text_color,
     text_color,

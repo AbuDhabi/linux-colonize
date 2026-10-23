@@ -1,6 +1,6 @@
 # Montreal (pop 7). Fixture: stock tools 100, muskets 100, horses 100; Church added.
 # People strip icons: x = 5 + 9*i, y = 155. Dropping a colonist on the empty left edge of the fence strip
-# opens the "leave as" popup (rows y: Colonist 46, Pioneer 54, Soldier 62, Scout 70, Dragoon 78, Missionary 86).
+# opens the "leave as" popup (rows y: Colonist 83, Pioneer 91, Soldier 99, Scout 107, Dragoon 115, Missionary 123).
 # Rows whose gear is missing are greyed. Colonists leave from the end of the strip so indices stay put.
 click 135 175              # open Montreal
 wait 10

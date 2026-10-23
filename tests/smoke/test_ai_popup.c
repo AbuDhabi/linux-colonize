@@ -5,6 +5,8 @@
 #include <string.h>
 
 #include "core/font_file.h"
+#include "core/popup.h"
+#include "core/reports.h"
 #include "core/ss.h"
 #include "platform/platform.h"
 
@@ -197,7 +199,7 @@ static int render_one(
   st->open = true;
   st->selection = selection;
   ai_popup_set_now_ms(now_ms);
-  ai_popup_render(st, font, wood, NULL, 1, 2, 3, &fb);
+  ai_popup_render(st, font, NULL, wood, NULL, 1, 2, 3, &fb);
   int drawn = 0;
   for (size_t i = 0; i < sizeof(pixels); ++i) {
     drawn += pixels[i] != 0x11;
@@ -437,6 +439,175 @@ static int case_placement_is_dos(void) {
   return rc;
 }
 
+/* Leftmost text-ink (index 1) column in row 0's text band, or -1. */
+static int row0_ink_x(const AiPopupState* st, const uint8_t* px, int glyph_h) {
+  for (int x = st->dialog_x; x < st->dialog_x + st->dialog_w; ++x) {
+    for (int y = st->list_y0 + 1; y < st->list_y0 + 1 + glyph_h; ++y) {
+      if (px[y * 320 + x] == 1) {
+        return x;
+      }
+    }
+  }
+  return -1;
+}
+
+/*
+ * port_bugs.md #1189: FUN_6f74_14c6 / 1b7c rows. Bar k tops at frame_y + 9 + prose_h +
+ * k * (glyph_h + 3), text one px lower at frame_x + 5 + box[+0x22] (4; 8 for the
+ * FUN_4345_06d2 Congress dialog); the hit test uses the same rows. The dos6f74 list
+ * (save/load picker) is 12 + prompt + rows tall with the same row tops.
+ */
+static int case_rows_are_dos(void);
+
+/*
+ * port_bugs.md #1192: FUN_38fd_4884 (Fountain of Youth / Brewster picks) and FUN_4345_06d2
+ * (Congress) raise DS:0x1f66, so FUN_6f74_14c6 adds 3 px (FONTINTR dialog) and FUN_6f74_1a78
+ * draws LABELS @MISC 189 in FONTTINY, right edge frame + w - 2, text top frame bottom - 7,
+ * highlight ink. Any other ai_popup has neither.
+ */
+static int case_help_footer_is_dos(void) {
+  static AiPopupState st;
+  static ColonizeFont intr;
+  static ColonizeFont tiny;
+  char err[128];
+  if (!font_file_load("COLONIZE/FONTINTR.FF", &intr, err, sizeof(err)) ||
+      !font_file_load("COLONIZE/FONTTINY.FF", &tiny, err, sizeof(err))) {
+    fprintf(stderr, "SKIP: assets: %s\n", err);
+    return TR_SKIP;
+  }
+  reports_names_load_catalogs("COLONIZE");
+  const char* word = reports_misc_display_word(189, "");
+  if (!word[0]) {
+    fprintf(stderr, "SKIP: no LABELS @MISC 189\n");
+    return TR_SKIP;
+  }
+  AiPopupRequest r;
+  memset(&r, 0, sizeof(r));
+  r.portrait_tribe = -1;
+  r.graphic_mss = -1;
+  r.graphic_myr = -1;
+  snprintf(r.body, sizeof(r.body), "A short line.");
+  r.choice_count = 2;
+  snprintf(r.choices[0], sizeof(r.choices[0]), "One");
+  snprintf(r.choices[1], sizeof(r.choices[1]), "Two");
+  static uint8_t px[320 * 200];
+  ColonizeFramebuffer8 fb = {.width = 320, .height = 200, .pixels = px};
+  const AiPopupTag tags[] = {AI_POPUP_TAG_INFO, AI_POPUP_TAG_FOUNTAIN_YOUTH,
+                             AI_POPUP_TAG_BREWSTER_PICK, AI_POPUP_TAG_FF_CONGRESS};
+  const int fw = font_text_width(&tiny, word);
+  int rc = 0;
+  for (size_t k = 0; k < sizeof(tags) / sizeof(tags[0]); ++k) {
+    r.tag = tags[k];
+    ai_popup_init(&st);
+    st.current = r;
+    st.open = true;
+    st.selection = -1;
+    memset(px, 0x11, sizeof(px));
+    ai_popup_render(&st, &intr, &tiny, NULL, NULL, 1, 2, 3, &fb);
+    const bool footer = k > 0;
+    /* 12 + one FONTINTR body line (10) + 2 rows (12 each) + the footer's 3. */
+    if (st.dialog_h != 12 + 10 + 2 * 12 + (footer ? 3 : 0)) {
+      fprintf(stderr, "tag %d: h %d\n", (int)tags[k], st.dialog_h);
+      rc = 1;
+    }
+    /* Footer ink (hilite = 2) inside its rect, and only there. */
+    int ink = 0;
+    int ink_x1 = -1;
+    for (int y = st.dialog_y + st.dialog_h - 7; y < st.dialog_y + st.dialog_h - 1; ++y) {
+      for (int x = st.dialog_x + st.dialog_w - 2 - fw; x < st.dialog_x + st.dialog_w - 2; ++x) {
+        if (px[y * 320 + x] == 2) {
+          ++ink;
+          if (x > ink_x1) {
+            ink_x1 = x;
+          }
+        }
+      }
+    }
+    if (footer != (ink > 0) || (footer && ink_x1 < st.dialog_x + st.dialog_w - 5)) {
+      fprintf(stderr, "tag %d: footer ink %d (right edge %d, frame end %d)\n", (int)tags[k], ink,
+              ink_x1, st.dialog_x + st.dialog_w);
+      rc = 1;
+    }
+  }
+  font_file_free(&intr);
+  font_file_free(&tiny);
+  return rc;
+}
+
+static int case_rows_are_dos(void) {
+  static AiPopupState st;
+  static ColonizeFont font;
+  char err[128];
+  if (!font_file_load("COLONIZE/FONTTINY.FF", &font, err, sizeof(err))) {
+    fprintf(stderr, "SKIP: assets: %s\n", err);
+    return TR_SKIP;
+  }
+  font.max_height = 8; /* glyph_h 8: prose pitch 9, row pitch 11 */
+  AiPopupRequest r;
+  memset(&r, 0, sizeof(r));
+  r.portrait_tribe = -1;
+  r.graphic_mss = -1;
+  r.graphic_myr = -1;
+  snprintf(r.title, sizeof(r.title), "Title");
+  snprintf(r.body, sizeof(r.body), "A short line.");
+  r.choice_count = 3;
+  snprintf(r.choices[0], sizeof(r.choices[0]), "One");
+  snprintf(r.choices[1], sizeof(r.choices[1]), "Two");
+  snprintf(r.choices[2], sizeof(r.choices[2]), "Three");
+  static uint8_t px[320 * 200];
+  ColonizeFramebuffer8 fb = {.width = 320, .height = 200, .pixels = px};
+  int rc = 0;
+  int ink_x[2] = {-1, -1};
+  for (int k = 0; k < 2; ++k) {
+    r.tag = k ? AI_POPUP_TAG_FF_CONGRESS : AI_POPUP_TAG_INFO;
+    ai_popup_init(&st);
+    st.current = r;
+    st.open = true;
+    st.selection = 1;
+    memset(px, 0x11, sizeof(px));
+    ai_popup_render(&st, &font, NULL, NULL, NULL, 1, 2, 3, &fb);
+    const int prose_h = 11 + 9; /* title line + 2 px gap, one body line */
+    /* Congress also carries the DS:0x1f66 footer: + 3 (port_bugs.md #1192). */
+    if (st.dialog_h != 12 + prose_h + 3 * 11 + (k ? 3 : 0) ||
+        st.list_y0 != st.dialog_y + 9 + prose_h ||
+        st.line_h != 11) {
+      fprintf(stderr, "rows: h %d list_y0 %d (y %d) line_h %d\n", st.dialog_h, st.list_y0,
+              st.dialog_y, st.line_h);
+      rc = 1;
+    }
+    const int bar = st.list_y0 + 11;
+    if (px[bar * 320 + st.dialog_x + 4] != 3 || px[(bar - 1) * 320 + st.dialog_x + 4] == 3 ||
+        px[(bar + 9) * 320 + st.dialog_x + 4] != 3 || px[(bar + 10) * 320 + st.dialog_x + 4] == 3) {
+      fprintf(stderr, "selection bar not at %d..%d\n", bar, bar + 9);
+      rc = 1;
+    }
+    if (ai_popup_choice_row_at(&st, st.dialog_x + 20, st.list_y0) != 0 ||
+        ai_popup_choice_row_at(&st, st.dialog_x + 20, st.list_y0 - 1) != -1 ||
+        ai_popup_choice_row_at(&st, st.dialog_x + 20, st.list_y0 + 22) != 2) {
+      fprintf(stderr, "hit test off the drawn rows\n");
+      rc = 1;
+    }
+    ink_x[k] = row0_ink_x(&st, px, 8) - st.dialog_x;
+  }
+  /* "One" starts at frame + 9 (+ the glyph's own left bearing), Congress 4 px further. */
+  if (ink_x[0] < 9 || ink_x[0] > 10 || ink_x[1] != ink_x[0] + 4) {
+    fprintf(stderr, "row text x: default %d, congress %d\n", ink_x[0], ink_x[1]);
+    rc = 1;
+  }
+
+  PopupListMetrics m;
+  popup_list_metrics_dos6f74(&font, &m);
+  PopupListGeom g;
+  popup_list_render(&fb, &font, NULL, NULL, &m, 190, "Prompt", 3, 0, NULL, NULL, 1, 1, 3, &g);
+  if (g.frame.h != 12 + 9 + 3 * 11 || g.list_y0 != g.frame.y + 9 + 9 || g.line_h != 11 ||
+      px[g.list_y0 * 320 + g.frame.x + 4] != 3 || px[(g.list_y0 - 1) * 320 + g.frame.x + 4] == 3) {
+    fprintf(stderr, "dos6f74 list: h %d list_y0 %d (y %d)\n", g.frame.h, g.list_y0, g.frame.y);
+    rc = 1;
+  }
+  font_file_free(&font);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
     {"case_fresh_idle", case_fresh_idle},
     {"case_enqueue_and_present_info", case_enqueue_and_present_info},
@@ -447,6 +618,8 @@ static const TestCase k_cases[] = {
     {"case_set_last_after_dropped_enqueue", case_set_last_after_dropped_enqueue},
     {"case_render_layouts", case_render_layouts},
     {"case_placement_is_dos", case_placement_is_dos},
+    {"case_rows_are_dos", case_rows_are_dos},
+    {"case_help_footer_is_dos", case_help_footer_is_dos},
 };
 
 TEST_MAIN(k_cases)

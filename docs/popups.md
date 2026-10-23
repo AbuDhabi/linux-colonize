@@ -319,8 +319,9 @@ as 5). Recruit = 4 lines + 4 rows = 103, Purchase = 2 + 7 = 119, Train (FONTTINY
 3 + 18 = 180, all x 62, w 196. Rows are `FUN_6f74_1b7c`: row k's selection bar tops
 at `frame_y + 9 + prose_h` + k * (glyph_h + 3), is `glyph_h + 2` tall and spans frame
 + 4 .. frame + w - 5, and its text sits one row lower at `frame_x + 5 + box[+0x22]`
-(default 4, the Recruit / Purchase / Train / dock callers `FUN_38fd_4884` / `4b50` /
-`41ce` / `3694` set 8); prose is at `(frame_x + 5, frame_y + 6)`. The footer is
+(default 4, the Recruit / Purchase / Train callers `FUN_38fd_4884` / `4b50` / `41ce` set 8;
+the dock `@EUROPEARM` list `FUN_38fd_3746` sets neither 8 nor the footer flag, port_bugs.md
+#1190); prose is at `(frame_x + 5, frame_y + 6)`. The footer is
 `FUN_6f74_1a78`: FONTTINY face, text top `frame_bottom - 7` (`- 9` in a FONTTINY
 dialog), right edge `frame_x + w - 2`, highlight ink, no drop shadow. The @REALLYBUY
 confirm is a plain `FUN_281f_0652` popup (+0x22 stays 4, and `FUN_6f74_2580` clears
@@ -335,6 +336,15 @@ The cost column's right edge (advance end at `frame_x + w - 13`) is measured off
 shots, not read from the asm. Tests: `unit_popup_prompt list_height_dos`,
 `smoke_popup_dialogs europe_menu_frames_are_dos`.
 
+The same rows drive `ai_popup_render` and the `popup_list_metrics_dos6f74` list
+(save/load picker) since port_bugs.md #1189: row 0's bar top is `popup_dos_list_y0`
+(`frame_y + 6`, + 3 + prose_h with prose; prose = title + body for an ai_popup, the
+prompt for save/load), text one px lower at `frame_x + 5 + box[+0x22]`, and the hit
+tests read the same list_y0 / pitch. `box[+0x22]` is 4 except the Fountain of Youth /
+Brewster picks (`FUN_38fd_4884`) and the Congress debate (`FUN_4345_06d2`), which set 8;
+`FUN_6f74_0a00` widens the box to text + 4 + `box[+0x22]`. The save/load height is
+`popup_dos_list_height` (12 + prompt + rows). Test: `smoke_ai_popup case_rows_are_dos`.
+
 Centring users (port_bugs.md #1188). Every dialog in the port that is a 6f74
 compositor dialog without `@X`/`@Y` is centred by `popup_place_dos`: `popup_center_frame`
 (save/load `FUN_7562_0052`, `@GAMEOPTIONS` / `@COLONYOPTIONS` / `@SOUNDOPTIONS`
@@ -344,8 +354,45 @@ floor any more) and `colony_screen_open_dialog_frame` (construction list
 `FUN_2f2b_5bd2`, jobs / leave-as `FUN_2f2b_348c`, custom house, dock orders, messages: x
 and y, replacing the fixed y of 20 / 24 / 28 / 36). The parser `FUN_6f74_32a4` honours
 `@X`/`@Y`; in GAME.TXT only `@BEGINMENU`, `@VICEROY` / `@VICEROY2` and the TUTORIAL sections
-carry them. The sizes of these dialogs are still the port's own: port_bugs.md #1189,
-#1190.
+carry them.
+
+Sizes of the remaining compositor dialogs (port_bugs.md #1190, #1192, #1193). Every one now
+takes the `FUN_6f74_14c6` formula with its own builder's box fields:
+
+| Dialog | DOS builder | font | content width | `box[+0x22]` | footer |
+|---|---|---|---|---|---|
+| save / load | `FUN_7562_0052` | FONTTINY (`FUN_2a1f_07c4(DS:0x89e)`) | `@width` 190 | 4 | no |
+| game / colony / sound options | parser (`FUN_281f_03fe`) | FONTINTR | `@width` 190 | 4 | no |
+| pick music | parser (`2b5a:253c`) | FONTTINY (`@smallfont`) | `@width` 220 | 4 | no |
+| DEBUG.TXT cheat lists | parser | FONTINTR | `@width` or 0x50 | 4 | no |
+| Go to Port, route, stop pickers | `FUN_647e_01c6` / `0796` / `090a` | FONTINTR | `@width` 190 | 10 | no |
+| route cargo picker | `FUN_647e_0e80` | FONTTINY | `@width` | 10 | no |
+| Units Present | `FUN_2b5a_1b5a` | FONTINTR | widest text + 26 | icon rows | no |
+| construction | `FUN_2f2b_5bd2` | FONTTINY | max(0x50, rows) | 4 | yes |
+| jobs / leave-as | `FUN_2f2b_348c` | FONTTINY | 0xbe = 190 | 8 | yes |
+| custom house | `FUN_2f2b_4424` (`@CUSTOM`) | FONTTINY | `@width` 190 | 4 | no |
+| colony dock orders | `FUN_2f2b_51ec` (`@COLONYUNIT`) | FONTINTR | `@width` 190 + 22 icon column | 4 | no |
+| Fountain of Youth / Brewster / Congress | `FUN_38fd_4884` / `FUN_4345_06d2` | FONTINTR | `@width` | 8 | yes |
+
+Widths: content = max(`box[+0x28]` (`@width`, default 0x50), the widest row as
+`FUN_6f74_0a00` measures it = text + 2 * `box[+0x48]` + `box[+0x22]`, again + `box[+0x22]`
+for a row with the `|` column tab), frame = content + 6. Prose wraps to content - 4. The only
+`DS:0x1f66` writers in the image (asm scan) are `FUN_2f2b_348c`, `5bd2`, `FUN_38fd_41ce`,
+`4884`, `4b50` and `FUN_4345_06d2`; `FUN_647e_01c6` and the Europe dock list do not set it.
+The footer is `popup_dos_draw_help_footer` (`FUN_6f74_1a78`). `@checkbox` rows (options,
+custom house, the DEBUG.TXT `@OPTIONS` flags) are the DOS row text: `FUN_6f74_0a00` prefixes
+DS:0x1f91 `"~[ "` and `FUN_6f74_1b7c` sets its second byte to `]` (on) or `[` (off); those
+two glyphs are the font's hollow / filled check circles, so the port draws them as text.
+
+"Units Present" (`FUN_2b5a_1b5a`): `box[+0x46]` 0, `box[+0x4a]` 2, flags 0x82, one
+`FUN_6f74_0f3c` icon row per unit (the first 10 on the tile chain; the rest are not listed
+and cannot be picked), no prose, no option rows. Row k spans `frame_y + 5 + 16k` .. + 16, the
+icon at `frame_x + 5`, the text at `frame_x + 25`, `frame_y + 3 + e + 8 - (glyph_h >> 1)`;
+h = 12 + 16n, w = widest text + 32; the selected row gets a colour-15 rectangle round its
+icon (`FUN_6f74_201e`) and no bar. The colony dock-orders box carries one such icon entry
+(no text), which adds the 22 px icon column to its width and shifts prose and rows right.
+Tests: `unit_popup_prompt units_present_is_dos`, `unit_colony_screen unit_sub_dialogs_are_dos`,
+`smoke_ai_popup case_help_footer_is_dos`, `smoke_popup_dialogs save_load_is_fonttiny`.
 
 **KING.SS was a refutation** — the "unwired" note was stale. `DS:0x1f5c = 8`
 has been live since the tax-audience flair fix (`ai_king.c`, KING.SS base +

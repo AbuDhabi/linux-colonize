@@ -37,11 +37,9 @@ bool unit_stack_try_open(
   if (n <= 1) {
     return false;
   }
-  /* port_bugs.md #654: FUN_2b5a_1b5a raw 42760 caps the list at 10
-   * (`local_54 < 10`) — the port's 3-column x 8-row grid (port_bugs.md #246) is a
-   * left-over from before that cap was ported and still renders up to 24;
-   * only the count is capped here, the grid layout is unchanged (#654 layout
-   * follow-up left for a UI pass). */
+  /* port_bugs.md #654: FUN_2b5a_1b5a raw 42760 stops adding rows at 10 (`local_54 < 10`):
+   * units past the tenth on the tile's chain are simply not listed, and the pick walks
+   * the chain to the chosen row (raw 42765-42767), so they cannot be picked here. */
   if (n > 10) {
     n = 10;
   }
@@ -137,35 +135,10 @@ static void unit_stack_row_label(
   }
 }
 
-/* port_bugs.md #260: crop a label to max_w pixels (drop trailing chars). */
-static void unit_stack_crop_label(const ColonizeFont* font, char* label, int max_w) {
-  if (!font || max_w <= 0) {
-    return;
-  }
-  size_t n = strlen(label);
-  while (n > 0 && font_text_width(font, label) > max_w) {
-    label[--n] = '\0';
-  }
-}
-
-/* port_bugs.md #246: grid hit-test — column-major fill (first 8 in column 0, ...). */
-static int unit_stack_row_at_y(const UnitStackPopup* dlg, int mx, int my) {
-  if (!dlg || dlg->line_h <= 0 || dlg->count <= 0 || dlg->rows <= 0) {
-    return -1;
-  }
-  if (my < dlg->list_y0 || mx < dlg->list_x0) {
-    return -1;
-  }
-  const int row = (my - dlg->list_y0) / dlg->line_h;
-  const int col = dlg->col_w > 0 ? (mx - dlg->list_x0) / dlg->col_w : 0;
-  if (row < 0 || row >= dlg->rows || col < 0 || col >= dlg->cols) {
-    return -1;
-  }
-  const int idx = col * dlg->rows + row;
-  if (idx >= dlg->count) {
-    return -1;
-  }
-  return idx;
+/* FUN_2b5a_1b5a row hit: row k spans its icon row, frame_y + 5 + 16k .. + 16
+ * (unit_stack_render). */
+static int unit_stack_row_at_y(const UnitStackPopup* dlg, int my) {
+  return dlg ? popup_row_at_y(dlg->list_y0, dlg->line_h, dlg->count, my) : -1;
 }
 
 /*
@@ -231,15 +204,6 @@ bool unit_stack_handle_input(
     dlg->selection++;
     return true;
   }
-  /* port_bugs.md #246: left/right hop a full grid column. */
-  if (colonize_key_left(input->last_key) && dlg->rows > 0 && dlg->selection - dlg->rows >= 0) {
-    dlg->selection -= dlg->rows;
-    return true;
-  }
-  if (colonize_key_right(input->last_key) && dlg->rows > 0 && dlg->selection + dlg->rows < dlg->count) {
-    dlg->selection += dlg->rows;
-    return true;
-  }
   if (input->last_key == COLONIZE_KEY_ENTER || input->last_key == COLONIZE_KEY_SPACE) {
     int sel = -1;
     unit_stack_activate_row(dlg, pool, dlg->selection, &sel);
@@ -256,7 +220,7 @@ bool unit_stack_handle_input(
       unit_stack_close(dlg);
       return true;
     }
-    const int idx = unit_stack_row_at_y(dlg, mx, my);
+    const int idx = unit_stack_row_at_y(dlg, my);
     if (idx >= 0) {
       /* port_bugs.md: same rule for every row, preselected or not — ordered rows
        * get their orders canceled first, order-less rows activate. */
@@ -286,7 +250,6 @@ void unit_stack_render(
   const ColonizeSpriteSheet* wood_tile,
   const ColonizePopupColors* colors,
   uint8_t text_color,
-  uint8_t select_color,
   const ColonizePalette* active_palette,
   const ColonizeCol1Save* col1,
   ColonizeFramebuffer8* framebuffer
@@ -295,126 +258,63 @@ void unit_stack_render(
     return;
   }
 
-  const int icon_slot = 18;
-  const int line_h = font ? (font->max_height > icon_slot ? font->max_height + 2 : icon_slot + 2) : icon_slot + 2;
-  const int pad_x = 6;
-  const int pad_y = 4;
-  const int title_h = font ? font->max_height + 2 : 10;
-  /* port_bugs.md #246: 8 rows per column, columns added as needed (max 3 / 24). */
-  const int rows_per_col = 8;
-  int cols = (dlg->count + rows_per_col - 1) / rows_per_col;
-  if (cols < 1) {
-    cols = 1;
-  }
-  if (cols > 3) {
-    cols = 3;
-  }
-  const int rows = cols > 1 ? rows_per_col : dlg->count;
   /*
-   * port_bugs.md #260: size each column to its widest row instead of a fixed
-   * 148px — with the labels cropped to whatever per-column budget still
-   * lets every column fit on screen.
+   * DOS FUN_2b5a_1b5a: FUN_291f_023c(0x800, FONTINTR) box with box[+0x46] = 0,
+   * box[+0x4a] = 2 and flags |= 0x82 (unit-icon rows, selection frame); one
+   * FUN_291f_0230 (FUN_6f74_0f3c) icon row per unit, no prose and no option rows, and
+   * FUN_291f_0224 (FUN_6f74_112a) arms the frame (box[+0x64]). From 0f3c / 14c6 / 201e:
+   * row k spans e = 2 + 16k .. e + 16 (max(16, glyph_h) + box[+0x46]); h = 2 * 2 + 0 + 6 +
+   * 2 + 16n; w = widest text + 32 (box[+0x48] 2 + icon 16 + text + box[+0x32] 4 + 4 + 6 of
+   * frame; 0f3c zeroes box[+0x28], so there is no @width floor); icon at (x + 5, y + 3 + e),
+   * text at (x + 25, y + 3 + e + 8 - (glyph_h >> 1)); the selected row gets a colour-15
+   * rectangle (x + 4, y + 2 + e) .. (x + 21, y + 19 + e) and no bar.
    */
-  const int col_w_cap =
-    (framebuffer->width - 8 - POPUP_FRAME_INSET * 2 - pad_x * 2) / (cols > 0 ? cols : 1);
-  int col_w = 60;
+  const int glyph_h = popup_dos_glyph_h(font);
+  int text_w = 0;
   if (font) {
     for (int i = 0; i < dlg->count; ++i) {
-      const ColonizeUnit* u = units_get_const(pool, dlg->ids[i]);
-      int icon_adv = icon_slot + 3;
-      const int sprite = u ? units_map_sprite(pool, u->id) : -1;
-      if (sprite >= 0 && icons && sprite < icons->sprite_count) {
-        const int sw = icons->sprites[sprite].width;
-        icon_adv = (sw > 0 ? sw : icon_slot) + 3;
-      }
       char label[72];
-      unit_stack_row_label(pool, names, col1, u, label, sizeof(label));
-      const int need = (pad_x - 1) + icon_adv + font_text_width(font, label) + 4;
-      if (need > col_w) {
-        col_w = need;
+      unit_stack_row_label(pool, names, col1, units_get_const(pool, dlg->ids[i]), label,
+                           sizeof(label));
+      const int w = font_text_width(font, label);
+      if (w > text_w) {
+        text_w = w;
       }
     }
-  } else {
-    col_w = 148;
   }
-  if (col_w > col_w_cap) {
-    col_w = col_w_cap;
+  int dialog_w = text_w + 32;
+  if (dialog_w > framebuffer->width) {
+    dialog_w = framebuffer->width;
   }
-  const int options_h = rows * line_h;
-  int dialog_h = POPUP_FRAME_INSET * 2 + pad_y + title_h + options_h + pad_y;
-  if (dialog_h < 40) {
-    dialog_h = 40;
-  }
-  if (dialog_h > framebuffer->height - 8) {
-    dialog_h = framebuffer->height - 8;
-  }
-
-  int dialog_w = POPUP_FRAME_INSET * 2 + pad_x + cols * col_w + pad_x;
-  /* Title must still fit ("Units (nnn,nnn)"). */
-  if (font) {
-    const int title_need = POPUP_FRAME_INSET * 2 + pad_x * 2 + 70;
-    if (dialog_w < title_need) {
-      dialog_w = title_need;
-    }
-  }
-  if (dialog_w > framebuffer->width - 8) {
-    dialog_w = framebuffer->width - 8;
+  int dialog_h = 12 + 16 * dlg->count;
+  if (dialog_h > framebuffer->height) {
+    dialog_h = framebuffer->height;
   }
   PopupFrameGeom fr;
   popup_center_frame(framebuffer, dialog_w, dialog_h, wood_tile, colors, &fr);
-  const int inner_x = fr.inner_x;
-  const int inner_y = fr.inner_y;
-  const int inner_w = fr.inner_w;
-  const int inner_h = fr.inner_h;
-
   dlg->dialog_x = fr.x;
   dlg->dialog_y = fr.y;
   dlg->dialog_w = fr.w;
   dlg->dialog_h = fr.h;
-  dlg->line_h = line_h;
-
-  if (inner_w <= 0 || inner_h <= 0) {
-    return;
-  }
-
-  char title[48];
-  /* LABELS.TXT @CMISC row 2 ("Units Present") — port_bugs.md #990. */
-  const char* live = reports_labels_field("CMISC", 1);
-  snprintf(title, sizeof(title), "%s", live ? live : "");
-  if (font) {
-    font_draw_text(font, framebuffer, inner_x + pad_x, inner_y + pad_y, title, text_color);
-  }
-
-  const int list_y0 = inner_y + pad_y + title_h;
-  dlg->list_y0 = list_y0;
-  dlg->list_x0 = inner_x + 1;
-  dlg->col_w = cols > 1 ? col_w : inner_w;
-  dlg->cols = cols;
-  dlg->rows = rows;
+  dlg->list_y0 = fr.y + 5;
+  dlg->line_h = 16;
 
   for (int i = 0; i < dlg->count; ++i) {
-    const int gcol = rows > 0 ? i / rows : 0;
-    const int grow = rows > 0 ? i % rows : i;
-    const int col_x0 = dlg->list_x0 + gcol * dlg->col_w;
-    const int row_y = list_y0 + grow * line_h;
-    const bool selected = (i == dlg->selection);
-    if (selected) {
-      const int sel_x1 = cols > 1 ? col_x0 + dlg->col_w - 1 : inner_x + inner_w - 1;
-      fb_fill_rect(framebuffer, col_x0, row_y - 1, sel_x1 - col_x0, line_h, select_color);
+    const int row_y = fr.y + 3 + 2 + 16 * i; /* y + 3 + e */
+    if (i == dlg->selection) {
+      fb_rect_outline(framebuffer, fr.x + 4, row_y - 1, 18, 18, 15, 15);
     }
-
     const ColonizeUnit* u = units_get_const(pool, dlg->ids[i]);
     const int sprite = u ? units_map_sprite(pool, u->id) : -1;
-    int text_x = col_x0 + pad_x - 1;
     if (sprite >= 0 && icons && sprite < icons->sprite_count && u) {
-      /* port_bugs.md: rows carry the Orders-Allegiance chrome, so cancelling a
-       * unit's orders on the first click is visible immediately. */
+      /* port_bugs.md: rows carry the Orders-Allegiance chrome (FUN_112b_01ba via
+       * FUN_281f_02bc), so cancelling a unit's orders on the first click is visible. */
       unit_chrome_blit_unit_for_palette(
         framebuffer,
         font,
         icons,
         sprite,
-        text_x,
+        fr.x + 5,
         row_y,
         units_display_type_index(pool, u->id),
         u->nation_id,
@@ -426,16 +326,11 @@ void unit_stack_render(
          * game palette — remap through the frame's real palette. */
         active_palette
       );
-      const ColonizeSprite* sp = &icons->sprites[sprite];
-      text_x += (sp->width > 0 ? sp->width : icon_slot) + 3;
     }
-
     char label[72];
     unit_stack_row_label(pool, names, col1, u, label, sizeof(label));
     if (font) {
-      /* port_bugs.md #260: crop instead of spilling into the next column. */
-      unit_stack_crop_label(font, label, col_x0 + dlg->col_w - 2 - text_x);
-      font_draw_text(font, framebuffer, text_x, row_y + 2, label, text_color);
+      font_draw_text(font, framebuffer, fr.x + 25, row_y + 8 - (glyph_h >> 1), label, text_color);
     }
   }
 }

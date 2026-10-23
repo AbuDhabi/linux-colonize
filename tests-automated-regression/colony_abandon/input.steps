@@ -4,5 +4,5 @@ click 168 96               # open Port au Prince
 wait 10
 drag 5 155 131 112         # its only colonist -> fence: role popup
 click 100 87               # plain Colonist: leaving would empty the colony, @ABANDON prompt (default "Never!")
-click 100 136              # "Yes, it is God's will.": colony removed, the colonist stands on (27,64), back on the map
+click 100 142              # "Yes, it is God's will.": colony removed, the colonist stands on (27,64), back on the map
 wait 20

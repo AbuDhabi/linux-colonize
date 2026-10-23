@@ -296,30 +296,6 @@ static int options_option_at_y(const OptionsDialog* dlg, int mouse_y) {
   return dlg ? popup_row_at_y(dlg->list_y0, dlg->line_h, dlg->option_count, mouse_y) : -1;
 }
 
-static void options_draw_checkbox(
-  ColonizeFramebuffer8* framebuffer,
-  int x,
-  int y,
-  bool checked,
-  uint8_t color
-) {
-  if (!framebuffer || !framebuffer->pixels) {
-    return;
-  }
-  for (int py = 0; py < 7; ++py) {
-    for (int px = 0; px < 7; ++px) {
-      const bool edge = px == 0 || px == 6 || py == 0 || py == 6;
-      if (edge || checked) {
-        const int dx = x + px;
-        const int dy = y + py;
-        if (dx >= 0 && dy >= 0 && dx < framebuffer->width && dy < framebuffer->height) {
-          framebuffer->pixels[dy * framebuffer->width + dx] = color;
-        }
-      }
-    }
-  }
-}
-
 bool options_dialog_handle_input(OptionsDialog* dlg, const ColonizeInputState* input) {
   if (!dlg || !dlg->open || !input) {
     return false;
@@ -370,31 +346,17 @@ bool options_dialog_handle_input(OptionsDialog* dlg, const ColonizeInputState* i
   return true;
 }
 
-typedef struct OptionsRowCtx {
-  const OptionsDialog* dlg;
-  uint8_t box_color;
-} OptionsRowCtx;
-
+/*
+ * DOS row text: FUN_6f74_0a00 prefixes a @checkbox row with DS:0x1f91 "~[ " and
+ * FUN_6f74_1b7c sets its second byte to ']' when the row is on, '[' when off; the
+ * font's '[' / ']' glyphs are the empty / filled check circles. The '~' hotkey
+ * marker is stripped like the labels' own.
+ */
 static const char* options_row_label(void* user, int index) {
-  return ((const OptionsRowCtx*)user)->dlg->labels[index];
-}
-
-static void options_row_decor(
-  void* user,
-  int index,
-  ColonizeFramebuffer8* framebuffer,
-  int row_x,
-  int row_y,
-  int line_h
-) {
-  const OptionsRowCtx* ctx = (const OptionsRowCtx*)user;
-  options_draw_checkbox(
-    framebuffer,
-    row_x - 10,
-    row_y + (line_h > 7 ? (line_h - 7) / 2 : 0),
-    ctx->dlg->values[index] != 0,
-    ctx->box_color
-  );
+  static char buf[OPTIONS_DIALOG_LABEL_LEN + 2];
+  const OptionsDialog* dlg = (const OptionsDialog*)user;
+  snprintf(buf, sizeof(buf), "%c %s", dlg->values[index] ? ']' : '[', dlg->labels[index]);
+  return buf;
 }
 
 void options_dialog_render(
@@ -410,17 +372,11 @@ void options_dialog_render(
   if (!dlg || !dlg->open || !framebuffer || !framebuffer->pixels) {
     return;
   }
+  /* @GAMEOPTIONS / @COLONYOPTIONS / @SOUNDOPTIONS: the generic parser box (FUN_281f_03fe ->
+   * FUN_281f_0998), default FONTINTR, box[+0x22] 4, rows marked up. */
   PopupListMetrics metrics;
-  popup_list_metrics_classic(font, &metrics);
-  /* This dialog never had the 40 px floor, draws a checkbox column 10 px wide
-   * ahead of each label, and shadows the prompt / marks up the rows. */
-  metrics.min_h = 0;
-  metrics.label_dx = 10;
-  metrics.shadow_text = true;
+  popup_list_metrics_dos6f74(font, &metrics);
   metrics.markup_text = true;
-  OptionsRowCtx ctx;
-  ctx.dlg = dlg;
-  ctx.box_color = text_color;
   PopupListGeom geom;
   popup_list_render(
     framebuffer,
@@ -433,8 +389,7 @@ void options_dialog_render(
     dlg->option_count,
     dlg->selection,
     options_row_label,
-    options_row_decor,
-    &ctx,
+    dlg,
     text_color,
     hilite_color,
     select_color,

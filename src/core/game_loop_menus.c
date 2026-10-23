@@ -1243,8 +1243,9 @@ void game_open_save_load(ColonizeGameState* game, SaveLoadMode mode) {
     return;
   }
   const char* dir = game->config.save_dir ? game->config.save_dir : savegame_default_dir();
-  const ColonizeFont* popup_font = game_popup_font(game);
-  if (!save_load_open(&game->save_load, mode, dir, game->resolved_data_dir, &game->messages, popup_font)) {
+  if (!save_load_open(
+        &game->save_load, mode, dir, game->resolved_data_dir, &game->messages, save_load_font(game)
+      )) {
     set_status(game, mode == SAVE_LOAD_MODE_SAVE ? "Save unavailable" : "Load unavailable", NULL);
   }
 }

@@ -7,6 +7,7 @@
 #include "core/name_entry_dialog.h"
 #include "core/options_dialog.h"
 #include "core/popup_msg.h"
+#include "core/save_load_dialog.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -351,10 +352,11 @@ static int case_europe_menu_frames_are_dos(void) {
     rc = 1;
   }
   game->europe.purchase_confirming = false;
-  /* Dock options: 1 prose line + 6 rows + footer = 97, centred plain (no figure): y = 100 - 48. */
+  /* Dock options (FUN_38fd_3746 sets neither DS:0x1f66 nor box[+0x22], port_bugs.md #1190):
+   * 1 prose line + 6 rows = 94, no footer, centred plain (no figure): y = 100 - 47. */
   game->europe.menu = EUROPE_MENU_DOCK;
-  if (!europe_menu_layout(game, 320, 200, &lay) || lay.dialog_h != 97 || lay.dialog_y != 52 ||
-      lay.row_dx != 8 || lay.graphic) {
+  if (!europe_menu_layout(game, 320, 200, &lay) || lay.dialog_h != 94 || lay.dialog_y != 53 ||
+      lay.row_dx != 4 || lay.help_footer || lay.graphic) {
     fprintf(stderr, "dock: h %d y %d dx %d\n", lay.dialog_h, lay.dialog_y, lay.row_dx);
     rc = 1;
   }
@@ -451,8 +453,56 @@ static int case_cheat_list_shared_parser(void) {
   return 0;
 }
 
+/*
+ * port_bugs.md #1193: FUN_7562_0052 builds the save / load picker in FONTTINY (FUN_2a1f_07c4
+ * with DS:0x89e, raw 119634), so it is 12 + 6 + 8 * rows tall (save 8 rows: 82, load 10: 98).
+ */
+static int case_save_load_is_fonttiny(void) {
+  ColonizeGameState* game = calloc(1, sizeof(*game));
+  if (!game) {
+    return fail("allocate game state");
+  }
+  char err[128];
+  if (!font_file_load("COLONIZE/FONTINTR.FF", &game->intro_font, err, sizeof(err)) ||
+      !font_file_load("COLONIZE/FONTTINY.FF", &game->colony_font, err, sizeof(err))) {
+    free(game);
+    fprintf(stderr, "SKIP: assets: %s\n", err);
+    return TR_SKIP;
+  }
+  game->intro_font_ok = true;
+  game->colony_font_ok = true;
+  int rc = 0;
+  if (save_load_font(game) != &game->colony_font) {
+    rc = fail("save / load picker not in FONTTINY");
+  }
+  static SaveLoadDialog dlg;
+  memset(&dlg, 0, sizeof(dlg));
+  dlg.open = true;
+  dlg.width = 190;
+  snprintf(dlg.prompt, sizeof(dlg.prompt), "Select Save Slot");
+  for (int rows = 8; rows <= 10; rows += 2) {
+    dlg.option_count = rows;
+    for (int i = 0; i < rows; ++i) {
+      snprintf(dlg.options[i], sizeof(dlg.options[i]), "(EMPTY)");
+    }
+    static uint8_t px[320 * 200];
+    ColonizeFramebuffer8 fb = {.width = 320, .height = 200, .pixels = px};
+    save_load_render(&dlg, save_load_font(game), NULL, NULL, 1, 3, &fb);
+    if (dlg.dialog_h != 12 + 6 + 8 * rows || dlg.line_h != 8 || dlg.list_y0 != dlg.dialog_y + 15) {
+      fprintf(stderr, "save / load %d rows: h %d line_h %d list_y0 %d (y %d)\n", rows,
+              dlg.dialog_h, dlg.line_h, dlg.list_y0, dlg.dialog_y);
+      rc = 1;
+    }
+  }
+  font_file_free(&game->intro_font);
+  font_file_free(&game->colony_font);
+  free(game);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
     {"token_apply", case_token_apply},
+    {"save_load_is_fonttiny", case_save_load_is_fonttiny},
     {"howmuch", case_howmuch},
     {"options", case_options},
     {"name_entry", case_name_entry},

@@ -12,6 +12,7 @@
 #include "core/font_file.h"
 #include "core/popup.h"
 #include "core/ui_colors.h"
+#include "core/unit_stack.h"
 #include "platform/diagnostics.h"
 
 #include "../common/test_runner.h"
@@ -372,16 +373,86 @@ static int case_center_frame_is_dos(void) {
   }
   /* The shared list pipeline (save/load, cheat list, options, pick music) goes through it. */
   PopupListMetrics m;
-  popup_list_metrics_classic(NULL, &m);
+  popup_list_metrics_dos6f74(NULL, &m);
   PopupListGeom lg;
-  popup_list_render(
-    &fb, NULL, NULL, NULL, &m, 151, "", 7, 0, NULL, NULL, NULL, 15, 14, 138, &lg
-  );
+  popup_list_render(&fb, NULL, NULL, NULL, &m, 151, "", 7, 0, NULL, NULL, 15, 14, 138, &lg);
   if (lg.frame.x != 160 - (lg.frame.w >> 1) || lg.frame.y != 100 - (lg.frame.h >> 1)) {
     fprintf(stderr, "popup_list_render frame (%d,%d) %dx%d is not the 14c6 centre\n", lg.frame.x,
             lg.frame.y, lg.frame.w, lg.frame.h);
     rc = 1;
   }
+  return rc;
+}
+
+/*
+ * port_bugs.md #1190: the "Units Present" picker is FUN_2b5a_1b5a's single icon column
+ * (box[+0x46] 0, box[+0x4a] 2, flags 0x82): at most 10 rows (raw 42760), rows 16 px from
+ * frame_y + 5, h = 12 + 16n, w = widest text + 32, text at frame + 25, the selected row
+ * framed in colour 15 from (frame + 4, frame + 4 + 16k) to (frame + 21, frame + 21 + 16k),
+ * no title, no bar; the hit test and keys walk the one column.
+ */
+static int case_units_present_is_dos(void) {
+  ColonizeFont font;
+  if (!load_font(&font)) {
+    return TR_SKIP;
+  }
+  static ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  pool.type_count = 1;
+  snprintf(pool.types[0].name, sizeof(pool.types[0].name), "Colonists");
+  pool.types[0].movement = 1;
+  pool.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  for (int i = 0; i < 12; ++i) {
+    const int id = units_spawn_allow_stack(&pool, 0, 3, 3);
+    units_get(&pool, id)->nation_id = 0;
+  }
+  UnitStackPopup dlg;
+  memset(&dlg, 0, sizeof(dlg));
+  int rc = 0;
+  if (!unit_stack_try_open(&dlg, &pool, 3, 3, 0) || dlg.count != 10) {
+    fprintf(stderr, "units present: %d rows, want the DOS cap of 10\n", dlg.count);
+    rc = 1;
+  }
+  static uint8_t px[W * H];
+  memset(px, 0x11, sizeof(px));
+  ColonizeFramebuffer8 fb = {.width = W, .height = H, .pixels = px};
+  dlg.selection = 2;
+  unit_stack_render(&dlg, &pool, NULL, NULL, &font, NULL, NULL, 1, NULL, NULL, &fb);
+  if (dlg.dialog_h != 12 + 16 * 10 || dlg.list_y0 != dlg.dialog_y + 5 || dlg.line_h != 16 ||
+      dlg.dialog_x != 160 - (dlg.dialog_w >> 1) || dlg.dialog_y != 100 - (dlg.dialog_h >> 1)) {
+    fprintf(stderr, "units present: %dx%d at (%d,%d) list_y0 %d line_h %d\n", dlg.dialog_w,
+            dlg.dialog_h, dlg.dialog_x, dlg.dialog_y, dlg.list_y0, dlg.line_h);
+    rc = 1;
+  }
+  const int fx = dlg.dialog_x;
+  const int top = dlg.dialog_y + 4 + 16 * 2;
+  if (px[top * W + fx + 4] != 15 || px[(top + 17) * W + fx + 21] != 15 ||
+      px[(top + 8) * W + fx + 4] != 15 || px[(top - 16) * W + fx + 4] == 15) {
+    fprintf(stderr, "units present: no colour-15 frame round row 2's icon\n");
+    rc = 1;
+  }
+  /* Row text: no ink left of frame + 25 on a row (the icon column is empty without icons). */
+  for (int y = top + 1; y < top + 17; ++y) {
+    for (int x = fx + 6; x < fx + 25; ++x) {
+      if (px[y * W + x] == 1) {
+        fprintf(stderr, "units present: text ink at x %d, before frame + 25\n", x - fx);
+        rc = 1;
+        y = top + 17;
+        break;
+      }
+    }
+  }
+  ColonizeInputState in;
+  memset(&in, 0, sizeof(in));
+  in.last_key = COLONIZE_KEY_RIGHT;
+  unit_stack_handle_input(&dlg, &pool, &in, NULL);
+  in.last_key = COLONIZE_KEY_DOWN;
+  unit_stack_handle_input(&dlg, &pool, &in, NULL);
+  if (dlg.selection != 3) {
+    fprintf(stderr, "units present: keys moved the selection to %d, want 3\n", dlg.selection);
+    rc = 1;
+  }
+  font_file_free(&font);
   return rc;
 }
 
@@ -392,5 +463,6 @@ static const TestCase k_cases[] = {
   {"place_dos", case_place_dos},
   {"list_height_dos", case_list_height_dos},
   {"center_frame_is_dos", case_center_frame_is_dos},
+  {"units_present_is_dos", case_units_present_is_dos},
 };
 TEST_MAIN_WRAPPED(k_cases, diag_init(0, NULL), diag_shutdown())

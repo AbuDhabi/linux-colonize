@@ -228,26 +228,26 @@ function's register/immediate arguments.
   to `FUN_129f_0318`, "set BGM track id + gate play". port_plan T5.1's
   "chief portrait `FUN_281f_04ac`" is a misattribution — the chief portrait
   path is `FUN_6f74_0042` / `FUN_6f74_14c6` (already cited in `ai_popup.c`).
-- **`DS:0x1f66` height bump — axis RESOLVED, arm still open.** `+0x14` is the
+- **`DS:0x1f66` height bump — RESOLVED, ported (port_bugs.md #1192).** `+0x14` is the
   box **width** and `+0x16` the **height**, pinned at `FUN_6f74_14c6` OVL24
   `0x16cb`–`0x16f6`: auto-placement computes `160 − box[0x14]/2` into `+0x10`
   and `100 − box[0x16]/2` into `+0x12`, then clamps `+0x14 + 0x10` against
   `0x140` (320) and `+0x16 + 0x12` against `0xc8` (200). So the `0x1f66` block
   at `0x169d`–`0x16c3` grows the **height** — the earlier "axis ambiguous"
-  note is withdrawn. Which arm fires is still open: the `+6` needs
-  `box[+0x80]/[+0x82] == DS:0x89e/0x8a0`, and the only writer of `+0x80` in
-  the whole overlay is the `@SMALLFONT` directive arm (`0x33b7`–`0x33c6`,
-  matched against `DS:0x1fdb = "SMALLFONT"`), which assigns exactly that
-  global. `@WHICHFREEDOM` declares no `@SMALLFONT`, so its font comes from the
-  `FUN_6f74_06d0` box-init helper (`call 0x39ef` over `box+0x74`, args
-  `DS:0x1f4a..0x1f52`) — a callee outside OVL24 that was not read, so 3-vs-6
-  is not pinned and neither is hardcoded.
+  note is withdrawn. The `+6` arm needs `box[+0x80]/[+0x82] == DS:0x89e/0x8a0`
+  (FONTTINY); `@WHICHFREEDOM` declares no `@SMALLFONT`, and the box font is the
+  `FUN_6f74_06d0` text record `box+0x74` (font at `+0x80`) filled from the
+  parser's `FUN_291f_023c(DS:0x1fa2, DS:0x1f9e, DS:0x1fa0)` dialog-font slot,
+  which holds FONTINTR (`DS:0x268a`) outside the FONTTINY swaps of
+  `FUN_7562_0052` / `FUN_647e_0e80`. So the Congress takes `+3`, and
+  `FUN_6f74_1a78` draws LABELS `@MISC` 189 bottom-right (`ai_popup_render`,
+  docs/popups.md "Sizes of the remaining compositor dialogs").
 - `box[+0x22] = 8` (default 4, `FUN_6f74_06d0` `0x075c`–`0x0763`) shifts only
   the option-row **text** start: `FUN_6f74_1b7c` builds `box[+0x24] +
   box[+0x48] + box[+0x22]` as the label x, and the selection bar subtracts
-  `box[+0x22]` straight back off, so the bar is unaffected. The port draws
-  labels at `inner_x + pad_x`; honouring `+0x22` would indent them a further
-  8 px, which is left unported pending a screenshot to check against.
+  `box[+0x22]` straight back off, so the bar is unaffected. Ported
+  (port_bugs.md #1189): the Europe list shots confirm `frame_x + 5 + box[+0x22]`,
+  so the Congress row labels sit at `inner_x + pad_x + 8`.
 - No golden covers the dialog — the repo's goldens are all simulation-state,
   not pixels. Capturing one would mean a `render_*_main.c`-style harness that
   opens `AI_POPUP_TAG_FF_CONGRESS` on a fixture save and dumps the
@@ -297,10 +297,9 @@ segment offsets directly):
    reading came from substituting the default `box[+0x22] = 4` into one term
    and not the other. Width is `box[+0x20] + 2·(1 − box[+0x48])` = content − 2
    (`0x1c81`–`0x1c9b`) and height `glyph_h + 2` (`0x1c5b`–`0x1c62`, `call
-   0xf16` then two `inc ax`). Ported into `ai_popup_render`; the bar's *y*
-   anchoring was left as the port had it, since `1b7c` draws label and bar at
-   the same `box[+0x26]` and disentangling the 1 px text offset needs the
-   `FUN_6f74_0538` text-draw read.
+   0xf16` then two `inc ax`). Ported into `ai_popup_render`. The *y* anchoring
+   followed in port_bugs.md #1189 (bar at `box[+0x26]` = `popup_dos_list_y0`,
+   text one px lower, as the Europe shots show; docs/popups.md).
 
 4. **`save_load_dialog.c` — CONFIRMED `+0x54`, ported 2026-09-07.** The
    handover left this open pending a read of the bespoke `7562_0052` builder.

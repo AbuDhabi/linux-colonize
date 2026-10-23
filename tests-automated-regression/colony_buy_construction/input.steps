@@ -13,7 +13,7 @@ click 100 150              # Complete it: treasury 716-416 = 300, hammers 20 -> 
 wait 8
 click 282 141              # CHANGE
 wait 5
-click 150 107              # Printing Press (52 hammers, 20 tools): hammers carry over, only tools are short
+click 150 103              # Printing Press (52 hammers, 20 tools): hammers carry over, only tools are short
 wait 5
 key b                      # keyboard BUY: "Cost to complete Printing Press: 200, Treasury: 300"
 wait 8
@@ -21,7 +21,7 @@ click 100 150              # Complete it: treasury 300-200 = 100, tools stock 0 
 wait 8
 click 282 141              # CHANGE
 wait 5
-click 150 155              # Church (64 hammers): 12 short = 156 gold, more than the 100 treasury
+click 150 151              # Church (64 hammers): 12 short = 156 gold, more than the 100 treasury
 wait 5
 click 217 141              # BUY: refused, info popup "Cost to complete Church: 156, Treasury: 100", no choice
 wait 8
