@@ -223,12 +223,10 @@ selected colonist (`FUN_2f2b_6372`). A colonist who works no plot opens it with
 working indoors is seated on the plot `ai_euro_jobs_menu_plot` elects
 (`FUN_15eb_28c8(slot, job)`, raw 50860-50863), and when none scores he keeps the
 field job with no plot until the next `colonies_recompute_plots_w`. An indoor
-pick goes through `colonies_assign_workplace` (port_bugs.md #1204). Opening
-it is not free: 348c's build-up seats the colonist through `FUN_15eb_28c8` for
-every field job, so each elected plot gets the 06d2 commit tail (owner nibble,
-mask 0x10) and his job counter is zeroed, Escape or not
-(`ai_euro_jobs_menu_open_w`, docs/colony.md#colonies_assign_field_w,
-port_bugs.md #1205).
+pick goes through `colonies_assign_workplace` (port_bugs.md #1204). In DOS
+opening it is not free (348c's build-up seats stamp each elected plot and zero the
+job counter, Escape or not, port_bugs.md #1205); the port's opening changes nothing
+(docs/dos_bugs.md DB-54).
 
 Leave-as mode (param 1, the fence drop): page 0 starts with the colonist's
 current occupation (bare @JOB name, the default row; picking it keeps him,

@@ -901,40 +901,6 @@ int ai_euro_jobs_menu_plot(
   return ai_euro_jobs_menu_28c8(pool, map, col1, col, slot, job, &best) ? best.tile : -1;
 }
 
-/*
- * FUN_2f2b_348c's jobs-mode build-up (param_1 == 0, raw 50599-50675; port_bugs.md #1205,
- * DOSBox-confirmed 2026-10-23 on dutch-reports.SAV Curacao: (43,41) mask 00 -> 10 and owner
- * Arawak -> Dutch, the colonist's turns-in-job nibble 0xf -> 0, all before the menu shows and
- * kept on Escape). For each field job 0..8 the colonist is lifted (FUN_281f_0aa6), given the
- * job (FUN_281f_0c36) and put through FUN_281f_0b6e = FUN_15eb_28c8(colonist, job), whose
- * final FUN_15eb_06d2 seat runs with DS:0x34d cleared (raw 13138-13147): the elected plot
- * gets the commit tail. Jobs 9..0x12 only re-set the job. A plot worker is then re-seated on
- * his own plot (FUN_281f_0d44 -> 06d2, raw 50666-50668; worked at claim-table build, so no
- * land charge) and the old occupation restored (raw 50674). Every job change goes through
- * FUN_15eb_1068, which zeroes the job counter (raw 11256-11258). The colonist ends where he
- * started.
- */
-void ai_euro_jobs_menu_open_w(const ColonizeWorld* w, int colony_id, int slot) {
-  ColonizeColony* col = w ? colonies_get_mut(w->colonies, colony_id) : NULL;
-  if (!col || slot < 0 || slot >= col->colonist_count || !col->colonists[slot].active) {
-    return;
-  }
-  const ColonizeCol1Save* col1 = w->col1_ok ? w->col1 : NULL;
-  for (int job = 0; job < COLONIZE_FIELD_JOB_COUNT; ++job) {
-    const int tile = ai_euro_jobs_menu_plot(w->colonies, w->map, col1, col, slot, job);
-    if (tile >= 0) {
-      const bool worked =
-        col->tiles[tile] >= 0 || (col->plot_was_worked_mask & (1u << tile)) != 0;
-      colonies_plot_seat_tail_w(w, col, tile, worked);
-    }
-  }
-  const int own = colonies_colonist_tile(col, slot);
-  if (own >= 0) {
-    colonies_plot_seat_tail_w(w, col, own, true);
-  }
-  col->colonists[slot].turns_in_job = 0;
-}
-
 int ai_euro_jobs_menu_estimate(
   const ColonizeColonyPool* pool,
   const ColonizeWorldMap* map,

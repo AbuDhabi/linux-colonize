@@ -65,8 +65,8 @@ void ai_euro_28c8_auto_assign_plots(ColonizeTurnContext* ctx, int colony_id, int
  * plot it would seat him on (0 when none scores; param_2 >= 0 gates every weight off, raw
  * 13026-13029, so the score is yld * 8 + 7 - |dx| - |dy|). An indoor job is FUN_281f_0cd6 ->
  * FUN_15eb_1d4c, the Statesman then + Jefferson / Paine / Newspaper or Printing Press.
- * *out_cargo = the @CARGO row DOS names after it (aiStack_c8; -1 = none). Reads only; the
- * menu's committing seats are ai_euro_jobs_menu_open_w (port_bugs.md #1205).
+ * *out_cargo = the @CARGO row DOS names after it (aiStack_c8; -1 = none). Reads only; DOS's
+ * committing build-up seats are not reproduced (docs/dos_bugs.md DB-54).
  */
 int ai_euro_jobs_menu_estimate(
   const ColonizeColonyPool* pool,
@@ -77,10 +77,6 @@ int ai_euro_jobs_menu_estimate(
   int job,
   int* out_cargo
 );
-/* FUN_2f2b_348c's jobs-mode side effects on opening the menu for colonist `slot`: the
- * FUN_15eb_06d2 commit tail on the plot 28c8 elects for each field job, the re-seat tail on
- * his own plot, and the job counter zeroed (port_bugs.md #1205). Sim state. */
-void ai_euro_jobs_menu_open_w(const ColonizeWorld* w, int colony_id, int slot);
 /* FUN_2f2b_348c raw 50860-50863: the plot FUN_15eb_28c8(slot, job) elects (FUN_281f_0b6e) for
  * a colonist who picks field `job` from the jobs menu while working indoors; -1 = none
  * scores. Same scorer and context as the estimate above. */
