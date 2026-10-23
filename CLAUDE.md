@@ -71,7 +71,7 @@ lines only (docs/conventions.md "Don't read archives willy-nilly").
   matching `*_internal.h`): `ai_euro_*`, `game_loop_*`, `units_*`, `ai_contact_*`, `ai_king_*`,
   `europe_*`, `ai_*` (ai_indian/ai_brave/ai_native_*), `colony_*`, `colony_screen_*`, `reports_*`, `turn_*`;
   docs/architecture.md names what each file holds. Header design prose lives in
-  docs/colony.md, docs/europe.md, docs/units.md (headers keep one-line pointers).
+  docs/colony.md (+ docs/colony_goods.md), docs/europe.md, docs/units.md (headers keep one-line pointers).
   Tests are split the same way (`test_units_*.c`, `test_ai_euro_expand_*.c`, ...);
   run one with `make test T=unit_units_core CASE=<case>`.
 - Concurrent agents: give each a private subdirectory of the scratchpad (shared
