@@ -1476,7 +1476,138 @@ static int test_colony_list_keys_wrap(void) {
   if (v.construction_selection != 3 || v.more_selected) {
     return fail("construction: Up on the first row wraps to the last");
   }
+  memset(&v, 0, sizeof(v));
+  v.custom_house_open = true;
+  v.custom_house_count = 16;
+  colony_screen_list_key(&v, COLONIZE_KEY_UP);
+  if (v.custom_house_selection != 15) {
+    return fail("Custom House: Up on the first row wraps to the last (port_bugs.md #1213)");
+  }
   return 0;
+}
+
+/*
+ * port_bugs.md #1213: @CUSTOM is a FUN_6f74_2580 @checkbox box. The bar opens on row 0, Up /
+ * Down move it, Space and F1 flip the barred row and keep the box up, any other key does
+ * nothing (C does not swap it for the construction list), Enter closes it.
+ */
+static int test_colony_custom_house_keys(void) {
+  static ColonizeGameState game;
+  ColonizeMsgCatalog names;
+  if (!jobs_menu_fixture(&game, &names)) {
+    return fail("jobs fixture");
+  }
+  ColonizeColony* col = &game.colonies.colonies[0];
+  ColonyScreenView* csv = &game.colony_screen;
+  col->custom_house_bits = 0;
+  col->has_building[colonies_building_row(&game.colonies, COLONY_BUILDING_CUSTOM_HOUSE)] = true;
+  colony_screen_open_custom_house(csv, col, NULL);
+  const int last = csv->custom_house_count - 1;
+  ColonizeInputState in;
+#define CH_PRESS(k) (memset(&in, 0, sizeof(in)), in.last_key = (k), (void)game_update(&game, &in, 16))
+  int rc = 0;
+  if (!csv->custom_house_open || csv->custom_house_selection != 0 || last < 1) {
+    rc = fail("the Custom House box opens with the bar on row 0");
+  }
+  CH_PRESS(COLONIZE_KEY_UP);
+  if (rc == 0 && csv->custom_house_selection != last) {
+    rc = fail("Up on row 0 wraps to the last row");
+  }
+  CH_PRESS(COLONIZE_KEY_SPACE);
+  if (rc == 0 && (col->custom_house_bits != 1u << csv->custom_house_cargo_ids[last] ||
+                  !csv->custom_house_open)) {
+    rc = fail("Space flips the barred row and keeps the box up");
+  }
+  CH_PRESS(COLONIZE_KEY_DOWN);
+  CH_PRESS(COLONIZE_KEY_F1);
+  if (rc == 0 && (csv->custom_house_selection != 0 ||
+                  col->custom_house_bits != (1u << csv->custom_house_cargo_ids[last] |
+                                             1u << csv->custom_house_cargo_ids[0]))) {
+    rc = fail("Down wraps to row 0 and F1 flips it");
+  }
+  CH_PRESS(COLONIZE_KEY_C);
+  if (rc == 0 && (!csv->custom_house_open || csv->construction_open)) {
+    rc = fail("C does nothing while the Custom House box is up");
+  }
+  CH_PRESS(COLONIZE_KEY_ENTER);
+  if (rc == 0 && (csv->custom_house_open || !game.in_colony)) {
+    rc = fail("Enter closes the Custom House box, not the colony screen");
+  }
+#undef CH_PRESS
+  fx_map_free(&game.world_map);
+  assets_msg_free(&names);
+  return rc;
+}
+
+/*
+ * port_bugs.md #1215, FUN_2f2b_5bd2: a two-page construction list opens on page 0 with no bar
+ * when page 0 does not list the current project (08ec(0x65) matches no row); Enter then does
+ * nothing, Down takes row 0. A page turn bars the current project where that page lists it,
+ * else the page's first row (page 1: the back "(More)", page 0: the clear row).
+ */
+static int test_colony_construction_page_default(void) {
+  static ColonizeGameState game;
+  ColonizeMsgCatalog names;
+  if (!jobs_menu_fixture(&game, &names)) {
+    return fail("jobs fixture");
+  }
+  ColonizeColony* col = &game.colonies.colonies[0];
+  ColonyScreenView* csv = &game.colony_screen;
+  col->population = 16;
+  /* Seven unit projects (Artillery, Wagon Train, five ships) push the list past 0x16 rows. */
+  col->has_building[colonies_building_row(&game.colonies, COLONY_BUILDING_ARMORY)] = true;
+  col->has_building[colonies_building_row(&game.colonies, COLONY_BUILDING_DOCKS)] = true;
+  col->has_building[colonies_building_row(&game.colonies, COLONY_BUILDING_DRYDOCK)] = true;
+  col->has_building[colonies_building_row(&game.colonies, COLONY_BUILDING_SHIPYARD)] = true;
+  ColoniesBuildableOpts opts;
+  memset(&opts, 0, sizeof(opts));
+  opts.map = &game.world_map;
+  opts.has_adam_smith = true;
+  opts.has_peter_stuyvesant = true;
+  int rc = 0;
+  colony_screen_open_construction(csv, &game.colonies, col->id, &opts);
+  if (csv->buildable_count + 1 <= 0x16 || csv->buildable_count < 0x14) {
+    fprintf(stderr, "  buildable_count=%d\n", csv->buildable_count);
+    for (int i = 0; i < csv->buildable_count; ++i) { const ColonizeBuildingType* bt = colonies_building_type(&game.colonies, csv->buildable_ids[i]); fprintf(stderr, "   %d %s\n", csv->buildable_ids[i], bt ? bt->name : "unit"); }
+    rc = fail("fixture must list two pages with a project on page 1");
+  }
+  /* A page-1 project (entry 0x12). */
+  const int p1 = 0x12;
+  col->building_in_production = csv->buildable_ids[p1 - 1];
+  colony_screen_open_construction(csv, &game.colonies, col->id, &opts);
+  ColonizeInputState in;
+  memset(&in, 0, sizeof(in));
+  in.last_key = COLONIZE_KEY_ENTER;
+  (void)game_update(&game, &in, 16);
+  if (rc == 0 && (csv->construction_selection != -1 || csv->more_selected ||
+                  !csv->construction_open || col->building_in_production != csv->buildable_ids[p1 - 1])) {
+    rc = fail("page 0 without the project has no bar and Enter does nothing");
+  }
+  colony_screen_list_key(csv, COLONIZE_KEY_DOWN);
+  if (rc == 0 && (csv->construction_selection != 0 || csv->more_selected)) {
+    rc = fail("Down from no bar takes the first row");
+  }
+  colony_screen_construction_next_page(csv);
+  if (rc == 0 && (csv->construction_selection != p1 || csv->more_selected)) {
+    rc = fail("page 1 bars the project it lists");
+  }
+  colony_screen_construction_next_page(csv);
+  if (rc == 0 && (csv->construction_selection != 0 || csv->more_selected)) {
+    rc = fail("back on page 0 the bar takes the clear row");
+  }
+  /* A page-0 project: page 0 bars it, page 1 opens on its back "(More)". */
+  col->building_in_production = csv->buildable_ids[2];
+  colony_screen_open_construction(csv, &game.colonies, col->id, &opts);
+  if (rc == 0 && csv->construction_selection != 3) {
+    rc = fail("page 0 bars the project it lists");
+  }
+  colony_screen_construction_next_page(csv);
+  if (rc == 0 && (csv->construction_selection != 0x10 || !csv->more_selected)) {
+    rc = fail("page 1 without the project bars its back (More) row");
+  }
+  fx_map_free(&game.world_map);
+  assets_msg_free(&names);
+  return rc;
 }
 
 /* port_bugs.md #1091: an open map pull-down is modal (DOS runs it as a blocking
@@ -1592,6 +1723,8 @@ static const TestCase k_cases[] = {
     {"test_game_world_view", test_game_world_view},
     {"test_goto_place_opens_travelplace_list", test_goto_place_opens_travelplace_list},
     {"test_colony_list_keys_wrap", test_colony_list_keys_wrap},
+    {"test_colony_custom_house_keys", test_colony_custom_house_keys},
+    {"test_colony_construction_page_default", test_colony_construction_page_default},
 };
 
 TEST_MAIN(k_cases)

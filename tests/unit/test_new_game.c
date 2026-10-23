@@ -554,15 +554,18 @@ static int case_wizard_prose_text_is_one_pass(void) {
     goto out;
   }
 
-  /* King: art only (no GAME.TXT) is the background. */
+  /* King: art only (no @VICEROY lines) is the background. */
   if (!ng_fix_enter(f) || !ng_fix_enter(f) || f->ng.phase != NEW_GAME_PHASE_KING) {
     fprintf(stderr, "expected the king's audience\n");
     goto out;
   }
-  f->ng.game_txt = NULL;
-  ng_fix_render(f);
-  memcpy(f->ref, f->px, sizeof(f->ref));
-  f->ng.game_txt = &f->game_txt;
+  {
+    const int lines = f->ng.prompt_line_count;
+    f->ng.prompt_line_count = 0;
+    ng_fix_render(f);
+    memcpy(f->ref, f->px, sizeof(f->ref));
+    f->ng.prompt_line_count = lines;
+  }
   ng_fix_render(f);
   ng_added(f, 0, 0, 320, 200, added);
   static const uint8_t k_king[] = {0xf2, COLONIZE_COL_HILITE, 0x2f, 0};
@@ -588,6 +591,146 @@ out:
   return rc;
 }
 
+/* Leftmost / rightmost x in rows y0..y1 whose pixel is ink a or b (-1 = none). */
+static int ng_ink_x(const NgFix* f, int y0, int y1, uint8_t a, uint8_t b, bool rightmost) {
+  int best = -1;
+  for (int y = y0; y <= y1; ++y) {
+    for (int x = 0; x < 320; ++x) {
+      const uint8_t p = f->px[y * 320 + x];
+      if ((p == a || p == b) && (best < 0 || (rightmost ? x > best : x < best))) {
+        best = x;
+      }
+    }
+  }
+  return best;
+}
+
+static int ng_expect(const char* what, int got, int want) {
+  if (got != want) {
+    fprintf(stderr, "%s: got %d, DOS %d\n", what, got, want);
+    return 1;
+  }
+  return 0;
+}
+
+/* port_bugs.md #1210 / #1212: the 6f74 wizard dialogs against the DOSBox-X captures of
+ * 2026-10-23 (FUN_6f74_14c6 layout; every number below was read off a capture, which the
+ * port now matches pixel for pixel outside the mouse pointer). */
+static int case_wizard_dialog_layout_is_dos(void) {
+  NgFix* f = &g_fix;
+  int rc = 1;
+  if (ng_fix_begin(f, NEW_GAME_PATH_AMERICA) != 0) {
+    goto out;
+  }
+  const uint8_t ink = COLONIZE_COL_BASIC;
+  const uint8_t hil = COLONIZE_COL_HILITE;
+  /* @AMERICA: @width 160, three prose lines, two rows: frame 77,67 166 x 66, row bar
+   * 81..238 from y 106, rows 12 apart. */
+  ng_fix_render(f);
+  if (ng_expect("@AMERICA x", f->ng.dialog_x, 77) || ng_expect("@AMERICA y", f->ng.dialog_y, 67) ||
+      ng_expect("@AMERICA w", f->ng.dialog_w, 166) || ng_expect("@AMERICA h", f->ng.dialog_h, 66) ||
+      ng_expect("@AMERICA list_y0", f->ng.list_y0, 106) ||
+      ng_expect("@AMERICA row pitch", f->ng.line_h, 12) ||
+      ng_expect("@AMERICA bar", f->px[106 * 320 + 81], COLONIZE_COL_SELECT) ||
+      ng_expect("@AMERICA bar right", f->px[116 * 320 + 238], COLONIZE_COL_SELECT) ||
+      ng_expect("@AMERICA prose x", ng_ink_x(f, 73, 81, ink, ink, false), 82) ||
+      ng_expect("@AMERICA row x", ng_ink_x(f, 107, 115, ink, ink, false), 86)) {
+    goto out;
+  }
+  /* FUN_6f74_2580 wraps: Up from the first row lands on the last, Down goes back. */
+  {
+    ColonizeInputState in = {0};
+    in.last_key = COLONIZE_KEY_UP;
+    new_game_handle_input(&f->ng, &in);
+    if (ng_expect("@AMERICA Up from row 0", f->ng.selection, 1)) {
+      goto out;
+    }
+    in.last_key = COLONIZE_KEY_DOWN;
+    new_game_handle_input(&f->ng, &in);
+    if (ng_expect("@AMERICA Down from the last row", f->ng.selection, 0)) {
+      goto out;
+    }
+    new_game_handle_input(&f->ng, &in);
+  }
+  /* Map Editor -> @MAPTOLOAD: @width 220, centred "^^" prompt, frame 47,83 226 x 34. */
+  if (!ng_fix_enter(f) || f->ng.phase != NEW_GAME_PHASE_MAP_PICK) {
+    fprintf(stderr, "expected the map picker\n");
+    goto out;
+  }
+  ng_fix_render(f);
+  if (ng_expect("@MAPTOLOAD x", f->ng.dialog_x, 47) ||
+      ng_expect("@MAPTOLOAD y", f->ng.dialog_y, 83) ||
+      ng_expect("@MAPTOLOAD w", f->ng.dialog_w, 226) ||
+      ng_expect("@MAPTOLOAD h", f->ng.dialog_h, 34) ||
+      ng_expect("@MAPTOLOAD list_y0", f->ng.list_y0, 102) ||
+      ng_expect("@MAPTOLOAD prompt x", ng_ink_x(f, 89, 95, ink, ink, false), 108)) {
+    goto out;
+  }
+  /* -> difficulty -> nation -> @LEADERNAME: frameless, prompt centred at y 88, field box
+   * 79..245 x 98..111, text at 82,101. */
+  if (!ng_fix_enter(f) || !ng_fix_enter(f) || !ng_fix_enter(f) ||
+      f->ng.phase != NEW_GAME_PHASE_LEADER_NAME) {
+    fprintf(stderr, "expected the leader-name prompt\n");
+    goto out;
+  }
+  ng_fix_render(f);
+  if (ng_expect("@LEADERNAME prompt x", ng_ink_x(f, 88, 95, ink, ink, false), 104) ||
+      ng_expect("@LEADERNAME box top-left", f->px[98 * 320 + 79], ink) ||
+      ng_expect("@LEADERNAME box bottom-right", f->px[111 * 320 + 245], ink) ||
+      ng_expect("@LEADERNAME text x", f->ng.leader_field_x, 82) ||
+      ng_expect("@LEADERNAME text y", f->ng.leader_field_y, 101)) {
+    goto out;
+  }
+  /* @NATION0A: frameless at x 10, "ENGLAND" from x 140; the eleventh line ends at x 290
+   * (DOS breaks "...had neither" before "the": FUN_6f74_1198 charges the space). */
+  if (!ng_fix_enter(f) || f->ng.phase != NEW_GAME_PHASE_NATION_LORE_A) {
+    fprintf(stderr, "expected @NATION0A\n");
+    goto out;
+  }
+  ng_fix_render(f);
+  if (ng_expect("@NATION0A ENGLAND x", ng_ink_x(f, 20, 26, ink, hil, false), 140) ||
+      ng_expect("@NATION0A body x", ng_ink_x(f, 40, 47, ink, hil, false), 10) ||
+      ng_expect("@NATION0A line 11 end", ng_ink_x(f, 130, 137, ink, hil, true), 290)) {
+    goto out;
+  }
+  /* King: ENGLND1 / KING1 on their header anchors, (32, 0) and (0, 12). */
+  if (!ng_fix_enter(f) || !ng_fix_enter(f) || f->ng.phase != NEW_GAME_PHASE_KING) {
+    fprintf(stderr, "expected the king's audience\n");
+    goto out;
+  }
+  {
+    const int lines = f->ng.prompt_line_count;
+    f->ng.prompt_line_count = 0;
+    ng_fix_render(f);
+    f->ng.prompt_line_count = lines;
+    ColonizeFramebuffer8 ref = {.width = 320, .height = 200, .pixels = f->ref};
+    ng_ref_bg(f, &f->ng.kinglss_pik, 0);
+    ss_blit_sprite(&f->ng.nation_art, 0, &ref, 32, 0);
+    ss_blit_sprite(&f->ng.king1, 0, &ref, 0, 12);
+    if (ng_ref_compare(f, "king art")) {
+      goto out;
+    }
+    /* "1492": centred in @x 232 @width 78 as 232 + 39 - (width >> 1); DOS ink from x 261. */
+    memcpy(f->ref, f->px, sizeof(f->ref));
+    ng_fix_render(f);
+    int left = -1;
+    for (int y = 37; y <= 44; ++y) {
+      for (int x = 232; x < 312; ++x) {
+        if (f->px[y * 320 + x] != f->ref[y * 320 + x] && (left < 0 || x < left)) {
+          left = x;
+        }
+      }
+    }
+    if (ng_expect("king 1492 x", left, 261)) {
+      goto out;
+    }
+  }
+  rc = 0;
+out:
+  ng_fix_free(f);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
     {"scenario_start", case_scenario_start},
     {"customize_defaults", case_customize_defaults},
@@ -595,6 +738,7 @@ static const TestCase k_cases[] = {
     {"hall_of_fame_from_menu", case_hall_of_fame_from_menu},
     {"wizard_picture_text_is_dos", case_wizard_picture_text_is_dos},
     {"wizard_prose_text_is_one_pass", case_wizard_prose_text_is_one_pass},
+    {"wizard_dialog_layout_is_dos", case_wizard_dialog_layout_is_dos},
 };
 
 TEST_MAIN(k_cases)

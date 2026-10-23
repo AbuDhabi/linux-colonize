@@ -513,7 +513,9 @@ static void new_game_enter_lore(NewGameWizard* ng, bool page_b) {
   new_game_load_choice_section(ng, section_name);
 }
 
-static void new_game_subst_country(char* dst, size_t dst_size, const char* src, const char* country);
+static void new_game_subst_country(
+  char* dst, size_t dst_size, const char* src, const char* country
+);
 
 static void new_game_enter_king(NewGameWizard* ng) {
   ng->phase = NEW_GAME_PHASE_KING;
@@ -1200,7 +1202,8 @@ static void new_game_render_dialog(
   const int tx = x + fr + margin;
   bool emph = false; /* DS:0x1f62, carried across every line and row */
   for (int i = 0; i < n; ++i) {
-    const int lx = tx + (centred[i] ? popup_dos_center_dx(font, lines[i], content - 2 * margin) : 0);
+    const int dx = centred[i] ? popup_dos_center_dx(font, lines[i], content - 2 * margin) : 0;
+    const int lx = tx + dx;
     popup_draw_text_markup(
       font, fb, lx, y + fr + sp + i * (gh + 1), lines[i], text_color, hilite_color, colors, &emph
     );

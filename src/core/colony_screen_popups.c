@@ -266,14 +266,24 @@ static ColonyDosPage colony_screen_construction_page(const ColonyScreenView* vie
   );
 }
 
-/* The "(More)" rows: page 0 <-> page 1, the selection on the new page's first row (page 1's
- * is its "(More)" back row, which 5bd2 adds first, raw 52596-52598). */
+/*
+ * The "(More)" rows: page 0 <-> page 1 (port_bugs.md #1215). DOS-LITERAL FUN_2f2b_5bd2: the
+ * page that lists the current project puts the bar on it (raw 52607-52611). Otherwise the
+ * new page keeps the first row added (FUN_6f74_0a00): page 0's clear row, page 1's back
+ * "(More)" (raw 52596-52598). Neither 08ec fallback fires on a turned page: local_8 (raw
+ * 52575) is never reset and every page-0 pass of a two-page list sets it (raw 52611 or
+ * 52624), so only the first showing can take the no-bar 0x65 arm and the 100 arm (raw 52628,
+ * also an id no row has) is dead.
+ */
 void colony_screen_construction_next_page(ColonyScreenView* view) {
   if (!view || !colony_screen_construction_paged(view)) {
     return;
   }
-  view->construction_selection = view->construction_selection >= 0x10 ? 0 : 0x10;
-  view->more_selected = view->construction_selection != 0;
+  const int start = view->construction_selection >= 0x10 ? 0 : 0x10;
+  const int cur = view->construction_default_row;
+  const bool listed = cur >= start && cur < start + 0x10;
+  view->construction_selection = listed ? cur : start;
+  view->more_selected = !listed && start != 0;
 }
 
 /*
@@ -514,10 +524,39 @@ bool colony_screen_list_key(ColonyScreenView* view, ColonizeKey key) {
     popup_list_key_step(key, &view->eject_selection, view->eject_role_count, greyed);
   } else if (view->dock_orders_open) {
     popup_list_key_step(key, &view->dock_orders_selection, view->dock_orders_count, 0);
+  } else if (view->custom_house_open) {
+    popup_list_key_step(key, &view->custom_house_selection, view->custom_house_count, 0);
   } else {
     return false;
   }
   return true;
+}
+
+/*
+ * FUN_2f2b_4424's @CUSTOM box is a FUN_6f74_2580 @checkbox box (FUN_6f74_32a4 flags | 5,
+ * port_bugs.md #1213). Space and F1 (0x20 / 0x13b -> 6f74:2cfc, raw 116852-116864) flip the
+ * barred row and leave the box up (Enter takes the same arm and closes it, Esc closes it too:
+ * game_loop_update.c); any other key is upper-folded and matched against each row's
+ * FUN_6f74_0642 hotkey, which FUN_6f74_0a00 takes from the raw @CARGO label before the "~[ "
+ * prefix (none in the shipped NAMES.TXT): the first match gets the bar and flips (6f74:2df6,
+ * raw 116877-116898).
+ */
+int colony_screen_custom_house_key(ColonyScreenView* view, const ColonizeInputState* input) {
+  if (!view || !view->custom_house_open || !input) {
+    return -1;
+  }
+  const int key = input->last_key == COLONIZE_KEY_SPACE ? 0x20 : popup_input_dos_key(input);
+  if (key == 0x20 || key == 0x13b) {
+    const int s = view->custom_house_selection;
+    return s >= 0 && s < view->custom_house_count ? s : -1;
+  }
+  for (int i = 0; key && i < view->custom_house_count; ++i) {
+    if (popup_hotkey_of(reports_cargo_display_name(view->custom_house_cargo_ids[i])) == key) {
+      view->custom_house_selection = i;
+      return i;
+    }
+  }
+  return -1;
 }
 
 /*
@@ -690,7 +729,8 @@ static void colony_screen_draw_custom_house_popup(
   /* One uniform ink (player-reported 2026-08-27: not the brighter green some rows used
    * before; the state is the check glyph's job): the box style's @COLORS 68. */
   for (int i = 0; i < rows; ++i) {
-    const int row_y = colony_screen_dos_row(framebuffer, &lay, &view->custom_house_rect, i, false);
+    const int row_y = colony_screen_dos_row(framebuffer, &lay, &view->custom_house_rect, i,
+                                            i == view->custom_house_selection);
     colony_screen_custom_house_row(view, colony, i, row, sizeof(row));
     colony_screen_dos_row_text(framebuffer, font, &lay, &view->custom_house_rect, lay.text_x + 4,
                                row_y, 4, row, false, false);

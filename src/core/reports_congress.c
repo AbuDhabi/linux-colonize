@@ -737,8 +737,8 @@ void reports_render_labor_grid(
   if (font) {
     char hint[48];
     reports_misc_word(56, "", hint, sizeof(hint));
-    const int w = font_text_width(font, hint);
-    reports_draw_line(font, fb, (fb->width - w) / 2, y, hint, 14);
+    /* FUN_3f41_10d8 raw 70087: DS:0x2e2a centred in 0..0x140 at FONTTINY[0] + 6, ink 0x91. */
+    reports_draw_dos_centered(font, fb, 0, 0x140, font->max_height + 6, hint, 0x91);
   }
 
   for (int col = 0; col < REPORTS_LABOR_COLS; ++col) {
@@ -787,8 +787,9 @@ void reports_render_labor_detail(
 
   snprintf(line, line_sz, "(%s)", reports_job_name(job));
   if (font) {
-    const int w = font_text_width(font, line);
-    reports_draw_line(font, fb, (fb->width - w) / 2, y, line, 14);
+    /* FUN_3f41_0d3e raw 69994-70000: "(" job ")" through FUN_281f_0100 at FONTTINY[0] + 6,
+     * ink 0x91. */
+    reports_draw_dos_centered(font, fb, 0, 0x140, font->max_height + 6, line, 0x91);
   }
 
   int colony_counts[64], mapboard_counts[64], europe_counts[64], total;

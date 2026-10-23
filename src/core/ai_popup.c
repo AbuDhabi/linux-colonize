@@ -914,6 +914,13 @@ void ai_popup_set_last_graphic_myr(AiPopupState* st, int nation) {
   ai_popup_set_last_graphic(st, &st->queue[st->queue_count - 1].graphic_myr, nation, 3);
 }
 
+void ai_popup_set_last_disabled(AiPopupState* st, uint32_t mask) {
+  if (!st || !st->last_enqueue_ok || st->queue_count <= 0) {
+    return;
+  }
+  st->queue[st->queue_count - 1].disabled_mask = mask;
+}
+
 void ai_popup_consume_result(AiPopupState* st) {
   if (!st) {
     return;

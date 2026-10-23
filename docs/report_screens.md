@@ -73,7 +73,23 @@ counts. `reports_draw_icon_bar(_pair)` implements all three — reuse:
 ## Shared chrome
 
 Title + OK button drawn once in the dispatcher
-(`reports_render_body_start`, `reports_render_ok_button`). Exceptions:
+(`reports_render_body_start`, `reports_render_ok_button`). Every plate's title call is
+`FUN_281f_0022(title, 0, 0x140, y, ink)` -> `FUN_281f_0100` = `FUN_104b_0318`
+(`reports_draw_dos_centered`): FONTTINY, one pass, x + (w >> 1) - ((width - 1) >> 1). F2-F9
+(`FUN_3f41_0618` / `06d0` / `0d3e` / `10d8` / `1438` / `1710` / `1b94` / `1e80` / `20b4` / `2548`
+/ `010a`) use y 5 (F8 y 2) and ink 0x90, a raw index of the plate's PIK (255,255,190 in every
+REPORT*.PIK); F10 (`FUN_41f2_0092`) uses DS:0x831 = 149. The F4 / F5 / F6 subtitles (and F4's
+"(job)" detail line) are the same call at y FONTTINY[0] + 6 = 12, ink 0x91; F10's subtitle is at
+5 + FONTTINY[0] + 1 = 12 in 149, built with DS:0x55 ": " (one space). OK = `FUN_3f41_008a`
+(x -2 -> 0x11e, y -1 -> 0xb8): outline x..x + 0x1d, y..y + 0xd in 0x77, then LABELS @MISC 46 in
+FONTTINY ink 0x92, centred in x w 0x1e at y - ((FONTTINY[0] >> 1) - 7) = 188 (port_bugs.md
+#1211). Title strip (y 0-21) and OK box now match every golden (religious, continental_p1,
+labor_detail, economic_p1/p2, foreign, indian (palette-mapped), score: 0 px); the leftovers are
+the DOS mouse pointer over labor.png's title (82 px), colony_p1/p2 body header rows 20-21 (47 /
+15 px, not chrome) and naval's row rule at y 180 under the OK box (4 px). Every golden also shows
+a 10 px black column at x 319 at a different y (indian.png y 85-94): the DOS mouse pointer parked
+on the right edge, clipped to its outline column; nothing to draw. Test:
+`unit_reports report_chrome_golden`. Exceptions:
 Congress page 2 (full-bleed image, no chrome) and F10 Score (no OK button)
 — both need click-anywhere dismissal wired in `game_loop.c`. Multi-page
 reports plumb page state through `reports_render_w()` and the OK hit-test.

@@ -266,6 +266,9 @@ typedef struct AiPopupRequest {
    * Auto-filled from popup_msg_fill's side-channel, same as `width`.
    */
   int default_choice;
+  /* Greyed rows, bit i = choice row i (FUN_291f_01b6 -> FUN_6f74_08fa option bit 0): grey
+   * ink, Up / Down step past them, clicks ignore them (port_bugs.md #1214). */
+  uint32_t disabled_mask;
 } AiPopupRequest;
 
 /*
@@ -576,6 +579,8 @@ int ai_popup_portrait_tier_from_alarm(int alarm);
  */
 void ai_popup_set_last_graphic_mss(AiPopupState* st, int mss);
 void ai_popup_set_last_graphic_myr(AiPopupState* st, int nation);
+/* Grey choice rows of the newest queued request (bit i = row i; FUN_291f_01b6). */
+void ai_popup_set_last_disabled(AiPopupState* st, uint32_t mask);
 
 /*
  * The MSS{mss} / MYR{myr} decoration sheet itself (lazy load from the portrait
