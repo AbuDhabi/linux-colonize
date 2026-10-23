@@ -599,7 +599,7 @@ done:
  * Pioneer DOS-fidelity fixes: port_bugs.md #615 (no MP gate), #617 (road hammers go
  * to the nearest colony of ANY nation, and only if it is ours), #618 (road
  * refused on a settlement tile), #619 (Arctic plowable, Hills not),
- * #620 (progress counter survives an order change).
+ * #620 (progress counter; reset on order change since dos_bugs.md DB-46).
  */
 static int unit_pioneer_dos_gates_2026_09_22(void) {
   ColonizeMsgCatalog names;
@@ -648,16 +648,17 @@ static int unit_pioneer_dos_gates_2026_09_22(void) {
       fprintf(stderr, "piodos #615: no work tick at 0 MP\n");
       rc = 1;
     }
-    /* #620: switching to Build Road must NOT reset the progress counter. */
+    /* dos_bugs.md DB-46: switching to Build Road starts the new job at 0
+     * (DOS keeps the old progress, #620); the entry tick then makes it 1. */
     if (!rc) {
       err[0] = '\0';
       units_pioneer_road_w(
         &(ColonizeWorld){.units = &pool, .colonies = &colonies, .map = &map},
         pid, err, sizeof(err), NULL, NULL);
-      if (units_get(&pool, pid)->col1_counter16 < 2) {
+      if (units_get(&pool, pid)->col1_counter16 != 1) {
         fprintf(
           stderr,
-          "piodos #620: counter reset on order change (%d)\n",
+          "piodos DB-46: counter not reset on order change (%d)\n",
           units_get(&pool, pid)->col1_counter16
         );
         rc = 1;

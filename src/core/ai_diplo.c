@@ -2144,17 +2144,16 @@ static void ai_talk_resume(ColonizeTurnContext* ctx, int stage, int choice) {
         /*
          * raw :98017 (`FUN_1d1d_07e4(local_80, 0x196a)`, same line in the
          * OVL16 listing at euro_diplo_153e_full.md:1377): showing the
-         * @GIVECASH offer overwrites the shared tone buffer with "MEEK", and
-         * the WAR tag built at :98041 appends that buffer — so the refusal
-         * after an offer is ALWAYS @WARMEEK, whatever the encounter tone.
-         * (The no-offer path above still uses the greeting tone.) %STRING0/1
-         * per the 0618/0416 operands, as in the cascade legs.
+         * @GIVECASH offer overwrites the shared tone buffer with "MEEK", so
+         * DOS's refusal after an offer is always @WARMEEK. The port keeps the
+         * encounter tone, as the no-offer path does (dos_bugs.md DB-51).
+         * %STRING0/1 per the 0618/0416 operands, as in the cascade legs.
          */
         const char* gl2 = ai_talk_great_line(ctx, "GREATLEADER2", t);
         PopupMsgTokens tw = tok;
         tw.string0 = gl2 ? gl2 : ai_talk_name(ctx, t);
         tw.string1 = ai_talk_name(ctx, t);
-        ai_talk_ok(ctx, "WARMEEK", &tw, "");
+        ai_talk_ok(ctx, k->manly ? "WARMANLY" : "WARMEEK", &tw, "");
       }
       k->stage = AI_TALK_ST_PEACEMENU;
       ai_talk_advance(ctx);
@@ -2813,16 +2812,18 @@ static void ai_diplo_13b0_treaty_tick(ColonizeTurnContext* ctx, int a, int b) {
      * DOS 13b0 cancel branch shows tag 0x1898 = "CANCELTREATY" — but
      * GAME.TXT ships NO @CANCELTREATY section, so the dialog open fails and
      * real DOS cancels the treaty silently (bits/timers only, no popup).
-     * The port's invented fallback text ("The X cancel their treaty with
-     * the Y.") was player-reported as a popup DOS never shows. Keep the
-     * effects; pop the notice only if some GAME.TXT actually has the
-     * section.
+     * That is a data bug (dos_bugs.md DB-52): the port shows a
+     * port-authored notice when the section is missing.
      */
     body[0] = '\0';
     if (!is_cancel) {
       popup_msg_fill(ctx->messages, "DECLAREWAR", &tok, "", body, sizeof(body));
     } else if (ctx->messages && assets_msg_find(ctx->messages, "CANCELTREATY")) {
       popup_msg_fill(ctx->messages, "CANCELTREATY", &tok, NULL, body, sizeof(body));
+    } else {
+      /* dos_bugs.md DB-52: port-authored notice for the missing section. */
+      snprintf(body, sizeof(body), "The %s cancel their treaty with the %s.",
+               na ? na : "", nb ? nb : "");
     }
     col1->nation[a].treaty_timer[b] = 0;
     col1->nation[b].treaty_timer[a] = 0;

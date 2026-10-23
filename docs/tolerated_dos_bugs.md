@@ -698,3 +698,39 @@ regression `europe_reverse_sailing_ship`.
 
 **Blocks removal:** nothing; an odd edge case, not worth fixing now (user,
 2026-10-22).
+
+### TB-49 — Fur Trapper gets the road and river bonus twice
+**DOS:** FUN_15eb_18ec adds road-or-settlement (`FUN_137f_0142 & 0x0a`) +1 and
+river +1 (+2 on a major river) for job 4 right after the base lookup (raw
+11840-11848), before the SoL fold and the expert doubling, and the shared
+improvement stack adds road and river again (raw 11945-11963).
+The 2026-08-15 Hudson capture confirms DOS pays both.
+
+**Effect:** a Fur Trapper on a road or river tile is paid for the road and
+the river twice, once of it expert-doubled.
+
+**Port (reproduces it):** `colony_yield_pipeline` (`src/core/colony_yield.c`), the
+job-4 block before the zero-base gate.
+
+**Blocks removal:** tried 2026-10-23: dropping the job-4 block fails every idle
+golden and its reload twin (8 tests), `golden_colony_prod01` and
+`unit_colony_yield`.
+**Status:** tolerated (2026-10-23). Came from dos_bug_candidates_2026-10-22.md C-77.
+
+### TB-50 — An AI hull sailing for Europe stays the current unit
+**DOS:** the movers FUN_465b_0000 (raw 76484) and FUN_479b_0972 (raw 77099)
+make the hull the current unit DS:0x5392 before FUN_291f_0208 sends it to
+Europe. Nothing clears it until the human's Move Pieces entry, so the human's
+autosave names the last AI hull that sailed (save header byte 0x22).
+
+**Effect:** stale RAM in the save; nothing in play reads it before the human's
+turn resets it.
+
+**Port (reproduces it):** `ai_euro_ship_enter_europe`
+(`src/core/ai_euro_ship.c`) sets `units.selected_id`.
+
+**Blocks removal:** tried 2026-10-23: without the write every idle golden and
+its reload twin fail (8 tests), on header byte 0x22 only (port 0xff, DOS the
+hull's index); no other byte drifts. Removing it needs that byte on the idle
+golden ignore list ([idle_campaign.md](idle_campaign.md)).
+**Status:** tolerated (2026-10-23). Came from dos_bug_candidates_2026-10-22.md C-81.

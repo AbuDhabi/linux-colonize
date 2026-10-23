@@ -456,9 +456,13 @@ void ai_euro_5952_improve_best_plot(
     do_plow = 1; /* forest CLEAR shares FUN_479b_01a6 */
   }
   g_units_pioneer_0614_colony = NULL;
+  /* DOS calls the work bodies 01a6 / 0526 directly; the latched order keeps
+   * the human order entry from zeroing the 99 (dos_bugs.md DB-46). */
   if (do_plow) {
+    ph->orders = UNITS_ORDER_CLEAR_PLOW;
     worked = units_pioneer_plow_w(&pw, pid, err, sizeof(err), NULL, NULL) ? 1 : 0;
   } else if (do_road) {
+    ph->orders = UNITS_ORDER_BUILD_ROAD;
     worked = units_pioneer_road_w(&pw, pid, err, sizeof(err), NULL, NULL) ? 1 : 0;
   }
   if (worked) {
@@ -656,6 +660,7 @@ static int ai_euro_5952_road_connect_0000(ColonizeTurnContext* ctx, ColonizeColo
     pw.rng = NULL; /* as in the plow/road slot above: no 00f2 expel roll */
     char err[64];
     g_units_pioneer_0614_colony = NULL;
+    ph->orders = UNITS_ORDER_BUILD_ROAD; /* as above: keep the 99 (DB-46) */
     const int built = units_pioneer_road_w(&pw, pid, err, sizeof(err), NULL, NULL) ? 1 : 0;
     if (built) {
       /* FUN_479b_0526 completion calls FUN_479b_0158, which subtracts
