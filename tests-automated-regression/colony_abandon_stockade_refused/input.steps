@@ -4,8 +4,8 @@
 click 104 128              # open Guadeloupe
 wait 10
 drag 32 155 131 112        # colonist 3 -> fence: role popup
-click 100 46               # plain Colonist: leaves, pop 4 -> 3
+click 100 87               # plain Colonist: leaves, pop 4 -> 3
 drag 23 155 131 112        # colonist 2 -> fence: role popup
-click 100 46               # Colonist: refused with @KEEPSTOCKADE ("cannot voluntarily reduce below three ...")
+click 100 87               # Colonist: refused with @KEEPSTOCKADE ("cannot voluntarily reduce below three ...")
 key Return                 # dismiss: pop stays 3
 key Escape                 # leave Guadeloupe

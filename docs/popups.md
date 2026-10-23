@@ -308,6 +308,45 @@ The sprite blits **after** the frame (`FUN_6f74_248e`: sprite-last whenever
 `DS:0x1f5c < 0`), and `EUROPE.PIK`'s black 120..251 block takes MSS2's own
 palette entries via `ai_popup_sheet_palette_merge` (merge, never remap).
 
+Size and rows (port_bugs.md #1187; `europe_menu_layout`, `popup_dos_list_height` in
+`popup.c`, `EuropeMenuLayout` in `game_loop_internal.h`). The height is the
+`FUN_6f74_14c6` block `6f74:1540-16c8`: `h = 3 + 6 (frame) + prose_h + (glyph_h + 3) * rows
++ 3 + footer`, prose_h = lines * (glyph_h + 1) (`FUN_6f74_1198`, wrapped to
+content - 4), footer = the `DS:0x1f66` "(F1 for Help)" line, +6 when the dialog font
+is FONTTINY (`DS:0x89e`, `@smallfont`), else +3, 0 when the flag is clear; frame width
+= max(0x50, `@width`) + 6. `glyph_h` is FONTINTR 9 / FONTTINY 5 (a 6-row font counts
+as 5). Recruit = 4 lines + 4 rows = 103, Purchase = 2 + 7 = 119, Train (FONTTINY) =
+3 + 18 = 180, all x 62, w 196. Rows are `FUN_6f74_1b7c`: row k's selection bar tops
+at `frame_y + 9 + prose_h` + k * (glyph_h + 3), is `glyph_h + 2` tall and spans frame
++ 4 .. frame + w - 5, and its text sits one row lower at `frame_x + 5 + box[+0x22]`
+(default 4, the Recruit / Purchase / Train / dock callers `FUN_38fd_4884` / `4b50` /
+`41ce` / `3694` set 8); prose is at `(frame_x + 5, frame_y + 6)`. The footer is
+`FUN_6f74_1a78`: FONTTINY face, text top `frame_bottom - 7` (`- 9` in a FONTTINY
+dialog), right edge `frame_x + w - 2`, highlight ink, no drop shadow. The @REALLYBUY
+confirm is a plain `FUN_281f_0652` popup (+0x22 stays 4, and `FUN_6f74_2580` clears
+`DS:0x1f66` on every exit), so it has no footer (h = 12 + prose + rows). Ink is the
+generic `COLONIZE_COL_BASIC` / `COLONIZE_COL_HILITE` / grey (85,150,52 / 199,162,32 /
+85,85,85 in the shots; the old 10/14/15 were the palette's bright EGA colours), and the
+FONTTINY dialog has no drop shadow. With the same fixture content purchase.png and
+train.png reproduce pixel for pixel (frame band, bars, prose, rows, cost column,
+footer) except the FONTINTR text's dark edge pixels (DOS (12,12,12) pattern vs the port's
+black +1,+1 shadow, port_bugs.md #1191) and the rows DOS greys because its gold is 1000.
+The cost column's right edge (advance end at `frame_x + w - 13`) is measured off the
+shots, not read from the asm. Tests: `unit_popup_prompt list_height_dos`,
+`smoke_popup_dialogs europe_menu_frames_are_dos`.
+
+Centring users (port_bugs.md #1188). Every dialog in the port that is a 6f74
+compositor dialog without `@X`/`@Y` is centred by `popup_place_dos`: `popup_center_frame`
+(save/load `FUN_7562_0052`, `@GAMEOPTIONS` / `@COLONYOPTIONS` / `@SOUNDOPTIONS`
+`@CHECKBOX` lists, `@PICKMUSIC`, the cheat and Go-to-Port lists `FUN_647e_01c6` & co,
+and the "Units Present" picker `FUN_2b5a_1b5a` via `FUN_291f_023c`; no menu-bar
+floor any more) and `colony_screen_open_dialog_frame` (construction list
+`FUN_2f2b_5bd2`, jobs / leave-as `FUN_2f2b_348c`, custom house, dock orders, messages: x
+and y, replacing the fixed y of 20 / 24 / 28 / 36). The parser `FUN_6f74_32a4` honours
+`@X`/`@Y`; in GAME.TXT only `@BEGINMENU`, `@VICEROY` / `@VICEROY2` and the TUTORIAL sections
+carry them. The sizes of these dialogs are still the port's own: port_bugs.md #1189,
+#1190.
+
 **KING.SS was a refutation** — the "unwired" note was stale. `DS:0x1f5c = 8`
 has been live since the tax-audience flair fix (`ai_king.c`, KING.SS base +
 KING2.SS frames + palette merge). The asm scan did find three *sites* that

@@ -6,13 +6,13 @@
 click 104 128              # open Guadeloupe
 wait 10
 drag 32 155 131 112        # colonist 3 -> fence: role popup
-click 100 46               # Colonist: refused with @SIEGE
+click 100 87               # Colonist: refused with @SIEGE
 key Return                 # dismiss
 drag 32 155 131 112        # colonist 3 -> fence again
-click 100 70               # Scout: refused with @SIEGE too
+click 100 111               # Scout: refused with @SIEGE too
 key Return                 # dismiss
 drag 32 155 131 112        # colonist 3 -> fence again
-click 100 62               # Soldier: allowed, leaves (muskets 100 -> 50), pop 4 -> 3
+click 100 103               # Soldier: allowed, leaves (muskets 100 -> 50), pop 4 -> 3
 drag 23 155 131 112        # colonist 2 -> fence
-click 100 78               # Dragoon: allowed, leaves (muskets 50 -> 0, horses 100 -> 50), pop 3 -> 2
+click 100 119               # Dragoon: allowed, leaves (muskets 50 -> 0, horses 100 -> 50), pop 3 -> 2
 key Escape                 # leave Guadeloupe

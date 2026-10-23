@@ -7,7 +7,7 @@ drag 160 117 132 152       # drag a unit of the colony tile onto Caravel A: the 
 click 312 155              # Units pane tab
 click 239 166              # select free colonist (id 128) in the Units Present row
 click 239 166              # second click: @UNITOPTIONS popup
-click 110 54               # "Sentry / Board ship": sentried units board when a ship leaves the tile
+click 110 103               # "Sentry / Board ship": sentried units board when a ship leaves the tile
 key Escape                 # back to the map
 key a                      # Activate unit: Caravel A
 key KP_9                   # sail out to (46,23): the sentried colonist boards on departure (hold 1 of 2)

@@ -37,12 +37,19 @@
 
 /* ===================== Popup rendering: construction/jobs/custom house/eject/dock/message (colony_screen_open_dialog_frame .. colony_screen_draw_message_popup) ===================== */
 
+/*
+ * Frame for one colony-screen sub-dialog. Every one of them is a DOS 6f74 compositor
+ * dialog with no @X / @Y of its own (FUN_2f2b_5bd2 construction list, FUN_2f2b_348c jobs /
+ * leave-as lists, the @CUSTOM house rows, the FUN_281f_0652 messages), so FUN_6f74_14c6
+ * places them on the screen centre: 160 - (w >> 1) / 100 - (h >> 1), edge-clamped, no
+ * menu-bar floor (popup_place_dos). The port's fixed y stand-ins (20 / 24 / 28 / 36) and
+ * its (width - w) / 2 x are gone (port_bugs.md #1188). Sizes are still the port's own.
+ */
 static void colony_screen_open_dialog_frame(
   ColonyScreenView* view,
   ColonizeFramebuffer8* framebuffer,
   int dialog_w,
   int dialog_h,
-  int dialog_y,
   int line_h,
   ColonyDialogRect* out,
   int* inner_x,
@@ -56,7 +63,7 @@ static void colony_screen_open_dialog_frame(
   const PopupDosPlace pl =
     popup_place_dos(framebuffer->width, framebuffer->height, dialog_w, dialog_h, NULL);
   const int dialog_x = pl.x;
-  dialog_y = pl.y; /* PROBE */
+  const int dialog_y = pl.y;
   ColonizePopupColors colors;
   popup_colors_from_ui(&colors);
   popup_draw(
@@ -137,7 +144,7 @@ static void colony_screen_draw_construction_popup(
   int dialog_w = 200;
   int inner_x = 0, inner_y = 0, inner_w = 0, inner_h = 0;
   colony_screen_open_dialog_frame(
-    view, framebuffer, dialog_w, dialog_h, 24, line_h, &view->construction_rect,
+    view, framebuffer, dialog_w, dialog_h, line_h, &view->construction_rect,
     &inner_x, &inner_y, &inner_w, &inner_h
   );
   view->construction_rows_per_col = rows_per_page;
@@ -276,7 +283,7 @@ static void colony_screen_draw_jobs_popup(
   int dialog_w = 170;
   int inner_x = 0, inner_y = 0, inner_w = 0, inner_h = 0;
   colony_screen_open_dialog_frame(
-    view, framebuffer, dialog_w, dialog_h, 28, line_h, &view->jobs_rect,
+    view, framebuffer, dialog_w, dialog_h, line_h, &view->jobs_rect,
     &inner_x, &inner_y, &inner_w, &inner_h
   );
 
@@ -456,7 +463,7 @@ static void colony_screen_draw_custom_house_popup(
   }
   int inner_x = 0, inner_y = 0, inner_w = 0, inner_h = 0;
   colony_screen_open_dialog_frame(
-    view, framebuffer, dialog_w, dialog_h, 20, line_h, &view->custom_house_rect,
+    view, framebuffer, dialog_w, dialog_h, line_h, &view->custom_house_rect,
     &inner_x, &inner_y, &inner_w, &inner_h
   );
 
@@ -508,7 +515,7 @@ static void colony_screen_draw_eject_popup(
   int dialog_w = 180;
   int inner_x = 0, inner_y = 0, inner_w = 0, inner_h = 0;
   colony_screen_open_dialog_frame(
-    view, framebuffer, dialog_w, dialog_h, 28, line_h, &view->eject_rect,
+    view, framebuffer, dialog_w, dialog_h, line_h, &view->eject_rect,
     &inner_x, &inner_y, &inner_w, &inner_h
   );
 
@@ -571,7 +578,7 @@ static void colony_screen_draw_dock_orders_popup(
   }
   int inner_x = 0, inner_y = 0, inner_w = 0, inner_h = 0;
   colony_screen_open_dialog_frame(
-    view, framebuffer, dialog_w, dialog_h, 28, line_h, &view->dock_orders_rect,
+    view, framebuffer, dialog_w, dialog_h, line_h, &view->dock_orders_rect,
     &inner_x, &inner_y, &inner_w, &inner_h
   );
 
@@ -617,7 +624,7 @@ static void colony_screen_draw_message_popup(
   int dialog_w = 220;
   int inner_x = 0, inner_y = 0, inner_w = 0, inner_h = 0;
   colony_screen_open_dialog_frame(
-    view, framebuffer, dialog_w, dialog_h, 36, line_h, &view->message_rect,
+    view, framebuffer, dialog_w, dialog_h, line_h, &view->message_rect,
     &inner_x, &inner_y, &inner_w, &inner_h
   );
 
