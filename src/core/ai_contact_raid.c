@@ -279,7 +279,8 @@ static int ai_contact_raid_roll_stores_cargo(
   do {
     i = i + 1;
     cargo = dos_rng_range(rng, 0, 0xf);
-    if (ind && ind->horse_herds == 0 && i == 1 && c->stock[cargo] > 0x34 &&
+    /* DOS tests the rolled cargo's pile, not the horses (dos_bugs.md DB-49). */
+    if (ind && ind->horse_herds == 0 && i == 1 && c->stock[COLONIZE_CARGO_HORSES] > 0x34 &&
         dos_rng_range(rng, 0, 1) == 0) {
       cargo = COLONIZE_CARGO_HORSES;
     }
@@ -453,6 +454,18 @@ COLONIZE_INTERNAL AiRaidKind ai_contact_pick_raid_kind(
           continue;
         }
         break;
+      }
+      /* dos_bugs.md DB-50: the walk down burns a Church under its Cathedral.
+       * The port burns the top owned tier instead. Warehouse and Capitol keep
+       * the base row: their apply arm takes one level off the counter. */
+      const int chain = colonies_building_row_chain(row);
+      const int* rows = colonies_building_chain_rows(chain);
+      if (rows && chain != COLONIES_CHAIN_WAREHOUSE && chain != COLONIES_CHAIN_CAPITOL) {
+        for (int t = 0; t + 1 < 4 && rows[t + 1] >= 0; ++t) {
+          if (rows[t] == row && ai_contact_raid_09fc(ctx, c, (ColonizeBuildingRow)rows[t + 1])) {
+            row = rows[t + 1];
+          }
+        }
       }
       ai_contact_s_raid_burn_row = row;
     }

@@ -611,11 +611,11 @@ bool units_pioneer_plow_w(
     return false;
   }
   if (u->orders != UNITS_ORDER_CLEAR_PLOW) {
-    /* port_bugs.md #620: DOS FUN_2b5a_123e raw 42511-42512 writes only +0x314c;
-     * the +0x315a progress counter survives an order change. Only completion
-     * (raw 76773 / 76899), fortify (raw 42418) and entering a colony (465b
-     * raw 76733) zero it. */
+    /* dos_bugs.md DB-46: DOS FUN_2b5a_123e raw 42511-42512 writes only +0x314c,
+     * so +0x315a progress from an earlier job carries over (port_bugs.md #620).
+     * The port starts a new job at 0. */
     u->orders = UNITS_ORDER_CLEAR_PLOW;
+    u->col1_counter16 = 0;
     if (diag_info_enabled()) {
       char who[96];
       units_log_ident(pool, unit_id, who, sizeof(who));
@@ -668,8 +668,9 @@ bool units_pioneer_road_w(
     return false;
   }
   if (u->orders != UNITS_ORDER_BUILD_ROAD) {
-    /* port_bugs.md #620: FUN_2b5a_1454 raw 42602-42603 writes only +0x314c. */
+    /* dos_bugs.md DB-46: FUN_2b5a_1454 raw 42602-42603 writes only +0x314c. */
     u->orders = UNITS_ORDER_BUILD_ROAD;
+    u->col1_counter16 = 0;
     if (diag_info_enabled()) {
       char who[96];
       units_log_ident(pool, unit_id, who, sizeof(who));

@@ -2427,6 +2427,9 @@ static int units_goto_last_dir_reverse(const ColonizeUnit* u) {
 void units_reset_state(void) {
   units_flood_cache_invalidate();
   units_last_hold_amount = 0; /* DS:0x8dc4: not in the save; RTST carries it */
+  /* DS:0x1dc6/0x1dc7 are process-wide in DOS; the port keeps them per game
+   * (dos_bugs.md DB-47). A port save's RTST chunk restores them after this. */
+  units_lcr_counters_import((const uint8_t[2]){0, 0});
 }
 
 static uint8_t* path_w32(uint8_t* p, uint32_t v) {

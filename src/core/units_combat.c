@@ -3240,10 +3240,9 @@ typedef enum ColonizeLcrOutcome {
  * FUN_65dd_0004 is their only reader/writer. Case 1 (Fountain of Youth)
  * needs >= 4 rumours explored; case 2 (Cibola) is capped at 7 per session.
  *
- * There is deliberately no reset: DOS never clears them, not even across a
- * New Game in the same process, so they run for the lifetime of the process.
- * A reset helper existed here unused and was deleted 2026-09-08 — wiring one
- * would diverge from DOS.
+ * DOS never clears them, not even across a New Game in the same process, so
+ * they run for the lifetime of the process. The port keeps them per game:
+ * units_reset_state zeroes them on New Game and Load (dos_bugs.md DB-47).
  */
 static uint8_t s_lcr_explored_total = 0;
 static uint8_t s_lcr_cibola_total = 0;
@@ -3334,12 +3333,14 @@ typedef struct ColonizeLcrRoll {
  *     28 hill): case 1 needs class < 24 with (class&7) > 3, i.e.
  *     grassland/savannah/marsh/swamp or their forests (103494-103495);
  *     case 2 needs mountain/hill or (class&7)==1 desert/scrub (103514-15).
- *   - case 1 also needs >= 4 rumours explored this session (DS:0x1dc6);
+ *   - case 1 also needs >= 4 rumours explored this game (DS:0x1dc6; per
+ *     process in DOS, dos_bugs.md DB-47);
  *     otherwise (unless de Soto) gate<11→5 else 6 (103500-103507). WoI
  *     then forces 1→2 unconditionally (103508-103510).
  *   - case 2: de Soto's own kicker (RNG(0,2)==0 forces qualify, 103520-22);
- *     needs DS:0x1dc6 != 0 (byte wrap only) and < 7 Cibolas found this
- *     session (DS:0x1dc7); else gate<11→5, <25→8, else 6 (103524-103534).
+ *     needs DS:0x1dc6 != 0 (DOS byte wrap only; the port saturates) and < 7
+ *     Cibolas found this game (DS:0x1dc7); else gate<11→5, <25→8, else 6
+ *     (103524-103534).
  *     On success: treasure = ((skill+2)*10 + RNG(1,20)) hundred gold as a
  *     Treasure unit on the tile (103536-103548).
  *   - case 8: de Soto rerolls it away (103552); a village within 3 tiles
@@ -3453,6 +3454,11 @@ static void units_lcr_roll_outcome(
         const int difficulty = col1 ? col1->head.difficulty : 0;
         /* 103557-103559: local_32 = the village's tribe, local_38 = the hit. */
         out->trespass_mag = dos_rng_range(rng, 1, 6) + ((difficulty - skill) + 1) * 5;
+        /* DOS lets a Seasoned Scout at Discoverer go down to -4, which lowers
+         * the alarm under @LOSTCITY8 (dos_bugs.md DB-48). */
+        if (out->trespass_mag < 0) {
+          out->trespass_mag = 0;
+        }
         out->trespass_tribe = tribe;
         /*
          * 103563-103565: `FUN_281f_0a38(*0x5394, *0x8d50) & 0x20` — the tribe
@@ -3773,8 +3779,11 @@ bool units_resolve_lcr_rumour_w(
   const bool woi = col1 && col1->head.game_options.woi;
   const int pioneer_type = units_kind_type_index(pool, UNITS_KIND_PIONEER);
   const bool is_pioneer = pioneer_type >= 0 && u->type_index == pioneer_type;
-  /* DS:0x1dc6++ happens before the roll loop (103459). */
-  s_lcr_explored_total++;
+  /* DS:0x1dc6++ happens before the roll loop (103459). The byte wraps in DOS
+   * (dos_bugs.md DB-47); the port saturates. */
+  if (s_lcr_explored_total < 255) {
+    s_lcr_explored_total++;
+  }
   /* 103462: FUN_281f_04ca(DS:0x83a6) reseeds before the roll loop. */
   dos_rng_reseed_83a6(rng);
   ColonizeLcrRoll roll;

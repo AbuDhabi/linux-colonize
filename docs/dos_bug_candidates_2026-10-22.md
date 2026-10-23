@@ -54,6 +54,18 @@ golden fails -> tolerated_dos_bugs.md). Entries carry the full evidence.
 - C-7 refuted: DOS closes the bracket; the port's missing ")" was a port bug,
   fixed as port_bugs.md #1147.
 
+## Outcome of section D (2026-10-23)
+
+C-72..C-81 judged DOS bugs by the user; simulated the same way, then applied
+together (full ctest + `golden_ai_joint` green).
+
+- Not reproduced any more, [dos_bugs.md](dos_bugs.md): C-72 DB-46, C-73 DB-47,
+  C-74 DB-48, C-75 DB-49, C-76 DB-50, C-78 DB-51, C-79 DB-52.
+- Tolerated, [tolerated_dos_bugs.md](tolerated_dos_bugs.md): C-77 TB-49, C-81
+  TB-50.
+- C-80 left as it is (user): no fix without inventing which units post goal 6.
+- The low-confidence leftovers at the end of section D were not looked at.
+
 ---
 
 ## A. Port reproduces; no golden impact expected (dos_bugs candidates)

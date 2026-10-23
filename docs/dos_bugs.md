@@ -716,3 +716,96 @@ unit IS the active one, the second test is false). Read statically at the #1173 
 in View mode leaves the selection alone; `game_do_disband` (`src/core/game_dialogs.c`)
 re-selects nothing in View mode.
 **Status:** accepted (2026-10-23, port_bugs.md #1173).
+
+### DB-46 — Pioneer work counter carries over to a new job
+**DOS:** the Pioneer progress counter +0x315a is raised by the work bodies
+FUN_479b_01a6 (raw 76753) and FUN_479b_0526 (raw 76886) and zeroed only on
+completion (raw 76773 / 76899), Fortify (raw 42418) and colony entry (465b raw
+76733). The order entries FUN_2b5a_123e (raw 42511) and FUN_2b5a_1454 (raw
+42602) write only the order byte +0x314c. A Pioneer that chops 3 turns on one
+tile, walks away and starts Clear Forest on another finishes next turn; road
+progress likewise counts toward a later plow on the same tile.
+
+**Port:** `units_pioneer_plow_w` / `units_pioneer_road_w`
+(`src/core/units_pioneer.c`) zero the counter when the order changes to the
+job, and the AI 20e6 road arm (`ai_euro_land.c`) does the same. The 5952
+phantom Pioneer, which seeds 99 to finish in one call, latches its order first
+so the entry leaves the 99 alone (DOS calls the work bodies directly there;
+zeroing it broke every idle golden). All goldens and `golden_ai_joint` pass.
+Unit case `unit_pioneer_dos_gates_2026_09_22` and the replay `map_unit_orders`
+(its fixture preloaded the counters for an instant finish; re-blessed: the two
+jobs now start at progress 1) were updated. Re-issuing the same job after an
+interruption also restarts it.
+**Status:** done (2026-10-23). Came from dos_bug_candidates_2026-10-22.md C-72 (port_bugs.md #620).
+
+### DB-47 — Lost City Rumour counters are process-wide
+**DOS:** FUN_65dd_0004 counts rumours explored in DS:0x1dc6 (raw 103459) and
+Cibola finds in DS:0x1dc7 (raw 103546). Neither is in the save nor reset on New
+Game, so they run for the life of the process: Fountain of Youth needs 4
+rumours explored this process (raw 103497), Cibola stops after 7 finds this
+process (raw 103524-103527), and a byte wrap at 256 rumours briefly shuts both
+off again.
+
+**Port:** `units_reset_state` (`src/core/units_move.c`) zeroes both on New
+Game and Load; a port save's RTST chunk restores its own values after that
+(`runtime_ext.c`). The rumour counter saturates at 255 (`units_combat.c`). All
+goldens, the reload goldens and `golden_ai_joint` pass.
+**Status:** done (2026-10-23). Came from dos_bug_candidates_2026-10-22.md C-73.
+
+### DB-48 — Rumour trespass can lower the tribe's alarm
+**DOS:** the @LOSTCITY8 arm of FUN_65dd_0004 (raw 103557-103559) computes the
+alarm hit `rand(1,6) + (difficulty - skill + 1) * 5`, unclamped. A Seasoned
+Scout (skill 2) at Discoverer gets -4..1, so the "the tribe is angered" rumour
+lowers the alarm (FUN_281f_0d6c, raw 103650-103651; 0 skips it).
+
+**Port:** `units_lcr_roll_outcome` (`src/core/units_combat.c`) clamps the hit at
+0. All goldens and `golden_ai_joint` pass.
+**Status:** done (2026-10-23). Came from dos_bug_candidates_2026-10-22.md C-74.
+
+### DB-49 — Raid horse grab tests the rolled cargo's pile
+**DOS:** the goods pick of the raid FUN_5fef_0f14 (raw 99822-99825) lets a
+horseless tribe take Horses on its first try when
+`stock[rolled cargo] > 0x34` and a coin flip comes up 0. The pile tested is the
+rolled cargo's, not the Horses', so the tribe can steal Horses the colony
+barely has and miss a large herd.
+
+**Port:** `ai_contact_raid_roll_stores_cargo` (`src/core/ai_contact_raid.c`)
+tests the Horses pile. All goldens and `golden_ai_joint` pass.
+**Status:** done (2026-10-23). Came from dos_bug_candidates_2026-10-22.md C-75.
+
+### DB-50 — Raid burn destroys the lowest owned tier
+**DOS:** after picking an owned building, the raid burn of FUN_5fef_0f14 (raw
+99856-99863) walks the predecessor column down to the lowest tier the colony
+owns and clears that bit: a Church burns and its Cathedral stays, leaving an
+upper tier without its base (original saves show such lone tiers).
+Warehouse and Capitol are counted (colony +0x95 / +0x96), so the walk down to
+their base row already takes one level off.
+
+**Port:** `ai_contact_pick_raid_kind` (`src/core/ai_contact_raid.c`) keeps the walk
+down, then for every other chain moves back up to the top owned tier, so the
+Cathedral burns and the Church stays. All goldens and `golden_ai_joint` pass;
+unit case in `unit_ai_contact_core` (port_bugs.md #924) updated.
+**Status:** done (2026-10-23). Came from dos_bug_candidates_2026-10-22.md C-76.
+
+### DB-51 — Refusing an AI's cash offer always reads as meek
+**DOS:** FUN_5bfb_153e copies "MEEK" into the tone buffer `local_80` when it
+shows @GIVECASH (raw 98017), and the WAR tag built at raw 98040-98041 appends
+that buffer. A refusal after a cash offer is therefore always @WARMEEK, whatever
+the encounter tone; without an offer the greeting tone is used.
+
+**Port:** the @GIVECASH refusal (`AI_TALK_ST_GIVECASH`, `src/core/ai_diplo.c`)
+uses the encounter tone, like the no-offer path. Text only; all goldens and
+`golden_ai_joint` pass.
+**Status:** done (2026-10-23). Came from dos_bug_candidates_2026-10-22.md C-78.
+
+### DB-52 — AI treaty cancellation is silent (no CANCELTREATY text)
+**DOS:** FUN_5bfb_13b0 (raw 97260-97316) shows tag DS:0x1898 "CANCELTREATY"
+when an AI cancels a treaty, but no `COLONIZE/*.TXT` has that section, so the
+dialog never opens and the human is not told (user-confirmed;
+[popups_catalog.md](popups_catalog.md)). A data bug.
+
+**Port:** `ai_diplo_13b0_treaty_tick` (`src/core/ai_diplo.c`) shows a
+port-authored notice, "The X cancel their treaty with the Y.", when the section
+is missing (MET pairs with the human only, as before); a GAME.TXT that has the
+section still wins. All goldens and `golden_ai_joint` pass.
+**Status:** done (2026-10-23). Came from dos_bug_candidates_2026-10-22.md C-79.

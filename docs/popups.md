@@ -139,6 +139,8 @@ sections asserting no choice row appears in a body.
 and returns non-zero at EOF; `32a4` then never allocates a box and `36ca`
 returns 0 without drawing. So a tag DOS pushes but GAME.TXT does not ship
 (`@CANCELTREATY`, `0x1898`) is a **silent no-op**, not a fallback popup.
+The port keeps that rule; the one exception is `@CANCELTREATY`, which gets a
+port-authored notice ([dos_bugs.md](dos_bugs.md) DB-52).
 
 ### `{}` emphasis markup — shipped 2026-09-02
 
