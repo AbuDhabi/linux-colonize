@@ -112,8 +112,9 @@ models the deterministic writers only (`ai_euro_act.c` 00f2 flood, `ai_euro.c`
 which is also the reader). `ai_euro_dispatcher_turn` resets it to 0 at each
 nation's turn. The loader residue is not modelled, so the park decision is a
 function of game state only, and a save/reload gives the same result.
-**Status:** done (2026-10-21). The America idle archive ends at save 63 for this
-reason (CTest `golden_idle_america`, [idle_america.md](idle_america.md)).
+**Status:** done (2026-10-21). The America idle archives end at save 63 and save 12
+for this reason (CTests `golden_idle_america` and `golden_idle_america2`,
+[idle_america.md](idle_america.md), [idle_america2.md](idle_america2.md)).
 port_bugs.md #1135 is an open lead for one more deterministic writer (the
 case-7 founding call tree).
 
@@ -366,10 +367,10 @@ the walk origin `cx` / `cy` from the colony at the top of each candidate.
 Nothing else changes: the same AND distance test (see tolerated_dos_bugs_ai.md TB-15), the same
 one-in-(count-1) roll and the same walk. All goldens, idle campaigns and
 `golden_ai_joint` stay byte-identical (2026-10-22); no unit test pinned the
-carry-over. The disabled america2 campaign cites it as DOS evidence
-(america resync 129: Penobscot's walk to Barbados ended at (44,39), so
-Providence was skipped, one `rng(0,2)` fewer than a per-candidate reset
-draws), so re-check it when that campaign is re-enabled.
+carry-over. The DOS evidence for the carry-over (america resync 129: Penobscot's
+walk to Barbados ended at (44,39), so Providence was skipped, one `rng(0,2)`
+fewer than a per-candidate reset draws; america2 resync 37) lies past the
+enabled golden saves of both Americas archives.
 **Status:** done (2026-10-22). Came from dos_bug_candidates_2026-10-22.md C-14.
 
 ### DB-24 — Founding join scores the forest penalty from stack residue
@@ -403,8 +404,8 @@ full hold of one good looks like a negative or empty delivery.
 amounts into an `int` without wrapping, so `ai_euro_20e6_delivery_colony_pick`
 and its Horses gate read the plain sum. No test pins the wrap; all goldens,
 idle campaigns and `golden_ai_joint` stay byte-identical. (The DOS evidence for
-the wrap, america resyncs 105-119 and 151+, lies past the enabled golden saves in
-the disabled america2 campaign and would need the old behaviour.)
+the wrap, america resyncs 105-119 and 151+, lies past the enabled golden saves of
+both Americas archives and would need the old behaviour.)
 **Status:** done (2026-10-22). Came from dos_bug_candidates_2026-10-22.md C-22.
 
 ### DB-26 — Euro AI ship unload mask is reset inside the neighbour loop

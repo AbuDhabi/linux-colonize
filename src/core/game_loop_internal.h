@@ -227,6 +227,36 @@ void blit_map_sprite_where_dest(
   uint8_t match_color
 );
 const ColonizeSpriteSheet* europe_menu_decoration(const ColonizeGameState* game);
+/*
+ * Geometry of the open Europe list dialog (Recruit / Train / Purchase / dock, and the
+ * @REALLYBUY confirm): the FUN_6f74_14c6 sizes and the FUN_6f74_1b7c / 1198 / 1a78 row,
+ * prose and footer positions (docs/popups.md "Europe in-screen menus"). Shared by the
+ * renderer, the click hit-test and tests/smoke/test_ai_popup.c.
+ */
+typedef struct EuropeMenuLayout {
+  int rows;
+  int dialog_x;
+  int dialog_y;
+  int dialog_w;
+  int dialog_h;
+  int glyph_h; /* FUN_6f74_0f16 of the dialog font */
+  int row_h; /* option pitch, glyph_h + box[+0x46] */
+  int row_dx; /* box[+0x22]: row text indent past the margin (8 list menus, 4 default) */
+  int text_x; /* prose origin x = frame + 3 wood + box[+0x48] = 2 */
+  int prose_y;
+  int prose_w; /* wrap width, content - 4 */
+  int prose_h;
+  int list_y0; /* top of row 0's selection bar; row text sits one px lower */
+  bool tiny; /* dialog font is FONTTINY (@smallfont) */
+  bool help_footer; /* DS:0x1f66: "(F1 for Help)" line */
+  /* MSS decoration, NULL when this menu has none or it does not fit. */
+  const ColonizeSpriteSheet* graphic;
+  int graphic_x;
+  int graphic_y;
+} EuropeMenuLayout;
+bool europe_menu_layout(
+  const ColonizeGameState* game, int fb_w, int fb_h, EuropeMenuLayout* out
+);
 int europe_menu_row_at(const ColonizeGameState* game, int mx, int my);
 int europe_ship_icon_sprite(const ColonizeUnitPool* units, const EuropeHarborShip* ship);
 bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction action);

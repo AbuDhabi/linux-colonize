@@ -523,6 +523,23 @@ void popup_list_render(
   }
 }
 
+int popup_dos_glyph_h(const ColonizeFont* font) {
+  const int h = font ? (int)font->max_height : 6;
+  return h == 6 ? 5 : h;
+}
+
+/* DOS-LITERAL FUN_6f74_14c6 height, raw 115966-115987 (6f74:1540-16c8); see popup.h. */
+int popup_dos_list_height(int glyph_h, int prose_h, int rows, bool help_footer, bool tiny_font) {
+  enum { MARGIN_V = 0, SPACING = 3, FRAME = 6 };
+  int h = 2 * MARGIN_V + SPACING + FRAME;
+  const int lists = prose_h + (glyph_h + SPACING) * rows;
+  h += lists + (lists != 0 ? SPACING : 0);
+  if (help_footer) {
+    h += tiny_font ? 6 : 3;
+  }
+  return h;
+}
+
 /*
  * DOS-LITERAL FUN_6f74_14c6 placement (raw 115995-116012 and 116068-116132;
  * 6f74:16c8-1735, 18ae-1a0c), shared by every compositor dialog the port places itself.
