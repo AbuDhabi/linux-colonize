@@ -1255,9 +1255,12 @@ static GameUpdateStep game_colony_screen_mouse_click(
       game_colony_drag_begin_hold(game, hit.index);
       break;
     case COLONY_HIT_COLONIST:
-    case COLONY_HIT_PEOPLE_COLONIST:
+    case COLONY_HIT_PEOPLE_COLONIST: {
+      const bool was_selected = csv->selected_colonist == hit.index;
       game_colony_drag_begin_colonist(game, hit.index);
+      csv->drag_from_selected = was_selected;
       break;
+    }
     case COLONY_HIT_OUTSIDE_UNIT:
       if (hit.index >= 0 && hit.index < csv->outside_unit_count) {
         const int ouid = csv->outside_unit_ids[hit.index];
@@ -1387,7 +1390,7 @@ static GameUpdateStep game_colony_screen_mouse_click(
         const bool was_selected = csv->selected_colonist == who;
         game_colony_drag_begin_colonist(game, who);
         csv->drag_from_tile = hit.index;
-        csv->drag_from_tile_selected = was_selected;
+        csv->drag_from_selected = was_selected;
       } else {
         game_colony_area_tile_drop(game, colony, cmap, hit.index);
       }
@@ -1502,7 +1505,9 @@ static GameUpdateStep game_colony_screen_key_enter(
      * through colony_screen_close_subpanels — so the order is a tie-break
      * that must not disagree between the two keys. */
     if (csv->jobs_open) {
-      if (csv->jobs_selection >= 0 && csv->jobs_selection < csv->job_count) {
+      if (csv->more_selected) {
+        colony_screen_jobs_next_page(csv);
+      } else if (csv->jobs_selection >= 0 && csv->jobs_selection < csv->job_count) {
         game_colony_commit_job(game, colony, csv->job_ids[csv->jobs_selection]);
       } else {
         colony_screen_close_jobs(csv);
@@ -1558,7 +1563,9 @@ static GameUpdateStep game_colony_screen_key_enter(
     }
     if (csv->construction_open) {
       const int bi = csv->construction_selection - 1;
-      if (csv->construction_selection == 0) {
+      if (csv->more_selected) {
+        colony_screen_construction_next_page(csv);
+      } else if (csv->construction_selection == 0) {
         colonies_build_queue_clear(&game->colonies, game->colony_view_id);
         colonies_clear_construction(&game->colonies, game->colony_view_id);
         set_status(game, "Construction cleared", NULL);
@@ -1577,13 +1584,12 @@ static GameUpdateStep game_colony_screen_key_enter(
       }
       return GAME_UPDATE_RETURN_TRUE;
     }
-    /* Enter on selected colonist opens field jobs; otherwise leave. */
+    /* Enter on the selected colonist opens the jobs menu (FUN_2f2b_6372 0x0d -> 348c);
+     * otherwise leave. A colonist off the plots opens it with no plot (port_bugs.md #1204). */
     if (colony && csv->selected_colonist >= 0) {
-      int tile = colonies_colonist_tile(colony, csv->selected_colonist);
-      if (tile < 0) {
-        tile = 0;
-      }
-      colony_screen_open_jobs(csv, &game->colonies, cmap, colony, tile);
+      game_colony_open_jobs(
+        game, colony, cmap, colonies_colonist_tile(colony, csv->selected_colonist)
+      );
       return GAME_UPDATE_RETURN_TRUE;
     }
     game->in_colony = false;
@@ -1728,16 +1734,11 @@ static GameUpdateStep game_colony_screen_keys(
     }
   }
 
-  if (csv->jobs_open) {
-    if (colonize_key_up(input->last_key) && csv->jobs_selection > 0) {
-      csv->jobs_selection--;
-      return GAME_UPDATE_RETURN_TRUE;
-    }
-    if (colonize_key_down(input->last_key) && csv->jobs_selection < csv->job_count) {
-      csv->jobs_selection++;
-      return GAME_UPDATE_RETURN_TRUE;
-    }
-  } else if (csv->message_kind != COLONY_MSG_NONE) {
+  /* Jobs, leave-as, dock orders, construction: FUN_6f74_2580 lists (port_bugs.md #1209). */
+  if (colony_screen_list_key(csv, input->last_key)) {
+    return GAME_UPDATE_RETURN_TRUE;
+  }
+  if (csv->message_kind != COLONY_MSG_NONE) {
     const int max_sel = (csv->message_kind == COLONY_MSG_CONFIRM) ? 1 : 0;
     if (colonize_key_up(input->last_key) && csv->message_selection > 0) {
       csv->message_selection--;
@@ -1745,51 +1746,6 @@ static GameUpdateStep game_colony_screen_keys(
     }
     if (colonize_key_down(input->last_key) && csv->message_selection < max_sel) {
       csv->message_selection++;
-      return GAME_UPDATE_RETURN_TRUE;
-    }
-  } else if (csv->eject_open) {
-    /* Greyed rows (FUN_15eb_3454 → 0xffff) are drawn but never land under
-     * the highlight — step over them the way a DOS disabled listbox row is
-     * stepped over, and stay put if there is nothing enabled beyond. */
-    if (colonize_key_up(input->last_key) && csv->eject_selection > 0) {
-      int sel = csv->eject_selection - 1;
-      while (sel > 0 && !csv->eject_role_enabled[sel]) {
-        --sel;
-      }
-      if (csv->eject_role_enabled[sel]) {
-        csv->eject_selection = sel;
-      }
-      return GAME_UPDATE_RETURN_TRUE;
-    }
-    if (colonize_key_down(input->last_key) &&
-        csv->eject_selection + 1 < csv->eject_role_count) {
-      int sel = csv->eject_selection + 1;
-      while (sel + 1 < csv->eject_role_count && !csv->eject_role_enabled[sel]) {
-        ++sel;
-      }
-      if (csv->eject_role_enabled[sel]) {
-        csv->eject_selection = sel;
-      }
-      return GAME_UPDATE_RETURN_TRUE;
-    }
-  } else if (csv->dock_orders_open) {
-    if (colonize_key_up(input->last_key) && csv->dock_orders_selection > 0) {
-      csv->dock_orders_selection--;
-      return GAME_UPDATE_RETURN_TRUE;
-    }
-    if (colonize_key_down(input->last_key) &&
-        csv->dock_orders_selection + 1 < csv->dock_orders_count) {
-      csv->dock_orders_selection++;
-      return GAME_UPDATE_RETURN_TRUE;
-    }
-  } else if (csv->construction_open) {
-    const int max_sel = csv->buildable_count;
-    if (colonize_key_up(input->last_key) && csv->construction_selection > 0) {
-      csv->construction_selection--;
-      return GAME_UPDATE_RETURN_TRUE;
-    }
-    if (colonize_key_down(input->last_key) && csv->construction_selection < max_sel) {
-      csv->construction_selection++;
       return GAME_UPDATE_RETURN_TRUE;
     }
   } else {
@@ -1981,28 +1937,38 @@ static GameUpdateStep game_europe_screen_menu_keys(
       }
       return GAME_UPDATE_RETURN_TRUE;
     }
-    int max_sel = 0;
+    /* FUN_38fd_4884 / 41ce / 4b50 / 4f6e lists show through FUN_6f74_2580: Up / Down wrap
+     * past the greyed rows (FUN_291f_01b6, raw 64741 / 64402 / 64857 / 66395). */
+    int rows = 0;
+    uint32_t greyed = 0;
     switch (eu->menu) {
       case EUROPE_MENU_RECRUIT:
-        max_sel = EUROPE_POOL_SIZE;
+        rows = EUROPE_POOL_SIZE + 1;
+        greyed = europe_recruit_affordable(eu) ? 0 : ((1u << rows) - 2u);
         break;
       case EUROPE_MENU_TRAIN:
-        max_sel = eu->train_count;
+        rows = eu->train_count + 1;
+        for (int i = 1; i < rows && i < 32; ++i) {
+          greyed |= europe_train_affordable(eu, i - 1) ? 0u : 1u << i;
+        }
         break;
       case EUROPE_MENU_PURCHASE:
-        max_sel = eu->purchase_confirming ? 1 : eu->purchase_count;
+        rows = eu->purchase_confirming ? 2 : eu->purchase_count + 1;
+        for (int i = 1; !eu->purchase_confirming && i < rows && i < 32; ++i) {
+          greyed |= europe_purchase_affordable(eu, i - 1) ? 0u : 1u << i;
+        }
         break;
       case EUROPE_MENU_DOCK:
-        max_sel = eu->dock_menu_count > 0 ? eu->dock_menu_count - 1 : 0;
+        rows = eu->dock_menu_count;
+        for (int i = 0; i < rows && i < 32; ++i) {
+          greyed |= eu->dock_menu_greyed[i] ? 1u << i : 0u;
+        }
         break;
       default:
         break;
     }
-    if (colonize_key_up(input->last_key) && eu->menu_selection > 0) {
-      eu->menu_selection--;
-    } else if (colonize_key_down(input->last_key) && eu->menu_selection < max_sel) {
-      eu->menu_selection++;
-    } else if (input->last_key == COLONIZE_KEY_ENTER) {
+    if (!popup_list_key_step(input->last_key, &eu->menu_selection, rows, greyed) &&
+        input->last_key == COLONIZE_KEY_ENTER) {
       game_europe_menu_confirm(game);
     }
     return GAME_UPDATE_RETURN_TRUE;
@@ -2404,12 +2370,9 @@ COLONIZE_INTERNAL GameUpdateStep game_update_title_menu(ColonizeGameState* game,
       );
       return GAME_UPDATE_RETURN_TRUE;
     }
-    if (colonize_key_up(input->last_key) && game->menu_selection > 0) {
-      game->menu_selection--;
-    } else if (colonize_key_down(input->last_key) &&
-               game->menu_selection + 1 < game->menu_option_count) {
-      game->menu_selection++;
-    } else if (input->last_key == COLONIZE_KEY_ENTER || input->last_key == COLONIZE_KEY_SPACE) {
+    /* @BEGINMENU (FUN_281f_03fe at ND 0x75C64) shows through FUN_6f74_2580: Up / Down wrap. */
+    if (!popup_list_key_step(input->last_key, &game->menu_selection, game->menu_option_count, 0) &&
+        (input->last_key == COLONIZE_KEY_ENTER || input->last_key == COLONIZE_KEY_SPACE)) {
       activate_menu_selection(game);
       if (game->elapsed_ms == UINT32_MAX) {
         return GAME_UPDATE_RETURN_FALSE;
@@ -2594,11 +2557,6 @@ static GameUpdateStep game_map_mouse_click(
 
     if (input->mouse_right_clicked) {
       /* Right-click: unselect unit (if any) and select the tile. */
-      if (game->map_goto_place_mode) {
-        game->map_goto_place_mode = false;
-        set_status(game, "Go to Place cancelled", NULL);
-        return GAME_UPDATE_RETURN_TRUE;
-      }
       game_select_tile(game, mx, my);
       return GAME_UPDATE_RETURN_TRUE;
     }
@@ -2613,29 +2571,6 @@ static GameUpdateStep game_map_mouse_click(
      * meaning (open a colony, pick a unit, start a go-to drag). Only the
      * right-hand sidebar click (above) confirms the turn; Enter/Space do too.
      */
-
-    /* ORDERS Go to Place: click sets goto destination. */
-    if (game->map_goto_place_mode && game->units_ok) {
-      const int uid = game->units.selected_id;
-      const ColonizeUnit* u = units_get_const(&game->units, uid);
-      game->map_goto_place_mode = false;
-      if (!u || !game_unit_selectable(game, u)) {
-        set_status(game, "Go to Place cancelled", NULL);
-        return GAME_UPDATE_RETURN_TRUE;
-      }
-      if (mx == u->x && my == u->y) {
-        set_status(game, "Already here", NULL);
-        return GAME_UPDATE_RETURN_TRUE;
-      }
-      const int rc = game_issue_goto(game, uid, mx, my);
-      if (rc == 0) {
-        snprintf(game->status, sizeof(game->status), "Go to (%d,%d)", mx, my);
-        game_set_view_center(game, u->x, u->y);
-      } else if (rc < 0) {
-        set_status(game, "Cannot go there", NULL);
-      }
-      return GAME_UPDATE_RETURN_TRUE;
-    }
 
     /* Left-click — with a selected unit, begin go-to drag. */
     if (game->units.selected_id >= 0 && game->units_ok) {
@@ -2891,11 +2826,6 @@ COLONIZE_INTERNAL GameUpdateStep game_update_map_menu_bar(ColonizeGameState* gam
 /* Map-screen keyboard commands (cursor, orders, hotkeys). */
 COLONIZE_INTERNAL GameUpdateStep game_update_map_keys(ColonizeGameState* game, const ColonizeInputState* input) {
   if (input->last_key == COLONIZE_KEY_ESCAPE) {
-    if (game->map_goto_place_mode) {
-      game->map_goto_place_mode = false;
-      set_status(game, "Go to Place cancelled", NULL);
-      return GAME_UPDATE_RETURN_TRUE;
-    }
     if (ui_drag_active(&game->ui_drag) && game->ui_drag.kind == UI_DRAG_MAP_GOTO) {
       game_ui_drag_clear(game);
       return GAME_UPDATE_RETURN_TRUE;

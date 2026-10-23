@@ -1491,8 +1491,8 @@ void game_order_return_europe(ColonizeGameState* game) {
 }
 
 /*
- * Unit ORDERS "Go to Port" (ships only — land units use Go to Place's click
- * mode). DOS FUN_2b5a_1dfc opens FUN_647e_01c6(unit, -1, 1, 0) (call 2b5a:1e0e),
+ * Unit ORDERS "Go to Port" (ships) / "Go to Place" (land units). DOS FUN_2b5a_1dfc opens
+ * FUN_647e_01c6(unit, -1, 1, 0) (call 2b5a:1e0e),
  * titled @SAILPORT for a ship, @TRAVELPLACE for any other unit (647e:0227-025c),
  * paged 10 to a page (game_open_dest_pager, port_bugs.md #1194): the Europe row
  * first when the ship reaches the Atlantic, then every colony travel_dest_ok
@@ -1567,9 +1567,9 @@ void game_apply_goto_port(ColonizeGameState* game, int id) {
   }
   const int rc = game_issue_goto(game, uid, dest_x, dest_y);
   if (rc < 0) {
-    set_status(game, "Cannot go to port", NULL);
+    set_status(game, "Cannot go there", NULL);
   } else if (rc == 0) {
-    snprintf(game->status, sizeof(game->status), "Go to Port: %s", name);
+    snprintf(game->status, sizeof(game->status), "Go to %s", name);
   }
 }
 
@@ -1875,24 +1875,17 @@ static GameMenuActionStatus game_menu_action_orders(ColonizeGameState* game, Map
 /* Goto orders, the trade-route menu family and the cargo orders. */
 static GameMenuActionStatus game_menu_action_goto_and_cargo(ColonizeGameState* game, MapMenuAction action) {
   switch (action) {
-    case MAP_MENU_ACTION_GOTO_PORT: {
-      const int sid = game->units.selected_id;
-      const ColonizeUnit* u = units_get_const(&game->units, sid);
-      if (sid < 0 || !u || !u->active || !units_is_on_map(u)) {
-        set_status(game, "Select a unit", NULL);
-      } else {
-        game_open_goto_port_picker(game, sid);
-      }
-      return GAME_MENU_ACTION_DONE;
-    }
+    /* ORDERS 0x320 Go to Port and 0x321 Go to Place both land on case 2b5a:28d4 ->
+     * FUN_2b5a_1dfc (port_bugs.md #1208): the same FUN_647e_01c6 list, @TRAVELPLACE for a
+     * land unit. */
+    case MAP_MENU_ACTION_GOTO_PORT:
     case MAP_MENU_ACTION_GOTO_PLACE: {
       const int sid = game->units.selected_id;
       const ColonizeUnit* u = units_get_const(&game->units, sid);
       if (sid < 0 || !u || !u->active || !units_is_on_map(u)) {
         set_status(game, "Select a unit", NULL);
       } else {
-        game->map_goto_place_mode = true;
-        set_status(game, "Go to Place: click destination (Esc cancels)", NULL);
+        game_open_goto_port_picker(game, sid);
       }
       return GAME_MENU_ACTION_DONE;
     }

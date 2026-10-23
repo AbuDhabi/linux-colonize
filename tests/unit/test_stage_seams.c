@@ -1232,6 +1232,251 @@ static int test_colony_shift_pick_moves_highlight(void) {
   return rc;
 }
 
+/* One Prairie plot (ring 3, unowned, unbought) among ocean plots; colonist 0 works in the
+ * Carpenter's Shop of nation 1's colony 0. False on a fixture load failure. */
+static bool jobs_menu_fixture(ColonizeGameState* game, ColonizeMsgCatalog* names) {
+  memset(game, 0, sizeof(*game));
+  assets_msg_init(names);
+  if (!assets_msg_load_file(names, "COLONIZE/NAMES.TXT")) {
+    return false;
+  }
+  fx_colonies_init(&game->colonies);
+  if (!colonies_load_buildings(&game->colonies, names) ||
+      !fx_map_alloc(&game->world_map, 16, 16, 0x19, false)) {
+    assets_msg_free(names);
+    return false;
+  }
+  game->world_map_ok = true;
+  for (size_t i = 0; i < game->world_map.tile_count; ++i) {
+    game->world_map.layer3[i] = 0xf1; /* unowned open ocean */
+  }
+  int dx = 0;
+  int dy = 0;
+  colonies_field_tile_delta(3, &dx, &dy);
+  game->world_map.terrain[(8 + dy) * 16 + 8 + dx] = 3;
+  game->world_map.layer3[(8 + dy) * 16 + 8 + dx] = 0xf0;
+  game->world_map.terrain[8 * 16 + 8] = 3;
+  game->world_map.layer3[8 * 16 + 8] = 0xf0;
+  ColonizeColony* col = &game->colonies.colonies[0];
+  col->id = 0;
+  col->active = true;
+  col->nation_id = 1;
+  col->x = 8;
+  col->y = 8;
+  col->population = 1;
+  col->colonist_count = 1;
+  col->building_in_production = -1;
+  for (int i = 0; i < COLONIZE_COLONY_FIELD_TILES_MAX; ++i) {
+    col->tiles[i] = -1;
+  }
+  const int shop = colonies_building_row(&game->colonies, COLONY_BUILDING_CARPENTERS_SHOP);
+  col->has_building[shop] = true;
+  ColonizeColonist* c = &col->colonists[0];
+  c->active = true;
+  c->unit_type_index = -1;
+  c->profession = COLONIZE_PROF_FREE_COLONIST;
+  c->field_job = -1;
+  c->building_type = shop;
+  c->turns_in_job = 5;
+  game->colonies.colony_count = 1;
+  game->colony_view_id = col->id;
+  game->in_colony = true;
+  game->colony_screen.selected_colonist = 0;
+  game->colony_screen.selected_outside_unit = -1;
+  return true;
+}
+
+/*
+ * port_bugs.md #1204: a building worker who picks a field job from the jobs menu is seated
+ * on the plot FUN_15eb_28c8(colonist, job) elects (FUN_2f2b_348c raw 50860-50863), never on
+ * plot 0 (the old Enter fallback).
+ */
+static int test_colony_jobs_menu_seats_indoor_worker(void) {
+  static ColonizeGameState game;
+  ColonizeMsgCatalog names;
+  if (!jobs_menu_fixture(&game, &names)) {
+    return fail("jobs fixture");
+  }
+  ColonizeColony* col = &game.colonies.colonies[0];
+  ColonizeColonist* c = &col->colonists[0];
+  ColonyScreenView* csv = &game.colony_screen;
+  int rc = 0;
+  colony_screen_open_jobs(csv, &game.colonies, &game.world_map, col, -1);
+  if (!csv->jobs_open || csv->jobs_tile_index != -1) {
+    rc = fail("Enter / a building-worker click must open the jobs menu with no plot");
+  } else {
+    game_colony_commit_job(&game, col, COLONIZE_JOB_FARMER);
+    if (col->tiles[3] != 0 || c->field_job != COLONIZE_JOB_FARMER || c->building_type >= 0 ||
+        col->tiles[0] >= 0) {
+      fprintf(stderr, "  tiles[0]=%d tiles[3]=%d job=%d building=%d\n", col->tiles[0],
+              col->tiles[3], c->field_job, c->building_type);
+      rc = fail("a building worker's field pick must take the plot 28c8 elects");
+    }
+  }
+  fx_map_free(&game.world_map);
+  assets_msg_free(&names);
+  return rc;
+}
+
+/*
+ * port_bugs.md #1205 (DOSBox-confirmed): opening the jobs menu runs 28c8's committing seat for
+ * every field job, so the elected plot takes the colony's owner nibble and mask bit 0x10, and
+ * the colonist's job counter is zeroed; he stays in his building.
+ */
+static int test_colony_jobs_menu_open_stamps_plots(void) {
+  static ColonizeGameState game;
+  ColonizeMsgCatalog names;
+  if (!jobs_menu_fixture(&game, &names)) {
+    return fail("jobs fixture");
+  }
+  ColonizeColony* col = &game.colonies.colonies[0];
+  ColonizeColonist* c = &col->colonists[0];
+  const int shop = c->building_type;
+  int dx = 0;
+  int dy = 0;
+  colonies_field_tile_delta(3, &dx, &dy);
+  const size_t plot = (size_t)(8 + dy) * 16 + 8 + dx;
+  game_colony_open_jobs(&game, col, &game.world_map, -1);
+  int rc = 0;
+  if (!game.colony_screen.jobs_open || (game.world_map.layer3[plot] >> 4) != 1 ||
+      !(game.world_map.layer2[plot] & MAP_LAYER2_PURCHASED) || c->turns_in_job != 0 ||
+      c->building_type != shop || c->field_job >= 0 || col->tiles[3] >= 0) {
+    fprintf(stderr, "  open %d owner %x layer2 %02x turns %d building %d job %d tile %d\n",
+            (int)game.colony_screen.jobs_open, game.world_map.layer3[plot] >> 4,
+            game.world_map.layer2[plot], c->turns_in_job, c->building_type, c->field_job,
+            col->tiles[3]);
+    rc = fail("opening the jobs menu must stamp the elected plot and zero the job counter");
+  }
+  fx_map_free(&game.world_map);
+  assets_msg_free(&names);
+  return rc;
+}
+
+/*
+ * port_bugs.md #1208: ORDERS Go to Place (0x321) is the same FUN_647e_01c6 list as Go to Port
+ * (case 2b5a:28d4 -> FUN_2b5a_1dfc): @TRAVELPLACE, no Europe row, own colonies on the unit's
+ * continent (FUN_647e_0094), the colony the unit stands on left out.
+ */
+static int test_goto_place_opens_travelplace_list(void) {
+  static ColonizeGameState game;
+  memset(&game, 0, sizeof(game));
+  if (!fx_map_alloc(&game.world_map, 8, 8, /*terrain_fill=*/3, /*with_seen=*/true)) {
+    return fail("goto place map alloc");
+  }
+  for (size_t i = 0; i < game.world_map.tile_count; ++i) {
+    game.world_map.layer3[i] = 0xf2; /* unowned land, continent 2 */
+  }
+  game.world_map_ok = true;
+  game.human_nation = 0;
+  static char lines[][COLONIZE_MSG_LINE_LEN] = {
+    "@width=190", "@default=1", "Select a colony to travel to:"
+  };
+  ColonizeMsgSection sec;
+  memset(&sec, 0, sizeof(sec));
+  snprintf(sec.name, sizeof(sec.name), "TRAVELPLACE");
+  sec.lines = lines;
+  sec.line_count = 3;
+  game.messages.sections = &sec;
+  game.messages.section_count = 1;
+  fx_units_init(&game.units);
+  game.units_ok = true;
+  game.units.type_count = 1;
+  game.units.types[0].movement = 1;
+  game.units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  fx_colonies_init(&game.colonies);
+  game.colonies_ok = true;
+  fx_colony_add(&game.colonies, 0, 2, 2, 1);
+  fx_colony_add(&game.colonies, 0, 5, 2, 1);
+  fx_colony_add(&game.colonies, 1, 5, 5, 1); /* foreign */
+  fx_colony_add(&game.colonies, 0, 2, 5, 1);
+  units_set_occupancy_map(&game.world_map);
+  colonies_set_occupancy_map(&game.world_map);
+  const int uid = units_spawn(&game.units, 0, 2, 2);
+  ColonizeUnit* u = units_get(&game.units, uid);
+  int rc = 0;
+  if (!u) {
+    rc = fail("goto place unit spawn");
+  } else {
+    u->nation_id = 0;
+    game.units.selected_id = uid;
+    game.goto_port_pending_unit = -1;
+    game_apply_map_menu_action(&game, MAP_MENU_ACTION_GOTO_PLACE);
+    const CheatListDialog* cl = &game.cheat_list;
+    if (!cl->open || cl->kind != CHEAT_LIST_KIND_GOTO_PORT ||
+        strcmp(cl->prompt, "Select a colony to travel to:") != 0 || cl->option_count != 2 ||
+        cl->option_ids[0] != 1 || cl->option_ids[1] != 3 || game.goto_port_pending_unit != uid) {
+      fprintf(stderr, "  open %d prompt '%s' rows %d [%d %d]\n", (int)cl->open, cl->prompt,
+              cl->option_count, cl->option_ids[0], cl->option_ids[1]);
+      rc = fail("Go to Place: @TRAVELPLACE list of the other own colonies, no Europe row");
+    }
+  }
+  colonies_set_occupancy_map(NULL);
+  units_set_occupancy_map(NULL);
+  fx_map_free(&game.world_map);
+  return rc;
+}
+
+/*
+ * port_bugs.md #1209: the colony lists are FUN_6f74_2580 lists; a paged jobs / construction
+ * list's "(More)" row is a row like the others (348c adds it last on page 0, first on page 1).
+ */
+static int test_colony_list_keys_wrap(void) {
+  static ColonyScreenView v;
+  memset(&v, 0, sizeof(v));
+  v.jobs_open = true;
+  v.job_count = 20; /* > 0x10: page 0 = jobs 0..15 + More, page 1 = More + jobs 16..19 */
+  for (int i = 0; i < v.job_count; ++i) {
+    v.job_ids[i] = i;
+  }
+  colony_screen_list_key(&v, COLONIZE_KEY_UP);
+  if (!v.more_selected || v.jobs_selection != 0) {
+    return fail("jobs page 0: Up on the first row wraps to the More row");
+  }
+  colony_screen_list_key(&v, COLONIZE_KEY_UP);
+  if (v.more_selected || v.jobs_selection != 15) {
+    return fail("jobs page 0: Up from More is the last job row");
+  }
+  colony_screen_list_key(&v, COLONIZE_KEY_DOWN);
+  colony_screen_list_key(&v, COLONIZE_KEY_DOWN);
+  if (v.more_selected || v.jobs_selection != 0) {
+    return fail("jobs page 0: Down from More wraps to the first row");
+  }
+  colony_screen_jobs_next_page(&v);
+  if (!v.more_selected || v.jobs_selection != 16) {
+    return fail("jobs page 1 opens on its first row, More");
+  }
+  colony_screen_list_key(&v, COLONIZE_KEY_UP);
+  if (v.more_selected || v.jobs_selection != 19) {
+    return fail("jobs page 1: Up on More wraps to the last job");
+  }
+  colony_screen_list_key(&v, COLONIZE_KEY_DOWN);
+  colony_screen_list_key(&v, COLONIZE_KEY_DOWN);
+  if (v.more_selected || v.jobs_selection != 16) {
+    return fail("jobs page 1: Down from the last job wraps to More, then job 16");
+  }
+  memset(&v, 0, sizeof(v));
+  v.eject_open = true;
+  v.eject_role_count = 3;
+  v.eject_role_enabled[0] = true;
+  v.eject_role_enabled[2] = true;
+  colony_screen_list_key(&v, COLONIZE_KEY_DOWN);
+  if (v.eject_selection != 2) {
+    return fail("leave-as: Down skips the greyed row");
+  }
+  colony_screen_list_key(&v, COLONIZE_KEY_DOWN);
+  if (v.eject_selection != 0) {
+    return fail("leave-as: Down on the last row wraps");
+  }
+  memset(&v, 0, sizeof(v));
+  v.construction_open = true;
+  v.buildable_count = 3;
+  colony_screen_list_key(&v, COLONIZE_KEY_UP);
+  if (v.construction_selection != 3 || v.more_selected) {
+    return fail("construction: Up on the first row wraps to the last");
+  }
+  return 0;
+}
+
 /* port_bugs.md #1091: an open map pull-down is modal (DOS runs it as a blocking
  * loop), so game_modal_open is true and the unit/turn hand-off defers. */
 static int test_map_pulldown_is_modal(void) {
@@ -1340,7 +1585,11 @@ static const TestCase k_cases[] = {
     {"test_ai_euro_5952_equip_scout", test_ai_euro_5952_equip_scout},
     {"test_ai_euro_5952_equip_pioneer", test_ai_euro_5952_equip_pioneer},
     {"test_colony_shift_pick_moves_highlight", test_colony_shift_pick_moves_highlight},
+    {"test_colony_jobs_menu_seats_indoor_worker", test_colony_jobs_menu_seats_indoor_worker},
+    {"test_colony_jobs_menu_open_stamps_plots", test_colony_jobs_menu_open_stamps_plots},
     {"test_game_world_view", test_game_world_view},
+    {"test_goto_place_opens_travelplace_list", test_goto_place_opens_travelplace_list},
+    {"test_colony_list_keys_wrap", test_colony_list_keys_wrap},
 };
 
 TEST_MAIN(k_cases)

@@ -196,12 +196,9 @@ bool unit_stack_handle_input(
     unit_stack_close(dlg);
     return true;
   }
-  if (colonize_key_up(input->last_key) && dlg->selection > 0) {
-    dlg->selection--;
-    return true;
-  }
-  if (colonize_key_down(input->last_key) && dlg->selection + 1 < dlg->count) {
-    dlg->selection++;
+  /* FUN_2b5a_1b5a's icon rows: FUN_6f74_2580's icon arm (raw 116787-116847) wraps Up / Down
+   * first <-> last too (no disabled icons). */
+  if (popup_list_key_step(input->last_key, &dlg->selection, dlg->count, 0)) {
     return true;
   }
   if (input->last_key == COLONIZE_KEY_ENTER || input->last_key == COLONIZE_KEY_SPACE) {

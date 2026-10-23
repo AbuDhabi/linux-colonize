@@ -552,6 +552,11 @@ void colonies_emit_school_faculty_chrome(
   AiPopupState* ai_popups,
   const ColonizeMsgCatalog* messages
 );
+/* FUN_15eb_06d2's commit tail for a worker on ring plot `tile_index` (owner stamp, land
+ * reaction unless `plot_was_worked`, mask 0x10); colonies_assign_field_w ends with it. */
+void colonies_plot_seat_tail_w(
+  const ColonizeWorld* w, const ColonizeColony* col, int tile_index, bool plot_was_worked
+);
 /*
  * Assign colonist to a surround tile with a field @JOB. Clears workplace.
  * This is DOS's FUN_0000_6582, the shared colony tiles[] writer, so it also
@@ -844,14 +849,14 @@ bool colonies_buy_construction_ex(
   ColonizeColonyPool* pool, int colony_id, const ColonizeCol1Save* col1, int* gold
 );
 
-/* capacity formula and cargo_type parameter history (see docs/colony.md#colonies_warehouse_capacity) */
+/* capacity formula and cargo_type parameter history (see docs/colony_goods.md#colonies_warehouse_capacity) */
 int colonies_warehouse_capacity(
   const ColonizeColonyPool* pool,
   const ColonizeColony* colony,
   int cargo_type
 );
 
-/* @WAREHOUSEFULL numbers (port_bugs.md #433) (see docs/colony.md#colonies_emit_warehouse_full_chrome) */
+/* @WAREHOUSEFULL numbers (port_bugs.md #433) (see docs/colony_goods.md#colonies_emit_warehouse_full_chrome) */
 void colonies_emit_warehouse_full_chrome(
   const ColonizeColonyPool* pool,
   const ColonizeColony* colony,
@@ -910,7 +915,7 @@ void colonies_emit_more_than_three_chrome(
   const ColonizeMsgCatalog* messages
 );
 
-/* FUN_5952_0306 specialty cargo set/clear (see docs/colony.md#colonies_specialty_cargo_update) */
+/* FUN_5952_0306 specialty cargo set/clear (see docs/colony_goods.md#colonies_specialty_cargo_update) */
 void colonies_specialty_cargo_update(
   const ColonizeColonyPool* pool,
   ColonizeColony* colony,
@@ -919,7 +924,7 @@ void colonies_specialty_cargo_update(
   int already_produced
 );
 
-/* EOT spoilage clamp / reporting rules (see docs/colony.md#colonies_apply_warehouse_spoilage) */
+/* EOT spoilage clamp / reporting rules (see docs/colony_goods.md#colonies_apply_warehouse_spoilage) */
 int colonies_apply_warehouse_spoilage(
   ColonizeColonyPool* pool,
   ColonizeColony* colony,
@@ -963,7 +968,7 @@ int colonies_transfer_from_unit_amount(
   bool* out_warehouse_full
 );
 
-/* FUN_5f7a_020e mechanic overview (see docs/colony.md#foreign-colony-trade-jan-de-witt) */
+/* FUN_5f7a_020e mechanic overview (see docs/colony_goods.md#foreign-colony-trade-jan-de-witt) */
 typedef enum ColonizeForeignTradeGate {
   COLONIZE_FTRADE_NONE = 0,     /* not a trade situation — no dialog at all */
   COLONIZE_FTRADE_ATWAR,        /* @TRADEATWAR — no peace treaty (rel & 0x40 clear) */
@@ -972,7 +977,7 @@ typedef enum ColonizeForeignTradeGate {
   COLONIZE_FTRADE_OK            /* pick a hold and deal */
 } ColonizeForeignTradeGate;
 
-/* trade gate raw site (see docs/colony.md#colonies_foreign_trade_gate) */
+/* trade gate raw site (see docs/colony_goods.md#colonies_foreign_trade_gate) */
 ColonizeForeignTradeGate colonies_foreign_trade_gate(
   const ColonizeWorld* w,
   int foreign_colony_id,
@@ -987,7 +992,7 @@ typedef struct ColonizeForeignTradeDeal {
   int offer_qty;
 } ColonizeForeignTradeDeal;
 
-/* hold pricing / counter-offer raw site (see docs/colony.md#colonies_foreign_trade_prepare) */
+/* hold pricing / counter-offer raw site (see docs/colony_goods.md#colonies_foreign_trade_prepare) */
 int colonies_foreign_trade_prepare(
   const ColonizeWorld* w,
   ColonizeDosRng* rng,
@@ -997,7 +1002,7 @@ int colonies_foreign_trade_prepare(
   ColonizeForeignTradeDeal* out
 );
 
-/* trade apply raw site / stock debit note (see docs/colony.md#colonies_foreign_trade_apply) */
+/* trade apply raw site / stock debit note (see docs/colony_goods.md#colonies_foreign_trade_apply) */
 int colonies_foreign_trade_apply(
   const ColonizeWorld* w,
   int foreign_colony_id,
@@ -1007,7 +1012,7 @@ int colonies_foreign_trade_apply(
   int take_goods
 );
 
-/* FUN_479b_0bd0 arrival body (see docs/colony.md#colonies_trade_route_service_stop) */
+/* FUN_479b_0bd0 arrival body (see docs/colony_goods.md#colonies_trade_route_service_stop) */
 int colonies_trade_route_service_stop(
   ColonizeColonyPool* pool,
   int colony_id,
@@ -1016,7 +1021,7 @@ int colonies_trade_route_service_stop(
   const ColonizeCol1TradeStop* stop
 );
 
-/* thin TRADE Edit helper (see docs/colony.md#colonies_trade_stop_autofill) */
+/* thin TRADE Edit helper (see docs/colony_goods.md#colonies_trade_stop_autofill) */
 void colonies_trade_stop_autofill(
   ColonizeCol1TradeStop* stop,
   const ColonizeColony* colony,

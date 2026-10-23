@@ -945,6 +945,112 @@ static int case_foreign_affairs_golden(void) {
   return 0;
 }
 
+/* port_bugs.md #1207: the Indian Adviser tribe name and level lines against
+ * indian.png. DOS FUN_3f41_010a draws each line four times through
+ * FUN_281f_013c: ink 0 at (x+1, y), (x, y+1), (x+1, y+1), then the tribe ink
+ * at (x, y). Masks read off the golden (2x, sampled at even pixels): 'k' =
+ * (0,0,0), 'i' = the tribe ink, '.' = anything else (background). */
+static int case_indian_name_lines_golden(void) {
+  if (ensure_view() != 0) {
+    return 1;
+  }
+  char err[256];
+  ColonizeCol1Save fcol1;
+  col1_save_init(&fcol1);
+  if (!col1_save_read_file(
+        "original_saves/report-screen-goldens/dutch-reports.SAV", &fcol1, err, sizeof(err)
+      )) {
+    fprintf(stderr, "dutch-reports.SAV load failed: %s\n", err);
+    return 1;
+  }
+  uint8_t pixels[320 * 200];
+  ColonizeFramebuffer8 fb = {.width = 320, .height = 200, .pixels = pixels};
+  memset(pixels, 0, sizeof(pixels));
+  {
+    ColonizeWorld w_ = world_make(NULL, NULL, NULL, &fcol1, true, NULL, NULL);
+    reports_render_w(
+      &w_, &g_view, COLONIZE_REPORT_INDIAN, false, -1, 0, 0, 0,
+      fcol1.head.human_player, 0, 0, fcol1.head.turn, NULL, &fb
+    );
+  }
+  col1_save_free(&fcol1);
+  static const struct {
+    int x0, y0;
+    const char* rows[9];
+  } k_masks[] = {
+    {29, 27, {
+      ".......................................",
+      "..ik...................ik..............",
+      ".ikikikikiik.ik..ikiik.ikik.iik........",
+      ".iiikiikkkiikikikikkiikiikkikkkik......",
+      ".ikikikk.ikikikikikikikikikkkikkk......",
+      ".ikikik..iiikkikikkiiikikikiikkik......",
+      ".kkkkkk..kkkk.kkkk.kkkkkkkkkkk.kk......",
+      ".......................................",
+      ".......................................",
+    }},
+    {279, 27, {
+      "..................................",
+      "...ik.................ik..........",
+      "..ikik.iikikikiik.ikikkkiik.iik...",
+      "..iiikikikiikkkiikiikkikkiikikik..",
+      "..ikikkiikikk.ikikikk.ikikikikik..",
+      "..ikik.kikik..iiikik..ikiiikikik..",
+      "..kkkkiikkkk..kkkkkk..kkkkkkkkkk..",
+      "......kkk.........................",
+      "..................................",
+    }},
+    {29, 48, {
+      ".......................................",
+      "..iikik..............ik................",
+      ".ikkkiik..iikikik.ik.ikik.iik.iik......",
+      ".ik..ikikikikiikkikikiikkikikikikik....",
+      ".ik..ikikiikkikk.ikikikikiikkiikkkk....",
+      ".kiikikikkiikik..kikkikikkiikkiikik....",
+      "..kkkkkkk.kkkkk...kk.kkkk.kkk.kkkkk....",
+      ".......................................",
+      ".......................................",
+    }},
+    {279, 48, {
+      "..................................",
+      "...ik.................ik..........",
+      "..ikik.iikikikiik.ikikkkiik.iik...",
+      "..iiikikikiikkkiikiikkikkiikikik..",
+      "..ikikkiikikk.ikikikk.ikikikikik..",
+      "..ikik.kikik..iiikik..ikiiikikik..",
+      "..kkkkiikkkk..kkkkkk..kkkkkkkkkk..",
+      "......kkk.........................",
+      "..................................",
+    }},
+  };
+  int bad = 0;
+  for (size_t m = 0; m < sizeof(k_masks) / sizeof(k_masks[0]); ++m) {
+    int ink = -1;
+    for (int r = 0; r < 9; ++r) {
+      for (int c = 0; k_masks[m].rows[r][c]; ++c) {
+        const int x = k_masks[m].x0 + c;
+        const int y = k_masks[m].y0 + r;
+        const uint8_t p = pixels[y * 320 + x];
+        const char want = k_masks[m].rows[r][c];
+        if (want == 'i' && ink < 0 && p != 0) {
+          ink = p;
+        }
+        const bool ok = want == 'k'   ? p == 0
+                        : want == 'i' ? (int)p == ink
+                                      : (p != 0 && (int)p != ink);
+        if (!ok && bad++ < 8) {
+          fprintf(stderr, "indian name line (%d,%d): want '%c' got index %d\n", x, y, want, p);
+        }
+      }
+    }
+  }
+  if (bad) {
+    fprintf(stderr, "indian name lines: %d pixels differ from indian.png\n", bad);
+    return 1;
+  }
+  return 0;
+}
+
 /* After free, names must be empty rather than stale/dangling.
  *
  * reports_ff_display_name() & co. read module-level globals in
@@ -1123,6 +1229,7 @@ static const TestCase k_cases[] = {
   {"congress_ff_bitmask", case_congress_ff_bitmask},
   {"indian_tribe_listed_gate", case_indian_tribe_listed_gate},
   {"foreign_affairs_golden", case_foreign_affairs_golden},
+  {"indian_name_lines_golden", case_indian_name_lines_golden},
   {"names_survive_missing_report_art", case_names_survive_missing_report_art},
   {"ds_string_two_numbers", case_ds_string_two_numbers},
   {"post_free_fallback", case_post_free_fallback},

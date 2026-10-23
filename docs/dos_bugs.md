@@ -33,9 +33,7 @@ instead, and the port site, so a later reader can tell "intentional" from
 (extra production ticks before the first autosave), and tables the save never
 carried keep whatever the previous game left in them (see entry DB-2). The result
 depends on what was in memory before the load, so it is not reproducible and not
-worth modelling. Evidence: the first two idle-independence recordings
-([idle_independence.md](idle_independence.md) "Earlier recordings") started from
-such a load and drifted from a clean main-menu load of the same slot.
+worth modelling. Evidence: [archive](archive/dos_bugs_evidence_2026-10-23.md#db-1).
 
 **Port:** main-menu load and in-game load both run the same clean init
 (`game_apply_col1_save`, `src/core/game_loop_saveload.c`): the world is rebuilt
@@ -49,19 +47,13 @@ take different paths. Known holes (idle_independence.md "Quirks of this save
 set"): the Euro AI stance table `DS:0x9870` (nation*16 + continent) and the AI
 goal tables `DS:0x98b0..` read by the 0a60 work-queue military arm; the Indian
 rank table `DS:0x917c` (a load starts with zeros, the day top's 0550 refresh
-refills it). A DOSBox load of a mid-campaign autosave does not reproduce the
-continuous run (save 5: 355 RNG draws vs 381).
+refills it). Evidence: [archive](archive/dos_bugs_evidence_2026-10-23.md#db-2).
 
 **Port:** the `RTST` chunk of the port extension block (`COLNXEXT`,
-[savegame.md](savegame.md) "Port extension block"; `src/core/runtime_ext.c`)
-carries every such table plus the port's LCG, written on every save and
-restored by `col1_bridge_apply` on top of the module resets. Nine records
-(2026-10-19): RNG state + the `FUN_281f_04ca` reseed word, stance `DS:0x9870` +
-rival strength `DS:0x9e98`, unit-slot compaction residue (`ColonizeUnitPool.dos_tail`),
-the AI goal / work-queue / inventory / plan tables, the rank cache `DS:0x917c` +
-profession census, the coarse fog plane `DS:0x9faa`, Euro AI scratch (0a60 masks,
-explorers, village-visited bits, ship pressure, sticky anti-spin), per-colony
-`plot_was_worked_mask`, and the pathfinder word `DS:0x1dd2` + flood cache. Every
+[savegame.md](savegame.md) "Port extension block", which lists the records;
+`src/core/runtime_ext.c`) carries every such table plus the port's LCG, written
+on every save and restored by `col1_bridge_apply` on top of the module resets
+(first nine records, 2026-10-19: [archive](archive/dos_bugs_evidence_2026-10-23.md#db-2)). Every
 port save therefore carries the block and the `*` slot mark; DOS still loads it
 (ignores the tail) and drops it on re-save, after which the port loads it the DOS
 way (tables zero, LCG from the turn number).
@@ -92,19 +84,13 @@ DOS only in `players[0].lcr_case5_bonus_used` (plus the hold[5] artifact).
 ### DB-4 — Euro AI border park reads an uninitialised stack word
 **DOS:** the 0x46 border-park arm of FUN_521d_20e6 (raw 89011-89029, the LAB_4d2e
 tail) tests `local_ea` (BP-0xE8 = SS:e7c4), which 20e6 never writes before that
-read. The word is whatever the last frame at that stack address left. Some writers
-are deterministic: FUN_6662_00f2's `PUSH SI` (nation*0x13c, only when 00f2 is
-entered at SP e852 through 6d8e -> 0972 -> 0f74), the FUN_5bfb_022e met arm (the
-mover's x), and the previous 20e6 scan's own saw-foe flag. The others are RTLink
-overlay-loader residue (an overlay size or relocation word, e.g. 0x2fe0, 0x4232).
-Which overlays reload, and so the residue value, depends on the overlay area's
+read. The word is whatever the last frame at that stack address left: a few
+deterministic writers (FUN_6662_00f2, the FUN_5bfb_022e met arm, the previous 20e6
+scan), otherwise RTLink overlay-loader residue that depends on the overlay area's
 history since process start. So a combat land unit beside a foreign colony parks
 ('F') or wanders depending on memory history, not game state: a DOSBox from-load
-of the same save and the continuous archive disagree on the same turn. Evidence:
-america seed-100 save 63 -> 64 (England's Dragoon u61 beside Quebec parks in the
-archive; a from-load parks all three Dragoons), and dozens of resync pairs past it
-([archive/idle_america_fixed_2026-10-19_21.md](archive/idle_america_fixed_2026-10-19_21.md),
-"e7c4 class").
+of the same save and the continuous archive disagree on the same turn (america
+seed-100 save 63 -> 64; writers and evidence: [archive](archive/dos_bugs_evidence_2026-10-23.md#db-4)).
 
 **Port:** `ColonizeTurnContext.ai_euro_wander_stack_word` (`src/core/turn.h`)
 models the deterministic writers only (`ai_euro_act.c` 00f2 flood, `ai_euro.c`
@@ -199,9 +185,8 @@ arm: any Jesuit, human or AI, is offered the Colonist row (user decision
 2026-10-21, matching what DOS does in nearly every colony). Unchanged from DOS:
 a Jesuit is always offered the Missionary row, church or not; at the Europe
 dock a born Jesuit cannot unbless (38fd:3f4a). Unit test: `unit_colonies`
-#559b (fails on the DOS arm). All goldens, idle campaigns and
-`golden_ai_joint` stay byte-identical (2026-10-21). Came from port_bugs.md
-#559.
+#559b (fails on the DOS arm). All goldens, idle campaigns and `golden_ai_joint`
+stay byte-identical (2026-10-21). Came from port_bugs.md #559.
 **Status:** done (2026-10-21).
 
 ### DB-10 — Euro AI specialist pass can write profession 0xff
@@ -281,9 +266,8 @@ traded), the one draw picks uniformly among the eligible goods instead (user
 decision 2026-10-22): any stocked, not yet boycotted good in a coastal colony
 stays a protest option, and only with none is the hike forced without one.
 DOS took the last eligible cargo with a nonzero weight, or the first eligible
-one when all weights were zero. Unit test: `unit_ai_king_core`
-`dump_goods_pick_api` (weighted 7:9 over 200 seeds, zero-weight pick over 50
-seeds, exactly one draw burned in both, campaign4 weights). All goldens and
+one when all weights were zero. Unit test: `unit_ai_king_core` `dump_goods_pick_api`
+([cases](archive/dos_bugs_evidence_2026-10-23.md#db-14)). All goldens and
 `golden_ai_joint` stay byte-identical.
 **Status:** done (2026-10-22). Came from dos_bug_candidates_2026-10-22.md C-3.
 
@@ -304,36 +288,17 @@ fourth is refused). All goldens and `golden_ai_joint` stay byte-identical.
 
 ### DB-16 — withdrawn: King-gift ship loss tax cut is cut content
 FUN_5fef_0352 (raw 99671-99690) reads the tax cut one table row too far, so
-the King's gift Frigate never cuts the tax. The same block fills every token
-of @KINGMERCY but never shows it, and VICEROY.EXE has no KINGMERCY tag string
-(dead text), so the feature was removed on purpose. The user judged it an
-intended removal (2026-10-22); the port keeps DOS (`units_royal_loss_tax_cut`,
-`src/core/units_combat.c`). Was dos_bug_candidates_2026-10-22.md C-5.
+the King's gift Frigate never cuts the tax. The user judged it an intended
+removal (2026-10-22, [why](archive/dos_bugs_evidence_2026-10-23.md#db-16)); the port keeps DOS
+(`units_royal_loss_tax_cut`, `src/core/units_combat.c`). Was dos_bug_candidates_2026-10-22.md C-5.
 
 ### DB-17 — withdrawn: colony unit project at the unit cap, now tolerated
-The 2026-10-22 fix passed every golden but was reverted at the user's call: the
-port reproduces DOS again. See [tolerated_dos_bugs.md](tolerated_dos_bugs.md)
-TB-47.
-
 ### DB-18 — withdrawn: leave-as gear at the unit cap, now tolerated
-The 2026-10-22 fix passed every golden but was reverted at the user's call: the
-port reproduces DOS again. See [tolerated_dos_bugs.md](tolerated_dos_bugs.md)
-TB-47.
-
 ### DB-19 — withdrawn: colony birth at the unit cap, now tolerated
-The 2026-10-22 fix passed every golden but was reverted at the user's call: the
-port reproduces DOS again. See [tolerated_dos_bugs.md](tolerated_dos_bugs.md)
-TB-47.
-
 ### DB-20 — withdrawn: crosses immigrant at the unit cap, now tolerated
-The 2026-10-22 fix passed every golden but was reverted at the user's call: the
-port reproduces DOS again. See [tolerated_dos_bugs.md](tolerated_dos_bugs.md)
-TB-47.
-
 ### DB-21 — withdrawn: Brewster recruit at the unit cap, now tolerated
-The 2026-10-22 fix passed every golden but was reverted at the user's call: the
-port reproduces DOS again. See [tolerated_dos_bugs.md](tolerated_dos_bugs.md)
-TB-47.
+Each of these five 2026-10-22 fixes passed every golden but was reverted at the
+user's call; the port reproduces DOS again: [tolerated_dos_bugs.md](tolerated_dos_bugs.md) TB-47.
 
 ### DB-22 — Razing a capital clears alarm in the wrong tribe's dwellings
 **DOS:** the capital-razed arm of FUN_5fef_1b0e (raw 101293-101298) zeroes the
@@ -367,10 +332,8 @@ the walk origin `cx` / `cy` from the colony at the top of each candidate.
 Nothing else changes: the same AND distance test (see tolerated_dos_bugs_ai.md TB-15), the same
 one-in-(count-1) roll and the same walk. All goldens, idle campaigns and
 `golden_ai_joint` stay byte-identical (2026-10-22); no unit test pinned the
-carry-over. The DOS evidence for the carry-over (america resync 129: Penobscot's
-walk to Barbados ended at (44,39), so Providence was skipped, one `rng(0,2)`
-fewer than a per-candidate reset draws; america2 resync 37) lies past the
-enabled golden saves of both Americas archives.
+carry-over. Its DOS evidence lies past the enabled golden saves of both Americas
+archives: [archive](archive/dos_bugs_evidence_2026-10-23.md#db-23).
 **Status:** done (2026-10-22). Came from dos_bug_candidates_2026-10-22.md C-14.
 
 ### DB-24 — Founding join scores the forest penalty from stack residue
@@ -403,9 +366,8 @@ full hold of one good looks like a negative or empty delivery.
 **Port:** `ai_euro_20e6_delivery_tallies` (`src/core/ai_euro_ship.c`) adds the
 amounts into an `int` without wrapping, so `ai_euro_20e6_delivery_colony_pick`
 and its Horses gate read the plain sum. No test pins the wrap; all goldens,
-idle campaigns and `golden_ai_joint` stay byte-identical. (The DOS evidence for
-the wrap, america resyncs 105-119 and 151+, lies past the enabled golden saves of
-both Americas archives and would need the old behaviour.)
+idle campaigns and `golden_ai_joint` stay byte-identical. DOS evidence for the
+wrap: [archive](archive/dos_bugs_evidence_2026-10-23.md#db-25).
 **Status:** done (2026-10-22). Came from dos_bug_candidates_2026-10-22.md C-22.
 
 ### DB-26 — Euro AI ship unload mask is reset inside the neighbour loop
@@ -456,8 +418,7 @@ The hop length is a distance in tiles: the larger absolute value was meant.
 `ai_euro_move_scoring_gate` (`sc[1]--`) is unchanged. No test pins the signed
 store; all goldens, idle campaigns and `golden_ai_joint` stay byte-identical.
 The enabled goldens never complete a ring hop, so they do not exercise this
-(the hop evidence in the code comment, america resync 92->93, is past the
-enabled golden saves).
+([evidence](archive/dos_bugs_evidence_2026-10-23.md#db-28)).
 **Status:** done (2026-10-22). Came from dos_bug_candidates_2026-10-22.md C-27.
 
 ### DB-29 — Raid goods pick burns a dummy rand(0,200) for Muskets
@@ -532,9 +493,8 @@ add is a stray write on the wrong field.
 **Port:** `ai_king_1d42_royal_purse` (`src/core/ai_king.c`) stops after the
 `royal_money` debit and leaves `liberty_bells_last_turn` alone. Unit test
 `unit_ai_king_core` (audience cut branch, 1d42 buy beat) checks that the word
-keeps its seeded value. All goldens and `golden_ai_joint` pass. Only one golden
-buy happens (`golden_idle_america`, save 31, free-colonist count 0), so the
-goldens do not exercise a non-zero add.
+keeps its seeded value. All goldens and `golden_ai_joint` pass; they never
+exercise a non-zero add ([evidence](archive/dos_bugs_evidence_2026-10-23.md#db-33)).
 **Status:** done (2026-10-22). Came from dos_bug_candidates_2026-10-22.md C-46.
 
 ### DB-34 — Warehouse spoilage under 2 tons is never removed
@@ -553,10 +513,9 @@ campaigns and `golden_ai_joint` stay byte-identical.
 
 ### DB-35 — withdrawn: forest-clear lumber bonus follows DOS
 FUN_479b_01a6 (raw ~76800) tests `FUN_281f_0754(colony) & 0x0a` on the
-receiving colony's tile, so a Lumber Mill colony always gets the +1 step. A
-2026-10-22 trial moved the test to the cleared tile (goldens passed), but the
-user chose the DOS behaviour; the live DOS capture (+60 at Bahia) matches it.
-The port (`units_pioneer_work_tick_w`, `src/core/units_pioneer.c`) keeps DOS.
+receiving colony's tile, so a Lumber Mill colony always gets the +1 step. The
+user chose DOS over a 2026-10-22 trial fix ([details](archive/dos_bugs_evidence_2026-10-23.md#db-35));
+the port (`units_pioneer_work_tick_w`, `src/core/units_pioneer.c`) keeps DOS.
 Was dos_bug_candidates_2026-10-22.md C-52.
 
 ### DB-36 — Scored Go To fallback gives every due east/west step cost 1
@@ -585,8 +544,7 @@ test never holds and the penalty is always `terr_cost * 3`. The flood tier of
 **Port:** `units_greedy_next_step` (`src/core/units_move.c`) tests
 `units_max_mp() < 4`, so a one-move unit pays 3 per step like in the flood
 tier. No unit test calls it; all goldens, idle campaigns and `golden_ai_joint`
-stay byte-identical. The goldens reach this fallback only about once per
-campaign, with a ship, so they barely exercise the change.
+stay byte-identical; they barely reach it ([why](archive/dos_bugs_evidence_2026-10-23.md#db-37)).
 **Status:** done (2026-10-22). Came from dos_bug_candidates_2026-10-22.md C-53.
 
 ### DB-38 — Arrival tile ring search lets the +e hit overwrite the -e hit
@@ -633,9 +591,8 @@ ends at a column below 3.
 `new_world_x < 3` (the argument is kept so callers stay unchanged). Every golden,
 idle campaign and `golden_ai_joint` stay byte-identical, so no golden crossing
 starts or ends west of column 3. The input-replay regression
-`europe_buy_ship_and_sail` pinned the extra draw: its `output.sav` was
-re-recorded from the port (only the 4 LCG-state bytes of the port extension
-block differ).
+`europe_buy_ship_and_sail` pinned the extra draw and was re-recorded from the
+port ([details](archive/dos_bugs_evidence_2026-10-23.md#db-40)).
 **Status:** done (2026-10-22). Came from dos_bug_candidates_2026-10-22.md C-58.
 
 ### DB-41 — Tory uprising size comes from the last colony scored
@@ -679,8 +636,7 @@ or the ship is a Privateer. An unmet pair has relation byte 0, so the fort
 fires on it although the two nations were never at war. First contact between
 Europeans needs land adjacency (port_bugs.md #545), so a ship passing a colony
 never meets its owner; the Foreign Affairs report does not list the nation at
-all. User-observed 2026-10-22 (campaign5): Jamestown's fortress fired on a
-French Caravel; England and France had relation byte 0 through turn 123.
+all. User-observed 2026-10-22 (campaign5, [details](archive/dos_bugs_evidence_2026-10-23.md#db-43)).
 
 **Port:** `units_fort_fire_is_hostile` (`src/core/units_combat_resolve.c`)
 also requires the MET bit (0x20) for a European ship. Privateers are still
@@ -730,12 +686,10 @@ progress likewise counts toward a later plow on the same tile.
 (`src/core/units_pioneer.c`) zero the counter when the order changes to the
 job, and the AI 20e6 road arm (`ai_euro_land.c`) does the same. The 5952
 phantom Pioneer, which seeds 99 to finish in one call, latches its order first
-so the entry leaves the 99 alone (DOS calls the work bodies directly there;
-zeroing it broke every idle golden). All goldens and `golden_ai_joint` pass.
-Unit case `unit_pioneer_dos_gates_2026_09_22` and the replay `map_unit_orders`
-(its fixture preloaded the counters for an instant finish; re-blessed: the two
-jobs now start at progress 1) were updated. Re-issuing the same job after an
-interruption also restarts it.
+so the entry leaves the 99 alone. Re-issuing the same job after an interruption
+also restarts it. All goldens and `golden_ai_joint` pass; unit case
+`unit_pioneer_dos_gates_2026_09_22` and replay `map_unit_orders` were updated
+([details](archive/dos_bugs_evidence_2026-10-23.md#db-46)).
 **Status:** done (2026-10-23). Came from dos_bug_candidates_2026-10-22.md C-72 (port_bugs.md #620).
 
 ### DB-47 — Lost City Rumour counters are process-wide

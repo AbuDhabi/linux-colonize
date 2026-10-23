@@ -60,7 +60,7 @@ Cargo, Pillage, Load/Unload Cargo, Return to Europe, Join Colony, No Orders
 ```mermaid
 flowchart TD
   Menu["ORDERS pulldown / hotkeys"]
-  Mouse["Drag / Place click / Port"]
+  Mouse["Drag / Place / Port lists"]
   Stack["Activate / stack wake"]
   AI["AI euro / king / contact"]
   ColonyDock["Colony docked-unit popup"]
@@ -84,7 +84,7 @@ flowchart TD
 | Alt+letter menus | Open bar menus | `map_menu_open_alt_hotkey` | Done |
 | Hardcoded F / S / Shift+D | Fortify / Sentry / Disband | `game_loop` key paths | Done |
 | Mouse Go-To drag | Path then order 3 | `UI_DRAG_MAP_GOTO` → `units_set_goto` | Done |
-| Go to Place / Port | Click dest (Place) / `@SAILPORT` colony+Europe picker (Port) | Place mode + `units_set_goto`; Port → `game_open_goto_port_picker` (2026-09-16) | Done |
+| Go to Place / Port | One `FUN_647e_01c6` list: `@TRAVELPLACE` (land) / `@SAILPORT` colony+Europe (ship) | both → `game_open_goto_port_picker` (port_bugs.md #1208) | Done |
 | Activate / Wait | Stack picker / next unit with MP | `unit_stack` + Wait | Done |
 | AI | Sets order bytes + goto / follow | `ai_euro` / `ai_king` / `ai_contact` | Done (structural) |
 | Colony docked units | `FUN_2f2b_5746` sentry/fortify/… popup | Second click on the selected icon → wood popup (`colony_screen_open_dock_orders`), from either the Transport strip (ships/wagons) or the Multifunction Units tab (land units + Artillery, DOS `FUN_2f2b_1e46`/`59a0`) | Done thin |
@@ -152,12 +152,12 @@ stateDiagram-v2
 
 | Command | When | Expected (DOS) | OpenCol | Status |
 |---------|------|----------------|-------|--------|
-| Go to Place | Land ORDERS / drag | Order 3; path `6662`; walk until MP out; resume next turn; no MP gamble | Drag / Place → `game_issue_goto`: adjacent destination = arrow-key move (`game_try_unit_move`), longer trip = `units_set_goto`; 10 steps/sec | Done |
+| Go to Place | Land ORDERS (0x321) / drag (`FUN_2b5a_3462`) | ORDERS: the Go to Port list (case 2b5a:28d4 → `FUN_2b5a_1dfc`), titled `@TRAVELPLACE`, own colonies on the unit's continent, no Europe row, the colony he stands on left out (its slot still counts). Then order 3; path `6662`; walk until MP out; resume next turn; no MP gamble. No click-a-tile mode exists in DOS | List → `game_apply_goto_port`; drag → `game_issue_goto`: adjacent destination = arrow-key move (`game_try_unit_move`), longer trip = `units_set_goto`; 10 steps/sec | Done (list 2026-10-23, port_bugs.md #1208) |
 | One-tile Go To | Drag / Place / Port onto a neighbour tile | No separate go-to mover: order 3's tick commits through the ordinary move routine, so it is an arrow-key step (landfall off a ship, village `@ACTIONS`, `@SAILHOME`, combat) and no order is left | `game_issue_goto` moves at once when the unit has MP; a 0-MP unit keeps order 3 and walks next turn | Done (2026-09-04) |
-| Go to Port | Ship ORDERS | `@SAILPORT` destination-colony picker (DOS `FUN_647e_01c6`/`FUN_2b5a_1dfc`): Europe row first, then own colonies on the ship's water region (`FUN_647e_0094`: lowest-region water neighbour of the colony == that of the ship; lake colonies never offered to an ocean ship; Europe only from the Atlantic's water). Pick a colony → order 3. Pick Europe → `FUN_291f_02ea`/`FUN_48d3_015e`: order 3 aimed at the nearest free-or-own High Seas tile (not an instant sail); the ship sails when it arrives there; War of Independence shows `@EUROPENOTLEAVE` and sets nothing. Europe row text `@HOMEPORT (@COUNTRY)`; 10 colonies a page with "(More)" Previous / More rows; the colony the ship lies in is greyed (`FUN_291f_01b6`: grey ink, Up/Down skip it, clicks ignored) | `game_open_goto_port_picker` → `game_open_dest_pager` → `cheat_list_open_dest_pages` (GOTO_PORT) → `game_apply_goto_port`, rule in `travel_dest_ok` (`travel_dest.c`), port_bugs.md #1194. Not built: the land-unit `@TRAVELPLACE` list (same code in DOS; the port keeps click-mode Go to Place, port_bugs.md #1208) | Done (2026-10-23) |
+| Go to Port | Ship ORDERS | `@SAILPORT` destination-colony picker (DOS `FUN_647e_01c6`/`FUN_2b5a_1dfc`): Europe row first, then own colonies on the ship's water region (`FUN_647e_0094`: lowest-region water neighbour of the colony == that of the ship; lake colonies never offered to an ocean ship; Europe only from the Atlantic's water). Pick a colony → order 3. Pick Europe → `FUN_291f_02ea`/`FUN_48d3_015e`: order 3 aimed at the nearest free-or-own High Seas tile (not an instant sail); the ship sails when it arrives there; War of Independence shows `@EUROPENOTLEAVE` and sets nothing. Europe row text `@HOMEPORT (@COUNTRY)`; 10 colonies a page with "(More)" Previous / More rows; the colony the ship lies in is greyed (`FUN_291f_01b6`: grey ink, Up/Down skip it, clicks ignored) | `game_open_goto_port_picker` → `game_open_dest_pager` → `cheat_list_open_dest_pages` (GOTO_PORT) → `game_apply_goto_port`, rule in `travel_dest_ok` (`travel_dest.c`), port_bugs.md #1194. Land units get the same list (Go to Place above) | Done (2026-10-23) |
 | Goto tick | Frame / AI | Next adjacent step; clear on arrival | `units_advance_goto_one_step` | Done |
 | Cancel Go-To | Player (active path) | Clear order 3; unit selectable again | Activate → `units_wake`; replace order; same-tile `units_set_goto` | Done |
-| Abort Place / drag | Esc / right-click before dest set | Cancel destination picking only | `map_goto_place_mode` / `UI_DRAG_MAP_GOTO` clear | Done |
+| Abort list / drag | Esc / right-click before dest set | Cancel destination picking only | `cheat_list` cancel / `UI_DRAG_MAP_GOTO` clear | Done |
 | Begin Trade Route | ORDERS | Order 2; route picker (sea/land filtered) + starting-stop picker; cycle stops. Route slot + stop index live in the unit's profession byte (`+0x17`; `FUN_1427_0f64`/`0f8e`), so they survive a save | `units_order_trade_route` + aim/cycle; strict DOS nibble lists; cursor bridged through `profession` | Done |
 | Trade at stop | Arrival | Unload/load exactly the stop lists; Europe sell+auto-buy; @ROUTELOOP on 1-port routes; retarget; stay order 2 | `game_trade_route_retarget` (DOS 479b_0bd0) | Done |
 | FOLLOW | AI / Brave escort | Stick to unit id | `units_follow_unit` / `advance_follow` | Done (AI-only) |

@@ -492,6 +492,47 @@ static void colonies_assign_field_land_reaction(
   ai_contact_alarm_delta_00f2_w(w, tribe_nation, nation, amt);
 }
 
+/* The FUN_15eb_06d2 commit tail (DS:0x34d == 0, a worker seated on ring plot
+ * `tile_index`): owner stamp, land reaction, worked-plot stamp. */
+void colonies_plot_seat_tail_w(
+  const ColonizeWorld* w, const ColonizeColony* col, int tile_index, bool plot_was_worked
+) {
+  if (!w || !col) {
+    return;
+  }
+  /* DOS-LITERAL FUN_15eb_06d2 raw 9858-9864: a worker seated on a plot with no
+   * unit (137f_0314) and no settlement (137f_03e4) stamps the plot's owner
+   * nibble with the colony's nation (137f_0228), ahead of the land reaction.
+   * The tail is gated on DS:0x34d == 0, which is FUN_15eb_28c8's trial-seat
+   * flag (1 around its candidate loop, cleared before the final 06d2): only a
+   * real seat stamps. The jobs menu's own 28c8 seats are real ones
+   * (ai_euro_jobs_menu_open_w, port_bugs.md #1205). */
+  {
+    int pdx = 0;
+    int pdy = 0;
+    ColonizeWorldMap* plot_map = (ColonizeWorldMap*)w->map;
+    if (plot_map && plot_map->layer2 && colonies_field_tile_delta(tile_index, &pdx, &pdy)) {
+      const int plot_x = col->x + pdx;
+      const int plot_y = col->y + pdy;
+      if (map_coords_inset(plot_map, plot_x, plot_y)) {
+        const size_t plot_tile_index = (size_t)plot_y * (size_t)plot_map->width + (size_t)plot_x;
+        if ((plot_map->layer2[plot_tile_index] & (MAP_OCCUPANCY_HAS_UNIT | MAP_OCCUPANCY_HAS_CITY)) == 0) {
+          map_set_owner_nibble(plot_map, plot_x, plot_y, col->nation_id);
+        }
+      }
+    }
+  }
+  colonies_assign_field_land_reaction(w, col, tile_index, plot_was_worked);
+  /* DOS-LITERAL FUN_0000_6582 raw 8833: every seat ends in FUN_0000_6518(dx,
+   * dy, 1), claimed plot or not (all 869 worked plots in the seed-100 idle
+   * saves carry the bit). */
+  int dx = 0;
+  int dy = 0;
+  if (w && colonies_field_tile_delta(tile_index, &dx, &dy)) {
+    colonies_stamp_worked_plot(w->col1_ok ? w->col1 : NULL, w->map, col->x + dx, col->y + dy);
+  }
+}
+
 bool colonies_assign_field_w(
   const ColonizeWorld* w,
   int colony_id,
@@ -546,36 +587,7 @@ bool colonies_assign_field_w(
       colony_yield_job_name(field_job)
     );
   }
-  /* DOS-LITERAL FUN_15eb_06d2 raw 9858-9864: a worker seated on a plot with no
-   * unit (137f_0314) and no settlement (137f_03e4) stamps the plot's owner
-   * nibble with the colony's nation (137f_0228), ahead of the land reaction.
-   * The tail is gated on DS:0x34d == 0, which is FUN_15eb_28c8's trial-seat
-   * flag (1 around its candidate loop, cleared before the final 06d2): only a
-   * real seat stamps, and every seat reaching this writer is a real one. */
-  {
-    int pdx = 0;
-    int pdy = 0;
-    ColonizeWorldMap* plot_map = (ColonizeWorldMap*)w->map;
-    if (plot_map && plot_map->layer2 && colonies_field_tile_delta(tile_index, &pdx, &pdy)) {
-      const int plot_x = col->x + pdx;
-      const int plot_y = col->y + pdy;
-      if (map_coords_inset(plot_map, plot_x, plot_y)) {
-        const size_t plot_tile_index = (size_t)plot_y * (size_t)plot_map->width + (size_t)plot_x;
-        if ((plot_map->layer2[plot_tile_index] & (MAP_OCCUPANCY_HAS_UNIT | MAP_OCCUPANCY_HAS_CITY)) == 0) {
-          map_set_owner_nibble(plot_map, plot_x, plot_y, col->nation_id);
-        }
-      }
-    }
-  }
-  colonies_assign_field_land_reaction(w, col, tile_index, plot_was_worked);
-  /* DOS-LITERAL FUN_0000_6582 raw 8833: every seat ends in FUN_0000_6518(dx,
-   * dy, 1), claimed plot or not (all 869 worked plots in the seed-100 idle
-   * saves carry the bit). */
-  int dx = 0;
-  int dy = 0;
-  if (w && colonies_field_tile_delta(tile_index, &dx, &dy)) {
-    colonies_stamp_worked_plot(w->col1_ok ? w->col1 : NULL, w->map, col->x + dx, col->y + dy);
-  }
+  colonies_plot_seat_tail_w(w, col, tile_index, plot_was_worked);
   return true;
 }
 

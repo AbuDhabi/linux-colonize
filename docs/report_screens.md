@@ -255,8 +255,11 @@ fixed "Villages" until 2026-09-21, this section said so until 2026-09-28).
   without the decompile read.
 - Tribe name/level colors need **no** remap against REPORT9.PIK (probe
   came back dist2=0) — probe per report, it varies.
-- Name/level lines have a 1px down-right black drop shadow
-  (`reports_draw_line_shadowed`); the black stats line doesn't.
+- Name/level lines are four FONTTINY passes (`FUN_3f41_010a`, 3f41:018f-022c /
+  0265-02cb): ink 0 at (x+1, y), (x, y+1), (x+1, y+1), then the tribe ink at (x, y);
+  the level's x is 0x136 - (width - 1) (`FUN_281f_0114`). The black stats line is one
+  pass, columns every 0x38 from x 40. Name lines are pixel-exact against indian.png
+  (`unit_reports indian_name_lines_golden`, port_bugs.md #1207).
 - **Headband (resolved 2026-09-07, this section corrected 2026-09-28):**
   `q = FUN_281f_0a60(FUN_281f_030c(tribe, viewer))` is the alarm quartile
   (cuts 25/50/75), forced to 3 by the `extinct` bit (`indian+3 & 0x80`),

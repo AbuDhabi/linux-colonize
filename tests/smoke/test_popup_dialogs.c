@@ -176,6 +176,68 @@ static int case_checkbox_hotkeys(void) {
   return 0;
 }
 
+/* port_bugs.md #1209: FUN_6f74_2580's list arm (raw 116905-116940) wraps Up / Down and steps
+ * past disabled rows, giving up after two wraps; options and the cheat lists use it. */
+static int list_key(int sel, int count, uint32_t mask, ColonizeKey key) {
+  return popup_list_key_step(key, &sel, count, mask) ? sel : -99;
+}
+
+static int case_list_keys_wrap(void) {
+  if (list_key(0, 4, 0x6, COLONIZE_KEY_DOWN) != 3 || list_key(3, 4, 0x6, COLONIZE_KEY_DOWN) != 0 ||
+      list_key(0, 4, 0x6, COLONIZE_KEY_KP8) != 3 || list_key(3, 4, 0x6, COLONIZE_KEY_UP) != 0) {
+    return fail("wrap past disabled rows");
+  }
+  if (list_key(1, 4, 0xf, COLONIZE_KEY_DOWN) != 0 || list_key(-1, 4, 0, COLONIZE_KEY_DOWN) != 0 ||
+      list_key(-1, 4, 0, COLONIZE_KEY_UP) != 3 || list_key(0, 4, 0, COLONIZE_KEY_LEFT) != -99 ||
+      list_key(0, 0, 0, COLONIZE_KEY_DOWN) != -99) {
+    return fail("all disabled: stop after two wraps; no selection; other keys / no rows");
+  }
+  ColonizeInputState in;
+  memset(&in, 0, sizeof(in));
+  OptionsDialog od;
+  ColonizeCol1GameOptions opts;
+  memset(&opts, 0, sizeof(opts));
+  if (!options_dialog_open_game(&od, NULL, &opts) || od.option_count < 2) {
+    return fail("options_open_game");
+  }
+  od.selection = 0;
+  in.last_key = COLONIZE_KEY_UP;
+  options_dialog_handle_input(&od, &in);
+  if (od.selection != od.option_count - 1) {
+    return fail("options: Up on the first row wraps to the last");
+  }
+  in.last_key = COLONIZE_KEY_DOWN;
+  options_dialog_handle_input(&od, &in);
+  if (od.selection != 0) {
+    return fail("options: Down on the last row wraps to the first");
+  }
+  static char lines[][COLONIZE_MSG_LINE_LEN] = {"@checkbox", "Flags", "~A", "~B", "~C", "~D", "~E",
+                                               "~F", "~G"};
+  ColonizeMsgSection sec;
+  memset(&sec, 0, sizeof(sec));
+  snprintf(sec.name, sizeof(sec.name), "OPTIONS");
+  sec.lines = lines;
+  sec.line_count = 9;
+  const ColonizeMsgCatalog cat = {.sections = &sec, .section_count = 1};
+  CheatListDialog cl;
+  if (!cheat_list_open_debug_flags(&cl, &cat, 0) || cl.option_count != 7) {
+    return fail("debug flags open");
+  }
+  cl.selection = 0;
+  cl.disabled_mask = 1u << 6;
+  in.last_key = COLONIZE_KEY_UP;
+  cheat_list_handle_input(&cl, &in);
+  if (cl.selection != 5) {
+    return fail("debug flags: Up on the first row wraps past the disabled last row");
+  }
+  in.last_key = COLONIZE_KEY_DOWN;
+  cheat_list_handle_input(&cl, &in);
+  if (cl.selection != 0) {
+    return fail("debug flags: Down skips the disabled last row and wraps");
+  }
+  return 0;
+}
+
 static int case_name_entry(void) {
   NameEntryDialog ne;
   if (!name_entry_open(&ne, NAME_ENTRY_KIND_FOUND, "What shall we name this colony?", "Jamestown", 1)) {
@@ -910,6 +972,7 @@ static const TestCase k_cases[] = {
     {"howmuch", case_howmuch},
     {"options", case_options},
     {"checkbox_hotkeys", case_checkbox_hotkeys},
+    {"list_keys_wrap", case_list_keys_wrap},
     {"name_entry", case_name_entry},
     {"game_txt_wired_sections", case_game_txt_wired_sections},
     {"recruitchoose_width", case_recruitchoose_width},

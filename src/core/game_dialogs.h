@@ -369,7 +369,6 @@ struct ColonizeGameState {
   int map_goto_down_py;
   bool map_goto_dragged_px; /* true once pointer moved ≥1 logical pixel */
   uint32_t goto_step_accum_ms; /* paces Go-To at 10 steps/sec */
-  bool map_goto_place_mode; /* ORDERS Go to Place: next map click sets goto */
   ColonizeDosRng move_rng; /* FUN_465b partial-overspend rolls */
   uint32_t ai_rng_seed; /* FUN_281f_04ca timer word; VR_SEED = 100 */
   bool unit_icons_ok;

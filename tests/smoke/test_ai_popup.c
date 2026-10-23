@@ -111,6 +111,37 @@ static int case_choice_flow(void) {
   return 0;
 }
 
+/* port_bugs.md #1209: a GAME.TXT choice box is a FUN_6f74_2580 list: Up / Down wrap. */
+static int case_choice_keys_wrap(void) {
+  AiPopupState st;
+  ai_popup_init(&st);
+  const char* labels[] = {"A", "B", "C"};
+  const int ids[] = {1, 2, 3};
+  if (!ai_popup_enqueue_choice_ctx(
+        &st, AI_POPUP_TAG_KING_AUDIENCE, 0, 1, 0, "T", "Body", labels, ids, 3
+      )) {
+    return fail("enqueue_choice failed");
+  }
+  ai_popup_try_present_next(&st);
+  st.selection = 0;
+  ColonizeInputState in;
+  memset(&in, 0, sizeof(in));
+  in.last_key = COLONIZE_KEY_UP;
+  ai_popup_handle_input(&st, &in);
+  if (st.selection != 2) {
+    return fail("Up on the first choice wraps to the last");
+  }
+  in.last_key = COLONIZE_KEY_DOWN;
+  ai_popup_handle_input(&st, &in);
+  in.last_key = COLONIZE_KEY_ENTER;
+  ai_popup_handle_input(&st, &in);
+  if (!st.has_result || st.result_choice_id != 1) {
+    return fail("Down on the last choice wraps to the first");
+  }
+  ai_popup_consume_result(&st);
+  return 0;
+}
+
 /* Queue overflow safety: fill then one more fails. */
 static int case_queue_overflow(void) {
   AiPopupState st;
@@ -613,6 +644,7 @@ static const TestCase k_cases[] = {
     {"case_enqueue_and_present_info", case_enqueue_and_present_info},
     {"case_dismiss_result", case_dismiss_result},
     {"case_choice_flow", case_choice_flow},
+    {"case_choice_keys_wrap", case_choice_keys_wrap},
     {"case_queue_overflow", case_queue_overflow},
     {"case_chrome_tags", case_chrome_tags},
     {"case_set_last_after_dropped_enqueue", case_set_last_after_dropped_enqueue},

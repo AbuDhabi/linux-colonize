@@ -351,6 +351,15 @@ COLONIZE_INTERNAL bool colony_screen_hit_building_workers(ColonyScreenHitCtx* a)
 COLONIZE_INTERNAL bool colony_screen_hit_area_tiles(ColonyScreenHitCtx* a);
 COLONIZE_INTERNAL bool colony_screen_hit_people(ColonyScreenHitCtx* a);
 COLONIZE_INTERNAL bool colony_screen_hit_buildings(ColonyScreenHitCtx* a);
+/* FUN_2f2b_5a68 row `gi` (0 = clear row, -1 = More) of the construction list. */
+COLONIZE_INTERNAL void colony_screen_construction_row_text(
+  const ColonyScreenView* view, const ColonizeColonyPool* pool, const ColonizeColony* colony,
+  int gi, char* row, size_t row_cap, char* queue_prefix, size_t prefix_cap
+);
+/* FUN_2f2b_348c leave-as row text for eject_roles[] entry `role`. */
+COLONIZE_INTERNAL void colony_screen_eject_row_text(
+  char* out, size_t cap, int role, int occ, bool gear, int stock_tools
+);
 #endif
 
 #endif /* COLONIZE_CORE_COLONY_SCREEN_INTERNAL_H */

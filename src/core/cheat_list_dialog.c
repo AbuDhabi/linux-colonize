@@ -590,26 +590,8 @@ bool cheat_list_handle_input(CheatListDialog* dlg, const ColonizeInputState* inp
     cheat_list_cancel(dlg);
     return true;
   }
-  if (dlg->paged && (colonize_key_up(input->last_key) || colonize_key_down(input->last_key))) {
-    /* FUN_6f74_2580 Up / Down (raw 116905-116940): the previous / next row, wrapping to the
-     * last / first (box+0x70 / box+0x54), past disabled rows, giving up after two wraps. */
-    const int step = colonize_key_up(input->last_key) ? -1 : 1;
-    int wraps = 0;
-    do {
-      dlg->selection += step;
-      if (dlg->selection < 0 || dlg->selection >= dlg->option_count) {
-        dlg->selection = step < 0 ? dlg->option_count - 1 : 0;
-        wraps++;
-      }
-    } while ((dlg->disabled_mask & (1u << dlg->selection)) && wraps < 2);
-    return true;
-  }
-  if (colonize_key_up(input->last_key) && dlg->selection > 0) {
-    dlg->selection--;
-    return true;
-  }
-  if (colonize_key_down(input->last_key) && dlg->selection + 1 < dlg->option_count) {
-    dlg->selection++;
+  /* Every kind is a FUN_6f74_2580 list: Up / Down wrap and skip disabled rows. */
+  if (popup_list_key_step(input->last_key, &dlg->selection, dlg->option_count, dlg->disabled_mask)) {
     return true;
   }
   if (dlg->multi_select) {

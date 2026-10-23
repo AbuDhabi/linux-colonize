@@ -669,21 +669,28 @@ void reports_draw_right(
   reports_draw_line(font, fb, right_x - w, y, text, color);
 }
 
-/* Black drop shadow, offset +0,+1 (straight down, no horizontal shift —
- * a +1,+1 diagonal offset was tried first and looked odd, player-reported)
- * — Indian's tribe name/level line (indian.png shows a 1px black trailing
- * edge). DOS FUN_3f41_010a draws three black passes; see port_bugs.md #1207. */
+/* Indian Adviser tribe name / level line. DOS-LITERAL FUN_3f41_010a: each
+ * line is four FUN_281f_013c (FUN_104b_0288, map {skip, c, c, c}) calls, ink 0
+ * at (x+1, y), (x, y+1), (x+1, y+1), then the tribe ink at (x, y): name
+ * 3f41:018f-022c (both arms join at LAB_3f41_020e), level 3f41:0265-02cb
+ * (x = 0x136 - FUN_281f_0114 at 3f41:0277). Pixel-exact against indian.png
+ * (port_bugs.md #1207). */
 void reports_draw_line_shadowed(
   const ColonizeFont* font, ColonizeFramebuffer8* fb, int x, int y, const char* text, uint8_t color
 ) {
-  reports_draw_line(font, fb, x, y + 1, text, 0);
-  reports_draw_line(font, fb, x, y, text, color);
+  const uint8_t black[4] = {0, 0, 0, 0};
+  const uint8_t ink[4] = {0, color, color, color};
+  font_draw_text_shaded(font, fb, x + 1, y, text, black);
+  font_draw_text_shaded(font, fb, x, y + 1, text, black);
+  font_draw_text_shaded(font, fb, x + 1, y + 1, text, black);
+  font_draw_text_shaded(font, fb, x, y, text, ink);
 }
 
 void reports_draw_right_shadowed(
   const ColonizeFont* font, ColonizeFramebuffer8* fb, int right_x, int y, const char* text, uint8_t color
 ) {
-  const int w = font ? font_text_width(font, text) : 0;
+  /* FUN_281f_0114 -> FUN_104b_0216 returns width - 1 (raw 940-948). */
+  const int w = font ? font_text_width(font, text) - 1 : 0;
   reports_draw_line_shadowed(font, fb, right_x - w, y, text, color);
 }
 

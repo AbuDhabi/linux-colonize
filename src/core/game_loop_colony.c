@@ -353,6 +353,11 @@ bool game_colony_request_eject(
   int role
 ) {
   ColonyScreenView* csv = &game->colony_screen;
+  if (role == COLONY_EJECT_ROLE_STAY) {
+    /* FUN_2f2b_348c raw 50860: the occupation row re-sets the job he has (054c). */
+    colony_screen_close_eject(csv);
+    return true;
+  }
   const ColonizeColony* colony = colonies_get(&game->colonies, game->colony_view_id);
   if (!colony || colonist_index < 0) {
     set_status(game, "Cannot leave colony", NULL);
@@ -923,7 +928,7 @@ void game_colony_area_tile_drop(
   const int who = (int)colony->tiles[tile_index];
   if (who >= 0 && who < colony->colonist_count) {
     if (who == csv->selected_colonist) {
-      colony_screen_open_jobs(csv, &game->colonies, cmap, colony, tile_index);
+      game_colony_open_jobs(game, colony, cmap, tile_index);
     } else {
       game_colony_select_colonist(game, who);
     }
@@ -951,26 +956,6 @@ void game_colony_area_tile_drop(
    * non-field occupation here, so it derives Farmer/Fisherman from the tile. */
   if (from_fence || job < 1 || job > 7) {
     job = water ? COLONIZE_JOB_FISHERMAN : COLONIZE_JOB_FARMER;
-  }
-  if (job >= COLONIZE_FIELD_JOB_COUNT && job <= COLONIES_JOB_TEACHER) {
-    /* port_bugs.md #900: an indoor row from the jobs menu is a workplace pick, not
-     * a field pick. Route it through colonies_assign_workplace so the DOS
-     * seating validator (thunk_FUN_1000_9808: faculty cap, @NEEDCOLLEGE /
-     * @NEEDUNIVERSITY, @MORETHANTHREE) runs exactly as it does for a click on
-     * the building itself. */
-    const int building =
-      colonies_job_workplace_building(&game->colonies, colony, job);
-    if (ci < 0) {
-      set_status(game, "Select a colonist first", NULL);
-    } else if (colonies_assign_workplace(&game->colonies, game->colony_view_id, ci, building)) {
-      game_colony_assign_job_sound(job);
-      snprintf(game->status, sizeof(game->status), "Working as %s", colonies_profession_name(job));
-    } else {
-      game_colony_workplace_refusal(game, ci, building);
-    }
-    colony_screen_close_jobs(csv);
-    colony_screen_set_status(csv, game->status);
-    return;
   }
   if (game_colony_refuse_nodocks(game, colony, job)) {
     colony_screen_set_status(csv, game->status);
@@ -1099,6 +1084,19 @@ void game_colony_commit_construction(ColonizeGameState* game, int bid) {
   colony_screen_set_status(csv, game->status);
 }
 
+/* FUN_2f2b_348c param 0: the popup, then its build-up seats (port_bugs.md #1205). */
+void game_colony_open_jobs(
+  ColonizeGameState* game, ColonizeColony* colony, const ColonizeWorldMap* cmap, int tile_index
+) {
+  ColonyScreenView* csv = &game->colony_screen;
+  colony_screen_open_jobs(csv, &game->colonies, cmap, colony, tile_index);
+  if (csv->jobs_open && colony && csv->selected_colonist >= 0 &&
+      csv->selected_colonist < colony->colonist_count) {
+    const ColonizeWorld w = game_world(game);
+    ai_euro_jobs_menu_open_w(&w, colony->id, csv->selected_colonist);
+  }
+}
+
 /*
  * The jobs-popup row commit, shared by the mouse row click
  * (COLONY_HIT_JOBS_ROW) and by Enter on the keyboard-selected row (audit
@@ -1145,13 +1143,46 @@ void game_colony_commit_job(ColonizeGameState* game, ColonizeColony* colony, int
   }
   if (game_colony_refuse_nodocks(game, colony, job)) {
     /* status already set */
-  } else if (ci < 0) {
+  } else if (ci < 0 || !colony || ci >= colony->colonist_count) {
     set_status(game, "Select a colonist first", NULL);
-  } else if (game_colony_assign_field(game, ci, csv->jobs_tile_index, job)) {
-    game_colony_assign_job_sound(job);
-    snprintf(game->status, sizeof(game->status), "Working as %s", colony_yield_job_name(job));
+  } else if (job >= COLONIZE_FIELD_JOB_COUNT) {
+    /* port_bugs.md #900: an indoor row is a workplace pick, not a field pick. Route it
+     * through colonies_assign_workplace so the DOS seating validator (thunk_FUN_1000_9808:
+     * faculty cap, @NEEDCOLLEGE / @NEEDUNIVERSITY, @MORETHANTHREE) runs exactly as it does
+     * for a click on the building itself. */
+    const int building = colonies_job_workplace_building(&game->colonies, colony, job);
+    if (colonies_assign_workplace(&game->colonies, game->colony_view_id, ci, building)) {
+      game_colony_assign_job_sound(job);
+      snprintf(game->status, sizeof(game->status), "Working as %s", colonies_profession_name(job));
+    } else {
+      game_colony_workplace_refusal(game, ci, building);
+    }
   } else {
-    set_status(game, "Cannot assign field", NULL);
+    /* FUN_2f2b_348c raw 50860-50863 (port_bugs.md #1204): 054c sets the job; a colonist on a
+     * plot keeps that plot, one working indoors (occupation > 8) is then seated on the plot
+     * FUN_15eb_28c8(colonist, job) elects (FUN_281f_0b6e). When none scores, 28c8 leaves
+     * him on the job with no plot (raw 13142-13144), as it does a plotless field worker. */
+    ColonizeColonist* c = &colony->colonists[ci];
+    int tile = csv->jobs_tile_index;
+    if (tile < 0 && c->field_job < 0) {
+      const ColonizeWorld w = game_world(game);
+      tile = ai_euro_jobs_menu_plot(w.colonies, w.map, w.col1_ok ? w.col1 : NULL, colony, ci, job);
+    }
+    bool ok = tile >= 0 && game_colony_assign_field(game, ci, tile, job);
+    if (tile < 0 && c->active) {
+      if (c->building_type >= 0 || c->field_job != job) {
+        c->turns_in_job = 0; /* FUN_15eb_1068 raw 11256-11258 */
+      }
+      c->building_type = -1;
+      c->field_job = job;
+      ok = true;
+    }
+    if (ok) {
+      game_colony_assign_job_sound(job);
+      snprintf(game->status, sizeof(game->status), "Working as %s", colony_yield_job_name(job));
+    } else {
+      set_status(game, "Cannot assign field", NULL);
+    }
   }
   colony_screen_close_jobs(csv);
   colony_screen_set_status(csv, game->status);
@@ -1184,7 +1215,13 @@ void game_colony_fence_drop(ColonizeGameState* game, ColonizeColony* colony) {
         }
         csv->eject_colonist_index = -1;
         csv->eject_unit_id = u->id;
+        /* FUN_2f2b_348c raw 50810-50812: the body's own role row is the default. */
         csv->eject_selection = 0;
+        for (int ri = 0; ri < csv->eject_role_count; ++ri) {
+          if (csv->eject_roles[ri] == colony_screen_unit_eject_role(&game->units, u)) {
+            csv->eject_selection = ri;
+          }
+        }
         csv->eject_open = true;
       } else {
         set_status(game, "Select a colonist first", NULL);
@@ -1366,8 +1403,15 @@ bool game_colony_drag_drop(
     if (kind == UI_DRAG_COLONY_COLONIST && hit.kind == COLONY_HIT_AREA_TILE &&
         hit.index == csv->drag_from_tile) {
       /* Picked up and put back on its own plot: the plain plot click. */
-      if (csv->drag_from_tile_selected) {
+      if (csv->drag_from_selected) {
         game_colony_area_tile_drop(game, colony, cmap, hit.index);
+      }
+    } else if (kind == UI_DRAG_COLONY_COLONIST && hit.kind == COLONY_HIT_COLONIST &&
+               hit.index == drag->index) {
+      /* FUN_2f2b_44d4 raw 51280-51286: a click on the already-selected worker in a building
+       * opens the jobs menu (348c, param 0); he works no plot (port_bugs.md #1204). */
+      if (csv->drag_from_selected) {
+        game_colony_open_jobs(game, colony, cmap, -1);
       }
     } else if (hit.kind == COLONY_HIT_BUILDING) {
       game_colony_assign_building_drop(game, hit.index);

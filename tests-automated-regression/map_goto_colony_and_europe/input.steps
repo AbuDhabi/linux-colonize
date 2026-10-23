@@ -1,8 +1,8 @@
-# Wagon Train in Guadeloupe is selected (6 moves). Land units have no "Go to Port" row: hotkey G = Go to Place (click mode).
-key g                  # G = Go to Place: next map click is the destination
-key Escape             # Esc cancels the click mode (no order, wagon stays selected)
+# Wagon Train in Guadeloupe is selected (6 moves). Land units have no "Go to Port" row: hotkey G = Go to Place.
+key g                  # G = Go to Place: @TRAVELPLACE list (Quebec, Montreal, Martinique, Port au Prince; Guadeloupe, where it stands, left out)
+key Escape             # Esc cancels the list (no order, wagon stays selected)
 key g                  # Go to Place again
-click 168 128          # destination Quebec: the wagon rides the roads there, order cleared on arrival
+click 96 89            # Quebec: the wagon rides the roads there, order cleared on arrival
 wait 40
 # Caravel A (Quebec dock, 12 moves) is next. G = Go to Port: colony picker (Europe, Quebec greyed, Montreal, Port au Prince; lake colony Guadeloupe is not offered to a ship)
 key g                  # open the picker
@@ -15,8 +15,8 @@ click 96 92            # Europe row ("La Rochelle (France)", first row): go-to t
 wait 60
 # Colonist in Guadeloupe (3 moves) is next (the cycle continues after Caravel A, not from the start)
 click 88 3             # ORDERS menu
-click 97 86            # "Go to Place" (no Go to Port row for land units)
-click 184 112          # destination Quebec: too far this turn, he walks 3 road tiles and keeps the go-to order
+click 97 86            # "Go to Place" (no Go to Port row for land units): the same list
+click 96 89            # Quebec: too far this turn, he walks 3 road tiles and keeps the go-to order
 wait 60
 # The cycle goes on to a far-away ship, then a Colonist with a pending go-to (he finishes it into Guadeloupe), then Caravel B (51,27, high seas)
 key w                  # skip the far-away ship
