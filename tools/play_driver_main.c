@@ -673,9 +673,17 @@ static bool command(char* line) {
     if (c) {
       const ColonyScreenHitResult h = colony_screen_hit_test(
         &g_game->colony_screen, &g_game->colonies, c, &g_game->units, a1, a2);
-      printf("HIT kind %d index %d %s\n", (int)h.kind, h.index,
+      const ColonyScreenView* csv = &g_game->colony_screen;
+      const int outside_id = h.kind == COLONY_HIT_OUTSIDE_UNIT && h.index >= 0 &&
+                                 h.index < csv->outside_unit_count
+                               ? csv->outside_unit_ids[h.index] : -1;
+      printf("HIT kind %d index %d %s", (int)h.kind, h.index,
              h.kind == COLONY_HIT_BUILDING && h.index >= 0 && h.index < g_game->colonies.building_type_count
                ? g_game->colonies.building_types[h.index].name : "");
+      if (outside_id >= 0) {
+        printf("unit %d", outside_id);
+      }
+      printf("\n");
     }
   } else if (strcmp(op, "move") == 0 && argc > 2) {
     ev(E_MOVE, a1, a2, 0, 0, 0, 0);
