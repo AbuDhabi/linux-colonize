@@ -3200,6 +3200,12 @@ static int sp_26(void) {
     if (pop.queue_count < 1 || pop.queue[0].kind != AI_POPUP_KIND_OK) {
       return fail("WELCOME Yes should enqueue PEACE OK");
     }
+    /* port_bugs.md #1230: FUN_5bfb_0182 gates @INDIANCOME on the swapped
+     * FUN_281f_030c(euro - 4, nation) word, here dwelling slot 71 (unused,
+     * 0), so it shows even though alarm 25 put the relation at 75. */
+    if (pop.queue_count != 2 || pop.queue[1].kind != AI_POPUP_KIND_OK) {
+      return fail("WELCOME Yes should enqueue @INDIANCOME after @INDIANPEACE");
+    }
   return 0;
 }
 
@@ -4970,8 +4976,11 @@ static int sp_40(void) {
 static int sp_41(void) {
 
   /*
-   * Series U: Attack Village open hostilities (the invented Attack/Leave raid
-   * warn was deleted, port_bugs.md #542). Cite: indian_settlement_4528.md.
+   * Series U: Attack Village (the invented Attack/Leave raid warn was deleted,
+   * port_bugs.md #542). DOS FUN_4d56_4528 case 9 only ORs the attack-confirmed
+   * bit 0x04 both ways (FUN_1000_8bf6 = FUN_15b3_0066); the 465b move does the
+   * fighting and its own alarm slam. No peace clear, no +100, no tribe
+   * friction floor (port_bugs.md #1233). Cite: indian_settlement_4528.md.
    */
   {
     AiPopupState pop;
@@ -4983,45 +4992,31 @@ static int sp_41(void) {
     ctx.human_nation = 0;
     ctx.ai_popups = &pop;
     col1.player[0].control = 0;
-    ind->euro_diplo[0] = (uint8_t)(COL1_INDIAN_MET_BIT | 0x40u);
-    col1.indian[0].alarm_by_player[0] = 40; /* relation 60 */
-    col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
+    ind->euro_diplo[0] = (uint8_t)(COL1_INDIAN_MET_BIT | COL1_INDIAN_PEACE_BIT);
+    col1.nation[0].relation_by_indian[0] = (uint8_t)(COL1_INDIAN_MET_BIT | COL1_INDIAN_PEACE_BIT);
     ind->alarm_by_player[0] = 10;
     col1.tribe[0].alarm[0].friction = 10;
-    ai_contact_village_open_hostilities(&ctx, 4, 0);
-    if (ai_contact_indian_has_peace(&col1, 4, 0)) {
-      return fail("Attack hostilities should clear peace");
+    ai_contact_village_attack_choice(&ctx, 4, 0);
+    if ((ind->euro_diplo[0] & COL1_INDIAN_ATTACK_CONFIRMED_BIT) == 0 ||
+        (col1.nation[0].relation_by_indian[0] & COL1_INDIAN_ATTACK_CONFIRMED_BIT) == 0) {
+      return fail("Attack choice should OR the 0x04 bit into both diplo rows");
     }
-    if (!ai_diplo_indian_at_war(&col1, 0, 0)) {
-      return fail("Attack hostilities should put Indian at war");
+    if (!ai_contact_indian_has_peace(&col1, 4, 0)) {
+      return fail("Attack choice must not clear peace (4528 case 9 has no 0a10)");
     }
-    if (ind->alarm_by_player[0] < 80u) {
-      return fail("Attack hostilities should raise alarm to burn band");
+    if (ind->alarm_by_player[0] != 10u) {
+      fprintf(
+        stderr, "unit_ai_contact: attack choice alarm %u (want 10)\n",
+        (unsigned)ind->alarm_by_player[0]
+      );
+      return fail("Attack choice must not move alarm (the 465b slam does)");
     }
-    /*
-     * Smell #50: a raw `alarm_by_player = max(alarm, 80)` floor used to sit
-     * after the +100 delta and stomped FUN_4cc6_00f2's own halving (raw
-     * 80844-80850: France halves, Pocahontas halves again). France starting
-     * at 10 must land on 60, not 80 — the sibling this floor claimed to copy
-     * (ai_contact_apply_welcome_reject) floors tribe FRICTION, not this word.
-     */
-    {
-      col1.indian[0].euro_diplo[1] = (uint8_t)(COL1_INDIAN_MET_BIT | COL1_INDIAN_PEACE_BIT);
-      col1.indian[0].alarm_by_player[1] = 10;
-      ai_contact_village_open_hostilities(&ctx, 4, 1);
-      if (col1.indian[0].alarm_by_player[1] != 60u) {
-        fprintf(
-          stderr,
-          "unit_ai_contact: France hostilities alarm %u (want 60)\n",
-          (unsigned)col1.indian[0].alarm_by_player[1]
-        );
-        return fail("open hostilities must keep the French +100 halving");
-      }
-      /* Tribe-friction floor of 80: untraced, its welcome-reject sibling is gone (port_bugs.md #1228). */
-      if (col1.tribe[0].alarm[1].friction < 80u) {
-        return fail("open hostilities should still floor tribe friction at 80");
-      }
+    if (col1.tribe[0].alarm[0].friction != 10u) {
+      return fail("Attack choice must not floor tribe friction (port_bugs.md #1233)");
     }
+    ind->euro_diplo[0] = (uint8_t)(ind->euro_diplo[0] & ~COL1_INDIAN_ATTACK_CONFIRMED_BIT);
+    col1.nation[0].relation_by_indian[0] =
+      (uint8_t)(col1.nation[0].relation_by_indian[0] & ~COL1_INDIAN_ATTACK_CONFIRMED_BIT);
     fprintf(stderr, "unit_ai_contact: village 4528 raid warn ok\n");
     ctx.ai_popups = NULL;
     ctx.status = NULL;
@@ -7330,7 +7325,7 @@ static int case_meet_teach_payload_gate(void) { return fx_run(37); }
 static int case_meet_converts(void) { return fx_run(38); }
 static int case_village_enter_meet_choice(void) { return fx_run(39); }
 static int case_capital_destroy_surrender(void) { return fx_run(40); }
-static int case_attack_village_hostilities(void) { return fx_run(41); }
+static int case_attack_village_choice(void) { return fx_run(41); }
 static int case_ship_village_wary_band(void) { return fx_run(42); }
 static int case_woi_tribe_defection(void) { return fx_run(43); }
 static int case_village_beg_food(void) { return fx_run(44); }
@@ -7350,7 +7345,57 @@ static int case_actions_menu_soldier_tribute(void) { return fx_run(57); }
 static int case_actions_menu_missionary(void) { return fx_run(58); }
 static int case_actions_menu_wagon(void) { return fx_run(59); }
 
+/*
+ * port_bugs.md #1230: FUN_5bfb_0182 shows @INDIANCOME when
+ * FUN_281f_030c(euro - 4, nation) < 0x19 (signed). For France (1) meeting the
+ * Tupi (11) that word is DS:0x5b1c + (-3 * 0x27 + 11) * 2 = DS:0x5a48, dwelling
+ * slot 76 bytes +4/+5 (population | mission << 8). No mission (0xff) reads
+ * negative and the line shows; a French mission makes it 0x1xx and it does not.
+ * For the Dutch (3) the word is in the Inca record: Tupi reads +14 (tons[0]).
+ */
+static int case_welcome_accept_come_word(void) {
+  static ColonizeCol1Save s;
+  memset(&s, 0, sizeof(s));
+  ColonizeCol1Tribe* tribes = calloc(80, sizeof(ColonizeCol1Tribe));
+  if (!tribes) {
+    return fail("come word: alloc");
+  }
+  s.tribe = tribes;
+  s.head.tribe_count = 80;
+  AiPopupState p;
+  ai_popup_init(&p);
+  ColonizeTurnContext c;
+  memset(&c, 0, sizeof(c));
+  c.col1 = &s;
+  c.col1_ok = true;
+  c.ai_popups = &p;
+  c.human_nation = 1;
+  int rc = 0;
+  tribes[76].population = 3;
+  tribes[76].mission = 0xff;
+  ai_contact_apply_welcome_accept(&c, &s.indian[7], 11, 1);
+  if (p.queue_count != 2) {
+    rc = fail("come word: unmissioned slot 76 should show PEACE + COME");
+  }
+  ai_popup_clear(&p);
+  tribes[76].mission = 1;
+  ai_contact_apply_welcome_accept(&c, &s.indian[7], 11, 1);
+  if (rc == 0 && p.queue_count != 1) {
+    rc = fail("come word: a French mission in slot 76 should suppress COME");
+  }
+  ai_popup_clear(&p);
+  c.human_nation = 3;
+  s.indian[0].tons[0] = 0x19;
+  ai_contact_apply_welcome_accept(&c, &s.indian[7], 11, 3);
+  if (rc == 0 && p.queue_count != 1) {
+    rc = fail("come word: Dutch read Inca tons[0] = 0x19, no COME");
+  }
+  free(tribes);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
+  {"welcome_accept_come_word", case_welcome_accept_come_word},
   {"meet_first_contact", case_meet_first_contact},
   {"raid_colony_loot", case_raid_colony_loot},
   {"raid_alarm_tail_war_gate", case_raid_alarm_tail_war_gate},
@@ -7386,7 +7431,7 @@ static const TestCase k_cases[] = {
   {"meet_converts", case_meet_converts},
   {"village_enter_meet_choice", case_village_enter_meet_choice},
   {"capital_destroy_surrender", case_capital_destroy_surrender},
-  {"attack_village_hostilities", case_attack_village_hostilities},
+  {"attack_village_choice", case_attack_village_choice},
   {"ship_village_wary_band", case_ship_village_wary_band},
   {"woi_tribe_defection", case_woi_tribe_defection},
   {"village_beg_food", case_village_beg_food},

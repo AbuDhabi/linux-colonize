@@ -97,7 +97,7 @@ DOS behaviour literally. C-61 and C-62 are decided (DB-41, DB-42).
 
 ### C-66. @INDIANCOME follow-up gate calls the alarm reader with swapped arguments
 - DOS: FUN_5bfb_0182 raw 96551 (asm 5bfb:01e0-01f5): `030c(euro - 4, indian)` reads before the Indian records. Confidence: high.
-- Port: `ai_contact.c:478/525` (`rel_before < 25u` on 100-alarm), opposite polarity to DOS's intended test.
+- Port: reproduces it since 2026-10-24 (port_bugs.md #1230): `ai_contact_apply_welcome_accept` reads the same word through `ai_euro_5952_alarm_word(col1, e - 4, nation)` (dwelling slots 71..80 for euro 0..2, the Inca record for euro 3). The intended (slot, euro) read is the alarm 022e just clamped to 20, so the fix would show @INDIANCOME every time.
 
 ### C-67. Missionary revisit gate passes a tribe index as a nation id, and the human
 - DOS: FUN_521d_20e6 raw 90057-90063 (overlays asm 138096-138101): `8c28([0x5398], [0x8d52])`, missing `+ 4`. Confidence: medium.

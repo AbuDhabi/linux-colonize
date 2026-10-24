@@ -975,17 +975,14 @@ static int case_revolution_retiring2_1850_stalemate(void) {
     ectx.ai_popups = &pop;
 
     ai_king_nation_turn(&ectx);
-    if (ai_king_latch_get(&end, 4) != 2) {
-      fprintf(stderr, "unit_ai_king: retiring2 endgame=%d status='%s'\n",
-              ai_king_latch_get(&end, 4), estatus);
+    /* FUN_3844_0442 raw 58629-58649: the 1850 arm shows @RETIRING2 and runs the retire chain,
+     * nothing more. No loss latch and no war state change (port_bugs.md #1232). */
+    if (ai_king_latch_get(&end, 4) != 0 || ai_king_latch_get(&end, 1) != 1) {
+      fprintf(stderr, "unit_ai_king: retiring2 endgame=%d ref=%d status='%s'\n",
+              ai_king_latch_get(&end, 4), ai_king_latch_get(&end, 1), estatus);
       assets_msg_free(&game_txt);
       fx_map_free(&emap);
-      return fail("1850 + crown alive should latch revolution lost via @RETIRING2");
-    }
-    if (ai_king_latch_get(&end, 1) != 0) {
-      assets_msg_free(&game_txt);
-      fx_map_free(&emap);
-      return fail("@RETIRING2 should clear REF-present");
+      return fail("1850 @RETIRING2 must leave the war state alone");
     }
     if (!strstr(estatus, "sues for peace") && !strstr(estatus, "War-weary")) {
       fprintf(stderr, "unit_ai_king: retiring2 status: '%s'\n", estatus);
@@ -1001,7 +998,7 @@ static int case_revolution_retiring2_1850_stalemate(void) {
              strstr(pop.queue[i].body, "War-weary")) &&
             strstr(pop.queue[i].body, "Washington") &&
             strstr(pop.queue[i].body, "Jamestown")) {
-          found = 1;
+          found = i + 1;
           break;
         }
       }
@@ -1010,6 +1007,35 @@ static int case_revolution_retiring2_1850_stalemate(void) {
         fx_map_free(&emap);
         return fail("1850 stalemate should enqueue @RETIRING2 INFO OK");
       }
+      if (pop.queue[found - 1].tag != AI_POPUP_TAG_KING_WAR_END ||
+          pop.queue[found - 1].payload != 2) {
+        assets_msg_free(&game_txt);
+        fx_map_free(&emap);
+        return fail("@RETIRING2 is KING_WAR_END payload 2 (chain, then @SCORED)");
+      }
+    }
+    /* "Keep playing anyway." sets 0x5382 |= 0x10 (calendar_latch): the calendar block is off
+     * (raw 58617), the war checks are not (raw 58472) — losing every colony still loses. */
+    end.head.game_options.calendar_latch = 1;
+    ai_popup_init(&pop);
+    estatus[0] = '\0';
+    ai_king_nation_turn(&ectx);
+    if (pop.queue_count != 0 || ai_king_latch_get(&end, 4) != 0) {
+      fprintf(stderr, "unit_ai_king: kept playing: queue=%d endgame=%d status='%s'\n",
+              pop.queue_count, ai_king_latch_get(&end, 4), estatus);
+      assets_msg_free(&game_txt);
+      fx_map_free(&emap);
+      return fail("after Keep playing the 1850 arm must stay quiet");
+    }
+    cp.colonies[0].active = false;
+    cp.colony_count = 0;
+    ai_king_nation_turn(&ectx);
+    if (ai_king_latch_get(&end, 4) != 2) {
+      fprintf(stderr, "unit_ai_king: kept playing, no colonies: endgame=%d status='%s'\n",
+              ai_king_latch_get(&end, 4), estatus);
+      assets_msg_free(&game_txt);
+      fx_map_free(&emap);
+      return fail("after Keep playing the war still resolves (no frozen latch)");
     }
     assets_msg_free(&game_txt);
     fx_map_free(&emap);
@@ -1017,7 +1043,7 @@ static int case_revolution_retiring2_1850_stalemate(void) {
   return 0;
 }
 
-static int case_peacetime_scored_retiring_1800(void) {
+static int case_peacetime_retiring_1800(void) {
     ColonizeCol1Save end;
     col1_save_init(&end);
     ai_king_latch_set(&end, 0, 0);
@@ -1075,72 +1101,50 @@ static int case_peacetime_scored_retiring_1800(void) {
     ectx.ai_popups = &pop;
 
     ai_king_nation_turn(&ectx);
-    if (ai_king_latch_get(&end, 4) != 3) {
-      fprintf(stderr, "unit_ai_king: scored endgame=%d status='%s'\n",
+    /* No endgame latch: after "Keep playing anyway." a later declaration fights a live war. */
+    if (ai_king_latch_get(&end, 4) != 0) {
+      fprintf(stderr, "unit_ai_king: 1800 endgame=%d status='%s'\n",
               ai_king_latch_get(&end, 4), estatus);
       assets_msg_free(&game_txt);
-      return fail("year≥1800 peacetime should latch PEACE_1800");
+      return fail("the 1800 end must not latch an endgame");
     }
-    if (!strstr(estatus, "Scoring for this game")) {
-      fprintf(stderr, "unit_ai_king: scored status: '%s'\n", estatus);
+    /* FUN_3844_0442 raw 58629-58649: @RETIRING first, no @SCORED before the score chain
+     * (port_bugs.md #1231); its dismissal (KING_WAR_END payload 2) runs the chain. */
+    if (!strstr(estatus, "steps down") || !strstr(estatus, "loyal service") ||
+        !strstr(estatus, "Washington") || !strstr(estatus, "Jamestown")) {
+      fprintf(stderr, "unit_ai_king: 1800 status: '%s'\n", estatus);
       assets_msg_free(&game_txt);
-      return fail("1800 end should set @SCORED status");
+      return fail("1800 end should set @RETIRING status");
     }
     {
       int found = 0;
       for (int i = 0; i < pop.queue_count; ++i) {
-        if (pop.queue[i].kind != AI_POPUP_KIND_CHOICE ||
-            pop.queue[i].tag != AI_POPUP_TAG_KING_SCORED) {
-          continue;
+        if (pop.queue[i].kind == AI_POPUP_KIND_CHOICE) {
+          assets_msg_free(&game_txt);
+          return fail("1800 end must not ask @SCORED before the score chain");
         }
-        if (!strstr(pop.queue[i].body, "Scoring for this game")) {
-          continue;
-        }
-        if (pop.queue[i].choice_count < 2) {
-          continue;
-        }
-        if (!strstr(pop.queue[i].choices[0], "That's all") ||
-            !strstr(pop.queue[i].choices[1], "Keep playing")) {
-          continue;
-        }
-        found = 1;
-        break;
-      }
-      if (!found) {
-        assets_msg_free(&game_txt);
-        return fail("1800 end should enqueue @SCORED CHOICE");
-      }
-    }
-    const int q_before_apply = pop.queue_count;
-    pop.has_result = true;
-    pop.result_cancelled = false;
-    pop.result_tag = AI_POPUP_TAG_KING_SCORED;
-    pop.result_choice_id = 0; /* That's all */
-    pop.result_nation_a = 0;
-    ai_king_apply_popup_result(&ectx, &pop);
-    if (!strstr(estatus, "steps down") || !strstr(estatus, "loyal service") ||
-        !strstr(estatus, "Washington") || !strstr(estatus, "Jamestown")) {
-      fprintf(stderr, "unit_ai_king: scored apply status: '%s'\n", estatus);
-      assets_msg_free(&game_txt);
-      return fail("@SCORED That's all should set @RETIRING status");
-    }
-    {
-      int found = 0;
-      for (int i = q_before_apply; i < pop.queue_count; ++i) {
         if (pop.queue[i].kind == AI_POPUP_KIND_OK &&
-            strstr(pop.queue[i].body, "steps down") &&
-            strstr(pop.queue[i].body, "Washington")) {
+            pop.queue[i].tag == AI_POPUP_TAG_KING_WAR_END && pop.queue[i].payload == 2 &&
+            strstr(pop.queue[i].body, "steps down") && strstr(pop.queue[i].body, "Washington")) {
           found = 1;
-          break;
         }
       }
       if (!found) {
         assets_msg_free(&game_txt);
-        return fail("@SCORED That's all should enqueue @RETIRING INFO OK");
+        return fail("1800 end should enqueue @RETIRING as KING_WAR_END payload 2");
       }
+    }
+    /* raw 58617: the calendar block is off once 0x5382 & 0x10 is set (scoring complete). */
+    end.head.game_options.calendar_latch = 1;
+    ai_popup_init(&pop);
+    estatus[0] = '\0';
+    ai_king_nation_turn(&ectx);
+    if (pop.queue_count != 0 || strstr(estatus, "steps down")) {
+      assets_msg_free(&game_txt);
+      return fail("1800 @RETIRING must not repeat once scoring is complete");
     }
     assets_msg_free(&game_txt);
-    fprintf(stderr, "unit_ai_king: peacetime @SCORED/@RETIRING (1800) ok\n");
+    fprintf(stderr, "unit_ai_king: peacetime @RETIRING (1800) ok\n");
   return 0;
 }
 
@@ -1378,7 +1382,7 @@ static const TestCase k_cases[] = {
     {"case_revolution_lose3_pop_share", case_revolution_lose3_pop_share},
     {"case_revolution_win_1850", case_revolution_win_1850},
     {"case_revolution_retiring2_1850_stalemate", case_revolution_retiring2_1850_stalemate},
-    {"case_peacetime_scored_retiring_1800", case_peacetime_scored_retiring_1800},
+    {"case_peacetime_retiring_1800", case_peacetime_retiring_1800},
     {"case_peacetime_soonretiring0_1790", case_peacetime_soonretiring0_1790},
     {"case_wartime_soonretiring1_1840", case_wartime_soonretiring1_1840},
 };

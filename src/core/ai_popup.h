@@ -89,7 +89,8 @@ typedef enum AiPopupTag {
    * DOS FUN_5fef_0352 captures the train alive and credits no gold). */
   AI_POPUP_TAG_COMBAT_COLONY = 35, /* @CAPTURED* / @BURNED* */
   AI_POPUP_TAG_COMBAT_SEIZURE = 36, /* privateer @SEIZURE* */
-  AI_POPUP_TAG_KING_SCORED = 37, /* peacetime 1800 @SCORED That's all / Keep playing */
+  /* 37 retired (port_bugs.md #1231: the 1800 end asked @SCORED before @RETIRING; DOS asks it
+   * after the score chain, AI_POPUP_TAG_WAR_SCORED). */
   AI_POPUP_TAG_CONTACT_INCITE = 38, /* FUN_4d56_417e Incite Indians: pick target nation, pay */
   AI_POPUP_TAG_CONTACT_BEGFOOD = 39, /* FUN_5bfb_022e already-met adjacency: @INDIANBEGFOOD Give/Refuse */
   AI_POPUP_TAG_CONTACT_TRADE_OFFER = 40, /* FUN_4d56_2820 LAB_002e92 human buy-offer: Accept/Decline a locked price */
@@ -111,7 +112,8 @@ typedef enum AiPopupTag {
   AI_POPUP_TAG_KING_WAR_END = 54, /* @WINNING / @LOSING1-3 / @RETIRING2 revolution-over OK.
                                    * payload 1 = win announcement (throne audience follows),
                                    * payload 4 = loss announcement (throne audience follows),
-                                   * payload 2 = loss, dismissal opens the retire score directly. */
+                                   * payload 2 = @RETIRING (1800) / @RETIRING2 (1850): retire score,
+                                   *   then @SCORED. */
   AI_POPUP_TAG_KING_THRONE = 55, /* full-screen royal audience (DOS FUN_75c2_20e2):
                                   * payload 1 = @KINGLOSE on KINGLOSE.SS (war won),
                                   * payload 2 = @KINGWIN on KINGWIN.SS (war lost);
@@ -124,7 +126,7 @@ typedef enum AiPopupTag {
                                      * caseD_a: FUN_281f_0652(name, 5), @default=2 → "Never!").
                                      * 1 = abandon, 2 / Esc = keep.
                                      * nation_a = colonist slot, nation_b = eject role. */
-  AI_POPUP_TAG_WAR_SCORED = 56, /* post-HoF @SCORED CHOICE after a WoI win:
+  AI_POPUP_TAG_WAR_SCORED = 56, /* post-HoF @SCORED CHOICE after a WoI win or the 1800 end:
                                  * 1 = "That's all." (title menu), 2 = "Keep playing anyway." */
   AI_POPUP_TAG_COMBAT_HALF = 60, /* @HALF (FUN_5fef_1b0e, viceroy_unpacked.c ~100365): the
                                  * attacker has less than one whole movement point left, so it

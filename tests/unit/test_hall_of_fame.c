@@ -8,6 +8,8 @@
 #define mkdir(path, mode) _mkdir(path)
 #endif
 
+#include "core/ai_king.h"
+#include "core/col1_save.h"
 #include "core/game_loop.h"
 #include "core/game_loop_internal.h"
 
@@ -29,6 +31,7 @@
 static const char* k_data_dir = "./test-assets-hof";
 static const char* k_save_dir = "./test-saves-hof";
 static char k_hof_path[512];
+static const char* k_fixture_sav = "tests-automated-regression/map_pioneer_native_forest_offer/input.sav";
 
 /* Move DOWN to the Hall of Fame row (@BEGINMENU row 4) and activate it. */
 static bool open_hall_of_fame(ColonizeGameState* game) {
@@ -312,9 +315,30 @@ static bool at_menu(const ColonizeGameState* game) {
     !ai_popup_busy(&game->ai_popups);
 }
 
+/* The calendar end (KING_WAR_END payload 2: @RETIRING / @RETIRING2): an Up leaves the box up,
+ * a letter key closes it, then the score plate and the Hall of Fame (score 0 = no exploits
+ * tier) by keys. True when @SCORED is up. */
+static bool calendar_end_to_scored(ColonizeGameState* game) {
+  game->in_menu = false;
+  ai_popup_enqueue_ok_ctx(&game->ai_popups, AI_POPUP_TAG_KING_WAR_END, 0, -1, 2, NULL, "");
+  if (!test_assets_step(game, COLONIZE_KEY_NONE) || !test_assets_step(game, COLONIZE_KEY_UP) ||
+      !game->ai_popups.open || game->in_report) {
+    return false;
+  }
+  if (!test_assets_step(game, COLONIZE_KEY_A) || game->ai_popups.open || !game->in_report ||
+      !test_assets_step(game, COLONIZE_KEY_A) || !game->in_hall_of_fame ||
+      !test_assets_step(game, COLONIZE_KEY_A) || game->in_hall_of_fame) {
+    return false;
+  }
+  test_assets_step(game, COLONIZE_KEY_NONE);
+  return game->ai_popups.open && game->ai_popups.current.tag == AI_POPUP_TAG_WAR_SCORED &&
+    !game->in_menu;
+}
+
 /* 6. Every retire-chain screen ends in DOS FUN_281f_03c0 (FUN_41f2_0092 score, 0b70
  * exploits, 0f56 Hall of Fame): any key or either mouse button goes on, one screen per
- * press. The port's Hall of Fame took Esc/Enter only. */
+ * press. The port's Hall of Fame took Esc/Enter only, its score plate Esc/Enter plus the
+ * F-key report switch. Also the 1800 end's order and keys (port_bugs.md #1231). */
 static int case_click_dismisses_ending_screens(void) {
   if (setup() != 0) return 1;
   remove(k_hof_path);
@@ -366,8 +390,117 @@ static int case_click_dismisses_ending_screens(void) {
     fprintf(stderr, "exploits -> Hall of Fame -> menu by clicks failed\n");
     goto out;
   }
+  /* The score plate's wait takes any key too, and the main loop drops it (raw 55683-55690):
+   * an F-key does not switch reports and Q does not ask to quit. */
+  game->in_menu = false;
+  game_open_retire_score(game);
+  if (!test_assets_step(game, COLONIZE_KEY_F2) || game->in_report || !game->in_hall_of_fame) {
+    fprintf(stderr, "F2 on the retire score did not go on to the Hall of Fame\n");
+    goto out;
+  }
+  if (!test_assets_step(game, COLONIZE_KEY_Q) || !at_menu(game)) {
+    fprintf(stderr, "Q on the retire Hall of Fame did not return to the menu\n");
+    goto out;
+  }
+  game->in_menu = false;
+  game_open_report(game, COLONIZE_REPORT_SCORE);
+  if (!test_assets_step(game, COLONIZE_KEY_Q) || game->in_report || game->in_hall_of_fame ||
+      ai_popup_busy(&game->ai_popups)) {
+    fprintf(stderr, "Q on the F10 score plate did not just close it\n");
+    goto out;
+  }
+  /* 1800 end (FUN_3844_0442 raw 58629-58676, port_bugs.md #1231): @RETIRING -> score ->
+   * Hall of Fame -> @SCORED. The @RETIRING box (FUN_6f74_2580, no option rows) closes on
+   * any key but Up/Down; Esc on @SCORED ends at the title menu like "That's all.". */
+  if (!calendar_end_to_scored(game)) {
+    fprintf(stderr, "the 1800 @RETIRING -> score -> Hall of Fame -> @SCORED chain failed\n");
+    goto out;
+  }
+  if (!test_assets_step(game, COLONIZE_KEY_ESCAPE) || !at_menu(game)) {
+    fprintf(stderr, "Esc on @SCORED did not end at the title menu\n");
+    goto out;
+  }
   rc = 0;
 out:
+  game_destroy(game);
+  remove(k_hof_path);
+  return rc;
+}
+
+/* 7. port_bugs.md #1232: @SCORED "Keep playing anyway." (choice 2) after the calendar end
+ * (@RETIRING2 at 1850 asks it like @RETIRING at 1800, FUN_3844_0442 LAB_3844_0b4a) resumes
+ * the map with 0x5382 & 0x10 (calendar_latch) set and no endgame latch. That survives a save
+ * and reload without re-running the chain, and a later loss ends the game with no second chain
+ * (LAB_3844_04ec skips FUN_281f_0574 once the bit is set). */
+static int case_keep_playing_survives_reload(void) {
+  if (setup() != 0) return 1;
+  remove(k_hof_path);
+  ColonizeGameConfig cfg = {.data_dir = k_data_dir, .save_dir = k_save_dir};
+  ColonizeGameState* game = game_create(&cfg);
+  if (!game) {
+    fprintf(stderr, "game_create failed (keep playing)\n");
+    return 1;
+  }
+  int rc = 1;
+  uint8_t* data = NULL;
+  ColonizeCol1Save file;
+  ColonizeCol1Save loaded;
+  col1_save_init(&file);
+  col1_save_init(&loaded);
+  game->col1_ok = true;
+  game->col1.head.game_options.woi = 1;
+  game->col1.head.year = 1850;
+  if (!calendar_end_to_scored(game)) {
+    fprintf(stderr, "the 1850 @RETIRING2 chain did not end in @SCORED\n");
+    goto out;
+  }
+  if (!test_assets_step(game, COLONIZE_KEY_DOWN) || !test_assets_step(game, COLONIZE_KEY_ENTER) ||
+      game->in_menu || ai_popup_busy(&game->ai_popups) ||
+      !game->col1.head.game_options.calendar_latch ||
+      ai_king_latch_get(&game->col1, AI_KING_ENDGAME_BYTE) != AI_KING_ENDGAME_NONE) {
+    fprintf(stderr, "Keep playing did not resume with scoring complete and no endgame latch\n");
+    goto out;
+  }
+  /* Save and reload: the end state (0x5382 and the endgame latch) goes through a real save
+   * file's codec; a new session starts with clear port flags. */
+  size_t size = 0;
+  char err[128] = "";
+  if (!col1_save_read_file(k_fixture_sav, &file, err, sizeof(err))) {
+    fprintf(stderr, "fixture %s: %s\n", k_fixture_sav, err);
+    goto out;
+  }
+  file.head.game_options = game->col1.head.game_options;
+  ai_king_latch_set(&file, AI_KING_ENDGAME_BYTE, ai_king_latch_get(&game->col1, AI_KING_ENDGAME_BYTE));
+  if (!col1_save_write_memory(&file, &data, &size, err, sizeof(err)) ||
+      !col1_save_read_memory(data, size, &loaded, err, sizeof(err))) {
+    fprintf(stderr, "col1 round trip failed: %s\n", err);
+    goto out;
+  }
+  game->col1.head.game_options = loaded.head.game_options;
+  ai_king_latch_set(&game->col1, AI_KING_ENDGAME_BYTE, ai_king_latch_get(&loaded, AI_KING_ENDGAME_BYTE));
+  if (!game->col1.head.game_options.calendar_latch) {
+    fprintf(stderr, "calendar_latch did not survive the save\n");
+    goto out;
+  }
+  game->war_end_retired = false;
+  game->scored_after_hof = false;
+  for (int i = 0; i < 3; ++i) {
+    if (!test_assets_step(game, COLONIZE_KEY_NONE) || game->in_report || game->in_hall_of_fame ||
+        game->in_menu || ai_popup_busy(&game->ai_popups)) {
+      fprintf(stderr, "the reloaded game re-ran the end chain (frame %d)\n", i);
+      goto out;
+    }
+  }
+  ai_king_latch_set(&game->col1, AI_KING_ENDGAME_BYTE, AI_KING_ENDGAME_LOST);
+  if (!test_assets_step(game, COLONIZE_KEY_NONE) || !at_menu(game)) {
+    fprintf(stderr, "a loss after Keep playing did not end at the title menu without a chain\n");
+    goto out;
+  }
+  rc = 0;
+out:
+  free(data);
+  col1_save_free(&file);
+  col1_save_free(&loaded);
   game_destroy(game);
   remove(k_hof_path);
   return rc;
@@ -380,6 +513,7 @@ static const TestCase k_cases[] = {
     {"overflow_cap", case_overflow_cap},
     {"empty_leader_round_trip", case_empty_leader_round_trip},
     {"click_dismisses_ending_screens", case_click_dismisses_ending_screens},
+    {"keep_playing_survives_reload", case_keep_playing_survives_reload},
 };
 
 TEST_MAIN(k_cases)

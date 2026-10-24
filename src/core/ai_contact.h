@@ -331,10 +331,10 @@ int ai_contact_ai_incite_human(
 );
 
 /*
- * Open hostilities for a village Attack choice (peace clear + at-war relation
- * floor + alarm/friction burn band). Cite: welcome-reject / FUN_4cc6_00f2 thin.
+ * Village menu Attack choice (FUN_4d56_4528 case 9): OR the attack-confirmed
+ * bit 0x04 both ways; the attack itself is the FUN_465b_0000 move.
  */
-void ai_contact_village_open_hostilities(
+void ai_contact_village_attack_choice(
   ColonizeTurnContext* ctx,
   int indian_nation,
   int euro_nation

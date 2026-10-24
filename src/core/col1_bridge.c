@@ -3886,7 +3886,7 @@ COLONIZE_INTERNAL Col1StageStatus col1_bridge_capture_ext_chunks(Col1CaptureCtx*
   /*
    * Port-only sidebar knowledge (village trade/skill rows) into the extension
    * block past the last DOS section. DOS never sees it; re-saving in DOS
-   * simply drops it, which is why the Load dialog flags such slots with "*".
+   * simply drops it, which is why the Load dialog flags such slots with "+".
    */
   {
     size_t intel_size = 0;

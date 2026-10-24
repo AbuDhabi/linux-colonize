@@ -47,7 +47,7 @@ Hall of Fame / Exploits). Shared chrome, fill bars and F2-F9 stay in
     `100 >> prior_nations` percent, where prior_nations = other Euro powers
     with `nation_flags & 0x04`. Total = sum × `(8 + (8 >> prior)) / 8`
     (×2 / ×1.5 / ×1.25 / ×1.125 / ×1) — `reports_score_apply_recognition`.
-  - SCORING COMPLETE: with `0x5382|0x10` (`calendar_latch`, set after the
+  - SCORING COMPLETE: with `0x5382|0x10` (`calendar_latch`, set only after the
     retire chain) the screen shows only `@MISC` #126 centered at y=0x61 and
     composes nothing.
   - `reports_score_rating` (`FUN_41f2_0b70`): Colonization Rating =
@@ -72,15 +72,19 @@ Hall of Fame / Exploits). Shared chrome, fill bars and F2-F9 stay in
 - Scroll/paging: none.
 - Click targets: none — and no OK button at all (unlike every other
   report); dismisses on a click anywhere (either button: the `FUN_281f_03c0`
-  wait, `colonize_input_any_key_or_click`), like Congress page 2. DOS's wait
-  also takes any key; the port keeps Esc/Enter plus the F-key report switch.
+  wait, `colonize_input_any_key_or_click`), like Congress page 2. Any key
+  closes it too, F-keys and Q included: the main loop drops the key (raw
+  55683-55690), so there is no report switch or quit confirm from the plate
+  (port_bugs.md #1231).
 - Strings: title/subtitle/Total Score use ink index 149, everything else
   index 68 (WOODPANL.PIK-specific, not the usual report-plate 14/15/97).
   "Gold"/"Citizens"/"Continental Congress"/"Rebel Sentiment"/"Total Score"
   resolve live from `@MISC` #59/#115/#134/#69+#71/#121 (2026-08-28).
 - Retire chain (`FUN_41f2_14a8`, `game_retire_after_score`; with
   `cheats_enabled` set F10 / REPORTS Score enter it directly, no confirm,
-  `game_open_score_report`, port_bugs.md #1169): `@RETIRE`
+  `game_open_score_report`, port_bugs.md #1169; the calendar end's
+  `@RETIRING` / `@RETIRING2` enters it directly too and ends in `@SCORED`, port_bugs.md
+  #1231/#1232; a loss once scoring is complete skips it, `game_end_after_loss`): `@RETIRE`
   confirm → this report → **exploits screen** (`FUN_41f2_0b70`,
   `reports_render_exploits`: WOODPAN2.PIK, GAME.TXT `@EXPLOITS` with
   `%NUMBER0` = rating / `%STRING0` = nation name at y=5, the first tier+1

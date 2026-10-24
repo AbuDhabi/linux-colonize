@@ -367,9 +367,10 @@ bool text_edit_handle_mouse(
   return false;
 }
 
+/* A char the face lacks costs 0, as font.c draws it (FUN_1c11_000c, port_bugs.md #1229). */
 static int char_width(const ColonizeFont* font, unsigned char ch) {
-  if (font && font->section_data && ch < 128 && font->char_widths[ch] > 0) {
-    return font->char_widths[ch];
+  if (font && font->section_data) {
+    return ch < 128 ? font->char_widths[ch] : 0;
   }
   return 6;
 }

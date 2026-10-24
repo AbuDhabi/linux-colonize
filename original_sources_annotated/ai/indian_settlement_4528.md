@@ -67,7 +67,7 @@ this same overlay (same mechanism as the already-trusted
 | 6 | `*0x9334` (unit type 5 Scout) / AI type 5 | `a60c` | `OVL13::39ea` | Speak With Chief (by menu position; not chased) |
 | 7 | `*0x9336` (Missionary, MET bit) / AI Missionary passing the incite gate | `a5b8` | `OVL13::417e` = **`FUN_4d56_417e`** | **Incite Indians (confirmed, live capture + push-order match)** |
 | 8 | `*0x9338` (non-Missionary, MET bit, non-combat, non-ship) | `a5f4` | `OVL13::3e20` | Demand Tribute? (by elimination; not chased) |
-| 9 | `*0x933a` (combat-capable land unit) / AI types 1/4/0xb | — | `FUN_1000_8bf6` = `FUN_281f_0a06`, args `(nation, tribe, 4)`, then `iStack_5a=0` | Attack (opens hostilities) |
+| 9 | `*0x933a` (combat-capable land unit) / AI types 1/4/0xb | — | `FUN_1000_8bf6` = `FUN_281f_0a06`, args `(nation, tribe, 4)`, then `iStack_5a=0` | Attack: `FUN_281f_0a06` = `FUN_15b3_0066` ORs the attack-confirmed bit 0x04 both ways, nothing else; the 465b move does the fight and its alarm slam (port_bugs.md #1233) |
 | 10 | `*0x933c` | — | falls to `default` | Leave/cancel |
 
 Return: `iStack_5a` (1 default, 2 for cases 2/3/6-hit, 0 for 9); `2` when

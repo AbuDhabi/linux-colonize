@@ -202,7 +202,7 @@ trustworthy source, not a correction.
    `met_by_player` when welcome is shown.
    - **Yes** → `FUN_5bfb_0182` stand-in: peace bit `euro_diplo[euro] |= 0x40` (`COL1_INDIAN_PEACE_BIT`; was parked on `unknown33`),
      relation floor so refuse-talk (`< 40`) cannot fire next tick; OK
-     `@INDIANPEACE`; if pre-accept relation `< 0x19` also OK `@INDIANCOME`.
+     `@INDIANPEACE`; then OK `@INDIANCOME` when the swapped `FUN_281f_030c(euro - 4, nation)` word is `< 0x19` (not the relation: port_bugs.md #1230).
      **Ends here** (DOS `goto LAB_5bfb_1005`) — no Meet CHOICE / gift chain.
      Clears `alarm_by_player` / tribe friction+attacks toward Euro (fresh peace).
      **Land grant (thin Done):** stamp `MAP_LAYER2_PURCHASED` (+ Col1 mask

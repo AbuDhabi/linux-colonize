@@ -41,9 +41,10 @@ void save_load_close(SaveLoadDialog* dlg) {
  * nation = NAMES.TXT @NATIONALITY, "of the" = LABELS.TXT @MISC 19. The DOS
  * builder trims the leader name until it measures under 0x65 px.
  *
- * Port addition: a trailing " *" marks a slot that carries the port
+ * Port addition: a trailing " +" marks a slot that carries the port
  * extension block (village trade/skill intel today) -- state DOS cannot read
- * and will drop if it re-saves that slot.
+ * and will drop if it re-saves that slot. "+", not "*": FONTTINY has no "*" glyph
+ * and draws nothing for it (port_bugs.md #1229).
  */
 static void save_load_format_label(
   char* out,
@@ -80,7 +81,7 @@ static void save_load_format_label(
     reports_nation_adjective_display_name(info->human_nation),
     reports_season_name(info->autumn != 0),
     (unsigned)info->year,
-    info->has_port_ext ? " *" : ""
+    info->has_port_ext ? " +" : ""
   );
 }
 

@@ -358,7 +358,10 @@ flowchart TD
 - Unmet **land** unit next to a village (ships skipped) → `@INDIANWELCOME` Yes/No.
 - **Yes** → PEACE bit both ways, OK `@INDIANPEACE` / `@INDIANCOME`; no village word
   written (port_bugs.md #1008) and no land grant (`FUN_5bfb_0182` has none).
-  Ends without Meet CHOICE.
+  Ends without Meet CHOICE. `@INDIANCOME` is gated on `FUN_281f_030c(euro - 4, nation) < 0x19`,
+  arguments swapped against every other caller: the word read is a dwelling-record word
+  (slots 71..80) for euro 0..2 and an Inca-record word for euro 3, usually 0, so the line
+  usually shows (port_bugs.md #1230; DOS-bug decision: dos_bug_candidates_2026-10-22.md C-66).
 - **No** → `FUN_4cc6_00f2` +100 on the alarm, clamped to 20 first (France halves the +100, Pocahontas
   halves it again), then `@INDIANSHUN`. No PEACE bit, no village word written (port_bugs.md #1228).
   Either answer sets MET both ways and `contact_state[euro] = 2`. Replay test: `map_first_contact_refused`.

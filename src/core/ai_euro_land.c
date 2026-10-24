@@ -158,11 +158,15 @@ static int ai_euro_5952_resource_site_byte(const ColonizeMsgCatalog* names, int 
  * (Indian records at DS:0x5ad6, stride 0x4e). A caller passing a nation id
  * 4..11 reads indian[4..7] for 4..7 and runs off the block into the colony
  * array (DS:0x5d46 = 0x5ad6 + 8 * 0x4e, stride 0xca) for 8..11.
+ * A negative offset lands in the 84-slot dwelling array below the Indian
+ * records (DS:0x54ec, stride 0x12, ending at the DS:0x5ad4 tile-size word):
+ * FUN_5bfb_0182's swapped (euro - 4, tribe nation) read (port_bugs.md #1230).
  * ponytail: the colony bytes come from the col1 snapshot, which can lag the
- * live colonies within a turn.
+ * live colonies within a turn; dwelling slots past tribe_count read 0, where
+ * DOS keeps whatever FUN_4d56_00e0's compaction left there.
  */
 int ai_euro_5952_alarm_word(const ColonizeCol1Save* col1, int p1, int euro) {
-  if (!col1 || p1 < 0) {
+  if (!col1) {
     return 0;
   }
   /* `euro` is whatever word the caller hands over: a nation 0..3, or the
@@ -170,11 +174,17 @@ int ai_euro_5952_alarm_word(const ColonizeCol1Save* col1, int p1, int euro) {
    * unowned tile; America seed-100 save 58: the Wagon Train arm reads tribe
    * 7's +0x44 word, 0, and builds the wagon). */
   long off = ((long)p1 * 0x27 + euro) * 2 + 0x46; /* from DS:0x5ad6 */
-  if (off < 0) {
-    return 0;
-  }
   const uint8_t* b;
-  if (off + 1 < (long)(COLONIZE_COL1_INDIAN_COUNT * sizeof(ColonizeCol1Indian))) {
+  if (off < 0) {
+    off += 0x5ad6 - 0x54ec; /* from DS:0x54ec */
+    const long ti = off / (long)sizeof(ColonizeCol1Tribe);
+    const long fo = off % (long)sizeof(ColonizeCol1Tribe);
+    if (off < 0 || !col1->tribe || ti >= (long)col1->head.tribe_count ||
+        fo + 1 >= (long)sizeof(ColonizeCol1Tribe)) {
+      return 0;
+    }
+    b = (const uint8_t*)&col1->tribe[ti] + fo;
+  } else if (off + 1 < (long)(COLONIZE_COL1_INDIAN_COUNT * sizeof(ColonizeCol1Indian))) {
     b = (const uint8_t*)col1->indian + off;
   } else {
     off -= (long)(COLONIZE_COL1_INDIAN_COUNT * sizeof(ColonizeCol1Indian));

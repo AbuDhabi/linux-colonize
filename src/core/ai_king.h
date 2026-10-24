@@ -29,7 +29,6 @@
 #define AI_KING_ENDGAME_NONE 0
 #define AI_KING_ENDGAME_WON 1
 #define AI_KING_ENDGAME_LOST 2
-#define AI_KING_ENDGAME_PEACE_1800 3
 #define AI_KING_CONGRESS_BYTE 5
 /* Mid-war @WARN1 once-per-episode (ports<3, DOS 3844_0442); clear at >=3. */
 #define AI_KING_WARN1_BYTE 6

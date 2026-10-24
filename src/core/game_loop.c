@@ -2139,7 +2139,7 @@ COLONIZE_INTERNAL void game_render_map_overlays(
         }
         char label[4];
         snprintf(label, sizeof(label), "%c*", k_nation_letter[n]);
-        font_draw_text(
+        font_draw_text_port(
           dbg_font, framebuffer, tx * screen_tile_px, MAP_MENU_BAR_H + ty * screen_tile_px, label, 14
         );
       }
@@ -2772,8 +2772,9 @@ void game_render_window_log(
     return;
   }
   const int x = 2;
-  /* "*" marks where an entry starts; its continuation rows line up after it. */
-  const int bullet_w = font_text_width(font, "* ");
+  /* "*" marks where an entry starts; its continuation rows line up after it. Port-only
+   * strip: FONTTINY has no '*', so the bullet is the builtin glyph. */
+  const int bullet_w = font_text_width_port(font, "* ");
   const int text_x = x + bullet_w;
   const int avail = framebuffer->width - text_x - 2;
   /* One entry may take several rows, but never more than half the strip, so a
@@ -2796,7 +2797,7 @@ void game_render_window_log(
     for (int k = 0; k < n; ++k) {
       const int y = y0 + (rows_left + k) * WINDOW_LOG_LINE_H;
       if (k == 0) {
-        font_draw_text(font, framebuffer, x, y, "*", basic);
+        font_draw_text_port(font, framebuffer, x, y, "*", basic);
       }
       bool hi = false;
       (void)popup_draw_text_markup(

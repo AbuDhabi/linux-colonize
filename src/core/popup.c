@@ -183,14 +183,6 @@ void popup_draw(
   }
 }
 
-/* DOS-LITERAL FUN_1c11_000c raw 17468-17471 (the glyph loop under FUN_6f74_0538): a char
- * whose face width byte is 0 draws nothing and advances 0. FONTTINY has no '=' (nor
- * *<>@\^_`), so the jobs rows' DS:0xca8 " = " shows as two spaces (port_bugs.md #1225);
- * font.c's 5x7 fallback glyph is a port device the compositor must not use. */
-static bool popup_face_lacks(const ColonizeFont* font, unsigned char ch) {
-  return font && font->section_data && ch < 128 && font->char_widths[ch] == 0;
-}
-
 /* FUN_6f74_0486 (the 0a00 / 1b7c row measure) deletes every char of DS:0x1f8c "~{}|"
  * before measuring, escaped ones too, so a '~' and the char after it cost the char only.
  * LINE/CENTER marks are NOT stripped here — callers measuring marked-up bodies must strip
@@ -202,7 +194,7 @@ int popup_markup_text_width(const ColonizeFont* font, const char* text) {
   char plain[512];
   size_t t = 0;
   for (const char* p = text; *p && t + 1 < sizeof(plain); ++p) {
-    if (!strchr("~{}|", *p) && !popup_face_lacks(font, (unsigned char)*p)) {
+    if (!strchr("~{}|", *p)) {
       plain[t++] = *p;
     }
   }
@@ -251,10 +243,9 @@ int popup_draw_text_markup(
         break;
       }
       const uint8_t esc[4] = {0, hi ? base_color : hilite_color, colors->enhance, colors->shadow};
-      const unsigned char ch = (unsigned char)*p++;
-      if (!popup_face_lacks(font, ch)) {
-        cx += font_draw_glyph_shaded(font, framebuffer, cx, y, ch, esc);
-      }
+      /* A char the face lacks draws nothing and advances 0 (font.c, FUN_1c11_000c): FONTTINY
+       * has no '=', so the jobs rows' DS:0xca8 " = " shows as two spaces (port_bugs.md #1225). */
+      cx += font_draw_glyph_shaded(font, framebuffer, cx, y, (unsigned char)*p++, esc);
       continue;
     }
     /* FUN_6f74_04f6 -> FUN_1c28_000a: DS:0x269e = {skip, ink, style+8, style+0xa}. */
@@ -262,10 +253,7 @@ int popup_draw_text_markup(
     char run[256];
     size_t n = 0;
     while (*p && !strchr("{}~|", *p)) {
-      if (!popup_face_lacks(font, (unsigned char)*p)) {
-        run[n++] = *p;
-      }
-      ++p;
+      run[n++] = *p++;
       /* flush at the slice end, or when the scratch buffer is full */
       if (n == sizeof(run) - 1 || strchr("{}~|", *p)) {
         run[n] = '\0';
