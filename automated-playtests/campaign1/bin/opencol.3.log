@@ -1,0 +1,611 @@
+[2026-10-24 10:17:23] [INFO] Loaded message catalog COLONIZE/NAMES.TXT (31 sections)
+[2026-10-24 10:17:23] [INFO] Loaded message catalog COLONIZE/LABELS.TXT (7 sections)
+[2026-10-24 10:17:23] [INFO] === OpenCol diagnostics ===
+[2026-10-24 10:17:23] [INFO] Log file: /home/jan/projects/linux-colonize/automated-playtests/campaign1/bin/opencol.log
+[2026-10-24 10:17:23] [INFO] Executable directory: /home/jan/projects/linux-colonize/automated-playtests/campaign1/bin
+[2026-10-24 10:17:23] [INFO] argv[0]: automated-playtests/campaign1/bin/play_driver
+[2026-10-24 10:17:23] [INFO] Working directory: /home/jan/projects/linux-colonize
+[2026-10-24 10:17:23] [INFO] HOME=/home/jan
+[2026-10-24 10:17:23] [INFO] XDG_DATA_HOME=(unset)
+[2026-10-24 10:17:23] [INFO] Settings file: automated-playtests/campaign1/settings.json
+[2026-10-24 10:17:23] [INFO] Resolved data_dir from override: ./COLONIZE
+[2026-10-24 10:17:23] [INFO] Asset inventory for ./COLONIZE: 312 files
+[2026-10-24 10:17:23] [INFO]   .TXT: 19
+[2026-10-24 10:17:23] [INFO]   .PIK: 35
+[2026-10-24 10:17:23] [INFO]   .SS: 206
+[2026-10-24 10:17:23] [INFO]   .PAL: 1
+[2026-10-24 10:17:23] [INFO]   .COL: 5
+[2026-10-24 10:17:23] [INFO]   .DAT: 4
+[2026-10-24 10:17:23] [INFO]   .DB: 2
+[2026-10-24 10:17:23] [INFO]   .BIN: 1
+[2026-10-24 10:17:23] [INFO]   .MP: 1
+[2026-10-24 10:17:23] [INFO]   .MOV: 1
+[2026-10-24 10:17:23] [INFO]   .EXE: 8
+[2026-10-24 10:17:23] [INFO]   .FF: 5
+[2026-10-24 10:17:23] [INFO]   .GIF: 1
+[2026-10-24 10:17:23] [INFO]   .BAT: 2
+[2026-10-24 10:17:23] [INFO]   .COM: 1
+[2026-10-24 10:17:23] [INFO]   OTHER: 20
+[2026-10-24 10:17:23] [INFO] Asset OK: ./COLONIZE/MODULES.DB size=421 bytes
+[2026-10-24 10:17:23] [INFO] Asset OK: ./COLONIZE/ERRORS.DB size=1198 bytes
+[2026-10-24 10:17:23] [INFO] Asset OK: ./COLONIZE/GAME.TXT size=87731 bytes
+[2026-10-24 10:17:23] [INFO] Asset OK: ./COLONIZE/MENU.TXT size=1796 bytes
+[2026-10-24 10:17:23] [INFO] Asset OK: ./COLONIZE/LABELS.TXT size=3386 bytes
+[2026-10-24 10:17:23] [INFO] Asset OK: ./COLONIZE/NAMES.TXT size=13820 bytes
+[2026-10-24 10:17:23] [INFO] Asset OK: ./COLONIZE/PEDIA.TXT size=55561 bytes
+[2026-10-24 10:17:23] [INFO] Asset OK: ./COLONIZE/COLONY.TXT size=2540 bytes
+[2026-10-24 10:17:23] [INFO] Asset OK: ./COLONIZE/DEBUG.TXT size=3367 bytes
+[2026-10-24 10:17:23] [INFO] Asset OK: ./COLONIZE/VICEROY.PAL size=1024 bytes
+[2026-10-24 10:17:23] [INFO] Asset validation succeeded for data_dir=./COLONIZE
+[2026-10-24 10:17:23] [INFO] Loaded VICEROY.PAL (./COLONIZE/VICEROY.PAL)
+[2026-10-24 10:17:23] [INFO] Loaded message catalog ./COLONIZE/GAME.TXT (509 sections)
+[2026-10-24 10:17:23] [INFO] BEGINMENU loaded with 5 options (width=160 y=91 smallfont=1)
+[2026-10-24 10:17:23] [INFO]   version={COLONIZATION} OpenCol 0.8-beta-bugfix-1
+[2026-10-24 10:17:23] [INFO]   menu[0]=Start a Game in NEW WORLD
+[2026-10-24 10:17:23] [INFO]   menu[1]=Start a Game in AMERICA
+[2026-10-24 10:17:23] [INFO]   menu[2]=CUSTOMIZE New World
+[2026-10-24 10:17:23] [INFO]   menu[3]=LOAD Game
+[2026-10-24 10:17:23] [INFO]   menu[4]=View Hall of Fame
+[2026-10-24 10:17:23] [INFO] Loaded message catalog ./COLONIZE/MENU.TXT (8 sections)
+[2026-10-24 10:17:23] [INFO] Map menu bar loaded (7 menus from MENU.TXT)
+[2026-10-24 10:17:23] [INFO] Loaded message catalog ./COLONIZE/LABELS.TXT (7 sections)
+[2026-10-24 10:17:23] [INFO] Loaded LABELS.TXT
+[2026-10-24 10:17:23] [INFO] Loaded message catalog ./COLONIZE/DEBUG.TXT (20 sections)
+[2026-10-24 10:17:23] [INFO] Loaded DEBUG.TXT
+[2026-10-24 10:17:23] [INFO] Loaded MADSPACK ./COLONIZE/WOODTILE.SS (4 sections)
+[2026-10-24 10:17:23] [INFO] Loaded SS ./COLONIZE/WOODTILE.SS (1 sprites palette=yes mode=0 pflag=1)
+[2026-10-24 10:17:23] [INFO] Loaded map right panel (WOODTILE/NAMEPLAT)
+[2026-10-24 10:17:23] [INFO] Loaded message catalog ./COLONIZE/NAMES.TXT (31 sections)
+[2026-10-24 10:17:23] [INFO] Loaded 23 unit types from NAMES.TXT @UNIT
+[2026-10-24 10:17:23] [INFO] Loaded 42 building types from NAMES.TXT @BUILDING
+[2026-10-24 10:17:23] [INFO] Loaded colony names EN=36 FR=66 SP=39 DU=32 from ./COLONIZE/COLONY.TXT
+[2026-10-24 10:17:23] [INFO] Loaded message catalog ./COLONIZE/PEDIA.TXT (166 sections)
+[2026-10-24 10:17:23] [INFO] Loaded Colonizopedia text from PEDIA.TXT
+[2026-10-24 10:17:23] [INFO] Loaded MADSPACK ./COLONIZE/OPENMENU.PIK (3 sections)
+[2026-10-24 10:17:23] [INFO] Loaded PIK ./COLONIZE/OPENMENU.PIK (320x200 palette=yes)
+[2026-10-24 10:17:23] [INFO] Using palette embedded in OPENMENU.PIK for menu.
+[2026-10-24 10:17:23] [INFO] Loaded MADSPACK ./COLONIZE/OPENTILE.SS (4 sections)
+[2026-10-24 10:17:23] [INFO] Loaded SS ./COLONIZE/OPENTILE.SS (1 sprites palette=yes mode=0 pflag=1)
+[2026-10-24 10:17:23] [INFO] Loaded title dialog wood OPENTILE.SS (1 sprites)
+[2026-10-24 10:17:23] [INFO] Loaded MADSPACK ./COLONIZE/WOODPANL.PIK (3 sections)
+[2026-10-24 10:17:23] [INFO] Loaded PIK ./COLONIZE/WOODPANL.PIK (320x200 palette=yes)
+[2026-10-24 10:17:23] [INFO] Loaded Colonizopedia wood panel WOODPANL.PIK (320x200)
+[2026-10-24 10:17:23] [INFO] Title menu @COLORS remap: basic 68→254 hilite 149→252 select 138→55 popup mid/light/dark 46/245/55
+[2026-10-24 10:17:23] [INFO] Packed asset WOODPANL.PIK: MADSPACK 2.0 chunks=3
+[2026-10-24 10:17:23] [INFO] Packed asset COLONY.PIK: MADSPACK 2.0 chunks=2
+[2026-10-24 10:17:23] [INFO] Packed asset BUILDING.SS: MADSPACK 2.0 chunks=4
+[2026-10-24 10:17:23] [INFO] Loaded MADSPACK ./COLONIZE/TERRAIN.SS (4 sections)
+[2026-10-24 10:17:23] [INFO] Loaded SS ./COLONIZE/TERRAIN.SS (12 sprites palette=yes mode=0 pflag=1)
+[2026-10-24 10:17:23] [INFO] Loaded terrain sheet with 12 sprites
+[2026-10-24 10:17:23] [INFO] Loaded CYCLE.DAT: 1 cycle(s), first start=120 len=8 step=574ms
+[2026-10-24 10:17:23] [INFO] Loaded MADSPACK ./COLONIZE/PHYS0.SS (4 sections)
+[2026-10-24 10:17:23] [INFO] Loaded SS ./COLONIZE/PHYS0.SS (154 sprites palette=yes mode=0 pflag=1)
+[2026-10-24 10:17:23] [INFO] Loaded PHYS0 overlay sheet with 154 sprites
+[2026-10-24 10:17:23] [INFO] Loaded MADSPACK ./COLONIZE/CURSOR.SS (4 sections)
+[2026-10-24 10:17:23] [INFO] Loaded SS ./COLONIZE/CURSOR.SS (2 sprites palette=yes mode=0 pflag=1)
+[2026-10-24 10:17:23] [INFO] Loaded cursor sheet with 2 sprites
+[2026-10-24 10:17:23] [INFO] Loaded MADSPACK ./COLONIZE/ICONS.SS (4 sections)
+[2026-10-24 10:17:23] [INFO] Loaded SS ./COLONIZE/ICONS.SS (131 sprites palette=yes mode=0 pflag=1)
+[2026-10-24 10:17:23] [INFO] Loaded unit icon sheet with 131 sprites
+[2026-10-24 10:17:23] [INFO] Loaded MADSPACK ./COLONIZE/FONTSMAL.FF (1 sections)
+[2026-10-24 10:17:23] [INFO] Loaded FF font ./COLONIZE/FONTSMAL.FF (8x6, section=1148 bytes)
+[2026-10-24 10:17:23] [INFO] Loaded menu font FONTSMAL.FF (8x6)
+[2026-10-24 10:17:23] [INFO] Loaded MADSPACK ./COLONIZE/FONTINTR.FF (1 sections)
+[2026-10-24 10:17:23] [INFO] Loaded FF font ./COLONIZE/FONTINTR.FF (9x9, section=1898 bytes)
+[2026-10-24 10:17:23] [INFO] Loaded intro font FONTINTR.FF (9x9)
+[2026-10-24 10:17:23] [INFO] Loaded MADSPACK ./COLONIZE/FONTTINY.FF (1 sections)
+[2026-10-24 10:17:23] [INFO] Loaded FF font ./COLONIZE/FONTTINY.FF (6x6, section=914 bytes)
+[2026-10-24 10:17:23] [INFO] Loaded colony font FONTTINY.FF (6x6)
+[2026-10-24 10:17:23] [INFO] Loaded map ./COLONIZE/AMER2.MP (58x72, 4176 tiles)
+[2026-10-24 10:17:23] [INFO] Loaded world map AMER2.MP (58x72), cursor at 29,36
+[2026-10-24 10:17:23] [INFO] Loaded message catalog ./COLONIZE/NAMES.TXT (31 sections)
+[2026-10-24 10:17:23] [INFO] Loaded MADSPACK ./COLONIZE/EUROPE.PIK (3 sections)
+[2026-10-24 10:17:23] [INFO] Loaded PIK ./COLONIZE/EUROPE.PIK (320x200 palette=yes)
+[2026-10-24 10:17:23] [INFO] Loaded MADSPACK ./COLONIZE/WOODTILE.SS (4 sections)
+[2026-10-24 10:17:23] [INFO] Loaded SS ./COLONIZE/WOODTILE.SS (1 sprites palette=yes mode=0 pflag=1)
+[2026-10-24 10:17:23] [INFO] Europe screen loaded (320x200, 16 cargo, 17 train, 6 purchase)
+[2026-10-24 10:17:23] [INFO] Loaded MADSPACK ./COLONIZE/WOODPANL.PIK (3 sections)
+[2026-10-24 10:17:23] [INFO] Loaded PIK ./COLONIZE/WOODPANL.PIK (320x200 palette=yes)
+[2026-10-24 10:17:23] [INFO] Loaded MADSPACK ./COLONIZE/PARCH.SS (4 sections)
+[2026-10-24 10:17:23] [INFO] Loaded SS ./COLONIZE/PARCH.SS (1 sprites palette=yes mode=0 pflag=1)
+[2026-10-24 10:17:23] [INFO] Loaded MADSPACK ./COLONIZE/WOODTILE.SS (4 sections)
+[2026-10-24 10:17:23] [INFO] Loaded SS ./COLONIZE/WOODTILE.SS (1 sprites palette=yes mode=0 pflag=1)
+[2026-10-24 10:17:23] [INFO] Loaded MADSPACK ./COLONIZE/BUILDING.SS (4 sections)
+[2026-10-24 10:17:23] [INFO] Loaded SS ./COLONIZE/BUILDING.SS (48 sprites palette=yes mode=0 pflag=1)
+[2026-10-24 10:17:23] [INFO] Loaded MADSPACK ./COLONIZE/ICONS.SS (4 sections)
+[2026-10-24 10:17:23] [INFO] Loaded SS ./COLONIZE/ICONS.SS (131 sprites palette=yes mode=0 pflag=1)
+[2026-10-24 10:17:23] [INFO] Loaded MADSPACK ./COLONIZE/COLONY.PIK (2 sections)
+[2026-10-24 10:17:23] [INFO] Loaded PIK ./COLONIZE/COLONY.PIK (320x72 palette=no)
+[2026-10-24 10:17:23] [INFO] Loaded MADSPACK ./COLONIZE/FONTINTR.FF (1 sections)
+[2026-10-24 10:17:23] [INFO] Loaded FF font ./COLONIZE/FONTINTR.FF (9x9, section=1898 bytes)
+[2026-10-24 10:17:23] [INFO] Colony screen loaded (WOODPANL 320x200, PARCH 1, WOODTILE 1, BUILDING 48, ICONS 131, COLONY.PIK 320x72)
+[2026-10-24 10:17:23] [INFO] Loaded message catalog ./COLONIZE/NAMES.TXT (31 sections)
+[2026-10-24 10:17:23] [INFO] Loaded message catalog ./COLONIZE/LABELS.TXT (7 sections)
+[2026-10-24 10:17:23] [INFO] Loaded MADSPACK ./COLONIZE/REPORT2.PIK (3 sections)
+[2026-10-24 10:17:23] [INFO] Loaded PIK ./COLONIZE/REPORT2.PIK (320x200 palette=yes)
+[2026-10-24 10:17:23] [INFO] Loaded MADSPACK ./COLONIZE/CCBKGD.PIK (3 sections)
+[2026-10-24 10:17:23] [INFO] Loaded PIK ./COLONIZE/CCBKGD.PIK (320x200 palette=yes)
+[2026-10-24 10:17:23] [INFO] Loaded MADSPACK ./COLONIZE/REPORT4.PIK (3 sections)
+[2026-10-24 10:17:23] [INFO] Loaded PIK ./COLONIZE/REPORT4.PIK (320x200 palette=yes)
+[2026-10-24 10:17:23] [INFO] Loaded MADSPACK ./COLONIZE/REPORT5.PIK (3 sections)
+[2026-10-24 10:17:23] [INFO] Loaded PIK ./COLONIZE/REPORT5.PIK (320x200 palette=yes)
+[2026-10-24 10:17:23] [INFO] Loaded MADSPACK ./COLONIZE/REPORT6.PIK (3 sections)
+[2026-10-24 10:17:23] [INFO] Loaded PIK ./COLONIZE/REPORT6.PIK (320x200 palette=yes)
+[2026-10-24 10:17:23] [INFO] Loaded MADSPACK ./COLONIZE/REPORT7.PIK (3 sections)
+[2026-10-24 10:17:23] [INFO] Loaded PIK ./COLONIZE/REPORT7.PIK (320x200 palette=yes)
+[2026-10-24 10:17:23] [INFO] Loaded MADSPACK ./COLONIZE/REPORT8.PIK (3 sections)
+[2026-10-24 10:17:23] [INFO] Loaded PIK ./COLONIZE/REPORT8.PIK (320x200 palette=yes)
+[2026-10-24 10:17:23] [INFO] Loaded MADSPACK ./COLONIZE/REPORT9.PIK (3 sections)
+[2026-10-24 10:17:23] [INFO] Loaded PIK ./COLONIZE/REPORT9.PIK (320x200 palette=yes)
+[2026-10-24 10:17:23] [INFO] Loaded MADSPACK ./COLONIZE/WOODPANL.PIK (3 sections)
+[2026-10-24 10:17:23] [INFO] Loaded PIK ./COLONIZE/WOODPANL.PIK (320x200 palette=yes)
+[2026-10-24 10:17:23] [INFO] Loaded MADSPACK ./COLONIZE/WOODPAN2.PIK (3 sections)
+[2026-10-24 10:17:23] [INFO] Loaded PIK ./COLONIZE/WOODPAN2.PIK (320x200 palette=yes)
+[2026-10-24 10:17:23] [INFO] Loaded MADSPACK ./COLONIZE/FONTTINY.FF (1 sections)
+[2026-10-24 10:17:23] [INFO] Loaded FF font ./COLONIZE/FONTTINY.FF (6x6, section=914 bytes)
+[2026-10-24 10:17:23] [INFO] Loaded MADSPACK ./COLONIZE/REPORT3.PIK (3 sections)
+[2026-10-24 10:17:23] [INFO] Loaded PIK ./COLONIZE/REPORT3.PIK (320x200 palette=yes)
+[2026-10-24 10:17:23] [INFO] Loaded MADSPACK ./COLONIZE/ICONS.SS (4 sections)
+[2026-10-24 10:17:23] [INFO] Loaded SS ./COLONIZE/ICONS.SS (131 sprites palette=yes mode=0 pflag=1)
+[2026-10-24 10:17:23] [INFO] Loaded MADSPACK ./COLONIZE/ICONS.SS (4 sections)
+[2026-10-24 10:17:23] [INFO] Loaded SS ./COLONIZE/ICONS.SS (131 sprites palette=yes mode=0 pflag=1)
+[2026-10-24 10:17:23] [INFO] Loaded MADSPACK ./COLONIZE/ICONS.SS (4 sections)
+[2026-10-24 10:17:23] [INFO] Loaded SS ./COLONIZE/ICONS.SS (131 sprites palette=yes mode=0 pflag=1)
+[2026-10-24 10:17:23] [INFO] Loaded MADSPACK ./COLONIZE/ICONS.SS (4 sections)
+[2026-10-24 10:17:23] [INFO] Loaded SS ./COLONIZE/ICONS.SS (131 sprites palette=yes mode=0 pflag=1)
+[2026-10-24 10:17:23] [INFO] Loaded MADSPACK ./COLONIZE/ICONS.SS (4 sections)
+[2026-10-24 10:17:23] [INFO] Loaded SS ./COLONIZE/ICONS.SS (131 sprites palette=yes mode=0 pflag=1)
+[2026-10-24 10:17:23] [INFO] Loaded MADSPACK ./COLONIZE/ICONS.SS (4 sections)
+[2026-10-24 10:17:23] [INFO] Loaded SS ./COLONIZE/ICONS.SS (131 sprites palette=yes mode=0 pflag=1)
+[2026-10-24 10:17:23] [INFO] Loaded MADSPACK ./COLONIZE/ICONS.SS (4 sections)
+[2026-10-24 10:17:23] [INFO] Loaded SS ./COLONIZE/ICONS.SS (131 sprites palette=yes mode=0 pflag=1)
+[2026-10-24 10:17:23] [INFO] Loaded MADSPACK ./COLONIZE/ICONS.SS (4 sections)
+[2026-10-24 10:17:23] [INFO] Loaded SS ./COLONIZE/ICONS.SS (131 sprites palette=yes mode=0 pflag=1)
+[2026-10-24 10:17:23] [INFO] Loaded MADSPACK ./COLONIZE/ICONS.SS (4 sections)
+[2026-10-24 10:17:23] [INFO] Loaded SS ./COLONIZE/ICONS.SS (131 sprites palette=yes mode=0 pflag=1)
+[2026-10-24 10:17:23] [INFO] Loaded MADSPACK ./COLONIZE/ICONS.SS (4 sections)
+[2026-10-24 10:17:23] [INFO] Loaded SS ./COLONIZE/ICONS.SS (131 sprites palette=yes mode=0 pflag=1)
+[2026-10-24 10:17:23] [INFO] Report screens loaded (9/9 backgrounds)
+[2026-10-24 10:17:23] [INFO] Loaded MADSPACK ./COLONIZE/BUILDING.SS (4 sections)
+[2026-10-24 10:17:23] [INFO] Loaded SS ./COLONIZE/BUILDING.SS (48 sprites palette=yes mode=0 pflag=1)
+[2026-10-24 10:17:23] [INFO] Loaded BUILDING.SS for Colonizopedia (48 sprites)
+[2026-10-24 10:17:23] [INFO] Game config save_dir=automated-playtests/campaign1/saves
+[2026-10-24 10:17:23] [INFO] col1_save_read_file automated-playtests/campaign1/saves/t3.sav: turn=3 year=1495 colonies=0 units=63 tribes=51 map=58x72
+[2026-10-24 10:17:23] [INFO] Spawned unit id=1 type=Merchantman at (35,56)
+[2026-10-24 10:17:23] [INFO] Spawned unit id=2 type=Pioneers at (35,56)
+[2026-10-24 10:17:23] [INFO] Spawned unit id=3 type=Soldiers at (35,56)
+[2026-10-24 10:17:23] [INFO] Spawned unit id=4 type=Caravel at (47,39)
+[2026-10-24 10:17:23] [INFO] Spawned unit id=5 type=Pioneers at (46,39)
+[2026-10-24 10:17:23] [INFO] Spawned unit id=6 type=Soldiers at (45,40)
+[2026-10-24 10:17:23] [INFO] Spawned unit id=7 type=Caravel at (45,11)
+[2026-10-24 10:17:23] [INFO] Spawned unit id=8 type=Pioneers at (45,11)
+[2026-10-24 10:17:23] [INFO] Spawned unit id=9 type=Soldiers at (44,11)
+[2026-10-24 10:17:23] [INFO] Spawned unit id=10 type=Caravel at (45,27)
+[2026-10-24 10:17:23] [INFO] Spawned unit id=11 type=Pioneers at (47,30)
+[2026-10-24 10:17:23] [INFO] Spawned unit id=12 type=Soldiers at (47,30)
+[2026-10-24 10:17:23] [INFO] Spawned unit id=13 type=Braves at (8,59)
+[2026-10-24 10:17:23] [INFO] Spawned unit id=14 type=Braves at (25,27)
+[2026-10-24 10:17:23] [INFO] Spawned unit id=15 type=Braves at (35,57)
+[2026-10-24 10:17:23] [INFO] Spawned unit id=16 type=Braves at (17,43)
+[2026-10-24 10:17:23] [INFO] Spawned unit id=17 type=Braves at (37,16)
+[2026-10-24 10:17:23] [INFO] Spawned unit id=18 type=Braves at (23,16)
+[2026-10-24 10:17:23] [INFO] Spawned unit id=19 type=Braves at (40,20)
+[2026-10-24 10:17:23] [INFO] Spawned unit id=20 type=Braves at (10,40)
+[2026-10-24 10:17:23] [INFO] Spawned unit id=21 type=Braves at (32,60)
+[2026-10-24 10:17:23] [INFO] Spawned unit id=22 type=Braves at (31,16)
+[2026-10-24 10:17:23] [INFO] Spawned unit id=23 type=Braves at (35,9)
+[2026-10-24 10:17:23] [INFO] Spawned unit id=24 type=Braves at (9,46)
+[2026-10-24 10:17:23] [INFO] Spawned unit id=25 type=Braves at (21,13)
+[2026-10-24 10:17:23] [INFO] Spawned unit id=26 type=Braves at (6,52)
+[2026-10-24 10:17:23] [INFO] Spawned unit id=27 type=Braves at (28,31)
+[2026-10-24 10:17:23] [INFO] Spawned unit id=28 type=Braves at (25,11)
+[2026-10-24 10:17:23] [INFO] Spawned unit id=29 type=Braves at (38,20)
+[2026-10-24 10:17:23] [INFO] Spawned unit id=30 type=Braves at (33,8)
+[2026-10-24 10:17:23] [INFO] Spawned unit id=31 type=Braves at (33,22)
+[2026-10-24 10:17:23] [INFO] Spawned unit id=32 type=Braves at (41,34)
+[2026-10-24 10:17:23] [INFO] Spawned unit id=33 type=Braves at (20,59)
+[2026-10-24 10:17:23] [INFO] Spawned unit id=34 type=Braves at (23,23)
+[2026-10-24 10:17:23] [INFO] Spawned unit id=35 type=Braves at (39,55)
+[2026-10-24 10:17:23] [INFO] Spawned unit id=36 type=Braves at (21,50)
+[2026-10-24 10:17:23] [INFO] Spawned unit id=37 type=Braves at (24,46)
+[2026-10-24 10:17:23] [INFO] Spawned unit id=38 type=Braves at (31,11)
+[2026-10-24 10:17:23] [INFO] Spawned unit id=39 type=Braves at (30,61)
+[2026-10-24 10:17:23] [INFO] Spawned unit id=40 type=Braves at (41,57)
+[2026-10-24 10:17:23] [INFO] Spawned unit id=41 type=Braves at (14,38)
+[2026-10-24 10:17:23] [INFO] Spawned unit id=42 type=Braves at (17,59)
+[2026-10-24 10:17:23] [INFO] Spawned unit id=43 type=Braves at (22,43)
+[2026-10-24 10:17:23] [INFO] Spawned unit id=44 type=Braves at (29,15)
+[2026-10-24 10:17:23] [INFO] Spawned unit id=45 type=Braves at (39,14)
+[2026-10-24 10:17:23] [INFO] Spawned unit id=46 type=Braves at (32,31)
+[2026-10-24 10:17:23] [INFO] Spawned unit id=47 type=Braves at (11,43)
+[2026-10-24 10:17:23] [INFO] Spawned unit id=48 type=Braves at (18,39)
+[2026-10-24 10:17:23] [INFO] Spawned unit id=49 type=Braves at (39,5)
+[2026-10-24 10:17:23] [INFO] Spawned unit id=50 type=Braves at (38,7)
+[2026-10-24 10:17:23] [INFO] Spawned unit id=51 type=Braves at (13,39)
+[2026-10-24 10:17:23] [INFO] Spawned unit id=52 type=Braves at (20,38)
+[2026-10-24 10:17:23] [INFO] Spawned unit id=53 type=Braves at (16,6)
+[2026-10-24 10:17:23] [INFO] Spawned unit id=54 type=Braves at (5,26)
+[2026-10-24 10:17:23] [INFO] Spawned unit id=55 type=Braves at (48,33)
+[2026-10-24 10:17:23] [INFO] Spawned unit id=56 type=Braves at (12,8)
+[2026-10-24 10:17:23] [INFO] Spawned unit id=57 type=Braves at (17,65)
+[2026-10-24 10:17:23] [INFO] Spawned unit id=58 type=Braves at (45,37)
+[2026-10-24 10:17:23] [INFO] Spawned unit id=59 type=Braves at (25,47)
+[2026-10-24 10:17:23] [INFO] Spawned unit id=60 type=Braves at (49,9)
+[2026-10-24 10:17:23] [INFO] Spawned unit id=61 type=Braves at (14,2)
+[2026-10-24 10:17:23] [INFO] Spawned unit id=62 type=Braves at (41,38)
+[2026-10-24 10:17:23] [INFO] Spawned unit id=63 type=Braves at (8,10)
+[2026-10-24 10:17:23] [INFO] col1_bridge_apply: turn=3 year=1495 nation=3 units=63 colonies=0 europe_skip=0
+[2026-10-24 10:17:23] [INFO] VIEW (none) -> map
+[2026-10-24 10:17:23] [INFO] [map] Render mode=map framebuffer=320x200 palette=VICEROY.PAL
+[2026-10-24 10:17:23] [INFO] [map] Framebuffer sample frame=1 mode=map idx0=135 idx_center=61 turn=3 cursor=35,56
+[2026-10-24 10:19:40] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=3 cursor=35,56)
+[2026-10-24 10:19:40] [INFO] [map] POPUP queued tag=LANDFALL kind=choice choices=2 queue=1
+[2026-10-24 10:19:40] [INFO] [map] POPUP show tag=LANDFALL kind=choice title="-" ctx=(a=1 b=34 payload=57) body="Shall we make landfall, Your Excellency, and leave the ships behind?" choices=[0]Stay With Ships [1]Make Landfall
+[2026-10-24 10:19:40] [INFO] [map] Loaded MADSPACK ./COLONIZE/MSS3.SS (4 sections)
+[2026-10-24 10:19:40] [INFO] [map] Loaded SS ./COLONIZE/MSS3.SS (1 sprites palette=yes mode=0 pflag=1)
+[2026-10-24 10:19:48] [INFO] [map] Key pressed: ENTER (menu=no debug=no pedia=no europe=no colony=no report=no turn=3 cursor=35,56)
+[2026-10-24 10:19:48] [INFO] [map] POPUP answered tag=LANDFALL picked id=0 choice="Stay With Ships" ctx=(a=1 b=34 payload=57)
+[2026-10-24 10:19:48] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=3 cursor=35,56)
+[2026-10-24 10:19:48] [INFO] [map] MOVE Merchantman id=1 nation=3 at (34,55) mp=3: (35,56) -> (34,55)
+[2026-10-24 10:19:48] [INFO] [map] Framebuffer sample frame=60 mode=map idx0=135 idx_center=61 turn=3 cursor=35,56
+[2026-10-24 10:19:48] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=3 cursor=34,55)
+[2026-10-24 10:19:48] [INFO] [map] MOVE Merchantman id=1 nation=3 at (33,55) mp=0: (34,55) -> (33,55)
+[2026-10-24 10:19:48] [INFO] [map] TURN setup: turn=3 year=1495 autumn=0 human=3
+[2026-10-24 10:19:48] [INFO] [map] TURN native nation 4
+[2026-10-24 10:19:48] [INFO] [map] TURN native nation 5
+[2026-10-24 10:19:48] [INFO] [map] TURN native nation 6
+[2026-10-24 10:19:48] [INFO] [map] TURN native nation 7
+[2026-10-24 10:19:48] [INFO] [map] TURN native nation 8
+[2026-10-24 10:19:48] [INFO] [map] TURN native nation 9
+[2026-10-24 10:19:48] [INFO] [map] TURN native nation 10
+[2026-10-24 10:19:48] [INFO] [map] TURN native nation 11
+[2026-10-24 10:19:48] [INFO] [map] TURN european nation 0
+[2026-10-24 10:19:48] [INFO] [map] ORDER Pioneers id=5 nation=0 at (46,39) mp=3: wake (was sentry)
+[2026-10-24 10:19:48] [INFO] [map] MOVE Soldiers id=6 nation=0 at (44,39) mp=-6: (45,40) -> (44,39)
+[2026-10-24 10:19:48] [INFO] [map] MOVE Pioneers id=5 nation=0 at (45,40) mp=-6: (46,39) -> (45,40)
+[2026-10-24 10:19:48] [INFO] [map] MOVE Caravel id=4 nation=0 at (46,40) mp=9: (47,39) -> (46,40)
+[2026-10-24 10:19:48] [INFO] [map] MOVE Caravel id=4 nation=0 at (47,39) mp=6: (46,40) -> (47,39)
+[2026-10-24 10:19:48] [INFO] [map] MOVE Caravel id=4 nation=0 at (46,40) mp=3: (47,39) -> (46,40)
+[2026-10-24 10:19:48] [INFO] [map] MOVE Caravel id=4 nation=0 at (47,39) mp=0: (46,40) -> (47,39)
+[2026-10-24 10:19:48] [INFO] [map] TURN european nation 1
+[2026-10-24 10:19:48] [INFO] [map] ORDER Soldiers id=9 nation=1 at (44,11) mp=3: wake (was sentry)
+[2026-10-24 10:19:48] [INFO] [map] MOVE Soldiers id=9 nation=1 at (43,12) mp=-3: (44,11) -> (43,12)
+[2026-10-24 10:19:48] [INFO] [map] Unloaded unit 8 from ship 7 to (44,11)
+[2026-10-24 10:19:48] [INFO] [map] TURN european nation 2
+[2026-10-24 10:19:48] [INFO] [map] MOVE Soldiers id=12 nation=2 at (48,31) mp=-6: (47,30) -> (48,31)
+[2026-10-24 10:19:48] [INFO] [map] MOVE Pioneers id=11 nation=2 at (48,31) mp=-6: (47,30) -> (48,31)
+[2026-10-24 10:19:48] [INFO] [map] MOVE Caravel id=10 nation=2 at (44,26) mp=9: (45,27) -> (44,26)
+[2026-10-24 10:19:48] [INFO] [map] MOVE Caravel id=10 nation=2 at (43,27) mp=6: (44,26) -> (43,27)
+[2026-10-24 10:19:48] [INFO] [map] MOVE Caravel id=10 nation=2 at (42,28) mp=3: (43,27) -> (42,28)
+[2026-10-24 10:19:48] [INFO] [map] MOVE Caravel id=10 nation=2 at (41,28) mp=0: (42,28) -> (41,28)
+[2026-10-24 10:19:48] [INFO] [map] turn_end: turn=4 year=1496 autumn=0 colonies=0 shortages=0 immigrants=0
+[2026-10-24 10:19:48] [INFO] [map] Save directory exists: automated-playtests/campaign1/saves
+[2026-10-24 10:19:48] [INFO] [map] col1_save_write_file automated-playtests/campaign1/saves/COLONY09.SAV (26598 bytes)
+[2026-10-24 10:19:48] [INFO] [map] Turn autosave → COLONY09.SAV
+[2026-10-24 10:19:48] [INFO] [map] col1_save_write_file automated-playtests/campaign1/saves/trace_autosave_turn_004.sav (26598 bytes)
+[2026-10-24 10:19:48] [INFO] [map] Trace autosave → trace_autosave_turn_004.sav
+[2026-10-24 10:19:58] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=4 cursor=33,55)
+[2026-10-24 10:19:58] [INFO] [map] MOVE Merchantman id=1 nation=3 at (32,55) mp=12: (33,55) -> (32,55)
+[2026-10-24 10:19:58] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=4 cursor=32,55)
+[2026-10-24 10:19:58] [INFO] [map] MOVE Merchantman id=1 nation=3 at (31,56) mp=9: (32,55) -> (31,56)
+[2026-10-24 10:20:02] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=4 cursor=31,56)
+[2026-10-24 10:20:02] [INFO] [map] MOVE Merchantman id=1 nation=3 at (31,57) mp=6: (31,56) -> (31,57)
+[2026-10-24 10:20:02] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=4 cursor=31,57)
+[2026-10-24 10:20:02] [INFO] [map] POPUP queued tag=INFO kind=message choices=0 queue=1
+[2026-10-24 10:20:02] [INFO] [map] POPUP show tag=INFO kind=message title="-" ctx=(a=3 b=6 payload=0) body="We must contact the Indians on land first, Excellency.""
+[2026-10-24 10:20:16] [INFO] [map] Key pressed: ENTER (menu=no debug=no pedia=no europe=no colony=no report=no turn=4 cursor=31,57)
+[2026-10-24 10:20:16] [INFO] [map] POPUP answered tag=INFO dismissed id=0 choice="-" ctx=(a=3 b=6 payload=0)
+[2026-10-24 10:20:32] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=4 cursor=31,57)
+[2026-10-24 10:20:32] [INFO] [map] POPUP queued tag=LANDFALL kind=choice choices=2 queue=1
+[2026-10-24 10:20:32] [INFO] [map] POPUP show tag=LANDFALL kind=choice title="-" ctx=(a=1 b=32 payload=57) body="Shall we make landfall, Your Excellency, and leave the ships behind?" choices=[0]Stay With Ships [1]Make Landfall
+[2026-10-24 10:20:32] [INFO] [map] Key pressed: DOWN (menu=no debug=no pedia=no europe=no colony=no report=no turn=4 cursor=31,57)
+[2026-10-24 10:20:32] [INFO] [map] Key pressed: ENTER (menu=no debug=no pedia=no europe=no colony=no report=no turn=4 cursor=31,57)
+[2026-10-24 10:20:32] [INFO] [map] POPUP answered tag=LANDFALL picked id=1 choice="Make Landfall" ctx=(a=1 b=32 payload=57)
+[2026-10-24 10:20:32] [INFO] [map] Unloaded unit 2 from ship 1 to (32,57)
+[2026-10-24 10:20:32] [INFO] [map] POPUP queued tag=CONTACT_WELCOME kind=choice choices=2 queue=1
+[2026-10-24 10:20:32] [INFO] [map] POPUP show tag=CONTACT_WELCOME kind=choice title="-" ctx=(a=3 b=6 payload=0) body=""The {Arawak} tribe welcomes you. We are a glorious nation of {5 Villages}. To celebrate our friendship, we generously offer you the land you now occupy as a gift. Will you accept our treaty and live with us in peace as brothers?"" choices=[1]Yes [2]No
+[2026-10-24 10:20:32] [INFO] [map] Loaded MADSPACK ./COLONIZE/WDCUT03.SS (4 sections)
+[2026-10-24 10:20:32] [INFO] [map] Loaded SS ./COLONIZE/WDCUT03.SS (1 sprites palette=yes mode=0 pflag=1)
+[2026-10-24 10:20:32] [INFO] [map] Loaded MADSPACK ./COLONIZE/WOODFRAM.SS (4 sections)
+[2026-10-24 10:20:32] [INFO] [map] Loaded SS ./COLONIZE/WOODFRAM.SS (1 sprites palette=yes mode=0 pflag=1)
+[2026-10-24 10:20:32] [INFO] [map] Loaded MADSPACK ./COLONIZE/NAMEPLAT.SS (4 sections)
+[2026-10-24 10:20:32] [INFO] [map] Loaded SS ./COLONIZE/NAMEPLAT.SS (3 sprites palette=yes mode=0 pflag=1)
+[2026-10-24 10:20:32] [INFO] [map] Loaded MADSPACK ./COLONIZE/FONT-NP.FF (1 sections)
+[2026-10-24 10:20:32] [INFO] [map] Loaded FF font ./COLONIZE/FONT-NP.FF (11x8, section=914 bytes)
+[2026-10-24 10:20:32] [INFO] [map] Loaded message catalog ./COLONIZE/WOODCUT.TXT (1 sections)
+[2026-10-24 10:20:32] [INFO] [map] Woodcut 3: MEETING THE NATIVES
+[2026-10-24 10:20:32] [INFO] VIEW map -> woodcut
+[2026-10-24 10:20:36] [INFO] [woodcut] Loaded MADSPACK ./COLONIZE/IND2A0.SS (4 sections)
+[2026-10-24 10:20:36] [INFO] [woodcut] Loaded SS ./COLONIZE/IND2A0.SS (2 sprites palette=yes mode=0 pflag=1)
+[2026-10-24 10:20:36] [INFO] VIEW woodcut -> map
+[2026-10-24 10:20:41] [INFO] [map] Key pressed: ENTER (menu=no debug=no pedia=no europe=no colony=no report=no turn=4 cursor=32,57)
+[2026-10-24 10:20:41] [INFO] [map] POPUP answered tag=CONTACT_WELCOME picked id=1 choice="Yes" ctx=(a=3 b=6 payload=0)
+[2026-10-24 10:20:41] [INFO] [map] POPUP queued tag=CONTACT_MEET kind=message choices=0 queue=1
+[2026-10-24 10:20:41] [INFO] [map] POPUP queued tag=CONTACT_MEET kind=message choices=0 queue=2
+[2026-10-24 10:20:41] [INFO] [map] POPUP show tag=CONTACT_MEET kind=message title="-" ctx=(a=3 b=6 payload=0) body=""The {Arawaks} welcome peace with our brothers the {Dutch}.  Let us smoke a peace pipe to celebrate our perpetual friendship.""
+[2026-10-24 10:20:44] [INFO] [map] Key pressed: ENTER (menu=no debug=no pedia=no europe=no colony=no report=no turn=4 cursor=32,57)
+[2026-10-24 10:20:44] [INFO] [map] POPUP answered tag=CONTACT_MEET dismissed id=0 choice="-" ctx=(a=3 b=6 payload=0)
+[2026-10-24 10:20:44] [INFO] [map] POPUP show tag=CONTACT_MEET kind=message title="-" ctx=(a=3 b=6 payload=0) body=""We hope you will soon {visit} Arawak villages to share knowledge with us, and that you will send your {wagon trains} to trade with us.""
+[2026-10-24 10:20:44] [INFO] [map] Framebuffer sample frame=300 mode=map idx0=135 idx_center=130 turn=4 cursor=32,57
+[2026-10-24 10:20:45] [INFO] [map] Key pressed: ENTER (menu=no debug=no pedia=no europe=no colony=no report=no turn=4 cursor=32,57)
+[2026-10-24 10:20:45] [INFO] [map] POPUP answered tag=CONTACT_MEET dismissed id=0 choice="-" ctx=(a=3 b=6 payload=0)
+[2026-10-24 10:20:49] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=4 cursor=31,57)
+[2026-10-24 10:20:49] [INFO] [map] POPUP queued tag=LANDFALL kind=choice choices=2 queue=1
+[2026-10-24 10:20:49] [INFO] [map] POPUP show tag=LANDFALL kind=choice title="-" ctx=(a=1 b=32 payload=57) body="Shall we make landfall, Your Excellency, and leave the ships behind?" choices=[0]Stay With Ships [1]Make Landfall
+[2026-10-24 10:20:49] [INFO] [map] Key pressed: DOWN (menu=no debug=no pedia=no europe=no colony=no report=no turn=4 cursor=31,57)
+[2026-10-24 10:20:49] [INFO] [map] Key pressed: ENTER (menu=no debug=no pedia=no europe=no colony=no report=no turn=4 cursor=31,57)
+[2026-10-24 10:20:49] [INFO] [map] POPUP answered tag=LANDFALL picked id=1 choice="Make Landfall" ctx=(a=1 b=32 payload=57)
+[2026-10-24 10:20:49] [INFO] [map] Unloaded unit 3 from ship 1 to (32,57)
+[2026-10-24 10:20:55] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=4 cursor=31,57)
+[2026-10-24 10:20:55] [INFO] [map] MOVE Merchantman id=1 nation=3 at (32,56) mp=3: (31,57) -> (32,56)
+[2026-10-24 10:20:55] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=4 cursor=32,56)
+[2026-10-24 10:20:55] [INFO] [map] MOVE Merchantman id=1 nation=3 at (33,55) mp=0: (32,56) -> (33,55)
+[2026-10-24 10:20:55] [INFO] [map] TURN setup: turn=4 year=1496 autumn=0 human=3
+[2026-10-24 10:20:55] [INFO] [map] TURN native nation 4
+[2026-10-24 10:20:55] [INFO] [map] TURN native nation 5
+[2026-10-24 10:20:55] [INFO] [map] TURN native nation 6
+[2026-10-24 10:20:55] [INFO] [map] TURN native nation 7
+[2026-10-24 10:20:55] [INFO] [map] TURN native nation 8
+[2026-10-24 10:20:55] [INFO] [map] TURN native nation 9
+[2026-10-24 10:20:55] [INFO] [map] TURN native nation 10
+[2026-10-24 10:20:55] [INFO] [map] TURN native nation 11
+[2026-10-24 10:20:55] [INFO] [map] TURN european nation 0
+[2026-10-24 10:20:55] [INFO] [map] Spawned unit id=64 type=Colonists at (236,236)
+[2026-10-24 10:20:55] [INFO] [map] COLONY Jamestown: colonist #0 job=28 -> field tile 3 as Silver Miner
+[2026-10-24 10:20:55] [INFO] [map] Founded colony 'Jamestown' at (44,39) pop=1 tools=0 muskets=50 horses=0
+[2026-10-24 10:20:55] [INFO] [map] MOVE Pioneers id=5 nation=0 at (44,39) mp=0: (45,40) -> (44,39)
+[2026-10-24 10:20:55] [INFO] [map] MOVE Caravel id=4 nation=0 at (48,40) mp=9: (47,39) -> (48,40)
+[2026-10-24 10:20:55] [INFO] [map] MOVE Caravel id=4 nation=0 at (49,41) mp=6: (48,40) -> (49,41)
+[2026-10-24 10:20:55] [INFO] [map] MOVE Caravel id=4 nation=0 at (50,42) mp=3: (49,41) -> (50,42)
+[2026-10-24 10:20:55] [INFO] [map] MOVE Caravel id=4 nation=0 at (49,43) mp=0: (50,42) -> (49,43)
+[2026-10-24 10:20:55] [INFO] [map] TURN european nation 1
+[2026-10-24 10:20:55] [INFO] [map] ORDER Pioneers id=8 nation=1 at (44,11) mp=3: wake (was sentry)
+[2026-10-24 10:20:55] [INFO] [map] MOVE Soldiers id=9 nation=1 at (42,12) mp=2: (43,12) -> (42,12)
+[2026-10-24 10:20:55] [INFO] [map] MOVE Soldiers id=9 nation=1 at (41,12) mp=1: (42,12) -> (41,12)
+[2026-10-24 10:20:55] [INFO] [map] MOVE Soldiers id=9 nation=1 at (40,13) mp=-2: (41,12) -> (40,13)
+[2026-10-24 10:20:55] [INFO] [map] MOVE Pioneers id=8 nation=1 at (43,12) mp=-3: (44,11) -> (43,12)
+[2026-10-24 10:20:55] [INFO] [map] MOVE Caravel id=7 nation=1 at (44,10) mp=9: (45,11) -> (44,10)
+[2026-10-24 10:20:55] [INFO] [map] MOVE Caravel id=7 nation=1 at (45,9) mp=6: (44,10) -> (45,9)
+[2026-10-24 10:20:55] [INFO] [map] MOVE Caravel id=7 nation=1 at (44,9) mp=3: (45,9) -> (44,9)
+[2026-10-24 10:20:55] [INFO] [map] MOVE Caravel id=7 nation=1 at (43,9) mp=0: (44,9) -> (43,9)
+[2026-10-24 10:20:55] [INFO] [map] TURN european nation 2
+[2026-10-24 10:20:55] [INFO] [map] MOVE Soldiers id=12 nation=2 at (48,32) mp=-3: (48,31) -> (48,32)
+[2026-10-24 10:20:55] [INFO] [map] MOVE Pioneers id=11 nation=2 at (48,32) mp=-3: (48,31) -> (48,32)
+[2026-10-24 10:20:55] [INFO] [map] MOVE Caravel id=10 nation=2 at (40,27) mp=9: (41,28) -> (40,27)
+[2026-10-24 10:20:55] [INFO] [map] MOVE Caravel id=10 nation=2 at (41,26) mp=6: (40,27) -> (41,26)
+[2026-10-24 10:20:55] [INFO] [map] MOVE Caravel id=10 nation=2 at (41,25) mp=3: (41,26) -> (41,25)
+[2026-10-24 10:20:55] [INFO] [map] MOVE Caravel id=10 nation=2 at (40,24) mp=0: (41,25) -> (40,24)
+[2026-10-24 10:20:55] [INFO] [map] turn_end: turn=5 year=1497 autumn=0 colonies=0 shortages=0 immigrants=0
+[2026-10-24 10:20:55] [INFO] [map] Save directory exists: automated-playtests/campaign1/saves
+[2026-10-24 10:20:55] [INFO] [map] col1_save_write_file automated-playtests/campaign1/saves/COLONY09.SAV (26821 bytes)
+[2026-10-24 10:20:55] [INFO] [map] Turn autosave → COLONY09.SAV
+[2026-10-24 10:20:55] [INFO] [map] col1_save_write_file automated-playtests/campaign1/saves/trace_autosave_turn_005.sav (26821 bytes)
+[2026-10-24 10:20:55] [INFO] [map] Trace autosave → trace_autosave_turn_005.sav
+[2026-10-24 10:21:00] [INFO] [map] Key pressed: W (menu=no debug=no pedia=no europe=no colony=no report=no turn=5 cursor=33,55)
+[2026-10-24 10:21:00] [INFO] [map] COMMAND wait_unit (unit Merchantman id=1 at (33,55) mp=15)
+[2026-10-24 10:21:03] [INFO] [map] Key pressed: W (menu=no debug=no pedia=no europe=no colony=no report=no turn=5 cursor=32,57)
+[2026-10-24 10:21:03] [INFO] [map] COMMAND wait_unit (unit Pioneers id=2 at (32,57) mp=3)
+[2026-10-24 10:21:06] [INFO] [map] Key pressed: B (menu=no debug=no pedia=no europe=no colony=no report=no turn=5 cursor=32,57)
+[2026-10-24 10:21:06] [INFO] [map] COMMAND build_colony (unit Soldiers id=3 at (32,57) mp=3)
+[2026-10-24 10:21:06] [INFO] [map] Loaded MADSPACK ./COLONIZE/MSS5.SS (4 sections)
+[2026-10-24 10:21:06] [INFO] [map] Loaded SS ./COLONIZE/MSS5.SS (1 sprites palette=yes mode=0 pflag=1)
+[2026-10-24 10:21:06] [INFO] VIEW map -> name entry
+[2026-10-24 10:21:11] [INFO] [name entry] Key pressed: ENTER (menu=no debug=no pedia=no europe=no colony=no report=no turn=5 cursor=32,57)
+[2026-10-24 10:21:11] [INFO] [name entry] COLONY New Amsterdam: colonist #0 job=28 -> field tile 3 as Fur Trapper
+[2026-10-24 10:21:11] [INFO] [name entry] Founded colony 'New Amsterdam' at (32,57) pop=1 tools=100 muskets=0 horses=0
+[2026-10-24 10:21:11] [INFO] VIEW name entry -> map
+[2026-10-24 10:21:11] [INFO] [map] Loaded MADSPACK ./COLONIZE/WDCUT02.SS (4 sections)
+[2026-10-24 10:21:11] [INFO] [map] Loaded SS ./COLONIZE/WDCUT02.SS (1 sprites palette=yes mode=0 pflag=1)
+[2026-10-24 10:21:11] [INFO] [map] Loaded MADSPACK ./COLONIZE/WOODFRAM.SS (4 sections)
+[2026-10-24 10:21:11] [INFO] [map] Loaded SS ./COLONIZE/WOODFRAM.SS (1 sprites palette=yes mode=0 pflag=1)
+[2026-10-24 10:21:11] [INFO] [map] Loaded MADSPACK ./COLONIZE/NAMEPLAT.SS (4 sections)
+[2026-10-24 10:21:11] [INFO] [map] Loaded SS ./COLONIZE/NAMEPLAT.SS (3 sprites palette=yes mode=0 pflag=1)
+[2026-10-24 10:21:11] [INFO] [map] Loaded MADSPACK ./COLONIZE/FONT-NP.FF (1 sections)
+[2026-10-24 10:21:11] [INFO] [map] Loaded FF font ./COLONIZE/FONT-NP.FF (11x8, section=914 bytes)
+[2026-10-24 10:21:11] [INFO] [map] Loaded message catalog ./COLONIZE/WOODCUT.TXT (1 sections)
+[2026-10-24 10:21:11] [INFO] [map] Woodcut 2: BUILDING A COLONY
+[2026-10-24 10:21:11] [INFO] VIEW map -> woodcut
+[2026-10-24 10:21:14] [INFO] VIEW woodcut -> map
+[2026-10-24 10:21:14] [INFO] VIEW map -> colony:New Amsterdam
+[2026-10-24 10:21:14] [INFO] [colony:New Amsterdam] COLONY opened New Amsterdam (id=1 at (32,57) nation=3 pop=1 SoL=0% food=0 hammers=0 project=Docks)
+[2026-10-24 10:22:21] [INFO] [colony:New Amsterdam] Key pressed: ESCAPE (menu=no debug=no pedia=no europe=no colony=yes report=no turn=5 cursor=32,57)
+[2026-10-24 10:22:21] [INFO] [colony:New Amsterdam] POPUP queued tag=INFO kind=message choices=0 queue=1
+[2026-10-24 10:22:21] [INFO] [colony:New Amsterdam] POPUP show tag=INFO kind=message title="-" ctx=(a=-1 b=-1 payload=0) body="We cannot operate fishing boats at this colony until we build {Docks}, Your Excellency."
+[2026-10-24 10:22:21] [INFO] [colony:New Amsterdam] Loaded MADSPACK ./COLONIZE/MSS0.SS (4 sections)
+[2026-10-24 10:22:21] [INFO] [colony:New Amsterdam] Loaded SS ./COLONIZE/MSS0.SS (1 sprites palette=yes mode=0 pflag=1)
+[2026-10-24 10:22:27] [INFO] [colony:New Amsterdam] Key pressed: ENTER (menu=no debug=no pedia=no europe=no colony=yes report=no turn=5 cursor=32,57)
+[2026-10-24 10:22:27] [INFO] [colony:New Amsterdam] POPUP answered tag=INFO dismissed id=0 choice="-" ctx=(a=-1 b=-1 payload=0)
+[2026-10-24 10:22:36] [INFO] [colony:New Amsterdam] Key pressed: UP (menu=no debug=no pedia=no europe=no colony=yes report=no turn=5 cursor=32,57)
+[2026-10-24 10:22:36] [INFO] [colony:New Amsterdam] Key pressed: ENTER (menu=no debug=no pedia=no europe=no colony=yes report=no turn=5 cursor=32,57)
+[2026-10-24 10:22:52] [INFO] [colony:New Amsterdam] Key pressed: ESCAPE (menu=no debug=no pedia=no europe=no colony=yes report=no turn=5 cursor=32,57)
+[2026-10-24 10:22:52] [INFO] [colony:New Amsterdam] Left colony screen.
+[2026-10-24 10:22:52] [INFO] VIEW colony:New Amsterdam -> map
+[2026-10-24 10:22:57] [INFO] [map] Key pressed: G (menu=no debug=no pedia=no europe=no colony=no report=no turn=5 cursor=33,55)
+[2026-10-24 10:22:57] [INFO] [map] COMMAND goto_port (unit Merchantman id=1 at (33,55) mp=15)
+[2026-10-24 10:22:57] [INFO] VIEW map -> cheat list
+[2026-10-24 10:23:04] [INFO] [cheat list] Key pressed: ENTER (menu=no debug=no pedia=no europe=no colony=no report=no turn=5 cursor=33,55)
+[2026-10-24 10:23:04] [INFO] [cheat list] ORDER Merchantman id=1 nation=3 at (33,55) mp=15: goto (30,49)
+[2026-10-24 10:23:04] [INFO] VIEW cheat list -> map
+[2026-10-24 10:23:04] [INFO] [map] MOVE Merchantman id=1 nation=3 at (33,54) mp=12: (33,55) -> (33,54)
+[2026-10-24 10:23:04] [INFO] [map] MOVE Merchantman id=1 nation=3 at (33,53) mp=9: (33,54) -> (33,53)
+[2026-10-24 10:23:04] [INFO] [map] MOVE Merchantman id=1 nation=3 at (33,52) mp=6: (33,53) -> (33,52)
+[2026-10-24 10:23:04] [INFO] [map] MOVE Merchantman id=1 nation=3 at (32,51) mp=3: (33,52) -> (32,51)
+[2026-10-24 10:23:04] [INFO] [map] MOVE Merchantman id=1 nation=3 at (31,50) mp=0: (32,51) -> (31,50)
+[2026-10-24 10:23:04] [INFO] [map] TURN setup: turn=5 year=1497 autumn=0 human=3
+[2026-10-24 10:23:04] [INFO] [map] TURN native nation 4
+[2026-10-24 10:23:04] [INFO] [map] TURN native nation 5
+[2026-10-24 10:23:04] [INFO] [map] TURN native nation 6
+[2026-10-24 10:23:04] [INFO] [map] TURN native nation 7
+[2026-10-24 10:23:04] [INFO] [map] TURN native nation 8
+[2026-10-24 10:23:04] [INFO] [map] TURN native nation 9
+[2026-10-24 10:23:04] [INFO] [map] TURN native nation 10
+[2026-10-24 10:23:04] [INFO] [map] TURN native nation 11
+[2026-10-24 10:23:04] [INFO] [map] TURN european nation 0
+[2026-10-24 10:23:04] [INFO] [map] PROD Jamestown (id=0 nation=0 pop=1 SoL=0%): food +2, hammers +0 (0) building=Docks
+[2026-10-24 10:23:04] [INFO] [map] PROD   Jamestown: Food +2 (2), Sugar +2 (2), Silver +1 (1)
+[2026-10-24 10:23:04] [INFO] [map] COLONY Jamestown: colonist #0 off field tile 3
+[2026-10-24 10:23:04] [INFO] [map] COLONY Jamestown: colonist #0 job=28 -> field tile 3 as Silver Miner
+[2026-10-24 10:23:04] [INFO] [map] COLONY Jamestown: colonist #0 off field tile 3
+[2026-10-24 10:23:04] [INFO] [map] COLONY Jamestown: colonist #0 job=28 -> field tile 0 as Lumberjack
+[2026-10-24 10:23:04] [INFO] [map] COLONY Jamestown: colonist #1 job=28 -> Carpenter's Shop
+[2026-10-24 10:23:04] [INFO] [map] TURN european nation 1
+[2026-10-24 10:23:04] [INFO] [map] MOVE Soldiers id=9 nation=1 at (40,14) mp=-3: (40,13) -> (40,14)
+[2026-10-24 10:23:04] [INFO] [map] MOVE Pioneers id=8 nation=1 at (42,13) mp=-3: (43,12) -> (42,13)
+[2026-10-24 10:23:04] [INFO] [map] MOVE Caravel id=7 nation=1 at (42,8) mp=9: (43,9) -> (42,8)
+[2026-10-24 10:23:04] [INFO] [map] MOVE Caravel id=7 nation=1 at (41,7) mp=6: (42,8) -> (41,7)
+[2026-10-24 10:23:04] [INFO] [map] MOVE Caravel id=7 nation=1 at (40,7) mp=3: (41,7) -> (40,7)
+[2026-10-24 10:23:04] [INFO] [map] MOVE Caravel id=7 nation=1 at (39,6) mp=0: (40,7) -> (39,6)
+[2026-10-24 10:23:04] [INFO] [map] TURN european nation 2
+[2026-10-24 10:23:04] [INFO] [map] MOVE Soldiers id=12 nation=2 at (47,33) mp=-3: (48,32) -> (47,33)
+[2026-10-24 10:23:04] [INFO] [map] MOVE Pioneers id=11 nation=2 at (47,32) mp=-3: (48,32) -> (47,32)
+[2026-10-24 10:23:04] [INFO] [map] MOVE Caravel id=10 nation=2 at (39,23) mp=9: (40,24) -> (39,23)
+[2026-10-24 10:23:04] [INFO] [map] MOVE Caravel id=10 nation=2 at (38,23) mp=6: (39,23) -> (38,23)
+[2026-10-24 10:23:04] [INFO] [map] MOVE Caravel id=10 nation=2 at (37,23) mp=3: (38,23) -> (37,23)
+[2026-10-24 10:23:04] [INFO] [map] MOVE Caravel id=10 nation=2 at (36,23) mp=0: (37,23) -> (36,23)
+[2026-10-24 10:23:11] [INFO] [map] POPUP queued tag=FF_CONGRESS kind=choice choices=5 queue=1
+[2026-10-24 10:23:11] [INFO] [map] PROD New Amsterdam (id=1 nation=3 pop=1 SoL=0%): food +2, hammers +0 (0) building=Docks
+[2026-10-24 10:23:11] [INFO] [map] PROD   New Amsterdam: Food +2 (2), Furs +3 (3), Ore +5 (5)
+[2026-10-24 10:23:11] [INFO] [map] POPUP show tag=FF_CONGRESS kind=choice title="-" ctx=(a=3 b=-1 payload=1) body="The Continental Congress will expand during its next session, Your Excellency.  Which Founding Father shall we appoint as its next member?" choices=[2]Peter Minuit (Trade Adviser) [7]Hernando de Soto (Exploration Adviser) [12]Paul Revere (Military Adviser) [15]Thomas Jefferson (Political Adviser) [20]William Brewster (Religious Adviser)
+[2026-10-24 10:23:27] [INFO] [map] POPUP answered tag=FF_CONGRESS picked id=15 choice="Thomas Jefferson (Political Adviser)" ctx=(a=3 b=-1 payload=1)
+[2026-10-24 10:23:27] [INFO] [map] turn_end: turn=6 year=1498 autumn=0 colonies=2 shortages=0 immigrants=0
+[2026-10-24 10:23:27] [INFO] [map] Save directory exists: automated-playtests/campaign1/saves
+[2026-10-24 10:23:27] [INFO] [map] col1_save_write_file automated-playtests/campaign1/saves/COLONY09.SAV (27005 bytes)
+[2026-10-24 10:23:27] [INFO] [map] Turn autosave → COLONY09.SAV
+[2026-10-24 10:23:27] [INFO] [map] col1_save_write_file automated-playtests/campaign1/saves/trace_autosave_turn_006.sav (27005 bytes)
+[2026-10-24 10:23:27] [INFO] [map] Trace autosave → trace_autosave_turn_006.sav
+[2026-10-24 10:23:27] [INFO] [map] MOVE Merchantman id=1 nation=3 at (30,49) mp=12: (31,50) -> (30,49)
+[2026-10-24 10:23:27] [INFO] [map] Sailed Merchantman to Europe (exit 30,49 cargo=0)
+[2026-10-24 10:23:34] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=6 cursor=32,57)
+[2026-10-24 10:23:34] [INFO] [map] MOVE Pioneers id=3 nation=3 at (33,58) mp=-3: (32,57) -> (33,58)
+[2026-10-24 10:23:34] [INFO] [map] TURN setup: turn=6 year=1498 autumn=0 human=3
+[2026-10-24 10:23:34] [INFO] [map] TURN native nation 4
+[2026-10-24 10:23:34] [INFO] [map] TURN native nation 5
+[2026-10-24 10:23:34] [INFO] [map] TURN native nation 6
+[2026-10-24 10:23:34] [INFO] [map] TURN native nation 7
+[2026-10-24 10:23:34] [INFO] [map] TURN native nation 8
+[2026-10-24 10:23:34] [INFO] [map] TURN native nation 9
+[2026-10-24 10:23:34] [INFO] [map] TURN native nation 10
+[2026-10-24 10:23:34] [INFO] [map] TURN native nation 11
+[2026-10-24 10:23:34] [INFO] [map] TURN european nation 0
+[2026-10-24 10:23:34] [INFO] [map] PROD Jamestown (id=0 nation=0 pop=2 SoL=0%): food +0, hammers +3 (3) building=-
+[2026-10-24 10:23:34] [INFO] [map] PROD   Jamestown: Sugar +2 (4), Lumber +1 (1)
+[2026-10-24 10:23:34] [INFO] [map] Spawned unit id=65 type=Soldiers at (44,39)
+[2026-10-24 10:23:34] [INFO] [map] COLONY Jamestown: colonist #0 off field tile 0
+[2026-10-24 10:23:34] [INFO] [map] COLONY Jamestown: colonist #0 job=28 -> field tile 3 as Silver Miner
+[2026-10-24 10:23:34] [INFO] [map] COLONY Jamestown: colonist #0 off field tile 3
+[2026-10-24 10:23:34] [INFO] [map] COLONY Jamestown: colonist #0 job=28 -> field tile 3 as Silver Miner
+[2026-10-24 10:23:34] [INFO] [map] TURN european nation 1
+[2026-10-24 10:23:34] [INFO] [map] MOVE Soldiers id=9 nation=1 at (40,15) mp=-3: (40,14) -> (40,15)
+[2026-10-24 10:23:34] [INFO] [map] MOVE Pioneers id=8 nation=1 at (41,14) mp=-3: (42,13) -> (41,14)
+[2026-10-24 10:23:34] [INFO] [map] MOVE Caravel id=7 nation=1 at (40,5) mp=9: (39,6) -> (40,5)
+[2026-10-24 10:23:34] [INFO] [map] MOVE Caravel id=7 nation=1 at (39,6) mp=6: (40,5) -> (39,6)
+[2026-10-24 10:23:34] [INFO] [map] MOVE Caravel id=7 nation=1 at (40,5) mp=3: (39,6) -> (40,5)
+[2026-10-24 10:23:34] [INFO] [map] MOVE Caravel id=7 nation=1 at (39,6) mp=0: (40,5) -> (39,6)
+[2026-10-24 10:23:34] [INFO] [map] TURN european nation 2
+[2026-10-24 10:23:34] [INFO] [map] MOVE Soldiers id=12 nation=2 at (48,33) mp=-3: (47,33) -> (48,33)
+[2026-10-24 10:23:34] [INFO] [map] COLONY Isabella: colonist #0 job=22 -> field tile 4 as Ore Miner
+[2026-10-24 10:23:34] [INFO] [map] Founded colony 'Isabella' at (47,32) pop=1 tools=100 muskets=0 horses=0
+[2026-10-24 10:23:34] [INFO] [map] MOVE Caravel id=10 nation=2 at (35,24) mp=9: (36,23) -> (35,24)
+[2026-10-24 10:23:34] [INFO] [map] MOVE Caravel id=10 nation=2 at (34,25) mp=6: (35,24) -> (34,25)
+[2026-10-24 10:23:34] [INFO] [map] MOVE Caravel id=10 nation=2 at (35,26) mp=3: (34,25) -> (35,26)
+[2026-10-24 10:23:34] [INFO] [map] MOVE Caravel id=10 nation=2 at (34,27) mp=0: (35,26) -> (34,27)
+[2026-10-24 10:23:34] [INFO] [map] Spawned unit id=66 type=Colonists at (236,236)
+[2026-10-24 10:23:34] [INFO] [map] EUROPE immigrant on the docks: Master Carpenters (crosses)
+[2026-10-24 10:23:34] [INFO] [map] POPUP queued tag=INFO kind=message choices=0 queue=1
+[2026-10-24 10:23:34] [INFO] [map] POPUP queued tag=INFO kind=message choices=0 queue=2
+[2026-10-24 10:23:34] [INFO] [map] PROD New Amsterdam (id=1 nation=3 pop=1 SoL=1%): food +2, hammers +0 (0) building=Docks
+[2026-10-24 10:23:34] [INFO] [map] PROD   New Amsterdam: Food +2 (4), Furs +3 (6), Ore +5 (10)
+[2026-10-24 10:23:34] [INFO] [map] POPUP show tag=INFO kind=message title="-" ctx=(a=-1 b=-1 payload=0) body="Religious unrest in Netherlands causes increased emigration.  Colonists ({Master Carpenters}) now available in Amsterdam."
+[2026-10-24 10:23:34] [INFO] [map] Loaded MADSPACK ./COLONIZE/MSS4.SS (4 sections)
+[2026-10-24 10:23:34] [INFO] [map] Loaded SS ./COLONIZE/MSS4.SS (1 sprites palette=yes mode=0 pflag=1)
+[2026-10-24 10:23:40] [INFO] [map] POPUP answered tag=INFO dismissed id=0 choice="-" ctx=(a=-1 b=-1 payload=0)
+[2026-10-24 10:23:40] [INFO] [map] POPUP show tag=INFO kind=message title="-" ctx=(a=-1 b=-1 payload=0) body="Excellency, there are {Master Carpenters} ready to join our colony on the docks in {Amsterdam} (Europe).  If we send our ship there they will gladly set sail with us and become useful members of our community."
+[2026-10-24 10:23:43] [INFO] [map] POPUP answered tag=INFO dismissed id=0 choice="-" ctx=(a=-1 b=-1 payload=0)
+[2026-10-24 10:23:43] [INFO] [map] turn_end: turn=7 year=1499 autumn=0 colonies=2 shortages=0 immigrants=1
+[2026-10-24 10:23:43] [INFO] [map] Save directory exists: automated-playtests/campaign1/saves
+[2026-10-24 10:23:43] [INFO] [map] col1_save_write_file automated-playtests/campaign1/saves/COLONY09.SAV (27256 bytes)
+[2026-10-24 10:23:43] [INFO] [map] Turn autosave → COLONY09.SAV
+[2026-10-24 10:23:43] [INFO] [map] col1_save_write_file automated-playtests/campaign1/saves/trace_autosave_turn_007.sav (27256 bytes)
+[2026-10-24 10:23:43] [INFO] [map] Trace autosave → trace_autosave_turn_007.sav
+[2026-10-24 10:23:47] [INFO] [map] Key pressed: P (menu=no debug=no pedia=no europe=no colony=no report=no turn=7 cursor=33,58)
+[2026-10-24 10:23:47] [INFO] [map] ORDER Pioneers id=3 nation=3 at (33,58) mp=3: clear forest tile (33,58) tools=100
+[2026-10-24 10:24:10] [INFO] [map] Key pressed: ENTER (menu=no debug=no pedia=no europe=no colony=no report=no turn=7 cursor=33,58)
+[2026-10-24 10:24:10] [INFO] [map] TURN setup: turn=7 year=1499 autumn=0 human=3
+[2026-10-24 10:24:10] [INFO] [map] TURN native nation 4
+[2026-10-24 10:24:10] [INFO] [map] TURN native nation 5
+[2026-10-24 10:24:10] [INFO] [map] TURN native nation 6
+[2026-10-24 10:24:10] [INFO] [map] TURN native nation 7
+[2026-10-24 10:24:10] [INFO] [map] TURN native nation 8
+[2026-10-24 10:24:10] [INFO] [map] TURN native nation 9
+[2026-10-24 10:24:10] [INFO] [map] TURN native nation 10
+[2026-10-24 10:24:10] [INFO] [map] TURN native nation 11
+[2026-10-24 10:24:10] [INFO] [map] TURN european nation 0
+[2026-10-24 10:24:10] [INFO] [map] PROD Jamestown (id=0 nation=0 pop=1 SoL=1%): food +2, hammers +0 (3) building=-
+[2026-10-24 10:24:10] [INFO] [map] PROD   Jamestown: Food +2 (4), Sugar +2 (6), Silver +1 (2)
+[2026-10-24 10:24:10] [INFO] [map] COLONY Jamestown: colonist #0 off field tile 3
+[2026-10-24 10:24:10] [INFO] [map] COLONY Jamestown: colonist #0 job=28 -> field tile 3 as Silver Miner
+[2026-10-24 10:24:10] [INFO] [map] COLONY Jamestown: colonist #0 off field tile 3
+[2026-10-24 10:24:10] [INFO] [map] COLONY Jamestown: colonist #0 job=28 -> field tile 3 as Silver Miner
+[2026-10-24 10:24:10] [INFO] [map] TURN european nation 1
+[2026-10-24 10:24:10] [INFO] [map] Spawned unit id=67 type=Colonists at (237,237)
+[2026-10-24 10:24:10] [INFO] [map] MOVE Soldiers id=9 nation=1 at (40,16) mp=-3: (40,15) -> (40,16)
+[2026-10-24 10:24:10] [INFO] [map] MOVE Pioneers id=8 nation=1 at (40,15) mp=-3: (41,14) -> (40,15)
+[2026-10-24 10:24:10] [INFO] [map] MOVE Caravel id=7 nation=1 at (40,6) mp=9: (39,6) -> (40,6)
+[2026-10-24 10:24:10] [INFO] [map] MOVE Caravel id=7 nation=1 at (41,6) mp=6: (40,6) -> (41,6)
+[2026-10-24 10:24:10] [INFO] [map] MOVE Caravel id=7 nation=1 at (42,6) mp=3: (41,6) -> (42,6)
+[2026-10-24 10:24:10] [INFO] [map] MOVE Caravel id=7 nation=1 at (43,7) mp=0: (42,6) -> (43,7)
+[2026-10-24 10:24:10] [INFO] [map] TURN european nation 2
+[2026-10-24 10:24:10] [INFO] [map] Spawned unit id=68 type=Missionaries at (238,238)
+[2026-10-24 10:24:10] [INFO] [map] PROD Isabella (id=2 nation=2 pop=1 SoL=0%): food +2, hammers +0 (0) building=Docks
+[2026-10-24 10:24:10] [INFO] [map] PROD   Isabella: Food +2 (2), Furs +3 (3), Ore +4 (4)
+[2026-10-24 10:24:10] [INFO] [map] COLONY Isabella: colonist #0 off field tile 4
+[2026-10-24 10:24:10] [INFO] [map] COLONY Isabella: colonist #0 job=22 -> field tile 2 as Lumberjack
+[2026-10-24 10:24:10] [INFO] [map] MOVE Soldiers id=12 nation=2 at (49,34) mp=-6: (48,33) -> (49,34)
+[2026-10-24 10:24:10] [INFO] [map] MOVE Caravel id=10 nation=2 at (35,26) mp=9: (34,27) -> (35,26)
+[2026-10-24 10:24:10] [INFO] [map] MOVE Caravel id=10 nation=2 at (36,25) mp=6: (35,26) -> (36,25)
+[2026-10-24 10:24:10] [INFO] [map] MOVE Caravel id=10 nation=2 at (37,24) mp=3: (36,25) -> (37,24)
+[2026-10-24 10:24:10] [INFO] [map] MOVE Caravel id=10 nation=2 at (38,24) mp=0: (37,24) -> (38,24)
+[2026-10-24 10:24:10] [INFO] [map] PROD New Amsterdam (id=1 nation=3 pop=1 SoL=1%): food +2, hammers +0 (0) building=Docks
+[2026-10-24 10:24:10] [INFO] [map] PROD   New Amsterdam: Food +2 (6), Furs +3 (9), Ore +5 (15)
+[2026-10-24 10:24:10] [INFO] [map] turn_end: turn=8 year=1500 autumn=0 colonies=3 shortages=0 immigrants=0
+[2026-10-24 10:24:10] [INFO] [map] Save directory exists: automated-playtests/campaign1/saves
+[2026-10-24 10:24:10] [INFO] [map] col1_save_write_file automated-playtests/campaign1/saves/COLONY08.SAV (27312 bytes)
+[2026-10-24 10:24:10] [INFO] [map] Decade autosave → COLONY08.SAV
+[2026-10-24 10:24:10] [INFO] [map] col1_save_write_file automated-playtests/campaign1/saves/trace_autosave_turn_008.sav (27312 bytes)
+[2026-10-24 10:24:10] [INFO] [map] Trace autosave → trace_autosave_turn_008.sav
+[2026-10-24 10:24:10] [INFO] VIEW map -> europe
+[2026-10-24 10:24:24] [INFO] [europe] POPUP show tag=EUROPE_RECRUIT kind=choice gold=1000 choices=[1]Free Colonists [2]Expert Farmers [3]Seasoned Scouts
+[2026-10-24 10:24:24] [INFO] [europe] Loaded MADSPACK ./COLONIZE/MSS2.SS (4 sections)
+[2026-10-24 10:24:24] [INFO] [europe] Loaded SS ./COLONIZE/MSS2.SS (1 sprites palette=yes mode=0 pflag=1)
+[2026-10-24 10:24:31] [INFO] [europe] Key pressed: DOWN (menu=no debug=no pedia=no europe=yes colony=no report=no turn=8 cursor=33,58)
+[2026-10-24 10:24:31] [INFO] [europe] Key pressed: DOWN (menu=no debug=no pedia=no europe=yes colony=no report=no turn=8 cursor=33,58)
+[2026-10-24 10:24:31] [INFO] [europe] Key pressed: ENTER (menu=no debug=no pedia=no europe=yes colony=no report=no turn=8 cursor=33,58)
+[2026-10-24 10:24:31] [INFO] [europe] POPUP answered tag=EUROPE_RECRUIT picked row=2
+[2026-10-24 10:24:31] [INFO] [europe] EUROPE recruited Expert Farmers (job 0) for 140$ passage (gold=860)
+[2026-10-24 10:24:31] [INFO] [europe] POPUP show tag=EUROPE_RECRUIT kind=choice gold=860 choices=[1]Free Colonists [2]Free Colonists [3]Seasoned Scouts
+[2026-10-24 10:24:38] [INFO] [europe] Key pressed: DOWN (menu=no debug=no pedia=no europe=yes colony=no report=no turn=8 cursor=33,58)
+[2026-10-24 10:24:38] [INFO] [europe] Key pressed: ENTER (menu=no debug=no pedia=no europe=yes colony=no report=no turn=8 cursor=33,58)
+[2026-10-24 10:24:38] [INFO] [europe] POPUP answered tag=EUROPE_RECRUIT picked row=1
+[2026-10-24 10:24:38] [INFO] [europe] EUROPE recruited Free Colonists (job 28) for 160$ passage (gold=700)
+[2026-10-24 10:24:38] [INFO] [europe] POPUP show tag=EUROPE_RECRUIT kind=choice gold=700 choices=[1]Veteran Soldiers [2]Free Colonists [3]Seasoned Scouts
+[2026-10-24 10:24:46] [INFO] [europe] Key pressed: DOWN (menu=no debug=no pedia=no europe=yes colony=no report=no turn=8 cursor=33,58)
+[2026-10-24 10:24:46] [INFO] [europe] Key pressed: ENTER (menu=no debug=no pedia=no europe=yes colony=no report=no turn=8 cursor=33,58)
+[2026-10-24 10:24:46] [INFO] [europe] POPUP answered tag=EUROPE_RECRUIT picked row=1
+[2026-10-24 10:24:46] [INFO] [europe] EUROPE recruited Veteran Soldiers (job 21) for 180$ passage (gold=520)
+[2026-10-24 10:24:54] [INFO] [europe] POPUP show tag=EUROPE_DOCK kind=choice gold=520 choices=[1]no board [5]sell muskets [9]sell horses [12]no changes
+[2026-10-24 10:25:09] [INFO] [europe] Key pressed: ESCAPE (menu=no debug=no pedia=no europe=yes colony=no report=no turn=8 cursor=33,58)
+[2026-10-24 10:25:09] [INFO] [europe] POPUP answered tag=EUROPE_DOCK cancelled
+[2026-10-24 10:25:09] [INFO] [europe] POPUP queued tag=EUROPE_SHIP_MENU kind=choice choices=3 queue=1
+[2026-10-24 10:25:09] [INFO] [europe] POPUP show tag=EUROPE_SHIP_MENU kind=choice title="-" ctx=(a=0 b=-1 payload=0) body="European harbor options for {Merchantman}:" choices=[1]Move to front. [2]Set sail for the New World. [4]No changes.
+[2026-10-24 10:25:13] [INFO] [europe] Key pressed: DOWN (menu=no debug=no pedia=no europe=yes colony=no report=no turn=8 cursor=33,58)
+[2026-10-24 10:25:13] [INFO] [europe] Key pressed: ENTER (menu=no debug=no pedia=no europe=yes colony=no report=no turn=8 cursor=33,58)
+[2026-10-24 10:25:13] [INFO] [europe] POPUP answered tag=EUROPE_SHIP_MENU picked id=2 choice="Set sail for the New World." ctx=(a=0 b=-1 payload=0)
+[2026-10-24 10:25:13] [INFO] [europe] POPUP queued tag=MAP_CONFIRM kind=choice choices=2 queue=1
+[2026-10-24 10:25:13] [INFO] [europe] POPUP show tag=MAP_CONFIRM kind=choice title="-" ctx=(a=-1 b=-1 payload=0) body="Shall we set sail for the {New World}, Your Excellency?" choices=[1]Yes, steady as she goes. [0]No, let us remain in port.
+[2026-10-24 10:25:18] [INFO] [europe] Key pressed: ENTER (menu=no debug=no pedia=no europe=yes colony=no report=no turn=8 cursor=33,58)
+[2026-10-24 10:25:18] [INFO] [europe] POPUP answered tag=MAP_CONFIRM picked id=1 choice="Yes, steady as she goes." ctx=(a=-1 b=-1 payload=0)
+[2026-10-24 10:25:18] [INFO] [europe] ORDER Colonists id=66 nation=3 at (236,236) mp=3: disband
+[2026-10-24 10:25:18] [INFO] [europe] EUROPE Merchantman departs for the colonies: 1 turns, exit (30,49) east
+[2026-10-24 10:25:18] [INFO] VIEW europe -> map
+[2026-10-24 10:25:30] [INFO] [map] col1_save_write_file automated-playtests/campaign1/saves/t8.sav (27396 bytes)
+[2026-10-24 10:25:30] [INFO] [map] Diagnostics shutdown.
