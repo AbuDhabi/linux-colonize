@@ -559,6 +559,7 @@ void colony_screen_open_jobs(
   colony_screen_close_subpanels(view);
   view->jobs_tile_index = tile_index;
   view->job_count = 0;
+  view->jobs_greyed = 0;
   /* Row list is deliberately NOT docks-gated: DOS offers Fisherman on a
    * dockless colony and answers the pick with GAME.TXT @NODOCKS, which is
    * what game_loop.c's two assign paths do. The drawn number IS gated, so
@@ -584,8 +585,7 @@ void colony_screen_open_jobs(
    * 0..0x18 — not the nine field jobs. Jobs 0..8 have no required building and
    * are always listed; 9..0x12 (the indoor jobs, incl. @JOB 18 Teacher) appear
    * once their DS:0x2f4 building stands. DOS DROPS an unowned row (FUN_15eb_3454
-   * returns 0), it does not grey it. Rows 0x13..0x18 are the leave-as list and
-   * are served by the port's eject popup. */
+   * returns 0), it does not grey it. */
   /* FUN_2f2b_348c raw 50736-50739: a colonist with a specialty (FUN_15eb_0002 —
    * profession outside 0x13/0x19/0x1a/0x1b/0x1c) gets "Clear Specialty" (menu id
    * 0x61) as page 0's FIRST row, ahead of the jobs; picking it asks @LOBOTOMIZE
@@ -605,6 +605,22 @@ void colony_screen_open_jobs(
        job <= COLONIES_JOB_TEACHER && view->job_count < COLONY_JOB_LIST_MAX; ++job) {
     if (colonies_job_row_offered(pool, colony, job, sel_prof)) {
       view->job_ids[view->job_count++] = job;
+    }
+  }
+  /* port_bugs.md #1224: the same loop goes on through the leave-as rows 0x13..0x18
+   * (FUN_15eb_3454's >= 0x13 arm, raw 13556-13589: 0 drops a row, 0xffff greys it,
+   * FUN_291f_01b6 raw 50801). Past 0x10 rows they land on page 1, which is how DOS's
+   * "(More)" flips between the job list and the leave-colony list. */
+  if (view->selected_colonist >= 0 && view->selected_colonist < colony->colonist_count) {
+    int roles[COLONIZE_EJECT_ROLE_COUNT];
+    bool enabled[COLONIZE_EJECT_ROLE_COUNT];
+    const int n = colonies_list_eject_roles_gear(pool, colony, 0, 0, 0, sel_prof, roles, enabled,
+                                                 COLONIZE_EJECT_ROLE_COUNT);
+    for (int i = 0; i < n && view->job_count < COLONY_JOB_LIST_MAX; ++i) {
+      if (!enabled[i]) {
+        view->jobs_greyed |= 1u << view->job_count;
+      }
+      view->job_ids[view->job_count++] = UNITS_JOB_COLONIST + roles[i];
     }
   }
   /* raw 50812: the box's default row is the colonist's current occupation

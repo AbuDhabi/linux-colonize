@@ -775,7 +775,7 @@ void ai_grow_villages(ColonizeTurnContext* ctx, int nation_id) {
     }
     const uint32_t before = rng->state;
     ai_indian_152e_village_growth(ctx, (int)i, nation_id, rng);
-    if (ai_021a_trace_enabled()) {
+    if (ai_021a_trace_enabled() && !dos_rng_modern_state()) { /* probe would draw xoshiro */
       int draws = 0;
       AiRng probe;
       probe.state = before;

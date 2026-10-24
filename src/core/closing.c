@@ -265,10 +265,7 @@ bool closing_handle_input(ClosingCinematic* c, const ColonizeInputState* input) 
   if (!input) {
     return true;
   }
-  const bool pressed =
-    input->last_key != COLONIZE_KEY_NONE || input->mouse_left_clicked ||
-    input->mouse_right_clicked;
-  if (pressed) {
+  if (colonize_input_any_key_or_click(input)) {
     closing_close(c);
   }
   return true;

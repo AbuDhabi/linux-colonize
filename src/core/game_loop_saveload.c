@@ -710,10 +710,10 @@ void game_retire_after_score(ColonizeGameState* game) {
     sound_play(sound_retire_tune_id(sc.exploits_tier));
     game_build_exploits(game, &sc);
     game->in_exploits = true;
-    set_status(game, "Retired — Exploits", "Any key continues");
+    set_status(game, "Retired — Exploits", "Any key or click continues");
   } else {
     game->in_hall_of_fame = true;
-    set_status(game, "Hall of Fame", "Enter/Esc returns to menu");
+    set_status(game, "Hall of Fame", "Any key or click returns to menu");
   }
 }
 
@@ -723,7 +723,7 @@ void game_open_retire_score(ColonizeGameState* game) {
   }
   game_open_report(game, COLONIZE_REPORT_SCORE);
   game->report_exits_to_menu = true;
-  set_status(game, "Retired — Colonization Score", "Enter/Esc returns to menu");
+  set_status(game, "Retired — Colonization Score", "Enter/Esc or click continues");
 }
 
 /*

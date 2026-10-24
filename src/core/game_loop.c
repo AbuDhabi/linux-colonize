@@ -2313,6 +2313,7 @@ static void game_render_map_popups(
         &game->names,
         /* FUN_2b5a_1b5a builds the box with FONTINTR (DS:0x268a). */
         game_popup_font(game),
+        game_chrome_font(game),
         wood,
         &popup_cols,
         COLONIZE_COL_BASIC,

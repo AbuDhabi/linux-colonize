@@ -81,6 +81,7 @@ add_library(colonize_sim STATIC
   src/core/map_gen.c
   src/core/travel_dest.c
   src/core/dos_rng.c
+  src/core/dos_buggy.c
   src/core/units.c
   src/core/units_map.c
   src/core/units_combat.c
@@ -469,6 +470,11 @@ colonize_add_test(NAME unit_settings
   LIBS colonize_core
 )
 
+colonize_add_test(NAME unit_dos_rng
+  SOURCES tests/unit/test_dos_rng.c
+  LIBS colonize_core
+)
+
 # Input-replay regressions: every subdirectory of tests-automated-regression/
 # (tests/README.md "Input-replay regressions"). SDL only for the key table.
 if(SDL2_FOUND)
@@ -727,6 +733,7 @@ set(COLONIZE_SLIM_SOURCES
   src/core/pik.c
   src/core/map.c
   src/core/dos_rng.c
+  src/core/dos_buggy.c
   src/core/strutil.c
   src/core/col1_save.c
   src/core/assets.c

@@ -1121,12 +1121,14 @@ COLONIZE_INTERNAL GameUpdateStep game_update_report_screen(ColonizeGameState* ga
     /* Congress page 2 has no OK button (golden: full-bleed photo, no chrome)
      * — any click closes it, not just a hit on a drawn box. Score (F10)
      * has no OK button either (reports_ok_button_hit always returns false
-     * for it) — same click-anywhere-dismisses rule. */
+     * for it) — same click-anywhere-dismisses rule; FUN_41f2_0092 waits in
+     * FUN_281f_03c0, which takes either mouse button. */
     const bool page2_click_anywhere =
       game->report_id == COLONIZE_REPORT_CONGRESS && game->congress_page2 &&
       input->mouse_left_clicked;
     const bool score_click_anywhere =
-      game->report_id == COLONIZE_REPORT_SCORE && input->mouse_left_clicked;
+      game->report_id == COLONIZE_REPORT_SCORE &&
+      (input->mouse_left_clicked || input->mouse_right_clicked);
     const bool ok_clicked = page2_click_anywhere || score_click_anywhere ||
       (input->mouse_left_clicked &&
        reports_ok_button_hit(game->report_id, game->congress_page2, input->mouse_x, input->mouse_y));
@@ -2666,8 +2668,7 @@ COLONIZE_INTERNAL GameUpdateStep game_update_pedia_screen(ColonizeGameState* gam
     }
 
     /* Article view: DOS waits for any key or click (FUN_281f_03c0). */
-    if (input->last_key != COLONIZE_KEY_NONE || input->mouse_left_clicked ||
-        input->mouse_right_clicked) {
+    if (colonize_input_any_key_or_click(input)) {
       if (game->pedia_return_to_list) {
         game_open_pedia_list(game, game->pedia_category);
       } else {
@@ -3544,31 +3545,21 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
     return game_update_map_menu_bar(game, input) != GAME_UPDATE_RETURN_FALSE;
   }
 
-  if (input->last_key == COLONIZE_KEY_Q) {
-    game_enqueue_yes_no(
-      game, GAME_MAP_CONFIRM_QUIT, -1, "DOS", "", NULL
-    );
-    return true;
-  }
-
-  step = game_update_report_screen(game, input);
-  if (step != GAME_UPDATE_CONTINUE) {
-    return step == GAME_UPDATE_RETURN_TRUE;
-  }
-
-  /* Retire exploits screen: any key / click advances to the Hall of Fame. */
+  /* Retire exploits screen (FUN_41f2_0b70) and Hall of Fame (FUN_41f2_0f56) both end in
+   * the FUN_281f_03c0 key-or-click wait, so any key (Q too, hence ahead of the quit key)
+   * or either mouse button advances. */
   if (game->in_exploits) {
-    if (input->last_key != COLONIZE_KEY_NONE || input->mouse_left_clicked) {
+    if (colonize_input_any_key_or_click(input)) {
       game->in_exploits = false;
       game->in_hall_of_fame = true;
-      set_status(game, "Hall of Fame", "Enter/Esc returns to menu");
+      set_status(game, "Hall of Fame", "Any key or click returns to menu");
     }
     return true;
   }
 
   /* Title-menu Hall of Fame screen (reports_render_hall_of_fame). */
   if (game->in_hall_of_fame) {
-    if (input->last_key == COLONIZE_KEY_ESCAPE || input->last_key == COLONIZE_KEY_ENTER) {
+    if (colonize_input_any_key_or_click(input)) {
       game->in_hall_of_fame = false;
       if (game->war_end_won) {
         /* WoI win: the score chain ends in @SCORED "That's all." / "Keep
@@ -3582,6 +3573,18 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
       }
     }
     return true;
+  }
+
+  if (input->last_key == COLONIZE_KEY_Q) {
+    game_enqueue_yes_no(
+      game, GAME_MAP_CONFIRM_QUIT, -1, "DOS", "", NULL
+    );
+    return true;
+  }
+
+  step = game_update_report_screen(game, input);
+  if (step != GAME_UPDATE_CONTINUE) {
+    return step == GAME_UPDATE_RETURN_TRUE;
   }
 
   step = game_update_colony_screen(game, input);

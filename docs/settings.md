@@ -58,7 +58,7 @@ defaults no matter what file is sitting in the build directory.
     "menu": false, "mouse_coords": false, "building_rects": false, "logs": false,
     "trace_autosaves": false, "input_logger": false, "input_logger_directory": "./input_logs"
   },
-  "divergences": { "unlimited_units": false },
+  "divergences": { "unlimited_units": false, "modern_prng": false },
   "data_dir": "./COLONIZE",
   "save_dir": "",
   "no_sound": false,
@@ -107,6 +107,15 @@ saved in the `UNXT` port extension chunk (docs/savegame.md), so DOS still
 loads the first 300 and never sees the rest. Turning the flag off again does
 not drop units: a save already above 300 loads whole, and new units wait
 until the count falls back under the DOS limit.
+`divergences.modern_prng` (read at startup, `main.c` -> `dos_rng_modern_seed`)
+makes every `dos_rng_next` draw, on any `ColonizeDosRng`, the top 15 bits of one
+process-wide xoshiro256** (`src/third_party/xoshiro256starstar.h`, authors' CC0
+code). Seeded once per process via splitmix64 from the campaign seed (`--seed` /
+`seed`) if set, else the wall clock; DOS reseeds (`dos_rng_seed`, DS:0x83a6, music
+tick) then leave the stream alone, so nothing replays. Values re-derived on demand
+from a stable seed stay on the LCG (`dos_rng_range_lcg`): the colony-screen building
+layout (every frame) and a village's taught skill (@CHIEFHOWDY, then the visit). The state rides
+in RTST record 13, written only while on; off = DOS draws and saves unchanged.
 
 Port-only keys, no DOS bit, no head bridge.
 `save_dir` empty means the platform default (`<exe>/COLONIZE`). `seed` is

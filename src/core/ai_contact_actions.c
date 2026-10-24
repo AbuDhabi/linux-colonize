@@ -688,7 +688,8 @@ static int ai_contact_a618_skill_ex(
    * _DAT_0000_046c) AND it is written to / restored from the save file
    * (post_map tail @608: FUN_2a1f_0c9c write, FUN_2a1f_0cb4 read at raw
    * 120429), so it is a stable per-game value: post_map.boot_timer.
-   * port_bugs.md #564.
+   * port_bugs.md #564. @CHIEFHOWDY and the learn visit both recompute it, so
+   * it stays on the LCG (dos_rng_range_lcg) under divergences.modern_prng.
    */
   dos_rng_seed(&rng,
                (uint32_t)((int)t->y * 256 + (int)t->x) + ctx->col1->post_map.boot_timer);
@@ -698,7 +699,7 @@ static int ai_contact_a618_skill_ex(
   }
   int skill = 0;
   if (sum > 0) {
-    int r = dos_rng_range(&rng, 1, sum);
+    int r = dos_rng_range_lcg(&rng, 1, sum);
     skill = -1;
     do {
       skill++;
@@ -729,7 +730,7 @@ static int ai_contact_a618_skill_ex(
         ocean++;
       }
     }
-    if (dos_rng_range(&rng, 1, 20) < ocean) {
+    if (dos_rng_range_lcg(&rng, 1, 20) < ocean) {
       skill = 8;
     }
   }

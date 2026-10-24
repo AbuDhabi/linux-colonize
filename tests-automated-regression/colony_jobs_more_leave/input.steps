@@ -1,0 +1,17 @@
+# Quebec (as colony_tile_assignment): colonist 0 (Free Colonist, selected on entry) farms tile NW.
+# FUN_2f2b_348c param 0 lists @JOB 0..0x18: 16 job rows, so the leave-as rows overflow onto
+# page 1 and "(More)" flips between the job list and the leave-colony list (port_bugs.md #1224).
+click 168 128              # open Quebec
+wait 10
+click 236 43               # click the selected colonist's tile: the jobs menu, page 0
+shot
+click 120 166              # (More), page 0's last row: page 1 = (More) + the leave-as rows
+shot
+click 120 82               # (More), page 1's first row: back to page 0
+shot
+click 120 166              # (More): page 1 again
+click 120 99               # Pioneer (20 Tools): greyed (no tools in stock), the click does nothing
+shot
+click 120 91               # Colonist: he leaves the colony as a Free Colonist
+shot
+key Escape                 # back to the map

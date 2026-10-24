@@ -46,6 +46,7 @@ static void test_missing_file_defaults(void) {
   check(!s.input_logger && strcmp(s.input_logger_directory, "./input_logs") == 0,
         "default input logger off, ./input_logs");
   check(!s.unlimited_units, "default divergences.unlimited_units off (DOS limits)");
+  check(!s.modern_prng, "default divergences.modern_prng off (DOS LCG)");
 }
 
 static void test_roundtrip(void) {
@@ -71,6 +72,7 @@ static void test_roundtrip(void) {
   out.debug_logs = true;
   out.skip_intro = false;
   out.unlimited_units = true;
+  out.modern_prng = true;
   out.input_logger = true;
   snprintf(out.input_logger_directory, sizeof(out.input_logger_directory), "/tmp/col \"in\"");
   /* Raw CP437 0x8e + UTF-8 e-acute: bytes must survive save/load unchanged (#1086). */

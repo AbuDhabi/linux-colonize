@@ -71,7 +71,9 @@ Hall of Fame / Exploits). Shared chrome, fill bars and F2-F9 stay in
 - Ordering: fixed layout, no rows to order.
 - Scroll/paging: none.
 - Click targets: none — and no OK button at all (unlike every other
-  report); dismisses on click anywhere, same as Congress page 2.
+  report); dismisses on a click anywhere (either button: the `FUN_281f_03c0`
+  wait, `colonize_input_any_key_or_click`), like Congress page 2. DOS's wait
+  also takes any key; the port keeps Esc/Enter plus the F-key report switch.
 - Strings: title/subtitle/Total Score use ink index 149, everything else
   index 68 (WOODPANL.PIK-specific, not the usual report-plate 14/15/97).
   "Gold"/"Citizens"/"Continental Congress"/"Rebel Sentiment"/"Total Score"
@@ -139,7 +141,10 @@ Hall of Fame / Exploits). Shared chrome, fill bars and F2-F9 stay in
      `"--- "` / `" ---"` at 0x121a/0x121f)
 - Ordering: rank descending by rating (`game_hof_insert`).
 - Scroll/paging: none — 5 rows shown.
-- Click targets: none; Esc/Enter returns to the title menu.
+- Click targets: none; any key or either mouse button returns to the title
+  menu (or @SCORED after a WoI win): `FUN_281f_00ec` drain + `FUN_281f_03c0`
+  wait at the end of `FUN_41f2_0f56`, port `colonize_input_any_key_or_click`
+  (port_bugs.md #1227; test `unit_hall_of_fame click_dismisses_ending_screens`).
 - Strings: all live from `LABELS.TXT @MISC` (indices above) with the
   matching literal fallbacks; `@INDEPENDENT` republic name from NAMES.TXT
   by the entry's `nation_id`. Separator glyphs (". ", ", ", ": ") are the

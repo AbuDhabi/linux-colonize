@@ -8,6 +8,7 @@
  * and is registered before main() in every test binary (colonize_add_test
  * appends this file).
  */
+#include <stdbool.h>
 #include <stddef.h>
 #include <string.h>
 
@@ -148,6 +149,10 @@ extern void colonies_set_building_row_name_resolver(ColoniesBuildingRowNameResol
  * test binary reads the real NAMES.TXT / LABELS.TXT (cwd = repo root). */
 extern void reports_names_load_catalogs(const char* data_dir) __attribute__((weak));
 
+/* Tests reproduce the tolerated DOS bugs (core/dos_buggy.h) the goldens lock;
+ * a case may flip it back. Weak: bound only when something reads the flag. */
+extern void dos_buggy_behavior_set(bool on) __attribute__((weak));
+
 /* Re-arm the resolver after a test deliberately uninstalls it to reproduce
  * the production state (port_bugs.md #581). */
 void test_name_kinds_reinstall(void) {
@@ -157,6 +162,9 @@ void test_name_kinds_reinstall(void) {
 }
 
 __attribute__((constructor)) static void test_name_kinds_install(void) {
+  if (dos_buggy_behavior_set) {
+    dos_buggy_behavior_set(true);
+  }
   if (reports_names_load_catalogs) {
     reports_names_load_catalogs("COLONIZE");
   }

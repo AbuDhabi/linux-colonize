@@ -1137,6 +1137,15 @@ void game_colony_commit_job(ColonizeGameState* game, ColonizeColony* colony, int
     colony_screen_close_jobs(csv);
     return;
   }
+  if (job >= UNITS_JOB_COLONIST) {
+    /* port_bugs.md #1224: a leave-as row of the jobs list. FUN_2f2b_348c raw 50858-50863
+     * hands every pick to 054c, so this is the leave-as popup's own pick. */
+    colony_screen_close_jobs(csv);
+    if (ci >= 0) {
+      game_colony_request_eject(game, ci, job - UNITS_JOB_COLONIST);
+    }
+    return;
+  }
   if (game_colony_refuse_nodocks(game, colony, job)) {
     /* status already set */
   } else if (ci < 0 || !colony || ci >= colony->colonist_count) {
