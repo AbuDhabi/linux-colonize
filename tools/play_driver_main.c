@@ -426,6 +426,9 @@ static void print_units(void) {
     if (u->aboard_ship_id >= 0) {
       printf(" aboard %d", u->aboard_ship_id);
     }
+    if (u->col1_flags15 & 0x80u) {
+      printf(" damaged");
+    }
     if (u->tools || u->muskets || u->horses) {
       printf(" tools %d muskets %d horses %d", u->tools, u->muskets, u->horses);
     }
