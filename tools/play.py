@@ -62,7 +62,8 @@ def main():
         args = ' '.join(sys.argv[3:])
         subprocess.Popen(
             f'exec tail -n +1 -F -s 0.05 {cmd} 2>/dev/null | exec {bindir}/play_driver {d} {args} > {out} 2>&1',
-            shell=True, start_new_session=True)
+            shell=True, start_new_session=True,
+            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         text = wait_marker(out, '@@ ready', 60)
         print(text, end='')
         return
