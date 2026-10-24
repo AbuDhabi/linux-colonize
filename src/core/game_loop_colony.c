@@ -123,8 +123,6 @@ ColoniesBuildableOpts game_colony_buildable_opts(const ColonizeGameState* game) 
   opts.has_peter_stuyvesant = founding_fathers_nation_has(col1, nation, 3);
   /* FUN_15eb_3650 wagon arm reads the census counters (DS:0x9298 / 0x924c). */
   opts.col1 = col1;
-  /* ... and its keep-current tail the unit record indexed by the build code. */
-  opts.units = game->units_ok ? &game->units : NULL;
   return opts;
 }
 
@@ -1051,6 +1049,7 @@ void game_colony_queue_construction(ColonizeGameState* game, int bid) {
   for (int i = 0; i < csv->buildable_count; ++i) {
     if (csv->buildable_ids[i] == bid) {
       csv->construction_selection = i + 1;
+      csv->construction_page = i + 1 >= 0x10; /* ignored on a one-page list */
       break;
     }
   }

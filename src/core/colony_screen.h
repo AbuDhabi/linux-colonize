@@ -314,11 +314,12 @@ typedef struct ColonyScreenView {
   int selected_cargo; /* warehouse cargo highlighted for =/+ load; -1 none */
 
   bool construction_open;
-  int construction_selection; /* entry (0 = the clear row); -1 = no bar, page 0 (#1215) */
+  int construction_selection; /* entry (0 = the clear row) */
+  int construction_page; /* 0 / 1 of a two-page list (FUN_2f2b_5bd2 local_4) */
   int construction_default_row; /* the current project's entry, -1 = not listed */
   int buildable_ids[COLONY_BUILDABLE_MAX];
   int buildable_count;
-  ColonyDialogRect construction_rect; /* page = the selection's (colony_screen_popups.c) */
+  ColonyDialogRect construction_rect;
   /* The open jobs / construction page's "(More)" row has the bar (FUN_6f74_2580 box+0x4c);
    * the selection keeps an entry of that page so the page stays. */
   bool more_selected;

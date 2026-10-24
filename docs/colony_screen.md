@@ -128,14 +128,12 @@ tab's hammers bar (own block). Production-tab badge ink is white (15), not
   `FUN_2f2b_5bd2` raw 52607-52610). Past 22 rows it is exactly two pages of 16:
   page 0 ends with "(More)", page 1 starts with the back "(More)" (port_bugs.md
   #1195). The bar (port_bugs.md #1215, `FUN_2f2b_5bd2`): the list always opens on
-  page 0; a page that lists the current project bars it; the first showing of page
-  0 without it has no bar (`FUN_291f_08ec(0x65)`: no row has id 0x65, so
-  `FUN_6f74_089a` returns NULL; Enter then does nothing, Up / Down pick a row; the
-  paired `FUN_291f_033c(0x65, 1)` ORs 2 into 0000:0000 through that NULL, invisible
-  and not reproduced); a
-  turned page without it bars its first row (page 1 the back "(More)", page 0 the
-  clear row), because `local_8` is never reset, which also leaves the `08ec(100)`
-  arm dead. A live list pages once the built current project keeps its row
+  page 0; a page that lists the current project bars it and draws it in the hilite
+  ink; a page without it, first showing or turned, does that to the "(More)" row
+  toward it (page 0 `08ec(0x65)` / `033c(0x65, 1)`, page 1 `08ec(100)`). DOS passes
+  the More ids 0x63 / 0x62 + 2 there, ids no row has, so it shows no bar (Enter does
+  nothing), and since it never resets `local_8` a turned page bars its first row
+  instead (dos_bugs.md DB-63, DB-60). A live list pages once the built current project keeps its row
   (FUN_15eb_3650 tail, port_bugs.md #1218; unit_stage_seams
   test_colony_construction_two_pages_live). Picking that "(COMPLETE)" row keeps the project and
   clears +0x1c bit 0x80 with no message (FUN_2f2b_5bd2 raw 52665-52667; @ALREADYHAVE stays the

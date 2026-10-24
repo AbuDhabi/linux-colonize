@@ -600,15 +600,13 @@ DOS FUN_15eb_3650 wagon arm reads colony_counts[nation] (DS:0x9298) and
 unit_type_counts[nation][12] (DS:0x924c + n*0x13 + 12) straight out of the
 census window; NULL simply skips the cap.
 
-## ColoniesBuildableOpts.units
+## colonies_list_buildable keep-current tail
 
-colonies_list_buildable is DOS-LITERAL FUN_15eb_3650 (raw 13641-13746) per
-code. Its tail (raw 13741-13746, port_bugs.md #1218) lists the colony's
-current project (+0x94) whatever the gates said, unless unit record #code is
-type 1 and the colony owns @BUILDING `local_e` (the row itself, or code - 0x1f
-for a unit project): DOS indexes its unit array with the build code. `units`
-supplies that record (the code-th live slot); NULL, or a code past the live
-count, reads as "not type 1" (DOS's stale record there is not kept). So a just
+colonies_list_buildable ports FUN_15eb_3650 (raw 13641-13746) per code. Its
+tail (raw 13741-13746, port_bugs.md #1218) lists the colony's current project
+(+0x94) whatever the gates said. DOS drops it when unit record #code (its unit
+array indexed by the build code) is type 1 and the colony owns @BUILDING
+`local_e`; the port does not reproduce that (dos_bugs.md DB-59). So a just
 built project stays in the CHANGE list as its "(COMPLETE)" row, and a colony
 with 14 buildings and all 7 unit projects open reaches 23 rows and two pages.
 The building arm is literal too: predecessor owned and the row not owned (no

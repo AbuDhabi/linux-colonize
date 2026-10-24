@@ -1604,11 +1604,10 @@ static int test_indian_land_offer_row_greyed(void) {
 }
 
 /*
- * port_bugs.md #1215, FUN_2f2b_5bd2: a two-page construction list whose page 0 does not list
- * the current project shows page 0 with no bar (08ec(0x65) matches no row); Enter then does
- * nothing and Down takes row 0. A page turn bars the current project where that page lists
- * it, else the page's first row (page 1: the back "(More)", page 0: the clear row). The view
- * is hand-built: the port's buildable list tops out at 22 rows (port_bugs.md #1218).
+ * port_bugs.md #1215, FUN_2f2b_5bd2: a two-page construction list bars the current project on
+ * the page that lists it, else the "(More)" row toward it (docs/dos_bugs.md DB-60 / DB-63:
+ * DOS shows no bar there), on the first showing and after every page turn. The view is
+ * hand-built: the port's buildable list tops out at 22 rows (port_bugs.md #1218).
  */
 static int test_colony_construction_page_default(void) {
   static ColonizeGameState game;
@@ -1629,32 +1628,31 @@ static int test_colony_construction_page_default(void) {
   }
   const int p1 = 0x12; /* a page-1 project */
   csv->construction_default_row = p1;
-  csv->construction_selection = -1; /* what the open gives it */
+  csv->construction_page = 0;
+  csv->construction_selection = 0;
+  csv->more_selected = true; /* what the open gives it (DB-63) */
   const int before = col->building_in_production;
   ColonizeInputState in;
   memset(&in, 0, sizeof(in));
   in.last_key = COLONIZE_KEY_ENTER;
   (void)game_update(&game, &in, 16);
-  if (rc == 0 && (csv->construction_selection != -1 || csv->more_selected ||
-                  !csv->construction_open || col->building_in_production != before)) {
-    rc = fail("no bar: Enter does nothing");
-  }
-  colony_screen_list_key(csv, COLONIZE_KEY_DOWN);
-  if (rc == 0 && (csv->construction_selection != 0 || csv->more_selected)) {
-    rc = fail("Down from no bar takes the first row");
+  if (rc == 0 && (csv->construction_page != 1 || csv->construction_selection != p1 ||
+                  csv->more_selected || !csv->construction_open ||
+                  col->building_in_production != before)) {
+    rc = fail("Enter on page 0's (More) turns to the page that bars the project");
   }
   colony_screen_construction_next_page(csv);
-  if (rc == 0 && (csv->construction_selection != p1 || csv->more_selected)) {
-    rc = fail("page 1 bars the project it lists");
+  if (rc == 0 && (csv->construction_page != 0 || !csv->more_selected)) {
+    rc = fail("back on page 0 without the project: bar on its (More)");
   }
-  colony_screen_construction_next_page(csv);
-  if (rc == 0 && (csv->construction_selection != 0 || csv->more_selected)) {
-    rc = fail("back on page 0 the bar takes the clear row");
+  colony_screen_list_key(csv, COLONIZE_KEY_UP);
+  if (rc == 0 && (csv->construction_selection != 15 || csv->more_selected)) {
+    rc = fail("Up from (More) takes page 0's last entry");
   }
   csv->construction_default_row = 3; /* a page-0 project */
   colony_screen_construction_next_page(csv);
-  if (rc == 0 && (csv->construction_selection != 0x10 || !csv->more_selected)) {
-    rc = fail("page 1 without the project bars its back (More) row");
+  if (rc == 0 && (csv->construction_page != 1 || !csv->more_selected)) {
+    rc = fail("page 1 without the project: bar on its back (More)");
   }
   colony_screen_construction_next_page(csv);
   if (rc == 0 && (csv->construction_selection != 3 || csv->more_selected)) {
@@ -1709,8 +1707,8 @@ static int test_colony_construction_two_pages_live(void) {
     rc = fail("page 0 opens with the bar on the current project");
   }
   colony_screen_construction_next_page(csv);
-  if (rc == 0 && (csv->construction_selection != 0x10 || !csv->more_selected)) {
-    rc = fail("page 1 without the project bars its back (More) row");
+  if (rc == 0 && (csv->construction_page != 1 || !csv->more_selected)) {
+    rc = fail("page 1 without the project: bar on its back (More) (DB-63)");
   }
   colony_screen_construction_next_page(csv);
   if (rc == 0 && (csv->construction_selection != row || csv->more_selected)) {
@@ -1725,6 +1723,15 @@ static int test_colony_construction_two_pages_live(void) {
                   (col->colony_flags & COLONIZE_COLONY_FLAG_BUILD_COMPLETE) ||
                   ai_popup_busy(&game.ai_popups) || csv->construction_open)) {
     rc = fail("the (COMPLETE) pick keeps the project silently");
+  }
+  /* A page-1 current project (the last unit project; the Town Hall unbuilt keeps 23 rows):
+   * the list opens on page 0 with the bar on its "(More)" (DB-63). */
+  col->has_building[colonies_building_row(&game.colonies, COLONY_BUILDING_TOWN_HALL)] = false;
+  col->building_in_production = csv->buildable_ids[csv->buildable_count - 1];
+  colony_screen_open_construction(csv, &game.colonies, col->id, &bopts);
+  if (rc == 0 && (csv->buildable_count + 1 != 23 || csv->construction_page != 0 ||
+                  !csv->more_selected)) {
+    rc = fail("a page-1 project opens page 0 with the bar on (More)");
   }
   colony_screen_close_construction(csv);
   fx_map_free(&game.world_map);
@@ -1819,6 +1826,49 @@ static int test_game_world_view(void) {
   return rc;
 }
 
+/* docs/dos_bugs.md DB-58: Europe ship menu row 3 (Unload all cargo, FUN_38fd_2bfe)
+ * raises @SOMEBOYCOTT for a boycotted hold in any slot, not only slot 0. */
+static int unload_all_boycott_notices(int boycotted_cargo) {
+  ColonizeGameState* game = calloc(1, sizeof(*game));
+  if (!game) {
+    return -1;
+  }
+  game->europe_ok = true;
+  game->human_nation = 0;
+  game->col1.nation[0].boycott_bitmap = (uint16_t)(1u << boycotted_cargo);
+  EuropeScreen* eu = &game->europe;
+  eu->harbor_ships = 1;
+  eu->harbor[0].hold_goods_type[0] = COLONIZE_CARGO_MUSKETS;
+  eu->harbor[0].hold_goods_amount[0] = 100;
+  eu->harbor[0].hold_goods_type[1] = COLONIZE_CARGO_CLOTH;
+  eu->harbor[0].hold_goods_amount[1] = 100;
+  game->ai_popups.has_result = true;
+  game->ai_popups.result_tag = AI_POPUP_TAG_EUROPE_SHIP_MENU;
+  game->ai_popups.result_nation_a = 0;
+  game->ai_popups.result_choice_id = 3;
+  game_apply_ai_popup_result(game);
+  const int n = game->ai_popups.queue_count;
+  free(game);
+  return n;
+}
+
+static int test_europe_unload_all_boycott_any_slot(void) {
+  int rc = 0;
+  if (unload_all_boycott_notices(COLONIZE_CARGO_CLOTH) != 1) {
+    fprintf(stderr, "unload all: boycotted slot 1 must raise @SOMEBOYCOTT\n");
+    rc = 1;
+  }
+  if (unload_all_boycott_notices(COLONIZE_CARGO_MUSKETS) != 1) {
+    fprintf(stderr, "unload all: boycotted slot 0 must raise @SOMEBOYCOTT\n");
+    rc = 1;
+  }
+  if (unload_all_boycott_notices(COLONIZE_CARGO_SILVER) != 0) {
+    fprintf(stderr, "unload all: no boycotted hold, no notice\n");
+    rc = 1;
+  }
+  return rc;
+}
+
 static const TestCase k_cases[] = {
     {"test_map_pulldown_is_modal", test_map_pulldown_is_modal},
     {"test_turn_year_end_rival_rebels", test_turn_year_end_rival_rebels},
@@ -1849,6 +1899,7 @@ static const TestCase k_cases[] = {
     {"test_colony_construction_page_default", test_colony_construction_page_default},
     {"test_colony_construction_two_pages_live", test_colony_construction_two_pages_live},
     {"test_indian_land_offer_row_greyed", test_indian_land_offer_row_greyed},
+    {"test_europe_unload_all_boycott_any_slot", test_europe_unload_all_boycott_any_slot},
 };
 
 TEST_MAIN(k_cases)

@@ -3095,7 +3095,8 @@ static int unit_sub_dialog_pages_are_dos(void) {
   EXPECT(pages_hit(&view, false, 16, &idx) == COLONY_HIT_CONSTRUCTION_MORE, "c p0 k16 More\n");
   EXPECT(pages_hit(&view, false, 17, &idx) == COLONY_HIT_NONE, "c p0 k17\n");
   colony_screen_construction_next_page(&view);
-  EXPECT(view.construction_selection == 16, "c next -> %d\n", view.construction_selection);
+  EXPECT(view.more_selected && view.construction_page == 1, "c next -> %d\n",
+         view.construction_selection);
   EXPECT(pages_hit(&view, false, 0, &idx) == COLONY_HIT_CONSTRUCTION_MORE, "c p1 k0 More\n");
   EXPECT(pages_hit(&view, false, 1, &idx) == COLONY_HIT_CONSTRUCTION_ROW && idx == 15, "c p1 k1\n");
   EXPECT(pages_hit(&view, false, 10, &idx) == COLONY_HIT_CONSTRUCTION_ROW && idx == 24, "c p1 k10\n");

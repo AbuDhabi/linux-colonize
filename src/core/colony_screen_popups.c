@@ -262,28 +262,36 @@ static bool colony_screen_construction_paged(const ColonyScreenView* view) {
 static ColonyDosPage colony_screen_construction_page(const ColonyScreenView* view) {
   const bool paged = colony_screen_construction_paged(view);
   return colony_screen_dos_page(
-    view->buildable_count + 1, 0, paged, paged && view->construction_selection >= 0x10 ? 1 : 0
+    view->buildable_count + 1, 0, paged, paged ? view->construction_page : 0
   );
 }
 
+/* Does the shown construction page list the current project (construction_default_row)? */
+static bool colony_screen_construction_page_lists_current(const ColonyScreenView* view) {
+  const int start = view->construction_page ? 0x10 : 0;
+  const int cur = view->construction_default_row;
+  return !colony_screen_construction_paged(view) || (cur >= start && cur < start + 0x10);
+}
+
 /*
- * The "(More)" rows: page 0 <-> page 1 (port_bugs.md #1215). DOS-LITERAL FUN_2f2b_5bd2: the
- * page that lists the current project puts the bar on it (raw 52607-52611). Otherwise the
- * new page keeps the first row added (FUN_6f74_0a00): page 0's clear row, page 1's back
- * "(More)" (raw 52596-52598). Neither 08ec fallback fires on a turned page: local_8 (raw
- * 52575) is never reset and every page-0 pass of a two-page list sets it (raw 52611 or
- * 52624), so only the first showing can take the no-bar 0x65 arm and the 100 arm (raw 52628,
- * also an id no row has) is dead.
+ * The "(More)" rows: page 0 <-> page 1 (port_bugs.md #1215). FUN_2f2b_5bd2: the page that
+ * lists the current project puts the bar and the hilite ink on it (raw 52607-52611).
+ * Otherwise page 0 takes the 0x65 arm (raw 52620-52624) and page 1 the 100 arm (raw
+ * 52627-52629): bar and hilite ink on the "(More)" row that leads to the project's page.
+ * DOS bugs not reproduced: DOS clears local_8 once (raw 52575), not per page, so only the
+ * first showing takes an arm (docs/dos_bugs.md DB-60); and the arms pass the More rows' ids
+ * 0x63 / 0x62 with the row offset + 2 added again, ids no row has, so DOS shows no bar
+ * (DB-63).
  */
 void colony_screen_construction_next_page(ColonyScreenView* view) {
   if (!view || !colony_screen_construction_paged(view)) {
     return;
   }
-  const int start = view->construction_selection >= 0x10 ? 0 : 0x10;
-  const int cur = view->construction_default_row;
-  const bool listed = cur >= start && cur < start + 0x10;
-  view->construction_selection = listed ? cur : start;
-  view->more_selected = !listed && start != 0;
+  view->construction_page = 1 - view->construction_page;
+  const bool listed = colony_screen_construction_page_lists_current(view);
+  view->construction_selection = listed ? view->construction_default_row
+                                        : (view->construction_page ? 0x10 : 0);
+  view->more_selected = !listed;
 }
 
 /*
@@ -394,8 +402,10 @@ static void colony_screen_draw_construction_popup(
     &view->construction_rect
   );
   /* raw 52607-52610: the current project's row (the clear row when nothing is in production)
-   * gets FUN_291f_033c's hilite flag as well as the default selection. */
+   * gets FUN_291f_033c's hilite flag as well as the default selection; on a page without it
+   * the "(More)" row does (raw 52624 / 52629, DB-63). */
   const int current = colony ? colony->building_in_production : -1;
+  const bool more_is_current = !colony_screen_construction_page_lists_current(view);
   for (int k = 0; k < drawn_rows; ++k) {
     const int gi = colony_screen_dos_page_entry(&pg, k);
     const int row_y = colony_screen_dos_row(
@@ -412,7 +422,9 @@ static void colony_screen_draw_construction_popup(
       x = popup_draw_text_markup(font, framebuffer, x, row_y, queue_prefix, 14u, 14u, &lay.colors,
                                  NULL);
     }
-    const bool is_current = gi == 0 ? current < 0 : gi > 0 && view->buildable_ids[gi - 1] == current;
+    const bool is_current = gi < 0    ? more_is_current
+                            : gi == 0 ? current < 0
+                                      : view->buildable_ids[gi - 1] == current;
     colony_screen_dos_row_text(framebuffer, font, &lay, &view->construction_rect, x, row_y, 4, row,
                                is_current, false);
   }
@@ -830,9 +842,9 @@ static void colony_screen_draw_eject_popup(
     /* DOS draws a short-stock row greyed rather than dropping it (FUN_15eb_3454 -> 0xffff,
      * raw 50801 FUN_291f_01b6). The roles are @JOB 0x13 + role, DOS's 0x13..0x18 order. */
     /* The occupation row's hilite is raw 50746's `local_136 == local_8` (the specialty is
-     * the occupation). DOS reads local_136 there before its first write at raw 50799, so the
-     * first page-0 draw tests a stale stack word; the port takes the value every later draw
-     * sees. */
+     * the occupation). DOS bug not reproduced (docs/dos_bugs.md DB-61): DOS reads local_136
+     * there before its first write at raw 50799, so the first page-0 draw tests a stale stack
+     * word; the port takes the value every later draw sees. */
     const int role = view->eject_roles[i];
     colony_screen_dos_row_text(
       framebuffer, font, &lay, &view->eject_rect, lay.text_x + 8, row_y, 8, labels[i],

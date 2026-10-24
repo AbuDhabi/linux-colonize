@@ -1566,9 +1566,6 @@ static GameUpdateStep game_colony_screen_key_enter(
       const int bi = csv->construction_selection - 1;
       if (csv->more_selected) {
         colony_screen_construction_next_page(csv);
-      } else if (csv->construction_selection < 0) {
-        /* No bar (port_bugs.md #1215): FUN_6f74_2580's Enter arm needs a selection
-         * (6f74:2cfc, raw 116854), so the key does nothing. */
       } else if (csv->construction_selection == 0) {
         colonies_build_queue_clear(&game->colonies, game->colony_view_id);
         colonies_clear_construction(&game->colonies, game->colony_view_id);

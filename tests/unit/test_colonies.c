@@ -2770,8 +2770,8 @@ static int unit_wagon_cap_and_armory_gate(void) {
 
 /*
  * port_bugs.md #1218 — FUN_15eb_3650's tail (raw 13741-13746) keeps the
- * colony's current project in the list unless unit record #code is type 1 and
- * the colony owns @BUILDING local_e. A colony with all seven unit projects and
+ * colony's current project in the list (DOS's unit-record exception is
+ * docs/dos_bugs.md DB-59, not reproduced). A colony with all seven unit projects and
  * fourteen buildings open plus a built current project lists 22 entries, so the
  * CHANGE box (with its clear row) runs past 0x16 rows to two pages.
  */
@@ -2825,27 +2825,7 @@ static int unit_build_list_keeps_current(void) {
   }
   CHECK(n == 22 && listed, "the built current project stays listed: 23 rows with the clear row");
 
-  /* The oddity: unit record #8 (the Shipyard's code) of type 1 drops it. */
-  static ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
-  for (int i = 0; i <= COLONIZE_UNIT_BUILD_ARTILLERY; ++i) {
-    units.units[i].active = true;
-    units.units[i].id = i + 1;
-    units.units[i].type_index = (i == 8 || i == COLONIZE_UNIT_BUILD_ARTILLERY) ? 1 : 0;
-  }
-  units.next_id = COLONIZE_UNIT_BUILD_ARTILLERY + 2;
-  units_pool_sync(&units);
-  bopts.units = &units;
-  n = colonies_list_buildable(&pool, 0, ids, 64, &bopts);
-  CHECK(n == 21, "unit record #code of type 1 + owned row: the current project drops out");
-  units.units[8].type_index = 0;
-  n = colonies_list_buildable(&pool, 0, ids, 64, &bopts);
-  CHECK(n == 22, "unit record #code of another type keeps it");
-
-  /* A unit project keeps local_e = code - 0x1f: Artillery (0x2a) reads row 0x0b,
-   * which no colony owns, so it stays listed once the Armory is gone. */
+  /* A current unit project stays listed too, gates or not. */
   c->has_building[colonies_building_row(&pool, COLONY_BUILDING_ARMORY)] = false;
   c->building_in_production = COLONIZE_UNIT_BUILD_ARTILLERY;
   n = colonies_list_buildable(&pool, 0, ids, 64, &bopts);
@@ -2861,7 +2841,6 @@ static int unit_build_list_keeps_current(void) {
     listed = listed || ids[i] == COLONIZE_UNIT_BUILD_ARTILLERY;
   }
   CHECK(!listed, "Artillery without the Armory is not offered");
-  units_reset(&units);
 
   if (failures == failures_before) {
     printf("unit_colonies: build list keeps the current project ok\n");

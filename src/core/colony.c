@@ -466,9 +466,10 @@ void colonies_colonist_tail_stash(const ColonizeColonyPool* pool, ColonizeColony
 /* `T`/`t` (2f2b:6820): pop++, then FUN_281f_0c36(old, 0) = FUN_15eb_1068 arm 0
  * (occupation 0 = food, no plot) and FUN_281f_0cae(old, 0x1c) = FUN_15eb_0e8c
  * (profession 0x1c = Free Colonist). No unit, no rebel_divisor change (that
- * +100 sits in 1068's other arm). The stale-occupation goods refund at the top
- * of 1068 reads a leftover byte DOS keeps past the head count; the port has no
- * such byte, so none is paid. The plot comes from the 3930 recompute the arm's
+ * +100 sits in 1068's other arm). DOS bug not reproduced (docs/dos_bugs.md
+ * DB-62): the stale-occupation goods refund at the top of 1068 reads a leftover
+ * byte DOS keeps past the head count; the port has no such byte, so none is
+ * paid. The plot comes from the 3930 recompute the arm's
  * redraw runs (colonies_recompute_plots_w). */
 bool colonies_cheat_add_colonist(
   ColonizeColonyPool* pool, ColonizeColony* col, int colonist_type_index

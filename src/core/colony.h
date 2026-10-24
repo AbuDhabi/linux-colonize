@@ -767,8 +767,6 @@ typedef struct ColoniesBuildableOpts {
   bool has_peter_stuyvesant;   /* Custom House */
   /* wagon-cap census counters (see docs/colony.md#coloniesbuildableoptscol1) */
   const ColonizeCol1Save* col1;
-  /* unit records for FUN_15eb_3650's keep-current tail (see docs/colony.md#coloniesbuildableoptsunits) */
-  const ColonizeUnitPool* units;
 } ColoniesBuildableOpts;
 
 /* FUN_15eb_3650 / FUN_364b_0114 wagon cap (see docs/colony.md#colonies_wagon_cap_reached) */

@@ -1569,13 +1569,14 @@ void game_europe_sell_best_hold(ColonizeGameState* game, int hidx) {
 
 /*
  * Row 3 of the Europe ship menu, "Unload all cargo", FUN_38fd_2bfe (raw
- * 60787-60900). Hold slots walk from count-1 DOWN to 0; each pass first
- * resets the notice flag (asm 38fd:2d8c, not a latch), a boycotted hold
- * (FUN_38fd_05e8) sets it and is skipped, anything else is sold whole
- * (FUN_38fd_23c4, no amount prompt; it sells the FIRST hold of that cargo,
- * FUN_15eb_32a0). After the loop a set flag raises @SOMEBOYCOTT (0x1027) as an
- * OK modal -- so DOS only shows it when the last-examined slot 0 was
- * boycotted (DOS quirk, kept). Price popups come before it. No summary line.
+ * 60787-60900). Hold slots walk from count-1 DOWN to 0; a boycotted hold
+ * (FUN_38fd_05e8) sets the notice flag and is skipped, anything else is sold
+ * whole (FUN_38fd_23c4, no amount prompt; it sells the FIRST hold of that
+ * cargo, FUN_15eb_32a0). After the loop a set flag raises @SOMEBOYCOTT
+ * (0x1027) as an OK modal. Price popups come before it. No summary line.
+ * DOS bug not reproduced (docs/dos_bugs.md DB-58): DOS resets the flag at the
+ * top of every pass (raw 60872, asm 38fd:2d8c), so only a boycotted slot 0
+ * raised the notice; here any boycotted hold does.
  */
 static void game_europe_unload_all(ColonizeGameState* game, int hidx) {
   EuropeScreen* eu = &game->europe;
@@ -1586,7 +1587,6 @@ static void game_europe_unload_all(ColonizeGameState* game, int hidx) {
   }
   int boycotted = 0;
   for (int k = count - 1; k >= 0; --k) {
-    boycotted = 0;
     const int slot = europe_hold_slot_kth(ship, k);
     if (slot < 0) {
       break;
