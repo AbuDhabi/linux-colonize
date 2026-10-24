@@ -530,8 +530,8 @@ short after "Pay"). Every other human buy/sell entry on a boycotted cargo
 answer (FUN_38fd_2dfe returns 0 for a human on every path); `U` tests the
 cargo its lowest-key pick named, so a boycotted pick stops there. @SOMEBOYCOTT
 is only the notice after the ship menu's row 3 "Unload all cargo" loop
-(`game_europe_unload_all`, FUN_38fd_2bfe) when the last-examined slot 0 was
-boycotted. Returns gold paid (>0) on success.
+(`game_europe_unload_all`, FUN_38fd_2bfe) when any hold was boycotted (DOS:
+only slot 0, dos_bugs.md DB-58). Returns gold paid (>0) on success.
 
 ## europe_buyback_boycott_cost
 

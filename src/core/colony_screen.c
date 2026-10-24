@@ -289,6 +289,7 @@ void colony_screen_close_construction(ColonyScreenView* view) {
   }
   view->construction_open = false;
   view->construction_selection = 0;
+  view->construction_page = 0;
 }
 
 /* ===================== Subpanel open/close & popup font/text helpers (colony_screen_open_construction .. colony_screen_open_custom_house) ===================== */
@@ -307,6 +308,7 @@ void colony_screen_open_construction(
     pool, colony_id, view->buildable_ids, COLONY_BUILDABLE_MAX, buildable_opts
   );
   view->construction_open = true;
+  view->construction_page = 0;
   view->more_selected = false;
   /* Row 0 is "(no production)" (code -1, so it is the current row when nothing is in
    * production); rows 1.. are buildable_ids. */
@@ -319,16 +321,13 @@ void colony_screen_open_construction(
     }
   }
   /* FUN_2f2b_5bd2 always opens page 0 (local_4 = 0, raw 52587). The current project's row
-   * has the bar when page 0 lists it (raw 52608); a two-page list that does not list it calls
-   * FUN_291f_08ec(0x65) (raw 52621), an id no row has (rows are 1, code + 2 <= 0x32, 0x62,
-   * 0x63), so FUN_6f74_089a finds nothing and box+0x4c is cleared: no bar (-1). One page
+   * has the bar when page 0 lists it (raw 52608); a two-page list that does not list it bars
+   * page 0's "(More)" (raw 52620-52624; DB-63, colony_screen_construction_next_page). One page
    * keeps the first row added (FUN_6f74_0a00), the clear row. */
   const int cur = view->construction_default_row;
-  if (cur >= 0 && cur < 0x10) {
-    view->construction_selection = cur;
-  } else {
-    view->construction_selection = view->buildable_count + 1 > 0x16 ? -1 : (cur >= 0 ? cur : 0);
-  }
+  const bool paged = view->buildable_count + 1 > 0x16;
+  view->construction_selection = cur >= 0 && (!paged || cur < 0x10) ? cur : 0;
+  view->more_selected = paged && !(cur >= 0 && cur < 0x10);
 }
 
 void colony_screen_close_jobs(ColonyScreenView* view) {

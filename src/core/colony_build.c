@@ -1236,40 +1236,16 @@ static bool colonies_building_is_buildable(
   return ok;
 }
 
-/* byte [i * 0x1c + 0x3146]: the @UNIT type of DOS unit record i, i.e. the
- * i-th live slot (units_dos_index's order). -1 past the live count, where DOS
- * reads a stale record the port does not keep (dos_tail has no type byte). */
-static int colonies_dos_unit_type_at(const ColonizeUnitPool* units, int index) {
-  for (int s = 0; units && index >= 0 && s < units_slot_end(units); ++s) {
-    if (units->units[s].active && index-- == 0) {
-      return units->units[s].type_index;
-    }
-  }
-  return -1;
-}
-
 /*
- * DOS-LITERAL FUN_15eb_3650 tail (raw 13741-13746, asm 15eb:3889-38b4): the
- * colony's current project (+0x94 == code) is listed whatever the gates said,
- * unless unit record #code (the build code used as a unit index, a DOS
- * oddity) is type 1 AND the colony owns @BUILDING `local_e`, which is the row
- * itself for a building and code - 0x1f (0x0b..0x11) for a unit project.
+ * FUN_15eb_3650 tail (raw 13741-13746, asm 15eb:3889-38b4): the colony's
+ * current project (+0x94 == code) is listed whatever the gates said, so a
+ * just-built project shows as its "(COMPLETE)" row (FUN_2f2b_5a68).
+ * DOS bug not reproduced (docs/dos_bugs.md DB-59): DOS drops it when unit
+ * record #code (the build code used as a unit index) is type 1 and the colony
+ * owns @BUILDING local_e; the port always keeps it.
  */
-static bool colonies_build_keeps_current(
-  const ColonizeColonyPool* pool,
-  const ColonizeColony* col,
-  int bid,
-  const ColoniesBuildableOpts* opts
-) {
-  if (bid < 0 || col->building_in_production != bid) {
-    return false;
-  }
-  const bool unit = units_build_code_to_index(bid) >= 0;
-  const int row = unit ? -1 : colonies_building_type_row(pool, bid);
-  const int code = unit ? bid : (row >= 0 ? row : bid);
-  const int local_e = unit ? code - 0x1f : code;
-  return colonies_dos_unit_type_at(opts ? opts->units : NULL, code) != 1 ||
-         !colonies_dos_owns_row(pool, col, local_e);
+static bool colonies_build_keeps_current(const ColonizeColony* col, int bid) {
+  return bid >= 0 && col->building_in_production == bid;
 }
 
 int colonies_list_buildable(
@@ -1289,7 +1265,7 @@ int colonies_list_buildable(
   int n = 0;
   for (int i = 0; i < pool->building_type_count && n < out_max; ++i) {
     if (colonies_building_is_buildable(pool, col, i, opts) ||
-        colonies_build_keeps_current(pool, col, i, opts)) {
+        colonies_build_keeps_current(col, i)) {
       out_ids[n++] = i;
     }
   }
@@ -1305,7 +1281,7 @@ int colonies_list_buildable(
        code < COLONIZE_UNIT_BUILD_CODE_FIRST + COLONIZE_UNIT_BUILD_CODE_COUNT && n < out_max;
        ++code) {
     if (colonies_unit_project_available(pool, col, code, opts) ||
-        colonies_build_keeps_current(pool, col, code, opts)) {
+        colonies_build_keeps_current(col, code)) {
       out_ids[n++] = code;
     }
   }
