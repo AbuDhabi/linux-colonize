@@ -156,6 +156,21 @@ handed to the strip yet (FUN_38fd_23c4 tail: compose into DS:0x2d54, arm
 with FUN_38fd_19d8(1, 0x78, 0), repaint). Drained by the Europe frame in
 game_loop.c; see port_bugs.md #376.
 
+## EuropeScreen focus (F1)
+
+`DS:0xf9a`, the panel the last press landed on: 0 market (`FUN_38fd_3502` raw 61143,
+cargo `DS:0xf9e` = `selected_market`), 1 harbor ships (`FUN_38fd_2edc` raw 61016),
+2 dock (`FUN_38fd_3c86` raw 64103, row `DS:0x9e2c` = `dock_selected`). F1 on the bare
+screen (`FUN_38fd_4f6e` raw 66119-66135, asm 38fd:4ffa) opens the market cargo's
+article (`FUN_291f_0934`), the selected harbor ship's unit article when `DS:0xfa2` ships
+are in port (`FUN_38fd_0666`, `FUN_291f_0942`), or the dock unit's when `DS:0x9e2a`
+units are on the dock (`FUN_38fd_06c4`; `FUN_38fd_07c6` resets a past-the-end
+`DS:0x9e2c` to 0, raw 59162), then redraws Europe (`thunk_FUN_291f_0dfe`). Sailing the
+last ship, or a sail that empties the dock, puts the focus back on the market
+(`FUN_38fd_2a92` raw 60763-60770, `game_europe_sail_harbor`). Port:
+`game_europe_screen_help` (`game_loop_update.c`); Tab cycling (raw 66016-66038) is not
+ported.
+
 ## Europe sale status line
 
 Compose DOS's Europe-sale status line for one sale and queue it in

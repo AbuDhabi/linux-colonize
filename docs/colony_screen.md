@@ -321,6 +321,26 @@ and returns to the colony screen on exit, matching the area-view tile's
 right-click terrain article. Unbuilt slots are not hoverable or right-clickable
 — the slot scan runs past them (port_bugs.md #430).
 
+### F1 on the bare screen (DS:0x32e focus)
+
+`FUN_2f2b_6372` raw 55622-55650 (asm 2f2b:6408) switches F1 on `DS:0x32e`, the panel
+the last press landed on (`ColonyScreenView.focus`, never reset between colonies),
+opens one article and redraws the colony (`thunk_FUN_291f_0684`):
+
+| focus | set by (press) | article |
+|---|---|---|
+| 0 area | plot, `FUN_2f2b_47bc` raw 51373-51376 (cursor `DS:0x330/0x332` = `area_dx/dy` + 2, static 2,2) | terrain of the cursor cell unless its `DS:0x8df0` plot byte is 0x10 (`FUN_13e4_003a`, `FUN_291f_0428`) |
+| 1 colonists | another colonist or fence unit, `FUN_2f2b_44d4` raw 51248-51260 | skill of the occupation (`FUN_15eb_0e52`; a fence unit's profession), 0x1c read as 0x13 (`FUN_291f_08de`) |
+| 2 ships | ship (`FUN_2f2b_548e` raw 52222) or hold box (`FUN_2f2b_56ce` raw 52300) | with `DS:0x33c` ships in port: the selected ship's unit article (`FUN_291f_0942`) |
+| 3 Units pane | `FUN_2f2b_59a0` raw 52469 | with `DS:0x8d72` units on the tile: the selected unit's |
+| 4 warehouse | cargo, `FUN_2f2b_60dc` raw 52848 | cargo article of `DS:0x33a` (`FUN_291f_0934`) |
+
+Leaving the Units tab turns focus 3 into 1 (raw 51475, 55565, 55594). The right-click
+terrain article shares the 0x10 gate (`FUN_2f2b_47bc` raw 51399). The construction /
+jobs / leave-as lists keep their own F1. Port: `game_colony_screen_help`
+(`game_loop_update.c`); DOS's Tab focus cycling (raw 55535-55545) and the per-panel
+cursor keys are not ported, so only presses move the focus.
+
 ### Debug: Building Rects
 
 `MAP_MENU_ACTION_DEBUG_BUILDING_RECTS` (DEBUG pulldown, `debug.building_rects`,

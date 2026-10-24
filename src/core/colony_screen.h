@@ -141,6 +141,15 @@ typedef enum ColonyMultiMode {
   COLONY_MULTI_CONSTRUCTION = 2
 } ColonyMultiMode;
 
+/* DS:0x32e values (ColonyScreenView.focus). */
+typedef enum ColonyScreenFocus {
+  COLONY_FOCUS_AREA = 0,
+  COLONY_FOCUS_COLONISTS = 1,
+  COLONY_FOCUS_SHIPS = 2,
+  COLONY_FOCUS_UNITS = 3, /* the Units pane; only while multi_mode is COLONY_MULTI_UNITS */
+  COLONY_FOCUS_WAREHOUSE = 4
+} ColonyScreenFocus;
+
 /*
  * Docked-unit orders popup (DOS FUN_2f2b_5746; GAME.TXT @COLONYUNIT title +
  * @UNITOPTIONS land / @SHIPOPTIONS sea options). Second click on an already-
@@ -312,6 +321,13 @@ typedef struct ColonyScreenView {
   int hover_building_row;
   ColonyMultiMode multi_mode;
   int selected_cargo; /* warehouse cargo highlighted for =/+ load; -1 none */
+  /* DS:0x32e: the panel F1 reads (FUN_2f2b_6372 raw 55622-55650), set by the press on
+   * that panel. DOS never resets it, so it outlives the colony visit. */
+  ColonyScreenFocus focus;
+  /* DS:0x330 / 0x332 less 2: the area-view cell of the last press there (FUN_2f2b_47bc
+   * raw 51373-51376). 0,0 = the colony tile, DOS's static 2,2. */
+  int area_dx;
+  int area_dy;
 
   bool construction_open;
   int construction_selection; /* entry (0 = the clear row) */

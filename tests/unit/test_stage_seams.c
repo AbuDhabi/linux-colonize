@@ -1546,6 +1546,101 @@ static int test_colony_custom_house_keys(void) {
 }
 
 /*
+ * F1 on the bare colony screen opens the article of the DS:0x32e focus panel and comes back
+ * (FUN_2f2b_6372 raw 55622-55650); on the Europe screen the DS:0xf9a panel's (FUN_38fd_4f6e
+ * raw 66119-66135).
+ */
+static int test_screen_f1_focus_article(void) {
+  static ColonizeGameState game;
+  ColonizeMsgCatalog names;
+  if (!jobs_menu_fixture(&game, &names)) {
+    return fail("jobs fixture");
+  }
+  ColonizeColony* col = &game.colonies.colonies[0];
+  ColonyScreenView* csv = &game.colony_screen;
+  ColonizeInputState in;
+  memset(&in, 0, sizeof(in));
+  int rc = 0;
+#define F1_COLONY() (in.last_key = COLONIZE_KEY_F1, (void)game_update_colony_screen(&game, &in))
+#define PEDIA_BACK() (in.last_key = COLONIZE_KEY_ESCAPE, (void)game_update_pedia_screen(&game, &in))
+  F1_COLONY(); /* static focus 0, cursor 2,2: the colony tile */
+  if (!game.in_pedia || game.pedia_category != PEDIA_CAT_TERRAIN ||
+      game.pedia_index != map_pedia_terrain_index_at(&game.world_map, col->x, col->y) ||
+      game.pedia_return_colony_id != col->id) {
+    rc = fail("F1 with the area focus opens the colony tile's terrain article");
+  }
+  PEDIA_BACK();
+  if (rc == 0 && (game.in_pedia || !game.in_colony || game.colony_view_id != col->id)) {
+    rc = fail("leaving the article returns to the colony screen");
+  }
+  csv->focus = COLONY_FOCUS_COLONISTS;
+  F1_COLONY();
+  if (rc == 0 && (game.pedia_category != PEDIA_CAT_JOB ||
+                  game.pedia_index != colonies_colonist_occupation_job(&game.colonies, &col->colonists[0]))) {
+    rc = fail("F1 with the colonist focus opens the occupation's skill article");
+  }
+  PEDIA_BACK();
+  csv->focus = COLONY_FOCUS_WAREHOUSE;
+  csv->selected_cargo = 5;
+  F1_COLONY();
+  if (rc == 0 && (game.pedia_category != PEDIA_CAT_CARGO || game.pedia_index != 5)) {
+    rc = fail("F1 with the warehouse focus opens the cargo article");
+  }
+  PEDIA_BACK();
+  csv->focus = COLONY_FOCUS_SHIPS;
+  F1_COLONY();
+  if (rc == 0 && (game.in_pedia || !game.in_colony)) {
+    rc = fail("F1 with the ship focus and no ship in port does nothing (DS:0x33c == 0)");
+  }
+  csv->focus = COLONY_FOCUS_UNITS;
+  csv->multi_mode = COLONY_MULTI_PRODUCTION;
+  in.last_key = COLONIZE_KEY_NONE;
+  (void)game_update_colony_screen(&game, &in);
+  if (rc == 0 && csv->focus != COLONY_FOCUS_COLONISTS) {
+    rc = fail("off the Units tab the Units-pane focus becomes the colonist focus");
+  }
+  game.in_colony = false;
+
+  EuropeScreen* eu = &game.europe;
+  game.in_europe = true;
+  eu->focus = 0;
+  eu->selected_market = 3;
+  in.last_key = COLONIZE_KEY_F1;
+  (void)game_update_europe_screen(&game, &in);
+  if (rc == 0 && (!game.in_pedia || game.pedia_category != PEDIA_CAT_CARGO ||
+                  game.pedia_index != 3 || !game.pedia_return_europe)) {
+    rc = fail("Europe F1 with the market focus opens the cargo article");
+  }
+  PEDIA_BACK();
+  if (rc == 0 && (game.in_pedia || !game.in_europe)) {
+    rc = fail("leaving the article returns to the Europe screen");
+  }
+  eu->focus = 2;
+  eu->dock_count = 1;
+  eu->dock[0].dos_type = EUROPE_DOCK_TYPE_PIONEERS;
+  eu->dock_selected = 4; /* past the dock: FUN_38fd_07c6 reads it as 0 */
+  in.last_key = COLONIZE_KEY_F1;
+  (void)game_update_europe_screen(&game, &in);
+  if (rc == 0 && (game.pedia_category != PEDIA_CAT_UNIT ||
+                  game.pedia_index != EUROPE_DOCK_TYPE_PIONEERS)) {
+    rc = fail("Europe F1 with the dock focus opens the dock unit's article");
+  }
+  PEDIA_BACK();
+  eu->focus = 1;
+  in.last_key = COLONIZE_KEY_F1;
+  (void)game_update_europe_screen(&game, &in);
+  if (rc == 0 && game.in_pedia) {
+    rc = fail("Europe F1 with the harbor focus and no ship does nothing (DS:0xfa2 == 0)");
+  }
+#undef F1_COLONY
+#undef PEDIA_BACK
+  game.in_europe = false;
+  fx_map_free(&game.world_map);
+  assets_msg_free(&names);
+  return rc;
+}
+
+/*
  * port_bugs.md #1214: the encroachment popup keeps DOS's "offer gold" row and greys it when the
  * treasury is short (FUN_2b5a_123e raw 42484-42488: FUN_291f_01b6(box, 2, 1)). Fixture: the
  * map_pioneer_native_forest_offer start (the Pioneer on Tupi forest (45,22), offer 422).
@@ -1896,6 +1991,7 @@ static const TestCase k_cases[] = {
     {"test_goto_place_opens_travelplace_list", test_goto_place_opens_travelplace_list},
     {"test_colony_list_keys_wrap", test_colony_list_keys_wrap},
     {"test_colony_custom_house_keys", test_colony_custom_house_keys},
+    {"test_screen_f1_focus_article", test_screen_f1_focus_article},
     {"test_colony_construction_page_default", test_colony_construction_page_default},
     {"test_colony_construction_two_pages_live", test_colony_construction_two_pages_live},
     {"test_indian_land_offer_row_greyed", test_indian_land_offer_row_greyed},
