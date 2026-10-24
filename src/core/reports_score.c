@@ -787,6 +787,7 @@ void reports_render_hall_of_fame(
   const ColonizeHofRow* entries,
   int entry_count,
   int inserted,
+  const ColonizeHofRow* retired,
   const ColonizeFont* font,
   ColonizeFramebuffer8* fb
 ) {
@@ -820,12 +821,13 @@ void reports_render_hall_of_fame(
     inserted = COLONIZE_HOF_SHOWN_MAX;
   }
   for (int i = 0; i < shown; ++i) {
-    const ColonizeHofRow* e = &entries[i];
-    /* DOS-LITERAL asm 41f2:12b2-12ef (port_bugs.md #1219): local_6 = the line, 5 on the last line
-     * when the insert (local_156) took slot 5; the number is local_6 + 1 and the ink DS:0x831
-     * when local_6 == local_156, else DS:0x830. Every field still reads slot local_15c (SI at
-     * 12ca / 1336 / 13a4), so a 6th-place retire shows the 5th entry numbered "6." in hilite. */
+    /* asm 41f2:12b2-12ef (port_bugs.md #1219): local_6 = the line, 5 on the last line when the
+     * insert (local_156) took slot 5; the number is local_6 + 1 and the ink DS:0x831 when
+     * local_6 == local_156, else DS:0x830. DOS still reads every field from slot local_15c (SI
+     * at 12ca / 1336 / 13a4), so its 6th-place retire shows the 5th entry numbered "6."; the
+     * port shows the retired entry there (docs/dos_bugs.md DB-57). */
     const int num = (i == 4 && inserted == 5) ? 5 : i;
+    const ColonizeHofRow* e = (num != i && retired) ? retired : &entries[i];
     const uint8_t ink = num == inserted ? COLONIZE_COL_HILITE : COLONIZE_COL_BASIC;
     y += 4;
     const char* diff_name = reports_difficulty_title(e->difficulty);

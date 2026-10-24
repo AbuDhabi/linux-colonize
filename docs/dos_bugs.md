@@ -765,3 +765,16 @@ box does nothing; a harbor ship sails only from a drop on Bound for the New Worl
 and a drop on Expected Soon does nothing.
 **Status:** done (2026-10-23, user-approved 2026-10-23).
 
+### DB-57 — Hall of Fame 6th-place retire never shows the new entry (port_bugs.md #1219)
+**DOS:** FUN_41f2_0f56 loads 5 records; a Retire entry that outranks none takes the catch-all
+slot 5 (local_156). The presenter numbers the last line local_6 + 1 = "6." and draws it in
+DS:0x831 hilite when local_6 == local_156 (asm 41f2:12b2-12ef), but reads every field from the
+loop counter's slot (SI at 41f2:12ca / 1336 / 13a4), so line 5 shows the old 5th-place entry
+labelled "6." and the new entry is never visible.
+
+**Port:** `reports_render_hall_of_fame` (`src/core/reports_score.c`) draws the retired entry's
+own fields on that "6." line (`ColonizeGameState.hof_retired`, set in
+`src/core/game_loop_saveload.c`); numbering and hilite stay DOS's. Test `unit_reports
+hall_of_fame_layout_is_dos`.
+**Status:** done (2026-10-24, user-approved 2026-10-24).
+

@@ -700,6 +700,7 @@ void game_retire_after_score(ColonizeGameState* game) {
   entry.achieved = sc.independence_achieved;
   /* FUN_41f2_0f56 local_156: DOS loads 5 records, so a Retire entry that outranks none takes the
    * catch-all slot 5 (the port keeps 10 rows; past the 5th, or cut, is slot 5 there). */
+  game->hof_retired = entry;
   const int hof_pos = game_hof_insert(game, &entry);
   game->hof_inserted = hof_pos < 0 ? COLONIZE_HOF_SHOWN_MAX : hof_pos;
   game_hof_save(game);

@@ -1172,7 +1172,7 @@ static int case_hall_of_fame_layout_is_dos(void) {
   static uint8_t got[320 * 200], want[320 * 200];
   ColonizeFramebuffer8 g = {.width = 320, .height = 200, .pixels = got};
   ColonizeFramebuffer8 w = {.width = 320, .height = 200, .pixels = want};
-  reports_render_hall_of_fame(&g_view, &row, 1, -1, &intr, &g);
+  reports_render_hall_of_fame(&g_view, &row, 1, -1, NULL, &intr, &g);
   memset(want, 0, sizeof(want));
   if (g_view.background_ok[COLONIZE_REPORT_SCORE]) {
     pik_blit(&g_view.backgrounds[COLONIZE_REPORT_SCORE], &w, 0, 0);
@@ -1194,14 +1194,15 @@ static int case_hall_of_fame_layout_is_dos(void) {
     return 1;
   }
   /* port_bugs.md #1219 (asm 41f2:12b2-12ef): the inserted slot draws in DS:0x831; an insert
-   * into slot 5 relabels line 5 "6." and hilites it, its fields still slot 4's. */
+   * into slot 5 relabels line 5 "6." and hilites it (rows are identical here; the fields of
+   * that line are the retired entry's, docs/dos_bugs.md DB-57, checked below). */
   ColonizeHofRow rows[6];
   for (int k = 0; k < 6; ++k) {
     rows[k] = row;
   }
   static const int k_ins[] = {5, 2, 7};
   for (size_t t = 0; t < sizeof(k_ins) / sizeof(k_ins[0]); ++t) {
-    reports_render_hall_of_fame(&g_view, rows, 6, k_ins[t], &intr, &g);
+    reports_render_hall_of_fame(&g_view, rows, 6, k_ins[t], NULL, &intr, &g);
     memset(want, 0, sizeof(want));
     if (g_view.background_ok[COLONIZE_REPORT_SCORE]) {
       pik_blit(&g_view.backgrounds[COLONIZE_REPORT_SCORE], &w, 0, 0);
@@ -1227,6 +1228,25 @@ static int case_hall_of_fame_layout_is_dos(void) {
       font_file_free(&intr);
       return 1;
     }
+  }
+  /* docs/dos_bugs.md DB-57: a 6th-place retire's line 5 ("6.") shows the retired entry's own
+   * fields, not slot 4's (DOS shows slot 4's). */
+  ColonizeHofRow retired = row;
+  snprintf(retired.leader, sizeof(retired.leader), "Hernan Cortes");
+  retired.score = 7;
+  ColonizeHofRow rows4[6];
+  memcpy(rows4, rows, sizeof(rows4));
+  rows4[4] = retired;
+  reports_render_hall_of_fame(&g_view, rows, 6, 5, &retired, &intr, &g);
+  reports_render_hall_of_fame(&g_view, rows4, 6, 5, NULL, &intr, &w);
+  for (int i = 0; i < 320 * 200; ++i) {
+    bad += got[i] != want[i];
+  }
+  reports_render_hall_of_fame(&g_view, rows, 6, 5, NULL, &intr, &w);
+  if (bad || memcmp(got, want, sizeof(got)) == 0) {
+    fprintf(stderr, "hall of fame 6th place: %d px differ from the retired entry's line\n", bad);
+    font_file_free(&intr);
+    return 1;
   }
   font_file_free(&intr);
 

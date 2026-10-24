@@ -314,6 +314,7 @@ struct ColonizeGameState {
   ColonizeHofEntry hof_entries[COLONIZE_HOF_MAX]; /* ranked desc; session + HOF.TXT */
   int hof_count;
   int hof_inserted; /* slot the Retire entry took (FUN_41f2_0f56 local_156), -1 = title-menu view */
+  ColonizeHofEntry hof_retired; /* the Retire entry; line 5 when it placed 6th or lower (DB-57) */
   bool in_hall_of_fame; /* title-menu "View Hall of Fame" screen (reports_render_hall_of_fame) */
   bool in_exploits; /* Retire: FUN_41f2_0b70 exploits screen between F10 and Hall of Fame */
   ColonizeExploitsView exploits;
