@@ -2401,6 +2401,37 @@ bool game_handle_modal_input(ColonizeGameState* game, const ColonizeInputState* 
         }
       }
     }
+    /*
+     * The Fountain of Youth and Brewster picks are FUN_38fd_4884 lists (param 1 / param 2),
+     * armed like Recruit (raw 64747): F1 / a right-click on a row opens the skill article of
+     * that pool slot's @JOB, 0x1c read as 0x13 (FUN_291f_08de, raw 64757-64762), and the
+     * loop shows the same pick again. No pick is spent and no crosses move. The article
+     * itself does not consume the dialog here: it goes back to the head of the queue. (DOS
+     * also redraws the Europe screen on that path, thunk_FUN_291f_0dfe, though both picks
+     * run from the map; not reproduced.)
+     */
+    if ((input->last_key == COLONIZE_KEY_F1 || input->mouse_right_clicked) &&
+        (game->ai_popups.current.tag == AI_POPUP_TAG_FOUNTAIN_YOUTH ||
+         game->ai_popups.current.tag == AI_POPUP_TAG_BREWSTER_PICK) &&
+        game->ai_popups.current.kind == AI_POPUP_KIND_CHOICE) {
+      const AiPopupRequest* cur = &game->ai_popups.current;
+      const int sel = input->mouse_right_clicked
+                        ? ai_popup_choice_row_at(
+                            &game->ai_popups, input->mouse_x, input->mouse_y
+                          )
+                        : game->ai_popups.selection;
+      const int slot = sel >= 0 && sel < cur->choice_count ? cur->choice_ids[sel] : -1;
+      if (slot >= 0 && slot < EUROPE_POOL_SIZE) {
+        int job = game->europe.pool[slot].profession;
+        if (job == UNITS_JOB_NONE || job < 0) {
+          job = UNITS_JOB_COLONIST;
+        }
+        if (ai_popup_requeue_current(&game->ai_popups)) {
+          game_open_pedia_article(game, PEDIA_CAT_JOB, job, false);
+        }
+        return true;
+      }
+    }
     ai_popup_handle_input(&game->ai_popups, input);
     game_apply_ai_popup_result(game);
     return true;

@@ -140,6 +140,17 @@ tab's hammers bar (own block). Production-tab badge ink is white (15), not
   EOT notice), and the "(COMPLETE)" test is the DOS +0x84 bit (FUN_281f_09fc,
   `colonies_dos_owns_row`), which a built Warehouse Expansion never has: its row reads its cost
   (port_bugs.md #1223).
+- **"(F1 for Help)"** (`FUN_2f2b_5bd2` raises DS:0x1f66, raw 52632): F1 takes the barred
+  row, a right-click the row under the pointer (`FUN_6f74_2580` sets DS:0x1f68). "(More)"
+  still turns the page; a building row opens its Colonizopedia article (`FUN_291f_0902`), a
+  unit row its unit article (`FUN_291f_0942`, `@UNIT` row via `units_build_code_to_index`),
+  the clear row nothing; the list is rebuilt on the same page and comes back when the
+  article closes (raw 52648-52658). Port: `game_colony_construction_help`
+  (`game_loop_update.c`). The jobs and leave-as lists (`FUN_2f2b_348c`, raw 50823) work the
+  same way but open the skill article of the row's `@JOB` (`FUN_291f_08de`; a leave-as role
+  is `@JOB` 0x13 + role, the stay row the colonist's current job), "Clear Specialty" just
+  re-shows, and the list is rebuilt on page 0 with its default bar (raw 50893-50901):
+  `game_colony_list_help`.
 - **BUY / CHANGE buttons** are `FUN_2f2b_21da` -> `FUN_2f2b_208c` literally:
   at (0xd8, 0x8a) / (0x10e, 0x8a), label width + 5 by 9, WOODPANL 0x30 bottom
   and right drawn first, then 0x39 top and left, the label at (+3, +2) in 0x0f

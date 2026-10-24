@@ -1587,9 +1587,13 @@ static void game_hof_row_from_entry(
   game_names_row(game, "INDEPENDENT", e->nation_id, row->independent_name, sizeof(row->independent_name));
 }
 
+static void game_render_map_popups(
+  const ColonizeGameState* game, ColonizeFramebuffer8* framebuffer, ColonizePalette* palette
+);
+
 /* One of the full-screen views (Europe, reports, exploits, hall of fame,
- * colony, pedia, debug atlas, new-game wizard, title menu). Returns true
- * when it painted one — the map path is then skipped. */
+ * colony, pedia, debug atlas, trade route editor, new-game wizard, title
+ * menu). Returns true when it painted one — the map path is then skipped. */
 COLONIZE_INTERNAL bool game_render_screen(
   const ColonizeGameState* game, ColonizeFramebuffer8* framebuffer, ColonizePalette* palette
 ) {
@@ -1701,6 +1705,14 @@ COLONIZE_INTERNAL bool game_render_screen(
   if (game->in_debug_atlas) {
     const ColonizeFont* font = game->menu_font_ok ? &game->menu_font : NULL;
     debug_atlas_render(&game->debug_atlas, font, framebuffer);
+    return true;
+  }
+
+  /* FUN_647e_09da paints the whole 320x200 (colour 0x22), so the trade route
+   * editor and the pickers it opens render as a DOS-sized screen: a big window
+   * centres them like any other screen (port-only placement). */
+  if (game->trade_screen.open) {
+    game_render_map_popups(game, framebuffer, palette);
     return true;
   }
 
@@ -2158,7 +2170,21 @@ COLONIZE_INTERNAL void game_render_map_dialogs(
     (game->map_panel_ok && game->map_panel.wood_ok) ? &game->map_panel.wood_tile : NULL;
   /* The bar also shows on the map under a screen (game_render_map_under). */
   map_menu_render((MapMenuBar*)&game->map_menu, hud_font, wood, framebuffer);
-  if (!game_screen_owns_display(game)) {
+  /* The trade route editor and its pickers draw as a screen (game_render_screen). */
+  if (!game_screen_owns_display(game) && !game->trade_screen.open) {
+    game_render_map_popups(game, framebuffer, palette);
+  }
+}
+
+/* Every dialog that floats over the overland map (or over the trade route editor). */
+static void game_render_map_popups(
+  const ColonizeGameState* game, ColonizeFramebuffer8* framebuffer, ColonizePalette* palette
+) {
+  const ColonizeFont* hud_font = game->colony_font_ok ? &game->colony_font :
+                                 (game->menu_font_ok ? &game->menu_font : NULL);
+  const ColonizeSpriteSheet* wood =
+    (game->map_panel_ok && game->map_panel.wood_ok) ? &game->map_panel.wood_tile : NULL;
+  {
     if (game->trade_screen.open) {
       trade_screen_render(
         &game->trade_screen,
@@ -2813,19 +2839,19 @@ static void game_render_centre_fixed(
   s_fixed_off_x = off_x;
   s_fixed_off_y = off_y;
   if (on_map) {
-    /* dst already holds the map (game_render_map_under). Only a 5px wood
-     * ring goes around the 1px rule below; on_map guarantees the room. Both
-     * lie outside the screen, so they are drawn in the map's palette. */
-    const ColonizePalette* map_pal = game_map_pal(game);
-    const int ring = 5;
-    const int rx = off_x - 1 - ring;
-    const int ry = off_y - 1 - ring;
-    const int rw = src->width + 2 + 2 * ring;
-    const int rh = src->height + 2 + 2 * ring;
-    game_paint_wood_rect(game, dst, rx, ry, rw, ring, map_pal);
-    game_paint_wood_rect(game, dst, rx, ry + rh - ring, rw, ring, map_pal);
-    game_paint_wood_rect(game, dst, rx, ry + ring, ring, rh - 2 * ring, map_pal);
-    game_paint_wood_rect(game, dst, rx + rw - ring, ry + ring, ring, rh - 2 * ring, map_pal);
+    /* dst already holds the map (game_render_map_under). The screen sits in
+     * the frame every 6f74 dialog gets (popup_draw: black, mid brown, bevel),
+     * with the dialogs' 1px wood margin before the screen's own pixels;
+     * on_map guarantees the room. It lies outside the screen, in the map's
+     * palette, which the @COLORS shades and WOODTILE are authored for. */
+    const int ring = POPUP_FRAME_INSET + 1;
+    ColonizePopupColors cols;
+    popup_colors_from_ui(&cols);
+    popup_draw(
+      dst, off_x - ring, off_y - ring, src->width + 2 * ring, src->height + 2 * ring,
+      (game->map_panel_ok && game->map_panel.wood_ok) ? &game->map_panel.wood_tile : NULL, &cols,
+      NULL, NULL, NULL, NULL
+    );
   } else {
     game_paint_wood_rect(game, dst, 0, 0, dst->width, off_y, palette);
     game_paint_wood_rect(
@@ -2835,11 +2861,11 @@ static void game_render_centre_fixed(
     game_paint_wood_rect(
       game, dst, off_x + src->width, off_y, dst->width - off_x - src->width, src->height, palette
     );
+    /* 1px rule just OUTSIDE the screen rect, so it separates the DOS frame from
+     * the surrounding wood without covering a pixel of it. Clipped away when a
+     * side has no padding to draw into. */
+    fb_rect_outline(dst, off_x - 1, off_y - 1, src->width + 2, src->height + 2, 0, 0);
   }
-  /* 1px rule just OUTSIDE the screen rect, so it separates the DOS frame from
-   * the surrounding wood without covering a pixel of it. Clipped away when a
-   * side has no padding to draw into. */
-  fb_rect_outline(dst, off_x - 1, off_y - 1, src->width + 2, src->height + 2, 0, 0);
   for (int row = 0; row < src->height; ++row) {
     memcpy(
       &dst->pixels[(size_t)(off_y + row) * (size_t)dst->width + (size_t)off_x],
@@ -3115,12 +3141,13 @@ bool game_in_europe_screen(const ColonizeGameState* game) {
   return game && game->in_europe;
 }
 
-bool game_modal_open(const ColonizeGameState* game) {
+/* game_modal_open, not counting the modal at `skip` (NULL = count every one). */
+static bool game_modal_open_skip(const ColonizeGameState* game, const void* skip) {
   if (!game) {
     return false;
   }
 #define GAME_MODAL_OPEN_ARM(field, label)                                                          \
-  if (game->field.open) {                                                                          \
+  if ((const void*)&game->field != skip && game->field.open) {                                     \
     return true;                                                                                   \
   }
   GAME_MODAL_LIST(GAME_MODAL_OPEN_ARM)
@@ -3132,6 +3159,16 @@ bool game_modal_open(const ColonizeGameState* game) {
    * still services it), so it is tested here, after the list. An unloaded
    * bar never draws or takes input (and a memset-zero state reads index 0). */
   return game->map_menu.loaded && game->map_menu.open_index >= 0;
+}
+
+bool game_modal_open(const ColonizeGameState* game) {
+  return game_modal_open_skip(game, NULL);
+}
+
+/* The trade route editor draws as a screen (game_render_screen), so a click
+ * around it on the map closes it like one unless a modal sits on top of it. */
+bool game_modal_over_screen_open(const ColonizeGameState* game) {
+  return game_modal_open_skip(game, game ? &game->trade_screen : NULL);
 }
 
 bool game_ai_popup_pending(const ColonizeGameState* game) {

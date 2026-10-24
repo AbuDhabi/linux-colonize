@@ -526,6 +526,13 @@ bool ai_popup_move_tag_to_front(AiPopupState* st, AiPopupTag tag);
 void ai_popup_cancel_current(AiPopupState* st);
 
 /*
+ * Close the OPEN dialog with no result and put it back, unchanged, at the head of the
+ * queue: a DS:0x1f66 help detour (a Colonizopedia article) after which DOS shows the same
+ * dialog again. False (dialog left open) when nothing is open or the queue is full.
+ */
+bool ai_popup_requeue_current(AiPopupState* st);
+
+/*
  * Option row (0-based) under a point, or -1 outside the dialog / off the
  * option list. DOS FUN_6f74_2580 hit-tests the same rows for the right-button
  * "explain this row" arm (DS:0x1f66 armed → DS:0x1f68 = 1).
