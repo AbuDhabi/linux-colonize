@@ -300,8 +300,13 @@ static void print_new_log(void) {
     printf("LOG: %s\n", window_log_line(age));
   }
   g_log_seen = total;
+  /* Choice rows once per popup opening, not after every command. */
+  static char shown[AI_POPUP_BODY_LEN + 8];
   const AiPopupState* pop = &g_game->ai_popups;
-  if (pop->open && pop->current.choice_count > 0) {
+  if (!pop->open) {
+    shown[0] = '\0';
+  } else if (pop->current.choice_count > 0 && strcmp(shown, pop->current.body) != 0) {
+    snprintf(shown, sizeof(shown), "%s", pop->current.body);
     printf("CHOICES:");
     for (int i = 0; i < pop->current.choice_count; ++i) {
       printf(" [%d] %s", i, pop->current.choices[i]);
