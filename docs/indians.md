@@ -336,7 +336,7 @@ Popup tags: [popups.md](popups.md). Diplo matrix: [`euro_diplo.md`](../original_
 flowchart TD
   adj[Land adjacency or village enter]
   welcome["@INDIANWELCOME"]
-  peace["Peace + land grant"]
+  peace["Peace"]
   war["@INDIANSHUN war"]
   meet[Meet CHOICE]
   trade[Trade Gift Demand]
@@ -356,10 +356,12 @@ flowchart TD
 ### First contact (`FUN_5bfb_022e` / `0182`)
 
 - Unmet **land** unit next to a village (ships skipped) → `@INDIANWELCOME` Yes/No.
-- **Yes** → peace bit, clear alarm/friction toward Euro, OK `@INDIANPEACE` /
-  `@INDIANCOME`; thin land grant stamps purchased + owner on the occupied tile.
+- **Yes** → PEACE bit both ways, OK `@INDIANPEACE` / `@INDIANCOME`; no village word
+  written (port_bugs.md #1008) and no land grant (`FUN_5bfb_0182` has none).
   Ends without Meet CHOICE.
-- **No** → war / hostility, alarm ≥80, `@INDIANSHUN`.
+- **No** → `FUN_4cc6_00f2` +100 on the alarm, clamped to 20 first (France halves the +100, Pocahontas
+  halves it again), then `@INDIANSHUN`. No PEACE bit, no village word written (port_bugs.md #1228).
+  Either answer sets MET both ways and `contact_state[euro] = 2`. Replay test: `map_first_contact_refused`.
 
 ### Meet menu (already met)
 

@@ -421,8 +421,8 @@ Used by contact / mission / raid gates ([indian_contact.md](../original_sources_
 | **≥ 80** | (Mission burn `FUN_4cc6_0000` is NOT this band: it needs alarm == 100 AND the at-peace bit `0a38 & 0x40`, then `rng(0,10) <= difficulty+1`, raw 80900-80912) |
 | **≥ 75** | Speak With Chief kill band — `thunk_FUN_1000_a60c` (overlays.c 77494-77654) gates the whole friendly switch on `alarm < 0x4b`; at or above it, and on a failed `alarm >> 2 < rng(0, seasoned ? 140 : 100)` roll below it, the outcome is **deterministic** `@CHIEFKILL` unless the nation owns FF 6 Coronado (`@CHIEFBORED`). The old "≥ 90 / 95 scout displace, ~¼ RNG kill" figures were never in DOS — corrected 2026-09-27. |
 
-First-contact **reject** floors alarm/friction into the **≥80** band
-(`@INDIANSHUN`).
+First-contact **reject** (`@INDIANSHUN`) is the plain `FUN_4cc6_00f2` +100 on an alarm already
+clamped to 20, so France lands on 70 and others on 100. It writes no village word (port_bugs.md #1228).
 
 ### Escalation and pacify
 

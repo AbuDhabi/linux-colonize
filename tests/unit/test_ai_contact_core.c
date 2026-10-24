@@ -3934,6 +3934,7 @@ static int sp_32(void) {
       ind->euro_diplo[0] = (uint8_t)(ind->euro_diplo[0] & ~0x40u);
       ind->alarm_by_player[0] = 0;
       col1.tribe[0].alarm[0].attacks = 0;
+      col1.tribe[0].alarm[0].friction = 7;
       /* unmet: euro_diplo zeroed above (transform MET line dropped) */
       for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
         ColonizeUnit* u = &units.units[ui];
@@ -3968,8 +3969,12 @@ static int sp_32(void) {
       if (!ai_diplo_indian_at_war(&col1, 0, 0)) {
         return fail("WELCOME No should declare war");
       }
-      if (ind->alarm_by_player[0] < 80 || col1.tribe[0].alarm[0].friction < 80) {
-        return fail("WELCOME No should raise alarm/friction to burn band");
+      if (ind->alarm_by_player[0] < 80) {
+        return fail("WELCOME No should raise alarm to burn band");
+      }
+      /* port_bugs.md #1228: 022e's reject limb writes no village word. */
+      if (col1.tribe[0].alarm[0].friction != 7) {
+        return fail("WELCOME No must not touch tribe friction");
       }
       /* smell #66: DOS's only attacks-writer is the 465b per-settlement
        * trespass bump; the reject limb must leave the word alone. */
@@ -5012,7 +5017,7 @@ static int sp_41(void) {
         );
         return fail("open hostilities must keep the French +100 halving");
       }
-      /* The tribe-friction floor of 80 is the DOS-sibling write and stays. */
+      /* Tribe-friction floor of 80: untraced, its welcome-reject sibling is gone (port_bugs.md #1228). */
       if (col1.tribe[0].alarm[1].friction < 80u) {
         return fail("open hostilities should still floor tribe friction at 80");
       }
