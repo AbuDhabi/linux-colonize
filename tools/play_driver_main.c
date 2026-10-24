@@ -35,6 +35,7 @@
  *   near X Y [R]                every unit (any nation) within R (default 2) of X,Y
  *   goto ID X Y                 Go To order for unit ID to tile X,Y
  *   colony N                    open colony N's screen (index from `colonies`)
+ *   world                       whole map, one char a tile
  *   rumours                     list seen rumour tiles with terrain (h hill, m mountain)
  *   activate ID                 wake and select unit ID (the stack-list pick by id;
  *                               in game, A on a stack opens the picker)
@@ -747,6 +748,45 @@ static bool command(char* line) {
     /* Open colony N's screen (index as printed by `colonies`). */
     game_enter_colony(g_game, a1);
     ok = flush_frames(10);
+  } else if (strcmp(op, "world") == 0) {
+    /* Whole map, one char a tile: ~ water, C/c own/foreign colony, V village,
+     * ? rumour, n/# hill/mountain, else the terrain letter as in `map`. */
+    const ColonizeWorldMap* m = &g_game->world_map;
+    for (int y = 0; y < m->height; ++y) {
+      char row[256];
+      int n = 0;
+      for (int x = 0; x < m->width && n < 250; ++x) {
+        char c = ' ';
+        if (map_tile_seen_by(m, x, y, g_game->human_nation)) {
+          const uint8_t t = m->terrain[(size_t)y * m->width + x];
+          const int base = t & 0x1f;
+          c = (base == T_OCEAN || base == T_HIGH_SEAS) ? '~' : base == T_ARCTIC ? 'a' : "tdprgsmw"[base & 7];
+          if (base < T_ARCTIC && (base & T_FOREST_BIT)) {
+            c = (char)(c - 32);
+          }
+          if (t & F_MOUNTAIN) {
+            c = '#';
+          } else if (t & F_HILL) {
+            c = 'n';
+          }
+          if (map_tile_has_city(m, x, y)) {
+            c = 'V';
+          }
+          for (int i = 0; i < g_game->colonies.colony_count; ++i) {
+            const ColonizeColony* col = &g_game->colonies.colonies[i];
+            if (col->active && col->x == x && col->y == y) {
+              c = col->nation_id == g_game->human_nation ? 'C' : 'c';
+            }
+          }
+          if (map_tile_has_rumour(m, x, y)) {
+            c = '?';
+          }
+        }
+        row[n++] = c;
+      }
+      row[n] = '\0';
+      printf("W%3d %s\n", y, row);
+    }
   } else if (strcmp(op, "rumours") == 0) {
     /* Every seen rumour tile: terrain letter as in `map`, h = hill, m = mountain. */
     const ColonizeWorldMap* m = &g_game->world_map;
