@@ -1572,6 +1572,21 @@ COLONIZE_INTERNAL void game_render_select_palette(
   }
 }
 
+static void game_hof_row_from_entry(
+  const ColonizeGameState* game, const ColonizeHofEntry* e, ColonizeHofRow* row
+) {
+  snprintf(row->leader, sizeof(row->leader), "%s", e->leader);
+  snprintf(row->nation, sizeof(row->nation), "%s", e->nation);
+  row->score = e->score;
+  row->year = e->year;
+  row->difficulty = e->difficulty;
+  row->rating = e->rating;
+  row->declared = e->declared;
+  row->achieved = e->achieved;
+  row->independent_name[0] = '\0';
+  game_names_row(game, "INDEPENDENT", e->nation_id, row->independent_name, sizeof(row->independent_name));
+}
+
 /* One of the full-screen views (Europe, reports, exploits, hall of fame,
  * colony, pedia, debug atlas, new-game wizard, title menu). Returns true
  * when it painted one — the map path is then skipped. */
@@ -1630,20 +1645,13 @@ COLONIZE_INTERNAL bool game_render_screen(
     ColonizeHofRow rows[COLONIZE_HOF_ROW_MAX];
     const int count = game->hof_count > COLONIZE_HOF_ROW_MAX ? COLONIZE_HOF_ROW_MAX : game->hof_count;
     for (int i = 0; i < count; ++i) {
-      const ColonizeHofEntry* e = &game->hof_entries[i];
-      snprintf(rows[i].leader, sizeof(rows[i].leader), "%s", e->leader);
-      snprintf(rows[i].nation, sizeof(rows[i].nation), "%s", e->nation);
-      rows[i].score = e->score;
-      rows[i].year = e->year;
-      rows[i].difficulty = e->difficulty;
-      rows[i].rating = e->rating;
-      rows[i].declared = e->declared;
-      rows[i].achieved = e->achieved;
-      rows[i].independent_name[0] = '\0';
-      game_names_row(game, "INDEPENDENT", e->nation_id, rows[i].independent_name, sizeof(rows[i].independent_name));
+      game_hof_row_from_entry(game, &game->hof_entries[i], &rows[i]);
     }
+    ColonizeHofRow retired;
+    game_hof_row_from_entry(game, &game->hof_retired, &retired);
     reports_render_hall_of_fame(
-      game->reports_ok ? &game->reports : NULL, rows, count, game->hof_inserted, font, framebuffer
+      game->reports_ok ? &game->reports : NULL, rows, count, game->hof_inserted,
+      game->hof_inserted >= COLONIZE_HOF_SHOWN_MAX ? &retired : NULL, font, framebuffer
     );
     return true;
   }
