@@ -863,6 +863,19 @@ void ai_popup_cancel_current(AiPopupState* st) {
   ai_popup_finish(st, !is_info, is_info ? 0 : -1);
 }
 
+bool ai_popup_requeue_current(AiPopupState* st) {
+  if (!st || !st->open || st->queue_count >= AI_POPUP_QUEUE_MAX) {
+    return false;
+  }
+  for (int j = st->queue_count; j > 0; --j) {
+    st->queue[j] = st->queue[j - 1];
+  }
+  st->queue[0] = st->current;
+  st->queue_count++;
+  st->open = false;
+  return true;
+}
+
 int ai_popup_portrait_tier_from_alarm(int alarm) {
   /* FUN_15dc_00a2 */
   if (alarm < 0x19) {

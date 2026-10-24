@@ -414,6 +414,8 @@ void game_screen_offset(int* out_x, int* out_y);
 /* True when that screen sits on the overland map (game on, big window): a
  * click outside it closes it (game_update). */
 bool game_screen_on_map(void);
+/* game_modal_open minus the trade route editor, which draws as a screen. */
+bool game_modal_over_screen_open(const ColonizeGameState* game);
 
 /* Render + present the current state into *buf, growing it to the live screen
  * size (core/screen_geom.h) first. Pass the same buf/cap statics to

@@ -289,6 +289,7 @@ struct ColonizeGameState {
   PediaViewMode pedia_view;
   bool pedia_return_to_list; /* article Esc → list (menu/P); F1 opens article-only */
   int pedia_return_colony_id; /* >= 0: leaving the pedia reopens this colony's screen */
+  bool pedia_return_europe;   /* leaving the pedia reopens the Europe screen */
   PediaCategory pedia_category;
   int pedia_index;
   int pedia_hover_entry;

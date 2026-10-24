@@ -7499,6 +7499,16 @@ static int case_fountain_of_youth(void) {
         fprintf(stderr, "fountain: pick %d want 3-way FOUNTAIN_YOUTH choice\n", picks);
         return 1;
       }
+      if (picks == 0) {
+        /* The F1 help detour hands the pick back unspent (ai_popup_requeue_current). */
+        const int payload = fpops.current.payload;
+        if (!ai_popup_requeue_current(&fpops) || fpops.open || fpops.has_result ||
+            !ai_popup_try_present_next(&fpops) ||
+            fpops.current.tag != AI_POPUP_TAG_FOUNTAIN_YOUTH || fpops.current.payload != payload) {
+          fprintf(stderr, "fountain: requeued pick did not come back unchanged\n");
+          return 1;
+        }
+      }
       ColonizeInputState in = {0};
       in.last_key = COLONIZE_KEY_DOWN; /* pick slot 1 each time */
       ai_popup_handle_input(&fpops, &in);

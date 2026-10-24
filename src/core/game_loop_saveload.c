@@ -799,6 +799,7 @@ static void game_pedia_enter_shell(ColonizeGameState* game) {
   game->in_colony = false;
   game->in_debug_atlas = false;
   game->pedia_return_colony_id = -1; /* callers that want colony-return set it after */
+  game->pedia_return_europe = false; /* likewise Europe-return */
 }
 
 void game_open_pedia_list(ColonizeGameState* game, PediaCategory category) {

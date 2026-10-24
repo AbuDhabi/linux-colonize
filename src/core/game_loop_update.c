@@ -1600,6 +1600,131 @@ static GameUpdateStep game_colony_screen_key_enter(
   return GAME_UPDATE_CONTINUE;
 }
 
+/*
+ * FUN_2f2b_5bd2 raises DS:0x1f66 before it shows the construction list (raw 52632), so
+ * FUN_6f74_2580 hands back the barred row on F1 and the row under the pointer on a right
+ * click, both with DS:0x1f68 = 1 (raw 116866-116869, 117062-117065). The "(More)" row still
+ * turns the page (raw 52638-52643). Any other row goes through FUN_281f_0cc2 (raw 52650): a
+ * building opens its Colonizopedia article (FUN_291f_0902), a unit its unit article
+ * (FUN_291f_0942); the clear row decodes to neither. Either way the list is rebuilt on the
+ * same page (raw 52655-52658), which here is the state the pedia hands back on exit.
+ */
+static void game_colony_construction_help(
+  ColonizeGameState* game, const ColonizeInputState* input, const ColonizeColony* colony,
+  ColonyScreenView* csv
+) {
+  bool more = csv->more_selected;
+  int bi = csv->construction_selection - 1;
+  if (input->mouse_right_clicked) {
+    const ColonyScreenHitResult hit = colony_screen_hit_test(
+      csv, &game->colonies, colony, game->units_ok ? &game->units : NULL, input->mouse_x,
+      input->mouse_y
+    );
+    if (hit.kind == COLONY_HIT_CONSTRUCTION_OUTSIDE) {
+      return;
+    }
+    more = hit.kind == COLONY_HIT_CONSTRUCTION_MORE;
+    bi = hit.kind == COLONY_HIT_CONSTRUCTION_ROW ? hit.index : -1;
+  }
+  if (more) {
+    colony_screen_construction_next_page(csv);
+    return;
+  }
+  const int bid = bi >= 0 && bi < csv->buildable_count ? csv->buildable_ids[bi] : -1;
+  const int page = csv->construction_page;
+  const ColoniesBuildableOpts bopts = game_colony_buildable_opts(game);
+  colony_screen_open_construction(csv, &game->colonies, game->colony_view_id, &bopts);
+  if (page != csv->construction_page) {
+    colony_screen_construction_next_page(csv);
+  }
+  if (bid < 0) {
+    return;
+  }
+  const int unit_row = units_build_code_to_index(bid);
+  const int cid = game->colony_view_id;
+  if (unit_row >= 0) {
+    game_open_pedia_article(game, PEDIA_CAT_UNIT, unit_row, false);
+  } else {
+    game_open_pedia_article(game, PEDIA_CAT_BUILDING, bid, false);
+  }
+  game->pedia_return_colony_id = cid;
+}
+
+/*
+ * FUN_2f2b_348c raises DS:0x1f66 for both of its lists (raw 50823): the jobs list (param 0)
+ * and the leave-as list. F1 takes the barred row, a right-click the row under the pointer
+ * (greyed rows are skipped, FUN_6f74_2580 raw 116747). "(More)" turns the page (raw
+ * 50828-50830) and "Clear Specialty" (0x61) is remapped to a re-show (raw 50831-50833). Any
+ * other row (id = @JOB + 1) opens the skill article of its @JOB (FUN_291f_08de, raw
+ * 50893-50901): a leave-as role is @JOB 0x13 + role, the stay row the colonist's current
+ * occupation. The list is then rebuilt from scratch, page 0 and default bar (raw 50523,
+ * 50676-50677), and comes back when the article closes.
+ */
+static void game_colony_list_help(
+  ColonizeGameState* game, const ColonizeInputState* input, ColonizeColony* colony,
+  ColonyScreenView* csv
+) {
+  const ColonyScreenHitResult hit = input->mouse_right_clicked
+    ? colony_screen_hit_test(
+        csv, &game->colonies, colony, game->units_ok ? &game->units : NULL, input->mouse_x,
+        input->mouse_y
+      )
+    : (ColonyScreenHitResult){.kind = COLONY_HIT_NONE, .index = -1};
+  if (hit.kind == COLONY_HIT_JOBS_OUTSIDE || hit.kind == COLONY_HIT_EJECT_OUTSIDE) {
+    return;
+  }
+  int job = -1;
+  if (csv->jobs_open) {
+    const bool more = input->mouse_right_clicked ? hit.kind == COLONY_HIT_JOBS_MORE
+                                                 : csv->more_selected;
+    const int i = input->mouse_right_clicked
+                    ? (hit.kind == COLONY_HIT_JOBS_ROW ? hit.index : -1)
+                    : csv->jobs_selection;
+    if (more) {
+      colony_screen_jobs_next_page(csv);
+      return;
+    }
+    if (i < 0 || i >= csv->job_count || csv->job_ids[i] < 0) {
+      return; /* Clear Specialty: the list just shows again */
+    }
+    job = csv->job_ids[i];
+    colony_screen_open_jobs(
+      csv, &game->colonies, game->world_map_ok ? &game->world_map : NULL, colony,
+      csv->jobs_tile_index
+    );
+  } else {
+    const int i = input->mouse_right_clicked
+                    ? (hit.kind == COLONY_HIT_EJECT_ROW ? hit.index : -1)
+                    : csv->eject_selection;
+    if (i < 0 || i >= csv->eject_role_count || !csv->eject_role_enabled[i]) {
+      return;
+    }
+    const int role = csv->eject_roles[i];
+    if (role != COLONY_EJECT_ROLE_STAY) {
+      job = UNITS_JOB_COLONIST + role;
+    } else if (csv->eject_colonist_index >= 0 &&
+               csv->eject_colonist_index < colony->colonist_count) {
+      const ColonizeColonist* c = &colony->colonists[csv->eject_colonist_index];
+      job = c->field_job >= 0 ? c->field_job
+            : c->building_type >= 0 ? colonies_building_occupation(&game->colonies, c->building_type)
+                                    : -1;
+    }
+    if (job < 0) {
+      return;
+    }
+    if (csv->eject_unit_id >= 0) {
+      game_colony_fence_drop(game, colony);
+    } else {
+      colony_screen_open_eject(
+        csv, &game->colonies, game->colony_view_id, csv->eject_colonist_index
+      );
+    }
+  }
+  const int cid = game->colony_view_id;
+  game_open_pedia_article(game, PEDIA_CAT_JOB, job, false);
+  game->pedia_return_colony_id = cid;
+}
+
 /* Colony-screen keyboard: Escape / Enter, the C construction toggle, the
  * 1/2/3/M/N tab keys and the open sub-panel's own navigation keys. */
 static GameUpdateStep game_colony_screen_keys(
@@ -1839,6 +1964,16 @@ COLONIZE_INTERNAL GameUpdateStep game_update_colony_screen(ColonizeGameState* ga
       }
     }
 
+    if (colony && (csv->construction_open || csv->jobs_open || csv->eject_open) &&
+        (input->last_key == COLONIZE_KEY_F1 || input->mouse_right_clicked)) {
+      if (csv->construction_open) {
+        game_colony_construction_help(game, input, colony, csv);
+      } else {
+        game_colony_list_help(game, input, colony, csv);
+      }
+      return GAME_UPDATE_RETURN_TRUE;
+    }
+
     {
       const GameUpdateStep sub = game_colony_screen_keys(game, input, colony, csv, cmap);
       if (sub != GAME_UPDATE_CONTINUE) {
@@ -1919,6 +2054,56 @@ COLONIZE_INTERNAL GameUpdateStep game_update_colony_screen(ColonizeGameState* ga
 
 /* Keys and clicks while a Europe list popup (Recruit / Purchase / Train /
  * the @ARMOPTIONS rows) is up — it swallows the screen's own input. */
+/*
+ * FUN_38fd_4884 (Recruit), 41ce (Train) and 4b50 (Purchase) raise DS:0x1f66 before their
+ * list (raw 64747, 64411, 64861), so F1 takes the barred row and a right-click the row under
+ * the pointer, with DS:0x1f68 = 1. The None row still leaves (raw 64754, 64417, 64864). A
+ * Recruit or Train row opens the skill article of its @JOB (FUN_291f_08de, raw 64762 / 64425;
+ * the pool's 0x1c reads as 0x13, raw 64759-64761), a Purchase row the unit article of its
+ * @UNIT (FUN_291f_0942, raw 64903), and the Europe screen comes back with the same list up
+ * (thunk_FUN_291f_0dfe and the caller's loop). The dock list and the @REALLYBUY confirm arm
+ * no help (europe_menu_layout), so there a right-click just cancels.
+ */
+static void game_europe_menu_help(
+  ColonizeGameState* game, const ColonizeInputState* input, EuropeScreen* eu
+) {
+  const bool armed = eu->menu == EUROPE_MENU_RECRUIT || eu->menu == EUROPE_MENU_TRAIN ||
+                     (eu->menu == EUROPE_MENU_PURCHASE && !eu->purchase_confirming);
+  if (!armed) {
+    if (input->mouse_right_clicked) {
+      europe_menu_close(eu);
+    }
+    return;
+  }
+  const int row = input->mouse_right_clicked
+                    ? europe_menu_row_at(game, input->mouse_x, input->mouse_y)
+                    : eu->menu_selection;
+  /* FUN_6f74_2580's pointer test skips greyed rows (raw 116747); off a row the port's
+   * right-click cancels, as before. */
+  PediaCategory cat = PEDIA_CAT_JOB;
+  int index = -1;
+  if (eu->menu == EUROPE_MENU_RECRUIT && row >= 1 && row <= EUROPE_POOL_SIZE &&
+      europe_recruit_affordable(eu)) {
+    index = eu->pool[row - 1].profession;
+    if (index == UNITS_JOB_NONE || index < 0) {
+      index = UNITS_JOB_COLONIST;
+    }
+  } else if (eu->menu == EUROPE_MENU_TRAIN && row >= 1 && row <= eu->train_count &&
+             europe_train_affordable(eu, row - 1)) {
+    index = eu->train[row - 1].job_index;
+  } else if (eu->menu == EUROPE_MENU_PURCHASE && row >= 1 && row <= eu->purchase_count &&
+             europe_purchase_affordable(eu, row - 1)) {
+    cat = PEDIA_CAT_UNIT;
+    index = (int)eu->purchase[row - 1].kind;
+  }
+  if (index < 0) {
+    europe_menu_close(eu);
+    return;
+  }
+  game_open_pedia_article(game, cat, index, false);
+  game->pedia_return_europe = true;
+}
+
 static GameUpdateStep game_europe_screen_menu_keys(
   ColonizeGameState* game, const ColonizeInputState* input, EuropeScreen* eu
 ) {
@@ -1938,8 +2123,8 @@ static GameUpdateStep game_europe_screen_menu_keys(
      * branch swallowed the click and Recruit/Purchase/Train were
      * keyboard-only (port_bugs.md).
      */
-    if (input->mouse_right_clicked) {
-      europe_menu_close(eu);
+    if (input->mouse_right_clicked || input->last_key == COLONIZE_KEY_F1) {
+      game_europe_menu_help(game, input, eu);
       return GAME_UPDATE_RETURN_TRUE;
     }
     if (input->mouse_left_clicked) {
@@ -2272,13 +2457,16 @@ COLONIZE_INTERNAL GameUpdateStep game_update_europe_screen(ColonizeGameState* ga
 /* Leave the Colonizopedia outright (not back to its list). */
 static void game_pedia_leave(ColonizeGameState* game) {
   game->in_pedia = false;
-  /* Opened from the colony screen (tile right-click): go back there. */
+  /* Opened from the colony or Europe screen (right-click / F1 help): go back there. */
   if (game->pedia_return_colony_id >= 0 &&
       colonies_get(&game->colonies, game->pedia_return_colony_id) != NULL) {
     game->in_colony = true;
     game->colony_view_id = game->pedia_return_colony_id;
+  } else if (game->pedia_return_europe) {
+    game->in_europe = true;
   }
   game->pedia_return_colony_id = -1;
+  game->pedia_return_europe = false;
   diag_info("Left Colonizopedia.");
 }
 
@@ -3132,7 +3320,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
    * open popup keeps the click (it is modal over the screen too).
    */
   if (input == &shifted && game_screen_on_map() && shifted.mouse_left_clicked &&
-      !game_modal_open(game) &&
+      !game_modal_over_screen_open(game) &&
       (shifted.mouse_x < 0 || shifted.mouse_y < 0 || shifted.mouse_x >= SCREEN_BASE_W ||
        shifted.mouse_y >= SCREEN_BASE_H)) {
     shifted.mouse_left_clicked = false;

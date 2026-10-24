@@ -338,6 +338,14 @@ reproduce pixel for pixel over the whole dialog rect outside the mouse pointer.
 The cost column's right edge (advance end at `frame_x + w - 13`) is measured off the
 shots, not read from the asm. Tests: `unit_popup_prompt list_height_dos`,
 `smoke_popup_dialogs europe_menu_frames_are_dos`.
+The footer is live: with `DS:0x1f66` armed, F1 (barred row) or a right-click (row under the
+pointer) returns the row with `DS:0x1f68` set. The None row still leaves; a Recruit / Train
+row opens the skill article of its `@JOB` (`FUN_291f_08de`, the pool's 0x1c read as 0x13), a
+Purchase row the unit article (`FUN_291f_0942`), and the Europe screen comes back with the
+list up (`game_europe_menu_help`, `pedia_return_europe`). The Fountain of Youth and Brewster
+picks (same `FUN_38fd_4884` body) open the pool slot's skill article and are re-shown unspent
+(`ai_popup_requeue_current`, `game_dialogs.c`); DOS also redraws the Europe screen on that
+path although both run from the map, which the port does not copy.
 
 Moved to [popups_dialog_engine.md](popups_dialog_engine.md): dialog text shading, the
 non-dialog `FUN_104b_*` writers, the new-game wizard and its dialog layout, in-game wrap /

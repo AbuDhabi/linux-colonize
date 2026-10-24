@@ -1,0 +1,11 @@
+# Port-only: at 640x400 the EDIT TRADE ROUTE screen is centred over the live map
+# like every other screen (origin 160,100); its pickers sit inside that frame and
+# a left click outside it leaves the editor.
+screen 640 400
+gap 20
+click 167 3            # TRADE menu
+click 190 14           # Edit Trade Route: route select list on the map
+click 260 201          # 1. Land Haul: the editor opens, centred
+click 433 170          # stop 1 load column (DOS 273,70): cargo picker
+click 260 184          # Lumber (DOS 100,84)
+click 20 380           # outside the frame: leaves the editor
