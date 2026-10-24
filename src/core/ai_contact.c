@@ -552,30 +552,19 @@ void ai_contact_apply_welcome_reject(
     return;
   }
   ai_contact_clear_peace(ctx->col1, nation_id, e);
+  /* FUN_5bfb_022e raw 96620-96624 clamps alarm to 20 before the dialog, so
+   * the reject arm adds its +100 to the clamped value (port_bugs.md #1228). */
+  if (ind->alarm_by_player[e] > 20u) {
+    ind->alarm_by_player[e] = 20u;
+  }
   /*
-   * DOS +100 hostility → OpenCol at-war band (0 < relation < 26, i.e. alarm
-   * > 0x4a; the band constant is AI_DIPLO_INDIAN_AT_WAR_REL, not the 50 this
-   * comment claimed until 2026-09-09, smell #57). Write a hostile floor (1),
-   * not unmet 0 — seed-100 early goldens keep r==0/sticky clear until first
-   * contact. Cite: FUN_4cc6_00f2; indian_contact.md.
+   * raw 96663-96668: the reject limb is FUN_281f_0d6c(slot, euro, 100) =
+   * the whole FUN_4cc6_00f2 (France / Pocahontas halve it) plus @INDIANSHUN.
+   * No village attitude word (DS:0x54f6) is written: the friction floor of
+   * 80 on every village of the nation that sat here had no DOS writer
+   * (port_bugs.md #1228), nor did the `attacks++` retired 2026-09-08 (#66).
    */
   ai_contact_alarm_delta_00f2(ctx, nation_id, e, 100); /* DOS +100 hostility */
-  if (ctx->col1->tribe) {
-    for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
-      ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
-      if ((int)t->nation_id != nation_id) {
-        continue;
-      }
-      if (t->alarm[e].friction < 80u) {
-        t->alarm[e].friction = 80u;
-      }
-      /* (Retired 2026-09-08, smell #66.) An `attacks++` across every tribe of
-       * the nation sat here. The attacks byte is the attitude word's high half
-       * (col1_tribe_attitude); DOS's only writer is the per-settlement 465b
-       * trespass bump (units.c ~6781), and 022e's @INDIANSHUN reject limb
-       * touches nothing but the +100 hostility (FUN_4cc6_00f2). */
-    }
-  }
   ai_diplo_indian_hostility_sync(ctx->col1, e);
 
   const char* tribe = ai_contact_tribe_name(nation_id);
@@ -1163,8 +1152,9 @@ void ai_contact_village_open_hostilities(
     return;
   }
   /*
-   * Same at-war floor as welcome reject (FUN_4cc6_00f2 thin) — the tribe
-   * FRICTION floor below, which is what that sibling actually writes.
+   * The tribe FRICTION floor below was copied from welcome reject, which no
+   * longer writes it: DOS's 022e reject limb has no village-word writer
+   * (port_bugs.md #1228). This copy is still untraced (residual of #1228).
    *
    * 2026-09-09 (smell #50): a second floor sat here, forcing
    * alarm_by_player >= 80 right after the +100 delta. FUN_4cc6_00f2 halves a

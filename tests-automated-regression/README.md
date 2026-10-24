@@ -45,6 +45,7 @@ the port, with fixture edits through `sav_json` where a test needs them
 | `map_found_colony_mountain` | Colonist #131 on the mountain (42,22): B and ORDERS > Build Colony both refused with @TOOMOUNTAIN |
 | `map_found_colony_native_land` | Peter Minuit removed, gold 1500: three colonists found colonies on Tupi (peace) land, nothing asked, nothing charged (gold 1500, lands_bought 0, no 0x10 stamp; port_bugs.md #1175) |
 | `colony_tile_native_land` | Quebec, Minuit removed, Tupi at peace, plot S bought-bit cleared: a statesman dragged to S raises @INDIANLAND (respect = nothing changes), a fence colonist respects (stays outside) then offers 422 (paid, lands_bought +1, @INDIANBRIBE, joins and works S), a statesman takes SE (seated, alarm raised, gold kept); RNG record unchanged (port_bugs.md #1175) |
+| `map_first_contact_refused` | France made unmet with the Tupi (pre-contact alarm 40), go-to units sentried: Preacher #131 steps beside a Tupi village, @INDIANWELCOME answered No, @INDIANSHUN dismissed. MET both ways, contact_state 2, alarm 20 + 50 = 70, no PEACE bit, no village word, no RNG draw (port_bugs.md #1228) |
 | `map_join_colony` | Free colonist #128 on the Quebec tile: B joins the colony from the map |
 | `colony_abandon` | Port au Prince (pop 1, view via the Scout #95 selected): last colonist leaves, @ABANDON answered Yes |
 | `colony_abandon_stockade_refused` | Guadeloupe (pop 4, + Stockade): one colonist leaves, the next is refused with @KEEPSTOCKADE (pop stays 3) |

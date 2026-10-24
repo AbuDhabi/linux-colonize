@@ -1,0 +1,9 @@
+# First contact refused. Fixture (map_found_colony start, France 1599): Preacher #131 alone on (44,22), full moves, selected;
+# France and the Tupi made unmet (indians[7].euro_diplo[1] = 0, nations[1].relation_by_indian[7] = 0) with a pre-contact
+# alarm of 40 (indians[7].alarm_by_player[1]); the five French go-to units sentried so nothing moves after the meeting.
+# FUN_5bfb_022e first-contact arm (raw 96618-96670): OR MET 0x20 both ways, clamp alarm to 20, @INDIANWELCOME (0x1803);
+# "No" = FUN_281f_0d6c(slot, euro, 100) = FUN_4cc6_00f2 (+100 halved for France: 20 + 50 = 70) and @INDIANSHUN (0x1811);
+# contact_state[euro] = 2 either way. No PEACE bit, no village attitude word written (port_bugs.md #1228). No RNG draw.
+key KP_2                   # Preacher steps south to (44,23), beside Tupi village 31 (43,23): @INDIANWELCOME Yes/No
+click 120 136              # row 2 "No": @INDIANSHUN "Prepare for WAR!"
+key Return                 # dismiss @INDIANSHUN; the Preacher is out of moves, the next unit (#136) is selected
