@@ -128,7 +128,9 @@ size_t popup_msg_section_body(
     const char* caret_rest = line;
     const int caret = popup_msg_caret_flags(line, &caret_rest);
     if (caret != 0) {
-      if (used > 0 && used + 1 < out_size) {
+      /* A caret line right after another one already ends in its '\n': a second break would
+       * be an empty row DOS never draws (port_bugs.md #1222, @FATHER1's "^" + "^{When..."). */
+      if (used > 0 && out[used - 1] != '\n' && used + 1 < out_size) {
         out[used++] = '\n';
       }
       if (used + 1 < out_size) {
@@ -302,6 +304,11 @@ static const PopupMsgGraphicRow k_popup_msg_mss[] = {
   /* New World name prompt: FUN_2b5a_001e @ 2b5a:0028 `MOV word [0x1f5e],0` before
    * FUN_291f_0120(0x17) — a direct latch, no 0652 pair (port_bugs.md #1183). */
   {"LANDHO", 0},
+  /* port_bugs.md #1220, a second asm scan (viceroy_ndisasm.asm): FUN_281f_0652 pairs whose
+   * `PUSH idx / PUSH tag` jump to a shared CALL (2b5a:255a.., 2f2b:5826.., 5fef ..), and
+   * FUN_2b5a_0f92's direct `MOV [0x1f5e],DX` (DX 0) before @OVERBOARD (ndisasm 0x21ef7). */
+  {"SEACOLONY", 0},   {"NODOCKS", 0},     {"SEIZURESEA", 0}, {"SHIPLAKE", 0},
+  {"LANDFIRST", 0},   {"SAILHOME", 0},    {"SHIPCOMBAT", 0}, {"OVERBOARD", 0},
   /* MSS1 — continental soldier: land war, king's forces, revolution. */
   {"TUTORIAL7", 1},   {"TUTORIAL14", 1},  {"HAVETREATY", 1}, {"TEAPARTY", 1},
   {"FOREIGNNOTAVAIL", 1}, {"AMBUSHHINT", 1}, {"CONSIDER", 1}, {"TORYUPRISING", 1},
@@ -315,12 +322,28 @@ static const PopupMsgGraphicRow k_popup_msg_mss[] = {
   {"MOBILIZE2", 1},   {"ALREADYREVOLUTION", 1}, {"LOOTCAPTURE", 1},
   {"VALOR", 1},       {"EUROPELOSE", 1},  {"BURNED2", 1},    {"CAPTURED", 1},
   {"INDIANBURNCOLONY", 1}, {"INDIANWINCOLONY", 1},
+  /* #1220 scan (see MSS0): @SIEGE is `PUSH 1 / PUSH 0xc7c` at 2f2b (ndisasm 0x28ada). */
+  {"SIEGE", 1},       {"INTERVENE", 1},   {"MOBILIZE", 1},   {"REBELUP50", 1},
+  {"TOOTORY", 1},     {"CANCELPEACE", 1}, {"WAGONCAPTURE", 1}, {"COLONISTCAPTURE", 1},
+  {"COLONISTCAPTURE2", 1}, {"CONTINENTAL", 1}, {"VETERAN", 1}, {"EUROPEWIN", 1},
+  {"BURNED", 1},      {"CAPTURED3", 1},   {"INDIANSURPRISE", 1},
+  /* Digit-patched tags (stack buffer + FUN_281f_0652(buf, 1)): FUN_3844_0442 "WARN0" + n
+   * (ndisasm 0x2f724) and "SOONRETIRING" + 0/1 (0x2f9e5), FUN_5fef_1b0e "INDIANWIN0" + n
+   * (0x5e107). */
+  {"WARN1", 1},       {"WARN2", 1},       {"WARN3", 1},      {"SOONRETIRING0", 1},
+  {"SOONRETIRING1", 1}, {"INDIANWIN0", 1}, {"INDIANWIN1", 1}, {"INDIANWIN2", 1},
+  /* Colony events: FUN_364b_0000 stores its param_6 in DS:0x1f5e (raw 56849); the callers
+   * in 364b push it (ndisasm 0x2d149-0x2e9b0, the 6th push before `CALL 0xef5f`). */
+  {"REBELMAJORITY", 1}, {"REBELUNANIMOUS", 1}, {"TORYMINORITY", 1}, {"TORYMAJORITY", 1},
+  {"SONSDOWN", 1},
   /* MSS2 — courtier: gold, prices, treaties, court news. */
   {"MULTINEXT", 2},   {"OTHERMIGHT", 2},  {"OTHERLESS", 2},  {"PRICEUP", 2},
   {"PRICEDOWN", 2},   {"SOMEBOYCOTT", 2}, {"KISSUP", 2},     {"KISSSORRY", 2},
   {"REALLYBUY", 2},   {"SUCCESSION", 2},  {"LOOTCASH", 2},   {"LOOTFOREIGN", 2},
   {"SIGNTREATY", 2},  {"CASHTREASURE", 2}, {"DECLAREWAR", 2}, {"BURNED3", 2},
   {"CAPTURED2", 2},   {"CANCELTREATY", 2},
+  /* FUN_364b_0000 param_6 (see MSS1). */
+  {"TRAINPROFESSION", 2}, {"TRAINFAIL", 2},
   /* MSS3 — frontiersman: terrain work, scouts, rumours. */
   {"TUTORIAL3", 3},   {"TUTORIAL9", 3},   {"TUTORIAL10", 3}, {"TUTORIAL13", 3},
   {"NOPLOW", 3},      {"NOROAD", 3},      {"NOPORT", 3},     {"TUTNOSPACES", 3},
@@ -331,13 +354,33 @@ static const PopupMsgGraphicRow k_popup_msg_mss[] = {
   {"LOSTCITY5", 3},   {"LOSTCITY6", 3},   {"LOSTCITY7", 3},  {"LOSTCITY8", 3},
   {"LOSTCITY9", 3},   {"BURIAL1", 3},     {"BURIAL2", 3},    {"BURIAL3", 3},
   {"SCREWED", 3},
+  /* #1220 scan (see MSS0) and FUN_364b_0000 param_6 (@DEPLETION). */
+  {"TOOMOUNTAIN", 3}, {"TOONEARBUILD", 3}, {"LANDFALL", 3}, {"LANDFALL2", 3},
+  {"LOSTOURSCOUTS", 3}, {"WELLSEASONED", 3}, {"DEPLETION", 3},
   /* MSS4 — friar: religion, converts, unrest. */
   {"TUTORIAL19", 4},  {"DEADCONVERTS", 4}, {"UNREST", 4},
+  /* #1220 scan; "MISSION0" + n is digit-patched (ndisasm 0x48b53-0x48c4f); @NEWCOLONIST is
+   * FUN_364b_0000 param_6. */
+  {"HERESY0", 4},     {"HERESY1", 4},     {"MISSION0", 4},   {"MISSION1", 4},
+  {"MISSION2", 4},    {"MISSION3", 4},    {"NEWCOLONIST", 4},
   /* MSS5 — nun: colony stores, raids on colonies. */
   {"TUTORIAL4", 5},   {"TUTORIAL8", 5},   {"TUTORIAL12", 5}, {"TUTORIAL15", 5},
   {"LOBOTOMIZE", 5},  {"WAREHOUSEFULL", 5}, {"BUYME0", 5},   {"BUYME1", 5},
   {"CLEARCUT", 5},    {"RAIDSTORES", 5},  {"RAIDBURN", 5},   {"RAIDSHIP", 5},
   {"RAIDGOLD", 5},    {"RAIDNOTHING", 5},
+  /* #1220 scan (2f2b colony-screen refusals, see MSS0). */
+  {"TOONEAR", 5},     {"MORETHANTHREE", 5}, {"FULL", 5},     {"GRADUATE", 5},
+  {"UNIV3", 5},       {"COLLEGE2", 5},    {"SCHOOL1", 5},    {"NOTEACHER", 5},
+  {"NEEDCOLLEGE", 5}, {"NEEDUNIVERSITY", 5}, {"ASSEMBLY", 5}, {"TOWNHALL", 5},
+  {"MEETINGHALL", 5}, {"KEEPSTOCKADE", 5},
+  /* FUN_364b_0000 param_6 (see MSS1); @NEEDTOOLS / "0", @SPOIL1 / 2 and "CARGOREADY0" + n
+   * are built in a stack buffer (ndisasm 0x2e648, 0x2e8b8, 0x2e96c). */
+  {"NOMOREWAREHOUSE", 5}, {"NOMOREWAGONS", 5}, {"BUILT", 5}, {"INEFFICIENT", 5},
+  {"EFFICIENT", 5},   {"STARVE2", 5},     {"FOODLOW", 5},    {"LUMBER", 5},
+  {"COTTON", 5},      {"TOBACCO", 5},     {"CANESUGAR", 5},  {"FURS", 5},
+  {"ORE", 5},         {"TOOLS", 5},       {"ALREADYHAVE", 5}, {"NEEDTOOLS", 5},
+  {"NEEDTOOLS0", 5},  {"SPOIL1", 5},      {"SPOIL2", 5},     {"CARGOREADY0", 5},
+  {"CARGOREADY1", 5}, {"CARGOREADY2", 5},
   /* Colony-screen abandon confirm: DOS 2f2b builds "ABANDON" (+"2" after
    * 1575 with no other colony) into a stack buffer and calls
    * FUN_281f_0652(name, 5) — a dynamic tag, so it is keyed by name here. */

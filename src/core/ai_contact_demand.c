@@ -417,7 +417,7 @@ int ai_contact_enqueue_incite_target_choice(
    * (bit0=is_missionary, bit1=is_capital) — see ai_contact_incite_price. */
   const int payload = (is_missionary ? 1 : 0) | (is_capital ? 2 : 0) |
                       AI_CONTACT_INCITE_STAGE_TARGET;
-  return ai_popup_enqueue_choice_ctx(
+  const int queued = ai_popup_enqueue_choice_ctx(
            ctx->ai_popups,
            AI_POPUP_TAG_CONTACT_INCITE,
            e,
@@ -431,6 +431,9 @@ int ai_contact_enqueue_incite_target_choice(
          )
            ? 1
            : 0;
+  /* FUN_4d56_417e +0x167: DS:0x1f5c = DS:0x8d52 before @INDIANWARPATH (port_bugs.md #1220). */
+  ai_contact_chief_flair(ctx, e, nation_id);
+  return queued;
 }
 
 /*
@@ -498,6 +501,8 @@ void ai_contact_enqueue_incite_confirm(
     ids,
     2
   );
+  /* FUN_4d56_417e +0x267: FUN_291f_019c(@INDIANWARPATH2, DS:0x8d52) (port_bugs.md #1220). */
+  ai_contact_chief_flair(ctx, e, nation_id);
 }
 
 /*
@@ -1936,6 +1941,8 @@ int ai_contact_try_village_beg_food(ColonizeTurnContext* ctx, int nation_id) {
             ctx->ai_popups, AI_POPUP_TAG_CONTACT_BEGFOOD, e, nation_id, payload, NULL, body,
             labels, ids, 2
           )) {
+        /* FUN_5bfb_022e +0x534: FUN_291f_019c(@INDIANBEGFOOD, DS:0x8d52) (port_bugs.md #1220). */
+        ai_contact_chief_flair(ctx, e, nation_id);
         if (ctx->status && ctx->status_size) {
           snprintf(
             ctx->status, ctx->status_size, "The %s beg for food at %s.",

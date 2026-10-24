@@ -162,6 +162,11 @@ loads them on demand. To catch one:
    (`ndisasm -b16 -o <routine_off>`). Ghidra's `local_NN` names follow the
    same offsets. `[bp+6]` is the first far-call argument.
 
+RTLink also moves resident overlays in memory, carrying a restored byte along, so after a
+`trap_overlay` later calls can go untrapped. To catch every call, leave the INT 3 in place and
+emulate the routine's `ENTER size,0` at each stop instead: `SM ss:(SP-2)` = BP, `SR BP` SP-2,
+`SR SP` SP-2-size, `SR IP` entry+4 (port_bugs.md #1135 scripts; keep `BPINT 3` set at all times).
+
 Shortcut when the overlay is already resident: search memory for the routine's first
 bytes (from the extracted segment) to get its CS; OVL05 (Europe, seg 38fd) sat at CS
 0x8c8d and OVL13 (seg 4d56) at CS 0x8c65 in the 2026-10-23 runs (per session, not
@@ -238,6 +243,12 @@ instruction. On one byte it is fine. It found the 3180 facing writer.
   redraw (OVL22, file 0x66680) between AI acts is one eviction trigger. Breakpoints on a routine
   reached through a different CS base (5b66 at 8d2c:58a6 for an 8d00 trap) report that CS, so
   match stops by linear address.
+- Finding a stack-word writer: `BPM ss:e7c4` (and e7c5) in a window between two routine entries,
+  logging CS:IP and the BP chain (`[bp]`, `[bp+2]`, `[bp+4]` per frame; 1931:1554 is the overlay
+  trampoline) at each value change. It found the founding (0xe7d6) and hull-step (0x020e)
+  writers; `f000:d105` stops are the BIOS disk read of an overlay load.
+- The unsaved DS:0x9e98 rival-strength table is one shared [16] byte array: patching it with the
+  port's 4x16 RTST block overruns 48 bytes (the year and tax went wrong). Patch DS:0x9870 only.
 - A `BP 1541:0E04` rand stop costs ~0.5 s each; 750 draws exceed the 540 s send budget. Read the
   LCG state dword (0x28ee in the rand routine's DS) at the stops you care about instead.
 - Colony screen by keyboard (2026-10-23, `dutch-reports.SAV`): after `load_slot` the map cursor

@@ -42,6 +42,27 @@ pairs past it
 ([idle_america_fixed_2026-10-19_21.md](idle_america_fixed_2026-10-19_21.md), "e7c4
 class").
 
+2026-10-23 (port_bugs.md #1135), DOSBox VR_SOUND from-loads with `BPM` on SS:e7c4 and
+the 20e6 entry kept as INT 3 (ENTER emulated, see dos_trace.md):
+
+- Founding (america 105, England founds Boston, turn 128): the last write before the
+  next 20e6 is `0e0f:0b53` (FUN_15eb_0b52's `push bp`) storing 0xe7d6, the frame pointer
+  of FUN_15eb_0b96 in the chain 076e -> FUN_364b_1ba8 (second FUN_281f_0c22, raw 58089)
+  -> 15eb_3956 -> 394c -> 1f72 -> 0bd4(1,9) (raw 12688) -> 0b96 -> 0b52. Identical in two
+  from-loads; every later English 20e6 sees it until the next flood. Ported: with it
+  america resync 105 -> 106 is byte-identical when DB-25 and DB-28 are reproduced (the
+  port's non-reproductions of those two leave 127 diffs there).
+- Hull step (america 156 and 137): each step's flood `9d71:00fa` writes nation*0x13c,
+  then `0ba3:01ac` stores 0x020e (FUN_137f_0200's near call to 01ac at 137f:020b) via
+  465b_0000 raw 75698 -> FUN_281f_0916 -> 1427_12f6 -> 10be -> 04d6 -> 0362 -> 02ca ->
+  005c -> 137f_0314 -> 0200, but only on a step off a tile the hull shares (04d6 lifts
+  the stack and 023a clears the presence bit, so a lone hull's re-place skips 0200).
+  Ported; full resync 1..465 goes from 148 to 166 byte-identical pairs, none lost.
+- Not modelled: a visible move's redraw (america2 14: FUN_112b_01ba unit-icon draw ->
+  FUN_4cc6_03f8 zeroes its local array, `[bp-0x1c]` = e7c4 at BP e7e0) and the loader
+  writes (`f000:d105` BIOS read, 0x2fe0; 13c2/1272 frames, 0x4232). In from-loads the
+  loader runs after many hull steps and overwrites 0x020e.
+
 ## DB-6
 
 Every golden and idle campaign stays byte-identical. Unit test: `unit_turn_core`

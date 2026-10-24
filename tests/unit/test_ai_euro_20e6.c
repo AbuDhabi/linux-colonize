@@ -3086,6 +3086,44 @@ static int unit_border_park_inherits_previous_flood_stack_word(void) {
   return parked ? 0 : fail("prior flood must enable border park without an attack candidate");
 }
 
+/* port_bugs.md #1135: a hull's plain step re-sorts its ORIGIN stack through
+ * FUN_1427_12f6 -> 10be -> 04d6, and with a second unit on that tile the
+ * re-place reaches FUN_137f_0200's near call to 01ac, whose return offset
+ * 0x020e overwrites the flood's nation*0x13c at SS:e7c4. Alone, it does not. */
+static int unit_ship_step_leaves_12f6_stack_word(void) {
+  for (int stacked = 0; stacked < 2; ++stacked) {
+    Fixture f;
+    if (fixture_init(&f, 2)) return 1;
+    for (int y = 0; y < 16; ++y) {
+      for (int x = 10; x < 16; ++x) f.map.terrain[y * 16 + x] = 25; /* ocean */
+    }
+    const int id = units_spawn(&f.units, 2, 12, 2);
+    ColonizeUnit* ship = units_get(&f.units, id);
+    if (!ship) { fixture_free(&f); return fail("12f6 ship spawn"); }
+    ship->nation_id = 2;
+    ship->orders = UNITS_ORDER_AI_SAIL;
+    ship->moves = 4 * UNITS_MP_PER_TILE;
+    ship->goto_x = 12;
+    ship->goto_y = 8;
+    if (stacked) {
+      ColonizeUnit* mate = units_get(&f.units, units_spawn_allow_stack(&f.units, 2, 12, 2));
+      if (!mate) { fixture_free(&f); return fail("12f6 stackmate spawn"); }
+      mate->nation_id = 2;
+      mate->moves = 0;
+    }
+    ai_euro_goal_walk_479b(&f.ctx, ship);
+    const int moved = ship->y == 3;
+    const int word = f.ctx.ai_euro_wander_stack_word;
+    fixture_free(&f);
+    if (!moved) return fail("12f6 ship must step toward its goto");
+    if (word != (stacked ? 0x20e : 2 * 0x13c)) {
+      return fail(stacked ? "a hull leaving a shared tile must leave 0x020e"
+                          : "a hull alone on its tile must keep the flood's saved SI");
+    }
+  }
+  return 0;
+}
+
 static int unit_border_park_does_not_refresh_encounter_timer(void) {
   Fixture f;
   if (fixture_init(&f, 2)) return 1;
@@ -3336,6 +3374,7 @@ static const TestCase k_cases[] = {
      unit_border_park_does_not_refresh_encounter_timer},
     {"unit_border_park_inherits_previous_flood_stack_word",
      unit_border_park_inherits_previous_flood_stack_word},
+    {"unit_ship_step_leaves_12f6_stack_word", unit_ship_step_leaves_12f6_stack_word},
     {"unit_ship_index_gates_skip_deleted_slots", unit_ship_index_gates_skip_deleted_slots},
     {"unit_ship_far_roam_uses_band_snapshot", unit_ship_far_roam_uses_band_snapshot},
     {"unit_ship_band_keeps_counts_after_unload", unit_ship_band_keeps_counts_after_unload},

@@ -672,6 +672,16 @@ void ai_euro_found_with_unit(ColonizeTurnContext* ctx, ColonizeUnit* founder, in
   if (cid >= 0) {
     const ColonizeWorld rw = world_from_turn_ctx(ctx);
     colonies_reveal_founded_w(&rw, cid); /* FUN_364b_1dd6 Coronado */
+    /* DOS-LITERAL FUN_364b_1ba8 raw 58089: the success path's second
+     * FUN_281f_0c22 runs FUN_15eb_3956 -> 394c -> 1f72, whose last
+     * FUN_15eb_0bd4(1,9) (raw 12688) -> 0b96 -> 0b52 `push bp` (raw 10122)
+     * stores 0b96's frame pointer 0xe7d6 at SS:e7c4, the next 20e6's
+     * local_ea. Nothing deeper runs before 076e returns to 5b66, so every
+     * later 20e6 of the nation sees it until the next flood / 022e write
+     * (DOSBox VR_SOUND from-load america 105, BPM on e7c4, 2026-10-23:
+     * Boston's founding leaves e7d6 and the next English Dragoon border-parks;
+     * port_bugs.md #1135). The colony-table-full return skips both 0c22s. */
+    ctx->ai_euro_wander_stack_word = 0xe7d6;
     units_despawn(ctx->units, founder->id);
     if (ctx->col1_ok && ctx->col1 && nation_id >= 0 && nation_id < 4) {
       /* FUN_479b_0000 bumps only while names remain; the pool counter caps it. */

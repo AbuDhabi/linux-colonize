@@ -126,8 +126,12 @@ Hall of Fame / Exploits). Shared chrome, fill bars and F2-F9 stay in
   (x + (w >> 1) - ((width - 1) >> 1), `reports_dos_center_x`); entries from y 0x10,
   each y += 4, line 1 at x 0xa (`FUN_104b_039a`), y += font[0] + 2, line 2 at x 0x19,
   y += font[0] + 2, line 3 centred, y += font[0] + 1 (the port drew all three
-  centred in FONTTINY, 1 px left). The entry just inserted takes DS:0x831 and a
-  6th-place insert shows in the 5th line (port_bugs.md #1219, not ported):
+  centred in FONTTINY, 1 px left). The Retire entry's slot (local_156, `hof_inserted` from
+  `game_hof_insert`; -1 from the title menu) draws all three lines in DS:0x831 (hilite); when it
+  only took the catch-all slot 5, the 5th line is numbered "6." and hilited but its fields still
+  read slot 4 (asm 41f2:12b2-12ef: the data index is local_15c, only the number and the ink
+  compare use local_6), so the new 6th place itself is never shown, as in DOS (port_bugs.md
+  #1219, static read; test `unit_reports hall_of_fame_layout_is_dos`):
   1. `"<n>. <Difficulty> <Leader> of the [Free ]<Nation>"` (#19 "of the",
      #191 "Free" when declared)
   2. `"<President, <NAMES @INDEPENDENT row> | General, Continental Army |

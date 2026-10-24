@@ -598,6 +598,72 @@ static int case_cheat_list_shared_parser(void) {
 }
 
 /*
+ * port_bugs.md #1221: the DEBUG.TXT Create Unit lists are generic section boxes (181f:0998), so
+ * box[+0x28] is the 0x50 default and the rows widen it, and FUN_2b5a_2866 latches DS:0x1f5e
+ * first: @CREATE MSS1 (dropped: 14 rows + the soldier reach 200), @CSHIP MSS0, @FOREIGN MSS2;
+ * @SETVIEW / @SETHUMAN MSS3. Frames from the DOSBox-X captures of 2026-10-23.
+ */
+static int case_cheat_create_unit_is_dos(void) {
+  ColonizeMsgCatalog dbg;
+  assets_msg_init(&dbg);
+  ColonizeFont font;
+  char err[128];
+  if (!assets_msg_load_file(&dbg, "COLONIZE/DEBUG.TXT") ||
+      !font_file_load("COLONIZE/FONTINTR.FF", &font, err, sizeof(err))) {
+    return fail("DEBUG.TXT / FONTINTR");
+  }
+  ai_popup_set_portrait_source("COLONIZE");
+  static const struct {
+    const char* tag;
+    int rows;
+    int mss;
+    int x, y, w;
+  } k_lists[] = {
+    {"CREATE", 14, 1, 106, 5, 108},
+    {"CSHIP", 6, 0, 119, 84, 86},
+    {"FOREIGN", 4, 2, 117, 94, 86},
+  };
+  int rc = 0;
+  static uint8_t px[320 * 200];
+  ColonizeFramebuffer8 fb = {.width = 320, .height = 200, .pixels = px};
+  for (size_t k = 0; k < sizeof(k_lists) / sizeof(k_lists[0]); ++k) {
+    char buf[15][CHEAT_LIST_LABEL_LEN];
+    const char* fallback[15] = {""};
+    for (int i = 0; i < 15; ++i) {
+      fallback[i] = "";
+    }
+    cheat_list_catalog_rows(&dbg, k_lists[k].tag, 0, fallback, buf, k_lists[k].rows + 1);
+    const char* labels[14];
+    int ids[14];
+    for (int i = 0; i < k_lists[k].rows; ++i) {
+      labels[i] = buf[i + 1];
+      ids[i] = i;
+    }
+    CheatListDialog dlg;
+    memset(px, 0, sizeof(px));
+    if (!cheat_list_open_create_unit(&dlg, buf[0], labels, ids, k_lists[k].rows, k_lists[k].mss)) {
+      rc = fail("create unit list did not open");
+      continue;
+    }
+    cheat_list_render(&dlg, &font, NULL, NULL, COLONIZE_COL_BASIC, 0x46, &fb);
+    if (dlg.dialog_x != k_lists[k].x || dlg.dialog_y != k_lists[k].y ||
+        dlg.dialog_w != k_lists[k].w) {
+      fprintf(stderr, "@%s frame (%d, %d, w %d), DOS (%d, %d, w %d)\n", k_lists[k].tag,
+              dlg.dialog_x, dlg.dialog_y, dlg.dialog_w, k_lists[k].x, k_lists[k].y, k_lists[k].w);
+      rc = 1;
+    }
+  }
+  CheatListDialog dlg;
+  if (!cheat_list_open_setview(&dlg, &dbg) || dlg.mss != 3 ||
+      !cheat_list_open_set_human(&dlg, &dbg) || dlg.mss != 3) {
+    rc = fail("@SETVIEW / @SETHUMAN lost the MSS3 latch");
+  }
+  font_file_free(&font);
+  assets_msg_free(&dbg);
+  return rc;
+}
+
+/*
  * port_bugs.md #1194: the FUN_647e_01c6 pager. n <= 10 = one page of n + 1 slots, else pages of
  * 10 ((n + E + 9) / 10, dos_bugs.md DB-53); the Europe row is slot 0, colony k slot k + E; Previous
  * (0x3e5) first past page 0, More (0x3e6) last before the last page, the delete row (1000)
@@ -980,6 +1046,7 @@ static const TestCase k_cases[] = {
     {"europe_menu_frames_are_dos", case_europe_menu_frames_are_dos},
     {"debug_test_ignores_directives", case_debug_test_ignores_directives},
     {"cheat_list_shared_parser", case_cheat_list_shared_parser},
+    {"cheat_create_unit_is_dos", case_cheat_create_unit_is_dos},
     {"dest_pager_is_dos", case_dest_pager_is_dos},
     {"find_colony_is_dos", case_find_colony_is_dos},
     {"trade_cargo_columns_are_dos", case_trade_cargo_columns_are_dos},

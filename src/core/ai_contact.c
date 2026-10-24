@@ -1492,6 +1492,10 @@ int ai_contact_try_ship_village_unit(
       sizeof(body)
     );
     ai_contact_ship_advisor_chrome(ctx, euro_nation, indian_nation, body);
+    /* FUN_4d56_4528 +0x108: FUN_291f_019c(@MADATSHIPS, DS:0x8d52) (port_bugs.md #1220). */
+    if (ai_contact_euro_is_human(ctx, euro_nation)) {
+      ai_contact_chief_flair(ctx, euro_nation, indian_nation);
+    }
     return 1;
   }
 

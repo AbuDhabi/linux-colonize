@@ -6,6 +6,7 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 
 - [Appendix A — Full `GAME.TXT` `@SECTION` checklist](#appendix-a--full-gametxt-section-checklist)
 - [Appendix B — `AiPopupTag` map](#appendix-b--aipouptag-map)
+- [Appendix C — dialog figure latches](#appendix-c--dialog-figure-latches)
 - [MAPEDIT](#mapedit-out-of-scope)
 - [See also](#see-also)
 
@@ -557,6 +558,47 @@ sections have no response lines). **Kind CHOICE** lists authentic labels.
 | `LANDFALL` | CHOICE | `@LANDFALL` | Done |
 | `MAP_CONFIRM` | CHOICE | Disband / overboard / quit / retire / trade-delete | Done |
 | `COLONY_EVENT` | CHOICE | Colony EOT messages / `364b_0000`: "Continue turn." / "Zoom to colony." (LABELS `@MISC` 34/35); optionless once zoom elected, colony screen opens after the batch | Done |
+
+---
+
+## Appendix C — dialog figure latches
+
+Every writer of DS:0x1f5c (chief / King portrait), 0x1f5e (MSS) and 0x1f60 (MYR) in
+`viceroy_ndisasm.asm`, scanned 2026-10-23 (port_bugs.md #1220); the decoration rules are in
+[popups.md](popups.md) "Popup decorations".
+
+- **`FUN_281f_0652(tag, mss)` pairs**: 169 call paths, 41 of them `PUSH idx / PUSH tag; JMP` into a
+  shared CALL (2b5a:25ce.., 2f2b:5826.., 5fef ..) that the first lift missed: @SEACOLONY /
+  @NODOCKS / @SEIZURESEA / @SHIPLAKE / @LANDFIRST / @SAILHOME / @SHIPCOMBAT 0; @SIEGE (2f2b,
+  ndisasm 0x28ada) / @INTERVENE / @MOBILIZE / @REBELUP50 / @TOOTORY / @CANCELPEACE /
+  @WAGONCAPTURE / @COLONISTCAPTURE(2) / @CONTINENTAL / @VETERAN / @EUROPEWIN / @BURNED /
+  @CAPTURED3 / @INDIANSURPRISE 1; @TOOMOUNTAIN / @TOONEARBUILD / @LANDFALL(2) / @LOSTOURSCOUTS /
+  @WELLSEASONED 3; @HERESY0/1 4; the 2f2b colony refusals @TOONEAR / @MORETHANTHREE / @FULL /
+  @GRADUATE / @SCHOOL1 / @COLLEGE2 / @UNIV3 / @NOTEACHER / @NEEDCOLLEGE / @NEEDUNIVERSITY /
+  @ASSEMBLY / @TOWNHALL / @MEETINGHALL / @KEEPSTOCKADE 5. Digit-patched stack tags: `WARN0` + n
+  and `SOONRETIRING` + n (FUN_3844_0442) and `INDIANWIN0` + n (FUN_5fef_1b0e) 1, `MISSION0` + n
+  4, `ABANDON` / `LOSTCITY` + n (already rows).
+- **`FUN_364b_0000` param_6** (raw 56849, the colony-event box): @NOMOREWAREHOUSE /
+  @NOMOREWAGONS / @BUILT / @(IN)EFFICIENT / @STARVE2 / @FOODLOW / the raw-out crumbs / @ALREADYHAVE
+  / @NEEDTOOLS(0) / @SPOIL1/2 / @CARGOREADY0-2 5, @REBELMAJORITY / @REBELUNANIMOUS /
+  @TORYMINORITY / @TORYMAJORITY / @SONSDOWN 1, @TRAINPROFESSION / @TRAINFAIL 2, @NEWCOLONIST 4,
+  @DEPLETION 3. All of the above are `k_popup_msg_mss` rows (`popup_msg.c`).
+- **Direct MSS writes**: @LANDHO 0 (2b5a:0028), @OVERBOARD 0 (FUN_2b5a_0f92, 0x21ef7),
+  @SAILAWAY 0, @COLONY 5, the Europe Recruit / Purchase / FoY / Brewster boxes (wired before);
+  DEBUG.TXT (FUN_2b5a_2866): @CREATE / @CREATE2 1 (0x23990; DOS drops it, 14 rows + the soldier
+  pass 200), @CSHIP 0, @FOREIGN(2) 2, @SETVIEW / @SETHUMAN 3 (`CheatListDialog.mss`),
+  @SETEUROPE 4 / @SETREPORT 5 (no port box).
+- **Chief portrait** (DS:0x8d52 = the tribe slot): `FUN_291f_019c(tag, tribe)` at 39 sites
+  (4d56 trade / learn / chief / incite chains, 479b_01a6 extortion, 5bfb_0182 / 022e contact,
+  5fef_31ea @INDIANBOW, @INDIANBRIBE) and direct writes before @INDIANFOREST / @INDIANROAD /
+  @INDIANLAND (0x222aa, 0x22494, 0x28bec) and @INDIANWARPATH (0x4b0c5). The port lacked it on
+  the three encroachment boxes, @INDIANBRIBE, @LEARNSTAY, @INDIANWARPATH / 2, @INDIANBEGFOOD
+  and @MADATSHIPS (now `game_indian_land_portrait`, `ai_contact_chief_flair`); @INDIANCOMMENT is
+  never shown. King (8): FUN_291f_0ad4 @LOSENOCOLONIES / @KINGNEWWAR and 38fd:402a (wired).
+- **MYR**: `FUN_2a1f_0688` at 22 sites, all in the 5bfb_153e talk machine and 5f7a_020e (wired,
+  `ai_diplo.c`).
+- Not ported: a `MOV word [0x1f5c],4` before the GAME @PICKNATION section box (ndisasm 0x70a4e;
+  the port's nation pick is the NATIONS.PIK image regions).
 
 ---
 

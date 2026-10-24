@@ -677,7 +677,7 @@ static void ai_popup_render_place(AiPopupRenderCtx* c) {
   }
 }
 
-/* Stage 5: portrait (under), wood frame, content box, decoration (over). */
+/* Stage 5: portrait (under), wood frame, content box (the MSS/MYR figure goes on last). */
 static void ai_popup_render_frame(
   AiPopupRenderCtx* c, const ColonizeSpriteSheet* wood_tile, const ColonizePopupColors* colors
 ) {
@@ -738,11 +738,6 @@ static void ai_popup_render_frame(
   /* Hit-testing walks the OPTION rows, so this is their pitch, not the body's. */
   c->st->line_h = c->option_h;
 
-  if (c->graphic) {
-    /* After the frame so the figure's head/shoulders overlap the wood top
-     * (DOS 248e's second thunk_2a1f_0ab6 arm, DS:0x1f5c < 0). */
-    ss_blit_sprite(c->graphic, 0, c->fb, c->graphic_x, c->graphic_y);
-  }
 }
 
 /* Stage 6: title, body lines, option rows + selection bar. */
@@ -851,5 +846,10 @@ void ai_popup_render(
   ai_popup_render_place(&c);
   ai_popup_render_frame(&c, wood_tile, colors);
   ai_popup_render_text(&c, colors, text_color, hilite_color, select_color);
+  if (c.graphic) {
+    /* Last of all (DOS FUN_6f74_248e's second thunk_2a1f_0ab6 arm, DS:0x1f5c < 0): the
+     * figure covers the wood top and any text it overlaps (@SIEGE capture, port_bugs.md #1220). */
+    ss_blit_sprite(c.graphic, 0, c.fb, c.graphic_x, c.graphic_y);
+  }
 }
 

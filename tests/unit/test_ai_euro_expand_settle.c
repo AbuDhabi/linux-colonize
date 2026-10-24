@@ -327,6 +327,12 @@ static int unit_indian_land_found(void) {
       fx_map_free(&map);
       return fail("#1074: FUN_479b_076e founding must not buy Indian land");
     }
+    /* port_bugs.md #1135: FUN_364b_1ba8's second 0c22 -> 1f72 tail leaves
+     * 0b96's frame pointer at SS:e7c4 (the next 20e6's local_ea). */
+    if (ctx.ai_euro_wander_stack_word != 0xe7d6) {
+      fx_map_free(&map);
+      return fail("#1135: a founding must leave 0xe7d6 in the 20e6 stack word");
+    }
   }
 
   /* FUN_4cc6_07c2 census term (raw 81213): a bigger nation pays more. */
@@ -378,7 +384,12 @@ static int unit_indian_land_found(void) {
     founder->orders = UNITS_ORDER_BUILD_COLONY;
     founder->moves = 3 * UNITS_MP_PER_TILE;
     founder->col1_counter16 = 2;
+    ctx.ai_euro_wander_stack_word = 0;
     ai_euro_found_with_unit(&ctx, founder, nation);
+    if (ctx.ai_euro_wander_stack_word != 0) {
+      fx_map_free(&map);
+      return fail("#1135: the full-table return skips both 0c22 calls");
+    }
     founder = units_get(&units, uid);
     if (!founder || !founder->active || founder->orders != UNITS_ORDER_NONE ||
         founder->moves != 0 || founder->col1_counter16 != 0) {

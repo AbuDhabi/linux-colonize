@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "core/ai_popup.h"
 #include "core/map_menu.h"
 #include "core/popup.h"
 #include "core/reports.h"
@@ -18,6 +19,7 @@ void cheat_list_init(CheatListDialog* dlg) {
   }
   memset(dlg, 0, sizeof(*dlg));
   dlg->width = 190;
+  dlg->mss = -1;
 }
 
 void cheat_list_close(CheatListDialog* dlg) {
@@ -139,6 +141,7 @@ bool cheat_list_open_setview(CheatListDialog* dlg, const ColonizeMsgCatalog* deb
   cheat_list_init(dlg);
   dlg->has_result = false;
   dlg->kind = CHEAT_LIST_KIND_SETVIEW;
+  dlg->mss = 3; /* FUN_2b5a_2866 `MOV word [0x1f5e],3` before @SETVIEW (ndisasm 0x23cb9) */
   dlg->width = 190;
 
   static const char* k_fallback_prompt = "";
@@ -391,11 +394,17 @@ bool cheat_list_open_create_unit(
   const char* prompt,
   const char* const* labels,
   const int* ids,
-  int count
+  int count,
+  int mss
 ) {
-  return cheat_list_open_simple_list(
-    dlg, CHEAT_LIST_KIND_CREATE_UNIT, prompt, labels, ids, count, 190
+  /* DEBUG.TXT @CREATE / @CREATE2 / @CSHIP / @FOREIGN carry no @width: the generic section box
+   * (181f:0998, ndisasm 0x239b2 / 0x23a94 / 0x23b55) keeps the FUN_6f74_06d0 0x50 default and
+   * the rows widen it (port_bugs.md #1221). */
+  const bool ok = cheat_list_open_simple_list(
+    dlg, CHEAT_LIST_KIND_CREATE_UNIT, prompt, labels, ids, count, 0
   );
+  dlg->mss = ok ? mss : -1;
+  return ok;
 }
 
 bool cheat_list_open_set_human(CheatListDialog* dlg, const ColonizeMsgCatalog* debug_txt) {
@@ -407,6 +416,7 @@ bool cheat_list_open_set_human(CheatListDialog* dlg, const ColonizeMsgCatalog* d
   cheat_list_init(dlg);
   dlg->has_result = false;
   dlg->kind = CHEAT_LIST_KIND_SET_HUMAN;
+  dlg->mss = 3; /* FUN_2b5a_2866 `MOV word [0x1f5e],3` before @SETHUMAN (ndisasm 0x23d06) */
   dlg->width = 190;
 
   const ColonizeMsgSection* section = debug_txt ? assets_msg_find(debug_txt, "SETHUMAN") : NULL;
@@ -692,6 +702,7 @@ void cheat_list_render(
       break;
   }
   metrics.disabled_mask = dlg->disabled_mask;
+  metrics.figure = dlg->mss >= 0 ? ai_popup_decoration_sheet(dlg->mss, -1) : NULL;
   PopupListGeom geom;
   popup_list_render(
     framebuffer,

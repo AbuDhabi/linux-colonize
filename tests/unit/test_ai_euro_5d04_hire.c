@@ -755,6 +755,55 @@ static int pioneer_training_skipped_past_turn_99(void) {
 }
 
 /*
+ * port_bugs.md #1135 (america resync 157): the Pioneer arm's two rolls miss with
+ * `goto LAB_521d_638a` (raw 92749, 92754), past the Missionary arm. Turn 105
+ * (> 99, % 7 == 0) with 2 own Pioneers: whenever the first rng(0,2) passes,
+ * the turn > 99 roll always misses and the dock colonist must NOT be blessed;
+ * only a first-roll miss falls through to the Missionary arm.
+ */
+static int pioneer_roll_miss_skips_missionary_arm(void) {
+  const int nation = 1;
+  const int k_seeds = 24;
+  int blessed = 0;
+  for (int s = 0; s < k_seeds; ++s) {
+    Fixture f;
+    if (fixture_init(&f, nation, 105, (unsigned)(7 + s * 13)) != 0) {
+      return 1;
+    }
+    f.col1.stuff.colony_counts[nation] = 0;
+    f.col1.stuff.colony_pop_totals[nation] = 0;
+    f.col1.stuff.free_colonist_counts[nation] = 0;
+    f.col1.stuff.unit_type_counts[nation][2] = 2; /* own Pioneers */
+    f.col1.stuff.unit_type_counts[nation][3] = 0; /* own Missionaries */
+    f.col1.nation[nation].gold = 5000;
+    f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_TOOLS] = 1;
+    f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_MUSKETS] = 200;
+    if (spawn_europe_ship(&f, nation) < 0 ||
+        spawn_europe_colonist(&f, nation, 0, 0x1c) < 0) {
+      fixture_free(&f);
+      return fail("spawn europe stack");
+    }
+    ai_euro_dispatcher_turn(&f.ctx, nation);
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      const ColonizeUnit* u = &f.units.units[i];
+      if (u->active && u->nation_id == nation &&
+          strcmp(units_display_name(&f.units, u), "Missionary") == 0) {
+        blessed++;
+        break;
+      }
+    }
+    fixture_free(&f);
+  }
+  if (blessed == 0) {
+    return fail("a first-roll Pioneer miss must still reach the Missionary arm");
+  }
+  if (blessed == k_seeds) {
+    return fail("a turn > 99 Pioneer roll miss must skip the Missionary arm");
+  }
+  return 0;
+}
+
+/*
  * The 5d04 dock walk is the DOS tile chain, newest arrival first (FUN_281f_07e0
  * = 1427_005c + 0002, FUN_281f_02e4 = 1427_004a, raw 92627-92630), not slot
  * order: walking slots handed the retype arms the wrong dock colonist
@@ -1046,6 +1095,7 @@ static const TestCase k_cases[] = {
     {"recruit_swap_follows_colonies_wanting_colonists", recruit_swap_follows_colonies_wanting_colonists},
     {"recruit_swap_spawns_sentry_and_refills_pool", recruit_swap_spawns_sentry_and_refills_pool},
     {"pioneer_training_skipped_past_turn_99", pioneer_training_skipped_past_turn_99},
+    {"pioneer_roll_miss_skips_missionary_arm", pioneer_roll_miss_skips_missionary_arm},
     {"dock_walk_is_newest_first", dock_walk_is_newest_first},
     {"missionary_bless_roll_matches_dos_one_in_four", missionary_bless_roll_matches_dos_one_in_four},
     {"dos_type_table_is_names_txt_unit_order", dos_type_table_is_names_txt_unit_order},

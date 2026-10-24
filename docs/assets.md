@@ -516,7 +516,7 @@ Colours come from `NAMES.TXT` `@COLORS` (`src/core/ui_colors.h`), under the
 
 The text and its `_` caret are drawn once through the dialog writer's shade map,
 like every caption around it (DOS `FUN_6f74_1e14` -> `FUN_6f74_0538`; no drop-shadow
-pass, port_bugs.md #1191, [popups.md](popups.md) "Dialog text shading"). Both fields are
+pass, port_bugs.md #1191, [popups_dialog_engine.md](popups_dialog_engine.md) "Dialog text shading"). Both fields are
 boxed by the same 1px green rectangle (`basic` ink). The wizard's box comes from
 `text_edit_frame_rect` (a `TEXT_EDIT_FRAME_PAD` 3px gap around the font's real ink
 rows). The in-game dialogs (`@COLONY` / `@RENAMECOLONY` /
