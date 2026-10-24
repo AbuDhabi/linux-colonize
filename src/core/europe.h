@@ -188,6 +188,9 @@ typedef struct EuropeHarborShip {
   int cargo_professions[EUROPE_SHIP_CARGO_MAX]; /* @JOB per passenger */
   /* EuropeHarborShip cargo_treasure_gold -- see docs/europe.md#europeharborship-cargo_treasure_gold */
   int cargo_treasure_gold[EUROPE_SHIP_CARGO_MAX];
+  /* Tools a passenger carries (DOS +0x3159 rides on the unit record across the
+   * lane); 0 = the kit its type is given on arrival. */
+  int cargo_tools[EUROPE_SHIP_CARGO_MAX];
   int cargo_count;
   int hold_goods_type[EUROPE_SHIP_CARGO_MAX];
   int hold_goods_amount[EUROPE_SHIP_CARGO_MAX];

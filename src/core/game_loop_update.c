@@ -1356,15 +1356,16 @@ static GameUpdateStep game_colony_screen_mouse_click(
     case COLONY_HIT_OUTSIDE_UNIT:
       if (hit.index >= 0 && hit.index < csv->outside_unit_count) {
         const int ouid = csv->outside_unit_ids[hit.index];
-        if (csv->selected_outside_unit == ouid) {
-          /* port_bugs.md: clicking the already-selected fence unit opens the
-           * role popup (what should this colonist be doing) — same list
-           * the fence drop offers. */
-          game_colony_fence_drop(game, colony);
-        } else {
-          csv->focus = COLONY_FOCUS_COLONISTS; /* 44d4: a fence unit is colonist pop+n */
-          game_colony_drag_begin_outside(game, ouid);
+        /* 44d4: a fence unit is colonist pop+n, so it presses like a worker
+         * (raw 51248-51286): the press may start a drag, and only a release
+         * back on the already-selected unit opens the role popup
+         * (game_colony_drag_drop). */
+        const bool was_selected = csv->selected_outside_unit == ouid;
+        if (!was_selected) {
+          csv->focus = COLONY_FOCUS_COLONISTS;
         }
+        game_colony_drag_begin_outside(game, ouid);
+        csv->drag_from_selected = was_selected;
       }
       break;
     case COLONY_HIT_FENCE: {

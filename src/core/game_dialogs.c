@@ -857,7 +857,13 @@ bool game_try_found_colony_at_cursor(ColonizeGameState* game) {
     set_status(game, "Cannot found colony here", NULL);
     return false;
   }
-  const int uid = units_id_at(&game->units, cx, cy);
+  /* The Build handler founds with the active unit (DS:0x5392), not with
+   * whichever unit heads the tile stack. */
+  int uid = units_id_at(&game->units, cx, cy);
+  const ColonizeUnit* sel = units_get_const(&game->units, game->units.selected_id);
+  if (sel && sel->active && units_is_on_map(sel) && sel->x == cx && sel->y == cy) {
+    uid = sel->id;
+  }
   if (uid < 0) {
     set_status(game, "No unit at cursor to found colony", NULL);
     return false;

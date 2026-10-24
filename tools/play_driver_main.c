@@ -32,8 +32,8 @@
  *   status | units | colonies   print state
  *   map [R]                     ASCII map of radius R (default 8) around the cursor
  *   near X Y [R]                every unit (any nation) within R (default 2) of X,Y
- *   activate ID                 wake and select unit ID (the stack-list pick; a colony
- *                               tile offers none: automated-playtests/campaign1/bugs.md B8)
+ *   activate ID                 wake and select unit ID (the stack-list pick by id;
+ *                               in game, A on a stack opens the picker)
  *   sync TAG                    print "@@ TAG" (end-of-batch marker)
  *   quit
  *
@@ -676,9 +676,7 @@ static bool command(char* line) {
     print_units();
     print_europe();
   } else if (strcmp(op, "activate") == 0 && argc > 1) {
-    /* What picking a unit from the tile's stack list does (bug B8: a colony
-     * tile offers no stack list, so this is the only way to reach a unit
-     * that is not first on the tile). */
+    /* What picking a unit from the tile's stack list does, by unit id. */
     game_click_activate_unit(g_game, a1);
     ok = flush_frames(5);
   } else if (strcmp(op, "near") == 0 && argc > 2) {

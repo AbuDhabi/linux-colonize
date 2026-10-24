@@ -2191,6 +2191,17 @@ int main(void) {
           fprintf(stderr, "COLONY06 set sail failed\n");
           return 1;
         }
+        /* A Pioneer down to 60 tools rides along: his tools byte crosses the
+         * save (port_bugs.md #1238). */
+        {
+          EuropeHarborShip* b = &europe.bound[europe.bound_ships - 1];
+          /* The synthetic T2 row is DOS type 2, Pioneers. */
+          units.types[2].kind_plus1 = (int)UNITS_KIND_PIONEER + 1;
+          b->cargo_types[0] = 2;
+          b->cargo_professions[0] = UNITS_JOB_NONE;
+          b->cargo_tools[0] = 60;
+          b->cargo_count = 1;
+        }
         if (!col1_bridge_capture_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&units), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&cap), .col1_ok=true, .europe=(EuropeScreen*)(&europe)}, br.year, br.autumn, br.turn_number, br.human_nation, br.cursor_x, br.cursor_y, br.view_x, br.view_y, units.selected_id, units.selected_id < 0, err, sizeof(err))) {
           fprintf(stderr, "COLONY06 bound capture failed: %s\n", err);
           return 1;
@@ -2217,10 +2228,18 @@ int main(void) {
         }
         {
           int with_voyage = 0;
+          int pioneer_tools = -1;
           for (int bi = 0; bi < europe3.bound_ships; ++bi) {
             if (europe3.bound[bi].turns_left == 2) {
               with_voyage++;
+              if (europe3.bound[bi].cargo_count == 1) {
+                pioneer_tools = europe3.bound[bi].cargo_tools[0];
+              }
             }
+          }
+          if (pioneer_tools != 60) {
+            fprintf(stderr, "COLONY06 bound Pioneer tools %d, want 60\n", pioneer_tools);
+            return 1;
           }
           if (europe3.bound_ships != 3 || with_voyage != 1 || europe3.harbor_ships != 0) {
             fprintf(stderr, "COLONY06 bound lane wrong: bound=%d turns2=%d harbor=%d\n",

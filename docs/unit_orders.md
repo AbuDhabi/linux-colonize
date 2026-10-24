@@ -133,7 +133,7 @@ stateDiagram-v2
 |---------|------|----------------|-------|--------|
 | Wait | ORDERS / Wait | Select next human unit with remaining MP | Same; status “Continue turn.” | Done |
 | No Orders (Space) | ORDERS / Space | End turn when exhausted / option | Full turn pipeline | Done |
-| Activate unit | ORDERS / stack | Pick unit under cursor; clear orders | Stack popup wake then select | Done |
+| Activate unit | ORDERS / stack | `FUN_2b5a_2866` -> `FUN_2b5a_1b5a`: "Units Present" picker for the focus tile (colony tiles too); pick clears orders | Two or more own units: the `unit_stack` picker (port_bugs.md #1241); one: wake + select | Done |
 | Arrow / click move | Map | Immediate step (not an order byte); may wake sentry/fortify | `game_try_unit_move` | Done |
 
 ### Fortify / Anchor / Sentry
@@ -220,6 +220,9 @@ turn-activation queue in `game_update` so it doesn't silently reclaim control
 the next frame — that queue still auto-selects the next unit and flips the
 flag back to Move Pieces the moment a real unit is found (Wait/Space, order
 commands, End Turn, Activate, or Move Pieces itself all resume it too).
+A left click on an own colony opens it without leaving Move Pieces
+(`FUN_2b5a_3462`, port_bugs.md #1239), and a load runs the Move Pieces entry
+`game_move_pieces_entry` (`FUN_2b5a_3b68`, port_bugs.md #1236).
 
 ---
 

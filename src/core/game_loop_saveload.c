@@ -192,6 +192,8 @@ static bool game_apply_col1_save(ColonizeGameState* game, ColonizeCol1Save* load
    * field (game_end_turn_prompt_active, and the auto-advance below) both
    * take `active_awaiting_player` into account, so mode 1 with a live
    * selection resolves the moment the player touches anything.
+   * A file/slot load then runs the Move Pieces entry (game_load_col1_loaded),
+   * which leaves View Pieces only when some unit awaits orders.
    */
   game->view_pieces_mode = loaded->head.map_mode != 0;
 
@@ -318,6 +320,14 @@ static bool game_load_col1_loaded(
   if (!game_apply_col1_save(game, loaded, err, err_size)) {
     col1_save_free(loaded);
     return false;
+  }
+  /* DOS resumes a loaded game at the human's Move Pieces entry, which picks
+   * the first unit awaiting orders (a Go-To unit included) even when the
+   * save was taken in View Pieces (every autosave is). DOS re-picks over a
+   * saved active unit too; the port keeps a live one (known_divergences.md). */
+  const ColonizeUnit* sel = units_get_const(&game->units, game->units.selected_id);
+  if (!game_unit_selectable(game, sel)) {
+    game_move_pieces_entry(game);
   }
   return true;
 }
@@ -710,7 +720,7 @@ void game_retire_after_score(ColonizeGameState* game) {
     sound_play(sound_retire_tune_id(sc.exploits_tier));
     game_build_exploits(game, &sc);
     game->in_exploits = true;
-    set_status(game, "Retired — Exploits", "Any key or click continues");
+    set_status(game, "Exploits", "Any key or click continues");
   } else {
     game->in_hall_of_fame = true;
     set_status(game, "Hall of Fame", "Any key or click returns to menu");
@@ -723,7 +733,7 @@ void game_open_retire_score(ColonizeGameState* game) {
   }
   game_open_report(game, COLONIZE_REPORT_SCORE);
   game->report_exits_to_menu = true;
-  set_status(game, "Retired — Colonization Score", "Any key or click continues");
+  set_status(game, "Final score", "Any key or click continues");
 }
 
 /* The game is over: DS:0x53c2 cleared, the main loop returns to the title menu. */

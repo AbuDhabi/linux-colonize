@@ -73,6 +73,16 @@ row and the colonies a ship reaches from the first stop
 convenience (user, #300 and 2026-10-22): the route it creates is one DOS can
 also build through the editor.
 
+### #1236 — A load keeps a live saved active unit
+DOS resumes a loaded game at the human's Move Pieces entry `FUN_2b5a_3b68`
+(load sets DS:0x829, raw 121852 / 121944), which writes `0x5392 = 0xffff` and
+then picks the first unit awaiting orders through `FUN_2b5a_0e52(0)` (raw
+46831-46833), so the saved `head.active_unit` is never used. The port runs the
+same entry only when the saved active unit is missing or not selectable
+(`game_load_col1_loaded`, `src/core/game_loop_saveload.c`); a mid-turn save
+resumes on the unit that was active. Kept so the input-replay regressions
+(recorded against that behaviour) keep driving the units they were written for.
+
 ## Blocked on a live DOS capture
 
 Static reading cannot settle these. Each names exactly what to capture. Do not

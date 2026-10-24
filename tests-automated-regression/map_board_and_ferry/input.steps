@@ -9,7 +9,9 @@ click 239 166              # select free colonist (id 128) in the Units Present 
 click 239 166              # second click: @UNITOPTIONS popup
 click 110 103               # "Sentry / Board ship": sentried units board when a ship leaves the tile
 key Escape                 # back to the map
-key a                      # Activate unit: Caravel A
+rclick 168 128             # View Pieces with the cursor on Quebec (a load starts in Move Pieces)
+key a                      # Activate unit: the "Units Present" stack picker (FUN_2b5a_1b5a)
+key Return                 # pick its first row: Caravel A
 key KP_9                   # sail out to (46,23): the sentried colonist boards on departure (hold 1 of 2)
 wait 20
 click 120 128              # select the shore colonist at (46,24)

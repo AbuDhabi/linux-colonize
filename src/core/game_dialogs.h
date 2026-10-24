@@ -504,6 +504,8 @@ bool game_save_col1_autosave_slot(ColonizeGameState* game, int slot, char* err, 
 /* Same capture, arbitrary file name inside the save dir (trace autosaves). */
 bool game_save_col1_named(ColonizeGameState* game, const char* name, char* err, size_t err_size);
 bool game_select_next_unit_awaiting_orders(ColonizeGameState* game);
+/* FUN_2b5a_3b68 Move Pieces entry (turn start, after a load). */
+void game_move_pieces_entry(ColonizeGameState* game);
 void game_select_unit(ColonizeGameState* game, int unit_id);
 void game_set_view_center(ColonizeGameState* game, int x, int y);
 bool game_ship_sail_to_europe(ColonizeGameState* game, int sid);

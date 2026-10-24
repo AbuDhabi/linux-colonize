@@ -1433,13 +1433,16 @@ COLONIZE_INTERNAL void col1_bridge_apply_europe_lanes(Col1ApplyCtx* ctx) {
       int pax_types[EUROPE_SHIP_CARGO_MAX];
       int pax_profs[EUROPE_SHIP_CARGO_MAX];
       int pax_gold[EUROPE_SHIP_CARGO_MAX];
+      int pax_tools[EUROPE_SHIP_CARGO_MAX];
       int pax_n = 0;
       memset(pax_gold, 0, sizeof(pax_gold));
+      memset(pax_tools, 0, sizeof(pax_tools));
       /* Chain is pax0→…→ship: walk prev from the ship, then reverse. */
       {
         int tmp_t[EUROPE_SHIP_CARGO_MAX];
         int tmp_p[EUROPE_SHIP_CARGO_MAX];
         int tmp_g[EUROPE_SHIP_CARGO_MAX];
+        int tmp_tools[EUROPE_SHIP_CARGO_MAX];
         int k = 0;
         int p = src->transport_chain.prev_unit_idx;
         for (int guard = 0; guard < (int)save->head.unit_count && p >= 0 &&
@@ -1452,6 +1455,12 @@ COLONIZE_INTERNAL void col1_bridge_apply_europe_lanes(Col1ApplyCtx* ctx) {
           tmp_t[k] = col1_unit_type_to_runtime(units, pu->type);
           tmp_p[k] = (int)pu->profession;
           tmp_g[k] = pu->type == 0x0a ? (int)pu->profession * 100 : 0;
+          /* A Pioneer's tools byte (+0x3159 = cargo_hold[5]); 0 = arrival kit. */
+          tmp_tools[k] =
+            units_type_kind(units_type(units, tmp_t[k])) == UNITS_KIND_PIONEER &&
+                pu->cargo_hold[5] <= 100
+              ? (int)pu->cargo_hold[5]
+              : 0;
           consumed[p] = true;
           k++;
           p = pu->transport_chain.prev_unit_idx;
@@ -1460,6 +1469,7 @@ COLONIZE_INTERNAL void col1_bridge_apply_europe_lanes(Col1ApplyCtx* ctx) {
           pax_types[pax_n] = tmp_t[j];
           pax_profs[pax_n] = tmp_p[j];
           pax_gold[pax_n] = tmp_g[j];
+          pax_tools[pax_n] = tmp_tools[j];
           pax_n++;
         }
       }
@@ -1539,6 +1549,7 @@ COLONIZE_INTERNAL void col1_bridge_apply_europe_lanes(Col1ApplyCtx* ctx) {
       }
       for (int c = 0; c < pax_n; ++c) {
         slot->cargo_treasure_gold[c] = pax_gold[c];
+        slot->cargo_tools[c] = pax_tools[c];
       }
       col1_bridge_europe_ship_route_load(save, src, slot);
       consumed[i] = true;
@@ -3725,6 +3736,9 @@ COLONIZE_INTERNAL void col1_bridge_capture_europe_lanes(Col1CaptureCtx* ctx) {
                * pushed without a profession array; siblings at :2722 and
                * :3040 already use UNITS_JOB_NONE. */
               px->profession = (uint8_t)(prof < 0 ? UNITS_JOB_NONE : prof);
+            }
+            if (ship->cargo_tools[c] > 0) {
+              px->cargo_hold[5] = (uint8_t)ship->cargo_tools[c];
             }
           }
           px->transport_chain.prev_unit_idx = (int16_t)last;

@@ -1418,6 +1418,14 @@ bool game_colony_drag_drop(
       if (csv->drag_from_selected) {
         game_colony_open_jobs(game, colony, cmap, -1);
       }
+    } else if (kind == UI_DRAG_COLONY_OUTSIDE && hit.kind == COLONY_HIT_OUTSIDE_UNIT &&
+               hit.index >= 0 && hit.index < csv->outside_unit_count &&
+               csv->outside_unit_ids[hit.index] == drag->unit_id) {
+      /* Put back on itself: the plain click. On the already-selected fence
+       * unit that opens the role popup, the list the fence drop offers. */
+      if (csv->drag_from_selected) {
+        game_colony_fence_drop(game, colony);
+      }
     } else if (hit.kind == COLONY_HIT_BUILDING) {
       game_colony_assign_building_drop(game, hit.index);
     } else if (hit.kind == COLONY_HIT_AREA_TILE) {

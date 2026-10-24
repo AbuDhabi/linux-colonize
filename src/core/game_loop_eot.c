@@ -371,10 +371,17 @@ bool game_ship_sail_to_europe(ColonizeGameState* game, int sid) {
   int hold_types[EUROPE_SHIP_CARGO_MAX];
   int hold_amts[EUROPE_SHIP_CARGO_MAX];
   int cargo_treasure_gold[EUROPE_SHIP_CARGO_MAX];
+  int cargo_tools[EUROPE_SHIP_CARGO_MAX];
   bool sailed = false;
   memset(hold_types, 0, sizeof(hold_types));
   memset(hold_amts, 0, sizeof(hold_amts));
   memset(cargo_treasure_gold, 0, sizeof(cargo_treasure_gold));
+  memset(cargo_tools, 0, sizeof(cargo_tools));
+  /* A Pioneer's tools cross with him (DOS keeps the whole record on the lane). */
+  for (int i = 0; i < ship->cargo_count && i < EUROPE_SHIP_CARGO_MAX; ++i) {
+    const ColonizeUnit* pax = units_get_const(&game->units, ship->cargo_ids[i]);
+    cargo_tools[i] = pax ? pax->tools : 0;
+  }
   game_europe_capture_pax_professions(
     &game->units, sid, cargo_profs, EUROPE_SHIP_CARGO_MAX
   );
@@ -443,12 +450,22 @@ bool game_ship_sail_to_europe(ColonizeGameState* game, int sid) {
         game_europe_restore_pax_treasure_gold(
           &game->units, restored, cargo_treasure_gold, cargo_count
         );
+        for (int ci = 0; rs && ci < rs->cargo_count && ci < cargo_count; ++ci) {
+          ColonizeUnit* pax = units_get(&game->units, rs->cargo_ids[ci]);
+          if (pax && cargo_tools[ci] > 0) {
+            pax->tools = cargo_tools[ci];
+          }
+        }
         game->units.selected_id = restored;
       }
     } else {
       sailed = true;
       game_europe_fill_expected_treasure_gold(
         &game->europe, cargo_treasure_gold, cargo_count
+      );
+      memcpy(
+        game->europe.expected[game->europe.expected_ships - 1].cargo_tools, cargo_tools,
+        sizeof(cargo_tools)
       );
       if (cargo_count > 0) {
         snprintf(
@@ -504,6 +521,8 @@ void game_europe_deliver_bound_ships(ColonizeGameState* game) {
     const EuropeHarborShip* slot = &eu->bound[idx];
     int cargo_professions[EUROPE_SHIP_CARGO_MAX];
     memcpy(cargo_professions, slot->cargo_professions, sizeof(cargo_professions));
+    int cargo_tools[EUROPE_SHIP_CARGO_MAX];
+    memcpy(cargo_tools, slot->cargo_tools, sizeof(cargo_tools));
 
     char name[32];
     snprintf(name, sizeof(name), "%s", slot->name);
@@ -615,6 +634,10 @@ void game_europe_deliver_bound_ships(ColonizeGameState* game) {
             pax, europe_dock_type_for(put ? put->name : NULL, cargo_professions[i])
           );
         }
+        /* ...but a Pioneer who crossed with fewer tools keeps what he had. */
+        if (pax && cargo_tools[i] > 0) {
+          pax->tools = cargo_tools[i];
+        }
       }
       /*
        * Trade-route continuation: the ship that crossed to service its
@@ -677,10 +700,7 @@ void game_finish_end_turn(ColonizeGameState* game, const ColonizeTurnResult* res
    * forces Move Pieces (FUN_2b5a raw 42308-42317); with none the View mode
    * the player left stays, as in every DOS idle autosave. Go-To resumes at
    * 10 steps/sec in game_update so the player can watch. */
-  game->units.selected_id = -1;
-  if (game_select_next_unit_awaiting_orders(game)) {
-    game->view_pieces_mode = false;
-  }
+  game_move_pieces_entry(game);
   if (result && result->request_europe_open && game->europe_ok) {
     game->europe.open_on_dock = true;
   }
@@ -860,6 +880,23 @@ bool game_select_next_unit_awaiting_orders(ColonizeGameState* game) {
     }
   }
   return false;
+}
+
+/*
+ * FUN_2b5a_3b68 (raw 46831-46833), the human's Move Pieces entry: 0x5392 =
+ * 0xffff, then the first unit needing orders; a pick forces Move Pieces. The
+ * DOS main loop enters it at every human turn start and again after a load
+ * (FUN_75c2 load sets DS:0x829, raw 121852 / 121944, and the nation loop at
+ * raw 6366-6420 resumes at the human's slot straight into FUN_281f_062c).
+ */
+void game_move_pieces_entry(ColonizeGameState* game) {
+  if (!game || !game->units_ok) {
+    return;
+  }
+  game->units.selected_id = -1;
+  if (game_select_next_unit_awaiting_orders(game)) {
+    game->view_pieces_mode = false;
+  }
 }
 
 /*
@@ -1767,6 +1804,15 @@ static GameMenuActionStatus game_menu_action_orders(ColonizeGameState* game, Map
           sel_pax->nation_id == game->human_nation &&
           sel_pax->x == game->map_cursor_x && sel_pax->y == game->map_cursor_y) {
         at = game->units.selected_id;
+      } else if (unit_stack_try_open(
+                   &game->unit_stack, &game->units, game->map_cursor_x, game->map_cursor_y,
+                   game->human_nation
+                 )) {
+        /* FUN_2b5a_2866 -> FUN_2b5a_1b5a: a stack of two or more gets the same
+         * picker as a map click (colony tiles included); the pick wakes and
+         * selects (game_click_activate_unit). */
+        set_status(game, "Choose unit from stack", NULL);
+        return GAME_MENU_ACTION_DONE;
       }
       if (at < 0) {
         set_status(game, "No unit at cursor", NULL);
@@ -2213,8 +2259,14 @@ void game_map_click_dispatch(ColonizeGameState* game, int mx, int my) {
   if (cid >= 0) {
     const ColonizeColony* col = colonies_get(&game->colonies, cid);
     if (col && col->nation_id == game->human_nation) {
-      game_select_tile(game, mx, my);
-      game_enter_colony_at_cursor(game);
+      /* FUN_2b5a_3462 raw 46100-46112: an own colony opens (FUN_281f_0608)
+       * without leaving Move Pieces, so the active unit is still active when
+       * the screen closes (or the cycle moves on if it joined the colony).
+       * Only View Pieces moves the cursor to the clicked tile (raw 46025). */
+      if (game->view_pieces_mode) {
+        game_select_tile(game, mx, my);
+      }
+      game_enter_colony(game, cid);
       return;
     }
   }

@@ -161,7 +161,7 @@
   X(pick_music, "music picker")                                                         \
   X(name_entry, "name entry")                                                                     \
   X(howmuch, "how much")                                                                          \
-  X(cheat_list, "cheat list")                                                                     \
+  X(cheat_list, "list dialog")                                                                    \
   X(unit_stack, "unit stack")                                                                     \
   X(ai_popups, NULL)
 /* ===================== Screen tracking & move/combat watch presentation (game_screen_name .. game_key_letter) ===================== */

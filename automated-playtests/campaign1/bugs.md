@@ -3,6 +3,10 @@
 Each entry: what happened, where, evidence. "Suspected cause" lines are from a
 quick source read, not a verified diagnosis.
 
+Filed 2026-10-24 as port_bugs.md #1234-#1246 (B1..B14 in order, B11 skipped;
+rows in docs/archive/bugs_fixed_pending.md). Fixed: B1-B6, B8, B13. Refuted
+(DOS does the same): B7, B9, B10, B12, B14. B11 is an observation, not filed.
+
 ## B1. Build Colony consumes a unit on the cursor tile, not the selected unit
 
 - 1497 (turn 5), (32,57). Pioneer (id 2) and Veteran Soldier (id 3) on the

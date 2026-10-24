@@ -374,6 +374,7 @@ static void europe_cash_treasure_passengers(
       ship->cargo_types[w] = tag;
       ship->cargo_professions[w] = ship->cargo_professions[i];
       ship->cargo_treasure_gold[w] = gold;
+      ship->cargo_tools[w] = ship->cargo_tools[i];
     }
     ++w;
   }
@@ -381,6 +382,7 @@ static void europe_cash_treasure_passengers(
     ship->cargo_types[i] = 0;
     ship->cargo_professions[i] = -1;
     ship->cargo_treasure_gold[i] = 0;
+    ship->cargo_tools[i] = 0;
   }
   ship->cargo_count = w;
 }
@@ -436,11 +438,13 @@ void europe_disembark_passengers_to_dock(
         ship->cargo_types[w] = ship->cargo_types[j];
         ship->cargo_professions[w] = ship->cargo_professions[j];
         ship->cargo_treasure_gold[w] = ship->cargo_treasure_gold[j];
+        ship->cargo_tools[w] = ship->cargo_tools[j];
       }
       for (int j = w; j < ship->cargo_count; ++j) {
         ship->cargo_types[j] = 0;
         ship->cargo_professions[j] = -1;
         ship->cargo_treasure_gold[j] = 0;
+        ship->cargo_tools[j] = 0;
       }
       ship->cargo_count = w;
       return;
@@ -457,6 +461,7 @@ void europe_disembark_passengers_to_dock(
   ship->cargo_count = 0;
   memset(ship->cargo_types, 0, sizeof(ship->cargo_types));
   memset(ship->cargo_treasure_gold, 0, sizeof(ship->cargo_treasure_gold));
+  memset(ship->cargo_tools, 0, sizeof(ship->cargo_tools));
   for (int i = 0; i < EUROPE_SHIP_CARGO_MAX; ++i) {
     ship->cargo_professions[i] = -1;
   }
