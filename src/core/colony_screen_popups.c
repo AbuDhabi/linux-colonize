@@ -509,10 +509,16 @@ void colony_screen_jobs_next_page(ColonyScreenView* view) {
 /* FUN_6f74_2580 Up / Down over a jobs / construction page's rows: the bar can rest on the
  * "(More)" row (more_selected; *sel keeps a page entry so the page stays). */
 static void colony_screen_dos_page_key(
-  ColonyScreenView* view, const ColonyDosPage* pg, int* sel, ColonizeKey key
+  ColonyScreenView* view, const ColonyDosPage* pg, int* sel, ColonizeKey key, uint32_t greyed
 ) {
   int k = view->more_selected ? pg->more_at : *sel - pg->start + (pg->more_at == 0 ? 1 : 0);
-  popup_list_key_step(key, &k, colony_screen_dos_page_rows(pg), 0);
+  /* `greyed` is per entry; the bar skips those rows (FUN_291f_01b6, raw 50801). */
+  uint32_t skip = 0;
+  for (int r = 0; r < colony_screen_dos_page_rows(pg); ++r) {
+    const int e = colony_screen_dos_page_entry(pg, r);
+    skip |= e >= 0 && (greyed >> e & 1u) ? 1u << r : 0u;
+  }
+  popup_list_key_step(key, &k, colony_screen_dos_page_rows(pg), skip);
   const int e = colony_screen_dos_page_entry(pg, k);
   view->more_selected = e < 0;
   if (e >= 0) {
@@ -526,10 +532,10 @@ bool colony_screen_list_key(ColonyScreenView* view, ColonizeKey key) {
   }
   if (view->jobs_open) {
     const ColonyDosPage pg = colony_screen_jobs_page(view);
-    colony_screen_dos_page_key(view, &pg, &view->jobs_selection, key);
+    colony_screen_dos_page_key(view, &pg, &view->jobs_selection, key, view->jobs_greyed);
   } else if (view->construction_open) {
     const ColonyDosPage pg = colony_screen_construction_page(view);
-    colony_screen_dos_page_key(view, &pg, &view->construction_selection, key);
+    colony_screen_dos_page_key(view, &pg, &view->construction_selection, key, 0);
   } else if (view->eject_open) {
     /* 348c's FUN_291f_01b6 rows (raw 50801, eject_role_enabled false) are skipped. */
     uint32_t greyed = 0;
@@ -597,6 +603,10 @@ static void colony_screen_jobs_row_text(
   }
 }
 
+COLONIZE_INTERNAL void colony_screen_eject_row_text(
+  char* out, size_t cap, int role, int occ, bool gear, int stock_tools
+);
+
 static void colony_screen_draw_jobs_popup(
   ColonyScreenView* view,
   const ColonizeColonyPool* pool,
@@ -648,6 +658,11 @@ static void colony_screen_draw_jobs_popup(
     } else if (job == COLONY_JOB_CLEAR_SPECIALTY) {
       /* LABELS.TXT @MISC row 44 — DOS's own jobs-menu entry for the action (DS:0x2e12). */
       snprintf(labels[k], sizeof(labels[k]), "%s", reports_misc_display_word(44, ""));
+    } else if (job >= UNITS_JOB_COLONIST) {
+      /* A leave-as row (port_bugs.md #1224): the same raw 50758-50794 text as leave-as mode;
+       * never the occupation here (he works inside), so the gear part always shows. */
+      colony_screen_eject_row_text(labels[k], sizeof(labels[k]), job - UNITS_JOB_COLONIST, occ,
+                                   true, colony ? colony->stock[COLONIZE_CARGO_TOOLS] : 0);
     } else {
       int cargo = -1;
       const int estimate =
@@ -690,7 +705,8 @@ static void colony_screen_draw_jobs_popup(
     }
     colony_screen_dos_row_text(
       framebuffer, font, &lay, &view->jobs_rect, lay.text_x + 8, row_y, 8, labels[k],
-      e >= 0 && colony_screen_job_is_specialty(view->job_ids[e], profession), false
+      e >= 0 && colony_screen_job_is_specialty(view->job_ids[e], profession),
+      e >= 0 && (view->jobs_greyed >> e & 1u)
     );
   }
 }
@@ -886,8 +902,10 @@ static void colony_screen_draw_dock_orders_popup(
   const ColonizeUnit* u = units_get_const(units, view->dock_orders_unit_id);
   const int sprite = (u && view->icons_ok) ? colony_screen_outside_display_sprite(units, u) : -1;
   if (sprite >= 0) {
+    /* FUN_112b_01ba draws the orders letter in FONTTINY (DS:0x89e, raw 2171-2173,
+     * 2304) whatever the box font is (port_bugs.md #1226). */
     unit_chrome_blit_unit_for_palette(
-      framebuffer, font, &view->icons, sprite, view->dock_orders_rect.x + 5,
+      framebuffer, screen_font, &view->icons, sprite, view->dock_orders_rect.x + 5,
       view->dock_orders_rect.y + 6, units_display_type_index(units, u->id), u->nation_id,
       u->orders, false, (u->col1_flags15 & 0x80u) != 0,
       (view->frame_ok && view->frame.has_palette) ? &view->frame.palette : NULL
@@ -981,11 +999,12 @@ COLONIZE_INTERNAL bool colony_screen_hit_modal_dialogs(ColonyScreenHitCtx* a) {
       a->hit.kind = COLONY_HIT_JOBS_OUTSIDE;
       return true;
     }
+    const int e = k >= 0 ? colony_screen_dos_page_entry(&pg, k) : -1;
     if (k >= 0 && k == pg.more_at) {
       a->hit.kind = COLONY_HIT_JOBS_MORE;
-    } else if (k >= 0) {
+    } else if (e >= 0 && !(view->jobs_greyed >> e & 1u)) { /* a greyed row is inert */
       a->hit.kind = COLONY_HIT_JOBS_ROW;
-      a->hit.index = colony_screen_dos_page_entry(&pg, k);
+      a->hit.index = e;
     }
     return true;
   }

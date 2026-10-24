@@ -7,7 +7,7 @@ drag 107 41 260 91         # Town Hall worker -> free land tile S: becomes a Far
 click 236 67               # click the worker on tile W: selects colonist 1
 click 236 91               # click free tile SW: colonist 1 moves there
 click 236 91               # click the selected worker's own tile: field-jobs menu opens
-click 120 85               # pick Lumberjack: production on that tile changes
+click 120 78               # pick Lumberjack: production on that tile changes
 click 284 43               # select the fisherman on water tile NE
 click 284 91               # click free land tile SE: the fisherman moves, now farming
 drag 41 155 284 43         # people strip colonist 4 (Town Hall) -> water tile NE: Fisherman (Docks built)

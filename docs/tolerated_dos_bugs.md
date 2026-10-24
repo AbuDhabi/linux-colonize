@@ -24,6 +24,14 @@ pointing at it so citations still resolve. Each entry names the DOS function
 (`FUN_ssss_oooo` + raw offset), what DOS does, the port sites that reproduce it,
 and what blocks removing it.
 
+**Fixing one:** gate the fix on `dos_buggy_behavior()` (`src/core/dos_buggy.h`):
+`if (dos_buggy_behavior()) { DOS bug } else { fix }`. It is off in opencol and on
+in every test binary (set before `main()` by `tests/common/test_name_kinds.c`),
+so goldens, idle campaigns and replays keep the bug they lock while still
+guarding everything else; a unit case covering the fix calls
+`dos_buggy_behavior_set(false)` and restores `true` after. `dos_buggy.c` is
+already in `COLONIZE_SLIM_SOURCES`, so SLIM-target readers link.
+
 ## Entries
 
 ### TB-1 — Coarse connectivity planes drop some NE/SW links

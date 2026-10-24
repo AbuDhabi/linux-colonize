@@ -178,7 +178,8 @@ static int colony_screen_slot_size_class(int slot) {
  * on collision. Positions are then handed to categories in category order,
  * sequentially within each class — a fixed mapping, so all the randomness
  * lives in that one shuffle. Deterministic per colony, cheap enough to redo
- * on every call.
+ * on every call — which is why it stays on the LCG (dos_rng_range_lcg) even
+ * under settings.json divergences.modern_prng.
  */
 void colony_screen_assign_slot_positions_ex(
   const ColonizeColonyPool* pool,
@@ -206,7 +207,7 @@ void colony_screen_assign_slot_positions_ex(
     /* Each class has exactly as many positions as slots, so this always
      * terminates; the guard is belt and braces against a bad table edit. */
     for (int guard = 0; guard < 1024; ++guard) {
-      pos = base + dos_rng_range(&rng, 0, count - 1);
+      pos = base + dos_rng_range_lcg(&rng, 0, count - 1);
       if (perm[pos] < 0) {
         break;
       }

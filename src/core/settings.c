@@ -102,6 +102,7 @@ static const SettingsBoolOpt k_debug_opts[] = {
 /* "divergences": deliberate departures from DOS, all off by default. */
 static const SettingsBoolOpt k_divergence_opts[] = {
   SETTINGS_BOOL(unlimited_units, false),
+  SETTINGS_BOOL(modern_prng, false),
 };
 
 #define SETTINGS_OPT_COUNT(t) ((int)(sizeof(t) / sizeof((t)[0])))

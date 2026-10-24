@@ -17,6 +17,7 @@
 #include "core/game_dialogs.h"
 #include "core/font_file.h"
 #include "core/colony_screen.h"
+#include "core/dos_buggy.h"
 #include "core/game_loop_internal.h"
 #include "core/popup.h"
 #include "core/turn_internal.h"
@@ -30,6 +31,24 @@
 
 #define TEST_NAME "unit_stage_seams"
 #include "../common/test_fail.h"
+
+/* dos_buggy_behavior: off at load (the opencol state); the test-binary
+ * constructor (test_name_kinds.c, default priority, runs after this one) turns
+ * it on before main(). */
+static bool s_dos_buggy_at_load = true;
+__attribute__((constructor(101))) static void capture_dos_buggy_at_load(void) {
+  s_dos_buggy_at_load = dos_buggy_behavior();
+}
+
+static int test_dos_buggy_default_off_tests_on(void) {
+  if (s_dos_buggy_at_load) {
+    return fail("dos_buggy_behavior on before any setter ran");
+  }
+  if (!dos_buggy_behavior()) {
+    return fail("test harness did not turn dos_buggy_behavior on");
+  }
+  return 0;
+}
 
 /* turn_year_end_rival_rebels: pure function of (rebel_sentiment, census_pop_proxy). */
 static int test_turn_year_end_rival_rebels(void) {
@@ -1965,6 +1984,7 @@ static int test_europe_unload_all_boycott_any_slot(void) {
 }
 
 static const TestCase k_cases[] = {
+    {"test_dos_buggy_default_off_tests_on", test_dos_buggy_default_off_tests_on},
     {"test_map_pulldown_is_modal", test_map_pulldown_is_modal},
     {"test_turn_year_end_rival_rebels", test_turn_year_end_rival_rebels},
     {"test_ai_contact_raid_alarm_delta", test_ai_contact_raid_alarm_delta},

@@ -27,6 +27,12 @@ DX = (0x1f62 == 0), the next byte drawn as a glyph whatever it is, the map resto
 character after `~` is 149 outside `{}`, 68 inside, grey on a disabled row (callers pass grey
 as both inks); the measure `FUN_6f74_0486` deletes every `~{}|` first
 (`popup_markup_text_width`). Test: `unit_popup_prompt dialog_tilde_is_dos`.
+A char whose face width byte is 0 draws nothing and advances 0 (`FUN_1c11_000c` raw
+17468-17471, port_bugs.md #1225): FONTTINY has no `*<=>@\^_~{|}` or backquote, FONTINTR no
+`\^{|}~` or backquote, so the
+jobs rows' DS:0xca8 ` = ` reads as two spaces. The compositor (`popup_draw_text_markup`,
+`popup_markup_text_width`) drops those chars; `font.c`'s 5x7 fallback glyph is for the
+port's other text only. Test: `unit_popup_prompt dialog_lacking_glyph_is_dos`.
 
 Screens that are not compositor dialogs write through the resident `FUN_104b_*` writers
 instead: `FUN_281f_013c` / `0150` / `0100` -> `FUN_104b_0288` / `02c2` (right-aligned) /

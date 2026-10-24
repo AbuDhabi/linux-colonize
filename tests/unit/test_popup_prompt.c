@@ -14,8 +14,10 @@
 #include "core/font_file.h"
 #include "core/popup.h"
 #include "core/reports.h"
+#include "core/ss.h"
 #include "core/trade_screen.h"
 #include "core/ui_colors.h"
+#include "core/unit_chrome.h"
 #include "core/unit_stack.h"
 #include "platform/diagnostics.h"
 
@@ -166,12 +168,13 @@ static int case_dialog_tilde_is_dos(void) {
       rc = 1;
     }
   }
-  /* An escaped '{' is a glyph, not a brace: what follows stays in the base ink. */
+  /* An escaped '{' is a glyph, not a brace: what follows stays in the base ink. FONTINTR has
+   * no '{' glyph, so it draws nothing and advances 0 (FUN_1c11_000c, port_bugs.md #1225). */
   memset(got, 0xcc, sizeof(got));
   memset(want, 0xcc, sizeof(want));
   popup_draw_text_markup(&font, &fb, 20, 30, "~{xy", COLONIZE_COL_BASIC, COLONIZE_COL_HILITE,
                          NULL, NULL);
-  const int xy = 20 + font_draw_glyph_shaded(&font, NULL, 0, 0, '{', hi);
+  const int xy = 20 + (font.char_widths['{'] ? font_draw_glyph_shaded(&font, NULL, 0, 0, '{', hi) : 0);
   expect_run(&font, want, xy, 30, "xy", base);
   for (int i = 0; i < W * H && !rc; ++i) {
     if (i % W >= xy && got[i] != want[i]) {
@@ -185,6 +188,34 @@ static int case_dialog_tilde_is_dos(void) {
     rc = 1;
   }
   font_file_free(&font);
+  return rc;
+}
+
+/* port_bugs.md #1225: FUN_1c11_000c raw 17468-17471 skips a char whose face width byte is 0
+ * (draws nothing, advances 0). FONTTINY has no '=', so the jobs rows' " = " is two spaces. */
+static int case_dialog_lacking_glyph_is_dos(void) {
+  ColonizeFont tiny;
+  char err[128];
+  if (!font_file_load("COLONIZE/FONTTINY.FF", &tiny, err, sizeof(err))) {
+    fprintf(stderr, "SKIP: FONTTINY.FF: %s\n", err);
+    return TR_SKIP;
+  }
+  static uint8_t got[W * H], want[W * H];
+  ColonizeFramebuffer8 fg = {.width = W, .height = H, .pixels = got};
+  ColonizeFramebuffer8 fw = {.width = W, .height = H, .pixels = want};
+  memset(got, 0, sizeof(got));
+  memset(want, 0, sizeof(want));
+  const int eg = popup_draw_text_markup(&tiny, &fg, 20, 30, "4 = 5 Food~=", COLONIZE_COL_BASIC,
+                                        COLONIZE_COL_HILITE, NULL, NULL);
+  const int ew = popup_draw_text_markup(&tiny, &fw, 20, 30, "4  5 Food", COLONIZE_COL_BASIC,
+                                        COLONIZE_COL_HILITE, NULL, NULL);
+  int rc = 0;
+  if (tiny.char_widths['='] != 0 || eg != ew || memcmp(got, want, sizeof(got)) != 0 ||
+      popup_markup_text_width(&tiny, "4 = 5") != font_text_width(&tiny, "4  5")) {
+    fprintf(stderr, "a glyph FONTTINY lacks is drawn or measured (end x %d want %d)\n", eg, ew);
+    rc = 1;
+  }
+  font_file_free(&tiny);
   return rc;
 }
 
@@ -637,7 +668,7 @@ static int case_units_present_is_dos(void) {
   memset(px, 0x11, sizeof(px));
   ColonizeFramebuffer8 fb = {.width = W, .height = H, .pixels = px};
   dlg.selection = 2;
-  unit_stack_render(&dlg, &pool, NULL, NULL, &font, NULL, NULL, 1, NULL, NULL, &fb);
+  unit_stack_render(&dlg, &pool, NULL, NULL, &font, &font, NULL, NULL, 1, NULL, NULL, &fb);
   if (dlg.dialog_h != 12 + 16 * 10 || dlg.list_y0 != dlg.dialog_y + 5 || dlg.line_h != 16 ||
       dlg.dialog_x != 160 - (dlg.dialog_w >> 1) || dlg.dialog_y != 100 - (dlg.dialog_h >> 1)) {
     fprintf(stderr, "units present: %dx%d at (%d,%d) list_y0 %d line_h %d\n", dlg.dialog_w,
@@ -676,10 +707,86 @@ static int case_units_present_is_dos(void) {
   return rc;
 }
 
+/*
+ * port_bugs.md #1226: a row's orders box is FUN_112b_01ba, which measures and draws its
+ * letter in FONTTINY (DS:0x89e, raw 2171-2173, 2304) whatever font the box itself uses;
+ * the popup's FONTINTR '-' has two ink rows and drew a doubled dash. Redrawing each row's
+ * chrome in FONTTINY over the rendered popup must change no pixel.
+ */
+static int case_units_present_chrome_is_fonttiny(void) {
+  ColonizeFont intr;
+  ColonizeFont tiny;
+  static ColonizeSpriteSheet icons;
+  char err[128];
+  if (!load_font(&intr)) {
+    return TR_SKIP;
+  }
+  if (!font_file_load("COLONIZE/FONTTINY.FF", &tiny, err, sizeof(err))) {
+    fprintf(stderr, "SKIP: FONTTINY.FF: %s\n", err);
+    font_file_free(&intr);
+    return TR_SKIP;
+  }
+  if (!ss_load("COLONIZE/ICONS.SS", &icons, err, sizeof(err))) {
+    fprintf(stderr, "SKIP: ICONS.SS: %s\n", err);
+    font_file_free(&tiny);
+    font_file_free(&intr);
+    return TR_SKIP;
+  }
+  static ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  pool.type_count = 1;
+  snprintf(pool.types[0].name, sizeof(pool.types[0].name), "Colonists");
+  pool.types[0].movement = 1;
+  pool.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  pool.types[0].icon_sprite = 20;
+  for (int i = 0; i < 2; ++i) {
+    const int id = units_spawn_allow_stack(&pool, 0, 3, 3);
+    units_get(&pool, id)->nation_id = 0;
+  }
+  int rc = 0;
+  UnitStackPopup dlg;
+  memset(&dlg, 0, sizeof(dlg));
+  static uint8_t a[W * H], b[W * H];
+  memset(a, 0x11, sizeof(a));
+  ColonizeFramebuffer8 fa = {.width = W, .height = H, .pixels = a};
+  ColonizeFramebuffer8 fb = {.width = W, .height = H, .pixels = b};
+  if (!unit_stack_try_open(&dlg, &pool, 3, 3, 0)) {
+    fprintf(stderr, "units present chrome: popup did not open\n");
+    rc = 1;
+  } else {
+    unit_stack_render(&dlg, &pool, &icons, NULL, &intr, &tiny, NULL, NULL, 1, NULL, NULL, &fa);
+    memcpy(b, a, sizeof(b));
+    for (int i = 0; i < dlg.count; ++i) {
+      const ColonizeUnit* u = units_get_const(&pool, dlg.ids[i]);
+      const int sprite = units_map_sprite(&pool, u->id);
+      if (sprite < 0 || sprite >= icons.sprite_count) {
+        fprintf(stderr, "units present chrome: no icon for row %d\n", i);
+        rc = 1;
+        break;
+      }
+      unit_chrome_blit_unit_for_palette(
+        &fb, &tiny, &icons, sprite, dlg.dialog_x + 5, dlg.dialog_y + 5 + 16 * i,
+        units_display_type_index(&pool, u->id), u->nation_id,
+        unit_chrome_plan_badge_index(u->nation_id, u->col1_ai_plan, u->orders, u->orders), false,
+        false, NULL
+      );
+    }
+    if (memcmp(a, b, sizeof(a)) != 0) {
+      fprintf(stderr, "units present chrome: orders box not drawn in FONTTINY\n");
+      rc = 1;
+    }
+  }
+  ss_free(&icons);
+  font_file_free(&tiny);
+  font_file_free(&intr);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
   {"field_body_is_markup", case_field_body_is_markup},
   {"dialog_text_is_dos_shaded", case_dialog_text_is_dos_shaded},
   {"dialog_tilde_is_dos", case_dialog_tilde_is_dos},
+  {"dialog_lacking_glyph_is_dos", case_dialog_lacking_glyph_is_dos},
   {"stat_screens_text_is_one_pass", case_stat_screens_text_is_one_pass},
   {"field_geometry_is_dos", case_field_geometry_is_dos},
   {"field_decoration_is_dos", case_field_decoration_is_dos},
@@ -687,5 +794,6 @@ static const TestCase k_cases[] = {
   {"list_height_dos", case_list_height_dos},
   {"center_frame_is_dos", case_center_frame_is_dos},
   {"units_present_is_dos", case_units_present_is_dos},
+  {"units_present_chrome_is_fonttiny", case_units_present_chrome_is_fonttiny},
 };
 TEST_MAIN_WRAPPED(k_cases, diag_init(0, NULL), diag_shutdown())

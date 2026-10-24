@@ -91,11 +91,10 @@
 #define COLONY_BUILDABLE_MAX 32
 #define COLONY_BUILDING_SLOT_W 48
 #define COLONY_BUILDING_SLOT_H 32
-/* FUN_2f2b_348c's row loop runs @JOB 0..0x18; the port's jobs menu carries
- * rows 0..0x12 (the nine field jobs plus the ten indoor jobs, port_bugs.md #900)
- * plus the "Clear Specialty" row. Rows 0x13..0x18 are the leave-as list and
- * live in the eject popup. */
-#define COLONY_JOB_LIST_MAX (COLONIES_JOB_TEACHER + 2)
+/* FUN_2f2b_348c param 0's row loop runs @JOB 0..0x18 (local_146 = 0x19): the nine
+ * field jobs, the ten indoor jobs (port_bugs.md #900) and the leave-as rows 0x13..0x18
+ * (port_bugs.md #1224), plus the "Clear Specialty" row. */
+#define COLONY_JOB_LIST_MAX (UNITS_JOB_COLONIST + COLONIZE_EJECT_ROLE_COUNT + 1)
 /* Sentinel row id in job_ids[]: FUN_2f2b_348c's "Clear Specialty" row
  * (menu id 0x61) — offered when the selected colonist is a specialist. */
 #define COLONY_JOB_CLEAR_SPECIALTY (-2)
@@ -345,6 +344,7 @@ typedef struct ColonyScreenView {
   int jobs_selection;
   int jobs_default_row; /* FUN_2f2b_348c 08ec default: the occupation's row, else 0 */
   int job_ids[COLONY_JOB_LIST_MAX];
+  uint32_t jobs_greyed; /* bit i: job_ids[i] is FUN_15eb_3454's 0xffff row (greyed, inert) */
   int job_count;
   ColonyDialogRect jobs_rect;
 

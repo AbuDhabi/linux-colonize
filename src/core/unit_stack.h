@@ -55,7 +55,8 @@ void unit_stack_render(
   const ColonizeUnitPool* pool,
   const ColonizeSpriteSheet* icons,
   const ColonizeMsgCatalog* names,
-  const ColonizeFont* font,
+  const ColonizeFont* font,       /* row text: FONTINTR (DS:0x268a) */
+  const ColonizeFont* chrome_font, /* orders letter: FONTTINY (DS:0x89e), FUN_112b_01ba */
   const ColonizeSpriteSheet* wood_tile,
   const ColonizePopupColors* colors,
   uint8_t text_color,

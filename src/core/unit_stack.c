@@ -244,6 +244,7 @@ void unit_stack_render(
   const ColonizeSpriteSheet* icons,
   const ColonizeMsgCatalog* names,
   const ColonizeFont* font,
+  const ColonizeFont* chrome_font,
   const ColonizeSpriteSheet* wood_tile,
   const ColonizePopupColors* colors,
   uint8_t text_color,
@@ -305,10 +306,13 @@ void unit_stack_render(
     const int sprite = u ? units_map_sprite(pool, u->id) : -1;
     if (sprite >= 0 && icons && sprite < icons->sprite_count && u) {
       /* port_bugs.md: rows carry the Orders-Allegiance chrome (FUN_112b_01ba via
-       * FUN_281f_02bc), so cancelling a unit's orders on the first click is visible. */
+       * FUN_281f_02bc), so cancelling a unit's orders on the first click is visible.
+       * port_bugs.md #1226: 01ba measures and draws the letter in FONTTINY (DS:0x89e,
+       * raw 2171-2173, 2304), never the box's FONTINTR: FONTINTR's two-row '-' read as
+       * a doubled dash and its taller cell grew the box. */
       unit_chrome_blit_unit_for_palette(
         framebuffer,
-        font,
+        chrome_font,
         icons,
         sprite,
         fr.x + 5,

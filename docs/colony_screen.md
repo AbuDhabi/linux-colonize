@@ -232,7 +232,13 @@ guard in `colonies_assign_workplace`.
 
 Row text is DOS's: @JOB column 0, the `|   ` column tab, then for jobs below
 0x13 (not 0x12) ` = ` + [the yield on the colonist's own plot + `/`] + the
-estimate + the @CARGO name, right-aligned to `frame_x + w - 13`. The estimate is
+estimate + the @CARGO name, right-aligned to `frame_x + w - 13`. FONTTINY has no
+`=` glyph, so the ` = ` shows as two spaces (port_bugs.md #1225, popups_dialog_engine.md).
+Param 0 lists @JOB 0..0x18: after the jobs come the leave-as rows 0x13..0x18 (same text and
+gating as leave-as mode below, short-stock rows greyed and inert), so with the starting houses
+the 16 job rows fill page 0 and the leave-as rows land on page 1: "(More)" flips between the
+job list and the leave-colony list, and a leave-as pick there is the leave-as popup's pick
+(port_bugs.md #1224; `game_colony_commit_job` -> `game_colony_request_eject`). The estimate is
 `ai_euro_jobs_menu_estimate`: a field job is the yield of the plot
 `FUN_15eb_28c8(slot, job)` would pick, an indoor job `FUN_15eb_1d4c` (Statesman
 plus Jefferson / Paine / press). The specialty's row is drawn in the hilite ink,

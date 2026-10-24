@@ -29,6 +29,7 @@ enum {
   RT_COLONY_PLOTS_REC = 10, /* v1: u32 plot_was_worked_mask per colony in record order (26e4 carry) */
   RT_HOLD_AMOUNT = 11, /* v1: i32 DS:0x8dc4 units_last_hold_amount (last 317c slot amount) */
   RT_LCR_COUNTS = 12,  /* v1: u8 DS:0x1dc6 rumours explored, u8 DS:0x1dc7 Cibola count */
+  RT_XOSHIRO = 13,     /* v1: 4x u64 xoshiro256** state; written only under divergences.modern_prng */
 };
 
 #define RT_UNIT_TAIL_ENTRY 17
@@ -218,6 +219,12 @@ uint8_t* runtime_ext_serialize(
     units_path_state_export(p);
     rt_record(&b, RT_PATH, 1, p, sizeof p);
   }
+  if (dos_rng_modern_state()) {
+    const uint64_t* xo = dos_rng_modern_state();
+    uint8_t p[32];
+    for (int i = 0; i < 4; ++i) wr_u32(wr_u32(p + i * 8, (uint32_t)xo[i]), (uint32_t)(xo[i] >> 32));
+    rt_record(&b, RT_XOSHIRO, 1, p, sizeof p);
+  }
   if (b.oom) {
     free(b.buf);
     *out_size = 0;
@@ -304,6 +311,14 @@ void runtime_ext_deserialize(
         break;
       case RT_PATH:
         if (len == UNITS_PATH_STATE_SIZE) units_path_state_import(p, map);
+        break;
+      case RT_XOSHIRO:
+        /* Applied only while modern_prng is on; an all-zero state would stick. */
+        if (len == 32 && dos_rng_modern_state()) {
+          uint64_t xo[4];
+          for (int i = 0; i < 4; ++i) xo[i] = rd_u32_le(p + i * 8) | (uint64_t)rd_u32_le(p + i * 8 + 4) << 32;
+          if (xo[0] | xo[1] | xo[2] | xo[3]) memcpy(dos_rng_modern_state(), xo, sizeof xo);
+        }
         break;
       default:
         break;

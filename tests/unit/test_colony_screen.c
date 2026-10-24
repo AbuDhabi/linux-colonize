@@ -2615,12 +2615,22 @@ static int unit_tile_jobs_menu_lists_indoor_jobs(void) {
 
   const int tile = 0;
 
-  /* No buildings at all -> the nine field jobs only. */
+  /* No buildings at all -> the nine field jobs, then the leave-as rows 0x13..0x17
+   * (port_bugs.md #1224); with no stock, Pioneer..Dragoon are FUN_15eb_3454's greyed 0xffff
+   * rows, and no Church / Jesuit means no Missionary row. */
   colony_screen_open_jobs(&view, &pool, NULL, col, tile);
-  if (view.job_count != COLONIZE_FIELD_JOB_COUNT) {
-    fprintf(stderr, "jobs_indoor: bare colony rows=%d want %d\n",
-            view.job_count, COLONIZE_FIELD_JOB_COUNT);
+  if (view.job_count != COLONIZE_FIELD_JOB_COUNT + 5 ||
+      view.jobs_greyed != (0xfu << (COLONIZE_FIELD_JOB_COUNT + 1))) {
+    fprintf(stderr, "jobs_indoor: bare colony rows=%d greyed=%#x want %d / %#x\n",
+            view.job_count, (unsigned)view.jobs_greyed, COLONIZE_FIELD_JOB_COUNT + 5,
+            0xfu << (COLONIZE_FIELD_JOB_COUNT + 1));
     rc = 1;
+  }
+  for (int i = COLONIZE_FIELD_JOB_COUNT; i < view.job_count; ++i) {
+    if (view.job_ids[i] != UNITS_JOB_COLONIST + (i - COLONIZE_FIELD_JOB_COUNT)) {
+      fprintf(stderr, "jobs_indoor: bare colony row %d = job %d\n", i, view.job_ids[i]);
+      rc = 1;
+    }
   }
 
   /* Rum Distiller's House (@BUILDING 27) -> @JOB 9 joins the list. */
@@ -2698,6 +2708,86 @@ static int unit_tile_jobs_menu_lists_indoor_jobs(void) {
   }
 
   colony_screen_free(&view);
+  assets_msg_free(&names);
+  return rc;
+}
+
+/*
+ * port_bugs.md #1224: FUN_2f2b_348c param 0 lists @JOB 0..0x18, so a colony with the seven
+ * starting houses has 16 job rows + 5 leave-as rows: page 0 = the jobs + "(More)", page 1 =
+ * "(More)" + Colonist / Pioneer / Soldier / Scout / Dragoon, and each More flips to the other.
+ * The bar skips greyed rows; a click on one is inert.
+ */
+static int unit_jobs_more_flips_to_leave_as_rows(void) {
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
+    fprintf(stderr, "SKIP: NAMES.TXT\n");
+    return TR_SKIP;
+  }
+  static ColonizeColonyPool pool;
+  memset(&pool, 0, sizeof(pool));
+  colonies_init(&pool);
+  colonies_load_buildings(&pool, &names);
+  static ColonizeColony colony;
+  memset(&colony, 0, sizeof(colony));
+  colony.colonist_count = 1;
+  colony.colonists[0].active = true;
+  colony.colonists[0].profession = COLONIZE_PROF_FREE_COLONIST;
+  colony.colonists[0].field_job = COLONIZE_JOB_FARMER;
+  colony.colonists[0].building_type = -1;
+  colony.stock[COLONIZE_CARGO_MUSKETS] = 50; /* Soldier enabled; Pioneer/Scout/Dragoon greyed */
+  static const int k_houses[] = {
+    COLONY_BUILDING_RUM_DISTILLERS_HOUSE, COLONY_BUILDING_TOBACCONISTS_HOUSE,
+    COLONY_BUILDING_WEAVERS_HOUSE, COLONY_BUILDING_FUR_TRADERS_HOUSE,
+    COLONY_BUILDING_CARPENTERS_SHOP, COLONY_BUILDING_BLACKSMITHS_HOUSE, COLONY_BUILDING_TOWN_HALL
+  };
+  for (size_t i = 0; i < sizeof(k_houses) / sizeof(k_houses[0]); ++i) {
+    colony.has_building[colonies_building_row(&pool, k_houses[i])] = true;
+  }
+  static ColonyScreenView view;
+  memset(&view, 0, sizeof(view));
+  view.selected_colonist = 0;
+  colony_screen_open_jobs(&view, &pool, NULL, &colony, 0);
+  int rc = 0;
+#define EXPECT(cond, ...)                                                                          \
+  do {                                                                                             \
+    if (!(cond)) {                                                                                 \
+      fprintf(stderr, "jobs_more: " __VA_ARGS__);                                                  \
+      rc = 1;                                                                                      \
+    }                                                                                              \
+  } while (0)
+  EXPECT(view.job_count == 21 && view.job_ids[16] == UNITS_JOB_COLONIST &&
+           view.job_ids[20] == UNITS_JOB_COLONIST + COLONIZE_EJECT_DRAGOON,
+         "rows %d [16]=%d [20]=%d\n", view.job_count, view.job_ids[16], view.job_ids[20]);
+  EXPECT(view.jobs_selection == 0 && !view.more_selected, "opens on %d\n", view.jobs_selection);
+  /* page 0: 16 rows + More; Up from the Farmer row wraps onto More */
+  colony_screen_list_key(&view, COLONIZE_KEY_UP);
+  EXPECT(view.more_selected && colony_screen_jobs_page_of(&view, view.jobs_selection) == 0,
+         "Up from row 0 not on page 0's More\n");
+  colony_screen_jobs_next_page(&view);
+  EXPECT(view.more_selected && colony_screen_jobs_page_of(&view, view.jobs_selection) == 1,
+         "More did not open page 1 with the bar on its More row\n");
+  colony_screen_list_key(&view, COLONIZE_KEY_DOWN);
+  EXPECT(!view.more_selected && view.jobs_selection == 16, "Down -> %d (Colonist)\n",
+         view.jobs_selection);
+  colony_screen_list_key(&view, COLONIZE_KEY_DOWN); /* Pioneer greyed: skipped */
+  EXPECT(view.jobs_selection == 18, "Down -> %d (Soldier)\n", view.jobs_selection);
+  colony_screen_list_key(&view, COLONIZE_KEY_DOWN); /* Scout, Dragoon greyed: wraps to More */
+  EXPECT(view.more_selected, "Down past Soldier not on More\n");
+  /* a click on the greyed Pioneer row (page row 2) is swallowed, Soldier (row 3) hits */
+  view.jobs_rect = (ColonyDialogRect){.x = 0, .y = 0, .w = 200, .h = 199, .list_y0 = 10,
+                                      .line_h = 8};
+  ColonyScreenHitResult hit =
+    colony_screen_hit_test(&view, &pool, &colony, NULL, 50, 10 + 2 * 8 + 1);
+  EXPECT(hit.kind == COLONY_HIT_NONE, "greyed row hit kind %d\n", (int)hit.kind);
+  hit = colony_screen_hit_test(&view, &pool, &colony, NULL, 50, 10 + 3 * 8 + 1);
+  EXPECT(hit.kind == COLONY_HIT_JOBS_ROW && hit.index == 18, "Soldier row hit %d/%d\n",
+         (int)hit.kind, hit.index);
+  colony_screen_jobs_next_page(&view);
+  EXPECT(!view.more_selected && view.jobs_selection == 0,
+         "back: bar on %d, want the Farmer occupation row 0\n", view.jobs_selection);
+#undef EXPECT
   assets_msg_free(&names);
   return rc;
 }
@@ -3480,6 +3570,7 @@ static const TestCase k_cases[] = {
     {"unit_trade_route_labels", unit_trade_route_labels},
     {"unit_tile_jobs_menu_lists_all_field_jobs", unit_tile_jobs_menu_lists_all_field_jobs},
     {"unit_tile_jobs_menu_lists_indoor_jobs", unit_tile_jobs_menu_lists_indoor_jobs},
+    {"unit_jobs_more_flips_to_leave_as_rows", unit_jobs_more_flips_to_leave_as_rows},
     {"unit_multi_units_pane_roster", unit_multi_units_pane_roster},
     {"unit_fence_strip_profession_gate", unit_fence_strip_profession_gate},
     {"unit_warehouse_confirm_and_hold_append", unit_warehouse_confirm_and_hold_append},

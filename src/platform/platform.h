@@ -99,6 +99,13 @@ static inline bool colonize_key_right(ColonizeKey k) {
   return k == COLONIZE_KEY_RIGHT || k == COLONIZE_KEY_KP6;
 }
 
+/* DOS FUN_281f_03c0 (= FUN_1262_0060): wait for any key or any mouse button (DS:0x7f4 is
+ * set on the release of whichever button was pressed during the wait). The port fires on
+ * the press edge, so the next screen never sees the same click. */
+static inline bool colonize_input_any_key_or_click(const ColonizeInputState* in) {
+  return in->last_key != COLONIZE_KEY_NONE || in->mouse_left_clicked || in->mouse_right_clicked;
+}
+
 /* SDL_Keycode -> game key (linux_sdl2/sdl_keymap.c); COLONIZE_KEY_NONE = unmapped. */
 ColonizeKey platform_key_from_sdl(int32_t sdl_keycode);
 

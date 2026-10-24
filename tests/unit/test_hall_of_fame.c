@@ -297,12 +297,89 @@ static int case_empty_leader_round_trip(void) {
   return 0;
 }
 
+/* One frame with a left (or right) button press and no key. */
+static bool click_step(ColonizeGameState* game, bool right) {
+  ColonizeInputState input = {0};
+  input.mouse_left_clicked = !right;
+  input.mouse_right_clicked = right;
+  input.mouse_x = 160;
+  input.mouse_y = 100;
+  return game_update(game, &input, 16);
+}
+
+static bool at_menu(const ColonizeGameState* game) {
+  return game->in_menu && !game->in_hall_of_fame && !game->in_exploits && !game->in_report &&
+    !ai_popup_busy(&game->ai_popups);
+}
+
+/* 6. Every retire-chain screen ends in DOS FUN_281f_03c0 (FUN_41f2_0092 score, 0b70
+ * exploits, 0f56 Hall of Fame): any key or either mouse button goes on, one screen per
+ * press. The port's Hall of Fame took Esc/Enter only. */
+static int case_click_dismisses_ending_screens(void) {
+  if (setup() != 0) return 1;
+  remove(k_hof_path);
+  ColonizeGameConfig cfg = {.data_dir = k_data_dir, .save_dir = k_save_dir};
+  ColonizeGameState* game = game_create(&cfg);
+  if (!game) {
+    fprintf(stderr, "game_create failed (click)\n");
+    return 1;
+  }
+  int rc = 1;
+  /* Title-menu Hall of Fame: left click, right click, Q (not the quit confirm). */
+  for (int i = 0; i < 3; ++i) {
+    game->menu_selection = 0; /* open_hall_of_fame steps down from row 0 */
+    if (!open_hall_of_fame(game) || !game->in_hall_of_fame) {
+      fprintf(stderr, "Hall of Fame did not open (pass %d)\n", i);
+      goto out;
+    }
+    const bool ok = (i < 2) ? click_step(game, i == 1) : test_assets_step(game, COLONIZE_KEY_Q);
+    if (!ok || !at_menu(game)) {
+      fprintf(stderr, "Hall of Fame pass %d did not return to the title menu\n", i);
+      goto out;
+    }
+  }
+  /* Retire chain: score -> Hall of Fame (score 0 = no exploits tier) -> menu, clicks only. */
+  game->col1_ok = true;
+  game->in_menu = false;
+  game_open_retire_score(game);
+  if (!game->in_report || !click_step(game, true) || game->in_report || !game->in_hall_of_fame) {
+    fprintf(stderr, "right click on the retire score did not reach the Hall of Fame\n");
+    goto out;
+  }
+  if (!test_assets_step(game, COLONIZE_KEY_NONE) || !game->in_hall_of_fame) {
+    fprintf(stderr, "the score's click also closed the Hall of Fame\n");
+    goto out;
+  }
+  if (!click_step(game, false) || !at_menu(game)) {
+    fprintf(stderr, "left click on the retire Hall of Fame did not return to the menu\n");
+    goto out;
+  }
+  /* Exploits screen -> Hall of Fame -> menu. */
+  game->in_menu = false;
+  game->in_exploits = true;
+  if (!click_step(game, true) || game->in_exploits || !game->in_hall_of_fame) {
+    fprintf(stderr, "right click on the exploits screen did not reach the Hall of Fame\n");
+    goto out;
+  }
+  if (!test_assets_step(game, COLONIZE_KEY_NONE) || !game->in_hall_of_fame ||
+      !click_step(game, false) || !at_menu(game)) {
+    fprintf(stderr, "exploits -> Hall of Fame -> menu by clicks failed\n");
+    goto out;
+  }
+  rc = 0;
+out:
+  game_destroy(game);
+  remove(k_hof_path);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
     {"empty_table", case_empty_table},
     {"legacy_format", case_legacy_format},
     {"ranked_rerank_and_screen", case_ranked_rerank_and_screen},
     {"overflow_cap", case_overflow_cap},
     {"empty_leader_round_trip", case_empty_leader_round_trip},
+    {"click_dismisses_ending_screens", case_click_dismisses_ending_screens},
 };
 
 TEST_MAIN(k_cases)

@@ -1,8 +1,11 @@
 #include "core/dos_rng.h"
 
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+
+#include "third_party/xoshiro256starstar.h"
 
 #if defined(__GLIBC__) && !defined(_WIN32)
 #include <execinfo.h>
@@ -30,6 +33,31 @@ static int dos_rng_env_cached(const char* name, int* cache) {
 }
 
 static int32_t s_dos_rng_83a6 = -1;
+
+/* settings.json divergences.modern_prng: one process-wide xoshiro256** stream
+ * feeds every ColonizeDosRng; dos_rng_seed and the reseed points then only
+ * rewrite the instance's (unused) LCG word, so they never replay a sequence. */
+static bool s_xo_on;
+static uint64_t s_xo[4];
+
+void dos_rng_modern_seed(uint64_t seed) {
+  for (int i = 0; i < 4; ++i) {
+    s_xo[i] = splitmix64_next(&seed);
+  }
+  s_xo_on = true;
+}
+
+uint64_t* dos_rng_modern_state(void) {
+  return s_xo_on ? s_xo : NULL;
+}
+
+int dos_rng_range_lcg(ColonizeDosRng* rng, int lo, int hi) {
+  const bool on = s_xo_on;
+  s_xo_on = false;
+  const int r = dos_rng_range(rng, lo, hi);
+  s_xo_on = on;
+  return r;
+}
 
 /* FUN_19ef_0008 tick reseed (music pick, see dos_rng.h). */
 static int32_t s_dos_rng_tick = -1;
@@ -96,9 +124,16 @@ uint16_t dos_rng_next(ColonizeDosRng* rng) {
     const uint32_t tick = s_dos_rng_tick >= 0 ? (uint32_t)s_dos_rng_tick : (uint32_t)time(NULL);
     dos_rng_seed(rng, tick);
   }
-  /* Microsoft C / Watcom rand (FUN_1d1d_0e04). */
-  rng->state = rng->state * 0x343FDu + 0x269EC3u;
-  const uint16_t out = (uint16_t)((rng->state >> 16) & 0x7fffu);
+  uint16_t out;
+  if (s_xo_on) {
+    const uint64_t x = xoshiro256ss_next(s_xo);
+    rng->state = (uint32_t)(x >> 32); /* .state readers (europe stand-in seed, traces) see it move */
+    out = (uint16_t)(x >> 49);        /* top 15 bits: the LCG's output domain */
+  } else {
+    /* Microsoft C / Watcom rand (FUN_1d1d_0e04). */
+    rng->state = rng->state * 0x343FDu + 0x269EC3u;
+    out = (uint16_t)((rng->state >> 16) & 0x7fffu);
+  }
   if (dos_rng_trace_enabled()) {
     fprintf(stderr, "DOS_RNG[%lu]=%u\n", s_dos_rng_draws++, (unsigned)out);
   }
