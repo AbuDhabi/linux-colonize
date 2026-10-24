@@ -26,10 +26,9 @@ Pedia / map indices: cleared land **0–7**, forests **8–23** (type =
 
 One table unifies everything previously chased piecemeal: 32 stride-`0x10`
 records at `DS:0x2f76`, real classes `0..28` (`29..31` noisy, untrusted).
-Recovered by byte-pattern search over `dosbox-x-dumps/*` (blob formula
-`file_off = 0x88 + seg*16 + off` — HDR is `0x88`, not 8); rows 0..28
-byte-identical across all 19 saves, so genuine static data. No live
-session was needed — check existing dumps first.
+Recovered from `dosbox-x-dumps/*` (blob formula
+`file_off = 0x88 + seg*16 + off` — HDR is `0x88`, not 8); rows 0..28 are
+byte-identical across all 19 saves, so genuine static data.
 
 | Offset | Content |
 |-------:|---------|
@@ -37,7 +36,7 @@ session was needed — check existing dumps first.
 | `+0x1` | Founding score (`k_map_dos_terr_found_score`); doubles as combat terrain-defense bonus (`combat_strength.c`) — wired |
 | `+0x2` | Pioneer clear/plow work-turns threshold — wired |
 | `+0x3` | Colony-site desirability per neighbor tile, used only inside `FUN_521d_20e6`'s inline candidate-site picker (3 near-duplicate blocks). Values idx 0–28: `2,2,4,4,4,4,2,2,3,1,3,3,3,3,1,1,3,1,3,3,3,3,1,1,0,3,0,2,2`. **Not wired** — that picker is dead code in this port (same conclusion as port_plan T1.2). |
-| `+0x4` | Labor/travel penalty subtracted from a colonist's candidate work-plot score in **`FUN_15eb_28c8`** (work-plot auto-assign; ported, and live for human colonies too since port_bugs.md #562/#570). Values: `12,12,10,15,15,21,12,14,18,12,18,12,12,12,12,7,18,12,18,12,12,12,12,7,0,9,9,24,24`. **Traps:** the earlier `FUN_129f_0008` attribution was a false collision (that body is an RLE decoder); the real owner was found via the `.asm`'s own XREF (`caseD_10`, physically in the `15eb` overlay), not a guess. `DS:0x8dd2` there is gross Lumber production (`1 < colony+0xa4 + *0x8dd2`, `+0xa4` = the colony's Lumber stock), not a proximity flag (port_bugs.md #895). **Wired** (port_bugs.md #577 corrected the stale "Not wired"): the table lives in `src/core/map.c` as `k_map_dos_terr_labor_penalty[29]` behind `map_dos_terr_labor_penalty_byte()`, and `ai_euro_28c8_score_full` (src/core/ai_euro_colony_jobs.c) applies it with the `+0x18` forest surcharge — and, since port_bugs.md #570, only inside 28c8's food-emergency branch (`bVar2`), which is where raw 13031-13050 puts it; it is not AI-only and not a universal base-score term. |
+| `+0x4` | Labor/travel penalty subtracted from a colonist's candidate work-plot score in **`FUN_15eb_28c8`** (work-plot auto-assign; ported, and live for human colonies too since port_bugs.md #562/#570). Values: `12,12,10,15,15,21,12,14,18,12,18,12,12,12,12,7,18,12,18,12,12,12,12,7,0,9,9,24,24`. **Traps:** the earlier `FUN_129f_0008` attribution was a false collision (that body is an RLE decoder); the real owner was found via the `.asm`'s own XREF (`caseD_10`, physically in the `15eb` overlay), not a guess. `DS:0x8dd2` there is gross Lumber production (`1 < colony+0xa4 + *0x8dd2`, `+0xa4` = the colony's Lumber stock), not a proximity flag (port_bugs.md #895). **Wired** (#577): the table lives in `src/core/map.c` as `k_map_dos_terr_labor_penalty[29]` behind `map_dos_terr_labor_penalty_byte()`, and `ai_euro_28c8_score_full` (src/core/ai_euro_colony_jobs.c) applies it with the `+0x18` forest surcharge — and, since port_bugs.md #570, only inside 28c8's food-emergency branch (`bVar2`), which is where raw 13031-13050 puts it; it is not AI-only and not a universal base-score term. |
 | `+0x5`..`+0xd` | **The `NAMES.TXT` field-yield grid itself** — `+0x5+job` (Farmer..Fisherman). `18ec`/`1f72` compute `job + terrain*0x10 + 0x2f7b`, and `0x2f7b == 0x2f76+5`; bytes match this file's tables cell-for-cell. Resolves the old "base yield table not in the decompile" mystery. |
 | `+0xa` | Also `k_map_dos_terr_lumber_reward` (Pioneer clear/plow lumber reward): `FUN_479b_01a6` raw 76785 reads `class*0x10 + 0x2f80`, and `0x2f80 - 0x2f76 = +0xa` = the **Lumberjack** column (port_bugs.md #613 — an earlier note wrongly put it at `+0x8`, the Cotton column). |
 | `+0xe` | Type/graphic-looking index: unforested `idx+3`, forest `11+(idx&7)` — except pedia 15 (Rain, primary) reads 10 instead of 18 (idx 23 gets 18; quirk on that exact row, like the Rain 1/1 table bug below). Meaning unidentified; not wired. |
@@ -203,10 +202,11 @@ Not `max(@RESOURCE, base)`.
 | Fishery (7) | Fisherman (8) | +3 |
 
 A matching-skill expert **doubles an additive bonus** before it's added
-(`18ec` ~11909). The double (−1) path is `yield <<= 1` unconditionally (not
-expert-gated). Ported byte-exact as `colony_yield_resource_effect()` — the
-old single `resource → job` map structurally couldn't express Game pairing
-with both Farmer and Fur Trapper (Farmer-on-Game got zero). The
+(`18ec` ~11909), for every job — asm ~11900-11914 has no per-job carve-out, so
+an expert Silver Miner on Mountains + Silver Deposit makes 6, not 4. The
+double (−1) path is `yield <<= 1` unconditionally (not expert-gated). Ported
+byte-exact as `colony_yield_resource_effect()` (a resource can pair with
+several jobs: Game feeds both Farmer and Fur Trapper). The
 expert-doubles-additive half needs worker context and lives in
 `colony_yield_for_worker`.
 
@@ -241,11 +241,10 @@ full body, ~11771-11992):
 9. **Plow/road/river** stack (below).
 10. Fish without Docks → 0. **Henry Hudson** (FF 8) doubles Fur Trapper
     inside this same function (viceroy 11970-11973), i.e. *between* the
-    improvement stack and both step 11 and step 12. Ported here as
-    `colony_yield_for_worker`'s `has_hudson` argument (2026-09-09, smell
-    audit #60); the old post-hoc `*= 2` at four call sites gave
-    `2·(base+1)` / `2·(base−2)` where DOS gives `2·base + 1` /
-    `2·base − 2`, and left the AI work-plot scorer with no Hudson at all.
+    improvement stack and both step 11 and step 12, so DOS gives
+    `2·base + 1` / `2·base − 2`, not `2·(base+1)` / `2·(base−2)`. Ported
+    as `colony_yield_for_worker`'s `has_hudson` argument (smell audit #60),
+    which the AI work-plot scorer shares.
 11. **Convert** +1 on allowed jobs.
 12. If SoL/Tory mod < 0: `yield += mod`, floor 0.
 
@@ -412,25 +411,6 @@ furs source), Paramaribo Rain `1+2=3` sugar (after the Rain 1/1 fix).
 The printed chart often shows post-modifier lumber (Plains forested 6 =
 NAMES Mixed 3 × lumberjack ×2). Prefer **NAMES + `18ec`** for
 implementation.
-
----
-
-## Port status (field yields)
-
-| Rule | Status in [`colony_yield.c`](../src/core/colony_yield.c) |
-|------|----------------------------------------------------------|
-| Base NAMES grids | Wired (Hills food = NAMES' 1; the farmer stack term explains the old "2") |
-| Resource effect `17fa` | `colony_yield_resource_effect()`, byte-exact incl. multi-job pairs; Beaver+Fur +3 |
-| Expert doubles the additive bonus | All jobs (asm ~11900-11914 has no per-job carve-out). 2026-09-09: dropped a Silver-Miner-only undoubled bucket left over from commit 3a9f688 — expert Silver Miner on Mountains + Silver Deposit is 6, not 4 |
-| Lumberjack ×2 | Wired at the correct pipeline position |
-| Expert food/fish +2 + SoL re-add | Wired; re-add uses `sol_bonus` itself; SoL folds before expert doubling |
-| Convert job whitelist | Exact gate |
-| Plow/road/river stack | Wired verbatim (2026-09-03) — no divergence left |
-| Fisherman distance modifier | Real 3-case ladder from raw asm |
-| Fisherman needs Docks | `has_docks` param threaded through all callers |
-| SoL AI zero-out | `colony_prod_sol_bonus_field`, both field call sites |
-| Town commons | Exact (`golden_colony_prod01/02/03` green) |
-| Zero-base gate | Wired (expert on 0-base terrain = 0) |
 
 ---
 

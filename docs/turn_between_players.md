@@ -3,7 +3,7 @@
 End-to-end map of what runs after the human finishes orders and before the next
 human Move Pieces. Owns the **orchestration** bridge (calendar, production,
 nation EOT pieces, Euro/Indian/King order, market, chrome). AI planner
-internals stay in [port_plan.md](port_plan.md).
+internals: [ai_euro_logic_map.yaml](ai_euro_logic_map.yaml).
 
 Layer D extracts + thin callgraph:
 [`original_sources_annotated/turn/`](../original_sources_annotated/turn/)
@@ -12,8 +12,6 @@ Callee depth maps: production (deepened), Europe EOT/market (deepened), census,
 landfall, mid-pass rank/`1b3a`, ship-ready/spawn, fort fire, bells/FF, finish
 bridge (same folder).
 
-Bring-up checklist (shorter): [decomp_inventory.md](decomp_inventory.md)
-“End-of-turn recovery checklist”.
 
 ---
 
@@ -202,7 +200,7 @@ broke the Dutch TURN2→3 first contact).
 
 | Cluster | Doc / extract |
 |---------|----------------|
-| Euro goals / act / scoring | [port_plan.md](port_plan.md); [`euro_dispatcher.c`](../original_sources_annotated/ai/euro_dispatcher.c); [`euro_unit_act.md`](../original_sources_annotated/ai/euro_unit_act.md); [`move_scoring.md`](../original_sources_annotated/ai/move_scoring.md) |
+| Euro goals / act / scoring | [ai_euro_logic_map.yaml](ai_euro_logic_map.yaml); [`euro_dispatcher.c`](../original_sources_annotated/ai/euro_dispatcher.c); [`euro_unit_act.md`](../original_sources_annotated/ai/euro_unit_act.md); [`move_scoring.md`](../original_sources_annotated/ai/move_scoring.md) |
 | Indian pulse / contact | [`indian_nation_turn.c`](../original_sources_annotated/ai/indian_nation_turn.c); [`indian_contact.md`](../original_sources_annotated/ai/indian_contact.md); [`brave_spent_callgraph.md`](../original_sources_annotated/ai/brave_spent_callgraph.md) |
 | King / REF | [`king_ref.md`](../original_sources_annotated/ai/king_ref.md) |
 | Diplomacy | [`euro_diplo.md`](../original_sources_annotated/ai/euro_diplo.md) |
@@ -214,22 +212,20 @@ broke the Dutch TURN2→3 first contact).
 - **`MULTINEXT` / `TIMECHANGE` / `SEASONS`**: string table only — **reconfirmed**
   no FUN_* XREF ([`mid_pass_indian_rank.md`](../original_sources_annotated/turn/mid_pass_indian_rank.md)).
   Calendar from `@TIMECHANGE` + `130d` year/autumn math.
-- **`FUN_4d56_1816`**: **caller resolved 2026-08-27** (static) — `4d56_1b3a`
-  phase 2 via overlay-local stub `4d56:4c2c` → record `281f:23b0`. DOS runs
-  all Indian turns in the mid-pass before Euro 0..3; OpenCol INDIAN phase
-  reordered before EURO to match (2026-08-27). Map:
+- **`FUN_4d56_1816`**: caller resolved (static) — `4d56_1b3a` phase 2 via
+  overlay-local stub `4d56:4c2c` → record `281f:23b0`. Turn order relative to
+  the human: "Known reshape" above. Map:
   [`mid_pass_indian_rank.md`](../original_sources_annotated/turn/mid_pass_indian_rank.md).
 - **`FUN_3844_0442`**: **UI mapped**
   ([`year_end_chrome.md`](../original_sources_annotated/turn/year_end_chrome.md));
   B/C1(+fleet+REF pool+map+latch)/C2/D(+auto-declare)/E(+richest) status
-  **Done** thin; HoF dialogs still PARKED.
+  **Done** thin; Hall of Fame: [reports_score.md](reports_score.md).
 - **Demo / independence splash** (`130d_019e` / `0222`): PARKED; thin LAB in
   [`year_loop.c`](../original_sources_annotated/turn/year_loop.c).
 - **Deep AI** (`20e6` / `2820` / `4528` / `2154` / `5fef` loot): section-mapped
   under `original_sources_annotated/ai/`. `20e6` land arms (T1.18) and `4528`
-  are ported 2026-08-27/28 and `2820` was rewritten 2026-08-29; what stays
-  PARKED is the deep −0x6790 combat core, `2820`'s haggle sub-loops (T4.4
-  capture) and `2154`.
+  are ported, and `2820` with its haggle (`ai_contact_trade.c`); what stays
+  PARKED is the deep −0x6790 combat core and `2154`.
 - **Nation EOT arms**: ship-build ready (`defense`/`0x5235` combat) + §C Merc
   (+`48d3_0002` duration) **Done** thin; live census colony+unit tallies
   **Done** thin; AI fog reveal **Done** (2026-08-29).
@@ -238,10 +234,6 @@ broke the Dutch TURN2→3 first contact).
   ([combat.md](combat.md) player-facing summary),
   [`nation_ticks_bells_ff.md`](../original_sources_annotated/turn/nation_ticks_bells_ff.md),
   [`europe_finish_bridge.md`](../original_sources_annotated/turn/europe_finish_bridge.md).
-- **Unparked this session (port):** C1 REF pool + calendar_latch + `53c2`;
-  century tip `tut3.nr6`; ship-build `0x5235`=combat; live census tallies;
-  `5384` report gates; education no-students + tier name; fort-fire status;
-  immigrant open_on_dock; spoilage cargo name; §C landfall duration.
 
 ---
 

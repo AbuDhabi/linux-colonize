@@ -23,7 +23,7 @@ really live, and the two genuine gaps the pass turned up.
      not yet found" (lines ~374–520) — the whole section is superseded.
    - `docs/popups.md` — ~30 rows saying "full `3f41` PARKED" for diplomacy
      tags; those tags are in `5bfb`, and most are **Done**.
-   - `docs/popup_audit.md`, `docs/manual_gap.md` carry the same phrasing.
+   - `docs/archive/popup_audit.md`, `docs/manual_gap.md` carry the same phrasing.
 
 ---
 

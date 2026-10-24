@@ -26,13 +26,10 @@ stands more often. Affects every Euro AI explorer scan.
 **Port (reproduces it):** `ai_euro_land_explore_scan_target`
 (`src/core/ai_euro_land.c`, the `int score = nib * 4;` line) has no bonus.
 
-**Blocks removal:** tried 2026-10-22: `score += 0x10` when
-`tx == u->x && ty == u->y`; `golden_ai_turns` and `golden_ai_joint` fail at
-TURN3-to-4 (founded_colonies 1 vs 0 for nations 1 and 2, colony_count 3 vs 1);
-`golden_idle_continuous` and `golden_idle_reload` first differ at save 1495
-(byte 0x2c, got 2b, DOS 2d); `golden_idle_america` and
-`golden_idle_america_reload` first differ at save 14 (byte 0x2c, got 42, DOS
-43). No other test fails. Reverted.
+**Blocks removal:** tried 2026-10-22 (`score += 0x10` on the unit's own tile);
+fails `golden_ai_turns`, `golden_ai_joint`, `golden_idle_continuous`,
+`golden_idle_reload`, `golden_idle_america` and `_reload`; reverted.
+[Details](archive/tolerated_dos_bugs_evidence_2026-10-24.md#tb-9).
 **Status:** tolerated (2026-10-22).
 
 ### TB-10 — Euro AI plot scoring indexes tribe tables with the nation id
@@ -46,9 +43,8 @@ the reads land on the last four tribes' rows; with 8..11 they run past the
 tables into the colony records and the unit-type counts.
 
 **Effect:** the reluctance penalty for working tribe land is computed from
-unrelated bytes. In the America seed-100 DOSBox run (save 56 to 57), New
-Amsterdam's claim byte 11 reads colony 1's own word (0), so the penalty clears
-and a veteran goes fishing instead of logging the tribe's plot. Hits AI job and
+unrelated bytes (seen in DOSBox, America seed-100 56->57,
+[evidence](archive/tolerated_dos_bugs_evidence_2026-10-24.md#tb-10)). Hits AI job and
 plot placement (and the founder's seating) every tick near tribe land.
 
 **Port (reproduces it):** `ai_euro_28c8_score_full` in
@@ -57,12 +53,8 @@ out-of-range reads emulated by `ai_euro_28c8_ds_byte_91cc`,
 `ai_euro_28c8_ds_byte_9184` and `ai_euro_5952_alarm_word`. The fix is to index
 with `claim_tribe` (nation - 4).
 
-**Blocks removal:** tried 2026-10-22: index the three tables with the tribe
-index (nation - 4); `golden_idle_america` and `golden_idle_america_reload`
-fail (first divergence at save 12, first byte mismatch at 0x599: got 00, DOS
-04; later saves differ at 0x608 and 0x612); `golden_idle_continuous`,
-`golden_idle_independence`, `golden_ai_turns`, `golden_ai_joint` and the other
-goldens pass; no other test fails. Reverted.
+**Blocks removal:** tried 2026-10-22 (index with `claim_tribe`); fails
+`golden_idle_america` and `_reload`; reverted.
 **Status:** tolerated (2026-10-22).
 
 ### TB-11 — Euro AI tile-improvement scoring reads the tribe alarm with the nation byte
@@ -85,11 +77,9 @@ raises the plot score, is a separate question and is left alone.)
 out-of-range read is emulated in `ai_euro_5952_alarm_word`). The fix is to pass
 `claim`, the tribe index (nation - 4).
 
-**Blocks removal:** tried 2026-10-22: pass the tribe index to the alarm read;
-`golden_idle_continuous` and `golden_idle_reload` fail (seed-100 1492 campaign,
-first byte mismatch at year_1502.sav offset 0x3a6: got 05, DOS 00; RNG state
-also differs at save 1496); no other test fails and `golden_ai_joint` passes.
-Reverted.
+**Blocks removal:** tried 2026-10-22 (pass the tribe index); fails
+`golden_idle_continuous` and `golden_idle_reload`; reverted.
+[Details](archive/tolerated_dos_bugs_evidence_2026-10-24.md#tb-11).
 **Status:** tolerated (2026-10-22).
 
 ### TB-12 — Refused food beg bumps the wrong alarm word
@@ -109,13 +99,10 @@ refuses).
 (`src/core/ai_contact_demand.c`), refuse arm, via
 `ai_diplo_indian_alarm_word_raw`. Evidence: DOSBox independence 4->5.
 
-**Blocks removal:** tried 2026-10-22: passing the Euro nation
-(`ai_contact_alarm_delta_00f2(ctx, nation_id, e, d)`) makes CTest
-`golden_idle_independence` and `golden_idle_independence_reload` fail (first
-at save 5, byte 0x30d2: got 05, DOS 04; later saves drift on the same
-alarm-word bytes and the RNG stream). `golden_idle_continuous`,
-`golden_idle_america` and `golden_ai_joint` passed. `unit_ai_contact_core`
-fails ("BEGFOOD decline must leave the European's alarm"). Reverted.
+**Blocks removal:** tried 2026-10-22 (pass the Euro nation); fails
+`golden_idle_independence` and `_reload`, and `unit_ai_contact_core` ("BEGFOOD
+decline must leave the European's alarm" pins DOS); reverted.
+[Details](archive/tolerated_dos_bugs_evidence_2026-10-24.md#tb-12).
 **Status:** tolerated (2026-10-22).
 
 ### TB-13 — Euro AI colony tick loses its own nation after the improvement arm
@@ -133,8 +120,8 @@ the arm and are not affected.
 **Effect:** whenever the arm found a plot, the colony's job election and build
 choices (muskets, armed units, ships, Wagon Trains) use the stats of the last
 scanned neighbour's owner, a tribe, or index -1, instead of its own nation.
-Seen in the DOSBox America seed-100 run (save 58: the Wagon Train arm reads
-tribe 7's word, 0, and builds the wagon).
+Seen in DOSBox (America seed-100 save 58,
+[evidence](archive/tolerated_dos_bugs_evidence_2026-10-24.md#tb-13)).
 
 **Port (reproduces it):** `ai_euro_5952_improve_best_plot` in
 `src/core/ai_euro_land.c` writes the last neighbour's owner to
@@ -144,12 +131,8 @@ indoor pass, the rank byte and the build cascade read. Unit
 `unit_ai_euro_5952_build` `case_blacksmith_gate_reads_local_1b0` pins the
 consumer side. The fix is to leave `improvement_owner` at `col->nation_id`.
 
-**Blocks removal:** tried 2026-10-22: never write the neighbour owner to
-`improvement_owner`; `golden_idle_continuous` (first byte mismatch at
-year_1557.sav offset 0x3ae: got 0c, DOS 2b), `golden_idle_independence`
-(000004.SAV offset 0xcb7: got 06, DOS 0f), `golden_idle_america` (000058.SAV
-offset 0x2e4: got 0c, DOS 2b) and the three `_reload` variants fail;
-`golden_ai_joint` and all other tests pass. Reverted.
+**Blocks removal:** tried 2026-10-22 (the fix); fails all six idle gates;
+reverted.
 **Status:** tolerated (2026-10-22).
 
 ### TB-14 — Euro AI road connect leaves the "current colony" on another colony
@@ -166,9 +149,8 @@ read) run on that other colony.
 **Effect:** the other colony is processed twice (and counted twice in the
 6d8e needs tally), the colony whose turn it was is skipped for the rest of the
 tick and keeps its old jobs, and the tools/timer charge lands on the wrong
-colony. Seen in DOSBox: tr9 11 to 12 (Bahia's job passes land on St. Louis),
-America2 resync 37 (a specialty counted twice let England's Galleon buy 100
-muskets).
+colony. Seen in DOSBox (tr9 11->12, America2 resync 37,
+[evidence](archive/tolerated_dos_bugs_evidence_2026-10-24.md#tb-14)).
 
 **Port (reproduces it):** `ai_euro_5952_tools_supply_and_connect`
 (`src/core/ai_euro_land.c`) returns the colony nearest the road
@@ -179,13 +161,10 @@ belongs to the colony being ticked; `ai_euro_colony_tick_run` reads that
 colony in the 6d8e prelude. The fix is to charge and keep working on the
 ticking colony.
 
-**Blocks removal:** tried 2026-10-22: the road-connect payer is the ticking
-colony and the tick never rebinds; `golden_idle_america` and
-`golden_idle_america_reload` fail (first byte mismatch at 000044.SAV offset
-0x23c: got 28, DOS 14); the narrower variant (the tools charge still lands on
-the rebound colony, only the later arms stay on the ticking colony) fails the
-same two tests at the same save (offset 0x599: got 00, DOS 05). All other
-tests pass, including `golden_ai_joint`. Reverted.
+**Blocks removal:** tried 2026-10-22 (the ticking colony pays and the tick never
+rebinds); fails `golden_idle_america` and `_reload`. The narrower variant (the
+tools charge still lands on the rebound colony, only the later arms stay on the
+ticking colony) fails the same two. Reverted.
 **Status:** tolerated (2026-10-22).
 
 ### TB-15 — Euro AI road-connect skips a colony only when it is far on both axes
@@ -204,11 +183,9 @@ one axis.
 `src/core/ai_euro_land.c` (`abs(ox - cx) > 6 && abs(oy - cy) > 6`). The fix is
 `||`.
 
-**Blocks removal:** tried 2026-10-22: the distance test uses OR, with and
-without the walk-origin reset of DB-23; `golden_idle_america` and
-`golden_idle_america_reload` fail (first byte mismatch at 000006.SAV offset
-0x2dc: got 0a, DOS 00; 000007.SAV differs at the same offset). All other
-tests pass, including `golden_ai_joint`. Reverted.
+**Blocks removal:** tried 2026-10-22 (`||`, with and without DB-23's walk-origin
+reset); fails `golden_idle_america` and `_reload`; reverted.
+[Details](archive/tolerated_dos_bugs_evidence_2026-10-24.md#tb-15).
 **Status:** tolerated (2026-10-22).
 
 ### TB-16 — Euro AI plot scoring reads stack residue for the forest penalty
@@ -231,14 +208,11 @@ shifts which plot or job a colonist gets.
 auto-assign already scores the candidate tile's class. The fix is to use the
 candidate tile's class (`forest`) in the tick too.
 
-**Blocks removal:** tried 2026-10-22: the tail's forest test uses the
-candidate tile's class in every caller; `golden_idle_continuous` (first byte
-mismatch at year_1523.sav offset 0x1a7: got 00, DOS 04), `golden_idle_america`
-(000011.SAV offset 0x5e9: got ff, DOS 00) and their `_reload` variants fail;
-`golden_idle_independence`, `golden_ai_joint` and all other tests pass. The
-failures come from the tick alone: applying the fix only to the tick fails
-the same four tests at the same bytes, while applying it only to the founding
-join (DB-24) passes everything. Reverted.
+**Blocks removal:** tried 2026-10-22 (the candidate tile's class in every
+caller); fails `golden_idle_continuous`, `golden_idle_reload`,
+`golden_idle_america` and `_reload`. The failures come from the tick alone: the
+fix applied only to the founding join (DB-24) passes everything. Reverted.
+[Details](archive/tolerated_dos_bugs_evidence_2026-10-24.md#tb-16).
 **Status:** tolerated (2026-10-22).
 
 ### TB-17 — Euro AI indoor job election clamps by a stale quantity
@@ -258,14 +232,13 @@ actually produce, so crosses and bells jobs are over- or under-valued.
 **Port (reproduces it):** `ai_euro_5952_indoor_pass`
 (`src/core/ai_euro_colony_jobs.c`) keeps `avail` across jobs and slots and
 clamps `qty` unconditionally; the uninitialised first read is modelled as
-0x7fff (no clamp). The fix is to clamp only when the job has an input cargo
-(`in >= 0`).
+0x7fff (no clamp), a seed that still needs a live DOS capture (was
+known_divergences.md #915(c)). The fix is to clamp only when the job has an
+input cargo (`in >= 0`).
 
-**Blocks removal:** tried 2026-10-22: clamp only for jobs with an input cargo;
-`golden_idle_continuous` (first byte mismatch at year_1566.sav offset 0x33c:
-got 11, DOS 06), `golden_idle_america` (000059.SAV offset 0x274: got 11, DOS
-08) and their `_reload` variants fail; `golden_idle_independence`,
-`golden_ai_joint` and all other tests pass. Reverted.
+**Blocks removal:** tried 2026-10-22 (the fix); fails `golden_idle_continuous`,
+`golden_idle_reload`, `golden_idle_america` and `_reload`; reverted.
+[Details](archive/tolerated_dos_bugs_evidence_2026-10-24.md#tb-17).
 **Status:** tolerated (2026-10-22).
 
 ### TB-18 — Euro AI schoolhouse arm elects the table row index as the profession
@@ -285,10 +258,9 @@ AI's later job choices follow.
 (`src/core/ai_euro_colony_jobs.c`, `target = r;`). The fix is
 `target = k_5952_craft[r].job;`.
 
-**Blocks removal:** tried 2026-10-22: electing `k_5952_craft[r].job`;
-`golden_idle_independence` and `golden_idle_independence_reload` fail (seed-100
-independence campaign, first differs at save 15, byte 0x74c, got 0e, DOS 01).
-All other tests and `golden_ai_joint` passed. Reverted.
+**Blocks removal:** tried 2026-10-22 (the fix); fails `golden_idle_independence`
+and `_reload`; reverted.
+[Details](archive/tolerated_dos_bugs_evidence_2026-10-24.md#tb-18).
 **Status:** tolerated (2026-10-22).
 
 ### TB-19 — Euro AI expert purchase charges the price of the colonist slot
@@ -308,12 +280,9 @@ and the nation's gold in saves follow.
 (`src/core/ai_euro_colony_jobs.c`, `ai_euro_5952_job_price(last)`). The fix is
 `ai_euro_5952_job_price(trained)`.
 
-**Blocks removal:** tried 2026-10-22: charging the trained job's price;
-`golden_idle_continuous` and `golden_idle_reload` fail (seed-100 1492 campaign,
-first differs at year_1585.sav, byte 0x22, got 05, DOS 04),
-`golden_idle_america` and `golden_idle_america_reload` fail (first differs at
-save 55, byte 0x7d6, got 25, DOS 24). All other tests and `golden_ai_joint`
-passed. Reverted.
+**Blocks removal:** tried 2026-10-22 (the fix); fails `golden_idle_continuous`,
+`golden_idle_reload`, `golden_idle_america` and `_reload`; reverted.
+[Details](archive/tolerated_dos_bugs_evidence_2026-10-24.md#tb-19).
 **Status:** tolerated (2026-10-22).
 
 ### TB-20 — Euro AI starter-horses arm reads the unit before the tile head
@@ -332,11 +301,10 @@ with a unit works as intended. Observed in DOSBox (1592 Curacao).
 (`src/core/ai_euro_colony_jobs.c`, the `else` branch of the head test). The fix
 is to skip the arm when the tile has no unit.
 
-**Blocks removal:** tried 2026-10-22: returning when the tile has no unit;
-`golden_idle_continuous` and `golden_idle_reload` fail (seed-100 1492 campaign,
-first differs at year_1533.sav, byte 0x48e, got 00, DOS 02), and
-`unit_ai_euro_5952_build` fails (`case_starter_horses_purchase`, which pins the
-empty-tile purchase). `golden_ai_joint` passed. Reverted.
+**Blocks removal:** tried 2026-10-22 (the fix); fails `golden_idle_continuous`
+and `golden_idle_reload`, and `unit_ai_euro_5952_build`
+(`case_starter_horses_purchase` pins the empty-tile purchase); reverted.
+[Details](archive/tolerated_dos_bugs_evidence_2026-10-24.md#tb-20).
 **Status:** tolerated (2026-10-22).
 
 ### TB-21 — Euro AI Europe recruit loop upgrades to Dragoon without paying for the horses
@@ -357,12 +325,9 @@ hire decisions, and the bank counter follow.
 The fix moves `ai_euro_5d04_cb_set_unit_dispatch_byte(cand, 4)` and the
 bank update inside that test.
 
-**Blocks removal:** tried 2026-10-22: moving the Dragoon upgrade and the bank
-update inside the payment gate; `golden_idle_continuous` and
-`golden_idle_reload` fail (seed-100 1492 campaign, first differs at
-year_1546.sav, byte 0xb4c, got 01, DOS 04), `golden_idle_america` and
-`golden_idle_america_reload` fail (first differs at save 20, byte 0xf9c, got 01,
-DOS 04). All other tests and `golden_ai_joint` passed. Reverted.
+**Blocks removal:** tried 2026-10-22 (the fix); fails `golden_idle_continuous`,
+`golden_idle_reload`, `golden_idle_america` and `_reload`; reverted.
+[Details](archive/tolerated_dos_bugs_evidence_2026-10-24.md#tb-21).
 **Status:** tolerated (2026-10-22).
 
 ### TB-22 — Euro AI emergency lumber is credited even when the 200 gold is not paid
@@ -379,11 +344,10 @@ for free, one turn in eight, until the colony holds 2 or more.
 (`src/core/ai_euro_colony_jobs.c`). The fix credits the lumber only inside the
 `gold >= 200` branch.
 
-**Blocks removal:** tried 2026-10-22: crediting the lumber only when the 200
-gold is paid; `golden_idle_continuous` and `golden_idle_reload` fail (seed-100
-1492 campaign, first differs at year_1565.sav, byte 0x6e6, got 00, DOS 64),
-and `unit_ai_euro_5952_lumber` fails (`purchase_gates`, which pins the free
-lumber). `golden_ai_joint` passed. Reverted.
+**Blocks removal:** tried 2026-10-22 (the fix); fails `golden_idle_continuous`
+and `golden_idle_reload`, and `unit_ai_euro_5952_lumber` (`purchase_gates` pins
+the free lumber); reverted.
+[Details](archive/tolerated_dos_bugs_evidence_2026-10-24.md#tb-22).
 **Status:** tolerated (2026-10-22).
 
 ### TB-23 — Euro AI equip arm strips the expert profession of the wrong colonist
@@ -404,13 +368,9 @@ ejected unit carries the wrong profession byte, which shows in saves.
 (`src/core/ai_euro_goals.c`, `last_prof` before the strip). The fix tests the
 picked colonist's own profession.
 
-**Blocks removal:** tried 2026-10-22: testing `colonists[pick].profession`;
-`golden_idle_continuous` and `golden_idle_reload` fail (seed-100 1492 campaign,
-first differs at year_1529.sav, byte 0x9cd, got 1c, DOS 10),
-`golden_idle_america` and `golden_idle_america_reload` fail (first differs at
-save 16, byte 0xe5b, got 1a, DOS 1c), `golden_idle_independence` and
-`golden_idle_independence_reload` fail (first differs at save 9, byte 0x28ff,
-got 16, DOS 1c). `golden_ai_joint` and all unit tests passed. Reverted.
+**Blocks removal:** tried 2026-10-22 (test `colonists[pick].profession`); fails
+all six idle gates; reverted.
+[Details](archive/tolerated_dos_bugs_evidence_2026-10-24.md#tb-23).
 **Status:** tolerated (2026-10-22).
 
 ### TB-24 — Euro AI pioneer-clear ring scan counts water twice
@@ -432,13 +392,8 @@ Pioneer and clearing choices follow.
 (`src/core/ai_euro.c`, the land-branch `if` after the water block). The fix
 makes it an `else if`.
 
-**Blocks removal:** tried 2026-10-22: `else if` after the water block;
-`golden_idle_continuous` and `golden_idle_reload` fail (seed-100 1492 campaign,
-first differs at year_1511.sav, byte 0x335, got 90, DOS b0),
-`golden_idle_america` and `golden_idle_america_reload` fail (first differs at
-save 2, byte 0x26b, got 98, DOS b8), `golden_idle_independence` and
-`golden_idle_independence_reload` fail (first differs at save 12, byte 0xcad,
-got 90, DOS b0). `golden_ai_joint` and all unit tests passed. Reverted.
+**Blocks removal:** tried 2026-10-22 (`else if`); fails all six idle gates;
+reverted. [Details](archive/tolerated_dos_bugs_evidence_2026-10-24.md#tb-24).
 **Status:** tolerated (2026-10-22).
 
 ### TB-25 — Euro AI hull cargo buy checks gold against the last hold removal
@@ -452,20 +407,14 @@ check was meant to be `price * 100`.
 some earlier unload or sale happened to move, not on whether the nation can pay
 for the 100 units. After a small removal the gate passes lots the nation
 cannot pay for; after a large one it blocks lots the nation could pay for
-(DOSBox 1591: a French unload left 100, and the Dutch hull with a boycotted
-hold bought nothing).
+(seen in DOSBox 1591, [evidence](archive/tolerated_dos_bugs_evidence_2026-10-24.md#tb-25)).
 
 **Port (reproduces it):** the buy loop in the 5d04 departing-hull stage
 (`src/core/ai_euro_europe.c`, `nat->gold >= price * units_last_hold_amount`,
 bug #1029). The fix is `price * 100`.
 
-**Blocks removal:** tried 2026-10-22: gate on `price * 100`; CTest
-`golden_idle_continuous` and `golden_idle_reload` fail (seed-100 1492 campaign
-first differs at save 1501, offset 0x444: got 00, DOS 02),
-`golden_idle_independence` and `_reload` fail (first differs at save 14, offset
-0x2788: got 03, DOS 04), `golden_idle_america` and `_reload` fail (first
-differs at save 4, offset 0x788: got 00, DOS 01). `golden_ai_joint` passed; no
-other test failed. Reverted.
+**Blocks removal:** tried 2026-10-22 (`price * 100`); fails all six idle gates;
+reverted.
 **Status:** tolerated (2026-10-22).
 
 ### TB-26 — Euro AI Scouts and Colonists enter villages whatever the tribe's anger
@@ -485,13 +434,10 @@ or live among the natives however angry the tribe is with their nation.
 **Port (reproduces it):** `ai_euro_20e6_village_arm` (`src/core/ai_euro_land.c`)
 omits the alarm gate as "vacuously true".
 
-**Blocks removal:** tried 2026-10-22: Scout arm requires raw
-`alarm_by_player[tribe][nation] < 0x19` and Colonist arm requires
-`<= 0x18`; CTest `golden_idle_continuous` and `golden_idle_reload` fail
-(seed-100 1492 campaign first differs at save 1533, offset 0xa17: got 2e, DOS
-2f), `golden_idle_independence` and `_reload` fail (first differs at save 11,
-offset 0x2c: got 74, DOS 73). `golden_idle_america` and `golden_ai_joint`
-passed; no other test failed. Reverted.
+**Blocks removal:** tried 2026-10-22 (gate both arms on the raw alarm); fails
+`golden_idle_continuous`, `golden_idle_reload`, `golden_idle_independence` and
+`_reload`; reverted.
+[Details](archive/tolerated_dos_bugs_evidence_2026-10-24.md#tb-26).
 **Status:** tolerated (2026-10-22).
 
 ### TB-27 — Adjacent-foreign probe overwrites its reference medium
@@ -514,20 +460,12 @@ gate (`ai_king_war.c`).
 and `ai_euro_20e6_adjacent_foreign_09dc` (`src/core/ai_euro_land.c`). The fix is
 to keep the centre medium fixed.
 
-**Blocks removal:** tried 2026-10-22: the centre medium stays fixed, so a
-settlement neighbour is also compared with it (a ship at sea beside a coastal
-village no longer counts); CTest `golden_ai_turns` fails (TURN2->3: the nation-1
-type-13 unit at (51,39) ends with orders 0 and goal (51,39), DOS has orders 12
-and goal (50,39); TURN4->5 misses a unit), `golden_idle_continuous` and `_reload`
-fail (seed-100 1492 campaign first differs at save 1494, offset 0x1e2: got 00,
-DOS 0c), `golden_idle_independence` and `_reload` fail (first differs at save 2,
-offset 0xa24: got 01, DOS 0b), `golden_idle_america` and `_reload` fail (first
-differs at save 7, offset 0x711: got 0c, DOS 0f). `golden_ai_joint` fails
-(TURN2_to_3, TURN4_to_5). Non-golden: `unit_ai_euro_20e6`
-(`unit_adjacent_foreign_domains`, a colony across a coast must be detected).
-Reverted. A narrower fix (settlement neighbours still always pass, only the
-carry-over of the overwritten medium to later tiles is dropped) passes every
-test, but leaves the ship-beside-a-village case as DOS has it.
+**Blocks removal:** tried 2026-10-22 (the centre medium stays fixed); fails
+`golden_ai_turns`, `golden_ai_joint`, all six idle gates and `unit_ai_euro_20e6`
+(`unit_adjacent_foreign_domains`); reverted. A narrower fix (settlement
+neighbours still always pass, only the carry-over of the overwritten medium to
+later tiles is dropped) passes every test, but leaves the ship-beside-a-village
+case as DOS has it. [Details](archive/tolerated_dos_bugs_evidence_2026-10-24.md#tb-27).
 **Status:** tolerated (2026-10-22).
 
 ### TB-28 — Village "last bought" reset keyed on the unit slot, not the cargo
@@ -548,11 +486,9 @@ repeat sale of Muskets or Horses. Affects human and AI village trade.
 pool slot as the proxy (port_bugs.md #803). Pinned by
 `test_803_last_bought_keyed_on_unit_slot` in `unit_ai_contact_colony`.
 
-**Blocks removal:** tried 2026-10-22: testing the cargo (`cargo == Muskets ||
-cargo == Horses`) makes CTest `golden_idle_independence` and
-`golden_idle_independence_reload` fail (saves 7 and 8, tribe last-bought byte:
-got 0xff, DOS 0x08); `unit_ai_contact_colony` fails (#803 test). Other goldens
-and `golden_ai_joint` passed. Reverted.
+**Blocks removal:** tried 2026-10-22 (test the cargo); fails
+`golden_idle_independence` and `_reload`, and `unit_ai_contact_colony` (#803
+test); reverted. [Details](archive/tolerated_dos_bugs_evidence_2026-10-24.md#tb-28).
 **Status:** tolerated (2026-10-22).
 
 ### TB-29 — Village colony-cover mask uses the wrong coordinate frame
@@ -574,15 +510,10 @@ feeds village bids and asks, gift and beg triggers and the Live Among skill
 pick, for human and AI colonies.
 
 **Port (reproduces it):** `ai_contact_meet_economics_2154`, Phase 1
-(`src/core/ai_contact_demand.c`). Evidence: DOSBox independence 4->5 (the crown
-wagon's Ore / Furs bids 12 / 4).
+(`src/core/ai_contact_demand.c`). Evidence: DOSBox independence 4->5.
 
-**Blocks removal:** tried 2026-10-22: testing the cell's absolute position and
-passing `(rel_x, rel_y)` to the ring lookup and the own-tile test makes CTest
-`golden_idle_continuous` (first at year_1503.sav, byte 0x228: got 0x20, DOS
-0x21), `golden_idle_independence` (save 7, byte 0x28a2: got 0xea, DOS 0xf2),
-`golden_idle_america` (save 3, byte 0x614: got 0x11, DOS 0x16) and the three
-`_reload` variants fail. `golden_ai_joint` passed. Reverted.
+**Blocks removal:** tried 2026-10-22 (the fix); fails all six idle gates;
+reverted. [Details](archive/tolerated_dos_bugs_evidence_2026-10-24.md#tb-29).
 **Status:** tolerated (2026-10-22).
 
 ### TB-30 — Brave "stayed" facing 8 fed to the adjacent-direction helper
@@ -602,9 +533,7 @@ saved Brave positions and RNG stream.
 scorer in `src/core/ai_native_021a.c` (`facing + 1` / `facing - 1` test, no
 `facing < 8` guard).
 
-**Blocks removal:** tried 2026-10-22: skipping the +3 adjacent-direction term
-when `facing >= 8` makes CTest `golden_idle_independence` (save 5, byte 0x2c:
-got 0x72, DOS 0x70), `golden_idle_america` (save 38, byte 0xd16: got 0x30, DOS
-0x2f), `golden_idle_continuous` (year_1511.sav, byte 0x8d0: got 0x31, DOS 0x2f)
-and the three `_reload` variants fail. `golden_ai_joint` passed. Reverted.
+**Blocks removal:** tried 2026-10-22 (skip the +3 term when `facing >= 8`);
+fails all six idle gates; reverted.
+[Details](archive/tolerated_dos_bugs_evidence_2026-10-24.md#tb-30).
 **Status:** tolerated (2026-10-22).

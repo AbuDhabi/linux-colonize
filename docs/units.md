@@ -50,8 +50,8 @@ King's mercenaries stop at the first refusal.
 Optional post-win native settlement fallout context for
 units_resolve_land_combat_ff (FUN_5fef_31ea-shaped). When col1/map are non-NULL
 and attacker beats defender nation>=4, units_try_native_settlement_fallout runs
-(the treasure amount is its own argument; the old conquest_gold parameter was
-never read and is gone, port_bugs.md #1105). Pass NULL map to disable.
+(the treasure amount is its own argument, port_bugs.md #1105). Pass NULL map to
+disable.
 
 ## units_set_combat_europe
 
@@ -172,8 +172,10 @@ FUN_281f_0ac4 and read by the colony EOT at raw 57742:
 
 0x5239 / 0x523a are the @UNIT "cost" / "tools" columns (stride 0xe from
 DS:0x5230, the same record `space` reads at 0x5238). Artillery = 6*32 = 192
-hammers / 4*10 = 40 tools (golden-confirmed); Wagon Train = 1*32 = 32, which
-the first clamp lifts to 40.
+hammers / 4*10 = 40 tools (golden-confirmed at New Amsterdam); Wagon Train =
+1*32 = 32, which the first clamp lifts to 40. Only the `0x28` arm can ever
+fire, since `cost * 32` never lands in 40..51. Per-code costs and gates:
+[building_production.md](building_production.md#unit-projects-construction-codes-4248).
 
 The table is cached by units_load_types, so this takes no pool (the UI, the
 turn loop and the dialogs all resolve raw codes without one). Falls back to
@@ -245,7 +247,7 @@ Returns true when the core ring touched a Pacific-strip water tile
 Test-fixture hygiene: process-global callback hooks (move/combat watch,
 dissolve, popup pump, bgm, tax-change, spawn gate / spawn refused) and the
 injected combat context (combat popups, GAME.TXT, Europe, colonies, human
-nation, native fallout col1/map, conquest gold, the combat-analysis
+nation, native fallout col1/map, the combat-analysis
 presenter) persist across units_reset(pool) since they aren't per-pool
 state. Call this to put them all back to their unregistered (NULL / -1)
 initial values, e.g. at the top of a shared test fixture's setup, so one
@@ -262,12 +264,9 @@ Brave engine and the Euro AI.
 
 ## units_spawn_euro_starter_fleet
 
-Spawn European starter fleet (ship + Pioneer + Soldier) at (x,y).
-FUN_75c2_235c (raw 121612-121647): type 0xd ship (0xe for the Dutch, nation 3),
-then type 2 Pioneers, then type 1 Soldiers. Profession overrides: French
-(nation 1) Pioneers → @JOB 0x14 Hardy Pioneer; Soldiers → @JOB 0x15 Veteran
-Soldier when the nation is Spanish (2) **or** this nation is the human
-(`is_human`) on difficulty < 2. Returns ship unit id or -1.
+Spawn European starter fleet (ship + Pioneer + Soldier) at (x,y), DOS
+FUN_75c2_235c. Returns ship unit id or -1. Unit types and the Hardy /
+Veteran profession rules: [difficulty.md](difficulty.md#starter-skills).
 
 ## units_job_icon_sprite
 

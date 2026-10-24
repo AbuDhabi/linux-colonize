@@ -5,7 +5,7 @@ shading, wrap / width / centring, per-builder sizes, list rows and list keys of
 the DOS `6f74` dialog compositor (`FUN_6f74_14c6` layout, `FUN_6f74_0538` text,
 `FUN_6f74_2580` input) and how the port matches them. The base `FUN_6f74_14c6`
 size formula, the Europe menus and the figure placement stay in
-[popups.md](popups.md#europe-in-screen-menus--the-king-helper--closed-2026-09-07);
+[popups.md](popups.md#europe-in-screen-menus--the-king-helper);
 the popup inventory is [popups.md](popups.md), the exhaustive `@SECTION`
 reference [popups_catalog.md](popups_catalog.md).
 
@@ -69,9 +69,8 @@ banners and KING1 (and the throne's KINGWIN / KINGLOSE) are `FUN_281f_02f8` -> `
 at 100% on the sprite's header anchor (`ss_blit_anchored`: ENGLND1 (32, 0), KING1 (0, 12)).
 `FUN_6f74_1198` charges a continuation line's first word its leading space (6f74:13fd: local_8
 restarts at the measured " word"), so @NATION0A breaks "...had neither" before "the";
-`popup_wrap_text` does that for every dialog since port_bugs.md #1216 (next paragraph). Against the DOSBox-X captures of 2026-10-23 every wizard screen (@AMERICA, map picker,
-difficulty, nation, @LEADERNAME, @NATION0A / 0B, king) now matches pixel for pixel outside the
-13x19 mouse pointer (before: 9641 / 6724 / 0 / 0 / 1984 / 1591 / 239 / 8913 px). Test:
+`popup_wrap_text` does that for every dialog since port_bugs.md #1216 (next paragraph). Every wizard screen (@AMERICA, map picker, difficulty, nation, @LEADERNAME,
+@NATION0A / 0B, king) matches the DOSBox-X captures outside the 13x19 mouse pointer. Test:
 `unit_new_game wizard_dialog_layout_is_dos`.
 
 In-game wrap, width and centring (port_bugs.md #1216). Every 6f74 dialog (ai_popup prose,
@@ -84,11 +83,8 @@ draw 190 wide); 0 from the side-channel means no GAME.TXT section (port text, ai
 190). `FUN_6f74_14c6` stores max(box[+0x28], widest row) back into box[+0x28] before it calls
 1198, so rows wider than @width widen the prose too (`ai_popup_render` used to wrap at @width -
 4 first); a list prompt wraps instead of widening the box. `^^` rows (in-game only @TIMECHANGE)
-sit at + (wrap_w >> 1) - (width >> 1). Against DOSBox-X captures of 2026-10-23 (VR_SEED.EXE,
-the `map_pioneer_native_land` / `colony_eject_siege_refused` input saves) inside the frame:
-@INDIANFOREST 9723 -> 82 px, @RETIRE 3952 -> 82, @DOS 2245 -> 82, @SIEGE 2878 -> 747 (82 = the
-DOS pointer; @SIEGE's MSS1 figure and @INDIANFOREST's chief portrait came with #1220); the leave-as list 82 -> 82,
-purchase.png 0 -> 0, train.png 17 -> 17. Of 996 GAME.TXT section x font pairs 129 rewrap. Test:
+sit at + (wrap_w >> 1) - (width >> 1). Checked against DOSBox-X captures (VR_SEED.EXE, the
+`map_pioneer_native_land` / `colony_eject_siege_refused` input saves). Test:
 `smoke_ai_popup case_dos_wrap_and_width`.
 
 The same rows drive `ai_popup_render` and the `popup_list_metrics_dos6f74` list
@@ -100,14 +96,38 @@ Brewster picks (`FUN_38fd_4884`) and the Congress debate (`FUN_4345_06d2`), whic
 `FUN_6f74_0a00` widens the box to text + 4 + `box[+0x22]`. The save/load height is
 `popup_dos_list_height` (12 + prompt + rows). Test: `smoke_ai_popup case_rows_are_dos`.
 
+6f74 box fields, row pitch and selection bar (OVL24 ndisasm, offsets = 6f74 segment offsets;
+port_bugs.md #1189, #1192). Box `+0x10` / `+0x12` = x / y, `+0x14` / `+0x16` = width / height
+(`FUN_6f74_14c6` 0x16cb-0x16f6: x = 160 - (w >> 1), y = 100 - (h >> 1), clamped to 320 / 200).
+`FUN_6f74_06d0` defaults: `box[+0x22]` 4 (0x075c), `box[+0x46]` = (flags & 0x10) ? 0 : 3
+(0x078a), `box[+0x48]` 2 (0x079d). `FUN_6f74_0f16` returns `font[0]` (6 -> 5 unless
+`DS:0x1f8a`) = `glyph_h`. Pitches: option rows (`+0x54` list) `glyph_h + box[+0x46]` (0x1611),
+edit-field rows (`+0x60` list) `glyph_h + box[+0x46] + 5` (0x1649), prose lines `glyph_h + 1`
+(`FUN_6f74_1198` 0x1234), so a framed dialog has glyph_h + 3 / + 8 / + 1. `FUN_6f74_1b7c` builds
+the label x as `box[+0x24] + box[+0x48] + box[+0x22]` (0x1b86) and the bar x as that minus
+`box[+0x22]` minus 1 (0x1c8e), so the bar sits at `box[+0x24] + box[+0x48] - 1` = content origin
++ 1 whatever `+0x22` is; width `box[+0x20] + 2 * (1 - box[+0x48])` = content - 2, height
+`glyph_h + 2`. Its only other draws are two `FUN_6f74_033c` fills: a wood-brush erase of the
+whole option column (`box[+0x3c]` / `[+0x3e]`, height `(glyph_h + box[+0x46]) * box[+0x2]`) and
+the solid highlight (`box[+0x40]` / `[+0x42]`) behind the selected row. The box font is the
+`FUN_6f74_06d0` text record `box+0x74` (font word at `+0x80`), taken from the parser's
+dialog-font slot (`FUN_291f_023c`): FONTINTR (`DS:0x268a`) except inside the FONTTINY swaps of
+`FUN_7562_0052` / `FUN_647e_0e80`; the `DS:0x1f66` footer's FONTTINY test reads
+`box[+0x80]` / `[+0x82]` against `DS:0x89e` / `0x8a0`. Trap: `+0x54` and `+0x60` are different
+lists. `FUN_291f_0176` -> `FUN_6f74_0a00` appends option rows to `+0x54` (every `ai_popup`
+CHOICE row, the Congress debate, the `FUN_7562_0052` save / load slots: 8 / 10); only
+`FUN_6f74_0d44` (the parser's `DS:0x2008 != 0` arm) adds `+0x60` text-entry fields, and those
+are the only rows `FUN_6f74_1e14` boxes in an outlined wood rect (height `glyph_h + 5`, 0x1ee7).
+Option rows get no per-row button chrome.
+
 Colonizopedia article body (port_bugs.md #1222): `FUN_6cb2_03bc` makes the box frameless
 (`FUN_281f_040a`) | 0x20, switches the dialog font to FONTTINY and shows the section through
 `FUN_281f_0998` at y = DS:0x1f5a, so `pedia_body_render_text` is `popup_wrap_text` at @width
 (300), x 160 - (w >> 1), `popup_dos_center_dx` for `^^` rows, a 7 px pitch (font[0] + 1, from
 the capture); the "(name: category)" titles centre as `FUN_104b_0318`. Two caret lines in a row
 no longer leave an empty row between them (`popup_msg_section_body`; @FATHER1, also @TIMECHANGE).
-DOSBox-X captures 2026-10-23, whole screen: @FATHER0 734 -> 82, @FATHER1 736 -> 82, @FATHER12
-1128 -> 82, @FATHER20 1038 -> 82. Test: `unit_pedia case_article_body_wrap_is_dos`.
+Matches the DOSBox-X captures of @FATHER0 / 1 / 12 / 20 outside the mouse pointer. Test:
+`unit_pedia case_article_body_wrap_is_dos`.
 
 Centring users (port_bugs.md #1188). Every dialog in the port that is a 6f74
 compositor dialog without `@X`/`@Y` is centred by `popup_place_dos`: `popup_center_frame`

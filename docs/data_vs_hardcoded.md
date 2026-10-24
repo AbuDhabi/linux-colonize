@@ -54,7 +54,7 @@ Sectioned OEM text (`@SECTION`, `;` comments, `~` hotkeys). Parsers already exis
 | **`MEMORY.TXT` / `AUTOEXEC.TXT` / `CONFIG.TXT`** | DOS install / memory help samples — **do not load as game data**. |
 | **`DEBUG.TXT`** | Cheat dialog copy (`@SETVIEW`, `@CREATE`, …). Port loads it for Reveal Map / future cheats; not for MOTD/install samples. |
 
-**Port rule:** Prefer parsing `NAMES.TXT` / `GAME.TXT` / etc. over duplicating string lists or yield grids in C. Several modules still hardcode name arrays as stubs (`reports.c`, `europe.c` port names); migrate those to the catalogs when touching that code.
+**Port rule:** Parse `NAMES.TXT` / `GAME.TXT` / etc. rather than duplicating string lists or yield grids in C (Part D).
 
 ### 2. Packed graphics — **read from disk**
 
@@ -123,17 +123,17 @@ These do **not** appear as editable MicroProse catalogs. Recover from decomp / b
 | NEW WORLD map generation (land blobs, climate, rivers, arctic/HS) | VICEROY `FUN_684c_*`, `FUN_67bf_*` | `src/core/map_gen.c` |
 | DOS LCG / `range()` | `FUN_1d1d_0e04`, `FUN_19ef_0032` | `src/core/dos_rng.c` |
 | Tribe / Brave / satellite placement | `FUN_6a09_*` | `src/core/ai.c` |
-| Indian AI / growth / contact | `FUN_4d56_*` | `ai.c` (growth/pulse) + `ai_contact.c` — see [port_plan.md](port_plan.md) |
-| European AI planner | `FUN_521d_*` | `ai_euro.c` / `ai_goals.c` — early T2 slices (seed-100 sail/unload/found) + thin expand/war; `20e6` land arms ported 2026-08-27 (T1.18), deep −0x6790 still open — see [port_plan.md](port_plan.md) |
-| Euro diplomacy | `FUN_15b3_*` / `FUN_5bfb_*` | `ai_diplo.c` — see [port_plan.md](port_plan.md) |
-| King / REF | `FUN_43f7_*` | `ai_king.c` — see [port_plan.md](port_plan.md) |
+| Indian AI / growth / contact | `FUN_4d56_*` | `ai_indian.c` (growth) + `ai_brave.c` (pulse) + `ai_contact*.c` — see [indians.md](indians.md) |
+| European AI planner | `FUN_521d_*` | `ai_euro*.c` / `ai_goals.c` — flow map [ai_euro_logic_map.yaml](ai_euro_logic_map.yaml); deep −0x6790 matrix still thin |
+| Euro diplomacy | `FUN_15b3_*` / `FUN_5bfb_*` | `ai_diplo.c` |
+| King / REF | `FUN_43f7_*` | `ai_king*.c` — see [king_ref.md](../original_sources_annotated/ai/king_ref.md) |
 | Map tile compositor (masks, draw order) | MAPEDIT `FUN_1a47_*` | `src/core/map.c` |
 | Resource / rumour procedural placement | MAPEDIT `FUN_12ab_*` | `map.c` |
 | Turn / calendar mechanics beyond `@TIMECHANGE` copy | VICEROY + saves | `src/core/turn.c` |
-| Colony manufacturing **tier rates** `3 / 6 / 9` (provisional; DOS via `FUN_15eb_15c6` depth + `FUN_15eb_1d4c`) | Decomp (peel incomplete) + manual Building Chart effects — **not** EXE `@ 0x16103` | `src/core/colony_production.c` |
+| Colony manufacturing **tier rates** `3 / 6 / 9` (DOS-confirmed: `FUN_15eb_15c6` depth + `FUN_15eb_1d4c`) | Decomp — **not** EXE `@ 0x16103` | `src/core/colony_production.c` |
 | Craft recipes (ore→tools, …), SoL ±, shortfall rules | Manual + decomp; not in `NAMES.TXT` | `colony_craft.c` / `colony_production.c` — see [building_production.md](building_production.md), [sons_of_liberty.md](sons_of_liberty.md) |
 | Town-commons dual-produce rules | Manual + Col1 fixtures; not a yield-table row | `colony_yield.c` — see [terrain_yields.md](terrain_yields.md) |
-| Plow / road / river yield modifiers | `FUN_15eb_18ec` (stacking) | `colony_yield.c` (port still max(road,river) — divergent) |
+| Plow / road / river yield modifiers | `FUN_15eb_18ec` (stacking) | `colony_yield.c` (literal stack — [terrain_yields.md](terrain_yields.md) "Plow / road / river stack") |
 | UI layout coordinates, hit-rects, wizard image regions | Decomp + DOSBox captures | `new_game.c`, `colony_screen.c`, … |
 | Sound ID ranges, ~60 Hz tick, opcode map | Inside `GSOUND.COL` MZ + VICEROY gating | `src/core/sound.c` |
 | Col1 save binary layout | Saves + RE | `src/core/col1_save.h` |
@@ -142,9 +142,9 @@ These do **not** appear as editable MicroProse catalogs. Recover from decomp / b
 
 | Table | Source | OpenCol home |
 |-------|--------|------------|
-| Terrain meta, tile display, river transition, feature sprite bases, connectivity | `VICEROY.EXE` DS tables | `src/data/viceroy_tables.c` via `scripts/extract_viceroy_tables.py` — see [viceroy_tables.md](viceroy_tables.md) |
+| Terrain meta (Colonizopedia preview only; DS mapping unverified) | `VICEROY.EXE` DS tables | `src/data/viceroy_tables.c` via `scripts/extract_viceroy_tables.py` — see [viceroy_tables.md](viceroy_tables.md) |
 | Resource type by terrain class (29 ints) | MAPEDIT DS `0x4de` | Currently hardcoded in `map.c` (`mapedit_resource_type_by_terrain`) — same “extract once” class |
-| Manufacturing free-colonist rates `3/6/9` | Port constants; DOS `FUN_15eb_1d4c` / `15eb_15c6` (no valid `0x16103` table) | `colony_production.c` — see [building_production.md](building_production.md) |
+| Manufacturing free-colonist rates `3/6/9` | Computed by DOS `FUN_15eb_1d4c` / `15eb_15c6` (no `0x16103` table) | `colony_production.c` — see [building_production.md](building_production.md) |
 
 **Note:** World-map **feature art** follows **MAPEDIT**, not the VICEROY connectivity tables (those are retained for pedia / residual paths).
 
@@ -180,7 +180,7 @@ These do **not** appear as editable MicroProse catalogs. Recover from decomp / b
 | Map gen, RNG, AI, combat formulas | VICEROY decomp | **Bake algorithm** |
 | Coast/forest/hill/river blit rules | MAPEDIT decomp | **Bake algorithm** |
 | Resource class → type table | MAPEDIT binary | **Bake table** |
-| Manufacturing 3/6/9 tiers, class multipliers | Port constants; DOS `15eb_1d4c` peel incomplete | **Bake constants** (cite [building_production.md](building_production.md)) |
+| Manufacturing 3/6/9 tiers, class multipliers | DOS `15eb_1d4c` (DOS-confirmed) | **Bake algorithm** (cite [building_production.md](building_production.md)) |
 | Town commons / plow / road / SoL modifiers | Manual + `15eb_18ec` / SoL docs | **Bake rules** (not in TXT) — see [terrain_yields.md](terrain_yields.md) |
 | Screen chrome coordinates | Decomp + dumps | **Bake constants** |
 | Save format | `.SAV` + RE | **Bake structs**; R/W files |
@@ -257,9 +257,8 @@ oddly can hide a lookup that never worked.
 ## See also
 
 - [original_index.md](original_index.md) — FUN_* and file index
-- [port_plan.md](port_plan.md) — AI bake inventory and remaining work
 - [assets.md](assets.md) — MADSPACK, map layers, UI wiring
 - [viceroy_tables.md](viceroy_tables.md) — extracted VICEROY DS tables
 - [terrain_yields.md](terrain_yields.md) / [building_production.md](building_production.md) — yield & manufacturing rules
-- [decomp_inventory.md](decomp_inventory.md) — bring-up / fidelity status
+- [decomp_inventory.md](decomp_inventory.md) — known Ghidra disassembly faults
 - [savegame.md](savegame.md) — `COLONY##.SAV` layout

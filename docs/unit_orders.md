@@ -43,11 +43,11 @@ from `NAMES.TXT` (fallback table in `unit_chrome.c`: `- S T G L F F B P R`).
 | 12 | AI Move | `-` | yes | Euro / Brave land course (`UNITS_ORDER_AI_MOVE`) |
 | 13 | Follow | `-` | yes | Stick to another unit (`UNITS_ORDER_FOLLOW`) |
 
-Helpers (`units.h`):
+Helpers (`units_move.h`):
 
 - `units_orders_follow_goto` — GOTO / AI_SAIL / AI_MOVE / TRADE_ROUTE
 - `units_orders_is_follow` — FOLLOW
-- `units_orders_skip_turn` — SENTRY, **FORTIFY**, FORTIFIED, CLEAR_PLOW, BUILD_ROAD. FORTIFY joined the set 2026-09-04: digging in does zero the allotment, but the COL1 export writes spent 0 for an exhausted land unit, so a save taken the same turn reloads it with orders 5 and a full allotment — straight back into the control queue (port_bugs.md). DOS's cycle reads the order byte, not the MP.
+- `units_orders_skip_turn` — SENTRY, **FORTIFY**, FORTIFIED, CLEAR_PLOW, BUILD_ROAD. DOS's cycle reads the order byte, not the MP: the COL1 export writes spent 0 for an exhausted land unit, so a test on MP would put a unit that fortified this turn back into the control queue after a reload.
 
 **UI commands without a lasting `@ORDERS` byte:** Wait, Activate, Disband, Dump
 Cargo, Pillage, Load/Unload Cargo, Return to Europe, Join Colony, No Orders
@@ -160,7 +160,7 @@ stateDiagram-v2
 | Abort list / drag | Esc / right-click before dest set | Cancel destination picking only | `cheat_list` cancel / `UI_DRAG_MAP_GOTO` clear | Done |
 | Begin Trade Route | ORDERS | Order 2; route picker (sea/land filtered) + starting-stop picker; cycle stops. Route slot + stop index live in the unit's profession byte (`+0x17`; `FUN_1427_0f64`/`0f8e`), so they survive a save | `units_order_trade_route` + aim/cycle; strict DOS nibble lists; cursor bridged through `profession` | Done |
 | Trade at stop | Arrival | Unload/load exactly the stop lists; Europe sell+auto-buy; @ROUTELOOP on 1-port routes; retarget; stay order 2 | `game_trade_route_retarget` (DOS 479b_0bd0) | Done |
-| FOLLOW | AI / Brave escort | Stick to unit id | `units_follow_unit` / `advance_follow` | Done (AI-only) |
+| FOLLOW | — | No DOS counterpart (`@ORDERS` has rows 0..12) | `units_follow_unit` / `units_advance_follow_one_step_w`: port API with no production caller (only `test_units_core`) | Unused |
 | AI_MOVE / AI_SAIL | AI planners | Goto-following course bytes | Same stepper as human goto | Done (structural) |
 
 ### Pioneer
@@ -187,7 +187,7 @@ stateDiagram-v2
 
 | Command | When | Expected (DOS) | OpenCol | Status |
 |---------|------|----------------|-------|--------|
-| Pillage | Military on foreign colony / improvements | Full `2b5a` body; menu item often hidden in `0b34` | Thin loot ≤100 richest non-food / clear plow+road; **menu always hidden** (DOS-faithful); API reachable | Partial |
+| Pillage | Military on foreign colony / improvements | Full `2b5a` body; menu item often hidden in `0b34` | Thin loot ≤100 richest non-food, colony arm only (DOS has no improvement-destroying pillage; the invented plow/road clear is deleted, port_bugs.md #631); **menu always hidden** (DOS-faithful); API reachable | Partial |
 | Live In Village (4) | — | `@ORDERS` letter **L** | Immediate menu action, no tick | Done 2026-08-28 (`ai_contact_live_among_natives`) |
 
 ---
@@ -243,30 +243,6 @@ Full inventory in [popups.md](popups.md) §3 / `@SECTION` index. Order-related:
 
 ---
 
-## Status summary
-
-| Area | Status |
-|------|--------|
-| Order byte model + chrome letters | Done |
-| Fortify / Anchor / Sentry / Wake / Disband | Done |
-| Go-To Place / Port / drag + paced pathing (no gamble); player cancel | Done |
-| Pioneer clear / plow / road multi-turn + tools wear | Done |
-| Board / unload / landfall / sentry auto-board / dump / return Europe | Done |
-| Build / Join colony (immediate actions) | Done |
-| Trade Route begin / aim / cycle / stop service | Done (create wizard + EDIT TRADE ROUTE screen + DOS stop service) |
-| Pillage | Colony-loot arm only; DOS has no improvement-destroying pillage (port_bugs.md #631). ORDERS item hidden like DOS `0b34` |
-| Order-gate modals (`@NOPLOW`, `@NOROAD`, EOT `@NEEDTOOLS`/`@NEEDTOOLS0`) | Done thin (`@ONLYPIO` retired as dead text, port_bugs.md #621) |
-| Colony docked-unit orders popup | Done thin (`@COLONYUNIT`/`@SHIPOPTIONS`/`@UNITOPTIONS`; VGA chrome PARKED) |
-| `@ORDERS` index 4 Live In Village | Missing |
-| Order byte 7 as lasting Build Colony | Unused (founding immediate — acceptable) |
-| AI MOVE / SAIL / FOLLOW / fortify / pioneer | Done (structural) |
-
-**Bottom line:** Map ORDERS for the human player are substantially ported. Remaining
-order gaps are thin Pillage depth, non-modal order gates, unused Live In Village byte,
-and TRADE chrome polish.
-
----
-
 ## See also
 
 - [manual_gap.md](manual_gap.md) — Units and map orders checklist
@@ -275,7 +251,7 @@ and TRADE chrome polish.
 - [assets.md](assets.md) — map keys, Go-To draw, orders chrome
 - [popups.md](popups.md) — order gates and confirms
 - [turn_between_players.md](turn_between_players.md) — EOT / human finish orders
-- [port_plan.md](port_plan.md) — AI use of order bytes
+- [ai_euro_logic_map.yaml](ai_euro_logic_map.yaml) — AI use of order bytes
 - [`FUNCTION_CATALOG.md`](../original_sources_annotated/FUNCTION_CATALOG.md) — segments `2b5a`, `479b`, `6662`, `112b`
 - [`units.h`](../src/core/units.h) — order macros and APIs
 

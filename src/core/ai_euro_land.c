@@ -1396,8 +1396,8 @@ static int ai_euro_20e6_patrol_arm(ColonizeTurnContext* ctx, ColonizeUnit* u, co
  * it down, and this arm therefore recalls exactly ONE surplus unit per colony
  * per tick before the flag goes quiet until the next 5952 recompute raises it
  * again. Ported 2026-09-09 with the bit-0x04 consumer audit (the third
- * consumer, FUN_5952_035e's join-colonist loop at raw 94247, belongs to an
- * unported pass — documented in colony.h).
+ * consumer, FUN_5952_035e's join-colonist loop at raw 94247, is
+ * ai_euro_5952_absorb_equip; docs/colony.md).
  *
  * Returns 1 when it handled the unit.
  */

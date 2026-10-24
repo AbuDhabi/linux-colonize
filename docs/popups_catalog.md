@@ -5,7 +5,7 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 ## Contents
 
 - [Appendix A — Full `GAME.TXT` `@SECTION` checklist](#appendix-a--full-gametxt-section-checklist)
-- [Appendix B — `AiPopupTag` map](#appendix-b--aipouptag-map)
+- [Appendix B — `AiPopupTag` map](#appendix-b--aipopuptag-map)
 - [Appendix C — dialog figure latches](#appendix-c--dialog-figure-latches)
 - [MAPEDIT](#mapedit-out-of-scope)
 - [See also](#see-also)
@@ -103,7 +103,7 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@SPOIL2` | Done thin | EOT multi-cargo tip warehouse (`spoil_types>1`) |
 | `@SPOIL3` | Done thin | EOT expanded warehouse single (`warehouse_level>1`) |
 | `@SPOIL4` | Done thin | EOT expanded warehouse multi |
-| `@BUYME0` | Missing | info-only twin unused; cost lines live in `@BUYME1` confirm |
+| `@BUYME0` | Done thin | colony Buy when gold < cost: OK with building / cost / gold tokens (`game_request_buy_construction_confirm`, `game_dialogs.c`); the affordable case is the `@BUYME1` confirm |
 | `@BUYME1` | Done thin | colony buy-construction CHOICE Never mind / Complete it |
 | `@DEFOREST` | Done thin | pioneer clear-forest near owned colony ai_popup OK |
 | `@DEPLETION` | Done thin | EOT ore/silver wrap ai_popup OK (`@DEPLETION`); VGA PARKED |
@@ -123,11 +123,11 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@LOSTCITY7` | Done thin | Friendly tribe's chief gift (small gold) |
 | `@LOSTCITY8` | Done thin | Trespassing near shrines — native relation malus, no combat |
 | `@LOSTCITY9` | Done thin | Survivors of a former colony join (free Colonist spawns) |
-| `@SNEAK` | Done | User-confirmed real (2026-08-14): AI Euro attacks outright at peace, war declared as a side effect of the attack (not a prerequisite) — already correctly implemented in `ai_euro_try_attack` (`src/core/ai_euro.c`). Fixed: was silently calling bare `ai_diplo_declare_war` (no notification); now `ai_diplo_declare_war_ctx` + real GAME.TXT "Sneak attack by the treacherous %STRING0!" status when human is a party. Covered by `unit_ai_diplo` (`test_ai_diplo.c`, direct `popup_msg_fill` check against real GAME.TXT — end-to-end dispatcher assertion too flaky, the since-deleted `ai_diplo_euro_balance` pass could win the race within the same turn; it is gone since 2026-10-18, port_bugs.md #1104).  2026-09-28 (port_bugs.md #980): it is a modal popup in DOS, not a status line — `FUN_4720_049e` asm `0x3f1b4` uses the plain message-box call (`lea bx,[0x87c]` "GAME" / `lea ax,[0x13c5]` / `call 0x181f:0x998`, same shape as @NODOCKS / @TRADENONE) and fires before the @DECLAREWAR choice dialog at `0x3f262`. `ai_euro_try_attack` now queues `AI_POPUP_TAG_DIPLO_SNEAK` and promotes it ahead of the @DECLAREWAR popup. |
+| `@SNEAK` | Done | User-confirmed: AI Euro attacks outright at peace, war declared as a side effect of the attack. A modal OK in DOS (`FUN_4720_049e` asm `0x3f1b4`, the plain message-box call as for @NODOCKS / @TRADENONE) that fires before the @DECLAREWAR choice (`0x3f262`): `ai_euro_try_attack` (`ai_euro_land.c`) queues `AI_POPUP_TAG_DIPLO_SNEAK` ahead of it and declares via `ai_diplo_declare_war_ctx` (port_bugs.md #980). Test: `unit_ai_diplo` (`popup_msg_fill` against the real GAME.TXT) |
 | `@CANCELPEACE` | Done | DIPLO_* CHOICE structural; 10ec AI→human war-declare CHOICE prompt body now the real GAME.TXT line via `popup_msg_fill` |
 | `@SIGNTREATY` | Done | DIPLO_* CHOICE structural; peace-concluded OK popup body now the real GAME.TXT line via `popup_msg_fill` (Tools-embargo-lift chrome may override) |
 | `@DECLAREWAR` | Done | DIPLO_* CHOICE structural; war-declared OK popup body now the real GAME.TXT line via `popup_msg_fill` (boycott/hostility chrome may override); also `13b0` treaty-cancel-without-peace notice (2026-08-27) |
-| `@CANCELTREATY` | n/a — DOS shows nothing | `FUN_5bfb_13b0` cancel branch pushes tag `0x1898` = `CANCELTREATY`, but **no `.TXT` in `COLONIZE/` has that section**. `FUN_7314_001a` (open resource; scan for `@TAG`) hits EOF → returns 1 → `FUN_6f74_32a4` skips the whole parse and returns a NULL box → `FUN_6f74_36ca` returns 0 without ever opening a dialog. So real DOS cancels the treaty **silently** (bits + timers only). That is a data bug ([dos_bugs.md](dos_bugs.md) DB-52, 2026-10-23): the port shows a port-authored "The X cancel their treaty with the Y." notice when the section is missing; a GAME.TXT that ships it wins |
+| `@CANCELTREATY` | n/a — DOS shows nothing | `FUN_5bfb_13b0` cancel branch pushes tag `0x1898`, which no `COLONIZE/*.TXT` ships, so DOS cancels the treaty silently (popups.md "Missing sections show nothing"). Data bug [dos_bugs.md](dos_bugs.md) DB-52: the port shows a port-authored notice when the section is missing; a GAME.TXT that ships it wins |
 | `@HAVETREATY` | Done | euro-attack confirm gate in `ai_contact.c` (real GAME.TXT body via `popup_msg_fill`, 2026-09-01) |
 | `@WHACKINDIANS` | Done (structural) | `FUN_465b_0000` → `ai_contact_try_whack_confirm` (2026-08-27): Yes/No before the first attack on a calm tribe, asked once (bit 0x04); real GAME.TXT body via `popup_msg_fill` |
 | `@VILLAGEHAPPY` | Done | Village-meet body picked by alarm band (`ai_contact_enqueue_village_meet`, `ai_contact.c`) — real GAME.TXT via `popup_msg_fill`; the tag itself is built at runtime from the DS `"VILLAGE"` stem (0x1710) + band suffix, as in DOS. Confirmed 2026-09-16 |
@@ -167,7 +167,7 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@LOOT` | Done | Cortes/conquest treasure fallout |
 | `@LOOT2` | Done | village burn without treasure |
 | `@LOOTCASH` | Done thin | `europe_cash_treasure` status now the real GAME.TXT line (was invented "Treasure cash-in +$"); not combat — combat uses `@LOOTCAPTURE` capture |
-| `@LOOTFOREIGN` | Missing | Bystander spy-report sibling of `@LOOTCASH` (mirrors `@BURNED3`); not wired — `ai_euro_cash_one_treasure` reuses one shared `EuropeScreen` scratch struct per nation and it is unclear whether/when it runs for AI (non-human) nations, so gating "human is not the cashing nation" needs that traced first |
+| `@LOOTFOREIGN` | Done | AI cashes a treasure in its own colony (`FUN_521d_20e6` treasure arm, `units_ai_treasure_cash_in_colony`, `units.c`): pre-WoI OK, %STRING0 nationality, %STRING1 home port, %NUMBER0 gold |
 | `@LOOTCAPTURE` | Done | treasure nation-flip capture (`FUN_5fef_0352` raw 99392-99413); NUMBER0 = value, display only |
 | `@WAGONCAPTURE` | Done | wagon nation-flip capture |
 | `@COLONISTCAPTURE` | Done | Euro winner captures Colonists only (not Pioneer) |
@@ -186,12 +186,12 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@RAIDSCALP` | Done | real GAME.TXT body via `popup_msg_fill` (re-verified 2026-09-16) |
 | `@RAIDSHIP` | Done | real GAME.TXT body incl. `units_display_name` via `popup_msg_fill` (re-verified 2026-09-16) |
 | `@RAIDGOLD` | Done | real GAME.TXT body incl. drained amount (`%NUMBER0`) via `popup_msg_fill` (re-verified 2026-09-16) |
-| `@MISSION0` | Done | `ai_contact_establish_mission` picks the band (`MISSION` + 0-3, exactly DOS's digit patch of the DS `"MISSION0"` stem) and fills the real GAME.TXT body — nation / colony / season / year / tribe tokens. Confirmed 2026-09-16 |
-| `@MISSION1` | Done | `ai_contact_establish_mission` picks the band (`MISSION` + 0-3, exactly DOS's digit patch of the DS `"MISSION0"` stem) and fills the real GAME.TXT body — nation / colony / season / year / tribe tokens. Confirmed 2026-09-16 |
-| `@MISSION2` | Done | `ai_contact_establish_mission` picks the band (`MISSION` + 0-3, exactly DOS's digit patch of the DS `"MISSION0"` stem) and fills the real GAME.TXT body — nation / colony / season / year / tribe tokens. Confirmed 2026-09-16 |
-| `@MISSION3` | Done | `ai_contact_establish_mission` picks the band (`MISSION` + 0-3, exactly DOS's digit patch of the DS `"MISSION0"` stem) and fills the real GAME.TXT body — nation / colony / season / year / tribe tokens. Confirmed 2026-09-16 |
-| `@HERESY0` | Done | `ai_contact_denounce_heresy` — real GAME.TXT body via `popup_msg_fill`, both outcomes (mission taken over / missionary burned). Confirmed 2026-09-16 |
-| `@HERESY1` | Done | `ai_contact_denounce_heresy` — real GAME.TXT body via `popup_msg_fill`, both outcomes (mission taken over / missionary burned). Confirmed 2026-09-16 |
+| `@MISSION0` | Done | `ai_contact_establish_mission` picks the band (`MISSION` + 0-3, exactly DOS's digit patch of the DS `"MISSION0"` stem) and fills the real GAME.TXT body — nation / colony / season / year / tribe tokens |
+| `@MISSION1` | Done | as `@MISSION0` |
+| `@MISSION2` | Done | as `@MISSION0` |
+| `@MISSION3` | Done | as `@MISSION0` |
+| `@HERESY0` | Done | `ai_contact_denounce_heresy` — real GAME.TXT body via `popup_msg_fill`, both outcomes (mission taken over / missionary burned) |
+| `@HERESY1` | Done | as `@HERESY0` |
 | `@INDIANBURN` | Done | `FUN_4cc6_0000` mission clear (`ai_contact_demand.c`) — real GAME.TXT body via `popup_msg_fill` |
 | `@INDIANWIN0` | Done | Native attacker beats a human land defender: ai_contact ambush arm **and** the generic `units_combat_outcome_popups` path (braves stepping onto defended tiles); `units_set_native_combat_chrome_owned` keeps the two from doubling |
 | `@INDIANWIN1` | Done | Ambush arm only (muskets seized); generic path has no native seizure, like DOS |
@@ -211,35 +211,35 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@EUROPEWIN` | Done | `{atk_nation} defeat {def_nation def_unit} near {place}!` |
 | `@EUROPELOSE` | Done | `{def_nation def_unit} defeat(s) {atk_nation} near {place}!` |
 | `@WAREHOUSEFULL` | Done thin | ship→colony unload when no room; spoilage remains `@SPOIL*` |
-| `@EXTORTSTUFF` | Missing | extort/ship anger dialogs missing |
-| `@EXTORTPOOR` | Missing | extort/ship anger dialogs missing |
-| `@EXTORTLAUGH` | Missing | extort/ship anger dialogs missing |
-| `@EXTORTNO` | Missing | extort/ship anger dialogs missing |
+| `@EXTORTSTUFF` | Done | Demand Tribute (`thunk_FUN_1000_a5f4`, `ai_contact_demand_tribute`): won, village not yet extorted, 10 of its top good to the nearest colony |
+| `@EXTORTPOOR` | Done | same, not won (alarm < 50) or already extorted |
+| `@EXTORTLAUGH` | Done | same, Indian side stronger and not won, or alarm >= 75 |
+| `@EXTORTNO` | Done | same, alarm 50..74 |
 | `@TOONEAR` | Done | already real (`game_loop.c` Build Colony adjacency-to-existing-colony scan) — verified against DOS |
 | `@TOONEARBUILD` | Done | new 9-tile neighbor scan for a unit with `UNITS_ORDER_BUILD_COLONY` pending (`game_try_found_colony_at_cursor`, `game_dialogs.c`) — was entirely unported, fell through to generic "Cannot found colony here" |
 | `@DONTKNOWSHIPS` | Done | Ship→unmet village: `ai_contact_try_ship_village` OK |
 | `@MADATSHIPS` | Done | Ship→met village (rel≥75 / friction≥64): same |
-| `@MADATWAGONS` | Missing | extort/ship anger dialogs missing |
-| `@GRUDGEWAGONS` | Missing | extort/ship anger dialogs missing |
+| `@MADATWAGONS` | Done | Enter Hostile Village (`thunk_FUN_1000_a5e8`, `ai_contact_enter_hostile_village`): rand(0,500) <= 2 * alarm |
+| `@GRUDGEWAGONS` | Done | same, the trade then runs |
 | `@CONFISCATE` | Dead tag | GAME.TXT-only: the string does not exist in VICEROY.EXE's DS (verified by `strings` over `COLONIZE/VICEROY.EXE`), so DOS never raises it. Nothing to port. |
-| `@CHIEFHOWDY` | Missing | chief portrait dialogs missing |
-| `@CHIEFGUIDES` | Missing | chief portrait dialogs missing |
-| `@CHIEFAREA` | Missing | chief portrait dialogs missing |
-| `@CHIEFGIFT` | Missing | chief portrait dialogs missing |
-| `@CHIEFBORED` | Missing | chief portrait dialogs missing |
-| `@CHIEFKILL` | Missing | chief portrait dialogs missing |
-| `@KILLWAGONS` | Missing | chief portrait dialogs missing |
+| `@CHIEFHOWDY` | Done | Speak With Chief (`thunk_FUN_1000_a60c`, `ai_contact_speak_with_chief`, Scouts) |
+| `@CHIEFGUIDES` | Done | same |
+| `@CHIEFAREA` | Done | same (tales of nearby lands) |
+| `@CHIEFGIFT` | Done | same |
+| `@CHIEFBORED` | Done | same |
+| `@CHIEFKILL` | Done | same |
+| `@KILLWAGONS` | Done | same, rand(0,500) <= alarm: unit destroyed |
 | `@TRADE0` | Done (structural) | `2820` sell offer (any cargo, whole hold, NAMES `@VALUES` adjective): Accept / fairer price / gift / Never mind → `ai_contact_enqueue_trade_offer_round` (2026-08-29 rewrite) |
 | `@TRADE1` | Done (structural) | `2820` sell counter-offer re-ask after a successful haggle (3 options) (2026-08-27) |
 | `@BADCARGO` | Done (structural) | `2820` human gate: `last_bought == cargo` / `last_sold == cargo` / `ask[cargo] == 0` → refuse, names the three highest-ask goods (2026-08-29) |
 | `@BADHAGGLE0` | Done (structural) | `2820` sell-side patience exhausted → `sticky_trade_good = cargo`, alarm +tier/2+1 (2026-08-27) |
 | `@BADHAGGLE1` | Done (structural) | `2820` revisit gate `tribe+7 == cargo` → refuse line, no trade (2026-08-27); `0xfe` skips the buy offer silently |
 | `@BADHAGGLE2` | Done (structural) | `2820` buy-side haggle refusal → `ai_contact_2e92_haggle` (2026-08-27) |
-| `@BADHAGGLE3` | Missing | deep village trade 2820 PARKED |
+| `@BADHAGGLE3` | Done (structural) | `2820` buy phase (`ai_contact_2820_buy_phase`): tribe already walked out of a haggle (`tribe+7 == 0xfe`), human only (port_bugs.md #801) |
 | `@BRING` | Done (structural) | `2820` `LAB_002e92` entry: sold good not in the top-2 asks (or empty-handed unit) → "we are in need of X and Y" (2026-08-29) |
-| `@DEFICIT` | Missing | deep village trade 2820 PARKED |
+| `@DEFICIT` | Done (structural) | same, nothing sold this visit (`FUN_4d56_311e`), human only |
 | `@BUYWHICH` | Done (structural) | `2820` `LAB_002e92` human pick of 3 tribe goods → `ai_contact_enqueue_buywhich`; only after a completed sale, qty = the sold hold's amount (2026-08-29) |
-| `@TRADEWHICH` | Done | two DS ids share the name: `0x1556` (village trade 2820, PARKED) and `0x1ad2`, the foreign-colony hold pick of `FUN_5f7a_020e` — `AI_POPUP_TAG_FOREIGN_TRADE_WHICH` (game_loop.c), docs/foreign_colony_trade.md |
+| `@TRADEWHICH` | Done | two DS ids share the name: `0x1556` (village trade 2820 hold pick, `ai_contact_trade.c`) and `0x1ad2`, the foreign-colony hold pick of `FUN_5f7a_020e` — `AI_POPUP_TAG_FOREIGN_TRADE_WHICH` (game_loop.c), docs/foreign_colony_trade.md |
 | `@BUY0` | Done (structural) | `2820` `LAB_002e92` Accept / fairer / Never mind → `ai_contact_apply_buywhich`/`apply_buy0`; treasury shown in the accept row (2026-08-29) |
 | `@BUY1` | Done (structural) | `2820` buy-side haggle re-ask (tag built at runtime `"BUY"+digit`) (2026-08-27) |
 | `@NOTENOUGH` | Done (structural) | `2820` `LAB_002e92` can't-afford line on Accept, alarm +1 (2026-08-29) |
@@ -270,15 +270,15 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@PISS3` | n/a | dead text: no `PISS` string in VICEROY.EXE (`strings` scan + popup_tag_ids.md), no stem for a digit patch — nothing can push it |
 | `@PISS4` | n/a | dead text: no `PISS` string in VICEROY.EXE (`strings` scan + popup_tag_ids.md), no stem for a digit patch — nothing can push it |
 | `@PISS5` | n/a | dead text: no `PISS` string in VICEROY.EXE (`strings` scan + popup_tag_ids.md), no stem for a digit patch — nothing can push it |
-| `@KINGNO` | n/a | Dead text: audience-chamber "we do not deign" refusal (`38fd:44a4`, tax >= 60). The only reader is `FUN_38fd_462e`, the King's audience chamber, and no `CALLF`/`JMPF` anywhere in `viceroy_unpacked.asm` or `viceroy_overlays.asm` reaches it; the chamber's own menu (`@AUDIENCE` `0x10d4`) and brush-off (`@KINGGOAWAY` `0x10c9`) are not in the shipped `GAME.TXT`. Feature cut before release — do not port (2026-09-16) |
-| `@KINGFUND` | n/a | Dead text: audience-chamber grant CHOICE (`38fd:44a4`, accept / never mind). The only reader is `FUN_38fd_462e`, the King's audience chamber, and no `CALLF`/`JMPF` anywhere in `viceroy_unpacked.asm` or `viceroy_overlays.asm` reaches it; the chamber's own menu (`@AUDIENCE` `0x10d4`) and brush-off (`@KINGGOAWAY` `0x10c9`) are not in the shipped `GAME.TXT`. Feature cut before release — do not port (2026-09-16) |
-| `@KINGLOWER` | n/a | Dead text: audience-chamber tax-cut grant (`38fd:4590`). The only reader is `FUN_38fd_462e`, the King's audience chamber, and no `CALLF`/`JMPF` anywhere in `viceroy_unpacked.asm` or `viceroy_overlays.asm` reaches it; the chamber's own menu (`@AUDIENCE` `0x10d4`) and brush-off (`@KINGGOAWAY` `0x10c9`) are not in the shipped `GAME.TXT`. Feature cut before release — do not port (2026-09-16) |
-| `@KINGNOTHING` | n/a | Dead text: audience-chamber "we shall not change your tax rate" (`38fd:4590`). The only reader is `FUN_38fd_462e`, the King's audience chamber, and no `CALLF`/`JMPF` anywhere in `viceroy_unpacked.asm` or `viceroy_overlays.asm` reaches it; the chamber's own menu (`@AUDIENCE` `0x10d4`) and brush-off (`@KINGGOAWAY` `0x10c9`) are not in the shipped `GAME.TXT`. Feature cut before release — do not port (2026-09-16) |
-| `@KINGRAISE` | n/a | Dead text: audience-chamber punitive hike (`38fd:4590`). The only reader is `FUN_38fd_462e`, the King's audience chamber, and no `CALLF`/`JMPF` anywhere in `viceroy_unpacked.asm` or `viceroy_overlays.asm` reaches it; the chamber's own menu (`@AUDIENCE` `0x10d4`) and brush-off (`@KINGGOAWAY` `0x10c9`) are not in the shipped `GAME.TXT`. Feature cut before release — do not port (2026-09-16) |
+| `@KINGNO` | n/a | Cut audience chamber (`FUN_38fd_462e`, never called; popups.md §8): "we do not deign" refusal (`38fd:44a4`, tax >= 60). |
+| `@KINGFUND` | n/a | Cut audience chamber (`FUN_38fd_462e`, never called; popups.md §8): grant CHOICE (`38fd:44a4`, accept / never mind). |
+| `@KINGLOWER` | n/a | Cut audience chamber (`FUN_38fd_462e`, never called; popups.md §8): tax-cut grant (`38fd:4590`). |
+| `@KINGNOTHING` | n/a | Cut audience chamber (`FUN_38fd_462e`, never called; popups.md §8): "we shall not change your tax rate" (`38fd:4590`). |
+| `@KINGRAISE` | n/a | Cut audience chamber (`FUN_38fd_462e`, never called; popups.md §8): punitive hike (`38fd:4590`). |
 | `@KINGTAX` | Done | king tax body via `popup_msg_fill` |
-| `@KINGBLESS` | n/a | Dead text: audience-chamber menu row 1 (`38fd:469e`). The only reader is `FUN_38fd_462e`, the King's audience chamber, and no `CALLF`/`JMPF` anywhere in `viceroy_unpacked.asm` or `viceroy_overlays.asm` reaches it; the chamber's own menu (`@AUDIENCE` `0x10d4`) and brush-off (`@KINGGOAWAY` `0x10c9`) are not in the shipped `GAME.TXT`. Feature cut before release — do not port (2026-09-16) |
-| `@KINGLAUGH` | n/a | Dead text: audience-chamber menu row 5, "Independence! Ha ha ha" (`38fd:46ba`). The only reader is `FUN_38fd_462e`, the King's audience chamber, and no `CALLF`/`JMPF` anywhere in `viceroy_unpacked.asm` or `viceroy_overlays.asm` reaches it; the chamber's own menu (`@AUDIENCE` `0x10d4`) and brush-off (`@KINGGOAWAY` `0x10c9`) are not in the shipped `GAME.TXT`. Feature cut before release — do not port (2026-09-16) |
-| `@KINGWELCOME0` | n/a | Dead text: audience-chamber greeting (`38fd:465c`). The only reader is `FUN_38fd_462e`, the King's audience chamber, and no `CALLF`/`JMPF` anywhere in `viceroy_unpacked.asm` or `viceroy_overlays.asm` reaches it; the chamber's own menu (`@AUDIENCE` `0x10d4`) and brush-off (`@KINGGOAWAY` `0x10c9`) are not in the shipped `GAME.TXT`. Feature cut before release — do not port (2026-09-16) |
+| `@KINGBLESS` | n/a | Cut audience chamber (`FUN_38fd_462e`, never called; popups.md §8): menu row 1 (`38fd:469e`). |
+| `@KINGLAUGH` | n/a | Cut audience chamber (`FUN_38fd_462e`, never called; popups.md §8): menu row 5, "Independence! Ha ha ha" (`38fd:46ba`). |
+| `@KINGWELCOME0` | n/a | Cut audience chamber (`FUN_38fd_462e`, never called; popups.md §8): greeting (`38fd:465c`). |
 | `@MERCANTILISM` | n/a | Lead closed 2026-09-16: VICEROY.EXE has no DS string `MERCANTILISM` at all (`docs/popup_tag_ids.md` is the full dump of that table), so no code can name the section — DOS cannot reach it. The tax-raise triggers that exist all name their own section (`@KINGTAX` and the five `FUN_38fd_5be8` rungs). Dead text |
 | `@PURCHASETAX` | n/a | Same evidence as `@MERCANTILISM`: no `PURCHASETAX` DS string in VICEROY.EXE, hence no call site. Dead text |
 | `@TAXOPTIONS` | Done | ai_popup CHOICE structural |
@@ -311,11 +311,11 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@EVASIVE` | Done | already real (`units_combat_resolve.c` `units_resolve_naval_combat_ff_w` naval evasion via `units_combat_enqueue_tok`) — verified against DOS FUN_5fef_1b0e raw ~100629 |
 | `@KINGMERCY` | n/a | dead text: no `KINGMERCY` DS string in VICEROY.EXE — the tax-cut-on-REF-loss audience is cut content |
 | `@KINGNEWWAR` | Done (structural) | `FUN_38fd_5930` → `ai_king_new_war_event` (2026-08-27): real gate/roll/grant formula, OK popup with title/name/peer/gold/count tokens; VGA PARKED |
-| `@KINGVICTORY` | Done | `FUN_38fd_5be8` score<100 rung (38fd:5d2d): the tax CUT, `%STRING2` = `@COUNTRIES[king_audience_last_pick-1]` (the crown's current war peer). Rendered through `popup_msg_fill` from `ai_king_tax_hike_apply` (`src/core/ai_king.c`) with `%STRING0`/`%STRING1` = difficulty title + player name, `%NUMBER0` = applied delta, `%NUMBER1` = resulting rate; the raise arm keeps the `@TAXOPTIONS` Kiss/Party rows. 2026-09-16 |
-| `@KINGWIFE` | Done | `FUN_38fd_5be8` score<650 rung (38fd:5d64): +1%, bumps the King's wife counter `DS:0x53a7` and names it via `@ORDINAL`. Rendered through `popup_msg_fill` from `ai_king_tax_hike_apply` (`src/core/ai_king.c`) with `%STRING0`/`%STRING1` = difficulty title + player name, `%NUMBER0` = applied delta, `%NUMBER1` = resulting rate; the raise arm keeps the `@TAXOPTIONS` Kiss/Party rows. 2026-09-16 |
-| `@KINGWAR` | Done | `FUN_38fd_5be8` score<950 rung (38fd:5d9e): +2%, rerolls the war peer 1..8 until it differs and names it via `@COUNTRIES`. Rendered through `popup_msg_fill` from `ai_king_tax_hike_apply` (`src/core/ai_king.c`) with `%STRING0`/`%STRING1` = difficulty title + player name, `%NUMBER0` = applied delta, `%NUMBER1` = resulting rate; the raise arm keeps the `@TAXOPTIONS` Kiss/Party rows. 2026-09-16 |
-| `@KINGNAVACT` | Done | `FUN_38fd_5be8` score<1100 rung (38fd:5de2): +3..4%, no `%STRING2`. Rendered through `popup_msg_fill` from `ai_king_tax_hike_apply` (`src/core/ai_king.c`) with `%STRING0`/`%STRING1` = difficulty title + player name, `%NUMBER0` = applied delta, `%NUMBER1` = resulting rate; the raise arm keeps the `@TAXOPTIONS` Kiss/Party rows. 2026-09-16 |
-| `@KINGSTAMPACT` | Done | `FUN_38fd_5be8` top rung (38fd:5dfe): +5..8%, `%STRING2` = the player's New World name (`player.country_name`). Rendered through `popup_msg_fill` from `ai_king_tax_hike_apply` (`src/core/ai_king.c`) with `%STRING0`/`%STRING1` = difficulty title + player name, `%NUMBER0` = applied delta, `%NUMBER1` = resulting rate; the raise arm keeps the `@TAXOPTIONS` Kiss/Party rows. 2026-09-16 |
+| `@KINGVICTORY` | Done | `FUN_38fd_5be8` score<100 rung (38fd:5d2d): the tax CUT, `%STRING2` = `@COUNTRIES[king_audience_last_pick-1]` (the crown's current war peer). Rendered through `popup_msg_fill` from `ai_king_tax_hike_apply` (`src/core/ai_king.c`) with `%STRING0`/`%STRING1` = difficulty title + player name, `%NUMBER0` = applied delta, `%NUMBER1` = resulting rate; the raise arm keeps the `@TAXOPTIONS` Kiss/Party rows |
+| `@KINGWIFE` | Done | `FUN_38fd_5be8` score<650 rung (38fd:5d64): +1%, bumps the King's wife counter `DS:0x53a7` and names it via `@ORDINAL`. Rendered as `@KINGVICTORY` |
+| `@KINGWAR` | Done | `FUN_38fd_5be8` score<950 rung (38fd:5d9e): +2%, rerolls the war peer 1..8 until it differs and names it via `@COUNTRIES`. Rendered as `@KINGVICTORY` |
+| `@KINGNAVACT` | Done | `FUN_38fd_5be8` score<1100 rung (38fd:5de2): +3..4%, no `%STRING2`. Rendered as `@KINGVICTORY` |
+| `@KINGSTAMPACT` | Done | `FUN_38fd_5be8` top rung (38fd:5dfe): +5..8%, `%STRING2` = the player's New World name (`player.country_name`). Rendered as `@KINGVICTORY` |
 | `@COUNTRIES` | Done | Not a popup: the 8-entry list `FUN_38fd_5be8` indexes for the tax audience's `%STRING2` (`@KINGVICTORY` / `@KINGWAR`). Read by `ai_king_msg_list_entry` (`src/core/ai_king.c`), 2026-09-16 |
 | `@ORDINAL` | Done | Not a popup: the 30-entry ordinal list the audience's `@KINGWIFE` rung indexes with the King's wife count. Same reader, 2026-09-16 |
 | `@NEEDTOOLS` | Done | EOT Phase L (raw 57737-57771) `turn_emit_needtools_notice` in `turn_production.c`: hammers ready, tools short but >0. Runs every EOT (not only on hammer-producing ticks) and covers unit projects too — port_bugs.md #537, 2026-09-20 |
@@ -399,12 +399,8 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@REFIT` | Done thin | Drydock repair ai_popup OK (`@REFIT`); VGA PARKED |
 | `@WELLSEASONED` | Done thin | Indian teach Scout→Seasoned `CONTACT_TEACH` + `@WELLSEASONED` |
 | `@KINGBUY` | Done thin | `FUN_43f7_1d42` peacetime royal-purse buy — `ai_king.c` `ai_king_1d42_royal_purse` `popup_msg_fill("KINGBUY", …)`, %STRING0 pool name; VGA PARKED |
-| `@SEIZURE` | Done | `AI_POPUP_TAG_COMBAT_SEIZURE` privateer body |
-| `@SEIZURESEA` | Done | Crown naval → Royal Navy text; Privateer uses custom body |
-| `@SEIZURELAND` | Done | Crown land win vs human → Royal Army text |
 | `@INDEPENDENCE` | Done | `KING_LETTER` + signing cinematic (`declaration.c`) |
 | `@INVASION` | Done thin | REF `1528` wave OK/status via `popup_msg_fill`; VGA PARKED |
-| `@INTERVENTION` / `@INTERVENE` | Done thin | `10f0` ally declare + landing ARRIVAL |
 | `@TOOTORY` | Done | `ai_king_menu_declare_independence` (FUN_43f7_2564 tail, sol<50 branch) — OK notice via `ai_popup_enqueue_ok_ctx` |
 | `@DECLARE` | Done thin | ai_popup CHOICE body+labels via `popup_msg_*`; VGA PARKED |
 | `@DEADCONVERTS` | Done | `FUN_3844_0004` (viceroy_unpacked.c 58268-58299, tag 0xee2): a lone Convert (type 0, profession 27) on a tile with no settlement ages `col1_counter16` and is removed when it passes 8; human owner gets the popup. Ported 2026-09-23 (`units_tick_convert_outside_colony`, port_bugs.md #725) |
@@ -418,7 +414,7 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@MOBILIZE` | Done thin | `FUN_43f7_1eca` single-unit promote — `ai_king_war.c` `ai_king_war_act` `popup_msg_fill`; VGA PARKED |
 | `@MOBILIZE2` | Done thin | `FUN_43f7_1eca` multi-unit promote — `ai_king_war.c` `ai_king_war_act` `popup_msg_fill`; VGA PARKED |
 | `@CANTMOBILIZE` | n/a | `FUN_43f7_1eca` (viceroy_unpacked.c 74910-74968) never emits this tag: the only messages it sends are 0x132d/0x1336 (`@MOBILIZE`/`@MOBILIZE2`) when `local_a != 0`; the `local_a == 0` (no muskets) fall-through is silent in DOS, and no other decompiled function references this section — dead GAME.TXT text, not ported |
-| `@KINGMOBILIZE` | n/a | `FUN_43f7_1d42` wartime arm (0x1320, OVL07:2d8a) is DEAD CODE in the shipped binary — the function's first instruction (`TEST [0x5382],1` / early RETF) makes the whole routine a peacetime-only no-op, so the branch guarding this tag is unreachable; see `ai_king.c:693` comment. Correctly unported |
+| `@KINGMOBILIZE` | n/a | `FUN_43f7_1d42` wartime arm (0x1320, OVL07:2d8a) is DEAD CODE in the shipped binary — the function's first instruction (`TEST [0x5382],1` / early RETF) makes the whole routine a peacetime-only no-op, so the branch guarding this tag is unreachable; see the `FUN_43f7_1d42` comment in `ai_king.c`. Correctly unported |
 | `@EUROPENOTAVAIL` | Done | 2026-09-16: `game_try_enter_europe` (`game_dialogs.c`) now renders the real GAME.TXT body + `AI_POPUP_TAG_INFO` OK popup on WoI-blocked entry, same pattern as `@FOREIGNNOTAVAIL`/`game_open_report`; previously only set a bare status string |
 | `@FOREIGNNOTAVAIL` | Done | F8 Foreign Affairs is withdrawn once the WoI has begun — `FUN_3f41_2548` raw :70792 (`0x5382 & 1`); `reports_is_available` + the `game_open_report` popup, 2026-09-08 |
 | `@EUROPENOTLEAVE` | Done | DOS site confirmed 2026-09-16: `viceroy_overlays.asm` OVL08_L0040 raw :0x13fd LEA gated by `TEST byte[0x5382],1` (WoI bit) — same bit the port tests in `game_ship_sail_to_europe`/lane-entry gates (`game_loop_eot.c`), `"EUROPENOTLEAVE"` `popup_msg_fill` sites |
@@ -487,8 +483,8 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@TUTORIAL2` | Missing | tutorial hints missing |
 | `@TUTORIAL3` | Missing | tutorial hints missing |
 | `@TUTORIAL4` | Missing | tutorial hints missing |
-| `@TUTORIAL5` | Missing | tutorial hints missing |
-| `@TUTORIAL6` | Missing | tutorial hints missing |
+| `@TUTORIAL5` | Done | first dock immigrant with tutorial hints on, once (`DS:0x5387` bit 0, `turn_colony.c`) |
+| `@TUTORIAL6` | Done | after the first cargo-ready colony event, once (`DS:0x5387` bit 1, `turn_production.c`) |
 | `@TUTORIAL7` | Missing | tutorial hints missing |
 | `@TUTORIAL8` | Missing | tutorial hints missing |
 | `@TUTORIAL9` | Missing | tutorial hints missing |
@@ -508,7 +504,7 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@KINGWIN` | Done | WoI lost (@LOSING1-3) — full-screen throne audience (KINGWIN.SS); dismissal opens the retire score |
 | `@DISBANDSHIP` | Done | ship-with-cargo error OK (not Yes/No) |
 | `@NOMOREWAREHOUSE` | Done thin | Warehouse Expansion already owned → ai_popup OK |
-| `@NOMOREWAGONS` | Missing | no colony modal (FULL/SIEGE may status) |
+| `@NOMOREWAGONS` | Done thin | EOT Wagon Train project refused while wagons >= colonies (`FUN_364b_0114` wagon arm, `turn_colony.c`); colony-event box |
 | `@BUILD1` | Done | sail captions |
 | `@BUILD2` | Done | sail captions |
 | `@BUILD3` | Done | sail captions |
@@ -525,39 +521,10 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 
 ## Appendix B — `AiPopupTag` map
 
-From [`ai_popup.h`](../src/core/ai_popup.h). **Kind OK** means body-only wood
+The tag list, with each tag's DOS function, section and payload, is the commented
+`AiPopupTag` enum in [`ai_popup.h`](../src/core/ai_popup.h). **Kind OK** means body-only wood
 (dismiss Enter/Space/Esc/any click; no invent “OK” label — GAME.TXT info
 sections have no response lines). **Kind CHOICE** lists authentic labels.
-
-| Tag | Kind | Typical `@` / FUN | Status |
-|-----|------|-------------------|--------|
-| `INFO` | OK | Generic notices (revolution, 1800, …) | Done (port queue tag; body always from a GAME.TXT section at the call site) |
-| `KING_AUDIENCE` | CHOICE | `@TAXOPTIONS` / `38fd_5be8` | Done |
-| `KING_DUMP_GOODS` | CHOICE | Refuse dump cargo / `38fd_3dc8` | Done |
-| `KING_TAX` | CHOICE / OK | `@KINGTAX` + `@TAXOPTIONS`; `@TEAPARTY` Done thin | Done |
-| `KING_MERC` | CHOICE / OK | `@MERCENARIES` / `@MERCS` | Done |
-| `KING_CONGRESS` | CHOICE | `@DECLARE` body+choices / `43f7_2564` | Done thin |
-| `KING_LETTER` | OK | `@INDEPENDENCE` / `43f7_160a` | Done — the popup is preceded by the `160a` signing cinematic (`src/core/declaration.c`, 2026-08-30) |
-| `KING_ARRIVAL` | OK | `@INVASION` REF `43f7_1528`; `@INTERVENTION`/`@INTERVENE` `10f0` | Done thin |
-| `KING_CAPTURE` | OK | `@CAPTURED3` REF take | Done thin |
-| `FF_CONGRESS` | CHOICE / OK | `@CONTINENTAL` / `4345_024a` | Done |
-| `CONTACT_WELCOME` | CHOICE | `@INDIANWELCOME` / `5bfb_022e` | Done |
-| `CONTACT_MEET` | CHOICE | Meet Trade/Gift/Demand/Teach/Leave | Done |
-| `CONTACT_GIFT` | CHOICE / OK | Gift amounts | Done |
-| `CONTACT_DEMAND` | CHOICE / OK | Tribute demand | Done |
-| `CONTACT_TEACH` | OK | `@LEARN*` | Done |
-| `CONTACT_CONVERT` | OK | `@MISSION*` / convert | Done |
-| `CONTACT_RAID` | OK | `@RAID*` | Done (6/7; `@RAIDWREAK` thin by design) |
-| `CONTACT_REFUSE` | OK | `@INDIANSHUN` / refuse | Done |
-| `DIPLO_WAR` | CHOICE | `@DECLAREWAR` / `5bfb_153e` | Done |
-| `DIPLO_PEACE` | CHOICE | Peace accept/refuse | Done |
-| `DIPLO_ALLIANCE` | CHOICE | Alliance | Done |
-| `DIPLO_BREAK` | CHOICE | Break alliance | Done |
-| `DIPLO_BOYCOTT` | OK | Embargo / Tools lift | n/a — no producer since 2026-09-16 (invented bodies retired) |
-| `DIPLO_FA` | OK | Thin FA leftovers (the 153e negotiation uses `DIPLO_TALK`) | n/a — no producer since T2.4 |
-| `LANDFALL` | CHOICE | `@LANDFALL` | Done |
-| `MAP_CONFIRM` | CHOICE | Disband / overboard / quit / retire / trade-delete | Done |
-| `COLONY_EVENT` | CHOICE | Colony EOT messages / `364b_0000`: "Continue turn." / "Zoom to colony." (LABELS `@MISC` 34/35); optionless once zoom elected, colony screen opens after the batch | Done |
 
 ---
 
@@ -614,7 +581,7 @@ game compositor. Not inventoried here.
 ## See also
 
 - [manual_gap.md](manual_gap.md) — feature checklist vs manual
-- [port_plan.md](port_plan.md) — AI FUN inventory; structural vs VGA PARKED
+- [archive/port_plan_deferred_ai_track.md](archive/port_plan_deferred_ai_track.md) — AI FUN inventory (history)
 - [assets.md](assets.md) — `popup_draw` chrome, colony/map popup UX
 - [move_enter.md](move_enter.md) — landfall / meet enter rules
 - [turn_between_players.md](turn_between_players.md) — ship-ready / HoF PARKED

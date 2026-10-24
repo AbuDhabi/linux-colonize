@@ -194,7 +194,7 @@ Small sprite sheets render as a labeled grid. Large or single-sprite sheets show
 
 **Loaded-map finalize (2026-09-15):** DOS runs the `FUN_684c_08c0` tail on a loaded `.MP` too (asm `684c:08e2` jumps to `LAB_684c_17f1` when the map came from file): two high-seas outline rings, arctic on rows 0 / h−1, bit-4 forest demote and hills/mountains lose their forest class. AMER2.MP ships 146 forested hill/mountain tiles that DOS therefore never draws with canopy; the port applies the same pass (`map_gen_finalize_border_and_forest`) on the Original Americas new-game path.
 
-**Fidelity status:** static AMER2 art matches MAPEDIT for coasts, estuaries, land–land transitions, forest/hill/mountain/river connectivity, special resources, and rumours. **Plowed fields** use runtime PHYS0 **149**; **roads** use PHYS0 **80** isolated or multi-blit **81–88** directional stubs (`FUN_6ba1_0938`). Land MP uses DOS `terr_cost` table at NAMES scale (`map_move_cost_*`). Remaining gaps are fog-of-war polish, coast animation, and per-tile texture variation (see [decomp_inventory.md](decomp_inventory.md)).
+**Fidelity status:** static AMER2 art matches MAPEDIT for coasts, estuaries, land–land transitions, forest/hill/mountain/river connectivity, special resources, and rumours. **Plowed fields** use runtime PHYS0 **149**; **roads** use PHYS0 **80** isolated or multi-blit **81–88** directional stubs (`FUN_6ba1_0938`). Land MP uses DOS `terr_cost` table at NAMES scale (`map_move_cost_*`). Remaining gaps are fog-of-war polish, coast animation, and per-tile texture variation.
 
 Authority for static map art is decompiled **`MAPEDIT.EXE` /
 `original_sources_decompiled/mapedit.c`** (no RTLink), not VICEROY’s runtime buffers.
@@ -226,7 +226,7 @@ Non-scrub forests share one PHYS0 band (**64–79**). MAPEDIT connectivity mask 
 
 Row `y=0` land tiles display as cleared tundra (sprite 0) with PHYS0 forest sprite 64.
 
-**Hill / mountain / river overlays (shared adjacency, 0-based indices):**
+**Hill / mountain / river overlays (shared adjacency, 0-based indices; MAPEDIT `FUN_1a47_030e` / `036e` / `0418`):**
 
 | Feature | PHYS0 | Neighbour match |
 |---------|-------|-----------------|
@@ -238,9 +238,9 @@ Row `y=0` land tiles display as cleared tundra (sprite 0) with PHYS0 forest spri
 
 MAPEDIT immediates are **1-based** (`0x21`/`0x31`/`0x41` → indices 32/48/64). Debug atlas labels match these 0-based indices.
 
-Hills/mountains come only from the terrain byte; layer 3 never contributes art (the old AMER2 `(43,68)` "lone peak" reading of layer-3 `0x0e` was a continent id).
+Hills/mountains come only from the terrain byte; layer 3 (continent / region id, e.g. AMER2 `(43,68)` = `0x0e`) never contributes art.
 
-**Ocean estuaries.** Terrain index 25/26 with `terrain & 0xc0` marks river mouths; MAPEDIT blits IDs **141–148** → indices **140–147** toward land neighbours with bit `0x40`. See [decomp_inventory.md](decomp_inventory.md).
+**Ocean estuaries.** Terrain index 25/26 with `terrain & 0xc0` marks river mouths; for each cardinal land neighbour with bit `0x40`, MAPEDIT blits ID **`0x8d+q`** (major) / **`0x91+q`** (minor) = 1-based 141–148 → indices **140–147**. Inland rivers unchanged. Fixtures: `amer2_coast_fixtures` / `amer2_river_estuary` (`tests/unit/test_map.c`).
 
 **Land terrain transitions.** After the base TERRAIN blit, MAPEDIT `FUN_1a47_06da` walks cardinal neighbours; when the neighbour’s display type differs (forests compared as `index & 7`), it blits PHYS0 **104+q** (colour-0 edge mask) then fills holes with the neighbour’s TERRAIN. Ocean/high-seas neighbours are resolved via their land cardinals (W→S→E→N) so coast corners pick up diagonal land fill. Drawn before forest canopy.
 
@@ -269,7 +269,7 @@ PHYS0 **80**, else one stub per connected 8-neighbor (**81**=N … **88**=NW;
 `FUN_6ba1_0938` / MAPEDIT `FUN_1a47_0932`). Not a forest-style 16-mask.
 Plowed tiles blit PHYS0 **149** via `map_phys0_plow_sprite_at`.
 
-**Coastal ocean.** Enabled by default. MAPEDIT: land underlayer → fragments **108+4×mask+q** / corners **150–153** → masked ocean into colour-0 holes → estuary (+ fish when present). Details: [decomp_inventory.md](decomp_inventory.md).
+**Coastal ocean.** Enabled by default. MAPEDIT (`FUN_1a47_01ae` masks): on an ocean tile with any land neighbour, build the 8-bit land mask (N→NW clockwise) and four 3-bit quadrant masks (cardinal land sets bit 2 on its quad and bit 0 on the next; diagonal sets bit 1). A matching mask gives one full-tile corner **150+id** (MAPEDIT `0x97+id`, land NW/NE/SW/SE); else four 8×8 fragments **108+4×mask+q** (MAPEDIT `0x6d+4×mask+q`) at NW/NE/SE/SW offsets 0/8. Order: land underlayer → coast → masked ocean into colour-0 holes (`FUN_1a47_0676`) → estuary (+ fish when present).
 
 | Piece | PHYS0 / TERRAIN |
 |-------|-----------------|
@@ -277,11 +277,11 @@ Plowed tiles blit PHYS0 **149** via `map_phys0_plow_sprite_at`.
 | Fragments + corners | 108–139 (8×8), 150–153 (16×16) |
 | Estuary cardinals | 140–147 (16×16) |
 
-Older VICEROY quadrant / RAM-buffer coast heuristics are **superseded** by this MAPEDIT path (`docs/viceroy_tables.md`).
+Older VICEROY quadrant / RAM-buffer coast heuristics are **superseded** by this MAPEDIT path.
 
 Not drawn yet: per-tile texture variation from DOS RAM buffers; coast animation frames. Fog fringe (**104–107**), plow (**149**), and road **80–88** connectivity are drawn.
 
-Tile compositing tables extracted from `VICEROY.EXE` live in `src/data/viceroy_tables.{h,c}`; see [viceroy_tables.md](viceroy_tables.md). World-map **feature art** (forest/hill/mountain/coast) uses MAPEDIT rules above, not those VICEROY tables.
+`src/data/viceroy_tables.{h,c}` holds the one remaining `VICEROY.EXE` extract, used only by Colonizopedia terrain previews ([viceroy_tables.md](viceroy_tables.md)). World-map **feature art** (forest/hill/mountain/coast) uses the MAPEDIT rules above.
 
 ### Map menu bar
 
@@ -310,7 +310,7 @@ DOS layout: 15×12 main view (see `MENU.TXT` zoom levels) leaves an 80px strip. 
 | Tile details | `NAMES.TXT` / WorldMap `improve` (Col1 mask fallback) / colonies / units | Under Locat: ownership (explored land only), `(Terrain)`, features (plow/road/river/resource/rumour), colony or native camp (`ICONS.SS` **#0–3** / **#10–13**). A fogged tile gets a single `(Unexplored)` line instead |
 | Region id / cheat lines (`FUN_49dd_0424`, port_bugs.md #1177b) | `col1.head` | `special = show_entire_map != 0 \|\| fixed_nation_map_view != 0` on the raw u16s (0xffff "none" counts). Tile-only block (View / foreign unit): `Locat: (x,y) <n>` with `n` = raw `layer3 & 0xf` (FUN_137f_01ca, 1 = open ocean, water included) and **no cheat test**. Cheat bit and `special`: the same suffix on the unit block's Locat line. Cheat bit and Complete Map: `<unit index> ` ahead of the unit block's Nationality line and of every tile-stack row's orders line (`units_dos_index`). A foreign stack collapses to one row unless `top.nation == curr_nation_map_view` or Complete Map (the viewer's own stack, not the save's human). Cheat bit + `DS:0x894 & 8` ("Foreign AI planning modes", the port's `debug_flags_mask`): every AI-nation unit badge shows its AI plan byte (`+0x314b`, >= 0x80 = 'E', 0 = empty) instead of the order letter (`unit_chrome_plan_badge_index`; ink keeps following the real orders; the damaged repair digit still wins). The Debug Info Flags consumers in `game_loop.c` are deliberately ungated: DOS gates only that 0x894 & 8 arm on the cheat bit |
 | Village trade intel (OpenCol-only) | `ICONS.SS` **#22–37** | Under the native camp line: `Buys:` row (goods named by @BRING / @BADCARGO / @CHIEFHOWDY) and `Sells:` row (@BUYWHICH), 13px rows, icons in one shared column; each row only once that dialog has been shown to the player. Side table `village_trade_intel.c` keyed by settlement tile and European nation — persisted in the save's port extension block (`VTIN` chunk, docs/savegame.md), wiped by `ai_contact_reset` (new game / Load, before `col1_bridge_apply` restores it) and on village removal. `render_map_panel … buys=a,b,c sells=a,b,c` seeds it |
-| Nation box | Turn indicator at `(315,197)` | 5×3 fill in the acting nation's color (`FUN_1984_00aa`), painted at the head of **every** nation's end-of-turn — the human's own production pass included |
+| Nation box | Turn indicator at `(315,197)` | 5×3 fill in the acting nation's color (`FUN_1984_00aa`), painted at the head of **every** nation's end-of-turn — the human's own production pass included; dark during the human's own play. England **112** (NAMES lists 12), France 9, Spain 14, Netherlands 13 (`@COUNTRY`); native phases use `@TRIBES` colors |
 
 Not used for this panel: `WOODPAN2.PIK` (score/fame chrome), `WOODFRAM.SS` (milestone-woodcut frame). Fog-of-war on the minimap is not drawn yet.
 
@@ -333,13 +333,9 @@ Open from **REPORTS** on the map menu bar, or press **F2–F10**. Esc (or Enter,
 
 Content uses `ColonizeCol1Save` when a campaign is loaded (crosses / founding fathers / tribes / trade ledger / rival strength), with runtime colony / unit / Europe pools as fallback. **F10** uses the manual score schedule (citizen quality, congress, gold/1000, rebel sentiment, village-burn penalty, independence multipliers when declare/achieve are tracked). **F3 Continental Congress** is two pages: page 1 (bells progress bar toward the next Founding Father, rebel/tory split, expeditionary force, FF name list) advances to page 2 (full-bleed Founding Father group portrait, no chrome) on Esc/Enter/click/OK, and page 2 itself closes on any click.
 
-All nine F2-F10 report plates are done to golden-screenshot fidelity (confirmed
-2026-08-26; P2.12 user-passed 2026-09-03). See **[report_screens.md](report_screens.md)**
-before touching any of them. Remaining gaps: a few hardcoded English strings
-with no shipped `LABELS.TXT` line, F9 headband always #113, Hall of Fame has
-no golden, Congress page-2 portraits all 25 draw from CC-xx.SS anchors (the
-old 10/25 slot table is gone). See [reports.md](reports.md) "Current-state
-note".
+All nine F2-F10 report plates match their golden screenshots (P2.12 user-passed
+2026-09-03). See **[report_screens.md](report_screens.md)** before touching any of
+them; open gaps are in [reports.md](reports.md) "Current-state note".
 
 ### Colonizopedia
 
@@ -366,8 +362,7 @@ The pull-down has a horizontal green rule between Terrain Types and Colonist Ski
 Press **E** from the map to open the European Status screen (`EUROPE.PIK`). Esc or E returns to the map (closes open menus first). Visual layout reference: [`original_screenshots/europe/`](../original_screenshots/europe/). Harbor / Expected / Bound ships and dock immigrants draw orders/allegiance chrome (`unit_chrome.c`) behind their `ICONS.SS` sprites.
 
 Transit (`europe_voyage_turns_roll`, DOS `FUN_48d3_0002`): **1 turn**, or **2**
-when `RNG(1,100)>89 && ships>2 && !Magellan` — both directions. The old
-invented east-2 / west-4 table is gone (P9.2 / port_bugs.md 2026-08-31).
+when `RNG(1,100)>89 && ships>2 && !Magellan` — both directions.
 
 - **H** / Return to Europe on high seas → **Expected Soon** (not instant dock); docks when turns elapse (auto-opens Europe).
 - New dock immigrants (crosses threshold or immigration pressure) show `@UNREST` and do **not** auto-open Europe — open with **E** when ready.
@@ -461,18 +456,13 @@ Terrain move costs (plains 1, forest/hills 2, mountains 3; road/river halves) fo
 | ORDERS → Wait | Select next human unit with remaining moves (“Continue turn.”); if none and End of Turn option is set, show “End of Turn” |
 | End of Turn prompt | `LABELS.TXT` `@MISC` line 3, drawn once the unit cycle runs dry (DOS `DS:0x53c6`). Sits in the running sidebar text flow, clamped so it never starts below `0xc6` minus one line, alternating white (15) / black (0) on the **same** blink phase as the map tile cursor (DOS `DS:0x929c`). While it is up the next left click — on the map viewport or the sidebar — confirms the turn (`FUN_2b5a_3752` tests `0x53c6` before dispatching the click anywhere else); minimap clicks still re-centre |
 
-Ship→**native village**: never landfall — unmet `@DONTKNOWSHIPS`, met/angry `@MADATSHIPS` (DOS `4528` ship abort). Ship→**non-colony bare land** with cargo: **landfall CHOICE** (`@LANDFALL` Stay With Ships / Make Landfall); prefers a passenger with moves, but aboard **sentry** cargo is still eligible (DOS spent==0). Make Landfall unloads **one** passenger, charges dest terrain MP from their allotment (or remaining moves), and **−1** ship MP; ship stays at sea. Ship→**own colony** land: dock and **disembark all** (clear sentry). Land→ocean with an own ship that has room: **board**. Sentry land units on a ship's tile **auto-board** when that ship leaves (colony or ocean stack). Multi-unit tile click opens a wood **stack popup** — first click wakes sentry cargo, second selects; awake cargo can walk onto land to disembark. **O**/**U** remain. Enter rules: [move_enter.md](move_enter.md).
+Ship→**native village**: never landfall — unmet `@DONTKNOWSHIPS`, met/angry `@MADATSHIPS` (DOS `4528` ship abort). Ship→**non-colony bare land** with cargo: **landfall CHOICE** (`@LANDFALL` Stay With Ships / Make Landfall); any passenger with spent < max MP is eligible, **sentry** cargo included (`FUN_4720_015c`). Make Landfall unloads **one** passenger, who spends his whole allotment; the ship is neither moved nor charged (port_bugs.md #716). Ship→**own colony** land: dock and **disembark all** (clear sentry). Land→ocean with an own ship that has room: **board**. Sentry land units on a ship's tile **auto-board** when that ship leaves (colony or ocean stack). Multi-unit tile click opens a wood **stack popup** — first click wakes sentry cargo, second selects; awake cargo can walk onto land to disembark. **O**/**U** remain. Enter rules: [move_enter.md](move_enter.md).
 
 Selected units **blink** (sprite on/off), except while executing **Go-To** (always drawn so pathing stays visible). The tile cursor is shown only when no unit is selected. Units with `moves == 0` cannot be selected (tile under them is selected instead). Awake passengers (sentry cleared) with moves can be selected from the stack popup. When the active unit spends its last move, the next human unit with moves is selected; if none remain, tile-select mode resumes.
 
 **Go-To:** drag from a blinking unit to a destination tile (CURSOR.SS #1 appears after ≥1 logical pixel of drag; pathfinding uses DOS-style destination cost flood nearby, BFS farther), or ORDERS **Go to Place** / **Go to Port** (the `@TRAVELPLACE` / `@SAILPORT` destination list, docs/unit_orders.md). The unit walks at **10 steps/sec** until out of moves and resumes after end of turn; **Fast Piece Slide** shortens the interval to 80ms (12.5 steps/sec). During interactive AI turns, **Show Indian Moves** / **Show Foreign Moves** present nearby AI tile steps using the same pacing. Sub-pixel slide animation remains final polish. Order byte is `@ORDERS` index 3.
 
 Calendar: one turn per year until **1600**, then Spring and Autumn each year. Colony top bar / reports use `game_year` + `game_autumn`. When the Col1 **Autosave** option is set, end-turn writes slot **9** (and slot **8** on decade Spring years).
-
-A **5×3** nation-color box appears in the bottom-right `(315,197)` only while end-of-turn
-nation phases run (`FUN_1984_00aa`): England **112** (saturated red; NAMES lists 12), France 9, Spain 14, Netherlands 13
-(`NAMES.TXT` `@COUNTRY`). Native phases use `@TRIBES` colors. It is hidden during the
-human turn.
 
 A starter **Caravel** (Dutch: **Merchantman**) with a Pioneer and Soldier aboard
 spawns on the western rim of the eastern high seas when finishing the new-game wizard.
@@ -556,10 +546,11 @@ Enter or left-click **skips** the remaining sail frames (QoL; original is hard t
 
 ### Map generation (NEW WORLD)
 
-VICEROY (not MAPEDIT) builds random maps in `FUN_684c_08c0`
-(`original_sources_decompiled/viceroy_unpacked.c`). The port mirrors that
-pipeline in `src/core/map_gen.c` into the same three-layer layout as `.MP` files
-(terrain filled; layer2/3 left 0 for gen v1). Size is fixed **58×72** (`0x3a`×`0x48`).
+VICEROY (not MAPEDIT) builds random maps in `FUN_684c_08c0` (dispatched via
+`FUN_2a1f_083e`; land blobs `FUN_684c_02a8`; continent labeling `FUN_67bf_0000`).
+The port mirrors that pipeline in `src/core/map_gen.c` into the same three-layer
+layout as `.MP` files: terrain filled, `FUN_67bf_0000` continent ids in the layer-3 low
+nibble, layer 2 cleared then given the pacific (`0x20`) / offshore-suppress (`0x04`) bits. Size is fixed **58×72** (`0x3a`×`0x48`).
 CUSTOMIZE edits the four UI axes on `CUSTOMIZ.PIK` via `FUN_733a_0270` /
 `NEW_GAME_PHASE_CUSTOMIZE` before the shared wizard.
 

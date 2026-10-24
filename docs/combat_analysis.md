@@ -1,17 +1,15 @@
 # Combat Analysis
 
-Deep dive into DOS's `FUN_6f74` Combat Analysis dialog and related combat-outcome mechanics.
+Deep dive into DOS's `FUN_636c_0000` Combat Analysis dialog and related combat-outcome mechanics.
 
 Reference: [combat.md](combat.md) for overview and entry points.
 
 ## Contents
 
 - [Combat Analysis](#combat-analysis)
-- [Ship-slow](#ship-slow)
+- [Ship-slow](#ship-slow-units_ship_slow_scan-2026-09-16)
 - [Coastal fort fire](#coastal-fort-fire)
 - [Founding Father hooks](#founding-father-hooks)
-- [Status matrix](#status-matrix)
-- [Conflicts resolved](#conflicts-resolved)
 - [PARKED](#parked)
 - [Implementation map](#implementation-map)
 - [FUN_* index](#fun-index)
@@ -171,8 +169,6 @@ even when the live multiplier comes from `local_1a` arithmetic above.
 | Not | fort fire (below) — that is an end-of-turn temp-attacker combat and never touches MP |
 | Test | `test_ai_euro_war_*.c` (split 2026-09-23) `unit_naval_ambush` (drain 0/4/8 sweep, PEACE, Privateer, Stockade/Fort/Fortress) |
 
-The pre-2026-09-16 port had only an AI-only end-of-act "naval ambush" keyed on the mover's own type with tie = no slow; deleted.
-
 ## Coastal fort fire
 
 | Piece | API |
@@ -211,40 +207,6 @@ spawn + fort VGA chrome.
 
 ---
 
-## Status matrix
-
-| Piece | Status | Notes |
-|-------|--------|-------|
-| Land / naval engage + roll | Done | `combat_*_engage` + resolve |
-| Best defender | Done | `units_best_defender_at` |
-| Colony / village / terrain / fortify site | Done | `015e` |
-| `1b0e` peels | Done | Colony REF +50%; Tory/Rebel support % Done |
-| `1b0e` combat-entry MP charge (full exhaust) | Done | **Re-derived 2026-09-10; there is no "ship-slow".** `FUN_5fef_1b0e` does `spent += 3` at entry (raw 100341-100343) but then calls `FUN_281f_0934` under the same attack flag (100381-100383) → `FUN_1427_155e` writes `spent = FUN_1427_065a(unit)`, the full max allotment (raw 8880-8888), so the `+3` is a dead store. Attacking exhausts the piece — win or lose, ships included. `FUN_465b`'s per-tile step cost and shore-crossing exhaust both sit inside `if (!bVar4)` (raw 75639-75648), so an attacker pays neither. Port: `units_try_move`'s `combat_attack_entry` flag routes all four outcome sites through `units_mp_exhaust`, charged *after* the resolve because the fatigue peel reads entry-remaining. Entry gate (raw 100359-100372): under 3 thirds remaining the attack is refused outright for natives/crown and for any AI-controlled Euro slot; only the interactive human gets the `@HALF` tired-attack CHOICE. 2026-09-03: the 465b MP overspend ROLL never denies an attack (`(04ca, bVar4)` third clause of the gate is the attack flag) |
-| Promote / demote / capture / treasure | Done | Ransom Accept/Refuse Done; wagon/colonist capture Done |
-| Naval damage / sink / plunder | Done | Close-fight escape path Done; Privateer `@SEIZURESEA` |
-| Combat Analysis | Done | Options-gated dual column |
-| Fizzle dissolve present (`FUN_12d6_0000` / thunk `FUN_281f_03ea`) | Done | 2026-09-07: destroyed/sunk/demoted piece "pixelates" away — DOS presents the outcome redraw by copying all 64000 px in 16-bit LFSR order (poly `0xB400`, asm file 0xF5E6; catalog mislabels 0016 "delay"). Fired dur 8 in `1b0e` tail, `36fe`, `31ea`, LCR `65dd` vanish. Port: `units_set_combat_dissolve` two-phase hook (pre-snapshot / post-animate) around land+naval outcome and LCR despawn; `game_combat_dissolve` diff-gates identical frames so out-of-sight or in-colony fights stay instant |
-| Coastal fort fire | Done | Miss→MP drain; close hit→bit7; Drydock repair + `@REFIT` Done thin; temp unit/VGA PARKED |
-| Outcome popups `@EUROPE*` / `@SHIP*` / `@LOOT*` / `@CAPTURED*` / `@BURNED*` | Done | Playable matrix; Europe `@LOOTCASH` separate — [popups.md](popups.md) |
-| Village settlement battle `4528` | Done thin | Human `@ACTIONS` menu (P8.8) incl. Attack Village; empty-tile temp Brave from adjacent (stay put) + pop drain / destroy; fallout `@LOOT`/`@LOOT2`; deep mid-body/VGA PARKED. 2026-08-24: `1b0e`'s "no live defender" arm re-verified field-for-field (tribe struct `+7` muskets / `+10` horse_breeding → `units_spawn_village_temp_defender`) — confirmed already correct, not a stub. Sibling arm (undefended **Euro** colony, not a village) spawns a *different* temp defender — see next row, closed 2026-08-26 |
-| Undefended Euro colony token-militia | Done | `units_spawn_colony_temp_defender` (`units.c`) — phantom defender fielded whenever a Euro colony has colonists but no live defender; was previously a free capture. 2026-09-08: **Paul Revere is the same phantom**, not a separate ejected Soldier — the FF only swaps its graphic to `0x4b` and its base combat 1 → 2 (port: `Soldiers` type instead of `Colonists`), never touches population and never spends the warehouse muskets. DOS shape: spawn `FUN_478c_002c` (type `0x17` + on-the-fly `@UNIT` row write `FUN_478c_0002`), undo `FUN_478c_00d0`. See [port_plan.md](port_plan.md) P5.4 (was W1.8) for the full DOS trace |
-| Euro mid combat scoring `20e6` | Done thin | Settlement/siege peels + adjacent toughness; deep −0x6790 matrix PARKED |
-| VGA-identical combat chrome | PARKED | — |
-
----
-
-## Conflicts resolved
-
-| Topic | Rejected / stale | Authoritative |
-|-------|------------------|---------------|
-| Fort land defense | Manual / wiki Fort **+150%** as a distinct `015e` tier | Decomp: Fort shares Stockade `local_1a=4` (×2). Wiki +150% ≈ fortified Stockade path (`local_1a=6` → ×2.5). Fortress `local_1a=8` (×3) |
-| `colonies_fortification_defense_bonus_percent` | Live land combat | Helper returns 100/150/200 for AI/UI; **live land combat uses `combat_colony_fort_strength`** |
-| Fandom “Port: combat Missing” | Stale Units row | Land/naval Partial — this hub + [manual_gap.md](manual_gap.md) |
-| Difficulty “combat unaffected” | Old [difficulty.md](difficulty.md) note | Human Euro `str -= (difficulty-4)` in `1b0e` peels, plus the resolve-only handicap group (`combat_apply_1b0e_resolve_handicaps`, raw 100534-100556): attacker of a human Euro damped/halved, beginner shield zeroes it, diff-0 human attacker doubled |
-| SoL popular support | Manual SoL/Tory share by side | **Done**: crown `+(100−SoL)%` (Tories), rebel `+SoL%` (Rebels) on colony — [sons_of_liberty.md](sons_of_liberty.md) |
-
----
-
 ## PARKED
 
 | Gap | Where |
@@ -267,6 +229,9 @@ spawn + fort VGA chrome.
 | Euro / king / raid callers | [`ai_euro.c`](../src/core/ai_euro.c), [`ai_king.c`](../src/core/ai_king.c), [`ai_contact.c`](../src/core/ai_contact.c) |
 | EOT fort pulse | [`turn_production.c`](../src/core/turn_production.c) `turn_run_colony_production_with_w` → `units_coastal_fort_fire_colony_w` |
 
+`colonies_fortification_defense_bonus_percent` (100/150/200) is for AI / UI
+only; live land combat uses `combat_colony_fort_strength`.
+
 ### Tests
 
 | File | Coverage |
@@ -285,7 +250,7 @@ spawn + fort VGA chrome.
 |-----|-------|
 | `FUN_157e_004a` | `combat_unit_base_x8` |
 | `FUN_157e_015e` | `combat_engagement_strength` |
-| `FUN_157e_0008` / `15eb_038e` | village probe count |
+| `FUN_157e_0008` / `15eb_038e` | colony fortification tier 0..3 (Stockade/Fort/Fortress chain probe) — `combat_colony_fort_strength` |
 | `FUN_5fef_1b0e` | `combat_apply_1b0e_peels` + resolve roll shell + `units_try_move`'s combat-entry full MP exhaust (`combat_attack_entry`) |
 | `FUN_5fef_0000` | `units_best_defender_at` |
 | `FUN_5fef_0352` | `units_apply_land_loss_outcome` |
@@ -311,4 +276,4 @@ spawn + fort VGA chrome.
 - [indians.md](indians.md) — raid / fallout ownership
 - [popups.md](popups.md) — combat / loot `@SECTION`s
 - [manual_gap.md](manual_gap.md) — feature checklist
-- [port_plan.md](port_plan.md) — AI combat callers / `20e6`
+- [ai_euro_logic_map.yaml](ai_euro_logic_map.yaml) — AI combat callers / `20e6`

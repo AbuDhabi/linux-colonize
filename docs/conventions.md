@@ -15,12 +15,12 @@ the verification loop. It does **not** own feature status — that stays in the
 |---|---|
 | `FUN_<seg>_<off>` | Ghidra synthetic name for a 16-bit function at *segment:offset*, e.g. `FUN_521d_20e6`. Calling convention in the export is usually `__cdecl16far`. |
 | `DAT_<seg>_<off>`, `LAB_*`, `caseD_*` | Global/static data, labels, switch-case stubs. Switch bodies often survive only as `caseD_*` thunks — see the `caseD_10` trick below. |
-| `DS:0xNNNN` | A DOS data-segment address. Globals are catalogued in `original_sources_annotated/include/viceroy_globals.h` and `docs/viceroy_tables.md`. |
+| `DS:0xNNNN` | A DOS data-segment address. Globals are catalogued in `original_sources_annotated/include/viceroy_globals.h`. |
 | **DS→EXE rule** | A *static* DS string or table lives at **`COLONIZE/VICEROY.EXE` file offset `121248 + addr`**. Works only for static strings; runtime pointer slots (`0x2dxx`, `0x9xxx`) hold load-time pointers and read as garbage — identify those by table stride instead. (memory: `mysteries-sweep-2026-08-27`, `sidebar-49dd-0424-port`) |
 | **`raw NNNNN`** | A line number in `original_sources_decompiled/viceroy_unpacked.c`. The normal citation unit in code comments (~1900 uses in `src/core`, 2026-10-18). |
 | **`FUN_1000_X` rule** | `FUN_1000_XXXX` resident stubs are thunks for `FUN_281f_(XXXX − 0x81f0)`; `FUNCTION_CATALOG.md` then names the real body. (memory: `ai-20e6-structural-land-port`) |
 | `tools/address_mapping.csv` | canonical_name → canonical_address → overlay/offset map. Check it (plus `viceroy_globals.h`, `dosbox-x-dumps/*`) before filing anything as "needs a live capture". |
-| **Overlays / RTLink** | VICEROY is RTLink-overlaid. A `CALLF <loader>; JMPF 0x0000:XXXX` is an **unpatched placeholder**, not content — resolve via `tools/rtlink_overlay_extract.py` + `tools/GhidraImportOverlays.java`, never by tail-following. (port_plan "Method notes") |
+| **Overlays / RTLink** | VICEROY is RTLink-overlaid. A `CALLF <loader>; JMPF 0x0000:XXXX` is an **unpatched placeholder**, not content — resolve via `tools/rtlink_overlay_extract.py` + `tools/GhidraImportOverlays.java`, never by tail-following. (`docs/archive/port_plan_deferred_ai_track.md` "Method notes") |
 | Overlay offset examples | `38fd:X` = OVL05 offset `X+0x400`; `2f2b:X` = OVL03 offset `X`; `41f2:X` = OVL06 offset `0x2f13 + (X − 0x0003)`. (memory: `bugs-review-2026-08-31`, `bugs-batch-2026-09-05`) |
 | **VICEROY ≠ MAPEDIT** | Separate programs, separate address spaces. Never equate `FUN_1a47_*` in MAPEDIT with a VICEROY `FUN_*` of the same digits. (`docs/original_index.md`) |
 
@@ -34,7 +34,7 @@ the verification loop. It does **not** own feature status — that stays in the
 | **census / stuff** | The derived per-nation counters block (`col1_stuff_census.c`). Census counters are `FUN_281f_09c8` value sums **×8**; several saturate at 255. (memory: `smell-sweep2-hmh-2026-09-09`) |
 | **profession bytes 25/26** | `@JOB` bytes `0x19`/`0x1a` = Indentured Servant / Criminal. The port also uses 19 as a free-colonist alias and 28 = `UNITS_JOB_NONE`. (memory: `bugs-batch-2026-09-03`) |
 | **layer2 / layer3** | Map planes. layer2 carries presence/feature bits (bit `0x40` = plowed, `0x08` = road). layer3 **high nibble = owner (0..14, 0xf = none)**, **low nibble = continent id**; layer3 is never fog. |
-| **COLONYFLAG** | DOS `@COLONYFLAG` "Colony Flags Error." — a village tile's layer3 **high nibble must equal the tribe's `nation_id` (4..11)**. Stamping a Euro nibble onto a village tile makes DOS pop the error on every lookup. (memory: `colonyflag-village-owner-nibble`) |
+| **COLONYFLAG** | DOS `@COLONYFLAG` "Colony Flags Error." — a village tile's layer3 **high nibble must equal the tribe's `nation_id` (4..11)**. Stamping a Euro nibble onto a village tile makes DOS pop the error on every lookup. (`col1_bridge.c` village-nibble heal; `docs/savegame.md`) |
 | **Lake** | terrain class `0x19` (Ocean) **and** layer3 low nibble != 1. `map_continent_id_at` returns −1 on water, so read `map_get_layer3() & 0x0f` directly. (memory: `bugs-batch-2026-09-04d`) |
 | **REF / WoI** | Royal Expeditionary Force / War of Independence. Crown slots are `player[n].control == 2`. |
 | **FF** | Founding Father. **Not globally exclusive**: eligibility is the nation's own bitfield (`nation.founding_fathers[]`); `head.founding_father[]` is a write-once *first-claimer* record DOS never reads as a gate. |
@@ -118,7 +118,7 @@ the verification loop. It does **not** own feature status — that stays in the
   (`turn_produce_one_colony`, `units_try_move_w`, `colony_screen_hit_test`,
   `ai_euro_colony_tick_run`, `ai_euro_5952_build_cascade_for_owner`,
   `ai_popup_render`, `col1_bridge_capture_w` / `_apply_w`,
-  `map_panel_render_w`); check `port_bugs.md #1107` for any still pending.
+  `map_panel_render_w`).
   `gsound_vm.c` `voice_tick` is exempt (driver emulator, verbatim).
 - **Internal-header test seam.** A stage function from the big-function-rule
   split stays `static` in production but is reachable from tests via
@@ -154,17 +154,17 @@ form carries the same rule.
 
 | Rule | Where |
 |---|---|
-| **Popup blocking**: every player-facing modal blocks all state processing. A new modal must be listed in `game_modal_open` (`game_loop.c`) — no per-site gating. The sim runs only on the overland map with nothing over it. | memory `popup-blocking-invariant` |
+| **Popup blocking**: every player-facing modal blocks all state processing. A new modal must be listed in `game_modal_open` (`game_loop.c`) — no per-site gating. The sim runs only on the overland map with nothing over it. | [architecture.md](architecture.md) "Blocking-popup invariant" |
 | **Single treasury accessor**: one purse per nation behind `europe_nation_gold` / `europe_nation_gold_add` (`europe.h`). Human = live `eu->gold`, others = the col1 record. `europe_gold_stamp_record` is the absolute copy; never assign. | `sweep3-third10-fix-wave` |
 | **Every AI-side borrow of the shared `EuropeScreen` needs save/restore** gated on `nation_id != ctx->human_nation` — otherwise AI gold/tax leaks into the human's record at the next capture. | `crown-europe-batch-2026-09-04` |
 | **Popup art palettes: merge, never remap.** A sheet that owns a DAC block the host screen leaves black (`SCORE<nn>.SS` over `WOODPAN2.PIK` is the only such pair) gets its entries merged via `ai_popup_art_palette_merge`. Sheets that paint where hosts paint (PARCH/WOODTILE/BUILDING/ICONS) are **remapped**, one copy per destination palette. | `crown-europe-batch-2026-09-04`, `sweep3-sixth-wave-batch20` |
 | **No weak fallbacks in `colonize_core` files.** `__attribute__((weak))` definitions satisfy the reference, so the linker never pulls the real archive member — `unit_ai_diplo` ran stubbed AI for months. Cross-module stubs live in `src/core/ai_contact_link_stubs.c`, compiled **only** by the SLIM targets (see its file header + `COLONIZE_SLIM_SOURCES` in `CMakeLists.txt`). | `sweep3-fifth-wave-batch20` |
 | **Slim targets** (`grep -n SLIM CMakeLists.txt`: the six `unit_units_*` slices, `unit_combat_strength`, `unit_colonies`, `unit_colony_yield`, `unit_reports`) do not link `colonize_core`. Adding a call to a symbol outside `COLONIZE_SLIM_SOURCES` breaks all of them at link time. They are declared with `colonize_add_test(... SLIM)` in `CMakeLists.txt`, which appends `src/core/ai_contact_link_stubs.c` and defines `COLONIZE_SLIM_TEST=1`; the stubs file `#error`s in any other target. | `duplication-audit-2026-09-14` |
 | **MP on native units** routes through `units_mp_charge` / `units_mp_exhaust` (`units_capture.c`): Euro units store thirds remaining, Braves store thirds **spent** (>= max = exhausted; an overspend is kept, byte-saturated at 255: FUN_465b_0000 raw 75640). | `smell-batch1-2026-09-08` |
-| **No per-turn "drip" effects without a DOS trace.** Indian alarm has exactly two DOS growers: the per-turn `FUN_4d56_152e` threat accumulator, and the discrete land-work charge in `FUN_0000_6582` (the shared colony `tiles[]` writer — `colonies_assign_field_w`, port_bugs.md #1002), which is the one that moves early-game alarm. Discrete-event bumps are safe; recurring drips compound into order-of-magnitude divergence. | `alarm-fandom-drips-retired`, `land-work-alarm-2026-09-30` |
+| **No per-turn "drip" effects without a DOS trace.** Indian alarm has exactly two DOS growers: the per-turn `FUN_4d56_152e` threat accumulator, and the discrete land-work charge in `FUN_0000_6582` (the shared colony `tiles[]` writer — `colonies_assign_field_w`, port_bugs.md #1002), which is the one that moves early-game alarm. Discrete-event bumps are safe; recurring drips compound into order-of-magnitude divergence. | port_bugs.md #291, #1002 |
 | **Don't re-merge "kept split on DOS grounds"** rows from `docs/archive/duplication_audit_2026-09-14.md`; use the shared helpers listed in its Resolution table. | `duplication-round2-2026-09-15` |
-| **Never store port-only state in a `head.unknown*` field** without checking `save_format_map.md` for its real DOS meaning (`market_demand_pool_raw` is the market pool and is rewritten every EOT). | `woi-headless-sim-and-market_demand_pool_raw` |
-| **Expert Teacher (@JOB 18) was cut before release** — never port DOS code that creates or hires one. Existing arms are save tolerance only. | `expert-teacher-cut-type` |
+| **Never store port-only state in a `head.unknown*` field** without checking `save_format_map.md` for its real DOS meaning (`market_demand_pool_raw` is the market pool and is rewritten every EOT). | `woi-headless-sim-and-unknown46` |
+| **Expert Teacher (@JOB 18) was cut before release** — never port DOS code that creates or hires one. Existing arms are save tolerance only. | port_bugs.md #374; [building_production.md](building_production.md) Teacher row |
 
 ---
 
@@ -287,9 +287,9 @@ invented mechanics. Never port from it without a DOS trace.
 | **PUSH-pair scan** | Enumerate call sites whose args Ghidra dropped by scanning the `.asm` for `PUSH` pairs before `CALLF <target>` (found all ~119 `FUN_281f_0652` sites). | `mss-myr-popup-graphics` |
 | **`caseD_10` grep** | Ghidra names some thunks `switchD_2000:da9f::caseD_10`. Grepping the `FUN_` name misses every call site — grep the `caseD_*` name. | `ai-residues-closeout-2026-09-08` |
 | **Extract-and-ndisasm switch bodies** | Ghidra leaves switch bodies as `??` bytes (e.g. `FUN_4d56_021a`, 4836 bytes). Extract the range and `ndisasm -b16` it at the right origin. | `popup-ids-are-ds-tag-addresses` |
-| **Boundary-first second pass** | A `completed=true` decompile can carry corruption inlined from a callee, and Ghidra can silently pull in *wrong but plausible* content. Check the cited address falls inside the function's own boundary before declaring corruption. | `docs/port_plan.md` "Method notes" |
+| **Boundary-first second pass** | A `completed=true` decompile can carry corruption inlined from a callee, and Ghidra can silently pull in *wrong but plausible* content. Check the cited address falls inside the function's own boundary before declaring corruption. | `docs/archive/port_plan_deferred_ai_track.md` "Method notes" |
 | **Offline render + PPM cmp** | `tools/render_report`, `render_colony`, `render_map_panel` link `libcolonize_ui.a` + `libcolonize_sim.a` (in that order — `colonize_core` is an INTERFACE target since 2026-09-16) and dump PPMs; compare against a `git archive HEAD` build. No PPM goldens exist in tests. | `duplication-audit-2026-09-14` |
-| **Headless driver on a real save** | For "does X work end to end", write a scratch driver (gcc against `build/debug/libcolonize_ui.a build/debug/libcolonize_sim.a`, `-I src`) that loads a real `.SAV`, loops `turn_end`, and prints counters — then promote it to a `golden_*` test. Attach a popup queue (`ctx.ai_popups`) or the King auto-declares independence on turn 1. | `woi-headless-sim-and-market_demand_pool_raw`, `ai-ship-wiggle-fix` |
+| **Headless driver on a real save** | For "does X work end to end", write a scratch driver (gcc against `build/debug/libcolonize_ui.a build/debug/libcolonize_sim.a`, `-I src`) that loads a real `.SAV`, loops `turn_end`, and prints counters — then promote it to a `golden_*` test. Attach a popup queue (`ctx.ai_popups`) or the King auto-declares independence on turn 1. | `woi-headless-sim-and-unknown46`, `ai-ship-wiggle-fix` |
 
 ---
 
@@ -356,7 +356,7 @@ cmake --build build/debug --target golden_ai_joint         # when AI or turn ord
 
 - **Never `git commit`, `git push`, `git stash`, or change branches.** The user
   handles git through GitHub Desktop. Land edited files, not commits — inside a
-  worktree too. (CLAUDE.md rule 2; memory `no-commit-push`)
+  worktree too. (CLAUDE.md rule 2)
 - **Surgical edits.** Prefer a targeted edit over rewriting a file whenever the
   end result is the same (CLAUDE.md rule 5).
 - **Load the docs at the start of work** and don't let compaction erase them
@@ -368,7 +368,7 @@ cmake --build build/debug --target golden_ai_joint         # when AI or turn ord
   When a memory names a file or function, grep it before citing.
 - **Update the owning status doc when a slice lands** — result + trap + citation
   in a few lines. Leave chronology to git history; keep retracted-lead traps,
-  they stop repeated dead ends. (memory `docs-compression-2026-09-05`)
+  they stop repeated dead ends.
 - **Don't read archives willy-nilly.** Everything under `docs/archive/`
   (`bugs_closed.md`, `bugs_fixed_pending.md`, the audit dumps, the W-tier and
   deferred-AI history) is history, not a spec, and each file is big enough to
@@ -384,7 +384,7 @@ cmake --build build/debug --target golden_ai_joint         # when AI or turn ord
   history archived under `docs/archive/` with a status header. Audit dumps
   (`smell_audit_*`, `duplication_audit_*`) live in `docs/` while open and move
   to `docs/archive/` when closed.
-- **Gate tags in `port_plan.md`**: `[auto]` = agent-autonomous, `[user]` =
+- **Gate tags** (old `port_plan.md` tracks, any new work item): `[auto]` = agent-autonomous, `[user]` =
   prepare then stop and ask, `[live]` = needs the user's DOSBox-X session (file
   it, don't block; try `dosbox-x-dumps/*` byte search first).
 - **Anything player-visible that changes default behaviour is `[user]`** —

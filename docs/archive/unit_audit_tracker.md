@@ -1,6 +1,7 @@
 # Unit-type audit tracker
 
-STATUS: live tracker. Update when an audit starts or closes.
+STATUS: archived 2026-10-24. Every @UNIT and @JOB pass is done; findings live in
+port_bugs.md rows prefixed `<Type> audit:`.
 
 One audit = one unit type (or expert profession) checked end to end against the
 decomp: human paths, AI arms, Europe/dock handling, combat, colony work, sidebar and

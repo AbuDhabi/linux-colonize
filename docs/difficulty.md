@@ -86,7 +86,8 @@ the new-game path overwrites it; loaded saves take gold from the save.
 
 ## Starter skills
 
-[`units_starter_skills`](../src/core/units.c):
+[`units_starter_skills`](../src/core/units_cargo.c) (static helper of
+`units_spawn_euro_starter_fleet`):
 
 DOS-LITERAL `FUN_75c2_235c` raw 121612-121647. The new-game bootstrap spawns, per
 Euro nation `local_8` whose player control byte (`0x543f + local_8*0x34`) is not
@@ -113,8 +114,7 @@ and **0x15 = Soldier → Veteran Soldier** (`@JOB` is 0-based).
 Hardy Pioneer is **French-only** on every difficulty (matches DOS `COLONY00` /
 [savegame.md](savegame.md); not "both experts on easy"). The easy-difficulty
 Veteran Soldier is **human-only** — `bVar1` is the acting nation's own control
-byte, so AI Europeans never get it (port_bugs.md #488, fixed 2026-09-17; the port had
-a bare `difficulty <= 1`).
+byte, so AI Europeans never get it (port_bugs.md #488).
 
 ---
 
@@ -171,10 +171,6 @@ lengthens it by 2 per level below — it never moves a "first year".
 | 3 Governor | 16 | 13 | 10 | 7 |
 | 4 Viceroy | 14 | 11 | 8 | 5 |
 
-(The old doc's `22 − 2*diff` happens to be the ≤1600 column; it missed the year
-bands, the turn-30 gate and the 85% skip, and the `1536 − diff` "first year" was
-never in the code at all.)
-
 Once the gate passes, difficulty drops out — the delta comes from a favor score
 (`viceroy_unpacked.c:68460-68467`):
 
@@ -224,7 +220,7 @@ an accumulated force.
 | Artillery | `0x53e0` | `6*diff + 2` | 2 | 8 | 14 | 20 | 26 |
 
 (`head.expeditionary_force[0..3]` in save order regulars / dragoons / MoW /
-artillery. The old `8+diff*4` … `2+diff` table matched nothing in the code.)
+artillery.)
 
 ### Per-turn growth — the royal purse, not the tax event
 
@@ -253,8 +249,7 @@ if royal_money >= 1800:
 | 4 | 42 | 84 | 168 | 336 |
 
 So Viceroy buys a REF unit roughly every 43 peacetime turns in the 1500s and
-every 5–6 turns after 1750; Discoverer, 180 and 22. Growing pools on tax
-audiences was an invented stand-in and is gone (2026-09-06).
+every 5–6 turns after 1750; Discoverer, 180 and 22.
 
 ### Wave and Tory-uprising difficulty terms
 
@@ -271,9 +266,9 @@ colony score: pop*(100−SoL)*2/100 + difficulty + 1 − attack of units on the 
 ```
 
 Veteran and Dragoon promotion of the spawned irregulars roll on the same
-`rng(0, difficulty+1) != 0`. `AI_KING_SECOND_MOW_DIFF` (the old "second MoW wave
-at `diff ≥ 2`") is a leftover constant with no call site — that shape was a
-stand-in.
+`rng(0, difficulty+1) != 0`. The port's 0982 wave has no other difficulty
+term (the old `AI_KING_SECOND_MOW_DIFF`, a "second MoW at `diff ≥ 2`", had no
+call site and was deleted).
 
 ### Foreign intervention
 
@@ -295,9 +290,7 @@ Two independent things, neither of which is a difficulty band:
    then: pool1, pool3 ≤ 2*pool2 ;  pool0 ≤ 6*pool2 − pool1 − pool3
    ```
 
-   Harder levels shrink every pool by 1–2 (and the census term dominates), so the
-   table of fixed `2+diff` / `1+(diff>0)` backup values in the old text is wrong
-   in both shape and source.
+   Harder levels shrink every pool by 1–2 (and the census term dominates).
 
 2. **Trigger and landings** — the announce is bought by the WoI liberty-bell pool
    at `diff*1500 + 2000` bells (`founding_fathers_bells_needed`, see the FF table
@@ -317,9 +310,6 @@ Two independent things, neither of which is a difficulty band:
    Cont. Army     = 6 − (cavalry + artillery), capped by pool0
    all Veteran (profession 0x15), 5×5 reveal around the colony
    ```
-
-   "Up to 2 landings, 3 at `diff ≥ 2`" was a stand-in; `AI_KING_INTERVENE_DIFF_THIRD`
-   no longer exists.
 
 See [`king_ref.md`](../original_sources_annotated/ai/king_ref.md).
 
@@ -403,7 +393,7 @@ Harder → more expensive for the human, cheaper for AI.
 
 ### Conquest treasure
 
-[`units_conquest_treasure_gold`](../src/core/units.c): difficulty clamped to
+[`units_conquest_treasure_gold`](../src/core/units_combat.c): difficulty clamped to
 bands **0..3** (Governor and Viceroy share band 3). Per-band RNG ranges /
 multipliers; final gold = `amount * 100`. Cortes / Spanish / rich-capital modifiers
 layer on top (see function body).
@@ -430,8 +420,11 @@ computes the **Colonization Rating** shown on the Retire exploits screen and
 used as the Hall of Fame sort key: `rating = ((mult × total) / 100) >> 1` with
 `mult = {4,5,6,8,10}` for Discoverer..Viceroy, and an exploits tier (`largest
 n−1, n in 1..24, with n²/3 < (mult × total)/100`, cap 23) that picks how many
-GAME.TXT `@SCORE` lines / which `SCORE<nn>.SS` picture the screen shows.
-Ported: `reports_score_rating`, `reports_render_exploits`, `game_retire_after_score`.
+GAME.TXT `@SCORE` lines / which `SCORE<nn>.SS` picture the screen shows
+(`viceroy_unpacked.c:72415-72548`; Ghidra types the score composer's int
+return as `undefined1*`, which is not a real mismatch). Ported:
+`reports_score_rating`, `reports_render_exploits`, `game_retire_after_score`;
+see [reports_score.md](reports_score.md).
 
 ---
 
@@ -444,11 +437,10 @@ and the secondary commodity gets `+1` at Discoverer. No nation gate. Depletion:
 (units tallied in `FUN_15eb_18ec`: Minerals+Ore Miner 1, Minerals+Silver Miner
 2, Silver deposit+Silver Miner 1) and bumps `+0x97` only on a nonzero roll.
 None of this is exercised by the goldens (colony_prod01 = difficulty 2,
-colony_prod02 = 4) — asm-read only. Side note from the same read: the decomp
-adds the river bits to the *secondary* only and `layer2 & 0x40` to food, but
-removing the port's river-on-food term breaks three real captures by −1
-(Montreal, St. Louis, Fort Orange), so the port keeps river on food; the
-`0x40` label is what's suspect, not the captures.
+colony_prod02 = 4) — asm-read only. The same composer adds the river bits to
+the *secondary* only and `layer2 & 0x40` (the runtime plow bit) to food; the
+port matches (no river term on commons food, `colony_yield.c`;
+[terrain_yields.md](terrain_yields.md)).
 
 ## Production: Tory / inefficient government
 
@@ -460,26 +452,10 @@ threshold = 10 - difficulty   // Discoverer 10 … Viceroy 6
 
 Production penalty is **not** a flat −1 at the threshold. DOS uses
 `−⌊tory_count / threshold⌋`, then adds +1/+2 from SoL latches — full formula and
-port status in [sons_of_liberty.md](sons_of_liberty.md). DOS also latches colony
-flag bit `0x08` on the inefficient path.
-Port: full net mod in `colony_prod_sol_bonus` (Tory floor + sol latches / live
-SoL stand-in). Inefficient-government EOT chrome (`@INEFFICIENT` /
-`@EFFICIENT`) latches on that same Col1 `+0x1c` bit3
-(`COLONIZE_COLONY_FLAG_INEFFICIENT_GOV`) since 2026-09-04, so a crossing
-announced before a save is not announced again after the reload. The port's own
-food-shortfall reading, which used to occupy bit3, moved to the runtime-only
-`ColonizeColony.food_shortfall_latch`.
-
----
-
-## PARK / thin original effects
-
-| Effect | Decomp cite | Port |
-|--------|-------------|------|
-| AI colony food `+= difficulty>>1` | [`colony_eot_production.md`](../original_sources_annotated/turn/colony_eot_production.md) | **Wired** (`turn_produce_one_colony`) |
-| Rival SoL threshold `(8-diff)*10` | [`year_end_chrome.md`](../original_sources_annotated/turn/year_end_chrome.md) | Thin fixed thresholds |
-| Score→Colonization Rating `FUN_41f2_0b70` | full static port 2026-08-29 (`viceroy_unpacked.c:72415-72548` + `41f2_0092`/`0f56`/`14a8`) | **Done**. The "gold rebate" label was wrong: the value is a percent rating (`((mult*score)/100)>>1`, mult `{4,5,6,8,10}`) fed to `@EXPLOITS` "COLONIZATION RATING: %NUMBER0%" and to the HALLFAME.DAT sort key; the "return-type mismatch" flagged before is just Ghidra typing the score composer's int return as `undefined1*`. See `docs/reports_score.md` F10 / Hall of Fame. |
-| Tory floor production penalty | ~11880; [sons_of_liberty.md](sons_of_liberty.md) | **Wired** (`colony_prod_sol_bonus`) |
+port status in [sons_of_liberty.md](sons_of_liberty.md). Port: full net mod in
+`colony_prod_sol_bonus`. The same threshold drives the inefficient-government
+latch (`+0x1c` bit3, `@INEFFICIENT` / `@EFFICIENT`) — see
+[colony.md](colony.md#colonize_colony_flag_inefficient_gov).
 
 ---
 
@@ -513,13 +489,13 @@ Combat odds **are** difficulty-sensitive for human Euro sides
 | Wizard / names | [`new_game.c`](../src/core/new_game.c) |
 | Save / runtime byte | [`col1_save.h`](../src/core/col1_save.h), [`game_loop.c`](../src/core/game_loop.c) |
 | Starting gold | [`ai.c`](../src/core/ai.c) `ai_starting_gold` |
-| Starter skills | [`units.c`](../src/core/units.c) `units_starter_skills` |
+| Starter skills | [`units_cargo.c`](../src/core/units_cargo.c) `units_starter_skills` |
 | FF bells | [`founding_fathers.c`](../src/core/founding_fathers.c) |
 | Tax / REF / intervene | [`ai_king.c`](../src/core/ai_king.c) |
 | Euro AI economy | [`ai_euro.c`](../src/core/ai_euro.c) |
 | Immigration | [`europe.c`](../src/core/europe.c) |
 | Indian alarm / raids | [`ai_contact.c`](../src/core/ai_contact.c) |
 | Land purchase | [`colony.c`](../src/core/colony.c) |
-| Conquest treasure | [`units.c`](../src/core/units.c) |
+| Conquest treasure | [`units_combat.c`](../src/core/units_combat.c) |
 | Score | [`reports.c`](../src/core/reports.c) |
 | SoL / Tory production | [`colony_production.c`](../src/core/colony_production.c) (`colony_prod_sol_bonus`) |

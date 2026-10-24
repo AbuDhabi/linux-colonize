@@ -54,7 +54,7 @@ typedef enum ColonyProdTier {
  * (tag math + sol_bonus together), and a skill match doubles the whole thing
  * too — not a flat add after, which only happens to match DOS at house/shop
  * tier with an unmatched skill. Pass 0 for callers that intentionally show
- * the un-modified base rate (e.g. settlement badges — see building_production.md
+ * the un-modified base rate (e.g. a base-rate lookup; badges fold SoL, see building_production.md
  * "UI: settlement badges vs Production tab"). Clamped to >= 0 (DOS does the
  * same at its shared epilogue).
  */
@@ -302,9 +302,8 @@ int colony_prod_colony_hammers(
  *
  * `bred` is applied to BOTH the horses stock (+bred) and the food stock
  * (-bred, one horse "costs" one food, in addition to ordinary population
- * consumption) — golden-confirmed 2026-08-26, see building_production.md's
- * dated horse-breeding entry for the full derivation and the 13-colony
- * verification table.
+ * consumption) — golden-confirmed 2026-08-26, see building_production.md
+ * "Horse breeding".
  *
  * `shortfall` (potential - bred) is DOS's own report-only figure (scratch
  * 0x8e6a) — "N more could have bred but for the food/warehouse limit" —

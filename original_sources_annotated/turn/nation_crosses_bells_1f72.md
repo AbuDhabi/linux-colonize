@@ -44,7 +44,7 @@ below as ported guidance.
    below is `+=` onto the very slots that loop just filled.
 3. **Lines 11306-11314: crosses — fully traced, confirmed, and now used to
    fix the port** (`colony_prod_church_passive_crosses` — see
-   `building_production.md`'s 2026-08-15 fix row):
+   `building_production.md`'s Church / Cathedral row):
    ```
    crosses = 1                                    ; unconditional
    if FUN_15eb_038e(0x25 /* Church, NAMES.TXT row 37 */):    crosses += 1
@@ -103,7 +103,7 @@ below as ported guidance.
      → Press/Newspaper) and checked against 7 player-reported colonies
      (`dutch-reports.SAV`, Jefferson+Paine(35% tax) both owned, mixed
      Newspaper/Press/none, 1-3 workers each): **exact match on all 7**.
-     `colony_prod_colony_bells_ff` (building_production.md 2026-08-25 row)
+     `colony_prod_colony_bells_ff` (building_production.md Town Hall row)
      now applies Jefferson once colony-wide instead of per-worker, and
      moved Paine before Press/Newspaper. `byte[0xa892]` is still not
      identified — none of the 7 fits needed it, but a configuration this

@@ -53,7 +53,7 @@ how_to_read: |
   nodes inside a graph is execution order unless an edge label says
   otherwise. A `status: port` node is a mechanic the port added (usually
   build-queue policy or golden-fit staging); everything else maps to a DOS
-  FUN_521d_* body listed in docs/port_plan.md "FUN_* inventory".
+  FUN_521d_* body listed in docs/archive/port_plan_deferred_ai_track.md "FUN_* inventory".
 
 graphs:
 

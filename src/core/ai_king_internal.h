@@ -104,11 +104,6 @@ void ai_king_nation_turn(ColonizeTurnContext* ctx);
  * Man-O-War on the best water tile by the colony + Cont. Cav. ≤2 /
  * Artillery ≤2 / Cont. Army = 6 − those, pool-capped, Veteran 0x15. The old
  * "dual/third landing by difficulty" shape was a stand-in and is gone. */
-/* 0982: second MoW same beat when difficulty >= 2 and force[2] still > 0.
- * REF idle hunt prefers the founding capital when its MD is within 2 of the
- * nearest other human colony. Both numbers are spelled at their one use site;
- * the AI_KING_SECOND_MOW_DIFF / AI_KING_CAPITAL_MD_SLACK names had no
- * references at all and were deleted 2026-09-14. */
 
 /* ai_popup choice_ids (FUN_43f7_38fd_5be8 / 2244 / 2564). */
 #define AI_KING_CHOICE_ACCEPT 1

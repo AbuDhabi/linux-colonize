@@ -274,7 +274,7 @@ void turn_clear_mp_spent_all_nations(ColonizeUnitPool* pool);
  * Refresh moves for units of one nation (4..11 = natives when nation >= 4).
  * When col1 is set and the nation owns Magellan, sea units get +1 movement.
  * map may be NULL; when non-NULL with col1, arms native settlement fallout
- * (FUN_5fef_31ea-shaped; conquest gold unknown → -1, no invent).
+ * (FUN_5fef_31ea-shaped).
  */
 void turn_refresh_moves_for_nation_w(
   const ColonizeWorld* w,

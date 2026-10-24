@@ -8,7 +8,7 @@ and it is the next step whenever a golden mismatch is a near-tie or an
 
 Tool: `tools/dosbox_trace.py` (DOSBox-X 2026.07, Xvfb (Xephyr fallback), ImageMagick
 `import`, python3 `pexpect` and `PIL`, all installed here). Worked example:
-docs/ai_first_colony_trace.md "Brave 021a trace".
+docs/archive/ai_first_colony_trace.md "Brave 021a trace".
 
 ## Quick start
 
@@ -159,8 +159,22 @@ loads them on demand. To catch one:
    patched byte traps again, so keep `BPINT 3` and keep calling
    `trap_overlay`.
 4. Locals are `[bp-N]` with `N` from an ndisasm of the extracted segment
-   (`ndisasm -b16 -o <routine_off>`). Ghidra's `local_NN` names follow the
-   same offsets. `[bp+6]` is the first far-call argument.
+   (`ndisasm -b16 -o <routine_off>`). Ghidra counts from the entry SP, so its
+   `local_N` is `[bp-(N-2)]` (`local_38` = `[bp-0x36]`). `[bp+6]` is the first
+   far-call argument.
+
+Trap-handling rules (independence campaign, 2026-10-15):
+
+- Handle every `BPINT 3` stop at `off+1` with `trap_overlay`, whatever the CS: the patched
+  overlay can come back at a CS already seen. A script that skipped seen CSes let the INT 3 run
+  on, and the game silently corrupted (garbage gold, an autosave rewritten, no further traps).
+- An OVL15 (5952) run died on the second reload with RTLink "Fatal error evm012 ... vectored
+  call to page 0005h"; breakpoints left on the old CS are the likely cause (see `BPDEL *` under
+  "Data traps").
+- The in-game load's final Enter needs some `step()` polls to take effect, and the resumed AI
+  slot runs during them, so arm `BPINT 3` before that Enter or the patched INT 3 runs unhandled.
+- `setup` writes `ems=false xms=false umb=false` to `dbx.conf`; with EMS the trapped overlay is
+  re-cached and later calls are missed.
 
 RTLink also moves resident overlays in memory, carrying a restored byte along, so after a
 `trap_overlay` later calls can go untrapped. To catch every call, leave the INT 3 in place and
@@ -194,7 +208,22 @@ instruction. On one byte it is fine. It found the 3180 facing writer.
 - The RNG state (FUN_1d1d_0e04, resident 1541:0e04) is the dword at 0x28ee in the routine's own
   DS (read `DS` at the break), not the game DS.
 - 20e6 wander scorer (OVL14): `--patch-cc 0x4e2d6`, trap offset 0x20e6; at CS:5805 `[bp-0x4e]` is
-  the direction and `[bp-0x26]` its score, `[bp+6]` the unit.
+  the direction and `[bp-0x26]` its score, `[bp+6]` the unit. FUN_521d_0a60 (same overlay):
+  `--patch-cc 0x4cc50`; both original bytes are 0xc8. A nation's primary goal table is
+  DS:0x98b0 + nation*0x100 (64 x {x, y, code, prio}).
+- Data breakpoints need no code patch and no overlay handling. Colony record i is at
+  DS:0x5d46 + i*0xca (pop +0x1f, flags +0x1b, build +0x94, food +0x9a, horses +0xaa, rebel pair
+  +0xc2/+0xc6); `BPM` on the bytes of interest, set before the load's final Enter, stops at each
+  writer's CS:IP with its `SS:BP` locals readable, which gives per-tick colony timelines.
+  Keyboard polls stop at F000 or 130B.
+- Unit creation: `BPM` on the unit count DS:0x539c stops inside FUN_1427_06b4 (CS 0c4b) before
+  the new record is written, so the record's bytes are a deleted unit's leftovers; read it at the
+  next keyboard poll. The caller's frame is `[BP]` of the stop; walk BP with
+  `d.word(..., signed=False)` and identify an overlay caller by its args and locals.
+- Real caller of an overlay call (e.g. of a rand draw): the stack shows RTLink's return vector
+  1931:1554, not the caller. Set `BP 1931:155D` and run once: SS:SP then holds the caller's
+  runtime CS:IP (overlay CS varies per load). Find its bytes in VICEROY.EXE or in the asm bytes
+  column (`grep c78674ff1600 viceroy_unpacked.asm`) to name the function.
 - RNG-dependent outcomes need the archive's EXE: the America and independence archives are
   VR_SOUND runs. A VR_SEED from-load reseeds every nation slot from the wall clock (two from-loads
   of america save 97 disagreed on England's Galleon roll), so use `setup --exe VR_SOUND.EXE` before

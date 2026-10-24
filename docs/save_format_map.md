@@ -1,4 +1,4 @@
-# Col1 save format map (roadmap + field atlas)
+# Col1 save format map (field atlas)
 
 Living inventory of every `COLONY##.SAV` region and the path to a
 **decomp-backed** field map. Codec layout, byte-identical RMW, P0–P5 naming,
@@ -175,7 +175,7 @@ Export often **zeros** unnamed colony bytes on rebuild ([savegame.md](savegame.m
 | Field | Size | Status | Notes |
 |-------|------|--------|-------|
 | `x` / `y` / `type` / `nation_id` | — | `mapped` | Europe sentinels ≥200. **Full lane chain resolved 2026-09-18 (port_bugs.md #489)** from `FUN_48d3_06ba`'s four `thunk_FUN_2a1f_0246` → `FUN_48d3_03d0` hops (raw 77965-77980) plus `FUN_48d3_007a` (raw 77626: eastbound entry `nation-0x0c`) and `FUN_48d3_0346` (raw 77755: westbound entry `nation-0x18`): eastbound `244+n` → `240+n` → `236+n` = **the Europe port** (no `03d0` call walks it; it is the dock lane land units sit on), then westbound `232+n` → `228+n` → `224+n`, which `FUN_48d3_064e` → `048e` places on the map. So `228+n` is the last westbound lane ("arrives next tick"), **not** "in port" — confirmed by `mapgen/SEED100.SAV` and `COLONY00.SAV` (turn-0 AI fleets at 229/230/231, counter 0, `goto` = landfall, chained passengers) and by lategame `COLONY06.SAV` (human Dutch stack at 231 counter 0 vs French at 233 counter 1). `col1_counter16` (+0x16) = voyage turns left in the current lane. Port mapping: `236+n` harbor, `228+n` Bound, `244+n` Expected. nawagers' 235/239/243 = nation 3 on those diagonals. OpenCol capture/apply honor all three ship lanes (savegame.md "Human Europe ships") |
-| `vis_mask` | 4 bits | `mapped` | euro owner `1<<n` (`FUN_1427_0992`) on MAP units only; natives 0 on spawn/capture. **Europe-sentinel units (x/y ≥ 200) carry vis 0 in every original save** (2026-09-03 survey) — capture forces 0 there |
+| `vis_mask` | 4 bits | `mapped` | euro owner `1<<n` (`FUN_1427_0992`) on MAP units; natives 0 on spawn. Capture round-trips the live mask and ORs the owner bit for non-crown Euro map units only; natives keep their nibble; off-map (x/y ≥ 200) units export their live mask (0 for most, a repair-parked hull keeps its map mask). Detail: [savegame.md](savegame.md) P6 `vis_mask` |
 | 8 named bits (was `unknown15_lo`/`ship_damaged`) | 1 | `mapped` | bit7 `ship_damaged` (`FUN_1427_13b0`); bit0 dead; bits1/2/3/5/6 resolved 2026-08-19 (roam-reeval, stack founders/military, garrison-request, bound-in-transit); bit4 `wander_dest_chosen` partial — see mysteries_catalog.md |
 | `moves` / `orders` / `goto_*` | — | `mapped` | |
 | `origin` | 1 | `partial` | Brave home tribe; **Euro units carry small values here too** (2026-09-03 french campaign: 0-9, looks like home colony index) — port preserves the loaded byte (`col1_origin` stash), 0xff for port-spawned Euros. Semantics of the Euro value unconfirmed |
@@ -188,7 +188,7 @@ Export often **zeros** unnamed colony bytes on rebuild ([savegame.md](savegame.m
 | Field | Size | Status | Notes |
 |-------|------|--------|-------|
 | `tax_rate` / `recruit*` / FF / bells / gold / crosses | — | `mapped` | |
-| `liberty_bells_pool` / `liberty_bells_last_turn` | 2+2 | `mapped` | `+0xc` = the **live Founding-Father bell pool** (was misnamed `liberty_bells_total`): `FUN_4345_0a22` adds each colony's bells (raw 73341) and zeroes it on a successful elect (raw 73370); `FUN_43f7_1a26` zeroes it at the declaration of independence (raw 74738). `+0xe` = bells produced **this turn** only — zeroed before the per-colony loop (`FUN_3844_00f2` raw 58382), write-only in DOS. port_bugs.md #933 deleted the OpenCol FF side table and the conditional stash of the pool into `+0xe`; both words are now written straight through, so a DOS save's `+0xc` loads as the pool and a port save hands DOS a real pool. All fixtures codec byte-identical. See [savegame.md](savegame.md) Phase 5 |
+| `liberty_bells_pool` / `liberty_bells_last_turn` | 2+2 | `mapped` | `+0xc` = the **live Founding-Father bell pool** (was misnamed `liberty_bells_total`): `FUN_4345_0a22` adds each colony's bells (raw 73341) and zeroes it on a successful elect (raw 73370); `FUN_43f7_1a26` zeroes it at the declaration of independence (raw 74738). `+0xe` = bells produced **this turn** only — zeroed before the per-colony loop (`FUN_3844_00f2` raw 58382), write-only in DOS. port_bugs.md #933 deleted the OpenCol FF side table and the conditional stash of the pool into `+0xe`; both words are now written straight through, so a DOS save's `+0xc` loads as the pool and a port save hands DOS a real pool. All fixtures codec byte-identical ([savegame.md](savegame.md) "Verified fixtures") |
 | `nation_flags` | 1 | `partial` | Was `unknown19`; bits `0x04`/`0x08`/`0x40` live; bit `0x04` named 2026-08-19 = nation achieved independence |
 | `tax_hike_count` | 1 | `mapped` | Was `unused07`; `FUN_38fd_44a4` |
 | `unknown21_pad` | 1 | `opaque` | Was `unknown21`; resolved 2026-08-19 confirmed dead — untouched by all 3 DOS exports, the one gap new-game zero-init skips. The 2026-08-22 `FF_POOL_STASH_MARKER` repurpose was removed by port_bugs.md #933; nothing writes this byte now |
@@ -289,8 +289,8 @@ window is non-zero. Do not freshen mid-turn lag. **Blank templates only:**
 | Plane | Status | Notes |
 |-------|--------|-------|
 | `tile` | `mapped` | Terrain bitfield |
-| `mask` | `mapped` | Occupancy + density rebuilt on export (`col1_bridge_sync_map_*`; `FUN_684c_08c0` / `137f_015e`); purchased sticky / layer2. Smcol/nawagers: `suppress` clears exhausted / far-ocean primes (not LCR). Nawagers: forest prime pattern is land pattern shifted **+4 columns** (clearing forest can reveal a different prime). Road is bit `0x08` only — bit `0x04` is the prime-**suppress** bit (`ColonizeCol1Mask.suppress` → `MAP_LAYER2_SUPPRESS`), unrelated; village/capital occupancy is bit `0x02` (`has_city`). (This row and two `col1_bridge.c` comments called `0x04` "village/capital occupancy" until 2026-09-09 — smell audit #77, prose only: struct, writer, constant and the layer2 derivation have always agreed on suppress.) **2026-08-25 fix:** the `map->improve[]` road-flag import checked `mask & 0x0c` (`0x04|0x08` combined) instead of `mask & 0x08` alone, so any tile with the suppress bit set — including plain ocean — got falsely flagged as roaded. Player-reported on `dutch-reports.SAV`: (47,31)/(53,32)/(55,34)/(55,37), all `mask=0x04`, all ocean, all wrongly roaded on load. `col1_bridge_apply` fixed to `mask & 0x08`. |
-| `path` | `mapped` | Region + visitor. Nawagers: low nibble = path region (oceans/continents numbered independently; >15 → `0xF`); high nibble = last visitor (`0xF` unvisited; LCR cleared only on occupy, not 8-neighbor reveal). **2026-08-26 fix:** rumour presence is purely procedural (`map_procedural_rumour_at`, a position+seed hash) with no dedicated "already explored" bit anywhere in the Col1 tile/mask format — `map_clear_rumour` only ever set our own runtime-only `layer2` bit (`MAP_LAYER2_LCR_CONSUMED`), which starts zero on every fresh import, so a save carrying an already-resolved LCR showed it as freshly unexplored again. Player-reported on `dutch-reports.SAV` (46 stale tiles). Fixed by seeding that bit at import time from this very field's visitor nibble (`!= 0xF` → mark cleared) — resolving a rumour always means a unit physically stood on it, so "has anyone ever visited" already implies "any rumour here was already triggered"; harmless to set on a non-rumour tile too since `map_has_rumour_at`'s hash check still gates everything downstream. Also broadened `units_resolve_lcr_rumour`'s trigger from Scout-only (this port's own over-restriction) to any land unit, matching DOS — Scout / Seasoned Scout now roll from a better-weighted outcome table instead of being the only unit types able to trigger an LCR at all. |
+| `mask` | `mapped` | Occupancy + density rebuilt on export (`col1_bridge_sync_map_*`; `FUN_684c_08c0` / `137f_015e`); purchased sticky / layer2. Smcol/nawagers: `suppress` clears exhausted / far-ocean primes (not LCR). Nawagers: forest prime pattern is land pattern shifted **+4 columns** (clearing forest can reveal a different prime). Road is bit `0x08` only — bit `0x04` is the prime-**suppress** bit (`ColonizeCol1Mask.suppress` → `MAP_LAYER2_SUPPRESS`), unrelated; village/capital occupancy is bit `0x02` (`has_city`). The `map->improve[]` road-flag import tests `mask & 0x08` alone: `0x04` (suppress) is set on plain ocean too. |
+| `path` | `mapped` | Region + visitor. Nawagers: low nibble = path region (oceans/continents numbered independently; >15 → `0xF`); high nibble = last visitor (`0xF` unvisited; LCR cleared only on occupy, not 8-neighbor reveal). The Col1 format has no "rumour explored" bit: rumour presence is procedural (`map_procedural_rumour_at`, a position+seed hash), so import seeds the runtime-only `MAP_LAYER2_LCR_CONSUMED` from this field's visitor nibble (`!= 0xF` → cleared; a resolved rumour always had a visitor, and `map_has_rumour_at`'s hash still gates a non-rumour tile). |
 | `seen` | `mapped` | Fog / score nibbles (nawagers: hi bits Euro visibility; lo nibble colony-site AI score) |
 
 ### Post-map (`ColonizeCol1PostMap`, 614)
@@ -338,47 +338,12 @@ planes byte-exact). Tail preserved; blank templates may stamp
 
 ---
 
-## Phased work queue
+## RE phases
 
-| Phase | Scope | Exit criteria | Status |
-|-------|--------|---------------|--------|
-| **P0 — Atlas** | Inventory every opaque hole | This document exists; all `unknown*` listed | **Done** |
-| **P1 — Correct the big mis-split** | Reconcile stuff vs post-map vs `FUN_75c2_0288` / `FUN_67f4_0088`; fix wrong comments | Connectivity planes named; stuff chunk table; `ColonizeCol1PostMap` | **Done** |
-| **P2 — Absorb proven community names** | Rename head/nation/indian/unit/trade fields where smcol + decomp agree | Struct names match evidence; sizes unchanged; `unit_col1_save` byte-identical | **Done** |
-| **P3 — Export rebuild** | Template/new-game rebuilds connectivity (+ required defaults) so DOS survives past UNITFLAG | OpenCol→DOS smoke; remaining holes documented | **Done** |
-| **P4 — Deep leftovers** | Colony opaques, indian contact, stuff FA/counts, pathfinder | Cite + value ranges | **Done** |
-| **P5 — Remaining holes** | Ready peels + nation/head pads + `unknown36` chunk split + `other`/head vestigial close | Every byte named or closed save-only/vestigial + DS | **Done** |
-| **P6 — OpenCol→DOS interop** | Mask density, blank census, colony capture fill, vis_mask, AI blob discipline | Template export smoke; fixture RMW identical | **Done** |
-
-```mermaid
-flowchart TB
-  codec[Codec byte-identical RMW done]
-  atlas[P0 Field atlas]
-  absorb[P2 Absorb smcol names with DS proof]
-  connect[P1 Realign post-map connectivity vs stuff]
-  export[P3 Bridge rebuild for DOS-safe new-game]
-  deep[P4 Colony nation indian head leftovers]
-  p5[P5 Map remaining holes]
-  p6[P6 Full OpenCol DOS interop]
-  codec --> atlas
-  atlas --> absorb
-  atlas --> connect
-  absorb --> export
-  connect --> export
-  export --> deep
-  deep --> p5
-  p5 --> p6
-```
-
-### Remaining HOLD
-
-**P5 naming + P6 template interop complete.** Former export gaps closed:
-
-- Mask `suppress` / `purchased` / `pacific` synthesized on capture
-- Blank-template census fill; mid-campaign census still preserved
-- Colony specialty / warehouse / capitol / visibility on capture
-- Late `unknown_ds_*` / `tribe_dwellings` / `other` / boot path blob: **export-OK
-  zero** (save I/O only in unpacked VICEROY — no invented FA rebuild)
+P0 atlas → P6 OpenCol→DOS interop are all **Done** (phase table:
+[archive/save_format_map_history_2026-10-24.md](archive/save_format_map_history_2026-10-24.md)).
+Late `unknown_ds_*` / `tribe_dwellings` / `other` / boot path blob export as
+zero (save I/O only in unpacked VICEROY — no invented FA rebuild).
 
 Standing rules: keep RMW sizes; do not invent blobs without decomp evidence;
 **census** mid-campaign = DOS-parity preserve only (see Stuff §).
@@ -389,19 +354,7 @@ Standing rules: keep RMW sizes; do not invent blobs without decomp evidence;
 
 Re-read of [pavelbel/smcol_saves_utility](https://github.com/pavelbel/smcol_saves_utility)
 (`smcol_sav_struct.json` + `supplemental-info.md` + README changelog) against this
-atlas. Most named fields were already absorbed in P2 or superseded by DOS peels.
-
-**New / corrected community clues absorbed above:**
-
-| Smcol claim | Port action |
-|-------------|-------------|
-| Colony +0xba / +0xbe = fog population / fortification per Euro | Atlas corrected (`partial`/`community`); fixtures corroborate; founding cite `FUN_364b_1ba8` |
-| Treasure `profession` = gold/100 | Documented on unit `profession` (DOS Europe-exit already knew) |
-| `other` = 18 + click xy + 2 | Documented carve |
-| Stuff `0x336` = show colony prod quantities | Community alias on `ui_toggle_336` |
-| Price-group mechanics (only processed goods) | Note on `market_demand_pool` |
-| Connectivity quad algorithm + NE/SW bug | Note under post_map (rebuild still DOS-cited) |
-| `suppress` prime-resource cases; tribe growth/alarm/horse lore | Notes on mapped fields |
+atlas. Its named fields are absorbed into the tables above or superseded by DOS peels.
 
 **Already known / prefer DOS (do not take smcol literally):**
 
@@ -424,11 +377,6 @@ is the **upstream** of the `hegemogy/Colonization-SAV-files` fork already cited.
 Sea/Land Route Maps named; post-connect tail sized as Unknown F = **74** =
 our continent tallies 64 + 10-byte seed/path/timer tail; seed near F+`0x47`).
 
-**Useful community notes absorbed:** tut1 Pioneer/Soldier message bits;
-path/seen visitor+score semantics; forest prime +4-column shift; Europe
-sentinel travel anecdotes; colony fog pop/fort guess (same as smcol — already
-promoted). Connectivity prose overlaps smcol `supplemental-info.md`.
-
 **No new byte map beyond what we have:** `colonization.py` is an early partial
 codec (orders/cargo/tools RE notes). The linked Google sheet is sparse (~header
 labels only). Pacific-to-column-41 claim conflicts with DOS/port `width/2`
@@ -440,7 +388,7 @@ pacific walk — prefer `FUN_684c_08c0`.
 
 - [savegame.md](savegame.md) — interop layers, bridge, OpenCol→DOS gaps
 - [project_goals.md](project_goals.md) — 100% save interop acceptance
-- [decomp_inventory.md](decomp_inventory.md) — what is shipped vs open RE
+- [manual_gap.md](manual_gap.md) — what is shipped vs open RE
 - [manual_gap.md](manual_gap.md) — Col1 I/O checklist (playable ≠ fully mapped)
 - [port_plan.md](port_plan.md) — uses Col1 blobs; not the field map epic
 - [original_index.md](original_index.md) — index entry for SAV layout

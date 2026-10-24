@@ -64,16 +64,11 @@ prints the port's draw stream (`RANGE lo hi draw N`), `PICKCTX=1` the Euro dispa
 
 ## Earlier recordings (2026-10-14 .. 2026-10-17, deleted)
 
-The first two archives started from START_SAVE, a manual save the player had loaded from the
-in-game menu of a running French game: DOS's year loop FUN_130d_0290 then finished the French
-day from the next slot (extra production ticks before 000001), and the 2026-10-17 archive also
-carried unsaved DOS state past save 3. Those saves, the DOSBox references recorded against them
-(tr9, tr10, ref) and the harness crutches they needed (`resume_slot` / `turn_end_from_slot`,
-`GOLDEN_IDLE_PICKS` pick replay, `GOLDEN_IDLE_RESYNC`) were deleted 2026-10-18. The port's
-in-game load and main-menu load do the same clean init (`game_apply_col1_save`); DOS's mid-day
-resume of the outgoing game is deliberately not modelled. The archived fix log cites those
-runs (tr9 interval K, tr10 K->K+1, ref K) as evidence: the saves are gone, the DOS behaviour
-stands.
+The first two archives started from an in-game load of a running French game, so DOS first
+finished the outgoing game's day ([dos_bugs.md](dos_bugs.md) DB-1). They, their DOSBox references
+(tr9, tr10, ref) and the harness crutches they needed were deleted 2026-10-18. The archived fix
+log still cites those runs (tr9 interval K, tr10 K->K+1, ref K): the saves are gone, the DOS
+behaviour stands.
 
 ## Quirks of this save set
 
@@ -115,44 +110,10 @@ autosave NN, dump its DS, then write every byte of the continuous session's `ds_
 DS:0x800..0xa900 that differs back with `SM 237e:off bytes` (runs of up to 16 bytes; template
 `tools/tc/restore_trace17.py`), set the breakpoints and press Space. Used for intervals 7 -> 8,
 17 -> 18 and the save 18 residue; its draws matched the continuous trace.
-Real caller of a draw: the stack above the range wrapper shows RTLink's return vector
-`1931:1554`, not the caller. At the rand stop set `BP 1931:155D`, run once, and SS:SP then holds
-the caller's runtime CS:IP (overlay CS varies per load); find its bytes in VICEROY.EXE or the
-asm bytes column (`grep c78674ff1600 viceroy_unpacked.asm`) to name the function.
 
-For overlay traps add `[dos] ems=false xms=false umb=false` to `dbx.conf`. Without it the trapped
-overlay is re-cached and later calls are missed. OVL14 (20e6/0a60): patch 0x4e2d6 (20e6) and
-0x4cc50 (0a60), original byte 0xc8. The 4d2e wander score is final at CS:5805 ([bp-0x4e] dir,
-[bp-0x26] score). France's primary goal table is DS:0x98b0 + nation*0x100 (64 x {x, y, code,
-prio}). Unit indices shift mid-turn (compaction), so identify units by xy and type.
-
-Overlay-trap traps (2026-10-15): the patched overlay can be reloaded at a CS the script has already
-seen. Handle every stop at `off+1` with `trap_overlay`, whatever the CS. A script that skipped
-seen CSes let the INT 3 run on: the game silently corrupted (garbage gold, COLONY08 rewritten
-in the scratch copy, no further traps). A run with OVL15 (5952, `--patch-cc 0x53b7e`) died on
-the second reload with RTLink "Fatal error evm012 ... vectored call to page 0005h"; breakpoints
-left on the old CS are the likely cause. Delete them (`BPDEL *`, then re-set) when a new CS
-traps. One-hit traces (first 5952 call per colony, first French act) are reliable. The
-in-game load's final Enter needs some `step()` polls to take effect, and the resumed Spanish slot
-runs during them, so arm `BPINT 3` before that Enter or the patched INT 3 runs unhandled.
-
-Prefer data breakpoints for this chain (no code patch, no overlay trouble): game DS is 0x237e,
-colony record i is at DS:0x5d46 + i*0xca, unit i at DS:0x3144 + i*0x1c. Set `BPM` on the bytes of
-interest (pop +0x1f, food +0x9a, horses +0xaa, flags +0x1b, build +0x94, rebel pair +0xc2/+0xc6)
-before pressing the final Enter. Each change then stops with the writer's CS:IP, and `SS:BP`
-locals can be read at that stop. Keyboard polls stop at F000 or 130B. This gave clean per-tick
-timelines for Plymouth and Jamestown.
-
-Unit creation: `BPM` on the unit count DS:0x539c stops inside FUN_1427_06b4 (CS 0c4b) before the
-new record is written, so its bytes are a deleted unit's leftovers. Read the record at the next
-keyboard poll, and expect later deletes to shift indices. The caller's frame is `[BP]` of the
-stop; overlay returns show as the RTLink stub 1931:1554, so identify the caller by its args and
-locals (Ghidra `local_N` sits at BP-(N-2)). Walk BP with `d.word(..., signed=False)`.
-
-`tools/dosbox_trace.py` runs under either `python3` (both have `pexpect` since 2026-10-19); a
-second concurrent session needs its own display (`DOSBOX_TRACE_DISPLAY=:59`). `load_slot` works on this save list since the 2026-10-14 `list_row` fix (the list
-header sits a few pixels off, and long save names cover the old highlight sample). Loop: Space
-every 200 polls until `COLONY09.SAV` changes, then copy it.
+Generic recipes this campaign used (overlay traps and their failure modes, the evm012 reload
+error, data breakpoints on colony bytes, the DS:0x539c unit-creation `BPM`, the 1931:155D
+real-caller trick, Ghidra `local_N` offsets) are in [dos_trace.md](dos_trace.md).
 
 ## Open leads (not reached by this archive)
 

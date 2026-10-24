@@ -203,8 +203,8 @@ bool units_disband(ColonizeUnitPool* pool, int unit_id);
 
 /*
  * Thin Pillage (ORDERS): land military (attack>0) on foreign Euro colony →
- * destroy up to 100 of richest warehouse stock (not Food); on non-colony tile
- * with plow/road → clear those improvements. Spends remaining MP.
+ * destroy up to 100 of richest warehouse stock (not Food); no arm off a colony
+ * tile (port_bugs.md #631). Spends remaining MP.
  * Cite: MENU.TXT @ORDERS Pillage; full 2b5a mega-dispatch body still thin.
  */
 bool units_pillage_w(

@@ -33,7 +33,7 @@ cross-build artefacts; never build or test there. Tests expect repo root as cwd.
 | Bug from docs/port_bugs.md | docs/port_bugs.md row by `#` id; docs/manual_gap.md for the feature; docs/<feature>.md |
 | Decomp / DOS behaviour question | `python3 tools/decomp_fn.py FUN_ssss_oooo` (one body, cheap), docs/original_index.md, original_sources_annotated/MODULE_MAP.md |
 | Running / tracing the real DOS game | docs/dos_trace.md (`tools/dosbox_trace.py`) |
-| AI (Euro / Indian / King) | docs/port_plan.md, docs/ai_euro_logic_map.yaml (+ tools/ai_logic_map.py check) |
+| AI (Euro / Indian / King) | docs/ai_euro_logic_map.yaml (+ tools/ai_logic_map.py check); FUN_ history: docs/archive/port_plan_deferred_ai_track.md (grep by FUN_ name) |
 | Tests / fixtures | tests/README.md, tests/common/ai_fixture.h |
 | Debugging env vars, trace switches, debug.logs | docs/debug_env_vars.md |
 | Tools and scripts | tools/README.md |

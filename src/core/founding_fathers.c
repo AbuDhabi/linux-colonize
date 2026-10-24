@@ -608,8 +608,8 @@ static bool ff_enqueue_debate_from_slate(
     ctx->messages,
     "WHICHFREEDOM",
     NULL,
-    /* GAME.TXT @WHICHFREEDOM verbatim (fallback only — popup_msg_fill uses
-     * the live section, including its @width=190, whenever assets load). */
+    /* Empty fallback (no DOS text in the binary); popup_msg_fill uses the
+     * live section, including its @width=190, whenever assets load. */
     "",
     body,
     sizeof(body)

@@ -80,8 +80,11 @@ score adds idle*8. Cite: save_format_map.md; viceroy ~87677 / ~90249.
 ## ColonizeColony.improve_timer
 
 Col1 +0x8c improve timer. INC cap 0x7f (FUN_5952_035e); gates AI pioneer
-plow/road until timer ≥ thin threshold (terr_cost+2 stand-in); cleared on
-successful improve. Cite: save_format_map.md; FUN_5952 ~93663 / ~94546.
+plow/road until timer ≥ `DS:0x2f78[class] + 2` (`+ 4` for a forest clear when
+the colony carries the wants-clear bit; raw 93663-93666 / 94492-94505,
+ai_euro_land.c) and the schoolhouse expert election
+(`((chain == 3) + chain) * 4 <= timer`, ai_euro_colony_jobs.c); cleared on a
+successful improve and on that election. Cite: save_format_map.md.
 
 ## ColonizeColony.pending_build_reveal
 
@@ -136,15 +139,9 @@ FUN_5952_035e (viceroy_unpacked.c 94195-94199) from the same comparison:
   local_82 < local_74                            -> set 0x08 (short of want)
   local_74 + (local_74 > 1) < local_82           -> set 0x04 (surplus)
 So 0x08 is the "short of defenders" side and 0x04 the "has spare military"
-side. (0x04 was named NEEDS_MILITARY until 2026-09-16 — inverted.) Two OpenCol readers
-now (both DOS's own, see the consumer audit below):
-ai_euro_20e6_surplus_recall_arm (the read-and-clear recall) and
-ai_euro_20e6_wander_step's flag ladder. Grep the macro rather than trusting
-a line number here — the previous "its one read site (ai_euro.c ~12103)"
-was wrong on both counts by the time it was read. Smell audit
-2026-09-10 D9.
+side. (0x04 was once named NEEDS_MILITARY — inverted.)
 
-Both writers ARE ported since 2026-09-09 (smell audit #41), in
+Both writers are ported in
 ai_euro_colony_threat_seed_5952 — the same DOS body that already produced
 garrison_quota. `local_74` (wanted defenders) is raw 94150-94193;
 `local_82` is NOT a raw defender count but this nation's LAND military
@@ -155,29 +152,16 @@ The DOS per-tick clear is `+0x1b &= 7` (raw 94142) — it keeps 0x01/0x02
 (the census's own disjoint mask) AND 0x04. 0x04 is therefore sticky by
 design: only its consumers clear it.
 
-CONSUMER AUDIT, 2026-09-09 (all three read sites, viceroy_unpacked.c):
-  - raw 85332 and raw 90168 are the SAME arm, emitted twice by the
-    decompiler (both `goto LAB_521d_27f5`): FUN_521d_20e6's land-unit act.
-    A non-ship unit with attack > 1 and a bound home colony (+0x314a >= 0)
-    binds that colony; if it has 0x04 set, and (garrison_quota != 0 ||
-    unit type != 4), and the colony is on the unit's own continent
-    (FUN_281f_0722 == uStack_38), DOS clears 0x04, decrements
-    garrison_quota (+0x1e) and commits the walk home. PORTED 2026-09-09 as
-    ai_euro_20e6_surplus_recall_arm — one surplus unit recalled per tick,
-    which is what the single-shot clear buys.
-  - raw 94247: FUN_5952_035e's join-colonist loop (units standing on the
-    colony tile fold into the population). 0x04 is one of three disjuncts
-    that admit a Soldier/Dragoon; the arm then clears it. PORTED
-    2026-09-18 in ai_euro_act_colony_absorb (the port runs the case from
-    the arriving unit's act instead of DOS's colony-side tile pass).
-    local_42/local_3e are NOT independent locals — aiStack_68 is memset
-    for 0x32 bytes, so they are aiStack_68[19] and aiStack_68[21] of the
-    per-@JOB head-count buckets (non-experts bucket as 0x13), i.e. "plain
-    colonists here" and "@JOB 0x15 Soldiers here"; confirmed 2026-09-18
-    against the OVL15 disassembly ([BP-0x40]/[BP-0x3c] off the array base
-    [BP-0x66]). The third disjunct's `labor_shortage < 0` test is dead in
-    DOS. Full decode in docs/archive/smell_audit_2026-09-10.md, "FUN_5952_035e
-    building / expert passes", and colony_tick_5952_035e.md's frame rule.
+Readers of 0x04 (all DOS's own; grep the macro, not a line number):
+  - ai_euro_20e6_surplus_recall_arm — FUN_521d_20e6's land-unit act (raw
+    85332, emitted twice by the decompiler, again at 90168): read-and-clear,
+    one surplus unit recalled home per tick;
+  - ai_euro_20e6_wander_step's flag ladder;
+  - ai_euro_5952_absorb_equip — FUN_5952_035e's join-colonist pass (raw
+    94247): one of three disjuncts that admit a Soldier/Dragoon, then
+    cleared. Its `local_42`/`local_3e` are by-profession census buckets
+    `aiStack_68[0x13]`/`[0x15]`, not independent locals (decode in
+    ai_euro_colony_jobs.c).
 
 ## COLONIZE_COLONY_AI_WANTS_PIONEER_CLEAR
 
@@ -220,9 +204,7 @@ DOS +0x1c bit3 (FUN_364b_0688 phase D, ~57470): the inefficient-government
 latch. Set the turn a colony's Tory head count reaches 10-difficulty and
 cleared when it drops back under, so @INEFFICIENT / @EFFICIENT each fire
 once per crossing — and, because it is a save field, they stay fired across
-a save/load. The port used to call this bit "starvation" and keep the real
-latch in RAM only, which is why the popup came back on every reload
-(port_bugs.md).
+a save/load. The port's food latch is `food_shortfall_latch`, not this bit.
 
 ## COLONIZE_COLONY_FLAG_SMALL_AI / _WAGON_TRAIN
 
@@ -298,8 +280,7 @@ Same test as the colony screen actually runs it (port_bugs.md #366): DOS hoists 
 continent lookup out of the 5x5 loop and reads it at the COLONY tile
 (origin_x, origin_y), and clears every Ocean / Sea Lane cell outright.
 Also answers the plain "what claims this tile" question with origin ==
-the queried tile (the thin colonies_indian_claim_tribe wrapper that used
-to spell that was deleted 2026-09-14, audit CO-22 — it had no callers).
+the queried tile.
 
 ## colonies_assign_field_w
 
@@ -333,10 +314,6 @@ without seating. The committing seat's tail is `colonies_plot_seat_tail_w`. DOS'
 jobs menu also runs it on opening (28c8 for each field job, a re-seat, the job counter
 zeroed; DOSBox-confirmed, port_bugs.md #1205); the port does not (docs/dos_bugs.md DB-54).
 
-The pool-only `colonies_assign_field` spelling is the no-world (test) form; it
-has no col1/map and therefore cannot raise alarm. Every real assignment path
-must use `_w`. port_bugs.md #1002.
-
 ## colonies_indian_land_pay
 
 Pay for tribal land at (x,y): debit *gold by cost (when gold non-NULL),
@@ -366,9 +343,7 @@ unit-less arm also sets pop 1 and `FUN_281f_0cae -> FUN_15eb_0e8c(slot,
 0x1c)` (Free Colonist). DOS picks no plot here — the plot comes from the
 shared 28c8 auto-assign the colony screen / AI colony tick runs next. The
 port therefore runs `colonies_seat_new_colonist` (its 28c8 picker) on the
-founder and falls back to field job 0 when no map is bound. port_bugs.md #929;
-the old "founder in the Town Hall" seat made every new colony produce bells
-instead of food.
+founder and falls back to field job 0 when no map is bound. port_bugs.md #929.
 
 ## colonies_found_with_indian_land_w
 
@@ -388,7 +363,7 @@ still resolve.
 ## colonies_building_name_row
 
 @BUILDING row for a building NAME read from the catalog (exact match against
-the names the last colonies_load_building_types call saw; a fixture-built
+the names the last colonies_load_buildings call saw; a fixture-built
 pool resolves through the test-only hook below). This is how code that is
 handed a name asks "which building is this?" without the port carrying any
 building names of its own. -1 when unknown.
@@ -469,9 +444,7 @@ replaces Fortify benefit inside — callers should not also ×2 fortify when >0.
 Bind the live world map so founding and abandoning a colony can keep
 layer2's MAP_OCCUPANCY_HAS_CITY bit current. That bit is what the map
 renderer reads to hide a settlement's garrison and what the road art keys
-off; until this existed it was only rebuilt by the col1 bridge at load and
-at end-of-turn capture, so an abandoned colony went on hiding the units
-standing on its square (port_bugs.md). NULL unbinds.
+off. NULL unbinds.
 
 ## colonies_set_col1_context
 
@@ -503,10 +476,8 @@ contexts bound (`game_update` does, every frame). Ceilings in the code comment
 Tools an equip actually takes out of `available` (warehouse stock plus
 anything the unit is already carrying): whole 20-tool steps, capped at 100 —
 a Pioneer legitimately walks with 20/40/60/80/100. Returns 0 when there is
-not even one step. Shared so the two equip paths (a colonist leaving the
-colony, and a unit already standing outside it) cannot drift apart again —
-port_bugs.md: the outside path demanded the full 100 and answered "Cannot equip
-unit" for a stock its own menu had just offered Pioneers on.
+not even one step. Shared by both equip paths (a colonist leaving the
+colony, and a unit already standing outside it).
 
 ## colonies_list_eject_roles_ex
 
@@ -524,8 +495,7 @@ gates, profession is the body's own @JOB (every >= 0x13 row gate in
 FUN_15eb_3454 reads it: Convert 0x1b gets the Colonist row only, a Jesuit
 0x18 always gets the Missionary row and may lose the Colonist row).
 colonies_list_eject_roles_ex is this with add_* = 0 and the colonist's own
-profession; the colony-screen "outside" list in game_loop used to carry a
-row-for-row copy that drifted once (duplication audit GL-11).
+profession.
 
 ## colonies_eject_row_offered
 
@@ -588,11 +558,9 @@ COLONIZE/README.TXT lists them as the "useful cheat functions on colony screen".
 T, S, `!` and Space end in `FUN_291f_0648` = `FUN_2f2b_2c92`, the full redraw,
 which opens with `FUN_281f_0c22` -> `FUN_15eb_3930`; the port re-runs
 `colonies_recompute_plots_w` there. `$ % ^` end in the partial redraw
-`FUN_291f_078c`, so no recompute. Before 2026-10-23 Space ran an invented
-`turn_colony_free_production` (no col1 / Europe, typed status, cargo delta
-suffix) for every player; the function stays for unit tests, the UI path and
-`colony_screen_set_delta` are gone. Replays `colony_cheat_keys` /
-`colony_cheat_keys_locked`.
+`FUN_291f_078c`, so no recompute. `turn_colony_free_production` (no col1 /
+Europe) is a unit-test helper only; no UI path reaches it. Replays
+`colony_cheat_keys` / `colony_cheat_keys_locked`.
 
 ## ColoniesBuildableOpts.col1
 
@@ -636,8 +604,7 @@ original_sources_decompiled/viceroy_unpacked.c:52683):
   hasn't banked any hammers at all yet (colony->hammers == 0) — DOS
   charges a steep premium for rushing an unstarted project. The DOS price
   byte is at nation record +0x5a (`DS:0x8862 + nation*0x13c`): trade begins
-  at +0x4c and cargo 14 is Tools. This resolves the former `difficulty + 4`
-  approximation (carpenter audit #917).
+  at +0x4c and cargo 14 is Tools (port_bugs.md #917).
 
 ## colonies_try_complete_unit_construction
 
@@ -704,10 +671,8 @@ Moved to [colony_goods.md](colony_goods.md) (warehouse capacity / full chrome / 
 
 ## COLONIES_CHAIN_* enum
 
----------------------------------------------------------------------
-Shared building upgrade chains (2026-09-14 duplication audit CO-13 /
-IN-24: the same 15 chains were typed out in col1_bridge.c twice,
-colony_screen.c once and colony.c once more as hardcoded name pairs).
+Shared building upgrade chains (one copy, in colony_build.c; col1_bridge.c and
+the colony screen read it; duplication audit CO-13).
 
 colonies_building_chain(chain) returns the chain's NULL-terminated name
 list, lowest tier first, or NULL for an out-of-range id.
@@ -722,7 +687,6 @@ next export. Appending a new chain at the end is safe; nothing else is.
 out of the Town Hall / Warehouse categories they share a colony-screen
 slot with, because the save format gives each its own bit group and its
 own level byte (+0x96 / +0x95).
----------------------------------------------------------------------
 
 ## colonies_blit_settlement_icon
 

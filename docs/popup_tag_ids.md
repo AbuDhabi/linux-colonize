@@ -3,7 +3,7 @@
 Generated 2026-08-27 from `COLONIZE/VICEROY.EXE` (DS string = EXE offset
 `121248 + addr`). These are the numeric "message ids" DOS pushes to the
 dialog engine (`FUN_291f_019c(seg, id, ...)`, stored at `DS:0x1f5c`) — see
-[popup_string_resolver.md](popup_string_resolver.md). `in GAME.TXT` = a
+[archive/popup_string_resolver.md](archive/popup_string_resolver.md) (how it was found). `in GAME.TXT` = a
 matching `@TAG` exists in the shipped file; `n` = other DS string that
 merely looks tag-shaped (NAMES.TXT sections, directive keywords, …).
 Tags may also be built at runtime by `strcat` (`KINGGALLEON`+`2`/`3`).

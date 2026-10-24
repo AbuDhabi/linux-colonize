@@ -362,7 +362,7 @@ resolution reasoning, not the implementation details.
 is a legitimate RE tool". No amount of static disassembly reading would
 have settled this sign question; recognizing the live gameplay text and
 reporting real, direct experience did, in minutes.
-[`docs/popup_string_resolver.md`](../../docs/popup_string_resolver.md).
+[`docs/archive/popup_string_resolver.md`](../../docs/archive/popup_string_resolver.md).
 Doesn't change this doc's conclusion (still correctly PARKED, still no
 resolved text) — just means "revisit if a way to recover the string table
 surfaces" has a concrete, scoped path now instead of being an open-ended

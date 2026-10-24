@@ -119,7 +119,7 @@ High-value known prefixes:
 | `FUN_12ab_*` (MAPEDIT) | Resources / rumours |
 | `FUN_19b7_*` (MAPEDIT) | Terrain class index |
 
-Full bring-up narrative and fidelity notes → [decomp_inventory.md](decomp_inventory.md).
+Known Ghidra disassembly faults (check before trusting a function) → [decomp_inventory.md](decomp_inventory.md).
 
 ---
 
@@ -142,15 +142,15 @@ one exists.
 | `FUN_281f_0590` | Fill helper (turn box) | turn indicator draw |
 | `FUN_1984_00aa` | Nation turn-owner 5×3 at (315,197) | [turn.c](../src/core/turn.c) |
 | `FUN_43f7_05f4` | `@COUNTRY` → DS color table | turn / UI colors |
-| `FUN_4d56_152e` | Indian village growth | **Done 2026-09-06d** — `ai_indian_152e_village_growth` in [ai.c](../src/core/ai.c) ([port_plan.md](port_plan.md) AI inventory) |
-| `FUN_4d56_1816` | Indian nation turn | **partial** (structural phases + quiet pulse + `ai_contact_*`; `4528` Done 2026-08-27/28, `2820` rewritten 2026-08-29; deep `2820` haggle / VGA PARKED) |
+| `FUN_4d56_152e` | Indian village growth | `ai_indian_152e_village_growth` ([ai_indian.c](../src/core/ai_indian.c)) |
+| `FUN_4d56_1816` | Indian nation turn | `ai_indian_nation_turn` + `ai_native_nation_pulse` ([ai_brave.c](../src/core/ai_brave.c)); contact arms in `ai_contact_*` |
 | `FUN_6a09_0006` | Tribe placement | ai / map gen (T2 seed-100) |
-| `FUN_521d_6d8e` | Euro AI dispatcher | **Done as a dispatcher** (entry `ai_euro_nation_turn` in `ai.c` → `ai_euro.c` phases; gate `golden_ai_turns`) — not claimed 1:1 ([port_plan.md](port_plan.md) per-module table) |
-| `FUN_521d_0a60` / `5d04` | Euro unit goals / planning | **fully live 2026-09-07d-e** (`0a60` goal-consumption tail; `ai_euro_5d04_hire_ladder_tail` is the only Europe hire economy — the invented OpenCol matrix is deleted) |
-| `FUN_521d_20e6` / nested `5b66` | Move scoring / unit act | **structurally done, cargo/boarding/census arms live** (land arms 2026-08-27; six thin pieces closed 2026-09-06; `3558` cargo matrices ported 2026-09-08) — step scorer not T3 |
+| `FUN_521d_6d8e` | Euro AI dispatcher | `ai_euro_nation_turn` (`ai.c`) → `ai_euro.c` phases; flow map [ai_euro_logic_map.yaml](ai_euro_logic_map.yaml) |
+| `FUN_521d_0a60` / `5d04` | Euro unit goals / planning | `0a60` in `ai_euro_goals.c`; `5d04` = `ai_euro_5d04_hire_ladder_tail` (`ai_euro_europe.c`) |
+| `FUN_521d_20e6` / nested `5b66` | Move scoring / unit act | land band `ai_euro_land.c`, ship band `ai_euro_ship.c` |
 | `FUN_6a9f_0118` | Map viewport tile loop | [map.c](../src/core/map.c) / map_panel |
 | `FUN_15eb_06d2` | Shared world-map / pedia draw entry | map / pedia |
-| `FUN_1427_065a` | Tile display (reads DS `0x5234`) | [viceroy_tables.md](viceroy_tables.md) |
+| `FUN_1427_065a` | Unit max MP (`DS:0x5234 + type*0xe`, moves×3) | `units_move.c` |
 | `FUN_12d8_000e` | BGM / event / SFX gating | [sound.c](../src/core/sound.c) |
 | `FUN_2059_000a` | Sound driver jump table | sound.c |
 | `FUN_129f_*` | BGM helpers (e.g. `0008`, `00f6`, `0300`) | sound.c |
@@ -340,7 +340,7 @@ tile cursor blinks.” Prefer `Memory` for a full guest-RAM snapshot.
 |------|---------|
 | [`original_saves/COLONY00.SAV`](../original_saves/) / `COLONY01.SAV` | Sample Col1 saves for load fallback and RE |
 
-Layout and bridge → [savegame.md](savegame.md). Field atlas / RE roadmap →
+Layout and bridge → [savegame.md](savegame.md). Field atlas →
 [save_format_map.md](save_format_map.md).
 
 ---
@@ -369,4 +369,4 @@ Layout and bridge → [savegame.md](savegame.md). Field atlas / RE roadmap →
 | What does this `.PIK` / `.SS` decode as? | [assets.md](assets.md) |
 | Save file field / nation gold? | [savegame.md](savegame.md) + [save_format_map.md](save_format_map.md) + `original_saves/` |
 | Live palette / blink timing? | `original_memory_dumps/dosbox_save_state_2/` (`Vga` / `Memory`) |
-| Is this feature already ported? | [decomp_inventory.md](decomp_inventory.md) bring-up list |
+| Is this feature already ported? | [manual_gap.md](manual_gap.md) checklist, then the owning feature doc ([Authority table](architecture.md#authority)) |

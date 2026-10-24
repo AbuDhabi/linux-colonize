@@ -32,7 +32,7 @@ Gap map: [`manual_gap.md`](manual_gap.md). Navigation: [`original_index.md`](ori
 
 **Election (wiki):** Liberty Bells attract Fathers. After the first colony produces bells, the player picks from a random set of one not-yet-had Father **per category** (five choices). Non-exclusive (every nation can recruit the same Father). Viewed on the Continental Congress screen.
 
-**Port:** Choose-then-accumulate wired (`next_founding_father` / Congress debate CHOICE → lock candidate → elect at `FUN_4345_0982` threshold; after elect `next=-1`). Century-weighted random pick still a stand-in (first unclaimed per type). OpenCol side-table pool + save stash in `liberty_bells_last_turn` (see [save_format_map.md](save_format_map.md)); cumulative `liberty_bells_total` preserved for SoL.
+**Port:** election and every effect are tracked in [founding_fathers.md](founding_fathers.md) (PEDIA-verified).
 
 ### Trade
 
@@ -184,15 +184,6 @@ Port / decomp hub: [indians.md](indians.md).
 | Teach / trade / missions | Elder skills; sea/land trade; missionaries (expert via Brebeuf); denounce foreign mission 50/50. |
 | Nation bias | Spanish pushed toward conquest (Aztec/Inca treasure); French toward cooperation. |
 
-Port: villages + light AI Partial; first contact **Done** structural
-(`FUN_5bfb_022e` `@INDIANWELCOME` → `0182` peace / `@INDIANSHUN` war; thin land
-grant stamps purchased+owner on occupied tile); capital destroy surrender
-**Done** thin; sea/wagon trade-goods drain **Done** thin; foreign-mission
-heresy 50/50 **Done** thin; colony encroachment **Done** thin; meet/trade/teach/
-missions/alarm Partial
-(`ai_popup`; deep VGA / WARPATH gold PARKED). Tribe tech colors:
-`@TRIBES` in `NAMES.TXT`.
-
 ---
 
 ## Europe / tax / REF funding
@@ -262,31 +253,7 @@ Fetched 2026-08-04 via `https://civilization.fandom.com/api.php?action=parse&pag
 
 ### Founding Fathers (25)
 
-- https://civilization.fandom.com/wiki/Adam_Smith_(Col)
-- https://civilization.fandom.com/wiki/Jakob_Fugger_(Col)
-- https://civilization.fandom.com/wiki/Jan_de_Witt_(Col)
-- https://civilization.fandom.com/wiki/Peter_Minuit_(Col)
-- https://civilization.fandom.com/wiki/Peter_Stuyvesant_(Col)
-- https://civilization.fandom.com/wiki/Ferdinand_Magellan_(Col)
-- https://civilization.fandom.com/wiki/Francisco_de_Coronado_(Col)
-- https://civilization.fandom.com/wiki/Henry_Hudson_(Col)
-- https://civilization.fandom.com/wiki/Hernando_de_Soto_(Col)
-- https://civilization.fandom.com/wiki/Sieur_de_La_Salle_(Col)
-- https://civilization.fandom.com/wiki/John_Paul_Jones_(Col)
-- https://civilization.fandom.com/wiki/Francis_Drake_(Col)
-- https://civilization.fandom.com/wiki/Paul_Revere_(Col)
-- https://civilization.fandom.com/wiki/George_Washington_(Col)
-- https://civilization.fandom.com/wiki/Hernan_Cortes_(Col)
-- https://civilization.fandom.com/wiki/Benjamin_Franklin_(Col)
-- https://civilization.fandom.com/wiki/Simon_Bolivar_(Col)
-- https://civilization.fandom.com/wiki/Thomas_Paine_(Col)
-- https://civilization.fandom.com/wiki/Pocahontas_(Col)
-- https://civilization.fandom.com/wiki/Thomas_Jefferson_(Col)
-- https://civilization.fandom.com/wiki/Bartolome_de_las_Casas_(Col)
-- https://civilization.fandom.com/wiki/Juan_de_Sepulveda_(Col)
-- https://civilization.fandom.com/wiki/Father_Jean_de_Brebeuf_(Col)
-- https://civilization.fandom.com/wiki/William_Penn_(Col)
-- https://civilization.fandom.com/wiki/William_Brewster_(Col)
+Each Father page is linked from its row in [Founding Fathers](#founding-fathers).
 
 ### Buildings / colony
 

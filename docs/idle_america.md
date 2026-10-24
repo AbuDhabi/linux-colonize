@@ -46,8 +46,8 @@ and keeps the run's own COLNXEXT tail (RTST: stance and goal tables, unit tail b
 rank caches, fog, LCG). Each pair is then judged from DOS's state plus the port's best model of
 the unsaved tables, so a diff names a bug of that turn, not the cascade of an earlier one. Every
 nation slot reseeds the LCG (DS:0x83a6 = 100 under VR_SOUND), so the carried LCG does not matter
-and a replay from `start_K.sav` reproduces the pair. This is how the pass ran past save 64 (final
-full resync 1..465, 2026-10-21: 243 of 464 pairs byte-identical, 67 more artifact- or park-only).
+and a replay from `start_K.sav` reproduces the pair. This is how the pass ran past save 64 (full
+resync 1..465; latest tally under "Open leads").
 To re-run it, restore the removed saves without staging them:
 `git restore --source=c9c2eacb^ --worktree -- original_saves/golden_idle_america_seed-100/`, and
 raise `k_america`'s max in `tests/golden/test_idle_campaign.c`; delete them again afterwards.

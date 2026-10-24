@@ -83,13 +83,11 @@ the observed behaviour.
   (and anything above 7) jumps past the switch table to `LAB_129f_0226` and picks from the
   **pre-switch default pool** set at `129f:0140-01a2` (tunes 1–12, 1-in-9 for 13–23).
   `129f:0258` then latches `DS:0x9a` from the tune it drew, so the next pick comes from
-  that tune's pool. This is the **title-menu music**: VICEROY launches with no pool armed
-  and the idle pump (gated only on `DS:0xa2` Background Music / `DS:0x9e`) starts a main
-  tune and keeps cycling. No title-menu song dispatch exists because none is needed.
-  The port therefore may **not** treat "no pool" as "stay quiet": the only thing allowed
-  to park the pump is the port's in-process `OPENING`/`CLOSING` cinematic (`sound_set_cinematic`),
-  which in DOS is a separate program owning the driver with its own `0x34` / `0x3d` cue.
-  The title menu itself runs on pool 5, not pool 0 (see the `0x33` note above).
+  that tune's pool. The idle pump is gated only on `DS:0xa2` Background Music /
+  `DS:0x9e`, so the port may **not** treat "no pool" as "stay quiet": the only thing
+  allowed to park the pump is the port's in-process `OPENING`/`CLOSING` cinematic
+  (`sound_set_cinematic`), which in DOS is a separate program owning the driver with its
+  own `0x34` / `0x3d` cue. The title menu runs on pool 5, not pool 0 (`0x33` note above).
 * All songs **end** (no `FD` loop except `0x34`); when the driver reports no voice active
   the pump draws the next random tune from the pool, never repeating the last id.
 * `sound_play(id)` = `FUN_129f_02cc`: queue + fade, pump starts it when idle.
@@ -118,12 +116,8 @@ the observed behaviour.
 MicroProse GM drivers of this era were written for **Roland Sound Canvas / SC-55**.
 Closest practical playback: FluidSynth + an SC-55-character SoundFont.
 
-**SoundFont search order:** `settings.json` `sound_options.soundfont` → bundled
-[`data/soundfonts/Roland_SC-55.sf2`](../data/soundfonts/Roland_SC-55.sf2) (ScummVM’s
-GPL-3+ bank by deemster; see [`COPYRIGHT.Roland_SC-55`](../data/soundfonts/COPYRIGHT.Roland_SC-55))
-→ system SC-55 / GeneralUser GS → FluidR3 / distro defaults. For an alternate SC-55
+SoundFont search order and backends: [music.md](music.md). For an alternate SC-55
 character, point `sound_options.soundfont` at [Trevor0402’s SC-55 SoundFont](https://github.com/trevor0402/SC55Soundfont).
-Sound tooling retired 2026-09-16 (music complete): `tools/dump_gsound_wav.c`, `tools/compare_music_ab.py`, `original_music_dumps/jine_the_cavalry.wav` are in git history only. Historical A/B verification (2026-08-27): gold reference was `original_music_dumps/jine_the_cavalry.wav` (DOSBox-X capture) and `reference_music/wav/*` (OST rips, verified identical to DOSBox timing); tool output showed dtw 0.04 / 0.09 / 0.15 / 0.17, drift ≤ 1.1 s.
 AdLib / MT-32 drivers remain out of scope. `COLDIG.BIN` SFX are in (see below).
 
 Song names for the Pick Music UI are only in `GAME.TXT` `@PICKMUSIC` (plus Independence /
@@ -151,8 +145,7 @@ The three option flags are Background Music (`DS:0xa2`, scheduler), Event Music 
 PCM). The signed `< 0x10` test in `FUN_12d8_000e` also forwards `0x8020`/`0x8024`
 regardless of those options. `sound_id_gate_allows` and `unit_sound_gate` cover this gate.
 
-**`COLDIG.BIN` digital SFX — wired 2026-08-27.** Earlier notes ("no reachable trigger,
-settled negative") were wrong: the game pushes event ids `0x40..0x5c` with the id in **AX**
+**`COLDIG.BIN` digital SFX.** The game pushes event ids `0x40..0x5c` with the id in **AX**
 (`mov ax,N; callf FUN_281f_04c0` → `FUN_12d8_000e`), which Ghidra's decompile drops. Each
 event handler in `GSOUND.COL` does `mov ax,N; call 0x30c4` → `FUN_1000_27b4(N)` (queue COLDIG
 sample N, 16-slot ring, played back to back) and then starts a short MIDI sting on channels
@@ -282,54 +275,12 @@ still reaches the same pool or explicit song.
 | OVL19 `65dd` | 8 | Lost City Rumour outcomes |
 | OVL27 `75c2` | 7 | load/new-game and top-level screen pools |
 
-The following is the exact non-music launch count after normalizing those shared selectors:
-
-| ID | DOS | Port | Contexts |
-|---|---:|---:|---|
-| `0x40` | 2 | 2 | generic attack selector; ordinary attacker loss |
-| `0x41` | 1 | 1 | generic attack selector |
-| `0x42` | 1 | 1 | artillery/ship generic attack selector |
-| `0x43` | 1 | 1 | artillery/ship attacker loss |
-| `0x44` | 2 | 2 | computed native typed cue; normally unreachable native-ship colony tail |
-| `0x45` | 1 | 1 | native attacker wins at qualifying colony |
-| `0x46` | 1 | 1 | computed typed cue, @UNIT row 11 |
-| `0x47` | 1 | 1 | computed typed cue, @UNIT row 12 |
-| `0x48` | 1 | 1 | native village partial population loss |
-| `0x49` | 1 | 1 | attacker loses at a native village |
-| `0x4a` | 3 | 3 | ordinary win; alternate win branch; final village loss |
-| `0x4b` | 2 | 2 | temporary defender/European colony win; raided ship first cue |
-| `0x4c` | 1 | 1 | mounted-unit generic attack selector |
-| `0x4d` | 2 | 2 | visible naval win; raided ship second cue |
-| `0x4e` | 1 | 1 | raid steals gold |
-| `0x4f` | 1 | 1 | raid steals stores |
-| `0x50` | 1 | 1 | computed native typed cue, @UNIT row 21 |
-| `0x51` | 1 | 1 | computed native typed cue, @UNIT row 22 |
-| `0x52` | 1 | 1 | human Wagon Train move |
-| `0x53` | 3 | 3 | failed heresy; raid burns building; colony burned |
-| `0x54` | 3 | 3 | building complete; ship repair complete; colony founded |
-| `0x55` | 1 | 1 | chief kills scout |
-| `0x56` | 1 | 1 | completed tea party |
-| `0x57` | 1 | 1 | visible ship sunk outcome |
-| `0x58` | 3 | 3 | fortify; sentry; buy muskets |
-| `0x59` | 1 | 1 | closing fireworks frame selector |
-| `0x5a` | 1 | 1 | closing hat frame selector |
-| `0x5b` | 1 | 1 | raid repelled/nothing stolen |
-| `0x5c` | 1 | 1 | buy horses |
-| `0x8020` | 1 | 1 | war declaration involving the human |
-| `0x8024` | 4 | 4 | colony assignment; blessing; mission founded; heresy won |
-
-Thus every DOS event ID `0x40..0x5c` has launch code in both programs, including
-the normally unreachable `0x44` branch, and the static context count for every effect
-matches. This is source-level proof of attempted playback, independent of whether a
-normal campaign can reach a branch or whether the user's sound options allow output.
-
-Corrections made by this audit include the native typed/generic two-cue sequence,
-loss and village selectors, colony capture gate, all five raid outcome mappings,
-mission/heresy cues, drydock `@REFIT`, tea-party-only `0x56`, and removal of menu/title
-`0x33` plus the invented King's Galleon `0x5a`. (The `0x33` removal was half right: the id
-was invented, but the audit also concluded the title menu is silent, which it is not — the
-pool-0 default above covers it. Corrected 2026-09-29.) The Galleon path now performs its actual
-DOS sound operation, pool 2 after the treasure popup.
+After normalizing those shared selectors, the non-music launch count matches for every
+one of the 31 ids (`0x40..0x5c`, `0x8020`, `0x8024`), including the normally unreachable
+`0x44` branch; the per-ID ledger is in
+[archive/assets_sound_trigger_ledger_2026-10-24.md](archive/assets_sound_trigger_ledger_2026-10-24.md).
+This is source-level proof of attempted playback, independent of whether a normal
+campaign can reach a branch or whether the user's sound options allow output.
 
 ## Discovery Order
 

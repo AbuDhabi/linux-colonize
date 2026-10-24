@@ -447,7 +447,7 @@ corrected two things about the plan: don't assume a `FUN_1000_XXXX` name's
 suffix is its runtime address (real-mode segment relocation makes that
 unsafe), and prefer `BPM` (memory breakpoint) over a code breakpoint —
 matching this project's own established track record
-(`decomp_inventory.md`: `popup_string_resolver.md`'s `BPM` capture, "has
+(`decomp_inventory.md`: `archive/popup_string_resolver.md`'s `BPM` capture, "has
 repeatedly been the actual unblock, not a fallback of last resort").
 
 Before asking for a live session at all, re-checked whether

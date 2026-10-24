@@ -97,11 +97,9 @@ Hall of Fame / Exploits). Shared chrome, fill bars and F2-F9 stay in
   uses the same `exploits_tier` through `sound_retire_tune_id`.
 - Port status: Done (golden `score.png`) — `reports_render_score`/
   `reports_score_collect_citizen_jobs`/`reports_score_draw_citizen_icons`
-  (`reports_score.c`). Golden's citizen breakdown (142
-  colony-pop + 16 field-colonist points = 158) required the exact
-  "profession byte 0-27 or nothing" rule above; flipped one pre-existing
-  unit test's expected value (a Pioneer with sentinel profession byte 28
-  no longer scores).
+  (`reports_score.c`). The golden's citizen breakdown (142 colony-pop + 16
+  field-colonist points = 158) pins the "profession byte 0-27 or nothing"
+  rule above (a Pioneer with sentinel profession byte 28 scores nothing).
 
 ## Hall of Fame (title-menu screen, shares F10's WOODPANL.PIK)
 
@@ -146,31 +144,17 @@ Hall of Fame / Exploits). Shared chrome, fill bars and F2-F9 stay in
   matching literal fallbacks; `@INDEPENDENT` republic name from NAMES.TXT
   by the entry's `nation_id`. Separator glyphs (". ", ", ", ": ") are the
   `FUN_281f_01dc/01b4/01be` strcat thunks per FUNCTION_CATALOG.
-- Port status: Done (DOS layout, no golden screenshot to diff against;
-  headless render checked 2026-08-29). Functions and persists correctly, but
-  no golden exists for this screen (unlike every F2-F10 report), so exact
-  DOS column widths/positions/chrome are unconfirmed.
-  `reports_render_hall_of_fame`.
+- Port status: Done from the static read above (#1217/#1219) —
+  `reports_render_hall_of_fame`. No golden screenshot exists for this screen
+  (unlike every F2-F10 report).
 
-### Why there is still no Hall of Fame golden (T5.3, 2026-09-07)
+### Hall of Fame golden: what a capture needs
 
-Searched for reference material and found none. For the record, so nobody
-repeats the search:
-
-- `original_saves/report-screen-goldens/` holds one PNG per F2-F10 plate and
-  nothing for the title-menu screens.
-- `original_screenshots/` contains only `europe/` (4 PNGs).
-- `dosbox-x-dumps/` and `original_memory_dumps/` are debugger text logs and
-  DOSBox save states captured for AI / `VR_B465X` / brave-movement work.
-  None was taken with the Hall of Fame on screen, so none carries a usable
-  VGA framebuffer for it.
-- There is no `HALLFAME.DAT` in `COLONIZE/` — DOS only writes one the first
-  time a game is retired, and this repo's install has never been retired.
-  `COLONIZE/HOF.TXT` is the **port's** own file, not a DOS artefact.
-
-**No golden was invented and no comparison test was wired.** Doing either
-would have meant asserting pixels derived from our own renderer, which is
-exactly the failure mode `report_screens.md` warns about.
+No reference capture of this screen exists in the repo (goldens, screenshots
+and DOSBox dumps were searched, 2026-09-07). `COLONIZE/HALLFAME.DAT` (210 B,
+gitignored like all of `COLONIZE/`) is a DOS-written table; the port neither reads nor writes it and
+keeps its own `COLONIZE/HOF.TXT` (`game_hof_path`, game_loop_eot.c). Do not
+invent a golden from the port's own render (`report_screens.md`).
 
 What a usable capture has to contain, to be reproducible:
 

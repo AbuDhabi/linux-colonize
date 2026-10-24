@@ -1,7 +1,7 @@
 # Numeric popup message-id resolver — investigation (2026-08-14)
 
-STATUS: RESOLVED 2026-08-27 — mechanism found (below); table lives in
-[popup_tag_ids.md](popup_tag_ids.md). Kept as investigation history.
+STATUS: archived 2026-10-24. RESOLVED 2026-08-27 — mechanism found (below); table lives in
+[popup_tag_ids.md](../popup_tag_ids.md). Kept as investigation history.
 
 ## Why this matters
 
@@ -158,7 +158,7 @@ So the dialog engine opens GAME.TXT and looks the `@TAG` up by name; the
 every tag-shaped string in `DS:0x1000..0x2000` (357 strings, 250 of them
 present as `@TAG`s in the shipped GAME.TXT; the rest are NAMES.TXT
 sections, directive keywords, etc.) is in
-[`popup_tag_ids.md`](popup_tag_ids.md). Two consequences:
+[`popup_tag_ids.md`](../popup_tag_ids.md). Two consequences:
 
 - every "unrecoverable binary popup string" note in the AI docs can now
   be resolved by a lookup — no live capture needed;

@@ -1,6 +1,6 @@
 # Popup authenticity audit
 
-STATUS: audit dump, not a spec. Most flagged rows are resolved in place
+STATUS: archived 2026-10-24 (closed audit dump), not a spec. Most flagged rows are resolved in place
 (2026-09-28 sweep: port_bugs.md #984-990, all Fixed) or explicitly Demoted/PARKED
 by design. The last open item, the invented "Village-approach warning CHOICE",
 is gone from `src/` (no trace of its bodies as of 2026-10-18; the village arm is
@@ -54,7 +54,7 @@ choices from data where a real `@SECTION` exists.
 | Ship unmet | `@DONTKNOWSHIPS` | Authentic | — |
 | Ship mad | `@MADATSHIPS` | Authentic | — |
 | Colony encroachment OK | `@INDIANCOMMENT` | Authentic | Tribe/colony tokens |
-| Village action menu CHOICE | `@VILLAGEHAPPY/SAVAGE/MEDIUM/BAD/WAR` + NAMES `@ACTIONS` rows | Authentic (2026-08-28) | `ai_contact_enqueue_village_meet`: DOS `FUN_4d56_4528` human arm, per-unit row gating; invented Gift row + hand-typed "welcomes the most worthy" body gone — [indian_actions_menu.md](../original_sources_annotated/ai/indian_actions_menu.md) |
+| Village action menu CHOICE | `@VILLAGEHAPPY/SAVAGE/MEDIUM/BAD/WAR` + NAMES `@ACTIONS` rows | Authentic (2026-08-28) | `ai_contact_enqueue_village_meet`: DOS `FUN_4d56_4528` human arm, per-unit row gating; invented Gift row + hand-typed "welcomes the most worthy" body gone — [indian_actions_menu.md](../../original_sources_annotated/ai/indian_actions_menu.md) |
 | Live Among The Natives | `@LEARNSTAY` / `@LEARNLATER` / `@LEARNDONE` / `@LEARNSLOW` / `@TEACHCONVERT` | Authentic (2026-08-28) | `ai_contact_live_among_natives` (`thunk_FUN_1000_a618`); LEARNSTAY is a real Yes/No CHOICE (`AI_POPUP_TAG_CONTACT_LEARNSTAY`) |
 | Ask to Speak With Chief | `@CHIEFHOWDY` / `@CHIEFGUIDES` + `@WELLSEASONED` / `@CHIEFAREA` / `@CHIEFGIFT` / `@CHIEFBORED` / `@CHIEFKILL` | Authentic (2026-08-28) | `ai_contact_speak_with_chief` (`thunk_FUN_1000_a60c`) |
 | Demand Tribute | `@EXTORTSTUFF` / `@EXTORTPOOR` / `@EXTORTNO` / `@EXTORTLAUGH` | Authentic (2026-08-28) | `ai_contact_demand_tribute` (`thunk_FUN_1000_a5f4`) |
@@ -123,7 +123,7 @@ choices from data where a real `@SECTION` exists.
 `@SIGNTREATY` body — the invented "<cargo> boycott imposed." / "Tools embargo
 lifted." overrides were dead or port chrome and now touch only the status
 line (`DIPLO_BOYCOTT` has no producer). Every remaining Partial row in
-[popups_catalog.md](popups_catalog.md) Appendix A names its DOS site and blocker.
+[popups_catalog.md](../popups_catalog.md) Appendix A names its DOS site and blocker.
 
 ## 2026-09-28 sweep (mechanical, whole tree)
 

@@ -2,8 +2,8 @@
 
 Digest of [`COLONIZE/Colonization.pdf`](../COLONIZE/Colonization.pdf) (MicroProse
 Instruction Manual + Technical Supplement, ~135 pages) compared to the current
-OpenCol bring-up. Deep implementation notes live in [decomp_inventory.md](decomp_inventory.md)
-and [assets.md](assets.md); this file is the **feature checklist**. Player-facing
+OpenCol bring-up. Deep implementation notes live in the owning feature docs
+([Authority table](architecture.md#authority)); this file is the **feature checklist**. Player-facing
 modals (GAME.TXT `@SECTION`s vs port Done/Partial/Missing): [popups.md](popups.md).
 
 **Legend**
@@ -57,7 +57,7 @@ modals (GAME.TXT `@SECTION`s vs port Done/Partial/Missing): [popups.md](popups.m
 | Reports F1–F10 | Done | `reports.c` |
 | Pick Music + BGM | Done | `gsound_vm.c` (literal `GSOUND.COL` driver emulator) + `sound.c`, `pick_music.c`; Sound Options popup (Background/Event/Sound Effects) **Done**, `options_dialog.c`. Song-id table corrected 2026-08-27 (Pick Music *n* is not `0x20+n`) — see [assets_sound.md](assets_sound.md) |
 | Situational "Military" BGM cue on combat | Done thin | `units_combat_music_sting` (`units_combat.c`) — DOS-evidenced (segment `5fef`), see [assets_sound.md](assets_sound.md) |
-| Digital SFX (`COLDIG.BIN`) | Done | Event ids `0x40..0x5c` are pushed in **AX**, which the decompile often drops. Sample decode, queueing, and mixing are done (`sound.c`, `gsound_vm.c`). The static DOS launch expressions and port contexts now have an exact per-ID ledger, including computed and normally unreachable branches; every ID is launched by both programs and the normalized context counts match. See [assets_sound.md](assets_sound.md#trigger-parity-audit-2026-09-24). |
+| Digital SFX (`COLDIG.BIN`) | Done | Event ids `0x40..0x5c` are pushed in **AX**, which the decompile often drops. Sample decode, queueing, and mixing are done (`sound.c`, `gsound_vm.c`). The static DOS launch expressions and port contexts have an exact per-ID ledger ([archive/assets_sound_trigger_ledger_2026-10-24.md](archive/assets_sound_trigger_ledger_2026-10-24.md)), including computed and normally unreachable branches; every ID is launched by both programs and the normalized context counts match. See [assets_sound.md](assets_sound.md#trigger-parity-audit-2026-09-24). |
 | Col1 save / load | Done | Playable I/O: `col1_save.c`, `col1_bridge.c`. **Not** a complete field map — see [save_format_map.md](save_format_map.md) |
 
 ### Units and map orders
@@ -119,7 +119,7 @@ Deep mechanics (expected vs OpenCol by context): [unit_orders.md](unit_orders.md
 | Manual feature | Status | Notes |
 |----------------|--------|-------|
 | Calendar (`@TIMECHANGE`) | Done | Year then Spring/Autumn from 1600 |
-| Food / production / hammers | Partial | Full EOT chain in `turn.c` (`turn_produce_one_colony`): field yield, food consume/starve/birth, horse breeding, manufacturing (`colony_craft_one_colony`), hammers; tier rates + class scale still DOS-unconfirmed — [building_production.md](building_production.md) |
+| Food / production / hammers | Partial | Full EOT chain in `turn.c` (`turn_produce_one_colony`): field yield, food consume/starve/birth, horse breeding, manufacturing (`colony_craft_one_colony`), hammers; tier rates + class scale DOS-confirmed — [building_production.md](building_production.md) |
 | Liberty bells / crosses counters | Partial | Accumulators; FF election via `founding_fathers_tick` |
 | Full production formulas, spoilage, boycotts | Partial | SoL/Tory net mod (`colony_prod_sol_bonus`); warehouse spoilage clamp EOT (`colonies_apply_warehouse_spoilage` / FUN_15eb_0a50); boycotts structural diplo |
 | Market prices driven by trade volume | Partial | Buy/sell update `trade_nr` + FUN_38fd_0058 rise/fall; EOT tick byte-exact vs two DOS turn pairs (`golden_market_prices01`, P6.1); `@PRICEUP`/`@PRICEDOWN` are real OK popups (not a status line). Per-cargo residual / VGA box polish still thin — [europe_nation_eot.md](../original_sources_annotated/turn/europe_nation_eot.md) |
@@ -131,16 +131,16 @@ Topic hub (graphics, units, settlements, contact): [indians.md](indians.md); ala
 
 | Manual feature | Status | Notes |
 |----------------|--------|-------|
-| Villages on map + Braves | Done | Map/minimap icons + seed-100 placement + `152e` growth and the `021a` Brave picker, all live gates (`golden_mapgen_seed100`, `golden_ai_turns`) with no fitted rows since 2026-10-04 — see [port_plan.md](port_plan.md) D3 |
-| Meet menus, trade, teach skills | Partial | Real DOS `@ACTIONS` meet menu with per-unit gating (`FUN_4d56_4528` human arm, `port_plan.md` P8.8, 2026-08-28) — Trade / hostile-village / Speak With Chief / Establish Mission / Denounce / Live Among / Demand Tribute / Attack; village trade rewritten against the clean `2820` recovery 2026-08-29 (real quantities and buy/sell ordering). Deep `2820` haggle / hard-bargain sub-loops PARKED on the T4.4 live capture; VGA chrome PARKED — [port_plan.md](port_plan.md) |
+| Villages on map + Braves | Done | Map/minimap icons + seed-100 placement + `152e` growth and the `021a` Brave picker, all live gates (`golden_mapgen_seed100`, `golden_ai_turns`) with no fitted rows since 2026-10-04 |
+| Meet menus, trade, teach skills | Partial | Real DOS `@ACTIONS` meet menu with per-unit gating (`FUN_4d56_4528` human arm, `port_plan.md` P8.8, 2026-08-28) — Trade / hostile-village / Speak With Chief / Establish Mission / Denounce / Live Among / Demand Tribute / Attack; village trade rewritten against the clean `2820` recovery 2026-08-29 (real quantities and buy/sell ordering). The `2820`/`2e92` haggle sub-loops are ported (`ai_contact_trade.c`); VGA chrome is D4 — [port_plan.md](port_plan.md) |
 | Missions / convert / incite | Partial | Missions are established only at a village: the human @ACTIONS rows 3/4 (`thunk_FUN_1000_a5dc` → `ai_contact_establish_mission`, `a594` → `ai_contact_denounce_heresy` with DOS's real weighted roll, `@HERESY0/1`, `MISSION0-3`), and the AI through `FUN_4d56_4528`'s non-human unit-type switch case 3 (`ai_contact_ai_missionary_village`: incite case 7 → establish case 3 → denounce case 4). The invented AI adjacency convert pulse, its 50/50 heresy, crosses bump, alarm decay and the missionary flee arm were deleted 2026-09-22 (port_bugs.md #557). Converts reaching a colony are the separate `FUN_5bfb_022e` `@INDIANSCONVERT` arm. HELLO1/2 greet **Done** thin; raid surprise/war chrome **Done** thin; incite/WARPATH gold **Done** for both arms (`FUN_4d56_417e` → `ai_contact_apply_incite`, 6th village-meet CHOICE; AI Mode 2 `ai_contact_ai_incite_human`, `port_plan.md` T4.5; [`indian_incite_417e.md`](../original_sources_annotated/ai/indian_incite_417e.md)) |
-| Alarm, raid, Indian wars | Partial | Structural contact/raids (`ai_contact_*`, `@RAID*` tribe+colony status + ambush WIN1/2 / surprise / war); colony encroachment **Done** thin; player dialog **Done** structural (`ai_popup`); `4528` **Done** 2026-08-27/28 (both arms); deep `2820` haggle still PARKED |
+| Alarm, raid, Indian wars | Partial | Structural contact/raids (`ai_contact_*`, `@RAID*` tribe+colony status + ambush WIN1/2 / surprise / war); colony encroachment **Done** thin; player dialog **Done** structural (`ai_popup`); `4528` **Done** 2026-08-27/28 (both arms); `2820` haggle ported |
 
 ### Combat and diplomacy
 
 | Manual feature | Status | Notes |
 |----------------|--------|-------|
-| Land / naval attack | Done | Playable bar + fort bit7/Drydock + `20e6` combat peels Done thin; the village arm is now the full `4528` action dispatch (P8.8 human menu incl. Attack Village, AI attack via the `20e6` village arm, `ai_euro_land.c`), not the old invented warn CHOICE. Deep −0x6790/VGA/`2820` haggle PARKED — [combat.md](combat.md) |
+| Land / naval attack | Done | Playable bar + fort bit7/Drydock + `20e6` combat peels Done thin; the village arm is now the full `4528` action dispatch (P8.8 human menu incl. Attack Village, AI attack via the `20e6` village arm, `ai_euro_land.c`), not the old invented warn CHOICE. Deep −0x6790 matrix PARKED; VGA chrome D4 — [combat.md](combat.md) |
 | Capture colony | Partial | `colonies_capture` on player enter (empty/cleared foreign Euro) + AI / combat paths; Indian raid abandons — [combat.md](combat.md) |
 | Stockade / fort / fortress defense % | Done | Live land combat via `157e` `local_1a`; coastal Fort/Fortress fire `units_coastal_fort_fire_pulse_w`. Attack MP (full exhaust, 2026-09-10) + close-hit bit7 + Drydock repair Done — [combat.md](combat.md) |
 | Rival war / peace / privateers | Partial | Euro bilateral war/ally/peace + Furs embargo + Privateer spawn (`ai_diplo_*`); Indian×Euro matrix + fuller `153e` **Done** structural (unpark #5); FA `3f41` / 8g prize PARKED |
@@ -160,7 +160,7 @@ Topic hub (graphics, units, settlements, contact): [indians.md](indians.md); ala
 | Manual feature | Status | Notes |
 |----------------|--------|-------|
 | Rival starter fleets + sail to landfall | Done | Path-independent `FUN_75c2_235c`: all four fleets at sentinel `228+n`, counter 0, goto = landfall — `FUN_684c` HS-rim on generated maps, `@SCENARIO` on AMERICA/TRIBE.TXT (port_bugs.md #490) — then Europe exit via `48d3_048e` / `ai_euro_act_*` dispatcher; seed-100 early fixture still gated — [port_plan.md](port_plan.md) |
-| Unload, found colonies, combat, colony AI | Done | Not claimed 1:1. Rival-Euro AI closed at logic level 2026-09-07g (D1): `0a60` goals, `5d04` hire ladder (the invented OpenCol matrix is deleted), `20e6` land arms with the `3558` cargo matrices, colony tick and Col1 colony flags/SoL latches, BUY `hammers_purchased`, `depletion_counter` wrap, `warehouse_level`/`capitol_level`. Gates: `golden_ai_turns`, `smoke_ai_mid01`/`late01`. What is left is fidelity hardening (step scorer not T3) and the deep `−0x6790` body, still PARKED — [port_plan.md](port_plan.md) per-module table |
+| Unload, found colonies, combat, colony AI | Done | Not claimed 1:1. Rival-Euro AI closed at logic level 2026-09-07g (D1): `0a60` goals, `5d04` hire ladder (the invented OpenCol matrix is deleted), `20e6` land arms with the `3558` cargo matrices, colony tick and Col1 colony flags/SoL latches, BUY `hammers_purchased`, `depletion_counter` wrap, `warehouse_level`/`capitol_level`. Gates: `golden_ai_turns`, `smoke_ai_mid01`/`late01`. What is left is fidelity hardening (step scorer not T3) and the deep `−0x6790` body, still PARKED — [ai_euro_logic_map.yaml](ai_euro_logic_map.yaml) |
 
 ### Win / end sequences
 
@@ -173,49 +173,17 @@ Topic hub (graphics, units, settlements, contact): [indians.md](indians.md); ala
 
 ---
 
-## Suggested implementation order
-
-Whole-project **phase priority** lives in [port_plan.md](port_plan.md). This list
-is the historical bring-up order (early manual chapters first), then the
-**unparked queue** in [port_plan.md](port_plan.md) (prereqs met):
-
-1. **Colony economy UI** — phases 1–4 (workplaces, fields, craft, warehouse↔ship) done
-2. **Europe commodity trade** — recruit/train/purchase + multi-turn sail + buy/sell done; volume-price T0 **Done thin**; boycotts **Partial** structural; pressure/bid chrome PARKED
-3. **Pioneer terrain work + roads** and real movement costs — phase 7 done
-4. **Unit orders** — ORDERS pulldown Done (fortify/anchor/sentry/disband/goto place+port/pioneer/pillage/dump; trade-route aim+cycle); TRADE stop nibble honor Done (Edit UI thin)
-5. **Fog of war / exploration**
-6. **Combat** (land first; colony defense) — **Playable bar Done**; fort bit7/Drydock + `20e6` peels Done thin; village arm is the full `4528` dispatch (P8.8); deep −0x6790 / VGA / `2820` haggle still PARKED — [combat.md](combat.md)
-7. **Indian contact UI** — first contact `@INDIANWELCOME` Yes/No →
-   `@INDIANPEACE`/`@INDIANCOME` or `@INDIANSHUN`+war (**Done** structural;
-   `FUN_5bfb_022e` / `0182`; thin land-grant purchased+owner on occupied tile);
-   later meet / trade / teach / gift (**Done** structural `ai_popup`; deep/VGA
-   PARKED)
-8. **King audience / declare / merc UI** (**Done** structural) + **FF effect depth** (Sepulveda convert-join + Cortes/de Witt Done; KINGGALLEON2 **Done** 2026-08-27; F3 Congress **Done** structural)
-9. **Euro mid-planner** (`20e6` land arms + `5d04` **Done** 2026-08-27, T1.18 / T3.1; deep −0x6790 still open) + **Indian×Euro diplo** (**Done** structural; FA UI PARKED)
-10. **Trade routes** — **Done** (2026-09-03): create wizard, EDIT TRADE ROUTE screen, Begin filters + starting stop, DOS stop service (strict lists, Europe auto-buy), @ROUTELOOP, delete fixups
-11. **Deep PARKED bodies** (full `2820` haggle, `4528` VGA meet chrome, FA `3f41`, T3 goldens) — signing cinematic **Done** 2026-08-30; HoF / end sequences **Done** thin — [port_plan.md](port_plan.md)
-
----
-
 ## Takeaway
 
-Playability tracks P1–P11 closed 2026-09-03. The port is strong on **shell, map
-art, navigation, reports / pedia, save, units / naval passengers, founding a
-colony, Europe buy/sell/recruit/hire/equip, rumours/treasure (KINGGALLEON2
-**Done**), Indian contact (`4528` human `@ACTIONS` **Done**; `2820` haggle
-PARK), king/REF, FF election (all 25 Fathers), and trade routes**. Euro AI is
-past structural (`20e6` / `5d04` **Done** 2026-08-27; deep −0x6790 remains).
-Next work is `port_bugs.md` nits, production / combat depth on the Partial rows
-above, VGA dialog chrome, and 1:1 AI bodies — not leftover KINGGALLEON2 or
-unwired reports.
+Playability tracks P1–P11 closed 2026-09-03 (the old bring-up order is in git
+history). Remaining work is the [port_bugs.md](port_bugs.md) queue, the Partial
+rows above, D4 VGA dialog chrome and the deep −0x6790 Euro combat body.
 
 ## See also
 
 - [port_plan.md](port_plan.md) — whole-project phases / what’s next
 - [original_index.md](original_index.md) — decomp / data navigation
 - [unit_orders.md](unit_orders.md) — unit order mechanics + port status
-- [decomp_inventory.md](decomp_inventory.md) — bring-up and parked RE
-- [port_plan.md](port_plan.md) — AI FUN_* inventory and 1:1 roadmap
 - [assets.md](assets.md) — formats and UI wiring
 - [savegame.md](savegame.md) — `COLONY##.SAV` layout / interop
-- [save_format_map.md](save_format_map.md) — opaque field atlas + RE roadmap (P0–P6 Done)
+- [save_format_map.md](save_format_map.md) — opaque field atlas

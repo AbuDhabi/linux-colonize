@@ -7,8 +7,8 @@ architectural constraints. Fidelity bar and conflict order:
 
 This file owns **structure and contracts** (layers, modules, control flow).
 It does **not** own feature Done/Partial matrices, AI FUN inventories, or
-Col1 field atlases — those stay in their owning docs (see [Where detail
-lives](#where-detail-lives)).
+Col1 field atlases — those stay in their owning docs (see the
+[Authority](#authority) table).
 
 ---
 
@@ -24,11 +24,11 @@ lives](#where-detail-lives)).
 | Accepted DOS divergences, captures still needed | [known_divergences.md](known_divergences.md) |
 | DOS bugs deliberately NOT reproduced | [dos_bugs.md](dos_bugs.md) |
 | Unwanted DOS bugs still reproduced for now | [tolerated_dos_bugs.md](tolerated_dos_bugs.md) (TB-9..30 Euro/native AI: [tolerated_dos_bugs_ai.md](tolerated_dos_bugs_ai.md)) |
-| AI FUN / unpark | [port_plan.md](port_plan.md) |
+| AI `FUN_*` inventory (closed track; grep by `FUN_` name) | [archive/port_plan_deferred_ai_track.md](archive/port_plan_deferred_ai_track.md) |
 | Euro AI control flow (machine-readable map + flowchart) | [ai_euro_logic_map.yaml](ai_euro_logic_map.yaml), rendered by `tools/ai_logic_map.py` to [diagrams/ai_euro_logic.html](diagrams/ai_euro_logic.html) |
 | Decomp / data navigation | [original_index.md](original_index.md) |
 | Feature Done / Partial / Missing | [manual_gap.md](manual_gap.md) |
-| Popup inventory / authenticity | [popups.md](popups.md), [popups_catalog.md](popups_catalog.md), [popup_audit.md](popup_audit.md); dialog metrics (wrap, sizes, rows, list keys) [popups_dialog_engine.md](popups_dialog_engine.md) |
+| Popup inventory / authenticity | [popups.md](popups.md), [popups_catalog.md](popups_catalog.md); dialog metrics (wrap, sizes, rows, list keys) [popups_dialog_engine.md](popups_dialog_engine.md) |
 | Combat mechanics | [combat.md](combat.md), [combat_analysis.md](combat_analysis.md) |
 | Report screens (F2–F10 + HoF) | [reports.md](reports.md), [reports_score.md](reports_score.md) (F10 + HoF), [report_screens.md](report_screens.md) |
 | SoL / independence | [sons_of_liberty.md](sons_of_liberty.md) |
@@ -42,10 +42,11 @@ lives](#where-detail-lives)).
 | `COLONY##.SAV` layout / Col1 bridge | [savegame.md](savegame.md), [save_format_map.md](save_format_map.md) |
 | Conventions, jargon, fixture traps, verification loop | [conventions.md](conventions.md) |
 | Debug env vars / `debug.logs` categories | [debug_env_vars.md](debug_env_vars.md) |
+| Persisted options (`settings.json`) | [settings.md](settings.md) |
 | Data files vs bake-into-code (dev guide) | [data_vs_hardcoded.md](data_vs_hardcoded.md) |
 | Move-into-tile authority (enter / landfall) | [move_enter.md](move_enter.md) |
 | Unit orders (issue / tick / gates / port status) | [unit_orders.md](unit_orders.md) |
-| Bring-up status, EOT pipeline, map fidelity gaps | [decomp_inventory.md](decomp_inventory.md) |
+| Known Ghidra disassembly faults (check before trusting a function) | [decomp_inventory.md](decomp_inventory.md) |
 | Between player turns (full EOT map) | [turn_between_players.md](turn_between_players.md) |
 | Difficulty level effects | [difficulty.md](difficulty.md) |
 | Fandom wiki digest (1994 Col only; tier-3) | [fandom_col1994.md](fandom_col1994.md) |
@@ -226,19 +227,19 @@ Cluster table (not every file). Paths are under `src/core/` unless noted.
 
 | Cluster | Key paths | Role |
 |---------|-----------|------|
-| **Shell** | `game_loop.c` (+ `game_loop_{menus,saveload,render,orders,colony,eot,update}.c`, seams in `game_loop_internal.h`), `game_loop.h`, `game_dialogs.c/.h` | `ColonizeGameState` hub; mode flags; input routing; render; dialog wiring + modal input handling. The `game_loop_*.c` files are the old banner sections of the single 15k-line `game_loop.c`, moved verbatim: `_menus` cheat/trade-route/save-load popups, `_saveload` slot IO + reports/score/pedia menus, `_render` sprite blit/zoom + Europe + colony screen render + `game_create`, `_orders` unit selection/movement + foreign-colony trade, `_colony` colony UI drag&drop + Europe voyages/dock orders, `_eot` end-of-turn + map menu actions, `_update` woodcut/popup servicing + `game_update` |
-| **Turn** | `turn.c/.h` (+ `turn_production.c`, `turn_colony.c`, `turn_year_end.c`, seams in `turn_internal.h`) | EOT processor (`TURN_PROC_*`); production / nation ticks. `turn.c` was one 4270-line file until 2026-09-23; it is now four files split along its banners, moved verbatim (`turn.c` calendar/fog + EOT option gates + report-readiness checks + Euro AI turn-order selection + the `TURN_PROC_*` state machine, `turn_production.c` colony production chrome/popups + the per-colony production tick + production logging and per-nation scheduling, `turn_colony.c` colony construction/building completion + the nation tick (bells/crosses, immigrants, ship repair/routing), `turn_year_end.c` year-end chrome: rival popups, anniversary, era-end, WoI, independence, defeat) with the cross-file seams declared in `turn_internal.h` |
+| **Shell** | `game_loop.c` (+ `game_loop_{menus,saveload,render,orders,colony,eot,update}.c`, seams in `game_loop_internal.h`), `game_loop.h`, `game_dialogs.c/.h` | `ColonizeGameState` hub; mode flags; input routing; render; dialog wiring + modal input handling. `game_loop_*.c`: `_menus` cheat/trade-route/save-load popups, `_saveload` slot IO + reports/score/pedia menus, `_render` sprite blit/zoom + Europe + colony screen render + `game_create`, `_orders` unit selection/movement + foreign-colony trade, `_colony` colony UI drag&drop + Europe voyages/dock orders, `_eot` end-of-turn + map menu actions, `_update` woodcut/popup servicing + `game_update` |
+| **Turn** | `turn.c/.h` (+ `turn_production.c`, `turn_colony.c`, `turn_year_end.c`, seams in `turn_internal.h`) | EOT processor (`TURN_PROC_*`); production / nation ticks. Files: `turn.c` calendar/fog + EOT option gates + report-readiness checks + Euro AI turn-order selection + the `TURN_PROC_*` state machine, `turn_production.c` colony production chrome/popups + the per-colony production tick + production logging and per-nation scheduling, `turn_colony.c` colony construction/building completion + the nation tick (bells/crosses, immigrants, ship repair/routing), `turn_year_end.c` year-end chrome: rival popups, anniversary, era-end, WoI, independence, defeat; cross-file seams in `turn_internal.h` |
 | **Map** | `map`, `map_gen`, `map_panel`, `map_menu`, `travel_dest` | `.MP` layers, fog/seen, compositor helpers, panel UI; `travel_dest` = the colony-picker reachability rule (DOS `FUN_647e_0094`) shared by ORDERS "Go to Port" and the trade-route editor |
-| **Units / combat** | `units.h` (umbrella) + `units_move.h`, `units_combat.h`, `units_cargo.h`, `unit_stack`, `unit_chrome`, `combat_strength`, `combat_analysis` | Move/orders, combat, cargo; split by concern for bring-up (pool lifecycle in `units.h`, modular specialization in the three). Implementation: `units.c` was one 13.5k-line file until 2026-09-23; it is now eight files (`units.c` pool/spawn/ship ticks, `units_map.c` occupancy/sight/hooks, `units_combat.c` defender pick + outcomes + popups, `units_combat_resolve.c` land/naval resolution + fort fire, `units_capture.c` colony capture + MP accounting, `units_move.c` movement/orders/pathfinding, `units_pioneer.c` plow/road/clear, `units_cargo.c` holds/boarding/start placement) with the cross-file seams declared in `units_internal.h` |
-| **Colonies** | `colony*`, `colony_screen` (+ `colony_screen_{draw,buildings,panels,popups}.c`, seams in `colony_screen_internal.h`), `colony_yield`, `colony_production`, `colony_craft`, `colony_preview` | Logic + colony screen. `colony.c` was one 4483-line file until 2026-09-23; it is now five files split along its banners, moved verbatim (`colony.c` map icons/fortification tier + fog queries, pool init + building/name catalogs, founding checks + Indian land purchase, occupancy map + founding + col1 tile bookkeeping; `colony_plots.c` pool accessors, field/plot geometry, DOS plot-blocked mask, colonist tile slots, school tiers, profession labels; `colony_workers.c` school/workplace chrome popups, field/building work assignment, admission/seating/auto-assign, eject/dismiss + gear seizure; `colony_build.c` fortification bonus/abandon/capture, build queue + construction set/complete/buy, building catalog/chains/buildability; `colony_goods.c` warehouse capacity/spoilage, cargo transfer to/from carriers, foreign + Custom-House trade gate + trade-route stops) with the cross-file seams declared in `colony_internal.h`. `colony_screen.c` was one 4796-line file until 2026-09-23; it is likewise now five files split along its banners, moved verbatim (`colony_screen.c` view state + subpanel open/close + PIK load/free; `colony_screen_draw.c` background/chrome primitives, icon strips, area overlays + minimap; `colony_screen_buildings.c` DOS settlement-view layout, building strip, cargo/transport strips; `colony_screen_panels.c` population and multifunction production panels; `colony_screen_popups.c` popup rendering, hit testing, the `colony_screen_render_w` entry point) with the cross-file seams declared in `colony_screen_internal.h` |
-| **Europe / economy** | `europe.c/.h` (+ `europe_pool.c`, `europe_dock.c`, `europe_harbor.c`, `europe_market.c`) | Market, sail, recruit/hire. `europe.c` was one 5436-line file until 2026-09-23; it is now five files split along its banners (`europe.c` purse/rng plumbing, ship-cargo helpers, gold accessors + live-save/popup wiring, `europe_pool.c` purchase table, pool profession rolls, cargo tables + nation/campaign setup, `europe_dock.c` recruit/train/purchase commits, dock unit typing + kits + mirror units, dock arms menu, `europe_harbor.c` embark/disembark + voyage ticking, treasure cashing, price ledger, market/immigration ticks, AI-nation immigration, `europe_market.c` labels, sell/buy commits, Custom House autosell, icon flow + hit-testing + menus + cheats) with the cross-file seams declared in `europe_internal.h`. The single treasury accessor pair (`europe_purse_move` / gold read+add) stays in `europe.c`. |
-| **AI** | `ai` (+ `ai_indian`, `ai_native_021a`, `ai_brave`), `ai_euro` (+ `ai_euro_colony_jobs`, `ai_euro_expand`, `ai_euro_europe`, `ai_euro_goals`, `ai_euro_land`, `ai_euro_ship`, `ai_euro_act`), `ai_contact` (+ `ai_contact_demand`, `ai_contact_trade`, `ai_contact_raid`, `ai_contact_actions`), `ai_diplo`, `ai_king` (+ `ai_king_audience`, `ai_king_ref`, `ai_king_offers`, `ai_king_war`), `ai_goals`, `ai_popup` | Init + nation-turn entry; split planners. The Euro AI was one 21.7k-line `ai_euro.c` until 2026-09-23; it is now eight files (dispatcher / 5952 colony jobs / wagon+found / 5d04 Europe / 0a60+colony goals / 20e6 land / ship band / act stages) with the cross-file seams declared in `ai_euro_internal.h`. `ai_contact.c` got the same treatment the same day: 10.3k lines split along its banners into five files (bookkeeping/welcome/encounter, demand economics, village trade, raids, @ACTIONS menu), seams in `ai_contact_internal.h`. `ai.c` followed on the same day: 5081 lines split along its banners into `ai.c` (startup RNG, coarse fog, diagnostics gates, new-game world setup, game init, Euro nation-turn dispatch), `ai_indian.c` (152e village worth/growth, tile+owner helpers, native pull scoring), `ai_native_021a.c` (the `FUN_4d56_021a` structural scorer) and `ai_brave.c` (pick-dir dispatch, init schedule, first contact, Brave step, nation pulse), seams in `ai_internal.h` (`ai_native_score.c`, the quiet `FUN_4d56_4753` scorer, was deleted 2026-09-23 with the `AI_BRAVE_PICK=20e6` fallback — port_bugs.md #825). `ai_king.c` likewise: 6.0k lines split along its banners into `ai_king.c` (module prologue, crown/boycott messaging, tea-party enqueue + intervention force, REF force bookkeeping / royal purse / SoL + independence state), `ai_king_audience.c` (audience rolls, tax + tea-party dialogs, succession, Declare Independence), `ai_king_ref.c` (REF landing-site pick, garrison scoring + invasion, landing/announce/disembark), `ai_king_offers.c` (mercenary and frigate offers) and `ai_king_war.c` (war-declaration events, REF war conduct, WoI endgame scoring, nation-turn driver + popup dispatch), seams in `ai_king_internal.h`. |
+| **Units / combat** | `units.h` (umbrella) + `units_move.h`, `units_combat.h`, `units_cargo.h`, `unit_stack`, `unit_chrome`, `combat_strength`, `combat_analysis` | Move/orders, combat, cargo; split by concern for bring-up (pool lifecycle in `units.h`, modular specialization in the three). Implementation files: `units.c` pool/spawn/ship ticks, `units_map.c` occupancy/sight/hooks, `units_combat.c` defender pick + outcomes + popups, `units_combat_resolve.c` land/naval resolution + fort fire, `units_capture.c` colony capture + MP accounting, `units_move.c` movement/orders/pathfinding, `units_pioneer.c` plow/road/clear, `units_cargo.c` holds/boarding/start placement; cross-file seams in `units_internal.h` |
+| **Colonies** | `colony*`, `colony_screen` (+ `colony_screen_{draw,buildings,panels,popups}.c`, seams in `colony_screen_internal.h`), `colony_yield`, `colony_production`, `colony_craft`, `colony_preview` | Logic + colony screen. Colony files: `colony.c` map icons/fortification tier + fog queries, pool init + building/name catalogs, founding checks + Indian land purchase, occupancy map + founding + col1 tile bookkeeping; `colony_plots.c` pool accessors, field/plot geometry, DOS plot-blocked mask, colonist tile slots, school tiers, profession labels; `colony_workers.c` school/workplace chrome popups, field/building work assignment, admission/seating/auto-assign, eject/dismiss + gear seizure; `colony_build.c` fortification bonus/abandon/capture, build queue + construction set/complete/buy, building catalog/chains/buildability; `colony_goods.c` warehouse capacity/spoilage, cargo transfer to/from carriers, foreign + Custom-House trade gate + trade-route stops; seams in `colony_internal.h`. Colony-screen files: `colony_screen.c` view state + subpanel open/close + PIK load/free; `colony_screen_draw.c` background/chrome primitives, icon strips, area overlays + minimap; `colony_screen_buildings.c` DOS settlement-view layout, building strip, cargo/transport strips; `colony_screen_panels.c` population and multifunction production panels; `colony_screen_popups.c` popup rendering, hit testing, the `colony_screen_render_w` entry point; seams in `colony_screen_internal.h` |
+| **Europe / economy** | `europe.c/.h` (+ `europe_pool.c`, `europe_dock.c`, `europe_harbor.c`, `europe_market.c`) | Market, sail, recruit/hire. Files: `europe.c` purse/rng plumbing, ship-cargo helpers, gold accessors + live-save/popup wiring, `europe_pool.c` purchase table, pool profession rolls, cargo tables + nation/campaign setup, `europe_dock.c` recruit/train/purchase commits, dock unit typing + kits + mirror units, dock arms menu, `europe_harbor.c` embark/disembark + voyage ticking, treasure cashing, price ledger, market/immigration ticks, AI-nation immigration, `europe_market.c` labels, sell/buy commits, Custom House autosell, icon flow + hit-testing + menus + cheats; seams in `europe_internal.h`. The single treasury accessor pair (`europe_purse_move` / gold read+add) stays in `europe.c`. |
+| **AI** | `ai` (+ `ai_indian`, `ai_native_021a`, `ai_brave`), `ai_euro` (+ `ai_euro_colony_jobs`, `ai_euro_expand`, `ai_euro_europe`, `ai_euro_goals`, `ai_euro_land`, `ai_euro_ship`, `ai_euro_act`), `ai_contact` (+ `ai_contact_demand`, `ai_contact_trade`, `ai_contact_raid`, `ai_contact_actions`), `ai_diplo`, `ai_king` (+ `ai_king_audience`, `ai_king_ref`, `ai_king_offers`, `ai_king_war`), `ai_goals`, `ai_popup` | Init + nation-turn entry; split planners. Euro AI files: dispatcher / 5952 colony jobs / wagon+found / 5d04 Europe / 0a60+colony goals / 20e6 land / ship band / act stages, seams in `ai_euro_internal.h`. `ai_contact` files: bookkeeping/welcome/encounter, demand economics, village trade, raids, @ACTIONS menu, seams in `ai_contact_internal.h`. `ai` files: `ai.c` (startup RNG, coarse fog, diagnostics gates, new-game world setup, game init, Euro nation-turn dispatch), `ai_indian.c` (152e village worth/growth, tile+owner helpers, native pull scoring), `ai_native_021a.c` (the `FUN_4d56_021a` structural scorer) and `ai_brave.c` (pick-dir dispatch, init schedule, first contact, Brave step, nation pulse), seams in `ai_internal.h` (the quiet `FUN_4d56_4753` scorer `ai_native_score.c` is deleted, port_bugs.md #825). `ai_king` files: `ai_king.c` (module prologue, crown/boycott messaging, tea-party enqueue + intervention force, REF force bookkeeping / royal purse / SoL + independence state), `ai_king_audience.c` (audience rolls, tax + tea-party dialogs, succession, Declare Independence), `ai_king_ref.c` (REF landing-site pick, garrison scoring + invasion, landing/announce/disembark), `ai_king_offers.c` (mercenary and frigate offers) and `ai_king_war.c` (war-declaration events, REF war conduct, WoI endgame scoring, nation-turn driver + popup dispatch), seams in `ai_king_internal.h`. |
 | **Save / Col1** | `savegame`, `col1_save` (API) + `col1_save_layout.h` (on-disk), `col1_bridge` (capture/apply stages, seams in `col1_bridge_internal.h`), `col1_post_map`, `col1_stuff_census` | DOS `COLONY##.SAV` interop; layout split from API |
 | **Settings** | `settings.c/.h`, `json_min.c/.h` | Port-only `settings.json` preference file (see [settings.md](settings.md)) |
 | **Assets / art** | `assets`, `madspack`, `pik`, `ss`, `ff`, `font`, `debug_atlas` | Catalogs + MADSPACK decode |
 | **UI primitives** | `popup`, `popup_msg`, `ui_button`, `ui_drag`, `ui_colors`, `text_edit`, dialogs (`save_load_dialog`, `options_dialog`, `pick_music` + `pick_music_ids.h`, `cheat_list_dialog`, `howmuch_dialog`, `name_entry_dialog`), `cinematic.h` (shared sheet loader for `opening` / `closing` / `declaration` / `woodcut_present`) | Wood/list modals |
 | **Shared misc** | `bytes.h` (LE byte helpers), `window_log` (port-only message-log strip), `village_trade_intel` (port-only VTIN intel, saved in the COLNXEXT tail — [savegame.md](savegame.md)), `runtime_ext` (RTST chunk: the DOS-unsaved cross-turn tables + LCG, so reload == continuous) | Sim-side helpers |
-| **Screens** | `new_game`, `pedia`, `reports` (+ `reports_congress`, `reports_economy`, `reports_military`, `reports_score`), `founding_fathers` | Wizard / advisors / FF. `reports.c` was one 4403-line file until 2026-09-23; it is now five files split along its banners (`reports.c` view lifecycle + asset/id lookups, shared draw primitives, shadowed line helpers and the top-level render dispatch, `reports_congress.c` Religious + Continental Congress + Labor, `reports_economy.c` Economic/Trade + Cargo + Colony, `reports_military.c` Naval/Military + Foreign affairs + Indian, `reports_score.c` score computation + Hall of Fame/Exploits) with the cross-file seams declared in `reports_internal.h`. |
+| **Screens** | `new_game`, `pedia`, `reports` (+ `reports_congress`, `reports_economy`, `reports_military`, `reports_score`), `founding_fathers` | Wizard / advisors / FF. Report files: `reports.c` view lifecycle + asset/id lookups, shared draw primitives, shadowed line helpers and the top-level render dispatch, `reports_congress.c` Religious + Continental Congress + Labor, `reports_economy.c` Economic/Trade + Cargo + Colony, `reports_military.c` Naval/Military + Foreign affairs + Indian, `reports_score.c` score computation + Hall of Fame/Exploits; seams in `reports_internal.h`. |
 | **Audio** | `gsound_vm.c/.h`, `sound.c/.h` | Literal `GSOUND.COL` driver emulation + DOS BGM scheduler, `COLDIG.BIN` SFX mixing, FluidSynth when present |
 | **RNG / util** | `dos_rng`, `strutil`, `version.h` | DOS LCG fidelity |
 | **Platform** | `src/platform/platform.h`, `linux_sdl2/sdl_runtime.c` (+ `sdl_keymap.c`, shared with the replay harness), `dos_compat/` | Contract + SDL2 + stubs |
@@ -371,9 +372,7 @@ Segment systems: [`MODULE_MAP.md`](../original_sources_annotated/MODULE_MAP.md).
 | Save | `save` (`75c2`) |
 
 Decomp exports under `original_sources_decompiled/` and annotated peels under
-`original_sources_annotated/` are **not compiled**. Bring-up notes and the
-historical core/platform boundary sketch:
-[decomp_inventory.md](decomp_inventory.md).
+`original_sources_annotated/` are **not compiled**.
 
 ---
 
@@ -402,8 +401,7 @@ greenfield redesign or a mandated `game_loop` rewrite phase.
 
 - Match **rules, assets, saves, inputs** — not DOS code structure
   ([project_goals.md](project_goals.md)).
-- Wrap legacy behavior; do not refactor gameplay first for structure’s sake
-  ([decomp_inventory.md](decomp_inventory.md) Bring-Up).
+- Wrap legacy behavior; do not refactor gameplay first for structure’s sake.
 - Incomplete logic: implement closest real behavior, or **PARK** with a comment
   naming the intended effect — no invented gold/crosses fiction.
 - Acceptance order when goals conflict: save/data interop → gameplay/
@@ -423,49 +421,19 @@ greenfield redesign or a mandated `game_loop` rewrite phase.
 
 - **Col1** is the only save path (legacy COLZ removed 2026-08-29).
 - Keep headless smoke/unit suites as architecture checks for simulation
-  regressions. The AI cluster is **fully live** again: `golden_ai_turns` and
-  the joint smoke pair (`smoke_ai_mid01` / `smoke_ai_late01`, renamed from
-  `golden_ai_*` 2026-09-14) all run in a default `ctest`. The parking
-  that started 2026-08-19 ended 2026-09-05 (port_plan T1.23 / T3.3). No test in
-  [`CMakeLists.txt`](../CMakeLists.txt) is `DISABLED`; the four idle campaigns run as
-  `golden_idle_continuous`, `golden_idle_independence`, `golden_idle_america` and
-  `golden_idle_america2` ([idle_campaign.md](idle_campaign.md), [idle_independence.md](idle_independence.md),
-  [idle_america.md](idle_america.md), [idle_america2.md](idle_america2.md)).
-  `golden_ai_joint` is a **build-only convenience target** that re-runs the
-  AI gates in one shot (`cmake --build build/debug --target golden_ai_joint`):
-  `golden_mapgen_seed100`, `golden_ai_turns`, the three
-  `unit_ai_contact_*` slices, `unit_ai_diplo`, `smoke_ai_mid01` and
-  `smoke_ai_late01`. It has no `add_test()` registration, because every gate it
-  runs is already its own ctest test (duplication audit TT-14).
+  regressions. No test in [`CMakeLists.txt`](../CMakeLists.txt) is `DISABLED`;
+  the AI gates and the four idle campaigns ([idle_campaign.md](idle_campaign.md))
+  all run in a default `ctest`. `golden_ai_joint` is a build-only convenience
+  target with no `add_test()` (its members are their own tests;
+  [conventions.md](conventions.md) §5).
 
 ### Explicitly not intended (unless decided elsewhere)
 
 - Cloning VICEROY overlay / segment layout in `src/`
-- Pixel-identical rendering as a day-one architectural requirement (phase 5
-  polish in [port_plan.md](port_plan.md))
-- Claiming T3 / 1:1 AI bodies as an architectural gate before gameplay
-  unpark work in [port_plan.md](port_plan.md)
+- Pixel-identical rendering as a day-one architectural requirement (D4 in
+  [port_plan.md](port_plan.md))
 
 ---
-
-## Where detail lives
-
-| Topic | Doc |
-|-------|-----|
-| Phases / what’s next | [port_plan.md](port_plan.md) |
-| Whole-project agent work queue | [port_plan.md](port_plan.md) |
-| Feature Done/Partial/Missing | [manual_gap.md](manual_gap.md) |
-| AI FUN inventory / unpark | [port_plan.md](port_plan.md) |
-| EOT / between-player turns | [turn_between_players.md](turn_between_players.md) |
-| Popup / modal architecture | [popups.md](popups.md), [popups_dialog_engine.md](popups_dialog_engine.md) |
-| Assets, formats, map draw | [assets.md](assets.md) |
-| Load vs bake | [data_vs_hardcoded.md](data_vs_hardcoded.md) |
-| Decomp bring-up / core–platform sketch | [decomp_inventory.md](decomp_inventory.md) |
-| Decomp / data index | [original_index.md](original_index.md) |
-| Save codec / Col1 bridge | [savegame.md](savegame.md) |
-| Persisted options (`settings.json`) | [settings.md](settings.md) |
-| Col1 field atlas | [save_format_map.md](save_format_map.md) |
-| DOS segment → system map | [`MODULE_MAP.md`](../original_sources_annotated/MODULE_MAP.md) |
 
 Update this file when layering, CMake targets, or architectural constraints
 change. Keep per-feature and per-FUN status in their owning gap docs.

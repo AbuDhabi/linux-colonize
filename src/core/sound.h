@@ -113,7 +113,7 @@ void sound_stop_preview(void);
 void sound_set_bgm(int track);
 /*
  * Pool 0 is not silence: DOS picks from the default pool (all 12 main tunes)
- * whenever no pool is armed, which is what plays on the title menu. Set this
+ * whenever no pool is armed (the title menu itself runs SOUND_TITLE_BGM_POOL). Set this
  * while the port's in-process OPENING/CLOSING cinematic is up — in DOS those
  * are separate programs whose cue owns the driver.
  */
