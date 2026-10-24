@@ -1,0 +1,79 @@
+# Starts from colony_build_queue's output (Quebec: Printing Press in production, queue Church,
+# Blacksmith's Shop, Wagon Train, carried by the port-only BQUE chunk) with the cheat bit set
+# (head.game_options.cheats_enabled). Each project is bought, then the colony-screen Space cheat
+# (turn_cheat_colony_tick: one production tick plus both completion sweeps) completes it inside the
+# turn, so the queue head starts (docs/colony.md "ColonizeColony.build_queue").
+# Picker rows: 8 px apart, row 0 "(No Production)" at y=39.
+click 120 112              # open Quebec (map tile 45,24; this save's view origin is 38,18)
+wait 10
+click 282 141              # CHANGE: the loaded queue is numbered 1-3
+wait 5
+click 150 71 shift         # Shift-click Schoolhouse (needs pop 4): queued as 4
+wait 5
+click 150 87 shift         # Shift-click Stable: queued as 5
+wait 5
+key Escape                 # close the picker
+wait 5
+key 4 shift                # $ x8: France +8000 gold
+key 4 shift
+key 4 shift
+key 4 shift
+key 4 shift
+key 4 shift
+key 4 shift
+key 4 shift
+key b                      # BUY Printing Press
+wait 8
+click 100 150              # Complete it
+wait 8
+key space                  # tick: Printing Press completes, queue head Church starts
+wait 10
+key Return                 # dismiss "Quebec colony produces Printing Press"
+wait 5
+key b                      # BUY Church
+wait 8
+click 100 150              # Complete it
+wait 8
+key space                  # tick: Church completes, Blacksmith's Shop starts
+wait 10
+key Return                 # dismiss the Sons of Liberty notice
+wait 5
+key Return                 # dismiss "Quebec colony produces Church"
+wait 5
+key b                      # BUY Blacksmith's Shop
+wait 8
+click 100 150              # Complete it
+wait 8
+key space                  # tick: Blacksmith's Shop completes, Wagon Train (unit project) starts
+wait 10
+key Return                 # dismiss "Quebec colony produces Blacksmith's Shop"
+wait 5
+drag 50 155 161 119        # colonist 5 -> a fence unit: role popup (two-line title)
+wait 5
+click 100 89               # Colonist: leaves (pop 5)
+wait 5
+drag 41 155 161 119        # colonist 4 -> fence (one-line title)
+wait 5
+click 100 86               # Colonist: leaves (pop 4)
+wait 5
+drag 32 155 161 119        # colonist 3 -> fence
+wait 5
+click 100 86               # Colonist: leaves (pop 3, below the Schoolhouse's 4)
+wait 5
+key b                      # BUY Wagon Train
+wait 8
+click 100 150              # Complete it
+wait 8
+key space                  # tick: Wagon Train spawns; head Schoolhouse no longer qualifies and is dropped, Stable starts
+wait 10
+key Return                 # dismiss the Sons of Liberty 100% notice
+wait 5
+key Return                 # dismiss "Quebec colony produces Wagon Train"
+wait 5
+click 282 141              # CHANGE: Stable highlighted, no queued numbers left
+wait 5
+shot
+key Escape                 # close the picker
+wait 5
+key Escape                 # leave the colony, back on the map
+wait 5

@@ -38,6 +38,7 @@ Col1 field atlases — those stay in their owning docs (see the
 | Music / sound | [assets_sound.md](assets_sound.md); soundfont / MIDI backend setup: [music.md](music.md) |
 | Build, release packages | [building.md](building.md) |
 | Running: flags, data / save locations | [running.md](running.md) |
+| Cheat mode (player reference) | [cheats.md](cheats.md) |
 | Licensing (code, data, soundfont) | [licensing.md](licensing.md) |
 | `COLONY##.SAV` layout / Col1 bridge | [savegame.md](savegame.md), [save_format_map.md](save_format_map.md) |
 | Conventions, jargon, fixture traps, verification loop | [conventions.md](conventions.md) |
