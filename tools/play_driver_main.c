@@ -603,6 +603,13 @@ static bool command(char* line) {
       printf("ERR unknown key %s\n", argv[1]);
       return true;
     }
+    /* Escape on the bare main map quits to the title menu with no confirm
+     * (campaign2 bugs.md C2-B1); refuse it unless forced with `key Escape force`. */
+    if (code == SDLK_ESCAPE && !off_map_reason(g_game) && !g_game->ai_popups.open &&
+        !(argc > 2 && strcmp(argv[2], "force") == 0)) {
+      printf("ERR Escape on the main map refused (quits to title); use 'key Escape force'\n");
+      return true;
+    }
     const bool printable = code >= 32 && code < 127 && m != 1 && m != 2;
     char ch = printable ? (char)code : 0;
     if (printable && m == 0) {
@@ -666,7 +673,9 @@ static bool command(char* line) {
     if (c) {
       const ColonyScreenHitResult h = colony_screen_hit_test(
         &g_game->colony_screen, &g_game->colonies, c, &g_game->units, a1, a2);
-      printf("HIT kind %d index %d\n", (int)h.kind, h.index);
+      printf("HIT kind %d index %d %s\n", (int)h.kind, h.index,
+             h.kind == COLONY_HIT_BUILDING && h.index >= 0 && h.index < g_game->colonies.building_type_count
+               ? g_game->colonies.building_types[h.index].name : "");
     }
   } else if (strcmp(op, "move") == 0 && argc > 2) {
     ev(E_MOVE, a1, a2, 0, 0, 0, 0);
