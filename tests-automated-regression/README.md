@@ -25,6 +25,7 @@ the port, with fixture edits through `sav_json` where a test needs them
 | `colony_change_construction` | Quebec (+Armory): CHANGE / `c` picker by mouse and keyboard, building, unit, cancel, (No Production) |
 | `colony_buy_construction` | Quebec (hammers 20, gold 716): BUY declined, bought, a tools top-up buy, a refused buy |
 | `colony_build_queue` | Quebec: Shift-click / Shift+Enter queue (port-only `BQUE` chunk), refusals, wipe by plain pick |
+| `colony_build_queue_complete` | Starts from `colony_build_queue`'s output (cheat bit set): the loaded queue is numbered, Schoolhouse and Stable queued behind it; each project bought and completed by the colony-screen Space cheat tick, so the head starts (buildings, then the Wagon Train unit); three colonists leave (pop 3), so the Schoolhouse head is dropped and Stable starts |
 | `map_move_land_tile_by_tile` | Dragoon, Wagon Train, Colonist moved by keypad over mixed terrain and roads into colonies until out of moves |
 | `map_move_ship_tile_by_tile` | Two Caravels moved by keypad at sea, a blocked move into land, docking in Quebec |
 | `map_goto_orders` | Go-to by mouse drag (land unit, ships), ORDERS Go to Place and Go to Port; units move under the order |

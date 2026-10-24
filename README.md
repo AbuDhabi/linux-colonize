@@ -29,7 +29,8 @@ the game is still sold on GOG and Steam.
 
 The first run creates `settings.json` next to the executable; see
 [docs/settings.md](docs/settings.md). Flags, data and save locations, music:
-[docs/running.md](docs/running.md).
+[docs/running.md](docs/running.md). Cheat mode (Alt-W, Alt-I, Alt-N):
+[docs/cheats.md](docs/cheats.md).
 
 ## Building
 

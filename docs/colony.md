@@ -651,7 +651,9 @@ Persisted in the save's port extension block (`BQUE` chunk, docs/savegame.md)
 keyed by colony tile, the same way `VTIN` carries village intel: DOS never sees
 it and drops it on a re-save. Depth `COLONIZE_COLONY_BUILD_QUEUE_MAX` = 8; a
 payload from a deeper build is truncated on load. Covered by `unit_colonies`
-(`unit_build_queue`).
+(`unit_build_queue`) and the input replays `colony_build_queue` (queuing in the
+picker) and `colony_build_queue_complete` (BQUE load, the head starting on each
+completion through the Space cheat tick, a head dropped for population).
 
 ## colonies_buy_construction
 
