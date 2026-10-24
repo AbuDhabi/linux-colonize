@@ -314,9 +314,12 @@ const ColonizeFont* colony_screen_popup_font(
   bool smallfont
 );
 void colony_screen_render_minimap(
+  const ColonizeWorld* w,
   const ColonizeWorldMap* map,
   const ColonizeSpriteSheet* terrain,
   const ColonizeSpriteSheet* phys0,
+  const ColonizeSpriteSheet* icons,
+  const ColonizePalette* icons_palette,
   int colony_x,
   int colony_y,
   ColonizeFramebuffer8* framebuffer

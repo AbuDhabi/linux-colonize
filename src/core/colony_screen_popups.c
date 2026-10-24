@@ -1613,7 +1613,11 @@ void colony_screen_render_w(
 
   colony_screen_fill_wood_tile(view, framebuffer);
   if (colony && map && terrain) {
-    colony_screen_render_minimap(map, terrain, phys0, colony->x, colony->y, framebuffer);
+    colony_screen_render_minimap(
+      w, map, terrain, phys0, (view && view->icons_ok) ? &view->icons : NULL,
+      (view && view->frame_ok && view->frame.has_palette) ? &view->frame.palette : NULL,
+      colony->x, colony->y, framebuffer
+    );
     colony_screen_draw_area_overlays(view, pool, colony, units, map, col1, font, framebuffer);
   }
   if (view && view->bottom_panel_ok) {

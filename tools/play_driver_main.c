@@ -16,6 +16,7 @@
  *   type TEXT                   text input, one char per frame (name fields)
  *   click X Y [shift|ctrl|alt]  left click; rclick X Y; dclick X Y
  *   drag X1 Y1 X2 Y2 [shift]    left-button drag
+ *   mdown X Y | mup X Y         bare left press / release (hand-paced drag)
  *   move X Y                    pointer move
  *   wait N                      N idle frames
  *   idle [MAX]                  run until the main map has been idle 20 frames
@@ -32,6 +33,9 @@
  *   status | units | colonies   print state
  *   map [R]                     ASCII map of radius R (default 8) around the cursor
  *   near X Y [R]                every unit (any nation) within R (default 2) of X,Y
+ *   goto ID X Y                 Go To order for unit ID to tile X,Y
+ *   colony N                    open colony N's screen (index from `colonies`)
+ *   rumours                     list seen rumour tiles with terrain (h hill, m mountain)
  *   activate ID                 wake and select unit ID (the stack-list pick by id;
  *                               in game, A on a stack opens the picker)
  *   sync TAG                    print "@@ TAG" (end-of-batch marker)
@@ -51,6 +55,9 @@
 #include <sys/stat.h>
 
 #include "core/ai_popup.h"
+#include "core/colony_preview.h"
+#include "core/colony_screen.h"
+#include "core/colony_production.h"
 #include "core/dos_rng.h"
 #include "core/europe.h"
 #include "core/game_dialogs.h"
@@ -473,8 +480,43 @@ static void print_europe(void) {
 static void print_colonies(void) {
   for (int i = 0; i < g_game->colonies.colony_count; ++i) {
     const ColonizeColony* c = &g_game->colonies.colonies[i];
-    if (c->active) {
-      printf("COLONY %d %s nation %d at (%d,%d) pop %d\n", i, c->name, c->nation_id, c->x, c->y, c->population);
+    if (!c->active) {
+      continue;
+    }
+    printf("COLONY %d %s nation %d at (%d,%d) pop %d\n", i, c->name, c->nation_id, c->x, c->y, c->population);
+    if (c->nation_id != g_game->human_nation) {
+      continue;
+    }
+    /* Human colonies: build, stock, this turn's production preview, roster. */
+    const ColonizeWorld w = game_world(g_game);
+    ColonizeColonyPreview pv;
+    colony_preview_compute_w(&w, c, &pv);
+    const int b = c->building_in_production;
+    printf("  build %s hammers %d | SoL %d%% | food %+d bells %d crosses %d hammers +%d\n",
+           b >= 0 && b < g_game->colonies.building_type_count ? g_game->colonies.building_types[b].name
+           : b >= 0 ? "unit" : "-",
+           c->hammers, colony_prod_sol_percent(&g_game->col1, c), pv.food_net, pv.bells, pv.crosses, pv.hammers);
+    static const char* const k_cargo[COLONIZE_CARGO_COUNT] = {
+      "food", "sugar", "tobacco", "cotton", "furs", "lumber", "ore", "silver",
+      "horses", "rum", "cigars", "cloth", "coats", "tradegoods", "tools", "muskets"};
+    printf("  stock");
+    for (int k = 0; k < COLONIZE_CARGO_COUNT; ++k) {
+      if (c->stock[k] || pv.goods[k]) {
+        printf(" %s %d(%+d)", k_cargo[k], c->stock[k], pv.goods[k]);
+      }
+    }
+    printf("\n");
+    for (int k = 0; k < c->colonist_count; ++k) {
+      const ColonizeColonist* p = &c->colonists[k];
+      int slot = -1;
+      for (int s = 0; s < COLONIZE_COLONY_FIELD_TILES_MAX; ++s) {
+        slot = c->tiles[s] == k ? s : slot;
+      }
+      printf("  colonist %d prof %d %s%s field_job %d slot %d\n", k, p->profession,
+             p->building_type >= 0 ? "in " : "",
+             p->building_type >= 0 && p->building_type < g_game->colonies.building_type_count
+               ? g_game->colonies.building_types[p->building_type].name : "",
+             p->field_job, slot);
     }
   }
 }
@@ -601,6 +643,21 @@ static bool command(char* line) {
     g_at++;
     mod_up(m);
     ok = flush_frames(10);
+  } else if ((strcmp(op, "mdown") == 0 || strcmp(op, "mup") == 0) && argc > 2) {
+    /* Bare left press / release (a hand-paced drag: mdown, move..., mup). */
+    ev(E_MOVE, a1, a2, 0, 0, 0, 0);
+    g_at++;
+    ev(op[1] == 'd' ? E_DOWN : E_UP, a1, a2, 1, 0, 0, 0);
+    g_at++;
+    ok = flush_frames(5);
+  } else if (strcmp(op, "hit") == 0 && argc > 2) {
+    /* Colony-screen hit test at X,Y (ColonyScreenHit kind + index). */
+    const ColonizeColony* c = colonies_get(&g_game->colonies, g_game->colony_view_id);
+    if (c) {
+      const ColonyScreenHitResult h = colony_screen_hit_test(
+        &g_game->colony_screen, &g_game->colonies, c, &g_game->units, a1, a2);
+      printf("HIT kind %d index %d\n", (int)h.kind, h.index);
+    }
   } else if (strcmp(op, "move") == 0 && argc > 2) {
     ev(E_MOVE, a1, a2, 0, 0, 0, 0);
     g_at++;
@@ -679,6 +736,33 @@ static bool command(char* line) {
     /* What picking a unit from the tile's stack list does, by unit id. */
     game_click_activate_unit(g_game, a1);
     ok = flush_frames(5);
+  } else if (strcmp(op, "goto") == 0 && argc > 3) {
+    /* Go To order for unit ID to tile X,Y (what a map goto drag sets). */
+    const ColonizeWorld w = game_world(g_game);
+    if (!units_set_goto_w(&w, a1, a2, atoi(argv[3]))) {
+      printf("ERR goto refused\n");
+    }
+    ok = flush_frames(5);
+  } else if (strcmp(op, "colony") == 0 && argc > 1) {
+    /* Open colony N's screen (index as printed by `colonies`). */
+    game_enter_colony(g_game, a1);
+    ok = flush_frames(10);
+  } else if (strcmp(op, "rumours") == 0) {
+    /* Every seen rumour tile: terrain letter as in `map`, h = hill, m = mountain. */
+    const ColonizeWorldMap* m = &g_game->world_map;
+    for (int y = 0; y < m->height; ++y) {
+      for (int x = 0; x < m->width; ++x) {
+        if (map_tile_has_rumour(m, x, y) && map_tile_seen_by(m, x, y, g_game->human_nation)) {
+          const uint8_t t = m->terrain[(size_t)y * m->width + x];
+          const int base = t & 0x1f;
+          char c = "tdprgsmw"[base & 7];
+          if (base < T_ARCTIC && (base & T_FOREST_BIT)) {
+            c = (char)(c - 32);
+          }
+          printf("RUMOUR (%d,%d) %c%s\n", x, y, c, (t & F_MOUNTAIN) ? " m" : (t & F_HILL) ? " h" : "");
+        }
+      }
+    }
   } else if (strcmp(op, "near") == 0 && argc > 2) {
     print_near(a1, a2, argc > 3 ? atoi(argv[3]) : 2);
   } else if (strcmp(op, "map") == 0) {

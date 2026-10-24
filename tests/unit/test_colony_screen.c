@@ -3556,7 +3556,76 @@ static int unit_build_buttons_are_dos(void) {
   return rc;
 }
 
+/* A village on an area tile draws there (DOS FUN_2f2b_0a74 tribe overlay),
+ * and only there. */
+static int unit_minimap_draws_adjacent_village(void) {
+  char err[256];
+  ColonyScreenView view;
+  if (!colony_screen_load(&view, "COLONIZE", err, sizeof(err))) {
+    fprintf(stderr, "colony_screen_load failed: %s\n", err);
+    return 1;
+  }
+  ColonizeWorldMap map;
+  ColonizeSpriteSheet terrain;
+  memset(&map, 0, sizeof(map));
+  memset(&terrain, 0, sizeof(terrain));
+  if (!map_load_mp("COLONIZE/AMER2.MP", &map, err, sizeof(err)) ||
+      !ss_load("COLONIZE/TERRAIN.SS", &terrain, err, sizeof(err))) {
+    fprintf(stderr, "load failed: %s\n", err);
+    colony_screen_free(&view);
+    return 1;
+  }
+  const int cx = 30;
+  const int cy = 30;
+  ColonizeCol1Tribe tribe;
+  memset(&tribe, 0, sizeof(tribe));
+  tribe.x = (uint8_t)(cx + 1);
+  tribe.y = (uint8_t)cy;
+  tribe.nation_id = 4;
+  tribe.mission = 0xff;
+  ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  col1.tribe = &tribe;
+  col1.head.show_entire_map = 1;
+  const ColonizeWorld w = world_make(NULL, NULL, &map, &col1, true, NULL, NULL);
+
+  static uint8_t before[320 * 200];
+  static uint8_t after[320 * 200];
+  ColonizeFramebuffer8 fb_before = {.width = 320, .height = 200, .pixels = before};
+  ColonizeFramebuffer8 fb_after = {.width = 320, .height = 200, .pixels = after};
+  memset(before, 0, sizeof(before));
+  memset(after, 0, sizeof(after));
+  colony_screen_render_minimap(&w, &map, &terrain, NULL, &view.icons, NULL, cx, cy, &fb_before);
+  col1.head.tribe_count = 1;
+  colony_screen_render_minimap(&w, &map, &terrain, NULL, &view.icons, NULL, cx, cy, &fb_after);
+
+  int ox = 0;
+  int oy = 0;
+  colony_screen_minimap_origin(&ox, &oy);
+  const int t = COLONY_MINIMAP_TILE;
+  int east = 0;
+  int elsewhere = 0;
+  for (int y = oy; y < oy + 3 * t; ++y) {
+    for (int x = ox; x < ox + 3 * t; ++x) {
+      if (before[y * 320 + x] != after[y * 320 + x]) {
+        const bool in_east = x >= ox + 2 * t && y >= oy + t && y < oy + 2 * t;
+        east += in_east;
+        elsewhere += !in_east;
+      }
+    }
+  }
+  ss_free(&terrain);
+  map_free(&map);
+  colony_screen_free(&view);
+  if (east == 0 || elsewhere != 0) {
+    fprintf(stderr, "village pixels: east tile %d, elsewhere %d\n", east, elsewhere);
+    return 1;
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+    {"unit_minimap_draws_adjacent_village", unit_minimap_draws_adjacent_village},
     {"unit_sub_dialogs_are_dos", unit_sub_dialogs_are_dos},
     {"unit_sub_dialog_pages_are_dos", unit_sub_dialog_pages_are_dos},
     {"unit_jobs_rows_are_dos", unit_jobs_rows_are_dos},

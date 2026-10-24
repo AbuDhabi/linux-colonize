@@ -797,9 +797,12 @@ void colony_screen_draw_area_overlays(
 }
 
 void colony_screen_render_minimap(
+  const ColonizeWorld* w,
   const ColonizeWorldMap* map,
   const ColonizeSpriteSheet* terrain,
   const ColonizeSpriteSheet* phys0,
+  const ColonizeSpriteSheet* icons,
+  const ColonizePalette* icons_palette,
   int colony_x,
   int colony_y,
   ColonizeFramebuffer8* framebuffer
@@ -835,6 +838,25 @@ void colony_screen_render_minimap(
         );
       }
     }
+  }
+
+  /* DOS FUN_2f2b_0a74 paints the tribe overlay (FUN_6b22_0002 ->
+   * FUN_112b_0790, the main map's village chrome, fog-gated on DS:0x5396 /
+   * DS:0x53a2) into the 16px map before FUN_12e9_008c scales the whole
+   * block 1.5x into the area view — so villages scale with the terrain. */
+  if (w && w->col1 && icons) {
+    enum { SCRATCH = COLONY_MINIMAP_GRID * 16 };
+    uint8_t pixels[SCRATCH * SCRATCH];
+    memset(pixels, COLONIZE_SS_TRANSPARENT, sizeof pixels);
+    ColonizeFramebuffer8 scratch = {SCRATCH, SCRATCH, pixels};
+    const int fog = w->col1->head.show_entire_map ? -1 : (int)w->col1->head.curr_nation_map_view;
+    map_panel_render_tribes_on_map_w(
+      w, icons, &scratch, colony_x - half, colony_y - half, COLONY_MINIMAP_GRID,
+      COLONY_MINIMAP_GRID, 16, 16, 0, 0, fog, icons_palette
+    );
+    ColonizeSprite block = {.width = SCRATCH, .height = SCRATCH, .pixels = pixels};
+    const ColonizeSpriteSheet sheet = {.sprites = &block, .sprite_count = 1};
+    colony_screen_blit_scaled_15_where_dest(&sheet, 0, framebuffer, origin_x, origin_y, -1);
   }
 
   /* Black 1px frame around the whole 3x3 tile grid — golden-measured
