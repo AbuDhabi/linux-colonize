@@ -363,10 +363,13 @@ static void print_status(void) {
 }
 
 static void print_units(void) {
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-    const ColonizeUnit* u = units_get_const(&g_game->units, i);
-    if (!u || !u->active || u->nation_id != g_game->human_nation) {
+  for (int i = 0; i < g_game->units.slot_end; ++i) {
+    const ColonizeUnit* u = &g_game->units.units[i];
+    if (u->nation_id != g_game->human_nation || (!u->active && u->type_index == 0 && u->x == 0)) {
       continue;
+    }
+    if (!u->active) {
+      printf("(inactive) ");
     }
     printf("UNIT %d %s at (%d,%d) moves %d orders %d prof %d", u->id, unit_name(u), u->x, u->y, u->moves,
            u->orders, u->profession);
@@ -382,6 +385,35 @@ static void print_units(void) {
       }
     }
     printf("\n");
+  }
+}
+
+static void print_europe_ships(const char* what, const EuropeHarborShip* ships, int n) {
+  for (int i = 0; i < n; ++i) {
+    const EuropeHarborShip* sh = &ships[i];
+    printf("EUROPE %s %s turns_left %d passengers", what, sh->name, sh->turns_left);
+    for (int c = 0; c < sh->cargo_count; ++c) {
+      printf(" prof%d", sh->cargo_professions[c]);
+    }
+    for (int h = 0; h < EUROPE_SHIP_CARGO_MAX; ++h) {
+      if (sh->hold_goods_amount[h] > 0) {
+        printf(" hold %d x%d", sh->hold_goods_type[h], sh->hold_goods_amount[h]);
+      }
+    }
+    printf("\n");
+  }
+}
+
+static void print_europe(void) {
+  const EuropeScreen* eu = &g_game->europe;
+  print_europe_ships("harbor", eu->harbor, eu->harbor_ships);
+  print_europe_ships("to-new-world", eu->bound, eu->bound_ships);
+  print_europe_ships("to-europe", eu->expected, eu->expected_ships);
+  for (int i = 0; i < eu->dock_count; ++i) {
+    if (eu->dock[i].present) {
+      printf("EUROPE dock %s prof %d%s\n", eu->dock[i].name, eu->dock[i].profession,
+             eu->dock[i].sentry ? " (boards next ship)" : "");
+    }
   }
 }
 
@@ -544,6 +576,7 @@ static bool command(char* line) {
     print_status();
   } else if (strcmp(op, "units") == 0) {
     print_units();
+    print_europe();
   } else if (strcmp(op, "map") == 0) {
     print_map(a1 > 0 ? a1 : 8);
   } else if (strcmp(op, "colonies") == 0) {
@@ -607,6 +640,7 @@ int main(int argc, char** argv) {
   ColonizeGameConfig cfg = {
     .data_dir = "./COLONIZE", .save_dir = saves, .rng_seed = seed, .rng_seed_set = seed_set,
     .debug_logs = settings_get()->debug_logs, .debug_logs_set = true,
+    .show_building_rects = settings_get()->show_building_rects, .show_building_rects_set = true,
   };
   if (seed_set) {
     dos_rng_set_tick_word((int32_t)(seed & 0x7fffu));
