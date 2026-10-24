@@ -341,12 +341,36 @@ int popup_row_at_y(int list_y0, int line_h, int count, int mouse_y) {
   return idx;
 }
 
+static void popup_frame_placed(
+  ColonizeFramebuffer8* framebuffer,
+  int w,
+  int h,
+  const ColonizeSpriteSheet* tile,
+  const ColonizePopupColors* colors,
+  const ColonizeSpriteSheet* figure,
+  PopupDosPlace* place,
+  PopupFrameGeom* out
+);
+
 void popup_center_frame(
   ColonizeFramebuffer8* framebuffer,
   int w,
   int h,
   const ColonizeSpriteSheet* tile,
   const ColonizePopupColors* colors,
+  PopupFrameGeom* out
+) {
+  popup_frame_placed(framebuffer, w, h, tile, colors, NULL, NULL, out);
+}
+
+static void popup_frame_placed(
+  ColonizeFramebuffer8* framebuffer,
+  int w,
+  int h,
+  const ColonizeSpriteSheet* tile,
+  const ColonizePopupColors* colors,
+  const ColonizeSpriteSheet* figure,
+  PopupDosPlace* place,
   PopupFrameGeom* out
 ) {
   PopupFrameGeom geom;
@@ -369,7 +393,10 @@ void popup_center_frame(
    * FUN_2b5a_1b5a via FUN_291f_023c), so FUN_6f74_14c6 centres them: popup_place_dos, with no
    * menu-bar floor (port_bugs.md #1188; the old floor had no DOS counterpart).
    */
-  const PopupDosPlace pl = popup_place_dos(framebuffer->width, framebuffer->height, w, h, NULL);
+  const PopupDosPlace pl = popup_place_dos(framebuffer->width, framebuffer->height, w, h, figure);
+  if (place) {
+    *place = pl;
+  }
   geom.x = pl.x;
   geom.y = pl.y;
   geom.w = w;
@@ -483,7 +510,10 @@ void popup_list_render(
     dialog_w = framebuffer->width;
   }
 
-  popup_center_frame(framebuffer, dialog_w, dialog_h, wood_tile, colors, &geom.frame);
+  PopupDosPlace place = {0};
+  popup_frame_placed(
+    framebuffer, dialog_w, dialog_h, wood_tile, colors, m->figure, &place, &geom.frame
+  );
   geom.line_h = m->option_h;
 
   const int text_y = geom.frame.inner_y + m->pad_y;
@@ -521,6 +551,10 @@ void popup_list_render(
       disabled ? COLONIZE_COL_GREY : text_color, disabled ? COLONIZE_COL_GREY : hilite_color,
       colors, &emph
     );
+  }
+  if (place.figure) {
+    /* FUN_6f74_248e: the MSS figure goes on last (DS:0x1f5c < 0). */
+    ss_blit_sprite(m->figure, 0, framebuffer, place.fig_x, place.fig_y);
   }
 
   if (out) {

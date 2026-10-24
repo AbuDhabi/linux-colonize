@@ -915,6 +915,8 @@ static void ai_contact_live_among_natives_body(
         if (ai_popup_enqueue_choice_ctx(
               ctx->ai_popups, AI_POPUP_TAG_CONTACT_LEARNSTAY, e, nation_id, payload, NULL, body, labels, ids, 2
             )) {
+          /* FUN_4d56_359c +0x3df: FUN_291f_019c(@LEARNSTAY, DS:0x8d52) (port_bugs.md #1220). */
+          ai_contact_chief_flair(ctx, e, nation_id);
           ai_contact_set_status(ctx, body);
           return;
         }

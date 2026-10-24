@@ -241,7 +241,7 @@ function's register/immediate arguments.
   which holds FONTINTR (`DS:0x268a`) outside the FONTTINY swaps of
   `FUN_7562_0052` / `FUN_647e_0e80`. So the Congress takes `+3`, and
   `FUN_6f74_1a78` draws LABELS `@MISC` 189 bottom-right (`ai_popup_render`,
-  docs/popups.md "Sizes of the remaining compositor dialogs").
+  docs/popups_dialog_engine.md "Sizes of the remaining compositor dialogs").
 - `box[+0x22] = 8` (default 4, `FUN_6f74_06d0` `0x075c`–`0x0763`) shifts only
   the option-row **text** start: `FUN_6f74_1b7c` builds `box[+0x24] +
   box[+0x48] + box[+0x22]` as the label x, and the selection bar subtracts
@@ -299,7 +299,7 @@ segment offsets directly):
    (`0x1c81`–`0x1c9b`) and height `glyph_h + 2` (`0x1c5b`–`0x1c62`, `call
    0xf16` then two `inc ax`). Ported into `ai_popup_render`. The *y* anchoring
    followed in port_bugs.md #1189 (bar at `box[+0x26]` = `popup_dos_list_y0`,
-   text one px lower, as the Europe shots show; docs/popups.md).
+   text one px lower, as the Europe shots show; docs/popups_dialog_engine.md).
 
 4. **`save_load_dialog.c` — CONFIRMED `+0x54`, ported 2026-09-07.** The
    handover left this open pending a read of the bespoke `7562_0052` builder.

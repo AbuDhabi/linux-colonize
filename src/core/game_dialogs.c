@@ -298,6 +298,19 @@ enum {
  * (caller must stop and wait for the result).
  */
 /* ===================== Colony founding: indian land choice, site survey & confirm chain (game_request_indian_land_choice .. game_try_found_colony_at_cursor) ===================== */
+/*
+ * The chief portrait on the encroachment box and on @INDIANBRIBE (port_bugs.md #1220):
+ * FUN_2b5a_123e / 1454 / FUN_2f2b_2f3e store DS:0x8d52 (the land's tribe slot) in DS:0x1f5c
+ * before FUN_291f_016a (ndisasm 0x222a7, 0x22491, 0x28be9) and pass it to FUN_291f_019c with
+ * @INDIANBRIBE; FUN_6f74_0042 picks the tier from that tribe's alarm toward the human.
+ */
+static void game_indian_land_portrait(ColonizeGameState* game, int tribe_nation) {
+  const int alarm = ai_diplo_indian_alarm(&game->col1, tribe_nation, game->human_nation);
+  ai_popup_set_last_portrait(
+    &game->ai_popups, tribe_nation - 4, ai_popup_portrait_tier_from_alarm(alarm)
+  );
+}
+
 bool game_request_indian_land_choice(
   ColonizeGameState* game,
   GameIndianLandKind kind,
@@ -395,13 +408,14 @@ bool game_request_indian_land_choice(
   ids[n++] = GAME_INDIAN_LAND_OFFER;
   labels[n] = nch >= 3 ? choice_buf[2] : "";
   ids[n++] = GAME_INDIAN_LAND_TAKE;
-  const int payload = (x & 0xff) | ((y & 0xff) << 8);
+  const int payload = (x & 0xff) | ((y & 0xff) << 8) | (tribe_nation << 16);
   if (!ai_popup_enqueue_choice_ctx(
         &game->ai_popups, AI_POPUP_TAG_INDIAN_LAND, uid, (int)kind, payload, NULL, body, labels,
         ids, n
       )) {
     return false;
   }
+  game_indian_land_portrait(game, tribe_nation);
   /* DOS-LITERAL FUN_2b5a_123e raw 42484-42488 (FUN_2b5a_1454 raw 42575-42579, FUN_2f2b_2f3e
    * 2f2b:3327): gold (FUN_281f_0a92) < price greys id 2, FUN_291f_01b6(box, 2, 1). */
   if (europe_nation_gold(&game->europe, col1, hn) < (uint32_t)price) {
@@ -2908,6 +2922,7 @@ static bool game_apply_popup_contact(ColonizeGameState* game) {
     const int kind = game->ai_popups.result_nation_b;
     const int x = game->ai_popups.result_payload & 0xff;
     const int y = (game->ai_popups.result_payload >> 8) & 0xff;
+    const int tribe_nation = (game->ai_popups.result_payload >> 16) & 0xff;
     const int choice = game->ai_popups.result_cancelled ? GAME_INDIAN_LAND_RESPECT
                                                         : game->ai_popups.result_choice_id;
     ai_popup_consume_result(&game->ai_popups);
@@ -2957,6 +2972,7 @@ static bool game_apply_popup_contact(ColonizeGameState* game) {
           sizeof(body)
         );
         ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+        game_indian_land_portrait(game, tribe_nation);
         /* The plot drop runs inside the colony screen: the blocking
          * @INDIANBRIBE (FUN_291f_019c) opens on the spot, not at close. */
         game_colony_present_now(game, AI_POPUP_TAG_INFO);

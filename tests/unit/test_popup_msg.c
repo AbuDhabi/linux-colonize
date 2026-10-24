@@ -225,6 +225,45 @@ static int case_name_prompt_latch(void) {
   return rc ? fail("name prompt MSS latch") : 0;
 }
 
+/* port_bugs.md #1220: the DS:0x1f5e latches the first FUN_281f_0652 scan missed (shared-tail
+ * PUSH pairs, digit-patched tags, FUN_364b_0000's param_6, FUN_2b5a_0f92's direct write). */
+static int case_dialog_figure_scan(void) {
+  static const struct {
+    const char* section;
+    int mss;
+  } want[] = {
+    {"SIEGE", 1},     {"OVERBOARD", 0}, {"SEACOLONY", 0},  {"LANDFALL", 3},  {"TOONEAR", 5},
+    {"BUILT", 5},     {"DEPLETION", 3}, {"TRAINFAIL", 2},  {"NEWCOLONIST", 4}, {"SONSDOWN", 1},
+    {"WARN2", 1},     {"MISSION2", 4},  {"INDIANWIN1", 1}, {"CARGOREADY1", 5}, {"KEEPSTOCKADE", 5},
+  };
+  int rc = 0;
+  for (size_t i = 0; i < sizeof(want) / sizeof(want[0]); ++i) {
+    if (popup_msg_mss_index_for_section(want[i].section) != want[i].mss) {
+      fprintf(stderr, "@%s: want MSS %d got %d\n", want[i].section, want[i].mss,
+              popup_msg_mss_index_for_section(want[i].section));
+      rc = 1;
+    }
+  }
+  return rc ? fail("dialog figure scan") : 0;
+}
+
+/* port_bugs.md #1222: two caret lines in a row give two rows, no empty one between
+ * (FUN_6f74_1198; @FATHER1's "^" + "^{When ..." in the DOSBox-X capture). */
+static int case_caret_rows_back_to_back(void) {
+  static char lines[][COLONIZE_MSG_LINE_LEN] = {"Prose.", "^", "^{Next}", "^^Centre"};
+  ColonizeMsgSection sec;
+  memset(&sec, 0, sizeof(sec));
+  sec.lines = lines;
+  sec.line_count = 4;
+  char out[128];
+  popup_msg_section_body(&sec, out, sizeof(out), false);
+  const char want[] = "Prose.\n\x01\n\x01{Next}\n\x02" "Centre\n";
+  if (strcmp(out, want) != 0) {
+    return fail("caret rows back to back");
+  }
+  return 0;
+}
+
 /* Status line from a section: first sentence of the template, tokens in, no
  * {} markup, and a token with a full stop ("St. Augustine") cannot cut it. */
 static int case_fill_status_first_sentence(void) {
@@ -248,6 +287,8 @@ static int case_fill_status_first_sentence(void) {
 }
 
 static const TestCase k_cases[] = {
+    {"case_dialog_figure_scan", case_dialog_figure_scan},
+    {"case_caret_rows_back_to_back", case_caret_rows_back_to_back},
     {"unit_popup_msg_token_substitution", case_token_substitution},
     {"unit_popup_msg_choice_leak_sweep", case_choice_leak_sweep},
     {"unit_popup_msg_abandon_default", case_abandon_default},

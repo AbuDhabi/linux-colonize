@@ -1592,6 +1592,12 @@ static int test_indian_land_offer_row_greyed(void) {
               r->choice_ids[1], r->disabled_mask);
       rc = fail("the offer row stays, greyed only while gold < price");
     }
+    /* port_bugs.md #1220: DS:0x1f5c = DS:0x8d52 (the Tupi, slot 7) before the box
+     * (ndisasm 0x222a7): the chief portrait of the DOSBox-X capture. */
+    if (r->portrait_tribe != 7) {
+      fprintf(stderr, "  portrait tribe %d\n", r->portrait_tribe);
+      rc = fail("@INDIANFOREST wears the Tupi chief");
+    }
   }
   game_destroy(game);
   return rc;

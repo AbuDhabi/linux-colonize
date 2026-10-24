@@ -1538,6 +1538,10 @@ COLONIZE_INTERNAL void game_render_select_palette(
   if (game->name_entry.open && game->name_entry.mss >= 0) {
     ai_popup_sheet_palette_merge(ai_popup_decoration_sheet(game->name_entry.mss, -1), palette);
   }
+  /* The DEBUG.TXT cheat lists' figures (port_bugs.md #1221). */
+  if (game->cheat_list.open && game->cheat_list.mss >= 0) {
+    ai_popup_sheet_palette_merge(ai_popup_decoration_sheet(game->cheat_list.mss, -1), palette);
+  }
 
   /* port_bugs.md #402: SCORE<nn>.SS carries the exploits painting's colours in the
    * DAC slots WOODPAN2.PIK leaves black — same reserved-block rule as the

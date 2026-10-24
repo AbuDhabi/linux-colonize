@@ -1085,11 +1085,11 @@ add_test(NAME golden_idle_america
   COMMAND golden_idle_campaign america 1 63
   WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 set_tests_properties(golden_idle_america PROPERTIES ENVIRONMENT "GOLDEN_IDLE_KEEP_GOING=1")
-# Second Americas recording (1572-1584), from a load of 000001 after the first
-# archive's save-64 break. Whole archive; it ends at save 12 because save 13 turns on
-# the same DOS stack residue (docs/idle_america2.md, docs/dos_bugs.md DB-4).
+# Second Americas recording (1572-1586), from a load of 000001 after the first
+# archive's save-64 break. Whole archive; it ends at save 14 because save 15 turns on
+# an unmodelled DOS stack word (docs/idle_america2.md, docs/dos_bugs.md DB-4).
 add_test(NAME golden_idle_america2
-  COMMAND golden_idle_campaign america2 1 12
+  COMMAND golden_idle_campaign america2 1 14
   WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 set_tests_properties(golden_idle_america2 PROPERTIES ENVIRONMENT "GOLDEN_IDLE_KEEP_GOING=1")
 # Same four runs with a save/reload before every turn (GOLDEN_IDLE_RELOAD): the
@@ -1108,7 +1108,7 @@ add_test(NAME golden_idle_america_reload
   WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 set_tests_properties(golden_idle_america_reload PROPERTIES ENVIRONMENT "GOLDEN_IDLE_KEEP_GOING=1;GOLDEN_IDLE_RELOAD=1")
 add_test(NAME golden_idle_america2_reload
-  COMMAND golden_idle_campaign america2 1 12
+  COMMAND golden_idle_campaign america2 1 14
   WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 set_tests_properties(golden_idle_america2_reload PROPERTIES ENVIRONMENT "GOLDEN_IDLE_KEEP_GOING=1;GOLDEN_IDLE_RELOAD=1")
 # T2 early gate: full Euro dispatcher (TURN1→7). The AI_EURO_EARLY_FIXTURE bisect fixture was deleted 2026-09-14.

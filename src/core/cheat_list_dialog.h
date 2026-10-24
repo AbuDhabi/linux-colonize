@@ -58,6 +58,7 @@ typedef struct CheatListDialog {
   CheatListKind kind;
   int selection;
   int width;
+  int mss; /* DS:0x1f5e MSS figure latched before the box, -1 = none */
   char prompt[COLONIZE_MSG_LINE_LEN];
   char options[CHEAT_LIST_MAX_OPTIONS][CHEAT_LIST_LABEL_LEN];
   int option_ids[CHEAT_LIST_MAX_OPTIONS]; /* fog nation / tribe nation_id / etc. */
@@ -188,14 +189,16 @@ bool cheat_list_catalog_rows(
 
 /*
  * CHEAT Create Unit generic list step (@CREATE / @CSHIP / @FOREIGN / @FOREIGN2).
- * Caller supplies whichever stage's labels/ids; result_id round-trips ids[i].
+ * Caller supplies whichever stage's labels/ids and the stage's MSS figure (`mss`, -1 none);
+ * result_id round-trips ids[i].
  */
 bool cheat_list_open_create_unit(
   CheatListDialog* dlg,
   const char* prompt,
   const char* const* labels,
   const int* ids,
-  int count
+  int count,
+  int mss
 );
 
 /*

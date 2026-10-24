@@ -180,6 +180,8 @@ typedef struct PopupListMetrics {
   int sel_h; /* selection bar height */
   uint32_t disabled_mask; /* bit i: row i is disabled (option bit 0, FUN_6f74_08fa), drawn in
                            * COLONIZE_COL_GREY as both inks (FUN_6f74_0538 BX&1, style+4) */
+  const ColonizeSpriteSheet* figure; /* the DS:0x1f5e MSS sheet latched before the box, or NULL:
+                                      * placed by popup_place_dos and blitted last */
 } PopupListMetrics;
 
 void popup_list_metrics_dos6f74(const ColonizeFont* font, PopupListMetrics* out);

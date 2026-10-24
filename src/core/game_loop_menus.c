@@ -275,7 +275,8 @@ static void game_open_cheat_create_unit_ex(ColonizeGameState* game, bool keep_na
   for (int i = 0; i < rows; ++i) {
     labels[i] = label_buf[i];
   }
-  if (!cheat_list_open_create_unit(&game->cheat_list, prompt_buf[0], labels, ids, rows)) {
+  /* FUN_2b5a_2866 `MOV word [0x1f5e],1` before @CREATE / @CREATE2 (ndisasm 0x23990). */
+  if (!cheat_list_open_create_unit(&game->cheat_list, prompt_buf[0], labels, ids, rows, 1)) {
     set_status(game, "Create Unit unavailable", NULL);
   }
 }
@@ -392,7 +393,10 @@ static void game_apply_cheat_create_unit(ColonizeGameState* game, int id) {
     for (int i = 0; i < 6; ++i) {
       ship_labels[i] = ship_label_buf[i];
     }
-    if (!cheat_list_open_create_unit(&game->cheat_list, cship_prompt_buf[0], ship_labels, ids3, 6)) {
+    /* `MOV [0x1f5e],DX` (DX 0) before @CSHIP (ndisasm 0x23a88). */
+    if (!cheat_list_open_create_unit(
+          &game->cheat_list, cship_prompt_buf[0], ship_labels, ids3, 6, 0
+        )) {
       game->cheat_create_stage = 0;
       set_status(game, "Create Unit unavailable", NULL);
     }
@@ -415,8 +419,9 @@ static void game_apply_cheat_create_unit(ColonizeGameState* game, int id) {
       game->debug_txt_ok ? &game->debug_txt : NULL, "FOREIGN", 0, k_foreign_prompt_fallback,
       foreign_prompt_buf, 1
     );
+    /* `MOV word [0x1f5e],2` before @FOREIGN (ndisasm 0x23b3e). */
     if (!cheat_list_open_create_unit(
-          &game->cheat_list, foreign_prompt_buf[0], nat_labels, ids4, 4
+          &game->cheat_list, foreign_prompt_buf[0], nat_labels, ids4, 4, 2
         )) {
       game->cheat_create_stage = 0;
       set_status(game, "Create Unit unavailable", NULL);

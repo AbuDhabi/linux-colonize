@@ -941,8 +941,10 @@ static void pedia_draw_centered(
   const char* text,
   uint8_t color
 ) {
+  /* FUN_281f_0100 -> FUN_104b_0318 over (0, 0x140): x + (w >> 1) - ((width - 1) >> 1), 1 px right
+   * of (320 - width) / 2 at even widths (DOSBox-X @FATHER0 capture, port_bugs.md #1222). */
   const int w = font_text_width_skip(font, text, FONT_SKIP_NONE);
-  int x = (fb->width - w) / 2;
+  int x = fb->width / 2 - ((w - 1) >> 1);
   if (x < 0) {
     x = 0;
   }
@@ -960,221 +962,34 @@ static void pedia_blit(
 /* ---------------- PEDIA.TXT body renderer ---------------- */
 
 /*
- * DOS renders the article body through the popup text engine at DS:0x1f5a
- * with no box (flag 0x20): section text wrapped to @width (default 300),
- * prose lines flow left-aligned, a caret-led source line is drawn on a line of
- * its own and NOT wrapped (blank if empty) — left-aligned for '^', centred
- * only for '^^' (FUN_6f74_0c32 flags 2 / 1; FUN_6f74_1198 measures the row
- * for centring under flag 1 only). '{...}' = hilite color, "%%" = '%'.
+ * DOS draws the article body with FUN_6cb2_03bc: FUN_281f_040a (DS:0x1f56 |= 0x18, frameless:
+ * no wood, margin or row spacing) | 0x20, the dialog font switched to FONTTINY (DS:0x89e), then
+ * the generic section box FUN_281f_0998 at y = DS:0x1f5a (set by the 6cb2 article builders)
+ * and x 160 - (w >> 1). So the body is FUN_6f74_1198's wrap (popup_wrap_text, port_bugs.md
+ * #1222) at box[+0x28] = @width (300 in every PEDIA.TXT article), caret rows on lines of their
+ * own and '^^' rows at popup_dos_center_dx, one FUN_6f74_0538 pass in the box style ({} =
+ * hilite). The line pitch is 7 for FONTTINY: the DOSBox-X capture of @FATHER0 (2026-10-23)
+ * matches font[0] + 1, not the 6 a 6-row font gets in other 6f74 boxes.
  */
-typedef struct PediaBodySeg {
-  int start; /* into word buffer */
-  int width;
-  uint8_t color;
-} PediaBodySeg;
-
-typedef struct PediaBodyCtx {
-  const ColonizeFont* font;
-  ColonizeFramebuffer8* fb;
-  int x0;
-  int width;
-  int y;
-  int line_h;
-  int space_w;
-  bool hilite;
-  char word_buf[1024];
-  PediaBodySeg segs[64];
-  int seg_count;
-  int buf_used;
-  int line_w;
-} PediaBodyCtx;
-
-static void pedia_body_draw_segs(
-  PediaBodyCtx* c, const PediaBodySeg* segs, int n, int line_w, bool center
-) {
-  int x = center ? c->x0 + (c->width - line_w) / 2 : c->x0;
-  for (int i = 0; i < n; ++i) {
-    font_draw_text(c->font, c->fb, x, c->y, c->word_buf + segs[i].start, segs[i].color);
-    x += segs[i].width;
-  }
-}
-
-/* Flush the flowing paragraph line (left-aligned like the DOS dialog engine). */
-static void pedia_body_flush_flow(PediaBodyCtx* c) {
-  if (c->seg_count > 0) {
-    pedia_body_draw_segs(c, c->segs, c->seg_count, c->line_w, false);
-    c->y += c->line_h;
-  }
-  c->seg_count = 0;
-  c->buf_used = 0;
-  c->line_w = 0;
-}
-
-/* Next word from *pp (handles {} color switches, %% escape); empty at end. */
-static bool pedia_body_next_word(
-  PediaBodyCtx* c, const char** pp, char* word, size_t word_size, bool* out_hilite
-) {
-  const char* p = *pp;
-  int wn = 0;
-  bool word_hilite = c->hilite;
-retry:
-  while (*p == ' ' || *p == '\t') {
-    p++;
-  }
-  wn = 0;
-  word_hilite = c->hilite;
-  bool started = false;
-  while (*p && (*p != ' ' && *p != '\t')) {
-    if (*p == '{') {
-      c->hilite = true;
-      if (!started) {
-        word_hilite = true;
-      }
-      p++;
-      continue;
-    }
-    if (*p == '}') {
-      c->hilite = false;
-      p++;
-      continue;
-    }
-    if (p[0] == '%' && p[1] == '%') {
-      if (wn < (int)word_size - 1) {
-        word[wn++] = '%';
-      }
-      started = true;
-      p += 2;
-      continue;
-    }
-    if ((unsigned char)*p >= 0x80) {
-      /* CP437 bullets etc. — no glyphs in the 128-char FF fonts; drop. */
-      p++;
-      continue;
-    }
-    if (wn < (int)word_size - 1) {
-      word[wn++] = *p;
-    }
-    started = true;
-    p++;
-  }
-  if (wn == 0 && *p) {
-    /* Token dissolved entirely (bullet byte, bare braces) — keep scanning. */
-    goto retry;
-  }
-  word[wn] = '\0';
-  *pp = p;
-  *out_hilite = word_hilite;
-  return wn > 0;
-}
-
-/* Feed one prose line into the flowing, word-wrapped paragraph. */
-static void pedia_body_flow_text(PediaBodyCtx* c, const char* text) {
-  const char* p = text;
-  char word[128];
-  bool word_hilite;
-  while (pedia_body_next_word(c, &p, word, sizeof(word), &word_hilite)) {
-    const int ww = font_text_width_skip(c->font, word, FONT_SKIP_NONE);
-    if (c->seg_count > 0 && c->line_w + c->space_w + ww > c->width) {
-      pedia_body_flush_flow(c);
-    }
-    if (c->y > c->fb->height - c->line_h) {
-      return;
-    }
-    const int wn = (int)strlen(word);
-    if (c->seg_count < (int)(sizeof(c->segs) / sizeof(c->segs[0])) &&
-        c->buf_used + wn + 2 < (int)sizeof(c->word_buf)) {
-      char* dst = c->word_buf + c->buf_used;
-      int extra = 0;
-      if (c->seg_count > 0) {
-        dst[0] = ' ';
-        memcpy(dst + 1, word, (size_t)wn + 1);
-        extra = 1;
-      } else {
-        memcpy(dst, word, (size_t)wn + 1);
-      }
-      c->segs[c->seg_count].start = c->buf_used;
-      c->segs[c->seg_count].width = ww + (extra ? c->space_w : 0);
-      c->segs[c->seg_count].color =
-        word_hilite ? (uint8_t)PEDIA_COL_LINK_HOVER : (uint8_t)PEDIA_COL_LINK;
-      c->line_w += c->segs[c->seg_count].width;
-      c->buf_used += wn + extra + 1;
-      c->seg_count++;
-    }
-  }
-}
-
-/*
- * A caret-led source line: flush the paragraph, draw this line on its own.
- * Alignment comes from the caret count, not from the text: '^' rows (every
- * caret row in PEDIA.TXT, headings included) start at the prose margin like
- * any other row DOS pushes through FUN_6f74_116c; only '^^' rows are centred.
- */
-static void pedia_body_own_line(PediaBodyCtx* c, const char* text, bool centered) {
-  pedia_body_flush_flow(c);
-  if (c->y > c->fb->height - c->line_h) {
-    return;
-  }
-  PediaBodySeg segs[32];
-  char buf[512];
-  int n = 0;
-  int used = 0;
-  int line_w = 0;
-  const char* p = text;
-  char word[128];
-  bool word_hilite;
-  while (pedia_body_next_word(c, &p, word, sizeof(word), &word_hilite)) {
-    const int wn = (int)strlen(word);
-    if (n >= (int)(sizeof(segs) / sizeof(segs[0])) || used + wn + 2 >= (int)sizeof(buf)) {
-      break;
-    }
-    char* dst = buf + used;
-    int extra = 0;
-    if (n > 0) {
-      dst[0] = ' ';
-      memcpy(dst + 1, word, (size_t)wn + 1);
-      extra = 1;
-    } else {
-      memcpy(dst, word, (size_t)wn + 1);
-    }
-    segs[n].start = used;
-    segs[n].width = font_text_width_skip(c->font, word, FONT_SKIP_NONE) + (extra ? c->space_w : 0);
-    segs[n].color = word_hilite ? (uint8_t)PEDIA_COL_LINK_HOVER : (uint8_t)PEDIA_COL_LINK;
-    line_w += segs[n].width;
-    used += wn + extra + 1;
-    n++;
-  }
-  if (n == 0) {
-    c->y += c->line_h; /* bare ^ = blank separator line */
-    return;
-  }
-  int x = centered ? c->x0 + (c->width - line_w) / 2 : c->x0;
-  for (int i = 0; i < n; ++i) {
-    font_draw_text(c->font, c->fb, x, c->y, buf + segs[i].start, segs[i].color);
-    x += segs[i].width;
-  }
-  c->y += c->line_h;
-}
-
-static void pedia_body_ctx_init(
-  PediaBodyCtx* c, const ColonizeFont* font, ColonizeFramebuffer8* fb, int y, int width
-) {
-  memset(c, 0, sizeof(*c));
-  c->font = font;
-  c->fb = fb;
-  c->width = width;
-  c->x0 = (fb->width - width) / 2;
-  c->y = y;
-  c->line_h = (font ? font->max_height : 6) + 1;
-  c->space_w = font_text_width_skip(font, " ", FONT_SKIP_NONE);
-}
-
 static void pedia_body_render_text(
   const char* text, const ColonizeFont* font, ColonizeFramebuffer8* fb, int y, int width
 ) {
-  PediaBodyCtx c;
-  pedia_body_ctx_init(&c, font, fb, y, width);
-  pedia_body_flow_text(&c, text);
-  pedia_body_flush_flow(&c);
+  enum { ROWS = 48 };
+  char lines[ROWS][192];
+  bool centred[ROWS];
+  memset(centred, 0, sizeof(centred));
+  const int n =
+    font ? popup_wrap_text(font, text, lines[0], sizeof(lines[0]), centred, ROWS, width) : 0;
+  const int x = fb->width / 2 - (width >> 1);
+  const int pitch = font ? font->max_height + 1 : 7;
+  bool emph = false; /* DS:0x1f62 carries from line to line */
+  for (int i = 0; i < n && y + i * pitch <= fb->height - pitch; ++i) {
+    const int dx = centred[i] ? popup_dos_center_dx(font, lines[i], width) : 0;
+    popup_draw_text_markup(
+      font, fb, x + dx, y + i * pitch, lines[i], PEDIA_COL_LINK, PEDIA_COL_LINK_HOVER, NULL,
+      &emph
+    );
+  }
 }
 
 static void pedia_body_render_section(
@@ -1188,30 +1003,9 @@ static void pedia_body_render_section(
   if (!sec) {
     return;
   }
-  int width = 300;
-  for (int i = 0; i < sec->line_count; ++i) {
-    const char* line = sec->lines[i];
-    int w = 0;
-    if (sscanf(line, "@width=%d", &w) == 1 && w > 0 && w <= 320) {
-      width = w;
-    }
-  }
-  PediaBodyCtx c;
-  pedia_body_ctx_init(&c, font, fb, y, width);
-  for (int i = 0; i < sec->line_count; ++i) {
-    const char* line = sec->lines[i];
-    if (line[0] == '@') {
-      continue;
-    }
-    const char* rest = NULL;
-    const int caret = pedia_caret_flags(line, &rest);
-    if (caret != 0) {
-      pedia_body_own_line(&c, rest, caret == PEDIA_CARET_CENTER);
-      continue;
-    }
-    pedia_body_flow_text(&c, line);
-  }
-  pedia_body_flush_flow(&c);
+  char body[4096];
+  popup_msg_section_body(sec, body, sizeof(body), true);
+  pedia_body_render_text(body, font, fb, y, popup_msg_section_width(sec));
 }
 
 /* ---------------- per-category article content ---------------- */

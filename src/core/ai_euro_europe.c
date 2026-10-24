@@ -1326,15 +1326,19 @@ static void ai_euro_5d04_hire_tail_candidates(Ai5d04HireTail* t) {
                  * (`param_1*0x13 + -0x6db2` = unit_type_counts[n][2]) — the
                  * more Pioneers already in the field, the less likely a new
                  * one. Fixed 2026-09-07e: the port read free_colonist_counts
-                 * and inverted the sense. */
-                int proceed = 1;
-                if (turn > 99) {
-                  proceed = !(dos_rng_range(ctx->rng, 0, 2) <=
-                              (int)stuff->unit_type_counts[nation_id][2]);
-                }
-                if (proceed &&
-                    (ai_euro_5d04_cb_profession_gate(ai_euro_5d04_cb_unit_profession(idx)) == 0 ||
-                     dos_rng_range(ctx->rng, 0, 4) == 0)) {
+                 * and inverted the sense.
+                 * Both misses (raw 92749 and 92754) `goto LAB_521d_638a`,
+                 * past the Missionary arm below; only the gold miss falls
+                 * through to it (america resync 157: the port's extra
+                 * Missionary rng(0,7) shifted the Dutch Merchantman's 4d2e
+                 * draws by one; DOSBox LCG at its 20e6 entry). */
+                if (turn > 99 && dos_rng_range(ctx->rng, 0, 2) <=
+                                   (int)stuff->unit_type_counts[nation_id][2]) {
+                  handled = 1;
+                } else if (ai_euro_5d04_cb_profession_gate(ai_euro_5d04_cb_unit_profession(idx)) != 0 &&
+                           dos_rng_range(ctx->rng, 0, 4) != 0) {
+                  handled = 1;
+                } else {
                   const uint32_t cost = (uint32_t)(ai_euro_5d04_cb_price(COLONIZE_CARGO_TOOLS) * 100);
                   if (nat->gold >= cost) {
                     europe_nation_gold_add(ctx->europe, ctx->col1, nation_id, -(long)cost);

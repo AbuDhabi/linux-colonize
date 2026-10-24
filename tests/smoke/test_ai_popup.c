@@ -440,6 +440,66 @@ static int case_render_layouts(void) {
 }
 
 /*
+ * port_bugs.md #1220: @SIEGE wears the MSS1 soldier (`PUSH 1 / PUSH 0xc7c`, a shared-tail
+ * FUN_281f_0652 pair at 2f2b), the frame at (54, 108) as in the DOSBox-X capture, and the
+ * figure is blitted after the text (FUN_6f74_248e's last arm): every opaque sprite pixel
+ * survives, the hand over line 1 included.
+ */
+static int case_siege_figure_is_dos(void) {
+  static AiPopupState st;
+  static ColonizeFont font;
+  static ColonizeSpriteSheet wood;
+  static ColonizeMsgCatalog game_txt;
+  char err[128];
+  assets_msg_init(&game_txt);
+  if (!font_file_load("COLONIZE/FONTINTR.FF", &font, err, sizeof(err)) ||
+      !ss_load("COLONIZE/WOODTILE.SS", &wood, err, sizeof(err)) ||
+      !assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT")) {
+    fprintf(stderr, "SKIP: assets: %s\n", err);
+    return TR_SKIP;
+  }
+  ai_popup_set_portrait_source("COLONIZE");
+  ai_popup_init(&st);
+  char body[AI_POPUP_BODY_LEN];
+  popup_msg_fill(&game_txt, "SIEGE", NULL, "", body, sizeof(body));
+  int rc = 0;
+  if (!ai_popup_enqueue_ok(&st, AI_POPUP_TAG_INFO, NULL, body) || st.queue[0].graphic_mss != 1) {
+    rc = fail("@SIEGE lost its MSS1 latch");
+  }
+  static uint8_t px[320 * 200];
+  memset(px, 0x11, sizeof(px));
+  ColonizeFramebuffer8 fb = {.width = 320, .height = 200, .pixels = px};
+  st.current = st.queue[0];
+  st.open = true;
+  ai_popup_render(&st, &font, NULL, &wood, NULL, 1, 2, 3, &fb);
+  const ColonizeSpriteSheet* fig = ai_popup_decoration_sheet(1, -1);
+  if (rc == 0 && (!fig || st.dialog_x != 54 || st.dialog_y != 108)) {
+    fprintf(stderr, "@SIEGE frame (%d, %d), DOS (54, 108)\n", st.dialog_x, st.dialog_y);
+    rc = 1;
+  }
+  if (rc == 0) {
+    const PopupDosPlace pl = popup_place_dos(320, 200, st.dialog_w, st.dialog_h, fig);
+    const ColonizeSprite* sp = &fig->sprites[0];
+    int bad = 0;
+    for (int y = 0; y < sp->height; ++y) {
+      for (int x = 0; x < sp->width; ++x) {
+        const uint8_t v = sp->pixels[y * sp->width + x];
+        bad += v != COLONIZE_SS_TRANSPARENT && px[(pl.fig_y + y) * 320 + pl.fig_x + x] != v;
+      }
+    }
+    if (bad) {
+      fprintf(stderr, "@SIEGE: %d figure pixels overdrawn\n", bad);
+      rc = 1;
+    }
+  }
+  ai_popup_set_portrait_source(NULL);
+  assets_msg_free(&game_txt);
+  ss_free(&wood);
+  font_file_free(&font);
+  return rc;
+}
+
+/*
  * port_bugs.md #1186: ai_popup_render places the dialog like FUN_6f74_14c6 —
  * 160 - (w >> 1) / 100 - (h >> 1) as arithmetic shifts (an odd size lands 1 px
  * down/right of the old halve-the-margin form), and under an MSS/MYR figure the
@@ -889,6 +949,7 @@ static const TestCase k_cases[] = {
     {"case_set_last_after_dropped_enqueue", case_set_last_after_dropped_enqueue},
     {"case_render_layouts", case_render_layouts},
     {"case_placement_is_dos", case_placement_is_dos},
+    {"case_siege_figure_is_dos", case_siege_figure_is_dos},
     {"case_rows_are_dos", case_rows_are_dos},
     {"case_help_footer_is_dos", case_help_footer_is_dos},
     {"case_dos_wrap_and_width", case_dos_wrap_and_width},

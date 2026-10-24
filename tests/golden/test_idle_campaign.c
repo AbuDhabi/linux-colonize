@@ -19,7 +19,7 @@
  * docs/idle_america.md.
  *
  * With a leading "america2" argument it runs the second Americas recording,
- * original_saves/golden_idle_america_2-seed-100 (save numbers 1..12, 1572-1584,
+ * original_saves/golden_idle_america_2-seed-100 (save numbers 1..14, 1572-1586,
  * Spanish human, VR_SOUND.EXE), recorded from a load of 000001 after the first
  * archive's save-64 break; docs/idle_america2.md.
  */
@@ -57,9 +57,10 @@ static const IdleCampaign k_america = {
   "original_saves/golden_idle_america_seed-100/%06d.SAV", 1, 63, 1, 0,
 };
 /* Recorded 2026-10-21 (VR_SOUND.EXE, Americas map): load of 000001, Space.
- * Trimmed to 1..12: save 13 turns on the DB-4 stack residue. */
+ * Trimmed to 1..14: save 15 turns on a DB-4 stack word left by a visible
+ * move's redraw (docs/idle_america2.md). */
 static const IdleCampaign k_america2 = {
-  "original_saves/golden_idle_america_2-seed-100/%06d.SAV", 1, 12, 1, 0,
+  "original_saves/golden_idle_america_2-seed-100/%06d.SAV", 1, 14, 1, 0,
 };
 
 static int read_bytes(const char* path, uint8_t** data, size_t* size) {
@@ -245,7 +246,7 @@ int main(int argc, char** argv) {
     return 2;
   }
 
-  char from[512], expected[128];
+  char from[512], expected[512];
   save_path(c, from, sizeof(from), first);
   /* GOLDEN_IDLE_FROM: start from this save instead of year_FIRST.sav (e.g. a
    * DOSBox from-load autosave). */
@@ -288,7 +289,7 @@ int main(int argc, char** argv) {
   int prev_have = 0;
   for (int year = first + 1; (ok || keep_going) && year <= last; ++year) {
     if (resync && prev_have) {
-      char prev[128], start_path[512];
+      char prev[512], start_path[512];
       const char* start_out = NULL;
       uint8_t* dos = NULL;
       size_t dos_size = 0;

@@ -1028,6 +1028,10 @@ void ai_euro_goal_walk_479b(ColonizeTurnContext* ctx, ColonizeUnit* u) {
      * 11 -> 12: the sticky-cleared Scout saves spent 13). */
     units_mp_charge(ctx->units, u, cost);
   }
+  /* FUN_465b_0000 raw 75698 runs FUN_281f_0916 -> FUN_1427_12f6 before the
+   * unit leaves its tile (02d0 then animates old -> new), so 12f6 re-sorts
+   * the ORIGIN stack; count it now. */
+  const int origin_stack = units_count_at(ctx->units, u->x, u->y) + u->cargo_count;
   const bool moved = units_try_move_w(&w, id, px, py);
   if (!g_units_465b_settled) {
     units_465b_0bd1_tail(ctx->units, id, units_before, false);
@@ -1045,6 +1049,23 @@ void ai_euro_goal_walk_479b(ColonizeTurnContext* ctx, ColonizeUnit* u) {
   u = units_get(ctx->units, id);
   if (!u || !u->active) {
     return;
+  }
+  /* FUN_465b_0000 raw 75698: a hull's plain step runs FUN_281f_0916 ->
+   * FUN_1427_12f6 -> 10be -> 04d6's re-place loop -> 0362 -> 02ca -> 005c ->
+   * FUN_137f_0314 -> 0200, whose near call to 01ac (137f:020b) pushes its
+   * return offset 0x020e at SS:e7c4, after this step's 00f2 flood wrote
+   * nation*0x13c there (DOSBox VR_SOUND from-loads america 156 and 137, BPM
+   * on e7c4, 2026-10-23; port_bugs.md #1135). Land units take 12f6's
+   * shallower 0362 arm, which does not reach e7c4. 04d6 lifts the whole
+   * stack first (023a clears the presence bit) and 0314 calls 0200 only on a
+   * tile whose bit is set, so a hull alone on its origin tile re-places
+   * without the call (DOS 137: only the step off the shared tile wrote);
+   * passengers sit in the tile chain in DOS. */
+  if (g_units_465b_settled && units_is_sea(ctx->units, id) && origin_stack >= 2) {
+    ctx->ai_euro_wander_stack_word = 0x20e;
+    if (getenv("AI_EA_TRACE")) {
+      fprintf(stderr, "[ea-w] 12f6 u%d (%d,%d) n%d -> %d\n", id, u->x, u->y, u->nation_id, 0x20e);
+    }
   }
   ai_euro_sync_aboard_cargo_xy(ctx->units, u);
   if (u->x != u->goto_x || u->y != u->goto_y) {

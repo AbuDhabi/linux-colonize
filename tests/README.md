@@ -150,9 +150,9 @@ the same way. CTest `golden_idle_america` runs `america 1 63` (the whole trimmed
 64 turns on a DOS stack residue). Status in [docs/idle_america.md](../docs/idle_america.md).
 
 A leading `america2` runs the fourth, `original_saves/golden_idle_america_2-seed-100`
-(Spanish every-turn autosaves `000001`..`000012`, 1572-1584, recorded after the first Americas
-archive's save-64 break). CTest `golden_idle_america2` runs `america2 1 12` (the whole trimmed
-archive; save 13 turns on the same DOS stack residue). Status in
+(Spanish every-turn autosaves `000001`..`000014`, 1572-1586, recorded after the first Americas
+archive's save-64 break). CTest `golden_idle_america2` runs `america2 1 14` (the whole trimmed
+archive; save 15 turns on the same DOS stack word). Status in
 [docs/idle_america2.md](../docs/idle_america2.md).
 
 Most executables expect **repo root** as cwd (`WORKING_DIRECTORY` in CMake).

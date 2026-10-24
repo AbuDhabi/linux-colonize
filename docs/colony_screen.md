@@ -137,7 +137,11 @@ tab's hammers bar (own block). Production-tab badge ink is white (15), not
   clear row), because `local_8` is never reset, which also leaves the `08ec(100)`
   arm dead. A live list pages once the built current project keeps its row
   (FUN_15eb_3650 tail, port_bugs.md #1218; unit_stage_seams
-  test_colony_construction_two_pages_live).
+  test_colony_construction_two_pages_live). Picking that "(COMPLETE)" row keeps the project and
+  clears +0x1c bit 0x80 with no message (FUN_2f2b_5bd2 raw 52665-52667; @ALREADYHAVE stays the
+  EOT notice), and the "(COMPLETE)" test is the DOS +0x84 bit (FUN_281f_09fc,
+  `colonies_dos_owns_row`), which a built Warehouse Expansion never has: its row reads its cost
+  (port_bugs.md #1223).
 - **BUY / CHANGE buttons** are `FUN_2f2b_21da` -> `FUN_2f2b_208c` literally:
   at (0xd8, 0x8a) / (0x10e, 0x8a), label width + 5 by 9, WOODPANL 0x30 bottom
   and right drawn first, then 0x39 top and left, the label at (+3, +2) in 0x0f
@@ -211,7 +215,7 @@ not the old bright green) which is the box style's @COLORS 68 (port_bugs.md
 `colonies_toggle_custom_house_cargo()`, stays open. It is a `FUN_6f74_2580`
 @checkbox box with a selection bar (port_bugs.md #1213): row 0 at open, Up / Down
 wrap, Space / F1 / a click flip the barred row, Enter / Esc / an outside click
-close it, other keys do nothing ([popups.md](popups.md) "Custom House keys"). Colonists cannot be
+close it, other keys do nothing ([popups_dialog_engine.md](popups_dialog_engine.md) "Custom House keys"). Colonists cannot be
 assigned to Custom House / Printing Press / Newspaper (no `@JOB` slot) —
 guard in `colonies_assign_workplace`.
 

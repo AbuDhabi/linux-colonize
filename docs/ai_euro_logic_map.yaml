@@ -326,7 +326,7 @@ graphs:
         label: Two-pass Europe dock candidate loop (unskilled pass, skilled pass); muskets-training arm
         dos: raw 86122-86306; LAB_521d_642a/6454
         status: dos
-        note: Skips when any colony exists and (unit bit5 or turn%3==0). turn>99 Pioneer-training skip reads unit_type_counts[n][2]. Missionary creation latches unit_type_counts[n][3]++ (src/core/ai_euro_europe.c:1312-1315, gated < 0xff).
+        note: Skips when any colony exists and (unit bit5 or turn%3==0). turn>99 Pioneer-training skip reads unit_type_counts[n][2]. Both Pioneer-arm roll misses (turn>99 rng(0,2), profession rng(0,4); raw 92749/92754) goto LAB_521d_638a past the Missionary arm; only the gold miss falls through to it (port_bugs.md #1135, america resync 157). Missionary creation latches unit_type_counts[n][3]++ (src/core/ai_euro_europe.c, gated < 0xff).
       - id: demand
         kind: loop
         label: Colony demand vs purchase loop (demand query modes 4/0xc/0xe; goal trigger 0xb)
@@ -588,6 +588,7 @@ graphs:
         fn: ai_euro.c:ai_euro_goal_walk_479b
         dos: FUN_521d_5b66 case 0x0b/0x0c -> FUN_479b_0972
         status: dos
+        note: "20e6 stack word per step: the 00f2 flood leaves nation*0x13c, then a hull's plain step from a shared origin tile leaves 0x020e (465b raw 75698 FUN_281f_0916 -> 1427_12f6 -> 10be -> 04d6 re-place -> 137f_0200's near call to 01ac; DOSBox america 156/137, port_bugs.md #1135). A hull alone on its tile, and every land step, leave the flood value."
       - id: land_band
         kind: sub
         label: Land band
@@ -763,7 +764,7 @@ graphs:
         fn: ai_euro_expand.c:ai_euro_found_with_unit
         dos: 5b66 case 7 FOUND
         status: dos
-        note: "2026-10-04 (port_bugs.md #971): the fitted post-founding Pioneer/Soldier re-aims are deleted; FUN_479b_076e moves only the founder. The pioneer's TURN4->5 move comes from the 20e6 explore ring, which scores coastal tiles only. 2026-10-05 (port_bugs.md #1074): 076e never prices or pays for Indian land; the found-time purchase and short-gold PARK are deleted (AI land buys are FUN_479b_00ca from the Pioneer bodies 01a6/0526, units_pioneer.c). On a full 48-colony table (FUN_364b_1ba8 -1) the founder survives with +0x314c/+0x315a cleared and MP spent (FUN_281f_0934)."
+        note: "2026-10-04 (port_bugs.md #971): the fitted post-founding Pioneer/Soldier re-aims are deleted; FUN_479b_076e moves only the founder. The pioneer's TURN4->5 move comes from the 20e6 explore ring, which scores coastal tiles only. 2026-10-05 (port_bugs.md #1074): 076e never prices or pays for Indian land; the found-time purchase and short-gold PARK are deleted (AI land buys are FUN_479b_00ca from the Pioneer bodies 01a6/0526, units_pioneer.c). On a full 48-colony table (FUN_364b_1ba8 -1) the founder survives with +0x314c/+0x315a cleared and MP spent (FUN_281f_0934). A successful founding leaves 0xe7d6 in the 20e6 stack word (1ba8's second FUN_281f_0c22 -> 15eb_3956 -> 1f72 -> 0bd4(1,9) -> 0b96 -> 0b52 push bp; DOSBox america 105, port_bugs.md #1135)."
       - id: on_colony
         kind: step
         label: Own colony arrival — no unit-act outcome (join/TOOLS-delivery arms deleted)
@@ -890,7 +891,7 @@ graphs:
         fn: ai_euro_land.c:ai_euro_20e6_wander_step
         dos: LAB_521d_4d2e→5183
         status: dos
-        note: "20e6 local_ea is uninitialized: retain the prior 6662_00f2 saved SI (6d8e nation*0x13c), confirmed by fresh 1558 stack watch. A step beside an already-met tribe instead leaves the mover's x there (5bfb_022e 042c via 3180, fresh 1565 CPU log). Adjacent sign steps do not spill that frame. port_bugs.md #523 REFUTED 2026-09-18e. ai_euro_20e6_attack_term's Soldier/Dragoon colony-mass gate (raw 88921-88937) returns 'skip this tile' and the caller `continue`s to the next direction; that IS DOS. `goto LAB_521d_5183` is the direction loop's own increment: viceroy_overlays.asm `LAB_OVL14_L0000__0054b0 CMP [BP+0xff28],AX / JL 0054b5 / JMP 005183` and `LAB_OVL14_L0000__005183 = INC word ptr [BP-0x4e]`, immediately followed by `LAB_..__005186 CMP [BP-0x4e],0x8 / JL 00518f` — the loop counter bump and test, with 14 XREFs (every unscoreable-direction arm in the scorer jumps there). No abandonment of the 8-direction scan anywhere."
+        note: "20e6 local_ea is uninitialized: retain the prior 6662_00f2 saved SI (6d8e nation*0x13c), confirmed by fresh 1558 stack watch. A hull step from a shared tile leaves 0x020e and a founding 0xe7d6 (land_walk / found notes); visible-move redraws and overlay-loader residue are not modelled (dos_bugs.md DB-4). A step beside an already-met tribe instead leaves the mover's x there (5bfb_022e 042c via 3180, fresh 1565 CPU log). Adjacent sign steps do not spill that frame. port_bugs.md #523 REFUTED 2026-09-18e. ai_euro_20e6_attack_term's Soldier/Dragoon colony-mass gate (raw 88921-88937) returns 'skip this tile' and the caller `continue`s to the next direction; that IS DOS. `goto LAB_521d_5183` is the direction loop's own increment: viceroy_overlays.asm `LAB_OVL14_L0000__0054b0 CMP [BP+0xff28],AX / JL 0054b5 / JMP 005183` and `LAB_OVL14_L0000__005183 = INC word ptr [BP-0x4e]`, immediately followed by `LAB_..__005186 CMP [BP-0x4e],0x8 / JL 00518f` — the loop counter bump and test, with 14 XREFs (every unscoreable-direction arm in the scorer jumps there). No abandonment of the 8-direction scan anywhere."
       - id: surplus_tail
         kind: decision
         label: "Surplus garrison (local_8e) whose scan picked no attack → back to the garrison hold"

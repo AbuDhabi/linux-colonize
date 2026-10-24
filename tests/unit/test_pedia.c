@@ -7,6 +7,7 @@
 #include "core/font.h"
 #include "core/pedia.h"
 #include "core/pik.h"
+#include "core/popup.h"
 #include "platform/diagnostics.h"
 
 #include "../common/test_runner.h"
@@ -408,6 +409,88 @@ static int case_job12_section_trimmed(void) {
   return 0;
 }
 
+/*
+ * port_bugs.md #1222: the article body is FUN_6f74_1198's wrap at @width 300 (a continuation
+ * line's first word is charged its space), 7 px apart, from y 2 * font[0] + 0x15 at x 10.
+ * DOSBox-X capture of @FATHER12 (Paul Revere, 2026-10-23): line 4 is "of rallying ..." (the
+ * old own loop kept "of" on line 3), and @FATHER1's "^" + "^{When..." rows leave one blank row.
+ */
+static int case_article_body_wrap_is_dos(void) {
+  if (fixture_ensure() != 0) {
+    return 1;
+  }
+  ColonizeFont font;
+  char err[128];
+  if (!font_file_load("COLONIZE/FONTTINY.FF", &font, err, sizeof(err))) {
+    fprintf(stderr, "FONTTINY: %s\n", err);
+    return 1;
+  }
+  static const struct {
+    int father;
+    int line;
+    const char* text;
+  } k_rows[] = {
+    {12, 4, "of rallying to the defense of the colony in times of danger."},
+    {1, 4, ""},
+    {1, 5, "{When Fugger joins the Congress, all boycotts currently in effect are"},
+  };
+  int rc = 0;
+  static uint8_t got[320 * 200], want[320 * 200];
+  for (size_t k = 0; k < sizeof(k_rows) / sizeof(k_rows[0]); ++k) {
+    PediaArticleAssets a;
+    memset(&a, 0, sizeof(a));
+    a.pedia = &s_catalog;
+    a.names = &s_names;
+    a.font = &font;
+    ColonizeFramebuffer8 g = {.width = 320, .height = 200, .pixels = got};
+    ColonizeFramebuffer8 w = {.width = 320, .height = 200, .pixels = want};
+    pedia_article_render(&a, PEDIA_CAT_FATHER, k_rows[k].father, &g);
+    memset(want, 0, sizeof(want));
+    const int y = 2 * font.max_height + 0x15 + k_rows[k].line * (font.max_height + 1);
+    bool emph = false;
+    popup_draw_text_markup(&font, &w, 10, y, k_rows[k].text, PEDIA_COL_LINK, PEDIA_COL_LINK_HOVER,
+                           NULL, &emph);
+    int bad = 0;
+    for (int yy = y; yy < y + font.max_height + 1; ++yy) {
+      for (int x = 0; x < 320; ++x) {
+        bad += got[yy * 320 + x] != want[yy * 320 + x];
+      }
+    }
+    if (bad) {
+      fprintf(stderr, "FATHER%d line %d: %d px differ from '%s'\n", k_rows[k].father,
+              k_rows[k].line, bad, k_rows[k].text);
+      rc = 1;
+    }
+  }
+  /* The "(name: category)" title is FUN_281f_0100 = FUN_104b_0318 centred over (0, 0x140):
+   * 160 - ((width - 1) >> 1) (the @FATHER0 capture; (320 - w) / 2 sat 1 px left). */
+  {
+    PediaArticleAssets a;
+    memset(&a, 0, sizeof(a));
+    a.pedia = &s_catalog;
+    a.names = &s_names;
+    a.font = &font;
+    ColonizeFramebuffer8 g = {.width = 320, .height = 200, .pixels = got};
+    ColonizeFramebuffer8 w = {.width = 320, .height = 200, .pixels = want};
+    pedia_article_render(&a, PEDIA_CAT_FATHER, 0, &g);
+    memset(want, 0, sizeof(want));
+    const char* title = "(Adam Smith: Founding Father)";
+    const int tw = font_text_width_skip(&font, title, FONT_SKIP_NONE);
+    const int ty = font.max_height + 7;
+    font_draw_text(&font, &w, 160 - ((tw - 1) >> 1), ty, title, PEDIA_COL_LINK_HOVER);
+    int bad = 0;
+    for (int i = ty * 320; i < (ty + font.max_height) * 320; ++i) {
+      bad += got[i] != want[i];
+    }
+    if (bad) {
+      fprintf(stderr, "FATHER0 title: %d px differ\n", bad);
+      rc = 1;
+    }
+  }
+  font_file_free(&font);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
     {"case_terrain_preview_sprites", case_terrain_preview_sprites},
     {"case_load_catalogs", case_load_catalogs},
@@ -416,6 +499,7 @@ static const TestCase k_cases[] = {
     {"case_job_page", case_job_page},
     {"case_job_icon_formula", case_job_icon_formula},
     {"case_father_page", case_father_page},
+    {"case_article_body_wrap_is_dos", case_article_body_wrap_is_dos},
     {"case_misc_page", case_misc_page},
     {"case_caret_flags", case_caret_flags},
     {"case_entry_title", case_entry_title},

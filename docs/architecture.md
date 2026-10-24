@@ -28,7 +28,7 @@ lives](#where-detail-lives)).
 | Euro AI control flow (machine-readable map + flowchart) | [ai_euro_logic_map.yaml](ai_euro_logic_map.yaml), rendered by `tools/ai_logic_map.py` to [diagrams/ai_euro_logic.html](diagrams/ai_euro_logic.html) |
 | Decomp / data navigation | [original_index.md](original_index.md) |
 | Feature Done / Partial / Missing | [manual_gap.md](manual_gap.md) |
-| Popup inventory / authenticity | [popups.md](popups.md), [popups_catalog.md](popups_catalog.md), [popup_audit.md](popup_audit.md) |
+| Popup inventory / authenticity | [popups.md](popups.md), [popups_catalog.md](popups_catalog.md), [popup_audit.md](popup_audit.md); dialog metrics (wrap, sizes, rows, list keys) [popups_dialog_engine.md](popups_dialog_engine.md) |
 | Combat mechanics | [combat.md](combat.md), [combat_analysis.md](combat_analysis.md) |
 | Report screens (F2–F10 + HoF) | [reports.md](reports.md), [reports_score.md](reports_score.md) (F10 + HoF), [report_screens.md](report_screens.md) |
 | SoL / independence | [sons_of_liberty.md](sons_of_liberty.md) |
@@ -457,7 +457,7 @@ greenfield redesign or a mandated `game_loop` rewrite phase.
 | Feature Done/Partial/Missing | [manual_gap.md](manual_gap.md) |
 | AI FUN inventory / unpark | [port_plan.md](port_plan.md) |
 | EOT / between-player turns | [turn_between_players.md](turn_between_players.md) |
-| Popup / modal architecture | [popups.md](popups.md) |
+| Popup / modal architecture | [popups.md](popups.md), [popups_dialog_engine.md](popups_dialog_engine.md) |
 | Assets, formats, map draw | [assets.md](assets.md) |
 | Load vs bake | [data_vs_hardcoded.md](data_vs_hardcoded.md) |
 | Decomp bring-up / core–platform sketch | [decomp_inventory.md](decomp_inventory.md) |

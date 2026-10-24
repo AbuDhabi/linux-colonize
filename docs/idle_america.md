@@ -71,7 +71,10 @@ the archived log and [dos_trace.md](dos_trace.md) "Uninitialised-local hunts".
 
 ## Open leads (not reached by the trimmed archive)
 
-- port_bugs.md #1135: one more deterministic e7c4 writer after a case-7 founding (resync 106).
+- Resync status 2026-10-23 (port_bugs.md #1135 fixed: founding and hull-step e7c4 writers,
+  5d04 Pioneer-miss skip): 166 of 464 pairs byte-identical; 277 with DB-25 and DB-28
+  temporarily reproduced, which the pairs 105-119 and 151+ need to compare at all (both
+  105 -> 106 and 156 -> 157 are then exact). Save 64 stays loader residue.
 - Archived rows marked "(open)": resync 206 (Scout 4d2e step), 232 (combat strengths), 283
   (birth at the unit cap), 292/316/376 (decision cascades), 435 (England's horse demand); plus
   the archive's "Open leads" list (reload gaps, 317c's DS:0x8dc4 write). All need the removed
