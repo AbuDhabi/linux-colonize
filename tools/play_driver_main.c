@@ -21,15 +21,25 @@
  *   idle [MAX]                  run until the main map has been idle 20 frames
  *                               (no popup, no turn in progress), at most MAX
  *                               frames (default 20000)
+ *   auto [MAX|zoom]             play on, answering message popups, woodcuts and colony
+ *                               "Continue turn" messages (unless zoom) with Return,
+ *                               closes the Congress report and pedia page of a new
+ *                               founding father,
+ *                               until a choice popup, another screen or modal, or
+ *                               the idle main map (default 5000 frames)
  *   shot NAME                   DIR/shots/NAME.ppm
  *   save NAME                   save into DIR/saves/NAME
  *   status | units | colonies   print state
  *   map [R]                     ASCII map of radius R (default 8) around the cursor
+ *   near X Y [R]                every unit (any nation) within R (default 2) of X,Y
+ *   activate ID                 wake and select unit ID (the stack-list pick; a colony
+ *                               tile offers none: automated-playtests/campaign1/bugs.md B8)
  *   sync TAG                    print "@@ TAG" (end-of-batch marker)
  *   quit
  *
  * Every popup / ticker text the game presents is echoed as "LOG: ..." after
- * the command that triggered it.
+ * the command that triggered it. A nested modal loop inside one game_update
+ * (Combat Analysis) gets a Return after 300 idle polls ("NESTED:" line).
  */
 #include <SDL2/SDL_keycode.h>
 
@@ -93,7 +103,19 @@ static void ev(int type, int x, int y, int button, int32_t keycode, unsigned mod
   g_p.evs[g_p.count++] = (Ev){g_at, type, x, y, button, keycode, mod, ch};
 }
 
+static int g_update_polls; /* polls inside the current game_update */
+static void tap(int32_t code, int m, char text);
+
 bool platform_poll_input(ColonizePlatform* p, ColonizeInputState* out) {
+  /* A nested modal loop inside one game_update (Combat Analysis, combat
+   * popup pump) cannot see later stdin commands: after 300 idle polls it
+   * gets a Return, as a player would press. */
+  if (++g_update_polls > 300 && p->next >= p->count) {
+    g_update_polls = 0;
+    g_at = p->frame;
+    tap(SDLK_RETURN, -1, 0);
+    printf("NESTED: Return pressed in a modal loop\n");
+  }
   out->text_input_len = 0;
   out->text_input[0] = '\0';
   const uint32_t f = p->frame++;
@@ -262,9 +284,28 @@ static const char* off_map_reason(const ColonizeGameState* g) {
                              : NULL;
 }
 
+/* A human unit still walking a goto this turn (the map looks idle between
+ * its steps). */
+static bool goto_pending(void) {
+  const ColonizeUnit* sel =
+    g_game->units.selected_id >= 0 ? units_get_const(&g_game->units, g_game->units.selected_id) : NULL;
+  if (sel && sel->orders != 3) {
+    return false; /* the selected unit waits for orders first */
+  }
+  for (int i = 0; i < g_game->units.slot_end; ++i) {
+    const ColonizeUnit* u = &g_game->units.units[i];
+    if (u->active && u->nation_id == g_game->human_nation && u->orders == 3 && u->moves > 0 &&
+        u->aboard_ship_id < 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
 static bool run_frame(void) {
   ColonizeInputState input = {0};
   const uint32_t before = g_p.now_ms;
+  g_update_polls = 0;
   platform_poll_input(&g_p, &input);
   if (!game_update(g_game, &input, g_p.now_ms - before)) {
     return false;
@@ -385,6 +426,18 @@ static void print_units(void) {
       }
     }
     printf("\n");
+  }
+}
+
+/* Every unit (any nation) within `r` tiles of (cx,cy). */
+static void print_near(int cx, int cy, int r) {
+  for (int i = 0; i < g_game->units.slot_end; ++i) {
+    const ColonizeUnit* u = &g_game->units.units[i];
+    if (!u->active || u->x < cx - r || u->x > cx + r || u->y < cy - r || u->y > cy + r) {
+      continue;
+    }
+    printf("NEAR %d %s nation %d at (%d,%d) moves %d orders %d%s\n", u->id, unit_name(u), u->nation_id, u->x,
+           u->y, u->moves, u->orders, u->aboard_ship_id >= 0 ? " aboard" : "");
   }
 }
 
@@ -559,10 +612,55 @@ static bool command(char* line) {
     int settled = 0, n = 0;
     for (; n < max && settled < 20 && ok; ++n) {
       ok = run_frame();
-      settled = off_map_reason(g_game) ? 0 : settled + 1;
+      settled = off_map_reason(g_game) || goto_pending() ? 0 : settled + 1;
     }
     g_at = g_p.frame;
     printf("IDLE %s after %d frames\n", settled >= 20 ? "reached" : "NOT reached", n);
+  } else if (strcmp(op, "auto") == 0) {
+    /* Play on until a decision is needed: message popups and woodcuts are
+     * answered with Return; stops at a popup with 2+ choices, any other
+     * screen or modal, or the main map idle for 20 frames. */
+    const int max = a1 > 0 ? a1 : 5000;
+    int settled = 0, n = 0;
+    const char* why = "frame limit";
+    for (; n < max && ok; ++n) {
+      ok = run_frame();
+      const AiPopupState* pop = &g_game->ai_popups;
+      const bool busy = g_p.next < g_p.count;
+      /* Colony EOT messages ("Continue turn." / "Zoom to colony.") are
+       * answered with the default Continue unless `auto zoom`. */
+      if (pop->open && pop->current.choice_count >= 2 &&
+          (pop->current.tag != AI_POPUP_TAG_COLONY_EVENT || (argc > 1 && strcmp(argv[1], "zoom") == 0))) {
+        why = "choice popup";
+        break;
+      }
+      if ((pop->open || strcmp(g_game->log_screen, "woodcut") == 0) && !busy) {
+        g_at = g_p.frame;
+        /* Some colony messages default to "Zoom to colony.": step up to Continue. */
+        tap(pop->open && pop->current.tag == AI_POPUP_TAG_COLONY_EVENT && pop->selection > 0 ? SDLK_UP : SDLK_RETURN,
+            -1, 0);
+        print_new_log();
+        continue;
+      }
+      /* A founding father's arrival: the Congress report, then his pedia page. */
+      if (!pop->open && !busy && (strncmp(g_game->log_screen, "report:CONTINENTAL", 18) == 0 ||
+                                  strcmp(g_game->log_screen, "pedia:article") == 0)) {
+        g_at = g_p.frame;
+        tap(SDLK_ESCAPE, -1, 0);
+        continue;
+      }
+      if (!pop->open && (game_screen_owns_display(g_game) || game_modal_open(g_game)) && !busy) {
+        why = g_game->log_screen;
+        break;
+      }
+      settled = off_map_reason(g_game) || goto_pending() ? 0 : settled + 1;
+      if (settled >= 20) {
+        why = "map idle";
+        break;
+      }
+    }
+    g_at = g_p.frame;
+    printf("AUTO stopped (%s) after %d frames\n", why, n);
   } else if (strcmp(op, "shot") == 0 && argc > 1) {
     write_shot(argv[1]);
   } else if (strcmp(op, "save") == 0 && argc > 1) {
@@ -577,6 +675,14 @@ static bool command(char* line) {
   } else if (strcmp(op, "units") == 0) {
     print_units();
     print_europe();
+  } else if (strcmp(op, "activate") == 0 && argc > 1) {
+    /* What picking a unit from the tile's stack list does (bug B8: a colony
+     * tile offers no stack list, so this is the only way to reach a unit
+     * that is not first on the tile). */
+    game_click_activate_unit(g_game, a1);
+    ok = flush_frames(5);
+  } else if (strcmp(op, "near") == 0 && argc > 2) {
+    print_near(a1, a2, argc > 3 ? atoi(argv[3]) : 2);
   } else if (strcmp(op, "map") == 0) {
     print_map(a1 > 0 ? a1 : 8);
   } else if (strcmp(op, "colonies") == 0) {
