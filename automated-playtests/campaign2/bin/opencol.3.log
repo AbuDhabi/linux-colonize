@@ -1,0 +1,1869 @@
+[2026-10-24 18:05:41] [INFO] Loaded message catalog COLONIZE/NAMES.TXT (31 sections)
+[2026-10-24 18:05:41] [INFO] Loaded message catalog COLONIZE/LABELS.TXT (7 sections)
+[2026-10-24 18:05:41] [INFO] === OpenCol diagnostics ===
+[2026-10-24 18:05:41] [INFO] Log file: /home/jan/projects/linux-colonize/automated-playtests/campaign2/bin/opencol.log
+[2026-10-24 18:05:41] [INFO] Executable directory: /home/jan/projects/linux-colonize/automated-playtests/campaign2/bin
+[2026-10-24 18:05:41] [INFO] argv[0]: automated-playtests/campaign2/bin/play_driver
+[2026-10-24 18:05:41] [INFO] Working directory: /home/jan/projects/linux-colonize
+[2026-10-24 18:05:41] [INFO] HOME=/home/jan
+[2026-10-24 18:05:41] [INFO] XDG_DATA_HOME=(unset)
+[2026-10-24 18:05:41] [INFO] Settings file: automated-playtests/campaign2/settings.json
+[2026-10-24 18:05:41] [INFO] Resolved data_dir from override: ./COLONIZE
+[2026-10-24 18:05:41] [INFO] Asset inventory for ./COLONIZE: 312 files
+[2026-10-24 18:05:41] [INFO]   .TXT: 19
+[2026-10-24 18:05:41] [INFO]   .PIK: 35
+[2026-10-24 18:05:41] [INFO]   .SS: 206
+[2026-10-24 18:05:41] [INFO]   .PAL: 1
+[2026-10-24 18:05:41] [INFO]   .COL: 5
+[2026-10-24 18:05:41] [INFO]   .DAT: 4
+[2026-10-24 18:05:41] [INFO]   .DB: 2
+[2026-10-24 18:05:41] [INFO]   .BIN: 1
+[2026-10-24 18:05:41] [INFO]   .MP: 1
+[2026-10-24 18:05:41] [INFO]   .MOV: 1
+[2026-10-24 18:05:41] [INFO]   .EXE: 8
+[2026-10-24 18:05:41] [INFO]   .FF: 5
+[2026-10-24 18:05:41] [INFO]   .GIF: 1
+[2026-10-24 18:05:41] [INFO]   .BAT: 2
+[2026-10-24 18:05:41] [INFO]   .COM: 1
+[2026-10-24 18:05:41] [INFO]   OTHER: 20
+[2026-10-24 18:05:41] [INFO] Asset OK: ./COLONIZE/MODULES.DB size=421 bytes
+[2026-10-24 18:05:41] [INFO] Asset OK: ./COLONIZE/ERRORS.DB size=1198 bytes
+[2026-10-24 18:05:41] [INFO] Asset OK: ./COLONIZE/GAME.TXT size=87731 bytes
+[2026-10-24 18:05:41] [INFO] Asset OK: ./COLONIZE/MENU.TXT size=1796 bytes
+[2026-10-24 18:05:41] [INFO] Asset OK: ./COLONIZE/LABELS.TXT size=3386 bytes
+[2026-10-24 18:05:41] [INFO] Asset OK: ./COLONIZE/NAMES.TXT size=13820 bytes
+[2026-10-24 18:05:41] [INFO] Asset OK: ./COLONIZE/PEDIA.TXT size=55561 bytes
+[2026-10-24 18:05:41] [INFO] Asset OK: ./COLONIZE/COLONY.TXT size=2540 bytes
+[2026-10-24 18:05:41] [INFO] Asset OK: ./COLONIZE/DEBUG.TXT size=3367 bytes
+[2026-10-24 18:05:41] [INFO] Asset OK: ./COLONIZE/VICEROY.PAL size=1024 bytes
+[2026-10-24 18:05:41] [INFO] Asset validation succeeded for data_dir=./COLONIZE
+[2026-10-24 18:05:41] [INFO] Loaded VICEROY.PAL (./COLONIZE/VICEROY.PAL)
+[2026-10-24 18:05:41] [INFO] Loaded message catalog ./COLONIZE/GAME.TXT (509 sections)
+[2026-10-24 18:05:41] [INFO] BEGINMENU loaded with 5 options (width=160 y=91 smallfont=1)
+[2026-10-24 18:05:41] [INFO]   version={COLONIZATION} OpenCol 0.8-beta-bugfix-1
+[2026-10-24 18:05:41] [INFO]   menu[0]=Start a Game in NEW WORLD
+[2026-10-24 18:05:41] [INFO]   menu[1]=Start a Game in AMERICA
+[2026-10-24 18:05:41] [INFO]   menu[2]=CUSTOMIZE New World
+[2026-10-24 18:05:41] [INFO]   menu[3]=LOAD Game
+[2026-10-24 18:05:41] [INFO]   menu[4]=View Hall of Fame
+[2026-10-24 18:05:41] [INFO] Loaded message catalog ./COLONIZE/MENU.TXT (8 sections)
+[2026-10-24 18:05:41] [INFO] Map menu bar loaded (7 menus from MENU.TXT)
+[2026-10-24 18:05:41] [INFO] Loaded message catalog ./COLONIZE/LABELS.TXT (7 sections)
+[2026-10-24 18:05:41] [INFO] Loaded LABELS.TXT
+[2026-10-24 18:05:41] [INFO] Loaded message catalog ./COLONIZE/DEBUG.TXT (20 sections)
+[2026-10-24 18:05:41] [INFO] Loaded DEBUG.TXT
+[2026-10-24 18:05:41] [INFO] Loaded MADSPACK ./COLONIZE/WOODTILE.SS (4 sections)
+[2026-10-24 18:05:41] [INFO] Loaded SS ./COLONIZE/WOODTILE.SS (1 sprites palette=yes mode=0 pflag=1)
+[2026-10-24 18:05:41] [INFO] Loaded map right panel (WOODTILE/NAMEPLAT)
+[2026-10-24 18:05:41] [INFO] Loaded message catalog ./COLONIZE/NAMES.TXT (31 sections)
+[2026-10-24 18:05:41] [INFO] Loaded 23 unit types from NAMES.TXT @UNIT
+[2026-10-24 18:05:41] [INFO] Loaded 42 building types from NAMES.TXT @BUILDING
+[2026-10-24 18:05:41] [INFO] Loaded colony names EN=36 FR=66 SP=39 DU=32 from ./COLONIZE/COLONY.TXT
+[2026-10-24 18:05:41] [INFO] Loaded message catalog ./COLONIZE/PEDIA.TXT (166 sections)
+[2026-10-24 18:05:41] [INFO] Loaded Colonizopedia text from PEDIA.TXT
+[2026-10-24 18:05:41] [INFO] Loaded MADSPACK ./COLONIZE/OPENMENU.PIK (3 sections)
+[2026-10-24 18:05:41] [INFO] Loaded PIK ./COLONIZE/OPENMENU.PIK (320x200 palette=yes)
+[2026-10-24 18:05:41] [INFO] Using palette embedded in OPENMENU.PIK for menu.
+[2026-10-24 18:05:41] [INFO] Loaded MADSPACK ./COLONIZE/OPENTILE.SS (4 sections)
+[2026-10-24 18:05:41] [INFO] Loaded SS ./COLONIZE/OPENTILE.SS (1 sprites palette=yes mode=0 pflag=1)
+[2026-10-24 18:05:41] [INFO] Loaded title dialog wood OPENTILE.SS (1 sprites)
+[2026-10-24 18:05:41] [INFO] Loaded MADSPACK ./COLONIZE/WOODPANL.PIK (3 sections)
+[2026-10-24 18:05:41] [INFO] Loaded PIK ./COLONIZE/WOODPANL.PIK (320x200 palette=yes)
+[2026-10-24 18:05:41] [INFO] Loaded Colonizopedia wood panel WOODPANL.PIK (320x200)
+[2026-10-24 18:05:41] [INFO] Title menu @COLORS remap: basic 68→254 hilite 149→252 select 138→55 popup mid/light/dark 46/245/55
+[2026-10-24 18:05:41] [INFO] Packed asset WOODPANL.PIK: MADSPACK 2.0 chunks=3
+[2026-10-24 18:05:41] [INFO] Packed asset COLONY.PIK: MADSPACK 2.0 chunks=2
+[2026-10-24 18:05:41] [INFO] Packed asset BUILDING.SS: MADSPACK 2.0 chunks=4
+[2026-10-24 18:05:41] [INFO] Loaded MADSPACK ./COLONIZE/TERRAIN.SS (4 sections)
+[2026-10-24 18:05:41] [INFO] Loaded SS ./COLONIZE/TERRAIN.SS (12 sprites palette=yes mode=0 pflag=1)
+[2026-10-24 18:05:41] [INFO] Loaded terrain sheet with 12 sprites
+[2026-10-24 18:05:41] [INFO] Loaded CYCLE.DAT: 1 cycle(s), first start=120 len=8 step=574ms
+[2026-10-24 18:05:41] [INFO] Loaded MADSPACK ./COLONIZE/PHYS0.SS (4 sections)
+[2026-10-24 18:05:41] [INFO] Loaded SS ./COLONIZE/PHYS0.SS (154 sprites palette=yes mode=0 pflag=1)
+[2026-10-24 18:05:41] [INFO] Loaded PHYS0 overlay sheet with 154 sprites
+[2026-10-24 18:05:41] [INFO] Loaded MADSPACK ./COLONIZE/CURSOR.SS (4 sections)
+[2026-10-24 18:05:41] [INFO] Loaded SS ./COLONIZE/CURSOR.SS (2 sprites palette=yes mode=0 pflag=1)
+[2026-10-24 18:05:41] [INFO] Loaded cursor sheet with 2 sprites
+[2026-10-24 18:05:41] [INFO] Loaded MADSPACK ./COLONIZE/ICONS.SS (4 sections)
+[2026-10-24 18:05:41] [INFO] Loaded SS ./COLONIZE/ICONS.SS (131 sprites palette=yes mode=0 pflag=1)
+[2026-10-24 18:05:41] [INFO] Loaded unit icon sheet with 131 sprites
+[2026-10-24 18:05:41] [INFO] Loaded MADSPACK ./COLONIZE/FONTSMAL.FF (1 sections)
+[2026-10-24 18:05:41] [INFO] Loaded FF font ./COLONIZE/FONTSMAL.FF (8x6, section=1148 bytes)
+[2026-10-24 18:05:41] [INFO] Loaded menu font FONTSMAL.FF (8x6)
+[2026-10-24 18:05:41] [INFO] Loaded MADSPACK ./COLONIZE/FONTINTR.FF (1 sections)
+[2026-10-24 18:05:41] [INFO] Loaded FF font ./COLONIZE/FONTINTR.FF (9x9, section=1898 bytes)
+[2026-10-24 18:05:41] [INFO] Loaded intro font FONTINTR.FF (9x9)
+[2026-10-24 18:05:41] [INFO] Loaded MADSPACK ./COLONIZE/FONTTINY.FF (1 sections)
+[2026-10-24 18:05:41] [INFO] Loaded FF font ./COLONIZE/FONTTINY.FF (6x6, section=914 bytes)
+[2026-10-24 18:05:41] [INFO] Loaded colony font FONTTINY.FF (6x6)
+[2026-10-24 18:05:41] [INFO] Loaded map ./COLONIZE/AMER2.MP (58x72, 4176 tiles)
+[2026-10-24 18:05:41] [INFO] Loaded world map AMER2.MP (58x72), cursor at 29,36
+[2026-10-24 18:05:41] [INFO] Loaded message catalog ./COLONIZE/NAMES.TXT (31 sections)
+[2026-10-24 18:05:41] [INFO] Loaded MADSPACK ./COLONIZE/EUROPE.PIK (3 sections)
+[2026-10-24 18:05:41] [INFO] Loaded PIK ./COLONIZE/EUROPE.PIK (320x200 palette=yes)
+[2026-10-24 18:05:41] [INFO] Loaded MADSPACK ./COLONIZE/WOODTILE.SS (4 sections)
+[2026-10-24 18:05:41] [INFO] Loaded SS ./COLONIZE/WOODTILE.SS (1 sprites palette=yes mode=0 pflag=1)
+[2026-10-24 18:05:41] [INFO] Europe screen loaded (320x200, 16 cargo, 17 train, 6 purchase)
+[2026-10-24 18:05:41] [INFO] Loaded MADSPACK ./COLONIZE/WOODPANL.PIK (3 sections)
+[2026-10-24 18:05:41] [INFO] Loaded PIK ./COLONIZE/WOODPANL.PIK (320x200 palette=yes)
+[2026-10-24 18:05:41] [INFO] Loaded MADSPACK ./COLONIZE/PARCH.SS (4 sections)
+[2026-10-24 18:05:41] [INFO] Loaded SS ./COLONIZE/PARCH.SS (1 sprites palette=yes mode=0 pflag=1)
+[2026-10-24 18:05:41] [INFO] Loaded MADSPACK ./COLONIZE/WOODTILE.SS (4 sections)
+[2026-10-24 18:05:41] [INFO] Loaded SS ./COLONIZE/WOODTILE.SS (1 sprites palette=yes mode=0 pflag=1)
+[2026-10-24 18:05:41] [INFO] Loaded MADSPACK ./COLONIZE/BUILDING.SS (4 sections)
+[2026-10-24 18:05:41] [INFO] Loaded SS ./COLONIZE/BUILDING.SS (48 sprites palette=yes mode=0 pflag=1)
+[2026-10-24 18:05:41] [INFO] Loaded MADSPACK ./COLONIZE/ICONS.SS (4 sections)
+[2026-10-24 18:05:41] [INFO] Loaded SS ./COLONIZE/ICONS.SS (131 sprites palette=yes mode=0 pflag=1)
+[2026-10-24 18:05:41] [INFO] Loaded MADSPACK ./COLONIZE/COLONY.PIK (2 sections)
+[2026-10-24 18:05:41] [INFO] Loaded PIK ./COLONIZE/COLONY.PIK (320x72 palette=no)
+[2026-10-24 18:05:41] [INFO] Loaded MADSPACK ./COLONIZE/FONTINTR.FF (1 sections)
+[2026-10-24 18:05:41] [INFO] Loaded FF font ./COLONIZE/FONTINTR.FF (9x9, section=1898 bytes)
+[2026-10-24 18:05:41] [INFO] Colony screen loaded (WOODPANL 320x200, PARCH 1, WOODTILE 1, BUILDING 48, ICONS 131, COLONY.PIK 320x72)
+[2026-10-24 18:05:41] [INFO] Loaded message catalog ./COLONIZE/NAMES.TXT (31 sections)
+[2026-10-24 18:05:41] [INFO] Loaded message catalog ./COLONIZE/LABELS.TXT (7 sections)
+[2026-10-24 18:05:41] [INFO] Loaded MADSPACK ./COLONIZE/REPORT2.PIK (3 sections)
+[2026-10-24 18:05:41] [INFO] Loaded PIK ./COLONIZE/REPORT2.PIK (320x200 palette=yes)
+[2026-10-24 18:05:41] [INFO] Loaded MADSPACK ./COLONIZE/CCBKGD.PIK (3 sections)
+[2026-10-24 18:05:41] [INFO] Loaded PIK ./COLONIZE/CCBKGD.PIK (320x200 palette=yes)
+[2026-10-24 18:05:41] [INFO] Loaded MADSPACK ./COLONIZE/REPORT4.PIK (3 sections)
+[2026-10-24 18:05:41] [INFO] Loaded PIK ./COLONIZE/REPORT4.PIK (320x200 palette=yes)
+[2026-10-24 18:05:41] [INFO] Loaded MADSPACK ./COLONIZE/REPORT5.PIK (3 sections)
+[2026-10-24 18:05:41] [INFO] Loaded PIK ./COLONIZE/REPORT5.PIK (320x200 palette=yes)
+[2026-10-24 18:05:41] [INFO] Loaded MADSPACK ./COLONIZE/REPORT6.PIK (3 sections)
+[2026-10-24 18:05:41] [INFO] Loaded PIK ./COLONIZE/REPORT6.PIK (320x200 palette=yes)
+[2026-10-24 18:05:41] [INFO] Loaded MADSPACK ./COLONIZE/REPORT7.PIK (3 sections)
+[2026-10-24 18:05:41] [INFO] Loaded PIK ./COLONIZE/REPORT7.PIK (320x200 palette=yes)
+[2026-10-24 18:05:41] [INFO] Loaded MADSPACK ./COLONIZE/REPORT8.PIK (3 sections)
+[2026-10-24 18:05:41] [INFO] Loaded PIK ./COLONIZE/REPORT8.PIK (320x200 palette=yes)
+[2026-10-24 18:05:41] [INFO] Loaded MADSPACK ./COLONIZE/REPORT9.PIK (3 sections)
+[2026-10-24 18:05:41] [INFO] Loaded PIK ./COLONIZE/REPORT9.PIK (320x200 palette=yes)
+[2026-10-24 18:05:41] [INFO] Loaded MADSPACK ./COLONIZE/WOODPANL.PIK (3 sections)
+[2026-10-24 18:05:41] [INFO] Loaded PIK ./COLONIZE/WOODPANL.PIK (320x200 palette=yes)
+[2026-10-24 18:05:41] [INFO] Loaded MADSPACK ./COLONIZE/WOODPAN2.PIK (3 sections)
+[2026-10-24 18:05:41] [INFO] Loaded PIK ./COLONIZE/WOODPAN2.PIK (320x200 palette=yes)
+[2026-10-24 18:05:41] [INFO] Loaded MADSPACK ./COLONIZE/FONTTINY.FF (1 sections)
+[2026-10-24 18:05:41] [INFO] Loaded FF font ./COLONIZE/FONTTINY.FF (6x6, section=914 bytes)
+[2026-10-24 18:05:41] [INFO] Loaded MADSPACK ./COLONIZE/REPORT3.PIK (3 sections)
+[2026-10-24 18:05:41] [INFO] Loaded PIK ./COLONIZE/REPORT3.PIK (320x200 palette=yes)
+[2026-10-24 18:05:41] [INFO] Loaded MADSPACK ./COLONIZE/ICONS.SS (4 sections)
+[2026-10-24 18:05:41] [INFO] Loaded SS ./COLONIZE/ICONS.SS (131 sprites palette=yes mode=0 pflag=1)
+[2026-10-24 18:05:41] [INFO] Loaded MADSPACK ./COLONIZE/ICONS.SS (4 sections)
+[2026-10-24 18:05:41] [INFO] Loaded SS ./COLONIZE/ICONS.SS (131 sprites palette=yes mode=0 pflag=1)
+[2026-10-24 18:05:41] [INFO] Loaded MADSPACK ./COLONIZE/ICONS.SS (4 sections)
+[2026-10-24 18:05:41] [INFO] Loaded SS ./COLONIZE/ICONS.SS (131 sprites palette=yes mode=0 pflag=1)
+[2026-10-24 18:05:41] [INFO] Loaded MADSPACK ./COLONIZE/ICONS.SS (4 sections)
+[2026-10-24 18:05:41] [INFO] Loaded SS ./COLONIZE/ICONS.SS (131 sprites palette=yes mode=0 pflag=1)
+[2026-10-24 18:05:41] [INFO] Loaded MADSPACK ./COLONIZE/ICONS.SS (4 sections)
+[2026-10-24 18:05:41] [INFO] Loaded SS ./COLONIZE/ICONS.SS (131 sprites palette=yes mode=0 pflag=1)
+[2026-10-24 18:05:41] [INFO] Loaded MADSPACK ./COLONIZE/ICONS.SS (4 sections)
+[2026-10-24 18:05:41] [INFO] Loaded SS ./COLONIZE/ICONS.SS (131 sprites palette=yes mode=0 pflag=1)
+[2026-10-24 18:05:41] [INFO] Loaded MADSPACK ./COLONIZE/ICONS.SS (4 sections)
+[2026-10-24 18:05:41] [INFO] Loaded SS ./COLONIZE/ICONS.SS (131 sprites palette=yes mode=0 pflag=1)
+[2026-10-24 18:05:41] [INFO] Loaded MADSPACK ./COLONIZE/ICONS.SS (4 sections)
+[2026-10-24 18:05:41] [INFO] Loaded SS ./COLONIZE/ICONS.SS (131 sprites palette=yes mode=0 pflag=1)
+[2026-10-24 18:05:41] [INFO] Loaded MADSPACK ./COLONIZE/ICONS.SS (4 sections)
+[2026-10-24 18:05:41] [INFO] Loaded SS ./COLONIZE/ICONS.SS (131 sprites palette=yes mode=0 pflag=1)
+[2026-10-24 18:05:41] [INFO] Loaded MADSPACK ./COLONIZE/ICONS.SS (4 sections)
+[2026-10-24 18:05:41] [INFO] Loaded SS ./COLONIZE/ICONS.SS (131 sprites palette=yes mode=0 pflag=1)
+[2026-10-24 18:05:41] [INFO] Report screens loaded (9/9 backgrounds)
+[2026-10-24 18:05:41] [INFO] Loaded MADSPACK ./COLONIZE/BUILDING.SS (4 sections)
+[2026-10-24 18:05:41] [INFO] Loaded SS ./COLONIZE/BUILDING.SS (48 sprites palette=yes mode=0 pflag=1)
+[2026-10-24 18:05:41] [INFO] Loaded BUILDING.SS for Colonizopedia (48 sprites)
+[2026-10-24 18:05:41] [INFO] Game config save_dir=automated-playtests/campaign2/saves
+[2026-10-24 18:05:41] [INFO] col1_save_read_file automated-playtests/campaign2/saves/t13.sav: turn=13 year=1505 colonies=6 units=74 tribes=63 map=58x72
+[2026-10-24 18:05:41] [INFO] Spawned unit id=1 type=Pioneers at (37,11)
+[2026-10-24 18:05:41] [INFO] Spawned unit id=2 type=Caravel at (50,41)
+[2026-10-24 18:05:41] [INFO] Spawned unit id=3 type=Caravel at (52,22)
+[2026-10-24 18:05:41] [INFO] Spawned unit id=4 type=Soldiers at (48,24)
+[2026-10-24 18:05:41] [INFO] Spawned unit id=5 type=Merchantman at (35,50)
+[2026-10-24 18:05:41] [INFO] Spawned unit id=6 type=Braves at (10,25)
+[2026-10-24 18:05:41] [INFO] Spawned unit id=7 type=Braves at (27,43)
+[2026-10-24 18:05:41] [INFO] Spawned unit id=8 type=Braves at (46,26)
+[2026-10-24 18:05:41] [INFO] Spawned unit id=9 type=Braves at (12,48)
+[2026-10-24 18:05:41] [INFO] Spawned unit id=10 type=Braves at (45,40)
+[2026-10-24 18:05:41] [INFO] Spawned unit id=11 type=Braves at (23,16)
+[2026-10-24 18:05:41] [INFO] Spawned unit id=12 type=Braves at (23,29)
+[2026-10-24 18:05:41] [INFO] Spawned unit id=13 type=Braves at (37,44)
+[2026-10-24 18:05:41] [INFO] Spawned unit id=14 type=Braves at (44,22)
+[2026-10-24 18:05:41] [INFO] Spawned unit id=15 type=Braves at (12,40)
+[2026-10-24 18:05:41] [INFO] Spawned unit id=16 type=Braves at (19,29)
+[2026-10-24 18:05:41] [INFO] Spawned unit id=17 type=Braves at (18,29)
+[2026-10-24 18:05:41] [INFO] Spawned unit id=18 type=Braves at (21,30)
+[2026-10-24 18:05:41] [INFO] Spawned unit id=19 type=Braves at (47,45)
+[2026-10-24 18:05:41] [INFO] Spawned unit id=20 type=Braves at (21,45)
+[2026-10-24 18:05:41] [INFO] Spawned unit id=21 type=Braves at (14,26)
+[2026-10-24 18:05:41] [INFO] Spawned unit id=22 type=Braves at (42,42)
+[2026-10-24 18:05:41] [INFO] Spawned unit id=23 type=Braves at (38,27)
+[2026-10-24 18:05:41] [INFO] Spawned unit id=24 type=Braves at (44,28)
+[2026-10-24 18:05:41] [INFO] Spawned unit id=25 type=Braves at (42,34)
+[2026-10-24 18:05:41] [INFO] Spawned unit id=26 type=Braves at (26,28)
+[2026-10-24 18:05:41] [INFO] Spawned unit id=27 type=Braves at (14,53)
+[2026-10-24 18:05:41] [INFO] Spawned unit id=28 type=Braves at (15,53)
+[2026-10-24 18:05:41] [INFO] Spawned unit id=29 type=Braves at (22,42)
+[2026-10-24 18:05:41] [INFO] Spawned unit id=30 type=Braves at (27,42)
+[2026-10-24 18:05:41] [INFO] Spawned unit id=31 type=Braves at (52,40)
+[2026-10-24 18:05:41] [INFO] Spawned unit id=32 type=Braves at (17,47)
+[2026-10-24 18:05:41] [INFO] Spawned unit id=33 type=Braves at (40,52)
+[2026-10-24 18:05:41] [INFO] Spawned unit id=34 type=Braves at (17,55)
+[2026-10-24 18:05:41] [INFO] Spawned unit id=35 type=Braves at (26,25)
+[2026-10-24 18:05:41] [INFO] Spawned unit id=36 type=Braves at (48,38)
+[2026-10-24 18:05:41] [INFO] Spawned unit id=37 type=Braves at (32,47)
+[2026-10-24 18:05:41] [INFO] Spawned unit id=38 type=Braves at (47,27)
+[2026-10-24 18:05:41] [INFO] Spawned unit id=39 type=Braves at (15,41)
+[2026-10-24 18:05:41] [INFO] Spawned unit id=40 type=Braves at (37,42)
+[2026-10-24 18:05:41] [INFO] Spawned unit id=41 type=Braves at (49,32)
+[2026-10-24 18:05:41] [INFO] Spawned unit id=42 type=Braves at (23,21)
+[2026-10-24 18:05:41] [INFO] Spawned unit id=43 type=Braves at (40,53)
+[2026-10-24 18:05:41] [INFO] Spawned unit id=44 type=Braves at (33,34)
+[2026-10-24 18:05:41] [INFO] Spawned unit id=45 type=Braves at (13,39)
+[2026-10-24 18:05:41] [INFO] Spawned unit id=46 type=Braves at (8,47)
+[2026-10-24 18:05:41] [INFO] Spawned unit id=47 type=Braves at (39,31)
+[2026-10-24 18:05:41] [INFO] Spawned unit id=48 type=Braves at (34,31)
+[2026-10-24 18:05:41] [INFO] Spawned unit id=49 type=Braves at (8,24)
+[2026-10-24 18:05:41] [INFO] Spawned unit id=50 type=Braves at (13,24)
+[2026-10-24 18:05:41] [INFO] Spawned unit id=51 type=Braves at (22,63)
+[2026-10-24 18:05:41] [INFO] Spawned unit id=52 type=Braves at (38,9)
+[2026-10-24 18:05:41] [INFO] Spawned unit id=53 type=Braves at (14,58)
+[2026-10-24 18:05:41] [INFO] Spawned unit id=54 type=Braves at (51,36)
+[2026-10-24 18:05:41] [INFO] Spawned unit id=55 type=Braves at (44,33)
+[2026-10-24 18:05:41] [INFO] Spawned unit id=56 type=Braves at (34,42)
+[2026-10-24 18:05:41] [INFO] Spawned unit id=57 type=Braves at (34,9)
+[2026-10-24 18:05:41] [INFO] Spawned unit id=58 type=Braves at (9,56)
+[2026-10-24 18:05:41] [INFO] Spawned unit id=59 type=Braves at (29,68)
+[2026-10-24 18:05:41] [INFO] Spawned unit id=60 type=Braves at (16,59)
+[2026-10-24 18:05:41] [INFO] Spawned unit id=61 type=Braves at (36,5)
+[2026-10-24 18:05:41] [INFO] Spawned unit id=62 type=Braves at (42,6)
+[2026-10-24 18:05:41] [INFO] Spawned unit id=63 type=Braves at (7,61)
+[2026-10-24 18:05:41] [INFO] Spawned unit id=64 type=Braves at (10,61)
+[2026-10-24 18:05:41] [INFO] Spawned unit id=65 type=Braves at (17,68)
+[2026-10-24 18:05:41] [INFO] Spawned unit id=66 type=Braves at (10,66)
+[2026-10-24 18:05:41] [INFO] Spawned unit id=67 type=Braves at (40,12)
+[2026-10-24 18:05:41] [INFO] Spawned unit id=68 type=Braves at (9,65)
+[2026-10-24 18:05:41] [INFO] Spawned unit id=69 type=Colonists at (237,237)
+[2026-10-24 18:05:41] [INFO] Spawned unit id=70 type=Missionaries at (238,238)
+[2026-10-24 18:05:41] [INFO] Spawned unit id=71 type=Colonists at (239,239)
+[2026-10-24 18:05:41] [INFO] Spawned unit id=72 type=Caravel at (37,14)
+[2026-10-24 18:05:41] [INFO] Spawned unit id=73 type=Scouts at (37,14)
+[2026-10-24 18:05:41] [INFO] Spawned unit id=74 type=Colonists at (37,14)
+[2026-10-24 18:05:41] [INFO] col1_bridge_apply: turn=13 year=1505 nation=0 units=74 colonies=6 europe_skip=3
+[2026-10-24 18:05:41] [INFO] VIEW (none) -> map
+[2026-10-24 18:05:41] [INFO] [map] Render mode=map framebuffer=320x200 palette=VICEROY.PAL
+[2026-10-24 18:05:41] [INFO] [map] Framebuffer sample frame=1 mode=map idx0=135 idx_center=59 turn=13 cursor=37,14
+[2026-10-24 18:05:47] [INFO] [map] Key pressed: B (menu=no debug=no pedia=no europe=no colony=no report=no turn=13 cursor=37,14)
+[2026-10-24 18:05:47] [INFO] [map] COMMAND join_colony (unit Colonists id=74 at (37,14) mp=3)
+[2026-10-24 18:05:58] [INFO] [map] Framebuffer sample frame=60 mode=map idx0=135 idx_center=59 turn=13 cursor=37,14
+[2026-10-24 18:05:58] [INFO] VIEW map -> colony:Jamestown
+[2026-10-24 18:05:58] [INFO] [colony:Jamestown] COLONY opened Jamestown (id=0 at (37,14) nation=0 pop=2 SoL=3% food=10 hammers=0 project=Docks)
+[2026-10-24 18:06:13] [INFO] [colony:Jamestown] Key pressed: DOWN (menu=no debug=no pedia=no europe=no colony=yes report=no turn=13 cursor=37,14)
+[2026-10-24 18:06:13] [INFO] [colony:Jamestown] Key pressed: ENTER (menu=no debug=no pedia=no europe=no colony=yes report=no turn=13 cursor=37,14)
+[2026-10-24 18:06:13] [INFO] [colony:Jamestown] COLONY Jamestown: colonist #0 job=21 -> field tile 7 as Lumberjack
+[2026-10-24 18:06:20] [INFO] [colony:Jamestown] Key pressed: DOWN (menu=no debug=no pedia=no europe=no colony=yes report=no turn=13 cursor=37,14)
+[2026-10-24 18:06:20] [INFO] [colony:Jamestown] Key pressed: DOWN (menu=no debug=no pedia=no europe=no colony=yes report=no turn=13 cursor=37,14)
+[2026-10-24 18:06:20] [INFO] [colony:Jamestown] Key pressed: DOWN (menu=no debug=no pedia=no europe=no colony=yes report=no turn=13 cursor=37,14)
+[2026-10-24 18:06:20] [INFO] [colony:Jamestown] Key pressed: DOWN (menu=no debug=no pedia=no europe=no colony=yes report=no turn=13 cursor=37,14)
+[2026-10-24 18:06:20] [INFO] [colony:Jamestown] Key pressed: DOWN (menu=no debug=no pedia=no europe=no colony=yes report=no turn=13 cursor=37,14)
+[2026-10-24 18:06:20] [INFO] [colony:Jamestown] Key pressed: DOWN (menu=no debug=no pedia=no europe=no colony=yes report=no turn=13 cursor=37,14)
+[2026-10-24 18:06:20] [INFO] [colony:Jamestown] Key pressed: DOWN (menu=no debug=no pedia=no europe=no colony=yes report=no turn=13 cursor=37,14)
+[2026-10-24 18:06:20] [INFO] [colony:Jamestown] Key pressed: DOWN (menu=no debug=no pedia=no europe=no colony=yes report=no turn=13 cursor=37,14)
+[2026-10-24 18:06:20] [INFO] [colony:Jamestown] Key pressed: DOWN (menu=no debug=no pedia=no europe=no colony=yes report=no turn=13 cursor=37,14)
+[2026-10-24 18:06:20] [INFO] [colony:Jamestown] Key pressed: DOWN (menu=no debug=no pedia=no europe=no colony=yes report=no turn=13 cursor=37,14)
+[2026-10-24 18:06:20] [INFO] [colony:Jamestown] Key pressed: DOWN (menu=no debug=no pedia=no europe=no colony=yes report=no turn=13 cursor=37,14)
+[2026-10-24 18:06:20] [INFO] [colony:Jamestown] Framebuffer sample frame=300 mode=colony:Jamestown idx0=135 idx_center=134 turn=13 cursor=37,14
+[2026-10-24 18:06:25] [INFO] [colony:Jamestown] Key pressed: UP (menu=no debug=no pedia=no europe=no colony=yes report=no turn=13 cursor=37,14)
+[2026-10-24 18:06:25] [INFO] [colony:Jamestown] Key pressed: UP (menu=no debug=no pedia=no europe=no colony=yes report=no turn=13 cursor=37,14)
+[2026-10-24 18:06:25] [INFO] [colony:Jamestown] Key pressed: ENTER (menu=no debug=no pedia=no europe=no colony=yes report=no turn=13 cursor=37,14)
+[2026-10-24 18:06:25] [INFO] [colony:Jamestown] COLONY Jamestown: colonist #0 job=21 -> Blacksmith's House
+[2026-10-24 18:06:38] [INFO] [colony:Jamestown] COLONY Jamestown: colonist #1 job=25 -> field tile 7 as Farmer
+[2026-10-24 18:06:43] [INFO] [colony:Jamestown] Key pressed: DOWN (menu=no debug=no pedia=no europe=no colony=yes report=no turn=13 cursor=37,14)
+[2026-10-24 18:06:43] [INFO] [colony:Jamestown] Key pressed: DOWN (menu=no debug=no pedia=no europe=no colony=yes report=no turn=13 cursor=37,14)
+[2026-10-24 18:06:43] [INFO] [colony:Jamestown] Key pressed: DOWN (menu=no debug=no pedia=no europe=no colony=yes report=no turn=13 cursor=37,14)
+[2026-10-24 18:06:43] [INFO] [colony:Jamestown] Key pressed: DOWN (menu=no debug=no pedia=no europe=no colony=yes report=no turn=13 cursor=37,14)
+[2026-10-24 18:06:43] [INFO] [colony:Jamestown] Key pressed: DOWN (menu=no debug=no pedia=no europe=no colony=yes report=no turn=13 cursor=37,14)
+[2026-10-24 18:06:43] [INFO] [colony:Jamestown] Key pressed: ENTER (menu=no debug=no pedia=no europe=no colony=yes report=no turn=13 cursor=37,14)
+[2026-10-24 18:06:43] [INFO] [colony:Jamestown] COLONY Jamestown: colonist #1 job=25 -> field tile 7 as Lumberjack
+[2026-10-24 18:06:52] [INFO] [colony:Jamestown] COLONY Jamestown: colonist #0 job=21 -> Carpenter's Shop
+[2026-10-24 18:06:57] [INFO] [colony:Jamestown] Key pressed: ESCAPE (menu=no debug=no pedia=no europe=no colony=yes report=no turn=13 cursor=37,14)
+[2026-10-24 18:06:57] [INFO] [colony:Jamestown] Left colony screen.
+[2026-10-24 18:06:57] [INFO] VIEW colony:Jamestown -> map
+[2026-10-24 18:07:01] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=13 cursor=37,14)
+[2026-10-24 18:07:01] [INFO] [map] POPUP queued tag=CONTACT_MEET kind=choice choices=4 queue=1
+[2026-10-24 18:07:01] [INFO] [map] POPUP show tag=CONTACT_MEET kind=choice title="-" ctx=(a=0 b=6 payload=296) body="Your expedition has reached a Village of {Arawaks}.  The inhabitants are busy in the surrounding fields.  As they wave to you {happily}, you notice a collection of scalps hanging threateningly from a nearby tree." choices=[9]Ask to Speak With Chief [3]Demand Tribute [11]Attack Village [5]Cancel Action
+[2026-10-24 18:07:01] [INFO] [map] Loaded MADSPACK ./COLONIZE/WDCUT07.SS (4 sections)
+[2026-10-24 18:07:01] [INFO] [map] Loaded SS ./COLONIZE/WDCUT07.SS (1 sprites palette=yes mode=0 pflag=1)
+[2026-10-24 18:07:01] [INFO] [map] Loaded MADSPACK ./COLONIZE/WOODFRAM.SS (4 sections)
+[2026-10-24 18:07:01] [INFO] [map] Loaded SS ./COLONIZE/WOODFRAM.SS (1 sprites palette=yes mode=0 pflag=1)
+[2026-10-24 18:07:01] [INFO] [map] Loaded MADSPACK ./COLONIZE/NAMEPLAT.SS (4 sections)
+[2026-10-24 18:07:01] [INFO] [map] Loaded SS ./COLONIZE/NAMEPLAT.SS (3 sprites palette=yes mode=0 pflag=1)
+[2026-10-24 18:07:01] [INFO] [map] Loaded MADSPACK ./COLONIZE/FONT-NP.FF (1 sections)
+[2026-10-24 18:07:01] [INFO] [map] Loaded FF font ./COLONIZE/FONT-NP.FF (11x8, section=914 bytes)
+[2026-10-24 18:07:01] [INFO] [map] Loaded message catalog ./COLONIZE/WOODCUT.TXT (1 sections)
+[2026-10-24 18:07:01] [INFO] [map] Woodcut 7: ENTERING INDIAN VILLAGE
+[2026-10-24 18:07:01] [INFO] VIEW map -> woodcut
+[2026-10-24 18:07:04] [INFO] VIEW woodcut -> map
+[2026-10-24 18:07:08] [INFO] [map] Key pressed: ENTER (menu=no debug=no pedia=no europe=no colony=no report=no turn=13 cursor=37,14)
+[2026-10-24 18:07:08] [INFO] [map] POPUP answered tag=CONTACT_MEET picked id=9 choice="Ask to Speak With Chief" ctx=(a=0 b=6 payload=296)
+[2026-10-24 18:07:08] [INFO] [map] POPUP queued tag=CONTACT_MEET kind=message choices=0 queue=1
+[2026-10-24 18:07:08] [INFO] [map] POPUP queued tag=CONTACT_MEET kind=message choices=0 queue=2
+[2026-10-24 18:07:08] [INFO] [map] POPUP show tag=CONTACT_MEET kind=message title="-" ctx=(a=0 b=6 payload=0) body=""Greetings, travelers.  We are a peaceful village known for our {Expert Fishermen}.  We would gladly trade with you if you bring us some badly needed {Tools}.  We would also pay well for {Cloth} or {Coats}."
+[2026-10-24 18:07:08] [INFO] [map] Loaded MADSPACK ./COLONIZE/IND2A0.SS (4 sections)
+[2026-10-24 18:07:08] [INFO] [map] Loaded SS ./COLONIZE/IND2A0.SS (2 sprites palette=yes mode=0 pflag=1)
+[2026-10-24 18:07:08] [INFO] [map] Key pressed: ENTER (menu=no debug=no pedia=no europe=no colony=no report=no turn=13 cursor=37,14)
+[2026-10-24 18:07:08] [INFO] [map] POPUP answered tag=CONTACT_MEET dismissed id=0 choice="-" ctx=(a=0 b=6 payload=0)
+[2026-10-24 18:07:08] [INFO] [map] POPUP show tag=CONTACT_MEET kind=message title="-" ctx=(a=0 b=6 payload=0) body=""The {Arawak} are pleased to welcome travelers from afar.  Come sit by the fire and we shall tell you tales of {nearby lands}.""
+[2026-10-24 18:07:08] [INFO] [map] Key pressed: ENTER (menu=no debug=no pedia=no europe=no colony=no report=no turn=13 cursor=37,14)
+[2026-10-24 18:07:08] [INFO] [map] POPUP answered tag=CONTACT_MEET dismissed id=0 choice="-" ctx=(a=0 b=6 payload=0)
+[2026-10-24 18:07:23] [INFO] VIEW map -> colony:Jamestown
+[2026-10-24 18:07:23] [INFO] [colony:Jamestown] COLONY opened Jamestown (id=0 at (37,14) nation=0 pop=2 SoL=3% food=10 hammers=0 project=Docks)
+[2026-10-24 18:07:23] [INFO] [colony:Jamestown] CARGO Jamestown -> unit 72: cargo 4 x40 (colony stock 0)
+[2026-10-24 18:07:32] [INFO] [colony:Jamestown] CARGO Jamestown -> unit 72: cargo 6 x40 (colony stock 0)
+[2026-10-24 18:07:35] [INFO] [colony:Jamestown] Key pressed: ESCAPE (menu=no debug=no pedia=no europe=no colony=yes report=no turn=13 cursor=37,14)
+[2026-10-24 18:07:35] [INFO] [colony:Jamestown] Left colony screen.
+[2026-10-24 18:07:35] [INFO] VIEW colony:Jamestown -> map
+[2026-10-24 18:07:35] [INFO] [map] Key pressed: ENTER (menu=no debug=no pedia=no europe=no colony=no report=no turn=13 cursor=37,14)
+[2026-10-24 18:07:35] [INFO] VIEW map -> colony:Jamestown
+[2026-10-24 18:07:35] [INFO] [colony:Jamestown] COLONY opened Jamestown (id=0 at (37,14) nation=0 pop=2 SoL=3% food=10 hammers=0 project=Docks)
+[2026-10-24 18:07:41] [INFO] [colony:Jamestown] Key pressed: ESCAPE (menu=no debug=no pedia=no europe=no colony=yes report=no turn=13 cursor=37,14)
+[2026-10-24 18:07:41] [INFO] [colony:Jamestown] Left colony screen.
+[2026-10-24 18:07:41] [INFO] VIEW colony:Jamestown -> map
+[2026-10-24 18:07:46] [INFO] [map] TURN setup: turn=13 year=1505 autumn=0 human=0
+[2026-10-24 18:07:46] [INFO] [map] TURN european nation 1
+[2026-10-24 18:07:46] [INFO] [map] PROD Montreal (id=3 nation=1 pop=1 SoL=2%): food +1, hammers +0 (0) building=-
+[2026-10-24 18:07:46] [INFO] [map] PROD   Montreal: Food +1 (5), Furs +2 (8), Ore +4 (20)
+[2026-10-24 18:07:46] [INFO] [map] PROD Quebec (id=1 nation=1 pop=1 SoL=5%): food +1, hammers +0 (0) building=-
+[2026-10-24 18:07:46] [INFO] [map] PROD   Quebec: Food +1 (10), Furs +2 (20), Ore +4 (36)
+[2026-10-24 18:07:46] [INFO] [map] COLONY Quebec: colonist #0 off field tile 5
+[2026-10-24 18:07:46] [INFO] [map] COLONY Quebec: colonist #0 job=28 -> field tile 5 as Ore Miner
+[2026-10-24 18:07:46] [INFO] [map] COLONY Quebec: colonist #0 off field tile 5
+[2026-10-24 18:07:46] [INFO] [map] COLONY Quebec: colonist #0 job=28 -> field tile 5 as Ore Miner
+[2026-10-24 18:07:46] [INFO] [map] COLONY Montreal: colonist #0 off field tile 4
+[2026-10-24 18:07:46] [INFO] [map] COLONY Montreal: colonist #0 job=20 -> field tile 4 as Fur Trapper
+[2026-10-24 18:07:46] [INFO] [map] CARGO unit 2 -> Quebec: cargo 14 x100 (colony stock 100, cap 100)
+[2026-10-24 18:07:46] [INFO] [map] CARGO unit 2 -> Quebec: cargo 8 x100 (colony stock 100, cap 100)
+[2026-10-24 18:07:46] [INFO] [map] CARGO Quebec -> unit 2: cargo 8 x100 (colony stock 0)
+[2026-10-24 18:07:46] [INFO] [map] CARGO Quebec -> unit 2: cargo 6 x36 (colony stock 0)
+[2026-10-24 18:07:46] [INFO] [map] MOVE Caravel id=2 nation=1 at (51,42) mp=9: (50,41) -> (51,42)
+[2026-10-24 18:07:46] [INFO] [map] MOVE Caravel id=2 nation=1 at (52,43) mp=6: (51,42) -> (52,43)
+[2026-10-24 18:07:46] [INFO] [map] MOVE Caravel id=2 nation=1 at (53,42) mp=3: (52,43) -> (53,42)
+[2026-10-24 18:07:46] [INFO] [map] MOVE Caravel id=2 nation=1 at (54,41) mp=0: (53,42) -> (54,41)
+[2026-10-24 18:07:46] [INFO] [map] TURN european nation 2
+[2026-10-24 18:07:46] [INFO] [map] PROD Isabella (id=2 nation=2 pop=1 SoL=4%): food +1, hammers +0 (0) building=-
+[2026-10-24 18:07:46] [INFO] [map] PROD   Isabella: Food +1 (9), Sugar +2 (18), Silver +3 (3)
+[2026-10-24 18:07:46] [INFO] [map] COLONY Isabella: colonist #0 off field tile 0
+[2026-10-24 18:07:46] [INFO] [map] COLONY Isabella: colonist #0 job=28 -> field tile 0 as Silver Miner
+[2026-10-24 18:07:46] [INFO] [map] COLONY Isabella: colonist #0 off field tile 0
+[2026-10-24 18:07:46] [INFO] [map] COLONY Isabella: colonist #0 job=28 -> field tile 0 as Silver Miner
+[2026-10-24 18:07:46] [INFO] [map] MOVE Soldiers id=4 nation=2 at (48,23) mp=-6: (48,24) -> (48,23)
+[2026-10-24 18:07:46] [INFO] [map] MOVE Caravel id=3 nation=2 at (53,21) mp=9: (52,22) -> (53,21)
+[2026-10-24 18:07:46] [INFO] [map] TURN european nation 3
+[2026-10-24 18:07:46] [INFO] [map] PROD Fort Orange (id=5 nation=3 pop=1 SoL=0%): food +1, hammers +0 (0) building=Docks
+[2026-10-24 18:07:46] [INFO] [map] PROD   Fort Orange: Food +1 (1), Furs +2 (2), Ore +4 (4)
+[2026-10-24 18:07:46] [INFO] [map] PROD New Amsterdam (id=4 nation=3 pop=1 SoL=2%): food +1, hammers +0 (0) building=-
+[2026-10-24 18:07:46] [INFO] [map] PROD   New Amsterdam: Food +1 (5), Furs +4 (16), Ore +5 (25)
+[2026-10-24 18:07:46] [INFO] [map] COLONY New Amsterdam: colonist #0 off field tile 2
+[2026-10-24 18:07:46] [INFO] [map] COLONY New Amsterdam: colonist #0 job=28 -> field tile 2 as Fur Trapper
+[2026-10-24 18:07:46] [INFO] [map] COLONY New Amsterdam: colonist #0 off field tile 2
+[2026-10-24 18:07:46] [INFO] [map] COLONY New Amsterdam: colonist #0 job=28 -> field tile 2 as Fur Trapper
+[2026-10-24 18:07:46] [INFO] [map] COLONY Fort Orange: colonist #0 off field tile 7
+[2026-10-24 18:07:46] [INFO] [map] COLONY Fort Orange: colonist #0 job=22 -> field tile 4 as Lumberjack
+[2026-10-24 18:07:46] [INFO] [map] CARGO unit 5 -> Fort Orange: cargo 15 x100 (colony stock 100, cap 100)
+[2026-10-24 18:07:46] [INFO] [map] CARGO unit 5 -> Fort Orange: cargo 14 x100 (colony stock 200, cap 100)
+[2026-10-24 18:07:46] [INFO] [map] CARGO unit 5 -> Fort Orange: cargo 13 x100 (colony stock 100, cap 100)
+[2026-10-24 18:07:46] [INFO] [map] CARGO unit 5 -> Fort Orange: cargo 12 x100 (colony stock 100, cap 100)
+[2026-10-24 18:07:46] [INFO] [map] CARGO Fort Orange -> unit 5: cargo 12 x100 (colony stock 0)
+[2026-10-24 18:07:46] [INFO] [map] CARGO Fort Orange -> unit 5: cargo 6 x4 (colony stock 0)
+[2026-10-24 18:07:46] [INFO] [map] CARGO Fort Orange -> unit 5: cargo 4 x2 (colony stock 0)
+[2026-10-24 18:07:46] [INFO] [map] MOVE Merchantman id=5 nation=3 at (34,51) mp=12: (35,50) -> (34,51)
+[2026-10-24 18:07:46] [INFO] [map] MOVE Merchantman id=5 nation=3 at (33,52) mp=9: (34,51) -> (33,52)
+[2026-10-24 18:07:46] [INFO] [map] MOVE Merchantman id=5 nation=3 at (32,53) mp=6: (33,52) -> (32,53)
+[2026-10-24 18:07:46] [INFO] [map] MOVE Merchantman id=5 nation=3 at (32,54) mp=3: (32,53) -> (32,54)
+[2026-10-24 18:07:46] [INFO] [map] MOVE Merchantman id=5 nation=3 at (32,55) mp=0: (32,54) -> (32,55)
+[2026-10-24 18:07:46] [INFO] [map] TURN native nation 4
+[2026-10-24 18:07:46] [INFO] [map] TURN native nation 5
+[2026-10-24 18:07:46] [INFO] [map] TURN native nation 6
+[2026-10-24 18:07:46] [INFO] [map] TURN native nation 7
+[2026-10-24 18:07:46] [INFO] [map] TURN native nation 8
+[2026-10-24 18:07:46] [INFO] [map] TURN native nation 9
+[2026-10-24 18:07:46] [INFO] [map] TURN native nation 10
+[2026-10-24 18:07:46] [INFO] [map] TURN native nation 11
+[2026-10-24 18:07:46] [INFO] [map] PROD Jamestown (id=0 nation=0 pop=2 SoL=3%): food -1, hammers +3 (3) building=Docks
+[2026-10-24 18:07:46] [INFO] [map] PROD   Jamestown: Food -1 (9), Lumber +5 (5), Ore +4 (4)
+[2026-10-24 18:07:46] [INFO] [map] turn_end: turn=14 year=1506 autumn=0 colonies=6 shortages=1 immigrants=0
+[2026-10-24 18:07:46] [INFO] [map] Save directory exists: automated-playtests/campaign2/saves
+[2026-10-24 18:07:46] [INFO] [map] col1_save_write_file automated-playtests/campaign2/saves/COLONY09.SAV (28438 bytes)
+[2026-10-24 18:07:46] [INFO] [map] Turn autosave → COLONY09.SAV
+[2026-10-24 18:07:46] [INFO] [map] col1_save_write_file automated-playtests/campaign2/saves/trace_autosave_turn_014.sav (28438 bytes)
+[2026-10-24 18:07:46] [INFO] [map] Trace autosave → trace_autosave_turn_014.sav
+[2026-10-24 18:07:49] [INFO] [map] Key pressed: G (menu=no debug=no pedia=no europe=no colony=no report=no turn=14 cursor=37,14)
+[2026-10-24 18:07:49] [INFO] [map] COMMAND goto_port (unit Caravel id=72 at (37,14) mp=12)
+[2026-10-24 18:07:49] [INFO] VIEW map -> list dialog
+[2026-10-24 18:07:49] [INFO] [list dialog] Key pressed: ENTER (menu=no debug=no pedia=no europe=no colony=no report=no turn=14 cursor=37,14)
+[2026-10-24 18:07:49] [INFO] [list dialog] ORDER Caravel id=72 nation=0 at (37,14) mp=12: goto (43,17)
+[2026-10-24 18:07:49] [INFO] VIEW list dialog -> map
+[2026-10-24 18:07:49] [INFO] [map] MOVE Caravel id=72 nation=0 at (38,14) mp=9: (37,14) -> (38,14)
+[2026-10-24 18:07:49] [INFO] [map] MOVE Caravel id=72 nation=0 at (39,14) mp=6: (38,14) -> (39,14)
+[2026-10-24 18:07:49] [INFO] [map] MOVE Caravel id=72 nation=0 at (40,14) mp=3: (39,14) -> (40,14)
+[2026-10-24 18:07:49] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=14 cursor=37,14)
+[2026-10-24 18:07:49] [INFO] [map] POPUP queued tag=CONTACT_MEET kind=choice choices=4 queue=1
+[2026-10-24 18:07:49] [INFO] [map] POPUP show tag=CONTACT_MEET kind=choice title="-" ctx=(a=0 b=6 payload=296) body="Your expedition has reached a Village of {Arawaks}.  The inhabitants are busy in the surrounding fields.  As they wave to you {happily}, you notice a collection of scalps hanging threateningly from a nearby tree." choices=[9]Ask to Speak With Chief [3]Demand Tribute [11]Attack Village [5]Cancel Action
+[2026-10-24 18:07:49] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=14 cursor=37,14)
+[2026-10-24 18:07:53] [INFO] [map] Key pressed: UP (menu=no debug=no pedia=no europe=no colony=no report=no turn=14 cursor=37,14)
+[2026-10-24 18:07:53] [INFO] [map] Key pressed: ENTER (menu=no debug=no pedia=no europe=no colony=no report=no turn=14 cursor=37,14)
+[2026-10-24 18:07:53] [INFO] [map] POPUP answered tag=CONTACT_MEET picked id=5 choice="Cancel Action" ctx=(a=0 b=6 payload=296)
+[2026-10-24 18:07:53] [INFO] [map] MOVE Caravel id=72 nation=0 at (41,15) mp=0: (40,14) -> (41,15)
+[2026-10-24 18:07:53] [INFO] [map] TURN setup: turn=14 year=1506 autumn=0 human=0
+[2026-10-24 18:07:53] [INFO] [map] TURN european nation 1
+[2026-10-24 18:07:53] [INFO] [map] PROD Montreal (id=3 nation=1 pop=1 SoL=3%): food +1, hammers +0 (0) building=-
+[2026-10-24 18:07:53] [INFO] [map] PROD   Montreal: Food +1 (6), Furs +2 (10), Ore +4 (24)
+[2026-10-24 18:07:53] [INFO] [map] PROD Quebec (id=1 nation=1 pop=1 SoL=5%): food +1, hammers +0 (0) building=-
+[2026-10-24 18:07:53] [INFO] [map] PROD   Quebec: Food +1 (11), Furs +2 (22), Ore +4 (4)
+[2026-10-24 18:07:53] [INFO] [map] Spawned unit id=75 type=Pioneers at (50,40)
+[2026-10-24 18:07:53] [INFO] [map] COLONY Quebec: colonist #0 off field tile 5
+[2026-10-24 18:07:53] [INFO] [map] COLONY Quebec: colonist #0 job=28 -> field tile 0 as Fur Trapper
+[2026-10-24 18:07:53] [INFO] [map] COLONY Quebec: colonist #0 off field tile 0
+[2026-10-24 18:07:53] [INFO] [map] COLONY Quebec: colonist #0 job=28 -> field tile 0 as Fur Trapper
+[2026-10-24 18:07:53] [INFO] [map] COLONY Montreal: colonist #0 off field tile 4
+[2026-10-24 18:07:53] [INFO] [map] COLONY Montreal: colonist #0 job=20 -> field tile 4 as Fur Trapper
+[2026-10-24 18:07:53] [INFO] [map] MOVE Caravel id=2 nation=1 at (53,40) mp=9: (54,41) -> (53,40)
+[2026-10-24 18:07:53] [INFO] [map] MOVE Caravel id=2 nation=1 at (52,39) mp=6: (53,40) -> (52,39)
+[2026-10-24 18:07:53] [INFO] [map] MOVE Caravel id=2 nation=1 at (51,38) mp=3: (52,39) -> (51,38)
+[2026-10-24 18:07:53] [INFO] [map] MOVE Caravel id=2 nation=1 at (52,37) mp=0: (51,38) -> (52,37)
+[2026-10-24 18:07:53] [INFO] [map] TURN european nation 2
+[2026-10-24 18:07:53] [INFO] [map] PROD Isabella (id=2 nation=2 pop=1 SoL=5%): food +1, hammers +0 (0) building=-
+[2026-10-24 18:07:53] [INFO] [map] PROD   Isabella: Food +1 (10), Sugar +2 (20), Silver +3 (6)
+[2026-10-24 18:07:53] [INFO] [map] COLONY Isabella: colonist #0 off field tile 0
+[2026-10-24 18:07:53] [INFO] [map] COLONY Isabella: colonist #0 job=28 -> field tile 0 as Silver Miner
+[2026-10-24 18:07:53] [INFO] [map] COLONY Isabella: colonist #0 off field tile 0
+[2026-10-24 18:07:53] [INFO] [map] COLONY Isabella: colonist #0 job=28 -> field tile 0 as Silver Miner
+[2026-10-24 18:07:53] [INFO] [map] MOVE Soldiers id=4 nation=2 at (48,24) mp=0: (48,23) -> (48,24)
+[2026-10-24 18:07:53] [INFO] [map] TURN european nation 3
+[2026-10-24 18:07:53] [INFO] [map] EUROPE dump-sell Fort Orange total 100$ (nation=3, untaxed)
+[2026-10-24 18:07:53] [INFO] [map] PROD Fort Orange (id=5 nation=3 pop=1 SoL=1%): food +1, hammers +0 (0) building=-
+[2026-10-24 18:07:53] [INFO] [map] PROD   Fort Orange: Food +1 (2), Furs +2 (2), Lumber +6 (6), Tools -100 (100)
+[2026-10-24 18:07:53] [INFO] [map] PROD New Amsterdam (id=4 nation=3 pop=1 SoL=3%): food +1, hammers +0 (0) building=-
+[2026-10-24 18:07:53] [INFO] [map] PROD   New Amsterdam: Food +1 (6), Furs +4 (20), Ore +5 (30)
+[2026-10-24 18:07:53] [INFO] [map] Spawned unit id=76 type=Pioneers at (39,49)
+[2026-10-24 18:07:53] [INFO] [map] COLONY New Amsterdam: colonist #0 off field tile 2
+[2026-10-24 18:07:53] [INFO] [map] COLONY New Amsterdam: colonist #0 job=28 -> field tile 6 as Fur Trapper
+[2026-10-24 18:07:53] [INFO] [map] COLONY Fort Orange: colonist #0 off field tile 4
+[2026-10-24 18:07:53] [INFO] [map] COLONY Fort Orange: colonist #0 job=22 -> field tile 7 as Ore Miner
+[2026-10-24 18:07:53] [INFO] [map] MOVE Merchantman id=5 nation=3 at (32,56) mp=12: (32,55) -> (32,56)
+[2026-10-24 18:07:53] [INFO] [map] MOVE Merchantman id=5 nation=3 at (31,57) mp=9: (32,56) -> (31,57)
+[2026-10-24 18:07:53] [INFO] [map] MOVE Merchantman id=5 nation=3 at (30,58) mp=6: (31,57) -> (30,58)
+[2026-10-24 18:07:53] [INFO] [map] MOVE Merchantman id=5 nation=3 at (29,59) mp=3: (30,58) -> (29,59)
+[2026-10-24 18:07:53] [INFO] [map] TURN native nation 4
+[2026-10-24 18:07:53] [INFO] [map] TURN native nation 5
+[2026-10-24 18:07:53] [INFO] [map] TURN native nation 6
+[2026-10-24 18:07:53] [INFO] [map] TURN native nation 7
+[2026-10-24 18:07:53] [INFO] [map] TURN native nation 8
+[2026-10-24 18:07:53] [INFO] [map] TURN native nation 9
+[2026-10-24 18:07:53] [INFO] [map] TURN native nation 10
+[2026-10-24 18:07:53] [INFO] [map] TURN native nation 11
+[2026-10-24 18:07:53] [INFO] [map] Spawned unit id=77 type=Colonists at (236,236)
+[2026-10-24 18:07:53] [INFO] [map] EUROPE immigrant on the docks: Expert Fishermen (crosses)
+[2026-10-24 18:07:53] [INFO] [map] POPUP queued tag=INFO kind=message choices=0 queue=1
+[2026-10-24 18:07:53] [INFO] [map] PROD Jamestown (id=0 nation=0 pop=2 SoL=4%): food -1, hammers +3 (6) building=Docks
+[2026-10-24 18:07:53] [INFO] [map] PROD   Jamestown: Food -1 (8), Lumber +5 (10), Ore +4 (8)
+[2026-10-24 18:07:53] [INFO] [map] POPUP show tag=INFO kind=message title="-" ctx=(a=-1 b=-1 payload=0) body="Religious unrest in England causes increased emigration.  Colonists ({Expert Fishermen}) now available in London."
+[2026-10-24 18:07:53] [INFO] [map] Loaded MADSPACK ./COLONIZE/MSS4.SS (4 sections)
+[2026-10-24 18:07:53] [INFO] [map] Loaded SS ./COLONIZE/MSS4.SS (1 sprites palette=yes mode=0 pflag=1)
+[2026-10-24 18:07:58] [INFO] [map] POPUP answered tag=INFO dismissed id=0 choice="-" ctx=(a=-1 b=-1 payload=0)
+[2026-10-24 18:07:58] [INFO] [map] turn_end: turn=15 year=1507 autumn=0 colonies=6 shortages=1 immigrants=1
+[2026-10-24 18:07:58] [INFO] [map] Save directory exists: automated-playtests/campaign2/saves
+[2026-10-24 18:07:58] [INFO] [map] col1_save_write_file automated-playtests/campaign2/saves/COLONY09.SAV (28466 bytes)
+[2026-10-24 18:07:58] [INFO] [map] Turn autosave → COLONY09.SAV
+[2026-10-24 18:07:58] [INFO] [map] col1_save_write_file automated-playtests/campaign2/saves/trace_autosave_turn_015.sav (28466 bytes)
+[2026-10-24 18:07:58] [INFO] [map] Trace autosave → trace_autosave_turn_015.sav
+[2026-10-24 18:08:23] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=15 cursor=37,11)
+[2026-10-24 18:08:23] [INFO] [map] MOVE Pioneers id=1 nation=0 at (37,10) mp=-3: (37,11) -> (37,10)
+[2026-10-24 18:08:23] [INFO] [map] MOVE Caravel id=72 nation=0 at (42,16) mp=9: (41,15) -> (42,16)
+[2026-10-24 18:08:23] [INFO] [map] MOVE Caravel id=72 nation=0 at (43,17) mp=6: (42,16) -> (43,17)
+[2026-10-24 18:08:23] [INFO] [map] Sailed Caravel to Europe (exit 43,17 cargo=0)
+[2026-10-24 18:08:23] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=15 cursor=37,14)
+[2026-10-24 18:08:23] [INFO] [map] MOVE Scouts id=73 nation=0 at (37,13) mp=6: (37,14) -> (37,13)
+[2026-10-24 18:08:23] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=15 cursor=37,13)
+[2026-10-24 18:08:23] [INFO] [map] MOVE Scouts id=73 nation=0 at (38,12) mp=0: (37,13) -> (38,12)
+[2026-10-24 18:08:23] [INFO] [map] TURN setup: turn=15 year=1507 autumn=0 human=0
+[2026-10-24 18:08:23] [INFO] [map] TURN european nation 1
+[2026-10-24 18:08:23] [INFO] [map] PROD Montreal (id=3 nation=1 pop=1 SoL=3%): food +1, hammers +0 (0) building=-
+[2026-10-24 18:08:23] [INFO] [map] PROD   Montreal: Food +1 (7), Furs +2 (12), Ore +4 (28)
+[2026-10-24 18:08:23] [INFO] [map] PROD Quebec (id=1 nation=1 pop=1 SoL=6%): food +1, hammers +0 (0) building=-
+[2026-10-24 18:08:23] [INFO] [map] PROD   Quebec: Food +1 (12), Furs +6 (28)
+[2026-10-24 18:08:23] [INFO] [map] COLONY Quebec: colonist #0 off field tile 0
+[2026-10-24 18:08:23] [INFO] [map] COLONY Quebec: colonist #0 job=28 -> field tile 0 as Fur Trapper
+[2026-10-24 18:08:23] [INFO] [map] COLONY Quebec: colonist #0 off field tile 0
+[2026-10-24 18:08:23] [INFO] [map] COLONY Quebec: colonist #0 job=28 -> field tile 0 as Fur Trapper
+[2026-10-24 18:08:23] [INFO] [map] COLONY Montreal: colonist #0 off field tile 4
+[2026-10-24 18:08:23] [INFO] [map] COLONY Montreal: colonist #0 job=20 -> field tile 4 as Fur Trapper
+[2026-10-24 18:08:23] [INFO] [map] MOVE Caravel id=2 nation=1 at (53,36) mp=9: (52,37) -> (53,36)
+[2026-10-24 18:08:23] [INFO] [map] MOVE Caravel id=2 nation=1 at (52,35) mp=6: (53,36) -> (52,35)
+[2026-10-24 18:08:23] [INFO] [map] MOVE Caravel id=2 nation=1 at (51,34) mp=3: (52,35) -> (51,34)
+[2026-10-24 18:08:23] [INFO] [map] MOVE Caravel id=2 nation=1 at (50,34) mp=0: (51,34) -> (50,34)
+[2026-10-24 18:08:23] [INFO] [map] TURN european nation 2
+[2026-10-24 18:08:23] [INFO] [map] PROD Isabella (id=2 nation=2 pop=1 SoL=5%): food +1, hammers +0 (0) building=-
+[2026-10-24 18:08:23] [INFO] [map] PROD   Isabella: Food +1 (11), Sugar +2 (22), Silver +3 (9)
+[2026-10-24 18:08:23] [INFO] [map] Spawned unit id=78 type=Pioneers at (47,25)
+[2026-10-24 18:08:23] [INFO] [map] COLONY Isabella: colonist #0 off field tile 0
+[2026-10-24 18:08:23] [INFO] [map] COLONY Isabella: colonist #0 job=28 -> field tile 0 as Silver Miner
+[2026-10-24 18:08:23] [INFO] [map] COLONY Isabella: colonist #0 off field tile 0
+[2026-10-24 18:08:23] [INFO] [map] COLONY Isabella: colonist #0 job=28 -> field tile 0 as Silver Miner
+[2026-10-24 18:08:23] [INFO] [map] MOVE Soldiers id=4 nation=2 at (48,25) mp=-3: (48,24) -> (48,25)
+[2026-10-24 18:08:23] [INFO] [map] TURN european nation 3
+[2026-10-24 18:08:23] [INFO] [map] PROD Fort Orange (id=5 nation=3 pop=1 SoL=1%): food +1, hammers +0 (0) building=-
+[2026-10-24 18:08:23] [INFO] [map] PROD   Fort Orange: Food +1 (3), Furs +2 (4), Ore +4 (4)
+[2026-10-24 18:08:23] [INFO] [map] PROD New Amsterdam (id=4 nation=3 pop=1 SoL=3%): food +1, hammers +0 (0) building=-
+[2026-10-24 18:08:23] [INFO] [map] PROD   New Amsterdam: Food +1 (7), Furs +6 (26), Ore +5 (35)
+[2026-10-24 18:08:23] [INFO] [map] COLONY New Amsterdam: colonist #0 off field tile 6
+[2026-10-24 18:08:23] [INFO] [map] COLONY New Amsterdam: colonist #0 job=28 -> field tile 6 as Fur Trapper
+[2026-10-24 18:08:23] [INFO] [map] COLONY Fort Orange: colonist #0 off field tile 7
+[2026-10-24 18:08:23] [INFO] [map] COLONY Fort Orange: colonist #0 job=22 -> field tile 7 as Ore Miner
+[2026-10-24 18:08:23] [INFO] [map] TURN native nation 4
+[2026-10-24 18:08:23] [INFO] [map] TURN native nation 5
+[2026-10-24 18:08:23] [INFO] [map] TURN native nation 6
+[2026-10-24 18:08:23] [INFO] [map] TURN native nation 7
+[2026-10-24 18:08:23] [INFO] [map] TURN native nation 8
+[2026-10-24 18:08:23] [INFO] [map] TURN native nation 9
+[2026-10-24 18:08:23] [INFO] [map] TURN native nation 10
+[2026-10-24 18:08:23] [INFO] [map] TURN native nation 11
+[2026-10-24 18:08:23] [INFO] [map] PROD Jamestown (id=0 nation=0 pop=2 SoL=4%): food -1, hammers +3 (9) building=Docks
+[2026-10-24 18:08:23] [INFO] [map] PROD   Jamestown: Food -1 (7), Lumber +5 (15), Ore +4 (12)
+[2026-10-24 18:08:23] [INFO] [map] turn_end: turn=16 year=1508 autumn=0 colonies=6 shortages=1 immigrants=0
+[2026-10-24 18:08:23] [INFO] [map] Save directory exists: automated-playtests/campaign2/saves
+[2026-10-24 18:08:23] [INFO] [map] col1_save_write_file automated-playtests/campaign2/saves/COLONY09.SAV (28466 bytes)
+[2026-10-24 18:08:23] [INFO] [map] Turn autosave → COLONY09.SAV
+[2026-10-24 18:08:23] [INFO] [map] col1_save_write_file automated-playtests/campaign2/saves/trace_autosave_turn_016.sav (28466 bytes)
+[2026-10-24 18:08:23] [INFO] [map] Trace autosave → trace_autosave_turn_016.sav
+[2026-10-24 18:08:23] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=16 cursor=37,10)
+[2026-10-24 18:08:23] [INFO] [map] MOVE Pioneers id=1 nation=0 at (38,9) mp=-3: (37,10) -> (38,9)
+[2026-10-24 18:08:23] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=16 cursor=38,12)
+[2026-10-24 18:08:23] [INFO] [map] POPUP queued tag=CONTACT_WHACK kind=choice choices=2 queue=1
+[2026-10-24 18:08:23] [INFO] [map] POPUP show tag=CONTACT_WHACK kind=choice title="-" ctx=(a=73 b=6 payload=2855) body="Shall we attack the {Arawak}, Your Excellency?" choices=[1]Yes [0]No
+[2026-10-24 18:08:23] [INFO] [map] Loaded MADSPACK ./COLONIZE/MSS1.SS (4 sections)
+[2026-10-24 18:08:23] [INFO] [map] Loaded SS ./COLONIZE/MSS1.SS (1 sprites palette=yes mode=0 pflag=1)
+[2026-10-24 18:08:29] [INFO] [map] Key pressed: DOWN (menu=no debug=no pedia=no europe=no colony=no report=no turn=16 cursor=38,12)
+[2026-10-24 18:08:29] [INFO] [map] Key pressed: ENTER (menu=no debug=no pedia=no europe=no colony=no report=no turn=16 cursor=38,12)
+[2026-10-24 18:08:29] [INFO] [map] POPUP answered tag=CONTACT_WHACK picked id=0 choice="No" ctx=(a=73 b=6 payload=2855)
+[2026-10-24 18:08:52] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=16 cursor=38,12)
+[2026-10-24 18:08:52] [INFO] [map] MOVE Scouts id=73 nation=0 at (39,12) mp=6: (38,12) -> (39,12)
+[2026-10-24 18:08:52] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=16 cursor=39,12)
+[2026-10-24 18:08:52] [INFO] [map] MOVE Scouts id=73 nation=0 at (40,11) mp=0: (39,12) -> (40,11)
+[2026-10-24 18:08:52] [INFO] [map] TURN setup: turn=16 year=1508 autumn=0 human=0
+[2026-10-24 18:08:52] [INFO] [map] TURN european nation 1
+[2026-10-24 18:08:52] [INFO] [map] PROD Montreal (id=3 nation=1 pop=1 SoL=4%): food +1, hammers +0 (0) building=-
+[2026-10-24 18:08:52] [INFO] [map] PROD   Montreal: Food +1 (8), Furs +2 (14), Ore +4 (32)
+[2026-10-24 18:08:52] [INFO] [map] PROD Quebec (id=1 nation=1 pop=1 SoL=6%): food +1, hammers +0 (0) building=-
+[2026-10-24 18:08:52] [INFO] [map] PROD   Quebec: Food +1 (13), Furs +6 (34)
+[2026-10-24 18:08:52] [INFO] [map] COLONY Quebec: colonist #0 off field tile 0
+[2026-10-24 18:08:52] [INFO] [map] COLONY Quebec: colonist #0 job=28 -> field tile 0 as Fur Trapper
+[2026-10-24 18:08:52] [INFO] [map] COLONY Quebec: colonist #0 off field tile 0
+[2026-10-24 18:08:52] [INFO] [map] COLONY Quebec: colonist #0 job=28 -> field tile 0 as Fur Trapper
+[2026-10-24 18:08:52] [INFO] [map] COLONY Montreal: colonist #0 off field tile 4
+[2026-10-24 18:08:52] [INFO] [map] COLONY Montreal: colonist #0 job=20 -> field tile 4 as Fur Trapper
+[2026-10-24 18:08:52] [INFO] [map] MOVE Caravel id=2 nation=1 at (49,35) mp=9: (50,34) -> (49,35)
+[2026-10-24 18:08:52] [INFO] [map] MOVE Caravel id=2 nation=1 at (49,36) mp=0: (49,35) -> (49,36)
+[2026-10-24 18:08:52] [INFO] [map] TURN european nation 2
+[2026-10-24 18:08:52] [INFO] [map] PROD Isabella (id=2 nation=2 pop=1 SoL=6%): food +1, hammers +0 (0) building=-
+[2026-10-24 18:08:52] [INFO] [map] PROD   Isabella: Food +1 (12), Sugar +2 (24), Silver +3 (12)
+[2026-10-24 18:08:52] [INFO] [map] Spawned unit id=79 type=Pioneers at (47,25)
+[2026-10-24 18:08:52] [INFO] [map] COLONY Isabella: colonist #0 off field tile 0
+[2026-10-24 18:08:52] [INFO] [map] COLONY Isabella: colonist #0 job=28 -> field tile 0 as Silver Miner
+[2026-10-24 18:08:52] [INFO] [map] COLONY Isabella: colonist #0 off field tile 0
+[2026-10-24 18:08:52] [INFO] [map] COLONY Isabella: colonist #0 job=28 -> field tile 0 as Silver Miner
+[2026-10-24 18:08:52] [INFO] [map] MOVE Soldiers id=4 nation=2 at (48,24) mp=0: (48,25) -> (48,24)
+[2026-10-24 18:08:52] [INFO] [map] TURN european nation 3
+[2026-10-24 18:08:52] [INFO] [map] PROD Fort Orange (id=5 nation=3 pop=1 SoL=2%): food +1, hammers +0 (0) building=-
+[2026-10-24 18:08:52] [INFO] [map] PROD   Fort Orange: Food +1 (4), Furs +2 (6), Ore +4 (8)
+[2026-10-24 18:08:52] [INFO] [map] PROD New Amsterdam (id=4 nation=3 pop=1 SoL=4%): food +1, hammers +0 (0) building=-
+[2026-10-24 18:08:52] [INFO] [map] PROD   New Amsterdam: Food +1 (8), Furs +6 (32), Ore +5 (40)
+[2026-10-24 18:08:52] [INFO] [map] COLONY New Amsterdam: colonist #0 off field tile 6
+[2026-10-24 18:08:52] [INFO] [map] COLONY New Amsterdam: colonist #0 job=28 -> field tile 6 as Fur Trapper
+[2026-10-24 18:08:52] [INFO] [map] COLONY Fort Orange: colonist #0 off field tile 7
+[2026-10-24 18:08:52] [INFO] [map] COLONY Fort Orange: colonist #0 job=22 -> field tile 7 as Ore Miner
+[2026-10-24 18:08:52] [INFO] [map] TURN native nation 4
+[2026-10-24 18:08:52] [INFO] [map] TURN native nation 5
+[2026-10-24 18:08:52] [INFO] [map] TURN native nation 6
+[2026-10-24 18:08:52] [INFO] [map] TURN native nation 7
+[2026-10-24 18:08:52] [INFO] [map] TURN native nation 8
+[2026-10-24 18:08:52] [INFO] [map] TURN native nation 9
+[2026-10-24 18:08:52] [INFO] [map] TURN native nation 10
+[2026-10-24 18:08:52] [INFO] [map] TURN native nation 11
+[2026-10-24 18:08:52] [INFO] [map] PROD Jamestown (id=0 nation=0 pop=2 SoL=4%): food -1, hammers +3 (12) building=Docks
+[2026-10-24 18:08:52] [INFO] [map] PROD   Jamestown: Food -1 (6), Lumber +5 (20), Ore +4 (16)
+[2026-10-24 18:08:52] [INFO] [map] Loaded MADSPACK ./COLONIZE/WDCUT09.SS (4 sections)
+[2026-10-24 18:08:52] [INFO] [map] Loaded SS ./COLONIZE/WDCUT09.SS (1 sprites palette=yes mode=0 pflag=1)
+[2026-10-24 18:08:52] [INFO] [map] Loaded MADSPACK ./COLONIZE/WOODFRAM.SS (4 sections)
+[2026-10-24 18:08:52] [INFO] [map] Loaded SS ./COLONIZE/WOODFRAM.SS (1 sprites palette=yes mode=0 pflag=1)
+[2026-10-24 18:08:52] [INFO] [map] Loaded MADSPACK ./COLONIZE/NAMEPLAT.SS (4 sections)
+[2026-10-24 18:08:52] [INFO] [map] Loaded SS ./COLONIZE/NAMEPLAT.SS (3 sprites palette=yes mode=0 pflag=1)
+[2026-10-24 18:08:52] [INFO] [map] Loaded MADSPACK ./COLONIZE/FONT-NP.FF (1 sections)
+[2026-10-24 18:08:52] [INFO] [map] Loaded FF font ./COLONIZE/FONT-NP.FF (11x8, section=914 bytes)
+[2026-10-24 18:08:52] [INFO] [map] Loaded message catalog ./COLONIZE/WOODCUT.TXT (1 sections)
+[2026-10-24 18:08:52] [INFO] [map] Woodcut 9: CARGO FROM THE NEW WORLD
+[2026-10-24 18:08:52] [INFO] VIEW map -> woodcut
+[2026-10-24 18:08:56] [INFO] VIEW woodcut -> map
+[2026-10-24 18:08:56] [INFO] [map] turn_end: turn=17 year=1509 autumn=0 colonies=6 shortages=1 immigrants=0
+[2026-10-24 18:08:56] [INFO] [map] Save directory exists: automated-playtests/campaign2/saves
+[2026-10-24 18:08:56] [INFO] [map] col1_save_write_file automated-playtests/campaign2/saves/COLONY09.SAV (28466 bytes)
+[2026-10-24 18:08:56] [INFO] [map] Turn autosave → COLONY09.SAV
+[2026-10-24 18:08:56] [INFO] [map] col1_save_write_file automated-playtests/campaign2/saves/trace_autosave_turn_017.sav (28466 bytes)
+[2026-10-24 18:08:56] [INFO] [map] Trace autosave → trace_autosave_turn_017.sav
+[2026-10-24 18:08:56] [INFO] VIEW map -> europe
+[2026-10-24 18:09:01] [INFO] [europe] Key pressed: U (menu=no debug=no pedia=no europe=yes colony=no report=no turn=17 cursor=38,9)
+[2026-10-24 18:09:01] [INFO] [europe] EUROPE sold 40 Ore from Caravel: bid=3 tax=0% proceeds=120 gold=266
+[2026-10-24 18:09:01] [INFO] [europe] Key pressed: U (menu=no debug=no pedia=no europe=yes colony=no report=no turn=17 cursor=38,9)
+[2026-10-24 18:09:01] [INFO] [europe] EUROPE sold 40 Furs from Caravel: bid=5 tax=0% proceeds=200 gold=466
+[2026-10-24 18:09:04] [INFO] [europe] POPUP show tag=EUROPE_RECRUIT kind=choice gold=466 choices=[1]Master Fur Traders [2]Expert Farmers [3]Free Colonists
+[2026-10-24 18:09:04] [INFO] [europe] Loaded MADSPACK ./COLONIZE/MSS2.SS (4 sections)
+[2026-10-24 18:09:04] [INFO] [europe] Loaded SS ./COLONIZE/MSS2.SS (1 sprites palette=yes mode=0 pflag=1)
+[2026-10-24 18:09:11] [INFO] [europe] Key pressed: DOWN (menu=no debug=no pedia=no europe=yes colony=no report=no turn=17 cursor=38,9)
+[2026-10-24 18:09:11] [INFO] [europe] Key pressed: DOWN (menu=no debug=no pedia=no europe=yes colony=no report=no turn=17 cursor=38,9)
+[2026-10-24 18:09:11] [INFO] [europe] Key pressed: ENTER (menu=no debug=no pedia=no europe=yes colony=no report=no turn=17 cursor=38,9)
+[2026-10-24 18:09:11] [INFO] [europe] POPUP answered tag=EUROPE_RECRUIT picked row=2
+[2026-10-24 18:09:11] [INFO] [europe] EUROPE recruited Expert Farmers (job 0) for 180$ passage (gold=286)
+[2026-10-24 18:09:11] [INFO] [europe] Key pressed: ENTER (menu=no debug=no pedia=no europe=yes colony=no report=no turn=17 cursor=38,9)
+[2026-10-24 18:09:11] [INFO] [europe] POPUP queued tag=EUROPE_SHIP_MENU kind=choice choices=3 queue=1
+[2026-10-24 18:09:11] [INFO] [europe] POPUP show tag=EUROPE_SHIP_MENU kind=choice title="-" ctx=(a=0 b=-1 payload=0) body="European harbor options for {Caravel}:" choices=[1]Move to front. [2]Set sail for the New World. [4]No changes.
+[2026-10-24 18:09:11] [INFO] [europe] Key pressed: DOWN (menu=no debug=no pedia=no europe=yes colony=no report=no turn=17 cursor=38,9)
+[2026-10-24 18:09:11] [INFO] [europe] Key pressed: ENTER (menu=no debug=no pedia=no europe=yes colony=no report=no turn=17 cursor=38,9)
+[2026-10-24 18:09:11] [INFO] [europe] POPUP answered tag=EUROPE_SHIP_MENU picked id=2 choice="Set sail for the New World." ctx=(a=0 b=-1 payload=0)
+[2026-10-24 18:09:11] [INFO] [europe] POPUP queued tag=MAP_CONFIRM kind=choice choices=2 queue=1
+[2026-10-24 18:09:11] [INFO] [europe] POPUP show tag=MAP_CONFIRM kind=choice title="-" ctx=(a=-1 b=-1 payload=0) body="Shall we set sail for the {New World}, Your Excellency?" choices=[1]Yes, steady as she goes. [0]No, let us remain in port.
+[2026-10-24 18:09:11] [INFO] [europe] Loaded MADSPACK ./COLONIZE/MSS0.SS (4 sections)
+[2026-10-24 18:09:11] [INFO] [europe] Loaded SS ./COLONIZE/MSS0.SS (1 sprites palette=yes mode=0 pflag=1)
+[2026-10-24 18:09:11] [INFO] [europe] Key pressed: ENTER (menu=no debug=no pedia=no europe=yes colony=no report=no turn=17 cursor=38,9)
+[2026-10-24 18:09:11] [INFO] [europe] POPUP answered tag=MAP_CONFIRM picked id=1 choice="Yes, steady as she goes." ctx=(a=-1 b=-1 payload=0)
+[2026-10-24 18:09:11] [INFO] [europe] ORDER Colonists id=77 nation=0 at (236,236) mp=3: disband
+[2026-10-24 18:09:11] [INFO] [europe] EUROPE Caravel departs for the colonies: 1 turns, exit (43,17) east
+[2026-10-24 18:09:11] [INFO] VIEW europe -> map
+[2026-10-24 18:09:15] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=17 cursor=40,11)
+[2026-10-24 18:09:15] [INFO] [map] MOVE Scouts id=73 nation=0 at (41,10) mp=6: (40,11) -> (41,10)
+[2026-10-24 18:09:15] [INFO] [map] LCR unit 73 nation=0 at (41,10): outcome=0 gold=0 skill=2
+[2026-10-24 18:09:15] [INFO] [map] POPUP queued tag=INFO kind=message choices=0 queue=1
+[2026-10-24 18:09:15] [INFO] [map] POPUP show tag=INFO kind=message title="-" ctx=(a=0 b=-1 payload=0) body="You find nothing but rumors."
+[2026-10-24 18:09:15] [INFO] [map] Loaded MADSPACK ./COLONIZE/MSS3.SS (4 sections)
+[2026-10-24 18:09:15] [INFO] [map] Loaded SS ./COLONIZE/MSS3.SS (1 sprites palette=yes mode=0 pflag=1)
+[2026-10-24 18:09:18] [INFO] [map] Key pressed: ENTER (menu=no debug=no pedia=no europe=no colony=no report=no turn=17 cursor=41,10)
+[2026-10-24 18:09:18] [INFO] [map] POPUP answered tag=INFO dismissed id=0 choice="-" ctx=(a=0 b=-1 payload=0)
+[2026-10-24 18:09:18] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=17 cursor=41,10)
+[2026-10-24 18:09:18] [INFO] [map] POPUP queued tag=CONTACT_MEET kind=choice choices=4 queue=1
+[2026-10-24 18:09:18] [INFO] [map] POPUP show tag=CONTACT_MEET kind=choice title="-" ctx=(a=0 b=6 payload=296) body="Your expedition has reached a Village of {Arawaks}.  The inhabitants are busy in the surrounding fields.  As they wave to you {happily}, you notice a collection of scalps hanging threateningly from a nearby tree." choices=[9]Ask to Speak With Chief [3]Demand Tribute [11]Attack Village [5]Cancel Action
+[2026-10-24 18:09:21] [INFO] [map] Key pressed: ENTER (menu=no debug=no pedia=no europe=no colony=no report=no turn=17 cursor=41,10)
+[2026-10-24 18:09:21] [INFO] [map] POPUP answered tag=CONTACT_MEET picked id=9 choice="Ask to Speak With Chief" ctx=(a=0 b=6 payload=296)
+[2026-10-24 18:09:21] [INFO] [map] POPUP queued tag=CONTACT_MEET kind=message choices=0 queue=1
+[2026-10-24 18:09:21] [INFO] [map] POPUP queued tag=CONTACT_MEET kind=message choices=0 queue=2
+[2026-10-24 18:09:21] [INFO] [map] POPUP show tag=CONTACT_MEET kind=message title="-" ctx=(a=0 b=6 payload=0) body=""Greetings, travelers.  We are a peaceful village known for our {Expert Fishermen}.  We would gladly trade with you if you bring us some badly needed {Tools}.  We would also pay well for {Tobacco} or {Coats}."
+[2026-10-24 18:09:21] [INFO] [map] Key pressed: ENTER (menu=no debug=no pedia=no europe=no colony=no report=no turn=17 cursor=41,10)
+[2026-10-24 18:09:21] [INFO] [map] POPUP answered tag=CONTACT_MEET dismissed id=0 choice="-" ctx=(a=0 b=6 payload=0)
+[2026-10-24 18:09:21] [INFO] [map] POPUP show tag=CONTACT_MEET kind=message title="-" ctx=(a=0 b=6 payload=0) body=""The {Arawak} are pleased to welcome travelers from afar.  Come sit by the fire and we shall tell you tales of {nearby lands}.""
+[2026-10-24 18:09:21] [INFO] [map] Key pressed: ENTER (menu=no debug=no pedia=no europe=no colony=no report=no turn=17 cursor=41,10)
+[2026-10-24 18:09:21] [INFO] [map] POPUP answered tag=CONTACT_MEET dismissed id=0 choice="-" ctx=(a=0 b=6 payload=0)
+[2026-10-24 18:09:25] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=17 cursor=38,9)
+[2026-10-24 18:09:25] [INFO] [map] MOVE Pioneers id=1 nation=0 at (37,10) mp=-3: (38,9) -> (37,10)
+[2026-10-24 18:09:25] [INFO] [map] TURN setup: turn=17 year=1509 autumn=0 human=0
+[2026-10-24 18:09:25] [INFO] [map] TURN european nation 1
+[2026-10-24 18:09:25] [INFO] [map] PROD Montreal (id=3 nation=1 pop=1 SoL=4%): food +1, hammers +0 (0) building=-
+[2026-10-24 18:09:25] [INFO] [map] PROD   Montreal: Food +1 (9), Furs +2 (16), Ore +4 (36)
+[2026-10-24 18:09:25] [INFO] [map] PROD Quebec (id=1 nation=1 pop=1 SoL=7%): food +1, hammers +0 (0) building=-
+[2026-10-24 18:09:25] [INFO] [map] PROD   Quebec: Food +1 (14), Furs +6 (40)
+[2026-10-24 18:09:25] [INFO] [map] COLONY Quebec: colonist #0 off field tile 0
+[2026-10-24 18:09:25] [INFO] [map] COLONY Quebec: colonist #0 job=28 -> field tile 0 as Fur Trapper
+[2026-10-24 18:09:25] [INFO] [map] COLONY Quebec: colonist #0 off field tile 0
+[2026-10-24 18:09:25] [INFO] [map] COLONY Quebec: colonist #0 job=28 -> field tile 0 as Fur Trapper
+[2026-10-24 18:09:25] [INFO] [map] COLONY Montreal: colonist #0 off field tile 4
+[2026-10-24 18:09:25] [INFO] [map] COLONY Montreal: colonist #0 job=20 -> field tile 4 as Fur Trapper
+[2026-10-24 18:09:25] [INFO] [map] CARGO unit 2 -> Montreal: cargo 8 x100 (colony stock 100, cap 100)
+[2026-10-24 18:09:25] [INFO] [map] CARGO unit 2 -> Montreal: cargo 6 x36 (colony stock 72, cap 100)
+[2026-10-24 18:09:25] [INFO] [map] CARGO Montreal -> unit 2: cargo 8 x100 (colony stock 0)
+[2026-10-24 18:09:25] [INFO] [map] CARGO Montreal -> unit 2: cargo 6 x72 (colony stock 0)
+[2026-10-24 18:09:25] [INFO] [map] MOVE Caravel id=2 nation=1 at (49,35) mp=9: (49,36) -> (49,35)
+[2026-10-24 18:09:25] [INFO] [map] MOVE Caravel id=2 nation=1 at (50,34) mp=6: (49,35) -> (50,34)
+[2026-10-24 18:09:25] [INFO] [map] MOVE Caravel id=2 nation=1 at (51,34) mp=3: (50,34) -> (51,34)
+[2026-10-24 18:09:25] [INFO] [map] MOVE Caravel id=2 nation=1 at (52,35) mp=0: (51,34) -> (52,35)
+[2026-10-24 18:09:25] [INFO] [map] TURN european nation 2
+[2026-10-24 18:09:25] [INFO] [map] PROD Isabella (id=2 nation=2 pop=1 SoL=6%): food +1, hammers +0 (0) building=-
+[2026-10-24 18:09:25] [INFO] [map] PROD   Isabella: Food +1 (13), Sugar +2 (26), Silver +3 (15)
+[2026-10-24 18:09:25] [INFO] [map] Spawned unit id=80 type=Pioneers at (47,25)
+[2026-10-24 18:09:25] [INFO] [map] COLONY Isabella: colonist #0 off field tile 0
+[2026-10-24 18:09:25] [INFO] [map] COLONY Isabella: colonist #0 job=28 -> field tile 0 as Silver Miner
+[2026-10-24 18:09:25] [INFO] [map] COLONY Isabella: colonist #0 off field tile 0
+[2026-10-24 18:09:25] [INFO] [map] COLONY Isabella: colonist #0 job=28 -> field tile 0 as Silver Miner
+[2026-10-24 18:09:25] [INFO] [map] ORDER Caravel id=3 nation=2 at (53,21) mp=12: wake (was sentry)
+[2026-10-24 18:09:25] [INFO] [map] MOVE Soldiers id=4 nation=2 at (48,23) mp=-6: (48,24) -> (48,23)
+[2026-10-24 18:09:25] [INFO] [map] MOVE Caravel id=3 nation=2 at (53,20) mp=9: (53,21) -> (53,20)
+[2026-10-24 18:09:25] [INFO] [map] MOVE Caravel id=3 nation=2 at (52,19) mp=6: (53,20) -> (52,19)
+[2026-10-24 18:09:25] [INFO] [map] TURN european nation 3
+[2026-10-24 18:09:25] [INFO] [map] PROD Fort Orange (id=5 nation=3 pop=1 SoL=2%): food +1, hammers +0 (0) building=-
+[2026-10-24 18:09:25] [INFO] [map] PROD   Fort Orange: Food +1 (5), Furs +2 (8), Ore +4 (12)
+[2026-10-24 18:09:25] [INFO] [map] PROD New Amsterdam (id=4 nation=3 pop=1 SoL=4%): food +1, hammers +0 (0) building=-
+[2026-10-24 18:09:25] [INFO] [map] PROD   New Amsterdam: Food +1 (9), Furs +6 (38), Ore +5 (45)
+[2026-10-24 18:09:25] [INFO] [map] COLONY New Amsterdam: colonist #0 off field tile 6
+[2026-10-24 18:09:25] [INFO] [map] COLONY New Amsterdam: colonist #0 job=28 -> field tile 6 as Fur Trapper
+[2026-10-24 18:09:25] [INFO] [map] COLONY Fort Orange: colonist #0 off field tile 7
+[2026-10-24 18:09:25] [INFO] [map] COLONY Fort Orange: colonist #0 job=22 -> field tile 7 as Ore Miner
+[2026-10-24 18:09:25] [INFO] [map] Spawned unit id=81 type=Colonists at (239,239)
+[2026-10-24 18:09:25] [INFO] [map] TURN native nation 4
+[2026-10-24 18:09:25] [INFO] [map] TURN native nation 5
+[2026-10-24 18:09:25] [INFO] [map] TURN native nation 6
+[2026-10-24 18:09:25] [INFO] [map] TURN native nation 7
+[2026-10-24 18:09:25] [INFO] [map] TURN native nation 8
+[2026-10-24 18:09:25] [INFO] [map] TURN native nation 9
+[2026-10-24 18:09:25] [INFO] [map] TURN native nation 10
+[2026-10-24 18:09:25] [INFO] [map] TURN native nation 11
+[2026-10-24 18:09:25] [INFO] [map] PROD Jamestown (id=0 nation=0 pop=2 SoL=5%): food -1, hammers +3 (15) building=Docks
+[2026-10-24 18:09:25] [INFO] [map] PROD   Jamestown: Food -1 (5), Lumber +5 (25), Ore +4 (20)
+[2026-10-24 18:09:25] [INFO] [map] turn_end: turn=18 year=1510 autumn=0 colonies=6 shortages=1 immigrants=0
+[2026-10-24 18:09:25] [INFO] [map] Save directory exists: automated-playtests/campaign2/saves
+[2026-10-24 18:09:25] [INFO] [map] col1_save_write_file automated-playtests/campaign2/saves/COLONY08.SAV (28562 bytes)
+[2026-10-24 18:09:25] [INFO] [map] Decade autosave → COLONY08.SAV
+[2026-10-24 18:09:25] [INFO] [map] col1_save_write_file automated-playtests/campaign2/saves/trace_autosave_turn_018.sav (28562 bytes)
+[2026-10-24 18:09:25] [INFO] [map] Trace autosave → trace_autosave_turn_018.sav
+[2026-10-24 18:09:40] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=18 cursor=37,10)
+[2026-10-24 18:09:40] [INFO] [map] MOVE Pioneers id=1 nation=0 at (37,11) mp=0: (37,10) -> (37,11)
+[2026-10-24 18:09:40] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=18 cursor=41,10)
+[2026-10-24 18:09:40] [INFO] [map] MOVE Scouts id=73 nation=0 at (40,9) mp=6: (41,10) -> (40,9)
+[2026-10-24 18:09:40] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=18 cursor=40,9)
+[2026-10-24 18:09:40] [INFO] [map] MOVE Scouts id=73 nation=0 at (40,8) mp=0: (40,9) -> (40,8)
+[2026-10-24 18:09:40] [INFO] [map] TURN setup: turn=18 year=1510 autumn=0 human=0
+[2026-10-24 18:09:40] [INFO] [map] TURN european nation 1
+[2026-10-24 18:09:40] [INFO] [map] PROD Montreal (id=3 nation=1 pop=1 SoL=5%): food +1, hammers +0 (0) building=-
+[2026-10-24 18:09:40] [INFO] [map] PROD   Montreal: Food +1 (10), Furs +2 (18), Ore +4 (4)
+[2026-10-24 18:09:40] [INFO] [map] PROD Quebec (id=1 nation=1 pop=1 SoL=7%): food +1, hammers +0 (0) building=-
+[2026-10-24 18:09:40] [INFO] [map] PROD   Quebec: Food +1 (15), Furs +6 (46)
+[2026-10-24 18:09:40] [INFO] [map] COLONY Quebec: colonist #0 off field tile 0
+[2026-10-24 18:09:40] [INFO] [map] COLONY Quebec: colonist #0 job=28 -> field tile 0 as Fur Trapper
+[2026-10-24 18:09:40] [INFO] [map] COLONY Quebec: colonist #0 off field tile 0
+[2026-10-24 18:09:40] [INFO] [map] COLONY Quebec: colonist #0 job=28 -> field tile 0 as Fur Trapper
+[2026-10-24 18:09:40] [INFO] [map] Spawned unit id=82 type=Pioneers at (50,35)
+[2026-10-24 18:09:40] [INFO] [map] COLONY Montreal: colonist #0 off field tile 4
+[2026-10-24 18:09:40] [INFO] [map] COLONY Montreal: colonist #0 job=20 -> field tile 1 as Sugar Planter
+[2026-10-24 18:09:40] [INFO] [map] MOVE Caravel id=2 nation=1 at (53,36) mp=9: (52,35) -> (53,36)
+[2026-10-24 18:09:40] [INFO] [map] MOVE Caravel id=2 nation=1 at (53,37) mp=6: (53,36) -> (53,37)
+[2026-10-24 18:09:40] [INFO] [map] MOVE Caravel id=2 nation=1 at (53,38) mp=3: (53,37) -> (53,38)
+[2026-10-24 18:09:40] [INFO] [map] MOVE Caravel id=2 nation=1 at (52,39) mp=0: (53,38) -> (52,39)
+[2026-10-24 18:09:40] [INFO] [map] TURN european nation 2
+[2026-10-24 18:09:40] [INFO] [map] PROD Isabella (id=2 nation=2 pop=1 SoL=7%): food +1, hammers +0 (0) building=-
+[2026-10-24 18:09:40] [INFO] [map] PROD   Isabella: Food +1 (14), Sugar +2 (28), Silver +3 (18)
+[2026-10-24 18:09:40] [INFO] [map] Spawned unit id=83 type=Pioneers at (47,25)
+[2026-10-24 18:09:40] [INFO] [map] COLONY Isabella: colonist #0 off field tile 0
+[2026-10-24 18:09:40] [INFO] [map] COLONY Isabella: colonist #0 job=28 -> field tile 0 as Silver Miner
+[2026-10-24 18:09:40] [INFO] [map] COLONY Isabella: colonist #0 off field tile 0
+[2026-10-24 18:09:40] [INFO] [map] COLONY Isabella: colonist #0 job=28 -> field tile 0 as Silver Miner
+[2026-10-24 18:09:40] [INFO] [map] MOVE Soldiers id=4 nation=2 at (48,24) mp=0: (48,23) -> (48,24)
+[2026-10-24 18:09:40] [INFO] [map] TURN european nation 3
+[2026-10-24 18:09:40] [INFO] [map] PROD Fort Orange (id=5 nation=3 pop=1 SoL=3%): food +1, hammers +0 (0) building=-
+[2026-10-24 18:09:40] [INFO] [map] PROD   Fort Orange: Food +1 (6), Furs +2 (10), Ore +4 (16)
+[2026-10-24 18:09:40] [INFO] [map] PROD New Amsterdam (id=4 nation=3 pop=1 SoL=5%): food +1, hammers +0 (0) building=-
+[2026-10-24 18:09:40] [INFO] [map] PROD   New Amsterdam: Food +1 (10), Furs +6 (44), Ore +5 (50)
+[2026-10-24 18:09:40] [INFO] [map] COLONY New Amsterdam: colonist #0 off field tile 6
+[2026-10-24 18:09:40] [INFO] [map] COLONY New Amsterdam: colonist #0 job=28 -> field tile 6 as Fur Trapper
+[2026-10-24 18:09:40] [INFO] [map] COLONY Fort Orange: colonist #0 off field tile 7
+[2026-10-24 18:09:40] [INFO] [map] COLONY Fort Orange: colonist #0 job=22 -> field tile 7 as Ore Miner
+[2026-10-24 18:09:40] [INFO] [map] ORDER Merchantman id=5 nation=3 at (29,59) mp=15: wake (was sentry)
+[2026-10-24 18:09:40] [INFO] [map] MOVE Merchantman id=5 nation=3 at (30,58) mp=12: (29,59) -> (30,58)
+[2026-10-24 18:09:40] [INFO] [map] MOVE Merchantman id=5 nation=3 at (30,57) mp=9: (30,58) -> (30,57)
+[2026-10-24 18:09:40] [INFO] [map] MOVE Merchantman id=5 nation=3 at (30,56) mp=6: (30,57) -> (30,56)
+[2026-10-24 18:09:40] [INFO] [map] MOVE Merchantman id=5 nation=3 at (31,55) mp=3: (30,56) -> (31,55)
+[2026-10-24 18:09:40] [INFO] [map] MOVE Merchantman id=5 nation=3 at (32,54) mp=0: (31,55) -> (32,54)
+[2026-10-24 18:09:40] [INFO] [map] TURN native nation 4
+[2026-10-24 18:09:40] [INFO] [map] TURN native nation 5
+[2026-10-24 18:09:40] [INFO] [map] TURN native nation 6
+[2026-10-24 18:09:40] [INFO] [map] TURN native nation 7
+[2026-10-24 18:09:40] [INFO] [map] TURN native nation 8
+[2026-10-24 18:09:40] [INFO] [map] TURN native nation 9
+[2026-10-24 18:09:40] [INFO] [map] TURN native nation 10
+[2026-10-24 18:09:40] [INFO] [map] TURN native nation 11
+[2026-10-24 18:09:40] [INFO] [map] PROD Jamestown (id=0 nation=0 pop=2 SoL=5%): food -1, hammers +3 (18) building=Docks
+[2026-10-24 18:09:40] [INFO] [map] PROD   Jamestown: Food -1 (4), Lumber +5 (30), Ore +4 (24)
+[2026-10-24 18:09:40] [INFO] [map] turn_end: turn=19 year=1511 autumn=0 colonies=6 shortages=1 immigrants=0
+[2026-10-24 18:09:40] [INFO] [map] Spawned unit id=84 type=Caravel at (43,17)
+[2026-10-24 18:09:40] [INFO] [map] Europe arrival: spawned 'Caravel' id=84 at (43,17)
+[2026-10-24 18:09:40] [INFO] [map] Save directory exists: automated-playtests/campaign2/saves
+[2026-10-24 18:09:40] [INFO] [map] col1_save_write_file automated-playtests/campaign2/saves/COLONY09.SAV (28562 bytes)
+[2026-10-24 18:09:40] [INFO] [map] Turn autosave → COLONY09.SAV
+[2026-10-24 18:09:40] [INFO] [map] col1_save_write_file automated-playtests/campaign2/saves/trace_autosave_turn_019.sav (28562 bytes)
+[2026-10-24 18:09:40] [INFO] [map] Trace autosave → trace_autosave_turn_019.sav
+[2026-10-24 18:10:09] [INFO] [map] Key pressed: G (menu=no debug=no pedia=no europe=no colony=no report=no turn=19 cursor=43,17)
+[2026-10-24 18:10:09] [INFO] [map] COMMAND goto_port (unit Caravel id=84 at (43,17) mp=12)
+[2026-10-24 18:10:09] [INFO] VIEW map -> list dialog
+[2026-10-24 18:10:09] [INFO] [list dialog] Key pressed: DOWN (menu=no debug=no pedia=no europe=no colony=no report=no turn=19 cursor=43,17)
+[2026-10-24 18:10:09] [INFO] [list dialog] Key pressed: ENTER (menu=no debug=no pedia=no europe=no colony=no report=no turn=19 cursor=43,17)
+[2026-10-24 18:10:09] [INFO] [list dialog] ORDER Caravel id=84 nation=0 at (43,17) mp=12: goto (37,14)
+[2026-10-24 18:10:09] [INFO] VIEW list dialog -> map
+[2026-10-24 18:10:09] [INFO] [map] MOVE Caravel id=84 nation=0 at (42,17) mp=9: (43,17) -> (42,17)
+[2026-10-24 18:10:09] [INFO] [map] MOVE Caravel id=84 nation=0 at (41,17) mp=6: (42,17) -> (41,17)
+[2026-10-24 18:10:09] [INFO] [map] MOVE Caravel id=84 nation=0 at (40,17) mp=3: (41,17) -> (40,17)
+[2026-10-24 18:10:18] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=19 cursor=37,11)
+[2026-10-24 18:10:18] [INFO] [map] MOVE Pioneers id=1 nation=0 at (38,11) mp=0: (37,11) -> (38,11)
+[2026-10-24 18:10:18] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=19 cursor=40,8)
+[2026-10-24 18:10:18] [INFO] [map] MOVE Scouts id=73 nation=0 at (40,7) mp=6: (40,8) -> (40,7)
+[2026-10-24 18:10:21] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=19 cursor=40,7)
+[2026-10-24 18:10:21] [INFO] [map] POPUP queued tag=CONTACT_WHACK kind=choice choices=2 queue=1
+[2026-10-24 18:10:21] [INFO] [map] POPUP show tag=CONTACT_WHACK kind=choice title="-" ctx=(a=73 b=6 payload=1575) body="Shall we attack the {Arawak}, Your Excellency?" choices=[1]Yes [0]No
+[2026-10-24 18:10:24] [INFO] [map] Key pressed: DOWN (menu=no debug=no pedia=no europe=no colony=no report=no turn=19 cursor=40,7)
+[2026-10-24 18:10:24] [INFO] [map] Key pressed: ENTER (menu=no debug=no pedia=no europe=no colony=no report=no turn=19 cursor=40,7)
+[2026-10-24 18:10:24] [INFO] [map] POPUP answered tag=CONTACT_WHACK picked id=0 choice="No" ctx=(a=73 b=6 payload=1575)
+[2026-10-24 18:10:30] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=19 cursor=40,7)
+[2026-10-24 18:10:30] [INFO] [map] MOVE Scouts id=73 nation=0 at (39,7) mp=0: (40,7) -> (39,7)
+[2026-10-24 18:10:30] [INFO] [map] MOVE Caravel id=84 nation=0 at (39,16) mp=0: (40,17) -> (39,16)
+[2026-10-24 18:10:30] [INFO] [map] TURN setup: turn=19 year=1511 autumn=0 human=0
+[2026-10-24 18:10:30] [INFO] [map] TURN european nation 1
+[2026-10-24 18:10:30] [INFO] [map] PROD Montreal (id=3 nation=1 pop=1 SoL=5%): food +1, hammers +0 (0) building=-
+[2026-10-24 18:10:30] [INFO] [map] PROD   Montreal: Food +1 (11), Sugar +3 (3), Ore +4 (8)
+[2026-10-24 18:10:30] [INFO] [map] PROD Quebec (id=1 nation=1 pop=1 SoL=8%): food +1, hammers +0 (0) building=-
+[2026-10-24 18:10:30] [INFO] [map] PROD   Quebec: Food +1 (16), Furs +6 (52)
+[2026-10-24 18:10:30] [INFO] [map] COLONY Quebec: colonist #0 off field tile 0
+[2026-10-24 18:10:30] [INFO] [map] COLONY Quebec: colonist #0 job=28 -> field tile 0 as Fur Trapper
+[2026-10-24 18:10:30] [INFO] [map] COLONY Quebec: colonist #0 off field tile 0
+[2026-10-24 18:10:30] [INFO] [map] COLONY Quebec: colonist #0 job=28 -> field tile 0 as Fur Trapper
+[2026-10-24 18:10:30] [INFO] [map] COLONY Montreal: colonist #0 off field tile 1
+[2026-10-24 18:10:30] [INFO] [map] COLONY Montreal: colonist #0 job=20 -> field tile 1 as Sugar Planter
+[2026-10-24 18:10:30] [INFO] [map] MOVE Caravel id=2 nation=1 at (53,40) mp=9: (52,39) -> (53,40)
+[2026-10-24 18:10:30] [INFO] [map] MOVE Caravel id=2 nation=1 at (54,41) mp=6: (53,40) -> (54,41)
+[2026-10-24 18:10:30] [INFO] [map] MOVE Caravel id=2 nation=1 at (53,42) mp=3: (54,41) -> (53,42)
+[2026-10-24 18:10:30] [INFO] [map] MOVE Caravel id=2 nation=1 at (52,43) mp=0: (53,42) -> (52,43)
+[2026-10-24 18:10:30] [INFO] [map] TURN european nation 2
+[2026-10-24 18:10:30] [INFO] [map] PROD Isabella (id=2 nation=2 pop=1 SoL=7%): food +1, hammers +0 (0) building=-
+[2026-10-24 18:10:30] [INFO] [map] PROD   Isabella: Food +1 (15), Sugar +2 (30), Silver +3 (21)
+[2026-10-24 18:10:30] [INFO] [map] Spawned unit id=87 type=Pioneers at (47,25)
+[2026-10-24 18:10:30] [INFO] [map] COLONY Isabella: colonist #0 off field tile 0
+[2026-10-24 18:10:30] [INFO] [map] COLONY Isabella: colonist #0 job=28 -> field tile 0 as Silver Miner
+[2026-10-24 18:10:30] [INFO] [map] COLONY Isabella: colonist #0 off field tile 0
+[2026-10-24 18:10:30] [INFO] [map] COLONY Isabella: colonist #0 job=28 -> field tile 0 as Silver Miner
+[2026-10-24 18:10:30] [INFO] [map] MOVE Soldiers id=4 nation=2 at (48,25) mp=-3: (48,24) -> (48,25)
+[2026-10-24 18:10:30] [INFO] [map] TURN european nation 3
+[2026-10-24 18:10:30] [INFO] [map] PROD Fort Orange (id=5 nation=3 pop=1 SoL=3%): food +1, hammers +0 (0) building=-
+[2026-10-24 18:10:30] [INFO] [map] PROD   Fort Orange: Food +1 (7), Furs +2 (12), Ore +4 (20)
+[2026-10-24 18:10:30] [INFO] [map] PROD New Amsterdam (id=4 nation=3 pop=1 SoL=5%): food +1, hammers +0 (0) building=-
+[2026-10-24 18:10:30] [INFO] [map] PROD   New Amsterdam: Food +1 (11), Furs +6 (50), Ore +5 (55)
+[2026-10-24 18:10:30] [INFO] [map] COLONY New Amsterdam: colonist #0 off field tile 6
+[2026-10-24 18:10:30] [INFO] [map] COLONY New Amsterdam: colonist #0 job=28 -> field tile 6 as Fur Trapper
+[2026-10-24 18:10:30] [INFO] [map] COLONY Fort Orange: colonist #0 off field tile 7
+[2026-10-24 18:10:30] [INFO] [map] COLONY Fort Orange: colonist #0 job=22 -> field tile 7 as Ore Miner
+[2026-10-24 18:10:30] [INFO] [map] MOVE Merchantman id=5 nation=3 at (33,54) mp=12: (32,54) -> (33,54)
+[2026-10-24 18:10:30] [INFO] [map] MOVE Merchantman id=5 nation=3 at (34,54) mp=9: (33,54) -> (34,54)
+[2026-10-24 18:10:30] [INFO] [map] MOVE Merchantman id=5 nation=3 at (35,54) mp=6: (34,54) -> (35,54)
+[2026-10-24 18:10:30] [INFO] [map] MOVE Merchantman id=5 nation=3 at (36,55) mp=3: (35,54) -> (36,55)
+[2026-10-24 18:10:30] [INFO] [map] MOVE Merchantman id=5 nation=3 at (37,56) mp=0: (36,55) -> (37,56)
+[2026-10-24 18:10:30] [INFO] [map] TURN native nation 4
+[2026-10-24 18:10:30] [INFO] [map] TURN native nation 5
+[2026-10-24 18:10:30] [INFO] [map] TURN native nation 6
+[2026-10-24 18:10:30] [INFO] [map] TURN native nation 7
+[2026-10-24 18:10:30] [INFO] [map] TURN native nation 8
+[2026-10-24 18:10:30] [INFO] [map] TURN native nation 9
+[2026-10-24 18:10:30] [INFO] [map] TURN native nation 10
+[2026-10-24 18:10:30] [INFO] [map] TURN native nation 11
+[2026-10-24 18:10:30] [INFO] [map] POPUP queued tag=COLONY_EVENT kind=choice choices=2 queue=1
+[2026-10-24 18:10:30] [INFO] [map] PROD Jamestown (id=0 nation=0 pop=2 SoL=5%): food -1, hammers +3 (21) building=Docks
+[2026-10-24 18:10:30] [INFO] [map] PROD   Jamestown: Food -1 (3), Lumber +5 (35), Ore +4 (28)
+[2026-10-24 18:10:30] [INFO] [map] POPUP show tag=COLONY_EVENT kind=choice title="-" ctx=(a=-1 b=-1 payload=0) body="The colony of {Jamestown} is rapidly depleting its food supply, Your Excellency.  We have only {3 food} left.  We must have food for the winter months." choices=[1]Continue turn. [2]Zoom to colony.
+[2026-10-24 18:10:30] [INFO] [map] Loaded MADSPACK ./COLONIZE/MSS5.SS (4 sections)
+[2026-10-24 18:10:30] [INFO] [map] Loaded SS ./COLONIZE/MSS5.SS (1 sprites palette=yes mode=0 pflag=1)
+[2026-10-24 18:10:35] [INFO] [map] POPUP answered tag=COLONY_EVENT picked id=1 choice="Continue turn." ctx=(a=-1 b=-1 payload=0)
+[2026-10-24 18:10:35] [INFO] [map] turn_end: turn=20 year=1512 autumn=0 colonies=6 shortages=1 immigrants=0
+[2026-10-24 18:10:35] [INFO] [map] Save directory exists: automated-playtests/campaign2/saves
+[2026-10-24 18:10:35] [INFO] [map] col1_save_write_file automated-playtests/campaign2/saves/COLONY09.SAV (28579 bytes)
+[2026-10-24 18:10:35] [INFO] [map] Turn autosave → COLONY09.SAV
+[2026-10-24 18:10:35] [INFO] [map] col1_save_write_file automated-playtests/campaign2/saves/trace_autosave_turn_020.sav (28579 bytes)
+[2026-10-24 18:10:35] [INFO] [map] Trace autosave → trace_autosave_turn_020.sav
+[2026-10-24 18:10:39] [INFO] [map] Key pressed: P (menu=no debug=no pedia=no europe=no colony=no report=no turn=20 cursor=38,11)
+[2026-10-24 18:10:39] [INFO] [map] ORDER Pioneers id=1 nation=0 at (38,11) mp=3: plow fields tile (38,11) tools=80
+[2026-10-24 18:10:42] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=20 cursor=39,7)
+[2026-10-24 18:10:42] [INFO] [map] MOVE Scouts id=73 nation=0 at (38,6) mp=6: (39,7) -> (38,6)
+[2026-10-24 18:10:42] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=20 cursor=38,6)
+[2026-10-24 18:10:42] [INFO] [map] MOVE Scouts id=73 nation=0 at (37,5) mp=-3: (38,6) -> (37,5)
+[2026-10-24 18:10:42] [INFO] [map] MOVE Caravel id=84 nation=0 at (38,15) mp=9: (39,16) -> (38,15)
+[2026-10-24 18:10:42] [INFO] [map] Disembarked 2 units from ship 84 at (37,14)
+[2026-10-24 18:10:42] [INFO] [map] MOVE Caravel id=84 nation=0 at (37,14) mp=0: (38,15) -> (37,14)
+[2026-10-24 18:10:47] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=20 cursor=37,14)
+[2026-10-24 18:10:47] [INFO] [map] MOVE Colonists id=85 nation=0 at (37,13) mp=-3: (37,14) -> (37,13)
+[2026-10-24 18:10:47] [INFO] [map] Key pressed: B (menu=no debug=no pedia=no europe=no colony=no report=no turn=20 cursor=37,14)
+[2026-10-24 18:10:47] [INFO] [map] COMMAND join_colony (unit Colonists id=86 at (37,14) mp=3)
+[2026-10-24 18:10:47] [INFO] [map] TURN setup: turn=20 year=1512 autumn=0 human=0
+[2026-10-24 18:10:47] [INFO] [map] TURN european nation 1
+[2026-10-24 18:10:47] [INFO] [map] PROD Montreal (id=3 nation=1 pop=1 SoL=6%): food +1, hammers +0 (0) building=-
+[2026-10-24 18:10:47] [INFO] [map] PROD   Montreal: Food +1 (12), Sugar +3 (6), Ore +4 (12)
+[2026-10-24 18:10:47] [INFO] [map] PROD Quebec (id=1 nation=1 pop=1 SoL=8%): food +1, hammers +0 (0) building=-
+[2026-10-24 18:10:47] [INFO] [map] PROD   Quebec: Food +1 (17), Furs +6 (58)
+[2026-10-24 18:10:47] [INFO] [map] COLONY Quebec: colonist #0 off field tile 0
+[2026-10-24 18:10:47] [INFO] [map] COLONY Quebec: colonist #0 job=28 -> field tile 0 as Fur Trapper
+[2026-10-24 18:10:47] [INFO] [map] COLONY Quebec: colonist #0 off field tile 0
+[2026-10-24 18:10:47] [INFO] [map] COLONY Quebec: colonist #0 job=28 -> field tile 0 as Fur Trapper
+[2026-10-24 18:10:47] [INFO] [map] COLONY Montreal: colonist #0 off field tile 1
+[2026-10-24 18:10:47] [INFO] [map] COLONY Montreal: colonist #0 job=20 -> field tile 1 as Sugar Planter
+[2026-10-24 18:10:47] [INFO] [map] MOVE Caravel id=2 nation=1 at (51,42) mp=9: (52,43) -> (51,42)
+[2026-10-24 18:10:47] [INFO] [map] MOVE Caravel id=2 nation=1 at (50,41) mp=0: (51,42) -> (50,41)
+[2026-10-24 18:10:47] [INFO] [map] TURN european nation 2
+[2026-10-24 18:10:47] [INFO] [map] PROD Isabella (id=2 nation=2 pop=1 SoL=8%): food +1, hammers +0 (0) building=-
+[2026-10-24 18:10:47] [INFO] [map] PROD   Isabella: Food +1 (16), Sugar +2 (32), Silver +3 (24)
+[2026-10-24 18:10:47] [INFO] [map] Spawned unit id=88 type=Pioneers at (47,25)
+[2026-10-24 18:10:47] [INFO] [map] COLONY Isabella: colonist #0 off field tile 0
+[2026-10-24 18:10:47] [INFO] [map] COLONY Isabella: colonist #0 job=28 -> field tile 0 as Silver Miner
+[2026-10-24 18:10:47] [INFO] [map] COLONY Isabella: colonist #0 off field tile 0
+[2026-10-24 18:10:47] [INFO] [map] COLONY Isabella: colonist #0 job=28 -> field tile 0 as Silver Miner
+[2026-10-24 18:10:47] [INFO] [map] MOVE Soldiers id=4 nation=2 at (48,24) mp=0: (48,25) -> (48,24)
+[2026-10-24 18:10:47] [INFO] [map] TURN european nation 3
+[2026-10-24 18:10:47] [INFO] [map] PROD Fort Orange (id=5 nation=3 pop=1 SoL=4%): food +1, hammers +0 (0) building=-
+[2026-10-24 18:10:47] [INFO] [map] PROD   Fort Orange: Food +1 (8), Furs +2 (14), Ore +4 (24)
+[2026-10-24 18:10:47] [INFO] [map] PROD New Amsterdam (id=4 nation=3 pop=1 SoL=6%): food +1, hammers +0 (0) building=-
+[2026-10-24 18:10:47] [INFO] [map] PROD   New Amsterdam: Food +1 (12), Furs +6 (56), Ore +5 (60)
+[2026-10-24 18:10:47] [INFO] [map] COLONY New Amsterdam: colonist #0 off field tile 6
+[2026-10-24 18:10:47] [INFO] [map] COLONY New Amsterdam: colonist #0 job=28 -> field tile 6 as Fur Trapper
+[2026-10-24 18:10:47] [INFO] [map] Spawned unit id=89 type=Pioneers at (36,50)
+[2026-10-24 18:10:47] [INFO] [map] COLONY Fort Orange: colonist #0 off field tile 7
+[2026-10-24 18:10:47] [INFO] [map] COLONY Fort Orange: colonist #0 job=22 -> field tile 7 as Ore Miner
+[2026-10-24 18:10:47] [INFO] [map] MOVE Merchantman id=5 nation=3 at (38,55) mp=12: (37,56) -> (38,55)
+[2026-10-24 18:10:47] [INFO] [map] MOVE Merchantman id=5 nation=3 at (39,56) mp=9: (38,55) -> (39,56)
+[2026-10-24 18:10:47] [INFO] [map] MOVE Merchantman id=5 nation=3 at (40,55) mp=6: (39,56) -> (40,55)
+[2026-10-24 18:10:47] [INFO] [map] MOVE Merchantman id=5 nation=3 at (41,54) mp=3: (40,55) -> (41,54)
+[2026-10-24 18:10:47] [INFO] [map] MOVE Merchantman id=5 nation=3 at (42,53) mp=0: (41,54) -> (42,53)
+[2026-10-24 18:10:47] [INFO] [map] TURN native nation 4
+[2026-10-24 18:10:47] [INFO] [map] TURN native nation 5
+[2026-10-24 18:10:47] [INFO] [map] TURN native nation 6
+[2026-10-24 18:10:47] [INFO] [map] TURN native nation 7
+[2026-10-24 18:10:47] [INFO] [map] TURN native nation 8
+[2026-10-24 18:10:47] [INFO] [map] TURN native nation 9
+[2026-10-24 18:10:47] [INFO] [map] TURN native nation 10
+[2026-10-24 18:10:47] [INFO] [map] TURN native nation 11
+[2026-10-24 18:10:47] [INFO] [map] POPUP queued tag=COLONY_EVENT kind=choice choices=2 queue=1
+[2026-10-24 18:10:47] [INFO] [map] PROD Jamestown (id=0 nation=0 pop=3 SoL=4%): food -3, hammers +6 (27) building=Docks
+[2026-10-24 18:10:47] [INFO] [map] PROD   Jamestown: Food -3 (0), Lumber +2 (37), Ore +4 (32)
+[2026-10-24 18:10:47] [INFO] [map] POPUP show tag=COLONY_EVENT kind=choice title="-" ctx=(a=-1 b=-1 payload=0) body="Food stores have been depleted in {Jamestown}, Your Excellency!" choices=[1]Continue turn. [2]Zoom to colony.
+[2026-10-24 18:10:52] [INFO] [map] POPUP answered tag=COLONY_EVENT picked id=1 choice="Continue turn." ctx=(a=-1 b=-1 payload=0)
+[2026-10-24 18:10:52] [INFO] [map] turn_end: turn=21 year=1513 autumn=0 colonies=6 shortages=1 immigrants=0
+[2026-10-24 18:10:52] [INFO] [map] Save directory exists: automated-playtests/campaign2/saves
+[2026-10-24 18:10:52] [INFO] [map] col1_save_write_file automated-playtests/campaign2/saves/COLONY09.SAV (28551 bytes)
+[2026-10-24 18:10:52] [INFO] [map] Turn autosave → COLONY09.SAV
+[2026-10-24 18:10:52] [INFO] [map] col1_save_write_file automated-playtests/campaign2/saves/trace_autosave_turn_021.sav (28551 bytes)
+[2026-10-24 18:10:52] [INFO] [map] Trace autosave → trace_autosave_turn_021.sav
+[2026-10-24 18:11:02] [INFO] VIEW map -> colony:Jamestown
+[2026-10-24 18:11:02] [INFO] [colony:Jamestown] COLONY opened Jamestown (id=0 at (37,14) nation=0 pop=3 SoL=4% food=0 hammers=27 project=Docks)
+[2026-10-24 18:11:13] [INFO] [colony:Jamestown] Key pressed: UP (menu=no debug=no pedia=no europe=no colony=yes report=no turn=21 cursor=37,14)
+[2026-10-24 18:11:13] [INFO] [colony:Jamestown] Key pressed: UP (menu=no debug=no pedia=no europe=no colony=yes report=no turn=21 cursor=37,14)
+[2026-10-24 18:11:13] [INFO] [colony:Jamestown] Key pressed: UP (menu=no debug=no pedia=no europe=no colony=yes report=no turn=21 cursor=37,14)
+[2026-10-24 18:11:13] [INFO] [colony:Jamestown] Key pressed: UP (menu=no debug=no pedia=no europe=no colony=yes report=no turn=21 cursor=37,14)
+[2026-10-24 18:11:13] [INFO] [colony:Jamestown] Key pressed: UP (menu=no debug=no pedia=no europe=no colony=yes report=no turn=21 cursor=37,14)
+[2026-10-24 18:11:13] [INFO] [colony:Jamestown] Key pressed: ENTER (menu=no debug=no pedia=no europe=no colony=yes report=no turn=21 cursor=37,14)
+[2026-10-24 18:11:13] [INFO] [colony:Jamestown] COLONY Jamestown: colonist #1 job=25 -> field tile 7 as Farmer
+[2026-10-24 18:11:20] [INFO] [colony:Jamestown] Key pressed: ESCAPE (menu=no debug=no pedia=no europe=no colony=yes report=no turn=21 cursor=37,14)
+[2026-10-24 18:11:20] [INFO] [colony:Jamestown] Left colony screen.
+[2026-10-24 18:11:20] [INFO] VIEW colony:Jamestown -> map
+[2026-10-24 18:11:20] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=21 cursor=37,5)
+[2026-10-24 18:11:20] [INFO] [map] MOVE Scouts id=73 nation=0 at (36,6) mp=3: (37,5) -> (36,6)
+[2026-10-24 18:11:20] [INFO] [map] LCR unit 73 nation=0 at (36,6): outcome=8 gold=0 skill=2
+[2026-10-24 18:11:20] [INFO] [map] Spawned unit id=90 type=Treasure at (36,6)
+[2026-10-24 18:11:20] [INFO] [map] POPUP queued tag=INFO kind=message choices=0 queue=1
+[2026-10-24 18:11:20] [INFO] [map] POPUP show tag=INFO kind=message title="-" ctx=(a=0 b=-1 payload=5800) body="You have found one of the {Seven Cities of Cibola}!  Treasure worth {5800$} unearthed in the ruins!  It will take a {Galleon} to get this treasure back to Europe!"
+[2026-10-24 18:11:29] [INFO] [map] Key pressed: ENTER (menu=no debug=no pedia=no europe=no colony=no report=no turn=21 cursor=36,6)
+[2026-10-24 18:11:29] [INFO] [map] POPUP answered tag=INFO dismissed id=0 choice="-" ctx=(a=0 b=-1 payload=5800)
+[2026-10-24 18:11:44] [INFO] [map] Key pressed: G (menu=no debug=no pedia=no europe=no colony=no report=no turn=21 cursor=36,6)
+[2026-10-24 18:11:44] [INFO] [map] COMMAND goto_place (unit Treasure id=90 at (36,6) mp=3)
+[2026-10-24 18:11:44] [INFO] VIEW map -> list dialog
+[2026-10-24 18:11:49] [INFO] [list dialog] Key pressed: ENTER (menu=no debug=no pedia=no europe=no colony=no report=no turn=21 cursor=36,6)
+[2026-10-24 18:11:49] [INFO] [list dialog] ORDER Treasure id=90 nation=0 at (36,6) mp=3: goto (37,14)
+[2026-10-24 18:11:49] [INFO] VIEW list dialog -> map
+[2026-10-24 18:11:49] [INFO] [map] MOVE Treasure id=90 nation=0 at (37,7) mp=-3: (36,6) -> (37,7)
+[2026-10-24 18:11:53] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=21 cursor=36,6)
+[2026-10-24 18:11:53] [INFO] [map] POPUP queued tag=CONTACT_MEET kind=choice choices=4 queue=1
+[2026-10-24 18:11:53] [INFO] [map] POPUP show tag=CONTACT_MEET kind=choice title="-" ctx=(a=0 b=6 payload=296) body="Your expedition has reached a Village of {Arawaks}.  The inhabitants are busy in the surrounding fields.  As they wave to you {happily}, you notice a collection of scalps hanging threateningly from a nearby tree." choices=[9]Ask to Speak With Chief [3]Demand Tribute [11]Attack Village [5]Cancel Action
+[2026-10-24 18:11:53] [INFO] [map] Key pressed: ENTER (menu=no debug=no pedia=no europe=no colony=no report=no turn=21 cursor=36,6)
+[2026-10-24 18:11:53] [INFO] [map] POPUP answered tag=CONTACT_MEET picked id=9 choice="Ask to Speak With Chief" ctx=(a=0 b=6 payload=296)
+[2026-10-24 18:11:53] [INFO] [map] POPUP queued tag=CONTACT_MEET kind=message choices=0 queue=1
+[2026-10-24 18:11:53] [INFO] [map] POPUP queued tag=CONTACT_MEET kind=message choices=0 queue=2
+[2026-10-24 18:11:53] [INFO] [map] POPUP show tag=CONTACT_MEET kind=message title="-" ctx=(a=0 b=6 payload=0) body=""Greetings, travelers.  We are a peaceful village known for our {Expert Farmers}.  We would gladly trade with you if you bring us some badly needed {Tools}.  We would also pay well for {Rum} or {Coats}."
+[2026-10-24 18:11:53] [INFO] [map] Key pressed: ENTER (menu=no debug=no pedia=no europe=no colony=no report=no turn=21 cursor=36,6)
+[2026-10-24 18:11:53] [INFO] [map] POPUP answered tag=CONTACT_MEET dismissed id=0 choice="-" ctx=(a=0 b=6 payload=0)
+[2026-10-24 18:11:53] [INFO] [map] POPUP show tag=CONTACT_MEET kind=message title="-" ctx=(a=0 b=6 payload=0) body=""The {Arawak} are pleased to welcome travelers from afar.  Come sit by the fire and we shall tell you tales of {nearby lands}.""
+[2026-10-24 18:11:53] [INFO] [map] Key pressed: ENTER (menu=no debug=no pedia=no europe=no colony=no report=no turn=21 cursor=36,6)
+[2026-10-24 18:11:53] [INFO] [map] POPUP answered tag=CONTACT_MEET dismissed id=0 choice="-" ctx=(a=0 b=6 payload=0)
+[2026-10-24 18:11:57] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=21 cursor=37,14)
+[2026-10-24 18:11:57] [INFO] [map] MOVE Caravel id=84 nation=0 at (36,15) mp=9: (37,14) -> (36,15)
+[2026-10-24 18:11:57] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=21 cursor=36,15)
+[2026-10-24 18:11:57] [INFO] [map] MOVE Caravel id=84 nation=0 at (35,15) mp=6: (36,15) -> (35,15)
+[2026-10-24 18:11:57] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=21 cursor=35,15)
+[2026-10-24 18:11:57] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=21 cursor=35,15)
+[2026-10-24 18:12:01] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=21 cursor=35,15)
+[2026-10-24 18:12:01] [INFO] [map] MOVE Caravel id=84 nation=0 at (34,16) mp=3: (35,15) -> (34,16)
+[2026-10-24 18:12:01] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=21 cursor=34,16)
+[2026-10-24 18:12:01] [INFO] [map] MOVE Caravel id=84 nation=0 at (33,16) mp=0: (34,16) -> (33,16)
+[2026-10-24 18:12:01] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=21 cursor=37,13)
+[2026-10-24 18:12:01] [INFO] [map] POPUP queued tag=INFO kind=message choices=0 queue=1
+[2026-10-24 18:12:01] [INFO] [map] POPUP show tag=INFO kind=message title="-" ctx=(a=-1 b=-1 payload=0) body="That unit type cannot attack."
+[2026-10-24 18:12:05] [INFO] [map] Key pressed: ENTER (menu=no debug=no pedia=no europe=no colony=no report=no turn=21 cursor=37,13)
+[2026-10-24 18:12:05] [INFO] [map] POPUP answered tag=INFO dismissed id=0 choice="-" ctx=(a=-1 b=-1 payload=0)
+[2026-10-24 18:12:05] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=21 cursor=37,13)
+[2026-10-24 18:12:05] [INFO] [map] MOVE Colonists id=85 nation=0 at (37,12) mp=0: (37,13) -> (37,12)
+[2026-10-24 18:12:05] [INFO] [map] TURN setup: turn=21 year=1513 autumn=0 human=0
+[2026-10-24 18:12:05] [INFO] [map] TURN european nation 1
+[2026-10-24 18:12:05] [INFO] [map] PROD Montreal (id=3 nation=1 pop=1 SoL=6%): food +1, hammers +0 (0) building=-
+[2026-10-24 18:12:05] [INFO] [map] PROD   Montreal: Food +1 (13), Sugar +3 (9), Ore +4 (16)
+[2026-10-24 18:12:05] [INFO] [map] PROD Quebec (id=1 nation=1 pop=1 SoL=9%): food +1, hammers +0 (0) building=-
+[2026-10-24 18:12:05] [INFO] [map] PROD   Quebec: Food +1 (18), Furs +6 (64)
+[2026-10-24 18:12:05] [INFO] [map] COLONY Quebec: colonist #0 off field tile 0
+[2026-10-24 18:12:05] [INFO] [map] COLONY Quebec: colonist #0 job=28 -> field tile 0 as Fur Trapper
+[2026-10-24 18:12:05] [INFO] [map] COLONY Quebec: colonist #0 off field tile 0
+[2026-10-24 18:12:05] [INFO] [map] COLONY Quebec: colonist #0 job=28 -> field tile 0 as Fur Trapper
+[2026-10-24 18:12:05] [INFO] [map] COLONY Montreal: colonist #0 off field tile 1
+[2026-10-24 18:12:05] [INFO] [map] COLONY Montreal: colonist #0 job=20 -> field tile 1 as Sugar Planter
+[2026-10-24 18:12:05] [INFO] [map] CARGO unit 2 -> Quebec: cargo 8 x100 (colony stock 100, cap 100)
+[2026-10-24 18:12:05] [INFO] [map] CARGO unit 2 -> Quebec: cargo 6 x72 (colony stock 76, cap 100)
+[2026-10-24 18:12:05] [INFO] [map] CARGO Quebec -> unit 2: cargo 8 x100 (colony stock 0)
+[2026-10-24 18:12:05] [INFO] [map] CARGO Quebec -> unit 2: cargo 4 x64 (colony stock 0)
+[2026-10-24 18:12:05] [INFO] [map] MOVE Caravel id=2 nation=1 at (51,42) mp=9: (50,41) -> (51,42)
+[2026-10-24 18:12:05] [INFO] [map] MOVE Caravel id=2 nation=1 at (52,43) mp=6: (51,42) -> (52,43)
+[2026-10-24 18:12:05] [INFO] [map] MOVE Caravel id=2 nation=1 at (53,42) mp=3: (52,43) -> (53,42)
+[2026-10-24 18:12:05] [INFO] [map] MOVE Caravel id=2 nation=1 at (54,41) mp=0: (53,42) -> (54,41)
+[2026-10-24 18:12:05] [INFO] [map] TURN european nation 2
+[2026-10-24 18:12:05] [INFO] [map] PROD Isabella (id=2 nation=2 pop=1 SoL=8%): food +1, hammers +0 (0) building=-
+[2026-10-24 18:12:05] [INFO] [map] PROD   Isabella: Food +1 (17), Sugar +2 (34), Silver +3 (27)
+[2026-10-24 18:12:05] [INFO] [map] COLONY Isabella: colonist #0 off field tile 0
+[2026-10-24 18:12:05] [INFO] [map] COLONY Isabella: colonist #0 job=28 -> field tile 0 as Silver Miner
+[2026-10-24 18:12:05] [INFO] [map] COLONY Isabella: colonist #0 off field tile 0
+[2026-10-24 18:12:05] [INFO] [map] COLONY Isabella: colonist #0 job=28 -> field tile 0 as Silver Miner
+[2026-10-24 18:12:05] [INFO] [map] ORDER Caravel id=3 nation=2 at (52,19) mp=12: wake (was sentry)
+[2026-10-24 18:12:05] [INFO] [map] MOVE Soldiers id=4 nation=2 at (48,23) mp=-6: (48,24) -> (48,23)
+[2026-10-24 18:12:05] [INFO] [map] MOVE Caravel id=3 nation=2 at (51,20) mp=9: (52,19) -> (51,20)
+[2026-10-24 18:12:05] [INFO] [map] MOVE Caravel id=3 nation=2 at (51,21) mp=6: (51,20) -> (51,21)
+[2026-10-24 18:12:05] [INFO] [map] MOVE Caravel id=3 nation=2 at (50,22) mp=3: (51,21) -> (50,22)
+[2026-10-24 18:12:05] [INFO] [map] MOVE Caravel id=3 nation=2 at (49,23) mp=0: (50,22) -> (49,23)
+[2026-10-24 18:12:05] [INFO] [map] TURN european nation 3
+[2026-10-24 18:12:05] [INFO] [map] PROD Fort Orange (id=5 nation=3 pop=1 SoL=4%): food +1, hammers +0 (0) building=-
+[2026-10-24 18:12:05] [INFO] [map] PROD   Fort Orange: Food +1 (9), Furs +2 (16), Ore +4 (28)
+[2026-10-24 18:12:05] [INFO] [map] PROD New Amsterdam (id=4 nation=3 pop=1 SoL=6%): food +1, hammers +0 (0) building=-
+[2026-10-24 18:12:05] [INFO] [map] PROD   New Amsterdam: Food +1 (13), Furs +6 (62), Ore +5 (65)
+[2026-10-24 18:12:05] [INFO] [map] Spawned unit id=91 type=Pioneers at (38,50)
+[2026-10-24 18:12:05] [INFO] [map] COLONY New Amsterdam: colonist #0 off field tile 6
+[2026-10-24 18:12:05] [INFO] [map] COLONY New Amsterdam: colonist #0 job=28 -> field tile 6 as Fur Trapper
+[2026-10-24 18:12:05] [INFO] [map] COLONY Fort Orange: colonist #0 off field tile 7
+[2026-10-24 18:12:05] [INFO] [map] COLONY Fort Orange: colonist #0 job=22 -> field tile 7 as Ore Miner
+[2026-10-24 18:12:05] [INFO] [map] MOVE Merchantman id=5 nation=3 at (43,52) mp=12: (42,53) -> (43,52)
+[2026-10-24 18:12:05] [INFO] [map] MOVE Merchantman id=5 nation=3 at (42,51) mp=9: (43,52) -> (42,51)
+[2026-10-24 18:12:05] [INFO] [map] MOVE Merchantman id=5 nation=3 at (41,50) mp=6: (42,51) -> (41,50)
+[2026-10-24 18:12:05] [INFO] [map] Disembarked 1 units from ship 5 at (40,49)
+[2026-10-24 18:12:05] [INFO] [map] MOVE Merchantman id=5 nation=3 at (40,49) mp=0: (41,50) -> (40,49)
+[2026-10-24 18:12:05] [INFO] [map] TURN native nation 4
+[2026-10-24 18:12:05] [INFO] [map] TURN native nation 5
+[2026-10-24 18:12:05] [INFO] [map] TURN native nation 6
+[2026-10-24 18:12:05] [INFO] [map] TURN native nation 7
+[2026-10-24 18:12:05] [INFO] [map] TURN native nation 8
+[2026-10-24 18:12:05] [INFO] [map] TURN native nation 9
+[2026-10-24 18:12:05] [INFO] [map] TURN native nation 10
+[2026-10-24 18:12:05] [INFO] [map] TURN native nation 11
+[2026-10-24 18:12:05] [INFO] [map] PROD Jamestown (id=0 nation=0 pop=3 SoL=4%): food +0, hammers +6 (33) building=Docks
+[2026-10-24 18:12:05] [INFO] [map] PROD   Jamestown: Lumber -6 (31), Ore +4 (36)
+[2026-10-24 18:12:05] [INFO] [map] turn_end: turn=22 year=1514 autumn=0 colonies=6 shortages=0 immigrants=0
+[2026-10-24 18:12:05] [INFO] [map] Save directory exists: automated-playtests/campaign2/saves
+[2026-10-24 18:12:05] [INFO] [map] col1_save_write_file automated-playtests/campaign2/saves/COLONY09.SAV (28619 bytes)
+[2026-10-24 18:12:05] [INFO] [map] Turn autosave → COLONY09.SAV
+[2026-10-24 18:12:05] [INFO] [map] col1_save_write_file automated-playtests/campaign2/saves/trace_autosave_turn_022.sav (28619 bytes)
+[2026-10-24 18:12:05] [INFO] [map] Trace autosave → trace_autosave_turn_022.sav
+[2026-10-24 18:12:10] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=22 cursor=37,12)
+[2026-10-24 18:12:10] [INFO] [map] MOVE Colonists id=85 nation=0 at (38,11) mp=0: (37,12) -> (38,11)
+[2026-10-24 18:12:10] [INFO] [map] MOVE Treasure id=90 nation=0 at (38,8) mp=-3: (37,7) -> (38,8)
+[2026-10-24 18:12:10] [INFO] [map] Key pressed: B (menu=no debug=no pedia=no europe=no colony=no report=no turn=22 cursor=36,6)
+[2026-10-24 18:12:10] [INFO] [map] COMMAND build_colony (unit Scouts id=73 at (36,6) mp=12)
+[2026-10-24 18:12:10] [INFO] [map] POPUP queued tag=INFO kind=message choices=0 queue=1
+[2026-10-24 18:12:10] [INFO] [map] POPUP show tag=INFO kind=message title="-" ctx=(a=-1 b=-1 payload=0) body="Colonies cannot be built in the {mountains}, Your Excellency."
+[2026-10-24 18:12:14] [INFO] [map] Key pressed: ENTER (menu=no debug=no pedia=no europe=no colony=no report=no turn=22 cursor=36,6)
+[2026-10-24 18:12:14] [INFO] [map] POPUP answered tag=INFO dismissed id=0 choice="-" ctx=(a=-1 b=-1 payload=0)
+[2026-10-24 18:12:19] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=22 cursor=36,6)
+[2026-10-24 18:12:19] [INFO] [map] MOVE Scouts id=73 nation=0 at (35,7) mp=6: (36,6) -> (35,7)
+[2026-10-24 18:12:19] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=22 cursor=35,7)
+[2026-10-24 18:12:19] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=22 cursor=35,7)
+[2026-10-24 18:12:27] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=22 cursor=35,7)
+[2026-10-24 18:12:27] [INFO] [map] MOVE Scouts id=73 nation=0 at (36,8) mp=0: (35,7) -> (36,8)
+[2026-10-24 18:12:31] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=22 cursor=33,16)
+[2026-10-24 18:12:31] [INFO] [map] MOVE Caravel id=84 nation=0 at (32,16) mp=9: (33,16) -> (32,16)
+[2026-10-24 18:12:31] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=22 cursor=32,16)
+[2026-10-24 18:12:31] [INFO] [map] MOVE Caravel id=84 nation=0 at (31,16) mp=6: (32,16) -> (31,16)
+[2026-10-24 18:12:31] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=22 cursor=31,16)
+[2026-10-24 18:12:31] [INFO] [map] MOVE Caravel id=84 nation=0 at (30,15) mp=3: (31,16) -> (30,15)
+[2026-10-24 18:12:31] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=22 cursor=30,15)
+[2026-10-24 18:12:31] [INFO] [map] MOVE Caravel id=84 nation=0 at (29,14) mp=0: (30,15) -> (29,14)
+[2026-10-24 18:12:31] [INFO] [map] TURN setup: turn=22 year=1514 autumn=0 human=0
+[2026-10-24 18:12:31] [INFO] [map] Loaded MADSPACK ./COLONIZE/WDCUT06.SS (4 sections)
+[2026-10-24 18:12:31] [INFO] [map] Loaded SS ./COLONIZE/WDCUT06.SS (1 sprites palette=yes mode=0 pflag=1)
+[2026-10-24 18:12:31] [INFO] [map] Loaded MADSPACK ./COLONIZE/WOODFRAM.SS (4 sections)
+[2026-10-24 18:12:31] [INFO] [map] Loaded SS ./COLONIZE/WOODFRAM.SS (1 sprites palette=yes mode=0 pflag=1)
+[2026-10-24 18:12:31] [INFO] [map] Loaded MADSPACK ./COLONIZE/NAMEPLAT.SS (4 sections)
+[2026-10-24 18:12:31] [INFO] [map] Loaded SS ./COLONIZE/NAMEPLAT.SS (3 sprites palette=yes mode=0 pflag=1)
+[2026-10-24 18:12:31] [INFO] [map] Loaded MADSPACK ./COLONIZE/FONT-NP.FF (1 sections)
+[2026-10-24 18:12:31] [INFO] [map] Loaded FF font ./COLONIZE/FONT-NP.FF (11x8, section=914 bytes)
+[2026-10-24 18:12:31] [INFO] [map] Loaded message catalog ./COLONIZE/WOODCUT.TXT (1 sections)
+[2026-10-24 18:12:31] [INFO] [map] Woodcut 6: DISCOVERY OF THE PACIFIC OCEAN
+[2026-10-24 18:12:31] [INFO] VIEW map -> woodcut
+[2026-10-24 18:12:34] [INFO] VIEW woodcut -> map
+[2026-10-24 18:12:34] [INFO] [map] TURN european nation 1
+[2026-10-24 18:12:34] [INFO] [map] PROD Montreal (id=3 nation=1 pop=1 SoL=7%): food +1, hammers +0 (0) building=-
+[2026-10-24 18:12:34] [INFO] [map] PROD   Montreal: Food +1 (14), Sugar +3 (12), Ore +4 (20)
+[2026-10-24 18:12:34] [INFO] [map] PROD Quebec (id=1 nation=1 pop=1 SoL=9%): food +1, hammers +0 (0) building=-
+[2026-10-24 18:12:34] [INFO] [map] PROD   Quebec: Food +1 (19), Furs +6 (6)
+[2026-10-24 18:12:34] [INFO] [map] COLONY Quebec: colonist #0 off field tile 0
+[2026-10-24 18:12:34] [INFO] [map] COLONY Quebec: colonist #0 job=28 -> field tile 0 as Fur Trapper
+[2026-10-24 18:12:34] [INFO] [map] COLONY Quebec: colonist #0 off field tile 0
+[2026-10-24 18:12:34] [INFO] [map] COLONY Quebec: colonist #0 job=28 -> field tile 0 as Fur Trapper
+[2026-10-24 18:12:34] [INFO] [map] COLONY Montreal: colonist #0 off field tile 1
+[2026-10-24 18:12:34] [INFO] [map] COLONY Montreal: colonist #0 job=20 -> field tile 1 as Sugar Planter
+[2026-10-24 18:12:34] [INFO] [map] MOVE Caravel id=2 nation=1 at (53,40) mp=9: (54,41) -> (53,40)
+[2026-10-24 18:12:34] [INFO] [map] MOVE Caravel id=2 nation=1 at (52,39) mp=6: (53,40) -> (52,39)
+[2026-10-24 18:12:34] [INFO] [map] MOVE Caravel id=2 nation=1 at (51,38) mp=3: (52,39) -> (51,38)
+[2026-10-24 18:12:34] [INFO] [map] MOVE Caravel id=2 nation=1 at (52,37) mp=0: (51,38) -> (52,37)
+[2026-10-24 18:12:34] [INFO] [map] TURN european nation 2
+[2026-10-24 18:12:34] [INFO] [map] PROD Isabella (id=2 nation=2 pop=1 SoL=9%): food +1, hammers +0 (0) building=-
+[2026-10-24 18:12:34] [INFO] [map] PROD   Isabella: Food +1 (18), Sugar +2 (36), Silver +3 (30)
+[2026-10-24 18:12:34] [INFO] [map] Spawned unit id=92 type=Pioneers at (47,25)
+[2026-10-24 18:12:34] [INFO] [map] COLONY Isabella: colonist #0 off field tile 0
+[2026-10-24 18:12:34] [INFO] [map] COLONY Isabella: colonist #0 job=28 -> field tile 0 as Silver Miner
+[2026-10-24 18:12:34] [INFO] [map] COLONY Isabella: colonist #0 off field tile 0
+[2026-10-24 18:12:34] [INFO] [map] COLONY Isabella: colonist #0 job=28 -> field tile 0 as Silver Miner
+[2026-10-24 18:12:34] [INFO] [map] MOVE Soldiers id=4 nation=2 at (48,24) mp=0: (48,23) -> (48,24)
+[2026-10-24 18:12:34] [INFO] [map] Disembarked 1 units from ship 3 at (48,24)
+[2026-10-24 18:12:34] [INFO] [map] MOVE Caravel id=3 nation=2 at (48,24) mp=0: (49,23) -> (48,24)
+[2026-10-24 18:12:34] [INFO] [map] TURN european nation 3
+[2026-10-24 18:12:34] [INFO] [map] PROD Fort Orange (id=5 nation=3 pop=1 SoL=5%): food +1, hammers +0 (0) building=-
+[2026-10-24 18:12:34] [INFO] [map] PROD   Fort Orange: Food +1 (10), Furs +2 (18), Ore +4 (32)
+[2026-10-24 18:12:34] [INFO] [map] PROD New Amsterdam (id=4 nation=3 pop=1 SoL=7%): food +1, hammers +0 (0) building=-
+[2026-10-24 18:12:34] [INFO] [map] PROD   New Amsterdam: Food +1 (14), Furs +6 (68), Ore +5 (70)
+[2026-10-24 18:12:34] [INFO] [map] COLONY New Amsterdam: colonist #0 off field tile 6
+[2026-10-24 18:12:34] [INFO] [map] COLONY New Amsterdam: colonist #0 job=28 -> field tile 2 as Farmer
+[2026-10-24 18:12:34] [INFO] [map] COLONY New Amsterdam: colonist #1 job=25 -> field tile 6 as Fur Trapper
+[2026-10-24 18:12:34] [INFO] [map] COLONY Fort Orange: colonist #0 off field tile 7
+[2026-10-24 18:12:34] [INFO] [map] COLONY Fort Orange: colonist #0 job=22 -> field tile 7 as Ore Miner
+[2026-10-24 18:12:34] [INFO] [map] CARGO unit 5 -> New Amsterdam: cargo 8 x100 (colony stock 100, cap 100)
+[2026-10-24 18:12:34] [INFO] [map] CARGO New Amsterdam -> unit 5: cargo 8 x100 (colony stock 0)
+[2026-10-24 18:12:34] [INFO] [map] CARGO New Amsterdam -> unit 5: cargo 4 x68 (colony stock 0)
+[2026-10-24 18:12:34] [INFO] [map] CARGO New Amsterdam -> unit 5: cargo 6 x70 (colony stock 0)
+[2026-10-24 18:12:34] [INFO] [map] MOVE Merchantman id=5 nation=3 at (41,50) mp=12: (40,49) -> (41,50)
+[2026-10-24 18:12:34] [INFO] [map] MOVE Merchantman id=5 nation=3 at (42,51) mp=9: (41,50) -> (42,51)
+[2026-10-24 18:12:34] [INFO] [map] MOVE Merchantman id=5 nation=3 at (43,52) mp=6: (42,51) -> (43,52)
+[2026-10-24 18:12:34] [INFO] [map] MOVE Merchantman id=5 nation=3 at (42,53) mp=3: (43,52) -> (42,53)
+[2026-10-24 18:12:34] [INFO] [map] MOVE Merchantman id=5 nation=3 at (41,54) mp=0: (42,53) -> (41,54)
+[2026-10-24 18:12:34] [INFO] [map] TURN native nation 4
+[2026-10-24 18:12:34] [INFO] [map] TURN native nation 5
+[2026-10-24 18:12:34] [INFO] [map] TURN native nation 6
+[2026-10-24 18:12:34] [INFO] [map] TURN native nation 7
+[2026-10-24 18:12:34] [INFO] [map] TURN native nation 8
+[2026-10-24 18:12:34] [INFO] [map] TURN native nation 9
+[2026-10-24 18:12:34] [INFO] [map] TURN native nation 10
+[2026-10-24 18:12:34] [INFO] [map] TURN native nation 11
+[2026-10-24 18:12:34] [INFO] [map] Spawned unit id=93 type=Colonists at (236,236)
+[2026-10-24 18:12:34] [INFO] [map] EUROPE immigrant on the docks: Master Fur Traders (crosses)
+[2026-10-24 18:12:34] [INFO] [map] POPUP queued tag=INFO kind=message choices=0 queue=1
+[2026-10-24 18:12:34] [INFO] [map] PROD Jamestown (id=0 nation=0 pop=3 SoL=5%): food +0, hammers +6 (39) building=Docks
+[2026-10-24 18:12:34] [INFO] [map] PROD   Jamestown: Lumber -6 (25), Ore +4 (40)
+[2026-10-24 18:12:34] [INFO] [map] POPUP show tag=INFO kind=message title="-" ctx=(a=-1 b=-1 payload=0) body="Religious unrest in England causes increased emigration.  Colonists ({Master Fur Traders}) now available in London."
+[2026-10-24 18:12:34] [INFO] [map] POPUP answered tag=INFO dismissed id=0 choice="-" ctx=(a=-1 b=-1 payload=0)
+[2026-10-24 18:12:34] [INFO] [map] turn_end: turn=23 year=1515 autumn=0 colonies=6 shortages=0 immigrants=1
+[2026-10-24 18:12:34] [INFO] [map] Save directory exists: automated-playtests/campaign2/saves
+[2026-10-24 18:12:34] [INFO] [map] col1_save_write_file automated-playtests/campaign2/saves/COLONY09.SAV (28619 bytes)
+[2026-10-24 18:12:34] [INFO] [map] Turn autosave → COLONY09.SAV
+[2026-10-24 18:12:34] [INFO] [map] col1_save_write_file automated-playtests/campaign2/saves/trace_autosave_turn_023.sav (28619 bytes)
+[2026-10-24 18:12:34] [INFO] [map] Trace autosave → trace_autosave_turn_023.sav
+[2026-10-24 18:12:42] [INFO] [map] Key pressed: B (menu=no debug=no pedia=no europe=no colony=no report=no turn=23 cursor=38,11)
+[2026-10-24 18:12:42] [INFO] [map] COMMAND build_colony (unit Colonists id=85 at (38,11) mp=3)
+[2026-10-24 18:12:42] [INFO] [map] POPUP queued tag=MAP_CONFIRM kind=choice choices=2 queue=1
+[2026-10-24 18:12:42] [INFO] [map] POPUP show tag=MAP_CONFIRM kind=choice title="-" ctx=(a=-1 b=-1 payload=0) body="This square does not have access to the {ocean}, Your Excellency.  If we build a {colony} here we must transport its produce to {port} using {wagon trains}, which we can build in any colony." choices=[0]"Oh, I forgot about that." [1]"And that is exactly what I had in mind."
+[2026-10-24 18:12:46] [INFO] [map] Key pressed: DOWN (menu=no debug=no pedia=no europe=no colony=no report=no turn=23 cursor=38,11)
+[2026-10-24 18:12:46] [INFO] [map] Key pressed: ENTER (menu=no debug=no pedia=no europe=no colony=no report=no turn=23 cursor=38,11)
+[2026-10-24 18:12:46] [INFO] [map] POPUP answered tag=MAP_CONFIRM picked id=1 choice=""And that is exactly what I had in mind."" ctx=(a=-1 b=-1 payload=0)
+[2026-10-24 18:12:46] [INFO] VIEW map -> name entry
+[2026-10-24 18:12:49] [INFO] [name entry] Key pressed: ENTER (menu=no debug=no pedia=no europe=no colony=no report=no turn=23 cursor=38,11)
+[2026-10-24 18:12:49] [INFO] [name entry] COLONY Plymouth: colonist #0 job=0 -> field tile 7 as Fur Trapper
+[2026-10-24 18:12:49] [INFO] [name entry] Founded colony 'Plymouth' at (38,11) pop=1 tools=0 muskets=0 horses=0
+[2026-10-24 18:12:49] [INFO] VIEW name entry -> colony:Plymouth
+[2026-10-24 18:12:49] [INFO] [colony:Plymouth] COLONY opened Plymouth (id=6 at (38,11) nation=0 pop=1 SoL=0% food=0 hammers=0 project=Warehouse)
+[2026-10-24 18:12:55] [INFO] [colony:Plymouth] COLONY Plymouth: colonist #0 job=0 -> field tile 6 as Fur Trapper
+[2026-10-24 18:13:04] [INFO] [colony:Plymouth] Key pressed: UP (menu=no debug=no pedia=no europe=no colony=yes report=no turn=23 cursor=38,11)
+[2026-10-24 18:13:04] [INFO] [colony:Plymouth] Key pressed: UP (menu=no debug=no pedia=no europe=no colony=yes report=no turn=23 cursor=38,11)
+[2026-10-24 18:13:04] [INFO] [colony:Plymouth] Key pressed: UP (menu=no debug=no pedia=no europe=no colony=yes report=no turn=23 cursor=38,11)
+[2026-10-24 18:13:04] [INFO] [colony:Plymouth] Key pressed: UP (menu=no debug=no pedia=no europe=no colony=yes report=no turn=23 cursor=38,11)
+[2026-10-24 18:13:04] [INFO] [colony:Plymouth] Key pressed: ENTER (menu=no debug=no pedia=no europe=no colony=yes report=no turn=23 cursor=38,11)
+[2026-10-24 18:13:04] [INFO] [colony:Plymouth] COLONY Plymouth: colonist #0 job=0 -> field tile 6 as Farmer
+[2026-10-24 18:13:11] [INFO] [colony:Plymouth] Key pressed: ESCAPE (menu=no debug=no pedia=no europe=no colony=yes report=no turn=23 cursor=38,11)
+[2026-10-24 18:13:11] [INFO] [colony:Plymouth] Left colony screen.
+[2026-10-24 18:13:11] [INFO] VIEW colony:Plymouth -> map
+[2026-10-24 18:13:12] [INFO] [map] Key pressed: G (menu=no debug=no pedia=no europe=no colony=no report=no turn=23 cursor=29,14)
+[2026-10-24 18:13:12] [INFO] [map] COMMAND goto_port (unit Caravel id=84 at (29,14) mp=12)
+[2026-10-24 18:13:12] [INFO] VIEW map -> list dialog
+[2026-10-24 18:13:12] [INFO] [list dialog] Key pressed: ENTER (menu=no debug=no pedia=no europe=no colony=no report=no turn=23 cursor=29,14)
+[2026-10-24 18:13:12] [INFO] [list dialog] ORDER Caravel id=84 nation=0 at (29,14) mp=12: goto (43,17)
+[2026-10-24 18:13:12] [INFO] VIEW list dialog -> map
+[2026-10-24 18:13:12] [INFO] [map] MOVE Caravel id=84 nation=0 at (30,14) mp=9: (29,14) -> (30,14)
+[2026-10-24 18:13:12] [INFO] [map] MOVE Caravel id=84 nation=0 at (31,15) mp=6: (30,14) -> (31,15)
+[2026-10-24 18:13:12] [INFO] [map] MOVE Caravel id=84 nation=0 at (32,16) mp=3: (31,15) -> (32,16)
+[2026-10-24 18:13:21] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=23 cursor=36,8)
+[2026-10-24 18:13:21] [INFO] [map] MOVE Scouts id=73 nation=0 at (36,9) mp=6: (36,8) -> (36,9)
+[2026-10-24 18:13:21] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=23 cursor=36,9)
+[2026-10-24 18:13:21] [INFO] [map] MOVE Scouts id=73 nation=0 at (35,10) mp=3: (36,9) -> (35,10)
+[2026-10-24 18:13:24] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=23 cursor=35,10)
+[2026-10-24 18:13:24] [INFO] [map] MOVE Scouts id=73 nation=0 at (34,11) mp=-3: (35,10) -> (34,11)
+[2026-10-24 18:13:24] [INFO] [map] MOVE Caravel id=84 nation=0 at (33,16) mp=0: (32,16) -> (33,16)
+[2026-10-24 18:13:24] [INFO] [map] MOVE Treasure id=90 nation=0 at (38,9) mp=-3: (38,8) -> (38,9)
+[2026-10-24 18:13:24] [INFO] [map] TURN setup: turn=23 year=1515 autumn=0 human=0
+[2026-10-24 18:13:24] [INFO] [map] TURN european nation 1
+[2026-10-24 18:13:24] [INFO] [map] PROD Montreal (id=3 nation=1 pop=1 SoL=7%): food +1, hammers +0 (0) building=-
+[2026-10-24 18:13:24] [INFO] [map] PROD   Montreal: Food +1 (15), Sugar +3 (15), Ore +4 (24)
+[2026-10-24 18:13:24] [INFO] [map] PROD Quebec (id=1 nation=1 pop=1 SoL=10%): food +1, hammers +0 (0) building=-
+[2026-10-24 18:13:24] [INFO] [map] PROD   Quebec: Food +1 (20), Furs +6 (12)
+[2026-10-24 18:13:24] [INFO] [map] COLONY Quebec: colonist #0 off field tile 0
+[2026-10-24 18:13:24] [INFO] [map] COLONY Quebec: colonist #0 job=28 -> field tile 0 as Fur Trapper
+[2026-10-24 18:13:24] [INFO] [map] COLONY Quebec: colonist #0 off field tile 0
+[2026-10-24 18:13:24] [INFO] [map] COLONY Quebec: colonist #0 job=28 -> field tile 0 as Fur Trapper
+[2026-10-24 18:13:24] [INFO] [map] Spawned unit id=94 type=Pioneers at (50,35)
+[2026-10-24 18:13:24] [INFO] [map] COLONY Montreal: colonist #0 off field tile 1
+[2026-10-24 18:13:24] [INFO] [map] COLONY Montreal: colonist #0 job=20 -> field tile 1 as Sugar Planter
+[2026-10-24 18:13:24] [INFO] [map] MOVE Caravel id=2 nation=1 at (53,36) mp=9: (52,37) -> (53,36)
+[2026-10-24 18:13:24] [INFO] [map] MOVE Caravel id=2 nation=1 at (52,35) mp=6: (53,36) -> (52,35)
+[2026-10-24 18:13:24] [INFO] [map] MOVE Caravel id=2 nation=1 at (51,34) mp=3: (52,35) -> (51,34)
+[2026-10-24 18:13:24] [INFO] [map] MOVE Caravel id=2 nation=1 at (50,34) mp=0: (51,34) -> (50,34)
+[2026-10-24 18:13:24] [INFO] [map] TURN european nation 2
+[2026-10-24 18:13:24] [INFO] [map] PROD Isabella (id=2 nation=2 pop=1 SoL=9%): food +1, hammers +0 (0) building=-
+[2026-10-24 18:13:24] [INFO] [map] PROD   Isabella: Food +1 (19), Sugar +2 (38), Silver +3 (33)
+[2026-10-24 18:13:24] [INFO] [map] Spawned unit id=95 type=Pioneers at (47,25)
+[2026-10-24 18:13:24] [INFO] [map] COLONY Isabella: colonist #0 off field tile 0
+[2026-10-24 18:13:24] [INFO] [map] COLONY Isabella: colonist #0 job=28 -> field tile 0 as Silver Miner
+[2026-10-24 18:13:24] [INFO] [map] COLONY Isabella: colonist #0 off field tile 0
+[2026-10-24 18:13:24] [INFO] [map] COLONY Isabella: colonist #0 job=28 -> field tile 0 as Silver Miner
+[2026-10-24 18:13:24] [INFO] [map] MOVE Missionaries id=70 nation=2 at (48,25) mp=0: (48,24) -> (48,25)
+[2026-10-24 18:13:24] [INFO] [map] CARGO unit 3 -> Isabella: cargo 8 x100 (colony stock 100, cap 100)
+[2026-10-24 18:13:24] [INFO] [map] CARGO Isabella -> unit 3: cargo 7 x33 (colony stock 0)
+[2026-10-24 18:13:24] [INFO] [map] CARGO Isabella -> unit 3: cargo 8 x100 (colony stock 0)
+[2026-10-24 18:13:24] [INFO] [map] MOVE Caravel id=3 nation=2 at (49,25) mp=9: (48,24) -> (49,25)
+[2026-10-24 18:13:24] [INFO] [map] MOVE Caravel id=3 nation=2 at (50,25) mp=6: (49,25) -> (50,25)
+[2026-10-24 18:13:24] [INFO] [map] MOVE Caravel id=3 nation=2 at (50,26) mp=3: (50,25) -> (50,26)
+[2026-10-24 18:13:24] [INFO] [map] MOVE Caravel id=3 nation=2 at (49,27) mp=0: (50,26) -> (49,27)
+[2026-10-24 18:13:24] [INFO] [map] TURN european nation 3
+[2026-10-24 18:13:24] [INFO] [map] PROD Fort Orange (id=5 nation=3 pop=1 SoL=5%): food +1, hammers +0 (0) building=-
+[2026-10-24 18:13:24] [INFO] [map] PROD   Fort Orange: Food +1 (11), Furs +2 (20), Ore +4 (36)
+[2026-10-24 18:13:24] [INFO] [map] PROD New Amsterdam (id=4 nation=3 pop=2 SoL=5%): food +2, hammers +0 (0) building=-
+[2026-10-24 18:13:24] [INFO] [map] PROD   New Amsterdam: Food +2 (16), Furs +6 (6), Ore +5 (5)
+[2026-10-24 18:13:24] [INFO] [map] COLONY New Amsterdam: colonist #0 off field tile 2
+[2026-10-24 18:13:24] [INFO] [map] COLONY New Amsterdam: colonist #1 off field tile 6
+[2026-10-24 18:13:24] [INFO] [map] COLONY New Amsterdam: colonist #0 job=28 -> field tile 2 as Farmer
+[2026-10-24 18:13:24] [INFO] [map] COLONY New Amsterdam: colonist #1 job=25 -> field tile 6 as Fur Trapper
+[2026-10-24 18:13:24] [INFO] [map] COLONY Fort Orange: colonist #0 off field tile 7
+[2026-10-24 18:13:24] [INFO] [map] COLONY Fort Orange: colonist #0 job=22 -> field tile 7 as Ore Miner
+[2026-10-24 18:13:24] [INFO] [map] MOVE Merchantman id=5 nation=3 at (40,55) mp=12: (41,54) -> (40,55)
+[2026-10-24 18:13:24] [INFO] [map] MOVE Merchantman id=5 nation=3 at (39,56) mp=9: (40,55) -> (39,56)
+[2026-10-24 18:13:24] [INFO] [map] MOVE Merchantman id=5 nation=3 at (38,55) mp=6: (39,56) -> (38,55)
+[2026-10-24 18:13:24] [INFO] [map] MOVE Merchantman id=5 nation=3 at (37,56) mp=3: (38,55) -> (37,56)
+[2026-10-24 18:13:24] [INFO] [map] MOVE Merchantman id=5 nation=3 at (36,55) mp=0: (37,56) -> (36,55)
+[2026-10-24 18:13:24] [INFO] [map] TURN native nation 4
+[2026-10-24 18:13:24] [INFO] [map] TURN native nation 5
+[2026-10-24 18:13:24] [INFO] [map] TURN native nation 6
+[2026-10-24 18:13:24] [INFO] [map] TURN native nation 7
+[2026-10-24 18:13:24] [INFO] [map] TURN native nation 8
+[2026-10-24 18:13:24] [INFO] [map] TURN native nation 9
+[2026-10-24 18:13:24] [INFO] [map] TURN native nation 10
+[2026-10-24 18:13:27] [INFO] [map] TURN native nation 11
+[2026-10-24 18:13:27] [INFO] [map] PROD Plymouth (id=6 nation=0 pop=1 SoL=0%): food +14, hammers +0 (0) building=Warehouse
+[2026-10-24 18:13:27] [INFO] [map] PROD   Plymouth: Food +14 (14), Tobacco +4 (4)
+[2026-10-24 18:13:27] [INFO] [map] PROD Jamestown (id=0 nation=0 pop=3 SoL=5%): food +0, hammers +6 (45) building=Docks
+[2026-10-24 18:13:27] [INFO] [map] PROD   Jamestown: Lumber -6 (19), Ore +4 (44)
+[2026-10-24 18:13:27] [INFO] [map] POPUP queued tag=INFO kind=message choices=0 queue=1
+[2026-10-24 18:13:27] [INFO] [map] POPUP queued tag=INFO kind=message choices=0 queue=2
+[2026-10-24 18:13:27] [INFO] [map] turn_end: turn=24 year=1516 autumn=0 colonies=7 shortages=0 immigrants=0
+[2026-10-24 18:13:27] [INFO] [map] Save directory exists: automated-playtests/campaign2/saves
+[2026-10-24 18:13:27] [INFO] [map] col1_save_write_file automated-playtests/campaign2/saves/COLONY09.SAV (28797 bytes)
+[2026-10-24 18:13:27] [INFO] [map] Turn autosave → COLONY09.SAV
+[2026-10-24 18:13:27] [INFO] [map] col1_save_write_file automated-playtests/campaign2/saves/trace_autosave_turn_024.sav (28797 bytes)
+[2026-10-24 18:13:27] [INFO] [map] Trace autosave → trace_autosave_turn_024.sav
+[2026-10-24 18:13:27] [INFO] [map] POPUP show tag=INFO kind=message title="-" ctx=(a=-1 b=-1 payload=0) body="The price of {Tobacco} in London has risen to {4$}."
+[2026-10-24 18:13:27] [INFO] [map] Key pressed: ENTER (menu=no debug=no pedia=no europe=no colony=no report=no turn=24 cursor=34,11)
+[2026-10-24 18:13:27] [INFO] [map] POPUP answered tag=INFO dismissed id=0 choice="-" ctx=(a=-1 b=-1 payload=0)
+[2026-10-24 18:13:27] [INFO] [map] POPUP show tag=INFO kind=message title="-" ctx=(a=-1 b=-1 payload=0) body="The price of {Cotton} in London has risen to {3$}."
+[2026-10-24 18:13:27] [INFO] [map] Key pressed: ENTER (menu=no debug=no pedia=no europe=no colony=no report=no turn=24 cursor=34,11)
+[2026-10-24 18:13:27] [INFO] [map] POPUP answered tag=INFO dismissed id=0 choice="-" ctx=(a=-1 b=-1 payload=0)
+[2026-10-24 18:13:30] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=24 cursor=34,11)
+[2026-10-24 18:13:30] [INFO] [map] POPUP queued tag=CONTACT_MEET kind=choice choices=4 queue=1
+[2026-10-24 18:13:30] [INFO] [map] POPUP show tag=CONTACT_MEET kind=choice title="-" ctx=(a=0 b=6 payload=296) body="Your expedition has reached a Village of {Arawaks}.  The inhabitants are busy in the surrounding fields.  As they wave to you {happily}, you notice a collection of scalps hanging threateningly from a nearby tree." choices=[9]Ask to Speak With Chief [3]Demand Tribute [11]Attack Village [5]Cancel Action
+[2026-10-24 18:13:30] [INFO] [map] Key pressed: ENTER (menu=no debug=no pedia=no europe=no colony=no report=no turn=24 cursor=34,11)
+[2026-10-24 18:13:30] [INFO] [map] POPUP answered tag=CONTACT_MEET picked id=9 choice="Ask to Speak With Chief" ctx=(a=0 b=6 payload=296)
+[2026-10-24 18:13:30] [INFO] [map] POPUP queued tag=CONTACT_MEET kind=message choices=0 queue=1
+[2026-10-24 18:13:30] [INFO] [map] POPUP queued tag=CONTACT_MEET kind=message choices=0 queue=2
+[2026-10-24 18:13:30] [INFO] [map] POPUP show tag=CONTACT_MEET kind=message title="-" ctx=(a=0 b=6 payload=0) body=""Greetings, travelers.  We are a peaceful village known for our {Expert Farmers}.  We would gladly trade with you if you bring us some badly needed {Rum}.  We would also pay well for {Tools} or {Cloth}."
+[2026-10-24 18:13:30] [INFO] [map] Key pressed: ENTER (menu=no debug=no pedia=no europe=no colony=no report=no turn=24 cursor=34,11)
+[2026-10-24 18:13:30] [INFO] [map] POPUP answered tag=CONTACT_MEET dismissed id=0 choice="-" ctx=(a=0 b=6 payload=0)
+[2026-10-24 18:13:30] [INFO] [map] POPUP show tag=CONTACT_MEET kind=message title="-" ctx=(a=0 b=6 payload=0) body=""The {Arawak} are pleased to welcome travelers from afar.  Come sit by the fire and we shall tell you tales of {nearby lands}.""
+[2026-10-24 18:13:30] [INFO] [map] Key pressed: ENTER (menu=no debug=no pedia=no europe=no colony=no report=no turn=24 cursor=34,11)
+[2026-10-24 18:13:30] [INFO] [map] POPUP answered tag=CONTACT_MEET dismissed id=0 choice="-" ctx=(a=0 b=6 payload=0)
+[2026-10-24 18:13:30] [INFO] [map] MOVE Caravel id=84 nation=0 at (34,16) mp=9: (33,16) -> (34,16)
+[2026-10-24 18:13:30] [INFO] [map] MOVE Caravel id=84 nation=0 at (35,16) mp=6: (34,16) -> (35,16)
+[2026-10-24 18:13:30] [INFO] [map] MOVE Caravel id=84 nation=0 at (36,16) mp=3: (35,16) -> (36,16)
+[2026-10-24 18:13:30] [INFO] [map] MOVE Caravel id=84 nation=0 at (37,16) mp=0: (36,16) -> (37,16)
+[2026-10-24 18:13:30] [INFO] [map] MOVE Treasure id=90 nation=0 at (38,10) mp=2: (38,9) -> (38,10)
+[2026-10-24 18:13:30] [INFO] [map] MOVE Treasure id=90 nation=0 at (38,11) mp=1: (38,10) -> (38,11)
+[2026-10-24 18:13:30] [INFO] [map] MOVE Treasure id=90 nation=0 at (38,12) mp=0: (38,11) -> (38,12)
+[2026-10-24 18:13:30] [INFO] [map] TURN setup: turn=24 year=1516 autumn=0 human=0
+[2026-10-24 18:13:30] [INFO] [map] TURN european nation 1
+[2026-10-24 18:13:30] [INFO] [map] PROD Montreal (id=3 nation=1 pop=1 SoL=8%): food +1, hammers +0 (0) building=-
+[2026-10-24 18:13:30] [INFO] [map] PROD   Montreal: Food +1 (16), Sugar +4 (19), Ore +4 (28)
+[2026-10-24 18:13:30] [INFO] [map] PROD Quebec (id=1 nation=1 pop=1 SoL=10%): food +1, hammers +0 (0) building=-
+[2026-10-24 18:13:30] [INFO] [map] PROD   Quebec: Food +1 (21), Furs +6 (18)
+[2026-10-24 18:13:30] [INFO] [map] Spawned unit id=96 type=Pioneers at (51,41)
+[2026-10-24 18:13:30] [INFO] [map] COLONY Quebec: colonist #0 off field tile 0
+[2026-10-24 18:13:30] [INFO] [map] COLONY Quebec: colonist #0 job=28 -> field tile 0 as Fur Trapper
+[2026-10-24 18:13:30] [INFO] [map] COLONY Quebec: colonist #0 off field tile 0
+[2026-10-24 18:13:30] [INFO] [map] COLONY Quebec: colonist #0 job=28 -> field tile 0 as Fur Trapper
+[2026-10-24 18:13:30] [INFO] [map] COLONY Montreal: colonist #0 off field tile 1
+[2026-10-24 18:13:30] [INFO] [map] COLONY Montreal: colonist #0 job=20 -> field tile 1 as Sugar Planter
+[2026-10-24 18:13:30] [INFO] [map] MOVE Caravel id=2 nation=1 at (49,35) mp=9: (50,34) -> (49,35)
+[2026-10-24 18:13:30] [INFO] [map] MOVE Caravel id=2 nation=1 at (49,36) mp=0: (49,35) -> (49,36)
+[2026-10-24 18:13:30] [INFO] [map] TURN european nation 2
+[2026-10-24 18:13:30] [INFO] [map] Spawned unit id=97 type=Colonists at (238,238)
+[2026-10-24 18:13:30] [INFO] [map] PROD Isabella (id=2 nation=2 pop=1 SoL=10%): food +1, hammers +0 (0) building=-
+[2026-10-24 18:13:30] [INFO] [map] PROD   Isabella: Food +1 (20), Sugar +2 (40), Silver +3 (3)
+[2026-10-24 18:13:30] [INFO] [map] Spawned unit id=98 type=Pioneers at (47,25)
+[2026-10-24 18:13:30] [INFO] [map] COLONY Isabella: colonist #0 off field tile 0
+[2026-10-24 18:13:30] [INFO] [map] COLONY Isabella: colonist #0 job=28 -> field tile 0 as Silver Miner
+[2026-10-24 18:13:30] [INFO] [map] COLONY Isabella: colonist #0 off field tile 0
+[2026-10-24 18:13:30] [INFO] [map] COLONY Isabella: colonist #0 job=28 -> field tile 0 as Silver Miner
+[2026-10-24 18:13:30] [INFO] [map] MOVE Missionaries id=70 nation=2 at (49,26) mp=0: (48,25) -> (49,26)
+[2026-10-24 18:13:30] [INFO] [map] MOVE Soldiers id=4 nation=2 at (48,25) mp=-3: (48,24) -> (48,25)
+[2026-10-24 18:13:30] [INFO] [map] MOVE Caravel id=3 nation=2 at (50,26) mp=9: (49,27) -> (50,26)
+[2026-10-24 18:13:30] [INFO] [map] MOVE Caravel id=3 nation=2 at (51,25) mp=6: (50,26) -> (51,25)
+[2026-10-24 18:13:30] [INFO] [map] MOVE Caravel id=3 nation=2 at (52,24) mp=3: (51,25) -> (52,24)
+[2026-10-24 18:13:30] [INFO] [map] MOVE Caravel id=3 nation=2 at (53,23) mp=0: (52,24) -> (53,23)
+[2026-10-24 18:13:30] [INFO] [map] TURN european nation 3
+[2026-10-24 18:13:30] [INFO] [map] PROD Fort Orange (id=5 nation=3 pop=1 SoL=6%): food +1, hammers +0 (0) building=-
+[2026-10-24 18:13:30] [INFO] [map] PROD   Fort Orange: Food +1 (12), Furs +2 (22), Ore +4 (40)
+[2026-10-24 18:13:30] [INFO] [map] PROD New Amsterdam (id=4 nation=3 pop=2 SoL=5%): food +2, hammers +0 (0) building=-
+[2026-10-24 18:13:30] [INFO] [map] PROD   New Amsterdam: Food +2 (18), Furs +6 (12), Ore +5 (10)
+[2026-10-24 18:13:30] [INFO] [map] COLONY New Amsterdam: colonist #0 off field tile 2
+[2026-10-24 18:13:30] [INFO] [map] COLONY New Amsterdam: colonist #1 off field tile 6
+[2026-10-24 18:13:30] [INFO] [map] COLONY New Amsterdam: colonist #0 job=28 -> field tile 6 as Fur Trapper
+[2026-10-24 18:13:30] [INFO] [map] COLONY New Amsterdam: colonist #1 job=25 -> field tile 2 as Fur Trapper
+[2026-10-24 18:13:30] [INFO] [map] COLONY New Amsterdam: colonist #1 off field tile 2
+[2026-10-24 18:13:30] [INFO] [map] COLONY New Amsterdam: colonist #1 job=25 -> field tile 2 as Fur Trapper
+[2026-10-24 18:13:30] [INFO] [map] COLONY Fort Orange: colonist #0 off field tile 7
+[2026-10-24 18:13:30] [INFO] [map] COLONY Fort Orange: colonist #0 job=22 -> field tile 7 as Ore Miner
+[2026-10-24 18:13:30] [INFO] [map] MOVE Merchantman id=5 nation=3 at (36,54) mp=12: (36,55) -> (36,54)
+[2026-10-24 18:13:30] [INFO] [map] MOVE Merchantman id=5 nation=3 at (36,53) mp=9: (36,54) -> (36,53)
+[2026-10-24 18:13:30] [INFO] [map] MOVE Merchantman id=5 nation=3 at (35,52) mp=6: (36,53) -> (35,52)
+[2026-10-24 18:13:30] [INFO] [map] MOVE Merchantman id=5 nation=3 at (34,51) mp=3: (35,52) -> (34,51)
+[2026-10-24 18:13:30] [INFO] [map] MOVE Merchantman id=5 nation=3 at (35,50) mp=0: (34,51) -> (35,50)
+[2026-10-24 18:13:30] [INFO] [map] TURN native nation 4
+[2026-10-24 18:13:30] [INFO] [map] TURN native nation 5
+[2026-10-24 18:13:30] [INFO] [map] TURN native nation 6
+[2026-10-24 18:13:30] [INFO] [map] TURN native nation 7
+[2026-10-24 18:13:30] [INFO] [map] TURN native nation 8
+[2026-10-24 18:13:30] [INFO] [map] TURN native nation 9
+[2026-10-24 18:13:30] [INFO] [map] TURN native nation 10
+[2026-10-24 18:13:30] [INFO] [map] TURN native nation 11
+[2026-10-24 18:13:30] [INFO] [map] PROD Plymouth (id=6 nation=0 pop=1 SoL=1%): food +15, hammers +0 (0) building=Warehouse
+[2026-10-24 18:13:30] [INFO] [map] PROD   Plymouth: Food +15 (29), Tobacco +4 (8)
+[2026-10-24 18:13:30] [INFO] [map] PROD Jamestown (id=0 nation=0 pop=3 SoL=5%): food +0, hammers +6 (51) building=Docks
+[2026-10-24 18:13:30] [INFO] [map] PROD   Jamestown: Lumber -6 (13), Ore +4 (48)
+[2026-10-24 18:13:30] [INFO] [map] turn_end: turn=25 year=1517 autumn=0 colonies=7 shortages=0 immigrants=0
+[2026-10-24 18:13:30] [INFO] [map] Save directory exists: automated-playtests/campaign2/saves
+[2026-10-24 18:13:30] [INFO] [map] col1_save_write_file automated-playtests/campaign2/saves/COLONY09.SAV (28865 bytes)
+[2026-10-24 18:13:30] [INFO] [map] Turn autosave → COLONY09.SAV
+[2026-10-24 18:13:30] [INFO] [map] col1_save_write_file automated-playtests/campaign2/saves/trace_autosave_turn_025.sav (28865 bytes)
+[2026-10-24 18:13:30] [INFO] [map] Trace autosave → trace_autosave_turn_025.sav
+[2026-10-24 18:13:36] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=25 cursor=38,11)
+[2026-10-24 18:13:36] [INFO] [map] MOVE Pioneers id=1 nation=0 at (37,12) mp=0: (38,11) -> (37,12)
+[2026-10-24 18:13:41] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=25 cursor=34,11)
+[2026-10-24 18:13:41] [INFO] [map] MOVE Scouts id=73 nation=0 at (33,12) mp=6: (34,11) -> (33,12)
+[2026-10-24 18:13:41] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=25 cursor=33,12)
+[2026-10-24 18:13:41] [INFO] [map] MOVE Scouts id=73 nation=0 at (32,12) mp=0: (33,12) -> (32,12)
+[2026-10-24 18:13:41] [INFO] [map] MOVE Caravel id=84 nation=0 at (38,16) mp=9: (37,16) -> (38,16)
+[2026-10-24 18:13:41] [INFO] [map] MOVE Caravel id=84 nation=0 at (39,16) mp=6: (38,16) -> (39,16)
+[2026-10-24 18:13:41] [INFO] [map] MOVE Caravel id=84 nation=0 at (40,16) mp=3: (39,16) -> (40,16)
+[2026-10-24 18:13:41] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=25 cursor=40,16)
+[2026-10-24 18:13:41] [INFO] [map] MOVE Caravel id=84 nation=0 at (39,15) mp=0: (40,16) -> (39,15)
+[2026-10-24 18:13:41] [INFO] [map] MOVE Treasure id=90 nation=0 at (37,13) mp=-3: (38,12) -> (37,13)
+[2026-10-24 18:13:41] [INFO] [map] TURN setup: turn=25 year=1517 autumn=0 human=0
+[2026-10-24 18:13:41] [INFO] [map] TURN european nation 1
+[2026-10-24 18:13:41] [INFO] [map] PROD Montreal (id=3 nation=1 pop=1 SoL=8%): food +1, hammers +0 (0) building=-
+[2026-10-24 18:13:41] [INFO] [map] PROD   Montreal: Food +1 (17), Sugar +4 (23), Ore +4 (32)
+[2026-10-24 18:13:41] [INFO] [map] PROD Quebec (id=1 nation=1 pop=1 SoL=11%): food +1, hammers +0 (0) building=-
+[2026-10-24 18:13:41] [INFO] [map] PROD   Quebec: Food +1 (22), Furs +6 (24)
+[2026-10-24 18:13:41] [INFO] [map] COLONY Quebec: colonist #0 off field tile 0
+[2026-10-24 18:13:41] [INFO] [map] COLONY Quebec: colonist #0 job=28 -> field tile 0 as Fur Trapper
+[2026-10-24 18:13:41] [INFO] [map] COLONY Quebec: colonist #0 off field tile 0
+[2026-10-24 18:13:41] [INFO] [map] COLONY Quebec: colonist #0 job=28 -> field tile 0 as Fur Trapper
+[2026-10-24 18:13:41] [INFO] [map] COLONY Montreal: colonist #0 off field tile 1
+[2026-10-24 18:13:41] [INFO] [map] COLONY Montreal: colonist #0 job=20 -> field tile 1 as Sugar Planter
+[2026-10-24 18:13:41] [INFO] [map] CARGO unit 2 -> Montreal: cargo 8 x100 (colony stock 100, cap 100)
+[2026-10-24 18:13:41] [INFO] [map] CARGO unit 2 -> Montreal: cargo 4 x64 (colony stock 82, cap 100)
+[2026-10-24 18:13:41] [INFO] [map] CARGO Montreal -> unit 2: cargo 4 x82 (colony stock 0)
+[2026-10-24 18:13:41] [INFO] [map] CARGO Montreal -> unit 2: cargo 8 x100 (colony stock 0)
+[2026-10-24 18:13:41] [INFO] [map] MOVE Caravel id=2 nation=1 at (49,35) mp=9: (49,36) -> (49,35)
+[2026-10-24 18:13:41] [INFO] [map] MOVE Caravel id=2 nation=1 at (50,34) mp=6: (49,35) -> (50,34)
+[2026-10-24 18:13:41] [INFO] [map] MOVE Caravel id=2 nation=1 at (51,34) mp=3: (50,34) -> (51,34)
+[2026-10-24 18:13:41] [INFO] [map] MOVE Caravel id=2 nation=1 at (52,35) mp=0: (51,34) -> (52,35)
+[2026-10-24 18:13:41] [INFO] [map] TURN european nation 2
+[2026-10-24 18:13:41] [INFO] [map] PROD Isabella (id=2 nation=2 pop=1 SoL=10%): food +1, hammers +0 (0) building=-
+[2026-10-24 18:13:41] [INFO] [map] PROD   Isabella: Food +1 (21), Sugar +2 (42), Silver +3 (6)
+[2026-10-24 18:13:41] [INFO] [map] Spawned unit id=99 type=Pioneers at (47,25)
+[2026-10-24 18:13:41] [INFO] [map] COLONY Isabella: colonist #0 off field tile 0
+[2026-10-24 18:13:41] [INFO] [map] COLONY Isabella: colonist #0 job=28 -> field tile 0 as Silver Miner
+[2026-10-24 18:13:41] [INFO] [map] COLONY Isabella: colonist #0 off field tile 0
+[2026-10-24 18:13:41] [INFO] [map] COLONY Isabella: colonist #0 job=28 -> field tile 0 as Silver Miner
+[2026-10-24 18:13:41] [INFO] [map] MOVE Missionaries id=70 nation=2 at (48,27) mp=0: (49,26) -> (48,27)
+[2026-10-24 18:13:41] [INFO] [map] MOVE Soldiers id=4 nation=2 at (48,24) mp=0: (48,25) -> (48,24)
+[2026-10-24 18:13:41] [INFO] [map] TURN european nation 3
+[2026-10-24 18:13:41] [INFO] [map] PROD Fort Orange (id=5 nation=3 pop=1 SoL=6%): food +1, hammers +0 (0) building=-
+[2026-10-24 18:13:41] [INFO] [map] PROD   Fort Orange: Food +1 (13), Furs +2 (24), Ore +4 (44)
+[2026-10-24 18:13:41] [INFO] [map] PROD New Amsterdam (id=4 nation=3 pop=2 SoL=5%): food -1, hammers +0 (0) building=-
+[2026-10-24 18:13:41] [INFO] [map] PROD   New Amsterdam: Food -1 (17), Furs +10 (22), Ore +5 (15)
+[2026-10-24 18:13:41] [INFO] [map] COLONY New Amsterdam: colonist #0 off field tile 6
+[2026-10-24 18:13:41] [INFO] [map] COLONY New Amsterdam: colonist #1 off field tile 2
+[2026-10-24 18:13:41] [INFO] [map] COLONY New Amsterdam: colonist #0 job=28 -> field tile 6 as Fur Trapper
+[2026-10-24 18:13:41] [INFO] [map] COLONY New Amsterdam: colonist #1 job=25 -> field tile 2 as Fur Trapper
+[2026-10-24 18:13:41] [INFO] [map] COLONY New Amsterdam: colonist #1 off field tile 2
+[2026-10-24 18:13:41] [INFO] [map] COLONY New Amsterdam: colonist #1 job=25 -> field tile 2 as Fur Trapper
+[2026-10-24 18:13:41] [INFO] [map] COLONY Fort Orange: colonist #0 off field tile 7
+[2026-10-24 18:13:41] [INFO] [map] COLONY Fort Orange: colonist #0 job=22 -> field tile 7 as Ore Miner
+[2026-10-24 18:13:41] [INFO] [map] CARGO unit 5 -> Fort Orange: cargo 8 x100 (colony stock 100, cap 100)
+[2026-10-24 18:13:41] [INFO] [map] CARGO unit 5 -> Fort Orange: cargo 4 x68 (colony stock 92, cap 100)
+[2026-10-24 18:13:41] [INFO] [map] CARGO unit 5 -> Fort Orange: cargo 6 x70 (colony stock 114, cap 100)
+[2026-10-24 18:13:41] [INFO] [map] CARGO Fort Orange -> unit 5: cargo 6 x100 (colony stock 14)
+[2026-10-24 18:13:41] [INFO] [map] CARGO Fort Orange -> unit 5: cargo 8 x100 (colony stock 0)
+[2026-10-24 18:13:41] [INFO] [map] CARGO Fort Orange -> unit 5: cargo 4 x92 (colony stock 0)
+[2026-10-24 18:13:41] [INFO] [map] CARGO Fort Orange -> unit 5: cargo 6 x14 (colony stock 0)
+[2026-10-24 18:13:41] [INFO] [map] MOVE Merchantman id=5 nation=3 at (34,51) mp=12: (35,50) -> (34,51)
+[2026-10-24 18:13:41] [INFO] [map] MOVE Merchantman id=5 nation=3 at (35,52) mp=9: (34,51) -> (35,52)
+[2026-10-24 18:13:41] [INFO] [map] MOVE Merchantman id=5 nation=3 at (36,53) mp=6: (35,52) -> (36,53)
+[2026-10-24 18:13:41] [INFO] [map] MOVE Merchantman id=5 nation=3 at (36,54) mp=3: (36,53) -> (36,54)
+[2026-10-24 18:13:41] [INFO] [map] MOVE Merchantman id=5 nation=3 at (36,55) mp=0: (36,54) -> (36,55)
+[2026-10-24 18:13:41] [INFO] [map] TURN native nation 4
+[2026-10-24 18:13:41] [INFO] [map] TURN native nation 5
+[2026-10-24 18:13:41] [INFO] [map] TURN native nation 6
+[2026-10-24 18:13:41] [INFO] [map] TURN native nation 7
+[2026-10-24 18:13:41] [INFO] [map] TURN native nation 8
+[2026-10-24 18:13:41] [INFO] [map] TURN native nation 9
+[2026-10-24 18:13:41] [INFO] [map] TURN native nation 10
+[2026-10-24 18:13:41] [INFO] [map] TURN native nation 11
+[2026-10-24 18:13:41] [INFO] [map] PROD Plymouth (id=6 nation=0 pop=1 SoL=1%): food +15, hammers +0 (0) building=Warehouse
+[2026-10-24 18:13:41] [INFO] [map] PROD   Plymouth: Food +15 (44), Tobacco +4 (12)
+[2026-10-24 18:13:41] [INFO] [map] POPUP queued tag=COLONY_EVENT kind=choice choices=2 queue=1
+[2026-10-24 18:13:41] [INFO] [map] PROD Jamestown (id=0 nation=0 pop=3 SoL=5%): food +0, hammers -51 (0) building=Docks
+[2026-10-24 18:13:41] [INFO] [map] PROD   Jamestown: Lumber -6 (7), Ore +4 (52)
+[2026-10-24 18:13:48] [INFO] [map] POPUP show tag=COLONY_EVENT kind=choice title="-" ctx=(a=-1 b=-1 payload=0) body="Jamestown colony produces {Docks}." choices=[1]Continue turn. [2]Zoom to colony.
+[2026-10-24 18:13:48] [INFO] [map] POPUP answered tag=COLONY_EVENT picked id=1 choice="Continue turn." ctx=(a=-1 b=-1 payload=0)
+[2026-10-24 18:13:48] [INFO] [map] turn_end: turn=26 year=1518 autumn=0 colonies=7 shortages=1 immigrants=0
+[2026-10-24 18:13:48] [INFO] [map] Save directory exists: automated-playtests/campaign2/saves
+[2026-10-24 18:13:48] [INFO] [map] col1_save_write_file automated-playtests/campaign2/saves/COLONY09.SAV (28865 bytes)
+[2026-10-24 18:13:48] [INFO] [map] Turn autosave → COLONY09.SAV
+[2026-10-24 18:13:48] [INFO] [map] col1_save_write_file automated-playtests/campaign2/saves/trace_autosave_turn_026.sav (28865 bytes)
+[2026-10-24 18:13:48] [INFO] [map] Trace autosave → trace_autosave_turn_026.sav
+[2026-10-24 18:13:59] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=26 cursor=37,12)
+[2026-10-24 18:13:59] [INFO] [map] MOVE Pioneers id=1 nation=0 at (36,13) mp=-3: (37,12) -> (36,13)
+[2026-10-24 18:13:59] [INFO] [map] ORDER Caravel id=84 nation=0 at (39,15) mp=12: wake (was goto)
+[2026-10-24 18:14:04] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=26 cursor=39,15)
+[2026-10-24 18:14:04] [INFO] [map] MOVE Caravel id=84 nation=0 at (38,14) mp=9: (39,15) -> (38,14)
+[2026-10-24 18:14:04] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=26 cursor=38,14)
+[2026-10-24 18:14:04] [INFO] [map] MOVE Caravel id=84 nation=0 at (37,14) mp=0: (38,14) -> (37,14)
+[2026-10-24 18:14:04] [INFO] [map] MOVE Treasure id=90 nation=0 at (37,14) mp=0: (37,13) -> (37,14)
+[2026-10-24 18:14:49] [INFO] VIEW map -> colony:Jamestown
+[2026-10-24 18:14:49] [INFO] [colony:Jamestown] COLONY opened Jamestown (id=0 at (37,14) nation=0 pop=3 SoL=5% food=0 hammers=0 project=Docks)
+[2026-10-24 18:14:57] [INFO] [colony:Jamestown] COLONY Jamestown: colonist #2 job=8 -> field tile 4 as Fisherman
+[2026-10-24 18:15:16] [INFO] [colony:Jamestown] Key pressed: ESCAPE (menu=no debug=no pedia=no europe=no colony=yes report=no turn=26 cursor=37,14)
+[2026-10-24 18:15:27] [INFO] [colony:Jamestown] COLONY Jamestown: colonist #2 job=8 -> field tile 2 as Fisherman
+[2026-10-24 18:15:27] [INFO] [colony:Jamestown] COLONY Jamestown: colonist #2 job=8 -> field tile 4 as Fisherman
+[2026-10-24 18:15:27] [INFO] [colony:Jamestown] COLONY Jamestown: colonist #2 job=8 -> field tile 3 as Fisherman
+[2026-10-24 18:15:27] [INFO] [colony:Jamestown] COLONY Jamestown: colonist #2 job=8 -> field tile 4 as Fisherman
+[2026-10-24 18:15:27] [INFO] [colony:Jamestown] COLONY Jamestown: colonist #2 job=8 -> field tile 5 as Fisherman
+[2026-10-24 18:15:27] [INFO] [colony:Jamestown] COLONY Jamestown: colonist #2 job=8 -> field tile 4 as Fisherman
+[2026-10-24 18:15:27] [INFO] [colony:Jamestown] COLONY Jamestown: colonist #2 job=8 -> field tile 6 as Fisherman
+[2026-10-24 18:15:27] [INFO] [colony:Jamestown] COLONY Jamestown: colonist #2 job=8 -> field tile 4 as Fisherman
+[2026-10-24 18:15:31] [INFO] [colony:Jamestown] COLONY Jamestown: colonist #2 job=8 -> field tile 2 as Fisherman
+[2026-10-24 18:15:36] [INFO] [colony:Jamestown] Key pressed: DOWN (menu=no debug=no pedia=no europe=no colony=yes report=no turn=26 cursor=37,14)
+[2026-10-24 18:15:36] [INFO] [colony:Jamestown] Key pressed: DOWN (menu=no debug=no pedia=no europe=no colony=yes report=no turn=26 cursor=37,14)
+[2026-10-24 18:15:36] [INFO] [colony:Jamestown] Key pressed: DOWN (menu=no debug=no pedia=no europe=no colony=yes report=no turn=26 cursor=37,14)
+[2026-10-24 18:15:36] [INFO] [colony:Jamestown] Key pressed: DOWN (menu=no debug=no pedia=no europe=no colony=yes report=no turn=26 cursor=37,14)
+[2026-10-24 18:15:36] [INFO] [colony:Jamestown] Key pressed: DOWN (menu=no debug=no pedia=no europe=no colony=yes report=no turn=26 cursor=37,14)
+[2026-10-24 18:15:36] [INFO] [colony:Jamestown] Key pressed: ENTER (menu=no debug=no pedia=no europe=no colony=yes report=no turn=26 cursor=37,14)
+[2026-10-24 18:15:49] [INFO] [colony:Jamestown] Key pressed: DOWN (menu=no debug=no pedia=no europe=no colony=yes report=no turn=26 cursor=37,14)
+[2026-10-24 18:15:49] [INFO] [colony:Jamestown] Key pressed: DOWN (menu=no debug=no pedia=no europe=no colony=yes report=no turn=26 cursor=37,14)
+[2026-10-24 18:15:49] [INFO] [colony:Jamestown] Key pressed: DOWN (menu=no debug=no pedia=no europe=no colony=yes report=no turn=26 cursor=37,14)
+[2026-10-24 18:15:49] [INFO] [colony:Jamestown] Key pressed: DOWN (menu=no debug=no pedia=no europe=no colony=yes report=no turn=26 cursor=37,14)
+[2026-10-24 18:15:49] [INFO] [colony:Jamestown] Key pressed: DOWN (menu=no debug=no pedia=no europe=no colony=yes report=no turn=26 cursor=37,14)
+[2026-10-24 18:15:49] [INFO] [colony:Jamestown] Key pressed: ENTER (menu=no debug=no pedia=no europe=no colony=yes report=no turn=26 cursor=37,14)
+[2026-10-24 18:15:49] [INFO] [colony:Jamestown] COLONY Jamestown: colonist #1 job=25 -> field tile 7 as Lumberjack
+[2026-10-24 18:16:02] [INFO] [colony:Jamestown] Key pressed: DOWN (menu=no debug=no pedia=no europe=no colony=yes report=no turn=26 cursor=37,14)
+[2026-10-24 18:16:02] [INFO] [colony:Jamestown] Key pressed: DOWN (menu=no debug=no pedia=no europe=no colony=yes report=no turn=26 cursor=37,14)
+[2026-10-24 18:16:02] [INFO] [colony:Jamestown] Key pressed: DOWN (menu=no debug=no pedia=no europe=no colony=yes report=no turn=26 cursor=37,14)
+[2026-10-24 18:16:02] [INFO] [colony:Jamestown] Key pressed: DOWN (menu=no debug=no pedia=no europe=no colony=yes report=no turn=26 cursor=37,14)
+[2026-10-24 18:16:02] [INFO] [colony:Jamestown] Key pressed: DOWN (menu=no debug=no pedia=no europe=no colony=yes report=no turn=26 cursor=37,14)
+[2026-10-24 18:16:02] [INFO] [colony:Jamestown] Key pressed: DOWN (menu=no debug=no pedia=no europe=no colony=yes report=no turn=26 cursor=37,14)
+[2026-10-24 18:16:02] [INFO] [colony:Jamestown] Key pressed: DOWN (menu=no debug=no pedia=no europe=no colony=yes report=no turn=26 cursor=37,14)
+[2026-10-24 18:16:02] [INFO] [colony:Jamestown] Key pressed: DOWN (menu=no debug=no pedia=no europe=no colony=yes report=no turn=26 cursor=37,14)
+[2026-10-24 18:16:02] [INFO] [colony:Jamestown] Key pressed: ENTER (menu=no debug=no pedia=no europe=no colony=yes report=no turn=26 cursor=37,14)
+[2026-10-24 18:16:02] [INFO] [colony:Jamestown] COLONY Jamestown: building Lumber Mill (hammers 0, pop 3)
+[2026-10-24 18:16:06] [INFO] [colony:Jamestown] CARGO Jamestown -> unit 84: cargo 6 x52 (colony stock 0)
+[2026-10-24 18:16:10] [INFO] [colony:Jamestown] Key pressed: ESCAPE (menu=no debug=no pedia=no europe=no colony=yes report=no turn=26 cursor=37,14)
+[2026-10-24 18:16:10] [INFO] [colony:Jamestown] Left colony screen.
+[2026-10-24 18:16:10] [INFO] VIEW colony:Jamestown -> map
+[2026-10-24 18:16:30] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=26 cursor=32,12)
+[2026-10-24 18:16:30] [INFO] [map] MOVE Scouts id=73 nation=0 at (33,13) mp=6: (32,12) -> (33,13)
+[2026-10-24 18:16:30] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=26 cursor=33,13)
+[2026-10-24 18:16:30] [INFO] [map] MOVE Scouts id=73 nation=0 at (34,14) mp=0: (33,13) -> (34,14)
+[2026-10-24 18:16:30] [INFO] [map] TURN setup: turn=26 year=1518 autumn=0 human=0
+[2026-10-24 18:16:30] [INFO] [map] TURN european nation 1
+[2026-10-24 18:16:30] [INFO] [map] PROD Montreal (id=3 nation=1 pop=1 SoL=9%): food +1, hammers +0 (0) building=-
+[2026-10-24 18:16:30] [INFO] [map] PROD   Montreal: Food +1 (18), Sugar +4 (27), Ore +4 (36)
+[2026-10-24 18:16:30] [INFO] [map] PROD Quebec (id=1 nation=1 pop=1 SoL=12%): food +1, hammers +0 (0) building=-
+[2026-10-24 18:16:30] [INFO] [map] PROD   Quebec: Food +1 (23), Furs +6 (30)
+[2026-10-24 18:16:30] [INFO] [map] COLONY Quebec: colonist #0 off field tile 0
+[2026-10-24 18:16:30] [INFO] [map] COLONY Quebec: colonist #0 job=28 -> field tile 0 as Fur Trapper
+[2026-10-24 18:16:30] [INFO] [map] COLONY Quebec: colonist #0 off field tile 0
+[2026-10-24 18:16:30] [INFO] [map] COLONY Quebec: colonist #0 job=28 -> field tile 0 as Fur Trapper
+[2026-10-24 18:16:30] [INFO] [map] COLONY Montreal: colonist #0 off field tile 1
+[2026-10-24 18:16:30] [INFO] [map] COLONY Montreal: colonist #0 job=20 -> field tile 1 as Sugar Planter
+[2026-10-24 18:16:30] [INFO] [map] MOVE Caravel id=2 nation=1 at (53,36) mp=9: (52,35) -> (53,36)
+[2026-10-24 18:16:30] [INFO] [map] MOVE Caravel id=2 nation=1 at (53,37) mp=6: (53,36) -> (53,37)
+[2026-10-24 18:16:30] [INFO] [map] MOVE Caravel id=2 nation=1 at (53,38) mp=3: (53,37) -> (53,38)
+[2026-10-24 18:16:30] [INFO] [map] MOVE Caravel id=2 nation=1 at (52,39) mp=0: (53,38) -> (52,39)
+[2026-10-24 18:16:30] [INFO] [map] TURN european nation 2
+[2026-10-24 18:16:30] [INFO] [map] PROD Isabella (id=2 nation=2 pop=1 SoL=11%): food +1, hammers +0 (0) building=-
+[2026-10-24 18:16:30] [INFO] [map] PROD   Isabella: Food +1 (22), Sugar +2 (44), Silver +3 (9)
+[2026-10-24 18:16:30] [INFO] [map] Spawned unit id=100 type=Pioneers at (47,25)
+[2026-10-24 18:16:30] [INFO] [map] COLONY Isabella: colonist #0 off field tile 0
+[2026-10-24 18:16:30] [INFO] [map] COLONY Isabella: colonist #0 job=28 -> field tile 0 as Silver Miner
+[2026-10-24 18:16:30] [INFO] [map] COLONY Isabella: colonist #0 off field tile 0
+[2026-10-24 18:16:30] [INFO] [map] COLONY Isabella: colonist #0 job=28 -> field tile 0 as Silver Miner
+[2026-10-24 18:16:30] [INFO] [map] MOVE Missionaries id=70 nation=2 at (48,28) mp=-3: (48,27) -> (48,28)
+[2026-10-24 18:16:30] [INFO] [map] MOVE Soldiers id=4 nation=2 at (48,23) mp=-6: (48,24) -> (48,23)
+[2026-10-24 18:16:30] [INFO] [map] TURN european nation 3
+[2026-10-24 18:16:30] [INFO] [map] PROD Fort Orange (id=5 nation=3 pop=1 SoL=7%): food +1, hammers +0 (0) building=-
+[2026-10-24 18:16:30] [INFO] [map] PROD   Fort Orange: Food +1 (14), Furs +2 (2), Ore +4 (4)
+[2026-10-24 18:16:30] [INFO] [map] PROD New Amsterdam (id=4 nation=3 pop=2 SoL=6%): food -1, hammers +0 (0) building=-
+[2026-10-24 18:16:30] [INFO] [map] PROD   New Amsterdam: Food -1 (16), Furs +10 (32), Ore +5 (20)
+[2026-10-24 18:16:30] [INFO] [map] COLONY New Amsterdam: colonist #0 off field tile 6
+[2026-10-24 18:16:30] [INFO] [map] COLONY New Amsterdam: colonist #1 off field tile 2
+[2026-10-24 18:16:30] [INFO] [map] COLONY New Amsterdam: colonist #0 job=28 -> field tile 2 as Farmer
+[2026-10-24 18:16:30] [INFO] [map] COLONY New Amsterdam: colonist #1 job=25 -> field tile 6 as Fur Trapper
+[2026-10-24 18:16:30] [INFO] [map] COLONY Fort Orange: colonist #0 off field tile 7
+[2026-10-24 18:16:30] [INFO] [map] COLONY Fort Orange: colonist #0 job=22 -> field tile 7 as Ore Miner
+[2026-10-24 18:16:30] [INFO] [map] MOVE Merchantman id=5 nation=3 at (37,56) mp=12: (36,55) -> (37,56)
+[2026-10-24 18:16:30] [INFO] [map] MOVE Merchantman id=5 nation=3 at (38,55) mp=9: (37,56) -> (38,55)
+[2026-10-24 18:16:30] [INFO] [map] MOVE Merchantman id=5 nation=3 at (39,56) mp=6: (38,55) -> (39,56)
+[2026-10-24 18:16:30] [INFO] [map] MOVE Merchantman id=5 nation=3 at (40,55) mp=3: (39,56) -> (40,55)
+[2026-10-24 18:16:30] [INFO] [map] MOVE Merchantman id=5 nation=3 at (41,54) mp=0: (40,55) -> (41,54)
+[2026-10-24 18:16:30] [INFO] [map] TURN native nation 4
+[2026-10-24 18:16:30] [INFO] [map] TURN native nation 5
+[2026-10-24 18:16:30] [INFO] [map] TURN native nation 6
+[2026-10-24 18:16:30] [INFO] [map] TURN native nation 7
+[2026-10-24 18:16:30] [INFO] [map] TURN native nation 8
+[2026-10-24 18:16:30] [INFO] [map] TURN native nation 9
+[2026-10-24 18:16:30] [INFO] [map] TURN native nation 10
+[2026-10-24 18:16:30] [INFO] [map] TURN native nation 11
+[2026-10-24 18:16:30] [INFO] [map] PROD Plymouth (id=6 nation=0 pop=1 SoL=2%): food +15, hammers +0 (0) building=Warehouse
+[2026-10-24 18:16:30] [INFO] [map] PROD   Plymouth: Food +15 (59), Tobacco +4 (16)
+[2026-10-24 18:16:30] [INFO] [map] PROD Jamestown (id=0 nation=0 pop=3 SoL=6%): food +9, hammers +3 (3) building=Lumber Mill
+[2026-10-24 18:16:30] [INFO] [map] PROD   Jamestown: Food +9 (9), Lumber +5 (12), Ore +4 (4)
+[2026-10-24 18:16:30] [INFO] [map] turn_end: turn=27 year=1519 autumn=0 colonies=7 shortages=1 immigrants=0
+[2026-10-24 18:16:30] [INFO] [map] Save directory exists: automated-playtests/campaign2/saves
+[2026-10-24 18:16:30] [INFO] [map] col1_save_write_file automated-playtests/campaign2/saves/COLONY09.SAV (28865 bytes)
+[2026-10-24 18:16:30] [INFO] [map] Turn autosave → COLONY09.SAV
+[2026-10-24 18:16:30] [INFO] [map] col1_save_write_file automated-playtests/campaign2/saves/trace_autosave_turn_027.sav (28865 bytes)
+[2026-10-24 18:16:30] [INFO] [map] Trace autosave → trace_autosave_turn_027.sav
+[2026-10-24 18:16:33] [INFO] [map] Key pressed: R (menu=no debug=no pedia=no europe=no colony=no report=no turn=27 cursor=36,13)
+[2026-10-24 18:16:33] [INFO] [map] ORDER Pioneers id=1 nation=0 at (36,13) mp=3: build road tile (36,13) tools=60
+[2026-10-24 18:16:38] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=27 cursor=37,14)
+[2026-10-24 18:16:38] [INFO] [map] MOVE Caravel id=84 nation=0 at (36,15) mp=9: (37,14) -> (36,15)
+[2026-10-24 18:16:38] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=27 cursor=36,15)
+[2026-10-24 18:16:38] [INFO] [map] MOVE Caravel id=84 nation=0 at (35,15) mp=6: (36,15) -> (35,15)
+[2026-10-24 18:16:38] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=27 cursor=34,14)
+[2026-10-24 18:16:38] [INFO] [map] Unit 73 boarded ship 84 (cargo 1/2)
+[2026-10-24 18:16:42] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=27 cursor=35,15)
+[2026-10-24 18:16:42] [INFO] [map] MOVE Caravel id=84 nation=0 at (36,16) mp=3: (35,15) -> (36,16)
+[2026-10-24 18:16:42] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=27 cursor=36,16)
+[2026-10-24 18:16:42] [INFO] [map] MOVE Caravel id=84 nation=0 at (37,17) mp=0: (36,16) -> (37,17)
+[2026-10-24 18:16:42] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=27 cursor=37,14)
+[2026-10-24 18:16:42] [INFO] [map] MOVE Treasure id=90 nation=0 at (36,13) mp=-3: (37,14) -> (36,13)
+[2026-10-24 18:16:42] [INFO] [map] TURN setup: turn=27 year=1519 autumn=0 human=0
+[2026-10-24 18:16:42] [INFO] [map] TURN european nation 1
+[2026-10-24 18:16:42] [INFO] [map] PROD Montreal (id=3 nation=1 pop=1 SoL=9%): food +1, hammers +0 (0) building=-
+[2026-10-24 18:16:42] [INFO] [map] PROD   Montreal: Food +1 (19), Sugar +4 (31), Ore +4 (40)
+[2026-10-24 18:16:42] [INFO] [map] PROD Quebec (id=1 nation=1 pop=1 SoL=12%): food +1, hammers +0 (0) building=-
+[2026-10-24 18:16:42] [INFO] [map] PROD   Quebec: Food +1 (24), Furs +6 (36)
+[2026-10-24 18:16:42] [INFO] [map] COLONY Quebec: colonist #0 off field tile 0
+[2026-10-24 18:16:42] [INFO] [map] COLONY Quebec: colonist #0 job=28 -> field tile 0 as Fur Trapper
+[2026-10-24 18:16:42] [INFO] [map] COLONY Quebec: colonist #0 off field tile 0
+[2026-10-24 18:16:42] [INFO] [map] COLONY Quebec: colonist #0 job=28 -> field tile 0 as Fur Trapper
+[2026-10-24 18:16:42] [INFO] [map] COLONY Montreal: colonist #0 off field tile 1
+[2026-10-24 18:16:42] [INFO] [map] COLONY Montreal: colonist #0 job=20 -> field tile 1 as Sugar Planter
+[2026-10-24 18:16:42] [INFO] [map] MOVE Caravel id=2 nation=1 at (53,40) mp=9: (52,39) -> (53,40)
+[2026-10-24 18:16:42] [INFO] [map] MOVE Caravel id=2 nation=1 at (54,41) mp=6: (53,40) -> (54,41)
+[2026-10-24 18:16:42] [INFO] [map] MOVE Caravel id=2 nation=1 at (53,42) mp=3: (54,41) -> (53,42)
+[2026-10-24 18:16:42] [INFO] [map] MOVE Caravel id=2 nation=1 at (52,43) mp=0: (53,42) -> (52,43)
+[2026-10-24 18:16:42] [INFO] [map] TURN european nation 2
+[2026-10-24 18:16:42] [INFO] [map] PROD Isabella (id=2 nation=2 pop=1 SoL=12%): food +1, hammers +0 (0) building=-
+[2026-10-24 18:16:42] [INFO] [map] PROD   Isabella: Food +1 (23), Sugar +2 (46), Silver +3 (12)
+[2026-10-24 18:16:42] [INFO] [map] Spawned unit id=101 type=Pioneers at (47,25)
+[2026-10-24 18:16:42] [INFO] [map] COLONY Isabella: colonist #0 off field tile 0
+[2026-10-24 18:16:42] [INFO] [map] COLONY Isabella: colonist #0 job=28 -> field tile 0 as Silver Miner
+[2026-10-24 18:16:42] [INFO] [map] COLONY Isabella: colonist #0 off field tile 0
+[2026-10-24 18:16:42] [INFO] [map] COLONY Isabella: colonist #0 job=28 -> field tile 0 as Silver Miner
+[2026-10-24 18:16:42] [INFO] [map] MOVE Missionaries id=70 nation=2 at (48,29) mp=0: (48,28) -> (48,29)
+[2026-10-24 18:16:42] [INFO] [map] MOVE Soldiers id=4 nation=2 at (48,24) mp=0: (48,23) -> (48,24)
+[2026-10-24 18:16:42] [INFO] [map] TURN european nation 3
+[2026-10-24 18:16:42] [INFO] [map] PROD Fort Orange (id=5 nation=3 pop=1 SoL=7%): food +1, hammers +0 (0) building=-
+[2026-10-24 18:16:42] [INFO] [map] PROD   Fort Orange: Food +1 (15), Furs +2 (4), Ore +4 (8)
+[2026-10-24 18:16:42] [INFO] [map] PROD New Amsterdam (id=4 nation=3 pop=2 SoL=6%): food +2, hammers +0 (0) building=-
+[2026-10-24 18:16:42] [INFO] [map] PROD   New Amsterdam: Food +2 (18), Furs +6 (38), Ore +5 (25)
+[2026-10-24 18:16:42] [INFO] [map] COLONY New Amsterdam: colonist #0 off field tile 2
+[2026-10-24 18:16:42] [INFO] [map] COLONY New Amsterdam: colonist #1 off field tile 6
+[2026-10-24 18:16:42] [INFO] [map] COLONY New Amsterdam: colonist #0 job=28 -> field tile 6 as Fur Trapper
+[2026-10-24 18:16:42] [INFO] [map] COLONY New Amsterdam: colonist #1 job=25 -> field tile 2 as Fur Trapper
+[2026-10-24 18:16:42] [INFO] [map] COLONY New Amsterdam: colonist #1 off field tile 2
+[2026-10-24 18:16:42] [INFO] [map] COLONY New Amsterdam: colonist #1 job=25 -> field tile 2 as Fur Trapper
+[2026-10-24 18:16:42] [INFO] [map] COLONY Fort Orange: colonist #0 off field tile 7
+[2026-10-24 18:16:42] [INFO] [map] COLONY Fort Orange: colonist #0 job=22 -> field tile 7 as Ore Miner
+[2026-10-24 18:16:42] [INFO] [map] MOVE Merchantman id=5 nation=3 at (42,53) mp=12: (41,54) -> (42,53)
+[2026-10-24 18:16:42] [INFO] [map] MOVE Merchantman id=5 nation=3 at (43,52) mp=9: (42,53) -> (43,52)
+[2026-10-24 18:16:42] [INFO] [map] MOVE Merchantman id=5 nation=3 at (42,51) mp=6: (43,52) -> (42,51)
+[2026-10-24 18:16:42] [INFO] [map] MOVE Merchantman id=5 nation=3 at (41,50) mp=3: (42,51) -> (41,50)
+[2026-10-24 18:16:42] [INFO] [map] MOVE Merchantman id=5 nation=3 at (40,49) mp=0: (41,50) -> (40,49)
+[2026-10-24 18:16:42] [INFO] [map] TURN native nation 4
+[2026-10-24 18:16:42] [INFO] [map] TURN native nation 5
+[2026-10-24 18:16:42] [INFO] [map] TURN native nation 6
+[2026-10-24 18:16:42] [INFO] [map] TURN native nation 7
+[2026-10-24 18:16:42] [INFO] [map] TURN native nation 8
+[2026-10-24 18:16:42] [INFO] [map] TURN native nation 9
+[2026-10-24 18:16:42] [INFO] [map] TURN native nation 10
+[2026-10-24 18:16:42] [INFO] [map] TURN native nation 11
+[2026-10-24 18:16:42] [INFO] [map] PROD Plymouth (id=6 nation=0 pop=1 SoL=2%): food +15, hammers +0 (0) building=Warehouse
+[2026-10-24 18:16:42] [INFO] [map] PROD   Plymouth: Food +15 (74), Tobacco +4 (20)
+[2026-10-24 18:16:42] [INFO] [map] PROD Jamestown (id=0 nation=0 pop=3 SoL=6%): food +9, hammers +3 (6) building=Lumber Mill
+[2026-10-24 18:16:42] [INFO] [map] PROD   Jamestown: Food +9 (18), Lumber +5 (17), Ore +4 (8)
+[2026-10-24 18:16:42] [INFO] [map] turn_end: turn=28 year=1520 autumn=0 colonies=7 shortages=0 immigrants=0
+[2026-10-24 18:16:42] [INFO] [map] Save directory exists: automated-playtests/campaign2/saves
+[2026-10-24 18:16:42] [INFO] [map] col1_save_write_file automated-playtests/campaign2/saves/COLONY08.SAV (28865 bytes)
+[2026-10-24 18:16:42] [INFO] [map] Decade autosave → COLONY08.SAV
+[2026-10-24 18:16:42] [INFO] [map] col1_save_write_file automated-playtests/campaign2/saves/trace_autosave_turn_028.sav (28865 bytes)
+[2026-10-24 18:16:42] [INFO] [map] Trace autosave → trace_autosave_turn_028.sav
+[2026-10-24 18:16:45] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=28 cursor=36,13)
+[2026-10-24 18:16:45] [INFO] [map] MOVE Treasure id=90 nation=0 at (37,14) mp=0: (36,13) -> (37,14)
+[2026-10-24 18:16:45] [INFO] [map] POPUP queued tag=KING_GALLEON kind=choice choices=2 queue=1
+[2026-10-24 18:16:45] [INFO] [map] POPUP show tag=KING_GALLEON kind=choice title="-" ctx=(a=0 b=-1 payload=90) body=""Explorer Walter Raleigh.  We are most pleased at the amount of plunder and booty your conquistadores are obtaining in the New World.  Alas, we notice that you do not have a {galleon} fleet to transport this marvelous treasure home to London.  If you wish, we shall transport the treasure home in our own royal galleons once our assessors have computed the Crown's proper share."" choices=[1]"Very well, and let the Crown claim its rightful share." [0]"No, I would sooner {kiss} your royal pinky ring."
+[2026-10-24 18:16:49] [INFO] [map] Key pressed: ENTER (menu=no debug=no pedia=no europe=no colony=no report=no turn=28 cursor=37,14)
+[2026-10-24 18:16:49] [INFO] [map] POPUP answered tag=KING_GALLEON picked id=1 choice=""Very well, and let the Crown claim its rightful share."" ctx=(a=0 b=-1 payload=90)
+[2026-10-24 18:16:49] [INFO] [map] POPUP queued tag=INFO kind=message choices=0 queue=1
+[2026-10-24 18:16:49] [INFO] [map] POPUP show tag=INFO kind=message title="-" ctx=(a=-1 b=-1 payload=0) body="{English} treasure fleet laden with {5800$} arrives safely in London! Crown takes {55%} share.  {2610$} added to English treasury."
+[2026-10-24 18:16:49] [INFO] [map] Key pressed: ENTER (menu=no debug=no pedia=no europe=no colony=no report=no turn=28 cursor=37,14)
+[2026-10-24 18:16:49] [INFO] [map] POPUP answered tag=INFO dismissed id=0 choice="-" ctx=(a=-1 b=-1 payload=0)
+[2026-10-24 18:16:55] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=28 cursor=37,17)
+[2026-10-24 18:16:55] [INFO] [map] MOVE Caravel id=84 nation=0 at (38,18) mp=9: (37,17) -> (38,18)
+[2026-10-24 18:16:55] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=28 cursor=38,18)
+[2026-10-24 18:16:55] [INFO] [map] MOVE Caravel id=84 nation=0 at (39,19) mp=6: (38,18) -> (39,19)
+[2026-10-24 18:16:55] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=28 cursor=39,19)
+[2026-10-24 18:16:55] [INFO] [map] MOVE Caravel id=84 nation=0 at (40,20) mp=3: (39,19) -> (40,20)
+[2026-10-24 18:16:55] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=28 cursor=40,20)
+[2026-10-24 18:16:55] [INFO] [map] MOVE Caravel id=84 nation=0 at (41,21) mp=0: (40,20) -> (41,21)
+[2026-10-24 18:16:55] [INFO] [map] TURN setup: turn=28 year=1520 autumn=0 human=0
+[2026-10-24 18:16:55] [INFO] [map] TURN european nation 1
+[2026-10-24 18:16:55] [INFO] [map] PROD Montreal (id=3 nation=1 pop=1 SoL=10%): food +1, hammers +0 (0) building=-
+[2026-10-24 18:16:55] [INFO] [map] PROD   Montreal: Food +1 (20), Sugar +4 (35), Ore +4 (44)
+[2026-10-24 18:16:55] [INFO] [map] PROD Quebec (id=1 nation=1 pop=1 SoL=13%): food +1, hammers +0 (0) building=-
+[2026-10-24 18:16:55] [INFO] [map] PROD   Quebec: Food +1 (25), Furs +6 (42)
+[2026-10-24 18:16:55] [INFO] [map] COLONY Quebec: colonist #0 off field tile 0
+[2026-10-24 18:16:55] [INFO] [map] COLONY Quebec: colonist #0 job=28 -> field tile 0 as Fur Trapper
+[2026-10-24 18:16:55] [INFO] [map] COLONY Quebec: colonist #0 off field tile 0
+[2026-10-24 18:16:55] [INFO] [map] COLONY Quebec: colonist #0 job=28 -> field tile 0 as Fur Trapper
+[2026-10-24 18:16:55] [INFO] [map] COLONY Montreal: colonist #0 off field tile 1
+[2026-10-24 18:16:55] [INFO] [map] COLONY Montreal: colonist #0 job=20 -> field tile 1 as Sugar Planter
+[2026-10-24 18:16:55] [INFO] [map] MOVE Caravel id=2 nation=1 at (51,42) mp=9: (52,43) -> (51,42)
+[2026-10-24 18:16:55] [INFO] [map] MOVE Caravel id=2 nation=1 at (50,41) mp=0: (51,42) -> (50,41)
+[2026-10-24 18:16:55] [INFO] [map] TURN european nation 2
+[2026-10-24 18:16:55] [INFO] [map] PROD Isabella (id=2 nation=2 pop=1 SoL=12%): food +1, hammers +0 (0) building=-
+[2026-10-24 18:16:55] [INFO] [map] PROD   Isabella: Food +1 (24), Sugar +2 (48), Silver +3 (15)
+[2026-10-24 18:16:55] [INFO] [map] COLONY Isabella: colonist #0 off field tile 0
+[2026-10-24 18:16:55] [INFO] [map] COLONY Isabella: colonist #0 job=28 -> field tile 0 as Silver Miner
+[2026-10-24 18:16:55] [INFO] [map] COLONY Isabella: colonist #0 off field tile 0
+[2026-10-24 18:16:55] [INFO] [map] COLONY Isabella: colonist #0 job=28 -> field tile 0 as Silver Miner
+[2026-10-24 18:16:55] [INFO] [map] ORDER Caravel id=3 nation=2 at (53,23) mp=12: wake (was sentry)
+[2026-10-24 18:16:55] [INFO] [map] MOVE Missionaries id=70 nation=2 at (47,30) mp=0: (48,29) -> (47,30)
+[2026-10-24 18:16:55] [INFO] [map] MOVE Soldiers id=4 nation=2 at (48,25) mp=-3: (48,24) -> (48,25)
+[2026-10-24 18:16:55] [INFO] [map] MOVE Caravel id=3 nation=2 at (52,24) mp=9: (53,23) -> (52,24)
+[2026-10-24 18:16:55] [INFO] [map] MOVE Caravel id=3 nation=2 at (51,25) mp=6: (52,24) -> (51,25)
+[2026-10-24 18:16:55] [INFO] [map] MOVE Caravel id=3 nation=2 at (50,25) mp=3: (51,25) -> (50,25)
+[2026-10-24 18:16:55] [INFO] [map] MOVE Caravel id=3 nation=2 at (49,25) mp=0: (50,25) -> (49,25)
+[2026-10-24 18:16:55] [INFO] [map] TURN european nation 3
+[2026-10-24 18:16:55] [INFO] [map] PROD Fort Orange (id=5 nation=3 pop=1 SoL=8%): food +1, hammers +0 (0) building=-
+[2026-10-24 18:16:55] [INFO] [map] PROD   Fort Orange: Food +1 (16), Furs +2 (6), Ore +4 (12)
+[2026-10-24 18:16:55] [INFO] [map] PROD New Amsterdam (id=4 nation=3 pop=2 SoL=6%): food -1, hammers +0 (0) building=-
+[2026-10-24 18:16:55] [INFO] [map] PROD   New Amsterdam: Food -1 (17), Furs +10 (48), Ore +5 (30)
+[2026-10-24 18:16:55] [INFO] [map] Spawned unit id=102 type=Pioneers at (37,51)
+[2026-10-24 18:16:55] [INFO] [map] COLONY Fort Orange: colonist #0 off field tile 7
+[2026-10-24 18:16:55] [INFO] [map] COLONY Fort Orange: colonist #0 job=22 -> field tile 7 as Ore Miner
+[2026-10-24 18:16:55] [INFO] [map] COLONY Fort Orange: colonist #0 off field tile 7
+[2026-10-24 18:16:55] [INFO] [map] COLONY Fort Orange: colonist #0 job=22 -> field tile 7 as Ore Miner
+[2026-10-24 18:16:55] [INFO] [map] CARGO unit 5 -> New Amsterdam: cargo 6 x100 (colony stock 130, cap 100)
+[2026-10-24 18:16:55] [INFO] [map] CARGO unit 5 -> New Amsterdam: cargo 8 x100 (colony stock 100, cap 100)
+[2026-10-24 18:16:55] [INFO] [map] CARGO unit 5 -> New Amsterdam: cargo 4 x92 (colony stock 140, cap 100)
+[2026-10-24 18:16:55] [INFO] [map] CARGO unit 5 -> New Amsterdam: cargo 6 x14 (colony stock 144, cap 100)
+[2026-10-24 18:16:55] [INFO] [map] CARGO New Amsterdam -> unit 5: cargo 4 x100 (colony stock 40)
+[2026-10-24 18:16:55] [INFO] [map] CARGO New Amsterdam -> unit 5: cargo 6 x100 (colony stock 44)
+[2026-10-24 18:16:55] [INFO] [map] CARGO New Amsterdam -> unit 5: cargo 8 x100 (colony stock 0)
+[2026-10-24 18:16:55] [INFO] [map] CARGO New Amsterdam -> unit 5: cargo 4 x40 (colony stock 0)
+[2026-10-24 18:16:55] [INFO] [map] MOVE Merchantman id=5 nation=3 at (41,50) mp=12: (40,49) -> (41,50)
+[2026-10-24 18:16:55] [INFO] [map] MOVE Merchantman id=5 nation=3 at (42,51) mp=9: (41,50) -> (42,51)
+[2026-10-24 18:16:55] [INFO] [map] MOVE Merchantman id=5 nation=3 at (43,52) mp=6: (42,51) -> (43,52)
+[2026-10-24 18:16:55] [INFO] [map] MOVE Merchantman id=5 nation=3 at (42,53) mp=3: (43,52) -> (42,53)
+[2026-10-24 18:16:55] [INFO] [map] MOVE Merchantman id=5 nation=3 at (41,54) mp=0: (42,53) -> (41,54)
+[2026-10-24 18:16:55] [INFO] [map] TURN native nation 4
+[2026-10-24 18:16:55] [INFO] [map] TURN native nation 5
+[2026-10-24 18:16:55] [INFO] [map] TURN native nation 6
+[2026-10-24 18:16:55] [INFO] [map] TURN native nation 7
+[2026-10-24 18:16:55] [INFO] [map] TURN native nation 8
+[2026-10-24 18:16:55] [INFO] [map] TURN native nation 9
+[2026-10-24 18:16:55] [INFO] [map] TURN native nation 10
+[2026-10-24 18:16:55] [INFO] [map] TURN native nation 11
+[2026-10-24 18:16:55] [INFO] [map] PROD Plymouth (id=6 nation=0 pop=1 SoL=3%): food +15, hammers +0 (0) building=Warehouse
+[2026-10-24 18:16:55] [INFO] [map] PROD   Plymouth: Food +15 (89), Tobacco +4 (24)
+[2026-10-24 18:16:55] [INFO] [map] FF nation 0 elected #20 William Brewster (count=1)
+[2026-10-24 18:16:55] [INFO] [map] POPUP queued tag=FF_CONGRESS kind=message choices=0 queue=1
+[2026-10-24 18:16:55] [INFO] [map] PROD Jamestown (id=0 nation=0 pop=3 SoL=6%): food +9, hammers +3 (9) building=Lumber Mill
+[2026-10-24 18:16:55] [INFO] [map] PROD   Jamestown: Food +9 (27), Lumber +5 (22), Ore +4 (12)
+[2026-10-24 18:16:55] [INFO] [map] POPUP show tag=FF_CONGRESS kind=message title="-" ctx=(a=0 b=20 payload=-1) body="English Founding Fathers announce that {William Brewster} has joined the Continental Congress!"
+[2026-10-24 18:16:58] [INFO] [map] POPUP answered tag=FF_CONGRESS dismissed id=0 choice="-" ctx=(a=0 b=20 payload=-1)
+[2026-10-24 18:16:58] [INFO] VIEW map -> report:CONTINENTAL CONGRESS ACTIVITIES
+[2026-10-24 18:16:58] [INFO] [report:CONTINENTAL CONGRESS ACTIVITIES] Opened report CONTINENTAL CONGRESS ACTIVITIES (CCBKGD.PIK)
+[2026-10-24 18:16:58] [INFO] [report:CONTINENTAL CONGRESS ACTIVITIES] Loaded MADSPACK ./COLONIZE/CC-20.SS (4 sections)
+[2026-10-24 18:16:58] [INFO] [report:CONTINENTAL CONGRESS ACTIVITIES] Loaded SS ./COLONIZE/CC-20.SS (1 sprites palette=yes mode=0 pflag=1)
+[2026-10-24 18:16:58] [INFO] [report:CONTINENTAL CONGRESS ACTIVITIES] Key pressed: ESCAPE (menu=no debug=no pedia=no europe=no colony=no report=yes turn=29 cursor=41,21)
+[2026-10-24 18:16:58] [INFO] [report:CONTINENTAL CONGRESS ACTIVITIES] Left report screen.
+[2026-10-24 18:16:58] [INFO] VIEW report:CONTINENTAL CONGRESS ACTIVITIES -> pedia:article
+[2026-10-24 18:16:58] [INFO] [pedia:article] Key pressed: ESCAPE (menu=no debug=no pedia=yes europe=no colony=no report=no turn=29 cursor=41,21)
+[2026-10-24 18:16:58] [INFO] [pedia:article] Left Colonizopedia.
+[2026-10-24 18:16:58] [INFO] VIEW pedia:article -> map
+[2026-10-24 18:16:58] [INFO] [map] POPUP queued tag=INFO kind=message choices=0 queue=1
+[2026-10-24 18:16:58] [INFO] [map] turn_end: turn=29 year=1521 autumn=0 colonies=7 shortages=1 immigrants=0
+[2026-10-24 18:16:58] [INFO] [map] Save directory exists: automated-playtests/campaign2/saves
+[2026-10-24 18:16:58] [INFO] [map] col1_save_write_file automated-playtests/campaign2/saves/COLONY09.SAV (28837 bytes)
+[2026-10-24 18:16:58] [INFO] [map] Turn autosave → COLONY09.SAV
+[2026-10-24 18:16:58] [INFO] [map] col1_save_write_file automated-playtests/campaign2/saves/trace_autosave_turn_029.sav (28837 bytes)
+[2026-10-24 18:16:58] [INFO] [map] Trace autosave → trace_autosave_turn_029.sav
+[2026-10-24 18:16:58] [INFO] [map] POPUP show tag=INFO kind=message title="-" ctx=(a=0 b=1 payload=0) body="King increases military spending.  {Regulars} added to royal expeditionary force.  Colonial leaders express alarm."
+[2026-10-24 18:16:58] [INFO] [map] Key pressed: ENTER (menu=no debug=no pedia=no europe=no colony=no report=no turn=29 cursor=41,21)
+[2026-10-24 18:16:58] [INFO] [map] POPUP answered tag=INFO dismissed id=0 choice="-" ctx=(a=0 b=1 payload=0)
+[2026-10-24 18:17:02] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=29 cursor=41,21)
+[2026-10-24 18:17:02] [INFO] [map] MOVE Caravel id=84 nation=0 at (42,22) mp=9: (41,21) -> (42,22)
+[2026-10-24 18:17:02] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=29 cursor=42,22)
+[2026-10-24 18:17:02] [INFO] [map] MOVE Caravel id=84 nation=0 at (42,23) mp=6: (42,22) -> (42,23)
+[2026-10-24 18:17:02] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=29 cursor=42,23)
+[2026-10-24 18:17:02] [INFO] [map] POPUP queued tag=LANDFALL kind=choice choices=2 queue=1
+[2026-10-24 18:17:02] [INFO] [map] POPUP show tag=LANDFALL kind=choice title="-" ctx=(a=84 b=42 payload=24) body="Shall we make landfall, Your Excellency, and leave the ships behind?" choices=[0]Stay With Ships [1]Make Landfall
+[2026-10-24 18:17:02] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=29 cursor=42,23)
+[2026-10-24 18:17:06] [INFO] [map] Key pressed: DOWN (menu=no debug=no pedia=no europe=no colony=no report=no turn=29 cursor=42,23)
+[2026-10-24 18:17:06] [INFO] [map] Key pressed: ENTER (menu=no debug=no pedia=no europe=no colony=no report=no turn=29 cursor=42,23)
+[2026-10-24 18:17:06] [INFO] [map] POPUP answered tag=LANDFALL picked id=0 choice="Stay With Ships" ctx=(a=84 b=42 payload=24)
+[2026-10-24 18:17:09] [INFO] [map] ORDER Scouts id=73 nation=0 at (42,23) mp=12: wake (was sentry)
+[2026-10-24 18:17:09] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=29 cursor=42,23)
+[2026-10-24 18:17:09] [INFO] [map] Unloaded unit 73 from ship 84 to (43,24)
+[2026-10-24 18:17:12] [INFO] [map] Key pressed: G (menu=no debug=no pedia=no europe=no colony=no report=no turn=29 cursor=42,23)
+[2026-10-24 18:17:12] [INFO] [map] COMMAND goto_port (unit Caravel id=84 at (42,23) mp=6)
+[2026-10-24 18:17:12] [INFO] VIEW map -> list dialog
+[2026-10-24 18:17:12] [INFO] [list dialog] Key pressed: ENTER (menu=no debug=no pedia=no europe=no colony=no report=no turn=29 cursor=42,23)
+[2026-10-24 18:17:12] [INFO] [list dialog] ORDER Caravel id=84 nation=0 at (42,23) mp=6: goto (43,17)
+[2026-10-24 18:17:12] [INFO] VIEW list dialog -> map
+[2026-10-24 18:17:12] [INFO] [map] MOVE Caravel id=84 nation=0 at (42,22) mp=3: (42,23) -> (42,22)
+[2026-10-24 18:17:12] [INFO] [map] MOVE Caravel id=84 nation=0 at (42,21) mp=0: (42,22) -> (42,21)
+[2026-10-24 18:17:12] [INFO] [map] TURN setup: turn=29 year=1521 autumn=0 human=0
+[2026-10-24 18:17:12] [INFO] [map] TURN european nation 1
+[2026-10-24 18:17:12] [INFO] [map] PROD Montreal (id=3 nation=1 pop=1 SoL=10%): food +1, hammers +0 (0) building=-
+[2026-10-24 18:17:12] [INFO] [map] PROD   Montreal: Food +1 (21), Sugar +4 (39), Ore +4 (48)
+[2026-10-24 18:17:12] [INFO] [map] PROD Quebec (id=1 nation=1 pop=1 SoL=13%): food +1, hammers +0 (0) building=-
+[2026-10-24 18:17:12] [INFO] [map] PROD   Quebec: Food +1 (26), Furs +6 (48)
+[2026-10-24 18:17:12] [INFO] [map] COLONY Quebec: colonist #0 off field tile 0
+[2026-10-24 18:17:12] [INFO] [map] COLONY Quebec: colonist #0 job=28 -> field tile 0 as Fur Trapper
+[2026-10-24 18:17:12] [INFO] [map] COLONY Quebec: colonist #0 off field tile 0
+[2026-10-24 18:17:12] [INFO] [map] COLONY Quebec: colonist #0 job=28 -> field tile 0 as Fur Trapper
+[2026-10-24 18:17:12] [INFO] [map] COLONY Montreal: colonist #0 off field tile 1
+[2026-10-24 18:17:12] [INFO] [map] COLONY Montreal: colonist #0 job=20 -> field tile 1 as Sugar Planter
+[2026-10-24 18:17:12] [INFO] [map] CARGO unit 2 -> Quebec: cargo 4 x82 (colony stock 130, cap 100)
+[2026-10-24 18:17:12] [INFO] [map] CARGO unit 2 -> Quebec: cargo 8 x100 (colony stock 100, cap 100)
+[2026-10-24 18:17:12] [INFO] [map] CARGO Quebec -> unit 2: cargo 4 x100 (colony stock 30)
+[2026-10-24 18:17:12] [INFO] [map] CARGO Quebec -> unit 2: cargo 8 x100 (colony stock 0)
+[2026-10-24 18:17:12] [INFO] [map] MOVE Caravel id=2 nation=1 at (51,42) mp=9: (50,41) -> (51,42)
+[2026-10-24 18:17:12] [INFO] [map] MOVE Caravel id=2 nation=1 at (52,43) mp=6: (51,42) -> (52,43)
+[2026-10-24 18:17:12] [INFO] [map] MOVE Caravel id=2 nation=1 at (53,42) mp=3: (52,43) -> (53,42)
+[2026-10-24 18:17:12] [INFO] [map] MOVE Caravel id=2 nation=1 at (54,41) mp=0: (53,42) -> (54,41)
+[2026-10-24 18:17:12] [INFO] [map] TURN european nation 2
+[2026-10-24 18:17:12] [INFO] [map] PROD Isabella (id=2 nation=2 pop=1 SoL=13%): food +1, hammers +0 (0) building=-
+[2026-10-24 18:17:12] [INFO] [map] PROD   Isabella: Food +1 (25), Sugar +2 (50), Silver +3 (18)
+[2026-10-24 18:17:12] [INFO] [map] Spawned unit id=103 type=Pioneers at (47,25)
+[2026-10-24 18:17:12] [INFO] [map] COLONY Isabella: colonist #0 off field tile 0
+[2026-10-24 18:17:12] [INFO] [map] COLONY Isabella: colonist #0 job=28 -> field tile 0 as Silver Miner
+[2026-10-24 18:17:12] [INFO] [map] COLONY Isabella: colonist #0 off field tile 0
+[2026-10-24 18:17:12] [INFO] [map] COLONY Isabella: colonist #0 job=28 -> field tile 0 as Silver Miner
+[2026-10-24 18:17:12] [INFO] [map] MOVE Missionaries id=70 nation=2 at (46,31) mp=0: (47,30) -> (46,31)
+[2026-10-24 18:17:12] [INFO] [map] MOVE Soldiers id=4 nation=2 at (48,24) mp=0: (48,25) -> (48,24)
+[2026-10-24 18:17:12] [INFO] [map] Disembarked 1 units from ship 3 at (48,24)
+[2026-10-24 18:17:12] [INFO] [map] MOVE Caravel id=3 nation=2 at (48,24) mp=0: (49,25) -> (48,24)
+[2026-10-24 18:17:12] [INFO] [map] TURN european nation 3
+[2026-10-24 18:17:12] [INFO] [map] PROD Fort Orange (id=5 nation=3 pop=1 SoL=8%): food +1, hammers +0 (0) building=-
+[2026-10-24 18:17:12] [INFO] [map] PROD   Fort Orange: Food +1 (17), Furs +2 (8), Ore +4 (16)
+[2026-10-24 18:17:12] [INFO] [map] PROD New Amsterdam (id=4 nation=3 pop=2 SoL=7%): food -1, hammers +0 (0) building=-
+[2026-10-24 18:17:12] [INFO] [map] PROD   New Amsterdam: Food -1 (16), Furs +10 (10), Ore +5 (49)
+[2026-10-24 18:17:12] [INFO] [map] Spawned unit id=104 type=Pioneers at (40,48)
+[2026-10-24 18:17:12] [INFO] [map] COLONY New Amsterdam: colonist #0 off field tile 6
+[2026-10-24 18:17:12] [INFO] [map] COLONY New Amsterdam: colonist #1 off field tile 2
+[2026-10-24 18:17:12] [INFO] [map] COLONY New Amsterdam: colonist #0 job=28 -> field tile 2 as Farmer
+[2026-10-24 18:17:12] [INFO] [map] COLONY New Amsterdam: colonist #1 job=25 -> field tile 6 as Fur Trapper
+[2026-10-24 18:17:12] [INFO] [map] COLONY Fort Orange: colonist #0 off field tile 7
+[2026-10-24 18:17:12] [INFO] [map] COLONY Fort Orange: colonist #0 job=22 -> field tile 7 as Ore Miner
+[2026-10-24 18:17:12] [INFO] [map] MOVE Merchantman id=5 nation=3 at (40,55) mp=12: (41,54) -> (40,55)
+[2026-10-24 18:17:12] [INFO] [map] MOVE Merchantman id=5 nation=3 at (39,56) mp=9: (40,55) -> (39,56)
+[2026-10-24 18:17:12] [INFO] [map] MOVE Merchantman id=5 nation=3 at (38,55) mp=6: (39,56) -> (38,55)
+[2026-10-24 18:17:12] [INFO] [map] MOVE Merchantman id=5 nation=3 at (37,56) mp=3: (38,55) -> (37,56)
+[2026-10-24 18:17:12] [INFO] [map] MOVE Merchantman id=5 nation=3 at (36,55) mp=0: (37,56) -> (36,55)
+[2026-10-24 18:17:12] [INFO] [map] TURN native nation 4
+[2026-10-24 18:17:12] [INFO] [map] TURN native nation 5
+[2026-10-24 18:17:12] [INFO] [map] TURN native nation 6
+[2026-10-24 18:17:12] [INFO] [map] TURN native nation 7
+[2026-10-24 18:17:12] [INFO] [map] TURN native nation 8
+[2026-10-24 18:17:12] [INFO] [map] TURN native nation 9
+[2026-10-24 18:17:12] [INFO] [map] TURN native nation 10
+[2026-10-24 18:17:12] [INFO] [map] TURN native nation 11
+[2026-10-24 18:17:12] [INFO] [map] POPUP queued tag=FF_CONGRESS kind=choice choices=5 queue=1
+[2026-10-24 18:17:12] [INFO] [map] PROD Plymouth (id=6 nation=0 pop=1 SoL=3%): food +15, hammers +0 (0) building=Warehouse
+[2026-10-24 18:17:12] [INFO] [map] PROD   Plymouth: Food +15 (104), Tobacco +4 (28)
+[2026-10-24 18:17:12] [INFO] [map] PROD Jamestown (id=0 nation=0 pop=3 SoL=6%): food +9, hammers +3 (12) building=Lumber Mill
+[2026-10-24 18:17:12] [INFO] [map] PROD   Jamestown: Food +9 (36), Lumber +5 (27), Ore +4 (16)
+[2026-10-24 18:17:12] [INFO] [map] POPUP show tag=FF_CONGRESS kind=choice title="-" ctx=(a=0 b=-1 payload=1) body="The Continental Congress will expand during its next session, Your Excellency.  Which Founding Father shall we appoint as its next member?" choices=[2]Peter Minuit (Trade Adviser) [9]Sieur De La Salle (Exploration Adviser) [13]Francis Drake (Military Adviser) [16]Pocahontas (Political Adviser) [21]William Penn (Religious Adviser)
+[2026-10-24 18:17:17] [INFO] [map] POPUP answered tag=FF_CONGRESS picked id=2 choice="Peter Minuit (Trade Adviser)" ctx=(a=0 b=-1 payload=1)
+[2026-10-24 18:17:17] [INFO] [map] POPUP queued tag=INFO kind=message choices=0 queue=1
+[2026-10-24 18:17:17] [INFO] [map] POPUP queued tag=INFO kind=message choices=0 queue=2
+[2026-10-24 18:17:17] [INFO] [map] POPUP queued tag=INFO kind=message choices=0 queue=3
+[2026-10-24 18:17:17] [INFO] [map] turn_end: turn=30 year=1522 autumn=0 colonies=7 shortages=1 immigrants=0
+[2026-10-24 18:17:17] [INFO] [map] Save directory exists: automated-playtests/campaign2/saves
+[2026-10-24 18:17:17] [INFO] [map] col1_save_write_file automated-playtests/campaign2/saves/COLONY09.SAV (28837 bytes)
+[2026-10-24 18:17:17] [INFO] [map] Turn autosave → COLONY09.SAV
+[2026-10-24 18:17:17] [INFO] [map] col1_save_write_file automated-playtests/campaign2/saves/trace_autosave_turn_030.sav (28837 bytes)
+[2026-10-24 18:17:17] [INFO] [map] Trace autosave → trace_autosave_turn_030.sav
+[2026-10-24 18:17:17] [INFO] [map] POPUP show tag=INFO kind=message title="-" ctx=(a=0 b=1 payload=0) body="King increases military spending.  {Regulars} added to royal expeditionary force.  Colonial leaders express alarm."
+[2026-10-24 18:17:17] [INFO] [map] Key pressed: ENTER (menu=no debug=no pedia=no europe=no colony=no report=no turn=30 cursor=43,24)
+[2026-10-24 18:17:17] [INFO] [map] POPUP answered tag=INFO dismissed id=0 choice="-" ctx=(a=0 b=1 payload=0)
+[2026-10-24 18:17:17] [INFO] [map] POPUP show tag=INFO kind=message title="-" ctx=(a=-1 b=-1 payload=0) body="The price of {Sugar} in London has risen to {7$}."
+[2026-10-24 18:17:17] [INFO] [map] Key pressed: ENTER (menu=no debug=no pedia=no europe=no colony=no report=no turn=30 cursor=43,24)
+[2026-10-24 18:17:17] [INFO] [map] POPUP answered tag=INFO dismissed id=0 choice="-" ctx=(a=-1 b=-1 payload=0)
+[2026-10-24 18:17:17] [INFO] [map] POPUP show tag=INFO kind=message title="-" ctx=(a=-1 b=-1 payload=0) body="The price of {Cloth} in London has risen to {11$}."
+[2026-10-24 18:17:17] [INFO] [map] Key pressed: ENTER (menu=no debug=no pedia=no europe=no colony=no report=no turn=30 cursor=43,24)
+[2026-10-24 18:17:17] [INFO] [map] POPUP answered tag=INFO dismissed id=0 choice="-" ctx=(a=-1 b=-1 payload=0)
+[2026-10-24 18:17:24] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=30 cursor=36,13)
+[2026-10-24 18:17:36] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=30 cursor=43,24)
+[2026-10-24 18:17:36] [INFO] [map] MOVE Scouts id=73 nation=0 at (44,23) mp=6: (43,24) -> (44,23)
+[2026-10-24 18:17:36] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=30 cursor=44,23)
+[2026-10-24 18:17:36] [INFO] [map] POPUP queued tag=CONTACT_MEET kind=choice choices=4 queue=1
+[2026-10-24 18:17:36] [INFO] [map] POPUP show tag=CONTACT_MEET kind=choice title="-" ctx=(a=0 b=6 payload=298) body="Your expedition has reached a Village of {Arawaks}.  The inhabitants are busy in the surrounding fields.  As they wave to you {happily}, you notice a collection of scalps hanging threateningly from a nearby tree." choices=[9]Ask to Speak With Chief [3]Demand Tribute [11]Attack Village [5]Cancel Action
+[2026-10-24 18:17:36] [INFO] [map] Key pressed: NONE (menu=no debug=no pedia=no europe=no colony=no report=no turn=30 cursor=44,23)
+[2026-10-24 18:17:41] [INFO] [map] Key pressed: ENTER (menu=no debug=no pedia=no europe=no colony=no report=no turn=30 cursor=44,23)
+[2026-10-24 18:17:41] [INFO] [map] POPUP answered tag=CONTACT_MEET picked id=9 choice="Ask to Speak With Chief" ctx=(a=0 b=6 payload=298)
+[2026-10-24 18:17:41] [INFO] [map] POPUP queued tag=CONTACT_MEET kind=message choices=0 queue=1
+[2026-10-24 18:17:41] [INFO] [map] POPUP queued tag=CONTACT_MEET kind=message choices=0 queue=2
+[2026-10-24 18:17:41] [INFO] [map] POPUP show tag=CONTACT_MEET kind=message title="-" ctx=(a=0 b=6 payload=0) body=""Greetings, travelers.  We are a peaceful village known for our {Seasoned Scouts}.  We would gladly trade with you if you bring us some badly needed {Tobacco}.  We would also pay well for {Tools} or {Trade Goods}."
+[2026-10-24 18:17:41] [INFO] [map] Key pressed: ENTER (menu=no debug=no pedia=no europe=no colony=no report=no turn=30 cursor=44,23)
+[2026-10-24 18:17:41] [INFO] [map] POPUP answered tag=CONTACT_MEET dismissed id=0 choice="-" ctx=(a=0 b=6 payload=0)
+[2026-10-24 18:17:41] [INFO] [map] POPUP show tag=CONTACT_MEET kind=message title="-" ctx=(a=0 b=6 payload=0) body=""The {Arawak} are pleased to welcome travelers from afar.  Come sit by the fire and we shall tell you tales of {nearby lands}.""
+[2026-10-24 18:17:41] [INFO] [map] Key pressed: ENTER (menu=no debug=no pedia=no europe=no colony=no report=no turn=30 cursor=44,23)
+[2026-10-24 18:17:41] [INFO] [map] POPUP answered tag=CONTACT_MEET dismissed id=0 choice="-" ctx=(a=0 b=6 payload=0)
+[2026-10-24 18:17:41] [INFO] [map] MOVE Caravel id=84 nation=0 at (42,20) mp=9: (42,21) -> (42,20)
+[2026-10-24 18:17:41] [INFO] [map] MOVE Caravel id=84 nation=0 at (42,19) mp=6: (42,20) -> (42,19)
+[2026-10-24 18:17:41] [INFO] [map] MOVE Caravel id=84 nation=0 at (42,18) mp=3: (42,19) -> (42,18)
+[2026-10-24 18:17:41] [INFO] [map] MOVE Caravel id=84 nation=0 at (43,17) mp=0: (42,18) -> (43,17)
+[2026-10-24 18:17:41] [INFO] [map] Sailed Caravel to Europe (exit 43,17 cargo=0)
+[2026-10-24 18:18:12] [INFO] [map] col1_save_write_file automated-playtests/campaign2/saves/t30.sav (28877 bytes)
+[2026-10-24 18:18:12] [INFO] [map] Diagnostics shutdown.
