@@ -18,7 +18,7 @@ segment (raw code bytes, exactly as they sit in the file — same bytes
 rtlink_decode itself copies per segment).
 
 See docs/rtlink_decode_v2_gap.md for why per-overlay Ghidra import (see
-tools/ghidra_import_overlays.py) is preferred over trusting the flattened
+tools/GhidraImportOverlays.java) is preferred over trusting the flattened
 VICEROY_OUT*.EXE for any function that still carries a Ghidra WARNING.
 """
 import json

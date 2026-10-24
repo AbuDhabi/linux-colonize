@@ -5,8 +5,8 @@ settlement types, tribe differentiation, alarm, and European contact. Deep FUN
 checklists stay in annotated AI extracts — this file is the topic map.
 
 Authority order: [project_goals.md](project_goals.md) (decomp / NAMES → manual →
-fandom). Feature checklist: [manual_gap.md](manual_gap.md) §Indians. Port FUN
-status: [port_plan.md](port_plan.md).
+fandom). Feature checklist: [manual_gap.md](manual_gap.md) §Indians. Port
+status: [manual_gap.md](manual_gap.md) §Indians and the sections below.
 
 ## Sources
 
@@ -102,8 +102,7 @@ the truth is the 15-entry JMPF stub table at `4d56:4c22..4c6c`,
   (`units_best_defender_at`), with the colony-raid handoff `units.c` takes
   from `ai_contact_raid.c` on the loser limb. Two deliberate limits: the
   defender must be a European (the port models no tribe-vs-tribe combat), and
-  an undefended colony tile keeps the exhaust-only end state. Before
-  2026-09-21 the port walked the Brave INTO Euro colonies (port_bugs.md #553).
+  an undefended colony tile keeps the exhaust-only end state (port_bugs.md #553).
 - The residue behind the old "partial (T2 quiet)" label is the **callee**:
   `FUN_4d56_021a` (`4d56:021a..14fd`, 4836 bytes, one function) — the Indian
   unit decision routine Ghidra emitted as raw `??` bytes, reached from `14fe`
@@ -267,7 +266,7 @@ Was the manual's "capital 2" rule until 2026-08-28 (`colony.c`
   (`FUN_15eb_3960(nation, 2)`).
 
 Port: `colonies_indian_claim_tribe_from_w(w, nation, origin_x, origin_y, x, y)`
-(`colony.c`); the old origin==tile wrapper `colonies_indian_claim_tribe` is gone.
+(`colony.c`).
 
 Founding / clearing / road-building on
 such a tile at PEACE with the owner raises the DOS `@INDIANLAND` /
@@ -438,14 +437,11 @@ commit tail calls `ai_native_step_first_contact` (`ai_brave.c`), which runs the
 mood roll (`ai_contact_visit_step_roll`, raw 96745-96760) **and** then the
 matching half — `ai_contact_try_village_gifts`, else
 `ai_contact_try_village_beg_food` — for the Brave that just stepped, at most
-one resolved encounter per nation per pass (DOS's `aiStack_20[nation]`).
-Retired with that move: the 8-turn per-nation throttle (already gone
-2026-09-10, it was an invention) and the gift half's "no popup queue →
-decline" bail. `ai_contact_brave_walked_up_to` survives inside the two arms,
-no longer as a reconstruction of the trigger but as the selector that picks
-the Brave that is mid-step out of the nation's units (a loitering Brave still
-raises nothing); the post-pulse village-trade/reparations arm still uses it as
-the reconstruction it always was.
+one resolved encounter per nation per pass (DOS's `aiStack_20[nation]`); there
+is no per-nation turn throttle. `ai_contact_brave_walked_up_to` is the selector
+that picks the Brave that is mid-step out of the nation's units (a loitering
+Brave still raises nothing), in the two arms and in the reparations arm
+(`ai_contact_try_village_reparations`) the beg arm falls through to.
 
 There is **no passive teach arm** in `022e` — retired 2026-09-04. The port's
 old per-turn adjacency pulse invented "The %s teach outdoor skills." (no such
@@ -465,24 +461,21 @@ deliberate **Live Among The Natives** `@ACTIONS` row.
 | Minuit | Indians no longer demand land payment |
 | Pocahontas | Reset + half future alarm |
 
-Incite / WARPATH gold **Done both modes, byte-faithful** (2026-09-06
-audit; first ported thin 2026-08-13) — `FUN_4d56_417e` as a village-meet
-CHOICE (`ai_contact_apply_incite`) plus the AI Mode-2 auto-incite
+Incite / WARPATH gold **Done both modes, byte-faithful** — `FUN_4d56_417e` as a
+village-meet CHOICE (`ai_contact_apply_incite`) plus the AI Mode-2 auto-incite
 (`ai_contact_ai_incite_human`, `4528` tail case 7, reached from
-`ai_contact_ai_missionary_village` — the AI missionary's village arm). 2026-09-06 fixes: price multiplier is the raw
-`0x5b1c` **alarm** value +75 (was inverted via `ai_diplo_indian_relation`);
+`ai_contact_ai_missionary_village` — the AI missionary's village arm). The price
+multiplier is the raw `0x5b1c` **alarm** value +75 (not `ai_diplo_indian_relation`);
 the relation push is `281f_0d6c` → `FUN_4cc6_00f2` = **+100 alarm slam**
-(French-target/Pocahontas-halved, clamped at 100 — was a flat +10
-placeholder); DOS refusal gates wired (`@NOCONTACT` 0x16b7 tribe hasn't
-met target, `@UNFORTUNATE` 0x16d0 treasury, `@ALREADYSMITE` 0x16dc tribe
-already in the war band with target) and the shared `@INDIANWARFARE`
-(0x16e9) War Council announce — the annotation's old "0x16e9 =
-WARPATH2" was off by a tag (0x16c1 is WARPATH2, the pay confirm).
-2026-09-16: the dialog is now the DOS **two-step** — `@INDIANWARPATH`
-(0x16a9) target menu whose rows are plain nation names and are *not* filtered
-by affordability, then the `@INDIANWARPATH2` pay confirm quoting the price
-("Pay …" / "Never mind."); the treasury test happens after that confirm, as
-`@UNFORTUNATE`. Both bodies now come from GAME.TXT.
+(French-target/Pocahontas-halved, clamped at 100). Refusal gates: `@NOCONTACT`
+0x16b7 (tribe hasn't met target), `@UNFORTUNATE` 0x16d0 (treasury),
+`@ALREADYSMITE` 0x16dc (tribe already in the war band with target); the shared
+`@INDIANWARFARE` (0x16e9) is the War Council announce (0x16c1 is WARPATH2, the pay
+confirm). The dialog is the DOS **two-step**: the `@INDIANWARPATH` (0x16a9) target
+menu, plain nation names *not* filtered by affordability, then the
+`@INDIANWARPATH2` pay confirm quoting the price ("Pay …" / "Never mind."); the
+treasury test happens after that confirm, as `@UNFORTUNATE`. Both bodies come from
+GAME.TXT.
 Mode-1 target set = the other Euros minus `head.crown_nation_id`; once
 `game_options.woi` is set the target is fixed to the Crown (DOS
 `0x5382` bit0 — the WoI latch, not an "AMERICA scenario" flag). See
@@ -498,8 +491,9 @@ the colony's building-bit test: Fort, Stockade, Fortress) plus an early-turn
 grace on Discoverer/Explorer. There is no scalp kind (`@RAIDSCALP` is dead
 GAME.TXT text) and no "wreak" kind — `@RAIDWREAK` (0x1b8a) is the third-party
 "Spies report" bulletin the human gets when the raided colony is somebody
-else's. Alarm never gates the kind; it gates the pulse's targeting. Colony
-encroachment and ambush chrome thin-Done. Capital destroy →
+else's. Alarm never gates the kind. 0f14's one caller is 1b0e's loser limb
+(`ai_contact_colony_raid_repelled_w`); there is no separate raid pulse
+(port_bugs.md #1093, [indian_alarm.md](indian_alarm.md)). Capital destroy →
 `ai_diplo_indian_capital_surrender` (reset hostility once; no new capital).
 Loot detail: [indian_raid_outcomes.md](../original_sources_annotated/ai/indian_raid_outcomes.md),
 [indian_raid_loot.md](../original_sources_annotated/ai/indian_raid_loot.md).
@@ -513,8 +507,10 @@ see `ai_contact_trade.c` / `ai_contact_actions.c` above).
 
 ### Nation turn shell
 
-`FUN_4d56_1816` / `ai_indian_nation_turn`: reseed → alarm prelude → clamp →
-village growth → relation tick → quiet Brave pulse → meet/trade/raid arms.
+`FUN_4d56_1816` / `ai_indian_nation_turn` (`ai_brave.c`): reseed → WoI defect →
+alarm prelude (clamp only) → village growth → relation / goods tick → the 14fe
+Brave act loop. Nothing runs after the loop: first contact, gifts, begs, demands
+and attacks all resolve inside a Brave's step.
 
 ---
 

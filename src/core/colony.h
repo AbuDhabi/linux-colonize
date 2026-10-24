@@ -140,7 +140,7 @@ typedef struct ColonizeColony {
   uint8_t labor_shortage;
   /* Col1 +0x1e garrison fortify quota (see docs/colony.md#colonizecolonygarrison_quota) */
   uint8_t garrison_quota;
-  /* Col1 +0xba/+0xbe fog-of-war snapshots (see docs/colony.md#colonizecolonypop_on_map-fort_on_map) */
+  /* Col1 +0xba/+0xbe fog-of-war snapshots (see docs/colony.md#colonizecolonypop_on_map--fort_on_map) */
   uint8_t pop_on_map[4];
   uint8_t fort_on_map[4];
   /*
@@ -216,10 +216,10 @@ static inline int colonies_headcount(const ColonizeColony* colony) {
 }
 
 #define COLONIZE_BUILD_AI_WANTS_CONSTRUCTION 0x80u
-/* census phase 3 armed-ship/frigate detection (see docs/colony.md#colonize_colony_ai_nearby_armed_ship-_frigate) */
+/* census phase 3 armed-ship/frigate detection (see docs/colony.md#colonize_colony_ai_nearby_armed_ship--_frigate) */
 #define COLONIZE_COLONY_AI_NEARBY_ARMED_SHIP 0x01u
 #define COLONIZE_COLONY_AI_NEARBY_FRIGATE 0x02u
-/* defender-count pair writers/readers/consumer audit (see docs/colony.md#colonize_colony_ai_military_surplus-_short_defenders) */
+/* defender-count pair writers/readers/consumer audit (see docs/colony.md#colonize_colony_ai_military_surplus--_short_defenders) */
 #define COLONIZE_COLONY_AI_MILITARY_SURPLUS 0x04u
 #define COLONIZE_COLONY_AI_SHORT_DEFENDERS 0x08u
 #define COLONIZE_COLONY_AI_NEEDS_COLONISTS 0x10u
@@ -232,7 +232,7 @@ static inline int colonies_headcount(const ColonizeColony* colony) {
 #define COLONIZE_COLONY_FLAG_SOL_50 0x04u
 /* inefficient-government latch history (see docs/colony.md#colonize_colony_flag_inefficient_gov) */
 #define COLONIZE_COLONY_FLAG_INEFFICIENT_GOV 0x08u
-/* small-colony AI bit and wagon-train bit derivation (see docs/colony.md#colonize_colony_flag_small_ai-_wagon_train) */
+/* small-colony AI bit and wagon-train bit derivation (see docs/colony.md#colonize_colony_flag_small_ai--_wagon_train) */
 #define COLONIZE_COLONY_FLAG_SMALL_AI 0x10u
 #define COLONIZE_COLONY_FLAG_WAGON_TRAIN 0x20u
 /* coastal bit founding-time derivation (see docs/colony.md#colonize_colony_flag_coastal) */

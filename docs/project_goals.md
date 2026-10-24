@@ -67,8 +67,9 @@ save/interop-visible behavior, not by cloning the DOS codebase structure.
 
 ## Rules accuracy bar
 
-Prefer real rules from `Colonization.pdf`, [fandom_col1994.md](fandom_col1994.md),
-and NAMES/decomp before inventing stand-ins.
+Prefer real rules from NAMES/decomp, then `Colonization.pdf`, then
+[fandom_col1994.md](fandom_col1994.md) (tier 3: never port from it without a DOS
+trace, [conventions.md](conventions.md) §4) before inventing stand-ins.
 
 - "Rough" means incomplete wiring/UI, **not** made-up powers.
 - If the real effect needs a missing hook: implement the closest real behavior,
@@ -96,5 +97,5 @@ Brewster dock filter).
 Related: [port_plan.md](port_plan.md) (whole-project phases),
 [manual_gap.md](manual_gap.md) (feature checklist),
 [savegame.md](savegame.md) (Col1 layout / interop),
-[save_format_map.md](save_format_map.md) (field atlas / RE roadmap),
+[save_format_map.md](save_format_map.md) (field atlas),
 [assets.md](assets.md) (data files).

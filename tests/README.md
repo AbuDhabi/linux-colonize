@@ -95,7 +95,7 @@ transcription was still structural; `smoke_ai_mid01` / `smoke_ai_late01`
 (renamed from `golden_ai_*` 2026-09-14, because they generate their own
 fixture and assert self-consistency rather than a DOS-derived expectation)
 came back 2026-08-27, and `golden_ai_turns` came back 2026-09-05 once all six
-TURN steps went green (history in [`docs/port_plan.md`](../docs/port_plan.md)
+TURN steps went green (history in [`docs/archive/port_plan_deferred_ai_track.md`](../docs/archive/port_plan_deferred_ai_track.md)
 T1.23 / T3.3).
 
 `golden_ai_joint` is a **build-only convenience target**, not a ctest test: it

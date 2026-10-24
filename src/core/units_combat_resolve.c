@@ -783,7 +783,7 @@ bool units_resolve_naval_combat_ff_w(
          * PRIVATEER prize gets no dialog here. @SEIZURE* is Royal Navy / Army
          * wording and no catalog section covers a privateer capture, so the
          * port shows nothing rather than typed English; the real DOS cue is
-         * one of the unresolved numeric message ids (docs/popup_string_resolver.md).
+         * a numeric message id not yet matched to a tag (docs/popup_tag_ids.md).
          */
         PopupMsgTokens tok;
         memset(&tok, 0, sizeof(tok));

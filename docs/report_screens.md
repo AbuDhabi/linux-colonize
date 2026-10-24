@@ -121,13 +121,14 @@ reports plumb page state through `reports_render_w()` and the OK hit-test.
   a fallback chain in the Score FF count (broken field tried first,
   correct bitmask only on exact zero) — grep other reads of a field once
   it's proven unreliable.
-- **Branch order in value pickers:** `founding_fathers_sync_from_col1()` (since
-  retired — the port now reads `col1->nation[].liberty_bells_pool` directly,
-  there is no second live pool to sync) had a "treat bells as cumulative"
-  branch that ran first and almost always won,
-  zeroing a valid live pool — symptom "right after gameplay, zero on fresh
-  load" (accrual doesn't run the sync path). If a value is sometimes
-  mysteriously zero, check earlier branches before suspecting the data.
+- **Branch order in value pickers:** a since-retired bells sync ran a "treat
+  bells as cumulative" branch first that almost always won, zeroing a valid
+  live pool ("right after gameplay, zero on fresh load"). If a value is
+  sometimes mysteriously zero, check earlier branches before suspecting the
+  data.
+- **A pre-existing test asserts what the code did, not DOS truth.** The F10
+  Citizens rule (reports_score.md) flipped one; when a golden disagrees with
+  a test, the golden wins.
 
 ## Portrait compositing (Congress page 2, any multi-sprite scene)
 
@@ -181,103 +182,3 @@ onto a docked ship, forcing `orders = Sentry` + `aboard_ship_id`:
 - Fix 2: `cargo_hold[]` past `holds_occupied` can be stale (DOS never
   clears trailing bytes on unload) — import only the first
   `holds_occupied` slots, don't per-slot check `0 < amt < 255`.
-
-## Per-report facts
-
-### Naval (F7)
-
-4-column table (Ship/Cargo/Location/Destination), 7 rows/page; row rules
-native y = 40..180 step 20, column rules x = 82/162/242. Passengers get
-their own row above the ship's. Body font FONTTINY.
-
-**Re-derived from the decomp 2026-09-28.** The geometry above was measured
-off `naval.png` while reports.md pointed F7 at F6's functions; the real pair
-is `FUN_3f41_20b4` (chrome) + `FUN_3f41_220c` (body). The row geometry
-survived the check unchanged, but the row list, the row labels and the cargo
-icon's x/pitch did not — port_bugs.md #973. Cargo icons start at x=88, pitch 12.
-Rows are unit-array order (ships always, other units only on an Ocean/Sea
-Lane tile); a passenger is not pinned above its ship. What remains is
-[known_divergences.md](known_divergences.md) #974, the Europe-lane rows.
-
-### Foreign Affairs (F8)
-
-Unpaginated, fixed English/French/Spanish/Dutch blocks (rules y =
-10/55/100/145, line pitch 7, cell x ladder 2/80/160/240). The withdrawn
-slot is `head.crown_nation_id` (DS:0x53d2) — **not** `player[n].control`,
-which only happened to agree on `dutch-reports.SAV`; that block shows
-"(Withdrawn from New World)" and is skipped from every peer list. Title
-sits at native y=2 (per-report override; everyone else keeps the y=5
-default).
-
-- **War/Peace decode (settled 2026-08-31, this section corrected
-  2026-09-28):** one byte, one direction — `nation[a].euro_relation[b]`
-  (DOS `FUN_281f_0a38(a, b)`), bit 0x20 = met, bit 0x40 = at peace, clear
-  = at war. The earlier "bit 0x02 in either direction" note was a
-  single-save empirical fit and is dead; `reports_foreign_at_war()`
-  implements the byte decode. `ai_diplo.h`'s `AI_DIPLO_WAR` (0x01) is still
-  a different id space and still untouched. Full write-up in reports.md.
-- **Rebels/Tories total** is `stuff.census_pop_proxy[nation]` (DS:0x9410),
-  not summed colony population (misses field colonist-type units);
-  `rebels = floor(total × rebel_sentiment / 100)`. Caveat: that field is
-  RMW-preserved from load, not recomputed during OpenCol play — fine for a
-  loaded save, stale after live changes.
-
-### Score (F10)
-
-No OK button, no `REPORT<N>.PIK` — full-screen `WOODPANL.PIK` with
-hand-placed layout. Ink: title/subtitle/Total idx 149 `(199,162,32)`,
-everything else idx 68 green `(85,150,52)` (both exact palette entries,
-dist2=0). Bottom bar: plain filled rect x=35..285 y=186 h=7, track idx
-138, fill idx 68, proportional to `total/1000`. Golden shows only
-Citizens/Congress/Gold/Rebel Sentiment/Total lines — Villages Burned /
-Intervention / Independence fold into the total but aren't displayed
-(golden's save has them zero; revisit with a later-game golden).
-
-- **Citizens rule (the real find):** colony population always counts
-  (invalid profession byte falls back to Free Colonist), but a map/Europe
-  unit counts **only** when its raw `profession` byte is a genuine job
-  (0..27) — sentinel 28 means zero credit, no type-based fallback.
-  Confirmed exact (142+16=158). `reports_score_collect_citizen_jobs` is
-  shared by the point total and the icon strip. This flipped an existing
-  test's expected values — a pre-existing test asserts "what the code did",
-  not DOS truth.
-- Rebel sentiment reads `nation.rebel_sentiment` (nation+0x19) directly,
-  not a recomputed colony-weighted average.
-- Citizens icon strip wraps at pitch 8px (37 icons/row), odd rows shifted
-  half an icon right, each row half an icon-height down; icon dims read
-  from the sheet at runtime.
-
-### Indian Adviser (F9)
-
-Flat unpaginated list (DOS `FUN_3f41_010a` has no paging — don't invent
-it), 21px blocks from y=28. Per tribe: headband portrait + plural name
-(`NAMES.TXT @TRIBES` **column 0**, trailing colon) + right-aligned level,
-then stats line (Villages always; Missions/Muskets/Horse Herds skip 0).
-"Missions"/"Horse Herds" resolve live from `@MISC` 28/45, "Muskets" from
-`@CARGO` (2026-08-28), and the settlement noun from the tribe's
-`NAMES.TXT @LEVELS` row — column 1 at a count of exactly 1, column 2
-otherwise (DOS-LITERAL `FUN_3f41_010a` raw 69557-69564; the port printed a
-fixed "Villages" until 2026-09-21, this section said so until 2026-09-28).
-
-- **Muskets = `(indian.muskets + count of Armed Braves + Mtd. Warriors)
-  × 50`** — from reading `FUN_3f41_010a` line-by-line. Horse Herds is the
-  raw field. **Lesson:** when a field doesn't reproduce a golden number by
-  obvious arithmetic, check whether the screen's exact DOS function is
-  already decompiled and catalogued (`FUNCTION_CATALOG.md`) before
-  guessing scale factors.
-- **Missions counts villages whose mission nibble equals the *viewing*
-  nation**, not "any mission" — the two read identical in the one golden
-  (all missions there are Dutch), which would have hidden the bug forever
-  without the decompile read.
-- Tribe name/level colors need **no** remap against REPORT9.PIK (probe
-  came back dist2=0) — probe per report, it varies.
-- Name/level lines are four FONTTINY passes (`FUN_3f41_010a`, 3f41:018f-022c /
-  0265-02cb): ink 0 at (x+1, y), (x, y+1), (x+1, y+1), then the tribe ink at (x, y);
-  the level's x is 0x136 - (width - 1) (`FUN_281f_0114`). The black stats line is one
-  pass, columns every 0x38 from x 40. Name lines are pixel-exact against indian.png
-  (`unit_reports indian_name_lines_golden`, port_bugs.md #1207).
-- **Headband (resolved 2026-09-07, this section corrected 2026-09-28):**
-  `q = FUN_281f_0a60(FUN_281f_030c(tribe, viewer))` is the alarm quartile
-  (cuts 25/50/75), forced to 3 by the `extinct` bit (`indian+3 & 0x80`),
-  and the sprite is ICONS.SS **113 + q**. Both golden tribes are q=0, which
-  is why #113 alone used to fit. Port is pixel-exact; see reports.md.

@@ -52,7 +52,6 @@ mismatch or are missing from the archive. Diff field by field with a recursive J
 quits and loads each turn gets; `keepseed` keeps the run's LCG seed instead of the load-time pick).
 A year that matches continuously but not under reload names state the `RTST` chunk does not carry
 yet: dump it, `jdiff.py`, then `AI_28C8_TRACE=1` both modes and diff the traces.
-`GOLDEN_IDLE_PICKS="6:353;7:361"` replays wall-clock music-pick reseeds (srand(tick) on the game LCG) before those draw indices of the run into saves 6 and 7 (dos_rng.h; docs/idle_independence.md).
 Without `GOLDEN_IDLE_KEEP_GOING` the run stops at the first mismatch or missing year.
 
 Single-year transitions (`golden_idle_campaign Y Y+1` from the archived Y) are not a gate. The
@@ -68,8 +67,8 @@ as its mtime changes: `setup` copies a stale COLONY09, and a popup can delay the
 against `GOLDEN_IDLE_FROM` / from-load port output: whatever remains is a port bug.
 - Use `BPM` on one record byte that differs, or `BP` in a resident routine. The resident CS is
   the Ghidra segment − 0x1000 + 0x0824.
-- To trap an overlay routine, use `--patch-cc`. Turn EMS/XMS/UMB off in `dbx.conf`, or the
-  overlay is re-cached without the trap and later calls are missed.
+- To trap an overlay routine, use `--patch-cc` (docs/dos_trace.md "Overlay code"; `setup`
+  turns EMS/XMS/UMB off, without which the overlay is re-cached and later calls are missed).
 - DOS is not fully repeatable: treat a single-field mismatch as noise until a second DOS run
   reproduces it.
 

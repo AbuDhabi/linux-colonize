@@ -3,8 +3,8 @@
 Split out of [colony.md](colony.md) on 2026-10-23 (doc-length policy): the
 warehouse, spoilage, foreign-colony trade and trade-route sections, i.e. the
 `src/core/colony_goods.c` API. Same contract as colony.md: each section matches a
-one-line pointer comment in `src/core/colony.h`; those pointers still name
-`docs/colony.md#<anchor>`, which forwards here. Contents verbatim.
+one-line pointer comment in `src/core/colony.h` naming
+`docs/colony_goods.md#<anchor>`.
 
 ## colonies_warehouse_capacity
 
@@ -12,15 +12,14 @@ Warehouse capacity (100 base; +100 Warehouse; +100 Expansion).
 FUN_15eb_0a50 takes no cargo argument — one capacity for all sixteen goods,
 Food included. Food's exemptions live at the three sites that consume the
 cap (EOT spoilage, @WAREHOUSEFULL unload confirm, colony-screen alert ink),
-not here; cargo_type is unused by the body and is kept only so the ~10
-call sites stay readable (audit CO-28 — keeping the parameter is far less
-churn than rewriting every caller, and the body now says so with a
-(void) cast).
+not here; cargo_type is unused by the body (`(void)` cast) and is kept only
+so the ~10 call sites stay readable (audit CO-28).
 
 ## colonies_emit_warehouse_full_chrome
 
 Human unload chrome: GAME.TXT @WAREHOUSEFULL when warehouse has no room.
-cargo_name optional (fallback "cargo"). No-op if ai_popups NULL.
+cargo_name optional (miss = empty string). No-op if ai_popups NULL, and for
+Food (FUN_479b_0f60 never warns on Food).
 @WAREHOUSEFULL's numbers (port_bugs.md #433): NUMBER0 = what the warehouse
 already held BEFORE this deposit, NUMBER1 = capacity, NUMBER2 = the
 deposit itself. `deposited` = units the player just unloaded (or tried

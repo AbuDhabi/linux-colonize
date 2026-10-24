@@ -62,16 +62,9 @@ decompiled exports the only DOS *gate* reads of `DS:0x54f6` are
 `FUN_4962_0018` raw 94967 (`word < 0x80`, the AI garrison-quota threat seed) —
 both keyed on `unit +0x314a`, the **acting Brave's own home village**, never a
 nation-wide maximum. Everything else at that address is a write or the 152e
-read-modify-write.
-
-Until 2026-09-30 the port coupled the layers: `ai_contact_raid_gate_target`
-took `max(alarm_by_player[e], worst village friction of the nation)`, excused
-mission villages below friction 80, and handed that one scalar to every Brave —
-so a single angry village licensed ambushes by Braves homed in calm ones
-(port_bugs.md #1003, a real campaign4 case: Arawak nation alarm 0, one un-missioned
-village at friction 83, the attacking Braves all homed in the player's own
-mission villages). The whole gate went with the raid pass in port_bugs.md #1093
-(below).
+read-modify-write. Never gate on a nation-wide maximum of village words: that
+coupling let one angry village license attacks by Braves homed in calm ones
+(port_bugs.md #1003; the gate went with the raid pass, #1093 below).
 
 The village word still matters, and diverges sharply from the nation number,
 because the two have very different dampers: the nation scalar is fed through
@@ -97,37 +90,26 @@ human-victim cues and @RAID* dialog and the @RAIDWREAK bulletin.
 
 Note on the discharge: a resolved fight zeroes the word of the **attacking
 Brave's home** village (`unit +0x314a`), not necessarily the village that is
-angriest. That is DOS (raw 101039-101041). It only mattered while the raid gate
-read a nation-wide maximum, which let a Brave from a calm village keep attacking
-off another village's grudge with nothing ever discharging it (#1003).
+angriest. That is DOS (raw 101039-101041).
 
-**Both residuals of that decoupling are now closed (2026-10-01).**
-(a) `ai_contact_pair_friction` — the same
-`max(alarm_by_player[e], worst village friction of the nation)` construction
-#1003 removed from the raid gate — is **deleted**. The gift/demand gates
-(`ai_contact_apply_gift_gold`, `ai_contact_demand_band_ok`,
-`ai_contact_gift_or_demand`, the village-menu demand band in
-`ai_contact_actions.c`) now read `ai_diplo_indian_alarm` alone, which is what
-DOS's `FUN_4d56_4528` gates on; one sore village no longer refuses gifts and
-demands nation-wide (port_bugs.md #1005). (b) First contact no longer zeroes
-`friction`/`attacks` on every village of the nation — DOS's contact arm
-(`FUN_5bfb_022e` raw 96620-96636) only ORs the MET bit and clamps alarm to 20
-and writes no `0x54f6` word at all, so a pre-contact grudge survives the
+The gift/demand gates (`ai_contact_apply_gift_gold`, `ai_contact_demand_band_ok`,
+`ai_contact_gift_or_demand`, the village-menu demand band in `ai_contact_actions.c`)
+read `ai_diplo_indian_alarm` alone, as DOS's `FUN_4d56_4528` does (port_bugs.md
+#1005). First contact (`FUN_5bfb_022e` raw 96620-96636) only ORs the MET bit and
+clamps alarm to 20; it writes no `0x54f6` word, so a pre-contact grudge survives the
 welcome (port_bugs.md #1008).
 
-**The `FUN_4cc6_00f2` escalation tail now fires from every raiser
-(2026-10-01).** The port still splits 00f2 into
+**The `FUN_4cc6_00f2` escalation tail fires from every raiser.** The port splits
+00f2 into
 `ai_diplo_indian_alarm_delta` (halving / clamp / clears / tier clamp) plus the
 alarm-100 peace roll that burns missions (@INDIANBURN), but the roll has two
 entry points instead of one: `ai_contact_alarm_delta_00f2(ctx, ...)` and
 `ai_contact_alarm_delta_00f2_w(w, ...)` for the positive-delta sites that hold
 a `ColonizeWorld` but no turn context — the land-work bill
 (`colony_workers.c`, the dominant early-game raiser), the pioneer charge
-(`units_pioneer.c`) and the 465b trespass bump (`units_move.c`). All three
-were calling the bare half writer, so encroachment could pin a pair at alarm
-100 forever and never burn a mission; DOS has no half writer
-(`FUN_281f_0d6c` is a bare thunk to the whole of 00f2) and rolls on every
-charge that lands on 100 (port_bugs.md #1004). `ColonizeWorld` gained
+(`units_pioneer.c`) and the 465b trespass bump (`units_move.c`). DOS has no half
+writer (`FUN_281f_0d6c` is a bare thunk to the whole of 00f2) and rolls on every
+charge that lands on 100 (port_bugs.md #1004). `ColonizeWorld` carries
 `ai_popups` / `messages` for this; a `world_make` view leaves them NULL, which
 means mechanics without the dialog. The roll is also skipped outright when the
 world or context carries no RNG stream — `dos_rng_range(NULL)` answers its low
@@ -147,16 +129,15 @@ Consumers of the nation scalar read `ai_relation_quartile`
 - `0x47` (71): trade delta cap.
 - 55: the **AI**'s auto-trade / gift stops (the human path returns before this gate).
 - `0x32` (50): AI defensive schoolhouse build. `0x31` (49): they gift rather than sell.
-- 40: peaceful-visit cooldown stops; gifts refused (pair friction >= 40).
+- 40: gifts refused (`ai_contact_apply_gift_gold`, nation alarm alone).
 - `0x19` (25): quartile 1 — the @MISSION band leaves "curiousity"; friendly-tribe
   unit threat stops being zeroed.
 - 100: the mission-burn roll above.
 
 Continuous, no threshold: land purchase cost `x(quartile + 1)` (so x1..x4);
 village trade `tier2 = quartile << 1` subtracted from what they will pay you
-(zeroed for muskets and horses); village goods price `+ alarm * 4`; raid severity
-from `max(alarm, village friction)`; popup portrait tier and the Indian Nations
-report icon.
+(zeroed for muskets and horses); village goods price `+ alarm * 4`; popup portrait
+tier and the Indian Nations report icon. Alarm does not pick the raid kind.
 
 ### Two layers
 
@@ -182,18 +163,17 @@ is byte-for-byte field **+10** of that record: `int16_t attitude[4]`, one
 record stride — 9 × 2 = 0x12.) In the port that word is
 `ColonizeCol1Tribe.alarm[nation]` = `{uint8_t friction; uint8_t attacks;}`,
 low byte `friction`, high byte `attacks` — already byte-exact, already inside
-the saved tribe blob (`col1_save.c` tribes read/write), and — since 2026-09-08 —
-fed by **all four** DOS raisers:
+the saved tribe blob (`col1_save.c` tribes read/write), and fed by **all four**
+DOS raisers:
 
 | DOS raiser | Amount | Port |
 |---|---|---|
-| `FUN_465b_0000` trespass | `attacks++` = **+0x100** | `units.c` |
-| `FUN_4d56_152e` encroachment arm | accumulator | `ai.c` |
+| `FUN_465b_0000` trespass | `attacks++` = **+0x100** | `units_move.c` |
+| `FUN_4d56_152e` encroachment arm | accumulator | `ai_indian.c` |
 | `FUN_5bfb_022e` @INDIANBEGFOOD refused | **×1.5** (`w += w >> 1`) | `ai_contact_apply_beg_food` |
 | `FUN_5bfb_022e` LAB_5bfb_0ff2 — @INDIANCITY / @INDIANWAGONS reparations refused | **+0x80** | `ai_contact_apply_reparations` |
 
-The last row was the file's one remaining unported raiser until 2026-09-08.
-It is the shared `else` limb of LAB_5bfb_0def's two demand sites (raw
+The last row is the shared `else` limb of LAB_5bfb_0def's two demand sites (raw
 `viceroy_unpacked.c:96973`): the village names a good it wants — out of a
 colony's stores (`@INDIANCITY`, tag `0x1866`) or the whole of hold 0 of a
 Wagon Train it walked up to (`@INDIANWAGONS`, tag `0x1871`) — and a refusal
@@ -214,22 +194,13 @@ and always `horse_herds += 1`.
 The two GAME.TXT sections print their rows in **opposite** order, which is why
 DOS reads `local_c != 2 → refuse` at `0x1866` and `local_c == 1 → accept` at
 `0x1871`: `@INDIANCITY` is "Man the stockade." / "Hand them over.",
-`@INDIANWAGONS` is "Hand them over." / "Circle the wagons.". That text is what
-finally settles the accept/decline polarity `indian_contact.md` recorded in
-2026-08-14 as unrecoverable.
+`@INDIANWAGONS` is "Hand them over." / "Circle the wagons.". That text settles
+the accept/decline polarity.
 
 Read and write the word through `col1_tribe_attitude` /
 `col1_tribe_attitude_set` (`col1_save.h`), which sign-extend / re-split the
-two bytes the way DOS's signed `int` accesses do.
-
-*Retired 2026-09-08:* `ColonizeCol1Save.indian_tension`, a parallel
-`int16_t[tribe_count*4]` array added 2026-08-19 on the misreading that 0x54f6
-was a standalone table. It was `calloc`'d to zero on every load, never
-serialized and never raised, so every reader saw dead zeros and every writer
-wrote into scratch. All consumers now key off the real record word; the array,
-its alloc/free and the two array-compaction remaps that existed only to keep it
-aligned (`units.c` village destroy, `ai.c` whole-nation kill) are gone — the
-word rides the tribe record.
+two bytes the way DOS's signed `int` accesses do. The word rides the tribe record,
+so the tribe-array compactions carry it for free.
 
 DOS's clamping write site is `FUN_4cc6_00f2` (relation-delta,
 `ai_diplo_indian_relation_delta` in `ai_diplo.c`): on a negative relation delta
@@ -237,7 +208,7 @@ that crosses a 5-point tier boundary, clamp every tribe-of-that-Indian-nation's
 attitude word down to `0x20` (new relation <50) or `0x60` (≥50) — the write
 rebuilds *both* bytes, so a clamp also drops the `attacks` count. See
 `docs/archive/mysteries_catalog.md`'s "0x54f6" entry for the older formula
-trace (its "separate table" framing is superseded by this section).
+trace (ignore its "separate table" framing).
 
 **Read side wired 2026-09-08 — `FUN_521d_0896`, the hostility gate**
 (`ai_goals.c`, `ai_goals_filter_profession_by_distance_wealth`; the catalog
@@ -264,7 +235,7 @@ tile's owner id, `param_3` = 0906's own flag, `param_4` = the unit index on
 that tile (`-1` for Euro owners and for the settlement probe). The tension
 row key is the *tile unit's* `+0x06` home settlement id (`DS:0x314a`,
 `ColonizeUnit.home_tribe_id`), not the Indian nation — same key
-`ai_contact_colony_raid_repelled_w` and `units.c` write with. The "stride 9" is the
+`ai_contact_colony_raid_repelled_w` and `units_combat.c` write with. The "stride 9" is the
 settlement-record stride, so the cell is `col1->tribe[home].alarm[nation]`
 read as one signed word (`col1_tribe_attitude`).
 
@@ -272,15 +243,13 @@ Meaning: **an adjacent native raises a Euro-AI contact claim only when that
 Indian nation is already hostile (alarm > 74) or that specific village
 carries a grudge (attitude word > 127 — so any village with one recorded
 trespass, `attacks ≥ 1` = word ≥ 0x100, qualifies, as does friction > 127).**
-Live since 2026-09-08 against real state; before the repoint it read the
-phantom array and could never fire. `param_3 == 0` rejects outright — that is
+`param_3 == 0` rejects outright — that is
 the `20e6` explorer-flag probe (`ai_euro_20e6_probe_adjacent`), so only the
 `0a60` tile-housekeeping probe (`ai_euro.c`, flag 1, sets `act_state = 10`)
-can ever see a native claim. Both reads were parked at 0 before this pass.
+can ever see a native claim.
 
-One further DOS read of DS:0x54f6 (the second, `FUN_5952_035e`, was ported
-2026-09-08 — see below) turned out to need no port at all once the word was
-identified:
+Two more DOS reads of DS:0x54f6; the first needs no port of its own once the word
+is identified:
 
 * `FUN_112b_0790` (village map/settlement chrome, `viceroy_unpacked.c:2411-2425`)
   — `iVar6 = (tribe * 9 + nation) * 2; iVar7 = *(int*)(iVar6 + 0x54f6); if
@@ -288,14 +257,14 @@ identified:
   then `tier = min(iVar7 >> 5, 3)`, forced to 3 when
   `FUN_15dc_00e0(indian, nation) > 0x4a`. Tier picks glyph 10/11/14/12. The
   OpenCol port (`map_panel.c`, `map_panel_draw_tribe_chrome`) sources the tier
-  from `tribe.alarm[nation].{friction,attacks}` — which, as of the 2026-09-08
-  correction, **is** the DS:0x54f6 word, so this was the DOS read all along,
-  not the stand-in it was labelled as. (DOS's RMW clamps a negative word to 0
+  from `tribe.alarm[nation].{friction,attacks}`, which **is** the DS:0x54f6
+  word. (DOS's RMW clamps a negative word to 0
   before `>> 5`; with `attacks < 0x80` the word is never negative, so the port
   matches.) There is also a debug-only branch
   (`DS:0x894 & 1`) that prints the raw word via `FUN_1d1d_08fa`.
-**`FUN_5952_035e`'s colony threat accumulator — PORTED 2026-09-08** (was the
-second parked reader). `ai_euro.c`'s `ai_euro_colony_threat_seed_5952` is the
+
+**`FUN_5952_035e`'s colony threat accumulator.** `ai_euro_goals.c`'s
+`ai_euro_colony_threat_seed_5952` is the
 DOS-literal transcription of the clean recovery
 (`original_sources_annotated/ai/colony_tick_5952_035e.md`, raw 254-324;
 `viceroy_unpacked.c:94940-94975` corroborates the accumulator body). It walks
@@ -313,63 +282,49 @@ above and the raid/combat writers use. The tail is
 `floor = min(threat, 0x10); threat = max(threat / (walls + 1), floor);
 garrison_quota = threat >> 3`, where `walls` = `FUN_281f_0ab0(0)` = owned
 Stockade/Fort/Fortress, so walls only cap an already-large threat and never
-push the quota below 2. The old "idle unfortified Soldier on the colony tile →
-quota 1" latch is retired. Covered by
+push the quota below 2. Covered by
 `tests/unit/test_ai_euro_war_garrison.c:unit_garrison_quota_threat_seed`
 (`make test T=unit_ai_euro_war_garrison`). Still not
 ported from the same loop: the `iStack_22` ring-1 counter and the
 `iStack_76` `labor_shortage` (+0x8e) formula that consumes it.
 
-**Second write site wired 2026-08-24, made live 2026-09-08 — raid discharges
-the attitude word.** `FUN_5fef_0f14` (colony raid loot) unconditionally zeroes
+**Second write site — raid discharges the attitude word.** `FUN_5fef_0f14` (colony raid loot) unconditionally zeroes
 the raiding tribe's word toward the raided Euro nation right before it
 returns, for every loot kind (including "Nothing"). Its one entry,
 `ai_contact_colony_raid_repelled_w`, does it via
 `col1_tribe_attitude_set(&col1->tribe[home_tribe_id], target_euro, 0)` after
 `ai_contact_apply_raid_loot`. DOS stores 0 into the **whole word**, so a raid
 wipes the village's `friction` *and* its `attacks` count toward that European.
-Until the phantom array was retired this discharge wrote nowhere; it is real
-state now.
 
-**Third and fourth write sites wired 2026-09-08 — `FUN_5fef_1b0e`, both
-ported in `units.c`** (closes the "left open" note; raw =
-`viceroy_unpacked.c`):
+**Third and fourth write sites — `FUN_5fef_1b0e`, both ported in
+`units_combat.c`** (raw = `viceroy_unpacked.c`):
 
 | Site | Raw | DOS gate | Index cleared | OpenCol |
 |------|-----|----------|---------------|-------|
 | combat discharge | 101039-101041 | attacker nation ≥ 4 **and** defender nation < 4, **and** (`local_10 < 0` ∥ `DS:0x8db8 != 0` ∥ attacker won). `local_10` = `FUN_281f_0614(x, y, -1, -1)` nearest-colony scan on the **defender's** tile, `0x8db8` = that scan's distance output, so the two leading terms together read "the fight was not on a colony tile". The `else` limb is DOS's handoff to `FUN_5fef_0f14`, which carries its own clear. | `tribe[attacker.+0x314a].alarm[defender_nation]`, whole word | `units_indian_attack_tension_clear`, called from both arms of `units_resolve_land_combat_ff` |
 | capital razed | 101289-101298 | `local_c != 0` (dwelling destroyed) **and** `local_ce != 0` (record +3 bit 2, capital). Same block first clamps alarm **down** to 15 when above (`FUN_281f_030c` → `FUN_281f_0d6c(-(alarm-15))`) and then draws `@INDIANBOW` (0x1cd7 — the DS string at 121248+0x1cd7 is
-`INDIANBOW`, not `INDIANDEAD`; corrected 2026-09-16, and the popup is now
-wired in the port's `rich_capital` arm with the tribe chief portrait selected
-from the post-surrender alarm tier). The `0d6c` delta lands in `FUN_4cc6_00f2`, whose negative arm clears the WAR bit **both ways** whenever the new alarm is < 0x4b (the clamp lands at 15, so always) — this war-clear side effect, not any peace-bit store, is DOS's forced peace on capital razing; the port routes the clamp through `ai_diplo_indian_alarm_delta` so the same clear fires. | walks the whole DS:0x539a settlement array, zeroing the attitude word of every record whose `+2` nation byte (4..11) equals DS:0x8d52 — but 0x8d52 is the TRIBE index (0..7, the value 0d6c takes), so DOS clears the dwellings of nation `tribe index`, never the razed tribe's own (those keep 00f2's 0x20/0x60 tier clamp; America seed-100 resync 236). The port compares with tribe index + 4 and clears the razed tribe's own dwellings ([dos_bugs.md](dos_bugs.md) DB-22) | the `rich_capital` arm of `units.c`'s village-destroy path, beside `ai_diplo_indian_capital_surrender` (which models the alarm half) |
+`INDIANBOW`, not `INDIANDEAD`; the port's `rich_capital` arm draws it with the
+tribe chief portrait selected from the post-surrender alarm tier). The `0d6c` delta lands in `FUN_4cc6_00f2`, whose negative arm clears the WAR bit **both ways** whenever the new alarm is < 0x4b (the clamp lands at 15, so always) — this war-clear side effect, not any peace-bit store, is DOS's forced peace on capital razing; the port routes the clamp through `ai_diplo_indian_alarm_delta` so the same clear fires. | walks the whole DS:0x539a settlement array, zeroing the attitude word of every record whose `+2` nation byte (4..11) equals DS:0x8d52 — but 0x8d52 is the TRIBE index (0..7, the value 0d6c takes), so DOS clears the dwellings of nation `tribe index`, never the razed tribe's own (those keep 00f2's 0x20/0x60 tier clamp; America seed-100 resync 236). The port compares with tribe index + 4 and clears the razed tribe's own dwellings ([dos_bugs.md](dos_bugs.md) DB-22) | the `rich_capital` arm of `units_combat.c`'s village-destroy path, beside `ai_diplo_indian_capital_surrender` (which models the alarm half) |
 
 Net rule for the combat site: **every** resolved native-vs-European land
 fight discharges the raiding tribe's tension toward that European, except a
 native attack that *loses at a colony* — DOS routes that limb to
 `FUN_5fef_0f14` instead, whose own tail clear then fires.
 
-A table-alignment fix from that pass (shifting `indian_tension` alongside the
-tribe array in `col1_destroy_tribe_at`, mirroring the since-deleted whole-nation
-kill remap) was **deleted 2026-09-08**: with the word living *inside* the tribe
-record there is nothing to keep aligned — both compactions carry it for free.
-That was always the tell that 0x54f6 sat inside the record (`0x54f6 ==
-0x54ec + 10`, stride `0x12`).
-
-**Colony-raid handoff — wired 2026-09-08.** DOS's `else` limb (raw 101142):
+**Colony-raid handoff.** DOS's `else` limb (raw 101142):
 a native attacker that *loses* while the defender stands on a European colony
 tile does not simply die. 1b0e skips its whole alarm/tension block and calls
 `thunk_FUN_2a1f_06c8(indian_nation, colony, home_tribe, local_ca,
-attacker_type)` = **`FUN_5fef_0f14` in full** — nothing of the raid resolver
-is skipped on this limb, only its entry arguments differ from the raid
-pulse's, and `local_a6` stays 0 so there is no vent here either. Ported as
+attacker_type)` = **`FUN_5fef_0f14` in full** (this limb is 0f14's one caller),
+and `local_a6` stays 0 so there is no vent here either. Ported as
 `ai_contact_colony_raid_repelled_w` (`ai_contact_raid.c`, called from
 `units_resolve_land_combat_ff`'s attacker-loses arm). `local_ca` = 0f14's
 `param_4`, which bypasses the walls check at 0f14's head; it is set by the
-Brave-vs-human-Artillery auto-loss (raw `100573-100577`, ported 2026-09-08 as
+Brave-vs-human-Artillery auto-loss (raw `100573-100577`, ported as
 `units_combat_brave_vs_human_arty` — see [combat.md](combat.md)), and the
 same latch is passed straight through as this handoff's `forced` argument.
 
-**0f14's own alarm tail — ported 2026-09-08, both entries.** Each of the four
+**0f14's own alarm tail.** Each of the four
 loot arms ends with the same two lines and then falls into one shared call
 (raw 99961 / 99992 / 100006 / 100031 for the constants, 100033 for the call):
 
@@ -391,17 +346,16 @@ below:
 | DOS `local_6` | outcome | `uVar6` | delta | port `AiRaidKind` |
 |---|---|---|---|---|
 | 1 | warehouse goods stolen | `0xfffc` | −4 | `AI_RAID_STORES` |
-| 2 | building razed (index 0..0x29) | `0xfff4` | −12 | `AI_RAID_BURN`, `AI_RAID_WREAK` |
-| 3 | unit at the colony killed | `0xfff0` | −16 | `AI_RAID_SHIP`, `AI_RAID_SCALP` |
+| 2 | building razed (index 0..0x29) | `0xfff4` | −12 | `AI_RAID_BURN` |
+| 3 | ship on the colony tile damaged | `0xfff0` | −16 | `AI_RAID_SHIP` |
 | 4 | gold plundered | `0xfff8` | −8 | `AI_RAID_GOLD` |
 | 0 | nothing looted | — | no call at all (kind-0 arm jumps straight to `LAB_5fef_16d2`, raw 100013) | `AI_RAID_NOTHING` |
 
 Kind 3 is the **ship** kind: its walk only accepts unit types `0xd..0x12`,
 the same ship band `FUN_4cc6_03f8`'s threat ring skips (see the "Units at
-sea" row above). The port's colonist-kill band (`AI_RAID_SCALP`) has no DOS
-kind of its own and takes the same row, being the same "a unit at the colony
-dies" outcome. Until this pass the port had these swapped — `SCALP` got the
-16 and `SHIP` was lumped in with gold's 8.
+sea" row below), and hands the hull to `FUN_5fef_0352` for damage. There is no
+colonist-kill or "wreak" kind (the port's invented `SCALP` / `WREAK` kinds were
+deleted, port_bugs.md #828/#829).
 
 The gate is the same one the `local_a6` vent uses: `FUN_281f_0a38` =
 `FUN_15b3_0004(indian_nation, euro)` = `indian[].euro_diplo[euro]`, bit 1 =
@@ -412,12 +366,11 @@ positive-delta-only, so these pass through raw).
 
 Ported as `ai_contact_raid_alarm_tail` (`ai_contact_raid.c`), called from
 `ai_contact_colony_raid_repelled_w` immediately before the DS:0x54f6 clear, as
-DOS orders them. The old raid pulse's *positive* fandom bump
-(`kind_delta` +4/+12/+16/+8 via `ai_contact_alarm_bump_amount`) is retired
-under the same rule as the three fandom alarm drips (port_bugs.md #289): DOS grows
-Indian alarm only through the `FUN_4d56_152e` accumulator.
+DOS orders them. A raid never raises alarm: the old raid pulse's positive
+fandom bump (+4/+12/+16/+8) had no DOS site and went with the fandom alarm
+drips (port_bugs.md #291).
 
-**`local_a6` alarm vent — ported 2026-09-08** (raw 101043-101196), applied as
+**`local_a6` alarm vent** (raw 101043-101196), applied as
 `FUN_281f_0d6c(nation, euro, local_a6, 0)`. All values are **negative** —
 attacking vents alarm, matching the tension clear in the same block:
 
@@ -433,9 +386,7 @@ the **only** two alarm writes in the whole of `FUN_5fef_1b0e` (100251-101310,
 scanned 2026-10-01 for `FUN_281f_0d6c` / `FUN_281f_030c` / direct `0x5b1c`).
 The capital arm's gate is `local_c != 0 && local_ce != 0` — destroyed **and**
 capital — so a razed NON-capital settlement takes no alarm or relation delta
-at all: DOS falls straight through to `LAB_5fef_362a`. The port's uncited
-`relation_delta(..., -5)` on that outcome (alarm +5) was a copy of a
-neighbouring magnitude and is deleted (port_bugs.md #1010).
+at all: DOS falls straight through to `LAB_5fef_362a` (port_bugs.md #1010).
 
 Note the polarity of the human term: a **higher** difficulty gives back
 *less* alarm relief.
@@ -445,13 +396,13 @@ The gate is `FUN_281f_0a38(DS:0x8d50, euro) & 2` == 0.
 `a * 0x4e + 23000 + b` — the Indian record's relation byte toward that
 European, i.e. the port's `indian[].euro_diplo[euro]`, whose bit 1 is the WAR
 bit. So the vent applies **only while the tribe is not already at war with
-that European** (`units_indian_attack_alarm_vent`, `units.c`); it is not a
+that European** (`units_indian_attack_alarm_vent`, `units_combat.c`); it is not a
 treaty check. `FUN_281f_0d6c` is `FUN_4cc6_00f2` = `ai_diplo_indian_alarm_delta`.
 
 **Model note.** DOS runs 1b0e once per attack and picks exactly ONE row; the
 port splits the same beat, resolving the fight and then walking the winner
 into the colony, where the Indian arm plays the `bVar28` rows. Two statics in
-`units.c` keep that one-row-per-attack property: `g_units_colony_autodefender`
+`units_combat.c` keep that one-row-per-attack property: `g_units_colony_autodefender`
 (DOS `bVar28`, raised by `units_revere_defend_colony_tile` around its resolve
 call, so an auto-spawned colony defender does not take the field-fight row)
 and `g_units_indian_combat_vent_done` (cleared at the top of every
@@ -477,7 +428,7 @@ First-contact **reject** floors alarm/friction into the **≥80** band
 
 | Driver | Effect |
 |--------|--------|
-| Encroachment | **RETIRED 2026-09-03** (port_bugs.md "alarm rises incredibly fast"). The former fandom +2/turn unit/colony bump was not DOS; DOS grows alarm only via the `152e` threat accumulator (colonies within distance 7 + military ring → `euro_relation_accum`, −8 crossing = alarm +1). The friction ±1/turn relation-tick band drift retired with it. |
+| Encroachment | **RETIRED 2026-09-03** (port_bugs.md "alarm rises incredibly fast"). The former fandom +2/turn unit/colony bump was not DOS; DOS's only per-turn encroachment raiser is the `152e` threat accumulator (colonies within distance 7 + military ring → `euro_relation_accum`, −8 crossing = alarm +1). The friction ±1/turn relation-tick band drift retired with it. |
 | Units at sea | **Never counted** (verified 2026-09-04). `FUN_4cc6_03f8`'s 20-tile threat ring skips a tile when `FUN_281f_0768` → `FUN_13e4_0074` says terrain class `0x19`/`0x1a` (water), and its stack walk ignores unit types `0xd..0x12` (ships). So combat units riding a ship raise no alarm; `@MADATSHIPS` / `@DONTKNOWSHIPS` are refusal chrome with no alarm bump. `ai_indian_village_threat` already matched (`map_tile_is_water`, `units_is_sea`, and `units_is_on_map` excluding aboard passengers). |
 | French (Euro nation 1) | Half-rate bumps; +1 auto-trade reach |
 | Pocahontas | Half-rate bumps; elect zeros this nation's tribe friction/attacks + `alarm_by_player` |
@@ -485,26 +436,9 @@ First-contact **reject** floors alarm/friction into the **≥80** band
 | Difficulty prelude | **RETIRED 2026-09-09** (smell #72): the `2+(4-diff)` chance / `5+(4-diff)` bump table was invented and ran off indian record +6, a byte no DOS export touches. `ai_contact_indian_prelude` now only clamps. The difficulty terms that *are* real: `FUN_465b_0000` trespass (`difficulty+5`), `FUN_0000_6582` land work (`difficulty+5`), WoI defect roll `rng(0,(5-difficulty)*2)==0`, map-gen seed `rand(0,14)+difficulty*2` — [difficulty.md](difficulty.md) §Indians |
 
 `@ATTITUDE` labels: Content, Uneasy, Restless, Angry, War (+ `@ATTITUDINAL`
-modifiers Extremely/Very/Rather/Somewhat/Slightly). **Nothing in the port reads
-either catalog** (corrected 2026-09-30, port_bugs.md #1009): the F9 Indian Adviser
-prints the `@LEVELS` tech word and picks the chief portrait `113 + alarm
-quartile` (`reports_indian_build_rows`, DOS-cited `3f41:0522..05d2`), and no
-other screen turns alarm into words. The earlier claim of a "rough
-low-threshold stand-in in reports.c" described code that does not exist. Alarm
-therefore never surfaces to the player as text.
-
-**No DOS consumer exists in the decomp either (2026-10-01).** Both sections are
-loaded at startup by `FUN_75c2_10ae` (`viceroy_unpacked.c:121168-121184`), the
-bulk NAMES.TXT reader, into fixed resident word arrays: `@ATTITUDE` (DS tag
-0x2273) into `DS:0x9348..0x9351`, `@ATTITUDINAL` (DS tag 0x227c) into
-`DS:0x9352..0x935b`, five 2-byte entries each. Grepping all three decompiled
-files for every word offset of both arrays returns **zero reads** outside the
-loader. The method is sound: the adjacent `@LEVELS` table (`DS:0x5230`), loaded
-a few lines earlier in the same function, is read back repeatedly in
-`viceroy_overlays.c`. The two leads the bug named are dead — none of
-`FUN_281f_030c`'s ~25 call sites touch either array, and `FUN_281f_0a60` is a
-two-line thunk with no NAMES.TXT connection. So either the display code was cut
-before release, or its base address is computed and never appears as a literal.
-Next step is a live DOSBox-X watchpoint on `DS:0x9348-0x935b`, which is why the
-row now lives in [known_divergences.md](known_divergences.md) instead of
-port_bugs.md. Do not invent a threshold table.
+modifiers Extremely/Very/Rather/Somewhat/Slightly). **Nothing in the port or the
+decomp reads either catalog**: the F9 Indian Adviser prints the `@LEVELS` tech word
+and picks the chief portrait `113 + alarm quartile` (`reports_indian_build_rows`),
+so alarm never surfaces to the player as text. Method, dead leads and the capture
+that would settle it: [known_divergences.md](known_divergences.md) #1009. Do not
+invent a threshold table.

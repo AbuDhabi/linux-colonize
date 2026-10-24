@@ -638,8 +638,8 @@ bool colonies_can_found(
    * to 0 only for the same tile) is compared == 1; on match the winning
    * colony's name is formatted into a dialog string-substitution slot
    * (FUN_1000_8606) and a bounce message (opaque numeric GAME.TXT id
-   * 0x9a5 -- popup_string_resolver.md documents these ids don't resolve to
-   * a @TAG statically, needs a live capture) aborts the order. This id is
+   * 0x9a5 -- numeric ids are DS tag-string addresses, docs/popup_tag_ids.md,
+   * and 0x9a5 is not in that table) aborts the order. This id is
    * mid-cluster among 3 sibling hard-reject "bounce" ids in the same
    * function that line up structurally with @TOOMOUNTAIN (terrain==0x1b
    * gate, 2 ids later) and @TOONEARBUILD (a 9-tile neighbor scan for a

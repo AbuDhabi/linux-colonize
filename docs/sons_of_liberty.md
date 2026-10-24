@@ -46,15 +46,9 @@ tory_count = pop - sol_count
 pairs (clamp 0..100), then applies Bolivar via
 [`founding_fathers_bolivar_sol_bonus`](../src/core/founding_fathers.c).
 
-**No fallback (2026-09-04).** There used to be a
-`nation.liberty_bells_pool / 4` stand-in for a colony with no usable pair.
-That is the *nation* aggregate (`FUN_43f7_0004`), not a colony figure, and the
-case it hit in practice was a colony founded this turn: its COL1 record is only
-minted by the next `col1_bridge` export, so an established nation's bell total
-read out as 100% until the first end of turn replaced it with the real ratio
-(port_bugs.md: "new colony showed SoL 100%, next turn 5%"). `FUN_15eb_0274` has no
-fallback - no pair means nothing has accumulated, which is 0, and that is what
-`reports.c` / `combat_strength.c` / `ai_king.c` already returned.
+**No fallback.** `FUN_15eb_0274` has none: no pair means nothing has
+accumulated, which is 0. (A `nation.liberty_bells_pool / 4` stand-in once made
+a colony founded this turn read 100% until its first end of turn.)
 
 **`FUN_364b_0688` Phase C, non-WoI arm (raw 57349-57355).** After the colony's
 SoL% is read (`local_8e = FUN_281f_0c86()`), the colony's bells figure takes a
@@ -85,14 +79,15 @@ colony's bells to it (raw 73341) and zeroes it on a successful elect (raw
 DOS colony-screen colonist add (viceroy_unpacked.c:11301, the `FUN_15eb_1068`
 caller) does `rebel_divisor += 100` and colonist remove (:10279)
 `rebel_divisor -= 100`, so the displayed SoL% moves the moment population
-changes rather than one EOT later (port_bugs.md 2026-09-15: "adding a colonist
-doesn't recalculate SoL instantly"). Founding seeds 100 (below), so an
+changes rather than one EOT later. Founding seeds 100 (below), so an
 n-colonist colony starts at `divisor ≈ 100·n` before the accumulator takes
 over. **Port:** `colonies_col1_rebel_divisor_adjust` in
-[`colony.c`](../src/core/colony.c), called from `colonies_admit_unit` (+100)
-and `colonies_eject_colonist` (−100) against the bound col1 context
-(`colonies_set_col1_context`); dividend clamped ≤ divisor, divisor floored at
-0. Births / starvation / scalping do not touch the pair (DOS EOT paths).
+[`colony.c`](../src/core/colony.c), called from `colonies_admit_unit_w` (+100,
+also the founder's seat in `colonies_found`) and `colonies_eject_colonist`
+(−100) against the bound col1 context (`colonies_set_col1_context`); dividend
+clamped ≤ divisor, divisor floored at 0. Starvation (`FUN_15eb_0d04`,
+turn_production.c) and a colonist lost in a capture (units_capture.c) also take
+100 off; births do not (the newborn is a map unit).
 
 ### EOT accumulator (`FUN_364b_0688` Phase C)
 
@@ -110,17 +105,13 @@ Each colony end-of-turn (DOS):
 Jefferson/Paine FF **and the colony's own `colony_prod_sol_bonus`** applied to bells (step 3 above); WoI via `head.game_options.woi`; crown =
 human peer (0↔1).
 
-**Founding seed (fixed 2026-08-24):** DOS `FUN_364b_1ba8` (colony founding)
-sets `rebel_divisor = 100`, `rebel_dividend = 0` (viceroy_unpacked.c:58052-58055)
+**Founding seed:** DOS `FUN_364b_1ba8` (colony founding) sets
+`rebel_divisor = 100`, `rebel_dividend = 0` (viceroy_unpacked.c:58052-58055)
 — *not* both-zero. The math is self-similar (dividend and divisor both decay
-at the same ÷64 rate off the same per-turn additive terms), so with a
-both-zero start the colony SoL% jumps straight to its steady-state
-`bells/(2×pop)` ratio on turn 1 instead of ramping — a size-2 colony with one
-Town Hall statesman (bells≈7) hit 100% the very first turn. Port's
-`col1_bridge.c` colony-export loop (which mints a fresh `ColonizeCol1Colony`
-record the first time a newly founded colony appears) was leaving both
-fields at the `memset` zero; it now seeds `rebel_divisor = 100` for a
-first-appearance (non-preserved-by-xy) record, matching DOS.
+at the same ÷64 rate off the same per-turn additive terms), so a both-zero
+start jumps straight to the steady-state `bells/(2×pop)` ratio on turn 1
+instead of ramping. Port: `col1_bridge.c` seeds `rebel_divisor = 100` on a
+first-appearance (non-preserved-by-xy) colony record.
 
 ### Nation / “overall” SoL (`FUN_43f7_0004`)
 
@@ -136,13 +127,9 @@ per-colony `sol% = dividend×100/divisor` (truncated, Bolivar +20 applied and
 clamped per colony, matching `FUN_281f_0c86`'s per-colony read inside the
 `0004` loop) **then** pop-weighted: `Σ(pop×sol%) / Σ(pop)`; with **no
 fallback** — no colonies (or a zero pop sum) returns the untouched
-accumulator, i.e. 0. The `liberty_bells_total/4` stand-in this line used to
-claim was deleted from `ai_king_sol_percent` (port_bugs.md #424) and has no
-counterpart in `FUN_43f7_0004` (viceroy_unpacked.c raw 73477-73514).
-(Corrected 2026-08-24: this line previously read
-`Σ(dividend×pop)×100/Σ(divisor×pop)`, a different — and wrong — order of
-operations that doesn't match either the decomp or the actual
-`ai_king_sol_percent` body.)
+accumulator, i.e. 0 (`FUN_43f7_0004`, viceroy_unpacked.c raw 73477-73514;
+port_bugs.md #424). Not `Σ(dividend×pop)×100/Σ(divisor×pop)`: the per-colony
+percent comes first.
 
 ### Colony flag latches (+0x1c)
 
@@ -150,13 +137,13 @@ operations that doesn't match either the decomp or the actual
 |----:|------|----------|-------------------------------|
 | `0x04` | `sol_50` | SoL ≥ 50% | Cleared when SoL &lt; 50 |
 | `0x02` | `sol_100` | SoL ≥ 100% | Cleared when SoL &lt; **95** |
-| `0x08` | inefficient / Tory path (DOS) | Tory pressure ≥ band | DOS clears when below band |
+| `0x08` | inefficient government | Tory head count ≥ `10 − difficulty` | Cleared when it drops back under |
 
 **Port:** [`colony_prod_refresh_sol_flags`](../src/core/colony_production.c)
 wires `sol_50` / `sol_100` **one-step** per EOT (DOS nest: majority before
-unanimous). Bit `0x08` is **repurposed** as food-starvation in
-the OpenCol Col1 mapping — not the DOS inefficient-gov latch. Inefficient-gov
-chrome uses port-only `ColonizeColony.inefficient_gov` +
+unanimous). Bit `0x08` is the DOS inefficient-gov latch
+(`COLONIZE_COLONY_FLAG_INEFFICIENT_GOV`, see
+[colony.md](colony.md#colonize_colony_flag_inefficient_gov)); its chrome is
 `turn_emit_inefficient_gov_chrome`. Human latch /
 decade chrome: `turn_emit_sol_phase_d_chrome` (`@REBELMAJORITY` /
 `@REBELUNANIMOUS` / `@TORY*` / `@SONSUP` / `@SONSDOWN`).
@@ -174,14 +161,13 @@ with SoL: the port maps `0x40` as **coastal**.
 | Tory count vs `10−diff` | `−⌊tories / thresh⌋` on production | **Wired** (same helper; AI Tory count zeroed, FUN_15eb_1d4c 15eb:1dbf) |
 | Nation SoL ≥ 50% | May declare independence | **Structural Wired** (SoL only; `FUN_43f7_2564`) |
 | Nation SoL 40..49 | Restless chrome | **Wired** thin |
-| Tax ≥20 and (SoL≥30 or bells≥80) | Tax refuse / boycott path | **Wired** structural |
-| Nation SoL **>** 50 (WoI) | Continental merc offer | **Wired** thin |
+| — (no SoL gate) | Mercenary offer `FUN_43f7_2022`: 1-in-3 per-turn roll | **Wired** (`ai_king_offers.c`) |
 | Colony SoL at unit tile >50 / 40..50 | Cont. promote / Soldier→Veteran | **Wired** thin |
 | Bolivar elected | +20 SoL (DOS display-time) | **Wired** (`founding_fathers_bolivar_sol_bonus`) |
 | Rebel sentiment points | Score +1 per point | **Wired** |
 | Year-end SoL C2 / D SoL chrome | Peace / pressure / rival dialogs | **Wired** thin (pop-weighted SoL via `ai_king_sol_percent`; C2 crown/human ratio; D rival pick via `rival_nation_slot_1/_2`, `(8−difficulty)×10` auto-declare, `rebellion_pct_last_notified` dedup; decile status via `sol_pct_last_notified`; VGA PARK) |
 | Combat popular-support % | Attacker side’s SoL/Tory share **on colony** | **Wired** (`combat_apply_1b0e_peels`: colony REF +50% + Tory/Rebel %) — [combat.md](combat.md) |
-| Cont. Army muster by colony SoL | Declare-turn 1eca promote (Veteran fortified Soldier/Dragoon on colony tile; SoL>49) | **Wired** (`ai_king_war_act`; popup Confirm chains ref_wave+war_act) |
+| Cont. Army muster by colony SoL | Declare-turn 1eca promote (Veteran Soldier/Dragoon on colony tile; SoL>49) | **Wired** (`ai_king_war_act`; popup Confirm chains ref_wave+war_act) |
 | Map pop digit colors | White &lt;50 / green ≥50 / blue 100 | **PARK** |
 | Rebel accumulator EOT | Grow dividend/divisor from bells | **Wired** (`colony_prod_tick_rebel_accumulators`) |
 
@@ -220,11 +206,10 @@ applied in EOT field/craft/hammers/bells/crosses and preview.
 
 | Event | Gate | Port symbols |
 |-------|------|--------------|
-| Declare | Nation SoL ≥ **50%** (manual / `FUN_43f7_2564`) | `AI_KING_DECLARE_SOL_MIN` — two-stage-popup lead resolved 2026-08-24 (see `ai_king_show_declare_choice` comment): `0x1386`=`@TOOTORY`, now reachable via the menu path below (not from the per-turn auto-check); the bit-`0x80`-gated first popup is a hotseat/multi-human-player disambiguation step (set only in the new-game nation-select screen, `FUN_75c2_10ae`), no reachable equivalent under the port's single-`human_nation` model — the menu path's single @DECLARE Never/Yes is the complete behavior; DOS has no per-turn auto-check (port headless auto-declare removed 2026-10-14) |
-| Declare (menu) | Reachable any time via MENU.TXT `@GAME` "DECLARE INDEPENDENCE" (`FUN_43f7_2564`, same as auto) | **Added 2026-08-24**: `ai_king_menu_declare_independence` / `MAP_MENU_ACTION_DECLARE_INDEPENDENCE` — below `AI_KING_DECLARE_SOL_MIN` shows `@TOOTORY`; at/above shows the same `@DECLARE` confirm; already-WoI is a status-only no-op. Lets a "Not yet" answer be revisited on demand instead of only via next turn's auto-repeat. See `original_sources_annotated/ai/king_ref.md` |
+| Declare | Nation SoL ≥ **50%** (manual / `FUN_43f7_2564`) | `AI_KING_DECLARE_SOL_MIN`. DOS has no per-turn auto-check: declaring is menu-only (row below). The bit-`0x80`-gated first popup is a hotseat disambiguation step (set only by the new-game nation select, `FUN_75c2_10ae`) with no equivalent under the port's single `human_nation`, so the single @DECLARE Never/Yes is the complete behaviour (`ai_king_show_declare_choice` comment) |
+| Declare (menu) | MENU.TXT `@GAME` "DECLARE INDEPENDENCE" (`FUN_43f7_2564`) | `ai_king_menu_declare_independence` / `MAP_MENU_ACTION_DECLARE_INDEPENDENCE` — below `AI_KING_DECLARE_SOL_MIN` shows `@TOOTORY` (`0x1386`); at/above the `@DECLARE` confirm; already-WoI is a status-only no-op. See `original_sources_annotated/ai/king_ref.md` |
 | Restless chrome | SoL **40..49** | `AI_KING_RESTLESS_SOL_MIN` |
-| Tax refuse / boycott | tax ≥ **20** and (SoL ≥ **30** or bells ≥ **80**) | `AI_KING_BOYCOTT_*` |
-| Continental merc | WoI and nation SoL **>** **50** | `AI_KING_MERC_SOL_MIN` |
+| Mercenary offer (`FUN_43f7_2022`) | No SoL gate: 1-in-3 per-turn roll while REF is not present or the Artillery backup pool is empty | `AI_KING_MERC_ROLL_CHANCE` |
 
 Post-declare, liberty bells shift from FF election toward foreign intervention
 (see [king_ref.md](../original_sources_annotated/ai/king_ref.md)); deep intervene
@@ -238,16 +223,13 @@ Uses **colony** SoL at the unit’s tile ([`ai_king_colony_sol_at`](../src/core/
 
 | Colony SoL | Effect |
 |------------|--------|
-| **> 49** | Colony-tile, Veteran-profession (`unit+0x315b==0x15`) Soldier → Continental Army; Dragoon → Continental Cavalry. Cap `max(1, min(pop/2, pop*(sol-50)/50))` per colony. Regular and already-Continental units never match the raw-type test and are left untouched; a colony-tile Soldier/Dragoon *without* Veteran profession is also skipped. **No fortify requirement** — re-verified 2026-08-24 by reading the full decomp body end to end: it tests only `unit+0x3146` (type) and `unit+0x315b` (profession), never `unit+0x08` (`orders`). A prior fix (2026-08-14) had added a `UNITS_ORDER_FORTIFIED` gate here on top of the real profession gate; that extra gate was unsupported and has been removed. |
+| **> 49** | Colony-tile, Veteran-profession (`unit+0x315b==0x15`) Soldier → Continental Army; Dragoon → Continental Cavalry. Cap `max(1, min(pop/2, pop*(sol-50)/50))` per colony. Regular and already-Continental units never match the raw-type test and are left untouched; a colony-tile Soldier/Dragoon *without* Veteran profession is also skipped. **No fortify requirement**: the body tests only `unit+0x3146` (type) and `unit+0x315b` (profession), never `unit+0x08` (`orders`). |
 | **40..49** | Restless status text only (`AI_KING_RESTLESS_SOL_MIN`..`AI_KING_DECLARE_SOL_MIN-1`) — **not** a promote band in `1eca` itself |
 | **&lt; 40** | No effect |
 
-**Done** — full profession/type-id promote table ported (was previously filed
-as deep-PARK; that filing was stale against the code, corrected 2026-08-24).
-Manual “Continental Army Muster” (counts by colony SoL on declare; &lt;50%
-colony contributes 0) via `ai_king_war_act` / `FUN_43f7_1eca` (Veteran
-fortified Soldier/Dragoon on colony tile; cap from pop and SoL). Popup
-declare Confirm chains ref_wave+war_act same turn.
+This is the manual's “Continental Army Muster” (&lt;50% colony contributes 0),
+run by `ai_king_war_act`; the declare Confirm popup chains ref_wave+war_act the
+same turn.
 
 ---
 
@@ -265,14 +247,13 @@ Gate is human control (decomp), not WoI / independence.
 ## Score
 
 Manual: +1 Colonization Score per point of rebel sentiment (empire-wide).
-Port: [`reports_compute_score`](../src/core/reports.c) — reads `nation.
-rebel_sentiment` (nation+0x19) directly (confirmed exact against
-`dutch-reports.SAV`/score.png: 94). A pop-weighted recompute from each
-colony's `rebel_dividend`/`rebel_divisor` was tried first and looked
-equivalent but wasn't (91 on that same save) — see
-[report_screens.md](report_screens.md)'s Score section. End-game
-difficulty-scaled gold rebate after score (`FUN_41f2_0b70`) is separate
-and **PARK** — see [difficulty.md](difficulty.md).
+Port: [`reports_compute_score`](../src/core/reports_score.c) — reads
+`head.rebel_sentiment_report` (DS:0x53d0) directly (exact against
+`dutch-reports.SAV`/score.png: 94); a pop-weighted recompute from each
+colony's `rebel_dividend`/`rebel_divisor` gives 91 there — see
+[reports_score.md](reports_score.md) F10 Rebel Sentiment. The difficulty-scaled
+Colonization Rating after the score (`FUN_41f2_0b70`, not a gold rebate) is
+ported as `reports_score_rating` — see [difficulty.md](difficulty.md).
 
 ---
 
@@ -284,17 +265,6 @@ and **PARK** — see [difficulty.md](difficulty.md).
 | D (peace) | Rival SoL vs threshold `(8−difficulty)×10` | **Wired** thin — `rebel_sentiment` when non-zero; else colony SoL stand-in; DOS continent table `−0x6bf0` **PARK** |
 
 Details: [`year_end_chrome.md`](../original_sources_annotated/turn/year_end_chrome.md).
-
----
-
-## PARK / not wired
-
-| Effect | Source |
-|--------|--------|
-| Combat popular-support attack % = side’s SoL/Tory share | Manual — **Done** in `combat_apply_1b0e_peels` (colony Tory/Rebel) — [combat.md](combat.md) |
-| Continental Army muster by colony SoL | Manual — **Done** in `ai_king_war_act` (1eca) |
-| Map population digit colors (white/green/blue) | Manual |
-| Decade SoL chrome messages | `colony_eot_production.md` — **Done** thin (`@SONSUP`/`@SONSDOWN`) |
 
 ---
 

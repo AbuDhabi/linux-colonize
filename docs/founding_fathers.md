@@ -88,14 +88,14 @@ comment naming why.
 | 10 | Hernan Cortes | "Conquered native settlements always yield treasure, in greater abundance, and the king's galleons transport the treasure free of charge." | `FUN_4345_0342` apply (gate); `FUN_5fef_31ea` (post-win Indian settlement fallout: treasure spawn) | `founding_fathers_cortes_guarantees_conquest_treasure` + `units_conquest_treasure_gold` (`FUN_5fef_31ea` peel) + `units_spawn_treasure_train`, wired from `units_resolve_land_combat_ff` via fallout context (`units_set_native_fallout_context`). Free transport: `founding_fathers_cortes_free_king_galleon` → `units_cortes_cash_coastal_treasures` (tax-share-only `@KINGGALLEON3` path). Non-Cortes `@KINGGALLEON2` share: resolved 2026-08-27 — `FUN_5fef_1908` (ported as `units_king_galleon_share_pct` in `units.c`, share `max((difficulty+10)*5, 2*tax)` cap 90), no longer PARK. | `test_founding_fathers.c` ~1732-1734, ~1991-1993; `test_ai_euro_expand_*.c` (split 2026-09-23) ~9935-9937; `test_units_*.c` ~2707-2709 | **Done** for conquest-treasure guarantee + free transport; `KINGGALLEON2` non-Cortes share also **Done** (P7.4, 2026-08-27) |
 | 11 | George Washington | "Every non-veteran soldier or dragoon who wins a combat is automatically upgraded." | `FUN_4345_0342` apply (gate); promote-on-win in combat resolve | `units_promote_on_win` (`units.c`), whose Washington arm skips the RNG pool draw entirely — with the Father owned the promote is *always*, not chance. Wired from `units_resolve_land_combat_ff` (AI/king path passes `g_units_ff_col1` set by `units_set_ff_col1`). | `test_founding_fathers.c` ~891-899 (ownership bit set alongside Drake/Revere) | **Done** |
 | 12 | Paul Revere | "When a colony with no standing soldiers is attacked, a colonist automatically takes up any stockpiled muskets in defense of the colony." | `FUN_4345_0342` apply (gate); auto-arm on attack | `founding_fathers_revere_should_auto_arm` (gate only: FF owned + no soldier defender + `muskets_stock >= UNITS_EQUIP_MUSKETS` — byte-identical to `FUN_281f_07b4(owner,0xc) && colony+0xb8 > 0x31`, raw 100424). **No apply half.** DOS spawns the same militia *phantom* with or without Revere (`units_spawn_colony_temp_defender`); the Father only overrides that phantom's graphic (`0x4b` = sprite 74) and its base combat (1 → 2, so the port picks the `Soldiers` @UNIT row). The colonist stays at work, the warehouse muskets are **never** spent (1b0e never writes `+0xb8`), and the phantom is despawned after the roll (`FUN_291f_0a06`). Pop loss / capture / burn all ride the normal walk-in (`units_try_capture_foreign_colony`). Wired from `units_try_move` when the attacker steps onto an empty foreign colony tile, FF col1 context set via `turn_refresh_moves_for_nation` → `units_set_ff_col1`. | `test_founding_fathers.c` "Revere: step onto empty foreign colony" | **Done** |
-| 13 | Francis Drake | "The combat strengths of all your privateers are increased by 50%." | `FUN_4345_0342` apply (gate); Privateer strength term | `combat_strength.c` ~171 (`local_4 += local_4>>1` when `units_type_is_privateer` + owned) — the only Drake site: ship-to-ship combat and the coastal-fort fire (`units_fort_vs_ship`, units_combat_resolve.c, defends via `combat_unit_base_x8`) both route through it (open item 3). | `test_ai_euro_war_*.c` (split 2026-09-23) ~3046-3048; `test_founding_fathers.c` ~891-899 | **Done** |
-| 14 | John Paul Jones | "A Frigate is added to your colonial navy, without cost." | `FUN_4345_0342` apply | `effect_jones_frigate` (`founding_fathers.c`): human — Frigate docks in the Europe harbor (DOS raw 73044ff spawns it in the nation's off-map Europe slot with goto = stored landfall tile, port_bugs.md #467); AI — coastal-water stand-in (no AI Europe model). Fallback Man-O-War if the type is missing. Elect-only, correct (one-shot grant). DOS grants to whichever nation elects (open item 4) — not player-restricted. | `test_founding_fathers.c` ~413-423 (no-fallback-gold check), ~668-687 (deep spawn) | **Done (elect-only)** |
+| 13 | Francis Drake | "The combat strengths of all your privateers are increased by 50%." | `FUN_4345_0342` apply (gate); Privateer strength term | `combat_strength.c` ~171 (`local_4 += local_4>>1` when `units_type_is_privateer` + owned) — the only Drake site: ship-to-ship combat and the coastal-fort fire (`units_fort_vs_ship`, units_combat_resolve.c, defends via `combat_unit_base_x8`) both route through it (port_bugs.md #1105). | `test_ai_euro_war_*.c` (split 2026-09-23) ~3046-3048; `test_founding_fathers.c` ~891-899 | **Done** |
+| 14 | John Paul Jones | "A Frigate is added to your colonial navy, without cost." | `FUN_4345_0342` apply | `effect_jones_frigate` (`founding_fathers.c`): human — Frigate docks in the Europe harbor (DOS raw 73044ff spawns it in the nation's off-map Europe slot with goto = stored landfall tile, port_bugs.md #467); AI — coastal-water stand-in (no AI Europe model). Fallback Man-O-War if the type is missing. Elect-only, correct (one-shot grant). DOS grants to whichever nation elects (case 0xe calls `FUN_281f_095c(0x11, …)` with no human guard) — not player-restricted. | `test_founding_fathers.c` ~413-423 (no-fallback-gold check), ~668-687 (deep spawn) | **Done (elect-only)** |
 
 ## Political
 
 | # | Father | PEDIA.TXT effect (Tier 1) | DOS FUN | Port symbol(s) | Test | Status |
 |---|--------|---------------------------|---------|-----------------|------|--------|
-| 15 | Thomas Jefferson | "Jefferson's presence in the Congress increases Liberty Bell production of statesmen by 50%." | `FUN_4345_0342` apply (gate); `FUN_15eb_1d4c` Statesman body | `colony_prod_colony_bells_ff` (`colony_production.c` ~415, `colony_preview.c` ~245, `turn.c` ~1791, `reports.c` ~1795): `statesmen_pct = has(JEFFERSON) ? 50 : 0`, threaded into `colony_prod_carpenter_preacher_shape`. | `test_founding_fathers.c` ~272, ~1403-1435; `test_turn_*.c` (split 2026-09-23) ~2736-2743 | **Done** |
+| 15 | Thomas Jefferson | "Jefferson's presence in the Congress increases Liberty Bell production of statesmen by 50%." | `FUN_4345_0342` apply (gate); `FUN_15eb_1d4c` Statesman body | `colony_prod_colony_bells_ff` (`colony_production.c` ~415, `colony_preview.c` ~245, `turn.c` ~1791, `reports.c` ~1795): `statesmen_pct = has(JEFFERSON) ? 50 : 0`, threaded into `colony_prod_carpenter_preacher_shape`. The AI demand scorer is a separate **×2** Bells want-weight (`ai_euro_5952_want_weight` `w.jefferson`, `FUN_5952_035e` asm `5952:1fe4`) — do not merge it with this ×1.5. | `test_founding_fathers.c` ~272, ~1403-1435; `test_turn_*.c` (split 2026-09-23) ~2736-2743 | **Done** |
 | 16 | Pocahontas | "All tension levels between you and the natives are reduced to content, and all Indian alarm is generated half as fast." | `FUN_4345_0342` apply, case 0x10 (elect reset); ongoing half-rate `FUN_4cc6_00f2` (raw 80844-80850) | `effect_pocahontas_reset_alarm`: elect zeroes `tribe[i].alarm[nation].friction/attacks` for every tribe, plus each `indian[ind].alarm_by_player[nation]` — **2026-09-17 correction:** the per-record reset is now routed through `ai_diplo_indian_alarm_delta(col1, ind+4, nation, -old_v)` (the same DOS `4cc6_00f2` path ongoing bumps use) instead of a direct zero-write, matching how DOS's own alarm delta clamps/propagates. Ongoing half-rate: the halving lives inside `ai_diplo_indian_alarm_delta` itself (`ai_contact.c`'s old pre-call `ai_contact_alarm_bump_amount` helper is retired, smell #72), gated on ownership. | `test_ai_contact_*.c` (split 2026-09-23) (11 scenarios listed, ~525-4389) | **Done** — both elect reset (via the delta path) and ongoing half-rate wired |
 | 17 | Thomas Paine | "Liberty Bell production in all colonies is increased by value of the current tax rate." | `FUN_4345_0342` apply (gate); `FUN_15eb_1d4c`/`1f72` | Same `colony_prod_colony_bells_ff` call sites as Jefferson: `paine_tax_pct = has(PAINE) ? nation.tax_rate : 0`. | `test_founding_fathers.c` ~1439-1441; `test_turn_*.c` (split 2026-09-23) | **Done** |
 | 18 | Simon Bolivar | "Sons of Liberty membership in all your colonies is increased by 20%." | `FUN_15eb_0274` (SoL display read, +20 when human+owned); `FUN_4345_0342` apply, case 0x12 (raw 73101-73108, elect-time rebel-sentiment bump) | `founding_fathers_bolivar_sol_bonus` — **display-time only**, no storage bump (matches DOS: `FUN_15eb_0274` re-adds +20 on every read, doesn't mutate stored SoL). Consumed wherever colony SoL % is displayed/used. **Elect-time (2026-09-17, port_bugs.md #477), separate effect:** when a human nation elects Bolivar, `DS:0x53d0` (`col1->head.rebel_sentiment_report`, the global report field) gets a one-shot `+= 20`, clamped to 100 — additive to, not a duplicate of, the per-colony display bonus. | `test_colonies.c` ~1229-1236; `test_founding_fathers.c` (Bolivar elect rebel-sentiment bump) | **Done** |
@@ -113,221 +113,35 @@ comment naming why.
 
 ---
 
-## Open items found while writing this table
+## Congress debate widget — `FUN_4345_06d2`
 
-P9.2 closed 2026-08-28. Items below are resolved or parked elsewhere; none
-are open Father-effect work.
+The "which Founding Father shall we appoint" picker is the shared `6f74` dialog,
+recovered from `OVL07_L0040` raw bytes (Ghidra drops every register/immediate
+argument of this function). Box fields, row pitch and bar: [popups_dialog_engine.md](popups_dialog_engine.md).
+Old open items, the P9 cross-check and the 2026-09-07 slice notes:
+[archive/founding_fathers_history_2026-10-24.md](archive/founding_fathers_history_2026-10-24.md).
 
-1. **Magellan is wired in 2 places, not "turn.c only"** as an early P9 draft
-   stated: `turn.c` `turn_refresh_moves_for_nation` (ongoing per-turn +1)
-   **and** `col1_bridge.c` ~991 (Col1 save-load path re-derives ship `moves`
-   from raw `moves` with the same +1). **2026-09-17 correction:** there is
-   no elect-time one-shot bump any more — `FUN_4345_0342` has no
-   `param_2 == 5` case, so that third site was removed (port_bugs.md #476); the
-   two ongoing-refresh sites are the whole story.
-2. **Corrected 2026-09-17 (port_bugs.md #476).** The per-tick re-sweep added
-   2026-08-26 had no DOS site and is removed. La Salle's ongoing coverage
-   is the synchronous admit-time/birth-time hook (`founding_fathers_la_salle_check`,
-   DOS raw ~11312) plus the elect-time sweep — not a per-turn pool scan.
-3. **Resolved 2026-10-18 (port_bugs.md #1105).** Drake lives in one place:
-   `combat_unit_base_x8` (combat_strength.c, raw defense → ×8 → veteran →
-   Drake → holds penalty). `units_fort_vs_ship` (units_combat_resolve.c,
-   FUN_5fef_1b0e on 03f6's temporary attacker) takes the defending ship's
-   strength from `combat_unit_base_x8` too, so it gets Drake there. The
-   old separate `units_drake_scale_strength` had no caller and was deleted.
-4. **Confirmed 2026-08-26 — not a bug, matches DOS.** Read
-   `FUN_4345_0342` (`viceroy_unpacked.c` ~73044, `param_2==0xe` branch,
-   the FF-apply dispatch's Jones case) directly: it calls
-   `FUN_281f_095c(0x11, param_1, …)` (spawn Frigate, type `0x11`) with no
-   `param_1==0`/human-only guard anywhere in that branch or the
-   surrounding function — same shared dispatch every other FF case uses,
-   unconditional on which nation is electing. DOS itself grants Jones's
-   free Frigate to whichever nation (human or AI) elects him; the port's
-   `effect_jones_frigate` matches this exactly. P9.2's "for the player"
-   task wording was simply imprecise, not a spec the code was failing to
-   meet — no fix needed.
-5. **Fixed 2026-08-28.** Brewster's pick-among-pool was ported from the
-   `5e52` Brewster branch (`FUN_38fd_4884(0,1)` / `@RECRUITCHOOSE`) — see
-   row 20. Same pass: de Soto's ongoing sight radius (`13f1_02f8`),
-   Magellan's voyage roll (`48d3_0002`, plus a polarity bug in the
-   immigrant-ship landfall) — rows 5 and 7.
-6. **Stuyvesant's Custom House per-cargo toggle** is **Done**
-   (`colony_screen_open_custom_house` / `colonies_toggle_custom_house_cargo`).
-   Auto-sell itself (stock>99→leave 50 + denylist) is wired. VGA chrome of
-   that checklist is D4 if it still looks off.
-
-## Known unported
-
-- ~~**Jefferson bells weight in AI colony demand scoring**~~ — **ported
-  2026-09-17**. DOS's colony demand scorer `FUN_5952_035e` (asm `5952:1fe4`)
-  doubles the AI's want-weight for Liberty Bells when Jefferson is owned;
-  that is now `ai_euro_5952_want_weight`'s `w.jefferson` arm (`ai_euro.c`,
-  covered by `tests/unit/test_ai_euro_5952_indoor.c`
-  `bells_base_and_jefferson`). Note it is a **×2** on an AI want-weight, a
-  different rule from the colony screen's ×1.5 statesman bells bonus at
-  `2f2b:37cd` — do not merge the two.
-
-## Cross-check against port_plan.md P9's own claims
-
-- **Wired list** (Bolivar, Brebeuf, Brewster, Cortes, de Soto, de Witt,
-  Drake, Franklin, Hudson, Jefferson, Paine, Penn, Pocahontas, Revere,
-  Sepulveda, Washington, Las Casas) — **verified accurate** against code;
-  all 17 have a real gate + effect site as tabulated above (de Soto sight +
-  LCR and Brewster pick-among-pool are **Done**, 2026-08-28 — see their rows).
-- **"Not found outside core files" list** (Fugger, Coronado, La Salle,
-  Magellan (turn.c only), Jones (ai_ only)) — **partially confirmed,
-  partially corrected**:
-  - (2026-08-28: de Soto and Magellan now also have `FF_*` references
-    outside the core files — `units_sight_radius` in `units.c`,
-    `game_voyage_turns` in `game_loop.c` / `turn.c`.)
-  - Fugger, Coronado, La Salle, Jones: confirmed — `grep` for their
-    `FF_*` symbols outside `founding_fathers.c`/`founding_fathers.h`
-    returns nothing (Jones has no `ai_*` reference at all, correcting
-    the parenthetical "ai_ only" — there is no such reference anywhere
-    outside `founding_fathers.c`). This is expected, not a gap: all four
-    are one-shot elect-time effects with no ongoing per-turn gate needed.
-  - Magellan: **not** "turn.c only" — see Open item 1 above.
-
-## Congress debate widget — `FUN_4345_06d2` (T5.1 slice, 2026-09-07)
-
-The "which Founding Father shall we appoint" picker is not bespoke chrome:
-`FUN_4345_06d2` drives the shared `6f74` dialog engine (the same one behind
-the Save/Load dialog), so only its **script + row format + right-click arm**
-were missing from the port. Recovered from `OVL07_L0040` raw bytes
-(`tools/rtlink_overlay_extract.py` → `ndisasm -b16 -o 0x400`,
-`FUN_4345_06d2` = overlay `0xad2`) because Ghidra drops every one of this
-function's register/immediate arguments.
-
-- **Script (0xc2b–0xc35):** `FUN_291f_0182` (→ `FUN_6f74_32a4`) is called with
-  `AX = DS:0x1262 = "WHICHFREEDOM"`, `BX = DS:0x087c = "GAME"`, `DX = 0` —
-  i.e. `GAME.TXT` `@WHICHFREEDOM`, whose only directive is `@width=190`.
-  The port already fills the body through `popup_msg_fill("WHICHFREEDOM", …)`;
-  its hardcoded fallback now matches the asset verbatim.
-- **Row format (0xc72–0xcfb):** per category with a candidate,
-  `281f_016e` @FATHERS name → `281f_0178` (`DS:0x50` = `" "`) →
-  `281f_011e` (`DS:0x5e` = `"("`) → `281f_016e` `DS:0x96e8[type]`
-  (`NAMES.TXT` `@FOUNDING` word) → `281f_0178` → `281f_016e` `DS:0x2e88`
-  (`LABELS.TXT` `@MISC` 103 = `"Adviser"`, pointer base `0x2dba`) →
-  `281f_0128` (`DS:0x60` = `")"`). So each row reads
-  **`Adam Smith (Trade Adviser)`**, not a bare name. Live via
-  `reports_ff_category_display_name` / `reports_misc_display_word(103, …)`.
-- **Widen-to-widest-row:** those rows are wider than `@width=190`, and
-  `FUN_6f74_14c6` grows the box to the widest emitted option. `ai_popup_render`
-  now applies that rule (it was already in `save_load_dialog.c`); it is a
-  no-op for every dialog whose rows already fit, so no golden moved.
-- **Right-click = explain the row:** `06d2` sets `DS:0x1f66 = 1` before the
-  modal loop, so `FUN_6f74_2580`'s right-button arm returns the hovered row
-  with `DS:0x1f68 = 1`; `06d2` then calls `FUN_2a1f_0062` → `FUN_6cb2_1f28`
-  (the Colonizopedia founding-father article) and **loops back to rebuild the
-  same dialog**. Wired in `game_loop.c` alongside the port's existing F1
-  keyboard equivalent.
-- **Not cancellable:** a result `≤ 0` jumps back to the rebuild label (0xc2b)
-  with the same slate — matching the port's existing "escape re-presents the
-  identical slate" behaviour.
-- `FUN_281f_04ac(3)` at 0xc21 is **not** portrait art: the catalog resolves it
-  to `FUN_129f_0318`, "set BGM track id + gate play". port_plan T5.1's
-  "chief portrait `FUN_281f_04ac`" is a misattribution — the chief portrait
-  path is `FUN_6f74_0042` / `FUN_6f74_14c6` (already cited in `ai_popup.c`).
-- **`DS:0x1f66` height bump — RESOLVED, ported (port_bugs.md #1192).** `+0x14` is the
-  box **width** and `+0x16` the **height**, pinned at `FUN_6f74_14c6` OVL24
-  `0x16cb`–`0x16f6`: auto-placement computes `160 − box[0x14]/2` into `+0x10`
-  and `100 − box[0x16]/2` into `+0x12`, then clamps `+0x14 + 0x10` against
-  `0x140` (320) and `+0x16 + 0x12` against `0xc8` (200). So the `0x1f66` block
-  at `0x169d`–`0x16c3` grows the **height** — the earlier "axis ambiguous"
-  note is withdrawn. The `+6` arm needs `box[+0x80]/[+0x82] == DS:0x89e/0x8a0`
-  (FONTTINY); `@WHICHFREEDOM` declares no `@SMALLFONT`, and the box font is the
-  `FUN_6f74_06d0` text record `box+0x74` (font at `+0x80`) filled from the
-  parser's `FUN_291f_023c(DS:0x1fa2, DS:0x1f9e, DS:0x1fa0)` dialog-font slot,
-  which holds FONTINTR (`DS:0x268a`) outside the FONTTINY swaps of
-  `FUN_7562_0052` / `FUN_647e_0e80`. So the Congress takes `+3`, and
-  `FUN_6f74_1a78` draws LABELS `@MISC` 189 bottom-right (`ai_popup_render`,
-  docs/popups_dialog_engine.md "Sizes of the remaining compositor dialogs").
-- `box[+0x22] = 8` (default 4, `FUN_6f74_06d0` `0x075c`–`0x0763`) shifts only
-  the option-row **text** start: `FUN_6f74_1b7c` builds `box[+0x24] +
-  box[+0x48] + box[+0x22]` as the label x, and the selection bar subtracts
-  `box[+0x22]` straight back off, so the bar is unaffected. Ported
-  (port_bugs.md #1189): the Europe list shots confirm `frame_x + 5 + box[+0x22]`,
-  so the Congress row labels sit at `inner_x + pad_x + 8`.
-- No golden covers the dialog — the repo's goldens are all simulation-state,
-  not pixels. Capturing one would mean a `render_*_main.c`-style harness that
-  opens `AI_POPUP_TAG_FF_CONGRESS` on a fixture save and dumps the
-  framebuffer, the way `tools/render_report_main.c` does for F2–F10.
-
-### `6f74` row-pitch and selection-bar audit (2026-09-07, handoff items)
-
-Three claims handed over from the wood-frame slice, checked against
-`ndisasm` of OVL24 (`seg_24_load0000.bin`, origin 0 — offsets are the 6f74
-segment offsets directly):
-
-1. **Two row pitches — CONFIRMED and ported.** `FUN_6f74_0f16` returns
-   `font[0]` (6 → 5 unless `DS:0x1f8a`), i.e. the port's `glyph_h`. Then:
-   *option* rows (`+0x54` list) advance by `glyph_h + box[+0x46]`
-   (`0x1611`–`0x1628`), *edit-field* rows (`+0x60` list) by
-   `glyph_h + box[+0x46] + 5` (`0x1649`–`0x1653`), and *prompt/body* lines by
-   `glyph_h + 1` (`FUN_6f74_1198` `0x1234`/`0x124c`, `call 0xf16` + `inc ax`).
-   `box[+0x46] = (flags & 0x10) ? 0 : 3` (`FUN_6f74_06d0` `0x078a`–`0x0799`),
-   so framed dialogs get **glyph_h + 3** and **glyph_h + 8**. `ai_popup_render`
-   used `glyph_h + 1` for options too — every option row sat 2 px tight; fixed,
-   with hit-testing (`st->line_h`) moved onto the option pitch. Body lines were
-   already right.
-2. **Per-row button chrome — REFUTED for this widget.** The outlined,
-   wood-filled per-row box in `FUN_6f74_1e14` is drawn only for the `+0x60`
-   list, and that list is a **text-entry field** column (label + buffered
-   input, box height `glyph_h + 5` at `0x1ee7`), not option buttons — hence
-   the catalog's "Paint edit-field column". Rows reach it only through
-   `FUN_6f74_0d44` (`thunk_FUN_2a1f_0ace`), whose sole caller is the script
-   parser's `DS:0x2008 != 0` arm (`FUN_6f74_32a4`, decomp ~117418); the
-   `DS:0x2008 == 0` arm calls `FUN_291f_0176` → `FUN_6f74_0a00`, which appends
-   to `+0x54` (`0x0a08`/`0x0a8c`). `FUN_291f_0176` is what every `ai_popup`
-   CHOICE row — the Congress debate included — goes through, so those are
-   `+0x54` rows and DOS never draws a button around them. Painting one would
-   be invented chrome, so nothing was ported. What `FUN_6f74_1b7c` actually
-   emits for `+0x54` is two fills through `FUN_6f74_033c`: one wood-brush
-   erase over the whole option column (`box[+0x3c]/[+0x3e]`, height
-   `(glyph_h + box[+0x46]) · box[+0x2]`) and one solid highlight
-   (`box[+0x40]/[+0x42]`) behind the selected row — which is what
-   `popup_draw`'s fill plus `ai_popup_fill_row` already produce.
-3. **Selection-bar x — RESOLVED, it never leaves the frame.** `0x1b86` builds
-   `[bp-0x8] = box[+0x24] + box[+0x48] + box[+0x22]`; the bar call at
-   `0x1c8e`–`0x1c98` then does `ax = [bp-0x8]`, `sub ax,[es:si+0x22]`,
-   `dec ax`. The two `+0x22` terms cancel **exactly**, leaving
-   `x = box[+0x24] + box[+0x48] − 1` — with `box[+0x48] = 2`
-   (`FUN_6f74_06d0` `0x079d`–`0x07a5`) that is `content_origin + 1`, inside
-   the frame, with no dependence on the `+0x5c` header list. The "box+0x24 − 5"
-   reading came from substituting the default `box[+0x22] = 4` into one term
-   and not the other. Width is `box[+0x20] + 2·(1 − box[+0x48])` = content − 2
-   (`0x1c81`–`0x1c9b`) and height `glyph_h + 2` (`0x1c5b`–`0x1c62`, `call
-   0xf16` then two `inc ax`). Ported into `ai_popup_render`. The *y* anchoring
-   followed in port_bugs.md #1189 (bar at `box[+0x26]` = `popup_dos_list_y0`,
-   text one px lower, as the Europe shots show; docs/popups_dialog_engine.md).
-
-4. **`save_load_dialog.c` — CONFIRMED `+0x54`, ported 2026-09-07.** The
-   handover left this open pending a read of the bespoke `7562_0052` builder.
-   Read: `FUN_7562_0052` emits each slot row with `FUN_291f_0176`
-   (`viceroy_unpacked.c` 119680), and `FUN_291f_0176` is a bare thunk to
-   `FUN_6f74_0a00` (`viceroy_unpacked_2.c` 33285–33289) — the `+0x54` option
-   list — so the slot rows are option rows, not body lines. The box itself
-   comes from `FUN_291f_0182` → `FUN_6f74_32a4` (the script parser) over
-   `GAME.TXT` `@SAVEGAME` / `@LOADGAME`, which declare nothing but
-   `@width=190`, so no `flags & 0x10` and `box[+0x46] = 3`. Pitch is
-   `glyph_h + 3`; the port's `glyph_h + 1` was the same 2 px tight as
-   `ai_popup` had been. Fixed, with hit-testing (`dlg->line_h`) moved onto the
-   option pitch and the selection bar switched to the resolved `1b7c` rect
-   (`x = inner_x + 1`, width `content − 2`, height `glyph_h + 2`) it had been
-   approximating. Same read also re-confirms the slot counts: the two callers
-   pass the row count as the second arg — `030a` → `(0x20f6, 8)` = save,
-   `04e8` → `(0x211a, 10)` = load, matching the port's 8/10.
+- **Script:** `FUN_291f_0182` over `GAME.TXT` `@WHICHFREEDOM` (only directive
+  `@width=190`); body via `popup_msg_fill("WHICHFREEDOM", …)`.
+- **Rows:** one per category with a candidate, `@FATHERS` name + `" ("` +
+  `NAMES.TXT` `@FOUNDING` word + `" "` + `LABELS.TXT` `@MISC` 103 + `")"`, i.e.
+  `Adam Smith (Trade Adviser)` (`reports_ff_category_display_name` /
+  `reports_misc_display_word(103, …)`). Rows wider than `@width` widen the box
+  (`FUN_6f74_14c6`); `box[+0x22] = 8`.
+- **Right-click explains the row:** `06d2` sets `DS:0x1f66 = 1` (which also adds
+  the help footer), so `FUN_6f74_2580`'s right-button arm returns the hovered row
+  with `DS:0x1f68 = 1`; `06d2` opens the Colonizopedia article (`FUN_2a1f_0062` →
+  `FUN_6cb2_1f28`) and rebuilds the same dialog. Port: `game_dialogs.c`
+  (`AI_POPUP_TAG_FF_CONGRESS`), plus the F1 key.
+- **Not cancellable:** a result `≤ 0` rebuilds the same slate.
+- **Trap:** `FUN_281f_04ac(3)` at 0xc21 is BGM (`FUN_129f_0318`, set track id +
+  gate play), not portrait art; an old port_plan T5.1 "chief portrait
+  `FUN_281f_04ac`" note was a misattribution (portraits are `FUN_6f74_0042` /
+  `FUN_6f74_14c6`).
+- **Trap:** the rows are `+0x54` option rows; DOS draws no per-row button around
+  them (popups_dialog_engine.md "6f74 box fields").
 
 ## Method notes
 
-- `docs/fandom_col1994.md` (Tier 3) was **not** used as the sourcing
-  authority here — `COLONIZE/PEDIA.TXT` (Tier 1, shipped DOS asset) was
-  read directly for every Father's effect text. fandom's paraphrases were
-  cross-checked against it and found accurate in every case, so existing
-  code comments citing fandom remain trustworthy.
-- `COLONIZE/PEDIA.TXT` is byte-flagged as binary by `grep` on this system
-  (ISO-8859 CRLF content trips grep's binary heuristic) — use `grep -a` or
-  `sed`/`Read`, not a plain `grep`, or matches silently return nothing.
-- `COLONIZE/NAMES.TXT` `@FATHERS` (type + 3 century-weight columns) was
-  diffed against `founding_fathers.c`'s `k_ff_type`/`k_ff_weight` tables —
-  exact match, confirms the election-weight port is byte-faithful.
+- `COLONIZE/PEDIA.TXT` trips grep's binary heuristic (ISO-8859 CRLF): use
+  `grep -a` or `sed`/`Read`, or matches silently return nothing.

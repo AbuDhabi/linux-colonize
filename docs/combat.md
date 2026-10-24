@@ -93,9 +93,7 @@ this one. Combat Analysis prints the matching **Attack Bonus +50%** row for
 naval attackers as well — `FUN_636c_0000` walks `DS:0x8d00` bit 0
 (`viceroy_unpacked.c` 101874-101891) and `FUN_157e_004a` sets exactly that bit
 on every mode-1 evaluation (`*puVar1 = *puVar1 | (param_2 != 0)`, 8926-8928).
-There is no domain test on either side. (The port used to apply the factor but
-suppress the row at sea, so the displayed rows stopped summing to the shown
-strengths — fixed 2026-09-09, smell audit #11.)
+There is no domain test on either side, so the row shows at sea too.
 
 ### Base ×8 (`FUN_157e_004a` / `combat_unit_base_x8`)
 
@@ -165,18 +163,10 @@ Fortify on bare colony: `2+2=4` (×2). Fortify on Stockade/Fort: `4+2=6` (×2.5,
 because `local_1a < 5` still holds before the add). Fortress `local_1a=8` →
 fortify does not stack.
 
-**Disassembly verified clean (2026-08-13).** `FUN_5fef_1b0e` carried a
-Ghidra `Removing unreachable block` disassembly-fault warning in the
-canonical export (`docs/decomp_inventory.md`). Re-disassembled via the
-overlay-addressing project (`tools/address_mapping.csv` →
-`OVL17_L0000:1b0e`): clean, self-contained, 7270 bytes / 1116 decompiled
-lines, one unrelated minor unreachable-block warning + one "type
-propagation not settling" note left (ordinary decompiler noise, not the
-corruption class). Calls several `thunk_FUN_1000_*` stubs whose exact
-targets weren't resolved this pass (see `euro_unit_act.md`'s method note
-if chasing them — verify via `rtlink_decode`'s jump table before trusting
-a decompile through any of them). Confirms the extensive peel/resolve
-mapping below is working from trustworthy source.
+`FUN_5fef_1b0e`'s Ghidra `Removing unreachable block` warning is decompiler
+noise: the overlay re-disassembly (`OVL17_L0000:1b0e`) is clean. Its
+`thunk_FUN_1000_*` callees need `rtlink_decode`'s jump table before a
+decompile through them is trusted.
 
 ### Peels (`FUN_5fef_1b0e` / `combat_apply_1b0e_peels`)
 
@@ -190,24 +180,23 @@ mapping below is working from trustworthy source.
 | WoI crown open-field | WoI, **crown** attacker, land tile (not ocean — `FUN_281f_0768 == 0`) | `+= difficulty * atk / 20` |
 | WoI REF +50% | WoI, Euro attacker, **on colony**, and (attacker is **crown** **or** `ref_present`) | +50% (`0x8d01\|0x80`) |
 | WoI support % | WoI, Euro attacker, **on colony** | Crown: +`(100−SoL)%` (Tories); else +`SoL%` (Rebels) |
-
-**The three WoI rows have NO domain gate (corrected 2026-09-09).** The block's
-only gate is raw 100494, verbatim `if (((*(byte *)0x5382 & 1) != 0) && (uVar16
-< 4))` — WoI active and a **Euro attacker**, nothing more; the is-ship flags
-`bVar9`/`bVar10` gate the weak-defender row at raw 100468, never this one. The
-port carried an invented `&& land`, which cost a crown/REF **ship** both the
-+50% bombardment bonus and the Tory share when it attacked a hull berthed in a
-rebel colony (a berthed defender puts the fight on a colony tile, so DOS's
-`iVar18 = FUN_281f_07be` is `>= 0` and the colony arm runs exactly as it does
-on land). The only domain test in the block is the open-field row's own
-`FUN_281f_0768(x,y) == 0`, so an engagement in open water still collects
-nothing. Pinned by `tests/unit/test_combat_strength.c`
-`test_woi_crown_ship_bombards_colony`.
 | Human-colony damper (raw 100536-100543) — **resolve-only** | `difficulty < 2`, no WoI (or no colony on the defended tile, or attacker is a hull 0xd-0x12); defender a **human-controlled** European (`uVar15 < 4 && 0x543f[uVar15] == 0`), **colony** on the attacked tile (`-1 < iVar18`), turn `DS:0x538e < 0x50` | attacker −25% (diff 0) / `>>1` (diff 1) |
 | **Discoverer beginner shield** (raw 100544-100545, ported 2026-09-08) — **resolve-only** | as the row above, plus `difficulty == 0` and the defender is the **auto-spawned** stand-in (`bVar28` — militia/Revere phantom) | attacker `= 0` → the roll `RNG(1, def+0) <= 0` always loses. A human player's undefended town cannot be taken on Discoverer in the first 80 turns |
 | Any-attacker-of-human damper (raw 100546-100548) — **resolve-only** | same `difficulty < 2` / WoI gate; defender human-controlled European (**no colony needed**) and (attacker is Euro **or** turn `< 0x50`) | attacker `>>1`, stacks on the colony damper above |
 | Discoverer human-attacker doubling (raw 100549) — **resolve-only** | `difficulty == 0` and the **ATTACKER** is a human-controlled European; no other gate (runs even under WoI) | attacker `<<1` |
 | Brave vs human Artillery (raw 100573-100577) — **resolve-only** | plain Brave (@UNIT 0x13) attacks human-controlled Euro Artillery (@UNIT 0xb) | roll drawn, then `atk_wins` forced false (`local_ca` latch, also FUN_5fef_0f14 param_4) |
+
+**The three WoI rows have NO domain gate.** The block's only gate is raw
+100494, verbatim `if (((*(byte *)0x5382 & 1) != 0) && (uVar16 < 4))` — WoI
+active and a **Euro attacker**, nothing more; the is-ship flags
+`bVar9`/`bVar10` gate the weak-defender row at raw 100468, never this one. So
+a crown/REF **ship** attacking a hull berthed in a rebel colony gets the +50%
+and the Tory share (a berthed defender puts the fight on a colony tile, so
+DOS's `iVar18 = FUN_281f_07be` is `>= 0` and the colony arm runs exactly as on
+land). The only domain test in the block is the open-field row's own
+`FUN_281f_0768(x,y) == 0`, so an engagement in open water still collects
+nothing. Pinned by `tests/unit/test_combat_strength.c`
+`test_woi_crown_ship_bombards_colony`.
 
 Crown nation = DS:`0x53d2` (OpenCol: peer of human Euro slot, same as
 `ai_king_crown_nation`). WoI / `ref_present` read the real `game_options`
@@ -229,15 +218,12 @@ bVar8 = iVar23 <= local_92`. Note the whole handicap group sits **after** the
 `param_5 == 0` early return (raw 100523), so Combat Analysis odds are computed
 *without* it — the preview can show a winnable fight the resolver then zeroes.
 
-The three siblings from the same raw lines are **ported** (2026-09-08), with
-the shield, into `combat_apply_1b0e_resolve_handicaps`
-(`combat_strength.c`; the decomp is quoted verbatim above it). Placement is
-modeled too: the resolvers (`combat_land_engage` / naval, from `units.c`)
-call it **after** Combat Analysis is presented and before the roll, so the
-peels function — which is also what AI scoring calls — carries none of the
-group. The port's old "Discoverer damper" (−25% on a human ATTACKER vs an AI
-Euro) tested the wrong side and is **deleted**: DOS dampens the attacker OF a
-human defender, and at diff 0 *doubles* a human attacker.
+The group (shield + three siblings) is `combat_apply_1b0e_resolve_handicaps`
+(`combat_strength.c`; the decomp is quoted verbatim above it). Placement: the
+resolvers (`combat_land_engage` / naval, from `units.c`) call it **after**
+Combat Analysis is presented and before the roll, so the peels function —
+which is also what AI scoring calls — carries none of the group. DOS dampens
+the attacker OF a human defender; it never dampens a human attacker.
 
 `combat_unit_toughness` = always `015e` (AI scoring).
 
@@ -298,6 +284,15 @@ dwelling. Human `4528` `@ACTIONS` arm **Done** (P8.8). Deep `4528` mid-body / VG
    (`combat_analysis_should_show` + presenter)
 2. Roll / apply outcome
 3. Structural outcome popups (`units_combat_outcome_popups`) — [popups.md](popups.md) §9
+
+**Fizzle dissolve** (`FUN_12d6_0000`, thunk `FUN_281f_03ea`): a destroyed /
+sunk / demoted piece "pixelates" away — DOS presents the outcome redraw by
+copying all 64000 px in 16-bit LFSR order (poly `0xB400`, asm file 0xF5E6;
+the catalog mislabels `0016` "delay"). Fired with dur 8 in the `1b0e` tail,
+`36fe`, `31ea`, and the LCR `65dd` vanish. Port: `units_set_combat_dissolve`
+two-phase hook (pre-snapshot / post-animate) around the land + naval outcome
+and the LCR despawn; `game_combat_dissolve` (game_loop.c) diff-gates identical
+frames, so out-of-sight or in-colony fights stay instant.
 
 ### Land win (`units_resolve_land_combat_ff`)
 
@@ -448,12 +443,9 @@ Combat loss remaps **unit type** (not merely profession). Cite:
   defender stack removed/rerouted, the attacker's move-through completes.
 - Privateer winner + human → `@SEIZURESEA` — only when the transport is
   actually taken (sunk), not when it escapes damaged.
-- Unported DOS residue: AI fleet-pool keep/lose biases, crown-MoW forced-
-  damage exemption, late-game (turn>0x4f) forced Caravel sink, the
-  and the per-nation stored-port *coords* (`DS -0x77c6` = the Europe landfall
-  tile, written to the loser's goto fields +0x314d/e so DOS's repaired hull
-  knows where to come back to — the OpenCol Europe lane carries its own exit
-  tile instead).
+- The damaged loser's goto fields (+0x314d/e) get its nation's
+  return-from-Europe tile, so the repaired hull knows where to come back to
+  (`units_ship_enter_repair`, DOS-LITERAL raw 99618-99619).
 
 ### Artillery: two different settlement gates — 2026-09-04
 
@@ -468,9 +460,7 @@ mixing them up is what row 337 / row 353 of port_bugs.md kept circling:
 
 So an artillery *attacking* a native settlement gets no bonus — only the
 absence of the open-field penalty. There is no attacker-side artillery
-multiplier anywhere in 1b0e. The `>>3` pick-score demotion and the colony gate
-on the `<<1` were described in the Best-defender row above on 2026-09-03 but
-only reached the code on 2026-09-04.
+multiplier anywhere in 1b0e.
 
 ### Attacker fatigue (`@HALF`) — 2026-09-04
 
@@ -480,7 +470,8 @@ moves_spent` **before** charging the attack's 3 thirds. When `rem < 3`:
 - a human-controlled European attacker is asked `@HALF` (id `0x1c06`) —
   "Charge!" proceeds, "Then let them rest." aborts (the 3 thirds are already
   charged, so declining ends the unit's turn). AI and native attackers are
-  never asked. An empty native village counts as an attack target here even
+  never asked: the 1b0e entry gate (raw 100359-100372, `units_try_move`)
+  refuses their attack outright under 3 thirds. An empty native village counts as an attack target here even
   though its temporary Brave is created later by the combat resolver; this
   keeps the prompt for 1/3 and 2/3 MP village attacks (port_bugs.md #940).
 - the fatigue bits are set — 2 thirds → `0x8d01` bit0, 1 third → `a156` bit3
@@ -489,8 +480,7 @@ moves_spent` **before** charging the attack's 3 thirds. When `rem < 3`:
   the difficulty peel and before the weak-defender / artillery / ambush
   clauses (`combat_apply_1b0e_peels`).
 
-**Fatigue has no domain gate — it applies at sea too** (smell audit
-2026-09-09 #11; the "Land vs naval" table used to imply otherwise). DOS:
+**Fatigue has no domain gate — it applies at sea too.** DOS:
 
 ```
 if (local_98 != 0) { local_92 = (int)(local_92 * local_98) / 3; }   /* 100459 */
@@ -506,12 +496,14 @@ OpenCol: `ai_contact_try_tired_attack_confirm` + `AI_POPUP_TAG_COMBAT_HALF`
 order), `units_remaining_mp` (native units keep DOS's spent byte in
 `moves`; Europeans keep the remainder).
 
-**Ported (stale note corrected 2026-09-29):** DOS exhausts the attacker's full
+**Combat-entry MP charge (full exhaust):** DOS exhausts the attacker's full
 allotment at 1b0e entry (`FUN_281f_0934` -> `FUN_1427_155e`, raw 100381-100383 /
 8880-8888) with no naval exception, and 465b's step cost is attack-skipped
 (75639-75648). The port charges it at every outcome of `units_try_move` —
 including the naval win whose advance is barred by the rest of the enemy stack
-(port_bugs.md #996), which used to return with the moves unspent.
+(port_bugs.md #996). The `spent += 3` at entry (raw 100341-100343) is a dead
+store; the charge lands after the resolve because the fatigue peel reads
+entry-remaining (`combat_attack_entry` → `units_mp_exhaust`).
 
 ### Colony capture
 
@@ -540,56 +532,33 @@ sitting in it, under its old flag. Nothing is sunk and nothing is seized —
 the `0512` destroy texture belongs to `FUN_43f7_0512` (the crown REF landing
 seizure, `ai_king.c`), not here.
 
-The port could not express that: `units_foreign_unit_at` counted the hull, and an
-armed hull (attack > 0) also survives `units_seize_noncombat_at`, so a berthed
-Frigate held the tile "contested" forever and no land force could take the
-port. Both post-win gates now use `units_domain_blocker_at` (`units.c`), which
-applies `FUN_5fef_0000`'s own domain rule — the walk-in gate in
-`units_try_move` and the contested test in `units_try_capture_foreign_colony`.
-`ai_euro.c`'s adjacent-walk-in arm carries an OpenCol-only "sink every foreign
-hull in the port" loop written against the old PARK; it is now unnecessary
-and DOS-contradicting (owner's call to remove).
+Both post-win gates — the walk-in gate in `units_try_move` and the contested
+test in `units_try_capture_foreign_colony` — use `units_domain_blocker_at`
+(`units_internal.h`), which applies `FUN_5fef_0000`'s own domain rule; a plain
+foreign-unit probe would let a berthed armed hull hold the port "contested"
+forever.
 
-**Capture-arm audit, 2026-09-08** (raw = `viceroy_unpacked.c`). Everything the
+**Capture arm** (raw = `viceroy_unpacked.c`). Everything the
 `bVar12` arm mutates is accounted for: colony/pop tallies, owner byte, rebel
 dividend ×2/3, treasury share, `nation_relation` zeroing, WAR bit and the WoI
 `0x5382|0x40` are all in `colonies_capture_col1_effects`; `@HOWTOWIN`
 (`0x5386` bit 0) and the crown neighbour re-home are in
-`units_try_capture_foreign_colony`. The two residue rows **closed
-2026-09-08**, both in that same function:
+`units_try_capture_foreign_colony`, as are the two rows below:
 
 | Raw | DOS | Port |
 |-----|-----|------|
 | `100937-100948` | 8-neighbour loop over the DS:0xb4/0xbe dir8 tables: `if (FUN_281f_06d2(x,y) < 0) FUN_281f_0704(x,y,new_owner)`. `06d2` = `FUN_137f_0428` = `03e4` (layer2 settlement bit `0x02` → its owner nibble) falling back to `0314` (layer2 unit bit `0x01`), i.e. "nothing stands here"; `0704` = `FUN_137f_0228`, the owner-nibble stamp. Not a fog reveal — the ring of **territory** the prize brings with it | `units_capture_claim_ring`. Same idiom `ai.c`'s `ai_indian_midpass_claim_worked_tiles` already carries. Not gated on DOS's `param_4`, so AI captures stamp it too. The centre tile's own stamp (raw `100901`) is not repeated: the captor's step onto the colony square already ran it through `units_occupancy_refresh_tile` → `units_claim_tile_owner_from_stack`. `0228`'s `@SEIZURE` arm can't fire (it needs a native settlement, which the `06d2` gate excluded) |
 | `101032-101034` | `FUN_281f_0608(colony)` (far thunk → `FUN_2f2b_6cd4`, colony screen) fires when the captor is a **human-controlled European** — DOS drops you straight into the town you just took, *after* the blocking `@CAPTURED` dialog at `101030` | `units_combat_pump_popups()` (drains `@CAPTURED` / `@HOWTOWIN` first, DOS's order) then `ai_popup_colony_zoom_elect`. No `game_loop.c` edit was needed: the elected zoom is drained by the existing `ai_popup_take_colony_zoom` → `game_enter_colony` pair, which is how DOS's **other** `FUN_281f_0608` caller (`FUN_364b_0688`'s colony-event tail) is already wired. Headless callers install neither pump nor popup state, so both calls are inert |
 
-**Brave vs human Artillery auto-loss — ported 2026-09-08.** Raw
-`100573-100577`, immediately after the roll: when the attacker is a native
-(`3 < uVar16`), the defender a **human-controlled** European
-(`uVar15 < 4 && *(char *)(uVar15 * 0x34 + 0x543f) == 0`), the attacker type
-`0x13` (a plain Brave — **not** Armed 0x14 / Mtd. 0x15 / Mtd. Warriors 0x16)
-and the defender type `0xb` (Artillery), DOS forces `bVar8 = false` — the
-Brave **always** loses, whatever the roll said — and sets `local_ca = 1`,
-which is the flag it then hands `FUN_5fef_0f14` to bypass that resolver's
-walls check. Port: `units_combat_brave_vs_human_arty` (`units.c`), evaluated
-in `units_resolve_land_combat_ff` right after the roll block, so the RNG draw
-still happens and `eng.roll` keeps the value DOS's `iVar23` keeps; only
-`eng.atk_wins` is cleared. The predicate is DOS's *only* write of `local_ca`
-(`100336` zeroes it, `100576` sets it, `101142` reads it), so the same local
-is reused as the raid handoff's `forced`/`param_4` argument to
-`ai_contact_colony_raid_repelled_w` — that argument used to be re-derived from
-unit *names*, which also matched Armed/Mtd. Braves and so was wider than DOS.
-Type ids are `type_index` = NAMES.TXT `@UNIT` line order (Artillery 11,
-Braves 19), the identity the typed attack-fire sound already relies on. This
-is on top of, not instead of, the Artillery ×2-vs-natives strength term
-(`combat_strength.c`, `COMBAT_FLAG_ARTY_COLONY`), which only made the pairing
-*usually* fatal. Test: `unit_brave_vs_human_artillery_autoloss`
-(`tests/unit/test_units_*.c (split 2026-09-23)`) — 40 seeds never win against a human European's
-Artillery, while the same seeds against an **AI** European (control != 0), and
-Armed Braves against the human one, still win sometimes.
-
----
-
+**Brave vs human Artillery auto-loss** (rule: peel table row above). Port:
+`units_combat_brave_vs_human_arty` (`units_combat_resolve.c`), right after the
+roll so the RNG draw still happens. The predicate is DOS's *only* write of
+`local_ca` (`100336` zeroes it, `100576` sets it, `101142` reads it), so the
+same value is the raid handoff's `forced`/`param_4` argument to
+`ai_contact_colony_raid_repelled_w` (never re-derive it from unit names: that
+also matches Armed/Mtd. Braves). It stacks on the Artillery ×2-vs-natives
+strength term. Test: `unit_brave_vs_human_artillery_autoloss`
+(`tests/unit/test_units_combat.c`).
 
 ---
 

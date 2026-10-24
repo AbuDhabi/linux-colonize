@@ -296,7 +296,7 @@ void ai_king_teaparty_party_name(
  * GAME.TXT @TEAPARTY follow-up OK after refuse / dump-goods apply.
  * Thin FUN_38fd_3dc8: dump min(100, stock) from richest human colony of cargo,
  * then enqueue KING_TAX OK with authentic tokens. VGA chrome PARKED.
- * Cite: GAME.TXT @TEAPARTY; popup_audit MissingWire → Done thin.
+ * Cite: GAME.TXT @TEAPARTY; archive/popup_audit MissingWire → Done thin.
  */
 /* ===== Tea-party enqueue & intervention force selection (ai_king_enqueue_teaparty_ok .. ai_king_write_rival_nation_slots) ===== */
 void ai_king_enqueue_teaparty_ok(ColonizeTurnContext* ctx, int human, int cargo) {

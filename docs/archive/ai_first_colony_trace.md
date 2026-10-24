@@ -1,5 +1,9 @@
 # First-colony DOS trace (#530)
 
+STATUS: archived 2026-10-24. #530 is CLOSED (bugs_closed.md) and `AI_SHIP_DOS` is gone;
+text below that calls #530 open or the switch opt-in is history. The DOS facts are cited
+in code (ai_goals.c FUN_682a_000c, ai_euro_ship.c raw 89470, units_move.c LAB_6662_1599).
+
 Status 2026-10-04: the `AI_SHIP_DOS` switch is gone; the DOS hull/land path
 is the only path. The whole fitted first-colony layer (#530 S5, #1035, both
 #971 arms, the seed-100 landfall table, ship FOUND producer, legacy

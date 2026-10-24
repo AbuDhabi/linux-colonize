@@ -207,11 +207,8 @@ means the thing happens. Several DOS bits are inverted suppress flags, and
 - All ten colony-report bits — `DS:0x5384`/`0x5385` set = report *suppressed*.
   `FUN_2b5a_223a` sets each bit when its checkbox is **clear**, and the EOT
   reporters fire on `bit == 0` (`turn_report_ok_*` in `turn.c`). A fresh save
-  is all-zero, i.e. every report showing.
-
-The colony options dialog had this backwards — checking "Report food
-shortages" stored a 1 and thereby silenced it. `options_dialog_open_colony` /
-`options_dialog_apply_colony` now invert, matching `FUN_2b5a_223a`.
+  is all-zero, i.e. every report showing. `options_dialog_open_colony` /
+  `options_dialog_apply_colony` invert the same way.
 
 ## Tutorial hints
 

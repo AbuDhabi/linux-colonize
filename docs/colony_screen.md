@@ -435,22 +435,24 @@ free position in that slot's class, retry on collision. Seed =
 (`FUN_75c2_2d46`), but it is **saved and restored**: post_map tail @608
 (`FUN_2a1f_0c9c` write / `FUN_2a1f_0cb4` read), i.e. `post_map.boot_timer`.
 So a layout is stable for the life of a game and a save *does* reproduce a
-screenshot's layout. The port still pins the base here. Exactly **one**
+screenshot's layout. The port reads it: `colony_screen_set_layout_seed` gets
+`post_map.boot_timer` on load and on new game (game_loop_saveload.c; a new game
+seeds it from the clock like DOS, port_bugs.md #578). The constant `25281`
+(`COLONY_DOS_LAYOUT_SEED`) is only the fallback for callers without a save
+(tests, tools). Exactly **one**
 15-bit base, `25281`, reproduces both golden screenshots at once (18
 independent category→slot constraints) — uniqueness over the whole 32768
 space is the proof the category table, pools, mapping, shuffle order and
 RNG are all right. Both colonies render at golden positions with no
 overrides — and that pin is not arbitrary at all: the screenshot saves
 (`original_saves/colony-prod-tests/COLONY00-dutch2-*`) carry
-`boot_timer = 844481`, and 844481 mod 32768 = **25281**. Open follow-up:
-colony_screen.c should read `post_map.boot_timer` instead of the constant. (Byproduct: the EXE's blacksmith x=7 beat the hand-measured 4.)
+`boot_timer = 844481`, and 844481 mod 32768 = **25281**. (Byproduct: the EXE's blacksmith x=7 beat the hand-measured 4.)
 
 ## Left unresolved
 
-- **Building badge *types* need a from-scratch recheck**: Town Hall and
-  Printing Press both showed "82" (Town Hall's is bells, confirmed; Press
-  resolving to the same bells value looks like a badge-type assignment
-  bug), and Carpenter showed an unexpected "16".
+- **Building badge *types* need a from-scratch recheck**: Carpenter showed
+  an unexpected "16". (The Printing Press "82" was a duplicate bell badge;
+  only Town Hall shows bells now, `colony_screen_building_production_badge`.)
 - **People band Food badge extra element**: golden shows a thin gold/olive
   horizontal bar under the number (native x=2..40, y≈166) — not
   identified.
@@ -461,8 +463,8 @@ colony_screen.c should read `post_map.boot_timer` instead of the constant. (Bypr
   unidentified; Recife's golden has a white square outline on one ocean
   minimap tile (possibly a captured-moment cursor).
 - **`building_production.md` badge table** had unverified pre-golden
-  claims (SoL exclusion corrected 2026-08-27); other rows worth a
-  skim-and-correct pass.
+  claims (SoL exclusion corrected); other rows worth a skim-and-correct
+  pass.
 
 ## Final match quality
 

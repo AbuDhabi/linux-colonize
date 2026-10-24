@@ -5,7 +5,7 @@ previews and residual DOS references.
 
 **World-map feature art** (coasts, forests, hills, mountains, land transitions,
 resources) is driven by **`MAPEDIT.EXE`**, not these tables — see
-[decomp_inventory.md](decomp_inventory.md) and [assets.md](assets.md).
+[assets.md](assets.md) "Map overlay compositing".
 
 Regenerate embedded copies:
 
@@ -17,102 +17,60 @@ C API: `src/data/viceroy_tables.h`
 
 ## DS → file offset
 
-All tables use the same linear mapping anchored on the river transition table at **DS:0x54de** (file `0x1dbc4` in the shipped executable):
-
-```
-file_offset = ds_offset + viceroy_ds_to_file_offset   // 0x186e6
-```
+`scripts/extract_viceroy_tables.py` anchors on a 28-byte sequence it takes to be the
+river table at **DS:0x54de**, finds it at file `0x1dbc4`, and so uses
+`file_offset = ds_offset + 0x186e6`. That contradicts the confirmed DS→EXE rule,
+`file_offset = 121248 + ds_offset` (`0x1d9a0`; every GAME.TXT tag string in
+[popup_tag_ids.md](popup_tag_ids.md) lands there): under it the anchor bytes sit at
+DS:0x224. Treat anything extracted with `0x186e6` as unverified.
 
 ## Tables
 
-| DS offset | Symbol | Size | Purpose |
+| DS offset (extractor) | Symbol | Size | Purpose |
 |-----------|--------|------|---------|
-| `0x543f` | `viceroy_terrain_meta` | 29 × 52 | Per map terrain index (0–28, matches `PEDIA.TXT` `@TERRAINn`) |
+| `0x543f` | `viceroy_terrain_meta` | 29 × 52 | Read as per map terrain index (0–28, `PEDIA.TXT` `@TERRAINn`); unverified |
 
-Only `viceroy_terrain_meta` (and the `viceroy_terrain_class` / `viceroy_forest_phys0_sprite`
-accessors over it) is still generated and consumed (pedia.c). The tables below were
-extracted 2026-08 but had no consumer outside a self-checking smoke test; they were
-retired from `src/data/viceroy_tables.c` on 2026-09-14 (duplication audit TT-27..29).
-Their DS offsets stay documented here for future work:
+The bytes come from file `0x1db25` (DS:0x185 under the confirmed rule). The real
+DS:0x543f is the **nation** table (stride 0x34, byte 0 = control, 0 = human; see
+`src/core/colony_workers.c`, `original_sources_annotated/turn/europe_nation_eot.md`), so
+the per-terrain reading has no decomp backing. Only `viceroy_terrain_meta` and its
+`viceroy_terrain_class` accessor are generated and consumed (pedia.c,
+`tests/smoke/test_viceroy_tables.c`); `viceroy_forest_phys0_sprite` is a hand-written
+switch, not table data.
 
-| DS offset | Symbol (retired) | Size | Purpose |
-|-----------|--------|------|---------|
-| `0x5234` | `tile_display` | 29 × 14 | Per tile display type (`0x3146` in the runtime tile object); all zeros in the EXE for types 0–9 |
-| `0x54de` | `river_transition` | 28 | Overlay nibble → PHYS0 river sprite offset (still used by the extractor as the EXE anchor) |
-| `0x54fc` | `feature_sprite_bases_a` | 4 | Feature sprite base indices (mountain/hill path) |
-| `0x5502` | `feature_sprite_bases_b` | 4 | Feature sprite base indices (forest/resource path) |
-| `0x5599` | `connectivity_transition` | 21 | Cardinal connectivity → transition variant |
+The other tables the extractor once emitted (`0x54de` river, `0x54fc` / `0x5502` feature
+bases, `0x5599` connectivity) were retired 2026-09-14 (no consumer, duplication audit
+TT-27..29); their purposes were guesses. Trap: **DS:0x5234** is the moves×3 column of
+the stride-0xe `@UNIT` type table (`0x5235` defense, `0x5236` attack, `0x5237` holds;
+`ai_euro_land.c`, `units_move.c`), not a tile-display table.
 
 ### `terrain_meta` (52 bytes / terrain)
 
-| Offset | Field |
+| Offset | Field (as read, unverified) |
 |--------|-------|
 | 0 | `class_flag` — selects renderer path (land, water layer, river, hills, mountains) |
 | 1–2 | Pedia preview width (u16 LE) for terrain types that use the sample grid |
 | 3–4 | Pedia preview height (u16 LE) |
 | 5–51 | Additional compositing / palette / layout bytes (not fully decoded yet) |
 
-Known `class_flag` values:
+Byte 0 as extracted:
 
 | Index | PEDIA name | `class_flag` |
 |-------|------------|--------------|
-| 0–5, 8–26 | Land / ocean / sea | `0` |
-| 27 | Mountains | `255` |
-| 28 | Hills | `7` |
+| 2 / 3 / 4 | Plains / Prairie / Grassland | `0x54` / `0x72` / `0x01` |
+| 6 / 7 | Marsh / Swamp | `0xff` / `0x0e` |
+| 9 | Scrub forest | `0x47` |
+| 27 / 28 | Mountains / Hills | `0xff` / `0x07` |
+| others | | `0` |
 
-### `tile_display` (14 bytes / display type)
-
-Indexed by tile display type (`0x3146`), not the raw `.MP` terrain index.
-
-| Offset | DS alias | Meaning |
-|--------|----------|---------|
-| 0 | `0x5234` | Base layer hint |
-| 1 | `0x5235` | PHYS0 sprite group A (`× 8` → atlas index) |
-| 2 | `0x5236` | PHYS0 sprite group B (`× 8`) |
-| 3 | `0x5237` | Max overlay layers for this display type |
-
-**Note:** In the on-disk EXE, only display types **0–9** are zero-initialized; types **10+** overlap unrelated read-only data (MS C runtime strings). The DOS game likely extends or overwrites this table at runtime. Types 0–9 are stored as extracted; do not treat file bytes at indices ≥ 10 as authoritative without further reverse engineering.
-
-### `river_transition` (28 bytes)
-
-Used in unpacked VICEROY case `0x10` via `table[overlay_nibble + 0x54de]` to pick
-river PHYS0 sprites (range 1–39).
-
-### `feature_sprite_bases_a` / `_b`
-
-Small base-index tables immediately after the river transition table:
-
-- A: `{12, 8, 22, 5}`
-- B: `{17, 21, 25, 65}`
-
-### `connectivity_transition` (21 bytes)
-
-Candidate for coastline / connectivity variant selection (sprites in the 112–139 band).
-**Not used** for world-map coasts — those follow `MAPEDIT.EXE` (`FUN_1a47_0932`); see
-[decomp_inventory.md](decomp_inventory.md). Retained as a VICEROY candidate for unrelated
-texture/connectivity work.
-
-### OpenCol compositor usage
-
-| Table | Wired? | Notes |
-|-------|--------|-------|
-| `connectivity_transition` | no | World coasts use MAPEDIT; table unused |
-| `feature_sprite_bases_b[3]` | no | Was tundra canopy 65; map uses isolated forest **64** |
-| `viceroy_forest_phys0_sprite()` | pedia | Fixed per-type preview; world map uses MAPEDIT `64+mask` |
-| `river_transition` | no | Indexed by runtime `0x314c` in UI/unit paths; not map connectivity |
-| `feature_sprite_bases_a` | no | World hills/mountains use MAPEDIT `32/48+mask` |
-| `terrain_meta` class | pedia | Mountains/hills class flags |
+pedia.c ORs `class_flag` with its own index tests (`== 27` → mountain PHYS0 36,
+`== 28` → hill 48), so Marsh (`0xff`) also gets the mountain sprite in its
+`PediaTerrainPreview.phys0_sprites` list (read only by `tests/unit/test_pedia.c`; no
+renderer uses it).
 
 ## References in decomp exports
 
 Prefer `original_sources_decompiled/viceroy_unpacked.c` for overlay-resident code.
 See [decomp_inventory.md](decomp_inventory.md).
 
-- `FUN_157e_*` — reads `0x5235` / `0x5236`, multiplies by 8 for **unit** PHYS0
-  sprite index (not world-map coast composition)
-- `FUN_112b_010e` (and similar) — `0x54de` river table with unit records
-- case `0x10` — `0x54de` river table, `0x543f` terrain class checks
-- `FUN_1427_065a` — reads `0x5234` / `0x5237` for layer counts
-- `FUN_6a9f_0118` — map viewport tile loop uses `0xa576` / `0x848`, not these
-  PHYS0 coast tables
 - `FUN_15eb_06d2` — Colonizopedia mini-map shares world-map drawing entry points

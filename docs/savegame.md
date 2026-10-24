@@ -179,9 +179,9 @@ Advanced by `turn_end()` in `src/core/turn.c` (and written back on Save):
 | Field | Behavior |
 |-------|----------|
 | `head.turn` / `year` / `autumn` | `@TIMECHANGE` calendar |
-| Colony `stock[]`, `hammers`, `building_in_production` | Simplified production |
+| Colony `stock[]`, `hammers`, `building_in_production` | Colony production |
 | `nation[human].current_crosses` / `needed_crosses` | Crosses → dock immigrant |
-| `nation[human].liberty_bells_*` | Bells counters (FF election stub) |
+| `nation[human].liberty_bells_*` | FF bell pool / this-turn bells (save_format_map.md Nation) |
 | Unit `moves` (via runtime MP) | Refreshed per nation phase |
 
 Autosave (when `game_options.autosave` is set): slot **9** every turn, slot **8** when entering a decade Spring year.
@@ -192,7 +192,7 @@ The directory is created empty on startup if missing. Override with `--save-dir`
 
 Manual Save/Load (map menu, title **LOAD**, **S**/**L**) opens a wood slot popup:
 - **Save** lists slots **0–7** (`COLONY00`–`COLONY07`); confirming overwrites the chosen slot.
-- **Load** lists slots **0–9**; empty slots are not selectable. Slots 8/9 get **no autosave label** — DOS's own row builder (`FUN_7562_0052`) formats every occupied slot the same way and has no notion of an autosave slot (this line claimed otherwise until 2026-09-09, smell audit #82; nothing ever implemented it).
+- **Load** lists slots **0–9**; empty slots are not selectable. Slots 8/9 get **no autosave label** — DOS's own row builder (`FUN_7562_0052`) formats every occupied slot the same way and has no notion of an autosave slot.
 
 Slot rows show `N. Empty` or `N. <leader>  <year>` from a prefix-only probe (`savegame_probe_col1_slot`); a trailing `*` marks a save carrying the port extension block (state DOS cannot load and drops on re-save). That probe runs the same header check DOS's lister does — `FUN_7562_0052` → `FUN_2a1f_0d04` → `FUN_75c2_0840`, i.e. `col1_save_validate_head`: signature, `0x1A` EOF marker and save version (map size skipped, as in the DOS probe path). A file that fails it lists as `(EMPTY)` rather than as a selectable slot (smell audit #82).
 If the chosen Load file is missing under the save dir, Load falls back to `original_saves/COLONY##.SAV` (repo samples).
@@ -206,7 +206,7 @@ via `units_set_occupancy_map` on spawn/move/despawn.
 
 ### Remaining OpenCol→DOS gaps (known)
 
-Full opaque-field inventory and RE phases: **[save_format_map.md](save_format_map.md)**.
+Full opaque-field inventory: **[save_format_map.md](save_format_map.md)**.
 
 **P6 bridge rebuild (done for playable templates):**
 
@@ -220,25 +220,22 @@ Full opaque-field inventory and RE phases: **[save_format_map.md](save_format_ma
   Col1-only AI timers preserved by xy match
 - Unit `vis_mask` (low nibble; DOS fog draw is `(0x10 << viewer) & vis_mask`):
   capture round-trips the live `col1_vis_mask & 0x0f` for **every** unit, then
-  ORs in the owner's own bit for Euro units on the map — so a MAP euro record
-  always carries its owner bit (3004/3004 in the fixtures) and a **native**
-  record keeps whatever nibble it had (492 of 3074 on-map native records in the
-  fixtures carry a nonzero nibble, values 1/2/4/8 and combinations: DOS really
-  does track which Europeans have seen a given brave). The only records forced
-  to 0 are the Europe sentinels (`x`/`y` >= 200 — no owner bit there either),
-  per the 2026-09-03 french-campaign survey. **Do not "fix" this to zero
-  natives** — the older wording here claimed natives export 0, which the code
-  never did and the fixtures contradict (corrected 2026-09-10).
+  ORs in the owner's own bit for non-crown Euro units on the map — so a MAP
+  euro record carries its owner bit (3004/3004 in the fixtures), while freshly
+  landed REF units keep the target bit only (`FUN_43f7_0982` raw 74142/74210).
+  A **native** record keeps whatever nibble it had (492 of 3074 on-map native
+  records in the fixtures carry a nonzero nibble, values 1/2/4/8 and
+  combinations: DOS really does track which Europeans have seen a given
+  brave). **Do not "fix" this to zero natives.** Off-map records (`x`/`y` >=
+  200) get no owner bit and export their live mask: 0 for most (a hull
+  sailing for Europe is cleared, dock rows the port writes are 0), but a hull
+  parked for repair keeps its map mask (crown Man-O-War at 236,236 saves
+  vis 9 in the DOSBox independence trace).
   Ship `holds_occupied` =
   goods only — passengers use `transport_chain` (fixes fake food stacks).
-  **2026-08-25**: the *import* side (`col1_bridge_apply`) wasn't honoring
-  this on load — it copied all 6 `cargo_hold[]`/`cargo_item_*[]` slots
-  whenever a slot's byte looked like a plausible amount, ignoring
-  `holds_occupied`, so a ship that had unloaded (holds_occupied back to 0)
-  but still carried stale nonzero bytes in the trailing array slots showed
-  phantom goods. Fixed to only import the first `holds_occupied` slots
-  (see `docs/report_screens.md`'s Naval report section for how this
-  surfaced).
+  Import (`col1_bridge_apply`) reads only the first `holds_occupied` cargo
+  slots: trailing `cargo_hold[]` bytes can be stale (see
+  `docs/report_screens.md` "`col1_bridge_apply` transport-chain bugs").
 - Boarded euros: `origin=0xff` (`home_tribe_id=-1`), pioneer `cargo_hold[5]=100`
   tools; Discoverer English pioneer profession `28` (Hardy is French-only).
   Ship/wagon `profession=0` (`FUN_1427_06b4`); never `28` — ships must look like
@@ -247,19 +244,17 @@ Full opaque-field inventory and RE phases: **[save_format_map.md](save_format_ma
   `trade_route[]` slot (`FUN_1427_0f64`/`0f74`), high nibble = stop index
   (`FUN_1427_0f8e`/`0fa0`), which `FUN_479b_0bd0` reads to bind the route before
   servicing a stop. The port unpacks it into `follow_unit_id` / `col1_counter16`
-  on import and repacks it on export (2026-09-04; before that the slot was never
-  written to the file and every reload dropped the unit off its route). Idle on-map fleets export `goto==xy`; ships/aboard export `moves`
+  on import and repacks it on export. Idle on-map fleets export `goto==xy`; ships/aboard export `moves`
   as **moves_spent** (0 when full MP). Stale landfall with `orders=0` made DOS
   peel the caravel out of `transport_chain` (sidebar unloaded, land units left
-  behind). 2026-08-29: `moves` is DOS spent thirds for every Euro unit —
+  behind). `moves` is DOS spent thirds for every Euro unit —
   import `moves = max_mp − moves`, export `max_mp − moves`, with
   exhausted land units exporting their full allotment (DOS clears the
   `DS:0x3149` spent bytes once at the top of a calendar tick — [`year_loop.c`](../original_sources_annotated/turn/year_loop.c):140 —
   never at a nation's day end; DOS mid-turn saves like COLONY02.SAV show acted
-  AI land units at full-or-overspent thirds. The earlier "export 0" rule came
-  from AI-turn goldens captured after the day ended and refunded MP on reload,
-  2026-09-09. Sentry/Fortified keep real MP overnight since port_bugs.md #715,
-  so a zero is always a spend). Natives still round-trip the
+  AI land units at full-or-overspent thirds, so never export 0 for a spent
+  unit. Sentry/Fortified keep real MP overnight (port_bugs.md #715), so a
+  zero is always a spend). Natives still round-trip the
   literal byte (the Brave engine keeps DOS spent in `moves`, max 3).
   Euro unit tiles stamp `map.path` / layer3 **owner** high nibble (`FUN_1427_02ca`
   / `FUN_137f_0228`) on spawn/move and capture — unowned ocean under a human
@@ -272,20 +267,15 @@ Full opaque-field inventory and RE phases: **[save_format_map.md](save_format_ma
   `named_new_world` is clear, `game_try_prompt_landho`) and sets
   `discovery_of_the_new_world` + `named_new_world` on confirm; capture, load,
   select and Europe arrival never set them (port_bugs.md #1178).
-- **Human Europe ships (2026-08-29, P10.1).** The Europe screen's
+- **Human Europe ships.** The Europe screen's
   `harbor[]` / `expected[]` / `bound[]` lists are the only home of a human
-  ship once it sails for Europe (`units_despawn_ship_with_cargo`), so capture
-  used to drop them from the unit list. DOS keeps them as unit records on
-  the nation's Europe sentinel diagonal (`FUN_48d3_007a` sail-to-Europe,
-  `0346` sail-from-Europe, `03d0` per-turn tick). The diagonal is a **chain
-  of lanes**, one hop per Atlantic tick (corrected 2026-09-18, port_bugs.md #489):
-  eastbound `244+n` → `240+n` → `236+n` = **the Europe port**, then westbound
-  `232+n` → `228+n` → `224+n`, from which `FUN_48d3_064e` → `048e` places the
-  hull on the map. `FUN_48d3_06ba` runs the two hops of each direction for the
-  active nation only, so `228+n` is "lands at the very next tick", not "in
-  port" — which is why the new-game fleet (`FUN_75c2_235c`, raw 121612-121646)
-  is created at `228+n` with counter 0, and why `240+n` (previously an
-  "unresolved fifth family") is simply one hop short of Europe. Port mapping:
+  ship once it sails for Europe (`units_despawn_ship_with_cargo`); DOS keeps
+  them as unit records on the nation's Europe sentinel diagonal, a **chain of
+  lanes**, one hop per Atlantic tick (DOS derivation: save_format_map.md Unit
+  `x`/`y` row, port_bugs.md #489): `236+n` = the Europe port, `228+n` = "lands
+  at the very next tick" (the new-game fleet, `FUN_75c2_235c` raw
+  121612-121646, starts there with counter 0), `240+n` = one hop short of
+  Europe. Port mapping:
   `236+n` harbor, `228+n` Bound (`goto` = landfall), `244+n` Expected
   (`goto` = exit tile); unit `+0x16` (`col1_counter16`) = voyage
   turns left; passengers chained `pax0→…→ship` with the same x/y/goto/turns,
@@ -299,9 +289,8 @@ Full opaque-field inventory and RE phases: **[save_format_map.md](save_format_ma
   coords stays the old harbor path (passengers to the docks, matching the
   OpenCol arrival model). Guarded by `unit_col1_save`'s recapture block
   (colony/unit counts survive apply→capture on all 19 fixtures; COLONY04
-  Expected lane, COLONY06 harbor + synthetic Bound round-trip).
-  **2026-09-03:** user loaded an OpenCol-written save with a ship at sea in DOS;
-  it arrived.
+  Expected lane, COLONY06 harbor + synthetic Bound round-trip). User-verified
+  in DOS: a ship at sea in an OpenCol-written save arrives.
 - **One tile chain per Europe lane (port_bugs.md #1158, 2026-10-23).** DOS finds
   a lane's units with FUN_1427_005c (the first record on the tile, then
   +0x315c to the chain's end) and walks +0x315e back, so a record on an
@@ -314,17 +303,14 @@ Full opaque-field inventory and RE phases: **[save_format_map.md](save_format_ma
   Capture now writes the human's dock rows and harbor / Bound / Expected hulls
   before the chain pass, which links each lane as one chain by stack key:
   dock[0] newest, then the rest of the dock, then the harbor hulls (harbor[0]
-  topmost), transit hulls in record order. Before this a harbor hull was its
-  own chain and a second transit hull on a lane another chain: DOS showed
-  "No Ships In Port" with dockers present and would not have moved the second
-  hull. Import reads the dock and harbor order from the same walk, and the
-  dock unit's +0x314c board flag (1 board, 0 "Don't get on next ship";
-  FUN_1427_10be raw 8658-8664 boards a dock unit only on 1). DOSBox-X check
-  2026-10-23: `tests-automated-regression/europe_unequip_units/output.sav`
-  shows the port's dock order [Colonist, Scout, Soldier, Scout, Colonist,
-  Colonist, Jesuit Missionary] and the Caravel in port; the pre-fix output
-  showed the dock reversed and "No Ships In Port". Port saves written before
-  the fix load with the dock in DOS's (reversed) order.
+  topmost), transit hulls in record order. A hull on its own segment is
+  invisible to DOS ("No Ships In Port" with dockers present, a second transit
+  hull never moved). Import reads the dock and harbor order from the same
+  walk, and the dock unit's +0x314c board flag (1 board, 0 "Don't get on next
+  ship"; FUN_1427_10be raw 8658-8664 boards a dock unit only on 1). DOSBox-X
+  checked on `tests-automated-regression/europe_unequip_units/output.sav`
+  (dock order and Caravel in port match). Port saves written before #1158
+  load with the dock in DOS's (reversed) order.
 - **Colony cap** raised 32 → 48 (`COLONIZE_COLONIES_MAX`): DOS's founding
   gate is `colony_count < 0x30`; five 33-colony lategame fixtures were
   silently truncated to 32 on apply.
@@ -343,10 +329,6 @@ cleared. Newgame template smoke checks density, blank census, `vis_mask`,
 discovery sync, fleet `holds_occupied` / passenger `origin`+tools / ship
 `profession=0` / native vis / idle fleet `goto==xy` / `moves` as spent /
 ship-tile path owner nibble.
-Archived `unowned units all visible.sav` was the DOS repro for the
-vis/holds/discovery bugs; `loaded units still wrong.sav` for the unloaded
-caravel / peeled transport_chain (pre-fix: ship `profession=28`,
-`moves=4` as left, stale landfall `goto`, then `path=fx` under fleet).
 
 ### Verified fixtures
 
@@ -356,26 +338,10 @@ Codec byte-identical round-trip + import via `col1_bridge_apply`:
 Col1 `.SAV` fixture in the repo (12 lategame/TURN fixtures promoted to
 `byte_identical=true` in `unit_col1_save`'s `k_fixtures` table).
 
-**Phase 5 codec drift — resolved (2026-08-24, W1.5).** A 2026-08-22 pass
-found lategame `valid-lategame-saves/COLONY{00–08,10}.SAV` and AI
-`TURN1`/`TURN5`–`TURN7` not byte-identical on re-encode and documented it
-here as open drift. Unnoticed at the time: the *same-day* commit `753662d`
-"Fix FF + I work" (2026-08-22, 42 minutes after the drift note was written)
-had already fixed it — `founding_fathers_stash_pools_into_col1`/
-`_restore_col1_last_turn` (both since retired: the FF bell pool now lives in
-col1's `liberty_bells_pool`, so there is nothing to stash) gained a
-`saved_pad21` parameter that stashes and
-restores nation `unknown21_pad` (the `FF_POOL_STASH_MARKER` byte) alongside
-`liberty_bells_last_turn`; before that fix, a save write that stashed the FF
-pool into `liberty_bells_last_turn` left `unknown21_pad` un-restored, so a
-second write of the same in-memory save produced different bytes there.
-Only the doc note calling it "drift" survived uncorrected. W1.5 re-verified
-with a full-range byte diff (not just first-offset) across all 19 fixtures
-(2 starters + 10 lategame + 7 TURN) plus `mapgen/SEED100.SAV` and
-`tests-save-misc/unit flags error.sav`: zero differing bytes anywhere.
-`unit_col1_save`'s `report_codec_roundtrip_diff` was also upgraded
-same-pass to print every contiguous diff range (was: first byte only) —
-kept as the tool for any future fixture that does regress.
+Full-range byte diff across all 19 fixtures (plus `mapgen/SEED100.SAV` and
+`tests-save-misc/unit flags error.sav`): zero differing bytes. A regressing
+fixture prints every contiguous diff range (`report_codec_roundtrip_diff`).
+The old "Phase 5 drift" story: [archive/savegame_history_2026-10-24.md](archive/savegame_history_2026-10-24.md).
 
 Mapped-field checks on starters + lategame (occupancy, `colony_counts` vs live
 colonies, warehouse/capitol/depletion/timer bounds, `tiles[8..19]==0xff`,
@@ -397,7 +363,7 @@ exactly. `all_unit_counts` / `unit_type_counts` track euro units but can lag
 
 ## References
 
-- [save_format_map.md](save_format_map.md) — field atlas + RE roadmap (P0–P6 Done)
+- [save_format_map.md](save_format_map.md) — field atlas (RE phases P0–P6 all Done)
 - [nawagers/Colonization-SAV-files `Format.md`](https://github.com/nawagers/Colonization-SAV-files) (upstream of hegemogy fork)
 - [hegemogy/viceroy `savegame.h`](https://github.com/hegemogy/viceroy)
 - [pavelbel/smcol_saves_utility](https://github.com/pavelbel/smcol_saves_utility) (`smcol_sav_struct.json`, `supplemental-info.md`) — community oracle; see atlas **Smcol audit** / **Nawagers audit**

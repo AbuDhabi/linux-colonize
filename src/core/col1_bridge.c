@@ -2010,7 +2010,7 @@ COLONIZE_INTERNAL Col1StageStatus col1_bridge_apply_boarding(Col1ApplyCtx* ctx) 
    * catch every possible false positive (a Sentried land unit simply
    * standing at a dock, not boarded, would still slip through), but it's a
    * real, low-risk, well-evidenced fix for the concrete case seen — see
-   * docs/report_screens.md's Naval report section.
+   * docs/report_screens.md "`col1_bridge_apply` transport-chain bugs".
    *
    * Board in chain order, head first, so cargo_ids[] ends with the hull's
    * `prev` (the nearest link) — the order the capture below writes back and

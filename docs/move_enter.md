@@ -53,7 +53,7 @@ Status: **Done** / **Partial** / **Missing** / **PARKED**.
 | Any | Same nation | Stack | Stack | Done |
 | Land combat (`5236≠0` / attack>0) | Foreign land unit | Fight → `5fef_1b0e` | `157e` strength + combat analysis | Partial |
 | Land non-combat (`5236==0`) | Foreign unit | Bounce (+ optional dialog) | Bounce via probe | Done |
-| Land | Foreign unit at peace | Diplo/war UI tails | Bounce if `!ai_diplo_at_war` | Partial |
+| Combat unit | Foreign Euro unit or colony at peace | Treaty bit `0x40` → @HAVETREATY (Cancel Action / Break Treaty); no treaty → the attack proceeds and war is declared; a Privateer on either side asks nothing (raw 75528-75560) | `ai_contact_try_euro_attack_confirm` (human, `game_loop_orders.c`) | Done |
 | Ship | Foreign ship | Naval fight path | Naval `157e_004a` + analysis | Done |
 | Ship | Foreign land | Block / landfall | Block / landfall | Done |
 | Any | Empty | Enter | Enter | Done |
@@ -69,7 +69,7 @@ Status: **Done** / **Partial** / **Missing** / **PARKED**.
 | Land | Foreign Euro + defender | Combat | Combat | Partial |
 | Land | Empty foreign Euro | Capture / Revere | Capture-on-enter + Revere | Done (thin) |
 | Land settler | Native village (no colony) | Illegal squat | Deny | Done |
-| Missionary / combatish | Native village | Meet / raid | Meet from adjacent (stay put): real `@ACTIONS` menu per unit type (P8.8); combatish Attack Village commits the move; the invented Attack/Leave warn survives only as the unmet-tribe fallback | Done (`2820` haggle / VGA PARKED) |
+| Missionary / combatish | Native village | Meet / raid | Meet from adjacent (stay put): real `@ACTIONS` menu per unit type, met or not (P8.8; the invented unmet-tribe Attack/Leave warn is deleted, port_bugs.md #542); combatish Attack Village commits the move; `2820` trade + haggle in `ai_contact_trade.c` | Done |
 | Wagon | Colony tile | Exhaust MP (`465b:08f8`) | Exhaust on enter | Done |
 
 ---
@@ -88,9 +88,7 @@ Status: **Done** / **Partial** / **Missing** / **PARKED**.
 
 ## PARKED (not this track)
 
-Village deep `2820` VGA trade, full `465b` foreign diplo/war UI, Euro mid-planner
-`20e6`, VGA-identical combat chrome. Coastal fort bit7 + Drydock Done; village
-`4528` is fully dispatched (human `@ACTIONS` menu P8.8 + AI arm, 2026-08-27/28) — [combat.md](combat.md).
+VGA-identical combat chrome — [combat.md](combat.md).
 
 **Playable combat bar Done** — see [combat.md](combat.md) (ransom CHOICE, `@CAPTURED*`/
 `@BURNED*`, unit capture / seizure popups, attack-exhausts-MP).
@@ -100,7 +98,7 @@ Village deep `2820` VGA trade, full `465b` foreign diplo/war UI, Euro mid-planne
 - [combat.md](combat.md) — odds, peels, promote/demote, coastal fort
 - [manual_gap.md](manual_gap.md) — Units / Combat rows
 - [assets.md](assets.md) — map keys, landfall note
-- [port_plan.md](port_plan.md) — AI move / combat
+- [ai_euro_logic_map.yaml](ai_euro_logic_map.yaml) — AI move / combat flow
 - [`original_sources_annotated/ai/move_spent.c`](../original_sources_annotated/ai/move_spent.c)
 
 ## Shore crossing spends everything — 2026-09-04
@@ -169,11 +167,9 @@ port's `units_sight_radius` already matched; the citation now names the asm.
 **all** of these hold: destination terrain class `0x1a` (high seas), the
 ship's *current* tile is also `0x1a`, the step is eastward
 (`ship.x < dest.x`), and the ship's order (`+0x314c`) is neither 3 (Go To)
-nor 2 (Trade Route). The port tested the destination alone, so the first
-step from ocean onto the lane was denied, and because `units_set_goto`
-validates with the same probe *before* the order is set, a Go To aimed at a
-lane tile was refused too (port_bugs.md: "I can't move a ship onto a sea lane
-either way").
+nor 2 (Trade Route). Testing the destination alone would deny the first step
+from ocean onto the lane, and (`units_set_goto` validates with the same probe
+*before* the order is set) every Go To aimed at a lane tile.
 
 Arrival behaviour: a **Go To** whose destination is a lane tile sails the
 ship to Europe when it reaches **that destination tile**

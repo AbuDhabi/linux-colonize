@@ -22,7 +22,7 @@ DOS-literal write would be worse in the port's data model.
 
 ### #665 — REF demote runs the equip sync
 The demote arm calls `units_sync_equip_after_type_change` after the type write
-(`units.c` ~3220); DOS `FUN_5fef_0352` raw 99437-99464 writes only `+0x3146`.
+(`units_combat.c` ~1070); DOS `FUN_5fef_0352` raw 99437-99464 writes only `+0x3146`.
 Harmless for Cavalry->Regulars (sprite and name derive from type); required by
 the port's armed-colonist body model for Dragoons->Soldiers. Leave unless kit
 bytes ever feed a REF display.
@@ -57,10 +57,11 @@ and threat lines (`FUN_49dd_0424` raw 501/516), OVL10 native-village panel
 `FUN_38fd_1bd2` raw 60109 (no port counterpart found; `europe_dock_caption` is the
 separate 3694 site), 153e USA talk variants (asm 149562/149586/150456; see ai_diplo.c
 "USA text variants"), unresolved popup at OVL12 asm 122653. If any is ever ported use
-`reports_nation_adjective_woi` (09a4) / `reports_nation_plural_woi` (0a1a). The
-colony-screen tribal-land demand `FUN_2f2b_2f3e` (2f2b:326a) lives in colony_screen_*
-(other agent) and was not touched. Port sites that exist (combat, ai_diplo talk,
-ai_contact) already route through the WoI accessors.
+`reports_nation_adjective_woi` (09a4) / `reports_nation_plural_woi` (0a1a). Not one
+of them: the colony-screen tribal-land demand `FUN_2f2b_2f3e` (2f2b:326a), ported as
+`GAME_INDIAN_LAND_PLOT` (`game_dialogs.c`), passes 09a4 the claiming tribe's nation,
+and `FUN_15b3_01e0` has no WoI arm above nation 3. Port sites that exist (combat,
+ai_diplo talk, ai_contact) already route through the WoI accessors.
 
 ### #1160 — Sea-route create wizard offers Europe at the second stop
 DOS's create wizard asks both destination pickers with unit -1 (ndisasm
@@ -89,7 +90,9 @@ across all three decompiled files. The control is the `@LEVELS` table
 (`DS:0x5230`), loaded a few lines earlier by the same function, which *is* read
 back repeatedly in `viceroy_overlays.c` — so the sweep does surface real
 consumers. Leads checked and empty: all ~25 `FUN_281f_030c` (alarm read) call
-sites, and `FUN_281f_0a60`, which is a two-line thunk unrelated to NAMES.TXT.
+sites, and `FUN_281f_0a60`, which is a two-line thunk unrelated to NAMES.TXT. So
+either the display code was cut before release, or its base address is computed
+and never appears as a literal.
 The port's own alarm displays stay as they are: the F9 Indian Adviser's
 `@LEVELS` tech word plus the `113 + alarm quartile` chief portrait
 (`reports_indian_build_rows`, DOS-cited `3f41:0522..05d2`), the map sidebar
@@ -113,10 +116,9 @@ which screen. Until then do not invent a threshold table — 25 gradations only
 - @TRAINFAIL stale %STRING0: moved to [dos_bugs.md](dos_bugs.md) DB-11
   (2026-10-22).
 
-### #915(c) — 5952 indoor pass `avail` carry-over
-Seed `0x7fff` at `ai_euro_colony_jobs.c` ~1015 still needs a live capture.
-Parts (a) and (b) of the original #915 bundle were REFUTED — see
-[bugs_fixed_pending.md](archive/bugs_fixed_pending.md).
+### #915(c) — moved to tolerated_dos_bugs_ai.md TB-17
+The 5952 indoor pass `avail` carry-over and its unverified 0x7fff seed live in
+[tolerated_dos_bugs_ai.md](tolerated_dos_bugs_ai.md) TB-17.
 
 ### #974 — F7 Naval: Europe-lane ships are EuropeScreen rows, not unit rows
 DOS `FUN_3f41_220c` has no Europe special case: a ship waiting in port or
@@ -145,12 +147,6 @@ an off-map sentinel coordinate. On-map it is settled and the port matches —
 water, which is exactly `reports_naval_location`. Settling the off-map case
 needs a live DOS capture of F7 with a ship in port and one mid-ocean; until
 then, re-plumbing the lanes would trade a working display for a guess.
-
-Two claims filed with the original #974 were resolved rather than accepted:
-the Location/Destination *formats* were called port inventions and are not
-(golden-confirmed above), and the Destination order test is now the DOS triple
-3 / 0xb / 2 rather than the shared `units_orders_follow_goto`, which also
-accepts 12 (AI_MOVE) — fixed 2026-09-28 with [#973](archive/bugs_fixed_pending.md).
 
 ### #1018 — Europe buy with insufficient gold: partial fill vs outright reject
 `FUN_38fd_1fa2`'s committed-buy arm (viceroy_unpacked.c raw 60377-60503, `param_4 != 0`)

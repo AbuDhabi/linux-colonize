@@ -4,15 +4,16 @@ Design/rationale/DOS-layout prose moved out of `src/core/europe.h` comment block
 
 ## EUROPE_DOCK_MAX
 
-2026-10-05 (#1071/#1072): EUROPE_DOCK_MAX and EUROPE_HARBOR_MAX are now 1024 each (static arrays; DOS unit cap is 300 total, so units_spawn_room / FUN_1427_06b4 binds first; only the settings.json unlimited_units mode could exceed it, and 4096 per lane made EuropeScreen ~4MB, overflowing stack-allocated test screens). The 32 / 8 port caps are gone. Historical rationale follows.
+EUROPE_DOCK_MAX and EUROPE_HARBOR_MAX are 1024 each (static arrays; the DOS
+300-unit cap, units_spawn_room / FUN_1427_06b4, binds first; only the
+settings.json unlimited_units mode could exceed it, and 4096 per lane made
+EuropeScreen ~4MB, overflowing stack-allocated test screens; #1071/#1072).
 
 Dock queue depth. NOT the drawn-slot count (that is EUROPE_DOCK_ROW0 +
 EUROPE_DOCK_ROW1 = 8, see europe_dock_slot_pos): DOS keeps the whole queue
 and simply stops blitting past tier 1, so a real save can carry far more
-than eight colonists waiting in Europe. Survey of the French originals
-(nation 1 = human, dock lane 236+n = 237,237): COLONY02 20 units,
-COLONY03 18, COLONY04 / COLONY09 13 each. 8 truncated every one of them.
-Cite: smell audit 2026-09-10 F3.
+than eight colonists waiting in Europe (French originals, dock lane 237,237:
+COLONY02 20 units, COLONY03 18, COLONY04 / COLONY09 13 each).
 
 ## EUROPE_DOCK_X dock layout
 
@@ -38,11 +39,10 @@ type imply the rest.
 Per-passenger Treasure gold for Europe cash-in (0 = unknown / not treasure).
 Source: the DOS unit value byte `+0x315b` = COL1 `profession` = gold/100
 (units_treasure_value_gold), captured by
-game_loop.c's game_europe_capture_pax_treasure_gold and filled onto the
+game_loop_eot.c's game_europe_capture_pax_treasure_gold and filled onto the
 newest Expected slot by game_europe_fill_expected_treasure_gold on both
-H/sail-to-Europe and Return-to-Europe paths (2026-08 — stale "does not
-fill this yet" wording removed; cash-in itself is europe_cash_treasure /
-europe_cash_treasure_passengers below).
+H/sail-to-Europe and Return-to-Europe paths. Cash-in itself is
+europe_cash_treasure / europe_cash_treasure_passengers below.
 
 ## EuropeHarborShip departed_this_turn
 
@@ -140,18 +140,14 @@ NEW WORLD. Reset by every europe_tick_voyages call, like open_on_dock.
 ## EuropeScreen boycott_bitmap
 
 RENDER MIRROR of the human nation's ColonizeCol1Nation.boycott_bitmap
-(nation+0x20) — refreshed each frame the Europe screen renders, and NOT a
-source of truth: ai_king.c's tea party and ai_diplo.c's wartime embargo
-write the nation word, so this copy is stale for anything that runs
-without a render in between (smell audit G6 — an EOT trade-route unload
-sold cargo the same turn's tea party had just boycotted). Every trade
-gate now goes through europe_cargo_boycotted_ex with the save in hand;
-what is left reading this field is Europe-screen chrome (market strip
-colour, @ARMOPTIONS row visibility) and callers with no save bound
-(tests). Bit c set = cargo type c blocked from Europe trade until the
-boycott is lifted. Source: fandom Boycott (Col) — "goods blocked in
-Europe until penalty paid or Fugger"; Custom House bypasses this
-(europe_custom_house_autosell intentionally does not check it).
+(nation+0x20), refreshed each frame the Europe screen renders, and not a
+source of truth (the tea party and ai_diplo.c's wartime embargo write the
+nation word) — see
+[europe_cargo_boycotted_ex](#europe_cargo_boycotted_ex) for the real word and
+why trade gates must not read this copy. Its readers are Europe-screen chrome
+(market strip colour, @ARMOPTIONS row visibility) and callers with no save
+bound (tests). Bit c set = cargo type c blocked from Europe trade; the Custom
+House bypasses it (europe_custom_house_autosell does not check it).
 
 ## EuropeScreen bar_event
 
@@ -185,8 +181,7 @@ harbor ship's `exit_x`.
 
 ## europe_compute_recruit_passage
 
-DOS `FUN_38fd_4884` real Recruit passage formula (was a linear
-start-100/+16-per-recruit placeholder — see manual_gap.md). base =
+DOS `FUN_38fd_4884` Recruit passage formula. base =
 (recruit_count+difficulty+7)*20; floor = max(base/5,100); discount =
 (base-floor)*current_crosses / -(needed_crosses+1) [`FUN_1d1d_0ec6`
 signed division; the +1 is the DOS divide-by-zero guard when
@@ -284,7 +279,7 @@ europe_disembark_passengers_to_dock — DOS sends an arrival from the New World
 to the oldest end of the dock lane chain (FUN_281f_08c6 = FUN_1427_03a0 after
 the FUN_48d3_03d0 lane hop), so it queues behind everyone already there.
 Colonists *created* in Europe go the other way, onto slot 0, through
-europe_dock_insert_front (europe_internal.h). port_bugs.md #999. Returns false if
+europe_dock_insert_front. port_bugs.md #999. Returns false if
 the dock is full.
 
 ## europe_dock_mirror_unit_of
@@ -301,9 +296,6 @@ unbound and answers -1. Call it BEFORE changing the row's `dos_type` (the bind
 matches on it). europe_apply_dock_menu_row_ex retypes and re-kits the paired
 unit (DOS writes only the type byte +0x3146, so moves = full allotment) and
 europe_board_sentry_dockers disbands it via europe_dock_remove_mirror_unit.
-Before this, the first same-profession unit was retyped, and
-europe_equip_units saved [Soldier Scout Pioneer Missionary Dragoon Dragoon] as
-[Dragoon Dragoon Pioneer Missionary Soldier Scout] after a reload.
 
 Col1 interop (port_bugs.md #1158): the dock is DOS's lane-236+n tile chain,
 drawn newest first (FUN_38fd_15aa from FUN_281f_07e0's chain end, walking
@@ -396,9 +388,7 @@ out-of-range tag falls back to Colonists (port_bugs.md #452).
 
 Left-to-right, top-to-bottom icon flow inside an Expected / Bound / Loading
 water box (ships, each followed by its passengers). One layout for the
-hit test and the renderer so a click lands on the icon that was drawn
-(duplication audit round 2: the hit test used to skip passengers and so
-disagreed with the draw once any ship carried one).
+hit test and the renderer so a click lands on the icon that was drawn.
 
 ## europe_dock_display_type_index
 
@@ -484,11 +474,8 @@ europe_train, europe_purchase, europe_cash_treasure, europe_cheat_add_gold —
 move `eu->gold` through europe_purse_move, which restamps the bound nation's
 record whenever a live save is registered (`g_europe_live_save`, port_bugs.md
 #1096); without one the record lags until something writes through again.
-All five are reachable from the Europe screen only, which is why the port
-already open-coded this stamp at four game_loop sites; this is that one
-write, named, so the invariant has a single home. Everything else must
-use europe_nation_gold_add instead: a stamp is an absolute copy and will
-discard a credit the record took on its own.
+Everything else must use europe_nation_gold_add instead: a stamp is an
+absolute copy and will discard a credit the record took on its own.
 
 ## europe_cargo_boycotted_ex
 
@@ -620,10 +607,9 @@ Cite: viceroy_unpacked.c FUN_38fd_0058; turn/europe_nation_eot.md.
 
 ## europe_tick_immigration_pressure_w design
 
-FUN_38fd_584a / 5e52 phases 4–5: needed_crosses = score; idle +2 until first
-dock immigrant; spawn when current > needed (+0x2e/+0x30). Returns 1 if spawned.
-Caller adds church crosses to current_crosses first.
-Cite: europe_nation_eot.md; TURN1–7 goldens.
+FUN_38fd_584a / 5e52 phases 4–5; the meter rules are under
+[EuropeScreen current_crosses](#europescreen-current_crosses). Returns 1 if
+spawned. Caller adds church crosses to current_crosses first.
 
 ## europe_nation_immigration_tick_w
 
@@ -653,10 +639,9 @@ Requires Custom House building. Per cargo: mask (0=all eligible) +
 FUN_364b_0636 denylist (not Food/Lumber/Horses/Tools/Muskets) + stock>99
 → sell stock-50 (leave 50). Boycott does not block. Tax via eu tax /
 nation tax_rate unless WoI (col1 head.game_options.woi — DS:0x5382 bit 0, the
-gate FUN_364b_0688 reads; migrated off head.market_demand_pool_raw[0] on
-2026-08-28, see col1_save_layout.h). Credits
+gate FUN_364b_0688 reads). Credits
 col1->nation[n].gold; also eu->gold when n==human_nation.
-Returns total gold credited. PARK: per-cargo UI chrome (FUN_15eb_0326).
+Returns total gold credited.
 
 ## europe_custom_house_autosell_ex_w
 
@@ -672,12 +657,11 @@ For cargo 1..15 with stock > warehouse cap: credit the nation treasury the
 full UNTAXED gross `euro_price[nation][cargo] × amount` (the raw DS:0x84BC
 byte, no `−1`; no tax split and no royal_money write — viceroy 57834-57846,
 unlike the Custom House arm at 57277-57302 which taxes),
-apply volume price, leave stock for spoilage clamp. Horses: DOS transfers
-surplus to Europe horses word (no gold); muskets in 50-batches then sell
-remainder. Cite: colony_eot_production.md O.
-Muskets: DOS batches of 50 → Europe musket counter then sell remainder —
-thin sells full surplus (counter PARKED). Returns total gold credited.
-Cite: viceroy_unpacked.c ~57806–57848; turn/colony_eot_production.md.
+apply volume price, leave stock for spoilage clamp. Horses (raw 57817-57821):
+the surplus banks on the nation's +0x4a word, sale amount 0 (no gold).
+Muskets (raw 57813-57818): each whole 50 banks a lot on nation +0x49
+(`musket_bank_lots`, byte, wraps), the remainder sells. Returns total gold
+credited. Cite: viceroy_unpacked.c ~57806–57848; turn/colony_eot_production.md O.
 
 ## europe_custom_house_cargo_enabled
 
@@ -686,8 +670,7 @@ per-cargo mask (europe_custom_house_autosell's own enable check,
 exposed read-only) — bits==0 (nothing configured) reads as "no cargo
 enabled", matching autosell's own behavior. Colony-screen cargo strip
 uses this to color a cargo's stock number (green = will be auto-sold
-this EOT, matching the DOS golden) — the "per-cargo UI chrome" this
-header's europe_custom_house_autosell comment had PARKed.
+this EOT, matching the DOS golden).
 
 ## europe_harbor_cargo_room
 

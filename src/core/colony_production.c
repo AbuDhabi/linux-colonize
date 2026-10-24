@@ -231,7 +231,7 @@ int colony_prod_manufacturing_input_row(
    * SoL-adjusted output, not the flat base rate this function used to force
    * via `sol_bonus=0`. Fixed: takes sol_bonus and threads it through to
    * colony_prod_manufacturing_output the same way the output side already
-   * does. See docs/building_production.md factory-input fix-log row.
+   * does. See docs/building_production.md "Factory input".
    *
    * Per-WORKER entry point only: the tick derives its requirement from the
    * colony total via colony_prod_chain_input_for_total_output (port_bugs.md

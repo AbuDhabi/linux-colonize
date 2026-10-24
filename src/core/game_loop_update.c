@@ -741,8 +741,7 @@ static GameUpdateStep game_pacer_goto_step(
    * step INTO the village. DOS routes every goto step through
    * FUN_465b_0000, so arriving next to the dwelling with the village as
    * the ordered destination raises exactly what an arrow-key step raises
-   * (FUN_4d56_4528: woodcut 7 + the NAMES.TXT @ACTIONS menu, or the
-   * unmet-tribe warn) — the order was a move command into the village.
+   * (FUN_4d56_4528: woodcut 7 + the NAMES.TXT @ACTIONS menu) — the order was a move command into the village.
    * Earlier this branch stopped one tile short and handed control back
    * (port_bugs.md #287), which left the player to repeat the step by hand.
    *
