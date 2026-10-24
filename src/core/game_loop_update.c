@@ -1204,6 +1204,96 @@ static void game_colony_open_rename(ColonizeGameState* game, const ColonizeColon
 }
 
 /* Colony screen input. */
+/* FUN_2f2b_47bc raw 51373-51376: a press on an area-view plot moves the DS:0x32e focus and
+ * the DS:0x330/0x332 cursor there. */
+static void game_colony_focus_area(ColonyScreenView* csv, int tile_index) {
+  csv->focus = COLONY_FOCUS_AREA;
+  colonies_field_tile_delta(tile_index, &csv->area_dx, &csv->area_dy);
+}
+
+/* The terrain article of the area-view cell (dx, dy) off the colony tile, unless its
+ * FUN_15eb_23f2 plot byte (the DS:0x8df0 cache) is 0x10 (off the map, unexplored):
+ * FUN_281f_078c -> FUN_13e4_003a, FUN_291f_0428 (right-click raw 51399-51403, F1 raw
+ * 55624-55628). The colony tile is never 0x10. */
+static void game_colony_area_pedia(
+  ColonizeGameState* game, const ColonizeColony* colony, int dx, int dy
+) {
+  const int ti = colonies_field_tile_index(dx, dy);
+  if (ti >= 0) {
+    const ColonizeWorld w = game_world(game);
+    if (colonies_plot_blocked_mask(&w, colony, ti) == 0x10u) {
+      return;
+    }
+  }
+  int index = 0;
+  if (game->world_map_ok) {
+    index = map_pedia_terrain_index_at(&game->world_map, colony->x + dx, colony->y + dy);
+  }
+  const int cid = game->colony_view_id;
+  game_open_pedia_article(game, PEDIA_CAT_TERRAIN, index, false);
+  game->pedia_return_colony_id = cid;
+  game_status_from_menu_row(game, "REPORTS", 1, game->status, sizeof(game->status));
+}
+
+/*
+ * F1 on the bare colony screen, FUN_2f2b_6372 raw 55622-55650 (asm 2f2b:6408): the article
+ * of what the DS:0x32e focus panel has selected, then the colony screen again
+ * (thunk_FUN_291f_0684). Area view: the cursor cell's terrain. Colonists: the skill
+ * article of the selected one's occupation, a fence unit's profession, 0x1c read as 0x13
+ * (FUN_281f_0c54 -> FUN_15eb_0e52, FUN_291f_08de). Ships, only with DS:0x33c != 0: the
+ * selected ship's unit article (FUN_281f_0b32 -> FUN_15eb_2f8e, FUN_291f_0942). Units pane,
+ * only with DS:0x8d72 != 0: the selected unit's (FUN_281f_092a -> FUN_1427_0180). Warehouse:
+ * the cargo article of DS:0x33a (FUN_291f_0934), static 0 before any press.
+ */
+static void game_colony_screen_help(
+  ColonizeGameState* game, const ColonizeColony* colony, const ColonyScreenView* csv
+) {
+  PediaCategory cat = PEDIA_CAT_UNIT;
+  int index = -1;
+  const ColonizeUnit* u = NULL;
+  switch (csv->focus) {
+  case COLONY_FOCUS_AREA:
+    game_colony_area_pedia(game, colony, csv->area_dx, csv->area_dy);
+    return;
+  case COLONY_FOCUS_COLONISTS:
+    cat = PEDIA_CAT_JOB;
+    if (csv->selected_colonist >= 0 && csv->selected_colonist < colony->colonist_count) {
+      index = colonies_colonist_occupation_job(
+        &game->colonies, &colony->colonists[csv->selected_colonist]
+      );
+    } else if (game->units_ok &&
+               (u = units_get_const(&game->units, csv->selected_outside_unit)) != NULL) {
+      index = u->profession;
+    }
+    if (index == UNITS_JOB_NONE) {
+      index = UNITS_JOB_COLONIST;
+    }
+    break;
+  case COLONY_FOCUS_SHIPS:
+    if (csv->docked_transport_count != 0 && game->units_ok &&
+        (u = units_get_const(&game->units, csv->transport_unit_id)) != NULL) {
+      index = u->type_index;
+    }
+    break;
+  case COLONY_FOCUS_UNITS:
+    if (csv->outside_unit_count != 0 && game->units_ok &&
+        (u = units_get_const(&game->units, csv->multi_unit_selected_id)) != NULL) {
+      index = u->type_index;
+    }
+    break;
+  case COLONY_FOCUS_WAREHOUSE:
+    cat = PEDIA_CAT_CARGO;
+    index = csv->selected_cargo >= 0 ? csv->selected_cargo : 0;
+    break;
+  }
+  if (index < 0) {
+    return;
+  }
+  const int cid = game->colony_view_id;
+  game_open_pedia_article(game, cat, index, false);
+  game->pedia_return_colony_id = cid;
+}
+
 /* Colony screen: left-click dispatch over every panel of the colony view. */
 static GameUpdateStep game_colony_screen_mouse_click(
   ColonizeGameState* game, const ColonizeInputState* input, ColonizeColony* colony,
@@ -1226,6 +1316,7 @@ static GameUpdateStep game_colony_screen_mouse_click(
       game->colony_view_id = -1;
       return GAME_UPDATE_RETURN_TRUE;
     case COLONY_HIT_TRANSPORT:
+      csv->focus = COLONY_FOCUS_SHIPS; /* FUN_2f2b_548e raw 52222-52225 */
       if (hit.index >= 0 && hit.index < csv->docked_transport_count) {
         const int uid = csv->docked_transport_ids[hit.index];
         if (uid == csv->transport_unit_id && game->units_ok) {
@@ -1248,14 +1339,20 @@ static GameUpdateStep game_colony_screen_mouse_click(
       }
       break;
     case COLONY_HIT_CARGO_SLOT:
+      csv->focus = COLONY_FOCUS_WAREHOUSE; /* FUN_2f2b_60dc raw 52848-52850 */
       game_colony_drag_begin_cargo(game, hit.index);
       break;
     case COLONY_HIT_HOLD:
+      csv->focus = COLONY_FOCUS_SHIPS; /* FUN_2f2b_56ce raw 52300-52302 */
       game_colony_drag_begin_hold(game, hit.index);
       break;
     case COLONY_HIT_COLONIST:
     case COLONY_HIT_PEOPLE_COLONIST: {
       const bool was_selected = csv->selected_colonist == hit.index;
+      /* FUN_2f2b_44d4 raw 51248-51260: only a press on another colonist moves the focus. */
+      if (!was_selected) {
+        csv->focus = COLONY_FOCUS_COLONISTS;
+      }
       game_colony_drag_begin_colonist(game, hit.index);
       csv->drag_from_selected = was_selected;
       break;
@@ -1269,6 +1366,7 @@ static GameUpdateStep game_colony_screen_mouse_click(
            * the fence drop offers. */
           game_colony_fence_drop(game, colony);
         } else {
+          csv->focus = COLONY_FOCUS_COLONISTS; /* 44d4: a fence unit is colonist pop+n */
           game_colony_drag_begin_outside(game, ouid);
         }
       }
@@ -1342,6 +1440,7 @@ static GameUpdateStep game_colony_screen_mouse_click(
        * select-then-click convention as the Transport strip: second click
        * on the already-selected unit opens its docked/stationed-unit
        * orders (DOS FUN_2f2b_59a0 double-click → FUN_2f2b_5746). */
+      csv->focus = COLONY_FOCUS_UNITS; /* FUN_2f2b_59a0 raw 52469-52471 */
       if (hit.index >= 0 && game->units_ok) {
         if (hit.index == csv->multi_unit_selected_id) {
           colony_screen_open_dock_orders(csv, &game->units, &game->messages, hit.index);
@@ -1357,6 +1456,9 @@ static GameUpdateStep game_colony_screen_mouse_click(
       }
       break;
     case COLONY_HIT_MULTI_PANE:
+      if (csv->multi_mode == COLONY_MULTI_UNITS) {
+        csv->focus = COLONY_FOCUS_UNITS; /* 59a0: any press in the pane */
+      }
       if (csv->multi_mode == COLONY_MULTI_PRODUCTION) {
         csv->show_production_numbers = !csv->show_production_numbers;
       } else if (csv->multi_mode == COLONY_MULTI_CONSTRUCTION) {
@@ -1384,6 +1486,7 @@ static GameUpdateStep game_colony_screen_mouse_click(
       /* DOS FUN_2f2b_47bc: pressing on a worked plot picks its colonist up
        * (FUN_2f2b_4284, drag mode 6), so it can be dropped on a building,
        * another plot or the fence like any other worker. */
+      game_colony_focus_area(csv, hit.index);
       const int who = (int)colony->tiles[hit.index];
       if (who >= 0 && who < colony->colonist_count) {
         const bool was_selected = csv->selected_colonist == who;
@@ -1799,6 +1902,13 @@ static GameUpdateStep game_colony_screen_keys(
     return GAME_UPDATE_RETURN_TRUE;
   }
 
+  /* F1 on the bare screen; the construction / jobs / leave-as lists took theirs above. */
+  if (input->last_key == COLONIZE_KEY_F1 && colony && !csv->dock_orders_open &&
+      csv->message_kind == COLONY_MSG_NONE && !ui_drag_active(&game->ui_drag)) {
+    game_colony_screen_help(game, colony, csv);
+    return GAME_UPDATE_RETURN_TRUE;
+  }
+
   /* C = Construction Change (tech-supp). Toggle: down when Construction is
    * already up, otherwise every other sub-panel closes first so the new one
    * cannot open underneath a still-open eject / dock-orders / Custom House
@@ -1949,6 +2059,11 @@ COLONIZE_INTERNAL GameUpdateStep game_update_colony_screen(ColonizeGameState* ga
       colony_screen_refresh_transports(csv, &game->units, colony);
     }
     game_service_colony_bar(game);
+    /* The Units-pane focus lives only on the Units tab: every DOS tab switch turns it into
+     * the colonist focus (FUN_2f2b_6372 raw 55565-55566, 55594-55596; raw 51475-51477). */
+    if (csv->focus == COLONY_FOCUS_UNITS && csv->multi_mode != COLONY_MULTI_UNITS) {
+      csv->focus = COLONY_FOCUS_COLONISTS;
+    }
 
     /* Pointer-over building name label (DOS FUN_2f2b_44d4 hover arm). */
     csv->hover_building_row = -1;
@@ -2002,20 +2117,13 @@ COLONIZE_INTERNAL GameUpdateStep game_update_colony_screen(ColonizeGameState* ga
         csv, &game->colonies, colony, game->units_ok ? &game->units : NULL, input->mouse_x,
         input->mouse_y
       );
-      if (hit.kind == COLONY_HIT_AREA_TILE || hit.kind == COLONY_HIT_AREA_INTERIOR) {
-        int dx = 0;
-        int dy = 0;
-        if (hit.kind == COLONY_HIT_AREA_TILE) {
-          colonies_field_tile_delta(hit.index, &dx, &dy);
-        }
-        const int cid = game->colony_view_id;
-        int index = 0;
-        if (game->world_map_ok) {
-          index = map_pedia_terrain_index_at(&game->world_map, colony->x + dx, colony->y + dy);
-        }
-        game_open_pedia_article(game, PEDIA_CAT_TERRAIN, index, false);
-        game->pedia_return_colony_id = cid;
-        game_status_from_menu_row(game, "REPORTS", 1, game->status, sizeof(game->status));
+      if (hit.kind == COLONY_HIT_AREA_TILE) {
+        game_colony_focus_area(csv, hit.index);
+        game_colony_area_pedia(game, colony, csv->area_dx, csv->area_dy);
+        return GAME_UPDATE_RETURN_TRUE;
+      }
+      if (hit.kind == COLONY_HIT_AREA_INTERIOR) {
+        game_colony_area_pedia(game, colony, 0, 0);
         return GAME_UPDATE_RETURN_TRUE;
       }
       /* Right-click on a built settlement building: its Colonizopedia
@@ -2176,6 +2284,42 @@ static GameUpdateStep game_europe_screen_menu_keys(
   return GAME_UPDATE_CONTINUE;
 }
 
+/*
+ * F1 on the bare Europe screen, FUN_38fd_4f6e raw 66119-66135 (asm 38fd:4ffa): the article
+ * of what the DS:0xf9a focus panel has selected, then the Europe screen again
+ * (thunk_FUN_291f_0dfe). Market: the cargo article of DS:0xf9e (FUN_291f_0934). Harbor, only
+ * with DS:0xfa2 ships in port: the unit article of the selected one (DS:0x9e1c through
+ * FUN_38fd_0666, FUN_291f_0942). Dock, only with DS:0x9e2a units on it: the unit article of
+ * DS:0x9e2c (FUN_38fd_06c4); FUN_38fd_07c6 puts DS:0x9e2c back to 0 once it runs past the
+ * dock (raw 59162-59163).
+ */
+static void game_europe_screen_help(ColonizeGameState* game, EuropeScreen* eu) {
+  PediaCategory cat = PEDIA_CAT_UNIT;
+  int index = -1;
+  if (eu->focus == 0) {
+    cat = PEDIA_CAT_CARGO;
+    index = eu->selected_market;
+  } else if (eu->focus == 1 && eu->harbor_ships != 0) {
+    if (eu->selected_harbor >= 0 && eu->selected_harbor < eu->harbor_ships) {
+      const EuropeHarborShip* hs = &eu->harbor[eu->selected_harbor];
+      index = hs->type_index;
+      if (index < 0 && game->units_ok) {
+        index = units_find_type(&game->units, hs->name); /* as game_europe_sail_harbor */
+      }
+    }
+  } else if (eu->focus == 2 && eu->dock_count != 0) {
+    if (eu->dock_selected < 0 || eu->dock_selected >= eu->dock_count) {
+      eu->dock_selected = 0;
+    }
+    index = eu->dock[eu->dock_selected].dos_type;
+  }
+  if (index < 0) {
+    return;
+  }
+  game_open_pedia_article(game, cat, index, false);
+  game->pedia_return_europe = true;
+}
+
 /* Europe screen hotkeys: Escape/E exit, R/P/T menus, L/U/-/_ cargo, S/Space/Enter
  * ship menu (FUN_38fd_4f6e). */
 static GameUpdateStep game_europe_screen_keys(
@@ -2192,6 +2336,11 @@ static GameUpdateStep game_europe_screen_keys(
     game->in_europe = false;
     game_europe_deliver_bound_ships(game);
     diag_info("Left Europe screen.");
+    return GAME_UPDATE_RETURN_TRUE;
+  }
+
+  if (input->last_key == COLONIZE_KEY_F1 && !ui_drag_active(&game->ui_drag)) {
+    game_europe_screen_help(game, eu);
     return GAME_UPDATE_RETURN_TRUE;
   }
 
@@ -2239,8 +2388,8 @@ static GameUpdateStep game_europe_screen_keys(
   }
   /* S / Space / Enter with a ship selected (focus mode 1): the ship menu,
    * FUN_38fd_2bfe, not a direct sail (FUN_38fd_4f6e 38fd:5364-5491); its row 2
-   * sails through the @SAILAWAY confirm. The port has no focus modes: a
-   * selected harbor ship is the ship focus. */
+   * sails through the @SAILAWAY confirm. These keys do not read DS:0xf9a
+   * (eu->focus, only F1 does): a selected harbor ship is the ship focus. */
   if (input->last_key == COLONIZE_KEY_S || input->last_key == COLONIZE_KEY_SPACE ||
       input->last_key == COLONIZE_KEY_ENTER) {
     if (eu->selected_harbor >= 0) {
@@ -2324,6 +2473,7 @@ static GameUpdateStep game_europe_screen_mouse(
       diag_info("Left Europe screen (Exit).");
       break;
     case EUROPE_HIT_HARBOR_SHIP:
+      eu->focus = 1; /* FUN_38fd_2edc raw 61012-61016 */
       eu->selected_harbor = hit.index;
       snprintf(eu->status, sizeof(eu->status), "Selected %s.", eu->harbor[hit.index].name);
       ui_drag_begin(&game->ui_drag, UI_DRAG_EUROPE_HARBOR_SHIP, hit.index, -1, 0);
@@ -2347,6 +2497,7 @@ static GameUpdateStep game_europe_screen_mouse(
       }
       break;
     case EUROPE_HIT_MARKET:
+      eu->focus = 0; /* FUN_38fd_3502 raw 61143-61145 */
       eu->selected_market = hit.index;
       if (europe_cargo_boycotted_ex(
             eu, game->col1_ok ? &game->col1 : NULL, game->human_nation, hit.index
@@ -2376,6 +2527,8 @@ static GameUpdateStep game_europe_screen_mouse(
       europe_menu_open(eu, EUROPE_MENU_TRAIN);
       break;
     case EUROPE_HIT_DOCK:
+      eu->focus = 2; /* FUN_38fd_3c86 raw 64102-64104 */
+      eu->dock_selected = hit.index;
       eu->menu_dock_index = hit.index;
       europe_build_dock_menu(eu, &game->messages, hit.index);
       europe_menu_open(eu, EUROPE_MENU_DOCK);

@@ -1484,6 +1484,12 @@ void game_europe_sail_harbor(ColonizeGameState* game, int hidx) {
   europe_set_sail_from_harbor(
     eu, hidx, game_voyage_turns(game, hs->exit_x), &game->units, game->human_nation
   );
+  /* FUN_38fd_2a92 raw 60763-60770: the DS:0xf9a focus goes back to the market when the
+   * harbor focus has no ship left (DS:0xfa2 still counts the one that sailed, so `< 2`) or
+   * the dock focus no unit after the boarding (FUN_291f_0bea recount). */
+  if ((eu->focus == 1 && eu->harbor_ships == 0) || (eu->focus == 2 && eu->dock_count == 0)) {
+    eu->focus = 0;
+  }
   /* port_bugs.md: sailing the LAST docked ship closes the European Status back
    * to the map — nothing is left to manage there. */
   if (eu->harbor_ships <= 0 && game->in_europe) {

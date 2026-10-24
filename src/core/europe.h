@@ -265,6 +265,11 @@ typedef struct EuropeScreen {
   int bound_ships;
   int selected_harbor; /* -1 none; index into harbor[] */
   int selected_market; /* cargo type highlight */
+  /* DS:0xf9a: the panel F1 reads (FUN_38fd_4f6e raw 66119-66135): 0 market, 1 harbor
+   * ships, 2 dock; set by the press on that panel, never reset. */
+  int focus;
+  /* DS:0x9e2c: dock[] row of the last press on the dock (FUN_38fd_3c86 raw 64104). */
+  int dock_selected;
   EuropePoolSlot pool[EUROPE_POOL_SIZE];
   /* EuropeScreen pool_force_expert -- see docs/europe.md#europescreen-pool_force_expert */
   bool pool_force_expert;
