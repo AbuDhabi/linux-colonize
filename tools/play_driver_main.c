@@ -31,10 +31,11 @@
  *   shot NAME                   DIR/shots/NAME.ppm
  *   save NAME                   save into DIR/saves/NAME
  *   status | units | colonies   print state
- *   map [R]                     ASCII map of radius R (default 8) around the cursor
+ *   map [R [X Y]]               ASCII map of radius R (default 8) around the cursor (or X,Y)
  *   near X Y [R]                every unit (any nation) within R (default 2) of X,Y
  *   goto ID X Y                 Go To order for unit ID to tile X,Y
  *   colony N                    open colony N's screen (index from `colonies`)
+ *   endturn                     confirm the End of Turn prompt (error while a unit waits)
  *   world                       whole map, one char a tile
  *   rumours                     list seen rumour tiles with terrain (h hill, m mountain)
  *   activate ID                 wake and select unit ID (the stack-list pick by id;
@@ -526,9 +527,8 @@ static void print_colonies(void) {
  * case = forested; ~ ocean, = high seas, a arctic, blank = unexplored) then
  * an overlay (@ cursor, C colony, V village/other city, u unit, ? rumour,
  * # mountain, n hill, r river, . nothing). */
-static void print_map(int radius) {
+static void print_map(int radius, int cx, int cy) {
   const ColonizeWorldMap* m = &g_game->world_map;
-  const int cx = g_game->map_cursor_x, cy = g_game->map_cursor_y;
   printf("MAP x %d..%d (cols), y %d..%d (rows)\n", cx - radius, cx + radius, cy - radius, cy + radius);
   printf("MAP     ");
   for (int x = cx - radius; x <= cx + radius; ++x) {
@@ -651,6 +651,15 @@ static bool command(char* line) {
     ev(op[1] == 'd' ? E_DOWN : E_UP, a1, a2, 1, 0, 0, 0);
     g_at++;
     ok = flush_frames(5);
+  } else if (strcmp(op, "endturn") == 0) {
+    /* Confirm the End of Turn prompt (what Space / the sidebar click do);
+     * refuses while a unit still waits for orders. */
+    if (game_end_turn_prompt_active(g_game)) {
+      game_do_end_turn(g_game);
+      ok = flush_frames(5);
+    } else {
+      printf("ERR no End of Turn prompt (selected unit %d)\n", g_game->units.selected_id);
+    }
   } else if (strcmp(op, "hit") == 0 && argc > 2) {
     /* Colony-screen hit test at X,Y (ColonyScreenHit kind + index). */
     const ColonizeColony* c = colonies_get(&g_game->colonies, g_game->colony_view_id);
@@ -806,7 +815,8 @@ static bool command(char* line) {
   } else if (strcmp(op, "near") == 0 && argc > 2) {
     print_near(a1, a2, argc > 3 ? atoi(argv[3]) : 2);
   } else if (strcmp(op, "map") == 0) {
-    print_map(a1 > 0 ? a1 : 8);
+    print_map(a1 > 0 ? a1 : 8, argc > 3 ? a2 : g_game->map_cursor_x,
+              argc > 3 ? atoi(argv[3]) : g_game->map_cursor_y);
   } else if (strcmp(op, "colonies") == 0) {
     print_colonies();
   } else if (strcmp(op, "sync") == 0) {
