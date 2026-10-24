@@ -457,6 +457,8 @@ void europe_disembark_passengers_to_dock(
         eu->dock[eu->dock_count - 1].dos_type = kind;
       }
     }
+    /* The unit record keeps its Tools byte +0x3159 through 03d0's relink. */
+    eu->dock[eu->dock_count - 1].tools = ship->cargo_tools[i];
   }
   ship->cargo_count = 0;
   memset(ship->cargo_types, 0, sizeof(ship->cargo_types));

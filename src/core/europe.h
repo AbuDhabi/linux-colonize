@@ -155,6 +155,9 @@ typedef struct EuropeDockImmigrant {
    * (bound lazily by europe_dock_mirror_unit_of) or no mirror (a row made by
    * recruit/train/purchase has none until capture writes one). */
   int mirror_unit_id;
+  /* Tools a Pioneer row carries (DOS +0x3159 stays on the dock record); 0 =
+   * the kit its type is given (europe_apply_dock_row_kit). */
+  int tools;
 } EuropeDockImmigrant;
 
 typedef struct EuropeRecruitClass {
@@ -578,6 +581,8 @@ int europe_spawn_dock_mirror_unit(
 
 /* The FUN_38fd_0718 kit for an already-spawned unit of a known DOS type. */
 void europe_apply_dock_unit_kit(ColonizeUnit* u, int dos_type);
+/* The row's kit: its type's, with the row's own tools when it carries any. */
+void europe_apply_dock_row_kit(ColonizeUnit* u, const EuropeDockImmigrant* d);
 
 /* Move the (236,236) mirror unit behind a dock entry to a new @UNIT type. */
 bool europe_pop_dock_immigrant(EuropeScreen* eu, char* out_name, size_t out_name_size);

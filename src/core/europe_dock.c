@@ -603,6 +603,16 @@ void europe_apply_dock_unit_kit(ColonizeUnit* u, int dos_type) {
   u->horses = europe_dock_type_horses(dos_type);
 }
 
+void europe_apply_dock_row_kit(ColonizeUnit* u, const EuropeDockImmigrant* d) {
+  if (!u || !d) {
+    return;
+  }
+  europe_apply_dock_unit_kit(u, d->dos_type);
+  if (d->tools > 0) {
+    u->tools = d->tools;
+  }
+}
+
 /* The shape europe_dock_mirror_unit_of and col1 capture look for. */
 static bool europe_is_dock_mirror(const ColonizeUnitPool* units, const ColonizeUnit* u, int nation_id) {
   return u && u->active && u->nation_id == nation_id && u->x == EUROPE_PARK_XY &&
@@ -1044,6 +1054,10 @@ bool europe_apply_dock_menu_row_ex(
    * lazy bind of europe_dock_mirror_unit_of matches on it. */
   const int mirror_id = units ? europe_dock_mirror_unit_of(eu, units, nation_id, dock_index) : -1;
   d->dos_type = to;
+  /* Every row that gets here retypes the unit. Equip with Tools sets
+   * +0x3159 = 100 (38fd:3b7e, ndisasm 0x340D7), the new type's kit; the other
+   * rows leave a type with no tools in the port's kit. */
+  d->tools = 0;
   if (ledger_cargo >= 0) {
     /*
      * Ledger only — no rise/fall step. The arm rows call the volume routines

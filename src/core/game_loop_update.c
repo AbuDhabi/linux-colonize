@@ -3334,7 +3334,7 @@ COLONIZE_INTERNAL GameUpdateStep game_update_map_keys(ColonizeGameState* game, c
             if (prof >= 0) {
               placed->profession = prof;
             }
-            europe_apply_dock_unit_kit(placed, deploy_type);
+            europe_apply_dock_row_kit(placed, &game->europe.dock[0]);
           }
         }
         europe_dock_remove_mirror_unit(&game->europe, &game->units, game->human_nation, 0);

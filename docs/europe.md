@@ -322,6 +322,11 @@ dock rows. The turn_colony crosses immigrant and the Brewster pick set
 `mirror_unit_id` on the new dock[0] row. The board flag is the record's
 +0x314c (1 = board, 0 = "Don't get on next ship"; 38fd:3ade / 3aea), read
 into `sentry` on import and written from it on capture.
+The Tools byte +0x3159 (hold[5]) stays on the record too: a row's `tools`
+(0 = the type's kit) comes off the ship's `cargo_tools` on disembark, goes
+back onto it on boarding, and is read from a dock Pioneer's hold[5] into the
+row and its mirror on import. `europe_apply_dock_row_kit` applies it to the
+deployed unit and to the record a row with no mirror writes (port_bugs.md #1247).
 
 ## europe_reverse_transit
 

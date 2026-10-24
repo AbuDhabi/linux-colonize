@@ -1714,6 +1714,9 @@ COLONIZE_INTERNAL Col1StageStatus col1_bridge_apply_units(Col1ApplyCtx* ctx) {
            * "Don't get on next ship" (38fd:3ade / 3aea; FUN_1427_10be raw
            * 8658-8664 boards a dock unit only on 1). port_bugs.md #1158. */
           row->sentry = src->orders == UNITS_ORDER_SENTRY;
+          if (dos_type == EUROPE_DOCK_TYPE_PIONEERS) {
+            row->tools = (int)src->cargo_hold[5]; /* +0x3159, as the map path reads it */
+          }
           dock_src[europe->dock_count - 1] = i;
         } else {
           /* Queue overflow: keep the unit (the mirror below is what capture
@@ -1761,6 +1764,9 @@ COLONIZE_INTERNAL Col1StageStatus col1_bridge_apply_units(Col1ApplyCtx* ctx) {
               mu->moves = total > (int)src->moves ? total - (int)src->moves : 0;
             }
             europe_apply_dock_unit_kit(mu, dos_type);
+            if (dos_type == EUROPE_DOCK_TYPE_PIONEERS) {
+              mu->tools = (int)src->cargo_hold[5]; /* DOS COLONY04's dock Pioneer keeps 20 */
+            }
             if (row) {
               row->mirror_unit_id = id;
             }
@@ -3617,13 +3623,14 @@ COLONIZE_INTERNAL void col1_bridge_capture_dock_rows(Col1CaptureCtx* ctx) {
       dst->transport_chain.prev_unit_idx = -1;
       dst->transport_chain.next_unit_idx = -1;
       /* The 0718 harbor spawn writes the Tools byte (+0x15): a trained Hardy
-       * Pioneer reaches the dock with its 100 (DOS COLONY04's dock Pioneer
-       * keeps 20). The reload mirror gets the same kit. */
+       * Pioneer reaches the dock with its 100, a disembarked one with what it
+       * had left (DOS COLONY04's dock Pioneer keeps 20). The reload mirror
+       * gets the same kit. */
       {
         ColonizeUnit kit;
         memset(&kit, 0, sizeof(kit));
-        europe_apply_dock_unit_kit(&kit, row->dos_type);
-        dst->cargo_hold[5] = (uint8_t)(kit.tools > 0 ? (kit.tools <= 100 ? kit.tools : 100) : 0);
+        europe_apply_dock_row_kit(&kit, row);
+        dst->cargo_hold[5] = (uint8_t)kit.tools; /* the whole byte, as the map path writes it */
       }
       ctx->stack_order_by_col1[written] = key;
       written++;

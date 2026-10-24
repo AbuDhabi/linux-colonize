@@ -2202,6 +2202,15 @@ int main(void) {
           b->cargo_tools[0] = 60;
           b->cargo_count = 1;
         }
+        /* One that got off onto the dock with 40 keeps them too: through the
+         * save (no mirror yet, so the row writes the record), the reloaded
+         * mirror, and onto the next ship out. */
+        if (!europe_dock_push_load(&europe, "", UNITS_JOB_NONE)) {
+          fprintf(stderr, "COLONY06 dock push failed\n");
+          return 1;
+        }
+        europe.dock[europe.dock_count - 1].dos_type = EUROPE_DOCK_TYPE_PIONEERS;
+        europe.dock[europe.dock_count - 1].tools = 40;
         if (!col1_bridge_capture_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&units), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&cap), .col1_ok=true, .europe=(EuropeScreen*)(&europe)}, br.year, br.autumn, br.turn_number, br.human_nation, br.cursor_x, br.cursor_y, br.view_x, br.view_y, units.selected_id, units.selected_id < 0, err, sizeof(err))) {
           fprintf(stderr, "COLONY06 bound capture failed: %s\n", err);
           return 1;
@@ -2244,6 +2253,40 @@ int main(void) {
           if (europe3.bound_ships != 3 || with_voyage != 1 || europe3.harbor_ships != 0) {
             fprintf(stderr, "COLONY06 bound lane wrong: bound=%d turns2=%d harbor=%d\n",
                     europe3.bound_ships, with_voyage, europe3.harbor_ships);
+            return 1;
+          }
+        }
+        {
+          bool found = false;
+          int mirror_tools = -1;
+          for (int r = 0; r < europe3.dock_count; ++r) {
+            const bool ours = europe3.dock[r].dos_type == EUROPE_DOCK_TYPE_PIONEERS &&
+                              europe3.dock[r].tools == 40;
+            europe3.dock[r].sentry = ours;
+            if (ours) {
+              const ColonizeUnit* mu = units_get_const(
+                &units3, europe_dock_mirror_unit_of(&europe3, &units3, br3.human_nation, r)
+              );
+              found = true;
+              mirror_tools = mu ? mu->tools : -1;
+            }
+          }
+          if (!found || mirror_tools != 40) {
+            fprintf(stderr, "COLONY06 dock Pioneer: row found %d, mirror tools %d, want 40\n",
+                    (int)found, mirror_tools);
+            return 1;
+          }
+          if (!europe_harbor_push(
+                &europe3, europe3.bound[0].type_index, europe3.bound[0].name, NULL, 0, NULL, NULL
+              ) ||
+              !europe_set_sail_from_harbor(&europe3, 0, 2, &units3, br3.human_nation)) {
+            fprintf(stderr, "COLONY06 dock Pioneer sail failed\n");
+            return 1;
+          }
+          const EuropeHarborShip* out = &europe3.bound[europe3.bound_ships - 1];
+          if (out->cargo_count != 1 || out->cargo_tools[0] != 40) {
+            fprintf(stderr, "COLONY06 boarded Pioneer: %d aboard, tools %d, want 1 / 40\n",
+                    out->cargo_count, out->cargo_tools[0]);
             return 1;
           }
         }

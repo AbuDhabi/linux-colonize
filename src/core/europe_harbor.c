@@ -200,6 +200,7 @@ void europe_board_sentry_dockers(
     }
     ship->cargo_types[ship->cargo_count] = type_tag;
     ship->cargo_professions[ship->cargo_count] = eu->dock[di].profession;
+    ship->cargo_tools[ship->cargo_count] = eu->dock[di].tools;
     ship->cargo_count++;
     /* The dock immigrant's (236,236) mirror unit leaves the pool with it. */
     europe_dock_remove_mirror_unit(eu, units, nation_id, di);
