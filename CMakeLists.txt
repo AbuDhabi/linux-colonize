@@ -488,6 +488,17 @@ if(SDL2_FOUND)
     INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/tools
     COMPILE_DEFS COLONIZE_REPLAY_PLATFORM=1
   )
+  # Headless interactive play driver (tools/README.md): replay platform, stdin commands.
+  colonize_add_test(NAME play_driver
+    SOURCES
+      tools/play_driver_main.c
+      tests/common/platform_cursor_stubs.c
+      src/platform/linux_sdl2/sdl_keymap.c
+    LIBS colonize_core ${COLONIZE_SDL2_TARGET}
+    INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}
+    COMPILE_DEFS COLONIZE_REPLAY_PLATFORM=1
+    NO_CTEST
+  )
 endif()
 
 colonize_add_test(NAME smoke_game_flow

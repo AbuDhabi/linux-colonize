@@ -31,6 +31,9 @@ int window_log_clamp_lines(long long lines);
 /* Newest line last. Empty / NULL text is ignored. */
 void window_log_push(const char* text);
 
+/* Pushes since start, never reset (tools/play_driver: what is new). */
+unsigned window_log_total(void);
+
 /* How many lines are held (0..WINDOW_LOG_MAX_LINES). */
 int window_log_count(void);
 
