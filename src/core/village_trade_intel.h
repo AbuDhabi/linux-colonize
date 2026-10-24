@@ -14,7 +14,7 @@
  * serialized into the port extension block appended after the last DOS
  * section of a .SAV ('VTIN' chunk, col1_save.h) by col1_bridge_capture and
  * restored by col1_bridge_apply. DOS ignores that tail and drops it when it
- * re-saves the slot; the Load dialog marks such saves with a trailing "*".
+ * re-saves the slot; the Load dialog marks such saves with a trailing "+".
  *
  * The settlement record itself (ColonizeCol1Tribe) is the raw 18-byte DOS
  * blob read/written verbatim by col1_save.c, so the knowledge lives in this

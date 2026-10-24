@@ -59,6 +59,21 @@ void font_draw_text_shaded(
 );
 
 /*
+ * font_draw_text for port-only surfaces (debug overlays, the window log strip): a char the
+ * face lacks draws as the builtin 5x7 glyph with a 6px advance. Every DOS-drawn text path
+ * uses the others, which draw such a char as nothing with no advance (FUN_1c11_000c,
+ * port_bugs.md #1229). Measure with font_text_width_port.
+ */
+void font_draw_text_port(
+  const ColonizeFont* font,
+  ColonizeFramebuffer8* framebuffer,
+  int x,
+  int y,
+  const char* text,
+  uint8_t color
+);
+
+/*
  * One glyph through the shade map with no marker meaning ('~', '#', '\n' are glyphs
  * too): the escaped character of FUN_6f74_0538's '~' (6f74:05be). Returns the
  * advance; framebuffer NULL = measure only.
@@ -88,16 +103,20 @@ int font_draw_glyph_shaded(
 #define FONT_SKIP_LAYOUT "{}^_"
 
 /* Pixel width of text as drawn, stopping at the first '\n'. Characters in
- * `skipset` (a NUL-terminated set, may be NULL/empty) cost nothing; missing
- * FF glyphs fall back to the builtin 6px cell. */
+ * `skipset` (a NUL-terminated set, may be NULL/empty) cost nothing, so do chars
+ * the face lacks (DOS); with no face loaded every char is the builtin 6px cell. */
 int font_text_width_skip(const ColonizeFont* font, const char* text, const char* skipset);
 
 /* font_text_width_skip with FONT_SKIP_HOTKEY. */
 int font_text_width(const ColonizeFont* font, const char* text);
 
+/* font_text_width as font_draw_text_port draws: a lacking char costs 6px. */
+int font_text_width_port(const ColonizeFont* font, const char* text);
+
 /*
  * Tight ink bounds of a single glyph within its cell (0-based).
- * Returns false if the glyph is missing / empty; on success writes inclusive min/max.
+ * Returns false if the glyph is missing from a loaded face or empty; with no face it
+ * reports the builtin 5x7 glyph. On success writes inclusive min/max.
  */
 bool font_glyph_ink_bounds(
   const ColonizeFont* font,

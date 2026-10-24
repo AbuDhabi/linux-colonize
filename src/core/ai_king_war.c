@@ -1066,19 +1066,17 @@ static void ai_king_woi_end_warn(struct ai_king_woi_end_ctx* w) {
     }
   }
   /*
-   * Wartime calendar end. DOS raw 58630:
-   *   if (((year == 0x708) && !woi) || (year == 0x73a)) { ...retire... }
+   * Wartime calendar end. DOS raw 58617-58649, asm 3844:0a02-0b44:
+   *   if (!(0x5382 & 0x10)) { ... if (((year == 0x708) && !woi) || (year == 0x73a)) ... }
    * — under a declared WoI (this whole function's precondition) only the
-   * `year == 1850` arm can fire, with NO crown-units term: the crown holding
-   * colonies but zero live units used to run past 1850 forever here. Kept as
-   * `>=` because DOS's own 1850 arm is unconditional (the year word 0x538a
-   * can never step past it before the score chain runs), so `>=` differs from
-   * `==` only for a port state that already overshot.
-   * GAME.TXT @RETIRING2.
+   * `year == 1850` arm can fire, with NO crown-units term. It shows
+   * @RETIRING2 (DS:0xf89) and runs the retire chain; nothing in it touches
+   * the war: no loss latch, so after @SCORED "Keep playing anyway." (0x5382 |=
+   * 0x10, calendar_latch) the win / @LOSINGn checks above go on as before and
+   * only this calendar block stays off (port_bugs.md #1232). KING_WAR_END
+   * payload 2: the dismissal runs the chain, then @SCORED.
    */
-  if (year >= AI_KING_YEAR_CAP) {
-    ai_king_latch_set(ctx->col1, AI_KING_ENDGAME_BYTE, AI_KING_ENDGAME_LOST);
-    ai_king_latch_set(ctx->col1, AI_KING_REF_PRESENT_BYTE, 0);
+  if (!ctx->col1->head.game_options.calendar_latch && year == AI_KING_YEAR_CAP) {
     const char* estate = ai_king_richest_colony_name(ctx, human);
     PopupMsgTokens tok;
     memset(&tok, 0, sizeof(tok));
@@ -1305,7 +1303,7 @@ void ai_king_nation_turn_2424(ColonizeTurnContext* ctx) {
     ai_king_frigate_offer(ctx, ctx->human_nation);
     /*
      * Peacetime Spring 1790 anniversary (year_end_chrome 0x6fe): @SOONRETIRING0
-     * once before the 1800 @SCORED latch. Cite: turn/year_end_chrome.md.
+     * once before the 1800 @RETIRING. Cite: turn/year_end_chrome.md.
      */
     if (ctx->col1_ok && ctx->col1 &&
         ai_king_latch_get(ctx->col1, AI_KING_ENDGAME_BYTE) == AI_KING_ENDGAME_NONE &&
@@ -1315,54 +1313,30 @@ void ai_king_nation_turn_2424(ColonizeTurnContext* ctx) {
       ai_king_emit_soon_retiring(ctx, 0);
     }
     /*
-     * Peacetime calendar end (manual pp.10–12 / 1800–1850): without WoI,
-     * year≥1800 latches once. Cite: docs/manual_gap.md Auto-end.
+     * Peacetime calendar end, FUN_3844_0442 raw 58629-58649 (asm 3844:0a8d-0b44):
+     * year 1800 with no WoI → @RETIRING (DS:0xf80; the wartime 1850 arm takes
+     * @RETIRING2 at 0xf89), %STRING0 the difficulty title, %STRING1 the leader,
+     * %STRING2 the human's most populous colony, then straight into the retire
+     * chain (FUN_281f_0574 = FUN_41f2_14a8, no @RETIRE confirm). @SCORED comes
+     * after the chain (raw 58667-58676), not before it (port_bugs.md #1231).
+     * Gated like DOS on the year and 0x5382 & 0x10 (calendar_latch, set by the
+     * chain) alone, with no endgame latch: after "Keep playing anyway." a
+     * later declaration fights a live war (port_bugs.md #1232). KING_WAR_END
+     * payload 2, as @RETIRING2: the dismissal runs the chain, then @SCORED.
      */
-    if (ctx->col1_ok && ctx->col1 &&
-        ai_king_latch_get(ctx->col1, AI_KING_ENDGAME_BYTE) == AI_KING_ENDGAME_NONE &&
-        (int)ctx->col1->head.year >= AI_KING_PEACE_YEAR_CAP) {
-      ai_king_latch_set(ctx->col1, AI_KING_ENDGAME_BYTE, AI_KING_ENDGAME_PEACE_1800);
-      /* GAME.TXT @SCORED — peacetime calendar end (invent Colonial Era Ends demoted). */
+    if (ctx->col1_ok && ctx->col1 && !ctx->col1->head.game_options.calendar_latch &&
+        (int)ctx->col1->head.year == AI_KING_PEACE_YEAR_CAP) {
+      const int human = ctx->human_nation;
       PopupMsgTokens tok;
       memset(&tok, 0, sizeof(tok));
-      char body[AI_POPUP_BODY_LEN];
-      popup_msg_fill(
-        ctx->messages,
-        "SCORED",
-        &tok,
-        "",
-        body,
-        sizeof(body)
+      const int diff = (int)ctx->col1->head.difficulty;
+      tok.string0 = reports_difficulty_title((diff >= 0 && diff < 5) ? diff : 4);
+      tok.string1 = (human >= 0 && human < 4) ? ctx->col1->player[human].name : "";
+      tok.string2 = ai_king_richest_colony_name(ctx, human);
+      ai_king_emit_ok(
+        ctx, "RETIRING", &tok, "", AI_POPUP_TAG_KING_WAR_END, human,
+        ai_king_crown_nation_col1(ctx->col1, human), 2, 1, NULL, 0
       );
-      if (ctx->status && ctx->status_size) {
-        snprintf(ctx->status, ctx->status_size, "%s", body);
-      }
-      if (ai_king_human_popups(ctx)) {
-        char choice_buf[AI_POPUP_CHOICE_MAX][AI_POPUP_CHOICE_LEN];
-        const ColonizeMsgSection* sec = assets_msg_find(ctx->messages, "SCORED");
-        int nch = popup_msg_choices(sec, choice_buf, AI_POPUP_CHOICE_MAX);
-        const char* labels[2];
-        const int ids[] = {AI_KING_CHOICE_THATS_ALL, AI_KING_CHOICE_KEEP_PLAYING};
-        if (nch >= 2) {
-          labels[0] = choice_buf[0];
-          labels[1] = choice_buf[1];
-        } else {
-          labels[0] = "";
-          labels[1] = "";
-        }
-        (void)ai_popup_enqueue_choice_ctx(
-          ctx->ai_popups,
-          AI_POPUP_TAG_KING_SCORED,
-          ctx->human_nation,
-          ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, ctx->human_nation),
-          AI_KING_PEACE_YEAR_CAP,
-          NULL,
-          body,
-          labels,
-          ids,
-          2
-        );
-      }
     }
     /*
      * FUN_43f7_2424 tail: decile SoL notify (DS:0x53d8 dedup), full port
@@ -1621,43 +1595,6 @@ void ai_king_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState* po
          * branch) now waits for the crown slot's pre-euro beat next turn.
          */
         ai_king_ref_wave(ctx);
-      }
-      break;
-    case AI_POPUP_TAG_KING_SCORED:
-      /* Peacetime @SCORED: That's all → @RETIRING then score UI; Keep playing → continue. */
-      if (popup->result_choice_id == AI_KING_CHOICE_THATS_ALL) {
-        const char* leader =
-          (ctx->col1_ok && ctx->col1 && human >= 0 && human < 4 &&
-           ctx->col1->player[human].name[0] != '\0')
-            ? ctx->col1->player[human].name
-            : "";
-        const char* estate = ai_king_richest_colony_name(ctx, human);
-        PopupMsgTokens tok;
-        memset(&tok, 0, sizeof(tok));
-        const int retire_diff = (ctx->col1_ok && ctx->col1) ? (int)ctx->col1->head.difficulty : 4;
-        tok.string0 = reports_difficulty_title((retire_diff >= 0 && retire_diff < 5) ? retire_diff : 4);
-        tok.string1 = leader;
-        tok.string2 = estate;
-        char body[AI_POPUP_BODY_LEN];
-        popup_msg_fill(ctx->messages, "RETIRING", &tok, "", body, sizeof(body));
-        if (ctx->status && ctx->status_size) {
-          snprintf(ctx->status, ctx->status_size, "%s", body);
-        }
-        if (ai_king_human_popups(ctx)) {
-          (void)ai_popup_enqueue_ok_ctx(
-            ctx->ai_popups,
-            AI_POPUP_TAG_INFO,
-            human,
-            ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, human),
-            0,
-            NULL,
-            body
-          );
-        }
-      } else if (popup->result_choice_id == AI_KING_CHOICE_KEEP_PLAYING) {
-        if (ctx->status && ctx->status_size) {
-          snprintf(ctx->status, ctx->status_size, "Continuing the campaign.");
-        }
       }
       break;
     default:

@@ -140,12 +140,10 @@ COLONIZE_INTERNAL void turn_year_end_era_end(
   ColonizeTurnContext* ctx, ColonizeTurnResult* out, uint16_t year, int splash_done,
   int woi_latched
 ) {
-  /* Section E game-over years (0x708=1800, 0x73a=1850) — status; HoF PARKED.
+  /* Section E game-over years (0x708=1800, 0x73a=1850) — status only; the
+   * @RETIRING / @RETIRING2 popup and its score chain are ai_king_war.c's.
    * raw :58630 `((0x538a == 0x708) && ((0x5382 & 1) == 0)) || (0x538a == 0x73a)`:
-   * 1800 does NOT end a game in which independence has been declared, so the
-   * era-end status and the calendar_latch below must not fire mid-war — that
-   * latch is what game_loop.c's `WON && !calendar_latch` gate reads to decide
-   * whether the win sequence still owes the player its closing chain. */
+   * 1800 does NOT end a game in which independence has been declared. */
   if (!splash_done && ((year == 0x708u && !woi_latched) || year == 0x73au) &&
       ctx->status && ctx->status_size > 0 && !out->year_end_defeat &&
       !out->year_end_victory) {
@@ -200,9 +198,10 @@ COLONIZE_INTERNAL void turn_year_end_era_end(
         (unsigned)year
       );
     }
-    /* DOS clears 0x53c2 then LAB_0b4a ORs bit4 when stopped. */
+    /* DOS clears 0x53c2 here; LAB_0b4a ORs bit4 (calendar_latch) only after the
+     * score chain, which game_retire_after_score runs (port_bugs.md #1232: set here
+     * first, it zeroed the chain's score and hid its exploits screen). */
     if (ctx->col1_ok && ctx->col1) {
-      ctx->col1->head.game_options.calendar_latch = 1;
       ctx->col1->head.turn_loop_running = 0;
     }
   }
@@ -433,7 +432,7 @@ COLONIZE_INTERNAL void turn_year_end_defeat_check(
     if (human_colonies == 0) {
       out->year_end_defeat = true;
       if (ctx->col1_ok && ctx->col1) {
-        ctx->col1->head.game_options.calendar_latch = 1;
+        /* calendar_latch waits for the score chain, as at the era end. */
         ctx->col1->head.turn_loop_running = 0;
         /* port_bugs.md: keep the endgame latch in step so the @LOSING game-over
          * chain (retire score) recognizes the war as over too. */
@@ -456,8 +455,7 @@ COLONIZE_INTERNAL void turn_year_end_defeat_check(
   }
   out->year_end_defeat = true;
   if (ctx->col1_ok && ctx->col1) {
-    ctx->col1->head.game_options.calendar_latch = 1; /* LAB_0b4a when stopped */
-    ctx->col1->head.turn_loop_running = 0; /* DS:0x53c2 clear */
+    ctx->col1->head.turn_loop_running = 0; /* DS:0x53c2 clear; bit4 after the chain */
     /*
      * DOS Section B tail (LAB_3844_04ec): the @LOSENOCOLONIES dialog (string
      * 0xf09; 0438 slot 0 = difficulty title, 0416 slot 1 = leader name) and

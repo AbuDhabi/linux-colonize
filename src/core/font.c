@@ -190,7 +190,25 @@ static void draw_builtin_glyph(
   }
 }
 
-int font_text_width_skip(const ColonizeFont* font, const char* text, const char* skipset) {
+/* DOS-LITERAL FUN_1c11_000c raw 17468-17471 (the glyph loop of every text writer, 6f74
+ * compositor and FUN_104b_* alike): a char whose face width byte is 0 draws nothing and
+ * advances 0. FONTTINY has no *<=>@\^_`{|}~, FONTSMAL no punctuation but . and #, FONTINTR
+ * no \^`{|}~ (port_bugs.md #1225, #1229). Chars >= 128 (DOS: >= 0x81 end the string) are
+ * treated the same. The builtin 5x7 cell stands in only when no face is loaded, or with
+ * port_fallback for the port-only surfaces (font_draw_text_port). */
+static int font_face_advance(const ColonizeFont* font, unsigned char ch, bool port_fallback) {
+  if (font && font->section_data) {
+    const int w = ch < 128 ? font->char_widths[ch] : 0;
+    if (w != 0 || !port_fallback) {
+      return w;
+    }
+  }
+  return 6;
+}
+
+static int font_text_width_run(
+  const ColonizeFont* font, const char* text, const char* skipset, bool port_fallback
+) {
   if (!text) {
     return 0;
   }
@@ -203,17 +221,21 @@ int font_text_width_skip(const ColonizeFont* font, const char* text, const char*
     if (skipset && strchr(skipset, (char)ch)) {
       continue;
     }
-    if (font && font->section_data && ch < 128 && font->char_widths[ch] != 0) {
-      width += font->char_widths[ch];
-    } else {
-      width += 6;
-    }
+    width += font_face_advance(font, ch, port_fallback);
   }
   return width;
 }
 
+int font_text_width_skip(const ColonizeFont* font, const char* text, const char* skipset) {
+  return font_text_width_run(font, text, skipset, false);
+}
+
 int font_text_width(const ColonizeFont* font, const char* text) {
   return font_text_width_skip(font, text, FONT_SKIP_HOTKEY);
+}
+
+int font_text_width_port(const ColonizeFont* font, const char* text) {
+  return font_text_width_run(font, text, FONT_SKIP_HOTKEY, true);
 }
 
 bool font_glyph_ink_bounds(
@@ -270,7 +292,7 @@ bool font_glyph_ink_bounds(
         }
       }
     }
-  } else {
+  } else if (!(font && font->section_data)) {
     if (ch < 32 || ch > 126) {
       ch = '?';
     }
@@ -329,20 +351,19 @@ static int font_draw_glyph(
   unsigned char ch,
   uint8_t color,
   bool unbold_colored,
-  const uint8_t* shade_colors
+  const uint8_t* shade_colors,
+  bool port_fallback
 ) {
-  /* Some .FF faces (notably FONTSMAL) omit punctuation such as '/'.
-   * Skipping those glyphs advanced 0px and jammed digits into "57" for "5/7". */
-  if (font && font->section_data && ch < 128 && font->char_widths[ch] != 0) {
-    if (framebuffer) {
-      draw_ff_glyph(font, framebuffer, x, y, ch, color, unbold_colored, shade_colors);
-    }
-    return font->char_widths[ch];
+  const int advance = font_face_advance(font, ch, port_fallback);
+  if (!framebuffer || advance == 0) {
+    return advance;
   }
-  if (framebuffer) {
+  if (font && font->section_data && ch < 128 && font->char_widths[ch] != 0) {
+    draw_ff_glyph(font, framebuffer, x, y, ch, color, unbold_colored, shade_colors);
+  } else {
     draw_builtin_glyph(framebuffer, x, y, ch, color);
   }
-  return 6;
+  return advance;
 }
 
 int font_draw_glyph_shaded(
@@ -355,7 +376,7 @@ int font_draw_glyph_shaded(
 ) {
   return font_draw_glyph(
     font, shade_colors ? framebuffer : NULL, x, y, ch, shade_colors ? shade_colors[1] : 0, false,
-    shade_colors
+    shade_colors, false
   );
 }
 
@@ -375,7 +396,8 @@ static void font_draw_run(
   uint8_t color,
   int hotkey_color,
   bool unbold_colored,
-  const uint8_t* shade_colors
+  const uint8_t* shade_colors,
+  bool port_fallback
 ) {
   if (!framebuffer || !text) {
     return;
@@ -403,7 +425,9 @@ static void font_draw_run(
 
     const uint8_t use = next_hotkey ? (uint8_t)hotkey_color : color;
     next_hotkey = false;
-    cx += font_draw_glyph(font, framebuffer, cx, y, ch, use, unbold_colored, shade_colors);
+    cx += font_draw_glyph(
+      font, framebuffer, cx, y, ch, use, unbold_colored, shade_colors, port_fallback
+    );
   }
 }
 
@@ -415,7 +439,7 @@ void font_draw_text_unbold(
   const char* text,
   uint8_t color
 ) {
-  font_draw_run(font, framebuffer, x, y, text, color, -1, true, NULL);
+  font_draw_run(font, framebuffer, x, y, text, color, -1, true, NULL, false);
 }
 
 void font_draw_text_hotkey(
@@ -427,7 +451,7 @@ void font_draw_text_hotkey(
   uint8_t color,
   uint8_t hotkey_color
 ) {
-  font_draw_run(font, framebuffer, x, y, text, color, (int)hotkey_color, false, NULL);
+  font_draw_run(font, framebuffer, x, y, text, color, (int)hotkey_color, false, NULL, false);
 }
 
 void font_draw_text_shaded(
@@ -441,5 +465,16 @@ void font_draw_text_shaded(
   if (!shade_colors) {
     return;
   }
-  font_draw_run(font, framebuffer, x, y, text, shade_colors[1], -1, false, shade_colors);
+  font_draw_run(font, framebuffer, x, y, text, shade_colors[1], -1, false, shade_colors, false);
+}
+
+void font_draw_text_port(
+  const ColonizeFont* font,
+  ColonizeFramebuffer8* framebuffer,
+  int x,
+  int y,
+  const char* text,
+  uint8_t color
+) {
+  font_draw_run(font, framebuffer, x, y, text, color, color, false, NULL, true);
 }

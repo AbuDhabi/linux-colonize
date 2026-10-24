@@ -320,9 +320,10 @@ void debug_atlas_render(
   }
   memset(framebuffer->pixels, 0, (size_t)framebuffer->width * (size_t)framebuffer->height);
 
+  /* Port-only viewer: font_draw_text_port keeps FONTSMAL's missing ':' '/' '(' legible. */
   char hud[120];
   if (!atlas || atlas->count <= 0) {
-    font_draw_text(font, framebuffer, 4, 4, "Debug atlas: no .SS/.PIK files found", 12);
+    font_draw_text_port(font, framebuffer, 4, 4, "Debug atlas: no .SS/.PIK files found", 12);
     return;
   }
 
@@ -341,8 +342,8 @@ void debug_atlas_render(
       atlas->index + 1,
       atlas->count
     );
-    font_draw_text(font, framebuffer, 2, 1, hud, 15);
-    font_draw_text(font, framebuffer, 4, 20, atlas->load_error, 12);
+    font_draw_text_port(font, framebuffer, 2, 1, hud, 15);
+    font_draw_text_port(font, framebuffer, 4, 20, atlas->load_error, 12);
     return;
   }
 
@@ -364,7 +365,7 @@ void debug_atlas_render(
     for (int y = 0; y < 12; ++y) {
       memset(&framebuffer->pixels[y * framebuffer->width], 0, (size_t)framebuffer->width);
     }
-    font_draw_text(font, framebuffer, 2, 1, hud, 15);
+    font_draw_text_port(font, framebuffer, 2, 1, hud, 15);
     return;
   }
 
@@ -417,7 +418,7 @@ void debug_atlas_render(
     for (int y = 0; y < 12; ++y) {
       memset(&framebuffer->pixels[y * framebuffer->width], 0, (size_t)framebuffer->width);
     }
-    font_draw_text(font, framebuffer, 2, 1, hud, 15);
+    font_draw_text_port(font, framebuffer, 2, 1, hud, 15);
     (void)kind;
     return;
   }
@@ -470,7 +471,7 @@ void debug_atlas_render(
       shown_last >= 0 ? shown_last : 0
     );
   }
-  font_draw_text(font, framebuffer, 2, 1, hud, 15);
+  font_draw_text_port(font, framebuffer, 2, 1, hud, 15);
 
   for (int row = 0; row < rows; ++row) {
     for (int col = 0; col < cols; ++col) {
@@ -487,7 +488,7 @@ void debug_atlas_render(
       ss_blit_sprite(sheet, idx, framebuffer, ox, oy);
       char label[12];
       snprintf(label, sizeof(label), "%d", idx);
-      font_draw_text(font, framebuffer, ox, oy + sh + 1, label, 14);
+      font_draw_text_port(font, framebuffer, ox, oy + sh + 1, label, 14);
     }
   }
 }

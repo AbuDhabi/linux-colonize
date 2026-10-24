@@ -112,8 +112,6 @@ void ai_king_nation_turn(ColonizeTurnContext* ctx);
 #define AI_KING_CHOICE_DECLINE 2
 #define AI_KING_CHOICE_CONFIRM 1
 #define AI_KING_CHOICE_NOT_YET 2
-#define AI_KING_CHOICE_THATS_ALL 0
-#define AI_KING_CHOICE_KEEP_PLAYING 1
 /*
  * FUN_38fd_5be8 does not pick one message: every rung of its ladder names its
  * own GAME.TXT section and (for three of them) a %STRING2 flavour noun. The

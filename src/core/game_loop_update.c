@@ -647,16 +647,15 @@ COLONIZE_INTERNAL GameUpdateStep game_update_services(ColonizeGameState* game, c
    * turn.c C1 check), once every dialog is answered the retire-score chain
    * runs exactly once: score → (exploits) → Hall of Fame → menu/@SCORED.
    * A WON latch with scoring already complete (calendar_latch — the player
-   * chose "Keep playing anyway.") stays quiet. */
+   * chose "Keep playing anyway.") stays quiet; a LOST one then ends the game
+   * without a second chain (game_end_after_loss, DOS LAB_3844_04ec). */
   if (!game->war_end_retired && game->col1_ok && !ai_popup_busy(&game->ai_popups) &&
       !game_modal_open(game) && !turn_processor_active(&game->turn_proc) &&
       !game->in_menu && !game->in_report &&
       !game->in_hall_of_fame && !game->in_exploits) {
     const int endgame = ai_king_latch_get(&game->col1, AI_KING_ENDGAME_BYTE);
     if (endgame == AI_KING_ENDGAME_LOST) {
-      game->war_end_retired = true;
-      game->war_end_won = false;
-      game_open_retire_score(game);
+      game_end_after_loss(game);
       return GAME_UPDATE_RETURN_TRUE;
     }
     if (endgame == AI_KING_ENDGAME_WON && !game->col1.head.game_options.calendar_latch) {
@@ -1119,17 +1118,12 @@ COLONIZE_INTERNAL GameUpdateStep game_update_report_screen(ColonizeGameState* ga
       }
     }
     /* Congress page 2 has no OK button (golden: full-bleed photo, no chrome)
-     * — any click closes it, not just a hit on a drawn box. Score (F10)
-     * has no OK button either (reports_ok_button_hit always returns false
-     * for it) — same click-anywhere-dismisses rule; FUN_41f2_0092 waits in
-     * FUN_281f_03c0, which takes either mouse button. */
+     * — any click closes it, not just a hit on a drawn box. (The Score plate
+     * has none either; game_update closes it on any key or click first.) */
     const bool page2_click_anywhere =
       game->report_id == COLONIZE_REPORT_CONGRESS && game->congress_page2 &&
       input->mouse_left_clicked;
-    const bool score_click_anywhere =
-      game->report_id == COLONIZE_REPORT_SCORE &&
-      (input->mouse_left_clicked || input->mouse_right_clicked);
-    const bool ok_clicked = page2_click_anywhere || score_click_anywhere ||
+    const bool ok_clicked = page2_click_anywhere ||
       (input->mouse_left_clicked &&
        reports_ok_button_hit(game->report_id, game->congress_page2, input->mouse_x, input->mouse_y));
     if (input->last_key == COLONIZE_KEY_ESCAPE || input->last_key == COLONIZE_KEY_ENTER ||
@@ -3561,16 +3555,27 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
   if (game->in_hall_of_fame) {
     if (colonize_input_any_key_or_click(input)) {
       game->in_hall_of_fame = false;
-      if (game->war_end_won) {
-        /* WoI win: the score chain ends in @SCORED "That's all." / "Keep
-         * playing anyway." (DOS main-loop 0x104 block) instead of the menu. */
-        game->war_end_won = false;
+      if (game->scored_after_hof) {
+        /* WoI win (DOS main-loop 0x104 block) or the calendar end (FUN_3844_0442
+         * LAB_3844_0b4a, raw 58667-58676): the score chain ends in @SCORED "That's
+         * all." / "Keep playing anyway." instead of the menu. */
+        game->scored_after_hof = false;
         game_enqueue_war_scored_choice(game);
       } else {
         game->in_menu = true;
         sound_set_bgm(SOUND_TITLE_BGM_POOL);
         set_status(game, "OpenCol", NULL);
       }
+    }
+    return true;
+  }
+
+  /* F10 score plate (FUN_41f2_0092, raw 71403-71407): no OK button, the same FUN_281f_03c0
+   * wait, and the main loop drops the key that ended it (raw 55683-55690, no re-dispatch).
+   * So any key (F-keys and Q too, hence ahead of the quit key) or either button closes it. */
+  if (game->in_report && game->report_id == COLONIZE_REPORT_SCORE) {
+    if (colonize_input_any_key_or_click(input)) {
+      game_report_leave(game);
     }
     return true;
   }

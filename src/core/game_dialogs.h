@@ -302,7 +302,7 @@ struct ColonizeGameState {
   bool in_report;
   bool report_exits_to_menu; /* Retire: close score → title menu */
   bool war_end_retired; /* port_bugs.md: endgame already routed to the retire score */
-  bool war_end_won; /* WoI won: after the Hall of Fame, @SCORED asks continue/exit */
+  bool scored_after_hof; /* WoI won or the calendar end: after the Hall of Fame, @SCORED asks continue/exit */
   bool congress_page2; /* Continental Congress is two pages; closing p1 shows p2 */
   /* A new Founding Father's arrival walks the player through Congress page 2
    * and then that father's Colonizopedia entry. Holds his index while the
@@ -495,6 +495,8 @@ bool game_load_col1_slot(ColonizeGameState* game, int slot, char* err, size_t er
 bool game_load_col1_file(ColonizeGameState* game, const char* path, char* err, size_t err_size);
 void game_open_report(ColonizeGameState* game, ColonizeReportId id);
 void game_open_retire_score(ColonizeGameState* game);
+void game_end_to_title(ColonizeGameState* game);
+void game_end_after_loss(ColonizeGameState* game);
 void game_reveal_sight_for_unit(ColonizeGameState* game, const ColonizeUnit* u);
 bool game_save_col1_slot(ColonizeGameState* game, int slot, char* err, size_t err_size);
 /* FUN_130d_0172 slot 8/9 autosave: capture + col1_bridge_stamp_autosave_head. */

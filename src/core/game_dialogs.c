@@ -3432,7 +3432,7 @@ static bool game_apply_popup_village_attack(ColonizeGameState* game) {
     if (dest_x >= 0) {
       ColonizeTurnContext ctx;
       game_fill_turn_context(game, &ctx);
-      ai_contact_village_open_hostilities(&ctx, indian_nation, u->nation_id);
+      ai_contact_village_attack_choice(&ctx, indian_nation, u->nation_id);
       units_set_ff_col1(game->col1_ok ? &game->col1 : NULL);
       colonies_set_col1_context(game->col1_ok ? &game->col1 : NULL);
       europe_set_live_save(game->col1_ok ? &game->col1 : NULL);
@@ -3486,52 +3486,45 @@ void game_apply_ai_popup_result(ColonizeGameState* game) {
   ColonizeTurnContext ctx;
   game_fill_turn_context(game, &ctx);
   ai_king_apply_popup_result(&ctx, &game->ai_popups);
-  if (game->ai_popups.result_tag == AI_POPUP_TAG_KING_SCORED &&
-      !game->ai_popups.result_cancelled &&
-      game->ai_popups.result_choice_id == 0) {
-    /* @SCORED "That's all." → open retire score (same path as Retire menu). */
-    game_open_retire_score(game);
-  }
-  /* port_bugs.md: the war-end announcements. Payload 2 (@RETIRING2 and legacy
-   * loss popups with no audience behind them) retires straight away; payload
-   * 1 (@WINNING) and 4 (@LOSINGn) have the KING_THRONE audience queued next,
-   * and the retire score waits for its dismissal (DOS 3844_0442 order:
-   * announcement → throne audience → CLOSING.EXE → score chain). */
+  /* port_bugs.md: the war-end announcements. Payload 2 (the calendar end:
+   * @RETIRING at 1800, @RETIRING2 at 1850) retires straight away and asks
+   * @SCORED after the Hall of Fame (FUN_3844_0442 raw 58646-58676, port_bugs.md
+   * #1231/#1232); payload 1 (@WINNING) and 4 (@LOSINGn) have the KING_THRONE
+   * audience queued next, and the retire score waits for its dismissal (DOS
+   * 3844_0442 order: announcement → throne audience → CLOSING.EXE → score
+   * chain). */
   if (game->ai_popups.result_tag == AI_POPUP_TAG_KING_WAR_END &&
       game->ai_popups.result_payload == 2) {
     game->war_end_retired = true;
+    game->scored_after_hof = true;
     game_open_retire_score(game);
   }
   if (game->ai_popups.result_tag == AI_POPUP_TAG_KING_THRONE) {
-    game->war_end_retired = true;
-    game->war_end_won = (game->ai_popups.result_payload == 1);
-    if (game->war_end_won) {
+    if (game->ai_popups.result_payload == 1) { /* war won */
       game_begin_win_closing_or_score(game);
     } else {
-      game_open_retire_score(game);
+      game_end_after_loss(game);
     }
   }
-  /* Post-HoF @SCORED (WoI win): "That's all." ends at the title menu; "Keep
-   * playing anyway." resumes the map (DOS main-loop 0x104 block: FUN_281f_03fe
-   * choice 2 keeps DS:0x53c2 alive). Either way scoring is complete. */
+  /* Post-HoF @SCORED (WoI win, 1800 @RETIRING): "Keep playing anyway." resumes
+   * the map; "That's all." ends at the title menu, and so does Esc (FUN_3844_0442
+   * raw 58672-58674: only FUN_281f_03fe choice 2 revives DS:0x53c2, Esc's -1
+   * does not). Either way scoring is complete. */
   if (game->ai_popups.result_tag == AI_POPUP_TAG_WAR_SCORED) {
     if (game->col1_ok) {
       game->col1.head.game_options.calendar_latch = 1;
     }
-    if (!game->ai_popups.result_cancelled && game->ai_popups.result_choice_id == 1) {
-      if (game->col1_ok) {
-        game->col1.head.turn_loop_running = 0;
-      }
-      game->in_menu = true;
-      sound_set_bgm(SOUND_TITLE_BGM_POOL);
-      set_status(game, "OpenCol", NULL);
+    if (game->ai_popups.result_cancelled || game->ai_popups.result_choice_id != 2) {
+      game_end_to_title(game);
     } else {
-      /* Keep playing (or Esc): back on the map, campaign continues. */
       if (game->col1_ok) {
         game->col1.head.turn_loop_running = 1;
       }
+      /* The campaign is live again: a later loss is handled like after a reload
+       * (game_end_after_loss, no second chain). */
+      game->war_end_retired = false;
       sound_set_bgm(1);
-      set_status(game, "Independence won — playing on", NULL);
+      set_status(game, "Scoring complete — playing on", NULL);
     }
   }
   ai_contact_apply_popup_result(&ctx, &game->ai_popups);

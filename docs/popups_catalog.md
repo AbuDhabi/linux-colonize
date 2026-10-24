@@ -443,7 +443,7 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@OTHERGRANTED` | Done thin | `FUN_3844_0442` §D rival-nation independence (raw 58596-58611, ids `0xf4b`/`0xf3f` NAMES/INDEPENDENT dual-load resolve to the republic rename) — `turn_year_end.c` `turn_year_end_rival_independence` / `turn_year_end_rival_popup`; renames the nation and clears war/ally bits toward every other power; VGA PARKED |
 | `@OTHERMIGHT` | Done thin | `FUN_3844_0442` §D rising SoL pressure on a rival (raw 58570-58582, id `0xf5e`) — `turn_year_end.c` `turn_year_end_rival_independence`; hysteresis band ported (`thresh-20`/cache) |
 | `@OTHERLESS` | Done thin | `FUN_3844_0442` §D falling SoL pressure on a rival (raw 58583-58593, id `0xf69`) — `turn_year_end.c` `turn_year_end_rival_independence` |
-| `@SCORED` | Done thin | peacetime year≥1800 — `AI_POPUP_TAG_KING_SCORED`; That's all opens retire score |
+| `@SCORED` | Done thin | after the Hall of Fame of a WoI win or the 1800 `@RETIRING` chain (`FUN_3844_0442` asm 3844:0b64, `AI_POPUP_TAG_WAR_SCORED`): Keep playing (choice 2) resumes, That's all or Esc ends at the title menu (port_bugs.md #1231) |
 | `@TORYUPRISING` | Done thin | `FUN_43f7_06a6` — `ai_king_ref.c` `ai_king_ref_tory_uprising` `popup_msg_fill("TORYUPRISING", …)` with colony name; VGA PARKED |
 | `@CANNOTATTACK` | Done | `game_report_enter_reason` (`game_loop_orders.c`) — real OK popup on `COLONIZE_ENTER_BOUNCE_FOREIGN` when the mover is land (non-combat land unit attacking) |
 | `@TRADEMERCANTILISM` | Done | `FUN_5f7a_020e` raw 98928-98934 — no Jan de Witt (FF 4); %STRING0 = @GREATLEADER2[owner]. docs/foreign_colony_trade.md |
@@ -468,8 +468,8 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@LOSENOCOLONIES` | Done thin | Section B zero-colony defeat OK + `ENDGAME_LOST` latch (`turn_run_year_end_chrome`) |
 | `@SOONRETIRING0` | Done thin | peacetime Spring 1790 — `ai_king_nation_turn_2424` (+ `ai_king_human_5e52_tail`; `ai_king_nation_turn` is a test-only wrapper) (`market_demand_pool_raw[8]`) |
 | `@SOONRETIRING1` | Done thin | wartime 1840 — `ai_king_nation_turn_2424` (+ `ai_king_human_5e52_tail`; `ai_king_nation_turn` is a test-only wrapper) (`market_demand_pool_raw[9]`) |
-| `@RETIRING` | Done thin | peacetime `@SCORED` That's all → `ai_king_apply_popup_result` |
-| `@RETIRING2` | Done thin | WoI year≥1850 + crown alive — `ai_king_check_revolution_end` |
+| `@RETIRING` | Done thin | peacetime year 1800 (raw 58629-58649, DS:0xf80) — `ai_king_nation_turn_2424`, KING_WAR_END payload 2: dismissal runs the retire chain, then `@SCORED`; gated on `calendar_latch` (0x5382 & 0x10) alone, no endgame latch |
+| `@RETIRING2` | Done thin | WoI year 1850 (DS:0xf89) — `ai_king_check_revolution_end`, KING_WAR_END payload 2 like `@RETIRING`: retire chain, then `@SCORED`; no loss latch, so after Keep playing the war goes on and a later loss ends the game with no second chain (port_bugs.md #1232) |
 | `@HOWTOWIN` | Done thin | after declare — `ai_king_do_declare` INFO (invent WoI-begins demoted) |
 | `@ARTILLERY` | Done | already real (`units_combat.c` `units_apply_land_loss_outcome` `units_combat_enqueue_tok`) — verified against DOS FUN_5fef_016c raw 99475 |
 | `@ARTILLERY2` | Done | already real (`units_combat.c` `units_apply_land_loss_outcome` `units_combat_enqueue_tok`) — verified against DOS FUN_5fef_016c raw 99486 |
@@ -523,7 +523,7 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 
 The tag list, with each tag's DOS function, section and payload, is the commented
 `AiPopupTag` enum in [`ai_popup.h`](../src/core/ai_popup.h). **Kind OK** means body-only wood
-(dismiss Enter/Space/Esc/any click; no invent “OK” label — GAME.TXT info
+(dismiss on any key but Up/Down, `FUN_6f74_2580` with no option rows, or any click; no invent “OK” label — GAME.TXT info
 sections have no response lines). **Kind CHOICE** lists authentic labels.
 
 ---

@@ -723,7 +723,30 @@ void game_open_retire_score(ColonizeGameState* game) {
   }
   game_open_report(game, COLONIZE_REPORT_SCORE);
   game->report_exits_to_menu = true;
-  set_status(game, "Retired — Colonization Score", "Enter/Esc or click continues");
+  set_status(game, "Retired — Colonization Score", "Any key or click continues");
+}
+
+/* The game is over: DS:0x53c2 cleared, the main loop returns to the title menu. */
+void game_end_to_title(ColonizeGameState* game) {
+  if (game->col1_ok) {
+    game->col1.head.turn_loop_running = 0;
+  }
+  game->in_menu = true;
+  sound_set_bgm(SOUND_TITLE_BGM_POOL);
+  set_status(game, "OpenCol", NULL);
+}
+
+/* A lost war or an empty board, FUN_3844_0442 LAB_3844_04ec (raw 58656-58663): the retire
+ * chain runs only while 0x5382 & 0x10 (calendar_latch, "scoring complete") is clear. After
+ * @SCORED "Keep playing anyway." the game just ends, with no second chain (port_bugs.md #1232). */
+void game_end_after_loss(ColonizeGameState* game) {
+  game->war_end_retired = true;
+  game->scored_after_hof = false;
+  if (game->col1_ok && game->col1.head.game_options.calendar_latch) {
+    game_end_to_title(game);
+    return;
+  }
+  game_open_retire_score(game);
 }
 
 /*
@@ -735,7 +758,7 @@ void game_begin_win_closing_or_score(ColonizeGameState* game) {
     return;
   }
   game->war_end_retired = true;
-  game->war_end_won = true;
+  game->scored_after_hof = true;
   if (closing_open(&game->closing, game->resolved_data_dir)) {
     game->closing_just_opened = true;
     game->closing_then_score = true;
@@ -745,9 +768,9 @@ void game_begin_win_closing_or_score(ColonizeGameState* game) {
   game_open_retire_score(game);
 }
 
-/* GAME.TXT @SCORED after a WoI win's score chain (DOS main-loop 0x104 block):
- * "That's all." (1) quits to the title menu, "Keep playing anyway." (2)
- * resumes the campaign. */
+/* GAME.TXT @SCORED after the score chain of a WoI win or the calendar end
+ * (@RETIRING / @RETIRING2, FUN_3844_0442 asm 3844:0b64-0b7e): "That's all." (1) quits to the title
+ * menu, "Keep playing anyway." (2) resumes the campaign. */
 void game_enqueue_war_scored_choice(ColonizeGameState* game) {
   char body[AI_POPUP_BODY_LEN];
   popup_msg_fill(

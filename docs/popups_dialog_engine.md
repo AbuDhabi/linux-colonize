@@ -30,9 +30,11 @@ as both inks); the measure `FUN_6f74_0486` deletes every `~{}|` first
 A char whose face width byte is 0 draws nothing and advances 0 (`FUN_1c11_000c` raw
 17468-17471, port_bugs.md #1225): FONTTINY has no `*<=>@\^_~{|}` or backquote, FONTINTR no
 `\^{|}~` or backquote, so the
-jobs rows' DS:0xca8 ` = ` reads as two spaces. The compositor (`popup_draw_text_markup`,
-`popup_markup_text_width`) drops those chars; `font.c`'s 5x7 fallback glyph is for the
-port's other text only. Test: `unit_popup_prompt dialog_lacking_glyph_is_dos`.
+jobs rows' DS:0xca8 ` = ` reads as two spaces. `font.c` applies the rule on every text path,
+so the compositor needs no case of its own (port_bugs.md #1229); its builtin 5x7 glyph stands
+in only with no face loaded and on port-only surfaces (`font_draw_text_port`: debug atlas,
+debug colony-site marks, the window-log bullet). Tests: `unit_popup_prompt
+dialog_lacking_glyph_is_dos`, `unit_font_file case_fonttiny`.
 
 Screens that are not compositor dialogs write through the resident `FUN_104b_*` writers
 instead: `FUN_281f_013c` / `0150` / `0100` -> `FUN_104b_0288` / `02c2` (right-aligned) /

@@ -1,6 +1,7 @@
 #include "core/internal.h"
 #include "core/ai_contact.h"
 #include "core/ai_contact_internal.h"
+#include "core/ai_euro_internal.h" /* ai_euro_5952_alarm_word */
 
 /*
  * Sections:
@@ -475,7 +476,6 @@ void ai_contact_apply_welcome_accept(
     return;
   }
   (void)ind;
-  const uint8_t rel_before = ai_diplo_indian_relation(ctx->col1, nation_id, e);
   ai_contact_set_peace(ctx->col1, nation_id, e);
   /*
    * relation_by_indian is the DOS 0x60 MET|PEACE flag BYTE, not a scalar (every
@@ -521,8 +521,15 @@ void ai_contact_apply_welcome_accept(
   );
   ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, "", peace_body);
 
-  /* DOS FUN_5bfb_0182: @INDIANCOME when relation < 0x19 before/as friendly. */
-  if (rel_before < 25u) {
+  /*
+   * DOS-LITERAL FUN_5bfb_0182 (5bfb:01ee-0203): @INDIANCOME when
+   * FUN_281f_030c(euro - 4, tribe nation) < 0x19, signed. The PUSHes swap the
+   * (tribe slot, euro) order every other caller uses, so the word read is
+   * DS:0x5b1c + ((euro - 4) * 0x27 + nation) * 2: a dwelling-record word for
+   * euro 0..2 (slots 71..80), an Inca-record word for euro 3. On an unused
+   * dwelling slot it is 0 and the line shows (port_bugs.md #1230).
+   */
+  if (ai_euro_5952_alarm_word(ctx->col1, e - 4, nation_id) < 0x19) {
     PopupMsgTokens come_tok;
     memset(&come_tok, 0, sizeof(come_tok));
     come_tok.string0 = tribe;
@@ -1142,7 +1149,7 @@ COLONIZE_INTERNAL int ai_contact_try_village_meet(
   return ai_contact_try_village_meet_unit(ctx, euro_nation, indian_nation, is_missionary, is_capital, -1);
 }
 
-void ai_contact_village_open_hostilities(
+void ai_contact_village_attack_choice(
   ColonizeTurnContext* ctx,
   int indian_nation,
   int euro_nation
@@ -1152,35 +1159,16 @@ void ai_contact_village_open_hostilities(
     return;
   }
   /*
-   * The tribe FRICTION floor below was copied from welcome reject, which no
-   * longer writes it: DOS's 022e reject limb has no village-word writer
-   * (port_bugs.md #1228). This copy is still untraced (residual of #1228).
-   *
-   * 2026-09-09 (smell #50): a second floor sat here, forcing
-   * alarm_by_player >= 80 right after the +100 delta. FUN_4cc6_00f2 halves a
-   * positive delta for France (euro 1) and again for Pocahontas (raw
-   * 80844-80850, ported in ai_diplo_indian_alarm_delta), so +100 lands as
-   * +50 / +25 for those players — and the floor stomped exactly that,
-   * handing France and a Pocahontas owner the same alarm as everyone else.
-   * The sibling this line claimed to copy floors t->alarm[].friction only.
+   * DOS-LITERAL FUN_4d56_4528 case 9 (OVL13 caseD_9, viceroy_overlays.asm
+   * 130781-130787): FUN_1000_8bf6(nation, tribe, 4) = FUN_15b3_0066, which ORs
+   * the attack-confirmed bit into both diplo rows, then returns 0 so the
+   * FUN_465b_0000 move resolves the attack. That is the whole arm. The alarm
+   * slam (difficulty + 5, x2 village, x6 capital) belongs to the 465b Indian
+   * arm (raw 75600-75626), already in units_move_combat_pre. The peace clear,
+   * +100 alarm and tribe friction floor of 80 that stood here had no DOS
+   * writer (port_bugs.md #1233).
    */
-  ai_contact_clear_peace(ctx->col1, indian_nation, euro_nation);
-  ai_contact_alarm_delta_00f2(ctx, indian_nation, euro_nation, 100); /* DOS +100 hostility */
-  if (ctx->col1->tribe) {
-    for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
-      ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
-      if ((int)t->nation_id != indian_nation) {
-        continue;
-      }
-      if (t->alarm[euro_nation].friction < 80u) {
-        t->alarm[euro_nation].friction = 80u;
-      }
-      /* (Retired 2026-09-08, smell #66.) Same all-tribes `attacks++` as the
-       * @INDIANSHUN reject limb above — the attacks byte belongs to the 465b
-       * per-settlement trespass bump alone (units.c ~6781). */
-    }
-  }
-  ai_diplo_indian_hostility_sync(ctx->col1, euro_nation);
+  ai_diplo_or_both(ctx->col1, euro_nation, indian_nation, COL1_INDIAN_ATTACK_CONFIRMED_BIT);
 }
 
 /*

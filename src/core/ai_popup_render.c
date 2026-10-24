@@ -55,7 +55,16 @@ bool ai_popup_handle_input(AiPopupState* st, const ColonizeInputState* input) {
     ai_popup_finish(st, !is_info, is_info ? 0 : -1);
     return true;
   }
-  if (!is_info) {
+  if (is_info) {
+    /* FUN_6f74_2580 with no option rows (raw 116779-116829): any key closes the box but Up /
+     * Down (0x148 / 0x150), which only step a unit list the port's info popups never have. */
+    if (input->last_key != COLONIZE_KEY_NONE) {
+      if (!colonize_key_up(input->last_key) && !colonize_key_down(input->last_key)) {
+        ai_popup_finish(st, false, 0);
+      }
+      return true;
+    }
+  } else {
     /* GAME.TXT choice boxes show through FUN_6f74_2580 (FUN_6f74_36ca): Up / Down wrap and
      * step past greyed rows. */
     if (popup_list_key_step(input->last_key, &st->selection, st->current.choice_count,
@@ -64,10 +73,6 @@ bool ai_popup_handle_input(AiPopupState* st, const ColonizeInputState* input) {
     }
   }
   if (input->last_key == COLONIZE_KEY_ENTER || input->last_key == COLONIZE_KEY_SPACE) {
-    if (is_info) {
-      ai_popup_finish(st, false, 0);
-      return true;
-    }
     /* DOS-LITERAL 6f74:2cfc (raw 116854-116867): no greyed test, so a greyed row that has the
      * bar from the start (first row added / @DEFAULT) is returned like any other. */
     if (st->selection >= 0 && st->selection < st->current.choice_count) {

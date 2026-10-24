@@ -4909,6 +4909,61 @@ static int case_year_end_victory_stops_turn(void) {
   return 0;
 }
 
+/* port_bugs.md #1232: the era end (1800) and the zero-colony defeat leave 0x5382 & 0x10
+ * (calendar_latch, "scoring complete") to the retire chain, as DOS LAB_3844_0b4a sets it only
+ * after FUN_281f_0574. Set here first, it zeroed the chain's score and hid its exploits. */
+static int case_year_end_scoring_waits_for_chain(void) {
+  fx_begin();
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  ColonizeColony* c = &pool.colonies[0];
+  memset(c, 0, sizeof(*c));
+  c->active = true;
+  c->nation_id = 0;
+  c->colonist_count = 3;
+  snprintf(c->name, sizeof(c->name), "Jamestown");
+  pool.colony_count = 1;
+  uint16_t year = 1800;
+  uint16_t autumn = 0;
+  uint32_t turn_number = 400;
+  char status[96] = "";
+  ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.messages = test_game_txt();
+  ctx.names = test_names_txt();
+  ctx.game_year = &year;
+  ctx.game_autumn = &autumn;
+  ctx.turn_number = &turn_number;
+  ctx.human_nation = 0;
+  ctx.colonies = &pool;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.status = status;
+  ctx.status_size = sizeof(status);
+  ColonizeTurnResult out;
+  memset(&out, 0, sizeof(out));
+  turn_run_year_end_chrome(&ctx, &out);
+  if (col1.head.game_options.calendar_latch) {
+    fprintf(stderr, "the 1800 era end set calendar_latch ahead of the chain ('%s')\n", status);
+    return 1;
+  }
+  c->active = false;
+  pool.colony_count = 0;
+  year = 1650;
+  memset(&out, 0, sizeof(out));
+  turn_run_year_end_chrome(&ctx, &out);
+  if (!out.year_end_defeat || ai_king_latch_get(&col1, 4) != 2 ||
+      col1.head.game_options.calendar_latch) {
+    fprintf(stderr, "zero-colony defeat: defeat=%d endgame=%d latch=%u\n", out.year_end_defeat,
+            ai_king_latch_get(&col1, 4), (unsigned)col1.head.game_options.calendar_latch);
+    return 1;
+  }
+  return 0;
+}
+
 static int case_year_end_defeat_victory(void) {
   fx_begin();
   ColonizeColonyPool pool;
@@ -6751,6 +6806,7 @@ static const TestCase k_cases[] = {
   {"horse_breed_units", case_horse_breed_units},
   {"horse_breed_colony", case_horse_breed_colony},
   {"year_end_defeat_victory", case_year_end_defeat_victory},
+  {"year_end_scoring_waits_for_chain", case_year_end_scoring_waits_for_chain},
   {"year_end_victory_stops_turn", case_year_end_victory_stops_turn},
   {"year_end_c2_peace", case_year_end_c2_peace},
   {"year_end_section_d", case_year_end_section_d},
