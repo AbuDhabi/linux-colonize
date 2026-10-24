@@ -6,6 +6,7 @@
 static char g_lines[WINDOW_LOG_MAX_LINES][WINDOW_LOG_LINE_LEN];
 static int g_count;
 static int g_head; /* next write slot */
+static unsigned g_total; /* pushes ever made */
 
 int window_log_strip_height(int lines) {
   const int n = window_log_clamp_lines(lines);
@@ -28,9 +29,14 @@ void window_log_push(const char* text) {
   }
   snprintf(g_lines[g_head], WINDOW_LOG_LINE_LEN, "%s", text);
   g_head = (g_head + 1) % WINDOW_LOG_MAX_LINES;
+  g_total++;
   if (g_count < WINDOW_LOG_MAX_LINES) {
     g_count++;
   }
+}
+
+unsigned window_log_total(void) {
+  return g_total;
 }
 
 int window_log_count(void) {
