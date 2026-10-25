@@ -134,3 +134,36 @@ Driving notes (new this campaign):
   from 2 to 20 by 1621.
 - Turn 130: the driver's `colonies` lost Fort Nassau after an Aztec raid
   burned French Cayenne (C5-B1, fixed in the driver).
+
+### 1621-1690: the artillery years
+
+- New Amsterdam's Fortress was finished in 1621 and from 1626 the colony
+  built artillery nonstop (30-42 hammers a turn, one gun every 5-6 turns);
+  Fort Orange (Armory) built a few too. Bought 4 guns in Amsterdam
+  (500/600/700/800) with Custom House money in 1665-1668. 30 guns by
+  spring 1690 (26 in New Amsterdam, 4 in Fort Orange).
+- SoL: New Amsterdam 100% from 1645 (Bolivar 1626, Paine 1640, Jefferson
+  1656), Fort Nassau 100% by 1688, Fort Orange ~70%. Rebels 90% by 1683.
+  Founding fathers: Bolivar, Paine, Jefferson, Jan de Witt, Washington
+  (1676), Penn (1687), Fugger picked next.
+- Tools are the bottleneck. Fort Orange's Master Blacksmith (6-8 a turn
+  from the Expert Ore Miner's 10 ore) plus a New Amsterdam blacksmith on
+  ferried ore. The Merchantman shuttles ore/tools/tobacco/lumber between
+  Fort Orange and New Amsterdam; Fort Nassau's furs come out by Wagon
+  Train.
+- **Tools boycott by accident (1645)**: a King's tax popup opened while I
+  was dragging cargo in Fort Orange's colony screen, and a click landed on
+  "Hold New Amsterdam Tools Party": 100 tools dumped and tools boycotted
+  (4500 back taxes). Since then no tools could be bought in Europe, which
+  is why Fugger is next.
+- Taxes: 23% (1623), 29%, 36% (1639). From then on every raise was refused
+  with a party on goods the Custom House still sells (it bypasses
+  boycotts): Cigars, Ore, Furs, Silver, Food, Horses parties kept the rate
+  at 36%; twice I accepted (41%, then 49% in 1688) to keep the muskets.
+- 1677: a Spanish privateer damaged the Merchantman again; 168 tools, 100
+  ore and 100 tobacco aboard were lost.
+- Neighbours: France ceded New France to Spain (Treaty of Utrecht, 1626);
+  the English colonies won independence as the USA (1672); the Arawak,
+  Tupi and Sioux were wiped out. Franklin kept every AI at peace with me.
+- REF in 1684 (save head `expeditionary_force`): 59 regulars, 25 cavalry,
+  14 artillery, 26 men-of-war.

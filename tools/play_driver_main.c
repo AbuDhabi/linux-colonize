@@ -41,6 +41,7 @@
  *   work N CI B                 colonist CI of colony N into @BUILDING row B (as `hit` prints)
  *   build N BID [queue]         colony N builds BID (@BUILDING row, or unit code 42 artillery..)
  *   equip UID ROLE              unit UID on a colony tile takes role ROLE (COLONIZE_EJECT_*, 4 dragoon)
+ *   admit UID                   unit UID on a colony tile joins that colony (prints colonist index)
  *   endturn                     confirm the End of Turn prompt (error while a unit waits)
  *   world                       whole map, one char a tile
  *   rumours                     list seen rumour tiles with terrain (h hill, m mountain)
@@ -834,6 +835,20 @@ static bool command(char* line) {
                                    : colonies_assign_workplace(&g_game->colonies, id, a2, atoi(argv[3]));
     if (!done) {
       printf("ERR %s refused\n", op);
+    }
+    ok = flush_frames(2);
+  } else if (strcmp(op, "admit") == 0 && argc > 1) {
+    /* admit UID: unit UID standing on one of its colonies joins it (the colony
+     * screen's fence-to-colony drop; the fence row only draws the first few units).
+     * Prints the new colonist index for `work` / `field`. */
+    const ColonizeUnit* u = units_get(&g_game->units, a1);
+    const int cid = u ? colonies_id_at(&g_game->colonies, u->x, u->y) : -1;
+    const ColonizeWorld w = game_world(g_game);
+    const int ci = cid >= 0 ? colonies_admit_unit_w(&w, cid, a1) : -1;
+    if (ci < 0) {
+      printf("ERR admit refused\n");
+    } else {
+      printf("ADMIT colonist %d\n", ci);
     }
     ok = flush_frames(2);
   } else if (strcmp(op, "equip") == 0 && argc > 2) {

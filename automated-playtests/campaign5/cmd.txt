@@ -1,1857 +1,627 @@
-colonies
 units
 sync b1
-colony 3
-wait 10
-work 3 3 36
-hit 155 118
-hit 160 118
-hit 165 118
-hit 170 118
-hit 55 52
+admit 292
 sync b2
-drag 162 118 260 42
-wait 15
-status
+colonies
 sync b3
-hit 165 118
-hit 160 118
+field 3 19 6 5
+colonies
 sync b4
-drag 165 118 55 52
-wait 15
-status
+activate 293
+wait 5
+key f
+wait 5
 sync b5
-drag 133 170 272 188
-wait 10
-colonies
+activate 295
+wait 5
+key f
+wait 5
 sync b6
-key Escape
-wait 10
-work 13 1 9
-colony 13
-wait 10
-hit 160 118
-hit 165 118
+activate 289
+wait 5
+key f
+wait 5
 sync b7
-colonies
+units
 sync b8
-drag 165 118 236 67
-wait 15
-status
-sync b9
 colonies
+sync b9
+activate 295
+wait 5
+key f
+wait 5
 sync b10
-key Escape
-wait 10
+activate 289
+wait 5
+key f
+wait 5
 sync b11
-status
+activate 316
+wait 5
+key f
+wait 5
 sync b12
 units
 sync b13
-activate 98
-goto 98 45 52
-wait 30
+activate 316
+wait 5
 status
 sync b14
-endturn
-auto
+key f
+wait 5
 status
 sync b15
 units
 sync b16
-choose 0
-wait 5
+status
 sync b17
-status
+key Return
+wait 8
 sync b18
-key Return
-wait 8
+status
 sync b19
-status
+key Return
+wait 8
 sync b20
-key Return
-wait 8
+status
 sync b21
-status
+key Return
+wait 8
 sync b22
-wait 30
+status
 sync b23
-status
+activate 316
+wait 5
+key f
+wait 5
 sync b24
-key Return
-wait 8
+activate 295
+wait 5
+key f
+wait 5
 sync b25
-status
+activate 289
+wait 5
+key f
+wait 5
 sync b26
-key Return
-wait 8
-sync b27
-status
-sync b28
-status
-sync b29
-activate 98
-goto 98 45 52
-wait 30
 units
-status
+sync b27
+work 3 18 37
+sync b28
+work 3 18 24
+sync b29
+colonies
 sync b30
-colony 7
-wait 10
-drag 47 188 133 170
-wait 10
-key Escape
-wait 10
 units
 sync b31
-status
+colonies
 sync b32
 units
 sync b33
-activate 98
-goto 98 53 48
-wait 30
-status
+build 7 42
+key Escape
+wait 10
 sync b34
-status
+colonies
 sync b35
-key Return
-wait 8
+save t426.sav
 sync b36
-status
+map 3 45 53
 sync b37
-endturn
-auto
-status
+units
 sync b38
 status
 sync b39
-units
+status
 sync b40
+units
+sync b41
+activate 202
+goto 202 53 47
+wait 30
+status
+sync b42
 endturn
 auto
 status
-sync b41
-units
-sync b42
-choose 3
-wait 10
 sync b43
 status
 sync b44
-endturn
-auto
+key Escape
+wait 10
 status
 sync b45
 status
 sync b46
-drag 187 170 47 188
-wait 10
-drag 175 170 47 188
-wait 10
-drag 162 170 47 188
-wait 10
-drag 150 170 47 188
-wait 10
 units
-status
 sync b47
-key r
-wait 10
-shot e24
+activate 202
+goto 202 53 47
+wait 30
+status
 sync b48
-key Down
-wait 2
+status
+sync b49
 key Return
+wait 8
+sync b50
+status
+sync b51
+key Return
+wait 8
+sync b52
+status
+sync b53
+key Return
+wait 8
+sync b54
+status
+sync b55
+endturn
+auto
+status
+sync b56
+status
+sync b57
+units
+sync b58
+endturn
+auto
+status
+sync b59
+status
+sync b60
+status
+sync b61
+drag 162 188 150 170
 wait 10
+status
+sync b62
+units
+sync b63
 drag 154 152 105 140
 wait 10
 choose 0
 wait 10
 units
-status
-sync b49
+sync b64
+build 13 17
+build 13 15 queue
+key Escape
+wait 10
+sync b65
+colonies
+sync b66
 endturn
 auto
 status
-sync b50
-units
-sync b51
-build 7 19
-key Escape
-wait 10
-sync b52
-status
-sync b53
-activate 180
-goto 180 44 55
-wait 30
-units
-status
-sync b54
-status
-sync b55
-key Return
-wait 8
-sync b56
-status
-sync b57
-key Return
-wait 8
-sync b58
-status
-sync b59
-key Return
-wait 8
-sync b60
-status
-sync b61
-key Return
-wait 8
-sync b62
-status
-sync b63
-key Return
-wait 8
-sync b64
-status
-sync b65
-status
-sync b66
-activate 180
-goto 180 44 55
-wait 30
-units
-status
 sync b67
-colony 13
-wait 10
-drag 87 188 133 170
-wait 10
-key Escape
-wait 10
-units
+activate 395
+wait 3
+key f
+wait 3
 sync b68
 endturn
 auto
 status
 sync b69
-status
-sync b70
-activate 180
-goto 180 45 52
-wait 30
 units
+sync b70
 status
 sync b71
 units
 sync b72
-status
-sync b73
-units
-sync b74
-activate 195
-goto 195 45 52
+activate 414
+goto 414 45 52
 wait 30
 status
-sync b75
+sync b73
 endturn
 auto
 status
-sync b76
+sync b74
+status
+sync b75
 units
+sync b76
+endturn
+auto
+status
 sync b77
-build 3 2
-key Escape
-wait 10
+units
 sync b78
-colonies
+units
 sync b79
-colonies
-sync b80
-colony 3
-wait 10
-shot c21
-key Escape
-wait 5
-sync b81
 colony 7
 wait 10
-drag 272 188 133 170
-wait 10
-key Escape
-wait 10
-units
+hit 133 150
+hit 150 150
+hit 167 150
+sync b80
+click 133 150
+wait 8
+status
+sync b81
+drag 133 170 87 188
+wait 8
+click 150 150
+wait 8
+status
 sync b82
-status
-sync b83
+drag 133 170 162 188
+wait 8
+click 133 150
+wait 8
+drag 162 188 133 170
+wait 8
+key Escape
+wait 8
 units
-sync b84
-activate 196
-goto 196 44 55
-wait 30
+sync b83
 status
+sync b84
+units
 sync b85
-activate 197
-goto 197 44 55
+activate 16
+goto 16 44 55
 wait 30
 status
 sync b86
-activate 195
-goto 195 44 47
+activate 415
+goto 415 44 55
 wait 30
 status
 sync b87
-endturn
-auto
+activate 417
+goto 417 44 55
+wait 30
 status
 sync b88
+activate 416
+goto 416 45 56
+wait 30
 status
 sync b89
-units
-sync b90
 endturn
 auto
+status
+sync b90
 status
 sync b91
 units
 sync b92
-colony 3
-wait 10
-drag 133 170 272 188
-wait 10
-key Escape
-wait 10
-colony 7
-wait 10
-drag 133 170 87 188
-wait 10
-key Escape
-wait 10
-units
+activate 16
+goto 16 44 55
+wait 30
+status
 sync b93
-colonies
+activate 415
+goto 415 44 55
+wait 30
+status
 sync b94
-colony 13
-wait 10
-hit 160 118
-hit 165 118
-hit 170 118
+activate 417
+goto 417 44 55
+wait 30
+status
 sync b95
-drag 167 118 260 43
-wait 15
+activate 416
+goto 416 45 56
+wait 30
 status
 sync b96
-drag 160 118 260 91
-wait 15
+endturn
+auto
 status
 sync b97
-colonies
+status
 sync b98
-key Escape
-wait 10
-activate 180
-wait 3
-key f
-wait 5
+units
 sync b99
+activate 16
+goto 16 44 55
+wait 30
 status
 sync b100
-units
+activate 415
+goto 415 44 55
+wait 30
+status
 sync b101
-activate 195
-goto 195 45 52
+activate 417
+goto 417 44 55
 wait 30
 status
 sync b102
+activate 416
+goto 416 45 56
+wait 30
+status
+sync b103
 endturn
 auto
 status
-sync b103
-units
 sync b104
-choose 0
-wait 5
+units
 sync b105
 status
 sync b106
-key Return
-wait 8
+units
 sync b107
+activate 16
+goto 16 44 55
+wait 30
 status
 sync b108
-key Return
-wait 8
+activate 415
+goto 415 44 55
+wait 30
+status
 sync b109
+activate 417
+goto 417 44 55
+wait 30
 status
 sync b110
+activate 416
+goto 416 45 56
 wait 30
+status
 sync b111
+endturn
+auto
 status
 sync b112
-wait 30
-sync b113
 status
+sync b113
+units
 sync b114
-key Return
-wait 8
+activate 16
+goto 16 44 55
+wait 30
+status
 sync b115
+activate 415
+goto 415 44 55
+wait 30
 status
 sync b116
+activate 417
+goto 417 44 55
+wait 30
 status
 sync b117
-activate 195
-goto 195 45 52
+activate 416
+goto 416 45 56
 wait 30
-units
 status
 sync b118
-colony 7
-wait 10
-drag 87 188 133 170
-wait 10
-drag 47 188 150 170
-wait 10
-key Escape
-wait 10
-units
-sync b119
-colony 7
-wait 10
-shot fo13
-hit 133 170
-hit 87 188
-sync b120
-drag 87 188 133 170
-wait 10
-status
-units
-sync b121
-colonies
-sync b122
-units
-sync b123
-drag 150 170 47 188
-wait 10
-drag 133 170 87 188
-wait 10
-click 150 150
-wait 10
-drag 87 188 133 170
-wait 10
-drag 47 188 150 170
-wait 10
-key Escape
-wait 10
-units
-sync b124
-status
-sync b125
-units
-sync b126
-activate 195
-goto 195 53 48
-wait 30
-status
-sync b127
 endturn
 auto
+status
+sync b119
+units
+sync b120
+activate 414
+wait 5
+key f
+wait 5
+sync b121
+status
+sync b122
+key Return
+wait 8
+sync b123
+status
+sync b124
+key Return
+wait 8
+sync b125
+status
+sync b126
+key Return
+wait 8
+sync b127
 status
 sync b128
-status
-sync b129
 units
+sync b129
+activate 417
+goto 417 44 55
+wait 30
+status
 sync b130
-endturn
-auto
 status
 sync b131
-units
+key Return
+wait 8
 sync b132
-build 7 42
-key Escape
-wait 10
-sync b133
-endturn
-auto
 status
+sync b133
+key Return
+wait 8
 sync b134
 status
 sync b135
-drag 187 170 47 188
-wait 10
-drag 175 170 47 188
-wait 10
-drag 162 170 47 188
-wait 10
-drag 150 170 47 188
-wait 10
-units
-status
-sync b136
-key r
-wait 10
-shot e25
-sync b137
-key Down
-wait 2
-key Down
-wait 2
 key Return
-wait 10
-key r
-wait 10
-shot e26
+wait 8
+sync b136
+status
+sync b137
+activate 416
+goto 416 45 56
+wait 30
 status
 sync b138
-key Return
-wait 5
-drag 272 188 150 170
-wait 10
-drag 154 152 105 140
-wait 10
-choose 0
-wait 10
-units
-status
-sync b139
 endturn
 auto
+status
+sync b139
 status
 sync b140
 units
 sync b141
-endturn
-auto
-status
-sync b142
-units
-sync b143
-status
-sync b144
-units
-sync b145
-activate 343
-goto 343 44 47
+activate 416
+goto 416 45 56
 wait 30
 status
-sync b146
+sync b142
 endturn
 auto
 status
-sync b147
+sync b143
 units
-sync b148
-colony 3
+sync b144
+colony 13
 wait 10
-drag 133 170 272 188
-wait 10
-field 3 4 1 8
-hit 160 118
-hit 165 118
-hit 155 118
-hit 135 58
-sync b149
-drag 162 118 135 58
-wait 10
+click 133 150
+wait 8
 status
+sync b145
+drag 150 170 162 188
+wait 8
+key Escape
+wait 8
+admit 415
+sync b146
+units
+sync b147
+colonies
+sync b148
+colony 13
+wait 10
+drag 150 170 162 188
+wait 8
+key Escape
+wait 8
+sync b149
+units
 sync b150
 colonies
 sync b151
-hit 160 118
-drag 160 118 115 20
-wait 10
-status
+field 13 9 7 0
+work 13 12 35
+field 13 11 5 5
 sync b152
-build 3 42 queue
-key Escape
-wait 10
 colonies
 sync b153
-colonies
-sync b154
-units
-sync b155
-equip 345 4
+activate 416
 wait 5
-units
-sync b156
-activate 345
-wait 3
+status
+sync b154
+activate 417
+wait 5
 key f
 wait 5
-sync b157
-units
-sync b158
-save t150.sav
-sync b159
+sync b155
 endturn
 auto
 status
-sync b160
-activate 345
+sync b156
+activate 16
 wait 3
 key f
+wait 3
+sync b157
+endturn
+auto
+status
+sync b158
+activate 416
 wait 5
-units
+status
+sync b159
+status
+sync b160
+status
 sync b161
-colonies
+near 45 56 0
 sync b162
+key KP_3
+wait 5
 status
 sync b163
 units
 sync b164
-activate 343
-goto 343 53 47
-wait 30
 status
 sync b165
-endturn
-auto
-status
+key Return
+wait 8
 sync b166
 status
 sync b167
+activate 416
+wait 5
+key p
+wait 5
 units
 sync b168
-endturn
-auto
-status
+colonies
 sync b169
-units
+colony 7
+wait 10
+status
 sync b170
-status
+hit 133 150
+hit 150 150
 sync b171
-activate 180
-goto 180 44 55
-wait 30
+drag 272 188 133 170
+wait 8
+drag 272 188 150 170
+wait 8
+drag 200 188 162 170
+wait 8
+drag 47 188 175 170
+wait 8
+key Escape
+wait 8
 units
-status
 sync b172
-endturn
-auto
-status
+colonies
 sync b173
-status
+colony 7
+wait 10
 sync b174
-activate 180
-goto 180 44 55
-wait 30
-units
-status
+hit 55 10
+hit 60 10
+hit 65 10
+hit 70 10
+hit 75 10
+hit 80 10
+hit 85 10
+hit 55 14
+hit 60 14
+hit 65 14
+hit 70 14
+hit 75 14
+hit 80 14
+hit 85 14
+hit 55 18
+hit 60 18
+hit 65 18
+hit 70 18
+hit 75 18
+hit 80 18
+hit 85 18
+hit 55 22
+hit 60 22
+hit 65 22
+hit 70 22
+hit 75 22
+hit 80 22
+hit 85 22
+hit 55 26
+hit 60 26
+hit 65 26
+hit 70 26
+hit 75 26
+hit 80 26
+hit 85 26
 sync b175
-status
-sync b176
-choose 0
+mdown 65 26
 wait 5
-sync b177
-status
-sync b178
-status
-sync b179
-activate 180
-goto 180 44 55
-wait 30
-units
-status
-sync b180
-status
-sync b181
-drag 272 188 150 170
-wait 10
-key r
-wait 10
-shot e27
-status
-sync b182
-drag 154 152 105 140
-wait 10
-choose 0
-wait 10
-units
-sync b183
-status
-sync b184
-key Return
-wait 8
-sync b185
-status
-sync b186
-units
-sync b187
-endturn
-auto
-status
-sync b188
-status
-sync b189
-units
-sync b190
-endturn
-auto
-status
-sync b191
-status
-sync b192
-units
-sync b193
-endturn
-auto
-status
-sync b194
-colony 13
-wait 10
-drag 87 188 133 170
-wait 10
-drag 162 188 150 170
-wait 10
-key Escape
-wait 10
-units
-sync b195
-status
-sync b196
-activate 180
-goto 180 45 52
-wait 30
-units
-status
-sync b197
-status
-sync b198
-units
-sync b199
-endturn
-auto
-status
-sync b200
-status
-sync b201
-units
-sync b202
-endturn
-auto
-status
-sync b203
-status
-sync b204
-units
-sync b205
-endturn
-auto
-status
-sync b206
-units
-sync b207
-status
-sync b208
-units
-sync b209
-activate 441
-goto 441 45 52
-wait 30
-status
-sync b210
-status
-sync b211
-key Return
-wait 8
-sync b212
-status
-sync b213
-key Return
-wait 8
-sync b214
-status
-sync b215
-key Return
-wait 8
-sync b216
-status
-sync b217
-key Return
-wait 8
-sync b218
-status
-sync b219
-activate 180
-goto 180 45 52
-wait 30
-status
-sync b220
-endturn
-auto
-status
-sync b221
-status
-sync b222
-units
-sync b223
-activate 441
-goto 441 45 52
-wait 30
-status
-sync b224
-endturn
-auto
-status
-sync b225
-status
-sync b226
-units
-sync b227
-endturn
-auto
-status
-sync b228
-units
-sync b229
-colony 7
-wait 10
-drag 150 170 162 188
-wait 10
-drag 133 170 87 188
-wait 10
-click 150 150
-wait 10
-drag 87 188 150 170
-wait 10
-drag 162 188 162 170
-wait 10
-drag 272 188 175 170
-wait 10
-key Escape
-wait 10
-units
-sync b230
-activate 180
-wait 3
-key f
-wait 3
-sync b231
-status
-sync b232
-units
-sync b233
-activate 442
-goto 442 44 55
-wait 30
-status
-sync b234
-activate 441
-goto 441 44 47
-wait 30
-status
-sync b235
-endturn
-auto
-status
-sync b236
-units
-sync b237
-activate 180
-wait 3
-key f
-wait 3
-units
-sync b238
-status
-sync b239
-units
-sync b240
-activate 442
-goto 442 44 55
-wait 30
-status
-sync b241
-status
-sync b242
-key Return
-wait 8
-sync b243
-status
-sync b244
-key Return
-wait 8
-sync b245
-status
-sync b246
-key Return
-wait 8
-sync b247
-status
-sync b248
-key Return
-wait 8
-sync b249
-status
-sync b250
-key Return
-wait 8
-sync b251
-status
-sync b252
-wait 30
-sync b253
-status
-sync b254
-units
-sync b255
-status
-sync b256
-key Return
-wait 10
-status
-sync b257
-auto
-sync b258
-colony 3
-wait 10
-drag 175 170 272 188
-wait 10
-drag 162 170 162 188
-wait 10
-drag 150 170 87 188
-wait 10
-drag 133 170 272 188
-wait 10
-key Escape
-wait 10
-units
-sync b259
-colonies
-sync b260
-status
-sync b261
-units
-sync b262
-activate 441
-goto 441 53 47
-wait 30
-status
-sync b263
-endturn
-auto
-status
-sync b264
-status
-sync b265
-units
-sync b266
-activate 441
-goto 441 53 47
-wait 30
-status
-sync b267
-endturn
-auto
-status
-sync b268
-status
-sync b269
-units
-sync b270
-activate 441
-goto 441 53 47
-wait 30
-status
-sync b271
-endturn
-auto
-status
-sync b272
-status
-sync b273
-units
-sync b274
-activate 441
-goto 441 53 47
-wait 30
-status
-sync b275
-endturn
-auto
-status
-sync b276
-units
-sync b277
-colony 13
-wait 10
-hit 160 118
-hit 165 118
-sync b278
-drag 162 118 284 43
-wait 15
-status
-sync b279
-colonies
-sync b280
-key Escape
-wait 10
-sync b281
-endturn
-auto
-status
-sync b282
-choose 3
-wait 10
-sync b283
-status
-sync b284
-key Return
-wait 8
-sync b285
-status
-sync b286
-key Return
-wait 8
-sync b287
-status
-sync b288
-wait 30
-sync b289
-status
-sync b290
-wait 30
-sync b291
-status
-sync b292
-key Return
-wait 8
-sync b293
-status
-sync b294
-endturn
-auto
-status
-sync b295
-activate 510
-wait 3
-key f
-wait 3
-sync b296
-activate 441
-sync b297
-status
-sync b298
-status
-sync b299
-near 45 47 0
-sync b300
-key KP_6
-wait 5
-status
-sync b301
-choose 0
-wait 10
-units
-sync b302
-endturn
-auto
-status
-sync b303
-key r
-wait 10
-shot e28
-status
-sync b304
-key Down
-wait 2
-key Return
-wait 10
-key r
-wait 10
-key Down
-wait 2
-key Return
-wait 10
-status
-sync b305
-units
-sync b306
-drag 272 188 150 170
-wait 10
-drag 154 152 105 140
-wait 10
-choose 0
-wait 10
-units
-status
-sync b307
-endturn
-auto
-status
-sync b308
-endturn
-auto
-status
-sync b309
-units
-sync b310
-choose 0
-wait 5
-sync b311
-endturn
-auto
-status
-sync b312
-units
-sync b313
-status
-sync b314
-units
-sync b315
-activate 565
-goto 565 44 47
-wait 30
-status
-sync b316
-endturn
-auto
-status
-sync b317
-status
-sync b318
-units
-sync b319
-endturn
-auto
-status
-sync b320
-units
-sync b321
-colony 3
-wait 10
-drag 133 170 272 188
-wait 10
-sync b322
-hit 150 118
-sync b323
-hit 155 118
-sync b324
-hit 160 118
-sync b325
-hit 165 118
-sync b326
-hit 170 118
-sync b327
-hit 175 118
-sync b328
-hit 180 118
-sync b329
-hit 185 118
-sync b330
-hit 190 118
-sync b331
-choose 0
-wait 5
-drag 160 118 236 66
-wait 15
-status
-sync b332
-hit 150 118
-sync b333
-hit 155 118
-sync b334
-hit 160 118
-sync b335
-hit 165 118
-sync b336
-hit 170 118
-sync b337
-hit 175 118
-sync b338
-hit 180 118
-sync b339
-hit 185 118
-sync b340
-hit 190 118
-sync b341
-shot c22
-hit 165 115
-hit 175 115
-hit 185 112
-sync b342
-key Escape
-wait 10
-shot c23
-sync b343
-hit 150 118
-sync b344
-hit 160 118
-sync b345
-hit 170 118
-sync b346
-hit 180 118
-sync b347
-hit 190 118
-sync b348
-hit 160 118
-drag 160 118 236 66
-wait 15
-status
-sync b349
-hit 130 118
-hit 132 118
-hit 134 118
-hit 136 118
-hit 138 118
-hit 140 118
-hit 142 118
-hit 144 118
-hit 146 118
-hit 148 118
-hit 150 118
-hit 152 118
-hit 154 118
-hit 156 118
-hit 158 118
-hit 160 118
-hit 162 118
-hit 164 118
-hit 166 118
-hit 168 118
-hit 170 118
-hit 172 118
-hit 174 118
-hit 176 118
-hit 178 118
-hit 180 118
-hit 182 118
-hit 184 118
-hit 186 118
-hit 188 118
-hit 190 118
-hit 192 118
-hit 194 118
-hit 196 118
-sync b350
-hit 130 118
-hit 133 118
-hit 136 118
-hit 139 118
-hit 142 118
-hit 145 118
-hit 148 118
-hit 151 118
-hit 154 118
-hit 157 118
-hit 160 118
-hit 163 118
-hit 166 118
-hit 169 118
-hit 172 118
-hit 175 118
-hit 178 118
-hit 181 118
-hit 184 118
-hit 187 118
-hit 190 118
-hit 193 118
-hit 196 118
-sync b351
-status
-sync b352
-key Escape
-wait 10
-sync b353
-hit 130 118
-hit 133 118
-hit 136 118
-hit 139 118
-hit 142 118
-hit 145 118
-hit 148 118
-hit 151 118
-hit 154 118
-hit 157 118
-hit 160 118
-hit 163 118
-hit 166 118
-hit 169 118
-hit 172 118
-hit 175 118
-hit 178 118
-hit 181 118
-hit 184 118
-hit 187 118
-hit 190 118
-hit 193 118
-hit 196 118
-sync b354
-drag 152 118 236 66
-wait 15
-status
-sync b355
-click 236 66
-wait 10
-status
-sync b356
-shot c24
-sync b357
-click 88 81
-wait 10
-drag 167 118 236 42
-wait 15
-status
-sync b358
-click 236 42
-wait 10
-shot c25
-sync b359
-hit 130 118
-hit 133 118
-hit 136 118
-hit 139 118
-hit 142 118
-hit 145 118
-hit 148 118
-hit 151 118
-hit 154 118
-hit 157 118
-hit 160 118
-hit 163 118
-hit 166 118
-hit 169 118
-hit 172 118
-hit 175 118
-hit 178 118
-hit 181 118
-hit 184 118
-hit 187 118
-hit 190 118
-hit 193 118
-hit 196 118
-sync b360
-drag 172 118 236 42
-wait 15
-status
-sync b361
-click 236 42
-wait 10
-status
-sync b362
-shot c26
-sync b363
-click 88 81
-wait 10
-colonies
-sync b364
-drag 157 118 236 90
-wait 15
-status
-sync b365
-colonies
-sync b366
-units
-sync b367
-colonies
-sync b368
-key Escape
-wait 10
-equip 567 4
-wait 5
-units
-sync b369
-colonies
-sync b370
-build 3 16
-key Escape
-wait 10
-activate 567
-wait 3
-key f
-wait 3
-activate 565
-wait 3
-key f
-wait 3
-sync b371
-colonies
-sync b372
-endturn
-auto
-status
-sync b373
-build 3 42
-drag 133 170 272 188
-wait 10
-choose 1
-wait 5
-key Escape
-wait 10
-sync b374
-colonies
-sync b375
-units
-sync b376
-activate 565
-wait 3
-key f
-wait 3
-sync b377
-endturn
-auto
-status
-sync b378
-activate 567
-wait 3
-key f
-wait 3
-sync b379
-endturn
-auto
-status
-sync b380
-endturn
-auto
-status
-sync b381
-endturn
-auto
-status
-sync b382
-endturn
-auto
-status
-sync b383
-endturn
-auto
-status
-sync b384
-endturn
-auto
-status
-sync b385
-activate 691
-wait 3
-key f
-wait 3
-sync b386
-endturn
-auto
-status
-sync b387
-choose 1
-wait 10
-sync b388
-endturn
-auto
-status
-sync b389
-endturn
-auto
-status
-sync b390
-endturn
-auto
-status
-sync b391
-activate 731
-wait 3
-key f
-wait 3
-sync b392
-endturn
-auto
-status
-sync b393
-endturn
-auto
-status
-sync b394
-endturn
-auto
-status
-sync b395
-activate 755
-wait 3
-key f
-wait 3
-sync b396
-endturn
-auto
-status
-sync b397
-endturn
-auto
-status
-sync b398
-endturn
-auto
-status
-sync b399
-endturn
-auto
-status
-sync b400
-status
-colonies
-sync b401
-status
-sync b402
-activate 565
-goto 565 45 52
-wait 30
-units
-status
-sync b403
-status
-sync b404
-wait 30
-sync b405
-status
-sync b406
-key Return
-wait 8
-sync b407
-status
-sync b408
-key Return
-wait 8
-sync b409
-status
-sync b410
-wait 30
-sync b411
-status
-sync b412
-activate 180
-goto 180 44 55
-wait 30
-units
-status
-sync b413
-endturn
-auto
-status
-sync b414
-status
-sync b415
-activate 180
-goto 180 44 55
-wait 30
-units
-status
-sync b416
-units
-sync b417
-choose 0
-wait 5
-sync b418
-status
-sync b419
-wait 30
-sync b420
-status
-sync b421
-status
-sync b422
-activate 180
-goto 180 44 55
-wait 30
-units
-status
-sync b423
-colony 7
-wait 10
-click 150 150
-wait 10
-drag 47 188 133 170
-wait 10
-drag 272 188 150 170
-wait 10
-key Escape
-wait 10
-units
-sync b424
-colony 7
-wait 10
-drag 47 188 133 170
-wait 10
-drag 272 188 150 170
-wait 10
-key Escape
-wait 10
-units
-sync b425
-status
-sync b426
-units
-sync b427
-activate 565
-goto 565 44 47
-wait 30
-status
-sync b428
-activate 180
-goto 180 44 55
-wait 30
-status
-sync b429
-status
-sync b430
-key Return
-wait 8
-sync b431
-status
-sync b432
-key Return
-wait 8
-sync b433
-status
-sync b434
-key Return
-wait 8
-sync b435
-status
-sync b436
-key Return
-wait 8
-sync b437
-status
-sync b438
-key Return
-wait 8
-sync b439
-status
-sync b440
-endturn
-auto
-status
-sync b441
-activate 829
-wait 3
-key f
-wait 3
-sync b442
-endturn
-auto
-status
-sync b443
-status
-sync b444
-units
-sync b445
-endturn
-auto
-status
-sync b446
-units
-sync b447
-colony 3
-wait 10
-drag 150 170 272 188
-wait 10
-drag 133 170 47 188
-wait 10
-key Escape
-wait 10
-colony 13
-wait 10
-drag 87 188 133 170
-wait 10
-drag 162 188 150 170
-wait 10
-key Escape
-wait 10
-units
-sync b448
-status
-sync b449
-activate 180
-goto 180 45 52
-wait 30
-units
-status
-sync b450
-status
-sync b451
-units
-sync b452
-activate 565
-goto 565 53 47
-wait 30
-status
-sync b453
-activate 180
-goto 180 45 52
-wait 30
-status
-sync b454
-status
-sync b455
-units
-status
-sync b456
-choose 3
-wait 10
-sync b457
-status
-sync b458
-key Return
-wait 8
-sync b459
-status
-sync b460
-key Return
-wait 8
-sync b461
-status
-sync b462
-units
-sync b463
-activate 565
-goto 565 53 47
-wait 30
-status
-sync b464
-activate 180
-goto 180 45 52
-wait 30
-status
-sync b465
-endturn
-auto
-status
-sync b466
-key r
-wait 10
-shot e29
-units
-sync b467
-key Down
-wait 2
-key Return
-wait 10
-drag 154 152 105 140
-wait 10
-choose 0
-wait 10
-units
-status
-sync b468
-colony 7
-wait 10
-drag 133 170 87 188
-wait 10
-key Escape
-wait 10
-activate 180
-wait 3
-key f
-wait 3
-sync b469
-endturn
-auto
-status
-sync b470
-units
-sync b471
-status
-sync b472
-units
-sync b473
-activate 913
-goto 913 45 52
-wait 30
-status
-sync b474
-endturn
-auto
-status
-sync b475
-status
-sync b476
-units
-sync b477
-endturn
-auto
-status
-sync b478
-units
-sync b479
-colony 7
-wait 10
-sync b480
-hit 130 118
-hit 133 118
-hit 136 118
-hit 139 118
-hit 142 118
-hit 145 118
-hit 148 118
-hit 151 118
-hit 154 118
-hit 157 118
-hit 160 118
-hit 163 118
-hit 166 118
-hit 169 118
-hit 172 118
-hit 175 118
-hit 178 118
-hit 181 118
-hit 184 118
-hit 187 118
-hit 190 118
-hit 193 118
-hit 196 118
-sync b481
-drag 178 118 115 20
-wait 10
-drag 169 118 115 20
-wait 10
-drag 160 118 115 20
-wait 10
-drag 154 118 115 20
-wait 10
-sync b482
-colonies
-sync b483
-field 7 5 0 8
-field 7 6 7 8
-hit 154 118
-hit 165 118
-sync b484
-colonies
-sync b485
-key Escape
-wait 10
-sync b486
-hit 130 118
-hit 133 118
-hit 136 118
-hit 139 118
-hit 142 118
-hit 145 118
-hit 148 118
-hit 151 118
-hit 154 118
-hit 157 118
-hit 160 118
-hit 163 118
-hit 166 118
-hit 169 118
-hit 172 118
-hit 175 118
-hit 178 118
-hit 181 118
-hit 184 118
-hit 187 118
-hit 190 118
-hit 193 118
-hit 196 118
-sync b487
-drag 166 118 284 67
-wait 15
-status
-sync b488
-colonies
-sync b489
-mdown 284 67
-wait 5
-move 200 100
+move 120 80
 wait 5
 move 190 115
 wait 5
@@ -1861,16 +631,1030 @@ key Down
 wait 3
 key Return
 wait 10
-drag 47 188 133 170
+key Escape
 wait 10
-drag 87 188 150 170
-wait 10
-sync b490
+sync b176
 colonies
-sync b491
+sync b177
 units
-sync b492
+sync b178
+activate 503
+wait 3
+key f
+wait 3
+sync b179
+status
+sync b180
 units
-sync b493
-shot fo14
-sync b494
+sync b181
+activate 414
+goto 414 44 47
+wait 30
+status
+sync b182
+endturn
+auto
+status
+sync b183
+status
+sync b184
+units
+sync b185
+endturn
+auto
+status
+sync b186
+units
+sync b187
+key f
+wait 3
+colony 3
+wait 10
+sync b188
+hit 133 150
+hit 150 150
+sync b189
+click 150 150
+wait 8
+status
+sync b190
+status
+sync b191
+status
+sync b192
+status
+sync b193
+shot c34
+sync b194
+click 150 150
+wait 8
+click 150 150
+wait 8
+key Down
+wait 3
+key Down
+wait 3
+key Return
+wait 8
+key Escape
+wait 8
+sync b195
+units
+sync b196
+colonies
+sync b197
+status
+sync b198
+colony 3
+wait 10
+click 150 150
+wait 8
+drag 290 188 133 170
+wait 8
+key Escape
+wait 8
+units
+sync b199
+activate 26
+wait 4
+status
+sync b200
+key s
+wait 4
+sync b201
+activate 193
+wait 4
+status
+sync b202
+key s
+wait 4
+sync b203
+activate 194
+wait 4
+status
+sync b204
+key s
+wait 4
+sync b205
+activate 167
+wait 4
+status
+sync b206
+key s
+wait 4
+sync b207
+activate 191
+wait 4
+status
+sync b208
+key s
+wait 4
+sync b209
+activate 203
+wait 4
+status
+sync b210
+key s
+wait 4
+sync b211
+activate 205
+wait 4
+status
+sync b212
+key s
+wait 4
+sync b213
+units
+sync b214
+activate 26
+wait 4
+status
+sync b215
+key s
+wait 4
+status
+sync b216
+units
+sync b217
+status
+sync b218
+key Return
+wait 8
+sync b219
+status
+sync b220
+key Return
+wait 8
+sync b221
+status
+sync b222
+key Return
+wait 8
+sync b223
+status
+sync b224
+key Return
+wait 8
+sync b225
+status
+sync b226
+key Return
+wait 8
+sync b227
+status
+sync b228
+activate 26
+wait 4
+key s
+wait 4
+sync b229
+activate 193
+wait 4
+key s
+wait 4
+sync b230
+activate 194
+wait 4
+key s
+wait 4
+sync b231
+activate 167
+wait 4
+key s
+wait 4
+sync b232
+activate 191
+wait 4
+key s
+wait 4
+sync b233
+activate 203
+wait 4
+key s
+wait 4
+sync b234
+activate 205
+wait 4
+key s
+wait 4
+sync b235
+units
+sync b236
+status
+sync b237
+activate 414
+goto 414 45 52
+wait 30
+units
+status
+sync b238
+status
+sync b239
+activate 289
+goto 289 46 51
+wait 30
+units
+status
+sync b240
+status
+sync b241
+key Return
+wait 8
+sync b242
+status
+sync b243
+key Return
+wait 8
+sync b244
+status
+sync b245
+key Return
+wait 8
+sync b246
+status
+sync b247
+wait 30
+sync b248
+status
+sync b249
+key Return
+wait 8
+sync b250
+status
+sync b251
+key Return
+wait 8
+sync b252
+status
+sync b253
+key Return
+wait 8
+sync b254
+status
+sync b255
+key Return
+wait 8
+sync b256
+status
+sync b257
+units
+sync b258
+activate 414
+goto 414 45 52
+wait 30
+status
+sync b259
+activate 289
+goto 289 45 52
+wait 30
+status
+sync b260
+endturn
+auto
+status
+sync b261
+status
+sync b262
+units
+sync b263
+endturn
+auto
+status
+sync b264
+units
+sync b265
+activate 416
+wait 4
+key p
+wait 4
+sync b266
+colony 7
+wait 10
+status
+sync b267
+hit 133 150
+hit 150 150
+hit 167 150
+sync b268
+shot fo20
+sync b269
+click 150 150
+wait 8
+drag 133 170 290 188
+wait 8
+key Escape
+wait 8
+equip 503 2
+equip 204 2
+wait 3
+sync b270
+units
+sync b271
+status
+sync b272
+units
+sync b273
+activate 26
+goto 26 44 55
+wait 30
+status
+sync b274
+activate 193
+goto 193 44 55
+wait 30
+status
+sync b275
+activate 194
+goto 194 44 55
+wait 30
+status
+sync b276
+activate 167
+goto 167 44 55
+wait 30
+status
+sync b277
+activate 191
+goto 191 44 55
+wait 30
+status
+sync b278
+activate 203
+goto 203 44 55
+wait 30
+status
+sync b279
+activate 205
+goto 205 44 55
+wait 30
+status
+sync b280
+activate 7
+goto 7 44 52
+wait 30
+status
+sync b281
+activate 503
+goto 503 46 53
+wait 30
+status
+sync b282
+activate 414
+goto 414 44 47
+wait 30
+status
+sync b283
+activate 289
+goto 289 44 47
+wait 30
+status
+sync b284
+endturn
+auto
+status
+sync b285
+status
+sync b286
+units
+sync b287
+activate 167
+goto 167 44 55
+wait 30
+status
+sync b288
+activate 191
+goto 191 44 55
+wait 30
+status
+sync b289
+activate 203
+goto 203 44 55
+wait 30
+status
+sync b290
+activate 205
+goto 205 44 55
+wait 30
+status
+sync b291
+activate 503
+goto 503 46 53
+wait 30
+status
+sync b292
+activate 414
+goto 414 44 47
+wait 30
+status
+sync b293
+activate 289
+goto 289 44 47
+wait 30
+status
+sync b294
+endturn
+auto
+status
+sync b295
+units
+sync b296
+status
+sync b297
+activate 7
+wait 4
+key f
+wait 4
+sync b298
+activate 26
+wait 4
+key f
+wait 4
+sync b299
+activate 193
+wait 4
+key f
+wait 4
+sync b300
+activate 194
+wait 4
+key f
+wait 4
+sync b301
+activate 204
+wait 4
+key f
+wait 4
+sync b302
+status
+sync b303
+units
+sync b304
+activate 167
+goto 167 44 55
+wait 30
+status
+sync b305
+activate 191
+goto 191 44 55
+wait 30
+status
+sync b306
+activate 203
+goto 203 44 55
+wait 30
+status
+sync b307
+activate 205
+goto 205 44 55
+wait 30
+status
+sync b308
+activate 503
+goto 503 46 53
+wait 30
+status
+sync b309
+activate 414
+goto 414 44 47
+wait 30
+status
+sync b310
+activate 289
+goto 289 44 47
+wait 30
+status
+sync b311
+endturn
+auto
+status
+sync b312
+status
+sync b313
+units
+sync b314
+activate 167
+goto 167 44 55
+wait 30
+status
+sync b315
+activate 191
+goto 191 44 55
+wait 30
+status
+sync b316
+activate 203
+goto 203 44 55
+wait 30
+status
+sync b317
+activate 205
+goto 205 44 55
+wait 30
+status
+sync b318
+activate 503
+goto 503 46 53
+wait 30
+status
+sync b319
+activate 414
+goto 414 44 47
+wait 30
+status
+sync b320
+activate 289
+goto 289 44 47
+wait 30
+status
+sync b321
+endturn
+auto
+status
+sync b322
+units
+sync b323
+endturn
+auto
+status
+sync b324
+units
+sync b325
+key space
+wait 10
+status
+sync b326
+activate 546
+wait 4
+key f
+wait 4
+sync b327
+activate 547
+wait 4
+key f
+wait 4
+sync b328
+status
+sync b329
+key Return
+wait 8
+sync b330
+status
+sync b331
+key Return
+wait 8
+sync b332
+status
+sync b333
+key Return
+wait 8
+sync b334
+status
+sync b335
+key Return
+wait 8
+sync b336
+status
+sync b337
+units
+sync b338
+activate 205
+goto 205 44 55
+wait 30
+status
+sync b339
+activate 503
+goto 503 46 53
+wait 30
+status
+sync b340
+activate 414
+goto 414 44 47
+wait 30
+status
+sync b341
+activate 289
+goto 289 44 47
+wait 30
+status
+sync b342
+endturn
+auto
+status
+sync b343
+activate 503
+wait 3
+key f
+wait 3
+sync b344
+endturn
+auto
+status
+sync b345
+status
+sync b346
+units
+sync b347
+choose 0
+wait 8
+sync b348
+activate 167
+wait 4
+key f
+wait 4
+sync b349
+activate 191
+wait 4
+key f
+wait 4
+sync b350
+activate 203
+wait 4
+key f
+wait 4
+sync b351
+activate 205
+wait 4
+key f
+wait 4
+sync b352
+activate 204
+wait 4
+key f
+wait 4
+sync b353
+activate 503
+wait 4
+key f
+wait 4
+sync b354
+status
+sync b355
+near 45 46 1
+sync b356
+choose 0
+wait 8
+status
+sync b357
+units
+sync b358
+activate 416
+wait 4
+key p
+wait 4
+sync b359
+activate 167
+wait 4
+key f
+wait 4
+sync b360
+activate 191
+wait 4
+key f
+wait 4
+sync b361
+activate 203
+wait 4
+key f
+wait 4
+sync b362
+activate 205
+wait 4
+key f
+wait 4
+sync b363
+activate 503
+wait 4
+key f
+wait 4
+sync b364
+status
+sync b365
+units
+sync b366
+choose 0
+wait 8
+sync b367
+near 46 47 2
+sync b368
+status
+sync b369
+activate 503
+wait 4
+status
+sync b370
+key f
+wait 4
+sync b371
+units
+sync b372
+choose 0
+wait 8
+status
+sync b373
+key f
+wait 4
+status
+sync b374
+units
+sync b375
+choose 0
+wait 8
+sync b376
+near 46 53 1
+sync b377
+activate 503
+wait 4
+key s
+wait 4
+status
+sync b378
+units
+sync b379
+status
+sync b380
+key Return
+wait 8
+sync b381
+status
+sync b382
+key Return
+wait 8
+sync b383
+status
+sync b384
+units
+sync b385
+units
+sync b386
+activate 21
+wait 4
+key s
+wait 4
+sync b387
+activate 29
+wait 4
+key s
+wait 4
+sync b388
+activate 30
+wait 4
+key s
+wait 4
+sync b389
+activate 31
+wait 4
+key s
+wait 4
+sync b390
+activate 33
+wait 4
+key s
+wait 4
+sync b391
+activate 36
+wait 4
+key s
+wait 4
+sync b392
+activate 39
+wait 4
+key s
+wait 4
+sync b393
+activate 42
+wait 4
+key s
+wait 4
+sync b394
+units
+sync b395
+status
+sync b396
+activate 414
+goto 414 44 47
+wait 30
+units
+status
+sync b397
+status
+sync b398
+activate 289
+goto 289 44 47
+wait 30
+units
+status
+sync b399
+status
+sync b400
+key Return
+wait 8
+status
+sync b401
+choose 0
+wait 8
+sync b402
+status
+sync b403
+status
+sync b404
+activate 289
+goto 289 44 47
+wait 30
+units
+status
+sync b405
+status
+sync b406
+endturn
+auto
+status
+sync b407
+status
+sync b408
+activate 414
+goto 414 45 52
+wait 30
+units
+status
+sync b409
+status
+sync b410
+activate 289
+goto 289 45 52
+wait 30
+units
+status
+sync b411
+activate 416
+wait 4
+key p
+wait 4
+sync b412
+units
+sync b413
+endturn
+auto
+status
+sync b414
+status
+sync b415
+activate 414
+goto 414 45 52
+wait 30
+units
+status
+sync b416
+status
+sync b417
+activate 289
+goto 289 45 52
+wait 30
+units
+status
+sync b418
+status
+sync b419
+activate 416
+goto 416 44 54
+wait 30
+units
+status
+sync b420
+endturn
+auto
+status
+sync b421
+activate 167
+wait 3
+key f
+wait 3
+sync b422
+endturn
+auto
+status
+sync b423
+activate 191
+wait 3
+key f
+wait 3
+sync b424
+endturn
+auto
+status
+sync b425
+activate 203
+wait 3
+key f
+wait 3
+sync b426
+endturn
+auto
+status
+sync b427
+activate 205
+wait 3
+key f
+wait 3
+sync b428
+endturn
+auto
+status
+sync b429
+activate 21
+wait 3
+key f
+wait 3
+sync b430
+endturn
+auto
+status
+sync b431
+activate 29
+wait 3
+key f
+wait 3
+sync b432
+endturn
+auto
+status
+sync b433
+activate 30
+wait 3
+key f
+wait 3
+sync b434
+endturn
+auto
+status
+sync b435
+activate 31
+wait 3
+key f
+wait 3
+sync b436
+endturn
+auto
+status
+sync b437
+activate 33
+wait 3
+key f
+wait 3
+sync b438
+endturn
+auto
+status
+sync b439
+activate 36
+wait 3
+key f
+wait 3
+sync b440
+endturn
+auto
+status
+sync b441
+activate 39
+wait 3
+key f
+wait 3
+sync b442
+endturn
+auto
+status
+sync b443
+activate 42
+wait 3
+key f
+wait 3
+sync b444
+endturn
+auto
+status
+sync b445
+status
+sync b446
+units
+sync b447
+activate 416
+wait 4
+key p
+wait 4
+sync b448
+units
+sync b449
+units
+sync b450
+status
+colonies
+sync b451
+units
+sync b452
+colonies
+sync b453
+map 4 45 53
+sync b454
+map 4 45 53
+sync b455
+map 4 45 53
+sync b456
