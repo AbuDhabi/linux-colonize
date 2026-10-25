@@ -1654,7 +1654,7 @@ static int case_colony_screen_render_workflow(void) {
 
     /* People strip non-empty after render. */
     bool people_px = false;
-    for (int y = COLONY_PANEL_CONTENT_Y + 16; y < COLONY_PANEL_CONTENT_Y + 30 && !people_px; ++y) {
+    for (int y = COLONY_PEOPLE_ICON_Y; y < COLONY_PEOPLE_ICON_Y + 14 && !people_px; ++y) {
       for (int x = COLONY_PEOPLE_X + 2; x < COLONY_PEOPLE_X + 40; ++x) {
         if (pixels[y * 320 + x] != 0) {
           people_px = true;
@@ -1821,7 +1821,7 @@ static int case_colony_screen_render_workflow(void) {
         sample,
         &units,
         COLONY_PEOPLE_X + 2 + 4,
-        COLONY_PANEL_CONTENT_Y + 16 + 2
+        COLONY_PEOPLE_ICON_Y + 2
       );
     if (hit.kind != COLONY_HIT_PEOPLE_COLONIST || hit.index != 0) {
       fprintf(stderr, "expected people colonist hit got kind=%d idx=%d\n", (int)hit.kind, hit.index);

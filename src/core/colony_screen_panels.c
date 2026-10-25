@@ -40,10 +40,14 @@ static int colony_screen_sol_percent(const ColonizeCol1Save* col1, const Coloniz
 }
 
 /*
- * port_bugs.md: one layout for the People band, shared by draw and hit-test —
- * every active colonist plus every fence unit, packed naturally and
- * squeezed to fit the band when the natural row overflows (the old code
- * hard-stopped at the edge and silently dropped the rest of a big colony).
+ * One layout for the People band, shared by draw and hit-test.
+ * DOS-LITERAL FUN_2f2b_17d0 (raw 48421-48460, asm 270D0-272B3) and its
+ * hit-test twin FUN_2f2b_41c0 (raw 51020-51045): every active colonist,
+ * then the DS:0x8d72 fence units (FUN_15eb_09c0 counts only
+ * FUN_15eb_08e6 = DS:0x30e[type] >= 0, so no Artillery / Treasure).
+ * Pitch DS:0xa890 starts at 2 and drops until the row fits under 0x60;
+ * a pitch below 1px advances 1 and banks the overlap as debt, repaid out
+ * of later wider advances; 4px extra after the last colonist.
  */
 int colony_screen_people_layout(
   const ColonyScreenView* view,
@@ -73,7 +77,7 @@ int colony_screen_people_layout(
   const int colonists_drawn = n;
   for (int i = 0; i < view->outside_unit_count && n < max_ent; ++i) {
     const ColonizeUnit* u = units_get_const(units, view->outside_unit_ids[i]);
-    if (!u) {
+    if (!u || !colony_screen_unit_on_fence(units, u)) {
       continue;
     }
     const int sprite = colony_screen_outside_display_sprite(units, u);
@@ -84,34 +88,35 @@ int colony_screen_people_layout(
       n++;
     }
   }
-  const int x0 = COLONY_PEOPLE_X + 2;
-  const int avail = COLONY_PEOPLE_W - 4;
-  int natural = 0;
-  int last_w = 12;
+  int sum_w = 0;
   for (int i = 0; i < n; ++i) {
     const ColonizeSprite* sp =
       (view->icons_ok && ent[i].sprite < view->icons.sprite_count)
         ? &view->icons.sprites[ent[i].sprite]
         : NULL;
     ent[i].iw = (sp && sp->width > 0) ? sp->width : 12;
-    last_w = ent[i].iw;
-    natural += ent[i].iw + 2;
-    if (i == colonists_drawn && colonists_drawn > 0) {
-      natural += 6;
-    }
+    sum_w += ent[i].iw;
   }
-  natural -= 2;
-  const bool squeeze = natural > avail && n > 1;
-  int x = x0;
+  const int gap = (n > colonists_drawn) ? 4 : 0;
+  int pitch = 2;
+  while (pitch * (n - 1) + gap + sum_w >= 0x60) {
+    pitch--;
+  }
+  int x = COLONY_PEOPLE_X + 2;
+  int debt = 0;
   for (int i = 0; i < n; ++i) {
-    if (squeeze) {
-      ent[i].px = x0 + (int)((long)i * (avail - last_w) / (n - 1));
-    } else {
-      if (i == colonists_drawn && colonists_drawn > 0) {
-        x += 6;
-      }
-      ent[i].px = x;
-      x += ent[i].iw + 2;
+    ent[i].px = x;
+    int adv = pitch + ent[i].iw;
+    if (adv < 1) {
+      debt += 1 - adv;
+      adv = 1;
+    }
+    for (; adv > 1 && debt > 0; --debt) {
+      adv--;
+    }
+    x += adv;
+    if (i == colonists_drawn - 1) {
+      x += 4;
     }
   }
   return n;
@@ -150,7 +155,7 @@ void colony_screen_draw_people(
     );
   }
 
-  const int y_people = COLONY_PANEL_CONTENT_Y + 16;
+  const int y_people = COLONY_PEOPLE_ICON_Y;
   {
     PeopleEntry ent[COLONIZE_COLONY_POP_MAX + COLONY_OUTSIDE_MAX];
     const int n = colony_screen_people_layout(

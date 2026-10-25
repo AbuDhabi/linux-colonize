@@ -1,31 +1,31 @@
 # Quebec with Church, Armory, Schoolhouse, Warehouse, Printing Press added (fixture).
 # Start: 3 statesmen in the Town Hall (people strip 3,4,5), colonists 0,1,2 work tiles.
-# People strip icons: x = 5 + 9*i, y = 155. Drop points sit above each building's worker strip.
+# People strip icons: x = 5 + 8*i, y = 155. Drop points sit above each building's worker strip.
 click 168 128              # open Quebec
 wait 10
-drag 14 155 27 104         # strip colonist 1 (convert) -> Carpenter's Shop (1 of 3)
-drag 23 155 27 104         # strip colonist 2 (fisherman) -> Carpenter's Shop (2 of 3)
+drag 13 155 27 104         # strip colonist 1 (convert) -> Carpenter's Shop (1 of 3)
+drag 21 155 27 104         # strip colonist 2 (fisherman) -> Carpenter's Shop (2 of 3)
 drag 236 43 27 104         # drag from a work tile does not carry the worker: it only selects colonist 0
 click 27 104               # click the Carpenter's Shop: selected colonist 0 joins (3 of 3)
-drag 32 155 27 104         # strip colonist 3 (Town Hall statesman) -> full Carpenter: 4th refused
+drag 29 155 27 104         # strip colonist 3 (Town Hall statesman) -> full Carpenter: 4th refused
 key Return                 # dismiss "no more than three colonists in one building"
 drag 120 41 150 55         # Town Hall worker (Blacksmith expert) -> Schoolhouse: needs a college, refused
 key Return
 drag 30 117 150 55         # Carpenter worker (free colonist) -> Schoolhouse: not a skilled teacher, refused
 key Return
 drag 45 117 150 55         # Carpenter worker (fisherman expert) -> Schoolhouse: accepted (1 teacher)
-drag 14 155 150 55         # strip colonist 1 -> Schoolhouse: faculty of one is full, refused
+drag 13 155 150 55         # strip colonist 1 -> Schoolhouse: faculty of one is full, refused
 key Return
 drag 113 41 20 16          # Town Hall worker -> Armory (Gunsmith), building to building
-drag 41 155 155 18         # colonist 4 -> Fur Trader's House
-drag 41 155 20 44          # colonist 4 -> Weaver's House
-drag 41 155 80 56          # colonist 4 -> Rum Distiller's House
-drag 41 155 108 56         # colonist 4 -> Tobacconist's House
-drag 41 155 50 48          # colonist 4 -> Blacksmith's House
-drag 41 155 27 104         # colonist 4 -> Carpenter's Shop (3 of 3 again)
+drag 37 155 155 18         # colonist 4 -> Fur Trader's House
+drag 37 155 20 44          # colonist 4 -> Weaver's House
+drag 37 155 80 56          # colonist 4 -> Rum Distiller's House
+drag 37 155 108 56         # colonist 4 -> Tobacconist's House
+drag 37 155 50 48          # colonist 4 -> Blacksmith's House
+drag 37 155 27 104         # colonist 4 -> Carpenter's Shop (3 of 3 again)
 drag 5 155 185 90          # colonist 0 -> Docks: no crew there, refused
 drag 5 155 30 80           # colonist 0 -> Warehouse: refused
 drag 5 155 185 22          # colonist 0 -> Printing Press: refused
 drag 5 155 68 26           # colonist 0 -> unbuilt Custom House slot: nothing happens
-drag 50 155 92 95          # colonist 5 (Blacksmith expert) -> Church (Preacher)
+drag 45 155 92 95          # colonist 5 (Blacksmith expert) -> Church (Preacher)
 key Escape                 # back to the map

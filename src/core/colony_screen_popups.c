@@ -1395,13 +1395,13 @@ COLONIZE_INTERNAL bool colony_screen_hit_people(ColonyScreenHitCtx* a) {
   const int mx = a->mx;
   const int my = a->my;
   /* People-view: shares colony_screen_people_layout with the draw. */
-  if (colony && my >= COLONY_PANEL_CONTENT_Y + 16 && my < COLONY_PANEL_CONTENT_Y + 32 &&
+  if (colony && my >= COLONY_PEOPLE_ICON_Y && my < COLONY_PEOPLE_ICON_Y + 16 &&
       mx >= COLONY_PEOPLE_X && mx < COLONY_PEOPLE_X + COLONY_PEOPLE_W) {
     PeopleEntry ent[COLONIZE_COLONY_POP_MAX + COLONY_OUTSIDE_MAX];
     const int n = colony_screen_people_layout(
       view, colony, units, ent, (int)(sizeof(ent) / sizeof(ent[0]))
     );
-    /* Walk back-to-front so an overlapped (squeezed) icon resolves to the
+    /* Walk back-to-front so an overlapped (tight-pitch) icon resolves to the
      * one drawn on top. */
     for (int i = n - 1; i >= 0; --i) {
       if (mx >= ent[i].px && mx < ent[i].px + ent[i].iw) {

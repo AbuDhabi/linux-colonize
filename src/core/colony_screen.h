@@ -113,6 +113,8 @@
 #define COLONY_MULTI_BTN_W 12
 #define COLONY_PANEL_CONTENT_Y 131
 #define COLONY_PANEL_CONTENT_H (COLONY_CARGO_STRIP_Y - COLONY_PANEL_CONTENT_Y - 4)
+/* People line-up row: FUN_2f2b_17d0 y = 0x8f - 1 (asm 270FA / 27178). */
+#define COLONY_PEOPLE_ICON_Y 0x8e
 
 #define COLONY_TRANSPORT_MAX 8
 /* port_bugs.md #11: transport icons sat 10px too high; nudged down. */

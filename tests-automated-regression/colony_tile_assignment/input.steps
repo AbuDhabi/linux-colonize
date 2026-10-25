@@ -10,9 +10,9 @@ click 236 91               # click the selected worker's own tile: field-jobs me
 click 120 78               # pick Lumberjack: production on that tile changes
 click 284 43               # select the fisherman on water tile NE
 click 284 91               # click free land tile SE: the fisherman moves, now farming
-drag 41 155 284 43         # people strip colonist 4 (Town Hall) -> water tile NE: Fisherman (Docks built)
-drag 50 155 236 43         # colonist 5 -> tile NW already worked: only selects its worker, no move
-drag 50 155 260 67         # colonist 5 -> centre tile (the colony itself, not workable): nothing
+drag 37 155 284 43         # people strip colonist 4 (Town Hall) -> water tile NE: Fisherman (Docks built)
+drag 45 155 236 43         # colonist 5 -> tile NW already worked: only selects its worker, no move
+drag 45 155 260 67         # colonist 5 -> centre tile (the colony itself, not workable): nothing
 drag 236 91 284 67         # drag the Lumberjack off tile SW onto free tile E: moves, still a Lumberjack
 drag 260 91 107 41         # drag the farmer off tile S into the Town Hall: a statesman again
 drag 236 43 236 43         # press and release on the unselected worker on NW: just selects it

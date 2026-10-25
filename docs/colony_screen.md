@@ -74,6 +74,12 @@ screen.
 
 ### People band
 
+Line-up is `FUN_2f2b_17d0` verbatim (`colony_screen_people_layout`): y=0x8e,
+x from 2; colonists, then only the DS:0x8d72 fence units (`FUN_15eb_08e6`,
+DS:0x30e[type] >= 0, so no Artillery / Treasure); pitch starts at 2 and
+shrinks until the row is < 0x60 wide, with 4px extra after the last colonist.
+Hit-test twin: `FUN_2f2b_41c0`.
+
 Food meter reads `p->goods[FOOD]` (post-horse-breeding), not
 `p->food_produced` (pre-breeding) — golden showed the exact breed-amount
 gap. Shortfall branch keeps `food_produced` (wants raw pre-consumption).

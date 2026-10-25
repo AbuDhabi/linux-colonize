@@ -48,15 +48,15 @@ key space                  # tick: Blacksmith's Shop completes, Wagon Train (uni
 wait 10
 key Return                 # dismiss "Quebec colony produces Blacksmith's Shop"
 wait 5
-drag 50 155 161 119        # colonist 5 -> a fence unit: role popup (two-line title)
+drag 45 155 161 119        # colonist 5 -> a fence unit: role popup (two-line title)
 wait 5
 click 100 89               # Colonist: leaves (pop 5)
 wait 5
-drag 41 155 161 119        # colonist 4 -> fence (one-line title)
+drag 37 155 161 119        # colonist 4 -> fence (one-line title)
 wait 5
 click 100 86               # Colonist: leaves (pop 4)
 wait 5
-drag 32 155 161 119        # colonist 3 -> fence
+drag 29 155 161 119        # colonist 3 -> fence
 wait 5
 click 100 86               # Colonist: leaves (pop 3, below the Schoolhouse's 4)
 wait 5
