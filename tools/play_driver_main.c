@@ -630,6 +630,10 @@ static bool command(char* line) {
      * Return (a bare Return takes whatever row is highlighted). */
     const AiPopupState* pop = &g_game->ai_popups;
     ok = flush_frames(10);
+    for (int tries = 0; ok && tries < 5 && strcmp(g_game->log_screen, "woodcut") == 0; ++tries) {
+      tap(SDLK_RETURN, -1, 0); /* a woodcut in front of the popup */
+      ok = flush_frames(10);
+    }
     for (int tries = 0; ok && pop->open && pop->selection != a1 && tries < 40; ++tries) {
       tap(pop->selection < a1 ? SDLK_DOWN : SDLK_UP, -1, 0);
       ok = flush_frames(2);
@@ -637,8 +641,17 @@ static bool command(char* line) {
     if (!pop->open || pop->selection != a1) {
       printf("ERR choose %d: popup %s, selection %d\n", a1, pop->open ? "open" : "closed", pop->selection);
     } else {
-      tap(SDLK_RETURN, -1, 0);
-      ok = flush_frames(10);
+      /* Some popups (portraits, a woodcut in front) ignore keys for a while:
+       * press again while the same popup is still up. */
+      char body[AI_POPUP_BODY_LEN];
+      snprintf(body, sizeof(body), "%s", pop->current.body);
+      for (int tries = 0; ok && tries < 6; ++tries) {
+        tap(SDLK_RETURN, -1, 0);
+        ok = flush_frames(10);
+        if (!pop->open || strcmp(body, pop->current.body) != 0) {
+          break;
+        }
+      }
     }
   } else if (strcmp(op, "type") == 0) {
     const char* text = rest ? rest : "";
@@ -793,7 +806,11 @@ static bool command(char* line) {
     ok = flush_frames(5);
   } else if (strcmp(op, "colony") == 0 && argc > 1) {
     /* Open colony N's screen (index as printed by `colonies`). */
-    game_enter_colony(g_game, a1);
+    if (a1 < 0 || a1 >= g_game->colonies.colony_count) {
+      printf("ERR no colony %d\n", a1);
+      return true;
+    }
+    game_enter_colony(g_game, g_game->colonies.colonies[a1].id); /* takes the id, not the index */
     ok = flush_frames(10);
   } else if (strcmp(op, "world") == 0) {
     /* Whole map, one char a tile: ~ water, C/c own/foreign colony, V village,
