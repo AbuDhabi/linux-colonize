@@ -1,0 +1,2764 @@
+STATUS turn 68 year 1560; Turn 68 Cursor 45,52; screen: main map (map); popup tag -1
+STATUS gold 402; view origin (38,46) 15x12 tiles of 16px, y0 8; cursor (45,52)
+STATUS selected unit 61 Merchantman at (45,52) moves 15 orders 0
+@@ ready
+STATUS turn 68 year 1560; Turn 68 Cursor 45,52; screen: main map (map); popup tag -1
+STATUS gold 402; view origin (38,46) 15x12 tiles of 16px, y0 8; cursor (45,52)
+STATUS selected unit 61 Merchantman at (45,52) moves 15 orders 0
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 55 Pioneers at (45,47) moves 0 orders 9 prof 26 tools 80 muskets 0 horses 0
+UNIT 61 Merchantman at (45,52) moves 15 orders 0 prof 0 hold[0] 2 x45
+UNIT 62 Pioneers at (45,52) moves 3 orders 8 prof 20 tools 100 muskets 0 horses 0
+@@ b1
+STATUS turn 68 year 1560; Turn 68 Cursor 45,52; screen: main map (map); popup tag -1
+STATUS gold 402; view origin (38,46) 15x12 tiles of 16px, y0 8; cursor (45,52)
+STATUS selected unit 61 Merchantman at (45,52) moves 15 orders 0
+@@ b2
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 55 Pioneers at (45,47) moves 3 orders 9 prof 26 tools 80 muskets 0 horses 0
+UNIT 61 Merchantman at (47,47) moves 15 orders 3 prof 0 hold[0] 2 x45
+UNIT 62 Pioneers at (45,52) moves 3 orders 8 prof 20 tools 100 muskets 0 horses 0
+STATUS turn 69 year 1561; Turn 68 Cursor 47,47; screen: turn in progress (map); popup tag -1
+STATUS gold 402; view origin (40,41) 15x12 tiles of 16px, y0 8; cursor (47,47)
+@@ b3
+STATUS turn 69 year 1561; Turn 68 Cursor 47,47; screen: turn in progress (map); popup tag -1
+STATUS gold 402; view origin (40,41) 15x12 tiles of 16px, y0 8; cursor (47,47)
+@@ b4
+STATUS turn 69 year 1561; Turn 68 Cursor 47,47; screen: turn in progress (map); popup tag -1
+STATUS gold 402; view origin (40,41) 15x12 tiles of 16px, y0 8; cursor (47,47)
+@@ b5
+STATUS turn 69 year 1561; Turn 68 Cursor 47,47; screen: turn in progress (map); popup tag -1
+STATUS gold 402; view origin (40,41) 15x12 tiles of 16px, y0 8; cursor (47,47)
+@@ b6
+STATUS turn 69 year 1561; Turn 68 Cursor 47,47; screen: turn in progress (map); popup tag -1
+STATUS gold 402; view origin (40,41) 15x12 tiles of 16px, y0 8; cursor (47,47)
+@@ b7
+IDLE NOT reached after 3000 frames
+LOG: Sons of Liberty membership in {New Amsterdam} is up to 30%, Your Excellency.  The more {Liberty Bells} our {Statesmen} generate, the faster membership will rise.
+CHOICES: [0] Continue turn. [1] Zoom to colony. (sel 0)
+STATUS turn 69 year 1561; Turn 68 Cursor 47,47; screen: modal open (map); popup tag 53
+STATUS gold 402; view origin (40,41) 15x12 tiles of 16px, y0 8; cursor (47,47)
+@@ b8
+STATUS turn 69 year 1561; Turn 68 Cursor 47,47; screen: modal open (map); popup tag 53
+STATUS gold 402; view origin (40,41) 15x12 tiles of 16px, y0 8; cursor (47,47)
+@@ b9
+@@ b10
+STATUS turn 69 year 1561; Turn 69 Cursor 50,46; screen: main map (map); popup tag -1
+STATUS gold 402; view origin (42,40) 15x12 tiles of 16px, y0 8; cursor (50,46)
+STATUS selected unit 61 Merchantman at (50,46) moves 6 orders 3
+@@ b11
+STATUS turn 69 year 1561; Turn 69 Cursor 50,46; screen: main map (map); popup tag -1
+STATUS gold 402; view origin (42,40) 15x12 tiles of 16px, y0 8; cursor (50,46)
+STATUS selected unit 61 Merchantman at (50,46) moves 6 orders 3
+@@ b12
+STATUS turn 69 year 1561; Turn 69 Cursor 50,46; screen: main map (map); popup tag -1
+STATUS gold 402; view origin (42,40) 15x12 tiles of 16px, y0 8; cursor (50,46)
+STATUS selected unit 61 Merchantman at (50,46) moves 6 orders 3
+@@ b13
+LOG: Pioneers clear forest near {Fort Orange}.  {40 lumber} added to stockpile.
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 55 Pioneers at (45,47) moves 0 orders 9 prof 26 tools 80 muskets 0 horses 0
+UNIT 61 Merchantman at (52,46) moves 0 orders 3 prof 0 hold[0] 2 x45
+UNIT 62 Pioneers at (45,52) moves 0 orders 0 prof 20 tools 80 muskets 0 horses 0
+STATUS turn 69 year 1561; Turn 69 Cursor 52,46; screen: modal open (map); popup tag 0
+STATUS gold 402; view origin (42,40) 15x12 tiles of 16px, y0 8; cursor (52,46)
+@@ b14
+STATUS turn 69 year 1561; Turn 69 Cursor 52,46; screen: modal open (map); popup tag 0
+STATUS gold 402; view origin (42,40) 15x12 tiles of 16px, y0 8; cursor (52,46)
+@@ b15
+LOG: "Viceroy Michiel De Ruyter.  Because of recent developments in our ongoing war with Prussia, we have decided to raise your tax rate by {2%}.  The tax rate is now {4%}.  If you wish, you may kiss our royal pinky ring."
+CHOICES: [0] Kiss pinky ring. [1] Hold '{New Amsterdam Tobacco Party}.' (sel 0)
+@@ b16
+STATUS turn 70 year 1562; Turn 69 Cursor 52,46; screen: modal open (map); popup tag 1
+STATUS gold 402; view origin (42,40) 15x12 tiles of 16px, y0 8; cursor (52,46)
+STATUS selected unit 3 Caravel at (246,246) moves 9 orders 0
+@@ b17
+STATUS turn 70 year 1562; Turn 69 Cursor 52,46; screen: modal open (map); popup tag 1
+STATUS gold 402; view origin (42,40) 15x12 tiles of 16px, y0 8; cursor (52,46)
+STATUS selected unit 3 Caravel at (246,246) moves 9 orders 0
+@@ b18
+@@ b19
+STATUS turn 70 year 1562; Turn 70 Cursor 45,52; screen: main map (map); popup tag -1
+STATUS gold 402; view origin (38,46) 15x12 tiles of 16px, y0 8; cursor (45,52)
+STATUS selected unit 62 Pioneers at (45,52) moves 3 orders 0
+@@ b20
+STATUS turn 70 year 1562; Turn 70 Cursor 45,52; screen: main map (map); popup tag -1
+STATUS gold 402; view origin (38,46) 15x12 tiles of 16px, y0 8; cursor (45,52)
+STATUS selected unit 62 Pioneers at (45,52) moves 3 orders 0
+@@ b21
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 55 Pioneers at (45,47) moves 0 orders 9 prof 26 tools 80 muskets 0 horses 0
+UNIT 62 Pioneers at (45,52) moves 3 orders 0 prof 20 tools 80 muskets 0 horses 0
+EUROPE to-europe Merchantman turns_left 1 passengers hold 2 x45
+@@ b22
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 55 Pioneers at (45,47) moves 0 orders 9 prof 26 tools 80 muskets 0 horses 0
+UNIT 62 Pioneers at (45,52) moves 0 orders 8 prof 20 tools 80 muskets 0 horses 0
+EUROPE to-europe Merchantman turns_left 1 passengers hold 2 x45
+@@ b23
+LOG: Religious unrest in Netherlands causes increased emigration.  Colonists ({Expert Farmers}) now available in Amsterdam.
+AUTO stopped (map idle) after 28 frames
+STATUS turn 71 year 1563; Turn 71 Cursor 45,52; screen: main map (map); popup tag -1
+STATUS gold 402; view origin (38,46) 15x12 tiles of 16px, y0 8; cursor (45,52)
+@@ b24
+AUTO stopped (map) after 7 frames
+STATUS turn 72 year 1564; End of Turn — Spring 1564 (turn 72); screen: Europe screen (map); popup tag -1
+STATUS gold 402; view origin (38,46) 15x12 tiles of 16px, y0 8; cursor (45,52)
+STATUS selected unit 62 Pioneers at (45,52) moves 3 orders 0
+@@ b25
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 55 Pioneers at (45,47) moves 0 orders 0 prof 26 tools 60 muskets 0 horses 0
+UNIT 62 Pioneers at (45,52) moves 3 orders 0 prof 20 tools 60 muskets 0 horses 0
+UNIT 84 Colonists at (236,236) moves 3 orders 1 prof 0
+EUROPE harbor Merchantman turns_left 0 passengers hold 2 x45
+EUROPE dock Expert Farmers prof 0 (boards next ship)
+@@ b26
+STATUS turn 72 year 1564; End of Turn — Spring 1564 (turn 72); screen: Europe screen (map); popup tag -1
+STATUS gold 402; view origin (38,46) 15x12 tiles of 16px, y0 8; cursor (45,52)
+STATUS selected unit 62 Pioneers at (45,52) moves 3 orders 0
+@@ b27
+LOG: 45 Tobacco sold for 180. 4% Tax: 7. Net: 173
+SHOT automated-playtests/campaign5/shots/e12.ppm
+STATUS turn 72 year 1564; End of Turn — Spring 1564 (turn 72); screen: Europe screen (europe); popup tag -1
+STATUS gold 575; view origin (38,46) 15x12 tiles of 16px, y0 8; cursor (45,52)
+STATUS selected unit 62 Pioneers at (45,52) moves 3 orders 0
+@@ b28
+LOG: Shall we set sail for the {New World}, Your Excellency?
+CHOICES: [0] Yes, steady as she goes. [1] No, let us remain in port. (sel 0)
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 55 Pioneers at (45,47) moves 0 orders 0 prof 26 tools 60 muskets 0 horses 0
+UNIT 62 Pioneers at (45,52) moves 3 orders 0 prof 20 tools 60 muskets 0 horses 0
+EUROPE to-new-world Merchantman turns_left 1 passengers prof13 prof0
+@@ b29
+STATUS turn 72 year 1564; Turn 72 Cursor 45,52; screen: main map (map); popup tag -1
+STATUS gold 275; view origin (38,46) 15x12 tiles of 16px, y0 8; cursor (45,52)
+STATUS selected unit 62 Pioneers at (45,52) moves 3 orders 0
+@@ b30
+@@ b31
+STATUS turn 72 year 1564; Turn 72 Cursor 45,52; screen: main map (map); popup tag -1
+STATUS gold 275; view origin (38,46) 15x12 tiles of 16px, y0 8; cursor (45,52)
+STATUS selected unit 62 Pioneers at (45,52) moves 3 orders 0
+@@ b32
+STATUS turn 72 year 1564; Turn 72 Cursor 45,52; screen: main map (map); popup tag -1
+STATUS gold 275; view origin (38,46) 15x12 tiles of 16px, y0 8; cursor (45,52)
+STATUS selected unit 62 Pioneers at (45,52) moves 3 orders 0
+@@ b33
+@@ b34
+NESTED: Return pressed in a modal loop
+LOG: Spies report: {Arawak} raiding party wreaks havoc in the {Spanish} colony of {Isabella}.
+LOG: The price of {Cigars} in Amsterdam has risen to {11$}.
+STATUS turn 73 year 1565; End of Turn — Spring 1565 (turn 73); screen: modal open (map); popup tag 0
+STATUS gold 275; view origin (38,41) 15x12 tiles of 16px, y0 8; cursor (45,47)
+STATUS selected unit 55 Pioneers at (45,47) moves 3 orders 0
+@@ b35
+@@ b36
+STATUS turn 73 year 1565; Turn 73 Cursor 45,47; screen: main map (map); popup tag -1
+STATUS gold 275; view origin (38,41) 15x12 tiles of 16px, y0 8; cursor (45,47)
+STATUS selected unit 55 Pioneers at (45,47) moves 3 orders 0
+@@ b37
+STATUS turn 73 year 1565; Turn 73 Cursor 45,47; screen: main map (map); popup tag -1
+STATUS gold 275; view origin (38,41) 15x12 tiles of 16px, y0 8; cursor (45,47)
+STATUS selected unit 55 Pioneers at (45,47) moves 3 orders 0
+@@ b38
+@@ b39
+STATUS turn 73 year 1565; Turn 73 Cursor 44,48; screen: main map (map); popup tag -1
+STATUS gold 275; view origin (37,42) 15x12 tiles of 16px, y0 8; cursor (44,48)
+STATUS selected unit 55 Pioneers at (44,48) moves 2 orders 0
+@@ b40
+LOG: There is already a {road} here, Your Excellency.
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 55 Pioneers at (44,48) moves 2 orders 0 prof 26 tools 60 muskets 0 horses 0
+UNIT 62 Pioneers at (45,53) moves 3 orders 0 prof 20 tools 60 muskets 0 horses 0
+EUROPE to-new-world Merchantman turns_left 1 passengers prof13 prof0
+@@ b41
+STATUS turn 73 year 1565; There is already a road here, Your Excellency.; screen: modal open (map); popup tag 0
+STATUS gold 275; view origin (37,42) 15x12 tiles of 16px, y0 8; cursor (44,48)
+STATUS selected unit 55 Pioneers at (44,48) moves 2 orders 0
+@@ b42
+@@ b43
+STATUS turn 73 year 1565; Turn 73 Cursor 44,48; screen: main map (map); popup tag -1
+STATUS gold 275; view origin (37,42) 15x12 tiles of 16px, y0 8; cursor (44,48)
+STATUS selected unit 55 Pioneers at (44,48) moves 2 orders 0
+@@ b44
+@@ b45
+STATUS turn 73 year 1565; Turn 73 Cursor 44,48; screen: main map (map); popup tag -1
+STATUS gold 275; view origin (37,42) 15x12 tiles of 16px, y0 8; cursor (44,48)
+STATUS selected unit 55 Pioneers at (44,48) moves 2 orders 0
+@@ b46
+STATUS turn 73 year 1565; Turn 73 Cursor 44,48; screen: main map (map); popup tag -1
+STATUS gold 275; view origin (37,42) 15x12 tiles of 16px, y0 8; cursor (44,48)
+STATUS selected unit 55 Pioneers at (44,48) moves 2 orders 0
+@@ b47
+@@ b48
+STATUS turn 74 year 1566; Turn 74 Cursor 43,47; screen: main map (map); popup tag -1
+STATUS gold 275; view origin (36,41) 15x12 tiles of 16px, y0 8; cursor (43,47)
+STATUS selected unit 55 Pioneers at (43,47) moves 3 orders 0
+@@ b49
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 55 Pioneers at (43,47) moves 3 orders 0 prof 26 tools 60 muskets 0 horses 0
+UNIT 62 Pioneers at (45,53) moves 3 orders 9 prof 20 tools 60 muskets 0 horses 0
+UNIT 106 Merchantman at (53,47) moves 15 orders 0 prof 0
+UNIT 107 Colonists at (53,47) moves 0 orders 1 prof 13 aboard 106
+UNIT 108 Colonists at (53,47) moves 0 orders 1 prof 0 aboard 106
+@@ b50
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 55 Pioneers at (43,47) moves 0 orders 9 prof 26 tools 60 muskets 0 horses 0
+UNIT 62 Pioneers at (45,53) moves 0 orders 9 prof 20 tools 60 muskets 0 horses 0
+UNIT 106 Merchantman at (53,47) moves 15 orders 0 prof 0
+UNIT 107 Colonists at (53,47) moves 0 orders 1 prof 13 aboard 106
+UNIT 108 Colonists at (53,47) moves 0 orders 1 prof 0 aboard 106
+STATUS turn 74 year 1566; Turn 74 Cursor 53,47; screen: main map (map); popup tag -1
+STATUS gold 275; view origin (42,41) 15x12 tiles of 16px, y0 8; cursor (53,47)
+STATUS selected unit 106 Merchantman at (53,47) moves 15 orders 0
+@@ b51
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 55 Pioneers at (43,47) moves 0 orders 9 prof 26 tools 60 muskets 0 horses 0
+UNIT 62 Pioneers at (45,53) moves 0 orders 9 prof 20 tools 60 muskets 0 horses 0
+UNIT 106 Merchantman at (53,47) moves 15 orders 0 prof 0
+UNIT 107 Colonists at (53,47) moves 0 orders 1 prof 13 aboard 106
+UNIT 108 Colonists at (53,47) moves 0 orders 1 prof 0 aboard 106
+@@ b52
+MAP x 34..48 (cols), y 48..62 (rows)
+MAP     343536373839404142434445464748
+MAP  48 ~.~.w.~.~.~.~.~.~.gnM.r.~.~.~.
+MAP  49 ~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.
+MAP  50   ~.~.~.~.~#~.~.~.~.~.~.~.~.~.
+MAP  51     ~.~.GVR#G.RV~r~.~.~.~.~.~.
+MAP  52         R.DrGrR.Rr~.G.gC~.~.~.
+MAP  53   G.R.  G.M.MrD.RrR.r#ruGV~.~.
+MAP  54   DrD.G.R.P.T.rnDrR.G.M.RuR.~.
+MAP  55 D.Rrd#RuGrRrPrR@MuP.GrR.~.~.~.
+MAP  56 RrRrR.R.pnG.M.~#~.RuGrP.~.~.~.
+MAP  57 P.R.d#G.RuPrRuRVg#R.Rr~r~.~.~.
+MAP  58 G.  M.  R.RVG.r.p.~.G.R.RV~.~.
+MAP  59           R.~.R.GCm.rnMuG.~.~.
+MAP  60                 g.G.G.R.~.~.~.
+MAP  61                         ~.~.~.
+MAP  62                               
+@@ b53
+STATUS turn 74 year 1566; Turn 74 Cursor 53,47; screen: main map (map); popup tag -1
+STATUS gold 275; view origin (42,41) 15x12 tiles of 16px, y0 8; cursor (53,47)
+STATUS selected unit 106 Merchantman at (53,47) moves 15 orders 0
+@@ b54
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 55 Pioneers at (43,47) moves 3 orders 9 prof 26 tools 60 muskets 0 horses 0
+UNIT 62 Pioneers at (45,53) moves 3 orders 9 prof 20 tools 60 muskets 0 horses 0
+UNIT 106 Merchantman at (48,48) moves 15 orders 3 prof 0
+UNIT 107 Colonists at (48,48) moves 3 orders 1 prof 13 aboard 106
+UNIT 108 Colonists at (48,48) moves 3 orders 1 prof 0 aboard 106
+STATUS turn 75 year 1567; Turn 74 Cursor 48,48; screen: turn in progress (map); popup tag -1
+STATUS gold 275; view origin (38,48) 15x12 tiles of 16px, y0 8; cursor (48,48)
+@@ b55
+STATUS turn 75 year 1567; Turn 74 Cursor 48,48; screen: turn in progress (map); popup tag -1
+STATUS gold 275; view origin (38,48) 15x12 tiles of 16px, y0 8; cursor (48,48)
+@@ b56
+NESTED: Return pressed in a modal loop
+NESTED: Return pressed in a modal loop
+LOG: {Dutch Merchantman} damaged!  Ship returns to {Amsterdam} for repairs.
+LOG: New Amsterdam colony produces {Warehouse}.
+CHOICES: [0] Continue turn. [1] Zoom to colony. (sel 0)
+@@ b57
+STATUS turn 75 year 1567; Turn 74 Cursor 48,48; screen: modal open (map); popup tag 53
+STATUS gold 275; view origin (41,42) 15x12 tiles of 16px, y0 8; cursor (48,48)
+STATUS selected unit 41 Caravel at (244,244) moves 0 orders 0
+@@ b58
+LOG: {Rebel} sentiment is rising in the colonies, Your Excellency! {30%} of the population supports the idea of independence from Netherlands.  As our colonists begin to feel more self-sufficient, they also become more productive.  Any colony with at least {50%} Sons of Liberty membership receives a {+1} production bonus.
+@@ b59
+STATUS turn 75 year 1567; End of Turn — Spring 1567 (turn 75); screen: modal open (map); popup tag 0
+STATUS gold 275; view origin (38,47) 15x12 tiles of 16px, y0 8; cursor (45,53)
+STATUS selected unit 62 Pioneers at (45,53) moves 0 orders 0
+@@ b60
+LOG: The price of {Cigars} in Amsterdam has fallen to {10$}.
+@@ b61
+STATUS turn 75 year 1567; End of Turn — Spring 1567 (turn 75); screen: modal open (map); popup tag 0
+STATUS gold 275; view origin (38,47) 15x12 tiles of 16px, y0 8; cursor (45,53)
+STATUS selected unit 62 Pioneers at (45,53) moves 0 orders 0
+@@ b62
+@@ b63
+STATUS turn 75 year 1567; Turn 75 Cursor 45,53; screen: main map (map); popup tag -1
+STATUS gold 275; view origin (38,47) 15x12 tiles of 16px, y0 8; cursor (45,53)
+@@ b64
+STATUS turn 75 year 1567; Turn 75 Cursor 45,53; screen: main map (map); popup tag -1
+STATUS gold 275; view origin (38,47) 15x12 tiles of 16px, y0 8; cursor (45,53)
+@@ b65
+ERR goto refused
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 55 Pioneers at (43,47) moves 0 orders 9 prof 26 tools 60 muskets 0 horses 0
+UNIT 62 Pioneers at (45,53) moves 0 orders 0 prof 20 tools 40 muskets 0 horses 0
+EUROPE to-europe Merchantman turns_left 1 passengers
+STATUS turn 75 year 1567; Turn 75 Cursor 45,53; screen: main map (map); popup tag -1
+STATUS gold 275; view origin (38,47) 15x12 tiles of 16px, y0 8; cursor (45,53)
+@@ b66
+STATUS turn 75 year 1567; Turn 75 Cursor 45,53; screen: main map (map); popup tag -1
+STATUS gold 275; view origin (38,47) 15x12 tiles of 16px, y0 8; cursor (45,53)
+@@ b67
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 55 Pioneers at (43,47) moves 0 orders 9 prof 26 tools 60 muskets 0 horses 0
+UNIT 62 Pioneers at (45,53) moves 0 orders 0 prof 20 tools 40 muskets 0 horses 0
+EUROPE to-europe Merchantman turns_left 1 passengers
+STATUS turn 75 year 1567; Turn 75 Cursor 45,53; screen: main map (map); popup tag -1
+STATUS gold 275; view origin (38,47) 15x12 tiles of 16px, y0 8; cursor (45,53)
+@@ b68
+@@ b69
+STATUS turn 75 year 1567; Turn 75 Cursor 45,53; screen: main map (map); popup tag -1
+STATUS gold 275; view origin (38,47) 15x12 tiles of 16px, y0 8; cursor (45,53)
+@@ b70
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 55 Pioneers at (43,47) moves 0 orders 9 prof 26 tools 60 muskets 0 horses 0
+UNIT 62 Pioneers at (45,53) moves 0 orders 0 prof 20 tools 40 muskets 0 horses 0
+EUROPE to-europe Merchantman turns_left 1 passengers
+@@ b71
+AUTO stopped (map) after 7 frames
+STATUS turn 76 year 1568; End of Turn — Spring 1568 (turn 76); screen: Europe screen (map); popup tag -1
+STATUS gold 275; view origin (38,47) 15x12 tiles of 16px, y0 8; cursor (45,53)
+STATUS selected unit 62 Pioneers at (45,53) moves 3 orders 0
+@@ b72
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 55 Pioneers at (43,47) moves 0 orders 9 prof 26 tools 60 muskets 0 horses 0
+UNIT 62 Pioneers at (45,53) moves 3 orders 0 prof 20 tools 40 muskets 0 horses 0
+EUROPE harbor Merchantman turns_left 0 passengers
+SHOT automated-playtests/campaign5/shots/e13.ppm
+@@ b73
+LOG: Shall we set sail for the {New World}, Your Excellency?
+CHOICES: [0] Yes, steady as she goes. [1] No, let us remain in port. (sel 0)
+STATUS turn 76 year 1568; End of Turn — Spring 1568 (turn 76); screen: Europe screen (europe); popup tag 27
+STATUS gold 275; view origin (38,47) 15x12 tiles of 16px, y0 8; cursor (45,53)
+STATUS selected unit 62 Pioneers at (45,53) moves 3 orders 0
+@@ b74
+@@ b75
+@@ b76
+STATUS turn 76 year 1568; Turn 76 Cursor 45,53; screen: main map (map); popup tag -1
+STATUS gold 275; view origin (38,47) 15x12 tiles of 16px, y0 8; cursor (45,53)
+STATUS selected unit 62 Pioneers at (45,53) moves 3 orders 0
+@@ b77
+STATUS turn 76 year 1568; Turn 76 Cursor 45,53; screen: main map (map); popup tag -1
+STATUS gold 275; view origin (38,47) 15x12 tiles of 16px, y0 8; cursor (45,53)
+STATUS selected unit 62 Pioneers at (45,53) moves 3 orders 0
+@@ b78
+@@ b79
+STATUS turn 77 year 1569; Turn 77 Cursor 44,53; screen: main map (map); popup tag -1
+STATUS gold 275; view origin (37,47) 15x12 tiles of 16px, y0 8; cursor (44,53)
+STATUS selected unit 62 Pioneers at (44,53) moves 3 orders 0
+@@ b80
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 55 Pioneers at (43,47) moves 0 orders 0 prof 26 tools 40 muskets 0 horses 0
+UNIT 62 Pioneers at (44,53) moves 0 orders 9 prof 20 tools 40 muskets 0 horses 0
+EUROPE to-new-world Merchantman turns_left 1 passengers
+@@ b81
+LOG: The price of {Coats} in Amsterdam has risen to {11$}.
+LOG: The price of {Muskets} in Amsterdam has risen to {5$}.
+AUTO stopped (map idle) after 32 frames
+STATUS turn 78 year 1570; Turn 78 Cursor 43,47; screen: main map (map); popup tag -1
+STATUS gold 275; view origin (36,41) 15x12 tiles of 16px, y0 8; cursor (43,47)
+STATUS selected unit 55 Pioneers at (43,47) moves 3 orders 0
+@@ b82
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 55 Pioneers at (43,47) moves 3 orders 0 prof 26 tools 40 muskets 0 horses 0
+UNIT 62 Pioneers at (44,53) moves 3 orders 9 prof 20 tools 40 muskets 0 horses 0
+UNIT 142 Merchantman at (49,47) moves 15 orders 0 prof 0
+@@ b83
+COLONY 0 Jamestown nation 0 at (40,11) pop 2
+COLONY 1 Plymouth nation 0 at (36,8) pop 2
+COLONY 2 Quebec nation 1 at (42,59) pop 4
+COLONY 3 New Amsterdam nation 3 at (44,47) pop 7
+  build Warehouse hammers 30 | SoL 36% | food +1 bells 10 crosses 1 hammers +10
+  stock food 110(+15) tobacco 39(+3) lumber 64(+6) silver 2(+0) horses 106(+2)
+  colonist 0 prof 17 in Town Hall field_job -1 slot -1
+  colonist 1 prof 26  field_job 5 slot 2
+  colonist 2 prof 28 in Lumber Mill field_job -1 slot -1
+  colonist 3 prof 28  field_job 8 slot 0
+  colonist 4 prof 25 in Lumber Mill field_job -1 slot -1
+  colonist 5 prof 0  field_job 0 slot 3
+  colonist 6 prof 5  field_job 5 slot 4
+COLONY 4 Isabella nation 2 at (49,36) pop 5
+COLONY 5 Roanoke nation 0 at (34,22) pop 5
+COLONY 6 Barbados nation 0 at (44,26) pop 2
+COLONY 7 Fort Orange nation 3 at (45,52) pop 1
+  build Docks hammers 0 | SoL 9% | food +2 bells 1 crosses 1 hammers +0
+  stock food 16(+4) tobacco 54(+6) furs 20(+0) lumber 40(+0) ore 79(+5)
+  colonist 0 prof 26  field_job 6 slot 4
+COLONY 8 Montreal nation 1 at (15,46) pop 1
+@@ b84
+@@ b85
+STATUS turn 78 year 1570; Turn 78 Cursor 43,47; screen: main map (map); popup tag -1
+STATUS gold 275; view origin (36,41) 15x12 tiles of 16px, y0 8; cursor (43,47)
+STATUS selected unit 55 Pioneers at (43,47) moves 3 orders 0
+@@ b86
+STATUS turn 78 year 1570; Turn 78 Cursor 43,47; screen: main map (map); popup tag -1
+STATUS gold 275; view origin (36,41) 15x12 tiles of 16px, y0 8; cursor (43,47)
+STATUS selected unit 55 Pioneers at (43,47) moves 3 orders 0
+@@ b87
+NEAR 45 Soldiers nation 3 at (44,47) moves 3 orders 6
+@@ b88
+STATUS turn 78 year 1570; Turn 78 Cursor 44,47; screen: main map (map); popup tag -1
+STATUS gold 275; view origin (37,41) 15x12 tiles of 16px, y0 8; cursor (44,47)
+STATUS selected unit 55 Pioneers at (44,47) moves 2 orders 0
+@@ b89
+@@ b90
+STATUS turn 78 year 1570; Turn 78 Cursor 49,47; screen: main map (map); popup tag -1
+STATUS gold 275; view origin (42,41) 15x12 tiles of 16px, y0 8; cursor (49,47)
+STATUS selected unit 142 Merchantman at (49,47) moves 15 orders 0
+@@ b91
+LOG: {Merchantman}'s progress slowed by presence of {Spanish Privateer}.
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 55 Pioneers at (44,47) moves 0 orders 1 prof 26 tools 40 muskets 0 horses 0
+UNIT 62 Pioneers at (44,53) moves 0 orders 9 prof 20 tools 40 muskets 0 horses 0
+UNIT 142 Merchantman at (45,46) moves -1 orders 3 prof 0
+STATUS turn 78 year 1570; Turn 78 Cursor 45,46; screen: modal open (map); popup tag 0
+STATUS gold 275; view origin (38,40) 15x12 tiles of 16px, y0 8; cursor (45,46)
+@@ b92
+STATUS turn 78 year 1570; Turn 78 Cursor 45,46; screen: modal open (map); popup tag 0
+STATUS gold 275; view origin (38,40) 15x12 tiles of 16px, y0 8; cursor (45,46)
+@@ b93
+NESTED: Return pressed in a modal loop
+NESTED: Return pressed in a modal loop
+LOG: {Spanish Privateer} damaged!  Ship returns to {Seville} for repairs.
+LOG: Sons of Liberty membership in {Fort Orange} is up to 10%, Your Excellency.  The more {Liberty Bells} our {Statesmen} generate, the faster membership will rise.
+CHOICES: [0] Continue turn. [1] Zoom to colony. (sel 0)
+@@ b94
+STATUS turn 79 year 1571; Turn 78 Cursor 45,46; screen: modal open (map); popup tag 53
+STATUS gold 275; view origin (38,40) 15x12 tiles of 16px, y0 8; cursor (45,46)
+STATUS selected unit 130 Merchantman at (245,245) moves 15 orders 0
+@@ b95
+@@ b96
+STATUS turn 79 year 1571; Turn 79 Cursor 44,47; screen: main map (map); popup tag -1
+STATUS gold 275; view origin (37,41) 15x12 tiles of 16px, y0 8; cursor (44,47)
+STATUS selected unit 55 Pioneers at (44,47) moves 3 orders 0
+@@ b97
+STATUS turn 79 year 1571; Turn 79 Cursor 44,47; screen: main map (map); popup tag -1
+STATUS gold 275; view origin (37,41) 15x12 tiles of 16px, y0 8; cursor (44,47)
+STATUS selected unit 55 Pioneers at (44,47) moves 3 orders 0
+@@ b98
+STATUS turn 79 year 1571; Turn 79 Cursor 44,47; screen: main map (map); popup tag -1
+STATUS gold 275; view origin (37,41) 15x12 tiles of 16px, y0 8; cursor (44,47)
+STATUS selected unit 55 Pioneers at (44,47) moves 3 orders 0
+@@ b99
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 55 Pioneers at (44,47) moves 3 orders 0 prof 26 tools 40 muskets 0 horses 0
+UNIT 62 Pioneers at (44,53) moves 0 orders 0 prof 20 tools 20 muskets 0 horses 0
+UNIT 142 Merchantman at (44,47) moves 0 orders 0 prof 0
+STATUS turn 79 year 1571; Turn 79 Cursor 44,47; screen: main map (map); popup tag -1
+STATUS gold 275; view origin (37,41) 15x12 tiles of 16px, y0 8; cursor (44,47)
+@@ b100
+LOG: The price of {Coats} in Amsterdam has fallen to {10$}.
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 55 Pioneers at (44,47) moves 3 orders 1 prof 26 tools 40 muskets 0 horses 0
+UNIT 62 Pioneers at (44,53) moves 3 orders 0 prof 20 tools 20 muskets 0 horses 0
+UNIT 142 Merchantman at (44,47) moves 15 orders 0 prof 0
+@@ b101
+STATUS turn 80 year 1572; Turn 80 Cursor 44,53; screen: main map (map); popup tag -1
+STATUS gold 275; view origin (37,47) 15x12 tiles of 16px, y0 8; cursor (44,53)
+STATUS selected unit 62 Pioneers at (44,53) moves 3 orders 0
+@@ b102
+STATUS turn 80 year 1572; Turn 80 Cursor 44,53; screen: main map (map); popup tag -1
+STATUS gold 275; view origin (37,47) 15x12 tiles of 16px, y0 8; cursor (44,53)
+STATUS selected unit 62 Pioneers at (44,53) moves 3 orders 0
+@@ b103
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 55 Pioneers at (44,47) moves 3 orders 1 prof 26 tools 40 muskets 0 horses 0
+UNIT 62 Pioneers at (44,53) moves 3 orders 0 prof 20 tools 20 muskets 0 horses 0
+UNIT 142 Merchantman at (44,47) moves 15 orders 0 prof 0 hold[0] 2 x45
+@@ b104
+@@ b105
+STATUS turn 80 year 1572; Turn 80 Cursor 44,53; screen: main map (map); popup tag -1
+STATUS gold 275; view origin (37,47) 15x12 tiles of 16px, y0 8; cursor (44,53)
+STATUS selected unit 62 Pioneers at (44,53) moves 3 orders 0
+@@ b106
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 55 Pioneers at (46,50) moves 0 orders 1 prof 26 aboard 142 tools 40 muskets 0 horses 0
+UNIT 62 Pioneers at (44,53) moves 3 orders 0 prof 20 tools 20 muskets 0 horses 0
+UNIT 142 Merchantman at (46,50) moves 0 orders 3 prof 0 hold[0] 2 x45
+STATUS turn 80 year 1572; Turn 80 Cursor 44,53; screen: main map (map); popup tag -1
+STATUS gold 275; view origin (37,47) 15x12 tiles of 16px, y0 8; cursor (44,53)
+STATUS selected unit 62 Pioneers at (44,53) moves 3 orders 0
+@@ b107
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 55 Pioneers at (46,50) moves 0 orders 1 prof 26 aboard 142 tools 40 muskets 0 horses 0
+UNIT 62 Pioneers at (44,53) moves 3 orders 0 prof 20 tools 20 muskets 0 horses 0
+UNIT 142 Merchantman at (46,50) moves 0 orders 3 prof 0 hold[0] 2 x45
+@@ b108
+@@ b109
+STATUS turn 80 year 1572; Turn 80 Cursor 44,53; screen: main map (map); popup tag -1
+STATUS gold 275; view origin (37,47) 15x12 tiles of 16px, y0 8; cursor (44,53)
+STATUS selected unit 62 Pioneers at (44,53) moves 3 orders 0
+@@ b110
+STATUS turn 80 year 1572; Turn 80 Cursor 44,53; screen: main map (map); popup tag -1
+STATUS gold 275; view origin (37,47) 15x12 tiles of 16px, y0 8; cursor (44,53)
+STATUS selected unit 62 Pioneers at (44,53) moves 3 orders 0
+@@ b111
+@@ b112
+LOG: Religious unrest in Netherlands causes increased emigration.  Colonists ({Veteran Soldiers}) now available in Amsterdam.
+STATUS turn 81 year 1573; Immigrant arrives in Europe: Veteran Soldiers; screen: modal open (map); popup tag 0
+STATUS gold 275; view origin (37,40) 15x12 tiles of 16px, y0 8; cursor (44,52)
+STATUS selected unit 3 Caravel at (246,246) moves 12 orders 0
+@@ b113
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 55 Pioneers at (46,50) moves 3 orders 1 prof 26 aboard 142 tools 40 muskets 0 horses 0
+UNIT 62 Pioneers at (44,52) moves 3 orders 0 prof 20 tools 20 muskets 0 horses 0
+UNIT 142 Merchantman at (46,50) moves 15 orders 3 prof 0 hold[0] 2 x45
+UNIT 172 Soldiers at (236,236) moves 3 orders 1 prof 21 tools 0 muskets 50 horses 0
+EUROPE dock Veteran Soldiers prof 21 (boards next ship)
+@@ b114
+STATUS turn 81 year 1573; Turn 81 Cursor 44,52; screen: main map (map); popup tag -1
+STATUS gold 275; view origin (37,46) 15x12 tiles of 16px, y0 8; cursor (44,52)
+STATUS selected unit 62 Pioneers at (44,52) moves 3 orders 0
+@@ b115
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 55 Pioneers at (45,52) moves 3 orders 0 prof 26 tools 40 muskets 0 horses 0
+UNIT 62 Pioneers at (44,52) moves 0 orders 9 prof 20 tools 20 muskets 0 horses 0
+UNIT 142 Merchantman at (45,52) moves 0 orders 0 prof 0 hold[0] 2 x45
+UNIT 172 Soldiers at (236,236) moves 3 orders 1 prof 21 tools 0 muskets 50 horses 0
+EUROPE dock Veteran Soldiers prof 21 (boards next ship)
+@@ b116
+STATUS turn 81 year 1573; Turn 81 Cursor 45,52; screen: main map (map); popup tag -1
+STATUS gold 275; view origin (38,46) 15x12 tiles of 16px, y0 8; cursor (45,52)
+STATUS selected unit 55 Pioneers at (45,52) moves 3 orders 0
+@@ b117
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 55 Pioneers at (45,52) moves 3 orders 0 prof 26 tools 40 muskets 0 horses 0
+UNIT 62 Pioneers at (44,52) moves 0 orders 9 prof 20 tools 20 muskets 0 horses 0
+UNIT 142 Merchantman at (45,52) moves 0 orders 0 prof 0 hold[0] 2 x45
+UNIT 172 Soldiers at (236,236) moves 3 orders 1 prof 21 tools 0 muskets 50 horses 0
+EUROPE dock Veteran Soldiers prof 21 (boards next ship)
+STATUS turn 81 year 1573; Turn 81 Cursor 45,52; screen: main map (map); popup tag -1
+STATUS gold 275; view origin (38,46) 15x12 tiles of 16px, y0 8; cursor (45,52)
+@@ b118
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 55 Pioneers at (45,52) moves 3 orders 0 prof 26 tools 40 muskets 0 horses 0
+UNIT 62 Pioneers at (44,52) moves 0 orders 9 prof 20 tools 20 muskets 0 horses 0
+UNIT 142 Merchantman at (45,52) moves 0 orders 0 prof 0 hold[0] 2 x45 hold[1] 6 x94 hold[2] 4 x20
+UNIT 172 Soldiers at (236,236) moves 3 orders 1 prof 21 tools 0 muskets 50 horses 0
+EUROPE dock Veteran Soldiers prof 21 (boards next ship)
+@@ b119
+HIT kind 23 index -1 
+@@ b120
+HIT kind 23 index -1 
+@@ b121
+HIT kind 23 index -1 
+@@ b122
+HIT kind 22 index 0 unit 55
+@@ b123
+HIT kind 23 index -1 
+@@ b124
+HIT kind 2 index 35 Carpenter's Shop
+HIT kind 2 index 35 Carpenter's Shop
+@@ b125
+COLONY 0 Jamestown nation 0 at (40,11) pop 3
+COLONY 1 Plymouth nation 0 at (36,8) pop 2
+COLONY 2 Quebec nation 1 at (42,59) pop 4
+COLONY 3 New Amsterdam nation 3 at (44,47) pop 7
+  build Warehouse hammers 60 | SoL 38% | food +1 bells 10 crosses 1 hammers +10
+  stock food 113(+15) tobacco 3(+3) lumber 82(+6) silver 2(+0) horses 112(+2)
+  colonist 0 prof 17 in Town Hall field_job -1 slot -1
+  colonist 1 prof 26  field_job 5 slot 2
+  colonist 2 prof 28 in Lumber Mill field_job -1 slot -1
+  colonist 3 prof 28  field_job 8 slot 0
+  colonist 4 prof 25 in Lumber Mill field_job -1 slot -1
+  colonist 5 prof 0  field_job 0 slot 3
+  colonist 6 prof 5  field_job 5 slot 4
+COLONY 4 Isabella nation 2 at (49,36) pop 6
+COLONY 5 Roanoke nation 0 at (34,22) pop 3
+COLONY 6 Barbados nation 0 at (44,26) pop 3
+COLONY 7 Fort Orange nation 3 at (45,52) pop 2
+  build Docks hammers 0 | SoL 7% | food +0 bells 1 crosses 1 hammers +1
+  stock food 22(+4) tobacco 72(+6) lumber 40(-1) ore 0(+5) tools 40(+0)
+  colonist 0 prof 26  field_job 6 slot 4
+  colonist 1 prof 26 in Carpenter's Shop field_job -1 slot -1
+COLONY 8 Montreal nation 1 at (15,46) pop 1
+@@ b126
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 62 Pioneers at (44,52) moves 0 orders 9 prof 20 tools 20 muskets 0 horses 0
+UNIT 142 Merchantman at (45,52) moves 0 orders 0 prof 0 hold[0] 2 x45 hold[1] 6 x94 hold[2] 4 x20
+UNIT 172 Soldiers at (236,236) moves 3 orders 1 prof 21 tools 0 muskets 50 horses 0
+EUROPE dock Veteran Soldiers prof 21 (boards next ship)
+@@ b127
+HIT kind 0 index -1 
+HIT kind 0 index -1 
+HIT kind 0 index -1 
+@@ b128
+STATUS turn 81 year 1573; Assigned to Carpenter's Shop; screen: colony screen (colony:Fort Orange); popup tag -1
+STATUS gold 275; view origin (38,46) 15x12 tiles of 16px, y0 8; cursor (45,52)
+@@ b129
+SHOT automated-playtests/campaign5/shots/fo2.ppm
+@@ b130
+STATUS turn 81 year 1573; Working as Farmer; screen: colony screen (colony:Fort Orange); popup tag -1
+STATUS gold 275; view origin (38,46) 15x12 tiles of 16px, y0 8; cursor (45,52)
+@@ b131
+COLONY 0 Jamestown nation 0 at (40,11) pop 3
+COLONY 1 Plymouth nation 0 at (36,8) pop 2
+COLONY 2 Quebec nation 1 at (42,59) pop 4
+COLONY 3 New Amsterdam nation 3 at (44,47) pop 7
+  build Warehouse hammers 60 | SoL 38% | food +1 bells 10 crosses 1 hammers +10
+  stock food 113(+15) tobacco 3(+3) lumber 82(+6) silver 2(+0) horses 112(+2)
+  colonist 0 prof 17 in Town Hall field_job -1 slot -1
+  colonist 1 prof 26  field_job 5 slot 2
+  colonist 2 prof 28 in Lumber Mill field_job -1 slot -1
+  colonist 3 prof 28  field_job 8 slot 0
+  colonist 4 prof 25 in Lumber Mill field_job -1 slot -1
+  colonist 5 prof 0  field_job 0 slot 3
+  colonist 6 prof 5  field_job 5 slot 4
+COLONY 4 Isabella nation 2 at (49,36) pop 6
+COLONY 5 Roanoke nation 0 at (34,22) pop 3
+COLONY 6 Barbados nation 0 at (44,26) pop 3
+COLONY 7 Fort Orange nation 3 at (45,52) pop 2
+  build Docks hammers 0 | SoL 7% | food +2 bells 1 crosses 1 hammers +0
+  stock food 22(+6) tobacco 72(+6) lumber 40(+0) ore 0(+5) tools 40(+0)
+  colonist 0 prof 26  field_job 6 slot 4
+  colonist 1 prof 26  field_job 0 slot 6
+COLONY 8 Montreal nation 1 at (15,46) pop 1
+@@ b132
+HIT kind 14 index 8 
+HIT kind 16 index 3 
+HIT kind 16 index 2 
+@@ b133
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 62 Pioneers at (44,52) moves 0 orders 9 prof 20 tools 20 muskets 0 horses 0
+UNIT 142 Merchantman at (45,52) moves 0 orders 0 prof 0 hold[0] 2 x100 hold[1] 6 x94 hold[2] 4 x20 hold[3] 2 x17
+UNIT 172 Soldiers at (236,236) moves 3 orders 1 prof 21 tools 0 muskets 50 horses 0
+EUROPE dock Veteran Soldiers prof 21 (boards next ship)
+@@ b134
+LOG: Our {pioneer} has reverted to {colonist} status after using all its {tools}.
+AUTO stopped (map idle) after 28 frames
+STATUS turn 82 year 1574; Turn 82 Cursor 45,52; screen: main map (map); popup tag -1
+STATUS gold 275; view origin (38,46) 15x12 tiles of 16px, y0 8; cursor (45,52)
+STATUS selected unit 142 Merchantman at (45,52) moves 15 orders 0
+@@ b135
+STATUS turn 82 year 1574; Turn 82 Cursor 45,52; screen: main map (map); popup tag -1
+STATUS gold 275; view origin (38,46) 15x12 tiles of 16px, y0 8; cursor (45,52)
+STATUS selected unit 142 Merchantman at (45,52) moves 15 orders 0
+@@ b136
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 62 Colonists at (44,52) moves 3 orders 0 prof 20
+UNIT 142 Merchantman at (50,47) moves 15 orders 3 prof 0 hold[0] 2 x100 hold[1] 6 x94 hold[2] 4 x20 hold[3] 2 x17
+UNIT 172 Soldiers at (236,236) moves 3 orders 1 prof 21 tools 0 muskets 50 horses 0
+EUROPE dock Veteran Soldiers prof 21 (boards next ship)
+STATUS turn 83 year 1575; Turn 82 Cursor 50,47; screen: turn in progress (map); popup tag -1
+STATUS gold 275; view origin (42,41) 15x12 tiles of 16px, y0 8; cursor (50,47)
+@@ b137
+STATUS turn 83 year 1575; Turn 82 Cursor 50,47; screen: turn in progress (map); popup tag -1
+STATUS gold 275; view origin (42,41) 15x12 tiles of 16px, y0 8; cursor (50,47)
+@@ b138
+LOG: {New Amsterdam} is set to produce a {Warehouse}, but it has already built one!
+CHOICES: [0] Continue turn. [1] Zoom to colony. (sel 0)
+@@ b139
+STATUS turn 83 year 1575; Turn 82 Cursor 50,47; screen: modal open (map); popup tag 53
+STATUS gold 275; view origin (38,40) 15x12 tiles of 16px, y0 8; cursor (50,47)
+@@ b140
+@@ b141
+STATUS turn 83 year 1575; Turn 83 Cursor 44,52; screen: main map (map); popup tag -1
+STATUS gold 275; view origin (37,46) 15x12 tiles of 16px, y0 8; cursor (44,52)
+STATUS selected unit 62 Colonists at (44,52) moves 3 orders 0
+@@ b142
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 62 Colonists at (44,52) moves 3 orders 0 prof 20
+UNIT 142 Merchantman at (50,47) moves 15 orders 3 prof 0 hold[0] 2 x100 hold[1] 6 x94 hold[2] 4 x20 hold[3] 2 x17
+UNIT 172 Soldiers at (236,236) moves 3 orders 1 prof 21 tools 0 muskets 50 horses 0
+EUROPE dock Veteran Soldiers prof 21 (boards next ship)
+STATUS turn 83 year 1575; Turn 83 Cursor 44,52; screen: main map (map); popup tag -1
+STATUS gold 275; view origin (37,46) 15x12 tiles of 16px, y0 8; cursor (44,52)
+STATUS selected unit 62 Colonists at (44,52) moves 3 orders 0
+@@ b143
+@@ b144
+STATUS turn 83 year 1575; Turn 83 Cursor 44,52; screen: main map (map); popup tag -1
+STATUS gold 275; view origin (37,46) 15x12 tiles of 16px, y0 8; cursor (44,52)
+STATUS selected unit 62 Colonists at (44,52) moves 3 orders 0
+@@ b145
+STATUS turn 83 year 1575; Turn 83 Cursor 44,52; screen: main map (map); popup tag -1
+STATUS gold 275; view origin (37,46) 15x12 tiles of 16px, y0 8; cursor (44,52)
+STATUS selected unit 62 Colonists at (44,52) moves 3 orders 0
+@@ b146
+@@ b147
+STATUS turn 83 year 1575; Turn 83 Cursor 45,52; screen: main map (map); popup tag -1
+STATUS gold 275; view origin (38,46) 15x12 tiles of 16px, y0 8; cursor (45,52)
+STATUS selected unit 62 Colonists at (45,52) moves 2 orders 0
+@@ b148
+@@ b149
+HIT kind 23 index -1 
+@@ b150
+HIT kind 23 index -1 
+@@ b151
+HIT kind 23 index -1 
+@@ b152
+HIT kind 22 index 0 unit 62
+@@ b153
+HIT kind 23 index -1 
+@@ b154
+STATUS turn 83 year 1575; Working as Farmer; screen: colony screen (colony:Fort Orange); popup tag -1
+STATUS gold 275; view origin (38,46) 15x12 tiles of 16px, y0 8; cursor (45,52)
+@@ b155
+COLONY 0 Jamestown nation 0 at (40,11) pop 3
+COLONY 1 Plymouth nation 0 at (36,8) pop 2
+COLONY 2 Quebec nation 1 at (42,59) pop 4
+COLONY 3 New Amsterdam nation 3 at (44,47) pop 7
+  build Warehouse hammers 80 | SoL 39% | food +1 bells 10 crosses 1 hammers +10
+  stock food 115(+15) tobacco 9(+3) lumber 94(+6) silver 2(+0) horses 116(+2)
+  colonist 0 prof 17 in Town Hall field_job -1 slot -1
+  colonist 1 prof 26  field_job 5 slot 2
+  colonist 2 prof 28 in Lumber Mill field_job -1 slot -1
+  colonist 3 prof 28  field_job 8 slot 0
+  colonist 4 prof 25 in Lumber Mill field_job -1 slot -1
+  colonist 5 prof 0  field_job 0 slot 3
+  colonist 6 prof 5  field_job 5 slot 4
+COLONY 4 Isabella nation 2 at (49,36) pop 6
+COLONY 5 Roanoke nation 0 at (34,22) pop 3
+COLONY 6 Barbados nation 0 at (44,26) pop 2
+COLONY 7 Fort Orange nation 3 at (45,52) pop 3
+  build Docks hammers 0 | SoL 6% | food +0 bells 1 crosses 1 hammers +0
+  stock food 26(+6) tobacco 12(+6) lumber 40(+0) ore 10(+5) tools 40(+0)
+  colonist 0 prof 26  field_job 6 slot 4
+  colonist 1 prof 26  field_job 0 slot 6
+  colonist 2 prof 20  field_job 0 slot 5
+COLONY 8 Montreal nation 1 at (15,46) pop 1
+@@ b156
+SHOT automated-playtests/campaign5/shots/fo3.ppm
+@@ b157
+COLONY 0 Jamestown nation 0 at (40,11) pop 3
+COLONY 1 Plymouth nation 0 at (36,8) pop 2
+COLONY 2 Quebec nation 1 at (42,59) pop 4
+COLONY 3 New Amsterdam nation 3 at (44,47) pop 7
+  build Warehouse hammers 80 | SoL 39% | food +1 bells 10 crosses 1 hammers +10
+  stock food 115(+15) tobacco 9(+3) lumber 94(+6) silver 2(+0) horses 116(+2)
+  colonist 0 prof 17 in Town Hall field_job -1 slot -1
+  colonist 1 prof 26  field_job 5 slot 2
+  colonist 2 prof 28 in Lumber Mill field_job -1 slot -1
+  colonist 3 prof 28  field_job 8 slot 0
+  colonist 4 prof 25 in Lumber Mill field_job -1 slot -1
+  colonist 5 prof 0  field_job 0 slot 3
+  colonist 6 prof 5  field_job 5 slot 4
+COLONY 4 Isabella nation 2 at (49,36) pop 6
+COLONY 5 Roanoke nation 0 at (34,22) pop 3
+COLONY 6 Barbados nation 0 at (44,26) pop 2
+COLONY 7 Fort Orange nation 3 at (45,52) pop 3
+  build Docks hammers 0 | SoL 6% | food -2 bells 1 crosses 1 hammers +3
+  stock food 26(+4) tobacco 12(+6) lumber 40(+5) ore 10(+5) tools 40(+0)
+  colonist 0 prof 26  field_job 6 slot 4
+  colonist 1 prof 26  field_job 5 slot 6
+  colonist 2 prof 20 in Carpenter's Shop field_job -1 slot -1
+COLONY 8 Montreal nation 1 at (15,46) pop 1
+@@ b158
+@@ b159
+STATUS turn 83 year 1575; Turn 83 Cursor 52,47; screen: main map (map); popup tag -1
+STATUS gold 275; view origin (42,41) 15x12 tiles of 16px, y0 8; cursor (52,47)
+@@ b160
+ERR goto refused
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 172 Soldiers at (236,236) moves 3 orders 1 prof 21 tools 0 muskets 50 horses 0
+EUROPE to-europe Merchantman turns_left 1 passengers hold 2 x100 hold 6 x94 hold 4 x20 hold 2 x17
+EUROPE dock Veteran Soldiers prof 21 (boards next ship)
+STATUS turn 83 year 1575; Turn 83 Cursor 52,47; screen: main map (map); popup tag -1
+STATUS gold 275; view origin (42,41) 15x12 tiles of 16px, y0 8; cursor (52,47)
+@@ b161
+STATUS turn 83 year 1575; Turn 83 Cursor 52,47; screen: main map (map); popup tag -1
+STATUS gold 275; view origin (42,41) 15x12 tiles of 16px, y0 8; cursor (52,47)
+@@ b162
+AUTO stopped (choice popup) after 7 frames
+LOG: "Viceroy Michiel De Ruyter.  Because of recent developments in our ongoing war with Denmark, we have decided to raise your tax rate by {2%}.  The tax rate is now {6%}.  If you wish, you may kiss our royal pinky ring."
+CHOICES: [0] Kiss pinky ring. [1] Hold '{Fort Orange Tobacco Party}.' (sel 0)
+STATUS turn 84 year 1576; Turn 83 Cursor 52,47; screen: modal open (map); popup tag 1
+STATUS gold 275; view origin (38,40) 15x12 tiles of 16px, y0 8; cursor (52,47)
+@@ b163
+LOG: Sons of Liberty membership in {New Amsterdam} is up to 40%, Your Excellency.  The more {Liberty Bells} our {Statesmen} generate, the faster membership will rise.
+CHOICES: [0] Continue turn. [1] Zoom to colony. (sel 0)
+@@ b164
+STATUS turn 84 year 1576; Audience: taxes raised to 6%.; screen: modal open (map); popup tag 53
+STATUS gold 275; view origin (38,40) 15x12 tiles of 16px, y0 8; cursor (52,47)
+@@ b165
+LOG: {New Amsterdam} is set to produce a {Warehouse}, but it has already built one!
+CHOICES: [0] Continue turn. [1] Zoom to colony. (sel 0)
+@@ b166
+STATUS turn 84 year 1576; Audience: taxes raised to 6%.; screen: modal open (map); popup tag 53
+STATUS gold 275; view origin (38,40) 15x12 tiles of 16px, y0 8; cursor (52,47)
+@@ b167
+LOG: A new cargo of {Lumber} is ready at {New Amsterdam}, Your Excellency.
+CHOICES: [0] Continue turn. [1] Zoom to colony. (sel 0)
+@@ b168
+STATUS turn 84 year 1576; Audience: taxes raised to 6%.; screen: modal open (map); popup tag 53
+STATUS gold 275; view origin (38,40) 15x12 tiles of 16px, y0 8; cursor (52,47)
+@@ b169
+LOG: The price of {Tools} in Amsterdam has risen to {4$}.
+@@ b170
+STATUS turn 84 year 1576; End of Turn — Spring 1576 (turn 84); screen: modal open (map); popup tag 0
+STATUS gold 275; view origin (38,40) 15x12 tiles of 16px, y0 8; cursor (52,47)
+@@ b171
+LOG: The price of {Muskets} in Amsterdam has risen to {6$}.
+@@ b172
+STATUS turn 84 year 1576; End of Turn — Spring 1576 (turn 84); screen: modal open (map); popup tag 0
+STATUS gold 275; view origin (38,40) 15x12 tiles of 16px, y0 8; cursor (52,47)
+@@ b173
+@@ b174
+STATUS turn 84 year 1576; Turn 84 Cursor 52,47; screen: main map (map); popup tag -1
+STATUS gold 275; view origin (38,40) 15x12 tiles of 16px, y0 8; cursor (52,47)
+@@ b175
+NESTED: Return pressed in a modal loop
+LOG: Spies report: {English} treasure fleet laden with {2200$} arrives in London.  English king pleased with booty.
+LOG: {New Amsterdam} is set to produce a {Warehouse}, but it has already built one!
+CHOICES: [0] Continue turn. [1] Zoom to colony. (sel 0)
+LOG: The price of {Cloth} in Amsterdam has risen to {14$}.
+AUTO stopped (europe) after 15 frames
+STATUS turn 85 year 1577; End of Turn — Spring 1577 (turn 85); screen: Europe screen (europe); popup tag -1
+STATUS gold 275; view origin (38,40) 15x12 tiles of 16px, y0 8; cursor (52,47)
+@@ b176
+LOG: 100 Tobacco sold for 400. 6% Tax: 24. Net: 376
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 172 Soldiers at (236,236) moves 3 orders 1 prof 21 tools 0 muskets 50 horses 0
+EUROPE harbor Merchantman turns_left 0 passengers hold 6 x94 hold 4 x20 hold 2 x17
+EUROPE dock Veteran Soldiers prof 21 (boards next ship)
+@@ b177
+LOG: 94 Ore sold for 470. 6% Tax: 28. Net: 442
+LOG: 17 Tobacco sold for 68. 6% Tax: 4. Net: 64
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 172 Soldiers at (236,236) moves 3 orders 1 prof 21 tools 0 muskets 50 horses 0
+EUROPE harbor Merchantman turns_left 0 passengers hold 4 x20
+EUROPE dock Veteran Soldiers prof 21 (boards next ship)
+STATUS turn 85 year 1577; End of Turn — Spring 1577 (turn 85); screen: Europe screen (europe); popup tag -1
+STATUS gold 1157; view origin (38,40) 15x12 tiles of 16px, y0 8; cursor (52,47)
+@@ b178
+SHOT automated-playtests/campaign5/shots/e14.ppm
+STATUS turn 85 year 1577; End of Turn — Spring 1577 (turn 85); screen: Europe screen (europe); popup tag -1
+STATUS gold 1157; view origin (38,40) 15x12 tiles of 16px, y0 8; cursor (52,47)
+@@ b179
+SHOT automated-playtests/campaign5/shots/e15.ppm
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 172 Soldiers at (236,236) moves 3 orders 1 prof 21 tools 0 muskets 50 horses 0
+EUROPE harbor Merchantman turns_left 0 passengers hold 4 x20
+EUROPE dock Free Colonists prof 28 (boards next ship)
+EUROPE dock Veteran Soldiers prof 21 (boards next ship)
+STATUS turn 85 year 1577; End of Turn — Spring 1577 (turn 85); screen: Europe screen (europe); popup tag -1
+STATUS gold 837; view origin (38,40) 15x12 tiles of 16px, y0 8; cursor (52,47)
+@@ b180
+LOG: Shall we set sail for the {New World}, Your Excellency?
+CHOICES: [0] Yes, steady as she goes. [1] No, let us remain in port. (sel 0)
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+EUROPE to-new-world Merchantman turns_left 1 passengers prof28 prof21 hold 4 x20
+STATUS turn 85 year 1577; Turn 85 Cursor 52,47; screen: main map (map); popup tag -1
+STATUS gold 837; view origin (38,40) 15x12 tiles of 16px, y0 8; cursor (52,47)
+@@ b181
+BUILD New Amsterdam now 3
+@@ b182
+COLONY 0 Jamestown nation 0 at (40,11) pop 3
+COLONY 1 Plymouth nation 0 at (36,8) pop 2
+COLONY 2 Quebec nation 1 at (42,59) pop 4
+COLONY 3 New Amsterdam nation 3 at (44,47) pop 7
+  build Armory hammers 100 | SoL 40% | food +1 bells 10 crosses 1 hammers +10
+  stock food 117(+15) tobacco 15(+3) lumber 106(+6) silver 2(+0) horses 120(+2)
+  colonist 0 prof 17 in Town Hall field_job -1 slot -1
+  colonist 1 prof 26  field_job 5 slot 2
+  colonist 2 prof 28 in Lumber Mill field_job -1 slot -1
+  colonist 3 prof 28  field_job 8 slot 0
+  colonist 4 prof 25 in Lumber Mill field_job -1 slot -1
+  colonist 5 prof 0  field_job 0 slot 3
+  colonist 6 prof 5  field_job 5 slot 4
+COLONY 4 Isabella nation 2 at (49,36) pop 6
+COLONY 5 Roanoke nation 0 at (34,22) pop 3
+COLONY 6 Barbados nation 0 at (44,26) pop 2
+COLONY 7 Fort Orange nation 3 at (45,52) pop 3
+  build Docks hammers 6 | SoL 6% | food -2 bells 1 crosses 1 hammers +3
+  stock food 22(+4) tobacco 24(+6) lumber 50(+5) ore 20(+5) tools 40(+0)
+  colonist 0 prof 26  field_job 6 slot 4
+  colonist 1 prof 26  field_job 5 slot 6
+  colonist 2 prof 20 in Carpenter's Shop field_job -1 slot -1
+COLONY 8 Montreal nation 1 at (15,46) pop 1
+COLONY 9 Santo Domingo nation 2 at (51,30) pop 1
+COLONY 10 Guadeloupe nation 1 at (19,19) pop 1
+@@ b183
+BUILD New Amsterdam now 3
+@@ b184
+NESTED: Return pressed in a modal loop
+LOG: Spies report: {Spanish} treasure fleet laden with {1400$} arrives in Seville.  Spanish king pleased with booty.
+LOG: New Amsterdam colony produces {Armory}.
+CHOICES: [0] Continue turn. [1] Zoom to colony. (sel 0)
+LOG: King increases military spending.  {Regulars} added to royal expeditionary force.  Colonial leaders express alarm.
+AUTO stopped (map idle) after 32 frames
+STATUS turn 86 year 1578; Turn 86 Cursor 52,47; screen: main map (map); popup tag -1
+STATUS gold 837; view origin (40,35) 15x12 tiles of 16px, y0 8; cursor (52,47)
+@@ b185
+COLONY 0 Jamestown nation 0 at (40,11) pop 3
+COLONY 1 Plymouth nation 0 at (36,8) pop 2
+COLONY 2 Quebec nation 1 at (42,59) pop 4
+COLONY 3 New Amsterdam nation 3 at (44,47) pop 7
+  build Schoolhouse hammers 0 | SoL 41% | food +1 bells 10 crosses 1 hammers +10
+  stock food 118(+15) tobacco 18(+3) lumber 112(+6) silver 2(+0) horses 122(+2)
+  colonist 0 prof 17 in Town Hall field_job -1 slot -1
+  colonist 1 prof 26  field_job 5 slot 2
+  colonist 2 prof 28 in Lumber Mill field_job -1 slot -1
+  colonist 3 prof 28  field_job 8 slot 0
+  colonist 4 prof 25 in Lumber Mill field_job -1 slot -1
+  colonist 5 prof 0  field_job 0 slot 3
+  colonist 6 prof 5  field_job 5 slot 4
+COLONY 4 Isabella nation 2 at (49,36) pop 6
+COLONY 5 Roanoke nation 0 at (34,22) pop 3
+COLONY 6 Barbados nation 0 at (44,26) pop 3
+COLONY 7 Fort Orange nation 3 at (45,52) pop 3
+  build Docks hammers 9 | SoL 6% | food -2 bells 1 crosses 1 hammers +3
+  stock food 20(+4) tobacco 30(+6) lumber 55(+5) ore 25(+5) tools 40(+0)
+  colonist 0 prof 26  field_job 6 slot 4
+  colonist 1 prof 26  field_job 5 slot 6
+  colonist 2 prof 20 in Carpenter's Shop field_job -1 slot -1
+COLONY 8 Montreal nation 1 at (15,46) pop 1
+COLONY 9 Santo Domingo nation 2 at (51,30) pop 1
+COLONY 10 Guadeloupe nation 1 at (19,19) pop 1
+@@ b186
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+EUROPE to-new-world Merchantman turns_left 1 passengers prof28 prof21 hold 4 x20
+@@ b187
+LOG: The price of {Horses} in Amsterdam has risen to {5$}.
+LOG: The price of {Cloth} in Amsterdam has fallen to {13$}.
+AUTO stopped (map idle) after 32 frames
+STATUS turn 87 year 1579; Turn 87 Cursor 53,48; screen: main map (map); popup tag -1
+STATUS gold 837; view origin (42,42) 15x12 tiles of 16px, y0 8; cursor (53,48)
+STATUS selected unit 217 Merchantman at (53,48) moves 15 orders 0
+@@ b188
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 217 Merchantman at (53,48) moves 15 orders 0 prof 0 hold[2] 4 x20
+UNIT 218 Colonists at (53,48) moves 0 orders 1 prof 28 aboard 217
+UNIT 219 Soldiers at (53,48) moves 0 orders 1 prof 21 aboard 217 tools 0 muskets 50 horses 0
+@@ b189
+STATUS turn 87 year 1579; Turn 87 Cursor 53,48; screen: main map (map); popup tag -1
+STATUS gold 837; view origin (42,42) 15x12 tiles of 16px, y0 8; cursor (53,48)
+STATUS selected unit 217 Merchantman at (53,48) moves 15 orders 0
+@@ b190
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 217 Merchantman at (49,53) moves 15 orders 3 prof 0 hold[2] 4 x20
+UNIT 218 Colonists at (49,53) moves 3 orders 1 prof 28 aboard 217
+UNIT 219 Soldiers at (49,53) moves 3 orders 1 prof 21 aboard 217 tools 0 muskets 50 horses 0
+STATUS turn 88 year 1580; Turn 87 Cursor 49,53; screen: turn in progress (map); popup tag -1
+STATUS gold 837; view origin (42,47) 15x12 tiles of 16px, y0 8; cursor (49,53)
+@@ b191
+STATUS turn 88 year 1580; Turn 87 Cursor 49,53; screen: turn in progress (map); popup tag -1
+STATUS gold 837; view origin (42,47) 15x12 tiles of 16px, y0 8; cursor (49,53)
+@@ b192
+@@ b193
+STATUS turn 88 year 1580; Turn 88 Cursor 46,52; screen: main map (map); popup tag -1
+STATUS gold 837; view origin (39,46) 15x12 tiles of 16px, y0 8; cursor (46,52)
+STATUS selected unit 217 Merchantman at (46,52) moves 6 orders 3
+@@ b194
+STATUS turn 88 year 1580; Turn 88 Cursor 46,52; screen: main map (map); popup tag -1
+STATUS gold 837; view origin (39,46) 15x12 tiles of 16px, y0 8; cursor (46,52)
+STATUS selected unit 217 Merchantman at (46,52) moves 6 orders 3
+@@ b195
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 217 Merchantman at (45,52) moves 0 orders 0 prof 0 hold[2] 4 x20
+UNIT 218 Colonists at (45,52) moves 3 orders 0 prof 28
+UNIT 219 Soldiers at (45,52) moves 3 orders 0 prof 21 tools 0 muskets 50 horses 0
+STATUS turn 88 year 1580; Turn 88 Cursor 45,52; screen: main map (map); popup tag -1
+STATUS gold 837; view origin (38,46) 15x12 tiles of 16px, y0 8; cursor (45,52)
+STATUS selected unit 218 Colonists at (45,52) moves 3 orders 0
+@@ b196
+@@ b197
+HIT kind 23 index -1 
+@@ b198
+HIT kind 23 index -1 
+@@ b199
+HIT kind 22 index 0 unit 218
+@@ b200
+HIT kind 22 index 1 unit 219
+@@ b201
+HIT kind 22 index 1 unit 219
+@@ b202
+HIT kind 23 index -1 
+@@ b203
+SHOT automated-playtests/campaign5/shots/fo4.ppm
+COLONY 0 Jamestown nation 0 at (40,11) pop 3
+COLONY 1 Plymouth nation 0 at (36,8) pop 3
+COLONY 2 Quebec nation 1 at (42,59) pop 4
+COLONY 3 New Amsterdam nation 3 at (44,47) pop 7
+  build Schoolhouse hammers 20 | SoL 42% | food +1 bells 10 crosses 1 hammers +10
+  stock food 120(+15) tobacco 24(+3) lumber 124(+6) silver 2(+0) horses 126(+2)
+  colonist 0 prof 17 in Town Hall field_job -1 slot -1
+  colonist 1 prof 26  field_job 5 slot 2
+  colonist 2 prof 28 in Lumber Mill field_job -1 slot -1
+  colonist 3 prof 28  field_job 8 slot 0
+  colonist 4 prof 25 in Lumber Mill field_job -1 slot -1
+  colonist 5 prof 0  field_job 0 slot 3
+  colonist 6 prof 5  field_job 5 slot 4
+COLONY 4 Isabella nation 2 at (49,36) pop 6
+COLONY 5 Roanoke nation 0 at (34,22) pop 3
+COLONY 6 Barbados nation 0 at (44,26) pop 3
+COLONY 7 Fort Orange nation 3 at (45,52) pop 4
+  build Docks hammers 15 | SoL 5% | food -4 bells 1 crosses 1 hammers +6
+  stock food 16(+4) tobacco 42(+6) lumber 65(+2) ore 35(+5) tools 40(+0)
+  colonist 0 prof 26  field_job 6 slot 4
+  colonist 1 prof 26  field_job 5 slot 6
+  colonist 2 prof 20 in Carpenter's Shop field_job -1 slot -1
+  colonist 3 prof 28 in Carpenter's Shop field_job -1 slot -1
+COLONY 8 Montreal nation 1 at (15,46) pop 1
+COLONY 9 Santo Domingo nation 2 at (51,30) pop 1
+COLONY 10 Guadeloupe nation 1 at (19,19) pop 1
+@@ b204
+LOG: Cost to complete Docks: 481$. Treasury: 837$. 
+CHOICES: [0] Never mind. [1] Complete it. (sel 0)
+STATUS turn 88 year 1580; Assigned to Carpenter's Shop; screen: colony screen (colony:Fort Orange); popup tag 27
+STATUS gold 837; view origin (38,46) 15x12 tiles of 16px, y0 8; cursor (45,52)
+@@ b205
+LOG: The colony of {Fort Orange} is rapidly depleting its food supply, Your Excellency.  We have only {12 food} left.  We must have food for the winter months.
+CHOICES: [0] Continue turn. [1] Zoom to colony. (sel 0)
+@@ b206
+ERR no End of Turn prompt (selected unit -1)
+LOG: The price of {Rum} in Amsterdam has risen to {14$}.
+AUTO stopped (map idle) after 24 frames
+STATUS turn 89 year 1581; Turn 89 Cursor 45,52; screen: main map (map); popup tag -1
+STATUS gold 837; view origin (38,46) 15x12 tiles of 16px, y0 8; cursor (45,52)
+STATUS selected unit 217 Merchantman at (45,52) moves 15 orders 0
+@@ b207
+STATUS turn 89 year 1581; Turn 89 Cursor 45,52; screen: main map (map); popup tag -1
+STATUS gold 837; view origin (38,46) 15x12 tiles of 16px, y0 8; cursor (45,52)
+STATUS selected unit 217 Merchantman at (45,52) moves 15 orders 0
+@@ b208
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 217 Merchantman at (46,47) moves 15 orders 3 prof 0 hold[2] 4 x20
+UNIT 219 Soldiers at (45,52) moves 3 orders 6 prof 21 tools 0 muskets 50 horses 0
+STATUS turn 90 year 1582; Turn 89 Cursor 46,47; screen: turn in progress (map); popup tag -1
+STATUS gold 837; view origin (39,41) 15x12 tiles of 16px, y0 8; cursor (46,47)
+@@ b209
+STATUS turn 90 year 1582; Turn 89 Cursor 46,47; screen: turn in progress (map); popup tag -1
+STATUS gold 837; view origin (39,41) 15x12 tiles of 16px, y0 8; cursor (46,47)
+@@ b210
+NESTED: Return pressed in a modal loop
+NESTED: Return pressed in a modal loop
+NESTED: Return pressed in a modal loop
+LOG: "Greetings, Viceroy Michiel De Ruyter, and welcome to {New Spain}. We have justly claimed all of this land in the name of {the Pope and the Spanish Crown}, and we are here to {convert the heathen} and enrich our Sovereign.  Please do not interfere with this God-given mission."
+LOG: "Although all of this land is rightfully ours by order of the Pope, we propose a demarcation {treaty}, dividing all the land before God into perpetual and inviolable {Dutch} and {Spanish} spheres of influence. Will you agree to such a partition?"
+LOG: "We welcome the friendship of our brothers the {Dutch} and their wise leader Viceroy Michiel De Ruyter.  Together we shall work God's will in the New World."
+LOG: The colony of {Fort Orange} is rapidly depleting its food supply, Your Excellency.  We have only {8 food} left.  We must have food for the winter months.
+CHOICES: [0] Continue turn. [1] Zoom to colony. (sel 0)
+@@ b211
+STATUS turn 90 year 1582; Turn 89 Cursor 46,47; screen: modal open (map); popup tag 53
+STATUS gold 837; view origin (36,40) 15x12 tiles of 16px, y0 8; cursor (46,47)
+@@ b212
+LOG: The price of {Muskets} in Amsterdam has risen to {7$}.
+@@ b213
+STATUS turn 90 year 1582; End of Turn — Spring 1582 (turn 90); screen: modal open (map); popup tag 0
+STATUS gold 837; view origin (39,41) 15x12 tiles of 16px, y0 8; cursor (46,47)
+STATUS selected unit 217 Merchantman at (46,47) moves 15 orders 3
+@@ b214
+@@ b215
+STATUS turn 91 year 1583; Turn 90 Cursor 44,47; screen: turn in progress (map); popup tag -1
+STATUS gold 837; view origin (37,41) 15x12 tiles of 16px, y0 8; cursor (44,47)
+@@ b216
+LOG: The colony of {Fort Orange} is rapidly depleting its food supply, Your Excellency.  We have only {4 food} left.  We must have food for the winter months.
+CHOICES: [0] Continue turn. [1] Zoom to colony. (sel 0)
+@@ b217
+STATUS turn 91 year 1583; Turn 90 Cursor 44,47; screen: modal open (map); popup tag 53
+STATUS gold 837; view origin (35,41) 15x12 tiles of 16px, y0 8; cursor (44,47)
+STATUS selected unit 3 Caravel at (246,246) moves 12 orders 0
+@@ b218
+LOG: The price of {Rum} in Amsterdam has fallen to {13$}.
+@@ b219
+STATUS turn 91 year 1583; End of Turn — Spring 1583 (turn 91); screen: modal open (map); popup tag 0
+STATUS gold 837; view origin (37,41) 15x12 tiles of 16px, y0 8; cursor (44,47)
+STATUS selected unit 217 Merchantman at (44,47) moves 15 orders 0
+@@ b220
+@@ b221
+STATUS turn 91 year 1583; Turn 91 Cursor 44,47; screen: main map (map); popup tag -1
+STATUS gold 837; view origin (37,41) 15x12 tiles of 16px, y0 8; cursor (44,47)
+STATUS selected unit 217 Merchantman at (44,47) moves 15 orders 0
+@@ b222
+STATUS turn 91 year 1583; Turn 91 Cursor 44,47; screen: main map (map); popup tag -1
+STATUS gold 837; view origin (37,41) 15x12 tiles of 16px, y0 8; cursor (44,47)
+STATUS selected unit 217 Merchantman at (44,47) moves 15 orders 0
+@@ b223
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 217 Merchantman at (44,47) moves 15 orders 0 prof 0 hold[2] 4 x20
+UNIT 219 Soldiers at (45,52) moves 3 orders 6 prof 21 tools 0 muskets 50 horses 0
+STATUS turn 91 year 1583; Turn 91 Cursor 44,47; screen: main map (map); popup tag -1
+STATUS gold 837; view origin (37,41) 15x12 tiles of 16px, y0 8; cursor (44,47)
+STATUS selected unit 217 Merchantman at (44,47) moves 15 orders 0
+@@ b224
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 217 Merchantman at (44,47) moves 15 orders 0 prof 0 hold[0] 0 x100 hold[2] 4 x20
+UNIT 219 Soldiers at (45,52) moves 3 orders 6 prof 21 tools 0 muskets 50 horses 0
+@@ b225
+@@ b226
+STATUS turn 91 year 1583; Turn 91 Cursor 44,47; screen: main map (map); popup tag -1
+STATUS gold 837; view origin (37,41) 15x12 tiles of 16px, y0 8; cursor (44,47)
+STATUS selected unit 217 Merchantman at (44,47) moves 15 orders 0
+@@ b227
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 217 Merchantman at (46,50) moves 15 orders 3 prof 0 hold[0] 0 x100 hold[2] 4 x20
+UNIT 219 Soldiers at (45,52) moves 3 orders 6 prof 21 tools 0 muskets 50 horses 0
+STATUS turn 92 year 1584; Turn 91 Cursor 46,50; screen: turn in progress (map); popup tag -1
+STATUS gold 837; view origin (39,44) 15x12 tiles of 16px, y0 8; cursor (46,50)
+@@ b228
+STATUS turn 92 year 1584; Turn 91 Cursor 46,50; screen: turn in progress (map); popup tag -1
+STATUS gold 837; view origin (39,44) 15x12 tiles of 16px, y0 8; cursor (46,50)
+@@ b229
+LOG: Food stores have been depleted in {Fort Orange}, Your Excellency!
+CHOICES: [0] Continue turn. [1] Zoom to colony. (sel 0)
+@@ b230
+STATUS turn 92 year 1584; Turn 91 Cursor 46,50; screen: modal open (map); popup tag 53
+STATUS gold 837; view origin (35,41) 15x12 tiles of 16px, y0 8; cursor (46,50)
+STATUS selected unit 212 Galleon at (244,244) moves 12 orders 0
+@@ b231
+@@ b232
+STATUS turn 93 year 1585; Turn 92 Cursor 45,52; screen: turn in progress (map); popup tag -1
+STATUS gold 837; view origin (38,46) 15x12 tiles of 16px, y0 8; cursor (45,52)
+@@ b233
+LOG: {Fort Orange} colony has run out of food, Your Excellency! In this harsh winter weather, many colonists are {starving} to death.
+CHOICES: [0] Continue turn. [1] Zoom to colony. (sel 0)
+@@ b234
+STATUS turn 93 year 1585; Turn 92 Cursor 45,52; screen: modal open (map); popup tag 53
+STATUS gold 837; view origin (35,41) 15x12 tiles of 16px, y0 8; cursor (45,52)
+STATUS selected unit 235 Merchantman at (246,246) moves 0 orders 0
+@@ b235
+LOG: New Amsterdam colony produces {Schoolhouse}.
+CHOICES: [0] Continue turn. [1] Zoom to colony. (sel 0)
+@@ b236
+STATUS turn 93 year 1585; Turn 92 Cursor 45,52; screen: modal open (map); popup tag 53
+STATUS gold 837; view origin (35,41) 15x12 tiles of 16px, y0 8; cursor (45,52)
+STATUS selected unit 235 Merchantman at (246,246) moves 0 orders 0
+@@ b237
+@@ b238
+STATUS turn 93 year 1585; Turn 93 Cursor 45,52; screen: main map (map); popup tag -1
+STATUS gold 837; view origin (38,46) 15x12 tiles of 16px, y0 8; cursor (45,52)
+STATUS selected unit 217 Merchantman at (45,52) moves 15 orders 0
+@@ b239
+COLONY 0 Jamestown nation 0 at (40,11) pop 3
+COLONY 1 Plymouth nation 0 at (36,8) pop 3
+COLONY 2 Quebec nation 1 at (42,59) pop 4
+COLONY 3 New Amsterdam nation 3 at (44,47) pop 7
+  build Schoolhouse hammers 0 | SoL 44% | food +1 bells 10 crosses 1 hammers +10
+  stock food 25(+15) tobacco 39(+3) lumber 154(+6) silver 2(+0) horses 136(+2)
+  colonist 0 prof 17 in Town Hall field_job -1 slot -1
+  colonist 1 prof 26  field_job 5 slot 2
+  colonist 2 prof 28 in Lumber Mill field_job -1 slot -1
+  colonist 3 prof 28  field_job 8 slot 0
+  colonist 4 prof 25 in Lumber Mill field_job -1 slot -1
+  colonist 5 prof 0  field_job 0 slot 3
+  colonist 6 prof 5  field_job 5 slot 4
+COLONY 4 Isabella nation 2 at (49,36) pop 6
+COLONY 5 Roanoke nation 0 at (34,22) pop 4
+COLONY 6 Barbados nation 0 at (44,26) pop 3
+COLONY 7 Fort Orange nation 3 at (45,52) pop 3
+  build Docks hammers 45 | SoL 8% | food -2 bells 1 crosses 1 hammers +6
+  stock food 0(+4) tobacco 72(+6) lumber 75(-6) ore 60(+5) tools 40(+0)
+  colonist 0 prof 26  field_job 6 slot 4
+  colonist 1 prof 20 in Carpenter's Shop field_job -1 slot -1
+  colonist 2 prof 28 in Carpenter's Shop field_job -1 slot -1
+COLONY 8 Montreal nation 1 at (15,46) pop 1
+COLONY 9 Santo Domingo nation 2 at (51,30) pop 1
+COLONY 10 Guadeloupe nation 1 at (19,19) pop 1
+COLONY 11 Penobscot nation 0 at (26,32) pop 1
+@@ b240
+BUILD New Amsterdam now 37
+@@ b241
+COLONY 0 Jamestown nation 0 at (40,11) pop 3
+COLONY 1 Plymouth nation 0 at (36,8) pop 3
+COLONY 2 Quebec nation 1 at (42,59) pop 4
+COLONY 3 New Amsterdam nation 3 at (44,47) pop 7
+  build Church hammers 0 | SoL 44% | food +1 bells 10 crosses 1 hammers +10
+  stock food 25(+15) tobacco 39(+3) lumber 154(+6) silver 2(+0) horses 136(+2)
+  colonist 0 prof 17 in Town Hall field_job -1 slot -1
+  colonist 1 prof 26  field_job 5 slot 2
+  colonist 2 prof 28 in Lumber Mill field_job -1 slot -1
+  colonist 3 prof 28  field_job 8 slot 0
+  colonist 4 prof 25 in Lumber Mill field_job -1 slot -1
+  colonist 5 prof 0  field_job 0 slot 3
+  colonist 6 prof 5  field_job 5 slot 4
+COLONY 4 Isabella nation 2 at (49,36) pop 6
+COLONY 5 Roanoke nation 0 at (34,22) pop 4
+COLONY 6 Barbados nation 0 at (44,26) pop 3
+COLONY 7 Fort Orange nation 3 at (45,52) pop 3
+  build Docks hammers 45 | SoL 8% | food -2 bells 1 crosses 1 hammers +6
+  stock food 0(+4) tobacco 72(+6) lumber 75(-6) ore 60(+5) tools 40(+0)
+  colonist 0 prof 26  field_job 6 slot 4
+  colonist 1 prof 20 in Carpenter's Shop field_job -1 slot -1
+  colonist 2 prof 28 in Carpenter's Shop field_job -1 slot -1
+COLONY 8 Montreal nation 1 at (15,46) pop 1
+COLONY 9 Santo Domingo nation 2 at (51,30) pop 1
+COLONY 10 Guadeloupe nation 1 at (19,19) pop 1
+COLONY 11 Penobscot nation 0 at (26,32) pop 1
+@@ b242
+STATUS turn 93 year 1585; Turn 93 Cursor 45,52; screen: main map (map); popup tag -1
+STATUS gold 837; view origin (38,46) 15x12 tiles of 16px, y0 8; cursor (45,52)
+STATUS selected unit 217 Merchantman at (45,52) moves 15 orders 0
+@@ b243
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 217 Merchantman at (45,52) moves 15 orders 0 prof 0 hold[0] 0 x100 hold[2] 4 x20
+UNIT 219 Soldiers at (45,52) moves 3 orders 6 prof 21 tools 0 muskets 50 horses 0
+STATUS turn 93 year 1585; Turn 93 Cursor 45,52; screen: main map (map); popup tag -1
+STATUS gold 837; view origin (38,46) 15x12 tiles of 16px, y0 8; cursor (45,52)
+STATUS selected unit 217 Merchantman at (45,52) moves 15 orders 0
+@@ b244
+STATUS turn 93 year 1585; Turn 93 Cursor 45,52; screen: main map (map); popup tag -1
+STATUS gold 837; view origin (38,46) 15x12 tiles of 16px, y0 8; cursor (45,52)
+STATUS selected unit 217 Merchantman at (45,52) moves 15 orders 0
+@@ b245
+COLONY 0 Jamestown nation 0 at (40,11) pop 3
+COLONY 1 Plymouth nation 0 at (36,8) pop 3
+COLONY 2 Quebec nation 1 at (42,59) pop 4
+COLONY 3 New Amsterdam nation 3 at (44,47) pop 7
+  build Church hammers 0 | SoL 44% | food +1 bells 10 crosses 1 hammers +10
+  stock food 25(+15) tobacco 39(+3) lumber 154(+6) silver 2(+0) horses 136(+2)
+  colonist 0 prof 17 in Town Hall field_job -1 slot -1
+  colonist 1 prof 26  field_job 5 slot 2
+  colonist 2 prof 28 in Lumber Mill field_job -1 slot -1
+  colonist 3 prof 28  field_job 8 slot 0
+  colonist 4 prof 25 in Lumber Mill field_job -1 slot -1
+  colonist 5 prof 0  field_job 0 slot 3
+  colonist 6 prof 5  field_job 5 slot 4
+COLONY 4 Isabella nation 2 at (49,36) pop 6
+COLONY 5 Roanoke nation 0 at (34,22) pop 4
+COLONY 6 Barbados nation 0 at (44,26) pop 3
+COLONY 7 Fort Orange nation 3 at (45,52) pop 3
+  build Docks hammers 45 | SoL 8% | food -2 bells 1 crosses 1 hammers +6
+  stock food 100(+4) tobacco 72(+6) lumber 75(-6) ore 60(+5) tools 40(+0)
+  colonist 0 prof 26  field_job 6 slot 4
+  colonist 1 prof 20 in Carpenter's Shop field_job -1 slot -1
+  colonist 2 prof 28 in Carpenter's Shop field_job -1 slot -1
+COLONY 8 Montreal nation 1 at (15,46) pop 1
+COLONY 9 Santo Domingo nation 2 at (51,30) pop 1
+COLONY 10 Guadeloupe nation 1 at (19,19) pop 1
+COLONY 11 Penobscot nation 0 at (26,32) pop 1
+@@ b246
+LOG: Cost to complete Docks: 91$. Treasury: 837$. 
+CHOICES: [0] Never mind. [1] Complete it. (sel 0)
+STATUS turn 93 year 1585; Unloaded 100; screen: colony screen (colony:Fort Orange); popup tag 27
+STATUS gold 837; view origin (38,46) 15x12 tiles of 16px, y0 8; cursor (45,52)
+STATUS selected unit 217 Merchantman at (45,52) moves 15 orders 0
+@@ b247
+COLONY 0 Jamestown nation 0 at (40,11) pop 3
+COLONY 1 Plymouth nation 0 at (36,8) pop 3
+COLONY 2 Quebec nation 1 at (42,59) pop 4
+COLONY 3 New Amsterdam nation 3 at (44,47) pop 7
+  build Church hammers 0 | SoL 44% | food +1 bells 10 crosses 1 hammers +10
+  stock food 25(+15) tobacco 39(+3) lumber 154(+6) silver 2(+0) horses 136(+2)
+  colonist 0 prof 17 in Town Hall field_job -1 slot -1
+  colonist 1 prof 26  field_job 5 slot 2
+  colonist 2 prof 28 in Lumber Mill field_job -1 slot -1
+  colonist 3 prof 28  field_job 8 slot 0
+  colonist 4 prof 25 in Lumber Mill field_job -1 slot -1
+  colonist 5 prof 0  field_job 0 slot 3
+  colonist 6 prof 5  field_job 5 slot 4
+COLONY 4 Isabella nation 2 at (49,36) pop 6
+COLONY 5 Roanoke nation 0 at (34,22) pop 4
+COLONY 6 Barbados nation 0 at (44,26) pop 3
+COLONY 7 Fort Orange nation 3 at (45,52) pop 3
+  build Docks hammers 52 | SoL 8% | food -2 bells 1 crosses 1 hammers +6
+  stock food 100(+4) tobacco 72(+6) lumber 75(-6) ore 60(+5) tools 40(+0)
+  colonist 0 prof 26  field_job 6 slot 4
+  colonist 1 prof 20 in Carpenter's Shop field_job -1 slot -1
+  colonist 2 prof 28 in Carpenter's Shop field_job -1 slot -1
+COLONY 8 Montreal nation 1 at (15,46) pop 1
+COLONY 9 Santo Domingo nation 2 at (51,30) pop 1
+COLONY 10 Guadeloupe nation 1 at (19,19) pop 1
+COLONY 11 Penobscot nation 0 at (26,32) pop 1
+@@ b248
+BUILD Fort Orange now 6
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 217 Merchantman at (45,52) moves 15 orders 0 prof 0 hold[0] 2 x72 hold[1] 6 x60 hold[2] 4 x20
+UNIT 219 Soldiers at (45,52) moves 3 orders 6 prof 21 tools 0 muskets 50 horses 0
+@@ b249
+STATUS turn 93 year 1585; Turn 93 Cursor 45,52; screen: main map (map); popup tag -1
+STATUS gold 746; view origin (38,46) 15x12 tiles of 16px, y0 8; cursor (45,52)
+STATUS selected unit 217 Merchantman at (45,52) moves 15 orders 0
+@@ b250
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 217 Merchantman at (50,47) moves 15 orders 3 prof 0 hold[0] 2 x72 hold[1] 6 x60 hold[2] 4 x20
+UNIT 219 Soldiers at (45,52) moves 3 orders 6 prof 21 tools 0 muskets 50 horses 0
+STATUS turn 94 year 1586; Turn 93 Cursor 50,47; screen: turn in progress (map); popup tag -1
+STATUS gold 746; view origin (42,41) 15x12 tiles of 16px, y0 8; cursor (50,47)
+@@ b251
+STATUS turn 94 year 1586; Turn 93 Cursor 50,47; screen: turn in progress (map); popup tag -1
+STATUS gold 746; view origin (42,41) 15x12 tiles of 16px, y0 8; cursor (50,47)
+@@ b252
+LOG: Spies report: {Apache} burn {English} colony at {Penobscot}. English governor vows revenge.
+@@ b253
+STATUS turn 94 year 1586; Turn 93 Cursor 50,47; screen: modal open (map); popup tag 0
+STATUS gold 746; view origin (42,41) 15x12 tiles of 16px, y0 8; cursor (50,47)
+@@ b254
+LOG: Fort Orange colony produces {Docks}.
+CHOICES: [0] Continue turn. [1] Zoom to colony. (sel 0)
+@@ b255
+STATUS turn 94 year 1586; Turn 93 Cursor 50,47; screen: modal open (map); popup tag 53
+STATUS gold 746; view origin (35,41) 15x12 tiles of 16px, y0 8; cursor (50,47)
+@@ b256
+@@ b257
+STATUS turn 94 year 1586; Turn 94 Cursor 52,47; screen: main map (map); popup tag -1
+STATUS gold 746; view origin (42,41) 15x12 tiles of 16px, y0 8; cursor (52,47)
+@@ b258
+STATUS turn 94 year 1586; Turn 94 Cursor 52,47; screen: main map (map); popup tag -1
+STATUS gold 746; view origin (42,41) 15x12 tiles of 16px, y0 8; cursor (52,47)
+@@ b259
+STATUS turn 94 year 1586; Working as Ore Miner; screen: colony screen (colony:Fort Orange); popup tag -1
+STATUS gold 746; view origin (42,41) 15x12 tiles of 16px, y0 8; cursor (52,47)
+@@ b260
+COLONY 0 Jamestown nation 0 at (40,11) pop 3
+COLONY 1 Plymouth nation 0 at (36,8) pop 3
+COLONY 2 Quebec nation 1 at (42,59) pop 4
+COLONY 3 New Amsterdam nation 3 at (44,47) pop 7
+  build Church hammers 10 | SoL 45% | food +1 bells 10 crosses 1 hammers +10
+  stock food 26(+15) tobacco 42(+3) lumber 160(+6) silver 2(+0) horses 138(+2)
+  colonist 0 prof 17 in Town Hall field_job -1 slot -1
+  colonist 1 prof 26  field_job 5 slot 2
+  colonist 2 prof 28 in Lumber Mill field_job -1 slot -1
+  colonist 3 prof 28  field_job 8 slot 0
+  colonist 4 prof 25 in Lumber Mill field_job -1 slot -1
+  colonist 5 prof 0  field_job 0 slot 3
+  colonist 6 prof 5  field_job 5 slot 4
+COLONY 4 Isabella nation 2 at (49,36) pop 6
+COLONY 5 Roanoke nation 0 at (34,22) pop 3
+COLONY 6 Barbados nation 0 at (44,26) pop 3
+COLONY 7 Fort Orange nation 3 at (45,52) pop 3
+  build Stockade hammers 0 | SoL 8% | food -2 bells 1 crosses 1 hammers +6
+  stock food 98(+4) tobacco 6(+6) lumber 69(-6) ore 5(+0) tools 40(+0)
+  colonist 0 prof 26  field_job 6 slot 1
+  colonist 1 prof 20 in Carpenter's Shop field_job -1 slot -1
+  colonist 2 prof 28 in Carpenter's Shop field_job -1 slot -1
+COLONY 8 Montreal nation 1 at (15,46) pop 1
+COLONY 9 Santo Domingo nation 2 at (51,30) pop 1
+COLONY 10 Guadeloupe nation 1 at (19,19) pop 1
+@@ b261
+@@ b262
+SHOT automated-playtests/campaign5/shots/fo5.ppm
+@@ b263
+SHOT automated-playtests/campaign5/shots/fo6.ppm
+@@ b264
+COLONY 0 Jamestown nation 0 at (40,11) pop 3
+COLONY 1 Plymouth nation 0 at (36,8) pop 3
+COLONY 2 Quebec nation 1 at (42,59) pop 4
+COLONY 3 New Amsterdam nation 3 at (44,47) pop 7
+  build Church hammers 10 | SoL 45% | food +1 bells 10 crosses 1 hammers +10
+  stock food 26(+15) tobacco 42(+3) lumber 160(+6) silver 2(+0) horses 138(+2)
+  colonist 0 prof 17 in Town Hall field_job -1 slot -1
+  colonist 1 prof 26  field_job 5 slot 2
+  colonist 2 prof 28 in Lumber Mill field_job -1 slot -1
+  colonist 3 prof 28  field_job 8 slot 0
+  colonist 4 prof 25 in Lumber Mill field_job -1 slot -1
+  colonist 5 prof 0  field_job 0 slot 3
+  colonist 6 prof 5  field_job 5 slot 4
+COLONY 4 Isabella nation 2 at (49,36) pop 6
+COLONY 5 Roanoke nation 0 at (34,22) pop 3
+COLONY 6 Barbados nation 0 at (44,26) pop 3
+COLONY 7 Fort Orange nation 3 at (45,52) pop 3
+  build Stockade hammers 0 | SoL 8% | food +3 bells 1 crosses 1 hammers +6
+  stock food 98(+9) tobacco 6(+6) lumber 69(-6) ore 5(+0) tools 40(+0)
+  colonist 0 prof 26  field_job 8 slot 1
+  colonist 1 prof 20 in Carpenter's Shop field_job -1 slot -1
+  colonist 2 prof 28 in Carpenter's Shop field_job -1 slot -1
+COLONY 8 Montreal nation 1 at (15,46) pop 1
+COLONY 9 Santo Domingo nation 2 at (51,30) pop 1
+COLONY 10 Guadeloupe nation 1 at (19,19) pop 1
+@@ b265
+SAVED t94.sav
+@@ b266
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 219 Soldiers at (45,52) moves 3 orders 6 prof 21 tools 0 muskets 50 horses 0
+EUROPE to-europe Merchantman turns_left 1 passengers hold 2 x72 hold 6 x60 hold 4 x20
+@@ b267
+@@ b268
+STATUS turn 94 year 1586; Turn 94 Cursor 52,47; screen: main map (map); popup tag -1
+STATUS gold 746; view origin (42,41) 15x12 tiles of 16px, y0 8; cursor (52,47)
+@@ b269
+ERR choose 0: popup closed, selection 0
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 219 Soldiers at (45,52) moves 3 orders 6 prof 21 tools 0 muskets 50 horses 0
+EUROPE to-europe Merchantman turns_left 1 passengers hold 2 x72 hold 6 x60 hold 4 x20
+@@ b270
+LOG: Religious unrest in Netherlands causes increased emigration.  Colonists ({Master Weavers}) now available in Amsterdam.
+AUTO stopped (map idle) after 28 frames
+STATUS turn 95 year 1587; Turn 95 Cursor 52,47; screen: main map (map); popup tag -1
+STATUS gold 746; view origin (35,41) 15x12 tiles of 16px, y0 8; cursor (52,47)
+@@ b271
+AUTO stopped (map) after 7 frames
+STATUS turn 96 year 1588; End of Turn — Spring 1588 (turn 96); screen: Europe screen (map); popup tag -1
+STATUS gold 746; view origin (35,41) 15x12 tiles of 16px, y0 8; cursor (52,47)
+@@ b272
+STATUS turn 96 year 1588; End of Turn — Spring 1588 (turn 96); screen: Europe screen (map); popup tag -1
+STATUS gold 746; view origin (35,41) 15x12 tiles of 16px, y0 8; cursor (52,47)
+@@ b273
+LOG: 60 Ore sold for 300. 6% Tax: 18. Net: 282
+LOG: 72 Tobacco sold for 288. 6% Tax: 17. Net: 271
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 219 Soldiers at (45,52) moves 3 orders 6 prof 21 tools 0 muskets 50 horses 0
+UNIT 285 Colonists at (236,236) moves 3 orders 1 prof 11
+EUROPE harbor Merchantman turns_left 0 passengers hold 4 x20
+EUROPE dock Master Weavers prof 11 (boards next ship)
+STATUS turn 96 year 1588; End of Turn — Spring 1588 (turn 96); screen: Europe screen (europe); popup tag -1
+STATUS gold 1299; view origin (35,41) 15x12 tiles of 16px, y0 8; cursor (52,47)
+@@ b274
+SHOT automated-playtests/campaign5/shots/e16.ppm
+@@ b275
+STATUS turn 96 year 1588; End of Turn — Spring 1588 (turn 96); screen: Europe screen (europe); popup tag -1
+STATUS gold 1299; view origin (35,41) 15x12 tiles of 16px, y0 8; cursor (52,47)
+@@ b276
+LOG: 20 Furs sold for 100. 6% Tax: 6. Net: 94
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 219 Soldiers at (45,52) moves 3 orders 6 prof 21 tools 0 muskets 50 horses 0
+UNIT 285 Colonists at (236,236) moves 3 orders 1 prof 11
+EUROPE harbor Merchantman turns_left 0 passengers
+EUROPE dock Master Weavers prof 11 (boards next ship)
+STATUS turn 96 year 1588; End of Turn — Spring 1588 (turn 96); screen: Europe screen (europe); popup tag -1
+STATUS gold 1393; view origin (35,41) 15x12 tiles of 16px, y0 8; cursor (52,47)
+@@ b277
+SHOT automated-playtests/campaign5/shots/e17.ppm
+@@ b278
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 219 Soldiers at (45,52) moves 3 orders 6 prof 21 tools 0 muskets 50 horses 0
+UNIT 285 Colonists at (236,236) moves 3 orders 1 prof 11
+EUROPE harbor Merchantman turns_left 0 passengers hold 14 x100
+EUROPE dock Petty Criminals prof 26 (boards next ship)
+EUROPE dock Firebrand Preachers prof 16 (boards next ship)
+EUROPE dock Master Weavers prof 11 (boards next ship)
+STATUS turn 96 year 1588; End of Turn — Spring 1588 (turn 96); screen: Europe screen (europe); popup tag -1
+STATUS gold 293; view origin (35,41) 15x12 tiles of 16px, y0 8; cursor (52,47)
+@@ b279
+LOG: Shall we set sail for the {New World}, Your Excellency?
+CHOICES: [0] Yes, steady as she goes. [1] No, let us remain in port. (sel 0)
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 219 Soldiers at (45,52) moves 3 orders 6 prof 21 tools 0 muskets 50 horses 0
+EUROPE to-new-world Merchantman turns_left 1 passengers prof26 prof16 prof11 hold 14 x100
+@@ b280
+LOG: The price of {Horses} in Amsterdam has risen to {6$}.
+AUTO stopped (map idle) after 28 frames
+STATUS turn 97 year 1589; Turn 97 Cursor 52,47; screen: main map (map); popup tag -1
+STATUS gold 293; view origin (35,41) 15x12 tiles of 16px, y0 8; cursor (52,47)
+@@ b281
+AUTO stopped (choice popup) after 7 frames
+LOG: "Viceroy Michiel De Ruyter.  Because of recent developments in our ongoing war with Denmark, we have decided to raise your tax rate by {2%}.  The tax rate is now {8%}.  If you wish, you may kiss our royal pinky ring."
+CHOICES: [0] Kiss pinky ring. [1] Hold '{New Amsterdam Tobacco Party}.' (sel 0)
+STATUS turn 98 year 1590; Founding Father elected (#3); screen: modal open (map); popup tag 1
+STATUS gold 293; view origin (35,41) 15x12 tiles of 16px, y0 8; cursor (52,47)
+STATUS selected unit 1 Caravel at (244,244) moves 9 orders 0
+@@ b282
+LOG: Dutch Founding Fathers announce that {Peter Stuyvesant} has joined the Continental Congress!
+LOG: The price of {Muskets} in Amsterdam has risen to {8$}.
+AUTO stopped (map idle) after 32 frames
+STATUS turn 98 year 1590; Turn 98 Cursor 53,48; screen: main map (map); popup tag -1
+STATUS gold 293; view origin (42,42) 15x12 tiles of 16px, y0 8; cursor (53,48)
+STATUS selected unit 308 Merchantman at (53,48) moves 15 orders 0
+@@ b283
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 219 Soldiers at (45,52) moves 3 orders 6 prof 21 tools 0 muskets 50 horses 0
+UNIT 308 Merchantman at (53,48) moves 15 orders 0 prof 0 hold[0] 14 x100
+UNIT 309 Colonists at (53,48) moves 0 orders 1 prof 26 aboard 308
+UNIT 310 Colonists at (53,48) moves 0 orders 1 prof 16 aboard 308
+UNIT 311 Colonists at (53,48) moves 0 orders 1 prof 11 aboard 308
+@@ b284
+STATUS turn 98 year 1590; Turn 98 Cursor 53,48; screen: main map (map); popup tag -1
+STATUS gold 293; view origin (42,42) 15x12 tiles of 16px, y0 8; cursor (53,48)
+STATUS selected unit 308 Merchantman at (53,48) moves 15 orders 0
+@@ b285
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 219 Soldiers at (45,52) moves 3 orders 6 prof 21 tools 0 muskets 50 horses 0
+UNIT 308 Merchantman at (48,49) moves 15 orders 3 prof 0 hold[0] 14 x100
+UNIT 309 Colonists at (48,49) moves 3 orders 1 prof 26 aboard 308
+UNIT 310 Colonists at (48,49) moves 3 orders 1 prof 16 aboard 308
+UNIT 311 Colonists at (48,49) moves 3 orders 1 prof 11 aboard 308
+STATUS turn 99 year 1591; Turn 98 Cursor 48,49; screen: turn in progress (map); popup tag -1
+STATUS gold 293; view origin (41,43) 15x12 tiles of 16px, y0 8; cursor (48,49)
+@@ b286
+STATUS turn 99 year 1591; Turn 98 Cursor 48,49; screen: turn in progress (map); popup tag -1
+STATUS gold 293; view origin (41,43) 15x12 tiles of 16px, y0 8; cursor (48,49)
+@@ b287
+LOG: The Continental Congress will expand during its next session, Your Excellency.  Which Founding Father shall we appoint as its next member?
+CHOICES: [0] Jan de Witt (Trade Adviser) [1] Hernando de Soto (Exploration Adviser) [2] Hernan Cortes (Military Adviser) [3] Benjamin Franklin (Political Adviser) [4] Juan de Sepulveda (Religious Adviser) (sel 0)
+@@ b288
+STATUS turn 99 year 1591; Congress debates founding fathers.; screen: modal open (map); popup tag 8
+STATUS gold 293; view origin (41,43) 15x12 tiles of 16px, y0 8; cursor (48,49)
+STATUS selected unit 41 Caravel at (244,244) moves 0 orders 0
+@@ b289
+STATUS turn 99 year 1591; Congress debates founding fathers.; screen: modal open (map); popup tag 8
+STATUS gold 293; view origin (41,43) 15x12 tiles of 16px, y0 8; cursor (48,49)
+STATUS selected unit 41 Caravel at (244,244) moves 0 orders 0
+@@ b290
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 219 Soldiers at (45,52) moves 3 orders 6 prof 21 tools 0 muskets 50 horses 0
+UNIT 308 Merchantman at (48,49) moves 15 orders 3 prof 0 hold[0] 14 x100
+UNIT 309 Colonists at (48,49) moves 3 orders 1 prof 26 aboard 308
+UNIT 310 Colonists at (48,49) moves 3 orders 1 prof 16 aboard 308
+UNIT 311 Colonists at (48,49) moves 3 orders 1 prof 11 aboard 308
+STATUS turn 99 year 1591; Selected Merchantman; screen: modal open (map); popup tag 8
+STATUS gold 293; view origin (41,43) 15x12 tiles of 16px, y0 8; cursor (48,49)
+STATUS selected unit 308 Merchantman at (48,49) moves 15 orders 3
+@@ b291
+LOG: Sons of Liberty membership in {Fort Orange} is up to 10%, Your Excellency.  The more {Liberty Bells} our {Statesmen} generate, the faster membership will rise.
+CHOICES: [0] Continue turn. [1] Zoom to colony. (sel 0)
+@@ b292
+STATUS turn 99 year 1591; Congress seeks Benjamin Franklin (11/449 bells).; screen: modal open (map); popup tag 53
+STATUS gold 293; view origin (41,43) 15x12 tiles of 16px, y0 8; cursor (48,49)
+STATUS selected unit 308 Merchantman at (48,49) moves 15 orders 3
+@@ b293
+LOG: The price of {Muskets} in Amsterdam has risen to {9$}.
+@@ b294
+STATUS turn 99 year 1591; End of Turn — Spring 1591 (turn 99); screen: modal open (map); popup tag 0
+STATUS gold 293; view origin (41,43) 15x12 tiles of 16px, y0 8; cursor (48,49)
+STATUS selected unit 308 Merchantman at (48,49) moves 15 orders 3
+@@ b295
+@@ b296
+STATUS turn 99 year 1591; Turn 99 Cursor 45,46; screen: main map (map); popup tag -1
+STATUS gold 293; view origin (38,40) 15x12 tiles of 16px, y0 8; cursor (45,46)
+STATUS selected unit 308 Merchantman at (45,46) moves 6 orders 3
+@@ b297
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 219 Soldiers at (45,52) moves 3 orders 6 prof 21 tools 0 muskets 50 horses 0
+UNIT 308 Merchantman at (44,47) moves 0 orders 0 prof 0 hold[0] 14 x100
+UNIT 309 Colonists at (44,47) moves 3 orders 0 prof 26
+UNIT 310 Colonists at (44,47) moves 3 orders 0 prof 16
+UNIT 311 Colonists at (44,47) moves 3 orders 0 prof 11
+STATUS turn 99 year 1591; Turn 99 Cursor 44,47; screen: main map (map); popup tag -1
+STATUS gold 293; view origin (37,41) 15x12 tiles of 16px, y0 8; cursor (44,47)
+STATUS selected unit 309 Colonists at (44,47) moves 3 orders 0
+@@ b298
+STATUS turn 99 year 1591; Turn 99 Cursor 44,47; screen: main map (map); popup tag -1
+STATUS gold 293; view origin (37,41) 15x12 tiles of 16px, y0 8; cursor (44,47)
+STATUS selected unit 309 Colonists at (44,47) moves 3 orders 0
+@@ b299
+@@ b300
+HIT kind 23 index -1 
+@@ b301
+HIT kind 22 index 0 unit 45
+@@ b302
+HIT kind 22 index 1 unit 309
+@@ b303
+HIT kind 22 index 2 unit 310
+@@ b304
+HIT kind 23 index -1 
+@@ b305
+HIT kind 23 index -1 
+@@ b306
+SHOT automated-playtests/campaign5/shots/c19.ppm
+@@ b307
+HIT kind 2 index 12 Schoolhouse
+HIT kind 2 index 12 Schoolhouse
+@@ b308
+LOG: Only colonists who have mastered a profession may teach.
+STATUS turn 99 year 1591; Need a skilled teacher; screen: colony screen (colony:New Amsterdam); popup tag 0
+STATUS gold 293; view origin (37,41) 15x12 tiles of 16px, y0 8; cursor (44,47)
+@@ b309
+COLONY 0 Jamestown nation 0 at (40,11) pop 3
+COLONY 1 Plymouth nation 0 at (36,8) pop 3
+COLONY 2 Quebec nation 1 at (42,59) pop 4
+COLONY 3 New Amsterdam nation 3 at (44,47) pop 8
+  build Church hammers 60 | SoL 42% | food +0 bells 10 crosses 1 hammers +10
+  stock food 31(+16) tobacco 57(+3) furs 0(+4) lumber 190(+6) silver 2(+0) horses 148(+1) tools 100(+0)
+  colonist 0 prof 17 in Town Hall field_job -1 slot -1
+  colonist 1 prof 26  field_job 5 slot 2
+  colonist 2 prof 28 in Lumber Mill field_job -1 slot -1
+  colonist 3 prof 28  field_job 8 slot 0
+  colonist 4 prof 25 in Lumber Mill field_job -1 slot -1
+  colonist 5 prof 0  field_job 0 slot 3
+  colonist 6 prof 5  field_job 5 slot 4
+  colonist 7 prof 26  field_job 4 slot 6
+COLONY 4 Isabella nation 2 at (49,36) pop 6
+COLONY 5 Roanoke nation 0 at (34,22) pop 3
+COLONY 6 Barbados nation 0 at (44,26) pop 3
+COLONY 7 Fort Orange nation 3 at (45,52) pop 3
+  build Stockade hammers 30 | SoL 10% | food +3 bells 1 crosses 1 hammers +6
+  stock food 113(+9) tobacco 36(+6) lumber 39(-6) ore 5(+0) tools 40(+0)
+  colonist 0 prof 26  field_job 8 slot 1
+  colonist 1 prof 20 in Carpenter's Shop field_job -1 slot -1
+  colonist 2 prof 28 in Carpenter's Shop field_job -1 slot -1
+COLONY 8 Montreal nation 1 at (15,46) pop 1
+COLONY 9 Santo Domingo nation 2 at (51,30) pop 1
+COLONY 10 Guadeloupe nation 1 at (19,19) pop 1
+@@ b310
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 219 Soldiers at (45,52) moves 3 orders 6 prof 21 tools 0 muskets 50 horses 0
+UNIT 308 Merchantman at (44,47) moves 0 orders 0 prof 0
+UNIT 310 Colonists at (44,47) moves 3 orders 0 prof 16
+UNIT 311 Colonists at (44,47) moves 3 orders 0 prof 11
+@@ b311
+HIT kind 2 index 12 Schoolhouse
+HIT kind 2 index 12 Schoolhouse
+HIT kind 0 index -1 
+HIT kind 2 index 21 Weaver's House
+HIT kind 2 index 9 Town Hall
+HIT kind 2 index 9 Town Hall
+HIT kind 2 index 9 Town Hall
+HIT kind 0 index -1 
+HIT kind 0 index -1 
+HIT kind 0 index -1 
+HIT kind 2 index 12 Schoolhouse
+HIT kind 2 index 12 Schoolhouse
+HIT kind 0 index -1 
+HIT kind 2 index 21 Weaver's House
+HIT kind 2 index 9 Town Hall
+HIT kind 2 index 9 Town Hall
+HIT kind 2 index 9 Town Hall
+HIT kind 0 index -1 
+HIT kind 2 index 27 Rum Distiller's House
+HIT kind 2 index 27 Rum Distiller's House
+HIT kind 2 index 39 Blacksmith's House
+HIT kind 0 index -1 
+HIT kind 2 index 24 Tobacconist's House
+HIT kind 0 index -1 
+HIT kind 2 index 9 Town Hall
+HIT kind 1 index 0 
+HIT kind 2 index 9 Town Hall
+HIT kind 0 index -1 
+HIT kind 0 index -1 
+HIT kind 0 index -1 
+HIT kind 2 index 39 Blacksmith's House
+HIT kind 0 index -1 
+HIT kind 2 index 24 Tobacconist's House
+HIT kind 2 index 19 Printing Press
+HIT kind 0 index -1 
+HIT kind 2 index 32 Fur Trader's House
+HIT kind 2 index 36 Lumber Mill
+HIT kind 1 index 4 
+HIT kind 2 index 6 Docks
+HIT kind 2 index 6 Docks
+HIT kind 0 index -1 
+HIT kind 0 index -1 
+HIT kind 0 index -1 
+HIT kind 2 index 19 Printing Press
+HIT kind 0 index -1 
+HIT kind 2 index 32 Fur Trader's House
+HIT kind 2 index 6 Docks
+HIT kind 2 index 6 Docks
+HIT kind 2 index 6 Docks
+HIT kind 2 index 6 Docks
+HIT kind 2 index 15 Warehouse
+HIT kind 2 index 15 Warehouse
+HIT kind 0 index -1 
+HIT kind 0 index -1 
+HIT kind 0 index -1 
+HIT kind 0 index -1 
+HIT kind 2 index 6 Docks
+HIT kind 2 index 6 Docks
+HIT kind 2 index 6 Docks
+HIT kind 2 index 6 Docks
+HIT kind 2 index 3 Armory
+HIT kind 2 index 3 Armory
+HIT kind 2 index 3 Armory
+HIT kind 0 index -1 
+HIT kind 0 index -1 
+HIT kind 0 index -1 
+HIT kind 0 index -1 
+HIT kind 0 index -1 
+HIT kind 0 index -1 
+HIT kind 0 index -1 
+@@ b312
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 219 Soldiers at (45,52) moves 3 orders 6 prof 21 tools 0 muskets 50 horses 0
+UNIT 308 Merchantman at (44,47) moves 0 orders 0 prof 0
+UNIT 310 Colonists at (44,47) moves 3 orders 0 prof 16
+UNIT 311 Colonists at (44,47) moves 3 orders 0 prof 11
+@@ b313
+STATUS turn 99 year 1591; Selected Colonists; screen: colony screen (colony:New Amsterdam); popup tag -1
+STATUS gold 293; view origin (37,41) 15x12 tiles of 16px, y0 8; cursor (44,47)
+STATUS selected unit 311 Colonists at (44,47) moves 3 orders 0
+@@ b314
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 219 Soldiers at (45,52) moves 3 orders 6 prof 21 tools 0 muskets 50 horses 0
+UNIT 308 Merchantman at (44,47) moves 0 orders 0 prof 0
+UNIT 310 Colonists at (44,47) moves 3 orders 0 prof 16
+UNIT 311 Colonists at (44,47) moves 3 orders 0 prof 11
+@@ b315
+STATUS turn 99 year 1591; Selected Colonists; screen: colony screen (colony:New Amsterdam); popup tag -1
+STATUS gold 293; view origin (37,41) 15x12 tiles of 16px, y0 8; cursor (44,47)
+STATUS selected unit 311 Colonists at (44,47) moves 3 orders 0
+SHOT automated-playtests/campaign5/shots/s5.ppm
+@@ b316
+STATUS turn 99 year 1591; Turn 99 Cursor 44,47; screen: main map (map); popup tag -1
+STATUS gold 293; view origin (37,41) 15x12 tiles of 16px, y0 8; cursor (44,47)
+STATUS selected unit 311 Colonists at (44,47) moves 3 orders 0
+@@ b317
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 219 Soldiers at (45,52) moves 3 orders 6 prof 21 tools 0 muskets 50 horses 0
+UNIT 308 Merchantman at (44,47) moves 0 orders 0 prof 0
+UNIT 310 Colonists at (44,47) moves 3 orders 0 prof 16
+UNIT 311 Colonists at (44,47) moves 0 orders 1 prof 11
+@@ b318
+ERR Escape on the main map refused (asks Exit to DOS); use 'key Escape force'
+LOG: New Amsterdam colony produces {Church}.
+CHOICES: [0] Continue turn. [1] Zoom to colony. (sel 0)
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 219 Soldiers at (45,52) moves 3 orders 6 prof 21 tools 0 muskets 50 horses 0
+UNIT 308 Merchantman at (44,47) moves 15 orders 0 prof 0
+UNIT 310 Colonists at (44,47) moves 3 orders 5 prof 16
+UNIT 311 Colonists at (44,47) moves 3 orders 1 prof 11
+@@ b319
+BUILD New Amsterdam now 20
+@@ b320
+ERR no End of Turn prompt (selected unit -1)
+AUTO stopped (colony:New Amsterdam) after 0 frames
+STATUS turn 100 year 1592; Entered New Amsterdam; screen: colony screen (colony:New Amsterdam); popup tag -1
+STATUS gold 293; view origin (37,41) 15x12 tiles of 16px, y0 8; cursor (44,47)
+@@ b321
+STATUS turn 100 year 1592; Entered New Amsterdam; screen: colony screen (colony:New Amsterdam); popup tag -1
+STATUS gold 293; view origin (37,41) 15x12 tiles of 16px, y0 8; cursor (44,47)
+@@ b322
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 219 Soldiers at (45,52) moves 3 orders 6 prof 21 tools 0 muskets 50 horses 0
+UNIT 308 Merchantman at (44,47) moves 15 orders 3 prof 0
+UNIT 310 Colonists at (44,47) moves 3 orders 5 prof 16
+UNIT 311 Colonists at (44,47) moves 3 orders 1 prof 11
+STATUS turn 100 year 1592; Selected Merchantman; screen: colony screen (colony:New Amsterdam); popup tag -1
+STATUS gold 293; view origin (37,41) 15x12 tiles of 16px, y0 8; cursor (44,47)
+STATUS selected unit 308 Merchantman at (44,47) moves 15 orders 3
+@@ b323
+COLONY 0 Jamestown nation 0 at (40,11) pop 3
+COLONY 1 Plymouth nation 0 at (36,8) pop 3
+COLONY 2 Quebec nation 1 at (42,59) pop 4
+COLONY 3 New Amsterdam nation 3 at (44,47) pop 8
+  build Newspaper hammers 0 | SoL 42% | food +0 bells 10 crosses 2 hammers +10
+  stock food 31(+16) tobacco 60(+3) furs 4(+4) lumber 196(+6) silver 2(+0) horses 149(+1) tools 100(+0)
+  colonist 0 prof 17 in Town Hall field_job -1 slot -1
+  colonist 1 prof 26  field_job 5 slot 2
+  colonist 2 prof 28 in Lumber Mill field_job -1 slot -1
+  colonist 3 prof 28  field_job 8 slot 0
+  colonist 4 prof 25 in Lumber Mill field_job -1 slot -1
+  colonist 5 prof 0  field_job 0 slot 3
+  colonist 6 prof 5  field_job 5 slot 4
+  colonist 7 prof 26  field_job 4 slot 6
+COLONY 4 Isabella nation 2 at (49,36) pop 6
+COLONY 5 Roanoke nation 0 at (34,22) pop 3
+COLONY 6 Barbados nation 0 at (44,26) pop 3
+COLONY 7 Fort Orange nation 3 at (45,52) pop 3
+  build Stockade hammers 36 | SoL 10% | food +3 bells 1 crosses 1 hammers +6
+  stock food 116(+9) tobacco 42(+6) lumber 33(-6) ore 5(+0) tools 40(+0)
+  colonist 0 prof 26  field_job 8 slot 1
+  colonist 1 prof 20 in Carpenter's Shop field_job -1 slot -1
+  colonist 2 prof 28 in Carpenter's Shop field_job -1 slot -1
+COLONY 8 Montreal nation 1 at (15,46) pop 1
+COLONY 9 Santo Domingo nation 2 at (51,30) pop 1
+COLONY 10 Guadeloupe nation 1 at (19,19) pop 1
+@@ b324
+@@ b325
+HIT kind 23 index -1 
+@@ b326
+HIT kind 23 index -1 
+@@ b327
+HIT kind 22 index 0 unit 45
+@@ b328
+HIT kind 22 index 1 unit 310
+@@ b329
+HIT kind 22 index 1 unit 310
+@@ b330
+STATUS turn 100 year 1592; Assigned to Town Hall; screen: colony screen (colony:New Amsterdam); popup tag -1
+STATUS gold 293; view origin (39,42) 15x12 tiles of 16px, y0 8; cursor (46,48)
+STATUS selected unit 308 Merchantman at (46,48) moves 6 orders 3
+@@ b331
+COLONY 0 Jamestown nation 0 at (40,11) pop 3
+COLONY 1 Plymouth nation 0 at (36,8) pop 3
+COLONY 2 Quebec nation 1 at (42,59) pop 4
+COLONY 3 New Amsterdam nation 3 at (44,47) pop 9
+  build Newspaper hammers 0 | SoL 38% | food -3 bells 7 crosses 7 hammers +6
+  stock food 31(+15) tobacco 60(+3) furs 4(+3) lumber 196(+8) silver 2(+0) horses 149(+0) tools 100(+0)
+  colonist 0 prof 17 in Town Hall field_job -1 slot -1
+  colonist 1 prof 26  field_job 5 slot 2
+  colonist 2 prof 28 in Lumber Mill field_job -1 slot -1
+  colonist 3 prof 28  field_job 8 slot 0
+  colonist 4 prof 25 in Lumber Mill field_job -1 slot -1
+  colonist 5 prof 0  field_job 0 slot 3
+  colonist 6 prof 5  field_job 5 slot 4
+  colonist 7 prof 26  field_job 4 slot 6
+  colonist 8 prof 16 in Church field_job -1 slot -1
+COLONY 4 Isabella nation 2 at (49,36) pop 6
+COLONY 5 Roanoke nation 0 at (34,22) pop 3
+COLONY 6 Barbados nation 0 at (44,26) pop 3
+COLONY 7 Fort Orange nation 3 at (45,52) pop 3
+  build Stockade hammers 36 | SoL 10% | food +3 bells 1 crosses 1 hammers +6
+  stock food 116(+9) tobacco 42(+6) lumber 33(-6) ore 5(+0) tools 40(+0)
+  colonist 0 prof 26  field_job 8 slot 1
+  colonist 1 prof 20 in Carpenter's Shop field_job -1 slot -1
+  colonist 2 prof 28 in Carpenter's Shop field_job -1 slot -1
+COLONY 8 Montreal nation 1 at (15,46) pop 1
+COLONY 9 Santo Domingo nation 2 at (51,30) pop 1
+COLONY 10 Guadeloupe nation 1 at (19,19) pop 1
+@@ b332
+SHOT automated-playtests/campaign5/shots/c20.ppm
+@@ b333
+COLONY 0 Jamestown nation 0 at (40,11) pop 3
+COLONY 1 Plymouth nation 0 at (36,8) pop 3
+COLONY 2 Quebec nation 1 at (42,59) pop 4
+COLONY 3 New Amsterdam nation 3 at (44,47) pop 8
+  build Newspaper hammers 0 | SoL 42% | food +0 bells 10 crosses 8 hammers +10
+  stock food 31(+16) tobacco 60(+3) furs 4(+0) lumber 196(+6) silver 2(+0) horses 149(+1) tools 100(+0)
+  colonist 0 prof 17 in Town Hall field_job -1 slot -1
+  colonist 1 prof 26  field_job 5 slot 2
+  colonist 2 prof 28 in Lumber Mill field_job -1 slot -1
+  colonist 3 prof 28  field_job 8 slot 0
+  colonist 4 prof 25 in Lumber Mill field_job -1 slot -1
+  colonist 5 prof 0  field_job 0 slot 3
+  colonist 6 prof 5  field_job 5 slot 4
+  colonist 7 prof 16 in Church field_job -1 slot -1
+COLONY 4 Isabella nation 2 at (49,36) pop 6
+COLONY 5 Roanoke nation 0 at (34,22) pop 3
+COLONY 6 Barbados nation 0 at (44,26) pop 3
+COLONY 7 Fort Orange nation 3 at (45,52) pop 3
+  build Stockade hammers 36 | SoL 10% | food +3 bells 1 crosses 1 hammers +6
+  stock food 116(+9) tobacco 42(+6) lumber 33(-6) ore 5(+0) tools 40(+0)
+  colonist 0 prof 26  field_job 8 slot 1
+  colonist 1 prof 20 in Carpenter's Shop field_job -1 slot -1
+  colonist 2 prof 28 in Carpenter's Shop field_job -1 slot -1
+COLONY 8 Montreal nation 1 at (15,46) pop 1
+COLONY 9 Santo Domingo nation 2 at (51,30) pop 1
+COLONY 10 Guadeloupe nation 1 at (19,19) pop 1
+@@ b334
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 219 Soldiers at (45,52) moves 3 orders 6 prof 21 tools 0 muskets 50 horses 0
+UNIT 308 Merchantman at (46,48) moves 6 orders 3 prof 0
+UNIT 311 Colonists at (46,48) moves 0 orders 1 prof 11 aboard 308
+UNIT 327 Colonists at (44,47) moves 0 orders 0 prof 26
+@@ b335
+LOG: A new cargo of {Lumber} is ready at {New Amsterdam}, Your Excellency. New Amsterdam has reached its storage capacity for Lumber ({200}), so we may wish to consider building a larger {warehouse} there.
+CHOICES: [0] Continue turn. [1] Zoom to colony. (sel 0)
+@@ b336
+ERR no End of Turn prompt (selected unit 327)
+AUTO stopped (map idle) after 19 frames
+STATUS turn 101 year 1593; Turn 101 Cursor 44,47; screen: main map (map); popup tag -1
+STATUS gold 293; view origin (37,41) 15x12 tiles of 16px, y0 8; cursor (44,47)
+STATUS selected unit 327 Colonists at (44,47) moves 3 orders 0
+@@ b337
+STATUS turn 101 year 1593; Turn 101 Cursor 44,47; screen: main map (map); popup tag -1
+STATUS gold 293; view origin (37,41) 15x12 tiles of 16px, y0 8; cursor (44,47)
+STATUS selected unit 327 Colonists at (44,47) moves 3 orders 0
+@@ b338
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 219 Soldiers at (45,52) moves 3 orders 6 prof 21 tools 0 muskets 50 horses 0
+UNIT 308 Merchantman at (45,52) moves 0 orders 0 prof 0
+UNIT 311 Colonists at (45,52) moves 0 orders 1 prof 11
+UNIT 327 Colonists at (44,47) moves 3 orders 0 prof 26
+STATUS turn 101 year 1593; Turn 101 Cursor 45,52; screen: main map (map); popup tag -1
+STATUS gold 293; view origin (38,46) 15x12 tiles of 16px, y0 8; cursor (45,52)
+@@ b339
+@@ b340
+HIT kind 23 index -1 
+@@ b341
+HIT kind 23 index -1 
+@@ b342
+HIT kind 22 index 0 unit 219
+@@ b343
+HIT kind 22 index 1 unit 311
+@@ b344
+HIT kind 23 index -1 
+@@ b345
+STATUS turn 101 year 1593; Working as Farmer; screen: colony screen (colony:Fort Orange); popup tag -1
+STATUS gold 293; view origin (38,46) 15x12 tiles of 16px, y0 8; cursor (45,52)
+@@ b346
+SHOT automated-playtests/campaign5/shots/fo7.ppm
+@@ b347
+SHOT automated-playtests/campaign5/shots/fo8.ppm
+@@ b348
+COLONY 0 Jamestown nation 0 at (40,11) pop 3
+COLONY 1 Plymouth nation 0 at (36,8) pop 3
+COLONY 2 Quebec nation 1 at (42,59) pop 4
+COLONY 3 New Amsterdam nation 3 at (44,47) pop 8
+  build Newspaper hammers 10 | SoL 43% | food +0 bells 10 crosses 8 hammers +10
+  stock food 31(+16) tobacco 63(+3) furs 4(+0) lumber 200(+6) silver 2(+0) horses 150(+1) tools 100(+0)
+  colonist 0 prof 17 in Town Hall field_job -1 slot -1
+  colonist 1 prof 26  field_job 5 slot 2
+  colonist 2 prof 28 in Lumber Mill field_job -1 slot -1
+  colonist 3 prof 28  field_job 8 slot 0
+  colonist 4 prof 25 in Lumber Mill field_job -1 slot -1
+  colonist 5 prof 0  field_job 0 slot 3
+  colonist 6 prof 5  field_job 5 slot 4
+  colonist 7 prof 16 in Church field_job -1 slot -1
+COLONY 4 Isabella nation 2 at (49,36) pop 6
+COLONY 5 Roanoke nation 0 at (34,22) pop 4
+COLONY 6 Barbados nation 0 at (44,26) pop 3
+COLONY 7 Fort Orange nation 3 at (45,52) pop 4
+  build Stockade hammers 42 | SoL 8% | food +1 bells 1 crosses 1 hammers +6
+  stock food 119(+9) tobacco 48(+6) lumber 27(+2) ore 5(+0) tools 40(+0)
+  colonist 0 prof 26  field_job 8 slot 1
+  colonist 1 prof 20 in Carpenter's Shop field_job -1 slot -1
+  colonist 2 prof 28 in Carpenter's Shop field_job -1 slot -1
+  colonist 3 prof 11  field_job 5 slot 6
+COLONY 8 Montreal nation 1 at (15,46) pop 1
+COLONY 9 Santo Domingo nation 2 at (51,30) pop 2
+COLONY 10 Guadeloupe nation 1 at (19,19) pop 1
+@@ b349
+ERR Escape on the main map refused (asks Exit to DOS); use 'key Escape force'
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 219 Soldiers at (45,52) moves 3 orders 6 prof 21 tools 0 muskets 50 horses 0
+UNIT 308 Merchantman at (45,52) moves 15 orders 0 prof 0 hold[0] 2 x48
+UNIT 327 Colonists at (44,47) moves 3 orders 1 prof 26
+@@ b350
+ERR no End of Turn prompt (selected unit 308)
+AUTO stopped (map idle) after 19 frames
+STATUS turn 102 year 1594; Turn 102 Cursor 45,52; screen: main map (map); popup tag -1
+STATUS gold 293; view origin (38,46) 15x12 tiles of 16px, y0 8; cursor (45,52)
+STATUS selected unit 308 Merchantman at (45,52) moves 15 orders 0
+@@ b351
+STATUS turn 102 year 1594; Turn 102 Cursor 45,52; screen: main map (map); popup tag -1
+STATUS gold 293; view origin (38,46) 15x12 tiles of 16px, y0 8; cursor (45,52)
+STATUS selected unit 308 Merchantman at (45,52) moves 15 orders 0
+@@ b352
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 219 Soldiers at (45,52) moves 3 orders 6 prof 21 tools 0 muskets 50 horses 0
+UNIT 308 Merchantman at (46,47) moves 15 orders 3 prof 0 hold[0] 2 x48
+UNIT 327 Colonists at (44,47) moves 3 orders 1 prof 26
+STATUS turn 103 year 1595; Turn 102 Cursor 46,47; screen: turn in progress (map); popup tag -1
+STATUS gold 293; view origin (39,41) 15x12 tiles of 16px, y0 8; cursor (46,47)
+@@ b353
+STATUS turn 103 year 1595; Turn 102 Cursor 46,47; screen: turn in progress (map); popup tag -1
+STATUS gold 293; view origin (39,41) 15x12 tiles of 16px, y0 8; cursor (46,47)
+@@ b354
+LOG: The price of {Horses} in Amsterdam has risen to {7$}.
+@@ b355
+STATUS turn 103 year 1595; End of Turn — Spring 1595 (turn 103); screen: modal open (map); popup tag 0
+STATUS gold 293; view origin (39,41) 15x12 tiles of 16px, y0 8; cursor (46,47)
+STATUS selected unit 308 Merchantman at (46,47) moves 15 orders 3
+@@ b356
+LOG: The price of {Muskets} in Amsterdam has risen to {10$}.
+@@ b357
+STATUS turn 103 year 1595; End of Turn — Spring 1595 (turn 103); screen: modal open (map); popup tag 0
+STATUS gold 293; view origin (39,41) 15x12 tiles of 16px, y0 8; cursor (46,47)
+STATUS selected unit 308 Merchantman at (46,47) moves 15 orders 3
+@@ b358
+@@ b359
+STATUS turn 103 year 1595; Turn 103 Cursor 44,47; screen: main map (map); popup tag -1
+STATUS gold 293; view origin (37,41) 15x12 tiles of 16px, y0 8; cursor (44,47)
+STATUS selected unit 327 Colonists at (44,47) moves 3 orders 0
+@@ b360
+STATUS turn 103 year 1595; Turn 103 Cursor 44,47; screen: main map (map); popup tag -1
+STATUS gold 293; view origin (37,41) 15x12 tiles of 16px, y0 8; cursor (44,47)
+STATUS selected unit 327 Colonists at (44,47) moves 3 orders 0
+@@ b361
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 219 Soldiers at (45,52) moves 3 orders 6 prof 21 tools 0 muskets 50 horses 0
+UNIT 308 Merchantman at (44,47) moves 0 orders 0 prof 0 hold[0] 2 x48
+UNIT 327 Colonists at (44,47) moves 3 orders 0 prof 26
+STATUS turn 103 year 1595; Turn 103 Cursor 44,47; screen: main map (map); popup tag -1
+STATUS gold 293; view origin (37,41) 15x12 tiles of 16px, y0 8; cursor (44,47)
+@@ b362
+ERR Escape on the main map refused (asks Exit to DOS); use 'key Escape force'
+LOG: Religious unrest in Netherlands causes increased emigration.  Colonists ({Petty Criminals}) now available in Amsterdam.
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 219 Soldiers at (45,52) moves 3 orders 6 prof 21 tools 0 muskets 50 horses 0
+UNIT 308 Merchantman at (44,47) moves 15 orders 0 prof 0 hold[0] 2 x100 hold[1] 2 x17
+UNIT 327 Colonists at (44,47) moves 3 orders 1 prof 26
+UNIT 368 Colonists at (236,236) moves 3 orders 1 prof 26
+EUROPE dock Petty Criminals prof 26 (boards next ship)
+@@ b363
+STATUS turn 104 year 1596; Immigrant arrives in Europe: Petty Criminals; screen: modal open (map); popup tag 0
+STATUS gold 293; view origin (37,41) 15x12 tiles of 16px, y0 8; cursor (44,47)
+@@ b364
+@@ b365
+STATUS turn 104 year 1596; Turn 104 Cursor 44,47; screen: main map (map); popup tag -1
+STATUS gold 293; view origin (37,41) 15x12 tiles of 16px, y0 8; cursor (44,47)
+STATUS selected unit 308 Merchantman at (44,47) moves 15 orders 0
+@@ b366
+STATUS turn 104 year 1596; Turn 104 Cursor 44,47; screen: main map (map); popup tag -1
+STATUS gold 293; view origin (37,41) 15x12 tiles of 16px, y0 8; cursor (44,47)
+STATUS selected unit 308 Merchantman at (44,47) moves 15 orders 0
+@@ b367
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 219 Soldiers at (45,52) moves 3 orders 6 prof 21 tools 0 muskets 50 horses 0
+UNIT 308 Merchantman at (46,50) moves 15 orders 3 prof 0 hold[0] 2 x100 hold[1] 2 x17
+UNIT 327 Colonists at (46,50) moves 3 orders 1 prof 26 aboard 308
+UNIT 368 Colonists at (236,236) moves 3 orders 1 prof 26
+EUROPE dock Petty Criminals prof 26 (boards next ship)
+STATUS turn 105 year 1597; Turn 104 Cursor 46,50; screen: turn in progress (map); popup tag -1
+STATUS gold 293; view origin (39,44) 15x12 tiles of 16px, y0 8; cursor (46,50)
+@@ b368
+STATUS turn 105 year 1597; Turn 104 Cursor 46,50; screen: turn in progress (map); popup tag -1
+STATUS gold 293; view origin (39,44) 15x12 tiles of 16px, y0 8; cursor (46,50)
+@@ b369
+LOG: Fort Orange colony produces {Stockade}.
+CHOICES: [0] Continue turn. [1] Zoom to colony. (sel 0)
+@@ b370
+STATUS turn 105 year 1597; Turn 104 Cursor 46,50; screen: modal open (map); popup tag 53
+STATUS gold 293; view origin (39,44) 15x12 tiles of 16px, y0 8; cursor (46,50)
+STATUS selected unit 130 Merchantman at (245,245) moves 0 orders 0
+@@ b371
+@@ b372
+STATUS turn 105 year 1597; Turn 105 Cursor 45,52; screen: main map (map); popup tag -1
+STATUS gold 293; view origin (38,46) 15x12 tiles of 16px, y0 8; cursor (45,52)
+STATUS selected unit 327 Colonists at (45,52) moves 3 orders 0
+@@ b373
+STATUS turn 105 year 1597; Turn 105 Cursor 45,52; screen: main map (map); popup tag -1
+STATUS gold 293; view origin (38,46) 15x12 tiles of 16px, y0 8; cursor (45,52)
+STATUS selected unit 327 Colonists at (45,52) moves 3 orders 0
+@@ b374
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 219 Soldiers at (45,52) moves 3 orders 6 prof 21 tools 0 muskets 50 horses 0
+UNIT 308 Merchantman at (45,52) moves 0 orders 0 prof 0 hold[0] 2 x100 hold[1] 2 x17
+UNIT 327 Colonists at (45,52) moves 3 orders 0 prof 26
+UNIT 368 Colonists at (236,236) moves 3 orders 1 prof 26
+EUROPE dock Petty Criminals prof 26 (boards next ship)
+STATUS turn 105 year 1597; Turn 105 Cursor 45,52; screen: main map (map); popup tag -1
+STATUS gold 293; view origin (38,46) 15x12 tiles of 16px, y0 8; cursor (45,52)
+@@ b375
+@@ b376
+HIT kind 23 index -1 
+@@ b377
+HIT kind 22 index 0 unit 219
+@@ b378
+HIT kind 22 index 1 unit 327
+@@ b379
+HIT kind 22 index 1 unit 327
+@@ b380
+STATUS turn 105 year 1597; Working as Fisherman; screen: colony screen (colony:Fort Orange); popup tag -1
+STATUS gold 293; view origin (38,46) 15x12 tiles of 16px, y0 8; cursor (45,52)
+@@ b381
+COLONY 0 Jamestown nation 0 at (40,11) pop 3
+COLONY 1 Plymouth nation 0 at (36,8) pop 3
+COLONY 2 Quebec nation 1 at (42,59) pop 4
+COLONY 3 New Amsterdam nation 3 at (44,47) pop 8
+  build Newspaper hammers 50 | SoL 44% | food +0 bells 10 crosses 8 hammers +10
+  stock food 31(+16) tobacco 6(+3) furs 4(+0) lumber 200(+6) silver 2(+0) horses 154(+1) tools 100(+0)
+  colonist 0 prof 17 in Town Hall field_job -1 slot -1
+  colonist 1 prof 26  field_job 5 slot 2
+  colonist 2 prof 28 in Lumber Mill field_job -1 slot -1
+  colonist 3 prof 28  field_job 8 slot 0
+  colonist 4 prof 25 in Lumber Mill field_job -1 slot -1
+  colonist 5 prof 0  field_job 0 slot 3
+  colonist 6 prof 5  field_job 5 slot 4
+  colonist 7 prof 16 in Church field_job -1 slot -1
+COLONY 4 Isabella nation 2 at (49,36) pop 6
+COLONY 5 Roanoke nation 0 at (34,22) pop 4
+COLONY 6 Barbados nation 0 at (44,26) pop 3
+COLONY 7 Fort Orange nation 3 at (45,52) pop 5
+  build - hammers 0 | SoL 7% | food +1 bells 1 crosses 1 hammers +6
+  stock food 123(+11) tobacco 24(+6) lumber 35(+2) ore 5(+0) tools 40(+0)
+  colonist 0 prof 26  field_job 8 slot 1
+  colonist 1 prof 20 in Carpenter's Shop field_job -1 slot -1
+  colonist 2 prof 28 in Carpenter's Shop field_job -1 slot -1
+  colonist 3 prof 11  field_job 5 slot 6
+  colonist 4 prof 26  field_job 8 slot 0
+COLONY 8 Montreal nation 1 at (15,46) pop 1
+COLONY 9 Santo Domingo nation 2 at (51,30) pop 2
+COLONY 10 Guadeloupe nation 1 at (19,19) pop 2
+COLONY 11 San Salvador nation 2 at (46,28) pop 1
+COLONY 12 Cayenne nation 1 at (13,17) pop 1
+@@ b382
+BUILD Fort Orange now 36
+@@ b383
+@@ b384
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 219 Soldiers at (45,52) moves 3 orders 6 prof 21 tools 0 muskets 50 horses 0
+UNIT 308 Merchantman at (45,52) moves 0 orders 0 prof 0 hold[0] 2 x100 hold[1] 2 x17
+UNIT 368 Colonists at (236,236) moves 3 orders 1 prof 26
+EUROPE dock Petty Criminals prof 26 (boards next ship)
+@@ b385
+AUTO stopped (map idle) after 26 frames
+STATUS turn 106 year 1598; Turn 106 Cursor 45,52; screen: main map (map); popup tag -1
+STATUS gold 293; view origin (38,46) 15x12 tiles of 16px, y0 8; cursor (45,52)
+STATUS selected unit 308 Merchantman at (45,52) moves 15 orders 0
+@@ b386
+STATUS turn 106 year 1598; Turn 106 Cursor 45,52; screen: main map (map); popup tag -1
+STATUS gold 293; view origin (38,46) 15x12 tiles of 16px, y0 8; cursor (45,52)
+STATUS selected unit 308 Merchantman at (45,52) moves 15 orders 0
+@@ b387
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 219 Soldiers at (45,52) moves 3 orders 6 prof 21 tools 0 muskets 50 horses 0
+UNIT 308 Merchantman at (50,47) moves 15 orders 3 prof 0 hold[0] 2 x100 hold[1] 2 x17
+UNIT 368 Colonists at (236,236) moves 3 orders 1 prof 26
+EUROPE dock Petty Criminals prof 26 (boards next ship)
+STATUS turn 107 year 1599; Turn 106 Cursor 50,47; screen: turn in progress (map); popup tag -1
+STATUS gold 293; view origin (42,41) 15x12 tiles of 16px, y0 8; cursor (50,47)
+@@ b388
+STATUS turn 107 year 1599; Turn 106 Cursor 50,47; screen: turn in progress (map); popup tag -1
+STATUS gold 293; view origin (42,41) 15x12 tiles of 16px, y0 8; cursor (50,47)
+@@ b389
+@@ b390
+STATUS turn 107 year 1599; Turn 107 Cursor 52,47; screen: main map (map); popup tag -1
+STATUS gold 293; view origin (42,41) 15x12 tiles of 16px, y0 8; cursor (52,47)
+@@ b391
+LOG: The price of {Rum} in Amsterdam has fallen to {12$}.
+LOG: The price of {Cloth} in Amsterdam has risen to {14$}.
+LOG: The price of {Muskets} in Amsterdam has risen to {11$}.
+AUTO stopped (map idle) after 36 frames
+STATUS turn 108 year 1600; Turn 108 Cursor 52,47; screen: main map (map); popup tag -1
+STATUS gold 293; view origin (42,41) 15x12 tiles of 16px, y0 8; cursor (52,47)
+@@ b392
+LOG: Colonization Help: Time Scale   In 1600, the {time scale} changes from one turn per year to {two turns per year}.  Henceforth there will be a {Spring} and a {Fall} turn in each year.
+LOG: The Arawak tribe has been wiped out.
+AUTO stopped (europe) after 16 frames
+STATUS turn 109 year 1600 autumn; End of Turn — Autumn 1600 (turn 109); screen: Europe screen (europe); popup tag -1
+STATUS gold 293; view origin (42,41) 15x12 tiles of 16px, y0 8; cursor (52,47)
+@@ b393
+STATUS turn 109 year 1600 autumn; End of Turn — Autumn 1600 (turn 109); screen: Europe screen (europe); popup tag -1
+STATUS gold 293; view origin (42,41) 15x12 tiles of 16px, y0 8; cursor (52,47)
+@@ b394
+LOG: 17 Tobacco sold for 68. 8% Tax: 5. Net: 63
+LOG: 100 Tobacco sold for 400. 8% Tax: 32. Net: 368
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 219 Soldiers at (45,52) moves 3 orders 6 prof 21 tools 0 muskets 50 horses 0
+UNIT 368 Colonists at (236,236) moves 3 orders 1 prof 26
+EUROPE harbor Merchantman turns_left 0 passengers
+EUROPE dock Petty Criminals prof 26 (boards next ship)
+STATUS turn 109 year 1600 autumn; End of Turn — Autumn 1600 (turn 109); screen: Europe screen (europe); popup tag -1
+STATUS gold 724; view origin (42,41) 15x12 tiles of 16px, y0 8; cursor (52,47)
+@@ b395
+SHOT automated-playtests/campaign5/shots/e18.ppm
+@@ b396
+SHOT automated-playtests/campaign5/shots/e19.ppm
+STATUS turn 109 year 1600 autumn; End of Turn — Autumn 1600 (turn 109); screen: Europe screen (europe); popup tag -1
+STATUS gold 583; view origin (42,41) 15x12 tiles of 16px, y0 8; cursor (52,47)
+@@ b397
+LOG: Shall we set sail for the {New World}, Your Excellency?
+CHOICES: [0] Yes, steady as she goes. [1] No, let us remain in port. (sel 0)
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 219 Soldiers at (45,52) moves 3 orders 6 prof 21 tools 0 muskets 50 horses 0
+EUROPE to-new-world Merchantman turns_left 1 passengers prof6 prof22 prof26
+STATUS turn 109 year 1600 autumn; Turn 109 Cursor 52,47; screen: main map (map); popup tag -1
+STATUS gold 183; view origin (42,41) 15x12 tiles of 16px, y0 8; cursor (52,47)
+@@ b398
+AUTO stopped (choice popup) after 7 frames
+LOG: "Viceroy Michiel De Ruyter.  Because of recent developments in our ongoing war with the Portuguese, we have decided to raise your tax rate by {2%}.  The tax rate is now {10%}.  If you wish, you may kiss our royal pinky ring."
+CHOICES: [0] Kiss pinky ring. [1] Hold '{Fort Orange Tobacco Party}.' (sel 0)
+STATUS turn 110 year 1601; Turn 109 Cursor 52,47; screen: modal open (map); popup tag 1
+STATUS gold 183; view origin (42,41) 15x12 tiles of 16px, y0 8; cursor (52,47)
+@@ b399
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 219 Soldiers at (45,52) moves 3 orders 6 prof 21 tools 0 muskets 50 horses 0
+EUROPE to-new-world Merchantman turns_left 1 passengers prof6 prof22 prof26
+@@ b400
+LOG: The price of {Coats} in Amsterdam has risen to {11$}.
+@@ b401
+STATUS turn 110 year 1601; End of Turn — Spring 1601 (turn 110); screen: modal open (map); popup tag 0
+STATUS gold 183; view origin (42,41) 15x12 tiles of 16px, y0 8; cursor (52,47)
+@@ b402
+@@ b403
+STATUS turn 110 year 1601; Turn 110 Cursor 52,47; screen: main map (map); popup tag -1
+STATUS gold 183; view origin (42,41) 15x12 tiles of 16px, y0 8; cursor (52,47)
+@@ b404
+LOG: The price of {Rum} in Amsterdam has risen to {13$}.
+LOG: The price of {Cloth} in Amsterdam has fallen to {13$}.
+LOG: The price of {Coats} in Amsterdam has risen to {12$}.
+LOG: The price of {Muskets} in Amsterdam has risen to {12$}.
+AUTO stopped (map idle) after 40 frames
+STATUS turn 111 year 1601 autumn; Turn 111 Cursor 53,48; screen: main map (map); popup tag -1
+STATUS gold 183; view origin (42,42) 15x12 tiles of 16px, y0 8; cursor (53,48)
+STATUS selected unit 444 Merchantman at (53,48) moves 15 orders 0
+@@ b405
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 219 Soldiers at (45,52) moves 3 orders 6 prof 21 tools 0 muskets 50 horses 0
+UNIT 444 Merchantman at (53,48) moves 15 orders 0 prof 0
+UNIT 445 Colonists at (53,48) moves 0 orders 1 prof 6 aboard 444
+UNIT 446 Scouts at (53,48) moves 0 orders 1 prof 22 aboard 444 tools 0 muskets 0 horses 50
+UNIT 447 Colonists at (53,48) moves 0 orders 1 prof 26 aboard 444
+@@ b406
+STATUS turn 111 year 1601 autumn; Turn 111 Cursor 53,48; screen: main map (map); popup tag -1
+STATUS gold 183; view origin (42,42) 15x12 tiles of 16px, y0 8; cursor (53,48)
+STATUS selected unit 444 Merchantman at (53,48) moves 15 orders 0
+@@ b407
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 219 Soldiers at (45,52) moves 3 orders 6 prof 21 tools 0 muskets 50 horses 0
+UNIT 444 Merchantman at (49,53) moves 15 orders 3 prof 0
+UNIT 445 Colonists at (49,53) moves 3 orders 1 prof 6 aboard 444
+UNIT 446 Scouts at (49,53) moves 12 orders 1 prof 22 aboard 444 tools 0 muskets 0 horses 50
+UNIT 447 Colonists at (49,53) moves 3 orders 1 prof 26 aboard 444
+STATUS turn 112 year 1602; Turn 111 Cursor 49,53; screen: turn in progress (map); popup tag -1
+STATUS gold 183; view origin (42,47) 15x12 tiles of 16px, y0 8; cursor (49,53)
+@@ b408
+STATUS turn 112 year 1602; Turn 111 Cursor 49,53; screen: turn in progress (map); popup tag -1
+STATUS gold 183; view origin (42,47) 15x12 tiles of 16px, y0 8; cursor (49,53)
+@@ b409
+LOG: New Amsterdam colony produces {Newspaper}.
+CHOICES: [0] Continue turn. [1] Zoom to colony. (sel 0)
+@@ b410
+STATUS turn 112 year 1602; Turn 111 Cursor 49,53; screen: modal open (map); popup tag 53
+STATUS gold 183; view origin (42,47) 15x12 tiles of 16px, y0 8; cursor (49,53)
+STATUS selected unit 212 Galleon at (244,244) moves 3 orders 0
+@@ b411
+LOG: The price of {Cloth} in Amsterdam has fallen to {12$}.
+@@ b412
+STATUS turn 112 year 1602; End of Turn — Spring 1602 (turn 112); screen: modal open (map); popup tag 0
+STATUS gold 183; view origin (42,47) 15x12 tiles of 16px, y0 8; cursor (49,53)
+STATUS selected unit 444 Merchantman at (49,53) moves 15 orders 3
+@@ b413
+LOG: The price of {Coats} in Amsterdam has risen to {13$}.
+@@ b414
+STATUS turn 112 year 1602; End of Turn — Spring 1602 (turn 112); screen: modal open (map); popup tag 0
+STATUS gold 183; view origin (42,47) 15x12 tiles of 16px, y0 8; cursor (49,53)
+STATUS selected unit 444 Merchantman at (49,53) moves 15 orders 3
+@@ b415
+@@ b416
+STATUS turn 112 year 1602; Turn 112 Cursor 46,52; screen: main map (map); popup tag -1
+STATUS gold 183; view origin (39,46) 15x12 tiles of 16px, y0 8; cursor (46,52)
+STATUS selected unit 444 Merchantman at (46,52) moves 6 orders 3
+@@ b417
+STATUS turn 112 year 1602; Turn 112 Cursor 46,52; screen: main map (map); popup tag -1
+STATUS gold 183; view origin (39,46) 15x12 tiles of 16px, y0 8; cursor (46,52)
+STATUS selected unit 444 Merchantman at (46,52) moves 6 orders 3
+@@ b418
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 219 Soldiers at (45,52) moves 3 orders 6 prof 21 tools 0 muskets 50 horses 0
+UNIT 444 Merchantman at (45,52) moves 0 orders 0 prof 0
+UNIT 445 Colonists at (45,52) moves 3 orders 0 prof 6
+UNIT 446 Scouts at (45,52) moves 12 orders 0 prof 22 tools 0 muskets 0 horses 50
+UNIT 447 Colonists at (45,52) moves 3 orders 0 prof 26
+STATUS turn 112 year 1602; Turn 112 Cursor 45,52; screen: main map (map); popup tag -1
+STATUS gold 183; view origin (38,46) 15x12 tiles of 16px, y0 8; cursor (45,52)
+STATUS selected unit 445 Colonists at (45,52) moves 3 orders 0
+@@ b419
+@@ b420
+HIT kind 22 index 0 unit 219
+@@ b421
+HIT kind 22 index 0 unit 219
+@@ b422
+HIT kind 22 index 1 unit 445
+@@ b423
+HIT kind 22 index 2 unit 446
+@@ b424
+HIT kind 22 index 2 unit 446
+@@ b425
+HIT kind 22 index 3 unit 447
+@@ b426
+HIT kind 23 index -1 
+@@ b427
+STATUS turn 112 year 1602; Working as Farmer; screen: colony screen (colony:Fort Orange); popup tag -1
+STATUS gold 183; view origin (38,46) 15x12 tiles of 16px, y0 8; cursor (45,52)
+@@ b428
+COLONY 0 Jamestown nation 0 at (40,11) pop 4
+COLONY 1 Plymouth nation 0 at (36,8) pop 2
+COLONY 2 Quebec nation 1 at (42,59) pop 4
+COLONY 3 New Amsterdam nation 3 at (44,47) pop 8
+  build Newspaper hammers 0 | SoL 46% | food +0 bells 14 crosses 8 hammers +10
+  stock food 31(+16) tobacco 27(+3) furs 4(+0) lumber 200(+6) silver 2(+0) horses 161(+1) tools 50(+0)
+  colonist 0 prof 17 in Town Hall field_job -1 slot -1
+  colonist 1 prof 26  field_job 5 slot 2
+  colonist 2 prof 28 in Lumber Mill field_job -1 slot -1
+  colonist 3 prof 28  field_job 8 slot 0
+  colonist 4 prof 25 in Lumber Mill field_job -1 slot -1
+  colonist 5 prof 0  field_job 0 slot 3
+  colonist 6 prof 5  field_job 5 slot 4
+  colonist 7 prof 16 in Church field_job -1 slot -1
+COLONY 4 Isabella nation 2 at (49,36) pop 6
+COLONY 5 Roanoke nation 0 at (34,22) pop 4
+COLONY 6 Barbados nation 0 at (44,26) pop 2
+COLONY 7 Fort Orange nation 3 at (45,52) pop 6
+  build Lumber Mill hammers 42 | SoL 7% | food -3 bells 1 crosses 1 hammers +4
+  stock food 130(+9) tobacco 66(+6) lumber 49(+3) ore 5(+0) tools 40(+0)
+  colonist 0 prof 26  field_job 8 slot 1
+  colonist 1 prof 20 in Carpenter's Shop field_job -1 slot -1
+  colonist 2 prof 28 in Carpenter's Shop field_job -1 slot -1
+  colonist 3 prof 11  field_job 5 slot 6
+  colonist 4 prof 26  field_job 8 slot 0
+  colonist 5 prof 6  field_job 0 slot 4
+COLONY 8 Montreal nation 1 at (15,46) pop 1
+COLONY 9 Santo Domingo nation 2 at (51,30) pop 2
+COLONY 10 Guadeloupe nation 1 at (19,19) pop 3
+COLONY 11 San Salvador nation 2 at (46,28) pop 1
+COLONY 12 Cayenne nation 1 at (13,17) pop 1
+COLONY 13 St. Louis nation 1 at (31,18) pop 1
+@@ b429
+SHOT automated-playtests/campaign5/shots/fo9.ppm
+@@ b430
+SHOT automated-playtests/campaign5/shots/fo10.ppm
+@@ b431
+COLONY 0 Jamestown nation 0 at (40,11) pop 4
+COLONY 1 Plymouth nation 0 at (36,8) pop 2
+COLONY 2 Quebec nation 1 at (42,59) pop 4
+COLONY 3 New Amsterdam nation 3 at (44,47) pop 8
+  build Newspaper hammers 0 | SoL 46% | food +0 bells 14 crosses 8 hammers +10
+  stock food 31(+16) tobacco 27(+3) furs 4(+0) lumber 200(+6) silver 2(+0) horses 161(+1) tools 50(+0)
+  colonist 0 prof 17 in Town Hall field_job -1 slot -1
+  colonist 1 prof 26  field_job 5 slot 2
+  colonist 2 prof 28 in Lumber Mill field_job -1 slot -1
+  colonist 3 prof 28  field_job 8 slot 0
+  colonist 4 prof 25 in Lumber Mill field_job -1 slot -1
+  colonist 5 prof 0  field_job 0 slot 3
+  colonist 6 prof 5  field_job 5 slot 4
+  colonist 7 prof 16 in Church field_job -1 slot -1
+COLONY 4 Isabella nation 2 at (49,36) pop 6
+COLONY 5 Roanoke nation 0 at (34,22) pop 4
+COLONY 6 Barbados nation 0 at (44,26) pop 2
+COLONY 7 Fort Orange nation 3 at (45,52) pop 5
+  build Lumber Mill hammers 42 | SoL 8% | food -1 bells 1 crosses 1 hammers +6
+  stock food 130(+9) tobacco 66(+6) lumber 49(+2) ore 5(+10) tools 40(+0)
+  colonist 0 prof 26  field_job 8 slot 1
+  colonist 1 prof 20 in Carpenter's Shop field_job -1 slot -1
+  colonist 2 prof 28 in Carpenter's Shop field_job -1 slot -1
+  colonist 3 prof 11  field_job 5 slot 6
+  colonist 4 prof 6  field_job 6 slot 4
+COLONY 8 Montreal nation 1 at (15,46) pop 1
+COLONY 9 Santo Domingo nation 2 at (51,30) pop 2
+COLONY 10 Guadeloupe nation 1 at (19,19) pop 3
+COLONY 11 San Salvador nation 2 at (46,28) pop 1
+COLONY 12 Cayenne nation 1 at (13,17) pop 1
+COLONY 13 St. Louis nation 1 at (31,18) pop 1
+@@ b432
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 219 Soldiers at (45,52) moves 3 orders 6 prof 21 tools 0 muskets 50 horses 0
+UNIT 444 Merchantman at (45,52) moves 0 orders 0 prof 0
+UNIT 446 Scouts at (45,52) moves 12 orders 0 prof 22 tools 0 muskets 0 horses 50
+UNIT 447 Colonists at (45,52) moves 3 orders 0 prof 26
+UNIT 456 Colonists at (45,52) moves 0 orders 0 prof 26
+@@ b433
+STATUS turn 112 year 1602; Turn 112 Cursor 45,52; screen: main map (map); popup tag -1
+STATUS gold 183; view origin (38,46) 15x12 tiles of 16px, y0 8; cursor (45,52)
+STATUS selected unit 446 Scouts at (45,52) moves 12 orders 0
+@@ b434
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 219 Soldiers at (45,52) moves 3 orders 6 prof 21 tools 0 muskets 50 horses 0
+UNIT 444 Merchantman at (45,52) moves 0 orders 0 prof 0
+UNIT 446 Scouts at (45,52) moves 12 orders 0 prof 22 tools 0 muskets 0 horses 50
+UNIT 447 Colonists at (45,53) moves -7 orders 3 prof 26
+UNIT 456 Colonists at (45,52) moves 0 orders 0 prof 26
+STATUS turn 112 year 1602; Turn 112 Cursor 45,52; screen: main map (map); popup tag -1
+STATUS gold 183; view origin (38,46) 15x12 tiles of 16px, y0 8; cursor (45,52)
+STATUS selected unit 446 Scouts at (45,52) moves 12 orders 0
+@@ b435
+MAP x 40..48 (cols), y 51..59 (rows)
+MAP     404142434445464748
+MAP  51 G.RV~r~.~.~.~.~.~.
+MAP  52 GrR.Rr~.G.gC~.~.~.
+MAP  53 MrD.RrR.r#ruGV~.~.
+MAP  54 T.rnDrR.G.M.RuR.~.
+MAP  55 PrR.M.P.G@R.~.~.~.
+MAP  56 M.~#~.R.GrP.~.~.~.
+MAP  57 RuRVguR.Rr~r~.~.~.
+MAP  58 G.r.p.~.G.R.RV~.~.
+MAP  59 ~.R.GCm.ruM.G.~.~.
+@@ b436
+STATUS turn 112 year 1602; Turn 112 Cursor 45,52; screen: main map (map); popup tag -1
+STATUS gold 183; view origin (38,46) 15x12 tiles of 16px, y0 8; cursor (45,52)
+STATUS selected unit 446 Scouts at (45,52) moves 12 orders 0
+@@ b437
+LOG: The price of {Coats} in Amsterdam has fallen to {12$}.
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 219 Soldiers at (45,52) moves 3 orders 6 prof 21 tools 0 muskets 50 horses 0
+UNIT 444 Merchantman at (45,52) moves 15 orders 0 prof 0
+UNIT 446 Scouts at (42,55) moves 12 orders 3 prof 22 tools 0 muskets 0 horses 50
+UNIT 447 Colonists at (45,53) moves 3 orders 3 prof 26
+UNIT 456 Colonists at (45,52) moves 3 orders 0 prof 26
+STATUS turn 113 year 1602 autumn; End of Turn — Autumn 1602 (turn 113); screen: modal open (map); popup tag 0
+STATUS gold 183; view origin (38,46) 15x12 tiles of 16px, y0 8; cursor (45,52)
+STATUS selected unit 444 Merchantman at (45,52) moves 15 orders 0
+@@ b438
+STATUS turn 113 year 1602 autumn; End of Turn — Autumn 1602 (turn 113); screen: modal open (map); popup tag 0
+STATUS gold 183; view origin (38,46) 15x12 tiles of 16px, y0 8; cursor (45,52)
+STATUS selected unit 444 Merchantman at (45,52) moves 15 orders 0
+@@ b439
+@@ b440
+STATUS turn 113 year 1602 autumn; Turn 113 Cursor 45,52; screen: main map (map); popup tag -1
+STATUS gold 183; view origin (38,46) 15x12 tiles of 16px, y0 8; cursor (45,52)
+STATUS selected unit 444 Merchantman at (45,52) moves 15 orders 0
+@@ b441
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 219 Soldiers at (45,52) moves 3 orders 6 prof 21 tools 0 muskets 50 horses 0
+UNIT 444 Merchantman at (45,52) moves 15 orders 0 prof 0
+UNIT 446 Scouts at (42,55) moves 12 orders 3 prof 22 tools 0 muskets 0 horses 50
+UNIT 447 Colonists at (45,53) moves 3 orders 3 prof 26
+UNIT 456 Colonists at (45,52) moves 3 orders 0 prof 26
+@@ b442
+STATUS turn 113 year 1602 autumn; Turn 113 Cursor 45,52; screen: main map (map); popup tag -1
+STATUS gold 183; view origin (38,46) 15x12 tiles of 16px, y0 8; cursor (45,52)
+STATUS selected unit 456 Colonists at (45,52) moves 3 orders 0
+@@ b443
+STATUS turn 113 year 1602 autumn; Turn 113 Cursor 45,52; screen: main map (map); popup tag -1
+STATUS gold 183; view origin (38,46) 15x12 tiles of 16px, y0 8; cursor (45,52)
+STATUS selected unit 444 Merchantman at (45,52) moves 15 orders 0
+@@ b444
+STATUS turn 113 year 1602 autumn; Turn 113 Cursor 45,52; screen: main map (map); popup tag -1
+STATUS gold 183; view origin (38,46) 15x12 tiles of 16px, y0 8; cursor (45,52)
+STATUS selected unit 444 Merchantman at (45,52) moves 15 orders 0
+@@ b445
+ERR no End of Turn prompt (selected unit 444)
+AUTO stopped (map idle) after 19 frames
+STATUS turn 113 year 1602 autumn; Turn 113 Cursor 45,52; screen: main map (map); popup tag -1
+STATUS gold 183; view origin (38,46) 15x12 tiles of 16px, y0 8; cursor (45,52)
+STATUS selected unit 444 Merchantman at (45,52) moves 15 orders 0
+@@ b446
+STATUS turn 113 year 1602 autumn; Turn 113 Cursor 45,52; screen: main map (map); popup tag -1
+STATUS gold 183; view origin (38,46) 15x12 tiles of 16px, y0 8; cursor (45,52)
+STATUS selected unit 444 Merchantman at (45,52) moves 15 orders 0
+@@ b447
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 219 Soldiers at (45,52) moves 3 orders 6 prof 21 tools 0 muskets 50 horses 0
+UNIT 444 Merchantman at (45,52) moves 15 orders 0 prof 0
+UNIT 446 Scouts at (40,54) moves 0 orders 3 prof 22 tools 0 muskets 0 horses 50
+UNIT 447 Colonists at (45,54) moves -6 orders 3 prof 26
+UNIT 456 Colonists at (45,53) moves -7 orders 3 prof 26
+@@ b448
+STATUS turn 113 year 1602 autumn; Turn 113 Cursor 45,54; screen: main map (map); popup tag -1
+STATUS gold 183; view origin (38,48) 15x12 tiles of 16px, y0 8; cursor (45,54)
+@@ b449
+STATUS turn 113 year 1602 autumn; Turn 113 Cursor 45,53; screen: main map (map); popup tag -1
+STATUS gold 183; view origin (38,47) 15x12 tiles of 16px, y0 8; cursor (45,53)
+@@ b450
+STATUS turn 113 year 1602 autumn; Turn 113 Cursor 40,54; screen: main map (map); popup tag -1
+STATUS gold 183; view origin (33,48) 15x12 tiles of 16px, y0 8; cursor (40,54)
+@@ b451
+ERR no End of Turn prompt (selected unit -1)
+AUTO stopped (map idle) after 19 frames
+STATUS turn 113 year 1602 autumn; Turn 113 Cursor 40,54; screen: main map (map); popup tag -1
+STATUS gold 183; view origin (33,48) 15x12 tiles of 16px, y0 8; cursor (40,54)
+@@ b452
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 219 Soldiers at (45,52) moves 3 orders 6 prof 21 tools 0 muskets 50 horses 0
+UNIT 444 Merchantman at (45,52) moves 15 orders 0 prof 0
+UNIT 446 Scouts at (40,54) moves 0 orders 3 prof 22 tools 0 muskets 0 horses 50
+UNIT 447 Colonists at (45,54) moves -6 orders 3 prof 26
+UNIT 456 Colonists at (45,53) moves -7 orders 3 prof 26
+@@ b453
+STATUS turn 113 year 1602 autumn; Turn 113 Cursor 40,54; screen: main map (map); popup tag -1
+STATUS gold 183; view origin (33,48) 15x12 tiles of 16px, y0 8; cursor (40,54)
+@@ b454
+@@ b455
+STATUS turn 113 year 1602 autumn; Turn 113 Cursor 40,54; screen: main map (map); popup tag -1
+STATUS gold 183; view origin (33,48) 15x12 tiles of 16px, y0 8; cursor (40,54)
+@@ b456
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 219 Soldiers at (45,52) moves 3 orders 6 prof 21 tools 0 muskets 50 horses 0
+UNIT 444 Merchantman at (45,52) moves 15 orders 0 prof 0 hold[0] 2 x72
+UNIT 446 Scouts at (40,54) moves 0 orders 3 prof 22 tools 0 muskets 0 horses 50
+UNIT 447 Colonists at (45,54) moves -6 orders 3 prof 26
+UNIT 456 Colonists at (45,53) moves -7 orders 3 prof 26
+@@ b457
+STATUS turn 113 year 1602 autumn; Turn 113 Cursor 45,54; screen: main map (map); popup tag -1
+STATUS gold 183; view origin (38,48) 15x12 tiles of 16px, y0 8; cursor (45,54)
+@@ b458
+STATUS turn 113 year 1602 autumn; Turn 113 Cursor 45,53; screen: main map (map); popup tag -1
+STATUS gold 183; view origin (38,47) 15x12 tiles of 16px, y0 8; cursor (45,53)
+@@ b459
+STATUS turn 113 year 1602 autumn; Turn 113 Cursor 40,54; screen: main map (map); popup tag -1
+STATUS gold 183; view origin (33,48) 15x12 tiles of 16px, y0 8; cursor (40,54)
+@@ b460
+STATUS turn 114 year 1603; Turn 113 Cursor 46,47; screen: turn in progress (map); popup tag -1
+STATUS gold 183; view origin (39,41) 15x12 tiles of 16px, y0 8; cursor (46,47)
+@@ b461
+ERR no End of Turn prompt (selected unit -1)
+LOG: Fort Orange colony produces {Lumber Mill}.
+CHOICES: [0] Continue turn. [1] Zoom to colony. (sel 0)
+LOG: The price of {Cigars} in Amsterdam has risen to {11$}.
+LOG: The price of {Cloth} in Amsterdam has risen to {13$}.
+LOG: The price of {Coats} in Amsterdam has fallen to {11$}.
+LOG: Spies report: {Aztec} massacre {French} colonists at {Cayenne}. French governor plans countermeasures.
+LOG: Religious unrest in Netherlands causes increased emigration.  Colonists ({Free Colonists}) now available in Amsterdam.
+AUTO stopped (map idle) after 114 frames
+STATUS turn 115 year 1603 autumn; Turn 115 Cursor 44,47; screen: main map (map); popup tag -1
+STATUS gold 183; view origin (37,41) 15x12 tiles of 16px, y0 8; cursor (44,47)
+STATUS selected unit 444 Merchantman at (44,47) moves 15 orders 0
+@@ b462
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 219 Soldiers at (45,52) moves 3 orders 6 prof 21 tools 0 muskets 50 horses 0
+UNIT 444 Merchantman at (44,47) moves 15 orders 0 prof 0 hold[0] 2 x72
+UNIT 446 Scouts at (36,55) moves 12 orders 3 prof 22 tools 0 muskets 0 horses 50
+UNIT 447 Colonists at (44,55) moves 3 orders 0 prof 26
+UNIT 456 Colonists at (45,54) moves 3 orders 3 prof 26
+UNIT 503 Colonists at (236,236) moves 3 orders 1 prof 28
+EUROPE dock Free Colonists prof 28 (boards next ship)
+@@ b463
+COLONY 0 Jamestown nation 0 at (40,11) pop 4
+COLONY 1 Plymouth nation 0 at (36,8) pop 3
+COLONY 2 Quebec nation 1 at (42,59) pop 4
+COLONY 3 New Amsterdam nation 3 at (44,47) pop 8
+  build Newspaper hammers 30 | SoL 48% | food +0 bells 14 crosses 8 hammers +10
+  stock food 31(+16) tobacco 36(+3) furs 4(+0) lumber 200(+6) silver 2(+0) horses 164(+1) tools 50(+0)
+  colonist 0 prof 17 in Town Hall field_job -1 slot -1
+  colonist 1 prof 26  field_job 5 slot 2
+  colonist 2 prof 28 in Lumber Mill field_job -1 slot -1
+  colonist 3 prof 28  field_job 8 slot 0
+  colonist 4 prof 25 in Lumber Mill field_job -1 slot -1
+  colonist 5 prof 0  field_job 0 slot 3
+  colonist 6 prof 5  field_job 5 slot 4
+  colonist 7 prof 16 in Church field_job -1 slot -1
+COLONY 4 Isabella nation 2 at (49,36) pop 6
+COLONY 5 Roanoke nation 0 at (34,22) pop 5
+COLONY 6 Barbados nation 0 at (44,26) pop 3
+COLONY 7 Fort Orange nation 3 at (45,52) pop 5
+  build Lumber Mill hammers 12 | SoL 9% | food -1 bells 1 crosses 1 hammers +12
+  stock food 127(+9) tobacco 12(+6) lumber 49(-4) ore 35(+10) tools 40(+0)
+  colonist 0 prof 26  field_job 8 slot 1
+  colonist 1 prof 20 in Lumber Mill field_job -1 slot -1
+  colonist 2 prof 28 in Lumber Mill field_job -1 slot -1
+  colonist 3 prof 11  field_job 5 slot 6
+  colonist 4 prof 6  field_job 6 slot 4
+COLONY 8 Montreal nation 1 at (15,46) pop 1
+COLONY 9 Santo Domingo nation 2 at (51,30) pop 2
+COLONY 10 Guadeloupe nation 1 at (19,19) pop 3
+COLONY 11 San Salvador nation 2 at (46,28) pop 1
+COLONY 12 Cayenne nation 1 at (13,17) pop 1
+COLONY 13 St. Louis nation 1 at (31,18) pop 1
+@@ b464
+BUILD Fort Orange now 15
+LOG: This square does not have access to the {ocean}, Your Excellency.  If we build a {colony} here we must transport its produce to {port} using {wagon trains}, which we can build in any colony.
+CHOICES: [0] "Oh, I forgot about that." [1] "And that is exactly what I had in mind." (sel 0)
+STATUS turn 115 year 1603 autumn; Turn 115 Cursor 44,55; screen: main map (map); popup tag -1
+STATUS gold 183; view origin (37,49) 15x12 tiles of 16px, y0 8; cursor (44,55)
+STATUS selected unit 447 Colonists at (44,55) moves 3 orders 0
+@@ b465
+STATUS turn 115 year 1603 autumn; Turn 115 Cursor 44,55; screen: main map (map); popup tag -1
+STATUS gold 183; view origin (37,49) 15x12 tiles of 16px, y0 8; cursor (44,55)
+STATUS selected unit 447 Colonists at (44,55) moves 3 orders 0
+@@ b466
+COLONY 0 Jamestown nation 0 at (40,11) pop 4
+COLONY 1 Plymouth nation 0 at (36,8) pop 3
+COLONY 2 Quebec nation 1 at (42,59) pop 4
+COLONY 3 New Amsterdam nation 3 at (44,47) pop 8
+  build Newspaper hammers 30 | SoL 48% | food +0 bells 14 crosses 8 hammers +10
+  stock food 31(+16) tobacco 36(+3) furs 4(+0) lumber 200(+6) silver 2(+0) horses 164(+1) tools 50(+0)
+  colonist 0 prof 17 in Town Hall field_job -1 slot -1
+  colonist 1 prof 26  field_job 5 slot 2
+  colonist 2 prof 28 in Lumber Mill field_job -1 slot -1
+  colonist 3 prof 28  field_job 8 slot 0
+  colonist 4 prof 25 in Lumber Mill field_job -1 slot -1
+  colonist 5 prof 0  field_job 0 slot 3
+  colonist 6 prof 5  field_job 5 slot 4
+  colonist 7 prof 16 in Church field_job -1 slot -1
+COLONY 4 Isabella nation 2 at (49,36) pop 6
+COLONY 5 Roanoke nation 0 at (34,22) pop 5
+COLONY 6 Barbados nation 0 at (44,26) pop 3
+COLONY 7 Fort Orange nation 3 at (45,52) pop 5
+  build Warehouse hammers 12 | SoL 9% | food -1 bells 1 crosses 1 hammers +12
+  stock food 127(+9) tobacco 12(+6) lumber 49(-4) ore 35(+10) tools 40(+0)
+  colonist 0 prof 26  field_job 8 slot 1
+  colonist 1 prof 20 in Lumber Mill field_job -1 slot -1
+  colonist 2 prof 28 in Lumber Mill field_job -1 slot -1
+  colonist 3 prof 11  field_job 5 slot 6
+  colonist 4 prof 6  field_job 6 slot 4
+COLONY 8 Montreal nation 1 at (15,46) pop 1
+COLONY 9 Santo Domingo nation 2 at (51,30) pop 2
+COLONY 10 Guadeloupe nation 1 at (19,19) pop 3
+COLONY 11 San Salvador nation 2 at (46,28) pop 1
+COLONY 12 Cayenne nation 1 at (13,17) pop 1
+COLONY 13 St. Louis nation 1 at (31,18) pop 1
+@@ b467
+STATUS turn 115 year 1603 autumn; Turn 115 Cursor 44,55; screen: main map (map); popup tag -1
+STATUS gold 183; view origin (37,49) 15x12 tiles of 16px, y0 8; cursor (44,55)
+STATUS selected unit 447 Colonists at (44,55) moves 3 orders 0
+@@ b468
+COLONY 0 Jamestown nation 0 at (40,11) pop 4
+COLONY 1 Plymouth nation 0 at (36,8) pop 3
+COLONY 2 Quebec nation 1 at (42,59) pop 4
+COLONY 3 New Amsterdam nation 3 at (44,47) pop 8
+  build Newspaper hammers 30 | SoL 48% | food +0 bells 14 crosses 8 hammers +10
+  stock food 31(+16) tobacco 36(+3) furs 4(+0) lumber 200(+6) silver 2(+0) horses 164(+1) tools 50(+0)
+  colonist 0 prof 17 in Town Hall field_job -1 slot -1
+  colonist 1 prof 26  field_job 5 slot 2
+  colonist 2 prof 28 in Lumber Mill field_job -1 slot -1
+  colonist 3 prof 28  field_job 8 slot 0
+  colonist 4 prof 25 in Lumber Mill field_job -1 slot -1
+  colonist 5 prof 0  field_job 0 slot 3
+  colonist 6 prof 5  field_job 5 slot 4
+  colonist 7 prof 16 in Church field_job -1 slot -1
+COLONY 4 Isabella nation 2 at (49,36) pop 6
+COLONY 5 Roanoke nation 0 at (34,22) pop 5
+COLONY 6 Barbados nation 0 at (44,26) pop 3
+COLONY 7 Fort Orange nation 3 at (45,52) pop 5
+  build Warehouse hammers 12 | SoL 9% | food -1 bells 1 crosses 1 hammers +12
+  stock food 127(+9) tobacco 12(+6) lumber 49(-4) ore 35(+10) tools 40(+0)
+  colonist 0 prof 26  field_job 8 slot 1
+  colonist 1 prof 20 in Lumber Mill field_job -1 slot -1
+  colonist 2 prof 28 in Lumber Mill field_job -1 slot -1
+  colonist 3 prof 11  field_job 5 slot 6
+  colonist 4 prof 6  field_job 6 slot 4
+COLONY 8 Montreal nation 1 at (15,46) pop 1
+COLONY 9 Santo Domingo nation 2 at (51,30) pop 2
+COLONY 10 Guadeloupe nation 1 at (19,19) pop 3
+COLONY 11 San Salvador nation 2 at (46,28) pop 1
+COLONY 12 Cayenne nation 1 at (13,17) pop 1
+COLONY 13 St. Louis nation 1 at (31,18) pop 1
+@@ b469
+STATUS turn 115 year 1603 autumn; Turn 115 Cursor 44,55; screen: main map (map); popup tag -1
+STATUS gold 183; view origin (37,49) 15x12 tiles of 16px, y0 8; cursor (44,55)
+STATUS selected unit 447 Colonists at (44,55) moves 3 orders 0
+@@ b470
+LOG: This square does not have access to the {ocean}, Your Excellency.  If we build a {colony} here we must transport its produce to {port} using {wagon trains}, which we can build in any colony.
+CHOICES: [0] "Oh, I forgot about that." [1] "And that is exactly what I had in mind." (sel 0)
+STATUS turn 115 year 1603 autumn; Turn 115 Cursor 44,55; screen: modal open (map); popup tag 27
+STATUS gold 183; view origin (37,49) 15x12 tiles of 16px, y0 8; cursor (44,55)
+STATUS selected unit 447 Colonists at (44,55) moves 3 orders 0
+@@ b471
+STATUS turn 115 year 1603 autumn; Turn 115 Cursor 44,55; screen: modal open (map); popup tag 27
+STATUS gold 183; view origin (37,49) 15x12 tiles of 16px, y0 8; cursor (44,55)
+STATUS selected unit 447 Colonists at (44,55) moves 3 orders 0
+@@ b472
+STATUS turn 115 year 1603 autumn; Turn 115 Cursor 44,55; screen: main map (map); popup tag -1
+STATUS gold 183; view origin (37,49) 15x12 tiles of 16px, y0 8; cursor (44,55)
+STATUS selected unit 447 Colonists at (44,55) moves 3 orders 0
+@@ b473
+LOG: This square does not have access to the {ocean}, Your Excellency.  If we build a {colony} here we must transport its produce to {port} using {wagon trains}, which we can build in any colony.
+CHOICES: [0] "Oh, I forgot about that." [1] "And that is exactly what I had in mind." (sel 0)
+SHOT automated-playtests/campaign5/shots/b1.ppm
+@@ b474
+STATUS turn 115 year 1603 autumn; Turn 115 Cursor 44,55; screen: modal open (name entry); popup tag -1
+STATUS gold 183; view origin (37,49) 15x12 tiles of 16px, y0 8; cursor (44,55)
+STATUS selected unit 447 Colonists at (44,55) moves 3 orders 0
+@@ b475
+STATUS turn 115 year 1603 autumn; Entered Fort Nassau; screen: colony screen (colony:Fort Nassau); popup tag -1
+STATUS gold 183; view origin (37,49) 15x12 tiles of 16px, y0 8; cursor (44,55)
+@@ b476
+SHOT automated-playtests/campaign5/shots/fn1.ppm
+COLONY 0 Jamestown nation 0 at (40,11) pop 4
+COLONY 1 Plymouth nation 0 at (36,8) pop 3
+COLONY 2 Quebec nation 1 at (42,59) pop 4
+COLONY 3 New Amsterdam nation 3 at (44,47) pop 8
+  build Newspaper hammers 30 | SoL 48% | food +0 bells 14 crosses 8 hammers +10
+  stock food 31(+16) tobacco 36(+3) furs 4(+0) lumber 200(+6) silver 2(+0) horses 164(+1) tools 50(+0)
+  colonist 0 prof 17 in Town Hall field_job -1 slot -1
+  colonist 1 prof 26  field_job 5 slot 2
+  colonist 2 prof 28 in Lumber Mill field_job -1 slot -1
+  colonist 3 prof 28  field_job 8 slot 0
+  colonist 4 prof 25 in Lumber Mill field_job -1 slot -1
+  colonist 5 prof 0  field_job 0 slot 3
+  colonist 6 prof 5  field_job 5 slot 4
+  colonist 7 prof 16 in Church field_job -1 slot -1
+COLONY 4 Isabella nation 2 at (49,36) pop 6
+COLONY 5 Roanoke nation 0 at (34,22) pop 5
+COLONY 6 Barbados nation 0 at (44,26) pop 3
+COLONY 7 Fort Orange nation 3 at (45,52) pop 5
+  build Warehouse hammers 12 | SoL 9% | food -1 bells 1 crosses 1 hammers +12
+  stock food 127(+9) tobacco 12(+6) lumber 49(-4) ore 35(+10) tools 40(+0)
+  colonist 0 prof 26  field_job 8 slot 1
+  colonist 1 prof 20 in Lumber Mill field_job -1 slot -1
+  colonist 2 prof 28 in Lumber Mill field_job -1 slot -1
+  colonist 3 prof 11  field_job 5 slot 6
+  colonist 4 prof 6  field_job 6 slot 4
+COLONY 8 Montreal nation 1 at (15,46) pop 1
+COLONY 9 Santo Domingo nation 2 at (51,30) pop 2
+COLONY 10 Guadeloupe nation 1 at (19,19) pop 3
+COLONY 11 San Salvador nation 2 at (46,28) pop 1
+COLONY 12 Cayenne nation 1 at (13,17) pop 1
+COLONY 13 St. Louis nation 1 at (31,18) pop 1
+COLONY 14 Fort Nassau nation 3 at (44,55) pop 1
+  build Warehouse hammers 0 | SoL 0% | food +0 bells 1 crosses 1 hammers +0
+  stock food 0(+2) furs 0(+7)
+  colonist 0 prof 26  field_job 4 slot 2
+@@ b477
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 219 Soldiers at (45,52) moves 3 orders 6 prof 21 tools 0 muskets 50 horses 0
+UNIT 444 Merchantman at (44,47) moves 15 orders 0 prof 0 hold[0] 2 x100 hold[1] 2 x8
+UNIT 446 Scouts at (36,55) moves 12 orders 3 prof 22 tools 0 muskets 0 horses 50
+UNIT 456 Colonists at (45,54) moves 3 orders 3 prof 26
+UNIT 503 Colonists at (236,236) moves 3 orders 1 prof 28
+EUROPE dock Free Colonists prof 28 (boards next ship)
+@@ b478
+STATUS turn 115 year 1603 autumn; Turn 115 Cursor 44,47; screen: main map (map); popup tag -1
+STATUS gold 183; view origin (37,41) 15x12 tiles of 16px, y0 8; cursor (44,47)
+STATUS selected unit 444 Merchantman at (44,47) moves 15 orders 0
+@@ b479
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 219 Soldiers at (45,52) moves 3 orders 6 prof 21 tools 0 muskets 50 horses 0
+UNIT 444 Merchantman at (44,47) moves 15 orders 0 prof 0 hold[0] 2 x100 hold[1] 2 x8
+UNIT 446 Scouts at (36,55) moves 12 orders 3 prof 22 tools 0 muskets 0 horses 50
+UNIT 456 Colonists at (45,54) moves 3 orders 3 prof 26
+UNIT 503 Colonists at (236,236) moves 3 orders 1 prof 28
+EUROPE dock Free Colonists prof 28 (boards next ship)
+@@ b480
+STATUS turn 115 year 1603 autumn; Turn 115 Cursor 44,47; screen: main map (map); popup tag -1
+STATUS gold 183; view origin (37,41) 15x12 tiles of 16px, y0 8; cursor (44,47)
+STATUS selected unit 444 Merchantman at (44,47) moves 15 orders 0
+@@ b481
+STATUS turn 115 year 1603 autumn; Turn 115 Cursor 35,56; screen: main map (map); popup tag -1
+STATUS gold 183; view origin (28,50) 15x12 tiles of 16px, y0 8; cursor (35,56)
+STATUS selected unit 446 Scouts at (35,56) moves 6 orders 0
+@@ b482
+STATUS turn 115 year 1603 autumn; Turn 115 Cursor 35,56; screen: main map (map); popup tag -1
+STATUS gold 183; view origin (28,50) 15x12 tiles of 16px, y0 8; cursor (35,56)
+STATUS selected unit 446 Scouts at (35,56) moves 6 orders 0
+@@ b483
+ERR no End of Turn prompt (selected unit 446)
+AUTO stopped (map idle) after 19 frames
+STATUS turn 115 year 1603 autumn; Turn 115 Cursor 35,56; screen: main map (map); popup tag -1
+STATUS gold 183; view origin (28,50) 15x12 tiles of 16px, y0 8; cursor (35,56)
+STATUS selected unit 446 Scouts at (35,56) moves 6 orders 0
+@@ b484
+STATUS turn 115 year 1603 autumn; Turn 115 Cursor 35,56; screen: main map (map); popup tag -1
+STATUS gold 183; view origin (28,50) 15x12 tiles of 16px, y0 8; cursor (35,56)
+STATUS selected unit 446 Scouts at (35,56) moves 6 orders 0
+@@ b485
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 219 Soldiers at (45,52) moves 3 orders 6 prof 21 tools 0 muskets 50 horses 0
+UNIT 444 Merchantman at (49,44) moves 0 orders 3 prof 0 hold[0] 2 x100 hold[1] 2 x8
+UNIT 446 Scouts at (35,56) moves 6 orders 0 prof 22 tools 0 muskets 0 horses 50
+UNIT 456 Colonists at (44,55) moves 0 orders 0 prof 26
+UNIT 503 Colonists at (236,236) moves 3 orders 1 prof 28
+EUROPE dock Free Colonists prof 28 (boards next ship)
+@@ b486
+STATUS turn 115 year 1603 autumn; Turn 115 Cursor 49,44; screen: main map (map); popup tag -1
+STATUS gold 183; view origin (42,38) 15x12 tiles of 16px, y0 8; cursor (49,44)
+@@ b487
+ERR no End of Turn prompt (selected unit -1)
+AUTO stopped (map idle) after 19 frames
+STATUS turn 115 year 1603 autumn; Turn 115 Cursor 49,44; screen: main map (map); popup tag -1
+STATUS gold 183; view origin (42,38) 15x12 tiles of 16px, y0 8; cursor (49,44)
+@@ b488
+STATUS turn 115 year 1603 autumn; Turn 115 Cursor 49,44; screen: main map (map); popup tag -1
+STATUS gold 183; view origin (42,38) 15x12 tiles of 16px, y0 8; cursor (49,44)
+@@ b489
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 219 Soldiers at (45,52) moves 3 orders 6 prof 21 tools 0 muskets 50 horses 0
+UNIT 444 Merchantman at (49,44) moves 0 orders 3 prof 0 hold[0] 2 x100 hold[1] 2 x8
+UNIT 446 Scouts at (35,56) moves 6 orders 0 prof 22 tools 0 muskets 0 horses 50
+UNIT 456 Colonists at (44,55) moves 0 orders 0 prof 26
+UNIT 503 Colonists at (236,236) moves 3 orders 1 prof 28
+EUROPE dock Free Colonists prof 28 (boards next ship)
+@@ b490
+STATUS turn 115 year 1603 autumn; Turn 115 Cursor 49,44; screen: main map (map); popup tag -1
+STATUS gold 183; view origin (42,38) 15x12 tiles of 16px, y0 8; cursor (49,44)
+@@ b491
+ERR no End of Turn prompt (selected unit -1)
+AUTO stopped (map idle) after 19 frames
+STATUS turn 115 year 1603 autumn; Turn 115 Cursor 49,44; screen: main map (map); popup tag -1
+STATUS gold 183; view origin (42,38) 15x12 tiles of 16px, y0 8; cursor (49,44)
+@@ b492
+STATUS turn 115 year 1603 autumn; Turn 115 Cursor 49,44; screen: main map (map); popup tag -1
+STATUS gold 183; view origin (42,38) 15x12 tiles of 16px, y0 8; cursor (49,44)
+@@ b493
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 219 Soldiers at (45,52) moves 3 orders 6 prof 21 tools 0 muskets 50 horses 0
+UNIT 444 Merchantman at (49,44) moves 0 orders 3 prof 0 hold[0] 2 x100 hold[1] 2 x8
+UNIT 446 Scouts at (35,56) moves 6 orders 0 prof 22 tools 0 muskets 0 horses 50
+UNIT 456 Colonists at (44,55) moves 0 orders 0 prof 26
+UNIT 503 Colonists at (236,236) moves 3 orders 1 prof 28
+EUROPE dock Free Colonists prof 28 (boards next ship)
+@@ b494
+STATUS turn 115 year 1603 autumn; Turn 115 Cursor 49,44; screen: main map (map); popup tag -1
+STATUS gold 183; view origin (42,38) 15x12 tiles of 16px, y0 8; cursor (49,44)
+@@ b495
+ERR no End of Turn prompt (selected unit -1)
+AUTO stopped (map idle) after 19 frames
+STATUS turn 115 year 1603 autumn; Turn 115 Cursor 49,44; screen: main map (map); popup tag -1
+STATUS gold 183; view origin (42,38) 15x12 tiles of 16px, y0 8; cursor (49,44)
+@@ b496
+UNIT 45 Soldiers at (44,47) moves 3 orders 6 prof 26 tools 0 muskets 50 horses 0
+UNIT 219 Soldiers at (45,52) moves 3 orders 6 prof 21 tools 0 muskets 50 horses 0
+UNIT 444 Merchantman at (49,44) moves 0 orders 3 prof 0 hold[0] 2 x100 hold[1] 2 x8
+UNIT 446 Scouts at (35,56) moves 6 orders 0 prof 22 tools 0 muskets 0 horses 50
+UNIT 456 Colonists at (44,55) moves 0 orders 0 prof 26
+UNIT 503 Colonists at (236,236) moves 3 orders 1 prof 28
+EUROPE dock Free Colonists prof 28 (boards next ship)
+@@ b497
+STATUS turn 115 year 1603 autumn; Turn 115 Cursor 35,56; screen: main map (map); popup tag -1
+STATUS gold 183; view origin (28,50) 15x12 tiles of 16px, y0 8; cursor (35,56)
+STATUS selected unit 446 Scouts at (35,56) moves 6 orders 0
+@@ b498
+MAP x 26..44 (cols), y 47..65 (rows)
+MAP     26272829303132333435363738394041424344
+MAP  47               P.~.S.G.wn~.~.~.~.G.D.gC
+MAP  48                 ~.~.w.~.~.~.~.~.~.gnM.
+MAP  49                 ~.~.~.~.~.~.~.~.~.~.~.
+MAP  50                   ~.~.~.~.~#~.~.~.~.~.
+MAP  51                     ~.~.GVR#G.RV~r~.~.
+MAP  52                         R.DrGrRuRr~.G.
+MAP  53                   G.R.  G.M.MrDuRrR.r#
+MAP  54                   DrD.G.R.P.T.rnDrR.G.
+MAP  55                 D.Rrd#R#GrRrPrR.M.P.GC
+MAP  56               pnRrR@R.R.pnG.M.~#~.R.Gr
+MAP  57                 P.R.d#G.R.PuRrRVg#RuRr
+MAP  58                 G.  M.  R.RVGur.p.~.G.
+MAP  59                           R.~uR.GCm.rn
+MAP  60                                 g.G.G.
+MAP  61                                       
+MAP  62                                       
+MAP  63                                       
+MAP  64                                       
+MAP  65                                       
+@@ b499
+MAP x 23..47 (cols), y 44..68 (rows)
+MAP     23242526272829303132333435363738394041424344454647
+MAP  44                     ~.~.W.M.~.~.~.  ~.~.G.M.~.~.~.
+MAP  45                     ~.R.W.duM.~.~.~.~.R.G.~.~.~.~.
+MAP  46                     SVW.WuRV~.~.~.~.~.W.W.~.~.~.~.
+MAP  47                     P.~.S.G.wn~.~.~.~.G.D.gCW.~.~.
+MAP  48                       ~.~.w.~.~.~.~.~.~.gnM.r.~.~.
+MAP  49                       ~.~.~.~.~.~.~.~.~.~.~.~.~.~.
+MAP  50                         ~.~.~.~.~#~.~.~.~.~.~.~.~.
+MAP  51                           ~.~.GVR#G.RV~r~.~.~.~.~.
+MAP  52                               R.DrGrRuRr~.G.gC~.~.
+MAP  53                         G.R.  G.M.MrDuRrR.r#r#GV~.
+MAP  54                         DrD.G.R.P.T.rnDrR.G.M.R.Ru
+MAP  55                       D.Rrd#R#GrRrPrR.M.P.GCR.~.~.
+MAP  56                     pnRrR@R.R.pnG.M.~#~.R.GrPu~.~.
+MAP  57                       P.R.d#G.R.PuRrRVg#RuRr~r~.~.
+MAP  58                       G.  M.  R.RVGur.p.~.G.R.RV~.
+MAP  59                                 R.~uR.GCm.rnM.G.~.
+MAP  60                                       g.G.G.R.~.~.
+MAP  61                                               ~.~.
+MAP  62                                                   
+MAP  63                                                   
+MAP  64                                                   
+MAP  65                                                   
+MAP  66                                                   
+MAP  67                                                   
+MAP  68                                                   
+@@ b500
+@@ b501

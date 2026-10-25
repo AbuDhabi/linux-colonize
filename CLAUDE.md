@@ -37,6 +37,7 @@ cross-build artefacts; never build or test there. Tests expect repo root as cwd.
 | Tests / fixtures | tests/README.md, tests/common/ai_fixture.h |
 | Debugging env vars, trace switches, debug.logs | docs/debug_env_vars.md |
 | Tools and scripts | tools/README.md |
+| Playing a campaign (play_driver) | automated-playtests/RULES.md |
 
 Docs are authoritative over auto-memory notes. Historical audit dumps live in
 docs/archive/ (indexed by docs/archive/README.md) and docs/code_audit_*.md; they are
