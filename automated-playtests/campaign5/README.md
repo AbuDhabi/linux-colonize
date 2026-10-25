@@ -167,3 +167,77 @@ Driving notes (new this campaign):
   Tupi and Sioux were wiped out. Franklin kept every AI at peace with me.
 - REF in 1684 (save head `expeditionary_force`): 59 regulars, 25 cavalry,
   14 artillery, 26 men-of-war.
+
+### 1690-1736: the first declaration (lost)
+
+- Kept building artillery in New Amsterdam (the Fortress colony) and a few
+  in Fort Orange. Declared in spring 1736 (turn 380, `saves/t380_predeclare.sav`)
+  with New Amsterdam holding almost all the guns and Fort Orange 7 guns and
+  a Continental Army.
+- The REF picked Fort Orange (its target score is colonists x (125 - SoL)
+  minus 75 per armed unit on the tile, `ai_king_ref.c`; New Amsterdam with
+  100% SoL and its gun park scores 0). Five or six units landed every turn
+  and attacked the next turn at 46-55% against the guns ("Bombard +50%",
+  "Tory Unrest" = 100 - SoL). Fort Orange fell within a few turns, then
+  Fort Nassau. New Amsterdam's Fortress sank men-of-war but the war was
+  lost by attrition (`saves/branch2/`, last save `t395_war1.sav`).
+
+### 1736-1779: second try from turn 380
+
+- Reloaded `t380_predeclare.sav` and spent 43 more turns preparing, after
+  the user's tips: the REF lands at most 6 units a turn and does not attack
+  on the turn it lands; Rebels attacking from outside a colony get the
+  defender's terrain as an ambush bonus; the REF avoids landing on tiles
+  that hold my units.
+- Fort Orange's land neighbours are (44,52) grassland, (46,53) grassland and
+  the two prairie mountains (44,53) and (45,53) (+150% terrain). Soldiers on
+  (44,52) and (46,53) left only the mountains free, and every wave did land
+  on (45,53). Fort Nassau (44,55) is two tiles south, inland, with a
+  Stable; a Hardy Pioneer built roads on (44,54) and (45,54), the tiles from
+  which both mountains can be attacked.
+- Ferried guns New Amsterdam -> Fort Orange (37 there, ~37 left in New
+  Amsterdam). Sentried land units board a ship only as it leaves the
+  colony, and units on sentry in a port with a ship wake up at the start of
+  a turn, so each trip needs a re-sentry right before sailing.
+- Driver: new `admit UID` command (a unit on a colony tile joins the colony,
+  for when the colony screen's fence clamps the outside units). Assigning
+  workers with `work` while a turn-end modal is up is dangerous; also
+  `field_job 8` is fishing, not tobacco (I starved Fort Orange for a turn
+  by moving two fishermen into the Blacksmith).
+- The REF kept growing: 85 regulars, 29 cavalry, 14 artillery, 26
+  men-of-war by 1779. Founding fathers added Paul Revere; Las Casas picked.
+
+### 1779-1785: the second war (abandoned)
+
+- Declared spring 1779 (turn 466, `saves/t466_predeclare.sav`): 5 dragoons
+  (one veteran, mobilised to Continental Cavalry), 4 soldiers, 2 blockers,
+  37 guns in Fort Orange, 80 horses and 56 muskets in Fort Nassau.
+- Ambush odds from (44,54)/(45,54) onto the mountain stack, from the combat
+  log: Continental Cavalry 150 vs Regulars 40 / Cavalry 48 (75-79%),
+  Continental Army 120 (75%), veteran dragoon 135 (77%), dragoon 90 (69%),
+  soldier 60 (55-60%). Against Fort Orange the REF attacked at 46%
+  (Regulars 105 vs a healthy gun 120: Attack +50%, Bombard +50%, Tory Unrest
+  +17%), 51% (Cavalry), 55% (Artillery); a losing Regular dies, a losing
+  Cavalry drops to Regulars, a losing Artillery is damaged.
+- Driving lesson: when every other unit is fortified, the game ends the turn
+  as soon as the attacking unit has spent its moves, so the first war turn
+  ended after one attack (and my end-turn script fortified a woken unit and
+  ended a second turn). From then on every attacker was woken first.
+- My attacks went 19 wins out of 38 at an average 68% (an unlucky run:
+  four 60% soldier attacks in a row lost, two 75% cavalry attacks lost),
+  and every loss costs 50 horses or 50 muskets plus two turns (equipping
+  in a colony spends the unit's moves, DOS rule). By the sixth turn only one
+  Continental Cavalry was left armed.
+- The Fortress did the killing: in 12 turns 47 of the 128 REF land units
+  died, most of them attacking the guns. But each REF win damages a gun and
+  a second one destroys it; by turn 478 Fort Orange had 23 damaged guns left
+  with 16 REF units next to it and 61 more in the pool.
+- A Frigate ferrying 4 more guns ended its turn next to Fort Orange and was
+  sunk by a man-o-war arriving with the next wave.
+- A Soldier who was a Jesuit Missionary by profession was demoted to
+  "Missionaries", not Colonists (the port documents this as the DOS demote
+  table, FUN_5fef_0352).
+- Abandoned (`saves/branch3/`, last save `t478_war2.sav`): Fort Orange would
+  fall in 2-3 turns and the victory test needs every colony back. Reloaded
+  `t466_predeclare.sav` to move most of New Amsterdam's guns to Fort Orange
+  (target ~60) and stock more horses and muskets before declaring again.
