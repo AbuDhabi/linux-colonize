@@ -13,6 +13,7 @@
  *   key NAME [shift|ctrl|alt]   tap: a-z 0-9 - = [ ] ` Return Escape space Backspace
  *                               Tab Delete Up Down Left Right KP_1..KP_9 KP_Enter
  *                               F1..F10 Home End
+ *   choose N                    answer the open choice popup with row N (arrows + Return)
  *   type TEXT                   text input, one char per frame (name fields)
  *   click X Y [shift|ctrl|alt]  left click; rclick X Y; dclick X Y
  *   drag X1 Y1 X2 Y2 [shift]    left-button drag
@@ -361,7 +362,7 @@ static void print_new_log(void) {
     for (int i = 0; i < pop->current.choice_count; ++i) {
       printf(" [%d] %s", i, pop->current.choices[i]);
     }
-    printf("\n");
+    printf(" (sel %d)\n", pop->selection);
   }
 }
 
@@ -623,6 +624,21 @@ static bool command(char* line) {
     }
     tap(code, m, ch);
     ok = flush_frames(10);
+  } else if (strcmp(op, "choose") == 0 && argc > 1) {
+    /* Answer the open choice popup with row N: arrow keys to the row, then
+     * Return (a bare Return takes whatever row is highlighted). */
+    const AiPopupState* pop = &g_game->ai_popups;
+    ok = flush_frames(10);
+    for (int tries = 0; ok && pop->open && pop->selection != a1 && tries < 40; ++tries) {
+      tap(pop->selection < a1 ? SDLK_DOWN : SDLK_UP, -1, 0);
+      ok = flush_frames(2);
+    }
+    if (!pop->open || pop->selection != a1) {
+      printf("ERR choose %d: popup %s, selection %d\n", a1, pop->open ? "open" : "closed", pop->selection);
+    } else {
+      tap(SDLK_RETURN, -1, 0);
+      ok = flush_frames(10);
+    }
   } else if (strcmp(op, "type") == 0) {
     const char* text = rest ? rest : "";
     for (const char* c = text; *c && *c != '\n' && *c != '\r'; ++c) {
