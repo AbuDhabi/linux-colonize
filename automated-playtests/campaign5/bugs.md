@@ -31,3 +31,16 @@ driver-only.
   silently takes and charges the land-work alarm every time. 32 probes on
   turn 15 raised the Iroquois alarm from 12 to 88. Driver-only; the game's
   own drag path asks correctly.
+
+## C5-B1 (low, driver, fixed): `colonies` / `colony N` lose colonies after a colony is destroyed
+
+- Turn 130: `colonies` stopped listing Fort Nassau, `colony 14` / `work 14`
+  answered "ERR no colony 14". The colony was fine (the save written then
+  still had it, and turn processing kept producing it).
+- Cause: `colonies_abandon` (src/core/colony_build.c) clears the slot in
+  place and sets `colony_count` to the number of live colonies, so live
+  colonies can sit past `colony_count` (colony.c already says so). The
+  driver looped `i < colony_count`. Aztecs had burned French Cayenne (slot
+  12), so Fort Nassau in slot 14 fell outside the loop.
+- Fixed in tools/play_driver_main.c: walk all `COLONIZE_COLONIES_MAX`
+  slots, refuse inactive ones. Game code already walks the whole pool.

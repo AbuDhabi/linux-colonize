@@ -107,3 +107,30 @@ Driving notes (new this campaign):
   damaged, back to Amsterdam, and the **Master Carpenter and Expert Farmer
   aboard were lost**. A later privateer attack on the same ship failed.
 - Taxes: 1% (1534), 2%, 4% (1562), 6% (1576).
+
+### 1586-1621: Custom House, Fort, three colonies
+
+- 1588: bought a Firebrand Preacher (340) for the new Church; recruit
+  prices then dropped to 141-216 whenever enough crosses had piled up.
+  Bought an Expert Ore Miner (400), Master Blacksmith (257), Expert
+  Fisherman (191), Master Carpenter (191), Seasoned Scout (141), Petty
+  Criminals; free immigrants: Master Weaver, Master Tobacconist, Seasoned
+  Scout, Petty Criminals.
+- Founding fathers: Franklin (1613), then Bolivar picked.
+- 1603: founded **Fort Nassau** (44,55), inland (the REF only lands next to
+  coastal colonies), fur trapping on a game tile. Its second colonist
+  starved the turn he was put on lumber: a new colony with 0 food and a
+  negative balance starves at once.
+- Fort Orange got Docks, Stockade, Lumber Mill, Warehouse, Armory, Printing
+  Press, a Wagon Train (for Fort Nassau's furs) and makes 6 tools a turn
+  from 10 ore. Pop held at 5 (SoL ~10%, Tory limit).
+- New Amsterdam: Newspaper (1607), Custom House (1608, Stuyvesant), Fort
+  (1615), Fortress (1621). SoL 50% (1604), 60% (1610), 70% (1620): the
+  Viceroy Tory limit relaxed to pop 12. Three statesmen, a Master
+  Tobacconist making cigars, a Master Carpenter. Hammers 22-30 a turn.
+- The Custom House turned out to be the money machine: horses (140 sold
+  for 740 net) and cigars (50 for ~400) every few turns, no ship trips.
+- Taxes 10% (1601), 12%, 15% (1612), 19% (1617). Muskets in Amsterdam went
+  from 2 to 20 by 1621.
+- Turn 130: the driver's `colonies` lost Fort Nassau after an Aztec raid
+  burned French Cayenne (C5-B1, fixed in the driver).

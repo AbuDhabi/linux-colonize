@@ -493,7 +493,7 @@ static void print_europe(void) {
 }
 
 static void print_colonies(void) {
-  for (int i = 0; i < g_game->colonies.colony_count; ++i) {
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
     const ColonizeColony* c = &g_game->colonies.colonies[i];
     if (!c->active) {
       continue;
@@ -565,7 +565,7 @@ static void print_map(int radius, int cx, int cy) {
         c = (char)(c - 32);
       }
       bool colony = false;
-      for (int i = 0; i < g_game->colonies.colony_count; ++i) {
+      for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
         const ColonizeColony* col = &g_game->colonies.colonies[i];
         colony |= col->active && col->x == x && col->y == y;
       }
@@ -814,7 +814,7 @@ static bool command(char* line) {
     ok = flush_frames(5);
   } else if (strcmp(op, "colony") == 0 && argc > 1) {
     /* Open colony N's screen (index as printed by `colonies`). */
-    if (a1 < 0 || a1 >= g_game->colonies.colony_count) {
+    if (a1 < 0 || a1 >= COLONIZE_COLONIES_MAX || !g_game->colonies.colonies[a1].active) {
       printf("ERR no colony %d\n", a1);
       return true;
     }
@@ -824,7 +824,7 @@ static bool command(char* line) {
     /* field N CI TILE JOB: colonist CI of colony N onto ring tile TILE (0 N .. 7 NW) as
      * field @JOB JOB (0 farmer .. 8 fisherman); work N CI B: into @BUILDING row B (`hit`
      * prints it). The same shared writers the colony screen's drops end in. */
-    if (a1 < 0 || a1 >= g_game->colonies.colony_count) {
+    if (a1 < 0 || a1 >= COLONIZE_COLONIES_MAX || !g_game->colonies.colonies[a1].active) {
       printf("ERR no colony %d\n", a1);
       return true;
     }
@@ -850,7 +850,7 @@ static bool command(char* line) {
     /* build N BID [queue]: colony N's construction pick, as a click (or a Shift-click with
      * `queue`) on that build-menu row does; BID = @BUILDING row or unit code (42 artillery,
      * 43 wagon train ...). Opens the colony screen; `key Escape` closes it. */
-    if (a1 < 0 || a1 >= g_game->colonies.colony_count) {
+    if (a1 < 0 || a1 >= COLONIZE_COLONIES_MAX || !g_game->colonies.colonies[a1].active) {
       printf("ERR no colony %d\n", a1);
       return true;
     }
@@ -888,7 +888,7 @@ static bool command(char* line) {
           if (map_tile_has_city(m, x, y)) {
             c = 'V';
           }
-          for (int i = 0; i < g_game->colonies.colony_count; ++i) {
+          for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
             const ColonizeColony* col = &g_game->colonies.colonies[i];
             if (col->active && col->x == x && col->y == y) {
               c = col->nation_id == g_game->human_nation ? 'C' : 'c';
