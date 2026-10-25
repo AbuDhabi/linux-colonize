@@ -37,6 +37,8 @@
  *   near X Y [R]                every unit (any nation) within R (default 2) of X,Y
  *   goto ID X Y                 Go To order for unit ID to tile X,Y
  *   colony N                    open colony N's screen (index from `colonies`)
+ *   field N CI TILE JOB         colonist CI of colony N onto ring tile TILE (0 N .. 7 NW), field job JOB
+ *   work N CI B                 colonist CI of colony N into @BUILDING row B (as `hit` prints)
  *   endturn                     confirm the End of Turn prompt (error while a unit waits)
  *   world                       whole map, one char a tile
  *   rumours                     list seen rumour tiles with terrain (h hill, m mountain)
@@ -816,6 +818,22 @@ static bool command(char* line) {
     }
     game_enter_colony(g_game, g_game->colonies.colonies[a1].id); /* takes the id, not the index */
     ok = flush_frames(10);
+  } else if ((strcmp(op, "field") == 0 && argc > 4) || (strcmp(op, "work") == 0 && argc > 3)) {
+    /* field N CI TILE JOB: colonist CI of colony N onto ring tile TILE (0 N .. 7 NW) as
+     * field @JOB JOB (0 farmer .. 8 fisherman); work N CI B: into @BUILDING row B (`hit`
+     * prints it). The same shared writers the colony screen's drops end in. */
+    if (a1 < 0 || a1 >= g_game->colonies.colony_count) {
+      printf("ERR no colony %d\n", a1);
+      return true;
+    }
+    const int id = g_game->colonies.colonies[a1].id;
+    const ColonizeWorld w = game_world(g_game);
+    const bool done = op[0] == 'f' ? colonies_assign_field_w(&w, id, a2, atoi(argv[3]), atoi(argv[4]))
+                                   : colonies_assign_workplace(&g_game->colonies, id, a2, atoi(argv[3]));
+    if (!done) {
+      printf("ERR %s refused\n", op);
+    }
+    ok = flush_frames(2);
   } else if (strcmp(op, "world") == 0) {
     /* Whole map, one char a tile: ~ water, C/c own/foreign colony, V village,
      * ? rumour, n/# hill/mountain, else the terrain letter as in `map`. */
