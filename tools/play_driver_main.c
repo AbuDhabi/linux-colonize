@@ -431,8 +431,12 @@ static void print_units(void) {
     if (u->col1_flags15 & 0x80u) {
       printf(" damaged");
     }
-    if (u->tools || u->muskets || u->horses) {
-      printf(" tools %d muskets %d horses %d", u->tools, u->muskets, u->horses);
+    /* units_founder_loot drops the +0x3159 residue byte a non-Pioneer keeps
+     * (playtest C3-B2: a colonist reloaded as "tools 100"). */
+    int tools = 0, muskets = 0, horses = 0;
+    units_founder_loot(&g_game->units, u->id, &tools, &muskets, &horses);
+    if (tools || muskets || horses) {
+      printf(" tools %d muskets %d horses %d", tools, muskets, horses);
     }
     for (int h = 0; h < COLONIZE_UNIT_CARGO_MAX; ++h) {
       if (u->hold_goods_amount[h] > 0) {

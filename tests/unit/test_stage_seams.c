@@ -767,6 +767,65 @@ static int test_goto_treasure_gets_king_galleon_offer(void) {
 }
 
 /*
+ * Playtest C3-B4: a ship bumping a foreign Euro colony must reach the
+ * FUN_5f7a_0662 trade arm (FUN_4720_015c leaves the step valid, raw
+ * 76005-76006) instead of stopping silently in the landfall probe. With no
+ * peace treaty the arm answers @TRADEATWAR and spends the whole allotment.
+ */
+static int test_ship_bumps_foreign_colony_trade_arm(void) {
+  ColonizeGameState game;
+  memset(&game, 0, sizeof(game));
+  if (!fx_map_alloc(&game.world_map, 8, 8, /*terrain_fill=*/25, /*with_seen=*/true)) {
+    return fail("ship trade map alloc");
+  }
+  for (int i = 0; i < 64; ++i) {
+    game.world_map.layer3[i] = 1;
+  }
+  game.world_map.terrain[3 * 8 + 4] = 2;
+  game.world_map.layer3[3 * 8 + 4] = 0xf0;
+  game.world_map_ok = true;
+  game.human_nation = 0;
+  game.col1_ok = true;
+  ai_popup_clear(&game.ai_popups);
+
+  fx_units_init(&game.units);
+  game.units_ok = true;
+  game.units.type_count = 1;
+  game.units.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  game.units.types[0].movement = 4;
+  game.units.types[0].cargo = 2;
+
+  fx_colonies_init(&game.colonies);
+  game.colonies_ok = true;
+  ColonizeColony* colony = fx_colony_add(&game.colonies, 1, 4, 3, 1);
+  units_set_occupancy_map(&game.world_map);
+  colonies_set_occupancy_map(&game.world_map);
+
+  const int sid = units_spawn(&game.units, 0, 3, 3);
+  ColonizeUnit* ship = units_get(&game.units, sid);
+  int rc = 0;
+  if (!ship || units_load_goods(&game.units, sid, COLONIZE_CARGO_FURS, 50) != 50) {
+    rc = fail("ship trade spawn");
+  } else {
+    ship->nation_id = 0;
+    ship->moves = 12;
+    game.units.selected_id = sid;
+    (void)game_try_unit_move(&game, colony->x, colony->y);
+    const bool asked = game.ai_popups.open && game.ai_popups.current.tag == AI_POPUP_TAG_INFO;
+    if (ship->x != 3 || ship->y != 3) {
+      rc = fail("ship entered the foreign colony");
+    } else if (ship->moves != 0 || !asked) {
+      rc = fail("ship bump did not run the foreign-trade arm");
+    }
+  }
+
+  colonies_set_occupancy_map(NULL);
+  units_set_occupancy_map(NULL);
+  fx_map_free(&game.world_map);
+  return rc;
+}
+
+/*
  * ai_euro_5952_absorb_equip — FUN_5952_035e's absorption arm, Colonist case
  * (raw 94271-94274, an unconditional take-in) and its shared outer gate
  * `+0x1b & 0x10` (NEEDS_COLONISTS, raw 94231). Hosted in the colony tick as
@@ -2066,6 +2125,7 @@ static const TestCase k_cases[] = {
     {"test_trade_route_wagon_services_arrival_stop", test_trade_route_wagon_services_arrival_stop},
     {"test_trade_route_begin_moves_wagon_to_selected_stop", test_trade_route_begin_moves_wagon_to_selected_stop},
     {"test_goto_treasure_gets_king_galleon_offer", test_goto_treasure_gets_king_galleon_offer},
+    {"test_ship_bumps_foreign_colony_trade_arm", test_ship_bumps_foreign_colony_trade_arm},
     {"test_trade_route_ship_aims_colony_tile", test_trade_route_ship_aims_colony_tile},
     {"test_ai_euro_5952_absorb_colonist", test_ai_euro_5952_absorb_colonist},
     {"test_ai_euro_5952_absorb_soldier", test_ai_euro_5952_absorb_soldier},

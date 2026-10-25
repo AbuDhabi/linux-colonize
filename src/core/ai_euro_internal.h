@@ -303,6 +303,8 @@ extern int ai_euro_5952_tools_latch;
 ColonizeColony* ai_euro_5952_tools_supply_and_connect(
   ColonizeTurnContext* ctx, ColonizeColony* col
 );
+/* TB-14 rebind target after a phantom road; never a human colony (DB-64). */
+ColonizeColony* ai_euro_0614_payer(const ColonizeTurnContext* ctx, ColonizeColony* col);
 extern uint8_t ai_euro_s_20e6_explorers[16];
 /* DOS unit+0x3154..+0x3156 (fatigue, hop countdown, hop slot) in the raw hold bytes. */
 uint8_t* ai_euro_20e6_hold_scratch(ColonizeUnit* u);

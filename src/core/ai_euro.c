@@ -463,8 +463,14 @@ static void ai_euro_3180_euro_side(ColonizeTurnContext* ctx, ColonizeUnit* u, in
         }
       }
     }
-    if (near_human) {
-      (void)ai_diplo_153e_encounter(ctx, ctx->human_nation, nation_id, u->id);
+    if (near_human && ai_diplo_153e_encounter(ctx, ctx->human_nation, nation_id, u->id) &&
+        ctx->ai_popups) {
+      /* 3180 -> thunk_FUN_2a1f_05fc -> FUN_5bfb_153e (raw 98667) is a blocking
+       * dialog inside this step: the treaty it signs (raw 98003, 0x40 both
+       * ways) is live before 6d8e re-acts the unit, whose next 20e6 reads
+       * 0a38 & 0x40 (raw 88878-88880). Answer the queued talk now, or the
+       * mover attacks on the pre-treaty byte (campaign3 C3-B1). */
+      units_pump_combat_popups();
     }
   }
   /* 3180's AI x AI limb: land mover, land neighbour whose stack head

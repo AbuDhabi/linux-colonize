@@ -920,6 +920,27 @@ static int case_tools_purchase_records_buy_volume(void) {
   return ok ? 0 : fail("#640: 20-tool buy must write the separate 1d80 trade ledger");
 }
 
+/* dos_bugs.md DB-64 (playtest C3-O3): FUN_281f_0614's any-nation rebind
+ * (raw 76902) takes an AI neighbour's colony, never a human-controlled one. */
+static int case_0614_rebind_spares_human_colony(void) {
+  Fx f;
+  if (fx_build(&f, 3) != 0) {
+    return 1;
+  }
+  ColonizeColony* other = fx_colony_add(&f.colonies, 2, 14, 8, 1);
+  g_units_pioneer_0614_colony = other;
+  f.col1.player[2].control = 1;
+  ColonizeColony* ai_pick = ai_euro_0614_payer(&f.ctx, f.col);
+  f.col1.player[2].control = 0;
+  ColonizeColony* human_pick = ai_euro_0614_payer(&f.ctx, f.col);
+  g_units_pioneer_0614_colony = NULL;
+  fx_done(&f);
+  if (ai_pick != other) {
+    return fail("TB-14: an AI neighbour's colony still takes the rebind");
+  }
+  return human_pick == f.col ? 0 : fail("DB-64: a human colony must not take the AI tick");
+}
+
 /*
  * port_bugs.md #640 — the same colony with an empty purse buys nothing (raw
  * 94376-94380: the 32-bit gold compare).
@@ -1124,6 +1145,7 @@ static const TestCase k_cases[] = {
   {"case_tools_purchase_tops_up_a_broke_colony", case_tools_purchase_tops_up_a_broke_colony},
   {"case_tools_purchase_records_buy_volume", case_tools_purchase_records_buy_volume},
   {"case_tools_purchase_needs_gold", case_tools_purchase_needs_gold},
+  {"case_0614_rebind_spares_human_colony", case_0614_rebind_spares_human_colony},
 };
 
 TEST_MAIN(k_cases)

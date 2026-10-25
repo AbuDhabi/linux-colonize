@@ -96,12 +96,19 @@ void units_try_capture_foreign_colony_at(
   if (u->nation_id > 3) {
     ColonizeColony snap = *col;
     if (col->population > 1) {
+      /* raw 101043: STRING2 = FUN_281f_0c18(local_ae) = @JOB column 0 of the
+       * picked colonist's profession (FUN_281f_0c54, colony +0x40+idx), 0x1c
+       * read as 0x13 (FUN_0000_60c8). Playtest C3-B5: was always empty. */
+      int victim_job = 0x13;
       if (col->colonist_count > 1) {
         const int pick =
           s_militia_attacker_id == unit_id && s_militia_colony_id == cid &&
                   s_militia_colonist_pick >= 0 &&
                   s_militia_colonist_pick < col->colonist_count
             ? s_militia_colonist_pick : col->colonist_count - 1;
+        if (col->colonists[pick].profession != UNITS_JOB_NONE) {
+          victim_job = col->colonists[pick].profession;
+        }
         colonies_colonist_tail_stash(colonies, col);
         for (int i = pick; i < col->colonist_count - 1; ++i) {
           col->colonists[i] = col->colonists[i + 1];
@@ -135,7 +142,7 @@ void units_try_capture_foreign_colony_at(
         memset(&tok, 0, sizeof(tok));
         tok.string0 = units_combat_nation_label(col1, u->nation_id);
         tok.string1 = units_combat_nation_label(col1, snap.nation_id);
-        tok.string2 = reports_job_short_name(UNITS_JOB_NONE);
+        tok.string2 = reports_job_short_name(victim_job);
         tok.string3 = snap.name;
         const int victim_human =
           (col1 && snap.nation_id >= 0 && snap.nation_id <= 3 &&

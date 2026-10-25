@@ -767,3 +767,18 @@ matches, so DOS shows no bar.
 `colony_screen_construction_next_page` bar that "(More)" row and draw it in the hilite
 ink. [Evidence and tests](archive/dos_bugs_evidence_2026-10-24.md#db-63).
 **Status:** done (2026-10-24, user-approved 2026-10-24). Found while filing DB-60.
+
+### DB-64 — AI colony tick taken over a human colony after a phantom road (TB-14)
+**DOS:** the road a Euro AI colony builds through a phantom Pioneer (FUN_5952_035e,
+TB-14) completes in FUN_479b_0526, whose FUN_281f_0614 call (raw 76902) rebinds
+`DS:0x8542` to the colony nearest the road of ANY nation (filter -1). When that is a
+human colony, the AI charges it 20 tools and runs the rest of its colony tick there:
+job passes, idle sweep, build cascade. Playtest campaign3 C3-O3: Quebec and Guadeloupe
+had their workers re-seated and their build queue replaced three times (1682, 1702,
+1771).
+
+**Port:** `ai_euro_0614_payer` (`src/core/ai_euro_land.c`) keeps the ticking AI colony
+when the rebound colony belongs to a human-controlled nation (`player[n].control == 0`).
+AI-on-AI rebinds still follow TB-14. Test: `unit_ai_euro_5952_build`
+`case_0614_rebind_spares_human_colony`. port_bugs.md #1263.
+**Status:** done (2026-10-25, user-approved 2026-10-25).

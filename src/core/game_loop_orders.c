@@ -411,6 +411,17 @@ COLONIZE_INTERNAL GameMoveStep game_move_sea_unit(
         set_status(game, units_enter_reason_status(landfall), NULL);
         return GAME_MOVE_RETURN_FALSE;
       }
+      /* FUN_4720_015c raw 76005-76006: a settlement owner 0..3 skips the
+       * landfall arm, so a ship's step onto a foreign Euro colony is valid and
+       * reaches 465b's FUN_5f7a_0662 trade arm (game_move_native_prompts).
+       * Playtest C3-B4: the ship stopped here, silently. */
+      if (landfall == COLONIZE_ENTER_BLOCKED) {
+        const ColonizeColony* fc =
+          colonies_get(&game->colonies, colonies_id_at(&game->colonies, dest_x, dest_y));
+        if (fc && fc->active && fc->nation_id != selected->nation_id) {
+          return GAME_MOVE_CONTINUE;
+        }
+      }
       if (landfall != COLONIZE_ENTER_LANDFALL) {
         game_report_enter_reason(game, sid, landfall);
         return GAME_MOVE_RETURN_FALSE;

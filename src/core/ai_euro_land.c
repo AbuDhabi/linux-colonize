@@ -220,6 +220,27 @@ static int ai_euro_5952_plot_job(const ColonizeColony* col, int plot) {
 }
 
 /*
+ * The colony DS:0x8542 holds after a phantom Pioneer's road (TB-14): FUN_479b_0526
+ * rebinds it to the colony nearest the road of ANY nation (FUN_281f_0614 filter
+ * -1, raw 76902). dos_bugs.md DB-64: a human-controlled colony is never taken
+ * (the AI tick rewrote its jobs and build, playtest C3-O3); the ticking colony
+ * keeps the charge and the rest of the tick.
+ */
+COLONIZE_INTERNAL ColonizeColony* ai_euro_0614_payer(
+  const ColonizeTurnContext* ctx, ColonizeColony* col
+) {
+  ColonizeColony* r = g_units_pioneer_0614_colony;
+  if (!r) {
+    return col;
+  }
+  if (ctx->col1 && r->nation_id >= 0 && r->nation_id <= 3 &&
+      ctx->col1->player[r->nation_id].control == 0) {
+    return col;
+  }
+  return r;
+}
+
+/*
  * DOS-LITERAL FUN_5952_035e raw 94402-94551 (clean body
  * original_sources_annotated/ai/colony_tick_5952_035e.md:919-1027) — the AI's
  * ONLY tile-improvement arm. It runs inside the colony tick, not on a unit:
@@ -489,7 +510,7 @@ void ai_euro_5952_improve_best_plot(
   if (worked) {
     /* raw 94541-94549: colony+0xb6 -= min(stock, 20); colony+0x8c = 0 on
      * DS:0x8542, which the work body's FUN_281f_0614 may have rebound. */
-    ColonizeColony* payer = g_units_pioneer_0614_colony ? g_units_pioneer_0614_colony : col;
+    ColonizeColony* payer = ai_euro_0614_payer(ctx, col);
     int pay = payer->stock[COLONIZE_CARGO_TOOLS];
     if (pay > 0x14) {
       pay = 0x14;
@@ -764,7 +785,7 @@ ColonizeColony* ai_euro_5952_tools_supply_and_connect(
      * rebound it to the colony nearest the gap tile, last index on a tie
      * (tr9 11 -> 12: Bahia's connect road beside St. Louis empties St.
      * Louis's tools and timer, and Bahia keeps its 64). */
-    ColonizeColony* payer = g_units_pioneer_0614_colony ? g_units_pioneer_0614_colony : col;
+    ColonizeColony* payer = ai_euro_0614_payer(ctx, col);
     int pay = payer->stock[COLONIZE_CARGO_TOOLS];
     if (pay > 0x14) {
       pay = 0x14;

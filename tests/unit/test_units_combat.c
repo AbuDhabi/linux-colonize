@@ -1,6 +1,7 @@
 #include "test_units_common.h"
 #include "../common/test_runner.h"
 #include "core/units_internal.h"
+#include "core/reports_names.h"
 
 
 /* Helper: Drydock repair emits @REFIT. */
@@ -1791,6 +1792,67 @@ static int unit_royal_loss_tax_cut(void) {
 /* port_bugs.md #1103: units_reset_hooks also drops the spawn gate/refused hooks,
  * the combat popup/Europe/colony/human-nation/fallout wiring and the Combat
  * Analysis presenter, so no session pointer outlives the world it named. */
+/* Playtest C3-B5: @INDIANWINCOLONY's %STRING2 is the killed colonist's @JOB
+ * column 0 (FUN_5fef_1b0e raw 101043: FUN_281f_0c18(local_ae), the picked
+ * colonist's +0x40 profession) — it read "{} dies fending off onslaught". */
+static int unit_indian_massacre_names_victim(void) {
+  static AiPopupState pop;
+  ColonizeMsgCatalog game_txt;
+  assets_msg_init(&game_txt);
+  if (!assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT")) {
+    fprintf(stderr, "massacre: GAME.TXT load failed\n");
+    return 1;
+  }
+  reports_names_load_catalogs("COLONIZE");
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  units_reset(&pool);
+  pool.type_count = 1;
+  pool.types[0].movement = 1;
+  pool.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  ColonizeColonyPool colonies;
+  memset(&colonies, 0, sizeof(colonies));
+  colonies_init(&colonies);
+  ColonizeColony* c = &colonies.colonies[0];
+  c->id = 0;
+  c->active = true;
+  c->nation_id = 0;
+  c->x = 5;
+  c->y = 5;
+  c->population = 2;
+  c->colonist_count = 2;
+  c->colonists[0].profession = UNITS_JOB_NONE;
+  c->colonists[1].profession = 2; /* the last colonist falls (no militia pick) */
+  colonies.colony_count = 1;
+  ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  col1.player[0].control = 0; /* human victim */
+  units_set_ff_col1(&col1);
+  units_set_combat_human_nation(0);
+  ai_popup_init(&pop);
+  units_set_combat_popups(&pop, &game_txt);
+  const int aid = units_spawn(&pool, 0, 4, 5);
+  units_get(&pool, aid)->nation_id = 4;
+  units_try_capture_foreign_colony_at(&pool, &colonies, aid, 5, 5);
+  char job[32];
+  snprintf(job, sizeof(job), "%s", reports_job_short_name(2));
+  int rc = 0;
+  if (!job[0] || c->population != 1) {
+    fprintf(stderr, "massacre: fixture (job '%s', pop %d)\n", job, c->population);
+    rc = 1;
+  } else if (pop.queue_count < 1 || strstr(pop.queue[0].body, job) == NULL) {
+    fprintf(stderr, "massacre: body '%s' lacks '%s'\n",
+            pop.queue_count ? pop.queue[0].body : "", job);
+    rc = 1;
+  }
+  units_set_combat_popups(NULL, NULL);
+  units_set_combat_human_nation(-1);
+  units_set_ff_col1(NULL);
+  reports_names_free_catalogs();
+  assets_msg_free(&game_txt);
+  return rc;
+}
+
 static int s_reset_hook_calls;
 
 static void reset_test_gate(void* user, int nation, int* external, bool* human, int* census) {
@@ -2038,5 +2100,6 @@ static const TestCase k_cases[] = {
   {"unit_naval_stack_sweep", unit_naval_stack_sweep},
   {"unit_combat_cheat_footer_roll_before_dialog", unit_combat_cheat_footer_roll_before_dialog},
   {"unit_reset_hooks_clears_wiring", unit_reset_hooks_clears_wiring},
+  {"unit_indian_massacre_names_victim", unit_indian_massacre_names_victim},
 };
 TEST_MAIN_WRAPPED(k_cases, diag_init(0, NULL), diag_shutdown())

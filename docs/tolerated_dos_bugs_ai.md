@@ -165,6 +165,8 @@ ticking colony.
 rebinds); fails `golden_idle_america` and `_reload`. The narrower variant (the
 tools charge still lands on the rebound colony, only the later arms stay on the
 ticking colony) fails the same two. Reverted.
+**Human colonies:** the rebind filter is -1 (raw 76902), so DOS also takes a human
+colony; the port spares those since 2026-10-25 ([dos_bugs.md](dos_bugs.md) DB-64).
 **Status:** tolerated (2026-10-22).
 
 ### TB-15 — Euro AI road-connect skips a colony only when it is far on both axes

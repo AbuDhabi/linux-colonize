@@ -1,6 +1,8 @@
 /* Slice of the former tests/unit/test_ai_euro_war.c (split by feature 2026-09-23):
  * threatened-colony unload and war transport (MoW / frigate). */
 #include "test_ai_euro_war_common.h"
+#include "../common/test_catalogs.h"
+#include "core/ai_popup.h"
 
 /*
  * At war + own colonies ≥ 3 + Dragoon type present → prefer Dragoon hire
@@ -965,7 +967,116 @@ static int unit_unload_runs_3180_ai_encounter(void) {
   return 0;
 }
 
+/* Stand-in for game_combat_popup_pump: answers every queued talk choice with
+ * option 1, as the playtest player did ("Yes", "Go in peace"). */
+typedef struct TalkPump {
+  ColonizeTurnContext* ctx;
+  AiPopupState* pop;
+  int answered;
+} TalkPump;
+
+static void talk_pump_answer_first(void* user) {
+  TalkPump* p = (TalkPump*)user;
+  while (p->pop->queue_count > 0) {
+    const AiPopupRequest front = p->pop->queue[0];
+    memmove(&p->pop->queue[0], &p->pop->queue[1],
+            sizeof(p->pop->queue[0]) * (size_t)(p->pop->queue_count - 1));
+    p->pop->queue_count--;
+    if (front.kind != AI_POPUP_KIND_CHOICE) {
+      continue;
+    }
+    p->pop->has_result = true;
+    p->pop->result_cancelled = false;
+    p->pop->result_tag = front.tag;
+    p->pop->result_choice_id = 1;
+    p->pop->result_payload = front.payload;
+    ai_diplo_apply_popup_result(p->ctx, p->pop);
+    p->pop->has_result = false;
+    ++p->answered;
+  }
+}
+
+/*
+ * Campaign3 C3-B1: FUN_5bfb_3180 -> thunk_FUN_2a1f_05fc -> FUN_5bfb_153e (raw
+ * 98667) is a blocking dialog inside the AI mover's step, so the treaty it
+ * signs (raw 98003, 0x40 both ways) is live before 6d8e re-acts the unit and
+ * 20e6's attack gate reads 0a38 & 0x40 (raw 88878-88880). With a popup queue
+ * the talk must be answered before 3180 returns, or the mover's next act
+ * attacks on the pre-treaty byte (English Dragoon took the French Wagon Train).
+ */
+static int unit_3180_human_talk_answered_before_next_act(void) {
+  ai_diplo_talk_reset();
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  col1.head.turn = 77;
+  col1.head.difficulty = 1;
+  ColonizeWorldMap map;
+  if (!fx_map_alloc(&map, 8, 8, 1, false)) {
+    return fail("t3180 alloc map");
+  }
+  map.terrain[4 * 8 + 2] = 25; /* ship tile at sea */
+  ColonizeUnitPool units;
+  fx_units_init(&units);
+  units.type_count = 2;
+  units.types[0].movement = 1;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[1].movement = 4;
+  units.types[1].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  units.types[1].cargo = 2;
+  ColonizeColonyPool colonies;
+  fx_colonies_init(&colonies);
+  const int sid = units_spawn(&units, 1, 2, 4);
+  const int pid = units_spawn(&units, 0, 1, 4);
+  const int hid = units_spawn(&units, 0, 4, 4);
+  ColonizeUnit* ship = units_get(&units, sid);
+  ColonizeUnit* pax = units_get(&units, pid);
+  ColonizeUnit* hu = units_get(&units, hid);
+  if (!ship || !pax || !hu || !units_board(&units, pid, sid)) {
+    fx_map_free(&map);
+    return fail("t3180 spawn/board");
+  }
+  ship->nation_id = 1;
+  pax->nation_id = 1;
+  hu->nation_id = 0;
+  AiPopupState pop;
+  ai_popup_init(&pop);
+  ColonizeDosRng rng;
+  dos_rng_seed(&rng, 7);
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.messages = test_game_txt();
+  ctx.units = &units;
+  ctx.map = &map;
+  ctx.colonies = &colonies;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.human_nation = 0;
+  ctx.ai_popups = &pop;
+  ctx.rng = &rng;
+  TalkPump pump = {&ctx, &pop, 0};
+  units_set_combat_popup_pump(talk_pump_answer_first, &pump);
+  const int ok = ai_euro_unload_pax_at(&ctx, units_get(&units, sid), units_get(&units, pid), 3, 4,
+                                       UNITS_ORDER_NONE, -1, -1);
+  units_set_combat_popup_pump(NULL, NULL);
+  fx_map_free(&map);
+  if (!ok || pump.answered == 0 || pop.queue_count != 0) {
+    fprintf(stderr, "ok=%d answered=%d queued=%d\n", ok, pump.answered, pop.queue_count);
+    return fail("3180 human talk must be answered inside the AI step (raw 98667)");
+  }
+  if ((col1.nation[1].euro_relation[0] & AI_DIPLO_PEACE) == 0 ||
+      (col1.nation[0].euro_relation[1] & AI_DIPLO_PEACE) == 0) {
+    fprintf(stderr, "rel 1->0=%#x 0->1=%#x\n", col1.nation[1].euro_relation[0],
+            col1.nation[0].euro_relation[1]);
+    return fail("the treaty signed in the talk must be live when 3180 returns (raw 98003)");
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+    {"unit_3180_human_talk_answered_before_next_act",
+     unit_3180_human_talk_answered_before_next_act},
     {"unit_unload_runs_3180_ai_encounter", unit_unload_runs_3180_ai_encounter},
     {"unit_unload_regular_threatened", unit_unload_regular_threatened},
     {"unit_unload_continental_army_threatened", unit_unload_continental_army_threatened},

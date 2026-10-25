@@ -4,6 +4,11 @@ Numbered C3-Bn (bugs) and C3-On (observations). Severity: high = loses the
 game / blocks play, medium = wrong rules or misleading UI, low = cosmetic or
 driver-only.
 
+Filed 2026-10-25 as port_bugs.md #1259 (B1), #1260 (B2, REFUTED; driver printout
+fixed), #1261 (B4), #1262 (B5), #1263 (O3, user-approved divergence DB-64), #1264
+(O4, REFUTED). B3 was fixed in the driver during play; O1, O2, O5, O6, O7 are
+DOS behaviour.
+
 ## C3-B1 (medium): AI dragoon captures a wagon train right after first-contact peace
 
 - Spring 1601 (turn 109-110, `saves/t110.sav` is just after). An English
