@@ -33,6 +33,7 @@
  *   save NAME                   save into DIR/saves/NAME
  *   status | units | colonies   print state
  *   map [R [X Y]]               ASCII map of radius R (default 8) around the cursor (or X,Y)
+ *   res [R [X Y]]               seen special resources (fish, ore, ...) within R of the cursor (or X,Y)
  *   near X Y [R]                every unit (any nation) within R (default 2) of X,Y
  *   goto ID X Y                 Go To order for unit ID to tile X,Y
  *   colony N                    open colony N's screen (index from `colonies`)
@@ -846,6 +847,25 @@ static bool command(char* line) {
             c = (char)(c - 32);
           }
           printf("RUMOUR (%d,%d) %c%s\n", x, y, c, (t & F_MOUNTAIN) ? " m" : (t & F_HILL) ? " h" : "");
+        }
+      }
+    }
+  } else if (strcmp(op, "res") == 0) {
+    /* Seen special resources within R (default 8) of the cursor or X,Y. */
+    static const char* const k_res[14] = {"depleted", "oasis", "wheat", "cotton", "tobacco", "sugar",
+                                          "minerals", "fish", "beaver", "game", "timber", "?11",
+                                          "silver", "ore"};
+    const ColonizeWorldMap* m = &g_game->world_map;
+    const int r = a1 > 0 ? a1 : 8;
+    const int cx = argc > 3 ? a2 : g_game->map_cursor_x, cy = argc > 3 ? atoi(argv[3]) : g_game->map_cursor_y;
+    for (int y = cy - r; y <= cy + r; ++y) {
+      for (int x = cx - r; x <= cx + r; ++x) {
+        if (x < 0 || y < 0 || x >= m->width || y >= m->height || !map_tile_seen_by(m, x, y, g_game->human_nation)) {
+          continue;
+        }
+        const int t = map_resource_type_for_yield(m, x, y);
+        if (t >= 0 && t < 14) {
+          printf("RES (%d,%d) %s\n", x, y, k_res[t]);
         }
       }
     }
