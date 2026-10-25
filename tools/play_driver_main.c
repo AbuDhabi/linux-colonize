@@ -40,6 +40,7 @@
  *   field N CI TILE JOB         colonist CI of colony N onto ring tile TILE (0 N .. 7 NW), field job JOB
  *   work N CI B                 colonist CI of colony N into @BUILDING row B (as `hit` prints)
  *   build N BID [queue]         colony N builds BID (@BUILDING row, or unit code 42 artillery..)
+ *   equip UID ROLE              unit UID on a colony tile takes role ROLE (COLONIZE_EJECT_*, 4 dragoon)
  *   endturn                     confirm the End of Turn prompt (error while a unit waits)
  *   world                       whole map, one char a tile
  *   rumours                     list seen rumour tiles with terrain (h hill, m mountain)
@@ -833,6 +834,16 @@ static bool command(char* line) {
                                    : colonies_assign_workplace(&g_game->colonies, id, a2, atoi(argv[3]));
     if (!done) {
       printf("ERR %s refused\n", op);
+    }
+    ok = flush_frames(2);
+  } else if (strcmp(op, "equip") == 0 && argc > 2) {
+    /* equip UID ROLE: the colony screen's outside-unit role menu (COLONIZE_EJECT_*: 4 dragoon),
+     * for a unit standing on one of its colonies; the screen row only shows the first few. */
+    const ColonizeUnit* u = units_get(&g_game->units, a1);
+    const int cid = u ? colonies_id_at(&g_game->colonies, u->x, u->y) : -1;
+    ColonizeColony* c = cid >= 0 ? colonies_get_mut(&g_game->colonies, cid) : NULL;
+    if (!c || !game_colony_apply_outside_role(&g_game->colonies, c, &g_game->units, a1, a2)) {
+      printf("ERR equip refused\n");
     }
     ok = flush_frames(2);
   } else if (strcmp(op, "build") == 0 && argc > 2) {

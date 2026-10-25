@@ -45,3 +45,36 @@ driver-only.
   New Netherlands" and in the same message pump "Prepare for WAR!", then
   killed the scout. The messages are the DOS ones; the war then cost
   Santo Domingo (see README). Kept as an observation (AI behaviour).
+
+## C4-B3 (low): customs-sale log line prints the human's purse for any nation
+
+- `debug.logs`: a Crown-held San Salvador's Custom House sales log
+  `EUROPE customs San Salvador total 2250$ (nation=0, gold=937)`; 937 is
+  Spain's (my) treasury, constant across sales. `src/core/europe_market.c`
+  ~487 prints `eu->gold` (the live human purse) whatever `nation` is. The
+  credit itself goes to the right record (`europe_nation_gold_add`), so this
+  only misleads log readers.
+
+## C4-O3 (observation): more than 50 units on a colony tile
+
+- Isabella held ~66 units (56 guns, cavalry, colonists). The colony screen's
+  outside row lists only the first 0x32 = 50 (DOS FUN_15eb_09c0 clamp,
+  port_bugs.md #1078), so a Cont. Army that had lost its horses could not be
+  dragged to the fence to re-horse. DOS-faithful; worked around with the new
+  driver command `equip UID ROLE`.
+
+## C4-O4 (observation): a fortifying stack in the open gets one attack
+
+- Turn 546 at (23,9): 8 guns given F the turn before (orders 5). Gun 84 woke
+  with 3 moves and attacked San Salvador; every other gun of the stack then
+  read `wake (was fortified)` with mp=0 (`bin/opencol.log`). The fortify
+  completed and took their moves when the turn cycle reached them. Guns
+  fortified inside a colony attacked one after another normally. Not checked
+  against DOS.
+
+## C4-O5 (observation): Crown-held colonies build Pioneers that clear the ambush terrain
+
+- While the Crown held San Salvador it repeatedly spawned Pioneers at (24,9)
+  (`Spawned unit ... type=Pioneers at (24,9)` right after the colony's PROD
+  line), and the forest there became grassland. The Rebel ambush bonus on
+  that tile went from +50% to 0. AI colony behaviour, noted for the record.
