@@ -1296,7 +1296,15 @@ int ai_contact_try_euro_attack_confirm(
      * Already at war: 465b's band writes nothing here (its declare arm needs
      * a 0x40 bit), so don't re-run the declare and re-zero DS:0x53c8. */
     if (!ai_diplo_at_war(ctx->col1, euro_nation, target_nation)) {
-      ai_diplo_declare_war_ctx(ctx, euro_nation, target_nation);
+      /* FUN_465b_0000 raw 75567-75593: the announce band runs only when either
+       * row carries 0x40. With none (WoI after the TB-32 capture toggle, a
+       * never-met peer) DOS attacks silently (playtest C2-B5). The bare WAR
+       * write stays for the human mover gate (units_at_war_for_move_target). */
+      if (ai_diplo_read(ctx->col1, target_nation, euro_nation) & AI_DIPLO_PEACE) {
+        ai_diplo_declare_war_ctx(ctx, euro_nation, target_nation);
+      } else {
+        ai_diplo_declare_war(ctx->col1, euro_nation, target_nation);
+      }
     }
     return 0;
   }

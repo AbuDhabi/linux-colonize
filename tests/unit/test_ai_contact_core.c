@@ -6142,9 +6142,17 @@ static int sp_48(void) {
     /* No treaty: no prompt, war opens and the move may proceed. */
     ai_diplo_write(&col1, 0, 1, AI_DIPLO_MET);
     ai_diplo_write(&col1, 1, 0, AI_DIPLO_MET);
+    char st[128] = "";
+    wctx.status = st;
+    wctx.status_size = sizeof(st);
     if (ai_contact_try_euro_attack_confirm(&wctx, 0, 1, 7, 5, 6) || wp.queue_count != 0) {
       return fail("no treaty: attack must proceed without a prompt");
     }
+    if (st[0] != '\0') { /* C2-B5: 465b has no announce band without 0x40 */
+      return fail("no treaty: attack must not announce @DECLAREWAR");
+    }
+    wctx.status = NULL;
+    wctx.status_size = 0;
     if (!ai_diplo_at_war(&col1, 0, 1)) {
       return fail("no treaty: attack should open the war");
     }

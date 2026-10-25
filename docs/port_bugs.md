@@ -1,6 +1,6 @@
 This is a user-maintained list of bugs. User puts reports in. Agents may annotate with a resolution (Status FIXED + one-sentence resolution) and then MOVE the row to [archive/bugs_fixed_pending.md](archive/bugs_fixed_pending.md) so this file stays small (OPEN rows only). User verifies rows there, then they are moved to [archive/bugs_closed.md](archive/bugs_closed.md).
 
-IDs in the `#` column are permanent and never reused; the archive holds #1-#1085. **Next free ID: 1248.** Cite rows as `port_bugs.md #NNN`. Look an archived row up by grepping `| NNN |` in the archive file; never read `docs/archive/bugs_closed.md` whole.
+IDs in the `#` column are permanent and never reused; the archive holds #1-#1085. **Next free ID: 1259.** Cite rows as `port_bugs.md #NNN`. Look an archived row up by grepping `| NNN |` in the archive file; never read `docs/archive/bugs_closed.md` whole.
 
 Only actionable rows live here. An accepted divergence from DOS, or a static question blocked on a live DOS capture, belongs in [docs/known_divergences.md](docs/known_divergences.md) (it keeps its `#` id); a finding that resolves to "the port is right" is REFUTED into the pending archive. Never leave an unclosable row OPEN here.
 
@@ -8,3 +8,6 @@ Status: OPEN = no resolution yet (this file). FIXED / REFUTED = agent claims a f
 
 | # | Status | Bug Description | Resolution |
 |---|--------|------------------|------------|
+| 1256 | OPEN | A human attack on a Euro peer with no 0x40 in either relation row writes WAR\|MET both ways and zeroes DS:0x53c8 (`ai_contact_try_euro_attack_confirm` -> `ai_diplo_declare_war`). DOS `FUN_465b_0000` raw 75595 only clears the mover's 0x01 bit there; the port needs the WAR bit only because `units_at_war_for_move_target` (units_combat_resolve.c ~1680) keeps an at-war test for the human mover. Fix: let the human through that gate when the attacker row has no 0x40 (as the AI arm does) and call `ai_diplo_465b_band`; check goldens / regression replays (state change). Found with #1252. | |
+| 1257 | OPEN | Map quit keys: the port's plain Q opens `@DOS` (default No) on every screen (game_loop_update.c ~3584); DOS's map dispatcher `FUN_2b5a_303c` / `321c` / `3252` has no plain-Q quit, and sends Esc, Ctrl-Q, Ctrl-X, Alt-Q, Alt-X to `2b5a:3104` (`@DOSYES`). Esc is done (#1248); Ctrl/Alt-Q/X are missing and plain Q is unsourced. Player-visible: ask the user before removing Q. | |
+| 1258 | OPEN | Treaty-break chrome: a human Break Treaty shows @DECLAREWAR (game_dialogs.c ~3089) where DOS `FUN_465b_0000` shows @CANCELPEACE 0x13cb (STRING0 = target plural, STRING1 = attacker plural) and sets WAR only in the target's row, and only if that row had 0x40; an AI breaking a treaty queues only @SNEAK (since commit 2bb81871) where DOS also shows @DECLAREWAR (raw 75576-75585). Found with #1252. | |

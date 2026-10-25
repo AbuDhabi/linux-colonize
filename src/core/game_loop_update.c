@@ -880,6 +880,8 @@ static GameUpdateStep game_pacer_goto_step(
         game_after_unit_action(game);
       }
     } else if (stepped) {
+      /* FUN_465b_0000 tail runs inside the step, before the route logic. */
+      game_move_arrival_tail(game, again);
       if (again && again->orders == UNITS_ORDER_TRADE_ROUTE) {
         game_trade_route_retarget(game, again);
       }
@@ -3182,9 +3184,11 @@ COLONIZE_INTERNAL GameUpdateStep game_update_map_keys(ColonizeGameState* game, c
       game_ui_drag_clear(game);
       return GAME_UPDATE_RETURN_TRUE;
     }
-    game->in_menu = true;
-    sound_set_bgm(SOUND_TITLE_BGM_POOL);
-    diag_info("Returned to main menu.");
+    /* FUN_2b5a_303c (raw 44956-44969) -> 2b5a:3104: Esc asks @DOSYES (DS:0x0b8b,
+     * default Yes); Yes clears DS:0x53c2 and FUN_130d_0290 returns to DOS. Move and
+     * View Pieces share this dispatcher (FUN_2b5a_3802 raw 46315). Playtest C2-B1:
+     * the port used to drop to the title menu with no confirm. */
+    game_enqueue_yes_no(game, GAME_MAP_CONFIRM_QUIT, -1, "DOSYES", "", NULL);
     return GAME_UPDATE_RETURN_TRUE;
   }
 

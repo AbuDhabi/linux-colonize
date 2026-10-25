@@ -57,6 +57,24 @@ static void test_modern_stream(void) {
   check(dos_rng_range_lcg(&r, 0, 0x7fff) == 41, "lcg path stays MSC rand (seed 1 -> 41)");
 }
 
+/* FUN_281f_04ca reads the BIOS tick: the fixed word only while live ticks are
+ * off (--seed / VR_SEED); live, the tick word wins (playtest C2-O1). */
+static void test_04ca_live_tick(void) {
+  ColonizeDosRng r;
+  dos_rng_set_83a6(100);
+  dos_rng_reseed_83a6(&r);
+  check(r.state == 100, "live off: reseed from the fixed word");
+  dos_rng_set_live_ticks(true);
+  dos_rng_set_tick_word(7);
+  dos_rng_reseed_83a6(&r);
+  check(r.state == 7, "live on: reseed from the tick");
+  check(dos_rng_04ca_word(100) == 7, "live on: 04ca word is the tick");
+  dos_rng_set_live_ticks(false);
+  dos_rng_set_tick_word(-1);
+  dos_rng_set_83a6(-1);
+  check(dos_rng_04ca_word(100) == 100, "live off: fixed word");
+}
+
 #define CASE_(fn) \
   static int tc_##fn(void) { \
     g_failures = 0; \
@@ -65,11 +83,13 @@ static void test_modern_stream(void) {
   }
 CASE_(test_xoshiro_reference)
 CASE_(test_modern_stream)
+CASE_(test_04ca_live_tick)
 #undef CASE_
 
 static const TestCase k_cases[] = {
   {"test_xoshiro_reference", tc_test_xoshiro_reference},
   {"test_modern_stream", tc_test_modern_stream},
+  {"test_04ca_live_tick", tc_test_04ca_live_tick},
 };
 
 TEST_MAIN(k_cases)

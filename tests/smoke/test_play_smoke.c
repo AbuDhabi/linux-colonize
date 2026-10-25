@@ -198,7 +198,7 @@ static bool run(void) {
   render("map after save");
 
   /*
-   * smell_audit_2026-09-09 #15: Esc → title → NEW WORLD reopens the wizard
+   * smell_audit_2026-09-09 #15: title → NEW WORLD reopens the wizard
    * with this campaign still loaded, and the wizard owns the display — the
    * game underneath must not keep simulating (popup-blocking invariant). It
    * is serviced ahead of every campaign service in game_update, so it must
@@ -210,8 +210,17 @@ static bool run(void) {
   }
   {
     const uint32_t turn_before = game_turn_number(g_game);
-    if (!frame(COLONIZE_KEY_ESCAPE)) return fail("Esc to title");
-    if (!game_in_menu(g_game)) return fail("Esc from map did not reach the title menu");
+    /* C2-B1: Esc on the map asks @DOSYES (FUN_2b5a_303c -> 2b5a:3104, default
+     * Yes); No keeps the campaign. The title over a live campaign is then
+     * reached the way Retire -> Hall of Fame leaves it. */
+    if (!frame(COLONIZE_KEY_ESCAPE)) return fail("Esc on map");
+    while (game_ai_popup_pending(g_game)) {
+      if (!frame(COLONIZE_KEY_NONE)) return fail("present quit confirm");
+    }
+    if (game_ai_popup_tag(g_game) != AI_POPUP_TAG_MAP_CONFIRM) return fail("Esc did not ask @DOSYES");
+    if (!frame(COLONIZE_KEY_DOWN) || !frame(COLONIZE_KEY_ENTER)) return fail("quit confirm No");
+    if (game_in_menu(g_game) || game_ai_popup_tag(g_game) >= 0) return fail("No left the map");
+    g_game->in_menu = true;
     if (!frame(COLONIZE_KEY_ENTER)) return fail("title NEW WORLD");
     if (!game_in_new_game(g_game)) return fail("wizard did not reopen over the campaign");
     for (int i = 0; i < 60; ++i) {

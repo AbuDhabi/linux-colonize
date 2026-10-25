@@ -186,15 +186,10 @@ static void turn_emit_sol_phase_d_chrome(
   PopupMsgTokens tok;
   memset(&tok, 0, sizeof(tok));
   tok.string0 = cname;
-  if (col1 && colony->nation_id >= 0 &&
-      colony->nation_id < (int)COLONIZE_COL1_NATION_COUNT &&
-      col1_player_country_name(col1, colony->nation_id)[0]) {
-    tok.string1 = col1_player_country_name(col1, colony->nation_id);
-  } else if (europe->nation_name[0]) {
-    tok.string1 = europe->nation_name;
-  } else {
-    tok.string1 = "";
-  }
+  /* FUN_364b_0688 raw 57419-57421: FUN_281f_042e(colony nation, 0) ->
+   * FUN_15b3_0144, the @COUNTRY row ("England"), not the player record's
+   * new-land name ("New England", playtest C2-B3). */
+  tok.string1 = reports_nation_country_phrase(colony->nation_id, 0);
   tok.number0 = sol_after;
   tok.has_number0 = true;
   /* Port status strip (also the Phase K "message written this tick" marker):

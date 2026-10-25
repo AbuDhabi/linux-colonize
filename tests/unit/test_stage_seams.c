@@ -701,6 +701,72 @@ static int test_trade_route_begin_moves_wagon_to_selected_stop(void) {
 
 
 /*
+ * Playtest C2-B2: a Treasure walking into a coastal colony under Go To must get
+ * the King's Galleon offer, exactly as an arrow-key step does (FUN_479b_0972
+ * walks a human goto through FUN_465b_0000, raw 75800-75815).
+ */
+static int test_goto_treasure_gets_king_galleon_offer(void) {
+  ColonizeGameState game;
+  memset(&game, 0, sizeof(game));
+  if (!fx_map_alloc(&game.world_map, 8, 8, /*terrain_fill=*/2, /*with_seen=*/true)) {
+    return fail("goto treasure map alloc");
+  }
+  game.world_map_ok = true;
+  game.human_nation = 0;
+  game.col1_ok = true;
+  ai_popup_clear(&game.ai_popups);
+
+  fx_units_init(&game.units);
+  game.units_ok = true;
+  game.units.type_count = 1;
+  game.units.types[0].kind_plus1 = UNITS_KIND_TREASURE + 1;
+  game.units.types[0].movement = 1;
+  game.units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+
+  fx_colonies_init(&game.colonies);
+  game.colonies_ok = true;
+  ColonizeColony* colony = fx_colony_add(&game.colonies, 0, 4, 3, 1);
+  colony->colony_flags |= COLONIZE_COLONY_FLAG_COASTAL;
+  units_set_occupancy_map(&game.world_map);
+  colonies_set_occupancy_map(&game.world_map);
+
+  const int tid = units_spawn(&game.units, 0, 3, 3);
+  ColonizeUnit* t = units_get(&game.units, tid);
+  int rc = 0;
+  if (!t) {
+    rc = fail("goto treasure spawn");
+  } else {
+    t->nation_id = 0;
+    t->moves = 3;
+    t->profession = 10; /* 1000 gold (+0x315b * 100) */
+    t->orders = UNITS_ORDER_GOTO;
+    t->goto_x = (uint8_t)colony->x;
+    t->goto_y = (uint8_t)colony->y;
+    game.units.selected_id = tid;
+    game.map_cursor_x = t->x;
+    game.map_cursor_y = t->y;
+    ColonizeInputState input;
+    memset(&input, 0, sizeof(input));
+    (void)game_update_unit_pacer(&game, &input, 100);
+    bool offered = false;
+    for (int q = 0; q < game.ai_popups.queue_count; ++q) {
+      offered |= game.ai_popups.queue[q].tag == AI_POPUP_TAG_KING_GALLEON &&
+        game.ai_popups.queue[q].payload == tid;
+    }
+    if (t->x != colony->x || t->y != colony->y) {
+      rc = fail("goto treasure did not reach the colony");
+    } else if (!offered) {
+      rc = fail("goto treasure arrival raised no King's Galleon offer");
+    }
+  }
+
+  colonies_set_occupancy_map(NULL);
+  units_set_occupancy_map(NULL);
+  fx_map_free(&game.world_map);
+  return rc;
+}
+
+/*
  * ai_euro_5952_absorb_equip — FUN_5952_035e's absorption arm, Colonist case
  * (raw 94271-94274, an unconditional take-in) and its shared outer gate
  * `+0x1b & 0x10` (NEEDS_COLONISTS, raw 94231). Hosted in the colony tick as
@@ -1999,6 +2065,7 @@ static const TestCase k_cases[] = {
     {"test_colony_zoom_hold_survives_pedia_detour", test_colony_zoom_hold_survives_pedia_detour},
     {"test_trade_route_wagon_services_arrival_stop", test_trade_route_wagon_services_arrival_stop},
     {"test_trade_route_begin_moves_wagon_to_selected_stop", test_trade_route_begin_moves_wagon_to_selected_stop},
+    {"test_goto_treasure_gets_king_galleon_offer", test_goto_treasure_gets_king_galleon_offer},
     {"test_trade_route_ship_aims_colony_tile", test_trade_route_ship_aims_colony_tile},
     {"test_ai_euro_5952_absorb_colonist", test_ai_euro_5952_absorb_colonist},
     {"test_ai_euro_5952_absorb_soldier", test_ai_euro_5952_absorb_soldier},

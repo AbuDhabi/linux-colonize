@@ -66,8 +66,26 @@ static unsigned long s_draw_count;
 static const unsigned long* s_sched;
 static int s_sched_n;
 
+static bool s_live_ticks;
+
 void dos_rng_set_tick_word(int32_t word) {
   s_dos_rng_tick = word;
+}
+
+/* FUN_1c0c_0012 stand-in: fixed tick word (--seed / VR_SEED), else the clock.
+ * ponytail: 1 s granularity vs DOS ~20 Hz, so 04ca calls within one wall
+ * second (an instant EOT's nation slots) still replay one stream; upgrade to a
+ * monotonic ms clock * 20 / 1000 if that ever shows. */
+static uint32_t dos_rng_tick_now(void) {
+  return s_dos_rng_tick >= 0 ? (uint32_t)s_dos_rng_tick : (uint32_t)time(NULL);
+}
+
+void dos_rng_set_live_ticks(bool on) {
+  s_live_ticks = on;
+}
+
+uint32_t dos_rng_04ca_word(uint32_t fixed_word) {
+  return s_live_ticks ? dos_rng_tick_now() : fixed_word;
 }
 
 void dos_rng_tick_reseed(void) {
@@ -94,8 +112,8 @@ void dos_rng_set_83a6(int32_t seed) {
 }
 
 void dos_rng_reseed_83a6(ColonizeDosRng* rng) {
-  if (rng && s_dos_rng_83a6 >= 0) {
-    dos_rng_seed(rng, (uint32_t)s_dos_rng_83a6);
+  if (rng && (s_live_ticks || s_dos_rng_83a6 >= 0)) {
+    dos_rng_seed(rng, dos_rng_04ca_word((uint32_t)s_dos_rng_83a6));
   }
 }
 
@@ -121,8 +139,7 @@ uint16_t dos_rng_next(ColonizeDosRng* rng) {
   ++s_draw_count;
   if (s_tick_pending) {
     /* FUN_19ef_0008: srand(BIOS tick & 0x7fff); VR_SEED's tick is fixed. */
-    const uint32_t tick = s_dos_rng_tick >= 0 ? (uint32_t)s_dos_rng_tick : (uint32_t)time(NULL);
-    dos_rng_seed(rng, tick);
+    dos_rng_seed(rng, dos_rng_tick_now());
   }
   uint16_t out;
   if (s_xo_on) {

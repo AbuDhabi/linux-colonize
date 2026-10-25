@@ -212,6 +212,7 @@ int main(int argc, char** argv) {
   if (game_cfg.rng_seed_set) {
     dos_rng_set_tick_word((int32_t)(game_cfg.rng_seed & 0x7fffu)); /* VR_SEED fixed tick */
   }
+  dos_rng_set_live_ticks(!game_cfg.rng_seed_set); /* VICEROY: each 04ca reads the tick */
 
   ColonizeGameState* game = game_create(&game_cfg);
   if (!game) {

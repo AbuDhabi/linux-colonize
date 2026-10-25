@@ -606,11 +606,12 @@ static bool command(char* line) {
       printf("ERR unknown key %s\n", argv[1]);
       return true;
     }
-    /* Escape on the bare main map quits to the title menu with no confirm
-     * (campaign2 bugs.md C2-B1); refuse it unless forced with `key Escape force`. */
+    /* Escape on the bare main map asks @DOSYES (default Yes, C2-B1); the
+     * driver's next Return would quit the program. Refuse it unless forced
+     * with `key Escape force`. */
     if (code == SDLK_ESCAPE && !off_map_reason(g_game) && !g_game->ai_popups.open &&
         !(argc > 2 && strcmp(argv[2], "force") == 0)) {
-      printf("ERR Escape on the main map refused (quits to title); use 'key Escape force'\n");
+      printf("ERR Escape on the main map refused (asks Exit to DOS); use 'key Escape force'\n");
       return true;
     }
     const bool printable = code >= 32 && code < 127 && m != 1 && m != 2;
@@ -903,6 +904,7 @@ int main(int argc, char** argv) {
   if (seed_set) {
     dos_rng_set_tick_word((int32_t)(seed & 0x7fffu));
   }
+  dos_rng_set_live_ticks(!seed_set); /* same as main.c */
   g_game = game_create(&cfg);
   if (!g_game || !game_assets_ok(g_game)) {
     fprintf(stderr, "no COLONIZE/ assets (run from the repo root)\n");

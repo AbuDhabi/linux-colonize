@@ -144,6 +144,8 @@ const char* reports_tribe_level_display_name(uint8_t tech);
  * Out-of-range returns "", never NULL.
  */
 const char* reports_nation_country_name(int nation);
+/* FUN_15b3_0144: @COUNTRY with the Dutch "the " article (mode 0 = mid-sentence). */
+const char* reports_nation_country_phrase(int nation, int mode);
 const char* reports_home_port_name(int nation);
 const char* reports_mission_prefix(int nation);
 const char* reports_difficulty_title(int level);

@@ -67,10 +67,11 @@ uint32_t ai_turn_seed(const ColonizeTurnContext* ctx) {
   if (!ctx) {
     return 100u;
   }
+  /* Every caller models a FUN_281f_04ca reseed (dos_rng.h). */
   if (ctx->rng_seed_set) {
-    return ctx->rng_seed;
+    return dos_rng_04ca_word(ctx->rng_seed);
   }
-  return ctx->rng_seed ? ctx->rng_seed : 100u;
+  return dos_rng_04ca_word(ctx->rng_seed ? ctx->rng_seed : 100u);
 }
 
 /* TRIBE.TXT section → Col1 nation_id (4..11) via @TRIBES order. */

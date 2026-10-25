@@ -226,13 +226,21 @@ const char* reports_names_field(const char* section, int row, int col) {
   return NULL;
 }
 
+/*
+ * Per-index buffer, same reason as reports_cargo_name: @VALOR (FUN_5fef_172c
+ * raw 100139-100142) puts the old and new @JOB names in STRING1/STRING2 at
+ * once, and the shared reports_names_field scratch made both read the new one
+ * ("promoted from Free Colonists to Free Colonists", playtest C2-B4).
+ */
 const char* reports_job_name(int job) {
-  if (job < 0 || job >= k_job_count) {
+  static char buf[32][32];
+  if (job < 0 || job >= k_job_count || job >= 32) {
     return "";
   }
   /* @JOB: name(0), expert_name(1), school_tier(2), europe_hire_cost(3). */
   const char* live = reports_names_field("JOB", job, 1);
-  return live ? live : "";
+  snprintf(buf[job], sizeof(buf[job]), "%s", live ? live : "");
+  return buf[job];
 }
 
 /*
@@ -360,6 +368,30 @@ const char* reports_nation_country_name(int nation) {
   }
   return reports_names_or(
     live[nation], sizeof(live[nation]), "COUNTRY", nation, 0, "");
+}
+
+/*
+ * DOS-LITERAL FUN_15b3_0144 (raw 9120-9134, via FUN_281f_042e / FUN_6f74_0404):
+ * the Netherlands (row 3) get LABELS @MISC 36 ("The") + DS:0x50 " " ahead of the
+ * @COUNTRY row, lowercased when `mode` is 0 (mid-sentence); every other nation
+ * is the bare @COUNTRY row.
+ */
+const char* reports_nation_country_phrase(int nation, int mode) {
+  static char buf[COLONIZE_COL1_NATION_COUNT][48];
+  if (nation < 0 || nation >= (int)COLONIZE_COL1_NATION_COUNT) {
+    return "";
+  }
+  buf[nation][0] = '\0';
+  const char* the = nation == 3 ? reports_labels_field("MISC", 36) : NULL;
+  if (the && the[0]) {
+    snprintf(buf[nation], sizeof(buf[nation]), "%s ", the);
+    if (mode == 0 && buf[nation][0] >= 'A' && buf[nation][0] <= 'Z') {
+      buf[nation][0] = (char)(buf[nation][0] + ' ');
+    }
+  }
+  const size_t n = strlen(buf[nation]);
+  snprintf(buf[nation] + n, sizeof(buf[nation]) - n, "%s", reports_nation_country_name(nation));
+  return buf[nation];
 }
 
 const char* reports_home_port_name(int nation) {

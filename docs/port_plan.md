@@ -95,8 +95,9 @@ ends:
 - **P5.2** `@INDEPENDENCEWON` doesn't exist; the section is `@WINNING`.
 - **P5.4** No fort damage in the `FUN_5fef_1b0e` capture tail — buildings carry
   over in DOS too.
-- **P5.8** DOS "NULL-rng" is `FUN_281f_04ca` = Borland `randomize()`, a
-  wall-clock reseed — intentionally not ported.
+- **P5.8** DOS "NULL-rng" is `FUN_281f_04ca` = `randomize()`, a BIOS-tick
+  reseed: ported for unseeded play (`dos_rng_set_live_ticks`); a fixed seed
+  pins the tick as VR_SEED does.
 - **P6.1** The market rise/fall threshold sheds `±100` unconditionally; only
   the ±1 bid step is range-gated.
 - **P6.2 / P6.3** No `@BOYCOTT*` and no `@NOGOLD*` section; DOS has no "can't

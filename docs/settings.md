@@ -121,6 +121,11 @@ Port-only keys, no DOS bit, no head bridge.
 `save_dir` empty means the platform default (`<exe>/COLONIZE`). `seed` is
 `null` in a first-run file (same as omitting the key): not set, so the campaign
 RNG uses elapsed time. `"seed": 0` is a real seed and pins the LCG to 0.
+Unseeded, every `FUN_281f_04ca` reseed (nation slots, Lost City Rumours, the
+465b overspend move, raids, starvation) reads the wall clock, as VICEROY reads
+the BIOS tick (`dos_rng_set_live_ticks`). A set seed pins that tick the way
+VR_SEED.EXE does, so a seeded game replays every rumour roll and AI slot stream
+(playtest C2-O1).
 `debug.menu` shows the DEBUG pulldown on the map navbar (no-op if the binary
 was built with `COLONIZE_DEBUG_MENU=OFF`). `debug.mouse_coords` and
 `debug.building_rects` are pointer HUD / colony building outlines, toggled

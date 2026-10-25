@@ -1012,6 +1012,42 @@ COLONIZE_INTERNAL GameMoveStep game_move_commit(
   return GAME_MOVE_CONTINUE;
 }
 
+/*
+ * FUN_465b_0000's human-only commit tail. DOS walks a human Go To through the
+ * arrow-key executor (FUN_479b_0972 raw 77074-77080 -> FUN_291f_044e ->
+ * FUN_4720_049e raw 76122-76124 -> FUN_2a1f_0142 -> FUN_465b_0000), so both
+ * game_try_unit_move and the goto pacer run it after a committed step
+ * (playtest C2-B2: a Treasure arriving by Go To got no King's Galleon offer).
+ */
+void game_move_arrival_tail(ColonizeGameState* game, ColonizeUnit* u) {
+  if (!game || !u || !u->active) {
+    return;
+  }
+  if (u->type_index >= 0 && u->type_index < game->units.type_count &&
+      units_type_kind(&game->units.types[u->type_index]) == UNITS_KIND_WAGON) {
+    /* port_bugs.md #440: the wheels (COLDIG 12, event 0x52) roll only when the
+     * wagon ARRIVES at a colony, not on every overland step. */
+    const int arrive_cid = colonies_id_at(&game->colonies, u->x, u->y);
+    const ColonizeColony* arrive_col = colonies_get(&game->colonies, arrive_cid);
+    if (arrive_col && arrive_col->active) {
+      sound_play(0x52);
+    }
+  }
+  /*
+   * FUN_465b_0000 tail (viceroy_unpacked.c ~75800): a Treasure Train (type
+   * 0xa) of a human-controlled nation entering a colony tile whose record
+   * has the coastal bit (+0x1c & 0x40) fires FUN_5fef_1908 — the King's
+   * Galleon offer — for the unit that just moved, and nowhere else: this
+   * is DOS's only trigger (the end-of-turn sweep turn.c used to run was a
+   * port invention). All remaining gates live in the callee.
+   */
+  if (game->col1_ok && u->nation_id == game->human_nation &&
+      units_type_is_treasure(units_type(&game->units, u->type_index))) {
+    const ColonizeWorld w = game_world(game);
+    (void)units_king_galleon_offer_for_unit_w(&w, u->nation_id, u->id, &game->ai_popups, &game->messages);
+  }
+}
+
 bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y) {
   if (!game || !game->units_ok || !game->world_map_ok) {
     return false;
@@ -1059,31 +1095,7 @@ bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y) {
     return step == GAME_MOVE_RETURN_TRUE;
   }
 
-  if (selected->type_index >= 0 && selected->type_index < game->units.type_count &&
-      units_type_kind(&game->units.types[selected->type_index]) == UNITS_KIND_WAGON) {
-    /* port_bugs.md #440: the wheels (COLDIG 12, event 0x52) roll only when the
-     * wagon ARRIVES at a colony, not on every overland step. */
-    const int arrive_cid = colonies_id_at(&game->colonies, selected->x, selected->y);
-    const ColonizeColony* arrive_col = colonies_get(&game->colonies, arrive_cid);
-    if (arrive_col && arrive_col->active) {
-      sound_play(0x52);
-    }
-  }
-  /*
-   * FUN_465b_0000 tail (viceroy_unpacked.c ~75800): a Treasure Train (type
-   * 0xa) of a human-controlled nation entering a colony tile whose record
-   * has the coastal bit (+0x1c & 0x40) fires FUN_5fef_1908 — the King's
-   * Galleon offer — for the unit that just moved, and nowhere else: this
-   * is DOS's only trigger (the end-of-turn sweep turn.c used to run was a
-   * port invention). All remaining gates live in the callee.
-   */
-  if (game->col1_ok && selected->active && selected->nation_id == game->human_nation &&
-      units_type_is_treasure(units_type(&game->units, selected->type_index))) {
-    {
-      const ColonizeWorld w = game_world(game);
-      (void)units_king_galleon_offer_for_unit_w(&w, selected->nation_id, selected->id, &game->ai_popups, &game->messages);
-    }
-  }
+  game_move_arrival_tail(game, selected);
   snprintf(game->status, sizeof(game->status), "Moved unit to (%d,%d)", dest_x, dest_y);
   game_after_unit_action(game);
   return true;

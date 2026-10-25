@@ -3,6 +3,10 @@
 Numbered C2-Bn. Severity: high = loses the game / blocks play, medium = wrong
 rules or misleading UI, low = cosmetic or driver-only.
 
+Filed 2026-10-25 as port_bugs.md #1248 (B1), #1249 (B2), #1250 (B3), #1251 (B4),
+#1252 (B5 + the O2 war message), #1253 (O1), #1254 (O2, REFUTED), #1255 (O3,
+REFUTED); follow-up leads #1256-#1258.
+
 ## C2-B1 (high): Escape on the main map quits to the title menu, no confirm
 
 - 1502 (turn 10), right after "Set sail for the New World" in London the game

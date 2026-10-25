@@ -45,7 +45,7 @@ Before every step from an archived save K the harness swaps the run's DOS sectio
 and keeps the run's own COLNXEXT tail (RTST: stance and goal tables, unit tail bytes, path and
 rank caches, fog, LCG). Each pair is then judged from DOS's state plus the port's best model of
 the unsaved tables, so a diff names a bug of that turn, not the cascade of an earlier one. Every
-nation slot reseeds the LCG (DS:0x83a6 = 100 under VR_SOUND), so the carried LCG does not matter
+nation slot reseeds the LCG (the tick read `FUN_1c0c_0012` returns 100 under VR_SOUND; DS:0x83a6 itself is a dead 0), so the carried LCG does not matter
 and a replay from `start_K.sav` reproduces the pair. This is how the pass ran past save 64 (full
 resync 1..465; latest tally under "Open leads").
 To re-run it, restore the removed saves without staging them:

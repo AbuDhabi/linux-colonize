@@ -2590,7 +2590,9 @@ static int case_phase_d_rebel_majority(void) {
   col1.colony = &col1c;
   col1.head.colony_count = 1;
   col1.player[0].control = 0;
-  snprintf(col1.player[0].country_name, sizeof(col1.player[0].country_name), "England");
+  /* The player record's new-land name; DOS's %STRING1 is the @COUNTRY row
+   * (FUN_15b3_0144), never this (playtest C2-B3). */
+  snprintf(col1.player[0].country_name, sizeof(col1.player[0].country_name), "New England");
   for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
     col1.head.founding_father[i] = -1;
   }
@@ -2608,6 +2610,11 @@ static int case_phase_d_rebel_majority(void) {
   turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, &pops, &game_txt);
   if ((c->colony_flags & COLONIZE_COLONY_FLAG_SOL_50) == 0) {
     fprintf(stderr, "Phase D majority: sol_50 latch missing\n");
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  if (pops.queue_count >= 1 && strstr(pops.queue[0].body, "New England") != NULL) {
+    fprintf(stderr, "Phase D majority: STRING1 is the new-land name: '%s'\n", pops.queue[0].body);
     assets_msg_free(&game_txt);
     return 1;
   }

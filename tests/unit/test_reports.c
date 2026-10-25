@@ -72,6 +72,39 @@ static int case_cargo_names_no_alias(void) {
   return 0;
 }
 
+/* Same for @JOB names: @VALOR holds the old and new profession at once
+ * ("promoted from Free Colonists to Free Colonists", playtest C2-B4). */
+static int case_job_names_no_alias(void) {
+  if (ensure_view() != 0) {
+    return 1;
+  }
+  const char* a = reports_job_display_name(25);
+  const char* b = reports_job_display_name(19);
+  if (!a[0] || !b[0] || strcmp(a, b) == 0) {
+    fprintf(stderr, "job names alias: '%s' '%s'\n", a, b);
+    return 1;
+  }
+  return 0;
+}
+
+/* FUN_15b3_0144: @COUNTRY row, the Dutch get LABELS @MISC 36 + " ", lowercased
+ * mid-sentence (mode 0). @REBELMAJORITY's %STRING1 (playtest C2-B3). */
+static int case_nation_country_phrase(void) {
+  if (ensure_view() != 0) {
+    return 1;
+  }
+  const char* en = reports_nation_country_phrase(0, 0);
+  char nl0[48]; /* one buffer per nation: copy before the second mode */
+  snprintf(nl0, sizeof(nl0), "%s", reports_nation_country_phrase(3, 0));
+  const char* nl1 = reports_nation_country_phrase(3, 1);
+  if (strcmp(en, "England") != 0 || strcmp(nl0, "the Netherlands") != 0 ||
+      strcmp(nl1, "The Netherlands") != 0) {
+    fprintf(stderr, "country phrase: '%s' '%s' '%s'\n", en, nl0, nl1);
+    return 1;
+  }
+  return 0;
+}
+
 static int case_report_backgrounds(void) {
   if (ensure_view() != 0) {
     return 1;
@@ -1438,6 +1471,8 @@ static int case_ds_string_two_numbers(void) {
 
 static const TestCase k_cases[] = {
   {"cargo_names_no_alias", case_cargo_names_no_alias},
+  {"job_names_no_alias", case_job_names_no_alias},
+  {"nation_country_phrase", case_nation_country_phrase},
   {"report_backgrounds", case_report_backgrounds},
   {"report_titles", case_report_titles},
   {"report_id_from_fkey", case_report_id_from_fkey},

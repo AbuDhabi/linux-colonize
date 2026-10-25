@@ -11,6 +11,7 @@
  * the COLONIZE_INTERNAL / COLONIZE_TESTING pattern this follows.
  */
 
+#include "core/dos_rng.h"
 #include "core/game_dialogs.h"
 #include "core/internal.h"
 #include "core/world.h"
@@ -31,7 +32,7 @@ static inline ColonizeWorld game_world(ColonizeGameState* game) {
     game->world_map_ok ? &game->world_map : NULL, game->col1_ok ? &game->col1 : NULL,
     game->col1_ok, &game->move_rng, game->europe_ok ? &game->europe : NULL
   );
-  w.rng_reseed = game->ai_rng_seed;
+  w.rng_reseed = dos_rng_04ca_word(game->ai_rng_seed); /* 465b overspend 04ca */
   w.rng_reseed_set = true;
   w.human_nation = game->human_nation;
   return w;
@@ -390,6 +391,7 @@ void game_status_from_menu_row(
   size_t out_size
 );
 void game_trade_route_retarget(ColonizeGameState* game, ColonizeUnit* u);
+void game_move_arrival_tail(ColonizeGameState* game, ColonizeUnit* u);
 void game_ui_drag_clear(ColonizeGameState* game);
 void game_ui_drag_set_icon(ColonizeGameState* game, int sprite);
 bool game_unit_selectable(const ColonizeGameState* game, const ColonizeUnit* u);
