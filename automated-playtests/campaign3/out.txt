@@ -1,0 +1,242 @@
+STATUS turn 13 year 1505; Turn 13 Cursor 33,32; screen: main map (map); popup tag -1
+STATUS gold 0; view origin (26,26) 15x12 tiles of 16px, y0 8; cursor (33,32)
+STATUS selected unit 1 Caravel at (33,32) moves 12 orders 0
+@@ ready
+RES (41,24) fish
+RES (43,26) fish
+RES (43,29) fish
+RES (39,31) minerals
+RES (41,31) fish
+RES (27,32) fish
+RES (34,32) fish
+RES (40,32) fish
+RES (31,33) fish
+RES (38,33) fish
+RES (29,35) fish
+RES (28,36) fish
+RES (26,37) fish
+@@ b1
+AUTO stopped (map idle) after 19 frames
+AUTO stopped (map idle) after 19 frames
+LOG: Shall we make landfall, Your Excellency, and leave the ships behind?
+CHOICES: [0] Stay With Ships [1] Make Landfall (sel 0)
+AUTO stopped (choice popup) after 0 frames
+AUTO stopped (choice popup) after 0 frames
+@@ b2
+MAP x 29..41 (cols), y 25..37 (rows)
+MAP     29303132333435363738394041
+MAP  25                       G.~.
+MAP  26                       W#GV
+MAP  27                         ~r
+MAP  28                         W.
+MAP  29                         ~.
+MAP  30           W.S.S.      ~.~.
+MAP  31 S.W.W.S.MVW.~@S.    W.S.~.
+MAP  32 Wu~.~.~.~r~.~.~.  ~.W.~.~.
+MAP  33 ~.~.~.~.~.~.~.~.~.~.~.~.~.
+MAP  34 ~.~.~.~.~.~.~.~.~.~.~.~.  
+MAP  35 ~.~.~.~.~.~.~.~.~.~.~.    
+MAP  36 ~.                        
+MAP  37                           
+@@ b3
+AUTO stopped (map idle) after 19 frames
+STATUS turn 13 year 1505; Turn 13 Cursor 27,33; screen: main map (map); popup tag -1
+STATUS gold 0; view origin (20,27) 15x12 tiles of 16px, y0 8; cursor (27,33)
+STATUS selected unit 3 Soldiers at (27,33) moves 3 orders 0
+@@ b4
+MAP x 22..32 (cols), y 28..38 (rows)
+MAP     2223242526272829303132
+MAP  28                       
+MAP  29                       
+MAP  30                       
+MAP  31               S.W.W.S.
+MAP  32         ~.~.g#Wu~.~.~.
+MAP  33         S.S@W.~.~.~.~.
+MAP  34         M.snW.~.~.~.~.
+MAP  35       ~.W.~.~.~.~.~.~.
+MAP  36       ~.~.~.~.~.      
+MAP  37       ~.~.~.~.        
+MAP  38                       
+@@ b5
+UNIT 1 Caravel at (35,31) moves 6 orders 0 prof 0
+UNIT 2 Pioneers at (35,30) moves 0 orders 0 prof 20 tools 100 muskets 0 horses 0
+UNIT 3 Soldiers at (27,33) moves 3 orders 0 prof 28 tools 0 muskets 50 horses 0
+UNIT 53 Colonists at (236,236) moves 3 orders 1 prof 25
+EUROPE dock Indentured Servants prof 25 (boards next ship)
+@@ b6
+LOG: "The {Sioux} tribe welcomes you. We are a glorious nation of {5 Camps}. To celebrate our friendship, we generously offer you the land you now occupy as a gift. Will you accept our treaty and live with us in peace as brothers?"
+CHOICES: [0] Yes [1] No (sel 0)
+AUTO stopped (choice popup) after 0 frames
+AUTO stopped (choice popup) after 0 frames
+AUTO stopped (choice popup) after 0 frames
+UNIT 1 Caravel at (35,31) moves 6 orders 0 prof 0
+UNIT 2 Pioneers at (35,30) moves 0 orders 0 prof 20 tools 100 muskets 0 horses 0
+UNIT 3 Soldiers at (28,32) moves -6 orders 0 prof 28 tools 0 muskets 50 horses 0
+UNIT 53 Colonists at (236,236) moves 3 orders 1 prof 25
+EUROPE dock Indentured Servants prof 25 (boards next ship)
+@@ b7
+MAP x 25..37 (cols), y 25..37 (rows)
+MAP     25262728293031323334353637
+MAP  25                           
+MAP  26                           
+MAP  27                           
+MAP  28                           
+MAP  29                   wnD?Mr  
+MAP  30                   W.SuS.  
+MAP  31     ~.M.S.W.W@S.MVW.~uS.  
+MAP  32   ~.~.guWu~.~.~.~r~.~.~.  
+MAP  33   S.S.W.~.~.~.~.~.~.~.~.~.
+MAP  34   M.snW.~.~.~.~.~.~.~.~.~.
+MAP  35 ~.W.~.~.~.~.~.~.~.~.~.~.~.
+MAP  36 ~.~.~.~.~.                
+MAP  37 ~.~.~.~.                  
+@@ b8
+LOG: "The {Sioux} welcome peace with our brothers the {French}.  Let us smoke a peace pipe to celebrate our perpetual friendship."
+LOG: "We hope you will soon {visit} Sioux villages to share knowledge with us, and that you will send your {wagon trains} to trade with us."
+AUTO stopped (map idle) after 24 frames
+STATUS turn 13 year 1505; Turn 13 Cursor 35,31; screen: main map (map); popup tag -1
+STATUS gold 0; view origin (28,25) 15x12 tiles of 16px, y0 8; cursor (35,31)
+STATUS selected unit 1 Caravel at (35,31) moves 6 orders 0
+UNIT 1 Caravel at (35,31) moves 6 orders 0 prof 0
+UNIT 2 Pioneers at (35,30) moves 0 orders 0 prof 20 tools 100 muskets 0 horses 0
+UNIT 3 Soldiers at (28,32) moves -6 orders 0 prof 28 tools 0 muskets 50 horses 0
+UNIT 53 Colonists at (236,236) moves 3 orders 1 prof 25
+EUROPE dock Indentured Servants prof 25 (boards next ship)
+@@ b9
+AUTO stopped (map idle) after 19 frames
+AUTO stopped (map idle) after 19 frames
+STATUS turn 14 year 1506; Turn 14 Cursor 37,33; screen: main map (map); popup tag -1
+STATUS gold 0; view origin (30,27) 15x12 tiles of 16px, y0 8; cursor (37,33)
+STATUS selected unit 1 Caravel at (37,33) moves 12 orders 0
+@@ b10
+AUTO stopped (map idle) after 19 frames
+AUTO stopped (map idle) after 19 frames
+AUTO stopped (map idle) after 19 frames
+AUTO stopped (map idle) after 19 frames
+STATUS turn 14 year 1506; Turn 14 Cursor 35,30; screen: main map (map); popup tag -1
+STATUS gold 0; view origin (28,24) 15x12 tiles of 16px, y0 8; cursor (35,30)
+STATUS selected unit 2 Pioneers at (35,30) moves 3 orders 0
+@@ b11
+AUTO stopped (map idle) after 19 frames
+STATUS turn 14 year 1506; Turn 14 Cursor 28,32; screen: main map (map); popup tag -1
+STATUS gold 0; view origin (21,26) 15x12 tiles of 16px, y0 8; cursor (28,32)
+STATUS selected unit 3 Soldiers at (28,32) moves 3 orders 0
+UNIT 1 Caravel at (41,33) moves 0 orders 0 prof 0
+UNIT 2 Pioneers at (34,29) moves -3 orders 0 prof 20 tools 100 muskets 0 horses 0
+UNIT 3 Soldiers at (28,32) moves 3 orders 0 prof 28 tools 0 muskets 50 horses 0
+UNIT 53 Colonists at (236,236) moves 3 orders 1 prof 25
+EUROPE dock Indentured Servants prof 25 (boards next ship)
+@@ b12
+RUMOUR (35,29) D
+@@ b13
+MAP x 29..39 (cols), y 24..34 (rows)
+MAP     2930313233343536373839
+MAP  24                       
+MAP  25                       
+MAP  26                       
+MAP  27                       
+MAP  28         W.s#S.        
+MAP  29         s#w@D?Mu      
+MAP  30         R#W.S.S.      
+MAP  31 S.WuW.S.MVW.~.S.SV  W.
+MAP  32 W.~.~.~.~r~.~.~.W.~.W.
+MAP  33 ~.~.~.~.~.~.~.~.~.~.~.
+MAP  34 ~.~.~.~.~.~.~.~.~.~.~.
+@@ b14
+AUTO stopped (map idle) after 19 frames
+STATUS turn 15 year 1507; Turn 15 Cursor 41,33; screen: main map (map); popup tag -1
+STATUS gold 0; view origin (34,27) 15x12 tiles of 16px, y0 8; cursor (41,33)
+STATUS selected unit 1 Caravel at (41,33) moves 12 orders 0
+UNIT 1 Caravel at (41,33) moves 12 orders 0 prof 0
+UNIT 2 Pioneers at (34,29) moves 3 orders 0 prof 20 tools 100 muskets 0 horses 0
+UNIT 3 Soldiers at (29,31) moves 3 orders 0 prof 28 tools 0 muskets 50 horses 0
+UNIT 53 Colonists at (236,236) moves 3 orders 1 prof 25
+EUROPE dock Indentured Servants prof 25 (boards next ship)
+@@ b15
+AUTO stopped (map idle) after 19 frames
+AUTO stopped (map idle) after 19 frames
+AUTO stopped (map idle) after 19 frames
+LOG: We have reached the {high seas}, Your Excellency.  Shall we sail for Europe?
+CHOICES: [0] Yes, steady as she goes. [1] No, let us remain in these waters. (sel 0)
+AUTO stopped (choice popup) after 0 frames
+STATUS turn 15 year 1507; Turn 15 Cursor 44,33; screen: modal open (map); popup tag 58
+STATUS gold 0; view origin (37,27) 15x12 tiles of 16px, y0 8; cursor (44,33)
+STATUS selected unit 1 Caravel at (44,33) moves 3 orders 0
+@@ b16
+AUTO stopped (map idle) after 19 frames
+STATUS turn 15 year 1507; Turn 15 Cursor 34,29; screen: main map (map); popup tag -1
+STATUS gold 0; view origin (27,23) 15x12 tiles of 16px, y0 8; cursor (34,29)
+STATUS selected unit 2 Pioneers at (34,29) moves 3 orders 0
+UNIT 2 Pioneers at (34,29) moves 3 orders 0 prof 20 tools 100 muskets 0 horses 0
+UNIT 3 Soldiers at (29,31) moves 3 orders 0 prof 28 tools 0 muskets 50 horses 0
+UNIT 53 Colonists at (236,236) moves 3 orders 1 prof 25
+EUROPE to-europe Caravel turns_left 1 passengers
+EUROPE dock Indentured Servants prof 25 (boards next ship)
+@@ b17
+LOG: Your expedition happens upon strange burial mounds.
+CHOICES: [0] "Let us search for treasure!" [1] "Stay clear of those!" (sel 0)
+AUTO stopped (choice popup) after 0 frames
+STATUS turn 15 year 1507; Turn 15 Cursor 35,29; screen: modal open (map); popup tag 71
+STATUS gold 0; view origin (28,23) 15x12 tiles of 16px, y0 8; cursor (35,29)
+STATUS selected unit 2 Pioneers at (35,29) moves 0 orders 0
+@@ b18
+AUTO stopped (map idle) after 19 frames
+STATUS turn 15 year 1507; Turn 15 Cursor 29,31; screen: main map (map); popup tag -1
+STATUS gold 0; view origin (22,25) 15x12 tiles of 16px, y0 8; cursor (29,31)
+STATUS selected unit 3 Soldiers at (29,31) moves 3 orders 0
+@@ b19
+MAP x 30..40 (cols), y 24..34 (rows)
+MAP     3031323334353637383940
+MAP  24                     ~.
+MAP  25                     Gu
+MAP  26                     W#
+MAP  27                       
+MAP  28       W.s#S.S.        
+MAP  29       suwnD@Mr        
+MAP  30 Wu    R#W.S.Su      ~.
+MAP  31 W.W.S.MVW.~.S.SV  W.S.
+MAP  32 ~.~.~.~r~.~.~.W.~.W.~.
+MAP  33 ~.~.~.~.~.~.~.~.~.~.~.
+MAP  34 ~.~.~.~.~.~.~.~.~.~.~.
+@@ b20
+RES (41,24) fish
+RES (33,28) minerals
+RES (33,29) sugar
+RES (35,30) timber
+RES (35,31) fish
+RES (39,31) minerals
+RES (41,31) fish
+RES (34,32) fish
+RES (40,32) fish
+RES (31,33) fish
+RES (38,33) fish
+RES (29,35) fish
+@@ b21
+AUTO stopped (map idle) after 33 frames
+STATUS turn 16 year 1508; Turn 16 Cursor 35,29; screen: main map (map); popup tag -1
+STATUS gold 0; view origin (28,23) 15x12 tiles of 16px, y0 8; cursor (35,29)
+STATUS selected unit 2 Pioneers at (35,29) moves 3 orders 0
+UNIT 2 Pioneers at (35,29) moves 3 orders 0 prof 20 tools 100 muskets 0 horses 0
+UNIT 3 Soldiers at (30,31) moves 3 orders 3 prof 28 tools 0 muskets 50 horses 0
+UNIT 53 Colonists at (236,236) moves 3 orders 1 prof 25
+EUROPE to-europe Caravel turns_left 1 passengers
+EUROPE dock Indentured Servants prof 25 (boards next ship)
+@@ b22
+AUTO stopped (map) after 5 frames
+STATUS turn 17 year 1509; End of Turn — Spring 1509 (turn 17); screen: Europe screen (map); popup tag -1
+STATUS gold 0; view origin (27,24) 15x12 tiles of 16px, y0 8; cursor (34,30)
+STATUS selected unit 2 Pioneers at (34,30) moves 3 orders 0
+UNIT 2 Pioneers at (34,30) moves 3 orders 0 prof 20 tools 100 muskets 0 horses 0
+UNIT 3 Soldiers at (31,30) moves 3 orders 3 prof 28 tools 0 muskets 50 horses 0
+UNIT 53 Colonists at (236,236) moves 3 orders 1 prof 25
+EUROPE harbor Caravel turns_left 0 passengers
+EUROPE dock Indentured Servants prof 25 (boards next ship)
+@@ b23
+SHOT automated-playtests/campaign3/shots/eu1.ppm
+@@ b24
+LOG: European harbor options for {Caravel}:
+CHOICES: [0] Move to front. [1] Set sail for the New World. [2] No changes. (sel 0)
+STATUS turn 17 year 1509; End of Turn — Spring 1509 (turn 17); screen: Europe screen (europe); popup tag 74
+STATUS gold 0; view origin (27,24) 15x12 tiles of 16px, y0 8; cursor (34,30)
+STATUS selected unit 2 Pioneers at (34,30) moves 3 orders 0
+@@ b25

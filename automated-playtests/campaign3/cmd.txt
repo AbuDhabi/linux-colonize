@@ -1,0 +1,112 @@
+res 10
+sync b1
+key KP_6
+auto
+key KP_9
+auto
+key KP_6
+auto
+key KP_6
+auto
+sync b2
+map 6
+sync b3
+choose 0
+activate 2
+key KP_8
+auto
+status
+sync b4
+map 5
+sync b5
+units
+sync b6
+key KP_9
+auto
+activate 1
+key KP_4
+auto
+key KP_4
+auto
+units
+sync b7
+map 6 31 31
+sync b8
+choose 0
+auto
+status
+units
+sync b9
+key KP_3
+auto
+key KP_3
+auto
+status
+sync b10
+key KP_6
+auto
+key KP_6
+auto
+key KP_6
+auto
+key KP_6
+auto
+status
+sync b11
+key KP_7
+auto
+status
+units
+sync b12
+rumours
+sync b13
+map 5 34 29
+sync b14
+key KP_9
+auto
+status
+units
+sync b15
+key KP_6
+auto
+key KP_6
+auto
+key KP_6
+auto
+key KP_6
+auto
+status
+sync b16
+choose 0
+auto
+status
+units
+sync b17
+key KP_6
+auto
+status
+sync b18
+choose 1
+auto
+status
+sync b19
+map 5 35 29
+sync b20
+res 6 35 29
+sync b21
+goto 3 34 30
+auto
+status
+units
+sync b22
+key KP_1
+auto
+status
+units
+sync b23
+shot eu1
+sync b24
+key s
+wait 10
+status
+sync b25
