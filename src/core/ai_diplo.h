@@ -227,6 +227,9 @@ void ai_diplo_clear_both(ColonizeCol1Save* col1, int nation_a, int nation_b, uin
 /* FUN_465b_0000 raw 75567-75593, computer attacker: returns 1 when a treaty
  * (0x40 either way) was broken. */
 int ai_diplo_465b_band(ColonizeCol1Save* col1, int attacker, int defender);
+/* The same band with its @SNEAK / @CANCELPEACE / @DECLAREWAR chrome (human a
+ * party); returns 1 when the caller must set BGM pool 4 (FUN_281f_04ac(4)). */
+int ai_diplo_465b_band_ctx(ColonizeTurnContext* ctx, int attacker, int defender);
 
 int ai_diplo_at_war(const ColonizeCol1Save* col1, int nation_a, int nation_b);
 /* True if Euro nation is at war with any other Euro (feeler / drift / lift gate). */

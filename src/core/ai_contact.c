@@ -1232,9 +1232,9 @@ int ai_contact_try_whack_confirm(
  * DOS never refuses an attack on a Euro peer at peace. With a signed peace
  * treaty (relation & 0x40) it asks @HAVETREATY ("We have signed a peace
  * treaty with the {%STRING0}" — Cancel Action / Break Treaty; result != 2
- * aborts the move); without one the attack simply proceeds and war is
- * declared. Returns 1 when a popup now gates the move (caller must stop),
- * 0 when the move may continue (war was declared here if it had to be).
+ * aborts the move); without one the attack proceeds through the 465b band
+ * (ai_diplo_465b_band_ctx). Returns 1 when a popup now gates the move
+ * (caller must stop), 0 when the move may continue.
  */
 static int ai_contact_euro_war_pending(const AiPopupState* st, int unit_id) {
   return ai_popup_pending(
@@ -1292,19 +1292,11 @@ int ai_contact_try_euro_attack_confirm(
    */
   const uint8_t rel = ai_diplo_read(ctx->col1, euro_nation, target_nation);
   if ((rel & AI_DIPLO_PEACE) == 0) {
-    /* No treaty: DOS attacks without a prompt — open hostilities and go.
-     * Already at war: 465b's band writes nothing here (its declare arm needs
-     * a 0x40 bit), so don't re-run the declare and re-zero DS:0x53c8. */
-    if (!ai_diplo_at_war(ctx->col1, euro_nation, target_nation)) {
-      /* FUN_465b_0000 raw 75567-75593: the announce band runs only when either
-       * row carries 0x40. With none (WoI after the TB-32 capture toggle, a
-       * never-met peer) DOS attacks silently (playtest C2-B5). The bare WAR
-       * write stays for the human mover gate (units_at_war_for_move_target). */
-      if (ai_diplo_read(ctx->col1, target_nation, euro_nation) & AI_DIPLO_PEACE) {
-        ai_diplo_declare_war_ctx(ctx, euro_nation, target_nation);
-      } else {
-        ai_diplo_declare_war(ctx->col1, euro_nation, target_nation);
-      }
+    /* No treaty in the attacker's row: no prompt, the 465b band runs now
+     * (@CANCELPEACE only for a one-sided peer treaty; with no 0x40 at all it
+     * just drops the attacker's 0x01: playtest C2-B5, port_bugs.md #1256). */
+    if (ai_diplo_465b_band_ctx(ctx, euro_nation, target_nation)) {
+      sound_set_bgm(4); /* FUN_281f_04ac(4) */
     }
     return 0;
   }

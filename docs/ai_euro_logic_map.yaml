@@ -160,7 +160,7 @@ graphs:
         fn: ai_diplo.c:ai_diplo_treaty_timers
         dos: 6d8e prelude raw 93173-93188
         status: dos
-        note: "Per peer — flag bit 0x08 set && timer==0 && RNG(0,3)==0 → clear 0x08|0x40 (PEACE) and set 0x01 WAR_INTENT (no timer write); then, independently, timer>0 decrements. Expiry breeds war intent, never peace. This is the ONLY DOS Euro→Euro war opener reachable from 6d8e — the WAR bit itself is set at the attack sites (465b etc.) once WAR_INTENT is up."
+        note: "Per peer — flag bit 0x08 set && timer==0 && RNG(0,3)==0 → clear 0x08|0x40 (PEACE) and set 0x01 WAR_INTENT (no timer write); then, independently, timer>0 decrements. Expiry breeds war intent, never peace. This is the ONLY DOS Euro→Euro war opener reachable from 6d8e — 465b writes no WAR bit for a computer attacker (it clears 0x40 and the mover's 0x01; only a human attacker WARs the peer row, ai_diplo_465b_band_ctx)."
       - id: planning
         kind: sub
         label: Nation planning — treasury, ship buys, Europe hires

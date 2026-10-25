@@ -20,6 +20,7 @@
 #include "core/ai.h"
 #include "core/ai_contact.h"
 #include "core/ai_diplo.h"
+#include "core/sound.h"
 #include "core/ai_king.h"
 #include "core/ai_popup.h"
 #include "core/ai_goals.h"
@@ -4174,62 +4175,17 @@ void ai_euro_try_attack(ColonizeTurnContext* ctx, ColonizeUnit* u, int tx, int t
         return;
       }
       /*
-       * @SNEAK ("Sneak attack by the treacherous {attacker}!") — confirmed
-       * real, 2026-08-14, via live user testimony (euro_diplo.md "FA
-       * negotiation screen"): AI Euro nations can attack outright, with
-       * war declared as a SIDE EFFECT of the attack rather than a
-       * prerequisite for it — exactly this code path (war-declare gated
-       * on the attack itself, not the other way around). The mechanic was
-       * already correctly implemented; only the player-facing
-       * notification was missing (declare was via the bare, status-free
-       * ai_diplo_declare_war). Switched to the _ctx variant (gains the
-       * existing boycott/sticky chrome for free) and override its generic
-       * @DECLAREWAR status with the real @SNEAK wording when the human is
-       * a party, since this specific path is never a negotiated/expected
-       * declaration.
+       * DOS-LITERAL FUN_465b_0000 raw 75558-75595 (ai_diplo_465b_band_ctx):
+       * @SNEAK when the human defender's row has 0x40 (user-confirmed real,
+       * euro_diplo.md "FA negotiation screen"), @DECLAREWAR when either row
+       * has it, then 0x40 cleared both ways and the mover's 0x01 dropped. No
+       * WAR bit for a computer attacker: without a treaty the attack goes
+       * ahead and no relation bit changes (independence 4->5: after its
+       * capture toggle cleared WAR toward the Dutch, the crown's Man-O-War
+       * attacks and its row stays 0x20). port_bugs.md #1258.
        */
-      /* DOS-LITERAL FUN_465b_0000 raw 75567-75593: the war band runs only out
-       * of a treaty (0x40 either way). Without one the attack goes ahead
-       * and no relation bit changes (independence 4->5: after its capture
-       * toggle cleared WAR toward the Dutch, the crown's Man-O-War attacks
-       * and its row stays 0x20). */
-      const bool treaty =
-        ((ai_diplo_read(ctx->col1, u->nation_id, f->nation_id) |
-          ai_diplo_read(ctx->col1, f->nation_id, u->nation_id)) & AI_DIPLO_PEACE) != 0;
-      /* The band clears 0x40 both ways and the mover's 0x01; it writes no
-       * WAR bit for a computer attacker (ai_diplo_465b_band). */
-      (void)ai_diplo_465b_band(ctx->col1, u->nation_id, f->nation_id);
-      if (treaty && ctx->human_nation >= 0 && ctx->human_nation < 4 &&
-          (u->nation_id == ctx->human_nation || f->nation_id == ctx->human_nation) &&
-          ctx->status && ctx->status_size > 0) {
-        PopupMsgTokens tok = {0};
-        /* FUN_465b_0000 raw ~75562: %STRING0 = FUN_281f_0a1a(mover), plural. */
-        tok.string0 = reports_nation_plural_woi(ctx->col1, u->nation_id);
-        popup_msg_fill(
-          ctx->messages, "SNEAK", &tok, "",
-          ctx->status, ctx->status_size
-        );
-        popup_msg_strip_markup(ctx->status); /* status line: no {} coloring */
-        /*
-         * port_bugs.md: @SNEAK is a modal popup in DOS, not just a status line.
-         * FUN_4720_049e asm 0x3f1b4 `lea bx,[0x87c] ("GAME"); lea ax,[0x13c5];
-         * sub dx,dx; call 0x181f:0x998` is the plain message-box call shape
-         * (same as @NODOCKS 0x3fe20, @TRADENONE 0x60618) and it runs BEFORE
-         * the @DECLAREWAR dialog at 0x3f262. ai_diplo_declare_war_ctx has
-         * already queued that one, so queue @SNEAK and promote it in front.
-         */
-        char sneak_body[256];
-        sneak_body[0] = '\0';
-        popup_msg_fill(ctx->messages, "SNEAK", &tok, "", sneak_body, sizeof(sneak_body));
-        if (sneak_body[0] != '\0' && ctx->ai_popups) {
-          (void)ai_popup_enqueue_ok_ctx(
-            ctx->ai_popups, AI_POPUP_TAG_DIPLO_SNEAK, u->nation_id, f->nation_id, 0, NULL,
-            sneak_body
-          );
-          ai_popup_promote_tag_before(
-            ctx->ai_popups, AI_POPUP_TAG_DIPLO_SNEAK, AI_POPUP_TAG_DIPLO_WAR
-          );
-        }
+      if (ai_diplo_465b_band_ctx(ctx, u->nation_id, f->nation_id)) {
+        sound_set_bgm(4); /* FUN_281f_04ac(4) */
       }
     }
   }

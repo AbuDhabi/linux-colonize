@@ -3135,6 +3135,16 @@ COLONIZE_INTERNAL GameUpdateStep game_update_map_menu_bar(ColonizeGameState* gam
       return GAME_UPDATE_RETURN_TRUE;
     }
 
+    /* FUN_2b5a_303c raw 44948-44955 (0x11 Ctrl-Q, 0x18 Ctrl-X), FUN_2b5a_321c
+     * (Alt-Q 0x110) and FUN_2b5a_3252 (Alt-X 0x12d) go to 2b5a:3104, the
+     * @DOSYES quit confirm Esc also asks (game_update_map_keys). Ahead of the
+     * plain hotkeys: Ctrl-X is key 0x18 in DOS, not VIEW's ~X. port_bugs.md #1257. */
+    if ((input->ctrl_held || input->alt_held) &&
+        (input->last_key == COLONIZE_KEY_Q || input->last_key == COLONIZE_KEY_X)) {
+      game_enqueue_yes_no(game, GAME_MAP_CONFIRM_QUIT, -1, "DOSYES", "", NULL);
+      return GAME_UPDATE_RETURN_TRUE;
+    }
+
     /* Plain ORDERS hotkeys (same as choosing the enabled ORDERS item). */
     if (!input->alt_held && input->last_key != COLONIZE_KEY_NONE) {
       const bool space = (input->last_key == COLONIZE_KEY_SPACE);
@@ -3545,7 +3555,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
   }
 
   /* Retire exploits screen (FUN_41f2_0b70) and Hall of Fame (FUN_41f2_0f56) both end in
-   * the FUN_281f_03c0 key-or-click wait, so any key (Q too, hence ahead of the quit key)
+   * the FUN_281f_03c0 key-or-click wait, so any key
    * or either mouse button advances. */
   if (game->in_exploits) {
     if (colonize_input_any_key_or_click(input)) {
@@ -3577,18 +3587,11 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
 
   /* F10 score plate (FUN_41f2_0092, raw 71403-71407): no OK button, the same FUN_281f_03c0
    * wait, and the main loop drops the key that ended it (raw 55683-55690, no re-dispatch).
-   * So any key (F-keys and Q too, hence ahead of the quit key) or either button closes it. */
+   * So any key (F-keys too) or either button closes it. */
   if (game->in_report && game->report_id == COLONIZE_REPORT_SCORE) {
     if (colonize_input_any_key_or_click(input)) {
       game_report_leave(game);
     }
-    return true;
-  }
-
-  if (input->last_key == COLONIZE_KEY_Q) {
-    game_enqueue_yes_no(
-      game, GAME_MAP_CONFIRM_QUIT, -1, "DOS", "", NULL
-    );
     return true;
   }
 

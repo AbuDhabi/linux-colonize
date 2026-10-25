@@ -613,6 +613,78 @@ static void ai_diplo_status_declare_war(ColonizeTurnContext* ctx, int nation_a, 
   ai_diplo_status_pair_line(ctx, nation_a, nation_b, "DECLAREWAR", "");
 }
 
+/* One 465b band message: OK popup + status line (port convention: only when
+ * the human is a party, as ai_diplo_popup_ok). */
+static void ai_diplo_465b_say(
+  ColonizeTurnContext* ctx, AiPopupTag tag, const char* section, int atk, int def,
+  const char* s0, const char* s1
+) {
+  if (!ai_diplo_involves_human(ctx, atk, def)) {
+    return;
+  }
+  PopupMsgTokens tok = {0};
+  tok.string0 = s0;
+  tok.string1 = s1;
+  char body[AI_POPUP_BODY_LEN];
+  popup_msg_fill(ctx->messages, section, &tok, "", body, sizeof(body));
+  ai_diplo_popup_ok(ctx, tag, atk, def, body);
+  if (ctx->status && ctx->status_size > 0 && body[0]) {
+    snprintf(ctx->status, ctx->status_size, "%s", body);
+    popup_msg_strip_markup(ctx->status); /* status line: no {} coloring */
+  }
+}
+
+/*
+ * DOS-LITERAL FUN_465b_0000 raw 75558-75595, Euro attacker vs Euro defender
+ * after the @HAVETREATY answer and the cooldown abort (callers own those and
+ * the Privateer exclusion):
+ *   defender human && def row 0x40       -> @SNEAK (STRING0 = 0a1a(atk));
+ *   0x40 in either row, attacker human   -> @CANCELPEACE (0a1a(def), 0a1a(atk)),
+ *                                           def row |= WAR when it had 0x40;
+ *   0x40 in either row, attacker AI      -> @DECLAREWAR (09a4(atk), 09a4(def));
+ *   then 0x40 cleared both ways and the attacker's 0x01 dropped
+ *   (ai_diplo_465b_band). No WAR|MET write and no DS:0x53c8 write otherwise.
+ * Returns 1 when DOS also calls FUN_281f_04ac(4) (the @SNEAK / @CANCELPEACE
+ * arms): the caller sets BGM pool 4 (this file links without sound.c).
+ */
+int ai_diplo_465b_band_ctx(ColonizeTurnContext* ctx, int attacker, int defender) {
+  if (!ctx || !ctx->col1 || attacker < 0 || attacker > 3 || defender < 0 || defender > 3 ||
+      attacker == defender) {
+    return 0;
+  }
+  ColonizeCol1Save* col1 = ctx->col1;
+  const uint8_t rel_ad = ai_diplo_read(col1, attacker, defender);
+  const uint8_t rel_da = ai_diplo_read(col1, defender, attacker);
+  const bool atk_human = attacker == ctx->human_nation;
+  int music = 0;
+  if (defender == ctx->human_nation && (rel_da & AI_DIPLO_PEACE)) {
+    ai_diplo_465b_say(
+      ctx, AI_POPUP_TAG_DIPLO_SNEAK, "SNEAK", attacker, defender,
+      reports_nation_plural_woi(col1, attacker), NULL
+    );
+    music = 1;
+  }
+  if ((rel_ad | rel_da) & AI_DIPLO_PEACE) {
+    if (atk_human) {
+      ai_diplo_465b_say(
+        ctx, AI_POPUP_TAG_DIPLO_BREAK, "CANCELPEACE", attacker, defender,
+        reports_nation_plural_woi(col1, defender), reports_nation_plural_woi(col1, attacker)
+      );
+      music = 1;
+      if (rel_da & AI_DIPLO_PEACE) {
+        ai_diplo_write(col1, defender, attacker, (uint8_t)(rel_da | AI_DIPLO_WAR));
+      }
+    } else {
+      ai_diplo_465b_say(
+        ctx, AI_POPUP_TAG_DIPLO_WAR, "DECLAREWAR", attacker, defender,
+        ai_diplo_rival_name(col1, attacker), ai_diplo_rival_name(col1, defender)
+      );
+    }
+  }
+  (void)ai_diplo_465b_band(col1, attacker, defender);
+  return music;
+}
+
 /* Sound hook (unit tests build ai_diplo.c without sound.c). */
 static void (*g_ai_diplo_sound_play)(int id) = NULL;
 void ai_diplo_set_sound_hook(void (*play_fn)(int id)) {

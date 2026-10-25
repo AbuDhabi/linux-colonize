@@ -220,6 +220,21 @@ static bool run(void) {
     if (game_ai_popup_tag(g_game) != AI_POPUP_TAG_MAP_CONFIRM) return fail("Esc did not ask @DOSYES");
     if (!frame(COLONIZE_KEY_DOWN) || !frame(COLONIZE_KEY_ENTER)) return fail("quit confirm No");
     if (game_in_menu(g_game) || game_ai_popup_tag(g_game) >= 0) return fail("No left the map");
+    /* #1257: Ctrl-X (DOS key 0x18) asks the same @DOSYES, not VIEW's ~X zoom. */
+    {
+      ColonizeInputState in = {0};
+      in.last_key = COLONIZE_KEY_X;
+      in.ctrl_held = true;
+      if (!game_update(g_game, &in, 16)) return fail("Ctrl-X on map");
+    }
+    while (game_ai_popup_pending(g_game)) {
+      if (!frame(COLONIZE_KEY_NONE)) return fail("present Ctrl-X confirm");
+    }
+    if (game_ai_popup_tag(g_game) != AI_POPUP_TAG_MAP_CONFIRM) return fail("Ctrl-X did not ask @DOSYES");
+    if (!frame(COLONIZE_KEY_DOWN) || !frame(COLONIZE_KEY_ENTER)) return fail("Ctrl-X confirm No");
+    if (!frame(COLONIZE_KEY_Q) || game_ai_popup_pending(g_game) || game_ai_popup_tag(g_game) >= 0) {
+      return fail("plain Q must not ask to quit (no DOS map key)");
+    }
     g_game->in_menu = true;
     if (!frame(COLONIZE_KEY_ENTER)) return fail("title NEW WORLD");
     if (!game_in_new_game(g_game)) return fail("wizard did not reopen over the campaign");

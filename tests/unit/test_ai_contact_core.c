@@ -6139,8 +6139,9 @@ static int sp_48(void) {
       return fail("HAVETREATY must not stack a second CHOICE while one is pending");
     }
     ai_popup_clear(&wp);
-    /* No treaty: no prompt, war opens and the move may proceed. */
-    ai_diplo_write(&col1, 0, 1, AI_DIPLO_MET);
+    /* No treaty: no prompt and the move may proceed; 465b writes no WAR bit
+     * (port_bugs.md #1256), it only drops the mover's 0x01. */
+    ai_diplo_write(&col1, 0, 1, AI_DIPLO_MET | AI_DIPLO_WAR_INTENT);
     ai_diplo_write(&col1, 1, 0, AI_DIPLO_MET);
     char st[128] = "";
     wctx.status = st;
@@ -6153,10 +6154,12 @@ static int sp_48(void) {
     }
     wctx.status = NULL;
     wctx.status_size = 0;
-    if (!ai_diplo_at_war(&col1, 0, 1)) {
-      return fail("no treaty: attack should open the war");
+    if (ai_diplo_read(&col1, 0, 1) != AI_DIPLO_MET || ai_diplo_read(&col1, 1, 0) != AI_DIPLO_MET) {
+      return fail("no treaty: relation bytes must stay MET-only (0x01 dropped)");
     }
     /* Already at war: nothing to ask. */
+    ai_diplo_write(&col1, 0, 1, AI_DIPLO_MET | AI_DIPLO_WAR);
+    ai_diplo_write(&col1, 1, 0, AI_DIPLO_MET | AI_DIPLO_WAR);
     if (ai_contact_try_euro_attack_confirm(&wctx, 0, 1, 7, 5, 6) || wp.queue_count != 0) {
       return fail("at war: no prompt");
     }
@@ -6169,8 +6172,15 @@ static int sp_48(void) {
     ai_popup_clear(&wp);
     ai_diplo_write(&col1, 0, 1, AI_DIPLO_MET);
     ai_diplo_write(&col1, 1, 0, AI_DIPLO_MET | AI_DIPLO_PEACE);
-    if (ai_contact_try_euro_attack_confirm(&wctx, 0, 1, 7, 5, 6) || wp.queue_count != 0) {
+    if (ai_contact_try_euro_attack_confirm(&wctx, 0, 1, 7, 5, 6) || wp.queue_count != 1 ||
+        wp.queue[0].tag != AI_POPUP_TAG_DIPLO_BREAK) {
       return fail("one-sided peer peace must not raise HAVETREATY (report says War)");
+    }
+    /* #1258: the band announces @CANCELPEACE, WARs only the peer's row (it had
+     * 0x40) and clears 0x40 both ways (raw 75567-75593). */
+    if (ai_diplo_read(&col1, 1, 0) != (AI_DIPLO_MET | AI_DIPLO_WAR) ||
+        ai_diplo_read(&col1, 0, 1) != AI_DIPLO_MET) {
+      return fail("one-sided peer peace: band must WAR the peer row only and clear 0x40");
     }
     /* Mirror case: our byte carries the treaty, theirs does not → prompt. */
     ai_popup_clear(&wp);
@@ -6179,6 +6189,16 @@ static int sp_48(void) {
     if (!ai_contact_try_euro_attack_confirm(&wctx, 0, 1, 7, 5, 6) || wp.queue_count != 1 ||
         wp.queue[0].tag != AI_POPUP_TAG_CONTACT_EURO_WAR) {
       return fail("our own peace bit must raise HAVETREATY even if theirs is clear");
+    }
+    /* #1258: a computer attacker breaking a treaty with the human: @SNEAK, then
+     * @DECLAREWAR, BGM cue, and no WAR bit either way (raw 75558-75593). */
+    ai_popup_clear(&wp);
+    ai_diplo_write(&col1, 0, 1, AI_DIPLO_MET | AI_DIPLO_PEACE);
+    ai_diplo_write(&col1, 1, 0, AI_DIPLO_MET | AI_DIPLO_PEACE);
+    if (ai_diplo_465b_band_ctx(&wctx, 1, 0) != 1 || wp.queue_count != 2 ||
+        wp.queue[0].tag != AI_POPUP_TAG_DIPLO_SNEAK || wp.queue[1].tag != AI_POPUP_TAG_DIPLO_WAR ||
+        ai_diplo_read(&col1, 0, 1) != AI_DIPLO_MET || ai_diplo_read(&col1, 1, 0) != AI_DIPLO_MET) {
+      return fail("AI treaty break: want @SNEAK + @DECLAREWAR, 0x40 cleared, no WAR");
     }
     /*
      * FUN_465b_0000 raw 75528-75529: either side a Privateer (@UNIT 0x10) and

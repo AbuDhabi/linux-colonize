@@ -3082,11 +3082,22 @@ static bool game_apply_popup_contact(ColonizeGameState* game) {
     if (!game->ai_popups.result_cancelled && game->ai_popups.result_choice_id == 1 &&
         game->col1_ok && target_nation >= 0 && target_nation <= 3) {
       ColonizeUnit* u = units_get(&game->units, unit_id);
+      if (u && u->nation_id >= 0 && u->nation_id <= 3 &&
+          game->col1.nation[u->nation_id].treaty_timer[target_nation] != 0) {
+        /* FUN_465b_0000 raw 75553-75557: Break Treaty while the encounter
+         * cooldown (nation +0x40+peer) runs ends the move; nothing changes
+         * (tolerated_dos_bugs.md TB-51). */
+        ai_popup_consume_result(&game->ai_popups);
+        return true;
+      }
       if (u && u->nation_id >= 0 && u->nation_id <= 3) {
-        /* Break Treaty: clear 0x40 both ways and open the war (FUN_281f_0a10). */
+        /* Break Treaty: the 465b band (raw 75567-75595) shows @CANCELPEACE,
+         * sets WAR in the peer's row, clears 0x40 both ways (FUN_281f_0a10). */
         ColonizeTurnContext ctx;
         game_fill_turn_context(game, &ctx);
-        ai_diplo_declare_war_ctx(&ctx, u->nation_id, target_nation);
+        if (ai_diplo_465b_band_ctx(&ctx, u->nation_id, target_nation)) {
+          sound_set_bgm(4); /* FUN_281f_04ac(4) */
+        }
         game->units.selected_id = unit_id;
         ai_popup_consume_result(&game->ai_popups);
         /* port_bugs.md #437: the colony confirm (if any) was already answered

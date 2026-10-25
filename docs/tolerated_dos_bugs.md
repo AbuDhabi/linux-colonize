@@ -682,3 +682,23 @@ its reload twin fail (8 tests), on header byte 0x22 only (port 0xff, DOS the
 hull's index); no other byte drifts. Removing it needs that byte on the idle
 golden ignore list ([idle_campaign.md](idle_campaign.md)).
 **Status:** tolerated (2026-10-23). Came from dos_bug_candidates_2026-10-22.md C-81.
+
+### TB-51 — "Break Treaty" during the treaty cooldown does nothing
+**DOS:** FUN_465b_0000 asks a human attacker @HAVETREATY (0x13ba) when its own
+relation byte carries 0x40 (raw 75545-75551). After the "Break Treaty" answer
+it tests the attacker's encounter cooldown, nation +0x40+peer (DS -0x77b8,
+raw 75553-75557), and jumps to LAB_465b_0bd1 while it is non-zero: the move
+ends with no message and the treaty stands. FUN_5bfb_153e's LAB_30de exit
+re-arms that cooldown to (6-difficulty)*2 (halved with Franklin) on contact at
+peace, and FUN_5bfb_13b0 sets it to 1 at signing.
+
+**Effect:** for a few turns after a treaty or a peaceful encounter, the player
+is asked whether to break the treaty, picks "Break Treaty", and nothing
+happens: the unit does not attack and no reason is given.
+
+**Port (reproduces it):** the AI_POPUP_TAG_CONTACT_EURO_WAR answer in
+`src/core/game_dialogs.c` (Break Treaty arm), port_bugs.md #1258.
+
+**Blocks removal:** nothing known; not tried. Options: skip @HAVETREATY while the
+cooldown runs, or say why the attack was refused.
+**Status:** tolerated (user, 2026-10-25).
