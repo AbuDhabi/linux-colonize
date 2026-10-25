@@ -39,6 +39,7 @@
  *   colony N                    open colony N's screen (index from `colonies`)
  *   field N CI TILE JOB         colonist CI of colony N onto ring tile TILE (0 N .. 7 NW), field job JOB
  *   work N CI B                 colonist CI of colony N into @BUILDING row B (as `hit` prints)
+ *   build N BID [queue]         colony N builds BID (@BUILDING row, or unit code 42 artillery..)
  *   endturn                     confirm the End of Turn prompt (error while a unit waits)
  *   world                       whole map, one char a tile
  *   rumours                     list seen rumour tiles with terrain (h hill, m mountain)
@@ -833,6 +834,24 @@ static bool command(char* line) {
     if (!done) {
       printf("ERR %s refused\n", op);
     }
+    ok = flush_frames(2);
+  } else if (strcmp(op, "build") == 0 && argc > 2) {
+    /* build N BID [queue]: colony N's construction pick, as a click (or a Shift-click with
+     * `queue`) on that build-menu row does; BID = @BUILDING row or unit code (42 artillery,
+     * 43 wagon train ...). Opens the colony screen; `key Escape` closes it. */
+    if (a1 < 0 || a1 >= g_game->colonies.colony_count) {
+      printf("ERR no colony %d\n", a1);
+      return true;
+    }
+    game_enter_colony(g_game, g_game->colonies.colonies[a1].id);
+    flush_frames(10);
+    if (argc > 3 && strcmp(argv[3], "queue") == 0) {
+      game_colony_queue_construction(g_game, a2);
+    } else {
+      game_colony_commit_construction(g_game, a2);
+    }
+    printf("BUILD %s now %d\n", g_game->colonies.colonies[a1].name,
+           g_game->colonies.colonies[a1].building_in_production);
     ok = flush_frames(2);
   } else if (strcmp(op, "world") == 0) {
     /* Whole map, one char a tile: ~ water, C/c own/foreign colony, V village,

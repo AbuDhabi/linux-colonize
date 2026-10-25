@@ -106,3 +106,36 @@ Driving notes (new this campaign):
 - The reload did not help: the Dutch declared war again at the end of turn
   148 (the decision was already made). Continued from there, this time
   spreading artillery to every colony before the Dutch army arrives.
+
+### 1620-1695 (second timeline): Iroquois surrender, French invasion
+
+- Continued from turn 148. Artillery turned out to be the best native
+  killer: base 7, Attack +50%, Spain +50%, no open-field penalty against
+  natives, 95% against a village brave. Burned (26,8), (22,3), (17,6),
+  (21,7) (600 treasure) and the capital (17,13) (1200 treasure; founded
+  **Veracruz** on the site so the Crown would ship it: +420). "The Iroquois
+  tribe bows before the might of the Spanish": surrender, later "everlasting
+  peace" gifts. Pocahontas joined in 1649.
+- The Dutch frigate that crippled a caravel parked off San Salvador for ~40
+  turns and blockaded the east side. Twice the Dutch offered a demarcation
+  treaty and twice the King cancelled the peace (@KINGNEWWAR, DOS-literal
+  FUN_38fd_5930: needs peace with everyone, ~10%/turn on Governor) and paid
+  1000 gold + 3 Veteran Soldiers each time.
+- Founding fathers: Bolivar (1637), Pocahontas (1649), Paine (1668), Fugger
+  (1684; lifted the Ore/Cloth/Furs/Tools boycotts).
+- Founded **Havana** (26,8). Santo Domingo got a Fort, San Salvador a Custom
+  House (sells boycotted ore).
+- 1669: **France declared war** at an encounter (aggressive greeting); French
+  dragoons that had been parked next to my colonies attacked. From 1673 a
+  French army of ~30 land units (dragoons, soldiers, 7 artillery) landed from
+  galleons. They took Veracruz (pop 1). Sorties from Isabella captured ~8
+  French colonists (artillery captures colonists), but my artillery attacked
+  unfortified units at 46% ("Artillery In Open -75%" applies unless the
+  defender is fortified) and lost; by 1695 Isabella had 12 damaged guns and no
+  healthy one.
+- Found the rule that matters (src/core/ai_diplo.c,
+  `ai_diplo_153e_worthiness_score(ctx, human, target, ...)`): if the human
+  owns **Benjamin Franklin**, the encounter is never "worthy" of war and turns
+  into a peace offer. Franklin was 13 turns away. Saved `saves/t297.sav` and
+  reloaded `saves/t232.sav` (French still at peace); this timeline's autosaves
+  were moved to `saves/branch2/`.
