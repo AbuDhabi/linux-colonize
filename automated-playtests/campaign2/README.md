@@ -3,6 +3,10 @@
 Goal: win the War of Independence on **Explorer** (second-easiest) as
 **England** (leader Walter Raleigh), playing the port headlessly.
 
+**Result: independence won in spring 1699** (turn 306, score 1146), at the
+third try. The first two wars were abandoned and reloaded from before the
+declaration (see the journal). Bugs: [bugs.md](bugs.md).
+
 ## How it is played
 
 Same harness as campaign 1 (see ../campaign1/README.md):
@@ -23,7 +27,10 @@ automated-playtests/campaign2`. `settings.json` here has
   - `colony N` (open colony N's screen),
   - `rumours` (seen rumour tiles with terrain, hill / mountain),
   - `mdown X Y` / `mup X Y` (hand-paced drags),
-  - `hit X Y` (colony-screen hit test: which zone a coordinate lands in).
+  - `hit X Y` (colony-screen hit test: which zone a coordinate lands in; for
+    a unit standing in the colony it also prints the unit id),
+  - `units` marks damaged artillery (`damaged`),
+  - `key Escape` is refused on the bare main map (bug C2-B1); `key Escape force`.
 - UI notes for driving: popups ignore keys for a few frames after they open
   (send `wait 10` first); a unit with Go To orders only advances when it is
   the active unit (or at end of turn); units in a colony board a ship by
@@ -218,3 +225,80 @@ Plan for attempt 3 (from `pre_declare2_1645.sav`): before declaring, raise bell
 output as far as it goes. Then hold Jamestown, the only port that matters (losing
 every port loses the war), in its Fortress with all the guns. Retake Roanoke
 once the intervention arrives.
+
+### 1645-1676: third preparation (reloaded `pre_declare2_1645.sav`)
+
+The plan: more guns, more hammers, George Washington. Then put everything in
+the Jamestown Fortress and let Roanoke go.
+
+- Hammers: a Master Carpenter recruited in London (305) went into Jamestown's
+  Lumber Mill (26 to 42 hammers). New colonists became a second lumberjack at
+  Plymouth and Roanoke and a third carpenter at Roanoke. Roanoke built an
+  Armory and, like Plymouth, turned out artillery from bought tools.
+- Money: Plymouth furs and tobacco by wagon to Jamestown, then to London by
+  Merchantman (only ~200-500 a trip; furs fell to 3, tax rose 19% -> 49%). All
+  of it went on tools (9 each), to feed three artillery lines.
+- Founding fathers: Fugger, Stuyvesant, Magellan, then **George Washington**
+  (1673): every won fight promotes.
+- From 1672 Dutch frigates (Spain had ceded New Spain to the Dutch) attacked
+  my ships at sea without any declaration (see C2-O2). They damaged the
+  Caravel, the Frigate and the Merchantman. Two artillery aboard the Caravel
+  were lost. The King's gift frigate later sank one Dutch frigate.
+- 1676 (turn 260): **38 artillery** (37 in Jamestown), 10 dragoons, a
+  Continental-to-be veteran. REF: 29 regulars, 10 cavalry, 8 artillery, 5
+  men-of-war. Declared (`saves/pre_declare3_1676.sav`).
+
+### Attempt 3: the war, 1676-1699 (won)
+
+- **1676-77.** As planned, Roanoke (one gun) fell at once. The Crown having
+  taken a colony lowers the win bar to "fewer than 8 REF land units". Every
+  wave then landed on Jamestown's two forest tiles and attacked the Fortress.
+  Odds for them: regulars 40%, cavalry 44%, artillery 48% (Fortress +200%,
+  SoL 100% so no Tory bonus).
+- **1677-85.** The REF threw itself at the Fortress turn after turn: 4-6
+  regulars killed per turn, our guns damaged (never destroyed while healthy
+  ones remained). A few dragoon sorties only at good odds: lone REF artillery
+  in the open (85%: "Artillery In Open -75%" plus ambush), and Regulars in a
+  forest seen from a non-colony tile (ambush +50%). Washington's promotions
+  made veterans and then Continental cavalry out of the winners. The Arawak,
+  their village next to Jamestown burned by REF artillery, kept attacking the
+  REF too. 1685: the REF pool was empty. 34 of my 40 guns were damaged but
+  none was lost to an assault.
+- **1685-94.** Only garrisons were left: 9 units in Roanoke, 2 guns in
+  Plymouth (taken in 1680). The Crown also raised Tory irregulars (soldiers,
+  dragoons) from the captured colonies. I sat in the Fortress and let the
+  bells reach the 3500 for intervention.
+- **1694: France joins.** Over three turns the intervention landed 6
+  Continental Army, 6 Continental cavalry and 6 artillery at Jamestown, plus 3
+  men-of-war that I control. From then on my attacks on colonies get +50%
+  Bombard, on top of +SoL% "Rebel Unrest".
+- **1695-96.** Continental cavalry retook Plymouth (59-70% a hit,
+  `shots/war3_plymouth.png`). The men-of-war and two merchant hulls carried 18
+  guns and 2 Continental Army to the plains next to Roanoke. Two turns of
+  assaults emptied it (`shots/war3_roanoke_retaken.png`); the last REF regular
+  in the field died attacking that stack.
+- **The catch.** The win test runs at the end of the Crown's turn, *after*
+  its units have moved. Twice a Tory band walked into a colony I had just
+  retaken and left thinly held (one damaged gun in Roanoke, nothing in
+  Plymouth). The win only came once all three colonies had real garrisons
+  at the end of the turn.
+- **Spring 1699 (turn 306): victory.** "Royal Expeditionary Force
+  annihilated! ... Parliament ... votes to accept independence", then the
+  throne scene and the celebration (`shots/win1.png`). Score 1146,
+  Colonization rating 28% (`shots/win2.png`-`win4.png`). Saves in
+  `saves/attempt3/` (`victory_1699.sav` is the autosaved victory).
+
+What decided it:
+
+1. The Fortress plus SoL 100%: REF attacks at 40-48% against healthy guns.
+   Roanoke's Fort with Tory unrest (attempt 1) or damaged guns (attempt 2) gave
+   them 58-66%.
+2. Enough guns (38 at the start, ~48 by the end). The REF's ~64 "lives" ran
+   out before mine.
+3. No sorties at coin-flip odds. Only clear targets: guns in the open, units
+   in forest seen from outside a colony.
+4. Waiting for the French and their Bombard bonus before retaking colonies.
+5. Holding every colony with a garrison at the end of the turn.
+
+Time spent: about 200 game turns after the first landing (1492-1699); the
+war itself took 46 turns.

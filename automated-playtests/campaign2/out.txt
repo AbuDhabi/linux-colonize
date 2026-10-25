@@ -5849,3 +5849,2144 @@ NEAR 204 Soldiers nation 2 at (40,7) moves 3 orders 0
 STATUS turn 303 year 1697 autumn; Turn 303 Cursor 40,7; screen: main map (map); popup tag -1
 STATUS gold 3; view origin (33,1) 15x12 tiles of 16px, y0 8; cursor (40,7)
 @@ b833
+UNIT 43 Wagon Train at (37,14) moves 6 orders 6 prof 0
+UNIT 44 Dragoons at (37,14) moves 12 orders 6 prof 28 tools 0 muskets 50 horses 50
+UNIT 45 Dragoons at (37,14) moves 12 orders 6 prof 21 tools 0 muskets 50 horses 50
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 49 Artillery at (41,6) moves 0 orders 6 prof 28 damaged
+UNIT 50 Artillery at (41,6) moves 0 orders 6 prof 28 damaged
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 53 Artillery at (41,6) moves 0 orders 6 prof 28 damaged
+UNIT 54 Artillery at (41,6) moves 0 orders 6 prof 28 damaged
+UNIT 55 Dragoons at (37,14) moves 12 orders 6 prof 12 tools 0 muskets 50 horses 50
+UNIT 56 Colonists at (38,12) moves 0 orders 6 prof 21
+UNIT 57 Soldiers at (37,14) moves 3 orders 6 prof 15 tools 0 muskets 50 horses 0
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 59 Artillery at (41,6) moves 0 orders 6 prof 28 damaged
+UNIT 60 Artillery at (41,6) moves 0 orders 6 prof 28 damaged
+UNIT 61 Artillery at (41,6) moves 0 orders 6 prof 28 damaged
+UNIT 62 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 64 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 65 Cont. Cav. at (39,7) moves 0 orders 6 prof 21 tools 0 muskets 50 horses 50
+UNIT 66 Dragoons at (37,14) moves 12 orders 6 prof 25 tools 0 muskets 50 horses 50
+UNIT 67 Dragoons at (37,14) moves 12 orders 6 prof 22 tools 0 muskets 50 horses 50
+UNIT 68 Dragoons at (37,14) moves 12 orders 6 prof 22 tools 0 muskets 50 horses 50
+UNIT 69 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 70 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 71 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 72 Dragoons at (37,14) moves 12 orders 6 prof 21 tools 0 muskets 50 horses 50
+UNIT 73 Dragoons at (37,14) moves 12 orders 6 prof 28 tools 0 muskets 50 horses 50
+UNIT 74 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 75 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 76 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 77 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 78 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 79 Artillery at (41,6) moves 0 orders 6 prof 28 damaged
+UNIT 80 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 81 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 82 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 83 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 84 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 85 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 87 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 88 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 89 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 91 Dragoons at (37,14) moves 12 orders 6 prof 28 tools 0 muskets 50 horses 50
+UNIT 92 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 94 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 95 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 96 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 100 Frigate at (37,14) moves 21 orders 0 prof 0 hold[0] 12 x56 hold[1] 4 x100 hold[2] 2 x100
+UNIT 101 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 102 Caravel at (37,14) moves 15 orders 0 prof 0
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 104 Merchantman at (40,5) moves 18 orders 0 prof 0
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 115 Artillery at (41,6) moves 3 orders 5 prof 28 damaged
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 119 Artillery at (41,6) moves 3 orders 5 prof 28
+UNIT 120 Colonists at (37,14) moves 3 orders 5 prof 28
+UNIT 121 Artillery at (41,6) moves 3 orders 5 prof 28
+UNIT 123 Artillery at (37,14) moves 3 orders 5 prof 28
+UNIT 125 Colonists at (37,14) moves 3 orders 5 prof 28
+UNIT 126 Artillery at (37,14) moves 3 orders 5 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 129 Man-O-War at (40,5) moves 18 orders 0 prof 0
+UNIT 130 Cont. Army at (37,14) moves 3 orders 5 prof 21 tools 0 muskets 50 horses 0
+UNIT 131 Cont. Army at (37,14) moves 3 orders 5 prof 21 tools 0 muskets 50 horses 0
+UNIT 132 Cont. Army at (39,7) moves -9 orders 0 prof 21 tools 0 muskets 50 horses 0
+UNIT 133 Cont. Army at (38,12) moves 0 orders 6 prof 21 tools 0 muskets 50 horses 0
+UNIT 134 Artillery at (37,14) moves 0 orders 6 prof 21
+UNIT 135 Artillery at (37,14) moves 0 orders 6 prof 21
+UNIT 137 Man-O-War at (40,5) moves 18 orders 0 prof 0
+UNIT 140 Cont. Army at (39,7) moves -9 orders 0 prof 21 tools 0 muskets 50 horses 0
+UNIT 141 Cont. Army at (38,12) moves 0 orders 6 prof 21 tools 0 muskets 50 horses 0
+UNIT 142 Artillery at (41,6) moves 0 orders 0 prof 21 damaged
+UNIT 143 Artillery at (41,6) moves 0 orders 6 prof 21 damaged
+UNIT 155 Man-O-War at (36,14) moves 18 orders 0 prof 0
+UNIT 156 Cont. Army at (37,14) moves 3 orders 5 prof 21 tools 0 muskets 50 horses 0
+UNIT 157 Cont. Army at (37,14) moves 3 orders 5 prof 21 tools 0 muskets 50 horses 0
+UNIT 158 Cont. Cav. at (37,14) moves 12 orders 5 prof 21 tools 0 muskets 50 horses 50
+UNIT 159 Cont. Cav. at (37,14) moves 12 orders 5 prof 21 tools 0 muskets 50 horses 50
+UNIT 160 Artillery at (37,14) moves 3 orders 5 prof 21
+UNIT 161 Artillery at (37,14) moves 3 orders 5 prof 21
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 197 Artillery at (37,14) moves 3 orders 5 prof 28
+@@ b834
+UNIT 43 Wagon Train at (37,14) moves 6 orders 6 prof 0
+UNIT 44 Dragoons at (37,14) moves 12 orders 6 prof 28 tools 0 muskets 50 horses 50
+UNIT 45 Dragoons at (37,14) moves 12 orders 6 prof 21 tools 0 muskets 50 horses 50
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 49 Artillery at (41,6) moves 0 orders 6 prof 28 damaged
+UNIT 50 Artillery at (41,6) moves 0 orders 6 prof 28 damaged
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 53 Artillery at (41,6) moves 0 orders 6 prof 28 damaged
+UNIT 54 Artillery at (41,6) moves 0 orders 6 prof 28 damaged
+UNIT 55 Dragoons at (37,14) moves 12 orders 6 prof 12 tools 0 muskets 50 horses 50
+UNIT 56 Colonists at (38,12) moves 0 orders 6 prof 21
+UNIT 57 Soldiers at (37,14) moves 3 orders 6 prof 15 tools 0 muskets 50 horses 0
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 59 Artillery at (41,6) moves 0 orders 6 prof 28 damaged
+UNIT 60 Artillery at (41,6) moves 0 orders 6 prof 28 damaged
+UNIT 61 Artillery at (41,6) moves 0 orders 6 prof 28 damaged
+UNIT 62 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 64 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 65 Cont. Cav. at (39,7) moves 0 orders 6 prof 21 tools 0 muskets 50 horses 50
+UNIT 66 Dragoons at (37,14) moves 12 orders 6 prof 25 tools 0 muskets 50 horses 50
+UNIT 67 Dragoons at (37,14) moves 12 orders 6 prof 22 tools 0 muskets 50 horses 50
+UNIT 68 Dragoons at (37,14) moves 12 orders 6 prof 22 tools 0 muskets 50 horses 50
+UNIT 69 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 70 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 71 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 72 Dragoons at (37,14) moves 12 orders 6 prof 21 tools 0 muskets 50 horses 50
+UNIT 73 Dragoons at (37,14) moves 12 orders 6 prof 28 tools 0 muskets 50 horses 50
+UNIT 74 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 75 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 76 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 77 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 78 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 79 Artillery at (41,6) moves 0 orders 6 prof 28 damaged
+UNIT 80 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 81 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 82 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 83 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 84 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 85 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 87 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 88 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 89 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 91 Dragoons at (37,14) moves 12 orders 6 prof 28 tools 0 muskets 50 horses 50
+UNIT 92 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 94 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 95 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 96 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 100 Frigate at (37,14) moves 21 orders 0 prof 0 hold[0] 12 x56 hold[1] 4 x100 hold[2] 2 x100
+UNIT 101 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 102 Caravel at (37,14) moves 15 orders 0 prof 0
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 104 Merchantman at (40,5) moves 18 orders 0 prof 0
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 115 Artillery at (41,6) moves 3 orders 5 prof 28 damaged
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 119 Artillery at (41,6) moves 3 orders 5 prof 28
+UNIT 120 Colonists at (37,14) moves 3 orders 5 prof 28
+UNIT 121 Artillery at (41,6) moves 3 orders 5 prof 28
+UNIT 123 Artillery at (37,14) moves 3 orders 5 prof 28
+UNIT 125 Colonists at (37,14) moves 3 orders 5 prof 28
+UNIT 126 Artillery at (37,14) moves 3 orders 5 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 129 Man-O-War at (40,5) moves 18 orders 0 prof 0
+UNIT 130 Cont. Army at (37,14) moves 3 orders 5 prof 21 tools 0 muskets 50 horses 0
+UNIT 131 Cont. Army at (37,14) moves 3 orders 5 prof 21 tools 0 muskets 50 horses 0
+UNIT 132 Cont. Army at (39,7) moves -9 orders 0 prof 21 tools 0 muskets 50 horses 0
+UNIT 133 Cont. Army at (38,12) moves 0 orders 6 prof 21 tools 0 muskets 50 horses 0
+UNIT 134 Artillery at (37,14) moves 0 orders 6 prof 21
+UNIT 135 Artillery at (37,14) moves 0 orders 6 prof 21
+UNIT 137 Man-O-War at (40,5) moves 18 orders 0 prof 0
+UNIT 140 Cont. Army at (39,7) moves -9 orders 0 prof 21 tools 0 muskets 50 horses 0
+UNIT 141 Cont. Army at (38,12) moves 0 orders 6 prof 21 tools 0 muskets 50 horses 0
+UNIT 142 Artillery at (41,6) moves 0 orders 0 prof 21 damaged
+UNIT 143 Artillery at (41,6) moves 0 orders 6 prof 21 damaged
+UNIT 155 Man-O-War at (36,14) moves 18 orders 0 prof 0
+UNIT 156 Cont. Army at (37,14) moves 3 orders 5 prof 21 tools 0 muskets 50 horses 0
+UNIT 157 Cont. Army at (37,14) moves 3 orders 5 prof 21 tools 0 muskets 50 horses 0
+UNIT 158 Cont. Cav. at (37,14) moves 12 orders 5 prof 21 tools 0 muskets 50 horses 50
+UNIT 159 Cont. Cav. at (37,14) moves 12 orders 5 prof 21 tools 0 muskets 50 horses 50
+UNIT 160 Artillery at (37,14) moves 3 orders 5 prof 21
+UNIT 161 Artillery at (37,14) moves 3 orders 5 prof 21
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 197 Artillery at (37,14) moves 3 orders 5 prof 28
+@@ b835
+NESTED: Return pressed in a modal loop
+NESTED: Return pressed in a modal loop
+NESTED: Return pressed in a modal loop
+LOG: Rebel Artillery {damaged}.  Further damage will destroy it.
+LOG: {Tory Colonists} defeat {Rebels} near Roanoke!
+AUTO stopped (map idle) after 19 frames
+@@ b836
+STATUS turn 303 year 1697 autumn; Turn 303 Cursor 41,6; screen: main map (map); popup tag -1
+STATUS gold 3; view origin (34,1) 15x12 tiles of 16px, y0 8; cursor (41,6)
+STATUS selected unit 121 Artillery at (41,6) moves 3 orders 0
+@@ b837
+NEAR 193 Colonists nation 2 at (40,6) moves 3 orders 0
+NEAR 202 Colonists nation 2 at (40,6) moves 3 orders 0
+@@ b838
+NESTED: Return pressed in a modal loop
+NESTED: Return pressed in a modal loop
+NESTED: Return pressed in a modal loop
+NESTED: Return pressed in a modal loop
+NESTED: Return pressed in a modal loop
+LOG: {Rebels} defeat {Tory Colonists} near Roanoke!
+LOG: {Tory} colonists CAPTURED by the {Rebel}!
+LOG: {Tory} colonists CAPTURED by the {Rebel}!
+LOG: {Rebels} march into {Roanoke}!
+AUTO stopped (colony:Roanoke) after 0 frames
+@@ b839
+NEAR 119 Artillery nation 0 at (40,6) moves 0 orders 0
+NEAR 193 Colonists nation 0 at (40,6) moves 3 orders 0
+NEAR 202 Colonists nation 0 at (40,6) moves 3 orders 0
+@@ b840
+@@ b841
+@@ b842
+@@ b843
+@@ b844
+NEAR 119 Artillery nation 0 at (40,6) moves 0 orders 0
+NEAR 193 Colonists nation 0 at (40,6) moves 3 orders 0
+NEAR 202 Colonists nation 0 at (40,6) moves 3 orders 0
+@@ b845
+UNIT 43 Wagon Train at (37,14) moves 6 orders 6 prof 0
+UNIT 44 Dragoons at (37,14) moves 12 orders 6 prof 28 tools 0 muskets 50 horses 50
+UNIT 45 Dragoons at (37,14) moves 12 orders 6 prof 21 tools 0 muskets 50 horses 50
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 49 Artillery at (41,6) moves 0 orders 6 prof 28 damaged
+UNIT 50 Artillery at (41,6) moves 0 orders 6 prof 28 damaged
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 53 Artillery at (41,6) moves 0 orders 6 prof 28 damaged
+UNIT 54 Artillery at (41,6) moves 0 orders 6 prof 28 damaged
+UNIT 55 Dragoons at (37,14) moves 12 orders 6 prof 12 tools 0 muskets 50 horses 50
+UNIT 56 Colonists at (38,12) moves 0 orders 6 prof 21
+UNIT 57 Soldiers at (37,14) moves 3 orders 6 prof 15 tools 0 muskets 50 horses 0
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 59 Artillery at (41,6) moves 0 orders 6 prof 28 damaged
+UNIT 60 Artillery at (41,6) moves 0 orders 6 prof 28 damaged
+UNIT 61 Artillery at (41,6) moves 0 orders 6 prof 28 damaged
+UNIT 62 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 64 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 65 Cont. Cav. at (39,7) moves 0 orders 6 prof 21 tools 0 muskets 50 horses 50
+UNIT 66 Dragoons at (37,14) moves 12 orders 6 prof 25 tools 0 muskets 50 horses 50
+UNIT 67 Dragoons at (37,14) moves 12 orders 6 prof 22 tools 0 muskets 50 horses 50
+UNIT 68 Dragoons at (37,14) moves 12 orders 6 prof 22 tools 0 muskets 50 horses 50
+UNIT 69 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 70 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 71 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 72 Dragoons at (37,14) moves 12 orders 6 prof 21 tools 0 muskets 50 horses 50
+UNIT 73 Dragoons at (37,14) moves 12 orders 6 prof 28 tools 0 muskets 50 horses 50
+UNIT 74 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 75 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 76 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 77 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 78 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 79 Artillery at (41,6) moves 0 orders 6 prof 28 damaged
+UNIT 80 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 81 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 82 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 83 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 84 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 85 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 87 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 88 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 89 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 91 Dragoons at (37,14) moves 12 orders 6 prof 28 tools 0 muskets 50 horses 50
+UNIT 92 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 94 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 95 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 96 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 100 Frigate at (37,14) moves 21 orders 0 prof 0 hold[0] 12 x56 hold[1] 4 x100 hold[2] 2 x100
+UNIT 101 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 102 Caravel at (37,14) moves 15 orders 0 prof 0
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 104 Merchantman at (40,5) moves 18 orders 0 prof 0
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 115 Artillery at (41,6) moves 3 orders 0 prof 28 damaged
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 119 Artillery at (40,6) moves 0 orders 0 prof 28
+UNIT 120 Colonists at (37,14) moves 0 orders 6 prof 28
+UNIT 121 Artillery at (41,6) moves 3 orders 0 prof 28 damaged
+UNIT 123 Artillery at (37,14) moves 3 orders 5 prof 28
+UNIT 125 Colonists at (37,14) moves 3 orders 5 prof 28
+UNIT 126 Artillery at (37,14) moves 3 orders 5 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 129 Man-O-War at (40,5) moves 18 orders 0 prof 0
+UNIT 130 Cont. Army at (37,14) moves 3 orders 5 prof 21 tools 0 muskets 50 horses 0
+UNIT 131 Cont. Army at (37,14) moves 3 orders 5 prof 21 tools 0 muskets 50 horses 0
+UNIT 132 Cont. Army at (39,7) moves -9 orders 0 prof 21 tools 0 muskets 50 horses 0
+UNIT 133 Cont. Army at (38,12) moves 0 orders 6 prof 21 tools 0 muskets 50 horses 0
+UNIT 134 Artillery at (37,14) moves 0 orders 6 prof 21
+UNIT 135 Artillery at (37,14) moves 0 orders 6 prof 21
+UNIT 137 Man-O-War at (40,5) moves 18 orders 0 prof 0
+UNIT 140 Cont. Army at (39,7) moves -9 orders 0 prof 21 tools 0 muskets 50 horses 0
+UNIT 141 Cont. Army at (38,12) moves 0 orders 6 prof 21 tools 0 muskets 50 horses 0
+UNIT 142 Artillery at (41,6) moves 0 orders 0 prof 21 damaged
+UNIT 143 Artillery at (41,6) moves 0 orders 0 prof 21 damaged
+UNIT 155 Man-O-War at (36,14) moves 18 orders 0 prof 0
+UNIT 156 Cont. Army at (37,14) moves 3 orders 5 prof 21 tools 0 muskets 50 horses 0
+UNIT 157 Cont. Army at (37,14) moves 3 orders 5 prof 21 tools 0 muskets 50 horses 0
+UNIT 158 Cont. Cav. at (37,14) moves 12 orders 5 prof 21 tools 0 muskets 50 horses 50
+UNIT 159 Cont. Cav. at (37,14) moves 12 orders 5 prof 21 tools 0 muskets 50 horses 50
+UNIT 160 Artillery at (37,14) moves 3 orders 5 prof 21
+UNIT 161 Artillery at (37,14) moves 3 orders 5 prof 21
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 193 Colonists at (40,6) moves 3 orders 0 prof 28
+UNIT 197 Artillery at (37,14) moves 3 orders 5 prof 28
+UNIT 202 Colonists at (40,6) moves 3 orders 0 prof 28
+@@ b846
+STATUS turn 303 year 1697 autumn; Selected Artillery; screen: colony screen (colony:Roanoke); popup tag -1
+STATUS gold 3; view origin (34,1) 15x12 tiles of 16px, y0 8; cursor (41,6)
+STATUS selected unit 115 Artillery at (41,6) moves 3 orders 0
+@@ b847
+STATUS turn 303 year 1697 autumn; Selected Artillery; screen: colony screen (colony:Roanoke); popup tag -1
+STATUS gold 3; view origin (34,1) 15x12 tiles of 16px, y0 8; cursor (41,6)
+STATUS selected unit 115 Artillery at (41,6) moves 3 orders 0
+@@ b848
+UNIT 43 Wagon Train at (37,14) moves 6 orders 6 prof 0
+UNIT 44 Dragoons at (37,14) moves 12 orders 6 prof 28 tools 0 muskets 50 horses 50
+UNIT 45 Dragoons at (37,14) moves 12 orders 6 prof 21 tools 0 muskets 50 horses 50
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 49 Artillery at (41,6) moves 0 orders 6 prof 28 damaged
+UNIT 50 Artillery at (41,6) moves 0 orders 6 prof 28 damaged
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 53 Artillery at (41,6) moves 0 orders 6 prof 28 damaged
+UNIT 54 Artillery at (41,6) moves 0 orders 6 prof 28 damaged
+UNIT 55 Dragoons at (37,14) moves 12 orders 6 prof 12 tools 0 muskets 50 horses 50
+UNIT 56 Colonists at (38,12) moves 0 orders 6 prof 21
+UNIT 57 Soldiers at (37,14) moves 3 orders 6 prof 15 tools 0 muskets 50 horses 0
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 59 Artillery at (41,6) moves 0 orders 6 prof 28 damaged
+UNIT 60 Artillery at (41,6) moves 0 orders 6 prof 28 damaged
+UNIT 61 Artillery at (41,6) moves 0 orders 6 prof 28 damaged
+UNIT 62 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 64 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 65 Cont. Cav. at (39,7) moves 0 orders 6 prof 21 tools 0 muskets 50 horses 50
+UNIT 66 Dragoons at (37,14) moves 12 orders 6 prof 25 tools 0 muskets 50 horses 50
+UNIT 67 Dragoons at (37,14) moves 12 orders 6 prof 22 tools 0 muskets 50 horses 50
+UNIT 68 Dragoons at (37,14) moves 12 orders 6 prof 22 tools 0 muskets 50 horses 50
+UNIT 69 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 70 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 71 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 72 Dragoons at (37,14) moves 12 orders 6 prof 21 tools 0 muskets 50 horses 50
+UNIT 73 Dragoons at (37,14) moves 12 orders 6 prof 28 tools 0 muskets 50 horses 50
+UNIT 74 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 75 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 76 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 77 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 78 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 79 Artillery at (41,6) moves 0 orders 6 prof 28 damaged
+UNIT 80 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 81 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 82 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 83 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 84 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 85 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 87 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 88 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 89 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 91 Dragoons at (37,14) moves 12 orders 6 prof 28 tools 0 muskets 50 horses 50
+UNIT 92 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 94 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 95 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 96 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 100 Frigate at (37,14) moves 21 orders 0 prof 0 hold[0] 12 x56 hold[1] 4 x100 hold[2] 2 x100
+UNIT 101 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 102 Caravel at (37,14) moves 15 orders 0 prof 0
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 104 Merchantman at (40,5) moves 18 orders 0 prof 0
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 115 Artillery at (41,6) moves 3 orders 0 prof 28 damaged
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 119 Artillery at (40,6) moves 0 orders 0 prof 28
+UNIT 120 Colonists at (37,14) moves 0 orders 6 prof 28
+UNIT 121 Artillery at (41,6) moves 3 orders 0 prof 28 damaged
+UNIT 123 Artillery at (37,14) moves 3 orders 5 prof 28
+UNIT 125 Colonists at (37,14) moves 3 orders 5 prof 28
+UNIT 126 Artillery at (37,14) moves 3 orders 5 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 129 Man-O-War at (40,5) moves 18 orders 0 prof 0
+UNIT 130 Cont. Army at (37,14) moves 3 orders 5 prof 21 tools 0 muskets 50 horses 0
+UNIT 131 Cont. Army at (37,14) moves 3 orders 5 prof 21 tools 0 muskets 50 horses 0
+UNIT 132 Cont. Army at (39,7) moves -9 orders 0 prof 21 tools 0 muskets 50 horses 0
+UNIT 133 Cont. Army at (38,12) moves 0 orders 6 prof 21 tools 0 muskets 50 horses 0
+UNIT 134 Artillery at (37,14) moves 0 orders 6 prof 21
+UNIT 135 Artillery at (37,14) moves 0 orders 6 prof 21
+UNIT 137 Man-O-War at (40,5) moves 18 orders 0 prof 0
+UNIT 140 Cont. Army at (39,7) moves -9 orders 0 prof 21 tools 0 muskets 50 horses 0
+UNIT 141 Cont. Army at (38,12) moves 0 orders 6 prof 21 tools 0 muskets 50 horses 0
+UNIT 142 Artillery at (41,6) moves 0 orders 0 prof 21 damaged
+UNIT 143 Artillery at (41,6) moves 0 orders 0 prof 21 damaged
+UNIT 155 Man-O-War at (36,14) moves 18 orders 0 prof 0
+UNIT 156 Cont. Army at (37,14) moves 3 orders 5 prof 21 tools 0 muskets 50 horses 0
+UNIT 157 Cont. Army at (37,14) moves 3 orders 5 prof 21 tools 0 muskets 50 horses 0
+UNIT 158 Cont. Cav. at (37,14) moves 12 orders 5 prof 21 tools 0 muskets 50 horses 50
+UNIT 159 Cont. Cav. at (37,14) moves 12 orders 5 prof 21 tools 0 muskets 50 horses 50
+UNIT 160 Artillery at (37,14) moves 3 orders 5 prof 21
+UNIT 161 Artillery at (37,14) moves 3 orders 5 prof 21
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 193 Colonists at (40,6) moves 3 orders 0 prof 28
+UNIT 197 Artillery at (37,14) moves 3 orders 5 prof 28
+UNIT 202 Colonists at (40,6) moves 3 orders 0 prof 28
+@@ b849
+STATUS turn 303 year 1697 autumn; Turn 303 Cursor 41,6; screen: main map (map); popup tag -1
+STATUS gold 3; view origin (34,1) 15x12 tiles of 16px, y0 8; cursor (41,6)
+STATUS selected unit 115 Artillery at (41,6) moves 3 orders 0
+@@ b850
+@@ b851
+@@ b852
+NEAR 115 Artillery nation 0 at (40,6) moves 2 orders 0
+NEAR 119 Artillery nation 0 at (40,6) moves 0 orders 0
+NEAR 121 Artillery nation 0 at (40,6) moves 2 orders 0
+NEAR 193 Colonists nation 0 at (40,6) moves 3 orders 0
+NEAR 202 Colonists nation 0 at (40,6) moves 3 orders 0
+@@ b853
+UNIT 43 Wagon Train at (37,14) moves 6 orders 6 prof 0
+UNIT 44 Dragoons at (37,14) moves 12 orders 6 prof 28 tools 0 muskets 50 horses 50
+UNIT 45 Dragoons at (37,14) moves 12 orders 6 prof 21 tools 0 muskets 50 horses 50
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 49 Artillery at (41,6) moves 0 orders 6 prof 28 damaged
+UNIT 50 Artillery at (41,6) moves 0 orders 6 prof 28 damaged
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 53 Artillery at (41,6) moves 0 orders 6 prof 28 damaged
+UNIT 54 Artillery at (41,6) moves 0 orders 6 prof 28 damaged
+UNIT 55 Dragoons at (37,14) moves 12 orders 6 prof 12 tools 0 muskets 50 horses 50
+UNIT 56 Colonists at (38,12) moves 0 orders 6 prof 21
+UNIT 57 Soldiers at (37,14) moves 3 orders 6 prof 15 tools 0 muskets 50 horses 0
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 59 Artillery at (41,6) moves 0 orders 6 prof 28 damaged
+UNIT 60 Artillery at (41,6) moves 0 orders 6 prof 28 damaged
+UNIT 61 Artillery at (41,6) moves 0 orders 6 prof 28 damaged
+UNIT 62 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 64 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 65 Cont. Cav. at (39,7) moves 0 orders 6 prof 21 tools 0 muskets 50 horses 50
+UNIT 66 Dragoons at (37,14) moves 12 orders 6 prof 25 tools 0 muskets 50 horses 50
+UNIT 67 Dragoons at (37,14) moves 12 orders 6 prof 22 tools 0 muskets 50 horses 50
+UNIT 68 Dragoons at (37,14) moves 12 orders 6 prof 22 tools 0 muskets 50 horses 50
+UNIT 69 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 70 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 71 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 72 Dragoons at (37,14) moves 12 orders 6 prof 21 tools 0 muskets 50 horses 50
+UNIT 73 Dragoons at (37,14) moves 12 orders 6 prof 28 tools 0 muskets 50 horses 50
+UNIT 74 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 75 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 76 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 77 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 78 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 79 Artillery at (41,6) moves 0 orders 6 prof 28 damaged
+UNIT 80 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 81 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 82 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 83 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 84 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 85 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 87 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 88 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 89 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 91 Dragoons at (37,14) moves 12 orders 6 prof 28 tools 0 muskets 50 horses 50
+UNIT 92 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 94 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 95 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 96 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 100 Frigate at (37,14) moves 21 orders 0 prof 0 hold[0] 12 x56 hold[1] 4 x100 hold[2] 2 x100
+UNIT 101 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 102 Caravel at (37,14) moves 15 orders 0 prof 0
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 104 Merchantman at (40,5) moves 18 orders 0 prof 0
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 115 Artillery at (40,6) moves 2 orders 0 prof 28 damaged
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 119 Artillery at (40,6) moves 0 orders 0 prof 28
+UNIT 120 Colonists at (37,14) moves 0 orders 6 prof 28
+UNIT 121 Artillery at (40,6) moves 2 orders 0 prof 28 damaged
+UNIT 123 Artillery at (37,14) moves 3 orders 5 prof 28
+UNIT 125 Colonists at (37,14) moves 3 orders 5 prof 28
+UNIT 126 Artillery at (37,14) moves 3 orders 5 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 129 Man-O-War at (40,5) moves 18 orders 0 prof 0
+UNIT 130 Cont. Army at (37,14) moves 3 orders 5 prof 21 tools 0 muskets 50 horses 0
+UNIT 131 Cont. Army at (37,14) moves 3 orders 5 prof 21 tools 0 muskets 50 horses 0
+UNIT 132 Cont. Army at (39,7) moves -9 orders 0 prof 21 tools 0 muskets 50 horses 0
+UNIT 133 Cont. Army at (38,12) moves 0 orders 6 prof 21 tools 0 muskets 50 horses 0
+UNIT 134 Artillery at (37,14) moves 0 orders 6 prof 21
+UNIT 135 Artillery at (37,14) moves 0 orders 6 prof 21
+UNIT 137 Man-O-War at (40,5) moves 18 orders 0 prof 0
+UNIT 140 Cont. Army at (39,7) moves -9 orders 0 prof 21 tools 0 muskets 50 horses 0
+UNIT 141 Cont. Army at (38,12) moves 0 orders 6 prof 21 tools 0 muskets 50 horses 0
+UNIT 142 Artillery at (41,6) moves 0 orders 0 prof 21 damaged
+UNIT 143 Artillery at (41,6) moves 0 orders 0 prof 21 damaged
+UNIT 155 Man-O-War at (36,14) moves 18 orders 0 prof 0
+UNIT 156 Cont. Army at (37,14) moves 3 orders 5 prof 21 tools 0 muskets 50 horses 0
+UNIT 157 Cont. Army at (37,14) moves 3 orders 5 prof 21 tools 0 muskets 50 horses 0
+UNIT 158 Cont. Cav. at (37,14) moves 12 orders 5 prof 21 tools 0 muskets 50 horses 50
+UNIT 159 Cont. Cav. at (37,14) moves 12 orders 5 prof 21 tools 0 muskets 50 horses 50
+UNIT 160 Artillery at (37,14) moves 3 orders 5 prof 21
+UNIT 161 Artillery at (37,14) moves 3 orders 5 prof 21
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 193 Colonists at (40,6) moves 3 orders 0 prof 28
+UNIT 197 Artillery at (37,14) moves 3 orders 5 prof 28
+UNIT 202 Colonists at (40,6) moves 3 orders 0 prof 28
+@@ b854
+UNIT 43 Wagon Train at (37,14) moves 6 orders 6 prof 0
+UNIT 44 Dragoons at (37,14) moves 12 orders 6 prof 28 tools 0 muskets 50 horses 50
+UNIT 45 Dragoons at (37,14) moves 12 orders 6 prof 21 tools 0 muskets 50 horses 50
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 49 Artillery at (41,6) moves 0 orders 6 prof 28 damaged
+UNIT 50 Artillery at (41,6) moves 0 orders 6 prof 28 damaged
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 53 Artillery at (41,6) moves 0 orders 6 prof 28 damaged
+UNIT 54 Artillery at (41,6) moves 0 orders 6 prof 28 damaged
+UNIT 55 Dragoons at (37,14) moves 12 orders 6 prof 12 tools 0 muskets 50 horses 50
+UNIT 56 Colonists at (38,12) moves 0 orders 6 prof 21
+UNIT 57 Soldiers at (37,14) moves 3 orders 6 prof 15 tools 0 muskets 50 horses 0
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 59 Artillery at (41,6) moves 0 orders 6 prof 28 damaged
+UNIT 60 Artillery at (41,6) moves 0 orders 6 prof 28 damaged
+UNIT 61 Artillery at (41,6) moves 0 orders 6 prof 28 damaged
+UNIT 62 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 64 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 65 Cont. Cav. at (39,7) moves 0 orders 6 prof 21 tools 0 muskets 50 horses 50
+UNIT 66 Dragoons at (37,14) moves 12 orders 6 prof 25 tools 0 muskets 50 horses 50
+UNIT 67 Dragoons at (37,14) moves 12 orders 6 prof 22 tools 0 muskets 50 horses 50
+UNIT 68 Dragoons at (37,14) moves 12 orders 6 prof 22 tools 0 muskets 50 horses 50
+UNIT 69 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 70 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 71 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 72 Dragoons at (37,14) moves 12 orders 6 prof 21 tools 0 muskets 50 horses 50
+UNIT 73 Dragoons at (37,14) moves 12 orders 6 prof 28 tools 0 muskets 50 horses 50
+UNIT 74 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 75 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 76 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 77 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 78 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 79 Artillery at (41,6) moves 0 orders 6 prof 28 damaged
+UNIT 80 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 81 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 82 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 83 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 84 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 85 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 87 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 88 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 89 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 91 Dragoons at (37,14) moves 12 orders 6 prof 28 tools 0 muskets 50 horses 50
+UNIT 92 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 94 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 95 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 96 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 100 Frigate at (37,14) moves 21 orders 0 prof 0 hold[0] 12 x56 hold[1] 4 x100 hold[2] 2 x100
+UNIT 101 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 102 Caravel at (37,14) moves 15 orders 0 prof 0
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 104 Merchantman at (40,5) moves 18 orders 0 prof 0
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 115 Artillery at (40,6) moves 2 orders 0 prof 28 damaged
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 119 Artillery at (40,6) moves 0 orders 0 prof 28
+UNIT 120 Colonists at (37,14) moves 0 orders 6 prof 28
+UNIT 121 Artillery at (40,6) moves 2 orders 0 prof 28 damaged
+UNIT 123 Artillery at (37,14) moves 3 orders 5 prof 28
+UNIT 125 Colonists at (37,14) moves 3 orders 5 prof 28
+UNIT 126 Artillery at (37,14) moves 3 orders 5 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 129 Man-O-War at (40,5) moves 18 orders 0 prof 0
+UNIT 130 Cont. Army at (37,14) moves 3 orders 5 prof 21 tools 0 muskets 50 horses 0
+UNIT 131 Cont. Army at (37,14) moves 3 orders 5 prof 21 tools 0 muskets 50 horses 0
+UNIT 132 Cont. Army at (39,7) moves -9 orders 0 prof 21 tools 0 muskets 50 horses 0
+UNIT 133 Cont. Army at (38,12) moves 0 orders 6 prof 21 tools 0 muskets 50 horses 0
+UNIT 134 Artillery at (37,14) moves 0 orders 6 prof 21
+UNIT 135 Artillery at (37,14) moves 0 orders 6 prof 21
+UNIT 137 Man-O-War at (40,5) moves 18 orders 0 prof 0
+UNIT 140 Cont. Army at (39,7) moves -9 orders 0 prof 21 tools 0 muskets 50 horses 0
+UNIT 141 Cont. Army at (38,12) moves 0 orders 6 prof 21 tools 0 muskets 50 horses 0
+UNIT 142 Artillery at (41,6) moves 0 orders 0 prof 21 damaged
+UNIT 143 Artillery at (41,6) moves 0 orders 0 prof 21 damaged
+UNIT 155 Man-O-War at (36,14) moves 18 orders 0 prof 0
+UNIT 156 Cont. Army at (37,14) moves 3 orders 5 prof 21 tools 0 muskets 50 horses 0
+UNIT 157 Cont. Army at (37,14) moves 3 orders 5 prof 21 tools 0 muskets 50 horses 0
+UNIT 158 Cont. Cav. at (37,14) moves 12 orders 5 prof 21 tools 0 muskets 50 horses 50
+UNIT 159 Cont. Cav. at (37,14) moves 12 orders 5 prof 21 tools 0 muskets 50 horses 50
+UNIT 160 Artillery at (37,14) moves 3 orders 5 prof 21
+UNIT 161 Artillery at (37,14) moves 3 orders 5 prof 21
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 193 Colonists at (40,6) moves 3 orders 0 prof 28
+UNIT 197 Artillery at (37,14) moves 3 orders 5 prof 28
+UNIT 202 Colonists at (40,6) moves 3 orders 0 prof 28
+@@ b855
+SAVED attempt3/war3_t303_roanoke2.sav
+@@ b856
+STATUS turn 303 year 1697 autumn; Turn 303 Cursor 40,6; screen: main map (map); popup tag -1
+STATUS gold 3; view origin (33,1) 15x12 tiles of 16px, y0 8; cursor (40,6)
+STATUS selected unit 121 Artillery at (40,6) moves 2 orders 0
+@@ b857
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 121)
+@@ b858
+@@ b859
+STATUS turn 303 year 1697 autumn; Turn 303 Cursor 40,5; screen: main map (map); popup tag -1
+STATUS gold 3; view origin (33,1) 15x12 tiles of 16px, y0 8; cursor (40,5)
+STATUS selected unit 129 Man-O-War at (40,5) moves 18 orders 0
+@@ b860
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 129)
+@@ b861
+@@ b862
+STATUS turn 303 year 1697 autumn; Turn 303 Cursor 40,5; screen: main map (map); popup tag -1
+STATUS gold 3; view origin (33,1) 15x12 tiles of 16px, y0 8; cursor (40,5)
+STATUS selected unit 137 Man-O-War at (40,5) moves 18 orders 0
+@@ b863
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 137)
+@@ b864
+@@ b865
+STATUS turn 303 year 1697 autumn; Turn 303 Cursor 36,14; screen: main map (map); popup tag -1
+STATUS gold 3; view origin (29,8) 15x12 tiles of 16px, y0 8; cursor (36,14)
+STATUS selected unit 155 Man-O-War at (36,14) moves 18 orders 0
+@@ b866
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 155)
+@@ b867
+@@ b868
+STATUS turn 303 year 1697 autumn; Turn 303 Cursor 40,6; screen: main map (map); popup tag -1
+STATUS gold 3; view origin (33,1) 15x12 tiles of 16px, y0 8; cursor (40,6)
+STATUS selected unit 193 Colonists at (40,6) moves 3 orders 0
+@@ b869
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 193)
+@@ b870
+@@ b871
+STATUS turn 303 year 1697 autumn; Turn 303 Cursor 40,6; screen: main map (map); popup tag -1
+STATUS gold 3; view origin (33,1) 15x12 tiles of 16px, y0 8; cursor (40,6)
+STATUS selected unit 202 Colonists at (40,6) moves 3 orders 0
+@@ b872
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 202)
+@@ b873
+@@ b874
+STATUS turn 303 year 1697 autumn; Turn 303 Cursor 37,14; screen: main map (map); popup tag -1
+STATUS gold 3; view origin (30,8) 15x12 tiles of 16px, y0 8; cursor (37,14)
+STATUS selected unit 100 Frigate at (37,14) moves 21 orders 0
+@@ b875
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 100)
+@@ b876
+@@ b877
+STATUS turn 303 year 1697 autumn; Turn 303 Cursor 37,14; screen: main map (map); popup tag -1
+STATUS gold 3; view origin (30,8) 15x12 tiles of 16px, y0 8; cursor (37,14)
+STATUS selected unit 102 Caravel at (37,14) moves 15 orders 0
+@@ b878
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 102)
+@@ b879
+@@ b880
+STATUS turn 303 year 1697 autumn; Turn 303 Cursor 40,5; screen: main map (map); popup tag -1
+STATUS gold 3; view origin (33,1) 15x12 tiles of 16px, y0 8; cursor (40,5)
+STATUS selected unit 104 Merchantman at (40,5) moves 18 orders 0
+@@ b881
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 104)
+@@ b882
+@@ b883
+STATUS turn 303 year 1697 autumn; Turn 303 Cursor 40,6; screen: main map (map); popup tag -1
+STATUS gold 3; view origin (33,1) 15x12 tiles of 16px, y0 8; cursor (40,6)
+STATUS selected unit 115 Artillery at (40,6) moves 2 orders 0
+@@ b884
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 115)
+@@ b885
+@@ b886
+STATUS turn 304 year 1698; Turn 304 Cursor 37,14; screen: main map (map); popup tag -1
+STATUS gold 3; view origin (30,8) 15x12 tiles of 16px, y0 8; cursor (37,14)
+STATUS selected unit 100 Frigate at (37,14) moves 21 orders 0
+@@ b887
+AUTO stopped (map idle) after 19 frames
+AUTO stopped (map idle) after 19 frames
+STATUS turn 304 year 1698; Turn 304 Cursor 37,14; screen: main map (map); popup tag -1
+STATUS gold 3; view origin (30,8) 15x12 tiles of 16px, y0 8; cursor (37,14)
+STATUS selected unit 100 Frigate at (37,14) moves 21 orders 0
+@@ b888
+SAVED attempt3/war3_t304.sav
+@@ b889
+NEAR 43 Wagon Train nation 0 at (37,14) moves 6 orders 6
+NEAR 44 Dragoons nation 0 at (37,14) moves 12 orders 6
+NEAR 45 Dragoons nation 0 at (37,14) moves 12 orders 6
+NEAR 49 Artillery nation 0 at (41,6) moves 3 orders 6
+NEAR 50 Artillery nation 0 at (41,6) moves 3 orders 6
+NEAR 53 Artillery nation 0 at (41,6) moves 3 orders 6
+NEAR 54 Artillery nation 0 at (41,6) moves 3 orders 6
+NEAR 55 Dragoons nation 0 at (37,14) moves 12 orders 6
+NEAR 56 Colonists nation 0 at (38,12) moves 3 orders 6
+NEAR 57 Soldiers nation 0 at (37,14) moves 3 orders 6
+NEAR 59 Artillery nation 0 at (41,6) moves 3 orders 6
+NEAR 60 Artillery nation 0 at (41,6) moves 3 orders 6
+NEAR 61 Artillery nation 0 at (41,6) moves 3 orders 6
+NEAR 62 Artillery nation 0 at (37,14) moves 3 orders 6
+NEAR 64 Artillery nation 0 at (37,14) moves 3 orders 6
+NEAR 65 Cont. Cav. nation 0 at (39,7) moves 12 orders 6
+NEAR 66 Dragoons nation 0 at (37,14) moves 12 orders 6
+NEAR 67 Dragoons nation 0 at (37,14) moves 12 orders 6
+NEAR 68 Dragoons nation 0 at (37,14) moves 12 orders 6
+NEAR 69 Artillery nation 0 at (37,14) moves 3 orders 6
+NEAR 70 Artillery nation 0 at (37,14) moves 3 orders 6
+NEAR 71 Artillery nation 0 at (37,14) moves 3 orders 6
+NEAR 72 Dragoons nation 0 at (37,14) moves 12 orders 6
+NEAR 73 Dragoons nation 0 at (37,14) moves 12 orders 6
+NEAR 74 Artillery nation 0 at (37,14) moves 3 orders 6
+NEAR 75 Artillery nation 0 at (37,14) moves 3 orders 6
+NEAR 76 Artillery nation 0 at (37,14) moves 3 orders 6
+NEAR 77 Artillery nation 0 at (37,14) moves 3 orders 6
+NEAR 78 Artillery nation 0 at (37,14) moves 3 orders 6
+NEAR 79 Artillery nation 0 at (41,6) moves 3 orders 6
+NEAR 80 Artillery nation 0 at (37,14) moves 3 orders 6
+NEAR 81 Artillery nation 0 at (37,14) moves 3 orders 6
+NEAR 82 Artillery nation 0 at (37,14) moves 3 orders 6
+NEAR 83 Artillery nation 0 at (37,14) moves 3 orders 6
+NEAR 84 Artillery nation 0 at (37,14) moves 3 orders 6
+NEAR 85 Artillery nation 0 at (37,14) moves 3 orders 6
+NEAR 87 Artillery nation 0 at (37,14) moves 3 orders 6
+NEAR 88 Artillery nation 0 at (37,14) moves 3 orders 6
+NEAR 89 Artillery nation 0 at (37,14) moves 3 orders 6
+NEAR 91 Dragoons nation 0 at (37,14) moves 12 orders 6
+NEAR 92 Artillery nation 0 at (37,14) moves 3 orders 6
+NEAR 94 Artillery nation 0 at (37,14) moves 3 orders 6
+NEAR 95 Artillery nation 0 at (37,14) moves 3 orders 6
+NEAR 96 Artillery nation 0 at (37,14) moves 3 orders 6
+NEAR 100 Frigate nation 0 at (37,14) moves 21 orders 0
+NEAR 101 Artillery nation 0 at (37,14) moves 3 orders 6
+NEAR 102 Caravel nation 0 at (37,14) moves 15 orders 0
+NEAR 104 Merchantman nation 0 at (40,5) moves 18 orders 0
+NEAR 105 Regulars nation 2 at (42,6) moves 3 orders 0
+NEAR 115 Artillery nation 0 at (40,6) moves 3 orders 0
+NEAR 119 Artillery nation 0 at (40,6) moves 3 orders 0
+NEAR 120 Colonists nation 0 at (37,14) moves 3 orders 6
+NEAR 121 Artillery nation 0 at (40,6) moves 3 orders 0
+NEAR 122 Dragoons nation 2 at (37,13) moves 12 orders 6
+NEAR 123 Artillery nation 0 at (37,14) moves 3 orders 6
+NEAR 124 Soldiers nation 2 at (38,11) moves 3 orders 0
+NEAR 125 Colonists nation 0 at (37,14) moves 3 orders 6
+NEAR 126 Artillery nation 0 at (37,14) moves 3 orders 6
+NEAR 127 Soldiers nation 2 at (38,11) moves 3 orders 0
+NEAR 129 Man-O-War nation 0 at (40,5) moves 18 orders 0
+NEAR 130 Cont. Army nation 0 at (37,14) moves 3 orders 6
+NEAR 131 Cont. Army nation 0 at (37,14) moves 3 orders 6
+NEAR 132 Cont. Army nation 0 at (39,7) moves 3 orders 0
+NEAR 133 Cont. Army nation 0 at (38,12) moves 3 orders 6
+NEAR 134 Artillery nation 0 at (37,14) moves 3 orders 6
+NEAR 135 Artillery nation 0 at (37,14) moves 3 orders 6
+NEAR 137 Man-O-War nation 0 at (40,5) moves 18 orders 0
+NEAR 138 Colonists nation 2 at (42,6) moves 3 orders 6
+NEAR 139 Colonists nation 2 at (42,6) moves 3 orders 6
+NEAR 140 Cont. Army nation 0 at (39,7) moves 3 orders 0
+NEAR 141 Cont. Army nation 0 at (38,12) moves 3 orders 6
+NEAR 142 Artillery nation 0 at (41,6) moves 3 orders 0
+NEAR 143 Artillery nation 0 at (41,6) moves 3 orders 0
+NEAR 155 Man-O-War nation 0 at (36,14) moves 18 orders 0
+NEAR 156 Cont. Army nation 0 at (37,14) moves 3 orders 6
+NEAR 157 Cont. Army nation 0 at (37,14) moves 3 orders 6
+NEAR 158 Cont. Cav. nation 0 at (37,14) moves 12 orders 6
+NEAR 159 Cont. Cav. nation 0 at (37,14) moves 12 orders 6
+NEAR 160 Artillery nation 0 at (37,14) moves 3 orders 6
+NEAR 161 Artillery nation 0 at (37,14) moves 3 orders 6
+NEAR 186 Soldiers nation 2 at (37,12) moves 3 orders 11
+NEAR 188 Soldiers nation 2 at (36,13) moves 3 orders 12
+NEAR 189 Soldiers nation 2 at (39,12) moves 3 orders 11
+NEAR 190 Soldiers nation 2 at (38,11) moves 3 orders 5
+NEAR 193 Colonists nation 0 at (40,6) moves 3 orders 0
+NEAR 197 Artillery nation 0 at (37,14) moves 3 orders 6
+NEAR 200 Soldiers nation 2 at (40,7) moves 3 orders 0
+NEAR 201 Colonists nation 2 at (38,7) moves 3 orders 0
+NEAR 202 Colonists nation 0 at (40,6) moves 3 orders 0
+NEAR 203 Soldiers nation 2 at (39,6) moves 3 orders 5
+NEAR 204 Soldiers nation 2 at (40,7) moves 3 orders 0
+NEAR 208 Dragoons nation 2 at (36,9) moves 12 orders 12
+NEAR 223 Dragoons nation 2 at (38,11) moves 12 orders 10
+@@ b890
+UNIT 43 Wagon Train at (37,14) moves 6 orders 6 prof 0
+UNIT 44 Dragoons at (37,14) moves 12 orders 6 prof 28 tools 0 muskets 50 horses 50
+UNIT 45 Dragoons at (37,14) moves 12 orders 6 prof 21 tools 0 muskets 50 horses 50
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 49 Artillery at (41,6) moves 3 orders 6 prof 28 damaged
+UNIT 50 Artillery at (41,6) moves 3 orders 6 prof 28 damaged
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 53 Artillery at (41,6) moves 3 orders 6 prof 28 damaged
+UNIT 54 Artillery at (41,6) moves 3 orders 6 prof 28 damaged
+UNIT 55 Dragoons at (37,14) moves 12 orders 6 prof 12 tools 0 muskets 50 horses 50
+UNIT 56 Colonists at (38,12) moves 3 orders 6 prof 21
+UNIT 57 Soldiers at (37,14) moves 3 orders 6 prof 15 tools 0 muskets 50 horses 0
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 59 Artillery at (41,6) moves 3 orders 6 prof 28 damaged
+UNIT 60 Artillery at (41,6) moves 3 orders 6 prof 28 damaged
+UNIT 61 Artillery at (41,6) moves 3 orders 6 prof 28 damaged
+UNIT 62 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 64 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 65 Cont. Cav. at (39,7) moves 12 orders 6 prof 21 tools 0 muskets 50 horses 50
+UNIT 66 Dragoons at (37,14) moves 12 orders 6 prof 25 tools 0 muskets 50 horses 50
+UNIT 67 Dragoons at (37,14) moves 12 orders 6 prof 22 tools 0 muskets 50 horses 50
+UNIT 68 Dragoons at (37,14) moves 12 orders 6 prof 22 tools 0 muskets 50 horses 50
+UNIT 69 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 70 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 71 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 72 Dragoons at (37,14) moves 12 orders 6 prof 21 tools 0 muskets 50 horses 50
+UNIT 73 Dragoons at (37,14) moves 12 orders 6 prof 28 tools 0 muskets 50 horses 50
+UNIT 74 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 75 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 76 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 77 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 78 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 79 Artillery at (41,6) moves 3 orders 6 prof 28 damaged
+UNIT 80 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 81 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 82 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 83 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 84 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 85 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 87 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 88 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 89 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 91 Dragoons at (37,14) moves 12 orders 6 prof 28 tools 0 muskets 50 horses 50
+UNIT 92 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 94 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 95 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 96 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 100 Frigate at (37,14) moves 21 orders 0 prof 0 hold[0] 12 x56 hold[1] 4 x100 hold[2] 2 x100
+UNIT 101 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 102 Caravel at (37,14) moves 15 orders 0 prof 0
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 104 Merchantman at (40,5) moves 18 orders 0 prof 0
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 115 Artillery at (40,6) moves 3 orders 0 prof 28 damaged
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 119 Artillery at (40,6) moves 3 orders 0 prof 28
+UNIT 120 Colonists at (37,14) moves 3 orders 6 prof 28
+UNIT 121 Artillery at (40,6) moves 3 orders 0 prof 28 damaged
+UNIT 123 Artillery at (37,14) moves 3 orders 6 prof 28
+UNIT 125 Colonists at (37,14) moves 3 orders 6 prof 28
+UNIT 126 Artillery at (37,14) moves 3 orders 6 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 129 Man-O-War at (40,5) moves 18 orders 0 prof 0
+UNIT 130 Cont. Army at (37,14) moves 3 orders 6 prof 21 tools 0 muskets 50 horses 0
+UNIT 131 Cont. Army at (37,14) moves 3 orders 6 prof 21 tools 0 muskets 50 horses 0
+UNIT 132 Cont. Army at (39,7) moves 3 orders 0 prof 21 tools 0 muskets 50 horses 0
+UNIT 133 Cont. Army at (38,12) moves 3 orders 6 prof 21 tools 0 muskets 50 horses 0
+UNIT 134 Artillery at (37,14) moves 3 orders 6 prof 21
+UNIT 135 Artillery at (37,14) moves 3 orders 6 prof 21
+UNIT 137 Man-O-War at (40,5) moves 18 orders 0 prof 0
+UNIT 140 Cont. Army at (39,7) moves 3 orders 0 prof 21 tools 0 muskets 50 horses 0
+UNIT 141 Cont. Army at (38,12) moves 3 orders 6 prof 21 tools 0 muskets 50 horses 0
+UNIT 142 Artillery at (41,6) moves 3 orders 0 prof 21 damaged
+UNIT 143 Artillery at (41,6) moves 3 orders 0 prof 21 damaged
+UNIT 155 Man-O-War at (36,14) moves 18 orders 0 prof 0
+UNIT 156 Cont. Army at (37,14) moves 3 orders 6 prof 21 tools 0 muskets 50 horses 0
+UNIT 157 Cont. Army at (37,14) moves 3 orders 6 prof 21 tools 0 muskets 50 horses 0
+UNIT 158 Cont. Cav. at (37,14) moves 12 orders 6 prof 21 tools 0 muskets 50 horses 50
+UNIT 159 Cont. Cav. at (37,14) moves 12 orders 6 prof 21 tools 0 muskets 50 horses 50
+UNIT 160 Artillery at (37,14) moves 3 orders 6 prof 21
+UNIT 161 Artillery at (37,14) moves 3 orders 6 prof 21
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 193 Colonists at (40,6) moves 3 orders 0 prof 28
+UNIT 197 Artillery at (37,14) moves 3 orders 6 prof 28
+UNIT 202 Colonists at (40,6) moves 3 orders 0 prof 28
+@@ b891
+@@ b892
+STATUS turn 304 year 1698; Turn 304 Cursor 40,6; screen: main map (map); popup tag -1
+STATUS gold 3; view origin (33,1) 15x12 tiles of 16px, y0 8; cursor (40,6)
+STATUS selected unit 65 Cont. Cav. at (40,6) moves 9 orders 0
+@@ b893
+@@ b894
+STATUS turn 304 year 1698; Turn 304 Cursor 40,5; screen: main map (map); popup tag -1
+STATUS gold 3; view origin (33,1) 15x12 tiles of 16px, y0 8; cursor (40,5)
+STATUS selected unit 137 Man-O-War at (40,5) moves 18 orders 0
+@@ b895
+@@ b896
+STATUS turn 304 year 1698; Turn 304 Cursor 41,6; screen: main map (map); popup tag -1
+STATUS gold 3; view origin (34,1) 15x12 tiles of 16px, y0 8; cursor (41,6)
+STATUS selected unit 142 Artillery at (41,6) moves 3 orders 0
+@@ b897
+NEAR 65 Cont. Cav. nation 0 at (40,6) moves 9 orders 0
+NEAR 115 Artillery nation 0 at (40,6) moves 3 orders 0
+NEAR 119 Artillery nation 0 at (40,6) moves 3 orders 0
+NEAR 121 Artillery nation 0 at (40,6) moves 3 orders 0
+NEAR 132 Cont. Army nation 0 at (40,6) moves 0 orders 0
+NEAR 140 Cont. Army nation 0 at (40,6) moves 0 orders 0
+NEAR 193 Colonists nation 0 at (40,6) moves 3 orders 0
+NEAR 202 Colonists nation 0 at (40,6) moves 3 orders 0
+@@ b898
+AUTO stopped (map idle) after 19 frames
+@@ b899
+AUTO stopped (map idle) after 19 frames
+@@ b900
+AUTO stopped (map idle) after 19 frames
+@@ b901
+AUTO stopped (map idle) after 19 frames
+@@ b902
+AUTO stopped (map idle) after 19 frames
+@@ b903
+AUTO stopped (map idle) after 19 frames
+@@ b904
+AUTO stopped (map idle) after 19 frames
+@@ b905
+AUTO stopped (map idle) after 19 frames
+@@ b906
+AUTO stopped (map idle) after 19 frames
+@@ b907
+AUTO stopped (map idle) after 19 frames
+@@ b908
+AUTO stopped (map idle) after 19 frames
+@@ b909
+@@ b910
+@@ b911
+@@ b912
+@@ b913
+@@ b914
+@@ b915
+@@ b916
+@@ b917
+@@ b918
+@@ b919
+@@ b920
+UNIT 43 Wagon Train at (37,14) moves 6 orders 6 prof 0
+UNIT 44 Dragoons at (38,12) moves 0 orders 0 prof 28 tools 0 muskets 50 horses 50
+UNIT 45 Dragoons at (38,12) moves 0 orders 0 prof 21 tools 0 muskets 50 horses 50
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 49 Artillery at (41,6) moves 3 orders 6 prof 28 damaged
+UNIT 50 Artillery at (41,6) moves 3 orders 6 prof 28 damaged
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 53 Artillery at (41,6) moves 3 orders 6 prof 28 damaged
+UNIT 54 Artillery at (41,6) moves 3 orders 6 prof 28 damaged
+UNIT 55 Dragoons at (38,12) moves 0 orders 0 prof 12 tools 0 muskets 50 horses 50
+UNIT 56 Colonists at (38,12) moves 3 orders 6 prof 21
+UNIT 57 Soldiers at (37,14) moves 3 orders 6 prof 15 tools 0 muskets 50 horses 0
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 59 Artillery at (41,6) moves 3 orders 6 prof 28 damaged
+UNIT 60 Artillery at (41,6) moves 3 orders 6 prof 28 damaged
+UNIT 61 Artillery at (41,6) moves 3 orders 6 prof 28 damaged
+UNIT 62 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 64 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 65 Cont. Cav. at (40,6) moves 9 orders 0 prof 21 tools 0 muskets 50 horses 50
+UNIT 66 Dragoons at (38,12) moves 0 orders 0 prof 25 tools 0 muskets 50 horses 50
+UNIT 67 Dragoons at (38,12) moves 0 orders 0 prof 22 tools 0 muskets 50 horses 50
+UNIT 68 Dragoons at (38,12) moves 0 orders 0 prof 22 tools 0 muskets 50 horses 50
+UNIT 69 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 70 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 71 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 72 Dragoons at (38,12) moves 0 orders 0 prof 21 tools 0 muskets 50 horses 50
+UNIT 73 Dragoons at (38,12) moves 0 orders 0 prof 28 tools 0 muskets 50 horses 50
+UNIT 74 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 75 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 76 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 77 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 78 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 79 Artillery at (41,6) moves 3 orders 6 prof 28 damaged
+UNIT 80 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 81 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 82 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 83 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 84 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 85 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 87 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 88 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 89 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 91 Dragoons at (38,12) moves 0 orders 0 prof 28 tools 0 muskets 50 horses 50
+UNIT 92 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 94 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 95 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 96 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 100 Frigate at (37,14) moves 21 orders 0 prof 0 hold[0] 12 x56 hold[1] 4 x100 hold[2] 2 x100
+UNIT 101 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 102 Caravel at (37,14) moves 15 orders 0 prof 0
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 104 Merchantman at (40,5) moves 18 orders 0 prof 0
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 115 Artillery at (40,6) moves 3 orders 0 prof 28 damaged
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 119 Artillery at (40,6) moves 3 orders 0 prof 28
+UNIT 120 Colonists at (37,14) moves 3 orders 6 prof 28
+UNIT 121 Artillery at (40,6) moves 3 orders 0 prof 28 damaged
+UNIT 123 Artillery at (38,13) moves -3 orders 0 prof 28
+UNIT 125 Colonists at (37,14) moves 3 orders 6 prof 28
+UNIT 126 Artillery at (38,13) moves -3 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 129 Man-O-War at (40,5) moves 18 orders 0 prof 0
+UNIT 130 Cont. Army at (38,13) moves -3 orders 0 prof 21 tools 0 muskets 50 horses 0
+UNIT 131 Cont. Army at (38,13) moves -3 orders 0 prof 21 tools 0 muskets 50 horses 0
+UNIT 132 Cont. Army at (40,6) moves 0 orders 0 prof 21 tools 0 muskets 50 horses 0
+UNIT 133 Cont. Army at (38,12) moves 3 orders 6 prof 21 tools 0 muskets 50 horses 0
+UNIT 134 Artillery at (38,13) moves -3 orders 0 prof 21
+UNIT 135 Artillery at (38,13) moves -3 orders 0 prof 21
+UNIT 137 Man-O-War at (40,5) moves 18 orders 0 prof 0
+UNIT 140 Cont. Army at (40,6) moves 0 orders 0 prof 21 tools 0 muskets 50 horses 0
+UNIT 141 Cont. Army at (38,12) moves 3 orders 6 prof 21 tools 0 muskets 50 horses 0
+UNIT 142 Artillery at (41,6) moves 3 orders 0 prof 21 damaged
+UNIT 143 Artillery at (41,6) moves 3 orders 0 prof 21 damaged
+UNIT 155 Man-O-War at (36,14) moves 18 orders 0 prof 0
+UNIT 156 Cont. Army at (38,13) moves -3 orders 0 prof 21 tools 0 muskets 50 horses 0
+UNIT 157 Cont. Army at (38,13) moves -3 orders 0 prof 21 tools 0 muskets 50 horses 0
+UNIT 158 Cont. Cav. at (38,12) moves 0 orders 0 prof 21 tools 0 muskets 50 horses 50
+UNIT 159 Cont. Cav. at (38,12) moves 0 orders 0 prof 21 tools 0 muskets 50 horses 50
+UNIT 160 Artillery at (38,13) moves -3 orders 0 prof 21
+UNIT 161 Artillery at (38,13) moves -3 orders 0 prof 21
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 193 Colonists at (40,6) moves 3 orders 0 prof 28
+UNIT 197 Artillery at (38,13) moves -3 orders 0 prof 28
+UNIT 202 Colonists at (40,6) moves 3 orders 0 prof 28
+@@ b921
+UNIT 43 Wagon Train at (37,14) moves 6 orders 6 prof 0
+UNIT 44 Dragoons at (38,12) moves 0 orders 0 prof 28 tools 0 muskets 50 horses 50
+UNIT 45 Dragoons at (38,12) moves 0 orders 0 prof 21 tools 0 muskets 50 horses 50
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 49 Artillery at (41,6) moves 3 orders 6 prof 28 damaged
+UNIT 50 Artillery at (41,6) moves 3 orders 6 prof 28 damaged
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 53 Artillery at (41,6) moves 3 orders 6 prof 28 damaged
+UNIT 54 Artillery at (41,6) moves 3 orders 6 prof 28 damaged
+UNIT 55 Dragoons at (38,12) moves 0 orders 0 prof 12 tools 0 muskets 50 horses 50
+UNIT 56 Colonists at (38,12) moves 3 orders 6 prof 21
+UNIT 57 Soldiers at (37,14) moves 3 orders 6 prof 15 tools 0 muskets 50 horses 0
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 59 Artillery at (41,6) moves 3 orders 6 prof 28 damaged
+UNIT 60 Artillery at (41,6) moves 3 orders 6 prof 28 damaged
+UNIT 61 Artillery at (41,6) moves 3 orders 6 prof 28 damaged
+UNIT 62 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 64 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 65 Cont. Cav. at (40,6) moves 9 orders 0 prof 21 tools 0 muskets 50 horses 50
+UNIT 66 Dragoons at (38,12) moves 0 orders 0 prof 25 tools 0 muskets 50 horses 50
+UNIT 67 Dragoons at (38,12) moves 0 orders 0 prof 22 tools 0 muskets 50 horses 50
+UNIT 68 Dragoons at (38,12) moves 0 orders 0 prof 22 tools 0 muskets 50 horses 50
+UNIT 69 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 70 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 71 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 72 Dragoons at (38,12) moves 0 orders 0 prof 21 tools 0 muskets 50 horses 50
+UNIT 73 Dragoons at (38,12) moves 0 orders 0 prof 28 tools 0 muskets 50 horses 50
+UNIT 74 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 75 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 76 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 77 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 78 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 79 Artillery at (41,6) moves 3 orders 6 prof 28 damaged
+UNIT 80 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 81 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 82 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 83 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 84 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 85 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 87 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 88 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 89 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 91 Dragoons at (38,12) moves 0 orders 0 prof 28 tools 0 muskets 50 horses 50
+UNIT 92 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 94 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 95 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 96 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 100 Frigate at (37,14) moves 21 orders 0 prof 0 hold[0] 12 x56 hold[1] 4 x100 hold[2] 2 x100
+UNIT 101 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 102 Caravel at (37,14) moves 15 orders 0 prof 0
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 104 Merchantman at (40,5) moves 18 orders 0 prof 0
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 115 Artillery at (40,6) moves 3 orders 0 prof 28 damaged
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 119 Artillery at (40,6) moves 3 orders 0 prof 28
+UNIT 120 Colonists at (37,14) moves 3 orders 6 prof 28
+UNIT 121 Artillery at (40,6) moves 3 orders 0 prof 28 damaged
+UNIT 123 Artillery at (38,13) moves -3 orders 0 prof 28
+UNIT 125 Colonists at (37,14) moves 3 orders 6 prof 28
+UNIT 126 Artillery at (38,13) moves -3 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 129 Man-O-War at (40,5) moves 18 orders 0 prof 0
+UNIT 130 Cont. Army at (38,13) moves -3 orders 0 prof 21 tools 0 muskets 50 horses 0
+UNIT 131 Cont. Army at (38,13) moves -3 orders 0 prof 21 tools 0 muskets 50 horses 0
+UNIT 132 Cont. Army at (40,6) moves 0 orders 0 prof 21 tools 0 muskets 50 horses 0
+UNIT 133 Cont. Army at (38,12) moves 3 orders 6 prof 21 tools 0 muskets 50 horses 0
+UNIT 134 Artillery at (38,13) moves -3 orders 0 prof 21
+UNIT 135 Artillery at (38,13) moves -3 orders 0 prof 21
+UNIT 137 Man-O-War at (40,5) moves 18 orders 0 prof 0
+UNIT 140 Cont. Army at (40,6) moves 0 orders 0 prof 21 tools 0 muskets 50 horses 0
+UNIT 141 Cont. Army at (38,12) moves 3 orders 6 prof 21 tools 0 muskets 50 horses 0
+UNIT 142 Artillery at (41,6) moves 3 orders 0 prof 21 damaged
+UNIT 143 Artillery at (41,6) moves 3 orders 0 prof 21 damaged
+UNIT 155 Man-O-War at (36,14) moves 18 orders 0 prof 0
+UNIT 156 Cont. Army at (38,13) moves -3 orders 0 prof 21 tools 0 muskets 50 horses 0
+UNIT 157 Cont. Army at (38,13) moves -3 orders 0 prof 21 tools 0 muskets 50 horses 0
+UNIT 158 Cont. Cav. at (38,12) moves 0 orders 0 prof 21 tools 0 muskets 50 horses 50
+UNIT 159 Cont. Cav. at (38,12) moves 0 orders 0 prof 21 tools 0 muskets 50 horses 50
+UNIT 160 Artillery at (38,13) moves -3 orders 0 prof 21
+UNIT 161 Artillery at (38,13) moves -3 orders 0 prof 21
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 193 Colonists at (40,6) moves 3 orders 0 prof 28
+UNIT 197 Artillery at (38,13) moves -3 orders 0 prof 28
+UNIT 202 Colonists at (40,6) moves 3 orders 0 prof 28
+@@ b922
+NEAR 44 Dragoons nation 0 at (38,12) moves 0 orders 0
+NEAR 45 Dragoons nation 0 at (38,12) moves 0 orders 0
+NEAR 55 Dragoons nation 0 at (38,12) moves 0 orders 0
+NEAR 56 Colonists nation 0 at (38,12) moves 3 orders 6
+NEAR 66 Dragoons nation 0 at (38,12) moves 0 orders 0
+NEAR 67 Dragoons nation 0 at (38,12) moves 0 orders 0
+NEAR 68 Dragoons nation 0 at (38,12) moves 0 orders 0
+NEAR 72 Dragoons nation 0 at (38,12) moves 0 orders 0
+NEAR 73 Dragoons nation 0 at (38,12) moves 0 orders 0
+NEAR 91 Dragoons nation 0 at (38,12) moves 0 orders 0
+NEAR 122 Dragoons nation 2 at (37,13) moves 12 orders 6
+NEAR 123 Artillery nation 0 at (38,13) moves -3 orders 0
+NEAR 124 Soldiers nation 2 at (38,11) moves 3 orders 0
+NEAR 126 Artillery nation 0 at (38,13) moves -3 orders 0
+NEAR 127 Soldiers nation 2 at (38,11) moves 3 orders 0
+NEAR 130 Cont. Army nation 0 at (38,13) moves -3 orders 0
+NEAR 131 Cont. Army nation 0 at (38,13) moves -3 orders 0
+NEAR 133 Cont. Army nation 0 at (38,12) moves 3 orders 6
+NEAR 134 Artillery nation 0 at (38,13) moves -3 orders 0
+NEAR 135 Artillery nation 0 at (38,13) moves -3 orders 0
+NEAR 141 Cont. Army nation 0 at (38,12) moves 3 orders 6
+NEAR 156 Cont. Army nation 0 at (38,13) moves -3 orders 0
+NEAR 157 Cont. Army nation 0 at (38,13) moves -3 orders 0
+NEAR 158 Cont. Cav. nation 0 at (38,12) moves 0 orders 0
+NEAR 159 Cont. Cav. nation 0 at (38,12) moves 0 orders 0
+NEAR 160 Artillery nation 0 at (38,13) moves -3 orders 0
+NEAR 161 Artillery nation 0 at (38,13) moves -3 orders 0
+NEAR 186 Soldiers nation 2 at (37,12) moves 3 orders 11
+NEAR 189 Soldiers nation 2 at (39,12) moves 3 orders 11
+NEAR 190 Soldiers nation 2 at (38,11) moves 3 orders 5
+NEAR 197 Artillery nation 0 at (38,13) moves -3 orders 0
+NEAR 223 Dragoons nation 2 at (38,11) moves 12 orders 10
+@@ b923
+NESTED: Return pressed in a modal loop
+NESTED: Return pressed in a modal loop
+NESTED: Return pressed in a modal loop
+NESTED: Return pressed in a modal loop
+LOG: The Rebel and Tory are now at war.
+LOG: {Tory Soldiers} routed!  Unit demoted to {Colonists} status.
+LOG: {Rebels} defeat {Tory Soldiers} near Plymouth!
+AUTO stopped (map idle) after 19 frames
+@@ b924
+NESTED: Return pressed in a modal loop
+NESTED: Return pressed in a modal loop
+NESTED: Return pressed in a modal loop
+LOG: {Rebel Cont. Army} routed!  Unit demoted to {Colonists} status.
+LOG: {Tory Dragoons} defeat {Rebels} near Plymouth!
+AUTO stopped (map idle) after 19 frames
+@@ b925
+STATUS turn 304 year 1698; Turn 304 Cursor 41,6; screen: main map (map); popup tag -1
+STATUS gold 3; view origin (34,1) 15x12 tiles of 16px, y0 8; cursor (41,6)
+STATUS selected unit 142 Artillery at (41,6) moves 3 orders 0
+@@ b926
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 142)
+@@ b927
+@@ b928
+STATUS turn 304 year 1698; Turn 304 Cursor 41,6; screen: main map (map); popup tag -1
+STATUS gold 3; view origin (34,1) 15x12 tiles of 16px, y0 8; cursor (41,6)
+STATUS selected unit 143 Artillery at (41,6) moves 3 orders 0
+@@ b929
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 143)
+@@ b930
+@@ b931
+STATUS turn 304 year 1698; Turn 304 Cursor 36,14; screen: main map (map); popup tag -1
+STATUS gold 3; view origin (29,8) 15x12 tiles of 16px, y0 8; cursor (36,14)
+STATUS selected unit 155 Man-O-War at (36,14) moves 18 orders 0
+@@ b932
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 155)
+@@ b933
+@@ b934
+STATUS turn 304 year 1698; Turn 304 Cursor 40,6; screen: main map (map); popup tag -1
+STATUS gold 3; view origin (33,1) 15x12 tiles of 16px, y0 8; cursor (40,6)
+STATUS selected unit 193 Colonists at (40,6) moves 3 orders 0
+@@ b935
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 193)
+@@ b936
+@@ b937
+STATUS turn 304 year 1698; Turn 304 Cursor 40,6; screen: main map (map); popup tag -1
+STATUS gold 3; view origin (33,1) 15x12 tiles of 16px, y0 8; cursor (40,6)
+STATUS selected unit 202 Colonists at (40,6) moves 3 orders 0
+@@ b938
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 202)
+@@ b939
+@@ b940
+STATUS turn 304 year 1698; Turn 304 Cursor 40,6; screen: main map (map); popup tag -1
+STATUS gold 3; view origin (33,1) 15x12 tiles of 16px, y0 8; cursor (40,6)
+STATUS selected unit 65 Cont. Cav. at (40,6) moves 9 orders 0
+@@ b941
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 65)
+@@ b942
+@@ b943
+STATUS turn 304 year 1698; Turn 304 Cursor 37,14; screen: main map (map); popup tag -1
+STATUS gold 3; view origin (30,8) 15x12 tiles of 16px, y0 8; cursor (37,14)
+STATUS selected unit 100 Frigate at (37,14) moves 21 orders 0
+@@ b944
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 100)
+@@ b945
+@@ b946
+STATUS turn 304 year 1698; Turn 304 Cursor 37,14; screen: main map (map); popup tag -1
+STATUS gold 3; view origin (30,8) 15x12 tiles of 16px, y0 8; cursor (37,14)
+STATUS selected unit 102 Caravel at (37,14) moves 15 orders 0
+@@ b947
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 102)
+@@ b948
+@@ b949
+STATUS turn 304 year 1698; Turn 304 Cursor 40,5; screen: main map (map); popup tag -1
+STATUS gold 3; view origin (33,1) 15x12 tiles of 16px, y0 8; cursor (40,5)
+STATUS selected unit 104 Merchantman at (40,5) moves 18 orders 0
+@@ b950
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 104)
+@@ b951
+@@ b952
+STATUS turn 304 year 1698; Turn 304 Cursor 40,6; screen: main map (map); popup tag -1
+STATUS gold 3; view origin (33,1) 15x12 tiles of 16px, y0 8; cursor (40,6)
+STATUS selected unit 115 Artillery at (40,6) moves 3 orders 0
+@@ b953
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 115)
+@@ b954
+@@ b955
+STATUS turn 304 year 1698; Turn 304 Cursor 40,6; screen: main map (map); popup tag -1
+STATUS gold 3; view origin (33,1) 15x12 tiles of 16px, y0 8; cursor (40,6)
+STATUS selected unit 119 Artillery at (40,6) moves 3 orders 0
+@@ b956
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 119)
+@@ b957
+@@ b958
+STATUS turn 304 year 1698; Turn 304 Cursor 40,6; screen: main map (map); popup tag -1
+STATUS gold 3; view origin (33,1) 15x12 tiles of 16px, y0 8; cursor (40,6)
+STATUS selected unit 121 Artillery at (40,6) moves 3 orders 0
+@@ b959
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 121)
+@@ b960
+@@ b961
+STATUS turn 304 year 1698; Turn 304 Cursor 40,5; screen: main map (map); popup tag -1
+STATUS gold 3; view origin (33,1) 15x12 tiles of 16px, y0 8; cursor (40,5)
+STATUS selected unit 129 Man-O-War at (40,5) moves 18 orders 0
+@@ b962
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 129)
+@@ b963
+@@ b964
+STATUS turn 304 year 1698; Turn 304 Cursor 40,5; screen: main map (map); popup tag -1
+STATUS gold 3; view origin (33,1) 15x12 tiles of 16px, y0 8; cursor (40,5)
+STATUS selected unit 137 Man-O-War at (40,5) moves 18 orders 0
+@@ b965
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 137)
+@@ b966
+NESTED: Return pressed in a modal loop
+NESTED: Return pressed in a modal loop
+NESTED: Return pressed in a modal loop
+NESTED: Return pressed in a modal loop
+NESTED: Return pressed in a modal loop
+NESTED: Return pressed in a modal loop
+NESTED: Return pressed in a modal loop
+NESTED: Return pressed in a modal loop
+LOG: {Tory Soldiers} routed!  Unit demoted to {Colonists} status.
+LOG: {Rebel Artillery} defeats {Tories} near Roanoke!
+LOG: {Tory Dragoons} routed!  Unit demoted to {Soldiers} status.
+LOG: {Rebel Cont. Army} defeats {Tories} near Jamestown!
+LOG: {Rebel Artillery} defeats {Tories} near Roanoke!
+LOG: A new cargo of {Horses} is ready at {Jamestown}, Your Excellency.
+CHOICES: [0] Continue turn. [1] Zoom to colony.
+@@ b967
+STATUS turn 305 year 1698 autumn; The Tupi bring gifts to Vlissingen.; screen: modal open (map); popup tag 53
+STATUS gold 3; view origin (34,1) 15x12 tiles of 16px, y0 8; cursor (40,5)
+@@ b968
+AUTO stopped (map idle) after 21 frames
+AUTO stopped (map idle) after 19 frames
+STATUS turn 305 year 1698 autumn; Turn 305 Cursor 38,12; screen: main map (map); popup tag -1
+STATUS gold 3; view origin (31,6) 15x12 tiles of 16px, y0 8; cursor (38,12)
+STATUS selected unit 44 Dragoons at (38,12) moves 12 orders 0
+@@ b969
+STATUS turn 305 year 1698 autumn; Turn 305 Cursor 38,12; screen: main map (map); popup tag -1
+STATUS gold 3; view origin (31,6) 15x12 tiles of 16px, y0 8; cursor (38,12)
+STATUS selected unit 44 Dragoons at (38,12) moves 12 orders 0
+@@ b970
+SAVED attempt3/war3_t305.sav
+@@ b971
+UNIT 43 Wagon Train at (37,14) moves 6 orders 6 prof 0
+UNIT 44 Dragoons at (38,12) moves 12 orders 0 prof 28 tools 0 muskets 50 horses 50
+UNIT 45 Dragoons at (38,12) moves 12 orders 0 prof 21 tools 0 muskets 50 horses 50
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 49 Artillery at (41,6) moves 3 orders 6 prof 28 damaged
+UNIT 50 Artillery at (41,6) moves 3 orders 6 prof 28 damaged
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 53 Artillery at (41,6) moves 3 orders 6 prof 28 damaged
+UNIT 54 Artillery at (41,6) moves 3 orders 6 prof 28 damaged
+UNIT 55 Dragoons at (38,12) moves 12 orders 0 prof 12 tools 0 muskets 50 horses 50
+UNIT 56 Colonists at (38,12) moves 3 orders 6 prof 21
+UNIT 57 Soldiers at (37,14) moves 3 orders 6 prof 15 tools 0 muskets 50 horses 0
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 59 Artillery at (41,6) moves 3 orders 6 prof 28 damaged
+UNIT 60 Artillery at (41,6) moves 3 orders 6 prof 28 damaged
+UNIT 61 Artillery at (41,6) moves 3 orders 6 prof 28 damaged
+UNIT 62 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 64 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 65 Cont. Cav. at (40,6) moves 12 orders 0 prof 21 tools 0 muskets 50 horses 50
+UNIT 66 Dragoons at (38,12) moves 12 orders 0 prof 25 tools 0 muskets 50 horses 50
+UNIT 67 Dragoons at (38,12) moves 12 orders 0 prof 22 tools 0 muskets 50 horses 50
+UNIT 68 Dragoons at (38,12) moves 12 orders 0 prof 22 tools 0 muskets 50 horses 50
+UNIT 69 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 70 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 71 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 72 Dragoons at (38,12) moves 12 orders 0 prof 21 tools 0 muskets 50 horses 50
+UNIT 73 Dragoons at (38,12) moves 12 orders 0 prof 28 tools 0 muskets 50 horses 50
+UNIT 74 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 75 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 76 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 77 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 78 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 79 Artillery at (41,6) moves 3 orders 6 prof 28 damaged
+UNIT 80 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 81 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 82 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 83 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 84 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 85 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 87 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 88 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 89 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 91 Dragoons at (38,12) moves 12 orders 0 prof 28 tools 0 muskets 50 horses 50
+UNIT 92 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 94 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 95 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 96 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 100 Frigate at (37,14) moves 21 orders 0 prof 0 hold[0] 12 x56 hold[1] 4 x100 hold[2] 2 x100
+UNIT 101 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 102 Caravel at (37,14) moves 15 orders 0 prof 0
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 104 Merchantman at (40,5) moves 18 orders 0 prof 0
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 115 Artillery at (40,6) moves 3 orders 0 prof 28 damaged
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 119 Artillery at (40,6) moves 3 orders 0 prof 28
+UNIT 120 Colonists at (37,14) moves 3 orders 6 prof 28
+UNIT 121 Artillery at (40,6) moves 3 orders 0 prof 28 damaged
+UNIT 123 Artillery at (38,13) moves 3 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 125 Colonists at (37,14) moves 3 orders 6 prof 28
+UNIT 126 Artillery at (38,13) moves 3 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 129 Man-O-War at (40,5) moves 18 orders 0 prof 0
+UNIT 130 Cont. Army at (38,13) moves 3 orders 0 prof 21 tools 0 muskets 50 horses 0
+UNIT 131 Cont. Army at (38,13) moves 3 orders 0 prof 21 tools 0 muskets 50 horses 0
+UNIT 132 Cont. Army at (40,6) moves 3 orders 0 prof 21 tools 0 muskets 50 horses 0
+UNIT 133 Cont. Army at (38,12) moves 3 orders 0 prof 21 tools 0 muskets 50 horses 0
+UNIT 134 Artillery at (38,13) moves 3 orders 0 prof 21
+UNIT 135 Artillery at (38,13) moves 3 orders 0 prof 21
+UNIT 137 Man-O-War at (40,5) moves 18 orders 0 prof 0
+UNIT 140 Cont. Army at (40,6) moves 3 orders 0 prof 21 tools 0 muskets 50 horses 0
+UNIT 141 Colonists at (38,12) moves 3 orders 0 prof 21
+UNIT 142 Artillery at (41,6) moves 3 orders 0 prof 21 damaged
+UNIT 143 Artillery at (41,6) moves 3 orders 0 prof 21 damaged
+UNIT 155 Man-O-War at (36,14) moves 18 orders 0 prof 0
+UNIT 156 Cont. Army at (38,13) moves 3 orders 0 prof 21 tools 0 muskets 50 horses 0
+UNIT 157 Cont. Army at (38,13) moves 3 orders 0 prof 21 tools 0 muskets 50 horses 0
+UNIT 158 Cont. Cav. at (38,12) moves 12 orders 0 prof 21 tools 0 muskets 50 horses 50
+UNIT 159 Cont. Cav. at (38,12) moves 12 orders 0 prof 21 tools 0 muskets 50 horses 50
+UNIT 160 Artillery at (38,13) moves 3 orders 0 prof 21
+UNIT 161 Artillery at (38,13) moves 3 orders 0 prof 21
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 193 Colonists at (40,6) moves 3 orders 0 prof 28
+UNIT 197 Artillery at (38,13) moves 3 orders 0 prof 28
+UNIT 202 Colonists at (40,6) moves 3 orders 0 prof 28
+@@ b972
+NEAR 43 Wagon Train nation 0 at (37,14) moves 6 orders 6
+NEAR 44 Dragoons nation 0 at (38,12) moves 12 orders 0
+NEAR 45 Dragoons nation 0 at (38,12) moves 12 orders 0
+NEAR 49 Artillery nation 0 at (41,6) moves 3 orders 6
+NEAR 50 Artillery nation 0 at (41,6) moves 3 orders 6
+NEAR 53 Artillery nation 0 at (41,6) moves 3 orders 6
+NEAR 54 Artillery nation 0 at (41,6) moves 3 orders 6
+NEAR 55 Dragoons nation 0 at (38,12) moves 12 orders 0
+NEAR 56 Colonists nation 0 at (38,12) moves 3 orders 6
+NEAR 57 Soldiers nation 0 at (37,14) moves 3 orders 6
+NEAR 59 Artillery nation 0 at (41,6) moves 3 orders 6
+NEAR 60 Artillery nation 0 at (41,6) moves 3 orders 6
+NEAR 61 Artillery nation 0 at (41,6) moves 3 orders 6
+NEAR 62 Artillery nation 0 at (37,14) moves 3 orders 6
+NEAR 64 Artillery nation 0 at (37,14) moves 3 orders 6
+NEAR 65 Cont. Cav. nation 0 at (40,6) moves 12 orders 0
+NEAR 66 Dragoons nation 0 at (38,12) moves 12 orders 0
+NEAR 67 Dragoons nation 0 at (38,12) moves 12 orders 0
+NEAR 68 Dragoons nation 0 at (38,12) moves 12 orders 0
+NEAR 69 Artillery nation 0 at (37,14) moves 3 orders 6
+NEAR 70 Artillery nation 0 at (37,14) moves 3 orders 6
+NEAR 71 Artillery nation 0 at (37,14) moves 3 orders 6
+NEAR 72 Dragoons nation 0 at (38,12) moves 12 orders 0
+NEAR 73 Dragoons nation 0 at (38,12) moves 12 orders 0
+NEAR 74 Artillery nation 0 at (37,14) moves 3 orders 6
+NEAR 75 Artillery nation 0 at (37,14) moves 3 orders 6
+NEAR 76 Artillery nation 0 at (37,14) moves 3 orders 6
+NEAR 77 Artillery nation 0 at (37,14) moves 3 orders 6
+NEAR 78 Artillery nation 0 at (37,14) moves 3 orders 6
+NEAR 79 Artillery nation 0 at (41,6) moves 3 orders 6
+NEAR 80 Artillery nation 0 at (37,14) moves 3 orders 6
+NEAR 81 Artillery nation 0 at (37,14) moves 3 orders 6
+NEAR 82 Artillery nation 0 at (37,14) moves 3 orders 6
+NEAR 83 Artillery nation 0 at (37,14) moves 3 orders 6
+NEAR 84 Artillery nation 0 at (37,14) moves 3 orders 6
+NEAR 85 Artillery nation 0 at (37,14) moves 3 orders 6
+NEAR 87 Artillery nation 0 at (37,14) moves 3 orders 6
+NEAR 88 Artillery nation 0 at (37,14) moves 3 orders 6
+NEAR 89 Artillery nation 0 at (37,14) moves 3 orders 6
+NEAR 91 Dragoons nation 0 at (38,12) moves 12 orders 0
+NEAR 92 Artillery nation 0 at (37,14) moves 3 orders 6
+NEAR 94 Artillery nation 0 at (37,14) moves 3 orders 6
+NEAR 95 Artillery nation 0 at (37,14) moves 3 orders 6
+NEAR 96 Artillery nation 0 at (37,14) moves 3 orders 6
+NEAR 100 Frigate nation 0 at (37,14) moves 21 orders 0
+NEAR 101 Artillery nation 0 at (37,14) moves 3 orders 6
+NEAR 102 Caravel nation 0 at (37,14) moves 15 orders 0
+NEAR 104 Merchantman nation 0 at (40,5) moves 18 orders 0
+NEAR 115 Artillery nation 0 at (40,6) moves 3 orders 0
+NEAR 119 Artillery nation 0 at (40,6) moves 3 orders 0
+NEAR 120 Colonists nation 0 at (37,14) moves 3 orders 6
+NEAR 121 Artillery nation 0 at (40,6) moves 3 orders 0
+NEAR 122 Soldiers nation 2 at (37,13) moves 3 orders 0
+NEAR 123 Artillery nation 0 at (38,13) moves 3 orders 0
+NEAR 125 Colonists nation 0 at (37,14) moves 3 orders 6
+NEAR 126 Artillery nation 0 at (38,13) moves 3 orders 0
+NEAR 127 Soldiers nation 2 at (38,11) moves 3 orders 5
+NEAR 129 Man-O-War nation 0 at (40,5) moves 18 orders 0
+NEAR 130 Cont. Army nation 0 at (38,13) moves 3 orders 0
+NEAR 131 Cont. Army nation 0 at (38,13) moves 3 orders 0
+NEAR 132 Cont. Army nation 0 at (40,6) moves 3 orders 0
+NEAR 133 Cont. Army nation 0 at (38,12) moves 3 orders 0
+NEAR 134 Artillery nation 0 at (38,13) moves 3 orders 0
+NEAR 135 Artillery nation 0 at (38,13) moves 3 orders 0
+NEAR 137 Man-O-War nation 0 at (40,5) moves 18 orders 0
+NEAR 138 Colonists nation 2 at (41,7) moves 3 orders 12
+NEAR 139 Colonists nation 2 at (41,7) moves 3 orders 12
+NEAR 140 Cont. Army nation 0 at (40,6) moves 3 orders 0
+NEAR 141 Colonists nation 0 at (38,12) moves 3 orders 0
+NEAR 142 Artillery nation 0 at (41,6) moves 3 orders 0
+NEAR 143 Artillery nation 0 at (41,6) moves 3 orders 0
+NEAR 155 Man-O-War nation 0 at (36,14) moves 18 orders 0
+NEAR 156 Cont. Army nation 0 at (38,13) moves 3 orders 0
+NEAR 157 Cont. Army nation 0 at (38,13) moves 3 orders 0
+NEAR 158 Cont. Cav. nation 0 at (38,12) moves 12 orders 0
+NEAR 159 Cont. Cav. nation 0 at (38,12) moves 12 orders 0
+NEAR 160 Artillery nation 0 at (38,13) moves 3 orders 0
+NEAR 161 Artillery nation 0 at (38,13) moves 3 orders 0
+NEAR 186 Soldiers nation 2 at (36,12) moves 3 orders 12
+NEAR 188 Soldiers nation 2 at (36,13) moves 3 orders 5
+NEAR 189 Soldiers nation 2 at (40,12) moves 3 orders 12
+NEAR 193 Colonists nation 0 at (40,6) moves 3 orders 0
+NEAR 197 Artillery nation 0 at (38,13) moves 3 orders 0
+NEAR 200 Colonists nation 2 at (40,7) moves 3 orders 0
+NEAR 201 Colonists nation 2 at (38,6) moves 3 orders 12
+NEAR 202 Colonists nation 0 at (40,6) moves 3 orders 0
+NEAR 203 Soldiers nation 2 at (39,6) moves 3 orders 6
+NEAR 204 Soldiers nation 2 at (40,7) moves 3 orders 0
+NEAR 208 Dragoons nation 2 at (37,7) moves 12 orders 0
+NEAR 223 Dragoons nation 2 at (36,11) moves 12 orders 12
+NEAR 229 Dragoons nation 2 at (38,11) moves 12 orders 10
+@@ b973
+NESTED: Return pressed in a modal loop
+NESTED: Return pressed in a modal loop
+NESTED: Return pressed in a modal loop
+LOG: {Tory Dragoons} routed!  Unit demoted to {Soldiers} status.
+LOG: {Rebels} defeat {Tory Dragoons} near Plymouth!
+AUTO stopped (map idle) after 19 frames
+@@ b974
+NEAR 127 Soldiers nation 2 at (38,11) moves 3 orders 5
+NEAR 229 Soldiers nation 2 at (38,11) moves 3 orders 10
+@@ b975
+NESTED: Return pressed in a modal loop
+NESTED: Return pressed in a modal loop
+NESTED: Return pressed in a modal loop
+LOG: {Tory Soldiers} routed!  Unit demoted to {Colonists} status.
+LOG: {Rebels} defeat {Tory Soldiers} near Plymouth!
+AUTO stopped (map idle) after 19 frames
+@@ b976
+NEAR 127 Soldiers nation 2 at (38,11) moves 3 orders 5
+NEAR 229 Colonists nation 2 at (38,11) moves 3 orders 10
+@@ b977
+NESTED: Return pressed in a modal loop
+NESTED: Return pressed in a modal loop
+NESTED: Return pressed in a modal loop
+LOG: {Rebel Dragoons} routed!  Unit demoted to {Soldiers} status.
+LOG: {Tory Soldiers} defeat {Rebels} near Plymouth!
+AUTO stopped (map idle) after 19 frames
+@@ b978
+NEAR 127 Soldiers nation 2 at (38,11) moves 3 orders 5
+NEAR 229 Colonists nation 2 at (38,11) moves 3 orders 10
+@@ b979
+NESTED: Return pressed in a modal loop
+NESTED: Return pressed in a modal loop
+NESTED: Return pressed in a modal loop
+LOG: {Rebel Dragoons} routed!  Unit demoted to {Soldiers} status.
+LOG: {Tory Soldiers} defeat {Rebels} near Plymouth!
+AUTO stopped (map idle) after 19 frames
+@@ b980
+NEAR 127 Soldiers nation 2 at (38,11) moves 3 orders 5
+NEAR 229 Colonists nation 2 at (38,11) moves 3 orders 10
+@@ b981
+NESTED: Return pressed in a modal loop
+NESTED: Return pressed in a modal loop
+NESTED: Return pressed in a modal loop
+LOG: {Tory Soldiers} routed!  Unit demoted to {Colonists} status.
+LOG: {Rebels} defeat {Tory Soldiers} near Plymouth!
+AUTO stopped (map idle) after 19 frames
+@@ b982
+NEAR 127 Colonists nation 2 at (38,11) moves 3 orders 5
+NEAR 229 Colonists nation 2 at (38,11) moves 3 orders 10
+@@ b983
+NESTED: Return pressed in a modal loop
+NESTED: Return pressed in a modal loop
+NESTED: Return pressed in a modal loop
+NESTED: Return pressed in a modal loop
+NESTED: Return pressed in a modal loop
+NESTED: Return pressed in a modal loop
+LOG: {Rebels} defeat {Tory Colonists} near Plymouth!
+LOG: Because of their valor in battle, our {Dragoons} soldiers have been promoted from {Free Colonists} to {Free Colonists} status.
+LOG: {Tory} colonists CAPTURED by the {Rebel}!
+LOG: {Tory} colonists CAPTURED by the {Rebel}!  Soldiers lose Veteran status.
+LOG: {Rebels} march into {Plymouth}!
+AUTO stopped (colony:Plymouth) after 0 frames
+@@ b984
+NEAR 66 Dragoons nation 0 at (38,11) moves 0 orders 0
+NEAR 127 Colonists nation 0 at (38,11) moves 3 orders 0
+NEAR 229 Colonists nation 0 at (38,11) moves 3 orders 0
+@@ b985
+NEAR 66 Dragoons nation 0 at (38,11) moves 0 orders 0
+NEAR 127 Colonists nation 0 at (38,11) moves 3 orders 0
+NEAR 229 Colonists nation 0 at (38,11) moves 3 orders 0
+@@ b986
+STATUS turn 305 year 1698 autumn; Entered Plymouth; screen: colony screen (colony:Plymouth); popup tag -1
+STATUS gold 3; view origin (31,6) 15x12 tiles of 16px, y0 8; cursor (38,12)
+STATUS selected unit 67 Dragoons at (38,12) moves 12 orders 0
+@@ b987
+@@ b988
+UNIT 43 Wagon Train at (37,14) moves 6 orders 6 prof 0
+UNIT 44 Soldiers at (38,12) moves -9 orders 0 prof 28 tools 0 muskets 50 horses 0
+UNIT 45 Soldiers at (38,12) moves -9 orders 0 prof 21 tools 0 muskets 50 horses 0
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 49 Artillery at (41,6) moves 3 orders 6 prof 28 damaged
+UNIT 50 Artillery at (41,6) moves 3 orders 6 prof 28 damaged
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 53 Artillery at (41,6) moves 3 orders 6 prof 28 damaged
+UNIT 54 Artillery at (41,6) moves 3 orders 6 prof 28 damaged
+UNIT 55 Dragoons at (38,12) moves 0 orders 0 prof 12 tools 0 muskets 50 horses 50
+UNIT 56 Colonists at (38,12) moves 3 orders 6 prof 21
+UNIT 57 Soldiers at (37,14) moves 3 orders 6 prof 15 tools 0 muskets 50 horses 0
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 59 Artillery at (41,6) moves 3 orders 6 prof 28 damaged
+UNIT 60 Artillery at (41,6) moves 3 orders 6 prof 28 damaged
+UNIT 61 Artillery at (41,6) moves 3 orders 6 prof 28 damaged
+UNIT 62 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 64 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 65 Cont. Cav. at (40,6) moves 12 orders 0 prof 21 tools 0 muskets 50 horses 50
+UNIT 66 Dragoons at (38,11) moves 0 orders 0 prof 28 tools 0 muskets 50 horses 50
+UNIT 67 Dragoons at (38,12) moves 12 orders 0 prof 22 tools 0 muskets 50 horses 50
+UNIT 68 Dragoons at (38,12) moves 12 orders 0 prof 22 tools 0 muskets 50 horses 50
+UNIT 69 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 70 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 71 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 72 Dragoons at (38,12) moves 12 orders 0 prof 21 tools 0 muskets 50 horses 50
+UNIT 73 Dragoons at (38,12) moves 12 orders 0 prof 28 tools 0 muskets 50 horses 50
+UNIT 74 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 75 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 76 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 77 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 78 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 79 Artillery at (41,6) moves 3 orders 6 prof 28 damaged
+UNIT 80 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 81 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 82 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 83 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 84 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 85 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 87 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 88 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 89 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 91 Dragoons at (38,12) moves 12 orders 0 prof 28 tools 0 muskets 50 horses 50
+UNIT 92 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 94 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 95 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 96 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 100 Frigate at (37,14) moves 21 orders 0 prof 0 hold[0] 12 x56 hold[1] 4 x100 hold[2] 2 x100
+UNIT 101 Artillery at (37,14) moves 3 orders 6 prof 28 damaged
+UNIT 102 Caravel at (37,14) moves 15 orders 0 prof 0
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 104 Merchantman at (40,5) moves 18 orders 0 prof 0
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 115 Artillery at (40,6) moves 3 orders 0 prof 28 damaged
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 119 Artillery at (40,6) moves 3 orders 0 prof 28
+UNIT 120 Colonists at (37,14) moves 3 orders 6 prof 28
+UNIT 121 Artillery at (40,6) moves 3 orders 0 prof 28 damaged
+UNIT 123 Artillery at (38,13) moves 3 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 125 Colonists at (37,14) moves 3 orders 6 prof 28
+UNIT 126 Artillery at (38,13) moves 3 orders 0 prof 28
+UNIT 127 Colonists at (38,11) moves 3 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 129 Man-O-War at (40,5) moves 18 orders 0 prof 0
+UNIT 130 Cont. Army at (38,13) moves 3 orders 0 prof 21 tools 0 muskets 50 horses 0
+UNIT 131 Cont. Army at (38,13) moves 3 orders 0 prof 21 tools 0 muskets 50 horses 0
+UNIT 132 Cont. Army at (40,6) moves 3 orders 0 prof 21 tools 0 muskets 50 horses 0
+UNIT 133 Cont. Army at (38,12) moves 3 orders 0 prof 21 tools 0 muskets 50 horses 0
+UNIT 134 Artillery at (38,13) moves 3 orders 0 prof 21
+UNIT 135 Artillery at (38,13) moves 3 orders 0 prof 21
+UNIT 137 Man-O-War at (40,5) moves 18 orders 0 prof 0
+UNIT 140 Cont. Army at (40,6) moves 3 orders 0 prof 21 tools 0 muskets 50 horses 0
+UNIT 141 Colonists at (38,12) moves 3 orders 0 prof 21
+UNIT 142 Artillery at (41,6) moves 3 orders 0 prof 21 damaged
+UNIT 143 Artillery at (41,6) moves 3 orders 0 prof 21 damaged
+UNIT 155 Man-O-War at (36,14) moves 18 orders 0 prof 0
+UNIT 156 Cont. Army at (38,13) moves 3 orders 0 prof 21 tools 0 muskets 50 horses 0
+UNIT 157 Cont. Army at (38,13) moves 3 orders 0 prof 21 tools 0 muskets 50 horses 0
+UNIT 158 Cont. Cav. at (38,12) moves 0 orders 0 prof 21 tools 0 muskets 50 horses 50
+UNIT 159 Cont. Cav. at (38,12) moves 0 orders 0 prof 21 tools 0 muskets 50 horses 50
+UNIT 160 Artillery at (38,13) moves 3 orders 0 prof 21
+UNIT 161 Artillery at (38,13) moves 3 orders 0 prof 21
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 193 Colonists at (40,6) moves 3 orders 0 prof 28
+UNIT 197 Artillery at (38,13) moves 3 orders 0 prof 28
+UNIT 202 Colonists at (40,6) moves 3 orders 0 prof 28
+UNIT 229 Colonists at (38,11) moves 3 orders 0 prof 28
+@@ b989
+@@ b990
+STATUS turn 305 year 1698 autumn; Turn 305 Cursor 38,11; screen: main map (map); popup tag -1
+STATUS gold 3; view origin (31,5) 15x12 tiles of 16px, y0 8; cursor (38,11)
+STATUS selected unit 67 Dragoons at (38,11) moves 11 orders 0
+@@ b991
+@@ b992
+STATUS turn 305 year 1698 autumn; Turn 305 Cursor 38,11; screen: main map (map); popup tag -1
+STATUS gold 3; view origin (31,5) 15x12 tiles of 16px, y0 8; cursor (38,11)
+STATUS selected unit 68 Dragoons at (38,11) moves 11 orders 0
+@@ b993
+@@ b994
+STATUS turn 305 year 1698 autumn; Turn 305 Cursor 38,11; screen: main map (map); popup tag -1
+STATUS gold 3; view origin (31,5) 15x12 tiles of 16px, y0 8; cursor (38,11)
+STATUS selected unit 72 Dragoons at (38,11) moves 11 orders 0
+@@ b995
+@@ b996
+STATUS turn 305 year 1698 autumn; Turn 305 Cursor 38,11; screen: main map (map); popup tag -1
+STATUS gold 3; view origin (31,5) 15x12 tiles of 16px, y0 8; cursor (38,11)
+STATUS selected unit 73 Dragoons at (38,11) moves 11 orders 0
+@@ b997
+@@ b998
+STATUS turn 305 year 1698 autumn; Turn 305 Cursor 38,11; screen: main map (map); popup tag -1
+STATUS gold 3; view origin (31,5) 15x12 tiles of 16px, y0 8; cursor (38,11)
+STATUS selected unit 91 Dragoons at (38,11) moves 11 orders 0
+@@ b999
+@@ b1000
+@@ b1001
+@@ b1002
+@@ b1003
+@@ b1004
+@@ b1005
+@@ b1006
+@@ b1007
+@@ b1008
+@@ b1009
+@@ b1010
+NEAR 66 Dragoons nation 0 at (38,11) moves 0 orders 0
+NEAR 67 Dragoons nation 0 at (38,11) moves 11 orders 0
+NEAR 68 Dragoons nation 0 at (38,11) moves 11 orders 0
+NEAR 72 Dragoons nation 0 at (38,11) moves 11 orders 0
+NEAR 73 Dragoons nation 0 at (38,11) moves 11 orders 0
+NEAR 91 Dragoons nation 0 at (38,11) moves 11 orders 0
+NEAR 127 Colonists nation 0 at (38,11) moves 3 orders 0
+NEAR 229 Colonists nation 0 at (38,11) moves 3 orders 0
+@@ b1011
+NEAR 43 Wagon Train nation 0 at (37,14) moves 6 orders 6
+NEAR 44 Soldiers nation 0 at (38,12) moves -9 orders 0
+NEAR 45 Soldiers nation 0 at (38,12) moves -9 orders 0
+NEAR 49 Artillery nation 0 at (41,6) moves 3 orders 6
+NEAR 50 Artillery nation 0 at (41,6) moves 3 orders 6
+NEAR 53 Artillery nation 0 at (41,6) moves 3 orders 6
+NEAR 54 Artillery nation 0 at (41,6) moves 3 orders 6
+NEAR 55 Dragoons nation 0 at (38,12) moves 0 orders 0
+NEAR 56 Colonists nation 0 at (38,12) moves 3 orders 6
+NEAR 57 Soldiers nation 0 at (37,14) moves 3 orders 6
+NEAR 59 Artillery nation 0 at (41,6) moves 3 orders 6
+NEAR 60 Artillery nation 0 at (41,6) moves 3 orders 6
+NEAR 61 Artillery nation 0 at (41,6) moves 3 orders 6
+NEAR 62 Artillery nation 0 at (37,14) moves 3 orders 6
+NEAR 64 Artillery nation 0 at (37,14) moves 3 orders 6
+NEAR 65 Cont. Cav. nation 0 at (40,6) moves 12 orders 0
+NEAR 66 Dragoons nation 0 at (38,11) moves 0 orders 0
+NEAR 67 Dragoons nation 0 at (38,11) moves 11 orders 0
+NEAR 68 Dragoons nation 0 at (38,11) moves 11 orders 0
+NEAR 69 Artillery nation 0 at (37,14) moves 3 orders 6
+NEAR 70 Artillery nation 0 at (37,14) moves 3 orders 6
+NEAR 71 Artillery nation 0 at (37,14) moves 3 orders 6
+NEAR 72 Dragoons nation 0 at (38,11) moves 11 orders 0
+NEAR 73 Dragoons nation 0 at (38,11) moves 11 orders 0
+NEAR 74 Artillery nation 0 at (37,14) moves 3 orders 6
+NEAR 75 Artillery nation 0 at (37,14) moves 3 orders 6
+NEAR 76 Artillery nation 0 at (37,14) moves 3 orders 6
+NEAR 77 Artillery nation 0 at (37,14) moves 3 orders 6
+NEAR 78 Artillery nation 0 at (37,14) moves 3 orders 6
+NEAR 79 Artillery nation 0 at (41,6) moves 3 orders 6
+NEAR 80 Artillery nation 0 at (37,14) moves 3 orders 6
+NEAR 81 Artillery nation 0 at (37,14) moves 3 orders 6
+NEAR 82 Artillery nation 0 at (37,14) moves 3 orders 6
+NEAR 83 Artillery nation 0 at (37,14) moves 3 orders 6
+NEAR 84 Artillery nation 0 at (37,14) moves 3 orders 6
+NEAR 85 Artillery nation 0 at (37,14) moves 3 orders 6
+NEAR 87 Artillery nation 0 at (37,14) moves 3 orders 6
+NEAR 88 Artillery nation 0 at (37,14) moves 3 orders 6
+NEAR 89 Artillery nation 0 at (37,14) moves 3 orders 6
+NEAR 91 Dragoons nation 0 at (38,11) moves 11 orders 0
+NEAR 92 Artillery nation 0 at (37,14) moves 3 orders 6
+NEAR 94 Artillery nation 0 at (37,14) moves 3 orders 6
+NEAR 95 Artillery nation 0 at (37,14) moves 3 orders 6
+NEAR 96 Artillery nation 0 at (37,14) moves 3 orders 6
+NEAR 100 Frigate nation 0 at (37,14) moves 21 orders 0
+NEAR 101 Artillery nation 0 at (37,14) moves 3 orders 6
+NEAR 102 Caravel nation 0 at (37,14) moves 15 orders 0
+NEAR 104 Merchantman nation 0 at (40,5) moves 18 orders 0
+NEAR 115 Artillery nation 0 at (40,6) moves 3 orders 0
+NEAR 119 Artillery nation 0 at (40,6) moves 3 orders 0
+NEAR 120 Colonists nation 0 at (37,14) moves 3 orders 6
+NEAR 121 Artillery nation 0 at (40,6) moves 3 orders 0
+NEAR 122 Soldiers nation 2 at (37,13) moves 3 orders 0
+NEAR 123 Artillery nation 0 at (38,12) moves -3 orders 0
+NEAR 125 Colonists nation 0 at (37,14) moves 3 orders 6
+NEAR 126 Artillery nation 0 at (38,12) moves -3 orders 0
+NEAR 127 Colonists nation 0 at (38,11) moves 3 orders 0
+NEAR 129 Man-O-War nation 0 at (40,5) moves 18 orders 0
+NEAR 130 Cont. Army nation 0 at (38,12) moves -3 orders 0
+NEAR 131 Cont. Army nation 0 at (38,12) moves -3 orders 0
+NEAR 132 Cont. Army nation 0 at (40,6) moves 3 orders 0
+NEAR 133 Cont. Army nation 0 at (38,12) moves 3 orders 0
+NEAR 134 Artillery nation 0 at (38,12) moves -3 orders 0
+NEAR 135 Artillery nation 0 at (38,12) moves -3 orders 0
+NEAR 137 Man-O-War nation 0 at (40,5) moves 18 orders 0
+NEAR 138 Colonists nation 2 at (41,7) moves 3 orders 12
+NEAR 139 Colonists nation 2 at (41,7) moves 3 orders 12
+NEAR 140 Cont. Army nation 0 at (40,6) moves 3 orders 0
+NEAR 141 Colonists nation 0 at (38,12) moves 3 orders 0
+NEAR 142 Artillery nation 0 at (41,6) moves 3 orders 0
+NEAR 143 Artillery nation 0 at (41,6) moves 3 orders 0
+NEAR 155 Man-O-War nation 0 at (36,14) moves 18 orders 0
+NEAR 156 Cont. Army nation 0 at (38,12) moves -3 orders 0
+NEAR 157 Cont. Army nation 0 at (38,12) moves -3 orders 0
+NEAR 158 Cont. Cav. nation 0 at (38,12) moves 0 orders 0
+NEAR 159 Cont. Cav. nation 0 at (38,12) moves 0 orders 0
+NEAR 160 Artillery nation 0 at (38,12) moves -3 orders 0
+NEAR 161 Artillery nation 0 at (38,12) moves -3 orders 0
+NEAR 186 Soldiers nation 2 at (36,12) moves 3 orders 12
+NEAR 188 Soldiers nation 2 at (36,13) moves 3 orders 5
+NEAR 189 Soldiers nation 2 at (40,12) moves 3 orders 12
+NEAR 193 Colonists nation 0 at (40,6) moves 3 orders 0
+NEAR 197 Artillery nation 0 at (38,12) moves -3 orders 0
+NEAR 200 Colonists nation 2 at (40,7) moves 3 orders 0
+NEAR 201 Colonists nation 2 at (38,6) moves 3 orders 12
+NEAR 202 Colonists nation 0 at (40,6) moves 3 orders 0
+NEAR 203 Soldiers nation 2 at (39,6) moves 3 orders 6
+NEAR 204 Soldiers nation 2 at (40,7) moves 3 orders 0
+NEAR 208 Dragoons nation 2 at (37,7) moves 12 orders 0
+NEAR 223 Dragoons nation 2 at (36,11) moves 12 orders 12
+NEAR 229 Colonists nation 0 at (38,11) moves 3 orders 0
+@@ b1012
+SAVED attempt3/war3_t305_allheld.sav
+@@ b1013
+STATUS turn 305 year 1698 autumn; Turn 305 Cursor 40,6; screen: main map (map); popup tag -1
+STATUS gold 3; view origin (33,1) 15x12 tiles of 16px, y0 8; cursor (40,6)
+STATUS selected unit 193 Colonists at (40,6) moves 3 orders 0
+@@ b1014
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 193)
+@@ b1015
+@@ b1016
+STATUS turn 305 year 1698 autumn; Turn 305 Cursor 40,6; screen: main map (map); popup tag -1
+STATUS gold 3; view origin (33,1) 15x12 tiles of 16px, y0 8; cursor (40,6)
+STATUS selected unit 202 Colonists at (40,6) moves 3 orders 0
+@@ b1017
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 202)
+@@ b1018
+@@ b1019
+STATUS turn 305 year 1698 autumn; Turn 305 Cursor 38,11; screen: main map (map); popup tag -1
+STATUS gold 3; view origin (31,5) 15x12 tiles of 16px, y0 8; cursor (38,11)
+STATUS selected unit 229 Colonists at (38,11) moves 3 orders 0
+@@ b1020
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 229)
+@@ b1021
+@@ b1022
+STATUS turn 305 year 1698 autumn; Turn 305 Cursor 40,6; screen: main map (map); popup tag -1
+STATUS gold 3; view origin (33,1) 15x12 tiles of 16px, y0 8; cursor (40,6)
+STATUS selected unit 65 Cont. Cav. at (40,6) moves 12 orders 0
+@@ b1023
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 65)
+@@ b1024
+@@ b1025
+STATUS turn 305 year 1698 autumn; Turn 305 Cursor 38,11; screen: main map (map); popup tag -1
+STATUS gold 3; view origin (31,5) 15x12 tiles of 16px, y0 8; cursor (38,11)
+STATUS selected unit 67 Dragoons at (38,11) moves 11 orders 0
+@@ b1026
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 67)
+@@ b1027
+@@ b1028
+STATUS turn 305 year 1698 autumn; Turn 305 Cursor 38,11; screen: main map (map); popup tag -1
+STATUS gold 3; view origin (31,5) 15x12 tiles of 16px, y0 8; cursor (38,11)
+STATUS selected unit 68 Dragoons at (38,11) moves 11 orders 0
+@@ b1029
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 68)
+@@ b1030
+@@ b1031
+STATUS turn 305 year 1698 autumn; Turn 305 Cursor 38,11; screen: main map (map); popup tag -1
+STATUS gold 3; view origin (31,5) 15x12 tiles of 16px, y0 8; cursor (38,11)
+STATUS selected unit 72 Dragoons at (38,11) moves 11 orders 0
+@@ b1032
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 72)
+@@ b1033
+@@ b1034
+STATUS turn 305 year 1698 autumn; Turn 305 Cursor 38,11; screen: main map (map); popup tag -1
+STATUS gold 3; view origin (31,5) 15x12 tiles of 16px, y0 8; cursor (38,11)
+STATUS selected unit 73 Dragoons at (38,11) moves 11 orders 0
+@@ b1035
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 73)
+@@ b1036
+@@ b1037
+STATUS turn 305 year 1698 autumn; Turn 305 Cursor 38,11; screen: main map (map); popup tag -1
+STATUS gold 3; view origin (31,5) 15x12 tiles of 16px, y0 8; cursor (38,11)
+STATUS selected unit 91 Dragoons at (38,11) moves 11 orders 0
+@@ b1038
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 91)
+@@ b1039
+@@ b1040
+STATUS turn 305 year 1698 autumn; Turn 305 Cursor 37,14; screen: main map (map); popup tag -1
+STATUS gold 3; view origin (30,8) 15x12 tiles of 16px, y0 8; cursor (37,14)
+STATUS selected unit 100 Frigate at (37,14) moves 21 orders 0
+@@ b1041
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 100)
+@@ b1042
+@@ b1043
+STATUS turn 305 year 1698 autumn; Turn 305 Cursor 37,14; screen: main map (map); popup tag -1
+STATUS gold 3; view origin (30,8) 15x12 tiles of 16px, y0 8; cursor (37,14)
+STATUS selected unit 102 Caravel at (37,14) moves 15 orders 0
+@@ b1044
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 102)
+@@ b1045
+@@ b1046
+STATUS turn 305 year 1698 autumn; Turn 305 Cursor 40,5; screen: main map (map); popup tag -1
+STATUS gold 3; view origin (33,1) 15x12 tiles of 16px, y0 8; cursor (40,5)
+STATUS selected unit 104 Merchantman at (40,5) moves 18 orders 0
+@@ b1047
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 104)
+@@ b1048
+@@ b1049
+STATUS turn 305 year 1698 autumn; Turn 305 Cursor 40,6; screen: main map (map); popup tag -1
+STATUS gold 3; view origin (33,1) 15x12 tiles of 16px, y0 8; cursor (40,6)
+STATUS selected unit 115 Artillery at (40,6) moves 3 orders 0
+@@ b1050
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 115)
+@@ b1051
+@@ b1052
+STATUS turn 305 year 1698 autumn; Turn 305 Cursor 40,6; screen: main map (map); popup tag -1
+STATUS gold 3; view origin (33,1) 15x12 tiles of 16px, y0 8; cursor (40,6)
+STATUS selected unit 119 Artillery at (40,6) moves 3 orders 0
+@@ b1053
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 119)
+@@ b1054
+@@ b1055
+STATUS turn 305 year 1698 autumn; Turn 305 Cursor 40,6; screen: main map (map); popup tag -1
+STATUS gold 3; view origin (33,1) 15x12 tiles of 16px, y0 8; cursor (40,6)
+STATUS selected unit 121 Artillery at (40,6) moves 3 orders 0
+@@ b1056
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 121)
+@@ b1057
+@@ b1058
+STATUS turn 305 year 1698 autumn; Turn 305 Cursor 38,11; screen: main map (map); popup tag -1
+STATUS gold 3; view origin (31,5) 15x12 tiles of 16px, y0 8; cursor (38,11)
+STATUS selected unit 127 Colonists at (38,11) moves 3 orders 0
+@@ b1059
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 127)
+@@ b1060
+@@ b1061
+STATUS turn 305 year 1698 autumn; Turn 305 Cursor 40,5; screen: main map (map); popup tag -1
+STATUS gold 3; view origin (33,1) 15x12 tiles of 16px, y0 8; cursor (40,5)
+STATUS selected unit 129 Man-O-War at (40,5) moves 18 orders 0
+@@ b1062
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 129)
+@@ b1063
+@@ b1064
+STATUS turn 305 year 1698 autumn; Turn 305 Cursor 40,6; screen: main map (map); popup tag -1
+STATUS gold 3; view origin (33,1) 15x12 tiles of 16px, y0 8; cursor (40,6)
+STATUS selected unit 132 Cont. Army at (40,6) moves 3 orders 0
+@@ b1065
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 132)
+@@ b1066
+@@ b1067
+STATUS turn 305 year 1698 autumn; Turn 305 Cursor 38,12; screen: main map (map); popup tag -1
+STATUS gold 3; view origin (31,6) 15x12 tiles of 16px, y0 8; cursor (38,12)
+STATUS selected unit 133 Cont. Army at (38,12) moves 3 orders 0
+@@ b1068
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 133)
+@@ b1069
+@@ b1070
+STATUS turn 305 year 1698 autumn; Turn 305 Cursor 40,5; screen: main map (map); popup tag -1
+STATUS gold 3; view origin (33,1) 15x12 tiles of 16px, y0 8; cursor (40,5)
+STATUS selected unit 137 Man-O-War at (40,5) moves 18 orders 0
+@@ b1071
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 137)
+@@ b1072
+@@ b1073
+STATUS turn 305 year 1698 autumn; Turn 305 Cursor 40,6; screen: main map (map); popup tag -1
+STATUS gold 3; view origin (33,1) 15x12 tiles of 16px, y0 8; cursor (40,6)
+STATUS selected unit 140 Cont. Army at (40,6) moves 3 orders 0
+@@ b1074
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 140)
+@@ b1075
+@@ b1076
+STATUS turn 305 year 1698 autumn; Turn 305 Cursor 38,12; screen: main map (map); popup tag -1
+STATUS gold 3; view origin (31,6) 15x12 tiles of 16px, y0 8; cursor (38,12)
+STATUS selected unit 141 Colonists at (38,12) moves 3 orders 0
+@@ b1077
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 141)
+@@ b1078
+@@ b1079
+STATUS turn 305 year 1698 autumn; Turn 305 Cursor 41,6; screen: main map (map); popup tag -1
+STATUS gold 3; view origin (34,1) 15x12 tiles of 16px, y0 8; cursor (41,6)
+STATUS selected unit 142 Artillery at (41,6) moves 3 orders 0
+@@ b1080
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 142)
+@@ b1081
+@@ b1082
+STATUS turn 305 year 1698 autumn; Turn 305 Cursor 41,6; screen: main map (map); popup tag -1
+STATUS gold 3; view origin (34,1) 15x12 tiles of 16px, y0 8; cursor (41,6)
+STATUS selected unit 143 Artillery at (41,6) moves 3 orders 0
+@@ b1083
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 143)
+@@ b1084
+@@ b1085
+STATUS turn 305 year 1698 autumn; Turn 305 Cursor 36,14; screen: main map (map); popup tag -1
+STATUS gold 3; view origin (29,8) 15x12 tiles of 16px, y0 8; cursor (36,14)
+STATUS selected unit 155 Man-O-War at (36,14) moves 18 orders 0
+@@ b1086
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 155)
+@@ b1087
+NESTED: Return pressed in a modal loop
+NESTED: Return pressed in a modal loop
+NESTED: Return pressed in a modal loop
+NESTED: Return pressed in a modal loop
+NESTED: Return pressed in a modal loop
+NESTED: Return pressed in a modal loop
+LOG: Damaged Rebel Artillery {destroyed}.
+LOG: {Tories} defeat {Rebel Artillery} near Jamestown!
+LOG: Damaged Rebel Artillery {destroyed}.
+LOG: {Tories} defeat {Rebel Artillery} near Roanoke!
+LOG: Royal Expeditionary Force annihilated! General Walter Raleigh accepts {surrender} of all Tory forces in brief ceremony. Parliament declares King unfit to rule and votes to accept independence of New England. Continental Congress proclaims Walter Raleigh the first {President} of the new republic!
+@@ b1088
+STATUS turn 306 year 1699; Victory: independence won.; screen: modal open (map); popup tag 54
+STATUS gold 3; view origin (29,7) 15x12 tiles of 16px, y0 8; cursor (36,14)
+@@ b1089
+LOG: "In our wisdom, we have decided to let you go your own way. We have far more importatnt matters to deal with than you wretched colonists. Do not seek our aid in the future, for it will not be forthcoming."
+AUTO stopped (closing) after 8 frames
+AUTO stopped (closing) after 0 frames
+STATUS turn 306 year 1699; ; screen: modal open (closing); popup tag -1
+STATUS gold 3; view origin (29,7) 15x12 tiles of 16px, y0 8; cursor (36,14)
+@@ b1090
+STATUS turn 306 year 1699; ; screen: modal open (closing); popup tag -1
+STATUS gold 3; view origin (29,7) 15x12 tiles of 16px, y0 8; cursor (36,14)
+@@ b1091
+SHOT automated-playtests/campaign2/shots/win1.ppm
+@@ b1092
+SHOT automated-playtests/campaign2/shots/win2.ppm
+@@ b1093
+STATUS turn 306 year 1699; Final score: Any key or click continues; screen: report screen (report:COLONIZATION SCORE); popup tag -1
+STATUS gold 3; view origin (29,7) 15x12 tiles of 16px, y0 8; cursor (36,14)
+@@ b1094
+SHOT automated-playtests/campaign2/shots/win3.ppm
+@@ b1095
+STATUS turn 306 year 1699; Exploits: Any key or click continues; screen: main map (exploits); popup tag -1
+STATUS gold 3; view origin (29,7) 15x12 tiles of 16px, y0 8; cursor (36,14)
+@@ b1096
+SHOT automated-playtests/campaign2/shots/win4.ppm
+@@ b1097
+STATUS turn 306 year 1699; Hall of Fame: Any key or click returns to menu; screen: main map (hall of fame); popup tag -1
+STATUS gold 3; view origin (29,7) 15x12 tiles of 16px, y0 8; cursor (36,14)
+@@ b1098
+LOG: Scoring for this game is now complete.
+CHOICES: [0] That's all. [1] Keep playing anyway.
+SHOT automated-playtests/campaign2/shots/win5.ppm
+@@ b1099
+STATUS turn 306 year 1699; Hall of Fame: Any key or click returns to menu; screen: modal open (map); popup tag 56
+STATUS gold 3; view origin (29,7) 15x12 tiles of 16px, y0 8; cursor (36,14)
+@@ b1100
+STATUS turn 306 year 1699; Menu: Start a Game in NEW WORLD; screen: title menu (title menu); popup tag -1
+@@ b1101

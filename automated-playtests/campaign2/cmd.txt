@@ -2732,3 +2732,910 @@ near 40 7 0
 sync b832
 status
 sync b833
+units
+sync b834
+units
+sync b835
+activate 121
+wait 3
+key KP_4
+wait 60
+auto
+sync b836
+status
+sync b837
+near 40 6 0
+sync b838
+activate 119
+wait 3
+key KP_4
+wait 60
+auto
+sync b839
+near 40 6 0
+sync b840
+activate 115
+wait 3
+key KP_4
+wait 30
+sync b841
+activate 121
+wait 3
+key KP_4
+wait 30
+sync b842
+activate 142
+wait 3
+key KP_4
+wait 30
+sync b843
+activate 143
+wait 3
+key KP_4
+wait 30
+sync b844
+near 40 6 0
+sync b845
+units
+sync b846
+activate 115
+wait 10
+status
+sync b847
+key KP_4
+wait 40
+status
+sync b848
+units
+sync b849
+key Escape
+wait 15
+status
+sync b850
+activate 115
+wait 5
+key KP_4
+wait 30
+sync b851
+activate 121
+wait 5
+key KP_4
+wait 30
+sync b852
+near 40 6 0
+sync b853
+units
+sync b854
+units
+sync b855
+save attempt3/war3_t303_roanoke2.sav
+sync b856
+status
+sync b857
+auto
+endturn
+wait 10
+sync b858
+key space
+wait 10
+sync b859
+status
+sync b860
+auto
+endturn
+wait 10
+sync b861
+key space
+wait 10
+sync b862
+status
+sync b863
+auto
+endturn
+wait 10
+sync b864
+key space
+wait 10
+sync b865
+status
+sync b866
+auto
+endturn
+wait 10
+sync b867
+key space
+wait 10
+sync b868
+status
+sync b869
+auto
+endturn
+wait 10
+sync b870
+key space
+wait 10
+sync b871
+status
+sync b872
+auto
+endturn
+wait 10
+sync b873
+key space
+wait 10
+sync b874
+status
+sync b875
+auto
+endturn
+wait 10
+sync b876
+key space
+wait 10
+sync b877
+status
+sync b878
+auto
+endturn
+wait 10
+sync b879
+key space
+wait 10
+sync b880
+status
+sync b881
+auto
+endturn
+wait 10
+sync b882
+key space
+wait 10
+sync b883
+status
+sync b884
+auto
+endturn
+wait 10
+sync b885
+key space
+wait 10
+sync b886
+status
+sync b887
+auto
+wait 120
+auto
+status
+sync b888
+save attempt3/war3_t304.sav
+sync b889
+near 38 10 6
+sync b890
+units
+sync b891
+activate 65
+wait 5
+key KP_9
+wait 30
+sync b892
+status
+sync b893
+activate 132
+wait 5
+key KP_9
+wait 30
+sync b894
+status
+sync b895
+activate 140
+wait 5
+key KP_9
+wait 30
+sync b896
+status
+sync b897
+near 40 6 0
+sync b898
+activate 158
+wait 3
+goto 158 38 12
+wait 40
+auto
+sync b899
+activate 159
+wait 3
+goto 159 38 12
+wait 40
+auto
+sync b900
+activate 44
+wait 3
+goto 44 38 12
+wait 40
+auto
+sync b901
+activate 45
+wait 3
+goto 45 38 12
+wait 40
+auto
+sync b902
+activate 55
+wait 3
+goto 55 38 12
+wait 40
+auto
+sync b903
+activate 66
+wait 3
+goto 66 38 12
+wait 40
+auto
+sync b904
+activate 67
+wait 3
+goto 67 38 12
+wait 40
+auto
+sync b905
+activate 68
+wait 3
+goto 68 38 12
+wait 40
+auto
+sync b906
+activate 72
+wait 3
+goto 72 38 12
+wait 40
+auto
+sync b907
+activate 73
+wait 3
+goto 73 38 12
+wait 40
+auto
+sync b908
+activate 91
+wait 3
+goto 91 38 12
+wait 40
+auto
+sync b909
+activate 123
+wait 3
+key KP_9
+wait 20
+sync b910
+activate 126
+wait 3
+key KP_9
+wait 20
+sync b911
+activate 134
+wait 3
+key KP_9
+wait 20
+sync b912
+activate 135
+wait 3
+key KP_9
+wait 20
+sync b913
+activate 160
+wait 3
+key KP_9
+wait 20
+sync b914
+activate 161
+wait 3
+key KP_9
+wait 20
+sync b915
+activate 197
+wait 3
+key KP_9
+wait 20
+sync b916
+activate 130
+wait 3
+key KP_9
+wait 20
+sync b917
+activate 131
+wait 3
+key KP_9
+wait 20
+sync b918
+activate 156
+wait 3
+key KP_9
+wait 20
+sync b919
+activate 157
+wait 3
+key KP_9
+wait 20
+sync b920
+units
+sync b921
+units
+sync b922
+near 38 12 1
+sync b923
+activate 133
+wait 3
+key KP_8
+wait 60
+auto
+sync b924
+activate 141
+wait 3
+key KP_8
+wait 60
+auto
+sync b925
+status
+sync b926
+auto
+endturn
+wait 10
+sync b927
+key space
+wait 10
+sync b928
+status
+sync b929
+auto
+endturn
+wait 10
+sync b930
+key space
+wait 10
+sync b931
+status
+sync b932
+auto
+endturn
+wait 10
+sync b933
+key space
+wait 10
+sync b934
+status
+sync b935
+auto
+endturn
+wait 10
+sync b936
+key space
+wait 10
+sync b937
+status
+sync b938
+auto
+endturn
+wait 10
+sync b939
+key space
+wait 10
+sync b940
+status
+sync b941
+auto
+endturn
+wait 10
+sync b942
+key space
+wait 10
+sync b943
+status
+sync b944
+auto
+endturn
+wait 10
+sync b945
+key space
+wait 10
+sync b946
+status
+sync b947
+auto
+endturn
+wait 10
+sync b948
+key space
+wait 10
+sync b949
+status
+sync b950
+auto
+endturn
+wait 10
+sync b951
+key space
+wait 10
+sync b952
+status
+sync b953
+auto
+endturn
+wait 10
+sync b954
+key space
+wait 10
+sync b955
+status
+sync b956
+auto
+endturn
+wait 10
+sync b957
+key space
+wait 10
+sync b958
+status
+sync b959
+auto
+endturn
+wait 10
+sync b960
+key space
+wait 10
+sync b961
+status
+sync b962
+auto
+endturn
+wait 10
+sync b963
+key space
+wait 10
+sync b964
+status
+sync b965
+auto
+endturn
+wait 10
+sync b966
+key space
+wait 10
+sync b967
+status
+sync b968
+auto
+wait 120
+auto
+status
+sync b969
+status
+sync b970
+save attempt3/war3_t305.sav
+sync b971
+units
+sync b972
+near 39 9 9
+sync b973
+activate 158
+wait 3
+key KP_8
+wait 60
+auto
+sync b974
+near 38 11 0
+sync b975
+activate 159
+wait 3
+key KP_8
+wait 60
+auto
+sync b976
+near 38 11 0
+sync b977
+activate 44
+wait 3
+key KP_8
+wait 60
+auto
+sync b978
+near 38 11 0
+sync b979
+activate 45
+wait 3
+key KP_8
+wait 60
+auto
+sync b980
+near 38 11 0
+sync b981
+activate 55
+wait 3
+key KP_8
+wait 60
+auto
+sync b982
+near 38 11 0
+sync b983
+activate 66
+wait 3
+key KP_8
+wait 60
+auto
+sync b984
+near 38 11 0
+sync b985
+near 38 11 0
+sync b986
+status
+sync b987
+key Escape
+wait 10
+sync b988
+units
+sync b989
+activate 67
+wait 3
+key KP_8
+wait 30
+sync b990
+status
+sync b991
+activate 68
+wait 3
+key KP_8
+wait 30
+sync b992
+status
+sync b993
+activate 72
+wait 3
+key KP_8
+wait 30
+sync b994
+status
+sync b995
+activate 73
+wait 3
+key KP_8
+wait 30
+sync b996
+status
+sync b997
+activate 91
+wait 3
+key KP_8
+wait 30
+sync b998
+status
+sync b999
+activate 123
+wait 3
+key KP_8
+wait 20
+sync b1000
+activate 126
+wait 3
+key KP_8
+wait 20
+sync b1001
+activate 134
+wait 3
+key KP_8
+wait 20
+sync b1002
+activate 135
+wait 3
+key KP_8
+wait 20
+sync b1003
+activate 160
+wait 3
+key KP_8
+wait 20
+sync b1004
+activate 161
+wait 3
+key KP_8
+wait 20
+sync b1005
+activate 197
+wait 3
+key KP_8
+wait 20
+sync b1006
+activate 130
+wait 3
+key KP_8
+wait 20
+sync b1007
+activate 131
+wait 3
+key KP_8
+wait 20
+sync b1008
+activate 156
+wait 3
+key KP_8
+wait 20
+sync b1009
+activate 157
+wait 3
+key KP_8
+wait 20
+sync b1010
+near 38 11 0
+sync b1011
+near 39 10 7
+sync b1012
+save attempt3/war3_t305_allheld.sav
+sync b1013
+status
+sync b1014
+auto
+endturn
+wait 10
+sync b1015
+key space
+wait 10
+sync b1016
+status
+sync b1017
+auto
+endturn
+wait 10
+sync b1018
+key space
+wait 10
+sync b1019
+status
+sync b1020
+auto
+endturn
+wait 10
+sync b1021
+key space
+wait 10
+sync b1022
+status
+sync b1023
+auto
+endturn
+wait 10
+sync b1024
+key space
+wait 10
+sync b1025
+status
+sync b1026
+auto
+endturn
+wait 10
+sync b1027
+key space
+wait 10
+sync b1028
+status
+sync b1029
+auto
+endturn
+wait 10
+sync b1030
+key space
+wait 10
+sync b1031
+status
+sync b1032
+auto
+endturn
+wait 10
+sync b1033
+key space
+wait 10
+sync b1034
+status
+sync b1035
+auto
+endturn
+wait 10
+sync b1036
+key space
+wait 10
+sync b1037
+status
+sync b1038
+auto
+endturn
+wait 10
+sync b1039
+key space
+wait 10
+sync b1040
+status
+sync b1041
+auto
+endturn
+wait 10
+sync b1042
+key space
+wait 10
+sync b1043
+status
+sync b1044
+auto
+endturn
+wait 10
+sync b1045
+key space
+wait 10
+sync b1046
+status
+sync b1047
+auto
+endturn
+wait 10
+sync b1048
+key space
+wait 10
+sync b1049
+status
+sync b1050
+auto
+endturn
+wait 10
+sync b1051
+key space
+wait 10
+sync b1052
+status
+sync b1053
+auto
+endturn
+wait 10
+sync b1054
+key space
+wait 10
+sync b1055
+status
+sync b1056
+auto
+endturn
+wait 10
+sync b1057
+key space
+wait 10
+sync b1058
+status
+sync b1059
+auto
+endturn
+wait 10
+sync b1060
+key space
+wait 10
+sync b1061
+status
+sync b1062
+auto
+endturn
+wait 10
+sync b1063
+key space
+wait 10
+sync b1064
+status
+sync b1065
+auto
+endturn
+wait 10
+sync b1066
+key space
+wait 10
+sync b1067
+status
+sync b1068
+auto
+endturn
+wait 10
+sync b1069
+key space
+wait 10
+sync b1070
+status
+sync b1071
+auto
+endturn
+wait 10
+sync b1072
+key space
+wait 10
+sync b1073
+status
+sync b1074
+auto
+endturn
+wait 10
+sync b1075
+key space
+wait 10
+sync b1076
+status
+sync b1077
+auto
+endturn
+wait 10
+sync b1078
+key space
+wait 10
+sync b1079
+status
+sync b1080
+auto
+endturn
+wait 10
+sync b1081
+key space
+wait 10
+sync b1082
+status
+sync b1083
+auto
+endturn
+wait 10
+sync b1084
+key space
+wait 10
+sync b1085
+status
+sync b1086
+auto
+endturn
+wait 10
+sync b1087
+key space
+wait 10
+sync b1088
+status
+sync b1089
+auto
+wait 120
+auto
+status
+sync b1090
+status
+sync b1091
+shot win1
+sync b1092
+wait 60
+key Return
+wait 60
+shot win2
+sync b1093
+status
+sync b1094
+wait 60
+key Return
+wait 60
+shot win3
+sync b1095
+status
+sync b1096
+wait 60
+key Return
+wait 60
+shot win4
+sync b1097
+status
+sync b1098
+wait 60
+key Return
+wait 60
+shot win5
+sync b1099
+status
+sync b1100
+wait 10
+key Return
+wait 30
+status
+sync b1101
+quit

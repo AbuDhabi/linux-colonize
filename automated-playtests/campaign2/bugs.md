@@ -64,3 +64,47 @@ rules or misleading UI, low = cosmetic or driver-only.
   falls back to `europe->nation_name`. Worth checking which DS string DOS
   passes; the @REBELUP path (ai_king_war.c) produces the nation name.
 
+
+## C2-B4 (low): @VALOR promotion popup "from Free Colonists to Free Colonists", no promotion
+
+- Spring 1698 (turn 305, George Washington in Congress): a Free Colonist
+  dragoon (`prof 28`) attacked Tory-held Plymouth, won against Tory colonists
+  and captured them. Popup: "Because of their valor in battle, our
+  {Dragoons} soldiers have been promoted from {Free Colonists} to {Free
+  Colonists} status." The unit is still `prof 28` afterwards.
+- Other wins by Free Colonist dragoons in the same war correctly showed
+  @VETERAN ("hardened to Veteran status") and set prof 21. The odd one was
+  the win over unarmed colonists (the capture path), so a capture probably
+  feeds `units_promote_on_win` (src/core/units_combat.c ~775) a winner or
+  profession that falls into the @VALOR arm with an unchanged label
+  (`units_promote_prof_label` maps everything unknown to Free Colonists).
+- Save just before: `saves/attempt3/war3_t305.sav` (Plymouth assault).
+
+## C2-B5 (low): "The Rebel and Tory are now at war." during the War of Independence
+
+- Shown twice after independence had been declared: on the first attack on
+  Tory-held Roanoke (1696) and on the first attack on Tory-held Plymouth
+  (1698). We had been at war with the Crown since 1676; the DIPLO_WAR message
+  for the crown nation reads like a fresh declaration (and "Rebel" / "Tory"
+  as nation names reads oddly).
+
+## C2-O2 (observation): Dutch frigates attack English ships without a war
+
+- 1672-1675: after the War of the Spanish Succession handed New Spain to the
+  Dutch, Dutch frigates attacked my Caravel (two artillery aboard lost), Frigate
+  and Merchantman near Jamestown and Roanoke. My relation with the Dutch was 0
+  (never met). There was no declaration and no popup apart from the
+  combat results. "The English and Dutch are now at war." only appeared when
+  my frigate attacked back.
+- The ship-slow code (units_combat_resolve.c ~1090) documents DOS treating
+  any non-peace pair as hostile, so AI attacks at "no contact" may be DOS
+  behaviour. Worth a DOS check: as a player it looked like an undeclared war.
+
+## C2-O3 (observation): Braves attacking with strength 0
+
+- Several native attacks on the Tory-held Roanoke log `attacker base=1
+  strength=0 mods: Attack Bonus +50%` (odds 0%), while other Braves making
+  the same attack log strength 12. The zero cases were Braves spawned that
+  same turn (`Spawned unit id=350 type=Braves at (41,7)`, then the attack).
+  So it is presumably a moves-left scaling, but the Combat Analysis rows
+  show nothing that explains the 0.
