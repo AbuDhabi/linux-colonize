@@ -484,8 +484,8 @@ int europe_custom_house_autosell_ex_w(
   }
   if (total > 0) {
     diag_info(
-      "EUROPE customs %s total %d$ (nation=%d, gold=%d)",
-      colony->name[0] ? colony->name : "", total, nation, eu->gold
+      "EUROPE customs %s total %d$ (nation=%d, gold=%u)",
+      colony->name[0] ? colony->name : "", total, nation, europe_nation_gold(eu, col1, nation)
     );
   }
   if (total > 0 && nation == human_nation) {

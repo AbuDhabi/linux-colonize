@@ -308,6 +308,11 @@ static bool ai_setup_col1_template(const AiNewGameParams* p, char* err, size_t e
       )) {
     return false;
   }
+  /* DS:0x8d80 (colony layouts, village skills): FUN_75c2_2d46 raw 121990 samples the BIOS
+   * tick right after the randomize() words, and the save carries it. The campaign seed is
+   * the port's stand-in for that tick. Was left 0 while the colony screen drew with its
+   * fallback seed, so a reload re-laid every colony (campaign4 C4-B2). */
+  p->col1->post_map.boot_timer = ai_new_game_seed(p);
 
   const int human = p->human_nation;
   for (int i = 0; i < (int)COLONIZE_COL1_NATION_COUNT; ++i) {

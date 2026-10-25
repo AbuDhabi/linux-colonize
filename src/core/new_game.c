@@ -279,11 +279,16 @@ static void new_game_clear_list(NewGameWizard* ng) {
 /* FUN_7314_0106 (raw 117915): every '_' of a GAME.TXT line is read as a space. */
 static void new_game_copy_line(char* dst, size_t n, const char* src) {
   str_copy_trunc(dst, n, src);
-  for (char* p = dst; *p; ++p) {
-    if (*p == '_') {
-      *p = ' ';
+  char* out = dst;
+  for (const char* p = dst; *p; ++p) {
+    /* FUN_6f74_309c (raw 117225-117228), run on every row by FUN_6f74_32a4: "%%" -> "%".
+     * %STRING tokens stay for new_game_subst_country. */
+    if (p[0] == '%' && p[1] == '%') {
+      ++p;
     }
+    *out++ = (*p == '_') ? ' ' : *p;
   }
+  *out = '\0';
 }
 
 /*

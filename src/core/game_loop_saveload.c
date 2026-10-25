@@ -13,7 +13,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
-#include <time.h>
 #include <stdlib.h>
 #include <string.h>
 #ifndef _WIN32
@@ -423,11 +422,11 @@ static bool game_capture_col1(ColonizeGameState* game, char* err, size_t err_siz
     game->col1_ok = true;
     /* DOS samples DS:0x8d80 from the BIOS tick (0040:006C, 18.2 Hz) once per
      * launch (FUN_1c0c_0012 via FUN_75c2_2d46 raw 121990) and saves it in the
-     * post-map tail; a new game without one gets the same kind of value
-     * here so its colony layouts differ per game like DOS. port_bugs.md #578. */
+     * post-map tail. ai_setup_col1_template stamps it for a real new game; a
+     * game that never ran it saves the seed its colony screen already drew
+     * with, so a reload keeps the layouts (port_bugs.md #578, campaign4 C4-B2). */
     if (game->col1.post_map.boot_timer == 0) {
-      game->col1.post_map.boot_timer =
-        (uint32_t)(((uint64_t)time(NULL) * 182u / 10u) & 0x00ffffffu);
+      game->col1.post_map.boot_timer = colony_screen_layout_seed(&game->colony_screen);
     }
     colony_screen_set_layout_seed(&game->colony_screen, game->col1.post_map.boot_timer);
     if (game->game_year == 0) {

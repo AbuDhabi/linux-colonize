@@ -479,8 +479,9 @@ free position in that slot's class, retry on collision. Seed =
 (`FUN_2a1f_0c9c` write / `FUN_2a1f_0cb4` read), i.e. `post_map.boot_timer`.
 So a layout is stable for the life of a game and a save *does* reproduce a
 screenshot's layout. The port reads it: `colony_screen_set_layout_seed` gets
-`post_map.boot_timer` on load and on new game (game_loop_saveload.c; a new game
-seeds it from the clock like DOS, port_bugs.md #578). The constant `25281`
+`post_map.boot_timer` on load (game_loop_saveload.c) and on new game, where
+`ai_setup_col1_template` stamps the campaign seed as the port's stand-in for the
+launch tick (port_bugs.md #578, #1266). The constant `25281`
 (`COLONY_DOS_LAYOUT_SEED`) is only the fallback for callers without a save
 (tests, tools). Exactly **one**
 15-bit base, `25281`, reproduces both golden screenshots at once (18

@@ -196,6 +196,11 @@ static bool run(void) {
   if (game_save_dialog_open(g_game)) return fail("save dialog still open");
   if (strstr(game_status_text(g_game), "Saved COLONY") == NULL) return fail("save status");
   render("map after save");
+  /* C4-B2: the colony screen lays out buildings from the DS:0x8d80 value the save carries. */
+  if (g_game->col1.post_map.boot_timer == 0 ||
+      colony_screen_layout_seed(&g_game->colony_screen) != g_game->col1.post_map.boot_timer) {
+    return fail("colony layout seed is not the saved post_map.boot_timer");
+  }
 
   /*
    * smell_audit_2026-09-09 #15: title → NEW WORLD reopens the wizard

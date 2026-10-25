@@ -731,6 +731,40 @@ out:
   return rc;
 }
 
+/* C4-B1: @NATION2B "50%% combat bonus" shows one "%" (FUN_6f74_309c via FUN_6f74_32a4). */
+static int case_wizard_lore_percent_escape(void) {
+  NgFix* f = &g_fix;
+  int rc = 1;
+  if (ng_fix_begin(f, NEW_GAME_PATH_AMERICA) != 0) {
+    goto out;
+  }
+  ColonizeInputState down = {0};
+  down.last_key = COLONIZE_KEY_DOWN;
+  /* Original Americas -> difficulty -> nation Spain (2) -> leader name -> @NATION2A -> 2B. */
+  if (!ng_fix_enter(f) || !ng_fix_enter(f) || !new_game_handle_input(&f->ng, &down) ||
+      !new_game_handle_input(&f->ng, &down) || !ng_fix_enter(f) || !ng_fix_enter(f) ||
+      !ng_fix_enter(f) || f->ng.phase != NEW_GAME_PHASE_NATION_LORE_B || f->ng.nation != 2) {
+    fprintf(stderr, "expected @NATION2B (phase %d nation %d)\n", f->ng.phase, f->ng.nation);
+    goto out;
+  }
+  bool found = false;
+  for (int i = 0; i < f->ng.prompt_line_count; ++i) {
+    if (strstr(f->ng.prompt_lines[i], "%%")) {
+      fprintf(stderr, "@NATION2B kept %%%%: '%s'\n", f->ng.prompt_lines[i]);
+      goto out;
+    }
+    found |= strstr(f->ng.prompt_lines[i], "50% ") != NULL;
+  }
+  if (!found) {
+    fprintf(stderr, "@NATION2B: no \"50%% \" line\n");
+    goto out;
+  }
+  rc = 0;
+out:
+  ng_fix_free(f);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
     {"scenario_start", case_scenario_start},
     {"customize_defaults", case_customize_defaults},
@@ -739,6 +773,7 @@ static const TestCase k_cases[] = {
     {"wizard_picture_text_is_dos", case_wizard_picture_text_is_dos},
     {"wizard_prose_text_is_one_pass", case_wizard_prose_text_is_one_pass},
     {"wizard_dialog_layout_is_dos", case_wizard_dialog_layout_is_dos},
+    {"wizard_lore_percent_escape", case_wizard_lore_percent_escape},
 };
 
 TEST_MAIN(k_cases)

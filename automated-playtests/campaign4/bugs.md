@@ -4,6 +4,9 @@ Numbered C4-Bn (bugs) and C4-On (observations). Severity: high = loses the
 game / blocks play, medium = wrong rules or misleading UI, low = cosmetic or
 driver-only.
 
+Filed 2026-10-25 as port_bugs.md #1265 (B1), #1266 (B2), #1267 (B3), #1268
+(O1, REFUTED) and #1269 (O4, REFUTED). O2, O3 and O5 are AI / DOS behaviour.
+
 ## C4-B1 (low): Spain's nation-bonus page shows "50%%"
 
 - New game, Spain, the second lore page (GAME.TXT `@NATION2B`) reads

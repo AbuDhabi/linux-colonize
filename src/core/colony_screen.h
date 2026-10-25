@@ -420,6 +420,8 @@ typedef struct ColonyScreenView {
 
 /* Hand the loaded/new game's post_map.boot_timer to the colony screen. */
 void colony_screen_set_layout_seed(ColonyScreenView* view, uint32_t boot_timer);
+/* The DS:0x8d80 value the building layout uses (fallback when none was handed in). */
+uint32_t colony_screen_layout_seed(const ColonyScreenView* view);
 
 bool colony_screen_load(ColonyScreenView* view, const char* data_dir, char* err, size_t err_size);
 void colony_screen_free(ColonyScreenView* view);

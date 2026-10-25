@@ -2446,6 +2446,7 @@ void game_commit_new_campaign(ColonizeGameState* game) {
     if (!ai_init_new_game(&ai, ai_err, sizeof(ai_err))) {
       diag_warn("ai_init_new_game failed: %s", ai_err[0] ? ai_err : "unknown");
     }
+    colony_screen_set_layout_seed(&game->colony_screen, game->col1.post_map.boot_timer);
     /*
      * ai_init_new_game seeds the DOS new-game words; a loaded settings.json
      * then overrides them with the player's remembered options. Gated on

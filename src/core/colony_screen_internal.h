@@ -289,7 +289,6 @@ const char* colony_screen_hammers_word(void);
 int colony_screen_icon_strip_layout(int x, int w, int count, int ref_iw, int* out_x);
 /* FUN_2f2b_348c page (0 / 1) of jobs row `row`; 0 when the list fits one page. */
 int colony_screen_jobs_page_of(const ColonyScreenView* view, int row);
-uint32_t colony_screen_layout_seed(const ColonyScreenView* view);
 int colony_screen_outside_display_sprite(
   const ColonizeUnitPool* units,
   const ColonizeUnit* u
