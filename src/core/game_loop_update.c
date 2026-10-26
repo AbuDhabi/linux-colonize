@@ -1348,8 +1348,16 @@ static GameUpdateStep game_colony_screen_mouse_click(
     case COLONY_HIT_COLONIST:
     case COLONY_HIT_PEOPLE_COLONIST: {
       const bool was_selected = csv->selected_colonist == hit.index;
-      /* FUN_2f2b_44d4 raw 51248-51260: only a press on another colonist moves the focus. */
-      if (!was_selected) {
+      if (hit.kind == COLONY_HIT_PEOPLE_COLONIST) {
+        /* FUN_2f2b_4310 (asm 0x29C42-0x29C76): a People-band press always takes
+         * the focus and moves the area cursor to the colonist's plot. #1284. */
+        csv->focus = COLONY_FOCUS_COLONISTS;
+        const int ti = colonies_colonist_tile(colony, hit.index);
+        if (ti >= 0) {
+          colonies_field_tile_delta(ti, &csv->area_dx, &csv->area_dy);
+        }
+      } else if (!was_selected) {
+        /* FUN_2f2b_44d4 raw 51248-51260: only a press on another colonist moves the focus. */
         csv->focus = COLONY_FOCUS_COLONISTS;
       }
       game_colony_drag_begin_colonist(game, hit.index);
@@ -1364,7 +1372,9 @@ static GameUpdateStep game_colony_screen_mouse_click(
          * back on the already-selected unit opens the role popup
          * (game_colony_drag_drop). */
         const bool was_selected = csv->selected_outside_unit == ouid;
-        if (!was_selected) {
+        /* In the People band (DOS region 0) FUN_2f2b_4310 takes the focus on
+         * every press; on the fence only another unit does (44d4). #1284. */
+        if (!was_selected || colony_screen_dos_region(input->mouse_x, input->mouse_y) == 0) {
           csv->focus = COLONY_FOCUS_COLONISTS;
         }
         game_colony_drag_begin_outside(game, ouid);
@@ -1431,8 +1441,10 @@ static GameUpdateStep game_colony_screen_mouse_click(
       /* Keep modal open until Yes/No/OK. */
       break;
     case COLONY_HIT_MULTI_BTN:
+      /* FUN_2f2b_4a1c: the press only shows the pressed look (DS:0x339); the
+       * switch happens on release (game_update_colony_screen). #1285. */
       if (hit.index >= 0 && hit.index < 3) {
-        csv->multi_mode = (ColonyMultiMode)hit.index;
+        csv->tab_pressed = hit.index;
       }
       break;
     case COLONY_HIT_MULTI_UNIT_ICON:
@@ -1500,8 +1512,12 @@ static GameUpdateStep game_colony_screen_mouse_click(
     }
     case COLONY_HIT_AREA_INTERIOR:
       /* DOS 2f2b:609e — click on the area view's non-assignable centre
-       * flips the game-wide badge-numbers toggle (DS:0x336). */
+       * flips the game-wide badge-numbers toggle (DS:0x336). FUN_2f2b_47bc
+       * treats it as an inner cell: focus and cursor move there. #1284. */
       csv->show_production_numbers = !csv->show_production_numbers;
+      csv->focus = COLONY_FOCUS_AREA;
+      csv->area_dx = 0;
+      csv->area_dy = 0;
       break;
     case COLONY_HIT_JOBS_ROW:
       if (hit.index >= 0 && hit.index < csv->job_count) {
@@ -1933,20 +1949,23 @@ static GameUpdateStep game_colony_screen_keys(
   /* 1/2/3 = multifunction tabs; M cycles; N toggles production numbers; =/+ load. */
   for (int ti = 0; ti < input->text_input_len; ++ti) {
     const char ch = input->text_input[ti];
+    /* FUN_2f2b_6372 (2f2b:6722 / 6654): 1/2/3 and M set DS:0x338 = DS:0x337
+     * = the new tab. #1285. */
     if (ch == '1') {
-      csv->multi_mode = COLONY_MULTI_PRODUCTION;
+      csv->multi_mode = csv->prev_multi_mode = COLONY_MULTI_PRODUCTION;
       return GAME_UPDATE_RETURN_TRUE;
     }
     if (ch == '2') {
-      csv->multi_mode = COLONY_MULTI_UNITS;
+      csv->multi_mode = csv->prev_multi_mode = COLONY_MULTI_UNITS;
       return GAME_UPDATE_RETURN_TRUE;
     }
     if (ch == '3') {
-      csv->multi_mode = COLONY_MULTI_CONSTRUCTION;
+      csv->multi_mode = csv->prev_multi_mode = COLONY_MULTI_CONSTRUCTION;
       return GAME_UPDATE_RETURN_TRUE;
     }
     if (ch == 'm' || ch == 'M') {
       csv->multi_mode = (ColonyMultiMode)(((int)csv->multi_mode + 1) % 3);
+      csv->prev_multi_mode = csv->multi_mode;
       return GAME_UPDATE_RETURN_TRUE;
     }
     if (ch == 'n' || ch == 'N') {
@@ -1962,17 +1981,19 @@ static GameUpdateStep game_colony_screen_keys(
     }
     if ((ch == '=' || ch == '+') && colony && game->units_ok && !csv->jobs_open &&
         !csv->construction_open) {
+      /* DOS reads DS:0x33a directly: static 0 (Food) until a slot is picked. */
+      const int cargo = (csv->selected_cargo >= 0 && csv->selected_cargo < COLONIZE_CARGO_COUNT)
+                          ? csv->selected_cargo
+                          : 0;
       if (csv->transport_unit_id < 0) {
         set_status(game, "Select a ship first", NULL);
-      } else if (csv->selected_cargo < 0 || csv->selected_cargo >= COLONIZE_CARGO_COUNT ||
-                 colony->stock[csv->selected_cargo] <= 0) {
+      } else if (colony->stock[cargo] <= 0) {
         set_status(game, "Select warehouse cargo", NULL);
       } else if (ch == '+') {
-        const int cargo = csv->selected_cargo;
         const int want = colony->stock[cargo] < 100 ? colony->stock[cargo] : 100;
         game_colony_load_hold(game, csv->transport_unit_id, cargo, want);
       } else {
-        game_colony_open_load_prompt(game, colony, csv->selected_cargo);
+        game_colony_open_load_prompt(game, colony, cargo);
       }
       colony_screen_set_status(csv, game->status);
       return GAME_UPDATE_RETURN_TRUE;
@@ -2013,6 +2034,7 @@ static GameUpdateStep game_colony_screen_keys(
   /* B = buy remaining construction with gold + warehouse tools. */
   if (input->last_key == COLONIZE_KEY_B && colony &&
       colony->building_in_production >= 0) {
+    csv->multi_mode = COLONY_MULTI_CONSTRUCTION; /* 2f2b:673c; DS:0x338 untouched */
     game_request_buy_construction_confirm(game);
     return GAME_UPDATE_RETURN_TRUE;
   }
@@ -2064,6 +2086,55 @@ COLONIZE_INTERNAL GameUpdateStep game_update_colony_screen(ColonizeGameState* ga
      * the colonist focus (FUN_2f2b_6372 raw 55565-55566, 55594-55596; raw 51475-51477). */
     if (csv->focus == COLONY_FOCUS_UNITS && csv->multi_mode != COLONY_MULTI_UNITS) {
       csv->focus = COLONY_FOCUS_COLONISTS;
+    }
+
+    /* DOS mouse state for the focus blink (port_bugs.md #1284): DS:0x7ee held,
+     * DS:0x8d54 press region (FUN_2f2b_40a0; a holds press counts as none,
+     * FUN_2f2b_56ce raw 52304-52306; 6 once a drag runs), and a full redraw
+     * (FUN_2f2b_2d90 / 2e2a) on every press, release or key restarts the
+     * blink in its on phase. */
+    csv->mouse_held = input->mouse_left_down || input->mouse_right_down;
+    if (input->mouse_left_clicked || input->mouse_right_clicked) {
+      csv->press_region = colony_screen_dos_region(input->mouse_x, input->mouse_y);
+      if (csv->press_region == 8 && input->mouse_x >= 0x7f && input->mouse_x < 0x7f + 0x48 &&
+          input->mouse_y >= 0xa5 && input->mouse_y < 0xa5 + 0x16) {
+        csv->press_region = 0x14;
+      }
+    } else if (ui_drag_active(&game->ui_drag)) {
+      csv->press_region = 6;
+    }
+    if (input->mouse_left_clicked || input->mouse_left_released || input->mouse_right_clicked ||
+        input->last_key != COLONIZE_KEY_NONE || input->text_input_len > 0) {
+      csv->blink_epoch_ms = game->elapsed_ms;
+    }
+
+    /* FUN_2f2b_4a1c raw 51461-51480 (#1285): while a tab press is held the
+     * button under the pointer shows pressed; on release over a button the
+     * active tab switches back to DS:0x338, any other tab becomes active
+     * (DS:0x338 = the old one). */
+    if (csv->tab_pressed >= 0) {
+      const ColonyScreenHitResult th = colony_screen_hit_test(
+        csv, &game->colonies, colony, game->units_ok ? &game->units : NULL, input->mouse_x,
+        input->mouse_y
+      );
+      const int over = th.kind == COLONY_HIT_MULTI_BTN ? th.index : -1;
+      if (over >= 0) {
+        csv->tab_pressed = over;
+      }
+      if (!input->mouse_left_down && !input->mouse_right_down) {
+        if (over >= 0) {
+          if (over == (int)csv->multi_mode) {
+            csv->multi_mode = csv->prev_multi_mode;
+          } else {
+            csv->prev_multi_mode = csv->multi_mode;
+            csv->multi_mode = (ColonyMultiMode)over;
+          }
+        }
+        csv->tab_pressed = -1;
+        if (csv->focus == COLONY_FOCUS_UNITS && csv->multi_mode != COLONY_MULTI_UNITS) {
+          csv->focus = COLONY_FOCUS_COLONISTS;
+        }
+      }
     }
 
     /* Pointer-over building name label (DOS FUN_2f2b_44d4 hover arm). */

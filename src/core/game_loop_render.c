@@ -354,6 +354,18 @@ int europe_ship_icon_sprite(const ColonizeUnitPool* units, const EuropeHarborShi
   return ut ? ut->icon_sprite : -1;
 }
 
+/* DOS FUN_281f_0100 -> FUN_104b_0318: FONTTINY centred as
+ * x + (w>>1) - ((width-1)>>1), floored at 0, one pass, ink 0x45. */
+static void europe_header_line(
+  const ColonizeFont* font, ColonizeFramebuffer8* fb, int x, int w, int y, const char* s
+) {
+  if (!font || !s || !s[0]) {
+    return;
+  }
+  x += (w >> 1) - ((font_text_width(font, s) - 1) >> 1);
+  font_draw_text_shaded(font, fb, x < 0 ? 0 : x, y, s, (const uint8_t[4]){0, 0x45, 0x45, 0x45});
+}
+
 static void europe_render_transit_box(
   const ColonizeGameState* game,
   const ColonizeFont* font,
@@ -362,7 +374,10 @@ static void europe_render_transit_box(
   int box_y,
   int box_w,
   int box_h,
-  const char* header,
+  int head_x,
+  int head_w,
+  const char* line1,
+  const char* line2,
   const EuropeHarborShip* ships,
   int count,
   int selected_index
@@ -371,7 +386,12 @@ static void europe_render_transit_box(
     return;
   }
   const int line_h = font ? (font->max_height > 0 ? (int)font->max_height + 2 : 8) : 8;
-  font_draw_text(font, framebuffer, box_x + 2, box_y + 2, header, EUROPE_TEXT_GREEN);
+  /* DOS FUN_38fd_1382 / 127c / 0f8c: line 1 at y 0x78, line 2 at
+   * y 0x79 + FONTTINY[0], both centred over (head_x, head_w). port_bugs.md #1282. */
+  europe_header_line(font, framebuffer, head_x, head_w, 0x78, line1);
+  if (font) {
+    europe_header_line(font, framebuffer, head_x, head_w, 0x79 + (int)font->max_height, line2);
+  }
 
   if (!game || !game->unit_icons_ok || !game->units_ok || count <= 0 || !ships) {
     return;
@@ -1164,67 +1184,47 @@ static void render_europe_chrome(
     font_draw_text(font, framebuffer, tx > 0 ? tx : 0, ty > 0 ? ty : 1, text, ink);
   }
 
-  /* Transit boxes: two-line headers + ship icons (not text lists). */
-  char expected_header[32];
-  snprintf(expected_header, sizeof(expected_header), "%s", reports_misc_display_word(9, ""));
-  {
-    char* sp = strchr(expected_header, ' ');
-    if (sp) {
-      *sp = '\n';
+  /* Transit boxes: centred DOS headers + ship icons (not text lists). DOS
+   * FUN_38fd_1382: @MISC 9 on one line; FUN_38fd_127c: @MISC 10 over the
+   * player's country name. */
+  europe_render_transit_box(
+    game, font, framebuffer, EUROPE_EXPECTED_X, EUROPE_EXPECTED_Y, EUROPE_EXPECTED_W,
+    EUROPE_EXPECTED_H, 1, 0x46, reports_misc_display_word(9, ""), NULL, eu->expected,
+    eu->expected_ships, -1
+  );
+  europe_render_transit_box(
+    game, font, framebuffer, EUROPE_BOUND_X, EUROPE_BOUND_Y, EUROPE_BOUND_W, EUROPE_BOUND_H,
+    0x48, 0x46, reports_misc_display_word(10, ""), eu->colony_region, eu->bound,
+    eu->bound_ships, -1
+  );
+
+  /* DOS FUN_38fd_0f8c raw 59503-59530: @MISC 11 with no ship, else @MISC 23 +
+   * ": " (DS:0x55) + " " (DS:0x50) + the selected ship's @UNIT type name; a
+   * Merchantman (0x0e) keeps "Loading: " on line 1 and puts its name on line 2. */
+  char load1[64] = "";
+  const char* load2 = NULL;
+  if (eu->harbor_ships <= 0) {
+    snprintf(load1, sizeof(load1), "%s", reports_misc_display_word(11, ""));
+  } else {
+    const int sel = (eu->selected_harbor >= 0 && eu->selected_harbor < eu->harbor_ships)
+                      ? eu->selected_harbor
+                      : 0;
+    const int ti = game->units_ok ? europe_ship_display_type(&game->units, &eu->harbor[sel]) : -1;
+    const ColonizeUnitType* ut = ti >= 0 ? units_type(&game->units, ti) : NULL;
+    const char* tname = ut ? ut->name : "";
+    const bool split = ti >= 0 && ti == units_kind_type_index(&game->units, UNITS_KIND_MERCHANTMAN);
+    snprintf(
+      load1, sizeof(load1), "%s: %s", reports_misc_display_word(23, ""), split ? "" : " "
+    );
+    if (split) {
+      load2 = tname;
+    } else {
+      snprintf(load1 + strlen(load1), sizeof(load1) - strlen(load1), "%s", tname);
     }
   }
   europe_render_transit_box(
-    game,
-    font,
-    framebuffer,
-    EUROPE_EXPECTED_X,
-    EUROPE_EXPECTED_Y,
-    EUROPE_EXPECTED_W,
-    EUROPE_EXPECTED_H,
-    expected_header,
-    eu->expected,
-    eu->expected_ships,
-    -1
-  );
-
-  snprintf(
-    line,
-    sizeof(line),
-    "%s\n%s",
-    reports_misc_display_word(10, ""),
-    eu->colony_region[0] ? eu->colony_region : ""
-  );
-  europe_render_transit_box(
-    game,
-    font,
-    framebuffer,
-    EUROPE_BOUND_X,
-    EUROPE_BOUND_Y,
-    EUROPE_BOUND_W,
-    EUROPE_BOUND_H,
-    line,
-    eu->bound,
-    eu->bound_ships,
-    -1
-  );
-
-  if (eu->selected_harbor >= 0 && eu->selected_harbor < eu->harbor_ships) {
-    snprintf(line, sizeof(line), "Loading:\n%s", eu->harbor[eu->selected_harbor].name);
-  } else {
-    /* No selection: bare header, whether or not ships sit in the harbor. */
-    snprintf(line, sizeof(line), "%s", "Loading:\n");
-  }
-  europe_render_transit_box(
-    game,
-    font,
-    framebuffer,
-    EUROPE_LOADING_X,
-    EUROPE_LOADING_Y,
-    EUROPE_LOADING_W,
-    EUROPE_LOADING_H,
-    line,
-    eu->harbor,
-    eu->harbor_ships,
+    game, font, framebuffer, EUROPE_LOADING_X, EUROPE_LOADING_Y, EUROPE_LOADING_W,
+    EUROPE_LOADING_H, 0x8f, 0x51, load1, load2, eu->harbor, eu->harbor_ships,
     eu->selected_harbor
   );
 

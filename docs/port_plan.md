@@ -26,7 +26,7 @@ deferred AI track is **done** (D1 closed 2026-09-07g, D2 closed at logic level
   War of Independence, all four nations, one per difficulty from Discoverer
   to Viceroy; every bug they found is fixed or refuted (#1234–#1272).
 - [port_bugs.md](port_bugs.md) had no OPEN rows on 2026-10-26 (the docs
-  review that day filed and fixed #1273-#1281, then filed leads #1282-#1286); the pending-verification archive was emptied
+  review that day filed and fixed #1273-#1286); the pending-verification archive was emptied
   into [archive/bugs_closed.md](archive/bugs_closed.md) the same day.
 
 What is left is small and listed under "Remaining work" below, plus the

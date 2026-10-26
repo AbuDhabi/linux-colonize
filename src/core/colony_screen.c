@@ -58,6 +58,8 @@ void colony_screen_reset_ui(ColonyScreenView* view) {
   view->selected_outside_unit = -1;
   view->drag_from_tile = -1;
   view->hover_building_row = -1;
+  view->press_region = 0x14;
+  view->tab_pressed = -1;
   /* show_production_numbers deliberately NOT reset here: it is DOS's
    * game-wide DS:0x336 numbers toggle and survives between colonies. */
   /* port_bugs.md: DOS opens the colony screen on the construction view. */
@@ -783,14 +785,12 @@ void colony_screen_minimap_origin(int* out_x, int* out_y) {
    * (gx*0x18 + 200, gy*0x18 + 8) and the inner 3x3 starts at gx = gy = 1;
    * golden-measured too (tiles 224..295 x 32..103, black frame one pixel
    * outside at 223/296 x 31/104). The old 23px-margin origin (223,31) was
-   * one pixel up-left. */
-  const int grid_px = COLONY_MINIMAP_GRID * COLONY_MINIMAP_TILE;
-  const int margin = (COLONY_MINIMAP_SECTION_H - grid_px) / 2 + 1;
+   * one pixel up-left; the section is 120x120, so this is a 24px margin. */
   if (out_x) {
-    *out_x = COLONY_MINIMAP_SECTION_X + margin;
+    *out_x = COLONY_MINIMAP_SECTION_X + COLONY_MINIMAP_TILE;
   }
   if (out_y) {
-    *out_y = COLONY_MINIMAP_SECTION_Y + margin;
+    *out_y = COLONY_MINIMAP_SECTION_Y + COLONY_MINIMAP_TILE;
   }
 }
 

@@ -573,7 +573,8 @@ int colony_screen_multi_units_layout(
 }
 
 /*
- * Overflow-row miniature: the unit sprite resampled into a 3x5 cell (DOS
+ * Overflow-row miniature: the unit sprite resampled into a 3-wide cell of
+ * height h (3x5 on the Units tab, 3x4 for docked ships; DOS
  * routes these through the scaled/dithered blitter FUN_1c56_0004; nearest
  * sample keeps the unit's dominant colours at this size).
  */
@@ -582,7 +583,8 @@ void colony_screen_blit_mini_unit(
   ColonizeFramebuffer8* framebuffer,
   int sprite,
   int x,
-  int y
+  int y,
+  int h
 ) {
   if (!view || !view->icons_ok || !framebuffer || sprite < 0 ||
       sprite >= view->icons.sprite_count) {
@@ -592,8 +594,8 @@ void colony_screen_blit_mini_unit(
   if (!sp || !sp->pixels || sp->width <= 0 || sp->height <= 0) {
     return;
   }
-  for (int oy = 0; oy < COLONY_MULTI_UNITS_MINI_H; ++oy) {
-    const int sy = (oy * sp->height + sp->height / 2) / COLONY_MULTI_UNITS_MINI_H;
+  for (int oy = 0; oy < h; ++oy) {
+    const int sy = (oy * sp->height + sp->height / 2) / h;
     for (int ox = 0; ox < COLONY_MULTI_UNITS_MINI_W; ++ox) {
       const int sx = (ox * sp->width + sp->width / 2) / COLONY_MULTI_UNITS_MINI_W;
       const uint8_t c = sp->pixels[sy * sp->width + sx];
@@ -776,6 +778,27 @@ void colony_screen_blit_buildings(
     const int drawn_sprite = colony_screen_category_sprite(pool, colony, i);
     if (drawn_sprite < 0) {
       continue;
+    }
+
+    /*
+     * port_bugs.md #1283: with the Stable built the warehouse slot is building
+     * 0x11 (FUN_2f2b_0434), and FUN_2f2b_14d4 (asm 2f2b:1565-15f7, amount from
+     * FUN_2f2b_13c2 2f2b:13f2) badges it with the horses icon (0x1f) and word
+     * DS:0x8dd8 = FUN_15eb_1f72's uncapped breeding potential (raw 12679:
+     * ceil(horses / 25) * 2 with a Stable, 0 below 2 horses), class window + 9
+     * rows, only when nonzero. Drawn before the warehouse level number.
+     */
+    if (i == COLONY_CAT_WAREHOUSE && view->icons_ok &&
+        colonies_has_building_row(pool, colony, COLONY_BUILDING_STABLE)) {
+      const int h = colony->stock[COLONIZE_CARGO_HORSES];
+      const int potential = h < 2 ? 0 : ((h + 24) / 25) * 2;
+      if (potential > 0) {
+        reports_draw_dos_icon_bar(
+          &view->icons, font, framebuffer, COLONY_CARGO_ICON_BASE + COLONIZE_CARGO_HORSES,
+          slot_ox + slot_x[i] + 0, slot_oy + slot_y[i] + 1 + 9, 22, 22, potential, potential,
+          false, view->show_production_numbers
+        );
+      }
     }
 
     /*
@@ -1082,6 +1105,21 @@ void colony_screen_draw_cargo_strip(
       }
     }
   }
+  /* FUN_2f2b_28d6 raw 49139-49149 (FUN_2f2b_289e): the selected warehouse slot
+   * (DS:0x33a, static 0 = Food) always has a box from (slot*19, 179) to
+   * (slot*19 + 19, 199): yellow (14) in the focused strip's on phase or while
+   * a press on the strip is held, else green. port_bugs.md #1284. */
+  if (view) {
+    const int sc = (view->selected_cargo >= 0 && view->selected_cargo < COLONIZE_CARGO_COUNT)
+                     ? view->selected_cargo
+                     : 0;
+    const uint8_t ink =
+      ((view->mouse_held && view->press_region == 5) ||
+       (view->focus == COLONY_FOCUS_WAREHOUSE && colony_screen_blink_on(view)))
+        ? 14
+        : 10;
+    colony_screen_draw_selection_box(framebuffer, sc * 19, 0xb3, 20, 21, ink);
+  }
 }
 
 void colony_screen_draw_transports(
@@ -1094,27 +1132,46 @@ void colony_screen_draw_transports(
   if (!view || !units || !framebuffer) {
     return;
   }
-  /* port_bugs.md: >4 transports overflowed the box — shrink the pitch so the
-   * last icon still ends inside (same squeeze the worker strips use). */
-  int tr_pitch = COLONY_TRANSPORT_PITCH;
-  if (view->docked_transport_count > 1) {
-    const int avail = COLONY_TRANSPORT_W - 9 - 16;
-    if ((view->docked_transport_count - 1) * tr_pitch > avail) {
-      tr_pitch = avail / (view->docked_transport_count - 1);
-      if (tr_pitch < 2) {
-        tr_pitch = 2;
-      }
-    }
-  }
-  for (int i = 0; i < view->docked_transport_count; ++i) {
+  /*
+   * DOS FUN_2f2b_24b2 raw 48955-49001 (x step and wrap from asm 2f2b:26a2-26f6):
+   * the first 4 holders as full icons at x 0x82 + 18i, y 0x93, ships (@UNIT
+   * 0x0d..0x12) lifted 1 px (the first) or 2 px (the rest), no stack box; the
+   * next 16 as 3x4 miniatures at x 0x7c + 5k, y 139; more are not drawn. The
+   * selected one (DS:0x33e) gets an ink-10 box from (x-1, y-1) to (x+w, y+h).
+   * port_bugs.md #1286 (replaces a port-invented pitch squeeze).
+   */
+  /* raw 48976-48987: white in the focused strip's on phase, or while a press
+   * on the ship icons (not the holds) is held; else green. #1284. */
+  const uint8_t sel_ink =
+    ((view->mouse_held && view->press_region == 8) ||
+     (view->focus == COLONY_FOCUS_SHIPS && colony_screen_blink_on(view)))
+      ? 15
+      : 10;
+  for (int i = 0; i < view->docked_transport_count && i < COLONY_TRANSPORT_MAX; ++i) {
     const ColonizeUnit* u = units_get_const(units, view->docked_transport_ids[i]);
     if (!u) {
       continue;
     }
     const ColonizeUnitType* type = units_type(units, u->type_index);
-    /* DOS FUN_2f2b_24b2 raw 48954-48955: first ship icon at x 0x82. */
-    const int x = COLONY_TRANSPORT_X + 9 + i * tr_pitch;
-    const int y = COLONY_TRANSPORT_ICON_Y;
+    if (!type || type->icon_sprite < 0 || !view->icons_ok) {
+      continue;
+    }
+    const bool selected = view->transport_unit_id == u->id;
+    if (i >= COLONY_TRANSPORT_ROW0_N) {
+      const int x = COLONY_TRANSPORT_MINI_X + (i - COLONY_TRANSPORT_ROW0_N) * COLONY_TRANSPORT_MINI_STEP;
+      colony_screen_blit_mini_unit(
+        view, framebuffer, type->icon_sprite, x, COLONY_TRANSPORT_MINI_Y, COLONY_TRANSPORT_MINI_H
+      );
+      if (selected) {
+        colony_screen_draw_selection_box(
+          framebuffer, x - 1, COLONY_TRANSPORT_MINI_Y - 1, 5, COLONY_TRANSPORT_MINI_H + 2, sel_ink
+        );
+      }
+      continue;
+    }
+    const int x = COLONY_TRANSPORT_ICON_X + i * COLONY_TRANSPORT_PITCH;
+    const int row = units_display_type_index(units, u->id);
+    const int y = COLONY_TRANSPORT_ICON_Y - ((row >= 0x0d && row <= 0x12) ? (i == 0 ? 1 : 2) : 0);
     /*
      * port_bugs.md #705's repair countdown is not map-only: DOS carries the same
      * badge arm (FUN_112b_01ba raw 2148-2172) inline in its other unit-icon
@@ -1124,28 +1181,15 @@ void colony_screen_draw_transports(
      */
     const bool damaged = (u->col1_flags15 & 0x80u) != 0;
     const int repair_badge = unit_chrome_repair_badge_index(
-      units_display_type_index(units, u->id), damaged, type ? type->defense : 0,
-      (int)u->col1_counter16, true
+      row, damaged, type->defense, (int)u->col1_counter16, true
     );
     const int badge_orders = repair_badge >= 0 ? repair_badge : u->orders;
-    if (type && type->icon_sprite >= 0 && view->icons_ok) {
-      unit_chrome_blit_unit_for_palette(
-        framebuffer,
-        font,
-        &view->icons,
-        type->icon_sprite,
-        x,
-        y,
-        units_display_type_index(units, u->id),
-        u->nation_id,
-        badge_orders,
-        view->docked_transport_count > 1,
-        damaged,
-        (view->frame_ok && view->frame.has_palette) ? &view->frame.palette : NULL
-      );
-      if (view->transport_unit_id == u->id) {
-        colony_screen_draw_chrome_selection(view, framebuffer, type->icon_sprite, x, y);
-      }
+    unit_chrome_blit_unit_for_palette(
+      framebuffer, font, &view->icons, type->icon_sprite, x, y, row, u->nation_id, badge_orders,
+      false, damaged, (view->frame_ok && view->frame.has_palette) ? &view->frame.palette : NULL
+    );
+    if (selected) {
+      colony_screen_draw_selection_box(framebuffer, x - 1, y - 1, 18, 18, sel_ink);
     }
   }
 

@@ -41,11 +41,15 @@ void colony_screen_fill_parch(const ColonyScreenView* view, ColonizeFramebuffer8
   if (!view || !view->parch_ok) {
     return;
   }
+  /* DOS FUN_2f2b_171c fills parchment over x 0..198 (FUN_281f_04fc(0, 8, 0xc7,
+   * 0x78)); start one tile further left so column 0 is covered without moving
+   * the tile phase (golden-measured, port_bugs.md #1286). */
+  const int tw = view->parch.sprite_count > 0 ? view->parch.sprites[0].width : 0;
   map_panel_tile_rect(
     &view->parch,
-    COLONY_VIEWPORT_X,
+    COLONY_VIEWPORT_X - tw,
     COLONY_VIEWPORT_Y,
-    COLONY_PARCH_FILL_W,
+    COLONY_PARCH_FILL_W + tw,
     COLONY_PARCH_FILL_H,
     framebuffer
   );
@@ -163,6 +167,27 @@ void colony_screen_text_centred(
   font_draw_text_shaded(font, framebuffer, x < 0 ? 0 : x, y, s, (const uint8_t[4]){0, ink, ink, ink});
 }
 
+bool colony_screen_blink_on(const ColonyScreenView* view) {
+  return view && ((view->blink_ms - view->blink_epoch_ms) / 328u) % 2u == 0u;
+}
+
+int colony_screen_dos_region(int x, int y) {
+  /* Inclusive AABBs tested in DOS order (FUN_1262_00f6). */
+  static const struct {
+    int16_t x, y, w, h, id;
+  } r[] = {
+    {200, 8, 120, 120, 1}, {305, 179, 15, 21, 9}, {0, 130, 120, 48, 0}, {0, 8, 199, 120, 2},
+    {303, 132, 17, 45, 3}, {0, 179, 305, 21, 5}, {211, 130, 91, 48, 4}, {121, 130, 84, 48, 8},
+    {0, 0, 320, 7, 10},
+  };
+  for (size_t i = 0; i < sizeof r / sizeof r[0]; ++i) {
+    if (x >= r[i].x && x < r[i].x + r[i].w && y >= r[i].y && y < r[i].y + r[i].h) {
+      return r[i].id;
+    }
+  }
+  return 0x14;
+}
+
 /* Tight green box around an ICONS.SS sprite at (x,y), 1px margin. */
 void colony_screen_draw_icon_selection(
   const ColonyScreenView* view,
@@ -187,7 +212,8 @@ void colony_screen_draw_chrome_selection(
   ColonizeFramebuffer8* framebuffer,
   int sprite,
   int x,
-  int y
+  int y,
+  uint8_t ink
 ) {
   if (!view || !view->icons_ok || !framebuffer || sprite < 0 || sprite >= view->icons.sprite_count) {
     return;
@@ -201,7 +227,7 @@ void colony_screen_draw_chrome_selection(
   int fw = 0;
   int fh = 0;
   unit_chrome_selection_frame(x, y, sp->width, sp->height, &fx, &fy, &fw, &fh);
-  colony_screen_draw_selection_box(framebuffer, fx, fy, fw, fh, 10);
+  colony_screen_draw_selection_box(framebuffer, fx, fy, fw, fh, ink);
 }
 
 void colony_screen_blit_icon(
@@ -776,13 +802,13 @@ void colony_screen_draw_area_overlays(
   /*
    * port_bugs.md #1281: the area view's keyboard cursor. DOS FUN_2f2b_0d89 raw
    * 47788-47796 outlines cell (DS:0x330, DS:0x332) in white (0x0f) while the
-   * area has the focus (DS:0x32e == 0) and the blink phase DS:0x334 is on;
-   * FUN_2f2b_6cd4 raw 56094-56097 flips the phase every 0x14 BIOS ticks
-   * (~1.1 s). ponytail: the mouse-held and drag-target arms of the same test
-   * and the phase reset on a full redraw are not modelled.
+   * area has the focus (DS:0x32e == 0) and either a mouse button is held
+   * (DS:0x7ee) or the blink phase DS:0x334 is on (colony_screen_blink_on).
+   * The press-on-the-People-band arm needs DOS region 0, which a port press
+   * never keeps: every People-band press starts a drag (region 6).
    */
   if (view->focus == COLONY_FOCUS_AREA && abs(view->area_dx) <= half &&
-      abs(view->area_dy) <= half && (view->blink_ms / 1099u) % 2u == 0u) {
+      abs(view->area_dy) <= half && (view->mouse_held || colony_screen_blink_on(view))) {
     colony_screen_draw_selection_box(
       framebuffer, origin_x + (view->area_dx + half) * tile,
       origin_y + (view->area_dy + half) * tile, tile, tile, 15

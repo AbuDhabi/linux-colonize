@@ -43,7 +43,10 @@
    below, so this one constant fixes both. */
 #define COLONY_TOP_SEPARATOR_Y COLONY_TOP_BAR_H
 #define COLONY_MIDDLE_Y (COLONY_TOP_SEPARATOR_Y + 1)
-#define COLONY_BOTTOM_SEPARATOR_Y (COLONY_BOTTOM_PANEL_Y - 1)
+/* DOS FUN_2f2b_171c / FUN_2f2b_0ba8 rects end at y 0x80: the separator is the
+ * bottom panel's first row (drawn over COLONY.PIK row 0), both middle
+ * sections are 120 rows (8..127). port_bugs.md #1286. */
+#define COLONY_BOTTOM_SEPARATOR_Y COLONY_BOTTOM_PANEL_Y
 
 #define COLONY_MINIMAP_SECTION_H (COLONY_BOTTOM_SEPARATOR_Y - COLONY_MIDDLE_Y)
 /* Golden (new_amsterdam_production.png): parchment ends x=198, black divider
@@ -123,9 +126,15 @@
 /* People line-up row: FUN_2f2b_17d0 y = 0x8f - 1 (asm 270FA / 27178). */
 #define COLONY_PEOPLE_ICON_Y 0x8e
 
-#define COLONY_TRANSPORT_MAX 8
+#define COLONY_TRANSPORT_MAX 20 /* DOS FUN_2f2b_24b2: 4 full icons + 16 miniatures */
 /* port_bugs.md #11: transport icons sat 10px too high; nudged down. */
-#define COLONY_TRANSPORT_ICON_Y (COLONY_BOTTOM_PANEL_Y + 18)
+#define COLONY_TRANSPORT_ICON_Y 0x93 /* DOS FUN_2f2b_24b2 row 0 (ships lifted 1-2 px) */
+#define COLONY_TRANSPORT_ICON_X 0x82
+#define COLONY_TRANSPORT_ROW0_N 4
+#define COLONY_TRANSPORT_MINI_X 0x7c /* overflow row: 3x4 miniatures, step 5 */
+#define COLONY_TRANSPORT_MINI_Y 139
+#define COLONY_TRANSPORT_MINI_STEP 5
+#define COLONY_TRANSPORT_MINI_H 4
 #define COLONY_TRANSPORT_PITCH 18
 /*
  * port_bugs.md: hold-box geometry measured off COLONY.PIK itself (the panel art
@@ -423,7 +432,20 @@ typedef struct ColonyScreenView {
    * the renderer each frame. Only consumer: the CHANGE button's
    * already-built blink in the Construction pane. */
   uint32_t blink_ms;
+  /* Last DOS full redraw (FUN_2f2b_2d90 / 2e2a: every press, release or handled
+   * key): DS:0x334 restarts in the on phase. port_bugs.md #1284. */
+  uint32_t blink_epoch_ms;
+  bool mouse_held;      /* DS:0x7ee: any mouse button held */
+  int press_region;     /* DS:0x8d54 of the held press (FUN_2f2b_40a0), 6 once a drag runs, 0x14 none */
+  ColonyMultiMode prev_multi_mode; /* DS:0x338: never reset */
+  int tab_pressed;      /* DS:0x339 while a tab press is held; -1 none */
 } ColonyScreenView;
+
+/* DS:0x334 blink phase: 0x14 ticks of the 60.877 Hz DS:0x92e8 clock (~328 ms)
+ * per phase, on first after each full redraw (FUN_2f2b_6cd4 raw 56094-56097). */
+bool colony_screen_blink_on(const ColonyScreenView* view);
+/* FUN_2f2b_40a0 raw 50954-51004: the press region id at (x, y), 0x14 = none. */
+int colony_screen_dos_region(int x, int y);
 
 /* Hand the loaded/new game's post_map.boot_timer to the colony screen. */
 void colony_screen_set_layout_seed(ColonyScreenView* view, uint32_t boot_timer);

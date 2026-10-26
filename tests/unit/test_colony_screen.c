@@ -1234,9 +1234,8 @@ static int case_colony_screen_render_workflow(void) {
     }
   }
 
-  /* 3×3 minimap: equal margins derive from the section height (extra width
-   * of the 120-wide section stays on the right); the tiles start one pixel
-   * inside them, at (224,32), with the black frame on the margin line. */
+  /* 3×3 minimap in the 120x120 section: 24px margins, tiles from (224,32)
+   * (DOS FUN_2f2b_0d89), black frame one pixel outside them. */
   const int grid_px = COLONY_MINIMAP_GRID * COLONY_MINIMAP_TILE;
   const int margin_x = (COLONY_MINIMAP_SECTION_H - grid_px) / 2;
   const int margin_y = (COLONY_MINIMAP_SECTION_H - grid_px) / 2;

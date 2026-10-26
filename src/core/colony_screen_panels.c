@@ -191,7 +191,23 @@ void colony_screen_draw_people(
       colony_screen_blit_icon(view, ent[i].sprite, framebuffer, ent[i].px, y_people);
       if ((ent[i].sel_colonist >= 0 && view->selected_colonist == ent[i].sel_colonist) ||
           (ent[i].sel_unit >= 0 && view->selected_outside_unit == ent[i].sel_unit)) {
-        colony_screen_draw_icon_selection(view, framebuffer, ent[i].sprite, ent[i].px, y_people);
+        /* FUN_2f2b_17d0 raw 48444-48461 (asm 2f2b:188b-194b): box (x-1, y+1) to
+         * (x+w, y+h); green unless the band has the focus, then white in the on
+         * phase and none in the off phase; green again while a button is held.
+         * port_bugs.md #1284. */
+        uint8_t ink = 10;
+        if (view->focus == COLONY_FOCUS_COLONISTS && !view->mouse_held) {
+          ink = colony_screen_blink_on(view) ? 15 : 0;
+        }
+        const ColonizeSprite* sp =
+          (view->icons_ok && ent[i].sprite >= 0 && ent[i].sprite < view->icons.sprite_count)
+            ? &view->icons.sprites[ent[i].sprite]
+            : NULL;
+        if (ink && sp) {
+          colony_screen_draw_selection_box(
+            framebuffer, ent[i].px - 1, y_people + 1, sp->width + 2, sp->height, ink
+          );
+        }
       }
     }
   }
@@ -200,9 +216,12 @@ void colony_screen_draw_people(
     return;
   }
   const ColonizeColonyPreview* p = &view->preview;
-  const int meter_y = COLONY_CARGO_STRIP_Y - 16;
+  /* DOS FUN_2f2b_17d0 2f2b:1a24 / 1acc: FUN_1097_0394(x 2, y 0xa3, w 0x76, 4)
+   * — the meter row spans 118 px from y 163 (golden boxes 165..173). The
+   * proportional split inside it is player-requested. port_bugs.md #1286. */
+  const int meter_y = 0xa3;
   const int meter_h = 12;
-  const int band = COLONY_PEOPLE_W - 4;
+  const int band = 0x76;
   const int gap = 4;
   /* golden-confirmed (New Amsterdam: 32, not food_produced's pre-breeding
    * 34): this badge shows the same post-breeding `goods[FOOD]` the
@@ -536,7 +555,10 @@ void colony_screen_draw_multifunction(
    * (304, y+1) — the pressed look. port_bugs.md #1275. */
   for (int i = 0; i < 3; ++i) {
     const int y = COLONY_TAB_BTN_Y + i * COLONY_TAB_BTN_PITCH;
-    const bool sel = (int)view->multi_mode == i;
+    /* While a tab press is held DS:0x339 (the button under the pointer) is
+     * the one drawn pressed (FUN_2f2b_4a1c -> 2c3c(1,1)). port_bugs.md #1285. */
+    const int shown = view->tab_pressed >= 0 ? view->tab_pressed : (int)view->multi_mode;
+    const bool sel = shown == i;
     colony_screen_draw_selection_box(
       framebuffer, COLONY_TAB_BTN_X + (sel ? 0 : 1), y + (sel ? 0 : 1), COLONY_TAB_BTN_W,
       COLONY_TAB_BTN_H, 0x3f
@@ -649,6 +671,14 @@ void colony_screen_draw_multifunction(
       const int tw = font_text_width(font, title);
       font_draw_text(font, framebuffer, px + (pane_w - tw) / 2, py, title, 57);
     }
+    /* FUN_2f2b_1e46 raw 48668-48677: the selected unit's box is white in the
+     * focused pane's on phase or while a press on the pane is held, else green.
+     * port_bugs.md #1284. */
+    const uint8_t sel_ink =
+      ((view->mouse_held && view->press_region == 4) ||
+       (view->focus == COLONY_FOCUS_UNITS && colony_screen_blink_on(view)))
+        ? 15
+        : 10;
     ColonyMultiUnitSlot slots[COLONY_MULTI_UNITS_SLOT_MAX];
     const int slot_count = colony_screen_multi_units_layout(
       view, units, px, py + COLONY_MULTI_UNITS_TITLE_H, pane_w, pane_h - COLONY_MULTI_UNITS_TITLE_H,
@@ -663,11 +693,13 @@ void colony_screen_draw_multifunction(
       if (slots[i].mini) {
         /* Overflow rows: 3x5 miniature; selection is the small DOS box
          * (2f2b:1f7f with the row-1 params: x-1..x+3 by y-2..y+5). */
-        colony_screen_blit_mini_unit(view, framebuffer, sprite, slots[i].x, slots[i].y);
+        colony_screen_blit_mini_unit(
+          view, framebuffer, sprite, slots[i].x, slots[i].y, COLONY_MULTI_UNITS_MINI_H
+        );
         if (view->multi_unit_selected_id == u->id) {
           colony_screen_draw_selection_box(
             framebuffer, slots[i].x - 1, slots[i].y - 2, COLONY_MULTI_UNITS_MINI_W + 2,
-            COLONY_MULTI_UNITS_MINI_H + 3, 10
+            COLONY_MULTI_UNITS_MINI_H + 3, sel_ink
           );
         }
         continue;
@@ -688,7 +720,7 @@ void colony_screen_draw_multifunction(
         (view->frame_ok && view->frame.has_palette) ? &view->frame.palette : NULL
       );
       if (view->multi_unit_selected_id == u->id) {
-        colony_screen_draw_chrome_selection(view, framebuffer, sprite, slots[i].x, slots[i].y);
+        colony_screen_draw_chrome_selection(view, framebuffer, sprite, slots[i].x, slots[i].y, sel_ink);
       }
     }
   } else if (view->multi_mode == COLONY_MULTI_CONSTRUCTION && colony && pool) {

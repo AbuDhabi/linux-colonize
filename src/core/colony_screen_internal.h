@@ -119,7 +119,8 @@ void colony_screen_blit_mini_unit(
   ColonizeFramebuffer8* framebuffer,
   int sprite,
   int x,
-  int y
+  int y,
+  int h
 );
 int colony_screen_building_worker_strip(
   const ColonyScreenView* view,
@@ -161,7 +162,8 @@ void colony_screen_draw_chrome_selection(
   ColonizeFramebuffer8* framebuffer,
   int sprite,
   int x,
-  int y
+  int y,
+  uint8_t ink
 );
 void colony_screen_draw_hline(ColonizeFramebuffer8* framebuffer, int y, int color);
 void colony_screen_draw_icon_selection(

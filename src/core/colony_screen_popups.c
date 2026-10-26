@@ -1122,11 +1122,11 @@ COLONIZE_INTERNAL bool colony_screen_hit_multifunction(ColonyScreenHitCtx* a) {
   const int mx = a->mx;
   const int my = a->my;
   /* Multifunction tab buttons (DOS FUN_2f2b_4a1c: (303, 132 + 15i), 14x13). */
-  if (mx >= COLONY_TAB_BTN_X && mx < COLONY_TAB_BTN_X + COLONY_TAB_BTN_W + 1 &&
+  if (mx >= COLONY_TAB_BTN_X && mx < COLONY_TAB_BTN_X + COLONY_TAB_BTN_W &&
       my >= COLONY_TAB_BTN_Y && my < COLONY_TAB_BTN_Y + 3 * COLONY_TAB_BTN_PITCH) {
     const int idx = (my - COLONY_TAB_BTN_Y) / COLONY_TAB_BTN_PITCH;
     if (idx >= 0 && idx < 3 &&
-        my - COLONY_TAB_BTN_Y - idx * COLONY_TAB_BTN_PITCH < COLONY_TAB_BTN_H + 1) {
+        my - COLONY_TAB_BTN_Y - idx * COLONY_TAB_BTN_PITCH < COLONY_TAB_BTN_H) {
       a->hit.kind = COLONY_HIT_MULTI_BTN;
       a->hit.index = idx;
       return true;
@@ -1188,35 +1188,32 @@ COLONIZE_INTERNAL bool colony_screen_hit_transports(ColonyScreenHitCtx* a) {
   const ColonyScreenView* view = a->view;
   const int mx = a->mx;
   const int my = a->my;
-  /* Docked transport icons. */
-  if (view->docked_transport_count > 0 && my >= COLONY_TRANSPORT_ICON_Y &&
-      my < COLONY_TRANSPORT_ICON_Y + 16 && mx >= COLONY_TRANSPORT_X &&
-      mx < COLONY_TRANSPORT_X + COLONY_TRANSPORT_W) {
-    int tr_pitch = COLONY_TRANSPORT_PITCH;
-    if (view->docked_transport_count > 1) {
-      const int avail = COLONY_TRANSPORT_W - 9 - 16;
-      if ((view->docked_transport_count - 1) * tr_pitch > avail) {
-        tr_pitch = avail / (view->docked_transport_count - 1);
-        if (tr_pitch < 2) {
-          tr_pitch = 2;
-        }
-      }
+  /*
+   * DOS FUN_2f2b_548e raw 52190-52201: the whole ships pane (0x79, 0x82, 0x54,
+   * 0x30; FUN_2f2b_40a0 raw 50985) picks a holder, after the holds rect
+   * (127, 165, 72, 22; FUN_2f2b_56ce) — above y 147 the miniature row
+   * ((clamp(x - 0x7c, 0, 0x4e) + 1) / 5 + 4), else the full row
+   * (clamp(x - 0x82, 0, 0x47) / 18), clamped to the last holder. No gaps.
+   * port_bugs.md #1286.
+   */
+  if (view->docked_transport_count > 0 && mx >= 0x79 && mx < 0x79 + 0x54 && my >= 0x82 &&
+      my < 0x82 + 0x30 && !(mx >= 127 && mx < 127 + 72 && my >= 165 && my < 165 + 22)) {
+    int idx;
+    if (my < COLONY_TRANSPORT_ICON_Y) {
+      int dx = mx - COLONY_TRANSPORT_MINI_X;
+      dx = dx < 0 ? 0 : (dx > 0x4e ? 0x4e : dx);
+      idx = (dx + 1) / COLONY_TRANSPORT_MINI_STEP + COLONY_TRANSPORT_ROW0_N;
+    } else {
+      int dx = mx - COLONY_TRANSPORT_ICON_X;
+      dx = dx < 0 ? 0 : (dx > 0x47 ? 0x47 : dx);
+      idx = dx / COLONY_TRANSPORT_PITCH;
     }
-    /* Walk back-to-front so overlapped (squeezed) icons resolve to the
-     * one drawn on top. */
-    int idx = -1;
-    for (int i = view->docked_transport_count - 1; i >= 0; --i) {
-      const int x0 = COLONY_TRANSPORT_X + 9 + i * tr_pitch;
-      if (mx >= x0 && mx < x0 + 16) {
-        idx = i;
-        break;
-      }
+    if (idx > view->docked_transport_count - 1) {
+      idx = view->docked_transport_count - 1;
     }
-    if (idx >= 0 && idx < view->docked_transport_count) {
-      a->hit.kind = COLONY_HIT_TRANSPORT;
-      a->hit.index = idx;
-      return true;
-    }
+    a->hit.kind = COLONY_HIT_TRANSPORT;
+    a->hit.index = idx;
+    return true;
   }
   return false;
 }

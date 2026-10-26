@@ -534,13 +534,33 @@ and re-checked against the goldens):
    @MISC 43 and @CARGO 14 and drawn in ink 7 when stock covers N, else 15
    (`FUN_2f2b_22b6`).
 8. The white Recife outline is the area view's blinking keyboard cursor
-   (`FUN_2f2b_0d89`, phase flipped every 0x14 ticks by `FUN_2f2b_6cd4`):
-   ported for the area view. The area grid itself was one pixel up-left; tiles
+   (`FUN_2f2b_0d89`, phase flipped every 0x14 ticks of the 60.877 Hz
+   DS:0x92e8 clock, ~328 ms, by `FUN_2f2b_6cd4`). The area grid itself was one pixel up-left; tiles
    now start at (224, 32) with the black frame outside them.
 
+Second pass, same day (were port_bugs.md #1282-#1286):
+
+9. Focus blink on every panel (`FUN_2f2b_2d1c`): the focused panel's
+   selection box is white in the on phase (People band: none in the off
+   phase; warehouse: yellow), white or yellow while a press on that panel is
+   held, green otherwise; every press, release or key restarts the phase on.
+   The warehouse slot (DS:0x33a, Food by default) always has a box; `=`/`+`
+   use Food when nothing is picked. People-band box is (x-1, y+1)-(x+w, y+h).
+10. Tabs switch on release; releasing on the active tab goes back to the
+    previous one (DS:0x338, set by mouse switches and 1/2/3/M); B switches to
+    Construction (`FUN_2f2b_4a1c`, `FUN_2f2b_6372`).
+11. Stable: the warehouse slot gets a horses badge of the breeding potential
+    `ceil(horses/25)*2` (DS:0x8dd8) when the Stable is built.
+12. Bottom separator at y 128 (both middle sections 120 rows), parchment from
+    x 0, People meter row at y 163 / 118 wide, docked holders 4 full icons at
+    x 0x82 + 18i (ships lifted 1-2 px) plus 16 miniatures at y 139, with
+    `FUN_2f2b_548e`'s gap-free hit test.
+13. Europe screen box headers (`FUN_38fd_1382` / `127c` / `0f8c`): centred
+    @MISC 9 / @MISC 10 + country / "No Ships In Port" or
+    "Loading:  <type>" (Merchantman on its own line), ink 0x45.
+
 **Still different:** the sand backdrop dither and parts of the area view
-differ pixel by pixel (about 71k-81k of 256k pixels per 2x shot after the
-fixes above), D4 polish; open leads are port_bugs.md #1282-#1286.
+differ pixel by pixel (about 68k-77k of 256k pixels per 2x shot), D4 polish.
 
 Deliberate, player-requested: the Production pane layout (surplus split,
 4-row hammer bar).
