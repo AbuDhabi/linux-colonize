@@ -22,9 +22,9 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@BEGINMENU` | Done | title menu (`game_loop.c`) |
 | `@AMERICA` | Done | new-game America / map pick (`new_game.c`) |
 | `@MAPTOLOAD` | Done | new-game America / map pick (`new_game.c`) |
-| `@MULTI` | Missing | no multiplayer UI |
-| `@MULTINEXT` | Missing | no multiplayer UI |
-| `@MULTIREV` | Missing | no multiplayer UI |
+| `@MULTI` | Not ported | hidden hot-seat setup (`FUN_75c2_10ae`; env `COLONIZE=MULTI` / `-K` only) |
+| `@MULTINEXT` | Not ported | hidden hot-seat turn handoff (`FUN_130d_0290`) |
+| `@MULTIREV` | Not ported | hidden hot-seat declare warning (`FUN_43f7_2564`) |
 | `@GAMEOPTIONS` | Done | options_dialog |
 | `@COLONYOPTIONS` | Done | options_dialog |
 | `@SOUNDOPTIONS` | Done | options_dialog |
@@ -379,7 +379,7 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@WARMANLY` | Done | 153e WAR+tone tail **and** the post-tribute war declaration (raw :97960, `score == 999`) — 2nd leg ported 2026-09-08 |
 | `@THREATS` | Done | `FUN_5bfb_153e` encounter dialog — live in the `ai_diplo.c` talk machine (2026-09-06) |
 | `@GIFTS` | Done | `FUN_5bfb_153e` encounter dialog — live in the `ai_diplo.c` talk machine (2026-09-06) |
-| `@MILITARY` | Done | PEACEMENU choice 4 (Military Assistance), raw :98330-98333 — `ai_diplo.c` talk machine (2026-09-16) |
+| `@MILITARY` | Done | PEACEMENU choice 4 (Military Assistance): body of the ally-pick list (5bfb:2d59, `FUN_291f_0182` on GAME/MILITARY; #1287) — `ai_diplo.c` `ai_talk_stage_ally_pick` |
 | `@NOCONTACT` | Done | `FUN_5bfb_153e` encounter dialog — live in the `ai_diplo.c` talk machine (2026-09-06) |
 | `@ALREADYSMITE` | Done | `FUN_5bfb_153e` encounter dialog — live in the `ai_diplo.c` talk machine (2026-09-06) |
 | `@SMITEINDIANS` | Done | `FUN_5bfb_153e` encounter dialog — live in the `ai_diplo.c` talk machine (2026-09-06) |

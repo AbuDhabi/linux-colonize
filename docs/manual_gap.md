@@ -45,7 +45,7 @@ modals (GAME.TXT `@SECTION`s vs port Done/Partial/Missing): [popups.md](popups.m
 |----------------|--------|-------|
 | NEW WORLD / AMERICA / CUSTOMIZE | Done | `src/core/new_game.c`, `map_gen.c` |
 | Difficulty, nation, leader, king audience, sail | Done | Wizard flow functional |
-| Hall of Fame | Done | DOS `FUN_41f2_0f56` presenter ported 2026-08-29 (`reports_render_hall_of_fame`): WOODPANL, title `@MISC` #192 centered, 5 shown entries × 3 centered lines ("n. Difficulty Leader of the [Free ]Nation" / "President, <@INDEPENDENT> | General, Continental Army | Leader, Nation Colonies to A.D. year. Score: n" / "--- Colonization_Rating: n% ---"), ranked by Colonization Rating like HALLFAME.DAT word 19. Storage stays the text `HOF.TXT` (now `score|leader|nation|year|difficulty|rating|declared|achieved|nation_id`, older rows still load; cap 10 stored, 5 shown) — DOS binary HALLFAME.DAT interop not attempted |
+| Hall of Fame | Done | DOS `FUN_41f2_0f56` presenter ported 2026-08-29 (`reports_render_hall_of_fame`): WOODPANL, title `@MISC` #192 centered, 5 shown entries × 3 centered lines ("n. Difficulty Leader of the [Free ]Nation" / "President, <@INDEPENDENT> | General, Continental Army | Leader, Nation Colonies to A.D. year. Score: n" / "--- Colonization_Rating: n% ---"), ranked by Colonization Rating like HALLFAME.DAT word 19. Storage is DOS `HALLFAME.DAT` (5 × 42-byte records, DOS insert rule; read/written since 2026-10-26, `HOF.TXT` retired) |
 | Map compositor (terrain, coasts, rivers, forest/hill, resources) | Done | MAPEDIT-faithful; see inventory / assets |
 | Fog of war / unexplored blackness | Done | `map.seen` plane; black unseen; PHYS0 **104–107** edge fringe; cheat Reveal. Full DOS reveal model (2026-08-29): `FUN_13f1_0158` sight walk (inset-only, domain-gated outer ring) with the `13f1_000a` per-tile effects — owner-nibble stamp on unowned non-rumour tiles, unit vis bits (`FUN_1427_09ac`, natives only in the core ring), colony pop/fort snapshots (`FUN_364b_1b4c`, `ColonizeColony.pop_on_map/fort_on_map`, round-trips Col1 +0xba/+0xbe); units draw only while the viewer's vis bit is set (`FUN_2f2b_6372`), reset on every move to tile-owner + watching nations (`FUN_1427_0c9a/0968`); ±5 reveal on founding (`13f1_00a6`); reveal on piece select (`2b5a_0e52`); AI Euro EOT reveal on (`00f2`); Pacific discovery fires the real woodcut screen (2026-08-30, `woodcut.c`; `FUN_13f1` → `FUN_12fd_006c(6)`), not a popup. Scenario `.MP` starts fogged (seen cleared on load) |
 | Zoom VIEW modes (In/Out/15×12/30×24/60×48/120×96) | Done | `game_map_zoom_*` (`game_loop.c`); FUN_6ba1_000c-equivalent viewport sizing (15<<zoom × 12<<zoom tiles, 16>>zoom on-screen px), but composited by rendering the wider tile grid at native 16px into an offscreen buffer then nearest-neighbor-decimating into the fixed 240×192 viewport — DOS instead redraws with pre-scaled sprite blits per zoom tier |
@@ -73,7 +73,7 @@ Deep mechanics (expected vs OpenCol by context): [unit_orders.md](unit_orders.md
 | Pioneer clear / plow / road (P / R) | Done | Multi-turn FUN_479b: clear/plow = `terr_cost+2`, road = `terr_cost`, Hardy halves; −20 tools on complete; clear and plow are separate jobs |
 | Board / unload passengers | Done | **O** / **U**; hold icons; land→ocean with room auto-boards (`BOARD`); a zero amount means unload the whole selected hold |
 | Dump cargo overboard | Done | ORDERS Dump Cargo Overboard → first goods hold |
-| Pillage | Done | DOS hides ORDERS Pillage (`0x317`) unconditionally (`FUN_2b5a_0b34`) and the port does too; there is no improvement-destroying pillage in DOS (port_bugs.md #631). The manual describes a feature the shipped game never exposes. `units_pillage_w` keeps an invented, unreachable colony-loot arm (deletion candidate, [port_plan.md](port_plan.md) "Remaining work") |
+| Pillage | Done | DOS hides ORDERS Pillage (`0x317`) unconditionally (`FUN_2b5a_0b34`) and the port does too; there is no improvement-destroying pillage in DOS (port_bugs.md #631). The manual describes a feature the shipped game never exposes. The port's invented, unreachable colony-loot arm was deleted 2026-10-26 |
 | Colony auto-disembark when ship enters settlement | Done | Dock + `units_disembark_all` |
 | Sentry auto-board when ship leaves tile | Done | Same-tile Sentry land → departing ship to capacity (colony + ocean stack) |
 | Wagon Train cannot board a ship | Done | port_bugs.md #482, 2026-09-17: DOS gates boarding on the `@UNIT` **size** column (`DS:0x5238`) being `< 99` — `FUN_4720_00e0` (raw 74644-74648) and the `FUN_4720_015c` candidate walk (raw 74739). Wagon Train's size is the 99 sentinel, so it is skipped; ported in `units_board_stacked` (covers `units_board` and every move-onto-ship path) |
@@ -140,10 +140,10 @@ Topic hub (graphics, units, settlements, contact): [indians.md](indians.md); ala
 
 | Manual feature | Status | Notes |
 |----------------|--------|-------|
-| Land / naval attack | Done | Playable bar + fort bit7/Drydock + `20e6` combat peels Done thin; the village arm is now the full `4528` action dispatch (P8.8 human menu incl. Attack Village, AI attack via the `20e6` village arm, `ai_euro_land.c`), not the old invented warn CHOICE. Deep −0x6790 matrix PARKED; VGA chrome D4 — [combat.md](combat.md) |
+| Land / naval attack | Done | Playable bar + fort bit7/Drydock + the `20e6` attack term (LAB_52aa) and `−0x6790` stance table; the village arm is now the full `4528` action dispatch (P8.8 human menu incl. Attack Village, AI attack via the `20e6` village arm, `ai_euro_land.c`), not the old invented warn CHOICE. VGA chrome D4 — [combat.md](combat.md) |
 | Capture colony | Done | `colonies_capture` on player enter (empty/cleared foreign Euro) + AI / combat paths; Indian raid abandons — [combat.md](combat.md) |
 | Stockade / fort / fortress defense % | Done | Live land combat via `157e` `local_1a`; coastal Fort/Fortress fire `units_coastal_fort_fire_pulse_w`. Attack MP (full exhaust, 2026-09-10) + close-hit bit7 + Drydock repair Done — [combat.md](combat.md) |
-| Rival war / peace / privateers | Done | Euro bilateral war/ally/peace + Furs embargo + Privateer spawn (`ai_diplo_*`); Indian×Euro matrix + `153e` talk machine; the invented alliance machinery (ally-aid, FA gift, break trust) was retired 2026-09-06. Left: the ally-pick prompt line has no resolved GAME.TXT id (#988), and the `3f41` F8 report chrome is D4 |
+| Rival war / peace / privateers | Done | Euro bilateral war/ally/peace + Furs embargo + Privateer spawn (`ai_diplo_*`); Indian×Euro matrix + `153e` talk machine; the invented alliance machinery (ally-aid, FA gift, break trust) was retired 2026-09-06. The ally list carries GAME.TXT `@MILITARY` as its prompt (5bfb:2d59, fixed 2026-10-26, #1287). Left: the `3f41` F8 report chrome is D4 |
 
 ### Founding Fathers and independence
 
@@ -160,14 +160,14 @@ Topic hub (graphics, units, settlements, contact): [indians.md](indians.md); ala
 | Manual feature | Status | Notes |
 |----------------|--------|-------|
 | Rival starter fleets + sail to landfall | Done | Path-independent `FUN_75c2_235c`: all four fleets at sentinel `228+n`, counter 0, goto = landfall — `FUN_684c` HS-rim on generated maps, `@SCENARIO` on AMERICA/TRIBE.TXT (port_bugs.md #490) — then Europe exit via `48d3_048e` / `ai_euro_act_*` dispatcher; seed-100 early fixture still gated — [port_plan.md](port_plan.md) |
-| Unload, found colonies, combat, colony AI | Done | Not claimed 1:1. Rival-Euro AI closed at logic level 2026-09-07g (D1): `0a60` goals, `5d04` hire ladder (the invented OpenCol matrix is deleted), `20e6` land arms with the `3558` cargo matrices, colony tick and Col1 colony flags/SoL latches, BUY `hammers_purchased`, `depletion_counter` wrap, `warehouse_level`/`capitol_level`. Gates: `golden_ai_turns`, `smoke_ai_mid01`/`late01`. What is left is fidelity hardening (step scorer not T3) and the deep `−0x6790` body, still PARKED — [ai_euro_logic_map.yaml](ai_euro_logic_map.yaml) |
+| Unload, found colonies, combat, colony AI | Done | Not claimed 1:1. Rival-Euro AI closed at logic level 2026-09-07g (D1): `0a60` goals, `5d04` hire ladder (the invented OpenCol matrix is deleted), `20e6` land arms with the `3558` cargo matrices, colony tick and Col1 colony flags/SoL latches, BUY `hammers_purchased`, `depletion_counter` wrap, `warehouse_level`/`capitol_level`. Gates: the four DOSBox idle campaigns ([idle_campaign.md](idle_campaign.md)) plus `golden_ai_turns`, `smoke_ai_mid01`/`late01`. Left: the Treasure/Missionary/Wagon band tail ([port_plan.md](port_plan.md) "Remaining work") — [ai_euro_logic_map.yaml](ai_euro_logic_map.yaml) |
 
 ### Win / end sequences
 
 | Manual feature | Status | Notes |
 |----------------|--------|-------|
 | Quit / Exit | Done | |
-| Retire → score / HoF | Done | `FUN_41f2_14a8` chain 2026-08-29: `@RETIRE` confirm → F10 → exploits screen (`FUN_41f2_0b70`: WOODPAN2, `@EXPLOITS` + `@SCORE` build-up list, `SCORE<tier+1>.SS` picture, surname-substituted name; skipped when no tier / scoring complete) → Hall of Fame → title; rating + flags persist via `HOF.TXT` |
+| Retire → score / HoF | Done | `FUN_41f2_14a8` chain 2026-08-29: `@RETIRE` confirm → F10 → exploits screen (`FUN_41f2_0b70`: WOODPAN2, `@EXPLOITS` + `@SCORE` build-up list, `SCORE<tier+1>.SS` picture, surname-substituted name; skipped when no tier / scoring complete) → Hall of Fame → title; the entry persists in `HALLFAME.DAT` |
 | Revolution victory / failure | Done thin | `@WINNING` / `@LOSING1`–`3` / `@RETIRING2` + latches; `@WARN1`–`3` Done thin |
 | Auto-end 1800 / 1850 | Done thin | Peacetime year 1800 `@RETIRING` / WoI 1850 `@RETIRING2` → retire score → Hall of Fame → `@SCORED` (port_bugs.md #1231/#1232; Keep playing sets `calendar_latch` and the war goes on); `@SOONRETIRING0`/`1`; WoI `@WINNING` → `@KINGLOSE` → CLOSING.EXE cinematic (`closing.c`) → score |
 
@@ -179,8 +179,8 @@ Every manual feature that exists in the shipped DOS game is ported (re-rated
 2026-10-26; no row is Partial or Missing). "Done thin" rows are behaviourally
 correct with port-drawn presentation, which is deferred phase D4. The few
 remaining gaps sit below this table's granularity and are listed in
-[port_plan.md](port_plan.md) "Remaining work": unwired tutorial hints, the thin Euro AI combat core (`−0x6790` / `20e6` scoring), the DOS `HALLFAME.DAT`
-format, and hot-seat multiplayer.
+[port_plan.md](port_plan.md) "Remaining work": the Euro AI Treasure/Missionary/Wagon
+band tail and the hidden DOS hot-seat mode.
 
 ## See also
 

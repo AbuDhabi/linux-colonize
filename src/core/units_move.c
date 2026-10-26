@@ -6,7 +6,7 @@
  *
  * Sections:
  *  - Unit movement, orders & basic order commands (units_try_move .. units_order_trade_route)
- *  - Pillage/disband/wake, goto/follow flood-fill & greedy pathfinding (units_dump_cargo_overboard .. units_greedy_next_step)
+ *  - Disband/wake, goto/follow flood-fill & greedy pathfinding (units_dump_cargo_overboard .. units_greedy_next_step)
  *  - Coarse-grid route caching & goto step advancement (units_coarse_domain_tile .. units_advance_goto)
  */
 
@@ -1495,7 +1495,7 @@ bool units_order_trade_route(ColonizeUnitPool* pool, int unit_id) {
    * not exhaust the unit's remaining MP when assigning the route. */
   return true;
 }
-/* ===================== Pillage/disband/wake, goto/follow flood-fill & greedy pathfinding (units_dump_cargo_overboard .. units_greedy_next_step) ===================== */
+/* ===================== Disband/wake, goto/follow flood-fill & greedy pathfinding (units_dump_cargo_overboard .. units_greedy_next_step) ===================== */
 
 
 int units_dump_cargo_overboard(
@@ -1513,92 +1513,6 @@ int units_dump_cargo_overboard(
   }
   return units_unload_goods_hold(pool, unit_id, hold, out_cargo_type, out_amount);
 }
-
-bool units_pillage_w(
-  const ColonizeWorld* w,
-  int unit_id,
-  char* err,
-  size_t err_size
-) {
-  ColonizeUnitPool* pool = w->units;
-  ColonizeWorldMap* map = w->map;
-  ColonizeColonyPool* colonies = w->colonies;
-
-  ColonizeUnit* u = units_get(pool, unit_id);
-  if (!u || !u->active || !units_is_on_map(u) || !map) {
-    if (err && err_size) {
-      snprintf(err, err_size, "Select a unit");
-    }
-    return false;
-  }
-  if (units_is_sea(pool, unit_id)) {
-    if (err && err_size) {
-      snprintf(err, err_size, "Cannot pillage at sea");
-    }
-    return false;
-  }
-  const ColonizeUnitType* type = units_type(pool, u->type_index);
-  if (!type || type->attack <= 0) {
-    if (err && err_size) {
-      snprintf(err, err_size, "Need a military unit");
-    }
-    return false;
-  }
-  /* Spent-aware read (audit A9): moves is REMAINING for Euros but the
-   * DOS SPENT byte for natives, so ask the accessor, not the field. */
-  if (units_remaining_mp(pool, unit_id) <= 0) {
-    if (err && err_size) {
-      snprintf(err, err_size, "No moves left");
-    }
-    return false;
-  }
-
-  const int cid = colonies ? colonies_id_at(colonies, u->x, u->y) : -1;
-  ColonizeColony* col = (cid >= 0) ? colonies_get_mut(colonies, cid) : NULL;
-  if (col && col->nation_id != u->nation_id && col->nation_id >= 0 && col->nation_id < 4) {
-    /* Loot richest non-food warehouse cargo (thin ORDERS Pillage). */
-    int best = -1;
-    int best_amt = 0;
-    for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
-      if (c == COLONIZE_CARGO_FOOD) {
-        continue;
-      }
-      if (col->stock[c] > best_amt) {
-        best_amt = col->stock[c];
-        best = c;
-      }
-    }
-    if (best < 0 || best_amt <= 0) {
-      if (err && err_size) {
-        snprintf(err, err_size, "Nothing to pillage");
-      }
-      return false;
-    }
-    const int take = best_amt < 100 ? best_amt : 100;
-    col->stock[best] -= take;
-    units_mp_exhaust(pool, u); /* pillaging ends the turn (audit A9) */
-    if (err && err_size) {
-      snprintf(err, err_size, "Pillaged %d cargo", take);
-    }
-    return true;
-  }
-
-  /*
-   * port_bugs.md #631: there is no improvement-destroying pillage in DOS. Every
-   * FUN_281f_068c(x,y,bit,on) call in both exports was enumerated: only
-   * `0x10,1` (land purchased, raw 42499 / 42592 / 76688), `4,1` (raw 57001)
-   * and `1,0` / `2,0` (occupancy, raw 58157 / 101569-101570). Nothing ever
-   * clears the plow bit 0x40 or the road bit 0x08 — not raids (4cc6), not
-   * 5fef. The port's "clear plow / road on the tile" arm was invented; it is
-   * gone. ORDERS id 0x317 Pillage is hidden unconditionally by
-   * FUN_2b5a_0b34 anyway, so only the colony-loot arm above is reachable.
-   */
-  if (err && err_size) {
-    snprintf(err, err_size, "Nothing to pillage");
-  }
-  return false;
-}
-
 
 bool units_disband(ColonizeUnitPool* pool, int unit_id) {
   ColonizeUnit* u = units_get(pool, unit_id);

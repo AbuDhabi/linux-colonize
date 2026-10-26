@@ -102,7 +102,7 @@ as peels land.
 | `map_size_x` / `map_size_y` | 4 | `mapped` | Typically 58×72 |
 | `tut1.*` known bits | — | `mapped` | Tutorial flags. Nawagers sheet: bit0/bit1 = Pioneer/Soldier message flags (`nr13`/`nr14`) |
 | `tut1.unused06` / `unused08` (was `unknown01`/`unknown02`) | 2 bits | `opaque` | DS:0x5380 bit2/bit6 — confirmed dead: never bit-tested/set in any of 3 decompiled sources (only nr13-nr19 bits are); sole touch is init word-clear `*(u16*)0x5380=0` |
-| `hotseat_woi_redirect_pending` (was `unknown03`) | 1 | `partial` | DS:`0x5381` bit7 — hotseat/WoI-redirect one-shot latch; set at new-game setup when >1 human chosen, tested+cleared in `FUN_43f7_2564`. Other 7 bits unmapped |
+| `hotseat_woi_redirect_pending` (was `unknown03`) | 1 | `partial` | DS:`0x5381` bit7 — hot-seat mode (2+ human powers; the name is historical, not a WoI latch). Set by `FUN_75c2_10ae` from the hidden `@MULTI` checklist (env `COLONIZE=MULTI` / argv `-K` only), read by `FUN_130d_0290` (@MULTINEXT), `FUN_43f7_0218` (no Succession), cheat 0x68; cleared by `FUN_43f7_2564` after @MULTIREV. No code touches the other 7 bits |
 | `game_options.woi`…`ref_unit_threshold` | 7 bits | `mapped` | DS:`0x5382` WoI/REF latches (was `unused01`). Bit `0x10` (`calendar_latch`) = "scoring complete" — set after the retire/end-game score chain `FUN_41f2_14a8`; F10 (`FUN_41f2_0092`) then prints only `@MISC` #126 (2026-08-29) |
 | `game_options` (hints…moves) | — | `mapped` | |
 | `game_options.cheats_enabled` | 1 bit | `mapped` | DS:`0x5383` bit5; Alt-WIN |

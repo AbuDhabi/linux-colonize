@@ -1576,7 +1576,8 @@ static void game_hof_row_from_entry(
   const ColonizeGameState* game, const ColonizeHofEntry* e, ColonizeHofRow* row
 ) {
   snprintf(row->leader, sizeof(row->leader), "%s", e->leader);
-  snprintf(row->nation, sizeof(row->nation), "%s", e->nation);
+  /* FUN_15b3_024e via FUN_281f_065e: the DS:0x8d0a @NATIONALITY adjective. */
+  snprintf(row->nation, sizeof(row->nation), "%s", reports_nation_adjective_display_name(e->nation_id));
   row->score = e->score;
   row->year = e->year;
   row->difficulty = e->difficulty;
@@ -1646,10 +1647,13 @@ COLONIZE_INTERNAL bool game_render_screen(
   if (game->in_hall_of_fame) {
     /* FUN_41f2_0f56 writes through FUN_104b_039a / 0430: FONTINTR (DS:0x268a). */
     const ColonizeFont* font = game_popup_font(game);
-    ColonizeHofRow rows[COLONIZE_HOF_ROW_MAX];
-    const int count = game->hof_count > COLONIZE_HOF_ROW_MAX ? COLONIZE_HOF_ROW_MAX : game->hof_count;
-    for (int i = 0; i < count; ++i) {
-      game_hof_row_from_entry(game, &game->hof_entries[i], &rows[i]);
+    /* FUN_41f2_0f56 shows slots 0-4 whose nation is >= 0. */
+    ColonizeHofRow rows[COLONIZE_HOF_SHOWN_MAX];
+    int count = 0;
+    for (int i = 0; i < COLONIZE_HOF_SHOWN_MAX; ++i) {
+      if (game->hof_entries[i].nation_id >= 0) {
+        game_hof_row_from_entry(game, &game->hof_entries[i], &rows[count++]);
+      }
     }
     ColonizeHofRow retired;
     game_hof_row_from_entry(game, &game->hof_retired, &retired);
@@ -3111,19 +3115,21 @@ const char* game_leader_name(const ColonizeGameState* game) {
 }
 
 int game_hof_count(const ColonizeGameState* game) {
-  if (!game) {
-    return 0;
+  int n = 0;
+  for (int i = 0; game && i < COLONIZE_HOF_FILE_SLOTS; ++i) {
+    n += game->hof_entries[i].nation_id >= 0;
   }
-  return game->hof_count > COLONIZE_HOF_MAX ? COLONIZE_HOF_MAX : game->hof_count;
+  return n;
 }
 
 bool game_hof_entry(const ColonizeGameState* game, int index, ColonizeHofEntryView* out) {
-  if (!game || !out || index < 0 || index >= game_hof_count(game)) {
+  if (!game || !out || index < 0 || index >= COLONIZE_HOF_FILE_SLOTS ||
+      game->hof_entries[index].nation_id < 0) {
     return false;
   }
   const ColonizeHofEntry* e = &game->hof_entries[index];
   snprintf(out->leader, sizeof(out->leader), "%s", e->leader);
-  snprintf(out->nation, sizeof(out->nation), "%s", e->nation);
+  snprintf(out->nation, sizeof(out->nation), "%s", reports_nation_adjective_display_name(e->nation_id));
   out->score = e->score;
   out->year = e->year;
   out->difficulty = e->difficulty;

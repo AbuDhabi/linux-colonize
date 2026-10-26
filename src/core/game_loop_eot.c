@@ -950,10 +950,16 @@ void game_wait_next_unit(ColonizeGameState* game) {
   snprintf(game->status, sizeof(game->status), "%s", game_labels_misc_or(34, ""));
 }
 
-/* Persistent Hall of Fame: COLONIZE/HOF.TXT holds a ranked table of retired
- * Colonization Scores, one "score|leader|nation|year|difficulty" line per
- * entry, highest score first. Older single-integer-per-line files (the prior
- * thin stub) still load as a 1-entry table. */
+/* ===== Hall of Fame: HALLFAME.DAT (DOS FUN_41f2_0f56) ===== */
+
+/* 42-byte record (21 words), FUN_41f2_14a8 builds it at Retire: name[24]
+ * (leader, DS 0x540e + nation*0x34), nation, declared (0x5382 & 1), achieved
+ * (0x5382 & 8), year (0x538a), season (0x538c), difficulty (0x53a6), score,
+ * rating (sort key, word 19), exploits tier. The file holds slots 0-4 (0xd2
+ * bytes); slot 5 is the in-memory catch-all. */
+#define GAME_HOF_RECORD_SIZE 42
+#define GAME_HOF_FILE_SIZE (COLONIZE_HOF_FILE_SLOTS * GAME_HOF_RECORD_SIZE)
+
 static void game_hof_path(const ColonizeGameState* game, char* out, size_t out_size) {
   if (!out || out_size == 0) {
     return;
@@ -962,137 +968,118 @@ static void game_hof_path(const ColonizeGameState* game, char* out, size_t out_s
   if (!game) {
     return;
   }
-  if (!dos_compat_normalize_asset_path(game->resolved_data_dir, "HOF.TXT", out, out_size)) {
-    snprintf(out, out_size, "%s/HOF.TXT", game->resolved_data_dir);
+  if (!dos_compat_normalize_asset_path(game->resolved_data_dir, "HALLFAME.DAT", out, out_size)) {
+    snprintf(out, out_size, "%s/HALLFAME.DAT", game->resolved_data_dir);
   }
 }
 
-/* DOS FUN_41f2_0f56 ranks by Colonization Rating (strictly greater wins the
- * slot); score breaks ties so legacy rating-less rows still order. */
-static bool game_hof_entry_outranks(const ColonizeHofEntry* a, const ColonizeHofEntry* b) {
-  if (a->rating != b->rating) {
-    return a->rating > b->rating;
-  }
-  return a->score > b->score;
+/* FUN_41f2_0f56 empty slot: name "", nation / score / rating -1, rest 0. */
+static void game_hof_clear_slot(ColonizeHofEntry* e) {
+  memset(e, 0, sizeof(*e));
+  e->nation_id = -1;
+  e->score = -1;
+  e->rating = -1;
 }
 
-/* Insert into game->hof_entries, keeping desc-by-rating order, capped at
- * COLONIZE_HOF_MAX. Returns the slot taken, -1 when it did not make the cut. */
+/* DOS-LITERAL FUN_41f2_0f56 raw 72604-72630: the entry takes the first slot
+ * whose rating is strictly lower, else the catch-all slot 5; slots below it
+ * shift down one (slot 5 falls off). Returns the slot taken (local_156). */
 int game_hof_insert(ColonizeGameState* game, const ColonizeHofEntry* entry) {
   if (!game || !entry) {
     return -1;
   }
-  int count = game->hof_count;
-  if (count > COLONIZE_HOF_MAX) {
-    count = COLONIZE_HOF_MAX;
+  int slot = 0;
+  while (slot < COLONIZE_HOF_MAX - 1 && game->hof_entries[slot].rating >= entry->rating) {
+    ++slot;
   }
-  int pos = count;
-  if (count < COLONIZE_HOF_MAX) {
-    ++count;
-  } else if (count == 0 || !game_hof_entry_outranks(entry, &game->hof_entries[count - 1])) {
-    return -1; /* table full and this score does not make the cut */
-  } else {
-    pos = count - 1;
-  }
-  for (int i = pos; i > 0 && game_hof_entry_outranks(entry, &game->hof_entries[i - 1]); --i) {
-    game->hof_entries[i] = game->hof_entries[i - 1];
-    pos = i - 1;
-  }
-  game->hof_entries[pos] = *entry;
-  game->hof_count = count;
-  return pos;
+  memmove(
+    &game->hof_entries[slot + 1], &game->hof_entries[slot],
+    (size_t)(COLONIZE_HOF_MAX - 1 - slot) * sizeof(game->hof_entries[0])
+  );
+  game->hof_entries[slot] = *entry;
+  return slot;
 }
 
+static int game_hof_rd16(const uint8_t* p) {
+  return (int16_t)(uint16_t)(p[0] | (p[1] << 8));
+}
+
+static void game_hof_wr16(uint8_t* p, int v) {
+  p[0] = (uint8_t)(v & 0xff);
+  p[1] = (uint8_t)((v >> 8) & 0xff);
+}
+
+/* FUN_41f2_0f56 raw 72578-72603: one 0xd2-byte fread; a missing file or a
+ * short read leaves every slot empty, and slot 5 is always cleared. */
 void game_hof_load(ColonizeGameState* game) {
   if (!game) {
     return;
   }
-  game->hof_count = 0;
+  for (int i = 0; i < COLONIZE_HOF_MAX; ++i) {
+    game_hof_clear_slot(&game->hof_entries[i]);
+  }
   char path[640];
   game_hof_path(game, path, sizeof(path));
-  FILE* f = fopen(path, "r");
+  FILE* f = fopen(path, "rb");
   if (!f) {
     return;
   }
-  char line[256];
-  int lines_read = 0;
-  /* Read (and re-rank via game_hof_insert) more lines than fit in the table
-   * so a hand-edited or unsorted file still yields the true top scores. */
-  while (lines_read < COLONIZE_HOF_MAX * 4 && fgets(line, sizeof(line), f)) {
-    ++lines_read;
-    line[strcspn(line, "\r\n")] = '\0';
-    if (line[0] == '\0') {
-      continue;
-    }
-    ColonizeHofEntry entry;
-    memset(&entry, 0, sizeof(entry));
-    /* score|leader|nation|year|difficulty|rating|declared|achieved|nation_id.
-     * Split on '|' by hand: sscanf's %[^|] fails on an EMPTY leader/nation
-     * field, which used to drop every field after it. Missing trailing fields
-     * (older files) take the defaults below. */
-    char* field[9];
-    int nf = 0;
-    for (char* p = line; nf < 9;) {
-      field[nf++] = p;
-      char* bar = strchr(p, '|');
-      if (!bar) {
-        break;
-      }
-      *bar = '\0';
-      p = bar + 1;
-    }
-    int score = 0;
-    if (sscanf(field[0], "%d", &score) != 1 || score == 0) {
-      continue; /* malformed line */
-    }
-    entry.score = score;
-    snprintf(entry.leader, sizeof(entry.leader), "%s", nf > 1 ? field[1] : "");
-    snprintf(entry.nation, sizeof(entry.nation), "%s", nf > 2 ? field[2] : "");
-    entry.year = nf > 3 ? atoi(field[3]) : 0;
-    entry.difficulty = nf > 4 ? atoi(field[4]) : 0;
-    entry.rating = nf > 5 ? atoi(field[5]) : reports_score_rating(score, entry.difficulty, NULL);
-    entry.declared = nf > 6 && atoi(field[6]) != 0;
-    entry.achieved = nf > 7 && atoi(field[7]) != 0;
-    entry.nation_id = nf > 8 ? atoi(field[8]) : -1;
-    game_hof_insert(game, &entry);
-  }
+  uint8_t buf[GAME_HOF_FILE_SIZE];
+  const bool ok = fread(buf, sizeof(buf), 1, f) == 1;
   fclose(f);
+  if (!ok) {
+    return;
+  }
+  for (int i = 0; i < COLONIZE_HOF_FILE_SLOTS; ++i) {
+    const uint8_t* r = buf + i * GAME_HOF_RECORD_SIZE;
+    ColonizeHofEntry* e = &game->hof_entries[i];
+    memcpy(e->leader, r, 24);
+    e->leader[23] = '\0';
+    e->nation_id = game_hof_rd16(r + 24);
+    e->declared = game_hof_rd16(r + 26) != 0;
+    e->achieved = game_hof_rd16(r + 28) != 0;
+    e->year = game_hof_rd16(r + 30);
+    e->season = game_hof_rd16(r + 32);
+    e->difficulty = game_hof_rd16(r + 34);
+    e->score = game_hof_rd16(r + 36);
+    e->rating = game_hof_rd16(r + 38);
+    e->tier = game_hof_rd16(r + 40);
+  }
 }
 
+/* FUN_41f2_0f56 raw 72714-72716: fwrite of slots 0-4. Written to a sibling
+ * temp file and renamed over the old table, so a failed write never
+ * truncates the existing Hall of Fame. */
 void game_hof_save(const ColonizeGameState* game) {
-  if (!game || game->hof_count <= 0) {
+  if (!game) {
     return;
+  }
+  uint8_t buf[GAME_HOF_FILE_SIZE];
+  memset(buf, 0, sizeof(buf));
+  for (int i = 0; i < COLONIZE_HOF_FILE_SLOTS; ++i) {
+    uint8_t* r = buf + i * GAME_HOF_RECORD_SIZE;
+    const ColonizeHofEntry* e = &game->hof_entries[i];
+    snprintf((char*)r, 24, "%s", e->leader);
+    game_hof_wr16(r + 24, e->nation_id);
+    game_hof_wr16(r + 26, e->declared ? 1 : 0);
+    game_hof_wr16(r + 28, e->achieved ? 8 : 0);
+    game_hof_wr16(r + 30, e->year);
+    game_hof_wr16(r + 32, e->season);
+    game_hof_wr16(r + 34, e->difficulty);
+    game_hof_wr16(r + 36, e->score);
+    game_hof_wr16(r + 38, e->rating);
+    game_hof_wr16(r + 40, e->tier);
   }
   char path[640];
   game_hof_path(game, path, sizeof(path));
-  /* Write a sibling temp file and rename it over the old table, so a failed
-   * write never truncates the existing Hall of Fame. */
   char tmp[sizeof(path) + 8];
   snprintf(tmp, sizeof(tmp), "%s.tmp", path);
-  FILE* f = fopen(tmp, "w");
+  FILE* f = fopen(tmp, "wb");
   if (!f) {
     diag_warn("hof: cannot open %s for write", tmp);
     return;
   }
-  int count = game->hof_count > COLONIZE_HOF_MAX ? COLONIZE_HOF_MAX : game->hof_count;
-  bool ok = true;
-  for (int i = 0; i < count && ok; ++i) {
-    const ColonizeHofEntry* e = &game->hof_entries[i];
-    ok = fprintf(
-      f,
-      "%d|%s|%s|%d|%d|%d|%d|%d|%d\n",
-      e->score,
-      e->leader,
-      e->nation,
-      e->year,
-      e->difficulty,
-      e->rating,
-      e->declared ? 1 : 0,
-      e->achieved ? 1 : 0,
-      e->nation_id
-    ) >= 0;
-  }
-  ok = ok && ferror(f) == 0;
+  const bool ok = fwrite(buf, sizeof(buf), 1, f) == 1;
   if (fclose(f) != 0 || !ok) {
     diag_warn("hof: write failed for %s", tmp);
     remove(tmp);
@@ -1791,7 +1778,8 @@ static GameMenuActionStatus game_menu_action_view(ColonizeGameState* game, MapMe
 }
 
 /* Unit orders: activate / wait / fortify / anchor / sentry / disband, the
- * colony and terrain-improvement orders, and Pillage. */
+ * colony and terrain-improvement orders. ORDERS Pillage (0x317) has no
+ * handler: FUN_2b5a_0b34 hides it unconditionally, so DOS never dispatches it. */
 static GameMenuActionStatus game_menu_action_orders(ColonizeGameState* game, MapMenuAction action) {
   switch (action) {
     case MAP_MENU_ACTION_ACTIVATE_UNIT: {
@@ -1897,20 +1885,6 @@ static GameMenuActionStatus game_menu_action_orders(ColonizeGameState* game, Map
       if (!game->world_map_ok || !game->units_ok ||
           !units_pioneer_road_w(&w, sid, msg, sizeof(msg), &game->ai_popups, &game->messages)) {
         set_status(game, msg[0] ? msg : "Cannot build road", NULL);
-      } else {
-        set_status(game, msg, NULL);
-        game_wait_next_unit(game);
-      }
-      return GAME_MENU_ACTION_DONE;
-    }
-    case MAP_MENU_ACTION_PILLAGE: {
-      const int sid = game->units.selected_id;
-      char msg[96];
-      msg[0] = '\0';
-      const ColonizeWorld w = game_world(game);
-      if (!game->world_map_ok || !game->units_ok ||
-          !units_pillage_w(&w, sid, msg, sizeof(msg))) {
-        set_status(game, msg[0] ? msg : "Cannot pillage", NULL);
       } else {
         set_status(game, msg, NULL);
         game_wait_next_unit(game);

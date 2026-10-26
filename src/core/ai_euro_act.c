@@ -485,10 +485,11 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_goal_dispatch(struct ai_euro_
   }
 
   /*
-   * Land goto advance (thin 20e6 multi-step): scored steps while moves
-   * remain for FOUND / MILITARY / CONTACT, or act-level land war hunt /
-   * peace-border / scout explore. Structural only — not full combat scoring.
-   * Cite: euro_unit_act §2c3; FUN_521d_20e6. Deep combat×8 / −0x6790 PARKED.
+   * Port-only drain for the deferred band (Treasure / Missionary / Wagon):
+   * ai_euro_score_move steps toward the goto. DOS has no such walker: a unit
+   * whose band arms decline falls into 20e6's pre-LAB_4d2e gate (raw
+   * 90210-90219) -> LAB_4d2e wander / LAB_5a78 + FUN_479b_0972, which every
+   * other land unit already takes (port_plan.md "Remaining work").
    */
   if (units_orders_follow_goto(u->orders)) {
     const int drain =

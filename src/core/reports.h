@@ -352,10 +352,9 @@ void reports_render_w(
  *     Leader, <Nation> Colonies> to A.D. <year>. Score: <score>"
  *   "--- <@MISC #199> <rating>% ---"
  * `font` is FONTINTR (DS:0x268a, the FUN_104b_039a / 0430 face).
- * DOS keeps 6 slots in HALLFAME.DAT and shows 5; ranks by Colonization
+ * DOS keeps 6 slots (5 in HALLFAME.DAT) and shows 5; ranks by Colonization
  * Rating (word 19 of the 42-byte record), not raw score.
  */
-#define COLONIZE_HOF_ROW_MAX 10
 #define COLONIZE_HOF_SHOWN_MAX 5
 
 typedef struct ColonizeHofRow {

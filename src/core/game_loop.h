@@ -87,8 +87,8 @@ int game_difficulty(const ColonizeGameState* game);
 const char* game_leader_name(const ColonizeGameState* game);
 
 /*
- * Hall of Fame: read-only view of the ranked HOF.TXT table (desc by score).
- * game_hof_entry returns false when index is out of [0, game_hof_count).
+ * Hall of Fame: read-only view of the HALLFAME.DAT slots 0-4 (desc by rating).
+ * game_hof_entry(index) is slot `index`; false for an empty or out-of-range slot.
  */
 typedef struct ColonizeHofEntryView {
   char leader[32];

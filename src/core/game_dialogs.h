@@ -98,23 +98,22 @@ typedef enum GameMapConfirm {
   GAME_MAP_CONFIRM_EUROPE_SAIL
 } GameMapConfirm;
 
-/* Hall of Fame: ranked table of retired Colonization Scores, persisted to
- * HOF.TXT (one line per entry, highest score first). No decomp evidence for
- * the DOS table's exact size / on-disk layout; 10 entries is our own choice
- * (COLONIZE_HOF_ROW_MAX, shared with the reports.c screen renderer). */
-#define COLONIZE_HOF_MAX COLONIZE_HOF_ROW_MAX
+/* Hall of Fame: DOS HALLFAME.DAT table (FUN_41f2_0f56). 6 slots in memory,
+ * slots 0-4 on disk (5 x 42 bytes); slot 5 is the catch-all a Retire entry
+ * takes when it outranks none. Ranked by rating, strictly-greater wins. */
+#define COLONIZE_HOF_MAX 6
+#define COLONIZE_HOF_FILE_SLOTS 5
 
-/* One HALLFAME.DAT-shaped record (DOS FUN_41f2_14a8 builds 21 words: name,
- * nation, declared, achieved, year, season, difficulty, score, rating, tier).
- * Ranked by rating (FUN_41f2_0f56 compares word 19), score as tie-break. */
+/* One HALLFAME.DAT record (FUN_41f2_14a8 builds the 21 words at Retire). */
 typedef struct ColonizeHofEntry {
-  char leader[NEW_GAME_LEADER_NAME_MAX];
-  char nation[24];
-  int nation_id; /* -1 when unknown (legacy HOF.TXT rows) */
+  char leader[NEW_GAME_LEADER_NAME_MAX]; /* name[24] on disk */
+  int nation_id; /* -1 = empty slot */
   int score;
   int year;
+  int season; /* DS:0x538c, stored but not shown */
   int difficulty; /* 0 Discoverer .. 4 Viceroy */
-  int rating; /* Colonization Rating percent (reports_score_rating) */
+  int rating; /* Colonization Rating percent; -1 in an empty slot */
+  int tier; /* exploits tier (FUN_291f_0f9c out param), stored but not shown */
   bool declared;
   bool achieved;
 } ColonizeHofEntry;
@@ -312,8 +311,7 @@ struct ColonizeGameState {
   int economic_page; /* 0 = European Trade; >=1 = Cargo in Port page N */
   int colony_page; /* 0..k-1 = Military Garrisons; k..2k-1 = Sons of Liberty */
   int naval_page; /* Naval report (F7) page index — reports_naval_page_count */
-  ColonizeHofEntry hof_entries[COLONIZE_HOF_MAX]; /* ranked desc; session + HOF.TXT */
-  int hof_count;
+  ColonizeHofEntry hof_entries[COLONIZE_HOF_MAX]; /* HALLFAME.DAT slots, ranked desc */
   int hof_inserted; /* slot the Retire entry took (FUN_41f2_0f56 local_156), -1 = title-menu view */
   ColonizeHofEntry hof_retired; /* the Retire entry; line 5 when it placed 6th or lower (DB-57) */
   bool in_hall_of_fame; /* title-menu "View Hall of Fame" screen (reports_render_hall_of_fame) */

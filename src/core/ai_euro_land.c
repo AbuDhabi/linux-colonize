@@ -1960,9 +1960,8 @@ static int ai_euro_land_explore_scan_target(
  * decoded from its jump table; col9 = DS:0x5239 = the @UNIT cost column,
  * see ai_euro_20e6_unit_col9 — non-zero for every land type.) Then the transcribed
  * modifiers: ×3 own-colony tile, ×2 village, Artillery in the open → 0,
- * ×3 when flags&0x10 and stance==4, clamp 0..1000, <12 → −999 else +odds×4.
- * Still substituted: the Soldier/Dragoon
- * vs colony adjacent-Spanish-strength skip (8aac case 0xb) — not wired.
+ * ×3 when flags&0x10 and stance==4, clamp 0..1000, <12 → −999 else +odds×4,
+ * and the Soldier/Dragoon vs colony mass gate (8aac case 0xb, below).
  */
 static int ai_euro_20e6_attack_term(
   ColonizeTurnContext* ctx, const ColonizeUnit* u, const Ai20e6Unit* s, int nx, int ny, int foe_id, int* score
@@ -1991,9 +1990,9 @@ static int ai_euro_20e6_attack_term(
       }
     }
   }
-  /* base = 1b0e probe: (atk << 3) / (def + 1). No foe on the tile → a bare
-   * settlement/empty tile: defence strength 0 (DOS spawns a temp defender there;
-   * kept as the previous stand-in). */
+  /* base = 1b0e probe: (atk << 3) / (def + 1). No foe on the tile: an empty
+   * village or Euro colony gets 1b0e's temporary defender for the probe
+   * (below); any other empty tile scores defence 0. */
   int base;
   if (foe_id >= 0) {
     ColonizeCombatEngageResult er;
@@ -2121,9 +2120,8 @@ static int ai_euro_20e6_attack_term(
    * Raw 2862-2882 (LAB_52aa tail): Soldier/Dragoon assaulting a Euro colony
    * tile — mass gate. def = 8aac(tile stack, 0xb) combat sum; own = Σ over
    * the 8 neighbours of the target of 8aac(neighbour stack, 0xb) for stacks
-   * of the attacker's own nation (the decompile compares the owner nibble to
-   * a clobbered constant 2; own-nation is the only coherent reading — noted
-   * in move_scoring_20e6_full.md as "adjacent Spanish-owned units?").
+   * of the attacker's own nation (the owner nibble is compared with local_e6,
+   * the mover's nation, raw 88583 / 88931).
    * own ≤ def → `goto LAB_521d_5183`.
    *
    * LAB_5183 is the direction loop's own increment, NOT an exit from the scan

@@ -1937,8 +1937,8 @@ static int case_fortify_sentry_disband(void) {
   return 0;
 }
 
-  /* Dump overboard / anchor / trade route / pillage. */
-static int case_dump_anchor_route_pillage(void) {
+  /* Dump overboard / anchor / trade route. */
+static int case_dump_anchor_route(void) {
   if (fx_open() != 0 || fx_stage2() != 0) {
     return 1;
   }
@@ -2077,40 +2077,6 @@ static int case_dump_anchor_route_pillage(void) {
     }
     units_despawn(&pool, ship);
 
-    /* port_bugs.md #631: pillage never destroys improvements in DOS — the
-     * non-colony arm must refuse and leave the road standing. */
-    int px = -1, py = -1;
-    for (int y = 1; y < (int)map.height - 1 && px < 0; ++y) {
-      for (int x = 1; x < (int)map.width - 1 && px < 0; ++x) {
-        if (map_tile_is_land(&map, x, y) && !map_tile_is_high_seas(&map, x, y)) {
-          px = x;
-          py = y;
-        }
-      }
-    }
-    const int soldier = units_find_type(&pool, "Soldiers");
-    const int mil = units_spawn(&pool, soldier >= 0 ? soldier : pioneer, px, py);
-    ColonizeUnit* mu = units_get(&pool, mil);
-    if (!mu || px < 0) {
-      fprintf(stderr, "pillage spawn failed\n");
-      ss_free(&icons);
-      map_free(&map);
-      assets_msg_free(&names);
-      return 1;
-    }
-    mu->nation_id = 0;
-    mu->moves = 1 * UNITS_MP_PER_TILE;
-    map_tile_set_road(&map, px, py, true);
-    char pmsg[64];
-    if (units_pillage_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map)}, mil, pmsg, sizeof(pmsg)) ||
-        !map_tile_has_road(&map, px, py)) {
-      fprintf(stderr, "pillage road: must refuse and keep the road: %s\n", pmsg);
-      ss_free(&icons);
-      map_free(&map);
-      assets_msg_free(&names);
-      return 1;
-    }
-    units_despawn(&pool, mil);
   fx_close();
   return 0;
 }
@@ -7759,7 +7725,7 @@ static const TestCase k_cases[] = {
   {"goto_pathfinding", case_goto_pathfinding},
   {"orders_chrome", case_orders_chrome},
   {"fortify_sentry_disband", case_fortify_sentry_disband},
-  {"dump_anchor_route_pillage", case_dump_anchor_route_pillage},
+  {"dump_anchor_route", case_dump_anchor_route},
   {"land_combat_t0", case_land_combat_t0},
   {"follow_unit", case_follow_unit},
   {"naval_hold_plunder", case_naval_hold_plunder},

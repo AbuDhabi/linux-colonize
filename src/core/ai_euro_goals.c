@@ -2679,14 +2679,15 @@ COLONIZE_INTERNAL void ai_euro_colony_goals_producers(
    * open-sea tiles next to foreign colonies / villages. */
   ai_euro_0a60_settlement_goal_producers(ctx, nation_id, inv, urgency);
 
-  /* Thin -0x6790 stance nibbles, read by the 0a60 / ship stance gates. */
+  /* -0x6790 stance table (0a60 raw 88054-88151), read by the 0a60 / 20e6 / 5952 gates. */
   ai_euro_refresh_continent_stance(ctx, nation_id);
   /*
    * (Deleted 2026-10-02, port_bugs.md #1034(c).) A "G continent stance" ladder
    * stood here: with own >= 2 colonies, at war bumped urgency and upserted MILITARY prio 6/7/8 on the
    * weakest foe colony (stance 3 soft-cap + FOUND), at peace bumped a FOUND
-   * goal or sent an idle Scout/soldier to a tribe-adjacent site. The deep
-   * DS:0x6790 table it stood in for is unported; no golden moved without it.
+   * goal or sent an idle Scout/soldier to a tribe-adjacent site. It was an
+   * invented stand-in for the DS:0x9870 (-0x6790) table, which is now ported
+   * (ai_euro_refresh_continent_stance); no golden moved without it.
    */
 }
 

@@ -1942,9 +1942,11 @@ static AiTalkStepStatus ai_talk_stage_ally_pick(
   ColonizeTurnContext* ctx, Ai153eTalk* k, const PopupMsgTokens* tok, int h, int t
 ) {
   ColonizeCol1Save* col1 = ctx->col1;
-  (void)tok;
   k->stage = AI_TALK_ST_DONE;
-  /* FUN_291f_0182 list: nations/tribes the human has met. */
+  /* 5bfb:2d59 (raw 98258): FUN_291f_0182 opens the list on GAME.TXT @MILITARY
+   * (lea bx 0x87c "GAME", lea ax 0x19fa "MILITARY", dropped by Ghidra); the
+   * section prose is the list's prompt. Rows 2d75-2e19: every met nation /
+   * living tribe as FUN_281f_0a1a(p), value p+1. No row = no dialog (2e1c). */
   const char* labels[AI_POPUP_CHOICE_MAX];
   int picks[AI_POPUP_CHOICE_MAX];
   int n = 0;
@@ -1953,30 +1955,28 @@ static AiTalkStepStatus ai_talk_stage_ally_pick(
       continue;
     }
     if (p >= 4 && p <= 11 &&
-        (col1->tribe == NULL || (col1->indian[p - 4].euro_diplo[h] & COL1_INDIAN_MET_BIT) == 0)) {
+        (col1->tribe == NULL || col1->indian[p - 4].extinct || /* 5bfb:2da9 test [0x8d4e+3],0x80 */
+         (col1->indian[p - 4].euro_diplo[h] & COL1_INDIAN_MET_BIT) == 0)) {
       continue;
     }
     if (p < 4 && !ai_talk_met(ctx, h, p)) {
       continue;
     }
-    labels[n] = ai_talk_name(ctx, p);
+    labels[n] = ai_talk_plural(ctx, p);
     picks[n] = p + 1;
     n++;
   }
   if (n == 0) {
     return AI_TALK_STEP_CONTINUE;
   }
-  /*
-   * port_bugs.md #988: the prompt line is PARKED with the rest of FA 3f41 — no
-   * GAME.TXT section carries it and its numeric id is unresolved, so the list
-   * stands alone rather than under typed English.
-   */
+  char body[AI_POPUP_BODY_LEN];
+  ai_talk_body(ctx, "MILITARY", tok, "", body, sizeof(body));
   s_talk.pending = AI_TALK_ST_ALLY_PICK;
+  /* No MYR figure: nothing between 2d50 and the 2e32 show sets DS:0x1f60. */
   (void)ai_popup_enqueue_choice_ctx(
     ctx->ai_popups, AI_POPUP_TAG_DIPLO_TALK, h, t, AI_TALK_ST_ALLY_PICK,
-    NULL, "", labels, picks, n
+    NULL, body, labels, picks, n
   );
-  ai_popup_set_last_graphic_myr(ctx->ai_popups, t);
   return AI_TALK_STEP_RETURN;
 }
 
@@ -2291,9 +2291,8 @@ static void ai_talk_resume(ColonizeTurnContext* ctx, int stage, int choice) {
           ai_talk_gold(ctx, t, h, tribute_gold);
         }
       } else if (choice == 4) {
-        /* Military Assistance pick (raw :98330-98333, 5bfb:2d59): shows
-         * @MILITARY before the ally-target menu. */
-        ai_talk_ok(ctx, "MILITARY", &tok, "");
+        /* Military Assistance pick (5bfb:2d59): @MILITARY is the body of
+         * the ally list itself, not a separate OK box (ai_talk_stage_ally_pick). */
         k->stage = AI_TALK_ST_ALLY_PICK;
         ai_talk_advance(ctx);
         return;

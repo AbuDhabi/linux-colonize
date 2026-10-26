@@ -56,8 +56,11 @@ int ai_euro_env_flag(const char* name, int dflt) {
 static int s_sticky_unit = -1;
 static int s_sticky_count = 0;
 /*
- * Thin −0x6790 nation×continent stance ∈ {0,3,4,6}:
- * 0 none / 3 expand / 4 military / 6 develop. Filled from live colony tallies.
+ * DS:0x9870 (−0x6790) nation×continent stance ∈ {0,3,4,6}:
+ * 0 none / 3 expand / 4 military / 6 develop. Written by
+ * ai_euro_refresh_continent_stance (FUN_521d_0a60 raw 88054-88151); its
+ * operands are recounted from the live pools, not read from the DOS-timed
+ * FUN_4962_0018 / 06b6 census tables (port_plan.md "Remaining work").
  */
 static uint8_t s_euro_continent_stance[4][16];
 /*
@@ -66,11 +69,9 @@ static uint8_t s_euro_continent_stance[4][16];
  * max over FOREIGN colonies on the continent of colony+0x1f (population),
  * then max'd again with the capped (≤4) sum of rival land units there.
  * DOS keeps one shared [16] array rewritten each nation turn; per-nation
- * storage here is equivalent. Read back by FUN_521d_20e6's explore-radius
- * term (local_12 = rival*8 + hold[0]) — that read stays substituted-0 in
- * the 20e6 port (its golden-fit explore scans; see the comment there),
- * so this write path + accessor make the value available without
- * changing tested behavior.
+ * storage here is equivalent. Read back at DOS position by FUN_521d_20e6's
+ * explore-fatigue term (local_12 = rival*8 + hold[4],
+ * ai_euro_20e6_rival_strength_fatigue).
  */
 static uint8_t s_euro_rival_strength[4][16];
 

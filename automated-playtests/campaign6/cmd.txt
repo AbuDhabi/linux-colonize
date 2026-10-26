@@ -1,218 +1,311 @@
 status
 units
-sync x216
+colonies
+sync y001
 sync b1
+colonies
+sync y002
+sync b2
+colonies
+sync y003
+sync b3
+work 6 5 9
+wait 3
+colonies
+sync y004
+sync b4
 colony 6
 wait 10
-shot pl7
-sync x217
-sync b2
+key Return
+wait 3
 click 285 142
 wait 10
-shot pl8
-sync x218
-sync b3
-click 95 66
-wait 5
-colonies
-sync x219
-sync b4
-colonies
-sync x220
+click 285 142
+wait 10
+shot pp1
+sync y005
 sync b5
-colonies
-sync x221
-sync b6
-field 6 0 1 0
-field 6 1 0 0
-field 6 2 6 0
-wait 3
-colonies
-sync x222
-sync b7
-field 6 3 7 0
-wait 3
-colonies
-sync x223
-sync b8
-colonies
-sync x224
-sync b9
-colony 0
-wait 10
-shot jf3
-sync x225
-sync b10
-click 285 142
-wait 10
-shot jf4
-sync x226
-sync b11
-click 95 66
+click 95 54
 wait 5
 colonies
-sync x227
-sync b12
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-status
+sync y006
+sync b6
+hit 90 30
+hit 60 40
+hit 130 30
+sync y007
+sync b7
+key Escape
+wait 3
+colony 6
+wait 10
+key Return
+wait 3
+hit 15 25
+hit 55 25
+hit 95 25
+hit 135 25
+hit 15 55
+hit 55 55
+hit 95 55
+hit 135 55
+hit 15 85
+hit 55 85
+hit 95 85
+hit 135 85
+hit 170 40
+hit 200 80
+sync y008
+sync b8
+work 6 5 0
 colonies
-units
-sync t1486562
+work 6 5 1
+colonies
+work 6 5 2
+colonies
+work 6 5 3
+colonies
+work 6 5 4
+colonies
+work 6 5 5
+colonies
+work 6 5 6
+colonies
+work 6 5 7
+colonies
+work 6 5 8
+colonies
+work 6 5 9
+colonies
+work 6 5 10
+colonies
+work 6 5 11
+colonies
+work 6 5 12
+colonies
+work 6 5 13
+colonies
+work 6 5 14
+colonies
+work 6 5 15
+colonies
+work 6 5 16
+colonies
+sync y009
+sync b9
+work 6 5 11
+colonies
+work 6 5 12
+colonies
+work 6 5 13
+colonies
+work 6 5 14
+colonies
+work 6 5 15
+colonies
+work 6 5 16
+colonies
+work 6 5 17
+colonies
+work 6 5 18
+colonies
+work 6 5 19
+colonies
+work 6 5 20
+colonies
+work 6 5 21
+colonies
+work 6 5 22
+colonies
+sync y010
+sync b10
+work 6 5 23
+colonies
+work 6 5 24
+colonies
+work 6 5 25
+colonies
+work 6 5 26
+colonies
+work 6 5 27
+colonies
+work 6 5 28
+colonies
+work 6 5 29
+colonies
+work 6 5 30
+colonies
+work 6 5 31
+colonies
+work 6 5 32
+colonies
+work 6 5 33
+colonies
+work 6 5 34
+colonies
+sync y011
+sync b11
+work 6 5 35
+colonies
+work 6 5 36
+colonies
+work 6 5 37
+colonies
+work 6 5 38
+colonies
+work 6 5 39
+colonies
+work 6 5 40
+colonies
+work 6 5 41
+colonies
+work 6 5 42
+colonies
+work 6 5 0
+colonies
+work 6 5 2
+colonies
+work 6 5 4
+colonies
+work 6 5 6
+colonies
+work 6 5 8
+colonies
+work 6 5 12
+colonies
+work 6 5 14
+colonies
+work 6 5 16
+colonies
+work 6 5 18
+colonies
+work 6 5 20
+colonies
+sync y012
+sync b12
+work 6 5 39
+wait 3
+colonies
+sync y013
 sync b13
 key Escape
-wait 5
-status
-sync x228
-sync b14
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-status
-colonies
-units
-sync t1486632
-sync b15
-key f
 wait 3
-sync x229
-sync b16
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-status
-colonies
-units
-sync t1486710
-sync b17
-key u
+colony 6
 wait 10
-key u
-wait 5
-status
-sync x230
-sync b18
-colonies
-sync x231
-sync b19
-field 6 7 6 5
+key Return
 wait 3
-colonies
-sync x232
-sync b20
-colonies
-sync x233
-sync b21
-eject 6 8 0
-eject 6 5 0
-eject 6 2 0
-wait 3
-units
-sync x234
-sync b22
-key r
+drag 125 186 132 170
 wait 10
-shot rc10
-sync x235
-sync b23
-key Return
+drag 125 186 142 170
 wait 10
-key r
-wait 10
-shot rc11
-sync x236
-sync b24
-choose 2
-wait 5
-key r
-wait 10
-shot rc12
-sync x237
-sync b25
-key Down
-key Down
-key Return
-wait 10
-key r
-wait 10
-key Down
-key Down
-key Down
-key Return
-wait 10
-status
-units
-sync x238
-sync b26
-click 155 152
-wait 5
-key s
-wait 5
-choose 1
-wait 5
-choose 0
-wait 10
-status
-sync x239
-sync b27
 key Escape
 wait 3
-sync x240
-sync b28
+units
+sync y014
+sync b14
+activate 136
+wait 3
+key Escape
+wait 2
 status
-units
-sync x241
-sync b29
+sync y015
+sync b15
+activate 136
+wait 3
+goto 136 25 33
+wait 1
+sync y016
+sync b16
+status
+sync y017
+sync b17
+key g
+wait 10
 key Return
-wait 5
-activate 151
+wait 10
+status
+sync y018
+sync b18
+activate 23
 wait 3
-key s
-wait 3
-activate 152
-wait 3
-key s
-wait 3
-activate 153
-wait 3
-key s
-wait 3
+key g
+wait 10
+key Return
+wait 10
+status
+sync y019
+sync b19
 units
-sync x242
-sync b30
-activate 102
+sync y020
+sync b20
+activate 23
 wait 3
-goto 102 39 27
+status
+sync y021
+sync b21
+key Escape
+wait 2
+colony 0
+wait 10
+key Return
+wait 3
+click 285 142
+wait 10
+click 285 142
+wait 10
+shot jj1
+sync y022
+sync b22
+key Escape
+wait 2
+field 6 5 4 8
+wait 3
+colonies
+sync y023
+sync b23
+field 6 1 5 8
+wait 3
+colonies
+sync y024
+sync b24
+field 6 4 3 8
+wait 3
+colonies
+sync y025
+sync b25
+key Escape
+wait 2
+colony 0
+wait 10
+key Return
+wait 3
+click 285 142
+wait 10
+shot jj2
+sync y026
+sync b26
+status
+sync y027
+sync b27
+click 285 142
+wait 10
+shot jj3
+sync y028
+sync b28
+click 285 142
+wait 10
+shot jj4
+sync y029
+sync b29
+click 95 38
 wait 5
-sync x243
+colonies
+sync y030
+sync b30
+key Escape
+wait 3
+status
+sync y031
 sync b31
 choose 0
 auto 3000
@@ -233,337 +326,404 @@ auto 3000
 status
 colonies
 units
-sync t1487947
+sync t1544545
 sync b32
+status
 units
-sync x244
+sync y032
 sync b33
-activate 175
-wait 3
-goto 175 25 33
-wait 5
-sync x245
+key u
+wait 10
+status
+sync y033
 sync b34
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-status
-colonies
-units
-sync t1488173
+click 291 70
+wait 10
+click 100 125
+wait 10
+shot pu5
+sync y034
 sync b35
-units
-colonies
-sync x246
+click 80 114
+wait 10
+key Escape
+wait 3
+status
+sync y035
 sync b36
-activate 175
+activate 136
 wait 3
-key f
+goto 136 39 27
 wait 3
-sync x247
+sync y036
 sync b37
-activate 102
-wait 3
-goto 102 39 27
-wait 3
-sync x248
+key e
+wait 10
+click 155 152
+wait 5
+key s
+wait 5
+choose 1
+wait 5
+choose 0
+wait 10
+status
+sync y037
 sync b38
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
+key Return
+wait 5
 status
-colonies
 units
-sync t1488583
+sync y038
 sync b39
+choose 0
+auto 3000
+endturn
+auto 3000
+choose 0
+auto 3000
+endturn
+auto 3000
+choose 0
+auto 3000
+endturn
+auto 3000
+status
+colonies
 units
-sync x249
+sync t1545628
 sync b40
-activate 151
-wait 3
-key f
-wait 3
-activate 176
-wait 3
-key f
-wait 3
-activate 177
-wait 3
-key f
-wait 3
 units
-sync x250
+sync y039
 sync b41
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-status
-colonies
+activate 295
+wait 3
+goto 295 39 27
+wait 3
+colony 0
+wait 10
+key Return
+wait 3
+drag 132 170 125 186
+wait 10
+key Escape
+wait 3
 units
-sync t1488776
+sync y040
 sync b42
-admit 152
-admit 153
-colonies
-sync x251
+status
+sync y041
 sync b43
-map 3 25 33
-sync x252
+mdown 132 170
+wait 3
+move 128 180
+wait 3
+move 125 186
+wait 3
+mup 125 186
+wait 10
+shot un1
+sync y042
 sync b44
-admit 151
-colony 6
-wait 10
-key Return
-wait 3
-sync x253
+units
+colonies
+sync y043
 sync b45
+key Escape
+wait 3
 colonies
-sync x254
+sync y044
 sync b46
-field 6 2 6 0
-field 6 5 7 5
+work 0 10 39
 wait 3
 colonies
-sync x255
+sync y045
 sync b47
+work 0 9 39
+wait 3
 colonies
-sync x256
+sync y046
 sync b48
-eject 6 6 0
-eject 6 3 0
-wait 3
-units
-sync x257
-sync b49
-activate 175
-wait 3
-key f
-wait 3
-sync x258
-sync b50
-choose 0
-auto 3000
-endturn
-auto 3000
-status
-colonies
-units
-sync t1489574
-sync b51
-activate 217
-wait 3
-key s
-wait 3
-activate 218
-wait 3
-key s
-wait 3
-units
-sync x259
-sync b52
-key Escape
-wait 5
-status
-sync x260
-sync b53
-key Escape
-wait 5
-key Escape
-wait 5
-status
-sync x261
-sync b54
-shot esc1
-sync x262
-sync b55
-activate 175
-wait 3
-key f
-wait 3
-sync x263
-sync b56
-choose 0
-auto 3000
-endturn
-auto 3000
-status
-colonies
-units
-sync t1489871
-sync b57
-activate 217
-wait 3
-key s
-wait 3
-activate 218
-wait 3
-key s
-wait 3
-units
-sync x264
-sync b58
-activate 102
-wait 3
-key f
-wait 3
-sync x265
-sync b59
-activate 175
-wait 3
-goto 175 25 33
-wait 3
-sync x266
-sync b60
-status
-sync x267
-sync b61
-choose 0
-wait 5
-status
-sync x268
-sync b62
-colony 6
+colony 0
 wait 10
-shot pl9
-sync x269
-sync b63
-drag 105 186 132 170
-wait 10
-key Escape
-wait 5
-units
-sync x270
-sync b64
-status
-sync x271
-sync b65
-activate 175
-wait 3
-goto 175 39 27
-wait 5
 key Return
 wait 3
-sync x272
-sync b66
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-status
-colonies
-units
-sync t1490432
-sync b67
-colonies
-units
-sync x273
-sync b68
-colony 6
+click 285 142
 wait 10
 click 285 142
 wait 10
-shot pl10
-sync x274
-sync b69
-click 95 86
+shot jj5
+sync y047
+sync b49
+click 95 138
 wait 5
 colonies
-sync x275
-sync b70
+sync y048
+sync b50
 key Escape
-wait 5
+wait 3
 status
-sync x276
+sync y049
+sync b51
+colony 6
+wait 10
+key Return
+wait 3
+click 285 142
+wait 10
+click 285 142
+wait 10
+shot pp2
+sync y050
+sync b52
+click 95 130
+wait 5
+colonies
+sync y051
+sync b53
+key Escape
+wait 3
+status
+sync y052
+sync b54
+choose 0
+auto 3000
+endturn
+auto 3000
+choose 0
+auto 3000
+endturn
+auto 3000
+choose 0
+auto 3000
+endturn
+auto 3000
+choose 0
+auto 3000
+endturn
+auto 3000
+choose 0
+auto 3000
+endturn
+auto 3000
+choose 0
+auto 3000
+endturn
+auto 3000
+status
+colonies
+units
+sync t1548836
+sync b55
+units
+sync y053
+sync b56
+units
+sync y054
+sync b57
+activate 296
+wait 3
+admit 296
+wait 3
+sync y055
+sync b58
+choose 0
+auto 3000
+endturn
+auto 3000
+choose 0
+auto 3000
+endturn
+auto 3000
+choose 0
+auto 3000
+endturn
+auto 3000
+choose 0
+auto 3000
+endturn
+auto 3000
+choose 0
+auto 3000
+endturn
+auto 3000
+choose 0
+auto 3000
+endturn
+auto 3000
+status
+colonies
+units
+sync t1548973
+sync b59
+activate 297
+wait 3
+admit 297
+wait 3
+sync y056
+sync b60
+choose 0
+auto 3000
+endturn
+auto 3000
+choose 0
+auto 3000
+endturn
+auto 3000
+choose 0
+auto 3000
+endturn
+auto 3000
+choose 0
+auto 3000
+endturn
+auto 3000
+choose 0
+auto 3000
+endturn
+auto 3000
+choose 0
+auto 3000
+endturn
+auto 3000
+status
+colonies
+units
+sync t1549132
+sync b61
+status
+sync y057
+sync b62
+activate 136
+wait 3
+key f
+wait 3
+activate 295
+wait 3
+key f
+wait 3
+sync y058
+sync b63
+choose 0
+auto 3000
+endturn
+auto 3000
+choose 0
+auto 3000
+endturn
+auto 3000
+choose 0
+auto 3000
+endturn
+auto 3000
+choose 0
+auto 3000
+endturn
+auto 3000
+choose 0
+auto 3000
+endturn
+auto 3000
+choose 0
+auto 3000
+endturn
+auto 3000
+status
+colonies
+units
+sync t1549504
+sync b64
+colonies
+sync y059
+sync b65
+units
+sync adm1549936
+sync b66
+admit 27
+admit 30
+admit 389
+sync adm21549936
+sync b67
+choose 0
+auto 3000
+endturn
+auto 3000
+status
+colonies
+units
+sync t1549943
+sync b68
+colonies
+sync y060
+sync b69
+status
+sync y061
+sync b70
+colony 0
+wait 10
+key Return
+wait 3
+click 285 142
+wait 10
+click 285 142
+wait 10
+shot jj6
+sync y062
 sync b71
-colony 0
-wait 10
-drag 132 170 105 186
-wait 10
-key Escape
+click 95 154
 wait 5
-units
-sync x277
+colonies
+sync y063
 sync b72
-colonies
-sync x278
-sync b73
-colony 0
-wait 10
-mdown 132 170
-wait 3
-move 120 180
-wait 3
-mup 105 186
-wait 10
-shot jf5
-sync x279
-sync b74
-drag 132 170 170 170
-wait 10
 key Escape
-wait 5
-units
-sync x280
-sync b75
+wait 3
+sync y064
+sync b73
+colony 6
+wait 10
+key Return
+wait 3
+work 6 3 39
+work 6 4 39
+wait 3
 colonies
-sync x281
+sync y065
+sync b74
+key Escape
+wait 3
+sync y066
+sync b75
+choose 0
+auto 3000
+endturn
+auto 3000
+choose 0
+auto 3000
+endturn
+auto 3000
+choose 0
+auto 3000
+endturn
+auto 3000
+choose 0
+auto 3000
+endturn
+auto 3000
+choose 0
+auto 3000
+endturn
+auto 3000
+choose 0
+auto 3000
+endturn
+auto 3000
+status
+colonies
+units
+sync t1550983
 sync b76
-activate 175
-wait 3
-key f
-wait 3
-activate 102
-wait 3
-key f
-wait 3
-sync x282
+units
+sync adm1550991
 sync b77
 choose 0
 auto 3000
@@ -577,78 +737,36 @@ choose 0
 auto 3000
 endturn
 auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
 status
 colonies
 units
-sync t1491352
+sync t1550997
 sync b78
-admit 218
-wait 3
-sync x283
+colonies
+sync y067
 sync b79
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
+key Escape
+wait 5
+key Escape
+wait 5
 status
-colonies
-units
-sync t1491435
+sync y068
 sync b80
-activate 175
-wait 3
-key f
-wait 3
-colonies
-sync x284
+choose 0
+wait 5
+key Return
+wait 5
+status
+sync y069
 sync b81
-field 6 0 2 8
-field 6 1 4 8
-wait 3
-colonies
-sync x285
-sync b82
-colonies
-sync x286
-sync b83
-activate 175
-wait 3
-goto 175 25 33
-wait 3
-sync x287
-sync b84
+choose 0
+auto 3000
+endturn
+auto 3000
+choose 0
+auto 3000
+endturn
+auto 3000
 choose 0
 auto 3000
 endturn
@@ -668,2528 +786,65 @@ auto 3000
 status
 colonies
 units
-sync t1491760
-sync b85
+sync t1551238
+sync b82
+status
 units
-sync x288
+sync y070
+sync b83
+key Return
+wait 5
+status
+sync y071
+sync b84
+key Escape
+wait 5
+colonies
+sync y072
+sync b85
+status
+sync y073
 sync b86
 colony 6
 wait 10
-drag 125 186 142 170
-wait 10
-key Escape
-wait 5
-units
-sync x289
+key Return
+wait 3
+work 6 3 35
+wait 3
+colonies
+sync y074
 sync b87
+key Escape
+wait 3
+key Escape
+wait 3
 status
-sync x290
+sync y075
 sync b88
-activate 175
+activate 136
 wait 3
-key g
-wait 10
-key Return
-wait 10
-status
-sync x291
+goto 136 25 33
+wait 3
+sync y076
 sync b89
-activate 217
-wait 3
-key f
-wait 3
-sync x292
+choose 0
+auto 3000
+endturn
+auto 3000
+choose 0
+auto 3000
+endturn
+auto 3000
+choose 0
+auto 3000
+endturn
+auto 3000
+choose 0
+auto 3000
+endturn
+auto 3000
+status
+colonies
+units
+sync t1551904
 sync b90
-key Escape
-wait 5
-status
-sync x293
-sync b91
-activate 175
-wait 3
-key g
-wait 10
-key Return
-wait 10
-status
-units
-sync x294
-sync b92
-key Escape
-wait 5
-sync x295
-sync b93
-choose 0
-auto 3000
-endturn
-auto 3000
-status
-colonies
-units
-sync t1492476
-sync b94
-activate 175
-wait 3
-key g
-wait 10
-key Return
-wait 10
-status
-sync x296
-sync b95
-key Escape
-wait 5
-endturn
-wait 20
-status
-sync x297
-sync b96
-units
-sync x298
-sync b97
-activate 217
-wait 3
-key f
-wait 3
-sync x299
-sync b98
-endturn
-wait 20
-status
-sync x300
-sync b99
-choose 0
-wait 5
-status
-sync x301
-sync b100
-activate 175
-wait 3
-key Escape
-wait 2
-status
-sync x302
-sync b101
-key g
-wait 10
-status
-sync x303
-sync b102
-key Return
-wait 10
-status
-sync x304
-sync b103
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-status
-colonies
-units
-sync t1493028
-sync b104
-key u
-wait 10
-key u
-wait 10
-status
-sync x305
-sync b105
-key r
-wait 10
-shot rc13
-sync x306
-sync b106
-key Return
-wait 5
-choose 0
-wait 5
-status
-sync x307
-sync b107
-click 155 152
-wait 5
-key s
-wait 5
-choose 1
-wait 5
-choose 0
-wait 10
-status
-sync x308
-sync b108
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-status
-colonies
-units
-sync t1493770
-sync b109
-activate 431
-wait 3
-goto 431 39 27
-wait 3
-sync x309
-sync b110
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-status
-colonies
-units
-sync t1493952
-sync b111
-activate 432
-wait 3
-key f
-wait 3
-colony 0
-wait 10
-key Return
-wait 3
-hit 100 25
-hit 100 40
-hit 160 60
-sync x310
-sync b112
-key Escape
-wait 5
-sync x311
-sync b113
-colonies
-sync x312
-sync b114
-work 0 1 9
-work 0 5 9
-work 0 6 9
-work 0 7 9
-wait 3
-colonies
-sync x313
-sync b115
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-status
-colonies
-units
-sync t1494343
-sync b116
-colonies
-sync x314
-sync b117
-activate 431
-wait 3
-key f
-wait 3
-sync x315
-sync b118
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-status
-colonies
-units
-sync t1494495
-sync b119
-colonies
-sync x316
-sync b120
-choose 0
-wait 5
-status
-sync x317
-sync b121
-colonies
-sync x318
-sync b122
-key Return
-wait 5
-status
-sync x319
-sync b123
-work 0 7 9
-wait 3
-sync x320
-sync b124
-activate 431
-wait 3
-key f
-wait 3
-sync x321
-sync b125
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-status
-colonies
-units
-sync t1494937
-sync b126
-colonies
-sync x322
-sync b127
-colony 6
-wait 10
-key Return
-wait 3
-click 285 142
-wait 10
-shot pl11
-sync x323
-sync b128
-click 285 142
-wait 10
-shot pl12
-sync x324
-sync b129
-click 95 150
-wait 5
-colonies
-sync x325
-sync b130
-key Escape
-wait 5
-status
-sync x326
-sync b131
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-status
-colonies
-units
-sync t1495541
-sync b132
-colonies
-sync x327
-sync b133
-colony 6
-wait 10
-key Return
-wait 3
-click 285 142
-wait 10
-click 285 142
-wait 10
-shot pl13
-sync x328
-sync b134
-status
-sync x329
-sync b135
-choose 0
-wait 5
-status
-sync x330
-sync b136
-click 285 142
-wait 10
-shot pl14
-sync x331
-sync b137
-click 95 50
-wait 5
-colonies
-sync x332
-sync b138
-key Escape
-wait 5
-status
-sync x333
-sync b139
-key Return
-wait 5
-status
-sync x334
-sync b140
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-status
-colonies
-units
-sync t1496221
-sync b141
-colonies
-sync x335
-sync b142
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-status
-colonies
-units
-sync t1496601
-sync b143
-colonies
-sync x336
-sync b144
-status
-sync x337
-sync b145
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-status
-colonies
-units
-sync t1496797
-sync b146
-activate 431
-wait 3
-goto 431 25 33
-wait 3
-sync x338
-sync b147
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-status
-colonies
-units
-sync t1497017
-sync b148
-units
-sync x339
-sync b149
-colony 6
-wait 10
-key Return
-wait 3
-drag 125 186 132 170
-wait 10
-drag 85 186 142 170
-wait 10
-key Escape
-wait 5
-units
-sync x340
-sync b150
-status
-sync x341
-sync b151
-activate 431
-wait 3
-key g
-wait 10
-key Return
-wait 10
-sync x342
-sync b152
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-status
-colonies
-units
-sync t1497192
-sync b153
-key u
-wait 10
-status
-sync x343
-sync b154
-key r
-wait 10
-shot rc14
-sync x344
-sync b155
-key Down
-key Return
-wait 10
-key r
-wait 10
-key Down
-key Down
-key Down
-key Return
-wait 10
-status
-units
-sync x345
-sync b156
-click 155 152
-wait 5
-key s
-wait 5
-choose 1
-wait 5
-choose 0
-wait 10
-status
-sync x346
-sync b157
-key Escape
-wait 3
-sync x347
-sync b158
-wait 3
-status
-sync x348
-sync b159
-key Return
-wait 5
-status
-sync x349
-sync b160
-key Return
-wait 5
-status
-sync x350
-sync b161
-key Escape
-wait 5
-status
-sync x351
-sync b162
-choose 0
-wait 5
-status
-sync x352
-sync b163
-key Return
-wait 5
-status
-sync x353
-sync b164
-units
-sync x354
-sync b165
-key Return
-wait 5
-key Return
-wait 5
-status
-sync x355
-sync b166
-choose 0
-wait 5
-status
-sync x356
-sync b167
-choose 3
-wait 5
-key Return
-wait 5
-status
-sync x357
-sync b168
-choose 0
-wait 5
-status
-sync x358
-sync b169
-colony 6
-wait 10
-key Return
-wait 3
-click 285 142
-wait 10
-shot pl15
-sync x359
-sync b170
-key Return
-wait 5
-status
-sync x360
-sync b171
-click 285 142
-wait 10
-click 95 74
-wait 5
-colonies
-sync x361
-sync b172
-click 285 142
-wait 10
-shot pl16
-sync x362
-sync b173
-click 95 74
-wait 5
-colonies
-sync x363
-sync b174
-key Escape
-wait 5
-status
-sync x364
-sync b175
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-status
-colonies
-units
-sync t1499127
-sync b176
-colonies
-sync x365
-sync b177
-units
-sync x366
-sync b178
-activate 1138
-wait 3
-goto 1138 25 33
-wait 3
-sync x367
-sync b179
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-status
-colonies
-units
-sync t1499349
-sync b180
-admit 1139
-admit 1140
-colonies
-sync x368
-sync b181
-colonies
-sync x369
-sync b182
-work 6 6 9
-work 6 0 9
-wait 3
-colonies
-sync x370
-sync b183
-field 6 0 2 8
-wait 3
-colonies
-sync x371
-sync b184
-key Escape
-wait 3
-status
-sync x372
-sync b185
-units
-sync x373
-sync b186
-choose 0
-auto 3000
-endturn
-auto 3000
-status
-colonies
-units
-sync t1500239
-sync b187
-activate 1138
-wait 3
-key g
-wait 10
-key Return
-wait 10
-sync x374
-sync b188
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-status
-colonies
-units
-sync t1500271
-sync b189
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-status
-colonies
-units
-sync t1500353
-sync b190
-units
-sync x376
-sync b191
-admit 1237
-wait 3
-sync x377
-sync b192
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-status
-colonies
-units
-sync t1500533
-sync b193
-click 291 70
-wait 10
-click 100 125
-wait 10
-shot pu4
-sync x378
-sync b194
-click 78 139
-wait 10
-click 291 70
-wait 10
-click 100 125
-wait 10
-click 78 139
-wait 10
-click 291 70
-wait 10
-click 100 125
-wait 10
-click 78 139
-wait 10
-status
-units
-sync x379
-sync b195
-click 155 152
-wait 5
-key s
-wait 5
-choose 1
-wait 5
-choose 0
-wait 10
-status
-sync x380
-sync b196
-key Escape
-wait 3
-sync x381
-sync b197
-key Return
-wait 5
-key Return
-wait 5
-status
-sync x382
-sync b198
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-status
-colonies
-units
-sync t1501060
-sync b199
-activate 1312
-wait 3
-goto 1312 39 27
-wait 3
-sync x383
-sync b200
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-status
-colonies
-units
-sync t1501137
-sync b201
-units
-sync x384
-sync b202
-activate 1313
-wait 3
-key f
-wait 3
-activate 1314
-wait 3
-key f
-wait 3
-activate 1312
-wait 3
-key f
-wait 3
-units
-sync x385
-sync b203
-activate 1312
-wait 3
-key f
-wait 3
-sync x386
-sync b204
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-status
-colonies
-units
-sync t1501328
-sync b205
-colonies
-sync x387
-sync b206
-activate 1312
-wait 3
-key s
-wait 3
-units
-sync x388
-sync b207
-status
-sync x389
-sync b208
-shot pop1
-sync x390
-sync b209
-key Return
-wait 5
-sync x391
-sync b210
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-status
-colonies
-units
-sync t1501760
-sync b211
-colonies
-sync x392
-sync b212
-units
-status
-sync x393
-sync b213
-activate 1312
-wait 3
-key f
-wait 3
-units
-sync x394
-sync b214
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-status
-colonies
-units
-sync t1502140
-sync b215
-colonies
-sync x395
-sync b216
-status
-sync x396
-sync b217
-units
-sync x397
-sync b218
-colony 6
-wait 10
-key Return
-wait 3
-click 285 142
-wait 10
-shot pl17
-sync x398
-sync b219
-click 285 142
-wait 10
-shot pl18
-sync x399
-sync b220
-click 95 58
-wait 5
-colonies
-sync x400
-sync b221
-key Escape
-wait 5
-status
-sync x401
-sync b222
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-status
-colonies
-units
-sync t1502998
-sync b223
-colonies
-sync x402
-sync b224
-admit 1542
-colony 0
-wait 10
-key Return
-wait 3
-click 285 142
-wait 10
-shot jf6
-sync x403
-sync b225
-click 285 142
-wait 10
-shot jf7
-sync x404
-sync b226
-click 95 42
-wait 5
-colonies
-sync x405
-sync b227
-key Escape
-wait 5
-status
-sync x406
-sync b228
-key Return
-wait 5
-status
-sync x407
-sync b229
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-status
-colonies
-units
-sync t1503551
-sync b230
-colonies
-sync x408
-sync b231
-key Escape
-wait 5
-status
-sync x409
-sync b232
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-status
-colonies
-units
-sync t1503694
-sync b233
-colonies
-sync x410
-sync b234
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-status
-colonies
-units
-sync t1504079
-sync b235
-colonies
-sync x411
-sync b236
-status
-sync x412
-sync b237
-admit 1771
-sync x413
-sync b238
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-status
-colonies
-units
-sync t1504427
-sync b239
-colonies
-sync x414
-sync b240
-status
-sync x415
-sync b241
-activate 1312
-wait 3
-key g
-wait 10
-key Return
-wait 10
-sync x416
-sync b242
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-status
-colonies
-units
-sync t1504715
-sync b243
-click 291 70
-wait 10
-click 100 125
-wait 10
-click 78 139
-wait 10
-click 291 70
-wait 10
-click 100 125
-wait 10
-click 78 139
-wait 10
-status
-sync x417
-sync b244
-units
-sync x418
-sync b245
-click 155 152
-wait 5
-key s
-wait 5
-choose 1
-wait 5
-choose 0
-wait 10
-sync x419
-sync b246
-key Escape
-wait 3
-key Return
-wait 3
-sync x420
-sync b247
-status
-sync x421
-sync b248
-choose 1
-wait 5
-choose 0
-wait 10
-status
-sync x422
-sync b249
-choose 0
-wait 5
-key Return
-wait 5
-status
-sync x423
-sync b250
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-status
-colonies
-units
-sync t1505210
-sync b251
-units
-sync x424
-sync b252
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-status
-colonies
-units
-sync t1505306
-sync b253
-units
-sync x425
-sync b254
-admit 2074
-wait 3
-sync x426
-sync b255
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-status
-colonies
-units
-sync t1505427
-sync b256
-units
-sync x427
-sync b257
-activate 2101
-wait 3
-goto 2101 39 27
-wait 3
-sync x428
-sync b258
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-status
-colonies
-units
-sync t1505539
-sync b259
-units
-sync x429
-sync b260
-activate 2102
-wait 3
-key f
-wait 3
-activate 2103
-wait 3
-key f
-wait 3
-activate 2101
-wait 3
-key s
-wait 3
-units
-sync x430
-sync b261
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-status
-colonies
-units
-sync t1505621
-sync b262
-activate 2101
-wait 3
-key f
-wait 3
-sync x431
-sync b263
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-status
-colonies
-units
-sync t1505710
-sync b264
-colonies
-sync x432
-sync b265
-colony 0
-wait 10
-key Return
-wait 3
-click 285 142
-wait 10
-click 285 142
-wait 10
-shot jf8
-sync x433
-sync b266
-click 95 58
-wait 5
-colonies
-sync x434
-sync b267
-key Escape
-wait 5
-status
-sync x435
-sync b268
-colonies
-sync x436
-sync b269
-eject 0 11 0
-eject 0 7 0
-wait 3
-units
-sync x437
-sync b270
-equip 2271 2
-equip 2272 2
-wait 3
-units
-sync x438
-sync b271
-activate 2271
-wait 3
-key f
-wait 3
-admit 2272
-wait 3
-sync x439
-sync b272
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-status
-colonies
-units
-sync t1506509
-sync b273
-colonies
-sync x440
-sync b274
-units
-sync x441
-sync b275
-activate 2102
-wait 3
-key s
-wait 3
-activate 2103
-wait 3
-key s
-wait 3
-activate 2101
-wait 3
-goto 2101 25 33
-wait 3
-units
-sync x442
-sync b276
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-status
-colonies
-units
-sync t1506936
-sync b277
-units
-sync x443
-sync b278
-activate 2271
-wait 3
-key f
-wait 3
-sync x444
-sync b279
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-status
-colonies
-units
-sync t1507030
-sync b280
-units
-sync x445
-sync b281
-units
-sync x446
-sync b282
-admit 2330
-wait 3
-sync x447
-sync b283
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-status
-colonies
-units
-sync t1507273
-sync b284
-units
-sync x448
-sync b285
-activate 2102
-wait 3
-key f
-wait 3
-activate 2103
-wait 3
-key f
-wait 3
-sync x449
-sync b286
-activate 2101
-wait 3
-key f
-wait 3
-sync x450
-sync b287
-units
-sync x451
-sync b288
-colony 6
-wait 10
-key Return
-wait 3
-click 285 142
-wait 10
-click 285 142
-wait 10
-shot pl19
-sync x452
-sync b289
-click 285 142
-wait 10
-shot pl20
-sync x453
-sync b290
-click 95 82
-wait 5
-colonies
-sync x454
-sync b291
-key Escape
-wait 5
-status
-sync x455
-sync b292
-key Return
-wait 5
-sync x456
-sync b293
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-status
-colonies
-units
-sync t1507933
-sync b294
-colonies
-sync x457
-sync b295
-activate 2101
-wait 3
-key f
-wait 3
-sync x458
-sync b296
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-status
-colonies
-units
-sync t1508165
-sync b297
-colonies
-sync x459
-sync b298
-status
-sync x460
-sync b299
-choose 3
-wait 5
-key Return
-wait 5
-status
-sync x461
-sync b300
-activate 102
-wait 3
-goto 102 39 27
-wait 3
-sync x462
-sync b301
-colony 0
-wait 10
-key Return
-wait 3
-drag 85 186 132 170
-wait 10
-key Escape
-wait 5
-units
-sync x463
-sync b302
-status
-sync x464
-sync b303
-drag 85 186 132 170
-wait 10
-shot jf9
-sync x465
-sync b304
-key Escape
-wait 5
-status
-sync x466
-sync b305
-activate 102
-wait 3
-key f
-wait 3
-sync x467
-sync b306
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-status
-colonies
-units
-sync t1509866
-sync b307
-activate 2516
-wait 3
-admit 2516
-wait 3
-sync x468
-sync b308
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-status
-colonies
-units
-sync t1510030
-sync b309
-status
-sync x469
-sync b310
-save pre_declare_1733
-wait 3
-shot gm1
-sync x470
-sync b311
-click 22 4
-wait 10
-shot gm2
-sync x471
-sync b312
-click 54 85
-wait 10
-status
-shot dc1
-sync x472
-sync b313
-choose 1
-wait 20
-status
-sync x473
-sync b314
-key Return
-wait 20
-key Return
-wait 20
-status
-sync x474
-sync b315
-shot dec1
-sync x475
-sync b316
-key Return
-wait 10
-key Return
-wait 10
-status
-sync x476
-sync b317
-key Escape
-wait 5
-status
-sync x477
-sync b318
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-status
-colonies
-units
-sync t1512260
-sync b319
-near 25 33 3
-units
-sync x478
-sync b320
-activate 102
-wait 3
-key Escape
-wait 2
-sync x479
-sync b321
-choose 0
-auto 3000
-endturn
-auto 3000
-status
-colonies
-units
-sync t1512811
-sync b322
-activate 176
-wait 3
-key s
-wait 3
-activate 177
-wait 3
-key s
-wait 3
-activate 217
-wait 3
-key s
-wait 3
-activate 2101
-wait 3
-goto 2101 39 27
-wait 3
-units
-sync x480
-sync b323
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-status
-colonies
-units
-sync t1513350
-sync b324
-activate 102
-wait 3
-key f
-wait 3
-sync x481
-sync b325
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-status
-colonies
-units
-sync t1513523
-sync b326
-colonies
-units
-sync x482
-sync b327
-colony 0
-wait 10
-key Return
-wait 3
-click 285 142
-wait 10
-shot jf10
-sync x483
-sync b328
-click 285 142
-wait 10
-shot jf11
-sync x484
-sync b329
-click 95 86
-wait 5
-colonies
-sync x485
-sync b330
-key Escape
-wait 5
-status
-sync x486
-sync b331
-activate 102
-wait 3
-key g
-wait 10
-key Return
-wait 10
-sync x487
-sync b332
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-status
-colonies
-units
-sync t1514713
-sync b333
-status
-sync x488
-sync b334
-units
-sync x489
-sync b335
-activate 102
-wait 3
-key g
-wait 10
-shot pk1
-sync x490
-sync b336
-key Return
-wait 10
-sync x491
-sync b337
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-status
-colonies
-units
-sync t1515154
-sync b338
-status
-sync x492
-sync b339
-activate 102
-wait 3
-key f
-wait 3
-sync x493
-sync b340
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-choose 0
-auto 3000
-endturn
-auto 3000
-status
-colonies
-units
-sync t1515443
-sync b341
-near 39 27 3
-units
-status
-sync x494
-sync b342
-admit 2605
-wait 3
-sync x495
-sync b343
-activate 432
-wait 3
-key f
-wait 3
-activate 2271
-wait 3
-key f
-wait 3
-sync x496
-sync b344
-choose 0
-auto 3000
-endturn
-auto 3000
-status
-colonies
-units
-sync t1516306
-sync b345
-key Return
-wait 30
-status
-sync x497
-sync b346
-key Return
-wait 30
-key Return
-wait 30
-status
-sync x498
-sync b347
-quit

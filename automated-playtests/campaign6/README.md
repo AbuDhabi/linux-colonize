@@ -211,3 +211,22 @@ how to stay in the war:
 - Not a bug: the King's tax rose to 29% (Stamp Act 1688) and silver/ore/fur
   sales dropped in price. The Crown is not a bug either: "Tories" in the log
   are the King's side.
+
+## Branch 1 (new timeline from the pre-declaration save, 2026-10-26)
+
+- Loaded `saves/pre_declare_1733` (turn 375, autumn 1733, gold 743). The
+  lost timeline's saves (turns 375-387, COLONY08/09) moved to
+  `saves/branch1_lost_1739/`. Turns before 375 remain shared.
+- Crown tax at 58% in London (1734): a furs sale of 100 netted 42. Artillery
+  purchase price rose 500 -> 900 (1734), so buying guns in Europe is no longer
+  affordable. Preparation has to come from colony production (tools from
+  ore at the Blacksmith's House, hammers from Lumber Mill / Carpenter's Shop).
+- Building rows (driver `work N CI B`): 9 Town Hall, 10 Armory,
+  21-23 Weaver's House, 24-26 Tobacconist's, 27-31 Rum Distiller's,
+  32-34 Fur Trader's, 35-36 Carpenter's Shop, 37-38 Church, 39 Blacksmith's House.
+- Unloading cargo worked with hand-paced drag: `mdown X Y`, `move X2 Y2`,
+  `move X3 Y3`, `mup X3 Y3` onto the warehouse item (ore 125,186 at the colony
+  screen). `drag` alone did not unload.
+- Plymouth: `Fort` (100 tools) and Jamestown: `Fort` (120 hammers, 100
+  tools). Tools come from ore at the Blacksmith (~4 tools per turn with 2
+  workers).

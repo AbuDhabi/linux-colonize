@@ -5,8 +5,9 @@ naval odds, fortification / terrain / peel modifiers, Combat Analysis, promote /
 demote / capture / loot, and coastal Fort/Fortress batteries.
 
 Move-into-tile fight-vs-bounce gates stay in [move_enter.md](move_enter.md).
-Village warn→Attack (`4528`) Done thin; Euro `20e6` combat peels Done thin;
-deep −0x6790 / `2820` VGA stay AI docs.
+Village warn→Attack (`4528`) Done thin; Euro AI attack scoring is the `20e6`
+LAB_52aa term (`ai_euro_land.c`, logic map `move_scoring_gate` / `wander`);
+`2820` VGA chrome is D4.
 
 Authority: [project_goals.md](project_goals.md) (decomp / `NAMES` → manual →
 fandom). Feature checklist: [manual_gap.md](manual_gap.md) §Combat.

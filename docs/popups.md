@@ -424,7 +424,7 @@ fragment. Related sections are listed in the first column.
 | `@GAMEOPTIONS` / `@COLONYOPTIONS` / `@SOUNDOPTIONS` | Options checkboxes | Done | [`options_dialog.c`](../src/core/options_dialog.c) |
 | `@DOS` / `@DOSYES` | Quit confirm | Done | Map/title confirm via `AI_POPUP_TAG_MAP_CONFIRM` |
 | `@RETIRE` | Retire confirm | Done | Confirm then F10 score |
-| `@MULTI*` | Multiplayer setup | Missing | — |
+| `@MULTI` / `@MULTINEXT` / `@MULTIREV` | Hidden hot-seat (env `COLONIZE=MULTI` or argv `-K`; [port_plan.md](port_plan.md)) | Not ported | `@MULTI` checklist `FUN_75c2_10ae` (DS 0x21a6); `@MULTINEXT` turn handoff `FUN_130d_0290` (DS 0x0137); `@MULTIREV` declare warning `FUN_43f7_2564` (DS 0x138e) |
 
 ### 2. Save / load / music
 
@@ -505,7 +505,7 @@ fragment. Related sections are listed in the first column.
 | War / Peace / Break | Rival offers | Done | `DIPLO_WAR` / `PEACE` / `BREAK` (Euro alliances are not DOS; `DIPLO_ALLIANCE` retired) |
 | Boycott | War embargo / Tools lift | n/a | no DOS popup: war/peace OKs are `@DECLAREWAR` / `@SIGNTREATY` (invented "boycott imposed" / "embargo lifted" bodies no longer replace them; the Tools-lift line is status-only) |
 | FA `@HELLO*` / `@PEACE*` / `@TRIBUTE*` … | Euro encounter negotiation | Done | `FUN_5bfb_153e` talk machine (`ai_diplo.c`, tag `DIPLO_TALK`); `3f41` is the F2-F9 adviser-report overlay, not diplomacy. `…USA` variants are the one delta |
-| Military Assistance / mercenary hire (`@MILITARY`, `@UNFORTUNATE`, `@MERCENARY`) | PEACEMENU choice 4 | Done | `ai_diplo.c` `AI_TALK_ST_ALLY_PICK`/`ALLY_PAY` matches raw :98330-98395 (affordability gate, war-bit set both directions incl. Indian side), `@MILITARY` intro line included |
+| Military Assistance / mercenary hire (`@MILITARY`, `@UNFORTUNATE`, `@MERCENARY`) | PEACEMENU choice 4 | Done | `ai_diplo.c` `AI_TALK_ST_ALLY_PICK`/`ALLY_PAY` matches raw :98330-98395 (affordability gate, war-bit set both directions incl. Indian side); `@MILITARY` is the ally list's own prompt (5bfb:2d59 `FUN_291f_0182` on GAME/MILITARY, rows `FUN_281f_0a1a` plurals, extinct tribes skipped; #1287) |
 | Scout enters foreign colony (`@SCOUTCOLONY`, `@LOSTOURSCOUTS`, `@LOSTTHEIRSCOUTS`, `@NOMAYORSDURINGREV`) | Human scout steps onto Euro colony | Done for the human side | `AI_POPUP_TAG_SCOUT_COLONY` (`game_loop.c`); DOS's `@LOSTTHEIRSCOUTS`/`@NOWARSDURINGREV` branches (AI scout vs. human colony; any unit vs. any foreign colony during WoI) live in the shared `FUN_465b_0000`→`FUN_5f7a_0662` dispatcher, which the port never calls for AI-driven unit movement; both arms are dead code in DOS too (`FUN_5f7a_000e` head raw 98822-98834 returns unless the mover is human; port_bugs.md #500) — see Appendix A |
 
 ### 8. King / REF / independence / FF
@@ -548,7 +548,7 @@ Deep mechanics: [combat.md](combat.md).
 | Popup / `@SECTION`s | When | Status | Port |
 |---------------------|------|--------|------|
 | `@LOSENOCOLONIES` / defeat | No colonies | Done thin | DOS `3844_0442` Section B (year≥1600, peacetime, zero human colonies): `@LOSENOCOLONIES` OK (`%STRING0` difficulty title, `%STRING1` leader name) then `AI_KING_ENDGAME_LOST` → retire-score/HoF chain (`turn_run_year_end_chrome`) |
-| `@SCORE` / `@SCORED` / retire | Retire / F10 | Done thin | `@SCORED` + `@RETIRING` on peacetime 1800 That's all; F10 score; HoF stub `HOF.TXT` |
+| `@SCORE` / `@SCORED` / retire | Retire / F10 | Done thin | `@SCORED` + `@RETIRING` on peacetime 1800 That's all; F10 score; Hall of Fame in DOS `HALLFAME.DAT` |
 | `@LOSING*` / `@WARN*` / `@WINNING` | WoI end / anniversary | Done thin | `@WINNING`/`@LOSING1`–`3`/`@RETIRING`/`@RETIRING2`/`@WARN1`–`3`/`@SOONRETIRING0`/`1` Done thin |
 | `@TIMECHANGE` | Calendar help | Done thin | Fires once at year 1600 / season 0 (`FUN_130d_0290`, asm-recovered `LEA BX,[0x141]`) via `popup_chrome_ok` in `turn_processor_advance` |
 | 1850 WoI win | Year≥1850 + no crown | Done thin | `@WINNING` latch + INFO |

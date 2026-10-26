@@ -34,15 +34,14 @@ deferred polish phase **D4** (pixel chrome).
 
 ## Remaining work (2026-10-26)
 
-Not bugs in shipped features. Each is a known, bounded gap:
+Not bugs in shipped features. Each is a known, bounded gap. Closed
+2026-10-26: the ally-pick prompt (#1287), DOS `HALLFAME.DAT` (#1289) and
+the dead Pillage arm (deleted).
 
 | Item | What is missing | Where |
 |------|-----------------|-------|
-| Euro AI combat core | The `−0x6790` nation×continent stance table is a thin stand-in, and the `20e6` attack/step scoring is still thin/structural (`mil_contact` = thin, `move_loop` = structural in the logic map). Logic everywhere else is `dos` | [ai_euro_logic_map.yaml](ai_euro_logic_map.yaml), [combat_analysis.md](combat_analysis.md#parked) |
-| 153e ally-pick prompt | The prompt line above the ally list has no resolved GAME.TXT id, so the list shows without it (#988) | `ai_diplo.c` |
-| Hall of Fame file | Stored as port `HOF.TXT`; DOS `HALLFAME.DAT` is not read or written | [reports_score.md](reports_score.md) |
-| Hot-seat multiplayer | DOS carries hot-seat turn code (gated on DS:0x5381 bit 0x80, `@MULTINEXT` / `@MULTIREV`); not ported | [popups.md](popups.md) |
-| Dead port arm | ORDERS Pillage is hidden unconditionally in DOS and the port (`FUN_2b5a_0b34`), but `units_pillage_w` still carries an invented colony-loot arm; unreachable from the UI, candidate for deletion | `units_move.c` |
+| Euro AI deferred-band tail | The Euro AI combat core is ported (2026-10-26 audit): the `−0x6790` stance table (`ai_euro_refresh_continent_stance`, `FUN_521d_0a60` raw 88054-88151) and the `20e6` LAB_4d2e / LAB_52aa attack and step scorer, checked against the DOSBox idle campaigns. Left: Treasure / Missionary / Wagon units whose 20e6 arms decline fall into a port-only tail (`ai_euro_act_land_goal_dispatch`: the invented `ai_euro_score_move` walker and an unreachable MILITARY/CONTACT attack arm) instead of 20e6's own pre-LAB_4d2e gate (raw 90210-90219) → LAB_4d2e wander / LAB_5a78 + `FUN_479b_0972` walk, which every other land unit takes. Also, the stance writer recounts its operands live instead of reading the DOS-timed `FUN_4962_0018` / `06b6` census tables | `ai_euro_act.c`, `ai_euro.c`, [ai_euro_logic_map.yaml](ai_euro_logic_map.yaml) land_band |
+| Hot-seat multiplayer | Hidden DOS feature, not ported (the port models one human nation). No menu row and not in the manual, but reachable without patching: env `COLONIZE=MULTI` (`FUN_7421_025a`) or argv `-K` (`FUN_7421_0054`) sets DS:0x201e, which adds an undrawn 5th nation-picker cell (`FUN_733a_0c2a`; x 112 y 195, mouse only). It opens `@MULTI` (`FUN_75c2_10ae`); 2+ powers ticked sets DS:0x5381 bit 0x80, which drives `@MULTINEXT` (`FUN_130d_0290`), skips the War of Succession (`FUN_43f7_0218`) and asks `@MULTIREV` before declaring (`FUN_43f7_2564`) | [popups.md](popups.md) |
 | [port_bugs.md](port_bugs.md) | OPEN rows | — |
 
 **Old citations.** `port_plan P<n>.<m>`, the old "How an agent should use this
@@ -174,7 +173,7 @@ file above. Also parked: MAPEDIT catalog track (old W5.4).
 
 Done. History, `FUN_*` inventory and the full method notes:
 [archive/port_plan_deferred_ai_track.md](archive/port_plan_deferred_ai_track.md).
-What remains AI-side is the Euro AI combat core ("Remaining work" above) and D4
+What remains AI-side is the Euro AI deferred-band tail and stance-operand timing ("Remaining work" above) and D4
 chrome: T5.1 VGA-identical dialog chrome (meet/diplo/king wood frames, FA
 `3f41` widget body) and T5.3 F3 Congress portrait-grid polish (blocked on
 material not in the repo).

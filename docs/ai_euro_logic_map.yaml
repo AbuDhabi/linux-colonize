@@ -782,7 +782,8 @@ graphs:
         kind: step
         label: MILITARY / CONTACT goal — adjacent foe → try_attack; at goal colony → resolve
         fn: ai_euro_land.c:ai_euro_try_attack
-        status: thin
+        status: port
+        note: "Port-only and unreachable in a real game: the band's DS:0x523d rows are 0x00 / 0x20 / 0x00 (Treasure / Missionary / Wagon), so 0a60 never binds MILITARY or CONTACT, and ai_euro_try_attack returns on @UNIT attack 0 for all three types. DOS land combat is the LAB_52aa term in move_scoring_gate / wander, executed by FUN_479b_0972 -> FUN_465b_0000. Delete with the band tail (port_plan.md Remaining work)."
       - id: set_goto
         kind: step
         label: Goal → AI_MOVE goto (unless an arm above already routed the unit)
@@ -791,8 +792,9 @@ graphs:
         kind: loop
         label: Follow goto — score_move step, units_try_move; drain MP for FOUND/MILITARY/CONTACT/ESCORT/LCR else one step
         fn: ai_euro_goals.c:ai_euro_score_move
-        dos: LAB_521d_4d2e→5183 wander scorer, 54f5 facing bias
-        status: structural
+        dos: none. DOS falls from the declined band arms into the pre-LAB_4d2e gate (raw 90210-90219)
+        status: port
+        note: "ai_euro_score_move is a port heuristic with rand(0,2) / rand(0,3) DOS-LCG draws; the real LAB_4d2e->5183 scorer is move_scoring_gate / wander. Its only caller is this deferred-band drain (ai_euro_act.c)."
       - id: end
         kind: end
         label: return
@@ -907,8 +909,8 @@ graphs:
         note: "2026-10-10: attack entry tests treaty bit 0x40 clear (raw 88880-88885), not formal war; either Privateer bypasses it, with the WoI control gate retained. Ported 2026-09-18 (port_bugs.md #512). The LAB_4d2e tail runs local_ce == 0 (asm 0x5840) → local_8e == 0 (asm 0x5876) → the 0x42 / 0x65 pioneer codes (raw 88989-89009, act-level in this port) → this arm → the 0x39 fallthrough (asm 0x586a); every failed sub-test jumps straight to 0x586a. The two chain walks have their far-call args dropped by Ghidra — the asm at 0x59c9 passes the unit index in AX, FUN_1000_8b7e = FUN_281f_098e = FUN_1427_0026 (walk +0x315e to the tail) and FUN_1000_84de = FUN_281f_02ee = FUN_1427_0002 (walk +0x315c to the head), so tail == head is exactly 'alone in the chain' (units_map_stack_chrome). The arm issues no FORTIFY order and no goto: +0x314b is the AI annotation byte and no DOS reader compares it against 0x46, so the whole effect is LAB_5899's local_76 = 8 — the scored wander step is dropped. It spends no garrison quota and needs no colony of its own nearby. Unreachable in the current goldens (the land arms branch of the gate is never taken in golden_ai_turns / smoke_ai_* / golden_woi_ref01), so it changes no golden counter; covered by the four unit_border_park_* cases in tests/unit/test_ai_euro_20e6.c."
       - id: score
         kind: step
-        label: score_move toward target → set AI_MOVE goto
-        fn: ai_euro_goals.c:ai_euro_score_move
+        label: Bind course (LAB_27f5 → FUN_521d_20c6) or commit step (LAB_589e); 5b66 walks it with ai_euro_goal_walk_479b
+        fn: ai_euro_expand.c:ai_euro_set_goto
       - id: ret0
         kind: end
         label: return 0 (act continues)

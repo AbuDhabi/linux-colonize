@@ -1227,18 +1227,17 @@ void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
  * traced where that bit is ever *set*: only in `FUN_75c2_10ae`
  * (viceroy_unpacked.c:120544-120694), the new-game nation-select/setup
  * screen, when more than one nation slot is flagged human (`iVar5 > 1`,
- * counting bits in the per-nation "is human" mask at 0x1f54). That's a
- * hotseat/multi-human-player marker, not a per-turn SoL event — the extra
- * dialog picks *which* human player is declaring (`*(u16*)0x5398 =
- * *(u16*)0x5394` after it returns) before falling into the same @DECLARE
+ * counting the bits of the @MULTI checklist result mask at 0x1f54). That's a
+ * hot-seat (multi-human) marker, not a per-turn SoL event — the extra
+ * dialog is the @MULTIREV yes/no warning that declaring ends hot-seat; yes
+ * clears the bit and makes the nation now moving the sole human
+ * (`*(u16*)0x5398 = *(u16*)0x5394`) before falling into the same @DECLARE
  * confirm every path shares. `ColonizeTurnContext` models exactly one
  * `human_nation`, so this branch has no reachable port equivalent — the
  * single Never/Yes @DECLARE popup below is the complete behavior for the
- * port's single-human model, not a missing feature. (0x138e's exact
- * wording was never recovered — not needed since the branch is
- * unreachable; the `*(byte*)0x5382&1` else-branch's msg 0x1374, shown when
- * already at war, is likewise unrecovered and likewise not required since
- * `ai_king_independence_declared` already short-circuits that case above.)
+ * port's single-human model, not a missing feature. (0x138e is @MULTIREV;
+ * the `*(byte*)0x5382&1` else-branch's 0x1374 is @ALREADYREVOLUTION, shown
+ * by ai_king_menu_declare_independence.)
  */
 /*
  * @DECLARE Never/Yes confirm body — called once `sol` is already known
@@ -1310,10 +1309,12 @@ void ai_king_menu_declare_independence(ColonizeTurnContext* ctx) {
     return;
   }
   if (ai_king_independence_declared(ctx->col1)) {
-    /* Port-authored notice: no GAME.TXT section covers this re-entry case
-     * (menu DECLARE INDEPENDENCE after already at war with the Crown). */
-    if (ctx->status && ctx->status_size) {
-      snprintf(ctx->status, ctx->status_size, "Independence already declared.");
+    /* FUN_43f7_2564 else arm (0x5382 & 1): popup 0x1374 = @ALREADYREVOLUTION. */
+    if (ai_king_human_popups(ctx)) {
+      char body[AI_POPUP_BODY_LEN];
+      popup_msg_fill(ctx->messages, "ALREADYREVOLUTION", NULL, "", body, sizeof(body));
+      (void)ai_popup_enqueue_ok_ctx(ctx->ai_popups, AI_POPUP_TAG_INFO, human,
+                                    ai_king_crown_nation_col1(ctx->col1, human), 0, NULL, body);
     }
     return;
   }

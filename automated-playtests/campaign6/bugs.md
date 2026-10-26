@@ -66,3 +66,10 @@
   cavalry in two turns. The stack that landed next to the colony kept
   attacking. Expected per RULES (artillery in open is -75%). Playtest
   observation only.
+
+## CN6-B2 (driver note): Colonization building rows (driver `work N CI B`)
+- Plymouth/Jamestown 1733 (branch 2): work rows as probed through
+  `work`: 9 Town Hall, 10 Armory, 21-23 Weaver's House, 24-26 Tobacconist's,
+  27-31 Rum Distiller's, 32-34 Fur Trader's, 35-36 Carpenter's Shop,
+  37-38 Church, 39-52 Blacksmith's House. A refused `work` (building full)
+  keeps the old building: read the building name after each probe.

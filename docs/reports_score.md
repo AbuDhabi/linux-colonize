@@ -115,15 +115,19 @@ Hall of Fame / Exploits). Shared chrome, fill bars and F2-F9 stay in
   `INDEPENDENT`/`NAMES` strings sit in the same string-table region per
   `viceroy_unpacked.asm`.
 - Background: `WOODPANL.PIK`.
-- Data source: port-local `ColonizeHofEntry[]` (`game_loop.c`), loaded/
-  ranked from `HOF.TXT` (`game_hof_path`/`_load`/`_save`/`_insert`) standing
-  in for DOS `HALLFAME.DAT` (6 × 42-byte records: name[24], nation,
-  declared, achieved, year, season, difficulty, score, rating, tier —
-  `FUN_41f2_14a8` builds one at Retire). Row format since 2026-08-29:
-  `score|leader|nation|year|difficulty|rating|declared|achieved|nation_id`
-  (older 5-field / bare-integer rows still load; rating back-filled from
-  score+difficulty). Ranked by **Colonization Rating** (DOS compares word
-  19), score as tie-break; 10 stored, 5 shown (DOS shows 5 of 6 slots).
+- Data source: DOS `HALLFAME.DAT` in the data directory, read and written
+  as DOS does since 2026-10-26 (`game_hof_load`/`_save`/`_insert`,
+  game_loop_eot.c; the port's old `HOF.TXT` is no longer read). File = slots
+  0-4, 5 × 42-byte records (0xd2 bytes, one fread / fwrite); memory holds a
+  6th catch-all slot. Record words (`FUN_41f2_14a8` builds one at Retire):
+  name[24] (leader), nation (-1 = empty slot), declared (0x5382 & 1),
+  achieved (0x5382 & 8, stored as 8), year, season, difficulty, score,
+  rating, exploits tier. Empty slot: name "", nation / score / rating -1,
+  rest 0. A missing file or a short read leaves every slot empty. Insert
+  (raw 72604-72630): first slot whose rating is strictly lower, else slot 5;
+  lower slots shift down. Shown: slots 0-4 with nation >= 0. The nation word
+  is the DS:0x8d0a @NATIONALITY adjective (`FUN_281f_065e` -> `FUN_15b3_024e`);
+  the port printed the @COUNTRY name until 2026-10-26.
 - Columns/layout (`FUN_41f2_0f56` presenter, asm 41f2:10a0-12a8; static read,
   port_bugs.md #1217): FONTINTR (DS:0x268a) through `{skip, DS:0x830, DS:0x833, 0}`;
   title `@MISC` #192 centred over (0, 0x140) at y 3 by `FUN_104b_0430`
@@ -161,13 +165,13 @@ Hall of Fame / Exploits). Shared chrome, fill bars and F2-F9 stay in
 
 No reference capture of this screen exists in the repo (goldens, screenshots
 and DOSBox dumps were searched, 2026-09-07). `COLONIZE/HALLFAME.DAT` (210 B,
-gitignored like all of `COLONIZE/`) is a DOS-written table; the port neither reads nor writes it and
-keeps its own `COLONIZE/HOF.TXT` (`game_hof_path`, game_loop_eot.c). Do not
+gitignored like all of `COLONIZE/`) is a DOS-written table (3 entries); the port reads and
+writes the same file. Do not
 invent a golden from the port's own render (`report_screens.md`).
 
 What a usable capture has to contain, to be reproducible:
 
-1. A DOS `HALLFAME.DAT` (6 x 42-byte records: `name[24]`, nation, declared,
+1. A DOS `HALLFAME.DAT` (5 x 42-byte records: `name[24]`, nation, declared,
    achieved, year, season, difficulty, score, rating, tier — the record
    `FUN_41f2_14a8` builds at Retire) committed **alongside** the PNG, so the
    expected text is derivable rather than read off the image. Without the

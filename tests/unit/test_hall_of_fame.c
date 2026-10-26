@@ -17,10 +17,9 @@
 #include "../common/test_runner.h"
 
 /*
- * Hall of Fame: ranked HOF.TXT table (score|leader|nation|year|difficulty,
- * highest score first; backward-compat with the old single-integer-per-line
- * stub; re-ranks an unsorted/hand-edited file; caps at COLONIZE_HOF_MAX (10)
- * entries on load) AND the title-menu screen it opens into (a real
+ * Hall of Fame: the DOS HALLFAME.DAT table (FUN_41f2_0f56: 5 x 42-byte
+ * records on disk, 6 slots in memory, ranked by rating) AND the title-menu
+ * screen it opens into (a real
  * in_hall_of_fame render state via reports_render_hall_of_fame — not a
  * window-title status string). See docs/port_plan.md Phase 1 /
  * docs/manual_gap.md "Hall of Fame".
@@ -47,11 +46,11 @@ static int setup(void) {
     return 1;
   }
   mkdir(k_save_dir, 0755);
-  snprintf(k_hof_path, sizeof(k_hof_path), "%s/HOF.TXT", k_data_dir);
+  snprintf(k_hof_path, sizeof(k_hof_path), "%s/HALLFAME.DAT", k_data_dir);
   return 0;
 }
 
-/* 1. No HOF.TXT yet: empty table; menu action opens a real screen (not a
+/* 1. No HALLFAME.DAT yet: empty table; menu action opens a real screen (not a
  * status-text hack), and Esc closes it back to the title menu. */
 static int case_empty_table(void) {
   if (setup() != 0) return 1;
@@ -99,100 +98,121 @@ static int case_empty_table(void) {
   return 0;
 }
 
-/* 2. Legacy single-integer-per-line HOF.TXT still loads (as one entry). */
-static int case_legacy_format(void) {
+/* One 42-byte HALLFAME.DAT record (FUN_41f2_14a8 word order). */
+static void put_record(
+  uint8_t* r, const char* name, int nation, int declared, int achieved, int year, int season,
+  int difficulty, int score, int rating, int tier
+) {
+  memset(r, 0, 42);
+  snprintf((char*)r, 24, "%s", name);
+  const int w[9] = {nation, declared, achieved, year, season, difficulty, score, rating, tier};
+  for (int i = 0; i < 9; ++i) {
+    r[24 + 2 * i] = (uint8_t)(w[i] & 0xff);
+    r[25 + 2 * i] = (uint8_t)((w[i] >> 8) & 0xff);
+  }
+}
+
+static bool write_bytes(const char* path, const uint8_t* buf, size_t n) {
+  FILE* f = fopen(path, "wb");
+  if (!f) return false;
+  const bool ok = fwrite(buf, 1, n, f) == n;
+  return fclose(f) == 0 && ok;
+}
+
+/* 2. A DOS-written HALLFAME.DAT loads slot by slot (the 3-entry table found in
+ * the shipped COLONIZE/ directory: two Spanish Viceroy entries, one English
+ * Discoverer; slots 3-4 empty, nation -1), and a short file loads as empty. */
+static int case_dos_file_loads(void) {
   if (setup() != 0) return 1;
-  if (!test_assets_write_text_file(k_hof_path, "1200\n")) {
-    fprintf(stderr, "failed to seed legacy HOF.TXT\n");
+  uint8_t buf[210];
+  put_record(buf, "Christopher Columbus", 2, 0, 0, 1800, 0, 4, 44, 2, 2);
+  put_record(buf + 42, "Christopher Columbus", 2, 0, 0, 1800, 0, 4, 44, 2, 2);
+  put_record(buf + 84, "Walter Raleigh", 0, 0, 0, 1600, 0, 0, 7, 0, -1);
+  put_record(buf + 126, "", -1, 0, 0, 0, 0, 0, -1, -1, 0);
+  put_record(buf + 168, "", -1, 0, 0, 0, 0, 0, -1, -1, 0);
+  if (!write_bytes(k_hof_path, buf, sizeof(buf))) {
+    fprintf(stderr, "failed to seed HALLFAME.DAT\n");
     return 1;
   }
   ColonizeGameConfig cfg = {.data_dir = k_data_dir, .save_dir = k_save_dir};
   ColonizeGameState* game = game_create(&cfg);
   if (!game) {
-    fprintf(stderr, "game_create failed (legacy)\n");
-    return 1;
-  }
-  if (game_hof_count(game) != 1) {
-    fprintf(stderr, "expected 1 legacy entry, got %d\n", game_hof_count(game));
-    game_destroy(game);
+    fprintf(stderr, "game_create failed (dos file)\n");
     return 1;
   }
   ColonizeHofEntryView e;
-  if (!game_hof_entry(game, 0, &e) || e.score != 1200) {
-    fprintf(stderr, "legacy entry score mismatch\n");
+  if (game_hof_count(game) != 3 || !game_hof_entry(game, 2, &e) ||
+      strcmp(e.leader, "Walter Raleigh") != 0 || e.year != 1600 || e.score != 7 ||
+      e.rating != 0 || e.difficulty != 0 || e.declared || e.achieved ||
+      game->hof_entries[2].nation_id != 0 || game->hof_entries[2].tier != -1 ||
+      game_hof_entry(game, 3, &e) || game->hof_entries[5].nation_id != -1) {
+    fprintf(stderr, "DOS HALLFAME.DAT slots mis-read (count %d)\n", game_hof_count(game));
+    game_destroy(game);
+    return 1;
+  }
+  if (!game_hof_entry(game, 0, &e) || e.score != 44 || e.rating != 2 || e.difficulty != 4) {
+    fprintf(stderr, "slot 0 mis-read\n");
     game_destroy(game);
     return 1;
   }
   game_destroy(game);
+
+  /* FUN_41f2_0f56: a failed 0xd2-byte fread leaves every slot empty. */
+  if (!write_bytes(k_hof_path, buf, 100)) return 1;
+  game = game_create(&cfg);
+  if (!game || game_hof_count(game) != 0) {
+    fprintf(stderr, "short HALLFAME.DAT must load as empty\n");
+    if (game) game_destroy(game);
+    return 1;
+  }
+  game_destroy(game);
+  remove(k_hof_path);
   return 0;
 }
 
-/* 3. Unsorted, multi-field HOF.TXT re-ranks highest-first on load, and the
- * ranked screen actually renders + Enter closes it. */
-static int case_ranked_rerank_and_screen(void) {
+/* 3. DOS insert rule (FUN_41f2_0f56 raw 72604-72630): first slot with a strictly
+ * lower rating, ties go below; an entry that outranks none takes slot 5, which
+ * the file never stores. The ranked screen renders and Enter closes it. */
+static int case_insert_rule_and_screen(void) {
   if (setup() != 0) return 1;
-  if (!test_assets_write_text_file(
-        k_hof_path,
-        "800|Ann Bonny|English|1700|2\n"
-        "1500|Jacques Cartier|French|1750|3\n"
-        "1100|Miguel de Soto|Spanish|1720|1\n"
-      )) {
-    fprintf(stderr, "failed to seed ranked HOF.TXT\n");
-    return 1;
-  }
+  remove(k_hof_path);
   ColonizeGameConfig cfg = {.data_dir = k_data_dir, .save_dir = k_save_dir};
   ColonizeGameState* game = game_create(&cfg);
   if (!game) {
-    fprintf(stderr, "game_create failed (ranked)\n");
-    return 1;
-  }
-  if (game_hof_count(game) != 3) {
-    fprintf(stderr, "expected 3 ranked entries, got %d\n", game_hof_count(game));
-    game_destroy(game);
+    fprintf(stderr, "game_create failed (insert)\n");
     return 1;
   }
   static const struct {
-    int score;
     const char* leader;
-    const char* nation;
-    int year;
-  } want[3] = {
-    {1500, "Jacques Cartier", "French", 1750},
-    {1100, "Miguel de Soto", "Spanish", 1720},
-    {800, "Ann Bonny", "English", 1700},
+    int rating;
+    int want_slot;
+  } ins[] = {
+    {"A", 40, 0}, {"B", 60, 0}, {"C", 40, 2}, {"D", 50, 1}, {"E", 10, 4}, {"F", 5, 5}, {"G", 5, 5},
   };
-  for (int i = 0; i < 3; ++i) {
+  for (size_t i = 0; i < sizeof(ins) / sizeof(ins[0]); ++i) {
+    ColonizeHofEntry entry;
+    memset(&entry, 0, sizeof(entry));
+    snprintf(entry.leader, sizeof(entry.leader), "%s", ins[i].leader);
+    entry.nation_id = 1;
+    entry.rating = ins[i].rating;
+    entry.score = ins[i].rating * 10;
+    const int slot = game_hof_insert(game, &entry);
+    if (slot != ins[i].want_slot) {
+      fprintf(stderr, "insert %s: slot %d want %d\n", ins[i].leader, slot, ins[i].want_slot);
+      game_destroy(game);
+      return 1;
+    }
+  }
+  static const char* want_order = "BDACE";
+  for (int i = 0; i < 5; ++i) {
     ColonizeHofEntryView e;
-    if (!game_hof_entry(game, i, &e)) {
-      fprintf(stderr, "rank %d entry missing\n", i);
-      game_destroy(game);
-      return 1;
-    }
-    if (e.score != want[i].score || strcmp(e.leader, want[i].leader) != 0 ||
-        strcmp(e.nation, want[i].nation) != 0 || e.year != want[i].year) {
-      fprintf(
-        stderr,
-        "rank %d mismatch: got %d %s (%s) %d want %d %s (%s) %d\n",
-        i,
-        e.score,
-        e.leader,
-        e.nation,
-        e.year,
-        want[i].score,
-        want[i].leader,
-        want[i].nation,
-        want[i].year
-      );
+    if (!game_hof_entry(game, i, &e) || e.leader[0] != want_order[i]) {
+      fprintf(stderr, "slot %d wrong after inserts\n", i);
       game_destroy(game);
       return 1;
     }
   }
-  if (!open_hall_of_fame(game)) {
-    fprintf(stderr, "open Hall of Fame (ranked) failed\n");
-    game_destroy(game);
-    return 1;
-  }
-  if (!game_in_hall_of_fame(game) || game_in_menu(game)) {
+  if (!open_hall_of_fame(game) || !game_in_hall_of_fame(game) || game_in_menu(game)) {
     fprintf(stderr, "expected Hall of Fame screen open\n");
     game_destroy(game);
     return 1;
@@ -214,12 +234,8 @@ static int case_ranked_rerank_and_screen(void) {
     return 1;
   }
   /* Enter closes it back to the title menu (Esc covered in case 1). */
-  if (!test_assets_step(game, COLONIZE_KEY_ENTER)) {
-    fprintf(stderr, "Enter from Hall of Fame failed\n");
-    game_destroy(game);
-    return 1;
-  }
-  if (game_in_hall_of_fame(game) || !game_in_menu(game)) {
+  if (!test_assets_step(game, COLONIZE_KEY_ENTER) || game_in_hall_of_fame(game) ||
+      !game_in_menu(game)) {
     fprintf(stderr, "expected Enter to return to title menu\n");
     game_destroy(game);
     return 1;
@@ -228,74 +244,54 @@ static int case_ranked_rerank_and_screen(void) {
   return 0;
 }
 
-/* 4. Table caps at COLONIZE_HOF_MAX (10): 12 distinct scores, lowest 2
- * dropped, order still highest-first. */
-static int case_overflow_cap(void) {
+/* 4. game_hof_save writes the DOS bytes (210 bytes, achieved as 0x5382 & 8,
+ * empty slots nation -1) and a reload gets the same slots back. */
+static int case_save_round_trip(void) {
   if (setup() != 0) return 1;
-  FILE* f = fopen(k_hof_path, "wb");
-  if (!f) {
-    fprintf(stderr, "failed to seed overflow HOF.TXT\n");
-    return 1;
-  }
-  for (int i = 1; i <= 12; ++i) {
-    fprintf(f, "%d|Leader%d|Nation|1700|0\n", i * 100, i);
-  }
-  fclose(f);
+  remove(k_hof_path);
   ColonizeGameConfig cfg = {.data_dir = k_data_dir, .save_dir = k_save_dir};
   ColonizeGameState* game = game_create(&cfg);
-  if (!game) {
-    fprintf(stderr, "game_create failed (overflow)\n");
+  if (!game) return 1;
+  ColonizeHofEntry entry;
+  memset(&entry, 0, sizeof(entry));
+  snprintf(entry.leader, sizeof(entry.leader), "Peter Minuit");
+  entry.nation_id = 3;
+  entry.declared = true;
+  entry.achieved = true;
+  entry.year = 1776;
+  entry.season = 1;
+  entry.difficulty = 2;
+  entry.score = 900;
+  entry.rating = 55;
+  entry.tier = 7;
+  game_hof_insert(game, &entry);
+  game_hof_save(game);
+  game_destroy(game);
+
+  uint8_t want[210];
+  put_record(want, "Peter Minuit", 3, 1, 8, 1776, 1, 2, 900, 55, 7);
+  for (int i = 1; i < 5; ++i) {
+    put_record(want + 42 * i, "", -1, 0, 0, 0, 0, 0, -1, -1, 0);
+  }
+  uint8_t got[256];
+  FILE* f = fopen(k_hof_path, "rb");
+  const size_t n = f ? fread(got, 1, sizeof(got), f) : 0;
+  if (f) fclose(f);
+  if (n != sizeof(want) || memcmp(got, want, sizeof(want)) != 0) {
+    fprintf(stderr, "HALLFAME.DAT bytes differ (size %zu)\n", n);
     return 1;
   }
-  if (game_hof_count(game) != 10) {
-    fprintf(stderr, "expected cap of 10 entries, got %d\n", game_hof_count(game));
-    game_destroy(game);
-    return 1;
-  }
-  ColonizeHofEntryView top, bottom;
-  if (!game_hof_entry(game, 0, &top) || top.score != 1200) {
-    fprintf(stderr, "expected top score 1200\n");
-    game_destroy(game);
-    return 1;
-  }
-  if (!game_hof_entry(game, 9, &bottom) || bottom.score != 300) {
-    fprintf(stderr, "expected 10th-place score 300 (100/200 dropped), got %d\n", bottom.score);
-    game_destroy(game);
+  game = game_create(&cfg);
+  ColonizeHofEntryView e;
+  if (!game || game_hof_count(game) != 1 || !game_hof_entry(game, 0, &e) ||
+      strcmp(e.leader, "Peter Minuit") != 0 || !e.declared || !e.achieved || e.year != 1776 ||
+      e.difficulty != 2 || e.score != 900 || e.rating != 55 ||
+      game->hof_entries[0].season != 1 || game->hof_entries[0].tier != 7) {
+    fprintf(stderr, "HALLFAME.DAT round trip mangled\n");
+    if (game) game_destroy(game);
     return 1;
   }
   game_destroy(game);
-  remove(k_hof_path);
-  return 0;
-}
-
-/* 5. #1115: an EMPTY leader field must not drop the fields after it, and the
- * row survives a game_hof_save (temp file + rename) -> reload round trip. */
-static int case_empty_leader_round_trip(void) {
-  if (setup() != 0) return 1;
-  if (!test_assets_write_text_file(k_hof_path, "900||Dutch|1710|2|55|1|0|3\n")) {
-    fprintf(stderr, "failed to seed empty-leader HOF.TXT\n");
-    return 1;
-  }
-  ColonizeGameConfig cfg = {.data_dir = k_data_dir, .save_dir = k_save_dir};
-  for (int pass = 0; pass < 2; ++pass) {
-    ColonizeGameState* game = game_create(&cfg);
-    if (!game) {
-      fprintf(stderr, "game_create failed (empty leader pass %d)\n", pass);
-      return 1;
-    }
-    ColonizeHofEntryView e;
-    if (game_hof_count(game) != 1 || !game_hof_entry(game, 0, &e) || e.score != 900 ||
-        e.leader[0] != '\0' || strcmp(e.nation, "Dutch") != 0 || e.year != 1710 ||
-        e.difficulty != 2 || e.rating != 55 || !e.declared || e.achieved) {
-      fprintf(stderr, "empty-leader row mangled on pass %d\n", pass);
-      game_destroy(game);
-      return 1;
-    }
-    if (pass == 0) {
-      game_hof_save(game);
-    }
-    game_destroy(game);
-  }
   remove(k_hof_path);
   return 0;
 }
@@ -508,10 +504,9 @@ out:
 
 static const TestCase k_cases[] = {
     {"empty_table", case_empty_table},
-    {"legacy_format", case_legacy_format},
-    {"ranked_rerank_and_screen", case_ranked_rerank_and_screen},
-    {"overflow_cap", case_overflow_cap},
-    {"empty_leader_round_trip", case_empty_leader_round_trip},
+    {"dos_file_loads", case_dos_file_loads},
+    {"insert_rule_and_screen", case_insert_rule_and_screen},
+    {"save_round_trip", case_save_round_trip},
     {"click_dismisses_ending_screens", case_click_dismisses_ending_screens},
     {"keep_playing_survives_reload", case_keep_playing_survives_reload},
 };

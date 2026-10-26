@@ -699,19 +699,18 @@ void game_retire_after_score(ColonizeGameState* game) {
   snprintf(
     entry.leader, sizeof(entry.leader), "%s", game->leader_name[0] ? game->leader_name : ""
   );
-  snprintf(entry.nation, sizeof(entry.nation), "%s", new_game_nation_name(game->human_nation));
   entry.nation_id = game->human_nation;
   entry.score = sc.total;
   entry.year = sc.year;
+  entry.season = game->col1.head.autumn;
   entry.difficulty = sc.difficulty;
   entry.rating = sc.rating;
+  entry.tier = sc.exploits_tier;
   entry.declared = sc.independence_declared;
   entry.achieved = sc.independence_achieved;
-  /* FUN_41f2_0f56 local_156: DOS loads 5 records, so a Retire entry that outranks none takes the
-   * catch-all slot 5 (the port keeps 10 rows; past the 5th, or cut, is slot 5 there). */
+  /* FUN_41f2_0f56 local_156: an entry that outranks none takes the catch-all slot 5. */
   game->hof_retired = entry;
-  const int hof_pos = game_hof_insert(game, &entry);
-  game->hof_inserted = hof_pos < 0 ? COLONIZE_HOF_SHOWN_MAX : hof_pos;
+  game->hof_inserted = game_hof_insert(game, &entry);
   game_hof_save(game);
 
   if (sc.exploits_tier >= 0 && !sc.scoring_complete) {

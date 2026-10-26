@@ -160,10 +160,13 @@ typedef struct ColonizeCol1Head {
   uint16_t map_size_x; /* typically 58 (visible 56 + border) */
   uint16_t map_size_y; /* typically 72 (visible 70 + border) */
   ColonizeCol1Tut1 tut1;
-  /* DS:0x5381 bit7 — hotseat/WoI-redirect latch (was unknown03/pad). Set at
-   * new-game setup when >1 human player chosen; tested+cleared in
-   * FUN_43f7_2564 (WoI-eligibility popup): shows once, sets
-   * human_player=nation_turn, clears bit. Other 7 bits unmapped. */
+  /* DS:0x5381 bit7 — hot-seat mode (2+ human powers), not a WoI latch (was
+   * unknown03/pad). Cleared by new-game init FUN_75c2_235c (word 0x5380 = 0),
+   * set by FUN_75c2_10ae when 2+ powers are ticked on @MULTI (reachable only
+   * with env COLONIZE=MULTI or argv -K -> DS:0x201e). Read by FUN_130d_0290
+   * (@MULTINEXT handoff), FUN_43f7_0218 (no War of Succession) and cheat 0x68;
+   * cleared by FUN_43f7_2564 after the @MULTIREV confirm (0x5398 = 0x5394).
+   * No code touches the other 7 bits. The port never sets it. */
   uint8_t hotseat_woi_redirect_pending;
   ColonizeCol1GameOptions game_options;
   ColonizeCol1ColonyReportOptions colony_report_options;

@@ -748,7 +748,10 @@ static void map_menu_refresh_orders_dos(
     transport && units_first_goods_hold(ctx->units, ctx->selected_id) >= 0;
   const int cargo_cap = transport ? units_goods_hold_count(ctx->units, ctx->selected_id) : 0;
 
-  /* 0x317 Pillage — always hidden in 0b34. */
+  /* 0x317 Pillage — always hidden in 0b34 (raw 42193), so the port has no
+   * Pillage body. DOS has no improvement-destroying pillage either: every
+   * FUN_281f_068c call sets or clears only purchase / occupancy bits
+   * (port_bugs.md #631). */
   for (int i = 0; i < orders->item_count; ++i) {
     if (orders->items[i].action == MAP_MENU_ACTION_PILLAGE) {
       orders->items[i].visible = false;

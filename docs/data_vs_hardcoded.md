@@ -124,7 +124,7 @@ These do **not** appear as editable MicroProse catalogs. Recover from decomp / b
 | DOS LCG / `range()` | `FUN_1d1d_0e04`, `FUN_19ef_0032` | `src/core/dos_rng.c` |
 | Tribe / Brave / satellite placement | `FUN_6a09_*` | `src/core/ai.c` |
 | Indian AI / growth / contact | `FUN_4d56_*` | `ai_indian.c` (growth) + `ai_brave.c` (pulse) + `ai_contact*.c` — see [indians.md](indians.md) |
-| European AI planner | `FUN_521d_*` | `ai_euro*.c` / `ai_goals.c` — flow map [ai_euro_logic_map.yaml](ai_euro_logic_map.yaml); deep −0x6790 matrix still thin |
+| European AI planner | `FUN_521d_*` | `ai_euro*.c` / `ai_goals.c` — flow map [ai_euro_logic_map.yaml](ai_euro_logic_map.yaml); −0x6790 stance table ported (`ai_euro.c`) |
 | Euro diplomacy | `FUN_15b3_*` / `FUN_5bfb_*` | `ai_diplo.c` |
 | King / REF | `FUN_43f7_*` | `ai_king*.c` — see [king_ref.md](../original_sources_annotated/ai/king_ref.md) |
 | Map tile compositor (masks, draw order) | MAPEDIT `FUN_1a47_*` | `src/core/map.c` |

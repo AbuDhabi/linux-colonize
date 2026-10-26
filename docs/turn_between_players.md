@@ -167,7 +167,7 @@ Major thunks (catalog):
 | EURO ship-build ready | `00f2` unit walk | `units_tick_ship_build_ready` | **Partial** — progress/clear construction bit7 + threshold=`defense`/`0x5235` **Done** thin; dialog chrome PARKED |
 | EURO Drydock repair | colony EOT | `units_tick_drydock_repair` | **Done** — clears combat-damage bit7 on finished ships at own Drydock; `@REFIT` chrome Done thin; after ship-build tick |
 | EURO fog reveal | `281f_07a0` in `00f2` | `turn_reveal_fog_for_nation` | **Done** — every Euro nation's unit walk (human at KING, AI at its EURO step), full `13f1_0158` side effects via `units_reveal_sight_w`; colony radius-2 invention removed (DOS reveals ±5 only at founding) |
-| EURO AI | `521d_6d8e` after `00f2` | `ai_euro_nation_turn` | **Partial structural** (T2 early; deep `20e6` mapped/PARKED) |
+| EURO AI | `521d_6d8e` after `00f2` | `ai_euro_nation_turn` | **Done**: four idle campaigns match DOS ([idle_campaign.md](idle_campaign.md)); open: deferred-band tail ([port_plan.md](port_plan.md)) |
 | INDIAN | `4d56_1b3a` mid-pass → `1816(slot)` ×8 | `ai_indian_nation_turn` | **Partial structural** — [`mid_pass_indian_rank.md`](../original_sources_annotated/turn/mid_pass_indian_rank.md); Euro rank `5bfb_00f8` **Done** thin |
 | KING king | `43f7_2424` in `00f2` | `ai_king_nation_turn_2424` (+ `ai_king_human_5e52_tail`; `ai_king_nation_turn` is a test-only wrapper) | **Partial structural** |
 | KING market | `38fd_0058` / `5e52` family | `europe_tick_market_prices` | **Partial** — attrition + colony→`price_group` half + phases 2–3 pressure **Done** thin |
@@ -209,7 +209,9 @@ broke the Dutch TURN2→3 first contact).
 
 ## Open RE
 
-- **`MULTINEXT` / `TIMECHANGE` / `SEASONS`**: string table only — **reconfirmed**
+- **`MULTINEXT`** is shown by `FUN_130d_0290` (ND 0x597E, push 0x0137) in hot-seat
+  mode only (DS:0x5381 bit 0x80; hidden, not ported, [port_plan.md](port_plan.md)).
+- **`TIMECHANGE` / `SEASONS`**: string table only — **reconfirmed**
   no FUN_* XREF ([`mid_pass_indian_rank.md`](../original_sources_annotated/turn/mid_pass_indian_rank.md)).
   Calendar from `@TIMECHANGE` + `130d` year/autumn math.
 - **`FUN_4d56_1816`**: caller resolved (static) — `4d56_1b3a` phase 2 via
@@ -225,8 +227,8 @@ broke the Dutch TURN2→3 first contact).
 - **Deep AI** (`20e6` / `2820` / `4528` / `2154` / `5fef` loot): section-mapped
   under `original_sources_annotated/ai/`. `20e6` land arms (T1.18) and `4528`
   are ported, and `2820` with its haggle (`ai_contact_trade.c`), and `2154`
-  (`ai_contact_meet_economics_2154`); what stays PARKED is the deep −0x6790
-  combat core.
+  (`ai_contact_meet_economics_2154`); the −0x6790 stance table
+  (`ai_euro_refresh_continent_stance`) is ported too.
 - **Nation EOT arms**: ship-build ready (`defense`/`0x5235` combat) + §C Merc
   (+`48d3_0002` duration) **Done** thin; live census colony+unit tallies
   **Done** thin; AI fog reveal **Done** (2026-08-29).

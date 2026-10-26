@@ -201,18 +201,6 @@ bool units_order_trade_route(ColonizeUnitPool* pool, int unit_id);
 /* Despawn unit (map disband). False if missing. */
 bool units_disband(ColonizeUnitPool* pool, int unit_id);
 
-/*
- * Thin Pillage (ORDERS): land military (attack>0) on foreign Euro colony →
- * destroy up to 100 of richest warehouse stock (not Food); no arm off a colony
- * tile (port_bugs.md #631). Spends remaining MP.
- * Cite: MENU.TXT @ORDERS Pillage; full 2b5a mega-dispatch body still thin.
- */
-bool units_pillage_w(
-  const ColonizeWorld* w,
-  int unit_id,
-  char* err,
-  size_t err_size
-);
 /* Wake sentry/fortified/fortify-in-progress and restore full MP. */
 bool units_wake(ColonizeUnitPool* pool, int unit_id);
 /* True if unit skips selection until woken (sentry or fortified). */
