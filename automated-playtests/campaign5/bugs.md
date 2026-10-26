@@ -4,6 +4,11 @@ Numbered C5-Bn (bugs) and C5-On (observations). Severity: high = loses the
 game / blocks play, medium = wrong rules or misleading UI, low = cosmetic or
 driver-only.
 
+Filed 2026-10-26 as port_bugs.md #1270 (O1), #1271 (O4) and #1272 (O5), all
+REFUTED (DOS behaviour). Driver-only: O2 fixed (`field` now refuses native
+land at peace), O3 refuted (the End of Turn option was off; with it on the
+turn waits), B1 fixed.
+
 ## C5-O1 (medium?): an Iroquois brave at peace (alarm 24) killed a lone Scout
 
 - Turn 61 (1553), `bin/opencol.log`: `COMBAT land attacker=Braves (nation 7,

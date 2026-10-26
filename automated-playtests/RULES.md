@@ -47,8 +47,8 @@ Cost = number of calls x context size. Output size matters much less.
   turn's autosave. Reloading does not undo it. Answer it with `choose`.
 - `key Escape` on the main map is refused (it would ask Exit to DOS).
 - `s` or `f` with no selected unit opens the save dialog.
-- Never test colony jobs with `field` on native land. It skips the pay/take
-  prompt and every try raises native alarm (12 to 88 in one campaign).
+- `field` refuses a plot on native land at peace (the game would ask
+  pay/take there). Drag the colonist onto it on the colony screen instead.
 
 ## Driver quirks
 
@@ -59,7 +59,14 @@ Cost = number of calls x context size. Output size matters much less.
   wagons and ships.
 - `endturn` + `auto` plays whole turns while no unit needs orders. Keep one
   unit with no orders as a turn stopper.
-- Sentry in a colony = board the next ship that leaves.
+- Game Options "End of Turn" is off in a new game: the turn then ends by
+  itself as soon as no unit has moves left (DOS rule). Switch it on before
+  war turns: `key g alt`, `click 35 13` (Game Options), `click 105 100`
+  (End of Turn row), `key Return`.
+- Sentry in a colony = board the next ship that leaves. Any own ship or
+  wagon entering the colony wakes every sentried unit there (DOS rule), so
+  sentry them again after the last arrival, right before the ship sails.
+  A ship crossing one of your colonies on Go To unloads its passengers there.
 - Colony screen: outside units stand on the fence row (y about 116-118).
   `hit X Y` names what is at a point. Drag a worker onto the fence (x=140)
   for the role menu; it opens on the current role, so click the row.

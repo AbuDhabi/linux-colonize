@@ -38,6 +38,7 @@
  *   goto ID X Y                 Go To order for unit ID to tile X,Y
  *   colony N                    open colony N's screen (index from `colonies`)
  *   field N CI TILE JOB         colonist CI of colony N onto ring tile TILE (0 N .. 7 NW), field job JOB
+ *                               (refused on native land at peace: the screen asks @INDIANLAND)
  *   work N CI B                 colonist CI of colony N into @BUILDING row B (as `hit` prints)
  *   build N BID [queue]         colony N builds BID (@BUILDING row, or unit code 42 artillery..)
  *   equip UID ROLE              unit UID on a colony tile takes role ROLE (COLONIZE_EJECT_*, 4 dragoon)
@@ -64,6 +65,7 @@
 #include <string.h>
 #include <sys/stat.h>
 
+#include "core/ai_contact.h"
 #include "core/ai_popup.h"
 #include "core/colony_preview.h"
 #include "core/colony_screen.h"
@@ -832,6 +834,22 @@ static bool command(char* line) {
     }
     const int id = g_game->colonies.colonies[a1].id;
     const ColonizeWorld w = game_world(g_game);
+    if (op[0] == 'f') {
+      /* The writer skips the colony screen's @INDIANLAND gate (game_colony_plot_land_gate)
+       * and charges the land-work alarm without asking: refuse a plot whose claim tribe
+       * is at peace, as the screen would ask there (campaign5 C5-O2). */
+      const ColonizeColony* c = &g_game->colonies.colonies[a1];
+      int dx = 0;
+      int dy = 0;
+      const int tribe = colonies_field_tile_delta(atoi(argv[3]), &dx, &dy) && g_game->col1.tribe
+        ? colonies_indian_claim_tribe_from_w(&w, g_game->human_nation, c->x, c->y, c->x + dx, c->y + dy)
+        : -1;
+      if (tribe >= 0 &&
+          ai_contact_indian_has_peace(&g_game->col1, g_game->col1.tribe[tribe].nation_id, g_game->human_nation)) {
+        printf("ERR native land: drag the colonist there on the colony screen (@INDIANLAND)\n");
+        return true;
+      }
+    }
     const bool done = op[0] == 'f' ? colonies_assign_field_w(&w, id, a2, atoi(argv[3]), atoi(argv[4]))
                                    : colonies_assign_workplace(&g_game->colonies, id, a2, atoi(argv[3]));
     if (!done) {
