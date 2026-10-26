@@ -187,7 +187,7 @@ stateDiagram-v2
 
 | Command | When | Expected (DOS) | OpenCol | Status |
 |---------|------|----------------|-------|--------|
-| Pillage | Military on foreign colony / improvements | Full `2b5a` body; menu item often hidden in `0b34` | Thin loot ≤100 richest non-food, colony arm only (DOS has no improvement-destroying pillage; the invented plow/road clear is deleted, port_bugs.md #631); **menu always hidden** (DOS-faithful); API reachable | Partial |
+| Pillage | Military on foreign colony / improvements | Menu item `0x317` always hidden (`FUN_2b5a_0b34`), so the player can never pillage; no improvement-destroying pillage exists (port_bugs.md #631) | **Menu always hidden** (DOS-faithful). `units_pillage_w` keeps an invented colony-loot arm (≤100 richest non-food) reachable only through the API: deletion candidate | Done |
 | Live In Village (4) | — | `@ORDERS` letter **L** | Immediate menu action, no tick | Done 2026-08-28 (`ai_contact_live_among_natives`) |
 
 ---

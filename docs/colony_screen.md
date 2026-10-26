@@ -492,26 +492,50 @@ overrides — and that pin is not arbitrary at all: the screenshot saves
 (`original_saves/colony-prod-tests/COLONY00-dutch2-*`) carry
 `boot_timer = 844481`, and 844481 mod 32768 = **25281**. (Byproduct: the EXE's blacksmith x=7 beat the hand-measured 4.)
 
-## Left unresolved
+## Golden re-check (2026-10-26)
 
-- **Building badge *types* need a from-scratch recheck**: Carpenter showed
-  an unexpected "16". (The Printing Press "82" was a duplicate bell badge;
-  only Town Hall shows bells now, `colony_screen_building_production_badge`.)
-- **People band Food badge extra element**: golden shows a thin gold/olive
-  horizontal bar under the number (native x=2..40, y≈166) — not
-  identified.
-- **Unexplained "2"** between the Food and Crosses meters in the golden's
-  People band (no black box) — matches nothing the port draws.
-- **Units tab style gaps**: roster ordering (Artillery vs Dragoon)
-  reversed vs golden; the golden's active mode-selector indicator style
-  unidentified; Recife's golden has a white square outline on one ocean
-  minimap tile (possibly a captured-moment cursor).
-- **`building_production.md` badge table** had unverified pre-golden
-  claims (SoL exclusion corrected); other rows worth a skim-and-correct
-  pass.
+All six views re-rendered with `render_colony` and compared with the goldens.
+`render_colony` had drawn a phantom "Stockade" hover label (it never called
+`colony_screen_reset_ui`, so `hover_building_row` stayed 0); fixed. A
+2026-09-05 build renders the same as today, so nothing below is a regression.
 
-## Final match quality
+**Closed** (the old "Left unresolved" list):
 
-All six renders match their goldens numerically and stylistically;
-building positions are now DOS-exact via the recovered tables. Remaining
-open items are the isolated details above.
+- **Badge types:** every building badge's number and icon type matches both
+  goldens (New Amsterdam 10 / 10 / 19 / 24 / 16 / 82, Recife 13). The
+  Carpenter's "16" is the colony's hammers; the Production tab reads 16 too.
+- **Food meter "gold bar":** the fish row of DOS's fish/grain split
+  (port_bugs.md #607); the port draws it.
+- **The "2" between Food and Crosses:** DOS's net-food counter (#28); the port
+  draws it.
+- **`building_production.md` badge table:** rewritten since (worker capacity,
+  SoL folded in, bells on Town Hall only).
+
+**Still different from the goldens** (none deliberate, user 2026-10-26;
+filed as port_bugs.md #1274-#1281):
+
+1. **Units tab roster order:** (port_bugs.md #1274) New Amsterdam's golden lists Artillery, then
+   Dragoon; the port lists Dragoon, then Artillery.
+2. **Active tab button:** (port_bugs.md #1275) the golden draws the selected Production / Units /
+   Construction button pressed (inverted bevel); the port draws a green
+   outline. Read off the 2x goldens, not the decomp.
+3. **Exit button:** (port_bugs.md #1276) the golden overlays the word "Exit" (LABELS.TXT line 225)
+   on the E icon; the port draws the icon only.
+4. **Transport header:** (port_bugs.md #1277) the golden reads "Loading: Privateer" with a ship in
+   port and "No Ships In Port" (LABELS.TXT line 26) without one; the port
+   shows "Privateer" or nothing.
+5. **Tory figure:** (port_bugs.md #1278) New Amsterdam's golden (0% Tory) shows no Tory figure;
+   the port draws "0% (0)" and the crown. With Tories present (Recife, 60%)
+   both draw it.
+6. **Building badge width:** (port_bugs.md #1279) the golden packs a building's icons into a short
+   smear beside the number; the port spreads them across the whole building
+   slot. The People band spreads them in both.
+7. **"(Requires 40 Tools)" ink:** (port_bugs.md #1280) light in the golden, dark in the port.
+8. **Recife ocean tile:** (port_bugs.md #1281) the Units and Construction goldens show a white
+   square outline on one ocean tile in the left column of the area view; the
+   Production golden and the port show none. Not identified.
+9. **Pixel level:** the sand backdrop dither and the area view differ pixel
+   by pixel throughout (about 80k of 256k pixels per 2x shot). D4 polish.
+
+Deliberate, player-requested: the Production pane layout (surplus split,
+4-row hammer bar).

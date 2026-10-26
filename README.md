@@ -12,6 +12,11 @@ order: [docs/project_goals.md](docs/project_goals.md).
 
 Version: **0.8-beta-bugfix-1**.
 
+Status: feature-complete. Every rule system of the DOS game is ported from
+the decompiled original, and the game plays from new game through the War of
+Independence. What remains is pixel-exact dialog chrome and a short list of
+small gaps ([docs/port_plan.md](docs/port_plan.md)).
+
 ## Running the game
 
 OpenCol **needs the files of the original DOS Colonization** (graphics,
@@ -42,10 +47,10 @@ Status:
 
 - [docs/architecture.md](docs/architecture.md) — present / intended code architecture
 - [tests/README.md](tests/README.md) — smoke / unit / golden test layout
-- [docs/port_plan.md](docs/port_plan.md) — whole-project work queue + deferred AI track (agents start here)
+- [docs/port_plan.md](docs/port_plan.md) — project status, remaining work, deferred phases (agents start here)
 - [docs/manual_gap.md](docs/manual_gap.md) — feature Done / Partial / Missing
 - [docs/original_index.md](docs/original_index.md) — decomp / data navigation
-- [docs/port_bugs.md](docs/port_bugs.md) - user reported bugs
+- [docs/port_bugs.md](docs/port_bugs.md) — open bugs
 
 Docs map: for conventions, jargon, fixture traps and the verification loop
 see [docs/conventions.md](docs/conventions.md); for debug env vars and

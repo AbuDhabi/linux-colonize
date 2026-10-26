@@ -507,6 +507,14 @@ bool game_select_next_unit_awaiting_orders(ColonizeGameState* game);
 /* FUN_2b5a_3b68 Move Pieces entry (turn start, after a load). */
 void game_move_pieces_entry(ColonizeGameState* game);
 void game_select_unit(ColonizeGameState* game, int unit_id);
+/* Tutorial hints, GAME.TXT @TUTORIAL1-4 / 7-19 (game_tutorial.c). */
+void game_tutorial_piece_selected(ColonizeGameState* game, int unit_id);
+void game_tutorial_landho(ColonizeGameState* game);
+void game_tutorial_colony_opened(ColonizeGameState* game, int colony_id);
+void game_tutorial_colony_assigned(ColonizeGameState* game);
+void game_tutorial_colony_refresh(ColonizeGameState* game);
+void game_tutorial_europe_opened(ColonizeGameState* game);
+bool game_tutorial_europe_cannot_afford(ColonizeGameState* game, int hidx, int cargo);
 void game_set_view_center(ColonizeGameState* game, int x, int y);
 bool game_ship_sail_to_europe(ColonizeGameState* game, int sid);
 void game_track_screen(ColonizeGameState* game);

@@ -462,7 +462,7 @@ void popup_msg_fill(
     return;
   }
   out[0] = '\0';
-  char raw[512];
+  char raw[1024]; /* @TUTORIAL17's body is 766 chars */
   raw[0] = '\0';
   const ColonizeMsgSection* sec =
     (catalog && section_name) ? assets_msg_find(catalog, section_name) : NULL;

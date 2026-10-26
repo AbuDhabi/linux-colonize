@@ -224,8 +224,9 @@ broke the Dutch TURN2→3 first contact).
   [`year_loop.c`](../original_sources_annotated/turn/year_loop.c).
 - **Deep AI** (`20e6` / `2820` / `4528` / `2154` / `5fef` loot): section-mapped
   under `original_sources_annotated/ai/`. `20e6` land arms (T1.18) and `4528`
-  are ported, and `2820` with its haggle (`ai_contact_trade.c`); what stays
-  PARKED is the deep −0x6790 combat core and `2154`.
+  are ported, and `2820` with its haggle (`ai_contact_trade.c`), and `2154`
+  (`ai_contact_meet_economics_2154`); what stays PARKED is the deep −0x6790
+  combat core.
 - **Nation EOT arms**: ship-build ready (`defense`/`0x5235` combat) + §C Merc
   (+`48d3_0002` duration) **Done** thin; live census colony+unit tallies
   **Done** thin; AI fog reveal **Done** (2026-08-29).

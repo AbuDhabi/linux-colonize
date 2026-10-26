@@ -173,6 +173,7 @@ add_library(colonize_ui STATIC
   src/core/game_loop_eot.c
   src/core/game_loop_update.c
   src/core/game_dialogs.c
+  src/core/game_tutorial.c
   src/core/fb.c
   src/core/font.c
   src/core/pik.c
@@ -981,6 +982,11 @@ endforeach()
 
 colonize_add_test(NAME unit_stage_seams
   SOURCES tests/unit/test_stage_seams.c tests/common/platform_cursor_stubs.c
+  LIBS colonize_core
+)
+
+colonize_add_test(NAME unit_tutorial_hints
+  SOURCES tests/unit/test_tutorial_hints.c tests/common/platform_cursor_stubs.c
   LIBS colonize_core
 )
 

@@ -272,6 +272,7 @@ Tags may also be built at runtime by `strcat` (`KINGGALLEON`+`2`/`3`).
 | `0x1add` | `TRADENOWANT` | y |
 | `0x1ae9` | `TRADEWITH` | y |
 | `0x1af3` | `NOWARSDURINGREV` | y |
+| `0x1b08` | `PICKACARGO` | y |
 | `0x1b13` | `LOOTCAPTURE` | y |
 | `0x1b1f` | `WAGONCAPTURE` | y |
 | `0x1b2c` | `COLONISTCAPTURE2` | y |

@@ -172,7 +172,7 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@WAGONCAPTURE` | Done | wagon nation-flip capture |
 | `@COLONISTCAPTURE` | Done | Euro winner captures Colonists only (not Pioneer) |
 | `@COLONISTCAPTURE2` | Done | capture + strip Veteran specialty |
-| `@CARGOCAPTURE` | Done | wagon holds present |
+| `@CARGOCAPTURE` | Done | one per hold lifted in the ship-vs-ship plunder while `DS:0xa154` is set (`units_plunder_ship_holds`, `FUN_5fef_0352` raw 99505-99512; human-involved fights only); a hold picked from `@PICKACARGO` raises none. Wagon capture never raises it (port_bugs.md #790) |
 | `@DEMOTE` | Done | type demote (Soldier→Colonist, …) nation + unit + status |
 | `@SEIZURE` | Done | `AI_POPUP_TAG_COMBAT_SEIZURE` privateer body |
 | `@SEIZURESEA` | Done | Crown naval → Royal Navy; Privateer uses custom body |
@@ -205,9 +205,9 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@CAPTURED` | Done | Euro colony conquest with plunder |
 | `@CAPTURED2` | Done | spies report (AI capturer) |
 | `@CAPTURED3` | Done | conquest without plunder amount |
-| `@BURNED` | Missing | Euro-vs-Euro colony burn only (DOS `5fef_1b0e` `uVar16<4 && uVar15<4` arm); the port has no Euro burn path yet — native burns use `@INDIANBURNCOLONY` |
-| `@BURNED2` | Missing | Ambiguous vs `@BURNED3` (no distinct trigger identified); left unwired |
-| `@BURNED3` | Missing | Euro-vs-Euro bystander twin of `@BURNED` (DOS tag `0x1c37` in the both-Euro arm); the native bystander uses `@INDIANBURNCOLONY2` instead |
+| `@BURNED` | Dead (DOS) | Euro-vs-Euro colony burn arm (`5fef_1b0e` `uVar16<4 && uVar15<4`) is unreachable — static read 2026-10-26: `FUN_5fef_1b0e` sets its burn flag `local_c` in two places only, a destroyed village (raw 100661) and a last-colonist colony taken by a native attacker (raw 100712), so the both-Euro arm's `local_c != 0` test never passes. Native burns use `@INDIANBURNCOLONY` |
+| `@BURNED2` | Dead (DOS) | Same unreachable both-Euro arm as `@BURNED` |
+| `@BURNED3` | Dead (DOS) | Bystander twin of `@BURNED` (tag `0x1c37`) in the same unreachable both-Euro arm; the native bystander uses `@INDIANBURNCOLONY2` |
 | `@EUROPEWIN` | Done | `{atk_nation} defeat {def_nation def_unit} near {place}!` |
 | `@EUROPELOSE` | Done | `{def_nation def_unit} defeat(s) {atk_nation} near {place}!` |
 | `@WAREHOUSEFULL` | Done thin | ship→colony unload when no room; spoilage remains `@SPOIL*` |
@@ -330,7 +330,7 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@NATION2B` | Done | nation lore pages |
 | `@NATION3A` | Done | nation lore pages |
 | `@NATION3B` | Done | nation lore pages |
-| `@PICKACARGO` | Missing | trade Edit uses thin multi-select; not full PICKACARGO |
+| `@PICKACARGO` | Done | "Which cargo shall we capture?" — naval plunder pick, `FUN_5fef_016c` raw 99209-99287 (tag loaded by `LEA AX,[0x1b08]` at 5fef:01de, which Ghidra drops). Asked of a human winner each plunder pass while its free holds (`FUN_2a1f_01a0`) are fewer than the loser's cargo holds. Rows: `DS:0x2dfa` = LABELS `@MISC[32]` (value 99) first, then `<amount> <cargo>` per hold (value hold + 1). 99 ends the plunder; a hold row takes that hold and clears `DS:0xa154` (no `@CARGOCAPTURE` that pass); Esc (`FUN_6f74_2580` returns -1, i.e. < 1) takes hold 0 with the notice. A computer winner takes its most valuable hold. Port: `units_plunder_ask_human` (`units_combat_resolve.c`), `AI_POPUP_TAG_PLUNDER_PICK`, answered inside the combat popup pump; headless (no pump) takes hold 0. Test: `unit_units_core naval_plunder_pick` |
 | `@CUSTOM` | Done | customize wizard |
 | `@CONTINENTAL` | Done | combat promotion ladder (`units_promote_on_win`, FUN_5fef_172c) — Veteran + WoI mobilization → Cont. Army/Cav, `ai_popup_enqueue_ok` |
 | `@VETERAN` | Done | combat promotion ladder (`units_promote_on_win`) — Free Colonist w/ musket body → Veteran Soldier |
@@ -410,7 +410,7 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@PICKINDEPENDENCE` | Done | slot / music dialogs |
 | `@PICKMILITARY` | Done | slot / music dialogs |
 | `@PICKINDIAN` | Done | slot / music dialogs |
-| `@UPKEEP` | Missing | production/EOT messages — status or silent; no modal |
+| `@UPKEEP` | Dead tag | GAME.TXT-only: no `UPKEEP` string in VICEROY.EXE (`strings`, 2026-10-26), so DOS never raises it |
 | `@MOBILIZE` | Done thin | `FUN_43f7_1eca` single-unit promote — `ai_king_war.c` `ai_king_war_act` `popup_msg_fill`; VGA PARKED |
 | `@MOBILIZE2` | Done thin | `FUN_43f7_1eca` multi-unit promote — `ai_king_war.c` `ai_king_war_act` `popup_msg_fill`; VGA PARKED |
 | `@CANTMOBILIZE` | n/a | `FUN_43f7_1eca` (viceroy_unpacked.c 74910-74968) never emits this tag: the only messages it sends are 0x132d/0x1336 (`@MOBILIZE`/`@MOBILIZE2`) when `local_a != 0`; the `local_a == 0` (no muskets) fall-through is silent in DOS, and no other decompiled function references this section — dead GAME.TXT text, not ported |
@@ -479,25 +479,25 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@KEEPSTOCKADE` | Done | stockade min-pop OK message |
 | `@MORETHANTHREE` | Done | building-slot-full OK (§4; not stockade min-pop — that's `@KEEPSTOCKADE`) |
 | `@LOOTWAGONS` | Dead tag | GAME.TXT-only: absent from VICEROY.EXE's DS (only `LOOT`/`LOOT2`/`LOOTCASH`/`LOOTCAPTURE`/`LOOTFOREIGN` exist, and no bare `WAGONS` to assemble one from). DOS reports `@INDIANWIN0` for a native-killed Wagon Train (`units_combat.c`); nothing to port. |
-| `@TUTORIAL1` | Missing | tutorial hints missing |
-| `@TUTORIAL2` | Missing | tutorial hints missing |
-| `@TUTORIAL3` | Missing | tutorial hints missing |
-| `@TUTORIAL4` | Missing | tutorial hints missing |
+| `@TUTORIAL1` | Done | piece-selected chain `FUN_2b5a_0070` (overlay twin `FUN_OVL02_L0000__000070`, viceroy_overlays.c 55378; ndisasm 0x20fb5): turn 0 on Discoverer, %STRING0 = @UNIT name, MSS0; latch DS:0x5386 bit 4 (`tut2.nr1`). `game_tutorial.c` |
+| `@TUTORIAL2` | Done | `FUN_2b5a_001e` raw 40207, tail of the land-ho handler once the New World is named (`game_dialogs.c` LANDHO result); no latch of its own (named_new_world makes it once per game) |
+| `@TUTORIAL3` | Done | chain `FUN_2b5a_0070` (ndisasm 0x21160): pioneers, no colony yet, land not hills/mountains, no colony of any nation adjacent, open sea (region 1) next door, >4 food tiles in the 3x3 (+1 for a continent under 7 tiles) and a special resource; %STRING0 = its cargo. Latch DS:0x5386 bit 6 (`tut2.nr3`) |
+| `@TUTORIAL4` | Done | colony bring-up `FUN_2f2b_6cd4` raw 56026-56052 (`game_enter_colony`): %STRING0 = @CARGO row of colonist 0's occupation (Carpenter → Hammers; DOS-literal, so a Fisherman reads row 8), %STRING1 = the last other cargo his plot yields, else Food. Latch DS:0x5386 bit 7 (`tut2.nr4`) |
 | `@TUTORIAL5` | Done | first dock immigrant with tutorial hints on, once (`DS:0x5387` bit 0, `turn_colony.c`) |
 | `@TUTORIAL6` | Done | after the first cargo-ready colony event, once (`DS:0x5387` bit 1, `turn_production.c`) |
-| `@TUTORIAL7` | Missing | tutorial hints missing |
-| `@TUTORIAL8` | Missing | tutorial hints missing |
-| `@TUTORIAL9` | Missing | tutorial hints missing |
-| `@TUTORIAL10` | Missing | tutorial hints missing |
-| `@TUTORIAL11` | Missing | tutorial hints missing |
-| `@TUTORIAL12` | Missing | tutorial hints missing |
-| `@TUTORIAL13` | Missing | tutorial hints missing |
-| `@TUTORIAL14` | Missing | tutorial hints missing |
-| `@TUTORIAL15` | Missing | tutorial hints missing |
-| `@TUTORIAL16` | Missing | tutorial hints missing |
-| `@TUTORIAL17` | Missing | tutorial hints missing |
-| `@TUTORIAL18` | Missing | tutorial hints missing |
-| `@TUTORIAL19` | Done | `FUN_2b5a_001e` (viceroy_unpacked.c 42006-42009): once per game on selecting an Indian Convert, latch DS:0x5380 bit 0x80 (`tut1.nr19`). Ported 2026-09-23 at the tail of `game_select_unit` (port_bugs.md #730) |
+| `@TUTORIAL7` | Done | tail of the assign function `FUN_2f2b_2f3e` raw 50389-50394 (viceroy_overlays.c 59047): an accepted field / building / jobs-list / leave-as assignment in a colony of >2 with no Stockade bit; %STRING0 = colony. Latch DS:0x5387 bit 2 (`tut3.nr7`). The four other decomp copies (raw 48231, 64043, 65598, 66433) are Ghidra inlining; the EXE has one `push 0xc99` |
+| `@TUTORIAL8` | Done | chain `FUN_2b5a_0070` (ndisasm 0x21358): a Free Colonist (0x1c, read as @JOB row 0x13) or Indentured Servant once any tribe is met (`relation_by_indian & 0x20`); %STRING0 = @JOB name. Latch DS:0x5387 bit 3 (`tut3.nr8`) |
+| `@TUTORIAL9` | Done | chain `FUN_2b5a_0070` (ndisasm 0x213f2): pioneers whose nearest colony is their own and adjacent, on a roadless, settlement-free forest / hill / mountain tile. Latch DS:0x5387 bit 4 (`tut3.nr9`) |
+| `@TUTORIAL10` | Done | chain `FUN_2b5a_0070` (ndisasm 0x2148c): the same pioneers on an unplowed tile of open land (class 2..5), or a forest over open land after turn 16 next to a colony with no open land and ≥2 forests around it. Latch DS:0x5387 bit 5 (`tut3.nr10`) |
+| `@TUTORIAL11` | Done | chain `FUN_2b5a_0070` (ndisasm 0x21004): an empty ship alone on its tile before turn 20; %STRING0 = @UNIT name, %STRING1 = @HOMEPORT. Latch DS:0x5387 bit 6 (`tut3.nr11`) |
+| `@TUTORIAL12` | Done | colony bring-up `FUN_2f2b_6cd4` raw 56056-56072, after @TUTORIAL4: a ship in the colony's tile chain; %STRING0 = colony. Latch DS:0x5387 bit 7 (`tut3.nr12`) |
+| `@TUTORIAL13` | Done | chain `FUN_2b5a_0070` (ndisasm 0x21082): pioneers ashore before turn 20 with no colony. Latch DS:0x5380 bit 0 (`tut1.nr13`) |
+| `@TUTORIAL14` | Done | chain `FUN_2b5a_0070` (ndisasm 0x210cc): soldiers ashore before turn 20, MSS1. Latch DS:0x5380 bit 1 (`tut1.nr14`) |
+| `@TUTORIAL15` | Done | chain `FUN_2b5a_0070` (ndisasm 0x2110c): a colonist standing in a colony before turn 40; %STRING0 = colony. Latch DS:0x5380 bit 3 (`tut1.nr15`) |
+| `@TUTORIAL16` | Done | colony-screen refresh `FUN_2f2b_2d90` raw 49357-49364 (`LEA BX,[0xbad]`, ndisasm 0x286f6): food gross below the pop×2 demand (DS:0x8e32 / 0x8e5a nonzero). The port polls it while the colony screen is idle (`game_update_colony_screen`). Latch DS:0x5380 bit 4 (`tut1.nr16`) |
+| `@TUTORIAL17` | Done | European Status bring-up `FUN_38fd_55b6` raw 68158-68164 (`LEA BX,[0x1129]`): %STRING0 = @HOMEPORT, %STRING1 = country phrase (FUN_291f_0ac8 form 0), %STRING2 = New World name (player +0x18). Latch DS:0x5380 bit 5 (`tut1.nr17`) |
+| `@TUTORIAL18` | Done | market buy `FUN_38fd_1fa2` raw 60435-60455 (`LEA BX,[0xfdb]`): the full load (hold room, ≤100) costs more than the treasury → the buy is refused (status: cargo and cost) and a plain drag adds this; %STRING0 = cargo, %NUMBER0 = price, %NUMBER1 = gold. **No option gate, no latch**: every such drag. Shift arm: port_bugs.md #1018 |
+| `@TUTORIAL19` | Done | chain `FUN_2b5a_0070` (ndisasm 0x215d4, raw 42006-42017): selecting an Indian Convert. Latch DS:0x5380 bit 7 (`tut1.nr19`); ported 2026-09-23 (port_bugs.md #730), now behind the chain's option gate |
 | `@TUTNOLUMBER` | Done | port_bugs.md #684: `FUN_281f_0652(0x9d9, 3)` at asm `0x2278a`, difficulty `byte [0x53a6] < 2` only, when no tile of the 9-tile site scan has terrain class 8..0x17. 2-choice; only answer 2 ("Build colony anyway") continues |
 | `@TUTNOSPACES` | Done | port_bugs.md #684: `FUN_281f_0652(0x9cd, 3)` at asm `0x22772`, difficulty `byte [0x53a6] < 2` only, when the 9-tile productive counter is below 4. 2-choice; only answer 2 continues |
 | `@KINGLOSE` | Done | WoI won — full-screen throne audience (KINGLSS1 + KINGLOSE.SS, FUN_75c2_20e2); dismissal plays the CLOSING.EXE cinematic (`closing.c`) then the retire score |

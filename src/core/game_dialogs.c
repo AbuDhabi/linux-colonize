@@ -227,6 +227,7 @@ bool game_try_enter_europe(ColonizeGameState* game) {
     sizeof(game->europe.status),
     "Home port ready. Recruit / Train / S Sail / Esc."
   );
+  game_tutorial_europe_opened(game);
   game_track_screen(game);
   diag_info(
     "EUROPE opened: gold=%d tax=%d%% harbor=%d docks=%d",
@@ -2092,6 +2093,7 @@ static void game_apply_name_entry_result(ColonizeGameState* game) {
       col1_bridge_mark_new_world_discovered(&game->col1, game->human_nation);
     }
     snprintf(game->status, sizeof(game->status), "New land: %s", name);
+    game_tutorial_landho(game); /* FUN_2b5a_001e tail: @TUTORIAL2 */
   } else if (!game->name_entry.result_cancelled) {
     ColonizeColony* col =
       colonies_get_mut(&game->colonies, game->name_entry.result_colony_id);
@@ -3382,6 +3384,10 @@ static bool game_apply_popup_combat_and_gifts(ColonizeGameState* game) {
   if (game->ai_popups.result_tag == AI_POPUP_TAG_BREWSTER_PICK) {
     const ColonizeWorld w = game_world(game);
     (void)units_brewster_apply_popup_ex_w(&w, &game->ai_popups);
+    ai_popup_consume_result(&game->ai_popups);
+  return true;
+  }
+  if (units_plunder_pick_apply_popup(&game->ai_popups)) {
     ai_popup_consume_result(&game->ai_popups);
   return true;
   }

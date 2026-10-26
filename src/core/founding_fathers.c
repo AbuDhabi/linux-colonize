@@ -1126,7 +1126,7 @@ static void apply_effect(
     case FF_PETER_STUYVESANT:
       /* Manual/wiki: unlock Custom House — gated via has_peter_stuyvesant.
        * Auto-sell: europe_custom_house_autosell from turn_produce (FUN_364b_0688
-       * stock>99 leave 50; FUN_364b_0636 denylist). Per-cargo UI PARKED. */
+       * stock>99 leave 50; FUN_364b_0636 denylist). */
       break;
     case FF_JAN_DE_WITT:
       /* docs/fandom_col1994.md: trade with foreign colonies; FA more revealing.

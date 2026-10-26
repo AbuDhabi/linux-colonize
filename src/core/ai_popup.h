@@ -28,11 +28,13 @@
 /* One TURN_PROC_SETUP slice queues every colony's production chrome at once
  * (starve/spoil/built/…) before the blocking presenter can drain any of it.
  * DOS shows each popup inline, so none is ever lost (port_bugs.md #1077): size the
- * queue so a 48-colony empire cannot fill it in one turn (~1.2 KB a slot;
+ * queue so a 48-colony empire cannot fill it in one turn (~1.7 KB a slot;
  * the state lives in the heap-allocated game state). */
 #define AI_POPUP_QUEUE_MAX 1024
 #define AI_POPUP_CHOICE_MAX 8 /* @TRADEWHICH: up to 6 holds + "never mind" */
-#define AI_POPUP_BODY_LEN 512
+/* GAME.TXT's longest popup bodies (@TUTORIAL17 766 chars before substitution,
+ * @TUTORIAL13 569, @TUTORIAL7 545, @KINGGALLEON3 535) overran 512. */
+#define AI_POPUP_BODY_LEN 1024
 #define AI_POPUP_TITLE_LEN 64
 /* Keep ≥ POPUP_MSG_CHOICE_LEN (GAME.TXT @DECLARE Never… is 53 chars). */
 #define AI_POPUP_CHOICE_LEN 64
@@ -218,6 +220,12 @@ typedef enum AiPopupTag {
                                  * @EUROPESHIPOPTIONS. nation_a = harbor index; choice
                                  * ids are the DOS row ids 1 Move to front, 2 Set sail,
                                  * 3 Unload all cargo, 4 No changes (Esc = no change). */
+  ,
+  AI_POPUP_TAG_PLUNDER_PICK = 75 /* FUN_5fef_016c @PICKACARGO (DS:0x1b08): which of the
+                                 * beaten ship's holds a human winner takes. Row 99 =
+                                 * LABELS @MISC[32], then choice ids hold + 1. Answered
+                                 * inside the combat popup pump; the result goes to
+                                 * units_plunder_pick_apply_popup. */
 } AiPopupTag;
 
 typedef struct AiPopupRequest {
@@ -523,6 +531,10 @@ bool ai_popup_present_now(AiPopupState* st, AiPopupTag tag);
  * that detour closes, rather than losing its place to whatever else queued up.
  */
 bool ai_popup_move_tag_to_front(AiPopupState* st, AiPopupTag tag);
+
+/* Remove the newest queued request with `tag` unopened: a blocking question
+ * the sim stopped waiting for (its pump could not run). */
+bool ai_popup_drop_tag(AiPopupState* st, AiPopupTag tag);
 
 /* Cancel the OPEN dialog as if Esc was pressed (result_cancelled for a CHOICE). */
 void ai_popup_cancel_current(AiPopupState* st);

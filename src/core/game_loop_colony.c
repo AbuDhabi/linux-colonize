@@ -199,6 +199,7 @@ void game_enter_colony(ColonizeGameState* game, int cid) {
    * into place the first time the colony is opened.
    */
   game_colony_reveal_new_building(game, cid, reveal_bid);
+  game_tutorial_colony_opened(game, cid); /* 6cd4 raw 56026-56070: @TUTORIAL4 / @TUTORIAL12 */
   if (diag_info_enabled() && col) {
     const char* project = "-";
     if (col->building_in_production >= 0 &&
@@ -344,6 +345,7 @@ void game_colony_finish_eject(
     game->status, sizeof(game->status), "Left as %s", colonies_eject_role_name(role)
   );
   colony_screen_set_status(csv, game->status);
+  game_tutorial_colony_assigned(game); /* leave-as picks go through 2f3e too (291f_054c) */
 }
 
 /* Returns true if eject was handled (done, blocked, or confirm opened). */
@@ -812,6 +814,7 @@ void game_colony_assign_building_drop(ColonizeGameState* game, int building_inde
       snprintf(
         game->status, sizeof(game->status), "Assigned to %s", bt ? bt->name : ""
       );
+      game_tutorial_colony_assigned(game);
     } else {
       game_colony_workplace_refusal(game, ci, building_index);
     }
@@ -975,6 +978,7 @@ void game_colony_area_tile_drop(
   if (game_colony_assign_field(game, ci, tile_index, job)) {
     game_colony_assign_job_sound(job);
     snprintf(game->status, sizeof(game->status), "Working as %s", colony_yield_job_name(job));
+    game_tutorial_colony_assigned(game);
   } else {
     set_status(game, "Cannot assign field", NULL);
   }
@@ -1159,6 +1163,7 @@ void game_colony_commit_job(ColonizeGameState* game, ColonizeColony* colony, int
     if (colonies_assign_workplace(&game->colonies, game->colony_view_id, ci, building)) {
       game_colony_assign_job_sound(job);
       snprintf(game->status, sizeof(game->status), "Working as %s", colonies_profession_name(job));
+      game_tutorial_colony_assigned(game);
     } else {
       game_colony_workplace_refusal(game, ci, building);
     }
@@ -1185,6 +1190,7 @@ void game_colony_commit_job(ColonizeGameState* game, ColonizeColony* colony, int
     if (ok) {
       game_colony_assign_job_sound(job);
       snprintf(game->status, sizeof(game->status), "Working as %s", colony_yield_job_name(job));
+      game_tutorial_colony_assigned(game);
     } else {
       set_status(game, "Cannot assign field", NULL);
     }
@@ -1557,6 +1563,8 @@ bool game_europe_drag_drop(ColonizeGameState* game, int mx, int my, bool shift) 
         /* Shift+drag: @HOWMUCH4 amount entry instead of a full 100 load
          * (same prompt as the keyboard path). */
         game_europe_open_buy_prompt_for(game, hidx, drag->index);
+      } else if (hidx >= 0 && game_tutorial_europe_cannot_afford(game, hidx, drag->index)) {
+        /* FUN_38fd_1fa2: a full load the treasury cannot pay is refused (@TUTORIAL18). */
       } else if (hidx >= 0) {
         const ColonizeWorld w = game_world(game);
         europe_buy_cargo_w(&w, game->human_nation, hidx, drag->index, drag->amount > 0 ? drag->amount : 100);

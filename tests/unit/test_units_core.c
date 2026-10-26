@@ -1,5 +1,6 @@
 #include "test_units_common.h"
 #include "core/units_internal.h"
+#include "core/ai_popup_render.h"
 
 #include "../common/test_runner.h"
 
@@ -2330,6 +2331,165 @@ static int case_naval_hold_plunder(void) {
     }
   fx_close();
   return 0;
+}
+
+  /* @PICKACARGO (FUN_5fef_016c) test pump: answers each menu with the next
+   * scripted value (-1 = Esc) and dismisses everything else, counting the
+   * @CARGOCAPTURE notices it sees. */
+static AiPopupState g_pick_pops;
+static const int* g_pick_script;
+static int g_pick_menus;
+static int g_pick_notices;
+static int g_pick_first_ids[AI_POPUP_CHOICE_MAX];
+static int g_pick_first_rows;
+static bool g_pick_body_ok;
+
+static void pick_pump(void* user) {
+  (void)user;
+  while (ai_popup_try_present_next(&g_pick_pops)) {
+    const AiPopupRequest* cur = &g_pick_pops.current;
+    if (cur->tag == AI_POPUP_TAG_PLUNDER_PICK) {
+      if (g_pick_menus == 0) {
+        g_pick_first_rows = cur->choice_count;
+        memcpy(g_pick_first_ids, cur->choice_ids, sizeof(g_pick_first_ids));
+        g_pick_body_ok = test_body_is_section(cur->body, "PICKACARGO");
+      }
+      const int a = g_pick_script[g_pick_menus++];
+      ai_popup_finish(&g_pick_pops, a < 0, a);
+      (void)units_plunder_pick_apply_popup(&g_pick_pops);
+    } else {
+      if (test_body_is_section(cur->body, "CARGOCAPTURE")) {
+        g_pick_notices++;
+      }
+      ai_popup_finish(&g_pick_pops, false, 0);
+    }
+    ai_popup_consume_result(&g_pick_pops);
+  }
+}
+
+/* Human (nation 0) ship of type `wty` beats a Merchantman holding sugar 40,
+ * tobacco 50, furs 60 in its first `nholds` holds. got[] = winner's goods by
+ * cargo after the plunder. */
+static int plunder_pick_run(int wty, int nholds, const int* script, int* got) {
+  int wx = -1;
+  int wy = -1;
+  for (int y = 0; y < map.height && wx < 0; ++y) {
+    for (int x = 0; x < map.width; ++x) {
+      if (map_tile_is_water(&map, x, y) && units_id_at(&pool, x, y) < 0) {
+        wx = x;
+        wy = y;
+        break;
+      }
+    }
+  }
+  const int lty = units_find_type(&pool, "Merchantman");
+  if (wx < 0 || wty < 0 || lty < 0) {
+    fprintf(stderr, "plunder pick setup failed\n");
+    return 1;
+  }
+  const int wid = units_spawn_allow_stack(&pool, wty, wx, wy);
+  const int lid = units_spawn_allow_stack(&pool, lty, wx, wy);
+  ColonizeUnit* w = units_get(&pool, wid);
+  ColonizeUnit* l = units_get(&pool, lid);
+  if (!w || !l) {
+    fprintf(stderr, "plunder pick spawn failed\n");
+    return 1;
+  }
+  w->nation_id = 0;
+  l->nation_id = 1;
+  const int cargo[3] = {COLONIZE_CARGO_SUGAR, COLONIZE_CARGO_TOBACCO, COLONIZE_CARGO_FURS};
+  const int amt[3] = {40, 50, 60};
+  for (int i = 0; i < nholds; ++i) {
+    (void)units_load_goods(&pool, lid, cargo[i], amt[i]);
+  }
+  ai_popup_init(&g_pick_pops);
+  g_pick_script = script;
+  g_pick_menus = 0;
+  g_pick_notices = 0;
+  g_pick_first_rows = 0;
+  g_pick_body_ok = false;
+  units_set_combat_popups(&g_pick_pops, test_game_txt());
+  units_set_combat_human_nation(0);
+  units_set_combat_popup_pump(pick_pump, NULL);
+  (void)units_plunder_ship_holds(&pool, wid, lid, NULL, 1);
+  units_set_combat_popup_pump(NULL, NULL);
+  units_set_combat_human_nation(-1);
+  units_set_combat_popups(NULL, NULL);
+  /* The last pass's notice is still queued: the combat pumps it later. */
+  for (int q = 0; q < g_pick_pops.queue_count; ++q) {
+    if (test_body_is_section(g_pick_pops.queue[q].body, "CARGOCAPTURE")) {
+      g_pick_notices++;
+    }
+  }
+  memset(got, 0, sizeof(int) * COLONIZE_CARGO_COUNT);
+  w = units_get(&pool, wid);
+  for (int h = 0; w && h < COLONIZE_UNIT_CARGO_MAX; ++h) {
+    if (w->hold_goods_amount[h] > 0) {
+      got[w->hold_goods_type[h]] += w->hold_goods_amount[h];
+    }
+  }
+  units_despawn(&pool, wid);
+  units_despawn(&pool, lid);
+  return 0;
+}
+
+static int case_naval_plunder_pick(void) {
+  if (fx_open() != 0 || fx_stage2() != 0) {
+    return 1;
+  }
+  const int galleon = units_find_type(&pool, "Galleon");
+  const int privateer = units_find_type(&pool, "Privateer");
+  int got[COLONIZE_CARGO_COUNT];
+  int rc = 0;
+  /* Room (6) >= holds (3): hold 0 each pass, no menu, a notice per hold. */
+  static const int none[1] = {0};
+  if (plunder_pick_run(galleon, 3, none, got) != 0) {
+    return 1;
+  }
+  if (g_pick_menus != 0 || g_pick_notices != 3 || got[COLONIZE_CARGO_SUGAR] != 40 ||
+      got[COLONIZE_CARGO_TOBACCO] != 50 || got[COLONIZE_CARGO_FURS] != 60) {
+    fprintf(stderr, "room>=holds: menus=%d notices=%d\n", g_pick_menus, g_pick_notices);
+    rc = 1;
+  }
+  /* Room (2) < holds (3): menu ("Nothing" = 99, then holds 1..3), asked again
+   * at room 1 < 2. Picked rows raise no notice. */
+  static const int pick[2] = {3, 1};
+  if (plunder_pick_run(privateer, 3, pick, got) != 0) {
+    return 1;
+  }
+  if (g_pick_menus != 2 || g_pick_notices != 0 || !g_pick_body_ok || g_pick_first_rows != 4 ||
+      g_pick_first_ids[0] != 99 || g_pick_first_ids[1] != 1 || g_pick_first_ids[3] != 3 ||
+      got[COLONIZE_CARGO_FURS] != 60 || got[COLONIZE_CARGO_SUGAR] != 40 ||
+      got[COLONIZE_CARGO_TOBACCO] != 0) {
+    fprintf(
+      stderr, "pick: menus=%d notices=%d rows=%d body=%d furs=%d sugar=%d\n", g_pick_menus,
+      g_pick_notices, g_pick_first_rows, g_pick_body_ok, got[COLONIZE_CARGO_FURS],
+      got[COLONIZE_CARGO_SUGAR]
+    );
+    rc = 1;
+  }
+  /* Esc = FUN_6f74_2580's -1, < 1: hold 0 with the notice, asked again. */
+  static const int esc[2] = {-1, -1};
+  if (plunder_pick_run(privateer, 3, esc, got) != 0) {
+    return 1;
+  }
+  if (g_pick_menus != 2 || g_pick_notices != 2 || got[COLONIZE_CARGO_SUGAR] != 40 ||
+      got[COLONIZE_CARGO_TOBACCO] != 50 || got[COLONIZE_CARGO_FURS] != 0) {
+    fprintf(stderr, "esc: menus=%d notices=%d\n", g_pick_menus, g_pick_notices);
+    rc = 1;
+  }
+  /* "Nothing" (99): the plunder ends, nothing taken. */
+  static const int nothing[1] = {99};
+  if (plunder_pick_run(privateer, 3, nothing, got) != 0) {
+    return 1;
+  }
+  if (g_pick_menus != 1 || g_pick_notices != 0 || got[COLONIZE_CARGO_SUGAR] != 0 ||
+      got[COLONIZE_CARGO_TOBACCO] != 0 || got[COLONIZE_CARGO_FURS] != 0) {
+    fprintf(stderr, "nothing: menus=%d notices=%d\n", g_pick_menus, g_pick_notices);
+    rc = 1;
+  }
+  fx_close();
+  return rc;
 }
 
   /* Treasure train spawn: value lives in DOS +0x315b (profession) = gold/100
@@ -7603,6 +7763,7 @@ static const TestCase k_cases[] = {
   {"land_combat_t0", case_land_combat_t0},
   {"follow_unit", case_follow_unit},
   {"naval_hold_plunder", case_naval_hold_plunder},
+  {"naval_plunder_pick", case_naval_plunder_pick},
   {"treasure_train_spawn", case_treasure_train_spawn},
   {"treasure_ship_holds", case_treasure_ship_holds},
   {"ship_sentry_boarder_gate", case_ship_sentry_boarder_gate},

@@ -166,6 +166,10 @@ static bool run(void) {
     return fail("colony screen did not open after the found woodcut");
   }
   render("colony screen");
+  /* On Discoverer the bring-up raises @TUTORIAL4 (FUN_2f2b_6cd4) over the screen. */
+  while (game_modal_open(g_game) || game_ai_popup_pending(g_game)) {
+    if (!dismiss_modal()) return fail("colony bring-up hint");
+  }
   if (!frame(COLONIZE_KEY_ESCAPE)) return fail("leave colony");
   while (game_modal_open(g_game) || game_ai_popup_pending(g_game)) {
     if (!dismiss_modal()) return fail("post-colony modal");
@@ -177,6 +181,10 @@ static bool run(void) {
   if (!frame(COLONIZE_KEY_E)) return fail("E key");
   if (!game_in_europe_screen(g_game)) return fail("Europe screen did not open");
   render("Europe screen");
+  /* ... and the European Status bring-up @TUTORIAL17 (FUN_38fd_55b6). */
+  while (game_modal_open(g_game) || game_ai_popup_pending(g_game)) {
+    if (!dismiss_modal()) return fail("Europe bring-up hint");
+  }
   if (!frame(COLONIZE_KEY_ESCAPE)) return fail("leave Europe");
   if (game_in_europe_screen(g_game)) return fail("Europe screen did not close on Esc");
 

@@ -675,6 +675,7 @@ COLONIZE_INTERNAL GameUpdateStep game_update_services(ColonizeGameState* game, c
     game->in_europe = true;
     game->europe.open_on_dock = false;
     sound_set_bgm(3);
+    game_tutorial_europe_opened(game);
   }
 
   /*
@@ -2058,6 +2059,7 @@ COLONIZE_INTERNAL GameUpdateStep game_update_colony_screen(ColonizeGameState* ga
       colony_screen_refresh_transports(csv, &game->units, colony);
     }
     game_service_colony_bar(game);
+    game_tutorial_colony_refresh(game); /* FUN_2f2b_2d90: @TUTORIAL16 */
     /* The Units-pane focus lives only on the Units tab: every DOS tab switch turns it into
      * the colonist focus (FUN_2f2b_6372 raw 55565-55566, 55594-55596; raw 51475-51477). */
     if (csv->focus == COLONY_FOCUS_UNITS && csv->multi_mode != COLONY_MULTI_UNITS) {

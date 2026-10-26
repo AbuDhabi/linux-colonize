@@ -60,6 +60,7 @@ int main(int argc, char** argv) {
     fprintf(stderr, "colony_screen_load failed: %s\n", err);
     return 1;
   }
+  colony_screen_reset_ui(&view); /* no selection, no hover label */
   view.multi_mode = (ColonyMultiMode)multi_mode;
   /* DS:0x8d80 layout seed = the save's own boot tick (port_bugs.md #578). */
   colony_screen_set_layout_seed(&view, rs.save.post_map.boot_timer);

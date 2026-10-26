@@ -536,7 +536,7 @@ Deep mechanics: [combat.md](combat.md).
 |---------------------|------|--------|------|
 | Combat Analysis (options bit) | After strengths, before roll; human side | Done | DOS `636c` layout: 214-wide frame, per-column header (chrome + type name + baseline right-aligned), label/±N% split rows at 20px pitch; gated by `combat_analysis` |
 | `@LOOT*` / `@LOOTCAPTURE` / `@LOOTCASH` | Combat loot / treasure capture | Done | `@LOOT` treasure + `@LOOT2` burn Done; `@LOOTCAPTURE` treasure capture-alive (`FUN_5fef_0352` raw 99392-99413) Done; `@LOOTCASH` Europe fleet cash-in (`units_king_galleon_credit` / `europe_cash_treasure_passengers`) Done — see section 9 |
-| `@CAPTURED*` / `@BURNED*` / `@SHIPDAMAGE` / `@SHIPSUNK` | Capture / burn / naval | Done (`@BURNED*` Missing) | Colony `@CAPTURED*`; ship damage/sunk. `@BURNED` / `2` / `3` (the Euro-vs-Euro burn arm of `FUN_5fef_1b0e`) are never raised: no port path (known_divergences.md #1082) |
+| `@CAPTURED*` / `@BURNED*` / `@SHIPDAMAGE` / `@SHIPSUNK` | Capture / burn / naval | Done | Colony `@CAPTURED*`; ship damage/sunk. `@BURNED` / `2` / `3` (the Euro-vs-Euro burn arm) are unreachable in DOS too — static read 2026-10-26: `FUN_5fef_1b0e` sets its burn flag `local_c` in two places only, a destroyed village (raw 100661) and a last-colonist colony taken by a native attacker (raw 100712), so the both-Euro arm's `local_c != 0` test never passes |
 | `@COLONISTCAPTURE*` / `@WAGONCAPTURE` / `@CARGOCAPTURE` | Unit / wagon capture | Done | Structural combat popups; treasure uses `@LOOTCAPTURE` |
 | `@EUROPEWIN` / `@EUROPELOSE` | Euro combat outcome | Done | `{atk} defeat {def nation unit} near {place}!` / reverse; LABELS defeat/defeats |
 | `@DEMOTE` | Specialty strip / demote | Done | `@DEMOTE` with nation/unit/status tokens |
@@ -563,14 +563,15 @@ The `GAMEOPTIONS` dialog persists all eight Col1 flags. End of Turn,
 Autosave, and Combat Analysis are active. Show Indian Moves and Show
 Foreign Moves now watch nearby AI tile steps during interactive end-turn
 processing; Fast Piece Slide shortens the tile-step interval. Water Color
-Cycling and Tutorial Hints remain persisted flags only until final polish.
+Cycling rotates the map's water palette (settings.md); Tutorial Hints gates the
+`@TUTORIAL*` hints (§11).
 
 ### 11. Discovery / tutorial / woodcuts
 
 | Popup / `@SECTION`s | When | Status | Port |
 |---------------------|------|--------|------|
 | `@LOSTCITY1`…`9`, `@BURIAL*`, `@SCREWED` | Lost City / ruins | Done thin | `units_resolve_lcr_rumour`; @LOSTCITY4 Search/Stay-clear CHOICE live for the human (`AI_POPUP_TAG_LCR_BURIAL`, port_bugs.md #956) and the payout block runs from its result; native-attack combat resolve on `@SCREWED` PARKED (50/50 despawn stand-in) |
-| `@TUTORIAL1`…`19`, `@TUT*` | Tutorial hints option | Partial | Wired: `@TUTORIAL5` (first dock immigrant, `turn_colony.c`), `@TUTORIAL6` (first cargo-ready, `turn_production.c`), `@TUTORIAL19` (first Convert selected, `game_loop_orders.c`), `@TUTNOLUMBER` / `@TUTNOSPACES` (Build Colony, `game_dialogs.c`); the other `@TUTORIAL*` are Missing |
+| `@TUTORIAL1`…`19`, `@TUT*` | Tutorial hints option | Done | Every hint has its DOS site; per-tag gates and latches in [popups_catalog.md](popups_catalog.md). `game_tutorial.c`: the piece-selected chain `FUN_2b5a_0070` (1, 11, 13, 14, 15, 3, 8, 9, 10, 19 in DOS order, at most one per activation, run on a click-select and on every rotation pick), land-ho `@TUTORIAL2`, colony bring-up 4 / 12, colony assign 7, colony refresh 16 (food short), Europe bring-up 17, Europe buy refusal 18 (no option gate, no latch). Elsewhere: `@TUTORIAL5` (`turn_colony.c`), `@TUTORIAL6` (`turn_production.c`), `@TUTNOLUMBER` / `@TUTNOSPACES` (Build Colony, `game_dialogs.c`). The GAME.TXT `@x` / `@y` / `@smallfont` directives of these sections are not applied (ai_popup reads neither) |
 | `WOODCUT.TXT` captions | Discovery woodcut scenes | Done | [`woodcut.c`](../src/core/woodcut.c) — `FUN_12fd_006c` once-only gate (DS:`0x540a` = `event` + `unknown05`) + tune table, `FUN_6f30_0062` presenter (WOODFRAM.SS frame, WDCUT`nn`.SS art, NAMEPLAT.SS 3-piece plate, FONT-NP.FF caption). Wired ids: 1 new world (land sighted, `FUN_4720_049e`), 2 building a colony (`479b:0950`), 3/4/5 natives/Aztec/Inca (`5bfb:038a`, by tribe tech class), 6 Pacific (`13f1:0280`), 7 entering a village (`4d56:478a`), 8 Fountain of Youth (`65dd:04a9`), 9 cargo from the New World (`48d3:08bf`, a ship docks in Europe with goods), 10 meeting fellow Europeans (`5bfb:15cf`, MET bit still clear), 11 colony burning + 13 Indian raid (`5fef`). Id 12 COLONY DESTROYED has art but **no** call site in the shipped EXE; ids 14-16 have captions but no art; 17-25 are demo-autoplay only |
 
 ### 12. Cheats (`DEBUG.TXT`)

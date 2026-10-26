@@ -320,7 +320,8 @@ int europe_cargo_export_eligible(int cargo_type) {
 
 static int europe_custom_house_bit_enabled(uint16_t bits, int cargo_type) {
   /*
-   * bits==0 → nothing configured yet, sell nothing (per-cargo UI PARKED —
+   * bits==0 → nothing configured yet, sell nothing (per-cargo toggles are the
+   * colony-screen Custom House checkbox rows, colony_screen_popups.c —
    * see fandom_col1994.md Custom House: sells a "configured" cargo type,
    * not everything by default). Player-confirmed 2026-08-16 (real DOS
    * COLONY00/01_no-transports.SAV pair, colony-prod-tests): a real save

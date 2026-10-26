@@ -164,6 +164,9 @@ void units_set_combat_popup_pump(ColonizeUnitsPopupPumpFn fn, void* user);
 /* Present-and-answer queued popups now via the registered pump (no-op when
  * headless). port_bugs.md #237: popup before animation, each blocking. */
 void units_pump_combat_popups(void);
+/* FUN_5fef_016c @PICKACARGO: hand the answered AI_POPUP_TAG_PLUNDER_PICK
+ * result to the plunder loop waiting on the pump. False for any other tag. */
+bool units_plunder_pick_apply_popup(const AiPopupState* popups);
 
 /*
  * DOS entry seizure: apply FUN_5fef_0352's loss outcome to every foreign

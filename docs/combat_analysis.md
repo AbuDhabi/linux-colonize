@@ -211,7 +211,7 @@ spawn + fort VGA chrome.
 
 | Gap | Where |
 |-----|-------|
-| Village raid / settlement deep `2820` + VGA | `ai_contact.c`, [move_enter.md](move_enter.md), [indians.md](indians.md) |
+| Village raid / settlement VGA chrome (`2820` logic is ported, `ai_contact_trade.c`) | `ai_contact.c`, [move_enter.md](move_enter.md), [indians.md](indians.md) |
 | Deep Euro combat −0x6790 — **still open**; the explore ring and the rest of the `20e6` land arms shipped 2026-08-27 (`port_plan.md` T1.18), so only the combat core is left here | `ai_euro.c` / [move_scoring_land.md](../original_sources_annotated/ai/move_scoring_land.md) |
 | Fort-fire temp unit + camera / VGA chrome | `units_coastal_fort_fire_pulse_w` |
 | VGA-identical combat chrome | — |

@@ -715,6 +715,7 @@ void game_finish_end_turn(ColonizeGameState* game, const ColonizeTurnResult* res
     game->in_europe = true;
     game->europe.open_on_dock = false;
     sound_set_bgm(3); /* FUN_75c2_2778: Europe pool */
+    game_tutorial_europe_opened(game);
   }
   if (result && result->year_end_defeat) {
     snprintf(game->status, sizeof(game->status), "Defeat: no colonies remain.");
@@ -876,6 +877,9 @@ bool game_select_next_unit_awaiting_orders(ColonizeGameState* game) {
      * mission-burn roll inside the pioneer work tick, a behaviour change. */
     w.rng = NULL;
     if (turn_rotation_lasting_step_w(&w, u, &game->ai_popups, &game->messages)) {
+      /* The rotation's pick is DOS's FUN_2b5a_0e52 activation, which runs the
+       * piece-selected tutorial chain (raw 42330-42332). */
+      game_tutorial_piece_selected(game, game->units.selected_id);
       return true;
     }
   }

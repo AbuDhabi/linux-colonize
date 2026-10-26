@@ -51,7 +51,7 @@ Status: **Done** / **Partial** / **Missing** / **PARKED**.
 | Mover | Occupant | DOS (`465b`) | OpenCol | Status |
 |-------|----------|--------------|-------|--------|
 | Any | Same nation | Stack | Stack | Done |
-| Land combat (`5236≠0` / attack>0) | Foreign land unit | Fight → `5fef_1b0e` | `157e` strength + combat analysis | Partial |
+| Land combat (`5236≠0` / attack>0) | Foreign land unit | Fight → `5fef_1b0e` | `157e` strength + combat analysis | Done |
 | Land non-combat (`5236==0`) | Foreign unit | Bounce (+ optional dialog) | Bounce via probe | Done |
 | Combat unit | Foreign Euro unit or colony at peace | Treaty bit `0x40` → @HAVETREATY (Cancel Action / Break Treaty); no treaty → the attack proceeds silently and only the mover's `0x01` drops; a `0x40` in the peer's row alone gives @CANCELPEACE and WARs that row (`ai_diplo_465b_band_ctx`, raw 75558-75595, port_bugs.md #1256/#1258); a Privateer on either side asks nothing (raw 75528-75560) | `ai_contact_try_euro_attack_confirm` (human, `game_loop_orders.c`) | Done |
 | Ship | Foreign ship | Naval fight path | Naval `157e_004a` + analysis | Done |
@@ -66,7 +66,7 @@ Status: **Done** / **Partial** / **Missing** / **PARKED**.
 | Mover | Tile | DOS | OpenCol | Status |
 |-------|------|-----|-------|--------|
 | Land | Own colony | Stack / join | Enter | Done |
-| Land | Foreign Euro + defender | Combat | Combat | Partial |
+| Land | Foreign Euro + defender | Combat | Combat | Done |
 | Land | Empty foreign Euro | Capture / Revere | Capture-on-enter + Revere | Done (thin) |
 | Land settler | Native village (no colony) | Illegal squat | Deny | Done |
 | Missionary / combatish | Native village | Meet / raid | Meet from adjacent (stay put): real `@ACTIONS` menu per unit type, met or not (P8.8; the invented unmet-tribe Attack/Leave warn is deleted, port_bugs.md #542); combatish Attack Village commits the move; `2820` trade + haggle in `ai_contact_trade.c` | Done |

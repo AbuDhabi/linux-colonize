@@ -21,6 +21,7 @@
 #include "core/founding_fathers.h"
 #include "core/popup_msg.h"
 #include "core/reports.h"
+#include "core/reports_names.h"
 #include "core/sound.h"
 #include "core/strutil.h"
 #include "core/unit_chrome.h"
@@ -597,18 +598,90 @@ void units_dos_sort_1cf8(uint16_t* k, int* order, int n) {
   }
 }
 
+/* @PICKACARGO answer, filled by units_plunder_pick_apply_popup from inside
+ * the combat popup pump; -2 = not answered. */
+static int s_plunder_pick = -2;
+
+bool units_plunder_pick_apply_popup(const AiPopupState* popups) {
+  if (!popups || popups->result_tag != AI_POPUP_TAG_PLUNDER_PICK) {
+    return false;
+  }
+  /* FUN_291f_016a = FUN_6f74_2580 returns -1 on Esc (docs/dos_bugs.md DB-55). */
+  s_plunder_pick = popups->result_cancelled ? -1 : popups->result_choice_id;
+  return true;
+}
+
+/*
+ * DOS-LITERAL FUN_5fef_016c raw 99234-99269 (asm 5fef:01de-02d7), the human
+ * winner's arm. FUN_291f_0182 opens GAME.TXT @PICKACARGO (`LEA AX,[0x1b08]`,
+ * dropped by Ghidra); its first row is FUN_281f_0022(DS:0x2dfa) = LABELS
+ * @MISC[32] with value 99, then one "<amount> <cargo>" row per loser hold
+ * (281f_0182 number, 0178 " ", 016e DS:0x97c0 name) with value hold + 1.
+ * FUN_291f_016a's answer: 99 returns -1 (no hold, the plunder ends); < 1,
+ * Esc included, returns hold 0 with DS:0xa154 still set; a hold row returns
+ * that hold and clears DS:0xa154 (*notice). Headless (no pump) the menu
+ * cannot be answered and hold 0 is taken, as on Esc.
+ */
+static int units_plunder_ask_human(const ColonizeUnit* lose, const int* live, int n, int* notice) {
+  if (!g_units_combat_popups || !g_units_popup_pump) {
+    return 0;
+  }
+  char labels_buf[AI_POPUP_CHOICE_MAX][AI_POPUP_CHOICE_LEN];
+  const char* labels[AI_POPUP_CHOICE_MAX];
+  int ids[AI_POPUP_CHOICE_MAX];
+  const char* nothing = reports_labels_field("MISC", 32);
+  snprintf(labels_buf[0], sizeof(labels_buf[0]), "%s", nothing ? nothing : "");
+  ids[0] = 99;
+  int rows = 1;
+  for (int k = 0; k < n && rows < AI_POPUP_CHOICE_MAX; ++k) {
+    snprintf(
+      labels_buf[rows], sizeof(labels_buf[rows]), "%d %s", units_unit_hold_amount(lose, live[k]),
+      reports_cargo_display_name(lose->hold_goods_type[live[k]])
+    );
+    ids[rows++] = k + 1;
+  }
+  for (int r = 0; r < rows; ++r) {
+    labels[r] = labels_buf[r];
+  }
+  char body[AI_POPUP_BODY_LEN];
+  popup_msg_fill(g_units_combat_game_txt, "PICKACARGO", NULL, "", body, sizeof(body));
+  if (!ai_popup_enqueue_choice_ctx(
+        g_units_combat_popups, AI_POPUP_TAG_PLUNDER_PICK, lose->nation_id, -1, 0, NULL, body,
+        labels, ids, rows
+      )) {
+    return 0;
+  }
+  s_plunder_pick = -2;
+  units_combat_pump_popups();
+  if (s_plunder_pick == -2) {
+    /* The pump could not run (nested): never leave the question behind. */
+    (void)ai_popup_drop_tag(g_units_combat_popups, AI_POPUP_TAG_PLUNDER_PICK);
+    return 0;
+  }
+  if (s_plunder_pick == 99) {
+    return -1;
+  }
+  if (s_plunder_pick < 1) {
+    return 0;
+  }
+  *notice = 0;
+  return s_plunder_pick - 1;
+}
+
 /*
  * DOS-LITERAL FUN_5fef_0352 raw 99496-99515: while the winner has room
  * (FUN_4720_0006) it takes the hold FUN_5fef_016c picks, out of the loser
- * through 317c (0aec) and into the winner through 30b8 (0d58). 016c takes
- * hold 0 when every hold fits; otherwise a computer winner takes its most
+ * through 317c (0aec) and into the winner through 30b8 (0d58); with param_3
+ * (show_popups) and DS:0xa154 set, each pass raises @CARGOCAPTURE (0x1b69).
+ * 016c takes hold 0 when every hold fits; otherwise a human winner picks from
+ * @PICKACARGO (units_plunder_ask_human) and a computer winner takes its most
  * valuable one, price byte DS:0x84bc[winner nation][cargo] * amount sorted
  * by FUN_1cf8_000a, last element (america2 save 39: a French Privateer took
- * a Dutch Merchantman's sugar before its horses). DOS asks a human winner;
- * the port gives the human hold 0.
+ * a Dutch Merchantman's sugar before its horses).
  */
 int units_plunder_ship_holds(
-  ColonizeUnitPool* pool, int winner_id, int loser_id, const ColonizeCol1Save* col1
+  ColonizeUnitPool* pool, int winner_id, int loser_id, const ColonizeCol1Save* col1,
+  int show_popups
 ) {
   if (!pool || winner_id < 0 || loser_id < 0 || winner_id == loser_id) {
     return 0;
@@ -638,7 +711,15 @@ int units_plunder_ship_holds(
       break;
     }
     int pick = 0;
-    if (room < n && wn != g_units_combat_human_nation) {
+    int notice = 1; /* DS:0xa154 */
+    if (room < n && wn == g_units_combat_human_nation) {
+      pick = units_plunder_ask_human(lose, live, n, &notice);
+      win = units_get(pool, winner_id);
+      lose = units_get(pool, loser_id);
+      if (pick < 0 || !win || !lose) {
+        break;
+      }
+    } else if (room < n) {
       uint16_t key[COLONIZE_UNIT_CARGO_MAX];
       int order[COLONIZE_UNIT_CARGO_MAX];
       for (int k = 0; k < n; ++k) {
@@ -657,6 +738,22 @@ int units_plunder_ship_holds(
     const int ctype = lose->hold_goods_type[live[pick]];
     const int amt = units_remove_goods_slot(lose, live[pick]);
     moved += units_load_goods(pool, winner_id, ctype, amt);
+    if (show_popups && notice) {
+      /* raw 99505-99512: loser adjective, 0x8dc4 amount, cargo name, winner
+       * adjective + type name. */
+      const ColonizeUnitType* wt = units_type(pool, win->type_index);
+      PopupMsgTokens tok;
+      memset(&tok, 0, sizeof(tok));
+      tok.string0 = units_combat_nation_label(col1, lose->nation_id);
+      tok.number0 = amt;
+      tok.has_number0 = true;
+      tok.string1 = reports_cargo_display_name(ctype);
+      tok.string2 = units_combat_nation_label(col1, wn);
+      tok.string3 = wt ? wt->name : "";
+      units_combat_enqueue_tok(
+        AI_POPUP_TAG_COMBAT_CAPTURE, "CARGOCAPTURE", wn, lose->nation_id, amt, &tok, ""
+      );
+    }
   }
   return moved;
 }

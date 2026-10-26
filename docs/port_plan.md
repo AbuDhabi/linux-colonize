@@ -1,22 +1,49 @@
-# Whole-Project Port Plan — Playability-First Work Queue
+# Whole-Project Port Plan — Status and Remaining Work
 
-**Reframed 2026-08-24.** The project goal for this phase is **playability**: a
-human can start a game, build an economy, trade with Europe, deal with the
-natives, declare independence, fight the War of Independence and win — with
-the UI, reports, popups and music good enough that none of it feels like a
-placeholder. DOS-exact rival AI, 1:1 Indian AI, seed determinism with DOS (dropped as a goal
-2026-10-23, see [project_goals.md](project_goals.md) "Determinism"), pixel-exact
-art and full-fidelity music are **explicitly deferred** (see "Deferred
-phases" below).
+**History.** Reframed 2026-08-24 around **playability** (a human can start a
+game, build an economy, trade with Europe, deal with the natives, declare
+independence, fight the War of Independence and win, with nothing feeling like
+a placeholder); that bar was met 2026-09-03. Rival and Indian AI were then
+ported to logic level (deferred track, done 2026-09-08). Seed determinism with
+DOS was dropped as a goal 2026-10-23 ([project_goals.md](project_goals.md)
+"Determinism"). Music was accepted as done by the user (D5 closed); pixel-exact
+art stays deferred (D4 below).
 
-**Current posture (2026-10-24):** playability tracks **P1–P11 are closed**
-(final user passes 2026-09-03) and the deferred AI track is **done**: D1 closed
-2026-09-07g, D2 closed at logic level 2026-09-08, D3 dropped as a goal
-2026-10-23 (its goldens and the four idle campaigns — `golden_idle_continuous`,
-`golden_idle_independence`, `golden_idle_america`, `golden_idle_america2`,
-[idle_campaign.md](idle_campaign.md) — stay as regression gates). The only
-remaining phases are **D4** (pixel chrome) and **D5** (music timbre). Open work
-is the [port_bugs.md](port_bugs.md) queue (OPEN rows only).
+**Current posture (2026-10-26): the port is feature-complete.** Every rule
+system of the DOS game is ported from the decomp and plays end to end (the
+few exceptions are under "Remaining work"):
+playability tracks **P1–P11 are closed** (final user passes 2026-09-03), the
+deferred AI track is **done** (D1 closed 2026-09-07g, D2 closed at logic level
+2026-09-08, D3 dropped as a goal 2026-10-23). Evidence:
+
+- Four idle campaigns matched real DOS saves exactly over their spans and stay
+  as ctest gates: `golden_idle_continuous` (1492–1599),
+  `golden_idle_independence`, `golden_idle_america`, `golden_idle_america2`
+  ([idle_campaign.md](idle_campaign.md)), plus `golden_idle_reload`
+  (save/reload determinism).
+- Five headless playtest campaigns (`play_driver`,
+  [automated-playtests/RULES.md](../automated-playtests/RULES.md)) each won the
+  War of Independence, all four nations, one per difficulty from Discoverer
+  to Viceroy; every bug they found is fixed or refuted (#1234–#1272).
+- [port_bugs.md](port_bugs.md) had no OPEN rows on 2026-10-26 (the docs
+  review that day filed #1273-#1281); the pending-verification archive was emptied
+  into [archive/bugs_closed.md](archive/bugs_closed.md) the same day.
+
+What is left is small and listed under "Remaining work" below, plus the
+deferred polish phase **D4** (pixel chrome).
+
+## Remaining work (2026-10-26)
+
+Not bugs in shipped features. Each is a known, bounded gap:
+
+| Item | What is missing | Where |
+|------|-----------------|-------|
+| Euro AI combat core | The `−0x6790` nation×continent stance table is a thin stand-in, and the `20e6` attack/step scoring is still thin/structural (`mil_contact` = thin, `move_loop` = structural in the logic map). Logic everywhere else is `dos` | [ai_euro_logic_map.yaml](ai_euro_logic_map.yaml), [combat_analysis.md](combat_analysis.md#parked) |
+| 153e ally-pick prompt | The prompt line above the ally list has no resolved GAME.TXT id, so the list shows without it (#988) | `ai_diplo.c` |
+| Hall of Fame file | Stored as port `HOF.TXT`; DOS `HALLFAME.DAT` is not read or written | [reports_score.md](reports_score.md) |
+| Hot-seat multiplayer | DOS carries hot-seat turn code (gated on DS:0x5381 bit 0x80, `@MULTINEXT` / `@MULTIREV`); not ported | [popups.md](popups.md) |
+| Dead port arm | ORDERS Pillage is hidden unconditionally in DOS and the port (`FUN_2b5a_0b34`), but `units_pillage_w` still carries an invented colony-loot arm; unreachable from the UI, candidate for deletion | `units_move.c` |
+| [port_bugs.md](port_bugs.md) | OPEN rows | — |
 
 **Old citations.** `port_plan P<n>.<m>`, the old "How an agent should use this
 file" section and the closed D1/D2/D3/D6 rows: [archive/port_plan_p1_p11_2026-10-24.md](archive/port_plan_p1_p11_2026-10-24.md).
@@ -100,8 +127,12 @@ ends:
   pins the tick as VR_SEED does.
 - **P6.1** The market rise/fall threshold sheds `±100` unconditionally; only
   the ±1 bid step is range-gated.
-- **P6.2 / P6.3** No `@BOYCOTT*` and no `@NOGOLD*` section; DOS has no "can't
-  afford" modal (the silent clamp to `gold/ask` is faithful).
+- **P6.2 / P6.3** No `@BOYCOTT*` and no `@NOGOLD*` section. Corrected
+  2026-10-26: the market-to-ship drag (`FUN_38fd_1fa2` raw 60434-60455)
+  does **not** clamp to `gold/ask`; it refuses a full load the treasury can't
+  pay, shows the cargo and cost on the status line, and a plain drag adds
+  `@TUTORIAL18` (no option gate, every time). Other buy entry points were not
+  re-checked.
 - **P6.4** The 4-row Europe dock equip menu was invented; DOS is
   `@ARMOPTIONS` (12 rows).
 - **P6.5** DOS trade routes do auto-buy at Europe (`FUN_479b_0bd0`: sell the
@@ -133,9 +164,9 @@ ends:
 | # | Deferred | Where it lives | Minimum-thin rule |
 |---|----------|----------------|-------------------|
 | D4 | Pixel-perfect graphics / VGA-identical chrome (dialogs, TRADE/FA editors, king letter). Congress F3 plates are **Done** to goldens; `DECLARAT.PIK` is unused leftover (signing uses DECOIND.PIK) | old W5.1–W5.3, T5.x | Content + layout correct (P2, P11); frames may stay port-drawn |
-| D5 | Fully faithful music (SC-55 timbre parity, per-driver quirks) | [assets_sound.md](assets_sound.md), [music.md](music.md) | P3 "passable" bar |
 
-D1 (rival Europeans), D2 (Indian AI 1:1) and D6 (COLDIG SFX) are closed and D3
+D1 (rival Europeans), D2 (Indian AI 1:1), D5 (music: the user judged it done;
+confirmed again 2026-10-26) and D6 (COLDIG SFX) are closed and D3
 (known-seed determinism) is dropped as a goal; their rows are in the archive
 file above. Also parked: MAPEDIT catalog track (old W5.4).
 
@@ -143,9 +174,10 @@ file above. Also parked: MAPEDIT catalog track (old W5.4).
 
 Done. History, `FUN_*` inventory and the full method notes:
 [archive/port_plan_deferred_ai_track.md](archive/port_plan_deferred_ai_track.md).
-What remains AI-side is D4 chrome: T5.1 VGA-identical dialog chrome
-(meet/diplo/king wood frames, FA `3f41` widget body) and T5.3 F3 Congress
-portrait-grid polish (blocked on material not in the repo).
+What remains AI-side is the Euro AI combat core ("Remaining work" above) and D4
+chrome: T5.1 VGA-identical dialog chrome (meet/diplo/king wood frames, FA
+`3f41` widget body) and T5.3 F3 Congress portrait-grid polish (blocked on
+material not in the repo).
 
 ## Updating this file
 

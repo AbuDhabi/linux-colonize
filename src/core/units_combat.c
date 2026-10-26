@@ -2111,7 +2111,7 @@ int units_apply_naval_loss_outcome(
      * is FUN_281f_08c6 = FUN_1427_03a0: the winning hull goes to the oldest
      * end of its tile chain, cargo or not (tr9 save 11, Frigate at (53,56)). */
     units_sink_under_tile(pool, win);
-    (void)units_plunder_ship_holds(pool, winner_id, loser_id, col1);
+    (void)units_plunder_ship_holds(pool, winner_id, loser_id, col1, human);
   }
   units_ship_lose_holds(pool, loser_id);
 

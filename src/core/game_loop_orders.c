@@ -155,25 +155,9 @@ void game_select_unit(ColonizeGameState* game, int unit_id) {
    * The Naval report's passenger column deliberately reads the profession
    * instead (port_bugs.md #605), which is a separate, port-side extension. */
   snprintf(game->status, sizeof(game->status), "Selected %s", units_display_name(&game->units, u));
-  /*
-   * DOS-LITERAL FUN_2b5a_001e raw 42006-42009 (overlay twin
-   * FUN_OVL02_L0000__000070, overlays.c 55586-55590) — port_bugs.md #730. Tail of
-   * the piece-selected hint chain: with DS:0x5380 bit 0x80 clear and the
-   * piece being @UNIT type 0 with @JOB 0x1b (Indian Convert), raise
-   * FUN_1000_8842(0x912, 4) = @TUTORIAL19 and latch the bit. Once per game;
-   * it does not block anything. The latch is COL1 head tut1 bit7 (nr19), so
-   * it round-trips through the save.
-   */
-  if (game->col1_ok && !game->col1.head.tut1.nr19 &&
-      units_type_kind(units_type(&game->units, u->type_index)) == UNITS_KIND_COLONIST &&
-      u->profession == UNITS_JOB_CONVERT) {
-    game->col1.head.tut1.nr19 = 1;
-    PopupMsgTokens ttok;
-    memset(&ttok, 0, sizeof(ttok));
-    char body[AI_POPUP_BODY_LEN];
-    popup_msg_fill(&game->messages, "TUTORIAL19", &ttok, "", body, sizeof(body));
-    ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
-  }
+  /* FUN_2b5a_0e52 raw 42330-42332: the piece-selected tutorial hint chain
+   * FUN_2b5a_0070 (@TUTORIAL1 ... @TUTORIAL19, port_bugs.md #730). */
+  game_tutorial_piece_selected(game, unit_id);
 }
 
 static bool game_friendly_colony_at(const ColonizeGameState* game, int x, int y) {

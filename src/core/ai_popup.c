@@ -438,6 +438,17 @@ bool ai_popup_move_tag_to_front(AiPopupState* st, AiPopupTag tag) {
   return true;
 }
 
+bool ai_popup_drop_tag(AiPopupState* st, AiPopupTag tag) {
+  if (!ai_popup_move_tag_to_front(st, tag)) {
+    return false;
+  }
+  for (int j = 1; j < st->queue_count; ++j) {
+    st->queue[j - 1] = st->queue[j];
+  }
+  st->queue_count--;
+  return true;
+}
+
 bool ai_popup_present_now(AiPopupState* st, AiPopupTag tag) {
   if (!st || st->open || st->has_result || st->queue_count <= 0) {
     return false;
@@ -598,6 +609,8 @@ static const char* ai_popup_tag_name(AiPopupTag tag) {
       return "OVERBOARD_WHICH";
     case AI_POPUP_TAG_EUROPE_SHIP_MENU:
       return "EUROPE_SHIP_MENU";
+    case AI_POPUP_TAG_PLUNDER_PICK:
+      return "PLUNDER_PICK";
   }
   return "UNKNOWN";
 }

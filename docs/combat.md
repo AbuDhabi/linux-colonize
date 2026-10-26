@@ -272,7 +272,7 @@ Village **attack** empty-tile defense is **Done** thin (`units_spawn_village_tem
 DOS `FUN_5fef_1b0e` spawns a phantom Brave (Armed / Mtd. from nation muskets /
 `horse_breeding>24`), fights, undoes the phantom, then `population--` or destroy
 when `population < 2`. Killing a map Brave on the tile does **not** burn the
-dwelling. Human `4528` `@ACTIONS` arm **Done** (P8.8). Deep `4528` mid-body / VGA still **PARKED**.
+dwelling. Human `4528` `@ACTIONS` arm **Done** (P8.8); the AI arm is ported too. Only VGA chrome is left (D4).
 
 ---
 
@@ -307,8 +307,7 @@ frames, so out-of-sight or in-colony fights stay instant.
     raw 99435-99436): winner not a hull AND neither tile water, else the gun is
     destroyed outright with no @ARTILLERY popup. No moves write on damage (#757).
   - **Capture** (Euro winner only, `attack>0`): Colonists / Treasure / Wagon →
-    nation flip + `@COLONISTCAPTURE*` / `@LOOTCAPTURE` / `@WAGONCAPTURE` /
-    `@CARGOCAPTURE`. Veteran Colonist specialty stripped → `@COLONISTCAPTURE2`.
+    nation flip + `@COLONISTCAPTURE*` / `@LOOTCAPTURE` / `@WAGONCAPTURE`. Veteran Colonist specialty stripped → `@COLONISTCAPTURE2`.
     **Natives never capture.** Disqualifiers (raw 99381-99383, port_bugs.md #663):
     a losing hull (type 0xd..0x12) or either tile ocean/high seas → destroy.
   - **Type demote** (keep nation): Dragoon→Soldier, Soldier→Colonist,
@@ -383,7 +382,8 @@ Combat loss remaps **unit type** (not merely profession). Cite:
   (`FUN_5bfb_312e` viceroy 98448 reads unit `+0x3150` raw, and that byte counts
   goods holds only — passengers never bump it; corrected 2026-09-09.)
 - Both ships → `units_plunder_ship_holds` (`FUN_5fef_016c`) runs BEFORE the
-  damage/sink split; the loser's holds are then zeroed either way (goods not
+  damage/sink split (a human winner with fewer free holds than the loser has
+  cargo holds picks from `@PICKACARGO`; see [popups_catalog.md](popups_catalog.md)); the loser's holds are then zeroed either way (goods not
   lifted vanish, passengers are lost — `units_ship_lose_holds`).
 - **The roll is then overridden by `units_naval_damage_gate`** (DOS
   `FUN_5fef_0352` raw 99527-99570, port_bugs.md #867): an unarmed hull goes through
