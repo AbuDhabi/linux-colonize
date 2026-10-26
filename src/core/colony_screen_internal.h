@@ -259,7 +259,12 @@ void colony_screen_draw_transports(
   ColonyScreenView* view,
   const ColonizeUnitPool* units,
   const ColonizeFont* font,
+  const ColonizeMsgCatalog* labels,
   ColonizeFramebuffer8* framebuffer
+);
+void colony_screen_text_centred(
+  const ColonizeFont* font, ColonizeFramebuffer8* framebuffer, int x, int w, int y,
+  const char* s, uint8_t ink
 );
 void colony_screen_draw_vline(
   ColonizeFramebuffer8* framebuffer,

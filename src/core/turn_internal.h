@@ -166,10 +166,6 @@ const char* turn_year_end_leader_name(const ColonizeCol1Save* col1, int nation);
 void turn_year_end_rival_popup(
   ColonizeTurnContext* ctx, const char* tag, const PopupMsgTokens* tok, const char* fallback
 );
-void turn_year_end_anniversary(
-  ColonizeTurnContext* ctx, ColonizeTurnResult* out, uint16_t year, int splash_done,
-  int woi_latched
-);
 void turn_year_end_era_end(
   ColonizeTurnContext* ctx, ColonizeTurnResult* out, uint16_t year, int splash_done,
   int woi_latched

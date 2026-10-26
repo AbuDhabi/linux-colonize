@@ -97,45 +97,6 @@ COLONIZE_INTERNAL void turn_year_end_rival_popup(
   popup_chrome_ok(ctx->ai_popups, ctx->messages, tag, tok, fallback);
 }
 
-COLONIZE_INTERNAL void turn_year_end_anniversary(
-  ColonizeTurnContext* ctx, ColonizeTurnResult* out, uint16_t year, int splash_done,
-  int woi_latched
-) {
-  /* Section E anniversary (0x6fe=1790, 0x730=1840) — status only; gate 5382|0x10.
-   * Spring-only: DOS wraps the block in `*(int *)0x538c == 0` (raw :58619).
-   * `((year==0x6fe && !woi) || year==0x730)` is raw :58620 verbatim. */
-  if (!splash_done && ((year == 0x6feu && !woi_latched) || year == 0x730u) &&
-      ctx->status && ctx->status_size > 0 && !out->year_end_defeat &&
-      !out->year_end_victory &&
-      !(ctx->game_autumn && *ctx->game_autumn != 0)) {
-    const int d =
-      (ctx->col1_ok && ctx->col1) ? (int)ctx->col1->head.difficulty : -1;
-    /* NAMES.TXT @DIFFICULTY (audit theme D). */
-    const char* dname = (d >= 0 && d <= 4) ? reports_difficulty_title(d) : NULL;
-    if (dname) {
-      snprintf(
-        ctx->status,
-        ctx->status_size,
-        "Anniversary year %u (%s).",
-        (unsigned)year,
-        dname
-      );
-    } else {
-      snprintf(
-        ctx->status,
-        ctx->status_size,
-        "Anniversary year %u.",
-        (unsigned)year
-      );
-    }
-    if (ctx->ai_popups) {
-      popup_chrome_ok(
-        ctx->ai_popups, ctx->messages, year == 0x6feu ? "WARN1" : "WARN2", NULL, ctx->status
-      );
-    }
-  }
-}
-
 COLONIZE_INTERNAL void turn_year_end_era_end(
   ColonizeTurnContext* ctx, ColonizeTurnResult* out, uint16_t year, int splash_done,
   int woi_latched
@@ -503,7 +464,8 @@ void turn_run_year_end_chrome(ColonizeTurnContext* ctx, ColonizeTurnResult* out)
    * FUN_3844_0442 thin peels:
    *   B — peacetime, year≥1600, zero human colonies → defeat latch
    *   C1 — WoI + zero crown colonies → victory (fleet + REF pool thin)
-   *   E — anniversary years 1790/1840 status (dialogs PARKED)
+   *   E — the 1790/1840 @SOONRETIRING0/1 notice is ai_king_emit_soon_retiring's
+   *       (raw 58618-58628); this function adds nothing there (#1273)
    * Cite: viceroy_unpacked.c ~58430+; turn/year_end_chrome.md.
    */
   if (!ctx || !out) {
@@ -545,7 +507,6 @@ void turn_run_year_end_chrome(ColonizeTurnContext* ctx, ColonizeTurnResult* out)
   const int woi_latched =
     ctx->col1_ok && ctx->col1 && ctx->col1->head.game_options.woi != 0;
 
-  turn_year_end_anniversary(ctx, out, year, splash_done, woi_latched);
   turn_year_end_era_end(ctx, out, year, splash_done, woi_latched);
   if (turn_year_end_woi_chrome(ctx, out, woi_latched)) {
     return;

@@ -160,18 +160,18 @@ void colony_screen_refresh_outside(
     view->multi_unit_selected_id = -1;
     return;
   }
-  int stack[COLONIZE_UNITS_MAX];
-  const int n =
-    units_collect_tile_stack(units, colony->x, colony->y, colony->nation_id, stack, COLONIZE_UNITS_MAX);
-  for (int i = 0; i < n && view->outside_unit_count < COLONY_OUTSIDE_MAX; ++i) {
-    if (units_is_transport(units, stack[i])) {
+  /* DOS FUN_2f2b_1e46 raw 48593-48704 (and the fence strip FUN_2f2b_11b2):
+   * tile-chain order from the head (FUN_281f_07e0, latest arrival first),
+   * skipping units with hold capacity (ships, wagons). port_bugs.md #1274. */
+  for (int id = units_tile_head_id_at(units, colony->x, colony->y);
+       id >= 0 && view->outside_unit_count < COLONY_OUTSIDE_MAX;
+       id = units_tile_chain_next_id(units, id)) {
+    const ColonizeUnit* u = units_get_const(units, id);
+    if (!u || !units_is_on_map(u) || u->nation_id != colony->nation_id ||
+        units_is_transport(units, id)) {
       continue;
     }
-    const ColonizeUnit* u = units_get_const(units, stack[i]);
-    if (!u || !units_is_on_map(u)) {
-      continue;
-    }
-    view->outside_unit_ids[view->outside_unit_count++] = stack[i];
+    view->outside_unit_ids[view->outside_unit_count++] = id;
   }
   /* The pool's "front" unit (Move to front / freshly built Artillery) heads
    * the row. */
@@ -779,11 +779,13 @@ void colony_screen_open_dock_orders(
 }
 
 void colony_screen_minimap_origin(int* out_x, int* out_y) {
-  /* Golden-measured grid origin (223,31): both margins use the section
-   * height (the 120-wide section keeps the same 23px margin as vertically,
-   * leaving the extra width on the right). */
+  /* First tile at (224,32): DOS FUN_2f2b_0d89 places area cell (gx,gy) at
+   * (gx*0x18 + 200, gy*0x18 + 8) and the inner 3x3 starts at gx = gy = 1;
+   * golden-measured too (tiles 224..295 x 32..103, black frame one pixel
+   * outside at 223/296 x 31/104). The old 23px-margin origin (223,31) was
+   * one pixel up-left. */
   const int grid_px = COLONY_MINIMAP_GRID * COLONY_MINIMAP_TILE;
-  const int margin = (COLONY_MINIMAP_SECTION_H - grid_px) / 2;
+  const int margin = (COLONY_MINIMAP_SECTION_H - grid_px) / 2 + 1;
   if (out_x) {
     *out_x = COLONY_MINIMAP_SECTION_X + margin;
   }

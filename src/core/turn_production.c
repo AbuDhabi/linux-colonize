@@ -2141,8 +2141,9 @@ COLONIZE_INTERNAL void turn_produce_cargo_ready(TurnProduceCtx* pc) {
       popup_msg_fill(messages, sec, &tok, "", body, sizeof(body));
       ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
 
-      /* @TUTORIAL6, once per campaign (DS:0x5387 bit1). */
-      if (col1 && !col1->head.tut3.nr6) {
+      /* @TUTORIAL6, once per campaign (DS:0x5387 bit1), only with Tutorial
+       * Hints on (DS:0x5382 bit 0x80, raw 54317-54319 / 57912-57914). */
+      if (col1 && col1->head.game_options.tutorial_hints && !col1->head.tut3.nr6) {
         col1->head.tut3.nr6 = 1;
         PopupMsgTokens ttok;
         memset(&ttok, 0, sizeof(ttok));

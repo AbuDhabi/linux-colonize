@@ -26,6 +26,7 @@
 #include <string.h>
 
 #include "core/colony_screen.h"
+#include "core/reports.h"
 
 #include "tools/render_common.h"
 
@@ -53,6 +54,7 @@ int main(int argc, char** argv) {
     return 1;
   }
   const int human = rs.human;
+  reports_names_load_catalogs(data_dir); /* NAMES.TXT names, as the game loads them */
 
   ColonyScreenView view;
   memset(&view, 0, sizeof(view));

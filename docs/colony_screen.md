@@ -403,8 +403,8 @@ Per size class (NAMES.TXT `@BUILDING` column 4, 0..4), byte arrays of 5:
 | `DS:0x236` | 27 | 22 | 37 | 18 | 48 | box height |
 | `DS:0x23c`/`0x242` | 3,12 | 20,8 | 25,22 | 5,5 | 0,0 | DOS overlay dx,dy |
 | `DS:0x248` | 17 | 21 | 25 | 65 | 0 | |
-| `DS:0x24e`/`0x254` | −5,−3 | 0,1 | 0,1 | 0,1 | 0,1 | worker-strip dx,dy |
-| `DS:0x25a` | 20 | 22 | 30 | 20 | 20 | strip width |
+| `DS:0x24e`/`0x254` | −5,−3 | 0,1 | 0,1 | 0,1 | 0,1 | production-badge dx,dy (`FUN_2f2b_14d4`; workers use 0x23c/0x242) |
+| `DS:0x25a` | 20 | 22 | 30 | 20 | 20 | production-badge width = min_w |
 | `DS:0x260` | 45 | 44 | 43 | 0 | 46 | empty-slot placeholder sprite |
 
 The port's fence-unit rectangle keeps DOS's class-3 horizontal anchor (+5)
@@ -511,31 +511,36 @@ All six views re-rendered with `render_colony` and compared with the goldens.
 - **`building_production.md` badge table:** rewritten since (worker capacity,
   SoL folded in, bells on Town Hall only).
 
-**Still different from the goldens** (none deliberate, user 2026-10-26;
-filed as port_bugs.md #1274-#1281):
+**Fixed 2026-10-26** (were port_bugs.md #1274-#1281, all decomp-confirmed
+and re-checked against the goldens):
 
-1. **Units tab roster order:** (port_bugs.md #1274) New Amsterdam's golden lists Artillery, then
-   Dragoon; the port lists Dragoon, then Artillery.
-2. **Active tab button:** (port_bugs.md #1275) the golden draws the selected Production / Units /
-   Construction button pressed (inverted bevel); the port draws a green
-   outline. Read off the 2x goldens, not the decomp.
-3. **Exit button:** (port_bugs.md #1276) the golden overlays the word "Exit" (LABELS.TXT line 225)
-   on the E icon; the port draws the icon only.
-4. **Transport header:** (port_bugs.md #1277) the golden reads "Loading: Privateer" with a ship in
-   port and "No Ships In Port" (LABELS.TXT line 26) without one; the port
-   shows "Privateer" or nothing.
-5. **Tory figure:** (port_bugs.md #1278) New Amsterdam's golden (0% Tory) shows no Tory figure;
-   the port draws "0% (0)" and the crown. With Tories present (Recife, 60%)
-   both draw it.
-6. **Building badge width:** (port_bugs.md #1279) the golden packs a building's icons into a short
-   smear beside the number; the port spreads them across the whole building
-   slot. The People band spreads them in both.
-7. **"(Requires 40 Tools)" ink:** (port_bugs.md #1280) light in the golden, dark in the port.
-8. **Recife ocean tile:** (port_bugs.md #1281) the Units and Construction goldens show a white
-   square outline on one ocean tile in the left column of the area view; the
-   Production golden and the port show none. Not identified.
-9. **Pixel level:** the sand backdrop dither and the area view differ pixel
-   by pixel throughout (about 80k of 256k pixels per 2x shot). D4 polish.
+1. Units tab / fence order is the DOS tile chain from the head, latest
+   arrival first (`FUN_2f2b_1e46`, `colony_screen_refresh_outside`).
+2. Tab buttons: ink-0x3f outline plus sprite; the selected one swaps the two
+   offsets, which is the pressed look (`FUN_2f2b_2b66`; hit test
+   `FUN_2f2b_4a1c`, buttons at (303, 132 + 15i), 14x13).
+3. "Exit" (@MISC 210) at (306, 179), ink 15 (`FUN_2f2b_28d6`).
+4. Transport header: "No Ships In Port" (@MISC 11), or "Loading" (@MISC 23)
+   + ": " + the selected holder's type name, centred over x 121 w 84 at
+   y 132, ink 57 (`FUN_2f2b_24b2`). First ship icon at x 130.
+5. People band: each of the SoL and Tory figures is drawn only when its
+   percentage is nonzero; the Tory head count rounds first; both share an
+   ink of 15 / 4 / 12 at the unrest thresholds (`FUN_2f2b_17d0`).
+6. Building badges go through `reports_draw_dos_icon_bar` (`FUN_1097_0174`)
+   with the class window from DS:0x24e/0x254/0x25a above, flags 0, so the
+   run is centred and compact (`FUN_2f2b_14d4`).
+7. Construction title and "(Requires N Tools)" are centred with
+   `FUN_281f_0100`'s rule at y 132 / 170; the tools line is built from
+   @MISC 43 and @CARGO 14 and drawn in ink 7 when stock covers N, else 15
+   (`FUN_2f2b_22b6`).
+8. The white Recife outline is the area view's blinking keyboard cursor
+   (`FUN_2f2b_0d89`, phase flipped every 0x14 ticks by `FUN_2f2b_6cd4`):
+   ported for the area view. The area grid itself was one pixel up-left; tiles
+   now start at (224, 32) with the black frame outside them.
+
+**Still different:** the sand backdrop dither and parts of the area view
+differ pixel by pixel (about 71k-81k of 256k pixels per 2x shot after the
+fixes above), D4 polish; open leads are port_bugs.md #1282-#1286.
 
 Deliberate, player-requested: the Production pane layout (surplus split,
 4-row hammer bar).

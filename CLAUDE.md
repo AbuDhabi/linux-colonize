@@ -1,9 +1,7 @@
 Rules:
-1. Keep familiar with the project documentation. Load it when starting work on something. Don't let context compacting/summarization wipe that.
-2. Leave `git commit` and `git push` alone. Don't change branches. The user will handle that himself. Work in the folder provided by the user.
-3. Be more terse than normal. By all means tell the user what he needs to know, but the user does not need to know every technical detail unless it's actually needed to make executive decisions.
-4. When the user tells you to continue autonomously under some conditions, do that, and don't forget it between prompts. Still, apply common sense when to stop.
-5. When it will not affect the end result, try to surgically edit a file rather than rewrite the entire thing.
+1. Leave `git commit` and `git push` alone. Don't change branches. The user will handle that himself. Work in the folder provided by the user.
+2. When the user tells you to continue autonomously under some conditions, do that, and don't forget it between prompts. Still, apply common sense when to stop.
+3. When it will not affect the end result, try to surgically edit a file rather than rewrite the entire thing.
 
 ## What this is
 

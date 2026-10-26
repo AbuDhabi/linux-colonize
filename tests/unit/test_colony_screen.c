@@ -1234,8 +1234,9 @@ static int case_colony_screen_render_workflow(void) {
     }
   }
 
-  /* 3×3 minimap at golden origin (223,31): both margins derive from the
-   * section height (extra width of the 120-wide section stays on the right). */
+  /* 3×3 minimap: equal margins derive from the section height (extra width
+   * of the 120-wide section stays on the right); the tiles start one pixel
+   * inside them, at (224,32), with the black frame on the margin line. */
   const int grid_px = COLONY_MINIMAP_GRID * COLONY_MINIMAP_TILE;
   const int margin_x = (COLONY_MINIMAP_SECTION_H - grid_px) / 2;
   const int margin_y = (COLONY_MINIMAP_SECTION_H - grid_px) / 2;
@@ -2305,7 +2306,7 @@ static int case_colony_screen_render_workflow(void) {
       return 1;
     }
     thit = colony_screen_hit_test(
-      &view, &pool, col, &units, COLONY_TRANSPORT_X + 4, COLONY_TRANSPORT_ICON_Y + 4
+      &view, &pool, col, &units, COLONY_TRANSPORT_X + 9, COLONY_TRANSPORT_ICON_Y + 4
     );
     if (thit.kind != COLONY_HIT_TRANSPORT || thit.index != 0) {
       fprintf(

@@ -1121,11 +1121,12 @@ COLONIZE_INTERNAL bool colony_screen_hit_multifunction(ColonyScreenHitCtx* a) {
   const ColonizeUnitPool* units = a->units;
   const int mx = a->mx;
   const int my = a->my;
-  /* Multifunction mode buttons. */
-  if (mx >= COLONY_MULTI_BTN_X && mx < COLONY_MULTI_BTN_X + COLONY_MULTI_BTN_W &&
-      my >= COLONY_PANEL_CONTENT_Y && my < COLONY_PANEL_CONTENT_Y + 48) {
-    const int idx = (my - COLONY_PANEL_CONTENT_Y) / 16;
-    if (idx >= 0 && idx < 3) {
+  /* Multifunction tab buttons (DOS FUN_2f2b_4a1c: (303, 132 + 15i), 14x13). */
+  if (mx >= COLONY_TAB_BTN_X && mx < COLONY_TAB_BTN_X + COLONY_TAB_BTN_W + 1 &&
+      my >= COLONY_TAB_BTN_Y && my < COLONY_TAB_BTN_Y + 3 * COLONY_TAB_BTN_PITCH) {
+    const int idx = (my - COLONY_TAB_BTN_Y) / COLONY_TAB_BTN_PITCH;
+    if (idx >= 0 && idx < 3 &&
+        my - COLONY_TAB_BTN_Y - idx * COLONY_TAB_BTN_PITCH < COLONY_TAB_BTN_H + 1) {
       a->hit.kind = COLONY_HIT_MULTI_BTN;
       a->hit.index = idx;
       return true;
@@ -1193,7 +1194,7 @@ COLONIZE_INTERNAL bool colony_screen_hit_transports(ColonyScreenHitCtx* a) {
       mx < COLONY_TRANSPORT_X + COLONY_TRANSPORT_W) {
     int tr_pitch = COLONY_TRANSPORT_PITCH;
     if (view->docked_transport_count > 1) {
-      const int avail = COLONY_TRANSPORT_W - 8 - 16;
+      const int avail = COLONY_TRANSPORT_W - 9 - 16;
       if ((view->docked_transport_count - 1) * tr_pitch > avail) {
         tr_pitch = avail / (view->docked_transport_count - 1);
         if (tr_pitch < 2) {
@@ -1205,7 +1206,7 @@ COLONIZE_INTERNAL bool colony_screen_hit_transports(ColonyScreenHitCtx* a) {
      * one drawn on top. */
     int idx = -1;
     for (int i = view->docked_transport_count - 1; i >= 0; --i) {
-      const int x0 = COLONY_TRANSPORT_X + 4 + i * tr_pitch;
+      const int x0 = COLONY_TRANSPORT_X + 9 + i * tr_pitch;
       if (mx >= x0 && mx < x0 + 16) {
         idx = i;
         break;
@@ -1637,12 +1638,21 @@ void colony_screen_render_w(
 
   if (view) {
     colony_screen_draw_people(view, colony, units, col1, font, framebuffer);
-    colony_screen_draw_transports(view, units, font, framebuffer);
+    colony_screen_draw_transports(view, units, font, labels, framebuffer);
     colony_screen_draw_multifunction(view, pool, colony, units, font, labels, framebuffer);
   }
 
   if (colony) {
     colony_screen_draw_cargo_strip(view, pool, colony, font, framebuffer);
+  }
+  /* DOS FUN_2f2b_28d6 raw 49151-49152 (asm 2f2b:2af1-2b07): "Exit" (@MISC 210,
+   * DS:0x2f5e) left-aligned at (0x132, 0xb3) over the E icon, ink 0x0f, one
+   * FONTTINY pass, on every tab. port_bugs.md #1276. */
+  if (font) {
+    font_draw_text_shaded(
+      font, framebuffer, 0x132, 0xb3, assets_msg_line_or(labels, "MISC", 210, ""),
+      (const uint8_t[4]){0, 0x0f, 0x0f, 0x0f}
+    );
   }
 
   if (view && view->construction_open) {

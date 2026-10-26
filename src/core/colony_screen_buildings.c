@@ -5,6 +5,7 @@
 #include <string.h>
 
 #include "core/assets.h"
+#include "core/reports_internal.h"
 #include "core/colony_craft.h"
 #include "core/colony_preview.h"
 #include "core/colony_production.h"
@@ -896,18 +897,19 @@ void colony_screen_blit_buildings(
           }
         }
         if (amount > 0) {
-          colony_screen_draw_resource_count(
-            view,
-            font,
-            framebuffer,
-            bx,
-            strip_y - 12,
-            bw,
-            10,
-            badge,
-            amount,
-            15,
-            false
+          /* DOS FUN_2f2b_14d4 raw 48313-48319 (asm 2f2b:15c7-15f7) -> FUN_1097_0174:
+           * window at slot + (DS:0x24e[cls], DS:0x254[cls]), width = min_w =
+           * DS:0x25a[cls], count = denominator = amount, flags 0 (no remainder),
+           * number shown with the numbers toggle (DS:0x70) or a fused smear.
+           * port_bugs.md #1279. */
+          static const int k_badge_dx[5] = {-5, 0, 0, 0, 0};
+          static const int k_badge_dy[5] = {-3, 1, 1, 1, 1};
+          static const int k_badge_w[5] = {20, 22, 30, 20, 20};
+          const int cls = slot->size_class >= 0 && slot->size_class < 5 ? slot->size_class : 1;
+          reports_draw_dos_icon_bar(
+            view->icons_ok ? &view->icons : NULL, font, framebuffer, badge, bx + k_badge_dx[cls],
+            by + k_badge_dy[cls], k_badge_w[cls], k_badge_w[cls], amount, amount, false,
+            view->show_production_numbers
           );
         }
       }
@@ -1086,6 +1088,7 @@ void colony_screen_draw_transports(
   ColonyScreenView* view,
   const ColonizeUnitPool* units,
   const ColonizeFont* font,
+  const ColonizeMsgCatalog* labels,
   ColonizeFramebuffer8* framebuffer
 ) {
   if (!view || !units || !framebuffer) {
@@ -1095,7 +1098,7 @@ void colony_screen_draw_transports(
    * last icon still ends inside (same squeeze the worker strips use). */
   int tr_pitch = COLONY_TRANSPORT_PITCH;
   if (view->docked_transport_count > 1) {
-    const int avail = COLONY_TRANSPORT_W - 8 - 16;
+    const int avail = COLONY_TRANSPORT_W - 9 - 16;
     if ((view->docked_transport_count - 1) * tr_pitch > avail) {
       tr_pitch = avail / (view->docked_transport_count - 1);
       if (tr_pitch < 2) {
@@ -1109,7 +1112,8 @@ void colony_screen_draw_transports(
       continue;
     }
     const ColonizeUnitType* type = units_type(units, u->type_index);
-    const int x = COLONY_TRANSPORT_X + 4 + i * tr_pitch;
+    /* DOS FUN_2f2b_24b2 raw 48954-48955: first ship icon at x 0x82. */
+    const int x = COLONY_TRANSPORT_X + 9 + i * tr_pitch;
     const int y = COLONY_TRANSPORT_ICON_Y;
     /*
      * port_bugs.md #705's repair countdown is not map-only: DOS carries the same
@@ -1145,14 +1149,23 @@ void colony_screen_draw_transports(
     }
   }
 
-  if (view->transport_unit_id >= 0 && font) {
-    const ColonizeUnit* ship = units_get_const(units, view->transport_unit_id);
-    const ColonizeUnitType* type = ship ? units_type(units, ship->type_index) : NULL;
-    if (type && type->name[0]) {
-      font_draw_text(
-        font, framebuffer, COLONY_TRANSPORT_X + 4, COLONY_PANEL_CONTENT_Y, type->name, 15
+  /* DOS FUN_2f2b_24b2 raw 48938-48953 (asm 2f2b:24c7-25a9): with no holder on
+   * the tile (DS:0x33c == 0) "No Ships In Port" (@MISC 11), else "Loading"
+   * (@MISC 23) + ": " (DS:0x55) + the selected holder's @UNIT type name; centred
+   * over x 0x79 w 0x54 at y 0x84, ink 0x39. port_bugs.md #1277. */
+  if (font) {
+    char head[64] = "";
+    if (view->docked_transport_count == 0) {
+      snprintf(head, sizeof(head), "%s", assets_msg_line_or(labels, "MISC", 11, ""));
+    } else {
+      const ColonizeUnit* ship = units_get_const(units, view->transport_unit_id);
+      const ColonizeUnitType* type = ship ? units_type(units, ship->type_index) : NULL;
+      snprintf(
+        head, sizeof(head), "%s: %s", assets_msg_line_or(labels, "MISC", 23, ""),
+        type ? type->name : ""
       );
     }
+    colony_screen_text_centred(font, framebuffer, 0x79, 0x54, 0x84, head, 0x39);
   }
 
   const int max_holds = 6;

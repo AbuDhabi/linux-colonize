@@ -519,7 +519,10 @@ void reports_draw_icon_bar(
  * second, hardcoded-sprite-0x38 overlay pass in `1097:0228` never fires);
  * neither is implemented here for want of a call site to check it against.
  *
- * `flags & 1` (the Bresenham remainder) is set at both sites. The number
+ * `flags & 1` (the Bresenham remainder, `remainder`) is set at both sites;
+ * the colony building badges (FUN_2f2b_14d4) pass flags 0 and min_w = w,
+ * which centres the run, and DS:0x70 = the colony numbers toggle
+ * (`numbers_on`). The number
  * overlay follows `1097:028e`: DOS shows it when its global numbers toggle
  * (DS:0x70) is on *or* when `step == 1 && amount > 1` — the "icons fused
  * into an unreadable smear" override. DS:0x70 is a colony-screen toggle the
@@ -537,7 +540,9 @@ void reports_draw_dos_icon_bar(
   int w,
   int min_w,
   int amount,
-  int denom
+  int denom,
+  bool remainder,
+  bool numbers_on
 ) {
   /* FUN_1097_0004 bails on a zero count or zero denominator. */
   if (!icons || !fb || amount <= 0 || denom <= 0 || w <= 0) {
@@ -583,7 +588,7 @@ void reports_draw_dos_icon_bar(
   for (int i = 0; i < count; ++i) {
     ss_blit_sprite(icons, icon, fb, px, y + 1);
     px += step;
-    if (den > 0) {
+    if (remainder && den > 0) {
       acc += rem;
       while (acc >= den) {
         acc -= den;
@@ -591,7 +596,7 @@ void reports_draw_dos_icon_bar(
       }
     }
   }
-  if (font && fb->pixels && step == 1 && amount > 1) {
+  if (font && fb->pixels && (numbers_on || (step == 1 && amount > 1))) {
     /*
      * `1097:02ab`: FUN_1097_00de(amount, start_x + 2, y, 15, 1). That helper
      * bumps its y by 2 on entry (`1097:00eb`), then — because the flag

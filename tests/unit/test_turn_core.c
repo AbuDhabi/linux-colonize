@@ -5106,8 +5106,10 @@ static int case_year_end_defeat_victory(void) {
   c->building_in_production = -1;
   pool.colony_count = 1;
   turn_run_year_end_chrome(&ctx, &out);
-  if (out.year_end_defeat || strstr(status, "Anniversary") == NULL) {
-    fprintf(stderr, "anniversary want status got defeat=%d '%s'\n", out.year_end_defeat, status);
+  /* port_bugs.md #1273: 1790 raises only @SOONRETIRING0, from ai_king; the
+   * year-end chrome adds neither a status line nor @WARN1. */
+  if (out.year_end_defeat || status[0] != '\0') {
+    fprintf(stderr, "anniversary want silence got defeat=%d '%s'\n", out.year_end_defeat, status);
     return 1;
   }
   fprintf(stderr, "year-end anniversary ok\n");

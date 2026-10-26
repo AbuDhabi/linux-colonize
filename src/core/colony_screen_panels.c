@@ -136,23 +136,47 @@ void colony_screen_draw_people(
   const int sol = colony_screen_sol_percent(col1, colony);
   const int tory = 100 - sol;
   const int pop = colonies_headcount(colony);
-  const int sol_count = (pop > 0) ? ((pop * sol + 50) / 100) : 0;
-  const int tory_count = pop > sol_count ? (pop - sol_count) : 0;
+  /* DOS FUN_2f2b_17d0 raw 48497-48521: the Tory head count rounds first and
+   * the rebels take the rest. */
+  const int tory_count = (pop > 0) ? ((pop * tory + 50) / 100) : 0;
+  const int sol_count = pop - tory_count;
+  /* Ink, ndisasm 0x2741B-0x27458 (Ghidra drops it): unrest threshold
+   * 10 - difficulty for a human colony, 50 otherwise; white, red (4) at the
+   * threshold, bright red (0xc) at twice it. Both texts share it. */
+  const int owner = colony->nation_id;
+  const bool human_owner =
+    owner >= 0 && owner < 4 && col1 && col1->player[owner].control == 0;
+  const int thr = human_owner ? 10 - (int)(col1 ? col1->head.difficulty : 0) : 50;
+  uint8_t ink = 15;
+  if (tory_count >= thr) {
+    ink = 4;
+  }
+  if (tory_count >= 2 * thr) {
+    ink = 12;
+  }
   const int sol_y = COLONY_PANEL_CONTENT_Y + 1;
-  colony_screen_blit_icon(view, COLONY_ICON_FLAG, framebuffer, COLONY_PEOPLE_X + 2, sol_y);
-  /* Tory flush to the right of the (widened) people band. */
-  colony_screen_blit_icon(
-    view, COLONY_ICON_CROWN, framebuffer, COLONY_PEOPLE_X + COLONY_PEOPLE_W - 14, sol_y
-  );
-  if (font) {
-    char buf[32];
-    snprintf(buf, sizeof(buf), "%d%% (%d)", sol, sol_count);
-    font_draw_text(font, framebuffer, COLONY_PEOPLE_X + 16, sol_y + 2, buf, 15);
-    snprintf(buf, sizeof(buf), "%d%% (%d)", tory, tory_count);
-    const int tw = font_text_width_skip(font, buf, FONT_SKIP_NONE);
-    font_draw_text(
-      font, framebuffer, COLONY_PEOPLE_X + COLONY_PEOPLE_W - 16 - tw, sol_y + 2, buf, 15
+  char buf[32];
+  /* Each side is drawn only when its percentage is nonzero (raw 48501 /
+   * 48512). port_bugs.md #1278. */
+  if (sol != 0) {
+    colony_screen_blit_icon(view, COLONY_ICON_FLAG, framebuffer, COLONY_PEOPLE_X + 2, sol_y);
+    if (font) {
+      snprintf(buf, sizeof(buf), "%d%% (%d)", sol, sol_count);
+      font_draw_text(font, framebuffer, COLONY_PEOPLE_X + 16, sol_y + 2, buf, ink);
+    }
+  }
+  if (tory != 0) {
+    /* Tory flush to the right of the (widened) people band. */
+    colony_screen_blit_icon(
+      view, COLONY_ICON_CROWN, framebuffer, COLONY_PEOPLE_X + COLONY_PEOPLE_W - 14, sol_y
     );
+    if (font) {
+      snprintf(buf, sizeof(buf), "%d%% (%d)", tory, tory_count);
+      const int tw = font_text_width_skip(font, buf, FONT_SKIP_NONE);
+      font_draw_text(
+        font, framebuffer, COLONY_PEOPLE_X + COLONY_PEOPLE_W - 16 - tw, sol_y + 2, buf, ink
+      );
+    }
   }
 
   const int y_people = COLONY_PEOPLE_ICON_Y;
@@ -506,18 +530,20 @@ void colony_screen_draw_multifunction(
   if (!view || !framebuffer) {
     return;
   }
-  colony_screen_blit_icon(
-    view, COLONY_ICON_HOUSE, framebuffer, COLONY_MULTI_BTN_X, COLONY_PANEL_CONTENT_Y
-  );
-  colony_screen_blit_icon(
-    view, COLONY_ICON_RIFLE, framebuffer, COLONY_MULTI_BTN_X, COLONY_PANEL_CONTENT_Y + 16
-  );
-  colony_screen_blit_icon(
-    view, COLONY_ICON_HAMMER_BTN, framebuffer, COLONY_MULTI_BTN_X, COLONY_PANEL_CONTENT_Y + 32
-  );
-  {
-    const int by = COLONY_PANEL_CONTENT_Y + (int)view->multi_mode * 16;
-    colony_screen_draw_selection_box(framebuffer, COLONY_MULTI_BTN_X - 1, by - 1, 14, 14, 10);
+  /* DOS FUN_2f2b_2b66 (raw 49180-49212, asm 2f2b:2b66-2c3a): each button is an
+   * ink-0x3f outline plus its sprite. Unselected: outline one pixel down-right
+   * (304, y+1), sprite at (303, y). Selected: outline at (303, y), sprite at
+   * (304, y+1) — the pressed look. port_bugs.md #1275. */
+  for (int i = 0; i < 3; ++i) {
+    const int y = COLONY_TAB_BTN_Y + i * COLONY_TAB_BTN_PITCH;
+    const bool sel = (int)view->multi_mode == i;
+    colony_screen_draw_selection_box(
+      framebuffer, COLONY_TAB_BTN_X + (sel ? 0 : 1), y + (sel ? 0 : 1), COLONY_TAB_BTN_W,
+      COLONY_TAB_BTN_H, 0x3f
+    );
+    colony_screen_blit_icon(
+      view, COLONY_ICON_HOUSE + i, framebuffer, COLONY_TAB_BTN_X + (sel ? 1 : 0), y + (sel ? 1 : 0)
+    );
   }
 
   const int px = COLONY_MULTI_X + 2;
@@ -694,8 +720,8 @@ void colony_screen_draw_multifunction(
         /* FUN_2f2b_1e46: no project (+0x94 < 0) = empty title. */
         line[0] = '\0';
       }
-      const int title_w = font_text_width(font, line);
-      font_draw_text(font, framebuffer, px + (pane_w - title_w) / 2, py, line, 57);
+      /* DOS FUN_2f2b_21da raw 48852: FUN_281f_0100(name, 0xd3, 0x5b, 0x84, 0x39). */
+      colony_screen_text_centred(font, framebuffer, 0xd3, 0x5b, 0x84, line, 0x39);
       /* DOS-LITERAL FUN_2f2b_21da raw 48797-48800: BUY (@CTITLE 2, only while +0x94 >= 0) at
        * (0xd8, 0x8a), CHANGE (@CTITLE 3) at (0x10e, 0x8a) (port_bugs.md #1124). */
       const char* buy_lbl = assets_msg_line_or(labels, "CTITLE", 2, "");
@@ -795,21 +821,15 @@ void colony_screen_draw_multifunction(
     }
     const int tools_cost = bt ? bt->tools_cost : unit_tools;
     if (tools_cost > 0 && font) {
-      snprintf(line, sizeof(line), "(Requires %d Tools)", tools_cost);
-      const int line_w = font_text_width(font, line);
-      /* Player-reported: 6px higher (fits inside the box now — the old
-       * py+46 sat 1px past COLONY_PANEL_CONTENT_H's bottom edge) and
-       * centered horizontally. Grey when the colony already has enough
-       * tools in store, white (the "needs attention" color used elsewhere
-       * in this screen) when short. Index 8 (dark grey), not 7 — font.c's
-       * draw_ff_glyph hardcodes color==7 to the same white AA blend as
-       * color==15 (FF_COLOR_MAP, "unbold white"), so 7 renders
-       * indistinguishable from white here; 8 hits the plain solid-ink path
-       * instead. */
-      const bool tools_ok = colony->stock[COLONIZE_CARGO_TOOLS] >= tools_cost;
-      font_draw_text(
-        font, framebuffer, px + (pane_w - line_w) / 2, py + 46 - 6, line, tools_ok ? 8 : 15
+      /* DOS FUN_2f2b_22b6 raw 48882-48891, asm 2f2b:2455-247c: "(" @MISC 43
+       * " " N " " @CARGO 14 ")", centred over x 0xd3 w 0x5b at y 0xaa, ink 7
+       * when colony tools cover N, else 0x0f. port_bugs.md #1280. */
+      snprintf(
+        line, sizeof(line), "(%s %d %s)", assets_msg_line_or(labels, "MISC", 43, ""), tools_cost,
+        reports_cargo_display_name(COLONIZE_CARGO_TOOLS)
       );
+      const bool tools_ok = colony->stock[COLONIZE_CARGO_TOOLS] >= tools_cost;
+      colony_screen_text_centred(font, framebuffer, 0xd3, 0x5b, 0xaa, line, tools_ok ? 7 : 0x0f);
     }
   }
 }

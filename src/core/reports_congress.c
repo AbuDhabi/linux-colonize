@@ -58,7 +58,7 @@ void reports_render_religious(
    * split=0, flags=1. Same routine as the Congress bells bar. */
   reports_draw_dos_icon_bar(
     icons, font, fb, REPORTS_CROSS_ICON, REPORTS_CROSS_X, REPORTS_CROSS_Y, REPORTS_CROSS_W, 0,
-    (int)current, (int)needed
+    (int)current, (int)needed, true, false
   );
 
   /*
@@ -270,7 +270,9 @@ void reports_render_congress_page1(
         REPORTS_CONGRESS_BELLS_W,
         0 /* min_w: no centring */,
         (int)drawn,
-        (int)need
+        (int)need,
+        true,
+        false
       );
     }
   }

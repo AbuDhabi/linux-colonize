@@ -5,7 +5,7 @@ click 168 128              # open Quebec
 wait 10
 drag 107 41 260 91         # Town Hall statesman -> S: @INDIANLAND (offer 422)
 click 150 100              # row 1 respect: the drop is abandoned, nothing changes
-drag 175 119 260 91        # fence free colonist #127 -> S: @INDIANLAND again
+drag 166 119 260 91        # fence free colonist #146 (third on the fence: DOS tile-chain order #127, #135, #146, #91; #1274) -> S: @INDIANLAND again
 click 150 100              # respect: the colonist stays outside (selected)
 click 260 91               # plain click on S with the fence colonist selected: @INDIANLAND
 click 150 112              # row 2 offer 422: gold 1500 -> 1078, Tupi lands_bought +1, S bought, @INDIANBRIBE, colonist joins, works S

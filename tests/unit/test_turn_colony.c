@@ -56,6 +56,7 @@ static int unit_century_cargoready(void) {
 
   ColonizeCol1Save tipcol;
   memset(&tipcol, 0, sizeof(tipcol));
+  tipcol.head.game_options.tutorial_hints = 1; /* @TUTORIAL6 needs the option */
 
   ColonizeTurnResult prod;
   memset(&prod, 0, sizeof(prod));
@@ -124,6 +125,24 @@ static int unit_century_cargoready(void) {
     return 1;
   }
   tipcol.head.colony_report_options.report_new_cargos_available = 0;
+
+  /* Tutorial Hints off → @CARGOREADY* still, but no @TUTORIAL6 and no latch. */
+  tipcol.head.game_options.tutorial_hints = 0;
+  tipcol.head.tut3.nr6 = 0;
+  col->stock[COLONIZE_CARGO_SUGAR] = 50;
+  col->stock[COLONIZE_CARGO_RUM] = 99;
+  eu.status[0] = '\0';
+  ai_popup_clear(&pops);
+  memset(&prod, 0, sizeof(prod));
+  turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&tipcol), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, &pops, &game_txt);
+  if (pops.queue_count != 1 || tipcol.head.tut3.nr6 ||
+      strstr(pops.queue[0].body, "pick up this cargo") != NULL) {
+    fprintf(stderr, "century tip hints-off: q=%d nr6=%u\n", pops.queue_count,
+            (unsigned)tipcol.head.tut3.nr6);
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  tipcol.head.game_options.tutorial_hints = 1;
   fprintf(stderr, "warehouse century tip ok\n");
 
   /* At exact basic warehouse cap → @CARGOREADY1. */

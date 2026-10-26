@@ -111,6 +111,13 @@
 #define COLONY_MULTI_W 111
 #define COLONY_MULTI_BTN_X 307
 #define COLONY_MULTI_BTN_W 12
+/* DOS FUN_2f2b_2b66 / FUN_2f2b_4a1c: the three tab buttons (ICONS #67-69,
+ * 14x13) at x 0x12f, y 0x84 + 15*i. */
+#define COLONY_TAB_BTN_X 303
+#define COLONY_TAB_BTN_Y 132
+#define COLONY_TAB_BTN_W 14
+#define COLONY_TAB_BTN_H 13
+#define COLONY_TAB_BTN_PITCH 15
 #define COLONY_PANEL_CONTENT_Y 131
 #define COLONY_PANEL_CONTENT_H (COLONY_CARGO_STRIP_Y - COLONY_PANEL_CONTENT_Y - 4)
 /* People line-up row: FUN_2f2b_17d0 y = 0x8f - 1 (asm 270FA / 27178). */

@@ -85,7 +85,9 @@ void reports_draw_dos_icon_bar(
   int w,
   int min_w,
   int amount,
-  int denom
+  int denom,
+  bool remainder,
+  bool numbers_on
 );
 void reports_draw_icon_bar_pair(
   const ColonizeSpriteSheet* icons,

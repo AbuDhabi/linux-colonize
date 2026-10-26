@@ -149,6 +149,20 @@ void colony_screen_draw_selection_box(
   fb_rect_outline(framebuffer, x, y, w, h, color, color);
 }
 
+/* DOS FUN_281f_0100 -> FUN_104b_0318: `s` centred over [x, x+w) as
+ * x + (w>>1) - ((width-1)>>1), floored at 0, glyph row 0 on y, one FONTTINY
+ * pass in `ink` with no shadow (docs/popups_dialog_engine.md). */
+void colony_screen_text_centred(
+  const ColonizeFont* font, ColonizeFramebuffer8* framebuffer, int x, int w, int y,
+  const char* s, uint8_t ink
+) {
+  if (!font || !framebuffer || !s || !s[0]) {
+    return;
+  }
+  x += (w >> 1) - ((font_text_width(font, s) - 1) >> 1);
+  font_draw_text_shaded(font, framebuffer, x < 0 ? 0 : x, y, s, (const uint8_t[4]){0, ink, ink, ink});
+}
+
 /* Tight green box around an ICONS.SS sprite at (x,y), 1px margin. */
 void colony_screen_draw_icon_selection(
   const ColonyScreenView* view,
@@ -760,6 +774,22 @@ void colony_screen_draw_area_overlays(
   }
 
   /*
+   * port_bugs.md #1281: the area view's keyboard cursor. DOS FUN_2f2b_0d89 raw
+   * 47788-47796 outlines cell (DS:0x330, DS:0x332) in white (0x0f) while the
+   * area has the focus (DS:0x32e == 0) and the blink phase DS:0x334 is on;
+   * FUN_2f2b_6cd4 raw 56094-56097 flips the phase every 0x14 BIOS ticks
+   * (~1.1 s). ponytail: the mouse-held and drag-target arms of the same test
+   * and the phase reset on a full redraw are not modelled.
+   */
+  if (view->focus == COLONY_FOCUS_AREA && abs(view->area_dx) <= half &&
+      abs(view->area_dy) <= half && (view->blink_ms / 1099u) % 2u == 0u) {
+    colony_screen_draw_selection_box(
+      framebuffer, origin_x + (view->area_dx + half) * tile,
+      origin_y + (view->area_dy + half) * tile, tile, tile, 15
+    );
+  }
+
+  /*
    * port_bugs.md #284 / DOS FUN_15eb_26e4: unworked tiles still claimed as Indian
    * land (MET tribe radius, land unbought, no Peter Minuit) carry a totem
    * pole marker — ICONS.SS #108 (8x16 red totem pole), bottom-centred with
@@ -859,14 +889,12 @@ void colony_screen_render_minimap(
     colony_screen_blit_scaled_15_where_dest(&sheet, 0, framebuffer, origin_x, origin_y, -1);
   }
 
-  /* Black 1px frame around the whole 3x3 tile grid — golden-measured
-   * (new_amsterdam_production.png: a 73x73 native square, exactly the
-   * grid's own COLONY_MINIMAP_GRID*COLONY_MINIMAP_TILE bounding box) —
-   * was missing entirely. Drawn after the tiles so it sits on the grid's
-   * edge; the cursor's green selection box and unit/badge overlays are
-   * drawn after this call (colony_screen_draw_area_overlays) and correctly
-   * layer on top. */
+  /* Black 1px frame one pixel outside the 3x3 tile grid — golden-measured
+   * (new_amsterdam_production.png: frame at x 223/296, y 31/104 around tiles
+   * 224..295 x 32..103). The cursor and selection boxes and the unit/badge
+   * overlays are drawn after this call (colony_screen_draw_area_overlays). */
   colony_screen_draw_selection_box(
-    framebuffer, origin_x, origin_y, COLONY_MINIMAP_GRID * tile, COLONY_MINIMAP_GRID * tile, 0
+    framebuffer, origin_x - 1, origin_y - 1, COLONY_MINIMAP_GRID * tile + 2,
+    COLONY_MINIMAP_GRID * tile + 2, 0
   );
 }
