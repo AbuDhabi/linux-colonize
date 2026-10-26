@@ -49,6 +49,11 @@ Cost = number of calls x context size. Output size matters much less.
 - `s` or `f` with no selected unit opens the save dialog.
 - `field` refuses a plot on native land at peace (the game would ask
   pay/take there). Drag the colonist onto it on the colony screen instead.
+- A popup can open between two clicks (a King's tax raise opened during a
+  cargo drag, and the next click held a Tools Party: tools boycotted for
+  the rest of the game). Check for `CHOICES:` after every click.
+- Look up job numbers before `work` or `field` (`field_job 8` is fishing,
+  not tobacco).
 
 ## Driver quirks
 
@@ -67,9 +72,14 @@ Cost = number of calls x context size. Output size matters much less.
   wagon entering the colony wakes every sentried unit there (DOS rule), so
   sentry them again after the last arrival, right before the ship sails.
   A ship crossing one of your colonies on Go To unloads its passengers there.
+  Unloaded units keep their sentry and board the next ship out.
 - Colony screen: outside units stand on the fence row (y about 116-118).
   `hit X Y` names what is at a point. Drag a worker onto the fence (x=140)
   for the role menu; it opens on the current role, so click the row.
+  A plain click on an already selected fence unit also opens it. A drop on
+  a colonist icon inside a building is ignored: drop on its empty part.
+- When the fence is full (50+ units outside), use `admit UID` (unit joins
+  the colony) and `eject N CI ROLE` (colonist leaves).
 - With many units on the colony tile, use `equip UID ROLE` (2 soldier,
   4 dragoon) instead of the screen.
 - Build menus show only buildable items and are centred, so rows move. Use
@@ -84,9 +94,23 @@ Economy and natives
 
 - Hammers without tools stall. Keep tools ahead of hammers.
 - Horses breed only with a food surplus and at least 2 horses in stock.
+- A colony with no food in stock and a negative food balance starves a
+  colonist that turn (a new colony too).
+- Custom House (needs Peter Stuyvesant) sells without ship trips, even
+  boycotted goods. Refuse tax raises with a party on goods it sells and the
+  rate stays put. Never party on goods you buy (tools, muskets, horses);
+  only Jakob Fugger lifts boycotts.
+- Buying a build costs less the more hammers are stored: with all hammers
+  in, an artillery cost 130-260 gold (only the missing tools).
+- Recruit prices drop once enough crosses pile up.
+- A ship damaged at sea loses all cargo and passengers. Privateers hunt off
+  your colonies.
 - Native alarm 75 or more = hostile: moving into a brave attacks without
   asking. Working native land raises alarm (more near a village or on a
   resource).
+- A village's tension toward you grows each turn near your colony. At the
+  top its braves attack any unit of yours next to them, even at peace and
+  at low alarm: a lone scout passing such a village can die.
 - Scouts visiting chiefs are good early money. On Viceroy the Crown takes
   70% of treasure.
 - Tory penalty: -1 on every tile and building once
@@ -124,17 +148,35 @@ Combat
 
 War of Independence
 
-- Before declaring: 35+ artillery (50+ is safer), main colony with a
-  Fortress at SoL 100%, one gun in every other colony, a stock of horses.
-- Then REF attacks win only ~40%, and a REF unit that loses dies. A Fort,
-  damaged guns or Tories push REF odds to 55-66% (Tory % is added to Crown
-  attacks).
-- The REF lands only next to coastal colonies, weakest first. A landing
-  deletes your units on the empty landing tiles.
+- Before declaring: a Fortress with 60+ artillery in the colony the REF
+  will target (on Viceroy 37 guns lost, 58-68 won), SoL 100% there, one gun
+  in every other colony, and far more horses and muskets than seems needed
+  (~130 horses and ~200 muskets ran out within ~10 turns).
+- Then REF attacks win only ~40-55%. A losing Regular dies, Cavalry drops
+  to Regulars, Artillery is damaged. Each REF win damages a gun, a second
+  destroys it. A Fort, damaged guns or Tories push REF odds to 55-66%
+  (Tory % = 100 - SoL is added to Crown attacks; `eject` spare workers to
+  reach 100%).
+- The REF lands only next to coastal colonies. Target = highest
+  colonists x (125 - SoL) - 75 x armed units on the colony tile (at least
+  100 - SoL); ties go to the later one in `colonies`. Work it out and put the
+  guns there.
+- A wave (at most 6 units) lands on the land tiles next to the colony that
+  hold the fewest units and deletes your units there, and any ship on its
+  landing water tile. Fill all but one tile with fortified stacks: the wave
+  lands on the free tile, which you attack from every neighbour. Never end
+  a ship's turn next to the target colony.
 - Tory uprising: at most once per colony, when
   pop x (100 - SoL) x 2 / 100 + difficulty + 1 > the garrison's attack sum.
-- Hit landed stacks the turn they arrive, from open tiles (ambush bonus),
-  with dragoons or Continental cavalry. Washington promotes winners.
+  Once the REF pool is empty the Crown uses it on any colony with nothing
+  armed, even at 100% SoL.
+- Hit landed stacks the turn they arrive (they cannot move yet), from open
+  tiles (ambush bonus), with dragoons or Continental cavalry. Ambush odds
+  vs Regulars: Continental Cavalry 75-79%, veteran dragoon 77%, dragoon 69%,
+  soldier 55-60%. Washington promotes winners.
+- A lost attack costs 50 horses or muskets, and re-equipping spends all the
+  unit's moves. Colonies produce after the Crown moves, so a unit bought or
+  finished now misses the Crown's next attacks.
 - Intervention: the bell count restarts at the declaration. At
   2000 + 1500 x difficulty bells (8000 on Viceroy) a foreign power lands
   Continental units, and your attacks on colonies get +50% Bombard.
@@ -142,7 +184,8 @@ War of Independence
 - Victory: the King gives up when Crown land units (Regulars, Cavalry,
   Artillery) fall below 1, or below 8 once the Crown holds one of your
   colonies. The check runs after the Crown moves, and every colony must be
-  yours then: garrison a retaken colony before ending the turn.
+  yours then: garrison a retaken colony before ending the turn. A small
+  colony lost late can end the war: retake it while fewer than 8 remain.
 
 ## Recording
 
