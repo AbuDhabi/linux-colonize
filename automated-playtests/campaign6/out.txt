@@ -1,0 +1,1024 @@
+STATUS turn 1 year 1492; Menu: Start a Game in NEW WORLD; screen: title menu (title menu); popup tag -1
+@@ ready
+STATUS turn 1 year 1492; New game: generated map; screen: main map (new game); popup tag -1
+STATUS gold 1000; view origin (22,30) 15x12 tiles of 16px, y0 8; cursor (29,36)
+@@ s1
+@@ b1
+@@ s2
+@@ b2
+STATUS turn 1 year 1492; New game: generated map; screen: main map (new game); popup tag -1
+STATUS gold 1000; view origin (22,30) 15x12 tiles of 16px, y0 8; cursor (29,36)
+@@ s3
+@@ b3
+SHOT automated-playtests/campaign6/shots/t0.ppm
+@@ s4
+@@ b4
+SHOT automated-playtests/campaign6/shots/w1.ppm
+@@ s5
+@@ b5
+SHOT automated-playtests/campaign6/shots/w2.ppm
+@@ s6
+@@ b6
+SHOT automated-playtests/campaign6/shots/w3.ppm
+@@ s7
+@@ b7
+SHOT automated-playtests/campaign6/shots/w4.ppm
+@@ s8
+@@ b8
+SHOT automated-playtests/campaign6/shots/w5.ppm
+STATUS turn 1 year 1492; New game: generated map; screen: main map (new game); popup tag -1
+STATUS gold 1000; view origin (22,30) 15x12 tiles of 16px, y0 8; cursor (29,36)
+@@ s9
+@@ b9
+LOG: Our {Caravel} carrying a pioneer and a soldier is on the high seas, Your Excellency.  If we navigate to the west ({left arrow}), we'll probably find land.  If we sail to the east ({right arrow}), we can return to port.
+SHOT automated-playtests/campaign6/shots/w6.ppm
+STATUS turn 0 year 1492; Turn 0 Cursor 47,28; screen: main map (map); popup tag -1
+STATUS gold 1000; view origin (40,22) 15x12 tiles of 16px, y0 8; cursor (47,28)
+STATUS selected unit 1 Caravel at (47,28) moves 12 orders 0
+@@ s10
+@@ b10
+UNIT 1 Caravel at (47,28) moves 12 orders 0 prof 0
+UNIT 2 Pioneers at (47,28) moves 0 orders 1 prof 28 aboard 1 tools 100 muskets 0 horses 0
+UNIT 3 Soldiers at (47,28) moves 0 orders 1 prof 21 aboard 1 tools 0 muskets 50 horses 0
+MAP x 40..54 (cols), y 21..35 (rows)
+MAP     404142434445464748495051525354
+MAP  21                               
+MAP  22                               
+MAP  23                               
+MAP  24                               
+MAP  25                               
+MAP  26                               
+MAP  27             ~.=.=.            
+MAP  28             ~.=@=.            
+MAP  29             =.=.=.            
+MAP  30                               
+MAP  31                               
+MAP  32                               
+MAP  33                               
+MAP  34                               
+MAP  35                               
+@@ s11
+@@ b11
+MAP x 35..49 (cols), y 21..35 (rows)
+MAP     353637383940414243444546474849
+MAP  21                               
+MAP  22                               
+MAP  23                               
+MAP  24                               
+MAP  25                               
+MAP  26                               
+MAP  27             W?~.~.~.~.~.=.=.  
+MAP  28             ~.~@~.~.~.~.=.=.  
+MAP  29             ~.~.~.~.~.=.=.=.  
+MAP  30                               
+MAP  31                               
+MAP  32                               
+MAP  33                               
+MAP  34                               
+MAP  35                               
+@@ s12
+@@ b12
+MAP x 35..49 (cols), y 21..35 (rows)
+MAP     353637383940414243444546474849
+MAP  21                               
+MAP  22                               
+MAP  23                               
+MAP  24                               
+MAP  25                               
+MAP  26                               
+MAP  27             W?~.~.~.~.~.=.=.  
+MAP  28             ~.~@~.~.~.~.=.=.  
+MAP  29             ~.~.~.~.~.=.=.=.  
+MAP  30                               
+MAP  31                               
+MAP  32                               
+MAP  33                               
+MAP  34                               
+MAP  35                               
+STATUS turn 1 year 1493; Turn 1 Cursor 42,28; screen: modal open (name entry); popup tag -1
+STATUS gold 1000; view origin (35,22) 15x12 tiles of 16px, y0 8; cursor (42,28)
+STATUS selected unit 1 Caravel at (42,28) moves 9 orders 0
+@@ s13
+@@ b13
+LOG: We've found uncharted land, Excellency.  To put the colonists ashore, move the ship toward land and choose {Make Landfall} from the menu.
+STATUS turn 1 year 1493; New land: New AlbionNew England; screen: modal open (map); popup tag 0
+STATUS gold 1000; view origin (35,22) 15x12 tiles of 16px, y0 8; cursor (42,28)
+STATUS selected unit 1 Caravel at (42,28) moves 9 orders 0
+MAP x 35..49 (cols), y 21..35 (rows)
+MAP     353637383940414243444546474849
+MAP  21                               
+MAP  22                               
+MAP  23                               
+MAP  24                               
+MAP  25                               
+MAP  26                               
+MAP  27             W?~.~.~.~.~.=.=.  
+MAP  28             ~.~@~.~.~.~.=.=.  
+MAP  29             ~.~.~.~.~.=.=.=.  
+MAP  30                               
+MAP  31                               
+MAP  32                               
+MAP  33                               
+MAP  34                               
+MAP  35                               
+@@ s14
+@@ b14
+MAP x 33..45 (cols), y 22..34 (rows)
+MAP     33343536373839404142434445
+MAP  22                           
+MAP  23                           
+MAP  24                           
+MAP  25                           
+MAP  26                           
+MAP  27           ~.R.~.W?~.~.~.~.
+MAP  28           ~.~@~.~.~.~.~.~.
+MAP  29           ~.~.~.~.~.~.~.~.
+MAP  30                           
+MAP  31                           
+MAP  32                           
+MAP  33                           
+MAP  34                           
+@@ s15
+@@ b15
+STATUS turn 2 year 1494; Turn 2 Cursor 38,28; screen: main map (map); popup tag -1
+STATUS gold 1000; view origin (31,22) 15x12 tiles of 16px, y0 8; cursor (38,28)
+STATUS selected unit 1 Caravel at (38,28) moves 9 orders 0
+RUMOUR (41,27) W
+@@ s16
+@@ b16
+MAP x 35..41 (cols), y 25..31 (rows)
+MAP     35363738394041
+MAP  25               
+MAP  26               
+MAP  27     ~.~.R.~.W?
+MAP  28     ~.~@~.~.~.
+MAP  29     ~.~.~.~.~.
+MAP  30               
+MAP  31               
+@@ s17
+@@ b17
+LOG: Shall we make landfall, Your Excellency, and leave the ships behind?
+CHOICES: [0] Stay With Ships [1] Make Landfall (sel 0)
+STATUS turn 2 year 1494; Turn 2 Cursor 38,28; screen: modal open (map); popup tag 26
+STATUS gold 1000; view origin (31,22) 15x12 tiles of 16px, y0 8; cursor (38,28)
+STATUS selected unit 1 Caravel at (38,28) moves 9 orders 0
+@@ s18
+@@ b18
+LOG: "The {Iroquois} tribe welcomes you. We are a glorious nation of {4 Villages}. To celebrate our friendship, we generously offer you the land you now occupy as a gift. Will you accept our treaty and live with us in peace as brothers?"
+CHOICES: [0] Yes [1] No (sel 0)
+STATUS turn 2 year 1494; The Iroquois offer peace.; screen: modal open (woodcut); popup tag 17
+STATUS gold 1000; view origin (32,21) 15x12 tiles of 16px, y0 8; cursor (39,27)
+STATUS selected unit 2 Pioneers at (39,27) moves 0 orders 0
+UNIT 1 Caravel at (38,28) moves 9 orders 0 prof 0
+UNIT 2 Pioneers at (39,27) moves 0 orders 0 prof 28 tools 100 muskets 0 horses 0
+UNIT 3 Soldiers at (38,28) moves 3 orders 1 prof 21 aboard 1 tools 0 muskets 50 horses 0
+MAP x 36..42 (cols), y 24..30 (rows)
+MAP     36373839404142
+MAP  24               
+MAP  25               
+MAP  26     MVG.R.    
+MAP  27   ~.~.R@~.W?~.
+MAP  28   ~.~u~.~.~.~.
+MAP  29   ~.~.~.~.~.~.
+MAP  30               
+SHOT automated-playtests/campaign6/shots/l1.ppm
+@@ s19
+@@ b19
+LOG: "The {Iroquois} welcome peace with our brothers the {English}.  Let us smoke a peace pipe to celebrate our perpetual friendship."
+STATUS turn 2 year 1494; "We hope you will soon visit Iroquois villages to share knowledge with us, and that you will send your wagon trains to trad; screen: modal open (map); popup tag 10
+STATUS gold 1000; view origin (32,21) 15x12 tiles of 16px, y0 8; cursor (39,27)
+STATUS selected unit 2 Pioneers at (39,27) moves 0 orders 0
+MAP x 33..45 (cols), y 21..33 (rows)
+MAP     33343536373839404142434445
+MAP  21                           
+MAP  22                           
+MAP  23                           
+MAP  24                           
+MAP  25                           
+MAP  26           MVG.R.          
+MAP  27         ~.~.R@~.W?~.~.~.~.
+MAP  28         ~.~u~.~.~.~.~.~.~.
+MAP  29         ~.~.~.~.~.~.~.~.~.
+MAP  30                           
+MAP  31                           
+MAP  32                           
+MAP  33                           
+@@ s20
+@@ b20
+LOG: "We hope you will soon {visit} Iroquois villages to share knowledge with us, and that you will send your {wagon trains} to trade with us."
+SHOT automated-playtests/campaign6/shots/l2.ppm
+@@ s21
+@@ b21
+MAP x 35..45 (cols), y 21..31 (rows)
+MAP     3536373839404142434445
+MAP  21                       
+MAP  22                       
+MAP  23                       
+MAP  24                       
+MAP  25                       
+MAP  26       MVG.R@          
+MAP  27     ~.~.Ru~.W?~.~.~.~.
+MAP  28     ~.~u~.~.~.~.~.~.~.
+MAP  29     ~.~.~.~.~.~.~.~.~.
+MAP  30                       
+MAP  31                       
+@@ s22
+@@ b22
+LOG: Our ship, a {Caravel}, is one of our most valuable units.  We can use it to explore the uncharted vastness of the New World, to carry our cargo home to London for sale, and to bring new immigrants from Europe.  You can move the ship normally with the arrow keys.  You can also send it to the port of your choice by pressing the '{G}' key.
+MAP x 30..46 (cols), y 20..36 (rows)
+MAP     3031323334353637383940414243444546
+MAP  20                                   
+MAP  21                                   
+MAP  22                                   
+MAP  23                                   
+MAP  24                                   
+MAP  25                                   
+MAP  26                 MVG.R.            
+MAP  27               ~.~.Ru~.W?~.~.~.~.~.
+MAP  28               ~.~@~.~.~.~.~.~.~.~.
+MAP  29               ~.~.~.~.~.~.~.~.~.=.
+MAP  30                                   
+MAP  31                                   
+MAP  32                                   
+MAP  33                                   
+MAP  34                                   
+MAP  35                                   
+MAP  36                                   
+STATUS turn 2 year 1494; Selected Caravel; screen: modal open (map); popup tag 0
+STATUS gold 1000; view origin (31,22) 15x12 tiles of 16px, y0 8; cursor (38,28)
+STATUS selected unit 1 Caravel at (38,28) moves 9 orders 0
+@@ s23
+@@ b23
+STATUS turn 2 year 1494; Turn 2 Cursor 38,28; screen: main map (map); popup tag -1
+STATUS gold 1000; view origin (31,22) 15x12 tiles of 16px, y0 8; cursor (38,28)
+STATUS selected unit 1 Caravel at (38,28) moves 9 orders 0
+UNIT 1 Caravel at (38,28) moves 9 orders 0 prof 0
+UNIT 2 Pioneers at (39,27) moves 0 orders 0 prof 28 tools 100 muskets 0 horses 0
+UNIT 3 Soldiers at (39,27) moves 0 orders 0 prof 21 tools 0 muskets 50 horses 0
+@@ s24
+@@ b24
+MAP x 29..45 (cols), y 18..34 (rows)
+MAP     2930313233343536373839404142434445
+MAP  18                                   
+MAP  19                                   
+MAP  20                                   
+MAP  21                                   
+MAP  22                                   
+MAP  23                                   
+MAP  24                                   
+MAP  25               ~rM.G.              
+MAP  26               ~.~@MVG.R.          
+MAP  27               ~.~.~.Ru~.W?~.~.~.~.
+MAP  28               ~.~.~.~.~.~.~.~.~.~.
+MAP  29               ~.~.~.~.~.~.~.~.~.~.
+MAP  30                                   
+MAP  31                                   
+MAP  32                                   
+MAP  33                                   
+MAP  34                                   
+STATUS turn 3 year 1495; Turn 3 Cursor 37,26; screen: main map (map); popup tag -1
+STATUS gold 1000; view origin (30,20) 15x12 tiles of 16px, y0 8; cursor (37,26)
+STATUS selected unit 1 Caravel at (37,26) moves 12 orders 0
+@@ s25
+@@ b25
+MAP x 29..45 (cols), y 18..34 (rows)
+MAP     2930313233343536373839404142434445
+MAP  18                                   
+MAP  19                                   
+MAP  20                                   
+MAP  21                                   
+MAP  22                                   
+MAP  23                                   
+MAP  24                                   
+MAP  25               ~rM.G.              
+MAP  26               ~.~@MVG.R.          
+MAP  27               ~.~.~.Ru~.W?~.~.~.~.
+MAP  28               ~.~.~.~.~.~.~.~.~.~.
+MAP  29               ~.~.~.~.~.~.~.~.~.~.
+MAP  30                                   
+MAP  31                                   
+MAP  32                                   
+MAP  33                                   
+MAP  34                                   
+STATUS turn 3 year 1495; Turn 3 Cursor 37,26; screen: main map (map); popup tag -1
+STATUS gold 1000; view origin (30,20) 15x12 tiles of 16px, y0 8; cursor (37,26)
+STATUS selected unit 1 Caravel at (37,26) moves 12 orders 0
+@@ s26
+@@ b26
+SHOT automated-playtests/campaign6/shots/l3.ppm
+@@ s27
+@@ b27
+RES (43,27) fish
+RES (42,28) fish
+RES (36,29) fish
+MAP x 32..40 (cols), y 22..30 (rows)
+MAP     323334353637383940
+MAP  22                   
+MAP  23                   
+MAP  24                   
+MAP  25         ~rM.G.    
+MAP  26         ~@~uMVG.R.
+MAP  27         ~.~.~.Ru~.
+MAP  28         ~.~.~.~.~.
+MAP  29         ~.~.~.~.~.
+MAP  30                   
+RUMOUR (41,27) W
+@@ s28
+@@ b28
+LOG: Our {pioneers} have arrived in the New World, Excellency!  They are ready to look for a good place to build our first colony.  Try to look for a spot where there will be plenty of food and other resources available.  Also, our first colony should be built near the ocean so that our ships can reach it.  Our pioneers are currently equipped with {100 Tools}, which they can use to cle
+STATUS turn 3 year 1495; Continue turn.; screen: modal open (map); popup tag 0
+STATUS gold 1000; view origin (32,21) 15x12 tiles of 16px, y0 8; cursor (39,27)
+STATUS selected unit 2 Pioneers at (39,27) moves 3 orders 0
+UNIT 1 Caravel at (37,26) moves 0 orders 5 prof 0
+UNIT 2 Pioneers at (39,27) moves 3 orders 0 prof 28 tools 100 muskets 0 horses 0
+UNIT 3 Soldiers at (39,27) moves 3 orders 0 prof 21 tools 0 muskets 50 horses 0
+@@ s29
+@@ b29
+LOG: Our {soldiers} have two uses.  They can be used to attack our enemies, if we run across any.  More importantly, they can be used to protect our own colonies from harm.  Our soldiers are equipped with {50 Muskets}.  If we want to make more soldier units later on, we will need either to bring more Muskets from Europe or to have our gunsmiths manufacture them.  Our soldiers will also
+STATUS turn 3 year 1495; Turn 3 Cursor 39,27; screen: main map (map); popup tag -1
+STATUS gold 1000; view origin (32,21) 15x12 tiles of 16px, y0 8; cursor (39,27)
+STATUS selected unit 3 Soldiers at (39,27) moves 3 orders 0
+UNIT 1 Caravel at (37,26) moves 0 orders 5 prof 0
+UNIT 2 Pioneers at (39,27) moves 3 orders 0 prof 28 tools 100 muskets 0 horses 0
+UNIT 3 Soldiers at (39,27) moves 3 orders 0 prof 21 tools 0 muskets 50 horses 0
+@@ s30
+@@ b30
+STATUS turn 3 year 1495; Turn 3 Cursor 39,27; screen: main map (map); popup tag -1
+STATUS gold 1000; view origin (32,21) 15x12 tiles of 16px, y0 8; cursor (39,27)
+STATUS selected unit 2 Pioneers at (39,27) moves 3 orders 0
+@@ s31
+@@ b31
+LOG: There are only a few productive squares adjacent to this square, Your Excellency.  A colony built here may have a lower potential for growth than we hope.  Perhaps we should move on to a larger area?
+CHOICES: [0] Cancel action. [1] Build colony anyway. (sel 0)
+STATUS turn 3 year 1495; Turn 3 Cursor 39,27; screen: modal open (map); popup tag 27
+STATUS gold 1000; view origin (32,21) 15x12 tiles of 16px, y0 8; cursor (39,27)
+STATUS selected unit 3 Soldiers at (39,27) moves 3 orders 0
+@@ s32
+@@ b32
+LOG: On the {Colony Screen}, you can decide what the colonists in this colony should be doing.  Our colonist is currently producing {Hammers}.  He could, for instance, produce {Food} instead.  To change his job, select him to bring up the {Jobs Menu}, then choose what you want him to do.  You can also drag him to a different square, or into one of the buildings in the colony.  To take 
+STATUS turn 3 year 1495; Entered Jamestown; screen: colony screen (colony:Jamestown); popup tag 0
+STATUS gold 1000; view origin (32,21) 15x12 tiles of 16px, y0 8; cursor (39,27)
+COLONY 0 Jamestown nation 0 at (39,27) pop 1
+  build Docks hammers 0 | SoL 0% | food +2 bells 1 crosses 1 hammers +0
+  stock food 0(+4) furs 0(+3) muskets 50(+0)
+  colonist 0 prof 21 in Carpenter's Shop field_job -1 slot -1
+@@ s33
+@@ b33
+COLONY 0 Jamestown nation 0 at (39,27) pop 1
+  build Docks hammers 0 | SoL 0% | food +2 bells 1 crosses 1 hammers +0
+  stock food 0(+4) furs 0(+3) muskets 50(+0)
+  colonist 0 prof 21  field_job 8 slot 4
+@@ s34
+@@ b34
+STATUS turn 3 year 1495; Selected Pioneers; screen: colony screen (colony:Jamestown); popup tag -1
+STATUS gold 1000; view origin (32,21) 15x12 tiles of 16px, y0 8; cursor (39,27)
+STATUS selected unit 2 Pioneers at (39,27) moves 3 orders 0
+UNIT 1 Caravel at (37,26) moves 0 orders 5 prof 0
+UNIT 2 Pioneers at (39,27) moves 3 orders 0 prof 28 tools 100 muskets 0 horses 0
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+@@ s35
+@@ b35
+SHOT automated-playtests/campaign6/shots/c1.ppm
+@@ s36
+@@ b36
+STATUS turn 3 year 1495; Building Stable; screen: colony screen (colony:Jamestown); popup tag -1
+STATUS gold 1000; view origin (32,21) 15x12 tiles of 16px, y0 8; cursor (39,27)
+STATUS selected unit 2 Pioneers at (39,27) moves 3 orders 0
+COLONY 0 Jamestown nation 0 at (39,27) pop 1
+  build Stable hammers 0 | SoL 0% | food +2 bells 1 crosses 1 hammers +0
+  stock food 0(+4) furs 0(+3) muskets 50(+0)
+  colonist 0 prof 21  field_job 8 slot 4
+@@ s37
+@@ b37
+STATUS turn 3 year 1495; Turn 3 Cursor 39,27; screen: main map (map); popup tag -1
+STATUS gold 1000; view origin (32,21) 15x12 tiles of 16px, y0 8; cursor (39,27)
+STATUS selected unit 2 Pioneers at (39,27) moves 3 orders 0
+@@ s38
+@@ b38
+LOG: Religious unrest in England causes increased emigration.  Colonists ({Master Carpenters}) now available in London.
+LOG: Excellency, there are {Master Carpenters} ready to join our colony on the docks in {London} (Europe).  If we send our ship there they will gladly set sail with us and become useful members of our community.
+STATUS turn 4 year 1496; Congress debates founding fathers.; screen: modal open (map); popup tag 0
+STATUS gold 1000; view origin (32,20) 15x12 tiles of 16px, y0 8; cursor (39,26)
+UNIT 1 Caravel at (37,26) moves 12 orders 5 prof 0
+UNIT 2 Pioneers at (39,26) moves 3 orders 0 prof 28 tools 100 muskets 0 horses 0
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 69 Colonists at (236,236) moves 3 orders 1 prof 13
+EUROPE dock Master Carpenters prof 13 (boards next ship)
+@@ s39
+@@ b39
+STATUS turn 4 year 1496; Congress debates founding fathers.; screen: modal open (map); popup tag 0
+STATUS gold 1000; view origin (32,20) 15x12 tiles of 16px, y0 8; cursor (39,26)
+@@ s40
+@@ b40
+SHOT automated-playtests/campaign6/shots/c2.ppm
+@@ s41
+@@ b41
+LOG: The Continental Congress will expand during its next session, Your Excellency.  Which Founding Father shall we appoint as its next member?
+CHOICES: [0] Peter Minuit (Trade Adviser) [1] Henry Hudson (Exploration Adviser) [2] Paul Revere (Military Adviser) [3] Pocahontas (Political Adviser) [4] William Penn (Religious Adviser) (sel 0)
+STATUS turn 4 year 1496; Congress debates founding fathers.; screen: modal open (map); popup tag 8
+STATUS gold 1000; view origin (32,20) 15x12 tiles of 16px, y0 8; cursor (39,26)
+@@ s42
+@@ b42
+LOG: This looks like a good place for a {road}.  Our {pioneers} will build roads in a square if you press the '{R}' key. If we build a road here, our fur, lumber, ore, and silver production in this square will be increased.  Our units also move faster when they are moving along a road.
+STATUS turn 4 year 1496; Turn 4 Cursor 39,26; screen: main map (map); popup tag -1
+STATUS gold 1000; view origin (32,20) 15x12 tiles of 16px, y0 8; cursor (39,26)
+STATUS selected unit 2 Pioneers at (39,26) moves 3 orders 0
+@@ s43
+@@ b43
+LOG: "This forest and the creatures it supports are necessary to sustain the {Iroquois} way of life.  We patiently ask you not to destroy it."
+CHOICES: [0] "Let these trees stand forever, then, friend." [1] "We offer you {97$} in compensation." [2] "Timmmmmmmbeeeeerrrrrrrrrrrr!" (sel 0)
+STATUS turn 4 year 1496; Turn 4 Cursor 39,26; screen: modal open (map); popup tag 46
+STATUS gold 1000; view origin (32,20) 15x12 tiles of 16px, y0 8; cursor (39,26)
+STATUS selected unit 2 Pioneers at (39,26) moves 3 orders 0
+UNIT 1 Caravel at (37,26) moves 0 orders 6 prof 0
+UNIT 2 Pioneers at (39,26) moves 3 orders 0 prof 28 tools 100 muskets 0 horses 0
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 69 Colonists at (236,236) moves 3 orders 1 prof 13
+EUROPE dock Master Carpenters prof 13 (boards next ship)
+@@ s44
+@@ b44
+LOG: "Very well, we withdraw our objection."
+STATUS turn 4 year 1496; ; screen: modal open (map); popup tag 0
+STATUS gold 903; view origin (32,20) 15x12 tiles of 16px, y0 8; cursor (39,26)
+STATUS selected unit 2 Pioneers at (39,26) moves 0 orders 8
+UNIT 1 Caravel at (37,26) moves 0 orders 6 prof 0
+UNIT 2 Pioneers at (39,26) moves 0 orders 8 prof 28 tools 100 muskets 0 horses 0
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 69 Colonists at (236,236) moves 3 orders 1 prof 13
+EUROPE dock Master Carpenters prof 13 (boards next ship)
+@@ s45
+@@ b45
+ERR no End of Turn prompt (selected unit 2)
+AUTO stopped (map idle) after 34 frames
+STATUS turn 5 year 1497; Turn 5 Cursor 39,26; screen: main map (map); popup tag -1
+STATUS gold 903; view origin (32,20) 15x12 tiles of 16px, y0 8; cursor (39,26)
+@@ s46
+@@ b46
+AUTO stopped (map idle) after 19 frames
+ERR bad command 3000
+AUTO stopped (map idle) after 19 frames
+ERR bad command 3000
+AUTO stopped (map idle) after 19 frames
+ERR bad command 3000
+AUTO stopped (map idle) after 19 frames
+ERR bad command 3000
+STATUS turn 5 year 1497; Turn 5 Cursor 39,26; screen: main map (map); popup tag -1
+STATUS gold 903; view origin (32,20) 15x12 tiles of 16px, y0 8; cursor (39,26)
+@@ t1450801
+@@ b47
+UNIT 1 Caravel at (37,26) moves 12 orders 6 prof 0
+UNIT 2 Pioneers at (39,26) moves 0 orders 8 prof 28 tools 100 muskets 0 horses 0
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 69 Colonists at (236,236) moves 3 orders 1 prof 13
+EUROPE dock Master Carpenters prof 13 (boards next ship)
+@@ u1
+@@ b48
+UNIT 1 Caravel at (37,26) moves 12 orders 1 prof 0
+UNIT 2 Pioneers at (39,26) moves 0 orders 8 prof 28 tools 100 muskets 0 horses 0
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 69 Colonists at (236,236) moves 3 orders 1 prof 13
+EUROPE dock Master Carpenters prof 13 (boards next ship)
+@@ u2
+@@ b49
+AUTO stopped (map idle) after 19 frames
+AUTO stopped (map idle) after 19 frames
+AUTO stopped (map idle) after 19 frames
+AUTO stopped (map idle) after 19 frames
+AUTO stopped (map idle) after 19 frames
+STATUS turn 6 year 1498; Turn 6 Cursor 39,26; screen: main map (map); popup tag -1
+STATUS gold 903; view origin (32,20) 15x12 tiles of 16px, y0 8; cursor (39,26)
+UNIT 1 Caravel at (37,26) moves 12 orders 1 prof 0
+UNIT 2 Pioneers at (39,26) moves 0 orders 8 prof 28 tools 100 muskets 0 horses 0
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 69 Colonists at (236,236) moves 3 orders 1 prof 13
+EUROPE dock Master Carpenters prof 13 (boards next ship)
+@@ t1451608
+@@ b50
+STATUS turn 7 year 1499; Turn 7 Cursor 39,26; screen: main map (map); popup tag -1
+STATUS gold 903; view origin (32,20) 15x12 tiles of 16px, y0 8; cursor (39,26)
+@@ e1
+@@ b51
+STATUS turn 7 year 1499; Turn 7 Cursor 37,26; screen: modal open (list dialog); popup tag -1
+STATUS gold 903; view origin (30,20) 15x12 tiles of 16px, y0 8; cursor (37,26)
+STATUS selected unit 1 Caravel at (37,26) moves 12 orders 0
+@@ g1
+@@ b52
+SHOT automated-playtests/campaign6/shots/g2.ppm
+@@ g2
+@@ b53
+STATUS turn 7 year 1499; Turn 7 Cursor 40,29; screen: main map (map); popup tag -1
+STATUS gold 903; view origin (33,23) 15x12 tiles of 16px, y0 8; cursor (40,29)
+STATUS selected unit 1 Caravel at (40,29) moves 3 orders 3
+UNIT 1 Caravel at (40,29) moves 3 orders 3 prof 0
+UNIT 2 Pioneers at (39,26) moves 0 orders 8 prof 28 tools 100 muskets 0 horses 0
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 69 Colonists at (236,236) moves 3 orders 1 prof 13
+EUROPE dock Master Carpenters prof 13 (boards next ship)
+@@ g3
+@@ b54
+ERR no End of Turn prompt (selected unit 1)
+AUTO stopped (map idle) after 40 frames
+LOG: Pioneers clear forest near {Jamestown}.  {20 lumber} added to stockpile.
+AUTO stopped (map idle) after 28 frames
+LOG: This looks like a good place to {plow} or {clear}.  Our {pioneers} will plow the fields in a square if you press the '{P}' key.  Plowing a square increases its food, tobacco, cotton, and sugar production by one. Plowing a {forest} square causes the forest to be {cleared}, making room for more agriculture.
+LOG: The European Status Screen shows your home port in London, England. As new immigrants arrive, they will line up on the docks to await transport to the New World.  You can recruit new immigrants by pressing the {Recruit} or {Train} buttons.  When ships arrive in the harbor, their cargo can be sold by dragging it from the cargo holds to the blue warehouses at the bottom of the scree
+AUTO stopped (europe) after 16 frames
+ERR no End of Turn prompt (selected unit 2)
+AUTO stopped (europe) after 0 frames
+ERR no End of Turn prompt (selected unit 2)
+AUTO stopped (europe) after 0 frames
+ERR no End of Turn prompt (selected unit 2)
+AUTO stopped (europe) after 0 frames
+STATUS turn 10 year 1502; End of Turn — Spring 1502 (turn 10); screen: Europe screen (europe); popup tag -1
+STATUS gold 903; view origin (32,20) 15x12 tiles of 16px, y0 8; cursor (39,26)
+STATUS selected unit 2 Pioneers at (39,26) moves 3 orders 0
+@@ t1452171
+@@ b55
+SHOT automated-playtests/campaign6/shots/eu1.ppm
+@@ eu1
+@@ b56
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 2 Pioneers at (39,26) moves 3 orders 0 prof 28 tools 80 muskets 0 horses 0
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 69 Colonists at (236,236) moves 3 orders 1 prof 13
+EUROPE harbor Caravel turns_left 0 passengers
+EUROPE dock Master Carpenters prof 13 (boards next ship)
+STATUS turn 10 year 1502; End of Turn — Spring 1502 (turn 10); screen: Europe screen (europe); popup tag -1
+STATUS gold 903; view origin (32,20) 15x12 tiles of 16px, y0 8; cursor (39,26)
+STATUS selected unit 2 Pioneers at (39,26) moves 3 orders 0
+SHOT automated-playtests/campaign6/shots/eu2.ppm
+@@ eu2
+@@ b57
+STATUS turn 10 year 1502; End of Turn — Spring 1502 (turn 10); screen: Europe screen (europe); popup tag -1
+STATUS gold 763; view origin (32,20) 15x12 tiles of 16px, y0 8; cursor (39,26)
+STATUS selected unit 2 Pioneers at (39,26) moves 3 orders 0
+@@ r1
+@@ b58
+STATUS turn 10 year 1502; End of Turn — Spring 1502 (turn 10); screen: Europe screen (europe); popup tag -1
+STATUS gold 603; view origin (32,20) 15x12 tiles of 16px, y0 8; cursor (39,26)
+STATUS selected unit 2 Pioneers at (39,26) moves 3 orders 0
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 2 Pioneers at (39,26) moves 3 orders 0 prof 28 tools 80 muskets 0 horses 0
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 69 Colonists at (236,236) moves 3 orders 1 prof 13
+EUROPE harbor Caravel turns_left 0 passengers
+EUROPE dock Elder Statesmen prof 17 (boards next ship)
+EUROPE dock Expert Farmers prof 0 (boards next ship)
+EUROPE dock Master Carpenters prof 13 (boards next ship)
+@@ r2
+@@ b59
+STATUS turn 10 year 1502; Turn 10 Cursor 39,26; screen: main map (map); popup tag -1
+STATUS gold 603; view origin (32,20) 15x12 tiles of 16px, y0 8; cursor (39,26)
+STATUS selected unit 2 Pioneers at (39,26) moves 3 orders 0
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 2 Pioneers at (39,26) moves 3 orders 0 prof 28 tools 80 muskets 0 horses 0
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 69 Colonists at (236,236) moves 3 orders 1 prof 13
+EUROPE harbor Caravel turns_left 0 passengers
+EUROPE dock Elder Statesmen prof 17 (boards next ship)
+EUROPE dock Expert Farmers prof 0 (boards next ship)
+EUROPE dock Master Carpenters prof 13 (boards next ship)
+@@ x1
+@@ b60
+ERR Escape on the main map refused (asks Exit to DOS); use 'key Escape force'
+STATUS turn 10 year 1502; Turn 10 Cursor 39,26; screen: main map (map); popup tag -1
+STATUS gold 603; view origin (32,20) 15x12 tiles of 16px, y0 8; cursor (39,26)
+STATUS selected unit 2 Pioneers at (39,26) moves 3 orders 0
+@@ x2
+@@ b61
+STATUS turn 10 year 1502; Turn 10 Cursor 39,26; screen: Europe screen (europe); popup tag -1
+STATUS gold 603; view origin (32,20) 15x12 tiles of 16px, y0 8; cursor (39,26)
+STATUS selected unit 2 Pioneers at (39,26) moves 3 orders 0
+@@ x3
+@@ b62
+LOG: European harbor options for {Caravel}:
+CHOICES: [0] Move to front. [1] Set sail for the New World. [2] No changes. (sel 0)
+STATUS turn 10 year 1502; Turn 10 Cursor 39,26; screen: Europe screen (europe); popup tag 74
+STATUS gold 603; view origin (32,20) 15x12 tiles of 16px, y0 8; cursor (39,26)
+STATUS selected unit 2 Pioneers at (39,26) moves 3 orders 0
+@@ x4
+@@ b63
+LOG: Shall we set sail for the {New World}, Your Excellency?
+CHOICES: [0] Yes, steady as she goes. [1] No, let us remain in port. (sel 0)
+STATUS turn 10 year 1502; Turn 10 Cursor 39,26; screen: Europe screen (europe); popup tag 27
+STATUS gold 603; view origin (32,20) 15x12 tiles of 16px, y0 8; cursor (39,26)
+STATUS selected unit 2 Pioneers at (39,26) moves 3 orders 0
+@@ x5
+@@ b64
+STATUS turn 10 year 1502; Turn 10 Cursor 39,26; screen: main map (map); popup tag -1
+STATUS gold 603; view origin (32,20) 15x12 tiles of 16px, y0 8; cursor (39,26)
+STATUS selected unit 2 Pioneers at (39,26) moves 3 orders 0
+@@ x6
+@@ b65
+ERR no End of Turn prompt (selected unit 2)
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 2)
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 2)
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 2)
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 2)
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 2)
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 2)
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 2)
+AUTO stopped (map idle) after 19 frames
+STATUS turn 10 year 1502; Turn 10 Cursor 39,26; screen: main map (map); popup tag -1
+STATUS gold 603; view origin (32,20) 15x12 tiles of 16px, y0 8; cursor (39,26)
+STATUS selected unit 2 Pioneers at (39,26) moves 3 orders 0
+@@ t1453660
+@@ b66
+STATUS turn 10 year 1502; Turn 10 Cursor 39,26; screen: main map (map); popup tag -1
+STATUS gold 603; view origin (32,20) 15x12 tiles of 16px, y0 8; cursor (39,26)
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 2 Pioneers at (39,26) moves 0 orders 8 prof 28 tools 80 muskets 0 horses 0
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 69 Colonists at (236,236) moves 3 orders 1 prof 13
+EUROPE to-new-world Caravel turns_left 1 passengers prof17 prof0
+EUROPE dock Master Carpenters prof 13 (boards next ship)
+@@ x7
+@@ b67
+AUTO stopped (map idle) after 26 frames
+AUTO stopped (map idle) after 26 frames
+ERR no End of Turn prompt (selected unit 74)
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 74)
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 74)
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 74)
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 74)
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 74)
+AUTO stopped (map idle) after 19 frames
+STATUS turn 12 year 1504; Turn 12 Cursor 41,31; screen: main map (map); popup tag -1
+STATUS gold 603; view origin (34,25) 15x12 tiles of 16px, y0 8; cursor (41,31)
+STATUS selected unit 74 Caravel at (41,31) moves 12 orders 0
+@@ t1453809
+@@ b68
+SHOT automated-playtests/campaign6/shots/g4.ppm
+@@ x8
+@@ b69
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 2 Pioneers at (39,26) moves 0 orders 8 prof 28 tools 80 muskets 0 horses 0
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 69 Colonists at (236,236) moves 3 orders 1 prof 13
+UNIT 74 Caravel at (40,28) moves 3 orders 3 prof 0
+UNIT 75 Colonists at (40,28) moves 0 orders 1 prof 17 aboard 74
+UNIT 76 Colonists at (40,28) moves 0 orders 1 prof 0 aboard 74
+EUROPE dock Master Carpenters prof 13 (boards next ship)
+@@ x9
+@@ b70
+ERR no End of Turn prompt (selected unit 74)
+LOG: New colonists have arrived in {Jamestown}, Your Excellency!  You can make them citizens of {Jamestown} by clicking on the colony, and then dragging the colonists from the "fence" to a field or building.
+AUTO stopped (map idle) after 22 frames
+ERR no End of Turn prompt (selected unit 75)
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 75)
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 75)
+AUTO stopped (map idle) after 19 frames
+STATUS turn 12 year 1504; Turn 12 Cursor 39,27; screen: main map (map); popup tag -1
+STATUS gold 603; view origin (32,21) 15x12 tiles of 16px, y0 8; cursor (39,27)
+STATUS selected unit 75 Colonists at (39,27) moves 3 orders 0
+@@ t1454091
+@@ b71
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 2 Pioneers at (39,26) moves 0 orders 8 prof 28 tools 80 muskets 0 horses 0
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 69 Colonists at (236,236) moves 3 orders 1 prof 13
+UNIT 74 Caravel at (39,27) moves 0 orders 0 prof 0
+UNIT 75 Colonists at (39,27) moves 3 orders 0 prof 17
+UNIT 76 Colonists at (39,27) moves 3 orders 0 prof 0
+EUROPE dock Master Carpenters prof 13 (boards next ship)
+ADMIT colonist 1
+ADMIT colonist 2
+COLONY 0 Jamestown nation 0 at (39,27) pop 3
+  build Stable hammers 0 | SoL 2% | food -2 bells 1 crosses 1 hammers +3
+  stock food 18(+4) tobacco 0(+6) furs 27(+3) lumber 20(-3) muskets 50(+0)
+  colonist 0 prof 21  field_job 8 slot 4
+  colonist 1 prof 17  field_job 2 slot 0
+  colonist 2 prof 0 in Carpenter's Shop field_job -1 slot -1
+COLONY 1 Isabella nation 2 at (40,15) pop 1
+COLONY 2 New Amsterdam nation 3 at (45,58) pop 1
+COLONY 3 Quebec nation 1 at (39,53) pop 1
+COLONY 4 Fort Orange nation 3 at (48,55) pop 1
+@@ x10
+@@ b72
+COLONY 0 Jamestown nation 0 at (39,27) pop 3
+  build Stable hammers 0 | SoL 2% | food -2 bells 1 crosses 1 hammers +0
+  stock food 18(+4) tobacco 0(+6) furs 27(+3) lumber 20(+0) muskets 50(+0)
+  colonist 0 prof 21  field_job 8 slot 4
+  colonist 1 prof 17  field_job 2 slot 0
+  colonist 2 prof 0  field_job 8 slot 2
+COLONY 1 Isabella nation 2 at (40,15) pop 1
+COLONY 2 New Amsterdam nation 3 at (45,58) pop 1
+COLONY 3 Quebec nation 1 at (39,53) pop 1
+COLONY 4 Fort Orange nation 3 at (48,55) pop 1
+@@ x11
+@@ b73
+AUTO stopped (map idle) after 26 frames
+ERR no End of Turn prompt (selected unit 74)
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 74)
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 74)
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 74)
+AUTO stopped (map idle) after 19 frames
+STATUS turn 13 year 1505; Turn 13 Cursor 39,27; screen: main map (map); popup tag -1
+STATUS gold 603; view origin (32,21) 15x12 tiles of 16px, y0 8; cursor (39,27)
+STATUS selected unit 74 Caravel at (39,27) moves 12 orders 0
+@@ t1454897
+@@ b74
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 2 Pioneers at (39,26) moves 0 orders 0 prof 28 tools 60 muskets 0 horses 0
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 69 Colonists at (236,236) moves 3 orders 1 prof 13
+UNIT 74 Caravel at (39,27) moves 12 orders 1 prof 0
+EUROPE dock Master Carpenters prof 13 (boards next ship)
+@@ x12
+@@ b75
+AUTO stopped (map idle) after 26 frames
+ERR no End of Turn prompt (selected unit 2)
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 2)
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 2)
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 2)
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 2)
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 2)
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 2)
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 2)
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 2)
+AUTO stopped (map idle) after 19 frames
+STATUS turn 15 year 1507; Turn 15 Cursor 39,26; screen: main map (map); popup tag -1
+STATUS gold 603; view origin (32,20) 15x12 tiles of 16px, y0 8; cursor (39,26)
+STATUS selected unit 2 Pioneers at (39,26) moves 3 orders 0
+@@ t1455008
+@@ b76
+LOG: That land has already been {plowed}.
+COLONY 0 Jamestown nation 0 at (39,27) pop 3
+  build Stable hammers 0 | SoL 3% | food -2 bells 1 crosses 1 hammers +0
+  stock food 12(+4) tobacco 19(+7) furs 36(+3) lumber 20(+0) muskets 50(+0)
+  colonist 0 prof 21  field_job 8 slot 4
+  colonist 1 prof 17  field_job 2 slot 0
+  colonist 2 prof 0  field_job 8 slot 2
+COLONY 1 Isabella nation 2 at (40,15) pop 1
+COLONY 2 New Amsterdam nation 3 at (45,58) pop 1
+COLONY 3 Quebec nation 1 at (39,53) pop 1
+COLONY 4 Fort Orange nation 3 at (48,55) pop 1
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 2 Pioneers at (39,26) moves 3 orders 0 prof 28 tools 60 muskets 0 horses 0
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 69 Colonists at (236,236) moves 3 orders 1 prof 13
+UNIT 74 Caravel at (39,27) moves 12 orders 1 prof 0
+EUROPE dock Master Carpenters prof 13 (boards next ship)
+@@ x13
+@@ b77
+COLONY 0 Jamestown nation 0 at (39,27) pop 3
+  build Stable hammers 0 | SoL 3% | food -2 bells 1 crosses 1 hammers +0
+  stock food 12(+4) tobacco 19(+7) furs 36(+3) lumber 20(+0) muskets 50(+0)
+  colonist 0 prof 21  field_job 8 slot 4
+  colonist 1 prof 17  field_job 8 slot 6
+  colonist 2 prof 0  field_job 2 slot 0
+COLONY 1 Isabella nation 2 at (40,15) pop 1
+COLONY 2 New Amsterdam nation 3 at (45,58) pop 1
+COLONY 3 Quebec nation 1 at (39,53) pop 1
+COLONY 4 Fort Orange nation 3 at (48,55) pop 1
+@@ x14
+@@ b78
+ERR no End of Turn prompt (selected unit 2)
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 2)
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 2)
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 2)
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 2)
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 2)
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 2)
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 2)
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 2)
+AUTO stopped (map idle) after 19 frames
+ERR no End of Turn prompt (selected unit 2)
+AUTO stopped (map idle) after 19 frames
+STATUS turn 15 year 1507; Turn 15 Cursor 39,26; screen: main map (map); popup tag -1
+STATUS gold 603; view origin (32,20) 15x12 tiles of 16px, y0 8; cursor (39,26)
+STATUS selected unit 2 Pioneers at (39,26) moves 3 orders 0
+@@ t1455304
+@@ b79
+LOG: The price of {Coats} in London has risen to {11$}.
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 2 Pioneers at (39,26) moves 0 orders 6 prof 28 tools 60 muskets 0 horses 0
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 69 Colonists at (236,236) moves 3 orders 1 prof 13
+UNIT 74 Caravel at (39,27) moves 12 orders 1 prof 0
+EUROPE dock Master Carpenters prof 13 (boards next ship)
+@@ x15
+@@ b80
+AUTO stopped (map idle) after 34 frames
+LOG: The colony of {Jamestown} is rapidly depleting its food supply, Your Excellency.  We have only {6 food} left.  We must have food for the winter months.
+CHOICES: [0] Continue turn. [1] Zoom to colony. (sel 0)
+LOG: The price of {Furs} in London has risen to {5$}.
+AUTO stopped (map idle) after 31 frames
+LOG: The colony of {Jamestown} is rapidly depleting its food supply, Your Excellency.  We have only {4 food} left.  We must have food for the winter months.
+CHOICES: [0] Continue turn. [1] Zoom to colony. (sel 0)
+AUTO stopped (map idle) after 28 frames
+LOG: The colony of {Jamestown} is rapidly depleting its food supply, Your Excellency.  We have only {2 food} left.  We must have food for the winter months.
+CHOICES: [0] Continue turn. [1] Zoom to colony. (sel 0)
+AUTO stopped (map idle) after 28 frames
+LOG: Food stores have been depleted in {Jamestown}, Your Excellency!
+CHOICES: [0] Continue turn. [1] Zoom to colony. (sel 0)
+AUTO stopped (map idle) after 28 frames
+LOG: Food stores have been depleted in {Jamestown}, Your Excellency!
+CHOICES: [0] Continue turn. [1] Zoom to colony. (sel 0)
+AUTO stopped (map idle) after 28 frames
+AUTO stopped (map idle) after 26 frames
+LOG: The price of {Cotton} in London has risen to {4$}.
+AUTO stopped (map idle) after 28 frames
+AUTO stopped (map idle) after 26 frames
+AUTO stopped (map idle) after 26 frames
+STATUS turn 26 year 1518; Turn 26 Cursor 39,26; screen: main map (map); popup tag -1
+STATUS gold 603; view origin (31,19) 15x12 tiles of 16px, y0 8; cursor (39,26)
+@@ t1455462
+@@ b81
+COLONY 0 Jamestown nation 0 at (39,27) pop 3
+  build Stable hammers 0 | SoL 5% | food -2 bells 1 crosses 1 hammers +0
+  stock food 0(+4) tobacco 96(+7) furs 69(+3) lumber 20(+0) muskets 50(+0)
+  colonist 0 prof 21  field_job 8 slot 4
+  colonist 1 prof 17  field_job 8 slot 6
+  colonist 2 prof 0  field_job 2 slot 0
+COLONY 1 Isabella nation 2 at (40,15) pop 1
+COLONY 2 New Amsterdam nation 3 at (45,58) pop 2
+COLONY 3 Quebec nation 1 at (39,53) pop 2
+COLONY 4 Fort Orange nation 3 at (48,55) pop 1
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 2 Pioneers at (39,26) moves 3 orders 6 prof 28 tools 60 muskets 0 horses 0
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 69 Colonists at (236,236) moves 3 orders 1 prof 13
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 74 Caravel at (39,27) moves 12 orders 1 prof 0
+EUROPE dock Master Carpenters prof 13 (boards next ship)
+@@ x16
+@@ b82
+COLONY 0 Jamestown nation 0 at (39,27) pop 3
+  build Stable hammers 0 | SoL 5% | food +4 bells 1 crosses 1 hammers +0
+  stock food 0(+10) tobacco 96(+0) furs 69(+3) lumber 20(+0) muskets 50(+0)
+  colonist 0 prof 21  field_job 8 slot 4
+  colonist 1 prof 17  field_job 8 slot 6
+  colonist 2 prof 0  field_job 0 slot 0
+COLONY 1 Isabella nation 2 at (40,15) pop 1
+COLONY 2 New Amsterdam nation 3 at (45,58) pop 2
+COLONY 3 Quebec nation 1 at (39,53) pop 2
+COLONY 4 Fort Orange nation 3 at (48,55) pop 1
+@@ x17
+@@ b83
+LOG: English Founding Fathers announce that {Pocahontas} has joined the Continental Congress!
+AUTO stopped (map idle) after 36 frames
+AUTO stopped (choice popup) after 7 frames
+LOG: The Continental Congress will expand during its next session, Your Excellency.  Which Founding Father shall we appoint as its next member?
+CHOICES: [0] Peter Minuit (Trade Adviser) [1] Henry Hudson (Exploration Adviser) [2] Paul Revere (Military Adviser) [3] Benjamin Franklin (Political Adviser) [4] Jean de Brebeuf (Religious Adviser) (sel 0)
+ERR no End of Turn prompt (selected unit -1)
+AUTO stopped (choice popup) after 0 frames
+STATUS turn 28 year 1520; Congress debates founding fathers.; screen: modal open (map); popup tag 8
+STATUS gold 603; view origin (32,19) 15x12 tiles of 16px, y0 8; cursor (39,26)
+COLONY 0 Jamestown nation 0 at (39,27) pop 3
+  build Stable hammers 0 | SoL 6% | food +4 bells 1 crosses 1 hammers +0
+  stock food 8(+10) tobacco 96(+0) furs 75(+3) lumber 20(+0) muskets 50(+0)
+  colonist 0 prof 21  field_job 8 slot 4
+  colonist 1 prof 17  field_job 8 slot 6
+  colonist 2 prof 0  field_job 0 slot 0
+COLONY 1 Isabella nation 2 at (40,15) pop 1
+COLONY 2 New Amsterdam nation 3 at (45,58) pop 2
+COLONY 3 Quebec nation 1 at (39,53) pop 2
+COLONY 4 Fort Orange nation 3 at (48,55) pop 1
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 2 Pioneers at (39,26) moves 3 orders 6 prof 28 tools 60 muskets 0 horses 0
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 69 Colonists at (236,236) moves 3 orders 1 prof 13
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 74 Caravel at (39,27) moves 12 orders 1 prof 0
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+EUROPE dock Master Carpenters prof 13 (boards next ship)
+@@ t1456521
+@@ b84
+STATUS turn 28 year 1520; Turn 28 Cursor 39,26; screen: main map (map); popup tag -1
+STATUS gold 603; view origin (32,20) 15x12 tiles of 16px, y0 8; cursor (39,26)
+@@ x18
+@@ b85
+STATUS turn 28 year 1520; Turn 28 Cursor 42,30; screen: main map (map); popup tag -1
+STATUS gold 603; view origin (35,24) 15x12 tiles of 16px, y0 8; cursor (42,30)
+STATUS selected unit 74 Caravel at (42,30) moves 3 orders 3
+@@ x19
+@@ b86
+ERR no End of Turn prompt (selected unit 74)
+AUTO stopped (map idle) after 20 frames
+AUTO stopped (map idle) after 26 frames
+LOG: The price of {Cloth} in London has risen to {14$}.
+AUTO stopped (europe) after 12 frames
+STATUS turn 30 year 1522; End of Turn — Spring 1522 (turn 30); screen: Europe screen (europe); popup tag -1
+STATUS gold 603; view origin (31,19) 15x12 tiles of 16px, y0 8; cursor (42,30)
+COLONY 0 Jamestown nation 0 at (39,27) pop 3
+  build Stable hammers 0 | SoL 6% | food +4 bells 1 crosses 1 hammers +0
+  stock food 16(+10) tobacco 96(+0) furs 81(+3) lumber 20(+0) muskets 50(+0)
+  colonist 0 prof 21  field_job 8 slot 4
+  colonist 1 prof 17  field_job 8 slot 6
+  colonist 2 prof 0  field_job 0 slot 0
+COLONY 1 Isabella nation 2 at (40,15) pop 1
+COLONY 2 New Amsterdam nation 3 at (45,58) pop 2
+COLONY 3 Quebec nation 1 at (39,53) pop 2
+COLONY 4 Fort Orange nation 3 at (48,55) pop 2
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 2 Pioneers at (39,26) moves 3 orders 6 prof 28 tools 60 muskets 0 horses 0
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+UNIT 69 Colonists at (236,236) moves 3 orders 1 prof 13
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+(inactive) UNIT -1 ? at (0,0) moves 0 orders 0 prof 28
+EUROPE harbor Caravel turns_left 0 passengers
+EUROPE dock Master Carpenters prof 13 (boards next ship)
+@@ t1456947
+@@ b87

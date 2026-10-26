@@ -111,6 +111,9 @@ Economy and natives
 - A village's tension toward you grows each turn near your colony. At the
   top its braves attack any unit of yours next to them, even at peace and
   at low alarm: a lone scout passing such a village can die.
+- Site choice: a colony next to a native village is usually the wrong pick.
+  It costs one tile to work, adds native land claims nearby, and tension
+  rises fast. Choose it only to trade heavily with that village.
 - Scouts visiting chiefs are good early money. On Viceroy the Crown takes
   70% of treasure.
 - Tory penalty: -1 on every tile and building once
