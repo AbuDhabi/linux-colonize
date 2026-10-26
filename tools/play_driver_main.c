@@ -42,6 +42,7 @@
  *   build N BID [queue]         colony N builds BID (@BUILDING row, or unit code 42 artillery..)
  *   equip UID ROLE              unit UID on a colony tile takes role ROLE (COLONIZE_EJECT_*, 4 dragoon)
  *   admit UID                   unit UID on a colony tile joins that colony (prints colonist index)
+ *   eject N CI ROLE             colonist CI of colony N leaves as ROLE (COLONIZE_EJECT_*, 0 colonist)
  *   endturn                     confirm the End of Turn prompt (error while a unit waits)
  *   world                       whole map, one char a tile
  *   rumours                     list seen rumour tiles with terrain (h hill, m mountain)
@@ -849,6 +850,21 @@ static bool command(char* line) {
       printf("ERR admit refused\n");
     } else {
       printf("ADMIT colonist %d\n", ci);
+    }
+    ok = flush_frames(2);
+  } else if (strcmp(op, "eject") == 0 && argc > 3) {
+    /* eject N CI ROLE: colonist CI of colony N leaves as ROLE (COLONIZE_EJECT_*, 0 colonist),
+     * the colony screen's colonist-to-fence drop (unreachable when the fence row is full). */
+    if (a1 < 0 || a1 >= COLONIZE_COLONIES_MAX || !g_game->colonies.colonies[a1].active) {
+      printf("ERR no colony %d\n", a1);
+      return true;
+    }
+    const int uid = colonies_eject_colonist(&g_game->colonies, g_game->colonies.colonies[a1].id, a2,
+                                            &g_game->units, atoi(argv[3]));
+    if (uid < 0) {
+      printf("ERR eject refused\n");
+    } else {
+      printf("EJECT unit %d\n", uid);
     }
     ok = flush_frames(2);
   } else if (strcmp(op, "equip") == 0 && argc > 2) {

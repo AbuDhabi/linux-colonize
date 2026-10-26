@@ -1,795 +1,587 @@
-units
+colonies
 sync b1
-admit 292
+eject 7 10 0
+eject 7 3 0
+eject 7 2 0
 sync b2
 colonies
 sync b3
-field 3 19 6 5
-colonies
+eject 7 0 0
 sync b4
-activate 293
-wait 5
-key f
-wait 5
+colonies
 sync b5
-activate 295
-wait 5
-key f
-wait 5
+units
 sync b6
-activate 289
-wait 5
-key f
+colony 7
+wait 10
+click 225 142
 wait 5
 sync b7
-units
+status
 sync b8
-colonies
+key Return
+wait 5
+key Escape
+wait 5
 sync b9
-activate 295
-wait 5
-key f
-wait 5
+status
 sync b10
-activate 289
-wait 5
-key f
-wait 5
+activate 3
+goto 3 44 55
+wait 30
 sync b11
-activate 316
-wait 5
-key f
-wait 5
-sync b12
 units
+sync b12
+colony 13
+wait 10
+mdown 162 188
+wait 3
+move 150 180
+wait 3
+move 134 170
+wait 3
+mup 134 170
+wait 5
+key Escape
+wait 5
 sync b13
-activate 316
-wait 5
-status
+units
 sync b14
-key f
-wait 5
-status
+colonies
 sync b15
 units
 sync b16
+activate 38
+wait 3
 status
 sync b17
-key Return
-wait 8
+key s
+wait 20
 sync b18
 status
 sync b19
-key Return
-wait 8
+units
 sync b20
 status
 sync b21
+activate 60
+wait 3
+status
+sync b22
+key s
+wait 20
+sync b23
+status
+sync b24
+units
+sync b25
+status
+sync b26
+activate 65
+wait 3
+status
+sync b27
+key s
+wait 20
+sync b28
+status
+sync b29
+units
+sync b30
+status
+sync b31
+activate 68
+wait 3
+status
+sync b32
+key s
+wait 20
+sync b33
+status
+sync b34
+units
+sync b35
+status
+sync b36
+status
+sync b37
+status
+sync b38
 key Return
 wait 8
-sync b22
-status
-sync b23
-activate 316
-wait 5
-key f
-wait 5
-sync b24
-activate 295
-wait 5
-key f
-wait 5
-sync b25
-activate 289
-wait 5
-key f
-wait 5
-sync b26
-units
-sync b27
-work 3 18 37
-sync b28
-work 3 18 24
-sync b29
-colonies
-sync b30
-units
-sync b31
-colonies
-sync b32
-units
-sync b33
-build 7 42
-key Escape
-wait 10
-sync b34
-colonies
-sync b35
-save t426.sav
-sync b36
-map 3 45 53
-sync b37
-units
-sync b38
-status
 sync b39
 status
 sync b40
-units
+key Return
+wait 8
 sync b41
-activate 202
-goto 202 53 47
-wait 30
 status
 sync b42
-endturn
-auto
-status
+key Return
+wait 8
 sync b43
 status
 sync b44
-key Escape
-wait 10
-status
-sync b45
-status
-sync b46
 units
+sync b45
+units
+sync b46
+near 45 52 2
 sync b47
-activate 202
-goto 202 53 47
-wait 30
 status
 sync b48
-status
+near 45 53 1
 sync b49
-key Return
-wait 8
+activate 3
+goto 3 45 52
+wait 30
 sync b50
-status
+units
 sync b51
-key Return
-wait 8
+status
 sync b52
-status
+colony 7
+wait 10
+click 133 150
+wait 8
+shot fo1
 sync b53
+key Down
+wait 4
 key Return
 wait 8
+key Escape
+wait 5
 sync b54
-status
+units
 sync b55
-endturn
-auto
-status
+colonies
 sync b56
+activate 2
+wait 3
 status
 sync b57
-units
+key KP_9
+wait 20
 sync b58
-endturn
-auto
 status
 sync b59
-status
+units
 sync b60
 status
 sync b61
-drag 162 188 150 170
-wait 10
-status
+equip 2 4
+wait 2
 sync b62
 units
 sync b63
-drag 154 152 105 140
-wait 10
-choose 0
-wait 10
 units
 sync b64
-build 13 17
-build 13 15 queue
-key Escape
-wait 10
+activate 38
+wait 3
+status
 sync b65
-colonies
+key s
+wait 20
 sync b66
-endturn
-auto
 status
 sync b67
-activate 395
-wait 3
-key f
-wait 3
+units
 sync b68
-endturn
-auto
 status
 sync b69
-units
+activate 60
+wait 3
+status
 sync b70
-status
+key s
+wait 20
 sync b71
-units
-sync b72
-activate 414
-goto 414 45 52
-wait 30
 status
+sync b72
+units
 sync b73
-endturn
-auto
 status
 sync b74
+activate 65
+wait 3
 status
 sync b75
-units
+key s
+wait 20
 sync b76
-endturn
-auto
 status
 sync b77
 units
 sync b78
-units
-sync b79
-colony 7
-wait 10
-hit 133 150
-hit 150 150
-hit 167 150
-sync b80
-click 133 150
-wait 8
 status
+sync b79
+activate 68
+wait 3
+status
+sync b80
+key s
+wait 20
 sync b81
-drag 133 170 87 188
-wait 8
-click 150 150
-wait 8
 status
 sync b82
-drag 133 170 162 188
-wait 8
-click 133 150
-wait 8
-drag 162 188 133 170
-wait 8
-key Escape
-wait 8
 units
 sync b83
 status
 sync b84
-units
-sync b85
-activate 16
-goto 16 44 55
-wait 30
+activate 101
+wait 3
 status
+sync b85
+key s
+wait 20
 sync b86
-activate 415
-goto 415 44 55
-wait 30
 status
 sync b87
-activate 417
-goto 417 44 55
-wait 30
-status
+units
 sync b88
-activate 416
-goto 416 45 56
-wait 30
 status
 sync b89
-endturn
-auto
+activate 102
+wait 3
 status
 sync b90
-status
+key s
+wait 20
 sync b91
-units
-sync b92
-activate 16
-goto 16 44 55
-wait 30
 status
+sync b92
+units
 sync b93
-activate 415
-goto 415 44 55
-wait 30
 status
 sync b94
-activate 417
-goto 417 44 55
-wait 30
+activate 103
+wait 3
 status
 sync b95
-activate 416
-goto 416 45 56
-wait 30
-status
+key s
+wait 20
 sync b96
-endturn
-auto
 status
 sync b97
-status
-sync b98
 units
+sync b98
+status
 sync b99
-activate 16
-goto 16 44 55
-wait 30
+activate 104
+wait 3
 status
 sync b100
-activate 415
-goto 415 44 55
-wait 30
-status
+key s
+wait 20
 sync b101
-activate 417
-goto 417 44 55
-wait 30
 status
 sync b102
-activate 416
-goto 416 45 56
-wait 30
-status
+units
 sync b103
-endturn
-auto
 status
 sync b104
-units
+status
 sync b105
 status
 sync b106
-units
+key Return
+wait 8
 sync b107
-activate 16
-goto 16 44 55
-wait 30
 status
 sync b108
-activate 415
-goto 415 44 55
-wait 30
-status
+units
 sync b109
-activate 417
-goto 417 44 55
-wait 30
-status
+units
 sync b110
-activate 416
-goto 416 45 56
-wait 30
-status
+near 45 52 2
 sync b111
-endturn
-auto
 status
 sync b112
-status
+near 45 53 1
 sync b113
 units
 sync b114
-activate 16
-goto 16 44 55
-wait 30
-status
+save t508.sav
 sync b115
-activate 415
-goto 415 44 55
-wait 30
-status
+colonies
 sync b116
-activate 417
-goto 417 44 55
-wait 30
-status
+units
 sync b117
-activate 416
-goto 416 45 56
-wait 30
+activate 2
+wait 3
 status
 sync b118
-endturn
-auto
-status
+key s
+wait 20
 sync b119
-units
+status
 sync b120
-activate 414
-wait 5
-key f
-wait 5
+units
 sync b121
 status
 sync b122
-key Return
-wait 8
+activate 3
+wait 3
+status
 sync b123
-status
+key s
+wait 20
 sync b124
-key Return
-wait 8
-sync b125
 status
+sync b125
+units
 sync b126
-key Return
-wait 8
+status
 sync b127
+activate 4
+wait 3
 status
 sync b128
-units
+key s
+wait 20
 sync b129
-activate 417
-goto 417 44 55
-wait 30
 status
 sync b130
-status
+units
 sync b131
-key Return
-wait 8
+status
 sync b132
+activate 31
+wait 3
 status
 sync b133
-key Return
-wait 8
+key s
+wait 20
 sync b134
 status
 sync b135
-key Return
-wait 8
+units
 sync b136
 status
 sync b137
-activate 416
-goto 416 45 56
-wait 30
+activate 38
+wait 3
 status
 sync b138
-endturn
-auto
-status
+key s
+wait 20
 sync b139
 status
 sync b140
 units
 sync b141
-activate 416
-goto 416 45 56
-wait 30
 status
 sync b142
-endturn
-auto
+activate 40
+wait 3
 status
 sync b143
-units
+key s
+wait 20
 sync b144
-colony 13
-wait 10
-click 133 150
-wait 8
 status
 sync b145
-drag 150 170 162 188
-wait 8
-key Escape
-wait 8
-admit 415
+units
 sync b146
-units
+status
 sync b147
-colonies
+activate 41
+wait 3
+status
 sync b148
-colony 13
-wait 10
-drag 150 170 162 188
-wait 8
-key Escape
-wait 8
+key s
+wait 20
 sync b149
-units
+status
 sync b150
-colonies
+units
 sync b151
-field 13 9 7 0
-work 13 12 35
-field 13 11 5 5
+status
 sync b152
-colonies
+activate 43
+wait 3
+status
 sync b153
-activate 416
-wait 5
-status
+key s
+wait 20
 sync b154
-activate 417
-wait 5
-key f
-wait 5
-sync b155
-endturn
-auto
 status
+sync b155
+units
 sync b156
-activate 16
-wait 3
-key f
-wait 3
+status
 sync b157
-endturn
-auto
+activate 47
+wait 3
 status
 sync b158
-activate 416
-wait 5
-status
+key s
+wait 20
 sync b159
 status
 sync b160
-status
+units
 sync b161
-near 45 56 0
+status
 sync b162
-key KP_3
-wait 5
+activate 48
+wait 3
 status
 sync b163
-units
+key s
+wait 20
 sync b164
 status
 sync b165
-key Return
-wait 8
+units
 sync b166
 status
 sync b167
-activate 416
-wait 5
-key p
-wait 5
-units
+activate 49
+wait 3
+status
 sync b168
-colonies
+key s
+wait 20
 sync b169
-colony 7
-wait 10
 status
 sync b170
-hit 133 150
-hit 150 150
+units
 sync b171
-drag 272 188 133 170
-wait 8
-drag 272 188 150 170
-wait 8
-drag 200 188 162 170
-wait 8
-drag 47 188 175 170
-wait 8
-key Escape
-wait 8
-units
+status
 sync b172
-colonies
+activate 50
+wait 3
+status
 sync b173
-colony 7
-wait 10
+key s
+wait 20
 sync b174
-hit 55 10
-hit 60 10
-hit 65 10
-hit 70 10
-hit 75 10
-hit 80 10
-hit 85 10
-hit 55 14
-hit 60 14
-hit 65 14
-hit 70 14
-hit 75 14
-hit 80 14
-hit 85 14
-hit 55 18
-hit 60 18
-hit 65 18
-hit 70 18
-hit 75 18
-hit 80 18
-hit 85 18
-hit 55 22
-hit 60 22
-hit 65 22
-hit 70 22
-hit 75 22
-hit 80 22
-hit 85 22
-hit 55 26
-hit 60 26
-hit 65 26
-hit 70 26
-hit 75 26
-hit 80 26
-hit 85 26
+status
 sync b175
-mdown 65 26
-wait 5
-move 120 80
-wait 5
-move 190 115
-wait 5
-mup 190 115
-wait 15
-key Down
-wait 3
-key Return
-wait 10
-key Escape
-wait 10
-sync b176
-colonies
-sync b177
 units
+sync b176
+status
+sync b177
+activate 60
+wait 3
+status
 sync b178
-activate 503
-wait 3
-key f
-wait 3
+key s
+wait 20
 sync b179
 status
 sync b180
 units
 sync b181
-activate 414
-goto 414 44 47
-wait 30
 status
 sync b182
-endturn
-auto
+activate 65
+wait 3
 status
 sync b183
-status
+key s
+wait 20
 sync b184
-units
-sync b185
-endturn
-auto
 status
-sync b186
+sync b185
 units
+sync b186
+status
 sync b187
-key f
+activate 68
 wait 3
-colony 3
-wait 10
+status
 sync b188
-hit 133 150
-hit 150 150
+key s
+wait 20
 sync b189
-click 150 150
-wait 8
 status
 sync b190
-status
+units
 sync b191
 status
 sync b192
+activate 70
+wait 3
 status
 sync b193
-shot c34
+key s
+wait 20
 sync b194
-click 150 150
-wait 8
-click 150 150
-wait 8
-key Down
-wait 3
-key Down
-wait 3
-key Return
-wait 8
-key Escape
-wait 8
+status
 sync b195
 units
 sync b196
-colonies
+status
 sync b197
+activate 78
+wait 3
 status
 sync b198
-colony 3
-wait 10
-click 150 150
-wait 8
-drag 290 188 133 170
-wait 8
-key Escape
-wait 8
-units
+key s
+wait 20
 sync b199
-activate 26
-wait 4
 status
 sync b200
-key s
-wait 4
+units
 sync b201
-activate 193
-wait 4
 status
 sync b202
-key s
-wait 4
+activate 101
+wait 3
+status
 sync b203
-activate 194
-wait 4
-status
+key s
+wait 20
 sync b204
-key s
-wait 4
-sync b205
-activate 167
-wait 4
 status
+sync b205
+units
 sync b206
-key s
-wait 4
+status
 sync b207
-activate 191
-wait 4
+activate 102
+wait 3
 status
 sync b208
 key s
-wait 4
+wait 20
 sync b209
-activate 203
-wait 4
 status
 sync b210
-key s
-wait 4
+units
 sync b211
-activate 205
-wait 4
 status
 sync b212
-key s
-wait 4
+activate 103
+wait 3
+status
 sync b213
-units
+key s
+wait 20
 sync b214
-activate 26
-wait 4
 status
 sync b215
-key s
-wait 4
-status
-sync b216
 units
+sync b216
+status
 sync b217
+activate 104
+wait 3
 status
 sync b218
-key Return
-wait 8
+key s
+wait 20
 sync b219
 status
 sync b220
-key Return
-wait 8
+units
 sync b221
 status
 sync b222
-key Return
-wait 8
+status
 sync b223
 status
 sync b224
@@ -803,63 +595,39 @@ wait 8
 sync b227
 status
 sync b228
-activate 26
-wait 4
-key s
-wait 4
-sync b229
-activate 193
-wait 4
-key s
-wait 4
-sync b230
-activate 194
-wait 4
-key s
-wait 4
-sync b231
-activate 167
-wait 4
-key s
-wait 4
-sync b232
-activate 191
-wait 4
-key s
-wait 4
-sync b233
-activate 203
-wait 4
-key s
-wait 4
-sync b234
-activate 205
-wait 4
-key s
-wait 4
-sync b235
 units
+sync b229
+units
+sync b230
+near 45 52 2
+sync b231
+status
+sync b232
+near 45 53 2
+sync b233
+status
+sync b234
+colonies
+sync b235
+work 7 9 36
+work 7 6 36
+wait 3
 sync b236
 status
 sync b237
-activate 414
-goto 414 45 52
-wait 30
-units
-status
+colonies
 sync b238
-status
+activate 68
+goto 68 44 47
+wait 40
 sync b239
-activate 289
-goto 289 46 51
-wait 30
-units
-status
+activate 60
+goto 60 44 47
+wait 40
 sync b240
-status
+units
 sync b241
-key Return
-wait 8
+status
 sync b242
 status
 sync b243
@@ -873,4165 +641,658 @@ wait 8
 sync b246
 status
 sync b247
-wait 30
+units
 sync b248
-status
+units
 sync b249
-key Return
-wait 8
+near 45 52 2
 sync b250
 status
 sync b251
-key Return
-wait 8
+near 45 53 2
 sync b252
-status
+colonies
 sync b253
-key Return
-wait 8
+near 45 53 3
 sync b254
-status
+colony 7
+wait 10
+click 225 142
+wait 5
 sync b255
-key Return
-wait 8
+choose 0
+wait 3
+key Escape
+wait 5
 sync b256
-status
+colonies
 sync b257
-units
+colony 13
+wait 10
+click 225 142
+wait 5
 sync b258
-activate 414
-goto 414 45 52
-wait 30
-status
+choose 1
+wait 5
+key Escape
+wait 5
 sync b259
-activate 289
-goto 289 45 52
-wait 30
 status
 sync b260
-endturn
-auto
-status
+colony 13
+wait 10
+shot fn1
 sync b261
-status
+key Escape
+wait 3
 sync b262
-units
+activate 68
+goto 68 44 47
+wait 30
 sync b263
-endturn
-auto
-status
+units
 sync b264
 units
 sync b265
-activate 416
-wait 4
-key p
-wait 4
-sync b266
-colony 7
-wait 10
-status
-sync b267
-hit 133 150
-hit 150 150
-hit 167 150
-sync b268
-shot fo20
-sync b269
-click 150 150
-wait 8
-drag 133 170 290 188
-wait 8
-key Escape
-wait 8
-equip 503 2
-equip 204 2
+activate 2
 wait 3
+status
+sync b266
+key s
+wait 20
+sync b267
+status
+sync b268
+units
+sync b269
+status
 sync b270
-units
+activate 56
+wait 3
+status
 sync b271
-status
+key s
+wait 20
 sync b272
-units
-sync b273
-activate 26
-goto 26 44 55
-wait 30
 status
+sync b273
+units
 sync b274
-activate 193
-goto 193 44 55
-wait 30
 status
 sync b275
-activate 194
-goto 194 44 55
-wait 30
+activate 102
+wait 3
 status
 sync b276
-activate 167
-goto 167 44 55
-wait 30
-status
+key s
+wait 20
 sync b277
-activate 191
-goto 191 44 55
-wait 30
 status
 sync b278
-activate 203
-goto 203 44 55
-wait 30
-status
+units
 sync b279
-activate 205
-goto 205 44 55
-wait 30
 status
 sync b280
-activate 7
-goto 7 44 52
-wait 30
+activate 103
+wait 3
 status
 sync b281
-activate 503
-goto 503 46 53
-wait 30
-status
+key s
+wait 20
 sync b282
-activate 414
-goto 414 44 47
-wait 30
 status
 sync b283
-activate 289
-goto 289 44 47
-wait 30
-status
+units
 sync b284
-endturn
-auto
 status
 sync b285
+activate 104
+wait 3
 status
 sync b286
-units
+key s
+wait 20
 sync b287
-activate 167
-goto 167 44 55
-wait 30
 status
 sync b288
-activate 191
-goto 191 44 55
-wait 30
-status
+units
 sync b289
-activate 203
-goto 203 44 55
-wait 30
 status
 sync b290
-activate 205
-goto 205 44 55
-wait 30
 status
 sync b291
-activate 503
-goto 503 46 53
-wait 30
 status
 sync b292
-activate 414
-goto 414 44 47
-wait 30
-status
+key Return
+wait 8
 sync b293
-activate 289
-goto 289 44 47
-wait 30
 status
 sync b294
-endturn
-auto
-status
+key Return
+wait 8
 sync b295
-units
+status
 sync b296
-status
+key Return
+wait 8
 sync b297
-activate 7
-wait 4
-key f
-wait 4
+status
 sync b298
-activate 26
-wait 4
-key f
-wait 4
-sync b299
-activate 193
-wait 4
-key f
-wait 4
-sync b300
-activate 194
-wait 4
-key f
-wait 4
-sync b301
-activate 204
-wait 4
-key f
-wait 4
-sync b302
-status
-sync b303
 units
+sync b299
+units
+sync b300
+near 45 52 2
+sync b301
+status
+sync b302
+near 44 54 3
+sync b303
+colonies
 sync b304
-activate 167
-goto 167 44 55
-wait 30
-status
+near 44 55 1
 sync b305
-activate 191
-goto 191 44 55
-wait 30
-status
+near 44 54 1
 sync b306
-activate 203
-goto 203 44 55
-wait 30
-status
+save t511.sav
 sync b307
-activate 205
-goto 205 44 55
-wait 30
-status
+units
 sync b308
-activate 503
-goto 503 46 53
-wait 30
-status
+colonies
 sync b309
-activate 414
-goto 414 44 47
-wait 30
+activate 45
+wait 3
 status
 sync b310
-activate 289
-goto 289 44 47
-wait 30
-status
+key KP_1
+wait 20
 sync b311
-endturn
-auto
 status
 sync b312
-status
-sync b313
 units
+sync b313
+status
 sync b314
-activate 167
-goto 167 44 55
-wait 30
+activate 45
+wait 3
 status
 sync b315
-activate 191
-goto 191 44 55
-wait 30
-status
+key KP_2
+wait 20
 sync b316
-activate 203
-goto 203 44 55
-wait 30
 status
 sync b317
-activate 205
-goto 205 44 55
-wait 30
-status
+units
 sync b318
-activate 503
-goto 503 46 53
-wait 30
 status
 sync b319
-activate 414
-goto 414 44 47
-wait 30
 status
 sync b320
-activate 289
-goto 289 44 47
-wait 30
+activate 45
+wait 3
 status
 sync b321
-endturn
-auto
-status
+key KP_2
+wait 20
 sync b322
-units
-sync b323
-endturn
-auto
 status
+sync b323
+choose 0
+wait 30
 sync b324
 units
 sync b325
-key space
-wait 10
 status
 sync b326
-activate 546
-wait 4
-key f
-wait 4
+colonies
 sync b327
-activate 547
-wait 4
-key f
-wait 4
+activate 46
+wait 3
+status
 sync b328
-status
+key KP_1
+wait 20
 sync b329
-key Return
-wait 8
-sync b330
 status
+sync b330
+units
 sync b331
-key Return
-wait 8
+status
 sync b332
+activate 46
+wait 3
 status
 sync b333
-key Return
-wait 8
+key KP_2
+wait 20
 sync b334
 status
 sync b335
-key Return
-wait 8
+units
 sync b336
 status
 sync b337
-units
-sync b338
-activate 205
-goto 205 44 55
-wait 30
+activate 46
+wait 3
 status
+sync b338
+key KP_2
+wait 20
 sync b339
-activate 503
-goto 503 46 53
-wait 30
 status
 sync b340
-activate 414
-goto 414 44 47
+choose 0
 wait 30
-status
 sync b341
-activate 289
-goto 289 44 47
-wait 30
-status
+units
 sync b342
-endturn
-auto
 status
 sync b343
-activate 503
-wait 3
-key f
-wait 3
+colonies
 sync b344
-endturn
-auto
-status
+colonies
 sync b345
+activate 52
+wait 3
 status
 sync b346
-units
+key KP_1
+wait 20
 sync b347
-choose 0
-wait 8
+status
 sync b348
-activate 167
-wait 4
-key f
-wait 4
+units
 sync b349
-activate 191
-wait 4
-key f
-wait 4
+status
 sync b350
-activate 203
-wait 4
-key f
-wait 4
+activate 52
+wait 3
+status
 sync b351
-activate 205
-wait 4
-key f
-wait 4
+key KP_2
+wait 20
 sync b352
-activate 204
-wait 4
-key f
-wait 4
+status
 sync b353
-activate 503
-wait 4
-key f
-wait 4
+units
 sync b354
 status
 sync b355
-near 45 46 1
+activate 52
+wait 3
+status
 sync b356
-choose 0
-wait 8
-status
+key KP_2
+wait 20
 sync b357
-units
-sync b358
-activate 416
-wait 4
-key p
-wait 4
-sync b359
-activate 167
-wait 4
-key f
-wait 4
-sync b360
-activate 191
-wait 4
-key f
-wait 4
-sync b361
-activate 203
-wait 4
-key f
-wait 4
-sync b362
-activate 205
-wait 4
-key f
-wait 4
-sync b363
-activate 503
-wait 4
-key f
-wait 4
-sync b364
 status
-sync b365
-units
-sync b366
+sync b358
 choose 0
-wait 8
+wait 30
+sync b359
+units
+sync b360
+status
+sync b361
+colonies
+sync b362
+colonies
+sync b363
+activate 54
+wait 3
+status
+sync b364
+key KP_1
+wait 20
+sync b365
+status
+sync b366
+units
 sync b367
-near 46 47 2
+status
 sync b368
+activate 54
+wait 3
 status
 sync b369
-activate 503
-wait 4
-status
+key KP_2
+wait 20
 sync b370
-key f
-wait 4
+status
 sync b371
 units
 sync b372
-choose 0
-wait 8
 status
 sync b373
-key f
-wait 4
+activate 54
+wait 3
 status
 sync b374
-units
+key KP_2
+wait 20
 sync b375
-choose 0
-wait 8
+status
 sync b376
-near 46 53 1
-sync b377
-activate 503
-wait 4
-key s
-wait 4
-status
-sync b378
-units
-sync b379
-status
-sync b380
-key Return
-wait 8
-sync b381
-status
-sync b382
-key Return
-wait 8
-sync b383
-status
-sync b384
-units
-sync b385
-units
-sync b386
-activate 21
-wait 4
-key s
-wait 4
-sync b387
-activate 29
-wait 4
-key s
-wait 4
-sync b388
-activate 30
-wait 4
-key s
-wait 4
-sync b389
-activate 31
-wait 4
-key s
-wait 4
-sync b390
-activate 33
-wait 4
-key s
-wait 4
-sync b391
-activate 36
-wait 4
-key s
-wait 4
-sync b392
-activate 39
-wait 4
-key s
-wait 4
-sync b393
-activate 42
-wait 4
-key s
-wait 4
-sync b394
-units
-sync b395
-status
-sync b396
-activate 414
-goto 414 44 47
+choose 0
 wait 30
+sync b377
 units
+sync b378
+status
+sync b379
+colonies
+sync b380
+status
+sync b381
+key Escape
+wait 5
+sync b382
+save t511_retaken.sav
+sync b383
+units
+sync b384
+activate 2
+wait 3
+status
+sync b385
+key s
+wait 20
+sync b386
+status
+sync b387
+units
+sync b388
+status
+sync b389
+activate 3
+wait 3
+status
+sync b390
+key s
+wait 20
+sync b391
+status
+sync b392
+units
+sync b393
+status
+sync b394
+activate 31
+wait 3
+status
+sync b395
+key s
+wait 20
+sync b396
 status
 sync b397
-status
-sync b398
-activate 289
-goto 289 44 47
-wait 30
 units
+sync b398
 status
 sync b399
+activate 38
+wait 3
 status
 sync b400
-key Return
-wait 8
-status
+key s
+wait 20
 sync b401
-choose 0
-wait 8
-sync b402
 status
+sync b402
+units
 sync b403
 status
 sync b404
-activate 289
-goto 289 44 47
-wait 30
-units
+activate 41
+wait 3
 status
 sync b405
-status
+key s
+wait 20
 sync b406
-endturn
-auto
 status
 sync b407
-status
-sync b408
-activate 414
-goto 414 45 52
-wait 30
 units
+sync b408
 status
 sync b409
+activate 43
+wait 3
 status
 sync b410
-activate 289
-goto 289 45 52
-wait 30
-units
-status
+key s
+wait 20
 sync b411
-activate 416
-wait 4
-key p
-wait 4
+status
 sync b412
 units
 sync b413
-endturn
-auto
 status
 sync b414
+activate 47
+wait 3
 status
 sync b415
-activate 414
-goto 414 45 52
-wait 30
-units
-status
+key s
+wait 20
 sync b416
 status
 sync b417
-activate 289
-goto 289 45 52
-wait 30
 units
-status
 sync b418
 status
 sync b419
-activate 416
-goto 416 44 54
-wait 30
-units
+activate 48
+wait 3
 status
 sync b420
-endturn
-auto
-status
+key s
+wait 20
 sync b421
-activate 167
-wait 3
-key f
-wait 3
-sync b422
-endturn
-auto
 status
+sync b422
+units
 sync b423
-activate 191
-wait 3
-key f
-wait 3
+status
 sync b424
-endturn
-auto
+activate 49
+wait 3
 status
 sync b425
-activate 203
-wait 3
-key f
-wait 3
+key s
+wait 20
 sync b426
-endturn
-auto
 status
 sync b427
-activate 205
-wait 3
-key f
-wait 3
+units
 sync b428
-endturn
-auto
 status
 sync b429
-activate 21
+activate 50
 wait 3
-key f
-wait 3
+status
 sync b430
-endturn
-auto
-status
+key s
+wait 20
 sync b431
-activate 29
-wait 3
-key f
-wait 3
-sync b432
-endturn
-auto
 status
+sync b432
+units
 sync b433
-activate 30
-wait 3
-key f
-wait 3
+status
 sync b434
-endturn
-auto
+activate 56
+wait 3
 status
 sync b435
-activate 31
-wait 3
-key f
-wait 3
+key s
+wait 20
 sync b436
-endturn
-auto
 status
 sync b437
-activate 33
-wait 3
-key f
-wait 3
+units
 sync b438
-endturn
-auto
 status
 sync b439
-activate 36
+activate 65
 wait 3
-key f
-wait 3
+status
 sync b440
-endturn
-auto
-status
+key s
+wait 20
 sync b441
-activate 39
-wait 3
-key f
-wait 3
-sync b442
-endturn
-auto
 status
+sync b442
+units
 sync b443
-activate 42
-wait 3
-key f
-wait 3
+status
 sync b444
-endturn
-auto
+activate 68
+wait 3
 status
 sync b445
-status
+key s
+wait 20
 sync b446
-units
+status
 sync b447
-activate 416
-wait 4
-key p
-wait 4
+units
 sync b448
-units
+status
 sync b449
-units
+activate 70
+wait 3
+status
 sync b450
-status
-colonies
+key s
+wait 20
 sync b451
-units
+status
 sync b452
-colonies
+units
 sync b453
-map 4 45 53
+status
 sync b454
-map 4 45 53
-sync b455
-map 4 45 53
-sync b456
-save t445.sav
-sync b457
-equip 203 4
-wait 2
-sync b458
-units
-sync b459
-colonies
-sync b460
-units
-sync b461
-units
-sync b462
-activate 203
-wait 3
-key f
+activate 78
 wait 3
 status
+sync b455
+key s
+wait 20
+sync b456
+status
+sync b457
+units
+sync b458
+status
+sync b459
+activate 101
+wait 3
+status
+sync b460
+key s
+wait 20
+sync b461
+status
+sync b462
+units
 sync b463
-endturn
-auto
 status
 sync b464
-activate 203
+activate 102
 wait 3
-key f
-wait 3
+status
 sync b465
-endturn
-auto
-status
+key s
+wait 20
 sync b466
-activate 289
-wait 3
-key f
-wait 3
-sync b467
-endturn
-auto
 status
+sync b467
+units
 sync b468
 status
 sync b469
-activate 414
-goto 414 44 47
-wait 30
-units
+activate 103
+wait 3
 status
 sync b470
-status
+key s
+wait 20
 sync b471
-activate 289
-goto 289 44 47
-wait 30
-units
 status
 sync b472
 units
 sync b473
-activate 416
-wait 3
-key r
-wait 3
+status
 sync b474
-units
-sync b475
-activate 643
-wait 3
-key s
-wait 3
-sync b476
-activate 21
-wait 3
-key s
-wait 3
-sync b477
-activate 29
-wait 3
-key s
-wait 3
-sync b478
-activate 30
-wait 3
-key s
-wait 3
-sync b479
-activate 31
-wait 3
-key s
-wait 3
-sync b480
-activate 33
-wait 3
-key s
-wait 3
-sync b481
-activate 36
-wait 3
-key s
-wait 3
-sync b482
-activate 39
-wait 3
-key s
-wait 3
-sync b483
-units
-sync b484
-activate 21
-wait 5
-status
-key s
-wait 5
-status
-sync b485
-shot cur
-status
-sync b486
-choose 0
-wait 5
-status
-sync b487
-units
-sync b488
-choose 0
-wait 10
-status
-sync b489
-choose 0
-wait 10
-status
-sync b490
-choose 0
-wait 10
-status
-sync b491
-choose 0
-wait 10
-status
-sync b492
-units
-sync b493
-activate 414
-goto 414 44 47
-wait 30
-status
-sync b494
-units
-sync b495
-activate 643
-wait 3
-key s
-wait 3
-sync b496
-activate 21
-wait 3
-key s
-wait 3
-sync b497
-activate 29
-wait 3
-key s
-wait 3
-sync b498
-activate 30
-wait 3
-key s
-wait 3
-sync b499
-activate 31
-wait 3
-key s
-wait 3
-sync b500
-activate 33
-wait 3
-key s
-wait 3
-sync b501
-activate 36
-wait 3
-key s
-wait 3
-sync b502
-activate 39
-wait 3
-key s
-wait 3
-sync b503
-units
-sync b504
-status
-sync b505
-units
-sync b506
-build 13 42
-key Escape
-wait 5
-status
-sync b507
-auto
-status
-sync b508
-units
-sync b509
-activate 643
-wait 3
-key s
-wait 3
-sync b510
-activate 21
-wait 3
-key s
-wait 3
-sync b511
-activate 29
-wait 3
-key s
-wait 3
-sync b512
-activate 30
-wait 3
-key s
-wait 3
-sync b513
-activate 31
-wait 3
-key s
-wait 3
-sync b514
-activate 33
-wait 3
-key s
-wait 3
-sync b515
-activate 36
-wait 3
-key s
-wait 3
-sync b516
-activate 39
-wait 3
-key s
-wait 3
-sync b517
-activate 414
-goto 414 45 52
-wait 40
-status
-sync b518
-units
-sync b519
-activate 416
-wait 3
-key KP_6
-wait 10
-key r
-wait 5
-sync b520
-units
-sync b521
-status
-sync b522
-key Escape
-wait 5
-status
-sync b523
-units
-sync b524
-units
-sync b525
-status
-sync b526
-key Return
-wait 8
-sync b527
-status
-sync b528
-status
-sync b529
-activate 289
-goto 289 45 52
-wait 40
-status
-sync b530
-units
-sync b531
-units
-sync b532
-activate 416
-wait 3
-key r
-wait 5
-status
-sync b533
-units
-sync b534
-activate 643
-wait 3
-key f
-wait 3
-sync b535
-activate 30
-wait 3
-key f
-wait 3
-sync b536
-activate 36
-wait 3
-key f
-wait 3
-sync b537
-activate 39
-wait 3
-key f
-wait 3
-sync b538
-activate 414
-goto 414 44 47
-wait 5
-status
-sync b539
-units
-sync b540
-units
-sync b541
-status
-sync b542
-key Return
-wait 8
-sync b543
-status
-sync b544
-key Return
-wait 8
-sync b545
-status
-sync b546
-key Return
-wait 8
-sync b547
-status
-sync b548
-key Return
-wait 8
-sync b549
-status
-sync b550
-key Return
-wait 8
-sync b551
-status
-sync b552
-wait 40
-status
-sync b553
-units
-sync b554
-units
-sync b555
-activate 21
-wait 3
-key f
-wait 3
-sync b556
-activate 29
-wait 3
-key f
-wait 3
-sync b557
-activate 31
-wait 3
-key f
-wait 3
-sync b558
-activate 33
-wait 3
-key f
-wait 3
-sync b559
-work 3 14 3
-work 3 17 3
-key Escape
-wait 3
-sync b560
-colonies
-sync b561
-activate 289
-goto 289 44 47
-wait 5
-status
-sync b562
-units
-sync b563
-status
-sync b564
-key Return
-wait 8
-sync b565
-status
-sync b566
-key Return
-wait 8
-sync b567
-status
-sync b568
-wait 40
-status
-sync b569
-units
-sync b570
-activate 730
-wait 3
-key s
-wait 3
-sync b571
-activate 42
-wait 3
-key s
-wait 3
-sync b572
-activate 44
-wait 3
-key s
-wait 3
-sync b573
-activate 48
-wait 3
-key s
-wait 3
-sync b574
-activate 52
-wait 3
-key s
-wait 3
-sync b575
-activate 56
-wait 3
-key s
-wait 3
-sync b576
-activate 57
-wait 3
-key s
-wait 3
-sync b577
-activate 64
-wait 3
-key s
-wait 3
-sync b578
-status
-sync b579
-units
-sync b580
-units
-sync b581
-activate 42
-wait 3
-key s
-wait 3
-sync b582
-activate 44
-wait 3
-key s
-wait 3
-sync b583
-activate 730
-wait 3
-key s
-wait 3
-sync b584
-status
-sync b585
-activate 414
-goto 414 45 52
-wait 40
-status
-sync b586
-units
-sync b587
-shot sl
-status
-sync b588
-key Escape
-wait 5
-status
-sync b589
-wait 40
-sync b590
-units
-sync b591
-activate 44
-wait 3
-status
-sync b592
-activate 730
-wait 3
-status
-sync b593
-key s
-wait 3
-sync b594
-status
-sync b595
-activate 416
-wait 3
-key KP_1
-wait 10
-status
-sync b596
-units
-sync b597
-key f
-wait 3
-status
-sync b598
-endturn
-auto
-status
-sync b599
-activate 503
-wait 3
-key f
-wait 3
-sync b600
-endturn
-auto
-status
-sync b601
-status
-sync b602
-status
-sync b603
-choose 0
-wait 5
-status
-sync b604
-status
-sync b605
-key s
-wait 3
-status
-sync b606
-status
-sync b607
-key Return
-wait 8
-sync b608
-status
-sync b609
-key Return
-wait 8
-sync b610
-status
-sync b611
-key Return
-wait 8
-sync b612
-status
-sync b613
-wait 30
-status
-sync b614
-units
-sync b615
-units
-sync b616
-activate 42
-wait 3
-status
-sync b617
-key s
-wait 3
-sync b618
-activate 44
-wait 3
-status
-sync b619
-key s
-wait 3
-sync b620
-activate 48
-wait 3
-status
-sync b621
-key s
-wait 3
-sync b622
-activate 730
-wait 3
-status
-sync b623
-key s
-wait 3
-sync b624
-units
-sync b625
-status
-sync b626
-activate 289
-goto 289 45 52
-wait 40
-status
-sync b627
-activate 414
-goto 414 45 52
-wait 40
-status
-sync b628
-units
-sync b629
-units
-sync b630
-activate 52
-wait 3
-status
-sync b631
-key f
-wait 3
-sync b632
-activate 56
-wait 3
-status
-sync b633
-key f
-wait 3
-sync b634
-activate 57
-wait 3
-status
-sync b635
-key f
-wait 3
-sync b636
-activate 64
-wait 3
-status
-sync b637
-key f
-wait 3
-sync b638
-colonies
-sync b639
-work 7 1 3
-work 7 12 3
-key Escape
-wait 3
-sync b640
-colonies
-sync b641
-status
-sync b642
-status
-sync b643
-wait 30
-sync b644
-status
-sync b645
-key Return
-wait 8
-sync b646
-status
-sync b647
-wait 30
-status
-sync b648
-units
-sync b649
-units
-sync b650
-activate 42
-wait 3
-status
-sync b651
-key f
-wait 3
-sync b652
-activate 44
-wait 3
-status
-sync b653
-key f
-wait 3
-sync b654
-activate 48
-wait 3
-status
-sync b655
-key f
-wait 3
-sync b656
-activate 730
-wait 3
-status
-sync b657
-key f
-wait 3
-sync b658
-activate 414
-goto 414 44 47
-wait 40
-status
-sync b659
-units
-sync b660
-status
-sync b661
-wait 30
-sync b662
-status
-sync b663
-key Return
-wait 8
-sync b664
-status
-sync b665
-key Return
-wait 8
-sync b666
-status
-sync b667
-activate 414
-goto 414 44 47
-wait 30
-status
-sync b668
-units
-sync b669
-key f
-wait 3
-sync b670
-activate 65
-wait 3
-status
-sync b671
-key s
-wait 3
-sync b672
-activate 66
-wait 3
-status
-sync b673
-key s
-wait 3
-sync b674
-activate 67
-wait 3
-status
-sync b675
-key s
-wait 3
-sync b676
-activate 68
-wait 3
-status
-sync b677
-key s
-wait 3
-sync b678
-activate 70
-wait 3
-status
-sync b679
-key s
-wait 3
-sync b680
-activate 73
-wait 3
-status
-sync b681
-key s
-wait 3
-sync b682
-activate 76
-wait 3
-status
-sync b683
-key s
-wait 3
-sync b684
-activate 78
-wait 3
-status
-sync b685
-key s
-wait 3
-sync b686
-activate 289
-goto 289 44 47
-wait 30
-status
-sync b687
-units
-sync b688
-status
-sync b689
-wait 30
-sync b690
-status
-sync b691
-key Return
-wait 8
-sync b692
-status
-sync b693
-key Return
-wait 8
-sync b694
-status
-sync b695
-key Return
-wait 8
-sync b696
-status
-sync b697
-key Return
-wait 8
-sync b698
-status
-sync b699
-key Return
-wait 8
-sync b700
-status
-sync b701
-key Return
-wait 8
-sync b702
-status
-sync b703
-units
-sync b704
-activate 414
-goto 414 45 52
-wait 40
-status
-sync b705
-units
-sync b706
-activate 414
-goto 414 44 47
-wait 5
-sync b707
-activate 830
-wait 3
-status
-sync b708
-key s
-wait 3
-sync b709
-activate 65
-wait 3
-status
-sync b710
-key s
-wait 3
-sync b711
-activate 66
-wait 3
-status
-sync b712
-key s
-wait 3
-sync b713
-activate 67
-wait 3
-status
-sync b714
-key s
-wait 3
-sync b715
-activate 68
-wait 3
-status
-sync b716
-key s
-wait 3
-sync b717
-activate 70
-wait 3
-status
-sync b718
-key s
-wait 3
-sync b719
-activate 73
-wait 3
-status
-sync b720
-key s
-wait 3
-sync b721
-activate 76
-wait 3
-status
-sync b722
-key s
-wait 3
-sync b723
-activate 78
-wait 3
-status
-sync b724
-key s
-wait 3
-sync b725
-status
-sync b726
-units
-sync b727
-status
-sync b728
-key Return
-wait 8
-sync b729
-status
-sync b730
-key Return
-wait 8
-sync b731
-status
-sync b732
-key Return
-wait 8
-sync b733
-status
-sync b734
-units
-sync b735
-activate 289
-goto 289 45 52
-wait 40
-status
-sync b736
-activate 414
-goto 414 44 47
-wait 40
-status
-sync b737
-units
-sync b738
-activate 66
-wait 3
-status
-sync b739
-key s
-wait 3
-sync b740
-activate 67
-wait 3
-status
-sync b741
-key s
-wait 3
-sync b742
-activate 68
-wait 3
-status
-sync b743
-key s
-wait 3
-sync b744
-activate 70
-wait 3
-status
-sync b745
-key s
-wait 3
-sync b746
-activate 76
-wait 3
-status
-sync b747
-key s
-wait 3
-sync b748
-status
-sync b749
-status
-sync b750
-key Return
-wait 8
-sync b751
-status
-sync b752
-key Return
-wait 8
-sync b753
-status
-sync b754
-key Return
-wait 8
-sync b755
-status
-sync b756
-key Return
-wait 8
-sync b757
-status
-sync b758
-wait 20
-sync b759
-units
-sync b760
-status
-sync b761
-activate 414
-goto 414 45 52
-wait 40
-status
-sync b762
-units
-sync b763
-units
-sync b764
-activate 830
-wait 3
-status
-sync b765
-key f
-wait 3
-sync b766
-activate 65
-wait 3
-status
-sync b767
-key f
-wait 3
-sync b768
-activate 73
-wait 3
-status
-sync b769
-key f
-wait 3
-sync b770
-activate 78
-wait 3
-status
-sync b771
-key f
-wait 3
-sync b772
-status
-sync b773
-colony 7
-wait 10
-click 133 150
-wait 5
-drag 272 188 133 170
-wait 5
-shot fo1
-sync b774
-key Escape
-wait 10
-status
-sync b775
-status
-sync b776
-key Return
-wait 8
-sync b777
-status
-sync b778
-key Return
-wait 8
-sync b779
-status
-sync b780
-status
-sync b781
-colony 7
-wait 10
-status
-sync b782
-click 133 150
-wait 5
-status
-shot fo1
-sync b783
-choose 2
-wait 5
-drag 272 188 133 170
-wait 5
-shot fo1
-status
-sync b784
-mdown 272 188
-wait 3
-move 200 180
-wait 3
-move 134 170
-wait 3
-mup 134 170
-wait 5
-shot fo1
-sync b785
-key Escape
-wait 5
-activate 289
-goto 289 44 47
-wait 40
-status
-sync b786
-units
-sync b787
-activate 67
-wait 3
-status
-sync b788
-key f
-wait 3
-sync b789
-activate 68
-wait 3
-status
-sync b790
-key f
-wait 3
-sync b791
-activate 70
-wait 3
-status
-sync b792
-key f
-wait 3
-sync b793
-activate 76
-wait 3
-status
-sync b794
-key f
-wait 3
-sync b795
-colonies
-sync b796
-units
-sync b797
-status
-sync b798
-choose 2
-wait 10
-status
-sync b799
-status
-sync b800
-key Return
-wait 8
-sync b801
-status
-sync b802
-key Return
-wait 8
-sync b803
-status
-sync b804
-key Return
-wait 8
-sync b805
-status
-sync b806
-key Return
-wait 8
-sync b807
-status
-sync b808
-key Return
-wait 8
-sync b809
-status
-sync b810
-status
-sync b811
-units
-sync b812
-key Return
-wait 10
-status
-sync b813
-choose 0
-wait 10
-status
-sync b814
-status
-sync b815
-status
-sync b816
-colony 3
-wait 10
-click 133 150
-wait 5
-status
-shot na1
-sync b817
-choose 2
-wait 5
-key Escape
-wait 5
-status
-sync b818
-colonies
-sync b819
-units
-sync b820
-status
-sync b821
-click 133 150
-wait 5
-status
-sync b822
-choose 2
-wait 8
-shot na1
-status
-sync b823
-key Down
-wait 2
-key Down
-wait 2
-key Return
-wait 8
-shot na1
-sync b824
-units
-sync b825
-key Escape
-wait 5
-activate 414
-goto 414 44 47
-wait 40
-status
-sync b826
-units
-sync b827
-activate 66
-wait 3
-status
-sync b828
-key f
-wait 3
-sync b829
-equip 167 4
-wait 2
-sync b830
-activate 16
-goto 16 45 52
-wait 30
-status
-sync b831
-units
-sync b832
-status
-sync b833
-key Return
-wait 8
-sync b834
-status
-sync b835
-key Return
-wait 8
-sync b836
-status
-sync b837
-key Return
-wait 8
-sync b838
-status
-sync b839
-key Return
-wait 8
-sync b840
-status
-sync b841
-key Return
-wait 8
-sync b842
-status
-sync b843
-wait 30
-status
-sync b844
-units
-sync b845
-colony 7
-wait 10
-click 133 150
-wait 5
-shot fo1
-status
-sync b846
-key Down
-wait 2
-key Return
-wait 8
-mdown 290 188
-wait 3
-move 200 180
-wait 3
-move 134 170
-wait 3
-mup 134 170
-wait 5
-shot fo1
-sync b847
-units
-sync b848
-key Escape
-wait 5
-activate 16
-goto 16 44 55
-wait 5
-status
-sync b849
-units
-sync b850
-activate 940
-wait 3
-status
-sync b851
-key f
-wait 3
-sync b852
-activate 941
-wait 3
-status
-sync b853
-key f
-wait 3
-sync b854
-activate 167
-wait 3
-status
-sync b855
-activate 289
-wait 3
-status
-sync b856
-key f
-wait 3
-sync b857
-activate 503
-wait 3
-status
-sync b858
-key s
-wait 3
-sync b859
-map 2 44 55
-sync b860
-status
-sync b861
-status
-sync b862
-key Return
-wait 8
-sync b863
-status
-sync b864
-key Return
-wait 8
-sync b865
-status
-sync b866
-wait 40
-status
-sync b867
-units
-sync b868
-units
-sync b869
-colony 13
-wait 10
-click 133 150
-wait 5
-shot fn1
-status
-sync b870
-key Down
-wait 2
-key Return
-wait 8
-key Escape
-wait 5
-sync b871
-equip 196 2
-wait 2
-sync b872
-units
-sync b873
-colonies
-sync b874
-status
-sync b875
-activate 167
-wait 3
-status
-sync b876
-key f
-wait 3
-sync b877
-activate 196
-wait 3
-status
-sync b878
-status
-sync b879
-colony 3
-wait 10
-shot na1
-status
-sync b880
-click 150 150
-wait 5
-mdown 290 188
-wait 3
-move 200 180
-wait 3
-move 134 170
-wait 3
-mup 134 170
-wait 5
-shot na1
-sync b881
-units
-sync b882
-key Escape
-wait 5
-activate 414
-goto 414 45 52
-wait 40
-status
-sync b883
-units
-sync b884
-status
-sync b885
-wait 30
-sync b886
-status
-sync b887
-key Return
-wait 8
-sync b888
-status
-sync b889
-key Return
-wait 8
-sync b890
-status
-sync b891
-key Return
-wait 8
-sync b892
-status
-sync b893
-key Return
-wait 8
-sync b894
-status
-sync b895
-key Return
-wait 8
-sync b896
-status
-sync b897
-wait 40
-status
-sync b898
-units
-sync b899
-units
-sync b900
-activate 196
-wait 3
-status
-sync b901
-key f
-wait 3
-sync b902
-activate 414
-goto 414 45 52
-wait 30
-status
-sync b903
-units
-sync b904
-colony 7
-wait 10
-click 133 150
-wait 5
-shot fo1
-sync b905
-key Down
-wait 2
-key Down
-wait 2
-key Return
-wait 8
-key Escape
-wait 5
-sync b906
-units
-sync b907
-colonies
-sync b908
-activate 16
-goto 16 45 52
-wait 30
-status
-sync b909
-units
-sync b910
-status
-sync b911
-wait 30
-sync b912
-status
-sync b913
-wait 30
-sync b914
-status
-sync b915
-key Return
-wait 8
-sync b916
-status
-sync b917
-key Return
-wait 8
-sync b918
-status
-sync b919
-key Return
-wait 8
-sync b920
-status
-sync b921
-status
-sync b922
-colony 7
-wait 10
-shot fo1
-sync b923
-mdown 290 188
-wait 3
-move 200 180
-wait 3
-move 134 170
-wait 3
-mup 134 170
-wait 5
-key Escape
-wait 5
-sync b924
-units
-sync b925
-activate 16
-goto 16 44 55
-wait 30
-status
-sync b926
-units
-sync b927
-activate 414
-goto 414 44 47
-wait 30
-sync b928
-status
-sync b929
-colony 13
-wait 10
-click 133 150
-wait 5
-shot fn1
-sync b930
-key Down
-wait 2
-key Return
-wait 8
-key Escape
-wait 5
-sync b931
-equip 417 2
-wait 2
-sync b932
-units
-sync b933
-colonies
-sync b934
-status
-sync b935
-status
-sync b936
-key Return
-wait 8
-sync b937
-status
-sync b938
-key Return
-wait 8
-sync b939
-status
-sync b940
-status
-sync b941
-units
-sync b942
-activate 16
-wait 3
-status
-sync b943
-key s
-wait 3
-sync b944
-activate 191
-wait 3
-status
-sync b945
-key KP_9
-wait 10
-sync b946
-units
-sync b947
-activate 205
-wait 3
-status
-sync b948
-key KP_9
-wait 10
-sync b949
-units
-sync b950
-activate 196
-wait 3
-status
-sync b951
-key KP_8
-wait 10
-sync b952
-units
-sync b953
-status
-sync b954
-status
-sync b955
-key Return
-wait 8
-sync b956
-status
-sync b957
-status
-sync b958
-units
-sync b959
-key Escape
-wait 5
-status
-sync b960
-activate 191
-wait 3
-status
-sync b961
-key KP_9
-wait 10
-sync b962
-units
-sync b963
-activate 205
-wait 3
-status
-sync b964
-key KP_9
-wait 10
-sync b965
-units
-sync b966
-activate 196
-wait 3
-status
-sync b967
-key KP_8
-wait 10
-sync b968
-units
-sync b969
-activate 417
-wait 3
-status
-sync b970
-key KP_8
-wait 10
-sync b971
-units
-sync b972
-status
-sync b973
-activate 191
-wait 3
-status
-sync b974
-key KP_9
-wait 10
-sync b975
-units
-sync b976
-activate 205
-wait 3
-status
-sync b977
-key KP_9
-wait 10
-sync b978
-units
-sync b979
-status
-sync b980
-activate 414
-wait 3
-status
-sync b981
-key f
-wait 3
-sync b982
-activate 191
-wait 3
-status
-sync b983
-key f
-wait 3
-sync b984
-activate 205
-wait 3
-status
-sync b985
-key f
-wait 3
-sync b986
-activate 196
-wait 3
-status
-sync b987
-key f
-wait 3
-sync b988
-status
-sync b989
-units
-sync b990
-save t466_predeclare.sav
-sync b991
-key g alt
-wait 5
-shot gm
-status
-sync b992
-click 55 85
-wait 10
-status
-sync b993
-choose 1
-wait 20
-status
-sync b994
-key Return
-wait 20
-status
-sync b995
-key Return
-wait 20
-status
-sync b996
-key Return
-wait 20
-status
-sync b997
-units
-sync b998
-status
-sync b999
-endturn
-auto
-status
-sync b1000
-activate 417
-wait 3
-key f
-wait 3
-sync b1001
-endturn
-auto
-status
-sync b1002
-colonies
-sync b1003
-near 45 53 2
-sync b1004
-near 45 53 3
-sync b1005
-save t468_war.sav
-sync b1006
-activate 203
-wait 3
-status
-sync b1007
-key KP_8
-wait 10
-status
-sync b1008
-key KP_9
-wait 30
-status
-sync b1009
-status
-sync b1010
-key Return
-wait 8
-sync b1011
-status
-sync b1012
-status
-sync b1013
-near 45 53 2
-sync b1014
-units
-sync b1015
-units
-sync b1016
-activate 26
-wait 3
-sync b1017
-activate 167
-wait 3
-sync b1018
-activate 193
-wait 3
-sync b1019
-activate 194
-wait 3
-sync b1020
-activate 191
-wait 3
-sync b1021
-activate 205
-wait 3
-sync b1022
-activate 196
-wait 3
-sync b1023
-activate 417
-wait 3
-sync b1024
-units
-sync b1025
-status
-sync b1026
-activate 203
-wait 3
-status
-sync b1027
-key KP_9
-wait 20
-sync b1028
-units
-sync b1029
-status
-sync b1030
-activate 205
-wait 3
-status
-sync b1031
-key KP_8
-wait 20
-sync b1032
-units
-sync b1033
-status
-sync b1034
-activate 191
-wait 3
-status
-sync b1035
-key KP_8
-wait 20
-sync b1036
-units
-sync b1037
-status
-sync b1038
-activate 417
-wait 3
-status
-sync b1039
-key KP_9
-wait 20
-sync b1040
-units
-sync b1041
-status
-sync b1042
-activate 196
-wait 3
-status
-sync b1043
-key KP_9
-wait 20
-sync b1044
-units
-sync b1045
-status
-sync b1046
-activate 26
-wait 3
-status
-sync b1047
-key KP_8
-wait 20
-sync b1048
-key KP_9
-wait 20
-sync b1049
-units
-sync b1050
-status
-sync b1051
-activate 193
-wait 3
-status
-sync b1052
-key KP_8
-wait 20
-sync b1053
-key KP_9
-wait 20
-sync b1054
-units
-sync b1055
-status
-sync b1056
-activate 194
-wait 3
-status
-sync b1057
-key KP_8
-wait 20
-sync b1058
-key KP_9
-wait 20
-sync b1059
-units
-sync b1060
-status
-sync b1061
-activate 167
-wait 3
-status
-sync b1062
-key KP_8
-wait 20
-sync b1063
-key KP_9
-wait 20
-sync b1064
-units
-sync b1065
-status
-sync b1066
-status
-sync b1067
-key Return
-wait 8
-sync b1068
-status
-sync b1069
-status
-sync b1070
-near 45 53 2
-sync b1071
-units
-sync b1072
-units
-sync b1073
-units
-sync b1074
-units
-sync b1075
-units
-sync b1076
-near 45 53 0
-sync b1077
-units
-sync b1078
-activate 26
-wait 3
-status
-sync b1079
-key KP_9
-wait 20
-sync b1080
-units
-sync b1081
-status
-sync b1082
-activate 203
-wait 3
-status
-sync b1083
-key KP_9
-wait 20
-sync b1084
-units
-sync b1085
-status
-sync b1086
-activate 167
-wait 3
-status
-sync b1087
-key KP_9
-wait 20
-sync b1088
-units
-sync b1089
-status
-sync b1090
-activate 191
-wait 3
-status
-sync b1091
-key KP_8
-wait 20
-sync b1092
-units
-sync b1093
-status
-sync b1094
-activate 417
-wait 3
-status
-sync b1095
-key KP_9
-wait 20
-sync b1096
-units
-sync b1097
-status
-sync b1098
-activate 193
-wait 3
-status
-sync b1099
-key KP_9
-wait 20
-sync b1100
-units
-sync b1101
-status
-sync b1102
-activate 194
-wait 3
-status
-sync b1103
-key KP_9
-wait 20
-sync b1104
-units
-sync b1105
-status
-sync b1106
-activate 205
-wait 3
-status
-sync b1107
-key KP_1
-wait 20
-sync b1108
-units
-sync b1109
-status
-sync b1110
-equip 205 2
-wait 2
-sync b1111
-units
-sync b1112
-status
-sync b1113
-activate 196
-wait 3
-status
-sync b1114
-key KP_2
-wait 20
-sync b1115
-units
-sync b1116
-status
-sync b1117
-key f
-wait 5
-status
-sync b1118
-status
-sync b1119
-key Return
-wait 8
-sync b1120
-status
-sync b1121
-key Return
-wait 8
-sync b1122
-status
-sync b1123
-status
-sync b1124
-near 45 53 1
-sync b1125
-units
-sync b1126
-units
-sync b1127
-units
-sync b1128
-colonies
-sync b1129
-activate 26
-wait 3
-status
-sync b1130
-key KP_9
-wait 20
-sync b1131
-units
-sync b1132
-status
-sync b1133
-activate 203
-wait 3
-status
-sync b1134
-key KP_9
-wait 20
-sync b1135
-units
-sync b1136
-status
-sync b1137
-activate 167
-wait 3
-status
-sync b1138
-key KP_9
-wait 20
-sync b1139
-units
-sync b1140
-status
-sync b1141
-activate 191
-wait 3
-status
-sync b1142
-key KP_1
-wait 20
-sync b1143
-units
-sync b1144
-status
-sync b1145
-activate 193
-wait 3
-status
-sync b1146
-key KP_2
-wait 20
-sync b1147
-units
-sync b1148
-status
-sync b1149
-activate 194
-wait 3
-status
-sync b1150
-key KP_2
-wait 20
-sync b1151
-units
-sync b1152
-status
-sync b1153
-units
-sync b1154
-colonies
-sync b1155
-status
-sync b1156
-activate 16
-goto 16 45 52
-wait 30
-sync b1157
-units
-sync b1158
-activate 417
-wait 3
-status
-sync b1159
-key KP_2
-wait 20
-sync b1160
-units
-sync b1161
-status
-sync b1162
-status
-sync b1163
-colony 7
-wait 10
-shot fo1
-sync b1164
-mdown 290 188
-wait 3
-move 200 180
-wait 3
-move 134 170
-wait 3
-mup 134 170
-wait 5
-key Escape
-wait 5
-sync b1165
-units
-sync b1166
-activate 16
-goto 16 44 55
-wait 5
-sync b1167
-status
-sync b1168
-activate 417
-wait 3
-status
-sync b1169
-key s
-wait 20
-sync b1170
-units
-sync b1171
-status
-sync b1172
-activate 205
-wait 3
-status
-sync b1173
-key KP_8
-wait 20
-sync b1174
-units
-sync b1175
-status
-sync b1176
-status
-sync b1177
-key f
-wait 5
-sync b1178
-status
-sync b1179
-status
-sync b1180
-key s
-wait 5
-sync b1181
-status
-sync b1182
-key s
-wait 5
-sync b1183
-status
-sync b1184
-key s
-wait 5
-sync b1185
-status
-sync b1186
-status
-sync b1187
-status
-sync b1188
-key Return
-wait 8
-sync b1189
-status
-sync b1190
-key Return
-wait 8
-sync b1191
-status
-sync b1192
-status
-sync b1193
-near 45 53 1
-sync b1194
-units
-sync b1195
-units
-sync b1196
-units
-sync b1197
-activate 26
-wait 3
-status
-sync b1198
-key KP_9
-wait 20
-sync b1199
-units
-sync b1200
-status
-sync b1201
-activate 167
-wait 3
-status
-sync b1202
-key KP_9
-wait 20
-sync b1203
-units
-sync b1204
-status
-sync b1205
-activate 7
-wait 3
-status
-sync b1206
-key KP_3
-wait 20
-sync b1207
-units
-sync b1208
-status
-sync b1209
-colonies
-sync b1210
-units
-sync b1211
-near 46 49 4
-sync b1212
-colony 13
-wait 10
-click 133 150
-wait 5
-shot fn1
-sync b1213
-key Down
-wait 2
-key Return
-wait 8
-key Escape
-wait 5
-sync b1214
-equip 194 2
-wait 2
-sync b1215
-activate 203
-wait 3
-status
-sync b1216
-key KP_2
-wait 20
-sync b1217
-units
-sync b1218
-status
-sync b1219
-equip 203 4
-wait 2
-sync b1220
-units
-sync b1221
-colonies
-sync b1222
-units
-sync b1223
-activate 66
-wait 3
-status
-sync b1224
-key s
-wait 20
-sync b1225
-units
-sync b1226
-status
-sync b1227
-activate 83
-wait 3
-status
-sync b1228
-key s
-wait 20
-sync b1229
-units
-sync b1230
-status
-sync b1231
-activate 87
-wait 3
-status
-sync b1232
-key s
-wait 20
-sync b1233
-units
-sync b1234
-status
-sync b1235
-activate 88
-wait 3
-status
-sync b1236
-key s
-wait 20
-sync b1237
-units
-sync b1238
-status
-sync b1239
-activate 91
-wait 3
-status
-sync b1240
-key s
-wait 20
-sync b1241
-units
-sync b1242
-status
-sync b1243
 activate 104
 wait 3
 status
-sync b1244
+sync b475
 key s
 wait 20
-sync b1245
+sync b476
+status
+sync b477
 units
-sync b1246
+sync b478
 status
-sync b1247
-activate 108
-wait 3
+sync b479
 status
-sync b1248
-key s
-wait 20
-sync b1249
-units
-sync b1250
+sync b480
 status
-sync b1251
-activate 115
-wait 3
+sync b481
+wait 30
+sync b482
 status
-sync b1252
-key s
-wait 20
-sync b1253
-units
-sync b1254
+sync b483
+wait 30
+sync b484
 status
-sync b1255
-units
-sync b1256
+sync b485
+wait 30
+sync b486
 status
-sync b1257
-activate 414
-goto 414 45 52
+sync b487
+wait 30
+sync b488
+status
+sync b489
+wait 30
+sync b490
+status
+sync b491
+wait 30
+sync b492
+shot victory1
+sync b493
+key Return
 wait 40
-sync b1258
-activate 289
-goto 289 45 52
+shot victory2
+status
+sync b494
+key Return
 wait 40
-sync b1259
-units
-sync b1260
+shot victory3
 status
-sync b1261
-status
-sync b1262
-key s
-wait 5
-sync b1263
-status
-sync b1264
-key s
-wait 5
-sync b1265
-status
-sync b1266
-key s
-wait 5
-sync b1267
-status
-sync b1268
-status
-sync b1269
-status
-sync b1270
+sync b495
 key Return
-wait 8
-sync b1271
-status
-sync b1272
-key Return
-wait 8
-sync b1273
-status
-sync b1274
-status
-sync b1275
-units
-sync b1276
-units
-sync b1277
-units
-sync b1278
-near 45 52 3
-sync b1279
-activate 289
-goto 289 45 52
-wait 30
-sync b1280
-units
-sync b1281
-save x.sav
-sync b1282
-activate 203
-wait 3
-sync b1283
-activate 26
-wait 3
-sync b1284
-activate 167
-wait 3
-sync b1285
-activate 205
-wait 3
-sync b1286
-activate 194
-wait 3
-sync b1287
-activate 503
-wait 3
-sync b1288
-activate 7
-wait 3
-sync b1289
-activate 203
-wait 3
-status
-sync b1290
-key KP_8
-wait 20
-sync b1291
-key KP_9
-wait 20
-sync b1292
-units
-sync b1293
-status
-sync b1294
-activate 26
-wait 3
-status
-sync b1295
-key KP_9
-wait 20
-sync b1296
-units
-sync b1297
-status
-sync b1298
-activate 167
-wait 3
-status
-sync b1299
-key KP_9
-wait 20
-sync b1300
-units
-sync b1301
-status
-sync b1302
-activate 205
-wait 3
-status
-sync b1303
-key KP_9
-wait 20
-sync b1304
-units
-sync b1305
-status
-sync b1306
-activate 503
-wait 3
-status
-sync b1307
-key KP_4
-wait 20
-sync b1308
-units
-sync b1309
-status
-sync b1310
-activate 167
-wait 3
-status
-sync b1311
-key KP_2
-wait 20
-sync b1312
-units
-sync b1313
-status
-sync b1314
-colonies
-sync b1315
-activate 16
-goto 16 45 52
-wait 30
-sync b1316
-units
-sync b1317
-status
-sync b1318
-work 7 5 39
-work 7 6 39
-work 7 0 3
-key Escape
-wait 3
-sync b1319
-colonies
-sync b1320
-activate 66
-wait 3
-status
-sync b1321
-key f
-wait 20
-sync b1322
-units
-sync b1323
-status
-sync b1324
-activate 83
-wait 3
-status
-sync b1325
-key f
-wait 20
-sync b1326
-units
-sync b1327
-status
-sync b1328
-activate 88
-wait 3
-status
-sync b1329
-key f
-wait 20
-sync b1330
-units
-sync b1331
-status
-sync b1332
-activate 91
-wait 3
-status
-sync b1333
-key f
-wait 20
-sync b1334
-units
-sync b1335
-status
-sync b1336
-activate 167
-wait 3
-status
-sync b1337
-key s
-wait 20
-sync b1338
-units
-sync b1339
-status
-sync b1340
-status
-sync b1341
-activate 194
-wait 3
-status
-sync b1342
-key KP_8
-wait 20
-sync b1343
-units
-sync b1344
-status
-sync b1345
-status
-sync b1346
-key f
-wait 5
-status
-sync b1347
-status
-sync b1348
-key s
-wait 5
-sync b1349
-status
-sync b1350
-status
-sync b1351
-status
-sync b1352
-key Return
-wait 8
-sync b1353
-status
-sync b1354
-key Return
-wait 8
-sync b1355
-status
-sync b1356
-wait 30
-sync b1357
-status
-sync b1358
-status
-sync b1359
-units
-sync b1360
-units
-sync b1361
-near 45 53 1
-sync b1362
-activate 203
-wait 3
-sync b1363
-activate 205
-wait 3
-sync b1364
-activate 194
-wait 3
-sync b1365
-activate 203
-wait 3
-status
-sync b1366
-key KP_9
-wait 20
-sync b1367
-units
-sync b1368
-status
-sync b1369
-activate 205
-wait 3
-status
-sync b1370
-key KP_9
-wait 20
-sync b1371
-units
-sync b1372
-status
-sync b1373
-activate 194
-wait 3
-status
-sync b1374
-key KP_9
-wait 20
-sync b1375
-units
-sync b1376
-status
-sync b1377
-colony 7
-wait 10
-shot fo1
-sync b1378
-colonies
-sync b1379
-key Escape
-wait 5
-sync b1380
-field 7 5 0 8
-field 7 6 7 8
-wait 3
-sync b1381
-key Escape
-wait 3
-sync b1382
-colonies
-sync b1383
-colonies
-sync b1384
-colony 7
-wait 10
-shot fo2
-sync b1385
-key Escape
-wait 3
-sync b1386
-field 7 0 2 8
-wait 3
-sync b1387
-key Escape
-wait 3
-sync b1388
-colonies
-sync b1389
-status
-sync b1390
-activate 289
-wait 3
-status
-sync b1391
-key f
-wait 20
-sync b1392
-units
-sync b1393
-status
-sync b1394
-activate 16
-wait 3
-status
-sync b1395
-key s
-wait 20
-sync b1396
-units
-sync b1397
-status
-sync b1398
-activate 26
-wait 3
-status
-sync b1399
-key KP_2
-wait 20
-sync b1400
-units
-sync b1401
-status
-sync b1402
-status
-sync b1403
-status
-sync b1404
-key s
-wait 5
-sync b1405
-status
-sync b1406
-key s
-wait 5
-sync b1407
-status
-sync b1408
-key s
-wait 5
-sync b1409
-status
-sync b1410
-status
-sync b1411
-status
-sync b1412
-key Return
-wait 8
-sync b1413
-status
-sync b1414
-key Return
-wait 8
-sync b1415
-status
-sync b1416
-key Return
-wait 8
-sync b1417
-status
-sync b1418
-units
-sync b1419
-units
-sync b1420
-near 45 52 2
-sync b1421
-status
-sync b1422
-near 46 50 8
-sync b1423
-units
-sync b1424
-activate 203
-wait 3
-sync b1425
-activate 205
-wait 3
-sync b1426
-activate 203
-wait 3
-status
-sync b1427
-key KP_9
-wait 20
-sync b1428
-units
-sync b1429
-status
-sync b1430
-activate 205
-wait 3
-status
-sync b1431
-key KP_9
-wait 20
-sync b1432
-units
-sync b1433
-status
-sync b1434
-colony 7
-wait 10
-click 133 150
-wait 5
-shot fo1
-sync b1435
-key Down
-wait 2
-key Return
-wait 5
-mdown 290 188
-wait 3
-move 200 180
-wait 3
-move 134 170
-wait 3
-mup 134 170
-wait 5
-key Escape
-wait 5
-sync b1436
-units
-sync b1437
-activate 16
-goto 16 44 55
-wait 30
-sync b1438
-units
-sync b1439
-colony 13
-wait 10
-click 133 150
-wait 5
-key Down
-wait 2
-key Return
-wait 8
-key Escape
-wait 5
-sync b1440
-units
-sync b1441
-equip 26 2
-wait 2
-sync b1442
-units
-sync b1443
-colonies
-sync b1444
-equip 26 4
-wait 2
-sync b1445
-units
-sync b1446
-colonies
-sync b1447
-activate 289
-goto 289 44 47
 wait 40
-sync b1448
-units
-sync b1449
+shot victory4
 status
-sync b1450
-status
-sync b1451
-status
-sync b1452
-units
-sync b1453
-units
-sync b1454
-near 45 52 2
-sync b1455
-status
-sync b1456
-endturn
-wait 10
-sync b1457
-auto
-sync b1458
-status
-sync b1459
-units
-sync b1460
-units
-sync b1461
-near 45 52 2
-sync b1462
-status
-sync b1463
-units
-sync b1464
-units
-sync b1465
-activate 194
-wait 3
-status
-sync b1466
-key KP_2
-wait 20
-sync b1467
-units
-sync b1468
-status
-sync b1469
-activate 167
-wait 3
-status
-sync b1470
-key s
-wait 20
-sync b1471
-units
-sync b1472
-status
-sync b1473
-activate 191
-wait 3
-status
-sync b1474
-key s
-wait 20
-sync b1475
-units
-sync b1476
-status
-sync b1477
-activate 193
-wait 3
-status
-sync b1478
-key s
-wait 20
-sync b1479
-units
-sync b1480
-status
-sync b1481
-activate 417
-wait 3
-status
-sync b1482
-key s
-wait 20
-sync b1483
-units
-sync b1484
-status
-sync b1485
-activate 1087
-wait 3
-status
-sync b1486
-key s
-wait 20
-sync b1487
-units
-sync b1488
-status
-sync b1489
-activate 194
-wait 3
-status
-sync b1490
-key s
-wait 20
-sync b1491
-units
-sync b1492
-status
-sync b1493
-status
-sync b1494
-status
-sync b1495
+sync b496
 key Return
-wait 8
-sync b1496
-status
-sync b1497
-key Return
-wait 8
-sync b1498
-status
-sync b1499
-units
-sync b1500
-units
-sync b1501
-near 45 52 2
-sync b1502
-status
-sync b1503
-units
-sync b1504
-activate 203
-wait 3
-sync b1505
-activate 205
-wait 3
-sync b1506
-activate 26
-wait 3
-sync b1507
-activate 203
-wait 3
-status
-sync b1508
-key KP_9
-wait 20
-sync b1509
-units
-sync b1510
-status
-sync b1511
-activate 205
-wait 3
-status
-sync b1512
-key KP_9
-wait 20
-sync b1513
-units
-sync b1514
-status
-sync b1515
-activate 26
-wait 3
-status
-sync b1516
-key KP_8
-wait 20
-sync b1517
-key KP_9
-wait 20
-sync b1518
-units
-sync b1519
-status
-sync b1520
-activate 289
-goto 289 44 47
 wait 40
-sync b1521
-units
-sync b1522
+shot victory5
 status
-sync b1523
-units
-sync b1524
-activate 16
-goto 16 45 52
-wait 30
-sync b1525
-status
-sync b1526
-units
-sync b1527
-status
-sync b1528
+sync b497
 key Return
-wait 8
-sync b1529
+wait 40
+shot victory6
 status
-sync b1530
+sync b498
 key Return
-wait 8
-sync b1531
+wait 40
+shot victory7
 status
-sync b1532
-units
-sync b1533
-units
-sync b1534
-near 45 52 2
-sync b1535
-status
-sync b1536
-units
-sync b1537
-colonies
-sync b1538
-save t477.sav
-sync b1539
-activate 203
-wait 3
-sync b1540
-activate 26
-wait 3
-sync b1541
-activate 203
-wait 3
-status
-sync b1542
-key KP_9
-wait 20
-sync b1543
-units
-sync b1544
-status
-sync b1545
-activate 26
-wait 3
-status
-sync b1546
-key KP_9
-wait 20
-sync b1547
-units
-sync b1548
-status
-sync b1549
-activate 289
-goto 289 44 47
-wait 30
-sync b1550
-units
-sync b1551
-colony 3
-wait 10
-shot na1
-sync b1552
-mdown 290 188
-wait 3
-move 200 180
-wait 3
-move 134 170
-wait 3
-mup 134 170
-wait 5
-key Escape
-wait 5
-sync b1553
-units
-sync b1554
-units
-sync b1555
-activate 122
-wait 3
-status
-sync b1556
-key s
-wait 20
-sync b1557
-units
-sync b1558
-status
-sync b1559
-activate 132
-wait 3
-status
-sync b1560
-key s
-wait 20
-sync b1561
-units
-sync b1562
-status
-sync b1563
-activate 139
-wait 3
-status
-sync b1564
-key s
-wait 20
-sync b1565
-units
-sync b1566
-status
-sync b1567
-status
-sync b1568
-activate 205
-wait 3
-status
-sync b1569
-key KP_2
-wait 20
-sync b1570
-units
-sync b1571
-status
-sync b1572
-units
-sync b1573
-activate 205
-wait 3
-status
-sync b1574
-key s
-wait 20
-sync b1575
-units
-sync b1576
-status
-sync b1577
-activate 16
-wait 3
-status
-sync b1578
-key s
-wait 20
-sync b1579
-units
-sync b1580
-status
-sync b1581
-status
-sync b1582
-status
-sync b1583
-key Return
-wait 8
-sync b1584
-status
-sync b1585
-key Return
-wait 8
-sync b1586
-status
-sync b1587
-units
-sync b1588
-units
-sync b1589
-near 45 52 2
-sync b1590
-status
-sync b1591
-units
-sync b1592
-save t478_war2.sav
-sync b1593
+sync b499
