@@ -1,11 +1,14 @@
+#include <ctype.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <time.h>
 
 #include "core/dos_rng.h"
 #include "core/game_loop.h"
+#include "core/new_game.h"
 #include "core/savegame.h"
 #include "core/screen_geom.h"
 #include "core/text_edit.h"
@@ -24,6 +27,7 @@ typedef struct CliConfig {
   int window_scale;
   uint32_t rng_seed;
   bool debug_menu;
+  bool multi; /* DS:0x201e hot-seat picker cell (argv -K / env COLONIZE=MULTI) */
   /* Which flags the command line actually set; those win over settings.json.
    * Anything else falls back to the stored preference if that key is valid,
    * else the hardcoded default already in this struct. */
@@ -45,6 +49,7 @@ static CliConfig cli_defaults(void) {
   cfg.window_scale = 2;
   cfg.rng_seed = 0;
   cfg.debug_menu = false;
+  cfg.multi = false;
   cfg.data_dir_from_cli = false;
   cfg.save_dir_from_cli = false;
   cfg.windowed_from_cli = false;
@@ -53,6 +58,29 @@ static CliConfig cli_defaults(void) {
   cfg.seed_from_cli = false;
   cfg.debug_menu_from_cli = false;
   return cfg;
+}
+
+/*
+ * FUN_7421_025a (raw 118884-118917): an argument whose first char is in DS:0x2073 "-/" is a
+ * cluster of one-letter switches; FUN_7421_0054 (ND 0x70CB4) folds each char to upper case
+ * and dispatches 'C'..'Z' through the table at ND 0x70DB6: 'K' -> ND 0x70D0E sets DS:0x201e.
+ * 'C', 'M' and 'O' take the rest of the argument as their ':' operand. The port's own
+ * "--" options are not clusters, and a cluster without K stays an unknown argument.
+ */
+static bool dos_switch_cluster_has_k(const char* arg) {
+  if ((arg[0] != '-' && arg[0] != '/') || (arg[0] == '-' && arg[1] == '-')) {
+    return false;
+  }
+  for (const char* p = arg; *p; ++p) {
+    const int c = toupper((unsigned char)*p);
+    if (c == 'K') {
+      return true;
+    }
+    if (c == 'C' || c == 'M' || c == 'O') {
+      return false;
+    }
+  }
+  return false;
 }
 
 static bool parse_args(int argc, char** argv, CliConfig* cfg) {
@@ -86,6 +114,8 @@ static bool parse_args(int argc, char** argv, CliConfig* cfg) {
     } else if (strcmp(arg, "--no-debug-menu") == 0) {
       cfg->debug_menu = false;
       cfg->debug_menu_from_cli = true;
+    } else if (dos_switch_cluster_has_k(arg)) {
+      cfg->multi = true;
     } else {
       fprintf(stderr, "Unknown argument: %s\n", arg);
       return false;
@@ -104,6 +134,15 @@ int main(int argc, char** argv) {
     diag_shutdown();
     return 2;
   }
+  /* FUN_7421_025a ND 0x70EDD-0x70EFB: getenv("COLONIZE") (DS:0x2064), stricmp with
+   * DS:0x206d "MULTI" (FUN_1d1d_0c80, whole string, A-Z folded), equal sets DS:0x201e. */
+  {
+    const char* env = getenv("COLONIZE");
+    if (env && strcasecmp(env, "MULTI") == 0) {
+      cli.multi = true;
+    }
+  }
+  new_game_set_multi_enabled(cli.multi);
 
   /* settings.json sits next to the executable; a missing file is first run. */
   char settings_err[256];
@@ -148,11 +187,12 @@ int main(int argc, char** argv) {
 
   diag_info("CLI data_dir=%s", cli.data_dir);
   diag_info("CLI save_dir=%s", cli.save_dir);
-  diag_info("CLI windowed=%s scale=%d nosound=%s seed=%u",
+  diag_info("CLI windowed=%s scale=%d nosound=%s seed=%u multi=%s",
     cli.windowed ? "yes" : "no",
     cli.window_scale,
     cli.no_sound ? "yes" : "no",
-    cli.rng_seed);
+    cli.rng_seed,
+    cli.multi ? "yes" : "no");
   diag_info(
     "NOTE: UI uses GAME.TXT @BEGINMENU + VICEROY.PAL; "
     "MADSPACK .PIK/.SS art and the MAPEDIT-faithful map compositor are live."

@@ -712,7 +712,9 @@ int units_plunder_ship_holds(
     }
     int pick = 0;
     int notice = 1; /* DS:0xa154 */
-    if (room < n && wn == g_units_combat_human_nation) {
+    /* 016c raw 99240: the winner's control byte, so a hot-seat defender
+     * away from the controls picks too. */
+    if (room < n && col1_nation_is_human(col1, wn, g_units_combat_human_nation)) {
       pick = units_plunder_ask_human(lose, live, n, &notice);
       win = units_get(pool, winner_id);
       lose = units_get(pool, loser_id);
@@ -1781,7 +1783,7 @@ static bool units_at_war_for_move_target(
   if (ai_diplo_at_war(col1, nation_a, nation_b)) {
     return true;
   }
-  if (nation_a == g_units_combat_human_nation) {
+  if (col1_nation_is_human(col1, nation_a, g_units_combat_human_nation)) { /* raw 75545 control byte */
     return (ai_diplo_read(col1, nation_a, nation_b) & AI_DIPLO_PEACE) == 0;
   }
   /* FUN_465b_0000 raw 75553-75557: under a treaty the attack aborts only

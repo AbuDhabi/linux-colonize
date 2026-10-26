@@ -166,7 +166,7 @@ typedef struct ColonizeCol1Head {
    * with env COLONIZE=MULTI or argv -K -> DS:0x201e). Read by FUN_130d_0290
    * (@MULTINEXT handoff), FUN_43f7_0218 (no War of Succession) and cheat 0x68;
    * cleared by FUN_43f7_2564 after the @MULTIREV confirm (0x5398 = 0x5394).
-   * No code touches the other 7 bits. The port never sets it. */
+   * No code touches the other 7 bits. Port: col1_save_hotseat, docs/hotseat.md. */
   uint8_t hotseat_woi_redirect_pending;
   ColonizeCol1GameOptions game_options;
   ColonizeCol1ColonyReportOptions colony_report_options;

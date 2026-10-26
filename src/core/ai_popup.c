@@ -612,6 +612,8 @@ static const char* ai_popup_tag_name(AiPopupTag tag) {
       return "EUROPE_SHIP_MENU";
     case AI_POPUP_TAG_PLUNDER_PICK:
       return "PLUNDER_PICK";
+    case AI_POPUP_TAG_MULTINEXT:
+      return "MULTINEXT";
   }
   return "UNKNOWN";
 }

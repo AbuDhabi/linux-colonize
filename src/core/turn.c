@@ -416,8 +416,17 @@ int turn_report_ok_inefficient(const ColonizeCol1Save* col1) {
  * so it is gone.
  */
 /* ===================== Euro AI turn-order selection & phase finish status (turn_euro_ai_should_run .. turn_finish_status) ===================== */
+/* Hot-seat (docs/hotseat.md): a control-0 slot other than the power at the
+ * controls. The year loop stops there for its handoff (130d_0290 raw 6369). */
+static bool turn_slot_is_other_human(const ColonizeTurnContext* ctx, int nation_id) {
+  return ctx && ctx->col1_ok && nation_id != ctx->human_nation &&
+         !turn_euro_nation_is_ref(ctx, nation_id) &&
+         col1_nation_is_human(ctx->col1, nation_id, ctx->human_nation);
+}
+
 static bool turn_euro_ai_should_run(const ColonizeTurnContext* ctx, int nation_id) {
-  if (!ctx || nation_id < 0 || nation_id >= 4 || nation_id == ctx->human_nation) {
+  if (!ctx || nation_id < 0 || nation_id >= 4 || nation_id == ctx->human_nation ||
+      turn_slot_is_other_human(ctx, nation_id)) {
     return false;
   }
   if (turn_euro_nation_is_ref(ctx, nation_id)) {
@@ -430,13 +439,30 @@ static bool turn_euro_ai_should_run(const ColonizeTurnContext* ctx, int nation_i
   return control != 2;
 }
 
+/* Next slot the year loop acts on: an AI slot, or another hot-seat human. */
 static int turn_next_euro_ai(const ColonizeTurnContext* ctx, int start) {
   for (int n = start; n < 4; ++n) {
-    if (turn_euro_ai_should_run(ctx, n)) {
+    if (turn_euro_ai_should_run(ctx, n) || turn_slot_is_other_human(ctx, n)) {
       return n;
     }
   }
   return -1;
+}
+
+/*
+ * Enter slot n (from turn_next_euro_ai): an AI slot runs as TURN_PROC_EURO; a
+ * hot-seat human ends the pass there. Its own 00f2 (FINISH / KING) follows
+ * once the game has rebound to it.
+ */
+static void turn_enter_slot(ColonizeTurnProcessor* proc, const ColonizeTurnContext* ctx, int n) {
+  if (turn_slot_is_other_human(ctx, n)) {
+    proc->handoff_pending = true;
+    proc->handoff_nation = n;
+    proc->step = TURN_PROC_FINISH;
+    return;
+  }
+  proc->nation_cursor = n;
+  proc->step = TURN_PROC_EURO;
 }
 
 /*
@@ -634,8 +660,7 @@ COLONIZE_INTERNAL void turn_step_setup(ColonizeTurnProcessor* proc, ColonizeTurn
       {
         const int next = turn_next_euro_ai_above_human(ctx, 0);
         if (next >= 0) {
-          proc->nation_cursor = next;
-          proc->step = TURN_PROC_EURO;
+          turn_enter_slot(proc, ctx, next);
         } else {
           proc->nation_cursor = 4;
           proc->step = TURN_PROC_INDIAN;
@@ -719,7 +744,7 @@ COLONIZE_INTERNAL void turn_step_euro(ColonizeTurnProcessor* proc, ColonizeTurnC
           /* Pre-Indian pass (slots above the human). */
           const int next = turn_next_euro_ai_above_human(ctx, n + 1);
           if (next >= 0) {
-            proc->nation_cursor = next;
+            turn_enter_slot(proc, ctx, next);
           } else {
             proc->nation_cursor = 4;
             proc->step = TURN_PROC_INDIAN;
@@ -728,7 +753,7 @@ COLONIZE_INTERNAL void turn_step_euro(ColonizeTurnProcessor* proc, ColonizeTurnC
           /* Post-Indian pass (slots below the human, or every slot without one). */
           const int next = turn_next_euro_ai_below_human(ctx, n + 1);
           if (next >= 0) {
-            proc->nation_cursor = next;
+            turn_enter_slot(proc, ctx, next);
           } else {
             proc->step = TURN_PROC_FINISH;
           }
@@ -802,8 +827,7 @@ COLONIZE_INTERNAL void turn_step_indian(ColonizeTurnProcessor* proc, ColonizeTur
         ai_indian_midpass_claim_worked_tiles(ctx);
         const int next = turn_next_euro_ai_below_human(ctx, 0);
         if (next >= 0) {
-          proc->nation_cursor = next;
-          proc->step = TURN_PROC_EURO;
+          turn_enter_slot(proc, ctx, next);
         } else {
           proc->step = TURN_PROC_FINISH;
         }
@@ -1013,6 +1037,13 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
     return false;
   }
 
+  /* A hot-seat handoff the caller did not rebind for (turn_end, headless
+   * drivers): the next human is simply at the controls. The game rebinds
+   * (game_hotseat_handoff) between the two advance calls instead. */
+  if (proc->handoff_pending) {
+    proc->handoff_pending = false;
+    ctx->human_nation = proc->handoff_nation;
+  }
   /* AI combat involving the human can enqueue outcome modals. */
   units_set_combat_popups(ctx->ai_popups, ctx->messages);
   units_set_combat_human_nation(ctx->human_nation);

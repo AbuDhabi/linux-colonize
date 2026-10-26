@@ -339,6 +339,11 @@ void game_finish_end_turn(ColonizeGameState* game, const ColonizeTurnResult* res
 int game_fog_nation(const ColonizeGameState* game);
 /* CHEAT Set Human Player (DOS case 0x66), nation 0..3; see game_loop_saveload.c. */
 bool game_cheat_set_human(ColonizeGameState* game, int n, char* err, size_t err_size);
+/* Hot-seat: rebind to turn_proc.handoff_nation (docs/hotseat.md). */
+void game_hotseat_handoff(ColonizeGameState* game);
+/* Hot-seat: power n takes the controls (rebind unless already bound) and
+ * gets its @MULTINEXT. Also the first turn of a new hot-seat game. */
+void game_hotseat_begin_turn(ColonizeGameState* game, int n);
 bool game_fortify_treaty_confirm(ColonizeGameState* game, int uid);
 void game_handle_report_fkey(ColonizeGameState* game, ColonizeKey key);
 void game_open_score_report(ColonizeGameState* game);

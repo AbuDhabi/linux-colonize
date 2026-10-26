@@ -37,6 +37,7 @@ typedef enum NewGamePhase {
   NEW_GAME_PHASE_LEADER_NAME,
   NEW_GAME_PHASE_NATION_LORE_A,
   NEW_GAME_PHASE_NATION_LORE_B,
+  NEW_GAME_PHASE_MULTI, /* hot-seat @MULTI checklist (FUN_75c2_10ae raw 120658) */
   NEW_GAME_PHASE_KING,
   NEW_GAME_PHASE_SAIL,
   NEW_GAME_PHASE_COMMIT
@@ -46,7 +47,13 @@ typedef struct NewGameWizard {
   NewGamePhase phase;
   NewGamePath path;
   int difficulty; /* 0..4 */
-  int nation; /* 0..3 England..Netherlands */
+  int nation; /* 0..3 England..Netherlands; after @MULTI the LAST ticked power (DS:0x5398) */
+  /* Hot-seat (docs/hotseat.md). `multi`: the picker's hidden 5th cell was taken
+   * (FUN_733a_0c2a returned 4). `human_mask`: the @MULTI ticks (DS:0x1f54) while
+   * that phase runs, then bit n = power n is human (none ticked = England alone).
+   * 0 on a normal start. Two or more bits = hot-seat (DS:0x5381 |= 0x80). */
+  bool multi;
+  uint8_t human_mask;
   char leader_name[NEW_GAME_LEADER_NAME_MAX];
   char map_file[NEW_GAME_MAP_NAME_MAX]; /* basename, e.g. AMER2.MP; empty if generate */
   bool generate_map; /* NEW WORLD / CUSTOMIZE procedural map */
@@ -124,6 +131,10 @@ typedef struct NewGameWizard {
 
 void new_game_init(NewGameWizard* ng);
 void new_game_free(NewGameWizard* ng);
+
+/* DS:0x201e, set at startup by env COLONIZE=MULTI or argv -K (main.c): the
+ * nation picker takes its undrawn 5th cell. Process-wide, like the DOS word. */
+void new_game_set_multi_enabled(bool enabled);
 
 bool new_game_active(const NewGameWizard* ng);
 bool new_game_wants_commit(const NewGameWizard* ng);

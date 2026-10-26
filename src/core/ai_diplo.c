@@ -541,16 +541,14 @@ const char* ai_diplo_rival_name(const ColonizeCol1Save* col1, int nation) {
   return ""; /* catalog miss: empty, never typed text (port_bugs.md #1100) */
 }
 
-/* True when human_nation is a or b (human-facing chrome / popup gate). */
+/* True when a or b is human-controlled (DS:0x543f; human-facing chrome /
+ * popup gate). */
 static int ai_diplo_involves_human(const ColonizeTurnContext* ctx, int nation_a, int nation_b) {
   if (!ctx) {
     return 0;
   }
-  const int human = ctx->human_nation;
-  if (human < 0 || human >= 4) {
-    return 0;
-  }
-  return nation_a == human || nation_b == human;
+  return col1_nation_is_human(ctx->col1, nation_a, ctx->human_nation) ||
+         col1_nation_is_human(ctx->col1, nation_b, ctx->human_nation);
 }
 
 /*
@@ -655,9 +653,10 @@ int ai_diplo_465b_band_ctx(ColonizeTurnContext* ctx, int attacker, int defender)
   ColonizeCol1Save* col1 = ctx->col1;
   const uint8_t rel_ad = ai_diplo_read(col1, attacker, defender);
   const uint8_t rel_da = ai_diplo_read(col1, defender, attacker);
-  const bool atk_human = attacker == ctx->human_nation;
+  /* Both arms test the control byte (raw 75560 / 75570). */
+  const bool atk_human = col1_nation_is_human(col1, attacker, ctx->human_nation);
   int music = 0;
-  if (defender == ctx->human_nation && (rel_da & AI_DIPLO_PEACE)) {
+  if (col1_nation_is_human(col1, defender, ctx->human_nation) && (rel_da & AI_DIPLO_PEACE)) {
     ai_diplo_465b_say(
       ctx, AI_POPUP_TAG_DIPLO_SNEAK, "SNEAK", attacker, defender,
       reports_nation_plural_woi(col1, attacker), NULL
@@ -696,12 +695,12 @@ void ai_diplo_declare_war_ctx(ColonizeTurnContext* ctx, int nation_a, int nation
     return;
   }
   const int already = ai_diplo_at_war(ctx->col1, nation_a, nation_b);
-  const int human = ctx->human_nation;
+  const int human = ai_diplo_involves_human(ctx, nation_a, nation_b);
   ai_diplo_declare_war(ctx->col1, nation_a, nation_b);
   /* Franklin may no-op declare — only chrome when WAR actually stuck. */
   const int now_war = ai_diplo_at_war(ctx->col1, nation_a, nation_b);
   if (!already && now_war) {
-    if (human >= 0 && human < 4 && (nation_a == human || nation_b == human)) {
+    if (human) {
       if (g_ai_diplo_sound_play) {
         g_ai_diplo_sound_play(0x8020); /* FUN_5bfb_153e 5bfb:2c7c: war-declaration chord sting */
       }
@@ -712,8 +711,7 @@ void ai_diplo_declare_war_ctx(ColonizeTurnContext* ctx, int nation_a, int nation
      * "<cargo> boycott imposed." and "Natives grow hostile." overrides were
      * port chrome and are gone (port_bugs.md #1104).
      */
-    if (human >= 0 && human < 4 && (nation_a == human || nation_b == human) &&
-        ctx->status && ctx->status_size > 0) {
+    if (human && ctx->status && ctx->status_size > 0) {
       ai_diplo_popup_ok(ctx, AI_POPUP_TAG_DIPLO_WAR, nation_a, nation_b, ctx->status);
     }
   }
@@ -1117,7 +1115,7 @@ Ai153eWorthinessScore ai_diplo_153e_worthiness_score(
 
   /* raw :97406 entry gate: self > 3 or 0x543f[self] != 0 (an AI self) routes to
    * FUN_5bfb_13b0 (ai_diplo_13b0_treaty_tick) and never scores. */
-  if (self != ctx->human_nation) {
+  if (!col1_nation_is_human(col1, self, ctx->human_nation)) {
     out.handled = 1;
     return out;
   }
@@ -2454,7 +2452,7 @@ static int ai_diplo_153e_encounter_gated(
 ) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->units || !ctx->map ||
       !ctx->colonies || human < 0 || human > 3 || target < 0 || target > 3 || human == target ||
-      human != ctx->human_nation) {
+      !col1_nation_is_human(ctx->col1, human, ctx->human_nation)) { /* raw 97405, 0x543f */
     return 0;
   }
   ColonizeCol1Save* col1 = ctx->col1;

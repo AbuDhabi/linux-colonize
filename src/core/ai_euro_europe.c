@@ -712,7 +712,9 @@ static int ai_euro_5d04_cb_dock_pop_candidate(int profession) {
     type = 5;
   } else if (profession == UNITS_JOB_SOLDIER) {
     type = 1;
-    const int span = (ai_euro_s_5d04_nation == ctx->human_nation) ? (int)ctx->col1->head.difficulty : 1;
+    /* FUN_38fd_0718 raw 59122: the control byte of DS:0x9e12. */
+    const int span = col1_nation_is_human(ctx->col1, ai_euro_s_5d04_nation, ctx->human_nation)
+                       ? (int)ctx->col1->head.difficulty : 1;
     if (dos_rng_range(ctx->rng, 0, span + 4) == 0) {
       type = 4;
     }

@@ -255,6 +255,38 @@ void col1_save_reset_nation_slots(ColonizeCol1Head* head);
  * nation[] / player[] with it. */
 int col1_save_human_nation(const ColonizeCol1Save* save);
 
+/* Hot-seat (docs/hotseat.md). DS:0x5381 bit 0x80: 2+ powers ticked on @MULTI
+ * (FUN_75c2_10ae raw 120693), cleared by the @MULTIREV declaration
+ * (FUN_43f7_2564 raw 75234). */
+static inline bool col1_save_hotseat(const ColonizeCol1Save* s) {
+  return s && (s->head.hotseat_woi_redirect_pending & 0x80u) != 0;
+}
+
+/* DOS `*(char *)(n * 0x34 + 0x543f) == 0`: power n is human-controlled.
+ * Outside hot-seat the port's one human (`human_nation`) decides: test
+ * fixtures leave the control table zeroed, and an old port save can carry a
+ * second 0 (port_bugs.md #282). */
+static inline bool col1_nation_is_human(const ColonizeCol1Save* s, int n, int human_nation) {
+  if (n < 0 || n >= (int)COLONIZE_COL1_NATION_COUNT) {
+    return false;
+  }
+  if (col1_save_hotseat(s)) {
+    return s->player[n].control == 0;
+  }
+  return n == human_nation;
+}
+
+/* DS:0x5398, the power the King, the score and the year-end checks follow.
+ * In hot-seat it stays the last power ticked on @MULTI while `human_nation`
+ * (DS:0x5394 / 0x5396, the power at the controls) moves from human to human;
+ * otherwise the two are the same nation. */
+static inline int col1_fixed_human(const ColonizeCol1Save* s, int human_nation) {
+  if (col1_save_hotseat(s) && s->head.human_player < COLONIZE_COL1_NATION_COUNT) {
+    return (int)s->head.human_player;
+  }
+  return human_nation;
+}
+
 /* player[nation].country_name as a C string (empty on a bad nation). The field
  * is 24 bytes and a 24-character name ("United States of America") fills it
  * with no NUL (dos_bugs.md DB-3), so read it through this copy, never as the

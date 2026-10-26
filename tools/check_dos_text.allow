@@ -32,4 +32,3 @@ src/core/units_map.c|map edge|port blocked-move status; the TXT hit is Pedia pro
 src/core/units_move.c|trade route|lower-case order name (debug/diag)
 src/core/units_move.c|build colony|lower-case order name (debug/diag)
 src/core/units_move.c|build road|lower-case order name (debug/diag)
-src/core/units_move.c|select a unit|port error text; the TXT hit is README.TXT prose

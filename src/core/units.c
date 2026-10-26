@@ -1123,8 +1123,9 @@ int units_tick_drydock_repair(
     u->col1_flags15 = (uint8_t)(u->col1_flags15 & 0x7fu);
     u->repair_pending = 0;
     repaired++;
-    if (nation_id == human_nation) {
-      /* FUN_3844_00f2 / @REFIT: repaired human ship, asm 89523-89534. */
+    if (col1_nation_is_human(g_units_ff_col1, nation_id, human_nation)) {
+      /* FUN_3844_00f2 / @REFIT: repaired human ship, asm 89523-89534; gate =
+       * the nation's control byte (raw 58349). */
       units_play_event_sound(0x54);
       const char* ship_name = (ty && ty->name[0]) ? ty->name : "";
       /* DOS: colony name on a colony tile, else the nation's harbour

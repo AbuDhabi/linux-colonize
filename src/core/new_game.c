@@ -41,13 +41,23 @@ static const NewGameRect k_difficul_rects[5] = {
 };
 
 /* NATIONS.PIK cells: FUN_733a_0992 (raw 118542) origin x = (i % 2) * 99 + 0x70,
- * y = (i / 2) * 0x5b + 0xd; FUN_733a_09c6 outline x..x+0x57, y..y+0x51. */
-static const NewGameRect k_nation_rects[4] = {
+ * y = (i / 2) * 0x5b + 0xd; FUN_733a_09c6 outline x..x+0x57, y..y+0x51. Cell 4 is the
+ * hot-seat one: FUN_733a_0c2a (raw 118727-118731) hit-tests i < 5 - (DS:0x201e == 0) with
+ * FUN_281f_03ca(x, y, 0x58, 0x52), and 09c6 draws only i < 4 (raw 118568). */
+static const NewGameRect k_nation_rects[5] = {
   {112, 13, 0x58, 0x52},
   {211, 13, 0x58, 0x52},
   {112, 104, 0x58, 0x52},
   {211, 104, 0x58, 0x52},
+  {112, 195, 0x58, 0x52},
 };
+
+/* DS:0x201e (new_game_set_multi_enabled). */
+static bool s_multi_enabled;
+
+void new_game_set_multi_enabled(bool enabled) {
+  s_multi_enabled = enabled;
+}
 
 /* CUSTOMIZ.PIK: 4 columns (params) × 3 rows (values). FUN_733a_0000. */
 static const NewGameRect k_customiz_rects[4][3] = {
@@ -533,6 +543,48 @@ static void new_game_enter_king(NewGameWizard* ng) {
   }
 }
 
+/* FUN_6f74_0a00 prefixes a checkbox row with DS:0x1f91 "~[ " and FUN_6f74_1b7c sets its
+ * second byte to ']' when the row is on (as options_dialog.c). */
+static void new_game_multi_labels(NewGameWizard* ng) {
+  for (int i = 0; i < ng->option_count; ++i) {
+    snprintf(
+      ng->options[i], sizeof(ng->options[0]), "~%c %s", (ng->human_mask >> i) & 1 ? ']' : '[',
+      reports_nation_adjective_display_name(i)
+    );
+  }
+}
+
+/*
+ * FUN_75c2_10ae raw 120658-120674, picker result 4: FUN_291f_0182 parses GAME @MULTI, then
+ * one FUN_2a1f_0afe (FUN_6f74_0be8: box flags |= 5, a checkbox box) row per power i with
+ * text FUN_281f_0a24(i) = DS:0x8d0a[i], the @NATIONALITY adjective, and id i + 1. 2580
+ * starts every row from DS:0x1f54 (0 at boot, raw 116646-116650).
+ */
+static void new_game_enter_multi(NewGameWizard* ng) {
+  ng->phase = NEW_GAME_PHASE_MULTI;
+  new_game_load_choice_section(ng, "MULTI");
+  ng->human_mask = 0;
+  ng->option_count = 4;
+  ng->selection = 0;
+  new_game_multi_labels(ng);
+}
+
+/* 2580 writes the row states back to DS:0x1f54 on every exit (raw 117124-117130), Esc
+ * included. FUN_75c2_10ae raw 120679-120694: every ticked power turns human and DS:0x5398 =
+ * the last one; none ticked = England alone. */
+static void new_game_finish_multi(NewGameWizard* ng) {
+  ng->human_mask &= 0x0f;
+  if (ng->human_mask == 0) {
+    ng->human_mask = 1;
+  }
+  for (int i = 0; i < 4; ++i) {
+    if ((ng->human_mask >> i) & 1) {
+      ng->nation = i;
+    }
+  }
+  new_game_enter_king(ng);
+}
+
 static void new_game_enter_sail(NewGameWizard* ng) {
   ng->phase = NEW_GAME_PHASE_SAIL;
   ng->sail_frame = 0;
@@ -589,6 +641,8 @@ bool new_game_begin(
   ng->names_txt = names_txt;
   ng->difficulty = 0;
   ng->nation = 0;
+  ng->multi = false;
+  ng->human_mask = 0;
   ng->leader_name[0] = '\0';
   ng->generate_map = false;
   memset(&ng->gen_params, 0, sizeof(ng->gen_params));
@@ -631,6 +685,14 @@ static void new_game_request_commit(NewGameWizard* ng) {
 }
 
 static void new_game_activate_list(NewGameWizard* ng) {
+  if (ng->phase == NEW_GAME_PHASE_NATION && ng->selection == 4) {
+    /* FUN_75c2_10ae raw 120596-120598: a result above 3 sets DS:0x5398 = 0, so the
+     * leader name and @NATION0A/B are England's; @MULTI follows lore B (raw 120658). */
+    ng->multi = true;
+    ng->nation = 0;
+    new_game_enter_leader_name(ng);
+    return;
+  }
   if (ng->selection < 0 || ng->selection >= ng->option_count) {
     return;
   }
@@ -653,6 +715,8 @@ static void new_game_activate_list(NewGameWizard* ng) {
       new_game_enter_nation(ng);
       break;
     case NEW_GAME_PHASE_NATION:
+      ng->multi = false;
+      ng->human_mask = 0;
       ng->nation = ng->selection;
       if (ng->nation < 0) {
         ng->nation = 0;
@@ -673,7 +737,11 @@ static bool new_game_advance_cinematic(NewGameWizard* ng) {
       new_game_enter_lore(ng, true);
       return true;
     case NEW_GAME_PHASE_NATION_LORE_B:
-      new_game_enter_king(ng);
+      if (ng->multi) {
+        new_game_enter_multi(ng);
+      } else {
+        new_game_enter_king(ng);
+      }
       return true;
     case NEW_GAME_PHASE_KING:
       new_game_enter_sail(ng);
@@ -959,7 +1027,7 @@ bool new_game_handle_input(NewGameWizard* ng, const ColonizeInputState* input) {
   if (ng->phase == NEW_GAME_PHASE_DIFFICULTY || ng->phase == NEW_GAME_PHASE_NATION) {
     const NewGameRect* rects =
       (ng->phase == NEW_GAME_PHASE_DIFFICULTY) ? k_difficul_rects : k_nation_rects;
-    const int count = (ng->phase == NEW_GAME_PHASE_DIFFICULTY) ? 5 : 4;
+    const int count = (ng->phase == NEW_GAME_PHASE_DIFFICULTY) ? 5 : (s_multi_enabled ? 5 : 4);
 
     if (colonize_key_left(input->last_key) || colonize_key_right(input->last_key) ||
         colonize_key_up(input->last_key) || colonize_key_down(input->last_key)) {
@@ -1023,6 +1091,36 @@ bool new_game_handle_input(NewGameWizard* ng, const ColonizeInputState* input) {
     if (input->mouse_left_clicked) {
       new_game_advance_cinematic(ng);
       return true;
+    }
+    return true;
+  }
+
+  /* @MULTI checkbox box through FUN_6f74_2580: Up / Down wrap, Space or a click on a row
+   * toggles it (raw 116856-116862, 117050-117058), Enter, Esc or a click away closes. */
+  if (ng->phase == NEW_GAME_PHASE_MULTI) {
+    if (popup_list_key_step(input->last_key, &ng->selection, ng->option_count, 0)) {
+      return true;
+    }
+    int row = -1;
+    if (input->last_key == COLONIZE_KEY_SPACE) {
+      row = ng->selection;
+    } else if (input->last_key == COLONIZE_KEY_ENTER || input->last_key == COLONIZE_KEY_ESCAPE) {
+      new_game_finish_multi(ng);
+      return true;
+    } else if (input->mouse_left_clicked) {
+      const int mx = input->mouse_x;
+      const int my = input->mouse_y;
+      if (mx < ng->dialog_x || my < ng->dialog_y || mx >= ng->dialog_x + ng->dialog_w ||
+          my >= ng->dialog_y + ng->dialog_h) {
+        new_game_finish_multi(ng);
+        return true;
+      }
+      row = popup_row_at_y(ng->list_y0, ng->line_h, ng->option_count, my);
+    }
+    if (row >= 0 && row < ng->option_count) {
+      ng->selection = row;
+      ng->human_mask ^= (uint8_t)(1u << row);
+      new_game_multi_labels(ng);
     }
     return true;
   }
@@ -1784,6 +1882,14 @@ void new_game_render(
     case NEW_GAME_PHASE_NATION_LORE_A:
     case NEW_GAME_PHASE_NATION_LORE_B:
       new_game_render_lore(ng, framebuffer, out_palette, popup_colors, text_color, hilite_color);
+      break;
+    case NEW_GAME_PHASE_MULTI:
+      /* No FUN_281f_040a before @MULTI (06d0 clears DS:0x1f56 per box, raw 115155): a framed
+       * box over lore B's WOODPANL. */
+      new_game_blit_woodpanl(ng, framebuffer, out_palette);
+      new_game_render_dialog(
+        ng, framebuffer, ng->ui_font, false, popup_colors, text_color, hilite_color, select_color
+      );
       break;
     case NEW_GAME_PHASE_KING:
       new_game_render_king(ng, framebuffer, out_palette);

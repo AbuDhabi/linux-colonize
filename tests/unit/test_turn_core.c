@@ -486,6 +486,87 @@ static int case_processor_indicator_steps(void) {
   return 0;
 }
 
+/*
+ * Hot-seat slot walk (docs/hotseat.md, FUN_130d_0290 raw 6366-6420): England
+ * and Spain human, bit 0x80 set. England ends: France (AI) moves, then the
+ * pass stops at Spain for its handoff. Spain ends: the Dutch (AI), the day
+ * and the Indians, then the pass stops at England.
+ */
+static int case_hotseat_slot_order(void) {
+  fx_begin();
+  ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
+    col1.head.founding_father[i] = -1;
+  }
+  col1.head.crown_nation_id = -1;
+  col1.player[0].control = 0;
+  col1.player[1].control = 1;
+  col1.player[2].control = 0;
+  col1.player[3].control = 1;
+  col1.head.hotseat_woi_redirect_pending = 0x80;
+  col1.head.human_player = 2;
+  uint32_t turn = 1;
+  uint16_t year = 1492;
+  uint16_t autumn = 0;
+  int active = -1;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.messages = test_game_txt();
+  ctx.names = test_names_txt();
+  ctx.turn_number = &turn;
+  ctx.game_year = &year;
+  ctx.game_autumn = &autumn;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.human_nation = 0;
+  ctx.active_turn_nation = &active;
+  ColonizeTurnProcessor proc;
+  turn_processor_start(&proc);
+  (void)turn_processor_advance(&proc, &ctx); /* SETUP */
+  (void)turn_processor_advance(&proc, &ctx); /* France */
+  if (active != 1 || !proc.handoff_pending || proc.handoff_nation != 2 ||
+      proc.step != TURN_PROC_FINISH || year != 1492) {
+    fprintf(stderr, "England->Spain: active %d pending %d to %d step %d year %u\n", active,
+            proc.handoff_pending, proc.handoff_nation, (int)proc.step, (unsigned)year);
+    return 1;
+  }
+  while (turn_processor_advance(&proc, &ctx)) {
+  }
+  if (ctx.human_nation != 2 || active != 2) {
+    fprintf(stderr, "Spain should be at the controls, got %d (active %d)\n", ctx.human_nation, active);
+    return 1;
+  }
+  turn_processor_start(&proc);
+  bool saw_indian = false;
+  bool saw_dutch_first = false;
+  while (turn_processor_advance(&proc, &ctx) && !proc.handoff_pending) {
+    if (active == 3 && !saw_indian) {
+      saw_dutch_first = true;
+    }
+    if (active >= 4) {
+      saw_indian = true;
+    }
+  }
+  if (!saw_dutch_first || !saw_indian || !proc.handoff_pending || proc.handoff_nation != 0 ||
+      year != 1493) {
+    fprintf(stderr, "Spain->England: dutch %d indian %d pending %d to %d year %u\n",
+            saw_dutch_first, saw_indian, proc.handoff_pending, proc.handoff_nation, (unsigned)year);
+    return 1;
+  }
+  /* Outside hot-seat the same table is single-player: no handoff. */
+  col1.head.hotseat_woi_redirect_pending = 0;
+  ctx.human_nation = 0;
+  turn_processor_start(&proc);
+  while (turn_processor_advance(&proc, &ctx)) {
+    if (proc.handoff_pending) {
+      fprintf(stderr, "single-player must not hand off\n");
+      return 1;
+    }
+  }
+  return ctx.human_nation == 0 ? 0 : 1;
+}
+
 /* Carpenter workplace + Stockade project completes via free production ticks. */
 static int case_carpenter_stockade(void) {
   fx_begin();
@@ -6757,6 +6838,7 @@ static int case_produce_seam_lumber(void) {
 
 static const TestCase k_cases[] = {
   {"calendar", case_calendar},
+  {"hotseat_slot_order", case_hotseat_slot_order},
   {"free_production", case_free_production},
   {"turn_end_calendar", case_turn_end_calendar},
   {"next_unit_selection", case_next_unit_selection},

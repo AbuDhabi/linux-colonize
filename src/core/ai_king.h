@@ -239,8 +239,8 @@ int ai_king_independence_declared(const ColonizeCol1Save* col1);
  * MENU.TXT @GAME "DECLARE INDEPENDENCE" command (MAP_MENU_ACTION_
  * DECLARE_INDEPENDENCE). Below AI_KING_DECLARE_SOL_MIN: GAME.TXT @TOOTORY OK
  * notice. At/above threshold and not yet at war: same Never/Yes @DECLARE
- * confirm the per-turn auto-check shows. No-op once already at war (status
- * message only).
+ * confirm the per-turn auto-check shows, behind @MULTIREV in hot-seat
+ * (FUN_43f7_2564). No-op once already at war (status message only).
  */
 void ai_king_menu_declare_independence(ColonizeTurnContext* ctx);
 

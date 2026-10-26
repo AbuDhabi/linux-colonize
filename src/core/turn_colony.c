@@ -571,7 +571,10 @@ void turn_cheat_colony_tick(ColonizeTurnContext* ctx, ColonizeTurnResult* out, i
 }
 
 void turn_run_ai_nation_eot(ColonizeTurnContext* ctx, ColonizeTurnResult* out, int n) {
-  if (!ctx || n < 0 || n >= 4 || n == ctx->human_nation) {
+  /* Control byte, not the power at the controls: a hot-seat human's 00f2
+   * runs in its own slot, rebound (turn_run_human_colony_eot). */
+  if (!ctx || n < 0 || n >= 4 ||
+      col1_nation_is_human(ctx->col1_ok ? ctx->col1 : NULL, n, ctx->human_nation)) {
     return;
   }
   if (!ctx->col1_ok || !ctx->col1) {

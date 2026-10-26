@@ -2038,6 +2038,13 @@ static void game_create_load_screens(ColonizeGameState* game) {
      * GAME.TXT for statuses europe.c composes itself (@KISSSORRY etc). */
     europe_set_labels(&game->europe, game->labels_ok ? &game->labels : NULL);
     europe_set_messages(&game->europe, &game->messages);
+    /* Orders-box fill (FUN_112b_01ba, raw DS:0x848 index): the Dutch pair 5/13
+     * is VICEROY.PAL's fixed DAC on every screen; EUROPE.PIK has EGA magenta
+     * there and paints none. Same merge as the map palette above. */
+    if (game->unit_icons_ok && game->unit_icons.has_palette && game->europe.background.has_palette) {
+      memcpy(game->europe.background.palette.rgb[5], game->unit_icons.palette.rgb[5], 3);
+      memcpy(game->europe.background.palette.rgb[13], game->unit_icons.palette.rgb[13], 3);
+    }
     game->europe_ok = true;
   } else {
     game->europe_ok = false;
@@ -2411,6 +2418,7 @@ void game_commit_new_campaign(ColonizeGameState* game) {
     ai.names = game->names_ok ? &game->names : NULL;
     ai.data_dir = game->resolved_data_dir;
     ai.human_nation = game->human_nation;
+    ai.human_mask = ng->human_mask;
     ai.difficulty = game->difficulty;
     ai.leader_name = game->leader_name;
     ai.use_tribe_txt = (ng->path == NEW_GAME_PATH_AMERICA);
@@ -2429,6 +2437,12 @@ void game_commit_new_campaign(ColonizeGameState* game) {
     char ai_err[256];
     if (!ai_init_new_game(&ai, ai_err, sizeof(ai_err))) {
       diag_warn("ai_init_new_game failed: %s", ai_err[0] ? ai_err : "unknown");
+    }
+    /* @MULTI start: FUN_75c2_10ae typed the leader name into England's
+     * record (DS:0x5398 was 0 then); the fixed power carries its own. */
+    if (ng->human_mask != 0 && game->col1_ok) {
+      snprintf(game->leader_name, sizeof(game->leader_name), "%s",
+               game->col1.player[game->human_nation].name);
     }
     colony_screen_set_layout_seed(&game->colony_screen, game->col1.post_map.boot_timer);
     /*
@@ -2480,7 +2494,8 @@ void game_commit_new_campaign(ColonizeGameState* game) {
     if (game->world_map_ok) {
       for (int i = 0; i < units_slot_end(&game->units); ++i) {
         const ColonizeUnit* u = &game->units.units[i];
-        if (!u->active || u->nation_id != game->human_nation || !units_is_on_map(u)) {
+        if (!u->active || !units_is_on_map(u) ||
+            !col1_nation_is_human(&game->col1, u->nation_id, game->human_nation)) {
           continue;
         }
         const ColonizeWorld w = game_world(game);
@@ -2488,10 +2503,10 @@ void game_commit_new_campaign(ColonizeGameState* game) {
       }
       for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
         const ColonizeColony* c = &game->colonies.colonies[i];
-        if (!c->active || c->nation_id != game->human_nation) {
+        if (!c->active || !col1_nation_is_human(&game->col1, c->nation_id, game->human_nation)) {
           continue;
         }
-        map_reveal_radius(&game->world_map, c->x, c->y, game->human_nation, 2);
+        map_reveal_radius(&game->world_map, c->x, c->y, c->nation_id, 2);
       }
     }
     if (game->units.selected_id >= 0) {
@@ -2507,9 +2522,26 @@ void game_commit_new_campaign(ColonizeGameState* game) {
 
   sound_set_bgm(1);
   sound_play(0x39); /* FUN_75c2_235c new-game init: Hornpipe first (75c2:2474) */
+  const uint8_t human_mask = ng->human_mask;
   new_game_cancel(ng);
   game->in_menu = false;
   game->view_pieces_mode = false;
+  /* Hot-seat: the year loop opens at slot 0, so the lowest human moves
+   * first, with its @MULTINEXT (FUN_130d_0290 raw 6366-6390). */
+  if (game->col1_ok && col1_save_hotseat(&game->col1)) {
+    int first = 0;
+    while (first < 3 && (human_mask & (1u << first)) == 0) {
+      ++first;
+    }
+    game_hotseat_begin_turn(game, first);
+    game_move_pieces_entry(game);
+    const ColonizeUnit* u = units_get_const(&game->units, game->units.selected_id);
+    if (u && u->nation_id == game->human_nation) {
+      game->map_cursor_x = u->x;
+      game->map_cursor_y = u->y;
+      game_set_view_center(game, u->x, u->y);
+    }
+  }
   snprintf(
     game->status,
     sizeof(game->status),

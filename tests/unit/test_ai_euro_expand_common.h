@@ -22,6 +22,7 @@
 #include "core/ai_euro.h"
 #include "core/ai_goals.h"
 #include "core/col1_save.h"
+#include "core/col1_stuff_census.h"
 #include "core/dos_rng.h"
 #include "core/colony.h"
 #include "core/founding_fathers.h"
@@ -37,5 +38,15 @@
 #include "../common/ai_fixture.h"
 #include "../common/test_fail.h"
 #include "../common/test_runner.h"
+
+/* FUN_4962_0018 census for `nation` as its last end-of-turn slot left it
+ * (the 0a60 stance writer reads these tables, not live recounts). Keeps the
+ * fixture's ship_counts byte, which quiets the 5d04 no-ships gold floor. */
+static inline void expand_seed_census(ColonizeTurnContext* ctx, int nation) {
+  const uint8_t ships = ctx->col1->stuff.ship_counts[nation];
+  const ColonizeWorld w = world_from_turn_ctx(ctx);
+  col1_stuff_census_4962_w(&w, &ctx->col1->stuff, nation);
+  ctx->col1->stuff.ship_counts[nation] = ships;
+}
 
 #endif /* COLONIZE_TEST_AI_EURO_EXPAND_COMMON_H */

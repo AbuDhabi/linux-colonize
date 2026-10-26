@@ -844,7 +844,8 @@ static void ai_euro_0a60_foreign_colony_producers(
     const int at_peace = ((d & (AI_DIPLO_PEACE | 0x08)) == AI_DIPLO_PEACE);
     /* Early fair-play gate #1 (difficulty×turn < 0xb5): skip the approach/
      * lurk block for an unseen human colony. DS:0x543f polarity 0=human. */
-    const int block1 = !(difficulty * turn < 0xb5 && !seen && owner == human);
+    const int block1 = !(difficulty * turn < 0xb5 && !seen &&
+                         col1_nation_is_human(ctx->col1, owner, human));
     if (block1) {
       /* MILITARY approach goal (defender count = 0d38 case-2 stack count
        * + population, byte-right). Prio 3 while formally at peace, 5
@@ -993,7 +994,7 @@ static void ai_euro_0a60_foreign_colony_producers(
                            (int)col_cnt[2][cont] + (int)col_cnt[3][cont];
     int priority_base = outmatched ? 3 : 2;
     int v = priority_base;
-    if (owner == human) {
+    if (col1_nation_is_human(ctx->col1, owner, human)) { /* raw 87947, 0x543f */
       v = priority_base + 1;
       if (total_cols == (int)col_cnt[owner][cont]) {
         if (tally > 0xf) {
@@ -1140,6 +1141,8 @@ static void ai_euro_0a60_settlement_goal_producers(
   const int turn = have_col1 ? (int)ctx->col1->head.turn
                              : ((ctx->turn_number && *ctx->turn_number) ? (int)*ctx->turn_number : 0);
   const int difficulty = have_col1 ? (int)ctx->col1->head.difficulty : 2;
+  /* The two `owner == human` tests below are DOS control-byte reads (raw
+   * 87769 / 87947); outside hot-seat col1_nation_is_human reduces to this. */
   const int human = have_col1 ? (int)ctx->col1->head.human_player : -1;
 
   /* FUN_4962_0018-style per-nation/continent tables (colonies, land units,
@@ -1218,7 +1221,7 @@ static int ai_euro_nation_is_human(const ColonizeTurnContext* ctx, int nation) {
     return 0;
   }
   if (ctx->human_nation >= 0 && ctx->human_nation <= 3) {
-    return nation == ctx->human_nation;
+    return col1_nation_is_human(ctx->col1, nation, ctx->human_nation);
   }
   if (ctx->col1_ok && ctx->col1) {
     return ctx->col1->player[nation].control == 0;

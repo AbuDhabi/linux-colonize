@@ -84,6 +84,12 @@ COLONIZE_INTERNAL const char* turn_year_end_leader_name(const ColonizeCol1Save* 
   return reports_nation_adjective_display_name(nation);
 }
 
+/* DS:0x5398: every human read in FUN_3844_0442 (raw 58463-58655) is the fixed
+ * power, not the one at the controls (docs/hotseat.md). */
+static int turn_year_end_human(const ColonizeTurnContext* ctx) {
+  return col1_fixed_human(ctx->col1_ok ? ctx->col1 : NULL, ctx->human_nation);
+}
+
 /* §D popup: fill `tag` from GAME.TXT with DOS's substitutions, enqueue OK. */
 COLONIZE_INTERNAL void turn_year_end_rival_popup(
   ColonizeTurnContext* ctx,
@@ -114,10 +120,11 @@ COLONIZE_INTERNAL void turn_year_end_era_end(
     const char* dname = (d >= 0 && d <= 4) ? reports_difficulty_title(d) : NULL;
     const char* richest = NULL;
     int best_pop = -1;
+    const int human = turn_year_end_human(ctx); /* raw 58637 owner == DS:0x5398 */
     if (ctx->colonies) {
       for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
         const ColonizeColony* c = &ctx->colonies->colonies[i];
-        if (!c->active || c->nation_id != ctx->human_nation) {
+        if (!c->active || c->nation_id != human) {
           continue;
         }
         if (c->colonist_count > best_pop && c->name[0] != '\0') {
@@ -216,7 +223,7 @@ COLONIZE_INTERNAL bool turn_year_end_woi_chrome(
      * colony count (< 3 / == 0), which the port does not carry.
      */
     if (ctx->status && ctx->status_size > 0 && ctx->col1_ok && ctx->col1) {
-      const int human = ctx->human_nation;
+      const int human = turn_year_end_human(ctx); /* raw 58515 iVar5 = DS:0x5398 */
       const int human_sol =
         (human >= 0 && human < 4) ? ai_king_sol_percent(ctx, human) : 0;
       const int crown_sol = ai_king_sol_percent(ctx, crown);
@@ -375,10 +382,12 @@ COLONIZE_INTERNAL void turn_year_end_defeat_check(
   ColonizeTurnContext* ctx, ColonizeTurnResult* out, uint16_t year, int woi
 ) {
   int human_colonies = 0;
+  /* raw 58464-58469: the colony count of DS:0x5398. */
+  const int human = turn_year_end_human(ctx);
   if (ctx->colonies) {
     for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
       const ColonizeColony* c = &ctx->colonies->colonies[i];
-      if (c->active && c->nation_id == ctx->human_nation) {
+      if (c->active && c->nation_id == human) {
         human_colonies++;
       }
     }
@@ -437,9 +446,8 @@ COLONIZE_INTERNAL void turn_year_end_defeat_check(
       memset(&tok, 0, sizeof(tok));
       /* NAMES.TXT @DIFFICULTY (audit theme D). */
       tok.string0 = (d >= 0 && d <= 4) ? reports_difficulty_title(d) : reports_difficulty_title(4);
-      tok.string1 = (ctx->human_nation >= 0 && ctx->human_nation < 4)
-        ? ctx->col1->player[ctx->human_nation].name
-        : "";
+      /* raw 58654: DS:0x5398 * 0x34 + 0x540e. */
+      tok.string1 = (human >= 0 && human < 4) ? ctx->col1->player[human].name : "";
       char body[AI_POPUP_BODY_LEN];
       popup_msg_fill(
         ctx->messages, "LOSENOCOLONIES", &tok,
@@ -484,8 +492,9 @@ void turn_run_year_end_chrome(ColonizeTurnContext* ctx, ColonizeTurnResult* out)
         col1_stuff_census_4962_w(&cw, &ctx->col1->stuff, crown);
       }
     }
-    if (ctx->human_nation >= 0 && ctx->human_nation < 4) {
-      col1_stuff_census_4962_w(&cw, &ctx->col1->stuff, ctx->human_nation);
+    const int human = turn_year_end_human(ctx);
+    if (human >= 0 && human < 4) {
+      col1_stuff_census_4962_w(&cw, &ctx->col1->stuff, human);
     }
   }
   const uint16_t year =

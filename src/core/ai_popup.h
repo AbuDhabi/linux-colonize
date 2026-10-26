@@ -221,11 +221,14 @@ typedef enum AiPopupTag {
                                  * ids are the DOS row ids 1 Move to front, 2 Set sail,
                                  * 3 Unload all cargo, 4 No changes (Esc = no change). */
   ,
-  AI_POPUP_TAG_PLUNDER_PICK = 75 /* FUN_5fef_016c @PICKACARGO (DS:0x1b08): which of the
-                                 * beaten ship's holds a human winner takes. Row 99 =
-                                 * LABELS @MISC[32], then choice ids hold + 1. Answered
-                                 * inside the combat popup pump; the result goes to
-                                 * units_plunder_pick_apply_popup. */
+  AI_POPUP_TAG_PLUNDER_PICK = 75, /* FUN_5fef_016c @PICKACARGO (DS:0x1b08): which of the
+                                  * beaten ship's holds a human winner takes. Row 99 =
+                                  * LABELS @MISC[32], then choice ids hold + 1. Answered
+                                  * inside the combat popup pump; the result goes to
+                                  * units_plunder_pick_apply_popup. */
+  AI_POPUP_TAG_MULTINEXT = 76 /* hot-seat handoff @MULTINEXT (FUN_130d_0290 raw 6372,
+                               * 0x137): drawn over a blanked screen (raw 6370-6371,
+                               * FUN_1b70_003a(200, 0x140, 0)). docs/hotseat.md. */
 } AiPopupTag;
 
 typedef struct AiPopupRequest {

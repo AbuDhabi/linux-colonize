@@ -124,7 +124,7 @@ int ai_contact_euro_is_human(const ColonizeTurnContext* ctx, int e) {
     return 0;
   }
   if (ctx->human_nation >= 0 && ctx->human_nation <= 3) {
-    return e == ctx->human_nation;
+    return col1_nation_is_human(ctx->col1, e, ctx->human_nation); /* DS:0x543f */
   }
   if (ctx->col1_ok && ctx->col1) {
     return ctx->col1->player[e].control == 0;
@@ -198,7 +198,8 @@ void ai_contact_chief_flair(ColonizeTurnContext* ctx, int e, int nation_b) {
   if (!ctx || !ctx->ai_popups || !ctx->col1 || nation_b < 4 || nation_b > 11) {
     return;
   }
-  const int alarm = ai_diplo_indian_alarm(ctx->col1, nation_b, e);
+  /* FUN_6f74_0042 raw 114804: the tier reads alarm toward DS:0x5398. */
+  const int alarm = ai_diplo_indian_alarm(ctx->col1, nation_b, col1_fixed_human(ctx->col1, e));
   ai_popup_set_last_portrait(
     ctx->ai_popups, nation_b - 4, ai_popup_portrait_tier_from_alarm(alarm)
   );

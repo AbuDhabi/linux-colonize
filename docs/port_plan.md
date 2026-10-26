@@ -35,13 +35,13 @@ deferred polish phase **D4** (pixel chrome).
 ## Remaining work (2026-10-26)
 
 Not bugs in shipped features. Each is a known, bounded gap. Closed
-2026-10-26: the ally-pick prompt (#1287), DOS `HALLFAME.DAT` (#1289) and
-the dead Pillage arm (deleted). Hot-seat multiplayer is a recorded divergence,
-not planned work ([known_divergences.md](known_divergences.md) #1290).
+2026-10-26: the ally-pick prompt (#1287), DOS `HALLFAME.DAT` (#1289), the
+dead Pillage arm (deleted) and the Euro AI deferred-band tail + stance
+census operands (#1291), and hot-seat multiplayer, ported for save
+interop (#1290, [hotseat.md](hotseat.md)).
 
 | Item | What is missing | Where |
 |------|-----------------|-------|
-| Euro AI deferred-band tail | The Euro AI combat core is ported (2026-10-26 audit): the `−0x6790` stance table (`ai_euro_refresh_continent_stance`, `FUN_521d_0a60` raw 88054-88151) and the `20e6` LAB_4d2e / LAB_52aa attack and step scorer, checked against the DOSBox idle campaigns. Left: Treasure / Missionary / Wagon units whose 20e6 arms decline fall into a port-only tail (`ai_euro_act_land_goal_dispatch`: the invented `ai_euro_score_move` walker and an unreachable MILITARY/CONTACT attack arm) instead of 20e6's own pre-LAB_4d2e gate (raw 90210-90219) → LAB_4d2e wander / LAB_5a78 + `FUN_479b_0972` walk, which every other land unit takes. Also, the stance writer recounts its operands live instead of reading the DOS-timed `FUN_4962_0018` / `06b6` census tables | `ai_euro_act.c`, `ai_euro.c`, [ai_euro_logic_map.yaml](ai_euro_logic_map.yaml) land_band |
 | [port_bugs.md](port_bugs.md) | OPEN rows | — |
 
 **Old citations.** `port_plan P<n>.<m>`, the old "How an agent should use this
@@ -173,7 +173,7 @@ file above. Also parked: MAPEDIT catalog track (old W5.4).
 
 Done. History, `FUN_*` inventory and the full method notes:
 [archive/port_plan_deferred_ai_track.md](archive/port_plan_deferred_ai_track.md).
-What remains AI-side is the Euro AI deferred-band tail and stance-operand timing ("Remaining work" above) and D4
+What remains AI-side is D4
 chrome: T5.1 VGA-identical dialog chrome (meet/diplo/king wood frames, FA
 `3f41` widget body) and T5.3 F3 Congress portrait-grid polish (blocked on
 material not in the repo).

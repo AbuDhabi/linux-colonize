@@ -152,6 +152,11 @@ typedef struct ColonizeTurnProcessor {
   uint16_t year_before;
   bool show_indicator;
   ColonizeTurnResult result;
+  /* Hot-seat (docs/hotseat.md): the year loop reached another human slot.
+   * The game rebinds to handoff_nation before FINISH runs (turn_end, with no
+   * game, just switches ctx->human_nation). */
+  bool handoff_pending;
+  int handoff_nation;
 } ColonizeTurnProcessor;
 
 /* Advance year / autumn / turn counter per @TIMECHANGE. */

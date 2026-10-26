@@ -6,6 +6,8 @@
 # Picker rows: 8 px apart, row 0 "(No Production)" at y=39.
 click 120 112              # open Quebec (map tile 45,24; this save's view origin is 38,18)
 wait 10
+key 3                      # Construction tab (DOS DS:0x337 starts at 0 = Production)
+wait 3
 click 282 141              # CHANGE: the loaded queue is numbered 1-3
 wait 5
 click 150 71 shift         # Shift-click Schoolhouse (needs pop 4): queued as 4

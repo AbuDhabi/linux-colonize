@@ -5145,6 +5145,42 @@ int main(void) {
         goto head_stamp_fail;
       }
     }
+    /* Hot-seat (docs/hotseat.md): capture keeps every control-0 power and
+     * DS:0x5398, and stamps DS:0x5394 / 0x5396 with the power at the
+     * controls (a file load resets DS:0x5394 to DS:0x5398 first, in
+     * game_load_col1_loaded). */
+    {
+      const int fixed = br.human_nation;
+      const int mover = fixed == 0 ? 1 : 0;
+      save.head.hotseat_woi_redirect_pending |= 0x80u;
+      save.player[mover].control = 0;
+      save.head.human_player = (uint16_t)fixed;
+      save.head.fixed_nation_map_view = 0xffffu;
+      if (!col1_bridge_capture_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&units), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&save), .col1_ok=true, .europe=(EuropeScreen*)(&europe)}, br.year, br.autumn, br.turn_number, mover, 11, 12, 40, 41, -1, true, err, sizeof(err))) {
+        fprintf(stderr, "hot-seat capture: %s\n", err);
+        goto head_stamp_fail;
+      }
+      if (save.player[fixed].control != 0 || save.player[mover].control != 0 ||
+          save.head.human_player != (uint16_t)fixed || save.head.nation_turn != (uint16_t)mover ||
+          save.head.curr_nation_map_view != (uint16_t)mover ||
+          (save.head.hotseat_woi_redirect_pending & 0x80u) == 0 ||
+          col1_save_human_nation(&save) != mover) {
+        fprintf(
+          stderr, "hot-seat capture: control %u/%u human_player %u nation_turn %u view %u resume %d\n",
+          save.player[fixed].control, save.player[mover].control,
+          (unsigned)save.head.human_player, (unsigned)save.head.nation_turn,
+          (unsigned)save.head.curr_nation_map_view, col1_save_human_nation(&save)
+        );
+        goto head_stamp_fail;
+      }
+      /* Single-player keeps the #282 heal: the second 0 becomes AI. */
+      save.head.hotseat_woi_redirect_pending &= 0x7fu;
+      if (!col1_bridge_capture_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&units), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&save), .col1_ok=true, .europe=(EuropeScreen*)(&europe)}, br.year, br.autumn, br.turn_number, fixed, 11, 12, 40, 41, -1, true, err, sizeof(err)) ||
+          save.player[mover].control != 1 || save.head.nation_turn != (uint16_t)fixed) {
+        fprintf(stderr, "single-player capture lost the #282 heal\n");
+        goto head_stamp_fail;
+      }
+    }
     units_set_occupancy_map(NULL);
     colonies_set_occupancy_map(NULL);
     map_free(&map);

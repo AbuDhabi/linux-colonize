@@ -3,6 +3,9 @@
  *
  *   play_driver DIR [--load SAVE] [--seed N]
  *
+ * Env COLONIZE=MULTI arms the hidden hot-seat picker cell, as for opencol
+ * (docs/hotseat.md).
+ *
  * Runs the game with the input-replay platform of tests/regression (no SDL
  * window, no audio) and takes commands on stdin, one per line, so an agent or
  * script can play a whole campaign across turns. DIR holds settings.json
@@ -63,6 +66,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <sys/stat.h>
 
 #include "core/ai_contact.h"
@@ -77,6 +81,7 @@
 #include "core/game_loop_internal.h"
 #include "core/map.h"
 #include "core/map_panel.h"
+#include "core/new_game.h"
 #include "core/screen_geom.h"
 #include "core/settings.h"
 #include "core/units.h"
@@ -1025,6 +1030,10 @@ int main(int argc, char** argv) {
       seed = (uint32_t)strtoul(argv[i + 1], NULL, 0);
       seed_set = true;
     }
+  }
+  {
+    const char* multi = getenv("COLONIZE");
+    new_game_set_multi_enabled(multi && strcasecmp(multi, "MULTI") == 0);
   }
   char path[700], saves[600];
   snprintf(saves, sizeof(saves), "%s/saves", g_dir);

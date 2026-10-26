@@ -86,6 +86,11 @@
 /* ===================== Save/load slot IO, reports/score/pedia menus (game_apply_col1_save .. render_pedia_screen) ===================== */
 
 
+/* game_reload_live_col1 in progress: a rebind, not a Load (no load theme,
+ * no Move Pieces pick). */
+static bool s_rebinding;
+static void game_hotseat_announce(ColonizeGameState* game, int n);
+
 static bool game_apply_col1_save(ColonizeGameState* game, ColonizeCol1Save* loaded, char* err, size_t err_size) {
   ColonizeCol1BridgeResult result;
   /* The outgoing world's occupancy map must not see the spawns below: every
@@ -146,12 +151,16 @@ static bool game_apply_col1_save(ColonizeGameState* game, ColonizeCol1Save* load
    * carry a stale 0 here (new game never stamped it), which mis-gates the
    * head.human_player readers (ai.c WoI seizure, units.c capture popups,
    * ai_euro focus, render tools) for a non-English player. */
-  if (loaded->head.human_player != (uint16_t)result.human_nation) {
-    /* Stale zero-filled head: its fixed_nation_map_view (0x53a4) is garbage
-     * too and would pin England's fog (port_bugs.md #282, #1170). */
-    loaded->head.fixed_nation_map_view = 0xffffu;
+  /* Hot-seat keeps DS:0x5398 on its fixed power (docs/hotseat.md);
+   * human_nation is DS:0x5394 there. */
+  if (!col1_save_hotseat(loaded)) {
+    if (loaded->head.human_player != (uint16_t)result.human_nation) {
+      /* Stale zero-filled head: its fixed_nation_map_view (0x53a4) is garbage
+       * too and would pin England's fog (port_bugs.md #282, #1170). */
+      loaded->head.fixed_nation_map_view = 0xffffu;
+    }
+    loaded->head.human_player = (uint16_t)result.human_nation;
   }
-  loaded->head.human_player = (uint16_t)result.human_nation;
   game->map_cursor_x = result.cursor_x;
   game->map_cursor_y = result.cursor_y;
   /* Camera comes from its own DS word pair (stuff.viewport_*), not from the
@@ -277,14 +286,16 @@ static bool game_apply_col1_save(ColonizeGameState* game, ColonizeCol1Save* load
     opts.sound_effects = game->col1.head.tut2.sound_effects != 0;
     sound_set_options(opts);
   }
-  sound_set_bgm(1);
-  /*
-   * port_bugs.md: loading played the royal-audience tune. The 0x3e queue in
-   * OVL27 sits in the KING-portrait screen (75c2:1dcc pushes DS string
-   * "KING1" right before it), not in the load path — the load function's
-   * own tail (75c2:2330) queues 0x25, the default main theme.
-   */
-  sound_play(0x25);
+  if (!s_rebinding) {
+    sound_set_bgm(1);
+    /*
+     * port_bugs.md: loading played the royal-audience tune. The 0x3e queue in
+     * OVL27 sits in the KING-portrait screen (75c2:1dcc pushes DS string
+     * "KING1" right before it), not in the load path — the load function's
+     * own tail (75c2:2330) queues 0x25, the default main theme.
+     */
+    sound_play(0x25);
+  }
   /* Continue LCG for FUN_465b / AI nation turns. VR_SEED fixtures use seed 100;
    * prefer that when the save looks like a seed-100 NEW WORLD start (turn<=6,
    * 34 tribes), else fall back to turn/year. --seed overrides all of that. */
@@ -316,6 +327,13 @@ static bool game_load_col1_loaded(
       return false;
     }
   }
+  /* Hot-seat: DOS resumes a load at slot DS:0x5398 whichever human saved
+   * (FUN_130d_0290 raw 6367: `0x829 == 0 || 0x5398 <= slot`, then 0x5394 =
+   * slot). docs/hotseat.md. */
+  if (!s_rebinding && col1_save_hotseat(loaded) &&
+      loaded->head.human_player < COLONIZE_COL1_NATION_COUNT) {
+    loaded->head.nation_turn = loaded->head.human_player;
+  }
   if (!game_apply_col1_save(game, loaded, err, err_size)) {
     col1_save_free(loaded);
     return false;
@@ -324,11 +342,29 @@ static bool game_load_col1_loaded(
    * the first unit awaiting orders (a Go-To unit included) even when the
    * save was taken in View Pieces (every autosave is). DOS re-picks over a
    * saved active unit too; the port keeps a live one (known_divergences.md). */
+  if (s_rebinding) {
+    return true;
+  }
+  game_hotseat_announce(game, game->human_nation);
   const ColonizeUnit* sel = units_get_const(&game->units, game->units.selected_id);
   if (!game_unit_selectable(game, sel)) {
     game_move_pieces_entry(game);
   }
   return true;
+}
+
+/* Reload the freshly captured game->col1 in place, so the one-nation Europe
+ * mirror and every human_nation reader follow the save's human slot. */
+static bool game_reload_live_col1(ColonizeGameState* game, char* err, size_t err_size) {
+  ColonizeCol1Save moved = game->col1; /* the array pointers move with it */
+  col1_save_init(&game->col1);
+  s_rebinding = true;
+  const bool ok = game_load_col1_loaded(game, &moved, err, err_size);
+  s_rebinding = false;
+  if (ok) {
+    units_set_combat_human_nation(game->human_nation);
+  }
+  return ok;
 }
 
 bool game_load_col1_slot(ColonizeGameState* game, int slot, char* err, size_t err_size) {
@@ -471,13 +507,81 @@ bool game_cheat_set_human(ColonizeGameState* game, int n, char* err, size_t err_
   }
   woodcut_close(&game->woodcut);
   woodcut_clear_pending();
-  ColonizeCol1Save moved = game->col1; /* the array pointers move with it */
-  col1_save_init(&game->col1);
-  if (!game_load_col1_loaded(game, &moved, err, err_size)) {
+  if (!game_reload_live_col1(game, err, err_size)) {
     return false;
   }
-  units_set_combat_human_nation(game->human_nation);
+  const ColonizeUnit* sel = units_get_const(&game->units, game->units.selected_id);
+  if (!game_unit_selectable(game, sel)) {
+    game_move_pieces_entry(game);
+  }
   return true;
+}
+
+/*
+ * Hot-seat handoff (docs/hotseat.md), DOS FUN_130d_0290 raw 6369-6390: the
+ * year loop reached the control-0 slot n. The live world is captured with
+ * the outgoing power still bound, DS:0x5394 / 0x5396 := n, and the save is
+ * reloaded in place. Then, with bit 0x80: @MULTINEXT (0x137, STRING0 =
+ * FUN_15b3_024e's @NATIONALITY word) over a blanked screen, and the cursor
+ * and camera on n's colony nearest the map centre (FUN_15eb_0142(w >> 1,
+ * h >> 1, n, -1) -> 0x8540/0x853e and 0x17c/0x17e). n's own 00f2 (FINISH)
+ * runs once the popup is answered. DS:0x5398 does not move.
+ */
+void game_hotseat_handoff(ColonizeGameState* game) {
+  ColonizeTurnProcessor* proc = &game->turn_proc;
+  if (!proc->handoff_pending) {
+    return;
+  }
+  proc->handoff_pending = false;
+  game_hotseat_begin_turn(game, proc->handoff_nation);
+}
+
+void game_hotseat_begin_turn(ColonizeGameState* game, int n) {
+  if (n < 0 || n > 3) {
+    return;
+  }
+  if (n != game->human_nation) {
+    char err[256];
+    const ColonizeTurnProcessor keep = game->turn_proc;
+    if (!game->col1_ok || !game_capture_col1(game, err, sizeof(err))) {
+      diag_warn("hot-seat handoff to %d: capture failed", n);
+      game->human_nation = n;
+      return;
+    }
+    ColonizeCol1Head* h = &game->col1.head;
+    h->nation_turn = (uint16_t)n;
+    h->curr_nation_map_view =
+      h->fixed_nation_map_view <= 3u ? h->fixed_nation_map_view : (uint16_t)n;
+    if (!game_reload_live_col1(game, err, sizeof(err))) {
+      diag_warn("hot-seat handoff to %d: %s", n, err);
+    }
+    game->turn_proc = keep;
+  }
+  game_hotseat_announce(game, n);
+}
+
+/* 130d_0290 raw 6369-6390 tail, for the handoff and for a hot-seat load
+ * (DOS resumes a load through the same block, raw 6367-6369). */
+static void game_hotseat_announce(ColonizeGameState* game, int n) {
+  if (!col1_save_hotseat(&game->col1) || n < 0 || n > 3) {
+    return;
+  }
+  PopupMsgTokens tok;
+  memset(&tok, 0, sizeof(tok));
+  tok.string0 = reports_nation_adjective_display_name(n);
+  char body[AI_POPUP_BODY_LEN];
+  popup_msg_fill(&game->messages, "MULTINEXT", &tok, "", body, sizeof(body));
+  ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_MULTINEXT, NULL, body);
+  const int idx = ai_goals_nearest_colony_15eb_0142(
+    &game->world_map, &game->colonies, game->world_map.width >> 1,
+    game->world_map.height >> 1, n, -1, NULL
+  );
+  const ColonizeColony* c = idx >= 0 ? &game->colonies.colonies[idx] : NULL;
+  if (c && c->active) {
+    game->map_cursor_x = c->x;
+    game->map_cursor_y = c->y;
+    game_set_view_center(game, c->x, c->y);
+  }
 }
 
 bool game_save_col1_slot(ColonizeGameState* game, int slot, char* err, size_t err_size) {
@@ -598,14 +702,29 @@ bool game_names_row(
  * the comma (category / named thing, %STRING0 = leader's surname — DOS
  * strchr(name, ' ') + 1, whole name when no space). SCORE<tier+1>.SS frame.
  */
+/* Leader and nation of DS:0x5398 (FUN_41f2_0b70 raw 72499 / 72523-72525,
+ * FUN_41f2_14a8 raw 72743-72744): in hot-seat the fixed power's, whoever
+ * retires. */
+static int game_fixed_human(const ColonizeGameState* game) {
+  return game->col1_ok ? col1_fixed_human(&game->col1, game->human_nation) : game->human_nation;
+}
+
+static const char* game_fixed_leader(const ColonizeGameState* game) {
+  const int n = game_fixed_human(game);
+  if (n != game->human_nation && n >= 0 && n < 4 && game->col1.player[n].name[0]) {
+    return game->col1.player[n].name;
+  }
+  return game->leader_name[0] ? game->leader_name : "";
+}
+
 static void game_build_exploits(ColonizeGameState* game, const ColonizeScoreBreakdown* sc) {
   ColonizeExploitsView* ex = &game->exploits;
   memset(ex, 0, sizeof(*ex));
-  const char* leader = game->leader_name[0] ? game->leader_name : "";
+  const char* leader = game_fixed_leader(game);
   const char* surname = strchr(leader, ' ');
   surname = surname ? surname + 1 : leader;
   char nation_name[64];
-  snprintf(nation_name, sizeof(nation_name), "%s", new_game_nation_name(game->human_nation));
+  snprintf(nation_name, sizeof(nation_name), "%s", new_game_nation_name(game_fixed_human(game)));
 
   PopupMsgTokens tok;
   memset(&tok, 0, sizeof(tok));
@@ -696,10 +815,8 @@ void game_retire_after_score(ColonizeGameState* game) {
   game->col1.head.game_options.calendar_latch = 1;
   ColonizeHofEntry entry;
   memset(&entry, 0, sizeof(entry));
-  snprintf(
-    entry.leader, sizeof(entry.leader), "%s", game->leader_name[0] ? game->leader_name : ""
-  );
-  entry.nation_id = game->human_nation;
+  snprintf(entry.leader, sizeof(entry.leader), "%s", game_fixed_leader(game));
+  entry.nation_id = game_fixed_human(game);
   entry.score = sc.total;
   entry.year = sc.year;
   entry.season = game->col1.head.autumn;
@@ -954,7 +1071,8 @@ void render_pedia_screen(const ColonizeGameState* game, ColonizeFramebuffer8* fr
     .phys0 = game->phys0_ok ? &game->phys0 : NULL,
     .palette = (game->pedia_wood_ok && game->pedia_wood.has_palette) ? &game->pedia_wood.palette
                                                                      : NULL,
-    .human_nation = game->human_nation,
+    /* FUN_6cb2_07e6 raw 110471 tints the unit icon with DS:0x5398. */
+    .human_nation = game_fixed_human(game),
   };
   pedia_article_render(&assets, game->pedia_category, game->pedia_index, framebuffer);
 

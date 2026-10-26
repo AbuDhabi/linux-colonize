@@ -722,8 +722,11 @@ void units_combat_notify_colony_burned_foreign(
   /* Bystander only: a human nation exists and it is not the victim. The
    * victim already gets @INDIANBURNCOLONY (units_combat_notify_colony_burned);
    * the burner here is always a native tribe (id ≥4), never a euro nation —
-   * so DOS's native arm tag 0x1c76 @INDIANBURNCOLONY2, not @BURNED3. */
-  if (g_units_combat_human_nation < 0 || g_units_combat_human_nation == victim_nation) {
+   * so DOS's native arm tag 0x1c76 @INDIANBURNCOLONY2, not @BURNED3.
+   * 1b0e picks the two by the victim's control byte (raw 101072), so a
+   * hot-seat human victim away from the controls gets only the first. */
+  if (g_units_combat_human_nation < 0 ||
+      col1_nation_is_human(col1, victim_nation, g_units_combat_human_nation)) {
     return;
   }
   units_combat_burn_chrome(
@@ -835,9 +838,10 @@ int units_promote_on_win(
   } else {
     return 0; /* experts / everything else: FUN_15eb_0002 returns 1, early out */
   }
-  /* Odds. */
-  const int human = (g_units_combat_human_nation >= 0 &&
-                     winner->nation_id == g_units_combat_human_nation);
+  /* Odds. 172c raw 100095 / 100133: the difficulty sign and the popup read
+   * the winner's control byte, so a hot-seat defender away from the controls
+   * counts as human too. */
+  const int human = col1_nation_is_human(col1, winner->nation_id, g_units_combat_human_nation);
   const int difficulty = col1 ? (int)col1->head.difficulty : 2;
   int pool_n = winner_str + loser_str + (human ? difficulty : -difficulty);
   if (prof == UNITS_JOB_CRIMINAL) {
@@ -3003,8 +3007,9 @@ static void units_village_convert_roll(
   }
   (void)units_spawn_subjugated_convert(units, x, y, attacker_nation_id);
   /* DOS announces the convert to a HUMAN conqueror (raw 101176-101181):
-   * slot 0 = the tribe's name, slot 1 = the conquering nation's adjective. */
-  if (attacker_nation_id == g_units_combat_human_nation) {
+   * slot 0 = the tribe's name, slot 1 = the conquering nation's adjective.
+   * Gate = the attacker's control byte (1b0e raw 101175). */
+  if (col1_nation_is_human(col1, attacker_nation_id, g_units_combat_human_nation)) {
     PopupMsgTokens stok;
     memset(&stok, 0, sizeof(stok));
     stok.string0 = units_combat_nation_label(col1, defender_nation_id);
@@ -3112,9 +3117,10 @@ bool units_try_native_settlement_fallout_w(
        * bows and cedes the land it occupies. DOS shows it at the tail of
        * the same capital-fall block, to a human conqueror only, with slot 0
        * = the tribe name and slot 1 = the conqueror's adjective (2026-09-16
-       * — the mechanics were ported, the popup was not).
+       * — the mechanics were ported, the popup was not). Gate = the
+       * attacker's control byte (raw 101300).
        */
-      if (attacker_nation_id == g_units_combat_human_nation) {
+      if (col1_nation_is_human(col1, attacker_nation_id, g_units_combat_human_nation)) {
         PopupMsgTokens btok;
         memset(&btok, 0, sizeof(btok));
         btok.string0 = units_combat_nation_label(col1, tribe_nation);

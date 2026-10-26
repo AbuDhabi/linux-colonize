@@ -149,7 +149,7 @@ static void ai_euro_28c8_env(
 ) {
   const ColonizeCol1Save* col1 = ctx->col1_ok ? ctx->col1 : NULL;
   memset(env, 0, sizeof(*env));
-  env->human = col->nation_id == ctx->human_nation;
+  env->human = col1_nation_is_human(ctx->col1, col->nation_id, ctx->human_nation); /* 0x543f */
   env->capacity = colonies_warehouse_capacity(ctx->colonies, col, COLONIZE_CARGO_FOOD);
   env->continent = ctx->map ? map_continent_id_at(ctx->map, col->x, col->y) : -1;
   env->turn = col1 ? (int)col1->head.turn : 0;
@@ -475,7 +475,8 @@ static int ai_euro_28c8_score_full(
                 env.turn > 0x4f) {
               cargo_demand_weight += 2;
               if (ctx->euro_power_rank_ok &&
-                  ctx->euro_power_rank[ctx->human_nation] <= ctx->euro_power_rank[col->nation_id]) {
+                  ctx->euro_power_rank[col1_fixed_human(ctx->col1, ctx->human_nation)] <=
+                    ctx->euro_power_rank[col->nation_id]) {
                 /* FUN_15eb_039e(0x28) / (3): owned tiers of the Blacksmith and
                  * Armory chains — not an RNG draw. */
                 cargo_demand_weight += ai_euro_28c8_owned_from(
@@ -1407,7 +1408,8 @@ static void ai_euro_5952_indoor_pass(
     memset(&want, 0, sizeof want);
     memcpy(want.gross, gross, sizeof want.gross);
     want.owner_nation = owner;
-    want.human_nation = (ctx->human_nation >= 0 && ctx->human_nation < 4) ? ctx->human_nation : 0;
+    const int fixed_human = col1_fixed_human(col1, ctx->human_nation); /* DS:0x5398 */
+    want.human_nation = (fixed_human >= 0 && fixed_human < 4) ? fixed_human : 0;
     for (int i = 0; i < 4; ++i) {
       want.wealth_rank[i] = ctx->euro_power_rank_ok ? ctx->euro_power_rank[i] : 0;
     }
@@ -2352,7 +2354,8 @@ COLONIZE_INTERNAL void ai_euro_5952_cascade_setup(AiEuro5952Cascade* s) {
   }
 
   s->pop = col->population;
-  s->human = (ctx->human_nation >= 0 && ctx->human_nation < 4) ? ctx->human_nation : 0;
+  const int fixed_human = col1_fixed_human(s->col1, ctx->human_nation); /* DS:0x5398 */
+  s->human = (fixed_human >= 0 && fixed_human < 4) ? fixed_human : 0;
   s->turn = s->col1 ? (int)s->col1->head.turn : 0;
   s->year = s->col1 ? (int)s->col1->head.year : 0;
   s->difficulty = s->col1 ? (int)s->col1->head.difficulty : 4;
@@ -3704,7 +3707,8 @@ static void ai_euro_6d8e_prelude_read(int nation_id, ColonizeColony* col) {
 static void ai_euro_colony_tick_run(
   ColonizeTurnContext* ctx, int nation_id, bool whole_tick
 ) {
-  if (!ctx || !ctx->colonies || !ctx->map || nation_id == ctx->human_nation) {
+  if (!ctx || !ctx->colonies || !ctx->map ||
+      col1_nation_is_human(ctx->col1, nation_id, ctx->human_nation)) {
     return;
   }
   AiEuroColonyTick t;

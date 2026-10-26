@@ -296,6 +296,11 @@ static void ai_set_nation_identity(
   );
 }
 
+/* The human powers: the @MULTI mask, else human_nation alone. */
+static unsigned ai_new_game_humans(const AiNewGameParams* p) {
+  return p->human_mask ? (p->human_mask & 0x0fu) : (1u << (p->human_nation & 3));
+}
+
 static bool ai_setup_col1_template(const AiNewGameParams* p, char* err, size_t err_size) {
   if (!p || !p->col1 || !p->map || !p->col1_ok) {
     if (err && err_size) {
@@ -314,26 +319,49 @@ static bool ai_setup_col1_template(const AiNewGameParams* p, char* err, size_t e
    * fallback seed, so a reload re-laid every colony (campaign4 C4-B2). */
   p->col1->post_map.boot_timer = ai_new_game_seed(p);
 
-  const int human = p->human_nation;
+  const unsigned humans = ai_new_game_humans(p);
+  /* FUN_75c2_10ae raw 120618-120619: the typed leader goes to DS:0x540e + 0x5398 * 0x34, and
+   * after the picker's cell 4 0x5398 is 0 there (raw 120596-120598), so England's record. */
+  const int leader_nation = p->human_mask ? 0 : p->human_nation;
   for (int i = 0; i < (int)COLONIZE_COL1_NATION_COUNT; ++i) {
-    const char* leader = (i == human) ? p->leader_name : "";
+    const bool human = (humans >> i) & 1u;
+    /* Every other human keeps its NAMES.TXT @LEADERNAME default (DS:0x540e load,
+     * raw 120960-120977). AI powers stay "" as before. */
+    char def_leader[24];
+    def_leader[0] = '\0';
+    if (human && i != leader_nation) {
+      (void)assets_msg_row_field(p->names, "LEADERNAME", i, 0, def_leader, sizeof(def_leader));
+    }
+    const char* leader = (i == leader_nation) ? p->leader_name : def_leader;
     /* NAMES.TXT @COLONYNAME rows 0-3; a catalog miss is "". */
     const char* country_name =
       assets_msg_line_or(p->names, "COLONYNAME", i, "");
-    ai_set_nation_identity(p->col1, i, i == human ? 0 : 1, leader, country_name);
+    ai_set_nation_identity(p->col1, i, human ? 0 : 1, leader, country_name);
     p->col1->head.nation_relation[i] = -1;
-    p->col1->nation[i].gold = (i == human) ? ai_starting_gold(p->difficulty) : 0u;
+    /* FUN_38fd_6024 raw 68666-68677 keys the purse off the control byte. */
+    p->col1->nation[i].gold = human ? ai_starting_gold(p->difficulty) : 0u;
     /*
      * original_saves/COLONY00.SAV, the only real turn-0 sample: nation 0
      * (human) carries current 2 / needed 9, every AI nation 0 / 0 — DOS leaves
      * an AI pair at zero until that nation's own first 584a/5e52 tick scores
      * it. The old `8` for AI nations was uncited. port_bugs.md #1015.
      */
-    p->col1->nation[i].current_crosses = (i == human) ? 2u : 0u;
-    p->col1->nation[i].needed_crosses = (i == human) ? 9u : 0u;
+    p->col1->nation[i].current_crosses = human ? 2u : 0u;
+    p->col1->nation[i].needed_crosses = human ? 9u : 0u;
     memset(p->col1->nation[i].euro_relation, 0, sizeof(p->col1->nation[i].euro_relation));
     /* recruit[0..2] + the +0x44/+0x45 LFSR for every nation are FUN_38fd_6024
      * work: europe_seed_campaign_w (port_bugs.md #1052/#1058). */
+  }
+  if (p->human_mask) {
+    /* FUN_75c2_10ae raw 120679-120694: DS:0x5398 = the last ticked power, 2+ = hot-seat. */
+    for (int i = 0; i < 4; ++i) {
+      if ((humans >> i) & 1u) {
+        p->col1->head.human_player = (uint16_t)i;
+      }
+    }
+    if (humans & (humans - 1u)) {
+      p->col1->head.hotseat_woi_redirect_pending |= 0x80u;
+    }
   }
   p->col1->head.difficulty = (uint8_t)(p->difficulty < 0 ? 0 : (p->difficulty > 4 ? 4 : p->difficulty));
   /*
@@ -535,6 +563,41 @@ static bool ai_spawn_euro_fleet(
     units, nation, difficulty, false, sx, sy, goto_x, goto_y
   );
   return ship_id >= 0;
+}
+
+/*
+ * A second @MULTI human (FUN_75c2_235c raw 121612-121646: bVar1 = control byte 0, which
+ * only picks the starter skills) lands the way units_new_world_start lands human_nation:
+ * the FUN_48d3_048e ring from its landfall, ship idle with goto pinned to its own tile.
+ * DOS puts it on the 228+n lane like every fleet and its own 00f2 -> 06ba lands it
+ * before its first move. Landing it now puts it on the map for its first turn whether or
+ * not the port runs that slot's lane tick first.
+ * ponytail: copy of units_new_world_start's tail minus the pool reset and selection.
+ */
+static void ai_place_human_fleet(const AiNewGameParams* p, int nation, int landfall_x, int landfall_y) {
+  int sx = landfall_x;
+  int sy = landfall_y;
+  if (!units_spiral_place_hs_near(p->units, p->map, landfall_x, landfall_y, nation, &sx, &sy)) {
+    diag_warn("ai: no High Seas tile for human fleet %d", nation);
+    return;
+  }
+  const int ship_id = units_spawn_euro_starter_fleet(
+    p->units, nation, p->difficulty, true, sx, sy, landfall_x, landfall_y
+  );
+  ColonizeUnit* ship = ship_id >= 0 ? units_get(p->units, ship_id) : NULL;
+  if (!ship) {
+    return;
+  }
+  ship->orders = UNITS_ORDER_NONE;
+  ship->goto_x = ship->x;
+  ship->goto_y = ship->y;
+  for (int c = 0; c < ship->cargo_count; ++c) {
+    ColonizeUnit* pax = units_get(p->units, ship->cargo_ids[c]);
+    if (pax) {
+      pax->goto_x = ship->x;
+      pax->goto_y = ship->y;
+    }
+  }
 }
 
 /*
@@ -1258,6 +1321,10 @@ bool ai_init_new_game(const AiNewGameParams* params, char* err, size_t err_size)
      * (ai_euro_europe.c) aim at the same bytes. Unset, AI ships sail to (0,0). */
     params->col1->nation[n].return_from_europe_x = (uint8_t)landfalls[n][0];
     params->col1->nation[n].return_from_europe_y = (uint8_t)landfalls[n][1];
+    if ((ai_new_game_humans(params) >> n) & 1u) {
+      ai_place_human_fleet(params, n, landfalls[n][0], landfalls[n][1]);
+      continue;
+    }
     if (!ai_spawn_euro_fleet(
           params,
           params->units,

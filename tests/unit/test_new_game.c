@@ -765,6 +765,60 @@ out:
   return rc;
 }
 
+/* Hot-seat entry (docs/hotseat.md): the picker's hidden 5th cell (FUN_733a_0c2a raw
+ * 118727-118731: x 112, y 195, only with DS:0x201e) leads to @MULTI after lore B; England
+ * and Spain ticked = mask 0x05, DS:0x5398 = Spain (the last). Off, the cell is dead. */
+static int case_wizard_hotseat_multi(void) {
+  NgFix* f = &g_fix;
+  int rc = 1;
+  ColonizeInputState click = {0};
+  click.mouse_left_clicked = true;
+  click.mouse_x = 150;
+  click.mouse_y = 197;
+  ColonizeInputState key = {0};
+  for (int on = 0; on < 2; ++on) {
+    new_game_set_multi_enabled(on != 0);
+    if (ng_fix_begin(f, NEW_GAME_PATH_NEW_WORLD) != 0 || !ng_fix_enter(f) ||
+        f->ng.phase != NEW_GAME_PHASE_NATION) {
+      fprintf(stderr, "expected the nation screen\n");
+      goto out;
+    }
+    new_game_handle_input(&f->ng, &click);
+    /* Enter: leader name, lore A, lore B. */
+    for (int i = 0; i < 4; ++i) {
+      ng_fix_enter(f);
+    }
+    if (!on) {
+      if (f->ng.multi || f->ng.phase == NEW_GAME_PHASE_MULTI) {
+        fprintf(stderr, "hidden cell live without -K / COLONIZE=MULTI\n");
+        goto out;
+      }
+      ng_fix_free(f);
+      continue;
+    }
+    if (f->ng.phase != NEW_GAME_PHASE_MULTI || f->ng.option_count != 4) {
+      fprintf(stderr, "expected @MULTI after lore B (phase %d)\n", f->ng.phase);
+      goto out;
+    }
+    const ColonizeKey ticks[] = {COLONIZE_KEY_SPACE, COLONIZE_KEY_DOWN, COLONIZE_KEY_DOWN,
+                                 COLONIZE_KEY_SPACE, COLONIZE_KEY_ENTER};
+    for (size_t i = 0; i < sizeof(ticks) / sizeof(ticks[0]); ++i) {
+      key.last_key = ticks[i];
+      new_game_handle_input(&f->ng, &key);
+    }
+    if (f->ng.human_mask != 0x05 || f->ng.nation != 2 || f->ng.phase != NEW_GAME_PHASE_KING) {
+      fprintf(stderr, "@MULTI: mask %#x nation %d phase %d\n", f->ng.human_mask, f->ng.nation,
+              f->ng.phase);
+      goto out;
+    }
+  }
+  rc = 0;
+out:
+  new_game_set_multi_enabled(false);
+  ng_fix_free(f);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
     {"scenario_start", case_scenario_start},
     {"customize_defaults", case_customize_defaults},
@@ -774,6 +828,7 @@ static const TestCase k_cases[] = {
     {"wizard_prose_text_is_one_pass", case_wizard_prose_text_is_one_pass},
     {"wizard_dialog_layout_is_dos", case_wizard_dialog_layout_is_dos},
     {"wizard_lore_percent_escape", case_wizard_lore_percent_escape},
+    {"wizard_hotseat_multi", case_wizard_hotseat_multi},
 };
 
 TEST_MAIN(k_cases)

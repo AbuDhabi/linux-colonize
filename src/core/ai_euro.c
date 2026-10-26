@@ -392,38 +392,43 @@ static void ai_euro_3180_euro_side(ColonizeTurnContext* ctx, ColonizeUnit* u, in
   /* 465b calls 3180 only after a step (raw 75797): a unit parked beside the
    * human opens nothing (independence-seed-100: the French Soldier next to
    * Recife leaves France's treaty timer at 0). */
-  if (moved && u->active && units_is_on_map(u) && ctx->human_nation >= 0 &&
-      ctx->human_nation <= 3 && nation_id != ctx->human_nation &&
+  /* Raw 98654-98667: the neighbour side counts as human by its own control
+   * byte (DS:0x543f), so in hot-seat any human neighbour gets the audience,
+   * not only the power at the controls. */
+  if (moved && u->active && units_is_on_map(u) &&
+      !col1_nation_is_human(ctx->col1, nation_id, ctx->human_nation) &&
       ctx->map && !map_tile_is_water(ctx->map, u->x, u->y)) {
-    int near_human = 0;
-    for (int ady = -1; ady <= 1 && !near_human; ++ady) {
-      for (int adx = -1; adx <= 1 && !near_human; ++adx) {
+    unsigned near_human = 0; /* bit per human neighbour nation */
+    for (int ady = -1; ady <= 1; ++ady) {
+      for (int adx = -1; adx <= 1; ++adx) {
         if ((adx == 0 && ady == 0) ||
             map_tile_is_water(ctx->map, u->x + adx, u->y + ady)) {
           continue;
         }
         const int oid = units_id_at(ctx->units, u->x + adx, u->y + ady);
         const ColonizeUnit* o = oid >= 0 ? units_get_const(ctx->units, oid) : NULL;
-        if (o && o->active && o->nation_id == ctx->human_nation) {
-          near_human = 1;
+        if (o && o->active && col1_nation_is_human(ctx->col1, o->nation_id, ctx->human_nation)) {
+          near_human |= 1u << o->nation_id;
         }
-        if (!near_human && ctx->colonies) {
+        if (ctx->colonies) {
           const int ccid = colonies_id_at(ctx->colonies, u->x + adx, u->y + ady);
           const ColonizeColony* cc = ccid >= 0 ? colonies_get(ctx->colonies, ccid) : NULL;
-          if (cc && cc->active && cc->nation_id == ctx->human_nation) {
-            near_human = 1;
+          if (cc && cc->active && col1_nation_is_human(ctx->col1, cc->nation_id, ctx->human_nation)) {
+            near_human |= 1u << cc->nation_id;
           }
         }
       }
     }
-    if (near_human && ai_diplo_153e_encounter(ctx, ctx->human_nation, nation_id, u->id) &&
-        ctx->ai_popups) {
-      /* 3180 -> thunk_FUN_2a1f_05fc -> FUN_5bfb_153e (raw 98667) is a blocking
-       * dialog inside this step: the treaty it signs (raw 98003, 0x40 both
-       * ways) is live before 6d8e re-acts the unit, whose next 20e6 reads
-       * 0a38 & 0x40 (raw 88878-88880). Answer the queued talk now, or the
-       * mover attacks on the pre-treaty byte (campaign3 C3-B1). */
-      units_pump_combat_popups();
+    for (int hn = 0; hn < 4; ++hn) {
+      if ((near_human & (1u << hn)) && ai_diplo_153e_encounter(ctx, hn, nation_id, u->id) &&
+          ctx->ai_popups) {
+        /* 3180 -> thunk_FUN_2a1f_05fc -> FUN_5bfb_153e (raw 98667) is a blocking
+         * dialog inside this step: the treaty it signs (raw 98003, 0x40 both
+         * ways) is live before 6d8e re-acts the unit, whose next 20e6 reads
+         * 0a38 & 0x40 (raw 88878-88880). Answer the queued talk now, or the
+         * mover attacks on the pre-treaty byte (campaign3 C3-B1). */
+        units_pump_combat_popups();
+      }
     }
   }
   /* 3180's AI x AI limb: land mover, land neighbour whose stack head
@@ -447,7 +452,8 @@ static void ai_euro_3180_euro_side(ColonizeTurnContext* ctx, ColonizeUnit* u, in
         const ColonizeColony* cc = ccid >= 0 ? colonies_get(ctx->colonies, ccid) : NULL;
         on = cc && cc->active ? cc->nation_id : -1;
       }
-      if (on >= 0 && on < 4 && on != nation_id && on != ctx->human_nation && !seen[on]) {
+      if (on >= 0 && on < 4 && on != nation_id &&
+          !col1_nation_is_human(ctx->col1, on, ctx->human_nation) && !seen[on]) {
         seen[on] = 1;
         ai_diplo_13b0_encounter(ctx, nation_id, on);
       }

@@ -548,7 +548,11 @@ Second pass, same day (were port_bugs.md #1282-#1286):
    use Food when nothing is picked. People-band box is (x-1, y+1)-(x+w, y+h).
 10. Tabs switch on release; releasing on the active tab goes back to the
     previous one (DS:0x338, set by mouse switches and 1/2/3/M); B switches to
-    Construction (`FUN_2f2b_4a1c`, `FUN_2f2b_6372`).
+    Construction (`FUN_2f2b_4a1c`, `FUN_2f2b_6372`). The current tab is the
+    static DS:0x337 (0 = Production at start-up) and survives between colony
+    visits; only founding (-> Production), a scout's spy view (-> Units) and
+    a colony message's "Zoom to colony" (its own tab) set it on entry
+    (port_bugs.md #1296).
 11. Stable: the warehouse slot gets a horses badge of the breeding potential
     `ceil(horses/25)*2` (DS:0x8dd8) when the Stable is built.
 12. Bottom separator at y 128 (both middle sections 120 rows), parchment from

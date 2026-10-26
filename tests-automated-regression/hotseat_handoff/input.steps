@@ -1,0 +1,12 @@
+# Hot-seat (docs/hotseat.md): England (DS:0x5398, the fixed power) and Spain
+# are human, bit 0x80 set; England's caravel is on sentry. The load resumes
+# England with @MULTINEXT. England ends its turn, France (AI) moves, and the
+# year loop stops at Spain: @MULTINEXT on a blanked screen, the rebind to
+# Spain, then Spain's own 00f2 and Move Pieces. Same calendar turn throughout.
+key Return                 # English Player Turn
+wait 10
+key space                  # End of Turn
+wait 200
+shot                       # Spanish Player Turn over a black screen
+key Return
+wait 100

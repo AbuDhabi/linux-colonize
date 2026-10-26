@@ -3,6 +3,8 @@
 # queued rows are drawn with their 1-based position in yellow. Picker rows: 8 px apart, row 0 at y=43.
 click 168 128              # open Quebec (map tile 45,24)
 wait 10
+key 3                      # Construction tab (DOS DS:0x337 starts at 0 = Production)
+wait 3
 click 282 141              # CHANGE: picker opens on Lumber Mill
 wait 5
 click 150 151 shift        # Shift-click Church: queued as 1, picker stays open

@@ -67,6 +67,16 @@ int col1_save_human_nation_from(
    * first-zero scan then read a Dutch campaign as England (port_bugs.md #282).
    * head.human_player alone is not trusted either: older port saves carry a
    * stale 0 there with a correct control table. */
+  /* Hot-seat (docs/hotseat.md): DS:0x5398 is the fixed power; the one at
+   * the controls is DS:0x5394. A file load first resumes DS:0x5394 at
+   * DS:0x5398 (game_load_col1_loaded, 130d_0290 raw 6367), a hot-seat
+   * handoff sets it to the incoming power. */
+  if ((head->hotseat_woi_redirect_pending & 0x80u) != 0) {
+    const int nt = (int)head->nation_turn;
+    if (nt >= 0 && nt < (int)COLONIZE_COL1_NATION_COUNT && players[nt].control == 0) {
+      return nt;
+    }
+  }
   const int hp = (int)head->human_player;
   if (hp >= 0 && hp < (int)COLONIZE_COL1_NATION_COUNT && players[hp].control == 0) {
     return hp;

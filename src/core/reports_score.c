@@ -309,7 +309,9 @@ void reports_compute_score_w(
 
   memset(out, 0, sizeof(*out));
   out->exploits_tier = -1;
-  const int human = reports_clamp_nation(human_nation);
+  /* FUN_41f2_0092 raw 71115-71119 scores DS:0x5398, the fixed power, not the
+   * hot-seat power at the controls (docs/hotseat.md). */
+  const int human = reports_clamp_nation(col1_fixed_human(col1, human_nation));
 
   if (col1) {
     const ColonizeCol1Nation* nat = &col1->nation[human];
@@ -494,6 +496,9 @@ void reports_render_score(
 ) {
   ColonizeScoreBreakdown sc;
   const ColonizeWorld sw = world_make(NULL, (ColonizeColonyPool*)colonies, NULL, (ColonizeCol1Save*)col1, col1 != NULL, NULL, (EuropeScreen*)europe);
+  /* F10 draws DS:0x5398 (FUN_41f2_0092 raw 71119), unlike F2-F9, which draw
+   * the DS:0x5396 nation the main map pushes (ND 0x23810-0x238CB). */
+  human = col1_fixed_human(col1, human);
   reports_compute_score_w(&sw, &sc, human);
 
   const ColonizeFont* body_font = (view && view->title_font_ok) ? &view->title_font : font;

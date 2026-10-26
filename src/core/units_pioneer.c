@@ -291,7 +291,9 @@ static void units_pioneer_emit_useduptools(
   if (!ai_popups || !u) {
     return;
   }
-  if (g_units_combat_human_nation >= 0 && u->nation_id != g_units_combat_human_nation) {
+  /* FUN_479b_0158 raw 76713: the owner's control byte. */
+  if (g_units_combat_human_nation >= 0 &&
+      !col1_nation_is_human(g_units_ff_col1, u->nation_id, g_units_combat_human_nation)) {
     return;
   }
   char body[AI_POPUP_BODY_LEN];
@@ -496,7 +498,8 @@ bool units_pioneer_work_tick_w(
       /* port_bugs.md #633: no "Forest cleared (…)" status line in DOS — @CLEARCUT
        * below is the only text FUN_479b_01a6 emits. */
       if (lumber_add > 0 && near && ai_popups &&
-          (g_units_combat_human_nation < 0 || u->nation_id == g_units_combat_human_nation)) {
+          (g_units_combat_human_nation < 0 ||
+           col1_nation_is_human(units_world_col1(w), u->nation_id, g_units_combat_human_nation))) {
         char body[AI_POPUP_BODY_LEN];
         PopupMsgTokens tok;
         memset(&tok, 0, sizeof(tok));

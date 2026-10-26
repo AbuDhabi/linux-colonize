@@ -953,6 +953,7 @@ static int unit_tools_short_pioneer_labor(void) {
   ctx.col1 = &col1;
   ctx.col1_ok = true;
   ctx.rng_seed = 42;
+  expand_seed_census(&ctx, nation);
 
   ai_euro_dispatcher_turn(&ctx, nation);
 

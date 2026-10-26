@@ -2652,11 +2652,14 @@ COLONIZE_INTERNAL Col1StageStatus col1_bridge_capture_head(Col1CaptureCtx* ctx) 
   save->stuff.viewport_x = (uint16_t)view_x;
   save->stuff.viewport_y = (uint16_t)view_y;
   save->player[human_nation].control = 0;
+  /* Hot-seat (docs/hotseat.md): the control table holds every human power
+   * and DS:0x5398 the fixed one, so both stay as the game has them. */
+  const bool hotseat = col1_save_hotseat(save);
   /* DOS 0x543f polarity: 0 = human. A stale save (pre-fix template) can carry
    * a second control==0 on nation 0 — DOS then runs England's turn as a HUMAN
    * (input stop, fog view flips to England; port_bugs.md #282). Heal: any other
    * Euro slot still at 0 becomes AI (1); withdrawn (2) is preserved. */
-  for (int n = 0; n < (int)COLONIZE_COL1_NATION_COUNT; ++n) {
+  for (int n = 0; n < (int)COLONIZE_COL1_NATION_COUNT && !hotseat; ++n) {
     if (n != human_nation && save->player[n].control == 0) {
       save->player[n].control = 1;
     }
@@ -2664,11 +2667,15 @@ COLONIZE_INTERNAL Col1StageStatus col1_bridge_capture_head(Col1CaptureCtx* ctx) 
   /* A head whose human_player disagrees with the control table is the old
    * zero-filled port head (its 0x53a4 was 0 too, so DOS locked onto England's
    * fog after the first EOT: port_bugs.md #282, still_foggy.SAV). */
-  const bool stale_head = save->head.human_player != (uint16_t)human_nation;
+  const bool stale_head =
+    !hotseat && save->head.human_player != (uint16_t)human_nation;
   /* DOS DS:0x5398 — the new-game path never stamped it, so a non-English
    * campaign saved human_player=0 forever (misleads every head.human_player
    * reader on later loads). */
-  save->head.human_player = (uint16_t)human_nation;
+  if (!hotseat || save->head.human_player >= COLONIZE_COL1_NATION_COUNT ||
+      save->player[save->head.human_player].control != 0) {
+    save->head.human_player = (uint16_t)human_nation;
+  }
   /* DOS DS:0x5394/0x5396 both equal the human slot in every DOS in-game save
    * (Dutch goldens carry 3/3/3) — saves only happen mid human Move Pieces.
    * Left at the template's 0, DOS resumes the nation-0 EOT as "human"

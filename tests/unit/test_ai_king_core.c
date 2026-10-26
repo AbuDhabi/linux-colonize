@@ -921,9 +921,18 @@ static int sp_12(void) {
   snprintf(col1.player[0].country_name, sizeof(col1.player[0].country_name), "England");
   snprintf(europe.nation_name, sizeof(europe.nation_name), "England");
 
+  /* Hot-seat (docs/hotseat.md): the other control-0 powers make this a
+   * hot-seat game; @MULTIREV (no queue: its "Declare independence" answer)
+   * clears the bit and hands them to the AI before 1a26 withdraws them. */
+  col1.head.hotseat_woi_redirect_pending = 0x80;
+  col1.head.human_player = 0;
+
   /* DOS declares only from the menu (FUN_43f7_2564 has no per-turn caller). */
   ai_king_menu_declare_independence(&ctx);
   ai_king_nation_turn(&ctx);
+  if ((col1.head.hotseat_woi_redirect_pending & 0x80u) != 0 || col1.head.human_player != 0) {
+    return fail("@MULTIREV accept should clear the hot-seat bit and keep DS:0x5398 = mover");
+  }
   if (ai_king_latch_get(&col1, 0) == 0) {
     return fail("declare should set WoI flag market_demand_pool_raw[0]");
   }

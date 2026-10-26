@@ -3,6 +3,8 @@
 # the project completes at the next turn change (not exercised: tests stay inside one turn).
 click 168 128              # open Quebec (map tile 45,24)
 wait 10
+key 3                      # Construction tab (DOS DS:0x337 starts at 0 = Production)
+wait 3
 click 217 141              # BUY: "Cost to complete Lumber Mill: 416, Treasury: 716", rows Never mind / Complete it
 wait 8
 click 100 139              # Never mind: nothing changes, treasury still 716

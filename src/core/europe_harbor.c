@@ -740,9 +740,10 @@ void europe_apply_trade_volume(
     difficulty = (int)col1->head.difficulty;
   }
   /* 1d44's `0x9e12 < 4` guard: a crown/indian slot (or an unknown seller)
-   * never takes the human arm. */
-  const int seller_is_human =
-    (seller_nation >= 0 && seller_nation < 4 && seller_nation == human_nation);
+   * never takes the human arm. The arm itself is the seller's control byte,
+   * so a hot-seat human trades on it even when the callers' human_nation is
+   * head.human_player (DS:0x5398, the fixed power). */
+  const int seller_is_human = col1_nation_is_human(col1, seller_nation, human_nation);
   const int raw_term = (amount << shift) + europe_1d44_term(amount, seller_is_human, difficulty);
   /* DOS walks all four records (port_bugs.md #1047): the screen's own track lives
    * in eu->trade_nr, the other three in col1->nation[n].trade.nr. The Dutch

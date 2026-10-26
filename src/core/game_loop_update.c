@@ -573,6 +573,11 @@ COLONIZE_INTERNAL GameUpdateStep game_update_services(ColonizeGameState* game, c
     if (game_service_bar_message(game, input)) {
       return GAME_UPDATE_RETURN_TRUE;
     }
+    /* Hot-seat: the outgoing power's popups are all answered by now. */
+    if (game->turn_proc.handoff_pending) {
+      game_hotseat_handoff(game);
+      return GAME_UPDATE_RETURN_TRUE;
+    }
     units_set_move_watch(game_move_watch, game);
     units_set_combat_watch(game_combat_watch, game);
     units_set_combat_dissolve(game_combat_dissolve, game);

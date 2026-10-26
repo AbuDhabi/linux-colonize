@@ -22,9 +22,9 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@BEGINMENU` | Done | title menu (`game_loop.c`) |
 | `@AMERICA` | Done | new-game America / map pick (`new_game.c`) |
 | `@MAPTOLOAD` | Done | new-game America / map pick (`new_game.c`) |
-| `@MULTI` | Not ported | hidden hot-seat setup (`FUN_75c2_10ae`; env `COLONIZE=MULTI` / `-K` only; known_divergences.md #1290) |
-| `@MULTINEXT` | Not ported | hidden hot-seat turn handoff (`FUN_130d_0290`) |
-| `@MULTIREV` | Not ported | hidden hot-seat declare warning (`FUN_43f7_2564`) |
+| `@MULTI` | Ported | hidden hot-seat setup (`FUN_75c2_10ae`; env `COLONIZE=MULTI` / `-K` only; hotseat.md) |
+| `@MULTINEXT` | Ported | hidden hot-seat turn handoff (`FUN_130d_0290`; `game_hotseat_begin_turn`) |
+| `@MULTIREV` | Ported | hidden hot-seat declare warning (`FUN_43f7_2564`; `ai_king_menu_declare_independence`) |
 | `@GAMEOPTIONS` | Done | options_dialog |
 | `@COLONYOPTIONS` | Done | options_dialog |
 | `@SOUNDOPTIONS` | Done | options_dialog |

@@ -2019,7 +2019,8 @@ int ai_contact_ai_incite_human(
       nation_id < 4 || nation_id > 11) {
     return 0;
   }
-  const int human = ctx->human_nation;
+  /* 417e Mode 2 targets DS:0x5398 (raw 83656), the fixed power. */
+  const int human = col1_fixed_human(ctx->col1, ctx->human_nation);
   if (human < 0 || human > 3 || human == e || ai_contact_euro_is_human(ctx, e)) {
     return 0;
   }
@@ -2138,7 +2139,8 @@ void ai_contact_indian_woi_defect(ColonizeTurnContext* ctx, int nation_id) {
   if (!ai_king_independence_declared(ctx->col1)) {
     return;
   }
-  const int human = ctx->human_nation;
+  /* 1816 reads DS:0x5398 for the rebel side (raw 81562/81582/81585). */
+  const int human = col1_fixed_human(ctx->col1, ctx->human_nation);
   if (human < 0 || human > 3) {
     return;
   }

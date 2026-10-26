@@ -832,7 +832,8 @@ static bool colony_screen_load_pik(
  * screen's own slots. Nearest-colour remap is the right treatment here, and
  * with WOODPANL as the destination it is very nearly the identity: of the
  * indices these sheets actually paint, only ICONS.SS 5 and 13 (11 px each)
- * disagree with the screen palette at all.
+ * disagree with the screen palette at all, and those two slots take ICONS'
+ * values (DOS's fixed VICEROY.PAL Dutch pair) before the ICONS remap.
  */
 bool colony_screen_load(ColonyScreenView* view, const char* data_dir, char* err, size_t err_size) {
   if (!view || !data_dir) {
@@ -904,6 +905,14 @@ bool colony_screen_load(ColonyScreenView* view, const char* data_dir, char* err,
     snprintf(err, err_size, "ICONS.SS: %s", ss_err);
     colony_screen_free(view);
     return false;
+  }
+  /* FUN_112b_01ba fills the orders box with the raw DS:0x848 index (Dutch 13,
+   * letter 13 - 8 = 5), and DOS's DAC keeps VICEROY.PAL's reserved Dutch pair
+   * there on every screen. WOODPANL leaves 5/13 EGA magenta and paints none, so
+   * take ICONS' pair as the map palette does (game_loop_render.c). */
+  if (view->frame_ok && view->frame.has_palette && view->icons.has_palette) {
+    memcpy(view->frame.palette.rgb[5], view->icons.palette.rgb[5], 3);
+    memcpy(view->frame.palette.rgb[13], view->icons.palette.rgb[13], 3);
   }
   assets_sheet_remap_to_palette(&view->icons, &view->frame.palette);
   view->icons_ok = true;

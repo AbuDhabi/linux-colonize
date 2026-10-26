@@ -275,9 +275,10 @@ void units_try_capture_foreign_colony_at(
    * on the road to freedom" fires ONCE, on the first colony the human
    * recaptures after declaring — gate is `0x5382 & 1` (woi) only, not
    * ref_present (port_bugs.md #662) — latch DS:0x5386 bit0 (tut2.howtowin).
-   * port_bugs.md #236: it does NOT fire at the declaration. */
+   * port_bugs.md #236: it does NOT fire at the declaration. The captor test
+   * is `== DS:0x5398` (1b0e raw 100916), the fixed human. */
   if (col1 && col1->head.game_options.woi &&
-      u->nation_id == g_units_combat_human_nation &&
+      u->nation_id == col1_fixed_human(col1, g_units_combat_human_nation) &&
       !col1->head.tut2.howtowin) {
     col1->head.tut2.howtowin = 1;
     units_combat_enqueue_tok(

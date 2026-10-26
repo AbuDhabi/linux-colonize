@@ -603,7 +603,8 @@ void ai_king_ref_pre_euro_beat(ColonizeTurnContext* ctx) {
  */
 void ai_king_human_2022_beat(ColonizeTurnContext* ctx) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 ||
-      !ai_king_independence_declared(ctx->col1)) {
+      !ai_king_independence_declared(ctx->col1) ||
+      ctx->human_nation != col1_fixed_human(ctx->col1, ctx->human_nation)) {
     return;
   }
   ai_king_war_act(ctx);
@@ -1287,17 +1288,25 @@ void ai_king_nation_turn_2424(ColonizeTurnContext* ctx) {
     ai_king_sync_boycott_refuse(ctx->col1, ctx->human_nation);
   }
   const int sol = ai_king_sol_percent(ctx, ctx->human_nation);
+  /* FUN_43f7_2424 raw 75160 bVar1: the King arms run only for `param_1 ==
+   * *(int*)0x5398` (the `0x53d2` half is ai_king_ref_pre_euro_beat). Hot-seat
+   * (docs/hotseat.md): another human's slot only caches its own SoL (+0x19);
+   * the FUN_3844_0442 pieces below read 0x5398 as well. */
+  const bool king_slot =
+    ctx->human_nation == col1_fixed_human(ctx->col1_ok ? ctx->col1 : NULL, ctx->human_nation);
 
   if (!ai_king_independence_declared(ctx->col1_ok ? ctx->col1 : NULL)) {
     /* DOS 1b3a SoL cache tail: `0x31 < SoL && *0x53d2 < 0` → the War of the
      * Spanish Succession vacates the King's future slot ahead of time. */
-    if (sol > 49) {
+    if (king_slot && sol > 49) {
       ai_king_succession(ctx);
     }
     /* FUN_43f7_2424: 1d42 runs FIRST on the peacetime path — the royal
      * purse stipend + threshold @KINGBUY pool buy (real 1d42; the tax
      * audience below is the separate 38fd_5be8 machinery). */
-    ai_king_1d42_royal_purse(ctx);
+    if (king_slot) {
+      ai_king_1d42_royal_purse(ctx);
+    }
     /* Tax roll and @KINGNEWWAR: ai_king_human_5e52_tail, earlier in 00f2. */
     /* FUN_3844_00f2 tail: @KINGFRIGATE every 8th peacetime turn. */
     ai_king_frigate_offer(ctx, ctx->human_nation);
@@ -1305,7 +1314,7 @@ void ai_king_nation_turn_2424(ColonizeTurnContext* ctx) {
      * Peacetime Spring 1790 anniversary (year_end_chrome 0x6fe): @SOONRETIRING0
      * once before the 1800 @RETIRING. Cite: turn/year_end_chrome.md.
      */
-    if (ctx->col1_ok && ctx->col1 &&
+    if (king_slot && ctx->col1_ok && ctx->col1 &&
         ai_king_latch_get(ctx->col1, AI_KING_ENDGAME_BYTE) == AI_KING_ENDGAME_NONE &&
         ai_king_latch_get(ctx->col1, AI_KING_SOONRETIRE0_BYTE) == 0 &&
         (int)ctx->col1->head.year == AI_KING_SOONRETIRE0_YEAR &&
@@ -1324,7 +1333,8 @@ void ai_king_nation_turn_2424(ColonizeTurnContext* ctx) {
      * later declaration fights a live war (port_bugs.md #1232). KING_WAR_END
      * payload 2, as @RETIRING2: the dismissal runs the chain, then @SCORED.
      */
-    if (ctx->col1_ok && ctx->col1 && !ctx->col1->head.game_options.calendar_latch &&
+    if (king_slot && ctx->col1_ok && ctx->col1 &&
+        !ctx->col1->head.game_options.calendar_latch &&
         (int)ctx->col1->head.year == AI_KING_PEACE_YEAR_CAP) {
       const int human = ctx->human_nation;
       PopupMsgTokens tok;
@@ -1351,7 +1361,8 @@ void ai_king_nation_turn_2424(ColonizeTurnContext* ctx) {
      *     +4 hysteresis (a one-decile dip does not re-notify);
      *   both paths then write 0x53d8 = report/10.
      */
-    if (ctx->col1_ok && ctx->col1 && ctx->human_nation >= 0 && ctx->human_nation < 4 &&
+    if (king_slot && ctx->col1_ok && ctx->col1 && ctx->human_nation >= 0 &&
+        ctx->human_nation < 4 &&
         (int)ctx->col1->stuff.census_pop_proxy[ctx->human_nation] > 3) {
       const int last = (int)ctx->col1->head.sol_pct_last_notified;
       const int rising = last < sol / 10;
@@ -1454,9 +1465,12 @@ void ai_king_nation_turn_2424(ColonizeTurnContext* ctx) {
      * human-only half.
      */
     ai_king_cache_nation_sol(ctx, ctx->human_nation);
-    /* FUN_43f7_2424 tail: cache nation SoL for next turn's tax-audience score. */
-    ctx->col1->head.rebel_sentiment_report =
-      (uint8_t)ai_king_sol_percent(ctx, ctx->human_nation);
+    /* FUN_43f7_2424 tail: cache nation SoL for next turn's tax-audience score
+     * (DS:0x53d0, bVar1 only: every nation's 5be8 tax roll reads it). */
+    if (king_slot) {
+      ctx->col1->head.rebel_sentiment_report =
+        (uint8_t)ai_king_sol_percent(ctx, ctx->human_nation);
+    }
   }
 }
 
@@ -1566,8 +1580,11 @@ void ai_king_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState* po
       }
       break;
     case AI_POPUP_TAG_KING_CONGRESS:
-      /* FUN_43f7_2564 / 1a26: Confirm → declare; Not yet → leave peacetime. */
-      if (popup->result_choice_id == AI_KING_CHOICE_CONFIRM) {
+      /* FUN_43f7_2564 / 1a26: Confirm → declare; Not yet → leave peacetime.
+       * @MULTIREV "Declare independence" → end hot-seat, then @DECLARE. */
+      if (popup->result_choice_id == AI_KING_CHOICE_MULTIREV) {
+        ai_king_multirev_accept(ctx, human, popup->result_payload);
+      } else if (popup->result_choice_id == AI_KING_CHOICE_CONFIRM) {
         ai_king_do_declare(ctx, human);
         /*
          * port_bugs.md #532: NO same-turn Continental muster. DOS reaches 1eca

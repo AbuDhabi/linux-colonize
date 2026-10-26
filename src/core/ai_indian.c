@@ -397,8 +397,8 @@ int ai_indian_village_threat_w(
     if (d >= 7) {
       continue;
     }
-    const int human =
-      (human_nation >= 0 && human_nation <= 3) ? (c->nation_id == human_nation) : 0;
+    /* FUN_4cc6_03f8 raw 81120: the colony owner's control byte (DS:0x543f). */
+    const int human = col1_nation_is_human(col1, c->nation_id, human_nation);
     int mul = 1;
     int div = 1;
     int diff_term = 0;

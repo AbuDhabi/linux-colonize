@@ -94,6 +94,7 @@ static int unit_improve_timer_pioneer_gate(void) {
   ctx.col1 = &col1;
   ctx.col1_ok = true;
   ctx.rng_seed = 7;
+  expand_seed_census(&ctx, nation);
 
   ai_euro_dispatcher_turn(&ctx, nation);
   if (map_tile_is_plowed(&map, 4, 3)) {

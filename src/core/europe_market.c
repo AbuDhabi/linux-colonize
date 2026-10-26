@@ -371,7 +371,10 @@ int europe_custom_house_autosell_ex_w(
     return 0;
   }
   const int nation = colony->nation_id;
-  const int is_human = (nation == human_nation);
+  /* FUN_364b_0688 raw 57258-57261: the rule arms read the owner's control
+   * byte; the live tax and market are the bound mirror's (`mirror`). */
+  const int is_human = col1_nation_is_human(col1, nation, human_nation);
+  const bool mirror = (nation == human_nation);
   /* FUN_364b_0688: a human colony's Custom House is shut while an enemy
    * armed ship / Man-O-War sits next to it (colony +0x1b & 3). */
   if (is_human && (colony->ai_flags & 0x03u) != 0u) {
@@ -380,7 +383,7 @@ int europe_custom_house_autosell_ex_w(
   const int woi = col1 && col1->head.game_options.woi != 0;
   int tax = 0;
   if (!woi) {
-    if (is_human) {
+    if (mirror) {
       tax = eu->tax_percent;
     } else if (col1 && nation >= 0 && nation < (int)COLONIZE_COL1_NATION_COUNT) {
       tax = (int)col1->nation[nation].tax_rate;
@@ -434,7 +437,7 @@ int europe_custom_house_autosell_ex_w(
      * the goods (DOS has no price gate here).
      */
     int price = europe_sell_price(eu, c);
-    if (!is_human && nat && c < (int)COLONIZE_COL1_CARGO_TYPES &&
+    if (!mirror && nat && c < (int)COLONIZE_COL1_CARGO_TYPES &&
         nat->trade.euro_price[c] != 0) {
       const int p = (int)nat->trade.euro_price[c] - 1; /* FUN_38fd_0040 */
       price = p < 0 ? 0 : p;
@@ -557,7 +560,8 @@ int europe_ai_colony_dump_sell_w(
     return 0;
   }
   const int nation = colony->nation_id;
-  if (nation < 0 || nation > 3 || nation == human_nation) {
+  /* Phase O's `control != 0` test (raw 57812-57813): no human dumps. */
+  if (nation < 0 || nation > 3 || col1_nation_is_human(col1, nation, human_nation)) {
     return 0;
   }
   ColonizeCol1Nation* nat =

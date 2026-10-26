@@ -800,6 +800,12 @@ void ai_king_succession(ColonizeTurnContext* ctx) {
   if (col1->head.crown_nation_id >= 0) {
     return; /* slot already vacated */
   }
+  /* DOS-LITERAL FUN_43f7_0218 raw 73622: the whole body sits under
+   * `(*(byte *)0x5381 & 0x80) == 0` — no War of Succession in hot-seat
+   * (docs/hotseat.md); @MULTIREV clears the bit before 1a26 calls it. */
+  if (col1_save_hotseat(col1)) {
+    return;
+  }
   const int human = ctx->human_nation;
   if (human < 0 || human >= 4) {
     return;
@@ -1222,21 +1228,13 @@ void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
  * MAP_MENU_ACTION_DECLARE_INDEPENDENCE in game_loop.c), which is where
  * @TOOTORY actually fires below threshold.
  *
- * The `*(byte*)0x5381 & 0x80` branch gating a *first* popup (msg 0x138e)
- * ahead of the real confirm is NOT a "recommend declare" one-shot notice —
- * traced where that bit is ever *set*: only in `FUN_75c2_10ae`
- * (viceroy_unpacked.c:120544-120694), the new-game nation-select/setup
- * screen, when more than one nation slot is flagged human (`iVar5 > 1`,
- * counting the bits of the @MULTI checklist result mask at 0x1f54). That's a
- * hot-seat (multi-human) marker, not a per-turn SoL event — the extra
- * dialog is the @MULTIREV yes/no warning that declaring ends hot-seat; yes
- * clears the bit and makes the nation now moving the sole human
- * (`*(u16*)0x5398 = *(u16*)0x5394`) before falling into the same @DECLARE
- * confirm every path shares. `ColonizeTurnContext` models exactly one
- * `human_nation`, so this branch has no reachable port equivalent — the
- * single Never/Yes @DECLARE popup below is the complete behavior for the
- * port's single-human model, not a missing feature. (0x138e is @MULTIREV;
- * the `*(byte*)0x5382&1` else-branch's 0x1374 is @ALREADYREVOLUTION, shown
+ * The `*(byte*)0x5381 & 0x80` branch (raw 75226-75235) is hot-seat
+ * (docs/hotseat.md; the bit is set only by FUN_75c2_10ae when 2+ powers are
+ * ticked on @MULTI): `FUN_281f_0652(0x138e, 1)` = @MULTIREV asks first, any
+ * answer but 1 ("Declare independence") returns, and 1 clears the bit and
+ * sets `*(u16*)0x5398 = *(u16*)0x5394` before the same @DECLARE confirm every
+ * path shares. Port: ai_king_show_multirev_choice / ai_king_multirev_accept.
+ * (The `*(byte*)0x5382&1` else-branch's 0x1374 is @ALREADYREVOLUTION, shown
  * by ai_king_menu_declare_independence.)
  */
 /*
@@ -1295,6 +1293,51 @@ static void ai_king_show_declare_choice(ColonizeTurnContext* ctx, int human, int
 }
 
 /*
+ * FUN_43f7_2564 raw 75234-75235, @MULTIREV answer 1 ("Declare independence"):
+ * hot-seat ends (`0x5381 &= 0x7f`), the declaring power becomes the fixed
+ * human (`0x5398 = 0x5394`), then the shared @DECLARE confirm. Port
+ * divergence (docs/hotseat.md "After a hot-seat declaration"): every other
+ * control-0 power goes to the AI (control 1), as @MULTIREV's own text says.
+ */
+void ai_king_multirev_accept(ColonizeTurnContext* ctx, int human, int sol) {
+  if (!ctx || !ctx->col1_ok || !ctx->col1 || human < 0 || human >= 4) {
+    return;
+  }
+  ColonizeCol1Save* col1 = ctx->col1;
+  col1->head.hotseat_woi_redirect_pending &= (uint8_t)~0x80u;
+  col1->head.human_player = (uint16_t)human;
+  for (int n = 0; n < 4; ++n) {
+    if (n != human && col1->player[n].control == 0) {
+      col1->player[n].control = 1;
+    }
+  }
+  ai_king_show_declare_choice(ctx, human, sol);
+}
+
+/* FUN_43f7_2564 raw 75228-75233: the @MULTIREV warning ahead of @DECLARE.
+ * GAME.TXT: Declare independence / Never Mind; Esc or Never Mind = DOS's
+ * `!= 1` return. No popup queue (or a full one): the Yes answer, as
+ * ai_king_show_declare_choice falls through to its Confirm. */
+static void ai_king_show_multirev_choice(ColonizeTurnContext* ctx, int human, int sol) {
+  if (ai_king_human_popups(ctx)) {
+    char body[AI_POPUP_BODY_LEN];
+    popup_msg_fill(ctx->messages, "MULTIREV", NULL, "", body, sizeof(body));
+    char choice_buf[AI_POPUP_CHOICE_MAX][AI_POPUP_CHOICE_LEN];
+    const int nch = popup_msg_choices(
+      assets_msg_find(ctx->messages, "MULTIREV"), choice_buf, AI_POPUP_CHOICE_MAX
+    );
+    const char* labels[2] = {nch >= 2 ? choice_buf[0] : "", nch >= 2 ? choice_buf[1] : ""};
+    const int ids[] = {AI_KING_CHOICE_MULTIREV, AI_KING_CHOICE_NOT_YET};
+    if (ai_popup_enqueue_choice_ctx(ctx->ai_popups, AI_POPUP_TAG_KING_CONGRESS, human,
+                                    ai_king_crown_nation_col1(ctx->col1, human), sol, NULL,
+                                    body, labels, ids, 2)) {
+      return;
+    }
+  }
+  ai_king_multirev_accept(ctx, human, sol);
+}
+
+/*
  * Menu-invoked DECLARE INDEPENDENCE (MENU.TXT @GAME item, MAP_MENU_ACTION_
  * DECLARE_INDEPENDENCE), the only way into DOS FUN_43f7_2564. Below the
  * threshold, show @TOOTORY (Congress won't back a rebellion yet) as a
@@ -1318,7 +1361,9 @@ void ai_king_menu_declare_independence(ColonizeTurnContext* ctx) {
     }
     return;
   }
-  const int sol = ai_king_sol_percent(ctx, human);
+  /* FUN_43f7_2564 raw 75227 tests DS:0x53d0, the cached SoL of DS:0x5398:
+   * in hot-seat that is the fixed power's, whoever declares. */
+  const int sol = ai_king_sol_percent(ctx, col1_fixed_human(ctx->col1, human));
   if (sol < AI_KING_DECLARE_SOL_MIN) {
     if (ai_king_human_popups(ctx)) {
       PopupMsgTokens tok;
@@ -1339,6 +1384,10 @@ void ai_king_menu_declare_independence(ColonizeTurnContext* ctx) {
       popup_msg_fill(ctx->messages, "TOOTORY", &status_tok, "", ctx->status, ctx->status_size);
       popup_msg_strip_markup(ctx->status);
     }
+    return;
+  }
+  if (col1_save_hotseat(ctx->col1)) {
+    ai_king_show_multirev_choice(ctx, human, sol);
     return;
   }
   ai_king_show_declare_choice(ctx, human, sol);

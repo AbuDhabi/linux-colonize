@@ -352,6 +352,12 @@ static int case_530_unload_mask_scan_and_order(void) {
     goto done;
   }
   fort->nation_id = nation;
+  {
+    /* The 0a60 stance reads the census tables, so the own land unit counts
+     * once the nation's census has run (still unfortified here). */
+    const ColonizeWorld cw = {.units = &units, .colonies = &colonies, .map = &map, .col1 = &col1, .col1_ok = true};
+    col1_stuff_census_4962_w(&cw, &col1.stuff, nation);
+  }
   ai_euro_refresh_continent_stance(&ctx, nation);
   if (ai_euro_20e6_unload_mask(&ctx, ship, nation) != 0) {
     fprintf(stderr, "#1062: unfortified own unit must leave the mask clear\n");

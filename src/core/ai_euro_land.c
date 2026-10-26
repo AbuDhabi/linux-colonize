@@ -411,7 +411,7 @@ void ai_euro_5952_improve_best_plot(
     if (out_improvement_owner) {
       *out_improvement_owner = owner;
     }
-    if (owner >= 0 && owner < 4 && owner == ctx->human_nation) {
+    if (owner >= 0 && owner < 4 && col1_nation_is_human(ctx->col1, owner, ctx->human_nation)) {
       allow = 0; /* DS:0x543f[owner] == 0, the human-controlled seat */
     }
   }
@@ -1067,7 +1067,7 @@ int ai_euro_10ec_war_worthy(const ColonizeTurnContext* ctx, int a, int b) {
     return 0;
   }
   const ColonizeCol1Save* col1 = ctx->col1;
-  const int focus = ctx->human_nation; /* DS:0x5398 */
+  const int focus = col1_fixed_human(col1, ctx->human_nation); /* DS:0x5398 */
   /* asm 5bfb:10f4: `CMP [0xa153],AL(=0x5398); JNZ LAB_5bfb_1100` — JNZ jumps
    * INTO the body; equal falls through to `SUB AX,AX; RETF`. So the AI never
    * weighs war/treaty-cancel while the human is the top-ranked nation
@@ -2996,7 +2996,7 @@ int ai_euro_20e6_missionary_arm(ColonizeTurnContext* ctx, ColonizeUnit* u, int n
     return 0;
   }
   const ColonizeCol1Save* col1 = ctx->col1;
-  const int human = ctx->human_nation;
+  const int human = col1_fixed_human(col1, ctx->human_nation); /* DS:0x5398, raw 90062 */
   int best = -999;
   int pick = -1;
   for (uint16_t i = 0; i < col1->head.tribe_count; ++i) {
@@ -3010,8 +3010,13 @@ int ai_euro_20e6_missionary_arm(ColonizeTurnContext* ctx, ColonizeUnit* u, int n
     }
     const int alarm = ai_diplo_indian_alarm(col1, tn, nation_id);
     if ((t->mission & 0x0f) == nation_id) {
-      if (europe_nation_gold(ctx->europe, ctx->col1, nation_id) < 0x9c4u || alarm > 0x4a ||
-          (col1->indian[tn - 4].euro_diplo[nation_id] & COL1_INDIAN_MET_BIT) == 0 ||
+      /* raw 90058-90060: the own-mission skip reads the tribe's alarm toward,
+       * and contact with, DS:0x5398 (FUN_281f_030c / 0a38(0x8d52, 0x5398)),
+       * not the AI's own; only the score below uses the AI's alarm. */
+      const bool human_ok = human >= 0 && human < 4;
+      if (europe_nation_gold(ctx->europe, ctx->col1, nation_id) < 0x9c4u ||
+          (human_ok && ai_diplo_indian_alarm(col1, tn, human) > 0x4a) ||
+          (human_ok && (col1->indian[tn - 4].euro_diplo[human] & COL1_INDIAN_MET_BIT) == 0) ||
           (human >= 0 && human < 4 && ctx->euro_power_rank_ok &&
            ctx->euro_power_rank[human] <= ctx->euro_power_rank[nation_id])) {
         continue;
@@ -3182,7 +3187,9 @@ int ai_euro_20e6_47b9_dead_end(ColonizeTurnContext* ctx, ColonizeUnit* u, int na
     }
   }
   {
-    const int human = (ctx->col1_ok && ctx->col1) ? col1_save_human_nation(ctx->col1) : -1;
+    /* Raw 90036: `thunk_FUN_2a1f_047c(...) == DS:0x5398`. */
+    const int human = (ctx->col1_ok && ctx->col1)
+                        ? col1_fixed_human(ctx->col1, col1_save_human_nation(ctx->col1)) : -1;
     if (human >= 0 && ai_euro_20e6_probe_adjacent(ctx, u->x, u->y, nation_id, 0) == human) {
       if (destroy_trace) {
         fprintf(stderr, "[47b9] treasure %d n%d (%d,%d) stranded -> destroy\n",

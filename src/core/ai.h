@@ -35,7 +35,11 @@ typedef struct AiNewGameParams {
   EuropeScreen* europe;
   const ColonizeMsgCatalog* names; /* NAMES.TXT @TRIBES / leaders optional */
   const char* data_dir; /* for TRIBE.TXT */
-  int human_nation; /* 0..3 */
+  int human_nation; /* 0..3, one of human_mask; its fleet is already placed (units_new_world_start) */
+  /* The @MULTI result (FUN_75c2_10ae raw 120679-120694, picker cell 4): bit n = power n
+   * is human; DS:0x5398 = the highest bit, 2+ bits = hot-seat. 0 = a normal start, where
+   * human_nation alone is human. */
+  uint8_t human_mask;
   int difficulty;
   const char* leader_name;
   bool use_tribe_txt; /* AMERICA / named .MP */

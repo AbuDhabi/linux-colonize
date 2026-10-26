@@ -608,7 +608,11 @@ static int run_test(const char* name) {
     }
     game_render(game, &fb, &pal);
     if (!rp.replaying) {
-      if (rp.next == 0 && !off_map_reason(game)) {
+      /* A hot-seat load opens on its @MULTINEXT (docs/hotseat.md); the
+       * log answers it. */
+      const bool hotseat_hello =
+        game->ai_popups.open && game->ai_popups.current.tag == AI_POPUP_TAG_MULTINEXT;
+      if (rp.next == 0 && (!off_map_reason(game) || hotseat_hello)) {
         /* Loaded and idle: hand the frames over to the log. */
         rp.replaying = true;
         rp.frame = rp.recs[0].frame;

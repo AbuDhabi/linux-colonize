@@ -1829,7 +1829,7 @@ static int units_flood_owner_term(
     if (peer >= 0 && peer <= 3 && peer != owner &&
         (col1->nation[owner].euro_relation[peer] & AI_DIPLO_PEACE) != 0) {
       /* `3 < owner || DS:0x543f[owner] != 0` (AI) rejects; the human pays +8. */
-      if (owner != g_units_combat_human_nation) {
+      if (!col1_nation_is_human(col1, owner, g_units_combat_human_nation)) {
         return -1;
       }
       return 8;
@@ -2488,7 +2488,7 @@ static bool units_greedy_next_step(
      * tier (DS:0x5234 < 4, raw 103896): a 1-move unit pays 3. */
     const int max_mp = units_max_mp(pool, unit_id);
     const bool is_human_unit =
-      g_units_combat_human_nation >= 0 && u->nation_id == g_units_combat_human_nation;
+      col1_nation_is_human(g_units_ff_col1, u->nation_id, g_units_combat_human_nation);
     const int cheb_cur = units_chebyshev(u->x, u->y, gx, gy);
     const int manh_cur = abs(gx - u->x) + abs(gy - u->y);
     /* DOS-LITERAL raw 104652: `for (local_14 = 0; local_14 < 8; ...)` walks

@@ -2290,6 +2290,10 @@ static void game_render_map_popups(
       );
     }
     game_render_modal_overlays(game, framebuffer);
+    if (game->ai_popups.open && game->ai_popups.current.tag == AI_POPUP_TAG_MULTINEXT) {
+      /* FUN_130d_0290 raw 6370-6371: the screen is blanked under @MULTINEXT. */
+      fb_fill_rect(framebuffer, 0, 0, framebuffer->width, framebuffer->height, 0);
+    }
     if (game->ai_popups.open) {
       ColonizePopupColors popup_cols;
       popup_colors_from_ui(&popup_cols);

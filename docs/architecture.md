@@ -49,6 +49,7 @@ Col1 field atlases — those stay in their owning docs (see the
 | Unit orders (issue / tick / gates / port status) | [unit_orders.md](unit_orders.md) |
 | Known Ghidra disassembly faults (check before trusting a function) | [decomp_inventory.md](decomp_inventory.md) |
 | Between player turns (full EOT map) | [turn_between_players.md](turn_between_players.md) |
+| Hot-seat multiplayer (DS:0x5394 / 0x5398 / control byte) | [hotseat.md](hotseat.md) |
 | Difficulty level effects | [difficulty.md](difficulty.md) |
 | Fandom wiki digest (1994 Col only; tier-3) | [fandom_col1994.md](fandom_col1994.md) |
 | Extracted VICEROY DS tables | [viceroy_tables.md](viceroy_tables.md) |

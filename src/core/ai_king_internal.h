@@ -112,6 +112,9 @@ void ai_king_nation_turn(ColonizeTurnContext* ctx);
 #define AI_KING_CHOICE_DECLINE 2
 #define AI_KING_CHOICE_CONFIRM 1
 #define AI_KING_CHOICE_NOT_YET 2
+/* @MULTIREV "Declare independence" (2564 raw 75229 answer 1); shares the
+ * KING_CONGRESS tag with @DECLARE, Never Mind = NOT_YET. */
+#define AI_KING_CHOICE_MULTIREV 3
 /*
  * FUN_38fd_5be8 does not pick one message: every rung of its ladder names its
  * own GAME.TXT section and (for three of them) a %STRING2 flavour noun. The
@@ -147,6 +150,7 @@ void ai_king_1d42_royal_purse(ColonizeTurnContext* ctx);
 void ai_king_apply_dump_goods_choice(ColonizeTurnContext* ctx, int human, int cargo);
 int ai_king_colony_sol_at(const ColonizeTurnContext* ctx, int nation_id, int x, int y);
 void ai_king_do_declare(ColonizeTurnContext* ctx, int human);
+void ai_king_multirev_accept(ColonizeTurnContext* ctx, int human, int sol);
 /* FUN_43f7_1528 @INTERVENTION announce (also CHEAT Advance Revolution stage 3). */
 void ai_king_1528_announce(ColonizeTurnContext* ctx, int human);
 int ai_king_do_merc_hire_at(ColonizeTurnContext* ctx, int human, int hx, int hy,

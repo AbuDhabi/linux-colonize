@@ -252,7 +252,8 @@ static int ai_euro_20e6_delivery_colony_pick(
       continue;
     }
     if (max_type == COLONIZE_CARGO_MUSKETS) {
-      if (cid >= 0 && ai_euro_20e6_own_colonies_on(ctx, ctx->human_nation, cid) != 0) {
+      if (cid >= 0 &&
+          ai_euro_20e6_own_colonies_on(ctx, col1_fixed_human(ctx->col1, ctx->human_nation), cid) != 0) {
         score += 0x10; /* md:2089-2090 */
       }
       for (int r = 0; r < 20; ++r) {
@@ -2241,7 +2242,7 @@ int ai_euro_20e6_unload_mask_snapshot(
       }
     }
     if (mil != 0 && woi && ctx->colonies) {
-      if (ai_euro_20e6_own_colonies_on(ctx, ctx->human_nation, cid) != 0) {
+      if (ai_euro_20e6_own_colonies_on(ctx, col1_fixed_human(ctx->col1, ctx->human_nation), cid) != 0) {
         mask |= 0x10; /* WoI: human holds colonies here */
       }
     }
@@ -2475,7 +2476,8 @@ int ai_euro_20e6_colony_sail_pick(
       }
       score = (ctx->rng ? dos_rng_range(ctx->rng, 0, 8) : 0) +
               ((0x11 - popc) * (0x11 - popc) + 2) * 4 - ((int)c->population - wanted) * 2;
-      if (cid >= 0 && ai_euro_20e6_own_colonies_on(ctx, ctx->human_nation, cid) != 0) {
+      if (cid >= 0 &&
+          ai_euro_20e6_own_colonies_on(ctx, col1_fixed_human(ctx->col1, ctx->human_nation), cid) != 0) {
         score += 0x14;
       }
       score += (c->ai_flags & COLONIZE_COLONY_AI_NEEDS_COLONISTS) ? 0x19 : -0x19;
@@ -2499,7 +2501,7 @@ int ai_euro_20e6_colony_sail_pick(
       if (war_cont_count != 0 && mil > 1) {
         score += war_cont_count * mil * -8;
       }
-      if (ai_euro_20e6_own_colonies_on(ctx, ctx->human_nation, cid) != 0) {
+      if (ai_euro_20e6_own_colonies_on(ctx, col1_fixed_human(ctx->col1, ctx->human_nation), cid) != 0) {
         score += 0x32;
       }
       if (c->ai_flags & COLONIZE_COLONY_AI_NEEDS_GARRISON) {

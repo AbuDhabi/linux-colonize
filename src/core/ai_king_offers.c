@@ -574,8 +574,9 @@ int ai_king_do_merc_peace_hire(
     snprintf(ctx->status, ctx->status_size, "Mercenaries hired (−%d gold).", price);
   }
   /* DOS debits before 10f0 runs; a failed roulette / water scan keeps the
-   * gold spent. Kept literal. */
-  ai_king_10f0_land(ctx, human, 1, merc_counts);
+   * gold spent. Kept literal. 10f0 raw 74307 lands for DS:0x5398: in
+   * hot-seat the fixed power gets the force whoever paid (DOS-LITERAL). */
+  ai_king_10f0_land(ctx, col1_fixed_human(ctx->col1, human), 1, merc_counts);
   return 1;
 }
 
@@ -597,7 +598,11 @@ void ai_king_peacetime_merc_offer(ColonizeTurnContext* ctx) {
   /* 75091: rival slot 2 = seller, stamped before the eligibility test; it is
    * the slot 10f0's paid arm names in the @MERCS arrival line. */
   ctx->col1->head.rival_nation_slot_2 = (uint16_t)seller;
-  if (seller != human && (ai_diplo_read(ctx->col1, seller, human) & AI_DIPLO_PEACE) == 0) {
+  /* 75092 tests the seller against DS:0x5398, not the mover: in hot-seat
+   * every human gets the offer, priced and paid from its own purse (0x84fc),
+   * but the seller must be at peace with the fixed power (docs/hotseat.md). */
+  const int fixed = col1_fixed_human(ctx->col1, human);
+  if (seller != fixed && (ai_diplo_read(ctx->col1, seller, fixed) & AI_DIPLO_PEACE) == 0) {
     return;
   }
 
