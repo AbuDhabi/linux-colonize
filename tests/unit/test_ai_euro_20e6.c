@@ -13,6 +13,7 @@
 #include "core/ai_internal.h"
 #include "core/ai_popup.h"
 #include "core/col1_save.h"
+#include "core/col1_stuff_census.h"
 #include "core/colony.h"
 #include "core/dos_rng.h"
 #include "core/map.h"
@@ -121,6 +122,13 @@ static void quiet_5d04_planner(Fixture* f, int nation) {
   f->col1.stuff.ship_counts[nation] = 1;
 }
 
+/* FUN_4962_0018 census for `nation`, as its last end-of-turn slot left it:
+ * the 0a60 stance writer reads these tables, not live recounts. */
+static void seed_census(Fixture* f, int nation) {
+  const ColonizeWorld w = world_from_turn_ctx(&f->ctx);
+  col1_stuff_census_4962_w(&w, &f->col1.stuff, nation);
+}
+
 static int cheb(int ax, int ay, int bx, int by) {
   const int dx = ax > bx ? ax - bx : bx - ax;
   const int dy = ay > by ? ay - by : by - ay;
@@ -206,6 +214,7 @@ static int unit_patrol_returns_to_colony(void) {
   s->moves = 1 * UNITS_MP_PER_TILE;
   s->orders = 0;
   const int before = cheb(8, 8, 4, 4);
+  seed_census(&f, nation);
 
   ai_euro_dispatcher_turn(&f.ctx, nation);
 
@@ -3151,6 +3160,7 @@ static int unit_stance_ignores_remote_war_and_sticky(void) {
   c->y = 4;
   f.colonies.colony_count = 1;
   const int cid = map_continent_id_at(&f.map, 4, 4);
+  seed_census(&f, 1);
   ai_euro_refresh_continent_stance(&f.ctx, 1);
   const int peaceful = ai_euro_continent_stance_at(1, cid);
   ai_diplo_declare_war(&f.col1, 1, 2);
@@ -3190,6 +3200,7 @@ static int unit_stance_counts_native_village_population(void) {
   f.col1.head.tribe_count = 1;
   f.col1.indian[0].euro_diplo[1] |= COL1_INDIAN_WAR_BIT;
   const int cid = map_continent_id_at(&f.map, 4, 4);
+  seed_census(&f, 1);
   ai_euro_refresh_continent_stance(&f.ctx, 1);
   const int stance = ai_euro_continent_stance_at(1, cid);
   f.col1.tribe = NULL;

@@ -625,7 +625,7 @@ static bool command(char* line) {
      * with `key Escape force`. */
     if (code == SDLK_ESCAPE && !off_map_reason(g_game) && !g_game->ai_popups.open &&
         !(argc > 2 && strcmp(argv[2], "force") == 0)) {
-      printf("ERR Escape on the main map refused (asks Exit to DOS); use 'key Escape force'\n");
+      printf("ERR Escape on the main map refused (asks Exit to DOS)\n");
       return true;
     }
     const bool printable = code >= 32 && code < 127 && m != 1 && m != 2;

@@ -1,8 +1,57 @@
 # Rules for player agents
 
-Read this before playing a campaign. It holds what campaigns 1-5 learned, so
+Read this before playing a campaign. It holds what campaigns 1-6 learned, so
 you do not need to read game source to learn the rules. Read source only to
 confirm a suspected bug.
+
+## For small models (Haiku-class): read this first
+
+Campaign 6 (Haiku 5.5) read this file once at turn 0 and did not apply it
+later. It declared independence with 4 artillery and no Fortress, where the
+War of Independence section asks for a Fortress first. It skipped the Docks
+rule for a fishing colony. It sent `key Escape force`: the Exit to DOS popup
+defaults to Yes, so the next Return quit the game. It answered Congress popups
+with a blind `choose 0`, and it filed a rule it had read as a bug. Rules read
+once are not enough. These steps make them checkable.
+
+1. Gate each irreversible step. Before declaring independence, answering a
+   Congress pick, or changing a colony's build away from a building a rule
+   names, write a gate line in the journal: the rule (section name), each
+   condition, met or not met. One condition not met means do not do the step.
+   Keep playing and note the wait.
+2. Use the numbers as written. The declaration numbers in "Before declaring"
+   were measured on Viceroy (campaign 5). No Discoverer numbers are recorded.
+   Do not invent a lower number. A missing Fortress fails the gate on any
+   difficulty.
+3. A rule beats your plan. Stop and re-check when your reasoning says "not
+   realistic", "too slow", "I'll skip it", or "the stock is big, so this does
+   not apply". Campaign 6 skipped the Docks rule because Jamestown's food stock
+   read 114.
+4. Re-read the section you need before each gate, for example
+   `grep -n -A20 "Before declaring" automated-playtests/RULES.md`. Re-read this
+   whole file at the start of each era. Do not trust your memory of it.
+5. Never send a `force` flag. The driver's ERR line on the main map suggests
+   `key Escape force`; ignore that suggestion. To close a screen, send
+   `status` first, then plain `key Escape` on that screen (never on the main
+   map).
+6. Never answer a popup blind. Loops stop on `CHOICES:`. Read the rows and
+   send `choose N` for the row you mean. A `choose 0` loop picked Peter Minuit
+   (1587) and Jakob Fugger (1717) by accident in campaign 6.
+7. Before filing a bug, grep `docs/dos_bugs.md`, `docs/known_divergences.md`
+   and this file for the key words, and write the results in the entry.
+   Anything not confirmed is `CN-On`, not `CN-Bn`. Campaign 6's CN6-O8
+   restated the "pick the next build at once" rule.
+8. The brief's deadline is a window, not a target. Declare as late as the
+   gates allow, before the 1800 cutoff (see Calendar). Both campaign 6
+   declarations lost within six years. If the gates cannot be met in time,
+   end the run and report that.
+9. Write the era plan in the journal before the era starts: target turn,
+   gates, what must be built. Check it at each era start. Campaign 6 planned
+   to "declare after the defence is in place" (3+ artillery in Jamestown,
+   target 1740-1750), then declared in 1733 with 2 artillery there.
+10. Unclear screen: stop. Send `status`, take one `shot` if you need it, then
+    decide. Do not guess clicks or keys. Campaign 6 guessed row positions to
+    save screenshot cost.
 
 ## Setup
 

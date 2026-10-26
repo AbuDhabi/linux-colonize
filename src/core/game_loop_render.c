@@ -1134,54 +1134,38 @@ static void render_europe_chrome(
     pik_blit(&eu->background, framebuffer, 0, 0);
   }
 
-  /* Colony-style wood top bar + black separator; info centered. */
+  /* FUN_38fd_55b6 FUN_281f_00a6(0, 0, 0x140, 7): wood strip (DS:0x14ba tile,
+   * solid 0x22 without it) and the colour-0 frame line at y 7. */
   if (eu->wood_tile_ok) {
     map_panel_tile_rect(&eu->wood_tile, 0, 0, framebuffer->width, EUROPE_TOP_BAR_H, framebuffer);
   } else {
-    fb_fill_rect(framebuffer, 0, 0, framebuffer->width, EUROPE_TOP_BAR_H, 6);
+    fb_fill_rect(framebuffer, 0, 0, framebuffer->width, EUROPE_TOP_BAR_H, 0x22);
   }
   fb_fill_rect(framebuffer, 0, EUROPE_TOP_SEPARATOR_Y, framebuffer->width, 1, 0);
 
+  /* DOS FUN_38fd_0a26 raw 59258-59288: city ", " nation ".  " season ", " year
+   * ".  " @CTITLE 9, tax, "%", "  ", @CTITLE 1, " ", gold, "$"
+   * (DS:0x52 / 0x58 / 0x5c / 0x50 / 0x6e). */
   char line[192];
-  if (game->game_year > 0) {
-    char date[32];
-    turn_format_date(game->game_year, game->game_autumn, date, sizeof(date));
-    snprintf(
-      line,
-      sizeof(line),
-      "%s, %s.  %s.  Tax: %d%%  Gold: %d$",
-      eu->port_city,
-      eu->nation_name,
-      date,
-      eu->tax_percent,
-      eu->gold
-    );
-  } else {
-    snprintf(
-      line,
-      sizeof(line),
-      "%s, %s.  Tax: %d%%  Gold: %d$",
-      eu->port_city,
-      eu->nation_name,
-      eu->tax_percent,
-      eu->gold
-    );
-  }
+  snprintf(
+    line, sizeof(line), "%s, %s.  %s, %u.  %s%d%%  %s %d$", eu->port_city, eu->nation_name,
+    reports_season_name(game->game_autumn != 0),
+    (unsigned)(game->game_year ? game->game_year : TURN_START_YEAR), reports_ctitle_word(9),
+    eu->tax_percent, reports_ctitle_word(1), eu->gold
+  );
   {
     /*
      * DOS status line owns this strip while one is armed: FUN_38fd_23c4
      * composes the sale into DS:0x2d54 and FUN_1009_02cc paints it INSTEAD of
      * the strip's normal content, in the arm kind's ink (port_bugs.md #376).
+     * FUN_1009_0004: DS:0x4c = 0 (nothing armed) is ink 0x44. FUN_104b_0318
+     * centres over (0, 0x140) at y 0 + 1, one FONTTINY pass.
      */
     const char* bar = ai_popup_bar_message(&game->ai_popups);
     const char* text = bar ? bar : line;
-    const uint8_t ink =
-      bar ? ai_popup_bar_message_color(&game->ai_popups) : (uint8_t)EUROPE_TEXT_GREEN;
-    const int tw = font_text_width(font, text);
-    const int th = font ? (font->max_height > 0 ? (int)font->max_height : 6) : 7;
-    const int tx = (framebuffer->width - tw) / 2;
-    const int ty = (EUROPE_TOP_BAR_H - th) / 2;
-    font_draw_text(font, framebuffer, tx > 0 ? tx : 0, ty > 0 ? ty : 1, text, ink);
+    const uint8_t ink = ai_popup_bar_message_color(&game->ai_popups);
+    const int tx = (0x140 >> 1) - ((font_text_width(font, text) - 1) >> 1);
+    font_draw_text_shaded(font, framebuffer, tx < 0 ? 0 : tx, 1, text, (const uint8_t[4]){0, ink, ink, ink});
   }
 
   /* Transit boxes: centred DOS headers + ship icons (not text lists). DOS

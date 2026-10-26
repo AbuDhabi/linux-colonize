@@ -52,7 +52,7 @@
  * Layout calibrated to EUROPE.PIK / original_screenshots/europe/ (320×200).
  * Transit boxes sit on the water; holds under Loading; market along the bottom.
  */
-#define EUROPE_TOP_BAR_H 11 /* matches colony screen wood strip */
+#define EUROPE_TOP_BAR_H 7 /* FUN_38fd_55b6 FUN_281f_00a6(0, 0, 0x140, 7) */
 #define EUROPE_TOP_SEPARATOR_Y EUROPE_TOP_BAR_H
 
 #define EUROPE_EXPECTED_X 2
@@ -109,8 +109,6 @@
 /* Transparent button bevel on EUROPE.PIK sky (dark TL / light BR). */
 #define EUROPE_BTN_DARK 0x3f  /* deep blue */
 #define EUROPE_BTN_LIGHT 0x31 /* pale blue */
-/* Bright green under EUROPE.PIK (index 15 is white on this palette). */
-#define EUROPE_TEXT_GREEN 10
 
 /* Voyage delays — Unverified vs DOS (manual: 1–4 turns; east usually shorter). */
 /* FUN_48d3_0002: a crossing takes 1 turn; 2 when RNG(1,100)>89, the nation

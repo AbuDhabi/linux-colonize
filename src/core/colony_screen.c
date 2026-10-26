@@ -116,18 +116,17 @@ void colony_screen_refresh_transports(
     view->transport_unit_id = -1;
     return;
   }
-  int stack[COLONIZE_UNITS_MAX];
-  const int n =
-    units_collect_tile_stack(units, colony->x, colony->y, colony->nation_id, stack, COLONIZE_UNITS_MAX);
-  for (int i = 0; i < n && view->docked_transport_count < COLONY_TRANSPORT_MAX; ++i) {
-    if (!units_is_transport(units, stack[i])) {
+  /* DOS FUN_15eb_2f3c / FUN_15eb_2f8e (raw 13201-13240): holder n = the n-th
+   * unit with @UNIT cargo > 0 on the colony tile, walked from the chain head
+   * (FUN_1427_005c -> 0002 via +0x315c, then 004a via +0x315e): newest first. */
+  for (int id = units_tile_head_id_at(units, colony->x, colony->y);
+       id >= 0 && view->docked_transport_count < COLONY_TRANSPORT_MAX;
+       id = units_tile_chain_next_id(units, id)) {
+    const ColonizeUnit* u = units_get_const(units, id);
+    if (!u || u->nation_id != colony->nation_id || !units_is_transport(units, id)) {
       continue;
     }
-    const ColonizeUnit* u = units_get_const(units, stack[i]);
-    if (!u || !units_is_on_map(u)) {
-      continue;
-    }
-    view->docked_transport_ids[view->docked_transport_count++] = stack[i];
+    view->docked_transport_ids[view->docked_transport_count++] = id;
   }
   if (view->transport_unit_id >= 0) {
     bool still = false;

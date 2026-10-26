@@ -1986,11 +1986,32 @@ static GameUpdateStep game_colony_screen_keys(
       const int cargo = (csv->selected_cargo >= 0 && csv->selected_cargo < COLONIZE_CARGO_COUNT)
                           ? csv->selected_cargo
                           : 0;
-      if (csv->transport_unit_id < 0) {
-        set_status(game, "Select a ship first", NULL);
-      } else if (colony->stock[cargo] <= 0) {
-        set_status(game, "Select warehouse cargo", NULL);
-      } else if (ch == '+') {
+      /* FUN_2f2b_6372 2f2b:66e0-6712: no holder (DS:0x33c == 0) -> red bar
+       * @CMESSAGE 5 (FUN_2f2b_2ec6(5, 0x78)); else FUN_2f2b_4b62(ship, cargo,
+       * 1, key == '+'): an empty slot (raw 51494-51498) -> red bar @CMESSAGE 6,
+       * cargo, @CMESSAGE 7; '+' asks how much, '=' loads min(100, room, stock). */
+      if (csv->transport_unit_id < 0 || colony->stock[cargo] < 1) {
+        const bool no_ship = csv->transport_unit_id < 0;
+        char first[64];
+        const char* w = reports_labels_field("CMESSAGE", no_ship ? 5 : 6);
+        snprintf(first, sizeof(first), "%s", w ? w : "");
+        const char* cname = (!no_ship && game->europe_ok && cargo < game->europe.cargo_count)
+                              ? game->europe.cargo[cargo].name
+                              : "";
+        const char* last = no_ship ? "" : reports_labels_field("CMESSAGE", 7);
+        const char* parts[] = {first, cname, last ? last : ""};
+        char line[AI_POPUP_BAR_MSG_LEN];
+        size_t n = 0;
+        line[0] = '\0';
+        for (size_t i = 0; i < sizeof(parts) / sizeof(parts[0]); ++i) {
+          if (parts[i][0] && n < sizeof(line)) {
+            n += (size_t)snprintf(line + n, sizeof(line) - n, "%s%s", n ? " " : "", parts[i]);
+          }
+        }
+        if (line[0]) {
+          (void)ai_popup_enqueue_bar_refusal(&game->ai_popups, line);
+        }
+      } else if (ch == '=') {
         const int want = colony->stock[cargo] < 100 ? colony->stock[cargo] : 100;
         game_colony_load_hold(game, csv->transport_unit_id, cargo, want);
       } else {

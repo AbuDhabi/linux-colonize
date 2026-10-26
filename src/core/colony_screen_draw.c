@@ -134,7 +134,7 @@ void colony_screen_draw_top_bar(
   unsigned year = 0;
   sscanf(date, "%15s %u", season, &year);
   char line[96];
-  snprintf(line, sizeof(line), "%s.  %s, %u.  Gold: %d$", name, season, year, gold);
+  snprintf(line, sizeof(line), "%s.  %s, %u.  %s %d$", name, season, year, reports_ctitle_word(1), gold);
   const int w = font_text_width(font, line);
   const int x = (COLONY_SCREEN_WIDTH - w) / 2;
   /* port_bugs.md #1: golden (new_amsterdam_production.png) ink top edge
