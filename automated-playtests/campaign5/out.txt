@@ -9152,3 +9152,5 @@ SHOT automated-playtests/campaign5/shots/victory7.ppm
 STATUS turn 512 year 1802; Hall of Fame: Any key or click returns to menu; screen: modal open (map); popup tag 56
 STATUS gold 1194; view origin (37,41) 15x12 tiles of 16px, y0 8; cursor (44,47)
 @@ b499
+STATUS turn 512 year 1802; Menu: View Hall of Fame; screen: title menu (title menu); popup tag -1
+@@ b500

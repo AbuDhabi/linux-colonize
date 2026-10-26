@@ -44,3 +44,32 @@ driver-only.
   12), so Fort Nassau in slot 14 fell outside the loop.
 - Fixed in tools/play_driver_main.c: walk all `COLONIZE_COLONIES_MAX`
   slots, refuse inactive ones. Game code already walks the whole pool.
+
+## C5-O3 (low, driver): the nested-modal auto-Return also ends the turn
+
+- With every other unit fortified or sentried, the game shows the End of
+  Turn prompt as soon as the active unit spends its moves, and the driver's
+  nested-modal auto-Return (300 idle polls) answers it. The first war turn
+  ended after one attack (turn 468, `saves/branch3/`). Game Options "End of
+  Turn" was off in this save; switching it on did not change the driver's
+  behaviour. Workaround: wake all units that should still act first.
+
+## C5-O4 (observation): a Jesuit Missionary soldier demotes to Missionaries
+
+- Turn 473 (`saves/branch3/`): Soldier 167 (profession Jesuit Missionary)
+  lost an attack and became "Missionaries" with 3 moves left, not
+  Colonists. `units_combat_demote_type_index` cites it as the FUN_5fef_0352
+  demote table, so probably DOS behaviour; noted because it surprises.
+
+## C5-O5 (observation): ship logistics
+
+- Sentried land units on a colony tile with a ship in port wake up at the
+  start of the next turn (seen repeatedly in New Amsterdam, turns 446-457),
+  so they must be re-sentried right before the ship sails, or they stay.
+- A ship on Go To whose path crosses one of my colonies drops its
+  passengers there (turn 479: a Frigate carrying 4 guns from (45,46) to
+  Fort Orange unloaded them in New Amsterdam on the way). Consistent with
+  "arriving passengers are put ashore the moment the ship docks", but easy
+  to trip over.
+- Units unloaded in a colony keep their sentry order, so the next ship
+  leaving that colony takes them again (turn 478).

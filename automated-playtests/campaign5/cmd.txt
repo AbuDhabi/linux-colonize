@@ -1296,3 +1296,8 @@ wait 40
 shot victory7
 status
 sync b499
+choose 0
+wait 10
+status
+sync b500
+quit

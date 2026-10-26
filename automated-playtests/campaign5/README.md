@@ -3,6 +3,9 @@
 Goal: win the War of Independence on **Viceroy** (toughest, difficulty 4) as
 the **Netherlands** (leader Michiel De Ruyter), playing the port headlessly.
 
+**Result: won.** Declared in autumn 1787 (third declaration), the REF
+surrendered in spring 1802 (turn 512). Final score 415 (`shots/victory4.png`).
+
 Bugs and oddities: [bugs.md](bugs.md). Screenshots: `shots/` (2x PNG).
 Saves: `saves/` (`trace_autosave_turn_NNN.sav` every turn, manual `tNNN*.sav`;
 abandoned timelines in `saves/branchN/`).
@@ -42,6 +45,14 @@ Driving notes (new this campaign):
   autosave, so reloading the autosave does not undo it.
 - The driver's nested-modal auto-Return also answers diplomacy questions
   (the French demarcation treaty was accepted that way, which was fine).
+- New driver commands: `admit UID` (unit on a colony tile joins it) and
+  `eject N CI ROLE` (colonist leaves the colony; the colony screen's
+  colonist-to-fence drop needs an empty spot on the fence strip, and a
+  fortress with 50+ guns outside has none).
+- Game Options "End of Turn" was off in this game, so the turn ends the
+  moment no unit awaits orders. Even with it on, the driver's nested-modal
+  auto-Return answers the prompt. During the war: wake every attacker
+  before the first attack, do logistics first and moves last.
 - Viceroy Tory limit: `colony_prod_sol_bonus` uses threshold 10 - difficulty
   = 6, i.e. -1 on every tile and building once round(pop * Tory%) >= 6. A
   colony of 7 at 9% SoL lost a point everywhere; keep pop <= 6 until SoL
@@ -241,3 +252,66 @@ Driving notes (new this campaign):
   fall in 2-3 turns and the victory test needs every colony back. Reloaded
   `t466_predeclare.sav` to move most of New Amsterdam's guns to Fort Orange
   (target ~60) and stock more horses and muskets before declaring again.
+
+### 1779-1787: third preparation from turn 466
+
+- Reloaded `t466_predeclare.sav`. Ferried guns New Amsterdam -> Fort Orange
+  until Fort Orange held 58 (New Amsterdam kept 15 so its target score
+  stayed at 0), bought two guns whose hammers were already stored (130 and
+  260 gold: the colony only lacked tools), converted soldiers to dragoons
+  with Fort Nassau's horses (7 dragoons) and armed three idle New Amsterdam
+  colonists with Fort Orange's muskets (10 soldiers).
+- New tactic: a fortified stack on the second mountain (44,53) as well as the
+  two grassland blockers, so the only free landing tile was (45,53), and
+  that tile can be attacked from five of my tiles: (44,52), (44,53), (44,54),
+  (45,54), (46,53).
+- Declared autumn 1787 (turn 483, `saves/t483_predeclare.sav`). REF then:
+  ~88 regulars, ~30 cavalry, ~15 artillery.
+
+### 1787-1802: the third war (won)
+
+- The first two waves were wiped out on the turn they landed (7 wins of 8,
+  then 8 of 11); George Washington promoted every winner, so dragoons
+  became veterans and Continental Cavalry within a few turns. Turn 487 went
+  8 for 8.
+- Then attrition again: every loss costs 50 horses or 50 muskets and a
+  turn to re-equip, and Fort Nassau only bred 2-4 horses a turn, Fort
+  Orange made 8-15 muskets. By 1795 only three Continental Army units were
+  left armed, by 1798 none. From then on the Fortress did all the killing.
+- Fort Orange went 58 -> 68 guns (more ferried, 3 walked over from Fort
+  Nassau on the road in one turn), all damaged by 1797, then lost 6-11 a
+  turn. The REF pool emptied in 1799 (turn 508) with ~17 units still ashore.
+- Fort Orange's SoL was 83%, giving every REF attack "Tory Unrest +17%".
+  Ejecting four non-essential workers (new driver `eject`) raised it to 100%.
+  The REF target score then ties with New Amsterdam's (both 0) and the tie
+  still goes to Fort Orange (`ai_king_ref.c` walks the ascending list from
+  the top), so the landings did not move.
+- With the pool empty the Crown switched to a **Tory uprising**: four Crown
+  soldiers and a dragoon appeared around Fort Nassau, whose guns I had just
+  walked to Fort Orange, and took it the next turn (a gun bought there for
+  520 gold completes only after the Crown's moves, since colonies produce
+  last in the turn). Several of my colonists were captured.
+- That capture turned out to be the key: once the Crown has taken a colony
+  the win test (`ai_king_woi_end_win`, DOS FUN_3844_0442) needs fewer than
+  8 Crown Regulars/Cavalry/Artillery instead of none, and only 5 were left.
+  Fort Nassau had no stockade and one Tory soldier; damaged guns walked from
+  Fort Orange and attacked at one-third strength (tired, 47%) because
+  artillery is not penalised attacking a settlement. Second shot won,
+  third lost an 84% roll, fourth took the colony back (turn 511).
+- Next turn: "Royal Expeditionary Force annihilated! ... Continental Congress
+  proclaims Michiel De Ruyter the first President of the new republic!"
+  (`shots/victory1.png`), the King's farewell, score 415 (162 citizens,
+  75 for 16 founding fathers, rebels 94, +25% independence with 2 prior
+  nations), Hall of Fame. Last save `saves/t511_retaken.sav`.
+
+### What decided it
+
+- Guns in one Fortress colony are the REF's real sink: a losing Regular
+  dies, and each gun takes two hits. 68 guns absorbed ~120 hits.
+- Ambushes from tiles around a single forced landing tile kill whole waves
+  early while the units are strong; they do not last, because equipment
+  is scarce. Stock far more horses and muskets than you think (I had ~130
+  horses and ~200 muskets; the war ate several times that).
+- Keep the colony the REF targets at 100% SoL if you can (no Tory bonus)
+  and never leave a 100%-SoL colony with nothing armed on its tile late in
+  the war: the Tory uprising goes for it.
