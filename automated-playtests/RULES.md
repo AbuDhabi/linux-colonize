@@ -96,6 +96,7 @@ Economy and natives
 - Horses breed only with a food surplus and at least 2 horses in stock.
 - A colony with no food in stock and a negative food balance starves a
   colonist that turn (a new colony too).
+- Fishing yields no food without a Dock in the colony. Build the Dock first.
 - Custom House (needs Peter Stuyvesant) sells without ship trips, even
   boycotted goods. Refuse tax raises with a party on goods it sells and the
   rate stays put. Never party on goods you buy (tools, muskets, horses);

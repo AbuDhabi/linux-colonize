@@ -43,3 +43,31 @@ how to stay in the war:
   first). Gold 603.
 - Caravel sailed back: Jamestown received the Statesman and the Farmer
   (1504, admitted with `admit`). Jamestown pop 3, food -2.
+
+### 1504-1520: starvation and first food fix
+
+- Jamestown (39,27) on the Iroquois island: pop 3, food -2. I put the
+  Expert Farmer on job 2 (tobacco, not farm) by mistake: the stores ran out
+  and colonists starved over ~8 turns (1510-1518). Job 0 is Farmer, 8 is
+  Fisherman (docs/terrain_yields.md). Fixed by `field 0 2 0 0`.
+- 1518-1520: Congress pick Pocahontas (1496) and Benjamin Franklin (1587).
+- Expert Farmers, Elder Statesmen, Master Carpenters bought in London
+  (140-220 gold; passage rose over time: 140 in 1502, 200 in 1534, 260
+  in 1586).
+
+### 1520-1560: Europe shuttle, Plymouth
+
+- Caravel shuttles: furs (400 gold per 100, sold with `key u` in London)
+  are the main early income. Fur stock caps at 100 in Jamestown.
+- Jamestown lumber ran out (1532): the Carpenter's Shop turns lumber into
+  hammers, so the Stable (64 hammers) stalls. Pioneer clearing on Iroquois
+  forest costs 97-195 gold each time (price rises).
+- 1547: scouting west found a hill coast with fish. Founded **Plymouth**
+  (25,33) with a free colonist (1557). Apache offered peace there (6 camps).
+- 1573: Seasoned Scout visited the Iroquois village at (38,26): chief gave
+  128 gold of beads. Scouts come with 50 horses (`units` shows it).
+- 1576-1589: Jamestown food and lumber still tight; Plymouth food +2. King
+  raises tax at every turn now (1 point per few years). Gold 488 at 1589.
+- Congress: Franklin joined 1587; FF pick went to Peter Minuit by accident
+  (the helper's blind `choose 0` answered the Congress popup). Process
+  note only: keep `choose 0` out of loops while a Congress is pending.
