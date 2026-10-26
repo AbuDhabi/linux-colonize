@@ -2970,6 +2970,20 @@ static int ai_euro_20e6_4d2e_tail(
   ColonizeTurnContext* ctx, ColonizeUnit* u, Ai20e6Unit* s, int force_wander
 );
 
+/*
+ * FUN_521d_20e6 pre-LAB_4d2e gate, raw 90210-90219 (full transcription in
+ * ai_euro_move_scoring_gate): 1 = `goto LAB_521d_4d2e`, 0 = `goto
+ * LAB_521d_5a78` (the unit keeps its course for FUN_521d_5b66 to walk).
+ * Only a 0x0b unit on its goal is exempt (raw 90212); a one-step 0x0c unit
+ * standing on its step tile still needs FUN_281f_0984.
+ */
+static int ai_euro_20e6_pre_4d2e_gate(ColonizeTurnContext* ctx, const ColonizeUnit* u, int nation_id) {
+  const int step_at_goal =
+    u->orders == AI_EURO_ACT_STEP && u->goto_x == u->x && u->goto_y == u->y;
+  return (!ai_euro_has_useful_goto(u, ctx->map) && !step_at_goal) ||
+         ai_euro_20e6_adjacent_foreign_09dc(ctx, u->x, u->y, nation_id);
+}
+
 int ai_euro_20e6_missionary_arm(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id) {
   if (!ctx || !ctx->units || !ctx->map || !ctx->col1_ok || !ctx->col1 || !ctx->col1->tribe ||
       !u || !u->active || u->aboard_ship_id >= 0 || ai_euro_in_europe(u->x, u->y)) {
@@ -3023,15 +3037,17 @@ int ai_euro_20e6_missionary_arm(ColonizeTurnContext* ctx, ColonizeUnit* u, int n
       u->moves = left > 0 ? left : 0;
     }
     /*
-     * Raw 90088 falls through the rest of the same 20e6 call (raw 90094-90219,
-     * nothing taken for a non-explorer with no course) into LAB_521d_4d2e,
-     * still on this call's pre-strip locals. DOSBox 1596: the Dutch
-     * Missionary at Vlissingen is stripped, wander-steps off the colony
+     * Raw 90088 falls through the rest of the same 20e6 call (raw 90094-90206
+     * take nothing for a non-explorer) to the pre-LAB_4d2e gate and on into
+     * LAB_521d_4d2e, still on this call's pre-strip locals. DOSBox 1596: the
+     * Dutch Missionary at Vlissingen is stripped, wander-steps off the colony
      * ('9', 0x0c) and only walks back on its next act; joining it on the
      * spot was the port's re-act seeing a fresh Colonist on the colony tile.
      */
     ai_euro_20e6_explorer_flag(ctx, u, &s); /* local_6a, pre-strip type */
-    (void)ai_euro_20e6_4d2e_tail(ctx, u, &s, 0);
+    if (ai_euro_20e6_pre_4d2e_gate(ctx, u, nation_id)) {
+      (void)ai_euro_20e6_4d2e_tail(ctx, u, &s, 0);
+    }
     return 1;
   }
   u->col1_ai_plan = 0x4a; /* 'J' */
@@ -3726,6 +3742,30 @@ static int ai_euro_20e6_4d2e_tail(
 }
 
 /*
+ * Treasure Train band fall-through: the treasure arms (raw 89997-90040)
+ * declined, so the unit runs on through raw 90044-90206, which take nothing
+ * for type 0x0a (not a Missionary, no explorer flag, @UNIT attack 0, not a
+ * Pioneer), to the pre-LAB_4d2e gate: LAB_4d2e wander, or LAB_5a78 with the
+ * course kept for FUN_521d_5b66's walk. Off land or tasked ('t' / 'i',
+ * local_6, raw 89931) the band never ran and 20e6 is already at LAB_5a78.
+ * The Wagon arm never falls through (park, destroy or a bound course), and
+ * the Missionary's runs inside ai_euro_20e6_missionary_arm on its pre-strip
+ * locals.
+ */
+void ai_euro_20e6_treasure_fallthrough(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id) {
+  Ai20e6Unit s;
+  ai_euro_20e6_prologue(ctx, u, nation_id, &s);
+  if (s.dos_type != UNITS_KIND_TREASURE || s.cid < 0 || s.order_code == 't' ||
+      s.order_code == 'i' || u->aboard_ship_id >= 0 || ai_euro_in_europe(u->x, u->y)) {
+    return;
+  }
+  ai_euro_20e6_explorer_flag(ctx, u, &s); /* local_6a: 0 for a Treasure Train */
+  if (ai_euro_20e6_pre_4d2e_gate(ctx, u, nation_id)) {
+    (void)ai_euro_20e6_4d2e_tail(ctx, u, &s, 0);
+  }
+}
+
+/*
  * LAB_521d_589e, the shared FUN_521d_20e6 exit tail, `local_76 == 8` arm
  * (DOS-LITERAL FUN_521d_20e6 raw 90378-90386):
  *   unit+0x314f = local_76;                       // facing, 8 = stay
@@ -4106,13 +4146,7 @@ int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, int nat
        * the arm chain: DOSBox 1596, a French Dragoon on its 0x0c step tile
        * still ran the ring scan (+0x3154++) and the hop roll before 0984
        * sent it out through LAB_5a78. */
-      /* Only a 0x0b unit on its goal is exempt (raw 90212); a one-step 0x0c
-       * unit standing on its step tile still needs FUN_281f_0984. */
-      const int step_at_goal =
-        u->orders == AI_EURO_ACT_STEP && u->goto_x == u->x && u->goto_y == u->y;
-      int to_4d2e = force_wander || (!ai_euro_has_useful_goto(u, ctx->map) && !step_at_goal) ||
-                    ai_euro_20e6_adjacent_foreign_09dc(ctx, u->x, u->y, nation_id);
-      if (to_4d2e) {
+      if (force_wander || ai_euro_20e6_pre_4d2e_gate(ctx, u, nation_id)) {
         return ai_euro_20e6_4d2e_tail(ctx, u, &s, force_wander);
       }
       /*
@@ -4150,16 +4184,17 @@ int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, int nat
   return 0;
 }
 
+/*
+ * A hull's LAB_4d2e attack pick (ai_euro_20e6_ship_dos). Land units attack by
+ * stepping through FUN_479b_0972 -> FUN_465b_0000; the land branch and the
+ * colony-capture tail that stood here served only the deleted port-only
+ * deferred-band walker (2026-10-26).
+ */
 void ai_euro_try_attack(ColonizeTurnContext* ctx, ColonizeUnit* u, int tx, int ty) {
-  if (!ctx || !ctx->units || !u) {
+  if (!ctx || !ctx->units || !u || !units_is_sea(ctx->units, u->id)) {
     return;
   }
-  /*
-   * @UNIT attack 0 means the unit cannot attack at all -- Pioneers, Colonists,
-   * Wagon Trains, unarmed transports. Without this gate a settler walking a
-   * FOUND goto straight at a village fought the Braves standing on it and died,
-   * which is how AI nations kept losing their founder before ever founding.
-   */
+  /* @UNIT attack 0: an unarmed hull cannot attack. */
   {
     const ColonizeUnitType* t = units_type(ctx->units, u->type_index);
     if (t && t->attack <= 0) {
@@ -4208,53 +4243,20 @@ void ai_euro_try_attack(ColonizeTurnContext* ctx, ColonizeUnit* u, int tx, int t
       }
     }
   }
-  const int attacker_id = u->id;
-  if (units_is_sea(ctx->units, u->id)) {
-    /* The attack is the 465b step into the foe's tile: 1b0e resolves it, the
-     * attacker is spent in full, and a winning hull advances into the tile the
-     * 0ec0 walk emptied (DOSBox independence 4->5: the crown's new Man-O-War
-     * ends on (51,52) after sinking the Merchantman and driving the Galleon
-     * to dock). */
-    ColonizeWorld w_ = world_make(ctx->units, ctx->colonies, ctx->map, NULL, false, ctx->rng, NULL);
-    w_.rng_reseed = ai_turn_seed(ctx); /* FUN_465b_0000 raw 75649 */
-    w_.rng_reseed_set = true;
-    (void)units_try_move_w(&w_, u->id, tx, ty);
-    u = units_get(ctx->units, u->id);
-    if (u && u->active) {
-      units_mp_exhaust_unit(ctx->units, u->id);
-    }
-  } else if (units_resolve_land_combat(ctx->units, u->id, foe, ctx->rng)) {
-    {
-      ColonizeWorld w_ = world_make(ctx->units, ctx->colonies, ctx->map, NULL, false, ctx->rng, NULL);
-      w_.rng_reseed = ai_turn_seed(ctx); /* FUN_465b_0000 raw 75649 */
-      w_.rng_reseed_set = true;
-      units_try_move_w(&w_, u->id, tx, ty);
-    }
-  }
-  /* Refetch: the combat or the advance may have freed or moved the attacker
-   * (port_bugs.md #1122). A unit lost to its own attack is gone (NULL): golden ref
-   * interval 14, the crown Man-O-War at (51,50). */
-  u = units_get(ctx->units, attacker_id);
-  if (u && u->active && ctx->colonies) {
-    const int cid = colonies_id_at(ctx->colonies, u->x, u->y);
-    if (cid >= 0) {
-      ColonizeColony* c = colonies_get_mut(ctx->colonies, cid);
-      if (c && c->nation_id != u->nation_id && c->nation_id >= 0 && c->nation_id < 4 &&
-          units_foreign_unit_at(ctx->units, u->x, u->y, u->id, u->nation_id) < 0) {
-        int plunder = 0;
-        for (int i = 0; i < COLONIZE_CARGO_COUNT; ++i) {
-          if (c->stock[i] > 0) {
-            plunder += c->stock[i];
-          }
-        }
-        ColonizeColony snap = *c;
-        if (colonies_capture(ctx->colonies, cid, u->nation_id)) {
-          units_combat_notify_colony_captured(
-            ctx->col1_ok ? ctx->col1 : NULL, &snap, u->nation_id, plunder
-          );
-        }
-      }
-    }
+  /* The attack is the 465b step into the foe's tile: 1b0e resolves it, the
+   * attacker is spent in full, and a winning hull advances into the tile the
+   * 0ec0 walk emptied (DOSBox independence 4->5: the crown's new Man-O-War
+   * ends on (51,52) after sinking the Merchantman and driving the Galleon
+   * to dock). Refetch after the move: a hull lost to its own attack is gone
+   * (port_bugs.md #1122; golden ref interval 14, the crown Man-O-War at
+   * (51,50)). */
+  ColonizeWorld w_ = world_make(ctx->units, ctx->colonies, ctx->map, NULL, false, ctx->rng, NULL);
+  w_.rng_reseed = ai_turn_seed(ctx); /* FUN_465b_0000 raw 75649 */
+  w_.rng_reseed_set = true;
+  (void)units_try_move_w(&w_, u->id, tx, ty);
+  u = units_get(ctx->units, u->id);
+  if (u && u->active) {
+    units_mp_exhaust_unit(ctx->units, u->id);
   }
 }
 

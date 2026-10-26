@@ -35,15 +35,10 @@ struct ai_euro_act_ctx {
   /* ship band */
   int exited_europe;
   /* land band */
-  const char* uname;
   ColonizeUnitKind ukind; /* unit's @UNIT type-row kind (never string-derived) */
   int is_treasure;
-  int scout_explored;
   int treasure_routed;
   int wagon_hauled;
-  int goal_x;
-  int goal_y;
-  int goal_code;
 };
 
 /*
@@ -149,7 +144,6 @@ int ai_euro_unload_pax_at(
 );
 ColonizeUnitKind ai_euro_unit_kind(const ColonizeUnitPool* pool, const ColonizeUnit* u);
 int ai_euro_name_is_pioneer(ColonizeUnitKind kind);
-int ai_euro_foreign_unit_at(const ColonizeTurnContext* ctx, const ColonizeUnit* u, int x, int y);
 typedef struct AiEuroShipPressure {
   uint8_t frigate_colonies; /* DS:0xa89b */
   uint8_t other_colonies;   /* DS:0xa89a */
@@ -279,14 +273,6 @@ int ai_euro_0a60_goods_holds_used(const ColonizeUnitPool* units, const ColonizeU
 void ai_euro_0a60_goal_orders_structural(ColonizeTurnContext* ctx, int nation_id);
 void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id);
 int ai_euro_village_nation_at(const ColonizeCol1Save* col1, int x, int y);
-int ai_euro_score_move(
-  ColonizeTurnContext* ctx,
-  ColonizeUnit* u,
-  int goal_x,
-  int goal_y,
-  int* out_dx,
-  int* out_dy
-);
 #define AI_20E6_TYPE_COUNT 23
 extern uint32_t ai_euro_s_20e6_type_cache_valid;
 void ai_euro_20e6_refresh_type_cache(const ColonizeUnitPool* units);
@@ -447,12 +433,6 @@ int ai_euro_20e6_tasked_ship_berth_arrival(
 int ai_euro_ship_enter_europe(ColonizeTurnContext* ctx, ColonizeUnit* ship);
 void ai_euro_ship_leave_europe(ColonizeTurnContext* ctx, ColonizeUnit* ship);
 
-int ai_euro_foe_toughness(
-  ColonizeTurnContext* ctx,
-  const ColonizeUnitPool* units,
-  const ColonizeUnit* f,
-  int is_naval
-);
 int ai_euro_has_useful_goto(const ColonizeUnit* u, const ColonizeWorldMap* map);
 void ai_euro_20e6_ship_cargo_counts(
   ColonizeTurnContext* ctx, const ColonizeUnit* ship,
@@ -485,7 +465,8 @@ int ai_euro_20e6_colony_sail_pick(
   ColonizeTurnContext* ctx, const ColonizeUnit* ship, int nation, int mil, int pioneers_b4,
   int urgency, int* out_x, int* out_y
 );
-void ai_euro_act_land(struct ai_euro_act_ctx* a);
+AiEuroActStatus ai_euro_act_land(struct ai_euro_act_ctx* a);
+void ai_euro_20e6_treasure_fallthrough(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id);
 void ai_euro_act_ship_dos(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id);
 void ai_euro_goal_walk_479b(ColonizeTurnContext* ctx, ColonizeUnit* u);
 
@@ -646,8 +627,6 @@ AiEuroActStatus ai_euro_act_ship_europe_exit(struct ai_euro_act_ctx* a);
 AiEuroActStatus ai_euro_act_land_hunt_scout(struct ai_euro_act_ctx* a);
 AiEuroActStatus ai_euro_act_land_treasure(struct ai_euro_act_ctx* a);
 AiEuroActStatus ai_euro_act_land_roles(struct ai_euro_act_ctx* a);
-AiEuroActStatus ai_euro_act_land_goal_consume(struct ai_euro_act_ctx* a);
-AiEuroActStatus ai_euro_act_land_goal_dispatch(struct ai_euro_act_ctx* a);
 /* Test-only externs (port_bugs.md #1106), no production caller. */
 int ai_euro_5d04_dos_type_code(const ColonizeUnitPool* pool, int type_index);
 /* 5d04's Europe dock walk (bound to ai_euro_s_5d04_ctx/_nation): slot indices

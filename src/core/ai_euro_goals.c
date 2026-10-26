@@ -11,7 +11,7 @@
  *   FUN_5952_035e labor demand, AI flags, threat seed
  *   FUN_5952_035e absorption + equip arm (raw 94231-94352) and build-pref 0306
  *   ai_euro_colony_goals_* passes and the ai_euro_colony_goals driver
- *   ai_euro_ocean_score_step + ai_euro_score_move (land/sea move scoring)
+ *   ai_euro_village_nation_at
  */
 
 #include "core/internal.h"
@@ -708,7 +708,7 @@ void ai_euro_0a60_goal_orders_structural(ColonizeTurnContext* ctx, int nation_id
       /*
        * port_bugs.md #525: the commit writes the REAL +0x314c/+0x314d/e now
        * (act_state 0x0b + the goal tile), so `ai_euro_move_scoring_gate`'s
-       * raw 90210-90219 test and `ai_euro_act_land_goal_dispatch` both read
+       * raw 90210-90219 test and FUN_479b_0972's walk both read
        * the unit's own stored goal instead of a private mirror the rest of
        * the port never stamped.
        *
@@ -2740,135 +2740,6 @@ void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
   ai_euro_colony_goals_producers(ctx, nation_id, inv, urgency);
 }
 
-/* --- 20e6 scoring (land Manhattan + ocean/ship branch) ----------------- */
-
-int ai_euro_foe_toughness(
-  ColonizeTurnContext* ctx,
-  const ColonizeUnitPool* units,
-  const ColonizeUnit* f,
-  int is_naval
-);
-
-static int ai_euro_ocean_score_step(
-  ColonizeTurnContext* ctx,
-  ColonizeUnit* u,
-  int goal_x,
-  int goal_y,
-  int* out_dx,
-  int* out_dy
-) {
-  /*
-   * Naval/ocean branch of FUN_521d_20e6 / LAB_521d_3558 (thin extract):
-   * prefer water that reduces Manhattan + Chebyshev distance to goal; avoid land;
-   * HS west/east bias; leave eastern HS into ocean when westbound (Atlantic
-   * first leg). Full cargo/colony matrix in 3558 still OPEN.
-   * Cite: move_scoring.md §ocean; euro_ocean_scoring.c; FUN_157e_004a.
-   */
-  const int on_hs = map_tile_is_high_seas(ctx->map, u->x, u->y);
-  const int west_explore = goal_x < u->x;
-  const int east_europe = goal_x > u->x;
-  const int at_war =
-    ctx->col1_ok && ctx->col1 && ai_euro_at_war_any_peer(ctx->col1, u->nation_id);
-  const int own_tough = ai_euro_foe_toughness(ctx, ctx->units, u, 1);
-  int best = -999999;
-  int bdx = 0;
-  int bdy = 0;
-  for (int d = 0; d < 8; ++d) {
-    const int nx = u->x + MAP_DIR8_DX[d];
-    const int ny = u->y + MAP_DIR8_DY[d];
-    if (nx < 0 || ny < 0 || nx >= ctx->map->width || ny >= ctx->map->height) {
-      continue;
-    }
-    const int foe = units_id_at(ctx->units, nx, ny);
-    if (foe >= 0) {
-      const ColonizeUnit* f = units_get_const(ctx->units, foe);
-      if (f && f->nation_id == u->nation_id) {
-        /* Own ship on water: stackable, step through it. Anything else of
-         * our own on a non-water tile is a land unit — skip. */
-        if (!units_is_sea(ctx->units, foe)) {
-          continue;
-        }
-      } else if (f && !units_is_sea(ctx->units, foe)) {
-        continue;
-      }
-    } else if (!map_tile_is_water(ctx->map, nx, ny)) {
-      /* Allow coastal landfall tile if it is the goal. */
-      if (!(nx == goal_x && ny == goal_y)) {
-        continue;
-      }
-    }
-    const int manh = abs(goal_x - nx) + abs(goal_y - ny);
-    const int cheb_dx = abs(goal_x - nx);
-    const int cheb_dy = abs(goal_y - ny);
-    const int cheb = cheb_dx > cheb_dy ? cheb_dx : cheb_dy;
-    int score = 2000 - manh * 12 - cheb * 4;
-    const int step_hs = map_tile_is_high_seas(ctx->map, nx, ny);
-    if (step_hs) {
-      score += 5;
-    }
-    if (west_explore && MAP_DIR8_DX[d] < 0) {
-      score += 4; /* west bias toward New World */
-    }
-    if (on_hs && west_explore && step_hs && MAP_DIR8_DX[d] < 0) {
-      score += 6; /* HS west-explore: prefer westward HS tiles */
-    }
-    /* Leave eastern HS rim into ocean when sailing west (Atlantic first leg). */
-    if (on_hs && west_explore && !step_hs) {
-      score += 14;
-    }
-    if (east_europe && MAP_DIR8_DX[d] > 0) {
-      score += 4; /* east bias toward Europe / eastern HS */
-    }
-    if (on_hs && east_europe && step_hs && MAP_DIR8_DX[d] > 0) {
-      score += 6; /* HS east-Europe: prefer eastward HS tiles */
-    }
-    /* (A -800 "under enemy fort fire" penalty stood here; invented with the
-     * deleted flee step, no golden moved without it -- port_bugs.md #1033.) */
-    /* Thin combat: prefer closing on weaker adjacent foe ships. */
-    if (at_war) {
-      for (int ad = 0; ad < 8; ++ad) {
-        const int ax = nx + MAP_DIR8_DX[ad];
-        const int ay = ny + MAP_DIR8_DY[ad];
-        const int fid = units_id_at(ctx->units, ax, ay);
-        if (fid < 0 || !units_is_sea(ctx->units, fid)) {
-          continue;
-        }
-        const ColonizeUnit* f = units_get_const(ctx->units, fid);
-        if (!f || f->nation_id == u->nation_id || f->nation_id < 0 || f->nation_id > 3) {
-          continue;
-        }
-        if (!ai_diplo_at_war(ctx->col1, u->nation_id, f->nation_id)) {
-          continue;
-        }
-        const int ft = ai_euro_foe_toughness(ctx, ctx->units, f, 1);
-        if (ft < own_tough) {
-          score += 18;
-        } else if (ft > own_tough) {
-          score -= 8;
-        }
-      }
-    }
-    /* Empty-hold coastal cling (3558/457e thin): prefer coast water near goal. */
-    if (u->cargo_count == 0 && map_tile_is_coast_water(ctx->map, nx, ny)) {
-      score += 8;
-    }
-    if (ctx->rng) {
-      score += dos_rng_range(ctx->rng, 0, 2);
-    }
-    if (score > best) {
-      best = score;
-      bdx = MAP_DIR8_DX[d];
-      bdy = MAP_DIR8_DY[d];
-    }
-  }
-  if (best < -999990) {
-    return 0;
-  }
-  *out_dx = bdx;
-  *out_dy = bdy;
-  return 1;
-}
-
 /*
  * Native village owner on this tile (col1 tribe table), else -1. DOS
  * FUN_1000_88e0 / FUN_137f_0392; the walk itself is col1_save_village_at.
@@ -2878,197 +2749,12 @@ int ai_euro_village_nation_at(const ColonizeCol1Save* col1, int x, int y) {
   return t ? (int)t->nation_id : -1;
 }
 
-/* @UNIT attack 0 (Pioneers, Colonists, Wagon Train, unarmed transports). */
-static int ai_euro_unit_cannot_attack(const ColonizeUnitPool* pool, const ColonizeUnit* u) {
-  const ColonizeUnitType* t = u ? units_type(pool, u->type_index) : NULL;
-  return t && t->attack <= 0;
-}
-
-int ai_euro_score_move(
-  ColonizeTurnContext* ctx,
-  ColonizeUnit* u,
-  int goal_x,
-  int goal_y,
-  int* out_dx,
-  int* out_dy
-) {
-  if (!ctx || !ctx->map || !u || !out_dx || !out_dy) {
-    return 0;
-  }
-  if (units_is_sea(ctx->units, u->id)) {
-    return ai_euro_ocean_score_step(ctx, u, goal_x, goal_y, out_dx, out_dy);
-  }
-  const int at_war =
-    ctx->col1_ok && ctx->col1 && ai_euro_at_war_any_peer(ctx->col1, u->nation_id);
-  const int own_tough = at_war ? ai_euro_foe_toughness(ctx, ctx->units, u, 0) : 0;
-  int best = -999999;
-  int bdx = 0;
-  int bdy = 0;
-  int bd = 0;
-  for (int d = 0; d < 8; ++d) {
-    const int nx = u->x + MAP_DIR8_DX[d];
-    const int ny = u->y + MAP_DIR8_DY[d];
-    if (nx < 0 || ny < 0 || nx >= ctx->map->width || ny >= ctx->map->height) {
-      continue;
-    }
-    const ColonizeWorld ew = world_from_turn_ctx(ctx);
-    if (!units_can_enter_w(&ew, u->type_index, nx, ny, u->id)) {
-      /*
-       * FUN_465b_0000 resolves a step onto an occupied tile against the
-       * tile's BEST DEFENDER (FUN_5fef_0000), never the head of the stack.
-       * Reading units_id_at here let a berthed foreign ship (which
-       * units_is_sea then skipped) hide the land garrison of a defended
-       * colony, so an approaching land unit scored the target tile as
-       * unreachable and oscillated beside it forever — the REF stall
-       * behind port_bugs.md #521. Fall back to the raw head for defenderless
-       * tiles (lone Treasure / civilians), as units_try_move does.
-       */
-      int foe = units_best_defender_at(
-        ctx->units, ctx->col1_ok ? ctx->col1 : NULL, nx, ny, u->id, u->id
-      );
-      if (foe < 0) {
-        foe = units_id_at(ctx->units, nx, ny);
-      }
-      if (foe < 0) {
-        continue;
-      }
-      const ColonizeUnit* f = units_get_const(ctx->units, foe);
-      if (!f || f->nation_id == u->nation_id || units_is_sea(ctx->units, foe)) {
-        continue;
-      }
-      /* Only a tile a fight could take. A settler treated a blocked tile as an
-       * attack candidate and walked into it. */
-      if (ai_euro_unit_cannot_attack(ctx->units, u)) {
-        continue;
-      }
-    }
-    /*
-     * Entering a native village is an attack on it, resolved inside
-     * units_try_move against a defender spawned from the dwelling, with no
-     * unit visible on the tile beforehand. Movement scoring must never route
-     * through one: settlers died on the way to their colony site, and a
-     * peacetime Soldier that wandered in lost and took its whole stack with it
-     * (units_sweep_stack_after_loss). Deliberate raids go through the war hunt
-     * arms, which pick their target explicitly.
-     */
-    if (ctx->col1_ok && ctx->col1 && ai_euro_village_nation_at(ctx->col1, nx, ny) >= 4) {
-      continue;
-    }
-    const int dist = abs(goal_x - nx) + abs(goal_y - ny);
-    int score = 1000 - dist * 10;
-    /*
-     * Explore ring (LAB_521d_2912→2a59 thin): continent match, FoW unseen
-     * nibble, skip LCR (rumour / terr class 0x1b) for non-Scouts; Scouts prefer
-     * rumour tiles. Cite: move_scoring_land.md §explore ring.
-     */
-    {
-      const int unit_cid = map_continent_id_at(ctx->map, u->x, u->y);
-      const int step_cid = map_continent_id_at(ctx->map, nx, ny);
-      if (unit_cid > 0 && step_cid == unit_cid) {
-        score += 4;
-      }
-      const int unseen =
-        ctx->map->seen && !map_tile_seen_by(ctx->map, nx, ny, u->nation_id) ? 1 : 0;
-      if (unseen) {
-        score += 6;
-      }
-      const int rum = map_tile_has_rumour(ctx->map, nx, ny);
-      const int lcr_class = map_dos_terr_class_at(ctx->map, nx, ny) == 0x1b;
-      const int is_scout = ai_euro_unit_kind(ctx->units, u) == UNITS_KIND_SCOUT;
-      if (is_scout && rum) {
-        score += 12;
-      } else if (!is_scout && (rum || lcr_class)) {
-        score -= 20; /* non-scout skip LCR / rumour */
-      }
-    }
-    /*
-     * Land combat 20e6 (structured deepen): prefer closing on weaker adjacent war
-     * foes.
-     *
-     * Deleted 2026-09-23 (port_bugs.md #759): the "+16 siege approach" additive for a
-     * foreign colony destination and the "+10 Artillery prefers a fortified port"
-     * rider were invented (cited only as `move_scoring_land.md LAB_521d_5183 /
-     * 0x46; unpark #4` — no FUN_/raw). DOS's only colony-destination term in the
-     * 20e6 direction scorer is the ×3 multiplier inside the attack term
-     * (raw 88898-88901, ai_euro_20e6_attack_term), and the only fortification
-     * read in raw 88266-90445 is the ship-only fort-fire penalty (raw 88813-88818).
-     * The +10 also inverted raw 88911, where Artillery off a settlement scores 0.
-     */
-    if (at_war) {
-      for (int ad = 0; ad < 8; ++ad) {
-        const int ax = nx + MAP_DIR8_DX[ad];
-        const int ay = ny + MAP_DIR8_DY[ad];
-        const int fid = units_id_at(ctx->units, ax, ay);
-        if (fid < 0 || units_is_sea(ctx->units, fid)) {
-          continue;
-        }
-        const ColonizeUnit* f = units_get_const(ctx->units, fid);
-        if (!f || f->nation_id == u->nation_id) {
-          continue;
-        }
-        if (f->nation_id >= 0 && f->nation_id <= 3 &&
-            !ai_diplo_at_war(ctx->col1, u->nation_id, f->nation_id)) {
-          continue;
-        }
-        if (f->nation_id >= 4 && f->nation_id <= 11 &&
-            !ai_diplo_indian_at_war(ctx->col1, u->nation_id, f->nation_id - 4)) {
-          continue;
-        }
-        const int ft = ai_euro_foe_toughness(ctx, ctx->units, f, 0);
-        if (ft < own_tough) {
-          score += 14;
-        } else if (ft > own_tough) {
-          score -= 6;
-        }
-        if (f->nation_id >= 0 && f->nation_id <= 3 && ctx->colonies &&
-            colonies_id_at(ctx->colonies, f->x, f->y) >= 0) {
-          score += 8; /* settlement-adjacent foe (0x46-shaped) */
-        }
-      }
-    }
-    /*
-     * Facing/momentum bias (LAB_521d_54f5, unit+0x314f): same-as-last-move
-     * direction preferred, exact opposite (d^4) penalized, adjacent (diff
-     * 1) mildly preferred — identical shape to the already-ported Brave
-     * `quiet_score_facing`.
-     */
-    {
-      const int last_dir = u->last_dir;
-      if (d == last_dir) {
-        score += 4;
-      } else if (d == (last_dir ^ 4)) {
-        score -= 6;
-      } else {
-        int diff = d - last_dir;
-        if (diff < 0) {
-          diff = -diff;
-        }
-        if (diff > 4) {
-          diff = 8 - diff;
-        }
-        if (diff == 1) {
-          score += 3;
-        }
-      }
-    }
-    if (ctx->rng) {
-      score += dos_rng_range(ctx->rng, 0, 3);
-    }
-    if (score > best) {
-      best = score;
-      bdx = MAP_DIR8_DX[d];
-      bdy = MAP_DIR8_DY[d];
-      bd = d;
-    }
-  }
-  if (best < -999990) {
-    return 0;
-  }
-  u->last_dir = bd;
-  *out_dx = bdx;
-  *out_dy = bdy;
-  return 1;
-}
+/* (ai_euro_score_move, its unreachable ocean branch ai_euro_ocean_score_step
+ * and their ai_euro_foe_toughness helper were deleted 2026-10-26: a port-only
+ * walker for the Treasure / Missionary / Wagon band tail, with rand(0,2) /
+ * rand(0,3) DOS-LCG draws DOS never makes. DOS walks a course with
+ * FUN_479b_0972 (ai_euro_goal_walk_479b) and free-scores with LAB_4d2e
+ * (ai_euro_20e6_wander_step).) */
 
 /*
  * ======================================================================

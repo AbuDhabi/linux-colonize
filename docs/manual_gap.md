@@ -180,7 +180,8 @@ Every manual feature that exists in the shipped DOS game is ported (re-rated
 correct with port-drawn presentation, which is deferred phase D4. The few
 remaining gaps sit below this table's granularity and are listed in
 [port_plan.md](port_plan.md) "Remaining work": the Euro AI Treasure/Missionary/Wagon
-band tail and the hidden DOS hot-seat mode.
+band tail. The hidden DOS hot-seat mode is a recorded divergence
+([known_divergences.md](known_divergences.md) #1290).
 
 ## See also
 

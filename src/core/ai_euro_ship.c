@@ -1747,31 +1747,6 @@ void ai_euro_europe_lane_tick(ColonizeTurnContext* ctx, int nation_id) {
  */
 
 
-/*
- * Effective defense for the thin 20e6 adjacent-foe picks (audit AE-10 — the
- * naval and land copies had identical bodies). Naval reads the shared
- * FUN_157e_004a base via combat_unit_base_x8 (damage / holds / Drake); land
- * reads FUN_157e_015e via combat_unit_toughness (colony / village / terrain /
- * fortify + vet). Cite: combat_strength.c; FUN_157e_004a / 015e.
- */
-int ai_euro_foe_toughness(
-  ColonizeTurnContext* ctx,
-  const ColonizeUnitPool* units,
-  const ColonizeUnit* f,
-  int is_naval
-) {
-  if (!units || !f) {
-    return 9999;
-  }
-  ColonizeCombatStrengthCtx sctx = combat_strength_ctx_from_turn(ctx);
-  sctx.units = units;
-  sctx.col1 = (ctx && ctx->col1_ok) ? ctx->col1 : NULL;
-  const int tough = is_naval ? combat_unit_base_x8(&sctx, f->id, 0, NULL)
-                             : combat_unit_toughness(&sctx, f->id, -1);
-  return tough > 0 ? tough : 0;
-}
-
-
 /* True when a unit already has a non-stationary AI/sail/goto course (audit
  * AE-11: the ship and land copies were byte-identical). */
 int ai_euro_has_useful_goto(const ColonizeUnit* u, const ColonizeWorldMap* map) {

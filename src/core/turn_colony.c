@@ -80,7 +80,7 @@ static void turn_colony_unit_construction_one(ColonizeTurnContext* ctx, Colonize
           "",
           body, sizeof(body)
         );
-        ai_popup_enqueue_colony_event(ctx->ai_popups, col->id, body);
+        ai_popup_enqueue_colony_event(ctx->ai_popups, col->id, AI_POPUP_ZOOM_TAB_CONSTRUCTION, body);
       }
     }
     return;

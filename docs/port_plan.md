@@ -36,12 +36,12 @@ deferred polish phase **D4** (pixel chrome).
 
 Not bugs in shipped features. Each is a known, bounded gap. Closed
 2026-10-26: the ally-pick prompt (#1287), DOS `HALLFAME.DAT` (#1289) and
-the dead Pillage arm (deleted).
+the dead Pillage arm (deleted). Hot-seat multiplayer is a recorded divergence,
+not planned work ([known_divergences.md](known_divergences.md) #1290).
 
 | Item | What is missing | Where |
 |------|-----------------|-------|
 | Euro AI deferred-band tail | The Euro AI combat core is ported (2026-10-26 audit): the `−0x6790` stance table (`ai_euro_refresh_continent_stance`, `FUN_521d_0a60` raw 88054-88151) and the `20e6` LAB_4d2e / LAB_52aa attack and step scorer, checked against the DOSBox idle campaigns. Left: Treasure / Missionary / Wagon units whose 20e6 arms decline fall into a port-only tail (`ai_euro_act_land_goal_dispatch`: the invented `ai_euro_score_move` walker and an unreachable MILITARY/CONTACT attack arm) instead of 20e6's own pre-LAB_4d2e gate (raw 90210-90219) → LAB_4d2e wander / LAB_5a78 + `FUN_479b_0972` walk, which every other land unit takes. Also, the stance writer recounts its operands live instead of reading the DOS-timed `FUN_4962_0018` / `06b6` census tables | `ai_euro_act.c`, `ai_euro.c`, [ai_euro_logic_map.yaml](ai_euro_logic_map.yaml) land_band |
-| Hot-seat multiplayer | Hidden DOS feature, not ported (the port models one human nation). No menu row and not in the manual, but reachable without patching: env `COLONIZE=MULTI` (`FUN_7421_025a`) or argv `-K` (`FUN_7421_0054`) sets DS:0x201e, which adds an undrawn 5th nation-picker cell (`FUN_733a_0c2a`; x 112 y 195, mouse only). It opens `@MULTI` (`FUN_75c2_10ae`); 2+ powers ticked sets DS:0x5381 bit 0x80, which drives `@MULTINEXT` (`FUN_130d_0290`), skips the War of Succession (`FUN_43f7_0218`) and asks `@MULTIREV` before declaring (`FUN_43f7_2564`) | [popups.md](popups.md) |
 | [port_bugs.md](port_bugs.md) | OPEN rows | — |
 
 **Old citations.** `port_plan P<n>.<m>`, the old "How an agent should use this

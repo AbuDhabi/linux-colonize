@@ -128,7 +128,7 @@ static void turn_emit_inefficient_gov_chrome(
   tok.number0 = thresh;
   tok.has_number0 = true;
   popup_msg_fill(messages, section, &tok, "", body, sizeof(body));
-  ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
+  ai_popup_enqueue_colony_event(ai_popups, colony->id, AI_POPUP_ZOOM_TAB_KEEP, body);
 }
 
 /*
@@ -200,7 +200,7 @@ static void turn_emit_sol_phase_d_chrome(
   }
   char body[AI_POPUP_BODY_LEN];
   popup_msg_fill(messages, section, &tok, "", body, sizeof(body));
-  ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
+  ai_popup_enqueue_colony_event(ai_popups, colony->id, AI_POPUP_ZOOM_TAB_KEEP, body);
 }
 
 /*
@@ -291,7 +291,7 @@ void turn_emit_built_chrome(
   tok.string0 = colony->name[0] ? colony->name : "";
   tok.string1 = (built_name && built_name[0]) ? built_name : "";
   popup_msg_fill(messages, "BUILT", &tok, "", body, sizeof(body));
-  ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
+  ai_popup_enqueue_colony_event(ai_popups, colony->id, AI_POPUP_ZOOM_TAB_CONSTRUCTION, body);
 }
 
 /*
@@ -391,7 +391,7 @@ static void turn_emit_needtools_notice(
     tok.has_number1 = true;
   }
   popup_msg_fill(messages, section, &tok, "", body, sizeof(body));
-  ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
+  ai_popup_enqueue_colony_event(ai_popups, colony->id, AI_POPUP_ZOOM_TAB_CONSTRUCTION, body);
 }
 
 /*
@@ -468,7 +468,7 @@ static int turn_deplete_colony_mines(
       popup_msg_fill(messages, "DEPLETION", &tok, "", body, sizeof(body));
       snprintf(europe->status, sizeof(europe->status), "%s", body);
       if (ai_popups) {
-        ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
+        ai_popup_enqueue_colony_event(ai_popups, colony->id, AI_POPUP_ZOOM_TAB_KEEP, body);
       }
     }
   }
@@ -1193,7 +1193,7 @@ COLONIZE_INTERNAL void turn_produce_education(TurnProduceCtx* pc) {
           memset(&tok, 0, sizeof(tok));
           tok.string0 = cname;
           popup_msg_fill(messages, "TRAINFAIL", &tok, fallback, body, sizeof(body));
-          ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
+          ai_popup_enqueue_colony_event(ai_popups, colony->id, AI_POPUP_ZOOM_TAB_KEEP, body);
         }
       }
       break;
@@ -1244,7 +1244,7 @@ COLONIZE_INTERNAL void turn_produce_education(TurnProduceCtx* pc) {
         tok.string0 = cname;
         tok.string1 = skill_name;
         popup_msg_fill(messages, chrome_sec, &tok, fallback, body, sizeof(body));
-        ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
+        ai_popup_enqueue_colony_event(ai_popups, colony->id, AI_POPUP_ZOOM_TAB_KEEP, body);
       }
     }
   }
@@ -1339,7 +1339,7 @@ COLONIZE_INTERNAL void turn_produce_discover(TurnProduceCtx* pc) {
           tok.string0 = cname;
           tok.string1 = skill_name;
           popup_msg_fill(messages, "TRAINPROFESSION", &tok, "", body, sizeof(body));
-          ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
+          ai_popup_enqueue_colony_event(ai_popups, colony->id, AI_POPUP_ZOOM_TAB_KEEP, body);
         }
       }
     }
@@ -1454,7 +1454,7 @@ COLONIZE_INTERNAL void turn_produce_birth(TurnProduceCtx* pc) {
         popup_msg_fill(
           messages, "NEWCOLONIST", &tok, europe->status, body, sizeof(body)
         );
-        ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
+        ai_popup_enqueue_colony_event(ai_popups, colony->id, AI_POPUP_ZOOM_TAB_KEEP, body);
       }
     }
   }
@@ -1584,7 +1584,7 @@ COLONIZE_INTERNAL TurnProduceStatus turn_produce_starve(TurnProduceCtx* pc) {
         memset(&tok, 0, sizeof(tok));
         tok.string0 = colony->name[0] ? colony->name : "";
         popup_msg_fill(messages, sec, &tok, "", body, sizeof(body));
-        ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
+        ai_popup_enqueue_colony_event(ai_popups, colony->id, AI_POPUP_ZOOM_TAB_PRODUCTION, body);
       }
     }
   }
@@ -1627,7 +1627,7 @@ COLONIZE_INTERNAL TurnProduceStatus turn_produce_starve(TurnProduceCtx* pc) {
         memset(&tok, 0, sizeof(tok));
         tok.string0 = colony->name[0] ? colony->name : "";
         popup_msg_fill(messages, sec, &tok, "", body, sizeof(body));
-        ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
+        ai_popup_enqueue_colony_event(ai_popups, colony->id, AI_POPUP_ZOOM_TAB_PRODUCTION, body);
       }
     } else if (
       stock > 0 && food_shortfall > 0 && stock < food_shortfall * 4
@@ -1645,7 +1645,7 @@ COLONIZE_INTERNAL TurnProduceStatus turn_produce_starve(TurnProduceCtx* pc) {
         tok.number0 = stock;
         tok.has_number0 = true;
         popup_msg_fill(messages, "FOODLOW", &tok, "", body, sizeof(body));
-        ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
+        ai_popup_enqueue_colony_event(ai_popups, colony->id, AI_POPUP_ZOOM_TAB_KEEP, body);
       }
     }
   }
@@ -1779,7 +1779,7 @@ COLONIZE_INTERNAL void turn_produce_hammers(TurnProduceCtx* pc) {
         /* Popup only — DOS does not replace the Phase K status line here.
          * GAME.TXT @ALREADYHAVE; catalog miss = "" (port_bugs.md #1100). */
         popup_msg_fill(messages, "ALREADYHAVE", &tok, "", body, sizeof(body));
-        ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
+        ai_popup_enqueue_colony_event(ai_popups, colony->id, AI_POPUP_ZOOM_TAB_CONSTRUCTION, body);
       }
     }
   }
@@ -1934,7 +1934,7 @@ COLONIZE_INTERNAL void turn_produce_crumbs(TurnProduceCtx* pc) {
       popup_msg_fill(messages, k_crumbs[ki].sec, &tok, "", body, sizeof(body));
       str_copy_trunc(europe->status, sizeof(europe->status), body);
       if (ai_popups) {
-        ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
+        ai_popup_enqueue_colony_event(ai_popups, colony->id, AI_POPUP_ZOOM_TAB_PRODUCTION, body);
       }
     }
   }
@@ -2084,7 +2084,7 @@ COLONIZE_INTERNAL void turn_produce_spoilage(TurnProduceCtx* pc) {
           body,
           sizeof(body)
         );
-        ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
+        ai_popup_enqueue_colony_event(ai_popups, colony->id, AI_POPUP_ZOOM_TAB_PRODUCTION, body);
       }
     }
   }
@@ -2139,7 +2139,7 @@ COLONIZE_INTERNAL void turn_produce_cargo_ready(TurnProduceCtx* pc) {
       }
       char body[AI_POPUP_BODY_LEN];
       popup_msg_fill(messages, sec, &tok, "", body, sizeof(body));
-      ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
+      ai_popup_enqueue_colony_event(ai_popups, colony->id, AI_POPUP_ZOOM_TAB_KEEP, body);
 
       /* @TUTORIAL6, once per campaign (DS:0x5387 bit1), only with Tutorial
        * Hints on (DS:0x5382 bit 0x80, raw 54317-54319 / 57912-57914). */

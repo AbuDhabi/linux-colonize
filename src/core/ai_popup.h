@@ -439,8 +439,13 @@ bool ai_popup_enqueue_choice_ctx(
  * Colony EOT message (DOS FUN_364b_0000): CHOICE with "Continue turn." (1) /
  * "Zoom to colony." (2) — LABELS.TXT @MISC 34/35 (DS:0x2dfe/0x2e00). Presents
  * optionless once zoom is elected for that colony (colony_zoom_elected bit).
+ * zoom_tab = FUN_364b_0000 param_3: the colony tab (ColonyMultiMode) Zoom
+ * selects, -1 = keep the current one; returned as result_nation_b.
  */
-bool ai_popup_enqueue_colony_event(AiPopupState* st, int colony_id, const char* body);
+#define AI_POPUP_ZOOM_TAB_KEEP (-1)
+#define AI_POPUP_ZOOM_TAB_PRODUCTION 0
+#define AI_POPUP_ZOOM_TAB_CONSTRUCTION 2
+bool ai_popup_enqueue_colony_event(AiPopupState* st, int colony_id, int zoom_tab, const char* body);
 /* Override the built-in choice labels from LABELS.TXT @MISC 34/35. */
 void ai_popup_set_colony_event_labels(const char* continue_label, const char* zoom_label);
 /* Latch a "Zoom to colony." election (result_choice_id 2). */

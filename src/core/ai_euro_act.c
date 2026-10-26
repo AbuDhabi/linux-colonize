@@ -7,7 +7,7 @@
  * Sections:
  *   FUN_5952_035e equip pick (shared with the goals equip arm)
  *   Ship Europe exit (europe_exit)
- *   Land band stages: hunt_scout, treasure, roles, goal_consume, goal_dispatch
+ *   Land band stages: hunt_scout, treasure, roles
  *   ai_euro_act_land band driver
  *   DOS ship-act path: 09dc gate, 20e6 ship dos, 479b goal walk
  */
@@ -142,7 +142,6 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_ship_europe_exit(struct ai_euro_ac
 COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_hunt_scout(struct ai_euro_act_ctx* a) {
   ColonizeTurnContext* const ctx = a->ctx;
   ColonizeUnit* u = a->u;
-  int scout_explored = a->scout_explored;
 
   /*
    * LCR (FUN_65dd_0004 thin transcription): any land unit standing on a
@@ -160,18 +159,13 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_hunt_scout(struct ai_euro_act
      * human-bound EuropeScreen (gold / Fountain of Youth recruit pool). */
     ColonizeWorld lw = world_from_turn_ctx(ctx);
     lw.europe = NULL;
-    if (units_resolve_lcr_rumour_w(&lw, u->id, -1)) {
-      scout_explored = 1;
-    }
+    (void)units_resolve_lcr_rumour_w(&lw, u->id, -1);
     /* Vanish / hostile-burial outcomes may have despawned the scout. */
     if (!u->active) {
       return AI_EURO_ACT_RETURN;
     }
   }
 
-
-
-  a->scout_explored = scout_explored;
   a->u = u;
   return AI_EURO_ACT_CONTINUE;
 }
@@ -252,7 +246,6 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_roles(struct ai_euro_act_ctx*
   ColonizeTurnContext* const ctx = a->ctx;
   ColonizeUnit* u = a->u;
   const int nation_id = a->nation_id;
-  int scout_explored = a->scout_explored;
   int treasure_routed = a->treasure_routed;
   const ColonizeUnitKind ukind = a->ukind;
 
@@ -298,7 +291,6 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_roles(struct ai_euro_act_ctx*
     }
   }
 
-  a->scout_explored = scout_explored;
   a->treasure_routed = treasure_routed;
   a->wagon_hauled = wagon_hauled;
   a->u = u;
@@ -350,278 +342,46 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_roles(struct ai_euro_act_ctx*
  */
 
 /*
- * Land stage 5: FUN_521d_0a60 goal-consumption tail — read the committed
- * primary-goal pick back, else run the founder/labor fallback scan.
+ * Land stages 5 / 6 (goal_consume, goal_dispatch) are gone (2026-10-26): a
+ * port-only tail that re-read the 0a60 goal and walked it with an invented
+ * scorer (ai_euro_score_move), with a MILITARY / CONTACT attack and colony
+ * capture arm no band type can reach (@UNIT attack 0; DS:0x523d rows 0x00 /
+ * 0x20 / 0x00, so 0a60 never binds those goals to them). DOS consumes a goal
+ * only through FUN_479b_0972's walk, and a declined band arm falls into the
+ * pre-LAB_4d2e gate (ai_euro_20e6_treasure_fallthrough). Earlier tombstones
+ * from those stages: the threatened-Stockade LABOR override (2026-09-18) and
+ * the LABOR bind (port_bugs.md #1034(b)) had no DOS writer (goals come only
+ * from FUN_521d_0a60, construction only from FUN_5952_035e); the wagon /
+ * Pioneer tools delivery and wagon Europe sell (2026-09-18) are DOS's 20e6
+ * arrival dump + load matrix (ai_euro_try_wagon_haul); the LABOR/COLONY
+ * "join on arrival" arm has no 20e6 outcome (absorption is FUN_5952_035e's
+ * ai_euro_5952_absorb_equip).
  */
-COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_goal_consume(struct ai_euro_act_ctx* a) {
-  ColonizeUnit* u = a->u;
-
-  /*
-   * FUN_521d_0a60 goal-consumption tail, structurally ported (see
-   * ai_euro_0a60_goal_orders_structural above): runs once per nation per turn
-   * and commits its pick into the unit's own +0x314c/+0x314d/e (port_bugs.md
-   * #525). `ai_euro_unit_act` captures it before the 20e6 gate can overwrite
-   * the byte with a 0x0c wander commit; the concrete AI_GOAL_* code has no
-   * DOS byte at all and is re-read from the goal table at the goal tile.
-   */
-  if (a->goal_code < 0) {
-    a->goal_x = u->goto_x;
-    a->goal_y = u->goto_y;
-  }
-  /*
-   * A "threatened-Stockade LABOR override" stood here until 2026-09-18: a
-   * war-threat proximity scan that re-aimed a Free Colonist at any own
-   * colony building a Stockade. It had no DOS counterpart — the goal table
-   * is written only by FUN_521d_0a60 (its 'A' mark block spends colony
-   * +0x1e garrison_quota / +0x8e labor_shortage, neither of which is a
-   * building-choice term) and the one AI construction picker is the
-   * FUN_5952_035e cascade, which selects a Stockade from the colony's own
-   * +0x1b flags, never from an adjacent enemy. Deleted with its helpers.
-   */
-
-  /*
-   * (Deleted 2026-10-02, port_bugs.md #1034(b).) A "LABOR bind" stood here: idle
-   * colonist-capable land units were re-aimed at an own colony (MD 1, or 8 on
-   * food_short/tools_short) whose food < pop*2 / tools < 20 / pop < 3 or that
-   * was building a Stockade/Warehouse/Lumber Mill, with an AI_GOAL_LABOR
-   * primary upsert. Its cites were the manual / Skills Chart only; DOS writes
-   * goals only in FUN_521d_0a60 and does its labor routing in FUN_521d_20e6's
-   * type-0 labor arm. Gated off it moved no golden.
-   */
-
-  return AI_EURO_ACT_CONTINUE;
-}
 
 /*
- * Land stage 6: act on the bound goal — FOUND on arrival, wagon Europe
- * sell, LABOR/COLONY admit, MILITARY/CONTACT engage, goto commit + move
- * drain, and the adjacent seize/attack tail.
+ * Land band driver (case 0x0b), run in place of the 20e6 gate for Treasure /
+ * Missionary / Wagon (ai_euro_unit_act). Binds the per-unit role flags the
+ * stages share, then runs the land stages in DOS order. RETURN = an arm ended
+ * the act; CONTINUE = 20e6 is at LAB_5a78 and the caller runs that tail and
+ * FUN_521d_5b66's dispatch, as for every other land unit.
  */
-COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_goal_dispatch(struct ai_euro_act_ctx* a) {
+AiEuroActStatus ai_euro_act_land(struct ai_euro_act_ctx* a) {
   ColonizeTurnContext* const ctx = a->ctx;
-  ColonizeUnit* u = a->u;
-  const int nation_id = a->nation_id;
-  int goal_code = a->goal_code;
-  int goal_x = a->goal_x;
-  int goal_y = a->goal_y;
-  int scout_explored = a->scout_explored;
-  int treasure_routed = a->treasure_routed;
-  int wagon_hauled = a->wagon_hauled;
+  const ColonizeUnitKind ukind = ai_euro_unit_kind(ctx->units, a->u);
 
-  if (goal_code == AI_GOAL_FOUND && u->x == goal_x && u->y == goal_y) {
-    ai_euro_found_with_unit(ctx, u, nation_id);
+  a->ukind = ukind;
+  a->is_treasure = ai_euro_is_treasure_name(ukind);
+  a->treasure_routed = 0;
+
+  if (ai_euro_act_land_hunt_scout(a) == AI_EURO_ACT_RETURN ||
+      ai_euro_act_land_treasure(a) == AI_EURO_ACT_RETURN ||
+      ai_euro_act_land_roles(a) == AI_EURO_ACT_RETURN) {
     return AI_EURO_ACT_RETURN;
   }
-
-  /*
-   * No tools-delivery / Europe-sell arms here. The "wagon or Pioneer on an own
-   * colony tile unloads what the colony is short of" pair
-   * (ai_euro_try_wagon_tools_delivery + ai_euro_try_pioneer_tools_delivery)
-   * and the wagon Europe dump-sell were manual-cited inventions, deleted
-   * 2026-09-18. DOS wagon delivery is the FUN_521d_20e6 arrival block
-   * (raw 3007-3012: dump EVERY hold into the bound colony, then the load
-   * matrix) in ai_euro_try_wagon_haul — never a per-cargo shortage filter —
-   * and a wagon never reaches Europe at all.
-   */
-
-  /*
-   * No LABOR/COLONY "arrive on the colony tile → join as a colonist" arm.
-   * DOS has no such unit-act outcome: FUN_521d_20e6's complete +0x314b
-   * vocabulary over raw 88266-89800 is 0x39/0x3d/0x40/0x42/0x46/0x47/0x4c/
-   * 0x56/0x65 (no join), and FUN_521d_0a60's own-colony block only marks
-   * standing military 'A' (0x41) — raw 87683-87756, ported as
-   * ai_euro_colony_goals_colony_garrison. That mark is bookkeeping: it
-   * decrements labor_shortage (+0x8e) and garrison_quota (+0x1e) and hides
-   * the unit from this turn's goal scan; it never moves it into a colonist
-   * slot. Note the DOS polarity — garrison_quota is a COUNTER the admission
-   * spends, never a `== 0` gate. The actual absorption of a unit standing
-   * on its own colony tile is FUN_5952_035e's colony-tick tile re-scan
-   * (raw 94231-94274, ported as ai_euro_5952_absorb_equip and called from
-   * ai_euro_colony_goals_colony_labor), which owns both the per-type gates
-   * and the NEEDS_COLONISTS (+0x1b bit 0x10) precondition. The
-   * `garrison_quota == 0` admit that used to sit here cited only
-   * test-saves-ai/TURN4-5 and was deleted (sibling of port_bugs.md #512/#515).
-   */
-  if (goal_code == AI_GOAL_MILITARY || goal_code == AI_GOAL_CONTACT) {
-    if (abs(u->x - goal_x) <= 1 && abs(u->y - goal_y) <= 1) {
-      /* Exclude self: a stale goal can point at a tile the unit itself now
-       * occupies (e.g. just captured it opportunistically) — nothing to
-       * attack there. */
-      const int foe = units_id_at(ctx->units, goal_x, goal_y);
-      if (foe >= 0 && foe != u->id) {
-        ai_euro_try_attack(ctx, u, goal_x, goal_y);
-        return AI_EURO_ACT_RETURN;
-      }
-    }
-    if (ctx->colonies && u->x == goal_x && u->y == goal_y) {
-      const int cid = colonies_id_at(ctx->colonies, goal_x, goal_y);
-      if (cid >= 0) {
-        ColonizeColony* c = colonies_get_mut(ctx->colonies, cid);
-        if (c && c->nation_id != nation_id &&
-            units_foreign_unit_at(ctx->units, u->x, u->y, u->id, nation_id) < 0) {
-          int plunder = 0;
-          for (int i = 0; i < COLONIZE_CARGO_COUNT; ++i) {
-            if (c->stock[i] > 0) {
-              plunder += c->stock[i];
-            }
-          }
-          ColonizeColony snap = *c;
-          if (colonies_capture(ctx->colonies, cid, nation_id)) {
-            units_combat_notify_colony_captured(
-              ctx->col1_ok ? ctx->col1 : NULL, &snap, nation_id, plunder
-            );
-          }
-          return AI_EURO_ACT_RETURN;
-        }
-      }
-    }
+  if (a->is_treasure && !a->treasure_routed) {
+    ai_euro_20e6_treasure_fallthrough(ctx, a->u, a->nation_id);
   }
-
-  /* Preserve land-war / peace-border / scout / treasure / missionary / wagon /
-   * pioneer-improve / LABOR. */
-  if (goal_code >= 0 && !scout_explored &&
-      !treasure_routed && !wagon_hauled) {
-    ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, goal_x, goal_y);
-  }
-
-  /*
-   * Port-only drain for the deferred band (Treasure / Missionary / Wagon):
-   * ai_euro_score_move steps toward the goto. DOS has no such walker: a unit
-   * whose band arms decline falls into 20e6's pre-LAB_4d2e gate (raw
-   * 90210-90219) -> LAB_4d2e wander / LAB_5a78 + FUN_479b_0972, which every
-   * other land unit already takes (port_plan.md "Remaining work").
-   */
-  if (units_orders_follow_goto(u->orders)) {
-    const int drain =
-      (goal_code == AI_GOAL_FOUND || goal_code == AI_GOAL_MILITARY ||
-       goal_code == AI_GOAL_CONTACT || goal_code == AI_GOAL_ESCORT || scout_explored);
-    /* drain: while MP left; else one scored step (prior non-multi path). */
-    for (;;) {
-      if (!u->active || u->moves <= 0 || !units_orders_follow_goto(u->orders)) {
-        break;
-      }
-      if (u->x == u->goto_x && u->y == u->goto_y) {
-        break;
-      }
-      int dx = 0;
-      int dy = 0;
-      /*
-       * An adjacent goto holding a foreign unit is the LAB_4d2e attack pick
-       * (the scorer commits the neighbour tile itself as +0x3153/+0x3154 and
-       * FUN_479b_0972 → FUN_465b_0000 steps straight into it). Re-scoring
-       * that step with ai_euro_score_move sidestepped diagonally around the
-       * foe and the fight never happened (port_bugs.md #521, 2026-09-22).
-       */
-      const int adj_foe = abs(u->goto_x - u->x) <= 1 && abs(u->goto_y - u->y) <= 1 &&
-                          ai_euro_foreign_unit_at(ctx, u, u->goto_x, u->goto_y);
-      if (adj_foe) {
-        dx = u->goto_x - u->x;
-        dy = u->goto_y - u->y;
-      } else if (!ai_euro_score_move(ctx, u, u->goto_x, u->goto_y, &dx, &dy)) {
-        break;
-      }
-      const int tx = u->x + dx;
-      const int ty = u->y + dy;
-      /* Same best-defender rule as the step scorer above: a berthed hull on
-       * the tile must not read as "empty" (FUN_5fef_0000 / FUN_465b_0000). */
-      int foe = units_best_defender_at(
-        ctx->units, ctx->col1_ok ? ctx->col1 : NULL, tx, ty, u->id, u->id
-      );
-      if (foe < 0) {
-        foe = units_id_at(ctx->units, tx, ty);
-      }
-      /*
-       * Only a FOREIGN occupant makes the step a fight. FUN_465b_0000 reaches
-       * its combat tail only when the destination's owner nibble differs from
-       * the mover's nation (raw 75417ff); a tile holding one of our own units
-       * is an ordinary stacking move. The raw `units_id_at` fallback above has
-       * no nation filter, so a second REF column standing on the step tile was
-       * handed to ai_euro_try_attack — which returns without acting on an
-       * own-nation target — and this loop broke every turn: the whole assault
-       * column froze two tiles short of the colony (port_bugs.md #521). The step
-       * scorer's own copy of this fallback (ai_euro_score_move) already
-       * filtered on nation; this one did not.
-       */
-      if (foe >= 0) {
-        const ColonizeUnit* fu = units_get_const(ctx->units, foe);
-        if (!fu || fu->nation_id == u->nation_id) {
-          foe = -1;
-        }
-      }
-      if (foe >= 0) {
-        ai_euro_try_attack(ctx, u, tx, ty);
-        break;
-      }
-      ColonizeWorld w_ = world_make(ctx->units, ctx->colonies, ctx->map, NULL, false, ctx->rng, NULL);
-      /* FUN_465b_0000 raw 75649: partial-MP moves reseed before rolling
-       * (DOSBox 1591: the French Merchantman's step drew 365). */
-      w_.rng_reseed = ai_turn_seed(ctx);
-      w_.rng_reseed_set = true;
-      if (!units_try_move_w(&w_, u->id, tx, ty)) {
-        break;
-      }
-      if (!drain) {
-        break; /* single step for non-FOUND/MILITARY/CONTACT/hunt/scout */
-      }
-    }
-  }
-
-
-  /* The "sticky CONTACT re-hunt" tail that used to sit here is folded into the
-   * block above (smell audit sweep-3 area C #1): zero hits when instrumented
-   * over the whole ctest suite. The two seizes are the real DOS `0x46` / `0x4c`
-   * arms; the adjacent-attack stand-in that also ran here was deleted 2026-09-22
-   * (port_bugs.md #521, LAB_521d_4d2e attack term is DOS-live). The distant land war hunt that
-   * also ran here was deleted 2026-09-18: DOS has no distant hunt for land
-   * units any more than it has one for ships. */
-
-  a->goal_code = goal_code;
-  a->goal_x = goal_x;
-  a->goal_y = goal_y;
-  a->scout_explored = scout_explored;
-  a->treasure_routed = treasure_routed;
-  a->wagon_hauled = wagon_hauled;
-  a->u = u;
   return AI_EURO_ACT_CONTINUE;
-}
-
-/*
- * Land band driver (case 0x0b). Binds the per-unit role flags the stages
- * share, then runs the land stages in DOS order.
- */
-void ai_euro_act_land(struct ai_euro_act_ctx* a) {
-  ColonizeTurnContext* const ctx = a->ctx;
-  ColonizeUnit* u = a->u;
-
-  /* Treasure / Missionary / Wagon only (see ai_euro_unit_act). */
-  const char* uname = units_display_name(ctx->units, u);
-  const ColonizeUnitKind ukind = ai_euro_unit_kind(ctx->units, u);
-  const int is_treasure = ai_euro_is_treasure_name(ukind);
-  int scout_explored = 0;
-  int treasure_routed = 0;
-
-  a->uname = uname;
-  a->ukind = ukind;
-  a->is_treasure = is_treasure;
-  a->scout_explored = scout_explored;
-  a->treasure_routed = treasure_routed;
-  a->u = u;
-
-  if (ai_euro_act_land_hunt_scout(a) == AI_EURO_ACT_RETURN) {
-    return;
-  }
-  if (ai_euro_act_land_treasure(a) == AI_EURO_ACT_RETURN) {
-    return;
-  }
-  if (ai_euro_act_land_roles(a) == AI_EURO_ACT_RETURN) {
-    return;
-  }
-  if (ai_euro_act_land_goal_consume(a) == AI_EURO_ACT_RETURN) {
-    return;
-  }
-  if (ai_euro_act_land_goal_dispatch(a) == AI_EURO_ACT_RETURN) {
-    return;
-  }
 }
 
 /*

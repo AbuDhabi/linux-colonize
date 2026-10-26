@@ -631,6 +631,7 @@ COLONIZE_INTERNAL GameUpdateStep game_update_services(ColonizeGameState* game, c
         !new_game_active(&game->new_game) && !game_modal_open(game) &&
         !ai_popup_busy(&game->ai_popups)) {
       game->found_open_colony_id = -1;
+      game->colony_screen.multi_mode = COLONY_MULTI_PRODUCTION; /* raw 77043: DS:0x337 = 0 */
       game_enter_colony(game, found_cid);
       return GAME_UPDATE_RETURN_TRUE;
     }

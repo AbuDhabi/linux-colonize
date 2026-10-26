@@ -342,12 +342,13 @@ void ai_popup_set_colony_event_labels(const char* continue_label, const char* zo
   }
 }
 
-bool ai_popup_enqueue_colony_event(AiPopupState* st, int colony_id, const char* body) {
-  /* DOS FUN_364b_0000 appends the two rows with ids 1/2 (FUN_281f_0022). */
+bool ai_popup_enqueue_colony_event(AiPopupState* st, int colony_id, int zoom_tab, const char* body) {
+  /* DOS FUN_364b_0000 appends the two rows with ids 1/2 (FUN_281f_0022).
+   * nation_b carries its param_3, the colony tab "Zoom to colony" selects. */
   const char* labels[2] = {g_colony_event_continue, g_colony_event_zoom};
   const int ids[2] = {1, 2};
   return ai_popup_enqueue_choice_ctx(
-    st, AI_POPUP_TAG_COLONY_EVENT, -1, -1, colony_id, NULL, body, labels, ids, 2
+    st, AI_POPUP_TAG_COLONY_EVENT, -1, zoom_tab, colony_id, NULL, body, labels, ids, 2
   );
 }
 

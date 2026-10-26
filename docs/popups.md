@@ -424,7 +424,7 @@ fragment. Related sections are listed in the first column.
 | `@GAMEOPTIONS` / `@COLONYOPTIONS` / `@SOUNDOPTIONS` | Options checkboxes | Done | [`options_dialog.c`](../src/core/options_dialog.c) |
 | `@DOS` / `@DOSYES` | Quit confirm | Done | Map/title confirm via `AI_POPUP_TAG_MAP_CONFIRM` |
 | `@RETIRE` | Retire confirm | Done | Confirm then F10 score |
-| `@MULTI` / `@MULTINEXT` / `@MULTIREV` | Hidden hot-seat (env `COLONIZE=MULTI` or argv `-K`; [port_plan.md](port_plan.md)) | Not ported | `@MULTI` checklist `FUN_75c2_10ae` (DS 0x21a6); `@MULTINEXT` turn handoff `FUN_130d_0290` (DS 0x0137); `@MULTIREV` declare warning `FUN_43f7_2564` (DS 0x138e) |
+| `@MULTI` / `@MULTINEXT` / `@MULTIREV` | Hidden hot-seat (env `COLONIZE=MULTI` or argv `-K`) | Not ported ([known_divergences.md](known_divergences.md) #1290) | `@MULTI` checklist `FUN_75c2_10ae` (DS 0x21a6); `@MULTINEXT` turn handoff `FUN_130d_0290` (DS 0x0137); `@MULTIREV` declare warning `FUN_43f7_2564` (DS 0x138e) |
 
 ### 2. Save / load / music
 

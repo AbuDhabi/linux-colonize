@@ -210,7 +210,7 @@ broke the Dutch TURN2→3 first contact).
 ## Open RE
 
 - **`MULTINEXT`** is shown by `FUN_130d_0290` (ND 0x597E, push 0x0137) in hot-seat
-  mode only (DS:0x5381 bit 0x80; hidden, not ported, [port_plan.md](port_plan.md)).
+  mode only (DS:0x5381 bit 0x80; hidden, not ported: [known_divergences.md](known_divergences.md) #1290).
 - **`TIMECHANGE` / `SEASONS`**: string table only — **reconfirmed**
   no FUN_* XREF ([`mid_pass_indian_rank.md`](../original_sources_annotated/turn/mid_pass_indian_rank.md)).
   Calendar from `@TIMECHANGE` + `130d` year/autumn math.

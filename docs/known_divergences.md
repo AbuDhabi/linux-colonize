@@ -83,6 +83,21 @@ same entry only when the saved active unit is missing or not selectable
 resumes on the unit that was active. Kept so the input-replay regressions
 (recorded against that behaviour) keep driving the units they were written for.
 
+### #1290 — No hot-seat multiplayer
+DOS carries a complete hot-seat mode that the shipped game never advertises (no
+menu row, not in the manual): env `COLONIZE=MULTI` (`FUN_7421_025a`, ND
+0x70EDD-0x70EFB) or argv `-K` (`FUN_7421_0054`, ND 0x70D0E) sets DS:0x201e,
+which adds an undrawn, mouse-only 5th nation-picker cell (`FUN_733a_0c2a`; x 112
+y 195). It opens the `@MULTI` checklist (`FUN_75c2_10ae`); ticking 2+ powers sets
+DS:0x5381 bit 0x80, which drives the `@MULTINEXT` turn handoff (`FUN_130d_0290`),
+skips the War of Succession (`FUN_43f7_0218`), turns cheat 0x68 into a plain
+rebels-to-75, and asks `@MULTIREV` before declaring (`FUN_43f7_2564`, which then
+clears the bit and makes the nation moving the sole human). The port models one
+`human_nation` and implements none of it; the user decided 2026-10-26 it is not
+worth porting. A DOS hot-seat save loads as single-player (only
+`ai_king_cheat_advance_revolution` reads the bit). Field:
+`hotseat_woi_redirect_pending` (historical name), `col1_save_layout.h`.
+
 ## Blocked on a live DOS capture
 
 Static reading cannot settle these. Each names exactly what to capture. Do not

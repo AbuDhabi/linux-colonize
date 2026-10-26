@@ -230,3 +230,47 @@ how to stay in the war:
 - Plymouth: `Fort` (100 tools) and Jamestown: `Fort` (120 hammers, 100
   tools). Tools come from ore at the Blacksmith (~4 tools per turn with 2
   workers).
+- 1733-1772 (branch 1, prep): Forts in both colonies (Plymouth 1755,
+  Jamestown 1768). Artillery in the colonies costs 192 hammers + 40 tools
+  (docs/building_production.md:286), not 64 hammers. Hammers, not tools, were
+  the bottleneck: lumber ran out in both colonies (the Carpenter's Shop eats
+  lumber), so hammers fell to +6/turn. Ore for tools came from Plymouth
+  (shipped by caravel, unloaded by hand-paced drag). Artillery 3 in Jamestown
+  and 2 in Plymouth at 1772, Jamestown SoL 77%, Plymouth 19%.
+- Pre-declaration save: saves/pre_declare2_1772.
+
+### 1772-1776: second declaration (turn 453), lost again
+
+- Declared 1772 from `pre_declare2_1772` (GAME menu, confirm Yes).
+  Defence: Jamestown SoL 77%, pop 19, Fort, Stockade, 3 artillery, 2
+  soldiers. Plymouth SoL 19%, pop 8, Fort, Stockade, 2 artillery.
+- REF landed near Plymouth at turn ~455 and marched in the same turn cycle
+  (turn ~457). Landed near Jamestown turn ~456; our artillery won several
+  fights ("Rebel Artillery defeats Tories") but were then damaged and
+  destroyed one by one. Soldiers were routed and demoted to colonists, and
+  the colonists were captured. "Tories march into Jamestown!" at turn 460
+  (1776). Game ended on the COLONIZATION SCORE screen.
+- Final: lost at 1776 (turn 460), 4 years after declaring.
+
+## Why the second preparation also failed
+
+- Hammers were the bottleneck: artillery needs 192 hammers + 40 tools
+  (docs/building_production.md:286). Lumber ran out (Carpenter's Shop
+  eats lumber), so hammers fell to +6/turn in Jamestown and 0 in Plymouth.
+  Ore for tools came from one mine (Plymouth) and ran out in Jamestown.
+- Forts (120 hammers + 100 tools) took 30+ turns each.
+- Europe purchases were out of reach: artillery 900 gold in 1734 (from 500),
+  and Crown tax 58% on sales.
+- The REF did not need many turns: 6-10 regulars and 2 artillery beat 3
+  artillery + 2 soldiers in a colony with a Fort and a Stockade.
+- Campaign 5 (Netherlands) won the same fight after a 40-turn build-up of
+  around 60 guns in a fortress. That needs a much bigger economy than this
+  England colony reached with lumber and ore shortages.
+
+## Suggested next step (not done)
+
+- Reload an earlier save (about 1700, turn 340, before the Crown tax and the
+  Plymouth SoL drop) and build the lumber and ore chain there:
+  Lumber Mill in both colonies first, a second Blacksmith worker per ore
+  source, Town Hall in Plymouth before 1720, and Europe artillery bought
+  while the purchase price is 500.

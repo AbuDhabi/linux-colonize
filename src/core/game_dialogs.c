@@ -2810,6 +2810,10 @@ static bool game_apply_popup_map_and_colony(ColonizeGameState* game) {
      * the colony's remaining messages are answered (take_colony_zoom). */
     if (!game->ai_popups.result_cancelled && game->ai_popups.result_choice_id == 2) {
       ai_popup_colony_zoom_elect(&game->ai_popups, game->ai_popups.result_payload);
+      /* raw 56866-56868: result 2 with param_3 >= 0 sets DS:0x337 = param_3. */
+      if (game->ai_popups.result_nation_b >= 0) {
+        game->colony_screen.multi_mode = (ColonyMultiMode)game->ai_popups.result_nation_b;
+      }
     }
     ai_popup_consume_result(&game->ai_popups);
   return true;
@@ -3308,6 +3312,7 @@ static bool game_apply_popup_diplo_and_scout(ColonizeGameState* game) {
       }
       const int roll = dos_rng_range(&game->move_rng, 1, 0x24);
       if (threshold < roll) {
+        game->colony_screen.multi_mode = COLONY_MULTI_UNITS; /* raw 98857: DS:0x337 = 1 */
         game_enter_colony(game, cid);
       } else {
         PopupMsgTokens tok;
