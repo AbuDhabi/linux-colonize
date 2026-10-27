@@ -32,6 +32,14 @@ original game data — you must provide your own copy of the DOS game.
 
 Settings and saves are written next to the game data.
 
+## Map editor
+
+`./opencol-mapedit` is the original map editor (MAPEDIT.EXE). It reads and
+writes `.MP` maps in the data directory and needs `MAPEDIT.EXE`,
+`MAPEDIT.TXT` and `MAPMENU.TXT` from the original game in `COLONIZE/`.
+Options: `--data-dir PATH`, `--scale N`, `-c` (new map), `-m:FILE.MP` (edit
+that map), `?` (usage).
+
 ## Troubleshooting
 
 - **No window / SDL error**: everything except X11 and graphics/audio drivers

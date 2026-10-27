@@ -30,14 +30,16 @@ PKG_CONFIG_PATH="$DEPS_PREFIX/lib/pkgconfig:$DEPS_PREFIX/lib64/pkgconfig" cmake 
   -DCOLONIZE_DEBUG_MENU=OFF \
   -DCOLONIZE_STATIC_DEPS=ON \
   -DCMAKE_PREFIX_PATH="$DEPS_PREFIX"
-cmake --build "$BUILD_DIR" --target opencol -j"$(nproc)"
+cmake --build "$BUILD_DIR" --target opencol opencol-mapedit -j"$(nproc)"
 
 echo "== Assembling package =="
 rm -rf "$PKG_DIR"
 mkdir -p "$PKG_DIR/data/soundfonts" "$PKG_DIR/COLONIZE"
 
-cp "$BUILD_DIR/opencol" "$PKG_DIR/opencol"
-strip "$PKG_DIR/opencol" || true
+for bin in opencol opencol-mapedit; do
+  cp "$BUILD_DIR/$bin" "$PKG_DIR/$bin"
+  strip "$PKG_DIR/$bin" || true
+done
 
 cp "$ROOT/data/soundfonts/Roland_SC-55.sf2" "$PKG_DIR/data/soundfonts/"
 cp "$ROOT/data/soundfonts/COPYRIGHT.Roland_SC-55" "$PKG_DIR/data/soundfonts/"
@@ -82,14 +84,17 @@ else
   echo "warning: glib stack not source-built here — THIRD_PARTY_LICENSES incomplete (test build only)" >&2
 fi
 
-echo "== Sanity: dynamic deps of the binary =="
+echo "== Sanity: dynamic deps of the binaries =="
 # Must be base system only (libc/libm & friends). Any SDL/fluidsynth/glib/codec
 # soname here means static linking silently regressed.
-objdump -p "$PKG_DIR/opencol" | awk '/NEEDED/{print "  " $2}'
-if objdump -p "$PKG_DIR/opencol" | grep -E "NEEDED.*(SDL|fluid|glib|sndfile|FLAC|vorbis|opus|ogg|mpg123|mp3lame|jack)"; then
-  echo "error: binary still links bundled deps dynamically" >&2
-  exit 1
-fi
+for bin in opencol opencol-mapedit; do
+  echo "  $bin:"
+  objdump -p "$PKG_DIR/$bin" | awk '/NEEDED/{print "    " $2}'
+  if objdump -p "$PKG_DIR/$bin" | grep -E "NEEDED.*(SDL|fluid|glib|sndfile|FLAC|vorbis|opus|ogg|mpg123|mp3lame|jack)"; then
+    echo "error: $bin still links bundled deps dynamically" >&2
+    exit 1
+  fi
+done
 
 echo "== Creating tarball =="
 TARBALL="$DIST_ROOT/$PKG_NAME-linux-x86_64.tar.gz"

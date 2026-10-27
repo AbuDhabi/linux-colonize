@@ -65,14 +65,16 @@ IMAGE=registry.fedoraproject.org/fedora:40
       -DCOLONIZE_DEBUG_MENU=OFF \
       -DCOLONIZE_STATIC_DEPS=ON \
       -DCMAKE_EXE_LINKER_FLAGS="-static -static-libgcc"
-    cmake --build build-windows --target opencol -j"$(nproc)"
+    cmake --build build-windows --target opencol opencol-mapedit -j"$(nproc)"
 
     echo "== Packaging =="
     PKG="dist/opencol-$VERSION-windows"
     rm -rf "$PKG"
     mkdir -p "$PKG/data/soundfonts" "$PKG/COLONIZE"
-    cp build-windows/opencol.exe "$PKG/opencol.exe"
-    x86_64-w64-mingw32-strip "$PKG/opencol.exe" || true
+    for exe in opencol opencol-mapedit; do
+      cp "build-windows/$exe.exe" "$PKG/$exe.exe"
+      x86_64-w64-mingw32-strip "$PKG/$exe.exe" || true
+    done
     cp data/soundfonts/Roland_SC-55.sf2 data/soundfonts/COPYRIGHT.Roland_SC-55 "$PKG/data/soundfonts/"
     touch "$PKG/COLONIZE/put original game files here"
     cp scripts/release/README-windows.md "$PKG/README.md"
@@ -109,12 +111,14 @@ IMAGE=registry.fedoraproject.org/fedora:40
     add "win-iconv" "https://github.com/win-iconv/win-iconv" /tmp/win-iconv-license.txt
 
     echo "== Sanity =="
-    file "$PKG/opencol.exe"
-    if x86_64-w64-mingw32-objdump -p "$PKG/opencol.exe" | grep -iE "DLL Name.*(SDL2|fluid|glib|libwinpthread)"; then
-      echo "error: exe still imports bundled deps as DLLs" >&2
-      exit 1
-    fi
-    x86_64-w64-mingw32-objdump -p "$PKG/opencol.exe" | grep -i "DLL Name" | sed "s/^/  /"
+    for exe in opencol opencol-mapedit; do
+      file "$PKG/$exe.exe"
+      if x86_64-w64-mingw32-objdump -p "$PKG/$exe.exe" | grep -iE "DLL Name.*(SDL2|fluid|glib|libwinpthread)"; then
+        echo "error: $exe.exe still imports bundled deps as DLLs" >&2
+        exit 1
+      fi
+      x86_64-w64-mingw32-objdump -p "$PKG/$exe.exe" | grep -i "DLL Name" | sed "s/^/  /"
+    done
 
     ( cd dist && rm -f "opencol-$VERSION-windows-x86_64.zip" \
       && zip -qr "opencol-$VERSION-windows-x86_64.zip" "opencol-$VERSION-windows" )

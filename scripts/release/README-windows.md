@@ -30,6 +30,14 @@ harmless.
 
 Settings and saves are written next to the game data.
 
+## Map editor
+
+`opencol-mapedit.exe` is the original map editor (MAPEDIT.EXE). It reads and
+writes `.MP` maps in the data directory and needs `MAPEDIT.EXE`,
+`MAPEDIT.TXT` and `MAPMENU.TXT` from the original game in `COLONIZE\`.
+Options: `--data-dir PATH`, `--scale N`, `-c` (new map), `-m:FILE.MP` (edit
+that map), `?` (usage).
+
 ## Troubleshooting
 
 - **No music**: check that `data\soundfonts\Roland_SC-55.sf2` is present, or
