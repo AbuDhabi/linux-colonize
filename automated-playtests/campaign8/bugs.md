@@ -140,6 +140,7 @@ Check docs/dos_bugs.md and docs/known_divergences.md before filing.
   Workaround in helpers/cycle.sh: fortify each guard, admit colonists, endturn.
   Check in DOS: does a unit with 0 moves and no orders block the turn?
 - Assessed 2026-10-27: Refuted: 0-move units never block (FUN_1427_1410). Blockers were a Merchantman with moves and no orders, and guards woken by the helper's own `activate` while Europe was open (its `key f` went to Europe). Driver: endturn ERR names the waiting unit; `activate` refuses behind a popup or screen. A goto unit left unstepped in view mode after a popup is still unexplained.
+- Follow-up 2026-10-27 (the unstepped goto unit): port bug, fixed as port_bugs.md #1301. Both stalls (turn 39, turn 396) came from `activate` on a unit with 0 moves (the Scout after its village visit, the unloaded Merchantman). The port dropped into View Pieces, which turns off the automatic hand-off. DOS (`FUN_2b5a_1b5a` + `FUN_2b5a_0e52`) activates the next unit awaiting orders instead. Reproduced from `trace_autosave_turn_039.sav` with this campaign's binary.
 
 ## CN8-O20 (oddity, cost me many turns): `key e` on the main map opens the Europe screen
 - Cycle helper used `key e` to leave Europe. On the main map `e` opens Europe,

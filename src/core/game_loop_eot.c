@@ -2228,6 +2228,22 @@ void game_click_activate_unit(ColonizeGameState* game, int unit_id) {
    * long-fortified unit can march the turn you rouse it.
    */
   units_wake(&game->units, unit_id);
+  /*
+   * FUN_2b5a_1b5a raw 42779-42783 makes the clicked unit active
+   * (FUN_281f_086c -> 0x5392) whatever its moves, then runs FUN_2b5a_0e52(0):
+   * FUN_1427_1410 fails on a spent unit, so FUN_1427_14a0 picks the next unit
+   * awaiting orders after it (Move Pieces), or the End of Turn state. Dropping
+   * to View Pieces instead stranded every pending unit, Go-To ones unstepped,
+   * until the player woke one by hand (campaign8 CN8-B1, turns 39 and 396).
+   */
+  const ColonizeUnit* u = units_get_const(&game->units, unit_id);
+  if (u && u->active && u->nation_id == game->human_nation && u->moves <= 0) {
+    game->units.selected_id = unit_id;
+    game->map_cursor_x = u->x;
+    game->map_cursor_y = u->y;
+    game_wait_next_unit(game);
+    return;
+  }
   game_select_unit(game, unit_id);
 }
 

@@ -1843,6 +1843,67 @@ static int test_indian_land_offer_row_greyed(void) {
 }
 
 /*
+ * campaign8 CN8-B1: clicking (or `activate`) a spent own unit is FUN_2b5a_1b5a + FUN_2b5a_0e52(0):
+ * the order clears and the next unit awaiting orders takes control. It used to drop to View
+ * Pieces with units still pending, so the turn stalled.
+ */
+static int test_click_spent_unit_hands_off(void) {
+  ColonizeGameConfig cfg = {.data_dir = "./COLONIZE", .save_dir = "./build/debug"};
+  ColonizeGameState* game = game_create(&cfg);
+  if (!game || !game_assets_ok(game)) {
+    fprintf(stderr, "SKIP: no COLONIZE/ assets\n");
+    if (game) {
+      game_destroy(game);
+    }
+    return TR_SKIP;
+  }
+  char err[256];
+  int rc = 0;
+  if (!game_load_col1_file(
+        game, "tests-automated-regression/map_pioneer_native_forest_offer/input.sav", err,
+        sizeof(err)
+      )) {
+    fprintf(stderr, "  %s\n", err);
+    game_destroy(game);
+    return fail("fixture save load");
+  }
+  ai_popup_clear(&game->ai_popups);
+  int spent = -1;
+  int other = -1;
+  for (int i = 0; i < units_slot_end(&game->units); ++i) {
+    const ColonizeUnit* u = &game->units.units[i];
+    if (!turn_unit_in_rotation(&game->units, u, game->human_nation) ||
+        units_orders_skip_turn(u)) {
+      continue;
+    }
+    if (spent < 0) {
+      spent = u->id;
+    } else if (other < 0) {
+      other = u->id;
+    }
+  }
+  ColonizeUnit* s = units_get(&game->units, spent);
+  if (!s || other < 0) {
+    fprintf(stderr, "  rotation units %d %d\n", spent, other);
+    game_destroy(game);
+    return fail("fixture has two human units awaiting orders");
+  }
+  s->moves = 0;
+  s->orders = UNITS_ORDER_FORTIFIED;
+  game->units.selected_id = -1;
+  game->view_pieces_mode = true;
+  game_click_activate_unit(game, spent);
+  if (s->orders != UNITS_ORDER_NONE || game->units.selected_id < 0 ||
+      game->units.selected_id == spent || game->view_pieces_mode) {
+    fprintf(stderr, "  orders %d selected %d view %d\n", s->orders, game->units.selected_id,
+            game->view_pieces_mode);
+    rc = fail("spent unit's order clears and the next pending unit takes control");
+  }
+  game_destroy(game);
+  return rc;
+}
+
+/*
  * docs/hotseat.md: original_saves/hotseat/hotseat_1522.sav was written by DOS with England at
  * the controls (DS:0x5394 = 0) and France fixed (DS:0x5398 = 1), both control 0, bit 0x80. The
  * load resumes at DS:0x5398 with @MULTINEXT (FUN_130d_0290 raw 6367), and the port's re-save
@@ -2196,6 +2257,7 @@ static const TestCase k_cases[] = {
     {"test_colony_construction_page_default", test_colony_construction_page_default},
     {"test_colony_construction_two_pages_live", test_colony_construction_two_pages_live},
     {"test_indian_land_offer_row_greyed", test_indian_land_offer_row_greyed},
+    {"test_click_spent_unit_hands_off", test_click_spent_unit_hands_off},
     {"test_hotseat_dos_save_round_trip", test_hotseat_dos_save_round_trip},
     {"test_europe_unload_all_boycott_any_slot", test_europe_unload_all_boycott_any_slot},
 };
