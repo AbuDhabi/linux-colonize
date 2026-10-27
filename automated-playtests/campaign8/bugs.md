@@ -125,3 +125,4 @@ Check docs/dos_bugs.md and docs/known_divergences.md before filing.
 - Cycle helper used `key e` to leave Europe. On the main map `e` opens Europe,
   so every cycle reopened it and the turn stalled. Use `key Escape` (driver
   refuses it on the main map, harmless) or `europe`-screen only commands.
+## CN8-O21 (oddity): artillery goto to Plymouth (40,30) refused; (39,30) accepted (1791)

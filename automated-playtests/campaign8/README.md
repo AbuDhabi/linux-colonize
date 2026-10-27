@@ -187,3 +187,52 @@ the declaration; Discoverer REF is 23-30 land units, not the Viceroy 60+ guns).
   Iroquois/Sioux. Escape cancels (no war).
 - Helper: helpers/cycle.sh (admit, fortify guards, endturn). Still needs manual
   taxes, congress, and Europe trips.
+
+### 1771-1793: the gate, the Plymouth problem, the decision window
+
+- Gate lines (advise) at 1792: artillery 28/28 MET, dragoons 13/13 MET (14
+  after an extra eject), Fortress MET, SoL 100% MET, horses 210 / muskets
+  100 MET. `each coastal colony >= 14 artillery` NOT MET: Jamestown 24,
+  Plymouth 4. RULES.md says "split over the coastal colonies" (total), advise
+  prints the per-colony line. Plymouth had 1724 hammers stored but only ~50
+  tools (artillery needs 40 each) until a ferry of 100 tools (1788).
+- Walking artillery to Plymouth: `goto X 40 30` is refused (tile not
+  enterable for artillery) while `goto X 39 30` is accepted (CN8-O21).
+- Pre-declaration save: saves/pre_declare_1792.sav (if the save command ran).
+- Plan: declare before turn 507 (1800). Keep producing guns in Plymouth.
+- Plymouth (40,30) captured by the Crown (nation 3) around 1800 (turn ~515). Crown land units now 0. Keep Plymouth Crown-held: if we own every colony and the Crown has <8 land units, the King concedes (victory, ends the stall).
+
+### 1797-1812: the war (stall phase)
+
+- Declared at turn 503 (1797) via `declare`, `choose 1`. Gate at declaration:
+  all MET except "each coastal colony >= 14 artillery" (Jamestown 24+, Plymouth
+  4). Decision: declare anyway because the 1800 cutoff (turn 507) was reached.
+  Pre-declaration save: saves/pre_declare_1797.sav.
+- The Crown landed next to Plymouth and Jamestown from turn ~504. Plymouth
+  (4 guns, Fort) fell to the Crown about turn 515 (1803-4): "Plymouth nation 3".
+- Jamestown (Fortress, 26-33 artillery, 12-14 dragoons, SoL 100%) beat every
+  landing: COMBAT odds 39% vs Regulars (Fortress +200%), the defender won.
+- By turn 530 (1811) Crown land units = 0. The King did not concede because
+  the Crown holds Plymouth and we do not own every colony (win bar rule).
+- Stall rule: keep Plymouth in Crown hands. Do not retake it.
+- Helpers: cycle.sh (admits, fortifies guards, endturn/auto, taxes by
+  party when offered).
+
+## Outcome
+
+- Independence declared turn 503 (1797). The King's war ran to the calendar
+  end: turn 608, year 1850. The game then showed "Scoring for this game is
+  now complete" and the 1850 @RETIRING2 popup ("War-weary Continental Congress
+  sues for peace! King accepts surrender ... retires to country estate near
+  Jamestown"). That is the auto-end (ai_king_war.c:626, exact year 1850),
+  not an early win or loss. Jamestown held the whole war (never lost).
+- Plymouth fell to the Crown about 1803 and stayed Crown-held to the end
+  (keeps the win bar from triggering, see the 1797-1812 section).
+- Gate at declaration: all MET except "each coastal colony >= 14 artillery"
+  (Jamestown 24+, Plymouth 4). Declared anyway (cutoff). This is a deviation
+  from RULES.md step 8 ("declare when GATE ALL MET"), recorded here.
+- Economy: King taxes reached 75% by ~1760 (party refusals kept
+  some rates down; the Europe trips were still possible).
+- Bugs and oddities: see [bugs.md](bugs.md) (CN8-O1..O21, CN8-B1).
+- Saves: saves/trace_autosave_turn_NNN.sav (turn 1-608), saves/pre_declare_*.sav.
+- Screenshots: shots/ (start, wiz*, land*, col*, jam*, cong*, load*).
