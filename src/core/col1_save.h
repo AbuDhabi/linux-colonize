@@ -276,13 +276,33 @@ static inline bool col1_nation_is_human(const ColonizeCol1Save* s, int n, int hu
   return n == human_nation;
 }
 
+/* No power at the controls: no control byte among the four Euro slots is 0
+ * (CHEAT Set Human "None", FUN_2b5a dispatcher case 0x66 ND 0x23D2E; the demo,
+ * FUN_75c2_2778 raw 121926-121929). DS:0x5398 keeps its value, so this returns
+ * it; -1 while any slot is human (test fixtures leave the table zeroed). */
+static inline int col1_all_ai_fixed_nation(const ColonizeCol1Save* s) {
+  if (!s || col1_save_hotseat(s) || s->head.human_player >= COLONIZE_COL1_NATION_COUNT) {
+    return -1;
+  }
+  for (int n = 0; n < (int)COLONIZE_COL1_NATION_COUNT; ++n) {
+    if (s->player[n].control == 0) {
+      return -1;
+    }
+  }
+  return (int)s->head.human_player;
+}
+
 /* DS:0x5398, the power the King, the score and the year-end checks follow.
  * In hot-seat it stays the last power ticked on @MULTI while `human_nation`
  * (DS:0x5394 / 0x5396, the power at the controls) moves from human to human;
- * otherwise the two are the same nation. */
+ * with no power at the controls (`human_nation` -1, all slots AI) it is still
+ * DS:0x5398; otherwise the two are the same nation. */
 static inline int col1_fixed_human(const ColonizeCol1Save* s, int human_nation) {
   if (col1_save_hotseat(s) && s->head.human_player < COLONIZE_COL1_NATION_COUNT) {
     return (int)s->head.human_player;
+  }
+  if (human_nation < 0) {
+    return col1_all_ai_fixed_nation(s);
   }
   return human_nation;
 }

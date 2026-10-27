@@ -106,8 +106,10 @@ All Movement can be ticked but show nothing.
 - Every nation that had left the game is put back under computer control, as
   in DOS. That includes nations removed by the War of the Spanish Succession or
   by your declaration of independence.
-- **None** does nothing in OpenCol. In DOS it handed every nation to the computer
-  and could run the game unattended. OpenCol does not have that mode yet.
+- **None** hands every nation to the computer, then asks "Automate game?".
+  **Yes** runs the game unattended and follows your old nation's units. Click
+  to stop at the end of the day. **No** lets you watch one turn at a time. Pick
+  a nation again to take over.
 
 ### Kill Indians (Shift-F6)
 

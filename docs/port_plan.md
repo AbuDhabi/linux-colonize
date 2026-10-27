@@ -29,9 +29,8 @@ deferred AI track is **done** (D1 closed 2026-09-07g, D2 closed at logic level
   review that day filed and fixed #1273-#1286); the pending-verification archive was emptied
   into [archive/bugs_closed.md](archive/bugs_closed.md) the same day.
 
-What is left is small and listed under "Remaining work" below (the hidden
-demo autoplay mode and colony-screen keyboard focus), plus the deferred polish
-phase **D4** (pixel chrome).
+What is left is small and listed under "Remaining work" below (colony-screen
+keyboard focus), plus the deferred polish phase **D4** (pixel chrome).
 
 ## Remaining work (2026-10-26)
 
@@ -39,12 +38,12 @@ Not bugs in shipped features. Each is a known, bounded gap. Closed
 2026-10-26: the ally-pick prompt (#1287), DOS `HALLFAME.DAT` (#1289), the
 dead Pillage arm (deleted) and the Euro AI deferred-band tail + stance
 census operands (#1291), and hot-seat multiplayer, ported for save
-interop (#1290, [hotseat.md](hotseat.md)).
+interop (#1290, [hotseat.md](hotseat.md)). Closed 2026-10-27: the demo and
+autoplay (DS:0x828 / 0x826, [demo.md](demo.md)).
 
 | Item | What is missing | Where |
 |------|-----------------|-------|
 | [port_bugs.md](port_bugs.md) | OPEN rows | — |
-| Demo autoplay (DS:0x828) | Hidden DOS mode, not ported. The flag is set in `FUN_1262` on keys 0x12d / 0x110. It drives the `FUN_130d_0290` tail (every 12th turn, splash ids 14-25 via DS:0x150) and the `FUN_130d_019e` chain-exec. About 20 other sites test it to skip human-only UI. Never traced live, so what it is for is a static read only | [turn_between_players.md](turn_between_players.md), `col1_save_layout.h` `unknown05`, `sound.c` tune arm |
 | Colony-screen keyboard focus | DOS Tab cycles the DS:0x32e focus panel (`FUN_2f2b` raw 55535-55545: skips panel 2 when DS:0x33c is 0, panel 3 unless a unit is selected) and the per-panel cursor keys move inside it. The port moves focus only on clicks | [colony_screen.md](colony_screen.md) "F1 on the bare screen", `game_loop_update.c` |
 
 **Old citations.** `port_plan P<n>.<m>`, the old "How an agent should use this

@@ -658,6 +658,11 @@ static int case_cheat_create_unit_is_dos(void) {
       !cheat_list_open_set_human(&dlg, &dbg) || dlg.mss != 3) {
     rc = fail("@SETVIEW / @SETHUMAN lost the MSS3 latch");
   }
+  /* "None" -> @SETAUTO: FUN_1000_8b88 row 1 = Yes sets DS:0x826 (ND 0x23D77). */
+  if (!cheat_list_open_set_auto(&dlg, &dbg) || dlg.kind != CHEAT_LIST_KIND_SET_AUTO ||
+      dlg.option_count != 2 || dlg.option_ids[0] != 1 || dlg.option_ids[1] != 2 || dlg.mss != 3) {
+    rc = fail("@SETAUTO list");
+  }
   font_file_free(&font);
   assets_msg_free(&dbg);
   return rc;

@@ -246,6 +246,22 @@ struct ColonizeGameState {
   OpeningCinematic opening;
   bool opening_just_opened;
   /*
+   * Autoplay and the self-running demo (game_loop_demo.c, docs/demo.md).
+   * `autoplay` = DS:0x826 (CHEAT Set Human "None" + @SETAUTO Yes, or the demo),
+   * `demo` = DS:0x828 (argv -D), `demo_end` = DS:0x82b, `demo_splash` = DS:0x150.
+   */
+  bool autoplay;
+  bool demo;
+  bool demo_end;
+  bool demo_end_due;     /* the year tail found the cycle over (130d_0290 raw 6494-6500) */
+  bool demo_quit;        /* a non-J key at a 6d8e pass top: save slot 5, then exit */
+  bool autoplay_clicked; /* a click while autoplay ran (130d_0290 raw 6427-6432) */
+  int demo_pending_key;  /* a key or click (0x1b) waiting for the next demo test */
+  int demo_splash;
+  uint32_t demo_cycle_start_ms;
+  uint32_t demo_screen_until_ms; /* a demo colony / Europe view closes at this time */
+  uint32_t autoplay_wait_ms;     /* a dialog under autoplay is answered at this time */
+  /*
    * Milestone woodcut screens (FUN_12fd_006c → FUN_6f30_0062). Trigger sites
    * call woodcut_fire(); the queue is drained here once no other modal owns
    * the screen, so a woodcut armed deep inside turn processing still shows.
@@ -497,6 +513,8 @@ void game_end_to_title(ColonizeGameState* game);
 void game_end_after_loss(ColonizeGameState* game);
 void game_reveal_sight_for_unit(ColonizeGameState* game, const ColonizeUnit* u);
 bool game_save_col1_slot(ColonizeGameState* game, int slot, char* err, size_t err_size);
+/* Every Euro control byte := 1, Europe mirror flushed and reloaded (game_loop_saveload.c). */
+bool game_set_all_ai(ColonizeGameState* game, char* err, size_t err_size);
 /* FUN_130d_0172 slot 8/9 autosave: capture + col1_bridge_stamp_autosave_head. */
 bool game_save_col1_autosave_slot(ColonizeGameState* game, int slot, char* err, size_t err_size);
 /* Same capture, arbitrary file name inside the save dir (trace autosaves). */

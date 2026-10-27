@@ -152,6 +152,16 @@ bool new_game_begin(
   const ColonizeMsgCatalog* names_txt
 );
 
+/* The demo's prompt-free New World start (DS:0x828): difficulty 2, `nation`,
+ * the default leader, straight to the sail pages. */
+bool new_game_begin_demo(
+  NewGameWizard* ng,
+  const char* data_dir,
+  const ColonizeMsgCatalog* game_txt,
+  const ColonizeMsgCatalog* names_txt,
+  int nation
+);
+
 void new_game_cancel(NewGameWizard* ng);
 
 /* Returns true if input was consumed. */

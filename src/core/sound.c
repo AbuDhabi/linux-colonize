@@ -88,6 +88,7 @@ typedef struct SoundState {
   uint32_t pick_rng; /* DOS reseeds from DS:0x83a8 around each pick; private LCG here */
   bool preview_active; /* Pick Music: selection plays immediately (FUN_281f_04c0) */
   bool cinematic; /* OPENING/CLOSING cue owns the driver (separate EXEs in DOS) */
+  bool demo;      /* DS:0x828: the self-running demo (argv -D) */
   double samples_to_tick; /* audio frames left before the next PIT tick */
 
   SoundSong decoded; /* one-entry cache for the offline event API */
@@ -813,17 +814,21 @@ static int sound_pick_next_tune_id(void) {
    *   if (DS:0x828)          { base=1;  count=24; }
    *
    * The port keeps the peacetime arm (1-in-9, not the 1-in-8 this used to
-   * roll). The WoI arm (DS:0x5382 bit0) and the demo-autoplay arm (DS:0x828)
-   * have no input here: sound.c is a leaf module with no game state, and at
-   * the one moment the WoI default would matter the port already selects the
-   * same pool explicitly via sound_set_bgm(3) (ai_king.c, FUN_43f7_10f0
-   * 43f7:145b). Wire a flag in if a demo/attract mode ever lands.
+   * roll). The WoI arm (DS:0x5382 bit0) has no input here: sound.c is a leaf
+   * module with no game state, and at the one moment the WoI default would
+   * matter the port already selects the same pool explicitly via
+   * sound_set_bgm(3) (ai_king.c, FUN_43f7_10f0 43f7:145b). The demo arm
+   * reads the flag sound_set_demo stores.
    */
   int base = 1;
   int count = 12;
   if (sound_pick_rand(9) == 0) {
     base = 13;
     count = 11;
+  }
+  if (g_sound.demo) {
+    base = 1;
+    count = 24;
   }
   switch (g_sound.category) {
     case 1: base = 1; count = 7; break;   /* map: calm tunes */
@@ -1038,6 +1043,15 @@ void sound_set_bgm(int track) {
 }
 
 /* True while the port's in-process OPENING/CLOSING cinematic is on screen. */
+void sound_set_demo(bool active) {
+  if (!g_sound.inited) {
+    return;
+  }
+  pthread_mutex_lock(&g_sound.lock);
+  g_sound.demo = active;
+  pthread_mutex_unlock(&g_sound.lock);
+}
+
 void sound_set_cinematic(bool active) {
   if (!g_sound.inited) {
     return;

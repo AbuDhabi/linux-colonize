@@ -439,6 +439,20 @@ bool cheat_list_open_set_human(CheatListDialog* dlg, const ColonizeMsgCatalog* d
   return cheat_list_fill_from_section(dlg, section, k_fallback_ids, 5);
 }
 
+bool cheat_list_open_set_auto(CheatListDialog* dlg, const ColonizeMsgCatalog* debug_txt) {
+  static const int k_ids[] = {1, 2};
+  const ColonizeMsgSection* section = debug_txt ? assets_msg_find(debug_txt, "SETAUTO") : NULL;
+  if (!dlg || !section) {
+    return false;
+  }
+  cheat_list_init(dlg);
+  dlg->has_result = false;
+  dlg->kind = CHEAT_LIST_KIND_SET_AUTO;
+  dlg->mss = 3; /* DS:0x1f5e still 3 from @SETHUMAN (ND 0x23d06) */
+  dlg->width = 190;
+  return cheat_list_fill_from_section(dlg, section, k_ids, 2);
+}
+
 bool cheat_list_open_debug_flags(
   CheatListDialog* dlg,
   const ColonizeMsgCatalog* debug_txt,

@@ -362,7 +362,9 @@ static bool game_reload_live_col1(ColonizeGameState* game, char* err, size_t err
   const bool ok = game_load_col1_loaded(game, &moved, err, err_size);
   s_rebinding = false;
   if (ok) {
-    units_set_combat_human_nation(game->human_nation);
+    units_set_combat_human_nation(
+      col1_all_ai_fixed_nation(&game->col1) >= 0 ? -1 : game->human_nation
+    );
   }
   return ok;
 }
@@ -514,6 +516,35 @@ bool game_cheat_set_human(ColonizeGameState* game, int n, char* err, size_t err_
   if (!game_unit_selectable(game, sel)) {
     game_move_pieces_entry(game);
   }
+  return true;
+}
+
+/*
+ * No power at the controls: CHEAT Set Human "None" (ND 0x23D2E-0x23D3E) and the
+ * demo's New World (FUN_75c2_2778 raw 121926-121929) set every control byte to 1
+ * and leave DS:0x5398 / 0x5394 / 0x5396 alone. The Europe mirror's ships and dock
+ * rows are flushed onto the records first and the save is reloaded in place, so
+ * that power's Europe units stay in the pool for the AI (col1_bridge_mirror_nation),
+ * where DOS keeps every power's.
+ */
+bool game_set_all_ai(ColonizeGameState* game, char* err, size_t err_size) {
+  if (!game || !game->col1_ok) {
+    snprintf(err, err_size, "no live game");
+    return false;
+  }
+  if (!game_capture_col1(game, err, err_size)) {
+    return false;
+  }
+  for (int i = 0; i < 4; ++i) {
+    game->col1.player[i].control = 1;
+  }
+  const ColonizeTurnProcessor keep = game->turn_proc;
+  if (!game_reload_live_col1(game, err, err_size)) {
+    return false;
+  }
+  game->turn_proc = keep;
+  game->units.selected_id = -1;
+  game->view_pieces_mode = true;
   return true;
 }
 

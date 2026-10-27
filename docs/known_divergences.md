@@ -52,7 +52,7 @@ DOS names a Euro nation via `FUN_281f_09a4` / `0a1a` (so "Rebel(s)" / "Tory/Tori
 after the declaration) in texts the port never draws: sidebar village mission-owner
 and threat lines (`FUN_49dd_0424` raw 501/516), OVL10 native-village panel
 (asm 119456-119903), Euro-vs-Euro colony burn @BURNED/@BURNED2/@BURNED3
-(`FUN_5fef_1b0e` raw 100857), @CARGOCAPTURE (asm 153592), @LOSTTHEIRSCOUTS
+(`FUN_5fef_1b0e` raw 100857), @CARGOCAPTURE (asm 153592), @LOSTTHEIRSCOUTS (dead in DOS too)
 (`FUN_5f7a_000e` raw 98871), @INDIANCOMMENT (raw 96981), Europe status line
 `FUN_38fd_1bd2` raw 60109 (no port counterpart found; `europe_dock_caption` is the
 separate 3694 site), 153e USA talk variants (asm 149562/149586/150456; see ai_diplo.c

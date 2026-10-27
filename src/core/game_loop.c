@@ -343,11 +343,22 @@ static void game_combat_analysis_present(const ColonizeCombatEngagement* eng, vo
   }
   ColonizePalette pal;
   memset(fb.pixels, 0, (size_t)fb.width * (size_t)fb.height);
+  uint32_t autoplay_waited = 0;
   while (game->combat_analysis.open) {
     ColonizeInputState input = {0};
     if (!platform_poll_input(game->platform, &input) || input.quit_requested) {
       combat_analysis_close(&game->combat_analysis);
+      game->elapsed_ms = UINT32_MAX;
       break;
+    }
+    /* Autoplay (DS:0x826): the wait gives up after 0x78 ticks. */
+    if (game->autoplay) {
+      autoplay_waited += 16u;
+      if (autoplay_waited >= GAME_AUTOPLAY_DIALOG_MS) {
+        combat_analysis_close(&game->combat_analysis);
+        break;
+      }
+      memset(&input, 0, sizeof(input));
     }
     (void)combat_analysis_handle_input(&game->combat_analysis, &input);
     game_render(game, &fb, &pal);
@@ -1092,6 +1103,7 @@ void game_combat_popup_pump(void* user) {
     return;
   }
   ColonizePalette pal;
+  uint32_t autoplay_waited = 0;
   while (ai_popup_busy(&game->ai_popups)) {
     if (!game->ai_popups.open && game->ai_popups.has_result) {
       /* A result is mid-application up-stack (its handler called into combat
@@ -1125,7 +1137,17 @@ void game_combat_popup_pump(void* user) {
     }
     ColonizeInputState input = {0};
     if (!platform_poll_input(game->platform, &input) || input.quit_requested) {
+      game->elapsed_ms = UINT32_MAX;
       break;
+    }
+    /* Autoplay (DS:0x826): FUN_6f74_2580 gives up after 0x78 ticks. */
+    if (game->autoplay) {
+      memset(&input, 0, sizeof(input));
+      autoplay_waited += 16u;
+      if (autoplay_waited >= GAME_AUTOPLAY_DIALOG_MS) {
+        autoplay_waited = 0;
+        input.last_key = COLONIZE_KEY_ENTER;
+      }
     }
     if (game->ai_popups.open) {
       ai_popup_handle_input(&game->ai_popups, &input);

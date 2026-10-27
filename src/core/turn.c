@@ -161,8 +161,11 @@ void turn_refresh_moves_for_nation_w(
      * the one place that resolution lives (head.human_player preferred when
      * it agrees with the control table); turn_processor_advance's own
      * units_set_combat_human_nation(ctx->human_nation) is authoritative and
-     * this must not contradict it. */
-    units_set_combat_human_nation(col1_save_human_nation(col1));
+     * this must not contradict it. With no power at the controls the
+     * fallback is DS:0x5398, which is not human then. */
+    units_set_combat_human_nation(
+      col1_all_ai_fixed_nation(col1) >= 0 ? -1 : col1_save_human_nation(col1)
+    );
   }
   /* Native settlement fallout (FUN_5fef_31ea-shaped). Gold amount unknown. */
   units_set_native_fallout_context(
@@ -424,9 +427,19 @@ static bool turn_slot_is_other_human(const ColonizeTurnContext* ctx, int nation_
          col1_nation_is_human(ctx->col1, nation_id, ctx->human_nation);
 }
 
+/* No power at the controls (CHEAT Set Human "None", the demo): DS:0x5398's
+ * slot, which keeps the human's place in the pipeline and runs as an AI slot
+ * from TURN_PROC_FINISH (turn_step_all_ai_anchor). -1 while anyone is human. */
+static int turn_all_ai_slot(const ColonizeTurnContext* ctx) {
+  if (!ctx || ctx->human_nation >= 0 || !ctx->col1_ok) {
+    return -1;
+  }
+  return col1_all_ai_fixed_nation(ctx->col1);
+}
+
 static bool turn_euro_ai_should_run(const ColonizeTurnContext* ctx, int nation_id) {
   if (!ctx || nation_id < 0 || nation_id >= 4 || nation_id == ctx->human_nation ||
-      turn_slot_is_other_human(ctx, nation_id)) {
+      nation_id == turn_all_ai_slot(ctx) || turn_slot_is_other_human(ctx, nation_id)) {
     return false;
   }
   if (turn_euro_nation_is_ref(ctx, nation_id)) {
@@ -475,7 +488,10 @@ static void turn_enter_slot(ColonizeTurnProcessor* proc, const ColonizeTurnConte
  * pass that follows. No human slot (headless sims) keeps Indians first.
  */
 static int turn_human_slot(const ColonizeTurnContext* ctx) {
-  return (ctx && ctx->human_nation >= 0 && ctx->human_nation < 4) ? ctx->human_nation : -1;
+  if (ctx && ctx->human_nation >= 0 && ctx->human_nation < 4) {
+    return ctx->human_nation;
+  }
+  return turn_all_ai_slot(ctx);
 }
 
 /* Next Euro AI slot strictly above the human (pre-Indian pass), or -1. */
@@ -668,9 +684,9 @@ COLONIZE_INTERNAL void turn_step_setup(ColonizeTurnProcessor* proc, ColonizeTurn
       }
 }
 
-COLONIZE_INTERNAL void turn_step_euro(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx) {
-      const int n = proc->nation_cursor;
-      diag_info("TURN european nation %d%s", n, n == ctx->human_nation ? " (human)" : "");
+/* Slot n's FUN_3844_00f2 (0644): unit walk, its colony EOT, census and the
+ * 2424 SoL cache. TURN_PROC_EURO runs it for every AI slot. */
+static void turn_euro_slot_eot(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx, int n) {
       proc->show_indicator = true;
       turn_set_active_nation(ctx, n);
       if (ctx->units) {
@@ -730,6 +746,12 @@ COLONIZE_INTERNAL void turn_step_euro(ColonizeTurnProcessor* proc, ColonizeTurnC
           }
         }
       }
+}
+
+COLONIZE_INTERNAL void turn_step_euro(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx) {
+      const int n = proc->nation_cursor;
+      diag_info("TURN european nation %d%s", n, n == ctx->human_nation ? " (human)" : "");
+      turn_euro_slot_eot(proc, ctx, n);
       if (turn_euro_nation_is_ref(ctx, n)) {
         /* DOS per-slot order (raw 6394/6407): king beat (00f2→2424→2022,
          * wave spawn + bookkeeping) first, then the full euro turn moves
@@ -834,8 +856,52 @@ COLONIZE_INTERNAL void turn_step_indian(ColonizeTurnProcessor* proc, ColonizeTur
       }
 }
 
+/* FUN_130d_0172: exactly one slot — decade Spring (year%10==0, autumn==0,
+ * turn>2) goes to slot 8, every other autosave to 9. */
+static void turn_request_autosave(ColonizeTurnProcessor* proc, const ColonizeTurnContext* ctx) {
+  if (!turn_option_autosave(ctx->col1, ctx->col1_ok)) {
+    return;
+  }
+  if ((*ctx->game_year % 10u) == 0u && *ctx->game_autumn == 0 && *ctx->turn_number > 2u) {
+    proc->result.request_autosave_decade = true;
+  } else {
+    proc->result.request_autosave_turn = true;
+  }
+}
+
+/*
+ * No power at the controls (turn_all_ai_slot): DS:0x5398's slot runs as an AI
+ * slot, FUN_130d_0290 raw 6400-6408: 0644 (00f2), then 0638 (6d8e), with no
+ * merc offer and no Move Pieces. Its 2424 still takes the King arms, which
+ * test `param_1 == *0x5398` (raw 75160), not the control byte; the port's
+ * King slices read ctx->human_nation for that slot, so it is lent to them
+ * for the call. The AI arm autosaves at that slot (raw 6403-6404, before
+ * 6d8e); the port's saves run once the pipeline is idle, so after it.
+ */
+static void turn_step_all_ai_anchor(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx, int n) {
+  diag_info("TURN european nation %d (no power at the controls)", n);
+  turn_euro_slot_eot(proc, ctx, n);
+  ctx->human_nation = n;
+  ai_king_human_2022_beat(ctx);
+  ai_king_nation_turn_2424(ctx);
+  ctx->human_nation = -1;
+  ai_euro_nation_turn(ctx, n);
+  proc->show_indicator = false;
+  turn_set_active_nation(ctx, n);
+  turn_request_autosave(proc, ctx);
+  turn_finish_status(ctx, &proc->result);
+  proc->step = TURN_PROC_IDLE;
+}
+
 /* Body of TURN_PROC_FINISH up to its early `return true;`. */
 COLONIZE_INTERNAL void turn_step_finish(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx) {
+      {
+        const int anchor = turn_all_ai_slot(ctx);
+        if (anchor >= 0) {
+          turn_step_all_ai_anchor(proc, ctx, anchor);
+          return;
+        }
+      }
       /*
        * Indicator ON for this slice. FUN_3844_00f2's very first act (raw
        * 58323) is FUN_281f_0590(nation_color[DS:0x5394]) → FUN_1984_00aa, and
@@ -1004,16 +1070,7 @@ COLONIZE_INTERNAL void turn_step_king(ColonizeTurnProcessor* proc, ColonizeTurnC
        * human arm, and FUN_2b5a_3b68 (raw 46831-46833) opens Move Pieces with
        * 0x5392 = 0xffff before picking. game_finish_end_turn does both after
        * its autosave, so the file carries DS:0x5392 as DOS has it then. */
-      if (turn_option_autosave(ctx->col1, ctx->col1_ok)) {
-        /* FUN_130d_0172: exactly one slot — decade Spring (year%10==0,
-         * autumn==0, turn>2) goes to slot 8, every other autosave to 9. */
-        if ((*ctx->game_year % 10u) == 0u && *ctx->game_autumn == 0 &&
-            *ctx->turn_number > 2u) {
-          proc->result.request_autosave_decade = true;
-        } else {
-          proc->result.request_autosave_turn = true;
-        }
-      }
+      turn_request_autosave(proc, ctx);
       turn_finish_status(ctx, &proc->result);
       diag_info(
         "turn_end: turn=%u year=%u autumn=%u colonies=%d shortages=%d immigrants=%d",
@@ -1074,7 +1131,7 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
       break;
     case TURN_PROC_FINISH:
       turn_step_finish(proc, ctx);
-      return true;
+      return proc->step != TURN_PROC_IDLE;
     case TURN_PROC_KING:
       turn_step_king(proc, ctx);
       return false;

@@ -23,6 +23,8 @@ typedef struct ColonizeGameConfig {
   bool show_building_rects_set;
   bool debug_logs;
   bool debug_logs_set;
+  /* DS:0x828, the self-running demo (argv -D; COLDEMO.BAT runs "opening -d:0"). */
+  bool demo;
 } ColonizeGameConfig;
 
 typedef struct ColonizeGameState ColonizeGameState;

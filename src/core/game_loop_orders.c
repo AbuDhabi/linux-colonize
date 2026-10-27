@@ -123,6 +123,9 @@ bool game_unit_selectable(const ColonizeGameState* game, const ColonizeUnit* u) 
   if (!game || !u || !u->active || u->nation_id != game->human_nation || u->moves <= 0) {
     return false;
   }
+  if (game->col1_ok && col1_all_ai_fixed_nation(&game->col1) >= 0) {
+    return false; /* no power at the controls: the AI owns every unit */
+  }
   if (units_is_on_map(u)) {
     return true;
   }

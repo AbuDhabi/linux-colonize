@@ -29,6 +29,8 @@ CLI wins over `settings.json`, which wins over the default:
 | `--nosound` | — | Disable audio | `no_sound` |
 | `--seed N` | — | Fixed RNG seed (debug; like VR_SEED; `0` is valid) | `seed` (`null` / omit = unset) |
 | `--debug-menu` / `--no-debug-menu` | off | DEBUG pulldown on the map navbar | `debug.menu` |
+| `-K` | — | Hot-seat: the nation picker's hidden fifth cell ([hotseat.md](hotseat.md)); also env `COLONIZE=MULTI` | — |
+| `-D` (or `-d:0`) | — | Self-running demo, as `COLDEMO.BAT` ([demo.md](demo.md)). A key quits and saves slot 5; `J` restarts the cycle | — |
 
 ## Music
 

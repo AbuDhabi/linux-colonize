@@ -1629,6 +1629,7 @@ void game_water_cycle_tick(ColonizeGameState* game) {
 /* Field defaults and the subsystem init calls (dialogs, pools, atlas). */
 static void game_create_reset_fields(ColonizeGameState* game, const ColonizeGameConfig* config) {
   game->config = *config;
+  game->demo = config->demo;
   game->ff_pedia_after_report = -1;
   game->found_open_colony_id = -1;
   game->tired_ok_unit = -1;
@@ -2174,6 +2175,7 @@ void game_destroy(ColonizeGameState* game) {
   units_set_combat_watch(NULL, NULL);
   units_set_combat_dissolve(NULL, NULL);
   units_set_combat_popup_pump(NULL, NULL);
+  ai_euro_set_watch(NULL, NULL);
   units_set_spawn_gate_hook(NULL, NULL);
   units_set_spawn_refused_hook(NULL);
   ai_set_native_score_plot(NULL, NULL);
@@ -2542,6 +2544,7 @@ void game_commit_new_campaign(ColonizeGameState* game) {
       game_set_view_center(game, u->x, u->y);
     }
   }
+  game_demo_after_new_campaign(game);
   snprintf(
     game->status,
     sizeof(game->status),

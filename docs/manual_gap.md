@@ -179,8 +179,8 @@ Every manual feature that exists in the shipped DOS game is ported (re-rated
 2026-10-26; no row is Partial or Missing). "Done thin" rows are behaviourally
 correct with port-drawn presentation, which is deferred phase D4. Gaps below
 this table's granularity are listed in [port_plan.md](port_plan.md)
-"Remaining work" (the hidden DS:0x828 demo autoplay, colony-screen Tab /
-cursor-key focus). The hidden DOS hot-seat
+"Remaining work" (colony-screen Tab / cursor-key focus). The hidden demo and
+autoplay (argv `-D`, CHEAT Set Human "None") are ported ([demo.md](demo.md)). The hidden DOS hot-seat
 mode is ported ([hotseat.md](hotseat.md)).
 
 ## See also

@@ -52,6 +52,14 @@ int ai_euro_env_flag(const char* name, int dflt) {
 }
 
 
+static AiEuroWatchFn s_watch_fn;
+static void* s_watch_user;
+
+void ai_euro_set_watch(AiEuroWatchFn fn, void* user) {
+  s_watch_fn = fn;
+  s_watch_user = user;
+}
+
 /* Sticky anti-spin stand-ins for DS:0x2d12 / DS:0x2d14. */
 static int s_sticky_unit = -1;
 static int s_sticky_count = 0;
@@ -1508,6 +1516,9 @@ static void ai_euro_dispatcher_turn_unit_waves(ColonizeTurnContext* ctx, int nat
   int guard = 0;
   do {
     any_acted = 0;
+    if (s_watch_fn) {
+      s_watch_fn(s_watch_user, nation_id, -1, AI_EURO_WATCH_PASS, false);
+    }
     for (int wave = 0; wave < 2; ++wave) {
       int wave_acted = 0;
       for (int i = units_slot_end(ctx->units) - 1; i >= 0 && !(dos_loop && wave_acted); --i) {
@@ -1587,7 +1598,17 @@ static void ai_euro_dispatcher_turn_unit_waves(ColonizeTurnContext* ctx, int nat
 
         if (getenv("PICKCTX"))
           fprintf(stderr, "ACT n%d u%d i%d t%d @%d,%d o%d p%d mp%d draw %lu\n", nation_id, u->id, (int)(u - ctx->units->units), u->type_index, u->x, u->y, u->orders, u->col1_ai_plan, u->moves, dos_rng_draw_count());
+        const int act_id = u->id;
+        if (s_watch_fn) {
+          s_watch_fn(s_watch_user, nation_id, act_id, AI_EURO_WATCH_BEFORE_ACT, false);
+        }
         ai_euro_unit_act(ctx, u, nation_id);
+        if (s_watch_fn) {
+          s_watch_fn(
+            s_watch_user, nation_id, act_id, AI_EURO_WATCH_AFTER_ACT,
+            !u->active || u->moves <= 0 || u->x >= 128
+          );
+        }
 
         /* An act that only clears an arrived step (479b at its goal) is still
          * progress: DOS drains the unit on (independence 5->6: the crown's

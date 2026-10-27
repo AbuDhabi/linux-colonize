@@ -132,7 +132,10 @@ void game_fill_turn_context(ColonizeGameState* game, ColonizeTurnContext* ctx) {
   ctx->turn_number = &game->turn_number;
   ctx->game_year = &game->game_year;
   ctx->game_autumn = &game->game_autumn;
-  ctx->human_nation = game->human_nation;
+  /* No power at the controls (every Euro control byte 1): the sim sees no human,
+   * and DS:0x5398 stays reachable through col1_fixed_human. */
+  ctx->human_nation =
+    (game->col1_ok && col1_all_ai_fixed_nation(&game->col1) >= 0) ? -1 : game->human_nation;
   ctx->active_turn_nation = &game->active_turn_nation;
   ctx->units = game->units_ok ? &game->units : NULL;
   ctx->colonies = &game->colonies;
@@ -728,6 +731,7 @@ void game_finish_end_turn(ColonizeGameState* game, const ColonizeTurnResult* res
     game->map_cursor_y = sel->y;
     game_set_view_center(game, sel->x, sel->y);
   }
+  game_autoplay_after_turn(game);
 }
 
 /*
@@ -838,6 +842,11 @@ bool game_units_pending_orders(const ColonizeGameState* game) {
  */
 bool game_select_next_unit_awaiting_orders(ColonizeGameState* game) {
   if (!game || !game->units_ok) {
+    return false;
+  }
+  /* No power at the controls (CHEAT Set Human "None", the demo): every unit
+   * is the AI's, so nothing ever waits for orders. */
+  if (game->col1_ok && col1_all_ai_fixed_nation(&game->col1) >= 0) {
     return false;
   }
   if (!game->world_map_ok) {

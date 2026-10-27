@@ -3310,6 +3310,11 @@ static bool game_apply_popup_diplo_and_scout(ColonizeGameState* game) {
       if (u->profession == UNITS_JOB_SCOUT) { /* @JOB 0x16 Seasoned Scout */
         threshold >>= 1;
       }
+      /* raw 98851-98853: a human power at the controls (DS:0x5394, the
+       * scout's owner here) adds difficulty - 2, then FUN_281f_04ca reseeds
+       * the LCG (raw 98854) before the roll. */
+      threshold += (game->col1_ok ? (int)game->col1.head.difficulty : 0) - 2;
+      dos_rng_reseed_83a6(&game->move_rng);
       const int roll = dos_rng_range(&game->move_rng, 1, 0x24);
       if (threshold < roll) {
         game->colony_screen.multi_mode = COLONY_MULTI_UNITS; /* raw 98857: DS:0x337 = 1 */

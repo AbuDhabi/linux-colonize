@@ -1308,8 +1308,12 @@ void ai_king_nation_turn_2424(ColonizeTurnContext* ctx) {
       ai_king_1d42_royal_purse(ctx);
     }
     /* Tax roll and @KINGNEWWAR: ai_king_human_5e52_tail, earlier in 00f2. */
-    /* FUN_3844_00f2 tail: @KINGFRIGATE every 8th peacetime turn. */
-    ai_king_frigate_offer(ctx, ctx->human_nation);
+    /* FUN_3844_00f2 tail: @KINGFRIGATE every 8th peacetime turn. An AI-run
+     * DS:0x5398 slot (turn.c turn_step_all_ai_anchor) took it in its AI arm. */
+    if (!(ctx->col1_ok && ctx->col1 && ctx->human_nation >= 0 && ctx->human_nation < 4 &&
+          ctx->col1->player[ctx->human_nation].control != 0)) {
+      ai_king_frigate_offer(ctx, ctx->human_nation);
+    }
     /*
      * Peacetime Spring 1790 anniversary (year_end_chrome 0x6fe): @SOONRETIRING0
      * once before the 1800 @RETIRING. Cite: turn/year_end_chrome.md.

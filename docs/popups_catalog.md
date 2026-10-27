@@ -337,7 +337,7 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@VALOR` | Done | combat promotion ladder (`units_promote_on_win`) — Criminal/Servant ladder step, %STRING1/2 = old/new @JOB label (port_bugs.md #265) |
 | `@SCOUTCOLONY` | Done | `AI_POPUP_TAG_SCOUT_COLONY` (FUN_5f7a_000e, port_bugs.md #438) |
 | `@LOSTOURSCOUTS` | Done | FUN_5f7a_000e infiltrate-fail, human-scout branch — `game_loop.c` AI_POPUP_TAG_SCOUT_COLONY choice 2 |
-| `@LOSTTHEIRSCOUTS` | Partial | FUN_5f7a_000e infiltrate-fail, AI-scout-vs-human-colony branch (raw :98863-98873); unreachable in port — AI unit movement never calls the scout-colony menu (only the human's own `game_try_unit_move` does), so an AI scout can never infiltrate a human colony to trigger it |
+| `@LOSTTHEIRSCOUTS` | Dead | Dead in DOS: `FUN_5f7a_000e` (ND 0x5A262) sets the choice to 3 for any scout whose owner is not control 0 and returns before the infiltrate roll, so the AI-scout arm at raw 98868-98873 (`push 0x1a90`, ND 0x5A3BB) can never run. The human arm (`@LOSTOURSCOUTS`) is ported in `game_dialogs.c` |
 | `@HELLOFIRST` | Done | Euro first-contact land (`ai_diplo_153e_encounter`) |
 | `@HELLOUSA` | Not wired | USA text variant — deliberate delta (`iStack_9c`); 153e bails on `woi`, so it is unreachable |
 | `@HELLOAHOY` | Done | Euro first-contact sea |

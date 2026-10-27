@@ -205,6 +205,10 @@ static void game_finish_intro(ColonizeGameState* game) {
    * then opens the title menu on pool 5 — Natives once, then the general
    * pool (sound.h SOUND_TITLE_BGM_POOL). */
   sound_set_bgm(SOUND_TITLE_BGM_POOL);
+  /* The demo's VICEROY ("viceroy -od") takes FUN_75c2_2778's DS:0x828 arm instead. */
+  if (game->demo) {
+    game_demo_start(game);
+  }
 }
 
 bool game_try_start_intro(ColonizeGameState* game) {
@@ -212,6 +216,17 @@ bool game_try_start_intro(ColonizeGameState* game) {
     return false;
   }
   if (game->opening.open) {
+    return true;
+  }
+  /* COLDEMO.BAT always starts at OPENING ("opening -d:0"); without its art the
+   * demo goes straight to VICEROY's demo start. */
+  if (game->demo) {
+    sound_set_demo(true);
+    if (!opening_open(&game->opening, game->resolved_data_dir)) {
+      game_demo_start(game);
+      return false;
+    }
+    game->opening_just_opened = true;
     return true;
   }
   if (!settings_is_loaded()) {
@@ -475,6 +490,7 @@ COLONIZE_INTERNAL GameUpdateStep game_update_services(ColonizeGameState* game, c
   units_set_combat_watch(game_combat_watch, game);
   units_set_combat_dissolve(game_combat_dissolve, game);
   units_set_combat_popup_pump(game_combat_popup_pump, game);
+  ai_euro_set_watch(game_autoplay_watch, game);
   /* Same "arm it every frame" rule as the watches: founding and abandoning a
    * colony have to keep layer2's settlement bit current wherever they are
    * reached from (port_bugs.md — an abandoned colony kept hiding the units left
@@ -998,7 +1014,10 @@ COLONIZE_INTERNAL GameUpdateStep game_update_unit_pacer(ColonizeGameState* game,
    * player was reading a screen he can't act from. */
   const bool map_visible = !game_screen_owns_display(game) &&
     !new_game_active(&game->new_game) && !game_modal_open(game);
-  if (game->units_ok && game->world_map_ok && map_visible) {
+  /* No power at the controls: no unit is the player's (a resumed save's
+   * selected unit would otherwise run its goto here, outside the AI). */
+  const bool all_ai = game->col1_ok && col1_all_ai_fixed_nation(&game->col1) >= 0;
+  if (game->units_ok && game->world_map_ok && map_visible && !all_ai) {
     ColonizeUnit* active =
       game->units.selected_id >= 0 ? units_get(&game->units, game->units.selected_id) : NULL;
     const bool active_on_map_with_moves = active && active->active &&
@@ -3597,6 +3616,8 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
     }
   }
 
+  ColonizeInputState autoplay_scratch;
+  input = game_autoplay_filter_input(game, input, &autoplay_scratch);
   if (game->elapsed_ms == UINT32_MAX) {
     return false;
   }

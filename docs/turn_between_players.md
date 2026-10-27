@@ -174,7 +174,7 @@ Major thunks (catalog):
 | KING human refresh | return to Move Pieces | MP + select next | **Done** |
 | KING autosave | `130d_0172` | autosave flags | **Done** |
 | Year-end chrome | `3844_0442` | `turn_run_year_end_chrome` | **Done** — B/C1(+fleet+REF+map+latch)/C2/D(+auto-declare)/E(+richest), chrome thin; Hall of Fame ported (`HALLFAME.DAT`, port_bugs.md #1289; [reports_score.md](reports_score.md)) |
-| Demo autoplay | `130d` `0x828` tail | — | **Not ported** — listed in [port_plan.md](port_plan.md) "Remaining work" |
+| Demo / autoplay tail | `130d` `0x826` / `0x828` tail | `game_autoplay_after_turn` | **Done** — [demo.md](demo.md) |
 
 ### Known reshape (do not paper over)
 
@@ -224,9 +224,9 @@ broke the Dutch TURN2→3 first contact).
   **Done** thin; Hall of Fame: [reports_score.md](reports_score.md).
 - **Demo / independence splash** (`130d_019e` / `0222`): both build a
   command line and chain-exec through `FUN_130d_000a`. `0222` is the
-  DS:0x104 WoI-won exit to CLOSING.EXE, ported as `closing.c`. `019e` and
-  the `0x828` demo tail are not ported ([port_plan.md](port_plan.md)
-  "Remaining work"); thin LAB in
+  DS:0x104 WoI-won exit to CLOSING.EXE, ported as `closing.c`. `019e` (the
+  demo's "opening -od") and the `0x828` demo tail are ported
+  ([demo.md](demo.md)); thin LAB in
   [`year_loop.c`](../original_sources_annotated/turn/year_loop.c).
 - **Deep AI** (`20e6` / `2820` / `4528` / `2154` / `5fef` loot): section-mapped
   under `original_sources_annotated/ai/`. `20e6` land arms (T1.18) and `4528`

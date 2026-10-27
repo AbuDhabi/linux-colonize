@@ -488,9 +488,16 @@ static void game_apply_set_human(ColonizeGameState* game, int nation_id) {
     return;
   }
   if (nation_id < 0 || nation_id > 3) {
-    /* "None": DOS asks @SETAUTO and, on Yes, runs all-AI until a click
-     * (DS:0x826). A no-human game needs every game->human_nation indexing
-     * site guarded — parked (port_bugs.md #1172), so it does nothing. */
+    /* "None", ND 0x23D2E-0x23D7D: every control byte := 1 (DS:0x5398 and the
+     * Europe binding stay), then @SETAUTO; Yes sets DS:0x826 (autoplay until a
+     * click, game_loop_demo.c). No leaves the spectator: each day ends in a
+     * view-only Move Pieces. */
+    char err[256];
+    if (!game_set_all_ai(game, err, sizeof(err))) {
+      diag_error("Set Human None failed: %s", err);
+      return;
+    }
+    (void)cheat_list_open_set_auto(&game->cheat_list, game->debug_txt_ok ? &game->debug_txt : NULL);
     return;
   }
   char err[256];
@@ -1202,6 +1209,11 @@ void game_apply_cheat_list_result(ColonizeGameState* game) {
     game_apply_cheat_create_unit(game, id);
   } else if (kind == CHEAT_LIST_KIND_SET_HUMAN) {
     game_apply_set_human(game, id);
+  } else if (kind == CHEAT_LIST_KIND_SET_AUTO) {
+    if (id == 1) {
+      game->autoplay = true; /* DS:0x826 */
+      game->autoplay_clicked = false;
+    }
   } else if (kind == CHEAT_LIST_KIND_DEBUG_FLAGS) {
     game_apply_debug_flags(game, mask);
   } else if (kind == CHEAT_LIST_KIND_TRADE_DEST) {

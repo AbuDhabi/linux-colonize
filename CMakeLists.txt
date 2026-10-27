@@ -171,6 +171,7 @@ add_library(colonize_ui STATIC
   src/core/game_loop_orders.c
   src/core/game_loop_colony.c
   src/core/game_loop_eot.c
+  src/core/game_loop_demo.c
   src/core/game_loop_update.c
   src/core/game_dialogs.c
   src/core/game_tutorial.c

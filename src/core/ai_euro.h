@@ -11,6 +11,24 @@
 void ai_euro_dispatcher_turn(ColonizeTurnContext* ctx, int nation_id);
 
 /*
+ * Port-only watch over FUN_521d_6d8e's unit loop, where DOS reads DS:0x828
+ * (demo: a key or click at the top of every pass, raw 93203-93212) and
+ * DS:0x826 (autoplay: camera on the unit before its act, a 0x1e-tick pause
+ * after it, raw 93258-93311). The game installs it; NULL (tests, goldens)
+ * costs nothing. `unit_done`: the act left the unit gone or without MP, the
+ * case in which DOS pauses.
+ */
+typedef enum AiEuroWatchPhase {
+  AI_EURO_WATCH_PASS = 0,
+  AI_EURO_WATCH_BEFORE_ACT,
+  AI_EURO_WATCH_AFTER_ACT
+} AiEuroWatchPhase;
+typedef void (*AiEuroWatchFn)(
+  void* user, int nation_id, int unit_id, AiEuroWatchPhase phase, bool unit_done
+);
+void ai_euro_set_watch(AiEuroWatchFn fn, void* user);
+
+/*
  * FUN_4962_0018 ship probe (raw 78239-78299): reset the nation's
  * ship-pressure tallies, then per own colony clear + rescan the blockade
  * pair (+0x1b bits 0x01/0x02) and refold the tallies. DOS runs this for

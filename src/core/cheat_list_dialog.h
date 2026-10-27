@@ -35,6 +35,8 @@ typedef enum CheatListKind {
   CHEAT_LIST_KIND_CREATE_UNIT,
   /* CHEAT Set Human Player (@SETHUMAN). */
   CHEAT_LIST_KIND_SET_HUMAN,
+  /* Its "None" row's follow-up (@SETAUTO): ids 1 = Yes, 2 = No. */
+  CHEAT_LIST_KIND_SET_AUTO,
   /* CHEAT Debug Info Flags (@OPTIONS checkbox). */
   CHEAT_LIST_KIND_DEBUG_FLAGS,
   /* Unit ORDERS "Go to Port" (@SAILPORT, DOS FUN_647e_01c6 unit>=0 branch):
@@ -205,6 +207,9 @@ bool cheat_list_open_create_unit(
  * CHEAT Set Human Player (@SETHUMAN). option_ids: 0..3 nation, -1 = None.
  */
 bool cheat_list_open_set_human(CheatListDialog* dlg, const ColonizeMsgCatalog* debug_txt);
+/* DEBUG.TXT @SETAUTO "Automate game?" (FUN_2b5a dispatcher case 0x66, ND 0x23D68-0x23D7D):
+ * FUN_1000_8b88's row, 1 = Yes. No section, no dialog. */
+bool cheat_list_open_set_auto(CheatListDialog* dlg, const ColonizeMsgCatalog* debug_txt);
 
 /*
  * CHEAT Debug Info Flags (@OPTIONS checkbox). multi_select; preselect bits

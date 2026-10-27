@@ -118,6 +118,8 @@ void sound_set_bgm(int track);
  * are separate programs whose cue owns the driver.
  */
 void sound_set_cinematic(bool active);
+/* DS:0x828, the self-running demo: the tune pool's default arm is tunes 1-24. */
+void sound_set_demo(bool active);
 void sound_service(void);
 
 /* Currently playing song id (BGM/event/title), or -1 if none. Ambient BGM

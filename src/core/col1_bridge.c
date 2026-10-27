@@ -266,6 +266,13 @@ static int col1_find_human_nation(const ColonizeCol1Save* save) {
   return col1_save_human_nation(save);
 }
 
+/* The nation whose Europe units the one-nation Europe mirror takes over: the human,
+ * or nobody when no power is at the controls (col1_all_ai_fixed_nation) — then
+ * every Europe unit stays in the pool for the AI, as DOS keeps them. */
+static int col1_bridge_mirror_nation(const ColonizeCol1Save* save, int human_nation) {
+  return col1_all_ai_fixed_nation(save) >= 0 ? -1 : human_nation;
+}
+
 
 /*
  * Player-confirmed 2026-08-18 (colony_prod02 golden): a chain's stored
@@ -1395,8 +1402,9 @@ COLONIZE_INTERNAL void col1_bridge_apply_europe_lanes(Col1ApplyCtx* ctx) {
   EuropeScreen* europe = ctx->europe;
   ColonizeCol1BridgeResult* local = &ctx->local;
   bool* consumed = ctx->consumed;
-  if (europe && local->human_nation >= 0) {
-    const uint8_t n = (uint8_t)local->human_nation;
+  const int mirror_nation = col1_bridge_mirror_nation(save, local->human_nation);
+  if (europe && mirror_nation >= 0) {
+    const uint8_t n = (uint8_t)mirror_nation;
     /*
      * 228+n is the last westbound Atlantic lane, not the Europe port: the DOS
      * chain is 232+n -> 228+n -> 224+n (FUN_48d3_06ba's two
@@ -1630,7 +1638,7 @@ COLONIZE_INTERNAL Col1StageStatus col1_bridge_apply_units(Col1ApplyCtx* ctx) {
     if (col1_coord_is_europe(src->x, src->y)) {
       local->skipped_europe_units++;
       /* Human ships stay in Europe harbor UI; AI fleets stay as live Europe units. */
-      if (europe && (src->nation_id == (uint8_t)local->human_nation) &&
+      if (europe && (src->nation_id == (uint8_t)col1_bridge_mirror_nation(save, local->human_nation)) &&
           src->type >= 13 && src->type <= 18) {
         const int ti = col1_unit_type_to_runtime(units, src->type);
         const ColonizeUnitType* ut = units_type(units, ti);
@@ -1678,7 +1686,7 @@ COLONIZE_INTERNAL Col1StageStatus col1_bridge_apply_units(Col1ApplyCtx* ctx) {
        * onto the dock (what the Europe screen actually renders), not a
        * spawned off-map unit (invisible there; the old behavior). AI Europe
        * land units/fleets still spawn as live off-map units, unchanged. */
-      if (europe && src->nation_id == (uint8_t)local->human_nation) {
+      if (europe && src->nation_id == (uint8_t)col1_bridge_mirror_nation(save, local->human_nation)) {
         /* A purchased Artillery waits on the dock as an Artillery record (job
          * NONE). Rebuild the row the purchase made: @UNIT name, profession -1.
          * The job-name lookup gave it an empty name, which the push refuses. */
@@ -1963,8 +1971,8 @@ COLONIZE_INTERNAL Col1StageStatus col1_bridge_apply_units(Col1ApplyCtx* ctx) {
    * in record order, so its newest immigrant, the last record, is dock slot 0.
    * port_bugs.md #1158.
    */
-  if (europe && local->human_nation >= 0 && local->human_nation < 4 &&
-      save->head.unit_count > 0) {
+  if (europe && col1_bridge_mirror_nation(save, local->human_nation) >= 0 &&
+      local->human_nation < 4 && save->head.unit_count > 0) {
     int* rank = malloc((size_t)save->head.unit_count * sizeof(int));
     const int nd = europe->dock_count - dock0;
     const int nh = europe->harbor_ships - harbor0;
@@ -2651,7 +2659,12 @@ COLONIZE_INTERNAL Col1StageStatus col1_bridge_capture_head(Col1CaptureCtx* ctx) 
   save->stuff.y = (uint16_t)cursor_y;
   save->stuff.viewport_x = (uint16_t)view_x;
   save->stuff.viewport_y = (uint16_t)view_y;
-  save->player[human_nation].control = 0;
+  /* No power at the controls (CHEAT Set Human "None", the demo): every
+   * control byte stays 1 and DS:0x5398 keeps its value. */
+  const bool all_ai = col1_all_ai_fixed_nation(save) >= 0;
+  if (!all_ai) {
+    save->player[human_nation].control = 0;
+  }
   /* Hot-seat (docs/hotseat.md): the control table holds every human power
    * and DS:0x5398 the fixed one, so both stay as the game has them. */
   const bool hotseat = col1_save_hotseat(save);

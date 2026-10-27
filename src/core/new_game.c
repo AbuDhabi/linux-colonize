@@ -680,6 +680,29 @@ bool new_game_begin(
   return true;
 }
 
+/*
+ * FUN_75c2_235c(0) under DS:0x828 (the demo): FUN_75c2_10ae takes no prompt
+ * (raw 120568-120593: difficulty DS:0x53a6 = 2, DS:0x5398 = FUN_281f_04d4(0, 3)
+ * drawn by the caller, no leader-name field), 235c skips FUN_75c2_2324's King
+ * speech (raw 121554), and the map build still pumps the sail pages.
+ */
+bool new_game_begin_demo(
+  NewGameWizard* ng,
+  const char* data_dir,
+  const ColonizeMsgCatalog* game_txt,
+  const ColonizeMsgCatalog* names_txt,
+  int nation
+) {
+  if (!new_game_begin(ng, NEW_GAME_PATH_NEW_WORLD, data_dir, game_txt, names_txt)) {
+    return false;
+  }
+  ng->difficulty = 2;
+  ng->nation = nation & 3;
+  new_game_seed_leader_name(ng);
+  new_game_enter_sail(ng);
+  return true;
+}
+
 static void new_game_request_commit(NewGameWizard* ng) {
   ng->phase = NEW_GAME_PHASE_COMMIT;
 }

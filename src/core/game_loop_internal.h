@@ -11,6 +11,7 @@
  * the COLONIZE_INTERNAL / COLONIZE_TESTING pattern this follows.
  */
 
+#include "core/ai_euro.h"
 #include "core/dos_rng.h"
 #include "core/game_dialogs.h"
 #include "core/internal.h"
@@ -326,6 +327,20 @@ bool game_colony_cheat_key(
 bool game_colony_cheat_produce(ColonizeGameState* game, ColonizeColony* colony);
 void game_commit_new_campaign(ColonizeGameState* game);
 void game_do_end_turn(ColonizeGameState* game);
+/* Autoplay / demo (game_loop_demo.c). FUN_1c0c_0006 counts 60.877 Hz ticks;
+ * under DS:0x826 a key wait or dialog gives up after 0x78 of them
+ * (FUN_1262_0060 raw 2917-2920, FUN_6f74_2580 raw 117068-117074). */
+#define GAME_DEMO_TICKS_MS(t) ((uint32_t)((uint64_t)(t) * 1000000u / 60877u))
+#define GAME_AUTOPLAY_DIALOG_MS GAME_DEMO_TICKS_MS(0x78u)
+void game_autoplay_watch(
+  void* user, int nation_id, int unit_id, AiEuroWatchPhase phase, bool unit_done
+);
+const ColonizeInputState* game_autoplay_filter_input(
+  ColonizeGameState* game, const ColonizeInputState* input, ColonizeInputState* scratch
+);
+void game_autoplay_after_turn(ColonizeGameState* game);
+void game_demo_start(ColonizeGameState* game);
+void game_demo_after_new_campaign(ColonizeGameState* game);
 bool game_end_turn_prompt_active(const ColonizeGameState* game);
 void game_enqueue_war_scored_choice(ColonizeGameState* game);
 void game_enter_colony_at_cursor(ColonizeGameState* game);

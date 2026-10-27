@@ -567,6 +567,77 @@ static int case_hotseat_slot_order(void) {
   return ctx.human_nation == 0 ? 0 : 1;
 }
 
+/*
+ * No power at the controls (CHEAT Set Human "None", the demo): every control
+ * byte 1, DS:0x5398 = Spain, ctx.human_nation -1. Spain keeps the human's place
+ * in the pipeline and runs as an AI slot from FINISH (FUN_130d_0290 raw
+ * 6400-6408): Dutch, the day and the Indians, England, France, then Spain.
+ */
+static int case_all_ai_slot_order(void) {
+  fx_begin();
+  ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
+    col1.head.founding_father[i] = -1;
+  }
+  col1.head.crown_nation_id = -1;
+  for (int n = 0; n < 4; ++n) {
+    col1.player[n].control = 1;
+  }
+  col1.head.human_player = 2;
+  if (col1_all_ai_fixed_nation(&col1) != 2 || col1_fixed_human(&col1, -1) != 2) {
+    fprintf(stderr, "all-AI fixed nation should be DS:0x5398\n");
+    return 1;
+  }
+  uint32_t turn = 1;
+  uint16_t year = 1492;
+  uint16_t autumn = 0;
+  int active = -1;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.messages = test_game_txt();
+  ctx.names = test_names_txt();
+  ctx.turn_number = &turn;
+  ctx.game_year = &year;
+  ctx.game_autumn = &autumn;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.human_nation = -1;
+  ctx.active_turn_nation = &active;
+  ColonizeTurnProcessor proc;
+  turn_processor_start(&proc);
+  int order[8];
+  int count = 0;
+  int last = -1;
+  uint16_t year_at_england = 0;
+  while (turn_processor_advance(&proc, &ctx)) {
+    if (active >= 0 && active < 4 && active != last && count < 8) {
+      order[count++] = active;
+      if (active == 0) {
+        year_at_england = year;
+      }
+    }
+    last = active;
+  }
+  if (active >= 0 && active < 4 && active != last && count < 8) {
+    order[count++] = active;
+  }
+  const int want[4] = {3, 0, 1, 2};
+  if (count != 4 || memcmp(order, want, sizeof(want)) != 0 || year_at_england != 1493 ||
+      ctx.human_nation != -1 || proc.handoff_pending || proc.step != TURN_PROC_IDLE) {
+    fprintf(stderr, "all-AI order:");
+    for (int i = 0; i < count; ++i) {
+      fprintf(stderr, " %d", order[i]);
+    }
+    fprintf(stderr, " (england at %u, human %d, step %d)\n", (unsigned)year_at_england,
+            ctx.human_nation, (int)proc.step);
+    return 1;
+  }
+  /* One human slot back: the table is single-player again. */
+  col1.player[2].control = 0;
+  return col1_all_ai_fixed_nation(&col1) == -1 && col1_fixed_human(&col1, 2) == 2 ? 0 : 1;
+}
+
 /* Carpenter workplace + Stockade project completes via free production ticks. */
 static int case_carpenter_stockade(void) {
   fx_begin();
@@ -6839,6 +6910,7 @@ static int case_produce_seam_lumber(void) {
 static const TestCase k_cases[] = {
   {"calendar", case_calendar},
   {"hotseat_slot_order", case_hotseat_slot_order},
+  {"all_ai_slot_order", case_all_ai_slot_order},
   {"free_production", case_free_production},
   {"turn_end_calendar", case_turn_end_calendar},
   {"next_unit_selection", case_next_unit_selection},
