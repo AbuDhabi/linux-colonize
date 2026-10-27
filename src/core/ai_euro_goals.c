@@ -30,6 +30,7 @@
 #include "core/colony_production.h"
 #include "core/col1_save.h"
 #include "core/combat_strength.h"
+#include "core/dos_buggy.h"
 #include "core/dos_rng.h"
 #include "core/europe.h"
 #include "core/founding_fathers.h"
@@ -1830,7 +1831,11 @@ static void ai_euro_5952_equip_arm(
   if (last_slot > COLONIZE_COLONY_POP_MAX) {
     last_slot = COLONIZE_COLONY_POP_MAX;
   }
-  const int last_prof = last_slot > 0 ? (int)c->colonists[last_slot - 1].profession : 0;
+  /* TB-23: the picked colonist's own profession under !dos_buggy_behavior(). */
+  const int last_prof = !dos_buggy_behavior()
+                          ? (int)c->colonists[pick].profession
+                        : last_slot > 0 ? (int)c->colonists[last_slot - 1].profession
+                                        : 0;
   if (ai_euro_5952_job_is_expert(last_prof) && target != last_prof) {
     /* FUN_1000_8e9e(colony, pick, 0x1c) = FUN_281f_0cae, clear specialty. */
     c->colonists[pick].profession = COLONIZE_PROF_FREE_COLONIST;

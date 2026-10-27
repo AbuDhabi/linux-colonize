@@ -1,5 +1,6 @@
 #include "test_units_common.h"
 #include "core/units_internal.h"
+#include "core/dos_buggy.h"
 #include "core/ai_popup_render.h"
 
 #include "../common/test_runner.h"
@@ -3924,6 +3925,94 @@ static int case_lcr_ai_step_resolves(void) {
   return 0;
 }
 
+/* TB-35 fixed path: a small nation (census 0, no colonies) protected from
+ * Vanishes keeps "nothing" and its latch; DOS spends the latch on Burial
+ * Mounds. */
+static int case_tb35_lcr_latch_respects_protection(void) {
+  if (fx_open() != 0 || fx_stage2() != 0) {
+    return 1;
+  }
+  static ColonizeCol1Save c1;
+  memset(&c1, 0, sizeof(c1));
+  for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
+    c1.head.founding_father[i] = -1;
+  }
+  const int ti = units_find_type(&pool, "Colonists");
+  uint32_t seed = 0;
+  for (uint32_t s = 1; s < 50000u && seed == 0; ++s) {
+    ColonizeDosRng probe;
+    dos_rng_seed(&probe, s);
+    if (dos_rng_range(&probe, 1, 9) == 5) {
+      seed = s;
+    }
+  }
+  int rx = -1;
+  int ry = -1;
+  for (int y = 0; y < (int)map.height && rx < 0; ++y) {
+    for (int x = 0; x < (int)map.width; ++x) {
+      if (map_tile_has_rumour(&map, x, y)) {
+        rx = x;
+        ry = y;
+        break;
+      }
+    }
+  }
+  if (ti < 0 || seed == 0 || rx < 0) {
+    fprintf(stderr, "TB-35: fixture failed\n");
+    fx_close();
+    return 1;
+  }
+  ColonizeDosRng rng;
+  dos_rng_seed(&rng, seed);
+  const int sc = units_spawn_allow_stack(&pool, ti, rx, ry);
+  ColonizeUnit* u = units_get(&pool, sc);
+  if (!u) {
+    fx_close();
+    return 1;
+  }
+  u->nation_id = 0;
+  dos_buggy_behavior_set(false);
+  const bool ok = units_resolve_lcr_rumour_w(&(ColonizeWorld){.units=&pool, .map=&map, .col1=&c1, .col1_ok=true, .rng=&rng, .europe=NULL}, sc, 0);
+  dos_buggy_behavior_set(true);
+  if (units_get(&pool, sc)) {
+    units_despawn(&pool, sc);
+  }
+  fx_close();
+  if (!ok || c1.player[0].lcr_case5_bonus_used) {
+    fprintf(stderr, "TB-35: resolve %d latch %d (want 1/0)\n", (int)ok,
+            (int)c1.player[0].lcr_case5_bonus_used);
+    return 1;
+  }
+  return 0;
+}
+
+/* TB-47 fixed path: a Brewster pick refused at the unit cap keeps the crosses. */
+static int case_tb47_brewster_cap_keeps_crosses(void) {
+  static ColonizeUnitPool full;
+  static EuropeScreen eu;
+  memset(&full, 0, sizeof(full));
+  memset(&eu, 0, sizeof(eu));
+  for (int i = 0; i < COLONIZE_UNITS_DOS_MAX; ++i) {
+    full.units[i].active = true;
+    full.units[i].id = full.next_id++;
+  }
+  units_pool_sync(&full);
+  eu.current_crosses = 77;
+  eu.immigration_pressure = 77;
+  ColonizeDosRng rng;
+  dos_rng_seed(&rng, 1);
+  const ColonizeWorld w = {.units = &full, .europe = &eu, .rng = &rng};
+  dos_buggy_behavior_set(false);
+  (void)units_brewster_apply_slot_w(&w, 0, 0);
+  dos_buggy_behavior_set(true);
+  if (eu.current_crosses != 77 || eu.immigration_pressure != 77) {
+    fprintf(stderr, "TB-47 brewster: crosses %u pressure %d (want 77)\n",
+            (unsigned)eu.current_crosses, (int)eu.immigration_pressure);
+    return 1;
+  }
+  return 0;
+}
+
 static int case_lcr_case_matrix(void) {
   if (fx_open() != 0 || fx_stage2() != 0) {
     return 1;
@@ -7741,6 +7830,8 @@ static const TestCase k_cases[] = {
   {"lcr_clear_desoto", case_lcr_clear_desoto},
   {"lcr_ai_step_resolves", case_lcr_ai_step_resolves},
   {"lcr_case_matrix", case_lcr_case_matrix},
+  {"tb35_lcr_latch_respects_protection", case_tb35_lcr_latch_respects_protection},
+  {"tb47_brewster_cap_keeps_crosses", case_tb47_brewster_cap_keeps_crosses},
   {"lcr_case5_latch", case_lcr_case5_latch},
   {"lcr_outcome_dispatch", case_lcr_outcome_dispatch},
   {"lcr_fountain_ai", case_lcr_fountain_ai},

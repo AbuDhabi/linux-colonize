@@ -6,6 +6,7 @@
 
 #include "core/ai.h"
 #include "core/ai_euro.h"
+#include "core/dos_buggy.h"
 
 static int count_active(const ColonizeUnitPool* units) {
   int n = 0;
@@ -3474,6 +3475,76 @@ static int case_peacetime_merc_2244(void) { return fx_run(33); }
 static int case_woi_bell_pool_spend_0a22(void) { return fx_run(34); }
 static int case_narrative_teardown(void) { return fx_run(35); }
 
+/* Spine prefix 0..upto without teardown (the TB cases below extend it). */
+static int fx_prefix(int upto) {
+  for (int i = 0; i <= upto; ++i) {
+    const int rc = k_spine[i]();
+    if (rc != 0) {
+      return rc;
+    }
+  }
+  return 0;
+}
+
+/* TB-40 fixed (flag off): the audience score reads the audience nation's own
+ * SoL (nation+0x19), not DS:0x53d0. sp_04's +1 inputs, but with the SoL only
+ * in the nation byte: the DOS read (report 0) would cut instead. */
+static int case_tb40_audience_own_sol(void) {
+  int rc = fx_prefix(3);
+  if (rc == 0) {
+    turn = 44;
+    col1.head.rebel_sentiment_report = 0;
+    col1.nation[0].rebel_sentiment = 30;
+    col1.nation[0].tax_rate = 40;
+    europe.tax_percent = 40;
+    col1.nation[0].gold = 0;
+    col1.colony[0].rebel_dividend = 20;
+    col1.colony[0].rebel_divisor = 100;
+    col1.head.king_audience_streak = 0;
+    ColonizeDosRng r;
+    dos_rng_seed(&r, 1u);
+    ctx.rng = &r;
+    status[0] = '\0';
+    dos_buggy_behavior_set(false);
+    ai_king_nation_turn(&ctx);
+    dos_buggy_behavior_set(true);
+    ctx.rng = NULL;
+    if (col1.nation[0].tax_rate != 41) {
+      fprintf(stderr, "unit_ai_king: tb40 tax_rate=%u (want 41)\n", col1.nation[0].tax_rate);
+      rc = fail("tb40: fixed audience must score the nation's own SoL");
+    }
+  }
+  fx_close();
+  return rc;
+}
+
+/* TB-36 fixed (flag off): the declaration sweep clears the crown's own seen
+ * bit (crown 1 = 0x20) and keeps the low nibble. */
+static int case_tb36_declare_seen_mask(void) {
+  int rc = fx_prefix(11);
+  if (rc == 0) {
+    map.seen = calloc(256, 1);
+    if (!map.seen) {
+      rc = fail("tb36: alloc seen");
+    } else {
+      map.seen[15 * 16 + 15] = 0x20; /* crown only */
+      map.seen[15 * 16 + 13] = 0x13; /* human + low nibble */
+      dos_buggy_behavior_set(false);
+      ai_king_do_declare(&ctx, 0);
+      dos_buggy_behavior_set(true);
+      if (col1.head.crown_nation_id != 1) {
+        rc = fail("tb36: fixture crown is not 1");
+      } else if (map.seen[15 * 16 + 15] != 0x00 || map.seen[15 * 16 + 13] != 0x33) {
+        fprintf(stderr, "unit_ai_king: tb36 seen %02x %02x (want 00 33)\n",
+                map.seen[15 * 16 + 15], map.seen[15 * 16 + 13]);
+        rc = fail("tb36: fixed declaration must mask with ~(0x10 << crown)");
+      }
+    }
+  }
+  fx_close();
+  return rc;
+}
+
 static const TestCase k_cases[] = {
   {"dump_goods_pick_api", case_dump_goods_pick_api},
   {"purge_tile_seize_notice_793", case_purge_tile_seize_notice_793},
@@ -3513,5 +3584,7 @@ static const TestCase k_cases[] = {
   {"peacetime_merc_2244", case_peacetime_merc_2244},
   {"woi_bell_pool_spend_0a22", case_woi_bell_pool_spend_0a22},
   {"narrative_teardown", case_narrative_teardown},
+  {"tb40_audience_own_sol", case_tb40_audience_own_sol},
+  {"tb36_declare_seen_mask", case_tb36_declare_seen_mask},
 };
 TEST_MAIN(k_cases)

@@ -30,6 +30,7 @@
 #include "core/colony_production.h"
 #include "core/col1_save.h"
 #include "core/combat_strength.h"
+#include "core/dos_buggy.h"
 #include "core/dos_rng.h"
 #include "core/europe.h"
 #include "core/founding_fathers.h"
@@ -397,8 +398,9 @@ static int ai_euro_28c8_score_full(
        * (warehouse clamp `colony+0x9a+8*2`, the DS -0x71ce / -0x71a6 rows, the
        * `local_24 != 5` lumber test) reads cargo slot 8 = HORSES. A DOS bug,
        * reproduced for now (port_bugs.md #582, docs/tolerated_dos_bugs.md TB-5).
-       * Jobs 0..7 map to cargo 0..7 identically. */
-      const int cargo = job;
+       * Jobs 0..7 map to cargo 0..7 identically.
+       * TB-5: the Fisherman reads Food under !dos_buggy_behavior(). */
+      const int cargo = dos_buggy_behavior() ? job : colony_yield_job_cargo(job);
       int yld = profession >= 0
                   ? colony_yield_for_worker(
                       ctx->map, tx, ty, job, profession, has_docks, sol_b_field,
@@ -527,9 +529,10 @@ static int ai_euro_28c8_score_full(
              * America seed-100 56 -> 57: New Amsterdam's claim byte 11 reads
              * colony 1's own +0x6c word (0), so the reluctance clears the
              * multiplier and the vet goes fishing instead of logging tribe land.
-             * DOS bug, reproduced for now (docs/tolerated_dos_bugs_ai.md TB-10).
+             * DOS bug, reproduced for now (docs/tolerated_dos_bugs_ai.md TB-10);
+             * indexed by the tribe (claim_tribe) under !dos_buggy_behavior().
              */
-            const int n = claim_tribe + 4;
+            const int n = dos_buggy_behavior() ? claim_tribe + 4 : claim_tribe;
             const int alarm = ai_euro_5952_alarm_word(col1, n, col->nation_id);
             int t = -(alarm - 4);
             const int cont = env.continent;
@@ -555,8 +558,11 @@ static int ai_euro_28c8_score_full(
           /* DOS local_32 is written only in the food-emergency arm above, so
            * this tail reads stack residue (s_28c8_l32). Outside the 5952 tick
            * the residue is untraced; human scoring and the founding join keep
-           * the candidate-terrain rule there (founding: DB-24). */
-          const bool l32_forest = s_28c8_l32 != AI_28C8_L32_OFF
+           * the candidate-terrain rule there (founding: DB-24).
+           * TB-16: the tick uses the candidate tile under !dos_buggy_behavior(). */
+          const bool l32_forest = s_28c8_l32 != AI_28C8_L32_OFF && !dos_buggy_behavior()
+                                    ? forest
+                                  : s_28c8_l32 != AI_28C8_L32_OFF
                                     ? s_28c8_l32 > 7 && s_28c8_l32 < 0x18
                                     : !in_ai_tick && forest;
           if (cargo != COLONIZE_CARGO_LUMBER && l32_forest && lumber_idle) {
@@ -1463,7 +1469,8 @@ static void ai_euro_5952_indoor_pass(
       }
       int out = -1;
       int qty = ai_euro_5952_producible(pool, col, col1, s, job, &out);
-      if (avail < qty) {
+      /* TB-17: clamped only for a job with an input under !dos_buggy_behavior(). */
+      if ((dos_buggy_behavior() || in >= 0) && avail < qty) {
         qty = avail; /* raw 94806-94808, unconditional — see `avail` above */
       }
       if (out < 0) {
@@ -1612,8 +1619,11 @@ COLONIZE_INTERNAL void ai_euro_5952_lumber_purchase(
   if (col->stock[COLONIZE_CARGO_LUMBER] >= 2 || (turn & 7) != 0) {
     return;
   }
-  /* DOS bug, reproduced for now (docs/tolerated_dos_bugs_ai.md TB-22). */
-  col->stock[COLONIZE_CARGO_LUMBER] += 100; /* raw 94683-94684 */
+  /* DOS bug, reproduced for now (docs/tolerated_dos_bugs_ai.md TB-22);
+   * credited only when paid under !dos_buggy_behavior(). */
+  if (dos_buggy_behavior()) {
+    col->stock[COLONIZE_CARGO_LUMBER] += 100; /* raw 94683-94684 */
+  }
   const int nation = col->nation_id;
   if (nation < 0 || nation >= 4) {
     return;
@@ -1621,6 +1631,9 @@ COLONIZE_INTERNAL void ai_euro_5952_lumber_purchase(
   const long gold = (long)(int32_t)europe_nation_gold(eu, col1, nation);
   if (gold >= 200) { /* raw 94686-94687 */
     europe_nation_gold_add(eu, col1, nation, -200);
+    if (!dos_buggy_behavior()) {
+      col->stock[COLONIZE_CARGO_LUMBER] += 100;
+    }
   }
 }
 
@@ -3075,7 +3088,9 @@ COLONIZE_INTERNAL void ai_euro_5952_specialist_arms(
       if (owned >= need && gross[k_5952_craft[r].cargo] != 0 &&
           census[k_5952_craft[r].job] == 0) {
         /* DOS bug, reproduced for now (docs/tolerated_dos_bugs_ai.md TB-18). */
-        target = r; /* DOS-LITERAL: the ROW INDEX, not k_5952_craft[r].job */
+        /* DOS-LITERAL: the ROW INDEX, not k_5952_craft[r].job; the job
+         * under !dos_buggy_behavior(). */
+        target = dos_buggy_behavior() ? r : k_5952_craft[r].job;
       }
     }
     int cand[0x19];
@@ -3157,7 +3172,8 @@ COLONIZE_INTERNAL void ai_euro_5952_specialist_arms(
   col->colonists[last].profession = trained;
   /* DOS-LITERAL: the price row is the colonist SLOT (asm 0x29d4). */
   /* DOS bug, reproduced for now (docs/tolerated_dos_bugs_ai.md TB-19). */
-  const int charged = ai_euro_5952_job_price(last);
+  /* TB-19: the trained job's price under !dos_buggy_behavior(). */
+  const int charged = ai_euro_5952_job_price(dos_buggy_behavior() ? last : trained);
   if (charged != INT_MIN) {
     europe_nation_gold_add(ctx->europe, ctx->col1, nation, -(long)charged);
   }
@@ -3180,8 +3196,9 @@ COLONIZE_INTERNAL void ai_euro_5952_seed_horses(
   if (head) {
     const ColonizeUnitType* type = units_type(ctx->units, head->type_index);
     capacity = type ? type->cargo : 0;
-  } else {
-    /* DOS bug, reproduced for now (docs/tolerated_dos_bugs_ai.md TB-20). */
+  } else if (dos_buggy_behavior()) {
+    /* DOS bug, reproduced for now (docs/tolerated_dos_bugs_ai.md TB-20);
+     * an empty tile skips the arm (capacity 0) under !dos_buggy_behavior(). */
     /* DOS does not guard the 07e0 result -1. Its type address is
      * 3146 - 1c = 312a = terrain row 27's 2f7a labor byte (24).
      * Capacity then reads 5237 + 24*e = 5387, the tutorial byte.
@@ -3311,6 +3328,9 @@ COLONIZE_INTERNAL void ai_euro_colony_tick_open(AiEuroColonyTick* t) {
   {
     ColonizeColony* const ticking = col;
     col = ai_euro_5952_tools_supply_and_connect(ctx, col);
+    if (!dos_buggy_behavior()) {
+      col = ticking; /* TB-14: the tick stays on its own colony */
+    }
     g_colonies_plot_cache_colony = col != ticking ? ticking : NULL;
   }
   t->col = col;
@@ -3319,7 +3339,8 @@ COLONIZE_INTERNAL void ai_euro_colony_tick_open(AiEuroColonyTick* t) {
   int improvement_owner = col->nation_id;
   int improve_plot = -1;
   ai_euro_5952_improve_best_plot(ctx, col, &improvement_owner, &improve_plot);
-  t->improvement_owner = improvement_owner;
+  /* TB-13: local_1b0 stays the colony's nation under !dos_buggy_behavior(). */
+  t->improvement_owner = dos_buggy_behavior() ? improvement_owner : col->nation_id;
   /* BP-0xa4/-0xac after the improvement arm: its best plot (asm 13c3), else
    * the last ring plot both scan loops wrote (asm 092a / 1250). The build
    * cascade counts Artillery on that tile (asm 2632), not on the colony. */

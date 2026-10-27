@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "core/dos_buggy.h"
 #include "core/map_gen.h"
 #include "platform/diagnostics.h"
 
@@ -202,6 +203,40 @@ static int test_seed_reproducibility(void) {
   return 0;
 }
 
+/* TB-46 fixed (flag off): one latitude draw per tile, so the stream (and the
+ * map) differs from the DOS two-draw map, and stays seed-reproducible. */
+static int test_tb46_latitude_single_draw(void) {
+  if (!setup()) {
+    return 1;
+  }
+  char err[256];
+  ColonizeWorldMap a;
+  ColonizeWorldMap b;
+  memset(&a, 0, sizeof(a));
+  memset(&b, 0, sizeof(b));
+  dos_buggy_behavior_set(false);
+  const int ok = map_generate(&a, &s_params, err, sizeof(err)) &&
+                 map_generate(&b, &s_params, err, sizeof(err));
+  dos_buggy_behavior_set(true);
+  int rc = 0;
+  if (!ok) {
+    fprintf(stderr, "map_generate failed: %s\n", err);
+    rc = 1;
+  } else if (!maps_equal(&a, &b)) {
+    fprintf(stderr, "fixed latitude path not reproducible\n");
+    rc = 1;
+  } else if (maps_equal(&a, &s_map)) {
+    fprintf(stderr, "fixed latitude path produced the DOS two-draw map\n");
+    rc = 1;
+  } else if (count_land(&a) == 0 || count_ocean(&a) == 0) {
+    fprintf(stderr, "fixed latitude map degenerate\n");
+    rc = 1;
+  }
+  map_free(&a);
+  map_free(&b);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
     {"test_params_random_in_range", test_params_random_in_range},
     {"test_dims_and_land_budget", test_dims_and_land_budget},
@@ -209,6 +244,7 @@ static const TestCase k_cases[] = {
     {"test_euro_landfall_bands_distinct", test_euro_landfall_bands_distinct},
     {"test_pick_start_fallback_is_land", test_pick_start_fallback_is_land},
     {"test_seed_reproducibility", test_seed_reproducibility},
+    {"test_tb46_latitude_single_draw", test_tb46_latitude_single_draw},
 };
 
 TEST_MAIN(k_cases)

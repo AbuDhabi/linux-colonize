@@ -15,6 +15,7 @@
 #include "core/ai_contact.h"
 #include "core/ai_diplo.h"
 #include "core/col1_save.h"
+#include "core/dos_buggy.h"
 #include "core/combat_analysis.h"
 #include "core/combat_strength.h"
 #include "core/europe.h"
@@ -633,9 +634,17 @@ int units_ship_departure_pickup(ColonizeUnitPool* pool, int ship_id, int x, int 
   int room = units_ship_capacity(pool, ship_id) - goods;
   int chosen[COLONIZE_UNIT_CARGO_MAX];
   int nc = 0;
+  /* TB-2: DOS boards any own-nation rider on the tile, other hulls' too;
+   * fixed under !dos_buggy_behavior(): pass 0 seats the hull's own riders
+   * first, pass 1 skips riders of other hulls (tile sentries still board). */
+  const bool fixed = !dos_buggy_behavior();
+  for (int pass = fixed ? 0 : 1; pass < 2; ++pass)
   for (int oi = 0; oi < on && nc < COLONIZE_UNIT_CARGO_MAX; ++oi) {
     ColonizeUnit* u = &pool->units[order[oi]];
     if (!u->active || units_is_sea(pool, u->id) || u->nation_id != ship->nation_id) {
+      continue;
+    }
+    if (fixed && (pass == 0) != (u->aboard_ship_id == ship_id)) {
       continue;
     }
     /*
@@ -655,7 +664,7 @@ int units_ship_departure_pickup(ColonizeUnitPool* pool, int ship_id, int x, int 
       /* Riding another own ship still on the tile. Only a sentried passenger
        * transfers; an awake (player-activated) one stays with its ship. */
       const ColonizeUnit* host = units_get_const(pool, u->aboard_ship_id);
-      if (u->orders != UNITS_ORDER_SENTRY || !host || host->x != x || host->y != y) {
+      if (fixed || u->orders != UNITS_ORDER_SENTRY || !host || host->x != x || host->y != y) {
         continue;
       }
     } else if (!units_is_on_map(u) || u->x != x || u->y != y ||

@@ -17,6 +17,7 @@
 #include "core/col1_save.h"
 #include "core/combat_analysis.h"
 #include "core/combat_strength.h"
+#include "core/dos_buggy.h"
 #include "core/europe.h"
 #include "core/founding_fathers.h"
 #include "core/popup_msg.h"
@@ -1621,11 +1622,15 @@ bool units_brewster_apply_slot_w(const ColonizeWorld* w, int human, int slot) {
    * there: no dock colonist, no pool refill (@TOOMANYUNITS).
    * DOS bug, reproduced for now (docs/tolerated_dos_bugs.md TB-47). */
   if (units && !units_spawn_room(units, human)) {
-    (void)europe_dock_unit_dos_type(
-      europe->pool[slot].profession, (int)europe->difficulty, true, rng
-    );
-    europe->current_crosses = 0;
-    europe->immigration_pressure = 0;
+    /* TB-47: under !dos_buggy_behavior() the crosses are kept (like a
+     * cancelled pick). */
+    if (dos_buggy_behavior()) {
+      (void)europe_dock_unit_dos_type(
+        europe->pool[slot].profession, (int)europe->difficulty, true, rng
+      );
+      europe->current_crosses = 0;
+      europe->immigration_pressure = 0;
+    }
     return true;
   }
   /* Same 4884 tail refill as the FoY pick — the emptied slot's `46d4` roll

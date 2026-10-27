@@ -31,6 +31,7 @@
 #include "core/colony.h"
 #include "core/colony_internal.h"
 #include "core/colony_yield.h"
+#include "core/dos_buggy.h"
 #include "core/map.h"
 #include "core/turn.h"
 
@@ -674,6 +675,139 @@ static int unit_trial_owner_stamp_scoped_to_idle_worker(void) {
   return 0;
 }
 
+/* TB-5 fixed: the Fisherman's warehouse clamp and shortfall rows read Food.
+ * All-Ocean ring with Docks, 50 food, 99 horses: DOS clamps the fish yield
+ * to the 1 ton of Horses room and doubles it twice; fixed, the full yield
+ * scores yld*8 + distance term on the winning plot. */
+static int tb5_fish_score(bool buggy, int* out_score, int* out_yld) {
+  uint8_t terrain[MAP_W * MAP_H];
+  uint8_t layer2[MAP_W * MAP_H];
+  uint8_t layer3[MAP_W * MAP_H];
+  ColonizeWorldMap map;
+  map_init(&map, terrain, layer2, layer3);
+  const int cx = 8;
+  const int cy = 8;
+  static const int dx[COLONIZE_COLONY_FIELD_TILES] = {0, 1, 1, 1, 0, -1, -1, -1};
+  static const int dy[COLONIZE_COLONY_FIELD_TILES] = {-1, -1, 0, 1, 1, 1, 0, -1};
+  for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES; ++ti) {
+    const int off = (cy + dy[ti]) * MAP_W + (cx + dx[ti]);
+    terrain[off] = 0x19;
+    layer3[off] = 1;
+  }
+  suppress_field_tile_resources(&map, cx, cy);
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
+  colony_init_common(&colonies.colonies[0], 1, cx, cy);
+  colonies.building_type_count = 1;
+  snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Docks");
+  colonies.colonies[0].has_building[0] = true;
+  colonies.colonies[0].stock[COLONIZE_CARGO_FOOD] = 50;
+  colonies.colonies[0].stock[COLONIZE_CARGO_HORSES] = 99;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.human_nation = 0;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  AiEuro28c8JobCandidate best;
+  memset(&best, 0, sizeof best);
+  dos_buggy_behavior_set(buggy);
+  const int ok = ai_euro_28c8_colonist_job_score_structural(&ctx, 0, 0, &best);
+  /* Same flag as the scorer: TB-41 changes the Fisherman yield too, so the
+   * fixed run may win on another plot; expect that plot's yield*8 + distance. */
+  *out_yld = colony_yield_for_tile(&map, cx + dx[best.tile], cy + dy[best.tile],
+                                   COLONIZE_JOB_FISHERMAN) * 8 +
+             7 - abs(dx[best.tile]) - abs(dy[best.tile]);
+  dos_buggy_behavior_set(true);
+  *out_score = ok && best.job == COLONIZE_JOB_FISHERMAN ? best.score : -1;
+  return 0;
+}
+
+static int unit_tb5_fixed_fisherman_reads_food(void) {
+  int score = 0, yld = 0;
+  tb5_fish_score(true, &score, &yld);
+  if (score != (1 * 8 + 6) * 2 * 2) {
+    return fail("TB-5 fixture: DOS clamps fish against the Horses room");
+  }
+  tb5_fish_score(false, &score, &yld);
+  return score == yld ? 0 : fail("TB-5 fixed: fish is clamped against Food");
+}
+
+/*
+ * TB-10 fixed: the claim term reads the tribe's own alarm row. One village of
+ * nation 4 (tribe 0) two rows north claims the three north plots; every other
+ * plot is water (no Docks). Tribe 0 is very alarmed (t = 0, no reluctance);
+ * DOS indexes with 4 and reads tribe 4's zero row (t = 4), which zeroes the
+ * Farmer multiplier.
+ */
+static int tb10_claim_score(bool buggy, int* out_score) {
+  uint8_t terrain[MAP_W * MAP_H];
+  uint8_t layer2[MAP_W * MAP_H];
+  uint8_t layer3[MAP_W * MAP_H];
+  ColonizeWorldMap map;
+  map_init(&map, terrain, layer2, layer3);
+  const int cx = 8;
+  const int cy = 8;
+  static const int dx[COLONIZE_COLONY_FIELD_TILES] = {0, 1, 1, 1, 0, -1, -1, -1};
+  static const int dy[COLONIZE_COLONY_FIELD_TILES] = {-1, -1, 0, 1, 1, 1, 0, -1};
+  for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES; ++ti) {
+    const int off = (cy + dy[ti]) * MAP_W + (cx + dx[ti]);
+    terrain[off] = dy[ti] < 0 ? 3 : 0x19;
+    layer3[off] = dy[ti] < 0 ? 0 : 1;
+  }
+  suppress_field_tile_resources(&map, cx, cy);
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  for (int ffi = 0; ffi < (int)COLONIZE_COL1_FF_COUNT; ++ffi) {
+    col1.head.founding_father[ffi] = -1;
+  }
+  col1.head.tribe_count = 1;
+  col1.tribe = calloc(1, sizeof(ColonizeCol1Tribe));
+  if (!col1.tribe) {
+    return fail("TB-10: alloc tribe");
+  }
+  col1.tribe[0].x = 8;
+  col1.tribe[0].y = 6;
+  col1.tribe[0].nation_id = 4;
+  col1.tribe[0].mission = 0xff;
+  col1.tribe[0].population = 4;
+  col1.indian[0].euro_diplo[1] = COL1_INDIAN_MET_BIT;
+  col1.indian[0].alarm_by_player[1] = 60;
+  col1.player[1].control = 1;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
+  colony_init_common(&colonies.colonies[0], 1, cx, cy);
+  colonies.colonies[0].stock[COLONIZE_CARGO_FOOD] = 50;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.human_nation = 0;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  AiEuro28c8JobCandidate best;
+  memset(&best, 0, sizeof best);
+  dos_buggy_behavior_set(buggy);
+  const int ok = ai_euro_28c8_colonist_job_score_structural(&ctx, 0, 0, &best);
+  dos_buggy_behavior_set(true);
+  *out_score = ok ? best.score : 0;
+  free(col1.tribe);
+  col1.tribe = NULL;
+  col1_save_free(&col1);
+  return 0;
+}
+
+static int unit_tb10_fixed_claim_reads_tribe_row(void) {
+  int buggy = 0, fixed = 0;
+  if (tb10_claim_score(true, &buggy) != 0 || tb10_claim_score(false, &fixed) != 0) {
+    return 1;
+  }
+  return fixed > buggy ? 0 : fail("TB-10 fixed: a calm-index tribe row must not add reluctance");
+}
+
 static const TestCase k_cases[] = {
     {"unit_distance_term_breaks_ties", unit_distance_term_breaks_ties},
     {"unit_full_matrix_sticky_doubling", unit_full_matrix_sticky_doubling},
@@ -683,6 +817,8 @@ static const TestCase k_cases[] = {
     {"unit_889_ore_rank_gates_chain_not_flat_bonus", unit_889_ore_rank_gates_chain_not_flat_bonus},
     {"unit_ledger_excludes_candidate_work", unit_ledger_excludes_candidate_work},
     {"unit_trial_owner_stamp_scoped_to_idle_worker", unit_trial_owner_stamp_scoped_to_idle_worker},
+    {"unit_tb5_fixed_fisherman_reads_food", unit_tb5_fixed_fisherman_reads_food},
+    {"unit_tb10_fixed_claim_reads_tribe_row", unit_tb10_fixed_claim_reads_tribe_row},
 };
 
 TEST_MAIN(k_cases)

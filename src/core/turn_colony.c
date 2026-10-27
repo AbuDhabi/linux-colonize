@@ -19,6 +19,7 @@
 #include "core/colony_craft.h"
 #include "core/colony_production.h"
 #include "core/colony_yield.h"
+#include "core/dos_buggy.h"
 #include "core/dos_rng.h"
 #include "core/europe.h"
 #include "core/founding_fathers.h"
@@ -681,6 +682,18 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
     }
     const bool immigrant_seen_before = ctx->europe && ctx->europe->crosses_immigrant_seen;
     const ColonizeWorld iw = world_from_turn_ctx(ctx);
+    /* TB-47: pre-tick crosses and recruit pool, refunded below when the
+     * immigrant is refused at the unit cap under !dos_buggy_behavior(). */
+    EuropePoolSlot pre_pool[EUROPE_POOL_SIZE];
+    uint16_t pre_crosses = 0;
+    int16_t pre_pressure = 0;
+    int pre_passage = 0;
+    if (ctx->europe) {
+      memcpy(pre_pool, ctx->europe->pool, sizeof(pre_pool));
+      pre_crosses = ctx->europe->current_crosses;
+      pre_pressure = ctx->europe->immigration_pressure;
+      pre_passage = ctx->europe->recruit_passage;
+    }
     const int imm = woi_now ? 0 : europe_tick_immigration_pressure_w(&iw, ctx->human_nation);
     if (imm == 2) {
       /* Brewster: player picks from the pool (@RECRUITCHOOSE); applied via
@@ -723,6 +736,14 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
           /* raw 68588/68601: the 0x40 latch is set only on success. */
           ctx->europe->crosses_immigrant_seen = immigrant_seen_before;
           ctx->europe->status[0] = '\0';
+          /* TB-47: DOS keeps the charge; fixed under !dos_buggy_behavior()
+           * (crosses back to the pre-tick count, pool slot restored). */
+          if (!dos_buggy_behavior()) {
+            ctx->europe->current_crosses = pre_crosses;
+            ctx->europe->immigration_pressure = pre_pressure;
+            ctx->europe->recruit_passage = pre_passage;
+            memcpy(ctx->europe->pool, pre_pool, sizeof(pre_pool));
+          }
         }
       }
       if (created) {

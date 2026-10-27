@@ -18,6 +18,7 @@
 #include "core/colony_production.h"
 #include "core/ai_internal.h"
 #include "core/dos_rng.h"
+#include "core/dos_buggy.h"
 #include "core/map_gen.h"
 #include "core/new_game.h"
 #include "core/strutil.h"
@@ -176,7 +177,9 @@ static int ai_021a_adjacent_foreign(
         o = map_tile_owner_or_presence(map, nx, ny);
         next_medium = medium;
       }
-      medium = next_medium;
+      if (dos_buggy_behavior()) {
+        medium = next_medium; /* TB-27: centre medium kept under !dos_buggy_behavior() */
+      }
       if (o >= 0 && o != nation_id && nb_medium == medium) {
         found = o;
       }
@@ -638,8 +641,10 @@ COLONIZE_INTERNAL Ai021aDirStatus ai_021a_dir_terrain(struct ai_021a_ctx* c) {
   if (d != 8) {
     if (facing == d) {
       score += 4;
-    } else if (((facing + 1) & 7) == d || ((facing - 1) & 7) == d) {
-      /* DOS bug, reproduced for now (docs/tolerated_dos_bugs_ai.md TB-30). */
+    } else if ((facing < 8 || dos_buggy_behavior()) &&
+               (((facing + 1) & 7) == d || ((facing - 1) & 7) == d)) {
+      /* DOS bug, reproduced for now (docs/tolerated_dos_bugs_ai.md TB-30);
+       * facing >= 8 (stayed) skips the +3 under !dos_buggy_behavior(). */
       score += 3;
     } else if (((facing ^ 4) & 0xff) == d) {
       score -= 6;

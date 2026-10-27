@@ -20,6 +20,7 @@
 #include "core/colony.h"
 #include "core/combat_strength.h"
 #include "core/col1_save.h"
+#include "core/dos_buggy.h"
 #include "core/dos_rng.h"
 #include "core/europe.h"
 #include "core/founding_fathers.h"
@@ -164,10 +165,14 @@ static int ai_king_audience_roll(
    * older king_ref.md "same value, no stored cache" note was wrong; the
    * live FUN_4962_0018 census now backs the real field).
    * DOS bug, reproduced for now (docs/tolerated_dos_bugs.md TB-40).
+   * TB-40: DOS reads the human's SoL report for every nation; fixed under
+   * !dos_buggy_behavior() to the audience nation's own SoL (nation+0x19).
    */
+  const int sol = dos_buggy_behavior() ? (int)col1->head.rebel_sentiment_report
+                                       : (int)nat->rebel_sentiment;
   const int score =
     dos_rng_range(ctx->rng, 1, 1000) +
-    (col1->head.rebel_sentiment_report * 2 - (int)nat->tax_rate) * 5 +
+    (sol * 2 - (int)nat->tax_rate) * 5 +
     (int)(europe_nation_gold(ctx->europe, col1, human) / 100u) +
     (int)col1->stuff.census_pop_proxy[human] +
     (int)(turn / 30);
@@ -1122,7 +1127,10 @@ void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
    * DOS bug, reproduced for now (docs/tolerated_dos_bugs.md TB-36).
    */
   if (ctx->map && ctx->map->seen) {
-    const uint8_t keep = (uint8_t)~crown_fold;
+    /* TB-36: DOS masks with ~crown INDEX; fixed under !dos_buggy_behavior()
+     * to clear the crown's own seen bit (~(0x10 << crown)). */
+    const uint8_t keep = dos_buggy_behavior() ? (uint8_t)~crown_fold
+                                              : (uint8_t)~(0x10u << crown_fold);
     const uint8_t human_bit = (uint8_t)(0x10u << human);
     const uint8_t crown_bit = (uint8_t)(0x10u << crown_fold);
     const size_t n_tiles = (size_t)ctx->map->width * (size_t)ctx->map->height;

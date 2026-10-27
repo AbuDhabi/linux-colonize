@@ -30,7 +30,7 @@ stands more often. Affects every Euro AI explorer scan.
 fails `golden_ai_turns`, `golden_ai_joint`, `golden_idle_continuous`,
 `golden_idle_reload`, `golden_idle_america` and `_reload`; reverted.
 [Details](archive/tolerated_dos_bugs_evidence_2026-10-24.md#tb-9).
-**Status:** tolerated (2026-10-22).
+**Status:** tolerated (2026-10-22). Fixed in opencol 2026-10-27, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.
 
 ### TB-10 — Euro AI plot scoring indexes tribe tables with the nation id
 **DOS:** FUN_15eb_28c8 (raw 13096-13111), in the claim term for a plot owned by
@@ -55,7 +55,7 @@ with `claim_tribe` (nation - 4).
 
 **Blocks removal:** tried 2026-10-22 (index with `claim_tribe`); fails
 `golden_idle_america` and `_reload`; reverted.
-**Status:** tolerated (2026-10-22).
+**Status:** tolerated (2026-10-22). Fixed in opencol 2026-10-27, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.
 
 ### TB-11 — Euro AI tile-improvement scoring reads the tribe alarm with the nation byte
 **DOS:** the tile-improvement arm of FUN_5952_035e (raw 94446-94449, overlay asm
@@ -80,7 +80,7 @@ out-of-range read is emulated in `ai_euro_5952_alarm_word`). The fix is to pass
 **Blocks removal:** tried 2026-10-22 (pass the tribe index); fails
 `golden_idle_continuous` and `golden_idle_reload`; reverted.
 [Details](archive/tolerated_dos_bugs_evidence_2026-10-24.md#tb-11).
-**Status:** tolerated (2026-10-22).
+**Status:** tolerated (2026-10-22). Fixed in opencol 2026-10-27, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.
 
 ### TB-12 — Refused food beg bumps the wrong alarm word
 **DOS:** in FUN_5bfb_022e the accepted-beg arm lowers the Indian-to-Euro alarm
@@ -103,7 +103,7 @@ refuses).
 `golden_idle_independence` and `_reload`, and `unit_ai_contact_core` ("BEGFOOD
 decline must leave the European's alarm" pins DOS); reverted.
 [Details](archive/tolerated_dos_bugs_evidence_2026-10-24.md#tb-12).
-**Status:** tolerated (2026-10-22).
+**Status:** tolerated (2026-10-22). Fixed in opencol 2026-10-27, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.
 
 ### TB-13 — Euro AI colony tick loses its own nation after the improvement arm
 **DOS:** FUN_5952_035e keeps the colony's nation (colony+0x1a) in the local
@@ -133,7 +133,7 @@ consumer side. The fix is to leave `improvement_owner` at `col->nation_id`.
 
 **Blocks removal:** tried 2026-10-22 (the fix); fails all six idle gates;
 reverted.
-**Status:** tolerated (2026-10-22).
+**Status:** tolerated (2026-10-22). Fixed in opencol 2026-10-27, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.
 
 ### TB-14 — Euro AI road connect leaves the "current colony" on another colony
 **DOS:** FUN_5952_035e raw 94389-94400, on every `turn % 7 == 0` tick where the
@@ -167,7 +167,7 @@ tools charge still lands on the rebound colony, only the later arms stay on the
 ticking colony) fails the same two. Reverted.
 **Human colonies:** the rebind filter is -1 (raw 76902), so DOS also takes a human
 colony; the port spares those since 2026-10-25 ([dos_bugs.md](dos_bugs.md) DB-64).
-**Status:** tolerated (2026-10-22).
+**Status:** tolerated (2026-10-22). Fixed in opencol 2026-10-27, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.
 
 ### TB-15 — Euro AI road-connect skips a colony only when it is far on both axes
 **DOS:** FUN_5952_0000 raw 93610-93621 skips a candidate colony only when
@@ -188,7 +188,7 @@ one axis.
 **Blocks removal:** tried 2026-10-22 (`||`, with and without DB-23's walk-origin
 reset); fails `golden_idle_america` and `_reload`; reverted.
 [Details](archive/tolerated_dos_bugs_evidence_2026-10-24.md#tb-15).
-**Status:** tolerated (2026-10-22).
+**Status:** tolerated (2026-10-22). Fixed in opencol 2026-10-27, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.
 
 ### TB-16 — Euro AI plot scoring reads stack residue for the forest penalty
 **DOS:** FUN_15eb_28c8 keeps the candidate tile's terrain class in `local_32`,
@@ -215,7 +215,7 @@ caller); fails `golden_idle_continuous`, `golden_idle_reload`,
 `golden_idle_america` and `_reload`. The failures come from the tick alone: the
 fix applied only to the founding join (DB-24) passes everything. Reverted.
 [Details](archive/tolerated_dos_bugs_evidence_2026-10-24.md#tb-16).
-**Status:** tolerated (2026-10-22).
+**Status:** tolerated (2026-10-22). Fixed in opencol 2026-10-27, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.
 
 ### TB-17 — Euro AI indoor job election clamps by a stale quantity
 **DOS:** the indoor-workplace election in FUN_5952_035e (raw 94784-94810)
@@ -241,7 +241,7 @@ input cargo (`in >= 0`).
 **Blocks removal:** tried 2026-10-22 (the fix); fails `golden_idle_continuous`,
 `golden_idle_reload`, `golden_idle_america` and `_reload`; reverted.
 [Details](archive/tolerated_dos_bugs_evidence_2026-10-24.md#tb-17).
-**Status:** tolerated (2026-10-22).
+**Status:** tolerated (2026-10-22). Fixed in opencol 2026-10-27, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.
 
 ### TB-18 — Euro AI schoolhouse arm elects the table row index as the profession
 **DOS:** FUN_5952_035e (raw 95874-95891), the improve_timer-gated expert
@@ -263,7 +263,7 @@ AI's later job choices follow.
 **Blocks removal:** tried 2026-10-22 (the fix); fails `golden_idle_independence`
 and `_reload`; reverted.
 [Details](archive/tolerated_dos_bugs_evidence_2026-10-24.md#tb-18).
-**Status:** tolerated (2026-10-22).
+**Status:** tolerated (2026-10-22). Fixed in opencol 2026-10-27, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.
 
 ### TB-19 — Euro AI expert purchase charges the price of the colonist slot
 **DOS:** FUN_5952_035e ARM 2 (raw 95919-95956). The gate compares the nation's
@@ -285,7 +285,7 @@ and the nation's gold in saves follow.
 **Blocks removal:** tried 2026-10-22 (the fix); fails `golden_idle_continuous`,
 `golden_idle_reload`, `golden_idle_america` and `_reload`; reverted.
 [Details](archive/tolerated_dos_bugs_evidence_2026-10-24.md#tb-19).
-**Status:** tolerated (2026-10-22).
+**Status:** tolerated (2026-10-22). Fixed in opencol 2026-10-27, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.
 
 ### TB-20 — Euro AI starter-horses arm reads the unit before the tile head
 **DOS:** FUN_5952_035e (raw 95959-95972, asm 2a03-2a63). The arm buys two
@@ -307,7 +307,7 @@ is to skip the arm when the tile has no unit.
 and `golden_idle_reload`, and `unit_ai_euro_5952_build`
 (`case_starter_horses_purchase` pins the empty-tile purchase); reverted.
 [Details](archive/tolerated_dos_bugs_evidence_2026-10-24.md#tb-20).
-**Status:** tolerated (2026-10-22).
+**Status:** tolerated (2026-10-22). Fixed in opencol 2026-10-27, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.
 
 ### TB-21 — Euro AI Europe recruit loop upgrades to Dragoon without paying for the horses
 **DOS:** FUN_521d_5d04, the colony-demand recruit loop (raw 92950-92971). The
@@ -330,7 +330,7 @@ bank update inside that test.
 **Blocks removal:** tried 2026-10-22 (the fix); fails `golden_idle_continuous`,
 `golden_idle_reload`, `golden_idle_america` and `_reload`; reverted.
 [Details](archive/tolerated_dos_bugs_evidence_2026-10-24.md#tb-21).
-**Status:** tolerated (2026-10-22).
+**Status:** tolerated (2026-10-22). Fixed in opencol 2026-10-27, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.
 
 ### TB-22 — Euro AI emergency lumber is credited even when the 200 gold is not paid
 **DOS:** FUN_5952_035e (raw 94691-94699), the lumber emergency: no lumberjack
@@ -350,7 +350,7 @@ for free, one turn in eight, until the colony holds 2 or more.
 and `golden_idle_reload`, and `unit_ai_euro_5952_lumber` (`purchase_gates` pins
 the free lumber); reverted.
 [Details](archive/tolerated_dos_bugs_evidence_2026-10-24.md#tb-22).
-**Status:** tolerated (2026-10-22).
+**Status:** tolerated (2026-10-22). Fixed in opencol 2026-10-27, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.
 
 ### TB-23 — Euro AI equip arm strips the expert profession of the wrong colonist
 **DOS:** FUN_5952_035e equip arm (raw 94346-94350, asm 5952:0f42-0f6d). The
@@ -373,7 +373,7 @@ picked colonist's own profession.
 **Blocks removal:** tried 2026-10-22 (test `colonists[pick].profession`); fails
 all six idle gates; reverted.
 [Details](archive/tolerated_dos_bugs_evidence_2026-10-24.md#tb-23).
-**Status:** tolerated (2026-10-22).
+**Status:** tolerated (2026-10-22). Fixed in opencol 2026-10-27, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.
 
 ### TB-24 — Euro AI pioneer-clear ring scan counts water twice
 **DOS:** FUN_5952_035e, the colony ring scan that decides the "wants Pioneer
@@ -396,7 +396,7 @@ makes it an `else if`.
 
 **Blocks removal:** tried 2026-10-22 (`else if`); fails all six idle gates;
 reverted. [Details](archive/tolerated_dos_bugs_evidence_2026-10-24.md#tb-24).
-**Status:** tolerated (2026-10-22).
+**Status:** tolerated (2026-10-22). Fixed in opencol 2026-10-27, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.
 
 ### TB-25 — Euro AI hull cargo buy checks gold against the last hold removal
 **DOS:** the departing-hull cargo buy in FUN_521d_5d04 (raw 93041-93047) checks
@@ -417,7 +417,7 @@ bug #1029). The fix is `price * 100`.
 
 **Blocks removal:** tried 2026-10-22 (`price * 100`); fails all six idle gates;
 reverted.
-**Status:** tolerated (2026-10-22).
+**Status:** tolerated (2026-10-22). Fixed in opencol 2026-10-27, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.
 
 ### TB-26 — Euro AI Scouts and Colonists enter villages whatever the tribe's anger
 **DOS:** FUN_521d_20e6 computes `local_54 = FUN_281f_0a60(alarm)`, where
@@ -440,7 +440,7 @@ omits the alarm gate as "vacuously true".
 `golden_idle_continuous`, `golden_idle_reload`, `golden_idle_independence` and
 `_reload`; reverted.
 [Details](archive/tolerated_dos_bugs_evidence_2026-10-24.md#tb-26).
-**Status:** tolerated (2026-10-22).
+**Status:** tolerated (2026-10-22). Fixed in opencol 2026-10-27, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.
 
 ### TB-27 — Adjacent-foreign probe overwrites its reference medium
 **DOS:** FUN_1427_09dc (raw 7927-7968) answers "is a foreign unit, colony or
@@ -468,7 +468,7 @@ to keep the centre medium fixed.
 neighbours still always pass, only the carry-over of the overwritten medium to
 later tiles is dropped) passes every test, but leaves the ship-beside-a-village
 case as DOS has it. [Details](archive/tolerated_dos_bugs_evidence_2026-10-24.md#tb-27).
-**Status:** tolerated (2026-10-22).
+**Status:** tolerated (2026-10-22). Fixed in opencol 2026-10-27, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.
 
 ### TB-28 — Village "last bought" reset keyed on the unit slot, not the cargo
 **DOS:** in the native trade session, the sell settle (FUN_4d56_2bbc, raw
@@ -491,7 +491,7 @@ pool slot as the proxy (port_bugs.md #803). Pinned by
 **Blocks removal:** tried 2026-10-22 (test the cargo); fails
 `golden_idle_independence` and `_reload`, and `unit_ai_contact_colony` (#803
 test); reverted. [Details](archive/tolerated_dos_bugs_evidence_2026-10-24.md#tb-28).
-**Status:** tolerated (2026-10-22).
+**Status:** tolerated (2026-10-22). Fixed in opencol 2026-10-27, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.
 
 ### TB-29 — Village colony-cover mask uses the wrong coordinate frame
 **DOS:** FUN_4d56_2154 (raw 81816, asm 4d56:21b2-2227) builds a 5x5 mask of
@@ -516,7 +516,7 @@ pick, for human and AI colonies.
 
 **Blocks removal:** tried 2026-10-22 (the fix); fails all six idle gates;
 reverted. [Details](archive/tolerated_dos_bugs_evidence_2026-10-24.md#tb-29).
-**Status:** tolerated (2026-10-22).
+**Status:** tolerated (2026-10-22). Fixed in opencol 2026-10-27, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.
 
 ### TB-30 — Brave "stayed" facing 8 fed to the adjacent-direction helper
 **DOS:** the Brave step scorer FUN_4d56_021a (OVL13 0xc8f-0xcb9) adds +3 to a
@@ -538,4 +538,4 @@ scorer in `src/core/ai_native_021a.c` (`facing + 1` / `facing - 1` test, no
 **Blocks removal:** tried 2026-10-22 (skip the +3 term when `facing >= 8`);
 fails all six idle gates; reverted.
 [Details](archive/tolerated_dos_bugs_evidence_2026-10-24.md#tb-30).
-**Status:** tolerated (2026-10-22).
+**Status:** tolerated (2026-10-22). Fixed in opencol 2026-10-27, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.

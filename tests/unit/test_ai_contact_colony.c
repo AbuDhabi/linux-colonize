@@ -3,6 +3,7 @@
 #include "test_ai_contact_common.h"
 
 #include "core/ai_contact_internal.h"
+#include "core/dos_buggy.h"
 
 #include "../common/ai_fixture.h"
 
@@ -801,6 +802,19 @@ static int test_803_last_bought_keyed_on_unit_slot(void) {
       (uint8_t)COLONIZE_CARGO_TRADE_GOODS
     );
     return fail("#803: trading unit off slots 8/15 must set last_bought = sold cargo");
+  }
+
+  /* TB-28 fixed (dos_buggy_behavior off): the reset keys on the cargo, so a
+   * Trade Goods sale from pool slot 8 records the cargo. */
+  uint8_t lb_fixed = 0xaa;
+  dos_buggy_behavior_set(false);
+  const int rc = run_803_trade_case(slot8_filler, &lb_fixed);
+  dos_buggy_behavior_set(true);
+  if (rc) {
+    return 1;
+  }
+  if (lb_fixed != (uint8_t)COLONIZE_CARGO_TRADE_GOODS) {
+    return fail("TB-28 fixed: slot-8 trader must record the sold cargo");
   }
   return 0;
 }

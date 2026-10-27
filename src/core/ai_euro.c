@@ -31,6 +31,7 @@
 #include "core/colony_production.h"
 #include "core/col1_save.h"
 #include "core/combat_strength.h"
+#include "core/dos_buggy.h"
 #include "core/dos_rng.h"
 #include "core/europe.h"
 #include "core/founding_fathers.h"
@@ -873,6 +874,9 @@ void ai_euro_refresh_colony_ai_flags(
       if (cls == 0x19 || cls == 0x1a) {
         ++unproductive;
         ++good_food; /* DOS counts open water as a food tile (Docks) */
+        if (!dos_buggy_behavior()) {
+          continue; /* TB-24: `else if` — water counted once */
+        }
       }
       /* DOS bug, reproduced for now (docs/tolerated_dos_bugs_ai.md TB-24). */
       if ((cls < 8 || cls > 0x0f) && (cls < 0x10 || cls > 0x17)) {

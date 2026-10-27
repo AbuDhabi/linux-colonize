@@ -14,6 +14,7 @@
 #include "core/ai_popup.h"
 #include "core/ai_euro.h"
 #include "core/col1_save.h"
+#include "core/dos_buggy.h"
 #include "core/dos_rng.h"
 #include "core/font.h"
 #include "core/founding_fathers.h"
@@ -434,6 +435,12 @@ static void colonies_assign_field_land_reaction(
   bool snap = false;
   /* DOS bug, reproduced for now (docs/tolerated_dos_bugs.md TB-43). */
   int ti = colonies_claim_snapshot_take(dx, dy, &snap);
+  /* TB-43: the seat re-tests the purchased bit the table builder used, under
+   * !dos_buggy_behavior(); a plot bought since the snapshot is not claimed. */
+  if (snap && !dos_buggy_behavior() && map->layer2 && map_coords_inset(map, x, y) &&
+      (map->layer2[(size_t)y * (size_t)map->width + (size_t)x] & MAP_LAYER2_PURCHASED) != 0) {
+    return;
+  }
   if (!snap) {
     ti = colonies_indian_claim_tribe_from_w(w, nation, cc->x, cc->y, cc->x + dx, cc->y + dy);
   }
@@ -1251,10 +1258,14 @@ int colonies_eject_colonist(
    * ~11250) before the spawn, and a refused spawn (`local_1a < 0`) jumps to
    * LAB_15eb_1236, which still subtracts the target job's gear, clamped at 0.
    * DOS bug, reproduced for now (docs/tolerated_dos_bugs.md TB-47). */
-  c->turns_in_job = 0;
+  /* TB-47: under !dos_buggy_behavior() a refused eject keeps the gear and the
+   * job counter (the success path below zeroes the counter itself). */
+  if (dos_buggy_behavior()) {
+    c->turns_in_job = 0;
+  }
   if (!units_spawn_room(units, col->nation_id) ||
       (uid_refused = units_spawn_allow_stack(units, type_index, col->x, col->y)) < 0) {
-    for (int g = 0; g < 3; ++g) {
+    for (int g = 0; dos_buggy_behavior() && g < 3; ++g) {
       const int cargo = g == 0 ? COLONIZE_CARGO_TOOLS : g == 1 ? COLONIZE_CARGO_MUSKETS : COLONIZE_CARGO_HORSES;
       const int take = g == 0 ? tools_take : g == 1 ? muskets_take : horses_take;
       col->stock[cargo] = col->stock[cargo] - take < 0 ? 0 : col->stock[cargo] - take;

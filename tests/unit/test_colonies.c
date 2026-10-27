@@ -10,6 +10,7 @@
 #include "core/colony_craft.h"
 #include "core/colony_production.h"
 #include "core/colony_yield.h"
+#include "core/dos_buggy.h"
 #include "core/europe.h"
 #include "core/founding_fathers.h"
 #include "core/map.h"
@@ -969,6 +970,42 @@ static int unit_capture_col1_effects(void) {
   CHECK(col1.nation[0].gold == 600, "woi: loser gold untouched");
   CHECK(col1.head.game_options.ref_unit_threshold == 1, "woi crown capture sets 0x5382|0x40");
   colonies_set_col1_context(NULL);
+  return failures != failures_before ? 1 : 0;
+}
+
+/* TB-32 fixed path: a captor already at war with the loser keeps its WAR bit
+ * (DOS clears it). */
+static int unit_tb32_capture_keeps_war(void) {
+  const int failures_before = failures;
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  ColonizeColony* a = &pool.colonies[0];
+  a->active = true;
+  a->id = 0;
+  a->x = 10;
+  a->y = 10;
+  a->nation_id = 0;
+  a->colonist_count = 2;
+  pool.colony_count = 1;
+  static ColonizeCol1Save col1;
+  ColonizeCol1Colony recs[1];
+  memset(&col1, 0, sizeof(col1));
+  memset(recs, 0, sizeof(recs));
+  col1.colony = recs;
+  col1.head.colony_count = 1;
+  recs[0].x = 10;
+  recs[0].y = 10;
+  recs[0].population = 2;
+  col1.head.game_options.woi = 1; /* no treasury share */
+  col1.head.crown_nation_id = 3;
+  ai_diplo_write(&col1, 1, 0, AI_DIPLO_MET | AI_DIPLO_WAR);
+  colonies_set_col1_context(&col1);
+  dos_buggy_behavior_set(false);
+  CHECK(colonies_capture_ex(&pool, 0, 1, NULL), "TB-32 capture ok");
+  dos_buggy_behavior_set(true);
+  colonies_set_col1_context(NULL);
+  CHECK((ai_diplo_read(&col1, 1, 0) & AI_DIPLO_WAR) != 0, "TB-32 fixed: captor keeps WAR");
   return failures != failures_before ? 1 : 0;
 }
 
@@ -2662,6 +2699,23 @@ static int unit_ship_construction(void) {
     );
   }
 
+  /* TB-47 fixed path: at the unit cap the project waits; hammers and tools
+   * stay (DOS charges both). */
+  while (units_spawn_room(&units, 0)) {
+    if (units_spawn_allow_stack(&units, 0, 1, 1) < 0) {
+      break;
+    }
+  }
+  c->hammers = 512;
+  c->stock[COLONIZE_CARGO_TOOLS] = 40;
+  c->building_in_production = COLONIZE_UNIT_BUILD_ARTILLERY;
+  dos_buggy_behavior_set(false);
+  const int capped_uid = colonies_try_complete_unit_construction(&pool, 0, &units, NULL);
+  dos_buggy_behavior_set(true);
+  CHECK(capped_uid == -1, "TB-47 fixed: capped project does not complete");
+  CHECK(c->hammers == 512 && c->stock[COLONIZE_CARGO_TOOLS] == 40,
+        "TB-47 fixed: capped project keeps hammers and tools");
+
   if (failures == failures_before) {
     printf("unit_colonies: ship construction ok\n");
     return 0;
@@ -3681,6 +3735,7 @@ static int unit_colony_cheat_helpers(void) {
 }
 
 static const TestCase k_cases[] = {
+  {"unit_tb32_capture_keeps_war", unit_tb32_capture_keeps_war},
     {"unit_colonies_core", case_colonies_core},
     {"colony_delete_appends_next", case_colony_delete_appends_next},
     {"colony_delete_remaps_trade_stops", case_colony_delete_remaps_trade_stops},

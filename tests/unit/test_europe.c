@@ -7,6 +7,7 @@
 #include "core/ai_popup.h"
 #include "core/col1_save.h"
 #include "core/colony.h"
+#include "core/dos_buggy.h"
 #include "core/dos_rng.h"
 #include "core/europe.h"
 #include "core/europe_internal.h"
@@ -3122,6 +3123,85 @@ done:
  * lane, the crossing counter is untouched, the hull's orders byte is cleared
  * (a trade-route ship loses its automation), and no status line is written.
  */
+/* TB-4 / TB-48 fixes (dos_buggy_behavior off): the AI dump-sell books its
+ * trade ledger once (1dfa only), and a reversed ship turns back after the
+ * turns it already sailed. */
+static int case_europe_tb4_tb48_fixed(void) {
+  int rc = 1;
+  dos_buggy_behavior_set(false);
+  {
+    ColonizeColonyPool pool;
+    colonies_init(&pool);
+    colonies_set_occupancy_map(NULL);
+    ColonizeColony* ai = &pool.colonies[0];
+    memset(ai, 0, sizeof(*ai));
+    ai->active = true;
+    ai->id = 1;
+    ai->nation_id = 1;
+    ai->building_in_production = -1;
+    ai->stock[COLONIZE_CARGO_TOBACCO] = 180;
+    ai->colonists[0].active = true;
+    ai->colonist_count = 1;
+    ai->population = 1;
+    pool.colony_count = 1;
+    static EuropeScreen dseu;
+    memset(&dseu, 0, sizeof(dseu));
+    dseu.cargo_count = COLONIZE_CARGO_COUNT;
+    for (int i = 0; i < COLONIZE_CARGO_COUNT; ++i) {
+      dseu.cargo[i].bid = 3;
+      dseu.cargo[i].low = 1;
+      dseu.cargo[i].high = 20;
+    }
+    static ColonizeCol1Save dscol1;
+    memset(&dscol1, 0, sizeof(dscol1));
+    dscol1.nation[1].tax_rate = 50;
+    for (int i = 0; i < (int)COLONIZE_COL1_CARGO_TYPES; ++i) {
+      dscol1.nation[1].trade.euro_price[i] = 12;
+    }
+    ColonizeWorld ds_w = world_make(NULL, &pool, NULL, &dscol1, true, NULL, &dseu);
+    /* 80 surplus @ 11: treasury +880 untaxed, ledger only 1dfa's taxed 440 / 80. */
+    if (europe_ai_colony_dump_sell_w(&ds_w, ai, 0) != 880 || dscol1.nation[1].gold != 880u ||
+        dscol1.nation[1].trade.gold[COLONIZE_CARGO_TOBACCO] != 440 ||
+        dscol1.nation[1].trade.tons[COLONIZE_CARGO_TOBACCO] != 80) {
+      fprintf(
+        stderr, "TB-4 fixed: gold=%u ledger gold=%d tons=%d (want 880/440/80)\n",
+        (unsigned)dscol1.nation[1].gold, (int)dscol1.nation[1].trade.gold[COLONIZE_CARGO_TOBACCO],
+        (int)dscol1.nation[1].trade.tons[COLONIZE_CARGO_TOBACCO]
+      );
+      goto done;
+    }
+  }
+  {
+    static EuropeScreen eu;
+    memset(&eu, 0, sizeof(eu));
+    eu.expected_ships = 1;
+    eu.expected[0].turns_left = 1;
+    eu.expected[0].voyage_turns = 2; /* one of two turns sailed */
+    eu.bound_ships = 1;
+    eu.bound[0].turns_left = 0;
+    eu.bound[0].voyage_turns = 0; /* total unknown (loaded mid-voyage): DOS counter kept */
+    if (!europe_reverse_transit(&eu, true, 0) || eu.bound_ships != 2 ||
+        eu.bound[1].turns_left != 1 || eu.bound[1].voyage_turns != 2) {
+      fprintf(stderr, "TB-48 fixed: reversed turns %d (want 1)\n", eu.bound[1].turns_left);
+      goto done;
+    }
+    eu.bound[1].turns_left = 2; /* just departed: nothing sailed yet */
+    if (!europe_reverse_transit(&eu, false, 1) || eu.expected[0].turns_left != 0) {
+      fprintf(stderr, "TB-48 fixed: just-departed reversal turns %d (want 0)\n",
+              eu.expected[0].turns_left);
+      goto done;
+    }
+    if (!europe_reverse_transit(&eu, false, 0) || eu.expected[1].turns_left != 0) {
+      fprintf(stderr, "TB-48 fixed: unknown total must keep the counter\n");
+      goto done;
+    }
+  }
+  rc = 0;
+done:
+  dos_buggy_behavior_set(true);
+  return rc;
+}
+
 static int case_europe_reverse_transit_keeps_turns(void) {
   EuropeScreen eu;
   char err[256];
@@ -3470,6 +3550,7 @@ static const TestCase k_cases[] = {
     {"case_europe_dock_continental_row", case_europe_dock_continental_row},
     {"case_europe_dock_mirror_follows_row", case_europe_dock_mirror_follows_row},
     {"case_europe_reverse_transit_keeps_turns", case_europe_reverse_transit_keeps_turns},
+    {"case_europe_tb4_tb48_fixed", case_europe_tb4_tb48_fixed},
     {"case_europe_transit_drag_db56", case_europe_transit_drag_db56},
     {"case_europe_workflow", case_europe_workflow},
     {"case_europe_dragoon_roll_and_caption", case_europe_dragoon_roll_and_caption},

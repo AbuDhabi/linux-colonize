@@ -196,6 +196,8 @@ typedef struct EuropeHarborShip {
   int hold_goods_type[EUROPE_SHIP_CARGO_MAX];
   int hold_goods_amount[EUROPE_SHIP_CARGO_MAX];
   int turns_left; /* 0 when in harbor; >0 while in transit */
+  /* Total crossing length rolled at departure; 0 = unknown (loaded mid-voyage). TB-48 fix. */
+  int voyage_turns;
   /* EuropeHarborShip departed_this_turn -- see docs/europe.md#europeharborship-departed_this_turn */
   bool departed_this_turn;
   int exit_x;

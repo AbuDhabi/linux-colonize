@@ -2,6 +2,8 @@
  * 3fa6 Europe sail runs, privateer loot sail, treasure coast/board/cash-in. */
 #include "test_ai_euro_expand_common.h"
 #include "core/ai_euro_internal.h"
+#include "core/dos_buggy.h"
+#include "core/europe.h"
 
 /*
  * NAMES.TXT @CARGO start_lo column — the bid every nation's
@@ -1130,6 +1132,137 @@ static int unit_manowar_no_goods_load_818(void) {
   return 0;
 }
 
+/*
+ * TB-3 / TB-50 fixes (dos_buggy_behavior off), on the fixture of
+ * test_ai_euro_20e6_ports.c sell_tail_untaxed_credit_and_double_book: the
+ * no-colony delivery sell books the ledger once (1dfa's taxed 50 gold /
+ * 100 tons, not 150/200), and a hull entering the Europe lane leaves
+ * units.selected_id alone.
+ */
+static int unit_tb3_tb50_fixed(void) {
+  const int nation = 1;
+  int rc = 1;
+  dos_buggy_behavior_set(false);
+  ColonizeWorldMap map;
+  if (!fx_map_alloc(&map, 16, 16, 2, true)) {
+    dos_buggy_behavior_set(true);
+    return fail("tb3 alloc map");
+  }
+  for (int y = 0; y < 16; ++y) {
+    for (int x = 12; x < 16; ++x) {
+      map.terrain[y * 16 + x] = 25;
+    }
+    map.terrain[y * 16 + 15] = 26; /* T_HIGH_SEAS */
+  }
+  static ColonizeUnitPool units;
+  fx_units_init(&units);
+  units.type_count = 3;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Free Colonist");
+  units.types[0].movement = 1;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[0].space = 1;
+  snprintf(units.types[1].name, sizeof(units.types[1].name), "Soldier");
+  units.types[1].movement = 1;
+  units.types[1].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[1].space = 1;
+  snprintf(units.types[2].name, sizeof(units.types[2].name), "Caravel");
+  units.types[2].movement = 4;
+  units.types[2].cargo = 2;
+  units.types[2].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  static ColonizeColonyPool colonies;
+  fx_colonies_init(&colonies);
+  ColonizeColony* c = fx_colony_add(&colonies, nation, 5, 4, 3); /* inland */
+  c->stock[COLONIZE_CARGO_FOOD] = 60;
+  c->stock[COLONIZE_CARGO_TOOLS] = 150;
+  static ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  memset(col1.head.founding_father, 0xff, sizeof(col1.head.founding_father));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.nation[nation].gold = 300;
+  col1.nation[nation].tax_rate = 50;
+  col1.nation[nation].trade.euro_price[COLONIZE_CARGO_TOOLS] = 2;
+  col1.stuff.ship_counts[nation] = 1;
+  col1.stuff.ship_cargo_totals[nation] = 4;
+  col1.stuff.colony_counts[nation] = 1;
+  col1.stuff.free_colonist_counts[nation] = 1;
+  col1.head.turn = 5;
+  col1.head.year = 1500;
+  static EuropeScreen eu;
+  memset(&eu, 0, sizeof(eu));
+  eu.cargo_count = 16;
+  for (int g = 0; g < 16; ++g) {
+    eu.cargo[g].bid = 1;
+    eu.cargo[g].ask = 2;
+  }
+  ColonizeDosRng rng;
+  dos_rng_seed(&rng, 100);
+  uint32_t turn = 5;
+  uint16_t year = 1500;
+  char status[256] = {0};
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.game_year = &year;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng = &rng;
+  ctx.rng_seed = 100;
+  ctx.status = status;
+  ctx.status_size = sizeof(status);
+  ctx.europe = &eu;
+
+  const int sid = units_spawn(&units, 2, 14, 4);
+  ColonizeUnit* ship = units_get(&units, sid);
+  if (!ship) {
+    fail("tb3 spawn ship");
+    goto done;
+  }
+  ship->nation_id = nation;
+  ship->moves = 4 * UNITS_MP_PER_TILE;
+  ship->orders = 0;
+  if (units_load_goods(&units, sid, COLONIZE_CARGO_TOOLS, 100) <= 0) {
+    fail("tb3 load tools");
+    goto done;
+  }
+  (void)ai_euro_try_ship_trade_haul(&ctx, nation, ship);
+  const ColonizeCol1NationTrade* t = &col1.nation[nation].trade;
+  if (t->gold[COLONIZE_CARGO_TOOLS] != 50 || t->tons[COLONIZE_CARGO_TOOLS] != 100 ||
+      t->tons2[COLONIZE_CARGO_TOOLS] != 100) {
+    fprintf(stderr, "tb3 ledger gold=%d tons=%d tons2=%d (want 50/100/100)\n",
+            (int)t->gold[COLONIZE_CARGO_TOOLS], (int)t->tons[COLONIZE_CARGO_TOOLS],
+            (int)t->tons2[COLONIZE_CARGO_TOOLS]);
+    fail("TB-3 fix: delivery sell must book the ledger once");
+    goto done;
+  }
+
+  const int hid = units_spawn(&units, 2, 15, 6);
+  ColonizeUnit* hull = units_get(&units, hid);
+  if (!hull) {
+    fail("tb50 spawn hull");
+    goto done;
+  }
+  hull->nation_id = nation;
+  units.selected_id = 77;
+  if (!ai_euro_ship_enter_europe(&ctx, hull) || units.selected_id != 77) {
+    fprintf(stderr, "tb50 selected_id=%d (want 77)\n", units.selected_id);
+    fail("TB-50 fix: AI hull must not become the current unit");
+    goto done;
+  }
+  rc = 0;
+done:
+  fx_map_free(&map);
+  dos_buggy_behavior_set(true);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
     {"unit_treasure_coast", unit_treasure_coast},
     {"unit_treasure_board_sail", unit_treasure_board_sail},
@@ -1140,5 +1273,6 @@ static const TestCase k_cases[] = {
     {"unit_galleon_europe_export_load_silver", unit_galleon_europe_export_load_silver},
     {"unit_merchantman_europe_export_load_silver", unit_merchantman_europe_export_load_silver},
     {"unit_manowar_no_goods_load_818", unit_manowar_no_goods_load_818},
+    {"unit_tb3_tb50_fixed", unit_tb3_tb50_fixed},
 };
 TEST_MAIN(k_cases)

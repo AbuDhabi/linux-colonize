@@ -17,6 +17,7 @@
 #include "core/col1_save.h"
 #include "core/colony.h"
 #include "core/colony_production.h"
+#include "core/dos_buggy.h"
 #include "core/dos_rng.h"
 #include "core/founding_fathers.h"
 #include "core/popup_msg.h"
@@ -635,8 +636,11 @@ int europe_ai_colony_dump_sell_w(
        * trade.tons[]. Both decompiles and the listing agree. A DOS bug,
        * reproduced for now (docs/tolerated_dos_bugs.md TB-4).
        */
-      nat->trade.tons[c] += (int32_t)c;
-      nat->trade.gold[c] += (int32_t)gained;
+      /* TB-4: fixed under !dos_buggy_behavior(): 1dfa's booking stands alone. */
+      if (dos_buggy_behavior()) {
+        nat->trade.tons[c] += (int32_t)c;
+        nat->trade.gold[c] += (int32_t)gained;
+      }
       /* DOS +0x2a add (raw 57841-57845) is an unclamped 32-bit add; the
        * accessor saturates at UINT32_MAX instead of wrapping — unreachable
        * for a real treasury. port_bugs.md #1096. */

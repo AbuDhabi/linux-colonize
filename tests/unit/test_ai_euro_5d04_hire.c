@@ -40,6 +40,7 @@
 #include "core/ai_popup.h"
 #include "core/col1_save.h"
 #include "core/colony.h"
+#include "core/dos_buggy.h"
 #include "core/dos_rng.h"
 #include "core/map.h"
 #include "core/turn.h"
@@ -1084,6 +1085,94 @@ static int needs_colonists_latch_matches_5952(void) {
   return 0;
 }
 
+/*
+ * TB-21 / TB-25 fixes (dos_buggy_behavior off). Colony-demand recruit loop:
+ * a Soldier on the dock opens it (mode 4), the purse covers the recruit
+ * (140 + 50 muskets) but not the 500 horse stock, so the fixed loop leaves
+ * the recruit a Soldier (no horses, horse bank untouched) where DOS mounts
+ * it. Departing-hull buy: a stale DS:0x8dc4 of 5 makes DOS gate price 10 Ore
+ * at 50 gold; the fix gates at price * 100 = 1000 > the purse and buys
+ * nothing. Each arm runs both ways so the case proves the fixture reaches the
+ * gate. Seed 101: the recruit pops as a Soldier (seeds 100/103 roll the 1-in-5
+ * Dragoon in FUN_38fd_0718, which would hide the fix).
+ */
+static int tb21_tb25_run(int arm, bool buggy, int* out) {
+  const int nation = 1;
+  Fixture f;
+  if (fixture_init(&f, nation, 5, 101) != 0) {
+    return 1;
+  }
+  dos_buggy_behavior_set(buggy);
+  if (arm == 21) {
+    f.units.type_count = 6;
+    snprintf(f.units.types[5].name, sizeof(f.units.types[5].name), "Dragoon");
+    f.units.types[5].movement = 4;
+    f.units.types[5].domain = COLONIZE_UNIT_DOMAIN_LAND;
+    f.units.types[5].space = 1;
+    f.col1.stuff.colony_counts[nation] = 0;
+    f.col1.nation[nation].gold = 300;
+    f.col1.nation[nation].musket_bank_lots = 0;
+    f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_MUSKETS] = 1;
+    f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_HORSES] = 10;
+    for (int i = 0; i < 3; ++i) {
+      f.col1.nation[nation].recruit[i] = UNITS_JOB_SOLDIER;
+    }
+    if (spawn_europe_ship(&f, nation) < 0 || spawn_europe_colonist(&f, nation, 1, 0) < 0) {
+      dos_buggy_behavior_set(true);
+      fixture_free(&f);
+      return fail("tb21 spawn");
+    }
+  } else {
+    fixture_ore_colony(&f, nation, 3);
+    f.col1.nation[nation].gold = 300;
+    f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_ORE] = 10;
+    if (spawn_europe_ship(&f, nation) < 0) {
+      dos_buggy_behavior_set(true);
+      fixture_free(&f);
+      return fail("tb25 spawn");
+    }
+    units_last_hold_amount = 5;
+  }
+  ai_euro_dispatcher_turn(&f.ctx, nation);
+  dos_buggy_behavior_set(true);
+  *out = 0;
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* u = &f.units.units[i];
+    if (!u->active || u->nation_id != nation) {
+      continue;
+    }
+    if (arm == 21) {
+      *out += (u->type_index == 5) ? 1 : 0;
+    } else if (units_is_sea(&f.units, u->id)) {
+      *out += ship_cargo_of(u, COLONIZE_CARGO_ORE);
+    }
+  }
+  fprintf(stderr, "tb%d buggy=%d -> %d gold=%u\n", arm, buggy, *out,
+          (unsigned)f.col1.nation[nation].gold);
+  fixture_free(&f);
+  return 0;
+}
+
+static int tb21_tb25_fixed(void) {
+  int dos = 0;
+  int fixed = 0;
+  if (tb21_tb25_run(21, true, &dos) || tb21_tb25_run(21, false, &fixed)) {
+    return 1;
+  }
+  if (dos < 1 || fixed != 0) {
+    fprintf(stderr, "tb21 dragoons dos=%d fixed=%d\n", dos, fixed);
+    return fail("TB-21 fix: unpaid recruit must not become a Dragoon");
+  }
+  if (tb21_tb25_run(25, true, &dos) || tb21_tb25_run(25, false, &fixed)) {
+    return 1;
+  }
+  if (dos != 100 || fixed != 0) {
+    fprintf(stderr, "tb25 ore dos=%d fixed=%d\n", dos, fixed);
+    return fail("TB-25 fix: hull buy must be gated at price * 100");
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
     {"departing_ship_buys_wanted_cargo", departing_ship_buys_wanted_cargo},
     {"afloat_cargo_cancels_colony_demand", afloat_cargo_cancels_colony_demand},
@@ -1101,6 +1190,7 @@ static const TestCase k_cases[] = {
     {"dos_type_table_is_names_txt_unit_order", dos_type_table_is_names_txt_unit_order},
     {"hull_budget_space_uses_translated_type", hull_budget_space_uses_translated_type},
     {"needs_colonists_latch_matches_5952", needs_colonists_latch_matches_5952},
+    {"tb21_tb25_fixed", tb21_tb25_fixed},
 };
 
 TEST_MAIN(k_cases)

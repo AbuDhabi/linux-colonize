@@ -29,9 +29,11 @@
 #include "core/ai_euro_internal.h"
 #include "core/ai_goals.h"
 #include "core/ai_popup.h"
+#include "core/assets.h"
 #include "core/col1_save.h"
 #include "core/colony.h"
 #include "core/dos_rng.h"
+#include "core/dos_buggy.h"
 #include "core/europe.h"
 #include "core/map.h"
 #include "core/turn.h"
@@ -831,7 +833,113 @@ static int sell_tail_falls_through_to_work_queue(void) {
  *     passengers on every berth act, so the totals match.)
  */
 
+/* FUN_5952_0000 road-connect run: two own colonies 7 tiles apart in x and
+ * level in y on a 16x16 plain. Returns the first colony's tools afterwards
+ * (30 = a road was paid, 50 = none), -1 on fixture failure. */
+static int road_connect_far_x_tools(int buggy) {
+  Fixture f;
+  if (fixture_init(&f, 1) != 0) {
+    return -1;
+  }
+  /* The road phantom needs the real @UNIT rows (Pioneer). */
+  static ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT") || !units_load_types(&f.units, &names)) {
+    assets_msg_free(&names);
+    fixture_free(&f);
+    fail("NAMES.TXT unit types");
+    return -1;
+  }
+  f.ctx.names = &names;
+  for (size_t i = 0; i < f.map.tile_count; ++i) {
+    f.map.terrain[i] = 3;
+    f.map.layer3[i] = 0xf1; /* owner none, continent 1 */
+  }
+  ColonizeColony* a = fx_colony_add(&f.colonies, 1, 2, 8, 3);
+  fx_colony_add(&f.colonies, 1, 9, 8, 3);
+  a->stock[COLONIZE_CARGO_TOOLS] = 50;
+  a->improve_timer = 100;
+  f.turn = 98; /* 98 % 7 == 0 */
+  f.col1.head.turn = 98;
+  ai_euro_5952_tools_latch = 1;
+  dos_buggy_behavior_set(buggy != 0);
+  ai_euro_5952_tools_supply_and_connect(&f.ctx, a);
+  dos_buggy_behavior_set(true);
+  ai_euro_5952_tools_latch = 0;
+  const int tools = a->stock[COLONIZE_CARGO_TOOLS];
+  fixture_free(&f);
+  assets_msg_free(&names);
+  return tools;
+}
+
+/* TB-15: fixed, a colony far on one axis is skipped (`||`); DOS still links it. */
+static int road_connect_far_one_axis_fixed(void) {
+  const int dos = road_connect_far_x_tools(1);
+  const int fixed = road_connect_far_x_tools(0);
+  if (dos != 30 || fixed != 50) {
+    fprintf(stderr, "dos=%d fixed=%d\n", dos, fixed);
+    return fail("TB-15: a colony 7 tiles off in x must be skipped only when fixed");
+  }
+  return 0;
+}
+
+/* FUN_5952_035e improve pick on a plain beside a met nation-5 village whose
+ * own alarm toward nation 1 (indian[1]) is calm, while indian[5] (the record
+ * DOS reads with the unadjusted nation byte) is furious. Returns best plot. */
+static int improve_pick_beside_village(int buggy) {
+  Fixture f;
+  if (fixture_init(&f, 1) != 0) {
+    return -2;
+  }
+  for (size_t i = 0; i < f.map.tile_count; ++i) {
+    f.map.terrain[i] = 3;
+    f.map.layer3[i] = 0xf1; /* owner none, continent 1 */
+    f.map.seen[i] = 0xff;
+  }
+  ColonizeColony* col = fx_colony_add(&f.colonies, 1, 8, 8, 3);
+  col->stock[COLONIZE_CARGO_TOOLS] = 50;
+  col->ai_flags |= COLONIZE_COLONY_AI_WANTS_PIONEER_WORK | COLONIZE_COLONY_AI_WANTS_PIONEER_CLEAR;
+  static ColonizeCol1Tribe village;
+  memset(&village, 0, sizeof(village));
+  village.x = 8;
+  village.y = 5;
+  village.nation_id = 5;
+  village.population = 3;
+  f.col1.tribe = &village;
+  f.col1.head.tribe_count = 1;
+  f.col1.indian[1].tech = 2; /* claim radius 2: the colony's north row */
+  f.col1.indian[1].euro_diplo[1] = COL1_INDIAN_MET_BIT;
+  f.col1.indian[1].alarm_by_player[1] = 0;
+  f.col1.indian[5].alarm_by_player[1] = 100;
+  int owner = -1;
+  int plot = -1;
+  dos_buggy_behavior_set(buggy != 0);
+  ai_euro_5952_improve_best_plot(&f.ctx, col, &owner, &plot);
+  dos_buggy_behavior_set(true);
+  int dx = 0;
+  int dy = 0;
+  if (plot >= 0) {
+    colonies_field_tile_delta(plot, &dx, &dy);
+  }
+  f.col1.tribe = NULL;
+  fixture_free(&f);
+  return plot < 0 ? -1 : dy;
+}
+
+/* TB-11: fixed, the calm tribe's own alarm penalises its claimed plots, so
+ * the pick leaves the north row; DOS reads indian[5] and favours it. */
+static int improve_pick_reads_tribe_alarm_fixed(void) {
+  const int dos_dy = improve_pick_beside_village(1);
+  const int fixed_dy = improve_pick_beside_village(0);
+  if (dos_dy != -1 || fixed_dy < 0) {
+    return fail("TB-11: the claimed-plot penalty must read the tribe index only when fixed");
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+    {"improve_pick_reads_tribe_alarm_fixed", improve_pick_reads_tribe_alarm_fixed},
+    {"road_connect_far_one_axis_fixed", road_connect_far_one_axis_fixed},
     {"assemble_boards_whole_reserved_hull", assemble_boards_whole_reserved_hull},
     {"assemble_ignores_empty_hold_sentinel", assemble_ignores_empty_hold_sentinel},
     {"assemble_refuses_oversize_passenger", assemble_refuses_oversize_passenger},

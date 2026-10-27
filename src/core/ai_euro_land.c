@@ -34,6 +34,7 @@
 #include "core/col1_save.h"
 #include "core/combat_strength.h"
 #include "core/dos_rng.h"
+#include "core/dos_buggy.h"
 #include "core/europe.h"
 #include "core/founding_fathers.h"
 #include "core/map.h"
@@ -230,7 +231,7 @@ COLONIZE_INTERNAL ColonizeColony* ai_euro_0614_payer(
   const ColonizeTurnContext* ctx, ColonizeColony* col
 ) {
   ColonizeColony* r = g_units_pioneer_0614_colony;
-  if (!r) {
+  if (!r || !dos_buggy_behavior()) { /* TB-14: fixed, the ticking colony pays */
     return col;
   }
   if (ctx->col1 && r->nation_id >= 0 && r->nation_id <= 3 &&
@@ -352,9 +353,10 @@ void ai_euro_5952_improve_best_plot(
         claim < (int)ctx->col1->head.tribe_count) {
       /* raw 94446: 030c(8d9e cell, nation) — the cell is the village's
        * NATION byte (4..11), passed unadjusted (OVL asm 5952:1318). DOS bug,
-       * reproduced for now (docs/tolerated_dos_bugs_ai.md TB-11). */
-      const int alarm =
-        ai_euro_5952_alarm_word(ctx->col1, (int)ctx->col1->tribe[claim].nation_id, nation);
+       * reproduced for now (docs/tolerated_dos_bugs_ai.md TB-11); fixed
+       * (tribe index nation - 4) under !dos_buggy_behavior(). */
+      const int alarm = ai_euro_5952_alarm_word(
+        ctx->col1, (int)ctx->col1->tribe[claim].nation_id - (dos_buggy_behavior() ? 0 : 4), nation);
       int pen = -(alarm - 4);
       if (res != -1) {
         pen = (alarm - 4) * -2;
@@ -616,8 +618,9 @@ static int ai_euro_5952_road_connect_0000(ColonizeTurnContext* ctx, ColonizeColo
     int cy = col->y;
     /* raw 93610-93621 — DOS only checks y when |dx| > 6, so the skip needs
      * BOTH axes beyond 6. Transcribed as written. DOS bug, reproduced for now
-     * (docs/tolerated_dos_bugs_ai.md TB-15). */
-    if (abs(ox - cx) > 6 && abs(oy - cy) > 6) {
+     * (docs/tolerated_dos_bugs_ai.md TB-15); `||` under !dos_buggy_behavior(). */
+    if (dos_buggy_behavior() ? (abs(ox - cx) > 6 && abs(oy - cy) > 6)
+                             : (abs(ox - cx) > 6 || abs(oy - cy) > 6)) {
       continue;
     }
     if (map_continent_id_at(ctx->map, ox, oy) != cid) {
@@ -1518,11 +1521,17 @@ static int ai_euro_20e6_village_arm(ColonizeTurnContext* ctx, ColonizeUnit* u, c
    * viceroy_unpacked.c) — the record word is tribe.alarm[nation]
    * {friction, attacks}. */
   const int att = ai_euro_20e6_village_attitude(t, s->nation);
+  /* TB-26: DOS compares the alarm quartile with 0x19 (vacuous); under
+   * !dos_buggy_behavior() the raw alarm is gated (Scout < 0x19, Colonist
+   * rejected above 0x18). */
+  const int ind = (int)t->nation_id - 4;
+  const int calm = dos_buggy_behavior() || ind >= (int)COLONIZE_COL1_INDIAN_COUNT ||
+                   (int)ctx->col1->indian[ind].alarm_by_player[s->nation] < 0x19;
   /* Raw 89064-89068: `local_76 = FUN_2a1f_059c(); +0x314b = 'L'`, then
    * LAB_589e commits the step and 465b -> 4528 speaks with the chief (the
    * colonist arm's shape). DOSBox 1531 -> 1532: the Spanish Scout at
    * (47,48) ends with plan 'L', act state 0 and +0x315a = 1. */
-  if (!latched && s->dos_type == UNITS_KIND_SCOUT && !t->state.scouted && att == 0) {
+  if (!latched && s->dos_type == UNITS_KIND_SCOUT && !t->state.scouted && att == 0 && calm) {
     ai_euro_s_20e6_village_visited[s->village_idx] |= (uint8_t)(1u << s->nation);
     u->col1_ai_plan = 0x4c;
     ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, (int)t->x, (int)t->y);
@@ -1544,7 +1553,7 @@ static int ai_euro_20e6_village_arm(ColonizeTurnContext* ctx, ColonizeUnit* u, c
   if (!(s->combat > 1 || s->dos_type == UNITS_KIND_SCOUT ||
         s->dos_type == UNITS_KIND_MISSIONARY) &&
       (u->profession == UNITS_JOB_NONE || u->profession == UNITS_JOB_SERVANT) && att < 0x40 &&
-      !t->state.learned && !units_is_sea(ctx->units, u->id)) {
+      !t->state.learned && !units_is_sea(ctx->units, u->id) && calm) {
     /* Raw 89363-89372: `local_76 = FUN_2a1f_059c(); +0x314b = 'L'` then
      * LAB_589e commits the one step onto the village; the visit itself is
      * 479b -> 465b -> FUN_4d56_4528 (ai_euro_4528_ai_village_entry) and
@@ -1764,7 +1773,11 @@ static int ai_euro_land_explore_scan_target(
       int score = nib * 4;
       /* DOS bug, reproduced for now (docs/tolerated_dos_bugs_ai.md TB-9):
        * raw 89123-89125 adds 0x10 when the scanned tile is the absolute tile
-       * (0,0), never a land site; the port omits it. */
+       * (0,0), never a land site; the port omits it. Fixed under
+       * !dos_buggy_behavior(): the bonus goes to the unit's own tile. */
+      if (!dos_buggy_behavior() && tx == u->x && ty == u->y) {
+        score += 0x10;
+      }
       if (map_dos_terr_class_at(ctx->map, tx, ty) == 0x1b) {
         continue; /* LCR */
       }
@@ -3383,8 +3396,8 @@ int ai_euro_20e6_adjacent_foreign_09dc(const ColonizeTurnContext* ctx, int x, in
       const int uid = units_id_at(ctx->units, nx, ny);
       const ColonizeUnit* nu = uid >= 0 ? units_get_const(ctx->units, uid) : NULL;
       owner = nu ? nu->nation_id : -1;
-    } else {
-      water = domain;
+    } else if (dos_buggy_behavior()) {
+      water = domain; /* TB-27: fixed (centre medium kept) under !dos_buggy_behavior() */
     }
     if (owner >= 0 && owner != nation_id && domain == water) {
       return 1;

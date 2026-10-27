@@ -17,6 +17,7 @@
 #include "core/ai_contact.h"
 #include "core/ai_diplo.h"
 #include "core/col1_save.h"
+#include "core/dos_buggy.h"
 #include "core/combat_analysis.h"
 #include "core/combat_strength.h"
 #include "core/europe.h"
@@ -1863,6 +1864,15 @@ typedef struct UnitsFloodGrid {
   int key_x;
   int key_y;
   const ColonizeWorldMap* map;
+  /* TB-44 fix only (!dos_buggy_behavior()): the mover rules the grid was
+   * flooded under; a mismatch forces a rebuild. Not part of the RTST blob. */
+  bool rules_valid;
+  bool sea;
+  bool low_move;
+  bool uniform;
+  bool native;
+  int owner;
+  const ColonizeCol1Save* col1;
 } UnitsFloodGrid;
 
 static UnitsFloodGrid s_flood = {.key_x = -1, .key_y = -1};
@@ -1877,6 +1887,7 @@ static void units_flood_cache_invalidate(void) {
   s_flood.key_x = -1;
   s_flood.key_y = -1;
   s_flood.map = NULL;
+  s_flood.rules_valid = false;
 }
 
 /* One FUN_6662_00f2 invocation: the DS globals and registers it reads. */
@@ -2011,13 +2022,27 @@ static int units_flood_00f2(
   /* DOS reads whatever DS byte sits at grid[mover] when the mover is outside
    * the 16x16 block; the port reads 0 (rebuild). */
   int flood_cost_at_mover = 0;  /* DS:0xa370 */
-  const bool rebuild = g->map != map || g->key_x != r->goal_x || g->key_y != r->goal_y || !mover_in ||
+  bool rebuild = g->map != map || g->key_x != r->goal_x || g->key_y != r->goal_y || !mover_in ||
       g->cost[mlx][mly] == 0;
+  /* TB-44: DOS keys the reuse on the goal only; fixed under
+   * !dos_buggy_behavior() by also keying on the mover's flood rules. */
+  if (!rebuild && !dos_buggy_behavior()) {
+    rebuild = !g->rules_valid || g->sea != r->sea || g->low_move != low_move ||
+      g->uniform != r->uniform || g->native != (r->type_index >= 0x13) || g->owner != r->owner ||
+      g->col1 != r->col1;
+  }
   if (getenv("UNITS_FLOOD_TRACE")) fprintf(stderr, "[00f2] mover %d (%d,%d) cap %d owner %d type %d key (%d,%d) goal (%d,%d) grid[mover] %d rebuild %d\n", r->mover_id, r->mover_x, r->mover_y, r->cap, r->owner, r->type_index, g->key_x, g->key_y, r->goal_x, r->goal_y, mover_in ? g->cost[mlx][mly] : -1, rebuild);
   if (rebuild) {
     g->map = map;
     g->key_x = r->goal_x;
     g->key_y = r->goal_y;
+    g->rules_valid = true;
+    g->sea = r->sea;
+    g->low_move = low_move;
+    g->uniform = r->uniform;
+    g->native = r->type_index >= 0x13;
+    g->owner = r->owner;
+    g->col1 = r->col1;
     memset(g->cost, 0, sizeof(g->cost));
     int head = 0;          /* DS:0x2d18, a plain int */
     unsigned tail = 1;     /* DS:0x2d16, byte-wrapped */
@@ -2376,6 +2401,7 @@ void units_path_state_import(const uint8_t in[UNITS_PATH_STATE_SIZE], const stru
   s_flood.key_y = (int)rd_u32_le(in + 9);
   memcpy(s_flood.cost, in + 13, sizeof s_flood.cost);
   s_flood.map = s_flood.key_x >= 0 ? map : NULL;
+  s_flood.rules_valid = false; /* TB-44 fix: rules not carried, rebuild once */
 }
 
 /*
@@ -2769,6 +2795,12 @@ static void units_coarse_build(const ColonizeUnitPool* pool, const ColonizeWorld
           int by = 0;
           if (units_coarse_probe_id(map, nx, ny, sea, &bx, &by) != id_a) {
             continue;
+          }
+          /* TB-1: DOS reuses the previous direction's flood here (0906 then
+           * returns 0 and the link is dropped); fixed under
+           * !dos_buggy_behavior() by flooding each link fresh. */
+          if (!dos_buggy_behavior()) {
+            units_flood_cache_invalidate();
           }
           if (units_coarse_connected(pool, map, ax, ay, bx, by, sea)) {
             g->mask[sea][cx][cy] |= (uint8_t)(1u << d);

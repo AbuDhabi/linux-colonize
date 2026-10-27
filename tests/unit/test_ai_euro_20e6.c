@@ -16,6 +16,7 @@
 #include "core/col1_stuff_census.h"
 #include "core/colony.h"
 #include "core/dos_rng.h"
+#include "core/dos_buggy.h"
 #include "core/map.h"
 #include "core/turn.h"
 #include "core/units.h"
@@ -301,7 +302,10 @@ static int unit_stale_goto_rescored_at_full_mp(void) {
  * Scout beside an unvisited village never spoke to the chief. At war with a
  * Euro peer, the village arm must still fire.
  */
-static int unit_scout_visits_village_at_war(void) {
+/* Returns 1 when the Scout scouted the village, 0 when not, -1 on fixture
+ * failure. *entered: the arm's entry latch (an angry chief may kill the
+ * Scout before it scouts). */
+static int scout_village_visit(int alarm, int* entered) {
   const int nation = 1;
   Fixture f;
   if (fixture_init(&f, nation) != 0) {
@@ -337,7 +341,7 @@ static int unit_scout_visits_village_at_war(void) {
   f.col1.tribe = &tribe;
   f.col1.head.tribe_count = 1;
   f.col1.indian[0].euro_diplo[nation] = 1;
-  f.col1.indian[0].alarm_by_player[nation] = 0;
+  f.col1.indian[0].alarm_by_player[nation] = (int16_t)alarm;
 
   /* Euro peer war — the term the port used to let short-circuit the gate. */
   ai_diplo_declare_war(&f.col1, nation, 0);
@@ -349,24 +353,56 @@ static int unit_scout_visits_village_at_war(void) {
   if (!s) {
     f.col1.tribe = NULL;
     fixture_free(&f);
-    return fail("spawn scout");
+    fail("spawn scout");
+    return -1;
   }
   s->nation_id = nation;
   s->moves = 4 * UNITS_MP_PER_TILE;
   s->orders = 0;
 
+  memset(ai_euro_s_20e6_village_visited, 0, sizeof(ai_euro_s_20e6_village_visited));
   ai_euro_dispatcher_turn(&f.ctx, nation);
 
   const int visited = tribe.state.scouted != 0;
+  *entered = (ai_euro_s_20e6_village_visited[0] & (1u << nation)) != 0;
   f.col1.tribe = NULL;
   if (!visited) {
     s = units_get(&f.units, sid);
     fprintf(stderr, "scout pos=(%d,%d) orders=%d\n", s ? s->x : -1, s ? s->y : -1,
             s ? s->orders : -1);
-    fixture_free(&f);
-    return fail("war must not divert the type-5 village arm");
   }
   fixture_free(&f);
+  return visited;
+}
+
+static int unit_scout_visits_village_at_war(void) {
+  int entered = 0;
+  const int visited = scout_village_visit(0, &entered);
+  if (visited < 0) {
+    return 1;
+  }
+  if (!visited) {
+    return fail("war must not divert the type-5 village arm");
+  }
+  return 0;
+}
+
+/* TB-26: an angry tribe (raw alarm >= 0x19) turns the Scout away when fixed;
+ * DOS compares the alarm quartile and visits anyway. */
+static int unit_scout_angry_village_fixed(void) {
+  int dos = 0;
+  int fixed = 0;
+  const int r1 = scout_village_visit(30, &dos);
+  dos_buggy_behavior_set(false);
+  const int r2 = scout_village_visit(30, &fixed);
+  dos_buggy_behavior_set(true);
+  if (r1 < 0 || r2 < 0) {
+    return 1;
+  }
+  if (dos != 1 || fixed != 0) {
+    fprintf(stderr, "dos=%d fixed=%d\n", dos, fixed);
+    return fail("TB-26: angry tribe must block the Scout only when fixed");
+  }
   return 0;
 }
 
@@ -2768,6 +2804,69 @@ static int unit_adjacent_foreign_domains(void) {
   return 0;
 }
 
+/* Explorer Soldier on the coast of a 16x16 plain (ocean row y=3, open sea),
+ * no own colony, one dispatcher turn. Returns 1 when it founded a colony on
+ * its own tile (8,4), 0 when not, -1 on fixture failure. */
+static int explorer_founds_on_own_tile(int buggy) {
+  const int nation = 1;
+  Fixture f;
+  if (fixture_init(&f, nation) != 0) {
+    return -1;
+  }
+  for (int x = 0; x < 16; ++x) {
+    f.map.terrain[3 * 16 + x] = 25;
+    f.map.layer3[3 * 16 + x] = 1; /* open ocean */
+  }
+  const int sid = units_spawn(&f.units, 1, 8, 4);
+  ColonizeUnit* s = units_get(&f.units, sid);
+  if (!s) {
+    fixture_free(&f);
+    fail("spawn explorer");
+    return -1;
+  }
+  s->nation_id = nation;
+  s->moves = 1 * UNITS_MP_PER_TILE;
+  s->orders = 0;
+  dos_buggy_behavior_set(buggy != 0);
+  ai_euro_dispatcher_turn(&f.ctx, nation);
+  dos_buggy_behavior_set(true);
+  const int founded = colonies_id_at(&f.colonies, 8, 4) >= 0;
+  fixture_free(&f);
+  return founded;
+}
+
+/* TB-9: fixed, the scan's +0x10 lands on the unit's own tile, so a coastal
+ * explorer founds where it stands; DOS gives it to tile (0,0) and walks on. */
+static int unit_explorer_own_tile_bonus_fixed(void) {
+  const int dos = explorer_founds_on_own_tile(1);
+  const int fixed = explorer_founds_on_own_tile(0);
+  if (dos != 0 || fixed != 1) {
+    fprintf(stderr, "dos=%d fixed=%d\n", dos, fixed);
+    return fail("TB-9: the own-tile bonus must apply only when fixed");
+  }
+  return 0;
+}
+
+/* TB-27: fixed, a land colony beside a water centre fails the centre medium
+ * test (DOS overwrites the medium and counts it); a land centre still counts. */
+static int unit_adjacent_foreign_medium_fixed(void) {
+  Fixture f;
+  if (fixture_init(&f, 1) != 0) return 1;
+  f.map.terrain[8 * 16 + 8] = 25;
+  treasure_add_colony(&f, 0, 0, 9, 8);
+  const int dos_water = ai_euro_20e6_adjacent_foreign_09dc(&f.ctx, 8, 8, 1);
+  dos_buggy_behavior_set(false);
+  const int fixed_water = ai_euro_20e6_adjacent_foreign_09dc(&f.ctx, 8, 8, 1);
+  f.map.terrain[8 * 16 + 8] = 2;
+  const int fixed_land = ai_euro_20e6_adjacent_foreign_09dc(&f.ctx, 8, 8, 1);
+  dos_buggy_behavior_set(true);
+  fixture_free(&f);
+  if (!dos_water || fixed_water || !fixed_land) {
+    return fail("TB-27: fixed 09dc must keep the centre medium");
+  }
+  return 0;
+}
+
 /* LAB_5a78 raw 90406-90420 reads treaty bit 0x40, not the war bit.
  * A border hull reaches this tail without any intervening movement bands. */
 static int unit_ship_idle_tail_treaty(void) {
@@ -3397,6 +3496,9 @@ static const TestCase k_cases[] = {
     {"unit_europe_departure_runs_during_planning", unit_europe_departure_runs_during_planning},
     {"unit_ship_idle_tail_treaty", unit_ship_idle_tail_treaty},
     {"unit_adjacent_foreign_domains", unit_adjacent_foreign_domains},
+    {"unit_explorer_own_tile_bonus_fixed", unit_explorer_own_tile_bonus_fixed},
+    {"unit_adjacent_foreign_medium_fixed", unit_adjacent_foreign_medium_fixed},
+    {"unit_scout_angry_village_fixed", unit_scout_angry_village_fixed},
     {"unit_gate_adjacent_foe_reaches_scorer", unit_gate_adjacent_foe_reaches_scorer},
     {"unit_goal_walk_keeps_stored_goal", unit_goal_walk_keeps_stored_goal},
     {"unit_goal_binding_dropped_on_arrival", unit_goal_binding_dropped_on_arrival},

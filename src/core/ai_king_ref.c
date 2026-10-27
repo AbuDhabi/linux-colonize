@@ -27,6 +27,7 @@
 #include "core/map.h"
 #include "core/popup_msg.h"
 #include "core/reports.h"
+#include "core/dos_buggy.h"
 #include "core/strutil.h"
 #include "core/units.h"
 
@@ -55,15 +56,18 @@ static int ai_king_10f0_pick_colony(const ColonizeTurnContext* ctx, int human, i
   int total_pop = 0;
   int best_i = -1;
   if (ctx->col1_ok && ctx->col1 && ctx->col1->colony) {
-    int cand[AI_KING_10F0_CANDIDATES];
-    int weight[AI_KING_10F0_CANDIDATES];
+    /* TB-39: DOS keeps ten candidates; fixed under !dos_buggy_behavior()
+     * to every port in the colony pool. */
+    const int max_cand = dos_buggy_behavior() ? AI_KING_10F0_CANDIDATES : COLONIZE_COLONIES_MAX;
+    int cand[COLONIZE_COLONIES_MAX];
+    int weight[COLONIZE_COLONIES_MAX];
     int n_cand = 0;
     for (uint16_t i = 0; i < ctx->col1->head.colony_count; ++i) {
       const ColonizeCol1Colony* c = &ctx->col1->colony[i];
       if ((int)c->nation_id != human || !c->flags.coastal) {
         continue;
       }
-      if (n_cand >= AI_KING_10F0_CANDIDATES) {
+      if (n_cand >= max_cand) {
         break; /* DOS keeps scanning but the `local_24 < 10` arm never takes */
       }
       /* +0x1f is live in DOS; the col1 mirror lags the colony pool mid-turn
@@ -671,7 +675,19 @@ COLONIZE_INTERNAL void ai_king_0982_land_troops(
          * when a tile empties, so a stale crown nibble counts as crown-held
          * (tr9 18->19: the Artillery lands alone on empty (44,61)).
          * DOS bug, reproduced for now (docs/tolerated_dos_bugs.md TB-38). */
-        if (units_tile_owner_nibble(ctx->map, nx, ny) == crown) {
+        /* TB-38: fixed under !dos_buggy_behavior() to "an active crown
+         * unit stands here". */
+        int crown_held = 0;
+        if (dos_buggy_behavior()) {
+          crown_held = units_tile_owner_nibble(ctx->map, nx, ny) == crown;
+        } else {
+          for (int i = 0; i < units_slot_end(ctx->units) && !crown_held; ++i) {
+            const ColonizeUnit* u = &ctx->units->units[i];
+            crown_held = u->active && u->x == nx && u->y == ny && units_is_on_map(u) &&
+                         u->nation_id == crown;
+          }
+        }
+        if (crown_held) {
           if (dragoons_landed < cap && force[1] > 0) {
             dragoons_landed++;
             k = 1;
@@ -761,11 +777,14 @@ COLONIZE_INTERNAL void ai_king_0982_invasion(struct ai_king_0982_ctx* w) {
   /* Score human coastal colonies (≤10); the list is sorted ASCENDING, and
    * the picker below walks it from the top (highest score = fattest, most
    * lightly held target). */
-  int score[AI_KING_0982_MAX_TARGETS];
-  int cidx[AI_KING_0982_MAX_TARGETS];
+  /* TB-39: DOS scores ten targets; fixed under !dos_buggy_behavior() to
+   * every colony in the pool. */
+  const int max_targets = dos_buggy_behavior() ? AI_KING_0982_MAX_TARGETS : COLONIZE_COLONIES_MAX;
+  int score[COLONIZE_COLONIES_MAX];
+  int cidx[COLONIZE_COLONIES_MAX];
   int n = 0;
   int last_tile_head_id = -1; /* DOS local_4c: 07e0 of the last scored colony tile */
-  for (int i = 0; i < COLONIZE_COLONIES_MAX && n < AI_KING_0982_MAX_TARGETS; ++i) {
+  for (int i = 0; i < COLONIZE_COLONIES_MAX && n < max_targets; ++i) {
     const ColonizeColony* c = &ctx->colonies->colonies[i];
     if (!c->active || c->nation_id != human) {
       continue;
@@ -792,7 +811,7 @@ COLONIZE_INTERNAL void ai_king_0982_invasion(struct ai_king_0982_ctx* w) {
       t = cidx[b]; cidx[b] = cidx[b - 1]; cidx[b - 1] = t;
     }
   }
-  int garrison[AI_KING_0982_MAX_TARGETS];
+  int garrison[COLONIZE_COLONIES_MAX];
   for (int i = 0; i < n; ++i) {
     const ColonizeColony* c = &ctx->colonies->colonies[cidx[i]];
     int g = ai_king_0982_garrison_score(ctx, c);
@@ -813,7 +832,12 @@ COLONIZE_INTERNAL void ai_king_0982_invasion(struct ai_king_0982_ctx* w) {
        * independence-seed-100 3->4: the second wave lands six units next to
        * the first wave's four tiles.
        * DOS bug, reproduced for now (docs/tolerated_dos_bugs.md TB-37).
+       * TB-37: fixed under !dos_buggy_behavior() to test this neighbour
+       * tile's own head unit.
        */
+      if (!dos_buggy_behavior()) {
+        last_tile_head_id = units_tile_head_id_at(ctx->units, nx, ny);
+      }
       const ColonizeUnit* su = last_tile_head_id >= 0 ? units_get_const(ctx->units, last_tile_head_id) : NULL;
       if ((su ? su->nation_id : 0) != crown) {
         continue;

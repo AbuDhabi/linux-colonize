@@ -19,6 +19,7 @@
 #include "core/col1_save.h"
 #include "core/colony.h"
 #include "core/colony_production.h"
+#include "core/dos_buggy.h"
 #include "core/dos_rng.h"
 #include "core/founding_fathers.h"
 #include "core/popup_msg.h"
@@ -141,6 +142,7 @@ bool europe_enqueue_expected(
   slot->exit_y = exit_y;
   slot->exit_east = exit_east;
   slot->turns_left = europe_clamp_voyage_turns(voyage_turns);
+  slot->voyage_turns = slot->turns_left; /* TB-48 fix reads it */
   slot->departed_this_turn = true;
   eu->last_exit_x = exit_x;
   eu->last_exit_y = exit_y;
@@ -236,6 +238,7 @@ bool europe_set_sail_from_harbor(
     ship.exit_y = eu->last_exit_y;
   }
   ship.turns_left = europe_clamp_voyage_turns(voyage_turns);
+  ship.voyage_turns = ship.turns_left; /* TB-48 fix reads it */
   ship.departed_this_turn = true;
   for (int i = harbor_index + 1; i < eu->harbor_ships; ++i) {
     eu->harbor[i - 1] = eu->harbor[i];
@@ -301,6 +304,12 @@ bool europe_reverse_transit(EuropeScreen* eu, bool from_expected, int index) {
   europe_clear_ship(&src_list[*src_count]);
   ship.trade_route_plus1 = 0;
   ship.trade_stop = 0;
+  /* TB-48: fixed under !dos_buggy_behavior(): turning back takes the turns
+   * already sailed (total - remaining). An unknown total (0: a ship loaded
+   * mid-voyage, DOS saves only +0x315a) keeps the DOS counter. */
+  if (!dos_buggy_behavior() && ship.voyage_turns >= ship.turns_left) {
+    ship.turns_left = ship.voyage_turns - ship.turns_left;
+  }
   dst_list[(*dst_count)++] = ship;
   return true;
 }

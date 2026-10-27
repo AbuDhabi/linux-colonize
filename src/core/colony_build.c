@@ -14,6 +14,7 @@
 #include "core/ai_popup.h"
 #include "core/ai_euro.h"
 #include "core/col1_save.h"
+#include "core/dos_buggy.h"
 #include "core/dos_rng.h"
 #include "core/font.h"
 #include "core/founding_fathers.h"
@@ -284,8 +285,11 @@ static int colonies_capture_col1_effects(
    * becomes 0x20). */
   /* DOS bug, reproduced for now (docs/tolerated_dos_bugs.md TB-32). */
   const uint8_t won = ai_diplo_read(col1, new_nation, old_nation);
+  /* TB-32: the clearing arm is dropped under !dos_buggy_behavior(). */
   if ((won & AI_DIPLO_WAR) != 0) {
-    ai_diplo_write(col1, new_nation, old_nation, (uint8_t)(won & ~AI_DIPLO_WAR));
+    if (dos_buggy_behavior()) {
+      ai_diplo_write(col1, new_nation, old_nation, (uint8_t)(won & ~AI_DIPLO_WAR));
+    }
   } else {
     ai_diplo_write(col1, old_nation, new_nation,
                    (uint8_t)(ai_diplo_read(col1, old_nation, new_nation) | AI_DIPLO_WAR));
@@ -900,7 +904,13 @@ int colonies_try_complete_unit_construction(
    * COLONIZE_UNIT_BUILD_REFUSED tells the caller the project completed
    * without a unit. DOS bug, reproduced for now (docs/tolerated_dos_bugs.md TB-47). */
   int uid = COLONIZE_UNIT_BUILD_REFUSED;
-  if (units_spawn_room(units, col->nation_id)) {
+  const bool room = units_spawn_room(units, col->nation_id);
+  /* TB-47: under !dos_buggy_behavior() a refused project keeps its hammers
+   * and tools and retries next turn. */
+  if (!room && !dos_buggy_behavior()) {
+    return -1;
+  }
+  if (room) {
     uid = units_spawn_allow_stack(units, type_index, col->x, col->y);
     if (uid < 0) {
       return -1;

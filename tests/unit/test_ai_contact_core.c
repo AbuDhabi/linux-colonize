@@ -5,6 +5,7 @@
 
 /* 0f14 seam access for the raid blocks (COLONIZE_TESTING linkage). */
 #include "core/ai_contact_internal.h"
+#include "core/dos_buggy.h"
 
 /*
  * FUN_4d56_417e is a two-step dialog: the target menu (@INDIANWARPATH) is
@@ -5419,6 +5420,25 @@ static int sp_44(void) {
         spill_before < 100) {
       return fail("BEGFOOD decline adds into the flat alarm table at index 4");
     }
+    /* TB-12 fixed (dos_buggy_behavior off): the refuser's own alarm word rises. */
+    col1.tribe[0].alarm[0].friction = 20;
+    col1.indian[0].alarm_by_player[0] = 50;
+    const uint16_t spill_fixed = (uint16_t)(col1.indian[1].capitol_x | col1.indian[1].capitol_y << 8);
+    ai_popup_clear(&pop);
+    pop.has_result = true;
+    pop.result_cancelled = false;
+    pop.result_choice_id = 1;
+    pop.result_tag = AI_POPUP_TAG_CONTACT_BEGFOOD;
+    pop.result_nation_a = 0;
+    pop.result_nation_b = 4;
+    pop.result_payload = 0;
+    dos_buggy_behavior_set(false);
+    ai_contact_apply_popup_result(&ctx, &pop);
+    dos_buggy_behavior_set(true);
+    if (col1.indian[0].alarm_by_player[0] <= 50 ||
+        (uint16_t)(col1.indian[1].capitol_x | col1.indian[1].capitol_y << 8) != spill_fixed) {
+      return fail("TB-12 fixed: BEGFOOD decline must raise the European's alarm word only");
+    }
     fprintf(stderr, "unit_ai_contact: BEGFOOD accept/decline ok\n");
     /* Drop the adjacency Brave so later fixtures see no stray unit. */
     for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
@@ -6200,6 +6220,17 @@ static int sp_48(void) {
         ai_diplo_read(&col1, 0, 1) != AI_DIPLO_MET || ai_diplo_read(&col1, 1, 0) != AI_DIPLO_MET) {
       return fail("AI treaty break: want @SNEAK + @DECLAREWAR, 0x40 cleared, no WAR");
     }
+    /* TB-52 fixed (dos_buggy_behavior off): the AI treaty break sets WAR both ways. */
+    ai_popup_clear(&wp);
+    ai_diplo_write(&col1, 0, 1, AI_DIPLO_MET | AI_DIPLO_PEACE);
+    ai_diplo_write(&col1, 1, 0, AI_DIPLO_MET | AI_DIPLO_PEACE);
+    dos_buggy_behavior_set(false);
+    (void)ai_diplo_465b_band_ctx(&wctx, 1, 0);
+    dos_buggy_behavior_set(true);
+    if (ai_diplo_read(&col1, 0, 1) != (AI_DIPLO_MET | AI_DIPLO_WAR) ||
+        ai_diplo_read(&col1, 1, 0) != (AI_DIPLO_MET | AI_DIPLO_WAR)) {
+      return fail("TB-52 fixed: AI treaty break must set WAR in both rows");
+    }
     /*
      * FUN_465b_0000 raw 75528-75529: either side a Privateer (@UNIT 0x10) and
      * the whole treaty/declare band is skipped — no @HAVETREATY, no war, the
@@ -6417,6 +6448,34 @@ static int sp_50(void) {
     }
     if (ai_contact_auto_buy_2e92(&bctx, ind, 4, 1, w)) {
       return fail("2e92: unit without a free hold must not buy");
+    }
+    /* TB-6 fixed (dos_buggy_behavior off): the pick scores the offered goods.
+     * Prices rising with cargo id must pick the highest offered id, falling
+     * prices the lowest, so the two picks differ and order that way. */
+    {
+      const ColonizeCol1Nation saved_nation = col1.nation[1];
+      int picks[2] = {-1, -1};
+      dos_buggy_behavior_set(false);
+      for (int run = 0; run < 2; ++run) {
+        for (int c = 0; c < 16; ++c) {
+          ind->tons[c] = 300;
+          col1.nation[1].trade.euro_price[c] = (uint8_t)(run == 0 ? c + 2 : 18 - c);
+        }
+        col1.nation[1].gold = 5000;
+        for (int i = 0; i < COLONIZE_UNIT_CARGO_MAX; ++i) {
+          w->hold_goods_type[i] = 0;
+          w->hold_goods_amount[i] = 0;
+        }
+        if (ai_contact_auto_buy_2e92(&bctx, ind, 4, 1, w)) {
+          picks[run] = w->hold_goods_type[0];
+        }
+      }
+      dos_buggy_behavior_set(true);
+      col1.nation[1] = saved_nation;
+      if (picks[0] < 0 || picks[1] < 0 || picks[0] <= picks[1]) {
+        fprintf(stderr, "unit_ai_contact: TB-6 picks %d / %d\n", picks[0], picks[1]);
+        return fail("TB-6 fixed: AI buy must score the offered goods' prices");
+      }
     }
     units_despawn(&units, wid);
     col1.player[1].control = 0;

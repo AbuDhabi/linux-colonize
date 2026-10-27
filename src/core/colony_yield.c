@@ -18,6 +18,7 @@
  * colony_production.c into this file's link set (unit_colony_yield links
  * colony_yield.c standalone). */
 #include "core/colony_production.h"
+#include "core/dos_buggy.h"
 
 /*
  * Yield columns match NAMES.TXT @JOB Farmer…Fisherman.
@@ -220,8 +221,28 @@ static bool colony_yield_tile_prime_suppressed(const ColonizeWorldMap* map, int 
 /* DOS bug, reproduced for now (docs/tolerated_dos_bugs.md TB-41). */
 static int colony_yield_fisherman_distance_mod(const ColonizeWorldMap* map, int x, int y) {
   const int count = colony_yield_ocean_neighbor_count(map, x, y);
+  if (dos_buggy_behavior()) {
+    if (count >= 6) {
+      return -1;
+    }
+    return 1;
+  }
+  /* TB-41: DOS tests `n < 6` before the smaller thresholds; fixed order under
+   * !dos_buggy_behavior(). */
+  if (count >= 8) {
+    return -2;
+  }
   if (count >= 6) {
     return -1;
+  }
+  if (count < 1) {
+    return 4;
+  }
+  if (count < 3) {
+    return 3;
+  }
+  if (count < 4) {
+    return 2;
   }
   return 1;
 }
@@ -333,7 +354,9 @@ static int colony_yield_pipeline(
    * major river 4, expert-doubled" totals exactly (2026-08-15 Hudson
    * capture: (3 + road 1 + sol 2)×2 + road u2 = 14, ×Hudson = 28).
    */
-  if (field_job == COLONIZE_JOB_FUR_TRAPPER && yield != 0) {
+  /* TB-49: DOS pays the Fur Trapper road/river twice (this block + the shared
+   * stack below); fixed under !dos_buggy_behavior() by skipping this block. */
+  if (dos_buggy_behavior() && field_job == COLONIZE_JOB_FUR_TRAPPER && yield != 0) {
     /* `FUN_137f_0142(x,y) & 0x0a`: road OR settlement bit, as DOS. The AI
      * scorer does reach a village plot (the DS:0x8df0 blocked mask is the
      * ticking colony's after a road-connect rebind; America seed-100 pair
@@ -571,7 +594,10 @@ static int colony_yield_pipeline(
     if (map_tile_has_river(map, x, y)) {
       add += improvement_step;
       /* DOS bug, reproduced for now (docs/tolerated_dos_bugs.md TB-42). */
-      if (map_tile_has_major_river(map, x, y) && add == improvement_step) {
+      /* TB-42: DOS adds the major step only when the river is the sole
+       * contributor; fixed under !dos_buggy_behavior(). */
+      if (map_tile_has_major_river(map, x, y) &&
+          (!dos_buggy_behavior() || add == improvement_step)) {
         add += improvement_step;
       }
     }

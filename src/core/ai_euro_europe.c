@@ -28,6 +28,7 @@
 #include "core/colony_production.h"
 #include "core/col1_save.h"
 #include "core/combat_strength.h"
+#include "core/dos_buggy.h"
 #include "core/dos_rng.h"
 #include "core/europe.h"
 #include "core/founding_fathers.h"
@@ -1523,15 +1524,21 @@ static void ai_euro_5d04_hire_tail_colony_demand(Ai5d04HireTail* t) {
         if (col1_nation_bank_4a(nat) > 0x31) {
           horse_stock_cost = 0;
         }
-        /* DOS bug, reproduced for now (docs/tolerated_dos_bugs_ai.md TB-21). */
-        if (nat->gold >= horse_stock_cost) {
+        /* DOS bug, reproduced for now (docs/tolerated_dos_bugs_ai.md TB-21):
+         * the Dragoon upgrade and the horse bank run even when the nation
+         * could not pay. Fixed under !dos_buggy_behavior() (both inside the
+         * gate, as the training arm raw 92721-92735 has them). */
+        const bool paid_horses = nat->gold >= horse_stock_cost;
+        if (paid_horses) {
           europe_nation_gold_add(ctx->europe, ctx->col1, nation_id, -(long)horse_stock_cost);
         }
-        ai_euro_5d04_cb_set_unit_dispatch_byte(cand, 4);
-        if (col1_nation_bank_4a(nat) < 0x32) {
-          ai_euro_5d04_cb_set_pool_counter(8, 0x32);
-        } else {
-          col1_nation_bank_4a_set(nat, (uint16_t)(col1_nation_bank_4a(nat) - 0x32));
+        if (paid_horses || dos_buggy_behavior()) {
+          ai_euro_5d04_cb_set_unit_dispatch_byte(cand, 4);
+          if (col1_nation_bank_4a(nat) < 0x32) {
+            ai_euro_5d04_cb_set_pool_counter(8, 0x32);
+          } else {
+            col1_nation_bank_4a_set(nat, (uint16_t)(col1_nation_bank_4a(nat) - 0x32));
+          }
         }
         (void)ai_euro_5d04_refill_pool_slot(slot); /* FUN_38fd_46d4 */
         hired_this_pass = 1;
@@ -1658,8 +1665,10 @@ static void ai_euro_5d04_hire_tail_departing_ships(Ai5d04HireTail* t) {
                * the last hold removal anywhere (DOSBox 1591: a French unload
                * left 100, so the Dutch hull with a boycotted hold bought
                * nothing), not the literal 100 bought below.
-               * DOS bug, reproduced for now (docs/tolerated_dos_bugs_ai.md TB-25). */
-              if (nat->gold >= (uint32_t)(ai_euro_5d04_cb_price(p) * units_last_hold_amount)) {
+               * DOS bug, reproduced for now (docs/tolerated_dos_bugs_ai.md TB-25);
+               * fixed under !dos_buggy_behavior() as price * 100. */
+              const int gate_qty = dos_buggy_behavior() ? units_last_hold_amount : 100;
+              if (nat->gold >= (uint32_t)(ai_euro_5d04_cb_price(p) * gate_qty)) {
                 ai_euro_5d04_cb_apply_bump(idx2, p, 100);
                 cargo_demand[p]--; /* raw 93050 */
               }

@@ -1,6 +1,7 @@
 #include "core/game_dialogs.h"
 #include "core/game_loop_internal.h"
 #include "core/reports_names.h"
+#include "core/dos_buggy.h"
 #include <strings.h>
 
 /*
@@ -3091,11 +3092,12 @@ static bool game_apply_popup_contact(ColonizeGameState* game) {
     if (!game->ai_popups.result_cancelled && game->ai_popups.result_choice_id == 1 &&
         game->col1_ok && target_nation >= 0 && target_nation <= 3) {
       ColonizeUnit* u = units_get(&game->units, unit_id);
-      if (u && u->nation_id >= 0 && u->nation_id <= 3 &&
+      if (dos_buggy_behavior() && u && u->nation_id >= 0 && u->nation_id <= 3 &&
           game->col1.nation[u->nation_id].treaty_timer[target_nation] != 0) {
         /* FUN_465b_0000 raw 75553-75557: Break Treaty while the encounter
          * cooldown (nation +0x40+peer) runs ends the move; nothing changes
-         * (tolerated_dos_bugs.md TB-51). */
+         * (tolerated_dos_bugs.md TB-51). Fixed under !dos_buggy_behavior():
+         * the break goes through regardless of the cooldown. */
         ai_popup_consume_result(&game->ai_popups);
         return true;
       }

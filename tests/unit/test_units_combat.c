@@ -1,6 +1,7 @@
 #include "test_units_common.h"
 #include "../common/test_runner.h"
 #include "core/units_internal.h"
+#include "core/dos_buggy.h"
 #include "core/reports_names.h"
 
 
@@ -2084,6 +2085,113 @@ static int unit_naval_stack_sweep(void) {
   return rc;
 }
 
+/* TB-33 fixed path: a Spanish conqueror of a tech-1 tribe rolls 0..1 (the
+ * stored bound), DOS rolls 0..2. A seed whose first draw is 0 of 0..1 but not
+ * 0 of 0..2 pays nothing under DOS and pays under the fix. */
+static int unit_tb33_spanish_tech1_bound(void) {
+  static ColonizeCol1Save c1;
+  memset(&c1, 0, sizeof(c1));
+  memset(c1.head.founding_father, 0xff, sizeof(c1.head.founding_father));
+  c1.indian[2].tech = 1; /* tribe nation 6 */
+  uint32_t seed = 0;
+  for (uint32_t s = 1; s < 5000u && seed == 0; ++s) {
+    ColonizeDosRng a;
+    ColonizeDosRng b;
+    dos_rng_seed(&a, s);
+    dos_rng_seed(&b, s);
+    if (dos_rng_range(&a, 0, 1) == 0 && dos_rng_range(&b, 0, 2) != 0) {
+      seed = s;
+    }
+  }
+  if (seed == 0) {
+    fprintf(stderr, "TB-33: no seed\n");
+    return 1;
+  }
+  ColonizeDosRng r;
+  dos_rng_seed(&r, seed);
+  const int dos_gold = units_conquest_treasure_gold(&c1, 2, 6, &r, 0);
+  dos_buggy_behavior_set(false);
+  dos_rng_seed(&r, seed);
+  const int fixed_gold = units_conquest_treasure_gold(&c1, 2, 6, &r, 0);
+  dos_buggy_behavior_set(true);
+  if (dos_gold != 0 || fixed_gold <= 0) {
+    fprintf(stderr, "TB-33: dos %d (want 0) fixed %d (want > 0)\n", dos_gold, fixed_gold);
+    return 1;
+  }
+  return 0;
+}
+
+/* TB-34 fixed path: a sunk armed hull also leaves the ship count (DS:0x9418). */
+static int unit_tb34_sink_decrements_ship_count(void) {
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  char names_path[512];
+  static ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  if (!dos_compat_normalize_asset_path("COLONIZE", "NAMES.TXT", names_path, sizeof(names_path)) ||
+      !assets_msg_load_file(&names, names_path) || !units_load_types(&pool, &names)) {
+    assets_msg_free(&names);
+    fprintf(stderr, "TB-34: types load failed\n");
+    return 1;
+  }
+  assets_msg_free(&names);
+  const int frigate = units_find_type(&pool, "Frigate");
+  const int privateer = units_find_type(&pool, "Privateer");
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  if (frigate < 0 || privateer < 0 || !fx_map_alloc(&map, 8, 8, T_OCEAN, false)) {
+    free(map.terrain); free(map.layer2); free(map.layer3);
+    fprintf(stderr, "TB-34: fixture failed\n");
+    return 1;
+  }
+  units_set_occupancy_map(&map);
+  units_set_combat_colonies(NULL);
+  static ColonizeCol1Save c1;
+  memset(&c1, 0, sizeof(c1));
+  memset(c1.head.founding_father, 0xff, sizeof(c1.head.founding_father));
+  c1.player[0].control = 1;
+  c1.player[1].control = 1;
+  c1.head.turn = 10;
+  units_set_ff_col1(&c1);
+  units_set_combat_human_nation(-1);
+  int rc = 0;
+  for (int pass = 0; pass < 2 && rc == 0; ++pass) {
+    const int win = units_spawn_allow_stack(&pool, privateer, 4, 5);
+    const int lose = units_spawn_allow_stack(&pool, frigate, 5, 5);
+    ColonizeUnit* w = units_get(&pool, win);
+    ColonizeUnit* l = units_get(&pool, lose);
+    if (!w || !l) {
+      rc = 1;
+      break;
+    }
+    units_set_nation(w, 0);
+    units_set_nation(l, 1);
+    /* colony_counts 0 < own frigates 3: the armed-hull gate always sinks. */
+    c1.stuff.unit_type_counts[1][frigate] = 3;
+    c1.stuff.ship_counts[1] = 5;
+    c1.stuff.armed_ship_counts[1] = 3;
+    ColonizeDosRng rng;
+    dos_rng_seed(&rng, 7);
+    dos_buggy_behavior_set(pass == 0);
+    (void)units_apply_naval_loss_outcome(&pool, lose, win, 0, 0, 0, &c1, &rng);
+    dos_buggy_behavior_set(true);
+    const int want = pass == 0 ? 5 : 4;
+    if (c1.stuff.armed_ship_counts[1] != 2 || c1.stuff.ship_counts[1] != want) {
+      fprintf(stderr, "TB-34 pass %d: armed %d ships %d (want 2/%d)\n", pass,
+              c1.stuff.armed_ship_counts[1], c1.stuff.ship_counts[1], want);
+      rc = 1;
+    }
+    units_despawn(&pool, win);
+    if (units_get(&pool, lose)) {
+      units_despawn(&pool, lose);
+    }
+  }
+  units_set_ff_col1(NULL);
+  units_set_occupancy_map(NULL);
+  free(map.terrain); free(map.layer2); free(map.layer3);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
   {"unit_royal_loss_tax_cut", unit_royal_loss_tax_cut},
   {"unit_combat_music_sting", unit_combat_music_sting},
@@ -2101,5 +2209,7 @@ static const TestCase k_cases[] = {
   {"unit_combat_cheat_footer_roll_before_dialog", unit_combat_cheat_footer_roll_before_dialog},
   {"unit_reset_hooks_clears_wiring", unit_reset_hooks_clears_wiring},
   {"unit_indian_massacre_names_victim", unit_indian_massacre_names_victim},
+  {"unit_tb33_spanish_tech1_bound", unit_tb33_spanish_tech1_bound},
+  {"unit_tb34_sink_decrements_ship_count", unit_tb34_sink_decrements_ship_count},
 };
 TEST_MAIN_WRAPPED(k_cases, diag_init(0, NULL), diag_shutdown())

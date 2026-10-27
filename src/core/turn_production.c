@@ -20,6 +20,7 @@
 #include "core/colony_internal.h"
 #include "core/colony_production.h"
 #include "core/colony_yield.h"
+#include "core/dos_buggy.h"
 #include "core/dos_rng.h"
 #include "core/europe.h"
 #include "core/founding_fathers.h"
@@ -1392,8 +1393,13 @@ COLONIZE_INTERNAL void turn_produce_birth(TurnProduceCtx* pc) {
    * FUN_364b_0688 phase I — birth: food ≥ 200 → Free Colonist in colony;
    * subtract 200 food (docs/building_production.md; decomp ~57615–57622).
    */
+  /* TB-47: under !dos_buggy_behavior() a birth refused at the unit cap
+   * keeps its 200 food (no debit, no @NEWCOLONIST). */
   if (colony->stock[COLONIZE_CARGO_FOOD] >= 200 &&
-      colony->colonist_count < COLONIZE_COLONY_POP_MAX) {
+      colony->colonist_count < COLONIZE_COLONY_POP_MAX &&
+      (dos_buggy_behavior() || !turn_birth_units ||
+       units_kind_type_index(turn_birth_units, UNITS_KIND_COLONIST) < 0 ||
+       units_spawn_room(turn_birth_units, colony_nation_id))) {
     colony->stock[COLONIZE_CARGO_FOOD] =
       clamp_int(colony->stock[COLONIZE_CARGO_FOOD] - 200, 0, 65535);
     if (delta) {

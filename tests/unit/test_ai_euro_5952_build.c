@@ -14,6 +14,7 @@
 #include "core/assets.h"
 #include "core/col1_save.h"
 #include "core/colony.h"
+#include "core/dos_buggy.h"
 #include "core/dos_rng.h"
 #include "core/europe.h"
 #include "core/colony_production.h"
@@ -1117,6 +1118,381 @@ static int case_seam_colony_tick_unseat_all(void) {
   return 0;
 }
 
+/* TB-20 fixed: an empty colony tile skips the starter herd, tutorial or not. */
+static int case_tb20_fixed_empty_tile_skips_horses(void) {
+  Fx f;
+  if (fx_build(&f, 1)) return 1;
+  dos_buggy_behavior_set(false);
+  f.col1.nation[NATION].gold = 10;
+  f.col1.head.tut3.nr5 = 1;
+  f.col1.head.turn = 40;
+  ai_euro_5952_seed_horses(&f.ctx, f.col);
+  dos_buggy_behavior_set(true);
+  const int horses = f.col->stock[COLONIZE_CARGO_HORSES];
+  const long gold = (long)f.col1.nation[NATION].gold;
+  fx_done(&f);
+  return (horses == 0 && gold == 10) ? 0 : fail("TB-20 fixed: empty tile must skip the arm");
+}
+
+/*
+ * TB-13 / TB-14 fixed: on a road-connect turn whose gap tile sits nearest a
+ * foreign AI colony (last index wins the tie), the tick stays on the ticking
+ * colony and local_1b0 stays its nation. Under the flag the tick moves.
+ */
+static int tb14_tick_open_run(bool buggy, int* out_stayed, int* out_owner, int* out_cache_clear) {
+  Fx f;
+  if (fx_build(&f, 3) != 0) {
+    return 1;
+  }
+  ai_euro_reset();
+  fx_wake_colonists(&f, 3);
+  fx_enable_road_arms(&f, 12345u, 10000);
+  fx_colony_add(&f.colonies, NATION, 12, 8, 3);
+  fx_colony_add(&f.colonies, 2, 10, 6, 1);
+  f.col1.player[2].control = 1; /* AI-controlled: DB-64 keeps the rebind */
+  f.col1.head.turn = 98; /* 98 % 7 == 0 */
+  f.turn = 98;
+  f.col->stock[COLONIZE_CARGO_TOOLS] = 50;
+  f.col->improve_timer = 100;
+  AiEuroColonyTick t;
+  memset(&t, 0, sizeof t);
+  t.ctx = &f.ctx;
+  t.world = world_from_turn_ctx(&f.ctx);
+  t.nation_id = NATION;
+  t.col = f.col;
+  dos_buggy_behavior_set(buggy);
+  ai_euro_colony_tick_open(&t);
+  dos_buggy_behavior_set(true);
+  *out_stayed = t.col == f.col;
+  *out_owner = t.improvement_owner;
+  *out_cache_clear = g_colonies_plot_cache_colony == NULL;
+  g_colonies_plot_cache_colony = NULL;
+  g_units_pioneer_0614_colony = NULL;
+  fx_done(&f);
+  return 0;
+}
+
+static int case_tb14_fixed_tick_stays_on_ticking_colony(void) {
+  int stayed = 0, owner = -2, cache_clear = 0;
+  if (tb14_tick_open_run(true, &stayed, &owner, &cache_clear) != 0) {
+    return 1;
+  }
+  if (stayed) {
+    return fail("TB-14 fixture: the road gap must rebind the tick under the DOS flag");
+  }
+  if (tb14_tick_open_run(false, &stayed, &owner, &cache_clear) != 0) {
+    return 1;
+  }
+  if (!stayed || !cache_clear) {
+    return fail("TB-14 fixed: the tick stays on the ticking colony");
+  }
+  return 0;
+}
+
+/* TB-13 fixed: after the improvement arm improves a plot, local_1b0 is still
+ * the colony's nation (under the flag it is the last neighbour's owner). */
+static int tb13_tick_open_owner(bool buggy, int* out_owner) {
+  Fx f;
+  if (fx_build(&f, 3) != 0) {
+    return 1;
+  }
+  ai_euro_reset();
+  fx_wake_colonists(&f, 3);
+  f.col->ai_flags |= COLONIZE_COLONY_AI_WANTS_PIONEER_WORK;
+  f.col->ai_flags &= (uint8_t)~COLONIZE_COLONY_AI_WANTS_PIONEER_CLEAR;
+  f.col->stock[COLONIZE_CARGO_TOOLS] = 50;
+  f.col->improve_timer = 100;
+  AiEuroColonyTick t;
+  memset(&t, 0, sizeof t);
+  t.ctx = &f.ctx;
+  t.world = world_from_turn_ctx(&f.ctx);
+  t.nation_id = NATION;
+  t.col = f.col;
+  dos_buggy_behavior_set(buggy);
+  ai_euro_colony_tick_open(&t);
+  dos_buggy_behavior_set(true);
+  *out_owner = t.improvement_owner;
+  g_colonies_plot_cache_colony = NULL;
+  fx_done(&f);
+  return 0;
+}
+
+static int case_tb13_fixed_improvement_owner_is_own_nation(void) {
+  int owner = NATION;
+  if (tb13_tick_open_owner(true, &owner) != 0) {
+    return 1;
+  }
+  if (owner == NATION) {
+    return fail("TB-13 fixture: the neighbour scan must clobber local_1b0 under the DOS flag");
+  }
+  if (tb13_tick_open_owner(false, &owner) != 0) {
+    return 1;
+  }
+  return owner == NATION ? 0 : fail("TB-13 fixed: local_1b0 stays the colony's nation");
+}
+
+/*
+ * TB-24 fixed: a water plot counts once. Ring of 8 with 2 forests and 3 ocean
+ * plots: DOS counts each ocean plot twice (2 + 6 = 8 >= ring - 1) and sets
+ * the Pioneer work/clear bits; counted once (2 + 3) it does not.
+ */
+static int tb24_flags(bool buggy, unsigned* out_flags) {
+  Fx f;
+  if (fx_build(&f, 3) != 0) {
+    return 1;
+  }
+  ai_euro_reset();
+  fx_wake_colonists(&f, 3);
+  static const int dx[] = {-1, 0, 1, -1, 1};
+  static const int dy[] = {-1, -1, -1, 0, 0};
+  static const uint8_t terr[] = {0x19, 0x19, 0x19, 0x08, 0x08};
+  for (int i = 0; i < 5; ++i) {
+    f.map.terrain[(8 + dy[i]) * 24 + (8 + dx[i])] = terr[i];
+  }
+  f.col->ai_flags = 0;
+  dos_buggy_behavior_set(buggy);
+  ai_euro_refresh_colony_ai_flags(&f.ctx, NATION, f.col);
+  dos_buggy_behavior_set(true);
+  *out_flags = f.col->ai_flags;
+  fx_done(&f);
+  return 0;
+}
+
+static int case_tb24_fixed_water_counted_once(void) {
+  const unsigned bits = COLONIZE_COLONY_AI_WANTS_PIONEER_WORK | COLONIZE_COLONY_AI_WANTS_PIONEER_CLEAR;
+  unsigned flags = 0;
+  if (tb24_flags(true, &flags) != 0) {
+    return 1;
+  }
+  if ((flags & bits) != bits) {
+    return fail("TB-24 fixture: double-counted water must set the Pioneer bits under the DOS flag");
+  }
+  if (tb24_flags(false, &flags) != 0) {
+    return 1;
+  }
+  return (flags & COLONIZE_COLONY_AI_WANTS_PIONEER_CLEAR) == 0
+           ? 0 : fail("TB-24 fixed: water counted once leaves the clear bit off");
+}
+
+/*
+ * TB-23 fixed: the equip arm strips the PICKED colonist's expert profession,
+ * not the last slot's. Slot 0 a Veteran Soldier (scores 4 for the Soldier
+ * target), slot 1 an Expert Farmer: DOS tests the Farmer and strips the
+ * veteran; fixed, the veteran leaves as a veteran.
+ */
+static int tb23_ejected_prof(bool buggy, int* out_prof) {
+  Fx f;
+  if (fx_build(&f, 2) != 0) {
+    return 1;
+  }
+  ai_euro_reset();
+  fx_wake_colonists(&f, 2);
+  f.col->colonists[0].profession = UNITS_JOB_SOLDIER;
+  f.col->colonists[1].profession = COLONIZE_PROF_FARMER;
+  f.col->stock[COLONIZE_CARGO_MUSKETS] = 100;
+  f.col->ai_flags = COLONIZE_COLONY_AI_NEEDS_GARRISON;
+  dos_buggy_behavior_set(buggy);
+  ai_euro_5952_colony_prelude(&f.ctx, NATION, f.col);
+  dos_buggy_behavior_set(true);
+  *out_prof = -1;
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* u = &f.units.units[i];
+    if (u->active && u->x == f.col->x && u->y == f.col->y) {
+      *out_prof = u->profession;
+    }
+  }
+  fx_done(&f);
+  return 0;
+}
+
+static int case_tb23_fixed_strip_tests_picked_colonist(void) {
+  int prof = -1;
+  if (tb23_ejected_prof(true, &prof) != 0) {
+    return 1;
+  }
+  if (prof != COLONIZE_PROF_FREE_COLONIST) {
+    return fail("TB-23 fixture: DOS strips the veteran because the last slot is an expert");
+  }
+  if (tb23_ejected_prof(false, &prof) != 0) {
+    return 1;
+  }
+  return prof == UNITS_JOB_SOLDIER ? 0 : fail("TB-23 fixed: the veteran keeps its profession");
+}
+
+/* TB-19 fixed: the expert purchase charges the trained job's price (Expert
+ * Farmer 1100), not the colonist slot's row (slot 7 = Silver Miner 900). */
+static int tb19_gold_spent(bool buggy, long* out_spent) {
+  Fx f;
+  if (fx_build(&f, 8) != 0) {
+    return 1;
+  }
+  ai_euro_reset();
+  fx_wake_colonists(&f, 8);
+  f.col->stock[COLONIZE_CARGO_FOOD] = 0; /* food_short -> train_flag */
+  f.col1.nation[NATION].gold = 5000;
+  f.col1.nation[NATION].tax_rate = 0;
+  dos_buggy_behavior_set(buggy);
+  ai_euro_5952_specialist_arms(&f.ctx, f.col, 8);
+  dos_buggy_behavior_set(true);
+  *out_spent = 5000L - (long)f.col1.nation[NATION].gold;
+  fx_done(&f);
+  return 0;
+}
+
+static int case_tb19_fixed_expert_price_is_trained_job(void) {
+  long spent = 0;
+  if (tb19_gold_spent(true, &spent) != 0) {
+    return 1;
+  }
+  if (spent != 900) {
+    return fail("TB-19 fixture: DOS charges @JOB row 7 (900) for slot 7");
+  }
+  if (tb19_gold_spent(false, &spent) != 0) {
+    return 1;
+  }
+  return spent == 1100 ? 0 : fail("TB-19 fixed: an Expert Farmer costs 1100");
+}
+
+/* TB-18 fixed: ARM 1 elects the craft row's @JOB (Gunsmith for the Armory
+ * row), not the row index (0 = Farmer). */
+static int tb18_elected(bool buggy, int* out_gunsmiths, int* out_farmers) {
+  Fx f;
+  if (fx_build(&f, 3) != 0) {
+    return 1;
+  }
+  ai_euro_reset();
+  fx_wake_colonists(&f, 3);
+  fx_enable_road_arms(&f, 777u, 0);
+  own(&f, "Schoolhouse");
+  own(&f, "Armory");
+  own(&f, "Blacksmith's House");
+  f.col->improve_timer = 100;
+  f.col->stock[COLONIZE_CARGO_ORE] = 50;
+  f.col->colonists[0].building_type = bld(&f, "Blacksmith's House");
+  dos_buggy_behavior_set(buggy);
+  ai_euro_5952_specialist_arms(&f.ctx, f.col, 3);
+  dos_buggy_behavior_set(true);
+  *out_gunsmiths = 0;
+  *out_farmers = 0;
+  for (int s = 0; s < 3; ++s) {
+    *out_gunsmiths += f.col->colonists[s].profession == COLONIZE_PROF_GUNSMITH;
+    *out_farmers += f.col->colonists[s].profession == COLONIZE_PROF_FARMER;
+  }
+  fx_done(&f);
+  return 0;
+}
+
+static int case_tb18_fixed_school_elects_craft_job(void) {
+  int gunsmiths = 0, farmers = 0;
+  if (tb18_elected(true, &gunsmiths, &farmers) != 0) {
+    return 1;
+  }
+  if (gunsmiths != 0 || farmers != 1) {
+    return fail("TB-18 fixture: DOS elects row 0 = Farmer");
+  }
+  if (tb18_elected(false, &gunsmiths, &farmers) != 0) {
+    return 1;
+  }
+  return (gunsmiths == 1 && farmers == 0) ? 0 : fail("TB-18 fixed: the Armory row elects a Gunsmith");
+}
+
+/*
+ * TB-17 fixed: Preacher / Statesman (no input cargo) are not clamped by the
+ * previous input job's stock. One colonist, an all-Ocean ring without Docks
+ * (no field seat), a Town Hall and a Blacksmith's House with no ore. Year
+ * 1650, turn 0x31: Blacksmith (1 ton) scores 13 * 4 = 52, Statesman weight 3.
+ * DOS clamps the Statesman to the Blacksmith's 1 ton (13 * 3 = 39) and seats
+ * a Blacksmith; fixed, 3 bells score 29 * 3 = 87 and the Statesman wins.
+ */
+static int tb17_building(bool buggy, int* out_bt, int* out_town_hall) {
+  Fx f;
+  if (fx_build(&f, 1) != 0) {
+    return 1;
+  }
+  ai_euro_reset();
+  static const int dx[COLONIZE_COLONY_FIELD_TILES] = {0, 1, 1, 1, 0, -1, -1, -1};
+  static const int dy[COLONIZE_COLONY_FIELD_TILES] = {-1, -1, 0, 1, 1, 1, 0, -1};
+  for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES; ++t) {
+    f.map.terrain[(8 + dy[t]) * 24 + (8 + dx[t])] = 0x19;
+  }
+  fx_wake_colonists(&f, 1);
+  own(&f, "Town Hall");
+  own(&f, "Blacksmith's House");
+  f.col->stock[COLONIZE_CARGO_FOOD] = 50;
+  f.col1.head.year = 1650;
+  f.col1.head.turn = 0x31;
+  f.turn = 0x31;
+  dos_buggy_behavior_set(buggy);
+  ai_euro_colony_tick_28c8_reassign(&f.ctx, NATION);
+  dos_buggy_behavior_set(true);
+  *out_bt = f.col->colonists[0].building_type;
+  *out_town_hall = bld(&f, "Town Hall");
+  fx_done(&f);
+  return 0;
+}
+
+static int case_tb17_fixed_statesman_not_clamped(void) {
+  int bt = -1, town_hall = -2;
+  if (tb17_building(true, &bt, &town_hall) != 0) {
+    return 1;
+  }
+  if (bt == town_hall) {
+    return fail("TB-17 fixture: DOS clamps the Statesman and seats the Blacksmith");
+  }
+  if (tb17_building(false, &bt, &town_hall) != 0) {
+    return 1;
+  }
+  return bt == town_hall ? 0 : fail("TB-17 fixed: the unclamped Statesman wins");
+}
+
+/*
+ * TB-16 fixed: the tick's forest -10 follows the candidate tile, not the
+ * stack residue. One colonist, lumber 10 (lumber idle, no forced
+ * lumberjack), N plot terrain 10 (forest) and NE plot Prairie with the same
+ * Farmer yield, the rest Ocean without Docks. DOS's residue after a set-job
+ * (0x12) penalises both, so the nearer forest plot wins by the distance
+ * term; fixed, only the forest is penalised and the Prairie plot wins.
+ */
+static int tb16_tile(bool buggy, int* out_tile, int* out_job) {
+  Fx f;
+  if (fx_build(&f, 1) != 0) {
+    return 1;
+  }
+  ai_euro_reset();
+  static const int dx[COLONIZE_COLONY_FIELD_TILES] = {0, 1, 1, 1, 0, -1, -1, -1};
+  static const int dy[COLONIZE_COLONY_FIELD_TILES] = {-1, -1, 0, 1, 1, 1, 0, -1};
+  for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES; ++t) {
+    const int off = (8 + dy[t]) * 24 + (8 + dx[t]);
+    f.map.terrain[off] = t == 0 ? 10 : t == 1 ? 3 : 0x19;
+    f.map.layer2[off] |= MAP_LAYER2_SUPPRESS;
+  }
+  fx_wake_colonists(&f, 1);
+  f.col->stock[COLONIZE_CARGO_LUMBER] = 10;
+  f.col->stock[COLONIZE_CARGO_FOOD] = 50;
+  dos_buggy_behavior_set(buggy);
+  ai_euro_colony_tick_28c8_reassign(&f.ctx, NATION);
+  dos_buggy_behavior_set(true);
+  *out_tile = colonies_colonist_tile(f.col, 0);
+  *out_job = f.col->colonists[0].field_job;
+  fx_done(&f);
+  return 0;
+}
+
+static int case_tb16_fixed_forest_penalty_follows_tile(void) {
+  int tile = -1, job = -1;
+  if (tb16_tile(true, &tile, &job) != 0) {
+    return 1;
+  }
+  if (tile != 0 || job != COLONIZE_JOB_FARMER) {
+    return fail("TB-16 fixture: DOS seats the Farmer on the nearer forest plot");
+  }
+  if (tb16_tile(false, &tile, &job) != 0) {
+    return 1;
+  }
+  return (tile == 1 && job == COLONIZE_JOB_FARMER)
+           ? 0 : fail("TB-16 fixed: the unpenalised Prairie plot wins");
+}
+
 static const TestCase k_cases[] = {
   {"case_seam_cascade_head_stage", case_seam_cascade_head_stage},
   {"case_seam_colony_tick_unseat_all", case_seam_colony_tick_unseat_all},
@@ -1146,6 +1522,15 @@ static const TestCase k_cases[] = {
   {"case_tools_purchase_records_buy_volume", case_tools_purchase_records_buy_volume},
   {"case_tools_purchase_needs_gold", case_tools_purchase_needs_gold},
   {"case_0614_rebind_spares_human_colony", case_0614_rebind_spares_human_colony},
+  {"case_tb20_fixed_empty_tile_skips_horses", case_tb20_fixed_empty_tile_skips_horses},
+  {"case_tb14_fixed_tick_stays_on_ticking_colony", case_tb14_fixed_tick_stays_on_ticking_colony},
+  {"case_tb13_fixed_improvement_owner_is_own_nation", case_tb13_fixed_improvement_owner_is_own_nation},
+  {"case_tb24_fixed_water_counted_once", case_tb24_fixed_water_counted_once},
+  {"case_tb23_fixed_strip_tests_picked_colonist", case_tb23_fixed_strip_tests_picked_colonist},
+  {"case_tb19_fixed_expert_price_is_trained_job", case_tb19_fixed_expert_price_is_trained_job},
+  {"case_tb18_fixed_school_elects_craft_job", case_tb18_fixed_school_elects_craft_job},
+  {"case_tb17_fixed_statesman_not_clamped", case_tb17_fixed_statesman_not_clamped},
+  {"case_tb16_fixed_forest_penalty_follows_tile", case_tb16_fixed_forest_penalty_follows_tile},
 };
 
 TEST_MAIN(k_cases)

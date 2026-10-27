@@ -28,6 +28,7 @@
 #include "core/ai_goals.h"
 #include "core/assets.h"
 #include "core/ai_euro_internal.h"
+#include "core/dos_buggy.h"
 #include "core/ai_internal.h"
 #include "core/colony.h"
 #include "core/colony_craft.h"
@@ -378,15 +379,21 @@ static int ai_euro_20e6_delivery_sell_tail(
     /* func_0x00019c1e = 38fd_1dfa. Needs the shared EuropeScreen; when the AI
      * runs headless without one the price/volume ledger is simply skipped —
      * the treasury half below is col1-only and always applies. */
+    bool ledger_booked = false;
     if (ctx->europe) {
       europe_apply_trade_volume(
         ctx->europe, ctx->col1, nation, ctx->human_nation, g, qty, 0, 0
       );
+      ledger_booked = g < ctx->europe->cargo_count; /* 1dfa's own guard */
     }
     const int32_t v = (int32_t)ai_euro_ship_price_84bc(ctx, nation, g) * (int32_t)qty;
     europe_nation_gold_add(ctx->europe, ctx->col1, nation, v); /* port_bugs.md #1096 */
-    nat->trade.gold[g] += v;
-    nat->trade.tons[g] += (int32_t)qty;
+    /* TB-3: DOS books the ledger a second time; fixed under
+     * !dos_buggy_behavior() (only when 1dfa above has booked it). */
+    if (dos_buggy_behavior() || !ledger_booked) {
+      nat->trade.gold[g] += v;
+      nat->trade.tons[g] += (int32_t)qty;
+    }
     total += (int)v;
   }
   if (total != 0 && getenv("AI_20E6_DELIVER_TRACE")) {
@@ -1565,7 +1572,11 @@ int ai_euro_ship_enter_europe(ColonizeTurnContext* ctx, ColonizeUnit* ship) {
    * hull the current unit DS:0x5392 before FUN_291f_0208 -> 007a. Nothing
    * clears it until the human's Move Pieces entry, so the human's autosave
    * names the last AI hull that sailed for Europe. */
-  ctx->units->selected_id = ship->id;
+  /* TB-50: stale RAM in the save; fixed under !dos_buggy_behavior() by
+   * leaving the human's current unit alone. */
+  if (dos_buggy_behavior()) {
+    ctx->units->selected_id = ship->id;
+  }
   if (ctx->col1_ok && ctx->col1 && n >= 0 && n < 4) {
     ctx->col1->nation[n].return_from_europe_x = (uint8_t)ox; /* -0x77c6 */
     ctx->col1->nation[n].return_from_europe_y = (uint8_t)oy;

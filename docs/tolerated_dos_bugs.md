@@ -3,11 +3,12 @@
 STATUS: living record, not an audit dump. Authoritative.
 
 VICEROY.EXE behaviour that is a bug in the original, that the user has judged
-undesirable, but that the port **still reproduces for now** so development can
-continue (typically because the golden fixtures and idle campaigns that guard
-DOS fidelity depend on it). Each entry is due to move to
-[dos_bugs.md](dos_bugs.md) (bugs the port does not reproduce) once the port
-stops reproducing it. Add an entry only on the user's say-so; an agent must not
+undesirable, but that the golden fixtures and idle campaigns guarding DOS
+fidelity depend on. Since 2026-10-27 every live entry is **fixed in opencol**
+and **reproduced in test binaries** through `dos_buggy_behavior()` (below), so
+the goldens keep guarding the non-buggy code. An entry moves to
+[dos_bugs.md](dos_bugs.md) only once the tests stop reproducing it too
+(gate deleted, goldens re-blessed). Add an entry only on the user's say-so; an agent must not
 decide this alone.
 
 Not this file:
@@ -21,8 +22,8 @@ TB-9..TB-30 (Euro and native AI) live in
 Ids are `TB-N`, permanent and never reused. An entry moving to `dos_bugs.md`
 gets the next `DB-N` there and notes "was TB-N"; leave a one-line stub here
 pointing at it so citations still resolve. Each entry names the DOS function
-(`FUN_ssss_oooo` + raw offset), what DOS does, the port sites that reproduce it,
-and what blocks removing it.
+(`FUN_ssss_oooo` + raw offset), what DOS does, the port sites that reproduce it
+(now the `dos_buggy_behavior()` arm), and what blocks removing it.
 
 **Fixing one:** gate the fix on `dos_buggy_behavior()` (`src/core/dos_buggy.h`):
 `if (dos_buggy_behavior()) { DOS bug } else { fix }`. It is off in opencol and on
@@ -68,7 +69,7 @@ wandering, or a Go To that never arrives. Frequency on real maps not measured.
 idle campaigns (CTest `golden_idle_*`) and goldens stop matching DOS. Removing
 it from live pathing only (keep the save planes DOS-exact) needs a way to keep
 those gates meaningful, e.g. a switch the golden harnesses turn off.
-**Status:** tolerated (2026-10-21).
+**Status:** tolerated (2026-10-21). Fixed in opencol 2026-10-27, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.
 
 ### TB-2 — Passengers switch ships when another own ship leaves the tile first
 **DOS:** a passenger is not "aboard" anything; it is a sentried land unit in
@@ -96,7 +97,7 @@ deliberate re-creation, not a side effect. Unit test: `unit_units_core`
 
 **Blocks removal:** boarding only the hull's own riders breaks
 `golden_idle_independence` from save 2, which depends on the DOS pickup order.
-**Status:** tolerated (2026-10-21).
+**Status:** tolerated (2026-10-21). Fixed in opencol 2026-10-27, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.
 
 ### TB-3 — Euro AI delivery sell books its trade ledger twice
 **DOS:** when a Euro AI ship's delivery matrix in FUN_521d_20e6 picks no colony,
@@ -119,7 +120,7 @@ the save. `trade.tons2`, which the market price model sums, is booked once.
 **Blocks removal:** the ledgers are saved, and the idle campaigns
 (`golden_idle_*`) byte-compare saves with DOS; a single booking changes those
 bytes from the first AI delivery sell on. Not test-run.
-**Status:** tolerated (2026-10-21).
+**Status:** tolerated (2026-10-21). Fixed in opencol 2026-10-27, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.
 
 ### TB-4 — AI warehouse dump-sell adds the cargo index to tons sold
 **DOS:** FUN_364b_0688 phase O (raw 57806-57848) sells a non-human Euro
@@ -139,7 +140,7 @@ so mostly invisible outside the save.
 
 **Blocks removal:** as TB-3 (saved ledgers, byte-compared by `golden_idle_*`).
 Not test-run.
-**Status:** tolerated (2026-10-21).
+**Status:** tolerated (2026-10-21). Fixed in opencol 2026-10-27, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.
 
 ### TB-5 — Colony job scoring reads Horses for the Fisherman
 **DOS:** FUN_15eb_28c8 (the work-plot job scorer) calls
@@ -165,7 +166,7 @@ port_bugs.md #582. The fix is `colony_yield_job_cargo(job)`.
 (`golden_idle_continuous`, `_independence`, `_america` and the `_reload`
 variants) and `unit_ai_euro_28c8_job_score`; reverted.
 [Details](archive/tolerated_dos_bugs_evidence_2026-10-24.md#tb-5).
-**Status:** tolerated (2026-10-21).
+**Status:** tolerated (2026-10-21). Fixed in opencol 2026-10-27, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.
 
 ### TB-6 — Euro AI buying from natives scores the wrong goods
 **DOS:** in the native trade session (FUN_4d56_2820, LAB_002e92, asm
@@ -189,7 +190,7 @@ offer. Human players choose through @BUYWHICH and are not affected.
 **Blocks removal:** tried 2026-10-21 (score the offered goods' price bytes);
 fails `golden_idle_independence` and `_reload`; reverted.
 [Details](archive/tolerated_dos_bugs_evidence_2026-10-24.md#tb-6).
-**Status:** tolerated (2026-10-21).
+**Status:** tolerated (2026-10-21). Fixed in opencol 2026-10-27, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.
 
 ### TB-7 — Villages-per-continent table holds only the last tribe's villages
 **DOS:** the Indian census FUN_4962_06b6 (raw ~78392-78406) runs once per tribe
@@ -211,7 +212,7 @@ last-tribe-only result.
 **Blocks removal:** tried 2026-10-21 (count every settlement); fails all six
 idle gates (the table is saved) and `unit_ai_indian_census`; reverted.
 [Details](archive/tolerated_dos_bugs_evidence_2026-10-24.md#tb-7).
-**Status:** tolerated (2026-10-21).
+**Status:** tolerated (2026-10-21). Fixed in opencol 2026-10-27, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.
 
 ### TB-8 — Indian horse breeding credits the last settlement's tribe
 **DOS:** in each tribe's turn, the census FUN_4962_06b6 (raw 78392-78406) walks
@@ -235,7 +236,7 @@ Unit test `unit_ai_indian_census` pins it.
 **Blocks removal:** tried 2026-10-21 (breed the current tribe); fails all six
 idle gates and `unit_ai_indian_census`; reverted.
 [Details](archive/tolerated_dos_bugs_evidence_2026-10-24.md#tb-8).
-**Status:** tolerated (2026-10-21).
+**Status:** tolerated (2026-10-21). Fixed in opencol 2026-10-27, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.
 
 ### TB-31 — Best-defender picker scores against "unit #nation", not the attacker
 **DOS:** FUN_5fef_1b0e calls FUN_281f_07e0 with the attacker's nation nibble
@@ -258,7 +259,7 @@ dos_bug_candidates_2026-10-22.md C-35. The fix is `pick_foe_id = attacker_id`.
 **Blocks removal:** tried 2026-10-22 (score against the real attacker); fails
 `golden_idle_independence` and `_reload`; reverted.
 [Details](archive/tolerated_dos_bugs_evidence_2026-10-24.md#tb-31).
-**Status:** tolerated (2026-10-22).
+**Status:** tolerated (2026-10-22). Fixed in opencol 2026-10-27, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.
 
 ### TB-32 — Colony capture toggles the WAR bit one-sidedly
 **DOS:** the capture tail of FUN_5fef_1b0e (raw 100999-101010, OVL17 asm
@@ -280,7 +281,7 @@ fix is to drop the else arm.
 
 **Blocks removal:** tried 2026-10-22 (drop the else arm); fails
 `golden_idle_independence` and `_reload`; reverted.
-**Status:** tolerated (2026-10-22).
+**Status:** tolerated (2026-10-22). Fixed in opencol 2026-10-27, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.
 
 ### TB-33 — Spanish tech-1 conquest treasure bound is computed but not used
 **DOS:** the treasure amount tail of FUN_5fef_31ea branches on the razed tribe's
@@ -303,7 +304,7 @@ spanish ? 1 : 2)`.
 **Blocks removal:** tried 2026-10-22 (roll with the computed bound); fails
 `golden_idle_continuous` and `golden_idle_reload`; reverted.
 [Details](archive/tolerated_dos_bugs_evidence_2026-10-24.md#tb-33).
-**Status:** tolerated (2026-10-22).
+**Status:** tolerated (2026-10-22). Fixed in opencol 2026-10-27, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.
 
 ### TB-34 — Ship-sink census does not decrement the ship count
 **DOS:** when FUN_5fef_0352 sinks a hull (raw 99570-99579) it takes the hull
@@ -329,7 +330,7 @@ Came from dos_bug_candidates_2026-10-22.md C-40. The fix is
 **Blocks removal:** tried 2026-10-22 (the fix); fails `golden_idle_independence`
 and `_reload`; reverted.
 [Details](archive/tolerated_dos_bugs_evidence_2026-10-24.md#tb-34).
-**Status:** tolerated (2026-10-22).
+**Status:** tolerated (2026-10-22). Fixed in opencol 2026-10-27, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.
 
 ### TB-35 — LCR "Vanishes" latch overrides the small-nation protection
 **DOS:** in the Lost City Rumour body FUN_65dd_0004, case 5 ("Vanishes",
@@ -354,7 +355,7 @@ dos_bug_candidates_2026-10-22.md C-41. The fix is to test the latch only while
 `golden_idle_reload`, `golden_idle_america` and `_reload`, and `unit_units_core`
 ("case5 latch must set lcr_case5_bonus_used" pins the DOS behaviour); reverted.
 [Details](archive/tolerated_dos_bugs_evidence_2026-10-24.md#tb-35).
-**Status:** tolerated (2026-10-22).
+**Status:** tolerated (2026-10-22). Fixed in opencol 2026-10-27, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.
 
 ### TB-36 — Declaration clears the seen plane with the crown index instead of its bit
 **DOS:** FUN_43f7_1a26 (declaration of independence, raw 74818-74827) walks the
@@ -375,7 +376,7 @@ on every tile. The REF pathfinder reads this layer.
 **Blocks removal:** tried 2026-10-22 (`keep = ~(0x10 << crown)`); fails
 `golden_idle_independence` and `_reload`; reverted.
 [Details](archive/tolerated_dos_bugs_evidence_2026-10-24.md#tb-36).
-**Status:** tolerated (2026-10-22).
+**Status:** tolerated (2026-10-22). Fixed in opencol 2026-10-27, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.
 
 ### TB-37 — REF wave planner tests the owner of a stale unit index
 **DOS:** while scoring each human coastal colony's garrison, FUN_43f7_0982 (raw
@@ -397,7 +398,7 @@ invasion waves are sized by it.
 **Blocks removal:** tried 2026-10-22 (test the neighbour tile's own head unit);
 fails `golden_idle_independence` and `_reload`; reverted.
 [Details](archive/tolerated_dos_bugs_evidence_2026-10-24.md#tb-37).
-**Status:** tolerated (2026-10-22).
+**Status:** tolerated (2026-10-22). Fixed in opencol 2026-10-27, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.
 
 ### TB-38 — REF landing sweep tests "crown-held" through a stale owner nibble
 **DOS:** the landing sweep of FUN_43f7_0982 (raw 74190) decides whether a
@@ -417,7 +418,7 @@ tests `units_tile_owner_nibble(...) == crown`.
 **Blocks removal:** tried 2026-10-22 (test for an active crown unit on the
 tile); fails `golden_idle_independence` and `_reload`; reverted.
 [Details](archive/tolerated_dos_bugs_evidence_2026-10-24.md#tb-38).
-**Status:** tolerated (2026-10-22).
+**Status:** tolerated (2026-10-22). Fixed in opencol 2026-10-27, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.
 
 ### TB-39 — Invasion and intervention target lists are capped at ten colonies
 **DOS:** the REF invasion wave (FUN_43f7_0982, raw 74001-74015) and the
@@ -436,7 +437,7 @@ ever attacks or lands next to the oldest ten.
 `golden_idle_independence` and `_reload`; reverted. The cap only matters past
 ten coastal human colonies, so that campaign reaches it and DOS keeps it.
 [Details](archive/tolerated_dos_bugs_evidence_2026-10-24.md#tb-39).
-**Status:** tolerated (2026-10-22).
+**Status:** tolerated (2026-10-22). Fixed in opencol 2026-10-27, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.
 
 ### TB-40 — Tax-audience score reads the human's SoL for every nation
 **DOS:** the King's peacetime tax audience (FUN_38fd_5be8, raw 68460-68467) is
@@ -459,7 +460,7 @@ Simon Bolivar elect bump to `DS:0x53d0` counts in the human's score.
 `golden_idle_america` and `_reload`, and `unit_ai_king_core` (6 cases pin the
 old score); reverted.
 [Details](archive/tolerated_dos_bugs_evidence_2026-10-24.md#tb-40).
-**Status:** tolerated (2026-10-22).
+**Status:** tolerated (2026-10-22). Fixed in opencol 2026-10-27, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.
 
 ### TB-41 — Fisherman yield cascade tests its thresholds in the wrong order
 **DOS:** FUN_15eb_18ec (raw 11816-11835, asm 15eb:1979-19d7) adjusts a
@@ -485,7 +486,7 @@ n < 3: +3; n < 4: +2; else +1`.
 `golden_colony_prod02`, `unit_colony_yield`, `unit_turn_core` and
 `unit_ai_euro_28c8_job_score`; reverted.
 [Details](archive/tolerated_dos_bugs_evidence_2026-10-24.md#tb-41).
-**Status:** tolerated (2026-10-22).
+**Status:** tolerated (2026-10-22). Fixed in opencol 2026-10-27, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.
 
 ### TB-42 — Major-river bonus only when the river is the sole contributor
 **DOS:** FUN_15eb_18ec (raw 11961-11963) builds the road/plow/river bonus
@@ -509,7 +510,7 @@ dropping the `add == improvement_step` test.
 `golden_colony_prod01`, `golden_colony_prod03` and `unit_colony_yield`
 (`fur_trapper_river_double_count`); reverted.
 [Details](archive/tolerated_dos_bugs_evidence_2026-10-24.md#tb-42).
-**Status:** tolerated (2026-10-22).
+**Status:** tolerated (2026-10-22). Fixed in opencol 2026-10-27, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.
 
 ### TB-43 — Stale claim table charges again for a plot a Pioneer already bought
 **DOS:** FUN_15eb_26e4 builds the 5x5 tribal-claim table (DS:-0x7262) at
@@ -534,7 +535,7 @@ test on purpose. Came from dos_bug_candidates_2026-10-22.md C-50.
 **Blocks removal:** tried 2026-10-22 (skip the reaction when the plot's
 `MAP_LAYER2_PURCHASED` bit is set); fails `golden_idle_america` and `_reload`;
 reverted.
-**Status:** tolerated (2026-10-22).
+**Status:** tolerated (2026-10-22). Fixed in opencol 2026-10-27, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.
 
 ### TB-44 — The destination flood cache is keyed on the goal only
 **DOS:** `FUN_6662_00f2` (raw 103870-103885) reuses its last destination flood
@@ -563,7 +564,7 @@ rebuild when they differ); fails `golden_idle_america` and `_reload` and
 `regression_replay`. A variant that never reuses the grid also fails all six
 idle gates and `unit_units_movement`. Reverted.
 [Details](archive/tolerated_dos_bugs_evidence_2026-10-24.md#tb-44).
-**Status:** tolerated (2026-10-22).
+**Status:** tolerated (2026-10-22). Fixed in opencol 2026-10-27, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.
 
 ### TB-45 — withdrawn: Man-O-War sight radius 1 is intended
 FUN_13f1_02f8 gives the Man-O-War radius 1, not 2 like Galleon, Privateer and Frigate;
@@ -592,7 +593,7 @@ every tile by `paint_terrain`.
 unchanged), the first used for sign and value, fails `golden_mapgen_seed100`
 and `smoke_play`. Reverted.
 [Details](archive/tolerated_dos_bugs_evidence_2026-10-24.md#tb-46).
-**Status:** tolerated (2026-10-22).
+**Status:** tolerated (2026-10-22). Fixed in opencol 2026-10-27, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.
 
 ### TB-47 — Spawns refused at the unit cap still charge the cost
 **DOS:** FUN_1427_06b4 refuses a new unit at the cap (292 units for an AI
@@ -627,7 +628,7 @@ at all five sites); every test passed, since no enabled golden reaches the cap.
 Kept at the user's call because the real DOS saves past the AI cap show these
 charges (America seed-100 resync 290, port_bugs.md #1132). Was DB-17..DB-21.
 Reverted. [Details](archive/tolerated_dos_bugs_evidence_2026-10-24.md#tb-47).
-**Status:** tolerated (2026-10-22).
+**Status:** tolerated (2026-10-22). Fixed in opencol 2026-10-27, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.
 
 ### TB-48 — Reversing a ship at sea keeps its crossing counter
 **DOS:** the European Status drag handler 38fd:3228 (overlay segment 5,
@@ -646,6 +647,7 @@ regression `europe_reverse_sailing_ship`.
 
 **Blocks removal:** nothing; an odd edge case, not worth fixing now (user,
 2026-10-22).
+**Status:** Fixed in opencol 2026-10-27, gated on `!dos_buggy_behavior()` (turns left = `voyage_turns` - turns left; a ship loaded mid-voyage keeps the DOS counter); test binaries still reproduce DOS.
 
 ### TB-49 — Fur Trapper gets the road and river bonus twice
 **DOS:** FUN_15eb_18ec adds road-or-settlement (`FUN_137f_0142 & 0x0a`) +1 and
@@ -663,7 +665,7 @@ job-4 block before the zero-base gate.
 **Blocks removal:** tried 2026-10-23: dropping the job-4 block fails every idle
 golden and its reload twin (8 tests), `golden_colony_prod01` and
 `unit_colony_yield`.
-**Status:** tolerated (2026-10-23). Came from dos_bug_candidates_2026-10-22.md C-77.
+**Status:** tolerated (2026-10-23). Came from dos_bug_candidates_2026-10-22.md C-77. Fixed in opencol 2026-10-27, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.
 
 ### TB-50 — An AI hull sailing for Europe stays the current unit
 **DOS:** the movers FUN_465b_0000 (raw 76484) and FUN_479b_0972 (raw 77099)
@@ -681,7 +683,7 @@ turn resets it.
 its reload twin fail (8 tests), on header byte 0x22 only (port 0xff, DOS the
 hull's index); no other byte drifts. Removing it needs that byte on the idle
 golden ignore list ([idle_campaign.md](idle_campaign.md)).
-**Status:** tolerated (2026-10-23). Came from dos_bug_candidates_2026-10-22.md C-81.
+**Status:** tolerated (2026-10-23). Came from dos_bug_candidates_2026-10-22.md C-81. Fixed in opencol 2026-10-27, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.
 
 ### TB-51 — "Break Treaty" during the treaty cooldown does nothing
 **DOS:** FUN_465b_0000 asks a human attacker @HAVETREATY (0x13ba) when its own
@@ -701,7 +703,7 @@ happens: the unit does not attack and no reason is given.
 
 **Blocks removal:** nothing known; not tried. Options: skip @HAVETREATY while the
 cooldown runs, or say why the attack was refused.
-**Status:** tolerated (user, 2026-10-25).
+**Status:** tolerated (user, 2026-10-25). Fixed in opencol 2026-10-27, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.
 
 ### TB-52 — An AI that breaks a treaty by attacking never goes to war
 **DOS:** FUN_465b_0000 raw 75558-75595. When a Euro attack meets the treaty bit
@@ -728,4 +730,4 @@ arm.
 **Blocks removal:** tried 2026-10-27 (that one line); fails
 `golden_idle_america`, `golden_idle_america_reload` and `golden_ai_joint`
 (`unit_ai_contact_core` too, which locks the DOS read); reverted.
-**Status:** tolerated (user, 2026-10-27).
+**Status:** tolerated (user, 2026-10-27). Fixed in opencol 2026-10-27, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.

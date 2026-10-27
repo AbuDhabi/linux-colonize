@@ -18,6 +18,7 @@
 #include "core/col1_save.h"
 #include "core/combat_analysis.h"
 #include "core/combat_strength.h"
+#include "core/dos_buggy.h"
 #include "core/europe.h"
 #include "core/founding_fathers.h"
 #include "core/popup_msg.h"
@@ -151,10 +152,11 @@ int units_best_defender_at(
    * so the colony Artillery x2 fires for an English attacker and New
    * Amsterdam's damaged Artillery outranks two fortified Cont. Cav.).
    */
-  /* DOS bug, reproduced for now (docs/tolerated_dos_bugs.md TB-31). */
+  /* DOS bug, reproduced for now (docs/tolerated_dos_bugs.md TB-31).
+   * TB-31: scored against the real attacker under !dos_buggy_behavior(). */
   int pick_foe_id = attacker_id;
   int pick_foe_nat = atk_nat;
-  if (atk_nat >= 0) {
+  if (dos_buggy_behavior() && atk_nat >= 0) {
     int rank = atk_nat & 0xf;
     for (int i = 0; i < units_slot_end(pool); ++i) {
       const ColonizeUnit* o = &pool->units[i];
@@ -2146,6 +2148,10 @@ int units_apply_naval_loss_outcome(
     if (lt->attack != 0) {
       st->armed_ship_counts[n]--;
     }
+    /* TB-34: DOS never decrements DS:0x9418; fixed under !dos_buggy_behavior(). */
+    if (!dos_buggy_behavior() && st->ship_counts[n] > 0) {
+      st->ship_counts[n]--;
+    }
   }
   /*
    * port_bugs.md #254: WoI human with no drydock port has no friendly Europe either
@@ -2845,7 +2851,9 @@ int units_conquest_treasure_gold(
   } else if (tech == 1) {
     /* -0x62 set from Spanish but roll is always 04d4(0,2). */
     /* DOS bug, reproduced for now (docs/tolerated_dos_bugs.md TB-33). */
-    const int tribute_roll = dos_rng_range(rng, 0, 2);
+    /* TB-33: roll with the stored bound under !dos_buggy_behavior(). */
+    const int tribute_roll =
+      dos_rng_range(rng, 0, dos_buggy_behavior() ? 2 : (spanish ? 1 : 2));
     if (tribute_roll == 0 || rich || cortes) {
       amount = dos_rng_range(rng, 3, 8);
     }
@@ -3512,7 +3520,9 @@ static void units_lcr_roll_outcome(
         raw = 6;
       }
       /* DOS bug, reproduced for now (docs/tolerated_dos_bugs.md TB-35). */
-      if (col1 && nation >= 0 && nation < 4 && !col1->player[nation].lcr_case5_bonus_used) {
+      /* TB-35: latch tested only while still case 5 under !dos_buggy_behavior(). */
+      if ((dos_buggy_behavior() || raw == 5) && col1 && nation >= 0 && nation < 4 &&
+          !col1->player[nation].lcr_case5_bonus_used) {
         col1->player[nation].lcr_case5_bonus_used = 1;
         raw = 4;
       }

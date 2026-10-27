@@ -18,6 +18,9 @@
 #include "platform/diagnostics.h"
 #include "platform/platform.h"
 #include "../common/test_runner.h"
+#include "../common/ai_fixture.h"
+#include "core/ai_internal.h"
+#include "core/dos_buggy.h"
 
 static int count_nation_ships_europe(const ColonizeUnitPool* units, int nation) {
   int n = 0;
@@ -1519,6 +1522,63 @@ static int case_coarse_fog_reset(void) {
   return 0;
 }
 
+/* ai_021a_dir_terrain score for one direction on an 8x8 land map; the
+ * destination (4,4) is water when `water_dest`, with a nation-5 village at
+ * (5,4). Run once per dos_buggy_behavior() setting. */
+static int dir_terrain_score(int buggy, int facing, int d, int water_dest) {
+  ColonizeWorldMap map;
+  if (!fx_map_alloc(&map, 8, 8, 2, true)) {
+    return -9999;
+  }
+  ColonizeUnitPool units;
+  fx_units_init(&units);
+  if (water_dest) {
+    map.terrain[4 * 8 + 4] = 25;
+    map.layer2[4 * 8 + 5] = MAP_OCCUPANCY_HAS_CITY;
+    map.layer3[4 * 8 + 5] = 5u << MAP_L3_OWNER_SHIFT;
+  }
+  struct ai_021a_ctx c;
+  memset(&c, 0, sizeof(c));
+  c.map = &map;
+  c.units = &units;
+  c.nation_id = 4;
+  c.x = 3;
+  c.y = 4;
+  c.d = d;
+  c.nx = 4;
+  c.ny = 4;
+  c.facing = facing;
+  c.home_reach = -1;
+  c.presence = -1;
+  c.settle = -1;
+  dos_buggy_behavior_set(buggy != 0);
+  ai_021a_dir_terrain(&c);
+  dos_buggy_behavior_set(true);
+  fx_map_free(&map);
+  return c.score;
+}
+
+/* TB-30: a Brave that stayed (facing 8) gets no +3 for NE / NW when fixed. */
+static int case_021a_stayed_facing_fixed(void) {
+  for (int d = 1; d <= 7; d += 6) {
+    if (dir_terrain_score(1, 8, d, 0) - dir_terrain_score(0, 8, d, 0) != 3) {
+      fprintf(stderr, "TB-30: facing 8 d=%d must lose the +3 only when fixed\n", d);
+      return 1;
+    }
+  }
+  return 0;
+}
+
+/* TB-27: a village beside a water destination counts only with DOS's
+ * overwritten medium; fixed, the land village fails the centre's water test. */
+static int case_021a_adjacent_foreign_medium_fixed(void) {
+  if (dir_terrain_score(1, 0, 0, 1) - dir_terrain_score(0, 0, 0, 1) != -0x19) {
+    fprintf(stderr, "TB-27: land village beside water dest must count only in DOS mode\n");
+    return 1;
+  }
+  return 0;
+}
+
 static int case_new_world(void) {
   diag_init(0, NULL);
   return run_init_and_turns("COLONIZE", false, 0, "NEW_WORLD");
@@ -1533,6 +1593,8 @@ static const TestCase k_cases[] = {
     {"case_new_world", case_new_world},
     {"case_america", case_america},
     {"coarse_fog_reset", case_coarse_fog_reset},
+    {"021a_stayed_facing_fixed", case_021a_stayed_facing_fixed},
+    {"021a_adjacent_foreign_medium_fixed", case_021a_adjacent_foreign_medium_fixed},
     {"run_village_threat_alarm", run_village_threat_alarm},
     {"run_152e_mission_attitude_word", run_152e_mission_attitude_word},
     {"run_152e_alarm_escalation", run_152e_alarm_escalation},

@@ -1,6 +1,7 @@
 #include "test_units_common.h"
 #include "../common/test_runner.h"
 #include "core/units_internal.h"
+#include "core/dos_buggy.h"
 
 
 /*
@@ -1157,7 +1158,108 @@ static int unit_move_stage_seam_1107(void) {
   return rc;
 }
 
+/*
+ * TB-44 fixed path: the 00f2 grid is keyed on the mover's flood rules too.
+ * A uniform-cost flood (the 67f4 populator's DS:0x1dd4 = 1) toward (8,14)
+ * is not reused by a real-cost flood toward the same goal: DOS (flag on)
+ * reuses it and steps S (3); the fixed path rebuilds and, like a fresh
+ * real-cost flood, finds no step under cap 0x12 past the mountains.
+ */
+static int unit_tb44_flood_key_rules(void) {
+  ColonizeUnitPool pool = {0};
+  pool.type_count = 2;
+  pool.types[1].movement = 1;
+  pool.types[1].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  ColonizeWorldMap map = {0};
+  char err[128];
+  if (!map_alloc(&map, 24, 24, err, sizeof err)) {
+    return 1;
+  }
+  for (int i = 0; i < 24 * 24; ++i) {
+    map.terrain[i] = 2;
+    map.layer3[i] = 0xf1;
+  }
+  map.terrain[9 * 24 + 9] = 27;
+  map.terrain[10 * 24 + 9] = 27;
+  map.terrain[10 * 24 + 10] = 27;
+  ColonizeWorld w = {.units = &pool, .map = &map};
+  int got[2];
+  for (int k = 0; k < 2; ++k) {
+    dos_buggy_behavior_set(k == 0);
+    units_reset_state();
+    (void)units_flood_step_dir(&w, 8, 8, 8, 14, 1, -1, 0x12, true);
+    got[k] = units_flood_step_dir(&w, 8, 8, 8, 14, 1, -1, 0x12, false);
+  }
+  dos_buggy_behavior_set(true);
+  units_reset_state();
+  map_free(&map);
+  if (got[0] != 3 || got[1] != -1) {
+    fprintf(stderr, "TB-44: buggy %d (want 3) fixed %d (want -1)\n", got[0], got[1]);
+    return 1;
+  }
+  return 0;
+}
+
+/*
+ * TB-1 fixed path: the live coarse planes flood every link fresh. With the
+ * 2x2 sample block of coarse cell (3,3) under water, cell (3,4)'s NE test
+ * reuses cell (3,2)'s SE flood in DOS and the NE link is dropped, so a far
+ * Go To from (14,17) toward (30,1) steps E to (15,16); with the link kept
+ * the waypoint is the NE cell and the step is N to (14,16). Two live maps
+ * so each call rebuilds the coarse grid for its own mode.
+ */
+static int unit_tb1_coarse_ne_link(void) {
+  ColonizeUnitPool pool = {0};
+  pool.type_count = 2;
+  pool.types[1].movement = 1;
+  pool.types[1].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  ColonizeWorldMap m[2];
+  char err[128];
+  for (int k = 0; k < 2; ++k) {
+    memset(&m[k], 0, sizeof m[k]);
+    if (!map_alloc(&m[k], 44, 44, err, sizeof err)) {
+      return 1;
+    }
+    for (int i = 0; i < 44 * 44; ++i) {
+      m[k].terrain[i] = 2;
+      m[k].layer3[i] = 0xf1;
+    }
+    for (int x = 13; x <= 14; ++x) {
+      for (int y = 13; y <= 14; ++y) {
+        m[k].terrain[y * 44 + x] = 25;
+      }
+    }
+  }
+  const int id = units_spawn_allow_stack(&pool, 1, 14, 17);
+  ColonizeUnit* u = units_get(&pool, id);
+  int st[2][2] = {{-1, -1}, {-1, -1}};
+  for (int k = 0; u && k < 2; ++k) {
+    dos_buggy_behavior_set(k == 0);
+    units_reset_state();
+    u->nation_id = 2;
+    u->x = 14;
+    u->y = 17;
+    u->orders = UNITS_ORDER_GOTO;
+    u->goto_x = 30;
+    u->goto_y = 1;
+    ColonizeWorld w = {.units = &pool, .map = &m[k]};
+    (void)units_next_goto_step_w(&w, id, &st[k][0], &st[k][1]);
+  }
+  dos_buggy_behavior_set(true);
+  units_reset_state();
+  map_free(&m[0]);
+  map_free(&m[1]);
+  if (st[0][0] != 15 || st[0][1] != 16 || st[1][0] != 14 || st[1][1] != 16) {
+    fprintf(stderr, "TB-1: buggy (%d,%d) want (15,16), fixed (%d,%d) want (14,16)\n", st[0][0],
+            st[0][1], st[1][0], st[1][1]);
+    return 1;
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+  {"unit_tb44_flood_key_rules", unit_tb44_flood_key_rules},
+  {"unit_tb1_coarse_ne_link", unit_tb1_coarse_ne_link},
   {"unit_far_flood_keeps_probe_type", unit_far_flood_keeps_probe_type},
   {"unit_board_restore_bounded", unit_board_restore_bounded},
   {"unit_ai_move_marks_new_world", unit_ai_move_marks_new_world},

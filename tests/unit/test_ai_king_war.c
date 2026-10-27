@@ -1,6 +1,7 @@
 /* Slice of the former tests/unit/test_ai_king.c (split by feature 2026-09-23):
  * King war events, non-combat gate, 43f7_0082 spawn types. */
 #include "test_ai_king_common.h"
+#include "core/dos_buggy.h"
 
 /* FUN_38fd_5930 @KINGNEWWAR: Crown cancels peace with a random peer, grants gold + vets. */
 static int test_king_new_war_event(void) {
@@ -413,10 +414,207 @@ static int case_878e_sail_home_one_at_a_time(void) {
   return 0;
 }
 
+/* ===== Tolerated-DOS-bug fixes (docs/tolerated_dos_bugs.md), flag off ===== */
+
+/* Minimal 0982 fixture: 4 x 34 map, column x=0 ocean, the rest land on
+ * continent 1; types 0 Regular, 1 Man-O-War. Crown 1, human 0. */
+typedef struct {
+  ColonizeUnitPool units;
+  ColonizeColonyPool colonies;
+  ColonizeWorldMap map;
+  ColonizeTurnContext ctx;
+} TbInvFx;
+
+static int tb_inv_fx_init(TbInvFx* f) {
+  memset(f, 0, sizeof(*f));
+  fx_units_init(&f->units);
+  f->units.type_count = 2;
+  f->units.types[0].kind_plus1 = UNITS_KIND_REGULAR + 1;
+  f->units.types[0].movement = 1;
+  f->units.types[0].attack = 3;
+  f->units.types[0].defense = 2;
+  f->units.types[1].kind_plus1 = UNITS_KIND_MAN_O_WAR + 1;
+  f->units.types[1].movement = 4;
+  f->units.types[1].domain = 1;
+  f->units.types[1].cargo = 6;
+  colonies_init(&f->colonies);
+  colonies_set_occupancy_map(NULL);
+  char err[128];
+  if (!map_alloc(&f->map, 4, 34, err, sizeof(err))) {
+    return 0;
+  }
+  for (int y = 0; y < 34; ++y) {
+    for (int x = 0; x < 4; ++x) {
+      f->map.terrain[y * 4 + x] = x == 0 ? 25 : 1;
+      f->map.layer3[y * 4 + x] = x == 0 ? 0xf0 : 0xf1;
+    }
+  }
+  f->ctx.units = &f->units;
+  f->ctx.colonies = &f->colonies;
+  f->ctx.map = &f->map;
+  f->ctx.human_nation = 0;
+  return 1;
+}
+
+static ColonizeColony* tb_inv_add_colony(TbInvFx* f, int x, int y, int colonists) {
+  const int i = f->colonies.colony_count++;
+  ColonizeColony* c = &f->colonies.colonies[i];
+  c->id = i;
+  c->active = true;
+  c->nation_id = 0;
+  c->x = x;
+  c->y = y;
+  c->population = colonists;
+  c->colonist_count = colonists;
+  c->colony_flags |= COLONIZE_COLONY_FLAG_COASTAL;
+  return c;
+}
+
+static void tb_inv_run(TbInvFx* f, uint16_t* force) {
+  struct ai_king_0982_ctx w;
+  memset(&w, 0, sizeof(w));
+  w.ctx = &f->ctx;
+  w.crown = 1;
+  w.human = 0;
+  w.force = force;
+  ai_king_0982_invasion(&w);
+}
+
+/* TB-39: an eleventh coastal colony is scored and can be the target. */
+static int case_tb39_invasion_past_ten_colonies(void) {
+  TbInvFx f;
+  if (!tb_inv_fx_init(&f)) {
+    return fail("tb39: map_alloc");
+  }
+  for (int i = 0; i < 11; ++i) {
+    tb_inv_add_colony(&f, 1, 3 * i + 1, i == 10 ? 10 : 1);
+  }
+  uint16_t force[4] = {6, 0, 1, 0};
+  dos_buggy_behavior_set(false);
+  tb_inv_run(&f, force);
+  dos_buggy_behavior_set(true);
+  int mow_y = -1;
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* u = &f.units.units[i];
+    if (u->active && u->nation_id == 1 && u->type_index == 1) {
+      mow_y = u->y;
+    }
+  }
+  map_free(&f.map);
+  if (mow_y < 30) {
+    fprintf(stderr, "tb39: MoW y=%d (want next to colony 10 at y=31)\n", mow_y);
+    return fail("tb39: fixed 0982 must consider the eleventh coastal colony");
+  }
+  return 0;
+}
+
+/* Count crown Regulars on land after one 0982 wave against a colony whose
+ * neighbour holds three crown Regulars (muskets 550 -> garrison 7; the wave caps at 6 and floors at 3). */
+static int tb37_landed(bool buggy) {
+  TbInvFx f;
+  if (!tb_inv_fx_init(&f)) {
+    return -1;
+  }
+  ColonizeColony* c = tb_inv_add_colony(&f, 1, 10, 1);
+  c->stock[COLONIZE_CARGO_MUSKETS] = 550;
+  for (int k = 0; k < 3; ++k) {
+    ColonizeUnit* u = units_get(&f.units, units_spawn_allow_stack(&f.units, 0, 2, 10));
+    if (u) {
+      units_set_nation(u, 1);
+    }
+  }
+  uint16_t force[4] = {6, 0, 1, 0};
+  dos_buggy_behavior_set(buggy);
+  tb_inv_run(&f, force);
+  dos_buggy_behavior_set(true);
+  int n = 0;
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* u = &f.units.units[i];
+    if (u->active && u->nation_id == 1 && u->type_index == 0) {
+      n++;
+    }
+  }
+  map_free(&f.map);
+  return n - 3;
+}
+
+/* TB-37: the neighbour's own crown units reduce the garrison need. */
+static int case_tb37_garrison_reads_neighbour_head(void) {
+  const int dos = tb37_landed(true);
+  const int fixed = tb37_landed(false);
+  if (dos != 6 || fixed != 4) {
+    fprintf(stderr, "tb37: landed dos=%d fixed=%d (want 6/4)\n", dos, fixed);
+    return fail("tb37: fixed 0982 must count the neighbour tile's crown units");
+  }
+  return 0;
+}
+
+/* TB-38: a stale crown owner nibble on an empty tile is not crown-held. */
+static int case_tb38_land_ignores_stale_nibble(void) {
+  TbInvFx f;
+  memset(&f, 0, sizeof(f));
+  fx_units_init(&f.units);
+  f.units.type_count = 1;
+  f.units.types[0].kind_plus1 = UNITS_KIND_REGULAR + 1;
+  f.units.types[0].movement = 1;
+  f.units.types[0].attack = 3;
+  f.units.types[0].defense = 2;
+  char err[128];
+  if (!map_alloc(&f.map, 8, 8, err, sizeof(err))) {
+    return fail("tb38: map_alloc");
+  }
+  for (int i = 0; i < 64; ++i) {
+    f.map.terrain[i] = 1;
+    f.map.layer3[i] = 0xf1;
+  }
+  const int crown = 1;
+  ColonizeUnit* held = units_get(&f.units, units_spawn_allow_stack(&f.units, 0, 4, 4));
+  if (!held) {
+    map_free(&f.map);
+    return fail("tb38: spawn");
+  }
+  units_set_nation(held, crown);
+  f.map.layer3[4 * 8 + 4] = (uint8_t)((crown << 4) | 1);
+  f.map.layer3[2 * 8 + 4] = (uint8_t)((crown << 4) | 1); /* stale: (4,2) is empty */
+  ColonizeColony col;
+  memset(&col, 0, sizeof(col));
+  col.x = 5;
+  col.y = 3;
+  f.ctx.units = &f.units;
+  f.ctx.map = &f.map;
+  uint16_t force[4] = {3, 0, 0, 0};
+  dos_buggy_behavior_set(false);
+  ai_king_0982_land_troops(&f.ctx, crown, force, &col, map_continent_id_at(&f.map, 4, 3), 0, 3, 3,
+                           3);
+  dos_buggy_behavior_set(true);
+  int at_held = 0;
+  int elsewhere = 0;
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* u = &f.units.units[i];
+    if (u->active && u->nation_id == crown) {
+      if (u->x == 4 && u->y == 4) {
+        at_held++;
+      } else {
+        elsewhere++;
+      }
+    }
+  }
+  units_set_occupancy_map(NULL);
+  map_free(&f.map);
+  if (at_held != 4 || elsewhere != 0) {
+    fprintf(stderr, "tb38: held=%d elsewhere=%d (want 4/0)\n", at_held, elsewhere);
+    return fail("tb38: fixed landing must not treat a stale-nibble empty tile as crown-held");
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
     {"test_king_new_war_event", test_king_new_war_event},
     {"test_king_noncombat_never_attacks", test_king_noncombat_never_attacks},
     {"case_43f7_0082_spawn_types", case_43f7_0082_spawn_types},
     {"case_878e_sail_home_one_at_a_time", case_878e_sail_home_one_at_a_time},
+    {"case_tb39_invasion_past_ten_colonies", case_tb39_invasion_past_ten_colonies},
+    {"case_tb37_garrison_reads_neighbour_head", case_tb37_garrison_reads_neighbour_head},
+    {"case_tb38_land_ignores_stale_nibble", case_tb38_land_ignores_stale_nibble},
 };
 TEST_MAIN(k_cases)

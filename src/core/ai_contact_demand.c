@@ -28,6 +28,7 @@
 #include "core/colony_yield.h"
 #include "core/combat_strength.h"
 #include "core/dos_rng.h"
+#include "core/dos_buggy.h"
 #include "core/europe.h"
 #include "core/founding_fathers.h"
 #include "core/map.h"
@@ -869,8 +870,12 @@ int ai_contact_meet_economics_2154(
         for (int lx = 0; lx < 5; ++lx) {
           const int rel_x = tx - c->x + lx;
           const int rel_y = ty - c->y + ly;
-          const int abs_x = rel_x - 2;
-          const int abs_y = rel_y - 2;
+          /* TB-29: DOS passes the colony delta to the map-interior test and the
+           * village-local cell to the ring lookup; fixed (absolute cell / colony
+           * ring index) under !dos_buggy_behavior(). */
+          const bool buggy = dos_buggy_behavior();
+          const int abs_x = buggy ? rel_x - 2 : tx - 2 + lx;
+          const int abs_y = buggy ? rel_y - 2 : ty - 2 + ly;
           /* FUN_281f_0302 = FUN_137f_000a: the interior test, 1 <= x <
            * width-1 and 1 <= y < height-1 (independence 4->5: the crown
            * wagon's Ore / Furs bids 12 / 4). */
@@ -895,8 +900,8 @@ int ai_contact_meet_economics_2154(
            * the tribe scorer, matching the DOS byte-for-byte. Cite:
            * indian_meet_scoring_2154.md Phase 1 (281f_0ce0 work-slot OPEN).
            */
-          const int dx = lx - 2;
-          const int dy = ly - 2;
+          const int dx = buggy ? lx - 2 : rel_x - 2;
+          const int dy = buggy ? ly - 2 : rel_y - 2;
           if (dx == 0 && dy == 0) {
             cover[ly * 5 + lx] = 1;
             continue;
@@ -1649,7 +1654,8 @@ void ai_contact_apply_beg_food(
      * (independence 4->5: Spain refuses at Roanoke, tribe 5's horse herds
      * byte gains 1 and Spain's alarm stays).
      * DOS bug, reproduced for now (docs/tolerated_dos_bugs_ai.md TB-12). */
-    ai_diplo_indian_alarm_word_raw(ctx->col1, nation_id, nation_id, d);
+    /* TB-12: fixed (raise the refuser's alarm word) under !dos_buggy_behavior(). */
+    ai_diplo_indian_alarm_word_raw(ctx->col1, nation_id, dos_buggy_behavior() ? nation_id : e, d);
     /* raw 87708-87710: `if (contact_state[param_1] == 2) contact_state = 0`
      * (independence 10->11: the Dutch refuse a beg at Vlissingen right after
      * the same tribe's gift visit, and the gift's stamp is gone). */
@@ -2430,6 +2436,14 @@ static void ai_contact_indian_census_4962_06b6(ColonizeTurnContext* ctx, int nat
     for (uint16_t ti = 0; ti < col1->head.tribe_count; ++ti) {
       const ColonizeCol1Tribe* t = &col1->tribe[ti];
       if ((int)t->nation_id != nation_id) {
+        /* TB-7: DOS counts only this tribe into the shared continent table;
+         * fixed (count every settlement) under !dos_buggy_behavior(). */
+        if (!dos_buggy_behavior()) {
+          const int other_cont = map_continent_id_at(ctx->map, (int)t->x, (int)t->y);
+          if (other_cont >= 0 && other_cont < 16 && st->village_counts_by_continent[other_cont] < 255u) {
+            st->village_counts_by_continent[other_cont]++;
+          }
+        }
         continue;
       }
       if (st->tribe_village_counts[slot] < 255u) {
@@ -2543,7 +2557,9 @@ void ai_contact_indian_relation_tick(ColonizeTurnContext* ctx, int nation_id) {
    */
   {
     ColonizeCol1Indian* breeding_ind = ind;
-    if (ctx->col1->tribe && ctx->col1->head.tribe_count > 0) {
+    /* TB-8: DOS breeds the last settlement's tribe; fixed (breed the current
+     * tribe) under !dos_buggy_behavior(). */
+    if (dos_buggy_behavior() && ctx->col1->tribe && ctx->col1->head.tribe_count > 0) {
       const int last_nation =
         (int)ctx->col1->tribe[ctx->col1->head.tribe_count - 1].nation_id;
       /* FUN_15dc_0006 clamps an invalid bound index to slot 0. */

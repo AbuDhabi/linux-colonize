@@ -1533,6 +1533,7 @@ COLONIZE_INTERNAL void col1_bridge_apply_europe_lanes(Col1ApplyCtx* ctx) {
          * so it must not collect the departure turn europe_enqueue_expected
          * hands to a ship that sails this turn. */
         slot->departed_this_turn = false;
+        slot->voyage_turns = 0; /* total unknown mid-voyage (DOS saves only +0x315a) */
       }
       if (!slot) {
         continue;

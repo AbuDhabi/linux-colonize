@@ -2,6 +2,8 @@
  * first contact / encounter scan / popup chain ordering. */
 #include "test_ai_contact_common.h"
 #include "core/ai_contact_internal.h"
+#include "core/dos_buggy.h"
+#include "../common/ai_fixture.h"
 
 /*
  * port_bugs.md #416 — first contact is strictly per Euro nation.
@@ -304,7 +306,75 @@ static int test_contact_chains_do_not_interleave(void) {
   return 0;
 }
 
+/*
+ * TB-29 fixed (dos_buggy_behavior off): FUN_4d56_2154 Phase 1 excludes the
+ * colony tile and its worked ring plots from the village's terrain scoring.
+ * Village (5,5), colony (7,5) working its W plot (6,5); both cells carry a
+ * different terrain from the rest, so dropping them changes the bids/asks.
+ */
+static int test_2154_cover_mask_fixed_tb29(void) {
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  col1.head.tribe_count = 1;
+  col1.tribe = calloc(1, sizeof(ColonizeCol1Tribe));
+  ColonizeWorldMap map;
+  if (!col1.tribe || !fx_map_alloc(&map, 16, 16, 1, false)) {
+    col1_save_free(&col1);
+    return fail("tb29: alloc");
+  }
+  col1.tribe[0].x = 5;
+  col1.tribe[0].y = 5;
+  col1.tribe[0].nation_id = 4;
+  col1.tribe[0].population = 4;
+  memset(&col1.indian[0], 0, sizeof(col1.indian[0]));
+  map.terrain[5 * 16 + 6] = 3;
+  map.terrain[5 * 16 + 7] = 3;
+
+  ColonizeColonyPool colonies;
+  fx_colonies_init(&colonies);
+  ColonizeColony* c = fx_colony_add(&colonies, 0, 7, 5, 1);
+  for (int i = 0; i < COLONIZE_COLONY_FIELD_TILES_MAX; ++i) {
+    c->tiles[i] = -1;
+  }
+  for (int dir = 0; dir < 8; ++dir) {
+    if (MAP_DIR8_DX[dir] == -1 && MAP_DIR8_DY[dir] == 0) {
+      c->tiles[dir] = 0;
+    }
+  }
+
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+
+  AiContactMeetEcon2154 base;
+  AiContactMeetEcon2154 buggy;
+  AiContactMeetEcon2154 fixed;
+  c->active = false;
+  const int ok_base = ai_contact_meet_economics_2154(&ctx, 4, &col1.tribe[0], &base);
+  c->active = true;
+  const int ok_buggy = ai_contact_meet_economics_2154(&ctx, 4, &col1.tribe[0], &buggy);
+  dos_buggy_behavior_set(false);
+  const int ok_fixed = ai_contact_meet_economics_2154(&ctx, 4, &col1.tribe[0], &fixed);
+  dos_buggy_behavior_set(true);
+
+  int rc = 0;
+  if (!ok_base || !ok_buggy || !ok_fixed) {
+    rc = fail("tb29: 2154 returned 0");
+  } else if (memcmp(&buggy, &base, sizeof(base)) != 0) {
+    rc = fail("tb29: the DOS mask must cover nothing here (colony west of the village)");
+  } else if (memcmp(&fixed, &base, sizeof(base)) == 0) {
+    rc = fail("TB-29 fixed: colony tile and worked plot must leave the village's scoring");
+  }
+  fx_map_free(&map);
+  col1_save_free(&col1);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
+    {"test_2154_cover_mask_fixed_tb29", test_2154_cover_mask_fixed_tb29},
     {"test_ai_only_meet_is_silent_for_human", test_ai_only_meet_is_silent_for_human},
     {"test_encounter_scan_ignores_stale_owner_stamp", test_encounter_scan_ignores_stale_owner_stamp},
     {"test_contact_chains_do_not_interleave", test_contact_chains_do_not_interleave},

@@ -15,6 +15,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "core/dos_buggy.h"
 #include "core/dos_rng.h"
 #include "core/strutil.h"
 #include "platform/diagnostics.h"
@@ -359,12 +360,18 @@ static uint8_t latitude_terrain(int y, int h, int temperature, MapGenRng* rng) {
    * FUN_684c_08c0 @ 0x0c2c / 0x0b2c / 0x0c46 / EXE 64d75.
    * DOS bug, reproduced for now (docs/tolerated_dos_bugs.md TB-46). */
   int r1 = dos_rng_range(rng, 1, 0x10);
-  int first = (h >> 1) - r1 - y + 8;
-  int r2 = dos_rng_range(rng, 1, 0x10);
-  int dist = (h >> 1) - r2 - y + 8;
-  if (first <= 0) {
-    /* DOS: NOT AX; INC AX (NEG). Not abs — positive dist becomes negative. */
-    dist = -dist;
+  int dist;
+  if (!dos_buggy_behavior()) {
+    /* TB-46: fixed under !dos_buggy_behavior(): one draw, abs() of it. */
+    dist = abs((h >> 1) - r1 - y + 8);
+  } else {
+    int first = (h >> 1) - r1 - y + 8;
+    int r2 = dos_rng_range(rng, 1, 0x10);
+    dist = (h >> 1) - r2 - y + 8;
+    if (first <= 0) {
+      /* DOS: NOT AX; INC AX (NEG). Not abs — positive dist becomes negative. */
+      dist = -dist;
+    }
   }
   dist += (1 - temperature) * 2;
   if (dist < 0) {

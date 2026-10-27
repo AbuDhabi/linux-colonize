@@ -1,5 +1,6 @@
 #include "test_units_common.h"
 #include "../common/test_runner.h"
+#include "core/dos_buggy.h"
 
 static int g_refit_sound_id;
 static int g_refit_sound_calls;
@@ -939,6 +940,49 @@ fail:
   assets_msg_free(&names);
   return 1;
 }
+/* TB-2 fixed path (dos_buggy_behavior off): a departing ship boards only its
+ * own riders; another hull's sentried passengers stay with their ship. */
+static int unit_tb2_departure_own_riders_only(void) {
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
+    return 1;
+  }
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  if (!units_load_types(&pool, &names)) {
+    assets_msg_free(&names);
+    return 1;
+  }
+  const int caravel = units_find_type(&pool, "Caravel");
+  const int colonist = units_find_type(&pool, "Colonists");
+  const int ship_a = units_spawn_allow_stack(&pool, caravel, 5, 5);
+  const int ship_b = units_spawn_allow_stack(&pool, caravel, 5, 5);
+  const int pax[2] = {
+    units_spawn_allow_stack(&pool, colonist, 5, 5), units_spawn_allow_stack(&pool, colonist, 5, 5)
+  };
+  ColonizeUnit* sb = units_get(&pool, ship_b);
+  for (int i = 0; i < 2; ++i) {
+    ColonizeUnit* pu = units_get(&pool, pax[i]);
+    pu->aboard_ship_id = ship_b;
+    pu->orders = UNITS_ORDER_SENTRY;
+    sb->cargo_ids[sb->cargo_count++] = pu->id;
+  }
+  dos_buggy_behavior_set(false);
+  const int taken_a = units_ship_departure_pickup(&pool, ship_a, 5, 5);
+  const int taken_b = units_ship_departure_pickup(&pool, ship_b, 5, 5);
+  dos_buggy_behavior_set(true);
+  int rc = 0;
+  if (taken_a != 0 || taken_b != 0 || units_get(&pool, ship_a)->cargo_count != 0 ||
+      sb->cargo_count != 2 || units_get(&pool, pax[0])->aboard_ship_id != ship_b ||
+      units_get(&pool, pax[1])->aboard_ship_id != ship_b) {
+    fprintf(stderr, "TB-2 fixed: taken %d/%d, B cargo %d\n", taken_a, taken_b, sb->cargo_count);
+    rc = 1;
+  }
+  assets_msg_free(&names);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
   {"unit_europe_transfer_at_dos_cap", unit_europe_transfer_at_dos_cap},
   {"unit_king_galleon_offer", unit_king_galleon_offer},
@@ -949,5 +993,6 @@ static const TestCase k_cases[] = {
   {"unit_own_colony_dock_ignores_squatter", unit_own_colony_dock_ignores_squatter},
   {"unit_europe_arrival_reveals", unit_europe_arrival_reveals},
   {"unit_spawn_room_dos_gates", unit_spawn_room_dos_gates},
+  {"unit_tb2_departure_own_riders_only", unit_tb2_departure_own_riders_only},
 };
 TEST_MAIN_WRAPPED(k_cases, diag_init(0, NULL), diag_shutdown())

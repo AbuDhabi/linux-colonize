@@ -33,6 +33,7 @@
 #include "core/col1_stuff_census.h"
 #include "core/colony.h"
 #include "core/colony_production.h"
+#include "core/dos_buggy.h"
 #include "core/dos_rng.h"
 #include "core/europe.h"
 #include "core/founding_fathers.h"
@@ -713,6 +714,31 @@ int main(void) {
   ai_contact_indian_relation_tick(&ctx, 4);
   if ((int)save.indian[breeding_slot].horse_breeding != cap0) {
     return fail("horse breeding cap (pop_total + 25) * 2 not applied");
+  }
+
+  /* TB-7 / TB-8 fixed (dos_buggy_behavior off): the continent table counts
+   * every settlement, and each tribe breeds its own herd. */
+  {
+    uint8_t want_all[16];
+    memset(want_all, 0, sizeof(want_all));
+    for (uint16_t ti = 0; ti < save.head.tribe_count; ++ti) {
+      const int cont = map_continent_id_at(&map, (int)save.tribe[ti].x, (int)save.tribe[ti].y);
+      if (cont >= 0 && cont < 16) {
+        want_all[cont]++;
+      }
+    }
+    save.indian[0].horse_herds = 3;
+    save.indian[0].horse_breeding = 10;
+    save.indian[breeding_slot].horse_breeding = 7;
+    dos_buggy_behavior_set(false);
+    ai_contact_indian_relation_tick(&ctx, 4);
+    dos_buggy_behavior_set(true);
+    if (memcmp(save.stuff.village_counts_by_continent, want_all, 16) != 0) {
+      return fail("TB-7 fixed: village_counts_by_continent must count every settlement");
+    }
+    if (save.indian[0].horse_breeding != 13 || save.indian[breeding_slot].horse_breeding != 7) {
+      return fail("TB-8 fixed: the current tribe must breed its own herd");
+    }
   }
 
   /* FUN_4d56_1b3a phase 1 — contact_state is a per-YEAR latch, not forever. */

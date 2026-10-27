@@ -15,8 +15,8 @@ Not this file:
   needed): [known_divergences.md](known_divergences.md).
 - DOS bug that **is** ported literally and that nobody has judged unwanted:
   no entry anywhere; the `DOS-LITERAL` comment at the port site records it.
-- Unwanted DOS bug the port still reproduces for now (due to move here):
-  [tolerated_dos_bugs.md](tolerated_dos_bugs.md).
+- Unwanted DOS bug fixed in opencol but still reproduced in test binaries
+  (`dos_buggy_behavior()`, so the goldens hold): [tolerated_dos_bugs.md](tolerated_dos_bugs.md).
 - Actionable port bug: [port_bugs.md](port_bugs.md).
 
 Entries keep their `port_bugs.md #` id when they came from a bug row, so

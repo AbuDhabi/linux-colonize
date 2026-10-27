@@ -1,9 +1,11 @@
 #include "core/colony.h"
 #include "core/colony_production.h"
 #include "core/colony_yield.h"
+#include "core/dos_buggy.h"
 #include "core/map.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "../common/test_runner.h"
@@ -1553,6 +1555,104 @@ static int case_commons_hills_mountains_resource_ore_over_silver(void) {
   return 0;
 }
 
+/*
+ * TB-41 / TB-42 / TB-49 fixed path (dos_buggy_behavior off): Fisherman
+ * cascade in threshold order, major river not gated on `add == u`, Fur
+ * Trapper road/river paid once (the shared stack only).
+ */
+static int case_tb41_42_49_fixed(void) {
+  ColonizeWorldMap map;
+  if (map_new(&map) != 0) {
+    return 1;
+  }
+  int rc = 0;
+  dos_buggy_behavior_set(false);
+  /* Fisherman: ocean tile at (20,20), resource-free; vary ocean neighbours. */
+  static const int k_dx[8] = {-1, -1, -1, 0, 0, 1, 1, 1};
+  static const int k_dy[8] = {-1, 0, 1, -1, 1, -1, 0, 1};
+  int fx = -1;
+  int fy = -1;
+  for (int y = 2; y < (int)map.height - 2 && fx < 0; ++y) {
+    for (int x = 2; x < (int)map.width - 2 && fx < 0; ++x) {
+      map.terrain[y * map.width + x] = 25;
+      if (map_resource_type_for_yield(&map, x, y) < 0) {
+        fx = x;
+        fy = y;
+      } else {
+        map.terrain[y * map.width + x] = 10;
+      }
+    }
+  }
+  if (fx < 0) {
+    fprintf(stderr, "no resource-free ocean tile\n");
+    rc = 1;
+    goto done;
+  }
+  {
+    /* ocean neighbours -> distance mod: 0:+4 2:+3 3:+2 5:+1 6:-1 */
+    static const int k_n[5] = {0, 2, 3, 5, 6};
+    static const int k_mod[5] = {4, 3, 2, 1, -1};
+    int base = -100;
+    for (int k = 0; k < 5; ++k) {
+      for (int i = 0; i < 8; ++i) {
+        map.terrain[(fy + k_dy[i]) * map.width + (fx + k_dx[i])] = (uint8_t)(i < k_n[k] ? 25 : 10);
+      }
+      const int fish = colony_yield_for_tile(&map, fx, fy, COLONIZE_JOB_FISHERMAN);
+      if (k == 0) {
+        base = fish - k_mod[0];
+      } else if (fish != base + k_mod[k]) {
+        fprintf(stderr, "TB-41 n=%d want %d got %d\n", k_n[k], base + k_mod[k], fish);
+        rc = 1;
+      }
+    }
+  }
+  {
+    /* Fur Trapper on Mixed forest (base 3) away from the ocean block. */
+    int mx = -1;
+    int my = -1;
+    for (int y = 0; y < (int)map.height && mx < 0; ++y) {
+      for (int x = 0; x < (int)map.width && mx < 0; ++x) {
+        if (abs(x - fx) < 3 && abs(y - fy) < 3) {
+          continue;
+        }
+        map.terrain[y * map.width + x] = 10;
+        if (map_resource_type_for_yield(&map, x, y) < 0) {
+          mx = x;
+          my = y;
+        }
+      }
+    }
+    const size_t ti = (size_t)my * (size_t)map.width + (size_t)mx;
+    map.terrain[ti] = (uint8_t)(10u | 0x40u);
+    const int minor = colony_yield_for_worker(
+      &map, mx, my, COLONIZE_JOB_FUR_TRAPPER, COLONIZE_PROF_FREE_COLONIST, true, 0, 0, false
+    );
+    map.terrain[ti] = (uint8_t)(10u | 0x40u | 0x80u);
+    const int major = colony_yield_for_worker(
+      &map, mx, my, COLONIZE_JOB_FUR_TRAPPER, COLONIZE_PROF_FREE_COLONIST, true, 0, 0, false
+    );
+    const int major_expert = colony_yield_for_worker(
+      &map, mx, my, COLONIZE_JOB_FUR_TRAPPER, COLONIZE_JOB_FUR_TRAPPER, true, 0, 0, false
+    );
+    map_tile_set_road(&map, mx, my, true);
+    const int major_road = colony_yield_for_worker(
+      &map, mx, my, COLONIZE_JOB_FUR_TRAPPER, COLONIZE_PROF_FREE_COLONIST, true, 0, 0, false
+    );
+    /* 3+1 / 3+1+1 / (3<<1)+2+2 / 3+road1+river1+major1 */
+    if (minor != 4 || major != 5 || major_expert != 10 || major_road != 6) {
+      fprintf(
+        stderr, "TB-42/49 fur: minor=%d major=%d expert=%d road=%d want 4/5/10/6\n", minor,
+        major, major_expert, major_road
+      );
+      rc = 1;
+    }
+  }
+done:
+  dos_buggy_behavior_set(true);
+  map_free(&map);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
   {"commons_scrub", case_commons_scrub},
   {"commons_hills_base", case_commons_hills_base},
@@ -1579,6 +1679,7 @@ static const TestCase k_cases[] = {
   {"lumberjack_free_u2_stack", case_lumberjack_free_u2_stack},
   {"commons_hills_mountains_resource_ore_over_silver",
    case_commons_hills_mountains_resource_ore_over_silver},
+  {"tb41_42_49_fixed", case_tb41_42_49_fixed},
 };
 
 TEST_MAIN(k_cases)

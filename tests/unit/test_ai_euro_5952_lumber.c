@@ -14,6 +14,7 @@
 #include "core/colony_production.h"
 #include "core/europe.h"
 #include "core/col1_save.h"
+#include "core/dos_buggy.h"
 
 #include <string.h>
 
@@ -164,10 +165,34 @@ static int case_purchase_gates(void) {
   return 0;
 }
 
+/* TB-22 fixed: a broke purse gets no lumber; a paying one still does. */
+static int case_tb22_fixed_lumber_needs_gold(void) {
+  ColonizeColony c;
+  ColonizeCol1Save sv;
+  const int profs[] = {COLONIZE_PROF_FREE_COLONIST};
+  int rc = 0;
+  dos_buggy_behavior_set(false);
+  fx_colony(&c, profs, 1);
+  memset(&sv, 0, sizeof sv);
+  sv.nation[0].gold = 199;
+  ai_euro_5952_lumber_purchase(NULL, &sv, &c, 8, false);
+  if (c.stock[COLONIZE_CARGO_LUMBER] != 0 || sv.nation[0].gold != 199) {
+    rc = fail("TB-22 fixed: under 200 gold no lumber arrives");
+  }
+  sv.nation[0].gold = 200;
+  ai_euro_5952_lumber_purchase(NULL, &sv, &c, 8, false);
+  if (!rc && (c.stock[COLONIZE_CARGO_LUMBER] != 100 || sv.nation[0].gold != 0)) {
+    rc = fail("TB-22 fixed: 200 gold buys 100 lumber");
+  }
+  dos_buggy_behavior_set(true);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
   {"pass_order", case_pass_order},
   {"no_profession_rewrite", case_no_profession_rewrite},
   {"purchase_gates", case_purchase_gates},
+  {"tb22_fixed_lumber_needs_gold", case_tb22_fixed_lumber_needs_gold},
 };
 
 TEST_MAIN(k_cases)

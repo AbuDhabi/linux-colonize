@@ -21,6 +21,7 @@
 #include "core/ai_popup.h"
 #include "core/colony.h"
 #include "core/combat_strength.h"
+#include "core/dos_buggy.h"
 #include "core/europe.h"
 #include "core/founding_fathers.h"
 #include "core/map.h"
@@ -679,6 +680,10 @@ int ai_diplo_465b_band_ctx(ColonizeTurnContext* ctx, int attacker, int defender)
         ctx, AI_POPUP_TAG_DIPLO_WAR, "DECLAREWAR", attacker, defender,
         ai_diplo_rival_name(col1, attacker), ai_diplo_rival_name(col1, defender)
       );
+      /* TB-52: DOS writes no WAR here; fixed under !dos_buggy_behavior(). */
+      if (!dos_buggy_behavior()) {
+        ai_diplo_or_both(col1, attacker, defender, AI_DIPLO_WAR);
+      }
     }
   }
   (void)ai_diplo_465b_band(col1, attacker, defender);

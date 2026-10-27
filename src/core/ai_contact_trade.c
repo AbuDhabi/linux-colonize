@@ -28,6 +28,7 @@
 #include "core/colony_yield.h"
 #include "core/combat_strength.h"
 #include "core/dos_rng.h"
+#include "core/dos_buggy.h"
 #include "core/europe.h"
 #include "core/founding_fathers.h"
 #include "core/map.h"
@@ -1391,8 +1392,10 @@ static void ai_contact_2820_sell_settle(
    * DOS bug, reproduced for now (docs/tolerated_dos_bugs_ai.md TB-28).
    */
   if (t) {
-    const int slot = (ctx && ctx->units && unit) ? (int)(unit - ctx->units->units) : -1;
-    t->last_bought = (slot == 0xf || slot == 8) ? 0xffu : (uint8_t)cargo;
+    /* TB-28: DOS keys on the unit pool slot; fixed (test the cargo) under !dos_buggy_behavior(). */
+    const int key = !dos_buggy_behavior() ? cargo
+      : (ctx && ctx->units && unit) ? (int)(unit - ctx->units->units) : -1;
+    t->last_bought = (key == 0xf || key == 8) ? 0xffu : (uint8_t)cargo;
   }
   if (cargo == COLONIZE_CARGO_MUSKETS) {
     if (qty > 0x18) {
@@ -1433,8 +1436,10 @@ static void ai_contact_2820_gift_settle(
    * DOS bug, reproduced for now (docs/tolerated_dos_bugs_ai.md TB-28).
    */
     t->sticky_trade_good = 0xff;
-    const int slot = (ctx && ctx->units && unit) ? (int)(unit - ctx->units->units) : -1;
-    t->last_bought = (slot == 0xf || slot == 8) ? 0xffu : (uint8_t)cargo;
+    /* TB-28: DOS keys on the unit pool slot; fixed (test the cargo) under !dos_buggy_behavior(). */
+    const int key = !dos_buggy_behavior() ? cargo
+      : (ctx && ctx->units && unit) ? (int)(unit - ctx->units->units) : -1;
+    t->last_bought = (key == 0xf || key == 8) ? 0xffu : (uint8_t)cargo;
   }
   if (s->haggle_patience >= 0) {
     s->haggle_patience++;
@@ -1505,8 +1510,21 @@ int ai_contact_2e92_candidates(const AiContact2820* s, int goods[3], int slots[3
  * Returns 0..2.
  */
 static int ai_contact_2e92_ai_pick(
-  const ColonizeTurnContext* ctx, const AiContact2820* s, int e, int n
+  const ColonizeTurnContext* ctx, const AiContact2820* s, int e, const int goods[3], int n
 ) {
+  if (!dos_buggy_behavior()) {
+    /* TB-6: DOS scores raw sorted slots 16/15/14; fixed here: score the offered goods. */
+    int fixed_pick = 0;
+    int fixed_best = -9999;
+    for (int i = 0; i < n; ++i) {
+      const int w = ai_contact_2820_price_byte(ctx->col1, e, goods[i]);
+      if (w > fixed_best) {
+        fixed_best = w;
+        fixed_pick = i;
+      }
+    }
+    return fixed_pick;
+  }
   int pick = 1; /* BP-0x5c */
   int best = -9999; /* BP+0xff36 seeded 0xd8f1, compared as a signed word */
   for (int i = 0; i < 3; ++i) {
@@ -1857,7 +1875,7 @@ static void ai_contact_2820_buy_phase(
     }
     return;
   }
-  const int best = ai_contact_2e92_ai_pick(ctx, s, e, n);
+  const int best = ai_contact_2e92_ai_pick(ctx, s, e, goods, n);
   s->buy_cargo = goods[best];
   s->buy_slot = slots[best];
   /* `uStack_62 -= DS:[0x9e78 + 2*slot] * 4` (OVL13 asm 0x329a-0x32a7) reads
@@ -1917,7 +1935,7 @@ COLONIZE_INTERNAL int ai_contact_auto_buy_2e92(
   if (n <= 0) {
     return 0;
   }
-  const int best = ai_contact_2e92_ai_pick(ctx, &s, e, n);
+  const int best = ai_contact_2e92_ai_pick(ctx, &s, e, goods, n);
   ColonizeCol1Tribe* t = ai_contact_2e92_tribe(ctx, nation_id, unit);
   const int qty = ai_contact_2820_buy_qty(ctx, unit, 0);
   const int price =
