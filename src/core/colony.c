@@ -1537,15 +1537,16 @@ int colonies_found(
       slot->hammers = 0;
     } else if ((slot->colony_flags & COLONIZE_COLONY_FLAG_COASTAL) != 0) {
       /*
-       * Gate on the coastal FLAG stamped above, not the loose live probe:
-       * DOS's own Docks buildability filter IS that flag (raw 13688:
-       * `local_e == 7 && (colony+0x1c & 0x40) == 0 -> reject`, building id 7),
-       * so a site the flag rejects could never carry Docks as a project. The
-       * first-project default itself stays a port heuristic (DOS's found-colony
-       * writes +0x8d = 0xff, i.e. no project at all), but its Docks/Warehouse
-       * fork now uses DOS's own predicate. Practical delta vs the old
-       * map_tile_is_coastal probe: a lake-only or map-edge-only "coastal" town
-       * starts on Warehouse. Smell audit D4 / 2026-09-10 lead 8.
+       * Gate on the coastal FLAG stamped above, not the loose live probe.
+       * This is not DOS's Docks buildability filter: that one (raw 13672-13687,
+       * building id 6, colony_build.c) accepts any water plot in the work ring,
+       * a lake included; the flag test at raw 13688 (`local_e == 7 &&
+       * (colony+0x1c & 0x40) == 0 -> reject`) is the Drydock arm, building id 7.
+       * The first-project default itself is a port heuristic (DOS's
+       * found-colony writes +0x8d = 0xff, i.e. no project at all). Practical
+       * delta vs the old map_tile_is_coastal probe: a lake-only or
+       * map-edge-only "coastal" town starts on Warehouse (the lake town can
+       * still build Docks). Smell audit D4 / 2026-09-10 lead 8.
        */
       const int docks = colonies_building_row(pool, COLONY_BUILDING_DOCKS);
       if (docks >= 0 && !slot->has_building[docks]) {

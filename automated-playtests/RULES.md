@@ -188,7 +188,9 @@ Cost = number of calls x context size. Output size matters much less.
   A plain click on an already selected fence unit also opens it. A drop on
   a colonist icon inside a building is ignored: drop on its empty part.
 - When the fence is full (50+ units outside), use `admit UID` (unit joins
-  the colony) and `eject N CI ROLE` (colonist leaves).
+  the colony) and `eject N CI ROLE` (colonist leaves). `eject` opens the
+  colony screen (`key Escape` closes it) and asks the screen's questions:
+  the last colonist gets the abandon prompt (`choose 1` keeps the colony).
 - With many units on the colony tile, use `equip UID ROLE` (2 soldier,
   4 dragoon) instead of the screen.
 - Build menus show only buildable items and are centred, so rows move. Use

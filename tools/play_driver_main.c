@@ -60,7 +60,8 @@
  *   build N BID [queue]         colony N builds BID (@BUILDING row, or unit code 42 artillery..)
  *   equip UID ROLE              unit UID on a colony tile takes role ROLE (COLONIZE_EJECT_*, 4 dragoon)
  *   admit UID                   unit UID on a colony tile joins that colony (prints colonist index)
- *   eject N CI ROLE             colonist CI of colony N leaves as ROLE (COLONIZE_EJECT_*, 0 colonist)
+ *   eject N CI ROLE             colonist CI of colony N leaves as ROLE (COLONIZE_EJECT_*, 0 colonist);
+ *                               opens the colony screen, asks @ABANDON for the last one (`choose`)
  *   endturn                     confirm the End of Turn prompt (error while a unit waits)
  *   world                       whole map, one char a tile
  *   rumours                     list seen rumour tiles with terrain (h hill, m mountain)
@@ -616,15 +617,10 @@ static bool unit_kind_is(const ColonizeUnit* u, ColonizeUnitKind k) {
   return units_type_kind(units_type(&g_game->units, u->type_index)) == k;
 }
 
+/* The founding-time flag the REF landing picker reads (ai_king_ref.c), not "any
+ * adjacent water": a lake colony is not a REF target. */
 static bool colony_coastal(const ColonizeColony* c) {
-  for (int dy = -1; dy <= 1; ++dy) {
-    for (int dx = -1; dx <= 1; ++dx) {
-      if ((dx || dy) && map_tile_is_water(&g_game->world_map, c->x + dx, c->y + dy)) {
-        return true;
-      }
-    }
-  }
-  return false;
+  return (c->colony_flags & COLONIZE_COLONY_FLAG_COASTAL) != 0;
 }
 
 static void print_advise(void) {
@@ -1250,20 +1246,34 @@ static bool command(char* line) {
     ok = flush_frames(2);
   } else if (strcmp(op, "eject") == 0 && argc > 3) {
     /* eject N CI ROLE: colonist CI of colony N leaves as ROLE (COLONIZE_EJECT_*, 0 colonist),
-     * the colony screen's colonist-to-fence drop (unreachable when the fence row is full). */
+     * the colony screen's colonist-to-fence drop (unreachable when the fence row is full),
+     * through the screen's own gates (game_colony_request_eject: Stockade floor, @SIEGE,
+     * @ABANDON on the last colonist, answered with `choose`). Opens the colony screen. */
     if (a1 < 0 || a1 >= COLONIZE_COLONIES_MAX || !g_game->colonies.colonies[a1].active ||
         g_game->colonies.colonies[a1].nation_id != g_game->human_nation) {
       printf("ERR no colony %d of yours\n", a1);
       return true;
     }
-    const int uid = colonies_eject_colonist(&g_game->colonies, g_game->colonies.colonies[a1].id, a2,
-                                            &g_game->units, atoi(argv[3]));
-    if (uid < 0) {
-      printf("ERR eject refused\n");
-    } else {
-      printf("EJECT unit %d\n", uid);
+    const ColonizeColony* c = &g_game->colonies.colonies[a1];
+    if (a2 < 0 || a2 >= c->colonist_count) {
+      printf("ERR no colonist %d in colony %d\n", a2, a1);
+      return true;
     }
+    if (!g_game->in_colony || g_game->colony_view_id != c->id) {
+      game_enter_colony(g_game, c->id);
+      flush_frames(10);
+    }
+    const int before = c->colonist_count;
+    game_colony_request_eject(g_game, a2, atoi(argv[3]));
     ok = flush_frames(2);
+    if (!c->active || c->colonist_count < before) {
+      printf("EJECT unit %d%s\n", g_game->colony_screen.selected_outside_unit,
+             c->active ? "" : " (colony abandoned)");
+    } else if (g_game->ai_popups.open) {
+      printf("EJECT asks: answer the popup\n");
+    } else {
+      printf("ERR eject refused\n");
+    }
   } else if (strcmp(op, "equip") == 0 && argc > 2) {
     /* equip UID ROLE: the colony screen's outside-unit role menu (COLONIZE_EJECT_*: 4 dragoon),
      * for a unit standing on one of its colonies; the screen row only shows the first few. */
