@@ -35,7 +35,7 @@
  *                               the idle main map (default 5000 frames)
  *   shot NAME                   DIR/shots/NAME.ppm
  *   save NAME                   save into DIR/saves/NAME
- *   status | units | colonies   print state (colonies: `stock GOOD N(+d)`, d = next turn's net
+ *   status | units | colonies   print state (status repeats an open popup's CHOICES) (colonies: `stock GOOD N(+d)`, d = next turn's net
  *                               change before warehouse waste; food after eating)
  *   advise                      checklist: starving / stalled colonies, idle units, REF size,
  *                               declaration gate, war targets (automated-playtests/RULES.md)
@@ -1078,6 +1078,14 @@ static bool command(char* line) {
     }
   } else if (strcmp(op, "status") == 0) {
     print_status();
+    const AiPopupState* pop = &g_game->ai_popups;
+    if (pop->open && pop->current.choice_count > 0) { /* repeat the open question's rows */
+      printf("CHOICES:");
+      for (int i = 0; i < pop->current.choice_count; ++i) {
+        printf(" [%d] %s", i, pop->current.choices[i]);
+      }
+      printf(" (sel %d)\n", pop->selection);
+    }
   } else if (strcmp(op, "units") == 0) {
     print_units();
     print_europe();
