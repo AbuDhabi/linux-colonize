@@ -16,7 +16,8 @@
  *   key NAME [shift|ctrl|alt]   tap: a-z 0-9 - = [ ] ` Return Escape space Backspace
  *                               Tab Delete Up Down Left Right KP_1..KP_9 KP_Enter
  *                               F1..F10 Home End
- *   choose N                    answer the open choice popup with row N (arrows + Return)
+ *   choose N                    answer the open choice popup with row N (arrows + Return; message
+ *                               popups queued in front are closed first)
  *   type TEXT                   text input, one char per frame (name fields)
  *   click X Y [shift|ctrl|alt]  left click; rclick X Y; dclick X Y
  *   drag X1 Y1 X2 Y2 [shift]    left-button drag
@@ -34,7 +35,8 @@
  *                               the idle main map (default 5000 frames)
  *   shot NAME                   DIR/shots/NAME.ppm
  *   save NAME                   save into DIR/saves/NAME
- *   status | units | colonies   print state
+ *   status | units | colonies   print state (colonies: `stock GOOD N(+d)`, d = next turn's net
+ *                               change before warehouse waste; food after eating)
  *   advise                      checklist: starving / stalled colonies, idle units, REF size,
  *                               declaration gate, war targets (automated-playtests/RULES.md)
  *   map [R [X Y]]               ASCII map of radius R (default 8) around the cursor (or X,Y)
@@ -588,7 +590,7 @@ static void print_colonies(void) {
     printf("  stock");
     for (int k = 0; k < COLONIZE_CARGO_COUNT; ++k) {
       if (c->stock[k] || pv.goods[k]) {
-        printf(" %s %d(%+d)", k_cargo[k], c->stock[k], pv.goods[k]);
+        printf(" %s %d(%+d)", k_cargo[k], c->stock[k], k == COLONIZE_CARGO_FOOD ? pv.food_net : pv.goods[k]);
       }
     }
     printf("\n");
@@ -688,8 +690,8 @@ static void print_advise(void) {
         printf("ADVISE WARN colony %d %s: %s already built and still selected: pick the next build\n", i,
                c->name, pool->building_types[b].name);
       }
-      need_h = pool->building_types[b].hammers;
-      need_t = pool->building_types[b].tools_cost;
+      need_h = c->has_building[b] ? 0 : pool->building_types[b].hammers;
+      need_t = c->has_building[b] ? 0 : pool->building_types[b].tools_cost;
     }
     if (b >= 0 && pv.hammers <= 0 && c->hammers < need_h) {
       printf("ADVISE WARN colony %d %s: hammers +0: put a colonist on lumber and one in the Carpenter's Shop\n",
@@ -857,10 +859,10 @@ static bool command(char* line) {
       return true;
     }
     /* Escape on the bare main map asks @DOSYES (default Yes, C2-B1); the
-     * driver's next Return would quit the program. Refuse it unless forced
-     * with `key Escape force`. */
+     * driver's next Return would quit the program. Always refused there; an
+     * open map pull-down still takes it (closes the menu). */
     if (code == SDLK_ESCAPE && !off_map_reason(g_game) && !g_game->ai_popups.open &&
-        !(argc > 2 && strcmp(argv[2], "force") == 0)) {
+        g_game->map_menu.open_index < 0) {
       printf("ERR Escape on the main map refused (asks Exit to DOS)\n");
       return true;
     }
@@ -881,6 +883,16 @@ static bool command(char* line) {
     for (int tries = 0; ok && tries < 5 && strcmp(g_game->log_screen, "woodcut") == 0; ++tries) {
       tap(SDLK_RETURN, -1, 0); /* a woodcut in front of the popup */
       ok = flush_frames(10);
+    }
+    /* Message popups (no rows) queued in front of the question: Return each
+     * away first, or Return on one would count as the answer (CN8-O1). */
+    for (int tries = 0; ok && pop->open && pop->current.choice_count == 0 && tries < 8; ++tries) {
+      tap(SDLK_RETURN, -1, 0);
+      ok = flush_frames(10);
+    }
+    if (pop->open && a1 >= pop->current.choice_count) {
+      printf("ERR choose %d: popup has %d rows\n", a1, pop->current.choice_count);
+      return true;
     }
     for (int tries = 0; ok && pop->open && pop->selection != a1 && tries < 40; ++tries) {
       tap(pop->selection < a1 ? SDLK_DOWN : SDLK_UP, -1, 0);
@@ -947,7 +959,21 @@ static bool command(char* line) {
       game_do_end_turn(g_game);
       ok = flush_frames(5);
     } else {
-      printf("ERR no End of Turn prompt (selected unit %d)\n", g_game->units.selected_id);
+      /* Name the first unit still in the rotation (game_units_pending_orders' walk);
+       * the selected id is often -1 while one waits (CN8-B1). */
+      int wait_id = -1;
+      for (int i = 0; wait_id < 0 && i < units_slot_end(&g_game->units); ++i) {
+        const ColonizeUnit* u = &g_game->units.units[i];
+        wait_id = turn_unit_in_rotation(&g_game->units, u, g_game->human_nation) && !units_orders_skip_turn(u)
+                    ? u->id : -1;
+      }
+      const ColonizeUnit* wu = units_get_const(&g_game->units, wait_id);
+      if (wu) {
+        printf("ERR no End of Turn prompt: unit %d %s at (%d,%d) moves %d orders %d waits (selected %d)\n",
+               wu->id, unit_name(wu), wu->x, wu->y, wu->moves, wu->orders, g_game->units.selected_id);
+      } else {
+        printf("ERR no End of Turn prompt (selected unit %d)\n", g_game->units.selected_id);
+      }
     }
   } else if (strcmp(op, "hit") == 0 && argc > 2) {
     /* Colony-screen hit test at X,Y (ColonyScreenHit kind + index). */
@@ -1042,7 +1068,12 @@ static bool command(char* line) {
     print_units();
     print_europe();
   } else if (strcmp(op, "activate") == 0 && argc > 1) {
-    /* What picking a unit from the tile's stack list does, by unit id. */
+    /* What picking a unit from the tile's stack list does, by unit id. Behind a
+     * popup or another screen the click would not reach the map (CN8-B1, CN8-O2). */
+    if (g_game->ai_popups.open || game_screen_owns_display(g_game) || game_modal_open(g_game)) {
+      printf("ERR activate %d: %s first\n", a1, off_map_reason(g_game) ? off_map_reason(g_game) : "popup open");
+      return true;
+    }
     game_click_activate_unit(g_game, a1);
     ok = flush_frames(5);
   } else if (strcmp(op, "goto") == 0 && argc > 3) {
@@ -1051,8 +1082,10 @@ static bool command(char* line) {
     const ColonizeUnit* gu = units_get_const(&g_game->units, a1);
     const int gx = gu ? gu->x : -1, gy = gu ? gu->y : -1;
     if (!units_set_goto_w(&w, a1, a2, atoi(argv[3]))) {
-      /* A seen tile the unit cannot enter (land for a ship, water for a land unit). */
-      printf("ERR goto refused (tile not enterable for this unit)\n");
+      /* A seen tile the unit cannot enter: land for a ship, water for a land unit,
+       * or a tile held by another nation's units or colony. */
+      printf("ERR goto refused (tile not enterable for this unit, or held by another nation)\n");
+      return true;
     }
     ok = flush_frames(5);
     /* Pathfinder miss (FUN_6662_0f74): DOS spends the turn and drops the order. Run until
@@ -1161,8 +1194,9 @@ static bool command(char* line) {
     }
   } else if (strcmp(op, "colony") == 0 && argc > 1) {
     /* Open colony N's screen (index as printed by `colonies`). */
-    if (a1 < 0 || a1 >= COLONIZE_COLONIES_MAX || !g_game->colonies.colonies[a1].active) {
-      printf("ERR no colony %d\n", a1);
+    if (a1 < 0 || a1 >= COLONIZE_COLONIES_MAX || !g_game->colonies.colonies[a1].active ||
+        g_game->colonies.colonies[a1].nation_id != g_game->human_nation) {
+      printf("ERR no colony %d of yours\n", a1);
       return true;
     }
     game_enter_colony(g_game, g_game->colonies.colonies[a1].id); /* takes the id, not the index */
@@ -1171,8 +1205,9 @@ static bool command(char* line) {
     /* field N CI TILE JOB: colonist CI of colony N onto ring tile TILE (0 N .. 7 NW) as
      * field @JOB JOB (0 farmer .. 8 fisherman); work N CI B: into @BUILDING row B (`hit`
      * prints it). The same shared writers the colony screen's drops end in. */
-    if (a1 < 0 || a1 >= COLONIZE_COLONIES_MAX || !g_game->colonies.colonies[a1].active) {
-      printf("ERR no colony %d\n", a1);
+    if (a1 < 0 || a1 >= COLONIZE_COLONIES_MAX || !g_game->colonies.colonies[a1].active ||
+        g_game->colonies.colonies[a1].nation_id != g_game->human_nation) {
+      printf("ERR no colony %d of yours\n", a1);
       return true;
     }
     const int id = g_game->colonies.colonies[a1].id;
@@ -1216,8 +1251,9 @@ static bool command(char* line) {
   } else if (strcmp(op, "eject") == 0 && argc > 3) {
     /* eject N CI ROLE: colonist CI of colony N leaves as ROLE (COLONIZE_EJECT_*, 0 colonist),
      * the colony screen's colonist-to-fence drop (unreachable when the fence row is full). */
-    if (a1 < 0 || a1 >= COLONIZE_COLONIES_MAX || !g_game->colonies.colonies[a1].active) {
-      printf("ERR no colony %d\n", a1);
+    if (a1 < 0 || a1 >= COLONIZE_COLONIES_MAX || !g_game->colonies.colonies[a1].active ||
+        g_game->colonies.colonies[a1].nation_id != g_game->human_nation) {
+      printf("ERR no colony %d of yours\n", a1);
       return true;
     }
     const int uid = colonies_eject_colonist(&g_game->colonies, g_game->colonies.colonies[a1].id, a2,
@@ -1242,11 +1278,28 @@ static bool command(char* line) {
     /* build N BID [queue]: colony N's construction pick, as a click (or a Shift-click with
      * `queue`) on that build-menu row does; BID = @BUILDING row or unit code (42 artillery,
      * 43 wagon train ...). Opens the colony screen; `key Escape` closes it. */
-    if (a1 < 0 || a1 >= COLONIZE_COLONIES_MAX || !g_game->colonies.colonies[a1].active) {
-      printf("ERR no colony %d\n", a1);
+    if (a1 < 0 || a1 >= COLONIZE_COLONIES_MAX || !g_game->colonies.colonies[a1].active ||
+        g_game->colonies.colonies[a1].nation_id != g_game->human_nation) {
+      printf("ERR no colony %d of yours\n", a1);
       return true;
     }
-    game_enter_colony(g_game, g_game->colonies.colonies[a1].id);
+    /* The build menu lists only FUN_15eb_3650's available rows (no owned building,
+     * no cut row 10/11/0x1e): refuse anything else, as a click could not pick it. */
+    const ColonizeColony* bc = &g_game->colonies.colonies[a1];
+    const ColoniesBuildableOpts bo = game_colony_buildable_opts(g_game);
+    int ids[96];
+    const int n = colonies_list_buildable(&g_game->colonies, bc->id, ids, 96, &bo);
+    bool listed = false;
+    for (int i = 0; i < n; ++i) {
+      listed = listed || ids[i] == a2;
+    }
+    if (!listed) {
+      printf("ERR build %d not in %s's build menu (%s)\n", a2, bc->name,
+             a2 >= 0 && a2 < g_game->colonies.building_type_count && bc->has_building[a2]
+               ? "already built" : "cut row, prerequisite, population or founding father");
+      return true;
+    }
+    game_enter_colony(g_game, bc->id);
     flush_frames(10);
     if (argc > 3 && strcmp(argv[3], "queue") == 0) {
       game_colony_queue_construction(g_game, a2);

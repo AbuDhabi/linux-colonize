@@ -702,3 +702,30 @@ happens: the unit does not attack and no reason is given.
 **Blocks removal:** nothing known; not tried. Options: skip @HAVETREATY while the
 cooldown runs, or say why the attack was refused.
 **Status:** tolerated (user, 2026-10-25).
+
+### TB-52 — An AI that breaks a treaty by attacking never goes to war
+**DOS:** FUN_465b_0000 raw 75558-75595. When a Euro attack meets the treaty bit
+0x40 in either relation row, a human attacker gets @CANCELPEACE and the
+target's row gains WAR (2). A computer attacker gets @DECLAREWAR (plus @SNEAK
+for a human defender) but no WAR write on either side. Then 0x40 is cleared
+both ways and the attacker's 0x01 dropped. Read from the decomp only; the
+DOSBox evidence for "no WAR write" (independence 4->5) covers an attack with no
+treaty. An AI attacks a treaty partner once its cooldown (nation +0x40+peer)
+reaches 0; the path-step mover does it (FUN_479b_0972, campaign8 CN8-O17).
+
+**Effect:** an AI unit attacks a treaty partner's colony or unit, the player is
+told "now at war", and neither row carries WAR: the pair sits at neither peace
+nor war. If the attack takes the colony, TB-32's capture tail sets WAR only in
+the loser's row toward the captor, so the AI side still has no WAR. AI against
+AI behaves the same way.
+
+**Port (reproduces it):** `ai_diplo_465b_band_ctx` (`src/core/ai_diplo.c`, the
+AI-attacker @DECLAREWAR arm), called from `units_move_combat_pre`
+(`units_move.c`), `ai_euro_try_attack` (`ai_euro_land.c`) and `ai_contact.c`.
+The fix is `ai_diplo_or_both(col1, attacker, defender, AI_DIPLO_WAR)` in that
+arm.
+
+**Blocks removal:** tried 2026-10-27 (that one line); fails
+`golden_idle_america`, `golden_idle_america_reload` and `golden_ai_joint`
+(`unit_ai_contact_core` too, which locks the DOS read); reverted.
+**Status:** tolerated (user, 2026-10-27).

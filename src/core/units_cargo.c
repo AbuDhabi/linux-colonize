@@ -5,7 +5,7 @@
  *
  * Sections:
  *  - Cargo/passenger holds, boarding, landfall, display name/sprite & map rendering (units_ship_capacity .. units_render_on_map)
- *  - New-world start placement & colonist deployment (units_spawn_euro_starter_fleet .. units_deploy_colonist)
+ *  - New-world start placement (units_spawn_euro_starter_fleet .. units_new_world_start)
  */
 
 #include <stdio.h>
@@ -1656,7 +1656,7 @@ int units_top_on_map_tile(
   return top;
 }
 
-/* ===================== New-world start placement & colonist deployment (units_spawn_euro_starter_fleet .. units_deploy_colonist) ===================== */
+/* ===================== New-world start placement (units_spawn_euro_starter_fleet .. units_new_world_start) ===================== */
 
 int units_spawn_euro_starter_fleet(
   ColonizeUnitPool* pool,
@@ -2113,31 +2113,4 @@ void units_new_world_start(
     }
   }
   pool->selected_id = ship_id;
-}
-
-bool units_deploy_colonist(
-  ColonizeUnitPool* pool,
-  const ColonizeWorldMap* map,
-  int x,
-  int y,
-  const char* immigrant_name
-) {
-  (void)immigrant_name;
-  if (!pool || !map) {
-    return false;
-  }
-  int colonist_type = units_kind_type_index(pool, UNITS_KIND_COLONIST);
-  if (colonist_type < 0) {
-    return false;
-  }
-  const ColonizeWorld ew = world_make(pool, NULL, (ColonizeWorldMap*)map, NULL, false, NULL, NULL);
-  if (!units_can_enter_w(&ew, colonist_type, x, y, -1)) {
-    return false;
-  }
-  const int id = units_spawn(pool, colonist_type, x, y);
-  if (id < 0) {
-    return false;
-  }
-  pool->selected_id = id;
-  return true;
 }

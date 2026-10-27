@@ -616,14 +616,6 @@ int units_working_colonist_sprite(
   int profession
 );
 
-bool units_deploy_colonist(
-  ColonizeUnitPool* pool,
-  const ColonizeWorldMap* map,
-  int x,
-  int y,
-  const char* immigrant_name
-);
-
 int units_map_sprite(const ColonizeUnitPool* pool, int unit_id);
 /* Col1 @UNIT index after equipment remap (Scout/Soldier/Dragoon/Pioneer). */
 int units_display_type_index(const ColonizeUnitPool* pool, int unit_id);

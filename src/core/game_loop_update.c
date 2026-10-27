@@ -3481,59 +3481,10 @@ COLONIZE_INTERNAL GameUpdateStep game_update_map_keys(ColonizeGameState* game, c
     }
   }
 
-  /* Shift+D: disband selected unit. Plain D remains dock deploy. */
+  /* Shift+D: disband selected unit (MENU.TXT `~s~h~i~f~t~-~D`); plain D is no key in DOS. */
   if (input->last_key == COLONIZE_KEY_D && input->shift_held && game->units_ok) {
     game_request_disband_confirm(game);
     return GAME_UPDATE_RETURN_TRUE;
-  }
-
-  if (input->last_key == COLONIZE_KEY_D && game->world_map_ok && game->europe_ok) {
-    if (game->europe.dock_count <= 0) {
-      set_status(game, "No immigrants on dock", NULL);
-    } else {
-      const char* immigrant = game->europe.dock[0].name;
-      const int deploy_type = game->europe.dock[0].dos_type;
-      if (!units_deploy_colonist(
-            &game->units,
-            &game->world_map,
-            game->map_cursor_x,
-            game->map_cursor_y,
-            immigrant
-          )) {
-        set_status(game, "Cannot deploy here", immigrant);
-      } else {
-        char name[40];
-        const int prof = game->europe.dock_count > 0 ? game->europe.dock[0].profession : -1;
-        /*
-         * units_deploy_colonist always spawns a bare Colonists-type unit and
-         * leaves it profession-less; carry over what the immigrant actually
-         * was on the dock, kit included, the same way boarding a ship does.
-         */
-        {
-          ColonizeUnit* placed = units_get(&game->units, game->units.selected_id);
-          if (placed) {
-            const int dti = europe_dock_unit_type_index(&game->units, deploy_type);
-            if (dti >= 0) {
-              placed->type_index = dti;
-            }
-            if (prof >= 0) {
-              placed->profession = prof;
-            }
-            europe_apply_dock_row_kit(placed, &game->europe.dock[0]);
-          }
-        }
-        europe_dock_remove_mirror_unit(&game->europe, &game->units, game->human_nation, 0);
-        europe_pop_dock_immigrant(&game->europe, name, sizeof(name));
-        snprintf(
-          game->status,
-          sizeof(game->status),
-          "Deployed %s at (%d,%d)",
-          name,
-          game->map_cursor_x,
-          game->map_cursor_y
-        );
-      }
-    }
   }
 
   /* B: found a colony — free on tribal land (@INDIANLAND is the colony-screen plot drop, #1175). */
@@ -3579,8 +3530,8 @@ COLONIZE_INTERNAL GameUpdateStep game_update_map_keys(ColonizeGameState* game, c
 
   if (input->last_key == COLONIZE_KEY_S) {
     /*
-     * Selected map unit → Sentry; only with NO unit selected does S fall
-     * through to Save (the menu Save still works either way).
+     * Selected map unit → Sentry; with no unit selected S does nothing
+     * (Save is on the GAME menu only).
      *
      * Ships sentry too. DOS's Move Pieces menu builder FUN_2b5a_0b34
      * (viceroy_unpacked.c:42164-42265) hides or disables rows 0x302/0x303
@@ -3602,12 +3553,9 @@ COLONIZE_INTERNAL GameUpdateStep game_update_map_keys(ColonizeGameState* game, c
         }
       }
     }
-    game_open_save_load(game, SAVE_LOAD_MODE_SAVE);
-    return GAME_UPDATE_RETURN_TRUE;
-  }
-
-  if (input->last_key == COLONIZE_KEY_L) {
-    game_open_save_load(game, SAVE_LOAD_MODE_LOAD);
+    /* No unit to sentry: DOS does nothing. MENU.TXT Save Game / Load Game carry
+     * no `~` hotkey, so FUN_2b5a_3802 passes S (and L with Load Cargo off) to
+     * FUN_2b5a_303c -> FUN_2b5a_321c's default arm (raw 45273-45351). */
     return GAME_UPDATE_RETURN_TRUE;
   }
 

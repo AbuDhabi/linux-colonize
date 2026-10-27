@@ -32,10 +32,9 @@ once are not enough. These steps make them checkable.
 4. Re-read the section you need before each gate, for example
    `grep -n -A20 "Before declaring" automated-playtests/RULES.md`. Re-read this
    whole file at the start of each era. Do not trust your memory of it.
-5. Never send a `force` flag. The driver's ERR line on the main map suggests
-   `key Escape force`; ignore that suggestion. To close a screen, send
-   `status` first, then plain `key Escape` on that screen (never on the main
-   map).
+5. Never send a `force` flag. To close a screen, send `status` first, then
+   plain `key Escape` on that screen. The driver refuses Escape on the main
+   map (it would ask Exit to DOS).
 6. Never answer a popup blind. Loops stop on `CHOICES:`. Read the rows and
    send `choose N` for the row you mean. A `choose 0` loop picked Peter Minuit
    (1587) and Jakob Fugger (1717) by accident in campaign 6.
@@ -140,7 +139,10 @@ Cost = number of calls x context size. Output size matters much less.
 - The Congress pick (founding father) happens at turn end, before that
   turn's autosave. Reloading does not undo it. Answer it with `choose`.
 - `key Escape` on the main map is refused (it would ask Exit to DOS).
-- `s` or `f` with no selected unit opens the save dialog.
+- Check for `LOG:` after `activate`: a tutorial hint can open on selection
+  and the next key only closes it (DOS: any key closes a message box).
+- A warehouse-full unload asks first (`CHOICES: [0] Never mind. [1] Unload
+  ... anyway`); `choose 1` unloads, the excess spoils at end of turn.
 - `field` refuses a plot on native land at peace (the game would ask
   pay/take there). Drag the colonist onto it on the colony screen instead.
 - A popup can open between two clicks (a King's tax raise opened during a
@@ -160,6 +162,13 @@ Cost = number of calls x context size. Output size matters much less.
   moves are spent). A ship sent to land it cannot reach, such as an unseen
   inland tile, fails this way. Aim ships at water or a coastal colony.
 - `activate` on a unit that fortified this turn leaves it 0 moves.
+- `activate` clears Fortify and Sentry (a DOS click does). Do not activate
+  fortified guards each turn: they never reach Fortified and wait for
+  orders again. `activate` is refused while a popup or another screen is
+  open.
+- A sentried unit wakes whenever a foreign unit steps next to it (DOS rule).
+- Units with 0 moves never block `endturn`. Its ERR line names the unit
+  that waits.
 - A unit waiting for orders blocks `endturn`. Fortify (`f`) also parks
   wagons and ships.
 - `endturn` + `auto` plays whole turns while no unit needs orders. Keep one
@@ -183,7 +192,9 @@ Cost = number of calls x context size. Output size matters much less.
 - With many units on the colony tile, use `equip UID ROLE` (2 soldier,
   4 dragoon) instead of the screen.
 - Build menus show only buildable items and are centred, so rows move. Use
-  `build N BID`.
+  `build N BID`. `ERR build ... not in ... build menu` = the colony owns it
+  (founding gives Town Hall, Carpenter's Shop and five craft houses) or the
+  row cannot be built yet.
 - A finished building stays selected and keeps taking hammers. Pick the next
   build at once.
 - Europe: `europe` opens the screen and prints gold, the RECRUIT / TRAIN /
@@ -191,9 +202,10 @@ Cost = number of calls x context size. Output size matters much less.
   and HARBOR ships (index H). Then `recruit N`, `train N`, `purchase N`,
   `sell H [CARGO]` (all holds of CARGO, or every hold), `buy H CARGO [AMT]`
   (default 100), `sail H` + `choose 0`. Read the rows before each recruit:
-  the pool changes after every pick. `key e` leaves the screen. Cargo and
-  passengers share the ship's holds: a caravel with one hold of goods
-  carries one recruit.
+  the pool changes after every pick. `key Escape` leaves the screen. Never
+  use `key e` to leave: on the main map E opens Europe. Cargo and passengers
+  share the ship's holds: a caravel with one hold of goods carries one
+  recruit.
 
 ## Game rules that decide a campaign
 
@@ -227,8 +239,16 @@ Economy and natives
 - Tory penalty: -1 on every tile and building once
   round(pop x Tory%) >= 10 - difficulty (6 on Viceroy). On Viceroy keep pop
   at 6 or less until SoL rises (pop 7 needs ~22% SoL, pop 8 ~38%).
-- With Benjamin Franklin, AI Europeans never start a war with you. Without
-  him, wars cost colonies.
+- Benjamin Franklin only stops the King's European wars from dragging you
+  into New World wars, and makes AI Europeans offer peace when you
+  negotiate. AI Europeans still declare war on their own: garrison every
+  colony.
+- The Custom House exports ore, silver and other raw goods from founding
+  (stock above 99 sells down to 50). Untick a good to keep its stock.
+- Making a pioneer takes the colony's tools in steps of 20, up to 100. Buy
+  tools before you eject one when a build needs them.
+- The King's frigate offer costs a +10% tax raise (the offer text does not
+  say). Refusing the raise with a party keeps both the frigate and the rate.
 
 Unit cap
 

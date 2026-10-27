@@ -18,6 +18,7 @@
 #include "core/ai_popup.h"
 #include "core/game_loop.h"
 #include "core/game_dialogs.h"
+#include "core/game_loop_internal.h"
 #include "core/savegame.h"
 
 static ColonizeGameState* g_game;
@@ -188,14 +189,14 @@ static bool run(void) {
   if (!frame(COLONIZE_KEY_ESCAPE)) return fail("leave Europe");
   if (game_in_europe_screen(g_game)) return fail("Europe screen did not close on Esc");
 
-  /* Save: S sentries a selected land unit first; repeat until the dialog opens. */
+  /* Save: GAME menu Save Game (DOS has no Save hotkey). */
   for (int i = 0; i < 400 && !game_save_dialog_open(g_game); ++i) {
     if (game_modal_open(g_game) || game_ai_popup_pending(g_game)) {
       if (!dismiss_modal()) return fail("pre-save modal");
     } else if (game_turn_busy(g_game)) {
       if (!frame(COLONIZE_KEY_NONE)) return fail("pre-save turn tick");
-    } else if (!frame(COLONIZE_KEY_S)) {
-      return fail("S key");
+    } else if (!game_apply_map_menu_action(g_game, MAP_MENU_ACTION_SAVE) || !frame(COLONIZE_KEY_NONE)) {
+      return fail("GAME menu Save");
     }
   }
   if (!game_save_dialog_open(g_game)) return fail("save dialog did not open");

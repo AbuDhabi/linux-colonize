@@ -437,14 +437,24 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_combat_pre(units_move_ctx* c) {
       return UNITS_MOVE_RETURN_FALSE;
     }
   }
-  /* FUN_465b_0000 raw 75553-75593: a computer Euro attacker that got past
-   * the cooldown gate (units_at_war_for_move_target) breaks the treaty. */
+  /* FUN_465b_0000 raw 75553-75595: a computer Euro attacker that got past
+   * the cooldown gate (units_at_war_for_move_target) breaks the treaty, with
+   * @SNEAK / @DECLAREWAR. The popups live in the shared mover, so the AI
+   * path-step mover (FUN_479b_0972) raises them too, not only
+   * ai_euro_try_attack (campaign8 CN8-O17: French took Roanoke unannounced). */
   if (col1 && unit->nation_id >= 0 && unit->nation_id <= 3 &&
       col1->player[unit->nation_id].control != 0) {
     const ColonizeUnit* tu = units_get_const(pool, foe);
     if (tu && tu->nation_id >= 0 && tu->nation_id <= 3 && tu->nation_id != unit->nation_id &&
         !units_privateer_attack(pool, unit_id, foe)) {
-      (void)ai_diplo_465b_band(col1, unit->nation_id, tu->nation_id);
+      ColonizeTurnContext dctx = {0};
+      dctx.col1 = col1;
+      dctx.human_nation = g_units_combat_human_nation;
+      dctx.ai_popups = g_units_combat_popups;
+      dctx.messages = g_units_combat_game_txt;
+      if (ai_diplo_465b_band_ctx(&dctx, unit->nation_id, tu->nation_id)) {
+        units_set_bgm_pool(4); /* FUN_281f_04ac(4) */
+      }
     }
   }
   /* FUN_465b_0000 raw 75527-75545: Privateer-sighting relation bit,
