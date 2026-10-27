@@ -67,6 +67,8 @@
  *   rumours                     list seen rumour tiles with terrain (h hill, m mountain)
  *   activate ID                 wake and select unit ID (the stack-list pick by id;
  *                               in game, A on a stack opens the picker)
+ *   nestedpick TEXT[|TEXT..]    a choice popup inside a nested modal loop takes the first row
+ *                               containing one of the TEXTs instead of the highlighted one (empty: off)
  *   sync TAG                    print "@@ TAG" (end-of-batch marker)
  *   quit
  *
@@ -145,6 +147,8 @@ static void ev(int type, int x, int y, int button, int32_t keycode, unsigned mod
 
 static int g_update_polls; /* polls inside the current game_update */
 static void tap(int32_t code, int m, char text);
+static ColonizeGameState* g_game;
+static char g_nested_pick[64]; /* `nestedpick TEXT`: row a nested choice popup takes */
 
 bool platform_poll_input(ColonizePlatform* p, ColonizeInputState* out) {
   /* A nested modal loop inside one game_update (Combat Analysis, combat
@@ -153,8 +157,23 @@ bool platform_poll_input(ColonizePlatform* p, ColonizeInputState* out) {
   if (++g_update_polls > 300 && p->next >= p->count) {
     g_update_polls = 0;
     g_at = p->frame;
-    tap(SDLK_RETURN, -1, 0);
-    printf("NESTED: Return pressed in a modal loop\n");
+    const AiPopupState* pop = g_game ? &g_game->ai_popups : NULL;
+    int want = -1;
+    for (int i = 0; g_nested_pick[0] && pop && pop->open && want < 0 && i < pop->current.choice_count; ++i) {
+      for (const char* t = g_nested_pick; *t && want < 0; t += strcspn(t, "|"), t += *t == '|') {
+        const size_t n = strcspn(t, "|");
+        for (const char* c = pop->current.choices[i]; n && *c && want < 0; ++c) {
+          want = strncmp(c, t, n) == 0 ? i : -1;
+        }
+      }
+    }
+    if (want >= 0 && pop->selection != want) {
+      tap(pop->selection < want ? SDLK_DOWN : SDLK_UP, -1, 0);
+    } else {
+      tap(SDLK_RETURN, -1, 0);
+      printf("NESTED: Return pressed in a modal loop%s%s\n", want >= 0 ? " on " : "",
+             want >= 0 ? pop->current.choices[want] : "");
+    }
   }
   out->text_input_len = 0;
   out->text_input[0] = '\0';
@@ -305,7 +324,6 @@ static void press(int x, int y, int button, int m) {
   mod_up(m);
 }
 
-static ColonizeGameState* g_game;
 static ColonizeFramebuffer8 g_fb;
 static ColonizePalette g_pal;
 static char g_dir[512];
@@ -835,7 +853,7 @@ static bool command(char* line) {
     if (*s) {
       *s++ = '\0';
     }
-    if (strcmp(argv[0], "type") == 0) {
+    if (strcmp(argv[0], "type") == 0 || strcmp(argv[0], "nestedpick") == 0) {
       rest = s; /* rest of the line is the text */
       break;
     }
@@ -1402,6 +1420,9 @@ static bool command(char* line) {
     print_advise();
   } else if (strcmp(op, "colonies") == 0) {
     print_colonies();
+  } else if (strcmp(op, "nestedpick") == 0) {
+    snprintf(g_nested_pick, sizeof(g_nested_pick), "%s", rest ? rest : "");
+    g_nested_pick[strcspn(g_nested_pick, "\r\n")] = '\0';
   } else if (strcmp(op, "sync") == 0) {
     printf("@@ %s\n", argc > 1 ? argv[1] : "");
   } else if (strcmp(op, "quit") == 0) {
