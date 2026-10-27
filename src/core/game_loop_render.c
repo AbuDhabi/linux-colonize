@@ -2528,6 +2528,7 @@ void game_commit_new_campaign(ColonizeGameState* game) {
   new_game_cancel(ng);
   game->in_menu = false;
   game->view_pieces_mode = false;
+  game->player_had_control = false;
   /* Hot-seat: the year loop opens at slot 0, so the lowest human moves
    * first, with its @MULTINEXT (FUN_130d_0290 raw 6366-6390). */
   if (game->col1_ok && col1_save_hotseat(&game->col1)) {

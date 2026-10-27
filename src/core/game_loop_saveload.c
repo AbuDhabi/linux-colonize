@@ -178,6 +178,7 @@ static bool game_apply_col1_save(ColonizeGameState* game, ColonizeCol1Save* load
   game->colony_view_id = -1;
   game->found_open_colony_id = -1;
   game->turn_flow_deferred = false;
+  game->player_had_control = false; /* the load resumes at FUN_2b5a_3b68: 0x97b0 = 0 */
   /*
    * DS:0x5390 rides in the head word block DOS's load restores wholesale
    * (viceroy_unpacked.c:120252), so a save taken in View Pieces resumes in

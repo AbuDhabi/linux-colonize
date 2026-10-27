@@ -163,6 +163,14 @@ struct ColonizeGameState {
    */
   bool turn_flow_deferred;
   /*
+   * DOS DS:0x97b0: set when Move Pieces hands the player a unit awaiting
+   * orders (FUN_2b5a_3802 raw 46235-46236), zeroed at the Move Pieces entry
+   * (FUN_2b5a_3b68 raw 46834). With Game Options End of Turn off, the turn
+   * ends by itself once no unit is left only when it is set
+   * (game_no_unit_left, port_bugs.md #1302).
+   */
+  bool player_had_control;
+  /*
    * DOS FUN_479b_076e ends a human founding with FUN_281f_0608(colony) — the
    * colony screen opens as soon as the name prompt is answered. Held here
    * across the async name-entry dialog; -1 = nothing pending.
@@ -560,6 +568,7 @@ void game_trade_wizard_open_name(ColonizeGameState* game);
 bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y);
 bool game_turn_flow_allowed(const ColonizeGameState* game);
 void game_wait_next_unit(ColonizeGameState* game);
+void game_no_unit_left(ColonizeGameState* game, int x, int y);
 
 /* Defined in game_dialogs.c, called from game_loop.c. */
 bool begin_menu_compute_layout(

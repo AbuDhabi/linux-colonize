@@ -907,6 +907,7 @@ void game_move_pieces_entry(ColonizeGameState* game) {
     return;
   }
   game->units.selected_id = -1;
+  game->player_had_control = false; /* raw 46834: 0x97b0 = 0 */
   if (game_select_next_unit_awaiting_orders(game)) {
     game->view_pieces_mode = false;
   }
@@ -926,6 +927,32 @@ bool game_end_turn_prompt_active(const ColonizeGameState* game) {
          !turn_processor_active(&game->turn_proc) && !game_units_pending_orders(game);
 }
 
+/*
+ * DOS-LITERAL FUN_2b5a_0e52 no-unit arm (raw 42308-42312; the same tail is
+ * inline at raw 45449-45454): 0x53c6 = 1 (the End of Turn prompt),
+ * FUN_2b5a_0902 View Pieces at (x, y), and the turn ends only when DS:0x97b0
+ * (player_had_control) is set and Game Options End of Turn (0x5383 & 8) is
+ * off. A turn on which no unit ever waited for orders stops at the prompt.
+ * Every "no unit left needing orders" site ends here: DOS's Move Pieces loop
+ * (FUN_2b5a_3b68 raw 46840-46848) re-runs 0e52 on every pass, so a unit used
+ * up anywhere (a colony-screen fence drop included) reaches it (port_bugs.md
+ * #1302).
+ */
+void game_no_unit_left(ColonizeGameState* game, int x, int y) {
+  if (!game) {
+    return;
+  }
+  game_select_tile(game, x, y);
+  if (game->player_had_control &&
+      !turn_option_end_of_turn(game->col1_ok ? &game->col1 : NULL, game->col1_ok) &&
+      !game_units_pending_orders(game)) {
+    game_do_end_turn(game);
+    return;
+  }
+  /* LABELS.TXT @MISC row 2 — the same row the sidebar EOT prompt uses. */
+  snprintf(game->status, sizeof(game->status), "%s", game_labels_misc_or(2, ""));
+}
+
 void game_wait_next_unit(ColonizeGameState* game) {
   if (!game || !game->units_ok) {
     return;
@@ -939,18 +966,7 @@ void game_wait_next_unit(ColonizeGameState* game) {
    * stopping the cycle on one; they don't need player attention. */
   const bool found = game_select_next_unit_awaiting_orders(game);
   if (!found) {
-    game_select_tile(game, game->map_cursor_x, game->map_cursor_y);
-    if (turn_option_end_of_turn(game->col1_ok ? &game->col1 : NULL, game->col1_ok)) {
-      snprintf(
-      game->status,
-      sizeof(game->status),
-      "%s",
-      /* LABELS.TXT @MISC row 2 — the same row the sidebar EOT prompt uses. */
-      game_labels_misc_or(2, "")
-    );
-    } else {
-      game_do_end_turn(game);
-    }
+    game_no_unit_left(game, game->map_cursor_x, game->map_cursor_y);
     return;
   }
   game->view_pieces_mode = false;

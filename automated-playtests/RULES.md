@@ -171,11 +171,13 @@ Cost = number of calls x context size. Output size matters much less.
   that waits.
 - A unit waiting for orders blocks `endturn`. Fortify (`f`) also parks
   wagons and ships.
-- `endturn` + `auto` plays whole turns while no unit needs orders. Keep one
-  unit with no orders as a turn stopper.
+- `endturn` + `auto` plays one turn. A turn where no unit needs orders
+  (Go To units only) stops at the End of Turn prompt again: send `endturn`.
 - Game Options "End of Turn" is off in a new game: the turn then ends by
-  itself as soon as no unit has moves left (DOS rule). Switch it on before
-  war turns: `option eot on`.
+  itself as soon as no unit has moves left (DOS rule), but only on a turn
+  where some unit waited for orders. A turn where nothing needed orders
+  stops at the End of Turn prompt (`endturn`). Switch it on before war
+  turns: `option eot on`.
 - Declare independence with `declare`, then `choose 1` (Yes). Row 0 is No.
 - Sentry in a colony = board the next ship that leaves. Any own ship or
   wagon entering the colony wakes every sentried unit there (DOS rule), so

@@ -957,7 +957,7 @@ static GameUpdateStep game_pacer_goto_step(
         }
       } else {
         const ColonizeUnit* stuck = units_get_const(&game->units, active_id);
-        game_select_tile(
+        game_no_unit_left(
           game, stuck ? stuck->x : game->map_cursor_x, stuck ? stuck->y : game->map_cursor_y
         );
       }
@@ -1053,6 +1053,12 @@ COLONIZE_INTERNAL GameUpdateStep game_update_unit_pacer(ColonizeGameState* game,
         return sub;
       }
     } else if (active_awaiting_player) {
+      /* FUN_2b5a_3802 raw 46235-46236: Move Pieces hands the player a unit,
+       * 0x97b0 = 1 (game_no_unit_left reads it; port_bugs.md #1302). The
+       * pacer runs before this frame's input, as 3802 runs before its key. */
+      if (!game->view_pieces_mode) {
+        game->player_had_control = true;
+      }
       /* port_bugs.md: the unit awaiting orders must be on screen — whatever path
        * selected it, recentre once it sits outside the current viewport. */
       int vc = 0;
@@ -1104,7 +1110,9 @@ COLONIZE_INTERNAL GameUpdateStep game_update_unit_pacer(ColonizeGameState* game,
           units_display_name(&game->units, next)
         );
       } else {
-        game_select_tile(game, game->map_cursor_x, game->map_cursor_y);
+        /* FUN_2b5a_3b68 raw 46840-46848: the Move Pieces pass re-tests the
+         * active unit and, with none left, runs 0e52's no-unit arm. */
+        game_no_unit_left(game, game->map_cursor_x, game->map_cursor_y);
       }
     }
   }

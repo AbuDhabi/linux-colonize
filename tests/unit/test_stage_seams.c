@@ -1904,6 +1904,82 @@ static int test_click_spent_unit_hands_off(void) {
 }
 
 /*
+ * port_bugs.md #1302: with Game Options End of Turn off, the last unit awaiting orders used up
+ * without a hand-off (a colony-screen fence drop despawns it) must still end the turn on the
+ * next Move Pieces pass: FUN_2b5a_3b68 re-runs FUN_2b5a_0e52, whose no-unit arm (raw
+ * 42308-42312) ends the turn when DS:0x97b0 is set. 0x97b0 is set only once the player was
+ * handed a unit (FUN_2b5a_3802), so a turn on which nothing waited stops at the prompt.
+ */
+static int eot_after_unit_used_up(bool had_control, bool* ended, bool* prompt) {
+  ColonizeGameConfig cfg = {.data_dir = "./COLONIZE", .save_dir = "./build/debug"};
+  ColonizeGameState* game = game_create(&cfg);
+  if (!game || !game_assets_ok(game)) {
+    if (game) {
+      game_destroy(game);
+    }
+    return TR_SKIP;
+  }
+  char err[256];
+  if (!game_load_col1_file(
+        game, "tests-automated-regression/map_pioneer_native_forest_offer/input.sav", err,
+        sizeof(err)
+      )) {
+    fprintf(stderr, "  %s\n", err);
+    game_destroy(game);
+    return fail("fixture save load");
+  }
+  ai_popup_clear(&game->ai_popups);
+  game->col1.head.game_options.end_of_turn = 0;
+  int last = -1;
+  for (int i = 0; i < units_slot_end(&game->units); ++i) {
+    ColonizeUnit* u = &game->units.units[i];
+    if (!turn_unit_in_rotation(&game->units, u, game->human_nation) ||
+        units_orders_skip_turn(u)) {
+      continue;
+    }
+    if (last >= 0) {
+      u->orders = UNITS_ORDER_FORTIFIED;
+    } else {
+      last = u->id;
+    }
+  }
+  if (last < 0) {
+    game_destroy(game);
+    return fail("fixture has a human unit awaiting orders");
+  }
+  game->units.selected_id = last;
+  game->view_pieces_mode = false;
+  ColonizeInputState input;
+  memset(&input, 0, sizeof(input));
+  if (had_control) {
+    (void)game_update_unit_pacer(game, &input, 0);
+  }
+  units_despawn(&game->units, last);
+  (void)game_update_unit_pacer(game, &input, 0);
+  *ended = turn_processor_active(&game->turn_proc);
+  *prompt = game_end_turn_prompt_active(game);
+  game_destroy(game);
+  return 0;
+}
+
+static int test_eot_off_unit_used_up_ends_turn(void) {
+  bool ended = false;
+  bool prompt = false;
+  int rc = eot_after_unit_used_up(true, &ended, &prompt);
+  if (rc == TR_SKIP) {
+    fprintf(stderr, "SKIP: no COLONIZE/ assets\n");
+    return TR_SKIP;
+  }
+  if (rc == 0 && !ended) {
+    rc = fail("End of Turn off: the pass after the last unit is used up ends the turn");
+  }
+  if (rc == 0 && (eot_after_unit_used_up(false, &ended, &prompt) != 0 || ended || !prompt)) {
+    rc = fail("no unit handed to the player this turn: stop at the End of Turn prompt");
+  }
+  return rc;
+}
+
+/*
  * docs/hotseat.md: original_saves/hotseat/hotseat_1522.sav was written by DOS with England at
  * the controls (DS:0x5394 = 0) and France fixed (DS:0x5398 = 1), both control 0, bit 0x80. The
  * load resumes at DS:0x5398 with @MULTINEXT (FUN_130d_0290 raw 6367), and the port's re-save
@@ -2258,6 +2334,7 @@ static const TestCase k_cases[] = {
     {"test_colony_construction_two_pages_live", test_colony_construction_two_pages_live},
     {"test_indian_land_offer_row_greyed", test_indian_land_offer_row_greyed},
     {"test_click_spent_unit_hands_off", test_click_spent_unit_hands_off},
+    {"test_eot_off_unit_used_up_ends_turn", test_eot_off_unit_used_up_ends_turn},
     {"test_hotseat_dos_save_round_trip", test_hotseat_dos_save_round_trip},
     {"test_europe_unload_all_boycott_any_slot", test_europe_unload_all_boycott_any_slot},
 };

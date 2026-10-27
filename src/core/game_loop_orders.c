@@ -1314,23 +1314,7 @@ void game_after_unit_action(ColonizeGameState* game) {
     );
     return;
   }
-  game_select_tile(game, exhausted_x, exhausted_y);
-  /* Not a plain moves>0 exhaustion test (turn.c once exported one): a
-   * colony full of Fortified units (never offered for selection) reports
-   * "not exhausted" forever and the auto-end never fires — see
-   * game_units_pending_orders, which every other site already uses. */
-  if (!turn_option_end_of_turn(game->col1_ok ? &game->col1 : NULL, game->col1_ok) &&
-      !game_units_pending_orders(game)) {
-    game_do_end_turn(game);
-  } else {
-    snprintf(
-      game->status,
-      sizeof(game->status),
-      "%s",
-      /* LABELS.TXT @MISC row 2 — the same row the sidebar EOT prompt uses. */
-      game_labels_misc_or(2, "")
-    );
-  }
+  game_no_unit_left(game, exhausted_x, exhausted_y);
 }
 
 bool game_key_move_delta(ColonizeKey key, int* out_dx, int* out_dy) {
