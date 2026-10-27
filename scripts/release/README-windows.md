@@ -26,6 +26,9 @@ harmless.
 
 - `--data-dir PATH` — use a different game-data directory.
 - `--windowed` / `--fullscreen`, `--scale N`, `--nosound` — display/audio options.
+- `-K` — hot-seat multiplayer (pick the hidden fifth cell of the nation
+  picker, then tick the human powers).
+- `-D` — self-running demo; a key quits.
 - `settings.json` `sound_options.soundfont` — override the bundled soundfont.
 
 Settings and saves are written next to the game data.

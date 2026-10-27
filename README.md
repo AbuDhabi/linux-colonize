@@ -10,7 +10,7 @@ OpenCol, port of **Sid Meier's Colonization** (MicroProse, 1994 DOS). Goal: same
 rules, assets, saves, and inputs as the original. Fidelity bar and conflict
 order: [docs/project_goals.md](docs/project_goals.md).
 
-Version: **0.8-beta-bugfix-1**.
+Version: **0.9-beta**.
 
 Status: feature-complete. Every rule system of the DOS game is ported from
 the decompiled original, and the game plays from new game through the War of

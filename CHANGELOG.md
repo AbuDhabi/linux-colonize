@@ -3,6 +3,65 @@
 Player-facing changes. Bracketed numbers are [docs/port_bugs.md](docs/port_bugs.md) row ids (closed
 rows live in [docs/archive/bugs_closed.md](docs/archive/bugs_closed.md)).
 
+## 0.9-beta — 2026-10-27
+
+Covers `0.8-beta-bugfix-1` (2026-10-22) to 2026-10-27: 103 commits, 139 bug
+rows resolved. Not exhaustive.
+
+### New
+
+- Map editor: `opencol-mapedit`, port of MAPEDIT.EXE, ships in the packages.
+- Hot-seat multiplayer (`-K` or env `COLONIZE=MULTI`); DOS hot-seat saves
+  load and save back. [1290]
+- Self-running demo (`-D`) and CHEAT Set Human → None autoplay.
+- Cheat mode complete: Alt-W/I/N unlock, Reveal Map, Advance Revolution, Set
+  Human, Kill Indians, Create Unit, colony and Europe cheat keys.
+  [1169]-[1173] [1177] [1178] [1221]
+- F1 on the colony and Europe screens opens the article for the focused
+  panel. Europe ship menu added. [1176]
+- Hall of Fame lives in DOS `HALLFAME.DAT`. [1289]
+
+### Gameplay
+
+- Lost City Rumours no longer roll the same outcome all game. [1253]
+- Pioneer tools no longer refill to 100 after a trip to Europe. [1238] [1247]
+- Native land, first contact and Attack Village do what the original does;
+  Pioneer P/R ask about native land. [1174] [1175] [1214] [1228] [1230] [1233]
+- Treaty breaks, sneak attacks and Rebel/Tory war messages fixed; ships
+  entering a foreign colony act again. [1252] [1256] [1258] [1259] [1261]
+  [1300]
+- Rival AI no longer runs human colonies. [1263] [1291] [1297]
+- Build Colony uses the selected unit; Activate reaches any unit in a stack;
+  Treasure under Go To gets the galleon offer. [1234] [1241] [1249]
+- Removing a colony keeps trade routes right; construction list and Disband
+  follow the original. [1168] [1179] [1218] [1223]
+- Game end: 1850 wartime end scores; ending screens take clicks and keys as
+  the original. [1227] [1231] [1232] [1245] [1273]
+
+### Controls
+
+- Esc on the map asks before quitting; Q, S, L, D, U, =, + do what the
+  original does. [1182] [1184] [1248] [1257] [1294] [1298] [1299]
+- Turn no longer stalls after loading a save or leaving a colony; End of
+  Turn prompt appears when units run out. [1236] [1237] [1239] [1301] [1302]
+
+### User Interface
+
+- Dialogs wrap, centre, size, page and highlight like the original; Up/Down
+  wrap; Go to Place, Find Colony and Custom House use the original dialogs.
+  [1180]-[1183] [1186]-[1203] [1208]-[1217] [1222] [1224]
+- Colony screen matches the original: tabs, Exit label, ship header, Tory
+  figure, Stable badge, roster order, focus blink. [1274]-[1286] [1293]
+  [1295] [1296]
+- Europe top bar, Loading box and dialog sizes fixed. [1187] [1282] [1292]
+- Text fixes in many popups. [1164] [1225]-[1226] [1229] [1250] [1251]
+  [1262] [1265] [1287] [1288]
+
+### Saves
+
+- Reloaded colonies keep their building layout; Set Human no longer corrupts
+  the picked nation. [1166] [1172] [1266]
+
 ## 0.8-beta-bugfix-1 — 2026-10-22
 
 - Map around report, colony and other screens now keeps its own colours
