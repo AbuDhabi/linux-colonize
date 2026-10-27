@@ -81,10 +81,17 @@ Tests:
 - `unit_new_game` `wizard_hotseat_multi`;
 - `unit_col1_save` (hot-seat capture);
 - `unit_ai_king` `declare_latches_and_diplo` (through `@MULTIREV`);
-- `regression_replay` `hotseat_handoff`, the England → France → Spain handoff on the real game loop.
+- `regression_replay` `hotseat_handoff`, the England → France → Spain handoff on the real game loop;
+- `unit_stage_seams` `test_hotseat_dos_save_round_trip` and the `unit_col1_save` fixture list,
+  on the DOS-written save below.
 
-No DOS-made hot-seat save exists in the repo yet; one from DOSBox would make
-an interop golden.
+**DOS interop golden** (DOSBox-X, 2026-10-26): `original_saves/hotseat/hotseat_1522.sav`
+(readme and screenshots there). England (at the controls) and France (DS:0x5398) are
+human. It was made by poking France's control byte, bit 0x80 and DS:0x5398 into a
+1492-1600 autosave, letting DOS play one round with `@MULTINEXT`, and saving from DOS's
+GAME menu. The port loads it at France with `@MULTINEXT`, pixel-identical to DOS's box.
+Its re-save keeps the control table, DS:0x5398 and bit 0x80, and DOS loads that re-save
+back as hot-seat at France. A DOS load shows `@MULTINEXT` for the resumed power too.
 
 The port follows DOS on the load resume (DS:0x5398, whoever saved). It also
 follows DOS on where paid mercenaries land and on whose SoL gates the

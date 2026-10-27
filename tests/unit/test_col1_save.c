@@ -1880,6 +1880,8 @@ int main(void) {
     {"original_saves/french-campaign/COLONY04.SAV", false, true, true},
     {"original_saves/french-campaign/COLONY08.SAV", false, true, true},
     {"original_saves/french-campaign/COLONY09.SAV", false, true, true},
+    /* DOS-written hot-seat save (docs/hotseat.md): England + France control 0, bit 0x80. */
+    {"original_saves/hotseat/hotseat_1522.sav", false, true, true},
     {"test-saves-ai/TURN1.SAV", false, false, true},
     {"test-saves-ai/TURN2.SAV", false, false, true},
     {"test-saves-ai/TURN3.SAV", false, false, true},
@@ -2051,8 +2053,9 @@ int main(void) {
       /* DOS in-game saves carry DS:0x5394/0x5396/0x5398 all == human slot
        * (Dutch goldens: 3/3/3); a stale 0 makes DOS run England's EOT as
        * "human" at load (immediate @PRICEUP) and draw fog for viewer 0
-       * (port_bugs.md fog_and_popup.SAV). */
-      if (cap.head.human_player != (uint16_t)br.human_nation ||
+       * (port_bugs.md fog_and_popup.SAV). Hot-seat keeps DS:0x5398 on its
+       * fixed power (docs/hotseat.md). */
+      if (cap.head.human_player != (uint16_t)col1_fixed_human(&orig, br.human_nation) ||
           cap.head.nation_turn != (uint16_t)br.human_nation ||
           cap.head.curr_nation_map_view != (uint16_t)br.human_nation) {
         fprintf(

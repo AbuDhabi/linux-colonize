@@ -1843,6 +1843,60 @@ static int test_indian_land_offer_row_greyed(void) {
 }
 
 /*
+ * docs/hotseat.md: original_saves/hotseat/hotseat_1522.sav was written by DOS with England at
+ * the controls (DS:0x5394 = 0) and France fixed (DS:0x5398 = 1), both control 0, bit 0x80. The
+ * load resumes at DS:0x5398 with @MULTINEXT (FUN_130d_0290 raw 6367), and the port's re-save
+ * keeps the control table, DS:0x5398 and bit 0x80 (DOS loaded that re-save back as hot-seat).
+ */
+static int test_hotseat_dos_save_round_trip(void) {
+  ColonizeGameConfig cfg = {.data_dir = "./COLONIZE", .save_dir = "./build/debug"};
+  ColonizeGameState* game = game_create(&cfg);
+  if (!game || !game_assets_ok(game)) {
+    fprintf(stderr, "SKIP: no COLONIZE/ assets\n");
+    if (game) {
+      game_destroy(game);
+    }
+    return TR_SKIP;
+  }
+  char err[256];
+  int rc = 0;
+  if (!game_load_col1_file(game, "original_saves/hotseat/hotseat_1522.sav", err, sizeof(err))) {
+    fprintf(stderr, "  %s\n", err);
+    game_destroy(game);
+    return fail("DOS hot-seat save load");
+  }
+  const AiPopupState* p = &game->ai_popups;
+  if (game->human_nation != 1 || p->queue_count < 1 || p->queue[0].tag != AI_POPUP_TAG_MULTINEXT) {
+    fprintf(stderr, "  human %d queue %d\n", game->human_nation, p->queue_count);
+    rc = fail("load resumes France (DS:0x5398) with @MULTINEXT");
+  }
+  ColonizeCol1Save back;
+  col1_save_init(&back);
+  if (rc == 0 && (!game_save_col1_named(game, "hotseat_resave.sav", err, sizeof(err)) ||
+                  !col1_save_read_file("./build/debug/hotseat_resave.sav", &back, err, sizeof(err)))) {
+    fprintf(stderr, "  %s\n", err);
+    rc = fail("port re-save");
+  }
+  if (rc == 0) {
+    const ColonizeCol1Head* h = &back.head;
+    if (!col1_save_hotseat(&back) || h->human_player != 1 || h->nation_turn != 1 ||
+        h->curr_nation_map_view != 1 || back.player[0].control != 0 ||
+        back.player[1].control != 0 || back.player[2].control != 1 ||
+        back.player[3].control != 1 || col1_save_human_nation(&back) != 1) {
+      fprintf(stderr, "  bit %#x 5398 %u 5394 %u 5396 %u control %u %u %u %u\n",
+              h->hotseat_woi_redirect_pending, h->human_player, h->nation_turn,
+              h->curr_nation_map_view, back.player[0].control, back.player[1].control,
+              back.player[2].control, back.player[3].control);
+      rc = fail("re-save keeps bit 0x80, DS:0x5398 and the control table");
+    }
+  }
+  col1_save_free(&back);
+  remove("./build/debug/hotseat_resave.sav");
+  game_destroy(game);
+  return rc;
+}
+
+/*
  * port_bugs.md #1215, FUN_2f2b_5bd2: a two-page construction list bars the current project on
  * the page that lists it, else the "(More)" row toward it (docs/dos_bugs.md DB-60 / DB-63:
  * DOS shows no bar there), on the first showing and after every page turn. The view is
@@ -2142,6 +2196,7 @@ static const TestCase k_cases[] = {
     {"test_colony_construction_page_default", test_colony_construction_page_default},
     {"test_colony_construction_two_pages_live", test_colony_construction_two_pages_live},
     {"test_indian_land_offer_row_greyed", test_indian_land_offer_row_greyed},
+    {"test_hotseat_dos_save_round_trip", test_hotseat_dos_save_round_trip},
     {"test_europe_unload_all_boycott_any_slot", test_europe_unload_all_boycott_any_slot},
 };
 
