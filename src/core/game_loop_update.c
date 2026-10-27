@@ -1728,20 +1728,77 @@ static GameUpdateStep game_colony_screen_key_enter(
       }
       return GAME_UPDATE_RETURN_TRUE;
     }
-    /* Enter on the selected colonist opens the jobs menu (FUN_2f2b_6372 0x0d -> 348c);
-     * otherwise leave. A colonist off the plots opens it with no plot (port_bugs.md #1204). */
-    if (colony && csv->selected_colonist >= 0) {
+    /* On the bare screen Enter is a focus key (game_colony_focus_key): FUN_2f2b_6372 has
+     * no Enter arm of its own, and Enter never leaves the colony. */
+  }
+  return GAME_UPDATE_CONTINUE;
+}
+
+/*
+ * The FUN_2f2b_6372 keyboard focus (DS:0x32e) on the bare screen: Tab, the cursor keys and
+ * Enter (Space / S on the ships). colony_screen_focus_key moves the pick; the actions run
+ * through the same handlers a press uses.
+ */
+static GameUpdateStep game_colony_focus_key(
+  ColonizeGameState* game, const ColonizeInputState* input, ColonizeColony* colony,
+  ColonyScreenView* csv, const ColonizeWorldMap* cmap
+) {
+  if (!colony || input->last_key == COLONIZE_KEY_NONE || csv->jobs_open ||
+      csv->construction_open || csv->eject_open || csv->dock_orders_open ||
+      csv->custom_house_open || csv->message_kind != COLONY_MSG_NONE ||
+      ui_drag_active(&game->ui_drag)) {
+    return GAME_UPDATE_CONTINUE;
+  }
+  if ((input->last_key == COLONIZE_KEY_SPACE || input->last_key == COLONIZE_KEY_S) &&
+      csv->focus != COLONY_FOCUS_SHIPS) {
+    return GAME_UPDATE_CONTINUE;
+  }
+  const ColonyFocusKeyResult fr =
+    colony_screen_focus_key(csv, colony, game->units_ok ? &game->units : NULL, input->last_key);
+  switch (fr.action) {
+  case COLONY_FOCUS_KEY_NONE:
+    return input->last_key == COLONIZE_KEY_ENTER ? GAME_UPDATE_RETURN_TRUE : GAME_UPDATE_CONTINUE;
+  case COLONY_FOCUS_KEY_REDRAW:
+    break;
+  case COLONY_FOCUS_KEY_SELECT_COLONIST:
+    game_colony_select_colonist(game, fr.value);
+    break;
+  case COLONY_FOCUS_KEY_SELECT_OUTSIDE:
+    game_colony_select_outside(game, fr.value);
+    break;
+  case COLONY_FOCUS_KEY_SELECT_SHIP:
+    csv->transport_unit_id = fr.value;
+    break;
+  case COLONY_FOCUS_KEY_AREA_ENTER:
+    if (fr.value >= 0) {
+      game_colony_area_tile_drop(game, colony, cmap, fr.value);
+    }
+    break;
+  case COLONY_FOCUS_KEY_COLONIST_ENTER:
+    /* FUN_2f2b_348c(0): the jobs menu, or a fence unit's role list (the press twin). */
+    if (csv->selected_colonist >= 0) {
       game_colony_open_jobs(
         game, colony, cmap, colonies_colonist_tile(colony, csv->selected_colonist)
       );
-      return GAME_UPDATE_RETURN_TRUE;
+    } else if (csv->selected_outside_unit >= 0) {
+      game_colony_fence_drop(game, colony);
     }
-    game->in_colony = false;
-    game->colony_view_id = -1;
-    diag_info("Left colony screen.");
-    return GAME_UPDATE_RETURN_TRUE;
+    break;
+  case COLONY_FOCUS_KEY_SHIP_ENTER:
+    csv->transport_unit_id = fr.value;
+    if (game->units_ok) {
+      colony_screen_open_dock_orders(csv, &game->units, &game->messages, fr.value);
+    }
+    break;
+  case COLONY_FOCUS_KEY_UNIT_ENTER:
+    if (game->units_ok) {
+      colony_screen_open_dock_orders(csv, &game->units, &game->messages, fr.value);
+    }
+    break;
   }
-  return GAME_UPDATE_CONTINUE;
+  csv->blink_epoch_ms = csv->blink_ms; /* FUN_2f2b_2e2a full redraw: DS:0x334 on */
+  colony_screen_set_status(csv, game->status);
+  return GAME_UPDATE_RETURN_TRUE;
 }
 
 /*
@@ -2066,14 +2123,9 @@ static GameUpdateStep game_colony_screen_keys(
       return GAME_UPDATE_RETURN_TRUE;
     }
   } else {
-    if (colonize_key_up(input->last_key) && colony && csv->selected_colonist > 0) {
-      game_colony_select_colonist(game, csv->selected_colonist - 1);
-      return GAME_UPDATE_RETURN_TRUE;
-    }
-    if (colonize_key_down(input->last_key) && colony &&
-        csv->selected_colonist + 1 < colony->colonist_count) {
-      game_colony_select_colonist(game, csv->selected_colonist + 1);
-      return GAME_UPDATE_RETURN_TRUE;
+    const GameUpdateStep sub = game_colony_focus_key(game, input, colony, csv, cmap);
+    if (sub != GAME_UPDATE_CONTINUE) {
+      return sub;
     }
   }
 

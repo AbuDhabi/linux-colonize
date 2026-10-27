@@ -94,10 +94,9 @@ Colonization scenario maps (e.g. `AMER2.MP`) are raw binary files:
 
 | Offset | Size | Content |
 |--------|------|---------|
-| 0 | 1 | map width |
-| 1 | 1 | unknown (always 0) |
-| 2 | 1 | map height |
-| 3 | 3 | unknown header padding |
+| 0 | 2 | map width (u16 LE) |
+| 2 | 2 | map height (u16 LE) |
+| 4 | 2 | version (u16 LE, 4; MAPEDIT `FUN_19f9_0170` refuses any other) |
 | 6 | W×H | terrain layer |
 | 6+W×H | W×H | layer 2 (runtime flags; AMER2 is all zeros) |
 | 6+2×W×H | W×H | layer 3 (fog / visibility in-game; rare art markers) |

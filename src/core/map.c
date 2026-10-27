@@ -562,7 +562,7 @@ static int map_resource_type_at_ex(
   int y,
   bool ignore_settlement
 ) {
-  if (!map_in_bounds(map, x, y)) {
+  if (!map_in_bounds(map, x, y) || map->specials_off) {
     return -1;
   }
   const uint8_t terrain_byte = map_get_terrain(map, x, y);
@@ -641,7 +641,7 @@ int map_resource_type_for_yield(const ColonizeWorldMap* map, int x, int y) {
 }
 
 static bool map_procedural_rumour_at(const ColonizeWorldMap* map, int x, int y) {
-  if (!map_in_bounds(map, x, y)) {
+  if (!map_in_bounds(map, x, y) || map->specials_off) {
     return false;
   }
   /* FUN_12ab_0540 gates on FUN_19b7_0032 (the mountain→27 / hill→28 fold),
@@ -763,6 +763,30 @@ bool map_load_mp(const char* path, ColonizeWorldMap* out_map, char* err, size_t 
   memset(out_map->seen, 0xff, tile_count);
 
   diag_info("Loaded map %s (%ux%u, %zu tiles)", path, width, height, tile_count);
+  return true;
+}
+
+bool map_save_mp(const char* path, const ColonizeWorldMap* map, char* err, size_t err_size) {
+  if (!path || !map || !map->terrain || !map->layer2 || !map->layer3) {
+    snprintf(err, err_size, "map_save_mp bad args");
+    return false;
+  }
+  FILE* f = fopen(path, "wb");
+  if (!f) {
+    snprintf(err, err_size, "cannot create %s", path);
+    return false;
+  }
+  const uint8_t header[COLONIZE_MAP_HEADER_SIZE] = {
+    map->width, 0, map->height, 0, (uint8_t)MAP_MP_VERSION, 0
+  };
+  const size_t n = map->tile_count;
+  const bool ok = fwrite(header, 1, sizeof(header), f) == sizeof(header) &&
+                  fwrite(map->terrain, 1, n, f) == n && fwrite(map->layer2, 1, n, f) == n &&
+                  fwrite(map->layer3, 1, n, f) == n;
+  if (fclose(f) != 0 || !ok) {
+    snprintf(err, err_size, "write failed for %s", path);
+    return false;
+  }
   return true;
 }
 

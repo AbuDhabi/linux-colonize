@@ -29,8 +29,8 @@ deferred AI track is **done** (D1 closed 2026-09-07g, D2 closed at logic level
   review that day filed and fixed #1273-#1286); the pending-verification archive was emptied
   into [archive/bugs_closed.md](archive/bugs_closed.md) the same day.
 
-What is left is small and listed under "Remaining work" below (colony-screen
-keyboard focus), plus the deferred polish phase **D4** (pixel chrome).
+What is left is listed under "Remaining work" below, plus the deferred polish
+phase **D4** (pixel chrome).
 
 ## Remaining work (2026-10-26)
 
@@ -39,12 +39,13 @@ Not bugs in shipped features. Each is a known, bounded gap. Closed
 dead Pillage arm (deleted) and the Euro AI deferred-band tail + stance
 census operands (#1291), and hot-seat multiplayer, ported for save
 interop (#1290, [hotseat.md](hotseat.md)). Closed 2026-10-27: the demo and
-autoplay (DS:0x828 / 0x826, [demo.md](demo.md)).
+autoplay (DS:0x828 / 0x826, [demo.md](demo.md)) and the colony-screen keyboard
+focus ([colony_screen.md](colony_screen.md) "Keyboard focus") and the map editor
+([mapedit.md](mapedit.md)).
 
 | Item | What is missing | Where |
 |------|-----------------|-------|
 | [port_bugs.md](port_bugs.md) | OPEN rows | — |
-| Colony-screen keyboard focus | DOS Tab cycles the DS:0x32e focus panel (`FUN_2f2b` raw 55535-55545: skips panel 2 when DS:0x33c is 0, panel 3 unless a unit is selected) and the per-panel cursor keys move inside it. The port moves focus only on clicks | [colony_screen.md](colony_screen.md) "F1 on the bare screen", `game_loop_update.c` |
 
 **Old citations.** `port_plan P<n>.<m>`, the old "How an agent should use this
 file" section and the closed D1/D2/D3/D6 rows: [archive/port_plan_p1_p11_2026-10-24.md](archive/port_plan_p1_p11_2026-10-24.md).
@@ -169,7 +170,8 @@ ends:
 D1 (rival Europeans), D2 (Indian AI 1:1), D5 (music: the user judged it done;
 confirmed again 2026-10-26) and D6 (COLDIG SFX) are closed and D3
 (known-seed determinism) is dropped as a goal; their rows are in the archive
-file above. Also parked: MAPEDIT catalog track (old W5.4).
+file above. The MAPEDIT catalog track (old W5.4) closed 2026-10-27: the map editor is
+ported ([mapedit.md](mapedit.md)).
 
 ## Deferred AI track
 

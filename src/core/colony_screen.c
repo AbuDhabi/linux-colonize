@@ -970,3 +970,210 @@ void colony_screen_free(ColonyScreenView* view) {
   }
   memset(view, 0, sizeof(*view));
 }
+
+/* ===================== Keyboard focus (DS:0x32e): Tab and the per-panel cursor keys ===================== */
+/* FUN_1262_0128 (via FUN_281f_038e): below 0 wraps to n - 1, n or more wraps to 0. */
+static int colony_screen_focus_wrap(int a, int n) {
+  if (a < 0) {
+    a = n - 1;
+  }
+  if (n <= a) {
+    a = 0;
+  }
+  return a;
+}
+
+/* DOS scan code families: arrows / Home / End / PgUp / PgDn and their keypad twins. */
+static void colony_screen_focus_step(ColonizeKey key, int* dx, int* dy) {
+  *dx = 0;
+  *dy = 0;
+  switch (key) {
+  case COLONIZE_KEY_UP: case COLONIZE_KEY_KP8: *dy = -1; break;
+  case COLONIZE_KEY_DOWN: case COLONIZE_KEY_KP2: *dy = 1; break;
+  case COLONIZE_KEY_LEFT: case COLONIZE_KEY_KP4: *dx = -1; break;
+  case COLONIZE_KEY_RIGHT: case COLONIZE_KEY_KP6: *dx = 1; break;
+  case COLONIZE_KEY_HOME: case COLONIZE_KEY_KP7: *dx = -1; *dy = -1; break;
+  case COLONIZE_KEY_PAGEUP: case COLONIZE_KEY_KP9: *dx = 1; *dy = -1; break;
+  case COLONIZE_KEY_END: case COLONIZE_KEY_KP1: *dx = -1; *dy = 1; break;
+  case COLONIZE_KEY_PAGEDOWN: case COLONIZE_KEY_KP3: *dx = 1; *dy = 1; break;
+  default: break;
+  }
+}
+
+/*
+ * FUN_2f2b_6372: Tab (asm 2BEEA-2BF2B) and the tail that switches on DS:0x32e (asm
+ * 2C15B-2C544, raw 55776-55935). DOS keeps its selections in DS words; the port's live in
+ * the view (area_dx/dy = DS:0x330/0x332 - 2, the colonist / fence pick = DS:0x8d7c over
+ * population + fence units, transport_unit_id = DS:0x340/0x33e over the docked ships,
+ * multi_unit_selected_id = DS:0x8d7a over the Units pane, selected_cargo = DS:0x33a).
+ */
+ColonyFocusKeyResult colony_screen_focus_key(
+  ColonyScreenView* view, const ColonizeColony* colony, const ColonizeUnitPool* units,
+  ColonizeKey key
+) {
+  ColonyFocusKeyResult r = {COLONY_FOCUS_KEY_NONE, -1};
+  if (!view || !colony) {
+    return r;
+  }
+  const int ships = view->docked_transport_count;
+  ColonyMultiUnitSlot slots[COLONY_MULTI_UNITS_SLOT_MAX];
+  const int pane_units =
+    units ? colony_screen_multi_units_layout(view, units, 0, 0, 1, 1, slots, COLONY_MULTI_UNITS_SLOT_MAX)
+          : 0;
+  if (key == COLONIZE_KEY_TAB) {
+    /* focus = wrap(focus + 1, 5); 2 is skipped with no ship in port (DS:0x33c), 3 unless the
+     * Units tab shows (DS:0x337 == 1) with units in it (DS:0x8d76). */
+    int f = colony_screen_focus_wrap((int)view->focus + 1, 5);
+    if (f == COLONY_FOCUS_SHIPS && ships == 0) {
+      ++f;
+    }
+    if (f == COLONY_FOCUS_UNITS && (view->multi_mode != COLONY_MULTI_UNITS || pane_units == 0)) {
+      ++f;
+    }
+    view->focus = (ColonyScreenFocus)f;
+    r.action = COLONY_FOCUS_KEY_REDRAW;
+    return r;
+  }
+  int dx = 0;
+  int dy = 0;
+  colony_screen_focus_step(key, &dx, &dy);
+  const bool enter = key == COLONIZE_KEY_ENTER;
+  switch (view->focus) {
+  case COLONY_FOCUS_AREA:
+    /* asm 2C2C6-2C33E: x = wrap(x + dx - 1, 3) + 1 over the cursor's 1..3, then DS:0x334 = 0
+     * (blink restarts on). Enter: FUN_2f2b_3fa6 on the cursor plot (asm 2C372). */
+    if (enter) {
+      r.action = COLONY_FOCUS_KEY_AREA_ENTER;
+      r.value = colonies_field_tile_index(view->area_dx, view->area_dy);
+      return r;
+    }
+    if (dx == 0 && dy == 0) {
+      return r;
+    }
+    view->area_dx = colony_screen_focus_wrap(view->area_dx + 2 + dx - 1, 3) + 1 - 2;
+    view->area_dy = colony_screen_focus_wrap(view->area_dy + 2 + dy - 1, 3) + 1 - 2;
+    view->blink_epoch_ms = view->blink_ms;
+    r.action = COLONY_FOCUS_KEY_REDRAW;
+    return r;
+  case COLONY_FOCUS_COLONISTS: {
+    /* asm 2C165-2C2B9: Enter = FUN_2f2b_348c(0); Left / Right only (raw 55780-55786):
+     * DS:0x8d7c = wrap(DS:0x8d7c -/+ 1, population + DS:0x8d72). */
+    if (enter) {
+      r.action = COLONY_FOCUS_KEY_COLONIST_ENTER;
+      return r;
+    }
+    if (dy != 0 || dx == 0) {
+      return r;
+    }
+    PeopleEntry ent[COLONY_OUTSIDE_MAX + 64];
+    const int n = colony_screen_people_layout(view, colony, units, ent, (int)(sizeof ent / sizeof ent[0]));
+    if (n <= 0) {
+      return r;
+    }
+    int k = 0; /* DS:0x8d7c is static 0 before any pick */
+    for (int i = 0; i < n; ++i) {
+      if ((ent[i].sel_colonist >= 0 && ent[i].sel_colonist == view->selected_colonist) ||
+          (ent[i].sel_unit >= 0 && ent[i].sel_unit == view->selected_outside_unit)) {
+        k = i;
+        break;
+      }
+    }
+    k = colony_screen_focus_wrap(k + dx, n);
+    if (ent[k].sel_colonist >= 0) {
+      r.action = COLONY_FOCUS_KEY_SELECT_COLONIST;
+      r.value = ent[k].sel_colonist;
+    } else {
+      r.action = COLONY_FOCUS_KEY_SELECT_OUTSIDE;
+      r.value = ent[k].sel_unit;
+    }
+    return r;
+  }
+  case COLONY_FOCUS_WAREHOUSE:
+    /* asm 2C393-2C3C6: Up / Left step back, Right / Down forward, wrap(DS:0x33a, 16). */
+    if (key == COLONIZE_KEY_UP || key == COLONIZE_KEY_KP8 || key == COLONIZE_KEY_LEFT ||
+        key == COLONIZE_KEY_KP4 || key == COLONIZE_KEY_RIGHT || key == COLONIZE_KEY_KP6 ||
+        key == COLONIZE_KEY_DOWN || key == COLONIZE_KEY_KP2) {
+      const int step = (dx < 0 || dy < 0) ? -1 : 1;
+      const int cur = view->selected_cargo >= 0 ? view->selected_cargo : 0;
+      view->selected_cargo = colony_screen_focus_wrap(cur + step, 16);
+      r.action = COLONY_FOCUS_KEY_REDRAW;
+    }
+    return r;
+  case COLONY_FOCUS_SHIPS: {
+    /* asm 2C3DC-2C472: S / Enter / Space take the ship (DS:0x33e = DS:0x340, FUN_2f2b_51ec,
+     * @COLONYUNIT); Up / Down jump four within the first eight, Left / Right step one, all
+     * wrap(., DS:0x33c). */
+    int idx = 0;
+    for (int i = 0; i < ships; ++i) {
+      if (view->docked_transport_ids[i] == view->transport_unit_id) {
+        idx = i;
+        break;
+      }
+    }
+    if (enter || key == COLONIZE_KEY_SPACE || key == COLONIZE_KEY_S) {
+      if (ships > 0) {
+        r.action = COLONY_FOCUS_KEY_SHIP_ENTER;
+        r.value = view->docked_transport_ids[idx];
+      }
+      return r;
+    }
+    if (key == COLONIZE_KEY_UP || key == COLONIZE_KEY_KP8) {
+      idx = idx < 4 ? idx + 4 : (idx < 8 ? idx - 4 : 0);
+    } else if (key == COLONIZE_KEY_DOWN || key == COLONIZE_KEY_KP2) {
+      idx = idx < 8 ? (idx > 3 ? idx - 4 : idx + 4) : 3;
+    } else if (key == COLONIZE_KEY_LEFT || key == COLONIZE_KEY_KP4) {
+      idx -= 1;
+    } else if (key == COLONIZE_KEY_RIGHT || key == COLONIZE_KEY_KP6) {
+      idx += 1;
+    } else {
+      return r;
+    }
+    idx = colony_screen_focus_wrap(idx, ships);
+    if (idx >= 0 && idx < ships) {
+      r.action = COLONY_FOCUS_KEY_SELECT_SHIP;
+      r.value = view->docked_transport_ids[idx];
+    }
+    return r;
+  }
+  case COLONY_FOCUS_UNITS: {
+    /* asm 2C496-2C538, only on the Units tab (DS:0x337 == 1): Enter = FUN_2f2b_5746 on the
+     * pick; Up / Down hop between the five full icons and the two 17-wide overflow rows,
+     * Left / Right step one, all wrap(., DS:0x8d76). */
+    if (view->multi_mode != COLONY_MULTI_UNITS) {
+      return r;
+    }
+    int idx = 0;
+    for (int i = 0; i < pane_units; ++i) {
+      if (slots[i].unit_id == view->multi_unit_selected_id) {
+        idx = i;
+        break;
+      }
+    }
+    if (enter) {
+      if (pane_units > 0) {
+        r.action = COLONY_FOCUS_KEY_UNIT_ENTER;
+        r.value = slots[idx].unit_id;
+      }
+      return r;
+    }
+    if (key == COLONIZE_KEY_UP || key == COLONIZE_KEY_KP8) {
+      idx = idx < 5 ? idx + 5 : (idx < 0x16 ? idx + 0x11 : 4);
+    } else if (key == COLONIZE_KEY_DOWN || key == COLONIZE_KEY_KP2) {
+      idx = idx >= 0x16 ? idx - 0x11 : (idx >= 5 ? 0 : 0x16);
+    } else if (key == COLONIZE_KEY_LEFT || key == COLONIZE_KEY_KP4) {
+      idx -= 1;
+    } else if (key == COLONIZE_KEY_RIGHT || key == COLONIZE_KEY_KP6) {
+      idx += 1;
+    } else {
+      return r;
+    }
+    idx = colony_screen_focus_wrap(idx, pane_units);
+    if (idx >= 0 && idx < pane_units) {
+      view->multi_unit_selected_id = slots[idx].unit_id;
+      r.action = COLONY_FOCUS_KEY_REDRAW;
+    }
+    return r;
+  }
+  }
+  return r;
+}

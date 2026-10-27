@@ -60,6 +60,9 @@ bool begin_menu_compute_layout(
 const char* key_name(ColonizeKey key) {
   switch (key) {
     case COLONIZE_KEY_ESCAPE: return "ESCAPE";
+    case COLONIZE_KEY_TAB: return "TAB";
+    case COLONIZE_KEY_PAGEUP: return "PAGEUP";
+    case COLONIZE_KEY_PAGEDOWN: return "PAGEDOWN";
     case COLONIZE_KEY_ENTER: return "ENTER";
     case COLONIZE_KEY_SPACE: return "SPACE";
     case COLONIZE_KEY_UP: return "UP";

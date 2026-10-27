@@ -229,6 +229,9 @@ literal as a fallback" idiom — a fallback copy is still a copy.
   `test_body_is_section(body, "SECTION")` so a test identifies a popup by its
   section, not by a typed DOS phrase. Synthetic catalogs in tests use invented
   wording.
+- **EXE-only wording is read from the EXE.** The map editor's panel, picker and
+  usage strings live only in MAPEDIT.EXE's data segment; `mapedit_exe_str` reads them
+  from `COLONIZE/MAPEDIT.EXE` at run time ([mapedit.md](mapedit.md)).
 - **Port-authored text is fine** but must not copy catalog wording: diagnostics,
   log names, short notices where DOS has no section (raid "thin" notices, the
   village-approach warning, "Independence already declared.", "Royal frigate

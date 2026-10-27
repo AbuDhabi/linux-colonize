@@ -77,6 +77,12 @@ bool name_entry_open(
   dlg->name_cap = kind == NAME_ENTRY_KIND_TRADE_NAME || kind == NAME_ENTRY_KIND_TRADE_RENAME
                     ? sizeof(dlg->name)
                     : NAME_ENTRY_COLONY_NAME_CHARS + 1;
+  /* MAPEDIT FUN_133d_380a lengths: @NEWNAME 0x14 (FUN_1000_15fc), @SAVEAS 0xe. */
+  if (kind == NAME_ENTRY_KIND_MAP_NEW) {
+    dlg->name_cap = 0x14 + 1;
+  } else if (kind == NAME_ENTRY_KIND_MAP_SAVEAS) {
+    dlg->name_cap = 0xe + 1;
+  }
   dlg->width = popup_msg_take_pending_width();
   /* @LANDHO latches MSS0 (2b5a:0028), @COLONY MSS5 (479b:0823); the rename and
    * trade-name prompts leave 0x1f5e at -1 (port_bugs.md #1183). */

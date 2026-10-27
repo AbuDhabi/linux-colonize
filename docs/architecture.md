@@ -51,6 +51,7 @@ Col1 field atlases — those stay in their owning docs (see the
 | Between player turns (full EOT map) | [turn_between_players.md](turn_between_players.md) |
 | Hot-seat multiplayer (DS:0x5394 / 0x5398 / control byte) | [hotseat.md](hotseat.md) |
 | Autoplay / self-running demo (DS:0x826 / 0x828, all-AI control table) | [demo.md](demo.md) |
+| Map editor (MAPEDIT.EXE, `opencol-mapedit`, .MP writer) | [mapedit.md](mapedit.md) |
 | Difficulty level effects | [difficulty.md](difficulty.md) |
 | Fandom wiki digest (1994 Col only; tier-3) | [fandom_col1994.md](fandom_col1994.md) |
 | Extracted VICEROY DS tables | [viceroy_tables.md](viceroy_tables.md) |

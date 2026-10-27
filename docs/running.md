@@ -32,6 +32,11 @@ CLI wins over `settings.json`, which wins over the default:
 | `-K` | — | Hot-seat: the nation picker's hidden fifth cell ([hotseat.md](hotseat.md)); also env `COLONIZE=MULTI` | — |
 | `-D` (or `-d:0`) | — | Self-running demo, as `COLDEMO.BAT` ([demo.md](demo.md)). A key quits and saves slot 5; `J` restarts the cycle | — |
 
+## Map editor
+
+`opencol-mapedit [--data-dir DIR] [--scale N] [-c | -m:FILE.MP]` is MAPEDIT.EXE: it edits
+the `.MP` scenario maps in the data directory ([mapedit.md](mapedit.md)).
+
 ## Music
 
 Music needs a soundfont; one is bundled. Details and overrides:

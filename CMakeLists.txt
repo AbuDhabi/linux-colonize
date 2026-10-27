@@ -172,6 +172,7 @@ add_library(colonize_ui STATIC
   src/core/game_loop_colony.c
   src/core/game_loop_eot.c
   src/core/game_loop_demo.c
+  src/core/mapedit.c
   src/core/game_loop_update.c
   src/core/game_dialogs.c
   src/core/game_tutorial.c
@@ -350,6 +351,16 @@ if(SDL2_FOUND)
     target_compile_definitions(opencol PRIVATE COLONIZE_ENABLE_AUDIO=1)
   endif()
 
+  # MAPEDIT.EXE, the map editor (docs/mapedit.md): its own program, as in DOS.
+  add_executable(opencol-mapedit
+    src/mapedit_main.c
+    src/platform/linux_sdl2/sdl_runtime.c
+    src/platform/linux_sdl2/sdl_keymap.c
+  )
+  target_include_directories(opencol-mapedit PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+  target_compile_options(opencol-mapedit PRIVATE ${COLONIZE_EXE_WARN_FLAGS})
+  target_link_libraries(opencol-mapedit PRIVATE colonize_core ${COLONIZE_SDL2_TARGET})
+
   # LICENSE always. Bundled SC-55 SoundFont is optional — copy only if present
   # so deleting it (or dropping it from the repo) does not fail the build.
   add_custom_command(
@@ -517,6 +528,14 @@ colonize_add_test(NAME unit_new_game
     tests/unit/test_new_game.c
     tests/common/platform_cursor_stubs.c
     tests/common/test_assets.c
+  LIBS colonize_core
+  INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+colonize_add_test(NAME unit_mapedit
+  SOURCES
+    tests/unit/test_mapedit.c
+    tests/common/platform_cursor_stubs.c
   LIBS colonize_core
   INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}
 )

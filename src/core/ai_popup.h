@@ -31,7 +31,7 @@
  * queue so a 48-colony empire cannot fill it in one turn (~1.7 KB a slot;
  * the state lives in the heap-allocated game state). */
 #define AI_POPUP_QUEUE_MAX 1024
-#define AI_POPUP_CHOICE_MAX 8 /* @TRADEWHICH: up to 6 holds + "never mind" */
+#define AI_POPUP_CHOICE_MAX 12 /* @TRADEWHICH: up to 6 holds + "never mind"; MAPEDIT file picker 10 + 2 (More) */
 /* GAME.TXT's longest popup bodies (@TUTORIAL17 766 chars before substitution,
  * @TUTORIAL13 569, @TUTORIAL7 545, @KINGGALLEON3 535) overran 512. */
 #define AI_POPUP_BODY_LEN 1024

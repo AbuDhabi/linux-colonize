@@ -246,6 +246,7 @@ static MapMenuAction map_menu_classify(const char* section, int row, const char*
 
 static bool map_menu_action_enabled(MapMenuAction action) {
   switch (action) {
+    case MAP_MENU_ACTION_USER:
     case MAP_MENU_ACTION_SAVE:
     case MAP_MENU_ACTION_LOAD:
     case MAP_MENU_ACTION_DECLARE_INDEPENDENCE:
@@ -561,6 +562,80 @@ static bool map_menu_load_debug(MapMenuBar* bar) {
   return true;
 }
 #endif
+
+bool map_menu_load_custom(
+  MapMenuBar* bar, const ColonizeMsgCatalog* catalog, const MapMenuCustomSection* sections,
+  int section_count
+) {
+  if (!bar) {
+    return false;
+  }
+  map_menu_init(bar);
+  for (int s = 0; catalog && s < section_count && bar->menu_count < MAP_MENU_MAX_MENUS; ++s) {
+    const ColonizeMsgSection* sec = assets_msg_find(catalog, sections[s].section);
+    if (!sec || sec->line_count < 1) {
+      continue;
+    }
+    MapMenuPulldown* menu = &bar->menus[bar->menu_count];
+    memset(menu, 0, sizeof(*menu));
+    str_copy_trunc(menu->section_name, sizeof(menu->section_name), sections[s].section);
+    menu->visible = true;
+    char title[MAP_MENU_TITLE_LEN];
+    str_copy_trunc(title, sizeof(title), sec->lines[0]);
+    str_strip_chars(title, "#");
+    str_trim(title);
+    str_copy_trunc(menu->title, sizeof(menu->title), title);
+    menu->title_hotkey = map_menu_parse_title_hotkey(title);
+    int line = 1;
+    for (int k = 0; k < sections[s].id_count && menu->item_count < MAP_MENU_MAX_ITEMS; ++k) {
+      const int id = sections[s].ids[k];
+      if (id == MAP_MENU_CUSTOM_SEP) {
+        map_menu_append_item(menu, "", MAP_MENU_ACTION_SEPARATOR);
+        continue;
+      }
+      while (line < sec->line_count && sec->lines[line][0] == '\0') {
+        ++line;
+      }
+      if (line >= sec->line_count) {
+        break;
+      }
+      char label[MAP_MENU_LABEL_LEN];
+      str_copy_trunc(label, sizeof(label), sec->lines[line++]);
+      str_strip_chars(label, "#");
+      str_trim(label);
+      if (id <= 0) {
+        continue;
+      }
+      map_menu_append_item(menu, label, MAP_MENU_ACTION_USER);
+      MapMenuItem* item = &menu->items[menu->item_count - 1];
+      item->user_id = id;
+      if (strncmp(label, "~F~", 3) == 0) {
+        item->hotkey = 0;
+      }
+    }
+    bar->menu_count++;
+  }
+  bar->loaded = bar->menu_count > 0;
+  return bar->loaded;
+}
+
+int map_menu_custom_hotkey(const MapMenuBar* bar, char letter) {
+  if (!bar || letter == 0) {
+    return 0;
+  }
+  const char want = (char)toupper((unsigned char)letter);
+  for (int m = 0; m < bar->menu_count; ++m) {
+    const MapMenuPulldown* menu = &bar->menus[m];
+    for (int i = 0; i < menu->item_count; ++i) {
+      const MapMenuItem* it = &menu->items[i];
+      if (it->user_id > 0 && it->enabled && it->visible &&
+          toupper((unsigned char)it->hotkey) == want) {
+        return it->user_id;
+      }
+    }
+  }
+  return 0;
+}
 
 bool map_menu_load(MapMenuBar* bar, const ColonizeMsgCatalog* menu_txt, bool show_debug) {
   if (!bar) {
@@ -1197,6 +1272,7 @@ MapMenuAction map_menu_handle_input(
       if (!mi->enabled || mi->separator || !mi->visible || action == MAP_MENU_ACTION_SEPARATOR) {
         return MAP_MENU_ACTION_NONE;
       }
+      bar->picked_id = mi->user_id;
       return action;
     }
     /* Click outside dropdown closes it. */

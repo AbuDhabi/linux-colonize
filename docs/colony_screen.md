@@ -350,8 +350,29 @@ opens one article and redraws the colony (`thunk_FUN_291f_0684`):
 Leaving the Units tab turns focus 3 into 1 (raw 51475, 55565, 55594). The right-click
 terrain article shares the 0x10 gate (`FUN_2f2b_47bc` raw 51399). The construction /
 jobs / leave-as lists keep their own F1. Port: `game_colony_screen_help`
-(`game_loop_update.c`); DOS's Tab focus cycling (raw 55535-55545) and the per-panel
-cursor keys are not ported, so only presses move the focus.
+(`game_loop_update.c`).
+
+### Keyboard focus (Tab, cursor keys, Enter)
+
+`FUN_2f2b_6372` on the bare screen (asm 2BEEA Tab, 2C15B-2C544 per-panel tail); port
+`colony_screen_focus_key` (`colony_screen.c`), applied by `game_colony_focus_key`.
+`wrap(a, n)` is `FUN_1262_0128`: below 0 → n−1, n or more → 0.
+
+- **Tab:** focus = wrap(focus+1, 5); skips 2 with no ship in port (DS:0x33c) and 3 unless
+  the Units tab shows (DS:0x337 == 1) with units in it (DS:0x8d76).
+- **0 area:** arrows / Home / End / PgUp / PgDn (and keypad) move the cursor,
+  x = wrap(x + dx − 1, 3) + 1 over DS:0x330/0x332 1..3. Enter = `FUN_2f2b_3fa6` on the cursor
+  plot (`game_colony_area_tile_drop`, the plot press).
+- **1 colonists:** Left / Right step DS:0x8d7c over population + fence units (the People band
+  order). Enter = `FUN_2f2b_348c(0)`: jobs menu, or a fence unit's role list.
+- **2 ships:** Left / Right ±1; Up: <4 → +4, <8 → −4, else 0; Down: <8 → (>3 ? −4 : +4), else
+  3; all wrap(., DS:0x33c). Enter / Space / S = `FUN_2f2b_51ec`, the @COLONYUNIT orders.
+- **3 units** (Units tab only): Left / Right ±1; Up: <5 → +5, <0x16 → +0x11, else 4; Down:
+  ≥0x16 → −0x11, ≥5 → 0, else 0x16; all wrap(., DS:0x8d76). Enter = `FUN_2f2b_5746`.
+- **4 warehouse:** Up / Left −1, Right / Down +1, wrap(DS:0x33a, 16). No Enter arm.
+
+Enter never leaves the colony (Escape does). The port's old Up / Down colonist stepping and
+"Enter leaves" were inventions and are gone.
 
 ### Debug: Building Rects
 

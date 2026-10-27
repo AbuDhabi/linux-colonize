@@ -125,9 +125,12 @@ typedef struct ColonizeWorldMap {
   uint8_t euro_landfalls_ok;
   /* FUN_684c_08c0 first rng_range(1,0x7fff) → DS:0x190 / Col1 prime_resource_seed. */
   uint16_t prime_resource_seed;
+  /* MAPEDIT draws no prime resources or rumours: its seed DS:0x4dc is 0 and never written
+   * (mapedit.c 2883 / 2924 gate on it). Port-only switch, set by the map editor. */
+  bool specials_off;
 } ColonizeWorldMap;
 
-#define MAP_RESOURCE_SEED_DEFAULT 100 /* MAPEDIT/runtime seed at DS:0x4dc (AMER2 matches 100) */
+#define MAP_RESOURCE_SEED_DEFAULT 100 /* runtime fallback seed (AMER2 matches 100); MAPEDIT's DS:0x4dc is 0 */
 
 /*
  * Bounds / distance / adjacency predicates. These were hand-rolled ~39 times
@@ -183,6 +186,10 @@ static inline int map_dos_dist(int dx, int dy) {
 }
 
 bool map_load_mp(const char* path, ColonizeWorldMap* out_map, char* err, size_t err_size);
+/* MAPEDIT FUN_19f9_02b0: u16 width, u16 height, u16 version 4, then the terrain, layer 2 and
+ * layer 3 planes (W*H bytes each). */
+#define MAP_MP_VERSION 4
+bool map_save_mp(const char* path, const ColonizeWorldMap* map, char* err, size_t err_size);
 /* Allocate empty layers (terrain/layer2/layer3/seen zeroed). Replaces any prior buffers. */
 bool map_alloc(ColonizeWorldMap* out_map, uint8_t width, uint8_t height, char* err, size_t err_size);
 void map_free(ColonizeWorldMap* map);

@@ -64,6 +64,9 @@ ColonizeKey platform_key_from_sdl(int32_t key) {
     case SDLK_DELETE: return COLONIZE_KEY_DELETE;
     case SDLK_HOME: return COLONIZE_KEY_HOME;
     case SDLK_END: return COLONIZE_KEY_END;
+    case SDLK_TAB: return COLONIZE_KEY_TAB;
+    case SDLK_PAGEUP: return COLONIZE_KEY_PAGEUP;
+    case SDLK_PAGEDOWN: return COLONIZE_KEY_PAGEDOWN;
     default: return COLONIZE_KEY_NONE;
   }
 }

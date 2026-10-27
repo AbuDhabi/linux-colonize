@@ -2870,6 +2870,71 @@ static int unit_fence_strip_profession_gate(void) {
  * the uncapped Carpenter fallback can put a 4th colonist in the shop, and the
  * building strip must then show and hit-test all four without overlap.
  */
+/*
+ * FUN_2f2b_6372 keyboard focus (DS:0x32e): Tab = wrap(focus + 1, 5) skipping the ships
+ * with none in port and the Units pane off its tab; the area cursor wraps over its
+ * 3x3; the warehouse pick wraps over 16 cargos; the ship strip hops four.
+ */
+static int unit_keyboard_focus_is_dos(void) {
+  ColonyScreenView view;
+  memset(&view, 0, sizeof(view));
+  ColonizeColony colony;
+  memset(&colony, 0, sizeof(colony));
+  colony.active = true;
+  view.selected_colonist = -1;
+  view.selected_outside_unit = -1;
+  view.multi_unit_selected_id = -1;
+  view.selected_cargo = -1;
+  view.focus = COLONY_FOCUS_COLONISTS;
+  (void)colony_screen_focus_key(&view, &colony, NULL, COLONIZE_KEY_TAB);
+  if (view.focus != COLONY_FOCUS_WAREHOUSE) { /* 2 (no ship) and 3 (not the Units tab) skipped */
+    fprintf(stderr, "Tab from colonists: %d\n", (int)view.focus);
+    return 1;
+  }
+  (void)colony_screen_focus_key(&view, &colony, NULL, COLONIZE_KEY_TAB);
+  if (view.focus != COLONY_FOCUS_AREA) {
+    return 1;
+  }
+  view.area_dx = 1;
+  view.area_dy = -1;
+  (void)colony_screen_focus_key(&view, &colony, NULL, COLONIZE_KEY_PAGEUP);
+  if (view.area_dx != -1 || view.area_dy != 1) { /* both wrap */
+    fprintf(stderr, "area wrap %d,%d\n", view.area_dx, view.area_dy);
+    return 1;
+  }
+  const ColonyFocusKeyResult er = colony_screen_focus_key(&view, &colony, NULL, COLONIZE_KEY_ENTER);
+  if (er.action != COLONY_FOCUS_KEY_AREA_ENTER || er.value != colonies_field_tile_index(-1, 1)) {
+    return 1;
+  }
+  view.focus = COLONY_FOCUS_WAREHOUSE;
+  (void)colony_screen_focus_key(&view, &colony, NULL, COLONIZE_KEY_UP);
+  if (view.selected_cargo != 15) { /* static 0, then wrap(-1, 16) */
+    return 1;
+  }
+  view.docked_transport_count = 6;
+  for (int i = 0; i < 6; ++i) {
+    view.docked_transport_ids[i] = 100 + i;
+  }
+  view.transport_unit_id = 101;
+  view.focus = COLONY_FOCUS_SHIPS;
+  ColonyFocusKeyResult sr = colony_screen_focus_key(&view, &colony, NULL, COLONIZE_KEY_UP);
+  if (sr.action != COLONY_FOCUS_KEY_SELECT_SHIP || sr.value != 105) { /* 1 + 4 */
+    return 1;
+  }
+  view.transport_unit_id = 103;
+  sr = colony_screen_focus_key(&view, &colony, NULL, COLONIZE_KEY_UP);
+  if (sr.value != 100) { /* 3 + 4 = 7, wrap(7, 6) = 0 */
+    return 1;
+  }
+  sr = colony_screen_focus_key(&view, &colony, NULL, COLONIZE_KEY_S);
+  if (sr.action != COLONY_FOCUS_KEY_SHIP_ENTER || sr.value != 103) {
+    return 1;
+  }
+  view.focus = COLONY_FOCUS_COLONISTS;
+  (void)colony_screen_focus_key(&view, &colony, NULL, COLONIZE_KEY_TAB);
+  return view.focus == COLONY_FOCUS_SHIPS ? 0 : 1;
+}
+
 static int unit_plot_eviction_1080(void) {
   ColonizeMsgCatalog names;
   assets_msg_init(&names);
@@ -3633,6 +3698,7 @@ static const TestCase k_cases[] = {
     {"unit_leave_as_rows_are_dos", unit_leave_as_rows_are_dos},
     {"unit_build_buttons_are_dos", unit_build_buttons_are_dos},
     {"unit_plot_eviction_1080", unit_plot_eviction_1080},
+    {"unit_keyboard_focus_is_dos", unit_keyboard_focus_is_dos},
     {"unit_buyme1_tokens", unit_buyme1_tokens},
     {"unit_building_click_reaches_owned", unit_building_click_reaches_owned},
     {"unit_dock_orders_menu", unit_dock_orders_menu},

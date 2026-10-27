@@ -121,7 +121,9 @@ typedef enum MapMenuAction {
   MAP_MENU_ACTION_DEBUG_SPRITE_VIEWER,
   MAP_MENU_ACTION_DEBUG_TOGGLE_MOUSE_COORDS,
   MAP_MENU_ACTION_DEBUG_BUILDING_RECTS,
-  MAP_MENU_ACTION_DEBUG_LOGS
+  MAP_MENU_ACTION_DEBUG_LOGS,
+  /* An item of a bar built by map_menu_load_custom: its id is in MapMenuBar.picked_id. */
+  MAP_MENU_ACTION_USER
 } MapMenuAction;
 
 typedef struct MapMenuItem {
@@ -133,6 +135,7 @@ typedef struct MapMenuItem {
   char hotkey; /* 0 = none; A–Z / 0–9 from ~ markers */
   bool hotkey_shift; /* Shift+hotkey (Disband) */
   bool hotkey_space; /* Space bar (No Orders) */
+  int user_id; /* map_menu_load_custom id (0 elsewhere) */
 } MapMenuItem;
 
 typedef struct MapMenuPulldown {
@@ -165,6 +168,7 @@ typedef struct MapMenuBar {
   /* Ink for that line: DOS FUN_1009_0004 keys it off the arm kind, so a sale
    * is @COLORS hilite gold, not the basic green the titles use. */
   uint8_t message_color;
+  int picked_id; /* user_id of the item a MAP_MENU_ACTION_USER pick chose */
 } MapMenuBar;
 
 /*
@@ -185,6 +189,24 @@ typedef struct MapMenuOrdersContext {
 void map_menu_init(MapMenuBar* bar);
 void map_menu_free(MapMenuBar* bar);
 bool map_menu_load(MapMenuBar* bar, const ColonizeMsgCatalog* menu_txt, bool show_debug);
+/*
+ * Port-only: a bar from another catalog in MENU.TXT format (the map editor's MAPMENU.TXT,
+ * whose menu code reads the item lines in order and adds its own separators). Per section,
+ * `ids` walks the lines after the title: id > 0 adds the next line with that id, 0 skips it,
+ * MAP_MENU_CUSTOM_SEP adds a separator without taking a line. "~F~n" items get no letter.
+ */
+#define MAP_MENU_CUSTOM_SEP (-1)
+typedef struct MapMenuCustomSection {
+  const char* section;
+  const int* ids;
+  int id_count;
+} MapMenuCustomSection;
+bool map_menu_load_custom(
+  MapMenuBar* bar, const ColonizeMsgCatalog* catalog, const MapMenuCustomSection* sections,
+  int section_count
+);
+/* user_id of the enabled item whose ~ letter is `letter` (case-folded), 0 if none. */
+int map_menu_custom_hotkey(const MapMenuBar* bar, char letter);
 
 /* Show/hide the CHEAT title; layout slot stays reserved either way. */
 void map_menu_set_cheat_visible(MapMenuBar* bar, bool visible);

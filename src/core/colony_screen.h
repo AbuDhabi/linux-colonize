@@ -520,6 +520,29 @@ void colony_screen_close_custom_house(ColonyScreenView* view);
 /* GAME.TXT @COLONYUNIT title + @UNITOPTIONS (land) / @SHIPOPTIONS (sea) —
  * only currently-legal actions are listed (DOS FUN_2f2b_5746 omits, not
  * grays, ineligible rows), so dock_orders_count varies. */
+/* Keyboard focus (DS:0x32e, FUN_2f2b_6372): what a key on the bare screen asks the game to do. */
+typedef enum ColonyFocusKeyAction {
+  COLONY_FOCUS_KEY_NONE = 0,       /* not a focus key here */
+  COLONY_FOCUS_KEY_REDRAW,         /* the view's own selection moved */
+  COLONY_FOCUS_KEY_SELECT_COLONIST, /* value = colonist index */
+  COLONY_FOCUS_KEY_SELECT_OUTSIDE,  /* value = fence unit id */
+  COLONY_FOCUS_KEY_SELECT_SHIP,     /* value = docked transport unit id */
+  COLONY_FOCUS_KEY_AREA_ENTER,      /* value = plot index (-1: the colony tile), FUN_2f2b_3fa6 */
+  COLONY_FOCUS_KEY_COLONIST_ENTER,  /* FUN_2f2b_348c(0) on the pick */
+  COLONY_FOCUS_KEY_SHIP_ENTER,      /* value = ship id, FUN_2f2b_51ec @COLONYUNIT */
+  COLONY_FOCUS_KEY_UNIT_ENTER       /* value = unit id, FUN_2f2b_5746 */
+} ColonyFocusKeyAction;
+typedef struct ColonyFocusKeyResult {
+  ColonyFocusKeyAction action;
+  int value;
+} ColonyFocusKeyResult;
+/* Tab cycles DS:0x32e; arrows, Home / End / PgUp / PgDn (and the keypad) move the focused
+ * panel's pick; Enter (Space / S on the ships) acts on it. Docs: colony_screen.md. */
+ColonyFocusKeyResult colony_screen_focus_key(
+  ColonyScreenView* view, const ColonizeColony* colony, const ColonizeUnitPool* units,
+  ColonizeKey key
+);
+
 void colony_screen_open_dock_orders(
   ColonyScreenView* view,
   const ColonizeUnitPool* units,

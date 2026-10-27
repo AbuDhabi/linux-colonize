@@ -32,7 +32,9 @@ typedef enum NameEntryKind {
   NAME_ENTRY_KIND_LANDHO = 3, /* @LANDHO — name the New World */
   NAME_ENTRY_KIND_TRADE_NAME = 4,  /* @TRADENAME — create wizard (colony_id = route slot) */
   NAME_ENTRY_KIND_TRADE_RENAME = 5, /* @TRADENAME — editor title click (colony_id = route slot) */
-  NAME_ENTRY_KIND_FIND_COLONY = 6   /* @FINDCITY — VIEW "Find Colony" search text */
+  NAME_ENTRY_KIND_FIND_COLONY = 6,  /* @FINDCITY — VIEW "Find Colony" search text */
+  NAME_ENTRY_KIND_MAP_NEW = 7,      /* map editor MAPEDIT.TXT @NEWNAME, max 20 */
+  NAME_ENTRY_KIND_MAP_SAVEAS = 8    /* map editor MAPEDIT.TXT @SAVEAS, max 14 */
 } NameEntryKind;
 
 typedef struct NameEntryDialog {
