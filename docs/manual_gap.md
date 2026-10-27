@@ -160,7 +160,7 @@ Topic hub (graphics, units, settlements, contact): [indians.md](indians.md); ala
 | Manual feature | Status | Notes |
 |----------------|--------|-------|
 | Rival starter fleets + sail to landfall | Done | Path-independent `FUN_75c2_235c`: all four fleets at sentinel `228+n`, counter 0, goto = landfall — `FUN_684c` HS-rim on generated maps, `@SCENARIO` on AMERICA/TRIBE.TXT (port_bugs.md #490) — then Europe exit via `48d3_048e` / `ai_euro_act_*` dispatcher; seed-100 early fixture still gated — [port_plan.md](port_plan.md) |
-| Unload, found colonies, combat, colony AI | Done | Not claimed 1:1. Rival-Euro AI closed at logic level 2026-09-07g (D1): `0a60` goals, `5d04` hire ladder (the invented OpenCol matrix is deleted), `20e6` land arms with the `3558` cargo matrices, colony tick and Col1 colony flags/SoL latches, BUY `hammers_purchased`, `depletion_counter` wrap, `warehouse_level`/`capitol_level`. Gates: the four DOSBox idle campaigns ([idle_campaign.md](idle_campaign.md)) plus `golden_ai_turns`, `smoke_ai_mid01`/`late01`. Left: the Treasure/Missionary/Wagon band tail ([port_plan.md](port_plan.md) "Remaining work") — [ai_euro_logic_map.yaml](ai_euro_logic_map.yaml) |
+| Unload, found colonies, combat, colony AI | Done | Not claimed 1:1. Rival-Euro AI closed at logic level 2026-09-07g (D1): `0a60` goals, `5d04` hire ladder (the invented OpenCol matrix is deleted), `20e6` land arms with the `3558` cargo matrices, colony tick and Col1 colony flags/SoL latches, BUY `hammers_purchased`, `depletion_counter` wrap, `warehouse_level`/`capitol_level`. Gates: the four DOSBox idle campaigns ([idle_campaign.md](idle_campaign.md)) plus `golden_ai_turns`, `smoke_ai_mid01`/`late01`. The Treasure/Missionary/Wagon band tail closed 2026-10-26 (port_bugs.md #1291) — [ai_euro_logic_map.yaml](ai_euro_logic_map.yaml) |
 
 ### Win / end sequences
 
@@ -177,10 +177,11 @@ Topic hub (graphics, units, settlements, contact): [indians.md](indians.md); ala
 
 Every manual feature that exists in the shipped DOS game is ported (re-rated
 2026-10-26; no row is Partial or Missing). "Done thin" rows are behaviourally
-correct with port-drawn presentation, which is deferred phase D4. The few
-remaining gaps sit below this table's granularity and are listed in
-[port_plan.md](port_plan.md) "Remaining work": the Euro AI Treasure/Missionary/Wagon
-band tail. The hidden DOS hot-seat mode is ported ([hotseat.md](hotseat.md)).
+correct with port-drawn presentation, which is deferred phase D4. Gaps below
+this table's granularity are listed in [port_plan.md](port_plan.md)
+"Remaining work" (the hidden DS:0x828 demo autoplay, colony-screen Tab /
+cursor-key focus). The hidden DOS hot-seat
+mode is ported ([hotseat.md](hotseat.md)).
 
 ## See also
 

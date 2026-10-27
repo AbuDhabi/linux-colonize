@@ -221,7 +221,7 @@ all 16 New Amsterdam cargoes.
 ### Custom House popup
 
 Click on the building opens a per-cargo checklist
-(`colony_screen_open/draw_custom_house`): all 16 cargos, Food first
+(`colony_screen_open_custom_house` / `colony_screen_draw_custom_house_popup`): all 16 cargos, Food first
 (`FUN_2f2b_4424` loops `local_8 < 0x10`; the autosell denylist applies at EOT
 sell time, not in the list), `@checkbox` rows `] Sugar` / `[ Sugar` (FONTTINY's
 `]` / `[` are the filled / hollow circles), one uniform ink (player request:
@@ -422,7 +422,7 @@ sheet `DS:0x2da8`).
 (`warehouse_level`), `0x1e` reads `+0x96` (`capitol_level`); value > 1
 prints as white (0x0f) decimal at
 `(x + width[class]/2 − 1, y + height[class]/2 − 3)`. Ported
-(`k_class_box`). The Capitol half can never fire — DOS refuses the
+(`colony_screen_class_box`, `colony_screen_buildings.c`). The Capitol half can never fire — DOS refuses the
 building ([building_production.md](building_production.md)).
 
 `+0x95`/`+0x96` are level counters (0..2) and the **only** record of the

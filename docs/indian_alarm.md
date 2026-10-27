@@ -186,7 +186,7 @@ Accepting runs the other limb: the word is zeroed outright and the nation
 alarm takes a **negative** `price[cargo] * qty * 4 / -100` delta
 (`FUN_281f_0d6c`), walked down in steps of 5 while `alarm + delta >= 0x47` at
 the `@INDIANCITY` site only. `price[]` is the DS:0x84BC (`−0x7b44`) byte row
-the port already carries as `k_2820_throttle`. `@INDIANCITY` accepts also run
+the port reads live (`ai_contact_trade.c`; the old frozen `k_2820_throttle` capture table is gone, port_bugs.md #797). `@INDIANCITY` accepts also run
 DOS's arming tail — Muskets arm the visiting Brave (type +1) or bank
 `indian.muskets`; Horses mount it (type +2) or bank `horse_breeding += 0x32`,
 and always `horse_herds += 1`.

@@ -180,7 +180,7 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@SHIPDAMAGE` | Done | naval/arty damage-not-sink path |
 | `@SHIPSUNK` | Done | naval sink after plunder |
 | `@RAIDNOTHING` | Done | `ai_contact_apply_raid_loot`/`ai_contact_raid_chrome_row` real GAME.TXT body via `popup_msg_fill` (re-verified 2026-09-16) |
-| `@RAIDWREAK` | Partial | Deliberately kept thin: DOS's `FUN_281f_0652(0x1b8a, mode=3)` call (raw `5fef:126a`) is a different mode/shape than the other 5 kinds' `mode=5` victim calls, and its GAME.TXT text is a third-person "Spies report…" frame — see `indian_raid_outcomes.md` |
+| `@RAIDWREAK` | Done | Third-party news bulletin, not a loot kind: `FUN_5fef_0f14` raw 99895-99899 `FUN_281f_0652(0x1b8a, 3)` once per successful raid on a non-human colony, %STRING3 = victim @NATIONALITY (`ai_contact_raid_wreak_bulletin`, `ai_contact_raid.c`; port_bugs.md #829) |
 | `@RAIDSTORES` | Done | real GAME.TXT body incl. drained cargo name via `popup_msg_fill` (re-verified 2026-09-16) |
 | `@RAIDBURN` | Done | real GAME.TXT body when a building was actually destroyed (named via `s_last_burn_building`); construction-cleared/lumber-drained sub-cases keep the thin paraphrase (no object to name) |
 | `@RAIDSCALP` | Done | real GAME.TXT body via `popup_msg_fill` (re-verified 2026-09-16) |

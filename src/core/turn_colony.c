@@ -182,7 +182,7 @@ static void turn_run_colony_building_completion(ColonizeTurnContext* ctx) {
  * carpenter-idle / Autumn-frozen) real buildings sitting at or above the
  * hammer threshold need theirs, because turn_produce_one_colony's inline
  * complete check only fires on a tick that adds new hammers.
- * The nation scoping (s_prod_skip_* / s_prod_only_*) stays at the call
+ * The nation scoping (turn_prod_skip_* / turn_prod_only_*) stays at the call
  * sites: TURN_PROC_SETUP runs every AI nation, TURN_PROC_FINISH the human.
  */
 static void turn_run_colony_eot_with(

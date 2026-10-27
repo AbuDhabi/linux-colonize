@@ -377,7 +377,7 @@ from the DS `"VILLAGE"` stem + suffix). `@INDIANHELLO1` / `HELLO2` are **dead
 GAME.TXT**: 2026-09-16 scan of `VICEROY.EXE` DS finds no `INDIANHELLO` tag
 string at all, so DOS never shows them. Deep bargain matrix `FUN_4d56_2820` is **ported**, not parked (stale
 row corrected 2026-09-07f) — hold pick, throttle
-table `k_2820_throttle` (`:5066`), want-sort (`:5050`), haggle, gift,
+row = live DS:0x84BC prices (`:5066`; the frozen `k_2820_throttle` table is gone, port_bugs.md #797), want-sort (`:5050`), haggle, gift,
 post-sale buy. `ai_contact.c` was split 2026-09-23; the 2820 machinery now
 lives in `ai_contact_trade.c` (village trade economics) and
 `ai_contact_actions.c` (`ai_contact_2820_begin` shell + menu), seams in

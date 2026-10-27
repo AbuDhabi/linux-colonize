@@ -289,7 +289,7 @@ independently golden-confirmed.
   Price/Ask Price), row0 y=33 step=8, divider x=67, right-aligned columns
   at x=90/144/199/251. Page 2 — colony-name rows (17/page) x cargo-icon
   columns, row0 y=42 step=8, divider x=87, col step=14.
-- Ordering: page 1 fixed cargo-type order (`k_cargo_names[]`); page 2
+- Ordering: page 1 fixed cargo-id order 0..15 (`reports_render_economic_trade`); page 2
   colony order = save's colony array order, filtered to this nation.
 - Scroll/paging: 1 + ceil(colony_count/17) pages
   (`reports_economic_page_count`).

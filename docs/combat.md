@@ -40,7 +40,7 @@ site / FF / difficulty live in [save_format_map.md](save_format_map.md).
 | Land resolve | `units_resolve_land_combat` / `_ff` | `combat_land_engage` → roll → analysis → outcome |
 | Naval resolve | `units_resolve_naval_combat_ff_w` | `combat_naval_engage` → roll → analysis → naval outcome |
 | Best defender | `units_best_defender_at` (`FUN_5fef_0000`) | Highest `combat_engagement_strength`; skip `attack==0`. Artillery pick-score (2026-09-03, OVL17 asm 0x80–0x11c — the Ghidra `.c` export mangles this block): on a Euro colony tile ×2 vs Indian attacker; off-colony, unless the arty itself is Fortify/Fortified, score `>>= 3` (so arty in the open no longer outranks dragoons). Unarmed fallback tier only on NON-colony tiles; on a colony tile with no armed defender the attack routes to militia/Revere, then entry seizure (`units_seize_noncombat_at`) |
-| Euro AI attack | `ai_euro_try_attack` | Declare war if needed → land/naval resolve; optional `colonies_capture` |
+| Euro AI attack | `ai_euro_try_attack` (hulls only, the 20e6 LAB_4d2e pick); AI land units attack by stepping through the shared mover (`FUN_479b_0972` → `FUN_465b_0000`) | Treaty/declare band → naval resolve |
 | King / REF | `ai_king.c` | Land / naval resolve on invasion paths |
 | Indian raid | `ai_contact.c` raid pulse | Adjacent `units_resolve_land_combat` → seize / move / abandon |
 | Paul Revere | `units_revere_defend_colony_tile` | Empty foreign colony + muskets → auto-arm → land combat |

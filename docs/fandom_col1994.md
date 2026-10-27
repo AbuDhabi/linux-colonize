@@ -5,6 +5,9 @@
 > conflict). Every claim here is "Unverified vs DOS" unless explicitly marked
 > reconciled. Do not port behaviour from this file without checking it
 > against the decomp; do not cite it as evidence in bug reports or fixes.
+>
+> The "Port:" notes are a 2026-08-04 snapshot. Current port status is
+> [manual_gap.md](manual_gap.md): every manual feature is Done (2026-10-26).
 
 Community digest of [civilization.fandom.com](https://civilization.fandom.com/wiki/Sid_Meier%27s_Colonization) pages tagged for the **original 1994 game** (`(Col)` / “in Colonization (1994)”). Use this for checklists and effect prose while porting — **not** as a DOS oracle.
 
@@ -111,9 +114,9 @@ Wiki upgrade chains and workplace table: [Building (Col)](https://civilization.f
 | Storage | Warehouse → Warehouse Expansion | |
 | Other | Town Hall, Stable, Custom House | Custom House needs Stuyvesant |
 
-**Custom House** ([Custom House (Col)](https://civilization.fandom.com/wiki/Custom_House_(Col))): After Stuyvesant, auto-sells to Europe (wiki strategy: sells excess above 50 when ≥100 of a configured cargo type, before spoilage). Sells boycotted goods; during Revolution continues trade (bids frozen at declaration; sales untaxed per wiki). Port: gate Partial in construction list; auto-sell **Done** structural (`europe_custom_house_autosell` / `FUN_364b_0688` stock>99 leave 50 + `FUN_364b_0636` denylist; per-cargo UI chrome PARKED).
+**Custom House** ([Custom House (Col)](https://civilization.fandom.com/wiki/Custom_House_(Col))): After Stuyvesant, auto-sells to Europe (wiki strategy: sells excess above 50 when ≥100 of a configured cargo type, before spoilage). Sells boycotted goods; during Revolution continues trade (bids frozen at declaration; sales untaxed per wiki). Port: Done — gate in the construction list, auto-sell (`europe_custom_house_autosell` / `FUN_364b_0688` stock>99 leave 50 + `FUN_364b_0636` denylist), per-cargo checklist ([colony_screen.md](colony_screen.md)).
 
-**Docks** ([Docks (Col)](https://civilization.fandom.com/wiki/Docks_(Col))): Unlock fishing on ocean/lake tiles in catchment; shore / river / fishery bonuses (qualitative). Port: coastal gate Partial; full fishing rules Missing.
+**Docks** ([Docks (Col)](https://civilization.fandom.com/wiki/Docks_(Col))): Unlock fishing on ocean/lake tiles in catchment; shore / river / fishery bonuses (qualitative). Port: Done ([manual_gap.md](manual_gap.md)).
 
 Costs / min-pop: already catalogued in `NAMES.TXT` and summarized in [`building_production.md`](building_production.md) — do not trust wiki list templates over the catalog.
 
@@ -128,10 +131,10 @@ Full catalog: [`sons_of_liberty.md`](sons_of_liberty.md).
 | Factory ≈ **1.5×** goods per raw (Adam Smith) | Aligns with port framing **6→9** throughput in [`building_production.md`](building_production.md); verify in decomp |
 | SoL **50%** / **100%** productivity bumps; can exceed 100% internally but display caps at 100% | [Sons of Liberty (Col)](https://civilization.fandom.com/wiki/Sons_of_Liberty_(Col)); port: `colony_prod_sol_bonus`; DOS caps 100 after Bolivar |
 | “Inefficient government”: too many Tory colonists (wiki: ≥10 easiest / ≥6 hardest) → **−1** on all production | Thresh `10-diff` correct; magnitude is DOS `−⌊tories/thresh⌋` + sol latches — not a flat −1 ([sons_of_liberty.md](sons_of_liberty.md)); **Wired** |
-| Printing Press +50% / Newspaper +100% liberty bells from town-hall workers | Partial construction; multipliers Missing |
-| Jefferson ×1.5 on statesmen; Paine adds tax-rate factor (wiki: multiplicative with press/newspaper) | FF Missing |
-| Church raises passive crosses; Penn +50% crosses | Crosses → dock Partial; full formulas Missing |
-| Declare independence needs **overall** SoL ≥ **50%** | Structural Partial (`ai_king`); see [sons_of_liberty.md](sons_of_liberty.md) |
+| Printing Press +50% / Newspaper +100% liberty bells from town-hall workers | Done: Press `+= v >> 1`, Newspaper `v <<= 1` (`colony_production.c`, raw 12643-12650) |
+| Jefferson ×1.5 on statesmen; Paine adds tax-rate factor (wiki: multiplicative with press/newspaper) | Done (`colony_production.c`, [founding_fathers.md](founding_fathers.md)) |
+| Church raises passive crosses; Penn +50% crosses | Done (`colony_prod_crosses_worker_row`, [founding_fathers.md](founding_fathers.md)) |
+| Declare independence needs **overall** SoL ≥ **50%** | Done; see [sons_of_liberty.md](sons_of_liberty.md) |
 
 Liberty bells also feed FF election, then after independence feed [foreign intervention](#independence--win). Details: [Liberty Bell (Col)](https://civilization.fandom.com/wiki/Liberty_bell_(Col)) (long strategy page).
 
@@ -152,7 +155,7 @@ Prefer `@UNIT` / `@CARGO` / `@JOB` in `NAMES.TXT` for numbers. Wiki adds qualita
 - Wagon / ship cargo holds; privateers (Drake).
 - Recruit pool of three on Europe docks; crosses speed free emigration ([Europe (Col)](https://civilization.fandom.com/wiki/Europe_(Col))).
 
-Port: combat Partial ([combat.md](combat.md)); Europe buy/sell Partial; equip Partial.
+Port: Done ([combat.md](combat.md), [europe.md](europe.md)).
 
 ---
 
@@ -164,7 +167,7 @@ Port: combat Partial ([combat.md](combat.md)); Europe buy/sell Partial; equip Pa
 | Fort: **+150%**; coastal fort slows / fires on adjacent enemy ships (wiki: attack strength 4 + 4 per artillery) | [Fort (Col)](https://civilization.fandom.com/wiki/Fort_(Col)) | Live land: same Stockade ladder (wiki +150% ≈ fortified); naval fire **Done** (`units_coastal_fort_fire_pulse_w`); the wiki's "slows the ship" half is **Done** (2026-09-16, `units_ship_slow_scan`): per-step `FUN_5bfb_3180` drains Fort +2 / Fortress dead-stop, no roll, plus the adjacent-warship roll; separate from fort fire, whose loss leaves MP alone (port_bugs.md #249) — [combat_analysis.md](combat_analysis.md#ship-slow-units_ship_slow_scan-2026-09-16) |
 | Fortress: **+200%**; stronger coastal fire (wiki: 8 + 8 per artillery) | [Fortress (Col)](https://civilization.fandom.com/wiki/Fortress_(Col)) | Live land `local_1a=8` (×3); naval fire **Done** (tier×8 formula) — [combat.md](combat.md) |
 | With Stockade/Fort/Fortress, cannot **voluntarily** reduce population below **3** | Stockade / [Colony (Col)](https://civilization.fandom.com/wiki/Colony_(Col)) | Port eject keeps ≥**3** (aligned) |
-| Last colonist leave → abandon confirm | Colony (Col) | Port Partial (abandon confirm) |
+| Last colonist leave → abandon confirm | Colony (Col) | Port Done (abandon confirm, [colony.md](colony.md)) |
 | Center tile always feeds at least one colonist (cannot starve out completely except edge cases wiki notes for La Salle) | Colony (Col) | Verify vs code |
 
 ---
@@ -197,7 +200,7 @@ Port / decomp hub: [indians.md](indians.md).
 | Taxes paid accumulate toward expanding the REF | Tax rate / REF |
 | Custom House bypasses boycotts; during Revolution can bypass tax (wiki) | Tax rate, Custom House |
 
-Port: tax on sales Partial; king events / boycotts Partial structural; volume-price T0 Done thin (pressure chrome PARKED) — [manual_gap.md](manual_gap.md).
+Port: tax, king events, boycotts and volume pricing Done — [manual_gap.md](manual_gap.md).
 
 Europe screen: recruit (3-slot pool), train, buy ships/artillery, buy/sell goods — [Europe (Col)](https://civilization.fandom.com/wiki/Europe_(Col)).
 
@@ -215,8 +218,8 @@ Europe screen: recruit (3-slot pool), train, buy ships/artillery, buy/sell goods
 - Lose all **port** colonies → lose war. Defeat REF + recapture lost colonies by **1850** → win.
 - REF AI (wiki strategy): prioritizes weakest-defended ports; man-o-war with 6 units; seizes occupied landing tiles; always attacks adjacent uncaptured colony rather than marching past.
 
-Port: declare / REF / win-lose latches structural; signing cinematic **Done**
-2026-08-30; HoF Done; deep siege polish later — [manual_gap.md](manual_gap.md).
+Port: declare / REF / win-lose latches Done (WoI won in five headless campaigns); signing cinematic **Done**
+2026-08-30; HoF Done — [manual_gap.md](manual_gap.md).
 
 ---
 

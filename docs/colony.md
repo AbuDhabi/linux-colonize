@@ -208,32 +208,31 @@ a save/load. The port's food latch is `food_shortfall_latch`, not this bit.
 
 ## COLONIZE_COLONY_FLAG_SMALL_AI / _WAGON_TRAIN
 
-DOS +0x1c bit 0x10 (col1_save.h `small_colony_ai`) — a save-borne one-shot,
-READ-ONLY in the port. Both DOS sites are in FUN_5952_035e: the
+DOS +0x1c bit 0x10 (col1_save.h `small_colony_ai`) — a one-shot latch.
+Both DOS sites are in FUN_5952_035e: the
 read-and-clear hand-off at raw 94143-94146 (`(+0x1c & 0x10) && pop < 0x20
 -> +0x1b |= 0x10 (NEEDS_COLONISTS); +0x1c &= 0xef`), which is ported in
 ai_euro_colony_threat_seed_5952 and consumed in `ai_euro_5952_absorb_equip` (ai_euro_goals.c), and the
-writer at raw 95845-95847 (`pop < 10 -> +0x1c |= 0x10`), which is NOT
-ported — so in the port the bit only ever arrives from a DOS or campaign
-save and is then consumed once. Do not re-add an unconditional `pop < 10`
-stamp: that pinned the flag on every turn (smell audit C3).
+writer at raw 95845-95847 (`pop < 10 -> +0x1c |= 0x10`), ported in place
+at the bottom of the 5952 cascade (`ai_euro_colony_jobs.c`). Do not re-add
+an unconditional `pop < 10` stamp outside the cascade: that pinned the flag
+on every turn (smell audit C3).
 The "chain of 2a1f_05b4 probability gates" this note used to name is a
 misreading corrected 2026-09-10: thunk_FUN_2a1f_05b4 is the RTLink stub for
 FUN_5952_0214, the tick's build-candidate helper (`try_build(id)`, id in AX,
 returns 0 when it picked), not an RNG roll. The writer sits at the bottom of
-that helper's 24-candidate cascade — asm LAB_OVL15_L0000__00270d — so it is
-reachable only once the whole cascade is ported. Every dropped id is
+that helper's 24-candidate cascade — asm LAB_OVL15_L0000__00270d — which is
+ported whole (port_bugs.md #483). Every dropped id is
 recovered in docs/archive/smell_audit_2026-09-10.md (seventh-wave lead 5).
 
-DOS +0x1c bit 0x20 — WRITE-ONLY here, on purpose. DOS derives it in the
+DOS +0x1c bit 0x20. DOS derives it in the
 FUN_521d_6d8e prelude: raw 93142 clears it on each own colony, then the unit
 loop at raw 93148-93157 sets it on the colony a Wagon Train (type 0x0c) is
-HOMED to (+0x314a origin), not the one it is standing on. Its only DOS
-reader is the unported expansion gate at raw 95762 (`(+0x1c & 0x20) != 0 ||
-turn > 0x63f || ...`), so the port re-derives the bit every AI turn in
-ai_euro_refresh_colony_ai_flags purely to keep the save field honest; DOS
-is the only consumer. Documented debt, not dead code: wiring raw 95762 is
-what would give it an OpenCol reader.
+HOMED to (+0x314a origin), not the one it is standing on. The port
+re-derives it every AI turn in ai_euro_refresh_colony_ai_flags. Its only
+reader is the 5952 Wagon Train unit-project gate at raw 95762
+(`(+0x1c & 0x20) != 0 || turn > 0x63f || ...`), ported as the `2385` arm in
+`ai_euro_colony_jobs.c`.
 
 ## COLONIZE_COLONY_FLAG_COASTAL
 

@@ -49,7 +49,7 @@ Either EURO leg falls straight through to the next step when no slot qualifies.
 | Step | OpenCol | DOS provenance |
 |------|-------|----------------|
 | Calendar | `turn_advance_calendar` (`@TIMECHANGE`) | `FUN_130d_0290` year/autumn tick (runs **after** nation pass in DOS) |
-| Colony production (**AI nations only**) | `turn_run_colony_production` (`s_prod_skip_nation` = human) | `FUN_364b_0688` via `291f_0950` inside `3844_00f2` (per nation in DOS) |
+| Colony production (**AI nations only**) | `turn_run_colony_production` (`turn_prod_skip_nation` = human) | `FUN_364b_0688` via `291f_0950` inside `3844_00f2` (per nation in DOS) |
 | Coastal fort fire | `units_coastal_fort_fire_colony_w` (per colony, top of its EOT) | `FUN_364b_03f6` |
 | Nation ticks | `turn_run_nation_ticks` (bells / crosses / FF) | Europe EOT / census pieces of `3844_00f2` + FF helpers |
 
@@ -73,7 +73,7 @@ Order EN→FR→SP→DU; skip `human_nation` and withdrawn (`player.control==2`)
 
 | Step | OpenCol | DOS |
 |------|-------|-----|
-| **Human colony production** | `turn_run_colony_production` (`s_prod_only_nation` = human) + `turn_run_colony_unit_construction` + `turn_run_colony_building_completion` | `FUN_364b_0688` inside the human's own `3844_00f2`, which `130d` runs **immediately before** that nation's Move Pieces |
+| **Human colony production** | `turn_run_colony_production` (`turn_prod_only_nation` = human) + `turn_run_colony_unit_construction` + `turn_run_colony_building_completion` | `FUN_364b_0688` inside the human's own `3844_00f2`, which `130d` runs **immediately before** that nation's Move Pieces |
 | Census / blockade probe | `ai_euro_census_ship_pressure_refresh(human)` | `FUN_291f_0a74` → `FUN_4962_0018` after the colony-EOT loop (`:58390`) |
 
 FINISH then **yields** (returns to the frame loop) so every production popup it
@@ -160,21 +160,21 @@ Major thunks (catalog):
 |------------|----------|--------------|----------|
 | Human already done | `2b5a_3b68` inside `130d` | (prior frame) | Reshape — intentional |
 | SETUP calendar | `130d` post-nation tick | `turn_advance_calendar` | **Done** (`@TIMECHANGE`) |
-| SETUP production | `364b_0688` in `00f2` | `turn_run_colony_production` | **Partial** — birth/starve **Done**; AI dump-sell **Done** thin; education F–G+no-students **Done** thin; K craft+raw+`5384` gates **Done** thin; map [`colony_eot_production.md`](../original_sources_annotated/turn/colony_eot_production.md) |
+| SETUP production | `364b_0688` in `00f2` | `turn_run_colony_production` | **Done** — birth/starve, AI dump-sell, education F–G + no-students, K craft+raw+`5384` gates; held by the idle campaigns ([idle_campaign.md](idle_campaign.md)); map [`colony_eot_production.md`](../original_sources_annotated/turn/colony_eot_production.md) |
 | Colony-EOT fort fire | `364b_03f6` (from `364b_0688` raw 57227) | `units_coastal_fort_fire_colony_w` | **Done** |
-| SETUP nation ticks | Europe/census crumbs | `turn_run_nation_ticks` | **Partial** — human+AI bells/crosses accrue; [`europe_nation_eot.md`](../original_sources_annotated/turn/europe_nation_eot.md), [`census_tally.md`](../original_sources_annotated/turn/census_tally.md), [`nation_ticks_bells_ff.md`](../original_sources_annotated/turn/nation_ticks_bells_ff.md) |
+| SETUP nation ticks | Europe/census crumbs | `turn_run_nation_ticks` | **Done** — human+AI bells/crosses accrue; [`europe_nation_eot.md`](../original_sources_annotated/turn/europe_nation_eot.md), [`census_tally.md`](../original_sources_annotated/turn/census_tally.md), [`nation_ticks_bells_ff.md`](../original_sources_annotated/turn/nation_ticks_bells_ff.md) |
 | EURO lone Convert | `3844_0004` | `units_tick_convert_outside_colony` | **Done** — type 0 + @JOB 27, in bounds, no settlement on tile, stack < 2; +0x16 > 8 despawns, human owner gets `@DEADCONVERTS` (0xee2 mode 4). No DOS site expires a Treasure train (port_bugs.md #725) |
-| EURO ship-build ready | `00f2` unit walk | `units_tick_ship_build_ready` | **Partial** — progress/clear construction bit7 + threshold=`defense`/`0x5235` **Done** thin; dialog chrome PARKED |
-| EURO Drydock repair | colony EOT | `units_tick_drydock_repair` | **Done** — clears combat-damage bit7 on finished ships at own Drydock; `@REFIT` chrome Done thin; after ship-build tick |
+| EURO ship-build ready | `00f2` unit walk | `units_tick_ship_build_ready` | **Done** — despite the name this is the bit7 **repair** timer (threshold = `defense` / `0x5235`, double speed on a colony tile); DOS has no ship-construction popup, the one completion arm is `@REFIT` |
+| EURO Drydock repair | colony EOT | `units_tick_drydock_repair` | **Done** — clears combat-damage bit7 once the repair timer reaches the type threshold (no Drydock building required, port_bugs.md #254); `@REFIT` chrome Done thin; after the timer tick |
 | EURO fog reveal | `281f_07a0` in `00f2` | `turn_reveal_fog_for_nation` | **Done** — every Euro nation's unit walk (human at KING, AI at its EURO step), full `13f1_0158` side effects via `units_reveal_sight_w`; colony radius-2 invention removed (DOS reveals ±5 only at founding) |
-| EURO AI | `521d_6d8e` after `00f2` | `ai_euro_nation_turn` | **Done**: four idle campaigns match DOS ([idle_campaign.md](idle_campaign.md)); open: deferred-band tail ([port_plan.md](port_plan.md)) |
-| INDIAN | `4d56_1b3a` mid-pass → `1816(slot)` ×8 | `ai_indian_nation_turn` | **Partial structural** — [`mid_pass_indian_rank.md`](../original_sources_annotated/turn/mid_pass_indian_rank.md); Euro rank `5bfb_00f8` **Done** thin |
-| KING king | `43f7_2424` in `00f2` | `ai_king_nation_turn_2424` (+ `ai_king_human_5e52_tail`; `ai_king_nation_turn` is a test-only wrapper) | **Partial structural** |
-| KING market | `38fd_0058` / `5e52` family | `europe_tick_market_prices` | **Partial** — attrition + colony→`price_group` half + phases 2–3 pressure **Done** thin |
+| EURO AI | `521d_6d8e` after `00f2` | `ai_euro_nation_turn` | **Done**: four idle campaigns match DOS ([idle_campaign.md](idle_campaign.md)); the deferred-band tail closed 2026-10-26 (port_bugs.md #1291) |
+| INDIAN | `4d56_1b3a` mid-pass → `1816(slot)` ×8 | `ai_indian_nation_turn` | **Done** (logic level, D2 closed 2026-09-08) — [`mid_pass_indian_rank.md`](../original_sources_annotated/turn/mid_pass_indian_rank.md); Euro rank `5bfb_00f8` **Done** thin |
+| KING king | `43f7_2424` in `00f2` | `ai_king_nation_turn_2424` (+ `ai_king_human_5e52_tail`; `ai_king_nation_turn` is a test-only wrapper) | **Done** — `golden_idle_independence` matches DOS through the War of Independence |
+| KING market | `38fd_0058` / `5e52` family | `europe_tick_market_prices` | **Done** — attrition + colony→`price_group` half + phases 2–3 pressure |
 | KING human refresh | return to Move Pieces | MP + select next | **Done** |
 | KING autosave | `130d_0172` | autosave flags | **Done** |
-| Year-end chrome | `3844_0442` | `turn_run_year_end_chrome` | **Partial** — B/C1(+fleet+REF+map+latch)/C2/D(+auto-declare)/E(+richest) **Done** thin; HoF **PARKED** |
-| Demo autoplay | `130d` `0x828` tail | — | **PARKED** |
+| Year-end chrome | `3844_0442` | `turn_run_year_end_chrome` | **Done** — B/C1(+fleet+REF+map+latch)/C2/D(+auto-declare)/E(+richest), chrome thin; Hall of Fame ported (`HALLFAME.DAT`, port_bugs.md #1289; [reports_score.md](reports_score.md)) |
+| Demo autoplay | `130d` `0x828` tail | — | **Not ported** — listed in [port_plan.md](port_plan.md) "Remaining work" |
 
 ### Known reshape (do not paper over)
 
@@ -222,7 +222,11 @@ broke the Dutch TURN2→3 first contact).
   ([`year_end_chrome.md`](../original_sources_annotated/turn/year_end_chrome.md));
   B/C1(+fleet+REF pool+map+latch)/C2/D(+auto-declare)/E(+richest) status
   **Done** thin; Hall of Fame: [reports_score.md](reports_score.md).
-- **Demo / independence splash** (`130d_019e` / `0222`): PARKED; thin LAB in
+- **Demo / independence splash** (`130d_019e` / `0222`): both build a
+  command line and chain-exec through `FUN_130d_000a`. `0222` is the
+  DS:0x104 WoI-won exit to CLOSING.EXE, ported as `closing.c`. `019e` and
+  the `0x828` demo tail are not ported ([port_plan.md](port_plan.md)
+  "Remaining work"); thin LAB in
   [`year_loop.c`](../original_sources_annotated/turn/year_loop.c).
 - **Deep AI** (`20e6` / `2820` / `4528` / `2154` / `5fef` loot): section-mapped
   under `original_sources_annotated/ai/`. `20e6` land arms (T1.18) and `4528`

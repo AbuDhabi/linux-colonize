@@ -262,7 +262,7 @@ only; live land combat uses `combat_colony_fort_strength`.
 | `FUN_636c_0000` / `2a1f_0704` | Combat Analysis |
 | `FUN_364b_03f6` | coastal fort fire |
 | `FUN_465b_*` / `FUN_4720_*` | move-enter / combat trigger |
-| `FUN_4d56_4528` / `5fef_0f14` | village warn→Attack + raid/fallout Done thin; deep `2820` PARKED |
+| `FUN_4d56_4528` / `5fef_0f14` | village warn→Attack + raid/fallout Done thin; `2820` ported (`ai_contact_trade.c`) |
 
 ---
 

@@ -354,7 +354,7 @@ Port map: `units_build_code_to_index` / `units_build_project_info`
 carries the census to the gate. Tests: `unit_colonies` cases
 `unit_ship_construction`, `unit_wagon_cap_and_armory_gate`.
 
-**Still not ported:** the AI's own unit-project picks — see `port_bugs.md` #483.
+AI colonies pick unit projects through the `FUN_5952_035e` cascade (`ai_euro_5952_set_unit_project`, `ai_euro_colony_jobs.c`; port_bugs.md #483).
 
 Manual chart often listed shop min-pop **4** and Church hammers **52** — **wrong vs NAMES** (shops min-pop **1**; Church **64**).
 
