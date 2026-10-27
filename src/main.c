@@ -68,7 +68,11 @@ static CliConfig cli_defaults(void) {
  * and dispatches 'C'..'Z' through the table at ND 0x70DB6: 'K' -> ND 0x70D0E sets DS:0x201e,
  * 'D' -> ND 0x70D00 sets DS:0x828 and DS:0x826 (the demo; OPENING passes it on from its own
  * "-d:0", so the port, which is OPENING and VICEROY in one, takes that spelling too).
- * 'C', 'M' and 'O' take the rest of the argument as their ':' operand. The port's own
+ * The outer loop (FUN_7421_025a raw 118904-118908) hands 0054 a pointer to its cursor:
+ * 'C' (ND 0x70CE4), 'M' (0x70D28) and 'P' (0x70D5E) call the scanner at ND 0x70C6C
+ * (far thunk 0x70F91), which walks the cursor to the next ':' or else stops on the last
+ * character, so each eats the rest of the argument, colon or not. 'O' (ND 0x70D50) only
+ * sets DS:0x82a and the cluster goes on ("-od" from OPENING is O, then D). The port's own
  * "--" options are not clusters, and a cluster without K or D stays an unknown argument.
  */
 static bool dos_switch_cluster_has(const char* arg, int letter) {
@@ -80,7 +84,7 @@ static bool dos_switch_cluster_has(const char* arg, int letter) {
     if (c == letter) {
       return true;
     }
-    if (c == 'C' || c == 'M' || c == 'O') {
+    if (c == 'C' || c == 'M' || c == 'P') {
       return false;
     }
   }
@@ -192,12 +196,13 @@ int main(int argc, char** argv) {
 
   diag_info("CLI data_dir=%s", cli.data_dir);
   diag_info("CLI save_dir=%s", cli.save_dir);
-  diag_info("CLI windowed=%s scale=%d nosound=%s seed=%u multi=%s",
+  diag_info("CLI windowed=%s scale=%d nosound=%s seed=%u multi=%s demo=%s",
     cli.windowed ? "yes" : "no",
     cli.window_scale,
     cli.no_sound ? "yes" : "no",
     cli.rng_seed,
-    cli.multi ? "yes" : "no");
+    cli.multi ? "yes" : "no",
+    cli.demo ? "yes" : "no");
   diag_info(
     "NOTE: UI uses GAME.TXT @BEGINMENU + VICEROY.PAL; "
     "MADSPACK .PIK/.SS art and the MAPEDIT-faithful map compositor are live."

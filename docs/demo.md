@@ -14,7 +14,8 @@ Two DOS flags share one engine:
 
 The other writer, `FUN_1262_02fe` raw 3087, sets 0x828 on Alt-X / Alt-Q and then
 exits at once, so it is no entry point. The port takes `-D` (and COLDEMO's
-`-d:0`) as a switch cluster, like `-K` (`main.c`).
+`-d:0`, and OPENING's `-od`) as a switch cluster, like `-K` (`main.c`). In a
+cluster, `C`, `M` and `P` eat the rest of the argument; `O` does not.
 
 ## No power at the controls
 
