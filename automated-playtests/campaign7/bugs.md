@@ -12,6 +12,11 @@
   (`key Left`) worked the same turn. Probably the target is off the known
   map (unexplored) so the path fails. Check: does goto into unknown water
   work in DOS? Workaround: arrow keys.
+- Resolved 2026-10-27: DOS rule, not a bug. The targets were inland land
+  tiles a ship cannot reach; the pathfinder (FUN_6662_0f74) then drops the
+  order and spends the turn. Turn 0's 3 tiles ended on (53,41), a coarse-grid
+  sample tile, where every such goto fails at once. The driver now prints
+  `ERR goto found no path`; RULES.md "Driver quirks" explains.
 
 ## CN7-O3 (oddity): `endturn` errors while a sentried ship still has moves
 - Turn 4-5: `endturn` returned "no End of Turn prompt (selected unit 1)"
@@ -70,6 +75,8 @@
 ## CN7-O12 (oddity): `goto` for a ship ignored at Jamestown (1673, 1696)
 - Caravel 1544 at (49,36): `goto 1544 48 40` produced no move, `auto` idle.
   Same as CN7-O2. Arrow keys work.
+- Resolved 2026-10-27: (48,40) is seen land, so the order was refused
+  (`ERR goto refused` in out.txt). Jamestown is (48,41).
 
 ## CN7-O13 (oddity, costly): English frigate offer raised the King's tax 10 points
 - Turn 344 (1718): King asked "Shall we dispatch a frigate ... to assist you?"

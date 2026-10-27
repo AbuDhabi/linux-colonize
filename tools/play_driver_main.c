@@ -35,10 +35,22 @@
  *   shot NAME                   DIR/shots/NAME.ppm
  *   save NAME                   save into DIR/saves/NAME
  *   status | units | colonies   print state
+ *   advise                      checklist: starving / stalled colonies, idle units, REF size,
+ *                               declaration gate, war targets (automated-playtests/RULES.md)
  *   map [R [X Y]]               ASCII map of radius R (default 8) around the cursor (or X,Y)
  *   res [R [X Y]]               seen special resources (fish, ore, ...) within R of the cursor (or X,Y)
  *   near X Y [R]                every unit (any nation) within R (default 2) of X,Y
- *   goto ID X Y                 Go To order for unit ID to tile X,Y
+ *   goto ID X Y                 Go To order for unit ID to tile X,Y (ERR when refused, or when
+ *                               the pathfinder finds no route: the turn's moves are spent)
+ *   declare                     GAME menu Declare Independence (answer its popup with `choose`)
+ *   option eot on|off           Game Options "End of Turn" (stop at turn end, no auto-end)
+ *   europe                      open the Europe screen and print gold, RECRUIT / TRAIN /
+ *                               PURCHASE rows, MARKET (cargo id, prices) and HARBOR ships
+ *   recruit N | train N | purchase N   Europe list row N (1-based, as `europe` prints;
+ *                               purchase answers its Yes/No itself)
+ *   sell H [CARGO]              harbor ship H sells every hold of CARGO (default: all holds)
+ *   buy H CARGO [AMT]           harbor ship H buys AMT (default 100, capped by room) of CARGO
+ *   sail H                      harbor ship H: @SAILAWAY prompt (`choose 0` sails)
  *   colony N                    open colony N's screen (index from `colonies`)
  *   field N CI TILE JOB         colonist CI of colony N onto ring tile TILE (0 N .. 7 NW), field job JOB
  *                               (refused on native land at peace: the screen asks @INDIANLAND)
@@ -70,6 +82,7 @@
 #include <sys/stat.h>
 
 #include "core/ai_contact.h"
+#include "core/ai_king.h"
 #include "core/ai_popup.h"
 #include "core/colony_preview.h"
 #include "core/colony_screen.h"
@@ -501,6 +514,55 @@ static void print_europe(void) {
   }
 }
 
+/* `europe`: what the Recruit / Train / Purchase lists and the market show,
+ * with the row numbers `recruit` / `train` / `purchase` take. */
+static void print_europe_screen(bool full) {
+  const EuropeScreen* eu = &g_game->europe;
+  printf("EUROPE gold %u tax %d%% crosses %d/%d\n", (unsigned)europe_nation_gold(eu, &g_game->col1, g_game->human_nation),
+         eu->tax_percent, eu->current_crosses, eu->needed_crosses);
+  for (int i = 0; full && i < EUROPE_POOL_SIZE; ++i) {
+    printf("RECRUIT %d %s %d$%s\n", i + 1, eu->pool[i].name, eu->recruit_passage,
+           europe_recruit_affordable(eu) ? "" : " (cannot afford)");
+  }
+  for (int i = 0; full && i < eu->train_count; ++i) {
+    printf("TRAIN %d %s %d$\n", i + 1, eu->train[i].expert_name, eu->train[i].cost);
+  }
+  for (int i = 0; full && i < eu->purchase_count; ++i) {
+    printf("PURCHASE %d %s %d$\n", i + 1, eu->purchase[i].name, europe_purchase_cost(eu, i));
+  }
+  for (int i = 0; full && i < eu->cargo_count; ++i) {
+    printf("MARKET %d %s sell %d buy %d%s\n", i, eu->cargo[i].name, europe_sell_price(eu, i),
+           europe_buy_price(eu, i), (g_game->col1.nation[g_game->human_nation].boycott_bitmap >> i) & 1 ? " BOYCOTT" : "");
+  }
+  for (int i = 0; i < eu->harbor_ships; ++i) {
+    printf("HARBOR %d %s", i, eu->harbor[i].name);
+    for (int h = 0; h < EUROPE_SHIP_CARGO_MAX; ++h) {
+      if (eu->harbor[i].hold_goods_amount[h] > 0) {
+        printf(" hold %d x%d", eu->harbor[i].hold_goods_type[h], eu->harbor[i].hold_goods_amount[h]);
+      }
+    }
+    printf("\n");
+  }
+}
+
+/* Recruit / Train / Purchase row ROW (1-based) through the list menu's own
+ * confirm, as Up/Down + Return on it would; a purchase answers @REALLYBUY Yes. */
+static bool europe_menu_pick(EuropeMenu menu, int row) {
+  EuropeScreen* eu = &g_game->europe;
+  europe_menu_open(eu, menu);
+  eu->menu_selection = row;
+  bool ok = game_europe_menu_confirm(g_game);
+  if (ok && eu->purchase_confirming) {
+    eu->menu_selection = 0; /* @REALLYBUY row 0 = Yes */
+    ok = game_europe_menu_confirm(g_game);
+  }
+  if (eu->menu != EUROPE_MENU_NONE) {
+    europe_menu_close(eu); /* greyed row: the menu stays up in game */
+    ok = false;
+  }
+  return ok;
+}
+
 static void print_colonies(void) {
   for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
     const ColonizeColony* c = &g_game->colonies.colonies[i];
@@ -542,6 +604,175 @@ static void print_colonies(void) {
                ? g_game->colonies.building_types[p->building_type].name : "",
              p->field_job, slot);
     }
+  }
+}
+
+/* `advise`: the RULES.md checks a small-model player forgets, as one checklist
+ * (automated-playtests/RULES.md "advise"). WARN = fix this turn, TODO = plan,
+ * GATE = declaration condition, WAR = an attack target. Port-only tool text. */
+static bool unit_kind_is(const ColonizeUnit* u, ColonizeUnitKind k) {
+  return units_type_kind(units_type(&g_game->units, u->type_index)) == k;
+}
+
+static bool colony_coastal(const ColonizeColony* c) {
+  for (int dy = -1; dy <= 1; ++dy) {
+    for (int dx = -1; dx <= 1; ++dx) {
+      if ((dx || dy) && map_tile_is_water(&g_game->world_map, c->x + dx, c->y + dy)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+static void print_advise(void) {
+  ColonizeGameState* g = g_game;
+  const int me = g->human_nation;
+  const int diff = g->col1.head.difficulty;
+  const bool declared = ai_king_independence_declared(&g->col1);
+  const int crown = ai_king_crown_nation(me);
+  const ColonizeColonyPool* pool = &g->colonies;
+  int n_cols = 0, n_coastal = 0, dragoons = 0;
+  for (int i = 0; i < g->units.slot_end; ++i) {
+    const ColonizeUnit* u = &g->units.units[i];
+    if (!u->active || u->nation_id != me) {
+      continue;
+    }
+    dragoons += unit_kind_is(u, UNITS_KIND_DRAGOON) || unit_kind_is(u, UNITS_KIND_CONT_CAV);
+    if (u->orders == 0 && u->moves > 0 && u->aboard_ship_id < 0) {
+      printf("ADVISE WARN unit %d %s at (%d,%d) has no orders (blocks endturn)\n", u->id, unit_name(u), u->x,
+             u->y);
+    }
+  }
+  const int ref_land = g->col1.head.expeditionary_force[0] + g->col1.head.expeditionary_force[1] +
+                       g->col1.head.expeditionary_force[3];
+  printf("ADVISE REF %d regulars %d cavalry %d artillery %d men-of-war (land %d)%s\n",
+         g->col1.head.expeditionary_force[0], g->col1.head.expeditionary_force[1],
+         g->col1.head.expeditionary_force[3], g->col1.head.expeditionary_force[2], ref_land,
+         declared ? "; independence declared" : "");
+  int coastal_guns_min = 1 << 30, guns_total = 0, horses = 0, muskets = 0;
+  bool fortress_any = false, gate_cols = true;
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    const ColonizeColony* c = &pool->colonies[i];
+    if (!c->active || c->nation_id != me) {
+      continue;
+    }
+    ++n_cols;
+    const ColonizeWorld w = game_world(g);
+    ColonizeColonyPreview pv;
+    colony_preview_compute_w(&w, c, &pv);
+    const int sol = colony_prod_sol_percent(&g->col1, c);
+    const bool coastal = colony_coastal(c);
+    horses += c->stock[8];
+    muskets += c->stock[15];
+    if (pv.food_net < 0) {
+      const int left = c->stock[0] / -pv.food_net;
+      printf("ADVISE WARN colony %d %s: food %+d, stock %d: %s\n", i, c->name, pv.food_net, c->stock[0],
+             left == 0 ? "a colonist starves this turn" : "move a worker onto food");
+    }
+    const bool docks = colonies_has_building_row(pool, c, COLONY_BUILDING_DOCKS);
+    for (int k = 0; k < c->colonist_count; ++k) {
+      if (c->colonists[k].building_type < 0 && c->colonists[k].field_job == COLONIZE_JOB_FISHERMAN && !docks) {
+        printf("ADVISE WARN colony %d %s: colonist %d fishes with no Docks (0 food): build Docks (BID %d)\n",
+               i, c->name, k, colonies_building_row(pool, COLONY_BUILDING_DOCKS));
+      }
+    }
+    const int b = c->building_in_production;
+    int need_h = 0, need_t = 0;
+    if (b < 0) {
+      printf("ADVISE WARN colony %d %s: nothing in production\n", i, c->name);
+    } else if (b >= COLONIZE_UNIT_BUILD_ARTILLERY) {
+      colonies_unit_build_info(b, NULL, &need_h, &need_t);
+    } else if (b < pool->building_type_count) {
+      if (c->has_building[b]) {
+        printf("ADVISE WARN colony %d %s: %s already built and still selected: pick the next build\n", i,
+               c->name, pool->building_types[b].name);
+      }
+      need_h = pool->building_types[b].hammers;
+      need_t = pool->building_types[b].tools_cost;
+    }
+    if (b >= 0 && pv.hammers <= 0 && c->hammers < need_h) {
+      printf("ADVISE WARN colony %d %s: hammers +0: put a colonist on lumber and one in the Carpenter's Shop\n",
+             i, c->name);
+    }
+    if (b >= 0 && need_t > c->stock[14]) {
+      printf("ADVISE %s colony %d %s: build needs %d tools, stock %d (%+d): buy or make tools\n",
+             c->hammers + pv.hammers >= need_h ? "WARN" : "TODO", i, c->name, need_t, c->stock[14],
+             pv.goods[14]);
+    }
+    const int tories = (c->colonist_count * (100 - sol) + 50) / 100;
+    if (tories >= 10 - diff) {
+      printf("ADVISE WARN colony %d %s: Tory penalty on (%d Tories >= %d): more bells or fewer colonists\n", i,
+             c->name, tories, 10 - diff);
+    }
+    int guns = 0, armed = 0;
+    for (int u = 0; u < g->units.slot_end; ++u) {
+      const ColonizeUnit* x = &g->units.units[u];
+      if (x->active && x->nation_id == me && x->x == c->x && x->y == c->y && x->aboard_ship_id < 0) {
+        guns += unit_kind_is(x, UNITS_KIND_ARTILLERY);
+        const ColonizeUnitType* ty = units_type(&g->units, x->type_index);
+        armed += ty && ty->attack > 0 && !units_is_sea(&g->units, x->id);
+      }
+    }
+    guns_total += guns;
+    const bool fortress = colonies_has_building_row(pool, c, COLONY_BUILDING_FORTRESS);
+    const bool fort = fortress || colonies_has_building_row(pool, c, COLONY_BUILDING_FORT);
+    fortress_any |= fortress;
+    if (coastal) {
+      ++n_coastal;
+      coastal_guns_min = guns < coastal_guns_min ? guns : coastal_guns_min;
+      gate_cols &= fort && sol >= 100;
+      int score = c->colonist_count * (125 - sol) - 75 * armed;
+      score = score < 100 - sol ? 100 - sol : score;
+      printf("ADVISE colony %d %s coastal: SoL %d%%, %s, %d artillery, %d armed, REF target score %d\n", i,
+             c->name, sol, fortress ? "Fortress" : fort ? "Fort" : "no Fort", guns, armed, score);
+    }
+    if (declared) {
+      for (int u = 0; u < g->units.slot_end; ++u) {
+        const ColonizeUnit* x = &g->units.units[u];
+        if (x->active && x->nation_id == crown && x->aboard_ship_id < 0 && !units_is_sea(&g->units, x->id) &&
+            abs(x->x - c->x) <= 2 && abs(x->y - c->y) <= 2) {
+          printf("ADVISE WAR crown %d %s at (%d,%d) moves %d near %s%s\n", x->id, unit_name(x), x->x, x->y,
+                 x->moves, c->name, x->moves == 0 ? ": landed this turn, attack it now" : "");
+        }
+      }
+    }
+  }
+  if (n_cols == 0) {
+    return;
+  }
+  const int year = g->game_year;
+  if (!declared && year >= 1530 && n_cols < 2) {
+    printf("ADVISE TODO %d colony in %d: found a second one (campaign 1 won with 2)\n", n_cols, year);
+  }
+  const unsigned gold = europe_nation_gold(&g->europe, &g->col1, me);
+  if (!declared && gold >= 1500) {
+    printf("ADVISE TODO gold %u idle: buy artillery, tools or colonists in Europe\n", gold);
+  }
+  if (declared) {
+    return;
+  }
+  /* Gate from campaigns 1-5 (RULES.md "Before declaring"): winners held
+   * >= 0.8 artillery and >= 0.35 dragoons per REF land unit (campaign 1,
+   * Discoverer: 19 guns + 9 dragoons vs 23, won with no colony lost). */
+  const int need_guns = (ref_land * 8 + 9) / 10;
+  const int need_drag = (ref_land * 35 + 99) / 100;
+  const int per_col = n_coastal ? need_guns / n_coastal : 0;
+  const bool g1 = guns_total >= need_guns, g2 = n_coastal == 0 || coastal_guns_min >= per_col;
+  const bool g3 = dragoons >= need_drag, g4 = fortress_any, g5 = gate_cols, g6 = horses >= 100 && muskets >= 50;
+  printf("ADVISE GATE artillery %d / %d (0.8 x REF land) %s\n", guns_total, need_guns, g1 ? "MET" : "NOT MET");
+  printf("ADVISE GATE each coastal colony >= %d artillery (min %d) %s\n", per_col,
+         n_coastal ? coastal_guns_min : 0, g2 ? "MET" : "NOT MET");
+  printf("ADVISE GATE dragoons %d / %d (0.35 x REF land) %s\n", dragoons, need_drag, g3 ? "MET" : "NOT MET");
+  printf("ADVISE GATE a Fortress %s; every coastal colony Fort+ and SoL 100%% %s\n", g4 ? "MET" : "NOT MET",
+         g5 ? "MET" : "NOT MET");
+  printf("ADVISE GATE spare horses %d and muskets %d in stock (100 / 50) %s\n", horses, muskets,
+         g6 ? "MET" : "NOT MET");
+  if (g1 && g2 && g3 && g4 && g5 && g6) {
+    printf("ADVISE GATE ALL MET: declare now, the REF only grows\n");
+  } else if (g->turn_number >= 480) {
+    printf("ADVISE WARN turn %u: the game ends in 1800 unless declared (declare by turn 507)\n",
+           (unsigned)g->turn_number);
   }
 }
 
@@ -817,10 +1048,117 @@ static bool command(char* line) {
   } else if (strcmp(op, "goto") == 0 && argc > 3) {
     /* Go To order for unit ID to tile X,Y (what a map goto drag sets). */
     const ColonizeWorld w = game_world(g_game);
+    const ColonizeUnit* gu = units_get_const(&g_game->units, a1);
+    const int gx = gu ? gu->x : -1, gy = gu ? gu->y : -1;
     if (!units_set_goto_w(&w, a1, a2, atoi(argv[3]))) {
-      printf("ERR goto refused\n");
+      /* A seen tile the unit cannot enter (land for a ship, water for a land unit). */
+      printf("ERR goto refused (tile not enterable for this unit)\n");
     }
     ok = flush_frames(5);
+    /* Pathfinder miss (FUN_6662_0f74): DOS spends the turn and drops the order. Run until
+     * the first step is taken or refused. */
+    gu = units_get_const(&g_game->units, a1);
+    for (int n = 0; ok && n < 120 && gu && gu->x == gx && gu->y == gy && gu->orders == 3 && gu->moves > 0 &&
+                    !off_map_reason(g_game);
+         ++n) {
+      ok = run_frame();
+    }
+    g_at = g_p.frame;
+    if (gu && gu->active && gu->x == gx && gu->y == gy && gu->orders == 0 && gu->moves == 0) {
+      printf("ERR goto found no path: order dropped, moves spent (aim at a reachable tile)\n");
+    }
+  } else if (strcmp(op, "declare") == 0) {
+    /* GAME menu "Declare Independence": its confirm comes up as a choice popup (`choose`). */
+    game_apply_map_menu_action(g_game, MAP_MENU_ACTION_DECLARE_INDEPENDENCE);
+    ok = flush_frames(10);
+  } else if (strcmp(op, "option") == 0 && argc > 2 && strcmp(argv[1], "eot") == 0) {
+    /* Game Options "End of Turn": the bit the options dialog's OK writes. */
+    if (!g_game->col1_ok) {
+      printf("ERR no game loaded\n");
+      return true;
+    }
+    g_game->col1.head.game_options.end_of_turn = strcmp(argv[2], "on") == 0;
+    printf("OPTION eot %s\n", g_game->col1.head.game_options.end_of_turn ? "on" : "off");
+  } else if (strcmp(op, "europe") == 0) {
+    /* VIEW menu Europe (refused on the main map after the declaration), then the lists. */
+    if (!g_game->in_europe) {
+      game_apply_map_menu_action(g_game, MAP_MENU_ACTION_EUROPE);
+      ok = flush_frames(10);
+    }
+    if (g_game->in_europe) {
+      print_europe_screen(true);
+    } else {
+      printf("ERR Europe screen not open\n");
+    }
+  } else if ((strcmp(op, "recruit") == 0 || strcmp(op, "train") == 0 || strcmp(op, "purchase") == 0 ||
+              strcmp(op, "sell") == 0 || strcmp(op, "buy") == 0 || strcmp(op, "sail") == 0) &&
+             argc > 1) {
+    /* Europe screen actions: the hotkey handlers' own calls (R / T / P lists, U / '-' sale,
+     * L buy, S sail). Ship H is the HARBOR index `europe` prints. */
+    EuropeScreen* eu = &g_game->europe;
+    if (!g_game->in_europe) {
+      printf("ERR Europe screen not open (`europe`)\n");
+      return true;
+    }
+    if (op[0] == 'r' || op[0] == 't' || op[0] == 'p') {
+      const EuropeMenu m = op[0] == 'r' ? EUROPE_MENU_RECRUIT : op[0] == 't' ? EUROPE_MENU_TRAIN : EUROPE_MENU_PURCHASE;
+      if (a1 < 1 || !europe_menu_pick(m, a1)) {
+        printf("ERR %s %d refused (%s)\n", op, a1, eu->status);
+      }
+    } else if (a1 < 0 || a1 >= eu->harbor_ships) {
+      printf("ERR no harbor ship %d\n", a1);
+      return true;
+    } else if (op[1] == 'a') {
+      game_europe_request_sail(g_game, a1); /* @SAILAWAY Yes/No: `choose 0` sails */
+    } else if (op[0] == 's') {
+      /* sell H [CARGO]: every hold of CARGO (else every hold, best first); stops at a boycott. */
+      eu->selected_harbor = a1;
+      for (int tries = 0; tries < EUROPE_SHIP_CARGO_MAX; ++tries) {
+        int before = 0, of_cargo = 0;
+        for (int h = 0; h < EUROPE_SHIP_CARGO_MAX; ++h) {
+          before += eu->harbor[a1].hold_goods_amount[h];
+          of_cargo += eu->harbor[a1].hold_goods_type[h] == a2 ? eu->harbor[a1].hold_goods_amount[h] : 0;
+        }
+        if (tries > 0 && (argc > 2 ? of_cargo : before) == 0) {
+          break; /* sold out; a further press only raises "No ... in cargo hold!" */
+        }
+        if (argc > 2) {
+          if (game_europe_boycott_gate(g_game, a2)) {
+            break;
+          }
+          game_europe_sell_first_hold(g_game, a1, a2, false);
+        } else {
+          game_europe_sell_best_hold(g_game, a1);
+        }
+        int after = 0;
+        for (int h = 0; h < EUROPE_SHIP_CARGO_MAX; ++h) {
+          after += eu->harbor[a1].hold_goods_amount[h];
+        }
+        if (after == before || g_game->ai_popups.open) {
+          break;
+        }
+      }
+    } else if (argc > 2) {
+      /* buy H CARGO [AMT]: the L amount prompt's commit, AMT capped at the free room (max 100). */
+      eu->selected_harbor = a1;
+      if (!game_europe_boycott_gate(g_game, a2)) {
+        const int room = europe_harbor_cargo_room(eu, &g_game->units, a1, a2);
+        const int want = argc > 3 && atoi(argv[3]) < 100 ? atoi(argv[3]) : 100;
+        const int amt = want < room ? want : room;
+        if (amt <= 0) {
+          printf("ERR no room for cargo %d\n", a2);
+        } else {
+          const ColonizeWorld w = game_world(g_game);
+          europe_buy_cargo_w(&w, g_game->human_nation, a1, a2, amt);
+          game_europe_drain_price_events(g_game);
+        }
+      }
+    }
+    ok = flush_frames(5);
+    if (g_game->in_europe) {
+      print_europe_screen(false);
+      print_europe();
+    }
   } else if (strcmp(op, "colony") == 0 && argc > 1) {
     /* Open colony N's screen (index as printed by `colonies`). */
     if (a1 < 0 || a1 >= COLONIZE_COLONIES_MAX || !g_game->colonies.colonies[a1].active) {
@@ -997,6 +1335,8 @@ static bool command(char* line) {
   } else if (strcmp(op, "map") == 0) {
     print_map(a1 > 0 ? a1 : 8, argc > 3 ? a2 : g_game->map_cursor_x,
               argc > 3 ? atoi(argv[3]) : g_game->map_cursor_y);
+  } else if (strcmp(op, "advise") == 0) {
+    print_advise();
   } else if (strcmp(op, "colonies") == 0) {
     print_colonies();
   } else if (strcmp(op, "sync") == 0) {

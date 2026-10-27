@@ -19,10 +19,12 @@ once are not enough. These steps make them checkable.
    names, write a gate line in the journal: the rule (section name), each
    condition, met or not met. One condition not met means do not do the step.
    Keep playing and note the wait.
-2. Use the numbers as written. The declaration numbers in "Before declaring"
-   were measured on Viceroy (campaign 5). No Discoverer numbers are recorded.
-   Do not invent a lower number. A missing Fortress fails the gate on any
-   difficulty.
+2. The declaration gate is the `advise` GATE lines (see "The advise loop").
+   They scale with the REF, which `advise` prints. Do not use any other
+   number. Campaigns 6 and 7 used the Viceroy "60+ guns" figure on
+   Discoverer, judged it out of reach, stopped preparing and declared with
+   2-7 guns. On Discoverer the REF was 23-30 land units: the real gate was
+   about 20-24 guns and 9-11 dragoons.
 3. A rule beats your plan. Stop and re-check when your reasoning says "not
    realistic", "too slow", "I'll skip it", or "the stock is big, so this does
    not apply". Campaign 6 skipped the Docks rule because Jamestown's food stock
@@ -41,10 +43,10 @@ once are not enough. These steps make them checkable.
    and this file for the key words, and write the results in the entry.
    Anything not confirmed is `CN-On`, not `CN-Bn`. Campaign 6's CN6-O8
    restated the "pick the next build at once" rule.
-8. The brief's deadline is a window, not a target. Declare as late as the
-   gates allow, before the 1800 cutoff (see Calendar). Both campaign 6
-   declarations lost within six years. If the gates cannot be met in time,
-   end the run and report that.
+8. Declare as soon as `advise` prints `GATE ALL MET`. The REF grows while
+   you wait (the King adds units every few years), so a later declaration
+   only needs more guns. The 1800 cutoff (turn 507) is the last chance, not
+   the plan.
 9. Write the era plan in the journal before the era starts: target turn,
    gates, what must be built. Check it at each era start. Campaign 6 planned
    to "declare after the defence is in place" (3+ artillery in Jamestown,
@@ -52,6 +54,49 @@ once are not enough. These steps make them checkable.
 10. Unclear screen: stop. Send `status`, take one `shot` if you need it, then
     decide. Do not guess clicks or keys. Campaign 6 guessed row positions to
     save screenshot cost.
+
+## The advise loop (every turn)
+
+`advise` is a driver command that runs the checks this file asks for. Put it
+in the turn helper after every `endturn auto`. Lines:
+
+- `ADVISE WARN ...`: fix it before the next `endturn` (starvation, fishing
+  with no Docks, finished building still selected, hammers +0, tools short
+  at completion, Tory penalty, unit with no orders, 1800 cutoff).
+- `ADVISE TODO ...`: plan work (second colony, gold idle, tools needed later).
+- `ADVISE REF ...`: the Crown's force. Land = regulars + cavalry + artillery.
+- `ADVISE colony ... coastal`: SoL, fortification, guns and the REF target
+  score of each coastal colony.
+- `ADVISE GATE ...`: one line per declaration condition, MET or NOT MET.
+  `GATE ALL MET` = declare now.
+- `ADVISE WAR ...` (after declaring): Crown land units near your colonies.
+  `landed this turn, attack it now` = hit it with dragoons from the open.
+
+A turn is: `endturn`, `auto`, `advise`; answer every `CHOICES:`; fix every
+WARN; then the next turn. If a WARN cannot be fixed this turn, write why in
+the journal.
+
+## Playbook (Discoverer; campaign 1 won this way in 1652)
+
+Campaign 1 won with two coastal colonies of 12-14 colonists. Aim for that,
+not for a big empire. Era targets (check them with `advise` and `colonies`):
+
+1. 1492-1510. Found colony 1 on the coast on a hill or by ore and forest,
+   not next to a village. Docks first if anyone fishes. Scout the chiefs
+   and rumours for gold. Every Europe trip brings colonists back: the ship
+   never sails empty.
+2. 1510-1560. Found colony 2 on the coast. Each colony: lumberjack +
+   Carpenter's Shop worker (hammers), food first (2 per colonist), then
+   Stockade, Docks, Lumber Mill. Sell furs, silver, ore, tools surplus.
+3. 1560-1620. Town Hall statesmen in both colonies (bells: SoL, and
+   Founding Fathers). Fort, then Fortress (pop 8; campaign 7 needed 200
+   tools at completion).
+   Pick George Washington when offered. Buy tools by the 100.
+4. 1620-1650. Artillery from both colonies' builds and from Europe with all
+   spare gold. Horses in a Stable colony (2+ horses and a food surplus).
+   Turn veteran soldiers and colonists into dragoons. SoL 100% in both.
+5. `GATE ALL MET`: `declare`, `choose 1`. Then the War of Independence
+   section below.
 
 ## Setup
 
@@ -108,6 +153,12 @@ Cost = number of calls x context size. Output size matters much less.
 
 - `activate ID` clears Go To. To move now: `activate ID`, `goto ID X Y`,
   `auto`. Go To is not resumed on later turns: give it again each turn.
+- `goto` takes the first step itself. `ERR goto refused` = the target is a
+  seen tile the unit cannot enter (a ship aimed at land: aim at the colony
+  tile or the water next to it). `ERR goto found no path` = the game's
+  pathfinder found no route (DOS rule: the order is dropped and the turn's
+  moves are spent). A ship sent to land it cannot reach, such as an unseen
+  inland tile, fails this way. Aim ships at water or a coastal colony.
 - `activate` on a unit that fortified this turn leaves it 0 moves.
 - A unit waiting for orders blocks `endturn`. Fortify (`f`) also parks
   wagons and ships.
@@ -115,8 +166,8 @@ Cost = number of calls x context size. Output size matters much less.
   unit with no orders as a turn stopper.
 - Game Options "End of Turn" is off in a new game: the turn then ends by
   itself as soon as no unit has moves left (DOS rule). Switch it on before
-  war turns: `key g alt`, `click 35 13` (Game Options), `click 105 100`
-  (End of Turn row), `key Return`.
+  war turns: `option eot on`.
+- Declare independence with `declare`, then `choose 1` (Yes). Row 0 is No.
 - Sentry in a colony = board the next ship that leaves. Any own ship or
   wagon entering the colony wakes every sentried unit there (DOS rule), so
   sentry them again after the last arrival, right before the ship sails.
@@ -135,7 +186,14 @@ Cost = number of calls x context size. Output size matters much less.
   `build N BID`.
 - A finished building stays selected and keeps taking hammers. Pick the next
   build at once.
-- Europe: keys (R/P/T) work better than clicks. A purchase asks Yes/No twice.
+- Europe: `europe` opens the screen and prints gold, the RECRUIT / TRAIN /
+  PURCHASE rows (1-based), MARKET (cargo id, sell and buy price, BOYCOTT)
+  and HARBOR ships (index H). Then `recruit N`, `train N`, `purchase N`,
+  `sell H [CARGO]` (all holds of CARGO, or every hold), `buy H CARGO [AMT]`
+  (default 100), `sail H` + `choose 0`. Read the rows before each recruit:
+  the pool changes after every pick. `key e` leaves the screen. Cargo and
+  passengers share the ship's holds: a caravel with one hold of goods
+  carries one recruit.
 
 ## Game rules that decide a campaign
 
@@ -201,10 +259,23 @@ Combat
 
 War of Independence
 
-- Before declaring: a Fortress with 60+ artillery in the colony the REF
-  will target (on Viceroy 37 guns lost, 58-68 won), SoL 100% there, one gun
-  in every other colony, and far more horses and muskets than seems needed
-  (~130 horses and ~200 muskets ran out within ~10 turns).
+- Before declaring: `advise` GATE lines. They need artillery >= 0.8 x REF
+  land units (split over the coastal colonies), dragoons >= 0.35 x REF land,
+  a Fortress, Fort or better and SoL 100% in every coastal colony, and 100
+  spare horses and 50 muskets. Measured (guns vs REF land units at the
+  declaration):
+
+  | Campaign | Difficulty | Guns | REF land | Result |
+  |---|---|---|---|---|
+  | 1 | Discoverer | 19 + 9 dragoons | 23 | won 1652, no colony lost |
+  | 2 | Explorer | 38 | 46 | won 1699 |
+  | 3 | Conquistador | 56 | 89 | won 1816 |
+  | 5 | Viceroy | 58-68 | ~130 | won 1802 with intervention |
+  | 5 | Viceroy | 37 | ~128 | lost |
+  | 7 | Discoverer | 7 | 30 | lost 1797 |
+
+  Also keep far more horses and muskets than seems needed: on Viceroy ~130
+  horses and ~200 muskets ran out within ~10 turns.
 - Then REF attacks win only ~40-55%. A losing Regular dies, Cavalry drops
   to Regulars, Artillery is damaged. Each REF win damages a gun, a second
   destroys it. A Fort, damaged guns or Tories push REF odds to 55-66%
