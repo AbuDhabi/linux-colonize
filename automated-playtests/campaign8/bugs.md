@@ -120,3 +120,8 @@ Check docs/dos_bugs.md and docs/known_divergences.md before filing.
   of the same stack was activated in the same batch.
   Workaround in helpers/cycle.sh: fortify each guard, admit colonists, endturn.
   Check in DOS: does a unit with 0 moves and no orders block the turn?
+
+## CN8-O20 (oddity, cost me many turns): `key e` on the main map opens the Europe screen
+- Cycle helper used `key e` to leave Europe. On the main map `e` opens Europe,
+  so every cycle reopened it and the turn stalled. Use `key Escape` (driver
+  refuses it on the main map, harmless) or `europe`-screen only commands.

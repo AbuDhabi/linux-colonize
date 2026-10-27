@@ -9,7 +9,7 @@ D=automated-playtests/campaign8
 OUT=$D/out.txt
 cd "$(dirname "$0")/../../.." || exit 1
 for i in $(seq 1 "$N"); do
-  out=$(python3 tools/play.py send $D "key e" "wait 2" "advise" "sync a$RANDOM" 2>&1)
+  out=$(python3 tools/play.py send $D "key Escape" "wait 2" "advise" "sync a$RANDOM" 2>&1)
   admits=$(echo "$out" | grep -E "WARN unit [0-9]+ Colonists" | awk '{print $4}' | sort -u)
   mil=$(echo "$out" | grep -E "WARN unit [0-9]+ (Artillery|Dragoons|Soldiers|Merchantman|Caravel)" | awk '{print $4}' | sort -u)
   args=()
