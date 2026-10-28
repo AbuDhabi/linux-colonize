@@ -103,5 +103,3 @@ editor switches:
   (`FUN_1d6a_0006(0)`), whose colour was not traced.
 - The minimap view box and the Find Continents picture use reconstructed
   coordinates (DOS's blit arguments are lost in the decomp).
-- The editor draws through TERRAIN.SS's palette, as the game's map does.
-  MAPEDIT loads VICEROY.PAL.
