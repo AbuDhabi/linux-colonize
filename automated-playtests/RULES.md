@@ -134,14 +134,22 @@ Cost = number of calls x context size. Output size matters much less.
   `CHOICES:` and answer with `choose N`.
 - Send `wait 10` before keys to a popup that just opened.
 - Move units one key per step and check the output between steps.
-- Nested modals (Combat Analysis) get an automatic Return (`NESTED:` line).
+- Nested modals (Combat Analysis) get an automatic Return (`NESTED:` line),
+  and a nested colony message takes "Continue turn.".
   A nested diplomacy question (AI demand, treaty, alliance) prints
   `NESTED CHOICES:` and waits: answer it with `choose N`; other commands are
   dropped until then. Row 0 of a demand is often the refusal ("We laugh at
-  your puny threats" started a war in campaign 10).
+  your puny threats" started a war in campaign 10). An independent European
+  nation opens every audience with its "newly elected government" greeting
+  (DOS swaps every HELLO* for HELLOUSA): answer "Go in peace" again.
 - Cargo: `load SHIP CARGO [AMT]` / `unload SHIP [CARGO]` with the ship in a
   colony; `export N CARGO` toggles a Custom House row (it sells sugar and
-  furs by default: untick inputs you process).
+  furs by default: untick inputs you process). CARGO is an id or a name
+  prefix (`load 89 tobacco`, `buy 0 tools 100`). `load` takes from the colony
+  the unit stands in: a wagon in Santo Domingo loads Santo Domingo's tools,
+  not the docked ship's.
+- `export` toggles: read the `EXPORT ... on|off` line. Campaign 11 meant to
+  tick cloth and coats, which were already on, and switched them off.
 - `field`, `work` and `admit` print `FOOD colony +-N stock S`; `STARVES NEXT
   TURN` means fix it now (with End of Turn off the turn can end in the same
   batch).
@@ -152,10 +160,15 @@ Cost = number of calls x context size. Output size matters much less.
 - `key Escape` on the main map is refused (it would ask Exit to DOS).
 - Check for `LOG:` after `activate`: a tutorial hint can open on selection
   and the next key only closes it (DOS: any key closes a message box).
-- A warehouse-full unload asks first (`CHOICES: [0] Never mind. [1] Unload
-  ... anyway`); `choose 1` unloads, the excess spoils at end of turn.
+- A warehouse-full drag on the colony screen asks first (`CHOICES: [0]
+  Never mind. [1] Unload ... anyway`). The driver's `unload` does not ask:
+  it prints `WARN ... over the warehouse cap`; `load` the excess back or it
+  spoils at turn end (campaign 11 lost 100 tools).
 - `field` refuses a plot on native land at peace (the game would ask
   pay/take there). Drag the colonist onto it on the colony screen instead.
+  It also refuses a plot another colonist works (`ERR plot N is worked by
+  colonist K`): move that one first. Before this check the old worker was
+  left with no job at all (`field_job -1 slot -1`, eating, producing nothing).
 - A popup can open between two clicks (a King's tax raise opened during a
   cargo drag, and the next click held a Tools Party: tools boycotted for
   the rest of the game). Check for `CHOICES:` after every click.
@@ -164,8 +177,13 @@ Cost = number of calls x context size. Output size matters much less.
 
 ## Driver quirks
 
-- `activate ID` clears Go To. To move now: `activate ID`, `goto ID X Y`,
-  `auto`. Go To is not resumed on later turns: give it again each turn.
+- `goto ID X Y` activates the unit itself (DOS gives Go To only to the
+  active unit) and takes the first step. The order then persists: the unit
+  moves on when its turn in the rotation comes, also on later turns.
+  Units waiting for orders come first, so after a `goto` give every waiting
+  unit its orders, then `auto`. Before this fix a `goto` on a Fortified or
+  Sentried unit left it stranded and `auto` ran to its 5000-frame limit.
+- `activate ID` clears Go To.
 - `goto` takes the first step itself. `ERR goto refused` = the target is a
   seen tile the unit cannot enter (a ship aimed at land: aim at the colony
   tile or the water next to it). `ERR goto found no path` = the game's
@@ -207,7 +225,11 @@ Cost = number of calls x context size. Output size matters much less.
 - With many units on the colony tile, use `equip UID ROLE` (2 soldier,
   4 dragoon) instead of the screen.
 - Build menus show only buildable items and are centred, so rows move. Use
-  `build N BID`. `ERR build ... not in ... build menu` = the colony owns it
+  `build N BID` (it closes the colony screen it opened).
+- `buybuild N` prints the BUY price of colony N's project (`choose 1`, then
+  `key Escape`); `buybuild N yes` buys and closes. The price falls as hammers
+  pile up: San Salvador's Docks cost 1352 with 0 hammers, 481 with 15. A
+  finished-hammers project still waits for its tools (Fortress: 200). `ERR build ... not in ... build menu` = the colony owns it
   (founding gives Town Hall, Carpenter's Shop and five craft houses) or the
   row cannot be built yet.
 - A finished building stays selected and keeps taking hammers. Pick the next
@@ -250,7 +272,19 @@ Economy and natives
   It costs one tile to work, adds native land claims nearby, and tension
   rises fast. Choose it only to trade heavily with that village.
 - Scouts visiting chiefs are good early money. On Viceroy the Crown takes
-  70% of treasure.
+  70% of treasure. Never send a scout into a village of a tribe you are at
+  war with: "broken sacred taboos" kills it.
+- The Crown's treasure offer comes only when the Treasure moves INTO a
+  coastal colony (DOS FUN_465b_0000 tail). Founding a colony on the
+  Treasure's tile does not trigger it: step out and back in.
+- Spain with Hernan Cortes: burning a native city always yields treasure and
+  the Crown ships it for the tax-rate share. Campaign 11's five Inca cities
+  paid 6200 / 9300 / 16000 (capital) / 6200 / 9300. Artillery attacking a
+  village is not "in the open": stack 4-6 guns on a mountain next to the
+  city and attack with the healthy ones each turn; a city took 10-15 kills.
+  Pay the Inca for a silver tile before the war (650) if you need it early.
+- Silver crashes: 19 in 1550, 7 by 1630, 2 by 1660. Do not build the
+  economy on it past the first century.
 - Tory penalty: -1 on every tile and building once
   round(pop x Tory%) >= 10 - difficulty (6 on Viceroy). On Viceroy keep pop
   at 6 or less until SoL rises (pop 7 needs ~22% SoL, pop 8 ~38%).
@@ -289,7 +323,9 @@ Combat
   defender keeps its terrain.
 - Damaged artillery attacks badly (49-55%) and dies when it loses.
 - Losing a sea fight sinks every ship on that tile. Never stack transports.
-  In the war a beaten rebel ship with no drydock always sinks.
+  In the war a beaten rebel ship with no drydock always sinks. Campaign 11
+  moved three transports and a frigate (8 guns aboard) next to a Tory
+  Man-O-War; all four sank. During the war move guns overland.
 - No attacks from ships. Land next to the target, attack next turn.
 
 War of Independence
@@ -308,6 +344,7 @@ War of Independence
   | 5 | Viceroy | 58-68 | ~130 | won 1802 with intervention |
   | 5 | Viceroy | 37 | ~128 | lost |
   | 7 | Discoverer | 7 | 30 | lost 1797 |
+  | 11 | Conquistador | 61 (22 damaged) + 16 dragoons | 83 | lost (one colony stripped), then won 1772 |
 
   Also keep far more horses and muskets than seems needed: on Viceroy ~130
   horses and ~200 muskets ran out within ~10 turns.
@@ -319,7 +356,10 @@ War of Independence
 - The REF lands only next to coastal colonies. Target = highest
   colonists x (125 - SoL) - 75 x armed units on the colony tile (at least
   100 - SoL); ties go to the later one in `colonies`. Work it out and put the
-  guns there.
+  guns there. The target is re-picked every wave: keep every coastal colony
+  at score 0 (armed >= colonists x (125 - SoL) / 75). Campaign 11 shipped
+  Isabella's guns to the target colony, Isabella's score went positive, a
+  second force landed there and took it.
 - A wave (at most 6 units) lands on the land tiles next to the colony that
   hold the fewest units and deletes your units there, and any ship on its
   landing water tile. Fill all but one tile with fortified stacks: the wave
@@ -332,17 +372,29 @@ War of Independence
 - Hit landed stacks the turn they arrive (they cannot move yet), from open
   tiles (ambush bonus), with dragoons or Continental cavalry. Ambush odds
   vs Regulars: Continental Cavalry 75-79%, veteran dragoon 77%, dragoon 69%,
-  soldier 55-60%. Washington promotes winners.
+  soldier 55-60% (Explorer). On Conquistador campaign 11 measured ~50%,
+  ambush or from inside the colony. Strike anyway: a loss only demotes the
+  dragoon and costs 50 horses. Keep the dragoons INSIDE the colony next to
+  the landing tile, so a demoted one re-equips there; stock 300+ horses
+  before declaring (no Europe after it; the overflow can wait in a docked
+  ship). Do not fortify strikers: a unit fortified this turn has 0 moves.
 - A lost attack costs 50 horses or muskets, and re-equipping spends all the
   unit's moves. Colonies produce after the Crown moves, so a unit bought or
   finished now misses the Crown's next attacks.
+- Inland colonies count too: Tory uprisings took Veracruz and Santo Domingo
+  in campaign 11 once their guns had left. Leave each one an attack sum
+  above pop x (100 - SoL) x 2 / 100 + difficulty + 1.
 - Intervention: the bell count restarts at the declaration. At
   2000 + 1500 x difficulty bells (8000 on Viceroy) a foreign power lands
-  Continental units, and your attacks on colonies get +50% Bombard.
+  Continental units, and your attacks on colonies get +50% Bombard
+  (campaign 11, Conquistador: 40 turns after declaring; 4 Continentals, 2
+  guns and Men-of-War; the bombard let 6 guns retake a fortress colony).
   Attacking a colony also adds its SoL%.
 - Victory: the King gives up when Crown land units (Regulars, Cavalry,
   Artillery) fall below 1, or below 8 once the Crown holds one of your
-  colonies. The check runs after the Crown moves, and every colony must be
+  colonies. Campaign 11: with the REF gone the King still waited until
+  every colony was retaken, including two taken by Tory uprisings
+  (soldiers / colonists, easy kills for Continental cavalry). The check runs after the Crown moves, and every colony must be
   yours then: garrison a retaken colony before ending the turn. A small
   colony lost late can end the war: retake it while fewer than 8 remain.
 

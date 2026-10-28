@@ -42,7 +42,8 @@
  *   map [R [X Y]]               ASCII map of radius R (default 8) around the cursor (or X,Y)
  *   res [R [X Y]]               seen special resources (fish, ore, ...) within R of the cursor (or X,Y)
  *   near X Y [R]                every unit (any nation) within R (default 2) of X,Y
- *   goto ID X Y                 Go To order for unit ID to tile X,Y (ERR when refused, or when
+ *   goto ID X Y                 Go To order for unit ID to tile X,Y; activates the unit first, as DOS
+ *                               gives Go To only to the active unit (ERR when refused, or when
  *                               the pathfinder finds no route: the turn's moves are spent)
  *   declare                     GAME menu Declare Independence (answer its popup with `choose`)
  *   option eot on|off           Game Options "End of Turn" (stop at turn end, no auto-end)
@@ -55,11 +56,17 @@
  *   sail H                      harbor ship H: @SAILAWAY prompt (`choose 0` sails)
  *   colony N                    open colony N's screen (index from `colonies`)
  *   field N CI TILE JOB         colonist CI of colony N onto ring tile TILE (0 N .. 7 NW), field job JOB
- *                               (refused on native land at peace: the screen asks @INDIANLAND)
+ *                               (refused on native land at peace: the screen asks @INDIANLAND;
+ *                               refused on a plot another colonist works)
  *   work N CI B                 colonist CI of colony N into @BUILDING row B (as `hit` prints)
- *   build N BID [queue]         colony N builds BID (@BUILDING row, or unit code 42 artillery..)
+ *   build N BID [queue]         colony N builds BID (@BUILDING row, or unit code 42 artillery..);
+ *                               closes the colony screen it opened
+ *   buybuild N [yes]            colony N's BUY button: prints the cost and the Never mind /
+ *                               Complete it choice (`choose`, then `key Escape`); `yes` buys and closes
  *   load UID CARGO [AMT]       transport UID in a colony loads AMT (default 100) of CARGO
- *   unload UID [CARGO]          transport UID in a colony unloads every hold (of CARGO)
+ *   unload UID [CARGO]          transport UID in a colony unloads every hold (of CARGO); WARN when a
+ *                               cargo is over the warehouse cap (the excess spoils at turn end)
+ *                               (CARGO for load / unload / buy / sell / export: id or @CARGO name prefix)
  *   export N CARGO              toggle CARGO on colony N's Custom House checklist
  *   equip UID ROLE              unit UID on a colony tile takes role ROLE (COLONIZE_EJECT_*, 4 dragoon)
  *   admit UID                   unit UID on a colony tile joins that colony (prints colonist index)
@@ -78,8 +85,9 @@
  * Every popup / ticker text the game presents is echoed as "LOG: ..." after
  * the command that triggered it. A nested modal loop inside one game_update
  * (Combat Analysis) gets a Return after 300 idle polls ("NESTED:" line); a nested
- * choice popup (AI demand, treaty) prints "NESTED CHOICES:" and waits for `choose N`
- * (or a `nestedpick` match).
+ * colony message takes "Continue turn."; any other nested choice popup (AI demand,
+ * treaty) prints "NESTED CHOICES:" and waits for `choose N` (or a `nestedpick` match).
+ * Unit lines print moves left in thirds, 0 when a lucky step overspent them.
  */
 #include <SDL2/SDL_keycode.h>
 
@@ -105,6 +113,7 @@
 #include "core/map.h"
 #include "core/map_panel.h"
 #include "core/new_game.h"
+#include "core/reports_names.h"
 #include "core/screen_geom.h"
 #include "core/settings.h"
 #include "core/units.h"
@@ -138,6 +147,10 @@ struct ColonizePlatform {
   ColonizePalette outer;
   int outer_x, outer_y, outer_w, outer_h;
 };
+
+/* Movement points left, in thirds. A step into terrain that costs more than is left
+ * can still succeed (FUN_465b gate) and drive the counter below 0; that is "none left". */
+#define MP_LEFT(u) ((u)->moves > 0 ? (u)->moves : 0)
 
 static ColonizePlatform g_p;
 static uint32_t g_at; /* frame the next scheduled event lands on */
@@ -200,6 +213,12 @@ bool platform_poll_input(ColonizePlatform* p, ColonizeInputState* out) {
           want = strncmp(c, t, n) == 0 ? i : -1;
         }
       }
+    }
+    /* A colony EOT message ("Continue turn." / "Zoom to colony.") inside the loop takes
+     * Continue, as `auto` answers it on the main loop (campaign 11: it blocked every
+     * later command until `choose 0`). */
+    if (want < 0 && pop && pop->open && pop->current.tag == AI_POPUP_TAG_COLONY_EVENT) {
+      want = 0;
     }
     if (want < 0 && pop && pop->open && pop->current.choice_count > 0) {
       /* A choice popup (AI demand, treaty, alliance) must not take a blind Return:
@@ -498,7 +517,7 @@ static void print_status(void) {
   const ColonizeUnit* sel = g->units.selected_id >= 0 ? units_get_const(&g->units, g->units.selected_id) : NULL;
   if (sel) {
     printf("STATUS selected unit %d %s at (%d,%d) moves %d orders %d\n", sel->id, unit_name(sel), sel->x, sel->y,
-           sel->moves, sel->orders);
+           MP_LEFT(sel), sel->orders);
   }
 }
 
@@ -511,7 +530,7 @@ static void print_units(void) {
     if (!u->active) {
       printf("(inactive) ");
     }
-    printf("UNIT %d %s at (%d,%d) moves %d orders %d prof %d", u->id, unit_name(u), u->x, u->y, u->moves,
+    printf("UNIT %d %s at (%d,%d) moves %d orders %d prof %d", u->id, unit_name(u), u->x, u->y, MP_LEFT(u),
            u->orders, u->profession);
     if (u->aboard_ship_id >= 0) {
       printf(" aboard %d", u->aboard_ship_id);
@@ -543,7 +562,7 @@ static void print_near(int cx, int cy, int r) {
       continue;
     }
     printf("NEAR %d %s nation %d at (%d,%d) moves %d orders %d%s\n", u->id, unit_name(u), u->nation_id, u->x,
-           u->y, u->moves, u->orders, u->aboard_ship_id >= 0 ? " aboard" : "");
+           u->y, MP_LEFT(u), u->orders, u->aboard_ship_id >= 0 ? " aboard" : "");
   }
 }
 
@@ -919,8 +938,27 @@ static bool command(char* line) {
   }
   const char* op = argv[0];
   const int a1 = argc > 1 ? atoi(argv[1]) : 0;
-  const int a2 = argc > 2 ? atoi(argv[2]) : 0;
+  int a2 = argc > 2 ? atoi(argv[2]) : 0;
   bool ok = true;
+  /* load / unload / buy / sell / export take a cargo id or a NAMES.TXT @CARGO name
+   * prefix (`load 89 tobacco`); campaign 11 typed a name and loaded food (id 0). */
+  if (argc > 2 && (argv[2][0] < '0' || argv[2][0] > '9') &&
+      (strcmp(op, "load") == 0 || strcmp(op, "unload") == 0 || strcmp(op, "buy") == 0 ||
+       strcmp(op, "sell") == 0 || strcmp(op, "export") == 0)) {
+    a2 = -1;
+    for (int i = 0; i < (int)COLONIZE_COL1_CARGO_TYPES && a2 < 0; ++i) {
+      const char* name = reports_cargo_name(i);
+      a2 = name[0] && strncasecmp(name, argv[2], strlen(argv[2])) == 0 ? i : -1;
+    }
+    if (a2 < 0) {
+      printf("ERR unknown cargo %s; ids:", argv[2]);
+      for (int i = 0; i < (int)COLONIZE_COL1_CARGO_TYPES; ++i) {
+        printf(" %d %s", i, reports_cargo_name(i));
+      }
+      printf("\n");
+      return true;
+    }
+  }
   if (strcmp(op, "key") == 0 && argc > 1) {
     const int32_t code = keycode(argv[1]);
     const int m = mod_index(argv[2]);
@@ -1161,9 +1199,21 @@ static bool command(char* line) {
     ok = flush_frames(5);
   } else if (strcmp(op, "goto") == 0 && argc > 3) {
     /* Go To order for unit ID to tile X,Y (what a map goto drag sets). */
-    const ColonizeWorld w = game_world(g_game);
     const ColonizeUnit* gu = units_get_const(&g_game->units, a1);
     const int gx = gu ? gu->x : -1, gy = gu ? gu->y : -1;
+    /* DOS gives Go To only to the active unit (pick it, then G). Setting the order on a
+     * Fortified/Sentried unit the rotation has already passed left it waiting with nobody
+     * selected: the End of Turn prompt never came and `auto` ran to its frame limit
+     * (campaign 11 O1). Activate it first, as the click would. */
+    if (gu && gu->active && gu->moves > 0 && gu->nation_id == g_game->human_nation &&
+        g_game->units.selected_id != a1 && !g_game->ai_popups.open && !game_screen_owns_display(g_game) &&
+        !game_modal_open(g_game)) {
+      game_click_activate_unit(g_game, a1);
+      if (!flush_frames(2)) {
+        return false;
+      }
+    }
+    const ColonizeWorld w = game_world(g_game);
     if (!units_set_goto_w(&w, a1, a2, atoi(argv[3]))) {
       /* A seen tile the unit cannot enter: land for a ship, water for a land unit,
        * or a tile held by another nation's units or colony. */
@@ -1300,6 +1350,14 @@ static bool command(char* line) {
        * and charges the land-work alarm without asking: refuse a plot whose claim tribe
        * is at peace, as the screen would ask there (campaign5 C5-O2). */
       const ColonizeColony* c = &g_game->colonies.colonies[a1];
+      /* The colony screen never drops onto a worked plot (the click selects that
+       * worker instead); the shared writer would evict the old worker with no job
+       * at all, eating and producing nothing (campaign 11 O2). */
+      const int tile = atoi(argv[3]);
+      if (tile >= 0 && tile < COLONIZE_COLONY_FIELD_TILES_MAX && c->tiles[tile] >= 0 && c->tiles[tile] != a2) {
+        printf("ERR plot %d is worked by colonist %d: move that colonist first\n", tile, c->tiles[tile]);
+        return true;
+      }
       int dx = 0;
       int dy = 0;
       const int tribe = colonies_field_tile_delta(atoi(argv[3]), &dx, &dy) && g_game->col1.tribe
@@ -1411,6 +1469,16 @@ static bool command(char* line) {
       }
     }
     printf("%s %d moved %d\n", op[0] == 'l' ? "LOAD" : "UNLOAD", a1, moved);
+    /* The colony screen's drag asks @WAREHOUSEFULL first; this path does not, so say
+     * what the turn end will throw away (campaign 11 lost 100 tools this way). */
+    const ColonizeColony* wc = colonies_get(&g_game->colonies, cid);
+    for (int c = 1; op[0] == 'u' && wc && c < COLONIZE_CARGO_COUNT; ++c) {
+      const int cap = colonies_warehouse_capacity(&g_game->colonies, wc, c);
+      if (cap > 0 && wc->stock[c] > cap) {
+        printf("WARN %s %s %d over the warehouse cap %d: the excess spoils at turn end (load it back)\n",
+               wc->name, reports_cargo_name(c), wc->stock[c], cap);
+      }
+    }
     ok = flush_frames(2);
   } else if (strcmp(op, "build") == 0 && argc > 2) {
     /* build N BID [queue]: colony N's construction pick, as a click (or a Shift-click with
@@ -1437,6 +1505,7 @@ static bool command(char* line) {
                ? "already built" : "cut row, prerequisite, population or founding father");
       return true;
     }
+    const bool was_in = g_game->in_colony;
     game_enter_colony(g_game, bc->id);
     flush_frames(10);
     if (argc > 3 && strcmp(argv[3], "queue") == 0) {
@@ -1447,6 +1516,48 @@ static bool command(char* line) {
     printf("BUILD %s now %d\n", g_game->colonies.colonies[a1].name,
            g_game->colonies.colonies[a1].building_in_production);
     ok = flush_frames(2);
+    /* Leave the screen this command opened (it used to stay up and stall `auto`). */
+    if (ok && !was_in && g_game->in_colony && !g_game->ai_popups.open) {
+      tap(SDLK_ESCAPE, -1, 0);
+      ok = flush_frames(5);
+    }
+  } else if (strcmp(op, "buybuild") == 0 && argc > 1) {
+    /* buybuild N [yes]: the colony screen's BUY button for colony N's current project.
+     * Prints the cost line and the Never mind / Complete it choice; `yes` answers
+     * Complete it and closes the screen, else answer with `choose` and `key Escape`. */
+    if (a1 < 0 || a1 >= COLONIZE_COLONIES_MAX || !g_game->colonies.colonies[a1].active ||
+        g_game->colonies.colonies[a1].nation_id != g_game->human_nation) {
+      printf("ERR no colony %d of yours\n", a1);
+      return true;
+    }
+    const bool was_in = g_game->in_colony;
+    game_enter_colony(g_game, g_game->colonies.colonies[a1].id);
+    flush_frames(10);
+    game_request_buy_construction_confirm(g_game);
+    ok = flush_frames(5);
+    print_new_log();
+    const AiPopupState* bp = &g_game->ai_popups;
+    if (ok && bp->open && bp->current.choice_count >= 2) {
+      if (argc > 2 && strcmp(argv[2], "yes") == 0) {
+        tap(bp->selection < 1 ? SDLK_DOWN : SDLK_RETURN, -1, 0);
+        ok = flush_frames(3);
+        if (ok && g_game->ai_popups.open && g_game->ai_popups.selection == 1) {
+          tap(SDLK_RETURN, -1, 0);
+          ok = flush_frames(5);
+        }
+        print_new_log();
+        printf("BUYBUILD %s project %d hammers %d\n", g_game->colonies.colonies[a1].name,
+               g_game->colonies.colonies[a1].building_in_production, g_game->colonies.colonies[a1].hammers);
+        if (ok && !was_in && g_game->in_colony && !g_game->ai_popups.open) {
+          tap(SDLK_ESCAPE, -1, 0);
+          ok = flush_frames(5);
+        }
+      }
+    } else if (ok && !was_in && g_game->in_colony && !bp->open) {
+      printf("ERR buybuild: nothing to buy in %s\n", g_game->colonies.colonies[a1].name);
+      tap(SDLK_ESCAPE, -1, 0);
+      ok = flush_frames(5);
+    }
   } else if (strcmp(op, "world") == 0) {
     /* Whole map, one char a tile: ~ water, C/c own/foreign colony, V village,
      * ? rumour, n/# hill/mountain, else the terrain letter as in `map`. */
