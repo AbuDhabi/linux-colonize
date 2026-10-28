@@ -828,6 +828,12 @@ colonize_add_test(NAME unit_popup_prompt
   LIBS colonize_core
 )
 
+colonize_add_test(NAME unit_combat_analysis_pixels
+  SOURCES tests/unit/test_combat_analysis_pixels.c tools/render_common.c tests/common/golden_fixture.c
+  LIBS colonize_core
+  INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
 colonize_add_test(NAME unit_map_menu
   SOURCES tests/unit/test_map_menu.c
   LIBS colonize_core

@@ -175,11 +175,14 @@ the golden shows pure orange. Resolved 2026-10-28: the plate DAC keeps
 VICEROY.PAL's 0..151 (see "Backgrounds and palettes"), so the nearest match is
 now the exact slot 13.
 
-Same investigation: ICONS.SS #0-3 colony markers carry a baked-in blue
-flag (15 fixed pixels) that DOS recolors per nation (`FUN_112b_0c64`).
-`unit_chrome_nation_flag_shades_for_palette()` +
-`colonies_blit_settlement_icon()` overpaint them everywhere (dark shade =
-light × ~82%, approximation).
+ICONS.SS #0-3 colony markers carry a baked-in blue flag (15 fixed pixels). DOS
+`FUN_112b_0c64` (raw 112b:0d6d..0dce) draws the fortification sprite, then a SECOND sprite
+for the owner's flag: DOS id 0x77 + nation slot (ICONS.SS #118..#121, 6x5, 1-based ids, so
+id - 1), at tile+(5,0); while the WoI flag DS:0x5382 bit 0 is set the crown slot flies the
+human slot's flag and the human slot's own colonies fly id 0x83 (#130, the American flag).
+`colonies_blit_settlement_icon()` does exactly this (colony_chrome.c); the ~82% shade
+approximation and the procedural stripe flag are gone. The flag sprite's indices are
+ICONS.SS-palette, so they are nearest-matched by RGB into the active palette.
 
 ## Body polish 2026-10-28 (verdicts + traps)
 
@@ -198,15 +201,17 @@ labor_detail / economic_p1 / foreign / indian / score 40 (pointer column), labor
   The colony meter row (`FUN_2f2b_17d0`) calls the same routine.
 - Naval: cells centre with `reports_draw_dos_centered`; Ship / Destination centres 42 / 280 and
   row rules x 2..314 are golden-measured. Economic / colony row rules also start at x 2.
-- Remaining residue: continental_p1 600 / colony_p2 84 are the water-cycle ramp DAC
-  120..127. `FUN_3f41_0000` restores DS:0x372, so `FUN_1a0a_007a` keeps rotating it under
-  a report and each golden froze its own phase (continental_p1 3 steps, colony_p2 7);
-  `render_report` draws phase 0. Colony p1/p2 112: the colony-icon flag's dark shade is
-  still the ~82% approximation (`unit_chrome_nation_flag_shades_for_palette`); the
-  golden shows slot 5 (170,73,0). Naval 1160: ship-column unit chrome (x 0-20, y 40-110:
-  silhouette / box pixels) and the cargo sprites at x 80-100, y 100-120 — shape, not palette.
-- The live game does not rotate the report's 120..127 (the plate palette is static);
-  DOS shows the current cycle phase there when cycling is on.
+- Remaining residue (2026-10-28, 1x pixels vs golden): naval 0 (pointer column x 319 only),
+  colony_p1 0, colony_p2 21 and continental_p1 150 are the water-cycle ramp DAC 120..127
+  (each golden froze its own phase; `render_report` draws phase 0). Naval was closed by:
+  ship x = 2 (`FUN_3f41_220c` asm 3f41:2503 `MOV BX,[BP-0x56]`), hold-goods sprite y =
+  row y + 3 (asm 3f41:22ca `ADD AX,3`), and two `FUN_112b_01ba` layout facts that apply to
+  every screen: ship sprites are 13 wide so the top-left silhouette sits at
+  `x + 14 - sw` (local_6, colour sprite 2 right of it), and the orders letter is drawn
+  AFTER the colour sprite (the box edge pixel under the sprite was covered before).
+- The live game rotates the report plate's 120..127 like DOS (FUN_3f41_0000 only programs DAC
+  152..251): `game_water_cycle_tick` rotates the open report's plate palette in place when
+  cycling is on. Not golden-testable (phase depends on elapsed time).
 
 ## `col1_bridge_apply` transport-chain bugs (reachable outside reports)
 

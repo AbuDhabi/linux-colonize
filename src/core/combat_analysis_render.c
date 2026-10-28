@@ -17,6 +17,8 @@
 #include "core/ss.h"
 #include "core/ui_colors.h"
 #include "core/unit_chrome.h"
+#include "core/unit_chrome_draw.h"
+#include "core/fb.h"
 #include "platform/diagnostics.h"
 
 /* 636c:00c6 row pitch (add [bp-0xe],0x14). */
@@ -74,6 +76,8 @@ static void combat_analysis_blit_row_icon(
   const ColonizeSpriteSheet* phys0,
   const ColonizeWorldMap* map,
   const CombatAnalysisRow* row,
+  int tribe_nation,
+  bool capital,
   int x,
   int y,
   const ColonizePalette* active_palette
@@ -106,12 +110,42 @@ static void combat_analysis_blit_row_icon(
     return;
   }
   if (row->icon_kind == COMBAT_ROW_ICON_SETTLEMENT) {
+    /* FUN_112b_0c64 centres the sprite in the same 16x16 cell as 0790 (DOS capture: the 20px
+     * colony icon sits 2px left of the pen). */
+    const ColonizeSprite* sp = &sheet->sprites[row->icon_sprite];
     colonies_blit_settlement_icon(
-      sheet, row->icon_sprite, fb, x, y, row->icon_nation, active_palette
+      sheet, row->icon_sprite, fb, x + (16 - sp->width) / 2, y + (16 - sp->height) / 2,
+      row->icon_nation, active_palette
     );
     return;
   }
-  ss_blit_sprite(sheet, row->icon_sprite, fb, x, y);
+  if (row->icon_kind != COMBAT_ROW_ICON_VILLAGE) {
+    ss_blit_sprite(sheet, row->icon_sprite, fb, x, y);
+    return;
+  }
+  {
+    /* 0790 centres the sprite in a 16x16 tile cell (the camp is 20 wide: 2px left of the pen),
+     * exactly as map_panel.c does on the map. */
+    const ColonizeSprite* sp = &sheet->sprites[row->icon_sprite];
+    ss_blit_sprite(sheet, row->icon_sprite, fb, x + (16 - sp->width) / 2, y + (16 - sp->height) / 2);
+    /* FUN_281f_02b2 -> FUN_112b_0790 at scale 100 (asm 112b:0815-0999): the shared tech 0/1
+     * sprites get the tribe's own colour (DS:0x84c) as 1px-high marks, offsets from the blit
+     * origin (the same table map_panel.c draws on the map); then the capital starburst
+     * (ICONS.SS #17, 112b:09a1) centred on the 16x16 cell. Checked against a DOS capture. */
+    static const int8_t k_dots0[3][3] = {{3, 4, 1}, {12, 4, 1}, {9, 6, 1}};
+    static const int8_t k_dots1[2][3] = {{4, 9, 2}, {9, 11, 3}};
+    const int tech = row->icon_sprite - 10;
+    const int n = tech == 0 ? 3 : (tech == 1 ? 2 : 0);
+    const uint8_t color = (uint8_t)unit_chrome_names_color(tribe_nation);
+    for (int i = 0; i < n; ++i) {
+      const int8_t* d = tech == 0 ? k_dots0[i] : k_dots1[i];
+      fb_fill_rect(fb, x + d[0], y + d[1], d[2], 1, color);
+    }
+    if (capital && 17 < sheet->sprite_count) {
+      const ColonizeSprite* st = &sheet->sprites[17];
+      ss_blit_sprite(sheet, 17, fb, x + (16 - st->width) / 2, y + (16 - st->height) / 2);
+    }
+  }
 }
 
 /* FUN_281f_013c / 0150 / 0100 -> FUN_104b_0288 / 02c2 / 0318 (raw 977 / 991 / 1007): one
@@ -206,7 +240,9 @@ void combat_analysis_render(
       /* DOS blits the row's picture at the pen (colx, row top), then draws the
        * label at pen + indent (local_76) and the value right-aligned at colx+0x50. */
       combat_analysis_blit_row_icon(
-        framebuffer, unit_icons, terrain, phys0, map, row, col_x, row_top, active_palette
+        framebuffer, unit_icons, terrain, phys0, map, row, dlg->def_chrome.nation_id,
+        (dlg->eng.def_flags.flags2 & COMBAT_FLAG_VILLAGE_CAPITAL) != 0, col_x, row_top,
+        active_palette
       );
       combat_analysis_text(
         font, framebuffer, col_x + row->label_indent, row_top + 6, row->label, text_color

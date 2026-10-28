@@ -22,6 +22,11 @@ Keep these short and low-dependency.
 Examples: `unit_units_core`, `unit_turn_core`, `unit_ai_contact_core`, `unit_col1_save`.
 Exercise one subsystem (or a tight cluster) with concrete expected outcomes.
 
+`unit_combat_analysis_pixels` compares the Combat Analysis dialog pixel for pixel with crops of
+real DOSBox-X screenshots (`test-saves-combat/NAME.SAV` fixture, `NAME.dos.ppm` P6 crop of the
+frame; recipe and the masked known deltas in the test header and docs/combat_analysis.md "Pixel
+reference"). `COMBAT_ANALYSIS_DUMP=dir` writes the port's crop of a failing case.
+
 The unit-pool suite is **split by feature** (2026-09-23): `tests/unit/test_units.c`
 had grown to 12k lines, so adding one case meant reading all of it. The slices
 share only the include set in `tests/unit/test_units_common.h`; each keeps its

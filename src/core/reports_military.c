@@ -51,11 +51,13 @@
 #define REPORTS_NAVAL_DEST_CELL_R 318
 #define REPORTS_NAVAL_RULE_X0 2 /* row rules span x 2..314 in naval.png (measured) */
 #define REPORTS_NAVAL_RULE_X1 315
-#define REPORTS_NAVAL_SHIP_ICON_X 3 /* measured off naval.png (was 0, clipped) */
+#define REPORTS_NAVAL_SHIP_ICON_X 2 /* DOS-LITERAL FUN_3f41_220c asm 3f41:2503: `MOV BX,[BP-0x56]` = 2 (ship types 0xd..0x12) */
 #define REPORTS_NAVAL_SHIP_NAME_X 26
 #define REPORTS_NAVAL_CARGO_ICON_X 88 /* DOS-LITERAL FUN_3f41_220c (asm 002654): `[BP-0x56] + 0x56` = 2 + 86. */
 #define REPORTS_NAVAL_CARGO_ICON_PITCH 12 /* DOS-LITERAL FUN_3f41_220c (asm OVL06_L0040 00268a): `ADD [BP-0x5a],0xc` after each hold icon. The golden has at most one icon per row, so this was a 14px guess copied from colony_screen.c until port_bugs.md #973. */
 #define REPORTS_NAVAL_CARGO_LABEL_X (REPORTS_NAVAL_DIV1_X + 30) /* passenger-row type name */
+/* DOS-LITERAL FUN_3f41_220c (asm 3f41:22ca/2246 area): the hold-goods sprite y is `[BP-0x5a] + 3`, the unit icon y `[BP-0x5a]`. */
+#define REPORTS_NAVAL_GOODS_DY 3
 #define REPORTS_NAVAL_ICON_DY 2 /* icon top = row_top + this */
 #define REPORTS_NAVAL_TEXT_DY 8 /* text top = row_top + this */
 #define REPORTS_NAVAL_LINE_COLOR 119 /* dark red (134,0,0) — same index as REPORTS_ECON_LINE_COLOR */
@@ -411,7 +413,10 @@ void reports_render_naval(
       for (int g = 0; g < r->goods_count; ++g) {
         const int icon = r->goods_icon[g];
         if (icon >= 0 && icon < icons->sprite_count) {
-          ss_blit_sprite(icons, icon, fb, REPORTS_NAVAL_CARGO_ICON_X + g * REPORTS_NAVAL_CARGO_ICON_PITCH, icon_y);
+          ss_blit_sprite(
+            icons, icon, fb, REPORTS_NAVAL_CARGO_ICON_X + g * REPORTS_NAVAL_CARGO_ICON_PITCH,
+            icon_y + REPORTS_NAVAL_GOODS_DY
+          );
         }
       }
     }

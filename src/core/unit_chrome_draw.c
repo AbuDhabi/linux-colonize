@@ -68,6 +68,30 @@ void unit_chrome_selection_frame(
 }
 
 /*
+ * DOS FUN_112b_01ba layout width `local_24 = FUN_1c2a_0006(letter) + 3`, the same as the
+ * drawn box width. Golden proof: naval.png ship column (x = 2 from FUN_3f41_220c, 13-wide
+ * ship sprites: top-right box at x + 9, top-left silhouette at x + 1).
+ */
+static int unit_chrome_lay_w(const ColonizeFont* font, int nation_id, int orders_index) {
+  char letter_buf[2] = {unit_chrome_order_letter(orders_index, nation_id), '\0'};
+  return font_text_width(font, letter_buf) + 3;
+}
+
+/* DOS 112b:0568..0602: x of the black silhouette (local_6), the colour sprite is 2 right of it.
+ * Only the top-left arm (local_14 == 3) moves it: `x + local_24`, minus the overflow
+ * `local_24 + sw - 14` when the pair is wider than 14. */
+static int unit_chrome_shadow_dx(
+  const ColonizeFont* font, int display_type_index, bool damaged, int nation_id, int orders_index,
+  int sprite_w
+) {
+  if (unit_chrome_corner_for_type(display_type_index, damaged) != UNIT_CHROME_CORNER_TOP_LEFT) {
+    return 0;
+  }
+  const int lay_w = unit_chrome_lay_w(font, nation_id, orders_index);
+  return lay_w + sprite_w + 2 > 16 ? 14 - sprite_w : lay_w;
+}
+
+/*
  * Shared implementation behind the *_colored()
  * override variants. fill_override/letter_override < 0 means "use the
  * normal nation-color computation" (the plain public behavior,
@@ -92,7 +116,10 @@ static void unit_chrome_draw_impl(
   bool show_stack,
   bool damaged,
   int fill_override,
-  int letter_override
+  int letter_override,
+  const ColonizeSpriteSheet* sheet,
+  int sprite_index,
+  int sprite_x
 ) {
   if (!fb || !fb->pixels) {
     return;
@@ -119,7 +146,8 @@ static void unit_chrome_draw_impl(
     fill_override >= 0 ? (uint8_t)fill_override : unit_chrome_nation_color(nation_id);
 
   int right_x = icon_x + sprite_w;
-  const int span = box_w + sprite_w;
+  const int lay_w = unit_chrome_lay_w(font, nation_id, orders_index);
+  const int span = lay_w + sprite_w;
   if (span > 16) {
     right_x -= (span - 16);
   }
@@ -145,7 +173,7 @@ static void unit_chrome_draw_impl(
       break;
     case UNIT_CHROME_CORNER_TOP_CENTER:
     case UNIT_CHROME_CORNER_TOP_CENTER_DAMAGED: {
-      const int mid = icon_x - (box_w >> 1);
+      const int mid = icon_x - (lay_w >> 1);
       box_x = mid + 9;
       box_y = icon_y;
       if (corner == UNIT_CHROME_CORNER_TOP_CENTER_DAMAGED) {
@@ -177,6 +205,11 @@ static void unit_chrome_draw_impl(
     unit_chrome_draw_box(fb, stack_x, stack_y, box_w, box_h, fill);
   }
   unit_chrome_draw_box(fb, box_x, box_y, box_w, box_h, fill);
+
+  /* DOS 112b:0602..: boxes, then the colour sprite (FUN_112b_015c(2)), then the letter on top. */
+  if (sheet) {
+    ss_blit_sprite(sheet, sprite_index, fb, sprite_x, icon_y);
+  }
 
   /*
    * Center the glyph's ink (not the full advance cell) in the outline rect.
@@ -233,8 +266,10 @@ static void unit_chrome_blit_unit_colored_shadow(
   const int ih = sp->height > 0 ? sp->height : 16;
 
   /* Orders box at tile origin; sprite (+ silhouette) shifted right. */
-  const int sx = x + UNIT_CHROME_SPRITE_DX;
-  ss_blit_sprite_color(sheet, sprite_index, fb, sx + UNIT_CHROME_SHADOW_DX, y, (uint8_t)shadow_color);
+  const int shadow_x =
+    x + unit_chrome_shadow_dx(font, display_type_index, damaged, nation_id, orders_index, iw);
+  const int sx = shadow_x + UNIT_CHROME_SPRITE_DX;
+  ss_blit_sprite_color(sheet, sprite_index, fb, shadow_x, y, (uint8_t)shadow_color);
   unit_chrome_draw_impl(
     fb,
     font,
@@ -248,9 +283,11 @@ static void unit_chrome_blit_unit_colored_shadow(
     show_stack,
     damaged,
     fill_override,
-    letter_override
+    letter_override,
+    sheet,
+    sprite_index,
+    sx
   );
-  ss_blit_sprite(sheet, sprite_index, fb, sx, y);
 }
 
 static void unit_chrome_blit_unit_colored(

@@ -49,28 +49,9 @@ int g_chrome_crown_nation = -1;
 
 
 /*
- * ICONS.SS #0-3 (colony settlement fortification markers) each carry an
- * identical 14-pixel two-shade flag (a light body + a darker pole/shadow
- * edge — native RGB (65,89,166)/(52,73,158), a plain highlight/shadow pair
- * of the same blue hue), always at the same (dx,dy) offsets regardless of
- * fortification tier — dumped directly from ICONS.SS, see
- * colony_map_icon_flag_pixels. DOS recolors this flag to the owning
- * nation (confirmed indirectly: FUN_112b_0c64, the colony-map-chrome
- * decompile, reads the same @COUNTRY/DS:0x848 nation-color table
- * unit_chrome's own k_european_names does) — currently every nation's
- * colony shows the same stored blue. Derive a light/dark pair for a given
- * nation the same way (same k_nation_fill_rgb_native "light" color as the
- * chrome box; "dark" scaled by the same ~0.82 per-channel ratio the
- * original blue's own two shades already have — no DOS-confirmed source
- * for the exact per-nation dark shade, this is the closest reproducible
- * approximation), nearest-matched into whatever palette is actually
- * active (same reasoning as unit_chrome_blit_unit_for_palette).
- */
-/*
- * Both nation shade pairs below resolve the same way: clear both outs, bail
- * on a missing palette or a non-European slot, then nearest-match the two
- * native RGBs into the active palette. Only where the dark half comes from
- * differs (audit 2026-09-14 UN-42).
+ * Nation shade pair: clear both outs, bail on a missing palette or a
+ * non-European slot, then nearest-match the two native RGBs into the active
+ * palette.
  */
 static void unit_chrome_shade_pair(
   const ColonizePalette* active_palette,
@@ -98,32 +79,6 @@ static void unit_chrome_shade_pair(
   }
 }
 
-void unit_chrome_nation_flag_shades_for_palette(
-  int nation_id, const ColonizePalette* active_palette, int* out_light, int* out_dark
-) {
-  /*
-   * port_bugs.md WoI flags: colonies held by the crown slot fly the color of the
-   * nation the PLAYER started as (orange for Dutch, red for English, ...) —
-   * they are the player's captured towns under the King, not the peer whose
-   * slot the crown borrows. The rebel nation's own colonies get an actual
-   * striped American flag, painted per-pixel by the caller (see
-   * unit_chrome_rebel_flag_colors_for_palette) — the two-shade pair here is
-   * its fallback only.
-   */
-  const bool crown_flies_rebel_colors = nation_id == g_chrome_crown_nation &&
-                                        g_chrome_rebel_nation >= 0 && g_chrome_rebel_nation < 4;
-  const int shade_nation = crown_flies_rebel_colors ? g_chrome_rebel_nation : nation_id;
-  const uint8_t k_black[3] = {0, 0, 0};
-  const uint8_t* light_rgb =
-    (nation_id >= 0 && nation_id < 4) ? k_nation_fill_rgb_native[shade_nation] : k_black;
-  const uint8_t dark_rgb[3] = {
-    (uint8_t)((int)light_rgb[0] * 82 / 100),
-    (uint8_t)((int)light_rgb[1] * 82 / 100),
-    (uint8_t)((int)light_rgb[2] * 82 / 100)
-  };
-  unit_chrome_shade_pair(active_palette, nation_id, light_rgb, dark_rgb, out_light, out_dark);
-}
-
 int unit_chrome_rebel_nation(void) {
   return g_chrome_rebel_nation;
 }
@@ -147,31 +102,6 @@ void unit_chrome_nation_shades_for_palette(
     out_bright,
     out_dark
   );
-}
-
-/* port_bugs.md: US flag colors for the rebel colony marker — navy hoist, red and
- * white stripes — nearest-matched into the active palette. */
-void unit_chrome_rebel_flag_colors_for_palette(
-  const ColonizePalette* active_palette, int* out_navy, int* out_red, int* out_white
-) {
-  static const uint8_t k_navy[3] = {40, 40, 140};
-  static const uint8_t k_red[3] = {200, 30, 30};
-  static const uint8_t k_white[3] = {245, 245, 245};
-  if (out_navy) {
-    *out_navy =
-      active_palette ? assets_palette_nearest_rgb(active_palette, k_navy[0], k_navy[1], k_navy[2])
-                     : -1;
-  }
-  if (out_red) {
-    *out_red =
-      active_palette ? assets_palette_nearest_rgb(active_palette, k_red[0], k_red[1], k_red[2]) : -1;
-  }
-  if (out_white) {
-    *out_white =
-      active_palette
-        ? assets_palette_nearest_rgb(active_palette, k_white[0], k_white[1], k_white[2])
-        : -1;
-  }
 }
 
 /* Fallback @ORDERS letters if NAMES.TXT is unavailable. */

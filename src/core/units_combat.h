@@ -131,6 +131,15 @@ void units_combat_watch_notify(const ColonizeUnitPool* pool, int unit_id, int x,
 typedef void (*ColonizeUnitsCameraFn)(void* user, int x, int y);
 void units_set_camera_edge_hook(ColonizeUnitsCameraFn fn, void* user);
 
+/* Lunge of a unit that is not in the pool (FUN_364b_03f6's fort phantom):
+ * draw @UNIT row type_index in nation's chrome bumping from (from_x,from_y)
+ * toward (def_x,def_y). UI-only; fired only while the combat watch is set. */
+typedef void (*ColonizeUnitsPhantomLungeFn)(
+  void* user, const ColonizeUnitPool* pool, int type_index, int nation_id,
+  int from_x, int from_y, int def_x, int def_y
+);
+void units_set_phantom_lunge_hook(ColonizeUnitsPhantomLungeFn fn, void* user);
+
 /*
  * DOS "fizzle" present (FUN_12d6_0000 behind thunk FUN_281f_03ea): after a
  * combat outcome (FUN_5fef_1b0e tail), a stack-sweep, or an LCR "vanishes"

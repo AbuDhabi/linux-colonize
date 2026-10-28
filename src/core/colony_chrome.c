@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "core/assets.h"
 #include "core/fb.h"
 #include "core/font.h"
 #include "core/ss.h"
@@ -22,24 +23,18 @@
 #define COLONY_MAP_ICON_NONE 3
 
 /*
- * ICONS.SS #0-3's stored flag: 15 fixed (dx,dy) pixels, identical across
- * all four fortification tiers (dumped directly from ICONS.SS — see
- * unit_chrome_nation_flag_shades_for_palette's comment for why this needs
- * recoloring at all). is_dark selects which of the two nation shades that
- * pixel gets.
+ * DOS FUN_112b_0c64 (raw 0x112b:0d6d..0dce): after the ICONS.SS fortification
+ * sprite (DOS id DI+1) it blits a SECOND sprite, the owner's flag, DOS id
+ * 0x77 + slot (ICONS.SS #118..#121 here: DOS ids are 1-based). While the WoI
+ * flag DS:0x5382 bit 0 is set the crown slot (DS:0x53d2) flies the slot of
+ * DS:0x5398 (the human nation) and the human slot's own colonies fly id 0x83
+ * (#130, the American flag). The 6x5 flag lands at tile+(5,0) and covers
+ * exactly the 15 blue pixels baked into #0-3. Its palette indices belong to
+ * ICONS.SS, so they are nearest-matched into the active palette by RGB.
  */
-typedef struct ColonyIconFlagPixel {
-  int8_t dx;
-  int8_t dy;
-  bool is_dark;
-} ColonyIconFlagPixel;
-
-static const ColonyIconFlagPixel k_colony_icon_flag_pixels[15] = {
-  {6, 0, true}, {7, 0, false}, {8, 0, false},
-  {6, 1, true}, {7, 1, false}, {8, 1, false}, {9, 1, false},
-  {6, 2, true}, {7, 2, false}, {8, 2, false}, {9, 2, false}, {10, 2, false},
-  {8, 3, true}, {9, 3, false}, {10, 3, false}
-};
+#define COLONY_ICON_FLAG_FIRST 118
+#define COLONY_ICON_FLAG_REBEL 130
+#define COLONY_ICON_FLAG_DX 5
 
 void colonies_blit_settlement_icon(
   const ColonizeSpriteSheet* icons,
@@ -59,37 +54,41 @@ void colonies_blit_settlement_icon(
   }
   ss_blit_sprite(icons, sprite, framebuffer, px, py);
 
-  int light = -1;
-  int dark = -1;
-  unit_chrome_nation_flag_shades_for_palette(nation_id, active_palette, &light, &dark);
-  if (light < 0 && dark < 0) {
+  if (nation_id < 0 || nation_id >= 4) {
     return;
   }
-  /* port_bugs.md: the rebel nation flies an actual striped American flag — navy
-   * hoist edge, alternating red/white stripe rows — not a plain white flag
-   * ("we are not surrendering just yet"). */
-  int us_navy = -1;
-  int us_red = -1;
-  int us_white = -1;
-  const bool rebel = nation_id >= 0 && nation_id == unit_chrome_rebel_nation();
-  if (rebel) {
-    unit_chrome_rebel_flag_colors_for_palette(active_palette, &us_navy, &us_red, &us_white);
+  const int rebel = unit_chrome_rebel_nation();
+  int flag = COLONY_ICON_FLAG_FIRST + nation_id;
+  if (rebel >= 0 && rebel < 4) {
+    if (nation_id == rebel) {
+      flag = COLONY_ICON_FLAG_REBEL;
+    } else if (nation_id == unit_chrome_crown_nation()) {
+      flag = COLONY_ICON_FLAG_FIRST + rebel;
+    }
   }
-  for (int i = 0; i < 15; ++i) {
-    const ColonyIconFlagPixel* fp = &k_colony_icon_flag_pixels[i];
-    int color = fp->is_dark ? dark : light;
-    if (rebel && us_navy >= 0) {
-      color = fp->is_dark ? us_navy : ((fp->dy & 1) ? us_white : us_red);
+  if (flag >= icons->sprite_count) {
+    return;
+  }
+  const ColonizeSprite* fl = &icons->sprites[flag];
+  if (!fl->pixels) {
+    return;
+  }
+  for (int y = 0; y < fl->height; ++y) {
+    for (int x = 0; x < fl->width; ++x) {
+      const uint8_t c = fl->pixels[y * fl->width + x];
+      const int fx = px + COLONY_ICON_FLAG_DX + x;
+      const int fy = py + y;
+      if (c == COLONIZE_SS_TRANSPARENT || fx < 0 || fy < 0 || fx >= framebuffer->width ||
+          fy >= framebuffer->height) {
+        continue;
+      }
+      framebuffer->pixels[fy * framebuffer->width + fx] =
+        active_palette && icons->has_palette
+          ? assets_palette_nearest_rgb(
+              active_palette, icons->palette.rgb[c][0], icons->palette.rgb[c][1], icons->palette.rgb[c][2]
+            )
+          : c;
     }
-    if (color < 0) {
-      continue;
-    }
-    const int fx = px + fp->dx;
-    const int fy = py + fp->dy;
-    if (fx < 0 || fy < 0 || fx >= framebuffer->width || fy >= framebuffer->height) {
-      continue;
-    }
-    framebuffer->pixels[fy * framebuffer->width + fx] = (uint8_t)color;
   }
 }
 

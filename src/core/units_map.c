@@ -949,6 +949,14 @@ void units_set_camera_edge_hook(ColonizeUnitsCameraFn fn, void* user) {
   g_units_camera_edge_user = user;
 }
 
+ColonizeUnitsPhantomLungeFn g_units_phantom_lunge = NULL;
+void* g_units_phantom_lunge_user = NULL;
+
+void units_set_phantom_lunge_hook(ColonizeUnitsPhantomLungeFn fn, void* user) {
+  g_units_phantom_lunge = fn;
+  g_units_phantom_lunge_user = user;
+}
+
 void units_combat_watch_notify(const ColonizeUnitPool* pool, int unit_id, int x, int y) {
   if (g_units_combat_watch && pool) {
     g_units_combat_watch(g_units_combat_watch_user, pool, unit_id, x, y);

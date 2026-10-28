@@ -813,27 +813,12 @@ void game_camera_edge_center(void* user, int x, int y) {
   }
 }
 
-void game_combat_watch(
-  void* user, const ColonizeUnitPool* pool, int attacker_id, int def_x, int def_y
+/* The outbound lunge frames shared by game_combat_watch and
+ * game_phantom_lunge; mu (may be NULL) is the pool piece hidden meanwhile. */
+static void game_lunge_frames(
+  ColonizeGameState* game, int sprite, int from_x, int from_y, int def_x, int def_y,
+  int dtype, int nation_id, int badge, bool stacked, bool damaged, ColonizeUnit* mu
 ) {
-  ColonizeGameState* game = (ColonizeGameState*)user;
-  const ColonizeUnit* atk = pool ? units_get_const(pool, attacker_id) : NULL;
-  if (!game || !game->platform || !game->world_map_ok || (!atk && attacker_id >= 0)) {
-    return;
-  }
-  /* Only when the human can see the fight (live sight of either tile). */
-  const int hn = game->human_nation;
-  if (!map_tile_seen_by(&game->world_map, def_x, def_y, hn)) {
-    return;
-  }
-  /* Centre at every zoom; only the lunge is zoom-0-only. */
-  game_set_view_center(game, def_x, def_y);
-  if (!atk) {
-    return; /* attacker_id < 0: 03f6's fort phantom has no sprite row; centre only */
-  }
-  if (game->map_zoom != 0 || !game->unit_icons_ok) {
-    return;
-  }
   int cols = 0;
   int rows = 0;
   game_map_zoom_view_size(game->map_zoom, &cols, &rows);
@@ -843,17 +828,16 @@ void game_combat_watch(
     (int)game->world_map.width, (int)game->world_map.height, game->map_view_x,
     game->map_view_y, cols, rows, &vx, &vy
   );
-  const int sprite = units_map_sprite(pool, attacker_id);
   if (sprite < 0 || sprite >= game->unit_icons.sprite_count) {
     return;
   }
-  const int sxp = (atk->x - vx) * 16;
-  const int syp = MAP_MENU_BAR_H + (atk->y - vy) * 16;
-  if (sxp < 0 || syp < MAP_MENU_BAR_H || atk->x - vx >= cols || atk->y - vy >= rows) {
+  const int sxp = (from_x - vx) * 16;
+  const int syp = MAP_MENU_BAR_H + (from_y - vy) * 16;
+  if (sxp < 0 || syp < MAP_MENU_BAR_H || from_x - vx >= cols || from_y - vy >= rows) {
     return;
   }
-  const int ddx = (def_x > atk->x) - (def_x < atk->x);
-  const int ddy = (def_y > atk->y) - (def_y < atk->y);
+  const int ddx = (def_x > from_x) - (def_x < from_x);
+  const int ddy = (def_y > from_y) - (def_y < from_y);
   /* Outbound only, ending one full tile out (16px at zoom 0) as DOS's
    * pixel-step loop does; the snap home below is a single frame. */
   static const int k_step[3] = {6, 11, 16};
@@ -867,15 +851,7 @@ void game_combat_watch(
   /* port_bugs.md #241: the lunge must draw ON TOP of everything and not fight its
    * own static sprite — hide the attacker from the base frame (as the move
    * slide does) and blit the chrome'd copy after game_render. */
-  ColonizeUnit* mu = units_get((ColonizeUnitPool*)pool, attacker_id);
   const bool was_active = mu ? mu->active : false;
-  /* port_bugs.md #365: same chrome standing or lunging — see game_move_watch. */
-  const bool bump_stacked = units_map_stack_chrome(pool, attacker_id);
-  const bool bump_damaged = (atk->col1_flags15 & 0x80u) != 0;
-  /* Read the chrome corner before the piece is hidden — see game_move_watch:
-   * units_display_type_index resolves through units_get_const, which skips
-   * inactive units, so an in-loop call gives -1 and the default corner. */
-  const int bump_dtype = units_display_type_index(pool, attacker_id);
   if (mu) {
     mu->active = false;
   }
@@ -888,12 +864,11 @@ void game_combat_watch(
       sprite,
       sxp + ddx * k_step[f],
       syp + ddy * k_step[f],
-      bump_dtype,
-      atk->nation_id,
-      /* as above: the lunging piece keeps its own letter (or plan glyph, #1177a) */
-      unit_chrome_unit_badge_index(atk, atk->orders),
-      bump_stacked,
-      bump_damaged,
+      dtype,
+      nation_id,
+      badge,
+      stacked,
+      damaged,
       /* port_bugs.md: same palette rule as the move slide — raw index went pink. */
       &pal
     );
@@ -917,6 +892,66 @@ void game_combat_watch(
   platform_present(game->platform, &fb, &pal);
 }
 
+void game_combat_watch(
+  void* user, const ColonizeUnitPool* pool, int attacker_id, int def_x, int def_y
+) {
+  ColonizeGameState* game = (ColonizeGameState*)user;
+  const ColonizeUnit* atk = pool ? units_get_const(pool, attacker_id) : NULL;
+  if (!game || !game->platform || !game->world_map_ok || (!atk && attacker_id >= 0)) {
+    return;
+  }
+  /* Only when the human can see the fight (live sight of either tile). */
+  const int hn = game->human_nation;
+  if (!map_tile_seen_by(&game->world_map, def_x, def_y, hn)) {
+    return;
+  }
+  /* Centre at every zoom; only the lunge is zoom-0-only. */
+  game_set_view_center(game, def_x, def_y);
+  if (!atk) {
+    return; /* attacker_id < 0: centre only (fort phantom without an Artillery row) */
+  }
+  if (game->map_zoom != 0 || !game->unit_icons_ok) {
+    return;
+  }
+  /* port_bugs.md #365: same chrome standing or lunging — see game_move_watch. */
+  game_lunge_frames(
+    game, units_map_sprite(pool, attacker_id), atk->x, atk->y, def_x, def_y,
+    /* units_display_type_index skips inactive units: read before the hide */
+    units_display_type_index(pool, attacker_id), atk->nation_id,
+    /* the lunging piece keeps its own letter (or plan glyph, #1177a) */
+    unit_chrome_unit_badge_index(atk, atk->orders), units_map_stack_chrome(pool, attacker_id),
+    (atk->col1_flags15 & 0x80u) != 0, units_get((ColonizeUnitPool*)pool, attacker_id)
+  );
+}
+
+/* FUN_364b_03f6 fort phantom (FUN_478c_002c, graphic byte *DS:0x52cc = the
+ * Artillery row icon): centre on the ship, then lunge from the colony tile.
+ * Nothing enters the pool, so no piece is hidden. */
+void game_phantom_lunge(
+  void* user, const ColonizeUnitPool* pool, int type_index, int nation_id,
+  int from_x, int from_y, int def_x, int def_y
+) {
+  ColonizeGameState* game = (ColonizeGameState*)user;
+  const ColonizeUnitType* type = pool ? units_type(pool, type_index) : NULL;
+  if (!game || !type || !game->platform || !game->world_map_ok) {
+    return;
+  }
+  if (!map_tile_seen_by(&game->world_map, def_x, def_y, game->human_nation)) {
+    return;
+  }
+  game_set_view_center(game, def_x, def_y);
+  if (game->map_zoom != 0 || !game->unit_icons_ok) {
+    return;
+  }
+  ColonizeUnit ph;
+  memset(&ph, 0, sizeof ph);
+  ph.nation_id = nation_id;
+  ph.type_index = type_index;
+  game_lunge_frames(
+    game, type->icon_sprite, from_x, from_y, def_x, def_y, type_index, nation_id,
+    unit_chrome_unit_badge_index(&ph, 0), false, false, NULL
+  );
+}
 /*
  * DOS "fizzle" present — FUN_12d6_0000 behind thunk FUN_281f_03ea. The DOS
  * combat tail (FUN_5fef_1b0e), the tile-wipe (FUN_5fef_36fe) and the LCR

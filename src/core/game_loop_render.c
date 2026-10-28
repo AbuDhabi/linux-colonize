@@ -1595,10 +1595,32 @@ static bool game_load_ff_asset(
   return true;
 }
 
+/*
+ * DOS keeps rotating the ramp under a report: FUN_3f41_0000 only reprograms DAC
+ * 152..251 from the plate, so the 120..127 ramp stays live (FUN_1a0a_007a). The port's
+ * frame palette is a per-frame copy of the plate palette (game_loop_palette), so the
+ * rotation is applied to that plate's palette in place. NULL = no report plate.
+ */
+static ColonizePalette* game_water_cycle_report_palette(ColonizeGameState* game) {
+  if (!game->in_report || !game->reports_ok) {
+    return NULL;
+  }
+  ColonizeReportsView* r = &game->reports;
+  if (game->report_id == COLONIZE_REPORT_CONGRESS && !game->congress_page2 &&
+      r->congress_page1_bg_ok && r->congress_page1_bg.has_palette) {
+    return &r->congress_page1_bg.palette;
+  }
+  if (r->background_ok[game->report_id] && r->backgrounds[game->report_id].has_palette) {
+    return &r->backgrounds[game->report_id].palette;
+  }
+  return NULL;
+}
+
 void game_water_cycle_tick(ColonizeGameState* game) {
+  ColonizePalette* report_pal = game_water_cycle_report_palette(game);
   if (game->water_cycle_count == 0 || !game->map_palette_ok ||
-      game_screen_owns_display(game) || game->woodcut.open || game->declaration.open ||
-      game->opening.open || game->closing.open) {
+      (game_screen_owns_display(game) && !report_pal) || game->woodcut.open ||
+      game->declaration.open || game->opening.open || game->closing.open) {
     return;
   }
   if (game->col1.head.game_options.water_color_cycling_off != 0) {
@@ -1611,7 +1633,7 @@ void game_water_cycle_tick(ColonizeGameState* game) {
     game->water_cycle[i].last_ms = game->elapsed_ms;
     const int start = game->water_cycle[i].start;
     const int len = game->water_cycle[i].length;
-    uint8_t (*rgb)[3] = game->map_palette.rgb;
+    uint8_t (*rgb)[3] = report_pal ? report_pal->rgb : game->map_palette.rgb;
     uint8_t top[3];
     memcpy(top, rgb[start + len - 1], 3);
     memmove(rgb[start + 1], rgb[start], (size_t)(len - 1) * 3);
@@ -2157,6 +2179,7 @@ void game_set_platform(ColonizeGameState* game, ColonizePlatform* platform) {
   game->platform = platform;
   units_set_combat_human_nation(game->human_nation);
   units_set_camera_edge_hook(game_camera_edge_center, game);
+  units_set_phantom_lunge_hook(game_phantom_lunge, game);
 }
 
 void game_destroy(ColonizeGameState* game) {
@@ -2168,6 +2191,7 @@ void game_destroy(ColonizeGameState* game) {
   units_set_combat_dissolve(NULL, NULL);
   units_set_combat_popup_pump(NULL, NULL);
   units_set_camera_edge_hook(NULL, NULL);
+  units_set_phantom_lunge_hook(NULL, NULL);
   ai_euro_set_watch(NULL, NULL);
   units_set_spawn_gate_hook(NULL, NULL);
   units_set_spawn_refused_hook(NULL);

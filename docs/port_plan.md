@@ -165,7 +165,7 @@ ends:
 
 | # | Deferred | Where it lives | Minimum-thin rule |
 |---|----------|----------------|-------------------|
-| D4 | Pixel-perfect graphics / VGA-identical chrome. **Done:** the wood dialog frame every meet / diplo / king popup uses (`popup.c` + `ai_popup_render.c`, `FUN_6f74_14c6` / `248e`), king letter (`KING_LETTER`, `declaration.c`), Congress F3 both pages, F8 report (`FUN_3f41_2548`), trade-route editor (`trade_screen.c`, `FUN_647e_*`), Combat Analysis (`combat_analysis_render.c`, `FUN_636c_0000`, pixel-diffed against a DOSBox-X capture 2026-10-28); `DECLARAT.PIK` is unused leftover (signing uses DECOIND.PIK). **Left:** fort-fire attacker sprite (type-0x17 phantom lunge; camera done). There is no FA editor in DOS beyond the F8 report | old W5.1–W5.3, T5.x | Content + layout correct (P2, P11); frames may stay port-drawn |
+| D4 | Pixel-perfect graphics / VGA-identical chrome. **Done:** the wood dialog frame every meet / diplo / king popup uses (`popup.c` + `ai_popup_render.c`, `FUN_6f74_14c6` / `248e`), king letter (`KING_LETTER`, `declaration.c`), Congress F3 both pages, F8 report (`FUN_3f41_2548`), trade-route editor (`trade_screen.c`, `FUN_647e_*`), Combat Analysis (`combat_analysis_render.c`, `FUN_636c_0000`, pixel-diffed against a DOSBox-X capture 2026-10-28); `DECLARAT.PIK` is unused leftover (signing uses DECOIND.PIK). **Fort fire (`FUN_364b_03f6`) done:** camera + Artillery-sprite lunge. **Left:** nothing in D4. There is no FA editor in DOS beyond the F8 report | old W5.1–W5.3, T5.x | Content + layout correct (P2, P11); frames may stay port-drawn |
 
 D1 (rival Europeans), D2 (Indian AI 1:1), D5 (music: the user judged it done;
 confirmed again 2026-10-26) and D6 (COLDIG SFX) are closed and D3

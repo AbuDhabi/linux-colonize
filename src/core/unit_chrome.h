@@ -63,12 +63,6 @@ void unit_chrome_set_crown_nation(int nation_id);
  * automatically when the crown nation is set to -1. */
 void unit_chrome_set_rebel_nation(int nation_id);
 int unit_chrome_rebel_nation(void);
-/* US flag palette picks (navy hoist / red / white stripes) for the rebel
- * colony marker. Any output may come back -1 without a palette. */
-void unit_chrome_rebel_flag_colors_for_palette(
-  const ColonizePalette* active_palette, int* out_navy, int* out_red, int* out_white
-);
-
 /*
  * The two nation shades DOS's @COUNTRY table (DS:0x848) encodes as index
  * and index-8 — the bright fill and its darker companion — nearest-matched
@@ -191,17 +185,6 @@ void unit_chrome_blit_unit_for_palette(
   bool show_stack,
   bool damaged,
   const ColonizePalette* active_palette
-);
-
-/*
- * Nation light/dark palette indices (nearest match within active_palette,
- * -1/-1 if active_palette is NULL or nation_id isn't a 0..3 European) for
- * recoloring ICONS.SS #0-3's stored blue colony-flag pixels to the owning
- * nation. See unit_chrome.c for the full explanation and
- * colony_map_icon_flag_pixels (colony.h) for the fixed pixel mask.
- */
-void unit_chrome_nation_flag_shades_for_palette(
-  int nation_id, const ColonizePalette* active_palette, int* out_light, int* out_dark
 );
 
 /*

@@ -1036,6 +1036,8 @@ bool units_fort_vs_ship(
   ColonizeUnitPool* pool,
   int attack_str,
   int fort_nation,
+  int fort_x,
+  int fort_y,
   int defender_id,
   ColonizeDosRng* rng,
   const ColonizeCol1Save* col1,
@@ -1115,11 +1117,23 @@ bool units_fort_vs_ship(
     );
     units_combat_maybe_present_analysis(col1, &eng, fort_nation, def->nation_id);
   }
-  /* 1b0e centres on the defender tile after the analysis (as
-   * units_combat_present_and_roll does); the phantom attacker is not a pool
-   * unit here, so the watch gets attacker -1 = centre only. */
+  /* 1b0e bumps the attacker toward the defender after the analysis (as
+   * units_combat_present_and_roll does). 03f6's attacker is the FUN_478c_002c
+   * phantom whose graphic byte is *DS:0x52cc = @UNIT row 11 (Artillery) icon
+   * (FUN_478c_0002 stamps it into row 0x17 +2), made at the colony tile and
+   * removed by FUN_291f_0a06 after the fight. The port has no row 0x17 and
+   * never puts the phantom in the pool (a spawn could hit @TOOMANYUNITS and
+   * the destroy touches the census / settlement bits), so the UI draws the
+   * Artillery row's lunge from the colony tile directly. */
   if (g_units_combat_watch && units_combat_human_involved(col1, def->nation_id, fort_nation)) {
-    g_units_combat_watch(g_units_combat_watch_user, pool, -1, def->x, def->y);
+    const int ati = units_kind_type_index(pool, UNITS_KIND_ARTILLERY);
+    if (g_units_phantom_lunge && ati >= 0) {
+      g_units_phantom_lunge(
+        g_units_phantom_lunge_user, pool, ati, fort_nation, fort_x, fort_y, def->x, def->y
+      );
+    } else {
+      g_units_combat_watch(g_units_combat_watch_user, pool, -1, def->x, def->y);
+    }
   }
   if (atk_wins) {
     /*
@@ -1677,7 +1691,7 @@ static int units_coastal_fort_fire_impl(
            */
           units_combat_pump_popups();
         }
-        if (units_fort_vs_ship(units, atk, col->nation_id, targets[t], rng, col1, fort_label)) {
+        if (units_fort_vs_ship(units, atk, col->nation_id, col->x, col->y, targets[t], rng, col1, fort_label)) {
           sunk++;
           if (human_chrome && status && status_size > 0) {
             snprintf(status, status_size, "Coastal fort sank a ship.");

@@ -31,6 +31,7 @@ static void unit_test_dissolve_hook(void* user, int phase) {
   }
 }
 
+static int s_lunge_n, s_lunge_type, s_lunge_nation, s_lunge[4];
 static int s_cam[8], s_cam_n, s_watch_n, s_watch_id, s_watch_x, s_watch_y;
 static void unit_test_camera_hook(void* user, int x, int y) {
   (void)user;
@@ -44,11 +45,20 @@ static void unit_test_watch_hook(void* user, const ColonizeUnitPool* pool, int i
   (void)user; (void)pool;
   s_watch_n++; s_watch_id = id; s_watch_x = x; s_watch_y = y;
 }
+static void unit_test_phantom_lunge_hook(
+  void* user, const ColonizeUnitPool* pool, int type_index, int nation_id,
+  int fx, int fy, int dx, int dy
+) {
+  (void)user; (void)pool;
+  s_lunge_n++; s_lunge_type = type_index; s_lunge_nation = nation_id;
+  s_lunge[0] = fx; s_lunge[1] = fy; s_lunge[2] = dx; s_lunge[3] = dy;
+}
 
 static int unit_fort_fire_dissolve_and_europe(void) {
   ColonizeUnitPool pool;
   memset(&pool, 0, sizeof(pool));
-  pool.type_count = 1;
+  pool.type_count = 2;
+  pool.types[1].kind_plus1 = (int)UNITS_KIND_ARTILLERY + 1; /* 03f6's lunge body */
   snprintf(pool.types[0].name, sizeof(pool.types[0].name), "Merchantman");
   pool.types[0].movement = 5;
   pool.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
@@ -113,6 +123,7 @@ static int unit_fort_fire_dissolve_and_europe(void) {
   s_cam_n = s_watch_n = 0;
   units_set_camera_edge_hook(unit_test_camera_hook, NULL);
   units_set_combat_watch(unit_test_watch_hook, NULL);
+  units_set_phantom_lunge_hook(unit_test_phantom_lunge_hook, NULL);
 
   int rc = 0;
   char st[96];
@@ -124,11 +135,14 @@ static int unit_fort_fire_dissolve_and_europe(void) {
   );
 
   /* FUN_364b_03f6 raw 57100 (0352): one camera edge-scroll onto the colony; 1b0e
-   * then centres on the ship's tile (attacker -1: the phantom is no pool unit). */
-  if (s_cam_n != 1 || s_cam[0] != 2 || s_cam[1] != 2 || s_watch_n != 1 || s_watch_id != -1 ||
-      s_watch_x != 3 || s_watch_y != 2) {
-    fprintf(stderr, "fortfire2: camera/watch hooks wrong (cam %d@%d,%d watch %d id %d @%d,%d)\n",
-            s_cam_n, s_cam[0], s_cam[1], s_watch_n, s_watch_id, s_watch_x, s_watch_y);
+   * then lunges the Artillery-row phantom from the colony at the ship's tile.
+   * The phantom never enters the pool and the plain watch is not used. */
+  if (s_cam_n != 1 || s_cam[0] != 2 || s_cam[1] != 2 || s_watch_n != 0 || s_lunge_n != 1 ||
+      s_lunge_type != 1 || s_lunge[0] != 2 || s_lunge[1] != 2 || s_lunge[2] != 3 ||
+      s_lunge[3] != 2) {
+    fprintf(stderr, "fortfire2: camera/lunge hooks wrong (cam %d@%d,%d watch %d lunge %d t%d %d,%d->%d,%d)\n",
+            s_cam_n, s_cam[0], s_cam[1], s_watch_n, s_lunge_n, s_lunge_type, s_lunge[0],
+            s_lunge[1], s_lunge[2], s_lunge[3]);
     rc = 1;
   }
   /* #464: phase 0 then phase 1, exactly one pair (one salvo). */
@@ -195,6 +209,7 @@ static int unit_fort_fire_dissolve_and_europe(void) {
   units_set_combat_dissolve(NULL, NULL);
   units_set_camera_edge_hook(NULL, NULL);
   units_set_combat_watch(NULL, NULL);
+  units_set_phantom_lunge_hook(NULL, NULL);
   units_set_combat_europe(NULL);
   units_set_combat_colonies(NULL);
   units_set_combat_human_nation(-1);

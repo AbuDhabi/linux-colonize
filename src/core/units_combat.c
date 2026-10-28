@@ -4109,6 +4109,8 @@ void units_reset_hooks(void) {
   g_units_combat_watch_user = NULL;
   g_units_camera_edge = NULL;
   g_units_camera_edge_user = NULL;
+  g_units_phantom_lunge = NULL;
+  g_units_phantom_lunge_user = NULL;
   g_units_dissolve = NULL;
   g_units_dissolve_user = NULL;
   /* g_units_raid_repelled stays: it is sim wiring set once at load by

@@ -10,6 +10,7 @@ Reference: [combat.md](combat.md) for overview and entry points.
 - [Ship-slow](#ship-slow-units_ship_slow_scan-2026-09-16)
 - [Coastal fort fire](#coastal-fort-fire)
 - [Founding Father hooks](#founding-father-hooks)
+- [Pixel reference](#pixel-reference)
 - [PARKED](#parked)
 - [Implementation map](#implementation-map)
 - [FUN_* index](#fun-index)
@@ -42,11 +43,11 @@ dual column. Shown **before** the combat roll (strengths known; no outcome yet).
   rows start at `frame_y+0x17`, pitch `0x14`, text y = row top + 6; unit
   chrome and row icons blit at (pen, row top) (muskets +2); label at
   pen + indent, value right-aligned at pen + `0x50` (636c:10b1-10b9, 01aa).
-  Reproduce: save with a human Veteran Soldier next to a French Soldier,
-  `tools/dosbox_trace.py` load slot 0, `down`; capture kept in the session
-  scratchpad only. One residual: the DOS defender flag letter showed a
-  non-`-` order letter (AI-normalised order of the French unit after load), a
-  state difference, not a layout one.
+  Row pictures: the 20px colony / village sprites are centred in a 16x16 cell
+  at the pen (`x + (16-w)/2`, 2px left of it), as 112b_0c64 / 0790 do on the map; the
+  village additionally gets the tribe tint marks (tech 0: 3, tech 1: 2, tech 2+: none,
+  same table as `map_panel.c`) and, for a capital, the ICONS.SS #17 starburst.
+  See "Pixel reference".
   1. Centered title `COMBAT ANALYSIS` (LABELS.TXT)
   2. Header row per column: unit chrome + type name, **baseline** strength
      right-aligned (`NAMES` attack/defense byte from `base_combat` / DOS
@@ -201,7 +202,7 @@ Deep DOS notes: [`coastal_fort_fire.md`](../original_sources_annotated/turn/coas
 
 **Analysis (port_bugs.md #261):** `units_fort_vs_ship` presents Combat Analysis
 pre-roll (attacker_id −1, `eng.atk_label` = "<Colony> Fort/Fortress", battery
-strength as base; Drake row on scaled defense). **Camera ported (D4):** 03f6's `FUN_281f_0352` (-> `FUN_1984_02fc` edge-test scroll onto the colony, raw 57100) fires before @FORTFIRE via `units_set_camera_edge_hook` (`game_camera_edge_center`), and the 1b0e defender-tile centre goes through the combat watch with attacker -1. **Not materialised (no DOS row):** the type-`0x17` temp attacker (graphic/name from the `DS:0x5372` scratch row, `0x537d` = strength, id bump + `0a06` delete) is not a pool unit: the port has no `@UNIT` row 0x17 and the pool slot is unobservable, so the attacker stays id -1 and the fort-icon lunge sprite is not drawn.
+strength as base; Drake row on scaled defense). **Camera ported (D4):** 03f6's `FUN_281f_0352` (-> `FUN_1984_02fc` edge-test scroll onto the colony, raw 57100) fires before @FORTFIRE via `units_set_camera_edge_hook` (`game_camera_edge_center`), and the 1b0e defender-tile centre plus lunge go through `units_set_phantom_lunge_hook` (`game_phantom_lunge`; plain combat watch with attacker -1 only when the pool has no Artillery row). **Lunge sprite ported:** 03f6's attacker is the `FUN_478c_002c` phantom (type 0x17, at the colony tile). Its graphic byte is `*DS:0x52cc` = `@UNIT` row 11 (Artillery) icon, passed `0a20` -> `thunk 2a1f_01bc` -> `FUN_478c_0002` which stamps it into row 0x17 `+2` (`0x5374`); `0x5372` (+0) = the Fort/Fortress name word, `0x5377/78` = strength. So the 1b0e bump draws the Artillery sprite from the colony toward the ship. The port has no row 0x17 and never puts the phantom in the pool (a spawn could raise @TOOMANYUNITS, and the destroy path touches the census and settlement bits), so `units_fort_vs_ship` hands the Artillery row, fort nation and colony tile to the phantom-lunge hook, which draws the bump UI-only; fired only when the combat watch is installed and a human is involved. Row 0x17's attack/defense/`0x537d` are unused by the port (strength computed in `units_fort_vs_ship`).
 
 ---
 
@@ -215,6 +216,41 @@ strength as base; Drake row on scaled defense). **Camera ported (D4):** 03f6's `
 | Cortes / Sepulveda | Conquest treasure **bonus** (not a gate — see above) / convert-join on native fallout | `units_try_native_settlement_fallout` |
 
 ---
+
+## Pixel reference
+
+`unit_combat_analysis_pixels` (`tests/unit/test_combat_analysis_pixels.c`) renders six real
+engagements and compares the whole frame with DOSBox-X screenshots of VICEROY.EXE:
+`test-saves-combat/NAME.SAV` is the fixture the DOS run loaded, `NAME.dos.ppm` the 214xN crop of
+the DOS screenshot (cursor included, masked in the test). Cases: Soldier vs Soldier in the open
+(cheat footer, terrain row icon), Soldier vs empty colony with Stockade / Fort, Artillery vs empty
+colony, Soldier vs Sioux camp, vs Sioux capital (village rows). The cheat footer roll is DOS's wall-
+clock draw: the test searches a seed for the captured value.
+
+Recipe (docs/dos_trace.md): `sav_json` the fixture (add a human unit next to the target; units
+appended to `units[]`, `head.unit_count`, `head.active_unit`), `dosbox_trace.py setup W --save X.SAV`,
+`start`, `send load.py` (`d.load_slot(0)`), keys `w` then Enter (dismiss the soldier hint), then
+the direction key (village: Enter on "Attack Village" after the woodcut), `d.shot('u.png')`;
+crop (53, 100-(h>>1), 214, h) at 1x. Four sessions can run side by side on `DOSBOX_TRACE_DISPLAY=:62..`.
+A DOS unit moved by hand is not on the colony tile chain: a Soldier edited onto an empty
+colony tile was ignored as defender by DOS (it still spawned the militia phantom).
+
+**Known deltas, all outside `combat_analysis_render.c` (masked in the test, fix then drop the mask):**
+- *Militia header.* DOS's phantom defender of an empty colony (the 0x200 / `0x8d03 |= 2` arm,
+  FUN_5fef_1b0e raw 100418-100431, 636c asm 0x0fc-0x12b) prints the stand-in colonist's PROFESSION
+  name and picks that profession's icon (`FUN_281f_0c18(unit+0x315b)`) in the header AND the cheat
+  footer ("Pioneer"), strength 1; `combat_analysis.c` names the unit type ("Colonists") with the
+  Colonists icon.
+- *Tribe colour.* DS:0x848 at run time is `12,9,14,13, 97,149,54,87, 67,111,118,71` (read from the
+  DOS process after a load); `unit_chrome.c` `k_tribe_colors` holds `15,149,54,11,67,111,117,71`
+  (initial EXE image). Sioux (nation 10) flags and village tint marks are palette 118 in DOS, 117 in
+  the port. Nations 4 and 7 differ too (97 / 87 vs 15 / 11).
+- *Plan badge glyph.* DOS draws the AI plan glyph (`?` = plan byte 0x3f, cheat bit + DS:0x894 & 8)
+  one pixel right of where `unit_chrome_draw.c` centres the glyph's ink. (The earlier "order letter"
+  mismatch was this: not a state difference. The port already implements the glyph; the harness
+  just has to enable it, `unit_chrome_set_plan_nations`.)
+- *Fortification byte 2.* An AI colony with `buildings.fortification = 2` shows "Colony +100%" in
+  DOS (neither a tier name nor 50); the port prints Stockade. Only bytes 0, 1, 3 are in the test.
 
 ## PARKED
 
