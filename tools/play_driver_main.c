@@ -58,6 +58,9 @@
  *                               (refused on native land at peace: the screen asks @INDIANLAND)
  *   work N CI B                 colonist CI of colony N into @BUILDING row B (as `hit` prints)
  *   build N BID [queue]         colony N builds BID (@BUILDING row, or unit code 42 artillery..)
+ *   load UID CARGO [AMT]       transport UID in a colony loads AMT (default 100) of CARGO
+ *   unload UID [CARGO]          transport UID in a colony unloads every hold (of CARGO)
+ *   export N CARGO              toggle CARGO on colony N's Custom House checklist
  *   equip UID ROLE              unit UID on a colony tile takes role ROLE (COLONIZE_EJECT_*, 4 dragoon)
  *   admit UID                   unit UID on a colony tile joins that colony (prints colonist index)
  *   eject N CI ROLE             colonist CI of colony N leaves as ROLE (COLONIZE_EJECT_*, 0 colonist);
@@ -1309,6 +1312,45 @@ static bool command(char* line) {
     if (!c || !game_colony_apply_outside_role(&g_game->colonies, c, &g_game->units, a1, a2)) {
       printf("ERR equip refused\n");
     }
+    ok = flush_frames(2);
+  } else if (strcmp(op, "export") == 0 && argc > 2) {
+    /* export N CARGO: toggle CARGO on colony N's Custom House checklist (the colony
+     * screen's Custom House popup row). */
+    if (a1 < 0 || a1 >= COLONIZE_COLONIES_MAX || !g_game->colonies.colonies[a1].active ||
+        g_game->colonies.colonies[a1].nation_id != g_game->human_nation) {
+      printf("ERR no colony %d of yours\n", a1);
+      return true;
+    }
+    ColonizeColony* c = &g_game->colonies.colonies[a1];
+    if (!colonies_toggle_custom_house_cargo(&g_game->colonies, c->id, a2)) {
+      printf("ERR export refused\n");
+    }
+    printf("EXPORT %s cargo %d %s\n", c->name, a2,
+           europe_custom_house_cargo_enabled(c->custom_house_bits, a2) ? "on" : "off");
+    ok = flush_frames(2);
+  } else if ((strcmp(op, "load") == 0 && argc > 2) || (strcmp(op, "unload") == 0 && argc > 1)) {
+    /* load UID CARGO [AMT] / unload UID [CARGO]: cargo between a transport and the colony
+     * it stands in, as the colony screen's dock drags do (unload: every hold, or every hold
+     * of CARGO; the warehouse-full excess stays aboard). */
+    const ColonizeUnit* u = units_get(&g_game->units, a1);
+    const int cid = u && u->nation_id == g_game->human_nation ? colonies_id_at(&g_game->colonies, u->x, u->y) : -1;
+    if (cid < 0) {
+      printf("ERR %s: unit %d is not in a colony of yours\n", op, a1);
+      return true;
+    }
+    int moved = 0;
+    if (op[0] == 'l') {
+      const int amt = argc > 3 ? atoi(argv[3]) : 100;
+      moved = colonies_transfer_to_unit(&g_game->colonies, cid, &g_game->units, a1, a2, amt);
+    } else {
+      bool full = false;
+      for (int h = COLONIZE_UNIT_CARGO_MAX - 1; h >= 0; --h) {
+        if (u->hold_goods_amount[h] > 0 && (argc < 3 || u->hold_goods_type[h] == a2)) {
+          moved += colonies_transfer_from_unit(&g_game->colonies, cid, &g_game->units, a1, h, &full);
+        }
+      }
+    }
+    printf("%s %d moved %d\n", op[0] == 'l' ? "LOAD" : "UNLOAD", a1, moved);
     ok = flush_frames(2);
   } else if (strcmp(op, "build") == 0 && argc > 2) {
     /* build N BID [queue]: colony N's construction pick, as a click (or a Shift-click with
