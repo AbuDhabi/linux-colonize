@@ -1121,8 +1121,5 @@ void reports_render_indian(
       reports_draw_line(font, fb, REPORTS_INDIAN_HORSES_X, stats_y, buf, REPORTS_INDIAN_TEXT_COLOR);
     }
   }
-
-  if (n == 0) {
-    reports_draw_line(font, fb, 8, REPORTS_INDIAN_ROW0_Y, "No tribes contacted yet.", 14);
-  }
+  /* FUN_3f41_010a draws no empty-state line when no tribe is met. */
 }

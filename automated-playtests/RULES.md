@@ -1,6 +1,6 @@
 # Rules for player agents
 
-Read this before playing a campaign. It holds what campaigns 1-6 learned, so
+Read this before playing a campaign. It holds what campaigns 1-7 learned, so
 you do not need to read game source to learn the rules. Read source only to
 confirm a suspected bug.
 

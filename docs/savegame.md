@@ -144,9 +144,9 @@ JSON document field-for-field (this doc's section map + save_format_map.md's
 atlas, named substructs for every bitfield/enum) and back:
 
 ```
-build/sav_json COLONY00.SAV COLONY00.json   # SAV -> JSON
-build/sav_json COLONY00.json COLONY00.SAV   # JSON -> SAV
-build/sav_json COLONY00.SAV                 # defaults to COLONY00.SAV.json
+build/debug/sav_json COLONY00.SAV COLONY00.json   # SAV -> JSON
+build/debug/sav_json COLONY00.json COLONY00.SAV   # JSON -> SAV
+build/debug/sav_json COLONY00.SAV                 # defaults to COLONY00.SAV.json
 ```
 
 Opaque/pad byte blobs and the four raw map planes (tile/mask/path/seen) are

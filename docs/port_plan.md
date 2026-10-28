@@ -7,11 +7,10 @@ a placeholder); that bar was met 2026-09-03. Rival and Indian AI were then
 ported to logic level (deferred track, done 2026-09-08). Seed determinism with
 DOS was dropped as a goal 2026-10-23 ([project_goals.md](project_goals.md)
 "Determinism"). Music was accepted as done by the user (D5 closed); pixel-exact
-art stays deferred (D4 below).
+art (D4 below) closed 2026-10-28.
 
-**Current posture (2026-10-26): the port is feature-complete.** Every rule
-system of the DOS game is ported from the decomp and plays end to end (the
-few exceptions are under "Remaining work"):
+**Current posture (2026-10-28): the port is feature-complete.** Every rule
+system of the DOS game is ported from the decomp and plays end to end:
 playability tracks **P1–P11 are closed** (final user passes 2026-09-03), the
 deferred AI track is **done** (D1 closed 2026-09-07g, D2 closed at logic level
 2026-09-08, D3 dropped as a goal 2026-10-23). Evidence:
@@ -25,14 +24,16 @@ deferred AI track is **done** (D1 closed 2026-09-07g, D2 closed at logic level
   [automated-playtests/RULES.md](../automated-playtests/RULES.md)) each won the
   War of Independence, all four nations, one per difficulty from Discoverer
   to Viceroy; every bug they found is fixed or refuted (#1234–#1272).
-- [port_bugs.md](port_bugs.md) had no OPEN rows on 2026-10-26 (the docs
-  review that day filed and fixed #1273-#1286); the pending-verification archive was emptied
+  Campaigns 6–8 (England/Discoverer: 6 and 7 lost, 8 held the war to the
+  1850 end as briefed); their bugs were fixed as #1298–#1301.
+- [port_bugs.md](port_bugs.md) has no OPEN rows (2026-10-28; the docs
+  review of 2026-10-26 filed and fixed #1273-#1286); the pending-verification archive was emptied
   into [archive/bugs_closed.md](archive/bugs_closed.md) the same day.
 
-What is left is listed under "Remaining work" below, plus the deferred polish
-phase **D4** (pixel chrome).
+Nothing is left: "Remaining work" below is empty and the deferred polish
+phase **D4** (pixel chrome) closed 2026-10-28 with Combat Analysis.
 
-## Remaining work (2026-10-26)
+## Remaining work (2026-10-28)
 
 Not bugs in shipped features. Each is a known, bounded gap. Closed
 2026-10-26: the ally-pick prompt (#1287), DOS `HALLFAME.DAT` (#1289), the
@@ -177,8 +178,7 @@ ported ([mapedit.md](mapedit.md)).
 
 Done. History, `FUN_*` inventory and the full method notes:
 [archive/port_plan_deferred_ai_track.md](archive/port_plan_deferred_ai_track.md).
-What remains AI-side is the D4 "Left" list above (fort-fire temporary
-attacker). T5.1 wood frames, the FA
+Nothing remains AI-side: fort fire (`FUN_364b_03f6`), T5.1 wood frames, the FA
 `3f41` report and T5.3 F3 Congress are done.
 
 ## Updating this file

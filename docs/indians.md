@@ -19,7 +19,7 @@ status: [manual_gap.md](manual_gap.md) §Indians and the sections below.
 | [`indian_contact.md`](../original_sources_annotated/ai/indian_contact.md) (+ trade / settlement / raid siblings) | Layer D contact / alarm / meet map |
 | [`Colonization.pdf`](../COLONIZE/Colonization.pdf) pp.67–78 | Manual Natives prose |
 | [fandom_col1994.md](fandom_col1994.md) §Natives | Tier-3 — Unverified until reconciled |
-| Port [`ai_contact.c`](../src/core/ai_contact.c), [`ai.c`](../src/core/ai.c), [`ai_diplo.c`](../src/core/ai_diplo.c), [`map_panel.c`](../src/core/map_panel.c), [`col1_save.h`](../src/core/col1_save.h) | Wired stand-ins; PARK comments name gaps |
+| Port [`ai_contact.c`](../src/core/ai_contact.c), [`ai.c`](../src/core/ai.c), [`ai_diplo.c`](../src/core/ai_diplo.c), [`map_panel.c`](../src/core/map_panel.c), [`col1_save.h`](../src/core/col1_save.h) | Ported (FUN_* cited at each site) |
 
 Col1 layouts: `ColonizeCol1Tribe` / `ColonizeCol1Indian` — field atlas in
 [save_format_map.md](save_format_map.md). Nation ids **4–11** = `@TRIBES` order

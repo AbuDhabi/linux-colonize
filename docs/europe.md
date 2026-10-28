@@ -99,7 +99,8 @@ DOS FUN_38fd_0718's own human test (raw 59120-59122):
 `*(int*)0x9e12 < 4 && *(char*)(0x9e12*0x34 + 0x543f) == 0` — the bound
 nation is a Euro nation under player control. Only then does the
 Dragoon roll use the difficulty byte as its bound; an AI nation uses 1.
-Refreshed wherever `difficulty` is (europe_nation_eot_tick), true until
+Refreshed wherever `difficulty` is (europe_tick_market_prices_w,
+europe_tick_immigration_pressure_w), true until
 a col1 says otherwise.
 
 ## EuropeScreen purchase_confirming
@@ -168,8 +169,10 @@ units are on the dock (`FUN_38fd_06c4`; `FUN_38fd_07c6` resets a past-the-end
 `DS:0x9e2c` to 0, raw 59162), then redraws Europe (`thunk_FUN_291f_0dfe`). Sailing the
 last ship, or a sail that empties the dock, puts the focus back on the market
 (`FUN_38fd_2a92` raw 60763-60770, `game_europe_sail_harbor`). Port:
-`game_europe_screen_help` (`game_loop_update.c`); Tab cycling (raw 66016-66038) is not
-ported.
+`game_europe_screen_help` (`game_loop_update.c`). Tab (raw 66016-66038) steps the focus
+market -> harbor -> dock and wraps, skipping the harbor while no ship is in port
+(`DS:0xfa2` = `harbor_ships`) and the dock while it is empty (`DS:0x9e2a` = `dock_count`),
+then refreshes the panels (`thunk_FUN_291f_0b18`); port: `game_europe_screen_keys`.
 
 ## Europe sale status line
 
@@ -719,8 +722,8 @@ Port of `FUN_38fd_2bfe(ship, 0)` (raw 60787-60900), port_bugs.md #1176. Opened
 by a left-button RELEASE over a harbor ship ICON (`FUN_38fd_2edc`; the exact
 test is `europe_harbor_ship_icon_at`, empty box space and passenger icons do
 not count, although the press still selects leniently) and by S / Space / Enter
-with a ship selected (`FUN_38fd_4f6e` 38fd:5364-5491; the port has no focus
-modes, a selected harbor ship is the ship focus). `game_europe_open_ship_menu`
+with a ship selected (`FUN_38fd_4f6e` 38fd:5364-5491; these keys do not read
+`focus` / DS:0xf9a, only F1 does: a selected harbor ship is the ship focus). `game_europe_open_ship_menu`
 raises a CHOICE (`AI_POPUP_TAG_EUROPE_SHIP_MENU`): title @EUROPESHIPCLICK
 (STRING0 = ship type name), rows = the lines of @EUROPESHIPOPTIONS under their
 DOS ids: 1 Move to front (`europe_harbor_move_to_front`, selects it), 2 Set sail

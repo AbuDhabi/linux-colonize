@@ -142,7 +142,7 @@ Topic hub (graphics, units, settlements, contact): [indians.md](indians.md); ala
 |----------------|--------|-------|
 | Land / naval attack | Done | Playable bar + fort bit7/Drydock + the `20e6` attack term (LAB_52aa) and `−0x6790` stance table; the village arm is now the full `4528` action dispatch (P8.8 human menu incl. Attack Village, AI attack via the `20e6` village arm, `ai_euro_land.c`), not the old invented warn CHOICE. VGA chrome D4 — [combat.md](combat.md) |
 | Capture colony | Done | `colonies_capture` on player enter (empty/cleared foreign Euro) + AI / combat paths; Indian raid abandons — [combat.md](combat.md) |
-| Stockade / fort / fortress defense % | Done | Live land combat via `157e` `local_1a`; coastal Fort/Fortress fire `units_coastal_fort_fire_pulse_w`. Attack MP (full exhaust, 2026-09-10) + close-hit bit7 + Drydock repair Done — [combat.md](combat.md) |
+| Stockade / fort / fortress defense % | Done | Live land combat via `157e` `local_1a`; coastal Fort/Fortress fire `units_coastal_fort_fire_colony_w` (colony EOT). Attack MP (full exhaust, 2026-09-10) + close-hit bit7 + Drydock repair Done — [combat.md](combat.md) |
 | Rival war / peace / privateers | Done | Euro bilateral war/ally/peace + Furs embargo + Privateer spawn (`ai_diplo_*`); Indian×Euro matrix + `153e` talk machine; the invented alliance machinery (ally-aid, FA gift, break trust) was retired 2026-09-06. The ally list carries GAME.TXT `@MILITARY` as its prompt (5bfb:2d59, fixed 2026-10-26, #1287). The F8 report is Done (`reports_render_foreign`, `FUN_3f41_2548`, [reports.md](reports.md)) |
 
 ### Founding Fathers and independence
@@ -150,7 +150,7 @@ Topic hub (graphics, units, settlements, contact): [indians.md](indians.md); ala
 | Manual feature | Status | Notes |
 |----------------|--------|-------|
 | FF election from liberty bells | Done | Side-table bell pool (DOS +0xc); peacetime threshold elect + WoI pool→intervention (**Done** 2026-08-22); century-weighted debate pick (`4345_06d2`/`015a` **Done**); all 25 Fathers wired (2026-08-28); KINGGALLEON2 **Done** 2026-08-27 (`FUN_5fef_1908`); F3 portrait grid **Done**; FF pool bridge load **Done** |
-| Pedia / F3 Congress report | Done | F3 page 1+2 match goldens (2026-08-25); debating highlight; leftover polish: fatter-than-DOS bell glyph, not a missing plate — [reports.md](reports.md) |
+| Pedia / F3 Congress report | Done | F3 page 1+2 match goldens (2026-08-25); debating highlight; both pages' pixel chrome closed in D4 (2026-10-28, [port_plan.md](port_plan.md)) — [reports.md](reports.md) |
 | Sons of Liberty %, declare independence | Done | SoL + auto-declare structural (`ai_king`); player confirm UI **Done** structural (`ai_popup`); `@INDEPENDENCE` letter OK **Done** thin; signing cinematic **Done** 2026-08-30 (`FUN_43f7_160a` → `src/core/declaration.c`: DECOIND.PIK + DEC-UPP/LOW/SQIG.SS quill animation; `DECLARAT.PIK` turned out to be an unreferenced leftover) — [sons_of_liberty.md](sons_of_liberty.md) |
 | REF invasion / revolution combat | Done | REF wave / war act structural; merc hire dialog **Done** structural (`ai_popup`); win/lose latches **Done** thin; `10f0` landing scorer + caps + Veteran 0x15 **Done** Phase 5; `backup_force[2]`/`[3]` index-swap bug fixed 2026-08-24 (was feeding the wrong pool formula into both the Man-O-War/`2022` merc-gate check and the Artillery land-troop drain — `ai_king_seed_backup_force_1a26` / `ai_king_merc_offer`, verified byte-for-byte against `FUN_43f7_10f0`/`FUN_43f7_0082`/`FUN_43f7_2022`); foreign MoW ship **Done** 2026-08-28 static (`port_plan.md` P5.5: the whole force is spawned player-controlled via `281f_095c(type, DS:0x5398, …)`; the Man-O-War takes the best water 8-neighbour of the colony — no foreign unit, −999 for a REF MoW, score = 1 + its land neighbours on the colony's continent without a colony — then Cont. Cav. ≤2 / Artillery ≤2 / Cont. Army = 6 − those, `+0x15` Veteran, unloaded at the colony, 5×5 reveal); signing cinematic **Done** 2026-08-30 (see the SoL row — DECOIND.PIK, not DECLARAT.PIK) |
 | F10 Colonization Score | Done | `FUN_41f2_0092` byte-faithful 2026-08-29 (`reports_compute_score`): every component + gate (gold ≥1000, villages, 0x53d0 rebel, Early Revolution from the 0x53a7/8 declare year ×2, REF-present bells/100 cap 100, Independence Achieved 100>>prior with ×(8+(8>>prior))/8 total, SCORING COMPLETE on 0x5382&0x10); conditional lines rendered in DOS order, `score.png` golden unchanged |
@@ -177,9 +177,9 @@ Topic hub (graphics, units, settlements, contact): [indians.md](indians.md); ala
 
 Every manual feature that exists in the shipped DOS game is ported (re-rated
 2026-10-26; no row is Partial or Missing). "Done thin" rows are behaviourally
-correct with port-drawn presentation, which is deferred phase D4. Gaps below
-this table's granularity are listed in [port_plan.md](port_plan.md)
-"Remaining work". The hidden demo and
+correct with port-drawn presentation; phase D4 (pixel chrome) closed
+2026-10-28 without redrawing them. [port_plan.md](port_plan.md) "Remaining
+work" is empty (2026-10-28). The hidden demo and
 autoplay (argv `-D`, CHEAT Set Human "None") are ported ([demo.md](demo.md)). The hidden DOS hot-seat
 mode is ported ([hotseat.md](hotseat.md)).
 

@@ -87,7 +87,7 @@ when the king runs (port_bugs.md #394/404/407).
 | Step | OpenCol | DOS |
 |------|-------|-----|
 | King / REF | `TURN_PROC_KING` step in `turn.c` → `ai_king_nation_turn_2424` (+ `ai_king_human_5e52_tail`; `ai_king_nation_turn` is a test-only wrapper) | `FUN_43f7_2424` via `291f_0a66` **inside** `3844_00f2` |
-| Year-end chrome | `turn_run_year_end_chrome` | `FUN_3844_0442` section B (thin) |
+| Year-end chrome | `turn_run_year_end_chrome` | `FUN_3844_0442` sections B–E |
 | Europe market | `europe_tick_market_prices` + one `@PRICEUP`/`@PRICEDOWN` OK dialog per cargo that crossed | `FUN_38fd_0058` (sibling of nation EOT `38fd_5e52`), phase 4 |
 | Human fog + MP refresh | `turn_reveal_fog_for_nation` + `turn_refresh_moves_for_nation` | Human refresh at act entry |
 | Human ticks | `units_tick_convert_outside_colony` (`@DEADCONVERTS`), `units_tick_ship_build_ready` (timer only), `units_tick_drydock_repair` (`@REFIT`), `turn_route_damaged_ships`, King's Galleon offer | Human Convert expiry inside that nation’s `00f2`; `FUN_465b_0000` → `FUN_5fef_1908` for the Galleon |
@@ -173,7 +173,7 @@ Major thunks (catalog):
 | KING market | `38fd_0058` / `5e52` family | `europe_tick_market_prices` | **Done** — attrition + colony→`price_group` half + phases 2–3 pressure |
 | KING human refresh | return to Move Pieces | MP + select next | **Done** |
 | KING autosave | `130d_0172` | autosave flags | **Done** |
-| Year-end chrome | `3844_0442` | `turn_run_year_end_chrome` | **Done** — B/C1(+fleet+REF+map+latch)/C2/D(+auto-declare)/E(+richest), chrome thin; Hall of Fame ported (`HALLFAME.DAT`, port_bugs.md #1289; [reports_score.md](reports_score.md)) |
+| Year-end chrome | `3844_0442` | `turn_run_year_end_chrome` | **Done** — B/C1(+fleet+REF+map+latch)/C2/D(+auto-declare)/E(+richest); Hall of Fame ported (`HALLFAME.DAT`, port_bugs.md #1289; [reports_score.md](reports_score.md)) |
 | Demo / autoplay tail | `130d` `0x826` / `0x828` tail | `game_autoplay_after_turn` | **Done** — [demo.md](demo.md) |
 
 ### Known reshape (do not paper over)
@@ -207,7 +207,7 @@ broke the Dutch TURN2→3 first contact).
 
 ---
 
-## Open RE
+## Resolved RE notes
 
 - **`MULTINEXT`** is shown by `FUN_130d_0290` (ND 0x597E, push 0x0137) in hot-seat
   mode only (DS:0x5381 bit 0x80; ported: [hotseat.md](hotseat.md)).

@@ -13,7 +13,7 @@ Sentiment production math beyond the Tory **threshold** is owned by
 | Source | Role |
 |--------|------|
 | Decomp DS `0x53a6` (`VICEROY_DS_DIFFICULTY`) in [`viceroy_unpacked.c`](../original_sources_decompiled/viceroy_unpacked.c) | **Authoritative** formulas (starting gold, Tory band, tax, food, SoL pressure, …) |
-| Port code that cites those FUN_* paths under [`src/core/`](../src/core/) | Wired stand-ins; PARK comments name intended gaps |
+| Port code that cites those FUN_* paths under [`src/core/`](../src/core/) | Ported (FUN_* cited at each site) |
 | [`COLONIZE/NAMES.TXT`](../COLONIZE/NAMES.TXT) `@DIFFICULTY` | Level **names** only (no multipliers) |
 | [`COLONIZE/Colonization.pdf`](../COLONIZE/Colonization.pdf) | Prose for levels; Tory −1 thresholds; score village penalty; score×difficulty factor |
 | [fandom_col1994.md](fandom_col1994.md) | Tier-3 cross-check — lose when decomp disagrees |
@@ -56,7 +56,7 @@ Save field: `ColonizeCol1Head.difficulty` (`uint8_t`, clamp 0..4). Runtime:
 | Town commons food | `+2` Discoverer / `+1` Explorer (all nations; `FUN_15eb_1f72` ~12519) | **Wired** 2026-08-28 (`colony_yield_town_commons`) |
 | Town commons secondary | `+1` Discoverer only (`FUN_15eb_1f72` ~12568) | **Wired** 2026-08-28 |
 | Ore/silver depletion | per unit `rng(0,diff+1)!=0` bumps `+0x97` (`FUN_364b_0688` ~57932); Discoverer 1/2 rate … Viceroy 5/6 | **Wired** 2026-08-28 (`turn_produce_one_colony` epilogue) |
-| Rival SoL pressure | Threshold `(8-diff)*10` | thin / PARK |
+| Rival SoL pressure | Threshold `(8-diff)*10` | **Wired** (`turn_year_end_rival_rebels`, year-end §D) |
 | End-game Colonization Rating | `FUN_41f2_0b70` difficulty multiplier {4,5,6,8,10} | **Done** 2026-08-29 (`reports_score_rating`) |
 | Combat strength (human Euro) | `str -= (diff-4)`; Discoverer −25% vs AI Euro | Wired — [combat.md](combat.md) |
 | SoL declare gate (50%) | — | Unaffected |
@@ -317,24 +317,20 @@ See [`king_ref.md`](../original_sources_annotated/ai/king_ref.md).
 
 ## Euro AI planning
 
-[`ai_euro_nation_planning`](../src/core/ai_euro.c):
-
-```
-gold_bump = 10 + (4-diff)*5 + urgency   → 30, 25, 20, 15, 10 (+urgency)
-hire_cost = 200 + diff*25               → 200, 225, 250, 275, 300
-```
-
-Higher difficulty → less free gold per tick, higher Europe-hire treasury gate.
+[`ai_euro_nation_planning`](../src/core/ai_euro_europe.c) is the
+`FUN_521d_5d04` structural port. The old `gold_bump = 10 + (4-diff)*5` free-gold
+tick and `hire_cost = 200 + diff*25` treasury gate were inventions, retired
+2026-09-07e (comment in `ai_euro_nation_planning`).
 
 ---
 
 ## Immigration (AI)
 
-[`europe_tick_immigration_pressure`](../src/core/europe.c) for non-human:
+[`europe_compute_immigration_score_w`](../src/core/europe_harbor.c) for non-human:
 
 ```
 score = ((8-diff)*score) >> 3
-pressure += 2   /* DOS 584a *param_2 default; treasure −2 PARKED */
+pressure += 2   /* DOS 584a *param_2; −2 per waiting dock colonist once latched */
 ```
 
 | Diff | Scale |
@@ -347,8 +343,11 @@ pressure += 2   /* DOS 584a *param_2 default; treasure −2 PARKED */
 
 Human English also `*2/3` (nation 0) independent of difficulty. `needed_crosses`
 is this score each EOT (grows with pop/units). Idle **+2** into `current_crosses`
-until the first dock immigrant; afterward only church production — not a fixed
-9 with +1-per-immigrant bump.
+each turn; once the first crosses immigrant has latched (`nation_flags` 0x40),
+every colonist still waiting on the Europe dock turns it into −2 (−4, …),
+clamped at 0, and the +2 resumes when the dock empties
+(`europe_tick_immigration_pressure_w`) — not a fixed 9 with
++1-per-immigrant bump.
 
 ---
 
@@ -493,7 +492,7 @@ Combat odds **are** difficulty-sensitive for human Euro sides
 | FF bells | [`founding_fathers.c`](../src/core/founding_fathers.c) |
 | Tax / REF / intervene | [`ai_king.c`](../src/core/ai_king.c) |
 | Euro AI economy | [`ai_euro.c`](../src/core/ai_euro.c) |
-| Immigration | [`europe.c`](../src/core/europe.c) |
+| Immigration | [`europe_harbor.c`](../src/core/europe_harbor.c) |
 | Indian alarm / raids | [`ai_contact.c`](../src/core/ai_contact.c) |
 | Land purchase | [`colony.c`](../src/core/colony.c) |
 | Conquest treasure | [`units_combat.c`](../src/core/units_combat.c) |

@@ -56,6 +56,9 @@ comparing golden output.
 | `GOLDEN_IDLE_DUMP` | `tests/golden/test_idle_campaign.c` (`compare_save`) | test-only | Path to write the simulated save to on mismatch (or always with `GOLDEN_IDLE_DUMP_ALL`); a `%d` takes the year, one file per turn under `KEEP_GOING` | unset |
 | `GOLDEN_IDLE_DUMP_ALL` | `tests/golden/test_idle_campaign.c` (`compare_save`) | test-only | Any value: write the `GOLDEN_IDLE_DUMP` file every year, not just on mismatch | off |
 | `WOI_DEBUG` | `tests/smoke/test_woi_ref01.c` (`main`) | test-only | Prints per-turn WoI status line during `smoke_woi_ref01` | off |
+| `AI_POPUP_DUMP_DIR` | `tests/smoke/test_ai_popup.c` (`render_one`) | test-only | `=dir` — `smoke_ai_popup` writes each rendered popup as `dir/TAG.pgm` | unset |
+| `MAPEDIT_SHOT` | `tests/unit/test_mapedit.c` (`case_amer2_renders`) | test-only | `=path` — `unit_mapedit` writes the editor frame as PPM to `path` and the open-palette frame to `path.palette.ppm` | unset |
+| `COMBAT_ANALYSIS_DUMP` | `tests/unit/test_combat_analysis_pixels.c` (`run_case`) | test-only | `=dir` — on a failing case `unit_combat_analysis_pixels` writes the port's crop as `dir/NAME.port.ppm` | unset |
 
 `diag_init` also reads `HOME` / `XDG_DATA_HOME` (`src/platform/diagnostics.c`, `diag_init`)
 for log-path resolution only — not a debug switch.

@@ -14,8 +14,8 @@ Version: **0.9-beta**.
 
 Status: feature-complete. Every rule system of the DOS game is ported from
 the decompiled original, and the game plays from new game through the War of
-Independence. What remains is pixel-exact dialog chrome and a short list of
-small gaps ([docs/port_plan.md](docs/port_plan.md)).
+Independence. The pixel-exact dialog chrome pass is done and no bugs are open
+([docs/port_plan.md](docs/port_plan.md)).
 
 ## Running the game
 

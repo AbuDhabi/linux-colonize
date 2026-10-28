@@ -14,7 +14,7 @@ mod math lives here. Building throughput without sentiment:
 |--------|------|
 | `FUN_15eb_0274` / `FUN_364b_0688` / `FUN_43f7_0004` in [`viceroy_unpacked.c`](../original_sources_decompiled/viceroy_unpacked.c) | **Authoritative** colony %, EOT accumulator, nation aggregate |
 | Production mod ~11866–11888; +0x1c latches ~57415–57485 | Tory floor + SoL flag bonuses; inefficient-gov bit |
-| Port [`colony_production.c`](../src/core/colony_production.c), [`ai_king.c`](../src/core/ai_king.c) | Wired stand-ins; PARK comments name gaps |
+| Port [`colony_production.c`](../src/core/colony_production.c), [`ai_king.c`](../src/core/ai_king.c) | Ported (FUN_* cited at each site) |
 | [`Colonization.pdf`](../COLONIZE/Colonization.pdf) (~SoL / independence) | Prose: +1/+2, Tory −1 thresh, declare 50%, combat support, muster |
 | [fandom_col1994.md](fandom_col1994.md) | Tier-3 — lose when decomp disagrees |
 | Annotated notes | [`colony_eot_production.md`](../original_sources_annotated/turn/colony_eot_production.md), [`king_ref.md`](../original_sources_annotated/ai/king_ref.md), [`year_end_chrome.md`](../original_sources_annotated/turn/year_end_chrome.md) |
@@ -165,10 +165,10 @@ with SoL: the port maps `0x40` as **coastal**.
 | Colony SoL at unit tile >50 / 40..50 | Cont. promote / Soldier→Veteran | **Wired** thin |
 | Bolivar elected | +20 SoL (DOS display-time) | **Wired** (`founding_fathers_bolivar_sol_bonus`) |
 | Rebel sentiment points | Score +1 per point | **Wired** |
-| Year-end SoL C2 / D SoL chrome | Peace / pressure / rival dialogs | **Wired** thin (pop-weighted SoL via `ai_king_sol_percent`; C2 crown/human ratio; D rival pick via `rival_nation_slot_1/_2`, `(8−difficulty)×10` auto-declare, `rebellion_pct_last_notified` dedup; decile status via `sol_pct_last_notified`; VGA PARK) |
+| Year-end SoL C2 / D SoL chrome | Peace / pressure / rival dialogs | **Wired** thin (pop-weighted SoL via `ai_king_sol_percent`; C2 crown/human ratio; D rival pick via `rival_nation_slot_1/_2`, `(8−difficulty)×10` auto-declare, `rebellion_pct_last_notified` dedup; decile status via `sol_pct_last_notified`) |
 | Combat popular-support % | Attacker side’s SoL/Tory share **on colony** | **Wired** (`combat_apply_1b0e_peels`: colony REF +50% + Tory/Rebel %) — [combat.md](combat.md) |
 | Cont. Army muster by colony SoL | Declare-turn 1eca promote (Veteran Soldier/Dragoon on colony tile; SoL>49) | **Wired** (`ai_king_war_act`; popup Confirm chains ref_wave+war_act) |
-| Map pop digit colors | White &lt;50 / green ≥50 / blue 100 | **PARK** |
+| Map pop digit colors | White &lt;50 / green ≥50 / cyan 100 (+0x1c SoL latches) | **Wired** (`colony_chrome.c`, DOS `FUN_112b_0c64` badge) |
 | Rebel accumulator EOT | Grow dividend/divisor from bells | **Wired** (`colony_prod_tick_rebel_accumulators`) |
 
 ---
@@ -212,8 +212,9 @@ applied in EOT field/craft/hammers/bells/crosses and preview.
 | Mercenary offer (`FUN_43f7_2022`) | No SoL gate: 1-in-3 per-turn roll while REF is not present or the Artillery backup pool is empty | `AI_KING_MERC_ROLL_CHANCE` |
 
 Post-declare, liberty bells shift from FF election toward foreign intervention
-(see [king_ref.md](../original_sources_annotated/ai/king_ref.md)); deep intervene
-economy remains thin/PARK.
+(see [king_ref.md](../original_sources_annotated/ai/king_ref.md)); the
+intervention pool seed, bell trigger and landings are ported
+([difficulty.md](difficulty.md) "Foreign intervention").
 
 ---
 
@@ -262,7 +263,7 @@ ported as `reports_score_rating` — see [difficulty.md](difficulty.md).
 | Section | SoL use | Port |
 |---------|---------|------|
 | C2 (WoI) | Crown vs human SoL ratio; pressure if >79, peace if >89 | **Wired** thin (`ai_king_sol_percent`) |
-| D (peace) | Rival SoL vs threshold `(8−difficulty)×10` | **Wired** thin — `rebel_sentiment` when non-zero; else colony SoL stand-in; DOS continent table `−0x6bf0` **PARK** |
+| D (peace) | Rival SoL vs threshold `(8−difficulty)×10` | **Wired** — `rebel_sentiment × census_pop_proxy / 100` capped 100 (`turn_year_end_rival_rebels`; DS `−0x6bf0` = `census_pop_proxy`, not a continent table) |
 
 Details: [`year_end_chrome.md`](../original_sources_annotated/turn/year_end_chrome.md).
 

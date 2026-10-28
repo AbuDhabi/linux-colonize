@@ -14,6 +14,9 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 
 ## Appendix A — Full `GAME.TXT` `@SECTION` checklist
 
+"VGA PARKED" below = port-drawn frame, accepted under port_plan.md D4 (closed
+2026-10-28: "frames may stay port-drawn"); not open work.
+
 | `@SECTION` | Status | Port note |
 |------------|--------|-----------|
 | `@DOS` | Done | quit confirm (`AI_POPUP_TAG_MAP_CONFIRM`) |
@@ -584,6 +587,6 @@ game compositor. Not inventoried here.
 - [archive/port_plan_deferred_ai_track.md](archive/port_plan_deferred_ai_track.md) — AI FUN inventory (history)
 - [assets.md](assets.md) — `popup_draw` chrome, colony/map popup UX
 - [move_enter.md](move_enter.md) — landfall / meet enter rules
-- [turn_between_players.md](turn_between_players.md) — ship-ready / HoF PARKED
+- [turn_between_players.md](turn_between_players.md) — ship-ready / year-end chrome, Hall of Fame
 - [sons_of_liberty.md](sons_of_liberty.md) — independence / year-end SoL chrome
 - [`year_end_chrome.md`](../original_sources_annotated/turn/year_end_chrome.md) — year-end string ids

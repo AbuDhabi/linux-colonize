@@ -1690,7 +1690,7 @@ static GameMenuActionStatus game_menu_action_system(ColonizeGameState* game, Map
     }
     case MAP_MENU_ACTION_PICK_MUSIC:
       if (!pick_music_open(&game->pick_music, &game->messages)) {
-        set_status(game, "Pick Music unavailable", "GAME.TXT @PICKMUSIC missing");
+        set_status_menu_row(game, "GAME", 4, "GAME.TXT @PICKMUSIC missing");
       } else {
         set_status(game, "", "Esc closes");
       }
@@ -1810,7 +1810,7 @@ static GameMenuActionStatus game_menu_action_view(ColonizeGameState* game, MapMe
     case MAP_MENU_ACTION_VIEW_HIDDEN_TERRAIN:
       game->terrain_peel_phase = 1;
       game->hidden_terrain_phase_ms = game->elapsed_ms;
-      set_status(game, "Hidden Terrain: units and settlements hidden", NULL);
+      set_status_menu_row(game, "VIEW", 9, "units and settlements hidden");
       return GAME_MENU_ACTION_DONE;
     default:
       break;

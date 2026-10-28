@@ -48,7 +48,7 @@ Sectioned OEM text (`@SECTION`, `;` comments, `~` hotkeys). Parsers already exis
 | **`PEDIA.TXT`** | Colonizopedia article bodies (`@CARGO*` `@UNIT*` `@TERRAIN*` `@JOB*` `@BUILDING*` `@FATHER*` `@MISCELLANEOUS`). |
 | **`TRIBE.TXT`** | Historical AMERICA village coordinates per nation (`@IROQUOIS` …). Used for AMERICA / scenario placement, not NEW WORLD procedural tribes. |
 | **`OPENING.TXT` / `CLOSING.TXT` / `WOODCUT.TXT`** | Cinematic / woodcut captions. |
-| **`MAPEDIT.TXT` / `MAPMENU.TXT`** | Map-editor UI strings (port only if shipping MAPEDIT-like tools). |
+| **`MAPEDIT.TXT` / `MAPMENU.TXT`** | Map-editor UI strings; loaded by `opencol-mapedit` (`src/core/mapedit.c`, [mapedit.md](mapedit.md), 2026-10-27). |
 | **`ERRORS.DB` / `MODULES.DB`** | Error / module string tables (required at bring-up). |
 | **`README.TXT`** | Patch notes (Cathedral min pop 8, Space = free production, etc.) — human guidance, optional to parse. |
 | **`MEMORY.TXT` / `AUTOEXEC.TXT` / `CONFIG.TXT`** | DOS install / memory help samples — **do not load as game data**. |

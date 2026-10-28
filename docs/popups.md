@@ -21,7 +21,9 @@ Authenticity audit (closed): [archive/popup_audit.md](archive/popup_audit.md).
 **Partial** no longer means “invented English OK is fine.” Invented wood INFO OKs are demoted to status; real `@SECTION`s should be wired via `popup_msg_*`.
 
 Structural Done (choices work) is enough per [project_goals.md](project_goals.md);
-pixel VGA / portraits are end-game polish.
+pixel VGA / portraits were the D4 polish phase, closed 2026-10-28
+([port_plan.md](port_plan.md)); a remaining "PARKED" note marks a port-drawn
+frame D4 accepts, not open work.
 
 ## Architecture
 

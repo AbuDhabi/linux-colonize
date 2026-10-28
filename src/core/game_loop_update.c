@@ -2513,7 +2513,7 @@ static void game_europe_screen_help(ColonizeGameState* game, EuropeScreen* eu) {
   game->pedia_return_europe = true;
 }
 
-/* Europe screen hotkeys: Escape/E exit, R/P/T menus, L/U/-/_ cargo, S/Space/Enter
+/* Europe screen hotkeys: Escape/E exit, F1 article, Tab focus, R/P/T menus, L/U/-/_ cargo, S/Space/Enter
  * ship menu (FUN_38fd_4f6e). */
 static GameUpdateStep game_europe_screen_keys(
   ColonizeGameState* game, const ColonizeInputState* input, EuropeScreen* eu
@@ -2534,6 +2534,26 @@ static GameUpdateStep game_europe_screen_keys(
 
   if (input->last_key == COLONIZE_KEY_F1 && !ui_drag_active(&game->ui_drag)) {
     game_europe_screen_help(game, eu);
+    return GAME_UPDATE_RETURN_TRUE;
+  }
+
+  /* DOS-LITERAL FUN_38fd_4f6e raw 66016-66038: Tab steps DS:0xf9a market -> harbor -> dock,
+   * wrapping, past the harbor while DS:0xfa2 ships are 0 and the dock while DS:0x9e2a units
+   * are 0, then refreshes the panels (thunk_FUN_291f_0b18; the port redraws every frame). */
+  if (input->last_key == COLONIZE_KEY_TAB) {
+    bool ok;
+    do {
+      eu->focus++;
+      if (2 < eu->focus) {
+        eu->focus = 0;
+      }
+      ok = true;
+      if (eu->focus == 1) {
+        ok = eu->harbor_ships != 0;
+      } else if (eu->focus == 2) {
+        ok = eu->dock_count != 0;
+      }
+    } while (!ok);
     return GAME_UPDATE_RETURN_TRUE;
   }
 
@@ -3158,7 +3178,7 @@ COLONIZE_INTERNAL GameUpdateStep game_update_map_menu_bar(ColonizeGameState* gam
         input->last_key != COLONIZE_KEY_NONE;
       if (any_input) {
         game->terrain_peel_phase = 0;
-        set_status(game, "Hidden Terrain view off", NULL);
+        set_status_menu_row(game, "VIEW", 9, "off");
         return GAME_UPDATE_RETURN_TRUE;
       }
       if (game->terrain_peel_phase < 3 &&
@@ -3166,9 +3186,9 @@ COLONIZE_INTERNAL GameUpdateStep game_update_map_menu_bar(ColonizeGameState* gam
         game->terrain_peel_phase++;
         game->hidden_terrain_phase_ms = game->elapsed_ms;
         if (game->terrain_peel_phase == 2) {
-          set_status(game, "Hidden Terrain: roads, resources hidden", NULL);
+          set_status_menu_row(game, "VIEW", 9, "roads, resources hidden");
         } else {
-          set_status(game, "Hidden Terrain: hills and forest hidden", NULL);
+          set_status_menu_row(game, "VIEW", 9, "hills and forest hidden");
         }
       }
     }
@@ -3705,7 +3725,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
     if (colonize_input_any_key_or_click(input)) {
       game->in_exploits = false;
       game->in_hall_of_fame = true;
-      set_status(game, "Hall of Fame", "Any key or click returns to menu");
+      set_status(game, reports_misc_display_word(192, ""), "Any key or click returns to menu");
     }
     return true;
   }

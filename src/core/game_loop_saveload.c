@@ -870,7 +870,7 @@ void game_retire_after_score(ColonizeGameState* game) {
     set_status(game, "Exploits", "Any key or click continues");
   } else {
     game->in_hall_of_fame = true;
-    set_status(game, "Hall of Fame", "Any key or click returns to menu");
+    set_status(game, reports_misc_display_word(192, ""), "Any key or click returns to menu");
   }
 }
 

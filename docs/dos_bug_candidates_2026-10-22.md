@@ -1,7 +1,7 @@
 # DOS bug candidates, sweep 2026-10-22
 
-STATUS: open review list for the user, not a spec. Only C-63..C-71 (section C
-below) are still undecided; an agent must not file them in
+STATUS: open review list for the user, not a spec. Only C-63..C-65 and C-67..C-71
+(section C below) are still undecided (C-66 decided 2026-10-24); an agent must not file them in
 [dos_bugs.md](dos_bugs.md) or [tolerated_dos_bugs.md](tolerated_dos_bugs.md)
 alone. Archive this file once they are decided. Every other item is decided;
 the full review text (sections A, B, C-61/C-62, D, E, F) is verbatim in
@@ -85,7 +85,7 @@ DOS behaviour literally. C-61 and C-62 are decided (DB-41, DB-42).
 
 ### C-63. Military Assistance passes the nation id to the tribe selector
 - DOS: FUN_5bfb_153e raw 98271, 98335 (OVL16 0x2da4, 0x2ec6): FUN_281f_0a42 gets 4..11; all 17 other callers subtract 4. Extinct test and hire price read the wrong tribe. Confidence: high.
-- Port: `ai_diplo.c:1883, 1951` use `p - 4` and have no extinct filter.
+- Port: `ai_diplo.c` ~1962 (row filter) and ~2013 (hire price) use `p - 4`; the row filter tests the right tribe's extinct bit (re-checked 2026-10-28).
 
 ### C-64. Euro diplomacy score and withdraw cost overflow int16
 - DOS: FUN_5bfb_153e raw 97530-97577, 98150-98156 (OVL16 0x1990-0x1a02): `(diff+8)*delta*10` wraps past 32767 (delta > 273 at Viceroy), making the score 0 or random; withdraw cost wraps and is raised to 100. Confidence: high on the mechanism.
@@ -96,6 +96,7 @@ DOS behaviour literally. C-61 and C-62 are decided (DB-41, DB-42).
 - Port: `ai_contact_actions.c:1457` uses the per-village owner. (DB-7 is a different slip in the same function.)
 
 ### C-66. @INDIANCOME follow-up gate calls the alarm reader with swapped arguments
+Decided 2026-10-24: ported literally (port_bugs.md #1230, CLOSED).
 - DOS: FUN_5bfb_0182 raw 96551 (asm 5bfb:01e0-01f5): `030c(euro - 4, indian)` reads before the Indian records. Confidence: high.
 - Port: reproduces it since 2026-10-24 (port_bugs.md #1230): `ai_contact_apply_welcome_accept` reads the same word through `ai_euro_5952_alarm_word(col1, e - 4, nation)` (dwelling slots 71..80 for euro 0..2, the Inca record for euro 3). The intended (slot, euro) read is the alarm 022e just clamped to 20, so the fix would show @INDIANCOME every time.
 

@@ -20,6 +20,10 @@ The port runs without it.
 **TinySoundFont** (`src/third_party/tsf.h`) by Bernhard Schelling is
 **MIT** licensed; the license text is in the file header.
 
+**xoshiro256\*\* / splitmix64** (`src/third_party/xoshiro256starstar.h`) by
+David Blackman and Sebastiano Vigna is dedicated to the **public domain**
+(text in the file header).
+
 Release packages statically link further libraries (SDL2, FluidSynth, GLib,
 …); their licenses are listed in the package README
 (`scripts/release/README*.md`) and `THIRD_PARTY_LICENSES`.

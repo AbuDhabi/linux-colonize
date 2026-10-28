@@ -29,8 +29,7 @@ profession grid to its own per-profession detail page
 (`FUN_3f41_10d8` -> `FUN_3f41_0d3e`). There is no DOS mechanic for clicking a
 report row to jump to the colony/map screen.
 
-Open gaps: leftover hardcoded English with no shipped string (port-only
-empty states, HoF "Nation" + Esc hint). Hall of Fame has no golden — see
+Open gaps: Hall of Fame has no golden — see
 [reports_score.md](reports_score.md) "Hall of Fame golden: what a capture
 needs". Congress page 2 draws all 25 FF
 portraits from CC-xx.SS sprite anchors (the old 10/25 slot table is gone —

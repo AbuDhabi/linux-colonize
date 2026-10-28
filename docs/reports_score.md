@@ -160,8 +160,8 @@ Hall of Fame / Exploits). Shared chrome, fill bars and F2-F9 stay in
   menu (or @SCORED after a WoI win): `FUN_281f_00ec` drain + `FUN_281f_03c0`
   wait at the end of `FUN_41f2_0f56`, port `colonize_input_any_key_or_click`
   (port_bugs.md #1227; test `unit_hall_of_fame click_dismisses_ending_screens`).
-- Strings: all live from `LABELS.TXT @MISC` (indices above) with the
-  matching literal fallbacks; `@INDEPENDENT` republic name from NAMES.TXT
+- Strings: all live from `LABELS.TXT @MISC` (indices above), empty on a
+  miss; `@INDEPENDENT` republic name from NAMES.TXT
   by the entry's `nation_id`. Separator glyphs (". ", ", ", ": ") are the
   `FUN_281f_01dc/01b4/01be` strcat thunks per FUNCTION_CATALOG.
 - Port status: Done from the static read above (#1217/#1219) —

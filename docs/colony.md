@@ -414,7 +414,8 @@ UI-only, so a 4th+ Carpenter is legal and the building strip shows them all
 (DOS FUN_2f2b_12cc is uncapped and steps each worker by a clamped pitch, so a
 crowded strip overlaps; `colony_screen_building_worker_layout`). Wired at colony-screen entry, EOT production (per colony, before
 `turn_produce_one_colony`) and the AI colony tick. DOS also runs it on join
-(364b_1aec/1b1a) and in the F6 adviser (3f41_1bec); the port does not yet.
+(364b_1aec/1b1a) and in the F6 adviser (3f41_1bec); the port does only on
+the FUN_521d_20e6 AI join (ai_euro_land.c), not the other joins or the adviser.
 Fixture trap: a synthetic map with an unrevealed `seen` plane makes every
 plot 0x10 and evicts everyone — call `map_reveal_all`.
 
@@ -697,7 +698,7 @@ pixels to `nation_id`'s own color (nearest match within
 `active_palette`; no-op if `active_palette` is NULL or nation_id isn't
 0..3). Every colony-icon draw site should go through this, not a plain
 ss_blit_sprite, so the flag always matches the owning nation. See
-unit_chrome_nation_flag_shades_for_palette (unit_chrome.h) for why a
+unit_chrome_nation_shades_for_palette (unit_chrome.h) for why a
 palette-aware recolor is needed at all.
 
 ## colonies_render_on_map

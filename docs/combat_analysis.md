@@ -103,7 +103,7 @@ dual column. Shown **before** the combat roll (strengths known; no outcome yet).
   (50), DOS swaps the defender graphic to `0x4b`, `INC`s the base combat byte
   and sets `0x8d03 |= 4` (= flags `0x400`).
   **Trigger wired 2026-09-08.** `units_revere_defend_colony_tile` sets a
-  one-shot latch (`g_units_revere_muskets_latch`, `units.c` — DOS writes a
+  one-shot latch (`g_units_revere_muskets_latch`, `combat_analysis.c` — DOS writes a
   global for the same reason: the arm runs while the defender is being built,
   before the panel is drawn) whenever the gate fires;
   `units_resolve_land_combat_ff` consumes it into
@@ -170,7 +170,7 @@ even when the live multiplier comes from `local_1a` arithmetic above.
 
 ## Ship-slow (`units_ship_slow_scan`, 2026-09-16)
 
-`FUN_5bfb_3180` naval half (decomp 98519-98624), run by 465b's commit tail after **every ship step**, human and AI. Port: called from `units_try_move`'s commit tail, so all movers get it per step.
+`FUN_5bfb_3180` naval half (decomp 98519-98624), run by 465b's commit tail after **every ship step**, human and AI. Port: called from `units_try_move_w`'s commit tail, so all movers get it per step.
 
 | | |
 |---|---|
@@ -255,7 +255,7 @@ All known deltas are fixed (only the mouse cursor is masked). Fixed 2026-10-28:
 | Gap | Where |
 |-----|-------|
 | ~~Village `2820` chief portrait frame + BGM cue~~ DONE: portrait via `ai_contact_chief_flair`, cue via `ai_contact_village_bgm_cue` | `ai_contact_demand.c` |
-| Fort-fire temp unit + camera / VGA chrome | `units_coastal_fort_fire_pulse_w` |
+| ~~Fort-fire temp unit + camera / VGA chrome~~ DONE 2026-10-28 (port_plan.md D4: camera + Artillery-sprite lunge) | `units_coastal_fort_fire_pulse_w`, `game_loop.c` |
 
 ---
 
@@ -264,9 +264,9 @@ All known deltas are fixed (only the mouse cursor is masked). Fixed 2026-10-28:
 | Concern | Module |
 |---------|--------|
 | Strength / peels / engage | [`combat_strength.c`](../src/core/combat_strength.c) |
-| Combat Analysis UI | [`combat_analysis.c`](../src/core/combat_analysis.c) |
-| Resolve / promote / demote / plunder / fort fire | [`units.c`](../src/core/units.c) |
-| Enter trigger | [`units.c`](../src/core/units.c) `units_try_move` — [move_enter.md](move_enter.md) |
+| Combat Analysis UI | [`combat_analysis.c`](../src/core/combat_analysis.c), [`combat_analysis_render.c`](../src/core/combat_analysis_render.c) |
+| Resolve / promote / demote / plunder / fort fire | [`units_combat.c`](../src/core/units_combat.c), [`units_combat_resolve.c`](../src/core/units_combat_resolve.c), [`units_capture.c`](../src/core/units_capture.c) |
+| Enter trigger | [`units_move.c`](../src/core/units_move.c) `units_try_move_w` — [move_enter.md](move_enter.md) |
 | Euro / king / raid callers | [`ai_euro.c`](../src/core/ai_euro.c), [`ai_king.c`](../src/core/ai_king.c), [`ai_contact.c`](../src/core/ai_contact.c) |
 | EOT fort pulse | [`turn_production.c`](../src/core/turn_production.c) `turn_run_colony_production_with_w` → `units_coastal_fort_fire_colony_w` |
 
@@ -292,7 +292,7 @@ only; live land combat uses `combat_colony_fort_strength`.
 | `FUN_157e_004a` | `combat_unit_base_x8` |
 | `FUN_157e_015e` | `combat_engagement_strength` |
 | `FUN_157e_0008` / `15eb_038e` | colony fortification tier 0..3 (Stockade/Fort/Fortress chain probe) — `combat_colony_fort_strength` |
-| `FUN_5fef_1b0e` | `combat_apply_1b0e_peels` + resolve roll shell + `units_try_move`'s combat-entry full MP exhaust (`combat_attack_entry`) |
+| `FUN_5fef_1b0e` | `combat_apply_1b0e_peels` + resolve roll shell + `units_try_move_w`'s combat-entry full MP exhaust (`combat_attack_entry`) |
 | `FUN_5fef_0000` | `units_best_defender_at` |
 | `FUN_5fef_0352` | `units_apply_land_loss_outcome` |
 | `FUN_5fef_0ec0` | `units_sweep_stack_after_loss` |

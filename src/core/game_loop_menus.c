@@ -277,7 +277,7 @@ static void game_open_cheat_create_unit_ex(ColonizeGameState* game, bool keep_na
   }
   /* FUN_2b5a_2866 `MOV word [0x1f5e],1` before @CREATE / @CREATE2 (ndisasm 0x23990). */
   if (!cheat_list_open_create_unit(&game->cheat_list, prompt_buf[0], labels, ids, rows, 1)) {
-    set_status(game, "Create Unit unavailable", NULL);
+    set_status_menu_row(game, "CUP", 1, "unavailable");
   }
 }
 void game_open_cheat_create_unit(ColonizeGameState* game) {
@@ -289,7 +289,7 @@ void game_open_cheat_set_human(ColonizeGameState* game) {
     return;
   }
   if (!cheat_list_open_set_human(&game->cheat_list, game->debug_txt_ok ? &game->debug_txt : NULL)) {
-    set_status(game, "Set Human Player unavailable", NULL);
+    set_status_menu_row(game, "CUP", 4, "unavailable");
   }
 }
 
@@ -303,7 +303,7 @@ void game_open_cheat_debug_flags(ColonizeGameState* game) {
   if (!cheat_list_open_debug_flags(
         &game->cheat_list, game->debug_txt_ok ? &game->debug_txt : NULL, mask
       )) {
-    set_status(game, "Debug Info Flags unavailable", NULL);
+    set_status_menu_row(game, "CUP", 2, "unavailable");
   }
 }
 
@@ -398,7 +398,7 @@ static void game_apply_cheat_create_unit(ColonizeGameState* game, int id) {
           &game->cheat_list, cship_prompt_buf[0], ship_labels, ids3, 6, 0
         )) {
       game->cheat_create_stage = 0;
-      set_status(game, "Create Unit unavailable", NULL);
+      set_status_menu_row(game, "CUP", 1, "unavailable");
     }
     return;
   }
@@ -424,7 +424,7 @@ static void game_apply_cheat_create_unit(ColonizeGameState* game, int id) {
           &game->cheat_list, foreign_prompt_buf[0], nat_labels, ids4, 4, 2
         )) {
       game->cheat_create_stage = 0;
-      set_status(game, "Create Unit unavailable", NULL);
+      set_status_menu_row(game, "CUP", 1, "unavailable");
     }
     return;
   }
@@ -548,7 +548,7 @@ void game_cheat_toggle_strategy(ColonizeGameState* game) {
     return;
   }
   game->debug_show_strategy = !game->debug_show_strategy;
-  set_status(game, "Show Strategy", game->debug_show_strategy ? "on" : "off");
+  set_status_menu_row(game, "CUP", 9, game->debug_show_strategy ? "on" : "off");
 }
 
 void game_cheat_toggle_colony_sites(ColonizeGameState* game) {
@@ -1434,6 +1434,14 @@ void game_status_from_menu_row(
     }
   }
   snprintf(out, out_size, "%s", p);
+}
+
+/* set_status with a MENU.TXT row as the prefix, so a diagnostic naming a menu
+ * item reads the item's wording instead of typing it (empty on a miss). */
+void set_status_menu_row(ColonizeGameState* game, const char* section, int row, const char* detail) {
+  char label[160];
+  game_status_from_menu_row(game, section, row, label, sizeof(label));
+  set_status(game, label, detail);
 }
 
 void load_begin_menu(ColonizeGameState* game) {

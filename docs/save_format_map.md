@@ -118,7 +118,7 @@ as peels land.
 | `difficulty` | 1 | `mapped` | 0..4 |
 | `king_audience_streak` / `king_audience_last_pick` (was `unknown43[2]`) | 2 | `mapped` | DS:`0x53a7`/`0x53a8` — dual use (2026-08-29): King-audience RNG state pre-declaration; `FUN_43f7_1a26` overwrites them at the Declaration with `year/100`, `year%100` — the declare year `FUN_41f2_0092` reads for the Early Revolution score bonus (`reports_score_declare_year`). Pre-declaration meaning: King-audience RNG state (streak + last-picked line, avoid repeat); near `FUN_38fd_5be8` (`KING_AUDIENCE` in `ai_king.c`); reset at new game |
 | `founding_father[25]` | 25 | `mapped` | −1 = unrecruited |
-| `turn_loop_running` / `map_modal_active` / `no_unit_selected` | 6 | `mapped` | DS:`0x53c2`/`c4`/`c6`. Not always 1/1: View-mode DOS saves carry `map_modal_active 0` with `active_unit 0xffff` (2026-09-03) — port still stamps 1 (safe for the in-game-load crash, see col1_bridge.c) |
+| `turn_loop_running` / `map_modal_active` / `no_unit_selected` | 6 | `mapped` | DS:`0x53c2`/`c4`/`c6`. Not always 1/1: View-mode DOS saves carry `map_modal_active 0` with `active_unit 0xffff` (2026-09-03) — port still stamps 1 on a manual save (safe for the in-game-load crash, see col1_bridge.c); the slot-8/9 autosave zeroes `map_modal_active` / `no_unit_selected` (`col1_bridge_stamp_autosave_head`) |
 | `nation_relation[4]` | 8 | `mapped` | |
 | `rebel_sentiment_report` + `crown_nation_id`/`rival_nation_slot_1`/`_2`/`sol_pct_last_notified` (was `unknown45_pad[8]`) | 10 | `mapped` | DS:`0x53d0`; the 4 int16 slots resolved 2026-08-19 (crown nation, 2 lazy rival-nation caches, SoL-report dedup) |
 | `expeditionary_force` / `backup_force` | 16 | `mapped` | |

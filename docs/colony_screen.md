@@ -615,7 +615,7 @@ military / construction 3.6k / 1.1k / 1.4k, Recife 2.0k / 1.4k / 1.4k.
 
 **Still different:** the Production pane (~0.7k per colony, deliberate), one
 coast tile's layer composition in New Amsterdam's area view (~0.1k, shared
-`map_tile_layer_cmds`) and small bits (D4 polish).
+`map_tile_layer_cmds`) and small bits (accepted; D4 closed 2026-10-28).
 
 Deliberate, player-requested: the Production pane layout (surplus split,
 4-row hammer bar).

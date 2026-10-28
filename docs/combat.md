@@ -7,7 +7,7 @@ demote / capture / loot, and coastal Fort/Fortress batteries.
 Move-into-tile fight-vs-bounce gates stay in [move_enter.md](move_enter.md).
 Village warn→Attack (`4528`) Done thin; Euro AI attack scoring is the `20e6`
 LAB_52aa term (`ai_euro_land.c`, logic map `move_scoring_gate` / `wander`);
-`2820` VGA chrome is D4.
+`2820` VGA chrome done (D4, [port_plan.md](port_plan.md)).
 
 Authority: [project_goals.md](project_goals.md) (decomp / `NAMES` → manual →
 fandom). Feature checklist: [manual_gap.md](manual_gap.md) §Combat.
@@ -22,7 +22,7 @@ fandom). Feature checklist: [manual_gap.md](manual_gap.md) §Combat.
 | `FUN_5fef_1b0e` / `0000` / `0352` / `016c` / `16ea` / `172c` / `1908` / `31ea` | Peels, best defender, loss apply, plunder, demote/promote, treasure, native fallout |
 | `FUN_636c_0000` / `FUN_2a1f_0704` | Combat Analysis dual-column UI |
 | `FUN_364b_03f6` | Coastal Fort/Fortress fire |
-| Port [`combat_strength.c`](../src/core/combat_strength.c), [`combat_analysis.c`](../src/core/combat_analysis.c), [`units.c`](../src/core/units.c) | Wired resolve paths; PARK comments name gaps |
+| Port [`combat_strength.c`](../src/core/combat_strength.c), [`combat_analysis.c`](../src/core/combat_analysis.c), `units_combat*.c` / `units_capture.c` / `units_move.c` | Ported resolve paths (FUN_* cited at each site) |
 | [`Colonization.pdf`](../COLONIZE/Colonization.pdf) pp.30–32 | Manual “COMBAT IN THE NEW WORLD” |
 | [fandom_col1994.md](fandom_col1994.md) §Colonies / defense | Tier-3 — Unverified until reconciled |
 | Annotated | [`coastal_fort_fire.md`](../original_sources_annotated/turn/coastal_fort_fire.md); [`FUNCTION_CATALOG.md`](../original_sources_annotated/FUNCTION_CATALOG.md) segments `157e` / `5fef` / `636c` |
@@ -36,7 +36,7 @@ site / FF / difficulty live in [save_format_map.md](save_format_map.md).
 
 | Path | Function | What happens |
 |------|----------|--------------|
-| Human / shared move | `units_enter_probe` → `units_try_move` | Foreign stack → `COMBAT_LAND` / `COMBAT_NAVAL` → best defender → `units_resolve_*_ff` → enter on win → colony capture |
+| Human / shared move | `units_enter_probe` → `units_try_move_w` | Foreign stack → `COMBAT_LAND` / `COMBAT_NAVAL` → best defender → `units_resolve_*_ff` → enter on win → colony capture |
 | Land resolve | `units_resolve_land_combat` / `_ff` | `combat_land_engage` → roll → analysis → outcome |
 | Naval resolve | `units_resolve_naval_combat_ff_w` | `combat_naval_engage` → roll → analysis → naval outcome |
 | Best defender | `units_best_defender_at` (`FUN_5fef_0000`) | Highest `combat_engagement_strength`; skip `attack==0`. Artillery pick-score (2026-09-03, OVL17 asm 0x80–0x11c — the Ghidra `.c` export mangles this block): on a Euro colony tile ×2 vs Indian attacker; off-colony, unless the arty itself is Fortify/Fortified, score `>>= 3` (so arty in the open no longer outranks dragoons). Unarmed fallback tier only on NON-colony tiles; on a colony tile with no armed defender the attack routes to militia/Revere, then entry seizure (`units_seize_noncombat_at`) |
@@ -210,7 +210,7 @@ the `local_c8 < 0` branch: the empty-dwelling Brave (raw 100405-100416) and
 the colony militia / Paul Revere phantom (raw 100417-100432). The port raises
 the same latch on both (`combat_set_auto_defender`, called from
 `units_revere_defend_colony_tile` and from the village-temp arm of
-`units_try_move`), but only the colony arm can reach the shield above — the
+`units_try_move_w`), but only the colony arm can reach the shield above — the
 village arm runs with `iVar18 < 0` and an Indian defender, which the gate
 excludes. `local_92` is the **attacker**: it is built from `param_1`
 (`FUN_281f_09c8(param_1, 1)`, the ×3/2 attack scale) and it is the value the
@@ -273,7 +273,7 @@ Village **attack** empty-tile defense is **Done** thin (`units_spawn_village_tem
 DOS `FUN_5fef_1b0e` spawns a phantom Brave (Armed / Mtd. from nation muskets /
 `horse_breeding>24`), fights, undoes the phantom, then `population--` or destroy
 when `population < 2`. Killing a map Brave on the tile does **not** burn the
-dwelling. Human `4528` `@ACTIONS` arm **Done** (P8.8); the AI arm is ported too. Only VGA chrome is left (D4).
+dwelling. Human `4528` `@ACTIONS` arm **Done** (P8.8); the AI arm is ported too. VGA chrome done (D4, 2026-10-28).
 
 ---
 
@@ -471,7 +471,7 @@ moves_spent` **before** charging the attack's 3 thirds. When `rem < 3`:
 - a human-controlled European attacker is asked `@HALF` (id `0x1c06`) —
   "Charge!" proceeds, "Then let them rest." aborts (the 3 thirds are already
   charged, so declining ends the unit's turn). AI and native attackers are
-  never asked: the 1b0e entry gate (raw 100359-100372, `units_try_move`)
+  never asked: the 1b0e entry gate (raw 100359-100372, `units_try_move_w`)
   refuses their attack outright under 3 thirds. An empty native village counts as an attack target here even
   though its temporary Brave is created later by the combat resolver; this
   keeps the prompt for 1/3 and 2/3 MP village attacks (port_bugs.md #940).
@@ -500,7 +500,7 @@ order), `units_remaining_mp` (native units keep DOS's spent byte in
 **Combat-entry MP charge (full exhaust):** DOS exhausts the attacker's full
 allotment at 1b0e entry (`FUN_281f_0934` -> `FUN_1427_155e`, raw 100381-100383 /
 8880-8888) with no naval exception, and 465b's step cost is attack-skipped
-(75639-75648). The port charges it at every outcome of `units_try_move` —
+(75639-75648). The port charges it at every outcome of `units_try_move_w` —
 including the naval win whose advance is barred by the rest of the enemy stack
 (port_bugs.md #996). The `spent += 3` at entry (raw 100341-100343) is a dead
 store; the charge lands after the resolve because the fatigue peel reads
@@ -533,7 +533,7 @@ sitting in it, under its old flag. Nothing is sunk and nothing is seized —
 the `0512` destroy texture belongs to `FUN_43f7_0512` (the crown REF landing
 seizure, `ai_king.c`), not here.
 
-Both post-win gates — the walk-in gate in `units_try_move` and the contested
+Both post-win gates — the walk-in gate in `units_try_move_w` and the contested
 test in `units_try_capture_foreign_colony` — use `units_domain_blocker_at`
 (`units_internal.h`), which applies `FUN_5fef_0000`'s own domain rule; a plain
 foreign-unit probe would let a berthed armed hull hold the port "contested"

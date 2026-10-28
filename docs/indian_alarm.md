@@ -284,9 +284,10 @@ garrison_quota = threat >> 3`, where `walls` = `FUN_281f_0ab0(0)` = owned
 Stockade/Fort/Fortress, so walls only cap an already-large threat and never
 push the quota below 2. Covered by
 `tests/unit/test_ai_euro_war_garrison.c:unit_garrison_quota_threat_seed`
-(`make test T=unit_ai_euro_war_garrison`). Still not
-ported from the same loop: the `iStack_22` ring-1 counter and the
-`iStack_76` `labor_shortage` (+0x8e) formula that consumes it.
+(`make test T=unit_ai_euro_war_garrison`). The same loop's
+`iStack_22` ring-1 counter (`ai_euro_s_5952_ring1`) and the `iStack_76`
+`labor_shortage` (+0x8e) formula that consumes it are ported too
+(`ai_euro_colony_threat_seed_5952`, `ai_euro_goals.c`).
 
 **Second write site — raid discharges the attitude word.** `FUN_5fef_0f14` (colony raid loot) unconditionally zeroes
 the raiding tribe's word toward the raided Euro nation right before it
@@ -406,7 +407,7 @@ into the colony, where the Indian arm plays the `bVar28` rows. Two statics in
 (DOS `bVar28`, raised by `units_revere_defend_colony_tile` around its resolve
 call, so an auto-spawned colony defender does not take the field-fight row)
 and `g_units_indian_combat_vent_done` (cleared at the top of every
-`units_try_move`, so a native that beats a real garrison and steps in does not
+`units_try_move_w`, so a native that beats a real garrison and steps in does not
 also take the undefended-colony row).
 
 ### Gameplay bands

@@ -356,11 +356,11 @@ cmake --build build/debug --target golden_ai_joint         # when AI or turn ord
 
 - **Never `git commit`, `git push`, `git stash`, or change branches.** The user
   handles git through GitHub Desktop. Land edited files, not commits — inside a
-  worktree too. (CLAUDE.md rule 2)
+  worktree too. (CLAUDE.md rule 1)
 - **Surgical edits.** Prefer a targeted edit over rewriting a file whenever the
-  end result is the same (CLAUDE.md rule 5).
+  end result is the same (CLAUDE.md rule 3).
 - **Load the docs at the start of work** and don't let compaction erase them
-  (CLAUDE.md rule 1). Start from the **Authority table** in
+  (CLAUDE.md "Read before working"). Start from the **Authority table** in
   [architecture.md](architecture.md#authority) — it says which doc owns what.
   `docs/original_index.md` is the navigation layer for the decomp.
 - **Docs are authoritative over memory.** Memory notes are session summaries;

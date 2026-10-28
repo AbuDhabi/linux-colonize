@@ -410,6 +410,7 @@ void game_status_from_menu_row(
   char* out,
   size_t out_size
 );
+void set_status_menu_row(ColonizeGameState* game, const char* section, int row, const char* detail);
 void game_trade_route_retarget(ColonizeGameState* game, ColonizeUnit* u);
 void game_move_arrival_tail(ColonizeGameState* game, ColonizeUnit* u);
 void game_ui_drag_clear(ColonizeGameState* game);

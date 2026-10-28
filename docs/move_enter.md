@@ -86,9 +86,9 @@ Status: **Done** / **Partial** / **Missing** / **PARKED**.
 
 ---
 
-## PARKED (not this track)
+## Chrome
 
-VGA-identical combat chrome — [combat.md](combat.md).
+VGA-identical combat chrome: D4, closed 2026-10-28 (Combat Analysis last; [port_plan.md](port_plan.md)).
 
 **Playable combat bar Done** — see [combat.md](combat.md) (ransom CHOICE, `@CAPTURED*`/
 `@BURNED*`, unit capture / seizure popups, attack-exhausts-MP).

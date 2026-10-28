@@ -1776,6 +1776,31 @@ static int test_screen_f1_focus_article(void) {
   if (rc == 0 && game.in_pedia) {
     rc = fail("Europe F1 with the harbor focus and no ship does nothing (DS:0xfa2 == 0)");
   }
+  /* Tab, FUN_38fd_4f6e raw 66016-66038: step DS:0xf9a, skipping empty panels. */
+  eu->harbor_ships = 0;
+  eu->dock_count = 1;
+  eu->focus = 0;
+  in.last_key = COLONIZE_KEY_TAB;
+  (void)game_update_europe_screen(&game, &in);
+  if (rc == 0 && eu->focus != 2) {
+    rc = fail("Europe Tab skips the harbor with no ship in port");
+  }
+  (void)game_update_europe_screen(&game, &in);
+  if (rc == 0 && eu->focus != 0) {
+    rc = fail("Europe Tab wraps from the dock to the market");
+  }
+  eu->harbor_ships = 1;
+  eu->dock_count = 0;
+  eu->focus = 1;
+  (void)game_update_europe_screen(&game, &in);
+  if (rc == 0 && eu->focus != 0) {
+    rc = fail("Europe Tab skips the empty dock and wraps to the market");
+  }
+  (void)game_update_europe_screen(&game, &in);
+  if (rc == 0 && eu->focus != 1) {
+    rc = fail("Europe Tab steps from the market to the harbor");
+  }
+  eu->harbor_ships = 0;
 #undef F1_COLONY
 #undef PEDIA_BACK
   game.in_europe = false;

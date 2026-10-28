@@ -831,7 +831,14 @@ int europe_buy_cargo_w(
   }
   int can_afford = eu->gold / ask;
   if (can_afford <= 0) {
-    europe_set_status(eu, "Need gold.");
+    /* FUN_38fd_1fa2 raw 60435-60445: the short-treasury refusal puts the
+     * cargo name and the cost of the priced lot on the status line
+     * ("<cargo> (<cost>)", DS 0xfd7/0xfd9 punctuation) — no typed wording. */
+    int lot = amount < 100 ? amount : 100;
+    if (lot > room_total) {
+      lot = room_total;
+    }
+    snprintf(eu->status, sizeof(eu->status), "%s (%d)", eu->cargo[cargo_type].name, ask * lot);
     return 0;
   }
   int buy = amount;

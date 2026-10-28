@@ -233,7 +233,7 @@ Port: declare / REF / win-lose latches Done (WoI won in five headless campaigns)
 | Tax first-year table (Viceroy 1534) | Listed on Tax rate page | Decomp/port `1536-diff` → Viceroy **1532** | **Resolved** — [difficulty.md](difficulty.md) |
 | Custom House sell thresholds (100/50) | Strategy section on Custom House page | Decomp `FUN_364b_0688` (`stock>99` → leave 50) | **Done** structural autosell |
 | SoL inefficient-government Tory caps (10 / 6) | Sons of Liberty page | Decomp `10-diff` + `−⌊tories/thresh⌋` | **Resolved** — [sons_of_liberty.md](sons_of_liberty.md); production floor **Wired** |
-| Fort/Fortress coastal bombardment strengths | Strategy sections (4+4 art / 8+8 art) | Not in `NAMES` building rows | Combat RE |
+| Fort/Fortress coastal bombardment strengths | Strategy sections (4+4 art / 8+8 art) | Not in `NAMES` building rows; decomp `FUN_364b_03f6` | **Done** — [combat.md](combat.md) "Coastal fort" |
 
 ---
 

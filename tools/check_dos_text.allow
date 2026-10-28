@@ -20,11 +20,8 @@ src/core/game_loop_colony.c|working as|reviewed: port status prefixes; generic
 src/core/game_loop_colony.c|already built|reviewed: port status prefixes; generic
 src/core/game_loop_eot.c|go to port|reviewed: port status; generic
 src/core/game_loop_eot.c|select a unit|reviewed: port status; generic
-src/core/game_loop_menus.c|show strategy|reviewed: port status echoing the menu item names; generic
 src/core/game_loop_menus.c|find colony|reviewed: port status echoing the menu item names; generic
 src/core/game_loop_render.c|new world|new-game map-path label (proper noun, part of a longer DOS menu line); not a whole DOS string
-src/core/game_loop_saveload.c|hall of fame|port status title for the HoF screen; DOS TXT only has the menu item "View Hall of Fame"
-src/core/game_loop_update.c|hall of fame|port status title for the HoF screen; DOS TXT only has the menu item "View Hall of Fame"
 src/core/turn.c|end of turn|port status line "End of Turn - <date>"; DOS TXT only has the menu item
 src/core/turn_production.c|need tools|port marker status, popup comes from the catalog; the TXT hit is Pedia prose
 src/core/turn_year_end.c|the king of|port status sentence; the TXT hit is the audience title "The King of %COUNTRY"

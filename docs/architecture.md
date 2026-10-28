@@ -255,7 +255,7 @@ Cluster table (not every file). Paths are under `src/core/` unless noted.
   mode flags (`in_menu`, `in_europe`, `in_colony`, `in_pedia`, `in_report`, …)
   and modal priority; `game_dialogs.c` contains dialog wiring (game_request_*/
   game_open_*/game_apply_*_result), modal input handling, and AI popup result
-  appliers. `game_update` is now a ~157-line dispatcher over `game_update_<screen>`
+  appliers. `game_update` (`game_loop_update.c`) is a ~210-line dispatcher over `game_update_<screen>`
   functions. The modal input gate (`game_dialogs.c` `game_handle_modal_input`,
   ahead of parent hotkeys) and the `GAME_MODAL_LIST` contract are owned by
   [popups.md](popups.md) — see its Architecture section for the current arm order.
