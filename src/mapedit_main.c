@@ -20,10 +20,12 @@
 static void usage(const char* data_dir) {
   size_t n = 0;
   uint8_t* exe = mapedit_exe_load(data_dir, &n);
-  static const unsigned k_lines[] = {MAPEDIT_DS_TITLE, MAPEDIT_DS_COPYRIGHT, 0, MAPEDIT_DS_OPTIONS,
+  /* Each string carries its own line ends (the copyright its blank line), printed as is
+   * (port_bugs.md #1308). */
+  static const unsigned k_lines[] = {MAPEDIT_DS_TITLE, MAPEDIT_DS_COPYRIGHT, MAPEDIT_DS_OPTIONS,
                                      MAPEDIT_DS_USAGE1, MAPEDIT_DS_USAGE2, MAPEDIT_DS_USAGE3};
   for (size_t i = 0; i < sizeof k_lines / sizeof k_lines[0]; ++i) {
-    printf("%s\n", k_lines[i] ? mapedit_exe_str(exe, n, k_lines[i]) : "");
+    fputs(mapedit_exe_str(exe, n, k_lines[i]), stdout);
   }
   free(exe);
 }
@@ -35,7 +37,7 @@ static void print_exit_value(const MapEditor* ed, const char* data_dir, int code
   char line[64];
   mapedit_fmt_ints(line, sizeof line, mapedit_exe_str(ed->exe ? ed->exe : exe, n, MAPEDIT_DS_EXIT_VALUE),
                    code, 0);
-  printf("%s\n", line);
+  fputs(line, stdout);
   free(exe);
 }
 
@@ -98,7 +100,10 @@ int main(int argc, char** argv) {
     diag_shutdown();
     return 1;
   }
-  platform_set_window_title(platform, mapedit_exe_str(ed.exe, ed.exe_size, MAPEDIT_DS_TITLE));
+  char title[64];
+  snprintf(title, sizeof title, "%s", mapedit_exe_str(ed.exe, ed.exe_size, MAPEDIT_DS_TITLE));
+  title[strcspn(title, "\r\n")] = '\0'; /* the banner line ends in "\n" */
+  platform_set_window_title(platform, title);
 
   static uint8_t pixels[SCREEN_MAX_W * SCREEN_MAX_H];
   uint32_t prev = platform_ticks_ms();

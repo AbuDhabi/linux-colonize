@@ -257,8 +257,63 @@ out:
   return rc;
 }
 
+/* port_bugs.md #1303 / #1304 / #1307 / #1309: a window close waits for an open dialog, ESC on
+ * a pull-down only closes it, the name box keeps its "Name:" label, an unmapped key closes the
+ * palette. Nothing is saved (every dialog is cancelled). */
+static int case_dialog_guards(void) {
+  struct stat st;
+  if (stat("COLONIZE/AMER2.MP", &st) != 0 || stat("COLONIZE/MAPEDIT.TXT", &st) != 0) {
+    printf("SKIP dialog_guards\n");
+    return TR_SKIP;
+  }
+  MapEditOptions opt = {.data_dir = "COLONIZE", .force_new = false, .map_file = "AMER2.MP"};
+  int rc = 1;
+  if (!mapedit_init(&g_ed, &opt)) {
+    goto out;
+  }
+  /* #1304: clean map, menu open, ESC: the menu closes, the editor stays. */
+  if (!map_menu_open_alt_hotkey(&g_ed.menu, 'E')) {
+    fprintf(stderr, "Alt-E did not open the Editor menu\n");
+    goto out;
+  }
+  (void)step(COLONIZE_KEY_ESCAPE, 0);
+  if (g_ed.quit || g_ed.menu.open_index >= 0 || ai_popup_busy(&g_ed.popups)) {
+    fprintf(stderr, "menu esc: quit %d menu %d\n", g_ed.quit, g_ed.menu.open_index);
+    goto out;
+  }
+  /* #1303: dirty, @SAVE open, window close: @SAVE keeps its answer slot. */
+  g_ed.dirty = true;
+  (void)step(COLONIZE_KEY_S, 's');
+  ColonizeInputState in;
+  memset(&in, 0, sizeof in);
+  in.quit_requested = true;
+  (void)mapedit_update(&g_ed, NULL, &in, 16);
+  if (g_ed.pending != MAPEDIT_PENDING_SAVE || g_ed.quit) {
+    fprintf(stderr, "close over @SAVE: pending %d\n", g_ed.pending);
+    goto out;
+  }
+  (void)step(COLONIZE_KEY_ESCAPE, 0);
+  (void)step(COLONIZE_KEY_NONE, 0);
+  /* #1307. */
+  (void)step(COLONIZE_KEY_A, 'a');
+  if (!g_ed.name_entry.open || strcmp(g_ed.name_entry.label, "Name:") != 0) {
+    fprintf(stderr, "saveas label [%s]\n", g_ed.name_entry.label);
+    goto out;
+  }
+  (void)step(COLONIZE_KEY_ESCAPE, 0);
+  /* #1309: '7' has no ColonizeKey, only text. */
+  g_ed.palette_open = true;
+  (void)step(COLONIZE_KEY_NONE, '7');
+  rc = g_ed.palette_open || g_ed.quit ? 1 : 0;
+  if (rc) fprintf(stderr, "palette stayed open\n");
+out:
+  mapedit_free(&g_ed);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
     {"flow", case_flow},
+    {"dialog_guards", case_dialog_guards},
     {"paint_rules", case_paint_rules},
     {"palette_walk", case_palette_walk},
     {"find_continents", case_find_continents},

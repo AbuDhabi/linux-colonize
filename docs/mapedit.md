@@ -36,7 +36,9 @@ come from MAPEDIT.TXT / MAPMENU.TXT, terrain names from NAMES.TXT.
   as loaded or edited.
 - **Exit** (menu, ESC, ^Q / ^X / Alt-Q / Alt-X): `@EXIT` when dirty
   (1 exit, 2 save and exit, 3 cancel). A failed save shows `@ERROR` and
-  stays.
+  stays. ESC on an open pull-down only closes it.
+- **Dialogs**: a section with `@smallfont` (the Help pages) draws in FONTTINY;
+  the name boxes take their "Name:" label from the section's last line.
 
 ## Screen
 
@@ -102,4 +104,7 @@ editor switches:
 - Panel text uses the @COLORS basic ink. DOS draws through the font's slot 0
   (`FUN_1d6a_0006(0)`), whose colour was not traced.
 - The minimap view box and the Find Continents picture use reconstructed
-  coordinates (DOS's blit arguments are lost in the decomp).
+  coordinates (DOS's blit arguments are lost in the decomp). The view box is
+  clipped to the minimap on all four sides; DOS's clamp is visible only for the bottom edge.
+- Closing the window acts as ESC (the @EXIT flow), but only while no dialog is
+  open; a close over an open dialog is ignored (port_bugs.md #1303).

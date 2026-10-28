@@ -120,7 +120,7 @@ bool ai_popup_handle_input(AiPopupState* st, const ColonizeInputState* input) {
 /* Port-authored text with no GAME.TXT section (req->width 0): the common @width (e.g.
  * @LANDFALL). A section without @width gets DOS's 0x50 from popup_msg_section_width. */
 #define AI_POPUP_DEFAULT_WIDTH 190
-#define AI_POPUP_WRAP_MAX 16
+#define AI_POPUP_WRAP_MAX 32 /* MAPEDIT.TXT @HELP2 wraps to ~20 lines (port_bugs.md #1305) */
 
 static void ai_popup_fill_row(
   ColonizeFramebuffer8* fb, int x0, int y0, int x1, int y1, uint8_t color

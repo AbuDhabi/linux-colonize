@@ -24,6 +24,7 @@
 
 #include "core/fb.h"
 #include "core/font.h"
+#include "core/howmuch_dialog.h"
 #include "core/popup.h"
 #include "core/popup_msg.h"
 #include "core/strutil.h"
@@ -688,6 +689,13 @@ static void me_popup(MapEditor* ed, const char* section, MapEditPending pending)
   char rows[AI_POPUP_CHOICE_MAX][POPUP_MSG_CHOICE_LEN];
   const int nrows = sec ? popup_msg_choices(sec, rows, AI_POPUP_CHOICE_MAX) : 0;
   ed->pending = pending;
+  /* The catalog keeps the bare @smallfont directive as a section line. */
+  ed->popup_small = false;
+  for (int i = 0; sec && i < sec->line_count; ++i) {
+    if (strcmp(sec->lines[i], "@smallfont") == 0) {
+      ed->popup_small = true;
+    }
+  }
   if (nrows <= 0) {
     (void)ai_popup_enqueue_ok(&ed->popups, AI_POPUP_TAG_INFO, NULL, body);
     return;
@@ -709,11 +717,9 @@ static void me_name_entry(MapEditor* ed, const char* section, NameEntryKind kind
   char prompt[AI_POPUP_BODY_LEN];
   popup_msg_fill(ed->mapedit_txt_ok ? &ed->mapedit_txt : NULL, section, &tok, "", prompt, sizeof prompt);
   if (name_entry_open(&ed->name_entry, kind, prompt, initial, -1)) {
-    const ColonizeMsgSection* sec = ed->mapedit_txt_ok ? assets_msg_find(&ed->mapedit_txt, section) : NULL;
-    char rows[2][POPUP_MSG_CHOICE_LEN];
-    if (sec && popup_msg_choices(sec, rows, 2) > 0) {
-      name_entry_set_label(&ed->name_entry, rows[0]);
-    }
+    /* "Name:", the section's last line (a trailing caption, not a choice row; port_bugs.md #1307). */
+    name_entry_set_label(&ed->name_entry,
+                         howmuch_amount_label(ed->mapedit_txt_ok ? &ed->mapedit_txt : NULL, section, ""));
     ed->name_for = why;
   }
 }
@@ -742,6 +748,7 @@ static void me_open_picker(MapEditor* ed, const char* section, MapEditPending pe
     qsort(ed->pick_names, (size_t)ed->pick_count, sizeof(ed->pick_names[0]), me_cmp_name);
   }
   ed->pending = pending;
+  ed->popup_small = false;
   if (ed->pick_count == 0) {
     /* No file: as ESC (startup creates a new map). */
     ai_popup_clear(&ed->popups);
@@ -911,6 +918,8 @@ static void me_popup_result(MapEditor* ed) {
   case MAPEDIT_PENDING_CREATENOW:
     if (choice == 1) {
       me_name_entry(ed, "NEWNAME", NAME_ENTRY_KIND_MAP_NEW, MAPEDIT_NAME_NEW, me_str(ed, MAPEDIT_DS_UNTITLED));
+    } else {
+      me_recenter_new(ed); /* FUN_1000_17e0 case 0x14 falls to LAB_1000_196c either way (port_bugs.md #1310) */
     }
     return;
   case MAPEDIT_PENDING_EXIT:
@@ -1071,7 +1080,7 @@ static void me_palette_input(MapEditor* ed, const ColonizeInputState* in) {
     mapedit_palette_key(ed, in->last_key);
     return;
   }
-  if (in->last_key != COLONIZE_KEY_NONE) {
+  if (in->last_key != COLONIZE_KEY_NONE || in->text_input_len > 0) { /* any key (port_bugs.md #1309) */
     ed->palette_open = false;
     return;
   }
@@ -1162,9 +1171,6 @@ bool mapedit_update(MapEditor* ed, ColonizePlatform* platform, const ColonizeInp
   if (!ed || ed->quit) {
     return false;
   }
-  if (in->quit_requested) {
-    me_exit_request(ed);
-  }
   ed->clock_ms += dt_ms;
   ai_popup_set_now_ms(ed->clock_ms);
   if (platform && ed->cursor_ok && !ed->cursor_built && ed->cursor.sprite_count > 0) {
@@ -1198,9 +1204,15 @@ bool mapedit_update(MapEditor* ed, ColonizePlatform* platform, const ColonizeInp
   if (!ed->map_ok) {
     return !ed->quit;
   }
+  /* The window close is the port's ESC: it waits for any open dialog, which owns the one
+   * `pending` slot (port_bugs.md #1303). */
+  if (in->quit_requested) {
+    me_exit_request(ed);
+    return !ed->quit;
+  }
   if (ed->continents_open) {
-    if (colonize_input_any_key_or_click(in)) {
-      ed->continents_open = false; /* FUN_1000_0060 */
+    if (colonize_input_any_key_or_click(in) || in->text_input_len > 0) {
+      ed->continents_open = false; /* FUN_1000_0060: any key, mapped or not (port_bugs.md #1309) */
     }
     return true;
   }
@@ -1208,8 +1220,13 @@ bool mapedit_update(MapEditor* ed, ColonizePlatform* platform, const ColonizeInp
     me_palette_input(ed, in);
     return true;
   }
+  /* ESC on an open pull-down only closes it; the menu loop eats the key (port_bugs.md #1304). */
+  const bool menu_was_open = ed->menu.open_index >= 0;
   const MapMenuAction act = map_menu_handle_input(&ed->menu, in, ed->font_tiny_ok ? &ed->font_tiny : NULL,
                                                   in->last_key == COLONIZE_KEY_ESCAPE);
+  if (menu_was_open && in->last_key == COLONIZE_KEY_ESCAPE) {
+    return true;
+  }
   if (act == MAP_MENU_ACTION_USER) {
     me_menu_action(ed, ed->menu.picked_id);
     return !ed->quit;
@@ -1323,10 +1340,16 @@ static void me_render_side(const MapEditor* ed, ColonizeFramebuffer8* fb) {
       fb_put(fb, ME_MINI_X + x, ME_MINI_Y + y, cls < 29 ? ed->minimap_color[cls] : 0);
     }
   }
-  /* The view box (FUN_1b56_03b4, colour 0xf; DOS's exact args are lost). */
+  /* The view box (FUN_1b56_03b4, colour 0xf), clipped to the minimap: DOS caps its bottom at
+   * min(minimap top + 0x26, view bottom) (port_bugs.md #1306); the other edges get the same
+   * clip (their args are lost in the decomp). */
   {
     const MeView v = me_view(ed);
-    fb_rect_outline(fb, ME_MINI_X + v.left - ml, ME_MINI_Y + v.top - mt, v.vis_w, v.vis_h, 0xf, 0xf);
+    const int x0 = me_clamp(v.left - ml, 0, ME_MINI_W - 1);
+    const int y0 = me_clamp(v.top - mt, 0, ME_MINI_H - 1);
+    const int x1 = me_clamp(v.left + v.vis_w - 1 - ml, 0, ME_MINI_W - 1);
+    const int y1 = me_clamp(v.top + v.vis_h - 1 - mt, 0, ME_MINI_H - 1);
+    fb_rect_outline(fb, ME_MINI_X + x0, ME_MINI_Y + y0, x1 - x0 + 1, y1 - y0 + 1, 0xf, 0xf);
   }
   if (!ed->font_tiny_ok) {
     return;
@@ -1482,7 +1505,8 @@ void mapedit_render(MapEditor* ed, ColonizeFramebuffer8* fb) {
     }
   }
   const ColonizeFont* dlg = ed->font_intr_ok ? &ed->font_intr : (ed->font_tiny_ok ? &ed->font_tiny : NULL);
-  ai_popup_render(&ed->popups, dlg, ed->font_tiny_ok ? &ed->font_tiny : NULL,
+  const ColonizeFont* popup_font = (ed->popup_small && ed->font_tiny_ok) ? &ed->font_tiny : dlg;
+  ai_popup_render(&ed->popups, popup_font, ed->font_tiny_ok ? &ed->font_tiny : NULL,
                   ed->woodtile_ok ? &ed->woodtile : NULL, &cols, COLONIZE_COL_BASIC,
                   COLONIZE_COL_HILITE, COLONIZE_COL_SELECT, fb);
   if (ed->name_entry.open) {

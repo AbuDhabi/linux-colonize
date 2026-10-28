@@ -87,6 +87,7 @@ typedef struct MapEditor {
   MapMenuBar menu;
   AiPopupState popups;
   MapEditPending pending;
+  bool popup_small; /* the open dialog's section carries @smallfont: FONTTINY (port_bugs.md #1305) */
   NameEntryDialog name_entry;
   MapEditNameFor name_for;
   char pick_names[MAPEDIT_PICK_MAX][16];
