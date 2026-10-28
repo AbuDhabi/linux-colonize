@@ -305,9 +305,10 @@ static void combat_analysis_fill_mods(
     /* Tier 0: LABELS.TXT @MISC row 80 "Colony" (no fortification built yet).
      * Tiers 1-3: NAMES.TXT @BUILDING rows 0-2 (Stockade/Fort/Fortress) via
      * the existing live-backed accessor. */
-    const char* tier_label = tier == 0
+    const int nt = flags->fort_name_tier;
+    const char* tier_label = nt <= 0
       ? reports_misc_display_word(80, "")
-      : reports_fort_tier_name(tier - 1);
+      : reports_fort_tier_name(nt > 3 ? 2 : nt - 1);
     combat_analysis_push_row_icon(
       rows,
       count,
@@ -438,7 +439,11 @@ static void combat_analysis_side_names(
   }
   if (def_out && def_size > 0) {
     if (def_u && def_u->active) {
-      snprintf(def_out, def_size, "%s", units_display_name(pool, def_u));
+      /* Militia phantom (0x200): profession name of the stand-in colonist. */
+      snprintf(def_out, def_size, "%s",
+               (eng->def_flags.flags & COMBAT_FLAG_MILITIA)
+                 ? colonies_profession_name(def_u->profession)
+                 : units_display_name(pool, def_u));
     } else {
       snprintf(def_out, def_size, "%s", fallback);
     }

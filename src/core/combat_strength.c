@@ -151,6 +151,10 @@ static int combat_colony_fort_strength(
      * with the topmost built tier (FUN_281f_0bdc = FUN_15eb_0434(0)).
      */
     flags->fort_tier = tier;
+    /* Label: FUN_15eb_0434(0) stops at the first unowned link (table +4 chain
+     * 0 -> 1 -> 2), so a Fort without a Stockade (fortification byte 2, bit-per-row
+     * mask) labels "Colony" while FUN_157e_0008 still counts 1 (+100%). */
+    flags->fort_name_tier = !has_stockade ? 0 : !has_fort ? 1 : !has_fortress ? 2 : 3;
     /* 636c draws the settlement marker beside the row (FUN_281f_02a8 → 112b_0c64). */
     flags->colony_icon = colonies_settlement_icon(colonies, col);
     flags->colony_nation = col->nation_id;

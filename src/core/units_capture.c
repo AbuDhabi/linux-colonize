@@ -1036,6 +1036,10 @@ int units_spawn_colony_temp_defender(
     return -1;
   }
   u->nation_id = col->nation_id;
+  /* The phantom's plan glyph (+0x314b) is '-' (0x2d) in the DOS captures
+   * (ca_colony_*.dos.ppm; swept 33..255, only 0x2d is pixel-exact). Observed,
+   * not decompiled: FUN_478c_002c itself is not in the decomp. */
+  u->col1_ai_plan = '-';
   return id;
 }
 
@@ -1103,6 +1107,14 @@ bool units_revere_defend_colony_tile(
   const int def_id = units_spawn_colony_temp_defender(pool, col, revere_armed);
   if (def_id < 0) {
     return true; /* nobody home at all (pop 0) — nothing to defend with */
+  }
+  /* raw 100419-100431: FUN_281f_0c54(local_b0) -> the stand-in colonist's profession,
+   * stored at the phantom's +0x315b (read back for the header name and icon). */
+  if (s_militia_colonist_pick >= 0 && s_militia_colonist_pick < col->colonist_count) {
+    ColonizeUnit* ph = units_get(pool, def_id);
+    if (ph) {
+      ph->profession = col->colonists[s_militia_colonist_pick].profession;
+    }
   }
   if (revere_armed) {
     /* DOS `OR byte ptr [0x8d03],4` (asm 5fef:1d5b) — Combat Analysis

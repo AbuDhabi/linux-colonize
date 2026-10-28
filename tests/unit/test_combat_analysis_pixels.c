@@ -230,31 +230,23 @@ static int run_case(const Case* c) {
 /*
  * Known deltas masked here (each is outside combat_analysis_render.c; remove the mask when fixed):
  *  - cursor: the DOS mouse pointer sits in every capture, (158..178, 98..116) on screen.
- *  - plan badge: DOS draws the AI plan glyph '?' 1px right of where unit_chrome_draw.c centres
- *    the ink, and tribe flags/marks use DS:0x848[nation] as it stands at run time (nation 10 =
- *    118, the port table holds 117, unit_chrome.c k_tribe_colors).
- *  - militia header: an empty colony's DOS phantom defender (FUN_5fef_1b0e 0x200 arm) shows the
- *    stand-in colonist's PROFESSION name and icon ("Pioneer") in the header and the footer;
- *    combat_analysis.c names the type ("Colonists").
  */
 #define CURSOR(fy) {105, (fy), 20, 18}
-#define PHANTOM_HDR {107, 23, 80, 17}
-#define PHANTOM_FOOT(fy) {107, (fy), 50, 14}
 static const Case k_cases_data[] = {
   /* human Veteran Soldier (50,37) vs French Soldier (50,38) */
-  {"ca_soldier_open", 50, 37, 50, 38, 0, 2, {CURSOR(61), {113, 29, 9, 9}}},
+  {"ca_soldier_open", 50, 37, 50, 38, 0, 2, {CURSOR(61)}},
   /* Veteran Soldier (51,37) vs undefended French Quebec (50,37), stockade */
-  {"ca_colony_stockade", 51, 37, 50, 37, 0, 4, {CURSOR(61), PHANTOM_HDR, PHANTOM_FOOT(63)}},
+  {"ca_colony_stockade", 51, 37, 50, 37, 0, 4, {CURSOR(61)}},
   /* Veteran Soldier (51,37) vs undefended Quebec with a Fort */
-  {"ca_colony_fort", 51, 37, 50, 37, 0, 4, {CURSOR(61), PHANTOM_HDR, PHANTOM_FOOT(63)}},
+  {"ca_colony_fort", 51, 37, 50, 37, 0, 4, {CURSOR(61)}},
   /* Artillery (51,37) vs undefended Quebec, no fortification */
-  {"ca_artillery_colony", 51, 37, 50, 37, 0, 7, {CURSOR(51), PHANTOM_HDR, PHANTOM_FOOT(63)}},
+  {"ca_artillery_colony", 51, 37, 50, 37, 0, 7, {CURSOR(51)}},
   /* Veteran Soldier (49,40) vs the Sioux capital (50,40): starburst over the village icon */
   {"ca_capital", 49, 40, 50, 40, 10, 1,
-   {CURSOR(61), {113, 28, 10, 12}, {110, 47, 1, 1}, {119, 47, 1, 1}}},
+   {CURSOR(61)}},
   /* Veteran Soldier (48,36) vs the Sioux camp (47,36), Attack Village */
   {"ca_village", 48, 36, 47, 36, 10, 1,
-   {CURSOR(61), {113, 28, 10, 12}, {110, 47, 1, 1}, {119, 47, 1, 1}, {116, 49, 1, 1}}},
+   {CURSOR(61)}},
 };
 
 #define CASE_FN(i) static int case_##i(void) { return run_case(&k_cases_data[i]); }

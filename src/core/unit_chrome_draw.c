@@ -231,7 +231,8 @@ static void unit_chrome_draw_impl(
   }
   const int ink_w = ink_x1 - ink_x0 + 1;
   const int ink_h = ink_y1 - ink_y0 + 1;
-  const int tx = box_x + (box_w - ink_w) / 2 - ink_x0;
+  /* DOS 112b:0749..0758: FUN_1c11_000c pen x = box x + 2 (local_4 + 2 INC INC), cell origin, not ink-centred. */
+  const int tx = box_x + 2;
   const int ty = box_y + (box_h - ink_h) / 2 - ink_y0;
   font_draw_text(font, fb, tx, ty, letter_buf, ink);
 }

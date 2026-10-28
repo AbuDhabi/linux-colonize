@@ -1989,10 +1989,9 @@ static void game_create_load_sheets(ColonizeGameState* game) {
    * 0..151 with 120..127 rotated by CYCLE.DAT. TERRAIN.SS's own palette (pink
    * 12, magenta 5/13, a different water ramp) is a fallback only.
    */
-  if (game->palette_ok) {
-    game->map_palette = game->palette;
-    game->map_palette_ok = true;
-  }
+  /* Load it directly: game->palette is OPENMENU.PIK's by now
+   * (game_create_load_menu_art), not VICEROY.PAL. */
+  game->map_palette_ok = assets_load_palette(game->resolved_data_dir, &game->map_palette);
   if (game_load_ss_asset(game, "TERRAIN.SS", &game->terrain, "terrain sheet")) {
     game->terrain_ok = true;
     if (!game->map_palette_ok && game->terrain.has_palette) {

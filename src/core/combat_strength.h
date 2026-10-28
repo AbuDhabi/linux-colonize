@@ -74,6 +74,7 @@ typedef struct ColonizeCombatSideFlags {
    *                  else Artillery (DS:0x52cc = @UNIT 11 icon); -1 = none.
    */
   int fort_tier;
+  int fort_name_tier; /* FUN_15eb_0434(0) chain walk: consecutive tiers owned from Stockade (label) */
   int colony_icon;
   int colony_nation;
   int terrain_sprite;

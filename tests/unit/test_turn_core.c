@@ -381,11 +381,11 @@ static int case_nation_colors(void) {
     fprintf(stderr, "european turn colors mismatch\n");
     return 1;
   }
-  /* DOS VICEROY.EXE DS:0x848 native colors (FUN_112b_01ba). */
-  if (unit_chrome_nation_color(4) != 15 || unit_chrome_nation_color(5) != 149 ||
-      unit_chrome_nation_color(6) != 54 || unit_chrome_nation_color(7) != 11 ||
+  /* DOS DS:0x848 native colors = NAMES.TXT @TRIBES colour column (FUN_112b_01ba). */
+  if (unit_chrome_nation_color(4) != 97 || unit_chrome_nation_color(5) != 149 ||
+      unit_chrome_nation_color(6) != 54 || unit_chrome_nation_color(7) != 87 ||
       unit_chrome_nation_color(8) != 67 || unit_chrome_nation_color(9) != 111 ||
-      unit_chrome_nation_color(10) != 117 || unit_chrome_nation_color(11) != 71) {
+      unit_chrome_nation_color(10) != 118 || unit_chrome_nation_color(11) != 71) {
     fprintf(stderr, "tribe turn colors mismatch\n");
     return 1;
   }

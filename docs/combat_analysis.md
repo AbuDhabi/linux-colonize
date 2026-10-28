@@ -235,22 +235,20 @@ crop (53, 100-(h>>1), 214, h) at 1x. Four sessions can run side by side on `DOSB
 A DOS unit moved by hand is not on the colony tile chain: a Soldier edited onto an empty
 colony tile was ignored as defender by DOS (it still spawned the militia phantom).
 
-**Known deltas, all outside `combat_analysis_render.c` (masked in the test, fix then drop the mask):**
-- *Militia header.* DOS's phantom defender of an empty colony (the 0x200 / `0x8d03 |= 2` arm,
-  FUN_5fef_1b0e raw 100418-100431, 636c asm 0x0fc-0x12b) prints the stand-in colonist's PROFESSION
-  name and picks that profession's icon (`FUN_281f_0c18(unit+0x315b)`) in the header AND the cheat
-  footer ("Pioneer"), strength 1; `combat_analysis.c` names the unit type ("Colonists") with the
-  Colonists icon.
-- *Tribe colour.* DS:0x848 at run time is `12,9,14,13, 97,149,54,87, 67,111,118,71` (read from the
-  DOS process after a load); `unit_chrome.c` `k_tribe_colors` holds `15,149,54,11,67,111,117,71`
-  (initial EXE image). Sioux (nation 10) flags and village tint marks are palette 118 in DOS, 117 in
-  the port. Nations 4 and 7 differ too (97 / 87 vs 15 / 11).
-- *Plan badge glyph.* DOS draws the AI plan glyph (`?` = plan byte 0x3f, cheat bit + DS:0x894 & 8)
-  one pixel right of where `unit_chrome_draw.c` centres the glyph's ink. (The earlier "order letter"
-  mismatch was this: not a state difference. The port already implements the glyph; the harness
-  just has to enable it, `unit_chrome_set_plan_nations`.)
-- *Fortification byte 2.* An AI colony with `buildings.fortification = 2` shows "Colony +100%" in
-  DOS (neither a tier name nor 50); the port prints Stockade. Only bytes 0, 1, 3 are in the test.
+All known deltas are fixed (only the mouse cursor is masked). Fixed 2026-10-28:
+- *Militia header (0x200).* FUN_5fef_1b0e raw 100418-100431: `local_b0 = FUN_281f_04d4(0, colony+0x1f - 1)`
+  (rand over the colonists), `local_ae = FUN_281f_0c54(local_b0)` = FUN_15eb_0e52 (colony `+0x40+idx`
+  profession byte), stored at the phantom's `+0x315b` after FUN_291f_0a20. 636c reads that byte back, so the
+  header, icon (FUN_112b_0002 jump table) and cheat footer show the PROFESSION (@JOB col 0). Port:
+  `units_revere_defend_colony_tile` copies the picked colonist's profession onto the phantom,
+  `COMBAT_FLAG_MILITIA` (0x200, set when the militia path runs) makes `combat_analysis_side_names` use
+  `colonies_profession_name`. The phantom's plan glyph is '-' in the captures (only 0x2d is pixel-exact; the
+  origin is not in the decomp).
+- *Fortification byte 2.* The save mask is bit-per-row (byte 2 = Fort only, no Stockade). The percent is
+  FUN_157e_0008 = number of owned rows 0..2 (Fort alone = 1, so +100%), but the label is FUN_15eb_0434(0), which
+  walks the chain 0 -> 1 -> 2 and stops at the first unowned link (Stockade missing -> -1 -> LABELS "Colony").
+  Port: `fort_name_tier` (consecutive tiers from Stockade) picks the label, `fort_tier` (count) the percent.
+  No DOS capture of its own; pinned by `unit_combat_strength` `test_fort_without_stockade_labels_colony`.
 
 ## PARKED
 

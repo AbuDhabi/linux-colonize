@@ -384,7 +384,81 @@ static int test_sol_zero_divisor_keeps_bolivar(void) {
   return 0;
 }
 
+/*
+ * Fortification byte 2 (bit-per-row mask: Fort without Stockade): FUN_157e_0008
+ * counts 1 (+100%) but FUN_15eb_0434(0) stops at the unowned Stockade link, so
+ * the analysis row is labelled "Colony" (DOS capture, combat_analysis.md).
+ */
+static int test_fort_without_stockade_labels_colony(void) {
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  char err[256];
+  if (!map_alloc(&map, 8, 8, err, sizeof(err))) {
+    return fail("fort map_alloc");
+  }
+  for (size_t i = 0; i < map.tile_count; ++i) {
+    map.terrain[i] = 1;
+  }
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  units_reset(&pool);
+  units_set_occupancy_map(NULL);
+  seed_types(&pool);
+  const int def = units_spawn_allow_stack(&pool, 0, 4, 4);
+  const int atk = units_spawn_allow_stack(&pool, 0, 3, 4);
+  if (def < 0 || atk < 0) {
+    map_free(&map);
+    return fail("fort spawn");
+  }
+  units_get(&pool, def)->nation_id = 0;
+  units_get(&pool, atk)->nation_id = 1;
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
+  ColonizeColony* c = &colonies.colonies[0];
+  c->id = 0;
+  c->active = true;
+  c->nation_id = 0;
+  c->x = 4;
+  c->y = 4;
+  c->population = 3;
+  colonies.colony_count = 1;
+  colonies.building_type_count = 3; /* slots 0..2 = rows Stockade/Fort/Fortress */
+  for (int i = 0; i < 3; ++i) {
+    colonies.building_types[i].row_plus1 = (uint8_t)(COLONY_BUILDING_STOCKADE + i + 1);
+  }
+  const int fort = colonies_building_row(&colonies, COLONY_BUILDING_FORT);
+  const int stockade = colonies_building_row(&colonies, COLONY_BUILDING_STOCKADE);
+  if (fort < 0 || stockade < 0) {
+    map_free(&map);
+    return fail("fort rows");
+  }
+  c->has_building[fort] = true;
+  ColonizeCombatStrengthCtx ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.units = &pool;
+  ctx.map = &map;
+  ctx.colonies = &colonies;
+  ColonizeCombatEngageResult r;
+  combat_land_engage(&ctx, atk, def, &r);
+  const int t1 = r.def_flags.fort_tier, n1 = r.def_flags.fort_name_tier;
+  c->has_building[stockade] = true;
+  combat_land_engage(&ctx, atk, def, &r);
+  const int t2 = r.def_flags.fort_tier, n2 = r.def_flags.fort_name_tier;
+  map_free(&map);
+  if (t1 != 1 || n1 != 0) {
+    fprintf(stderr, "fort only: tier %d name %d\n", t1, n1);
+    return fail("Fort alone: count 1, label Colony");
+  }
+  if (t2 != 2 || n2 != 2) {
+    fprintf(stderr, "stockade+fort: tier %d name %d\n", t2, n2);
+    return fail("Stockade+Fort: count 2, label Fort");
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+  {"test_fort_without_stockade_labels_colony", test_fort_without_stockade_labels_colony},
   {"test_missing_foe_keeps_terrain", test_missing_foe_keeps_terrain},
   {"test_woi_sol_needs_a_colony_record", test_woi_sol_needs_a_colony_record},
   {"test_fatigue_applies_at_sea", test_fatigue_applies_at_sea},

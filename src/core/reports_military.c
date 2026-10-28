@@ -892,11 +892,11 @@ void reports_render_foreign(
 #define REPORTS_INDIAN_TEXT_COLOR 0 /* black — golden-sampled (0,0,0) exactly */
 #define REPORTS_INDIAN_MUSKET_UNIT_SCALE 50
 
-/* VICEROY.EXE initialized DS:0x848[4..11]; duplicated from unit_chrome.c
+/* NAMES.TXT @TRIBES colour column = DS:0x848[4..11]; duplicated from unit_chrome.c
  * (see that file's note on why the tables aren't shared via a header).
  * Arawak 54 and Cherokee 67 also match the indian.png golden exactly. */
 static const uint8_t k_indian_tribe_colors[COLONIZE_COL1_INDIAN_COUNT] = {
-  15, 149, 54, 11, 67, 111, 117, 71
+  97, 149, 54, 87, 67, 111, 118, 71
 };
 
 typedef struct IndianRow {

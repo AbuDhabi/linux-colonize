@@ -46,6 +46,13 @@
  * ejects a real Soldier instead) sets it yet.
  */
 #define COMBAT_FLAG_MUSKETS 0x0400u
+/*
+ * Defender analysis word bit 0x200 (DOS `OR byte ptr [0x8d03],2`, FUN_5fef_1b0e
+ * raw 100418-100431): the defender is the colony's militia phantom. 636c then
+ * heads the column (and the cheat footer) with the stand-in colonist's
+ * PROFESSION name (FUN_281f_0c18(unit+0x315b)) instead of the unit type.
+ */
+#define COMBAT_FLAG_MILITIA 0x0200u
 
 /*
  * ICONS.SS sprite for that row. DOS's asm loads the literal AX = 0x26 before

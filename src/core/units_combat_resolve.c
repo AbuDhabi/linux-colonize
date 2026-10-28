@@ -295,6 +295,9 @@ bool units_resolve_land_combat_ff_w(
     eng.def_flags.flags |= COMBAT_FLAG_MUSKETS;
   }
   g_units_revere_muskets_latch = 0;
+  if (g_units_colony_autodefender) {
+    eng.def_flags.flags |= COMBAT_FLAG_MILITIA; /* 0x8d03 |= 2, raw 100418-100431 */
+  }
 
   /* The colony-tile tail inside the handicap group (raw 100557-100564) also
    * moves the DEFENDER — `local_a8 = local_a8 + (0x53a6 - 4) * -4` — and raw
