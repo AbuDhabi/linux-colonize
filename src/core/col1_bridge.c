@@ -238,8 +238,12 @@ static const char* col1_bridge_europe_dock_job_name(const EuropeScreen* eu, int 
       }
     }
   }
-  /* NAMES.TXT @JOB column 1 for that profession (row 19 = the plain colonist). */
-  return reports_job_display_name(profession >= 0 ? profession : 19);
+  /* NAMES.TXT @JOB column 1 for that profession (row 19 = the plain colonist).
+   * The DOS 0x1c "no expert skill" byte (UNITS_JOB_NONE) has no @JOB row: it is a
+   * plain Free Colonist too (recruit / Brewster rows keep 0x1c on the dock; a reload
+   * labelled them "": playtest C10). */
+  return reports_job_display_name(profession >= 0 && profession != UNITS_JOB_NONE ? profession
+                                                                                  : UNITS_JOB_COLONIST);
 }
 
 /*

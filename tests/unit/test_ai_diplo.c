@@ -2062,6 +2062,85 @@ static int case_153e_talk_tokens_474(void) {
   return 0;
 }
 
+/* raw :97431/:97720: a target that won its own independence (nation_flags 0x04)
+ * greets with @HELLOUSA, not @HELLOFIRST's "in the name of our Queen" (playtest C10). */
+static int case_153e_usa_greeting(void) {
+  ColonizeWorldMap emap;
+  memset(&emap, 0, sizeof(emap));
+  emap.width = 16;
+  emap.height = 16;
+  emap.tile_count = 256;
+  static uint8_t terr[256], l2[256], l3[256];
+  memset(terr, 1, sizeof(terr));
+  memset(l2, 0, sizeof(l2));
+  memset(l3, 1, sizeof(l3));
+  emap.terrain = terr;
+  emap.layer2 = l2;
+  emap.layer3 = l3;
+  static ColonizeUnitPool eunits;
+  units_reset(&eunits);
+  units_set_occupancy_map(NULL);
+  eunits.type_count = 1;
+  snprintf(eunits.types[0].name, sizeof(eunits.types[0].name), "Scouts");
+  eunits.types[0].movement = 4;
+  eunits.types[0].attack = 1;
+  eunits.types[0].defense = 1;
+  eunits.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  ColonizeUnit* pa = units_get(&eunits, units_spawn(&eunits, 0, 5, 5));
+  ColonizeUnit* pb = units_get(&eunits, units_spawn(&eunits, 0, 6, 5));
+  if (!pa || !pb) {
+    return fail("usa talk spawn");
+  }
+  pa->nation_id = 0;
+  pb->nation_id = 2; /* pair (0,2): the talk cooldown table is static */
+  static ColonizeColonyPool ecol;
+  colonies_init(&ecol);
+  colonies_set_occupancy_map(NULL);
+  static ColonizeCol1Save e;
+  col1_save_init(&e);
+  memset(e.nation, 0, sizeof(e.nation));
+  memset(e.head.nation_relation, 0, sizeof(e.head.nation_relation));
+  e.head.turn = 30;
+  e.head.difficulty = 2;
+  e.head.human_player = 0;
+  e.nation[0].gold = 1000;
+  e.nation[2].gold = 1000;
+  e.nation[2].nation_flags = 0x04;
+  snprintf(e.player[0].country_name, sizeof(e.player[0].country_name), "England");
+  snprintf(e.player[2].country_name, sizeof(e.player[2].country_name), "Republic");
+  snprintf(e.player[0].name, sizeof(e.player[0].name), "Tsterson");
+  static AiPopupState epop;
+  ai_popup_init(&epop);
+  ColonizeDosRng erng;
+  dos_rng_seed(&erng, 5);
+  ColonizeTurnContext ectx;
+  memset(&ectx, 0, sizeof(ectx));
+  ectx.messages = test_game_txt();
+  ectx.col1 = &e;
+  ectx.col1_ok = true;
+  ectx.map = &emap;
+  ectx.units = &eunits;
+  ectx.colonies = &ecol;
+  ectx.human_nation = 0;
+  ectx.ai_popups = &epop;
+  ectx.rng = &erng;
+  if (!ectx.messages) {
+    return 0; /* no shipped GAME.TXT */
+  }
+  (void)ai_diplo_153e_encounter(&ectx, 0, 2, pa->id);
+  int saw = 0;
+  for (int i = 0; i < epop.queue_count; ++i) {
+    char flat[AI_POPUP_BODY_LEN];
+    talk474_flat(flat, sizeof(flat), epop.queue[i].body);
+    if (strstr(flat, "justly claimed")) {
+      fprintf(stderr, "unit_ai_diplo: usa body='%s'\n", flat);
+      return fail("USA target greeted with @HELLOFIRST");
+    }
+    saw |= strstr(flat, "newly elected government") && strstr(flat, "Republic");
+  }
+  return saw ? 0 : fail("USA target: no @HELLOUSA greeting queued");
+}
+
 /* DOS 15b3_0032 only stores the selected relation byte (raw 9069-9080). */
 static int case_relation_writes_preserve_player_bytes(void) {
   ColonizeCol1Save col1;
@@ -2102,5 +2181,6 @@ static const TestCase k_cases[] = {
     {"case_153e_phases_2_4_encounter", case_153e_phases_2_4_encounter},
     {"case_153e_wantstuff_demand", case_153e_wantstuff_demand},
     {"case_153e_worthy_cascade", case_153e_worthy_cascade},
+    {"case_153e_usa_greeting", case_153e_usa_greeting}, /* last: leaves the static talk open */
 };
 TEST_MAIN(k_cases)

@@ -55,8 +55,8 @@ and threat lines (`FUN_49dd_0424` raw 501/516), OVL10 native-village panel
 (`FUN_5fef_1b0e` raw 100857), @CARGOCAPTURE (asm 153592), @LOSTTHEIRSCOUTS (dead in DOS too)
 (`FUN_5f7a_000e` raw 98871), @INDIANCOMMENT (raw 96981), Europe status line
 `FUN_38fd_1bd2` raw 60109 (no port counterpart found; `europe_dock_caption` is the
-separate 3694 site), 153e USA talk variants (asm 149562/149586/150456; see ai_diplo.c
-"USA text variants"), unresolved popup at OVL12 asm 122653. If any is ever ported use
+separate 3694 site), unresolved popup at OVL12 asm 122653 (the 153e USA talk
+variants were ported 2026-10-28: `ai_talk_usa_tag`, PEACEUSA via `ai_talk_plural`). If any is ever ported use
 `reports_nation_adjective_woi` (09a4) / `reports_nation_plural_woi` (0a1a). Not one
 of them: the colony-screen tribal-land demand `FUN_2f2b_2f3e` (2f2b:326a), ported as
 `GAME_INDIAN_LAND_PLOT` (`game_dialogs.c`), passes 09a4 the claiming tribe's nation,

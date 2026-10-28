@@ -135,7 +135,18 @@ Cost = number of calls x context size. Output size matters much less.
 - Send `wait 10` before keys to a popup that just opened.
 - Move units one key per step and check the output between steps.
 - Nested modals (Combat Analysis) get an automatic Return (`NESTED:` line).
-  It can also answer a diplomacy question.
+  A nested diplomacy question (AI demand, treaty, alliance) prints
+  `NESTED CHOICES:` and waits: answer it with `choose N`; other commands are
+  dropped until then. Row 0 of a demand is often the refusal ("We laugh at
+  your puny threats" started a war in campaign 10).
+- Cargo: `load SHIP CARGO [AMT]` / `unload SHIP [CARGO]` with the ship in a
+  colony; `export N CARGO` toggles a Custom House row (it sells sugar and
+  furs by default: untick inputs you process).
+- `field`, `work` and `admit` print `FOOD colony +-N stock S`; `STARVES NEXT
+  TURN` means fix it now (with End of Turn off the turn can end in the same
+  batch).
+- Grep war lines as `ADVISE WAR ` (with the space): `ADVISE WAR` also matches
+  every `ADVISE WARN`. The REF landing popup reads "lands near".
 - The Congress pick (founding father) happens at turn end, before that
   turn's autosave. Reloading does not undo it. Answer it with `choose`.
 - `key Escape` on the main map is refused (it would ask Exit to DOS).

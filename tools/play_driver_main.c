@@ -77,7 +77,9 @@
  *
  * Every popup / ticker text the game presents is echoed as "LOG: ..." after
  * the command that triggered it. A nested modal loop inside one game_update
- * (Combat Analysis) gets a Return after 300 idle polls ("NESTED:" line).
+ * (Combat Analysis) gets a Return after 300 idle polls ("NESTED:" line); a nested
+ * choice popup (AI demand, treaty) prints "NESTED CHOICES:" and waits for `choose N`
+ * (or a `nestedpick` match).
  */
 #include <SDL2/SDL_keycode.h>
 
@@ -153,6 +155,35 @@ static void tap(int32_t code, int m, char text);
 static ColonizeGameState* g_game;
 static char g_nested_pick[64]; /* `nestedpick TEXT`: row a nested choice popup takes */
 
+static void print_new_log(void);
+
+/* Nested choice popup: print it, then read stdin until `choose N` (row N). */
+static int nested_choose_from_stdin(const AiPopupState* pop) {
+  print_new_log();
+  printf("NESTED CHOICES:");
+  for (int i = 0; i < pop->current.choice_count; ++i) {
+    printf(" [%d] %s", i, pop->current.choices[i]);
+  }
+  printf(" (sel %d): answer with choose N\n", pop->selection);
+  fflush(stdout);
+  char line[1024];
+  while (fgets(line, sizeof(line), stdin)) {
+    int n = -1;
+    char tag[256];
+    if (sscanf(line, "choose %d", &n) == 1 && n >= 0 && n < pop->current.choice_count) {
+      return n;
+    }
+    if (sscanf(line, "sync %255s", tag) == 1) {
+      printf("@@ %s\n", tag);
+    } else if (line[0] != '\n' && line[0] != '#') {
+      line[strcspn(line, "\r\n")] = '\0';
+      printf("ERR nested choice popup open, \"%s\" dropped: answer with choose N\n", line);
+    }
+    fflush(stdout);
+  }
+  return pop->selection; /* stdin closed: keep the highlighted row */
+}
+
 bool platform_poll_input(ColonizePlatform* p, ColonizeInputState* out) {
   /* A nested modal loop inside one game_update (Combat Analysis, combat
    * popup pump) cannot see later stdin commands: after 300 idle polls it
@@ -169,6 +200,13 @@ bool platform_poll_input(ColonizePlatform* p, ColonizeInputState* out) {
           want = strncmp(c, t, n) == 0 ? i : -1;
         }
       }
+    }
+    if (want < 0 && pop && pop->open && pop->current.choice_count > 0) {
+      /* A choice popup (AI demand, treaty, alliance) must not take a blind Return:
+       * its highlighted row is often the provocative one (playtest C10: "We laugh at
+       * your puny threats" started a war). Block on stdin for `choose N`; `sync`
+       * still releases the client, anything else is dropped with an ERR. */
+      want = nested_choose_from_stdin(pop);
     }
     if (want >= 0 && pop->selection != want) {
       tap(pop->selection < want ? SDLK_DOWN : SDLK_UP, -1, 0);
@@ -686,8 +724,9 @@ static void print_advise(void) {
     muskets += c->stock[15];
     if (pv.food_net < 0) {
       const int left = c->stock[0] / -pv.food_net;
-      printf("ADVISE WARN colony %d %s: food %+d, stock %d: %s\n", i, c->name, pv.food_net, c->stock[0],
-             left == 0 ? "a colonist starves this turn" : "move a worker onto food");
+      /* A stock that lasts 10+ turns is a plan item, not a fix-before-endturn. */
+      printf("ADVISE %s colony %d %s: food %+d, stock %d: %s\n", left < 10 ? "WARN" : "TODO", i, c->name,
+             pv.food_net, c->stock[0], left == 0 ? "a colonist starves this turn" : "move a worker onto food");
     }
     const bool docks = colonies_has_building_row(pool, c, COLONY_BUILDING_DOCKS);
     for (int k = 0; k < c->colonist_count; ++k) {
@@ -837,6 +876,20 @@ static void print_map(int radius, int cx, int cy) {
   }
 }
 
+/* After a job change: the colony's food balance, flagged when it starves next turn
+ * (with End of Turn off the turn can end before the next `colonies`: C10 Montreal). */
+static void print_colony_food(int colony_id) {
+  ColonizeColony* c = colonies_get_mut(&g_game->colonies, colony_id);
+  if (!c) {
+    return;
+  }
+  const ColonizeWorld w = game_world(g_game);
+  ColonizeColonyPreview pv;
+  colony_preview_compute_w(&w, c, &pv);
+  printf("FOOD %s %+d stock %d%s\n", c->name, pv.food_net, c->stock[COLONIZE_CARGO_FOOD],
+         pv.food_net < 0 && c->stock[COLONIZE_CARGO_FOOD] + pv.food_net < 0 ? " STARVES NEXT TURN" : "");
+}
+
 /* One command line; false = quit. */
 static bool command(char* line) {
   char* argv[8] = {0};
@@ -897,6 +950,11 @@ static bool command(char* line) {
      * Return (a bare Return takes whatever row is highlighted). */
     const AiPopupState* pop = &g_game->ai_popups;
     ok = flush_frames(10);
+    if (!pop->open && strcmp(g_game->log_screen, "woodcut") != 0) {
+      /* Nothing to answer (a stale CHOICES line: `auto` already closed it). */
+      printf("ERR choose %d: no popup open\n", a1);
+      return true;
+    }
     for (int tries = 0; ok && tries < 5 && strcmp(g_game->log_screen, "woodcut") == 0; ++tries) {
       tap(SDLK_RETURN, -1, 0); /* a woodcut in front of the popup */
       ok = flush_frames(10);
@@ -1258,6 +1316,7 @@ static bool command(char* line) {
     if (!done) {
       printf("ERR %s refused\n", op);
     }
+    print_colony_food(id);
     ok = flush_frames(2);
   } else if (strcmp(op, "admit") == 0 && argc > 1) {
     /* admit UID: unit UID standing on one of its colonies joins it (the colony
@@ -1271,6 +1330,7 @@ static bool command(char* line) {
       printf("ERR admit refused\n");
     } else {
       printf("ADMIT colonist %d\n", ci);
+      print_colony_food(cid);
     }
     ok = flush_frames(2);
   } else if (strcmp(op, "eject") == 0 && argc > 3) {

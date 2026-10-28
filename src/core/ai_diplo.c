@@ -1351,7 +1351,7 @@ Ai153eWorthinessScore ai_diplo_153e_worthiness_score(
  * AI_TALK_ST_WANTSTUFF; incl. the byte-verified DOS Furs stale-index bug).
  * The worthy cascade's other two legs (@WARMANLY post-tribute and @RID)
  * ported 2026-09-08 — see AI_TALK_ST_WORTHY and ai/fa_3f41_recon.md.
- * Still not modeled: the USA (post-independence) text variants; the
+ * USA (post-independence) text variants: ai_talk_usa_tag. Still not modeled: the
  * LEADER/KINGS/DEEDS name-prep prefixes are still folded into single-tag
  * bodies (LEADER2 is now resolved and used by the @RID/@WARMANLY/WAR+tone
  * legs, see ai_talk_great_line); unit "encounter direction" stamps (+0x314f).
@@ -1384,6 +1384,7 @@ typedef struct Ai153eTalk {
   int score;       /* raw local_68 */
   int at_war;      /* raw local_ae */
   int crown_armed; /* raw local_9e */
+  int usa;         /* raw local_9c: target nation_flags & 0x04 (won its independence) */
   int dominance;   /* raw iVar16 */
   int own_border;
   int border_value;
@@ -1574,9 +1575,55 @@ static void ai_talk_body(
   popup_msg_fill(ctx->messages, tag, tok, fallback, out, out_size);
 }
 
-static void ai_talk_ok(
-  ColonizeTurnContext* ctx, const char* tag, const PopupMsgTokens* tok, const char* fallback
+/*
+ * The USA text leg (raw local_9c, set when the target nation won its own
+ * independence). FUN_5bfb_153e swaps the GAME.TXT tag and, per site, %STRING0:
+ *   HELLO*            strcpy 0x18d8 HELLOUSA (raw :97720)
+ *   APOSTATES, RID    strcat 0x17e8 "USA" (raw :97736, :97968)
+ *   HEATHEN, PIRACY, SIEGES, TRIBUTE, WANTSTUFF
+ *                     strcat "USA" + 0416(0, target country) (raw :97749, :97787,
+ *                     :97844, :97907, :97939)
+ *   [OLD]PEACE*       strcpy 0x198d PEACEUSA + 0416(0, target country),
+ *                     0438(1, 0a1a(human)) (raw :98082-98086)
+ * Every other tag passes unchanged.
+ */
+static const char* ai_talk_usa_tag(
+  ColonizeTurnContext* ctx, const char* tag, PopupMsgTokens* tok, char* buf, size_t buf_size
 ) {
+  if (!s_talk.usa || !tag) {
+    return tag;
+  }
+  const char* country = col1_player_country_name(ctx->col1, s_talk.target);
+  if (strncmp(tag, "HELLO", 5) == 0) {
+    return "HELLOUSA";
+  }
+  if (strncmp(tag, "PEACE", 5) == 0 || strncmp(tag, "OLDPEACE", 8) == 0) {
+    tok->string0 = country;
+    tok->string1 = ai_talk_plural(ctx, s_talk.self);
+    return "PEACEUSA";
+  }
+  static const char* const k_country0[] = {"HEATHEN", "PIRACY", "SIEGES", "TRIBUTE", "WANTSTUFF"};
+  for (size_t i = 0; i < sizeof(k_country0) / sizeof(k_country0[0]); ++i) {
+    if (strcmp(tag, k_country0[i]) == 0) {
+      tok->string0 = country;
+      snprintf(buf, buf_size, "%sUSA", tag);
+      return buf;
+    }
+  }
+  if (strcmp(tag, "APOSTATES") == 0 || strcmp(tag, "RID") == 0) {
+    snprintf(buf, buf_size, "%sUSA", tag);
+    return buf;
+  }
+  return tag;
+}
+
+static void ai_talk_ok(
+  ColonizeTurnContext* ctx, const char* tag, const PopupMsgTokens* tok_in, const char* fallback
+) {
+  PopupMsgTokens usa_tok = *tok_in;
+  char usa_tag[32];
+  tag = ai_talk_usa_tag(ctx, tag, &usa_tok, usa_tag, sizeof(usa_tag));
+  const PopupMsgTokens* tok = &usa_tok;
   char body[AI_POPUP_BODY_LEN];
   ai_talk_body(ctx, tag, tok, fallback, body, sizeof(body));
   s_talk.pending = 0;
@@ -1594,9 +1641,13 @@ static void ai_talk_ok(
 
 /* Enqueue a CHOICE for `stage`; labels from GAME.TXT when present. */
 static void ai_talk_choice(
-  ColonizeTurnContext* ctx, const char* tag, const PopupMsgTokens* tok, const char* fallback,
+  ColonizeTurnContext* ctx, const char* tag, const PopupMsgTokens* tok_in, const char* fallback,
   const char* const* fallback_labels, int count, int stage
 ) {
+  PopupMsgTokens usa_tok = *tok_in;
+  char usa_tag[32];
+  tag = ai_talk_usa_tag(ctx, tag, &usa_tok, usa_tag, sizeof(usa_tag));
+  const PopupMsgTokens* tok = &usa_tok;
   char body[AI_POPUP_BODY_LEN];
   ai_talk_body(ctx, tag, tok, fallback, body, sizeof(body));
   char buf[AI_POPUP_CHOICE_MAX][AI_POPUP_CHOICE_LEN];
@@ -1847,11 +1898,9 @@ static AiTalkStepStatus ai_talk_stage_worthy(
       ai_diplo_clear_both(col1, h, t, AI_DIPLO_PEACE);
     } else {
       /*
-       * @RID (+ "USA" when the target has declared independence — the
-       * USA text variants are the machine-wide documented delta, see
-       * the file header; 153e also bails on head.game_options.woi, so
-       * the suffix is unreachable in the port).  Ultimatum only: DOS
-       * changes no relation bit on this leg.
+       * @RID (+ "USA" when the target won its own independence:
+       * ai_talk_usa_tag).  Ultimatum only: DOS changes no relation bit
+       * on this leg.
        */
       ai_talk_ok(ctx, "RID", &tr, "");
     }
@@ -2501,6 +2550,8 @@ static int ai_diplo_153e_encounter_gated(
   k->want_cargo = -1;
   k->forced = w.forced;
   k->manly = w.worthy ? 1 : 0;
+  /* raw :97431 (5bfb): `(nation[param_3] -0x77f8) & 4` -> local_9c, the +USA text leg. */
+  k->usa = (col1->nation[target].nation_flags & 0x04u) != 0;
 
   /*
    * @WANTSTUFF demand pick (raw :97562-97593): only when the encounter's
