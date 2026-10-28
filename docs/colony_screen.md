@@ -584,8 +584,25 @@ Second pass, same day (were port_bugs.md #1282-#1286):
     @MISC 9 / @MISC 10 + country / "No Ships In Port" or
     "Loading:  <type>" (Merchantman on its own line), ink 0x45.
 
-**Still different:** the sand backdrop dither and parts of the area view
-differ pixel by pixel (about 68k-77k of 256k pixels per 2x shot), D4 polish.
+**Chrome polish 2026-10-28** (New Amsterdam golden, full-screen differing pixels
+19.3k -> 6.8k, ~1.4k of it the intentional Production pane):
+
+- Parchment tile phase is (-1, -8) from the viewport origin (99% of sand pixels
+  equal); the 8 rows above sit under the top bar, so parchment is drawn first.
+- Area view = `FUN_2f2b_0a74`: tiles + tribes are composed into an 80x80 (5x5
+  tile) block at 16px and scaled to the 120x120 box at (200,8) by `FUN_12e9_008c`
+  with `FUN_12e9_0006`'s ordered dither (source cols 2,1,2,1; rows 1,2,1,2; the
+  dither phase carries from the box corner, so the full 5x5 must be run). Only
+  the middle 3x3 is shown (`colony_screen_scale15_dither`).
+- Field / town-commons badges are `FUN_1097_0174` (`reports_draw_dos_icon_bar`)
+  at the tile origin, w 0x18, min_w 0x18 (count <= 2) or 0x10; the commons
+  secondary row sits at +13. A zero-yield worker shows the icon at x + (16-w)/2,
+  y + 1 plus ICONS #64 at the tile origin. Area-view workers are drawn at
+  (x + 12, y + 6) with a black shadow.
+- Building workers (`FUN_2f2b_12cc`) use shadow palette 0x5f.
+
+**Still different:** the settlement building workers' exact positions and a few
+area-view sprites, about 1.4k pixels (D4 polish).
 
 Deliberate, player-requested: the Production pane layout (surplus split,
 4-row hammer bar).

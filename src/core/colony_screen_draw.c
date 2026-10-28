@@ -20,6 +20,7 @@
 #include "core/popup.h"
 #include "core/popup_msg.h"
 #include "core/reports.h"
+#include "core/reports_internal.h"
 #include "core/reports_names.h"
 #include "core/ui_colors.h"
 #include "core/turn.h"
@@ -732,6 +733,28 @@ const int colony_screen_class_box[5][2] = {{23, 27}, {44, 22}, {53, 37}, {73, 18
 
 /* ===================== Area overlays & minimap rendering (colony_screen_draw_area_overlays .. colony_screen_render_minimap) ===================== */
 
+/* DOS FUN_2f2b_0d89 / 0ba8 (asm 2f2b:0dc4-0e03, 0:01a2-01e2 of the 0ba8 block):
+ * a tile's yield is FUN_1097_0174 with x/y = the tile origin, w = 0x18, min_w
+ * = `min_w`, count = denominator = amount, flags 0. */
+static void colony_screen_area_yield_badge(
+  const ColonyScreenView* view,
+  const ColonizeFont* font,
+  ColonizeFramebuffer8* framebuffer,
+  int icon,
+  int x,
+  int y,
+  int amount,
+  int min_w
+) {
+  if (!view->icons_ok) {
+    return;
+  }
+  reports_draw_dos_icon_bar(
+    &view->icons, font, framebuffer, icon, x, y, 24, min_w, amount, amount, false,
+    view->show_production_numbers
+  );
+}
+
 void colony_screen_draw_area_overlays(
   ColonyScreenView* view,
   const ColonizeColonyPool* pool,
@@ -773,36 +796,17 @@ void colony_screen_draw_area_overlays(
       map, colony->x, colony->y, colony->colony_flags,
       col1 ? (int)col1->head.difficulty : 4, &tc
     );
-    int row = 0;
-    if (tc.food > 0) {
-      colony_screen_draw_resource_count(
-        view,
-        font,
-        framebuffer,
-        tile_x,
-        tile_y + row * 10,
-        tile,
-        10,
-        COLONY_CARGO_ICON_BASE + COLONIZE_CARGO_FOOD,
-        tc.food,
-        15,
-        false
-      );
-      row++;
-    }
+    /* Food at the tile origin, the secondary cargo 13 rows below it, both min_w
+     * 0x10 (asm 2f2b:019c-01e2 of the 0ba8 block; the secondary row sits at +0xd
+     * even when there is no food row). */
+    colony_screen_area_yield_badge(
+      view, font, framebuffer, COLONY_CARGO_ICON_BASE + COLONIZE_CARGO_FOOD, tile_x, tile_y,
+      tc.food, 16
+    );
     if (tc.secondary_amount > 0 && tc.secondary_cargo >= 0) {
-      colony_screen_draw_resource_count(
-        view,
-        font,
-        framebuffer,
-        tile_x,
-        tile_y + row * 10,
-        tile,
-        10,
-        COLONY_CARGO_ICON_BASE + tc.secondary_cargo,
-        tc.secondary_amount,
-        15,
-        false
+      colony_screen_area_yield_badge(
+        view, font, framebuffer, COLONY_CARGO_ICON_BASE + tc.secondary_cargo, tile_x,
+        tile_y + 13, tc.secondary_amount, 16
       );
     }
   }
@@ -846,18 +850,8 @@ void colony_screen_draw_area_overlays(
       const int icon = (c->field_job == COLONIZE_JOB_FISHERMAN)
                          ? COLONY_ICON_FISH
                          : (COLONY_CARGO_ICON_BASE + cargo);
-      colony_screen_draw_resource_count(
-        view,
-        font,
-        framebuffer,
-        tile_x,
-        tile_y,
-        tile,
-        12,
-        icon,
-        yld,
-        15,
-        false
+      colony_screen_area_yield_badge(
+        view, font, framebuffer, icon, tile_x, tile_y, yld, yld > 2 ? 16 : 24
       );
     } else if (cargo >= 0) {
       /* port_bugs.md: a worker whose job produces nothing here (farmer on sea /
@@ -869,16 +863,11 @@ void colony_screen_draw_area_overlays(
                          : (COLONY_CARGO_ICON_BASE + cargo);
       if (view->icons_ok && icon >= 0 && icon < view->icons.sprite_count) {
         const ColonizeSprite* sp = &view->icons.sprites[icon];
-        const int px = tile_x + (tile - sp->width) / 2;
-        const int py = tile_y + (12 - sp->height) / 2;
-        ss_blit_sprite(&view->icons, icon, framebuffer, px, py);
+        /* asm 2f2b:0e08-0e57: the icon at x + (0x10 - w) / 2, y + 1, then ICONS #64
+         * (id 0x41) at the tile origin. */
+        ss_blit_sprite(&view->icons, icon, framebuffer, tile_x + ((16 - sp->width) >> 1), tile_y + 1);
         if (64 < view->icons.sprite_count) {
-          const ColonizeSprite* slash = &view->icons.sprites[64];
-          ss_blit_sprite(
-            &view->icons, 64, framebuffer,
-            px + (sp->width - slash->width) / 2,
-            py + (sp->height - slash->height) / 2
-          );
+          ss_blit_sprite(&view->icons, 64, framebuffer, tile_x, tile_y);
         }
       }
     }
@@ -886,13 +875,10 @@ void colony_screen_draw_area_overlays(
       const int sprite =
         units_working_colonist_sprite(units, c->unit_type_index, c->profession);
       if (sprite >= 0) {
-        const ColonizeSprite* sp =
-          (view->icons_ok && sprite < view->icons.sprite_count) ? &view->icons.sprites[sprite]
-                                                               : NULL;
-        const int iw = sp ? sp->width : 12;
-        const int ih = sp ? sp->height : 12;
-        const int ix = tile_x + (tile - iw) / 2;
-        const int iy = tile_y + tile - ih - 1;
+        /* DOS asm 2f2b:0e61-0e7f: FUN_281f_024a at (x + 0xc, y + 6), whatever the
+         * sprite size (golden-confirmed: 74% -> 91% of minimap pixels). */
+        const int ix = tile_x + 12;
+        const int iy = tile_y + 6;
         colony_screen_blit_icon_shadowed(view, sprite, framebuffer, ix, iy, 0);
         if (view->selected_colonist == w.colonist_index) {
           colony_screen_draw_selection_box(framebuffer, tile_x, tile_y, tile, tile, 10);
