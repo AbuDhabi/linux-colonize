@@ -51,6 +51,10 @@ bool europe_load(EuropeScreen* eu, const char* data_dir, char* err, size_t err_s
     assets_msg_free(&names);
     return false;
   }
+  /* FUN_38fd_086c loads EUROPE (DS:0xfba) through FUN_291f_087a ->
+   * FUN_7939_000c, which reads pixels only: the DAC stays VICEROY.PAL. EUROPE.PIK's own 54..59 blue ramp and pink 12 never show
+   * (original_screenshots/europe: 0 pixels of the PIK RGB, all VICEROY's). */
+  assets_load_palette(data_dir, &eu->background.palette);
   eu->background_ok = true;
 
   char ss_path[512];

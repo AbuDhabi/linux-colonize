@@ -49,13 +49,10 @@ static int reports_citizen_points_for_job(int job) {
   if (job == UNITS_JOB_SERVANT || job == UNITS_JOB_CRIMINAL || job == UNITS_JOB_CONVERT) {
     return 1; /* Indentured Servants, Petty Criminals, Indian Converts */
   }
-  if (job == UNITS_JOB_COLONIST) {
-    return 2; /* Free Colonists (port alias of 0x1c) */
+  if (job == UNITS_JOB_NONE) {
+    return 2; /* 0x1c: no expert skill (a real @JOB 19 Free Colonist scores 4 in DOS) */
   }
-  if (job >= 0 && job < k_job_count) {
-    return 4; /* specialists / veterans / teachers / etc. */
-  }
-  return 2;
+  return 4; /* specialists / veterans / teachers / etc. */
 }
 
 static int reports_resolve_job(int profession, int unit_type) {
@@ -113,13 +110,13 @@ static int reports_count_ff_for_nation(const ColonizeCol1Save* col1, int human) 
  * - Colony population: every occupied slot is unconditionally a person, so
  *   an invalid/sentinel profession byte (28, UNITS_JOB_NONE) still falls
  *   back to Free Colonist (reports_resolve_job's default).
- * - Map/Europe units: only counted when the unit's raw `profession` byte is
- *   itself a genuine assigned job (0..27) — a unit created without one
- *   (profession==28, the common case for a plain freshly-recruited/promoted
- *   unit) contributes nothing here, *no* type-based fallback. Synthesizing
- *   a job from unit type (as reports_profession_from_unit_type does for
- *   other purposes) overcounts: applying it to every scored-colonist unit
- *   in that save gives 180, not the golden's 158.
+ * - Map/Europe units: every slot-bearing unit scores (units_type_has_profession_slot).
+ *   The DOS value is one stack local that only the colony slot loop and the
+ *   generic-pose branch assign: a unit whose map icon is not a generic pose
+ *   (0x4a..0x4e) re-scores the last assigned value, initially the last colony
+ *   slot's raw profession (FUN_41f2_0092 raw 71172-71198). Golden: 138 colony
+ *   points + 10 units x 2 = 158 (an earlier "profession 0..27 only" rule
+ *   fitted the number by accident and showed the wrong icons).
  */
 /*
  * port_bugs.md (score_screen.SAV): Score-strip icon for a counted UNIT. DOS
@@ -131,7 +128,7 @@ static int reports_count_ff_for_nation(const ColonizeCol1Save* col1, int human) 
  * @UNIT art, and a plain-equipped expert shows his skill portrait instead.
  * Icon constants: NAMES @UNIT icon column − 1 (1-based sheet).
  */
-static int reports_score_unit_icon(int type, int prof) {
+static int reports_score_unit_icon(int type, int prof, bool* generic_out) {
   /* port_bugs.md #656: 0x17 (UNITS_JOB_DRAGOON) is never written by DOS
    * (#503/#639); units.c's veteran gates (units_profession_line,
    * units_map_sprite/FUN_112b_0060, the 172c promote test) are 0x15-only,
@@ -166,8 +163,13 @@ static int reports_score_unit_icon(int type, int prof) {
     break;
   }
   /* Colonists-type, or a generic equipped pose → profession portrait. */
+  if (generic_out) {
+    *generic_out = icon >= UNITS_ICON_PIONEER && icon <= 77; /* DOS 0x4a..0x4e */
+  }
   if (icon < 0 || (icon >= UNITS_ICON_PIONEER && icon <= 77)) {
-    const int by_job = units_job_icon_sprite(reports_resolve_job(prof, type));
+    /* FUN_281f_02c6: a generic pose takes the raw profession's portrait
+     * (0x1c -> plain Free Colonist), no unit-type fallback. */
+    const int by_job = units_job_icon_sprite(icon < 0 ? reports_resolve_job(prof, type) : prof);
     if (by_job >= 0) {
       return by_job;
     }
@@ -183,6 +185,10 @@ static int reports_score_collect_citizen_jobs(
   int max_out
 ) {
   int count = 0;
+  /* DOS keeps the scored value in one stack local (-0x70) that only the
+   * colony slot loop and the generic-pose branch assign: a unit whose map
+   * icon is not a generic pose re-scores the last assigned value. */
+  int scored = UNITS_JOB_NONE;
   if (!col1 || !jobs_out || max_out <= 0) {
     return 0;
   }
@@ -195,11 +201,11 @@ static int reports_score_collect_citizen_jobs(
       c->population > COLONIZE_COL1_COLONY_POP_MAX ? COLONIZE_COL1_COLONY_POP_MAX
                                                    : (int)c->population;
     for (int p = 0; p < pop && count < max_out; ++p) {
-      const int job = reports_resolve_job((int)c->profession[p], -1);
+      scored = (int)c->profession[p];
       if (icons_out) {
-        icons_out[count] = units_job_icon_sprite(job);
+        icons_out[count] = units_job_icon_sprite(reports_resolve_job(scored, -1));
       }
-      jobs_out[count++] = job;
+    jobs_out[count++] = scored;
     }
   }
   for (uint16_t i = 0; i < col1->head.unit_count && count < max_out; ++i) {
@@ -210,27 +216,19 @@ static int reports_score_collect_citizen_jobs(
     if (!reports_unit_type_is_scored_colonist((int)u->type)) {
       continue;
     }
-    /*
-     * port_bugs.md #574 asked for 0x1c units to score +2 here, reading raw
-     * 71188-71198 (`if (prof == 0x1c) +2; else if 0x19/0x1a/0x1b +1; else
-     * +4`) as applying to every slot-bearing unit. REFUTED by the DOS
-     * capture: original_saves/report-screen-goldens/score.png reads
-     * "Dutch Citizens: +158" for dutch-reports.SAV, which is colony
-     * population (142) + the 4 units whose profession byte is a genuine
-     * assigned job (4 x 4). Counting that save's 0x1c-profession units at
-     * +2 each gives 166. So a unit with the "no specialty" sentinel does
-     * not reach the ladder at all — the scored value in the decomp
-     * (`in_stack_0000ff8e`, a stack slot Ghidra only shows assigned inside
-     * the generic-icon branch) is not simply +0x315b.
-     */
+    /* FUN_41f2_0092 raw 71172-71198 / FUN_281f_02da: every slot-bearing unit
+     * scores (port_bugs.md #574; dutch-reports.SAV golden +158 = 142 colony
+     * points + 10 units at 2/4 pts, the stale-local rule above). */
     const int prof = (int)u->profession;
-    if (prof < 0 || prof >= k_job_count) {
-      continue;
+    bool generic = false;
+    const int icon = reports_score_unit_icon((int)u->type, prof, &generic);
+    if (generic) {
+      scored = prof;
     }
     if (icons_out) {
-      icons_out[count] = reports_score_unit_icon((int)u->type, prof);
+      icons_out[count] = icon;
     }
-    jobs_out[count++] = prof;
+    jobs_out[count++] = scored;
   }
   return count;
 }
@@ -597,7 +595,7 @@ void reports_render_score(
   snprintf(
     line,
     line_sz,
-    "%s %s:  +%d",
+    "%s %s: +%d",
     nation_adj,
     reports_misc_word(134, "", w1, sizeof(w1)),
     sc.congress
@@ -641,7 +639,7 @@ void reports_render_score(
     snprintf(
       lines[n_lines],
       sizeof(lines[0]),
-      "%s:  (%u$) +%d",
+      "%s: (%u$) +%d",
       reports_misc_word(59, "", w1, sizeof(w1)),
       (unsigned)score_gold,
       sc.treasury
@@ -689,7 +687,7 @@ void reports_render_score(
      * table (DS:0x97de = row 15 Muskets, docs/combat_analysis.md; 2-byte
      * stride) at row 18, "Liberty Bells". */
     const char* bells = reports_names_field("CARGO", 18, 0);
-    snprintf(lines[n_lines], sizeof(lines[0]), "%s:  +%d", bells ? bells : "", sc.bells_pts);
+    snprintf(lines[n_lines], sizeof(lines[0]), "%s: +%d", bells ? bells : "", sc.bells_pts);
     colors[n_lines++] = REPORTS_SCORE_GREEN_COLOR;
   }
   if (sc.independence_achieved) {
@@ -707,7 +705,7 @@ void reports_render_score(
     snprintf(
       lines[n_lines],
       sizeof(lines[0]),
-      "%s %s%s:  +%d%%",
+      "%s %s%s: +%d%%",
       reports_misc_word(116, "", w1, sizeof(w1)),
       reports_misc_word(119, "", w2, sizeof(w2)),
       prior,

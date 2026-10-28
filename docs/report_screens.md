@@ -106,6 +106,17 @@ reports plumb page state through `reports_render_w()` and the OK hit-test.
   palette via nearest-RGB LUT (per-file duplicate pattern, no shared
   header — deliberate). If a report's icons look off-colored, check which
   background they were remapped against.
+- **Plate DAC = VICEROY.PAL + PIK 152..251.** DOS-LITERAL `FUN_3f41_0000` (every
+  F1-F8 body calls it with its plate digit; Indian passes **1**, so F9's plate is
+  `REPORT1.PIK`, and `REPORT9.PIK` ships unused) loads `REPORT<n>.PIK` into a stack
+  palette and programs only DAC 0x98..0xfb from it (`FUN_1c2e_0022`, AX 0x98, DX 0x64).
+  DAC 0..151 and 252..255 keep the master palette `VICEROY.PAL` (`FUN_7a7c_000e`, 0x300
+  bytes of RGB triples): nation pair 5 (170,73,0) / 13 (255,113,0), pure red 12
+  (255,0,0), which the plates' own palettes leave as EGA magenta / pink.
+  `reports_plate_dac` (`reports.c`) applies this at load to every plate except CCBKGD
+  (page 2) and WOODPANL (F10), which other loaders install. Red inks are 12, not
+  the plate's 112: economic negatives are attribute 4 + 8 (`FUN_3f41_1710`), foreign
+  War is `(peace ? 0 : 0xfd) + 0xf` as a byte (`FUN_3f41_2548`, 15 / 12).
 - **Don't assume a palette index means the same color across two
   `REPORT*.PIK`s** — probe each report's own palette (`pik_load` +
   nearest-RGB against the golden's sampled ink). F8's leader yellow is
@@ -160,14 +171,42 @@ report palettes render it magenta. Fix generalized project-wide:
 and nearest-matches; every screen (map, colony, Europe, pedia, combat
 analysis, reports) passes its own palette. Caveat: REPORT7.PIK has no
 color near Dutch orange `(255,113,0)` (nearest is visibly duller) while
-the golden shows pure orange — DOS likely reserves palette slots for
-chrome; unresolved, left as nearest-match.
+the golden shows pure orange. Resolved 2026-10-28: the plate DAC keeps
+VICEROY.PAL's 0..151 (see "Backgrounds and palettes"), so the nearest match is
+now the exact slot 13.
 
 Same investigation: ICONS.SS #0-3 colony markers carry a baked-in blue
 flag (15 fixed pixels) that DOS recolors per nation (`FUN_112b_0c64`).
 `unit_chrome_nation_flag_shades_for_palette()` +
 `colonies_blit_settlement_icon()` overpaint them everywhere (dark shade =
 light × ~82%, approximation).
+
+## Body polish 2026-10-28 (verdicts + traps)
+
+2x differing pixels after the plate-DAC fix (same day): religious / continental_p2 /
+labor_detail / economic_p1 / foreign / indian / score 40 (pointer column), labor 328
+(pointer over title), economic_p2 72, colony_p1 152 / p2 236, continental_p1 640, naval 1200.
+
+- Body inks are PIK indices pinned by golden colour, not EGA guesses: yellow labels / names
+  146 (0x92, (255,243,93); index 14 is (255,255,85)), cream counts / lists 97.
+- `labor_detail.png` is job 19 (Free Colonists): `render_report ... 2 0 19`.
+- Labor detail = `FUN_3f41_0d3e`: labels x 0xa0, values +0x5f, rows from y 0x19 step
+  FONTTINY[0]+1; colony list y 0x19+0x28 step 9, columns 2 + n*0x69, 10 rows.
+- `FUN_1097_0394` multi-slot bar (static in reports_congress.c; Ghidra drops AX=x DX=y BX=w,
+  stack = gap; count-0 slots not queued; step = min(sprite w + 1, room / sum(count-1))). Congress
+  sentiment slots = census_pop_proxy[nation] (DS:0x9410), flags = floor(slots * rebel% / 100).
+  The colony meter row (`FUN_2f2b_17d0`) calls the same routine.
+- Naval: cells centre with `reports_draw_dos_centered`; Ship / Destination centres 42 / 280 and
+  row rules x 2..314 are golden-measured. Economic / colony row rules also start at x 2.
+- Remaining residue: continental_p1 600 / colony_p2 84 are the water-cycle ramp DAC
+  120..127. `FUN_3f41_0000` restores DS:0x372, so `FUN_1a0a_007a` keeps rotating it under
+  a report and each golden froze its own phase (continental_p1 3 steps, colony_p2 7);
+  `render_report` draws phase 0. Colony p1/p2 112: the colony-icon flag's dark shade is
+  still the ~82% approximation (`unit_chrome_nation_flag_shades_for_palette`); the
+  golden shows slot 5 (170,73,0). Naval 1160: ship-column unit chrome (x 0-20, y 40-110:
+  silhouette / box pixels) and the cargo sprites at x 80-100, y 100-120 — shape, not palette.
+- The live game does not rotate the report's 120..127 (the plate palette is static);
+  DOS shows the current cycle phase there when cycling is on.
 
 ## `col1_bridge_apply` transport-chain bugs (reachable outside reports)
 

@@ -1792,11 +1792,11 @@ static int case_orders_chrome(void) {
       assets_msg_free(&names);
       return 1;
     }
-    /* Natives always '-'; Sentry letter uses NAMES color-8; England fill is saturated 112. */
+    /* Natives always '-'; Sentry letter uses NAMES color-8; fill is the raw @COUNTRY index (FUN_112b_01ba). */
     if (unit_chrome_order_letter(1, 5) != '-' ||
         unit_chrome_letter_color(0, 1) != (uint8_t)(12 - 8) ||
         unit_chrome_letter_color(0, 0) != 0 ||
-        unit_chrome_nation_color(0) != 112 || unit_chrome_nation_color(1) != 9) {
+        unit_chrome_nation_color(0) != 12 || unit_chrome_nation_color(1) != 9) {
       fprintf(stderr, "unit_chrome letter/nation color mismatch\n");
       ss_free(&icons);
       map_free(&map);

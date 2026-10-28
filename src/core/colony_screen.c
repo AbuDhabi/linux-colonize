@@ -853,6 +853,11 @@ bool colony_screen_load(ColonyScreenView* view, const char* data_dir, char* err,
   if (!colony_screen_load_pik(data_dir, "WOODPANL.PIK", &view->frame, err, err_size)) {
     return false;
   }
+  /* DOS loads WOODPANL (FUN_41f2_000e / FUN_41f2_0f56 / FUN_6cb2_0424) and
+   * COLONY (FUN_2f2b_05b6) through FUN_291f_087a -> FUN_7939_000c, which reads
+   * pixels only: the DAC stays VICEROY.PAL. WOODPANL's own palette differs
+   * only at 5/12/13 (EGA magenta / pink), the orders-box nation slots. */
+  assets_load_palette(data_dir, &view->frame.palette);
   view->frame_ok = true;
 
   char ss_path[512];
@@ -905,14 +910,6 @@ bool colony_screen_load(ColonyScreenView* view, const char* data_dir, char* err,
     snprintf(err, err_size, "ICONS.SS: %s", ss_err);
     colony_screen_free(view);
     return false;
-  }
-  /* FUN_112b_01ba fills the orders box with the raw DS:0x848 index (Dutch 13,
-   * letter 13 - 8 = 5), and DOS's DAC keeps VICEROY.PAL's reserved Dutch pair
-   * there on every screen. WOODPANL leaves 5/13 EGA magenta and paints none, so
-   * take ICONS' pair as the map palette does (game_loop_render.c). */
-  if (view->frame_ok && view->frame.has_palette && view->icons.has_palette) {
-    memcpy(view->frame.palette.rgb[5], view->icons.palette.rgb[5], 3);
-    memcpy(view->frame.palette.rgb[13], view->icons.palette.rgb[13], 3);
   }
   assets_sheet_remap_to_palette(&view->icons, &view->frame.palette);
   view->icons_ok = true;

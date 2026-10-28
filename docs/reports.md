@@ -346,7 +346,8 @@ independently golden-confirmed.
   draws 14 at pitch 14). Drawing itself takes any non-ship unit with
   attack >= 1, so a Scout is drawn but does not tighten the row. Sons of
   Liberty pages show SoL flag+percent, building name, bell icon+count, up
-  to 6 worker-slot icons (x=249, step=21). 9 rows/page, row0 y=27 step=17.
+  to 6 worker-slot icons (x=252, step=12, y row_top-6, shadow ink 95; flag
+  and bell at row_top-5; sidebar/units at row_top-7, golden-measured 2026-10-28). 9 rows/page, row0 y=27 step=17.
 - Ordering: colony array order, filtered to this nation.
 - Scroll/paging: 2*ceil(colony_count/9) pages — first half Military
   Garrisons, second half Sons of Liberty (`reports_colony_page_count`).
@@ -358,8 +359,9 @@ independently golden-confirmed.
 - Port status: Done (golden `colony_p1.png`/`colony_p2.png`) —
   `reports_render_colony_sidebar`/`_garrisons`/`_sol`
   (`reports_economy.c`). The garrison row is re-sorted before drawing as DOS
-  does (`FUN_1427_04d6(head, 1)`: stable pseudo-size ascending, Dragoon/
-  Scout/Cont.Cav. = 2, Artillery = 3). Project-wide palette fixes that came
+  does (`FUN_1427_04d6(head, 1)`: stable pseudo-size **descending** in the final
+  chain, golden Artillery before Dragoon; Dragoon/Scout/Cont.Cav. = 2,
+  Artillery = 3). Project-wide palette fixes that came
   out of this report: `report_screens.md` "unit_chrome on report
   backgrounds".
 
@@ -506,7 +508,7 @@ independently golden-confirmed.
 
 - DOS FUN: `FUN_3f41_010a` (69451, 160 lines, "tribe rows, villages,
   converts") — thunk `FUN_291f_041a`.
-- Background: `REPORT9.PIK`.
+- Background: `REPORT1.PIK` (`FUN_3f41_010a` passes 1 to the plate loader `FUN_3f41_0000`; `REPORT9.PIK` ships unused).
 - Data source: every tribe with `indian.euro_diplo[human] != 0` (bit 0x20
   met / 0x40 peace). Muskets shown = `indian.muskets` plus one per live
   tribe unit of type Armed Brave (20) or Mtd. Warrior (22), sum x50 — a
@@ -539,7 +541,7 @@ independently golden-confirmed.
   the level's x is 0x136 - (width - 1) (`FUN_281f_0114`). The black stats line is one
   pass, columns every 0x38 from x 40. Name lines are pixel-exact against indian.png
   (`unit_reports indian_name_lines_golden`, port_bugs.md #1207). Tribe name/level
-  inks need no remap against REPORT9.PIK (dist2=0).
+  inks are VICEROY.PAL indices < 152 (dist2=0 on the plate DAC).
 - Chief portrait (not "always #113"). `3f41:0522`..`3f41:05d2`:
 
       q = FUN_281f_0a60(FUN_281f_030c(tribe, viewing_nation))
@@ -558,12 +560,9 @@ independently golden-confirmed.
   (tribe 4), both `alarm_by_player[3] == 0` in `dutch-reports.SAV`, so both
   q=0 (#113 at x=10, y=25/46) — which is why #113 alone used to fit.
 - Port status: Done (golden `indian.png`) — `reports_render_indian`. Both
-  chief portraits are pixel-exact. Note that `indian.png`
-  itself was captured with a slightly different DAC than the other report
-  goldens — every pixel of the plate is off by a small RGB delta, so a raw
-  RGB diff against it is meaningless (~62k "differences" on a correct
-  render). Compare it by palette consistency (does one port colour map to
-  exactly one golden colour over the region?), not by equality.
+  chief portraits are pixel-exact. `indian.png`'s plate colours used to look
+  like "a different DAC": the port drew REPORT9.PIK, DOS draws REPORT1.PIK.
+  With plate 1 the raw RGB diff is 40 px (the mouse pointer column).
 
 ## F10 - Colonization Score and Hall of Fame
 

@@ -142,7 +142,14 @@ void colony_screen_draw_top_bar(
   const int x = (COLONY_SCREEN_WIDTH - w) / 2;
   /* port_bugs.md #1: golden (new_amsterdam_production.png) ink top edge
    * measures native y=1, not 2 — title sat 1px too low. */
-  font_draw_text(font, framebuffer, x, 1, line, COLONIZE_COL_BASIC);
+  /* Golden-measured: the run after the name's double space sits 2px further right than the
+   * font's own advance puts it, the start x unchanged (New Amsterdam and Recife both). */
+  char head[96];
+  snprintf(head, sizeof(head), "%s.  ", name);
+  const int tail_x = x + font_text_width(font, head) + 2;
+  head[strlen(head) - 2] = '\0';
+  font_draw_text(font, framebuffer, x, 1, head, COLONIZE_COL_BASIC);
+  font_draw_text(font, framebuffer, tail_x, 1, line + strlen(head) + 2, COLONIZE_COL_BASIC);
 }
 
 void colony_screen_draw_selection_box(
@@ -877,7 +884,7 @@ void colony_screen_draw_area_overlays(
       if (sprite >= 0) {
         /* DOS asm 2f2b:0e61-0e7f: FUN_281f_024a at (x + 0xc, y + 6), whatever the
          * sprite size (golden-confirmed: 74% -> 91% of minimap pixels). */
-        const int ix = tile_x + 12;
+        const int ix = tile_x + 14;
         const int iy = tile_y + 6;
         colony_screen_blit_icon_shadowed(view, sprite, framebuffer, ix, iy, 0);
         if (view->selected_colonist == w.colonist_index) {

@@ -1264,7 +1264,7 @@ COLONIZE_INTERNAL bool colony_screen_hit_fence(ColonyScreenHitCtx* a) {
         int iw = 12;
         int ih = 16;
         colony_screen_outside_icon_metrics(view, units, view->outside_unit_ids[map_i[i]], &iw, &ih);
-        const int uy = fence_y + (fence_h - ih) / 2;
+        const int uy = fence_y + 1 + (fence_h - ih) / 2;
         if (mx >= xs[i] && my >= uy && mx < xs[i] + iw && my < uy + ih) {
           a->hit.kind = COLONY_HIT_OUTSIDE_UNIT;
           a->hit.index = map_i[i];
@@ -1327,24 +1327,21 @@ COLONIZE_INTERNAL bool colony_screen_hit_building_workers(ColonyScreenHitCtx* a)
       }
       const int bx = slot_ox + slot_x[i];
       const int by = slot_oy + slot_y[i];
-      const int strip_y = by + bspr->height - strip_h;
-      int ref_iw = 12;
-      if (worker_icons[0] < view->icons.sprite_count) {
-        ref_iw = view->icons.sprites[worker_icons[0]].width;
-      }
+      const int ref_iw = colony_screen_building_worker_ref_iw(view, pool, built, worker_icons[0]);
       int xs[COLONIZE_COLONY_POP_MAX];
-      int span_x = bx;
-      int span_w = bspr->width;
-      colony_screen_building_strip_span(bx, bspr->width, workers, ref_iw, &span_x, &span_w);
-      colony_screen_icon_strip_layout(span_x, span_w, workers, ref_iw, xs);
-      for (int wi = 0; wi < workers; ++wi) {
+      int wy = 0;
+      colony_screen_building_worker_layout(
+        colony_screen_building_slots[i].size_class, workers, ref_iw, bx, by, xs, &wy
+      );
+      /* back-to-front: overlapping workers, the topmost wins the click */
+      for (int wi = workers - 1; wi >= 0; --wi) {
         int iw = ref_iw;
         int ih = strip_h;
         if (worker_icons[wi] < view->icons.sprite_count) {
           iw = view->icons.sprites[worker_icons[wi]].width;
           ih = view->icons.sprites[worker_icons[wi]].height;
         }
-        const int iy = strip_y + (strip_h - ih) / 2;
+        const int iy = wy;
         if (mx >= xs[wi] && my >= iy && mx < xs[wi] + iw && my < iy + ih) {
           a->hit.kind = COLONY_HIT_COLONIST; /* a building worker (FUN_2f2b_44d4 local_10) */
           a->hit.index = worker_ci[wi];

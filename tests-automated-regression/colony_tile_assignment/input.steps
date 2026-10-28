@@ -3,7 +3,7 @@
 # tile workers: colonist 0 on NW, 1 (convert) on W, 2 (fisherman) on NE (water).
 click 168 128              # open Quebec
 wait 10
-drag 107 41 260 91         # Town Hall worker -> free land tile S: becomes a Farmer
+drag 117 41 260 91         # Town Hall worker -> free land tile S: becomes a Farmer
 click 236 67               # click the worker on tile W: selects colonist 1
 click 236 91               # click free tile SW: colonist 1 moves there
 click 236 91               # click the selected worker's own tile: field-jobs menu opens

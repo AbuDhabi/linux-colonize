@@ -598,11 +598,24 @@ Second pass, same day (were port_bugs.md #1282-#1286):
   at the tile origin, w 0x18, min_w 0x18 (count <= 2) or 0x10; the commons
   secondary row sits at +13. A zero-yield worker shows the icon at x + (16-w)/2,
   y + 1 plus ICONS #64 at the tile origin. Area-view workers are drawn at
-  (x + 12, y + 6) with a black shadow.
-- Building workers (`FUN_2f2b_12cc`) use shadow palette 0x5f.
+  (x + 14, y + 6) with a black shadow: `FUN_281f_024a` lands 2 px right of the
+  x its callers pass (also the building strip's +2).
+- Building workers = `FUN_2f2b_12cc` over `FUN_1097_0004` (flags 2):
+  origin slot + DS:0x23c/0x242[class], width DS:0x248[class] = {17,21,25,65,0},
+  geometry sprite 0x52 + the building's job (not the colonist's), y + 1, shadow
+  palette 0x5f (also the fence strip, drawn at fence_y + 1). A crowded building
+  overlaps, as DOS does (`colony_screen_building_worker_layout`).
+- Title run after "Name.  " +2 px, warehouse icon x (W - w + 1) / 2 and number
+  +1, SoL text (x + 15, y + 1) off the flag: golden-measured, not decomp.
+- Trap: `colony_screen_blink_on` is on at t = 0; `render_colony` sets the off
+  phase so the area cursor box (absent from the goldens) is not drawn.
 
-**Still different:** the settlement building workers' exact positions and a few
-area-view sprites, about 1.4k pixels (D4 polish).
+Second pass 2026-10-28, native differing pixels: New Amsterdam production /
+military / construction 3.6k / 1.1k / 1.4k, Recife 2.0k / 1.4k / 1.4k.
+
+**Still different:** the Production pane (~0.7k per colony, deliberate), one
+coast tile's layer composition in New Amsterdam's area view (~0.1k, shared
+`map_tile_layer_cmds`) and small bits (D4 polish).
 
 Deliberate, player-requested: the Production pane layout (surplus split,
 4-row hammer bar).

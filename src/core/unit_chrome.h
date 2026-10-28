@@ -168,14 +168,13 @@ uint8_t unit_chrome_letter_color(int nation_id, int orders_index);
 /*
  * Preferred entry point for any screen that knows its own active output
  * palette (the palette the framebuffer is actually converted to RGB
- * through — e.g. the map's `game->map_palette`/TERRAIN.SS, the colony
- * screen's `view->frame.palette`/WOODPANL.PIK, a report's own background
- * palette). Looks up the nearest available match to each of the 4
- * European nations' *true* fill/letter color (see k_nation_fill_rgb_native
- * in unit_chrome.c) within `active_palette` and draws with that instead of
- * unit_chrome_nation_color()'s raw ICONS.SS-native index, which is only
- * correct when the active palette happens to still be native-compatible —
- * true for nothing except ICONS.SS itself. `active_palette` NULL, or
+ * through — e.g. the map's `game->map_palette`, the colony screen's
+ * `view->frame.palette`, a report's plate palette). Looks up the nearest
+ * available match to each of the 4 European nations' VICEROY.PAL
+ * fill/letter color (see k_nation_fill_rgb_native in unit_chrome.c) within
+ * `active_palette` and draws with that instead of
+ * unit_chrome_nation_color()'s raw index; under a VICEROY-based palette the
+ * two agree. `active_palette` NULL, or
  * nation_id outside 0..3 (natives — no reported color issue there),
  * falls back to unit_chrome_blit_unit's plain default behavior.
  */

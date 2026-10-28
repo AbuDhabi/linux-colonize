@@ -120,7 +120,7 @@ static int case_report_backgrounds(void) {
     {COLONIZE_REPORT_COLONY, "REPORT6.PIK"},
     {COLONIZE_REPORT_NAVAL, "REPORT7.PIK"},
     {COLONIZE_REPORT_FOREIGN, "REPORT8.PIK"},
-    {COLONIZE_REPORT_INDIAN, "REPORT9.PIK"},
+    {COLONIZE_REPORT_INDIAN, "REPORT1.PIK"}, /* FUN_3f41_010a loads plate 1 */
     {COLONIZE_REPORT_SCORE, "WOODPANL.PIK"}
   };
 
@@ -144,6 +144,13 @@ static int case_report_backgrounds(void) {
       fprintf(stderr, "%s bad size\n", expect[i].file);
       return 1;
     }
+  }
+  /* FUN_3f41_0000: plates program DAC 152..251 only; 0..151 stay VICEROY.PAL
+   * (pure red 12 and Dutch orange 13, which no REPORT*.PIK carries). */
+  const ColonizePalette* econ = &g_view.backgrounds[COLONIZE_REPORT_ECONOMIC].palette;
+  if (econ->rgb[12][0] != 255 || econ->rgb[12][1] != 0 || econ->rgb[13][1] != 113) {
+    fprintf(stderr, "report plate DAC 12/13 not VICEROY.PAL\n");
+    return 1;
   }
   return 0;
 }

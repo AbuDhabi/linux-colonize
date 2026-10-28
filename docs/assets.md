@@ -327,7 +327,7 @@ Open from **REPORTS** on the map menu bar, or press **F2–F10**. Esc (or Enter,
 | F6 | Colony Adviser | `REPORT6.PIK` |
 | F7 | Naval Adviser | `REPORT7.PIK` |
 | F8 | Foreign Affairs Advisor | `REPORT8.PIK` |
-| F9 | Indian Adviser | `REPORT9.PIK` |
+| F9 | Indian Adviser | `REPORT1.PIK` (`FUN_3f41_010a` loads plate 1; `REPORT9.PIK` is unused) |
 | F10 | Colonization Score | `WOODPANL.PIK` (full-screen wood) |
 
 Content uses `ColonizeCol1Save` when a campaign is loaded (crosses / founding fathers / tribes / trade ledger / rival strength), with runtime colony / unit / Europe pools as fallback. **F10** uses the manual score schedule (citizen quality, congress, gold/1000, rebel sentiment, village-burn penalty, independence multipliers when declare/achieve are tracked). **F3 Continental Congress** is two pages: page 1 (bells progress bar toward the next Founding Father, rebel/tory split, expeditionary force, FF name list) advances to page 2 (full-bleed Founding Father group portrait, no chrome) on Esc/Enter/click/OK, and page 2 itself closes on any click.
@@ -573,7 +573,7 @@ RNG is the exact DOS libc LCG (`FUN_1d1d_0e04` / `FUN_19ef_0032` in `src/core/do
 |-----------|-------------|
 | `.PIK` | Packed pictures / backgrounds |
 | `.SS` | Sprite sheets / animation frames |
-| `.PAL` | VGA palette (`VICEROY.PAL`, 1024 bytes = 256×RGBA, 6-bit VGA RGB) |
+| `.PAL` | VGA palette (`VICEROY.PAL`, 1024-byte file; DOS `FUN_7a7c_000e` reads the first 0x300 = 256 6-bit RGB triples: the master DAC) |
 | `.COL` | MicroProse sound drivers (`A/G/P/RSOUND.COL`) + `CONFIG.COL` |
 | `.MOV` | Short motion / script tables (e.g. `AMERICA.MOV`; not the LEVN voyage) |
 | `.MP` | Map data |

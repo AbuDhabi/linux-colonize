@@ -411,8 +411,8 @@ clear every worked plot whose mask is non-zero (287e; the colonist keeps his
 field job), then reseat each plotless field-job colonist via 28c8, else the
 Carpenter fallback (2ea0). No workers-per-building cap there: the 3-cap is
 UI-only, so a 4th+ Carpenter is legal and the building strip shows them all
-(DOS FUN_2f2b_12cc is uncapped; the port widens the strip one icon per
-worker). Wired at colony-screen entry, EOT production (per colony, before
+(DOS FUN_2f2b_12cc is uncapped and steps each worker by a clamped pitch, so a
+crowded strip overlaps; `colony_screen_building_worker_layout`). Wired at colony-screen entry, EOT production (per colony, before
 `turn_produce_one_colony`) and the AI colony tick. DOS also runs it on join
 (364b_1aec/1b1a) and in the F6 adviser (3f41_1bec); the port does not yet.
 Fixture trap: a synthetic map with an unrevealed `seen` plane makes every

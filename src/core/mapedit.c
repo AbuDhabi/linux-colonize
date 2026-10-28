@@ -1519,15 +1519,6 @@ bool mapedit_init(MapEditor* ed, const MapEditOptions* opt) {
     ed->exit_code = ed->terrain_ok ? 0x18 : 0x321; /* FUN_1000_2516 error codes */
     return false;
   }
-  /* The map DAC the game also draws its map through (game_loop_render.c): TERRAIN.SS's own
-   * palette, with ICONS.SS's slots 5 and 13 (port_bugs.md #364). */
-  if (ed->terrain.has_palette) {
-    ed->palette = ed->terrain.palette;
-    if (ed->icons_ok && ed->icons.has_palette) {
-      memcpy(ed->palette.rgb[5], ed->icons.palette.rgb[5], 3);
-      memcpy(ed->palette.rgb[13], ed->icons.palette.rgb[13], 3);
-    }
-  }
   me_load_names(ed);
   me_build_minimap_colors(ed);
   me_build_menu(ed);

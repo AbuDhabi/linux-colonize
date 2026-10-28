@@ -35,10 +35,10 @@
  * 320x200) measured directly off the goldens.
  */
 #define REPORTS_ECON_LINE_COLOR 119 /* dark red (134,0,0) row/column rules */
-#define REPORTS_ECON_LABEL_COLOR 14 /* yellow row/column labels */
+#define REPORTS_ECON_LABEL_COLOR 146 /* yellow (255,243,93) row/column labels (REPORT4 palette; golden-measured) */
 #define REPORTS_ECON_VALUE_COLOR 97 /* pale cream (247,243,199) Bid/Ask + stock values */
-#define REPORTS_ECON_POS_COLOR 10 /* green (85,255,85): net sold (tons/gold >= 0) */
-#define REPORTS_ECON_NEG_COLOR 112 /* red (243,0,0): net bought (tons/gold < 0) */
+#define REPORTS_ECON_POS_COLOR 10 /* green (85,255,85): net sold, FUN_3f41_1710 attribute 2 + 8 */
+#define REPORTS_ECON_NEG_COLOR 12 /* VICEROY.PAL red (255,0,0): net bought, FUN_3f41_1710 attribute 4 + 8 */
 
 #define REPORTS_ECON1_ROWS 16
 #define REPORTS_ECON1_ROW0_Y 33 /* first horizontal rule (also last row's bottom) */
@@ -47,10 +47,10 @@
 #define REPORTS_ECON1_DIVIDER_X 67
 #define REPORTS_ECON1_VLINE_TOP_Y 25 /* the divider (and page 2's column rules)
    start a row above the rule lines, level with the column headers — golden-measured, not a typo of ROW0_Y */
-#define REPORTS_ECON1_HEADER_Y 24
-#define REPORTS_ECON1_TONS_RIGHT 90
-#define REPORTS_ECON1_GOLD_RIGHT 144
-#define REPORTS_ECON1_BID_RIGHT 199
+#define REPORTS_ECON1_HEADER_Y 25
+#define REPORTS_ECON1_TONS_RIGHT 92
+#define REPORTS_ECON1_GOLD_RIGHT 145
+#define REPORTS_ECON1_BID_RIGHT 200
 #define REPORTS_ECON1_ASK_RIGHT 251
 
 /*
@@ -124,14 +124,14 @@ void reports_render_economic_trade(
       REPORTS_ECON_LABEL_COLOR
     );
     reports_draw_right(
-      font, fb, REPORTS_ECON1_ASK_RIGHT, REPORTS_ECON1_HEADER_Y, ask_w,
+      font, fb, REPORTS_ECON1_ASK_RIGHT + 1 /* header only: golden-measured */, REPORTS_ECON1_HEADER_Y, ask_w,
       REPORTS_ECON_LABEL_COLOR
     );
   }
 
   const int table_bottom = REPORTS_ECON1_ROW0_Y + REPORTS_ECON1_ROWS * REPORTS_ECON1_ROW_STEP;
   for (int i = 0; i <= REPORTS_ECON1_ROWS; ++i) {
-    reports_draw_hline(fb, 0, fb->width, REPORTS_ECON1_ROW0_Y + i * REPORTS_ECON1_ROW_STEP, REPORTS_ECON_LINE_COLOR);
+    reports_draw_hline(fb, 2, 313, REPORTS_ECON1_ROW0_Y + i * REPORTS_ECON1_ROW_STEP, REPORTS_ECON_LINE_COLOR); /* golden: rules span x 2..312 */
   }
   reports_draw_vline(fb, REPORTS_ECON1_DIVIDER_X, REPORTS_ECON1_VLINE_TOP_Y, table_bottom, REPORTS_ECON_LINE_COLOR);
 
@@ -189,10 +189,13 @@ void reports_render_economic_trade(
 #define REPORTS_ECON2_ROWS_PER_PAGE 17
 #define REPORTS_ECON2_ROW0_Y 42
 #define REPORTS_ECON2_ROW_STEP 8
-#define REPORTS_ECON2_ICON_Y (REPORTS_ECON2_ROW0_Y - 11)
+#define REPORTS_ECON2_ICON_Y (REPORTS_ECON2_ROW0_Y - 15)
 #define REPORTS_ECON2_LABEL_X 2
 #define REPORTS_ECON2_DIVIDER_X 87
 #define REPORTS_ECON2_COL_STEP 14
+#define REPORTS_ECON2_ICON_DX 3 /* icons are left-aligned in the cell, not centred (golden-measured for all 16 widths) */
+#define REPORTS_ECON2_RULE_X0 2 /* row rules span label column to x 311 (golden-measured) */
+#define REPORTS_ECON2_RULE_X1 312
 #define REPORTS_ECON2_COLS (int)COLONIZE_COL1_CARGO_TYPES
 
 int reports_economic_page_count(const ColonizeCol1Save* col1, int human) {
@@ -240,7 +243,7 @@ void reports_render_economic_cargo(
   const int table_bottom = REPORTS_ECON2_ROW0_Y + REPORTS_ECON2_ROWS_PER_PAGE * REPORTS_ECON2_ROW_STEP;
   for (int i = 0; i <= REPORTS_ECON2_ROWS_PER_PAGE; ++i) {
     reports_draw_hline(
-      fb, REPORTS_ECON2_DIVIDER_X, fb->width, REPORTS_ECON2_ROW0_Y + i * REPORTS_ECON2_ROW_STEP, REPORTS_ECON_LINE_COLOR
+      fb, REPORTS_ECON2_RULE_X0, REPORTS_ECON2_RULE_X1, REPORTS_ECON2_ROW0_Y + i * REPORTS_ECON2_ROW_STEP, REPORTS_ECON_LINE_COLOR
     );
   }
   for (int c = 0; c <= REPORTS_ECON2_COLS; ++c) {
@@ -256,10 +259,8 @@ void reports_render_economic_cargo(
   for (int c = 0; c < REPORTS_ECON2_COLS; ++c) {
     const int icon = 22 + c;
     if (icons && icon < icons->sprite_count) {
-      const ColonizeSprite* sp = &icons->sprites[icon];
       const int col_left = REPORTS_ECON2_DIVIDER_X + c * REPORTS_ECON2_COL_STEP;
-      const int icon_x = col_left + (REPORTS_ECON2_COL_STEP - sp->width) / 2;
-      ss_blit_sprite(icons, icon, fb, icon_x, REPORTS_ECON2_ICON_Y);
+      ss_blit_sprite(icons, icon, fb, col_left + REPORTS_ECON2_ICON_DX, REPORTS_ECON2_ICON_Y);
     }
   }
 
@@ -293,7 +294,7 @@ void reports_render_economic_cargo(
       const uint8_t color = stock == 0 ? 0 : (stock >= 100 ? REPORTS_ECON_LABEL_COLOR : REPORTS_ECON_VALUE_COLOR);
       snprintf(line, line_sz, "%u", stock);
       const int w = font ? font_text_width(font, line) : 0;
-      reports_draw_line(font, fb, col_left + (REPORTS_ECON2_COL_STEP - w) / 2, text_y, line, color);
+      reports_draw_line(font, fb, col_left + REPORTS_ECON2_COL_STEP - w, text_y, line, color);
     }
     shown++;
   }
@@ -308,10 +309,10 @@ void reports_render_economic_cargo(
 #define REPORTS_COLONY_ROWS_PER_PAGE 9
 #define REPORTS_COLONY_ROW0_Y 27
 #define REPORTS_COLONY_ROW_STEP 17
-#define REPORTS_COLONY_ICON_X 0
+#define REPORTS_COLONY_ICON_X 2
 #define REPORTS_COLONY_ICON_W 21 /* ICONS.SS #0-3: 21x16 fortification markers */
-#define REPORTS_COLONY_POP_DX 11 /* population digit: fixed x, not centered — see call site */
-#define REPORTS_COLONY_NAME_X 19
+#define REPORTS_COLONY_POP_DX 9  /* population digit: fixed x, not centered — see call site */
+#define REPORTS_COLONY_NAME_X 25
 /* Yellow name/value label — REPORT6.PIK's own remap of the usual report
  * yellow (index differs per background palette; see reports_render_colony
  * palette probe). */
@@ -328,16 +329,17 @@ void reports_render_economic_cargo(
 #define REPORTS_COLONY_UNIT_SPAN 210
 #define REPORTS_COLONY_UNIT_X_MAX 300
 
-#define REPORTS_COLONY_FLAG_X 111
+#define REPORTS_COLONY_FLAG_X 110
 #define REPORTS_COLONY_FLAG_ICON 123 /* ICONS.SS — same SoL flag as colony_screen.c */
-#define REPORTS_COLONY_PCT_X 129
+#define REPORTS_COLONY_PCT_X 128
 #define REPORTS_COLONY_BUILDING_X 153
-#define REPORTS_COLONY_BELL_X 206
+#define REPORTS_COLONY_BELL_X 210
 #define REPORTS_COLONY_BELL_ICON 62 /* ICONS.SS — same bell as the Congress bar */
 #define REPORTS_COLONY_BELL_NUM_X 225
-#define REPORTS_COLONY_WORKER_X 249
-#define REPORTS_COLONY_WORKER_PITCH 21
+#define REPORTS_COLONY_WORKER_X 252
+#define REPORTS_COLONY_WORKER_PITCH 12
 #define REPORTS_COLONY_WORKER_MAX 6
+#define REPORTS_COLONY_SHADOW_COLOR 95 /* REPORT6.PIK (85,69,44): golden worker shadow is brown, not black */
 
 /* ===================== Colony report (reports_colony_page_count .. reports_render_colony_sol) ===================== */
 int reports_colony_page_count(const ColonizeCol1Save* col1, int human) {
@@ -480,7 +482,7 @@ static void reports_render_colony_sidebar(
         ? &view->backgrounds[COLONIZE_REPORT_COLONY].palette
         : NULL;
     colonies_blit_settlement_icon(
-      icons, icon, fb, REPORTS_COLONY_ICON_X, row_top - 3, c->nation_id, active_palette
+      icons, icon, fb, REPORTS_COLONY_ICON_X, row_top - 7, c->nation_id, active_palette
     );
   }
   const int sol_pct = colony ? colony_prod_sol_percent(col1, colony) : reports_colony_rebel_pct(c);
@@ -625,9 +627,10 @@ void reports_render_colony_garrisons(
         }
         stack_ids[stack_count++] = unit->id;
       }
-      /* Stable insertion sort, pseudo-size ascending (ties keep pool order,
-       * matching the chain-order preservation of FUN_1427_04d6's per-bucket
-       * front-insert walk). */
+      /* Stable insertion sort, pseudo-size DESCENDING (ties keep pool order).
+       * Golden colony_p1.png draws Artillery (3) before Dragoon (2) — the
+       * earlier "ascending" reading of FUN_1427_04d6 above was wrong about
+       * the final chain order (the restore walk reverses it). */
       for (int i = 1; i < stack_count; ++i) {
         const int id = stack_ids[i];
         const ColonizeUnit* unit = units_get_const(units, id);
@@ -650,7 +653,7 @@ void reports_render_colony_garrisons(
           } else if (pdos_type == 11) {
             prank = 3;
           }
-          if (prank <= rank) {
+          if (prank >= rank) {
             break;
           }
           stack_ids[j + 1] = stack_ids[j];
@@ -697,7 +700,7 @@ void reports_render_colony_garrisons(
           }
         }
         unit_chrome_blit_unit_for_palette(
-          fb, font, icons, sprite, x, row_top - 3, dos_unit_type_id, unit->nation_id, orders,
+          fb, font, icons, sprite, x, row_top - 7, dos_unit_type_id, unit->nation_id, orders,
           false,
           /* Badge arm 4 = Artillery + damaged (+0x3148 bit7), not aboard. */
           (unit->col1_flags15 & 0x80u) != 0, active_palette
@@ -761,7 +764,7 @@ void reports_render_colony_sol(
 
     const int sol_pct = colony ? colony_prod_sol_percent(col1, colony) : reports_colony_rebel_pct(c);
     if (icons) {
-      ss_blit_sprite(icons, REPORTS_COLONY_FLAG_ICON, fb, REPORTS_COLONY_FLAG_X, row_top - 3);
+      ss_blit_sprite(icons, REPORTS_COLONY_FLAG_ICON, fb, REPORTS_COLONY_FLAG_X, row_top - 5);
     }
     snprintf(line, line_sz, "%d%%", sol_pct);
     reports_draw_line(font, fb, REPORTS_COLONY_PCT_X, row_top, line, REPORTS_COLONY_LABEL_COLOR);
@@ -793,7 +796,7 @@ void reports_render_colony_sol(
       );
     }
     if (icons) {
-      ss_blit_sprite(icons, REPORTS_COLONY_BELL_ICON, fb, REPORTS_COLONY_BELL_X, row_top - 3);
+      ss_blit_sprite(icons, REPORTS_COLONY_BELL_ICON, fb, REPORTS_COLONY_BELL_X, row_top - 5);
     }
     snprintf(line, line_sz, "%d", bells);
     reports_draw_line(font, fb, REPORTS_COLONY_BELL_NUM_X, row_top, line, REPORTS_COLONY_LABEL_COLOR);
@@ -814,7 +817,7 @@ void reports_render_colony_sol(
         }
         const int x = REPORTS_COLONY_WORKER_X + slot * REPORTS_COLONY_WORKER_PITCH;
         unit_chrome_blit(
-          fb, NULL, icons, sprite, x, row_top - 3, UNIT_CHROME_SPRITE_WITH_SHADOW, 0, 0, -1, 0,
+          fb, NULL, icons, sprite, x, row_top - 6, UNIT_CHROME_SPRITE_WITH_SHADOW, REPORTS_COLONY_SHADOW_COLOR, 0, -1, 0,
           false, false, -1, -1
         );
         slot++;

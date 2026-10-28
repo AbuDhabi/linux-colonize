@@ -44,7 +44,14 @@
 #define REPORTS_NAVAL_DIV1_X 82 /* Ship | Cargo */
 #define REPORTS_NAVAL_DIV2_X 162 /* Cargo | Location */
 #define REPORTS_NAVAL_DIV3_X 242 /* Location | Destination */
-#define REPORTS_NAVAL_SHIP_ICON_X 0
+/* Centring cells measured off naval.png (reports_dos_center_x centre = x + (w >> 1)): the Ship
+ * header centres at 42 and Destination header/text at 280, not at the rule midpoints 41 / 281.
+ * Cargo and Location match their rule-to-rule cells exactly. */
+#define REPORTS_NAVAL_SHIP_CELL_W 84
+#define REPORTS_NAVAL_DEST_CELL_R 318
+#define REPORTS_NAVAL_RULE_X0 2 /* row rules span x 2..314 in naval.png (measured) */
+#define REPORTS_NAVAL_RULE_X1 315
+#define REPORTS_NAVAL_SHIP_ICON_X 3 /* measured off naval.png (was 0, clipped) */
 #define REPORTS_NAVAL_SHIP_NAME_X 26
 #define REPORTS_NAVAL_CARGO_ICON_X 88 /* DOS-LITERAL FUN_3f41_220c (asm 002654): `[BP-0x56] + 0x56` = 2 + 86. */
 #define REPORTS_NAVAL_CARGO_ICON_PITCH 12 /* DOS-LITERAL FUN_3f41_220c (asm OVL06_L0040 00268a): `ADD [BP-0x5a],0xc` after each hold icon. The golden has at most one icon per row, so this was a 14px guess copied from colony_screen.c until port_bugs.md #973. */
@@ -52,7 +59,7 @@
 #define REPORTS_NAVAL_ICON_DY 2 /* icon top = row_top + this */
 #define REPORTS_NAVAL_TEXT_DY 8 /* text top = row_top + this */
 #define REPORTS_NAVAL_LINE_COLOR 119 /* dark red (134,0,0) — same index as REPORTS_ECON_LINE_COLOR */
-#define REPORTS_NAVAL_HEADER_COLOR 14 /* bright yellow (255,243,93 in golden) */
+#define REPORTS_NAVAL_HEADER_COLOR 146 /* (255,243,93) — golden pixel; index 14 is (255,255,85) in REPORT7.PIK */
 #define REPORTS_NAVAL_TEXT_COLOR 97 /* pale cream (247,243,199) — same index as REPORTS_ECON_VALUE_COLOR */
 #define REPORTS_NAVAL_CARGO_ICON_BASE 22 /* ICONS.SS — same as colony_screen.h COLONY_CARGO_ICON_BASE */
 #define REPORTS_NAVAL_CARGO_GREY_BASE 38 /* ICONS.SS — same as colony_screen.h COLONY_CARGO_GREY_BASE */
@@ -301,8 +308,7 @@ static void reports_naval_draw_centered(
   const char* text,
   uint8_t color
 ) {
-  const int w = font ? font_text_width(font, text) : 0;
-  reports_draw_line(font, fb, col_left + ((col_right - col_left) - w) / 2, y, text, color);
+  reports_draw_dos_centered(font, fb, col_left, col_right - col_left, y, text, color);
 }
 
 void reports_render_naval(
@@ -333,7 +339,7 @@ void reports_render_naval(
   reports_misc_word(63, "", location_w, sizeof(location_w));
   reports_misc_word(64, "", dest_w, sizeof(dest_w));
   reports_naval_draw_centered(
-    font, fb, 0, REPORTS_NAVAL_DIV1_X, REPORTS_NAVAL_HEADER_Y, ship_w,
+    font, fb, 0, REPORTS_NAVAL_SHIP_CELL_W, REPORTS_NAVAL_HEADER_Y, ship_w,
     REPORTS_NAVAL_HEADER_COLOR
   );
   reports_naval_draw_centered(
@@ -345,14 +351,15 @@ void reports_render_naval(
     location_w, REPORTS_NAVAL_HEADER_COLOR
   );
   reports_naval_draw_centered(
-    font, fb, REPORTS_NAVAL_DIV3_X, fb->width, REPORTS_NAVAL_HEADER_Y, dest_w,
+    font, fb, REPORTS_NAVAL_DIV3_X, REPORTS_NAVAL_DEST_CELL_R, REPORTS_NAVAL_HEADER_Y, dest_w,
     REPORTS_NAVAL_HEADER_COLOR
   );
 
   const int table_bottom = REPORTS_NAVAL_ROW0_Y + REPORTS_NAVAL_ROWS_PER_PAGE * REPORTS_NAVAL_ROW_STEP;
   for (int i = 0; i <= REPORTS_NAVAL_ROWS_PER_PAGE; ++i) {
     reports_draw_hline(
-      fb, 0, fb->width, REPORTS_NAVAL_ROW0_Y + i * REPORTS_NAVAL_ROW_STEP, REPORTS_NAVAL_LINE_COLOR
+      fb, REPORTS_NAVAL_RULE_X0, REPORTS_NAVAL_RULE_X1, REPORTS_NAVAL_ROW0_Y + i * REPORTS_NAVAL_ROW_STEP,
+      REPORTS_NAVAL_LINE_COLOR
     );
   }
   reports_draw_vline(fb, REPORTS_NAVAL_DIV1_X, REPORTS_NAVAL_VLINE_TOP_Y, table_bottom, REPORTS_NAVAL_LINE_COLOR);
@@ -416,7 +423,7 @@ void reports_render_naval(
     }
     if (r->destination[0]) {
       reports_naval_draw_centered(
-        font, fb, REPORTS_NAVAL_DIV3_X, fb->width, text_y, r->destination, REPORTS_NAVAL_TEXT_COLOR
+        font, fb, REPORTS_NAVAL_DIV3_X, REPORTS_NAVAL_DEST_CELL_R, text_y, r->destination, REPORTS_NAVAL_TEXT_COLOR
       );
     }
   }
@@ -524,7 +531,7 @@ void reports_render_naval(
 #define REPORTS_FOREIGN_ADJ_COLOR 97 /* pale cream (247,243,199) — same index as REPORTS_NAVAL_TEXT_COLOR */
 #define REPORTS_FOREIGN_LABEL_COLOR 145 /* light yellow (255,255,142) — peer/nation names, Rebels/Tories */
 #define REPORTS_FOREIGN_PEACE_COLOR 15 /* white — REPORT8.PIK palette probe */
-#define REPORTS_FOREIGN_WAR_COLOR 112 /* red (243,0,0) — same index as REPORTS_ECON_NEG_COLOR */
+#define REPORTS_FOREIGN_WAR_COLOR 12 /* VICEROY.PAL red (255,0,0): FUN_3f41_2548 ink (peace ? 0 : 0xfd) + 0xf, byte */
 #define REPORTS_FOREIGN_RULE_COLOR 119 /* dark red (134,0,0) — same index as REPORTS_NAVAL_LINE_COLOR */
 
 /* The six de Witt cells, in the .asm's draw order (row A then row B). */
@@ -725,8 +732,8 @@ void reports_render_foreign(
       body_y += REPORTS_FOREIGN_LINE_STEP;
       const char* live = reports_labels_field("MISC", 190);
       const char* msg = live ? live : "";
-      const int w = font ? font_text_width(font, msg) : 0;
-      reports_draw_line(font, fb, (fb->width - w) / 2, body_y, msg, REPORTS_FOREIGN_LABEL_COLOR);
+      /* FUN_281f_0022(msg, 0, 0x140, y, ink): same DOS centring as the titles. */
+      reports_draw_dos_centered(font, fb, 0, fb->width, body_y, msg, REPORTS_FOREIGN_LABEL_COLOR);
       continue;
     }
 
@@ -809,7 +816,7 @@ void reports_render_foreign(
  *     @TRIBES column 0), colored per tribe (k_indian_tribe_colors below —
  *     unit_chrome.c's own k_tribe_colors, duplicated per the project's
  *     established no-shared-header convention; confirmed an *exact*
- *     0-distance RGB match against REPORT9.PIK's own palette at both
+ *     0-distance RGB match against the plate DAC (VICEROY.PAL < 152) at both
  *     golden indices, no remap needed here unlike ICONS.SS sprites).
  *     Right-aligned: tribe level (Semi-Nomadic/Agrarian/Advanced/Civilized
  *     by indian.tech, reports_tribe_level), same color.
@@ -882,7 +889,7 @@ void reports_render_foreign(
 
 /* VICEROY.EXE initialized DS:0x848[4..11]; duplicated from unit_chrome.c
  * (see that file's note on why the tables aren't shared via a header).
- * Arawak 54 and Cherokee 67 also match the REPORT9.PIK golden exactly. */
+ * Arawak 54 and Cherokee 67 also match the indian.png golden exactly. */
 static const uint8_t k_indian_tribe_colors[COLONIZE_COL1_INDIAN_COUNT] = {
   15, 149, 54, 11, 67, 111, 117, 71
 };

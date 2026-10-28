@@ -36,7 +36,7 @@ static const char* k_report_files[COLONIZE_REPORT_COUNT] = {
   "REPORT6.PIK", /* Colony Adviser */
   "REPORT7.PIK", /* Naval Adviser */
   "REPORT8.PIK", /* Foreign Affairs */
-  "REPORT9.PIK", /* Indian Adviser */
+  "REPORT1.PIK", /* Indian Adviser: FUN_3f41_010a loads plate 1, not 9 */
   "WOODPANL.PIK" /* Colonization Score — full-screen wood */
 };
 
@@ -81,6 +81,24 @@ const ColonizeSpriteSheet* reports_icons_for(
   return &view->icons[dest];
 }
 
+/*
+ * DOS-LITERAL FUN_3f41_0000 (raw 69397; overlay asm OVL06_L0040 0400-047c): every
+ * REPORT<n>.PIK plate (n from the F-key body: Indian 1, Religious 2, Congress page 1 3,
+ * Labor 4, Economic 5, Colony 6, Naval 7, Foreign 8) is loaded into a stack palette and
+ * only DAC 152..251 are programmed from it (FUN_1c2e_0022 with AX 0x98, DX 0x64). DAC
+ * 0..151 and 252..255 keep the master palette, VICEROY.PAL (FUN_7a7c_000e) — the
+ * nation pair 5 / 13, pure red 12 and the 120..127 water-cycle ramp the plates' own
+ * palettes do not carry. CCBKGD (page 2) and WOODPANL (F10) use other loaders.
+ */
+static void reports_plate_dac(ColonizePikImage* plate, const ColonizePalette* master) {
+  if (!master || !plate->has_palette) {
+    return;
+  }
+  ColonizePalette dac = *master;
+  memcpy(dac.rgb[0x98], plate->palette.rgb[0x98], 0x64 * sizeof dac.rgb[0]);
+  plate->palette = dac;
+}
+
 bool reports_load(ColonizeReportsView* view, const char* data_dir, char* err, size_t err_size) {
   if (!view || !data_dir) {
     if (err && err_size) {
@@ -95,6 +113,8 @@ bool reports_load(ColonizeReportsView* view, const char* data_dir, char* err, si
    * PIK is unavailable. */
   reports_names_load_catalogs(data_dir);
 
+  ColonizePalette master;
+  const ColonizePalette* master_ok = assets_load_palette(data_dir, &master) ? &master : NULL;
   int ok_count = 0;
   for (int i = 0; i < COLONIZE_REPORT_COUNT; ++i) {
     char path[512];
@@ -106,6 +126,9 @@ bool reports_load(ColonizeReportsView* view, const char* data_dir, char* err, si
     if (!pik_load(path, &view->backgrounds[i], pik_err, sizeof(pik_err))) {
       diag_warn("Failed to load %s: %s", k_report_files[i], pik_err);
       continue;
+    }
+    if (i != COLONIZE_REPORT_CONGRESS && i != COLONIZE_REPORT_SCORE) {
+      reports_plate_dac(&view->backgrounds[i], master_ok);
     }
     view->background_ok[i] = true;
     ok_count++;
@@ -149,6 +172,7 @@ bool reports_load(ColonizeReportsView* view, const char* data_dir, char* err, si
   if (dos_compat_normalize_asset_path(data_dir, "REPORT3.PIK", cc_p1_path, sizeof(cc_p1_path)) &&
       pik_load(cc_p1_path, &view->congress_page1_bg, cc_p1_err, sizeof(cc_p1_err))) {
     view->congress_page1_bg_ok = true;
+    reports_plate_dac(&view->congress_page1_bg, master_ok);
   } else {
     diag_warn("Failed to load REPORT3.PIK for Congress page 1: %s", cc_p1_err);
   }

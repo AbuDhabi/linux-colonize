@@ -74,20 +74,11 @@ void unit_chrome_selection_frame(
  * unchanged); >= 0 substitutes a caller-supplied raw palette index for
  * that specific active output palette instead.
  *
- * Why an override exists at all: unit_chrome_nation_color()'s indices
- * (k_european_fill/k_european_names) are tuned against ICONS.SS's own
- * *native* palette (confirmed: index 13 there is a true (255,113,0)
- * Dutch orange, index 5 a matching (170,73,0) darker shade for the
- * Fortify/Fortified letter) — exactly right for screens whose active
- * output palette matches that native one closely enough. Report screens
- * (REPORT*.PIK) don't: their own embedded palettes repurpose slots 5/13
- * back to plain EGA magenta, so a raw index-13/5 fill drawn straight to
- * a report framebuffer comes out magenta instead of orange (found via
- * colony_p1.png: Dutch garrison badges are solid (255,113,0) with a
- * (170,73,0) letter in the golden, matching ICONS.SS-native exactly, but
- * REPORT6.PIK's own palette has no close match to either — best available
- * is a muted (211,101,32)-ish index). See reports.c's Colony report
- * (F6) garrison row for the call site that supplies the override. */
+ * Why an override exists at all: unit_chrome_nation_color()'s raw
+ * DS:0x848 indices (12/9/14/13, letter index - 8) are right only under
+ * DOS's VICEROY.PAL DAC. A screen the port presents through another
+ * palette (a picture palette with EGA magenta / pink at 5/12/13) must
+ * nearest-match VICEROY's RGB instead (k_nation_fill_rgb_native). */
 static void unit_chrome_draw_impl(
   ColonizeFramebuffer8* fb,
   const ColonizeFont* font,

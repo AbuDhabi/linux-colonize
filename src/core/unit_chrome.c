@@ -10,36 +10,25 @@
 #include "core/units.h"
 
 /*
- * NAMES.TXT @COUNTRY indices (DS:0x848). Used for letter-color math (color-8).
- * Fill uses k_european_fill — England 112 is saturated red matching original
- * screenshots; VGA slot 12 is pink (255,85,85).
+ * NAMES.TXT @COUNTRY indices (DS:0x848[0..3]). FUN_112b_01ba fills the orders
+ * box with this raw index and draws the letter with index - 8. Under the
+ * VICEROY.PAL DAC that is England (255,0,0), France (85,85,255), Spain
+ * (255,255,85), Dutch (255,113,0).
  */
 static const uint8_t k_european_names[4] = {12, 9, 14, 13};
-static const uint8_t k_european_fill[4] = {112, 9, 14, 13};
 /* VICEROY.EXE initialized DS:0x848[4..11], read by FUN_112b_01ba. */
 static const uint8_t k_tribe_colors[8] = {15, 149, 54, 11, 67, 111, 117, 71};
 
 /*
- * k_european_fill/k_european_names above are tuned against ICONS.SS's own
- * *native* palette (confirmed via a direct native-palette dump: index 13
- * really is a saturated Dutch orange (255,113,0), index 5 — the
- * Sentry/Fortified letter color, k_european_names[nation]-8 — a matching
- * darker (170,73,0)); every England/France/Spain index (112/9/14, and
- * their -8 letter equivalents 4/1/6) happens to already be identical
- * between ICONS-native and every other screen's own background palette,
- * so only Dutch (13/5) ever actually differs. But *every* other screen's
- * background palette (TERRAIN.SS for the map, WOODPANL.PIK for the colony
- * screen, EUROPE.PIK, every REPORT*.PIK) repurposes indices 5/13 back to
- * plain EGA magenta (or, for COLONY.PIK specifically, leaves them
- * unpopulated/black) — a raw-index box fill only looks right when the
- * active output palette happens to still be ICONS.SS-native-compatible
- * there, which none of them are. This table is that native RGB, so a
- * caller who knows the *actual* active output palette can look up the
- * nearest available match in it instead of trusting the raw index blindly.
- * See unit_chrome_blit_unit_for_palette.
+ * VICEROY.PAL's RGB at the k_european_names slots (fill) and slot - 8
+ * (letter): what DOS shows on the map, colony, Europe and report screens,
+ * none of which puts a picture palette into DAC 0..151 (reports program
+ * 152..251 only, FUN_3f41_0000).
+ * The port's report / foreign-palette screens nearest-match these into the
+ * palette they present through. See unit_chrome_blit_unit_for_palette.
  */
 const uint8_t k_nation_fill_rgb_native[4][3] = {
-  {243, 0, 0}, {85, 85, 255}, {255, 255, 85}, {255, 113, 0}
+  {255, 0, 0}, {85, 85, 255}, {255, 255, 85}, {255, 113, 0}
 };
 const uint8_t k_nation_letter_rgb_native[4][3] = {
   {170, 0, 0}, {0, 0, 170}, {170, 85, 0}, {170, 73, 0}
@@ -236,12 +225,12 @@ uint8_t unit_chrome_nation_color(int nation_id) {
     return 15; /* white */
   }
   if (nation_id >= 0 && nation_id < 4) {
-    return k_european_fill[nation_id];
+    return k_european_names[nation_id];
   }
   if (nation_id >= 4 && nation_id <= 11) {
     return k_tribe_colors[nation_id - 4];
   }
-  return k_european_fill[0];
+  return k_european_names[0];
 }
 
 uint8_t unit_chrome_names_color(int nation_id) {

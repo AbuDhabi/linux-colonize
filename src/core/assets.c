@@ -290,19 +290,6 @@ void assets_sheet_remap_to_palette(ColonizeSpriteSheet* sheet, const ColonizePal
   sheet->palette = *dst_pal;
 }
 
-static void assets_palette_from_viceroy1024(
-  const uint8_t* raw, size_t raw_size, ColonizePalette* out_palette
-) {
-  if (!raw || !out_palette || raw_size < 1024) {
-    return;
-  }
-  for (int i = 0; i < 256; ++i) {
-    out_palette->rgb[i][0] = vga6_to8(raw[i * 4 + 0]);
-    out_palette->rgb[i][1] = vga6_to8(raw[i * 4 + 1]);
-    out_palette->rgb[i][2] = vga6_to8(raw[i * 4 + 2]);
-  }
-}
-
 bool assets_load_palette(const char* data_dir, ColonizePalette* out_palette) {
   if (!data_dir || !out_palette) {
     return false;
@@ -320,15 +307,18 @@ bool assets_load_palette(const char* data_dir, ColonizePalette* out_palette) {
     return false;
   }
 
-  uint8_t raw[1024];
+  /* FUN_7a7c_000e (raw 123967): one 0x300-byte read of plain 6-bit RGB triples
+   * (the file is 1024 bytes; DOS ignores the tail). Slots 5 / 12 / 13 are the
+   * nation pair (42,18,0) / (63,0,0) / (63,28,0) no PIK or SS palette carries. */
+  uint8_t raw[768];
   size_t n = fread(raw, 1, sizeof(raw), f);
   fclose(f);
   if (n != sizeof(raw)) {
-    diag_warn("Unexpected VICEROY.PAL size: read %zu expected 1024", n);
+    diag_warn("Unexpected VICEROY.PAL size: read %zu expected 768", n);
     return false;
   }
 
-  assets_palette_from_viceroy1024(raw, sizeof(raw), out_palette);
+  assets_palette_from_col768(raw, sizeof(raw), out_palette);
   diag_info("Loaded VICEROY.PAL (%s)", path);
   return true;
 }

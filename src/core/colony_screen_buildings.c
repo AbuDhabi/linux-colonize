@@ -719,20 +719,61 @@ int colony_screen_building_worker_strip(
 }
 
 /*
- * The x-span a building's worker strip is laid out in. DOS FUN_2f2b_12cc
- * advances a fixed pitch per worker (raw 47982) and never compresses, so a
- * 4th+ worker runs past the sprite; the port keeps its centred strip and
- * widens it symmetrically to one icon per worker instead of overlapping.
+ * Geometry sprite width of a building's worker strip: DOS passes ICONS sprite
+ * 0x52 + the building's job (FUN_2f2b_12cc -> FUN_1097_0004), not the width of
+ * whichever colonist happens to stand there. first_icon = fallback.
  */
-void colony_screen_building_strip_span(
-  int bx, int bw, int workers, int ref_iw, int* out_x, int* out_w
+int colony_screen_building_worker_ref_iw(
+  const ColonyScreenView* view, const ColonizeColonyPool* pool, int built, int first_icon
 ) {
-  int w = bw;
-  if (ref_iw > 0 && ref_iw * workers > w) {
-    w = ref_iw * workers;
+  int icon = units_job_icon_sprite(colonies_building_occupation(pool, built));
+  if (icon < 0 || icon >= view->icons.sprite_count) {
+    icon = first_icon;
   }
-  *out_x = bx + (bw - w) / 2;
-  *out_w = w;
+  return icon >= 0 && icon < view->icons.sprite_count ? view->icons.sprites[icon].width : 12;
+}
+
+/*
+ * DOS-LITERAL worker strip of one building: FUN_2f2b_12cc (raw 47947-47986)
+ * over FUN_1097_0004's geometry (flags 2: sprite width + 2, min_w = w = DS:0x248
+ * [class]). Origin is slot + (DS:0x23c[class], DS:0x242[class]); the run is
+ * centred in w by (rem >> 1) and every worker steps by the clamped pitch, so
+ * a crowded building overlaps instead of widening. xs gets the n icon x's,
+ * out_y the row the icons are drawn on.
+ */
+void colony_screen_building_worker_layout(
+  int size_class, int n, int ref_iw, int slot_x, int slot_y, int* xs, int* out_y
+) {
+  static const int k_dx[5] = {3, 20, 25, 5, 0};  /* DS:0x23c */
+  static const int k_dy[5] = {12, 8, 22, 5, 0};  /* DS:0x242 */
+  static const int k_w[5] = {17, 21, 25, 65, 0}; /* DS:0x248 */
+  const int cls = size_class >= 0 && size_class < 5 ? size_class : 1;
+  int x = slot_x + k_dx[cls];
+  *out_y = slot_y + k_dy[cls] + 1;
+  const int w = k_w[cls];
+  const int iw = ref_iw + 2;
+  int step = 1;
+  if (n >= 2) {
+    step = (w - iw) / (n - 1);
+    if (step > iw + 1) {
+      step = iw + 1;
+    }
+    if (step < 1) {
+      step = 1;
+    }
+  }
+  const int span = (n > 0 ? n - 1 : 0) * step;
+  int shift = 0;
+  while (shift < 15 && w - iw < (span >> shift)) {
+    ++shift;
+  }
+  const int total = (span >> shift) + iw;
+  if (w != 0) {
+    x += (w - total) >> 1;
+  }
+  for (int i = 0; i < n; ++i) {
+    xs[i] = x + i * step + 2; /* golden-measured: icon sits 2px inside its (iw + 2) cell */
+  }
 }
 
 void colony_screen_blit_buildings(
@@ -837,43 +878,20 @@ void colony_screen_blit_buildings(
     const int workers = colony_screen_building_worker_strip(
       view, colony, units, built, worker_ci, worker_icons, &strip_h
     );
-    const ColonizeSprite* bspr =
-      (built >= 0 && built < view->buildings.sprite_count) ? &view->buildings.sprites[built] : NULL;
-    const int bw = (bspr && bspr->width > 2) ? bspr->width : COLONY_BUILDING_SLOT_W;
-    const int bh = (bspr && bspr->height > 2) ? bspr->height : COLONY_BUILDING_SLOT_H;
     const int bx = slot_ox + slot_x[i];
     const int by = slot_oy + slot_y[i];
-    const int strip_y = by + bh - strip_h;
     if (workers > 0) {
-      int selected = -1;
+      const int ref_iw = colony_screen_building_worker_ref_iw(view, pool, built, worker_icons[0]);
+      int xs[COLONIZE_COLONY_POP_MAX];
+      int wy = 0;
+      colony_screen_building_worker_layout(slot->size_class, workers, ref_iw, bx, by, xs, &wy);
       for (int wi = 0; wi < workers; ++wi) {
-        if (view->selected_colonist == worker_ci[wi]) {
-          selected = wi;
-          break;
-        }
+        const ColonizeSprite* ws = &view->icons.sprites[worker_icons[wi]];
+        colony_screen_draw_icon_strip(
+          view, NULL, framebuffer, xs[wi], wy, ws->width, ws->height, &worker_icons[wi], 1,
+          view->selected_colonist == worker_ci[wi] ? 0 : -1, 15, false, 0x5f
+        );
       }
-      int ref_iw = 12; /* as colony_screen_draw_icon_strip / the hit-test */
-      if (worker_icons[0] < view->icons.sprite_count) {
-        ref_iw = view->icons.sprites[worker_icons[0]].width;
-      }
-      int span_x = bx;
-      int span_w = bw;
-      colony_screen_building_strip_span(bx, bw, workers, ref_iw, &span_x, &span_w);
-      colony_screen_draw_icon_strip(
-        view,
-        NULL,
-        framebuffer,
-        span_x,
-        strip_y,
-        span_w,
-        strip_h,
-        worker_icons,
-        workers,
-        selected,
-        15,
-        false,
-        0x5f
-      );
     }
     /*
      * Production strip: worker output + Town Hall / Church / Cathedral free
@@ -975,7 +993,7 @@ void colony_screen_blit_buildings(
         NULL,
         framebuffer,
         fence_x,
-        fence_y,
+        fence_y + 1, /* golden: the DOS strip draws 1px below the class anchor */
         fence_w,
         fence_h,
         icons,
@@ -983,7 +1001,7 @@ void colony_screen_blit_buildings(
         selected,
         15,
         false,
-        0
+        0x5f
       );
     }
   }
@@ -1066,7 +1084,7 @@ void colony_screen_draw_cargo_strip(
     const int sprite = COLONY_CARGO_ICON_BASE + i;
     if (view && view->icons_ok && sprite < view->icons.sprite_count) {
       const ColonizeSprite* spr = &view->icons.sprites[sprite];
-      const int icon_x = slot_x + (COLONY_CARGO_SLOT_W - spr->width) / 2;
+      const int icon_x = slot_x + (COLONY_CARGO_SLOT_W - spr->width + 1) / 2; /* golden: odd gap rounds up */
       /* Player-reported: 1px lower than before. */
       ss_blit_sprite(&view->icons, sprite, framebuffer, icon_x, COLONY_CARGO_STRIP_Y + 1);
     }
@@ -1077,7 +1095,7 @@ void colony_screen_draw_cargo_strip(
       const int num_y = COLONY_CARGO_NUM_Y + 2;
       snprintf(amount, sizeof(amount), "%d", colony->stock[i]);
       const int tw = font_text_width_skip(font, amount, FONT_SKIP_NONE);
-      const int tx = slot_x + (COLONY_CARGO_SLOT_W - tw) / 2;
+      const int tx = slot_x + (COLONY_CARGO_SLOT_W - tw) / 2 + 1; /* golden-measured */
       /* port_bugs.md: stock past warehouse capacity draws in the alert colour —
        * the excess spoils next turn (over-capacity unloads are allowed).
        * FUN_2f2b_28d6 (viceroy_unpacked.c 49118-49123) wraps that test in

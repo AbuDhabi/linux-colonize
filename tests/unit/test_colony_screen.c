@@ -3041,15 +3041,14 @@ static int unit_plot_eviction_1080(void) {
     fprintf(stderr, "evict1080: strip shows %d workers, want 4\n", n);
     rc = 1;
   } else {
+    /* DOS FUN_2f2b_12cc overlaps a crowded strip but still steps every worker. */
     const int iw = view.icons.sprites[icons[0]].width;
-    int sx = 0;
-    int sw = 0;
-    colony_screen_building_strip_span(100, 2 * iw, n, iw, &sx, &sw);
     int xs[COLONIZE_COLONY_POP_MAX];
-    colony_screen_icon_strip_layout(sx, sw, n, iw, xs);
+    int wy = 0;
+    colony_screen_building_worker_layout(1, n, iw, 100, 0, xs, &wy);
     for (int i = 1; i < n; ++i) {
-      if (xs[i] - xs[i - 1] < iw) {
-        fprintf(stderr, "evict1080: worker icons %d/%d overlap\n", i - 1, i);
+      if (xs[i] <= xs[i - 1]) {
+        fprintf(stderr, "evict1080: worker icons %d/%d share an x\n", i - 1, i);
         rc = 1;
       }
     }

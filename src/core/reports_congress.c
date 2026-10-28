@@ -137,11 +137,6 @@ static const ColonizeSpriteSheet* reports_ff_portrait_sheet(const char* data_dir
 #define REPORTS_CONGRESS_BELLS_W 300
 
 #define REPORTS_CONGRESS_TEXT2_Y 59 /* "Rebel Sentiment: XX%  Tory Sentiment: YY%" */
-#define REPORTS_CONGRESS_SENT_X 4
-#define REPORTS_CONGRESS_SENT_Y 71
-#define REPORTS_CONGRESS_SENT_W 285 /* measured; always full (rounded rebel:tory split) */
-#define REPORTS_CONGRESS_SENT_H 9
-#define REPORTS_CONGRESS_SENT_SLOTS 50 /* rounding budget for the flag/crown split */
 
 #define REPORTS_CONGRESS_TEXT3_Y 92 /* "<Nation> Expeditionary Force:" */
 #define REPORTS_CONGRESS_FORCE_Y 102
@@ -150,8 +145,100 @@ static const ColonizeSpriteSheet* reports_ff_portrait_sheet(const char* data_dir
 #define REPORTS_CONGRESS_FORCE_STEP_X10 22
 
 #define REPORTS_CONGRESS_FF_HEADER_Y 125 /* "Founding Fathers:" */
-#define REPORTS_CONGRESS_FF_COL_X0 8
+#define REPORTS_CONGRESS_FF_COL_X0 4
 #define REPORTS_CONGRESS_FF_COL_STEP 78 /* FUN_3f41_0ae6: unaff_BP-0x68 += 0x4e */
+
+/*
+ * DOS multi-slot icon bar, transcribed from FUN_1097_0394 (1097:0394-0676), the routine
+ * FUN_281f_022c reaches; slots are queued by FUN_281f_0218 (clear) / FUN_281f_0222 (AX sprite
+ * id, DX count, BX second count, dropped when both are 0). Used here for the rebel/tory
+ * sentiment bar and the expeditionary-force rows (3f41:09xx-0bxx; x/y/w in AX/DX/BX, gap
+ * pushed). Only the flag-free slot path (sprite flags 0x4000 / 0x8000 clear) is ported. Icon
+ * indices are 0-based port indices (DOS sprite id - 1).
+ */
+typedef struct {
+  int icon;
+  int count;
+} ReportsCongressSlot;
+
+static void reports_congress_draw_slots(
+  const ColonizeSpriteSheet* icons,
+  const ColonizeFont* font,
+  ColonizeFramebuffer8* fb,
+  int x,
+  int y,
+  int w,
+  int gap,
+  const ReportsCongressSlot* slot,
+  int n,
+  bool numbers_on
+) {
+  if (!icons || !fb || n <= 0) {
+    return;
+  }
+  int wid[8];
+  int multi = 0, extra = 0, total_w = 0;
+  if (n > 8) {
+    n = 8;
+  }
+  for (int i = 0; i < n; ++i) {
+    wid[i] = (slot[i].icon >= 0 && slot[i].icon < icons->sprite_count) ? icons->sprites[slot[i].icon].width : 0;
+    total_w += wid[i];
+    if (slot[i].count > 1) {
+      ++multi;
+      extra += slot[i].count - 1;
+    }
+  }
+  int shrink = 0, room;
+  do {
+    int over = total_w - n * shrink;
+    if (over < 0) {
+      over = 0;
+    }
+    room = (1 - n) * gap - over + w;
+    if (room < multi) {
+      if (gap > 0) {
+        --gap;
+      } else if (over > 0) {
+        ++shrink;
+      } else {
+        room = multi;
+      }
+    }
+  } while (room < multi);
+  int step_max = 0, shift = 0;
+  if (extra != 0) {
+    step_max = room / extra;
+    if (step_max == 0) {
+      do {
+        ++shift;
+      } while ((extra >> shift) > room);
+    }
+  }
+  int cx = x;
+  for (int i = 0; i < n; ++i) {
+    int step = 1;
+    if (step_max != 0) {
+      step = wid[i] + 1 < step_max ? wid[i] + 1 : step_max;
+    }
+    const int x0 = cx;
+    const int shown = slot[i].count >> shift;
+    for (int k = 0; k < shown; ++k) {
+      ss_blit_sprite(icons, slot[i].icon, fb, cx, y);
+      if (shown - 1 > k) {
+        cx += step;
+      }
+    }
+    if (font && (numbers_on || (step == 1 && slot[i].count > 1)) && slot[i].count > 0) {
+      /* FUN_1097_00de(count, x0 + 2, y, 15, 1): plate at (x0 + 2, y + 2), text one px in. */
+      char num[12];
+      snprintf(num, sizeof(num), "%d", slot[i].count);
+      fb_fill_rect(fb, x0 + 2, y + 2, font_text_width(font, num) + 1, 7, 0);
+      font_draw_text(font, fb, x0 + 3, y + 3, num, 15);
+    }
+    cx += wid[i] - shrink + gap;
+  }
+}
 
 void reports_render_congress_page1(
   const ColonizeReportsView* view,
@@ -201,7 +288,7 @@ void reports_render_congress_page1(
     snprintf(
       line,
       line_sz,
-      "%s:  (%s)",
+      "%s: (%s)",
       reports_misc_word(112, "", w1, sizeof(w1)),
       nat->next_founding_father >= 0
         ? reports_ff_name(nat->next_founding_father)
@@ -243,7 +330,7 @@ void reports_render_congress_page1(
     }
   }
   if (line[0]) {
-    reports_draw_line(font, fb, 8, REPORTS_CONGRESS_TEXT1_Y, line, 15);
+    reports_draw_line(font, fb, 4, REPORTS_CONGRESS_TEXT1_Y, line, 146);
   }
 
   {
@@ -281,7 +368,7 @@ void reports_render_congress_page1(
   snprintf(
     line,
     line_sz,
-    "%s %s: %u%%  %s %s: %u%%",
+    "%s %s: %u%%   %s %s: %u%%",
     reports_misc_word(69, "", w1, sizeof(w1)),
     reports_misc_word(71, "", w3, sizeof(w3)),
     rebel_pct,
@@ -289,22 +376,20 @@ void reports_render_congress_page1(
     w3,
     100 - rebel_pct
   );
-  reports_draw_line(font, fb, 8, REPORTS_CONGRESS_TEXT2_Y, line, 15);
+  reports_draw_line(font, fb, 4, REPORTS_CONGRESS_TEXT2_Y, line, 146);
 
   {
-    const int flags = (int)((REPORTS_CONGRESS_SENT_SLOTS * rebel_pct + 50) / 100);
-    const int crowns = REPORTS_CONGRESS_SENT_SLOTS - flags;
-    reports_draw_icon_bar_pair(
-      icons,
-      fb,
-      REPORTS_CONGRESS_FLAG_ICON,
-      flags,
-      REPORTS_CONGRESS_CROWN_ICON,
-      crowns,
-      REPORTS_CONGRESS_SENT_X,
-      REPORTS_CONGRESS_SENT_Y,
-      REPORTS_CONGRESS_SENT_W,
-      REPORTS_CONGRESS_SENT_H
+    /* FUN_3f41_06d0 3f41:0b8c..: slots = max(DS:nation-0x6bf0 = census_pop_proxy, 1); flags =
+     * slots * rebel% / 100 (FUN_1d1d_0ec6, floor), crowns = the rest; bar at x 4, y = text y +
+     * FONTTINY[0] + 2, w 0x12c, gap 4. */
+    const int slots = col1->stuff.census_pop_proxy[human & 3] > 0 ? col1->stuff.census_pop_proxy[human & 3] : 1;
+    const int flags = (int)((unsigned)slots * rebel_pct / 100u);
+    const ReportsCongressSlot sent[2] = {
+      {REPORTS_CONGRESS_FLAG_ICON, flags}, {REPORTS_CONGRESS_CROWN_ICON, slots - flags}
+    };
+    reports_congress_draw_slots(
+      icons, font, fb, 4, REPORTS_CONGRESS_TEXT2_Y + step, 0x12c, 4,
+      sent[0].count > 0 ? sent : sent + 1, (sent[0].count > 0) + (sent[1].count > 0), false
     );
   }
 
@@ -315,7 +400,7 @@ void reports_render_congress_page1(
     reports_nation_adjective(human),
     reports_misc_word(85, "", w1, sizeof(w1))
   );
-  reports_draw_line(font, fb, 8, REPORTS_CONGRESS_TEXT3_Y, line, 15);
+  reports_draw_line(font, fb, 4, REPORTS_CONGRESS_TEXT3_Y, line, 146);
 
   {
     /* Storage order is [regulars, dragoons, man-o-wars, artillery]; the
@@ -327,47 +412,18 @@ void reports_render_congress_page1(
       REPORTS_CONGRESS_ICON_ARTILLERY,
       REPORTS_CONGRESS_ICON_MANOWAR
     };
-    static const int kForceX[4] = {4, 128, 193, 260};
-    static const int kForceXEnd = 316;
-    /*
-     * port_bugs.md "REF units squished unnecessarily": DOS draws this row through
-     * the shared icon-row drawer (FUN_1097_0174 — the 3f41 builder brackets
-     * the force line with DS:0x70 = 1), which packs icons at their natural
-     * width and only shrinks the step when the run would overflow its cell.
-     * The old width = count * 2.2px spread reproduced the 56-regular
-     * golden's 2px pitch but crushed small counts too. Natural width capped
-     * at the cell (next column start, screen margin for the last) gives both:
-     * 56 regulars in a 124px cell still squeeze to ~2px, a fresh campaign's
-     * 15 stand shoulder to shoulder.
-     */
+    /* FUN_3f41_06d0 3f41:0a1a-0a46: one FUN_281f_0222 slot per non-zero count, then
+     * FUN_281f_022c at x 4, y = text y + FONTTINY[0] + 2, w 0x12c, gap 4, with DS:0x70 = 1
+     * (numbers always on). */
+    ReportsCongressSlot slots[4];
+    int ns = 0;
     for (int i = 0; i < 4; ++i) {
       const int amount = (int)col1->head.expeditionary_force[kForceIndex[i]];
-      if (amount <= 0) {
-        continue;
+      if (amount > 0) {
+        slots[ns++] = (ReportsCongressSlot){kForceIcon[i], amount};
       }
-      const int avail = ((i < 3) ? kForceX[i + 1] : kForceXEnd) - kForceX[i];
-      int iw = 16;
-      if (icons && kForceIcon[i] >= 0 && kForceIcon[i] < icons->sprite_count) {
-        iw = icons->sprites[kForceIcon[i]].width;
-      }
-      int w = amount * iw;
-      if (w > avail) {
-        w = avail;
-      }
-      reports_draw_icon_bar(
-        icons,
-        font,
-        fb,
-        kForceIcon[i],
-        kForceX[i],
-        REPORTS_CONGRESS_FORCE_Y,
-        w,
-        REPORTS_CONGRESS_FORCE_H,
-        amount,
-        true,
-        0
-      );
     }
+    reports_congress_draw_slots(icons, font, fb, 4, REPORTS_CONGRESS_TEXT3_Y + step, 0x12c, 4, slots, ns, true);
   }
 
   /*
@@ -447,7 +503,7 @@ void reports_render_congress_page1(
   }
 
   snprintf(line, line_sz, "%s:", reports_misc_word(89, "", w1, sizeof(w1)));
-  reports_draw_line(font, fb, 8, ff_header_y, line, 15);
+  reports_draw_line(font, fb, 4, ff_header_y, line, 146);
   {
     int shown = 0;
     int y = ff_header_y + step;
@@ -463,7 +519,7 @@ void reports_render_congress_page1(
         REPORTS_CONGRESS_FF_COL_X0 + col * REPORTS_CONGRESS_FF_COL_STEP,
         y + row * step,
         reports_ff_name(i),
-        15
+        97
       );
       shown++;
     }
@@ -547,11 +603,11 @@ void reports_render_congress_page2(
 #define REPORTS_LABOR_COL0_X 2
 #define REPORTS_LABOR_COL_STEP 105
 #define REPORTS_LABOR_CELL_W 100
-#define REPORTS_LABOR_TEXT_DX 18
+#define REPORTS_LABOR_TEXT_DX 12
 /* Count-number x, relative to text_x — a fixed column offset (golden: every
  * row's number starts at the same x, measured off single- and double-digit
  * counts alike), not centered under each row's own (variable-width) name. */
-#define REPORTS_LABOR_NUM_DX 22
+#define REPORTS_LABOR_NUM_DX 27
 
 static const int8_t k_labor_layout[REPORTS_LABOR_COLS][REPORTS_LABOR_ROWS] = {
   {0, 1, 2, 3, 4, 5, 6, 7, -1},
@@ -754,7 +810,7 @@ void reports_render_labor_grid(
       const int icon = reports_labor_icon_for_job(job);
       if (icons && icon >= 0 && icon < icons->sprite_count) {
         unit_chrome_blit(
-          fb, NULL, icons, icon, cx, cy, UNIT_CHROME_SPRITE_WITH_SHADOW, 0, 0, -1, 0, false,
+          fb, NULL, icons, icon, cx + 2, cy - 2, UNIT_CHROME_SPRITE_WITH_SHADOW, 0, 0, -1, 0, false,
           false, -1, -1
         );
       }
@@ -762,12 +818,12 @@ void reports_render_labor_grid(
       char num[16];
       snprintf(num, sizeof(num), "%d", count);
       const int text_x = cx + REPORTS_LABOR_TEXT_DX;
-      reports_draw_line(font, fb, text_x, cy, reports_job_name(job), 14);
+      reports_draw_line(font, fb, text_x, cy, reports_job_name(job), 146);
       /* Count sits at a fixed x per column (golden: every row's number lines
        * up under the same point regardless of name length — not centered
        * under each name individually) and a paler/whiter 15 (not 14 — the
        * name's yellow) in this palette. */
-      reports_draw_line(font, fb, text_x + REPORTS_LABOR_NUM_DX, cy + 9, num, 15);
+      reports_draw_line(font, fb, text_x + REPORTS_LABOR_NUM_DX, cy + 7, num, 97);
     }
   }
 }
@@ -802,40 +858,42 @@ void reports_render_labor_detail(
   const int colony_n = colony_counts[job];
   const int sum = europe_n + mapboard_n + colony_n;
 
-  const int header_y = y + REPORTS_LABOR_ROW_STEP / 2;
+  /* FUN_3f41_0d3e: breakdown label x 0xa0, value x 0xa0 + 0x5f, rows from y 0x19 stepping
+   * FONTTINY[0] + 1 (7); header line "<job>: <n>" at golden (14, 30); all ink 0x92. */
+  (void)y;
+  const int header_y = 30;
   const int icon = reports_labor_icon_for_job(job);
   if (icons && icon >= 0 && icon < icons->sprite_count) {
     unit_chrome_blit(
-      fb, NULL, icons, icon, 4, header_y, UNIT_CHROME_SPRITE_WITH_SHADOW, 0, 0, -1, 0, false,
+      fb, NULL, icons, icon, 4, 24, UNIT_CHROME_SPRITE_WITH_SHADOW, 0, 0, -1, 0, false,
       false, -1, -1
     );
   }
   snprintf(line, line_sz, "%s: %d", reports_job_name(job), sum);
-  reports_draw_line(font, fb, 22, header_y, line, 14);
+  reports_draw_line(font, fb, 14, header_y, line, 146);
 
-  const int bd_x_label = 165;
-  const int bd_x_value = 295;
+  const int bd_x_label = 0xa0;
+  const int bd_x_value = 0xa0 + 0x5f;
+  const int bd_y0 = 0x19;
+  const int bd_step = font ? font->max_height + 1 : 7;
   /* LABELS.TXT @MISC #53/#54/#55. */
   char w[48];
-  snprintf(line, line_sz, "%s:", reports_misc_word(53, "", w, sizeof(w)));
-  reports_draw_line(font, fb, bd_x_label, header_y, line, 14);
-  snprintf(line, line_sz, "%d", europe_n);
-  reports_draw_line(font, fb, bd_x_value, header_y, line, 14);
-  snprintf(line, line_sz, "%s:", reports_misc_word(54, "", w, sizeof(w)));
-  reports_draw_line(font, fb, bd_x_label, header_y + REPORTS_LABOR_ROW_STEP / 2, line, 14);
-  snprintf(line, line_sz, "%d", mapboard_n);
-  reports_draw_line(font, fb, bd_x_value, header_y + REPORTS_LABOR_ROW_STEP / 2, line, 14);
-  snprintf(line, line_sz, "%s:", reports_misc_word(55, "", w, sizeof(w)));
-  reports_draw_line(font, fb, bd_x_label, header_y + REPORTS_LABOR_ROW_STEP, line, 14);
-  snprintf(line, line_sz, "%d", colony_n);
-  reports_draw_line(font, fb, bd_x_value, header_y + REPORTS_LABOR_ROW_STEP, line, 14);
+  const int bd_misc[3] = {53, 54, 55};
+  const int bd_n[3] = {europe_n, mapboard_n, colony_n};
+  for (int i = 0; i < 3; ++i) {
+    snprintf(line, line_sz, "%s:", reports_misc_word(bd_misc[i], "", w, sizeof(w)));
+    reports_draw_line(font, fb, bd_x_label, bd_y0 + i * bd_step, line, 146);
+    snprintf(line, line_sz, "%d", bd_n[i]);
+    reports_draw_line(font, fb, bd_x_value, bd_y0 + i * bd_step, line, 146);
+  }
 
   if (!col1) {
     return;
   }
   int shown = 0;
-  const int list_y0 = header_y + 3 * REPORTS_LABOR_ROW_STEP;
-  static const int kListColX[3] = {4, 124, 244};
+  /* FUN_3f41_0d3e: list from y 0x19 + 0x28, step 9, x 2 + 0x69 per column, max 10 rows. */
+  const int list_y0 = 0x19 + 0x28;
+  static const int kListColX[3] = {2, 2 + 0x69, 2 + 2 * 0x69};
   for (uint16_t i = 0; i < col1->head.colony_count; ++i) {
     const ColonizeCol1Colony* c = &col1->colony[i];
     if (c->nation_id != (uint8_t)human) {
@@ -875,12 +933,12 @@ void reports_render_labor_detail(
     }
     const int col = shown % 3;
     const int row = shown / 3;
-    const int ly = list_y0 + row * REPORTS_LABOR_ROW_STEP;
-    if (ly >= 185) {
+    const int ly = list_y0 + row * 9;
+    if (row >= 10) {
       break;
     }
     snprintf(line, line_sz, "%s: %d", c->name, n);
-    reports_draw_line(font, fb, kListColX[col], ly, line, 14);
+    reports_draw_line(font, fb, kListColX[col], ly, line, 97);
     shown++;
   }
 }

@@ -1958,9 +1958,22 @@ static void game_create_load_sheets(ColonizeGameState* game) {
     }
   }
 
+  /*
+   * Map DAC = VICEROY.PAL. FUN_75c2_2d46 reads it once into DS:0xfc00
+   * (FUN_2a1f_0e28 -> FUN_7a7c_000e) and every full-screen picture restores
+   * the DAC from that buffer (FUN_281f_03f4(.., 0xfc00) -> FUN_1ade_0004 in
+   * FUN_2b5a_20f6 / FUN_41f2_0b70 / FUN_4345_024a). No .SS palette ever reaches
+   * the DAC; the DOSBox map dump (dosbox_save_state_2/Vga) is VICEROY.PAL at
+   * 0..151 with 120..127 rotated by CYCLE.DAT. TERRAIN.SS's own palette (pink
+   * 12, magenta 5/13, a different water ramp) is a fallback only.
+   */
+  if (game->palette_ok) {
+    game->map_palette = game->palette;
+    game->map_palette_ok = true;
+  }
   if (game_load_ss_asset(game, "TERRAIN.SS", &game->terrain, "terrain sheet")) {
     game->terrain_ok = true;
-    if (game->terrain.has_palette) {
+    if (!game->map_palette_ok && game->terrain.has_palette) {
       game->map_palette = game->terrain.palette;
       game->map_palette_ok = true;
     }
@@ -1975,21 +1988,6 @@ static void game_create_load_sheets(ColonizeGameState* game) {
   }
   if (game_load_ss_asset(game, "ICONS.SS", &game->unit_icons, "unit icon sheet")) {
     game->unit_icons_ok = true;
-    /*
-     * port_bugs.md #364 (Dutch mission cross pink): the map screen draws
-     * TERRAIN.SS tiles and ICONS.SS pieces through ONE DAC. The two sheets'
-     * own palettes agree everywhere that matters except slots 5 and 13 —
-     * TERRAIN leaves them as plain EGA magenta and never uses them (0 pixels
-     * in any TERRAIN/PHYS0/BDARK/CURSOR sprite), while ICONS paints real
-     * pixels with them and defines them as the Dutch pair (255,113,0) /
-     * (170,73,0). So DOS's map DAC has to be carrying ICONS' values there —
-     * merge them in rather than leaving the nation chrome to nearest-match a
-     * washed-out substitute.
-     */
-    if (game->map_palette_ok && game->unit_icons.has_palette) {
-      memcpy(game->map_palette.rgb[5], game->unit_icons.palette.rgb[5], 3);
-      memcpy(game->map_palette.rgb[13], game->unit_icons.palette.rgb[13], 3);
-    }
   }
 
   if (game_load_ff_asset(game, "FONTSMAL.FF", &game->menu_font, "menu font")) {
@@ -2039,13 +2037,6 @@ static void game_create_load_screens(ColonizeGameState* game) {
      * GAME.TXT for statuses europe.c composes itself (@KISSSORRY etc). */
     europe_set_labels(&game->europe, game->labels_ok ? &game->labels : NULL);
     europe_set_messages(&game->europe, &game->messages);
-    /* Orders-box fill (FUN_112b_01ba, raw DS:0x848 index): the Dutch pair 5/13
-     * is VICEROY.PAL's fixed DAC on every screen; EUROPE.PIK has EGA magenta
-     * there and paints none. Same merge as the map palette above. */
-    if (game->unit_icons_ok && game->unit_icons.has_palette && game->europe.background.has_palette) {
-      memcpy(game->europe.background.palette.rgb[5], game->unit_icons.palette.rgb[5], 3);
-      memcpy(game->europe.background.palette.rgb[13], game->unit_icons.palette.rgb[13], 3);
-    }
     game->europe_ok = true;
   } else {
     game->europe_ok = false;

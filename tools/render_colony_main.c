@@ -64,6 +64,8 @@ int main(int argc, char** argv) {
   }
   colony_screen_reset_ui(&view); /* no selection, no hover label */
   view.multi_mode = (ColonyMultiMode)multi_mode;
+  /* DS:0x334 blink off phase: the goldens show no area-view cursor box. */
+  view.blink_ms = view.blink_epoch_ms + 328u;
   /* DS:0x8d80 layout seed = the save's own boot tick (port_bugs.md #578). */
   colony_screen_set_layout_seed(&view, rs.save.post_map.boot_timer);
 

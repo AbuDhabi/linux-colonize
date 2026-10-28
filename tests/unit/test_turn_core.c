@@ -375,8 +375,8 @@ static int case_europe_park_refresh(void) {
 
 static int case_nation_colors(void) {
   fx_begin();
-  /* Turn-owner colors: NAMES.TXT @COUNTRY; England fill uses saturated red 112. */
-  if (unit_chrome_nation_color(0) != 112 || unit_chrome_nation_color(1) != 9 || unit_chrome_nation_color(2) != 14 ||
+  /* Turn-owner colors: NAMES.TXT @COUNTRY (DS:0x848, FUN_112b_01ba). */
+  if (unit_chrome_nation_color(0) != 12 || unit_chrome_nation_color(1) != 9 || unit_chrome_nation_color(2) != 14 ||
       unit_chrome_nation_color(3) != 13) {
     fprintf(stderr, "european turn colors mismatch\n");
     return 1;

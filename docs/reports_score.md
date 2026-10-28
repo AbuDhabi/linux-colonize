@@ -22,10 +22,17 @@ Hall of Fame / Exploits). Shared chrome, fill bars and F2-F9 stay in
   since 2026-08-29): subtitle = difficulty rank + `player[human].name` +
   nation adjective + season/year. Components in DOS block order, each with
   its DOS gate (a gated-off component prints no line and adds 0):
-  - Citizens: colony population always counts (sentinel profession falls
-    back to Free Colonist); a map/Europe unit counts only when its raw
-    `profession` byte is a genuine assigned job (0..27) — sentinel 28
-    contributes zero. Points: 28→2, 25/26/27→1, else 4.
+  - Citizens: one stack local (BP-0x70, Ghidra `in_stack_0000ff8e`, looks
+    branch-local but is function-wide) is assigned by the colony slot loop
+    (raw profession) and by the unit loop only when the unit's map icon
+    (`FUN_112b_0060`) is a generic pose (0x4a..0x4e): that unit scores its own
+    profession. Every other slot-bearing unit re-scores the last assigned
+    value. Golden: 138 colony points + 10 units x 2 = 158, 58 strip icons;
+    generic poses draw `units_job_icon_sprite(prof)`. Points on the raw byte:
+    0x1c→2, 25/26/27→1, else 4.
+  - Label separators (`FUN_281f_01be` ": " then optional `0178` " "):
+    Citizens, Rebel Sentiment, Early Revolution and Villages take two spaces;
+    Congress, Gold, Liberty Bells, Independence one (the last two decomp-only).
   - Congress: +5 per Founding Father (`reports_ff_owned_by_nation`).
   - Gold: `gold / 1000`, line + points only when gold ≥ 1000.
   - Villages Burned: `burned × (−1 − difficulty)`, only when burned ≠ 0

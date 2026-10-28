@@ -162,7 +162,8 @@ void colony_screen_draw_people(
     colony_screen_blit_icon(view, COLONY_ICON_FLAG, framebuffer, COLONY_PEOPLE_X + 2, sol_y);
     if (font) {
       snprintf(buf, sizeof(buf), "%d%% (%d)", sol, sol_count);
-      font_draw_text(font, framebuffer, COLONY_PEOPLE_X + 16, sol_y + 2, buf, ink);
+      /* golden-measured: the text origin is (x + 15, y + 1) off the flag */
+      font_draw_text(font, framebuffer, COLONY_PEOPLE_X + 15, sol_y + 1, buf, ink);
     }
   }
   if (tory != 0) {
@@ -174,7 +175,7 @@ void colony_screen_draw_people(
       snprintf(buf, sizeof(buf), "%d%% (%d)", tory, tory_count);
       const int tw = font_text_width_skip(font, buf, FONT_SKIP_NONE);
       font_draw_text(
-        font, framebuffer, COLONY_PEOPLE_X + COLONY_PEOPLE_W - 16 - tw, sol_y + 2, buf, ink
+        font, framebuffer, COLONY_PEOPLE_X + COLONY_PEOPLE_W - 16 - tw, sol_y + 1, buf, ink
       );
     }
   }
@@ -668,8 +669,8 @@ void colony_screen_draw_multifunction(
           title = cmisc->lines[1];
         }
       }
-      const int tw = font_text_width(font, title);
-      font_draw_text(font, framebuffer, px + (pane_w - tw) / 2, py, title, 57);
+      /* FUN_2f2b_1e46: the same FUN_281f_0100 centring as the other pane titles. */
+      colony_screen_text_centred(font, framebuffer, 0xd3, 0x5b, 0x84, title, 0x39);
     }
     /* FUN_2f2b_1e46 raw 48668-48677: the selected unit's box is white in the
      * focused pane's on phase or while a press on the pane is held, else green.

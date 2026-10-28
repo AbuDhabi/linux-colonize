@@ -131,8 +131,11 @@ int colony_screen_building_worker_strip(
   int* out_icons,
   int* out_strip_h
 );
-void colony_screen_building_strip_span(
-  int bx, int bw, int workers, int ref_iw, int* out_x, int* out_w
+int colony_screen_building_worker_ref_iw(
+  const ColonyScreenView* view, const ColonizeColonyPool* pool, int built, int first_icon
+);
+void colony_screen_building_worker_layout(
+  int size_class, int n, int ref_iw, int slot_x, int slot_y, int* xs, int* out_y
 );
 int colony_screen_category_built(
   const ColonizeColonyPool* pool, const ColonizeColony* colony, int cat
