@@ -425,6 +425,7 @@ void render_colony_screen(const ColonizeGameState* game, ColonizeFramebuffer8* f
 void render_europe_screen(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffer);
 void render_pedia_screen(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffer);
 
+void game_camera_edge_center(void* user, int x, int y);
 void game_combat_watch(
   void* user, const ColonizeUnitPool* pool, int attacker_id, int def_x, int def_y
 );

@@ -193,7 +193,7 @@ Small sprite sheets render as a labeled grid. Large or single-sprite sheets show
 
 **Loaded-map finalize (2026-09-15):** DOS runs the `FUN_684c_08c0` tail on a loaded `.MP` too (asm `684c:08e2` jumps to `LAB_684c_17f1` when the map came from file): two high-seas outline rings, arctic on rows 0 / h−1, bit-4 forest demote and hills/mountains lose their forest class. AMER2.MP ships 146 forested hill/mountain tiles that DOS therefore never draws with canopy; the port applies the same pass (`map_gen_finalize_border_and_forest`) on the Original Americas new-game path.
 
-**Fidelity status:** static AMER2 art matches MAPEDIT for coasts, estuaries, land–land transitions, forest/hill/mountain/river connectivity, special resources, and rumours. **Plowed fields** use runtime PHYS0 **149**; **roads** use PHYS0 **80** isolated or multi-blit **81–88** directional stubs (`FUN_6ba1_0938`). Land MP uses DOS `terr_cost` table at NAMES scale (`map_move_cost_*`). Remaining gaps are fog-of-war polish, coast animation, and per-tile texture variation.
+**Fidelity status:** static AMER2 art matches MAPEDIT for coasts, estuaries, land–land transitions, forest/hill/mountain/river connectivity, special resources, and rumours. **Plowed fields** use runtime PHYS0 **149**; **roads** use PHYS0 **80** isolated or multi-blit **81–88** directional stubs (`FUN_6ba1_0938`). Land MP uses DOS `terr_cost` table at NAMES scale (`map_move_cost_*`). No per-tile texture variation or coast animation exists in DOS (see Coastal ocean section); water shimmer is the CYCLE.DAT palette cycle.
 
 Authority for static map art is decompiled **`MAPEDIT.EXE` /
 `original_sources_decompiled/mapedit.c`** (no RTLink), not VICEROY’s runtime buffers.
@@ -278,7 +278,7 @@ Plowed tiles blit PHYS0 **149** via `map_phys0_plow_sprite_at`.
 
 Older VICEROY quadrant / RAM-buffer coast heuristics are **superseded** by this MAPEDIT path.
 
-Not drawn yet: per-tile texture variation from DOS RAM buffers; coast animation frames. Fog fringe (**104–107**), plow (**149**), and road **80–88** connectivity are drawn.
+**No per-tile texture variation, no coast animation frames (DOS verified 2026-10-28).** `FUN_6ba1_0d6c` walks the viewport and calls `FUN_6ba1_0938` per tile; its base blit `FUN_6ba1_05b8` -> `FUN_1101_0050` (asm 6ba1:05b8) copies the 16x16 block at `TERRAIN.SS` buffer (`DS:0x16c`, loaded by `FUN_74a4_0bbe`) + `FUN_1101_0026(class)*0x100`, `class` = `FUN_137f_0614(terrain byte)`; no x/y hash, RNG or per-tile RAM buffer enters the source offset. The `0xa598/0xa594/0xa59c` buffers are only the terrain/overlay/visibility map arrays, and `DS:0xa5a8` is a column-parity flag nothing reads for art. Coastline pieces (`FUN_6ba1_06e0`, `0x1ea4/0x1ea5` quadrant offsets) are static per tile. The only DOS "animation" of water is the CYCLE.DAT palette rotation (`game_water_cycle_tick`, already ported). Fog fringe (**104–107**), plow (**149**), and road **80–88** connectivity are drawn.
 
 `src/data/viceroy_tables.{h,c}` holds the one remaining `VICEROY.EXE` extract, used only by Colonizopedia terrain previews ([viceroy_tables.md](viceroy_tables.md)). World-map **feature art** (forest/hill/mountain/coast) uses the MAPEDIT rules above.
 
@@ -311,7 +311,7 @@ DOS layout: 15×12 main view (see `MENU.TXT` zoom levels) leaves an 80px strip. 
 | Village trade intel (OpenCol-only) | `ICONS.SS` **#22–37** | Under the native camp line: `Buys:` row (goods named by @BRING / @BADCARGO / @CHIEFHOWDY) and `Sells:` row (@BUYWHICH), 13px rows, icons in one shared column; each row only once that dialog has been shown to the player. Side table `village_trade_intel.c` keyed by settlement tile and European nation — persisted in the save's port extension block (`VTIN` chunk, docs/savegame.md), wiped by `ai_contact_reset` (new game / Load, before `col1_bridge_apply` restores it) and on village removal. `render_map_panel … buys=a,b,c sells=a,b,c` seeds it |
 | Nation box | Turn indicator at `(315,197)` | 5×3 fill in the acting nation's color (`FUN_1984_00aa`), painted at the head of **every** nation's end-of-turn — the human's own production pass included; dark during the human's own play. England **112** (NAMES lists 12), France 9, Spain 14, Netherlands 13 (`@COUNTRY`); native phases use `@TRIBES` colors |
 
-Not used for this panel: `WOODPAN2.PIK` (score/fame chrome), `WOODFRAM.SS` (milestone-woodcut frame). Fog-of-war on the minimap is not drawn yet.
+Not used for this panel: `WOODPAN2.PIK` (score/fame chrome), `WOODFRAM.SS` (milestone-woodcut frame). Minimap fog: unseen tiles draw black (`map_panel_render_minimap`, `map_tile_seen_by`).
 
 ### Report / adviser screens
 
@@ -384,7 +384,7 @@ when `RNG(1,100)>89 && ships>2 && !Magellan` — both directions.
 | **U** / `-` / `_` | Sell best hold / all / some |
 | `$` / `]` / `[` | Cheat (only with `cheats_enabled` set): +1000 gold / tax +1 / tax −1 (`FUN_38fd_4f6e`) |
 
-Market bid/ask from `NAMES.TXT` `@CARGO` (ask = bid + burden + 1). Sale proceeds `floor(bid × amount × (100 − tax) / 100)`. Volume-price T0 via `europe_apply_volume_price` (**Done thin**; EOT attrition + half `market_demand_pool`); boycotts **Partial** structural; pressure/bid chrome PARKED — [manual_gap.md](manual_gap.md).
+Market bid/ask from `NAMES.TXT` `@CARGO` (ask = bid + burden + 1). Sale proceeds `floor(bid × amount × (100 − tax) / 100)`. Volume-price T0 via `europe_apply_volume_price` (**Done thin**; EOT attrition + half `market_demand_pool`); boycotts **Partial** structural. No pressure / price-trend / bid chrome exists in DOS: `FUN_38fd_0b64` (raw 59293-59351) draws only the 16 cells' `bid/ask` text (`FUN_38fd_0040` ask / `FUN_38fd_0016` price), the red boycott tint (`FUN_38fd_05e8`) and the selected-cell highlight rect, which the port matches — [manual_gap.md](manual_gap.md).
 
 ### Colony screen bring-up
 

@@ -2156,6 +2156,7 @@ void game_set_platform(ColonizeGameState* game, ColonizePlatform* platform) {
   }
   game->platform = platform;
   units_set_combat_human_nation(game->human_nation);
+  units_set_camera_edge_hook(game_camera_edge_center, game);
 }
 
 void game_destroy(ColonizeGameState* game) {
@@ -2166,6 +2167,7 @@ void game_destroy(ColonizeGameState* game) {
   units_set_combat_watch(NULL, NULL);
   units_set_combat_dissolve(NULL, NULL);
   units_set_combat_popup_pump(NULL, NULL);
+  units_set_camera_edge_hook(NULL, NULL);
   ai_euro_set_watch(NULL, NULL);
   units_set_spawn_gate_hook(NULL, NULL);
   units_set_spawn_refused_hook(NULL);

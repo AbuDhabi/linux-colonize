@@ -477,7 +477,7 @@ fragment. Related sections are listed in the first column.
 | Europe dock orders | Don’t board / Board / Move front | Done | `EUROPE_MENU_DOCK` |
 | `@HOWMUCH4`/`5` | Buy/sell amount | Done | Europe **L**/**U** → howmuch |
 | `@PRICEUP` / `@PRICEDOWN` | Price change notice | Done | OK popup (EOT + immediate buy/sell) |
-| `@KINGTAX` / `@TAXOPTIONS` / `@TEAPARTY` | Tax audience (also map queue) | Done | `@KINGTAX` body + `@TAXOPTIONS` Kiss/Party; `@TEAPARTY` Done thin (stock dump + tokens; VGA PARKED) |
+| `@KINGTAX` / `@TAXOPTIONS` / `@TEAPARTY` | Tax audience (also map queue) | Done | `@KINGTAX` body + `@TAXOPTIONS` Kiss/Party; `@TEAPARTY` Done thin (stock dump + tokens) |
 | `@KISSUP` / `@KISSSORRY` | Click a boycotted market cell | Done | `AI_POPUP_TAG_EUROPE_KISSUP` CHOICE (Unfair / Pay) from `game_europe_ask_boycott_buyback`; Pay then tests the purse and shows `@KISSSORRY` OK, exactly `FUN_38fd_2dfe`'s order |
 
 ### 6. Indian contact / trade / raids
@@ -495,7 +495,7 @@ fragment. Related sections are listed in the first column.
 | `@CHIEF*` | Scout speaks with chief | Done | `ai_contact_speak_with_chief` (`thunk_FUN_1000_a60c`): `@CHIEFHOWDY` / `@CHIEFGUIDES` / `@CHIEFAREA` / `@CHIEFGIFT` / `@CHIEFBORED` / `@CHIEFKILL` via `popup_msg_fill` |
 | `@EXTORT*` | Demand tribute from a village | Done | `ai_contact_demand_tribute` (`thunk_FUN_1000_a5f4`): `@EXTORTSTUFF` / `@EXTORTPOOR` / `@EXTORTNO` / `@EXTORTLAUGH` |
 | `@KILLWAGONS` / `@MADATWAGONS` / `@GRUDGEWAGONS` | Wagon / ship enters a village at alarm >= 75 | Done | `ai_contact_enter_hostile_village` (`thunk_FUN_1000_a5e8`) |
-| `@TRADE0`/`1`, haggle `@BADHAGGLE*` | Deep village trade | Done (structural) | `2820` LAB_002bbc/002e92 human loops ported (`ai_contact_2820_sell_haggle`, `ai_contact_2e92_haggle`); VGA PARKED |
+| `@TRADE0`/`1`, haggle `@BADHAGGLE*` | Deep village trade | Done (structural) | `2820` LAB_002bbc/002e92 human loops ported (`ai_contact_2820_sell_haggle`, `ai_contact_2e92_haggle`); chief portrait (`FUN_291f_019c` -> `ai_contact_chief_flair`, all 5 enqueue sites, `FUN_6f74_14c6` frame) and head BGM cue (`ai_contact_village_bgm_cue`, `FUN_1000_8688` 5/6/7) ported |
 | Bribe / encroachment CHOICE | Pioneer clear / road, colony plot on tribal land | Done | `@INDIANFOREST` / `@INDIANROAD` / `@INDIANLAND` via `game_request_indian_land_choice` (`AI_POPUP_TAG_INDIAN_LAND`); "offer" greyed when gold < price (port_bugs.md #1214), `@INDIANBRIBE` after paying |
 
 ### 7. Euro diplomacy
@@ -518,11 +518,11 @@ fragment. Related sections are listed in the first column.
 | Audience flavour sections | Which text the tax audience shows | Done | `FUN_38fd_5be8` names a section per ladder rung: `@KINGVICTORY` (cut) / `@KINGWIFE` (+1) / `@KINGWAR` (+2) / `@KINGNAVACT` (+3-4) / `@KINGSTAMPACT` (+5-8), with `%STRING2` from `@COUNTRIES` / `@ORDINAL` / the player's New World name (`ai_king.c` `AiKingAudienceFlavor`) |
 | King's audience chamber | `@KINGWELCOME0` / `@AUDIENCE` menu / `@KINGBLESS` / `@KINGLAUGH` / `@KINGNO` / `@KINGFUND` / `@KINGLOWER` / `@KINGRAISE` / `@KINGNOTHING` | n/a | Cut feature: the chamber is `FUN_38fd_462e`, which nothing calls in `viceroy_unpacked.asm` or `viceroy_overlays.asm`, and its menu text (`@AUDIENCE` `0x10d4`) and refusal (`@KINGGOAWAY` `0x10c9`) were removed from the shipped `GAME.TXT`. Its five actions (`38fd:44a4`, `38fd:4590`, three thunks) have no other caller either |
 | Merc Hire/Decline (`@MERCENARIES`) | Continental mercs | Done | `KING_MERC` |
-| Declare (`@DECLARE`) | Independence confirm | Done | `KING_CONGRESS` body+choices via `popup_msg_fill` / `popup_msg_choices`; VGA PARKED |
+| Declare (`@DECLARE`) | Independence confirm | Done | `KING_CONGRESS` body+choices via `popup_msg_fill` / `popup_msg_choices` |
 | `@INDEPENDENCE` letter | Rename / letter | Done | `KING_LETTER` from `@INDEPENDENCE`; signing cinematic (`declaration.c`) |
 | `@INVASION` / intervene | REF / ally arrival | Done thin | REF `@INVASION`; ally `@INTERVENTION`+`@INTERVENE` |
 | Crown capture | REF takes colony | Done thin | `@CAPTURED3` via `units_combat_notify_colony_captured` (`COMBAT_COLONY`; the reserved `KING_CAPTURE` tag has no producer) |
-| Revolution win/lose | End WoI | Done thin | `@WINNING` / `@LOSING1` / `@LOSING2` / `@RETIRING2` via `popup_msg_fill`; latches; VGA PARKED |
+| Revolution win/lose | End WoI | Done thin | `@WINNING` / `@LOSING1` / `@LOSING2` / `@RETIRING2` via `popup_msg_fill`; latches |
 | Mid-war warn | WoI | Done | ONE `@WARN%d` per turn from DOS's digit-patch selector (raw 58506-58534): colonies<3 → `@WARN2` > share ≥80% → `@WARN3` > ports<3 → `@WARN1`; skipped on a turn that wins or loses the war; port-side episode latches `market_demand_pool_raw[6]/[7]/[10]`. `@LOSING3` takes over at share ≥90% |
 | `@CONTINENTAL` FF elect | Founding Father debate | Done | `FF_CONGRESS` |
 | 1800 peacetime end | Auto-end | Done thin | `@SCORED` CHOICE; That's all → `@RETIRING` + retire score; latch `market_demand_pool_raw[4]=3` |

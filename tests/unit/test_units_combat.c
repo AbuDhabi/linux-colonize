@@ -31,6 +31,20 @@ static void unit_test_dissolve_hook(void* user, int phase) {
   }
 }
 
+static int s_cam[8], s_cam_n, s_watch_n, s_watch_id, s_watch_x, s_watch_y;
+static void unit_test_camera_hook(void* user, int x, int y) {
+  (void)user;
+  if (s_cam_n < 4) {
+    s_cam[s_cam_n * 2] = x;
+    s_cam[s_cam_n * 2 + 1] = y;
+  }
+  s_cam_n++;
+}
+static void unit_test_watch_hook(void* user, const ColonizeUnitPool* pool, int id, int x, int y) {
+  (void)user; (void)pool;
+  s_watch_n++; s_watch_id = id; s_watch_x = x; s_watch_y = y;
+}
+
 static int unit_fort_fire_dissolve_and_europe(void) {
   ColonizeUnitPool pool;
   memset(&pool, 0, sizeof(pool));
@@ -96,6 +110,9 @@ static int unit_fort_fire_dissolve_and_europe(void) {
   units_set_combat_europe(&eu);
   s_dissolve_count = 0;
   units_set_combat_dissolve(unit_test_dissolve_hook, NULL);
+  s_cam_n = s_watch_n = 0;
+  units_set_camera_edge_hook(unit_test_camera_hook, NULL);
+  units_set_combat_watch(unit_test_watch_hook, NULL);
 
   int rc = 0;
   char st[96];
@@ -106,6 +123,14 @@ static int unit_fort_fire_dissolve_and_europe(void) {
     1, st, sizeof(st)
   );
 
+  /* FUN_364b_03f6 raw 57100 (0352): one camera edge-scroll onto the colony; 1b0e
+   * then centres on the ship's tile (attacker -1: the phantom is no pool unit). */
+  if (s_cam_n != 1 || s_cam[0] != 2 || s_cam[1] != 2 || s_watch_n != 1 || s_watch_id != -1 ||
+      s_watch_x != 3 || s_watch_y != 2) {
+    fprintf(stderr, "fortfire2: camera/watch hooks wrong (cam %d@%d,%d watch %d id %d @%d,%d)\n",
+            s_cam_n, s_cam[0], s_cam[1], s_watch_n, s_watch_id, s_watch_x, s_watch_y);
+    rc = 1;
+  }
   /* #464: phase 0 then phase 1, exactly one pair (one salvo). */
   if (s_dissolve_count != 2 || s_dissolve_phases[0] != 0 || s_dissolve_phases[1] != 1) {
     fprintf(stderr, "fortfire2: want dissolve 0,1 got %d phases (%d,%d)\n",
@@ -168,6 +193,8 @@ static int unit_fort_fire_dissolve_and_europe(void) {
   }
 
   units_set_combat_dissolve(NULL, NULL);
+  units_set_camera_edge_hook(NULL, NULL);
+  units_set_combat_watch(NULL, NULL);
   units_set_combat_europe(NULL);
   units_set_combat_colonies(NULL);
   units_set_combat_human_nation(-1);

@@ -1115,6 +1115,12 @@ bool units_fort_vs_ship(
     );
     units_combat_maybe_present_analysis(col1, &eng, fort_nation, def->nation_id);
   }
+  /* 1b0e centres on the defender tile after the analysis (as
+   * units_combat_present_and_roll does); the phantom attacker is not a pool
+   * unit here, so the watch gets attacker -1 = centre only. */
+  if (g_units_combat_watch && units_combat_human_involved(col1, def->nation_id, fort_nation)) {
+    g_units_combat_watch(g_units_combat_watch_user, pool, -1, def->x, def->y);
+  }
   if (atk_wins) {
     /*
      * port_bugs.md #249: DOS engages via the REAL naval resolver (temp attacker →
@@ -1633,6 +1639,11 @@ static int units_coastal_fort_fire_impl(
         const int human_chrome =
           col->nation_id == human_nation || ship_nation == human_nation;
         if (human_chrome) {
+          /* FUN_364b_03f6 raw 57100: FUN_281f_0352(colony, colony) = edge-test
+           * camera scroll onto the firing colony, before the dialog. */
+          if (g_units_camera_edge) {
+            g_units_camera_edge(g_units_camera_edge_user, col->x, col->y);
+          }
           /* GAME.TXT @FORTFIRE: "{%STRING0} at {%STRING1} opens fire on
            * {%STRING2 %STRING3}!" — announced whenever the fort/fortress
            * fires on a hostile ship, hit or miss (FUN_364b_03f6 tail). */

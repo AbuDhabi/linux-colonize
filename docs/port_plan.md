@@ -165,7 +165,7 @@ ends:
 
 | # | Deferred | Where it lives | Minimum-thin rule |
 |---|----------|----------------|-------------------|
-| D4 | Pixel-perfect graphics / VGA-identical chrome (dialogs, TRADE/FA editors, king letter). Congress F3 plates are **Done** to goldens; `DECLARAT.PIK` is unused leftover (signing uses DECOIND.PIK) | old W5.1–W5.3, T5.x | Content + layout correct (P2, P11); frames may stay port-drawn |
+| D4 | Pixel-perfect graphics / VGA-identical chrome. **Done:** the wood dialog frame every meet / diplo / king popup uses (`popup.c` + `ai_popup_render.c`, `FUN_6f74_14c6` / `248e`), king letter (`KING_LETTER`, `declaration.c`), Congress F3 both pages, F8 report (`FUN_3f41_2548`), trade-route editor (`trade_screen.c`, `FUN_647e_*`), Combat Analysis (`combat_analysis_render.c`, `FUN_636c_0000`, pixel-diffed against a DOSBox-X capture 2026-10-28); `DECLARAT.PIK` is unused leftover (signing uses DECOIND.PIK). **Left:** fort-fire attacker sprite (type-0x17 phantom lunge; camera done). There is no FA editor in DOS beyond the F8 report | old W5.1–W5.3, T5.x | Content + layout correct (P2, P11); frames may stay port-drawn |
 
 D1 (rival Europeans), D2 (Indian AI 1:1), D5 (music: the user judged it done;
 confirmed again 2026-10-26) and D6 (COLDIG SFX) are closed and D3
@@ -177,10 +177,9 @@ ported ([mapedit.md](mapedit.md)).
 
 Done. History, `FUN_*` inventory and the full method notes:
 [archive/port_plan_deferred_ai_track.md](archive/port_plan_deferred_ai_track.md).
-What remains AI-side is D4
-chrome: T5.1 VGA-identical dialog chrome (meet/diplo/king wood frames, FA
-`3f41` widget body) and T5.3 F3 Congress portrait-grid polish (blocked on
-material not in the repo).
+What remains AI-side is the D4 "Left" list above (fort-fire temporary
+attacker). T5.1 wood frames, the FA
+`3f41` report and T5.3 F3 Congress are done.
 
 ## Updating this file
 

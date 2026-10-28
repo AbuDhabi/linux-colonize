@@ -50,6 +50,7 @@ Status:
 - [docs/port_plan.md](docs/port_plan.md) — project status, remaining work, deferred phases (agents start here)
 - [docs/manual_gap.md](docs/manual_gap.md) — feature Done / Partial / Missing
 - [docs/original_index.md](docs/original_index.md) — decomp / data navigation
+- [docs/decomp_inventory.md](docs/decomp_inventory.md#regenerating-the-exports) — regenerating the (git-ignored) decompiled sources
 - [docs/port_bugs.md](docs/port_bugs.md) — open bugs
 
 Docs map: for conventions, jargon, fixture traps and the verification loop

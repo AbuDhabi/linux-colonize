@@ -123,6 +123,15 @@ void units_set_combat_watch(ColonizeUnitsCombatWatchFn fn, void* user);
 void units_combat_watch_notify(const ColonizeUnitPool* pool, int unit_id, int x, int y);
 
 /*
+ * FUN_281f_0352 -> FUN_1984_02fc (raw 31441-31447 / 13978-14017): scroll the map
+ * to (x, y) ONLY when that tile lies within 2 of a viewport edge that is not
+ * already at the map rim (then FUN_1984_029e centres the camera on it).
+ * 03f6 fires it on the colony before the @FORTFIRE dialog. No-op headless.
+ */
+typedef void (*ColonizeUnitsCameraFn)(void* user, int x, int y);
+void units_set_camera_edge_hook(ColonizeUnitsCameraFn fn, void* user);
+
+/*
  * DOS "fizzle" present (FUN_12d6_0000 behind thunk FUN_281f_03ea): after a
  * combat outcome (FUN_5fef_1b0e tail), a stack-sweep, or an LCR "vanishes"
  * despawn (FUN_65dd_0004 case 5), the redrawn frame is copied to the VGA in

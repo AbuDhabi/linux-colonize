@@ -941,6 +941,14 @@ void units_set_combat_watch(ColonizeUnitsCombatWatchFn fn, void* user) {
   g_units_combat_watch_user = user;
 }
 
+ColonizeUnitsCameraFn g_units_camera_edge = NULL;
+void* g_units_camera_edge_user = NULL;
+
+void units_set_camera_edge_hook(ColonizeUnitsCameraFn fn, void* user) {
+  g_units_camera_edge = fn;
+  g_units_camera_edge_user = user;
+}
+
 void units_combat_watch_notify(const ColonizeUnitPool* pool, int unit_id, int x, int y) {
   if (g_units_combat_watch && pool) {
     g_units_combat_watch(g_units_combat_watch_user, pool, unit_id, x, y);

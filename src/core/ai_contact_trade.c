@@ -2203,6 +2203,14 @@ static int ai_contact_2820_begin_slot(
   if (!ai_contact_2820_prepare(ctx, nation_id, unit, s)) {
     return 0;
   }
+  /* DOS-LITERAL FUN_4d56_2820 head (raw 82064+): a human-controlled actor gets
+   * the village tune on a 1-in-4 roll BEFORE the FUN_281f_04ca reseed below, so
+   * the draw (global stream) is discarded by the reseed; use a private stream. */
+  if (ai_contact_euro_is_human(ctx, e)) {
+    ColonizeDosRng bgm_rng;
+    ai_contact_local_rng(ctx, nation_id, &bgm_rng);
+    (void)ai_contact_village_bgm_cue(&bgm_rng, nation_id);
+  }
   /* DOS-LITERAL FUN_4d56_2820 raw 68: `FUN_281f_04ca(DS:0x83a6)` reseeds the
    * GLOBAL stream before the haggle, and every draw below is that stream
    * (DOSBox independence 4->5: the crown wagon's sell price draws 365). The

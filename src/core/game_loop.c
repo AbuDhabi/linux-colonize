@@ -787,12 +787,38 @@ COLONIZE_INTERNAL void game_move_watch(
  */
 void game_map_zoom_view_size(int zoom, int* out_cols, int* out_rows);
 
+/* FUN_1984_02fc edge test (raw 13978-14017) on the port's centre-derived
+ * viewport origin: DS:0x8328/0x832e = origin, 0x8804/0x8806 = origin+size-1,
+ * 0x853a/0x853c = map size. Scrolls (029e = centre on the tile) only inside
+ * the 2-tile edge band that is not already at the map rim. */
+void game_camera_edge_center(void* user, int x, int y) {
+  ColonizeGameState* game = (ColonizeGameState*)user;
+  if (!game || !game->platform || !game->world_map_ok) {
+    return;
+  }
+  const int mw = (int)game->world_map.width;
+  const int mh = (int)game->world_map.height;
+  int cols = 0;
+  int rows = 0;
+  game_map_zoom_view_size(game->map_zoom, &cols, &rows);
+  int ox = 0;
+  int oy = 0;
+  map_panel_clamp_view_origin(mw, mh, game->map_view_x, game->map_view_y, cols, rows, &ox, &oy);
+  const int rx = ox + cols - 1;
+  const int ry = oy + rows - 1;
+  const bool edge = (x < ox + 2 && ox > 1) || (y < oy + 2 && oy > 1) ||
+    (rx - 2 < x && rx < mw - 2) || (ry - 2 < y && ry < mh - 2);
+  if (edge && x >= 1 && y >= 1 && x < mw - 1 && y < mh - 1) { /* 137f_000a inset */
+    game_set_view_center(game, x, y);
+  }
+}
+
 void game_combat_watch(
   void* user, const ColonizeUnitPool* pool, int attacker_id, int def_x, int def_y
 ) {
   ColonizeGameState* game = (ColonizeGameState*)user;
   const ColonizeUnit* atk = pool ? units_get_const(pool, attacker_id) : NULL;
-  if (!game || !atk || !game->platform || !game->world_map_ok) {
+  if (!game || !game->platform || !game->world_map_ok || (!atk && attacker_id >= 0)) {
     return;
   }
   /* Only when the human can see the fight (live sight of either tile). */
@@ -802,6 +828,9 @@ void game_combat_watch(
   }
   /* Centre at every zoom; only the lunge is zoom-0-only. */
   game_set_view_center(game, def_x, def_y);
+  if (!atk) {
+    return; /* attacker_id < 0: 03f6's fort phantom has no sprite row; centre only */
+  }
   if (game->map_zoom != 0 || !game->unit_icons_ok) {
     return;
   }

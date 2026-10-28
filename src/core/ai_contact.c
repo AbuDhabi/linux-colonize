@@ -1550,7 +1550,7 @@ void ai_contact_clamp_alarms(ColonizeCol1Indian* ind) {
  * Peaceful teach-skill stub (5bfb / meet checklist): Free Colonist or Scout
  * adjacent to tribe, low alarm/friction → set Col1 tribe.state.learned and
  * optionally grant a native-teachable profession on the unit.
- * Teach dialog widgets Done structural (ai_popup); VGA chrome PARKED; status thinned.
+ * Teach dialog widgets Done structural (ai_popup); status thinned.
  * @TRIBES flavor goods are trade chrome (ai_contact_tribe_flavor_good); teach uses
  * cargo / nation_id outdoor maps below.
  */

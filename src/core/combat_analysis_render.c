@@ -19,6 +19,9 @@
 #include "core/unit_chrome.h"
 #include "platform/diagnostics.h"
 
+/* 636c:00c6 row pitch (add [bp-0xe],0x14). */
+#define COMBAT_ROW_PITCH 0x14
+
 static void combat_analysis_blit_side(
   ColonizeFramebuffer8* fb,
   const ColonizeFont* font,
@@ -137,47 +140,16 @@ void combat_analysis_render(
     return;
   }
 
-  const int line_h = font ? (font->max_height > 0 ? font->max_height + 2 : 8) : 8;
-  /* DOS FUN_636c_0000 draw pass: w=0xd6 at x=0x35, row pitch 0x14, height by
-   * tallest column (header row + mods), vertically centered. */
-  const int row_pitch = 20;
+  /* FUN_636c_0000 geometry, read from the OVL18 asm (636c:003c-0097, 10b3-10bc):
+   * frame x=0x35 w=0xd6 (fixed: DOS overdraws a too-long label, it never
+   * widens the frame), h = N*0x14+6 with N = 2 (title row + header row) + the
+   * tallest column's modifier rows, y = 100 - (h >> 1) (636c:004a-0059). */
   const int mod_rows =
     dlg->atk_line_count > dlg->def_line_count ? dlg->atk_line_count : dlg->def_line_count;
-  const int rows = 1 + mod_rows; /* header (name + baseline) counts as a row */
-  const int title_h = line_h + 6;
-  /* DOS width 0xd6; grow only when a label+value row cannot fit its half
-   * column in this font (DOS overdraws instead — we widen). */
-  int col_w = (214 - POPUP_FRAME_INSET * 2) / 2 - 7;
-  if (font) {
-    for (int side = 0; side < 2; ++side) {
-      const CombatAnalysisRow* rows_arr = side == 0 ? dlg->atk_rows : dlg->def_rows;
-      const int count = side == 0 ? dlg->atk_line_count : dlg->def_line_count;
-      const char* name = side == 0 ? dlg->atk_name : dlg->def_name;
-      const int base =
-        side == 0 ? dlg->eng.atk_flags.base_combat : dlg->eng.def_flags.base_combat;
-      char num[16];
-      snprintf(num, sizeof(num), "%d", base);
-      int need = 16 + UNIT_CHROME_SPRITE_DX + 3 + font_text_width(font, name) + 6 +
-        font_text_width(font, num);
-      if (need > col_w) {
-        col_w = need;
-      }
-      for (int i = 0; i < count; ++i) {
-        need = rows_arr[i].label_indent + font_text_width(font, rows_arr[i].label) + 3 +
-          font_text_width(font, rows_arr[i].value);
-        if (need > col_w) {
-          col_w = need;
-        }
-      }
-    }
-  }
-  int w = 2 * (col_w + 7) + POPUP_FRAME_INSET * 2;
-  if (w > 312) {
-    w = 312;
-  }
-  const int h = title_h + rows * row_pitch + 12;
-  const int x = (320 - w) / 2;
-  const int y = (200 - h) / 2;
+  const int h = (2 + mod_rows) * COMBAT_ROW_PITCH + 6;
+  const int w = 0xd6;
+  const int x = 0x35;
+  const int y = 100 - (h >> 1);
   dlg->dialog_x = x;
   dlg->dialog_y = y;
   dlg->dialog_w = w;
@@ -191,91 +163,58 @@ void combat_analysis_render(
   }
 
   /* LABELS.TXT @MISC row 75 "COMBAT ANALYSIS". FUN_636c_0000 draws labels and the title
-   * in @COLORS basic (DS:0x830, 636c:00aa / 019b...), values and the base strength in
-   * @COLORS hilite (DS:0x831, 636c:01b7...), right-aligned (FUN_281f_0150). */
+   * in @COLORS basic (DS:0x830, 636c:0080 / 0184...), values and the base strength in
+   * @COLORS hilite (DS:0x831, 636c:01a3...). Title: FUN_281f_0100 = FUN_104b_0318
+   * centred in [0x38, 0x38+0xd0) at frame_y+9 (636c:0087-00aa); the centring width is
+   * FUN_104b_0216 = pixel width - 1, hence (tw - 1). */
   const char* title = reports_misc_display_word(75, "");
   const int tw = font_text_width(font, title);
-  combat_analysis_text(font, framebuffer, ix + (iw - tw) / 2, iy + 3, title, text_color);
+  combat_analysis_text(font, framebuffer, 0x38 + (0xd0 >> 1) - ((tw - 1) >> 1), y + 9, title, text_color);
 
-  /* Columns split the interior in half; values right-align at column edge. */
-  const int atk_x = ix + 2;
-  const int atk_right = ix + iw / 2 - 5;
-  const int def_x = ix + iw / 2 + 3;
-  const int def_right = ix + iw - 4;
-  const int y_hdr = iy + title_h;
-  const int icon_h = 16;
-  const int icon_w = 16;
-  const int text_dy = (row_pitch - line_h) / 2 > 0 ? (row_pitch - line_h) / 2 : 0;
+  /* Column pen x (636c:10b1-10b9): attacker 0x38+2, defender 0x38+0x68; values
+   * right-align at pen+0x50 (FUN_281f_0150, 636c:01aa); text y = row top + 6
+   * (636c:018a); rows start at frame_y+0x17 (636c:00b2), 0x14 pitch. */
+  const int col_x_of[2] = {0x38 + 2, 0x38 + 0x68};
+  const int y_hdr = y + 0x17;
   char str_buf[16];
 
-  /* Header row: unit chrome, type name at +17, baseline strength at right
-   * (NAMES byte via 0x8d06 / -0x72fa — not the post-×8 roll weight). */
-  combat_analysis_blit_side(
-    framebuffer, font, unit_icons, &dlg->atk_chrome, atk_x, y_hdr, active_palette
-  );
-  combat_analysis_blit_side(
-    framebuffer, font, unit_icons, &dlg->def_chrome, def_x, y_hdr, active_palette
-  );
-  {
-    const int name_dy = (icon_h - line_h) / 2 + 1;
-    const int atk_name_x = atk_x + icon_w + UNIT_CHROME_SPRITE_DX + 3;
-    const int def_name_x = def_x + icon_w + UNIT_CHROME_SPRITE_DX + 3;
-    snprintf(str_buf, sizeof(str_buf), "%d", dlg->eng.atk_flags.base_combat);
-    {
-      const int sw = font_text_width(font, str_buf);
-      const int name_w = font_text_width(font, dlg->atk_name);
-      const int room = atk_right - sw - 3 - atk_name_x;
-      if (dlg->atk_name[0] && name_w <= room) {
-        combat_analysis_text(
-          font, framebuffer, atk_name_x, y_hdr + name_dy, dlg->atk_name, text_color
-        );
-      }
-      combat_analysis_text(
-        font, framebuffer, atk_right - sw, y_hdr + name_dy, str_buf, hilite_color
-      );
-    }
-    snprintf(str_buf, sizeof(str_buf), "%d", dlg->eng.def_flags.base_combat);
-    {
-      const int sw = font_text_width(font, str_buf);
-      const int name_w = font_text_width(font, dlg->def_name);
-      const int room = def_right - sw - 3 - def_name_x;
-      if (dlg->def_name[0] && name_w <= room) {
-        combat_analysis_text(
-          font, framebuffer, def_name_x, y_hdr + name_dy, dlg->def_name, text_color
-        );
-      }
-      combat_analysis_text(
-        font, framebuffer, def_right - sw, y_hdr + name_dy, str_buf, hilite_color
-      );
-    }
+  /* Header row: unit chrome at (pen, row top) (FUN_281f_02bc, 636c:00f9), type name at
+   * pen+0x11, baseline strength right-aligned (NAMES byte via 0x8d06 / -0x72fa). */
+  for (int side = 0; side < 2; ++side) {
+    const CombatAnalysisSideChrome* chrome = side == 0 ? &dlg->atk_chrome : &dlg->def_chrome;
+    const char* name = side == 0 ? dlg->atk_name : dlg->def_name;
+    const int base =
+      side == 0 ? dlg->eng.atk_flags.base_combat : dlg->eng.def_flags.base_combat;
+    const int col_x = col_x_of[side];
+    combat_analysis_blit_side(framebuffer, font, unit_icons, chrome, col_x, y_hdr, active_palette);
+    combat_analysis_text(font, framebuffer, col_x + 0x11, y_hdr + 6, name, text_color);
+    snprintf(str_buf, sizeof(str_buf), "%d", base);
+    combat_analysis_text(
+      font, framebuffer, col_x + 0x50 - font_text_width(font, str_buf), y_hdr + 6, str_buf,
+      hilite_color
+    );
   }
 
-  const int y0 = y_hdr + row_pitch;
+  const int y0 = y_hdr + COMBAT_ROW_PITCH;
   for (int side = 0; side < 2; ++side) {
     const CombatAnalysisRow* rows_arr = side == 0 ? dlg->atk_rows : dlg->def_rows;
     const int count = side == 0 ? dlg->atk_line_count : dlg->def_line_count;
-    const int col_x = side == 0 ? atk_x : def_x;
-    const int col_right = side == 0 ? atk_right : def_right;
+    const int col_x = col_x_of[side];
     for (int i = 0; i < count; ++i) {
       const CombatAnalysisRow* row = &rows_arr[i];
-      const int row_top = y0 + i * row_pitch;
-      const int ry = row_top + text_dy;
-      /* DOS blits the row's picture at the column's left edge on the row top
-       * (local_76 / local_10), then draws the label local_76 + indent along. */
+      const int row_top = y0 + i * COMBAT_ROW_PITCH;
+      /* DOS blits the row's picture at the pen (colx, row top), then draws the
+       * label at pen + indent (local_76) and the value right-aligned at colx+0x50. */
       combat_analysis_blit_row_icon(
         framebuffer, unit_icons, terrain, phys0, map, row, col_x, row_top, active_palette
       );
-      const int label_x = col_x + row->label_indent;
-      combat_analysis_text(font, framebuffer, label_x, ry, row->label, text_color);
-      const int lw = font_text_width(font, row->label);
-      const int vw = font_text_width(font, row->value);
-      /* Right-align value at the column edge; a long label pushes it right
-       * instead of being overdrawn. */
-      int vx = col_right - vw;
-      if (vx < label_x + lw + 3) {
-        vx = label_x + lw + 3;
-      }
-      combat_analysis_text(font, framebuffer, vx, ry, row->value, hilite_color);
+      combat_analysis_text(
+        font, framebuffer, col_x + row->label_indent, row_top + 6, row->label, text_color
+      );
+      combat_analysis_text(
+        font, framebuffer, col_x + 0x50 - font_text_width(font, row->value), row_top + 6,
+        row->value, hilite_color
+      );
     }
   }
 }

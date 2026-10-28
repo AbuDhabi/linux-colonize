@@ -986,7 +986,7 @@ COLONIZE_INTERNAL void ai_king_0982_invasion(struct ai_king_0982_ctx* w) {
         }
         landed = true;
         exhaust = false;
-        /* @INVASION (thin 1528 announce; VGA chrome PARKED). */
+        /* @INVASION (thin 1528 announce). */
         PopupMsgTokens tok;
         memset(&tok, 0, sizeof(tok));
         tok.string0 = c->name[0] ? c->name : "";

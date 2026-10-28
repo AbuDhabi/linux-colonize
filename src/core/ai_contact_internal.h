@@ -280,6 +280,10 @@ void ai_contact_gift_or_demand( ColonizeTurnContext* ctx, ColonizeCol1Indian* in
 void ai_contact_human_chrome( ColonizeTurnContext* ctx, int e, AiPopupTag tag, int nation_b, const char* title, const char* body );
 void ai_contact_live_among_natives( ColonizeTurnContext* ctx, int e, int nation_id, ColonizeUnit* u, ColonizeCol1Tribe* t );
 void ai_contact_local_rng(ColonizeTurnContext* ctx, int nation_id, ColonizeDosRng* out);
+/* Village-visit tune: FUN_1000_86c4(0,3)==0 -> FUN_1000_8688(5), then 7 (Inca,
+ * tribe slot 0) or 6 (Aztec, slot 1). Shared by a618 head and FUN_4d56_2820
+ * head. Returns the last pool requested, 0 when the roll missed. */
+int ai_contact_village_bgm_cue(ColonizeDosRng* rng, int nation_id);
 void ai_contact_mark_visit_brave( const ColonizeTurnContext* ctx, int nation_id, int brave_id );
 void ai_contact_set_status(ColonizeTurnContext* ctx, const char* msg);
 void ai_contact_try_village_reparations(ColonizeTurnContext* ctx, int nation_id);

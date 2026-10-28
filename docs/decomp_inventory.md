@@ -5,10 +5,11 @@ dumps, see [original_index.md](original_index.md). Manual feature coverage vs th
 OpenCol port: [manual_gap.md](manual_gap.md). European / Indian AI FUN_* inventory (history):
 [archive/port_plan_deferred_ai_track.md](archive/port_plan_deferred_ai_track.md).
 
-This repository keeps Ghidra exports of `VICEROY.EXE` / `MAPEDIT.EXE` under
-[`original_sources_decompiled/`](../original_sources_decompiled/) for reverse-engineering
-reference. They are not buildable with a modern OpenCol compiler and retain DOS
-memory-model / runtime artifacts.
+Ghidra exports of `VICEROY.EXE` / `MAPEDIT.EXE` / `GSOUND.COL` live under
+`original_sources_decompiled/` for reverse-engineering reference. They are **not in
+git** (`.gitignore`): regenerate them locally from your own copy of the game, see
+[Regenerating the exports](#regenerating-the-exports). They are not buildable with a
+modern OpenCol compiler and retain DOS memory-model / runtime artifacts.
 
 | File | Source | Notes |
 |------|--------|-------|
@@ -79,6 +80,60 @@ signal reopens it.
 **Flattening step** (`rtlink_decode` V2): [rtlink_decode_v2_gap.md](rtlink_decode_v2_gap.md).
 A real V2 relocation gap (10 stale data-segment far pointers) is fixed by patch 1,
 applied in `viceroy_unpacked_2.*` (386 → 369 warnings); it is not what drives the warnings.
+
+## Regenerating the exports
+
+`original_sources_decompiled/`, `original_sources_annotated/`, `original_memory_dumps/`
+and `dosbox-x-dumps/` are git-ignored: they reproduce MicroProse code and are not
+redistributed. Only `original_sources_decompiled/` can be rebuilt from the shipped
+binaries; the other three are hand-written analysis and DOSBox-X captures that exist
+only on the machines that made them (capture method: [dos_trace.md](dos_trace.md)).
+
+Inputs: `COLONIZE/VICEROY.EXE` (494,910 bytes), `COLONIZE/MAPEDIT.EXE`,
+`COLONIZE/GSOUND.COL` from the 1994 DOS release. Tools: Ghidra (exports were made with
+12.1.2; `analyzeHeadless` lives in `<ghidra>/support/`), `ndisasm` (NASM package), and
+ScummVM's [`rtlink_decode`](https://github.com/scummvm/scummvm/tree/master/devtools/rtlink_decode).
+Run from the repo root; `OUT=original_sources_decompiled`, `PROJ=` any scratch dir
+outside the repo. Newer Ghidra versions can move function boundaries, so a `FUN_*` name
+cited in the docs may not exist verbatim in a fresh export; the `ssss_oooo` address
+still does.
+
+1. **Flatten the RTLink overlays.** Build `rtlink_decode` twice: stock, and with Patch 1
+   from [rtlink_decode_v2_gap.md](rtlink_decode_v2_gap.md#reproduction) (build recipe
+   there too). The two outputs are both 496,480 bytes and differ in exactly 20 bytes.
+   ```
+   rtlink_decode       COLONIZE/VICEROY.EXE $PROJ/VICEROY_OUT.EXE
+   rtlink_decode_fixed COLONIZE/VICEROY.EXE $PROJ/VICEROY_OUT_2.EXE
+   ```
+2. **Canonical Ghidra exports** (stock MZ loader, default auto-analysis; the export
+   script unions every memory block, which the GUI exporter does not):
+   ```
+   for p in VICEROY_OUT:viceroy_unpacked VICEROY_OUT_2:viceroy_unpacked_2; do
+     analyzeHeadless $PROJ decompiled-colonize -import $PROJ/${p%%:*}.EXE \
+       -postScript GhidraExportOverlaysFull.java $OUT/${p#*:} -scriptPath tools
+   done
+   analyzeHeadless $PROJ decompiled-colonize -import COLONIZE/MAPEDIT.EXE \
+     -postScript GhidraExportOverlaysFull.java $OUT/mapedit -scriptPath tools
+   analyzeHeadless $PROJ decompiled-colonize -import COLONIZE/GSOUND.COL \
+     -postScript GhidraExportOverlaysFull.java $OUT/gsound -scriptPath tools
+   ```
+   Keep the `decompiled-colonize` project: `tools/decomp_fn.py` reads the exports, and
+   the `Ghidra*.java` helpers in `tools/` run against the project.
+3. **Overlay-addressed export** (`viceroy_overlays.*`, `OVLnn_L0000` spaces): extract
+   and import per [rtlink_decode_v2_gap.md](rtlink_decode_v2_gap.md#overlay-addressed-ghidra-project)
+   step 1 into a project named `OverlayTest`, then
+   ```
+   analyzeHeadless $PROJ OverlayTest -process seg_data_resident.bin -noanalysis \
+     -postScript GhidraExportOverlaysFull.java $OUT/viceroy_overlays -scriptPath tools
+   ```
+4. **Raw ndisasm listings** (whole file, origin 0, MZ header included):
+   ```
+   ndisasm -b16 COLONIZE/VICEROY.EXE    > $OUT/viceroy_ndisasm.asm
+   ndisasm -b16 $PROJ/VICEROY_OUT_2.EXE > $OUT/viceroy_unpacked_2_ndisasm.asm
+   ```
+5. Optional: `python3 scripts/gen_fun_catalog.py` rebuilds the light `FUNCTION_CATALOG.md`
+   / `MODULE_MAP.md` from `viceroy_unpacked.c` + `mapedit.c` (it writes into
+   `original_sources_annotated/`, merging with whatever hand notes are there).
 
 ## Method: asking the user to identify things is a legitimate RE tool
 

@@ -1147,7 +1147,7 @@ int ai_contact_meet_economics_2154(
 }
 
 /*
- * Gift / demand (5bfb_102a / 1092 via ai_popup; VGA PARKED).
+ * Gift / demand (5bfb_102a / 1092 via ai_popup).
  * 2154 tables: gift Generous when ask[0]-bid[0]≥1, gold≥0x4b, thin RNG;
  * else Large when gold≥20. Demand: ask[0]<bid[0] → gold-first else tools-first.
  * Cite: indian_meet_scoring_2154.md; FUN_5bfb after 2a1f_0434.
@@ -2607,8 +2607,28 @@ void ai_contact_indian_relation_tick(ColonizeTurnContext* ctx, int nation_id) {
  * cargo or ask[cargo] == 0 → @BADCARGO; sticky_trade_good == cargo →
  * @BADHAGGLE1. AI (iStack_8 == 0): iStack_5e = alarm > 0x31 ? 3 (gift) : 1.
  *
- * Not ported: BGM cue (FUN_1000_8688 5/6/7), the VGA chief portrait frame
- * (ai_popup portrait side-channel covers the picture).
+ * BGM cue: head of FUN_4d56_2820 (human only, DS:0x543f+e*0x34 == 0):
+ * FUN_281f_04d4(0,3)==0 -> FUN_281f_0498(5) [= FUN_1000_8688], 7 if DS:0x8d52
+ * == 0, 6 if == 1 (ai_contact_village_bgm_cue). The chief portrait frame is the
+ * FUN_291f_019c / DS:0x1f5c path (IND{t}A{tier}.SS, FUN_6f74_14c6 geometry in
+ * ai_popup_render.c) via ai_contact_chief_flair at all 5 enqueue sites: ported.
  * ===========================================================================
  */
 AiContact2820 ai_contact_s_2820[4];
+
+int ai_contact_village_bgm_cue(ColonizeDosRng* rng, int nation_id) {
+  if (!rng || dos_rng_range(rng, 0, 3) != 0) {
+    return 0;
+  }
+  const int tribe_slot = nation_id - 4;
+  int pool = 5;
+  sound_set_bgm(5);
+  if (tribe_slot == 0) {
+    sound_set_bgm(7);
+    pool = 7;
+  } else if (tribe_slot == 1) {
+    sound_set_bgm(6);
+    pool = 6;
+  }
+  return pool;
+}

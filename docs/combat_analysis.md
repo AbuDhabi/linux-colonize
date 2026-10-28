@@ -33,10 +33,20 @@ dual column. Shown **before** the combat roll (strengths known; no outcome yet).
   so it inherits whatever the map left current. The port used the FONTINTR
   dialog font, which also oversized the header unit chrome — the orders box
   sizes itself from the font metrics (`unit_chrome.c` `box_w`/`box_h`).
-- Layout (FUN_636c_0000 draw pass): frame `w=0xd6` at `x=0x35`, row pitch
-  `0x14`, height by tallest column, vertically centered (frame widens past
-  DOS 214 only when a label+value row can’t fit its half column in the
-  current font — DOS overdraws there instead).
+- Layout (FUN_636c_0000 draw pass; **pixel-verified against a DOSBox-X capture
+  2026-10-28**, every text/icon/frame pixel identical): frame `x=0x35 w=0xd6`
+  fixed (never widens; a too-long label overdraws like DOS), `h = (2 + tallest
+  column's rows) * 0x14 + 6`, `y = 100 - (h >> 1)` (asm 636c:003c-0059). Title
+  centred in `[0x38, 0x38+0xd0)` at `frame_y+9` using FUN_104b_0216 width
+  (pixel width - 1). Column pen x = `0x3a` (attacker) / `0xa0` (defender);
+  rows start at `frame_y+0x17`, pitch `0x14`, text y = row top + 6; unit
+  chrome and row icons blit at (pen, row top) (muskets +2); label at
+  pen + indent, value right-aligned at pen + `0x50` (636c:10b1-10b9, 01aa).
+  Reproduce: save with a human Veteran Soldier next to a French Soldier,
+  `tools/dosbox_trace.py` load slot 0, `down`; capture kept in the session
+  scratchpad only. One residual: the DOS defender flag letter showed a
+  non-`-` order letter (AI-normalised order of the French unit after load), a
+  state difference, not a layout one.
   1. Centered title `COMBAT ANALYSIS` (LABELS.TXT)
   2. Header row per column: unit chrome + type name, **baseline** strength
      right-aligned (`NAMES` attack/defense byte from `base_combat` / DOS
@@ -191,9 +201,7 @@ Deep DOS notes: [`coastal_fort_fire.md`](../original_sources_annotated/turn/coas
 
 **Analysis (port_bugs.md #261):** `units_fort_vs_ship` presents Combat Analysis
 pre-roll (attacker_id −1, `eng.atk_label` = "<Colony> Fort/Fortress", battery
-strength as base; Drake row on scaled defense). **PARKED:** materialising 03f6's
-temporary attacker unit (its 1b0e strength math is DOS-LITERAL in
-`units_fort_vs_ship`) + fort VGA chrome (D4).
+strength as base; Drake row on scaled defense). **Camera ported (D4):** 03f6's `FUN_281f_0352` (-> `FUN_1984_02fc` edge-test scroll onto the colony, raw 57100) fires before @FORTFIRE via `units_set_camera_edge_hook` (`game_camera_edge_center`), and the 1b0e defender-tile centre goes through the combat watch with attacker -1. **Not materialised (no DOS row):** the type-`0x17` temp attacker (graphic/name from the `DS:0x5372` scratch row, `0x537d` = strength, id bump + `0a06` delete) is not a pool unit: the port has no `@UNIT` row 0x17 and the pool slot is unobservable, so the attacker stays id -1 and the fort-icon lunge sprite is not drawn.
 
 ---
 
@@ -212,9 +220,8 @@ temporary attacker unit (its 1b0e strength math is DOS-LITERAL in
 
 | Gap | Where |
 |-----|-------|
-| Village raid / settlement VGA chrome (`2820` logic is ported, `ai_contact_trade.c`) | `ai_contact.c`, [move_enter.md](move_enter.md), [indians.md](indians.md) |
+| ~~Village `2820` chief portrait frame + BGM cue~~ DONE: portrait via `ai_contact_chief_flair`, cue via `ai_contact_village_bgm_cue` | `ai_contact_demand.c` |
 | Fort-fire temp unit + camera / VGA chrome | `units_coastal_fort_fire_pulse_w` |
-| VGA-identical combat chrome | — |
 
 ---
 

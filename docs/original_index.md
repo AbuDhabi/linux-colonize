@@ -33,7 +33,8 @@ Regenerate the catalog after re-export: `python3 scripts/gen_fun_catalog.py`.
 
 ## Decompiled sources at a glance
 
-Ghidra exports live in [`original_sources_decompiled/`](../original_sources_decompiled/).
+Ghidra exports live in `original_sources_decompiled/` (git-ignored; regenerate per
+[decomp_inventory.md](decomp_inventory.md#regenerating-the-exports)).
 Not buildable; DOS memory-model / runtime artifacts remain. The OpenCol binary never
 compiles these files.
 

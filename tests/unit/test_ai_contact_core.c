@@ -7481,7 +7481,30 @@ static int case_welcome_accept_come_word(void) {
   return rc;
 }
 
+/* FUN_4d56_2820 head: village tune on a 1-in-4 roll; 7 Inca, 6 Aztec, else 5. */
+static int case_village_bgm_cue(void) {
+  const int nations[3] = {4, 5, 6};
+  const int want[3] = {7, 6, 5};
+  int hits = 0;
+  for (uint32_t seed = 1; seed < 400u; ++seed) {
+    ColonizeDosRng probe;
+    dos_rng_seed(&probe, seed * 12345u);
+    const int hit = dos_rng_range(&probe, 0, 3) == 0;
+    for (int i = 0; i < 3; ++i) {
+      ColonizeDosRng r;
+      dos_rng_seed(&r, seed * 12345u);
+      const int pool = ai_contact_village_bgm_cue(&r, nations[i]);
+      if (pool != (hit ? want[i] : 0)) {
+        return fail("village bgm: pool != roll/tribe-slot mapping");
+      }
+    }
+    hits += hit;
+  }
+  return hits > 0 && hits < 399 ? 0 : fail("village bgm: roll never varied");
+}
+
 static const TestCase k_cases[] = {
+  {"village_bgm_cue", case_village_bgm_cue},
   {"welcome_accept_come_word", case_welcome_accept_come_word},
   {"meet_first_contact", case_meet_first_contact},
   {"raid_colony_loot", case_raid_colony_loot},

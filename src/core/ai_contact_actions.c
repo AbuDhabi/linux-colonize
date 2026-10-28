@@ -825,15 +825,7 @@ static void ai_contact_live_among_natives_body(
   if (human) {
     ColonizeDosRng bgm_rng;
     ai_contact_local_rng(ctx, nation_id, &bgm_rng);
-    if (dos_rng_range(&bgm_rng, 0, 3) == 0) {
-      const int tribe_slot = nation_id - 4;
-      sound_set_bgm(5);
-      if (tribe_slot == 0) {
-        sound_set_bgm(7);
-      } else if (tribe_slot == 1) {
-        sound_set_bgm(6);
-      }
-    }
+    (void)ai_contact_village_bgm_cue(&bgm_rng, nation_id);
   }
   ColonizeDosRng village_rng;
   const int skill = ai_contact_a618_skill_ex(ctx, nation_id, t, &village_rng);

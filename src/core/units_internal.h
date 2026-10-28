@@ -71,6 +71,8 @@ extern const ColonizeColonyPool* g_units_combat_colonies;
 extern EuropeScreen* g_units_combat_europe;
 extern const ColonizeMsgCatalog* g_units_combat_game_txt;
 extern AiPopupState* g_units_combat_popups;
+extern ColonizeUnitsCameraFn g_units_camera_edge;
+extern void* g_units_camera_edge_user;
 extern ColonizeUnitsCombatWatchFn g_units_combat_watch;
 extern void* g_units_combat_watch_user;
 extern ColonizeUnitsDissolveFn g_units_dissolve;
