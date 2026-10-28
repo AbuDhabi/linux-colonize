@@ -323,6 +323,8 @@ static bool map_menu_action_enabled(MapMenuAction action) {
     case MAP_MENU_ACTION_CHEAT_SHOW_STRATEGY:
     case MAP_MENU_ACTION_CHEAT_SHOW_COLONY_SITES:
     case MAP_MENU_ACTION_CHEAT_TEST_ROUTINE:
+    case MAP_MENU_ACTION_PLAN_PIONEER:
+    case MAP_MENU_ACTION_AUTOMATE:
       return true;
     default:
       return false;
@@ -414,6 +416,24 @@ static void map_menu_insert_sep_after_action(MapMenuPulldown* menu, MapMenuActio
   if (i >= 0) {
     map_menu_insert_separator_at(menu, i);
   }
+}
+
+/* A port-only row right after `after`, hidden until map_menu_refresh shows it. */
+static void map_menu_insert_port_item(
+  MapMenuPulldown* menu, MapMenuAction after, const char* label, MapMenuAction action
+) {
+  const int at = map_menu_find_action_index(menu, after, 0) + 1;
+  if (at <= 0 || menu->item_count >= MAP_MENU_MAX_ITEMS) {
+    return;
+  }
+  map_menu_append_item(menu, label, action);
+  const MapMenuItem item = menu->items[menu->item_count - 1];
+  memmove(
+    &menu->items[at + 1], &menu->items[at],
+    (size_t)(menu->item_count - 1 - at) * sizeof(menu->items[0])
+  );
+  menu->items[at] = item;
+  menu->items[at].visible = false;
 }
 
 /*
@@ -540,6 +560,12 @@ static bool map_menu_load_section(
     map_menu_append_item(menu, label, action);
   }
   map_menu_insert_dos_separators(menu);
+  /* Port-only rows (divergences.pioneer_plan); map_menu_refresh hides them while off. */
+  if (strcmp(section_name, "VIEW") == 0) {
+    map_menu_insert_port_item(menu, MAP_MENU_ACTION_VIEW_PIECES, "Pla~n Pioneer", MAP_MENU_ACTION_PLAN_PIONEER);
+  } else if (strcmp(section_name, "ORDERS") == 0) {
+    map_menu_insert_port_item(menu, MAP_MENU_ACTION_BUILD_ROAD, "Automate (~Q)", MAP_MENU_ACTION_AUTOMATE);
+  }
   bar->menu_count++;
   return true;
 }
@@ -783,6 +809,30 @@ static void map_menu_refresh_orders_dos(
         orders->items[after_return + 1].visible = false;
       }
     }
+    if (ctx && ctx->plan_view && ctx->map) {
+      /* Plan Pioneer: the improvement rows edit the cursor tile's plan. Clear
+       * on forest, Plow elsewhere, neither on Hills/Mountains (as 0b34). */
+      const int pedia = map_pedia_terrain_index_at(ctx->map, ctx->cursor_x, ctx->cursor_y);
+      const bool forest = pedia >= 8 && pedia <= 23;
+      for (int i = 0; i < orders->item_count; ++i) {
+        MapMenuItem* it = &orders->items[i];
+        if (it->action == MAP_MENU_ACTION_CLEAR_FOREST && forest) {
+          it->visible = true;
+          it->enabled = (ctx->plan_bits & 0x01u) != 0; /* PIONEER_PLAN_CLEAR */
+        } else if (it->action == MAP_MENU_ACTION_PLOW_FIELDS && !forest) {
+          it->visible = true;
+          it->enabled = (ctx->plan_bits & 0x02u) != 0; /* PIONEER_PLAN_PLOW */
+        } else if (it->action == MAP_MENU_ACTION_BUILD_ROAD) {
+          it->visible = true;
+          it->enabled = (ctx->plan_bits & 0x04u) != 0; /* PIONEER_PLAN_ROAD */
+        }
+      }
+    }
+    for (int i = 0; i < orders->item_count; ++i) {
+      if (orders->items[i].action == MAP_MENU_ACTION_AUTOMATE) {
+        orders->items[i].visible = false;
+      }
+    }
     return;
   }
 
@@ -889,6 +939,15 @@ static void map_menu_refresh_orders_dos(
     }
   }
 
+  /* Automate (divergences.pioneer_plan): Pioneers only. */
+  for (int i = 0; i < orders->item_count; ++i) {
+    MapMenuItem* it = &orders->items[i];
+    if (it->action == MAP_MENU_ACTION_AUTOMATE) {
+      it->visible = ctx->pioneer_plan && pioneer;
+      it->enabled = it->visible && u->tools >= 20;
+    }
+  }
+
   /* Fortify land (0x302) vs ship (0x303). */
   for (int i = 0; i < orders->item_count; ++i) {
     MapMenuItem* it = &orders->items[i];
@@ -979,6 +1038,12 @@ void map_menu_refresh(MapMenuBar* bar, const MapMenuOrdersContext* ctx) {
       }
       it->visible = true;
       it->enabled = map_menu_action_enabled(it->action);
+      if (it->action == MAP_MENU_ACTION_PLAN_PIONEER) {
+        it->visible = ctx && ctx->pioneer_plan;
+        snprintf(
+          it->label, sizeof(it->label), "Pla~n Pioneer: %s", ctx && ctx->plan_view ? "On" : "Off"
+        );
+      }
     }
   }
 }
@@ -1536,6 +1601,10 @@ const char* map_menu_action_name(MapMenuAction action) {
       return "zoom_level_15x12";
     case MAP_MENU_ACTION_CENTER_VIEW:
       return "center_view";
+    case MAP_MENU_ACTION_PLAN_PIONEER:
+      return "plan_pioneer";
+    case MAP_MENU_ACTION_AUTOMATE:
+      return "automate";
     case MAP_MENU_ACTION_VIEW_HIDDEN_TERRAIN:
       return "view_hidden_terrain";
     case MAP_MENU_ACTION_ACTIVATE_UNIT:

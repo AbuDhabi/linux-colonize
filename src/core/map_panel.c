@@ -1228,7 +1228,7 @@ static void map_panel_draw_stack_row(
       *y,
       units_display_type_index(units, u->id),
       u->nation_id,
-      unit_chrome_plan_badge_index(u->nation_id, u->col1_ai_plan, u->orders, u->orders),
+      unit_chrome_unit_badge_index(u, u->orders),
       false, /* DOS passes 0 here: every unit in the stack gets its own row */
       /* DOS's 4th badge arm is Artillery + damaged (+0x3148 bit7), not
        * "aboard a ship" — unit_chrome_corner_for_type. */
@@ -1528,9 +1528,7 @@ COLONIZE_INTERNAL void map_panel_render_selected_block(MapPanelRenderCtx* c) {
       icon_y,
       units_display_type_index(units, selected->id),
       selected->nation_id,
-      unit_chrome_plan_badge_index(
-        selected->nation_id, selected->col1_ai_plan, selected->orders, selected->orders
-      ),
+      unit_chrome_unit_badge_index(selected, selected->orders),
       false,
       (selected->col1_flags15 & 0x80u) != 0,
       active_palette
@@ -1937,7 +1935,7 @@ COLONIZE_INTERNAL void map_panel_render_stack(MapPanelRenderCtx* c) {
             c->text_y,
             units_display_type_index(units, top->id),
             top->nation_id,
-            unit_chrome_plan_badge_index(top->nation_id, top->col1_ai_plan, top->orders, top->orders),
+            unit_chrome_unit_badge_index(top, top->orders),
             stack_n > 1,
             (top->col1_flags15 & 0x80u) != 0,
             active_palette

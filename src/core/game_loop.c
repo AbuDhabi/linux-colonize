@@ -95,6 +95,7 @@
 #include "core/map.h"
 #include "core/map_gen.h"
 #include "core/map_menu.h"
+#include "core/pioneer_plan.h"
 #include "core/map_panel.h"
 #include "core/name_entry_dialog.h"
 #include "core/new_game.h"
@@ -718,9 +719,7 @@ COLONIZE_INTERNAL void game_move_watch_w(
             /* Same chrome the unit wears standing still: real order letter,
              * not a forced '-' (port_bugs.md); the AI plan glyph under the
              * cheat flags (#1177a). */
-            unit_chrome_plan_badge_index(
-              unit->nation_id, unit->col1_ai_plan, unit->orders, unit->orders
-            ),
+            unit_chrome_unit_badge_index(unit, unit->orders),
             slide_stacked,
             slide_damaged,
             /* port_bugs.md: NULL here fell back to the raw ICONS.SS fill index,
@@ -863,7 +862,7 @@ void game_combat_watch(
       bump_dtype,
       atk->nation_id,
       /* as above: the lunging piece keeps its own letter (or plan glyph, #1177a) */
-      unit_chrome_plan_badge_index(atk->nation_id, atk->col1_ai_plan, atk->orders, atk->orders),
+      unit_chrome_unit_badge_index(atk, atk->orders),
       bump_stacked,
       bump_damaged,
       /* port_bugs.md: same palette rule as the move slide — raw index went pink. */
@@ -1205,6 +1204,13 @@ void game_refresh_orders_menu(ColonizeGameState* game) {
   ctx.cursor_y = game->map_cursor_y;
   ctx.human_nation = game->human_nation;
   ctx.europe_ok = game->europe_ok;
+  ctx.pioneer_plan = pioneer_plan_enabled();
+  ctx.plan_view = game->pioneer_plan_view;
+  if (ctx.plan_view) {
+    const ColonizeWorld w = game_world_const(game);
+    ctx.plan_bits =
+      pioneer_plan_valid_bits(&w, game->human_nation, game->map_cursor_x, game->map_cursor_y);
+  }
   map_menu_refresh_orders(&game->map_menu, &ctx);
 }
 
@@ -1823,6 +1829,83 @@ COLONIZE_INTERNAL bool game_render_screen(
   return false;
 }
 
+/* PHYS0 road art (map.c PHYS0_ROAD_ISOLATED / PHYS0_ROAD_DIR0). */
+#define GAME_PLAN_ROAD_ISOLATED 80
+#define GAME_PLAN_ROAD_DIR0 81
+
+static bool game_plan_real_road(const ColonizeWorldMap* map, int x, int y) {
+  return map_tile_has_road(map, x, y) || map_tile_has_city(map, x, y);
+}
+
+static bool game_plan_road(const ColonizeWorldMap* map, int x, int y) {
+  return map_in_bounds(map, x, y) && (pioneer_plan_at(x, y) & PIONEER_PLAN_ROAD) &&
+         !game_plan_real_road(map, x, y);
+}
+
+/*
+ * VIEW Plan Pioneer overlay (divergences.pioneer_plan), drawn over the terrain
+ * in cyan: the plowed-field art for a planned Plow, road art for a planned Road
+ * (joined to real and planned roads; real roads get cyan stubs toward planned
+ * ones), and the Tools cargo icon centred for a planned Clear.
+ */
+static void game_render_pioneer_plan(
+  const ColonizeGameState* game, ColonizeFramebuffer8* fb, int view_x, int view_y, int view_cols,
+  int view_rows
+) {
+  const ColonizeWorldMap* map = &game->world_map;
+  if (!game->world_map_ok || !game->phys0_ok || !game->map_palette_ok) {
+    return;
+  }
+  uint8_t cyan[256];
+  for (int i = 0; i < 256; ++i) {
+    const uint8_t* c = game->map_palette.rgb[i];
+    const int l = (c[0] * 30 + c[1] * 59 + c[2] * 11) / 100;
+    cyan[i] = assets_palette_nearest_rgb(&game->map_palette, l / 4, 120 + l * 135 / 255, 120 + l * 135 / 255);
+  }
+  const int tile = MAP_ZOOM_NATIVE_TILE;
+  const int nation = game_fog_nation(game);
+  for (int sy = 0; sy < view_rows; ++sy) {
+    for (int sx = 0; sx < view_cols; ++sx) {
+      const int mx = view_x + sx;
+      const int my = view_y + sy;
+      if (!map_in_bounds(map, mx, my) || !map_tile_seen_by(map, mx, my, nation)) {
+        continue;
+      }
+      const uint8_t plan = pioneer_plan_at(mx, my);
+      if (plan & PIONEER_PLAN_PLOW) {
+        ss_blit_sprite_lut(&game->phys0, 149 /* map.c PHYS0_PLOWED */, fb, sx * tile, sy * tile, cyan);
+      }
+      const bool planned_road = game_plan_road(map, mx, my);
+      if (planned_road || game_plan_real_road(map, mx, my)) {
+        int links = 0;
+        for (int d = 0; d < 8; ++d) {
+          const int nx = mx + MAP_DIR8_DX[d];
+          const int ny = my + MAP_DIR8_DY[d];
+          /* A planned tile joins every road; a real one only reaches out to planned ones. */
+          if (game_plan_road(map, nx, ny) ||
+              (planned_road && map_in_bounds(map, nx, ny) && game_plan_real_road(map, nx, ny))) {
+            ss_blit_sprite_lut(&game->phys0, GAME_PLAN_ROAD_DIR0 + d, fb, sx * tile, sy * tile, cyan);
+            links++;
+          }
+        }
+        if (planned_road && links == 0) {
+          ss_blit_sprite_lut(&game->phys0, GAME_PLAN_ROAD_ISOLATED, fb, sx * tile, sy * tile, cyan);
+        }
+      }
+      if ((plan & PIONEER_PLAN_CLEAR) && game->unit_icons_ok) {
+        const int icon = 22 /* map_panel.c MAP_PANEL_CARGO_ICON_BASE */ + COLONIZE_CARGO_TOOLS;
+        if (icon < game->unit_icons.sprite_count) {
+          const ColonizeSprite* sp = &game->unit_icons.sprites[icon];
+          ss_blit_sprite_lut(
+            &game->unit_icons, icon, fb, sx * tile + (tile - sp->width) / 2,
+            sy * tile + (tile - sp->height) / 2, cyan
+          );
+        }
+      }
+    }
+  }
+}
+
 /* Terrain / fog / colonies / tribes / units composited at native 16px per
  * tile into the offscreen zoom buffer, then decimated to the 240x192 view. */
 COLONIZE_INTERNAL void game_render_map_composite(
@@ -1977,6 +2060,10 @@ COLONIZE_INTERNAL void game_render_map_composite(
         framebuffer->pixels[idx] = (uint8_t)(16 + ((base + game->map_seed) & 0x0f));
       }
     }
+  }
+
+  if (game->pioneer_plan_view && game->terrain_peel_phase == 0) {
+    game_render_pioneer_plan(game, framebuffer, view_x, view_y, view_cols, view_rows);
   }
 
   /* Hidden Terrain phase 1+ (VIEW ~Hidden Terrain): units/settlements peeled first, stay off. */

@@ -526,7 +526,7 @@ static void combat_analysis_snap_chrome(
   chrome->display_type = units_display_type_index(pool, unit_id);
   chrome->nation_id = u->nation_id;
   /* #1177a: the header chrome is FUN_112b_01ba too, so the AI plan glyph shows. */
-  chrome->orders = unit_chrome_plan_badge_index(u->nation_id, u->col1_ai_plan, u->orders, u->orders);
+  chrome->orders = unit_chrome_unit_badge_index(u, u->orders);
   /* DOS FUN_112b_01ba's 4th badge arm is Artillery + the damaged bit
    * (+0x3148 bit7), not "aboard a ship" — see unit_chrome.h. */
   chrome->damaged = (u->col1_flags15 & 0x80u) != 0;

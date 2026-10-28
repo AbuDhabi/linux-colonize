@@ -31,6 +31,7 @@ own statics and its own `main()`.
 |--------|------|--------|
 | `unit_units_core` | `test_units_core.c` | the original inline `main()` body: new-world start, spawn/stack/move/board/unload, combat + analysis, LCR, colony/village interactions |
 | `unit_units_types` | `test_units_types.c` | @UNIT/@JOB catalog rows, display names, kind resolver, promotion/demotion, cap bits, the 2026-09-09 smell audit matrix |
+| `unit_pioneer_plan` | `test_pioneer_plan.c` | divergences.pioneer_plan: plan toggles, reconcile, Automate, PPLN round trip |
 | `unit_units_pioneer` | `test_units_pioneer.c` | clear-forest, used-up tools, pioneer order gates and the case-8 tail |
 | `unit_units_ships` | `test_units_ships.c` | sea lanes, amphibious landing, colony docks, Europe arrival, drydock refit, warehouse, King's Galleon offer |
 | `unit_units_combat` | `test_units_combat.c` | fort fire + dissolve, combat SFX/music stings, native tile attack + alarm, capture/raze, artillery gates, 1b0e handicaps |

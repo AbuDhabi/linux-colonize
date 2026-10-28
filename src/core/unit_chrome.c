@@ -7,6 +7,7 @@
 #include "core/assets.h"
 #include "core/fb.h"
 #include "core/strutil.h"
+#include "core/units.h"
 
 /*
  * NAMES.TXT @COUNTRY indices (DS:0x848). Used for letter-color math (color-8).
@@ -350,6 +351,13 @@ int unit_chrome_plan_badge_index(int nation_id, unsigned plan, int orders, int c
   }
   const int glyph = plan >= 0x80u ? 'E' : (int)plan;
   return UNIT_CHROME_ORDERS_PLAN_BASE + (glyph << 4) + (orders & 15);
+}
+
+int unit_chrome_unit_badge_index(const ColonizeUnit* u, int cur) {
+  if (u->pioneer_auto) {
+    return UNIT_CHROME_ORDERS_PLAN_BASE + ('A' << 4) + (u->orders & 15);
+  }
+  return unit_chrome_plan_badge_index(u->nation_id, u->col1_ai_plan, u->orders, cur);
 }
 
 int unit_chrome_real_orders(int orders_index) {

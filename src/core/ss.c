@@ -341,7 +341,8 @@ void ss_free(ColonizeSpriteSheet* sheet) {
 typedef enum SsBlitMode {
   SS_BLIT_SRC = 0,      /* write the sprite's own colour */
   SS_BLIT_REPLACE,      /* write replace_color for every opaque pixel */
-  SS_BLIT_WHERE_DEST    /* write the sprite colour only over match_color */
+  SS_BLIT_WHERE_DEST,   /* write the sprite colour only over match_color */
+  SS_BLIT_LUT           /* write lut[sprite colour] */
 } SsBlitMode;
 
 static void ss_blit_run(
@@ -351,7 +352,8 @@ static void ss_blit_run(
   int dst_x,
   int dst_y,
   SsBlitMode mode,
-  uint8_t key_color
+  uint8_t key_color,
+  const uint8_t* lut
 ) {
   if (!sheet || !framebuffer || !framebuffer->pixels || sprite_index < 0 ||
       sprite_index >= sheet->sprite_count) {
@@ -387,6 +389,12 @@ static void ss_blit_run(
           dst[dst_x + x] = src[x];
         }
       }
+    } else if (mode == SS_BLIT_LUT) {
+      for (int x = x0; x < x1; ++x) {
+        if (src[x] != COLONIZE_SS_TRANSPARENT) {
+          dst[dst_x + x] = lut[src[x]];
+        }
+      }
     } else if (mode == SS_BLIT_REPLACE) {
       for (int x = x0; x < x1; ++x) {
         if (src[x] != COLONIZE_SS_TRANSPARENT) {
@@ -410,7 +418,7 @@ void ss_blit_sprite(
   int dst_x,
   int dst_y
 ) {
-  ss_blit_run(sheet, sprite_index, framebuffer, dst_x, dst_y, SS_BLIT_SRC, 0);
+  ss_blit_run(sheet, sprite_index, framebuffer, dst_x, dst_y, SS_BLIT_SRC, 0, NULL);
 }
 
 void ss_blit_sprite_color(
@@ -421,7 +429,7 @@ void ss_blit_sprite_color(
   int dst_y,
   uint8_t replace_color
 ) {
-  ss_blit_run(sheet, sprite_index, framebuffer, dst_x, dst_y, SS_BLIT_REPLACE, replace_color);
+  ss_blit_run(sheet, sprite_index, framebuffer, dst_x, dst_y, SS_BLIT_REPLACE, replace_color, NULL);
 }
 
 void ss_blit_sprite_where_dest(
@@ -432,7 +440,18 @@ void ss_blit_sprite_where_dest(
   int dst_y,
   uint8_t match_color
 ) {
-  ss_blit_run(sheet, sprite_index, framebuffer, dst_x, dst_y, SS_BLIT_WHERE_DEST, match_color);
+  ss_blit_run(sheet, sprite_index, framebuffer, dst_x, dst_y, SS_BLIT_WHERE_DEST, match_color, NULL);
+}
+
+void ss_blit_sprite_lut(
+  const ColonizeSpriteSheet* sheet,
+  int sprite_index,
+  ColonizeFramebuffer8* framebuffer,
+  int dst_x,
+  int dst_y,
+  const uint8_t lut[256]
+) {
+  ss_blit_run(sheet, sprite_index, framebuffer, dst_x, dst_y, SS_BLIT_LUT, 0, lut);
 }
 
 /*

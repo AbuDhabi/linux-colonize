@@ -143,6 +143,10 @@ void unit_chrome_set_plan_nations(unsigned mask);
  * nation is not in the mask, else the plan index above. `orders` is the unit's
  * real @ORDERS byte, `plan` its +0x314b. Apply before the repair badge. */
 int unit_chrome_plan_badge_index(int nation_id, unsigned plan, int orders, int cur);
+/* The same for one unit, plus the port-only Automate badge 'A' (divergences.pioneer_plan),
+ * carried as a plan glyph so the ink still follows the real orders byte. */
+typedef struct ColonizeUnit ColonizeUnit;
+int unit_chrome_unit_badge_index(const ColonizeUnit* u, int cur);
 /* Real @ORDERS byte behind an index (for ink); plan indices carry it, others are it. */
 int unit_chrome_real_orders(int orders_index);
 /* Repair digit ink (raw 2290-2296): 12 for nation 2, else 15. */

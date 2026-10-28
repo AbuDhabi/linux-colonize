@@ -147,6 +147,9 @@ struct ColonizeGameState {
    * silently snatch control back the next frame. units.selected_id >= 0
    * always implies Move Pieces regardless of this flag. */
   bool view_pieces_mode;
+  /* Port-only VIEW Plan Pioneer overlay (divergences.pioneer_plan): a sub-mode
+   * of View Pieces, dropped whenever Move Pieces takes over. */
+  bool pioneer_plan_view;
   /* port_bugs.md #285: unit id whose off-screen auto-recentre is suspended
    * because the player deliberately panned away (map or minimap click)
    * while it was active; -1 = none. Cleared by the unit's next action /

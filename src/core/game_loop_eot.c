@@ -50,6 +50,7 @@
 #include "core/map.h"
 #include "core/map_gen.h"
 #include "core/map_menu.h"
+#include "core/pioneer_plan.h"
 #include "core/map_panel.h"
 #include "core/name_entry_dialog.h"
 #include "core/new_game.h"
@@ -885,6 +886,10 @@ bool game_select_next_unit_awaiting_orders(ColonizeGameState* game) {
     /* No rng here (as before #1110): a stream would arm the FUN_4cc6_00f2
      * mission-burn roll inside the pioneer work tick, a behaviour change. */
     w.rng = NULL;
+    /* divergences.pioneer_plan Automate: a started job spends the turn. */
+    if (pioneer_plan_auto_step(&w, u, &game->ai_popups, &game->messages)) {
+      continue;
+    }
     if (turn_rotation_lasting_step_w(&w, u, &game->ai_popups, &game->messages)) {
       /* The rotation's pick is DOS's FUN_2b5a_0e52 activation, which runs the
        * piece-selected tutorial chain (raw 42330-42332). */
@@ -1791,6 +1796,17 @@ static GameMenuActionStatus game_menu_action_view(ColonizeGameState* game, MapMe
       );
       return GAME_MENU_ACTION_DONE;
     }
+    case MAP_MENU_ACTION_PLAN_PIONEER:
+      /* divergences.pioneer_plan: the overlay is a View Pieces sub-mode. */
+      if (game->pioneer_plan_view) {
+        game->pioneer_plan_view = false;
+      } else {
+        if (!game->view_pieces_mode || game->units.selected_id >= 0) {
+          game_select_tile(game, game->map_cursor_x, game->map_cursor_y);
+        }
+        game->pioneer_plan_view = true;
+      }
+      return GAME_MENU_ACTION_DONE;
     case MAP_MENU_ACTION_VIEW_HIDDEN_TERRAIN:
       game->terrain_peel_phase = 1;
       game->hidden_terrain_phase_ms = game->elapsed_ms;
@@ -1806,7 +1822,36 @@ static GameMenuActionStatus game_menu_action_view(ColonizeGameState* game, MapMe
  * colony and terrain-improvement orders. ORDERS Pillage (0x317) has no
  * handler: FUN_2b5a_0b34 hides it unconditionally, so DOS never dispatches it. */
 static GameMenuActionStatus game_menu_action_orders(ColonizeGameState* game, MapMenuAction action) {
+  if (game->pioneer_plan_view && game->world_map_ok &&
+      (action == MAP_MENU_ACTION_CLEAR_FOREST || action == MAP_MENU_ACTION_PLOW_FIELDS ||
+       action == MAP_MENU_ACTION_BUILD_ROAD)) {
+    /* Plan Pioneer: the improvement orders edit the cursor tile's plan. */
+    const uint8_t bit = action == MAP_MENU_ACTION_CLEAR_FOREST ? PIONEER_PLAN_CLEAR
+                      : action == MAP_MENU_ACTION_PLOW_FIELDS  ? PIONEER_PLAN_PLOW
+                                                               : PIONEER_PLAN_ROAD;
+    const ColonizeWorld w = game_world(game);
+    (void)pioneer_plan_toggle(&w, game->human_nation, game->map_cursor_x, game->map_cursor_y, bit);
+    return GAME_MENU_ACTION_DONE;
+  }
+  if (action != MAP_MENU_ACTION_AUTOMATE && action != MAP_MENU_ACTION_WAIT_UNIT &&
+      action != MAP_MENU_ACTION_NO_ORDERS && game->units_ok) {
+    /* Any other order given to an automated Pioneer takes it off Automate. */
+    ColonizeUnit* sel = units_get(&game->units, game->units.selected_id);
+    if (sel) {
+      sel->pioneer_auto = false;
+    }
+  }
   switch (action) {
+    case MAP_MENU_ACTION_AUTOMATE: {
+      ColonizeUnit* u = units_get(&game->units, game->units.selected_id);
+      const ColonizeWorld w = game_world(game);
+      if (!u || !pioneer_plan_automate(&w, u, &game->ai_popups, &game->messages)) {
+        set_status(game, "No planned improvements in reach", NULL);
+      } else if (u->moves <= 0 || u->orders != UNITS_ORDER_GOTO) {
+        game_wait_next_unit(game);
+      }
+      return GAME_MENU_ACTION_DONE;
+    }
     case MAP_MENU_ACTION_ACTIVATE_UNIT: {
       /*
        * units_id_at only sees units standing on the map, so a passenger in a
@@ -2323,6 +2368,7 @@ void game_map_click_dispatch(ColonizeGameState* game, int mx, int my) {
     const ColonizeUnit* any = units_get_const(&game->units, any_id);
     if (any && any->nation_id == game->human_nation) {
       units_clear_orders(&game->units, any_id);
+      units_get(&game->units, any_id)->pioneer_auto = false;
       game_select_tile(game, mx, my);
       return;
     }

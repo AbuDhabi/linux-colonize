@@ -20,6 +20,7 @@
 #include "core/turn.h"
 #include "core/units.h"
 #include "core/village_trade_intel.h"
+#include "core/pioneer_plan.h"
 #include "core/runtime_ext.h"
 #include "platform/diagnostics.h"
 
@@ -2381,6 +2382,17 @@ COLONIZE_INTERNAL void col1_bridge_apply_ext_chunks(Col1ApplyCtx* ctx) {
     }
     runtime_ext_deserialize(ctx->units, ctx->colonies, ctx->map, rt, rt_size);
   }
+
+  /* 'PPLN' pioneer plan + automated Pioneers (divergences.pioneer_plan). */
+  {
+    const uint8_t* pp = NULL;
+    size_t pp_size = 0;
+    if (!col1_save_ext_find(save, COLONIZE_COL1_EXT_TAG_PIONEER_PLAN, &pp, &pp_size)) {
+      pp = NULL;
+      pp_size = 0;
+    }
+    pioneer_plan_deserialize(pp, pp_size, ctx->units);
+  }
 }
 
 bool col1_bridge_apply_w(
@@ -3959,6 +3971,16 @@ COLONIZE_INTERNAL Col1StageStatus col1_bridge_capture_ext_chunks(Col1CaptureCtx*
     free(rt);
     if (!put_ok) {
       COL1_STAGE_FAIL(err, err_size, "oom runtime state ext chunk");
+    }
+  }
+
+  {
+    size_t pp_size = 0;
+    uint8_t* pp = pioneer_plan_serialize(ctx->map, ctx->units, &pp_size);
+    const bool put_ok = col1_save_ext_put(save, COLONIZE_COL1_EXT_TAG_PIONEER_PLAN, pp, pp_size);
+    free(pp);
+    if (!put_ok) {
+      COL1_STAGE_FAIL(err, err_size, "oom pioneer plan ext chunk");
     }
   }
   return COL1_STAGE_OK;

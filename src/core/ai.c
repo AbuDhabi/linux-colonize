@@ -21,6 +21,7 @@
 #include "core/europe.h"
 #include "core/map_gen.h"
 #include "core/new_game.h"
+#include "core/pioneer_plan.h"
 #include "core/strutil.h"
 #include "core/turn.h"
 #include "platform/diagnostics.h"
@@ -1274,6 +1275,7 @@ bool ai_init_new_game(const AiNewGameParams* params, char* err, size_t err_size)
   ai_coarse_fog_reset(); /* port_bugs.md #1103: DS:0x9faa outlives the old world */
   turn_reset();
   units_reset_state(); /* goto anti-backtrack shadow, indexed by reused unit_id */
+  pioneer_plan_reset();
 
   if (!ai_setup_col1_template(params, err, err_size)) {
     return false;

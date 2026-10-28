@@ -98,5 +98,14 @@ void ss_blit_sprite_where_dest(
   int dst_y,
   uint8_t match_color
 );
+/* Like ss_blit_sprite, but every opaque pixel is written as lut[pixel] (recolouring). */
+void ss_blit_sprite_lut(
+  const ColonizeSpriteSheet* sheet,
+  int sprite_index,
+  ColonizeFramebuffer8* framebuffer,
+  int dst_x,
+  int dst_y,
+  const uint8_t lut[256]
+);
 
 #endif

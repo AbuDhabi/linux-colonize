@@ -47,6 +47,7 @@ static void test_missing_file_defaults(void) {
         "default input logger off, ./input_logs");
   check(!s.unlimited_units, "default divergences.unlimited_units off (DOS limits)");
   check(!s.modern_prng, "default divergences.modern_prng off (DOS LCG)");
+  check(!s.pioneer_plan, "default divergences.pioneer_plan off");
 }
 
 static void test_roundtrip(void) {

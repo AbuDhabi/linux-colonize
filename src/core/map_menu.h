@@ -57,6 +57,7 @@ typedef enum MapMenuAction {
   MAP_MENU_ACTION_ZOOM_LEVEL_15X12,  /* zoom 0 */
   MAP_MENU_ACTION_VIEW_HIDDEN_TERRAIN, /* Show ~Hidden Terrain — H hotkey */
   MAP_MENU_ACTION_CENTER_VIEW,
+  MAP_MENU_ACTION_PLAN_PIONEER, /* port-only, divergences.pioneer_plan: toggles the plan overlay */
 
   /* ORDERS */
   MAP_MENU_ACTION_ACTIVATE_UNIT,
@@ -82,6 +83,7 @@ typedef enum MapMenuAction {
   MAP_MENU_ACTION_DISBAND,
   MAP_MENU_ACTION_DUMP_OVERBOARD,
   MAP_MENU_ACTION_NO_ORDERS, /* end turn / space */
+  MAP_MENU_ACTION_AUTOMATE, /* port-only, divergences.pioneer_plan: Pioneer works the plan */
 
   /* PEDIA */
   MAP_MENU_ACTION_PEDIA_CARGO,
@@ -184,6 +186,12 @@ typedef struct MapMenuOrdersContext {
   int cursor_y;
   int human_nation;
   bool europe_ok;
+  /* divergences.pioneer_plan: show Plan Pioneer / Automate. plan_view = the
+   * overlay is on (View Pieces only): Clear/Plow/Road then edit the plan on the
+   * cursor tile, enabled per plan_bits (pioneer_plan_valid_bits there). */
+  bool pioneer_plan;
+  bool plan_view;
+  uint8_t plan_bits;
 } MapMenuOrdersContext;
 
 void map_menu_init(MapMenuBar* bar);

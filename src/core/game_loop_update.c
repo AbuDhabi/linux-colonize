@@ -50,6 +50,7 @@
 #include "core/map.h"
 #include "core/map_gen.h"
 #include "core/map_menu.h"
+#include "core/pioneer_plan.h"
 #include "core/map_panel.h"
 #include "core/name_entry_dialog.h"
 #include "core/new_game.h"
@@ -1017,6 +1018,15 @@ COLONIZE_INTERNAL GameUpdateStep game_update_unit_pacer(ColonizeGameState* game,
   /* No power at the controls: no unit is the player's (a resumed save's
    * selected unit would otherwise run its goto here, outside the AI). */
   const bool all_ai = game->col1_ok && col1_all_ai_fixed_nation(&game->col1) >= 0;
+  /* divergences.pioneer_plan: Plan Pioneer lives inside View Pieces only, and
+   * the plan forgets what the player can see is done or impossible. */
+  if (!game->view_pieces_mode || game->units.selected_id >= 0) {
+    game->pioneer_plan_view = false;
+  }
+  if (game->world_map_ok && pioneer_plan_enabled()) {
+    const ColonizeWorld w = game_world(game);
+    pioneer_plan_reconcile_seen(&w, game->human_nation);
+  }
   if (game->units_ok && game->world_map_ok && map_visible && !all_ai) {
     ColonizeUnit* active =
       game->units.selected_id >= 0 ? units_get(&game->units, game->units.selected_id) : NULL;
@@ -1052,6 +1062,11 @@ COLONIZE_INTERNAL GameUpdateStep game_update_unit_pacer(ColonizeGameState* game,
       if (sub != GAME_UPDATE_CONTINUE) {
         return sub;
       }
+    } else if (active_awaiting_player && active->pioneer_auto) {
+      /* Automate: start the job here or head for the next planned tile; the
+       * next frame paces the Go To or hands on the spent unit. */
+      const ColonizeWorld w = game_world(game);
+      (void)pioneer_plan_auto_step(&w, active, &game->ai_popups, &game->messages);
     } else if (active_awaiting_player) {
       /* FUN_2b5a_3802 raw 46235-46236: Move Pieces hands the player a unit,
        * 0x97b0 = 1 (game_no_unit_left reads it; port_bugs.md #1302). The

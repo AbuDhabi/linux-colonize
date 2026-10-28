@@ -127,9 +127,7 @@ void units_render_on_map(
     }
     /* port_bugs.md #1177a: the AI plan glyph (cheat + Debug Info Flags 8) lands
      * after the holds digit / X and before the repair digit (raw 2134). */
-    badge_orders = unit_chrome_plan_badge_index(
-      top->nation_id, top->col1_ai_plan, top->orders, badge_orders
-    );
+    badge_orders = unit_chrome_unit_badge_index(top, badge_orders);
     if (repair_badge >= 0) {
       badge_orders = repair_badge;
     }
