@@ -6,8 +6,8 @@ byte-identical to DOS, continuously and with a save/reload before every turn. CT
 Save 15 turns on a DOS read of an uninitialised stack word ([dos_bugs.md](dos_bugs.md) DB-4), so
 the archive ends at 14 (saves 13 and 14 restored 2026-10-23 after the hull-step writer,
 port_bugs.md #1135). Triage and fix history:
-[archive/idle_america2_fixed_2026-10-21_23.md](archive/idle_america2_fixed_2026-10-21_23.md) (grep
-by `FUN_` name, save or resync pair number; do not read whole). Sister campaigns (done):
+git history (`docs/archive/idle_america2_fixed_2026-10-21_23.md`,
+deleted 2026-10-28). Sister campaigns (done):
 [idle_campaign.md](idle_campaign.md), [idle_independence.md](idle_independence.md),
 [idle_america.md](idle_america.md), whose method, ignore list and DOSBox recipes apply here too.
 

@@ -4,11 +4,8 @@ STATUS: complete 2026-10-14. CTest `golden_idle_continuous` guards it; `golden_i
 same years with a save/reload before every turn (byte-identical since 2026-10-19, the `RTST` chunk in
 [savegame.md](savegame.md) carries the unsaved DOS tables). Fixtures:
 `original_saves/1492-1600-seed-100/year_*.sav` (VR_SEED.EXE autosaves; the human idles in View
-mode and never moves). Harness: [tests/README.md](../tests/README.md). Fix history:
-[archive/idle_campaign_fixed_2026-10-06_08.md](archive/idle_campaign_fixed_2026-10-06_08.md),
-[archive/idle_campaign_fixed_2026-10-10.md](archive/idle_campaign_fixed_2026-10-10.md),
-[archive/idle_campaign_fixed_2026-10-10_14.md](archive/idle_campaign_fixed_2026-10-10_14.md)
-(grep by `FUN_` name or year; do not read whole).
+mode and never moves). Harness: [tests/README.md](../tests/README.md). Fix history: git history
+(`docs/archive/idle_campaign_fixed_*.md`, deleted 2026-10-28).
 
 ## What the gate checks
 

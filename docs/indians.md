@@ -517,6 +517,3 @@ alarm prelude (clamp only) → village growth → relation / goods tick → the 
 Brave act loop. Nothing runs after the loop: first contact, gifts, begs, demands
 and attacks all resolve inside a Brave's step.
 
----
-
-Port development snapshots (historical): [archive/indians_port_snapshots.md](archive/indians_port_snapshots.md)

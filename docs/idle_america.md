@@ -5,8 +5,8 @@ byte-identical to DOS, continuously and with a save/reload before every turn. CT
 `golden_idle_america` and `golden_idle_america_reload` run `golden_idle_campaign america 1 63`.
 Save 64 turns on a DOS read of an uninitialised stack word ([dos_bugs.md](dos_bugs.md) DB-4), so
 the archive was trimmed to 1..63. Fix history:
-[archive/idle_america_fixed_2026-10-19_21.md](archive/idle_america_fixed_2026-10-19_21.md) (grep
-by `FUN_` name, save or resync pair number; do not read whole). Sister campaigns (done):
+git history (`docs/archive/idle_america_fixed_2026-10-19_21.md`,
+deleted 2026-10-28). Sister campaigns (done):
 [idle_campaign.md](idle_campaign.md), [idle_independence.md](idle_independence.md), whose method,
 ignore list and DOSBox recipes apply here too.
 

@@ -4,9 +4,8 @@ STATUS: complete 2026-10-19. The port plays the whole re-recorded archive (VR_SO
 000001..000021, Autumn 1680 .. Spring 1691) byte-identical to DOS except the UI-only save 18
 (below), and its draw stream matches the continuous DOS replay on every turn. CTests
 `golden_idle_independence` and `golden_idle_independence_reload` (save/reload before every turn)
-run `golden_idle_campaign independence 1 21`. Fix history:
-[archive/idle_independence_fixed_2026-10-14_19.md](archive/idle_independence_fixed_2026-10-14_19.md)
-(grep by `FUN_` name, interval or save number; do not read whole). Sister campaign (done):
+run `golden_idle_campaign independence 1 21`. Fix history: git history
+(`docs/archive/idle_independence_fixed_2026-10-14_19.md`, deleted 2026-10-28). Sister campaign (done):
 [idle_campaign.md](idle_campaign.md), whose method and DOSBox recipe apply here too.
 
 ## Fixtures
