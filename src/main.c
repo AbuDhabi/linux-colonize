@@ -356,7 +356,6 @@ int main(int argc, char** argv) {
     };
     game_render(game, &screen_fb, &palette);
     game_render_window_log(game, &framebuffer, &palette);
-    platform_set_window_title(platform, game_status_text(game));
     if (!platform_present(platform, &framebuffer, &palette)) {
       running = false;
     }
