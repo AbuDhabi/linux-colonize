@@ -1,0 +1,9 @@
+# divergences.pioneer_plan (settings.json). Hardy Pioneer 53 (100 tools) selected on unroaded tropical forest (14,38).
+key n     # VIEW Plan Pioneer on: View Pieces, cursor on the Pioneer's tile
+key p     # plan Clear Forest / Plow Fields on (14,38)
+shot
+key n     # Plan Pioneer off
+key a     # Activate the Pioneer under the cursor
+key q     # ORDERS Automate: starts that job on its own tile (order 8, progress 1, moves spent, still automated)
+wait 20
+shot

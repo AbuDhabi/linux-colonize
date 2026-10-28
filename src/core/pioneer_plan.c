@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "core/ai_contact.h"
 #include "core/col1_save.h"
 #include "core/colony.h"
 #include "core/map.h"
@@ -153,10 +154,18 @@ static uint8_t pioneer_plan_job(const ColonizeWorld* w, int nation, int x, int y
  * (game_pioneer_land_gate); automation never answers it, so it leaves those
  * tiles for the player. */
 static bool pioneer_plan_job_needs_player(const ColonizeWorld* w, int nation, int x, int y, uint8_t job) {
-  if (job == PIONEER_PLAN_PLOW || !w->col1) {
+  /* Same tests as game_request_indian_land_choice: a tribe at peace owns the land
+   * and still wants paying for it. */
+  if (job == PIONEER_PLAN_PLOW || !w->col1 || !w->col1->tribe) {
     return false;
   }
-  return colonies_indian_land_owner_tribe(w->col1, w->map, x, y) >= 0 &&
+  const int ti = colonies_indian_land_owner_tribe(w->col1, w->map, x, y);
+  if (ti < 0) {
+    return false;
+  }
+  const int tribe_nation = (int)w->col1->tribe[ti].nation_id;
+  return tribe_nation >= 4 && tribe_nation <= 11 &&
+         ai_contact_indian_has_peace(w->col1, tribe_nation, nation) &&
          colonies_indian_land_purchase_gold(w->col1, w->map, x, y, nation) > 0;
 }
 

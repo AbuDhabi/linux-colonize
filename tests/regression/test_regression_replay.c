@@ -563,6 +563,24 @@ static int run_test(const char* name) {
   char settings_file[640];
   snprintf(settings_file, sizeof(settings_file), "%s/settings.json", out_dir);
   remove(settings_file);
+  {
+    /* Optional per-test settings.json (e.g. a divergences switch); else defaults. */
+    char test_settings[640];
+    snprintf(test_settings, sizeof(test_settings), "%s/settings.json", dir);
+    FILE* src = fopen(test_settings, "rb");
+    FILE* dst = src ? fopen(settings_file, "wb") : NULL;
+    char buf[4096];
+    size_t n = 0;
+    while (dst && (n = fread(buf, 1, sizeof(buf), src)) > 0) {
+      fwrite(buf, 1, n, dst);
+    }
+    if (dst) {
+      fclose(dst);
+    }
+    if (src) {
+      fclose(src);
+    }
+  }
   (void)settings_init(settings_file, NULL, 0);
 #ifndef _WIN32
   /* The limit above is checked between frames; this catches one frame that

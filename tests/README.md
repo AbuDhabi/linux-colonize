@@ -169,6 +169,7 @@ Most executables expect **repo root** as cwd (`WORKING_DIRECTORY` in CMake).
 | `input.jsonl` | `debug.input_logger` log (docs/settings.md "Input log") of the test span |
 | `output.sav` | save taken on the main map right after the last input |
 | `input.steps` | optional: the step script `input.jsonl` was compiled from (see "Authoring from a step script") |
+| `settings.json` | optional: the settings the replay runs with (e.g. a `divergences` switch); default settings without it |
 
 The harness loads `input.sav`, waits for the main map, replays the log one
 logged frame per `platform_poll_input` call (nested polls inside

@@ -1,0 +1,9 @@
+# divergences.pioneer_plan (settings.json). Hardy Pioneer 51 (100 tools) selected on unroaded plains (18,63), unclaimed by a tribe at peace.
+key n     # VIEW Plan Pioneer on: View Pieces, cursor on the Pioneer's tile
+key r     # plan a road on (18,63)
+shot
+key n     # Plan Pioneer off (still View Pieces)
+key a     # Activate the Pioneer under the cursor
+key q     # ORDERS Automate: road job on its own tile; plains threshold 3 >> 1 (Hardy) = 1, so the road is done at once (80 tools, order 0, plan bit gone, still automated)
+wait 20
+shot

@@ -5,7 +5,9 @@ Divergence, off by default: `settings.json` `divergences.pioneer_plan`
 (sim: plan grid, validity, reconcile, Automate, `PPLN` chunk); UI hooks in
 `game_loop_eot.c` (menu actions, rotation), `game_loop_update.c` (pacer, per-frame
 reconcile), `game_loop.c` (overlay, menu context), `map_menu.c` (rows).
-Test: `unit_pioneer_plan`.
+Tests: `unit_pioneer_plan`; input-replay `pioneer_auto_road_instant`,
+`pioneer_auto_start_work`, `pioneer_auto_goto` (tests-automated-regression/, with a
+per-test `settings.json`).
 
 ## Plan Pioneer view
 
@@ -34,8 +36,9 @@ Test: `unit_pioneer_plan`.
   planned tile it starts Road, then Clear, then Plow through `units_pioneer_road_w` /
   `units_pioneer_plow_w` (same cost, tools, lumber, native anger as by hand);
   otherwise it Goes To the nearest planned tile on its continent (`map_dos_dist`),
-  skipping tiles another automated Pioneer has claimed and Clear/Road jobs on tribal
-  land that would raise @INDIANFOREST / @INDIANROAD (left for the player).
+  skipping tiles another automated Pioneer has claimed and Clear/Road jobs on the
+  land of a tribe at peace that would raise @INDIANFOREST / @INDIANROAD (left for
+  the player; same tests as `game_request_indian_land_choice`).
 - Cancels on: no tools / no longer a Pioneer, no reachable plan, waking or clicking
   the unit (`units_wake`), or any other ORDERS command given to it.
 - Saved in `PPLN` with the plan (docs/savegame.md); a DOS re-save drops both.
