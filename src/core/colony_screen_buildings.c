@@ -871,7 +871,8 @@ void colony_screen_blit_buildings(
         workers,
         selected,
         15,
-        false
+        false,
+        0x5f
       );
     }
     /*
@@ -981,7 +982,8 @@ void colony_screen_blit_buildings(
         n,
         selected,
         15,
-        false
+        false,
+        0
       );
     }
   }

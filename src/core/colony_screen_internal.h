@@ -185,7 +185,8 @@ void colony_screen_draw_icon_strip(
   int count,
   int selected_index,
   uint8_t number_color,
-  bool always_show_number
+  bool always_show_number,
+  int shadow_color
 );
 void colony_screen_draw_multifunction(
   ColonyScreenView* view,

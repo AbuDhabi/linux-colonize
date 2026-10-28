@@ -43,14 +43,16 @@ void colony_screen_fill_parch(const ColonyScreenView* view, ColonizeFramebuffer8
   }
   /* DOS FUN_2f2b_171c fills parchment over x 0..198 (FUN_281f_04fc(0, 8, 0xc7,
    * 0x78)); start one tile further left so column 0 is covered without moving
-   * the tile phase (golden-measured, port_bugs.md #1286). */
+   * the tile phase (golden-measured, port_bugs.md #1286). The tile phase itself is (-1, -8)
+   * from the viewport origin: re-measured 2026-10-28 against New Amsterdam, 99% of
+   * sand pixels equal; the extra 8 rows above are overpainted by the top bar. */
   const int tw = view->parch.sprite_count > 0 ? view->parch.sprites[0].width : 0;
   map_panel_tile_rect(
     &view->parch,
-    COLONY_VIEWPORT_X - tw,
-    COLONY_VIEWPORT_Y,
-    COLONY_PARCH_FILL_W + tw,
-    COLONY_PARCH_FILL_H,
+    COLONY_VIEWPORT_X - tw - 1,
+    COLONY_VIEWPORT_Y - 8,
+    COLONY_PARCH_FILL_W + tw + 1,
+    COLONY_PARCH_FILL_H + 8,
     framebuffer
   );
 }
@@ -257,13 +259,14 @@ static void colony_screen_blit_icon_shadowed(
   int sprite,
   ColonizeFramebuffer8* framebuffer,
   int x,
-  int y
+  int y,
+  int shadow_color
 ) {
   if (!view || !view->icons_ok || !framebuffer || sprite < 0 || sprite >= view->icons.sprite_count) {
     return;
   }
   unit_chrome_blit(
-    framebuffer, NULL, &view->icons, sprite, x, y, UNIT_CHROME_SPRITE_WITH_SHADOW, 0, 0, -1, 0, false,
+    framebuffer, NULL, &view->icons, sprite, x, y, UNIT_CHROME_SPRITE_WITH_SHADOW, shadow_color, 0, -1, 0, false,
     false, -1, -1
   );
 }
@@ -356,7 +359,8 @@ int colony_screen_icon_strip_layout(int x, int w, int count, int ref_iw, int* ou
 /*
  * One icon per entry, evenly spaced (Note 1). Heterogeneous sprites allowed.
  * selected_index >= 0 draws a selection box on that item (colonists / units);
- * pass -1 for non-selectable resource strips.
+ * pass -1 for non-selectable resource strips. shadow_color: DOS FUN_2f2b_12cc's
+ * building-worker silhouette is palette 0x5f (FUN_112b_015c(7)), the rest black.
  */
 void colony_screen_draw_icon_strip(
   const ColonyScreenView* view,
@@ -370,7 +374,8 @@ void colony_screen_draw_icon_strip(
   int count,
   int selected_index,
   uint8_t number_color,
-  bool always_show_number
+  bool always_show_number,
+  int shadow_color
 ) {
   if (!view || !view->icons_ok || !framebuffer || !icons || count <= 0 || w <= 0 || h <= 0) {
     return;
@@ -400,7 +405,7 @@ void colony_screen_draw_icon_strip(
       continue;
     }
     const int iy = y + (h - sp->height) / 2;
-    colony_screen_blit_icon_shadowed(view, icon, framebuffer, xs[i], iy);
+    colony_screen_blit_icon_shadowed(view, icon, framebuffer, xs[i], iy, shadow_color);
     if (selected_index == i) {
       colony_screen_draw_icon_selection(view, framebuffer, icon, xs[i], iy);
     }
@@ -565,12 +570,11 @@ void colony_screen_draw_resource_count(
 }
 
 /*
- * Nearest-neighbour 1.5× blit (16→24 for standard terrain cells).
- * Audit CO-19 / IN-14: this and the "only where the destination already
- * holds match_color" variant were the same 35 lines twice. match_color < 0
- * means "write every pixel", which is what the plain blit did.
+ * 1:1 sprite blit into the 16px-per-tile scratch block. match_color < 0
+ * writes every opaque pixel; otherwise only where the destination already
+ * holds match_color (the layer cmd's into_holes arm).
  */
-static void colony_screen_blit_scaled_15_where_dest(
+static void colony_screen_blit_where_dest(
   const ColonizeSpriteSheet* sheet,
   int sprite_index,
   ColonizeFramebuffer8* framebuffer,
@@ -583,33 +587,131 @@ static void colony_screen_blit_scaled_15_where_dest(
     return;
   }
   const ColonizeSprite* sprite = &sheet->sprites[sprite_index];
-  if (!sprite->pixels || sprite->width <= 0 || sprite->height <= 0) {
+  if (!sprite->pixels) {
     return;
   }
-  const int dw = (sprite->width * 3) / 2;
-  const int dh = (sprite->height * 3) / 2;
-  for (int dy = 0; dy < dh; ++dy) {
-    const int sy = dy * sprite->height / dh;
-    const int fy = dst_y + dy;
+  for (int sy = 0; sy < sprite->height; ++sy) {
+    const int fy = dst_y + sy;
     if (fy < 0 || fy >= framebuffer->height) {
       continue;
     }
-    for (int dx = 0; dx < dw; ++dx) {
-      const int sx = dx * sprite->width / dw;
-      const int fx = dst_x + dx;
+    for (int sx = 0; sx < sprite->width; ++sx) {
+      const int fx = dst_x + sx;
       if (fx < 0 || fx >= framebuffer->width) {
         continue;
       }
-      const int di = fy * framebuffer->width + fx;
-      if (match_color >= 0 && framebuffer->pixels[di] != (uint8_t)match_color) {
-        continue;
-      }
+      uint8_t* dst = &framebuffer->pixels[fy * framebuffer->width + fx];
       const uint8_t color = sprite->pixels[sy * sprite->width + sx];
-      if (color == COLONIZE_SS_TRANSPARENT) {
+      if (color == COLONIZE_SS_TRANSPARENT || (match_color >= 0 && *dst != (uint8_t)match_color)) {
         continue;
       }
-      framebuffer->pixels[di] = color;
+      *dst = color;
     }
+  }
+}
+
+/* DOS-LITERAL FUN_12e9_0006 raw 0x12e9:0006 (ndisasm-read): ordered 4x4
+ * dither of one output pixel. Palette indices 0x10..0x87 move up or down their
+ * colour ramp by a bayer-ish step from (rows-left & 3, dest offset & 3, phase). */
+static uint8_t colony_screen_dither_px(uint8_t al, unsigned si, unsigned di, uint8_t bl) {
+  if (al < 0x10 || al >= 0x88) {
+    return al;
+  }
+  const uint8_t dh = (uint8_t)((si & 3) + ((di & 3) << 2));
+  int shift = 2;
+  uint8_t mask = 7;
+  if (al <= 0x30) {
+    shift = 0;
+    mask = 0x1f;
+  } else if (al <= 0x40) {
+    mask = 0x0f;
+  }
+  uint8_t dl = (uint8_t)((bl + dh) & 0xf);
+  if (dl == 0 || dl == 8) {
+    return al;
+  }
+  if (dl < 8) {
+    dl = (uint8_t)(-(int)((dl + 1) >> shift));
+  } else {
+    dl = (uint8_t)((dl - 7) >> shift);
+  }
+  const uint8_t cl = (uint8_t)(((al - 0x10) & mask) + dl);
+  if (cl >= (uint8_t)(mask + 1)) {
+    dl = (uint8_t)-dl;
+  }
+  return (uint8_t)(al + dl);
+}
+
+/* DOS-LITERAL FUN_12e9_008c raw 0x12e9:008c: 1.5x scale (source pixels
+ * 2,1,2,1... wide; source rows 1,2,1,2... tall) with the dither above. The
+ * phase BX and the toggles carry across rows exactly as the asm does. */
+static void colony_screen_scale15_dither(
+  const uint8_t* src,
+  int src_w,
+  int src_h,
+  ColonizeFramebuffer8* fb,
+  int dst_x,
+  int dst_y,
+  int clip_x,
+  int clip_y,
+  int clip_w,
+  int clip_h
+) {
+  unsigned rows = (unsigned)src_h;
+  uint16_t bx = 0;
+  uint16_t local4 = 0;
+  uint8_t dl = 0;
+  uint8_t ah = 0;
+  uint8_t dh = 0;
+  int r = 0;
+  int out_y = dst_y;
+  while (rows != 0) {
+    for (;;) {
+      int local6 = 0;
+      int x = dst_x;
+      if ((rows & 3) == 0) {
+        bx = (uint16_t)(bx + 0xd);
+        local4 = 0;
+      }
+      for (int i = 0; i < src_w; ++i) {
+        uint8_t al = src[r * src_w + i];
+        for (int k = 0; k < 2; ++k) {
+          const unsigned di = (unsigned)(out_y * fb->width + x);
+          if (k == 0 || (di & 3) == 0) {
+            if ((di & 3) == 0) {
+              bx = (uint16_t)(bx + 0x11);
+              if (k == 1) {
+                local4 = (uint16_t)(local4 + 0x11);
+              }
+            }
+          }
+          al = colony_screen_dither_px(al, rows, di, (uint8_t)bx);
+          if (x >= clip_x && x < clip_x + clip_w && out_y >= clip_y && out_y < clip_y + clip_h) {
+            fb->pixels[out_y * fb->width + x] = al;
+          }
+          ++x;
+          ++local6;
+          if (k == 0) {
+            dl = (uint8_t)~dl;
+            if (dl == 0) {
+              break;
+            }
+          }
+        }
+      }
+      bx = (uint16_t)(bx - local4);
+      ++out_y;
+      if (ah != 0) {
+        dh = (uint8_t)~dh;
+        if (dh != 0) {
+          continue; /* repeat this source row */
+        }
+      }
+      break;
+    }
+    ah = (uint8_t)~ah;
+    ++r;
+    --rows;
   }
 }
 
@@ -791,7 +893,7 @@ void colony_screen_draw_area_overlays(
         const int ih = sp ? sp->height : 12;
         const int ix = tile_x + (tile - iw) / 2;
         const int iy = tile_y + tile - ih - 1;
-        colony_screen_blit_icon_shadowed(view, sprite, framebuffer, ix, iy);
+        colony_screen_blit_icon_shadowed(view, sprite, framebuffer, ix, iy, 0);
         if (view->selected_colonist == w.colonist_index) {
           colony_screen_draw_selection_box(framebuffer, tile_x, tile_y, tile, tile, 10);
         }
@@ -845,7 +947,7 @@ void colony_screen_draw_area_overlays(
           const ColonizeSprite* sp = &view->icons.sprites[COLONY_ICON_TOTEM];
           const int ix = tx + (tile - sp->width) / 2;
           const int iy = ty + tile - sp->height - 1;
-          colony_screen_blit_icon_shadowed(view, COLONY_ICON_TOTEM, framebuffer, ix, iy);
+          colony_screen_blit_icon_shadowed(view, COLONY_ICON_TOTEM, framebuffer, ix, iy, 0);
         }
       }
     }
@@ -870,15 +972,24 @@ void colony_screen_render_minimap(
   int origin_x = 0;
   int origin_y = 0;
   colony_screen_minimap_origin(&origin_x, &origin_y);
-  const int half = COLONY_MINIMAP_GRID / 2;
   const int tile = COLONY_MINIMAP_TILE;
 
-  for (int dy = -half; dy <= half; ++dy) {
-    for (int dx = -half; dx <= half; ++dx) {
+  /* DOS FUN_2f2b_0a74 composes the 3x3 tiles (terrain layers, then the tribe
+   * overlay FUN_6b22_0002 -> FUN_112b_0790, fog-gated on DS:0x5396 / 0x53a2)
+   * into a 16px-per-tile block, then FUN_12e9_008c scales the whole block
+   * 1.5x with FUN_12e9_0006's ordered dither, so villages scale with the
+   * terrain. */
+  enum { DOS_GRID = 5, DOS_HALF = 2, DOS_HALF_PX = 24 };
+  enum { SCRATCH = DOS_GRID * 16 };
+  uint8_t pixels[SCRATCH * SCRATCH];
+  memset(pixels, 0, sizeof pixels);
+  ColonizeFramebuffer8 scratch = {SCRATCH, SCRATCH, pixels};
+  for (int dy = -DOS_HALF; dy <= DOS_HALF; ++dy) {
+    for (int dx = -DOS_HALF; dx <= DOS_HALF; ++dx) {
       const int mx = colony_x + dx;
       const int my = colony_y + dy;
-      const int tile_x = origin_x + (dx + half) * tile;
-      const int tile_y = origin_y + (dy + half) * tile;
+      const int tile_x = (dx + DOS_HALF) * 16;
+      const int tile_y = (dy + DOS_HALF) * 16;
       ColonizeMapLayerCmd cmds[MAP_LAYER_CMDS_MAX];
       const int ncmd = map_tile_layer_cmds(map, mx, my, 0, cmds, MAP_LAYER_CMDS_MAX);
       for (int ci = 0; ci < ncmd; ++ci) {
@@ -888,32 +999,24 @@ void colony_screen_render_minimap(
         if (!sheet || cmd->sprite < 0 || cmd->sprite >= sheet->sprite_count) {
           continue;
         }
-        colony_screen_blit_scaled_15_where_dest(
-          sheet, cmd->sprite, framebuffer, tile_x + (cmd->ox * 3) / 2,
-          tile_y + (cmd->oy * 3) / 2, cmd->into_holes ? 0 : -1
+        colony_screen_blit_where_dest(
+          sheet, cmd->sprite, &scratch, tile_x + cmd->ox, tile_y + cmd->oy,
+          cmd->into_holes ? 0 : -1
         );
       }
     }
   }
-
-  /* DOS FUN_2f2b_0a74 paints the tribe overlay (FUN_6b22_0002 ->
-   * FUN_112b_0790, the main map's village chrome, fog-gated on DS:0x5396 /
-   * DS:0x53a2) into the 16px map before FUN_12e9_008c scales the whole
-   * block 1.5x into the area view — so villages scale with the terrain. */
   if (w && w->col1 && icons) {
-    enum { SCRATCH = COLONY_MINIMAP_GRID * 16 };
-    uint8_t pixels[SCRATCH * SCRATCH];
-    memset(pixels, COLONIZE_SS_TRANSPARENT, sizeof pixels);
-    ColonizeFramebuffer8 scratch = {SCRATCH, SCRATCH, pixels};
     const int fog = w->col1->head.show_entire_map ? -1 : (int)w->col1->head.curr_nation_map_view;
     map_panel_render_tribes_on_map_w(
-      w, icons, &scratch, colony_x - half, colony_y - half, COLONY_MINIMAP_GRID,
-      COLONY_MINIMAP_GRID, 16, 16, 0, 0, fog, icons_palette
+      w, icons, &scratch, colony_x - DOS_HALF, colony_y - DOS_HALF, DOS_GRID,
+      DOS_GRID, 16, 16, 0, 0, fog, icons_palette
     );
-    ColonizeSprite block = {.width = SCRATCH, .height = SCRATCH, .pixels = pixels};
-    const ColonizeSpriteSheet sheet = {.sprites = &block, .sprite_count = 1};
-    colony_screen_blit_scaled_15_where_dest(&sheet, 0, framebuffer, origin_x, origin_y, -1);
   }
+  colony_screen_scale15_dither(
+    pixels, SCRATCH, SCRATCH, framebuffer, origin_x - DOS_HALF_PX, origin_y - DOS_HALF_PX, origin_x,
+    origin_y, COLONY_MINIMAP_GRID * tile, COLONY_MINIMAP_GRID * tile
+  );
 
   /* Black 1px frame one pixel outside the 3x3 tile grid — golden-measured
    * (new_amsterdam_production.png: frame at x 223/296, y 31/104 around tiles
