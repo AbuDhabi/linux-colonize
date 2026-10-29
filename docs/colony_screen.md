@@ -594,6 +594,10 @@ Second pass, same day (were port_bugs.md #1282-#1286):
   with `FUN_12e9_0006`'s ordered dither (source cols 2,1,2,1; rows 1,2,1,2; the
   dither phase carries from the box corner, so the full 5x5 must be run). Only
   the middle 3x3 is shown (`colony_screen_scale15_dither`).
+- Blocked plots (`FUN_2f2b_0ba8` tile loop, EXE file 0x26546): mask bit 0x40
+  (worked by another colony) draws a colour-0xc box over the tile; bit 0x80
+  (foreign fortified guard) draws the first unit in the tile chain with @UNIT
+  attack > 1, full map chrome, at (x + 4, y + 4).
 - Field / town-commons badges are `FUN_1097_0174` (`reports_draw_dos_icon_bar`)
   at the tile origin, w 0x18, min_w 0x18 (count <= 2) or 0x10; the commons
   secondary row sits at +13. A zero-yield worker shows the icon at x + (16-w)/2,

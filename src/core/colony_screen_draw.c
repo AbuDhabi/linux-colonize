@@ -818,6 +818,60 @@ void colony_screen_draw_area_overlays(
     }
   }
 
+  /*
+   * DOS FUN_2f2b_0ba8 tile loop (asm 2f2b:0c46-0d39, EXE file 0x26546): per ring
+   * plot, the DS:0x8df0 blocked byte (colonies_plot_blocked_mask) draws
+   *   0x40 (worked by another colony): a colour-0xc box over the 24x24 tile;
+   *   0x80 (foreign fortified guard): walk the tile chain from the head
+   *        (FUN_281f_07e0 / 02e4) to the first unit whose @UNIT attack
+   *        (DS:0x5236) is > 1 and draw it with full map chrome
+   *        (FUN_281f_02bc -> FUN_112b_01ba, flags 0xe0) at (x + 4, y + 4).
+   * A Pioneer-only 0x80 finds no armed unit and draws nothing, as in DOS.
+   */
+  if (units && col1) {
+    const ColonizeWorld bw = world_make(
+      (ColonizeUnitPool*)units, (ColonizeColonyPool*)pool, (ColonizeWorldMap*)map,
+      (ColonizeCol1Save*)col1, true, NULL, NULL
+    );
+    for (int dy = -half; dy <= half; ++dy) {
+      for (int dx = -half; dx <= half; ++dx) {
+        const int ti = colonies_field_tile_index(dx, dy);
+        if (ti < 0) {
+          continue;
+        }
+        const uint8_t mask = colonies_plot_blocked_mask(&bw, colony, ti);
+        const int tx = origin_x + (dx + half) * tile;
+        const int ty = origin_y + (dy + half) * tile;
+        if (mask & 0x40u) {
+          colony_screen_draw_selection_box(framebuffer, tx, ty, tile, tile, 12);
+        }
+        if (!(mask & 0x80u) || !view->icons_ok) {
+          continue;
+        }
+        int id = units_tile_head_id_at(units, colony->x + dx, colony->y + dy);
+        for (; id >= 0; id = units_tile_chain_next_id(units, id)) {
+          const ColonizeUnit* u = units_get_const(units, id);
+          const ColonizeUnitType* ut = u ? units_type(units, u->type_index) : NULL;
+          if (ut && ut->attack > 1) {
+            break;
+          }
+        }
+        const ColonizeUnit* g = id >= 0 ? units_get_const(units, id) : NULL;
+        const int sprite = g ? units_map_sprite(units, id) : -1;
+        if (sprite < 0 || sprite >= view->icons.sprite_count) {
+          continue;
+        }
+        unit_chrome_blit_unit_for_palette(
+          framebuffer, font, &view->icons, sprite, tx + 4, ty + 4,
+          units_display_type_index(units, id), g->nation_id,
+          unit_chrome_unit_badge_index(g, g->orders), units_map_stack_chrome(units, id),
+          (g->col1_flags15 & 0x80u) != 0,
+          (view->frame_ok && view->frame.has_palette) ? &view->frame.palette : NULL
+        );
+      }
+    }
+  }
+
   /* Docks (or an upgrade: Drydock/Shipyard) gates Fisherman yield to 0 —
    * FUN_15eb_18ec:11967-11969. Shared answer, so it cannot drift from
    * turn.c's check the way the AI scorer's copy did (audit E#2). */
