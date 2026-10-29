@@ -15,6 +15,22 @@
 #include "core/unit_chrome.h"
 #include "core/units_cargo.h"
 
+/* FUN_112b_01ba raw 2122-2129 (see units_render_on_map): the order slot a
+ * viewer sees on `u` before the plan glyph / repair digit. Shared by the
+ * static draw and the move/lunge animation (same DOS function per frame). */
+int units_render_viewer_badge(
+  const ColonizeUnitPool* pool, const ColonizeUnit* u, int fog_nation, bool* privateer_mask
+) {
+  *privateer_mask = false;
+  if (fog_nation >= 0 && fog_nation <= 3 && u->nation_id != fog_nation &&
+      units_is_sea(pool, u->id)) {
+    *privateer_mask = units_type_is_privateer(units_type(pool, u->type_index));
+    return *privateer_mask ? UNIT_CHROME_ORDERS_PRIVATEER_X
+                           : UNIT_CHROME_ORDERS_HOLDS_BASE + units_holds_used(pool, u->id);
+  }
+  return u->orders;
+}
+
 void units_render_on_map(
   const ColonizeUnitPool* pool,
   const ColonizeSpriteSheet* nation_sheet,
@@ -117,14 +133,8 @@ void units_render_on_map(
      * letter ink 15 (white, local_21). The damaged digit above still wins
      * (raw 2148-2172 is the last write).
      */
-    int badge_orders = top->orders;
     bool privateer_mask = false;
-    if (fog_nation >= 0 && fog_nation <= 3 && top->nation_id != fog_nation &&
-        units_is_sea(pool, top->id)) {
-      privateer_mask = units_type_is_privateer(top_type);
-      badge_orders = privateer_mask ? UNIT_CHROME_ORDERS_PRIVATEER_X
-                                    : UNIT_CHROME_ORDERS_HOLDS_BASE + units_holds_used(pool, top->id);
-    }
+    int badge_orders = units_render_viewer_badge(pool, top, fog_nation, &privateer_mask);
     /* port_bugs.md #1177a: the AI plan glyph (cheat + Debug Info Flags 8) lands
      * after the holds digit / X and before the repair digit (raw 2134). */
     badge_orders = unit_chrome_unit_badge_index(top, badge_orders);

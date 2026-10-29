@@ -639,6 +639,12 @@ int units_top_on_map_tile(
   const ColonizeWorldMap* map
 );
 
+/* Viewer-side order slot: holds count on a foreign hull, 'X' (+ *privateer_mask,
+ * black flag) on a foreign Privateer, else u->orders. fog_nation -1 = no mask. */
+int units_render_viewer_badge(
+  const ColonizeUnitPool* pool, const ColonizeUnit* u, int fog_nation, bool* privateer_mask
+);
+
 /* selected_visible: when false, hide the selected unit (blink off frame). */
 void units_render_on_map(
   const ColonizeUnitPool* pool,

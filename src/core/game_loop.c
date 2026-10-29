@@ -479,6 +479,7 @@ static void game_blit_unit_in_viewport(
   int orders_index,
   bool show_stack,
   bool damaged,
+  bool privateer_mask,
   const ColonizePalette* active_palette
 ) {
   static uint8_t* s_viewport;
@@ -499,10 +500,20 @@ static void game_blit_unit_in_viewport(
       (size_t)view_w
     );
   }
-  unit_chrome_blit_unit_for_palette(
-    &view, font, sheet, sprite_index, x, y - MAP_MENU_BAR_H, display_type_index, nation_id,
-    orders_index, show_stack, damaged, active_palette
-  );
+  if (privateer_mask) {
+    /* Same black flag + white 'X' as units_render_on_map (FUN_112b_01ba). */
+    const int white =
+      active_palette ? assets_palette_nearest_rgb(active_palette, 255, 255, 255) : 15;
+    unit_chrome_blit(
+      &view, font, sheet, sprite_index, x, y - MAP_MENU_BAR_H, UNIT_CHROME_SPRITE_ORDERS, 0,
+      display_type_index, nation_id, orders_index, show_stack, damaged, 0, white
+    );
+  } else {
+    unit_chrome_blit_unit_for_palette(
+      &view, font, sheet, sprite_index, x, y - MAP_MENU_BAR_H, display_type_index, nation_id,
+      orders_index, show_stack, damaged, active_palette
+    );
+  }
   for (int row = 0; row < view_h; ++row) {
     memcpy(
       &fb->pixels[(size_t)(MAP_MENU_BAR_H + row) * (size_t)fb->width],
@@ -694,6 +705,11 @@ COLONIZE_INTERNAL void game_move_watch_w(
          * length of the animation, i.e. behind the art.
          */
         const int slide_dtype = units_display_type_index(pool, unit_id);
+        /* Foreign hull: holds count, Privateer black flag + 'X' (#365 rule). */
+        bool slide_privateer = false;
+        const int slide_badge = unit_chrome_unit_badge_index(
+          unit, units_render_viewer_badge(pool, mu, game_fog_nation(game), &slide_privateer)
+        );
         const int x0 = fxl * 16;
         const int y0 = MAP_MENU_BAR_H + fyl * 16;
         const int x1 = txl * 16;
@@ -719,9 +735,10 @@ COLONIZE_INTERNAL void game_move_watch_w(
             /* Same chrome the unit wears standing still: real order letter,
              * not a forced '-' (port_bugs.md); the AI plan glyph under the
              * cheat flags (#1177a). */
-            unit_chrome_unit_badge_index(unit, unit->orders),
+            slide_badge,
             slide_stacked,
             slide_damaged,
+            slide_privateer,
             /* port_bugs.md: NULL here fell back to the raw ICONS.SS fill index,
              * which the game palette repurposes (Dutch orange → pink while
              * moving). Use the frame's real palette like the static draw. */
@@ -817,7 +834,8 @@ void game_camera_edge_center(void* user, int x, int y) {
  * game_phantom_lunge; mu (may be NULL) is the pool piece hidden meanwhile. */
 static void game_lunge_frames(
   ColonizeGameState* game, int sprite, int from_x, int from_y, int def_x, int def_y,
-  int dtype, int nation_id, int badge, bool stacked, bool damaged, ColonizeUnit* mu
+  int dtype, int nation_id, int badge, bool stacked, bool damaged, bool privateer_mask,
+  ColonizeUnit* mu
 ) {
   int cols = 0;
   int rows = 0;
@@ -869,6 +887,7 @@ static void game_lunge_frames(
       badge,
       stacked,
       damaged,
+      privateer_mask,
       /* port_bugs.md: same palette rule as the move slide — raw index went pink. */
       &pal
     );
@@ -914,13 +933,15 @@ void game_combat_watch(
     return;
   }
   /* port_bugs.md #365: same chrome standing or lunging — see game_move_watch. */
+  bool atk_privateer = false;
+  const int atk_badge = units_render_viewer_badge(pool, atk, game_fog_nation(game), &atk_privateer);
   game_lunge_frames(
     game, units_map_sprite(pool, attacker_id), atk->x, atk->y, def_x, def_y,
     /* units_display_type_index skips inactive units: read before the hide */
     units_display_type_index(pool, attacker_id), atk->nation_id,
     /* the lunging piece keeps its own letter (or plan glyph, #1177a) */
-    unit_chrome_unit_badge_index(atk, atk->orders), units_map_stack_chrome(pool, attacker_id),
-    (atk->col1_flags15 & 0x80u) != 0, units_get((ColonizeUnitPool*)pool, attacker_id)
+    unit_chrome_unit_badge_index(atk, atk_badge), units_map_stack_chrome(pool, attacker_id),
+    (atk->col1_flags15 & 0x80u) != 0, atk_privateer, units_get((ColonizeUnitPool*)pool, attacker_id)
   );
 }
 
@@ -949,7 +970,7 @@ void game_phantom_lunge(
   ph.type_index = type_index;
   game_lunge_frames(
     game, type->icon_sprite, from_x, from_y, def_x, def_y, type_index, nation_id,
-    unit_chrome_unit_badge_index(&ph, 0), false, false, NULL
+    unit_chrome_unit_badge_index(&ph, 0), false, false, false, NULL
   );
 }
 /*
