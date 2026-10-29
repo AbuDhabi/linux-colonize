@@ -728,7 +728,7 @@ void colony_screen_open_dock_orders(
         break;
       case 1:
         action = COLONY_DOCK_ORDER_CLEAR;
-        enabled = (u->orders != UNITS_ORDER_NONE);
+        enabled = (u->orders != UNITS_ORDER_NONE || u->pioneer_auto);
         break;
       case 2:
         action = COLONY_DOCK_ORDER_SENTRY;

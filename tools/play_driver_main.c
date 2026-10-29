@@ -94,6 +94,9 @@
  *                               closes the message and the screen
  *   endturn                     confirm the End of Turn prompt (error while a unit waits)
  *   world                       whole map, one char a tile
+ *   fog [N]                     land tiles not yet seen: count, then up to N (default 20) of them,
+ *                               grouped by 8x8 block ("FOG x0,y0 n"), to aim scouts at; the first
+ *                               40 tiles also print as "FOGTILE x,y"
  *   rumours                     list seen rumour tiles with terrain (h hill, m mountain)
  *   activate ID                 wake and select unit ID (the stack-list pick by id;
  *                               in game, A on a stack opens the picker); waits up to 60 frames
@@ -1812,6 +1815,38 @@ static bool command(char* line) {
       printf("ERR buybuild: nothing to buy in %s\n", g_game->colonies.colonies[a1].name);
       tap(SDLK_ESCAPE, -1, 0);
       ok = flush_frames(5);
+    }
+  } else if (strcmp(op, "fog") == 0) {
+    /* Exploration check: every land tile the human has not seen (the playable
+     * interior only), counted per 8x8 block so a scout can be aimed at it. */
+    const ColonizeWorldMap* m = &g_game->world_map;
+    int blocks[32][32] = {{0}};
+    int total = 0;
+    for (int y = 1; y + 1 < m->height; ++y) {
+      for (int x = 1; x + 1 < m->width; ++x) {
+        const int base = m->terrain[(size_t)y * m->width + x] & 0x1f;
+        if (base == T_OCEAN || base == T_HIGH_SEAS || map_tile_seen_by(m, x, y, g_game->human_nation)) {
+          continue;
+        }
+        ++total;
+        if (total <= 40) {
+          printf("FOGTILE %d,%d\n", x, y);
+        }
+        if (y / 8 < 32 && x / 8 < 32) {
+          ++blocks[y / 8][x / 8];
+        }
+      }
+    }
+    printf("FOG %d unseen land tiles\n", total);
+    int shown = 0;
+    const int limit = argc > 1 ? a1 : 20;
+    for (int by = 0; by < 32 && shown < limit; ++by) {
+      for (int bx = 0; bx < 32 && shown < limit; ++bx) {
+        if (blocks[by][bx] > 0) {
+          printf("FOG %d,%d %d\n", bx * 8, by * 8, blocks[by][bx]);
+          ++shown;
+        }
+      }
     }
   } else if (strcmp(op, "world") == 0) {
     /* Whole map, one char a tile: ~ water, C/c own/foreign colony, V village,

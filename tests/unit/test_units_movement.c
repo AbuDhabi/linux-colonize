@@ -720,6 +720,16 @@ static int unit_stack_one_click_wakes_and_selects(void) {
     fprintf(stderr, "stack_pick: second pick must select and close (sel=%d open=%d)\n", sel, dlg.open);
     return 1;
   }
+  /* An automated unit with no real order: the first pick cancels Automate. */
+  pu->pioneer_auto = true;
+  (void)unit_stack_try_open(&dlg, &pool, 3, 3, 0);
+  dlg.selection = (dlg.ids[0] == pax) ? 0 : 1;
+  sel = -1;
+  unit_stack_handle_input(&dlg, &pool, &in, &sel);
+  if (sel != -1 || pu->pioneer_auto) {
+    fprintf(stderr, "stack_pick: first pick must cancel Automate (sel=%d)\n", sel);
+    return 1;
+  }
   fprintf(stderr, "unit_units: stack picker two-step cancel+activate ok\n");
   return 0;
 }
