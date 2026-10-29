@@ -2,7 +2,7 @@
 """Client for build/debug/play_driver (headless interactive play; command list in
 tools/play_driver_main.c's header).
 
-  python3 tools/play.py start DIR [--load SAVE] [--seed N]   launch the driver in the background
+  python3 tools/play.py start DIR [--load SAVE] [--seed N] [--live-ticks]   launch the driver in the background
   python3 tools/play.py send DIR CMD [CMD ...]                run commands (or read them from stdin)
   python3 tools/play.py stop DIR
 

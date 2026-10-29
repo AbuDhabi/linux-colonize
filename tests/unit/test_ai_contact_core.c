@@ -7,6 +7,7 @@
 #include "core/ai_contact_internal.h"
 #include "core/ai_internal.h"
 #include "core/dos_buggy.h"
+#include "core/sound.h"
 
 /*
  * FUN_4d56_417e is a two-step dialog: the target menu (@INDIANWARPATH) is
@@ -6825,6 +6826,62 @@ static int sp_53(void) {
       ctx.rng = rng_save;
       ctx.rng_seed = seed_save;
       col1.tribe[0].state.scouted = 0;
+    }
+    /*
+     * a60c -> a618(...,1) head (overlays.c 77535 / 77693-77718): a human
+     * Speak With Chief plays the village tune on a 1-in-4 roll — Inca (slot 0)
+     * arms pool 7, whose pick is 0x36. The roll is the port's private stream.
+     */
+    {
+      const uint32_t seed_save = ctx.rng_seed;
+      int hits = 0;
+      int misses = 0;
+      for (uint32_t s = 1; s < 24; ++s) {
+        ctx.rng_seed = s * 7919u;
+        ColonizeDosRng probe;
+        ai_contact_local_rng(&ctx, 4, &probe);
+        const int hit = dos_rng_range(&probe, 0, 3) == 0;
+        const int sid = units_spawn_allow_stack(&units, 2, 6, 5);
+        ColonizeUnit* su = units_get(&units, sid);
+        if (!su) {
+          return fail("chief bgm: spawn scout");
+        }
+        su->nation_id = 0;
+        su->profession = UNITS_JOB_NONE;
+        col1.tribe[0].state.scouted = 0;
+        ai_popup_clear(&pop_menu);
+        if (!ai_contact_try_village_meet_unit(&ctx, 0, 4, 0, 0, sid)) {
+          return fail("chief bgm: meet should enqueue");
+        }
+        AiPopupState res;
+        ai_popup_init(&res);
+        res.has_result = true;
+        res.result_choice_id = 9; /* CHIEF */
+        res.result_tag = AI_POPUP_TAG_CONTACT_MEET;
+        res.result_nation_a = 0;
+        res.result_nation_b = 4;
+        res.result_payload = pop_menu.queue[0].payload;
+        ai_popup_clear(&pop_menu);
+        sound_init("COLONIZE", false); /* fresh driver: no song left playing */
+        sound_set_options((ColonizeSoundOptions){.background_music = false, .event_music = true});
+        ai_contact_apply_popup_result(&ctx, &res);
+        sound_service();
+        dos_rng_schedule_tick_reseeds(NULL, 0); /* drop the pump's tick reseed */
+        const int id = sound_driver_song_id();
+        sound_shutdown();
+        if (id != (hit ? 0x36 : -1)) {
+          fprintf(stderr, "unit_ai_contact: chief bgm seed %u hit=%d id=%d\n", s, hit, id);
+          return fail("chief bgm: a618 head cue must follow the 1-in-4 roll");
+        }
+        hits += hit;
+        misses += !hit;
+        units_despawn(&units, sid);
+      }
+      ctx.rng_seed = seed_save;
+      col1.tribe[0].state.scouted = 0;
+      if (!hits || !misses) {
+        return fail("chief bgm: sweep must see both a hit and a miss");
+      }
     }
   return 0;
 }

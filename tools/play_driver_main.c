@@ -1,7 +1,14 @@
 /*
  * Headless interactive play driver (tools/README.md "play_driver").
  *
- *   play_driver DIR [--load SAVE] [--seed N]
+ *   play_driver DIR [--load SAVE] [--seed N] [--live-ticks]
+ *
+ * --seed N pins the DOS timer word the way VR_SEED.EXE does (FUN_1c0c_0012
+ * returns a constant), so every FUN_281f_04ca reseed restarts the same LCG
+ * stream: draws right after one (chief's Speak With Chief roll, rumours,
+ * 465b, raids) give the same outcome every time. --live-ticks (needs --seed)
+ * makes each timer read move instead, as the BIOS tick does in VICEROY.EXE:
+ * still reproducible for the same seed + command script, not VR_SEED-exact.
  *
  * Env COLONIZE=MULTI arms the hidden hot-seat picker cell, as for opencol
  * (docs/hotseat.md).
@@ -1934,18 +1941,21 @@ static bool command(char* line) {
 
 int main(int argc, char** argv) {
   if (argc < 2) {
-    fprintf(stderr, "usage: play_driver DIR [--load SAVE] [--seed N]\n");
+    fprintf(stderr, "usage: play_driver DIR [--load SAVE] [--seed N] [--live-ticks]\n");
     return 2;
   }
   snprintf(g_dir, sizeof(g_dir), "%s", argv[1]);
   const char* load = NULL;
   bool seed_set = false;
   uint32_t seed = 0;
-  for (int i = 2; i + 1 < argc; i += 2) {
-    if (strcmp(argv[i], "--load") == 0) {
-      load = argv[i + 1];
-    } else if (strcmp(argv[i], "--seed") == 0) {
-      seed = (uint32_t)strtoul(argv[i + 1], NULL, 0);
+  bool live_ticks = false;
+  for (int i = 2; i < argc; ++i) {
+    if (strcmp(argv[i], "--live-ticks") == 0) {
+      live_ticks = true;
+    } else if (i + 1 < argc && strcmp(argv[i], "--load") == 0) {
+      load = argv[++i];
+    } else if (i + 1 < argc && strcmp(argv[i], "--seed") == 0) {
+      seed = (uint32_t)strtoul(argv[++i], NULL, 0);
       seed_set = true;
     }
   }
@@ -1985,7 +1995,8 @@ int main(int argc, char** argv) {
   if (seed_set) {
     dos_rng_set_tick_word((int32_t)(seed & 0x7fffu));
   }
-  dos_rng_set_live_ticks(!seed_set); /* same as main.c */
+  dos_rng_set_live_ticks(!seed_set || live_ticks); /* same as main.c */
+  dos_rng_set_synth_ticks(seed_set && live_ticks);
   g_game = game_create(&cfg);
   if (!g_game || !game_assets_ok(g_game)) {
     fprintf(stderr, "no COLONIZE/ assets (run from the repo root)\n");

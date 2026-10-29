@@ -30,6 +30,10 @@ int32_t dos_rng_get_83a6(void); /* -1 until a nation reseed */
 void dos_rng_reseed_83a6(ColonizeDosRng* rng);
 void dos_rng_set_live_ticks(bool on);
 uint32_t dos_rng_04ca_word(uint32_t fixed_word); /* live ? tick now : fixed_word */
+/* Port-only, play_driver --live-ticks: with a fixed tick word set, each tick
+ * read returns that word mixed with a read counter (reproducible per command
+ * script, but no longer VR_SEED's constant). Pair with live ticks on. */
+void dos_rng_set_synth_ticks(bool on);
 /* The music pick (FUN_129f_00f6, asm 129f:0138 / 129f:0250) brackets its
  * draws with FUN_19ef_002c = srand(BIOS tick & 0x7fff) on the one game LCG,
  * so each pick leaves the gameplay stream at srand(tick) at a wall-clock

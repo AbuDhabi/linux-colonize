@@ -802,6 +802,12 @@ int main(void) {
     const int units_before = units.unit_count;
     const int harbor_before = europe.harbor_ships;
     const uint32_t gold_pre_jones = dnat->gold;
+    /* FUN_4345_0342 raw 73098-73099: the gift hull's goto takes the nation
+     * tile (+0x32/+0x33 = last_exit_*) at grant time. */
+    europe.last_exit_x = 37;
+    europe.last_exit_y = 41;
+    europe.last_exit_east = true;
+    europe.last_exit_valid = true;
     ff_tick(&deep_ctx);
     if (deep_col1.head.founding_father[14] != 0 || dnat->founding_father_count != 5) {
       free(deep_col1.colony);
@@ -820,6 +826,14 @@ int main(void) {
       free(deep_col1.colony);
       map_free(&map);
       return fail("deep Jones must dock a Frigate in Europe, not spawn on the map");
+    }
+    {
+      const EuropeHarborShip* jf = &europe.harbor[europe.harbor_ships - 1];
+      if (jf->exit_x != 37 || jf->exit_y != 41 || !jf->exit_east) {
+        free(deep_col1.colony);
+        map_free(&map);
+        return fail("deep Jones Frigate must carry the nation exit tile (FUN_4345_0342)");
+      }
     }
 
     /* Washington: no mass promote. */

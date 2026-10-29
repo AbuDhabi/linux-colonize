@@ -76,8 +76,27 @@ void dos_rng_set_tick_word(int32_t word) {
  * ponytail: 1 s granularity vs DOS ~20 Hz, so 04ca calls within one wall
  * second (an instant EOT's nation slots) still replay one stream; upgrade to a
  * monotonic ms clock * 20 / 1000 if that ever shows. */
+static bool s_synth_ticks;
+static uint32_t s_synth_reads;
+
 static uint32_t dos_rng_tick_now(void) {
+  if (s_synth_ticks && s_dos_rng_tick >= 0) {
+    /* Port-only (play_driver --live-ticks): a reproducible "moving" tick, the
+     * fixed word mixed with a read counter, so each 04ca of a seeded run
+     * reseeds somewhere new as the DOS BIOS tick would. Mixed, not +1: MSC
+     * rand's first draws from adjacent seeds are nearly equal. */
+    uint32_t x = (uint32_t)s_dos_rng_tick + ++s_synth_reads * 0x9E3779B9u;
+    x ^= x >> 15;
+    x *= 0x2C1B3C6Du;
+    x ^= x >> 12;
+    return x;
+  }
   return s_dos_rng_tick >= 0 ? (uint32_t)s_dos_rng_tick : (uint32_t)time(NULL);
+}
+
+void dos_rng_set_synth_ticks(bool on) {
+  s_synth_ticks = on;
+  s_synth_reads = 0;
 }
 
 void dos_rng_set_live_ticks(bool on) {

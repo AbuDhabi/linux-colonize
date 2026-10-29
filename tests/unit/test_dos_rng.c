@@ -75,6 +75,28 @@ static void test_04ca_live_tick(void) {
   check(dos_rng_04ca_word(100) == 100, "live off: fixed word");
 }
 
+/* play_driver --live-ticks: seeded, yet each 04ca word moves; same per run. */
+static void test_04ca_synth_tick(void) {
+  dos_rng_set_tick_word(5);
+  dos_rng_set_live_ticks(true);
+  dos_rng_set_synth_ticks(true);
+  const uint32_t a = dos_rng_04ca_word(100), b = dos_rng_04ca_word(100);
+  dos_rng_set_synth_ticks(true); /* restart the counter */
+  check(dos_rng_04ca_word(100) == a, "synth: reproducible after reset");
+  check(a != b, "synth: successive reads differ");
+  ColonizeDosRng r;
+  int tales = 0;
+  for (int i = 0; i < 30; ++i) {
+    dos_rng_seed(&r, dos_rng_04ca_word(100));
+    tales += dos_rng_range(&r, 1, 3) == 1;
+  }
+  check(tales > 0 && tales < 30, "synth: rand(1,3) after reseed varies");
+  dos_rng_set_synth_ticks(false);
+  dos_rng_set_live_ticks(false);
+  dos_rng_set_tick_word(-1);
+  check(dos_rng_04ca_word(100) == 100, "synth off: fixed word");
+}
+
 #define CASE_(fn) \
   static int tc_##fn(void) { \
     g_failures = 0; \
@@ -84,12 +106,14 @@ static void test_04ca_live_tick(void) {
 CASE_(test_xoshiro_reference)
 CASE_(test_modern_stream)
 CASE_(test_04ca_live_tick)
+CASE_(test_04ca_synth_tick)
 #undef CASE_
 
 static const TestCase k_cases[] = {
   {"test_xoshiro_reference", tc_test_xoshiro_reference},
   {"test_modern_stream", tc_test_modern_stream},
   {"test_04ca_live_tick", tc_test_04ca_live_tick},
+  {"test_04ca_synth_tick", tc_test_04ca_synth_tick},
 };
 
 TEST_MAIN(k_cases)

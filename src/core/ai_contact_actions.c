@@ -951,10 +951,11 @@ static void ai_contact_speak_with_chief(
   ColonizeDosRng local;
   ColonizeDosRng* rng = ai_contact_action_rng(ctx, nation_id, &local);
   ColonizeCol1Save* col1 = ctx->col1;
-  /* port_bugs.md #491: no music/RNG draw here. thunk_FUN_1000_a60c (overlay 13,
-   * OVL13:0x3a00..) opens straight on FUN_1000_84fc(alarm) — the village tune
-   * pool is switched once by the FUN_4d56_4528 menu head (alarm >= 0x32), which
-   * this file already does in ai_contact_enqueue_village_meet. */
+  /* port_bugs.md #491: thunk_FUN_1000_a60c (overlay 13, OVL13:0x3a00..) itself
+   * opens straight on FUN_1000_84fc(alarm) — no music/RNG draw before thr. The
+   * village tune pool is switched by the FUN_4d56_4528 menu head (alarm >= 0x32)
+   * in ai_contact_enqueue_village_meet; the human arm's a618 head adds its own
+   * 1-in-4 cue below (#1311 lead). */
   ColonizeCol1Indian* ind = &col1->indian[nation_id - 4];
   const int human = ai_contact_euro_is_human(ctx, e);
   const int seasoned = u->profession == UNITS_JOB_SCOUT;
@@ -980,6 +981,18 @@ static void ai_contact_speak_with_chief(
       }
       if (!kill) {
         if (human) {
+          /* DOS-LITERAL thunk_FUN_1000_a618 head (overlays.c 77693-77718, asm
+           * OVL13:0x3650-0x36ab), reached via a60c's human-arm call
+           * a618(...,1) at overlays.c 77535: the param_5 early return
+           * (raw 77782) comes after the head, so a human Speak With Chief
+           * plays the same 1-in-4 village tune as Live Among The Natives
+           * (#729). DOS draws it (FUN_1000_86c4(0,3)) off the global stream,
+           * but a618 reseeds from the village record (FUN_1000_8f80) before
+           * its next draw, so the roll is stream-neutral: private stream here,
+           * as in ai_contact_live_among_natives_body. */
+          ColonizeDosRng bgm_rng;
+          ai_contact_local_rng(ctx, nation_id, &bgm_rng);
+          (void)ai_contact_village_bgm_cue(&bgm_rng, nation_id);
           /* @CHIEFHOWDY: village skill + the three most-wanted goods (ask[] top). */
           const int skill = ai_contact_a618_skill(ctx, nation_id, t);
           /* DOS-LITERAL thunk_FUN_1000_a60c -> thunk_FUN_1000_a618(...,1)

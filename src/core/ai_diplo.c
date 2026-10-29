@@ -1514,13 +1514,23 @@ static void ai_talk_unit_to_europe(ColonizeTurnContext* ctx, int unit_id) {
        * 2026-09-10 G10; without it a gifted ship's passengers arrived
        * labelled with the bare unit name). */
       units_export_cargo_professions(ctx->units, unit_id, profs, COLONIZE_UNIT_CARGO_MAX);
+      /* FUN_281f_0880 -> FUN_1427_0362 only moves the hull (023a/02ca); its own
+       * +0x314d/+0x314e return tile stays, and FUN_48d3_0346 later sails from it
+       * (port_bugs #1312/#1318). Keep it on the harbor slot. */
+      const int gx = u->goto_x;
+      const int gy = u->goto_y;
       if (ctx->europe->harbor_ships < EUROPE_HARBOR_MAX && units_despawn_ship_with_cargo(
             ctx->units, unit_id, &type_index, name, sizeof(name), types, &n,
             COLONIZE_UNIT_CARGO_MAX, hold_t, hold_a, COLONIZE_UNIT_CARGO_MAX
           )) {
-        (void)europe_harbor_push_ex(
-          ctx->europe, type_index, name, types, profs, n, hold_t, hold_a
-        );
+        if (europe_harbor_push_ex(
+              ctx->europe, type_index, name, types, profs, n, hold_t, hold_a
+            ) && gx > 0 && gy > 0 && gx != UNITS_GOTO_NONE && gy != UNITS_GOTO_NONE) {
+          EuropeHarborShip* hs = &ctx->europe->harbor[ctx->europe->harbor_ships - 1];
+          hs->exit_x = gx;
+          hs->exit_y = gy;
+          hs->exit_east = ctx->map && ctx->map->width > 0 ? gx >= ctx->map->width / 2 : true;
+        }
       }
       return;
     }

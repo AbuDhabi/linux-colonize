@@ -102,7 +102,11 @@ not for a big empire. Era targets (check them with `advise` and `colonies`):
 - Run everything from the repo root. Build with `make build`.
 - Campaign dir `automated-playtests/campaignN/`: `README.md` (journal),
   `bugs.md`, `shots/`, `saves/`.
-- New game: `python3 tools/play.py start DIR --seed N`.
+- New game: `python3 tools/play.py start DIR --seed N --live-ticks`.
+  Plain `--seed` pins the timer word like VR_SEED.EXE, so every reseeded roll
+  (chief's gift/tales, rumours, raids) repeats each time; `--live-ticks`
+  moves it like the DOS clock and stays reproducible. A resume without
+  `--seed` already reads the wall clock (varying, not reproducible).
 - Resume: `python3 tools/play.py start DIR --load DIR/saves/tNNN.sav`
   (path from the repo root).
 - Commands: `python3 tools/play.py send DIR "cmd" "cmd" ...`; stop with
@@ -297,9 +301,9 @@ Economy and natives
   It costs one tile to work, adds native land claims nearby, and tension
   rises fast. Choose it only to trade heavily with that village.
 - Scouts visiting chiefs are good early money. On Viceroy the Crown takes
-  70% of treasure. Under `--seed` the chief's roll is the same every visit
-  (campaign 12: 8 of 8 "tales" for a seasoned scout): in seeded runs do not
-  spend scout turns on chiefs; rumours still pay. Never send a scout into a village of a tribe you are at
+  70% of treasure. Under `--seed` without `--live-ticks` the chief's
+  roll is the same every visit (campaign 12: 8 of 8 "tales" for a seasoned
+  scout); with `--live-ticks` it varies as in DOS. Never send a scout into a village of a tribe you are at
   war with: "broken sacred taboos" kills it.
 - The Crown's treasure offer comes only when the Treasure moves INTO a
   coastal colony (DOS FUN_465b_0000 tail). Founding a colony on the

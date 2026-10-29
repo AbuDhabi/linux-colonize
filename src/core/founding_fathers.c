@@ -1050,9 +1050,21 @@ static bool effect_jones_frigate(
   }
   if (europe) {
     const ColonizeUnitType* ty = units_type(units, ship_ty);
-    return europe_harbor_push(
-      europe, ship_ty, ty && ty->name[0] ? ty->name : "", NULL, 0, NULL, NULL
-    );
+    if (!europe_harbor_push(
+          europe, ship_ty, ty && ty->name[0] ? ty->name : "", NULL, 0, NULL, NULL
+        )) {
+      return false;
+    }
+    /* FUN_4345_0342 raw 73098-73099: goto +0x314d/+0x314e = nation
+     * +0x32/+0x33 (last_exit_*), the tile the hull later sails from
+     * (FUN_48d3_0346); same stamp as a purchase (FUN_38fd_4b50). */
+    if (europe->last_exit_valid) {
+      EuropeHarborShip* hs = &europe->harbor[europe->harbor_ships - 1];
+      hs->exit_x = europe->last_exit_x;
+      hs->exit_y = europe->last_exit_y;
+      hs->exit_east = europe->last_exit_east;
+    }
+    return true;
   }
   int sx = 0;
   int sy = 0;
