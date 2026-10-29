@@ -677,6 +677,23 @@ static void game_found_site_survey(
 #define GAME_FOUND_STAGE_NOSPACES 1
 #define GAME_FOUND_STAGE_NOLUMBER 2
 
+/* C12-B4: every Yes/No shares the one map_confirm slot (kind + payload). DOS shows them
+ * synchronously, so a second one can never be raised under an unanswered first; the port's
+ * queue can (a scripted second Sail while the first @SAILAWAY waited behind another popup).
+ * The second overwrote the slot and the first answer reset it, leaving a deaf popup. */
+static bool game_map_confirm_pending(const ColonizeGameState* game) {
+  const AiPopupState* st = &game->ai_popups;
+  if (st->open && st->current.tag == AI_POPUP_TAG_MAP_CONFIRM) {
+    return true;
+  }
+  for (int i = 0; i < st->queue_count; ++i) {
+    if (st->queue[i].tag == AI_POPUP_TAG_MAP_CONFIRM) {
+      return true;
+    }
+  }
+  return false;
+}
+
 static void game_found_stage_confirm(
   ColonizeGameState* game, int uid, int stage, const char* section
 ) {
@@ -690,6 +707,9 @@ static void game_found_stage_confirm(
     &game->messages, section, &tok, "", "", label_buf, labels
   );
   const int ids[] = {0, 1}; /* cancel action / build anyway */
+  if (game_map_confirm_pending(game)) {
+    return;
+  }
   game->map_confirm = GAME_MAP_CONFIRM_FOUND_INLAND;
   game->map_confirm_payload = (uid & 0xffff) | (stage << 16);
   if (!ai_popup_enqueue_choice(
@@ -902,6 +922,9 @@ void game_enqueue_yes_no(
     &game->messages, section, tok, "", "", choice_buf, labels
   );
   const int ids[] = {1, 0};
+  if (game_map_confirm_pending(game)) {
+    return; /* refuse: the open/queued Yes/No owns map_confirm */
+  }
   game->map_confirm = confirm;
   game->map_confirm_payload = payload;
   if (!ai_popup_enqueue_choice(
@@ -1741,6 +1764,9 @@ void game_request_buy_construction_confirm(ColonizeGameState* game) {
     &game->messages, "BUYME1", &tok, "", "", label_buf, labels
   );
   const int ids[] = {0, 1}; /* Never mind / Complete it */
+  if (game_map_confirm_pending(game)) {
+    return;
+  }
   game->map_confirm = GAME_MAP_CONFIRM_BUY_CONSTRUCTION;
   game->map_confirm_payload = game->colony_view_id;
   if (!ai_popup_enqueue_choice(

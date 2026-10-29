@@ -5,6 +5,7 @@
 
 /* 0f14 seam access for the raid blocks (COLONIZE_TESTING linkage). */
 #include "core/ai_contact_internal.h"
+#include "core/ai_internal.h"
 #include "core/dos_buggy.h"
 
 /*
@@ -6757,6 +6758,73 @@ static int sp_53(void) {
         return fail("chief: not scouted → @CHIEFBORED");
       }
       units_despawn(&units, scout_id);
+    }
+    /*
+     * C12-B1: the human @CHIEFHOWDY arm runs thunk_FUN_1000_a618(...,1), which
+     * ends with FUN_1000_86ba(DS:0x83a6) (overlays.c raw 77781), so the scouted
+     * rand(1,3) is the first draw after srand(turn seed), not the thr stream's
+     * next draw. Sweep stream seeds and check the outcome follows the reseed;
+     * require at least one seed where the unreseeded draw would differ.
+     */
+    {
+      ColonizeDosRng live;
+      ColonizeDosRng* const rng_save = ctx.rng;
+      const uint32_t seed_save = ctx.rng_seed;
+      int checked = 0;
+      int discriminating = 0;
+      ctx.rng = &live;
+      for (uint32_t s = 1; s < 64; ++s) {
+        ctx.rng_seed = s * 7919u;
+        dos_rng_seed(&live, s * 2654435761u);
+        ColonizeDosRng pre = live;
+        const int thr = dos_rng_range(&pre, 0, 100);
+        if (thr <= 10) {
+          continue; /* alarm 10 >= thr: bored, r not drawn */
+        }
+        const int stale_r = dos_rng_range(&pre, 1, 3);
+        ColonizeDosRng exp;
+        dos_rng_seed(&exp, ai_turn_seed(&ctx));
+        const int r = dos_rng_range(&exp, 1, 3);
+        discriminating |= stale_r != r;
+        col1.tribe[0].state.scouted = 0;
+        col1.nation[0].gold = 0;
+        const int sid = units_spawn_allow_stack(&units, 2, 6, 5);
+        ColonizeUnit* su = units_get(&units, sid);
+        if (!su) {
+          return fail("C12-B1: spawn scout");
+        }
+        su->nation_id = 0;
+        su->profession = UNITS_JOB_NONE;
+        ai_popup_clear(&pop_menu);
+        if (!ai_contact_try_village_meet_unit(&ctx, 0, 4, 0, 0, sid)) {
+          return fail("C12-B1: meet should enqueue");
+        }
+        AiPopupState res;
+        ai_popup_init(&res);
+        res.has_result = true;
+        res.result_choice_id = 9; /* CHIEF */
+        res.result_tag = AI_POPUP_TAG_CONTACT_MEET;
+        res.result_nation_a = 0;
+        res.result_nation_b = 4;
+        res.result_payload = pop_menu.queue[0].payload;
+        ai_popup_clear(&pop_menu);
+        dos_rng_seed(&live, s * 2654435761u); /* the meet popup may have drawn */
+        ai_contact_apply_popup_result(&ctx, &res);
+        const int got = su->profession == UNITS_JOB_SCOUT ? 1 : col1.nation[0].gold > 0 ? 3 : 2;
+        if (got != r) {
+          fprintf(stderr, "unit_ai_contact: C12-B1 seed %u r=%d stale=%d got=%d\n", s, r, stale_r, got);
+          return fail("C12-B1: chief rand(1,3) must draw after the a618 turn-seed reseed");
+        }
+        units_despawn(&units, sid);
+        checked++;
+      }
+      if (!checked || !discriminating) {
+        fprintf(stderr, "unit_ai_contact: C12-B1 checked=%d disc=%d\n", checked, discriminating);
+        return fail("C12-B1: sweep found no discriminating seed");
+      }
+      ctx.rng = rng_save;
+      ctx.rng_seed = seed_save;
+      col1.tribe[0].state.scouted = 0;
     }
   return 0;
 }

@@ -138,7 +138,10 @@ Cost = number of calls x context size. Output size matters much less.
   and a nested colony message takes "Continue turn.".
   A nested diplomacy question (AI demand, treaty, alliance) prints
   `NESTED CHOICES:` and waits: answer it with `choose N`; other commands are
-  dropped until then. Row 0 of a demand is often the refusal ("We laugh at
+  dropped until then, except `nestedpick TEXT`: it takes the first row
+  containing TEXT (the rest of the line, `nestedpick Go in peace`, also
+  `A|B`), now and for every later nested popup until the next `nestedpick`
+  (bare: off). Row 0 of a demand is often the refusal ("We laugh at
   your puny threats" started a war in campaign 10). An independent European
   nation opens every audience with its "newly elected government" greeting
   (DOS swaps every HELLO* for HELLOUSA): answer "Go in peace" again.
@@ -173,7 +176,16 @@ Cost = number of calls x context size. Output size matters much less.
   cargo drag, and the next click held a Tools Party: tools boycotted for
   the rest of the game). Check for `CHOICES:` after every click.
 - Look up job numbers before `work` or `field` (`field_job 8` is fishing,
-  not tobacco).
+  not tobacco). `field` refuses a land job on a water plot, fishing on land,
+  and fishing without Docks.
+- `buybuild N yes` and then `build N X` in the same turn moves the bought
+  hammers to X (DOS rule): the bought building is not built. Wait a turn
+  before changing the build.
+- `activate ID` that fails prints ERR and every following `key` of the same
+  batch prints `SKIP key ...` (C12: keys meant for one unit fortified and
+  moved the selected galleon). Re-send the batch after `status`.
+- `villages [R [X Y]]` lists the seen villages (tribe, capital, mission,
+  tension, alarm): no `sav_json` scouting needed.
 
 ## Driver quirks
 
@@ -193,8 +205,10 @@ Cost = number of calls x context size. Output size matters much less.
 - `activate` on a unit that fortified this turn leaves it 0 moves.
 - `activate` clears Fortify and Sentry (a DOS click does). Do not activate
   fortified guards each turn: they never reach Fortified and wait for
-  orders again. `activate` is refused while a popup or another screen is
-  open.
+  orders again. `activate` waits up to 60 frames for a queued popup to
+  clear, then is refused while a popup or another screen is open.
+- A fortified unit woken the next turn can still have 0 moves. Strikers
+  that must attack next turn: end their turn with `key space`, not fortify.
 - A sentried unit wakes whenever a foreign unit steps next to it (DOS rule).
 - Units with 0 moves never block `endturn`. Its ERR line names the unit
   that waits.
@@ -213,6 +227,8 @@ Cost = number of calls x context size. Output size matters much less.
   sentry them again after the last arrival, right before the ship sails.
   A ship crossing one of your colonies on Go To unloads its passengers there.
   Unloaded units keep their sentry and board the next ship out.
+  So sentried units do NOT board a ship that enters their colony (it wakes
+  them): sentry them after the ship has arrived.
 - Colony screen: outside units stand on the fence row (y about 116-118).
   `hit X Y` names what is at a point. Drag a worker onto the fence (x=140)
   for the role menu; it opens on the current role, so click the row.
@@ -222,10 +238,16 @@ Cost = number of calls x context size. Output size matters much less.
   the colony) and `eject N CI ROLE` (colonist leaves). `eject` opens the
   colony screen (`key Escape` closes it) and asks the screen's questions:
   the last colonist gets the abandon prompt (`choose 1` keeps the colony).
+  A refusal prints `ERR eject refused: <reason>`: a colony with a stockade
+  (La Salle gives every pop-3 colony one) cannot drop below 3 colonists, so
+  it can never be abandoned. Abandon drop-off colonies before pop 3.
+- Go To port (`key g`): the port list prints as `CHOICES (list ...)`;
+  answer with `choose N` (row 0 is Europe; a blind Return picks it).
 - With many units on the colony tile, use `equip UID ROLE` (2 soldier,
   4 dragoon) instead of the screen.
 - Build menus show only buildable items and are centred, so rows move. Use
-  `build N BID` (it closes the colony screen it opened).
+  `build N BID` (it closes the colony screen it opened). `build N` alone,
+  or with a BID not in the menu, prints the `BUILDABLE` rows (BID name).
 - `buybuild N` prints the BUY price of colony N's project (`choose 1`, then
   `key Escape`); `buybuild N yes` buys and closes. The price falls as hammers
   pile up: San Salvador's Docks cost 1352 with 0 hammers, 481 with 15. A
@@ -238,9 +260,12 @@ Cost = number of calls x context size. Output size matters much less.
   PURCHASE rows (1-based), MARKET (cargo id, sell and buy price, BOYCOTT)
   and HARBOR ships (index H). Then `recruit N`, `train N`, `purchase N`,
   `sell H [CARGO]` (all holds of CARGO, or every hold), `buy H CARGO [AMT]`
-  (default 100), `sail H` + `choose 0`. Read the rows before each recruit:
+  (default 100), `sail H` (answers its own Yes; a popup that opens instead,
+  such as a mercenary offer, is printed as CHOICES and left for you).
+  Never send `sail` twice for one ship. Read the rows before each recruit:
   the pool changes after every pick. `key Escape` leaves the screen. Never
-  use `key e` to leave: on the main map E opens Europe. Cargo and passengers
+  use `key e` to leave: on the main map E opens Europe. A ship sailing from
+  Europe arrives at the tile it last left from. Cargo and passengers
   share the ship's holds: a caravel with one hold of goods carries one
   recruit.
 
@@ -272,7 +297,9 @@ Economy and natives
   It costs one tile to work, adds native land claims nearby, and tension
   rises fast. Choose it only to trade heavily with that village.
 - Scouts visiting chiefs are good early money. On Viceroy the Crown takes
-  70% of treasure. Never send a scout into a village of a tribe you are at
+  70% of treasure. Under `--seed` the chief's roll is the same every visit
+  (campaign 12: 8 of 8 "tales" for a seasoned scout): in seeded runs do not
+  spend scout turns on chiefs; rumours still pay. Never send a scout into a village of a tribe you are at
   war with: "broken sacred taboos" kills it.
 - The Crown's treasure offer comes only when the Treasure moves INTO a
   coastal colony (DOS FUN_465b_0000 tail). Founding a colony on the
@@ -294,6 +321,10 @@ Economy and natives
   colony.
 - The Custom House exports ore, silver and other raw goods from founding
   (stock above 99 sells down to 50). Untick a good to keep its stock.
+- Islands have no forest: ship 20+ lumber in, let a carpenter work one turn,
+  then `buybuild` (campaign 12: Docks 1352 -> ~630).
+- Mercenary offers from the King or other powers are good value (campaign
+  12: 3-4 dragoons for 3000-5600): accept when the gold allows.
 - Making a pioneer takes the colony's tools in steps of 20, up to 100. Buy
   tools before you eject one when a build needs them.
 - The King's frigate offer costs a +10% tax raise (the offer text does not
@@ -327,6 +358,8 @@ Combat
   moved three transports and a frigate (8 guns aboard) next to a Tory
   Man-O-War; all four sank. During the war move guns overland.
 - No attacks from ships. Land next to the target, attack next turn.
+- Never end a ship's turn next to an enemy or Tory colony with a fort: the
+  fort shoots it (campaign 12 lost a caravel and a frigate this way).
 
 War of Independence
 
@@ -382,7 +415,9 @@ War of Independence
   unit's moves. Colonies produce after the Crown moves, so a unit bought or
   finished now misses the Crown's next attacks.
 - Inland colonies count too: Tory uprisings took Veracruz and Santo Domingo
-  in campaign 11 once their guns had left. Leave each one an attack sum
+  in campaign 11 once their guns had left. A colony you retake needs armed
+  units left in it: campaign 12 lost Fort Orange to a militia uprising again
+  as soon as its garrison marched out. Leave each one an attack sum
   above pop x (100 - SoL) x 2 / 100 + difficulty + 1.
 - Intervention: the bell count restarts at the declaration. At
   2000 + 1500 x difficulty bells (8000 on Viceroy) a foreign power lands

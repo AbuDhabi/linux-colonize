@@ -191,13 +191,12 @@ void europe_board_sentry_dockers(
        * every specialist and the passenger landed as a plain colonist with no
        * kit. The entry now carries its own DOS type — set when it arrived and
        * moved by the @ARMOPTIONS rows — so a Soldier boards as Soldiers and a
-       * Hardy Pioneer as Pioneers. The name lookup still wins for purchases
-       * that really are typed by name (Artillery is handled above).
+       * Hardy Pioneer as Pioneers. dos_type wins over the name: a row that
+       * arrived from the New World is named after its old @UNIT type
+       * ("Colonists"), so a criminal blessed on the dock sailed back as a
+       * Colonist.
        */
-      int ti = units_find_type(units, eu->dock[di].name);
-      if (ti < 0) {
-        ti = europe_dock_unit_type_index(units, eu->dock[di].dos_type);
-      }
+      const int ti = europe_dock_display_type_index(units, &eu->dock[di]);
       type_tag = ti >= 0 ? ti : 0;
     }
     ship->cargo_types[ship->cargo_count] = type_tag;
@@ -231,11 +230,17 @@ bool europe_set_sail_from_harbor(
   europe_copy_ship(&ship, &eu->harbor[harbor_index]);
   const int cargo_cap = europe_ship_cargo_cap(&ship, units);
   europe_board_sentry_dockers(eu, &ship, units, nation_id, cargo_cap);
-  bool exit_east = eu->last_exit_valid ? eu->last_exit_east : true;
-  ship.exit_east = exit_east;
-  if (eu->last_exit_valid) {
-    ship.exit_x = eu->last_exit_x;
-    ship.exit_y = eu->last_exit_y;
+  /*
+   * DOS FUN_48d3_0346 sails from the ship's own +0x314d/+0x314e (stamped
+   * per ship at landfall by FUN_48d3_007a). The nation tile +0x32/+0x33
+   * (last_exit_*) only seeds a ship that never left — one bought in Europe.
+   */
+  if (ship.exit_x <= 0 && ship.exit_y <= 0) {
+    ship.exit_east = eu->last_exit_valid ? eu->last_exit_east : true;
+    if (eu->last_exit_valid) {
+      ship.exit_x = eu->last_exit_x;
+      ship.exit_y = eu->last_exit_y;
+    }
   }
   ship.turns_left = europe_clamp_voyage_turns(voyage_turns);
   ship.voyage_turns = ship.turns_left; /* TB-48 fix reads it */

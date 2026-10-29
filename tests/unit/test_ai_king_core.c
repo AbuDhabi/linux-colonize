@@ -7,6 +7,7 @@
 #include "core/ai.h"
 #include "core/ai_euro.h"
 #include "core/dos_buggy.h"
+#include "core/reports.h"
 
 static int count_active(const ColonizeUnitPool* units) {
   int n = 0;
@@ -3041,7 +3042,13 @@ static int sp_33(void) {
     mpop.result_nation_a = 0;
     mpop.result_nation_b = (int)col1.head.rival_nation_slot_2;
     mpop.result_payload = merc_payload;
+    /* Pin the seller to a power the old most-colonies fallback never picks
+     * (it chose Spain here), so the @MERCS check below discriminates. */
+    col1.head.rival_nation_slot_2 = 3;
+    const ColonizeMsgCatalog* saved_msgs = ctx.messages;
+    ctx.messages = test_game_txt(); /* @MERCS body for the seller check below */
     ai_king_apply_popup_result(&ctx, &mpop);
+    ctx.messages = saved_msgs;
     ai_popup_consume_result(&mpop);
     if (europe_nation_gold(ctx.europe, &col1, 0) != merc_gold_before - (uint32_t)merc_price) {
       fprintf(stderr, "unit_ai_king: gold after Pay=%u want=%u (price=%d)\n",
@@ -3051,6 +3058,23 @@ static int sp_33(void) {
     }
     if (count_nation(&units, 0) < merc_units_before + merc_regular) {
       return fail("2244 Pay should land the rolled Dragoons");
+    }
+    {
+      /* C12-O12: 10f0's paid @MERCS names raw DS:0x53d6 (74403), the same
+       * seller the offer named — never the most-colonies fallback. */
+      const char* adj = reports_nation_adjective_display_name((int)col1.head.rival_nation_slot_2);
+      int named = 0;
+      for (int i = 0; i < mpop.queue_count; ++i) {
+        if (mpop.queue[i].tag == AI_POPUP_TAG_KING_ARRIVAL && adj && adj[0] &&
+            strstr(mpop.queue[i].body, adj) == mpop.queue[i].body) {
+          named = 1;
+        }
+      }
+      if (!named) {
+        fprintf(stderr, "unit_ai_king: seller slot %d adj '%s'\n",
+                (int)col1.head.rival_nation_slot_2, adj ? adj : "");
+        return fail("2244 Pay @MERCS must name the offer's seller (0x53d6)");
+      }
     }
     fprintf(stderr, "unit_ai_king: 2244 peacetime @MERCENARIES (seed=%d) ok\n", merc_seed);
 

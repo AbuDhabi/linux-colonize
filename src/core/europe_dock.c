@@ -379,6 +379,13 @@ bool europe_purchase_commit(
     europe_clear_ship(slot);
     slot->type_index = -1; /* resolved by name in game_loop / caller */
     snprintf(slot->name, sizeof(slot->name), "%s", pname);
+    /* FUN_38fd_4b50 raw 64891-64892: the new hull's +0x314d/+0x314e take
+     * the nation tile (+0x32/+0x33) at purchase; it later sails from them. */
+    if (eu->last_exit_valid) {
+      slot->exit_x = eu->last_exit_x;
+      slot->exit_y = eu->last_exit_y;
+      slot->exit_east = eu->last_exit_east;
+    }
     europe_refresh_harbor_selection(eu);
     snprintf(eu->status, sizeof(eu->status), "Purchased %s (-%d$).", pname, cost);
     diag_info("EUROPE purchased ship %s for %d$ (gold=%d)", pname, cost, eu->gold);

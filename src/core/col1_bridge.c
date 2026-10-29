@@ -1684,6 +1684,16 @@ COLONIZE_INTERNAL Col1StageStatus col1_bridge_apply_units(Col1ApplyCtx* ctx) {
               save, src, &europe->harbor[europe->harbor_ships - 1]
             );
             harbor_src[europe->harbor_ships - 1] = i;
+            /* The docked hull's own exit tile (+0x314d/+0x314e), which
+             * europe_set_sail_from_harbor sails from (FUN_48d3_0346). */
+            if (src->goto_x != 0 || src->goto_y != 0) {
+              EuropeHarborShip* hs = &europe->harbor[europe->harbor_ships - 1];
+              hs->exit_x = (int)src->goto_x;
+              hs->exit_y = (int)src->goto_y;
+              hs->exit_east = ctx->map && ctx->map->width > 0
+                                ? hs->exit_x >= ctx->map->width / 2
+                                : true;
+            }
           }
         }
         continue;
@@ -3721,8 +3731,13 @@ COLONIZE_INTERNAL void col1_bridge_capture_europe_lanes(Col1CaptureCtx* ctx) {
           continue;
         }
         const bool in_port = lanes[li].xy == (uint8_t)(EUROPE_PARK_XY + n);
-        const uint8_t gx = (uint8_t)(in_port ? 0 : ship->exit_x);
-        const uint8_t gy = (uint8_t)(in_port ? 0 : ship->exit_y);
+        /* DOS keeps +0x314d/+0x314e on a docked hull: arrival (FUN_48d3_06ba)
+         * never clears them, the purchase (FUN_38fd_4b50 raw 64891-64892)
+         * stamps the nation tile there, and FUN_48d3_0346 sails from them
+         * (original_saves/colony-prod-tests/COLONY01-dutch2-t1.SAV: docked
+         * Dutch hull goto (50,15) while nation +0x32 = 52). */
+        const uint8_t gx = (uint8_t)(ship->exit_x > 0 ? ship->exit_x : 0);
+        const uint8_t gy = (uint8_t)(ship->exit_y > 0 ? ship->exit_y : 0);
         const uint8_t turns = (uint8_t)(in_port ? 0 : (ship->turns_left < 0 ? 0 : ship->turns_left));
         /*
          * Trade-route cursor across the Atlantic. DOS keeps a route-running

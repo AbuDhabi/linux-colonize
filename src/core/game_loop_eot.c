@@ -1443,26 +1443,17 @@ void game_europe_service_trade_harbor(ColonizeGameState* game) {
     }
     game_europe_drain_price_events(game); /* sells/buys now stamp the record themselves (G3) */
     const int next = (si + 1) % (int)r->dest_count;
-    const int exit_x = ship->exit_x;
-    const int exit_y = ship->exit_y;
-    const bool exit_east = ship->exit_east;
     const int bound_before = eu->bound_ships;
     if (!europe_set_sail_from_harbor(
-          eu, i, game_voyage_turns(game, exit_x), &game->units, game->human_nation
+          eu, i, game_voyage_turns(game, ship->exit_x), &game->units, game->human_nation
         )) {
       ++i; /* outbound lane full — stay docked, retry next EOT */
       continue;
     }
+    /* Returns through its own lane tile: europe_set_sail_from_harbor keeps
+     * the per-ship exit (DOS FUN_48d3_0346). */
     if (eu->bound_ships > bound_before) {
-      EuropeHarborShip* out = &eu->bound[eu->bound_ships - 1];
-      out->trade_stop = next;
-      /* Return through the lane tile it left from, not the player's last
-       * manual exit (europe_set_sail_from_harbor prefers last_exit_*). */
-      if (exit_x > 0 || exit_y > 0) {
-        out->exit_x = exit_x;
-        out->exit_y = exit_y;
-        out->exit_east = exit_east;
-      }
+      eu->bound[eu->bound_ships - 1].trade_stop = next;
     }
     /* Ship left harbor[i]; the array shifted down — do not advance i. */
   }

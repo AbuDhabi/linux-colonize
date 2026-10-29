@@ -134,7 +134,16 @@ static int case_automate(void) {
   free(blob);
   CHECK(u->pioneer_auto);
   CHECK(pioneer_plan_at(4, 1) == (PIONEER_PLAN_ROAD | PIONEER_PLAN_PLOW));
+  /* The job that spends the last tools ends Automate right then, not at the
+   * next auto step. */
+  u->tools = 20;
+  for (int t = 0; t < 16 && u->orders == UNITS_ORDER_BUILD_ROAD; ++t) {
+    u->moves = units_max_mp(&s_pool, u->id);
+    (void)units_pioneer_work_tick_w(&w, u->id, NULL, 0, NULL, NULL);
+  }
+  CHECK(u->tools == 0 && !u->pioneer_auto);
   /* Out of tools cancels. */
+  u->pioneer_auto = true;
   u->orders = UNITS_ORDER_NONE;
   u->tools = 0;
   CHECK(!pioneer_plan_auto_step(&w, u, NULL, NULL));

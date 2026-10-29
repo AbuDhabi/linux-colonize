@@ -225,6 +225,29 @@ void units_try_capture_foreign_colony_at(
     }
     return;
   }
+  /*
+   * DOS-LITERAL FUN_5fef_1b0e raw 100878-100882 (5fef:2bbc): the capture arm
+   * (bVar12) lifts the attacker off the board (0916) and then runs
+   * caseD_14 = FUN_5fef_0ec0(07e0(colony x,y), attacker) — 0352 on every unit
+   * still on the colony tile, BEFORE the owner flip (raw 100905). A berthed
+   * hull takes 0352's hull arm: a land winner has guns 0, so it is always
+   * damaged and limps to the nearest own Drydock (distance-0 skip = not this
+   * port) or Europe; a WoI human with no repair port loses it (raw 99604).
+   * Land bystanders were already seized on entry (units_seize_noncombat_at);
+   * the scratch militia of the bVar28 limb is DOS's deleted phantom, so only
+   * hulls are walked here. Playtest C12-O13: ships stayed in the fallen port
+   * under the old flag with full moves.
+   */
+  {
+    const int loser_nat = col->nation_id;
+    int tile_cursor = 0;
+    for (ColonizeUnit* s = units_next_on_tile(pool, cx, cy, &tile_cursor); s != NULL;
+         s = units_next_on_tile(pool, cx, cy, &tile_cursor)) {
+      if (s->id != unit_id && s->nation_id == loser_nat && units_is_sea(pool, s->id)) {
+        (void)units_apply_naval_loss_outcome(pool, s->id, unit_id, 0, 0, 1, col1, NULL);
+      }
+    }
+  }
   int plunder = units_colony_plunder_stock_sum(col);
   const int old_nat = col->nation_id;
   ColonizeColony snap = *col;
@@ -343,11 +366,8 @@ void units_seize_noncombat_at(
      *    hull in the harbour. Skip every ship, not just the armed ones.
      *    (DOS's own 0ec0 does hand hulls to 0352's damage/repair-port arm,
      *    raw 99518-99649 — ported 2026-09-09 in units_sweep_stack_after_loss.
-     *    It is NOT wired here: this helper stands in for the colony walk-in,
-     *    and DOS's own colony-fall purge FUN_43f7_0512 destroys hulls outright
-     *    with @SEIZURESEA (ai_king.c ai_king_0982_purge_tile) rather than
-     *    routing them to a repair port. Neither DOS path says "damage them
-     *    here", so the skip stands.)
+     *    It is NOT wired here: on a capture the 1b0e capture arm's own 0ec0
+     *    sweep (raw 100882) damages them in units_try_capture_foreign_colony_at.)
      *
      *  - Armed colonist BODIES. `attack == 0` is true for a Colonists-type
      *    unit carrying muskets (port_bugs.md: how a colony-armed soldier is stored

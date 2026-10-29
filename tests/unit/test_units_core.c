@@ -6487,9 +6487,10 @@ static int case_combat_discoverer_beginner_shield(void) {
      *
      * (1) A foreign hull berthed in a colony is invisible to a land assault:
      *     FUN_5fef_0000's domain gate (raw 99190-99196) skips it as a
-     *     defender, and the capture arm (raw 100905-101034) never touches the
-     *     unit array. So the town falls with the ship still in it, still
-     *     flying the loser's flag — not sunk, not seized.
+     *     defender, so it never blocks the capture. But the capture arm's
+     *     0ec0 sweep (raw 100878-100882, before the flip) hands it to 0352's
+     *     hull arm: a land winner has guns 0, so it is damaged (bit7) and
+     *     leaves the port for repair — not sunk, not seized (C12-O13).
      * (2) FUN_5fef_1b0e site 1 (raw 101039-101041): a native attacker that
      *     resolves against a European clears tribe[t].alarm[euro] (the whole
      *     DS:0x54f6 attitude word),
@@ -6593,11 +6594,13 @@ static int case_combat_port_ship_fate_discharge(void) {
         units_set_ff_col1(NULL);
         return 1;
       }
-      if (sv->nation_id != 1 || sv->x != cx || sv->y != cy) {
+      if (sv->nation_id != 1 || (sv->col1_flags15 & 0x80u) == 0 ||
+          (sv->x == cx && sv->y == cy)) {
         fprintf(
           stderr,
-          "1b0e-port-ship DOS does not seize/move the berthed hull (nation %d at %d,%d)\n",
-          sv->nation_id, sv->x, sv->y
+          "1b0e-port-ship 0ec0 must damage + evict the berthed hull "
+          "(nation %d flags %#x at %d,%d)\n",
+          sv->nation_id, (unsigned)sv->col1_flags15, sv->x, sv->y
         );
         units_set_ff_col1(NULL);
         return 1;

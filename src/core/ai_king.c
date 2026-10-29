@@ -424,6 +424,16 @@ static int ai_king_intervention_nation(const ColonizeTurnContext* ctx, int human
 int ai_king_intervention_nation_slot(
   const ColonizeTurnContext* ctx, int human_nation, int slot_idx
 ) {
+  /* Playtest C12-O12: the mercenary SELLER is raw DS:0x53d6 in both
+   * readers — @MERCENARIES %STRING0 (75050 / 75136) and the 10f0 paid-arm
+   * @MERCS adjective (74403 `FUN_281f_09a4(*0x53d6)`). No validity filter,
+   * no declared gate: the peacetime offer stamps 0x53d6 = rng(0,3) (75090),
+   * which may even be the human. The most-colonies fallback below named a
+   * different power ("French mercenaries") than the offer's seller. */
+  if (slot_idx != 0 && ctx && ctx->col1_ok && ctx->col1 &&
+      ctx->col1->head.rival_nation_slot_2 < 4) {
+    return (int)ctx->col1->head.rival_nation_slot_2;
+  }
   if (ctx && ctx->col1_ok && ctx->col1 &&
       ai_king_independence_declared(ctx->col1)) {
     const int slot = slot_idx == 0 ? (int)ctx->col1->head.rival_nation_slot_1

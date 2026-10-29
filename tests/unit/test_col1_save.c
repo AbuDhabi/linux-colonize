@@ -4518,6 +4518,138 @@ int main(void) {
   }
 
   /*
+   * C12-B2: a docked hull keeps its own exit tile in +0x314d/+0x314e
+   * (original_saves/colony-prod-tests/COLONY01-dutch2-t1.SAV: goto (50,15),
+   * nation +0x32 = 52). A ship bought in Europe takes the nation tile at
+   * purchase (FUN_38fd_4b50 raw 64891-64892). Both survive capture + apply.
+   */
+  {
+    ColonizeMsgCatalog names;
+    assets_msg_init(&names);
+    if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
+      fprintf(stderr, "docked exit: NAMES.TXT load failed\n");
+      return 1;
+    }
+    ColonizeWorldMap map;
+    memset(&map, 0, sizeof(map));
+    if (!map_alloc(&map, COLONIZE_COL1_MAP_W_STD, COLONIZE_COL1_MAP_H_STD, err, sizeof(err))) {
+      fprintf(stderr, "docked exit: map_alloc: %s\n", err);
+      assets_msg_free(&names);
+      return 1;
+    }
+    for (size_t i = 0; i < map.tile_count; ++i) {
+      map.terrain[i] = 1;
+    }
+    ColonizeUnitPool units;
+    memset(&units, 0, sizeof(units));
+    units_reset(&units);
+    units_set_occupancy_map(NULL);
+    if (!units_load_types(&units, &names)) {
+      fprintf(stderr, "docked exit: unit types failed\n");
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    ColonizeColonyPool colonies;
+    colonies_init(&colonies);
+    colonies_set_occupancy_map(NULL);
+    EuropeScreen* eu = (EuropeScreen*)calloc(2, sizeof(EuropeScreen));
+    ColonizeCol1Save save;
+    int rc = 0;
+    if (!eu || !col1_bridge_init_template(&save, map.width, map.height, err, sizeof(err))) {
+      fprintf(stderr, "docked exit: template/oom\n");
+      free(eu);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    eu[0].cargo_count = 16;
+    eu[0].gold = 5000;
+    eu[0].last_exit_x = 2;
+    eu[0].last_exit_y = 50;
+    eu[0].last_exit_east = false;
+    eu[0].last_exit_valid = true;
+    eu[0].purchase_count = 1;
+    eu[0].purchase[0].is_ship = true;
+    snprintf(eu[0].purchase[0].name, sizeof(eu[0].purchase[0].name), "Caravel");
+    if (!europe_purchase_commit(&eu[0], 0, 1000, NULL) || eu[0].harbor[0].exit_x != 2 ||
+        eu[0].harbor[0].exit_y != 50 || eu[0].harbor[0].exit_east) {
+      fprintf(stderr, "docked exit: purchase stamp (%d,%d)\n", eu[0].harbor[0].exit_x,
+              eu[0].harbor[0].exit_y);
+      rc = 1;
+    }
+    (void)europe_harbor_push(&eu[0], units_find_type(&units, "Galleon"), "Galleon", NULL, 0,
+                             NULL, NULL);
+    eu[0].harbor[1].exit_x = 40;
+    eu[0].harbor[1].exit_y = 20;
+    eu[0].harbor[1].exit_east = true;
+    if (rc == 0 &&
+        !col1_bridge_capture_w(
+          &(ColonizeWorld){.units = &units, .colonies = &colonies, .map = &map, .col1 = &save,
+                           .col1_ok = true, .europe = &eu[0]},
+          1492, 0, 1, 0, 20, 20, 20, 20, -1, true, err, sizeof(err)
+        )) {
+      fprintf(stderr, "docked exit: capture: %s\n", err);
+      rc = 1;
+    }
+    if (rc == 0) {
+      int seen = 0;
+      for (uint16_t i = 0; i < save.head.unit_count; ++i) {
+        const ColonizeCol1Unit* u = &save.unit[i];
+        if (u->x == 236 && u->type >= 13 && u->type <= 18) {
+          seen++;
+          const bool galleon = u->type == (uint8_t)units_find_type(&units, "Galleon");
+          if (u->goto_x != (galleon ? 40 : 2) || u->goto_y != (galleon ? 20 : 50)) {
+            fprintf(stderr, "docked exit: export goto (%u,%u)\n", u->goto_x, u->goto_y);
+            rc = 1;
+          }
+        }
+      }
+      if (seen != 2) {
+        fprintf(stderr, "docked exit: %d docked hulls exported (want 2)\n", seen);
+        rc = 1;
+      }
+    }
+    if (rc == 0) {
+      units_reset(&units);
+      (void)units_load_types(&units, &names);
+      units_set_occupancy_map(&map);
+      colonies_init(&colonies);
+      colonies_set_occupancy_map(NULL);
+      eu[1].cargo_count = 16;
+      ColonizeCol1BridgeResult br;
+      founding_fathers_reset();
+      if (!col1_bridge_apply_w(
+            &(ColonizeWorld){.units = &units, .colonies = &colonies, .map = &map, .col1 = &save,
+                             .col1_ok = true, .europe = &eu[1]},
+            &br, err, sizeof(err)
+          ) ||
+          eu[1].harbor_ships != 2) {
+        fprintf(stderr, "docked exit: apply: %s harbor %d\n", err, eu[1].harbor_ships);
+        rc = 1;
+      }
+      for (int k = 0; rc == 0 && k < 2; ++k) {
+        const EuropeHarborShip* hs = &eu[1].harbor[k];
+        const bool galleon = strcmp(hs->name, eu[0].harbor[1].name) == 0;
+        if (hs->exit_x != (galleon ? 40 : 2) || hs->exit_y != (galleon ? 20 : 50) ||
+            hs->exit_east != galleon) {
+          fprintf(stderr, "docked exit: import %s (%d,%d)\n", hs->name, hs->exit_x, hs->exit_y);
+          rc = 1;
+        }
+      }
+    }
+    units_set_occupancy_map(NULL);
+    map_free(&map);
+    col1_save_free(&save);
+    assets_msg_free(&names);
+    free(eu);
+    if (rc != 0) {
+      return 1;
+    }
+    fprintf(stderr, "col1 docked ship exit tile round-trip ok\n");
+  }
+
+  /*
    * Wagon village-errand latch (DOS +0x3158 = unit_index*0x1c + 0x3158, unit
    * array base DS:0x3144 → COL1 record +0x14 = ColonizeCol1Unit.cargo_hold[4])
    * must round-trip: a wagon the 20e6 load matrix put on a village errand

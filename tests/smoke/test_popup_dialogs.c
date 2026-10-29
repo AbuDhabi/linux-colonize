@@ -417,6 +417,47 @@ static int case_game_confirmation_catalog_choices(void) {
 }
 
 /*
+ * C12-B4: every Yes/No shares the one map_confirm slot. A second confirm raised while the
+ * first is open or queued used to overwrite the slot (kind + payload) and leave a deaf popup
+ * once the first answer reset it. DOS shows them synchronously, so the second is refused.
+ */
+static int case_map_confirm_second_refused(void) {
+  ColonizeGameState* game = calloc(1, sizeof(*game));
+  if (!game) {
+    return fail("allocate game state");
+  }
+  assets_msg_init(&game->messages);
+  ai_popup_init(&game->ai_popups);
+  int rc = 0;
+  game_enqueue_yes_no(game, GAME_MAP_CONFIRM_EUROPE_SAIL, 0, "SAILAWAY", "", NULL);
+  game_enqueue_yes_no(game, GAME_MAP_CONFIRM_EUROPE_SAIL, 1, "SAILAWAY", "", NULL);
+  if (game->ai_popups.queue_count != 1 || game->map_confirm != GAME_MAP_CONFIRM_EUROPE_SAIL ||
+      game->map_confirm_payload != 0) {
+    rc = fail("queued Yes/No: second enqueue must be refused");
+  }
+  if (rc == 0 && !ai_popup_try_present_next(&game->ai_popups)) {
+    rc = fail("present the first Yes/No");
+  }
+  game_enqueue_yes_no(game, GAME_MAP_CONFIRM_DISBAND, 7, "SUREDISBAND", "", NULL);
+  if (rc == 0 && (game->ai_popups.queue_count != 0 || game->map_confirm_payload != 0)) {
+    rc = fail("open Yes/No: second enqueue must be refused");
+  }
+  ai_popup_cancel_current(&game->ai_popups); /* No */
+  game_apply_ai_popup_result(game);
+  if (rc == 0 && (ai_popup_busy(&game->ai_popups) || game->ai_popups.has_result ||
+                  game->map_confirm != GAME_MAP_CONFIRM_NONE)) {
+    rc = fail("answered Yes/No must leave no orphan popup");
+  }
+  game_enqueue_yes_no(game, GAME_MAP_CONFIRM_EUROPE_SAIL, 1, "SAILAWAY", "", NULL);
+  if (rc == 0 && (game->ai_popups.queue_count != 1 || game->map_confirm_payload != 1)) {
+    rc = fail("next Yes/No after the answer must queue");
+  }
+  assets_msg_free(&game->messages);
+  free(game);
+  return rc;
+}
+
+/*
  * port_bugs.md #1187: the Europe Recruit / Purchase / Train dialogs are the generic 6f74 list
  * dialog and must land on the rects measured off the DOS reference shots
  * (original_screenshots/europe/, black rule to black rule): recruit 196x103 at (62,88),
@@ -1048,6 +1089,7 @@ static const TestCase k_cases[] = {
     {"game_txt_wired_sections", case_game_txt_wired_sections},
     {"recruitchoose_width", case_recruitchoose_width},
     {"game_confirmation_catalog_choices", case_game_confirmation_catalog_choices},
+    {"map_confirm_second_refused", case_map_confirm_second_refused},
     {"europe_menu_frames_are_dos", case_europe_menu_frames_are_dos},
     {"debug_test_ignores_directives", case_debug_test_ignores_directives},
     {"cheat_list_shared_parser", case_cheat_list_shared_parser},

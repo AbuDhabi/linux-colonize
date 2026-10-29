@@ -3118,6 +3118,62 @@ done:
   return rc;
 }
 
+/* A Petty Criminal (@JOB 0x1a) shipped home lands on the dock as a row named
+ * after his @UNIT type ("Colonists", europe_disembark_passengers_to_dock).
+ * Blessed there, he must board as the Missionaries type, not by that name. */
+static int case_europe_blessed_criminal_boards_missionary(void) {
+  diag_init(0, NULL);
+  EuropeScreen eu;
+  char err[256];
+  if (!test_europe_load(&eu, "COLONIZE", err, sizeof(err))) {
+    fprintf(stderr, "bless board: europe_load failed: %s\n", err);
+    return 1;
+  }
+  ColonizeMsgCatalog names;
+  ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
+  memset(&names, 0, sizeof(names));
+  units_reset(&units);
+  units_set_occupancy_map(NULL);
+  int rc = 1;
+  if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT") || !units_load_types(&units, &names)) {
+    goto done;
+  }
+  const int mis_ti = units_kind_type_index(&units, UNITS_KIND_MISSIONARY);
+  eu.dock_count = 0;
+  memset(eu.dock, 0, sizeof(eu.dock));
+  eu.harbor_ships = 0;
+  eu.bound_ships = 0;
+  if (!europe_dock_push_load(&eu, units_type(&units, units_kind_type_index(&units, UNITS_KIND_COLONIST))->name, UNITS_JOB_CRIMINAL) ||
+      europe_spawn_dock_mirror_unit(&units, 0, UNITS_JOB_CRIMINAL, 3, true, NULL) < 0 ||
+      !europe_apply_dock_menu_row(&eu, &units, 0, 0, EUROPE_ARM_ROW_BLESS)) {
+    fprintf(stderr, "bless board: setup/bless refused\n");
+    goto done;
+  }
+  eu.dock[0].sentry = true;
+  eu.harbor_ships = 1;
+  memset(&eu.harbor[0], 0, sizeof(eu.harbor[0]));
+  eu.harbor[0].type_index = units_find_type(&units, "Caravel");
+  snprintf(eu.harbor[0].name, sizeof(eu.harbor[0].name), "Caravel");
+  if (!europe_set_sail_from_harbor(&eu, 0, 2, &units, 0) || eu.bound_ships != 1 ||
+      eu.bound[0].cargo_count != 1 || eu.bound[0].cargo_types[0] != mis_ti ||
+      eu.bound[0].cargo_professions[0] != UNITS_JOB_CRIMINAL) {
+    fprintf(
+      stderr, "bless board: boarded as type=%d prof=%d (want %d/%d) name='%s'\n",
+      eu.bound[0].cargo_count ? eu.bound[0].cargo_types[0] : -1,
+      eu.bound[0].cargo_count ? eu.bound[0].cargo_professions[0] : -1, mis_ti,
+      UNITS_JOB_CRIMINAL
+    );
+    goto done;
+  }
+  fprintf(stderr, "blessed criminal boards as Missionaries ok\n");
+  rc = 0;
+done:
+  assets_msg_free(&names);
+  europe_free(&eu);
+  return rc;
+}
+
 /*
  * Expected <-> Bound drag (DOS 38fd:3228): the hull and its passengers change
  * lane, the crossing counter is untouched, the hull's orders byte is cleared
@@ -3544,8 +3600,44 @@ static int case_europe_purse_single_door(void) {
   return rc;
 }
 
+/* C12-B2: DOS FUN_48d3_0346 sails each ship from its own +0x314d/+0x314e
+ * tile; the nation tile (last_exit_*) only seeds a ship bought in Europe. */
+static int case_europe_ship_own_exit_tile(void) {
+  EuropeScreen* eu = (EuropeScreen*)calloc(1, sizeof(*eu));
+  if (!eu) {
+    return 1;
+  }
+  int rc = 0;
+  /* Caribbean ship arrives first, Pacific ship last (nation tile = Pacific). */
+  (void)europe_enqueue_expected(eu, 0, "Merchantman", NULL, NULL, 0, NULL, NULL, 40, 20, true, 1);
+  (void)europe_enqueue_expected(eu, 0, "Galleon", NULL, NULL, 0, NULL, NULL, 2, 50, false, 1);
+  europe_tick_voyages(eu, NULL);
+  europe_tick_voyages(eu, NULL);
+  (void)europe_harbor_push_ex(eu, 0, "Caravel", NULL, NULL, 0, NULL, NULL); /* purchased */
+  if (eu->harbor_ships != 3) {
+    fprintf(stderr, "own_exit: harbor %d\n", eu->harbor_ships);
+    free(eu);
+    return 1;
+  }
+  for (int k = 0; k < 3; ++k) {
+    (void)europe_set_sail_from_harbor(eu, 0, 1, NULL, 0);
+  }
+  static const int want[3][3] = {{40, 20, 1}, {2, 50, 0}, {2, 50, 0}};
+  for (int k = 0; k < 3; ++k) {
+    const EuropeHarborShip* b = &eu->bound[k];
+    if (eu->bound_ships != 3 || b->exit_x != want[k][0] || b->exit_y != want[k][1] ||
+        b->exit_east != (want[k][2] != 0)) {
+      fprintf(stderr, "own_exit: %s exit (%d,%d)\n", b->name, b->exit_x, b->exit_y);
+      rc = 1;
+    }
+  }
+  free(eu);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
     {"case_europe_purse_single_door", case_europe_purse_single_door},
+    {"case_europe_ship_own_exit_tile", case_europe_ship_own_exit_tile},
     {"case_europe_lanes_past_old_caps", case_europe_lanes_past_old_caps},
     {"case_europe_dock_continental_row", case_europe_dock_continental_row},
     {"case_europe_dock_mirror_follows_row", case_europe_dock_mirror_follows_row},
@@ -3553,6 +3645,7 @@ static const TestCase k_cases[] = {
     {"case_europe_tb4_tb48_fixed", case_europe_tb4_tb48_fixed},
     {"case_europe_transit_drag_db56", case_europe_transit_drag_db56},
     {"case_europe_workflow", case_europe_workflow},
+    {"case_europe_blessed_criminal_boards_missionary", case_europe_blessed_criminal_boards_missionary},
     {"case_europe_dragoon_roll_and_caption", case_europe_dragoon_roll_and_caption},
     {"case_europe_seed_prices_all_nations", case_europe_seed_prices_all_nations},
     {"case_europe_seed_campaign_seed100", case_europe_seed_campaign_seed100},

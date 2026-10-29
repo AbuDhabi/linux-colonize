@@ -15,9 +15,13 @@
  *
  *   key NAME [shift|ctrl|alt]   tap: a-z 0-9 - = [ ] ` Return Escape space Backspace
  *                               Tab Delete Up Down Left Right KP_1..KP_9 KP_Enter
- *                               F1..F10 Home End
+ *                               F1..F10 Home End (Escape on the Europe screen with a Yes/No
+ *                               up answers it No; every key after a failed `activate` is
+ *                               dropped with SKIP until the next activate / status / sync)
  *   choose N                    answer the open choice popup with row N (arrows + Return; message
- *                               popups queued in front are closed first)
+ *                               popups queued in front are closed first); also a list dialog
+ *                               `status` prints as CHOICES (list ...): Go To port list, trade
+ *                               pickers, Europe Recruit / Train / Purchase list (row 0 = none)
  *   type TEXT                   text input, one char per frame (name fields)
  *   click X Y [shift|ctrl|alt]  left click; rclick X Y; dclick X Y
  *   drag X1 Y1 X2 Y2 [shift]    left-button drag
@@ -35,13 +39,16 @@
  *                               the idle main map (default 5000 frames)
  *   shot NAME                   DIR/shots/NAME.ppm
  *   save NAME                   save into DIR/saves/NAME
- *   status | units | colonies   print state (status repeats an open popup's CHOICES) (colonies: `stock GOOD N(+d)`, d = next turn's net
+ *   status | units | colonies   print state (status repeats an open popup's or list's CHOICES) (colonies: `stock GOOD N(+d)`, d = next turn's net
  *                               change before warehouse waste; food after eating)
  *   advise                      checklist: starving / stalled colonies, idle units, REF size,
  *                               declaration gate, war targets (automated-playtests/RULES.md)
  *   map [R [X Y]]               ASCII map of radius R (default 8) around the cursor (or X,Y)
  *   res [R [X Y]]               seen special resources (fish, ore, ...) within R of the cursor (or X,Y)
  *   near X Y [R]                every unit (any nation) within R (default 2) of X,Y
+ *   villages [R [X Y]]          seen native settlements (all, or within R of the cursor / X,Y):
+ *                               tribe, capital, visited (chief spoke), taught, mission nation
+ *                               (J Jesuit), village tension, tribe alarm toward you (75+ hostile)
  *   goto ID X Y                 Go To order for unit ID to tile X,Y; activates the unit first, as DOS
  *                               gives Go To only to the active unit (ERR when refused, or when
  *                               the pathfinder finds no route: the turn's moves are spent)
@@ -53,14 +60,18 @@
  *                               purchase answers its Yes/No itself)
  *   sell H [CARGO]              harbor ship H sells every hold of CARGO (default: all holds)
  *   buy H CARGO [AMT]           harbor ship H buys AMT (default 100, capped by room) of CARGO
- *   sail H                      harbor ship H: @SAILAWAY prompt (`choose 0` sails)
+ *   sail H                      harbor ship H sails (answers its own @SAILAWAY Yes); refused while a
+ *                               popup is open or queued; another popup opening first is left up
+ *                               (WARN; the sail prompt waits behind it)
  *   colony N                    open colony N's screen (index from `colonies`)
  *   field N CI TILE JOB         colonist CI of colony N onto ring tile TILE (0 N .. 7 NW), field job JOB
  *                               (refused on native land at peace: the screen asks @INDIANLAND;
- *                               refused on a plot another colonist works)
+ *                               refused on a plot another colonist works; water takes only fishing
+ *                               (job 8) and needs Docks, land never takes fishing)
  *   work N CI B                 colonist CI of colony N into @BUILDING row B (as `hit` prints)
- *   build N BID [queue]         colony N builds BID (@BUILDING row, or unit code 42 artillery..);
- *                               closes the colony screen it opened
+ *   build N [BID [queue]]       colony N builds BID (@BUILDING row, or unit code 42 artillery..);
+ *                               closes the colony screen it opened; no BID or one not in the
+ *                               menu prints BUILDABLE rows (BID name)
  *   buybuild N [yes]            colony N's BUY button: prints the cost and the Never mind /
  *                               Complete it choice (`choose`, then `key Escape`); `yes` buys and closes
  *   load UID CARGO [AMT]       transport UID in a colony loads AMT (default 100) of CARGO
@@ -71,14 +82,21 @@
  *   equip UID ROLE              unit UID on a colony tile takes role ROLE (COLONIZE_EJECT_*, 4 dragoon)
  *   admit UID                   unit UID on a colony tile joins that colony (prints colonist index)
  *   eject N CI ROLE             colonist CI of colony N leaves as ROLE (COLONIZE_EJECT_*, 0 colonist);
- *                               opens the colony screen, asks @ABANDON for the last one (`choose`)
+ *                               opens the colony screen, asks @ABANDON for the last one (`choose`);
+ *                               a refusal (@KEEPSTOCKADE, @SIEGE) prints ERR with its text,
+ *                               closes the message and the screen
  *   endturn                     confirm the End of Turn prompt (error while a unit waits)
  *   world                       whole map, one char a tile
  *   rumours                     list seen rumour tiles with terrain (h hill, m mountain)
  *   activate ID                 wake and select unit ID (the stack-list pick by id;
- *                               in game, A on a stack opens the picker)
+ *                               in game, A on a stack opens the picker); waits up to 60 frames
+ *                               for a queued popup / modal to clear; on ERR the following keys
+ *                               are SKIPPED (see key)
  *   nestedpick TEXT[|TEXT..]    a choice popup inside a nested modal loop takes the first row
- *                               containing one of the TEXTs instead of the highlighted one (empty: off)
+ *                               containing one of the TEXTs instead of the highlighted one; TEXT
+ *                               is the rest of the line (`nestedpick Go in peace`), kept until the
+ *                               next nestedpick (bare `nestedpick`: off); also accepted while
+ *                               NESTED CHOICES waits
  *   sync TAG                    print "@@ TAG" (end-of-batch marker)
  *   quit
  *
@@ -105,6 +123,7 @@
 #include "core/colony_preview.h"
 #include "core/colony_screen.h"
 #include "core/colony_production.h"
+#include "core/colony_yield.h"
 #include "core/dos_rng.h"
 #include "core/europe.h"
 #include "core/game_dialogs.h"
@@ -166,9 +185,38 @@ static void ev(int type, int x, int y, int button, int32_t keycode, unsigned mod
 static int g_update_polls; /* polls inside the current game_update */
 static void tap(int32_t code, int m, char text);
 static ColonizeGameState* g_game;
-static char g_nested_pick[64]; /* `nestedpick TEXT`: row a nested choice popup takes */
+static char g_nested_pick[256]; /* `nestedpick TEXT`: row a nested choice popup takes */
+static bool g_skip_keys; /* a failed `activate`: drop `key` until activate / status / sync */
 
 static void print_new_log(void);
+static bool print_list_choices(void);
+
+/* `nestedpick TEXT[|TEXT..]`: first row of the popup containing one of the TEXTs, -1 none. */
+static int nested_pick_row(const AiPopupState* pop) {
+  int want = -1;
+  for (int i = 0; g_nested_pick[0] && pop && pop->open && want < 0 && i < pop->current.choice_count; ++i) {
+    for (const char* t = g_nested_pick; *t && want < 0; t += strcspn(t, "|"), t += *t == '|') {
+      const size_t n = strcspn(t, "|");
+      for (const char* c = pop->current.choices[i]; n && *c && want < 0; ++c) {
+        want = strncmp(c, t, n) == 0 ? i : -1;
+      }
+    }
+  }
+  return want;
+}
+
+/* `nestedpick` argument: the whole rest of the line, trimmed; empty = off. Kept until
+ * the next `nestedpick`. */
+static void set_nested_pick(const char* text) {
+  text = text ? text + strspn(text, " \t") : "";
+  snprintf(g_nested_pick, sizeof(g_nested_pick), "%s", text);
+  size_t n = strcspn(g_nested_pick, "\r\n");
+  while (n > 0 && (g_nested_pick[n - 1] == ' ' || g_nested_pick[n - 1] == '\t')) {
+    --n;
+  }
+  g_nested_pick[n] = '\0';
+  printf("NESTEDPICK %s\n", g_nested_pick[0] ? g_nested_pick : "(off)");
+}
 
 /* Nested choice popup: print it, then read stdin until `choose N` (row N). */
 static int nested_choose_from_stdin(const AiPopupState* pop) {
@@ -188,6 +236,12 @@ static int nested_choose_from_stdin(const AiPopupState* pop) {
     }
     if (sscanf(line, "sync %255s", tag) == 1) {
       printf("@@ %s\n", tag);
+    } else if (strncmp(line, "nestedpick", 10) == 0 && (line[10] == ' ' || line[10] == '\n' || !line[10])) {
+      set_nested_pick(line + 10); /* may answer this very popup */
+      if (nested_pick_row(pop) >= 0) {
+        fflush(stdout);
+        return nested_pick_row(pop);
+      }
     } else if (line[0] != '\n' && line[0] != '#') {
       line[strcspn(line, "\r\n")] = '\0';
       printf("ERR nested choice popup open, \"%s\" dropped: answer with choose N\n", line);
@@ -205,15 +259,7 @@ bool platform_poll_input(ColonizePlatform* p, ColonizeInputState* out) {
     g_update_polls = 0;
     g_at = p->frame;
     const AiPopupState* pop = g_game ? &g_game->ai_popups : NULL;
-    int want = -1;
-    for (int i = 0; g_nested_pick[0] && pop && pop->open && want < 0 && i < pop->current.choice_count; ++i) {
-      for (const char* t = g_nested_pick; *t && want < 0; t += strcspn(t, "|"), t += *t == '|') {
-        const size_t n = strcspn(t, "|");
-        for (const char* c = pop->current.choices[i]; n && *c && want < 0; ++c) {
-          want = strncmp(c, t, n) == 0 ? i : -1;
-        }
-      }
-    }
+    int want = nested_pick_row(pop);
     /* A colony EOT message ("Continue turn." / "Zoom to colony.") inside the loop takes
      * Continue, as `auto` answers it on the main loop (campaign 11: it blocked every
      * later command until `choose 0`). */
@@ -471,6 +517,12 @@ static void print_new_log(void) {
       printf(" [%d] %s", i, pop->current.choices[i]);
     }
     printf(" (sel %d)\n", pop->selection);
+  }
+  static bool list_shown;
+  if (!g_game->cheat_list.open && !(g_game->in_europe && g_game->europe.menu != EUROPE_MENU_NONE)) {
+    list_shown = false;
+  } else if (!list_shown && !pop->open) {
+    list_shown = print_list_choices();
   }
 }
 
@@ -909,6 +961,119 @@ static void print_colony_food(int colony_id) {
          pv.food_net < 0 && c->stock[COLONIZE_CARGO_FOOD] + pv.food_net < 0 ? " STARVES NEXT TURN" : "");
 }
 
+/* The wood list dialogs that are not ai_popups: the cheat_list family (Go To port
+ * list "Select a port to sail to", trade pickers) and the Europe Recruit / Train /
+ * Purchase lists. Printed as CHOICES so `choose N` can answer them (C12-O1/O4). */
+static const char* europe_list_row(const EuropeScreen* eu, int i) {
+  return eu->menu == EUROPE_MENU_RECRUIT ? (i < EUROPE_POOL_SIZE ? eu->pool[i].name : NULL)
+       : eu->menu == EUROPE_MENU_TRAIN    ? (i < eu->train_count ? eu->train[i].expert_name : NULL)
+       : eu->menu == EUROPE_MENU_PURCHASE ? (i < eu->purchase_count ? eu->purchase[i].name : NULL)
+                                          : NULL;
+}
+
+static bool print_list_choices(void) {
+  const CheatListDialog* cl = &g_game->cheat_list;
+  const EuropeScreen* eu = &g_game->europe;
+  if (cl->open) {
+    printf("CHOICES (list \"%s\"):", cl->prompt);
+    for (int i = 0; i < cl->option_count; ++i) {
+      printf(" [%d] %s%s", i, cl->options[i], (cl->disabled_mask >> i) & 1 ? " (greyed)" : "");
+    }
+    printf(" (sel %d)\n", cl->selection);
+    return true;
+  }
+  if (g_game->in_europe && eu->menu != EUROPE_MENU_NONE) {
+    printf("CHOICES (Europe list):%s", eu->menu == EUROPE_MENU_DOCK ? " dock menu, close with key Escape" : " [0] (none)");
+    for (int i = 0; europe_list_row(eu, i); ++i) {
+      printf(" [%d] %s", i + 1, europe_list_row(eu, i));
+    }
+    printf(" (sel %d)\n", eu->menu_selection);
+    return true;
+  }
+  return false;
+}
+
+/* `choose N` on an open list dialog; false = none open (answer the popup instead). */
+static bool choose_list_row(int n, bool* ok) {
+  CheatListDialog* cl = &g_game->cheat_list;
+  EuropeScreen* eu = &g_game->europe;
+  if (cl->open && !g_game->ai_popups.open) {
+    if (n < 0 || n >= cl->option_count || ((cl->disabled_mask >> n) & 1)) {
+      printf("ERR choose %d: list has %d rows (greyed rows cannot be picked)\n", n, cl->option_count);
+      return true;
+    }
+    for (int tries = 0; *ok && cl->open && cl->selection != n && tries < 40; ++tries) {
+      tap(cl->selection < n ? SDLK_DOWN : SDLK_UP, -1, 0);
+      *ok = flush_frames(2);
+    }
+    if (cl->open && cl->selection == n) {
+      tap(SDLK_RETURN, -1, 0);
+      *ok = flush_frames(10);
+    } else {
+      printf("ERR choose %d: list selection %d\n", n, cl->selection);
+    }
+    return true;
+  }
+  if (g_game->in_europe && eu->menu != EUROPE_MENU_NONE && eu->menu != EUROPE_MENU_DOCK &&
+      !g_game->ai_popups.open) {
+    if (n == 0) {
+      europe_menu_close(eu);
+    } else if (!europe_list_row(eu, n - 1) || !europe_menu_pick(eu->menu, n)) {
+      printf("ERR choose %d refused (%s)\n", n, eu->status);
+    }
+    *ok = flush_frames(5);
+    return true;
+  }
+  return false;
+}
+
+/* Answer the open choice popup with row N: arrow keys to the row, then
+ * Return (a bare Return takes whatever row is highlighted). False = game quit. */
+static bool choose_popup_row(int a1) {
+  bool ok = true;
+  const AiPopupState* pop = &g_game->ai_popups;
+  ok = flush_frames(10);
+  if (!pop->open && strcmp(g_game->log_screen, "woodcut") != 0) {
+    /* Nothing to answer (a stale CHOICES line: `auto` already closed it). */
+    printf("ERR choose %d: no popup open\n", a1);
+    return ok;
+  }
+  for (int tries = 0; ok && tries < 5 && strcmp(g_game->log_screen, "woodcut") == 0; ++tries) {
+    tap(SDLK_RETURN, -1, 0); /* a woodcut in front of the popup */
+    ok = flush_frames(10);
+  }
+  /* Message popups (no rows) queued in front of the question: Return each
+   * away first, or Return on one would count as the answer (CN8-O1). */
+  for (int tries = 0; ok && pop->open && pop->current.choice_count == 0 && tries < 8; ++tries) {
+    tap(SDLK_RETURN, -1, 0);
+    ok = flush_frames(10);
+  }
+  if (pop->open && a1 >= pop->current.choice_count) {
+    printf("ERR choose %d: popup has %d rows\n", a1, pop->current.choice_count);
+    return ok;
+  }
+  for (int tries = 0; ok && pop->open && pop->selection != a1 && tries < 40; ++tries) {
+    tap(pop->selection < a1 ? SDLK_DOWN : SDLK_UP, -1, 0);
+    ok = flush_frames(2);
+  }
+  if (!pop->open || pop->selection != a1) {
+    printf("ERR choose %d: popup %s, selection %d\n", a1, pop->open ? "open" : "closed", pop->selection);
+  } else {
+    /* Some popups (portraits, a woodcut in front) ignore keys for a while:
+     * press again while the same popup is still up. */
+    char body[AI_POPUP_BODY_LEN];
+    snprintf(body, sizeof(body), "%s", pop->current.body);
+    for (int tries = 0; ok && tries < 6; ++tries) {
+      tap(SDLK_RETURN, -1, 0);
+      ok = flush_frames(10);
+      if (!pop->open || strcmp(body, pop->current.body) != 0) {
+        break;
+      }
+    }
+  }
+  return ok;
+}
+
 /* One command line; false = quit. */
 static bool command(char* line) {
   char* argv[8] = {0};
@@ -966,6 +1131,22 @@ static bool command(char* line) {
       printf("ERR unknown key %s\n", argv[1]);
       return true;
     }
+    /* C12-O9: after a failed `activate` the keys would go to whatever unit is selected
+     * (a galleon fortified at sea, the wrong ship moved). */
+    if (g_skip_keys) {
+      printf("SKIP key %s after failed activate\n", argv[1]);
+      return true;
+    }
+    /* Escape on the Europe screen with a Yes/No up (@SAILAWAY): answer No instead of
+     * risking the screen closing under it (C12-B4: the prompt stayed on the map, deaf). */
+    if (code == SDLK_ESCAPE && g_game->in_europe && g_game->ai_popups.open &&
+        g_game->ai_popups.current.tag == AI_POPUP_TAG_MAP_CONFIRM && g_game->ai_popups.current.choice_count == 2) {
+      ok = choose_popup_row(1);
+      printf("ESCAPE answered the open Yes/No with row 1 (No)\n");
+      print_new_log();
+      fflush(stdout);
+      return ok;
+    }
     /* Escape on the bare main map asks @DOSYES (default Yes, C2-B1); the
      * driver's next Return would quit the program. Always refused there; an
      * open map pull-down still takes it (closes the menu). */
@@ -984,47 +1165,8 @@ static bool command(char* line) {
     tap(code, m, ch);
     ok = flush_frames(10);
   } else if (strcmp(op, "choose") == 0 && argc > 1) {
-    /* Answer the open choice popup with row N: arrow keys to the row, then
-     * Return (a bare Return takes whatever row is highlighted). */
-    const AiPopupState* pop = &g_game->ai_popups;
-    ok = flush_frames(10);
-    if (!pop->open && strcmp(g_game->log_screen, "woodcut") != 0) {
-      /* Nothing to answer (a stale CHOICES line: `auto` already closed it). */
-      printf("ERR choose %d: no popup open\n", a1);
-      return true;
-    }
-    for (int tries = 0; ok && tries < 5 && strcmp(g_game->log_screen, "woodcut") == 0; ++tries) {
-      tap(SDLK_RETURN, -1, 0); /* a woodcut in front of the popup */
-      ok = flush_frames(10);
-    }
-    /* Message popups (no rows) queued in front of the question: Return each
-     * away first, or Return on one would count as the answer (CN8-O1). */
-    for (int tries = 0; ok && pop->open && pop->current.choice_count == 0 && tries < 8; ++tries) {
-      tap(SDLK_RETURN, -1, 0);
-      ok = flush_frames(10);
-    }
-    if (pop->open && a1 >= pop->current.choice_count) {
-      printf("ERR choose %d: popup has %d rows\n", a1, pop->current.choice_count);
-      return true;
-    }
-    for (int tries = 0; ok && pop->open && pop->selection != a1 && tries < 40; ++tries) {
-      tap(pop->selection < a1 ? SDLK_DOWN : SDLK_UP, -1, 0);
-      ok = flush_frames(2);
-    }
-    if (!pop->open || pop->selection != a1) {
-      printf("ERR choose %d: popup %s, selection %d\n", a1, pop->open ? "open" : "closed", pop->selection);
-    } else {
-      /* Some popups (portraits, a woodcut in front) ignore keys for a while:
-       * press again while the same popup is still up. */
-      char body[AI_POPUP_BODY_LEN];
-      snprintf(body, sizeof(body), "%s", pop->current.body);
-      for (int tries = 0; ok && tries < 6; ++tries) {
-        tap(SDLK_RETURN, -1, 0);
-        ok = flush_frames(10);
-        if (!pop->open || strcmp(body, pop->current.body) != 0) {
-          break;
-        }
-      }
+    if (!choose_list_row(a1, &ok)) {
+      ok = choose_popup_row(a1);
     }
   } else if (strcmp(op, "type") == 0) {
     const char* text = rest ? rest : "";
@@ -1176,6 +1318,7 @@ static bool command(char* line) {
       printf("ERR save failed: %s\n", err);
     }
   } else if (strcmp(op, "status") == 0) {
+    g_skip_keys = false;
     print_status();
     const AiPopupState* pop = &g_game->ai_popups;
     if (pop->open && pop->current.choice_count > 0) { /* repeat the open question's rows */
@@ -1184,6 +1327,8 @@ static bool command(char* line) {
         printf(" [%d] %s", i, pop->current.choices[i]);
       }
       printf(" (sel %d)\n", pop->selection);
+    } else {
+      print_list_choices();
     }
   } else if (strcmp(op, "units") == 0) {
     print_units();
@@ -1191,12 +1336,30 @@ static bool command(char* line) {
   } else if (strcmp(op, "activate") == 0 && argc > 1) {
     /* What picking a unit from the tile's stack list does, by unit id. Behind a
      * popup or another screen the click would not reach the map (CN8-B1, CN8-O2). */
+    /* Right after a `choose` a queued message or an animation can still own the modal
+     * while `status` shows the map (C12-O7): idle up to 60 frames for it to clear. */
+    for (int n = 0; ok && n < 60 && !g_game->ai_popups.open && !game_screen_owns_display(g_game) &&
+                    (game_modal_open(g_game) || ai_popup_busy(&g_game->ai_popups));
+         ++n) {
+      ok = run_frame();
+    }
+    g_at = g_p.frame;
+    print_new_log();
     if (g_game->ai_popups.open || game_screen_owns_display(g_game) || game_modal_open(g_game)) {
-      printf("ERR activate %d: %s first\n", a1, off_map_reason(g_game) ? off_map_reason(g_game) : "popup open");
-      return true;
+      printf("ERR activate %d: %s first (screen %s, popup tag %d); keys SKIPPED until activate/status/sync\n", a1,
+             off_map_reason(g_game) ? off_map_reason(g_game) : "popup open", g_game->log_screen,
+             game_ai_popup_tag(g_game));
+      g_skip_keys = true;
+      return ok;
     }
     game_click_activate_unit(g_game, a1);
     ok = flush_frames(5);
+    g_skip_keys = g_game->units.selected_id != a1;
+    if (g_skip_keys) {
+      const ColonizeUnit* au = units_get_const(&g_game->units, a1);
+      printf("ERR activate %d: not selected (selected %d%s); keys SKIPPED until activate/status/sync\n", a1,
+             g_game->units.selected_id, !au || !au->active ? ", no such unit" : au->moves <= 0 ? ", unit has 0 moves" : "");
+    }
   } else if (strcmp(op, "goto") == 0 && argc > 3) {
     /* Go To order for unit ID to tile X,Y (what a map goto drag sets). */
     const ColonizeUnit* gu = units_get_const(&g_game->units, a1);
@@ -1251,6 +1414,12 @@ static bool command(char* line) {
       game_apply_map_menu_action(g_game, MAP_MENU_ACTION_EUROPE);
       ok = flush_frames(10);
     }
+    if (g_game->in_europe && g_game->europe.menu != EUROPE_MENU_NONE) {
+      /* C12-O1: with a Congress popup queued a list dialog came up with the screen and
+       * stayed open behind the popup; `europe` only opens the screen. */
+      printf("EUROPE closed list menu %d that opened with the screen\n", (int)g_game->europe.menu);
+      europe_menu_close(&g_game->europe);
+    }
     if (g_game->in_europe) {
       print_europe_screen(true);
     } else {
@@ -1275,7 +1444,24 @@ static bool command(char* line) {
       printf("ERR no harbor ship %d\n", a1);
       return true;
     } else if (op[1] == 'a') {
-      game_europe_request_sail(g_game, a1); /* @SAILAWAY Yes/No: `choose 0` sails */
+      /* sail H answers its own @SAILAWAY Yes/No (C12-O11: a scripted `choose 0` meant for it
+       * declined a mercenary offer that opened first). A second prompt queued behind an open
+       * one shares the single map_confirm slot and wedged the screen (C12-B4): refuse. */
+      if (g_game->ai_popups.open || ai_popup_busy(&g_game->ai_popups)) {
+        printf("ERR sail %d: a popup is open or queued: answer it first\n", a1);
+        print_new_log();
+        return true;
+      }
+      game_europe_request_sail(g_game, a1);
+      ok = flush_frames(10);
+      const AiPopupState* sp = &g_game->ai_popups;
+      if (ok && sp->open && sp->current.tag == AI_POPUP_TAG_MAP_CONFIRM &&
+          g_game->map_confirm == GAME_MAP_CONFIRM_EUROPE_SAIL) {
+        ok = choose_popup_row(0); /* row 0 = Yes */
+        printf("SAIL %d %s\n", a1, sp->open ? "prompt still open" : "sailed");
+      } else if (sp->open) {
+        printf("WARN sail %d: another popup opened first (the sail prompt waits behind it): read CHOICES\n", a1);
+      }
     } else if (op[0] == 's') {
       /* sell H [CARGO]: every hold of CARGO (else every hold, best first); stops at a boycott. */
       eu->selected_harbor = a1;
@@ -1360,6 +1546,22 @@ static bool command(char* line) {
       }
       int dx = 0;
       int dy = 0;
+      /* The screen drop derives the job from the plot (FUN_2f2b_3fa6): water = fisherman,
+       * refused with @NODOCKS when the colony has no Docks; land never takes fishing.
+       * The shared writer seated a farmer on ocean for +0 food (C12-O2). */
+      const int job = atoi(argv[4]);
+      if (colonies_field_tile_delta(tile, &dx, &dy)) {
+        const bool water = map_tile_is_water(&g_game->world_map, c->x + dx, c->y + dy);
+        if (water != (job == COLONIZE_JOB_FISHERMAN)) {
+          printf("ERR plot %d is %s: job %d does not work there (fisherman = %d)\n", tile, water ? "water" : "land",
+                 job, COLONIZE_JOB_FISHERMAN);
+          return true;
+        }
+        if (water && !colony_yield_colony_has_docks(&g_game->colonies, c)) {
+          printf("ERR plot %d is water and %s has no Docks (@NODOCKS)\n", tile, c->name);
+          return true;
+        }
+      }
       const int tribe = colonies_field_tile_delta(atoi(argv[3]), &dx, &dy) && g_game->col1.tribe
         ? colonies_indian_claim_tribe_from_w(&w, g_game->human_nation, c->x, c->y, c->x + dx, c->y + dy)
         : -1;
@@ -1406,7 +1608,8 @@ static bool command(char* line) {
       printf("ERR no colonist %d in colony %d\n", a2, a1);
       return true;
     }
-    if (!g_game->in_colony || g_game->colony_view_id != c->id) {
+    const bool opened = !g_game->in_colony || g_game->colony_view_id != c->id;
+    if (opened) {
       game_enter_colony(g_game, c->id);
       flush_frames(10);
     }
@@ -1416,6 +1619,22 @@ static bool command(char* line) {
     if (!c->active || c->colonist_count < before) {
       printf("EJECT unit %d%s\n", g_game->colony_screen.selected_outside_unit,
              c->active ? "" : " (colony abandoned)");
+    } else if (g_game->ai_popups.open && g_game->ai_popups.current.choice_count == 0) {
+      /* A refusal message (@KEEPSTOCKADE: a fortified colony keeps 3, @SIEGE): say why
+       * and close it, or the next command hits it (C12 eject loop). */
+      char why[AI_POPUP_BODY_LEN];
+      snprintf(why, sizeof(why), "%s", g_game->ai_popups.current.body);
+      for (char* q = why; *q; ++q) {
+        *q = *q == '\n' ? ' ' : *q;
+      }
+      print_new_log();
+      tap(SDLK_RETURN, -1, 0);
+      ok = flush_frames(10);
+      printf("ERR eject refused: %s\n", why);
+      if (ok && opened && g_game->in_colony && !g_game->ai_popups.open) {
+        tap(SDLK_ESCAPE, -1, 0); /* leave the screen this command opened */
+        ok = flush_frames(5);
+      }
     } else if (g_game->ai_popups.open) {
       printf("EJECT asks: answer the popup\n");
     } else {
@@ -1458,8 +1677,16 @@ static bool command(char* line) {
     }
     int moved = 0;
     if (op[0] == 'l') {
-      const int amt = argc > 3 ? atoi(argv[3]) : 100;
-      moved = colonies_transfer_to_unit(&g_game->colonies, cid, &g_game->units, a1, a2, amt);
+      /* units_load_goods puts the whole remainder in ONE new hold (FUN_15eb_30b8, no
+       * 100 clamp); the screen drag never passes more than 100, so load in hold-sized
+       * steps (C12: `load UID lumber 300` made a 300 hold that unload then refused). */
+      for (int left = argc > 3 ? atoi(argv[3]) : 100, step; left > 0; left -= step) {
+        step = colonies_transfer_to_unit(&g_game->colonies, cid, &g_game->units, a1, a2, left < 100 ? left : 100);
+        moved += step;
+        if (step <= 0) {
+          break;
+        }
+      }
     } else {
       bool full = false;
       for (int h = COLONIZE_UNIT_CARGO_MAX - 1; h >= 0; --h) {
@@ -1480,7 +1707,7 @@ static bool command(char* line) {
       }
     }
     ok = flush_frames(2);
-  } else if (strcmp(op, "build") == 0 && argc > 2) {
+  } else if (strcmp(op, "build") == 0 && argc > 1) {
     /* build N BID [queue]: colony N's construction pick, as a click (or a Shift-click with
      * `queue`) on that build-menu row does; BID = @BUILDING row or unit code (42 artillery,
      * 43 wagon train ...). Opens the colony screen; `key Escape` closes it. */
@@ -1499,11 +1726,32 @@ static bool command(char* line) {
     for (int i = 0; i < n; ++i) {
       listed = listed || ids[i] == a2;
     }
-    if (!listed) {
-      printf("ERR build %d not in %s's build menu (%s)\n", a2, bc->name,
-             a2 >= 0 && a2 < g_game->colonies.building_type_count && bc->has_building[a2]
-               ? "already built" : "cut row, prerequisite, population or founding father");
-      return true;
+    if (!listed || argc < 3) {
+      if (argc > 2) {
+        printf("ERR build %d not in %s's build menu (%s)\n", a2, bc->name,
+               a2 >= 0 && a2 < g_game->colonies.building_type_count && bc->has_building[a2]
+                 ? "already built" : "cut row, prerequisite, population or founding father");
+      }
+      /* The menu's rows, so the next try needs no lookup (C12-O3). */
+      printf("BUILDABLE %s:", bc->name);
+      for (int i = 0; i < n; ++i) {
+        const char* nm = NULL;
+        if (ids[i] >= 0 && ids[i] < g_game->colonies.building_type_count) {
+          nm = g_game->colonies.building_types[ids[i]].name;
+        } else {
+          colonies_unit_build_info(ids[i], &nm, NULL, NULL);
+        }
+        printf(" %d %s;", ids[i], nm ? nm : "?");
+      }
+      printf("\n");
+      /* A colony screen left open stalls the next `auto` / `endturn`. */
+      if (g_game->in_colony && g_game->colony_view_id == bc->id && !g_game->ai_popups.open) {
+        tap(SDLK_ESCAPE, -1, 0);
+        ok = flush_frames(5);
+      }
+      print_new_log();
+      fflush(stdout);
+      return ok;
     }
     const bool was_in = g_game->in_colony;
     game_enter_colony(g_game, bc->id);
@@ -1597,6 +1845,31 @@ static bool command(char* line) {
       row[n] = '\0';
       printf("W%3d %s\n", y, row);
     }
+  } else if (strcmp(op, "villages") == 0) {
+    /* villages [R [X Y]]: every seen native settlement (within R of the cursor or X,Y):
+     * tribe, capital, chief visited, mission (nation, J = Jesuit), village tension and the
+     * tribe's alarm toward you (75+ = hostile). Read from the save state, like `colonies`. */
+    const ColonizeCol1Save* c1 = &g_game->col1;
+    const int me = g_game->human_nation;
+    const int r = a1 > 0 ? a1 : 9999;
+    const int cx = argc > 3 ? a2 : g_game->map_cursor_x, cy = argc > 3 ? atoi(argv[3]) : g_game->map_cursor_y;
+    for (int i = 0; g_game->col1_ok && c1->tribe && i < c1->head.tribe_count && me >= 0 && me < 4; ++i) {
+      const ColonizeCol1Tribe* t = &c1->tribe[i];
+      const int ni = t->nation_id - 4;
+      if (ni < 0 || ni >= (int)COLONIZE_COL1_INDIAN_COUNT || abs(t->x - cx) > r || abs(t->y - cy) > r ||
+          !map_tile_seen_by(&g_game->world_map, t->x, t->y, me)) {
+        continue;
+      }
+      char mission[8] = "-";
+      if (t->mission != COL1_TRIBE_MISSION_NONE) {
+        snprintf(mission, sizeof(mission), "%d%s", t->mission & COL1_TRIBE_MISSION_NATION_MASK,
+                 (t->mission & COL1_TRIBE_MISSION_JESUIT_BIT) ? "J" : "");
+      }
+      printf("VILLAGE (%d,%d) %s%s%s%s pop %d mission %s tension %d alarm %d\n", t->x, t->y,
+             reports_tribe_name(ni), t->state.capital ? " capital" : "", t->state.scouted ? " visited" : "",
+             t->state.learned ? " taught" : "", t->population, mission, col1_tribe_attitude(t, me),
+             c1->indian[ni].alarm_by_player[me]);
+    }
   } else if (strcmp(op, "rumours") == 0) {
     /* Every seen rumour tile: terrain letter as in `map`, h = hill, m = mountain. */
     const ColonizeWorldMap* m = &g_game->world_map;
@@ -1642,9 +1915,9 @@ static bool command(char* line) {
   } else if (strcmp(op, "colonies") == 0) {
     print_colonies();
   } else if (strcmp(op, "nestedpick") == 0) {
-    snprintf(g_nested_pick, sizeof(g_nested_pick), "%s", rest ? rest : "");
-    g_nested_pick[strcspn(g_nested_pick, "\r\n")] = '\0';
+    set_nested_pick(rest);
   } else if (strcmp(op, "sync") == 0) {
+    g_skip_keys = false;
     printf("@@ %s\n", argc > 1 ? argv[1] : "");
   } else if (strcmp(op, "quit") == 0) {
     return false;

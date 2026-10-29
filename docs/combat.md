@@ -335,9 +335,8 @@ frames, so out-of-sight or in-colony fights stay instant.
   `units_apply_naval_loss_outcome`; the `attack == 0` rail on the land arm is
   deliberately not applied to hulls (DOS keys on the type range alone, so an
   armed Privateer moored alongside is damaged exactly like a Caravel).
-  `units_seize_noncombat_at` still skips hulls: it stands in for the colony
-  walk-in, and DOS's own colony-fall purge `FUN_43f7_0512` destroys hulls
-  outright with `@SEIZURESEA` rather than repairing them. Pinned by
+  `units_seize_noncombat_at` still skips hulls: the capture arm's own 0ec0
+  sweep (raw 100882) damages them in `units_try_capture_foreign_colony_at`. Pinned by
   `tests/unit/test_units_*.c (split 2026-09-23)` (`0352 hull arm damages berthed ships in a land
   sweep`).
 - Winner: Washington always-promote; else chance promote (`FUN_5fef_172c`)
@@ -519,19 +518,19 @@ DOS. Indian capturer: `colonies_abandon` + `@BURNED` on raid burn paths. Also AI
 euro / king REF / raid paths (all through `colonies_capture`, same effects when
 `colonies_set_col1_context` has a save).
 
-**Ships berthed in a fallen port — refutation, 2026-09-08.** The long-standing
-PARK ("does the euro seize arm sink foreign warships in a fallen port?")
-resolves to **nothing happens to them**. `FUN_5fef_1b0e` is the only resolver
-on that path and its capture arm (raw `viceroy_unpacked.c:100905-101034`)
-never touches the unit array except for the WoI crown neighbour re-home
-(`100949-100963`). The hull is invisible to the assault at every earlier
-stage too: `FUN_5fef_0000`'s domain gate (raw `99190-99196`) skips any
-candidate whose ship-ness (type `0x0d..0x12`) differs from the attacker's
-tile water test, so it never defends, and DOS has no "tile clear of
-foreigners" test to fail. The town changes hands with the loser's ship still
-sitting in it, under its old flag. Nothing is sunk and nothing is seized —
-the `0512` destroy texture belongs to `FUN_43f7_0512` (the crown REF landing
-seizure, `ai_king.c`), not here.
+**Ships berthed in a fallen port (2026-10-29, playtest C12-O13; reverses the
+2026-09-08 "nothing happens" refutation).** The hull never defends —
+`FUN_5fef_0000`'s domain gate (raw `99190-99196`) skips any candidate whose
+ship-ness (type `0x0d..0x12`) differs from the attacker's tile water test —
+and it never blocks the capture. But the capture arm opens (raw
+`viceroy_unpacked.c:100878-100882`, 5fef:2bbc, before the owner flip at
+`100905`) with `0916(attacker)` then `caseD_14` = `FUN_5fef_0ec0(07e0(colony
+x,y), attacker)`: 0352 on every unit still on the colony tile. A hull takes
+0352's hull arm; a land winner has guns 0, so it is always **damaged** and
+limps to the nearest own Drydock (distance 0 skipped, so not the fallen port)
+or Europe; a WoI human with no repair port loses it (raw `99604`). Port:
+`units_try_capture_foreign_colony_at` (hull-only walk; land bystanders were
+already seized on entry). Pinned by `combat_port_ship_fate_discharge`.
 
 Both post-win gates — the walk-in gate in `units_try_move_w` and the contested
 test in `units_try_capture_foreign_colony` — use `units_domain_blocker_at`

@@ -982,6 +982,15 @@ static void ai_contact_speak_with_chief(
         if (human) {
           /* @CHIEFHOWDY: village skill + the three most-wanted goods (ask[] top). */
           const int skill = ai_contact_a618_skill(ctx, nation_id, t);
+          /* DOS-LITERAL thunk_FUN_1000_a60c -> thunk_FUN_1000_a618(...,1)
+           * (overlays.c 77535, human arm only): a618 reseeds from the village
+           * record (FUN_1000_8f80/86ba) and closes with FUN_1000_86ba(DS:0x83a6)
+           * at raw 77781, before its param_5 early return — so the scouted
+           * rand(1,3) below draws off the turn seed. The AI arm never calls
+           * a618 and keeps the stream. Same reseed as live_among_natives. */
+          if (ctx->rng) {
+            dos_rng_seed(ctx->rng, ai_turn_seed(ctx));
+          }
           AiContactMeetEcon2154 econ;
           int want[3] = {-1, -1, -1};
           if (ai_contact_meet_economics_2154(ctx, nation_id, t, &econ)) {
