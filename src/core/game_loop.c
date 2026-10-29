@@ -1233,7 +1233,20 @@ void game_combat_popup_pump(void* user) {
         input.last_key = COLONIZE_KEY_ENTER;
       }
     }
-    if (game->ai_popups.open) {
+    /* A woodcut armed by the same event goes up ahead of its dialog, as in
+     * game_service_woodcut (5bfb:15cf fires woodcut 10 before @HELLOFIRST,
+     * and the AI-initiated meeting answers that talk inside this pump). */
+    bool woodcut_just_opened = false;
+    if (!game->woodcut.open && woodcut_has_pending()) {
+      const int wid = woodcut_take_pending();
+      woodcut_just_opened = wid >= 0 &&
+        woodcut_open(&game->woodcut, game->resolved_data_dir, wid);
+    }
+    if (game->woodcut.open) {
+      if (!woodcut_just_opened) {
+        (void)woodcut_handle_input(&game->woodcut, &input);
+      }
+    } else if (game->ai_popups.open) {
       ai_popup_handle_input(&game->ai_popups, &input);
       game_apply_ai_popup_result(game);
     }
