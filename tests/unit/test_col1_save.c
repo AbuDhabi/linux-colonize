@@ -4521,7 +4521,7 @@ int main(void) {
    * C12-B2: a docked hull keeps its own exit tile in +0x314d/+0x314e
    * (original_saves/colony-prod-tests/COLONY01-dutch2-t1.SAV: goto (50,15),
    * nation +0x32 = 52). A ship bought in Europe takes the nation tile at
-   * purchase (FUN_38fd_4b50 raw 64891-64892). Both survive capture + apply.
+   * purchase (FUN_38fd_4b50 raw 64895-64896). Both survive capture + apply.
    */
   {
     ColonizeMsgCatalog names;

@@ -3732,7 +3732,7 @@ COLONIZE_INTERNAL void col1_bridge_capture_europe_lanes(Col1CaptureCtx* ctx) {
         }
         const bool in_port = lanes[li].xy == (uint8_t)(EUROPE_PARK_XY + n);
         /* DOS keeps +0x314d/+0x314e on a docked hull: arrival (FUN_48d3_06ba)
-         * never clears them, the purchase (FUN_38fd_4b50 raw 64891-64892)
+         * never clears them, the purchase (FUN_38fd_4b50 raw 64895-64896)
          * stamps the nation tile there, and FUN_48d3_0346 sails from them
          * (original_saves/colony-prod-tests/COLONY01-dutch2-t1.SAV: docked
          * Dutch hull goto (50,15) while nation +0x32 = 52). */
