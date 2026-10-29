@@ -895,6 +895,11 @@ static void ai_spawn_brave_near(
       u->goto_x = 0xFF;
       u->goto_y = 0xFF;
       u->home_tribe_id = tribe_index;
+      /* FUN_1427_06b4 raw 7735-7737: a native unit's +0x12 word (021a's
+       * last-visit stamp) = DS:0x538e, turn 0 at new game. Leaving 06b4's
+       * 0xff there made every starting Brave skip colony visits as
+       * "cooldown" until turn ~270 (DOS turn-1 saves carry 0). */
+      ai_021a_set_visit_turn(u, 0);
     }
     /* FUN_1427_02ca raw 7497-7506: native spawns on a rumour tile mark
      * layer2 bit0 but leave the owner nibble unset. Restore that nibble even
