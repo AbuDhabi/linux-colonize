@@ -117,7 +117,9 @@ dead: a Jesuit denounces like a plain missionary, and a won mission is installed
 the Jesuit bit (0x10).
 
 **Port:** `ai_contact_denounce_heresy` (`src/core/ai_contact_actions.c`) tests
-`UNITS_JOB_MISSIONARY` (0x18). Came from port_bugs.md #558.
+`UNITS_JOB_MISSIONARY` (0x18), and a won mission takes the Jesuit bit on the establish
+body's test (Jesuit or Brebeuf), so Brebeuf nations never get a plain mission from a
+denounce. Came from port_bugs.md #558.
 [Tests](archive/dos_bugs_evidence_2026-10-23.md#db-7).
 **Status:** done (2026-10-21).
 

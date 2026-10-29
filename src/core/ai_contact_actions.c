@@ -1476,7 +1476,8 @@ static void ai_contact_denounce_heresy(
    * DOS tests the denouncer's PROFESSION byte against @JOB row 3 (Cotton
    * Planter), a typo that makes the Jesuit bonus dead. The port tests the
    * Jesuit row 0x18 like the establish body (thunk_FUN_1000_a5dc):
-   * docs/dos_bugs.md DB-7. There is NO Brebeuf term here.
+   * docs/dos_bugs.md DB-7. There is NO Brebeuf term in the odds; Brebeuf
+   * only grades the installed mission (HERESY0 arm below).
    */
   const int jesuit_me = (int)u->profession == UNITS_JOB_MISSIONARY;
   const int rival_jesuit = (t->mission & COL1_TRIBE_MISSION_JESUIT_BIT) != 0;
@@ -1524,7 +1525,14 @@ static void ai_contact_denounce_heresy(
     fb[0] = '\0';
     popup_msg_fill(ctx->messages, "HERESY0", &tok, fb, body, sizeof(body));
     ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_CONVERT, nation_id, "", body);
-    t->mission = (uint8_t)(jesuit_me ? ((unsigned)e | COL1_TRIBE_MISSION_JESUIT_BIT) : (unsigned)e);
+    /*
+     * DB-7 fix extended: the installed mission takes the Jesuit bit on the
+     * same test as the establish body (thunk_FUN_1000_a5dc: profession 0x18
+     * or Brebeuf), so a Brebeuf nation never gets a plain mission here. The
+     * Brebeuf term grades the install only; the odds above stay as DOS.
+     */
+    const int jesuit_install = jesuit_me || founding_fathers_nation_has(col1, e, FF_JEAN_DE_BREBEUF);
+    t->mission = (uint8_t)(jesuit_install ? ((unsigned)e | COL1_TRIBE_MISSION_JESUIT_BIT) : (unsigned)e);
     d_me = -d_me;
   }
   units_despawn(ctx->units, u->id);

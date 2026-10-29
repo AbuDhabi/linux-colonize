@@ -7365,7 +7365,9 @@ static int sp_58(void) {
      * bonus. DOS thunk_FUN_1000_a594 (viceroy_overlays.asm 126507) tests the
      * denouncer's PROFESSION byte against @JOB row 3 (Cotton Planter), a
      * typo; the port tests the Jesuit row 0x18. So a Jesuit installs the
-     * won mission with the 0x10 bit, a profession-3 unit installs it plain.
+     * won mission with the 0x10 bit, a profession-3 unit installs it plain,
+     * and the same plain unit under Brebeuf (FF 22) installs it Jesuit like
+     * the establish body (thunk_FUN_1000_a5dc).
      */
     {
       ColonizeDosRng* saved_rng = ctx.rng;
@@ -7377,8 +7379,14 @@ static int sp_58(void) {
       res.result_tag = AI_POPUP_TAG_CONTACT_MEET;
       res.result_nation_a = 0;
       res.result_nation_b = 4;
-      const uint8_t profs[2] = { (uint8_t)UNITS_JOB_MISSIONARY, (uint8_t)3 };
-      for (int k = 0; k < 2; ++k) {
+      const uint8_t profs[3] = { (uint8_t)UNITS_JOB_MISSIONARY, (uint8_t)3, (uint8_t)3 };
+      const uint8_t ff_bit = (uint8_t)(1u << (FF_JEAN_DE_BREBEUF % 8));
+      for (int k = 0; k < 3; ++k) {
+        const int brebeuf = k == 2;
+        if (brebeuf) {
+          col1.nation[0].founding_fathers[FF_JEAN_DE_BREBEUF / 8] |= ff_bit;
+        }
+        const int want_bit = profs[k] == UNITS_JOB_MISSIONARY || brebeuf;
         int won = 0;
         for (unsigned seed = 1u; seed <= 64u && !won; ++seed) {
           col1.tribe[0].mission = 1; /* French, plain */
@@ -7405,7 +7413,7 @@ static int sp_58(void) {
           if ((col1.tribe[0].mission & 0x0f) == 0) {
             won = 1;
             const int bit = (col1.tribe[0].mission & 0x10) != 0;
-            if (bit != (profs[k] == UNITS_JOB_MISSIONARY)) {
+            if (bit != want_bit) {
               fprintf(
                 stderr,
                 "unit_ai_contact: a594 jesuit prof=%u mission=%u\n",
@@ -7414,7 +7422,8 @@ static int sp_58(void) {
               );
               ctx.rng = saved_rng;
               return fail(
-                profs[k] == UNITS_JOB_MISSIONARY
+                brebeuf ? "heresy: under Brebeuf a won mission must install the 0x10 bit"
+                : profs[k] == UNITS_JOB_MISSIONARY
                   ? "heresy: a Jesuit denouncer must install the 0x10 mission bit"
                   : "heresy: a profession-3 denouncer gets no Jesuit bonus"
               );
@@ -7423,6 +7432,9 @@ static int sp_58(void) {
           if (hu->active) {
             units_despawn(&units, hid);
           }
+        }
+        if (brebeuf) {
+          col1.nation[0].founding_fathers[FF_JEAN_DE_BREBEUF / 8] &= (uint8_t)~ff_bit;
         }
         if (!won) {
           ctx.rng = saved_rng;
