@@ -2,6 +2,7 @@ Rules:
 1. Leave `git commit` and `git push` alone. Don't change branches. The user will handle that himself. Work in the folder provided by the user.
 2. When the user tells you to continue autonomously under some conditions, do that, and don't forget it between prompts. Still, apply common sense when to stop.
 3. When it will not affect the end result, try to surgically edit a file rather than rewrite the entire thing.
+4. Play nice with any other agent sessions making changes.
 
 ## What this is
 

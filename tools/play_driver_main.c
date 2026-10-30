@@ -465,12 +465,16 @@ static const char* off_map_reason(const ColonizeGameState* g) {
 static bool goto_pending(void) {
   const ColonizeUnit* sel =
     g_game->units.selected_id >= 0 ? units_get_const(&g_game->units, g_game->units.selected_id) : NULL;
-  if (sel && sel->orders != 3) {
+  /* Go To and Trade Route both pace one tile per goto_step_ms (campaign 13
+   * D15: a trade-route wagon selected ahead of a Go To galleon made `auto`
+   * stop as "map idle" every ~20 frames, so the galleon looked stalled). */
+  if (sel && !units_orders_follow_goto(sel->orders)) {
     return false; /* the selected unit waits for orders first */
   }
   for (int i = 0; i < g_game->units.slot_end; ++i) {
     const ColonizeUnit* u = &g_game->units.units[i];
-    if (u->active && u->nation_id == g_game->human_nation && u->orders == 3 && u->moves > 0 &&
+    if (u->active && u->nation_id == g_game->human_nation && units_orders_follow_goto(u->orders) &&
+        u->moves > 0 &&
         u->aboard_ship_id < 0) {
       return true;
     }

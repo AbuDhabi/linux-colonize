@@ -1004,6 +1004,33 @@ static int case_landfall_unload(void) {
       units_despawn(&pool, lf_pax2);
       units_despawn(&pool, lf_ship2);
     }
+
+    /* Make Landfall wakes every land unit aboard (FUN_4720_049e ndisasm
+     * 0x3FE56-0x3FEA3): the second passenger keeps no sentry order. */
+    {
+      const int s3 = units_spawn(&pool, caravel, bx, by);
+      const int p3a = units_spawn_allow_stack(&pool, pioneer, lx, ly);
+      const int p3b = units_spawn_allow_stack(&pool, pioneer, lx, ly);
+      if (s3 < 0 || p3a < 0 || p3b < 0 || !units_board(&pool, p3a, s3) ||
+          !units_board(&pool, p3b, s3)) {
+        fprintf(stderr, "landfall wake setup failed\n");
+        fx_close();
+        return 1;
+      }
+      const int ship_orders = units_get(&pool, s3)->orders;
+      units_landfall_wake_tile(&pool, s3);
+      if (units_get(&pool, p3a)->orders != UNITS_ORDER_NONE ||
+          units_get(&pool, p3b)->orders != UNITS_ORDER_NONE ||
+          units_get(&pool, s3)->orders != ship_orders ||
+          units_get(&pool, p3b)->aboard_ship_id != s3) {
+        fprintf(stderr, "landfall wake: cargo must be awake and still aboard\n");
+        fx_close();
+        return 1;
+      }
+      units_despawn(&pool, p3a);
+      units_despawn(&pool, p3b);
+      units_despawn(&pool, s3);
+    }
   fx_close();
   return 0;
 }

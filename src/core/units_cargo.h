@@ -320,6 +320,8 @@ bool units_cargo_can_landfall(const ColonizeUnitPool* pool, int unit_id);
  * the move outright instead of raising @LANDFALL).
  */
 int units_first_landfall_cargo(const ColonizeUnitPool* pool, int ship_id);
+/* @LANDFALL "Make Landfall": wake every land unit on the ship's tile (FUN_4720_049e). */
+void units_landfall_wake_tile(ColonizeUnitPool* pool, int ship_id);
 /* DOS FUN_48d3_03d0 dock hop: sink the hull, then put its passengers on the
  * Europe dock tile, nearest first, each under the last. */
 void units_lane_dock_arrival(ColonizeUnitPool* pool, int ship_id);

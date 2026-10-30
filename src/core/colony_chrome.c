@@ -133,7 +133,8 @@ void colonies_render_on_map(
   int origin_y,
   const ColonizeWorldMap* fog_map,
   int fog_nation,
-  const ColonizePalette* active_palette
+  const ColonizePalette* active_palette,
+  int parts
 ) {
   if (!pool || !framebuffer) {
     return;
@@ -158,7 +159,9 @@ void colonies_render_on_map(
     const int px = origin_x + sx * tile_w;
     const int py = origin_y + sy * tile_h;
 
-    if (have_icon) {
+    if (!(parts & COLONY_MAP_DRAW_BODY)) {
+      /* name-only pass */
+    } else if (have_icon) {
       colony_blit_map_icon(
         icons, colonies_settlement_icon(pool, c), framebuffer, px, py, tile_w, tile_h, c->nation_id,
         active_palette
@@ -203,9 +206,11 @@ void colonies_render_on_map(
       snprintf(pop_text, sizeof(pop_text), "%d", shown);
       const uint8_t pop_shade[4] = {0, ink, ink, ink};
       /* FONTTINY (DS:0x89e), not the name label's FONTINTR (DS:0x268a). */
-      font_draw_text_shaded(
-        pop_font ? pop_font : font, framebuffer, px + 7, py + 7, pop_text, pop_shade
-      );
+      if (parts & COLONY_MAP_DRAW_BODY) {
+        font_draw_text_shaded(
+          pop_font ? pop_font : font, framebuffer, px + 7, py + 7, pop_text, pop_shade
+        );
+      }
 
       /* Colony name below the tile: white ink, black shadow. FONTINTR
        * already bakes a soft AA shadow into shade 2/3 of every glyph
@@ -215,7 +220,9 @@ void colonies_render_on_map(
        * manual shadow on top (player-caught: an earlier pass added one,
        * doubling up). */
       static const uint8_t kShade[4] = {0, 15, 0, 0};
-      font_draw_text_shaded(font, framebuffer, px + 2, py + 16, c->name, kShade);
+      if (parts & COLONY_MAP_DRAW_NAME) {
+        font_draw_text_shaded(font, framebuffer, px + 2, py + 16, c->name, kShade);
+      }
     }
   }
 }

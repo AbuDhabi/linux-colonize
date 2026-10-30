@@ -41,7 +41,7 @@ Status: **Done** / **Partial** / **Missing** / **PARKED**.
 | Ship | Map edge | x rim → reason **4** (→ @SAILHOME/@EUROPENOTLEAVE body, No = deny); y rim and land units silent (`4720_015c` raw 75960-75980) | `COLONIZE_ENTER_EDGE_SAIL` → @SAILHOME handler; y rim / land = silent `BLOCKED_EDGE` (port_bugs.md #717) | Done |
 | Ship | Own colony land | Dock (`465b` reads the settlement owner `281f_06be`; a DOS own-colony stack is always own) | `can_enter` + disembark; foreign units squatting on the tile (port leftovers) are ignored (port_bugs.md #553) | Done |
 | Ship / Wagon | Foreign Euro colony | — | Never enters: `FUN_5f7a_0662` → `FUN_5f7a_020e` trades from outside and spends the whole allotment ([foreign_colony_trade.md](foreign_colony_trade.md)) | Done |
-| Ship | Bare land | Landfall UI reasons 2/3 | `@LANDFALL` Stay / Make Landfall (one unit; sentry cargo OK); passenger spends its **whole** allotment (465b_05ca shore crossing, 2026-09-04); ship is neither moved nor charged (`4720_049e`, port_bugs.md #716) | Done |
+| Ship | Bare land | Landfall UI reasons 2/3 | `@LANDFALL` Stay / Make Landfall (one unit; sentry cargo OK; every other land unit aboard is woken, orders 0, port_bugs.md #1326); passenger spends its **whole** allotment (465b_05ca shore crossing, 2026-09-04); ship is neither moved nor charged (`4720_049e`, port_bugs.md #716) | Done |
 | Ship | Native village | `4528` ship abort (`@DONTKNOWSHIPS` / `@MADATSHIPS`) | `VILLAGE_SHIP` + `ai_contact_try_ship_village` | Done |
 
 ---

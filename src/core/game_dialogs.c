@@ -2917,6 +2917,9 @@ static bool game_apply_popup_voyage(ColonizeGameState* game) {
       if (ship && units_is_sea(&game->units, ship_id) && choice == 1) {
         /* DOS 4720: prefer cargo with moves; sentry cargo still eligible. */
         const int pax_id = units_first_landfall_cargo(&game->units, ship_id);
+        if (pax_id >= 0) {
+          units_landfall_wake_tile(&game->units, ship_id);
+        }
         const ColonizeWorld w = game_world(game);
         if (pax_id >= 0 &&
             units_unload_passenger_w(&w, ship_id, pax_id, dest_x, dest_y)) {

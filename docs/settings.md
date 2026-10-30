@@ -121,8 +121,10 @@ in RTST record 13, written only while on; off = DOS draws and saves unchanged.
 `divergences.current_vision` dithers (1-pixel checkerboard of 33% brightness, palette-nearest LUT) every seen
 map tile that no unit or colony of the viewed nation currently sees: unit tiles
 from `units_sight_radius` + the `map_sight_each` domain gate, colonies radius 1.
-Drawn above terrain, colonies and units (`game_render_current_vision`); unseen
-black tiles are untouched. Render-only, nothing saved.
+The veil covers explored tiles plus a 1-tile ring into the unexplored. Layering,
+top first: colony names, fog (pixels the terrain pass left as fog are re-stamped,
+`s_fog_mask`), the veil (`game_render_current_vision`), everything else.
+Render-only, nothing saved.
 
 Port-only keys, no DOS bit, no head bridge.
 `save_dir` empty means the platform default (`<exe>/COLONIZE`). `seed` is

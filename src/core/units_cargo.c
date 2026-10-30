@@ -915,6 +915,34 @@ int units_first_landfall_cargo(const ColonizeUnitPool* pool, int ship_id) {
   return -1;
 }
 
+/*
+ * DOS-LITERAL FUN_4720_049e reason 2/3 "Make Landfall" arm (ndisasm
+ * 0x3FE56-0x3FEA3): after FUN_281f_086c selects the DS:0x9e50 passenger, the
+ * tile chain (02ee/02e4) is walked and every unit whose @UNIT size column
+ * (DS:0x5238) is < 99 gets orders byte +0x314c = 0. Only the passenger then
+ * steps ashore (1a1f_0142); the rest stay aboard but awake, so they come up
+ * in the unit cycle for their own move.
+ */
+void units_landfall_wake_tile(ColonizeUnitPool* pool, int ship_id) {
+  const ColonizeUnit* ship = units_get_const(pool, ship_id);
+  if (!ship || !units_is_on_map(ship)) {
+    return;
+  }
+  const int sx = ship->x;
+  const int sy = ship->y;
+  for (int i = 0; i < units_slot_end(pool); ++i) {
+    ColonizeUnit* u = &pool->units[i];
+    /* The DOS tile chain holds the passengers too (port: aboard_ship_id). */
+    if (!u->active || u->id < 0 || u->x != sx || u->y != sy) {
+      continue;
+    }
+    const ColonizeUnitType* t = units_type(pool, u->type_index);
+    if (t && t->space < 99) {
+      u->orders = UNITS_ORDER_NONE;
+    }
+  }
+}
+
 /* FUN_48d3_03d0 landing a hull on the Europe dock lane (236+n): DOS keeps
  * no "aboard" link, so the walk moves the hull and then each passenger
  * (nearest first) with 0880 + 03a0, each sinking under the one before.

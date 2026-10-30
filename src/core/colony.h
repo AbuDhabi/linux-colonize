@@ -1098,6 +1098,11 @@ void colonies_blit_settlement_icon(
   const ColonizePalette* active_palette
 );
 
+/* colonies_render_on_map `parts`: icon + population badge, and the name label. */
+#define COLONY_MAP_DRAW_BODY 1
+#define COLONY_MAP_DRAW_NAME 2
+#define COLONY_MAP_DRAW_ALL (COLONY_MAP_DRAW_BODY | COLONY_MAP_DRAW_NAME)
+
 /* FUN_112b_0c64 dual-font label rendering (see docs/colony.md#colonies_render_on_map) */
 void colonies_render_on_map(
   const ColonizeColonyPool* pool,
@@ -1115,7 +1120,8 @@ void colonies_render_on_map(
   int origin_y,
   const ColonizeWorldMap* fog_map,
   int fog_nation,
-  const ColonizePalette* active_palette
+  const ColonizePalette* active_palette,
+  int parts /* COLONY_MAP_DRAW_* */
 );
 
 #endif

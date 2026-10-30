@@ -368,11 +368,12 @@ Unit cap
 - Past the cap a finished unit silently fails (@TOOMANYUNITS), and its
   hammers and tools are still spent. Disband an idle unit (`key d shift`)
   the turn a gun finishes.
-- Campaign 13 (Discoverer, 1694): the French and Dutch colonies stayed after
-  the declaration (France intervened 6 turns later at Fort Nassau), so the
-  next line did not hold there.
-- Declaring independence removes the other European powers and all their
-  units.
+- Declaring independence withdraws the two European powers that are neither
+  you nor the Crown's slot (DOS `FUN_43f7_1a26` -> `FUN_43f7_0108`): every
+  unit they own is deleted and they stop acting, but their colonies stay on
+  the map, ownerless and inert (campaign 13: French and Dutch colonies still
+  there after 1694). The intervention power is one of them; its force arrives
+  as your own units.
 
 Calendar
 

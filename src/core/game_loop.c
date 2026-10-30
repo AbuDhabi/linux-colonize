@@ -2020,16 +2020,21 @@ static void game_vision_mark(void* ctx, int x, int y, bool outer) {
  * divergences.current_vision (port-only): checkerboard of 33% brightness on every seen tile that
  * no unit (units_sight_radius, map_sight_each domain gate) or colony (radius
  * 1, the FUN_1427_0bfe live-sight ring) of the viewed nation currently sees.
- * Unseen tiles stay pure fog. Drawn over terrain, colonies and units.
+ * Layering, top first: colony names, fog, this veil, everything else.
  */
+static bool game_current_vision_on(const ColonizeGameState* game) {
+  const int nation = game_fog_nation(game);
+  return settings_get()->current_vision && game->world_map_ok && game->map_palette_ok &&
+         game->terrain_peel_phase == 0 && nation >= 0 && nation <= 3;
+}
+
 static void game_render_current_vision(
   const ColonizeGameState* game, ColonizeFramebuffer8* fb, int map_zoom, int view_x, int view_y,
   int view_cols, int view_rows
 ) {
   const ColonizeWorldMap* map = &game->world_map;
   const int nation = game_fog_nation(game);
-  if (!settings_get()->current_vision || !game->world_map_ok || !game->map_palette_ok ||
-      nation < 0 || nation > 3) {
+  if (!game_current_vision_on(game)) {
     return;
   }
   static uint8_t lit[256 * 256]; /* map width/height are uint8_t */
@@ -2063,9 +2068,34 @@ static void game_render_current_vision(
     for (int sx = 0; sx < view_cols; ++sx) {
       const int mx = view_x + sx;
       const int my = view_y + sy;
-      if (!map_in_bounds(map, mx, my) || !map_tile_seen_by(map, mx, my, nation) ||
-          lit[(size_t)my * (size_t)map->width + (size_t)mx]) {
+      if (!map_in_bounds(map, mx, my) || lit[(size_t)my * (size_t)map->width + (size_t)mx]) {
         continue;
+      }
+      /* Explored tiles plus a 1-tile ring into the unexplored, so the veil
+       * reaches under the fog's ragged edge (the fog is stamped back on top). */
+      bool near_seen = map_tile_seen_by(map, mx, my, nation);
+      for (int d = 0; d < 8 && !near_seen; ++d) {
+        const int nx = mx + MAP_DIR8_DX[d];
+        const int ny = my + MAP_DIR8_DY[d];
+        near_seen = map_in_bounds(map, nx, ny) && map_tile_seen_by(map, nx, ny, nation);
+      }
+      if (!near_seen) {
+        continue;
+      }
+      /* An unexplored ring tile edge-adjacent to live sight stays unveiled:
+       * the fog dithers straight into the lit tile there. */
+      if (!map_tile_seen_by(map, mx, my, nation)) {
+        static const int k_dx[4] = {0, 1, 0, -1};
+        static const int k_dy[4] = {-1, 0, 1, 0};
+        bool touches_lit = false;
+        for (int d = 0; d < 4 && !touches_lit; ++d) {
+          const int nx = mx + k_dx[d];
+          const int ny = my + k_dy[d];
+          touches_lit = map_in_bounds(map, nx, ny) && lit[(size_t)ny * (size_t)map->width + (size_t)nx];
+        }
+        if (touches_lit) {
+          continue;
+        }
       }
       for (int py = sy * tile; py < (sy + 1) * tile && py < fb->height; ++py) {
         uint8_t* row = &fb->pixels[(size_t)py * (size_t)fb->width];
@@ -2076,6 +2106,40 @@ static void game_render_current_vision(
           }
         }
       }
+    }
+  }
+}
+
+/*
+ * divergences.current_vision fog layer: s_fog_mask[p] = 1 where the terrain
+ * pass left a fog pixel (PHYS0 148 noise, a dither mask's non-zero ink), 0
+ * where terrain shows (a mask's colour-0 holes take the fill). The fog pixels
+ * are re-stamped over the veil and the pieces afterwards.
+ */
+static uint8_t s_fog_mask[MAP_ZOOM_MAX_VIEW_COLS * MAP_ZOOM_NATIVE_TILE *
+                          MAP_ZOOM_MAX_VIEW_ROWS * MAP_ZOOM_NATIVE_TILE];
+
+static void game_fog_mark(
+  const ColonizeFramebuffer8* fb, const ColonizeSpriteSheet* sheet, int sprite, int sx, int sy
+) {
+  if (!sheet || sprite < 0 || sprite >= sheet->sprite_count) {
+    return;
+  }
+  const ColonizeSprite* sp = &sheet->sprites[sprite];
+  if (!sp->pixels) {
+    return;
+  }
+  const int ox = sx * MAP_ZOOM_NATIVE_TILE + (MAP_ZOOM_NATIVE_TILE - sp->width) / 2;
+  const int oy = sy * MAP_ZOOM_NATIVE_TILE + (MAP_ZOOM_NATIVE_TILE - sp->height) / 2;
+  for (int y = 0; y < sp->height; ++y) {
+    for (int x = 0; x < sp->width; ++x) {
+      const uint8_t c = sp->pixels[y * sp->width + x];
+      const int px = ox + x;
+      const int py = oy + y;
+      if (c == COLONIZE_SS_TRANSPARENT || px < 0 || py < 0 || px >= fb->width || py >= fb->height) {
+        continue;
+      }
+      s_fog_mask[(size_t)py * (size_t)fb->width + (size_t)px] = c != 0;
     }
   }
 }
@@ -2107,6 +2171,10 @@ COLONIZE_INTERNAL void game_render_map_composite(
   memset(zoom_fb.pixels, 0, (size_t)zoom_fb.width * (size_t)zoom_fb.height);
   ColonizeFramebuffer8* const framebuffer_screen = framebuffer;
   framebuffer = &zoom_fb;
+  const bool vision_veil = game_current_vision_on(game);
+  if (vision_veil) {
+    memset(s_fog_mask, 0, (size_t)zoom_fb.width * (size_t)zoom_fb.height);
+  }
 
   if (game->terrain_ok && game->terrain.sprite_count > 0) {
     for (int sy = 0; sy < view_rows; ++sy) {
@@ -2131,6 +2199,9 @@ COLONIZE_INTERNAL void game_render_map_composite(
               blit_map_sprite(
                 &game->phys0, 148, framebuffer, sx, sy, tile_w, tile_h, map_origin_x, map_origin_y
               );
+              if (vision_veil) {
+                game_fog_mark(framebuffer, &game->phys0, 148, sx, sy);
+              }
               /* FUN_6ba1_0938 unseen tail: seen neighbours dither their
                * terrain onto the fog tile (mask 104+q + fill into holes). */
               const int fog_nation_id = game_fog_nation(game);
@@ -2145,6 +2216,9 @@ COLONIZE_INTERNAL void game_render_map_composite(
                     &game->phys0, mask, framebuffer, sx, sy, tile_w, tile_h, map_origin_x,
                     map_origin_y
                   );
+                  if (vision_veil) {
+                    game_fog_mark(framebuffer, &game->phys0, mask, sx, sy);
+                  }
                 }
                 if (fill >= 0 && fill < game->terrain.sprite_count) {
                   blit_map_sprite_where_dest(
@@ -2210,6 +2284,9 @@ COLONIZE_INTERNAL void game_render_map_composite(
                 blit_map_sprite(
                   &game->phys0, mask, framebuffer, sx, sy, tile_w, tile_h, map_origin_x, map_origin_y
                 );
+                if (vision_veil) {
+                  game_fog_mark(framebuffer, &game->phys0, mask, sx, sy);
+                }
               }
               /* Fill through the mask sprite's own colour-0 holes, never a
                * bare dest==0 match — earlier overlays (resource sprites at
@@ -2236,12 +2313,21 @@ COLONIZE_INTERNAL void game_render_map_composite(
     }
   }
 
+  /* current_vision: keep the fog pixels' final colours to stamp back later. */
+  static uint8_t s_fog_ink[sizeof(s_fog_mask)];
+  const size_t zoom_px = (size_t)zoom_fb.width * (size_t)zoom_fb.height;
+  if (vision_veil) {
+    memcpy(s_fog_ink, zoom_fb.pixels, zoom_px);
+  }
+
   if (game->pioneer_plan_view && game->terrain_peel_phase == 0) {
     game_render_pioneer_plan(game, framebuffer, view_x, view_y, view_cols, view_rows);
   }
 
   /* Hidden Terrain phase 1+ (VIEW ~Hidden Terrain): units/settlements peeled first, stay off. */
-  if (game->terrain_peel_phase == 0 && (game->colonies_ok || game->colonies.colony_count > 0)) {
+  const bool draw_colonies =
+    game->terrain_peel_phase == 0 && (game->colonies_ok || game->colonies.colony_count > 0);
+  if (draw_colonies) {
     colonies_render_on_map(
       &game->colonies,
       game->unit_icons_ok ? &game->unit_icons : NULL,
@@ -2258,7 +2344,8 @@ COLONIZE_INTERNAL void game_render_map_composite(
       map_origin_y,
       game->world_map_ok ? &game->world_map : NULL,
       game_fog_nation(game),
-      game->map_palette_ok ? &game->map_palette : NULL
+      game->map_palette_ok ? &game->map_palette : NULL,
+      vision_veil ? COLONY_MAP_DRAW_BODY : COLONY_MAP_DRAW_ALL
     );
   }
 
@@ -2293,8 +2380,20 @@ COLONIZE_INTERNAL void game_render_map_composite(
     );
   }
 
-  if (game->terrain_peel_phase == 0) {
+  if (vision_veil) {
     game_render_current_vision(game, framebuffer, map_zoom, view_x, view_y, view_cols, view_rows);
+    for (size_t p = 0; p < zoom_px; ++p) {
+      if (s_fog_mask[p]) {
+        zoom_fb.pixels[p] = s_fog_ink[p];
+      }
+    }
+    if (draw_colonies) {
+      colonies_render_on_map(
+        &game->colonies, NULL, framebuffer, game->intro_font_ok ? &game->intro_font : NULL, NULL,
+        view_x, view_y, view_cols, view_rows, tile_w, tile_h, map_origin_x, map_origin_y,
+        &game->world_map, game_fog_nation(game), NULL, COLONY_MAP_DRAW_NAME
+      );
+    }
   }
 
   /* Decimate the native-res composite down to the fixed 240×192 on-screen

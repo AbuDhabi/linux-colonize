@@ -462,6 +462,7 @@ COLONIZE_INTERNAL GameMoveStep game_move_sea_unit(
               ids,
               2
             )) {
+          units_landfall_wake_tile(&game->units, sid);
           const ColonizeWorld w = game_world(game);
           if (!units_unload_passenger_w(&w, sid, pax_ready, dest_x, dest_y)) {
             set_status(game, "Move blocked", NULL);
