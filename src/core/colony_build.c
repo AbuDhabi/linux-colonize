@@ -285,11 +285,11 @@ static int colonies_capture_col1_effects(
    * becomes 0x20). */
   /* DOS bug, reproduced for now (docs/tolerated_dos_bugs.md TB-32). */
   const uint8_t won = ai_diplo_read(col1, new_nation, old_nation);
-  /* TB-32: the clearing arm is dropped under !dos_buggy_behavior(). */
-  if ((won & AI_DIPLO_WAR) != 0) {
-    if (dos_buggy_behavior()) {
-      ai_diplo_write(col1, new_nation, old_nation, (uint8_t)(won & ~AI_DIPLO_WAR));
-    }
+  /* TB-32: fixed under !dos_buggy_behavior(), a capture is WAR both ways. */
+  if (!dos_buggy_behavior()) {
+    ai_diplo_or_both(col1, old_nation, new_nation, AI_DIPLO_WAR);
+  } else if ((won & AI_DIPLO_WAR) != 0) {
+    ai_diplo_write(col1, new_nation, old_nation, (uint8_t)(won & ~AI_DIPLO_WAR));
   } else {
     ai_diplo_write(col1, old_nation, new_nation,
                    (uint8_t)(ai_diplo_read(col1, old_nation, new_nation) | AI_DIPLO_WAR));

@@ -6253,6 +6253,17 @@ static int sp_48(void) {
         return fail("TB-53 fixed: no-treaty attack must announce and set WAR both ways");
       }
     }
+    /* TB-54: the human breaking a one-sided treaty WARs both rows once fixed. */
+    ai_popup_clear(&wp);
+    ai_diplo_write(&col1, 0, 1, AI_DIPLO_MET);
+    ai_diplo_write(&col1, 1, 0, AI_DIPLO_MET | AI_DIPLO_PEACE);
+    dos_buggy_behavior_set(false);
+    (void)ai_diplo_465b_band_ctx(&wctx, 0, 1);
+    dos_buggy_behavior_set(true);
+    if (ai_diplo_read(&col1, 0, 1) != (AI_DIPLO_MET | AI_DIPLO_WAR) ||
+        ai_diplo_read(&col1, 1, 0) != (AI_DIPLO_MET | AI_DIPLO_WAR)) {
+      return fail("TB-54 fixed: human treaty break must set WAR in both rows");
+    }
     /*
      * FUN_465b_0000 raw 75528-75529: either side a Privateer (@UNIT 0x10) and
      * the whole treaty/declare band is skipped — no @HAVETREATY, no war, the

@@ -673,7 +673,9 @@ int ai_diplo_465b_band_ctx(ColonizeTurnContext* ctx, int attacker, int defender)
         reports_nation_plural_woi(col1, defender), reports_nation_plural_woi(col1, attacker)
       );
       music = 1;
-      if (rel_da & AI_DIPLO_PEACE) {
+      if (!dos_buggy_behavior()) {
+        ai_diplo_or_both(col1, attacker, defender, AI_DIPLO_WAR); /* TB-54 */
+      } else if (rel_da & AI_DIPLO_PEACE) {
         ai_diplo_write(col1, defender, attacker, (uint8_t)(rel_da | AI_DIPLO_WAR));
       }
     } else {
@@ -2175,7 +2177,9 @@ static void ai_talk_resume(ColonizeTurnContext* ctx, int stage, int choice) {
         if (k->third < 4) {
           ai_diplo_clear_both(col1, h, k->third, AI_DIPLO_PEACE);
           uint8_t* f = ai_diplo_flag_byte(col1, k->third, h);
-          if (f) {
+          if (!dos_buggy_behavior()) {
+            ai_diplo_or_both(col1, h, k->third, AI_DIPLO_WAR); /* TB-54 */
+          } else if (f) {
             *f = (uint8_t)(*f | AI_DIPLO_WAR);
           }
         } else {
@@ -2417,7 +2421,9 @@ static void ai_talk_resume(ColonizeTurnContext* ctx, int stage, int choice) {
              * PICKED nation's byte toward the hired smiter, same direction
              * as the APOSTATES arm (was written (t,p) before 2026-09-06). */
             uint8_t* f = ai_diplo_flag_byte(col1, p, t);
-            if (f) {
+            if (!dos_buggy_behavior()) {
+              ai_diplo_or_both(col1, t, p, AI_DIPLO_WAR); /* TB-54 */
+            } else if (f) {
               *f = (uint8_t)(*f | AI_DIPLO_WAR);
             }
           } else {
@@ -2779,6 +2785,9 @@ void ai_diplo_treaty_timers(ColonizeTurnContext* ctx, int nation_id) {
     }
     if ((*f & 0x08) != 0 && *t == 0 && ctx->rng && dos_rng_range(ctx->rng, 0, 3) == 0) {
       *f = (uint8_t)((*f & 0xb7) | AI_DIPLO_WAR_INTENT);
+      if (!dos_buggy_behavior()) {
+        ai_diplo_clear_both(ctx->col1, nation_id, other, AI_DIPLO_PEACE); /* TB-54 */
+      }
     }
     if (*t > 0) {
       (*t)--;
@@ -3314,5 +3323,8 @@ void ai_euro_465b_privateer_sighting(
       (their_strength < our_strength) ? AI_DIPLO_WAR : AI_DIPLO_AMICABLE;
     const uint8_t cur = ai_diplo_read(col1, tn, mn);
     ai_diplo_write(col1, tn, mn, (uint8_t)(cur | follow));
+    if (follow == AI_DIPLO_WAR && !dos_buggy_behavior()) {
+      ai_diplo_or_both(col1, tn, mn, AI_DIPLO_WAR); /* TB-54 */
+    }
   }
 }
