@@ -118,7 +118,7 @@ layout (every frame) and a village's taught skill (@CHIEFHOWDY, then the visit).
 in RTST record 13, written only while on; off = DOS draws and saves unchanged.
 `divergences.pioneer_plan` adds VIEW Plan Pioneer and ORDERS Automate
 (docs/pioneer_plan.md); off = the rows stay hidden and no `PPLN` chunk is written.
-`divergences.current_vision` dithers (1-pixel checkerboard: 2/3 fog blue, palette 60..62, over 1/3 pixel; palette-nearest LUT) every seen
+`divergences.current_vision` dithers (1-pixel checkerboard: 1/4 fog blue, palette 60..62, over 3/4 pixel; palette-nearest LUT) every seen
 map tile that no unit or colony of the viewed nation currently sees: unit tiles
 from `units_sight_radius` + the `map_sight_each` domain gate, colonies radius 1.
 The veil covers explored tiles plus a 1-tile ring into the unexplored. Layering,

@@ -589,6 +589,10 @@ static void game_native_score_plot(
   (void)platform_present(game->platform, &fb, &pal);
 }
 
+/* Unit id mid-slide (parked inactive) whose sight the vision grid still
+ * counts; -1 = none. */
+static int s_vision_slide_unit = -1;
+
 COLONIZE_INTERNAL void game_move_watch_w(
   const ColonizeWorld* w,
   void* user,
@@ -719,6 +723,7 @@ COLONIZE_INTERNAL void game_move_watch_w(
         const uint32_t delay_ms = fast ? 60u : 80u;
         const bool was_active = mu->active;
         mu->active = false; /* keep the base frame from drawing it at `to` */
+        s_vision_slide_unit = unit_id; /* its sight already lifted the fog at `to` */
         for (int f = 1; f <= steps; ++f) {
           game_render(game, &fb, &pal);
           const int px = x0 + (x1 - x0) * f / steps;
@@ -750,6 +755,7 @@ COLONIZE_INTERNAL void game_move_watch_w(
           platform_sleep_ms(delay_ms);
         }
         mu->active = was_active;
+        s_vision_slide_unit = -1;
         slid = true;
       }
     }
@@ -2017,7 +2023,7 @@ static void game_vision_mark(void* ctx, int x, int y, bool outer) {
 }
 
 /*
- * divergences.current_vision (port-only): checkerboard of a 2/3 fog-blue tint on every seen tile that
+ * divergences.current_vision (port-only): checkerboard of a 1/4 fog-blue tint on every seen tile that
  * no unit (units_sight_radius, map_sight_each domain gate) or colony (radius
  * 1, the FUN_1427_0bfe live-sight ring) of the viewed nation currently sees.
  * Layering, top first: colony names, fog, this veil, everything else.
@@ -2044,7 +2050,10 @@ static bool game_vision_grid_build(const ColonizeGameState* game) {
   if (game->units_ok) {
     for (int i = 0; i < units_slot_end(&game->units); ++i) {
       const ColonizeUnit* u = &game->units.units[i];
-      if (!u->active || u->nation_id != nation || !units_is_on_map(u)) {
+      /* The sliding unit is parked inactive so the base frame skips it, but
+       * the reveal already ran: keep its sight in step with the fog. */
+      const bool sliding = u->id == s_vision_slide_unit && u->aboard_ship_id < 0;
+      if (u->nation_id != nation || (!sliding && !units_is_on_map(u))) {
         continue;
       }
       map_sight_each(
@@ -2073,8 +2082,8 @@ static void game_render_current_vision(
     return;
   }
   const uint8_t* lit = s_vision_lit;
-  /* 2/3 of the fog's own blue (PHYS0 #148 noise, palette 60..62 averaged)
-   * over 1/3 of the pixel, so the veil sits in the fog's colour family. */
+  /* 1/4 of the fog's own blue (PHYS0 #148 noise, palette 60..62 averaged)
+   * over 3/4 of the pixel, so the veil sits in the fog's colour family. */
   int fog_rgb[3] = {0, 0, 0};
   for (int k = 0; k < 3; ++k) {
     for (int i = 60; i <= 62; ++i) {
@@ -2086,8 +2095,8 @@ static void game_render_current_vision(
   for (int i = 0; i < 256; ++i) {
     const uint8_t* c = game->map_palette.rgb[i];
     dark[i] = assets_palette_nearest_rgb(
-      &game->map_palette, (c[0] + 2 * fog_rgb[0]) / 3, (c[1] + 2 * fog_rgb[1]) / 3,
-      (c[2] + 2 * fog_rgb[2]) / 3
+      &game->map_palette, (3 * c[0] + fog_rgb[0]) / 4, (3 * c[1] + fog_rgb[1]) / 4,
+      (3 * c[2] + fog_rgb[2]) / 4
     );
   }
   const int tile = MAP_ZOOM_NATIVE_TILE;
