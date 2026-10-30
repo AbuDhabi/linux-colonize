@@ -53,7 +53,7 @@ Status: **Done** / **Partial** / **Missing** / **PARKED**.
 | Any | Same nation | Stack | Stack | Done |
 | Land combat (`5236≠0` / attack>0) | Foreign land unit | Fight → `5fef_1b0e` | `157e` strength + combat analysis | Done |
 | Land non-combat (`5236==0`) | Foreign unit | Bounce (+ optional dialog) | Bounce via probe | Done |
-| Combat unit | Foreign Euro unit or colony at peace | Treaty bit `0x40` → @HAVETREATY (Cancel Action / Break Treaty); no treaty → the attack proceeds silently and only the mover's `0x01` drops; a `0x40` in the peer's row alone gives @CANCELPEACE and WARs that row (`ai_diplo_465b_band_ctx`, raw 75558-75595, port_bugs.md #1256/#1258); a Privateer on either side asks nothing (raw 75528-75560) | `ai_contact_try_euro_attack_confirm` (human, `game_loop_orders.c`) | Done |
+| Combat unit | Foreign Euro unit or colony at peace | Treaty bit `0x40` → @HAVETREATY (Cancel Action / Break Treaty); no treaty → DOS attacks silently, only the mover's `0x01` drops (opencol declares war, tolerated_dos_bugs.md TB-53); a `0x40` in the peer's row alone gives @CANCELPEACE and WARs that row (`ai_diplo_465b_band_ctx`, raw 75558-75595, port_bugs.md #1256/#1258); a Privateer on either side asks nothing (raw 75528-75560) | `ai_contact_try_euro_attack_confirm` (human, `game_loop_orders.c`) | Done |
 | Ship | Foreign ship | Naval fight path | Naval `157e_004a` + analysis | Done |
 | Ship | Foreign land | Block / landfall | Block / landfall | Done |
 | Any | Empty | Enter | Enter | Done |

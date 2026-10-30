@@ -6235,6 +6235,24 @@ static int sp_48(void) {
         ai_diplo_read(&col1, 1, 0) != (AI_DIPLO_MET | AI_DIPLO_WAR)) {
       return fail("TB-52 fixed: AI treaty break must set WAR in both rows");
     }
+    /* TB-53: no treaty in DOS writes nothing; fixed, the attack declares war. */
+    for (int atk = 0; atk < 2; ++atk) {
+      ai_popup_clear(&wp);
+      ai_diplo_write(&col1, 0, 1, AI_DIPLO_MET);
+      ai_diplo_write(&col1, 1, 0, AI_DIPLO_MET);
+      (void)ai_diplo_465b_band_ctx(&wctx, atk, 1 - atk);
+      if (ai_diplo_read(&col1, 0, 1) != AI_DIPLO_MET || wp.queue_count != 0) {
+        return fail("TB-53 DOS: no-treaty attack must leave the pair MET-only, silent");
+      }
+      dos_buggy_behavior_set(false);
+      (void)ai_diplo_465b_band_ctx(&wctx, atk, 1 - atk);
+      dos_buggy_behavior_set(true);
+      if (ai_diplo_read(&col1, 0, 1) != (AI_DIPLO_MET | AI_DIPLO_WAR) ||
+          ai_diplo_read(&col1, 1, 0) != (AI_DIPLO_MET | AI_DIPLO_WAR) || wp.queue_count != 1 ||
+          wp.queue[0].tag != AI_POPUP_TAG_DIPLO_WAR) {
+        return fail("TB-53 fixed: no-treaty attack must announce and set WAR both ways");
+      }
+    }
     /*
      * FUN_465b_0000 raw 75528-75529: either side a Privateer (@UNIT 0x10) and
      * the whole treaty/declare band is skipped — no @HAVETREATY, no war, the

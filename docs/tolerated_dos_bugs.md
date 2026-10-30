@@ -731,3 +731,22 @@ arm.
 `golden_idle_america`, `golden_idle_america_reload` and `golden_ai_joint`
 (`unit_ai_contact_core` too, which locks the DOS read); reverted.
 **Status:** tolerated (user, 2026-10-27). Fixed in opencol 2026-10-27, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.
+
+### TB-53 — An attack without a treaty never opens a war
+**DOS:** FUN_465b_0000 raw 75558-75595. A Euro attack on a non-Privateer Euro
+target where neither relation row holds the treaty bit 0x40 shows nothing and
+writes no WAR; only the attacker's 0x01 drops. DOSBox independence 4->5: the
+crown's Man-O-War attacks and its row stays 0x20.
+
+**Effect:** two nations that met but never signed a treaty can fight forever
+while the Foreign Affairs report shows neither peace nor war.
+
+**Port (reproduces it):** `ai_diplo_465b_band_ctx` (`src/core/ai_diplo.c`, the
+no-treaty `else` arm). Callers: `units_move_combat_pre` (`units_move.c`),
+`ai_euro_try_attack` (`ai_euro_land.c`), `ai_contact_try_euro_attack_confirm`
+(`ai_contact.c`). The fix announces @DECLAREWAR (when no row had WAR yet) and
+calls `ai_diplo_declare_war` (WAR|MET both ways, DS:0x53c8 zeroed).
+
+**Blocks removal:** goldens and idle campaigns lock the DOS read (independence
+4->5); not tried ungated.
+**Status:** tolerated (user, 2026-10-30). Fixed in opencol 2026-10-30, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.
