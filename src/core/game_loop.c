@@ -2017,7 +2017,7 @@ static void game_vision_mark(void* ctx, int x, int y, bool outer) {
 }
 
 /*
- * divergences.current_vision (port-only): checkerboard of 33% brightness on every seen tile that
+ * divergences.current_vision (port-only): checkerboard of a 2/3 fog-blue tint on every seen tile that
  * no unit (units_sight_radius, map_sight_each domain gate) or colony (radius
  * 1, the FUN_1427_0bfe live-sight ring) of the viewed nation currently sees.
  * Layering, top first: colony names, fog, this veil, everything else.
@@ -2073,10 +2073,22 @@ static void game_render_current_vision(
     return;
   }
   const uint8_t* lit = s_vision_lit;
+  /* 2/3 of the fog's own blue (PHYS0 #148 noise, palette 60..62 averaged)
+   * over 1/3 of the pixel, so the veil sits in the fog's colour family. */
+  int fog_rgb[3] = {0, 0, 0};
+  for (int k = 0; k < 3; ++k) {
+    for (int i = 60; i <= 62; ++i) {
+      fog_rgb[k] += game->map_palette.rgb[i][k];
+    }
+    fog_rgb[k] /= 3;
+  }
   uint8_t dark[256];
   for (int i = 0; i < 256; ++i) {
     const uint8_t* c = game->map_palette.rgb[i];
-    dark[i] = assets_palette_nearest_rgb(&game->map_palette, c[0] / 3, c[1] / 3, c[2] / 3);
+    dark[i] = assets_palette_nearest_rgb(
+      &game->map_palette, (c[0] + 2 * fog_rgb[0]) / 3, (c[1] + 2 * fog_rgb[1]) / 3,
+      (c[2] + 2 * fog_rgb[2]) / 3
+    );
   }
   const int tile = MAP_ZOOM_NATIVE_TILE;
   for (int sy = 0; sy < view_rows; ++sy) {
