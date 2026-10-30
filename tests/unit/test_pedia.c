@@ -251,6 +251,11 @@ static int case_misc_page(void) {
     fprintf(stderr, "MISC Liberty Bells failed got '%s'\n", page.title);
     return 1;
   }
+  /* port_bugs.md #1331: DOS has no @MISC<n> bodies — title-only page. */
+  if (page.body_line_count != 0) {
+    fprintf(stderr, "MISC page must have no body, got %d lines\n", page.body_line_count);
+    return 1;
+  }
   return 0;
 }
 

@@ -637,6 +637,13 @@ bool europe_set_sail_from_harbor(
   int nation_id
 );
 
+/*
+ * A hull that starts out already sailing for the New World: straight into
+ * Bound, no harbor stop, nobody boarded (John Paul Jones, FUN_4345_0342 case
+ * 0xe). Exit tile from last_exit_* like a ship bought in Europe.
+ */
+bool europe_bound_push(EuropeScreen* eu, int type_index, const char* name, int voyage_turns);
+
 /* Expected↔Bound reverse: DOS 38fd:3228 relinks the lane, keeps the turn counter, clears the hull's orders (trade route). */
 bool europe_reverse_transit(EuropeScreen* eu, bool from_expected, int index);
 

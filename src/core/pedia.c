@@ -37,69 +37,9 @@ static const int k_category_counts[] = {
 
 /* @MISCELLANEOUS titles live in PEDIA.TXT only (assets_msg_find(pedia,
  * "MISCELLANEOUS")); a catalog miss yields the empty string, never a
- * compiled-in MicroProse title. Bodies are not in PEDIA.TXT — short
- * reference blurbs from the manual / GAME.TXT tutorials, port-authored. */
-
-static const char* k_misc_bodies[PEDIA_MISC_COUNT] = {
-  "Remove a unit from the game permanently. Disbanding a colonist in a "
-  "colony adds that person to the settlement. Ships at sea cannot be "
-  "disbanded while carrying passengers or cargo.",
-
-  "Order a land unit to dig in. A fortified unit gains a defensive bonus "
-  "in combat. Ships use the same order to anchor in a colony harbor.",
-
-  "Give a Pioneer the Plow order to improve open ground; the P key does "
-  "the same from the map. A plowed tile yields one extra unit of food, "
-  "tobacco, cotton, or sugar. Ordering it on a forest tile fells the "
-  "trees instead, opening the square up for farming.",
-
-  "",
-
-  /*
-   * Wake-on-enemy-approach was invented here (smell #47) and is now gone.
-   * DOS has no such mechanic: every write of the order byte DS:+0x314c was
-   * enumerated (viceroy_unpacked.c 7729 unit-create, 8297/8674/8714 europe,
-   * 11272/13616 colony cargo, 42417/42511/42602/42808/42863/43962/45657/46078
-   * explicit order set, 42494/42585/42717/42781/41438/44422 activate, 49942+/
-   * 52100+/52413+ trade route, 60742/60777/64889/65803/73097/75709 misc) and
-   * not one is an adjacency scan for hostiles; the day-top unit refresh
-   * (viceroy_unpacked.c:6355-6357) clears only moves-spent +0x3149 and never
-   * touches +0x314c. Nor does DOS claim it in text: PEDIA.TXT has no @MISC
-   * bodies at all (DOS misc pages are title-only, docs/assets.md), and
-   * GAME.TXT's only Sentry strings are the menu labels @UNITOPTIONS
-   * "Sentry / Board ship." (:1774) and @SHIPOPTIONS "Sentry." (:1781).
-   * The boarding half IS real — units_ship_departure_pickup, DOS
-   * FUN_4720_0006/015c embark probe — so only the wake clause was cut.
-   */
-  "Sentry puts a unit on standby: it is skipped in the turn cycle until you "
-  "activate it. A sentried land unit boards a ship leaving its tile, up to "
-  "the ship's capacity. Hence the order's name: Sentry / Board ship.",
-
-  "Automate a ship or wagon along a saved route of colony and Europe "
-  "stops with load/unload orders. Edit routes from the Trade menu.",
-
-  "Soldiers and dragoons that win battles (or graduate from a college) "
-  "may become veterans, fighting more effectively. Expert soldiers also "
-  "immigrate from Europe or the Royal University.",
-
-  "European market prices rise when you buy and fall when you sell. "
-  "Boycotted goods cannot be traded until back taxes are paid (or Jakob "
-  "Fugger joins Congress).",
-
-  "The King raises your tax rate over time. You may accept the increase "
-  "or protest by dumping cargo (boycott). Higher taxes cut into sale "
-  "profits in your home port.",
-
-  "Produced by statesmen in town halls (and boosted by presses and "
-  "newspapers). Liberty bells elect Founding Fathers and raise rebel "
-  "sentiment toward independence.",
-
-  "Produced by churches, cathedrals, and preachers. Crosses accumulate "
-  "until a new immigrant appears on the European docks.",
-
-  "Produced by carpenters from lumber. Hammers accumulate toward the "
-  "colony's current building project until it is completed."
-};
+ * compiled-in MicroProse title. Bodies: DOS looks up @MISC<n>, which PEDIA.TXT
+ * does not have, so the Game Concept pages are title-only (port_bugs.md #1331;
+ * the port's own blurbs are gone). */
 
 /* ICONS.SS indices for cargo (colony warehouse strip). */
 static const int k_cargo_icons[PEDIA_CARGO_COUNT] = {
@@ -500,27 +440,7 @@ bool pedia_page(
       } else {
         out->title[0] = '\0';
       }
-      const char* src = k_misc_bodies[index];
       out->body_line_count = 0;
-      while (*src && out->body_line_count < PEDIA_BODY_MAX_LINES) {
-        size_t take = 0;
-        size_t last_space = 0;
-        while (src[take] && take < 56) {
-          if (src[take] == ' ') {
-            last_space = take;
-          }
-          take++;
-        }
-        if (src[take] && last_space > 0) {
-          take = last_space;
-        }
-        snprintf(out->body[out->body_line_count], PEDIA_BODY_LINE_LEN, "%.*s", (int)take, src);
-        out->body_line_count++;
-        src += take;
-        while (*src == ' ') {
-          src++;
-        }
-      }
     }
     pedia_set_preview(out, category, index, names);
     return true;
@@ -907,7 +827,11 @@ static void pedia_job_expert_name(
   assets_msg_row_field(names, "JOB", job, 1, out, out_size);
 }
 
-/* NAMES terrain display name; forest classes get " Forest" appended (DOS 033a). */
+/*
+ * NAMES terrain display name for the article title. DOS FUN_6cb2_0eac (raw
+ * 110674-110678) appends " Forest" only for 7 < idx < 0x10; the 16-23 forest
+ * rows show the bare name (port_bugs.md #1327).
+ */
 static void pedia_terrain_display_name(
   const ColonizeMsgCatalog* names,
   const ColonizeMsgCatalog* labels,
@@ -928,8 +852,10 @@ static void pedia_terrain_display_name(
       }
     }
     (void)labels;
-    size_t len = strlen(out);
-    snprintf(out + len, out_size > len ? out_size - len : 0, " %s", forest);
+    if (idx < 16) {
+      size_t len = strlen(out);
+      snprintf(out + len, out_size > len ? out_size - len : 0, " %s", forest);
+    }
   } else if (idx >= 24 && idx <= 28) {
     assets_msg_row_field(names, "OTHER", idx - 24, 0, out, out_size);
   }
@@ -1712,12 +1638,5 @@ void pedia_article_render(
     char tag[32];
     snprintf(tag, sizeof(tag), "%s%d", prefix, index);
     pedia_body_render_section(a->pedia, tag, a->font, fb, body_y);
-  } else if (category == PEDIA_CAT_MISC && index >= 0 && index < PEDIA_MISC_COUNT) {
-    /*
-     * DOS looks up @MISC<n> in PEDIA.TXT, which has no such sections — its
-     * Game Concept pages are title-only. Keep the port's short reference
-     * blurbs as the body instead of an empty page.
-     */
-    pedia_body_render_text(k_misc_bodies[index], a->font, fb, body_y, 300);
   }
 }

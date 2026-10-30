@@ -213,6 +213,25 @@ void europe_board_sentry_dockers(
   }
 }
 
+bool europe_bound_push(EuropeScreen* eu, int type_index, const char* name, int voyage_turns) {
+  if (!eu || eu->bound_ships >= EUROPE_HARBOR_MAX) {
+    return false;
+  }
+  EuropeHarborShip* ship = &eu->bound[eu->bound_ships++];
+  europe_clear_ship(ship);
+  ship->type_index = type_index;
+  snprintf(ship->name, sizeof(ship->name), "%s", name ? name : "");
+  ship->exit_east = eu->last_exit_valid ? eu->last_exit_east : true;
+  if (eu->last_exit_valid) {
+    ship->exit_x = eu->last_exit_x;
+    ship->exit_y = eu->last_exit_y;
+  }
+  ship->turns_left = europe_clamp_voyage_turns(voyage_turns);
+  ship->voyage_turns = ship->turns_left;
+  ship->departed_this_turn = true;
+  return true;
+}
+
 bool europe_set_sail_from_harbor(
   EuropeScreen* eu,
   int harbor_index,

@@ -711,7 +711,7 @@ static int colonies_admit_unit_seat_w(
   colonies_col1_rebel_divisor_adjust(g_colonies_col1, col->x, col->y, 100);
   /* La Salle: this join may have just crossed pop 3 — grant the free
    * Stockade the same moment, not next turn (see founding_fathers.h). */
-  (void)founding_fathers_la_salle_check(pool, col1, col->nation_id);
+  (void)founding_fathers_la_salle_check(pool, col, col1);
   /* No +0x8e / +0x1e write: DOS decrements those only in the 0a60 garrison
    * admission (raw 87699-87753) and the 20e6/0a60 'G' marks, never on a join. */
   /*

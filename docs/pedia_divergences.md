@@ -387,7 +387,7 @@ itself — Custom House rules are under Buildings).
 - **Sieur de La Salle (9)** HIDDEN: election sweeps the elector's pop > 2 colonies; afterwards a
   stockade comes only when a colonist *joins* and pushes a colony to 3 (`FUN_15eb_1068` raw 11311),
   not from births or captured colonies; those colonies then fall under the stockade rule (can't
-  drop below 3 or be abandoned). The port's join grant sweeps all owned colonies: port_bugs.md #1329.
+  drop below 3 or be abandoned). The port's join grant used to sweep all owned colonies (port_bugs.md #1329, fixed).
 - **Hernan Cortes (10)** TEXT/HIDDEN: treasure for tech 0/1 tribes guaranteed and ×1.5; tech 2 +6 to
   a 2-6 roll (+6000 gold); tech 3 multiplier 16→26 (25→35 rich capital) — tech 2/3 always paid
   treasure anyway. "Transport free of charge" still takes the tax-rate share (free = no surcharge).
@@ -401,7 +401,7 @@ itself — Custom House rules are under Buildings).
   strength 2 instead of 1. Needs ≥ 50 muskets and **no units at all** on the tile. Works against
   natives and AI. `FUN_5fef_1b0e` raw 100424.
 - **John Paul Jones (14)** HIDDEN: a Frigate for any electing nation, created on the westbound lane
-  232+n. The port docks it in Europe instead: port_bugs.md #1328. No Frigate at the unit cap.
+  232+n. The port used to dock it in Europe (port_bugs.md #1328, fixed). No Frigate at the unit cap.
 - **Thomas Jefferson (15)** HIDDEN: +50% of the whole colony bell total (statesmen plus the free +1),
   before Paine and Press, so they compound. AI planners weight bells ×2.
 - **Pocahontas (16)** HIDDEN: election drives every tribe's alarm to 0 *and* clears war/attack bits
@@ -515,15 +515,12 @@ profession numbers in the pedia are on the terrain pages (see Terrain SCREEN).
   purse each peacetime turn. [difficulty.md](difficulty.md).
 - **Arawak chiefs** can kill even a friendly scout (rand(0, 8−difficulty) == 0).
 
-### Port-written Game Concept pages
+### Game Concept pages
 DOS looks up `@MISC<n>` sections that don't exist, so its 12 concept pages are title-only. The port
-shows its own bodies (`k_misc_bodies`, `pedia.c:43-110`; "Roads" blank). Where they are wrong (port_bugs.md #1331):
-- **Disband**: "disbanding a colonist in a colony adds that person to the settlement" — `units_disband`
-  just deletes the unit; the ship refusal is not limited to "at sea".
-- **Plowing** "one extra unit": a matching expert planter gets +2.
-- **Veteran** "win battles (or graduate from a college)": overstates promotion (see Units HIDDEN).
-- **Fortify**: +50% only once Fortified (after one night); in a colony it adds +2 to the colony
-  multiplier instead, nothing in a Fort/Fortress.
+used to show its own bodies, four of them wrong (Disband, Plowing, Veteran, Fortify); they were
+removed and the pages are title-only like DOS (port_bugs.md #1331, fixed). The real Fortify rules:
++50% only once Fortified (after one night); in a colony +2 to the colony multiplier instead,
+nothing in a Fort/Fortress.
 
 ## Port findings
 
@@ -536,25 +533,26 @@ TB-47 (birth at unit cap), DB-9, DB-32, DB-47/48 (rumour counters, scout alarm),
 #909 and #1018.
 
 Candidates verified 2026-10-30 against the decomp and filed:
-1. **Terrain article title 16-23**: port_bugs.md #1327 (OPEN). DOS `FUN_6cb2_0eac` appends
+1. **Terrain article title 16-23**: port_bugs.md #1327 (FIXED). DOS `FUN_6cb2_0eac` appends
    " Forest" only for `7 < idx < 0x10`; `pedia_terrain_display_name` appends it for 8-23.
-2. **John Paul Jones Frigate**: port_bugs.md #1328 (OPEN). DOS raw 73093-73100 spawns it at
+2. **John Paul Jones Frigate**: port_bugs.md #1328 (FIXED). DOS raw 73093-73100 spawns it at
    x=y=232+n, the westbound lane out of Europe, so it sails over by itself; the port docks the
    human's Frigate in the Europe harbour (#467 misread the lane as the dock).
-3. **La Salle**: the all-colonies admit sweep is port_bugs.md #1329 (OPEN). The `DS:0x35c` gate
+3. **La Salle**: the all-colonies admit sweep is port_bugs.md #1329 (FIXED). The `DS:0x35c` gate
    is REFUTED as a bug: 0x35c is set only while `FUN_2f2b_348c` trial-admits every job for its
    production preview (raw 50590, cleared 50842 before the real assignment), and the port has
    no trial admits.
-4. **One-bit vs tier tests**: the repair-port test is port_bugs.md #1330 (OPEN), reachable in
-   normal play because the raid burn walks down to the lowest owned tier (Docks, then Drydock,
-   leaving Shipyard). The Stockade pop rule and the shore-fire probe are REFUTED in practice:
+4. **One-bit vs tier tests**: the repair-port test is port_bugs.md #1330 (FIXED). In DOS a lone
+   Shipyard arises in normal play because the raid burn walks down to the lowest owned tier
+   (Docks, then Drydock, leaving Shipyard); the port burns the top tier (DB-50), so there it
+   comes only from DOS saves. The Stockade pop rule and the shore-fire probe are REFUTED in practice:
    the raid picker rejects rows 0-2 (raw 99849-99853) and nothing else clears a fortification
    bit, so a Fort/Fortress without the lower bit needs a hand-edited save.
 5. **@MERCENARIES**: REFUTED, DOS behaviour. `FUN_43f7_2022` (raw 74976-75070) builds the popup
    from @UNIT rows 6/8/11 (Regulars/Cavalry/Artillery), and on accept `FUN_43f7_10f0(1)` maps
    the slots through `FUN_43f7_0082` (raw 73519-73544) to Continental Army/Cavalry/Artillery
    once the WoI bit is set. The port matches.
-6. **Port-written Game Concept pages**: port_bugs.md #1331 (OPEN), blank them to match DOS.
+6. **Port-written Game Concept pages**: port_bugs.md #1331 (FIXED), blanked to match DOS.
 7. **Pedia building list hides Capitol / Capitol Expansion**: not a divergence. The user
    observed that DOS never shows them (a disabled stub of a feature cut before release), so
    the port's list matches. #1332 resolved 2026-10-30, entry removed from known_divergences.md.

@@ -801,6 +801,7 @@ int main(void) {
     dnat->next_founding_father = 14;
     const int units_before = units.unit_count;
     const int harbor_before = europe.harbor_ships;
+    const int bound_before = europe.bound_ships;
     const uint32_t gold_pre_jones = dnat->gold;
     /* FUN_4345_0342 raw 73098-73099: the gift hull's goto takes the nation
      * tile (+0x32/+0x33 = last_exit_*) at grant time. */
@@ -819,20 +820,22 @@ int main(void) {
       map_free(&map);
       return fail("deep Jones should not gold-fallback");
     }
-    /* port_bugs.md #467: DOS FUN_4345_0342 case 0xe spawns the Frigate in the
-     * nation's Europe slot — the human's ship docks in the Europe harbor,
-     * nothing appears on the map. */
-    if (units.unit_count != units_before || europe.harbor_ships != harbor_before + 1) {
+    /* port_bugs.md #1328: DOS FUN_4345_0342 case 0xe puts the Frigate on the
+     * westbound lane 232+n (counter 0) — the human's ship is already Bound for
+     * the New World, not docked in the harbor, and nothing appears on the map. */
+    if (units.unit_count != units_before || europe.harbor_ships != harbor_before ||
+        europe.bound_ships != bound_before + 1) {
       free(deep_col1.colony);
       map_free(&map);
-      return fail("deep Jones must dock a Frigate in Europe, not spawn on the map");
+      return fail("deep Jones must put a Frigate in Bound, not harbor or map");
     }
     {
-      const EuropeHarborShip* jf = &europe.harbor[europe.harbor_ships - 1];
-      if (jf->exit_x != 37 || jf->exit_y != 41 || !jf->exit_east) {
+      const EuropeHarborShip* jf = &europe.bound[europe.bound_ships - 1];
+      if (jf->exit_x != 37 || jf->exit_y != 41 || !jf->exit_east || jf->turns_left != 1 ||
+          !jf->departed_this_turn || jf->cargo_count != 0) {
         free(deep_col1.colony);
         map_free(&map);
-        return fail("deep Jones Frigate must carry the nation exit tile (FUN_4345_0342)");
+        return fail("deep Jones Frigate: exit tile, 1-turn lane, no passengers");
       }
     }
 
@@ -1036,6 +1039,13 @@ int main(void) {
         return fail(
           "La Salle must grant Stockade the instant a colony reaches pop 3, not next turn"
         );
+      }
+      /* port_bugs.md #1329: FUN_15eb_1068 raw 11311-11314 grants the admitted
+       * colony only; colony 1 (pop 3, no Stockade) stays without. */
+      if (colonies.colonies[1].has_building[0]) {
+        free(deep_col1.colony);
+        map_free(&map);
+        return fail("La Salle admit grant must not sweep other colonies");
       }
     }
 

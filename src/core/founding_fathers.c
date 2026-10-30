@@ -787,21 +787,27 @@ static void effect_brebeuf_grade_missions(ColonizeCol1Save* col1, int nation_id)
 
 /*
  * Admit-time La Salle grant (Join / birth admit). DOS FUN_15eb_1068 raw
- * 11311-11314: pop>2 && *(int*)0x35c==0 && FF 9 -> Stockade on the admitted
- * colony only. 0x35c is the jobs-menu trial-admit flag (FUN_2f2b_348c raw
- * 50590/50842); the port has no trial admits, so the term needs no port.
- * This reuses the elect sweep over every owned colony instead of the one
- * colony (port_bugs.md #1329).
+ * 11311-11314: pop>2 && *(int*)0x35c==0 && FF 9 -> Stockade (FUN_15eb_1030)
+ * on the admitted colony (DS:0x8542) only (port_bugs.md #1329). 0x35c is the
+ * jobs-menu trial-admit flag (FUN_2f2b_348c raw 50590/50842); the port has
+ * no trial admits, so the term needs no port.
  */
 int founding_fathers_la_salle_check(
   ColonizeColonyPool* colonies,
-  const ColonizeCol1Save* col1,
-  int nation_id
+  ColonizeColony* col,
+  const ColonizeCol1Save* col1
 ) {
-  if (!col1 || !founding_fathers_nation_has(col1, nation_id, FF_SIEUR_DE_LA_SALLE)) {
+  if (!colonies || !col || !col1 ||
+      !founding_fathers_nation_has(col1, col->nation_id, FF_SIEUR_DE_LA_SALLE)) {
     return 0;
   }
-  return effect_la_salle_stockades(colonies, nation_id);
+  const int stock_idx = colonies_building_row(colonies, COLONY_BUILDING_STOCKADE);
+  if (stock_idx < 0 || stock_idx >= COLONIZE_BUILDING_TYPES_MAX ||
+      col->population < FF_LA_SALLE_STOCKADE_POP || col->has_building[stock_idx]) {
+    return 0;
+  }
+  col->has_building[stock_idx] = true;
+  return 1;
 }
 
 /* Bolivar: SoL +20% is display-time via founding_fathers_bolivar_sol_bonus
@@ -1018,18 +1024,17 @@ static bool ff_find_coastal_water(
 /*
  * John Paul Jones: free Frigate. Returns true on spawn.
  *
- * port_bugs.md #467 — DOS FUN_4345_0342 case 0xe (raw 73044ff):
+ * DOS FUN_4345_0342 case 0xe (raw 73093-73100):
  *   FUN_281f_095c(0x11, nation, nation - 0x18, nation - 0x18)  spawn a
- *   Frigate at the nation's OFF-MAP EUROPE slot; then order (+0x314c) = 0,
- *   goto (+0x314d/e) = the nation's stored Europe landfall tile
- *   (nation*0x13c - 0x77c6/-0x77c5), counter16 (+0x315a) = 0.
- * So the ship starts docked in Europe and sails over like any purchase —
- * it never materialises beside a colony. For the human that is the Europe
- * harbor; an AI nation keeps the coastal-water stand-in (the port has no
- * AI Europe model).
- * OPEN port_bugs.md #1328: x=y=nation-0x18 (232+n) is the westbound lane out
- * of Europe (FUN_48d3_0346, lane chain #489), not the dock, so in DOS the
- * Frigate is already sailing to America; the placement below is wrong.
+ *   Frigate at x=y=232+n, the westbound lane FUN_48d3_0346 puts ships
+ *   leaving Europe on (lane chain, port_bugs.md #489); then order (+0x314c)
+ *   = 0, goto (+0x314d/e) = the nation's landfall tile (nation +0x32/+0x33),
+ *   counter (+0x315a) = 0.
+ * So the Frigate is already sailing to America and arrives by itself
+ * (port_bugs.md #1328; #467 had read the lane as the Europe dock). Counter 0
+ * at 232+n hops on the next 06ba tick exactly like a 1-turn departure, so
+ * the human's hull goes into Bound with voyage 1. An AI nation keeps the
+ * coastal-water stand-in (the port has no AI Europe model).
  */
 static bool effect_jones_frigate(
   ColonizeWorldMap* map,
@@ -1054,21 +1059,7 @@ static bool effect_jones_frigate(
   }
   if (europe) {
     const ColonizeUnitType* ty = units_type(units, ship_ty);
-    if (!europe_harbor_push(
-          europe, ship_ty, ty && ty->name[0] ? ty->name : "", NULL, 0, NULL, NULL
-        )) {
-      return false;
-    }
-    /* FUN_4345_0342 raw 73098-73099: goto +0x314d/+0x314e = nation
-     * +0x32/+0x33 (last_exit_*), the tile the hull later sails from
-     * (FUN_48d3_0346); same stamp as a purchase (FUN_38fd_4b50). */
-    if (europe->last_exit_valid) {
-      EuropeHarborShip* hs = &europe->harbor[europe->harbor_ships - 1];
-      hs->exit_x = europe->last_exit_x;
-      hs->exit_y = europe->last_exit_y;
-      hs->exit_east = europe->last_exit_east;
-    }
-    return true;
+    return europe_bound_push(europe, ship_ty, ty && ty->name[0] ? ty->name : "", 1);
   }
   int sx = 0;
   int sy = 0;

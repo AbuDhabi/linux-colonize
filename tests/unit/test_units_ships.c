@@ -1,6 +1,7 @@
 #include "test_units_common.h"
 #include "../common/test_runner.h"
 #include "core/dos_buggy.h"
+#include "core/units_internal.h"
 
 static int g_refit_sound_id;
 static int g_refit_sound_calls;
@@ -983,6 +984,40 @@ static int unit_tb2_departure_own_riders_only(void) {
   return rc;
 }
 
+/* port_bugs.md #1330: FUN_5fef_0352 raw 99590 tests the Drydock bit only — a
+ * colony holding a Shipyard without its Drydock bit is no repair port. */
+static int unit_repair_port_needs_drydock_bit(void) {
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
+  snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Drydock");
+  snprintf(colonies.building_types[1].name, sizeof(colonies.building_types[1].name), "Shipyard");
+  colonies.building_type_count = 2;
+  ColonizeColony* lone = &colonies.colonies[0];
+  lone->active = true;
+  lone->nation_id = 0;
+  lone->x = 10;
+  lone->y = 10;
+  lone->has_building[1] = true; /* Shipyard bit, Drydock bit burnt */
+  ColonizeColony* dock = &colonies.colonies[1];
+  dock->active = true;
+  dock->nation_id = 0;
+  dock->x = 20;
+  dock->y = 20;
+  dock->has_building[0] = true;
+  colonies.colony_count = 2;
+  if (units_nearest_own_drydock_colony(&colonies, 0, 11, 11) != dock) {
+    fprintf(stderr, "#1330: lone Shipyard must not be picked as repair port\n");
+    return 1;
+  }
+  dock->has_building[0] = false;
+  if (units_nearest_own_drydock_colony(&colonies, 0, 11, 11) != NULL) {
+    fprintf(stderr, "#1330: no Drydock bit anywhere -> NULL (Europe)\n");
+    return 1;
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
   {"unit_europe_transfer_at_dos_cap", unit_europe_transfer_at_dos_cap},
   {"unit_king_galleon_offer", unit_king_galleon_offer},
@@ -994,5 +1029,6 @@ static const TestCase k_cases[] = {
   {"unit_europe_arrival_reveals", unit_europe_arrival_reveals},
   {"unit_spawn_room_dos_gates", unit_spawn_room_dos_gates},
   {"unit_tb2_departure_own_riders_only", unit_tb2_departure_own_riders_only},
+  {"unit_repair_port_needs_drydock_bit", unit_repair_port_needs_drydock_bit},
 };
 TEST_MAIN_WRAPPED(k_cases, diag_init(0, NULL), diag_shutdown())

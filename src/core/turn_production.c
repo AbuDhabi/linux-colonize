@@ -1443,7 +1443,7 @@ COLONIZE_INTERNAL void turn_produce_birth(TurnProduceCtx* pc) {
        * instead (see units_spawn_allow_stack above) and never enters
        * colonist_count here, so the admit-path check in colony.c already
        * covers it there. */
-      (void)founding_fathers_la_salle_check(pool, col1, colony->nation_id);
+      (void)founding_fathers_la_salle_check(pool, colony, col1);
     }
     if (europe && colony->nation_id == human_nation) {
       /* DOS 0xe2f @NEWCOLONIST. Cite: colony_eot_production.md Phase I. */

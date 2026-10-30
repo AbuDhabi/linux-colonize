@@ -1016,14 +1016,9 @@ void turn_tally_professions(
  * until its repair timer runs out (port_bugs.md #871). Runs each nation phase, after units_tick_drydock_repair.
  */
 /* Drydock (DOS colony feature bit 7) or its Shipyard upgrade. */
-static int turn_colony_repairs_ships(const ColonizeColony* c, int drydock, int shipyard) {
-  if (!c) {
-    return 0;
-  }
-  if (drydock >= 0 && drydock < COLONIZE_BUILDING_TYPES_MAX && c->has_building[drydock]) {
-    return 1;
-  }
-  return shipyard >= 0 && shipyard < COLONIZE_BUILDING_TYPES_MAX && c->has_building[shipyard];
+/* Drydock bit only, as FUN_5fef_0352 raw 99590 (port_bugs.md #1330). */
+static int turn_colony_repairs_ships(const ColonizeColony* c, int drydock) {
+  return c && drydock >= 0 && drydock < COLONIZE_BUILDING_TYPES_MAX && c->has_building[drydock];
 }
 
 /*
@@ -1070,7 +1065,6 @@ void turn_route_damaged_ships(ColonizeTurnContext* ctx, int nation) {
   const int woi =
     ctx->col1_ok && ctx->col1 && ctx->col1->head.game_options.woi != 0;
   const int drydock = colonies_building_row(ctx->colonies, COLONY_BUILDING_DRYDOCK);
-  const int shipyard = colonies_building_row(ctx->colonies, COLONY_BUILDING_SHIPYARD);
   for (int i = 0; i < units_slot_end(ctx->units); ++i) {
     ColonizeUnit* u = &ctx->units->units[i];
     if (!u->active || u->nation_id != nation || u->aboard_ship_id >= 0) {
@@ -1096,18 +1090,18 @@ void turn_route_damaged_ships(ColonizeTurnContext* ctx, int nation) {
     const int cid = colonies_id_at(ctx->colonies, u->x, u->y);
     const ColonizeColony* here = colonies_get(ctx->colonies, cid);
     if (here && here->active && here->nation_id == nation &&
-        turn_colony_repairs_ships(here, drydock, shipyard)) {
+        turn_colony_repairs_ships(here, drydock)) {
       continue;
     }
     /* Nearest own Drydock colony (recomputed here: the one picked at combat
      * time may since have been captured). */
     const ColonizeColony* best = NULL;
     long best_d = -1;
-    if (drydock >= 0 || shipyard >= 0) {
+    if (drydock >= 0) {
       for (int k = 0; k < COLONIZE_COLONIES_MAX; ++k) {
         const ColonizeColony* c = &ctx->colonies->colonies[k];
         if (!c->active || c->nation_id != nation ||
-            !turn_colony_repairs_ships(c, drydock, shipyard)) {
+            !turn_colony_repairs_ships(c, drydock)) {
           continue;
         }
         const long dx = c->x - u->x;

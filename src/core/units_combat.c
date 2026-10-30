@@ -1750,12 +1750,12 @@ const ColonizeColony* units_nearest_own_drydock_colony(
   if (!colonies) {
     return NULL;
   }
-  /* DOS tests colony feature bit 7 (Drydock) only (FUN_5fef_0352 raw 99590).
-   * Accepting Shipyard too is OPEN port_bugs.md #1330: two native raids burn
-   * Docks then Drydock and leave Shipyard, which DOS refuses. */
+  /* DOS tests colony feature bit 7 (Drydock) only (FUN_5fef_0352 raw 99590):
+   * a lone Shipyard without its Drydock bit (DOS saves; DOS raids burn the
+   * lowest tier, DB-50) is no repair port (port_bugs.md #1330). Completed
+   * tiers stay set, so a normal Shipyard colony still has the Drydock bit. */
   const int drydock = colonies_building_row(colonies, COLONY_BUILDING_DRYDOCK);
-  const int shipyard = colonies_building_row(colonies, COLONY_BUILDING_SHIPYARD);
-  if (drydock < 0 && shipyard < 0) {
+  if (drydock < 0 || drydock >= COLONIZE_BUILDING_TYPES_MAX) {
     return NULL;
   }
   const ColonizeColony* best = NULL;
@@ -1765,10 +1765,7 @@ const ColonizeColony* units_nearest_own_drydock_colony(
     if (!c->active || c->nation_id != nation_id) {
       continue;
     }
-    const int repairs =
-      (drydock >= 0 && drydock < COLONIZE_BUILDING_TYPES_MAX && c->has_building[drydock]) ||
-      (shipyard >= 0 && shipyard < COLONIZE_BUILDING_TYPES_MAX && c->has_building[shipyard]);
-    if (!repairs) {
+    if (!c->has_building[drydock]) {
       continue;
     }
     /* DOS-LITERAL FUN_5fef_0352 raw 99584-99597: FUN_281f_037a (= map_dos_dist),

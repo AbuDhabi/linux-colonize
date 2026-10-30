@@ -234,15 +234,15 @@ void founding_fathers_tick(ColonizeTurnContext* ctx);
 void founding_fathers_tick_human_elect(ColonizeTurnContext* ctx);
 
 /*
- * La Salle immediate hook: call right when a colony's population changes
- * (join/admit/birth) so a colony reaching pop 3 gets its free Stockade the
- * same moment it happens, not only at the next founding_fathers_tick.
+ * La Salle immediate hook: call right when a colonist is admitted to `col`
+ * (join/admit/birth) so it gets its free Stockade the moment it reaches pop 3.
+ * Only `col` is touched (DOS FUN_15eb_1068 raw 11311-11314).
  * No-op (returns 0) when col1 is NULL or the nation doesn't own La Salle.
  */
 int founding_fathers_la_salle_check(
   ColonizeColonyPool* colonies,
-  const ColonizeCol1Save* col1,
-  int nation_id
+  ColonizeColony* col,
+  const ColonizeCol1Save* col1
 );
 
 /*
