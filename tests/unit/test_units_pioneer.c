@@ -664,6 +664,24 @@ static int unit_pioneer_dos_gates_2026_09_22(void) {
         rc = 1;
       }
     }
+    /* dos_bugs.md DB-46: a move drops the progress even with the order kept
+     * (DOS carries it to the new tile, where Build Road finishes at once). */
+    if (!rc) {
+      ColonizeUnit* mu = units_get(&pool, pid);
+      mu->col1_counter16 = 5;
+      mu->moves = 3;
+      (void)units_try_move_w(
+        &(ColonizeWorld){.units = &pool, .colonies = &colonies, .map = &map}, pid, 5, 4
+      );
+      mu = units_get(&pool, pid);
+      if (mu->x != 5 || mu->col1_counter16 != 0) {
+        fprintf(
+          stderr, "piodos DB-46: move kept progress (x=%d counter=%d)\n", mu->x,
+          mu->col1_counter16
+        );
+        rc = 1;
+      }
+    }
     units_despawn(&pool, pid);
   }
 

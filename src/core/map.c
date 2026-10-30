@@ -897,17 +897,10 @@ void map_reveal_radius(ColonizeWorldMap* map, int x, int y, int nation_id, int r
   }
 }
 
-void map_reveal_sight_each(
-  ColonizeWorldMap* map,
-  int x,
-  int y,
-  int nation_id,
-  int radius,
-  bool is_ship,
-  MapRevealTileFn fn,
-  void* ctx
+void map_sight_each(
+  const ColonizeWorldMap* map, int x, int y, int radius, bool is_ship, MapRevealTileFn fn, void* ctx
 ) {
-  if (!map || radius < 0 || !map_coords_inset(map, x, y)) {
+  if (!map || !fn || radius < 0 || !map_coords_inset(map, x, y)) {
     return;
   }
   const int home_continent = is_ship ? -1 : map_continent_id_at(map, x, y);
@@ -928,12 +921,38 @@ void map_reveal_sight_each(
           continue;
         }
       }
-      map_reveal_tile(map, tx, ty, nation_id);
-      if (fn) {
-        fn(ctx, tx, ty, outer);
-      }
+      fn(ctx, tx, ty, outer);
     }
   }
+}
+
+typedef struct MapRevealEachCtx {
+  ColonizeWorldMap* map;
+  int nation_id;
+  MapRevealTileFn fn;
+  void* ctx;
+} MapRevealEachCtx;
+
+static void map_reveal_each_tile(void* ctx, int x, int y, bool outer) {
+  const MapRevealEachCtx* r = ctx;
+  map_reveal_tile(r->map, x, y, r->nation_id);
+  if (r->fn) {
+    r->fn(r->ctx, x, y, outer);
+  }
+}
+
+void map_reveal_sight_each(
+  ColonizeWorldMap* map,
+  int x,
+  int y,
+  int nation_id,
+  int radius,
+  bool is_ship,
+  MapRevealTileFn fn,
+  void* ctx
+) {
+  MapRevealEachCtx r = {map, nation_id, fn, ctx};
+  map_sight_each(map, x, y, radius, is_ship, map_reveal_each_tile, &r);
 }
 
 void map_reveal_sight(

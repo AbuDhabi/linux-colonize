@@ -557,9 +557,15 @@ re-selects nothing in View mode.
 only on completion, Fortify and colony entry; the order entries (FUN_2b5a_123e / 1454)
 write only the order byte. A Pioneer that chops 3 turns on one tile and starts Clear
 Forest elsewhere finishes next turn.
+A move (FUN_465b_0000) does not touch it either, so a Pioneer that keeps its
+Clear/Plow or Road order while it walks finishes the job on the new tile at once.
 
 **Port:** `units_pioneer_plow_w` / `units_pioneer_road_w` (`src/core/units_pioneer.c`)
 and the AI 20e6 road arm zero the counter when the order changes to the job.
+`units_move_commit_step` (`src/core/units_move.c`) zeroes a Pioneer's counter on
+every step (2026-10-30, fandom wiki "pre-charge"). Two Pioneers on one forest are
+not covered: the second keeps its own counter and plows at once once the first
+clears the tile, as in DOS.
 [Details and tests](archive/dos_bugs_evidence_2026-10-24.md#db-46).
 **Status:** done (2026-10-23). Came from dos_bug_candidates_2026-10-22.md C-72 (port_bugs.md #620).
 

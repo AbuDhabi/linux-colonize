@@ -104,6 +104,7 @@ static const SettingsBoolOpt k_divergence_opts[] = {
   SETTINGS_BOOL(unlimited_units, false),
   SETTINGS_BOOL(modern_prng, false),
   SETTINGS_BOOL(pioneer_plan, false),
+  SETTINGS_BOOL(current_vision, false),
 };
 
 #define SETTINGS_OPT_COUNT(t) ((int)(sizeof(t) / sizeof((t)[0])))

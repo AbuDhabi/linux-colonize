@@ -58,7 +58,7 @@ defaults no matter what file is sitting in the build directory.
     "menu": false, "mouse_coords": false, "building_rects": false, "logs": false,
     "trace_autosaves": false, "input_logger": false, "input_logger_directory": "./input_logs"
   },
-  "divergences": { "unlimited_units": false, "modern_prng": false, "pioneer_plan": false },
+  "divergences": { "unlimited_units": false, "modern_prng": false, "pioneer_plan": false, "current_vision": false },
   "data_dir": "./COLONIZE",
   "save_dir": "",
   "no_sound": false,
@@ -118,6 +118,11 @@ layout (every frame) and a village's taught skill (@CHIEFHOWDY, then the visit).
 in RTST record 13, written only while on; off = DOS draws and saves unchanged.
 `divergences.pioneer_plan` adds VIEW Plan Pioneer and ORDERS Automate
 (docs/pioneer_plan.md); off = the rows stay hidden and no `PPLN` chunk is written.
+`divergences.current_vision` dims to 33% brightness (palette-nearest LUT) every seen
+map tile that no unit or colony of the viewed nation currently sees: unit tiles
+from `units_sight_radius` + the `map_sight_each` domain gate, colonies radius 1.
+Drawn above terrain, colonies and units (`game_render_current_vision`); unseen
+black tiles are untouched. Render-only, nothing saved.
 
 Port-only keys, no DOS bit, no head bridge.
 `save_dir` empty means the platform default (`<exe>/COLONIZE`). `seed` is

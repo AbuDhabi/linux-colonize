@@ -48,6 +48,7 @@ static void test_missing_file_defaults(void) {
   check(!s.unlimited_units, "default divergences.unlimited_units off (DOS limits)");
   check(!s.modern_prng, "default divergences.modern_prng off (DOS LCG)");
   check(!s.pioneer_plan, "default divergences.pioneer_plan off");
+  check(!s.current_vision, "default divergences.current_vision off");
 }
 
 static void test_roundtrip(void) {

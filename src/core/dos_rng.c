@@ -4,6 +4,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+#ifdef _WIN32
+#include <sys/timeb.h>
+#endif
 
 #include "third_party/xoshiro256starstar.h"
 
@@ -72,10 +75,9 @@ void dos_rng_set_tick_word(int32_t word) {
   s_dos_rng_tick = word;
 }
 
-/* FUN_1c0c_0012 stand-in: fixed tick word (--seed / VR_SEED), else the clock.
- * ponytail: 1 s granularity vs DOS ~20 Hz, so 04ca calls within one wall
- * second (an instant EOT's nation slots) still replay one stream; upgrade to a
- * monotonic ms clock * 20 / 1000 if that ever shows. */
+/* FUN_1c0c_0012 stand-in: fixed tick word (--seed / VR_SEED), else the clock
+ * at the BIOS tick rate (40:6C, 18.2 Hz). A 1 s clock made each reseed word
+ * hold 18x longer than in DOS, so 04ca streaks ran longer. */
 static bool s_synth_ticks;
 static uint32_t s_synth_reads;
 
@@ -91,7 +93,23 @@ static uint32_t dos_rng_tick_now(void) {
     x ^= x >> 12;
     return x;
   }
-  return s_dos_rng_tick >= 0 ? (uint32_t)s_dos_rng_tick : (uint32_t)time(NULL);
+  if (s_dos_rng_tick >= 0) {
+    return (uint32_t)s_dos_rng_tick;
+  }
+  int64_t ms;
+#ifdef _WIN32
+  /* mingw msvcrt has no timespec_get. */
+  struct _timeb tb;
+  _ftime(&tb);
+  ms = (int64_t)tb.time * 1000 + tb.millitm;
+#else
+  struct timespec ts;
+  if (timespec_get(&ts, TIME_UTC) != TIME_UTC) {
+    return (uint32_t)time(NULL);
+  }
+  ms = (int64_t)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+#endif
+  return (uint32_t)(ms * 182 / 10000);
 }
 
 void dos_rng_set_synth_ticks(bool on) {

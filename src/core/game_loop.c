@@ -2004,6 +2004,79 @@ static void game_render_pioneer_plan(
   }
 }
 
+/* divergences.current_vision: mark a tile as live-seen. */
+typedef struct GameVisionGrid {
+  const ColonizeWorldMap* map;
+  uint8_t* lit;
+} GameVisionGrid;
+
+static void game_vision_mark(void* ctx, int x, int y, bool outer) {
+  (void)outer;
+  const GameVisionGrid* g = ctx;
+  g->lit[(size_t)y * (size_t)g->map->width + (size_t)x] = 1;
+}
+
+/*
+ * divergences.current_vision (port-only): 33% brightness on every seen tile that
+ * no unit (units_sight_radius, map_sight_each domain gate) or colony (radius
+ * 1, the FUN_1427_0bfe live-sight ring) of the viewed nation currently sees.
+ * Unseen tiles stay pure fog. Drawn over terrain, colonies and units.
+ */
+static void game_render_current_vision(
+  const ColonizeGameState* game, ColonizeFramebuffer8* fb, int view_x, int view_y, int view_cols,
+  int view_rows
+) {
+  const ColonizeWorldMap* map = &game->world_map;
+  const int nation = game_fog_nation(game);
+  if (!settings_get()->current_vision || !game->world_map_ok || !game->map_palette_ok ||
+      nation < 0 || nation > 3) {
+    return;
+  }
+  static uint8_t lit[256 * 256]; /* map width/height are uint8_t */
+  memset(lit, 0, (size_t)map->width * (size_t)map->height);
+  GameVisionGrid grid = {map, lit};
+  if (game->units_ok) {
+    for (int i = 0; i < units_slot_end(&game->units); ++i) {
+      const ColonizeUnit* u = &game->units.units[i];
+      if (!u->active || u->nation_id != nation || !units_is_on_map(u)) {
+        continue;
+      }
+      map_sight_each(
+        map, u->x, u->y, units_sight_radius(&game->units, u, game->col1_ok ? &game->col1 : NULL),
+        units_is_sea(&game->units, u->id), game_vision_mark, &grid
+      );
+    }
+  }
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    const ColonizeColony* c = &game->colonies.colonies[i];
+    if (c->active && c->nation_id == nation) {
+      map_sight_each(map, c->x, c->y, 1, false, game_vision_mark, &grid);
+    }
+  }
+  uint8_t dark[256];
+  for (int i = 0; i < 256; ++i) {
+    const uint8_t* c = game->map_palette.rgb[i];
+    dark[i] = assets_palette_nearest_rgb(&game->map_palette, c[0] / 3, c[1] / 3, c[2] / 3);
+  }
+  const int tile = MAP_ZOOM_NATIVE_TILE;
+  for (int sy = 0; sy < view_rows; ++sy) {
+    for (int sx = 0; sx < view_cols; ++sx) {
+      const int mx = view_x + sx;
+      const int my = view_y + sy;
+      if (!map_in_bounds(map, mx, my) || !map_tile_seen_by(map, mx, my, nation) ||
+          lit[(size_t)my * (size_t)map->width + (size_t)mx]) {
+        continue;
+      }
+      for (int py = sy * tile; py < (sy + 1) * tile && py < fb->height; ++py) {
+        uint8_t* row = &fb->pixels[(size_t)py * (size_t)fb->width];
+        for (int px = sx * tile; px < (sx + 1) * tile && px < fb->width; ++px) {
+          row[px] = dark[row[px]];
+        }
+      }
+    }
+  }
+}
+
 /* Terrain / fog / colonies / tribes / units composited at native 16px per
  * tile into the offscreen zoom buffer, then decimated to the 240x192 view. */
 COLONIZE_INTERNAL void game_render_map_composite(
@@ -2215,6 +2288,10 @@ COLONIZE_INTERNAL void game_render_map_composite(
       game_fog_nation(game),
       game->map_palette_ok ? &game->map_palette : NULL
     );
+  }
+
+  if (game->terrain_peel_phase == 0) {
+    game_render_current_vision(game, framebuffer, view_x, view_y, view_cols, view_rows);
   }
 
   /* Decimate the native-res composite down to the fixed 240×192 on-screen

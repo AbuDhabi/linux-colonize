@@ -938,6 +938,12 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_commit_step(units_move_ctx* c) {
   }
   unit->x = dest_x;
   unit->y = dest_y;
+  /* dos_bugs.md DB-46: DOS keeps +0x315a across a move, so a Pioneer still on
+   * Clear/Plow or Road orders finishes the job on its new tile with the old
+   * tile's progress. The port drops the progress when the Pioneer moves. */
+  if (units_is_pioneer(pool, unit_id)) {
+    unit->col1_counter16 = 0;
+  }
   /* Keep passengers' coordinates mirrored to the ship for debugging / unload. */
   for (int i = 0; i < unit->cargo_count; ++i) {
     ColonizeUnit* pax = units_get(pool, unit->cargo_ids[i]);
