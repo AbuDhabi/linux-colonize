@@ -2017,14 +2017,14 @@ static void game_vision_mark(void* ctx, int x, int y, bool outer) {
 }
 
 /*
- * divergences.current_vision (port-only): 33% brightness on every seen tile that
+ * divergences.current_vision (port-only): checkerboard of 33% brightness on every seen tile that
  * no unit (units_sight_radius, map_sight_each domain gate) or colony (radius
  * 1, the FUN_1427_0bfe live-sight ring) of the viewed nation currently sees.
  * Unseen tiles stay pure fog. Drawn over terrain, colonies and units.
  */
 static void game_render_current_vision(
-  const ColonizeGameState* game, ColonizeFramebuffer8* fb, int view_x, int view_y, int view_cols,
-  int view_rows
+  const ColonizeGameState* game, ColonizeFramebuffer8* fb, int map_zoom, int view_x, int view_y,
+  int view_cols, int view_rows
 ) {
   const ColonizeWorldMap* map = &game->world_map;
   const int nation = game_fog_nation(game);
@@ -2070,7 +2070,10 @@ static void game_render_current_vision(
       for (int py = sy * tile; py < (sy + 1) * tile && py < fb->height; ++py) {
         uint8_t* row = &fb->pixels[(size_t)py * (size_t)fb->width];
         for (int px = sx * tile; px < (sx + 1) * tile && px < fb->width; ++px) {
-          row[px] = dark[row[px]];
+          /* 1-screen-pixel checkerboard: decimation keeps every (1<<zoom)th pixel. */
+          if ((((px >> map_zoom) + (py >> map_zoom)) & 1) == 0) {
+            row[px] = dark[row[px]];
+          }
         }
       }
     }
@@ -2291,7 +2294,7 @@ COLONIZE_INTERNAL void game_render_map_composite(
   }
 
   if (game->terrain_peel_phase == 0) {
-    game_render_current_vision(game, framebuffer, view_x, view_y, view_cols, view_rows);
+    game_render_current_vision(game, framebuffer, map_zoom, view_x, view_y, view_cols, view_rows);
   }
 
   /* Decimate the native-res composite down to the fixed 240×192 on-screen

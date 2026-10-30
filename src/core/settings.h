@@ -108,7 +108,7 @@ typedef struct ColonizeSettings {
   bool unlimited_units; /* skip the FUN_1427_06b4 unit limits (units_set_unlimited) */
   bool modern_prng;     /* xoshiro256** instead of the DOS LCG (dos_rng_modern_seed) */
   bool pioneer_plan;    /* VIEW Plan Pioneer overlay + ORDERS Automate (pioneer_plan.h) */
-  bool current_vision;  /* 33% brightness on seen tiles outside live unit/colony sight */
+  bool current_vision;  /* 33%-brightness checkerboard on seen tiles outside live unit/colony sight */
 } ColonizeSettings;
 
 /* DOS new-game state (0x5382=0xc600, 0x5384=0, 0x5386=0x0e) plus port
