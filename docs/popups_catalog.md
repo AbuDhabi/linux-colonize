@@ -564,7 +564,11 @@ Every writer of DS:0x1f5c (chief / King portrait), 0x1f5e (MSS) and 0x1f60 (MYR)
   @INDIANLAND (0x222aa, 0x22494, 0x28bec) and @INDIANWARPATH (0x4b0c5). The port lacked it on
   the three encroachment boxes, @INDIANBRIBE, @LEARNSTAY, @INDIANWARPATH / 2, @INDIANBEGFOOD
   and @MADATSHIPS (now `game_indian_land_portrait`, `ai_contact_chief_flair`); @INDIANCOMMENT is
-  never shown. King (8): FUN_291f_0ad4 @LOSENOCOLONIES / @KINGNEWWAR and 38fd:402a (wired).
+  never shown. The port gates the portrait on the section (`popup_msg_section_has_chief_portrait`,
+  the full 019c tag list incl. shared-tail jumps and the stack-built @TRADEn / @BUYn / @LEARN*):
+  `ai_contact_human_chrome` used to stamp it on every native dialog, hiding the MSS figure of
+  0652 sections (@RAID* nun, @RAIDWREAK / @KILLWAGONS frontiersman, @HERESYn friar) and adding
+  one to plain 03fe boxes (@TEACHCONVERT, @INDIANGRUDGE) and the 0182 @TRADEWHICH hold pick. King (8): FUN_291f_0ad4 @LOSENOCOLONIES / @KINGNEWWAR and 38fd:402a (wired).
 - **MYR**: `FUN_2a1f_0688` at 22 sites, all in the 5bfb_153e talk machine and 5f7a_020e (wired,
   `ai_diplo.c`).
 - Not ported: a `MOV word [0x1f5c],4` before the GAME @PICKNATION section box (ndisasm 0x70a4e;

@@ -277,6 +277,7 @@ void popup_msg_apply_tokens(
 static int g_popup_msg_pending_width = 0;
 static int g_popup_msg_pending_graphic = -1;
 static int g_popup_msg_pending_default = 0;
+static int g_popup_msg_pending_chief = 0;
 
 /*
  * GAME.TXT section → MSS{n}.SS popup decoration. Every constant
@@ -403,6 +404,44 @@ int popup_msg_mss_index_for_section(const char* section_name) {
   return -1;
 }
 
+/*
+ * Sections DOS shows through FUN_291f_019c(tag, tribe), the chief-portrait entry
+ * (DS:0x1f5c = DS:0x8d52): every immediate tag pushed at, or jumped into, the 38
+ * `CALLF 291f:019c` sites, plus the stack-built @TRADE0+n / @BUYn / @BADHAGGLEn /
+ * @LEARN+suffix tags (ndisasm 0x49b08, 0x4a1b1, 0x4a7b7). A native dialog shown
+ * through FUN_281f_0652 (@RAID*, @HERESYn, @KILLWAGONS, ...) or FUN_281f_03fe
+ * (@TEACHCONVERT, @INDIANGRUDGE) gets no portrait. Prefix rows end in '*'.
+ */
+static const char* const k_popup_msg_chief[] = {
+  "INDIANBRIBE", "BADCARGO", "BADHAGGLE*", "BRING", "DEFICIT", "BUYWHICH", "NOTENOUGH",
+  "MADATWAGONS", "GRUDGEWAGONS", "LEARN*", "CHIEF*", "EXTORT*", "NOCONTACT",
+  "INDIANWARPATH2", "UNFORTUNATE", "ALREADYSMITE", "MADATSHIPS", "INDIANPEACE",
+  "INDIANCOME", "INDIANWELCOME", "INDIANSHUN", "INDIANBEGFOOD", "INDIANSCONVERT",
+  "INDIANGIVEFOOD", "INDIANGIVESTUFF", "INDIANCOMMENT", "INDIANCITY", "INDIANWAGONS",
+  "INDIANBOW", "TRADE0", "TRADE1", "BUY0", "BUY1",
+};
+
+int popup_msg_section_has_chief_portrait(const char* section_name) {
+  if (!section_name) {
+    return 0;
+  }
+  for (size_t i = 0; i < sizeof(k_popup_msg_chief) / sizeof(k_popup_msg_chief[0]); ++i) {
+    const char* row = k_popup_msg_chief[i];
+    const size_t n = strlen(row);
+    if (row[n - 1] == '*' ? strncmp(row, section_name, n - 1) == 0
+                          : strcmp(row, section_name) == 0) {
+      return 1;
+    }
+  }
+  return 0;
+}
+
+int popup_msg_take_pending_chief(void) {
+  const int c = g_popup_msg_pending_chief;
+  g_popup_msg_pending_chief = 0;
+  return c;
+}
+
 int popup_msg_take_pending_graphic(void) {
   const int g = g_popup_msg_pending_graphic;
   g_popup_msg_pending_graphic = -1;
@@ -471,6 +510,7 @@ void popup_msg_fill(
   /* DOS keys the graphic off the call site, not GAME.TXT content — set it
    * from the name even when the section is missing and the fallback shows. */
   g_popup_msg_pending_graphic = popup_msg_mss_index_for_section(section_name);
+  g_popup_msg_pending_chief = popup_msg_section_has_chief_portrait(section_name);
   if (sec) {
     popup_msg_section_body(sec, raw, sizeof(raw), true);
   } else if (catalog && section_name) {

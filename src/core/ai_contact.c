@@ -185,7 +185,7 @@ void ai_contact_set_status(ColonizeTurnContext* ctx, const char* msg) {
  */
 
 /*
- * FUN_291f_019c(tag, tribe) — every native dialog in DOS goes through the
+ * FUN_291f_019c(tag, tribe) — a native dialog shown through the
  * portrait entry point (FUN_6f74_3760 stores the tribe in DS:0x1f5c, then
  * FUN_6f74_0042 builds IND{tribe}A{tier}.SS from it, tier = FUN_281f_0a60's
  * alarm band). DS:0x1f5c is cleared again at LAB_6f74_3018 when the dialog
@@ -227,8 +227,13 @@ void ai_contact_human_chrome(
       ctx->ai_popups, tag, e, nation_b, 0, NULL, body
     );
     /* FUN_6f74_0042: DS:0x1f5c = the contact tribe → IND{tribe}A{tier}.SS
-     * portrait beside the dialog, tier from the alarm band (P8.6). */
-    ai_contact_chief_flair(ctx, e, nation_b);
+     * portrait beside the dialog, tier from the alarm band (P8.6) — only for
+     * sections DOS shows through 019c; 0652 ones (@RAID*) keep their MSS. */
+    const AiPopupState* st = ctx->ai_popups;
+    if (st->last_enqueue_ok && st->queue_count > 0 &&
+        st->queue[st->queue_count - 1].chief_section) {
+      ai_contact_chief_flair(ctx, e, nation_b);
+    }
   }
 }
 

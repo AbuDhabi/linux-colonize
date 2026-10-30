@@ -125,6 +125,10 @@ int popup_msg_take_pending_width(void);
  * stays explicit via ai_popup_set_last_graphic_myr.
  */
 int popup_msg_take_pending_graphic(void);
+/* 1 when DOS shows the section through the chief-portrait entry FUN_291f_019c;
+ * the take reads (and clears) the flag of the last popup_msg_fill. */
+int popup_msg_section_has_chief_portrait(const char* section_name);
+int popup_msg_take_pending_chief(void);
 /* Section-name → MSS index (-1 when the section has no DOS graphic). */
 int popup_msg_mss_index_for_section(const char* section_name);
 /*

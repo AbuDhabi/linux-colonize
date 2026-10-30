@@ -3758,9 +3758,10 @@ static int sp_31(void) {
           pop.queue[pop.queue_count - 1].choice_count != 3) {
         return fail("2820: two holds should queue the hold-pick CHOICE (2 holds + Cancel)");
       }
-      /* Every 2820 dialog is a FUN_291f_019c(tag, *(0x8d52)) chief audience. */
-      if (pop.queue[pop.queue_count - 1].portrait_tribe != 0) {
-        return fail("2820: the hold-pick CHOICE needs the chief portrait");
+      /* The hold pick is FUN_291f_0182/016a with no DS:0x1f5c write (ndisasm
+       * 0x49768..0x4982c): no chief portrait, unlike the 019c dialogs. */
+      if (pop.queue[pop.queue_count - 1].portrait_tribe != -1) {
+        return fail("2820: the hold-pick CHOICE carries no chief portrait");
       }
       ai_popup_clear(&pop);
       pop.has_result = true;

@@ -242,6 +242,7 @@ static void ai_popup_fill_base(
   req->width = popup_msg_take_pending_width();
   /* MSS decoration of that same section (DOS DS:0x1f5e latch; -1 = none). */
   req->graphic_mss = popup_msg_take_pending_graphic();
+  req->chief_section = popup_msg_take_pending_chief();
   /* @default=N pre-highlighted row (0 = first). */
   req->default_choice = popup_msg_take_pending_default();
   req->nation_a = nation_a;

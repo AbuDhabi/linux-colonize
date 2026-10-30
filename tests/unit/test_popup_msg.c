@@ -247,6 +247,29 @@ static int case_dialog_figure_scan(void) {
   return rc ? fail("dialog figure scan") : 0;
 }
 
+/* Chief portrait only for FUN_291f_019c tags: the @RAID* family is FUN_281f_0652(tag, 5)
+ * (ndisasm 0x5c3cc..0x5c637) and must keep the nun, @TEACHCONVERT / @TRADEWHICH get nothing. */
+static int case_chief_portrait_sections(void) {
+  static const char* const chief[] = {"CHIEFHOWDY", "LEARNMASTER", "BADHAGGLE1", "TRADE1",
+                                      "BUY0",       "DEFICIT",     "EXTORTNO",   "INDIANBRIBE"};
+  static const char* const none[] = {"RAIDNOTHING", "RAIDSTORES", "RAIDWREAK", "HERESY0",
+                                     "KILLWAGONS",  "TEACHCONVERT", "TRADEWHICH", "BUYME0"};
+  int rc = 0;
+  for (size_t i = 0; i < sizeof(chief) / sizeof(chief[0]); ++i) {
+    if (!popup_msg_section_has_chief_portrait(chief[i])) {
+      fprintf(stderr, "@%s: want chief portrait\n", chief[i]);
+      rc = 1;
+    }
+  }
+  for (size_t i = 0; i < sizeof(none) / sizeof(none[0]); ++i) {
+    if (popup_msg_section_has_chief_portrait(none[i])) {
+      fprintf(stderr, "@%s: want no chief portrait\n", none[i]);
+      rc = 1;
+    }
+  }
+  return rc ? fail("chief portrait sections") : 0;
+}
+
 /* port_bugs.md #1222: two caret lines in a row give two rows, no empty one between
  * (FUN_6f74_1198; @FATHER1's "^" + "^{When ..." in the DOSBox-X capture). */
 static int case_caret_rows_back_to_back(void) {
@@ -321,6 +344,7 @@ static int case_choice_rows_not_truncated(void) {
 
 static const TestCase k_cases[] = {
     {"case_dialog_figure_scan", case_dialog_figure_scan},
+    {"case_chief_portrait_sections", case_chief_portrait_sections},
     {"case_caret_rows_back_to_back", case_caret_rows_back_to_back},
     {"unit_popup_msg_token_substitution", case_token_substitution},
     {"unit_popup_msg_choice_leak_sweep", case_choice_leak_sweep},

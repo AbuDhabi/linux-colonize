@@ -2280,9 +2280,9 @@ static int ai_contact_2820_begin_slot(
             ctx->ai_popups, AI_POPUP_TAG_CONTACT_TRADE_PICK, e, nation_id, unit->id, NULL, body,
             labels, ids, n
           )) {
-        /* 2820 +1436/+1439 (0x15ce/0x15da) — the hold menu is a 019c chief
-         * audience too. */
-        ai_contact_chief_flair(ctx, e, nation_id);
+        /* No chief portrait: DOS shows this list through FUN_291f_016a with no
+         * DS:0x1f5c write after 0182 (ndisasm 0x49762..0x49890); 0x15ce/0x15da
+         * are @MADATWAGONS/@GRUDGEWAGONS, not this menu. */
         return 1;
       }
     }

@@ -273,6 +273,9 @@ typedef struct AiPopupRequest {
    */
   int graphic_mss;
   int graphic_myr;
+  /* 1 when the body's section is a DOS FUN_291f_019c (chief portrait) tag;
+   * popup_msg_take_pending_chief. Gates ai_contact_human_chrome's portrait. */
+  int chief_section;
   /*
    * GAME.TXT `@default=N`: 1-based choice row DOS pre-highlights when the
    * dialog opens (FUN_6f74_32a4 default slot). 0 = first row.
