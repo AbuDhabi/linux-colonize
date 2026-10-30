@@ -96,6 +96,7 @@
 #include "core/map_gen.h"
 #include "core/map_menu.h"
 #include "core/pioneer_plan.h"
+#include "core/scout_auto.h"
 #include "core/map_panel.h"
 #include "core/name_entry_dialog.h"
 #include "core/new_game.h"
@@ -1309,6 +1310,7 @@ void game_refresh_orders_menu(ColonizeGameState* game) {
   ctx.human_nation = game->human_nation;
   ctx.europe_ok = game->europe_ok;
   ctx.pioneer_plan = pioneer_plan_enabled();
+  ctx.scout_auto = scout_auto_enabled();
   ctx.plan_view = game->pioneer_plan_view;
   if (ctx.plan_view) {
     const ColonizeWorld w = game_world_const(game);

@@ -1572,7 +1572,7 @@ bool units_wake(ColonizeUnitPool* pool, int unit_id) {
   }
   const int prev = u->orders;
   units_clear_orders(pool, unit_id);
-  u->pioneer_auto = false; /* waking is the UI's cancel for Automate too */
+  u->automated = false; /* waking is the UI's cancel for Automate too */
   /*
    * Only a hold passenger's zero is a park: the zero stands for the carried
    * allotment (port_bugs.md #544), or, never walked aboard, for an unspent one

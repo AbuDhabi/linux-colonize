@@ -93,6 +93,7 @@ add_library(colonize_sim STATIC
   src/core/unit_chrome.c
   src/core/village_trade_intel.c
   src/core/pioneer_plan.c
+  src/core/scout_auto.c
   src/core/runtime_ext.c
   src/core/colony.c
   src/core/colony_plots.c
@@ -491,6 +492,11 @@ colonize_add_test(NAME unit_dos_rng
 
 colonize_add_test(NAME unit_pioneer_plan
   SOURCES tests/unit/test_pioneer_plan.c
+  LIBS colonize_core
+)
+
+colonize_add_test(NAME unit_scout_auto
+  SOURCES tests/unit/test_scout_auto.c
   LIBS colonize_core
 )
 

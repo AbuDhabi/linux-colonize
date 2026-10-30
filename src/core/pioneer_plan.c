@@ -7,6 +7,7 @@
 #include "core/col1_save.h"
 #include "core/colony.h"
 #include "core/map.h"
+#include "core/scout_auto.h"
 #include "core/settings.h"
 #include "core/units.h"
 #include "core/units_move.h"
@@ -173,7 +174,8 @@ static bool pioneer_plan_job_needs_player(const ColonizeWorld* w, int nation, in
 static bool pioneer_plan_claimed(const ColonizeUnitPool* pool, const ColonizeUnit* self, int x, int y) {
   for (int i = 0; i < units_slot_end(pool); ++i) {
     const ColonizeUnit* o = &pool->units[i];
-    if (o == self || !o->active || !o->pioneer_auto || o->nation_id != self->nation_id) {
+    if (o == self || !o->active || !o->automated || o->nation_id != self->nation_id ||
+        !units_is_pioneer(pool, o->id)) {
       continue;
     }
     if ((o->orders == UNITS_ORDER_GOTO && o->goto_x == x && o->goto_y == y) ||
@@ -186,7 +188,7 @@ static bool pioneer_plan_claimed(const ColonizeUnitPool* pool, const ColonizeUni
 }
 
 static void pioneer_plan_cancel(ColonizeUnitPool* pool, ColonizeUnit* u) {
-  u->pioneer_auto = false;
+  u->automated = false;
   if (u->orders == UNITS_ORDER_GOTO) {
     units_clear_orders(pool, u->id);
   }
@@ -198,8 +200,8 @@ bool pioneer_plan_auto_step(
   const ColonizeWorld* w, ColonizeUnit* u, AiPopupState* ai_popups,
   const ColonizeMsgCatalog* messages
 ) {
-  if (!w || !w->map || !w->units || !u || !u->pioneer_auto) {
-    return false;
+  if (!w || !w->map || !w->units || !u || !u->automated || scout_auto_is_scout(w->units, u)) {
+    return false; /* an automated Scout is scout_auto_step's */
   }
   if (u->orders == UNITS_ORDER_CLEAR_PLOW || u->orders == UNITS_ORDER_BUILD_ROAD) {
     return false; /* mid-job: the lasting-order tick runs it */
@@ -283,9 +285,9 @@ bool pioneer_plan_automate(
   if (u->orders != UNITS_ORDER_NONE) {
     units_clear_orders(w->units, u->id);
   }
-  u->pioneer_auto = true;
+  u->automated = true;
   (void)pioneer_plan_auto_step(w, u, ai_popups, messages);
-  return u->pioneer_auto;
+  return u->automated;
 }
 
 /* Payload: u16 version, u8 width, u8 height, width*height plan bytes,
@@ -302,7 +304,8 @@ uint8_t* pioneer_plan_serialize(
   const int h = map->height;
   int autos = 0;
   for (int i = 0; units && i < units_slot_end(units); ++i) {
-    autos += units->units[i].active && units->units[i].pioneer_auto;
+    autos += units->units[i].active && units->units[i].automated &&
+             units_is_pioneer(units, units->units[i].id);
   }
   const size_t size = 4u + (size_t)w * (size_t)h + 2u + 3u * (size_t)autos;
   uint8_t* out = malloc(size);
@@ -322,7 +325,7 @@ uint8_t* pioneer_plan_serialize(
   *p++ = (uint8_t)(autos >> 8);
   for (int i = 0; units && i < units_slot_end(units); ++i) {
     const ColonizeUnit* u = &units->units[i];
-    if (u->active && u->pioneer_auto) {
+    if (u->active && u->automated && units_is_pioneer(units, u->id)) {
       *p++ = (uint8_t)u->x;
       *p++ = (uint8_t)u->y;
       *p++ = (uint8_t)u->nation_id;
@@ -356,9 +359,9 @@ void pioneer_plan_deserialize(const uint8_t* data, size_t size, ColonizeUnitPool
     /* ponytail: two Pioneers sharing a tile may swap which one is automated. */
     for (int i = 0; i < units_slot_end(units); ++i) {
       ColonizeUnit* u = &units->units[i];
-      if (u->active && !u->pioneer_auto && u->x == p[0] && u->y == p[1] && u->nation_id == p[2] &&
+      if (u->active && !u->automated && u->x == p[0] && u->y == p[1] && u->nation_id == p[2] &&
           units_is_pioneer(units, u->id)) {
-        u->pioneer_auto = true;
+        u->automated = true;
         break;
       }
     }

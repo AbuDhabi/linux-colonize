@@ -115,7 +115,7 @@ static int case_automate(void) {
   const ColonizeWorld w = world();
   ColonizeUnit* u = units_get(&s_pool, pid);
   CHECK(!pioneer_plan_automate(&w, u, NULL, NULL)); /* nothing planned */
-  CHECK(!u->pioneer_auto);
+  CHECK(!u->automated);
   CHECK(pioneer_plan_toggle(&w, 0, 4, 1, PIONEER_PLAN_ROAD));
   CHECK(pioneer_plan_toggle(&w, 0, 4, 1, PIONEER_PLAN_PLOW));
   CHECK(pioneer_plan_automate(&w, u, NULL, NULL));
@@ -124,15 +124,15 @@ static int case_automate(void) {
   u->x = 4;
   u->orders = UNITS_ORDER_NONE;
   CHECK(pioneer_plan_auto_step(&w, u, NULL, NULL));
-  CHECK(u->orders == UNITS_ORDER_BUILD_ROAD && u->pioneer_auto);
+  CHECK(u->orders == UNITS_ORDER_BUILD_ROAD && u->automated);
   /* PPLN round trip keeps the plan and the automated unit. */
   size_t n = 0;
   uint8_t* blob = pioneer_plan_serialize(&s_map, &s_pool, &n);
   CHECK(blob && n > 0);
-  u->pioneer_auto = false;
+  u->automated = false;
   pioneer_plan_deserialize(blob, n, &s_pool);
   free(blob);
-  CHECK(u->pioneer_auto);
+  CHECK(u->automated);
   CHECK(pioneer_plan_at(4, 1) == (PIONEER_PLAN_ROAD | PIONEER_PLAN_PLOW));
   /* The job that spends the last tools ends Automate right then, not at the
    * next auto step. */
@@ -141,13 +141,13 @@ static int case_automate(void) {
     u->moves = units_max_mp(&s_pool, u->id);
     (void)units_pioneer_work_tick_w(&w, u->id, NULL, 0, NULL, NULL);
   }
-  CHECK(u->tools == 0 && !u->pioneer_auto);
+  CHECK(u->tools == 0 && !u->automated);
   /* Out of tools cancels. */
-  u->pioneer_auto = true;
+  u->automated = true;
   u->orders = UNITS_ORDER_NONE;
   u->tools = 0;
   CHECK(!pioneer_plan_auto_step(&w, u, NULL, NULL));
-  CHECK(!u->pioneer_auto);
+  CHECK(!u->automated);
   teardown();
   return 0;
 }

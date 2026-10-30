@@ -51,6 +51,7 @@
 #include "core/map_gen.h"
 #include "core/map_menu.h"
 #include "core/pioneer_plan.h"
+#include "core/scout_auto.h"
 #include "core/map_panel.h"
 #include "core/name_entry_dialog.h"
 #include "core/new_game.h"
@@ -778,6 +779,9 @@ static GameUpdateStep game_pacer_goto_step(
     const int aid = active->id;
     const int gx = active->goto_x;
     const int gy = active->goto_y;
+    if (active->automated) {
+      scout_auto_note_village(active->nation_id, gx, gy); /* divergences.scout_autoexplore */
+    }
     units_clear_orders(&game->units, aid);
     game->units.selected_id = aid;
     (void)game_try_unit_move(game, gx, gy);
@@ -806,6 +810,11 @@ static GameUpdateStep game_pacer_goto_step(
       const int cid = colonies_id_at(&game->colonies, gx, gy);
       const ColonizeColony* col = colonies_get(&game->colonies, cid);
       hostile = col && col->active && col->nation_id != active->nation_id;
+    }
+    if (hostile && active->automated) {
+      /* Automate never attacks: drop the Go To; the next frame retargets. */
+      units_clear_orders(&game->units, active->id);
+      return GAME_UPDATE_RETURN_TRUE;
     }
     if (hostile) {
       const int aid = active->id;
@@ -1062,11 +1071,12 @@ COLONIZE_INTERNAL GameUpdateStep game_update_unit_pacer(ColonizeGameState* game,
       if (sub != GAME_UPDATE_CONTINUE) {
         return sub;
       }
-    } else if (active_awaiting_player && active->pioneer_auto) {
+    } else if (active_awaiting_player && active->automated) {
       /* Automate: start the job here or head for the next planned tile; the
        * next frame paces the Go To or hands on the spent unit. */
       const ColonizeWorld w = game_world(game);
       (void)pioneer_plan_auto_step(&w, active, &game->ai_popups, &game->messages);
+      scout_auto_step(&w, active);
     } else if (active_awaiting_player) {
       /* FUN_2b5a_3802 raw 46235-46236: Move Pieces hands the player a unit,
        * 0x97b0 = 1 (game_no_unit_left reads it; port_bugs.md #1302). The

@@ -721,12 +721,12 @@ static int unit_stack_one_click_wakes_and_selects(void) {
     return 1;
   }
   /* An automated unit with no real order: the first pick cancels Automate. */
-  pu->pioneer_auto = true;
+  pu->automated = true;
   (void)unit_stack_try_open(&dlg, &pool, 3, 3, 0);
   dlg.selection = (dlg.ids[0] == pax) ? 0 : 1;
   sel = -1;
   unit_stack_handle_input(&dlg, &pool, &in, &sel);
-  if (sel != -1 || pu->pioneer_auto) {
+  if (sel != -1 || pu->automated) {
     fprintf(stderr, "stack_pick: first pick must cancel Automate (sel=%d)\n", sel);
     return 1;
   }

@@ -51,6 +51,7 @@
 #include "core/map_gen.h"
 #include "core/map_menu.h"
 #include "core/pioneer_plan.h"
+#include "core/scout_auto.h"
 #include "core/map_panel.h"
 #include "core/name_entry_dialog.h"
 #include "core/new_game.h"
@@ -890,6 +891,7 @@ bool game_select_next_unit_awaiting_orders(ColonizeGameState* game) {
     if (pioneer_plan_auto_step(&w, u, &game->ai_popups, &game->messages)) {
       continue;
     }
+    scout_auto_step(&w, u); /* divergences.scout_autoexplore: next Go To */
     if (turn_rotation_lasting_step_w(&w, u, &game->ai_popups, &game->messages)) {
       /* The rotation's pick is DOS's FUN_2b5a_0e52 activation, which runs the
        * piece-selected tutorial chain (raw 42330-42332). */
@@ -1826,17 +1828,23 @@ static GameMenuActionStatus game_menu_action_orders(ColonizeGameState* game, Map
   }
   if (action != MAP_MENU_ACTION_AUTOMATE && action != MAP_MENU_ACTION_WAIT_UNIT &&
       action != MAP_MENU_ACTION_NO_ORDERS && game->units_ok) {
-    /* Any other order given to an automated Pioneer takes it off Automate. */
+    /* Any other order given to an automated unit takes it off Automate. */
     ColonizeUnit* sel = units_get(&game->units, game->units.selected_id);
     if (sel) {
-      sel->pioneer_auto = false;
+      sel->automated = false;
     }
   }
   switch (action) {
     case MAP_MENU_ACTION_AUTOMATE: {
       ColonizeUnit* u = units_get(&game->units, game->units.selected_id);
       const ColonizeWorld w = game_world(game);
-      if (!u || !pioneer_plan_automate(&w, u, &game->ai_popups, &game->messages)) {
+      if (u && scout_auto_is_scout(&game->units, u)) {
+        if (!scout_auto_automate(&w, u)) {
+          set_status(game, "Nothing left to explore", NULL);
+        } else if (u->moves <= 0 || u->orders != UNITS_ORDER_GOTO) {
+          game_wait_next_unit(game);
+        }
+      } else if (!u || !pioneer_plan_automate(&w, u, &game->ai_popups, &game->messages)) {
         set_status(game, "No planned improvements in reach", NULL);
       } else if (u->moves <= 0 || u->orders != UNITS_ORDER_GOTO) {
         game_wait_next_unit(game);
@@ -2359,7 +2367,7 @@ void game_map_click_dispatch(ColonizeGameState* game, int mx, int my) {
     const ColonizeUnit* any = units_get_const(&game->units, any_id);
     if (any && any->nation_id == game->human_nation) {
       units_clear_orders(&game->units, any_id);
-      units_get(&game->units, any_id)->pioneer_auto = false;
+      units_get(&game->units, any_id)->automated = false;
       game_select_tile(game, mx, my);
       return;
     }

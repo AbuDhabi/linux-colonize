@@ -275,7 +275,7 @@ int unit_chrome_plan_badge_index(int nation_id, unsigned plan, int orders, int c
 }
 
 int unit_chrome_unit_badge_index(const ColonizeUnit* u, int cur) {
-  if (u->pioneer_auto) {
+  if (u->automated) {
     return UNIT_CHROME_ORDERS_PLAN_BASE + ('A' << 4) + (u->orders & 15);
   }
   return unit_chrome_plan_badge_index(u->nation_id, u->col1_ai_plan, u->orders, cur);

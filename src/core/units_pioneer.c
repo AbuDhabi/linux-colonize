@@ -260,7 +260,7 @@ static bool units_pioneer_wear_tools(ColonizeUnitPool* pool, ColonizeUnit* u) {
     u->tools = 0;
     /* divergences.pioneer_plan: out of tools ends Automate now, so the unit
      * asks for orders this turn instead of after the next auto step. */
-    u->pioneer_auto = false;
+    u->automated = false;
     /* DOS-LITERAL FUN_479b_0158 raw 76696-76718: tools-out writes only
      * tools (+0x3159), type (+0x3146) and @USEDUPTOOLS — it never touches
      * orders (+0x314c). Orders are cleared by the work bodies themselves on

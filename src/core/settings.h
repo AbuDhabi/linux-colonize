@@ -109,6 +109,7 @@ typedef struct ColonizeSettings {
   bool modern_prng;     /* xoshiro256** instead of the DOS LCG (dos_rng_modern_seed) */
   bool pioneer_plan;    /* VIEW Plan Pioneer overlay + ORDERS Automate (pioneer_plan.h) */
   bool current_vision;  /* fog-blue checkerboard on seen tiles outside live unit/colony sight */
+  bool scout_autoexplore; /* ORDERS Automate on a Scout explores (scout_auto.h) */
 } ColonizeSettings;
 
 /* DOS new-game state (0x5382=0xc600, 0x5384=0, 0x5386=0x0e) plus port

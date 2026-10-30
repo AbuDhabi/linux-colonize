@@ -159,7 +159,7 @@ static void unit_stack_activate_row(UnitStackPopup* dlg, ColonizeUnitPool* pool,
     return;
   }
   dlg->selection = idx;
-  if (u->orders != UNITS_ORDER_NONE || u->pioneer_auto) {
+  if (u->orders != UNITS_ORDER_NONE || u->automated) {
     /*
      * First pick cancels orders only. Wake through units_wake, not a bare
      * orders=0: boarding parks a passenger at moves 0 as a "skip this
