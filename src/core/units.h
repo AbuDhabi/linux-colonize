@@ -645,6 +645,24 @@ int units_render_viewer_badge(
   const ColonizeUnitPool* pool, const ColonizeUnit* u, int fog_nation, bool* privateer_mask
 );
 
+/*
+ * Viewer sight for foreign units (dos_bugs.md DB-65). DOS shows a foreign
+ * unit while the viewer's col1_vis_mask bit is set, and 0c9a also ORs in the
+ * destination tile's owner nibble, which is the first nation to have
+ * revealed the tile, or the last one with a unit on it. So a unit stepping onto
+ * ground the human once explored shows up anywhere on the map. The port
+ * shows instead every unit that stood on a tile in the viewer's live sight
+ * at some point this turn. The bits themselves stay DOS for the sim and the save.
+ * units_seen_note marks the units on `lit` tiles (map-sized grid) for
+ * `turn`; a new turn or nation starts the set empty. Until the first note
+ * (tests, harnesses) units_shown_to falls back to the DOS vis bit.
+ */
+void units_seen_note(
+  const ColonizeUnitPool* pool, const uint8_t* lit, int map_w, int map_h, int nation, int turn
+);
+void units_seen_reset(void);
+bool units_shown_to(const ColonizeUnit* u, int fog_nation);
+
 /* selected_visible: when false, hide the selected unit (blink off frame). */
 void units_render_on_map(
   const ColonizeUnitPool* pool,

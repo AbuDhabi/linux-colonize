@@ -2028,16 +2028,17 @@ static bool game_current_vision_on(const ColonizeGameState* game) {
          game->terrain_peel_phase == 0 && nation >= 0 && nation <= 3;
 }
 
-static void game_render_current_vision(
-  const ColonizeGameState* game, ColonizeFramebuffer8* fb, int map_zoom, int view_x, int view_y,
-  int view_cols, int view_rows
-) {
+/* Live sight of the viewed nation, one byte per map tile (map width/height
+ * are uint8_t). Feeds the current_vision veil and units_seen_note (DB-65). */
+static uint8_t s_vision_lit[256 * 256];
+
+static bool game_vision_grid_build(const ColonizeGameState* game) {
   const ColonizeWorldMap* map = &game->world_map;
   const int nation = game_fog_nation(game);
-  if (!game_current_vision_on(game)) {
-    return;
+  if (!game->world_map_ok || nation < 0 || nation > 3) {
+    return false;
   }
-  static uint8_t lit[256 * 256]; /* map width/height are uint8_t */
+  uint8_t* lit = s_vision_lit;
   memset(lit, 0, (size_t)map->width * (size_t)map->height);
   GameVisionGrid grid = {map, lit};
   if (game->units_ok) {
@@ -2058,6 +2059,20 @@ static void game_render_current_vision(
       map_sight_each(map, c->x, c->y, 1, false, game_vision_mark, &grid);
     }
   }
+  return true;
+}
+
+/* Needs game_vision_grid_build this frame. */
+static void game_render_current_vision(
+  const ColonizeGameState* game, ColonizeFramebuffer8* fb, int map_zoom, int view_x, int view_y,
+  int view_cols, int view_rows
+) {
+  const ColonizeWorldMap* map = &game->world_map;
+  const int nation = game_fog_nation(game);
+  if (!game_current_vision_on(game)) {
+    return;
+  }
+  const uint8_t* lit = s_vision_lit;
   uint8_t dark[256];
   for (int i = 0; i < 256; ++i) {
     const uint8_t* c = game->map_palette.rgb[i];
@@ -2352,6 +2367,14 @@ COLONIZE_INTERNAL void game_render_map_composite(
   if (game->terrain_peel_phase == 0 && game->col1_ok && game->unit_icons_ok) {
     const ColonizeWorld w = game_world_const(game);
     map_panel_render_tribes_on_map_w(&w, &game->unit_icons, framebuffer, view_x, view_y, view_cols, view_rows, tile_w, tile_h, map_origin_x, map_origin_y, game_fog_nation(game), game->map_palette_ok ? &game->map_palette : NULL);
+  }
+
+  /* Foreign units show once seen in live sight this turn (dos_bugs.md DB-65). */
+  if (game_vision_grid_build(game) && game->units_ok) {
+    units_seen_note(
+      &game->units, s_vision_lit, game->world_map.width, game->world_map.height,
+      game_fog_nation(game), (int)game->turn_number
+    );
   }
 
   if (game->terrain_peel_phase == 0 && game->units_ok && game->unit_icons_ok) {

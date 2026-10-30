@@ -1287,6 +1287,58 @@ static int case_header_stage_seam(void) {
   return rc;
 }
 
+/* dos_bugs.md DB-65: a foreign unit shows once it stood in live sight this
+ * turn, stays shown when it walks out, and the set empties on a new turn.
+ * A stray DOS vis bit alone no longer shows a unit. */
+static int case_seen_this_turn(void) {
+  ColonizeMsgCatalog names;
+  memset(&names, 0, sizeof(names));
+  char names_path[512];
+  if (!dos_compat_normalize_asset_path("COLONIZE", "NAMES.TXT", names_path, sizeof(names_path)) ||
+      !assets_msg_load_file(&names, names_path)) {
+    fprintf(stderr, "SKIP: COLONIZE/NAMES.TXT not found\n");
+    return TR_SKIP;
+  }
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  if (!units_load_types(&pool, &names)) {
+    assets_msg_free(&names);
+    return fail("units_load_types failed");
+  }
+  assets_msg_free(&names);
+  const int seen_id = units_spawn_allow_stack(&pool, 0, 3, 3);
+  const int far_id = units_spawn_allow_stack(&pool, 0, 9, 9);
+  ColonizeUnit* seen = units_get(&pool, seen_id);
+  ColonizeUnit* far = units_get(&pool, far_id);
+  if (!seen || !far) {
+    return fail("spawn failed");
+  }
+  seen->nation_id = 1;
+  far->nation_id = 1;
+  far->col1_vis_mask = 0x1; /* DOS owner-nibble leak: viewer 0's bit */
+  units_seen_reset();
+  if (!units_shown_to(far, 0)) {
+    return fail("before any note the DOS vis bit decides");
+  }
+  uint8_t lit[16 * 16] = {0};
+  lit[3 * 16 + 3] = 1;
+  units_seen_note(&pool, lit, 16, 16, 0, 5);
+  if (!units_shown_to(seen, 0) || units_shown_to(far, 0)) {
+    return fail("turn 5: unit in sight shown, leaked vis bit hidden");
+  }
+  seen->x = 4; /* walks out of sight */
+  units_seen_note(&pool, lit, 16, 16, 0, 5);
+  if (!units_shown_to(seen, 0)) {
+    return fail("seen this turn stays shown");
+  }
+  units_seen_note(&pool, lit, 16, 16, 0, 6);
+  if (units_shown_to(seen, 0)) {
+    return fail("new turn: out of sight hidden");
+  }
+  units_seen_reset();
+  return 0;
+}
+
 static const TestCase k_cases[] = {
   {"panel_geometry_constants", case_panel_geometry_constants},
   {"panel_geometry_resized", case_panel_geometry_resized},
@@ -1305,6 +1357,7 @@ static const TestCase k_cases[] = {
   {"plan_badge_glyph", case_plan_badge_glyph},
   {"sidebar_cheat_lines", case_sidebar_cheat_lines},
   {"header_stage_seam", case_header_stage_seam},
+  {"seen_this_turn", case_seen_this_turn},
 };
 
 TEST_MAIN(k_cases)

@@ -1384,8 +1384,7 @@ COLONIZE_INTERNAL void map_panel_render_minimap(MapPanelRenderCtx* c) {
           continue;
         }
         /* Same vis-bit gate as the main map (FUN_2f2b_6372). */
-        if (u->nation_id != fog_nation && fog_nation >= 0 && fog_nation <= 3 &&
-            (u->col1_vis_mask & (1u << fog_nation)) == 0) {
+        if (!units_shown_to(u, fog_nation)) {
           continue;
         }
         const int lx = u->x - origin_x;
@@ -1921,8 +1920,7 @@ COLONIZE_INTERNAL void map_panel_render_stack(MapPanelRenderCtx* c) {
     const bool own_stack = top && (fog_nation < 0 || top->nation_id == fog_nation);
 
     if (top && !own_stack) {
-      const bool visible =
-        fog_nation < 0 || fog_nation > 3 || (top->col1_vis_mask & (1u << fog_nation)) != 0;
+      const bool visible = units_shown_to(top, fog_nation);
       if (visible && c->text_y + MAP_PANEL_ROW_H <= y_limit) {
         const int sprite = units_map_sprite(units, top->id);
         if (icons && sprite >= 0) {

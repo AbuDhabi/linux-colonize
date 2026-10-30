@@ -122,6 +122,7 @@ static bool game_apply_col1_save(ColonizeGameState* game, ColonizeCol1Save* load
   ai_coarse_fog_reset(); /* port_bugs.md #1103: DS:0x9faa outlives the old world */
   turn_reset();
   units_reset_state(); /* goto anti-backtrack shadow, indexed by reused unit_id */
+  units_seen_reset();  /* viewer's seen-this-turn set (dos_bugs.md DB-65) */
   /* A legacy port save can already exceed DOS's 300-record global limit.
    * Restore every saved record first; the live spawn reservation resumes
    * immediately afterward for new runtime-pool units. */
