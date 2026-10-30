@@ -140,6 +140,7 @@ static void fx_close(void) {
   free(col1.tribe);
   col1.tribe = NULL;
   col1_save_free(&col1);
+  assets_msg_free(&game_txt); /* sp_53 loads it; the spine frees it only at its end */
 }
 
 /*

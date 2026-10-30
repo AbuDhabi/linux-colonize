@@ -3528,6 +3528,7 @@ static int case_europe_seed_campaign_seed100(void) {
     }
   }
 done:
+  col1_save_free(gold);
   free(gold);
   free(save);
   europe_free(&eu);

@@ -82,6 +82,7 @@ static void fx_begin(void) {
     g_diag_ready = 1;
   }
   units_set_occupancy_map(NULL);
+  units_set_ff_col1(NULL); /* turn_* leaves it on the previous case's stack col1 */
   units_reset_state();
   colonies_set_occupancy_map(NULL);
   colonies_set_col1_context(NULL);

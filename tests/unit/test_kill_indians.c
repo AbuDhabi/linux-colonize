@@ -32,6 +32,7 @@ static int ki_setup(KiFix* f, const int* nations, int n) {
   memset(f, 0, sizeof(*f));
   col1_save_init(&f->col1);
   f->col1.tribe = calloc((size_t)n, sizeof(ColonizeCol1Tribe));
+  f->col1.owned = true; /* col1_save_free releases the section */
   f->map.layer3 = calloc(KI_W * KI_W, 1);
   if (!f->col1.tribe || !f->map.layer3) {
     return 1;

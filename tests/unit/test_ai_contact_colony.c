@@ -333,6 +333,7 @@ static int test_ai_missionary_village_arm(void) {
   if (!col1.tribe) {
     return fail("missionary village: alloc tribe");
   }
+  col1.owned = true; /* col1_save_free releases the section */
   col1.tribe[0].x = 5;
   col1.tribe[0].y = 5;
   col1.tribe[0].nation_id = 4;
@@ -418,6 +419,7 @@ static int test_beg_conceded_falls_into_gift_863(void) {
   if (!col1.tribe) {
     return fail("#863: alloc tribe");
   }
+  col1.owned = true; /* col1_save_free releases the section */
   col1.tribe[0].nation_id = 4;
   col1.tribe[0].x = 5;
   col1.tribe[0].y = 7;
@@ -593,6 +595,7 @@ static int run_803_trade_case(int filler_units, uint8_t* out_last_bought) {
   if (!col1.tribe) {
     return fail("#803: alloc tribe");
   }
+  col1.owned = true; /* col1_save_free releases the section */
   col1.tribe[0].x = 5;
   col1.tribe[0].y = 5;
   col1.tribe[0].nation_id = 4;
@@ -996,6 +999,8 @@ static int test_found_claim_stamp_1ba8(void) {
   fx_map_free(&map);
   free(col1.tribe);
   col1.tribe = NULL;
+  free(col1.colony); /* colonies_found grows it */
+  col1.colony = NULL;
   col1_save_free(&col1);
   if (cid < 0) {
     return fail("1ba8: found");

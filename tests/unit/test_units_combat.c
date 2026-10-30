@@ -2055,7 +2055,7 @@ static int unit_naval_stack_sweep(void) {
   ColonizeWorldMap map;
   memset(&map, 0, sizeof(map));
   if (!fx_map_alloc(&map, 8, 8, T_OCEAN, false)) {
-    free(map.terrain); free(map.layer2); free(map.layer3);
+    fx_map_free(&map);
     return 1;
   }
   units_set_occupancy_map(&map);
@@ -2120,7 +2120,7 @@ static int unit_naval_stack_sweep(void) {
   }
   units_set_ff_col1(NULL);
   units_set_occupancy_map(NULL);
-  free(map.terrain); free(map.layer2); free(map.layer3);
+  fx_map_free(&map);
   if (rc == 0) {
     fprintf(stderr, "unit_units: naval stack sweep ok\n");
   }
@@ -2182,7 +2182,7 @@ static int unit_tb34_sink_decrements_ship_count(void) {
   ColonizeWorldMap map;
   memset(&map, 0, sizeof(map));
   if (frigate < 0 || privateer < 0 || !fx_map_alloc(&map, 8, 8, T_OCEAN, false)) {
-    free(map.terrain); free(map.layer2); free(map.layer3);
+    fx_map_free(&map);
     fprintf(stderr, "TB-34: fixture failed\n");
     return 1;
   }
@@ -2230,7 +2230,7 @@ static int unit_tb34_sink_decrements_ship_count(void) {
   }
   units_set_ff_col1(NULL);
   units_set_occupancy_map(NULL);
-  free(map.terrain); free(map.layer2); free(map.layer3);
+  fx_map_free(&map);
   return rc;
 }
 

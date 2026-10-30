@@ -4129,6 +4129,7 @@ void units_reset_hooks(void) {
   units_set_combat_colonies(NULL);
   units_set_combat_human_nation(-1);
   units_set_native_fallout_context(NULL, NULL);
+  units_set_ff_col1(NULL);
   combat_analysis_set_presenter(NULL, NULL);
 }
 

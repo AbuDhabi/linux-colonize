@@ -2524,6 +2524,7 @@ static int unit_ship_construction(void) {
     fprintf(stderr, "ship construction: load @BUILDING failed\n");
     return 1;
   }
+  assets_msg_free(&names);
   int failures = 0;
   const int failures_before = failures;
 
@@ -2744,6 +2745,7 @@ static int unit_wagon_cap_and_armory_gate(void) {
     fprintf(stderr, "wagon cap: load @BUILDING failed\n");
     return 1;
   }
+  assets_msg_free(&names);
   ColonizeColony* c = &pool.colonies[0];
   memset(c, 0, sizeof(*c));
   c->id = 0;
@@ -3594,6 +3596,7 @@ static int case_colony_delete_remaps_trade_stops(void) {
   }
   colonies_set_col1_context(NULL);
   colonies_set_units_context(NULL);
+  free(col1->colony); /* colonies_found grows it */
   free(col1);
   map_free(&map);
   return rc;

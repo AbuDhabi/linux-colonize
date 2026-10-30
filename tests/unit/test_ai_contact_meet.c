@@ -26,6 +26,7 @@ static int test_ai_only_meet_is_silent_for_human(void) {
   if (!col1.tribe) {
     return fail("ai-only meet: alloc tribe");
   }
+  col1.owned = true; /* col1_save_free releases the section */
   col1.tribe[0].x = 5;
   col1.tribe[0].y = 5;
   col1.tribe[0].nation_id = 5; /* Aztec */
@@ -135,6 +136,7 @@ static int test_encounter_scan_ignores_stale_owner_stamp(void) {
   if (!col1.tribe) {
     return fail("stale stamp: alloc tribe");
   }
+  col1.owned = true; /* col1_save_free releases the section */
   col1.tribe[0].x = 5;
   col1.tribe[0].y = 5;
   col1.tribe[0].nation_id = 8; /* Cherokee village really standing here */
@@ -317,6 +319,7 @@ static int test_2154_cover_mask_fixed_tb29(void) {
   col1_save_init(&col1);
   col1.head.tribe_count = 1;
   col1.tribe = calloc(1, sizeof(ColonizeCol1Tribe));
+  col1.owned = true; /* col1_save_free releases the section */
   ColonizeWorldMap map;
   if (!col1.tribe || !fx_map_alloc(&map, 16, 16, 1, false)) {
     col1_save_free(&col1);

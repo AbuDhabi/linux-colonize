@@ -46,6 +46,9 @@ typedef struct {
  * the one optional asset). */
 bool render_load_save(const char* data_dir, const char* save_path, RenderSaveBundle* out);
 
+/* Releases what render_load_save allocated (safe on a partial load). */
+void render_free_save(RenderSaveBundle* b);
+
 /* Optional sprite sheet / font; both warn and return false when missing. */
 bool render_load_sheet(const char* data_dir, const char* name, ColonizeSpriteSheet* out);
 bool render_load_font(const char* data_dir, const char* name, ColonizeFont* out);

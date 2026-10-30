@@ -65,6 +65,14 @@ bool render_load_save(const char* data_dir, const char* save_path, RenderSaveBun
   return true;
 }
 
+void render_free_save(RenderSaveBundle* b) {
+  europe_free(&b->europe);
+  map_free(&b->map);
+  assets_msg_free(&b->labels);
+  assets_msg_free(&b->names);
+  col1_save_free(&b->save);
+}
+
 void render_fb_init(ColonizeFramebuffer8* fb, uint8_t* pixels) {
   memset(pixels, 0, 320 * 200);
   fb->width = 320;

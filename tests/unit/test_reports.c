@@ -32,7 +32,8 @@ static void free_g_view(void) {
 
 static int load_g_view(void) {
   diag_init(0, NULL);
-  memset(&g_view, 0, sizeof(g_view)); /* reports_load frees prior contents */
+  free_g_view(); /* a reload must not orphan the loaded art */
+  memset(&g_view, 0, sizeof(g_view));
   char err[256];
   if (!reports_load(&g_view, "COLONIZE", err, sizeof(err))) {
     fprintf(stderr, "reports_load failed: %s\n", err);

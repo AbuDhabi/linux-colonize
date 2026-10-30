@@ -149,6 +149,7 @@ static int case_874_drain_and_merc_offer_exclusive(void) {
   col1.head.game_options.woi = 1; /* independence declared */
   col1.head.colony_count = 1;
   col1.colony = calloc(1, sizeof(ColonizeCol1Colony));
+  col1.owned = true; /* col1_save_free releases the section */
   int rc = 0;
   if (!col1.colony) {
     col1_save_free(&col1);

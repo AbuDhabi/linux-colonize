@@ -1117,6 +1117,7 @@ static int unit_board_restore_bounded(void) {
  * units_move_ctx (COLONIZE_TESTING). validate = the port pre-checks, denied =
  * the no-fight probe aborts. */
 static int unit_move_stage_seam_1107(void) {
+  units_set_occupancy_map(NULL); /* an earlier case leaves it on its stack map */
   ColonizeUnitPool pool;
   memset(&pool, 0, sizeof(pool));
   pool.type_count = 1;

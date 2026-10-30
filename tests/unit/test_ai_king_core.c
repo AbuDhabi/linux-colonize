@@ -172,6 +172,7 @@ static int sp_00(void) {
   if (!col1.colony) {
     return fail("alloc colony");
   }
+  col1.owned = true; /* col1_save_free releases the section */
   col1.colony[0].nation_id = 0;
   col1.colony[0].x = 5;
   col1.colony[0].y = 5;

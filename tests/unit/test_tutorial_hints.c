@@ -734,6 +734,8 @@ static int test_latches_round_trip_save(void) {
   }
   free(data);
 out:
+  col1_save_free(a);
+  col1_save_free(b);
   free(a);
   free(b);
   return rc;

@@ -409,7 +409,7 @@ static bool game_key_pioneer_order(
   if (game_pioneer_land_gate(game, land_kind)) {
     return true;
   }
-  char msg[96];
+  char msg[96] = ""; /* fn leaves it untouched on some paths */
   const ColonizeWorld w = game_world(game);
   fn(&w, sid, msg, sizeof(msg), &game->ai_popups, &game->messages);
   set_status(game, msg, NULL);

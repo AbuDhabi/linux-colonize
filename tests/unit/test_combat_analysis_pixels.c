@@ -52,6 +52,15 @@ typedef struct Capture {
 static Capture g_cap;
 static CombatAnalysisDialog g_dlg;
 
+/* The previous case's font/sheets; g_cap is reloaded per present_case. */
+static void cap_free(void) {
+  font_file_free(&g_cap.font);
+  ss_free(&g_cap.wood);
+  ss_free(&g_cap.icons);
+  ss_free(&g_cap.terrain);
+  ss_free(&g_cap.phys0);
+}
+
 static void present(const ColonizeCombatEngagement* eng, void* user) {
   (void)user;
   const ColonizeUnitPool* pool = (const ColonizeUnitPool*)user;
@@ -92,9 +101,13 @@ static int present_case(const Case* c, uint32_t seed, int* total) {
   snprintf(path, sizeof(path), "test-saves-combat/%s.SAV", c->name);
   if (!b || !render_load_save("COLONIZE", path, b)) {
     fprintf(stderr, "SKIP %s: save or COLONIZE/ assets\n", c->name);
+    if (b) {
+      render_free_save(b);
+    }
     free(b);
     return TR_SKIP;
   }
+  cap_free();
   memset(&g_cap, 0, sizeof(g_cap));
   memset(&g_dlg, 0, sizeof(g_dlg));
   if (!render_load_font("COLONIZE", "FONTTINY.FF", &g_cap.font) ||
@@ -103,6 +116,7 @@ static int present_case(const Case* c, uint32_t seed, int* total) {
       !render_load_sheet("COLONIZE", "TERRAIN.SS", &g_cap.terrain) ||
       !render_load_sheet("COLONIZE", "PHYS0.SS", &g_cap.phys0) ||
       !assets_load_palette("COLONIZE", &g_cap.pal)) {
+    render_free_save(b);
     free(b);
     return TR_SKIP;
   }
@@ -139,6 +153,13 @@ static int present_case(const Case* c, uint32_t seed, int* total) {
   unit_chrome_set_plan_nations(0);
   units_set_combat_human_nation(-1);
   *total = g_dlg.eng.w_atk + g_dlg.eng.w_def;
+  units_set_ff_col1(NULL);
+  colonies_set_col1_context(NULL);
+  units_set_occupancy_map(NULL);
+  colonies_set_occupancy_map(NULL);
+  units_set_native_fallout_context(NULL, NULL);
+  units_set_combat_colonies(NULL);
+  render_free_save(b);
   free(b);
   if (!g_cap.done) {
     fprintf(stderr, "%s: no analysis was presented (atk %d def %d)\n", c->name, aid, did);
