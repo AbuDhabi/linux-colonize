@@ -157,6 +157,30 @@ void map_panel_clamp_view_origin(
   }
 }
 
+void map_panel_view_pixel_shift(
+  int map_w,
+  int map_h,
+  int view_x,
+  int view_y,
+  int view_cols,
+  int view_rows,
+  int* out_sx,
+  int* out_sy
+) {
+  const int max_ox = map_w - view_cols - 1;
+  const int max_oy = map_h - view_rows - 1;
+  if (out_sx) {
+    *out_sx = (max_ox >= 1 && view_x == max_ox)
+      ? MAP_VIEW_TILE_COLS * MAP_VIEW_TILE_W - MAP_VIEW_W
+      : 0;
+  }
+  if (out_sy) {
+    *out_sy = (max_oy >= 1 && view_y == max_oy)
+      ? MAP_VIEW_TILE_ROWS * MAP_VIEW_TILE_H - MAP_VIEW_H
+      : 0;
+  }
+}
+
 void map_panel_minimap_rect(
   const ColonizeWorldMap* map,
   int view_x,

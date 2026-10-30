@@ -568,6 +568,11 @@ static void game_native_score_plot(
     game->map_view_y, cols, rows, &vx, &vy
   );
   const int tile_px = game_map_zoom_tile_px(game->map_zoom);
+  int shx = 0;
+  int shy = 0;
+  map_panel_view_pixel_shift(
+    (int)game->world_map.width, (int)game->world_map.height, vx, vy, cols, rows, &shx, &shy
+  );
   for (int i = 0; i < count; ++i) {
     const int tx = tiles[i].x - vx;
     const int ty = tiles[i].y - vy;
@@ -577,8 +582,8 @@ static void game_native_score_plot(
     char label[16];
     snprintf(label, sizeof(label), "%d", tiles[i].score);
     font_draw_text(
-      font, &view, tx * tile_px + (7 >> game->map_zoom),
-      ty * tile_px + (6 >> game->map_zoom), label, 15
+      font, &view, tx * tile_px - shx + (7 >> game->map_zoom),
+      ty * tile_px - shy + (6 >> game->map_zoom), label, 15
     );
   }
   for (int row = 0; row < view_h; ++row) {
@@ -669,6 +674,11 @@ COLONIZE_INTERNAL void game_move_watch_w(
       (int)game->world_map.width, (int)game->world_map.height, game->map_view_x,
       game->map_view_y, cols, rows, &vx, &vy
     );
+    int shx = 0;
+    int shy = 0;
+    map_panel_view_pixel_shift(
+      (int)game->world_map.width, (int)game->world_map.height, vx, vy, cols, rows, &shx, &shy
+    );
     const int fxl = from_x - vx;
     const int fyl = from_y - vy;
     const int txl = to_x - vx;
@@ -715,10 +725,10 @@ COLONIZE_INTERNAL void game_move_watch_w(
         const int slide_badge = unit_chrome_unit_badge_index(
           unit, units_render_viewer_badge(pool, mu, game_fog_nation(game), &slide_privateer)
         );
-        const int x0 = fxl * 16;
-        const int y0 = MAP_MENU_BAR_H + fyl * 16;
-        const int x1 = txl * 16;
-        const int y1 = MAP_MENU_BAR_H + tyl * 16;
+        const int x0 = fxl * 16 - shx;
+        const int y0 = MAP_MENU_BAR_H + fyl * 16 - shy;
+        const int x1 = txl * 16 - shx;
+        const int y1 = MAP_MENU_BAR_H + tyl * 16 - shy;
         /* port_bugs.md: doubled once more ("can barely register they moved"). */
         const int steps = fast ? 2 : 4;
         const uint32_t delay_ms = fast ? 60u : 80u;
@@ -856,9 +866,14 @@ static void game_lunge_frames(
   if (sprite < 0 || sprite >= game->unit_icons.sprite_count) {
     return;
   }
-  const int sxp = (from_x - vx) * 16;
-  const int syp = MAP_MENU_BAR_H + (from_y - vy) * 16;
-  if (sxp < 0 || syp < MAP_MENU_BAR_H || from_x - vx >= cols || from_y - vy >= rows) {
+  int shx = 0;
+  int shy = 0;
+  map_panel_view_pixel_shift(
+    (int)game->world_map.width, (int)game->world_map.height, vx, vy, cols, rows, &shx, &shy
+  );
+  const int sxp = (from_x - vx) * 16 - shx;
+  const int syp = MAP_MENU_BAR_H + (from_y - vy) * 16 - shy;
+  if (from_x < vx || from_y < vy || from_x - vx >= cols || from_y - vy >= rows) {
     return;
   }
   const int ddx = (def_x > from_x) - (def_x < from_x);
@@ -2454,16 +2469,25 @@ COLONIZE_INTERNAL void game_render_map_composite(
      * at zoom 0 (step 1) the "decimation" is a row copy. */
     const int view_w = MAP_VIEW_W;
     const int view_h = MAP_VIEW_H;
+    int shift_x = 0;
+    int shift_y = 0;
+    if (game->world_map_ok) {
+      map_panel_view_pixel_shift(
+        (int)game->world_map.width, (int)game->world_map.height, view_x, view_y, view_cols,
+        view_rows, &shift_x, &shift_y
+      );
+    }
+    const int src_x0 = shift_x * step;
     int cols = view_w;
-    if ((cols - 1) * step >= zoom_fb.width) {
-      cols = (zoom_fb.width + step - 1) / step;
+    if (src_x0 + (cols - 1) * step >= zoom_fb.width) {
+      cols = (zoom_fb.width - src_x0 + step - 1) / step;
     }
     for (int sy = 0; sy < view_h; ++sy) {
-      const int src_y = sy * step;
+      const int src_y = (sy + shift_y) * step;
       if (src_y >= zoom_fb.height) {
         continue;
       }
-      const uint8_t* src_row = &zoom_fb.pixels[(size_t)src_y * (size_t)zoom_fb.width];
+      const uint8_t* src_row = &zoom_fb.pixels[(size_t)src_y * (size_t)zoom_fb.width + (size_t)src_x0];
       uint8_t* dst_row = &framebuffer->pixels[(size_t)(MAP_MENU_BAR_H + sy) * (size_t)framebuffer->width];
       if (step == 1) {
         memcpy(dst_row, src_row, (size_t)cols);
@@ -2482,6 +2506,14 @@ COLONIZE_INTERNAL void game_render_map_overlays(
   const ColonizeGameState* game, ColonizeFramebuffer8* framebuffer, int view_x, int view_y,
   int view_cols, int view_rows, int screen_tile_px
 ) {
+  int shift_x = 0;
+  int shift_y = 0;
+  if (game->world_map_ok) {
+    map_panel_view_pixel_shift(
+      (int)game->world_map.width, (int)game->world_map.height, view_x, view_y, view_cols,
+      view_rows, &shift_x, &shift_y
+    );
+  }
   /*
    * Map tile cursor: blinking white outline only in tile-select mode (no unit selected).
    * CURSOR.SS is the OS mouse pointer, not a tile overlay. Drawn post-decimation at
@@ -2494,11 +2526,11 @@ COLONIZE_INTERNAL void game_render_map_overlays(
       const bool blink_on =
         !game_map_blink_running(game) || ((game->elapsed_ms / 250u) % 2u) == 0u;
       if (blink_on) {
-        const int cx0 = sx * screen_tile_px;
-        const int cy0 = MAP_MENU_BAR_H + sy * screen_tile_px;
+        const int cx0 = sx * screen_tile_px - shift_x;
+        const int cy0 = MAP_MENU_BAR_H + sy * screen_tile_px - shift_y;
         for (int y = cy0; y < cy0 + screen_tile_px; ++y) {
           for (int x = cx0; x < cx0 + screen_tile_px; ++x) {
-            if (x < 0 || y < 0 || x >= framebuffer->width || y >= framebuffer->height) {
+            if (x < 0 || y < MAP_MENU_BAR_H || x >= framebuffer->width || y >= framebuffer->height) {
               continue;
             }
             if (x == cx0 || x == cx0 + screen_tile_px - 1 || y == cy0 ||
@@ -2548,7 +2580,8 @@ COLONIZE_INTERNAL void game_render_map_overlays(
         char label[16];
         snprintf(label, sizeof(label), "%c:%s", k_nation_letter[n], code_name);
         font_draw_text(
-          dbg_font, framebuffer, tx * screen_tile_px, MAP_MENU_BAR_H + ty * screen_tile_px, label, 15
+          dbg_font, framebuffer, tx * screen_tile_px - shift_x,
+          MAP_MENU_BAR_H + ty * screen_tile_px - shift_y, label, 15
         );
       }
     }
@@ -2577,7 +2610,8 @@ COLONIZE_INTERNAL void game_render_map_overlays(
         char label[4];
         snprintf(label, sizeof(label), "%c*", k_nation_letter[n]);
         font_draw_text_port(
-          dbg_font, framebuffer, tx * screen_tile_px, MAP_MENU_BAR_H + ty * screen_tile_px, label, 14
+          dbg_font, framebuffer, tx * screen_tile_px - shift_x,
+          MAP_MENU_BAR_H + ty * screen_tile_px - shift_y, label, 14
         );
       }
     }

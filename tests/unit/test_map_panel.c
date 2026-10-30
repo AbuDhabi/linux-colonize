@@ -232,6 +232,28 @@ static int case_minimap_rect_and_origin(void) {
       fprintf(stderr, "east lane column 56 not the last drawn column (origin %d)\n", vx);
       return 1;
     }
+    /* Partial-tile window (330x205: 250x197 view, 16 cols / 13 rows, 6/11 px
+     * clipped): the SE clamp slides the view so column/row 56/70 show whole. */
+    {
+      int sx = -1;
+      int sy = -1;
+      screen_geom_set(330, 205);
+      map_panel_view_pixel_shift(58, 72, 41, 58, 16, 13, &sx, &sy);
+      if (sx != 6 || sy != 11) {
+        fprintf(stderr, "SE pixel shift expected 6,11 got %d,%d\n", sx, sy);
+        return 1;
+      }
+      map_panel_view_pixel_shift(58, 72, 40, 1, 16, 13, &sx, &sy);
+      if (sx != 0 || sy != 0) {
+        fprintf(stderr, "off-clamp pixel shift expected 0,0 got %d,%d\n", sx, sy);
+        return 1;
+      }
+      screen_geom_set(320, 200);
+      map_panel_view_pixel_shift(58, 72, 42, 59, 15, 12, &sx, &sy);
+      if (sx != 0 || sy != 0) {
+        return fail("DOS-size view must never shift");
+      }
+    }
     if (map_coords_inset(&g_map, 0, 10) || map_coords_inset(&g_map, 57, 10) ||
         !map_coords_inset(&g_map, 1, 1) || !map_coords_inset(&g_map, 56, 70)) {
       return fail("map_coords_inset rim/interior mismatch");

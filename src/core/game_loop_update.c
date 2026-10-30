@@ -3079,8 +3079,14 @@ static GameUpdateStep game_map_mouse_click(
       return GAME_UPDATE_RETURN_TRUE;
     }
 
-    const int mx = view_x + (input->mouse_x - map_origin_x) / tile_w;
-    const int my = view_y + (input->mouse_y - map_origin_y) / tile_h;
+    int shift_x = 0;
+    int shift_y = 0;
+    map_panel_view_pixel_shift(
+      (int)game->world_map.width, (int)game->world_map.height, view_x, view_y, view_cols,
+      view_rows, &shift_x, &shift_y
+    );
+    const int mx = view_x + (input->mouse_x - map_origin_x + shift_x) / tile_w;
+    const int my = view_y + (input->mouse_y - map_origin_y + shift_y) / tile_h;
     if (!map_coords_inset(&game->world_map, mx, my)) {
       if (input->mouse_left_released && game->ui_drag.kind == UI_DRAG_MAP_GOTO) {
         game_ui_drag_clear(game);

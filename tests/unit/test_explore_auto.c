@@ -159,6 +159,21 @@ static int case_ship(void) {
   free(blob);
   CHECK(u->automated);
 
+  /* Only the never-revealed map rim left unseen: nothing to explore. */
+  for (int y = 0; y < 12; ++y) {
+    for (int x = 0; x < 12; ++x) {
+      const bool rim = x == 0 || y == 0 || x == 11 || y == 11;
+      s_map.seen[y * 12 + x] = rim ? 0 : 0x10;
+    }
+  }
+  u->orders = UNITS_ORDER_NONE;
+  explore_auto_step(&w, u);
+  CHECK(!u->automated && u->orders == UNITS_ORDER_NONE);
+  for (int i = 0; i < 144; ++i) {
+    s_map.seen[i] = (i % 12 < 5 && i / 12 < 5) ? 0x10 : 0;
+  }
+  u->automated = true;
+
   /* Only lake water left unseen: nothing to explore, automation ends. */
   for (int y = 0; y < 12; ++y) {
     for (int x = 0; x < 12; ++x) {

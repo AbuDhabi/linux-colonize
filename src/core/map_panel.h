@@ -84,6 +84,24 @@ void map_panel_clamp_view_origin(
   int* out_view_y
 );
 
+/*
+ * Port-only (no DOS twin: 320x200 has no partial tile). A window that is not a
+ * multiple of 16px clips the last tile column/row. When the origin sits at the
+ * right/bottom clamp, the view slides left/up by the clipped pixels so the map
+ * edge shows whole and the far-side (left/top) tile is the clipped one.
+ * Returns on-screen px; screen x of view-relative tile tx = tx*tile_px - sx.
+ */
+void map_panel_view_pixel_shift(
+  int map_w,
+  int map_h,
+  int view_x,
+  int view_y,
+  int view_cols,
+  int view_rows,
+  int* out_sx,
+  int* out_sy
+);
+
 void map_panel_minimap_rect(
   const ColonizeWorldMap* map,
   int view_x,

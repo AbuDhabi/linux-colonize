@@ -88,13 +88,14 @@ static bool explore_auto_ocean(const ColonizeWorldMap* map, int x, int y) {
 }
 
 /* Unexplored ground next to (x,y); for a ship only unexplored ocean counts,
- * which it can actually go and see. */
+ * which it can actually go and see. The 1-tile map rim is never revealed by
+ * sight (map_sight_each), so it is not unexplored ground. */
 static bool explore_auto_frontier(const ColonizeWorldMap* map, int nation, int x, int y, bool ship) {
   for (int dy = -1; dy <= 1; ++dy) {
     for (int dx = -1; dx <= 1; ++dx) {
       const int nx = x + dx;
       const int ny = y + dy;
-      if (map_in_bounds(map, nx, ny) && !map_tile_seen_by(map, nx, ny, nation) &&
+      if (map_coords_inset(map, nx, ny) && !map_tile_seen_by(map, nx, ny, nation) &&
           (!ship || explore_auto_ocean(map, nx, ny))) {
         return true;
       }

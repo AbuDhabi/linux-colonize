@@ -13,7 +13,8 @@ guard, no sail-for-Europe), `map_menu.c` (row). Test: `unit_explore_auto`.
 
 - Each decision Goes To the nearest seen ocean tile (water region 1, never a lake,
   `map_tile_is_lake`) next to an unseen ocean tile; unexplored land and lakes do not
-  count, a ship cannot clear them. Distance `map_dos_dist`; a target the pathfinder
+  count, a ship cannot clear them, nor does the 1-tile map rim (`map_coords_inset`),
+  which sight never reveals (also for Scouts). Distance `map_dos_dist`; a target the pathfinder
   cannot reach is skipped.
 - A target on the sea lane does not sail the ship to Europe (the high-seas Go To sail
   intent is off for automated units).
