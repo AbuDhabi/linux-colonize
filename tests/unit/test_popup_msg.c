@@ -286,6 +286,39 @@ static int case_fill_status_first_sentence(void) {
   return out[0] ? fail("a catalog miss must give an empty status") : 0;
 }
 
+/* No GAME.TXT choice row may be cut by the label buffers: @INDIANBEGFOOD's
+ * accept row (74 raw) used to lose its tail at 64. */
+static int case_choice_rows_not_truncated(void) {
+  if (ensure_catalog() != 0) {
+    return 1;
+  }
+  for (int s = 0; s < g_catalog.section_count; ++s) {
+    char rows[16][POPUP_MSG_CHOICE_LEN];
+    const int n = popup_msg_choices(&g_catalog.sections[s], rows, 16);
+    for (int i = 0; i < n; ++i) {
+      if (strlen(rows[i]) >= POPUP_MSG_CHOICE_LEN - 1) {
+        fprintf(stderr, "unit_popup_msg: @%s row %d '%s'\n", g_catalog.sections[s].name, i,
+                rows[i]);
+        return fail("choice row truncated");
+      }
+    }
+  }
+  PopupMsgTokens tok;
+  memset(&tok, 0, sizeof(tok));
+  tok.number0 = 1234;
+  tok.has_number0 = true;
+  tok.number1 = 2468;
+  tok.has_number1 = true;
+  char buf[2][POPUP_MSG_CHOICE_LEN];
+  const char* labels[2];
+  popup_msg_section_labels(&g_catalog, "INDIANBEGFOOD", &tok, "", "", buf, labels);
+  if (!strstr(labels[1], "1234") || !strstr(labels[1], "friendship.\"")) {
+    fprintf(stderr, "unit_popup_msg: accept row '%s'\n", labels[1]);
+    return fail("@INDIANBEGFOOD accept row");
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
     {"case_dialog_figure_scan", case_dialog_figure_scan},
     {"case_caret_rows_back_to_back", case_caret_rows_back_to_back},
@@ -294,5 +327,6 @@ static const TestCase k_cases[] = {
     {"unit_popup_msg_abandon_default", case_abandon_default},
     {"unit_popup_msg_name_prompt_latch", case_name_prompt_latch},
     {"unit_popup_msg_fill_status_first_sentence", case_fill_status_first_sentence},
+    {"unit_popup_msg_choice_rows_not_truncated", case_choice_rows_not_truncated},
 };
 TEST_MAIN(k_cases)

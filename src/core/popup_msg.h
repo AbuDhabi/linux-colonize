@@ -145,8 +145,9 @@ void popup_msg_fill(
   size_t out_size
 );
 
-/* Must fit longest GAME.TXT choice (@DECLARE Never… = 53 with quotes). */
-#define POPUP_MSG_CHOICE_LEN 64
+/* Must fit the longest raw GAME.TXT choice row before token fill (@INDIANBEGFOOD
+ * accept row = 74 with quotes; 64 cut it mid-token) plus its expansion. */
+#define POPUP_MSG_CHOICE_LEN 128
 
 
 /* All content rows of a line-by-line fragment (@TAXOPTIONS); see popup_msg.c. */

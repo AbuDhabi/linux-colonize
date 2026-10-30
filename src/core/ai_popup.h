@@ -36,8 +36,8 @@
  * @TUTORIAL13 569, @TUTORIAL7 545, @KINGGALLEON3 535) overran 512. */
 #define AI_POPUP_BODY_LEN 1024
 #define AI_POPUP_TITLE_LEN 64
-/* Keep ≥ POPUP_MSG_CHOICE_LEN (GAME.TXT @DECLARE Never… is 53 chars). */
-#define AI_POPUP_CHOICE_LEN 64
+/* Keep ≥ POPUP_MSG_CHOICE_LEN (see popup_msg.h). */
+#define AI_POPUP_CHOICE_LEN 128
 
 typedef enum AiPopupKind {
   AI_POPUP_KIND_OK = 0,
