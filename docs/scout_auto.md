@@ -13,11 +13,18 @@ guard), `map_menu.c` (row). Test: `unit_scout_auto`.
   points of interest:
   - a seen Lost City Rumour (entered through the ordinary move tail, so the rumour
     resolves as by hand);
-  - a seen native settlement the nation has not visited: its skill is still unknown
-    (`village_trade_intel_get_skill`, set by @CHIEFHOWDY), automation has not entered
-    it before, and the tribe is not at war. The final step raises the ordinary
-    entry (woodcut + @ACTIONS menu); the player answers it;
+  - a seen native settlement the player is not known to have visited with a Scout,
+    and whose tribe is not at war. The final step raises the ordinary entry (woodcut
+    + @ACTIONS menu); the player answers it;
   - else a seen land tile next to unexplored ground.
+- "Visited" is a proxy: the settlement's skill is known to the nation
+  (`village_trade_intel_get_skill`, VTIN; set by @CHIEFHOWDY on a Scout's Speak With
+  Chief, but also by @LEARNSTAY / @LEARNDONE when a colonist visits), or automation
+  already entered it (`SAUT` set; a dismissed @ACTIONS menu counts). The DOS
+  `scouted` bit (settlement record +3 0x08) is deliberately not read: it is one bit
+  shared by every nation, set only when the chief's reward roll fires, and never
+  shown to the player, so a village another European scouted unbeknownst to the
+  player is still visited. Villages scouted in saves from before VTIN read as unvisited.
 - Never targets a tile with a foreign unit or colony, or one next to a unit of a
   nation at war with the Scout's (natives: `ai_diplo_indian_at_war`). Go To never
   attacks en route; if the destination turns hostile before arrival, the pacer drops

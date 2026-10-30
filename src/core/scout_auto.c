@@ -85,8 +85,10 @@ static bool scout_auto_frontier(const ColonizeWorldMap* map, int nation, int x, 
 }
 
 /* A settlement on (x,y) worth a visit: not yet entered by automation, its
- * skill still unknown to the nation (the chief never spoke to it), tribe not
- * at war. -1 = no settlement there, 0 = one not worth it, 1 = worth it. */
+ * skill still unknown to the nation (the "visited by the player's Scout"
+ * proxy, docs/scout_auto.md), tribe not at war. The DOS scouted bit is shared
+ * by all nations and hidden from the player, so it is not read.
+ * -1 = no settlement there, 0 = one not worth it, 1 = worth it. */
 static int scout_auto_village(const ColonizeWorld* w, int nation, int x, int y) {
   const ColonizeCol1Save* col1 = w->col1;
   for (uint16_t i = 0; col1 && col1->tribe && i < col1->head.tribe_count; ++i) {
