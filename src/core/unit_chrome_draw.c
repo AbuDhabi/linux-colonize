@@ -229,7 +229,6 @@ static void unit_chrome_draw_impl(
     ink_x1 = text_w > 0 ? text_w - 1 : 0;
     ink_y1 = font_h > 0 ? font_h - 1 : 0;
   }
-  const int ink_w = ink_x1 - ink_x0 + 1;
   const int ink_h = ink_y1 - ink_y0 + 1;
   /* DOS 112b:0749..0758: FUN_1c11_000c pen x = box x + 2 (local_4 + 2 INC INC), cell origin, not ink-centred. */
   const int tx = box_x + 2;

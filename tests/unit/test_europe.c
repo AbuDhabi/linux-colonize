@@ -3159,7 +3159,7 @@ static int case_europe_blessed_criminal_boards_missionary(void) {
       eu.bound[0].cargo_count != 1 || eu.bound[0].cargo_types[0] != mis_ti ||
       eu.bound[0].cargo_professions[0] != UNITS_JOB_CRIMINAL) {
     fprintf(
-      stderr, "bless board: boarded as type=%d prof=%d (want %d/%d) name='%s'\n",
+      stderr, "bless board: boarded as type=%d prof=%d (want %d/%d)\n",
       eu.bound[0].cargo_count ? eu.bound[0].cargo_types[0] : -1,
       eu.bound[0].cargo_count ? eu.bound[0].cargo_professions[0] : -1, mis_ti,
       UNITS_JOB_CRIMINAL
