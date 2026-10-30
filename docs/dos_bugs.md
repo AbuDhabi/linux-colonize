@@ -810,6 +810,8 @@ sight is the viewed nation's units at `units_sight_radius` with the
 empties when the turn number or the viewed nation changes, and on load
 (`units_seen_reset`). The main map, the minimap and the sidebar's tile stack all
 use it, and so does the Go To destination check (`units_set_goto_w`), so a
-refusal cannot reveal a hidden unit. Before the first note (unit tests) it
+refusal cannot reveal a hidden unit. Rival move slides and combat
+lunges (`game_move_watch_w`, `game_combat_watch`, `game_phantom_lunge`) play only
+when one end is in that live sight (`game_tile_live_seen`). Before the first note (unit tests) it
 falls back to the DOS bit.
 **Status:** done (2026-10-30, user-requested 2026-10-30).

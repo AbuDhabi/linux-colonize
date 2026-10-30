@@ -598,6 +598,7 @@ static void game_native_score_plot(
 /* Unit id mid-slide (parked inactive) whose sight the vision grid still
  * counts; -1 = none. */
 static int s_vision_slide_unit = -1;
+static bool game_tile_live_seen(const ColonizeGameState* game, int x, int y);
 
 COLONIZE_INTERNAL void game_move_watch_w(
   const ColonizeWorld* w,
@@ -623,7 +624,9 @@ COLONIZE_INTERNAL void game_move_watch_w(
       (unit->nation_id >= 0 && unit->nation_id < 4)
         ? game->col1.head.game_options.show_foreign_moves != 0
         : game->col1.head.game_options.show_indian_moves != 0;
-    if (!show || !game_move_is_near_human(game, unit, map, to_x, to_y)) {
+    if (!show || !game_move_is_near_human(game, unit, map, to_x, to_y) ||
+        (!game->col1.head.show_entire_map && !game_tile_live_seen(game, from_x, from_y) &&
+         !game_tile_live_seen(game, to_x, to_y))) {
       return;
     }
     game_set_view_center(game, to_x, to_y);
@@ -942,8 +945,8 @@ void game_combat_watch(
     return;
   }
   /* Only when the human can see the fight (live sight of either tile). */
-  const int hn = game->human_nation;
-  if (!map_tile_seen_by(&game->world_map, def_x, def_y, hn)) {
+  if (!game_tile_live_seen(game, def_x, def_y) &&
+      (!atk || !game_tile_live_seen(game, atk->x, atk->y))) {
     return;
   }
   /* Centre at every zoom; only the lunge is zoom-0-only. */
@@ -979,7 +982,7 @@ void game_phantom_lunge(
   if (!game || !type || !game->platform || !game->world_map_ok) {
     return;
   }
-  if (!map_tile_seen_by(&game->world_map, def_x, def_y, game->human_nation)) {
+  if (!game_tile_live_seen(game, def_x, def_y) && !game_tile_live_seen(game, from_x, from_y)) {
     return;
   }
   game_set_view_center(game, def_x, def_y);
@@ -2087,6 +2090,21 @@ static bool game_vision_grid_build(const ColonizeGameState* game) {
     }
   }
   return true;
+}
+
+/*
+ * Rival move / combat animation gate (dos_bugs.md DB-65): the port shows a
+ * foreign unit only from the viewer's live sight, so its slide or lunge plays
+ * only when one end of it is in that sight. DOS gates on the vis-mask
+ * (game_move_is_near_human) and an explored tile, which let fights and moves
+ * with nobody watching show up. A viewer of -1 (whole map) sees everything.
+ */
+static bool game_tile_live_seen(const ColonizeGameState* game, int x, int y) {
+  if (!game_vision_grid_build(game)) {
+    return game_fog_nation(game) < 0;
+  }
+  return map_in_bounds(&game->world_map, x, y) &&
+         s_vision_lit[(size_t)y * game->world_map.width + (size_t)x] != 0;
 }
 
 /* Needs game_vision_grid_build this frame. */

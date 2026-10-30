@@ -1610,6 +1610,11 @@ static ColonizePalette* game_water_cycle_report_palette(ColonizeGameState* game)
       r->congress_page1_bg_ok && r->congress_page1_bg.has_palette) {
     return &r->congress_page1_bg.palette;
   }
+  /* Page 2's CCBKGD (FUN_4345_024a) programs all 256 entries with its own photo
+   * colours, so 120..127 there are hall pixels, not the water ramp. */
+  if (game->report_id == COLONIZE_REPORT_CONGRESS && game->congress_page2) {
+    return NULL;
+  }
   if (r->background_ok[game->report_id] && r->backgrounds[game->report_id].has_palette) {
     return &r->backgrounds[game->report_id].palette;
   }
