@@ -159,10 +159,11 @@ standing attack factor; non-zero `terrain_stash` is the Indian / WoI-REF
 **ambush** (terrain denied to the defender, given to the attacker). Colony /
 village / absorbed-terrain paths leave stash at 0.
 
-Colony effective multipliers vs base×8: bare ×1.5, Stockade/Fort ×2, Fortress ×3.
-Fortify on bare colony: `2+2=4` (×2). Fortify on Stockade/Fort: `4+2=6` (×2.5,
-because `local_1a < 5` still holds before the add). Fortress `local_1a=8` →
-fortify does not stack.
+Colony effective multipliers vs base×8: bare ×1.5, Stockade ×2, Fort ×2.5,
+Fortress ×3 (`local_1a = (FUN_157e_0008() + 1) * 2` = 2/4/6/8, viceroy 9009-9011).
+Fortify on bare colony: `2+2=4` (×2). Fortify on Stockade: `4+2=6` (×2.5,
+because `local_1a < 5` still holds before the add). Fort `local_1a=6` and
+Fortress `local_1a=8` → fortify does not stack.
 
 `FUN_5fef_1b0e`'s Ghidra `Removing unreachable block` warning is decompiler
 noise: the overlay re-disassembly (`OVL17_L0000:1b0e`) is clean. Its

@@ -432,8 +432,9 @@ profession stamped, and 100 Tools on a Pioneers-type unit (DOS +0x3159 =
 Treasure Train cash-in on Europe arrival.
 Cite: Colonization.pdf Treasure Trains; GAME.TXT @LOOTCASH (Crown takes
 NUMBER1% share, remainder to treasury); @KINGGALLEON3 (Cortes: share =
-current tax rate). Fee = eu->tax_percent — same Crown cut as
-europe_sell_proceeds. KINGGALLEON2 non-Cortes share lives in
+current tax rate). Fee = eu->tax_percent capped at 50% (FUN_48d3_06ba
+clamps the treasure cut; @LOOTCASH's NUMBER1 is that capped share) — not the
+uncapped cut of europe_sell_proceeds. KINGGALLEON2 non-Cortes share lives in
 units_king_galleon_share_pct (FUN_5fef_1908), not here.
 Returns gold credited (0 if value <= 0).
 
@@ -658,9 +659,13 @@ Returns gold credited (0 if empty/invalid).
 ## europe_custom_house_autosell_w
 
 FUN_364b_0688 Custom House auto-sell (colony EOT after production).
-Requires Custom House building. Per cargo: mask (0=all eligible) +
-FUN_364b_0636 denylist (not Food/Lumber/Horses/Tools/Muskets) + stock>99
-→ sell stock-50 (leave 50). Boycott does not block. Tax via eu tax /
+Requires Custom House building. Per cargo gate by controller: a human
+colony sells only the cargoes toggled in its custom_house_bits (colony +0x8a,
+FUN_15eb_0302; 0 = sell nothing); an AI colony uses the FUN_364b_0636
+denylist instead (not Food/Lumber/Horses/Tools/Muskets, Ore denied with an
+Armory or gross tools/muskets) — the block list is AI-only. Then stock>99
+→ sell stock-50 (leave 50). A human colony's Custom House is shut while an
+enemy armed ship sits next to it (colony +0x1b & 3). Boycott does not block. Tax via eu tax /
 nation tax_rate unless WoI (col1 head.game_options.woi — DS:0x5382 bit 0, the
 gate FUN_364b_0688 reads). Credits
 col1->nation[n].gold; also eu->gold when n==human_nation.

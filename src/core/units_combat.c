@@ -1750,9 +1750,9 @@ const ColonizeColony* units_nearest_own_drydock_colony(
   if (!colonies) {
     return NULL;
   }
-  /* DOS tests colony feature bit 7 (Drydock). Shipyard is the tier above it
-   * and leaves that bit set, but a save whose mask only carries the top tier
-   * must still count as a repair port. */
+  /* DOS tests colony feature bit 7 (Drydock) only (FUN_5fef_0352 raw 99590).
+   * Accepting Shipyard too is OPEN port_bugs.md #1330: two native raids burn
+   * Docks then Drydock and leave Shipyard, which DOS refuses. */
   const int drydock = colonies_building_row(colonies, COLONY_BUILDING_DRYDOCK);
   const int shipyard = colonies_building_row(colonies, COLONY_BUILDING_SHIPYARD);
   if (drydock < 0 && shipyard < 0) {

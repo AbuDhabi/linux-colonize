@@ -766,10 +766,9 @@ int colony_prod_colony_bells_ff(
    * for a human, same colony shape, no visible FF/press bonus. FUN_15eb_1f72
    * raw 12634-12641 has `bells += (pop+3)/5` gated on flag 0x12
    * (numerically = 18 = FF_SIMON_BOLIVAR) AND the same AI/non-human table
-   * gate used by colony_prod_sol_bonus_field. Whether the 0x12 test really
-   * reads Bolivar ownership is lead #938b — do not "fix" it here. Gated on
-   * nation_is_ai (caller-computed: `col1->player[nation_id].control != 0`,
-   * same primitive as colony_prod_sol_bonus_field). See
+   * gate used by colony_prod_sol_bonus_field. FUN_15eb_3960(nation, 0x12)
+   * reads the FF bit, so 0x12 is Bolivar (port_bugs.md #938b, fixed): every
+   * caller folds `control != 0 && Bolivar owned` into nation_is_ai. See
    * nation_crosses_bells_1f72.md item 4. */
   if (nation_is_ai) {
     int pop = colonies_headcount(colony);

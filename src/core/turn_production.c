@@ -1436,9 +1436,9 @@ COLONIZE_INTERNAL void turn_produce_birth(TurnProduceCtx* pc) {
       newborn->field_job = -1;
       colony->colonist_count++;
       colony->population = colony->colonist_count;
-      /* DOS FUN_15eb admit body (raw ~11312): birth that admits straight
-       * into the colony (no map-tile fallback) shares the same pop>2 +
-       * peacetime + FF 9 Stockade grant as a walked-in Join. When
+      /* DOS FUN_15eb_1068 admit body (raw 11311-11314): birth that admits
+       * straight into the colony (no map-tile fallback) shares the same
+       * pop>2 + FF 9 Stockade grant as a walked-in Join. When
        * turn_birth_units is set the newborn lands on the map tile
        * instead (see units_spawn_allow_stack above) and never enters
        * colonist_count here, so the admit-path check in colony.c already

@@ -202,7 +202,7 @@ Digest of DOS `FUN_2b5a_0b34` (Move Pieces) / `0902` (View Pieces) as ported in
 | View Pieces (no unit) | Disable Wait / No Orders / Fortify / Sentry; hide Build (`0902` greys 0x310 at raw 42124 then HIDES it at raw 42127 — port_bugs.md #693) and most unit-specific items |
 | Pillage | Always hidden in `0b34` |
 | Build vs Join | Hide Build on own colony; hide Join off own colony; hide both if not founder-capable |
-| Clear ↔ Plow | Forest → show Clear hide Plow; else opposite; hills/arctic hide both |
+| Clear ↔ Plow | Forest → show Clear hide Plow; else opposite; Hills/Mountains (class 0x1c/0x1b) hide both — no arctic arm, Arctic can be plowed |
 | Pioneer gates | Clear/Plow/Road greyed if not pioneer (`0b08`, type only). No popup: `@ONLYPIO` is dead GAME.TXT text (port_bugs.md #621) |
 | Fortify ↔ Anchor | Land → Fortify; sea → Anchor (hide the other) |
 | Port ↔ Place | Land → Place (hide Port + Return Europe); sea → Port (hide Place); Return Europe enabled only on High Seas |

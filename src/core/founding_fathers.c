@@ -729,7 +729,8 @@ static void effect_coronado_reveal(
   colonies_reveal_all_for_nation(map, colonies, nation_id);
 }
 
-/* La Salle: Stockade when colony population >= 3 (wiki / manual). */
+/* La Salle: Stockade for every owned colony at pop >= 3 (FUN_4345_0342
+ * case 9, raw 73084-73092: the elect sweep). */
 static int effect_la_salle_stockades(ColonizeColonyPool* colonies, int nation_id) {
   if (!colonies) {
     return 0;
@@ -785,12 +786,12 @@ static void effect_brebeuf_grade_missions(ColonizeCol1Save* col1, int nation_id)
 }
 
 /*
- * Public immediate-effect hook: call right when a colony's population
- * changes (join/admit/birth), not just once per turn tick. PEDIA says
- * "gives... a stockade when the population of the colony reaches 3" —
- * from the player's seat that reads as instant, not "next turn," so this
- * runs the same sweep `founding_fathers_tick` uses but on demand. Cheap
- * (single ownership check + a pass over one nation's colonies).
+ * Admit-time La Salle grant (Join / birth admit). DOS FUN_15eb_1068 raw
+ * 11311-11314: pop>2 && *(int*)0x35c==0 && FF 9 -> Stockade on the admitted
+ * colony only. 0x35c is the jobs-menu trial-admit flag (FUN_2f2b_348c raw
+ * 50590/50842); the port has no trial admits, so the term needs no port.
+ * This reuses the elect sweep over every owned colony instead of the one
+ * colony (port_bugs.md #1329).
  */
 int founding_fathers_la_salle_check(
   ColonizeColonyPool* colonies,
@@ -1015,7 +1016,7 @@ static bool ff_find_coastal_water(
 }
 
 /*
- * John Paul Jones: free Frigate (Man-O-War fallback). Returns true on spawn.
+ * John Paul Jones: free Frigate. Returns true on spawn.
  *
  * port_bugs.md #467 — DOS FUN_4345_0342 case 0xe (raw 73044ff):
  *   FUN_281f_095c(0x11, nation, nation - 0x18, nation - 0x18)  spawn a
@@ -1026,6 +1027,9 @@ static bool ff_find_coastal_water(
  * it never materialises beside a colony. For the human that is the Europe
  * harbor; an AI nation keeps the coastal-water stand-in (the port has no
  * AI Europe model).
+ * OPEN port_bugs.md #1328: x=y=nation-0x18 (232+n) is the westbound lane out
+ * of Europe (FUN_48d3_0346, lane chain #489), not the dock, so in DOS the
+ * Frigate is already sailing to America; the placement below is wrong.
  */
 static bool effect_jones_frigate(
   ColonizeWorldMap* map,
@@ -1147,8 +1151,8 @@ static void apply_effect(
      * via reports_ff_owned_by_nation(&nation[human], DE_WITT) (or the
      * show-entire-map cheat) — head.founding_father[] is the first-claimer
      * stamp only, never an ownership read (audit #82/#83 unification).
-       * Cargo: colonies_de_witt_transfer_* + ai_euro de Witt wagon/ship act
-       * (stock only; no gold invent). */
+       * Cargo: colonies_de_witt_transfer_* (colony_goods.c; stock only, no
+       * gold invent). */
       break;
     case FF_FERDINAND_MAGELLAN:
       /* Manual/wiki: all naval vessels +1 movement (permanent). DOS
@@ -1194,7 +1198,9 @@ static void apply_effect(
        * when founding_fathers_nation_has(..., FF_HENRY_HUDSON). */
       break;
     case FF_SIEUR_DE_LA_SALLE:
-      /* Manual/wiki: Stockade at population >= 3 (existing + future via elect). */
+      /* FUN_4345_0342 case 9 (raw 73084-73092): Stockade for every owned
+       * colony at pop >= 3; later colonies get it at admit time
+       * (founding_fathers_la_salle_check). */
       (void)effect_la_salle_stockades(colonies, nation_id);
       break;
     case FF_HERNAN_CORTES:
@@ -1267,9 +1273,10 @@ static void apply_effect(
        * relations; Europeans in the New World always offer peace.
        * DOS FUN_4345_0342 (raw 73044-73160) has no `param_2 == 19` case at
        * all — the elect-time make_peace sweep was a fandom-sourced
-       * invention and is removed. Ongoing: ownership gate via
-       * founding_fathers_franklin_keeps_nw_peace → ai_diplo declare /
-       * war-hit (no gold fiction; euro_balance deleted 2026-10-18, #1104). FA 3f41 UI PARKED. */
+       * invention and is removed. Ongoing: DOS reads FF 0x13 at eight sites
+       * only, @KINGNEWWAR FUN_38fd_5930 (raw 68336, ai_king_war.c) and the
+       * FUN_5bfb_153e negotiation (raw 97524-98422, ai_diplo.c); no declare /
+       * war-hit gate (#472) and nothing in the Foreign Affairs report. */
       break;
     case FF_WILLIAM_BREWSTER:
       /* PEDIA @FATHER20: no criminals/servants on docks + recruit pool.
@@ -1308,8 +1315,8 @@ static void apply_effect(
     case FF_BARTOLOME_DE_LAS_CASAS:
       /* PEDIA @FATHER24 / fandom_col1994.md: existing Indian converts
        * assimilate as free colonists. Elect: profession Convert→Free
-       * Colonist on owned colony colonists + map units. Ownership tick
-       * in founding_fathers_tick re-runs for late converts. No gold/crosses. */
+       * Colonist on owned colony colonists + map units, once at elect (no
+       * ownership tick, see founding_fathers_tick). No gold/crosses. */
       (void)effect_las_casas_assimilate(
         colonies, units, nation_id == human_nation ? europe : NULL, nation_id
       );
@@ -1541,7 +1548,8 @@ void founding_fathers_tick(ColonizeTurnContext* ctx) {
    * sweep runs only once, at elect (raw 73084-73092: owner+pop>2 -> stockade
    * over every existing colony). Future growth across pop 3, or a colony
    * founded after election, gets the grant from the admit-time body instead
-   * (FUN_15eb, raw ~11312: pop>2 && !WoI && FF 9 on a Join/birth admit) — see
+   * (FUN_15eb_1068 raw 11311-11314: pop>2 && no jobs-menu trial (DS:0x35c)
+   * && FF 9 on a Join/birth admit) — see
    * founding_fathers_la_salle_check's callers in colony.c and turn.c. There
    * is no per-turn re-sweep site in the decomp; the old one here was a
    * PEDIA-wording invention (same defect class as the retired Las Casas tick

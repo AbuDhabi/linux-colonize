@@ -1519,14 +1519,13 @@ int colonies_found(
   }
 
   /*
-   * Default first project so carpenter hammers have a target (0 accumulated).
-   * Only when the colony can actually build it: Stockade needs 3 colonists
-   * (@BUILDING min_colony), and DOS never shows a size-1 town building one —
-   * seed-100 TURN4–6 AI towns (New Amsterdam / Quebec / Isabella) all start
-   * on Docks instead (port_bugs.md: a new colony's project should be Docks, not
-   * "none"). Fallbacks: Stockade when the population already qualifies,
-   * else Docks for a coastal site, else Warehouse for a landlocked one
-   * (player-confirmed DOS behaviour for a landlocked 1-pop colony).
+   * Default first project (0 hammers accumulated). FUN_364b_1ba8 raw
+   * 58113-58115 writes colony +0x94 = 6 (Docks) when the coastal bit is set,
+   * else 0xf (Warehouse); seed-100 TURN4-6 AI towns (New Amsterdam / Quebec /
+   * Isabella) start on Docks, a landlocked 1-pop colony on Warehouse
+   * (player-confirmed). The Stockade arm is port-only and cannot fire here:
+   * population is at most 1 at founding and Stockade needs 3 (@BUILDING
+   * min_colony).
    */
   {
     const int stockade = colonies_building_row(pool, COLONY_BUILDING_STOCKADE);
@@ -1542,9 +1541,9 @@ int colonies_found(
        * building id 6, colony_build.c) accepts any water plot in the work ring,
        * a lake included; the flag test at raw 13688 (`local_e == 7 &&
        * (colony+0x1c & 0x40) == 0 -> reject`) is the Drydock arm, building id 7.
-       * The first-project default itself is a port heuristic (DOS's
-       * found-colony writes +0x8d = 0xff, i.e. no project at all). Practical
-       * delta vs the old map_tile_is_coastal probe: a lake-only or
+       * The first-project pick reads the same flag (raw 58113-58115; the
+       * found-colony +0x8d = 0xff write is the specialty cargo, not the
+       * project). Practical delta vs the old map_tile_is_coastal probe: a lake-only or
        * map-edge-only "coastal" town starts on Warehouse (the lake town can
        * still build Docks). Smell audit D4 / 2026-09-10 lead 8.
        */

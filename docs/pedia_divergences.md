@@ -387,7 +387,7 @@ itself — Custom House rules are under Buildings).
 - **Sieur de La Salle (9)** HIDDEN: election sweeps the elector's pop > 2 colonies; afterwards a
   stockade comes only when a colonist *joins* and pushes a colony to 3 (`FUN_15eb_1068` raw 11311),
   not from births or captured colonies; those colonies then fall under the stockade rule (can't
-  drop below 3 or be abandoned). See Port findings.
+  drop below 3 or be abandoned). The port's join grant sweeps all owned colonies: port_bugs.md #1329.
 - **Hernan Cortes (10)** TEXT/HIDDEN: treasure for tech 0/1 tribes guaranteed and ×1.5; tech 2 +6 to
   a 2-6 roll (+6000 gold); tech 3 multiplier 16→26 (25→35 rich capital) — tech 2/3 always paid
   treasure anyway. "Transport free of charge" still takes the tax-rate share (free = no surcharge).
@@ -401,7 +401,7 @@ itself — Custom House rules are under Buildings).
   strength 2 instead of 1. Needs ≥ 50 muskets and **no units at all** on the tile. Works against
   natives and AI. `FUN_5fef_1b0e` raw 100424.
 - **John Paul Jones (14)** HIDDEN: a Frigate for any electing nation, created on the westbound lane
-  232+n. See Port findings. No Frigate at the unit cap.
+  232+n. The port docks it in Europe instead: port_bugs.md #1328. No Frigate at the unit cap.
 - **Thomas Jefferson (15)** HIDDEN: +50% of the whole colony bell total (statesmen plus the free +1),
   before Paine and Press, so they compound. AI planners weight bells ×2.
 - **Pocahontas (16)** HIDDEN: election drives every tribe's alarm to 0 *and* clears war/attack bits
@@ -410,7 +410,7 @@ itself — Custom House rules are under Buildings).
   Denounce Heresy and AI site scoring. `founding_fathers.c:303-332`, `ai_diplo.c:3122`.
 - **Simon Bolivar (18)** TEXT/HIDDEN: +20 percentage points (not +20%), capped at 100, human only
   (`FUN_15eb_0274`). For an AI elector the SoL bonus does nothing; each AI colony instead gets
-  +(pop+3)/5 bells (lead #938b). Election also adds a one-time +20 to the cached empire SoL
+  +(pop+3)/5 bells (port_bugs.md #938b, fixed). Election also adds a one-time +20 to the cached empire SoL
   `DS:0x53d0` until the next recompute — can unlock the 50% declaration gate early (TB-40).
 - **Benjamin Franklin (19)** TEXT/HIDDEN: human only in effect. @KINGNEWWAR never fires, so you
   also lose that event's gold and Veteran Soldiers. "Always offer peace" is inside the negotiation
@@ -517,7 +517,7 @@ profession numbers in the pedia are on the terrain pages (see Terrain SCREEN).
 
 ### Port-written Game Concept pages
 DOS looks up `@MISC<n>` sections that don't exist, so its 12 concept pages are title-only. The port
-shows its own bodies (`k_misc_bodies`, `pedia.c:43-110`; "Roads" blank). Where they are wrong:
+shows its own bodies (`k_misc_bodies`, `pedia.c:43-110`; "Roads" blank). Where they are wrong (port_bugs.md #1331):
 - **Disband**: "disbanding a colonist in a colony adds that person to the settlement" — `units_disband`
   just deletes the unit; the ship refusal is not limited to "at sea".
 - **Plowing** "one extra unit": a matching expert planter gets +2.
@@ -535,34 +535,41 @@ Jesuit), DB-12 (Artillery price on cancel), DB-13 (de Witt trade debits the colo
 TB-47 (birth at unit cap), DB-9, DB-32, DB-47/48 (rumour counters, scout alarm), known_divergences
 #909 and #1018.
 
-Candidates not yet in [port_bugs.md](port_bugs.md):
-1. **Terrain article title 16-23** — DOS `FUN_6cb2_0eac` appends " Forest" only for
-   `7 < idx < 0x10`; `pedia_terrain_display_name` (`pedia.c:910-930`) appends it for 8-23, so the
-   port titles 16-23 "Boreal Forest" etc. where DOS shows "Boreal".
-2. **John Paul Jones Frigate** — DOS creates it at x=y=232+n, the westbound lane `FUN_48d3_0346`
-   uses for ships leaving Europe, so it arrives by itself; the port parks the human's Frigate in
-   the Europe harbour (`founding_fathers.c:1030-1083`, #467). Verify against
-   [save_format_map.md](save_format_map.md) before changing.
-3. **La Salle `DS:0x35c` gate** — DOS also requires `*(int*)0x35c == 0`, a flag set inside the jobs
-   menu `FUN_2f2b_348c` (raw 50590), so joins through the colony screen may not grant the stockade
-   in DOS. The port never tests it. `founding_fathers_la_salle_check` also sweeps all the nation's
-   colonies on any join, where DOS grants only the joining colony. Low confidence; trace first.
-4. **One-bit vs tier tests** (only reachable with pillaged DOS saves): DOS tests exactly the
-   Stockade bit for the pop rule, exactly Drydock for the repair port, exactly Fort for the
-   shore-fire probe; the port accepts the tier above in each (`colonies_has_fortification`,
-   `units_combat.c:1753-1770`, `units_combat_resolve.c:957-961`).
-5. **@MERCENARIES** popup names Regulars/Cavalry/Artillery but Continentals land
-   (`ai_king_offers.c:63-117`); check whether DOS does the same before calling it a port bug.
-6. **Port-written Game Concept pages** — DOS shows titles only; the port's own bodies are wrong
-   for Disband, Plowing, Veteran and Fortify (see Professions and concepts). Either fix the text or
-   blank them to match DOS: they are typed text for missing `@MISC<n>` sections, which the "catalog miss = empty string" rule in conventions.md argues against.
-7. **Pedia building list hides Capitol / Capitol Expansion** (`pedia.c:668-695`); DOS list builder
-   `FUN_6cb2_2322` is unreadable in Ghidra, unconfirmed.
-8. **AI bells subsidy** applied to every AI nation; DOS also tests flag 0x12 (open lead #938b,
-   `colony_production.c:765-775`).
-9. **Franklin in the Foreign Affairs report** is PARKED (not ported).
+Candidates verified 2026-10-30 against the decomp and filed:
+1. **Terrain article title 16-23**: port_bugs.md #1327 (OPEN). DOS `FUN_6cb2_0eac` appends
+   " Forest" only for `7 < idx < 0x10`; `pedia_terrain_display_name` appends it for 8-23.
+2. **John Paul Jones Frigate**: port_bugs.md #1328 (OPEN). DOS raw 73093-73100 spawns it at
+   x=y=232+n, the westbound lane out of Europe, so it sails over by itself; the port docks the
+   human's Frigate in the Europe harbour (#467 misread the lane as the dock).
+3. **La Salle**: the all-colonies admit sweep is port_bugs.md #1329 (OPEN). The `DS:0x35c` gate
+   is REFUTED as a bug: 0x35c is set only while `FUN_2f2b_348c` trial-admits every job for its
+   production preview (raw 50590, cleared 50842 before the real assignment), and the port has
+   no trial admits.
+4. **One-bit vs tier tests**: the repair-port test is port_bugs.md #1330 (OPEN), reachable in
+   normal play because the raid burn walks down to the lowest owned tier (Docks, then Drydock,
+   leaving Shipyard). The Stockade pop rule and the shore-fire probe are REFUTED in practice:
+   the raid picker rejects rows 0-2 (raw 99849-99853) and nothing else clears a fortification
+   bit, so a Fort/Fortress without the lower bit needs a hand-edited save.
+5. **@MERCENARIES**: REFUTED, DOS behaviour. `FUN_43f7_2022` (raw 74976-75070) builds the popup
+   from @UNIT rows 6/8/11 (Regulars/Cavalry/Artillery), and on accept `FUN_43f7_10f0(1)` maps
+   the slots through `FUN_43f7_0082` (raw 73519-73544) to Continental Army/Cavalry/Artillery
+   once the WoI bit is set. The port matches.
+6. **Port-written Game Concept pages**: port_bugs.md #1331 (OPEN), blank them to match DOS.
+7. **Pedia building list hides Capitol / Capitol Expansion**: not a divergence. The user
+   observed that DOS never shows them (a disabled stub of a feature cut before release), so
+   the port's list matches. #1332 resolved 2026-10-30, entry removed from known_divergences.md.
+8. **AI bells subsidy flag 0x12**: REFUTED, already fixed as port_bugs.md #938(b).
+   `FUN_15eb_3960(nation, 0x12)` is the Bolivar FF bit and every caller folds it into
+   `nation_is_ai`; the stale "lead #938b" comment in `colony_production.c` is corrected.
+9. **Franklin in the Foreign Affairs report**: REFUTED. FF 0x13 is read at exactly eight sites
+   (raw 68336, 97524-98422), none in the FA report `3f41`, so the "FA UI PARK" note was stale
+   and nothing is missing (founding_fathers.md row 19 corrected).
 
 ## Doc drift found along the way
+
+All corrected 2026-10-30 (terrain_yields.md, building_production.md, combat.md,
+coastal_fort_fire.md, assets.md + `colony.c` founding comment, europe.md, unit_orders.md,
+founding_fathers.md rows 9/14/19 + `founding_fathers.c` comments). Kept for the record:
 
 - [terrain_yields.md](terrain_yields.md) "+0xe type/graphic index … Rain quirk": the terrain record
   starts at DS:0x2f74 with the name word at +0 (`FUN_75c2_1380` raw 120713-120728), so +0xe/+0xf is
@@ -571,7 +578,7 @@ Candidates not yet in [port_bugs.md](port_bugs.md):
   [combat.md](combat.md):162-163 "Stockade/Fort ×2", "Fortify on Stockade/Fort 4+2=6": code gives a
   Fort ×2.5 and no fortify stacking there.
 - `original_sources_annotated/turn/coastal_fort_fire.md` says a fort miss slows the ship; removed as
-  invented (port_bugs #249).
+  invented (the #249 note in `units_fort_vs_ship`).
 - [assets.md](assets.md):411 says a new colony's first project is the Stockade; code (and DOS raw
   58113-58115) picks Docks if coastal, else Warehouse. `colony.c:1543` misreads +0x8d as the
   project (it is the specialty cargo); the port's Stockade-first branch can't trigger.

@@ -667,7 +667,8 @@ static void pedia_list_exit_rect(
  *
  * Colony Buildings hides the same cut rows DOS's construction gate
  * (FUN_15eb_3650) refuses to ever offer: @BUILDING 30 Capitol and 31 Capitol
- * Expansion, whose PEDIA.TXT bodies are title-only stubs. (@BUILDING 10/11,
+ * Expansion, whose PEDIA.TXT bodies are title-only stubs; DOS never shows them
+ * either (user-observed: cut feature, disabled stub). (@BUILDING 10/11,
  * the unfinished Town Hall upgrades, are equally dead in DOS but still read
  * as plain "Town Hall" rows in NAMES.TXT — left alone here.)
  */

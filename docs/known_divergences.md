@@ -179,3 +179,4 @@ later funds test may be a dead safety net behind a pre-clamp that already equals
 Needs a live DOS capture: on the Europe screen, order more of a good than the
 treasury covers and record whether the hold fills partially or the buy is refused.
 Identify DS:0x9cc8 in the same session.
+
