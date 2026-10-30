@@ -22,6 +22,7 @@ Col1 field atlases — those stay in their owning docs (see the
 | Manual feature gaps | [manual_gap.md](manual_gap.md) |
 | Open port bugs (work queue; OPEN rows only) | [port_bugs.md](port_bugs.md) |
 | Accepted DOS divergences, captures still needed | [known_divergences.md](known_divergences.md) |
+| Colonizopedia text vs actual DOS behaviour | [pedia_divergences.md](pedia_divergences.md) |
 | DOS bugs deliberately NOT reproduced | [dos_bugs.md](dos_bugs.md) |
 | Unwanted DOS bugs still reproduced for now | [tolerated_dos_bugs.md](tolerated_dos_bugs.md) (TB-9..30 Euro/native AI: [tolerated_dos_bugs_ai.md](tolerated_dos_bugs_ai.md)) |
 | AI `FUN_*` inventory (closed track; grep by `FUN_` name) | [archive/port_plan_deferred_ai_track.md](archive/port_plan_deferred_ai_track.md) |

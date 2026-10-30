@@ -3391,6 +3391,16 @@ COLONIZE_INTERNAL GameUpdateStep game_update_map_menu_bar(ColonizeGameState* gam
       }
     }
 
+    /* Port-only: wheel forward = Zoom In, back = Zoom Out (VIEW menu actions). */
+    if (input->mouse_wheel_y != 0 && input->mouse_y >= MAP_VIEW_ORIGIN_Y) {
+      if (!game_apply_map_menu_action(
+            game, input->mouse_wheel_y > 0 ? MAP_MENU_ACTION_ZOOM_IN : MAP_MENU_ACTION_ZOOM_OUT
+          )) {
+        return GAME_UPDATE_RETURN_FALSE;
+      }
+      return GAME_UPDATE_RETURN_TRUE;
+    }
+
     {
       const GameUpdateStep sub = game_map_mouse_click(game, input);
       if (sub != GAME_UPDATE_CONTINUE) {

@@ -668,6 +668,12 @@ bool platform_poll_input(ColonizePlatform* platform, ColonizeInputState* out_inp
           }
         }
         break;
+      case SDL_MOUSEWHEEL:
+        if (event.wheel.which != SDL_TOUCH_MOUSEID) {
+          out_input->mouse_wheel_y += event.wheel.direction == SDL_MOUSEWHEEL_FLIPPED
+            ? -event.wheel.y : event.wheel.y;
+        }
+        break;
       case SDL_KEYDOWN: {
         /* An unmapped key (Shift etc.) must not erase a mapped one from the
          * same poll. */

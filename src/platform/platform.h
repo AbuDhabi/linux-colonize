@@ -80,6 +80,7 @@ typedef struct ColonizeInputState {
   bool mouse_right_released; /* edged: true on right button up this frame */
   int mouse_x;             /* framebuffer/logical coords (platform_framebuffer_size) */
   int mouse_y;
+  int mouse_wheel_y;       /* edged: wheel notches this frame, > 0 = forward (away from user) */
   ColonizeKey last_key;
   bool alt_held;           /* Left/Right Alt down this frame */
   bool shift_held;         /* Left/Right Shift down this frame */
