@@ -190,6 +190,20 @@ Cost = number of calls x context size. Output size matters much less.
   moved the selected galleon). Re-send the batch after `status`.
 - `villages [R [X Y]]` lists the seen villages (tribe, capital, mission,
   tension, alarm): no `sav_json` scouting needed.
+- `fog [N]` counts the land tiles you have not seen yet and prints the first
+  40 as `FOGTILE x,y` (campaign 13 explored the whole map with it; the last
+  tiles were an arctic islet, the Galapagos and a Hudson-bay shore, reached
+  only by ship).
+- Trade routes have no driver command (menu only, campaign 13): `key t alt`
+  opens TRADE; `click 195 22` = Create, `click 195 13` = Edit. Destinations
+  come as `CHOICES (list ...)`, the name entry takes `key Return`. In the
+  editor row N (from 0) is y = 71 + 20*N; Unload cells x 116-198, Load cells
+  x 199+: click right of the existing icons to add (a list opens), click an
+  icon to remove it. OK = `click 295 179`. Assign: `activate` the wagon,
+  `key t`, `choose` the route, `choose` the first stop.
+- `work N CI B` takes the same row numbers as `build` BIDs (Armory = 3,
+  Town Hall 9, Carpenter's Shop 35, Lumber Mill 36, Blacksmith's House 39,
+  Weaver's House 21).
 
 ## Driver quirks
 
@@ -272,6 +286,20 @@ Cost = number of calls x context size. Output size matters much less.
   Europe arrives at the tile it last left from. Cargo and passengers
   share the ship's holds: a caravel with one hold of goods carries one
   recruit.
+- Go To often never steps toward a water tile next to a foreign colony or a
+  village (campaign 13: ships kept orders 3 and full moves for turns). Move
+  the last tiles by hand with keypad keys.
+- A Go To that bumps into a native or foreign unit opens "Shall we attack?"
+  with Yes preselected; answer `choose 1`.
+- Land units cannot step from a ship into a village ("enemy occupied
+  square"): land the scout on a tile next to it first.
+- `admit` seats the newcomer by DOS's own plot scoring and can move other
+  colonists (an Expert Farmer went from a farm to an ore plot twice in
+  Barbados). Re-check `colonies` after every `admit`. Joiners that score no
+  plot become Carpenters with no 3-worker cap (5 in Jamestown's mill).
+- `field` refuses plots another colony works, colony centres, villages and
+  foreign guards. A red no-entry circle on a plot means the job yields 0 there
+  (a lumberjack on a tile without forest).
 
 ## Game rules that decide a campaign
 
@@ -340,6 +368,9 @@ Unit cap
 - Past the cap a finished unit silently fails (@TOOMANYUNITS), and its
   hammers and tools are still spent. Disband an idle unit (`key d shift`)
   the turn a gun finishes.
+- Campaign 13 (Discoverer, 1694): the French and Dutch colonies stayed after
+  the declaration (France intervened 6 turns later at Fort Nassau), so the
+  next line did not hold there.
 - Declaring independence removes the other European powers and all their
   units.
 
@@ -418,6 +449,10 @@ War of Independence
 - A lost attack costs 50 horses or muskets, and re-equipping spends all the
   unit's moves. Colonies produce after the Crown moves, so a unit bought or
   finished now misses the Crown's next attacks.
+- Campaign 13: the REF sat 7 units next to Boston and shelled its 6 guns away
+  before taking it; a 100% SoL Plymouth with nothing armed fell to a Tory
+  uprising. Retaking both with Continental cavalry ended the war (1701). Do
+  not `fortify` strikers (0 moves next turn): park them with `key space`.
 - Inland colonies count too: Tory uprisings took Veracruz and Santo Domingo
   in campaign 11 once their guns had left. A colony you retake needs armed
   units left in it: campaign 12 lost Fort Orange to a militia uprising again

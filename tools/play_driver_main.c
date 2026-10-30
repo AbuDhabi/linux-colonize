@@ -73,14 +73,16 @@
  *   colony N                    open colony N's screen (index from `colonies`)
  *   field N CI TILE JOB         colonist CI of colony N onto ring tile TILE (0 N .. 7 NW), field job JOB
  *                               (refused on native land at peace: the screen asks @INDIANLAND;
- *                               refused on a plot another colonist works; water takes only fishing
+ *                               refused on a plot another colonist works, and on what the screen blocks
+ *                               (another colony's plot or centre, a village, a foreign guard); water takes only fishing
  *                               (job 8) and needs Docks, land never takes fishing)
  *   work N CI B                 colonist CI of colony N into @BUILDING row B (as `hit` prints)
  *   build N [BID [queue]]       colony N builds BID (@BUILDING row, or unit code 42 artillery..);
  *                               closes the colony screen it opened; no BID or one not in the
  *                               menu prints BUILDABLE rows (BID name)
  *   buybuild N [yes]            colony N's BUY button: prints the cost and the Never mind /
- *                               Complete it choice (`choose`, then `key Escape`); `yes` buys and closes
+ *                               Complete it choice (`choose`, then `key Escape`); `yes` buys and closes;
+ *                               too little gold prints ERR and closes the cost message and the screen
  *   load UID CARGO [AMT]       transport UID in a colony loads AMT (default 100) of CARGO
  *   unload UID [CARGO]          transport UID in a colony unloads every hold (of CARGO); WARN when a
  *                               cargo is over the warehouse cap (the excess spoils at turn end)
@@ -590,7 +592,7 @@ static void print_units(void) {
       continue;
     }
     if (!u->active) {
-      printf("(inactive) ");
+      continue; /* dead / freed slots printed as "(inactive) UNIT -1 ?" noise (campaign 13 D2) */
     }
     printf("UNIT %d %s at (%d,%d) moves %d orders %d prof %d", u->id, unit_name(u), u->x, u->y, MP_LEFT(u),
            u->orders, u->profession);
@@ -768,7 +770,9 @@ static void print_advise(void) {
   const int me = g->human_nation;
   const int diff = g->col1.head.difficulty;
   const bool declared = ai_king_independence_declared(&g->col1);
-  const int crown = ai_king_crown_nation(me);
+  /* The Crown holds the slot the succession merger emptied (head.crown_nation_id), not
+   * always the fallback nation 1: campaign 13's REF was nation 2 and no WAR line printed. */
+  const int crown = ai_king_crown_nation_col1(&g->col1, me);
   const ColonizeColonyPool* pool = &g->colonies;
   int n_cols = 0, n_coastal = 0, dragoons = 0;
   for (int i = 0; i < g->units.slot_end; ++i) {
@@ -1554,6 +1558,15 @@ static bool command(char* line) {
         printf("ERR plot %d is worked by colonist %d: move that colonist first\n", tile, c->tiles[tile]);
         return true;
       }
+      /* The screen drop refuses what FUN_15eb_23f2 blocks: another colony's plot or
+       * centre, a village, a foreign armed guard, outside the radius (campaign 13 D1:
+       * Plymouth's farmer sat on Jamestown's plot and was moved off at turn end). */
+      const uint8_t blocked = colonies_plot_blocked_mask(&w, c, tile) & 0xf4u;
+      if (blocked) {
+        printf("ERR plot %d is blocked (mask 0x%02x: 0x40 other colony's plot, 0x20 colony centre, "
+               "0x04 village, 0x80 foreign guard, 0x10 off radius)\n", tile, blocked);
+        return true;
+      }
       int dx = 0;
       int dy = 0;
       /* The screen drop derives the job from the plot (FUN_2f2b_3fa6): water = fisherman,
@@ -1810,6 +1823,16 @@ static bool command(char* line) {
           tap(SDLK_ESCAPE, -1, 0);
           ok = flush_frames(5);
         }
+      }
+    } else if (ok && bp->open) {
+      /* Cost line only (@NOTENOUGH-style message, no Complete row): too little gold.
+       * Close it and the screen we opened (campaign 13 D13 left both up). */
+      printf("ERR buybuild: no Complete choice (too little gold?)\n");
+      tap(SDLK_RETURN, -1, 0);
+      ok = flush_frames(5);
+      if (ok && !was_in && g_game->in_colony && !g_game->ai_popups.open) {
+        tap(SDLK_ESCAPE, -1, 0);
+        ok = flush_frames(5);
       }
     } else if (ok && !was_in && g_game->in_colony && !bp->open) {
       printf("ERR buybuild: nothing to buy in %s\n", g_game->colonies.colonies[a1].name);
