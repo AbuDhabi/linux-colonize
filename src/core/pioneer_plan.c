@@ -7,7 +7,7 @@
 #include "core/col1_save.h"
 #include "core/colony.h"
 #include "core/map.h"
-#include "core/scout_auto.h"
+#include "core/explore_auto.h"
 #include "core/settings.h"
 #include "core/units.h"
 #include "core/units_move.h"
@@ -200,8 +200,8 @@ bool pioneer_plan_auto_step(
   const ColonizeWorld* w, ColonizeUnit* u, AiPopupState* ai_popups,
   const ColonizeMsgCatalog* messages
 ) {
-  if (!w || !w->map || !w->units || !u || !u->automated || scout_auto_is_scout(w->units, u)) {
-    return false; /* an automated Scout is scout_auto_step's */
+  if (!w || !w->map || !w->units || !u || !u->automated || explore_auto_is_explorer(w->units, u)) {
+    return false; /* an automated Scout / ship is explore_auto_step's */
   }
   if (u->orders == UNITS_ORDER_CLEAR_PLOW || u->orders == UNITS_ORDER_BUILD_ROAD) {
     return false; /* mid-job: the lasting-order tick runs it */

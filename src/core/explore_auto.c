@@ -1,4 +1,4 @@
-#include "core/scout_auto.h"
+#include "core/explore_auto.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -15,30 +15,40 @@
 /* Settlement tiles an automated Scout already entered, bit = nation; y * 256 + x. */
 static uint8_t s_visited[256 * 256];
 
-#define SCOUT_AUTO_PAYLOAD_VERSION 1u
-#define SCOUT_AUTO_GOTO_TRIES 8
+#define EXPLORE_AUTO_PAYLOAD_VERSION 1u
+#define EXPLORE_AUTO_GOTO_TRIES 8
 /* Rumours and unvisited settlements win over a frontier tile this much closer. */
-#define SCOUT_AUTO_POI_BONUS 4
+#define EXPLORE_AUTO_POI_BONUS 4
 
-bool scout_auto_enabled(void) {
-  return settings_get()->scout_autoexplore;
+static bool explore_auto_is_ship(const ColonizeUnitPool* pool, const ColonizeUnit* u) {
+  return pool && u && units_is_sea(pool, u->id);
 }
 
-bool scout_auto_is_scout(const ColonizeUnitPool* pool, const ColonizeUnit* u) {
+static bool explore_auto_is_scout(const ColonizeUnitPool* pool, const ColonizeUnit* u) {
   return pool && u && units_type_is_scout(units_type(pool, u->type_index));
 }
 
-void scout_auto_reset(void) {
+bool explore_auto_is_explorer(const ColonizeUnitPool* pool, const ColonizeUnit* u) {
+  return explore_auto_is_scout(pool, u) || explore_auto_is_ship(pool, u);
+}
+
+bool explore_auto_allowed(const ColonizeUnitPool* pool, const ColonizeUnit* u) {
+  const ColonizeSettings* s = settings_get();
+  return (s->scout_autoexplore && explore_auto_is_scout(pool, u)) ||
+         (s->ship_autoexplore && explore_auto_is_ship(pool, u));
+}
+
+void explore_auto_reset(void) {
   memset(s_visited, 0, sizeof(s_visited));
 }
 
-void scout_auto_note_village(int nation, int x, int y) {
+void explore_auto_note_village(int nation, int x, int y) {
   if (nation >= 0 && nation <= 3 && x >= 0 && y >= 0 && x <= 255 && y <= 255) {
     s_visited[y * 256 + x] |= (uint8_t)(1u << nation);
   }
 }
 
-static bool scout_auto_hostile(const ColonizeWorld* w, int nation, int other) {
+static bool explore_auto_hostile(const ColonizeWorld* w, int nation, int other) {
   if (other == nation) {
     return false;
   }
@@ -52,7 +62,7 @@ static bool scout_auto_hostile(const ColonizeWorld* w, int nation, int other) {
 }
 
 /* A foreign unit or colony on (x,y), or a hostile unit next to it. */
-static bool scout_auto_unsafe(const ColonizeWorld* w, const ColonizeUnit* u, int x, int y) {
+static bool explore_auto_unsafe(const ColonizeWorld* w, const ColonizeUnit* u, int x, int y) {
   const int cid = w->colonies ? colonies_id_at(w->colonies, x, y) : -1;
   const ColonizeColony* col = cid >= 0 ? colonies_get(w->colonies, cid) : NULL;
   if (col && col->active && col->nation_id != u->nation_id) {
@@ -65,7 +75,7 @@ static bool scout_auto_unsafe(const ColonizeWorld* w, const ColonizeUnit* u, int
       if (!o || o->nation_id == u->nation_id) {
         continue;
       }
-      if ((dx == 0 && dy == 0) || scout_auto_hostile(w, u->nation_id, o->nation_id)) {
+      if ((dx == 0 && dy == 0) || explore_auto_hostile(w, u->nation_id, o->nation_id)) {
         return true;
       }
     }
@@ -73,10 +83,19 @@ static bool scout_auto_unsafe(const ColonizeWorld* w, const ColonizeUnit* u, int
   return false;
 }
 
-static bool scout_auto_frontier(const ColonizeWorldMap* map, int nation, int x, int y) {
+static bool explore_auto_ocean(const ColonizeWorldMap* map, int x, int y) {
+  return !map_tile_is_land(map, x, y) && !map_tile_is_lake(map, x, y);
+}
+
+/* Unexplored ground next to (x,y); for a ship only unexplored ocean counts,
+ * which it can actually go and see. */
+static bool explore_auto_frontier(const ColonizeWorldMap* map, int nation, int x, int y, bool ship) {
   for (int dy = -1; dy <= 1; ++dy) {
     for (int dx = -1; dx <= 1; ++dx) {
-      if (map_in_bounds(map, x + dx, y + dy) && !map_tile_seen_by(map, x + dx, y + dy, nation)) {
+      const int nx = x + dx;
+      const int ny = y + dy;
+      if (map_in_bounds(map, nx, ny) && !map_tile_seen_by(map, nx, ny, nation) &&
+          (!ship || explore_auto_ocean(map, nx, ny))) {
         return true;
       }
     }
@@ -86,10 +105,10 @@ static bool scout_auto_frontier(const ColonizeWorldMap* map, int nation, int x, 
 
 /* A settlement on (x,y) worth a visit: not yet entered by automation, its
  * skill still unknown to the nation (the "visited by the player's Scout"
- * proxy, docs/scout_auto.md), tribe not at war. The DOS scouted bit is shared
+ * proxy, docs/explore_auto.md), tribe not at war. The DOS scouted bit is shared
  * by all nations and hidden from the player, so it is not read.
  * -1 = no settlement there, 0 = one not worth it, 1 = worth it. */
-static int scout_auto_village(const ColonizeWorld* w, int nation, int x, int y) {
+static int explore_auto_village(const ColonizeWorld* w, int nation, int x, int y) {
   const ColonizeCol1Save* col1 = w->col1;
   for (uint16_t i = 0; col1 && col1->tribe && i < col1->head.tribe_count; ++i) {
     const ColonizeCol1Tribe* t = &col1->tribe[i];
@@ -104,54 +123,63 @@ static int scout_auto_village(const ColonizeWorld* w, int nation, int x, int y) 
   return -1;
 }
 
-static void scout_auto_cancel(ColonizeUnitPool* pool, ColonizeUnit* u) {
+static void explore_auto_cancel(ColonizeUnitPool* pool, ColonizeUnit* u) {
   u->automated = false;
   if (u->orders == UNITS_ORDER_GOTO) {
     units_clear_orders(pool, u->id);
   }
 }
 
-void scout_auto_step(const ColonizeWorld* w, ColonizeUnit* u) {
-  if (!w || !w->map || !w->units || !u || !u->automated || !scout_auto_is_scout(w->units, u)) {
+void explore_auto_step(const ColonizeWorld* w, ColonizeUnit* u) {
+  if (!w || !w->map || !w->units || !u || !u->automated || !explore_auto_is_explorer(w->units, u)) {
     return;
   }
   ColonizeUnitPool* pool = w->units;
   const ColonizeWorldMap* map = w->map;
-  if (!scout_auto_enabled() || u->nation_id < 0 || u->nation_id > 3) {
-    scout_auto_cancel(pool, u);
+  if (!explore_auto_allowed(pool, u) || u->nation_id < 0 || u->nation_id > 3) {
+    explore_auto_cancel(pool, u);
     return;
   }
   if (!units_is_on_map(u)) {
-    return; /* aboard a ship: resumes once landed */
+    return; /* aboard a ship / in Europe: resumes once back on the map */
   }
+  const bool ship = explore_auto_is_ship(pool, u);
   const int nation = u->nation_id;
   const int continent = map_continent_id_at(map, u->x, u->y);
-  int tried_x[SCOUT_AUTO_GOTO_TRIES];
-  int tried_y[SCOUT_AUTO_GOTO_TRIES];
-  for (int attempt = 0; attempt < SCOUT_AUTO_GOTO_TRIES; ++attempt) {
+  int tried_x[EXPLORE_AUTO_GOTO_TRIES];
+  int tried_y[EXPLORE_AUTO_GOTO_TRIES];
+  for (int attempt = 0; attempt < EXPLORE_AUTO_GOTO_TRIES; ++attempt) {
     /* ponytail: full-map scan per decision; fine at DOS map sizes. */
     int best_x = -1;
     int best_y = -1;
     int best_score = 1 << 30;
     for (int y = 0; y < (int)map->height; ++y) {
       for (int x = 0; x < (int)map->width; ++x) {
-        if ((x == u->x && y == u->y) || !map_tile_seen_by(map, x, y, nation) ||
-            !map_tile_is_land(map, x, y) || map_continent_id_at(map, x, y) != continent) {
+        if ((x == u->x && y == u->y) || !map_tile_seen_by(map, x, y, nation)) {
+          continue;
+        }
+        if (ship ? !explore_auto_ocean(map, x, y)
+                 : (!map_tile_is_land(map, x, y) || map_continent_id_at(map, x, y) != continent)) {
           continue;
         }
         const int d = map_dos_dist(x - u->x, y - u->y);
-        if (d - SCOUT_AUTO_POI_BONUS >= best_score) {
+        if (d - EXPLORE_AUTO_POI_BONUS >= best_score) {
           continue;
         }
         int score;
-        if (map_tile_has_city(map, x, y)) {
-          if (scout_auto_village(w, nation, x, y) != 1) {
+        if (ship) {
+          if (!explore_auto_frontier(map, nation, x, y, true)) {
             continue;
           }
-          score = d - SCOUT_AUTO_POI_BONUS;
+          score = d;
+        } else if (map_tile_has_city(map, x, y)) {
+          if (explore_auto_village(w, nation, x, y) != 1) {
+            continue;
+          }
+          score = d - EXPLORE_AUTO_POI_BONUS;
         } else if (map_tile_has_rumour(map, x, y)) {
-          score = d - SCOUT_AUTO_POI_BONUS;
-        } else if (scout_auto_frontier(map, nation, x, y)) {
+          score = d - EXPLORE_AUTO_POI_BONUS;
+        } else if (explore_auto_frontier(map, nation, x, y, false)) {
           score = d;
         } else {
           continue;
@@ -160,7 +188,7 @@ void scout_auto_step(const ColonizeWorld* w, ColonizeUnit* u) {
         for (int t = 0; t < attempt; ++t) {
           tried = tried || (tried_x[t] == x && tried_y[t] == y);
         }
-        if (score >= best_score || tried || scout_auto_unsafe(w, u, x, y)) {
+        if (score >= best_score || tried || explore_auto_unsafe(w, u, x, y)) {
           continue;
         }
         best_x = x;
@@ -169,7 +197,7 @@ void scout_auto_step(const ColonizeWorld* w, ColonizeUnit* u) {
       }
     }
     if (best_x < 0) {
-      scout_auto_cancel(pool, u);
+      explore_auto_cancel(pool, u);
       return;
     }
     if (u->orders == UNITS_ORDER_GOTO && u->goto_x == best_x && u->goto_y == best_y) {
@@ -190,33 +218,33 @@ void scout_auto_step(const ColonizeWorld* w, ColonizeUnit* u) {
     tried_x[attempt] = best_x;
     tried_y[attempt] = best_y;
   }
-  scout_auto_cancel(pool, u);
+  explore_auto_cancel(pool, u);
 }
 
-bool scout_auto_automate(const ColonizeWorld* w, ColonizeUnit* u) {
-  if (!w || !u || !scout_auto_enabled() || !scout_auto_is_scout(w->units, u)) {
+bool explore_auto_automate(const ColonizeWorld* w, ColonizeUnit* u) {
+  if (!w || !u || !explore_auto_allowed(w->units, u)) {
     return false;
   }
   if (u->orders != UNITS_ORDER_NONE) {
     units_clear_orders(w->units, u->id);
   }
   u->automated = true;
-  scout_auto_step(w, u);
+  explore_auto_step(w, u);
   return u->automated;
 }
 
-/* Payload: u8 version, u8 0, u16 automated-Scout count, (u8 x, u8 y, u8 nation)
- * per unit (keyed by tile like PPLN), u16 visited count, (u8 x, u8 y, u8
+/* Payload: u8 version, u8 0, u16 automated-explorer count, (u8 x, u8 y, u8
+ * nation | 0x80 for a ship) per unit (keyed by tile like PPLN), u16 visited count, (u8 x, u8 y, u8
  * nation mask) per settlement tile. */
-uint8_t* scout_auto_serialize(const ColonizeUnitPool* units, size_t* out_size) {
+uint8_t* explore_auto_serialize(const ColonizeUnitPool* units, size_t* out_size) {
   *out_size = 0;
-  if (!scout_auto_enabled()) {
+  if (!settings_get()->scout_autoexplore && !settings_get()->ship_autoexplore) {
     return NULL;
   }
   int autos = 0;
   for (int i = 0; units && i < units_slot_end(units); ++i) {
     const ColonizeUnit* u = &units->units[i];
-    autos += u->active && u->automated && scout_auto_is_scout(units, u);
+    autos += u->active && u->automated && explore_auto_is_explorer(units, u);
   }
   int visited = 0;
   for (int i = 0; i < 256 * 256; ++i) {
@@ -231,16 +259,16 @@ uint8_t* scout_auto_serialize(const ColonizeUnitPool* units, size_t* out_size) {
     return NULL;
   }
   uint8_t* p = out;
-  *p++ = SCOUT_AUTO_PAYLOAD_VERSION;
+  *p++ = EXPLORE_AUTO_PAYLOAD_VERSION;
   *p++ = 0;
   *p++ = (uint8_t)(autos & 0xff);
   *p++ = (uint8_t)(autos >> 8);
   for (int i = 0; units && i < units_slot_end(units); ++i) {
     const ColonizeUnit* u = &units->units[i];
-    if (u->active && u->automated && scout_auto_is_scout(units, u)) {
+    if (u->active && u->automated && explore_auto_is_explorer(units, u)) {
       *p++ = (uint8_t)u->x;
       *p++ = (uint8_t)u->y;
-      *p++ = (uint8_t)u->nation_id;
+      *p++ = (uint8_t)(u->nation_id | (explore_auto_is_ship(units, u) ? 0x80 : 0));
     }
   }
   *p++ = (uint8_t)(visited & 0xff);
@@ -256,9 +284,9 @@ uint8_t* scout_auto_serialize(const ColonizeUnitPool* units, size_t* out_size) {
   return out;
 }
 
-void scout_auto_deserialize(const uint8_t* data, size_t size, ColonizeUnitPool* units) {
-  scout_auto_reset();
-  if (!data || size < 4 || data[0] != SCOUT_AUTO_PAYLOAD_VERSION || data[1] != 0) {
+void explore_auto_deserialize(const uint8_t* data, size_t size, ColonizeUnitPool* units) {
+  explore_auto_reset();
+  if (!data || size < 4 || data[0] != EXPLORE_AUTO_PAYLOAD_VERSION || data[1] != 0) {
     return;
   }
   const int autos = data[2] | (data[3] << 8);
@@ -267,11 +295,12 @@ void scout_auto_deserialize(const uint8_t* data, size_t size, ColonizeUnitPool* 
     return;
   }
   for (int k = 0; k < autos; ++k, p += 3) {
-    /* ponytail: two Scouts sharing a tile may swap which one is automated. */
+    /* ponytail: two explorers of one kind sharing a tile may swap which one is automated. */
     for (int i = 0; units && i < units_slot_end(units); ++i) {
       ColonizeUnit* u = &units->units[i];
-      if (u->active && !u->automated && u->x == p[0] && u->y == p[1] && u->nation_id == p[2] &&
-          scout_auto_is_scout(units, u)) {
+      if (u->active && !u->automated && u->x == p[0] && u->y == p[1] &&
+          u->nation_id == (p[2] & 0x7f) &&
+          ((p[2] & 0x80) ? explore_auto_is_ship(units, u) : explore_auto_is_scout(units, u))) {
         u->automated = true;
         break;
       }

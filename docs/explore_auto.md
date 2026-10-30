@@ -1,13 +1,26 @@
-# Scout Automate (port-only)
+# Scout and ship Automate (port-only)
 
-Divergence, off by default: `settings.json` `divergences.scout_autoexplore`
-(docs/settings.md). Nothing here exists in DOS. Code: `src/core/scout_auto.c`; UI
+Divergences, off by default: `settings.json` `divergences.scout_autoexplore` (Scouts)
+and `divergences.ship_autoexplore` (ships) (docs/settings.md). Nothing here exists in DOS. Code: `src/core/explore_auto.c`; UI
 hooks shared with Pioneer Automate (docs/pioneer_plan.md): `game_loop_eot.c`
 (ORDERS action, rotation), `game_loop_update.c` (pacer, village note, no-attack
-guard), `map_menu.c` (row). Test: `unit_scout_auto`.
+guard, no sail-for-Europe), `map_menu.c` (row). Test: `unit_explore_auto`.
 
 - ORDERS `Automate` (`Q`), the same row and flag (`ColonizeUnit.automated`, badge `A`)
-  as Pioneer Automate; which behaviour runs depends on the unit (a Scout explores).
+  as Pioneer Automate; which behaviour runs depends on the unit.
+
+## Ships
+
+- Each decision Goes To the nearest seen ocean tile (water region 1, never a lake,
+  `map_tile_is_lake`) next to an unseen ocean tile; unexplored land and lakes do not
+  count, a ship cannot clear them. Distance `map_dos_dist`; a target the pathfinder
+  cannot reach is skipped.
+- A target on the sea lane does not sail the ship to Europe (the high-seas Go To sail
+  intent is off for automated units).
+- No unseen ocean left in reach = automation ends. Same hostile avoidance as Scouts.
+
+## Scouts
+
 - Each decision (rotation turn, or the pacer when the Scout is idle with moves) Goes
   To the lowest-scoring target on its continent, score = `map_dos_dist`, minus 4 for
   points of interest:
@@ -29,7 +42,7 @@ guard), `map_menu.c` (row). Test: `unit_scout_auto`.
   nation at war with the Scout's (natives: `ai_diplo_indian_at_war`). Go To never
   attacks en route; if the destination turns hostile before arrival, the pacer drops
   the order instead of attacking and the next decision retargets.
-- Cancels on: nothing left to explore, waking or clicking the unit, or any other
+- Cancels on: nothing left to explore on its continent, waking or clicking the unit, or any other
   ORDERS command given to it. Aboard a ship it waits and resumes once landed.
 - Saved in `SAUT` (docs/savegame.md) with the entered-settlement set; a DOS load keeps
   the current Go To and drops the automation.

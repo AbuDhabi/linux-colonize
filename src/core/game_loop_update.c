@@ -51,7 +51,7 @@
 #include "core/map_gen.h"
 #include "core/map_menu.h"
 #include "core/pioneer_plan.h"
-#include "core/scout_auto.h"
+#include "core/explore_auto.h"
 #include "core/map_panel.h"
 #include "core/name_entry_dialog.h"
 #include "core/new_game.h"
@@ -780,7 +780,7 @@ static GameUpdateStep game_pacer_goto_step(
     const int gx = active->goto_x;
     const int gy = active->goto_y;
     if (active->automated) {
-      scout_auto_note_village(active->nation_id, gx, gy); /* divergences.scout_autoexplore */
+      explore_auto_note_village(active->nation_id, gx, gy); /* divergences.scout_autoexplore */
     }
     units_clear_orders(&game->units, aid);
     game->units.selected_id = aid;
@@ -890,7 +890,9 @@ static GameUpdateStep game_pacer_goto_step(
      * closest analogue: the destination tile is the sail intent. */
     const int goto_dest_x = (int)active->goto_x;
     const int goto_dest_y = (int)active->goto_y;
-    const bool goto_ship_to_lane = active->orders == UNITS_ORDER_GOTO &&
+    /* Automated exploring ships (divergences.ship_autoexplore) aim at lane
+     * tiles to see past them, never to sail. */
+    const bool goto_ship_to_lane = active->orders == UNITS_ORDER_GOTO && !active->automated &&
       units_is_sea(&game->units, active_id) && game->europe_ok &&
       active->goto_x < UNITS_GOTO_NONE && active->goto_y < UNITS_GOTO_NONE &&
       map_tile_is_high_seas(&game->world_map, goto_dest_x, goto_dest_y);
@@ -1076,7 +1078,7 @@ COLONIZE_INTERNAL GameUpdateStep game_update_unit_pacer(ColonizeGameState* game,
        * next frame paces the Go To or hands on the spent unit. */
       const ColonizeWorld w = game_world(game);
       (void)pioneer_plan_auto_step(&w, active, &game->ai_popups, &game->messages);
-      scout_auto_step(&w, active);
+      explore_auto_step(&w, active);
     } else if (active_awaiting_player) {
       /* FUN_2b5a_3802 raw 46235-46236: Move Pieces hands the player a unit,
        * 0x97b0 = 1 (game_no_unit_left reads it; port_bugs.md #1302). The

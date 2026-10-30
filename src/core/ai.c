@@ -22,7 +22,7 @@
 #include "core/map_gen.h"
 #include "core/new_game.h"
 #include "core/pioneer_plan.h"
-#include "core/scout_auto.h"
+#include "core/explore_auto.h"
 #include "core/strutil.h"
 #include "core/turn.h"
 #include "platform/diagnostics.h"
@@ -1282,7 +1282,7 @@ bool ai_init_new_game(const AiNewGameParams* params, char* err, size_t err_size)
   turn_reset();
   units_reset_state(); /* goto anti-backtrack shadow, indexed by reused unit_id */
   pioneer_plan_reset();
-  scout_auto_reset();
+  explore_auto_reset();
 
   if (!ai_setup_col1_template(params, err, err_size)) {
     return false;

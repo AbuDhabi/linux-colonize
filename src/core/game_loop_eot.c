@@ -51,7 +51,7 @@
 #include "core/map_gen.h"
 #include "core/map_menu.h"
 #include "core/pioneer_plan.h"
-#include "core/scout_auto.h"
+#include "core/explore_auto.h"
 #include "core/map_panel.h"
 #include "core/name_entry_dialog.h"
 #include "core/new_game.h"
@@ -891,7 +891,7 @@ bool game_select_next_unit_awaiting_orders(ColonizeGameState* game) {
     if (pioneer_plan_auto_step(&w, u, &game->ai_popups, &game->messages)) {
       continue;
     }
-    scout_auto_step(&w, u); /* divergences.scout_autoexplore: next Go To */
+    explore_auto_step(&w, u); /* divergences.scout/ship_autoexplore: next Go To */
     if (turn_rotation_lasting_step_w(&w, u, &game->ai_popups, &game->messages)) {
       /* The rotation's pick is DOS's FUN_2b5a_0e52 activation, which runs the
        * piece-selected tutorial chain (raw 42330-42332). */
@@ -1838,8 +1838,8 @@ static GameMenuActionStatus game_menu_action_orders(ColonizeGameState* game, Map
     case MAP_MENU_ACTION_AUTOMATE: {
       ColonizeUnit* u = units_get(&game->units, game->units.selected_id);
       const ColonizeWorld w = game_world(game);
-      if (u && scout_auto_is_scout(&game->units, u)) {
-        if (!scout_auto_automate(&w, u)) {
+      if (u && explore_auto_allowed(&game->units, u)) {
+        if (!explore_auto_automate(&w, u)) {
           set_status(game, "Nothing left to explore", NULL);
         } else if (u->moves <= 0 || u->orders != UNITS_ORDER_GOTO) {
           game_wait_next_unit(game);

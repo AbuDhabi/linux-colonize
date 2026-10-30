@@ -106,6 +106,7 @@ static const SettingsBoolOpt k_divergence_opts[] = {
   SETTINGS_BOOL(pioneer_plan, false),
   SETTINGS_BOOL(current_vision, false),
   SETTINGS_BOOL(scout_autoexplore, false),
+  SETTINGS_BOOL(ship_autoexplore, false),
 };
 
 #define SETTINGS_OPT_COUNT(t) ((int)(sizeof(t) / sizeof((t)[0])))

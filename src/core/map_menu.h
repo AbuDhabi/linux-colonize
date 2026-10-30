@@ -191,6 +191,7 @@ typedef struct MapMenuOrdersContext {
    * cursor tile, enabled per plan_bits (pioneer_plan_valid_bits there). */
   bool pioneer_plan;
   bool scout_auto; /* divergences.scout_autoexplore: Automate on Scouts too */
+  bool ship_auto;  /* divergences.ship_autoexplore: Automate on ships too */
   bool plan_view;
   uint8_t plan_bits;
 } MapMenuOrdersContext;

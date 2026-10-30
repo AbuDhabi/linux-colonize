@@ -939,13 +939,15 @@ static void map_menu_refresh_orders_dos(
     }
   }
 
-  /* Automate: Pioneers (divergences.pioneer_plan), Scouts (divergences.scout_autoexplore). */
+  /* Automate: Pioneers (divergences.pioneer_plan), Scouts / ships
+   * (divergences.scout_autoexplore / ship_autoexplore). */
   const bool scout = land && units_type_is_scout(units_type(ctx->units, u->type_index));
   for (int i = 0; i < orders->item_count; ++i) {
     MapMenuItem* it = &orders->items[i];
     if (it->action == MAP_MENU_ACTION_AUTOMATE) {
-      it->visible = (ctx->pioneer_plan && pioneer) || (ctx->scout_auto && scout);
-      it->enabled = it->visible && (scout || u->tools >= 20);
+      it->visible = (ctx->pioneer_plan && pioneer) || (ctx->scout_auto && scout) ||
+                    (ctx->ship_auto && sea);
+      it->enabled = it->visible && (!pioneer || u->tools >= 20);
     }
   }
 

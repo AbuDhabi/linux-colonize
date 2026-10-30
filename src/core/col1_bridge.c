@@ -21,7 +21,7 @@
 #include "core/units.h"
 #include "core/village_trade_intel.h"
 #include "core/pioneer_plan.h"
-#include "core/scout_auto.h"
+#include "core/explore_auto.h"
 #include "core/runtime_ext.h"
 #include "platform/diagnostics.h"
 
@@ -2413,11 +2413,11 @@ COLONIZE_INTERNAL void col1_bridge_apply_ext_chunks(Col1ApplyCtx* ctx) {
   {
     const uint8_t* sa = NULL;
     size_t sa_size = 0;
-    if (!col1_save_ext_find(save, COLONIZE_COL1_EXT_TAG_SCOUT_AUTO, &sa, &sa_size)) {
+    if (!col1_save_ext_find(save, COLONIZE_COL1_EXT_TAG_EXPLORE_AUTO, &sa, &sa_size)) {
       sa = NULL;
       sa_size = 0;
     }
-    scout_auto_deserialize(sa, sa_size, ctx->units);
+    explore_auto_deserialize(sa, sa_size, ctx->units);
   }
 }
 
@@ -4017,8 +4017,8 @@ COLONIZE_INTERNAL Col1StageStatus col1_bridge_capture_ext_chunks(Col1CaptureCtx*
 
   {
     size_t sa_size = 0;
-    uint8_t* sa = scout_auto_serialize(ctx->units, &sa_size);
-    const bool put_ok = col1_save_ext_put(save, COLONIZE_COL1_EXT_TAG_SCOUT_AUTO, sa, sa_size);
+    uint8_t* sa = explore_auto_serialize(ctx->units, &sa_size);
+    const bool put_ok = col1_save_ext_put(save, COLONIZE_COL1_EXT_TAG_EXPLORE_AUTO, sa, sa_size);
     free(sa);
     if (!put_ok) {
       COL1_STAGE_FAIL(err, err_size, "oom scout auto ext chunk");
