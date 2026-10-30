@@ -124,6 +124,25 @@ static int explore_auto_village(const ColonizeWorld* w, int nation, int x, int y
   return -1;
 }
 
+typedef struct ExploreAutoGain {
+  const ColonizeWorldMap* map;
+  int nation;
+  int unseen;
+} ExploreAutoGain;
+
+static void explore_auto_gain_tile(void* ctx, int x, int y, bool outer) {
+  ExploreAutoGain* g = ctx;
+  (void)outer;
+  g->unseen += !map_tile_seen_by(g->map, x, y, g->nation);
+}
+
+/* Fog a ship's sight would lift standing on (x,y): the same tiles map_sight_each reveals. */
+static int explore_auto_ship_gain(const ColonizeWorldMap* map, int nation, int x, int y, int radius) {
+  ExploreAutoGain g = {map, nation, 0};
+  map_sight_each(map, x, y, radius, true, explore_auto_gain_tile, &g);
+  return g.unseen;
+}
+
 static void explore_auto_cancel(ColonizeUnitPool* pool, ColonizeUnit* u) {
   u->automated = false;
   if (u->orders == UNITS_ORDER_GOTO) {
@@ -145,6 +164,7 @@ void explore_auto_step(const ColonizeWorld* w, ColonizeUnit* u) {
     return; /* aboard a ship / in Europe: resumes once back on the map */
   }
   const bool ship = explore_auto_is_ship(pool, u);
+  const int sight = ship ? units_sight_radius(pool, u, w->col1) : 0;
   const int nation = u->nation_id;
   const int continent = map_continent_id_at(map, u->x, u->y);
   int tried_x[EXPLORE_AUTO_GOTO_TRIES];
@@ -164,7 +184,7 @@ void explore_auto_step(const ColonizeWorld* w, ColonizeUnit* u) {
           continue;
         }
         const int d = map_dos_dist(x - u->x, y - u->y);
-        if (d - EXPLORE_AUTO_POI_BONUS >= best_score) {
+        if (!ship && d - EXPLORE_AUTO_POI_BONUS >= best_score) {
           continue;
         }
         int score;
@@ -172,7 +192,12 @@ void explore_auto_step(const ColonizeWorld* w, ColonizeUnit* u) {
           if (!explore_auto_frontier(map, nation, x, y, true)) {
             continue;
           }
-          score = d;
+          /* Most fog lifted per tile sailed: distance per revealed tile, x256. */
+          const int gain = explore_auto_ship_gain(map, nation, x, y, sight);
+          if (gain <= 0) {
+            continue;
+          }
+          score = d * 256 / gain;
         } else if (map_tile_has_city(map, x, y)) {
           if (explore_auto_village(w, nation, x, y) != 1) {
             continue;

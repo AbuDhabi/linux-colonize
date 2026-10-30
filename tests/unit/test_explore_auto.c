@@ -186,6 +186,21 @@ static int case_ship(void) {
   explore_auto_step(&w, u);
   CHECK(!u->automated && u->orders == UNITS_ORDER_NONE);
 
+  /* Most fog per tile sailed: from (5,5), one unseen tile at (5,2) (frontier at
+   * distance 2) loses to a 3x3 unseen block at x 8..10, y 7..9 (also distance 2). */
+  for (int i = 0; i < 144; ++i) {
+    const int x = i % 12;
+    const int y = i / 12;
+    s_map.layer3[i] = 0xf1;
+    s_map.seen[i] = ((x == 5 && y == 2) || (x >= 8 && x <= 10 && y >= 7 && y <= 9)) ? 0 : 0x10;
+  }
+  u->x = 5;
+  u->y = 5;
+  u->automated = true;
+  u->orders = UNITS_ORDER_NONE;
+  explore_auto_step(&w, u);
+  CHECK(u->automated && u->orders == UNITS_ORDER_GOTO && u->goto_y >= 6);
+
   /* A Scout setting does not automate ships. */
   s.ship_autoexplore = false;
   s.scout_autoexplore = true;
