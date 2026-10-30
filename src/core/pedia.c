@@ -930,8 +930,11 @@ static void pedia_body_render_section(
   if (!sec) {
     return;
   }
+  char raw[4096];
   char body[4096];
-  popup_msg_section_body(sec, body, sizeof(body), true);
+  popup_msg_section_body(sec, raw, sizeof(raw), true);
+  /* DOS runs pedia rows through FUN_6f74_309c too: PEDIA.TXT "50%%" reads "50%". */
+  popup_msg_apply_tokens(body, sizeof(body), raw, NULL);
   pedia_body_render_text(body, font, fb, y, popup_msg_section_width(sec));
 }
 

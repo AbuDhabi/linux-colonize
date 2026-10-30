@@ -897,6 +897,7 @@ static void game_lunge_frames(
   const bool was_active = mu ? mu->active : false;
   if (mu) {
     mu->active = false;
+    s_vision_slide_unit = mu->id; /* keep its sight in the vision grid */
   }
   for (int f = 0; f < 3; ++f) {
     game_render(game, &fb, &pal);
@@ -926,6 +927,7 @@ static void game_lunge_frames(
   }
   if (mu) {
     mu->active = was_active;
+    s_vision_slide_unit = -1;
   }
   /*
    * DOS's tail: the piece is back on its own tile the instant the outbound
@@ -2079,7 +2081,9 @@ static bool game_vision_grid_build(const ColonizeGameState* game) {
       }
       map_sight_each(
         map, u->x, u->y, units_sight_radius(&game->units, u, game->col1_ok ? &game->col1 : NULL),
-        units_is_sea(&game->units, u->id), game_vision_mark, &grid
+        /* By record, not id: units_is_sea's lookup skips the parked
+         * (inactive) slider, which gated a moving ship's outer ring to land. */
+        units_unit_is_sea(&game->units, u), game_vision_mark, &grid
       );
     }
   }

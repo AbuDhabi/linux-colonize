@@ -262,12 +262,13 @@ void popup_msg_apply_tokens(
         i += 8;
         continue;
       }
-      if (src[i + 1] == '%') {
-        dst[used++] = '%';
-        dst[used] = '\0';
-        i += 2;
-        continue;
-      }
+    }
+    /* FUN_6f74_309c: "%%" -> "%" (raw 117225-117228), with or without tokens. */
+    if (src[i] == '%' && src[i + 1] == '%') {
+      dst[used++] = '%';
+      dst[used] = '\0';
+      i += 2;
+      continue;
     }
     dst[used++] = src[i++];
     dst[used] = '\0';

@@ -34,6 +34,11 @@ static int case_token_apply(void) {
       strstr(out, "Sugar") == NULL) {
     return fail("token apply");
   }
+  /* FUN_6f74_309c collapses "%%" with no token table too (pedia: Drake's "50%%."). */
+  popup_msg_apply_tokens(out, sizeof(out), "by 50%%.", NULL);
+  if (strcmp(out, "by 50%.") != 0) {
+    return fail("%% escape without tokens");
+  }
   return 0;
 }
 
