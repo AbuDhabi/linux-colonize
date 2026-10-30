@@ -7467,6 +7467,58 @@ static int case_goto_fogged_square(void) {
   return 0;
 }
 
+  /* Go To onto a seen tile must not reveal a foreign unit the mover cannot see:
+   * hidden, the order is taken; once shown, the probe refuses as before. */
+static int case_goto_hidden_foreign_unit(void) {
+  if (fx_open() != 0 || fx_stage2() != 0) {
+    return 1;
+  }
+  int ux = -1, uy = -1;
+  for (int y = 5; y < (int)map.height - 5 && ux < 0; ++y) {
+    for (int x = 5; x < (int)map.width - 7; ++x) {
+      if (map_tile_is_land(&map, x, y) && map_tile_is_land(&map, x + 2, y) &&
+          !map_tile_has_city(&map, x + 2, y) && units_id_at(&pool, x, y) < 0 &&
+          units_id_at(&pool, x + 2, y) < 0) {
+        ux = x;
+        uy = y;
+        break;
+      }
+    }
+  }
+  if (ux < 0) {
+    fprintf(stderr, "goto-hidden: no land pair\n");
+    return 1;
+  }
+  const ColonizeWorld w = {.units = &pool, .colonies = NULL, .map = &map};
+  units_seen_reset(); /* units_shown_to falls back to the vis bit */
+  const int walker = units_spawn(&pool, pioneer, ux, uy);
+  const int other = units_spawn_allow_stack(&pool, pioneer, ux + 2, uy);
+  ColonizeUnit* wu = units_get(&pool, walker);
+  ColonizeUnit* ou = units_get(&pool, other);
+  if (!wu || !ou) {
+    fprintf(stderr, "goto-hidden: spawn failed\n");
+    return 1;
+  }
+  wu->nation_id = 0;
+  ou->nation_id = 4;
+  map_reveal_tile(&map, ux + 2, uy, 0);
+  ou->col1_vis_mask = 0;
+  if (!units_set_goto_w(&w, walker, ux + 2, uy)) {
+    fprintf(stderr, "goto-hidden: order onto a hidden foreign unit must be accepted\n");
+    return 1;
+  }
+  units_clear_orders(&pool, walker);
+  ou->col1_vis_mask = 1;
+  if (units_set_goto_w(&w, walker, ux + 2, uy)) {
+    fprintf(stderr, "goto-hidden: a visible foreign unit must still refuse\n");
+    return 1;
+  }
+  units_despawn(&pool, other);
+  units_despawn(&pool, walker);
+  fx_close();
+  return 0;
+}
+
   /*
    * port_bugs.md #418: a Go To aimed at an Indian settlement is a move command INTO
    * the village — on arrival its final step must be dispatched through the
@@ -7891,6 +7943,7 @@ static const TestCase k_cases[] = {
   {"selected_passenger_blink", case_selected_passenger_blink},
   {"ship_switch_quirk", case_ship_switch_quirk},
   {"goto_fogged_square", case_goto_fogged_square},
+  {"goto_hidden_foreign_unit", case_goto_hidden_foreign_unit},
   {"goto_into_village", case_goto_into_village},
   {"landfall_spent_gate", case_landfall_spent_gate},
   {"fountain_of_youth", case_fountain_of_youth},

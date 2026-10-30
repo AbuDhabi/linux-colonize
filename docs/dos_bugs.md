@@ -802,12 +802,14 @@ stick: a unit is never hidden again until it moves, and FUN_465b_0673 ORs extra
 bits into the units left behind on the tile a mover leaves.
 
 **Port:** the sim and the save keep the DOS bits (AI and goldens use them). For
-display only, `units_shown_to` (`src/core/units_render.c`) shows a foreign unit
+display only, `units_shown_to` (`src/core/units_map.c`) shows a foreign unit
 when it stood on a tile in the viewer's live sight at some point this turn. That
 sight is the viewed nation's units at `units_sight_radius` with the
 `map_sight_each` domain gate, plus colonies at radius 1.
 `game_render_map_composite` feeds the set every frame (`units_seen_note`). It
 empties when the turn number or the viewed nation changes, and on load
 (`units_seen_reset`). The main map, the minimap and the sidebar's tile stack all
-use it. Before the first note (unit tests) it falls back to the DOS bit.
+use it, and so does the Go To destination check (`units_set_goto_w`), so a
+refusal cannot reveal a hidden unit. Before the first note (unit tests) it
+falls back to the DOS bit.
 **Status:** done (2026-10-30, user-requested 2026-10-30).

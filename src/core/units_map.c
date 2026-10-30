@@ -5,6 +5,7 @@
  *
  * Sections:
  *  - Tile occupancy/sight/vision, combat hook registration & context setters (units_is_on_map .. units_enter_reason_status)
+ *  - Viewer sight for foreign units (units_seen_reset .. units_shown_to)
  */
 
 #include <stdio.h>
@@ -1336,4 +1337,56 @@ const char* units_enter_reason_status(ColonizeEnterReason reason) {
   default:
     return "Move blocked";
   }
+}
+
+/* ===================== Viewer sight for foreign units (units_seen_reset .. units_shown_to) ===================== */
+
+/* units_seen_note / units_shown_to (units.h, dos_bugs.md DB-65). */
+static uint8_t s_seen[COLONIZE_UNITS_MAX];
+static bool s_seen_active = false;
+static int s_seen_nation = -1;
+static int s_seen_turn = -1;
+
+void units_seen_reset(void) {
+  memset(s_seen, 0, sizeof(s_seen));
+  s_seen_active = false;
+  s_seen_nation = -1;
+  s_seen_turn = -1;
+}
+
+void units_seen_note(
+  const ColonizeUnitPool* pool, const uint8_t* lit, int map_w, int map_h, int nation, int turn
+) {
+  if (!pool || !lit) {
+    return;
+  }
+  if (!s_seen_active || nation != s_seen_nation || turn != s_seen_turn) {
+    memset(s_seen, 0, sizeof(s_seen));
+    s_seen_active = true;
+    s_seen_nation = nation;
+    s_seen_turn = turn;
+  }
+  for (int i = 0; i < units_slot_end(pool); ++i) {
+    const ColonizeUnit* u = &pool->units[i];
+    if (units_is_on_map(u) && u->x >= 0 && u->y >= 0 && u->x < map_w && u->y < map_h &&
+        u->id >= 0 && u->id < COLONIZE_UNITS_MAX && lit[(size_t)u->y * (size_t)map_w + (size_t)u->x]) {
+      s_seen[u->id] = 1;
+      /* Passengers ride hidden in the hold; they count as seen with the hull. */
+      for (int c = 0; c < u->cargo_count; ++c) {
+        if (u->cargo_ids[c] >= 0 && u->cargo_ids[c] < COLONIZE_UNITS_MAX) {
+          s_seen[u->cargo_ids[c]] = 1;
+        }
+      }
+    }
+  }
+}
+
+bool units_shown_to(const ColonizeUnit* u, int fog_nation) {
+  if (!u || fog_nation < 0 || fog_nation > 3 || u->nation_id == fog_nation) {
+    return true;
+  }
+  if (s_seen_active && fog_nation == s_seen_nation) {
+    return u->id >= 0 && u->id < COLONIZE_UNITS_MAX && s_seen[u->id];
+  }
+  return (u->col1_vis_mask & (1u << fog_nation)) != 0;
 }

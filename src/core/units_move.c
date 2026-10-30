@@ -1633,7 +1633,20 @@ bool units_set_goto_w(
    * (the per-step move logic stops or bounces it once the truth is in
    * sight, same as DOS).
    */
-  if (map_tile_seen_by(map, dest_x, dest_y, u->nation_id) &&
+  /*
+   * Same rule for a foreign unit the mover's nation cannot see right now
+   * (units_shown_to): the probe would count it, so a refusal would reveal it.
+   * Treat that tile as fogged when its terrain suits the mover's domain.
+   */
+  bool hidden_foe = false;
+  if (units_is_sea(pool, unit_id) == map_tile_is_water(map, dest_x, dest_y)) {
+    int cur = 0;
+    for (const ColonizeUnit* o = units_next_on_tile_const(pool, dest_x, dest_y, &cur);
+         o && !hidden_foe; o = units_next_on_tile_const(pool, dest_x, dest_y, &cur)) {
+      hidden_foe = o->nation_id != u->nation_id && !units_shown_to(o, u->nation_id);
+    }
+  }
+  if (!hidden_foe && map_tile_seen_by(map, dest_x, dest_y, u->nation_id) &&
       !units_can_enter_w(w, u->type_index, dest_x, dest_y, unit_id)) {
     /*
      * port_bugs.md: a Go To aimed at an Indian village is a legal order — the
