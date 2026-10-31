@@ -1846,7 +1846,9 @@ bool units_find_high_seas_tile(
   int best_d = 1 << 30;
   for (int y = 0; y < (int)map->height; ++y) {
     for (int x = 0; x < (int)map->width; ++x) {
-      if (!map_tile_is_high_seas(map, x, y)) {
+      /* The rim is off-map to DOS: FUN_48d3_0434 raw 77795 gates on
+       * FUN_281f_0302 (map_coords_inset). */
+      if (!map_coords_inset(map, x, y) || !map_tile_is_high_seas(map, x, y)) {
         continue;
       }
       if (pool && units_id_at(pool, x, y) >= 0) {
