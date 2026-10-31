@@ -8,6 +8,7 @@
 #include "core/options_dialog.h"
 #include "core/popup_msg.h"
 #include "core/save_load_dialog.h"
+#include "core/units_internal.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -968,6 +969,61 @@ static int case_find_colony_is_dos(void) {
 }
 
 /*
+ * @HOWMUCH3 ship-to-ship with an amount below the hold. FUN_2f2b_4fec raw 51687-51695 empties
+ * the slot and puts held - moved back on the source ship.
+ */
+static int case_howmuch_move_keeps_rest(void) {
+  ColonizeGameState* game = calloc(1, sizeof(*game));
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  if (!game || !assets_msg_load_file(&names, "COLONIZE/NAMES.TXT") ||
+      !units_load_types(&game->units, &names)) {
+    assets_msg_free(&names);
+    free(game);
+    fprintf(stderr, "SKIP: NAMES.TXT\n");
+    return TR_SKIP;
+  }
+  ai_popup_init(&game->ai_popups);
+  int rc = 0;
+  const int caravel = units_kind_type_index(&game->units, UNITS_KIND_CARAVEL);
+  const int src = units_spawn(&game->units, caravel, 5, 5);
+  const int dst = units_spawn_allow_stack(&game->units, caravel, 5, 5);
+  if (caravel < 0 || src < 0 || dst < 0 || units_load_goods(&game->units, src, 3, 100) != 100) {
+    rc = fail("two caravels, 100 goods in the source hold");
+  } else {
+    game->colony_screen.transport_unit_id = src;
+    game->howmuch_move_dst_unit_id = dst;
+    (void)howmuch_open(&game->howmuch, HOWMUCH_KIND_MOVE, "How much?", NULL, 100, 30, 3, 0);
+    ColonizeInputState in;
+    memset(&in, 0, sizeof(in));
+    in.last_key = COLONIZE_KEY_ENTER;
+    game_handle_modal_input(game, &in);
+    const int dst_held = units_unit_hold_amount(units_get(&game->units, dst), 0);
+    const int src_held = units_unit_hold_amount(units_get(&game->units, src), 0);
+    if (dst_held != 30 || src_held != 70) {
+      fprintf(stderr, "  src=%d dst=%d\n", src_held, dst_held);
+      rc = fail("30 moved, 70 stay on the source ship");
+    }
+    /* Destination takes only part: fill it to 1 free ton of the same cargo. */
+    const int dst_room = units_goods_hold_count(&game->units, dst) * 100 - 31;
+    if (units_load_goods(&game->units, dst, 3, dst_room) != dst_room) {
+      rc = fail("fill destination to 1 free ton");
+    } else {
+      (void)howmuch_open(&game->howmuch, HOWMUCH_KIND_MOVE, "How much?", NULL, 70, 50, 3, 0);
+      game_handle_modal_input(game, &in);
+      const int src_left = units_unit_hold_amount(units_get(&game->units, src), 0);
+      if (src_left != 69) {
+        fprintf(stderr, "  src=%d\n", src_left);
+        rc = fail("partial accept: 1 moved, 69 stay on the source ship");
+      }
+    }
+  }
+  assets_msg_free(&names);
+  free(game);
+  return rc;
+}
+
+/*
  * port_bugs.md #1206: the trade-route editor's cargo columns are DOS's. FUN_647e_09da heads
  * @ROUTE 6 Unload at x 0x7d and @ROUTE 7 Load at 0xd0; FUN_647e_1064 sends 0x72 < mx <= 0xc5 to
  * the unload list (strip from 0x7d) and mx > 0xc5 to the load list (strip from 0xd0).
@@ -1087,6 +1143,7 @@ static const TestCase k_cases[] = {
     {"token_apply", case_token_apply},
     {"save_load_is_fonttiny", case_save_load_is_fonttiny},
     {"howmuch", case_howmuch},
+    {"howmuch_move_keeps_rest", case_howmuch_move_keeps_rest},
     {"options", case_options},
     {"checkbox_hotkeys", case_checkbox_hotkeys},
     {"list_keys_wrap", case_list_keys_wrap},
