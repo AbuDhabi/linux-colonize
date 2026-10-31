@@ -1822,6 +1822,12 @@ static GameMenuActionStatus game_menu_action_orders(ColonizeGameState* game, Map
          * selects (game_click_activate_unit). */
         return GAME_MENU_ACTION_DONE;
       }
+      /* FUN_2b5a_1b5a raw 42707: a head unit that is not the current player's is treated
+       * like an empty tile (no order write, no select). */
+      const ColonizeUnit* head = units_get_const(&game->units, at);
+      if (head && head->nation_id != game->human_nation) {
+        at = -1;
+      }
       if (at >= 0) {
         units_wake(&game->units, at);
         game->units.selected_id = at;

@@ -1541,6 +1541,43 @@ static int test_colony_jobs_menu_open_has_no_side_effects(void) {
   return rc;
 }
 
+/* FUN_2b5a_1b5a raw 42707: ORDERS > Activate ignores a foreign unit under the cursor. */
+static int test_activate_ignores_foreign_unit(void) {
+  static ColonizeGameState game;
+  memset(&game, 0, sizeof(game));
+  if (!fx_map_alloc(&game.world_map, 8, 8, /*terrain_fill=*/3, /*with_seen=*/true)) {
+    return fail("activate foreign map alloc");
+  }
+  game.world_map_ok = true;
+  game.human_nation = 0;
+  fx_units_init(&game.units);
+  game.units_ok = true;
+  game.units.type_count = 1;
+  game.units.types[0].movement = 1;
+  game.units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units_set_occupancy_map(&game.world_map);
+  const int uid = units_spawn(&game.units, 0, 3, 3);
+  ColonizeUnit* u = units_get(&game.units, uid);
+  int rc = 0;
+  if (!u) {
+    rc = fail("activate foreign unit spawn");
+  } else {
+    u->nation_id = 1;
+    u->orders = UNITS_ORDER_FORTIFIED;
+    game.units.selected_id = -1;
+    game.map_cursor_x = 3;
+    game.map_cursor_y = 3;
+    game_apply_map_menu_action(&game, MAP_MENU_ACTION_ACTIVATE_UNIT);
+    if (u->orders != UNITS_ORDER_FORTIFIED || game.units.selected_id != -1) {
+      fprintf(stderr, "  orders %d selected %d\n", u->orders, game.units.selected_id);
+      rc = fail("Activate on a foreign unit must not wake or select it");
+    }
+  }
+  units_set_occupancy_map(NULL);
+  fx_map_free(&game.world_map);
+  return rc;
+}
+
 /*
  * port_bugs.md #1208: ORDERS Go to Place (0x321) is the same FUN_647e_01c6 list as Go to Port
  * (case 2b5a:28d4 -> FUN_2b5a_1dfc): @TRAVELPLACE, no Europe row, own colonies on the unit's
@@ -2450,6 +2487,7 @@ static const TestCase k_cases[] = {
     {"test_colony_jobs_menu_open_has_no_side_effects", test_colony_jobs_menu_open_has_no_side_effects},
     {"test_game_world_view", test_game_world_view},
     {"test_goto_place_opens_travelplace_list", test_goto_place_opens_travelplace_list},
+    {"test_activate_ignores_foreign_unit", test_activate_ignores_foreign_unit},
     {"test_colony_list_keys_wrap", test_colony_list_keys_wrap},
     {"test_colony_custom_house_keys", test_colony_custom_house_keys},
     {"test_screen_f1_focus_article", test_screen_f1_focus_article},
