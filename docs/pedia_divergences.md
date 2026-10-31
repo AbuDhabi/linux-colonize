@@ -338,7 +338,11 @@ in record +8, read by `FUN_15eb_3650` raw 13663 and `colonies_building_is_builda
 - **Schools** (pedia lists only what each teaches): 4/6/8 turns by the *teacher's* level, not the
   building; the student is a random colonist anywhere in the colony (converts can't learn);
   Criminal → Servant → Free Colonist before any specialty; at most 3 graduations per colony per
-  turn. `turn_production.c:1094-1111`.
+  turn. `turn_production.c:1094-1111`. No Sons of Liberty effect: `@REBELUNANIMOUS` promises
+  colonists "can also be educated more quickly" at 100%, but the DOS school pass
+  (`FUN_364b_0688`, decomp 355-386) uses the fixed 4/6/8 thresholds against a +1/turn counter
+  (`FUN_281f_0a7e` → `FUN_15eb_0cbc`, clamp 15) and never reads rebel %. Text kept verbatim,
+  mechanic not invented.
 - **Buying a building**: 13 gold per missing hammer + (Europe tools price + 4) per missing tool,
   doubled if no hammers are banked yet. `FUN_2f2b_5e44` raw 52709-52722.
 - **Completion**: leftover hammers are lost; a human colony short of tools stops with @NEEDTOOLS,
