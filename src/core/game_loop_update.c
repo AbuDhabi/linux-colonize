@@ -3211,11 +3211,13 @@ COLONIZE_INTERNAL GameUpdateStep game_update_map_menu_bar(ColonizeGameState* gam
       }
     }
 
-    /* Go-To cursor only after ≥1 logical pixel (even if pointer leaves the map). */
+    /* Go-To cursor appears exactly when a release would commit the go-to
+     * (game_map_mouse_click): pointer left the anchor tile or dragged ≥4
+     * logical px. A smaller wiggle stays a plain click with the plain cursor. */
     if (game->ui_drag.kind == UI_DRAG_MAP_GOTO && !game->map_goto_dragged_px) {
       const int pdx = input->mouse_x - game->map_goto_down_px;
       const int pdy = input->mouse_y - game->map_goto_down_py;
-      if (pdx != 0 || pdy != 0) {
+      if (game->map_goto_left_tile || pdx * pdx + pdy * pdy >= 16) {
         game->map_goto_dragged_px = true;
         if (game->cursor_ok && game->cursor.sprite_count > 1) {
           ui_drag_set_cursor_from_sheet(&game->ui_drag, &game->cursor, 1);
