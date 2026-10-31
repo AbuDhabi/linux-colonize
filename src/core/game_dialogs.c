@@ -2451,14 +2451,90 @@ bool game_handle_modal_input(ColonizeGameState* game, const ColonizeInputState* 
  * publishes game->status to the colony screen; the howmuch and drag paths
  * already did, the key paths do it once at the end of their own arm.
  */
+/*
+ * DOS colony-screen cargo lines on the map-strip ring (FUN_281f_0056(1) flush,
+ * one space after every append, catalog misses left out). Mirrored into the
+ * debug game->status for play_driver.
+ */
+static const char* game_cargo_name(const ColonizeGameState* game, int cargo) {
+  return (game->europe_ok && cargo >= 0 && cargo < game->europe.cargo_count)
+           ? game->europe.cargo[cargo].name
+           : "";
+}
+
+static void game_colony_bar_line(ColonizeGameState* game, bool refusal, const char* const* parts,
+                                 size_t count, bool bang) {
+  char line[AI_POPUP_BAR_MSG_LEN];
+  size_t n = 0;
+  line[0] = '\0';
+  for (size_t i = 0; i < count; ++i) {
+    if (parts[i][0] && n < sizeof(line)) {
+      n += (size_t)snprintf(line + n, sizeof(line) - n, "%s%s", n ? " " : "", parts[i]);
+    }
+  }
+  /* FUN_281f_0088 drops the trailing space, then DS:0xcc0 / 0xcc2 (both "!"). */
+  if (bang && n && n < sizeof(line)) {
+    n += (size_t)snprintf(line + n, sizeof(line) - n, "!");
+  }
+  if (!line[0]) {
+    return;
+  }
+  snprintf(game->status, sizeof(game->status), "%s", line);
+  if (refusal) {
+    (void)ai_popup_enqueue_bar_refusal(&game->ai_popups, line);
+  } else {
+    (void)ai_popup_enqueue_bar_message(&game->ai_popups, line);
+  }
+}
+
+/*
+ * Red bar (FUN_291f_07b0(3, 0x78, 0)): @CMESSAGE row, the cargo name, @CMESSAGE
+ * row2. cargo < 0 = bare row (FUN_2f2b_2ec6); row2 < 0 after a cargo = "!".
+ */
+void game_colony_cargo_refusal(ColonizeGameState* game, int row, int cargo, int row2) {
+  char first[64], last[64];
+  const char* w = reports_labels_field("CMESSAGE", row);
+  snprintf(first, sizeof(first), "%s", w ? w : "");
+  w = row2 >= 0 ? reports_labels_field("CMESSAGE", row2) : NULL;
+  snprintf(last, sizeof(last), "%s", w ? w : "");
+  const char* parts[] = {first, cargo >= 0 ? game_cargo_name(game, cargo) : "", last};
+  game_colony_bar_line(game, true, parts, 3, cargo >= 0 && row2 < 0);
+}
+
+/*
+ * Gold bar (FUN_291f_07b0(1, 0x78, 0)): DS:0x8dc4 qty, cargo name, @CMESSAGE 2
+ * "moved to", the receiving unit's TYPE name (type*0xe + 0x5230). FUN_2f2b_4b62
+ * (warehouse -> ship) and FUN_2f2b_4fec (ship -> ship) share it.
+ */
+void game_colony_cargo_moved(ColonizeGameState* game, int qty, int cargo, int unit_id) {
+  const ColonizeUnit* u = units_get_const(&game->units, unit_id);
+  const ColonizeUnitType* ut = u ? units_type(&game->units, u->type_index) : NULL;
+  char qty_s[16], prep[64];
+  snprintf(qty_s, sizeof(qty_s), "%d", qty);
+  const char* w = reports_labels_field("CMESSAGE", 2);
+  snprintf(prep, sizeof(prep), "%s", w ? w : "");
+  const char* parts[] = {qty_s, game_cargo_name(game, cargo), prep, ut ? ut->name : ""};
+  game_colony_bar_line(game, false, parts, 4, false);
+}
+
+/*
+ * FUN_2f2b_4b62 with param_3 = 1 (raw 51486-51561): empty slot -> red @CMESSAGE
+ * 6, cargo, 7; no room (FUN_281f_0b96 == 0) -> red @CMESSAGE 4, cargo, "!";
+ * else the gold "moved to" line.
+ */
 void game_colony_load_hold(ColonizeGameState* game, int unit_id, int cargo, int amount) {
+  const ColonizeColony* col = colonies_get(&game->colonies, game->colony_view_id);
+  if (col && cargo >= 0 && cargo < COLONIZE_CARGO_COUNT && col->stock[cargo] < 1) {
+    game_colony_cargo_refusal(game, 6, cargo, 7);
+    return;
+  }
   const int moved = colonies_transfer_to_unit(
     &game->colonies, game->colony_view_id, &game->units, unit_id, cargo, amount
   );
   if (moved > 0) {
-    snprintf(game->status, sizeof(game->status), "Loaded %d", moved);
+    game_colony_cargo_moved(game, moved, cargo, unit_id);
   } else {
-    set_status(game, "No empty hold", NULL);
+    game_colony_cargo_refusal(game, 4, cargo, -1);
   }
 }
 
@@ -2696,9 +2772,9 @@ static void game_apply_howmuch_result(ColonizeGameState* game) {
       if (moved < amt) {
         (void)units_load_goods(&game->units, src, cargo, amt - moved);
       }
-      snprintf(game->status, sizeof(game->status), "Transferred %d", moved);
+      game_colony_cargo_moved(game, moved, cargo, dst);
     } else {
-      set_status(game, "No empty hold", NULL);
+      game_colony_cargo_refusal(game, 4, -1, -1); /* FUN_2f2b_4fec: 2ec6(4, 0x78) */
     }
     return;
   }
@@ -3303,11 +3379,11 @@ static bool game_apply_popup_diplo_and_scout(ColonizeGameState* game) {
         memset(&tok, 0, sizeof(tok));
         /* NAMES.TXT @NATIONALITY, not a hardcoded table (audit GL-31): a
          * renamed nation printed the wrong adjective in @LOSTOURSCOUTS.
-         * FUN_5f7a_000e raw 98865 uses FUN_281f_09a4 (WoI "Tory"). */
-        tok.string0 = (col->nation_id >= 0 && col->nation_id < 4)
-                        ? reports_nation_adjective_woi(
-                            game->col1_ok ? &game->col1 : NULL, col->nation_id)
-                        : "enemy";
+         * FUN_5f7a_000e raw 98865 uses FUN_281f_09a4 (WoI "Tory") on the
+         * colony's +0x1a nation unguarded; colonies are only ever nations 0-3,
+         * and a miss stays empty. */
+        tok.string0 = reports_nation_adjective_woi(
+          game->col1_ok ? &game->col1 : NULL, col->nation_id);
         tok.string1 = col->name;
         char body[AI_POPUP_BODY_LEN];
         popup_msg_fill(

@@ -627,12 +627,15 @@ void game_colony_drag_begin_cargo(ColonizeGameState* game, int cargo_type) {
     return;
   }
   csv->selected_cargo = cargo_type;
-  if (csv->transport_unit_id < 0) {
-    set_status(game, "Select a ship first", NULL);
+  /* FUN_2f2b_60dc raw 52855: the press asks FUN_2f2b_4b62(ship, slot, 0, 0)
+   * and drags only on 0. Empty slot first -> red @CMESSAGE 6, cargo, 7; then
+   * no ship (DS:0x33c == 0, human at DS:0x890) -> red @CMESSAGE 5, cargo, "!". */
+  if (colony->stock[cargo_type] < 1) {
+    game_colony_cargo_refusal(game, 6, cargo_type, 7);
     return;
   }
-  if (colony->stock[cargo_type] <= 0) {
-    set_status(game, "No cargo in slot", NULL);
+  if (csv->transport_unit_id < 0) {
+    game_colony_cargo_refusal(game, 5, cargo_type, -1);
     return;
   }
   const int want = colony->stock[cargo_type] < 100 ? colony->stock[cargo_type] : 100;
@@ -644,8 +647,9 @@ void game_colony_drag_begin_cargo(ColonizeGameState* game, int cargo_type) {
 
 void game_colony_drag_begin_hold(ColonizeGameState* game, int hold_index) {
   ColonyScreenView* csv = &game->colony_screen;
+  /* FUN_2f2b_55da: no ship (DS:0x33c == 0) or an empty hold (FUN_281f_0be6
+   * < 0) starts no drag and says nothing. */
   if (csv->transport_unit_id < 0 || !game->units_ok) {
-    set_status(game, "Select a ship first", NULL);
     return;
   }
   const ColonizeUnit* tu = units_get_const(&game->units, csv->transport_unit_id);
@@ -653,7 +657,6 @@ void game_colony_drag_begin_hold(ColonizeGameState* game, int hold_index) {
     return;
   }
   if (tu->hold_goods_amount[hold_index] <= 0 || tu->hold_goods_amount[hold_index] >= 255) {
-    set_status(game, "Hold empty", NULL);
     return;
   }
   const int ctype = tu->hold_goods_type[hold_index];
@@ -1331,12 +1334,12 @@ bool game_colony_drag_drop(
               /* Partial fit: put the remainder back in the source hold. */
               (void)units_load_goods(&game->units, csv->transport_unit_id, ctype, amt - moved);
             }
-            snprintf(game->status, sizeof(game->status), "Transferred %d", moved);
+            game_colony_cargo_moved(game, moved, ctype, dst);
           } else {
-            set_status(game, "No empty hold", NULL);
+            game_colony_cargo_refusal(game, 4, -1, -1); /* FUN_2f2b_4fec: 2ec6(4, 0x78) */
           }
         } else {
-          set_status(game, "Hold empty", NULL);
+          game_colony_cargo_refusal(game, 11, -1, -1); /* 4fec: 0aec < 0 -> 2ec6(0xb, 0x78) */
         }
       }
       game_ui_drag_clear(game);

@@ -952,7 +952,9 @@ static int unit_capture_col1_effects(void) {
 
   colonies_set_col1_context(&col1);
   int plunder = -1;
+  a->custom_house_bits = 0; /* zeroed by the AI tick (FUN_5952_035e) */
   CHECK(colonies_capture_ex(&pool, 0, 1, &plunder), "capture_ex ok");
+  CHECK(a->custom_house_bits == COLONIZE_CUSTOM_HOUSE_DEFAULT_MASK, "DB-66 export set re-armed");
   CHECK(a->nation_id == 1, "runtime owner swapped");
   CHECK(recs[0].nation_id == 1, "col1 record owner swapped");
   CHECK(plunder == 400, "plunder = 1000*4/(4+6)");

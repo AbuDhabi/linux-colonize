@@ -588,6 +588,9 @@ bool begin_menu_compute_layout(
 );
 void game_apply_ai_popup_result(ColonizeGameState* game);
 void game_colony_load_hold(ColonizeGameState* game, int unit_id, int cargo, int amount);
+/* DOS colony cargo red / gold strip lines (@CMESSAGE rows), game_dialogs.c. */
+void game_colony_cargo_refusal(ColonizeGameState* game, int row, int cargo, int row2);
+void game_colony_cargo_moved(ColonizeGameState* game, int qty, int cargo, int unit_id);
 void game_colony_open_load_prompt(
   ColonizeGameState* game, const ColonizeColony* colony, int cargo
 );

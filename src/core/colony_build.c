@@ -307,6 +307,13 @@ bool colonies_capture_ex(
   const int old_nation = col->nation_id;
   col->nation_id = new_nation_id;
   if (old_nation != new_nation_id) {
+    /* dos_bugs.md DB-66: AI ticks zero the export bits (FUN_5952_035e), so a
+     * colony a human takes from the AI would export nothing; re-arm the
+     * founding set. AI captors keep DOS's 0 (they re-zero it every tick). */
+    if (col->custom_house_bits == 0 && g_colonies_col1 &&
+        g_colonies_col1->player[new_nation_id].control == 0) {
+      col->custom_house_bits = COLONIZE_CUSTOM_HOUSE_DEFAULT_MASK;
+    }
     const int plunder = colonies_capture_col1_effects(g_colonies_col1, col, old_nation, new_nation_id);
     if (plunder_gold) {
       *plunder_gold = plunder;

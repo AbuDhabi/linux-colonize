@@ -815,3 +815,18 @@ lunges (`game_move_watch_w`, `game_combat_watch`, `game_phantom_lunge`) play onl
 when one end is in that live sight (`game_tile_live_seen`). Before the first note (unit tests) it
 falls back to the DOS bit.
 **Status:** done (2026-10-30, user-requested 2026-10-30).
+
+### DB-66 — Captured colony's Custom House exports nothing
+**DOS:** every Euro AI colony tick opens with memset(colony+0x8a, 0, 2)
+(FUN_5952_035e raw 93943), so an AI colony carries no Custom House export bits.
+The capture tail (FUN_5fef_1b0e) keeps the record's bits, so a colony taken from
+the AI exports nothing once a Custom House stands there, built before or after
+the capture. A founded colony gets the default set (FUN_364b_1ba8 raw 58058).
+
+**Port:** when a human-controlled nation (`player[n].control == 0`) captures,
+`colonies_capture_ex` (`src/core/colony_build.c`) re-arms
+`COLONIZE_CUSTOM_HOUSE_DEFAULT_MASK` when the captured colony's bits are 0. A
+colony whose owner kept some exports keeps them; AI captors keep DOS's 0
+(goldens). Test: `unit_colonies`
+(`colonies_capture_ex` case).
+**Status:** done (2026-10-31, user-requested 2026-10-31).
