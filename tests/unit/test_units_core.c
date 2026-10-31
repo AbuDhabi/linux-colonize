@@ -4598,6 +4598,82 @@ static int case_lcr_burial_trespass(void) {
   return 0;
 }
 
+  /*
+   * Case 8 tests the nearest village's TABLE INDEX (FUN_65dd_0004 raw 103554-103556,
+   * `FUN_4cc6_0356 return < 3`), not its distance. Phase 0: villages 0-2 far away at (0,0),
+   * village 3 (met tribe) on the rumour tile -> never @LOSTCITY8. Phase 1: one met village 0
+   * at (0,0), far from every rumour tried -> @LOSTCITY8 still fires.
+   */
+static int case_lcr_trespass_village_index(void) {
+  if (fx_open() != 0 || fx_stage2() != 0) {
+    return 1;
+  }
+    const int scout_ti = units_find_type(&pool, "Scouts");
+    AiPopupState pops;
+    ai_popup_init(&pops);
+    units_set_combat_popups(&pops, test_game_txt());
+    int hits[2] = {0, 0};
+    for (int phase = 0; phase < 2; ++phase) {
+      ColonizeCol1Save tcol1;
+      memset(&tcol1, 0, sizeof(tcol1));
+      for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
+        tcol1.head.founding_father[i] = -1;
+      }
+      tcol1.stuff.census_pop_proxy[0] = 20;
+      tcol1.stuff.colony_counts[0] = 3;
+      tcol1.player[0].lcr_case5_bonus_used = 1;
+      ColonizeCol1Tribe tribes[4];
+      memset(tribes, 0, sizeof(tribes));
+      for (int i = 0; i < 4; ++i) {
+        tribes[i].nation_id = 4; /* tribe 4 = indian[0], met */
+      }
+      tcol1.indian[0].euro_diplo[0] = COL1_INDIAN_MET_BIT;
+      tcol1.tribe = tribes;
+      tcol1.head.tribe_count = phase == 0 ? 4 : 1;
+      ColonizeDosRng trng;
+      dos_rng_seed(&trng, 12345 * 11);
+      int trials = 0;
+      for (int pass = 0; pass < 8 && trials < 200; ++pass) {
+        for (int y = 0; y < (int)map.height && trials < 200; ++y) {
+          for (int x = 0; x < (int)map.width && trials < 200; ++x) {
+            if (!map_tile_has_rumour(&map, x, y) || (x < 6 && y < 6)) {
+              continue;
+            }
+            trials++;
+            tribes[3].x = (uint8_t)x;
+            tribes[3].y = (uint8_t)y;
+            const int sid = units_spawn_allow_stack(&pool, scout_ti, x, y);
+            ColonizeUnit* su = units_get(&pool, sid);
+            if (!su) {
+              continue;
+            }
+            su->nation_id = 0;
+            pops.queue_count = 0;
+            (void)units_resolve_lcr_rumour_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&tcol1), .col1_ok=true, .rng=(ColonizeDosRng*)(&trng), .europe=(EuropeScreen*)(NULL)}, sid, 0);
+            for (int q = 0; q < pops.queue_count; ++q) {
+              if (test_body_is_section(pops.queue[q].body, "LOSTCITY8")) {
+                hits[phase]++;
+              }
+            }
+            if (units_get(&pool, sid)) {
+              units_despawn(&pool, sid);
+            }
+            map.layer2[y * map.width + x] &= (uint8_t)~MAP_LAYER2_LCR_CONSUMED;
+          }
+        }
+      }
+    }
+    pops.queue_count = 0;
+    units_set_combat_popups(NULL, NULL);
+    if (hits[0] != 0 || hits[1] <= 0) {
+      fprintf(stderr, "LCR trespass index: index>=3 %d (want 0), far index 0 %d (want >0)\n",
+              hits[0], hits[1]);
+      return 1;
+    }
+  fx_close();
+  return 0;
+}
+
   /* Enter-probe matrix: bounce / domain / land combat / naval / capture. */
 static int case_enter_probe_matrix(void) {
   if (fx_open() != 0 || fx_stage2() != 0) {
@@ -7952,6 +8028,7 @@ static const TestCase k_cases[] = {
   {"lcr_outcome_dispatch", case_lcr_outcome_dispatch},
   {"lcr_fountain_ai", case_lcr_fountain_ai},
   {"lcr_burial_trespass", case_lcr_burial_trespass},
+  {"lcr_trespass_village_index", case_lcr_trespass_village_index},
   {"enter_probe_matrix", case_enter_probe_matrix},
   {"board_from_land_sentry", case_board_from_land_sentry},
   {"combat_ambush_spanish", case_combat_ambush_spanish},

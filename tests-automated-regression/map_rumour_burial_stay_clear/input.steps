@@ -11,7 +11,7 @@ key KP_6                   # east onto (39,22): survivors (@LOSTCITY9), a Free C
 wait 3
 key Return                 # colonist #134 is selected
 wait 2
-key KP_4                   # west onto (36,25), Tupi village closer than 3 (FUN_281f_0d84), Tupi met: roll 8 kept (skill 0), @LOSTCITY8;
-wait 3                    # alarm + RNG(1,6) + (difficulty 4 - 0 + 1) * 5, halved for France: Tupi alarm 0 -> 13
+key KP_4                   # west onto (36,25): roll 8, but FUN_65dd_0004 raw 103556 tests the nearest village's TABLE INDEX
+wait 3                    # (FUN_281f_0d84 -> FUN_4cc6_0356), here 7 (Tupi at (35,26)), not < 3: no @LOSTCITY8, no RNG(1,6), Tupi alarm stays 0
 key Return
 wait 2
