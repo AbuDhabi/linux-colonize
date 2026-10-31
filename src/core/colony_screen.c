@@ -820,11 +820,9 @@ static bool colony_screen_load_pik(
  * one of these four sheets is itself black across 152..251, which is exactly
  * the block WOODPANL.PIK leaves black — none of them reserves anything, they
  * all live in the shared low block, so merging would copy black over the
- * screen's own slots. Nearest-colour remap is the right treatment here, and
- * with WOODPANL as the destination it is very nearly the identity: of the
- * indices these sheets actually paint, only ICONS.SS 5 and 13 (11 px each)
- * disagree with the screen palette at all, and those two slots take ICONS'
- * values (DOS's fixed VICEROY.PAL Dutch pair) before the ICONS remap.
+ * screen's own slots. Nearest-colour remap is the right treatment here. The
+ * destination is VICEROY.PAL (the DAC DOS keeps on this screen, see below),
+ * so the orders-box slots 5/12/13 keep their fixed nation colours.
  */
 bool colony_screen_load(ColonyScreenView* view, const char* data_dir, char* err, size_t err_size) {
   if (!view || !data_dir) {

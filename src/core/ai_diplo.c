@@ -1451,7 +1451,7 @@ static void ai_talk_unit_to_europe(ColonizeTurnContext* ctx, int unit_id) {
       units_export_cargo_professions(ctx->units, unit_id, profs, COLONIZE_UNIT_CARGO_MAX);
       /* FUN_281f_0880 -> FUN_1427_0362 only moves the hull (023a/02ca); its own
        * +0x314d/+0x314e return tile stays, and FUN_48d3_0346 later sails from it
-       * (port_bugs #1312/#1318). Keep it on the harbor slot. */
+       * (port_bugs #1312/#1361). Keep it on the harbor slot. */
       const int gx = u->goto_x;
       const int gy = u->goto_y;
       if (ctx->europe->harbor_ships < EUROPE_HARBOR_MAX && units_despawn_ship_with_cargo(

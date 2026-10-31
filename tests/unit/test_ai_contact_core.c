@@ -3426,7 +3426,7 @@ static int sp_34(void) {
      * port_bugs.md #1006: there is no player gift action. NAMES.TXT @ACTIONS has
      * no gift row, nothing emits the old choice id 2, and the invented
      * Small/Large/Generous amount CHOICE is gone. What survives is the 022e
-     * auto-gift drain, reached from ai_contact_gift_or_demand.
+     * auto-gift drain (FUN_5bfb_022e gift half, ai_contact_demand.c).
      */
     {
       ai_popup_clear(&pop);

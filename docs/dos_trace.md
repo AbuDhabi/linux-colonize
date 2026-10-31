@@ -225,9 +225,11 @@ instruction. On one byte it is fine. It found the 3180 facing writer.
   runtime CS:IP (overlay CS varies per load). Find its bytes in VICEROY.EXE or in the asm bytes
   column (`grep c78674ff1600 viceroy_unpacked.asm`) to name the function.
 - RNG-dependent outcomes need the archive's EXE: the America and independence archives are
-  VR_SOUND runs. A VR_SEED from-load reseeds every nation slot from the wall clock (two from-loads
-  of america save 97 disagreed on England's Galleon roll), so use `setup --exe VR_SOUND.EXE` before
-  trusting any roll. Resident thunk segments are relocated at run time by -0x7dc: FUN_281f_04d4
+  VR_SOUND runs, so use `setup --exe VR_SOUND.EXE` before trusting any roll. VR_SEED and VR_SOUND
+  differ only in 7 bytes at file offset 20202; both patch the BIOS tick read `FUN_1c0c_0012` (file
+  offset 58578) to `mov ax,100; retf`, so neither reseeds from the wall clock (port_bugs.md #1321).
+  Two VR_SEED from-loads of america save 97 once disagreed on England's Galleon roll; the cause is
+  not known. Resident thunk segments are relocated at run time by -0x7dc: FUN_281f_04d4
   (rand range) is `BP 2043:04d4`, FUN_281f_04ca (slot reseed) `BP 2043:04ca`; the stack holds the
   caller's ret seg:off and the args. `BPM` on a cold byte works (one stop per read/write): the
   indian record's herd byte found FUN_5bfb_3180's native-contact spread in one turn.
