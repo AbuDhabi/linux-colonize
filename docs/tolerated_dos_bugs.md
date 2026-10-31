@@ -779,3 +779,27 @@ FUN_43f7_0108, the year-end rename peace, TB-52/TB-53 arms.
 
 **Blocks removal:** goldens and idle campaigns lock the DOS rows; not tried ungated.
 **Status:** tolerated (user, 2026-10-30). Fixed in opencol 2026-10-30, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.
+
+### TB-55 — Go To ping-pongs across the near/far tier boundary
+**DOS:** `FUN_6662_0f74` (raw 104566-104580) runs the near destination flood
+(`FUN_6662_00f2` toward the goal) only when `|dx| < 7 && |dy| < 7`; at distance
+7 it takes `LAB_6662_10e1`, the coarse waypoint (`0b4e`) and a flood toward that
+waypoint. The two floods have different goals, so their gradients can disagree
+on the tiles either side of the boundary.
+
+**Effect:** a unit can step back and forth forever between a distance-6 tile
+(near flood says go east onto a road loop) and a distance-7 tile (waypoint
+flood says go back west), burning all its moves each turn. Seen 2026-10-31 on
+a land trade-route wagon (port_saves/discard COLONY07.SAV, wagon on
+"Hartford Trans", (47,18) <-> (48,19), goal Hartford (41,18)). The #1040
+reversal guard covers only AI_SAIL units.
+
+**Port (reproduces it):** `units_goto_director` (`src/core/units_move.c`). The
+fix uses `<= 7`: the 00f2 grid (16x16, candidates `|cand-goal| < 8`) already
+covers distance 7, and a unit following one destination grid only steps to
+strictly cheaper cells inside the window, so it cannot leave the near tier and
+cannot alternate tiers. A near-flood miss still falls back to the far tier.
+
+**Blocks removal:** tried ungated 2026-10-31: fails all six idle gates
+(`golden_idle_continuous`, `_america`, `_america2` and their `_reload`s).
+**Status:** tolerated (user, 2026-10-31). Fixed in opencol 2026-10-31, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.

@@ -2324,8 +2324,68 @@ static int test_europe_unload_all_boycott_any_slot(void) {
   return rc;
 }
 
+/*
+ * TB-55: FUN_6662_0f74 runs the near flood only below distance 7. Fixture: the
+ * discard campaign's "Hartford Trans" wagon on (47,18), goal Hartford (41,18).
+ * The goal flood sends it E onto the road at (48,19) (dx 7); there DOS takes
+ * the coarse waypoint flood, which steps back to (47,18), forever. The fixed
+ * path keeps distance 7 on the goal flood and the wagon reaches Hartford.
+ */
+static int test_goto_near_tier_boundary_tb55(void) {
+  ColonizeGameConfig cfg = {.data_dir = "./COLONIZE", .save_dir = "./build/debug"};
+  bool arrived[2] = {false, false};
+  int rc = 0;
+  for (int k = 0; k < 2 && rc == 0; ++k) {
+    dos_buggy_behavior_set(k == 0);
+    ColonizeGameState* game = game_create(&cfg);
+    if (!game || !game_assets_ok(game)) {
+      fprintf(stderr, "SKIP: no COLONIZE/ assets\n");
+      if (game) {
+        game_destroy(game);
+      }
+      dos_buggy_behavior_set(true);
+      return TR_SKIP;
+    }
+    char err[256];
+    if (!game_load_col1_file(game, "tests-save-misc/tb55_near_tier_wagon.sav", err, sizeof(err))) {
+      fprintf(stderr, "  %s\n", err);
+      rc = fail("fixture save load");
+    }
+    ColonizeUnit* wagon = NULL;
+    for (int i = 0; rc == 0 && i < units_slot_end(&game->units); ++i) {
+      ColonizeUnit* u = &game->units.units[i];
+      if (u->active && u->x == 47 && u->y == 18 && u->orders == UNITS_ORDER_TRADE_ROUTE) {
+        wagon = u;
+      }
+    }
+    if (rc == 0 && (!wagon || wagon->goto_x != 41 || wagon->goto_y != 18)) {
+      rc = fail("route wagon on (47,18) aimed at Hartford (41,18)");
+    }
+    const ColonizeWorld w = game_world(game);
+    for (int step = 0; rc == 0 && step < 24 && !arrived[k]; ++step) {
+      int nx = -1;
+      int ny = -1;
+      if (!units_next_goto_step_w(&w, wagon->id, &nx, &ny)) {
+        break;
+      }
+      wagon->x = nx;
+      wagon->y = ny;
+      arrived[k] = nx == 41 && ny == 18;
+    }
+    game_destroy(game);
+  }
+  dos_buggy_behavior_set(true);
+  if (rc == 0 && (arrived[0] || !arrived[1])) {
+    fprintf(stderr, "  buggy arrived %d (want 0) fixed arrived %d (want 1)\n", arrived[0],
+            arrived[1]);
+    rc = fail("TB-55 near tier covers distance 7");
+  }
+  return rc;
+}
+
 static const TestCase k_cases[] = {
     {"test_dos_buggy_default_off_tests_on", test_dos_buggy_default_off_tests_on},
+    {"test_goto_near_tier_boundary_tb55", test_goto_near_tier_boundary_tb55},
     {"test_map_pulldown_is_modal", test_map_pulldown_is_modal},
     {"test_turn_year_end_rival_rebels", test_turn_year_end_rival_rebels},
     {"test_ai_contact_raid_alarm_delta", test_ai_contact_raid_alarm_delta},

@@ -3086,7 +3086,11 @@ static bool units_goto_director(
    * Not ported: DOS reads DS:0xa572/0xa574 stale when the unit snap failed
    * — OpenCol skips that flood instead.
    */
-  const bool near_tier = adx <= 7 && ady <= 7;
+  /* TB-55: DOS stops the near tier at 6, which can ping-pong a unit across the
+   * 6/7 boundary against the far-tier waypoint flood; the 16x16 grid already
+   * covers distance 7, so the fix keeps such a unit on the goal flood. */
+  const int near_max = dos_buggy_behavior() ? 6 : 7;
+  const bool near_tier = adx <= near_max && ady <= near_max;
   bool near_missed = false;
   if (near_tier) {
     if (out_flood) *out_flood = true;
