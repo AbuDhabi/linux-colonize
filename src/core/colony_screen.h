@@ -314,7 +314,6 @@ typedef struct ColonyScreenView {
   bool buildings_ok;
   bool icons_ok;
   bool bottom_panel_ok;
-  char status[96];
   /* DOS status line (DS:0x2d54 armed): FUN_1009_02cc paints it over the top
    * strip in place of the colony title line. Empty = none. Set each frame by
    * game_service_colony_bar from the ai_popup status ring; `bar_ink` = the
@@ -454,7 +453,6 @@ uint32_t colony_screen_layout_seed(const ColonyScreenView* view);
 
 bool colony_screen_load(ColonyScreenView* view, const char* data_dir, char* err, size_t err_size);
 void colony_screen_free(ColonyScreenView* view);
-void colony_screen_set_status(ColonyScreenView* view, const char* text);
 void colony_screen_reset_ui(ColonyScreenView* view);
 
 /*

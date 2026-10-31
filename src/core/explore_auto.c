@@ -111,17 +111,14 @@ static bool explore_auto_frontier(const ColonizeWorldMap* map, int nation, int x
  * -1 = no settlement there, 0 = one not worth it, 1 = worth it. */
 static int explore_auto_village(const ColonizeWorld* w, int nation, int x, int y) {
   const ColonizeCol1Save* col1 = w->col1;
-  for (uint16_t i = 0; col1 && col1->tribe && i < col1->head.tribe_count; ++i) {
-    const ColonizeCol1Tribe* t = &col1->tribe[i];
-    if (t->x != x || t->y != y) {
-      continue;
-    }
-    int skill = 0;
-    return !(s_visited[y * 256 + x] & (1u << nation)) &&
-           !village_trade_intel_get_skill(nation, x, y, &skill) &&
-           !ai_diplo_indian_at_war(col1, nation, (int)t->nation_id - 4);
+  const ColonizeCol1Tribe* t = col1_save_tribe_at(col1, x, y);
+  if (!t) {
+    return -1;
   }
-  return -1;
+  int skill = 0;
+  return !(s_visited[y * 256 + x] & (1u << nation)) &&
+         !village_trade_intel_get_skill(nation, x, y, &skill) &&
+         !ai_diplo_indian_at_war(col1, nation, (int)t->nation_id - 4);
 }
 
 typedef struct ExploreAutoGain {

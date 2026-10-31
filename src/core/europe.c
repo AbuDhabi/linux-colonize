@@ -199,11 +199,7 @@ int europe_ship_cargo_cap(const EuropeHarborShip* ship, const ColonizeUnitPool* 
     return 0;
   }
   if (units) {
-    int ti = ship->type_index;
-    if (ti < 0) {
-      ti = units_find_type(units, ship->name);
-    }
-    const ColonizeUnitType* ut = units_type(units, ti);
+    const ColonizeUnitType* ut = units_type(units, europe_ship_type_index(units, ship));
     if (ut && ut->cargo > 0) {
       return ut->cargo > EUROPE_SHIP_CARGO_MAX ? EUROPE_SHIP_CARGO_MAX : ut->cargo;
     }
@@ -226,14 +222,16 @@ int europe_ship_free_slots(const EuropeHarborShip* ship, const ColonizeUnitPool*
   return free_slots > 0 ? free_slots : 0;
 }
 
-/*
- * A docked Artillery piece carries no dos_type of its own; it is recognised by
- * carrying the catalog's @UNIT row 11 name (whatever a given NAMES.TXT calls
- * it) — never by an English word compiled in here.
- */
-bool europe_dock_name_is_artillery(const char* name) {
-  const char* live = reports_names_field("UNIT", UNITS_KIND_ARTILLERY, 0);
-  return name && name[0] && live && live[0] && strcmp(name, live) == 0;
+int europe_ship_type_index(const ColonizeUnitPool* units, const EuropeHarborShip* ship) {
+  if (!units || !ship) {
+    return -1;
+  }
+  if (ship->type_index >= 0) {
+    return ship->type_index;
+  }
+  return ship->kind_plus1 > 0
+    ? units_kind_type_index(units, (ColonizeUnitKind)(ship->kind_plus1 - 1))
+    : -1;
 }
 
 /*
@@ -304,6 +302,11 @@ bool europe_dock_push_load(EuropeScreen* eu, const char* name, int profession) {
   slot->present = true;
   slot->sentry = true;
   slot->dos_type = europe_dock_type_for(slot->name, profession);
+  /* ponytail: these callers (col1_bridge, ai_diplo, ai_king_war, disembark)
+   * pass only a name, so an Artillery row is still told by the @UNIT row 11
+   * name here; drop once they set ->artillery from the unit's kind. */
+  const char* art = reports_names_field("UNIT", UNITS_KIND_ARTILLERY, 0);
+  slot->artillery = slot->name[0] && art && art[0] && strcmp(slot->name, art) == 0;
   return true;
 }
 
@@ -710,9 +713,7 @@ int europe_buyback_boycott(
   nation->boycott_bitmap &= (uint16_t)~(1u << cargo_type);
   eu->boycott_bitmap = nation->boycott_bitmap;
   const char* cname = eu->cargo[cargo_type].name[0] ? eu->cargo[cargo_type].name : "";
-  snprintf(
-    eu->status, sizeof(eu->status), "Paid %d$ in back taxes -- boycott on %s lifted.", cost, cname
-  );
+  eu->status[0] = '\0';
   diag_info(
     "EUROPE paid %d$ back taxes on %s: boycott lifted (gold=%d)", cost, cname, eu->gold
   );

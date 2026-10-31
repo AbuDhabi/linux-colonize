@@ -346,7 +346,7 @@ static int sp_00(void) {
 static int sp_01(void) {
   /* Meet: adjacent Euro → euro_diplo + relation bump; peaceful friction decay. */
   ind->alarm_by_player[0] = 33; /* first contact clamps alarm <= 20 (FUN_5bfb :96624) */
-  ai_contact_indian_meet_trade(&ctx, 4);
+  (void)ai_contact_try_first_welcome(&ctx, 0, 4);
   if (!ind->euro_diplo[0]) {
     return fail("meet should set euro_diplo[0]");
   }
@@ -867,329 +867,29 @@ static int sp_09(void) {
    * further below.
    */
 
-  /*
-   * port_bugs.md 2026-09-04 (bugs 2 and 3): there is NO passive teach pulse.
-   * DOS's Brave-side contact FUN_5bfb_022e (viceroy_unpacked_2.c 87455-88030)
-   * has no teach arm at all - its arms are first contact, demand/beg-food,
-   * gift (@INDIANGIVEFOOD/@INDIANGIVESTUFF), mission convert and raid.
-   * Teaching is reached only through the deliberate "Live Among The Natives"
-   * @ACTIONS row (FUN_4d56_4528 dispatch case 5 -> thunk_FUN_1000_a618).
-   * So a Brave wandering past a colonist must never set tribe.state.learned,
-   * never hand out a profession, and never emit a teach / @LEARN* line.
-   */
-  {
-    char status_np[128];
-    status_np[0] = '\0';
-    ctx.status = status_np;
-    ctx.status_size = sizeof(status_np);
-    ctx.human_nation = 0;
-    euro->x = 6;
-    euro->y = 5;
-    euro->active = true;
-    euro->id = euro_id_;
-    units_pool_sync(&units);
-    euro->profession = UNITS_JOB_NONE;
-    col1.tribe[0].nation_id = 4;
-    col1.tribe[0].state.learned = 0;
-    col1.tribe[0].state.capital = 0;
-    col1.tribe[0].mission = 0xff;
-    col1.tribe[0].last_sold = (uint8_t)COLONIZE_CARGO_FURS;
-    col1.tribe[0].alarm[0].friction = 5;
-    ind->euro_diplo[0] = 1;
-    ind->alarm_by_player[0] = 5;
-    col1.nation[0].gold = 0; /* no gift arm */
-    col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
-    ai_contact_indian_meet_trade(&ctx, 4);
-    if (col1.tribe[0].state.learned) {
-      return fail("Indian move pulse must not teach (5bfb_022e has no teach arm)");
-    }
-    if (euro->profession != UNITS_JOB_NONE) {
-      return fail("Indian move pulse must not hand out a profession");
-    }
-    if (strstr(status_np, "teach") != NULL || strstr(status_np, "infuriate") != NULL) {
-      fprintf(stderr, "unit_ai_contact: passive-teach status '%s'\n", status_np);
-      return fail("Indian move pulse must not emit teach / @LEARNMAD chrome");
-    }
-    col1.tribe[0].last_sold = 0;
-    ctx.status = NULL;
-    ctx.status_size = 0;
-  }
   return 0;
 }
 
 static int sp_10(void) {
-
-  /*
-   * Auto gift (2154 tables + 5bfb gates): gold≥20 Large; Generous needs
-   * ask[0]-bid[0]≥1, gold≥0x4b, and delta≥RNG. Cite: indian_meet_scoring_2154.md.
-   */
-  col1.tribe[0].nation_id = 4;
-  col1.tribe[0].population = 4;
-  ind->euro_diplo[0] = 1;
-  ind->alarm_by_player[0] = 10;
-  ind->tech = 0;
-  col1.tribe[0].alarm[0].friction = 10;
-  col1.tribe[0].state.learned = 1;
-  col1.tribe[0].state.capital = 0;
-  col1.nation[0].gold = 50; /* ≥20 Large; <0x4b no Generous */
-/* alarm pinned above (was relation write) */
-  col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
-  euro->x = 6;
-  euro->y = 5;
-  brave->x = 5;
-  brave->y = 5;
-  brave->nation_id = 4;
-  ctx.human_nation = 1; /* Euro 0 as AI — silent gift stand-in */
-  status[0] = '\0';
-  ctx.status = status;
-  ctx.status_size = sizeof(status);
-  ai_contact_indian_meet_trade(&ctx, 4);
-  if (col1.nation[0].gold != 40u) {
-    fprintf(stderr, "unit_ai_contact: gift gold50→%u (want Large 40)\n",
-            (unsigned)col1.nation[0].gold);
-    return fail("AI gift gold 20..74 should cost Euro 10 gold (Large)");
-  }
-  /* port_bugs.md #1007: the cooler is a 00f2 alarm delta and writes no village
-   * word; the tribe's own attitude byte only moves if 00f2's tier clamp
-   * catches it. Assert the pair scalar instead. */
-  if (ind->alarm_by_player[0] != 8) {
-    return fail("Large AI gift should cool pair alarm by 2");
-  }
-  if (status[0] != '\0') {
-    return fail("AI gift stand-in should not set human chrome status");
-  }
-  /* Mid purse Large (−10/−2). */
-  col1.nation[0].gold = 25;
-  ind->alarm_by_player[0] = 10;
-  col1.tribe[0].alarm[0].friction = 10;
-  ai_contact_indian_meet_trade(&ctx, 4);
-  if (col1.nation[0].gold != 15u) {
-    return fail("AI gift gold 20..39 should cost Euro 10 gold (Large)");
-  }
-  if (ind->alarm_by_player[0] != 8) {
-    return fail("Large AI gift should cool pair alarm by 2");
-  }
+  /* port_bugs.md #1340: the test-only Brave adjacency driver
+   * (ai_contact_indian_meet_trade / ai_contact_auto_trade) this segment drove
+   * is deleted; the segment stays so later fx_run() indices hold. */
   return 0;
 }
 
 static int sp_11(void) {
-  /*
-   * 2154 Generous: sparse neighborhood (arctic pad → high ask−bid) + gold≥75.
-   * Dense forest raises bid and can suppress delta. Cite: FUN_4d56_2154.
-   */
-  {
-    for (int ci = 0; ci < COLONIZE_COLONIES_MAX; ++ci) {
-      colonies.colonies[ci].active = false;
-    }
-    colonies.colony_count = 0;
-    for (int dy = -2; dy <= 2; ++dy) {
-      for (int dx = -2; dx <= 2; ++dx) {
-        const int nx = 5 + dx;
-        const int ny = 5 + dy;
-        if (nx >= 0 && ny >= 0 && nx < 16 && ny < 16) {
-          map.terrain[ny * 16 + nx] = 24; /* arctic unscored */
-        }
-      }
-    }
-    /* Capital doubles ask after clamp → delta≥100 beats RNG 1..100. */
-    col1.tribe[0].state.capital = 1;
-    col1.nation[0].gold = 80;
-    ind->alarm_by_player[0] = 10;
-    col1.tribe[0].alarm[0].friction = 10;
-    ind->euro_diplo[0] = 1;
-    ctx.human_nation = 1;
-    ctx.rng_seed = 1;
-    euro->x = 6;
-    euro->y = 5;
-    brave->x = 5;
-    brave->y = 5;
-    brave->nation_id = 4;
-    ai_contact_indian_meet_trade(&ctx, 4);
-    if (col1.nation[0].gold != 60u) {
-      fprintf(stderr, "unit_ai_contact: sparse gift gold=%u (want 60 Generous)\n",
-              (unsigned)col1.nation[0].gold);
-      return fail("sparse capital + gold≥75 should Generous (−20)");
-    }
-    /* port_bugs.md #1007: cooler writes the pair scalar, not village words. */
-    if (ind->alarm_by_player[0] != 7) {
-      return fail("Generous AI gift should cool pair alarm by 3");
-    }
-    /* Gold 40 alone must not Generous (needs ≥0x4b). */
-    col1.tribe[0].state.capital = 1;
-    col1.nation[0].gold = 40;
-    ind->alarm_by_player[0] = 10;
-    col1.tribe[0].alarm[0].friction = 10;
-    ai_contact_indian_meet_trade(&ctx, 4);
-    if (col1.nation[0].gold != 30u) {
-      fprintf(stderr, "unit_ai_contact: gold40 gift=%u (want Large 30)\n",
-              (unsigned)col1.nation[0].gold);
-      return fail("gold <0x4b must Large even with positive delta");
-    }
-    /*
-     * Dense forest + high tons[0] → ask crushed, delta≤0 → Large at gold 80.
-     */
-    for (int dy = -2; dy <= 2; ++dy) {
-      for (int dx = -2; dx <= 2; ++dx) {
-        const int nx = 5 + dx;
-        const int ny = 5 + dy;
-        if (nx >= 0 && ny >= 0 && nx < 16 && ny < 16) {
-          map.terrain[ny * 16 + nx] = 8; /* forest class */
-        }
-      }
-    }
-    ind->tons[0] = 2500; /* phase-5 tons mix suppresses ask[0] */
-    col1.tribe[0].state.capital = 0;
-    col1.nation[0].gold = 80;
-    ind->alarm_by_player[0] = 10;
-    col1.tribe[0].alarm[0].friction = 10;
-    ai_contact_indian_meet_trade(&ctx, 4);
-    if (col1.nation[0].gold != 70u) {
-      fprintf(stderr, "unit_ai_contact: forest gift gold=%u (want Large 70)\n",
-              (unsigned)col1.nation[0].gold);
-      return fail("dense forest + tons should suppress Generous (Large −10)");
-    }
-    ind->tons[0] = 0;
-    /*
-     * Cover clears forest buckets + capital → Generous at gold 80.
-     * 281f_0ce0 work-slot gate: only the colony's own tile plus *actively
-     * worked* immediate (N/NE/E/SE/S/SW/W/NW) tiles are "covered" — the
-     * outer distance-2 ring is never worker-assignable (col1_bridge.c
-     * tiles[8..19] stay -1) and so is never covered. Shrink the forest
-     * patch to the 8 immediate ring cells (the second ring reverts to
-     * plains) and assign a worker to each so the whole patch is actually
-     * covered, matching the real DOS gate instead of the old "full ring"
-     * stand-in. Cite: indian_meet_scoring_2154.md Phase 1.
-     */
-    {
-      for (int dy = -2; dy <= 2; ++dy) {
-        for (int dx = -2; dx <= 2; ++dx) {
-          if (abs(dx) == 2 || abs(dy) == 2) {
-            const int nx = 5 + dx;
-            const int ny = 5 + dy;
-            if (nx >= 0 && ny >= 0 && nx < 16 && ny < 16) {
-              map.terrain[ny * 16 + nx] = 1; /* plains: outside worked ring */
-            }
-          }
-        }
-      }
-      ColonizeColony* cov = &colonies.colonies[0];
-      cov->id = 0;
-      cov->active = true;
-      cov->nation_id = 0;
-      cov->x = 5;
-      cov->y = 5;
-      cov->population = 2;
-      cov->colonist_count = 2;
-      for (int dir = 0; dir < 8; ++dir) {
-        cov->tiles[dir] = 0; /* every immediate ring tile worked */
-      }
-      colonies.colony_count = 1;
-      col1.tribe[0].state.capital = 1;
-      col1.nation[0].gold = 80;
-      ind->alarm_by_player[0] = 10;
-      col1.tribe[0].alarm[0].friction = 10;
-      ai_contact_indian_meet_trade(&ctx, 4);
-      if (col1.nation[0].gold != 60u) {
-        fprintf(stderr, "unit_ai_contact: cover gift gold=%u (want Generous 60)\n",
-                (unsigned)col1.nation[0].gold);
-        return fail("colony cover + capital should Generous");
-      }
-      cov->active = false;
-      colonies.colony_count = 0;
-      col1.tribe[0].state.capital = 0;
-    }
-    for (int i = 0; i < 256; ++i) {
-      map.terrain[i] = 1;
-    }
-  }
-
-  /*
-   * Capital mix doubles ask[0..7] → Generous at gold 80 where non-capital
-   * + tons crush stays Large. Cite: 2154 capital phase-5.
-   */
-  {
-    for (int ci = 0; ci < COLONIZE_COLONIES_MAX; ++ci) {
-      colonies.colonies[ci].active = false;
-    }
-    colonies.colony_count = 0;
-    for (int dy = -2; dy <= 2; ++dy) {
-      for (int dx = -2; dx <= 2; ++dx) {
-        const int nx = 5 + dx;
-        const int ny = 5 + dy;
-        if (nx >= 0 && ny >= 0 && nx < 16 && ny < 16) {
-          map.terrain[ny * 16 + nx] = 24; /* arctic sparse */
-        }
-      }
-    }
-    col1.tribe[0].state.capital = 0;
-    ind->tons[0] = 2500;
-    col1.nation[0].gold = 80;
-    ind->alarm_by_player[0] = 10;
-    col1.tribe[0].alarm[0].friction = 10;
-    ind->euro_diplo[0] = 1;
-    ctx.human_nation = 1;
-    ctx.rng_seed = 1;
-    euro->x = 6;
-    euro->y = 5;
-    brave->x = 5;
-    brave->y = 5;
-    brave->nation_id = 4;
-    ai_contact_indian_meet_trade(&ctx, 4);
-    if (col1.nation[0].gold != 70u) {
-      fprintf(stderr, "unit_ai_contact: non-capital sparse+tons gift=%u (want Large 70)\n",
-              (unsigned)col1.nation[0].gold);
-      return fail("non-capital + tons should Large at gold 80");
-    }
-    col1.tribe[0].state.capital = 1;
-    ind->tons[0] = 0;
-    col1.nation[0].gold = 80;
-    ind->alarm_by_player[0] = 10;
-    col1.tribe[0].alarm[0].friction = 10;
-    ai_contact_indian_meet_trade(&ctx, 4);
-    if (col1.nation[0].gold != 60u) {
-      fprintf(stderr, "unit_ai_contact: capital sparse gift=%u (want Generous 60)\n",
-              (unsigned)col1.nation[0].gold);
-      return fail("capital mix should Generous at gold 80 on sparse land");
-    }
-    col1.tribe[0].state.capital = 0;
-    for (int i = 0; i < 256; ++i) {
-      map.terrain[i] = 1;
-    }
+  /* port_bugs.md #1340: the test-only Brave adjacency driver
+   * (ai_contact_indian_meet_trade / ai_contact_auto_trade) this segment drove
+   * is deleted; the segment stays so later fx_run() indices hold. It keeps
+   * the fixture state the later segments were tuned on. */
+  ctx.rng_seed = 1;
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1;
   }
   return 0;
 }
 
 static int sp_12(void) {
-
-  /*
-   * Gift refuse when Euro gold < 10: no gold change. Human adjacency: no
-   * spontaneous chrome (village dialog PARKED).
-   */
-  {
-    ind->euro_diplo[0] = 1;
-    ind->alarm_by_player[0] = 10;
-    col1.tribe[0].alarm[0].friction = 10;
-    col1.tribe[0].state.learned = 1;
-    col1.tribe[0].mission = 0xff;
-    col1.nation[0].gold = 5; /* < 10 */
-/* alarm pinned above (was relation write) */
-    col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
-    euro->x = 6;
-    euro->y = 5;
-    brave->x = 5;
-    brave->y = 5;
-    status[0] = '\0';
-    ctx.status = status;
-    ctx.status_size = sizeof(status);
-    ctx.human_nation = 0;
-    ai_contact_indian_meet_trade(&ctx, 4);
-    if (col1.nation[0].gold != 5u) {
-      return fail("gift gold<10 refuse should not drain gold");
-    }
-    if (status[0] != '\0') {
-      return fail("human Brave adjacency must not chrome gift refuse");
-    }
-  }
 
   /*
    * First-meet status (gold in 10..19 → gift skips silent; learned → teach skips):
@@ -1200,7 +900,10 @@ static int sp_12(void) {
   col1.nation[0].gold = 15; /* ≥10 no refuse; <20 no gift drain */
   col1.indian[0].euro_diplo[0] = (uint8_t)(col1.indian[0].euro_diplo[0] & ~COL1_INDIAN_MET_BIT); /* unmet (was relation 0) */
   status[0] = '\0';
-  ai_contact_indian_meet_trade(&ctx, 4);
+  ctx.status = status;
+  ctx.status_size = sizeof(status);
+  ctx.human_nation = 0;
+  (void)ai_contact_try_first_welcome(&ctx, 0, 4);
   if (!ind->euro_diplo[0]) {
     return fail("meet should set euro_diplo for status path");
   }
@@ -1515,122 +1218,9 @@ static int sp_15(void) {
 }
 
 static int sp_16(void) {
-
-  /*
-   * Thin alarmed refuse-talk: human Brave adjacency must not spam refuse chrome
-   * (village dialog PARKED). No gold drain either.
-   */
-  {
-    col1.nation[0].gold = 100;
-    ind->euro_diplo[0] = 1;
-    ind->alarm_by_player[0] = 60;
-    col1.tribe[0].alarm[0].friction = 60;
-    col1.tribe[0].state.learned = 1; /* skip teach overwrite */
-    col1.tribe[0].mission = 0xff;
-    euro->x = 6;
-    euro->y = 5;
-    brave->x = 5;
-    brave->y = 5;
-    brave->moves = 1;
-    status[0] = '\0';
-    ctx.human_nation = 0;
-    const uint32_t gold0 = col1.nation[0].gold;
-    ai_contact_indian_meet_trade(&ctx, 4);
-    if (col1.nation[0].gold != gold0) {
-      return fail("alarmed refuse-talk should not gift/trade gold");
-    }
-    if (strstr(status, "refuse") != NULL) {
-      return fail("human Brave adjacency must not chrome refuse-talk");
-    }
-  }
-
-  /*
-   * Alarmed gift refuse (≥55): human adjacency — no gold drain, no chrome.
-   */
-  {
-    col1.nation[0].gold = 100;
-    ind->euro_diplo[0] = 1;
-    ind->alarm_by_player[0] = 60;
-    col1.tribe[0].alarm[0].friction = 10; /* gift-band */
-    col1.tribe[0].state.learned = 1;
-    col1.tribe[0].mission = 0xff;
-/* alarm pinned above (was relation write) */
-    col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
-    euro->x = 6;
-    euro->y = 5;
-    brave->x = 5;
-    brave->y = 5;
-    status[0] = '\0';
-    ctx.status = status;
-    ctx.status_size = sizeof(status);
-    ctx.human_nation = 0;
-    ai_contact_indian_meet_trade(&ctx, 4);
-    if (col1.nation[0].gold != 100u) {
-      return fail("alarmed gift refuse should not drain gold");
-    }
-    if (status[0] != '\0') {
-      return fail("human Brave adjacency must not chrome gift refuse");
-    }
-  }
-
-  /*
-   * Alarmed Brave next to a Free Colonist: still no teach, and (port_bugs.md
-   * 2026-09-04 bug 2) no unprompted @LEARNMAD lecture either — the refusal
-   * dialogs belong to the deliberate Live-Among-The-Natives action, not to
-   * the Indian move pulse, which has no teach arm in DOS at all.
-   */
-  {
-    for (int i = 0; i < 256; ++i) {
-      map.terrain[i] = 1;
-    }
-    euro->x = 6;
-    euro->y = 5;
-    euro->active = true;
-    euro->id = euro_id_;
-    units_pool_sync(&units);
-    euro->profession = UNITS_JOB_NONE;
-    brave->x = 5;
-    brave->y = 5;
-    brave->nation_id = 4;
-    col1.tribe[0].nation_id = 4;
-    col1.tribe[0].x = 5;
-    col1.tribe[0].y = 5;
-    col1.tribe[0].state.learned = 0;
-    col1.tribe[0].mission = 0xff;
-    col1.tribe[0].alarm[0].friction = 60;
-    ind->euro_diplo[0] = 1;
-    ind->alarm_by_player[0] = 60;
-    status[0] = '\0';
-    ai_contact_indian_meet_trade(&ctx, 4);
-    if (col1.tribe[0].state.learned) {
-      return fail("alarmed teach refuse should not set tribe.state.learned");
-    }
-    if (strstr(status, "infuriate") != NULL) {
-      fprintf(stderr, "unit_ai_contact: teach-refuse status '%s'\n", status);
-      return fail("Indian move pulse must not lecture @LEARNMAD unprompted");
-    }
-  }
-
-  /*
-   * The meet-pulse "mission pacify deepen" (−2 in the 40..80 band) was
-   * retired 2026-09-09 (smell #48) together with its prelude −1 twin: DOS
-   * pacifies only through the 152e mission term. Pin the absence.
-   */
-  {
-    col1.tribe[0].mission = 0;
-    col1.tribe[0].alarm[0].friction = 50;
-    ind->alarm_by_player[0] = 50;
-    col1.tribe[0].state.learned = 1; /* skip teach status overwrite */
-    euro->x = 10;
-    euro->y = 10; /* no adjacent meet/gift side effects */
-    ai_contact_indian_meet_trade(&ctx, 4);
-    if (col1.tribe[0].alarm[0].friction != 50) {
-      return fail("meet pulse must not drip mid friction (smell #48)");
-    }
-    if (ind->alarm_by_player[0] != 50) {
-      return fail("meet pulse must not drip mid alarm_by_player (smell #48)");
-    }
-  }
+  /* port_bugs.md #1340: the test-only Brave adjacency driver
+   * (ai_contact_indian_meet_trade / ai_contact_auto_trade) this segment drove
+   * is deleted; the segment stays so later fx_run() indices hold. */
   return 0;
 }
 
@@ -1767,257 +1357,16 @@ static int sp_17(void) {
 }
 
 static int sp_18(void) {
-
-  /*
-   * Alarmed demand refuse: human Brave adjacency — no tools/gold taken, no chrome.
-   */
-  {
-    for (int i = 0; i < 256; ++i) {
-      map.terrain[i] = 1;
-    }
-    euro->x = 6;
-    euro->y = 5;
-    euro->active = true;
-    euro->id = euro_id_;
-    units_pool_sync(&units);
-    euro->tools = 20;
-    brave->x = 5;
-    brave->y = 5;
-    brave->nation_id = 4;
-    col1.tribe[0].nation_id = 4;
-    col1.tribe[0].x = 5;
-    col1.tribe[0].y = 5;
-    col1.tribe[0].state.learned = 1;
-    col1.tribe[0].mission = 0xff;
-    col1.tribe[0].alarm[0].friction = 60;
-    ind->euro_diplo[0] = 1;
-    ind->alarm_by_player[0] = 50;
-    col1.nation[0].gold = 100;
-    col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT; /* met (was relation 80; alarm pinned above) */
-    c->active = true;
-    c->nation_id = 0;
-    c->x = 5;
-    c->y = 5;
-    c->stock[COLONIZE_CARGO_TOOLS] = 30;
-    status[0] = '\0';
-    ctx.status = status;
-    ctx.status_size = sizeof(status);
-    ctx.human_nation = 0;
-    const uint32_t gold_d = col1.nation[0].gold;
-    const int tools_c = c->stock[COLONIZE_CARGO_TOOLS];
-    const int tools_u = euro->tools;
-    ai_contact_indian_meet_trade(&ctx, 4);
-    if (col1.nation[0].gold != gold_d) {
-      return fail("alarmed demand refuse should not take gold");
-    }
-    if (c->stock[COLONIZE_CARGO_TOOLS] != tools_c || euro->tools != tools_u) {
-      return fail("alarmed demand refuse should not take tools");
-    }
-    if (status[0] != '\0') {
-      return fail("human Brave adjacency must not chrome demand refuse");
-    }
-  }
-
-  /*
-   * Demand succeed (AI Euro silent): mid friction, colony tools ≥20 → −10 tools,
-   * friction −3. Cite: indian_contact.md mid demand.
-   */
-  {
-    euro->x = 6;
-    euro->y = 5;
-    euro->active = true;
-    euro->id = euro_id_;
-    units_pool_sync(&units);
-    euro->tools = 5;
-    brave->x = 5;
-    brave->y = 5;
-    brave->nation_id = 4;
-    col1.tribe[0].nation_id = 4;
-    col1.tribe[0].x = 5;
-    col1.tribe[0].y = 5;
-    col1.tribe[0].state.learned = 1;
-    col1.tribe[0].mission = 0xff;
-    col1.tribe[0].alarm[0].friction = 45;
-    ind->euro_diplo[0] = 1;
-    /* port_bugs.md #1005: the demand band is the NATION alarm scalar, not a max()
-     * over the village attitude words. */
-    ind->alarm_by_player[0] = 45;
-    col1.nation[0].gold = 5;
-    col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT; /* met (was relation 80; alarm pinned above) */
-    c->active = true;
-    c->nation_id = 0;
-    c->x = 5;
-    c->y = 5;
-    c->stock[COLONIZE_CARGO_TOOLS] = 25;
-    status[0] = '\0';
-    ctx.status = status;
-    ctx.status_size = sizeof(status);
-    ctx.human_nation = 1; /* AI Euro 0 */
-    const int tools_ok = c->stock[COLONIZE_CARGO_TOOLS];
-    const uint8_t fr_ok = col1.tribe[0].alarm[0].friction;
-    const uint16_t al_ok = ind->alarm_by_player[0];
-    ai_contact_indian_meet_trade(&ctx, 4);
-    if (c->stock[COLONIZE_CARGO_TOOLS] != tools_ok - 10) {
-      return fail("demand succeed should take 10 tools from stock ≥20");
-    }
-    /* port_bugs.md #1007: the cooling is a 00f2 alarm delta; no village word of
-     * the nation is touched (the tier clamp may still cap one). */
-    if (ind->alarm_by_player[0] != (uint16_t)(al_ok - 3)) {
-      return fail("demand succeed should cool pair alarm by 3");
-    }
-    (void)fr_ok;
-    /* Stock <20 + gold <50 → no drain (AI silent, no refuse chrome). */
-    c->stock[COLONIZE_CARGO_TOOLS] = 15;
-    col1.tribe[0].alarm[0].friction = 45;
-    ind->alarm_by_player[0] = 45;
-    col1.nation[0].gold = 5;
-    status[0] = '\0';
-    const int tools_short = c->stock[COLONIZE_CARGO_TOOLS];
-    ai_contact_indian_meet_trade(&ctx, 4);
-    if (c->stock[COLONIZE_CARGO_TOOLS] != tools_short) {
-      return fail("demand must not take tools when warehouse stock < 20");
-    }
-    if (col1.nation[0].gold != 5u) {
-      return fail("demand gold stand-in needs treasury >= 50 when tools short");
-    }
-  }
-
-  /*
-   * Demand gold path (AI Euro silent): mid friction, tools short, gold ≥50
-   * → −15 gold, friction −3.
-   */
-  {
-    euro->x = 6;
-    euro->y = 5;
-    euro->active = true;
-    euro->id = euro_id_;
-    units_pool_sync(&units);
-    euro->tools = 5;
-    brave->x = 5;
-    brave->y = 5;
-    brave->nation_id = 4;
-    col1.tribe[0].nation_id = 4;
-    col1.tribe[0].x = 5;
-    col1.tribe[0].y = 5;
-    col1.tribe[0].state.learned = 1;
-    col1.tribe[0].mission = 0xff;
-    col1.tribe[0].alarm[0].friction = 45;
-    ind->euro_diplo[0] = 1;
-    /* port_bugs.md #1005: the demand band is the NATION alarm scalar, not a max()
-     * over the village attitude words. */
-    ind->alarm_by_player[0] = 45;
-    col1.nation[0].gold = 50;
-    col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT; /* met (was relation 80; alarm pinned above) */
-    c->active = true;
-    c->nation_id = 0;
-    c->x = 5;
-    c->y = 5;
-    c->stock[COLONIZE_CARGO_TOOLS] = 10;
-    status[0] = '\0';
-    ctx.status = status;
-    ctx.status_size = sizeof(status);
-    ctx.human_nation = 1;
-    const uint8_t fr_g = col1.tribe[0].alarm[0].friction;
-    const uint16_t al_g = ind->alarm_by_player[0];
-    ai_contact_indian_meet_trade(&ctx, 4);
-    if (col1.nation[0].gold != 35u) {
-      return fail("demand gold>=50 stand-in should take 15 gold");
-    }
-    if (c->stock[COLONIZE_CARGO_TOOLS] != 10 || euro->tools != 5) {
-      return fail("demand gold path should not touch tools when stock < 20");
-    }
-    if (ind->alarm_by_player[0] != (uint16_t)(al_g - 3)) {
-      return fail("demand gold path should cool pair alarm by 3");
-    }
-    (void)fr_g;
-  }
-
-  /*
-   * 2154 demand preference: ask[0] < bid[0] → gold-first when both payable.
-   * High tons[0] crushes ask; forest raises bid. Cite: LAB_5bfb_096c.
-   */
-  {
-    for (int dy = -2; dy <= 2; ++dy) {
-      for (int dx = -2; dx <= 2; ++dx) {
-        const int nx = 5 + dx;
-        const int ny = 5 + dy;
-        if (nx >= 0 && ny >= 0 && nx < 16 && ny < 16) {
-          map.terrain[ny * 16 + nx] = 8;
-        }
-      }
-    }
-    ind->tons[0] = 2500;
-    col1.tribe[0].state.capital = 0;
-    euro->x = 6;
-    euro->y = 5;
-    euro->active = true;
-    euro->id = euro_id_;
-    units_pool_sync(&units);
-    euro->tools = 5;
-    brave->x = 5;
-    brave->y = 5;
-    brave->nation_id = 4;
-    col1.tribe[0].alarm[0].friction = 45;
-    ind->euro_diplo[0] = 1;
-    /* port_bugs.md #1005: the demand band is the NATION alarm scalar, not a max()
-     * over the village attitude words. */
-    ind->alarm_by_player[0] = 45;
-    col1.nation[0].gold = 60;
-    c->active = true;
-    c->nation_id = 0;
-    c->x = 5;
-    c->y = 5;
-    c->stock[COLONIZE_CARGO_TOOLS] = 40; /* tools also payable */
-    ctx.human_nation = 1;
-    ai_contact_indian_meet_trade(&ctx, 4);
-    if (col1.nation[0].gold != 45u) {
-      fprintf(stderr, "unit_ai_contact: ask<bid demand gold=%u (want 45)\n",
-              (unsigned)col1.nation[0].gold);
-      return fail("ask[0]<bid[0] should prefer gold demand when both payable");
-    }
-    if (c->stock[COLONIZE_CARGO_TOOLS] != 40) {
-      return fail("gold-first demand must not take tools when gold pays");
-    }
-    ind->tons[0] = 0;
-    for (int i = 0; i < 256; ++i) {
-      map.terrain[i] = 1;
-    }
-  }
+  /* port_bugs.md #1340: the test-only Brave adjacency driver
+   * (ai_contact_indian_meet_trade / ai_contact_auto_trade) this segment drove
+   * is deleted; the segment stays so later fx_run() indices hold. */
   return 0;
 }
 
 static int sp_19(void) {
-
-  /*
-   * Very-low relation: human Brave adjacency — no gift, no refuse chrome.
-   */
-  {
-    euro->x = 6;
-    euro->y = 5;
-    brave->x = 5;
-    brave->y = 5;
-    brave->nation_id = 4;
-    col1.tribe[0].nation_id = 4;
-    col1.tribe[0].state.learned = 1;
-    col1.tribe[0].mission = 0xff;
-    col1.tribe[0].alarm[0].friction = 10;
-    ind->euro_diplo[0] = 1;
-    ind->alarm_by_player[0] = 10;
-    col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT; /* met (was relation 30; alarm pinned above) */
-    col1.nation[0].gold = 100;
-    status[0] = '\0';
-    ctx.status = status;
-    ctx.status_size = sizeof(status);
-    ctx.human_nation = 0;
-    const uint32_t gold_r = col1.nation[0].gold;
-    ai_contact_indian_meet_trade(&ctx, 4);
-    if (col1.nation[0].gold != gold_r) {
-      return fail("very-low relation refuse should not gift gold");
-    }
-    if (status[0] != '\0') {
-      return fail("human Brave adjacency must not chrome very-low refuse");
-    }
-  }
+  /* port_bugs.md #1340: the test-only Brave adjacency driver
+   * (ai_contact_indian_meet_trade / ai_contact_auto_trade) this segment drove
+   * is deleted; the segment stays so later fx_run() indices hold. */
   return 0;
 }
 
@@ -3106,7 +2455,7 @@ static int sp_26(void) {
     /*
      * 2026-08-22: trade now keys on the contacting UNIT's own cargo hold
      * (LAB_002bbc's real shape), not an invented colony-warehouse search —
-     * see ai_contact_auto_trade's header. euro2 is the unit adjacent to
+     * see ai_contact_2820_begin. euro2 is the unit adjacent to
      * brave2, so it carries the TRADE_GOODS this whole section trades.
      */
     euro2->hold_goods_type[0] = COLONIZE_CARGO_TRADE_GOODS;
@@ -3139,7 +2488,7 @@ static int sp_26(void) {
     ctx.col1 = &col1;
     ctx.col1_ok = true;
 
-    ai_contact_indian_meet_trade(&ctx, 4);
+    (void)ai_contact_try_first_welcome(&ctx, 0, 4);
     if (!ind->euro_diplo[0]) {
       return fail("popup meet should set euro_diplo");
     }
@@ -3243,13 +2592,6 @@ static int sp_27(void) {
           u->y = 5;
         }
       }
-      ai_contact_indian_meet_trade(&ctx, 4);
-      if (ind->euro_diplo[0]) {
-        return fail("ship adjacency must not set euro_diplo");
-      }
-      if (pop.queue_count > 0) {
-        return fail("ship adjacency must not enqueue WELCOME");
-      }
       /* Restore land Free Colonist for later arms. */
       units_despawn(&units, ship_id);
       const int el = units_spawn_allow_stack(&units, 1, 6, 5);
@@ -3327,7 +2669,7 @@ static int sp_28(void) {
      * 2026-08-22: LAB_002bbc (the real DOS branch this stand-in approximates)
      * credits the Euro nation's gold — natives pay for the cargo, not the
      * reverse. See indian_trade_2820.md's 2026-08-22 addendum /
-     * ai_contact_auto_trade's own header comment.
+     * ai_contact_2820_begin.
      */
     if (col1.nation[0].gold != gold_before_trade + (uint32_t)trade_price) {
       fprintf(
@@ -3354,7 +2696,7 @@ static int sp_29(void) {
      * 2026-08-22: the old "hard bargain" mid-alarm peel (extra trade-good
      * drained, no relation bump) is dropped -- LAB_002bbc's real body has
      * no such tension/resume-loop for the AI-controlled accept branch (a
-     * single deterministic decision, see ai_contact_auto_trade's header).
+     * single deterministic decision, see ai_contact_2820_begin).
      * Mid alarm (45..54, still under the outer >=50 refuse-talk gate on
      * this path since that gate itself is untouched) now trades exactly
      * like any other accept: 1 unit drained, relation still bumps +2.
@@ -3491,7 +2833,7 @@ static int sp_30(void) {
 
     /*
      * Sea trade: a ship (not the land unit) is now the sole contacting
-     * unit -- ai_contact_auto_trade keys on the ONE unit
+     * unit -- the 2820 shell keys on the ONE unit
      * ai_contact_find_adjacent_euro finds at the tile, so despawn land0
      * first (no DOS shell ever reads two units off one tile). Cite:
      * docs/fandom_col1994.md Teach/trade; indian_trade_2820.md 2026-08-22.
@@ -3919,7 +3261,9 @@ static int sp_32(void) {
       col1.tribe[0].mission = 0xff;
       col1.indian[0].euro_diplo[0] = (uint8_t)(col1.indian[0].euro_diplo[0] & ~COL1_INDIAN_MET_BIT); /* unmet (was relation 0) */
       st_pop[0] = '\0';
-      ai_contact_indian_meet_trade(&ctx, 4);
+      /* One welcome per Brave: the second finds the MET bit already set. */
+      (void)ai_contact_try_first_welcome(&ctx, 0, 4);
+      (void)ai_contact_try_first_welcome(&ctx, 0, 4);
       if (!ind->euro_diplo[0]) {
         return fail("second-brave meet should set euro_diplo");
       }
@@ -3963,7 +3307,7 @@ static int sp_32(void) {
       bnu->nation_id = 4;
       enu->nation_id = 0;
       st_pop[0] = '\0';
-      ai_contact_indian_meet_trade(&ctx, 4);
+      (void)ai_contact_try_first_welcome(&ctx, 0, 4);
       if (pop.queue_count < 1 || pop.queue[0].tag != AI_POPUP_TAG_CONTACT_WELCOME) {
         return fail("WELCOME No setup should enqueue WELCOME");
       }
@@ -4026,10 +3370,6 @@ static int sp_32(void) {
         }
       }
       st_pop[0] = '\0';
-      ai_contact_indian_meet_trade(&ctx, 4);
-      if (strstr(st_pop, "refuse to talk") != NULL) {
-        return fail("post-peace adjacency must not refuse-talk");
-      }
     }
   return 0;
 }
@@ -4130,72 +3470,6 @@ static int sp_34(void) {
         }
       }
 
-      /* 022e auto-gift Large: −10 gold, friction −2, Gift OK follow-up. */
-      ai_popup_clear(&pop);
-      st_pop[0] = '\0';
-      ai_contact_apply_gift_gold(&ctx, ind, 4, 0, 10u, 2);
-      if (col1.nation[0].gold != 40u) {
-        return fail("Large gift should drain 10 gold");
-      }
-      if (ind->alarm_by_player[0] != 8) {
-        return fail("Large gift should cool pair alarm by 2");
-      }
-      if (pop.queue_count < 1 ||
-          pop.queue[pop.queue_count - 1].tag != AI_POPUP_TAG_CONTACT_GIFT ||
-          pop.queue[pop.queue_count - 1].kind != AI_POPUP_KIND_OK) {
-        return fail("Large gift should enqueue Gift OK follow-up");
-      }
-      if (strstr(st_pop, "Gift") == NULL) {
-        return fail("Large gift should set Gift status");
-      }
-
-      /* Generous: −20 gold, friction −3. */
-      ai_popup_clear(&pop);
-      col1.nation[0].gold = 40;
-      ind->alarm_by_player[0] = 12;
-      col1.tribe[0].alarm[0].friction = 12;
-      ai_contact_apply_gift_gold(&ctx, ind, 4, 0, 20u, 3);
-      if (col1.nation[0].gold != 20u) {
-        return fail("Generous gift should drain 20 gold");
-      }
-      if (ind->alarm_by_player[0] != 9) {
-        return fail("Generous gift should cool pair alarm by 3");
-      }
-
-      /*
-       * port_bugs.md #1005: the gift gate is the nation alarm scalar alone. A
-       * single sour village no longer makes the whole tribe refuse.
-       */
-      ai_popup_clear(&pop);
-      col1.nation[0].gold = 40;
-      ind->alarm_by_player[0] = 0;
-      col1.tribe[0].alarm[0].friction = 83;
-      ai_contact_apply_gift_gold(&ctx, ind, 4, 0, 10u, 2);
-      if (col1.nation[0].gold != 30u) {
-        return fail("one sour village must not gate the gift (port_bugs.md #1005)");
-      }
-
-      /*
-       * Pocahontas: gift friction decay stays full (−2); half-rate is for
-       * positive alarm bumps only. Cite: docs/fandom_col1994.md Pocahontas.
-       */
-      ai_popup_clear(&pop);
-      col1.head.founding_father[FF_POCAHONTAS] = 0;
-      col1.nation[0].founding_fathers[FF_POCAHONTAS / 8] |=
-        (uint8_t)(1u << (FF_POCAHONTAS % 8));
-      col1.nation[0].gold = 30;
-      ind->alarm_by_player[0] = 12;
-      col1.tribe[0].alarm[0].friction = 12;
-      ai_contact_apply_gift_gold(&ctx, ind, 4, 0, 10u, 2);
-      if (col1.nation[0].gold != 20u) {
-        return fail("Pocahontas Large gift should still drain 10 gold");
-      }
-      if (ind->alarm_by_player[0] != 10) {
-        return fail("Pocahontas should not halve gift alarm decay");
-      }
-      col1.head.founding_father[FF_POCAHONTAS] = -1;
-      col1.nation[0].founding_fathers[FF_POCAHONTAS / 8] &=
-        (uint8_t)~(1u << (FF_POCAHONTAS % 8));
     }
   return 0;
 }
@@ -4493,8 +3767,9 @@ static int sp_35(void) {
 static int sp_36(void) {
 
     /*
-     * Demand CHOICE → amount CHOICE (tools vs gold); gold apply −15.
-     * Cite: FUN_5bfb_102a / 1092; indian_contact.md demand amount widget.
+     * port_bugs.md #1349: a Demand pick whose payload carries no acting unit
+     * is not a DOS situation (row 8 needs a known armed unit). The invented
+     * tools/gold amount CHOICE it used to open is gone: no drain, no popup.
      */
     {
       ai_popup_clear(&pop);
@@ -4536,62 +3811,12 @@ static int sp_36(void) {
       pop.result_nation_a = 0;
       pop.result_nation_b = 4;
       ai_contact_apply_popup_result(&ctx, &pop);
-      if (col1.nation[0].gold != 80u || c->stock[COLONIZE_CARGO_TOOLS] != 25) {
-        return fail("Meet Demand should defer drain until amount CHOICE");
+      if (col1.nation[0].gold != 80u || c->stock[COLONIZE_CARGO_TOOLS] != 25 ||
+          eurod->tools != 5) {
+        return fail("no-unit Demand must not drain gold or tools");
       }
-      if (pop.queue_count < 1 ||
-          pop.queue[pop.queue_count - 1].kind != AI_POPUP_KIND_CHOICE ||
-          pop.queue[pop.queue_count - 1].tag != AI_POPUP_TAG_CONTACT_DEMAND) {
-        return fail("Demand CHOICE should enqueue CONTACT_DEMAND amount CHOICE");
-      }
-      if (pop.queue[pop.queue_count - 1].choice_count < 2) {
-        return fail("demand amount CHOICE should offer tools and gold");
-      }
-      /* Apply gold (−15). */
-      ai_popup_clear(&pop);
-      pop.has_result = true;
-      pop.result_cancelled = false;
-      pop.result_choice_id = 2; /* AI_CONTACT_DEMAND_GOLD */
-      pop.result_tag = AI_POPUP_TAG_CONTACT_DEMAND;
-      pop.result_nation_a = 0;
-      pop.result_nation_b = 4;
-      st_pop[0] = '\0';
-      const uint8_t fr_d = col1.tribe[0].alarm[0].friction;
-      const uint16_t al_d = ind->alarm_by_player[0];
-      ai_contact_apply_popup_result(&ctx, &pop);
-      if (col1.nation[0].gold != 65u) {
-        return fail("Demand gold CHOICE should drain 15 gold");
-      }
-      if (c->stock[COLONIZE_CARGO_TOOLS] != 25) {
-        return fail("Demand gold CHOICE should not touch tools");
-      }
-      /* port_bugs.md #1007: pair scalar, not the village word. */
-      if (ind->alarm_by_player[0] != (uint16_t)(al_d - 3)) {
-        return fail("Demand gold CHOICE should cool pair alarm by 3");
-      }
-      (void)fr_d;
-      if (pop.queue_count < 1 || pop.queue[pop.queue_count - 1].kind != AI_POPUP_KIND_OK) {
-        return fail("Demand gold CHOICE should enqueue an OK chrome popup");
-      }
-      /* Tools path from amount CHOICE. */
-      ai_popup_clear(&pop);
-      col1.nation[0].gold = 80;
-      ind->alarm_by_player[0] = 45; /* port_bugs.md #1005: nation alarm band */
-      col1.tribe[0].alarm[0].friction = 45;
-      c->stock[COLONIZE_CARGO_TOOLS] = 25;
-      pop.has_result = true;
-      pop.result_cancelled = false;
-      pop.result_choice_id = 1; /* AI_CONTACT_DEMAND_TOOLS */
-      pop.result_tag = AI_POPUP_TAG_CONTACT_DEMAND;
-      pop.result_nation_a = 0;
-      pop.result_nation_b = 4;
-      st_pop[0] = '\0';
-      ai_contact_apply_popup_result(&ctx, &pop);
-      if (c->stock[COLONIZE_CARGO_TOOLS] != 15) {
-        return fail("Demand tools CHOICE should drain 10 tools");
-      }
-      if (col1.nation[0].gold != 80u) {
-        return fail("Demand tools CHOICE should not touch gold");
+      if (pop.queue_count != 0) {
+        return fail("no-unit Demand must not enqueue a popup");
       }
     }
 
@@ -5326,6 +4551,8 @@ static int sp_44(void) {
         colonies.colonies[0].x + 1, colonies.colonies[0].y + 1);
       if (beg_brave >= 0) {
         units_get(&units, beg_brave)->nation_id = 4;
+        /* raw 96705: no origin byte (+0x314a), no 022e encounter. */
+        units_get(&units, beg_brave)->home_tribe_id = 0;
         /* …and it must have WALKED there this turn (DOS move-tail trigger). */
         ai_native_note_brave_turn_origin(
           beg_brave, colonies.colonies[0].x + 3, colonies.colonies[0].y + 3);
@@ -5381,7 +4608,7 @@ static int sp_44(void) {
     pop.result_tag = AI_POPUP_TAG_CONTACT_BEGFOOD;
     pop.result_nation_a = 0;
     pop.result_nation_b = 4;
-    pop.result_payload = 0; /* colony index */
+    pop.result_payload = 1 << 16; /* colony index 0, home tribe 0 + 1 */
     ai_contact_apply_popup_result(&ctx, &pop);
     if (colonies.colonies[0].stock[COLONIZE_CARGO_FOOD] != 50) {
       return fail("BEGFOOD accept should hand over exactly half the store");
@@ -5407,7 +4634,7 @@ static int sp_44(void) {
     pop.result_tag = AI_POPUP_TAG_CONTACT_BEGFOOD;
     pop.result_nation_a = 0;
     pop.result_nation_b = 4;
-    pop.result_payload = 0;
+    pop.result_payload = 1 << 16;
     ai_contact_apply_popup_result(&ctx, &pop);
     if (colonies.colonies[0].stock[COLONIZE_CARGO_FOOD] != 100) {
       return fail("BEGFOOD decline must not cost the colony any food");
@@ -5435,7 +4662,7 @@ static int sp_44(void) {
     pop.result_tag = AI_POPUP_TAG_CONTACT_BEGFOOD;
     pop.result_nation_a = 0;
     pop.result_nation_b = 4;
-    pop.result_payload = 0;
+    pop.result_payload = 1 << 16;
     dos_buggy_behavior_set(false);
     ai_contact_apply_popup_result(&ctx, &pop);
     dos_buggy_behavior_set(true);
@@ -5887,6 +5114,7 @@ static int sp_47(void) {
       return fail("spawn gift-visit Brave");
     }
     units_get(&units, gift_brave)->nation_id = 4;
+    units_get(&units, gift_brave)->home_tribe_id = 0; /* raw 96705 origin byte */
     /*
      * DOS runs the visit off the Brave's move tail, so the port needs the
      * pre-move tile: this Brave walked in from three tiles away, it did not
@@ -7552,16 +6780,10 @@ static int case_raid_repelled_limb(void) { return fx_run(4); }
 static int case_mission_expel_00f2(void) { return fx_run(6); }
 static int case_ambush_gear_seize(void) { return fx_run(7); }
 static int case_prelude_no_encroach_drift(void) { return fx_run(8); }
-static int case_passive_teach_none(void) { return fx_run(9); }
-static int case_gift_bands_large(void) { return fx_run(10); }
-static int case_gift_generous_capital(void) { return fx_run(11); }
-static int case_gift_refuse_first_meet_status(void) { return fx_run(12); }
+static int case_first_meet_status(void) { return fx_run(12); }
 static int case_raid_multi_loot(void) { return fx_run(13); }
 static int case_raid_stores_arms(void) { return fx_run(14); }
-static int case_alarmed_no_chrome_no_teach(void) { return fx_run(16); }
 static int case_raid_status_nothing_surprise_war(void) { return fx_run(17); }
-static int case_demand_arms(void) { return fx_run(18); }
-static int case_very_low_relation_no_gift(void) { return fx_run(19); }
 static int case_prelude_clamp_only(void) { return fx_run(21); }
 static int case_raid_burn_arms(void) { return fx_run(23); }
 static int case_raid_escalate_pocahontas(void) { return fx_run(25); }
@@ -7681,16 +6903,10 @@ static const TestCase k_cases[] = {
   {"mission_expel_00f2", case_mission_expel_00f2},
   {"ambush_gear_seize", case_ambush_gear_seize},
   {"prelude_no_encroach_drift", case_prelude_no_encroach_drift},
-  {"passive_teach_none", case_passive_teach_none},
-  {"gift_bands_large", case_gift_bands_large},
-  {"gift_generous_capital", case_gift_generous_capital},
-  {"gift_refuse_first_meet_status", case_gift_refuse_first_meet_status},
+  {"first_meet_status", case_first_meet_status},
   {"raid_multi_loot", case_raid_multi_loot},
   {"raid_stores_arms", case_raid_stores_arms},
-  {"alarmed_no_chrome_no_teach", case_alarmed_no_chrome_no_teach},
   {"raid_status_nothing_surprise_war", case_raid_status_nothing_surprise_war},
-  {"demand_arms", case_demand_arms},
-  {"very_low_relation_no_gift", case_very_low_relation_no_gift},
   {"prelude_clamp_only", case_prelude_clamp_only},
   {"raid_burn_arms", case_raid_burn_arms},
   {"raid_escalate_pocahontas", case_raid_escalate_pocahontas},

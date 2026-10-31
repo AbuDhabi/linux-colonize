@@ -162,8 +162,6 @@ void ai_contact_set_status(ColonizeTurnContext* ctx, const char* msg) {
 
 /* Gift amount CHOICE ids (CONTACT_GIFT; FUN_5bfb_102a amount stand-in). */
 
-/* Demand amount CHOICE ids (CONTACT_DEMAND; tools vs gold stand-in). */
-
 /*
  * Reparations CHOICE (CONTACT_REPARATIONS; FUN_5bfb_022e LAB_5bfb_0def).
  * DOS's `local_c` is FUN_291f_019c's 1-based row number, and the two

@@ -145,7 +145,6 @@ int goods_pack_into_holds(
       hold_types[i] = cargo_type;
       hold_amounts[i] = amount;
       loaded += amount;
-      amount = 0;
       break;
     }
   }
@@ -1343,7 +1342,7 @@ static bool units_display_keeps_own_type(const ColonizeUnitType* t) {
  */
 const char* units_display_name(const ColonizeUnitPool* pool, const ColonizeUnit* unit) {
   if (!unit) {
-    return "Unit";
+    return "";
   }
   int ti = unit->type_index;
   if (pool && units_get_const(pool, unit->id) == unit) {

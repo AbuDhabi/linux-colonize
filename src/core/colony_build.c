@@ -90,19 +90,11 @@ int colonies_fortification_defense_bonus_percent(
     return 0;
   }
   /* Highest tier wins (Fortress upgrades Fort upgrades Stockade). */
-  const int fortress = colonies_building_row(pool, COLONY_BUILDING_FORTRESS);
-  if (fortress >= 0 && fortress < COLONIZE_BUILDING_TYPES_MAX && colony->has_building[fortress]) {
-    return 200;
-  }
-  const int fort = colonies_building_row(pool, COLONY_BUILDING_FORT);
-  if (fort >= 0 && fort < COLONIZE_BUILDING_TYPES_MAX && colony->has_building[fort]) {
-    return 150;
-  }
-  const int stockade = colonies_building_row(pool, COLONY_BUILDING_STOCKADE);
-  if (stockade >= 0 && stockade < COLONIZE_BUILDING_TYPES_MAX && colony->has_building[stockade]) {
-    return 100;
-  }
-  return 0;
+  const unsigned bits = colonies_fort_bits(pool, colony);
+  return (bits & COLONY_FORT_BIT_FORTRESS) ? 200
+         : (bits & COLONY_FORT_BIT_FORT)   ? 150
+         : (bits & COLONY_FORT_BIT_STOCKADE) ? 100
+                                             : 0;
 }
 
 /*

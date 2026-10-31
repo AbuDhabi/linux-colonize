@@ -853,7 +853,7 @@ COLONIZE_INTERNAL void turn_produce_sol(TurnProduceCtx* pc) {
     app->prod_bells_phase_a = colony->prod_bells_phase_a;
     const int sol_before = colony_prod_sol_percent(col1, app);
     const uint8_t flags_before = app->colony_flags;
-    colony_prod_tick_rebel_accumulators(pool, app, col1);
+    colony_prod_tick_rebel_accumulators(pool, app, col1, human_nation);
     if (app != colony) {
       app->prod_compose_stamp = app_stamp;
       app->prod_bells_phase_a = app_bells;
@@ -1458,7 +1458,7 @@ COLONIZE_INTERNAL void turn_produce_birth(TurnProduceCtx* pc) {
         memset(&tok, 0, sizeof(tok));
         tok.string0 = colony->name[0] ? colony->name : "";
         popup_msg_fill(
-          messages, "NEWCOLONIST", &tok, europe->status, body, sizeof(body)
+          messages, "NEWCOLONIST", &tok, "", body, sizeof(body)
         );
         ai_popup_enqueue_colony_event(ai_popups, colony->id, AI_POPUP_ZOOM_TAB_KEEP, body);
       }

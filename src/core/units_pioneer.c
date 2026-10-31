@@ -212,7 +212,7 @@ static void units_pioneer_native_land_tail(
   ai_contact_alarm_delta_00f2_w(&aw, (int)col1->tribe[ti].nation_id, nation, amount);
 }
 
-static bool units_pioneer_tile_can_clear_or_plow(
+bool units_pioneer_tile_can_clear_or_plow(
   const ColonizeWorldMap* map,
   int x,
   int y,

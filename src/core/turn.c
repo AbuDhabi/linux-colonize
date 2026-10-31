@@ -998,7 +998,7 @@ COLONIZE_INTERNAL void turn_step_king(ColonizeTurnProcessor* proc, ColonizeTurnC
             popup_chrome_ok(
               ctx->ai_popups, ctx->messages,
               ctx->europe->price_event_dir[i] > 0 ? "PRICEUP" : "PRICEDOWN", &tok,
-              ctx->europe->status
+              ""
             );
           }
         }

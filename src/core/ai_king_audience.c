@@ -488,13 +488,6 @@ void ai_king_apply_dump_goods_choice(ColonizeTurnContext* ctx, int human, int ca
  * flag are still set/read for presentation and for the Fugger-clears-
  * boycotts sync, just no longer block the audience interval gate.
  */
-void ai_king_tax_hike_apply(
-  ColonizeTurnContext* ctx,
-  int human,
-  int delta,
-  const AiKingAudienceFlavor* flavor
-);
-
 void ai_king_tax_event(ColonizeTurnContext* ctx) {
   if (!ctx || !ctx->col1_ok || !ctx->col1) {
     return;
@@ -946,11 +939,7 @@ void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
       ctx->col1->head.expeditionary_force[1] == 0 &&
       ctx->col1->head.expeditionary_force[2] == 0 &&
       ctx->col1->head.expeditionary_force[3] == 0) {
-    const int diff = ctx->col1->head.difficulty;
-    ctx->col1->head.expeditionary_force[0] = (uint16_t)(8 * diff + 15);
-    ctx->col1->head.expeditionary_force[1] = (uint16_t)(5 * (diff + 1));
-    ctx->col1->head.expeditionary_force[2] = (uint16_t)(3 * diff + 2);
-    ctx->col1->head.expeditionary_force[3] = (uint16_t)(6 * diff + 2);
+    ai_king_ref_seed_floor(ctx->col1->head.difficulty, ctx->col1->head.expeditionary_force);
   }
   ai_king_seed_backup_force_1a26(ctx, human);
   /* FUN_43f7_1a26 right after the pool seed: latch the declaration year into

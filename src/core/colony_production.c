@@ -12,6 +12,7 @@
 
 #include <string.h>
 
+#include "core/ai_king.h"
 #include "core/col1_save.h"
 #include "core/colony_craft.h"
 #include "core/colony_yield.h"
@@ -397,31 +398,15 @@ void colony_prod_refresh_sol_flags(ColonizeColony* colony, const ColonizeCol1Sav
  * sat in slot 2 or 3. ai_king_crown_nation_col1 is the canonical resolver
  * (save value when set and not the human, else that 0↔1 fallback).
  */
-static int colony_prod_crown_nation(const ColonizeCol1Save* col1) {
-  if (!col1) {
-    return 1;
-  }
-  int human = -1;
-  for (int i = 0; i < (int)COLONIZE_COL1_NATION_COUNT; ++i) {
-    if (col1->player[i].control == 0) {
-      human = i;
-      break;
-    }
-  }
-  const int crown = (int)col1->head.crown_nation_id;
-  if (crown >= 0 && crown < (int)COLONIZE_COL1_NATION_COUNT && crown != human) {
-    return crown;
-  }
-  if (human < 0) {
-    return 1; /* no human slot at all — prior fallback */
-  }
-  return (human == 0) ? 1 : 0;
+static int colony_prod_crown_nation(const ColonizeCol1Save* col1, int human_nation) {
+  return ai_king_crown_nation_col1(col1, col1_fixed_human(col1, human_nation)); /* DS:0x5398 */
 }
 
 void colony_prod_tick_rebel_accumulators(
   const ColonizeColonyPool* pool,
   const ColonizeColony* colony,
-  ColonizeCol1Save* col1
+  ColonizeCol1Save* col1,
+  int human_nation
 ) {
   if (!pool || !colony || !colony->active || !col1 || !col1->colony) {
     return;
@@ -524,7 +509,7 @@ void colony_prod_tick_rebel_accumulators(
    * pair before this tick updates it, matching DOS's read order.
    */
   const int woi = col1->head.game_options.woi != 0;
-  if (woi && nation_id == colony_prod_crown_nation(col1)) {
+  if (woi && nation_id == colony_prod_crown_nation(col1, human_nation)) {
     /* WoI + crown-occupied: bells feed Tory (negative half). */
     bells = -(bells >> 1);
   } else if (bells < pop) {

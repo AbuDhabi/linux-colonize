@@ -2914,8 +2914,7 @@ static int unit_europe_departure_runs_during_planning(void) {
       fixture_free(&f);
       return fail("5d04 must depart healthy hulls and roll the voyage before unit acts");
     }
-    struct ai_euro_act_ctx a = {.ctx = &f.ctx, .u = ship, .nation_id = 1};
-    ai_euro_act_ship_europe_exit(&a);
+    ai_euro_act_ship_dos(&f.ctx, ship, 1);
     const int actual_x = ship->x;
     fixture_free(&f);
     if (actual_x != lane) return fail("unit act must preserve the dock departure gate");

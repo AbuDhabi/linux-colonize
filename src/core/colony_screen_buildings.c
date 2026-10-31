@@ -236,27 +236,9 @@ void colony_screen_assign_slot_positions_ex(
   }
 }
 
-/* The owned answer plus the building-type index, which
- * the slot renderer needs as a BUILDING.SS sprite id (audit CO-17: the bool
- * uses now call the colony.h helper; this spelling stays only for the id). */
-static int colony_screen_find_built(
-  const ColonizeColonyPool* pool,
-  const ColonizeColony* colony,
-  const char* name
-) {
-  if (!pool || !colony || !name) {
-    return -1;
-  }
-  const int idx = colonies_find_building(pool, name);
-  if (idx < 0 || !colony->has_building[idx]) {
-    return -1;
-  }
-  return idx;
-}
-
-/* Row-identified sibling of colony_screen_find_built, for callers that
- * already know the @BUILDING row (no-DOS-text-in-binary: identity is the
- * row, not a catalog name). */
+/* Pool slot of @BUILDING `row` when the colony owns it, else -1: the slot
+ * renderer needs the type index as a BUILDING.SS sprite id (audit CO-17).
+ * Identity is the row, never a catalog name. */
 static int colony_screen_find_built_row(
   const ColonizeColonyPool* pool,
   const ColonizeColony* colony,
@@ -270,16 +252,15 @@ static int colony_screen_find_built_row(
   return idx;
 }
 
-/* Highest present building in an upgrade chain (names ordered low → high). */
+/* Highest present building in an upgrade chain (rows low → high, -1 ends). */
 static int colony_screen_best_built(
   const ColonizeColonyPool* pool,
   const ColonizeColony* colony,
-  const char* const* names,
-  size_t name_count
+  const int* rows
 ) {
   int best = -1;
-  for (size_t i = 0; i < name_count; ++i) {
-    const int idx = colony_screen_find_built(pool, colony, names[i]);
+  for (const int* r = rows; r && *r >= 0; ++r) {
+    const int idx = colony_screen_find_built_row(pool, colony, (ColonizeBuildingRow)*r);
     if (idx >= 0) {
       best = idx;
     }
@@ -287,32 +268,11 @@ static int colony_screen_best_built(
   return best;
 }
 
-/* A screen category's tier list: the shared colony.h chain, unless the
+/* A screen category's tier rows: the shared colony.h chain, unless the
  * category carries a render-only override (audit CO-13). */
-static const char* const* colony_screen_slot_chain(int cat) {
-  if (cat < 0 || cat >= (int)(sizeof(colony_screen_building_slots) / sizeof(colony_screen_building_slots[0]))) {
-    return NULL;
-  }
-  if (colony_screen_building_slots[cat].render) {
-    /* Name view of the row override, spelled by the catalog. */
-    static const char* names[8];
-    int n = 0;
-    for (const int* r = colony_screen_building_slots[cat].render; *r >= 0 && n < 7; ++r) {
-      names[n++] = colonies_building_row_name(*r);
-    }
-    names[n] = NULL;
-    return names;
-  }
-  return colonies_building_chain(colony_screen_building_slots[cat].chain);
-}
-
-/* Chain length helper — the tables are NULL-terminated. */
-static size_t colony_screen_chain_len(const char* const* chain) {
-  size_t n = 0;
-  while (chain && chain[n]) {
-    ++n;
-  }
-  return n;
+static const int* colony_screen_slot_chain(int cat) {
+  const ColonyBuildingSlot* slot = &colony_screen_building_slots[cat];
+  return slot->render ? slot->render : colonies_building_chain_rows(slot->chain);
 }
 
 /*
@@ -332,8 +292,7 @@ int colony_screen_category_built(
   if (cat == COLONY_CAT_WAREHOUSE) {
     return colony_screen_find_built_row(pool, colony, COLONY_BUILDING_WAREHOUSE);
   }
-  const char* const* chain = colony_screen_slot_chain(cat);
-  return colony_screen_best_built(pool, colony, chain, colony_screen_chain_len(chain));
+  return colony_screen_best_built(pool, colony, colony_screen_slot_chain(cat));
 }
 
 /*

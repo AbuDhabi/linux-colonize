@@ -46,8 +46,8 @@ Coolers:
 | Concede a goods demand | five `FUN_OVL16_L0040__003b*` arms | `-(price[cargo] * qty * 4) / 100`, proportional to what you hand over |
 | ~~Pay a gold demand~~ | — | **MISATTRIBUTED, corrected 2026-09-30 (port_bugs.md #1007):** `thunk_FUN_1000_a8b8` (`viceroy_overlays.c:84426-84726`) is the OVERLAY COPY of `FUN_5fef_0f14`, the colony-raid loot resolver — same `rand(0,0x29)` building pick, same `0x8542` colony record, same kind-1..4 arms with `0xfffc/0xfff4/0xfff0/0xfff8`, same `(tribe*9+euro)*2+0x54f6 = 0` tail. So this row duplicated the raid-tail row below and there is **no DOS gold-demand payoff body**. The port's mid-band payoff is a pure stand-in — see the row below |
 | **Buy** the plot instead of taking it | `FUN_0000_6582` non-human arm | 0 — no charge at all |
-| Gift of gold (022e auto-gift only) | **port stand-in, NO DOS BODY** | -2 (10 gold) / -3 (20 gold), through the same `ai_contact_pair_cool` as the demand arms (port_bugs.md #1007). The cited `FUN_5bfb_102a` (`viceroy_unpacked.c:97105-97125`) is a plural/singular TEXT FORMATTER with no gold or alarm arithmetic — citation dropped. `@ACTIONS` has no gift row and nothing ever enqueued `AI_CONTACT_CHOICE_GIFT`, so the **player-driven** gift action (its amount CHOICE, its three typed English labels and the -5/-1 Small band) was invented and dead, and was deleted 2026-10-01; what remains is the Indian-initiated `FUN_5bfb_022e` visit arm reached through `ai_contact_gift_or_demand` (port_bugs.md #1006) |
-| Concede a tools / gold demand | **port stand-in, NO DOS BODY** | flat -3, now spent through `ai_contact_pair_cool` -> `ai_contact_alarm_delta_00f2` (so it clears the attack-confirmed bit, clears the war bit below 0x4b, and runs the 5-point tier clamp) and writing **no** village word: DOS's coolers either zero ONE village's whole word (the acting Brave's home, which these arms never hold) or spend through 0d6c, and no DOS site decays every village of a nation. The **amount** is still invented — there is no DOS demand-payoff body at all (port_bugs.md #1007) |
+| Gift of gold (022e auto-gift only) | **port stand-in, NO DOS BODY** | -2 (10 gold) / -3 (20 gold), through the same `ai_contact_pair_cool` as the demand arms (port_bugs.md #1007). The cited `FUN_5bfb_102a` (`viceroy_unpacked.c:97105-97125`) is a plural/singular TEXT FORMATTER with no gold or alarm arithmetic — citation dropped. `@ACTIONS` has no gift row and nothing ever enqueued `AI_CONTACT_CHOICE_GIFT`, so the **player-driven** gift action (its amount CHOICE, its three typed English labels and the -5/-1 Small band) was invented and dead, and was deleted 2026-10-01; the Indian-initiated auto-gift stand-in (`ai_contact_gift_or_demand`) was deleted with its dead driver on 2026-10-31 (port_bugs.md #1340) |
+| Concede a tools / gold demand | **port stand-in, NO DOS BODY** | deleted 2026-10-31 (port_bugs.md #1340/#1349); was a flat -3 through `ai_contact_pair_cool` -> `ai_contact_alarm_delta_00f2` (so it clears the attack-confirmed bit, clears the war bit below 0x4b, and runs the 5-point tier clamp) and writing **no** village word: DOS's coolers either zero ONE village's whole word (the acting Brave's home, which these arms never hold) or spend through 0d6c, and no DOS site decays every village of a nation. The **amount** is still invented — there is no DOS demand-payoff body at all (port_bugs.md #1007) |
 | Any resolved native-vs-Euro land fight, or a raid | `FUN_5fef_1b0e` / `FUN_5fef_0f14` | that village's whole word -> 0 |
 | Raze their capital | `FUN_5fef_1b0e` | alarm clamped down to 15; every village word of the nation zeroed |
 | Elect Pocahontas | FF 0x10 | alarm -> 0 with every tribe, and all future increases halved |
@@ -92,9 +92,8 @@ Note on the discharge: a resolved fight zeroes the word of the **attacking
 Brave's home** village (`unit +0x314a`), not necessarily the village that is
 angriest. That is DOS (raw 101039-101041).
 
-The gift/demand gates (`ai_contact_apply_gift_gold`, `ai_contact_demand_band_ok`,
-`ai_contact_gift_or_demand`, the village-menu demand band in `ai_contact_actions.c`)
-read `ai_diplo_indian_alarm` alone, as DOS's `FUN_4d56_4528` does (port_bugs.md
+The village-menu demand band in `ai_contact_actions.c` (the gift/demand stand-ins
+were deleted 2026-10-31, port_bugs.md #1340) reads `ai_diplo_indian_alarm` alone, as DOS's `FUN_4d56_4528` does (port_bugs.md
 #1005). First contact (`FUN_5bfb_022e` raw 96620-96636) only ORs the MET bit and
 clamps alarm to 20; it writes no `0x54f6` word, so a pre-contact grudge survives the
 welcome (port_bugs.md #1008).
@@ -127,9 +126,7 @@ Consumers of the nation scalar read `ai_relation_quartile`
   near it; the map sidebar paints it red.
 - `0x4a` (74): village visit and demand visitor blocked.
 - `0x47` (71): trade delta cap.
-- 55: the **AI**'s auto-trade / gift stops (the human path returns before this gate).
 - `0x32` (50): AI defensive schoolhouse build. `0x31` (49): they gift rather than sell.
-- 40: gifts refused (`ai_contact_apply_gift_gold`, nation alarm alone).
 - `0x19` (25): quartile 1 — the @MISSION band leaves "curiousity"; friendly-tribe
   unit threat stops being zeroed.
 - 100: the mission-burn roll above.

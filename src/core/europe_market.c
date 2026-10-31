@@ -196,9 +196,7 @@ static int europe_sell_commit(
     eu, col1, seller_nation, col1 ? (int)col1->head.human_player : seller_nation,
     ctype, amt, 0, 1
   );
-  const char* cname =
-    (ctype >= 0 && ctype < eu->cargo_count) ? eu->cargo[ctype].name : "";
-  snprintf(eu->status, sizeof(eu->status), "Sold %d %s for %d$.", amt, cname, gained);
+  eu->status[0] = '\0';
   return gained;
 }
 
@@ -494,17 +492,7 @@ int europe_custom_house_autosell_ex_w(
     );
   }
   if (total > 0 && nation == human_nation) {
-    if (colony->name[0]) {
-      snprintf(
-        eu->status,
-        sizeof(eu->status),
-        "Custom House in %s earned %d$.",
-        colony->name,
-        total
-      );
-    } else {
-      snprintf(eu->status, sizeof(eu->status), "Custom House earned %d$.", total);
-    }
+    eu->status[0] = '\0';
   }
   return total;
 }
@@ -652,7 +640,7 @@ int europe_ai_colony_dump_sell_w(
       "EUROPE dump-sell %s total %d$ (nation=%d, untaxed)",
       colony->name[0] ? colony->name : "", total, nation
     );
-    snprintf(eu->status, sizeof(eu->status), "AI warehouse dump-sold for %d$.", total);
+    eu->status[0] = '\0';
   }
   return total;
 }
@@ -809,7 +797,7 @@ int europe_buy_cargo_w(
   }
   const int ask = eu->cargo[cargo_type].ask;
   if (ask <= 0) {
-    europe_set_status(eu, "Cannot buy that cargo.");
+    eu->status[0] = '\0';
     return 0;
   }
   EuropeHarborShip* ship = &eu->harbor[harbor_index];
@@ -826,7 +814,7 @@ int europe_buy_cargo_w(
   const int free_slots = europe_ship_free_slots(ship, units);
   const int room_total = europe_harbor_cargo_room(eu, units, harbor_index, cargo_type);
   if (room_total <= 0) {
-    europe_set_status(eu, "No empty hold.");
+    eu->status[0] = '\0';
     return 0;
   }
   int can_afford = eu->gold / ask;
@@ -872,14 +860,7 @@ int europe_buy_cargo_w(
       cargo_type, bought, 1, 1
     );
   }
-  snprintf(
-    eu->status,
-    sizeof(eu->status),
-    "Bought %d %s (-%d$).",
-    bought,
-    eu->cargo[cargo_type].name,
-    bought * ask
-  );
+  eu->status[0] = '\0';
   diag_info(
     "EUROPE bought %d %s onto %s: ask=%d cost=%d gold=%d",
     bought, eu->cargo[cargo_type].name, ship->name[0] ? ship->name : "",
@@ -1007,11 +988,7 @@ static int europe_ship_icon_sprite(const ColonizeUnitPool* units, const EuropeHa
   if (!units || !ship) {
     return -1;
   }
-  int ti = ship->type_index;
-  if (ti < 0) {
-    ti = units_find_type(units, ship->name);
-  }
-  const ColonizeUnitType* ut = units_type(units, ti);
+  const ColonizeUnitType* ut = units_type(units, europe_ship_type_index(units, ship));
   return ut ? ut->icon_sprite : -1;
 }
 
@@ -1326,16 +1303,11 @@ void europe_menu_open(EuropeScreen* eu, EuropeMenu menu) {
   eu->purchase_confirming = false;
   if (menu == EUROPE_MENU_RECRUIT) {
     europe_pool_ensure_filled(eu);
-    snprintf(
-      eu->status,
-      sizeof(eu->status),
-      "Recruit (passage %d$). Esc cancels.",
-      eu->recruit_passage
-    );
+    eu->status[0] = '\0';
   } else if (menu == EUROPE_MENU_TRAIN) {
-    europe_set_status(eu, "Royal University. Esc cancels.");
+    eu->status[0] = '\0';
   } else if (menu == EUROPE_MENU_PURCHASE) {
-    europe_set_status(eu, "Purchase. Esc cancels.");
+    eu->status[0] = '\0';
   } else if (menu == EUROPE_MENU_DOCK) {
     /* FUN_38fd_3694 (raw 61180-61197): the dock-unit click builds the
      * "<nation> <unit> (<job>)" caption on the status strip. */
@@ -1343,7 +1315,7 @@ void europe_menu_open(EuropeScreen* eu, EuropeMenu menu) {
     if (europe_dock_caption(eu, eu->menu_dock_index, caption, sizeof caption)) {
       europe_set_status(eu, caption);
     } else {
-      europe_set_status(eu, "Dock orders. Esc cancels.");
+      eu->status[0] = '\0';
     }
   }
   if (diag_info_enabled()) {
@@ -1436,7 +1408,7 @@ bool europe_dock_menu_apply_selection_ex_w(
     return false;
   }
   if (eu->dock_menu_greyed[sel]) {
-    europe_set_status(eu, "The treasury cannot afford that.");
+    eu->status[0] = '\0';
     return false;
   }
   eu->menu_answered = true;
@@ -1492,7 +1464,7 @@ bool europe_menu_confirm_ex(EuropeScreen* eu, ColonizeDosRng* rng) {
     if (sel == 0) {
       ok = europe_purchase_commit(eu, eu->purchase_confirm_index, eu->purchase_confirm_cost, rng);
     } else {
-      europe_set_status(eu, "Cancelled.");
+      eu->status[0] = '\0';
     }
     eu->purchase_confirming = false;
     europe_menu_close(eu);
@@ -1500,7 +1472,7 @@ bool europe_menu_confirm_ex(EuropeScreen* eu, ColonizeDosRng* rng) {
   }
   if (sel == 0) {
     europe_menu_close(eu);
-    europe_set_status(eu, "Cancelled.");
+    eu->status[0] = '\0';
     return true;
   }
   if (m == EUROPE_MENU_RECRUIT) {
@@ -1567,7 +1539,7 @@ int europe_dock_icon_sprite(const ColonizeUnitPool* units, const EuropeDockImmig
   if (!units || !d || !d->name[0]) {
     return -1;
   }
-  if (europe_dock_name_is_artillery(d->name)) {
+  if (d->artillery) {
     const int ti = units_kind_type_index(units, UNITS_KIND_ARTILLERY);
     const ColonizeUnitType* ut = units_type(units, ti);
     return ut ? ut->icon_sprite : -1;

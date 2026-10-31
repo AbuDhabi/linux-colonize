@@ -373,13 +373,7 @@ static bool ai_setup_col1_template(const AiNewGameParams* p, char* err, size_t e
    * the lazy no-col1 save template and never ran for a wizard start, which
    * left every nation's Congress force bars empty (port_bugs.md).
    */
-  {
-    const int diff = p->col1->head.difficulty;
-    p->col1->head.expeditionary_force[0] = (uint16_t)(8 * diff + 15);
-    p->col1->head.expeditionary_force[1] = (uint16_t)(5 * (diff + 1));
-    p->col1->head.expeditionary_force[2] = (uint16_t)(3 * diff + 2);
-    p->col1->head.expeditionary_force[3] = (uint16_t)(6 * diff + 2);
-  }
+  ai_king_ref_seed_floor(p->col1->head.difficulty, p->col1->head.expeditionary_force);
   p->col1->head.year = 1492;
   p->col1->head.autumn = 0;
   p->col1->head.turn = 0;

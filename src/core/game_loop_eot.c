@@ -1117,10 +1117,7 @@ void game_hof_save(const ColonizeGameState* game) {
     remove(tmp);
     return;
   }
-#ifdef _WIN32
-  remove(path); /* MSVCRT rename() does not replace (see col1_save_write_file) */
-#endif
-  if (rename(tmp, path) != 0) {
+  if (!file_replace(tmp, path)) {
     diag_warn("hof: cannot replace %s", path);
     remove(tmp);
   }
@@ -1128,7 +1125,7 @@ void game_hof_save(const ColonizeGameState* game) {
 
 /*
  * Resolve Col1 trade-stop to map coords. colony_index 999 = Europe (eastern HS
- * for ships; coastal land for wagons). Returns 1 if *ox,*oy set.
+ * for ships; none for wagons or a failed lookup). Returns 1 if *ox,*oy set.
  * Cite: ColonizeCol1TradeStop; Colonization.pdf Trade Routes.
  */
 static int game_trade_stop_coords(
@@ -1151,31 +1148,9 @@ static int game_trade_stop_coords(
         return 1;
       }
     }
-    /* Land: nearest own coastal colony as Europe sail stand-in. */
-    int best = -1;
-    int bx = 0;
-    int by = 0;
-    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-      const ColonizeColony* c = &game->colonies.colonies[i];
-      if (!c->active || c->nation_id != game->human_nation) {
-        continue;
-      }
-      if (!map_tile_is_coastal(&game->world_map, c->x, c->y)) {
-        continue;
-      }
-      const int d = abs(c->x - u->x) + abs(c->y - u->y);
-      if (best < 0 || d < best) {
-        best = d;
-        bx = c->x;
-        by = c->y;
-      }
-    }
-    if (best < 0) {
-      return 0;
-    }
-    *ox = bx;
-    *oy = by;
-    return 1;
+    /* No stand-in (port_bugs.md #1349): DOS FUN_479b_0bd0 sends a 999 stop
+     * through FUN_291f_02ea (sail to Europe), never to a colony. */
+    return 0;
   }
   /* Stops hold DOS colony indices, not port ids (colonies_abandon remaps them). */
   const ColonizeColony* c = colonies_get(
@@ -1216,7 +1191,7 @@ int game_trade_route_aim_stop(ColonizeGameState* game, ColonizeUnit* u, int stop
     return 0;
   }
   const ColonizeCol1TradeRoute* r = &game->col1.trade_route[route];
-  if (r->dest_count <= 0) {
+  if (r->dest_count == 0) {
     return 0;
   }
   int si = stop_i % (int)r->dest_count;
@@ -1328,7 +1303,7 @@ void game_trade_route_retarget(ColonizeGameState* game, ColonizeUnit* u) {
     return;
   }
   const ColonizeCol1TradeRoute* r = &game->col1.trade_route[route];
-  if (r->dest_count <= 0) {
+  if (r->dest_count == 0) {
     return;
   }
   const int at_dest =
@@ -1421,7 +1396,7 @@ void game_europe_service_trade_harbor(ColonizeGameState* game) {
     }
     const ColonizeCol1TradeRoute* r = &game->col1.trade_route[route];
     const int si = ship->trade_stop;
-    if (r->dest_count <= 0 || si < 0 || si >= (int)r->dest_count ||
+    if (r->dest_count == 0 || si < 0 || si >= (int)r->dest_count ||
         r->stop[si].colony_index != 999) {
       /* Route edited away under the crossing — drop the automation. */
       ship->trade_route_plus1 = 0;

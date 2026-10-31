@@ -160,7 +160,6 @@ add_library(colonize_sim STATIC
   src/core/gsound_vm.c
   src/core/json_min.c
   src/core/settings.c
-  src/data/viceroy_tables.c
   src/platform/diagnostics.c
   src/platform/dos_compat/dos_compat.c
 )
@@ -597,6 +596,7 @@ colonize_add_test(NAME smoke_pick_music
     tests/smoke/test_pick_music.c
     src/core/pick_music.c
     src/core/popup.c
+    src/core/popup_msg.c
     src/core/sound.c
     src/core/dos_rng.c
     src/core/gsound_vm.c
@@ -622,8 +622,7 @@ colonize_add_test(NAME unit_map
   SOURCES
     tests/unit/test_map.c
     src/core/map.c
-    src/data/viceroy_tables.c
-    src/platform/diagnostics.c
+      src/platform/diagnostics.c
     src/core/strutil.c
 )
 
@@ -689,10 +688,6 @@ colonize_add_test(NAME render_world_map
   LIBS colonize_core
   INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}
   NO_CTEST
-)
-
-colonize_add_test(NAME smoke_viceroy_tables
-  SOURCES tests/smoke/test_viceroy_tables.c src/data/viceroy_tables.c
 )
 
 colonize_add_test(NAME unit_pedia
@@ -786,7 +781,6 @@ set(COLONIZE_SLIM_SOURCES
   src/core/font_file.c
   src/core/ss.c
   src/core/madspack.c
-  src/data/viceroy_tables.c
   src/platform/diagnostics.c
   src/platform/dos_compat/dos_compat.c
 )

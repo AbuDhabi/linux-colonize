@@ -5,6 +5,7 @@
 #include <string.h>
 
 #include "platform/diagnostics.h"
+#include "core/strutil.h"
 
 #define COL1_FAIL(err, err_size, ...)            \
   do {                                           \
@@ -1063,14 +1064,7 @@ bool col1_save_write_file(const char* path, const ColonizeCol1Save* save, char* 
     free(tmp_path);
     return false;
   }
-#ifdef _WIN32
-  /* MSVCRT's rename() fails when the destination exists (POSIX replaces it).
-   * Dropping the old file first reopens a small window where neither file is
-   * in place, which is still strictly better than the old truncate-first
-   * behaviour: the new save is already complete and fsynced-by-fclose on disk. */
-  remove(path);
-#endif
-  if (rename(tmp_path, path) != 0) {
+  if (!file_replace(tmp_path, path)) { /* _WIN32 remove-first lives there */
     if (err && err_size > 0) {
       snprintf(err, err_size, "cannot rename %s to %s", tmp_path, path);
     }

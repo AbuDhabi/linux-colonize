@@ -150,9 +150,10 @@ static void turn_colony_building_completion_one(ColonizeTurnContext* ctx, Coloni
     /* FUN_364b_0114 raw 56906-56910: a Warehouse Expansion past level 1
      * refuses with @NOMOREWAREHOUSE each turn it sits complete. */
     if (col->nation_id == ctx->human_nation &&
-        colonies_building_name_row(bt->name) == COLONY_BUILDING_WAREHOUSE_EXPANSION &&
+        colonies_building_type_row(ctx->colonies, col->building_in_production) ==
+          COLONY_BUILDING_WAREHOUSE_EXPANSION &&
         col->warehouse_level > 1u) {
-      colonies_emit_already_have_chrome(col, bt->name, ctx->ai_popups, ctx->messages);
+      colonies_emit_already_have_chrome(col, bt, ctx->ai_popups, ctx->messages);
     }
     return;
   }

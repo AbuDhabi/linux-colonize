@@ -83,13 +83,6 @@ static uint8_t s_euro_continent_stance[4][16];
  */
 static uint8_t s_euro_rival_strength[4][16];
 
-void ai_euro_set_goto(ColonizeUnit* u, int orders, int gx, int gy);
-void ai_euro_20e6_ship_cargo_counts(
-  ColonizeTurnContext* ctx, const ColonizeUnit* ship,
-  int* pioneers, int* mil, int* scouts, int* milvet, int* civ
-);
-int ai_euro_at_war_any_peer(const ColonizeCol1Save* col1, int nation_id);
-
 /*
  * FUN_521d_0a60 deep G-table formula, raw 88054-88151. Its operands are the
  * DOS-timed FUN_4962_0018 / 06b6 census tables in col1->stuff (see the
@@ -557,11 +550,6 @@ int ai_euro_name_is_pioneer(ColonizeUnitKind kind) {
  * 5d04's naval-threat crumbs and 20e6's bVar7 Privateer gate read. Also
  * thin-latch needs_colonists / needs_garrison from pop / garrison_quota.
  */
-int ai_euro_20e6_dos_type(const ColonizeUnitPool* units, const ColonizeUnit* u);
-int ai_euro_20e6_type_combat(int dos_type);
-/* Native village on this tile (col1 tribe table), else -1 — defined below;
- * forward-declared for the FUN_5952_035e threat seed's settlement halving. */
-int ai_euro_village_nation_at(const ColonizeCol1Save* col1, int x, int y);
 
 
 AiEuroShipPressure ai_euro_s_ship_pressure[4];
@@ -1163,8 +1151,6 @@ static int ai_euro_is_missionary_name(ColonizeUnitKind kind) {
   return kind == UNITS_KIND_MISSIONARY;
 }
 
-void ai_euro_set_goto(ColonizeUnit* u, int orders, int gx, int gy);
-
 
 
 
@@ -1314,10 +1300,8 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
      * the stale course.
      */
     if (u->orders == UNITS_ORDER_FORTIFY && ctx->colonies) {
-      static const int rdx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
-      static const int rdy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
       for (int d = 0; d < 8; ++d) {
-        const int cid = colonies_id_at(ctx->colonies, u->x + rdx[d], u->y + rdy[d]);
+        const int cid = colonies_id_at(ctx->colonies, u->x + MAP_DIR8_DX[d], u->y + MAP_DIR8_DY[d]);
         const ColonizeColony* nb = colonies_get(ctx->colonies, cid);
         if (!nb || !nb->active || nb->nation_id < 0 || nb->nation_id > 3 ||
             nb->nation_id == u->nation_id) {

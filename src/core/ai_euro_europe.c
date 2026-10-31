@@ -111,8 +111,6 @@ static int ai_euro_5d04_ph_naval_threat_crumb_n(int which, int nation_id) {
   }
 }
 
-int ai_euro_20e6_dos_type(const ColonizeUnitPool* units, const ColonizeUnit* u);
-
 /* FUN_281f_09fc(0xd) on a scanned colony — building index 0xd = College
  * (NAMES.TXT @BUILDING file order, cross-checked against index 0x24 =
  * Lumber Mill in euro_unit_act.md). Real since 2026-09-07d — the bVar5
@@ -856,8 +854,6 @@ static int ai_euro_5d04_cb_colony_demand_query(int head, int mode) {
   }
   return n;
 }
-/* DOS unit+0x3150 holds_occupied (defined below with the 0a60 block). */
-int ai_euro_0a60_goods_holds_used(const ColonizeUnitPool* units, const ColonizeUnit* u);
 
 static int ai_euro_5d04_cb_reward_case(int idx) {
   const ColonizeUnit* u = ai_euro_5d04_cb_unit(idx);
@@ -1885,73 +1881,3 @@ void ai_euro_nation_planning(ColonizeTurnContext* ctx, int nation_id) {
    */
   (void)ai_euro_5d04_nation_planning_structural(ctx, nation_id);
 }
-
-/* --- 0a60 goal-consumption engine (structural port, live) --------------
- *
- * Literal, section-scoped structural port of FUN_521d_0a60's own final
- * goal-table consumption engine — raw decomp lines 974-1063 of the
- * ~845-line function (see
- * original_sources_annotated/ai/euro_goal_orders_0a60_full.md, "New
- * section: goal -> orders wiring"). Per explicit instruction: port what
- * 0a60 does IN ITSELF faithfully; the functions/data it reaches out to can
- * stay at whatever level of development they're already at in this file
- * (dos_dist / map_continent_id_at / units_id_at / ai_goals_primary are all
- * real, already-ported equivalents of their DOS callees) or a documented
- * placeholder where DOS's own callee/data semantics are still unresolved
- * (DS:0x523d unit-type capability bitmask, unit+0x3148's FOUND/MIL_EXPAND
- * eligibility bits — `func_0x0001854c`'s weight seed was in this list until
- * 2026-09-06d, when it resolved to a plain clamp; see
- * `ai_euro_0a60_weight_seed`).
- *
- * **Live as of 2026-08-18**, replacing the old approximate soldier/
- * founder/generic-fallback three-loop scan inside `ai_euro_unit_act`
- * (which never covered LABOR/COLONY assignment for founders without a
- * matching FOUND/MIL_EXPAND slot, and used a two-phase "soldier goals
- * first, then anything" priority hack that DOS's real single-pass 64-slot
- * scan doesn't have — see euro_goal_orders_0a60_full.md's "Structural
- * pilot port" section for the before/after). Runs once per nation per
- * turn from `ai_euro_nation_planning`-equivalent, alongside
- * `ai_euro_colony_goals`; `ai_euro_unit_act` reads its committed pick back
- * per unit (act_state==0xb) instead of recomputing its own scan. Not a
- * `golden_ai_turns` fidelity claim — expect no immediate change there
- * (pre-existing TURN4→5 failure, unrelated); this is a structural quality
- * improvement over the old approximation, not a new golden-alignment pass.
- *
- * Deliberately out of scope this pass: the unit-loop threat-flag section
- * (raw lines 1-189) and the deep G-table / colony-loop section (raw lines
- * 190-973). Both lean on DOS accessor semantics (FUN_1000_8aac's field-id
- * meaning, thunk_FUN_2a1f_0470/047c/0524/0560's real effects, unit+0x3148's
- * individual bit *writers*) that no prior mapping pass in this project has
- * pinned down — a literal transliteration there would be unverifiable
- * guesswork, which this project's own method notes explicitly warn
- * against. ai_euro_refresh_continent_stance already covers the G-table's
- * *effect* (nation x continent stance) via a from-scratch recompute, just
- * not FUN_521d_0a60's literal write path.
- *
- * DOS unit AI bytes +0x3148/+0x314b/c/d/e — RESOLVED 2026-09-18, port_bugs.md
- * #525. They are not port-only scratch and need no shadow array: the Col1
- * unit record is 0x1c bytes based at DS:0x3144, and its field order (see
- * col1_save_layout.h `ColonizeCol1Unit`) is
- *   +0x3144/5 x,y   +0x3146 type   +0x3147 nation|vis   +0x3148 flags
- *   +0x3149 moves   +0x314a origin +0x314b ai_plan      +0x314c orders
- *   +0x314d goto_x  +0x314e goto_y +0x314f facing
- * so the whole DOS AI scratch block maps onto real `ColonizeUnit` fields:
- *   +0x3148 flag byte  -> u->col1_flags15
- *   +0x3149 MP SPENT   -> units_max_mp() - u->moves  (raw 6357 zeroes it at
- *                         the day top, raw 100342 adds 3 per step)
- *   +0x314b order code -> u->col1_ai_plan
- *   +0x314c act state  -> u->orders
- *   +0x314d/e goal x/y -> u->goto_x / u->goto_y
- * The port's own @ORDERS constants ARE those DOS act-state bytes:
- * FUN_521d_5b66's switch cases 7/8/9 are UNITS_ORDER_BUILD_COLONY /
- * CLEAR_PLOW / BUILD_ROAD, case 0x0b is UNITS_ORDER_AI_SAIL ("pursuing the
- * goal stored at +0x314d/e") and case 0x0c is UNITS_ORDER_AI_MOVE ("one
- * committed step"). The file-local `s_0a60_pilot_state` mirror of those
- * bytes was retired with this pass; only the AI_GOAL_* code of the committed
- * slot has no DOS byte at all, and it is re-read from the goal table by
- * `ai_goals_primary_code_at` instead of being mirrored.
- */
-
-/* unit+0x314c literals, spelled as the port's own @ORDERS constants. */
-
-/* unit+0x3148 — DOS `&= 0xd1` scratch bits (col1_save_layout.h names). */

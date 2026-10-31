@@ -1090,31 +1090,11 @@ bool units_defender_is_dos_scratch_row(void) {
 /*
  * FUN_5fef_1b0e `bVar13` / `bVar14` (raw 100733 / 100741, read at raw
  * 101088-101095 to append '1' / '2' to the @INDIANWIN tag): the native gear
- * step that just fired, for the chrome owner. port_bugs.md #645.
+ * step that just fired, consumed by units_combat_outcome_popups. port_bugs.md #645.
  */
 int g_units_native_gear_armed = 0;
 int g_units_native_gear_mounted = 0;
 int g_units_loss_winner_attacked = 1;
-
-void units_last_native_gear_step(int* out_armed, int* out_mounted) {
-  if (out_armed) {
-    *out_armed = g_units_native_gear_armed;
-  }
-  if (out_mounted) {
-    *out_mounted = g_units_native_gear_mounted;
-  }
-}
-
-void units_clear_native_gear_step(void) {
-  g_units_native_gear_armed = 0;
-  g_units_native_gear_mounted = 0;
-}
-
-/* See units.h: ai_contact owns the richer ambush chrome for its own calls. */
-int g_units_native_chrome_owned = 0;
-void units_set_native_combat_chrome_owned(int owned) {
-  g_units_native_chrome_owned = owned;
-}
 
 ColonizeCombatStrengthCtx units_combat_strength_ctx(const ColonizeCol1Save* col1) {
   ColonizeCombatStrengthCtx ctx;

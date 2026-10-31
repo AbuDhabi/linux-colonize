@@ -196,3 +196,10 @@ char* str_split_name_row(char* line) {
   str_trim(rest);
   return rest;
 }
+
+bool file_replace(const char* tmp, const char* path) {
+#ifdef _WIN32
+  remove(path);
+#endif
+  return rename(tmp, path) == 0;
+}

@@ -39,9 +39,7 @@
  *                                 ui_button_put, unit_chrome.c unit_chrome_put
  *     -> fb_put
  *
- *   rect outline, w/h          : text_edit.c text_edit_draw_frame and
- *                                 new_game.c new_game_draw_rect_border (single
- *                                 colour), ui_button.c ui_button_draw_frame
+ *   rect outline, w/h          : ui_button.c ui_button_draw_frame
  *                                 (bevelled two-colour)
  *     -> fb_rect_outline(fb, x, y, w, h, top_left, bottom_right); pass the
  *        same colour twice for the single-colour form
@@ -67,8 +65,8 @@ void fb_fill_rect(ColonizeFramebuffer8* fb, int x, int y, int w, int h, uint8_t 
  * One-pixel outline of the w/h rectangle. The top and left edges use
  * top_left_col, the bottom and right edges bottom_right_col (the bevel form);
  * pass the same colour twice for a plain single-colour border. Both corner
- * columns win over the horizontal edges, matching ui_button_draw_frame's own
- * paint order. Note ui_button_draw_frame additionally bails out for w < 2 or
+ * columns win over the horizontal edges (ui_button_draw_frame relies on that
+ * paint order). ui_button_draw_frame additionally bails out for w < 2 or
  * h < 2 (where the two edges would coincide); fb_rect_outline draws the
  * degenerate 1px line instead, so keep that guard at the call site if it
  * matters there.

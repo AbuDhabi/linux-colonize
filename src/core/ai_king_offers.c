@@ -147,18 +147,6 @@ const char* ai_king_merc_unit_name(
   return "";
 }
 
-static int ai_king_merc_offer_pending(const AiPopupState* st) {
-  if (!st) {
-    return 0;
-  }
-  for (int i = 0; i < st->queue_count; ++i) {
-    if (st->queue[i].tag == AI_POPUP_TAG_KING_MERC) {
-      return 1;
-    }
-  }
-  return st->open && st->current.tag == AI_POPUP_TAG_KING_MERC;
-}
-
 /* @MERCENARIES body + token-filled choice rows -> the Decline / Hire labels
  * (GAME.TXT "No thank you." / "Pay {%NUMBER0$}."; "" on a catalog miss). */
 static void ai_king_merc_fill_dialog(
@@ -197,7 +185,8 @@ void ai_king_merc_offer(ColonizeTurnContext* ctx) {
     return;
   }
   /* Don't stack a second offer while one is already pending a response. */
-  if (ai_king_human_popups(ctx) && ai_king_merc_offer_pending(ctx->ai_popups)) {
+  if (ai_king_human_popups(ctx) &&
+      ai_popup_pending(ctx->ai_popups, AI_POPUP_TAG_KING_MERC, -1, AI_POPUP_KEY_ANY, 0, 0)) {
     return;
   }
   /*
@@ -541,18 +530,6 @@ void ai_king_merc_peace_payload_parts(
   }
 }
 
-static int ai_king_merc_peace_offer_pending(const AiPopupState* st) {
-  if (!st) {
-    return 0;
-  }
-  for (int i = 0; i < st->queue_count; ++i) {
-    if (st->queue[i].tag == AI_POPUP_TAG_KING_MERC_PEACE) {
-      return 1;
-    }
-  }
-  return st->open && st->current.tag == AI_POPUP_TAG_KING_MERC_PEACE;
-}
-
 /* Pay arm of @MERCENARIES (raw 75141-75146): debit, then the 10f0 paid landing. */
 int ai_king_do_merc_peace_hire(
   ColonizeTurnContext* ctx, int human, int regular, int artillery, int price
@@ -626,7 +603,9 @@ void ai_king_peacetime_merc_offer(ColonizeTurnContext* ctx) {
   if (!ai_king_human_popups(ctx)) {
     return; /* nobody to answer the CHOICE — see header */
   }
-  if (ai_king_merc_peace_offer_pending(ctx->ai_popups)) {
+  if (ai_popup_pending(
+        ctx->ai_popups, AI_POPUP_TAG_KING_MERC_PEACE, -1, AI_POPUP_KEY_ANY, 0, 0
+      )) {
     return;
   }
 

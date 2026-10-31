@@ -3509,8 +3509,10 @@ const char* game_status_text(const ColonizeGameState* game) {
   if (!game) {
     return "OpenCol";
   }
-  /* Status feeds the window title — plain text, so eat any {} emphasis
-   * markup a GAME.TXT-sourced line carried along. */
+  /* game->status is port debug text (game_dialogs.h): only play_driver,
+   * the smoke/regression harness logs read it, not the window title (gone
+   * since 5519784e). Plain text, so eat any {} emphasis markup a
+   * GAME.TXT-sourced line carried along. */
   static char plain[sizeof(((ColonizeGameState*)0)->status)];
   snprintf(plain, sizeof(plain), "%s", game->status);
   popup_msg_strip_markup(plain);

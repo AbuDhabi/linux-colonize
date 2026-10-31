@@ -105,31 +105,15 @@ static int combat_nation_is_ai(const ColonizeCol1Save* col1, int nation_id) {
   return col1->player[nation_id].control != 0;
 }
 
-static const ColonizeCol1Tribe* combat_tribe_at(const ColonizeCol1Save* col1, int x, int y) {
-  if (!col1 || !col1->tribe) {
-    return NULL;
-  }
-  for (uint16_t i = 0; i < col1->head.tribe_count; ++i) {
-    if ((int)col1->tribe[i].x == x && (int)col1->tribe[i].y == y) {
-      return &col1->tribe[i];
-    }
-  }
-  return NULL;
-}
-
 static int combat_colony_fort_strength(
   const ColonizeColonyPool* colonies,
   const ColonizeColony* col,
   ColonizeCombatSideFlags* flags
 ) {
-  const int stockade = colonies_building_row(colonies, COLONY_BUILDING_STOCKADE);
-  const int fort = colonies_building_row(colonies, COLONY_BUILDING_FORT);
-  const int fortress = colonies_building_row(colonies, COLONY_BUILDING_FORTRESS);
-  const int has_stockade =
-    stockade >= 0 && stockade < COLONIZE_BUILDING_TYPES_MAX && col->has_building[stockade];
-  const int has_fort = fort >= 0 && fort < COLONIZE_BUILDING_TYPES_MAX && col->has_building[fort];
-  const int has_fortress =
-    fortress >= 0 && fortress < COLONIZE_BUILDING_TYPES_MAX && col->has_building[fortress];
+  const unsigned bits = colonies_fort_bits(colonies, col);
+  const int has_stockade = (bits & COLONY_FORT_BIT_STOCKADE) != 0;
+  const int has_fort = (bits & COLONY_FORT_BIT_FORT) != 0;
+  const int has_fortress = (bits & COLONY_FORT_BIT_FORTRESS) != 0;
   /*
    * FUN_157e_0008 (viceroy_unpacked.c 8893-8908): how many of FUN_15eb_038e(0),
    * (1), (2) the colony has. Those three ARE the fortification chain — the
@@ -381,7 +365,7 @@ int combat_engagement_strength(
    * +150% (bugs: "Aztec bonus").
    */
   if (ctx->col1) {
-    const ColonizeCol1Tribe* tribe = combat_tribe_at(ctx->col1, u->x, u->y);
+    const ColonizeCol1Tribe* tribe = col1_save_tribe_at(ctx->col1, u->x, u->y);
     if (tribe) {
       const int nation = (int)tribe->nation_id;
       int tech = 0;
@@ -711,7 +695,7 @@ static void combat_apply_1b0e_peels(
    * and the Spanish +50% fires on village tiles.
    */
   const int on_settlement =
-    on_colony || (ctx->col1 && combat_tribe_at(ctx->col1, def->x, def->y) != NULL);
+    on_colony || (ctx->col1 && col1_save_tribe_at(ctx->col1, def->x, def->y) != NULL);
   const int land = !atk_ship && !def_ship;
 
   /* Difficulty: human Euro side strength -= (difficulty - 4). */

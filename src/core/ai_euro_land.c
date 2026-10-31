@@ -126,20 +126,6 @@ void ai_euro_20e6_refresh_type_cache(const ColonizeUnitPool* units) {
 static const uint8_t k_20e6_terr_site_byte[32] = {
   2, 2, 4, 4, 4, 4, 2, 2, 3, 1, 3, 3, 3, 3, 1, 1, 3, 1, 3, 3, 3, 3, 1, 1, 0, 3, 0, 2, 2, 0, 0, 0
 };
-/*
- * DS:0xc8 / 0xde — 20-entry radius-2 ring (FUN_15eb_04c0 walks it as the
- * fort-scaled colony work radius: 5×5 minus centre minus 4 corners). First
- * 8 entries are the dir8 table (DS:0xb4/0xbe); the outer 12 are in
- * clockwise-from-north order. Only ever consumed via a uniform RNG slot or
- * a full-ring sum here, so intra-ring order does not affect results.
- */
-const int8_t ai_euro_k_20e6_ring20_dx[20] = {0, 1, 1, 1, 0, -1, -1, -1, 0, 1, 2, 2, 2, 1, 0, -1, -2, -2, -2, -1};
-const int8_t ai_euro_k_20e6_ring20_dy[20] = {-1, -1, 0, 1, 1, 1, 0, -1, -2, -2, -1, 0, 1, 2, 2, 2, 1, 0, -1, -2};
-/* DS:0xc8 / DS:0xde, the DOS plot ring (same tiles as above, DOS order:
- * N,E,S,W,NW,NE,SE,SW then (0,-2),(2,0),(0,2),(-2,0),(-1,-2),(1,-2),(-1,2),
- * (1,2),(-2,-1),(-2,1),(2,-1),(2,1)); indexed by a stored slot number. */
-const int8_t ai_euro_k_dos_ring20_dx[20] = {0, 1, 0, -1, -1, 1, 1, -1, 0, 2, 0, -2, -1, 1, -1, 1, -2, -2, 2, 2};
-const int8_t ai_euro_k_dos_ring20_dy[20] = {-1, 0, 1, 0, -1, -1, 1, 1, -2, 0, 2, 0, -2, -2, 2, 2, -1, 1, -1, 1};
 
 /* ===== FUN_5952_035e colony-tick tile improvement (raw 94402-94551) ===== */
 
@@ -401,12 +387,11 @@ void ai_euro_5952_improve_best_plot(
    */
   int allow = 1;
   for (int d = 0; d < 8; ++d) {
-    /* DS:0xb4/0xbe dir8 = the first 8 slots of the ring20 table.
-     * FUN_281f_06d2 = settlement owner else unit owner (ai_goals note). */
+    /* DS:0xb4/0xbe dir8. FUN_281f_06d2 = settlement owner else unit owner (ai_goals note). */
     const int owner = map_tile_tribe_or_presence(
-      ctx->map, tx + ai_euro_k_20e6_ring20_dx[d], ty + ai_euro_k_20e6_ring20_dy[d]
+      ctx->map, tx + MAP_DIR8_DX[d], ty + MAP_DIR8_DY[d]
     );
-    if (getenv("AI_5952_BUILD_TRACE")) fprintf(stderr, "[5952 improve] colony %d plot (%d,%d) nb %d (%d,%d) owner %d\n", col->id, tx, ty, d, tx + ai_euro_k_20e6_ring20_dx[d], ty + ai_euro_k_20e6_ring20_dy[d], owner);
+    if (getenv("AI_5952_BUILD_TRACE")) fprintf(stderr, "[5952 improve] colony %d plot (%d,%d) nb %d (%d,%d) owner %d\n", col->id, tx, ty, d, tx + MAP_DIR8_DX[d], ty + MAP_DIR8_DY[d], owner);
     /* raw 94482 stores 06d2 into local_1b0, the colony-nation local the
      * later job election still reads (raw 94821, asm 5952:2047). DOS bug,
      * reproduced for now (docs/tolerated_dos_bugs_ai.md TB-13). */
@@ -522,20 +507,6 @@ void ai_euro_5952_improve_best_plot(
   }
 }
 
-int ai_euro_20e6_own_colonies_on(const ColonizeTurnContext* ctx, int nation, int cid);
-
-/* FUN_281f_06be = FUN_137f_03e4 (raw 6840-6858): the owner of the SETTLEMENT
- * on a tile (layer2 bit 0x02 -> layer3 high nibble), -1 when there is none.
- * Unlike map_tile_tribe_or_presence (FUN_281f_06d2 = FUN_137f_0428) it does
- * NOT fall back to an occupying unit. */
-static int ai_euro_5952_settlement_owner_at(const ColonizeWorldMap* map, int x, int y) {
-  if (!map_in_bounds(map, x, y) || !map_tile_has_city(map, x, y)) {
-    return -1;
-  }
-  const int hi = (int)((map_get_layer3(map, x, y) >> 4) & 0x0fu);
-  return hi == 0x0f ? -1 : hi;
-}
-
 /* FUN_281f_06e6 = FUN_137f_044a (raw 6877-6900): the owner of an IMPROVED
  * tile (`layer2 & 0x48` = plowed 0x40 or road 0x08) when that owner is a
  * DIFFERENT Euro nation (0..3) this nation is at PEACE with
@@ -643,7 +614,8 @@ static int ai_euro_5952_road_connect_0000(ColonizeTurnContext* ctx, ColonizeColo
       if (cx == ox && cy == oy) {
         break; /* raw 93639 */
       }
-      if (ai_euro_5952_settlement_owner_at(ctx->map, cx, cy) < 0 &&
+      /* FUN_281f_06be = FUN_137f_03e4: settlement owner, no unit fallback. */
+      if (map_tile_layer2_owner(ctx->map, cx, cy, MAP_OCCUPANCY_HAS_CITY) < 0 &&
           (ai_euro_5952_tile_road_or_settlement(ctx->map, cx, cy) & 0x0a) == 0) {
         found = 1; /* raw 93641-93645: bVar3 = false */
         break;
@@ -1820,8 +1792,8 @@ static int ai_euro_land_explore_scan_target(
         /* Another own unit already committed (act_state 7) to this ring? */
         int free_site = 1;
         for (int r = 0; r < 9 && free_site; ++r) {
-          const int rx = (r < 8) ? tx + ai_euro_k_20e6_ring20_dx[r] : tx;
-          const int ry = (r < 8) ? ty + ai_euro_k_20e6_ring20_dy[r] : ty;
+          const int rx = (r < 8) ? tx + MAP_DIR8_DX[r] : tx;
+          const int ry = (r < 8) ? ty + MAP_DIR8_DY[r] : ty;
           const int oid = units_id_at(ctx->units, rx, ry);
           const ColonizeUnit* ou = oid >= 0 ? units_get_const(ctx->units, oid) : NULL;
           if (ou && oid != u->id && ou->orders == UNITS_ORDER_BUILD_COLONY) {
@@ -2150,12 +2122,10 @@ static int ai_euro_20e6_attack_term(
       ai_euro_20e6_colony_owner_at(ctx, nx, ny) >= 0) {
     const int def = ai_euro_20e6_stack_combat_0b(ctx, nx, ny);
     if (def != 0) {
-      static const int mdx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
-      static const int mdy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
       int own_sum = 0;
       for (int n = 0; n < 8; ++n) {
-        const int ax = nx + mdx[n];
-        const int ay = ny + mdy[n];
+        const int ax = nx + MAP_DIR8_DX[n];
+        const int ay = ny + MAP_DIR8_DY[n];
         const int oid = units_id_at(ctx->units, ax, ay);
         const ColonizeUnit* ou = oid >= 0 ? units_get_const(ctx->units, oid) : NULL;
         if (ou && ou->nation_id == s->nation) {
@@ -2779,8 +2749,8 @@ static int ai_euro_20e6_ring_hop(ColonizeTurnContext* ctx, ColonizeUnit* u, cons
    * DOS plot ring N,E,S,W,NW,NE,SE,SW,(0,-2),(2,0),... — not the clockwise
    * MAP_DIR8 ring (america resync 92->93: slot 2 hops S to (46,55), the
    * clockwise table aimed E at Quebec and the hop failed). */
-  const int hx = (int)ai_euro_k_dos_ring20_dx[slot] * 4;
-  const int hy = (int)ai_euro_k_dos_ring20_dy[slot] * 4;
+  const int hx = MAP_RING20_DX[slot] * 4;
+  const int hy = MAP_RING20_DY[slot] * 4;
   int tx = u->x + hx;
   int ty = u->y + hy;
   if (u->col1_ai_plan == 0x38 && sc[1] != 0) {
@@ -3750,10 +3720,8 @@ static int ai_euro_20e6_4d2e_tail(
     ai_euro_20e6_stay_tail_589e(u); /* LAB_589e: +0x314c = 5 (6 when admitted) */
     return 0;
   }
-  static const int wdx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
-  static const int wdy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
-  const int nx = u->x + wdx[dir];
-  const int ny = u->y + wdy[dir];
+  const int nx = u->x + MAP_DIR8_DX[dir];
+  const int ny = u->y + MAP_DIR8_DY[dir];
   if (!map_coords_inset(ctx->map, nx, ny)) {
     return 0;
   }

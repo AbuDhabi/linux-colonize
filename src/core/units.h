@@ -60,13 +60,6 @@ void units_set_combat_popups(AiPopupState* popups, const ColonizeMsgCatalog* gam
 struct EuropeScreen;
 void units_set_combat_europe(struct EuropeScreen* europe);
 
-/* Ambush-arm own-chrome suppression flag (see docs/units.md#units_set_native_combat_chrome_owned). */
-void units_set_native_combat_chrome_owned(int owned);
-
-/* Last land-loss gear-step flags for @INDIANWIN chrome (see docs/units.md#units_last_native_gear_step). */
-void units_last_native_gear_step(int* out_armed, int* out_mounted);
-void units_clear_native_gear_step(void);
-
 /* Optional sound.c hooks for the combat BGM sting (see docs/units.md#units_set_combat_music_hooks). */
 typedef void (*ColonizeSoundPlayFn)(int id);
 typedef int (*ColonizeSoundActiveIdFn)(void);
@@ -389,22 +382,14 @@ bool units_kind_is_ship(ColonizeUnitKind k);        /* 13..18 */
 bool units_kind_is_native(ColonizeUnitKind k);      /* 19..22 */
 
 bool units_type_is_colonist(const ColonizeUnitType* t);
-bool units_type_is_soldier(const ColonizeUnitType* t);
 bool units_type_is_pioneer(const ColonizeUnitType* t);
 bool units_type_is_missionary(const ColonizeUnitType* t);
-bool units_type_is_dragoon(const ColonizeUnitType* t);
 bool units_type_is_scout(const ColonizeUnitType* t);
-bool units_type_is_regular(const ColonizeUnitType* t);
-bool units_type_is_cont_cav(const ColonizeUnitType* t);
-bool units_type_is_cavalry(const ColonizeUnitType* t);
-bool units_type_is_cont_army(const ColonizeUnitType* t);
 bool units_type_is_continental(const ColonizeUnitType* t);
 bool units_type_is_royal(const ColonizeUnitType* t);
 bool units_type_is_treasure(const ColonizeUnitType* t);
 bool units_type_is_artillery(const ColonizeUnitType* t);
 bool units_type_is_wagon(const ColonizeUnitType* t);
-bool units_type_is_caravel(const ColonizeUnitType* t);
-bool units_type_is_merchantman(const ColonizeUnitType* t);
 bool units_type_is_galleon(const ColonizeUnitType* t);
 bool units_type_is_privateer(const ColonizeUnitType* t);
 /* Either side of an attack is a Privateer: 465b skips treaty prompt + war. */
@@ -438,6 +423,8 @@ int units_military_count_at(const ColonizeUnitPool* pool, int x, int y);
 int units_sight_radius(
   const ColonizeUnitPool* pool, const ColonizeUnit* u, const ColonizeCol1Save* col1
 );
+/* Sea-domain test by record (also sees an inactive/parked slot). */
+bool units_unit_is_sea(const ColonizeUnitPool* pool, const ColonizeUnit* u);
 /* Same walk with an explicit radius: the chief's tales (FUN_13f1_02b4 with DX = 6). */
 bool units_reveal_radius_w(const ColonizeWorld* w, const ColonizeUnit* u, int radius);
 /* Unit sight reveal with DOS per-tile side effects (see docs/units.md#units_reveal_sight_w). */

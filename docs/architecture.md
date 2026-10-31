@@ -56,7 +56,7 @@ Col1 field atlases — those stay in their owning docs (see the
 | Map editor (MAPEDIT.EXE, `opencol-mapedit`, .MP writer) | [mapedit.md](mapedit.md) |
 | Difficulty level effects | [difficulty.md](difficulty.md) |
 | Fandom wiki digest (1994 Col only; tier-3) | [fandom_col1994.md](fandom_col1994.md) |
-| Extracted VICEROY DS tables | [viceroy_tables.md](viceroy_tables.md) |
+| Retired VICEROY DS table extract (DS offset notes) | [viceroy_tables.md](viceroy_tables.md) |
 | Decomp function catalog (all `FUN_*`, light) | [`../original_sources_annotated/FUNCTION_CATALOG.md`](../original_sources_annotated/FUNCTION_CATALOG.md) · [`MODULE_MAP.md`](../original_sources_annotated/MODULE_MAP.md) |
 
 **Non-goal:** restructuring `src/` to mirror VICEROY overlays. DOS segment maps
@@ -106,7 +106,7 @@ From [`CMakeLists.txt`](../CMakeLists.txt):
 
 | Target | Contents | Links |
 |--------|----------|-------|
-| **`colonize_sim`** (STATIC) | Simulation: `map*`, `units`, `unit_chrome` (colour/flag lookups), `colony*` (less screen/chrome), `travel_dest`, `combat_*` (less render), `turn`, `europe`, `founding_fathers`, `ai*` incl. `ai_popup`, `col1_*`, `savegame`, `reports_names`, `new_game_scenario`, `woodcut` (queue), `dos_rng`, `dos_buggy` (tolerated-DOS-bug switch), `village_trade_intel` (port-only VTIN intel), `pioneer_plan` (port-only plan + Automate, PPLN), `explore_auto` (port-only Scout / ship Automate, SAUT). Shared: `assets`, `strutil`, `ff`, `madspack`, `popup_msg`, `window_log`, `sound`, `gsound_vm`, `settings`, `json_min`, `src/data/viceroy_tables.c`, `platform/diagnostics`, `platform/dos_compat` | `m`, `pthread`; optional FluidSynth |
+| **`colonize_sim`** (STATIC) | Simulation: `map*`, `units`, `unit_chrome` (colour/flag lookups), `colony*` (less screen/chrome), `travel_dest`, `combat_*` (less render), `turn`, `europe`, `founding_fathers`, `ai*` incl. `ai_popup`, `col1_*`, `savegame`, `reports_names`, `new_game_scenario`, `woodcut` (queue), `dos_rng`, `dos_buggy` (tolerated-DOS-bug switch), `village_trade_intel` (port-only VTIN intel), `pioneer_plan` (port-only plan + Automate, PPLN), `explore_auto` (port-only Scout / ship Automate, SAUT). Shared: `assets`, `strutil`, `ff`, `madspack`, `popup_msg`, `window_log`, `sound`, `gsound_vm`, `settings`, `json_min`, `platform/diagnostics`, `platform/dos_compat` | `m`, `pthread`; optional FluidSynth |
 | **`colonize_ui`** (STATIC) | Presentation: `fb`, `font`, `pik`, `ss`, `popup`, `ui_*`, `text_edit`, every `*_dialog`, `game_loop`, `game_dialogs`, `map_menu`, `map_panel`, `unit_stack`, `unit_chrome_draw`, `units_render`, `colony_screen`, `colony_chrome`, `colony_preview`, `europe_art`, `reports`, `pedia`, `new_game`, `trade_screen`, `combat_analysis_render`, `ai_popup_render`, `woodcut_present`, `declaration`, `opening`, `closing`, `debug_atlas` | **`colonize_sim`** (PUBLIC) |
 | **`colonize_core`** (INTERFACE) | No objects of its own — the one name every consumer still links | `colonize_ui` (hence `colonize_sim`) |
 | **`colonize_sim_linkcheck`** (SHARED) | `cmake/sim_linkcheck.c` + all of `colonize_sim` under `-Wl,--no-undefined`; builds with ALL | `colonize_sim` |
@@ -249,7 +249,6 @@ Cluster table (not every file). Paths are under `src/core/` unless noted.
 | **Audio** | `gsound_vm.c/.h`, `sound.c/.h` | Literal `GSOUND.COL` driver emulation + DOS BGM scheduler, `COLDIG.BIN` SFX mixing, FluidSynth when present |
 | **RNG / util** | `dos_rng`, `strutil`, `version.h` | DOS LCG fidelity |
 | **Platform** | `src/platform/platform.h`, `linux_sdl2/sdl_runtime.c` (+ `sdl_keymap.c`, shared with the replay harness), `dos_compat/` | Contract + SDL2 + stubs |
-| **Baked tables** | `src/data/viceroy_tables.c/.h` | Extracted VICEROY lookups |
 
 ### Present shape facts
 

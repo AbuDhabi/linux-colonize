@@ -218,7 +218,7 @@ bool colonies_emit_warehouse_full_confirm(
 
 void colonies_emit_already_have_chrome(
   const ColonizeColony* colony,
-  const char* building_name,
+  const ColonizeBuildingType* building,
   AiPopupState* ai_popups,
   const ColonizeMsgCatalog* messages
 ) {
@@ -226,9 +226,9 @@ void colonies_emit_already_have_chrome(
     return;
   }
   const char* cname = colony->name[0] ? colony->name : "";
-  const char* bname =
-    (building_name && building_name[0]) ? building_name : "";
-  const bool warehouse_exp = (colonies_building_name_row(bname) == COLONY_BUILDING_WAREHOUSE_EXPANSION);
+  const char* bname = building ? building->name : "";
+  const bool warehouse_exp =
+    building && building->row_plus1 - 1 == COLONY_BUILDING_WAREHOUSE_EXPANSION;
   const char* section = warehouse_exp ? "NOMOREWAREHOUSE" : "ALREADYHAVE";
   char body[AI_POPUP_BODY_LEN];
   PopupMsgTokens tok;
@@ -748,123 +748,6 @@ int colonies_foreign_trade_apply(
   /* port_bugs.md #808: raw 99031-99033 writes colony+0x9a+sold*2 and nothing else
    * — the `cargo_idle_turns = 0` that used to stand here was invented. */
   return 1;
-}
-
-
-static int colonies_trade_surplus_load_amount(const ColonizeColony* c, int ct) {
-  int amt = 20;
-  if (ct == COLONIZE_CARGO_MUSKETS || ct == COLONIZE_CARGO_HORSES) {
-    amt = 10;
-  }
-  if (ct == COLONIZE_CARGO_FOOD) {
-    amt = c->population > 0 ? c->population * 2 : 10;
-  }
-  return amt;
-}
-
-void colonies_trade_stop_set_cargos(
-  ColonizeCol1TradeStop* stop,
-  const int* unload_types,
-  int unload_n,
-  const int* load_types,
-  int load_n
-) {
-  if (!stop) {
-    return;
-  }
-  stop->unload_count = 0;
-  stop->load_count = 0;
-  memset(stop->unload_cargo_nibbles, 0, sizeof(stop->unload_cargo_nibbles));
-  memset(stop->load_cargo_nibbles, 0, sizeof(stop->load_cargo_nibbles));
-  int uc = 0;
-  if (unload_types && unload_n > 0) {
-    int seen[COLONIZE_CARGO_COUNT];
-    memset(seen, 0, sizeof(seen));
-    for (int i = 0; i < unload_n && uc < 6; ++i) {
-      const int ct = unload_types[i];
-      if (ct < 0 || ct >= COLONIZE_CARGO_COUNT || seen[ct]) {
-        continue;
-      }
-      seen[ct] = 1;
-      col1_trade_nibble_set(stop->unload_cargo_nibbles, uc, ct);
-      uc++;
-    }
-  }
-  stop->unload_count = (uint8_t)uc;
-  int lc = 0;
-  if (load_types && load_n > 0) {
-    int seen[COLONIZE_CARGO_COUNT];
-    memset(seen, 0, sizeof(seen));
-    for (int i = 0; i < load_n && lc < 6; ++i) {
-      const int ct = load_types[i];
-      if (ct < 0 || ct >= COLONIZE_CARGO_COUNT || seen[ct]) {
-        continue;
-      }
-      seen[ct] = 1;
-      col1_trade_nibble_set(stop->load_cargo_nibbles, lc, ct);
-      lc++;
-    }
-  }
-  stop->load_count = (uint8_t)lc;
-}
-
-void colonies_trade_stop_autofill(
-  ColonizeCol1TradeStop* stop,
-  const ColonizeColony* colony,
-  const ColonizeUnitPool* units,
-  int unit_id
-) {
-  if (!stop) {
-    return;
-  }
-  stop->unload_count = 0;
-  stop->load_count = 0;
-  memset(stop->unload_cargo_nibbles, 0, sizeof(stop->unload_cargo_nibbles));
-  memset(stop->load_cargo_nibbles, 0, sizeof(stop->load_cargo_nibbles));
-
-  if (units && unit_id >= 0) {
-    const ColonizeUnit* u = units_get_const(units, unit_id);
-    if (u) {
-      int seen[COLONIZE_CARGO_COUNT];
-      memset(seen, 0, sizeof(seen));
-      int uc = 0;
-      const int n = units_goods_hold_count(units, unit_id);
-      for (int h = 0; h < n && uc < 6; ++h) {
-        const int ct = u->hold_goods_type[h];
-        const int amt = u->hold_goods_amount[h];
-        if (amt <= 0 || amt >= 255 || ct < 0 || ct >= COLONIZE_CARGO_COUNT || seen[ct]) {
-          continue;
-        }
-        seen[ct] = 1;
-        col1_trade_nibble_set(stop->unload_cargo_nibbles, uc, ct);
-        uc++;
-      }
-      stop->unload_count = (uint8_t)uc;
-    }
-  }
-
-  if (!colony) {
-    return; /* Europe: sell path; no load list */
-  }
-  static const int k_load[] = {
-    COLONIZE_CARGO_TOOLS,
-    COLONIZE_CARGO_LUMBER,
-    COLONIZE_CARGO_ORE,
-    COLONIZE_CARGO_MUSKETS,
-    COLONIZE_CARGO_HORSES,
-    COLONIZE_CARGO_FOOD
-  };
-  int lc = 0;
-  for (size_t i = 0; i < sizeof(k_load) / sizeof(k_load[0]) && lc < 6; ++i) {
-    const int ct = k_load[i];
-    const int amt = colonies_trade_surplus_load_amount(colony, ct);
-    if (colony->stock[ct] < amt * 2) {
-      continue;
-    }
-    col1_trade_nibble_set(stop->load_cargo_nibbles, lc, ct);
-    lc++;
-  }
-  stop->load_count = (uint8_t)lc;
 }
 
 int colonies_trade_route_service_stop(

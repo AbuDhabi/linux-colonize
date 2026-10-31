@@ -202,8 +202,8 @@ static const MapMenuAction k_menu_rows_pedia[] = {
 };
 #undef U
 
-static MapMenuAction map_menu_classify(const char* section, int row, const char* label) {
-  if (!section || !label) {
+static MapMenuAction map_menu_classify(const char* section, int row) {
+  if (!section) {
     return MAP_MENU_ACTION_UNIMPLEMENTED;
   }
   static const struct {
@@ -225,22 +225,6 @@ static MapMenuAction map_menu_classify(const char* section, int row, const char*
     }
   }
 
-  /* The DEBUG pulldown is the port's own menu, so its labels are ours. */
-  if (strcmp(section, "DEBUG") == 0) {
-    if (strcmp(label, "Sprite Viewer") == 0) {
-      return MAP_MENU_ACTION_DEBUG_SPRITE_VIEWER;
-    }
-    if (strcmp(label, "Show Mouse Coords") == 0) {
-      return MAP_MENU_ACTION_DEBUG_TOGGLE_MOUSE_COORDS;
-    }
-    if (strcmp(label, "Building Rects") == 0) {
-      return MAP_MENU_ACTION_DEBUG_BUILDING_RECTS;
-    }
-    if (strcmp(label, "Debug Logs") == 0) {
-      return MAP_MENU_ACTION_DEBUG_LOGS;
-    }
-    return MAP_MENU_ACTION_UNIMPLEMENTED;
-  }
   return MAP_MENU_ACTION_UNIMPLEMENTED;
 }
 
@@ -552,7 +536,7 @@ static bool map_menu_load_section(
     if (classify_label[0] == '\0') {
       continue;
     }
-    MapMenuAction action = map_menu_classify(section_name, i, classify_label);
+    MapMenuAction action = map_menu_classify(section_name, i);
     /* Skip MENU.TXT --- for PEDIA — DOS inserts the sep in FUN_74a4_0000. */
     if (action == MAP_MENU_ACTION_SEPARATOR) {
       continue;

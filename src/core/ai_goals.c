@@ -2,6 +2,7 @@
 #include "core/internal.h"
 
 #include "core/ai_diplo.h"
+#include "core/ai_internal.h"
 #include "core/assets.h"
 #include "core/bytes.h"
 #include "core/colony.h"
@@ -18,12 +19,6 @@ static AiNationGoals s_goals[4];
 static AiWorkSlot s_work[AI_WORK_SLOTS];
 static AiEuroInventory s_inv[4];
 static AiNationPlanScratch s_plan[4];
-
-/* MAP_DIR8_DX/DY plus DOS's past-table 9th entry (0,0) = "stay": the goal
- * ring loops below run `dir <= 8` and DOS's own default is dir 8, so this
- * cannot be the shared [8] table. */
-static const int k_dir8_dx[9] = {0, 1, 1, 1, 0, -1, -1, -1, 0};
-static const int k_dir8_dy[9] = {-1, -1, 0, 1, 1, 1, 0, -1, 0};
 
 /*
  * "Does this map's seen plane carry map-gen site nibbles?" — one whole-map
@@ -551,13 +546,12 @@ int ai_goals_colony_balance_flags_w(
 
 
 /* Defined with the 0906 probes below; DOS FUN_281f_0682 / 06be. */
-static int ai_goals_tile_layer2_owner(const ColonizeWorldMap* map, int x, int y, unsigned bit);
 
 /*
  * FUN_281f_074a → FUN_137f_02f8: the DS:0x168 seen plane byte. Its LOW nibble
  * is the map-gen colony-site score (0..15); the per-nation seen bits live in
  * the HIGH nibble (0x10 << nation). Mirrors ai_euro_20e6_site_nibble
- * (ai_euro.c:11084) including its generated-map fallback: OpenCol map_gen writes
+ * (ai_euro_land.c) including its generated-map fallback: OpenCol map_gen writes
  * no nibble at all, and an all-zero nibble field would silently zero the whole
  * extras term, so when no tile in the plane carries a low nibble the old
  * per-nation unseen→4 stand-in is used instead.
@@ -775,8 +769,8 @@ int ai_goals_pick_founding_tile_ex_w(
   int best_score = -1;
   int any = 0;
   for (int dir = 0; dir <= 8; ++dir) {
-    const int nx = x + k_dir8_dx[dir];
-    const int ny = y + k_dir8_dy[dir];
+    const int nx = x + k_ai_dir8_dx[dir];
+    const int ny = y + k_ai_dir8_dy[dir];
     if (!map_coords_inset(map, nx, ny)) {
       continue;
     }
@@ -868,8 +862,8 @@ int ai_goals_pick_founding_tile_ex_w(
       const int cand_cid = map_continent_id_at(map, nx, ny);
       const int bal = ai_goals_colony_balance_flags_w(w, nation_id, cand_cid);
       for (int nd = 0; nd < 8; ++nd) {
-        const int hx = nx + k_dir8_dx[nd];
-        const int hy = ny + k_dir8_dy[nd];
+        const int hx = nx + k_ai_dir8_dx[nd];
+        const int hy = ny + k_ai_dir8_dy[nd];
         if (!map_coords_inset(map, hx, hy)) {
           continue;
         }
@@ -882,9 +876,9 @@ int ai_goals_pick_founding_tile_ex_w(
          * owner nibble), so the neighbour only contributes when *no unit*
          * stands on it. The port was testing the colony pool instead, i.e.
          * asking the 06be settlement question; same 0682/06be swap already
-         * fixed inside 0906 (see ai_goals_tile_layer2_owner below).
+         * fixed inside 0906 (see map_tile_layer2_owner in map.c).
          */
-        if (ai_goals_tile_layer2_owner(map, hx, hy, MAP_OCCUPANCY_HAS_UNIT) >= 0) {
+        if (map_tile_layer2_owner(map, hx, hy, MAP_OCCUPANCY_HAS_UNIT) >= 0) {
           continue;
         }
         /*
@@ -951,14 +945,14 @@ int ai_goals_pick_founding_tile_ex_w(
      * "stay". The OpenCol ring-2..4 rescan that used to sit here invented sites
      * two to four tiles away that DOS never scores, so it is gone (2026-09-08).
      * The port keeps a 0 = "no site" return rather than DOS's unconditional
-     * dir 8 because ~9 call sites branch on it (ai_euro.c:16928 hands the
-     * result straight to units_unload_passenger), and returning the caller's
+     * dir 8 because ~9 call sites branch on it (ai_euro_20e6_unload_by_mask hands
+     * the result straight to ai_euro_unload_pax_at), and returning the caller's
      * own tile when that tile is open water would land a passenger at sea.
      */
     return 0;
   }
-  *out_x = x + k_dir8_dx[best_dir];
-  *out_y = y + k_dir8_dy[best_dir];
+  *out_x = x + k_ai_dir8_dx[best_dir];
+  *out_y = y + k_ai_dir8_dy[best_dir];
   return 1;
 }
 
@@ -1430,18 +1424,9 @@ int ai_goals_filter_profession_by_distance_wealth(
  *   FUN_281f_06d2 → FUN_137f_0428: 06be, falling back to 0682.
  *
  * The port's own MAP_OCCUPANCY_HAS_UNIT/HAS_CITY are 0x01/0x02, matching.
- * FUN_137f_0200 maps an owner nibble of 0xf to -1.
+ * FUN_137f_0200 maps an owner nibble of 0xf to -1. Shared body:
+ * map_tile_layer2_owner (map.c).
  */
-static int ai_goals_tile_layer2_owner(const ColonizeWorldMap* map, int x, int y, unsigned bit) {
-  if (!map || !map->layer2 || !map_coords_inset(map, x, y)) {
-    return -1;
-  }
-  if ((map->layer2[(size_t)y * (size_t)map->width + (size_t)x] & bit) == 0) {
-    return -1;
-  }
-  const int nib = (int)((map_get_layer3(map, x, y) >> 4) & 0x0fu);
-  return nib == 0x0f ? -1 : nib;
-}
 
 /*
  * FUN_521d_0906 — probe_adjacent_contact_claim. Decomp 87345-87405.
@@ -1497,8 +1482,8 @@ int ai_goals_probe_adjacent_contact_claim_w(
     (map_tile_is_water(map, x, y) || map_tile_is_high_seas(map, x, y)) ? 1 : 0;
   int claim = -1;
   for (int dir = 0; dir < 8 && claim < 0; ++dir) {
-    const int nx = x + k_dir8_dx[dir];
-    const int ny = y + k_dir8_dy[dir];
+    const int nx = x + k_ai_dir8_dx[dir];
+    const int ny = y + k_ai_dir8_dy[dir];
     if (!map_coords_inset(map, nx, ny)) {
       continue;
     }
@@ -1507,7 +1492,7 @@ int ai_goals_probe_adjacent_contact_claim_w(
     if (n_water != origin_water) {
       continue;
     }
-    const int owner = ai_goals_tile_layer2_owner(map, nx, ny, MAP_OCCUPANCY_HAS_UNIT);
+    const int owner = map_tile_layer2_owner(map, nx, ny, MAP_OCCUPANCY_HAS_UNIT);
     if (owner >= 0 && owner != nation_id) {
       /* Tribe owners key 0896's tension lookup off the tile's top unit. */
       const int unit_filter =
@@ -1524,10 +1509,10 @@ int ai_goals_probe_adjacent_contact_claim_w(
          */
         int armed = 0;
         if (units) {
-          /* Slot walk, not an id walk: `units_get_const` takes a unit ID and
-           * ids are handed out monotonically from 1 and never recycled
-           * (units.c:337), so a `ui`-as-id walk over COLONIZE_UNITS_MAX
-           * dropped every unit with id >= 256 plus the highest slot. DOS
+          /* Slot walk, not an id walk: `units_get_const` takes a unit ID,
+           * and ids are not slot indices (monotonic, then recycled
+           * round-robin, #1094), so a `ui`-as-id walk over COLONIZE_UNITS_MAX
+           * missed units whose id differs from their slot. DOS
            * walks the unit ARRAY in record order (raw 78159).
            * Fixed 2026-09-10 (audit second-wave Leads item 2). */
           for (int ui = 0; ui < units_slot_end(units) && !armed; ++ui) {
@@ -1546,7 +1531,7 @@ int ai_goals_probe_adjacent_contact_claim_w(
         }
       }
     }
-    const int settlement = ai_goals_tile_layer2_owner(map, nx, ny, MAP_OCCUPANCY_HAS_CITY);
+    const int settlement = map_tile_layer2_owner(map, nx, ny, MAP_OCCUPANCY_HAS_CITY);
     if (settlement >= 0 && settlement != nation_id) {
       claim = ai_goals_filter_profession_by_distance_wealth(
         col1, units, nation_id, settlement, profession, -1

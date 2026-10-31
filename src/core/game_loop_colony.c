@@ -188,7 +188,6 @@ void game_enter_colony(ColonizeGameState* game, int cid) {
     game->colony_screen.selected_colonist = 0;
   }
   snprintf(game->status, sizeof(game->status), "Entered %s", col ? col->name : "");
-  colony_screen_set_status(&game->colony_screen, col ? col->name : "");
   game_track_screen(game);
   /*
    * DOS-LITERAL FUN_2f2b_6cd4 raw 55975 reveal block: with DS:0x34a >= 0 the
@@ -321,13 +320,11 @@ void game_colony_finish_eject(
   int colonist_index,
   int role
 ) {
-  ColonyScreenView* csv = &game->colony_screen;
   const int uid = colonies_eject_colonist(
     &game->colonies, game->colony_view_id, colonist_index, &game->units, role
   );
   if (uid < 0) {
     set_status(game, "Cannot leave colony", NULL);
-    colony_screen_set_status(csv, game->status);
     return;
   }
   game_colony_select_outside(game, uid);
@@ -344,7 +341,6 @@ void game_colony_finish_eject(
   snprintf(
     game->status, sizeof(game->status), "Left as %s", colonies_eject_role_name(role)
   );
-  colony_screen_set_status(csv, game->status);
   game_tutorial_colony_assigned(game); /* leave-as picks go through 2f3e too (291f_054c) */
 }
 
@@ -363,7 +359,6 @@ bool game_colony_request_eject(
   const ColonizeColony* colony = colonies_get(&game->colonies, game->colony_view_id);
   if (!colony || colonist_index < 0) {
     set_status(game, "Cannot leave colony", NULL);
-    colony_screen_set_status(csv, game->status);
     return true;
   }
   /* fandom Stockade/Colony: with Stockade/Fort/Fortress cannot voluntarily
@@ -457,7 +452,6 @@ bool game_colony_request_eject(
           labels, ids, 2
         )) {
       set_status(game, "Cannot abandon colony now", NULL);
-      colony_screen_set_status(csv, game->status);
     } else {
       /* Player-initiated: open at once, never behind queued EOT chrome or a
        * colony-zoom hold (DOS nests it in the colony screen's own loop). */
@@ -635,12 +629,10 @@ void game_colony_drag_begin_cargo(ColonizeGameState* game, int cargo_type) {
   csv->selected_cargo = cargo_type;
   if (csv->transport_unit_id < 0) {
     set_status(game, "Select a ship first", NULL);
-    colony_screen_set_status(csv, game->status);
     return;
   }
   if (colony->stock[cargo_type] <= 0) {
     set_status(game, "No cargo in slot", NULL);
-    colony_screen_set_status(csv, game->status);
     return;
   }
   const int want = colony->stock[cargo_type] < 100 ? colony->stock[cargo_type] : 100;
@@ -654,7 +646,6 @@ void game_colony_drag_begin_hold(ColonizeGameState* game, int hold_index) {
   ColonyScreenView* csv = &game->colony_screen;
   if (csv->transport_unit_id < 0 || !game->units_ok) {
     set_status(game, "Select a ship first", NULL);
-    colony_screen_set_status(csv, game->status);
     return;
   }
   const ColonizeUnit* tu = units_get_const(&game->units, csv->transport_unit_id);
@@ -663,7 +654,6 @@ void game_colony_drag_begin_hold(ColonizeGameState* game, int hold_index) {
   }
   if (tu->hold_goods_amount[hold_index] <= 0 || tu->hold_goods_amount[hold_index] >= 255) {
     set_status(game, "Hold empty", NULL);
-    colony_screen_set_status(csv, game->status);
     return;
   }
   const int ctype = tu->hold_goods_type[hold_index];
@@ -793,7 +783,6 @@ static void game_colony_workplace_refusal(
 }
 
 void game_colony_assign_building_drop(ColonizeGameState* game, int building_index) {
-  ColonyScreenView* csv = &game->colony_screen;
   if (building_index < 0) {
     set_status(game, "Build it first", NULL);
   } else if (!colonies_building_workable(&game->colonies, building_index)) {
@@ -819,7 +808,6 @@ void game_colony_assign_building_drop(ColonizeGameState* game, int building_inde
       game_colony_workplace_refusal(game, ci, building_index);
     }
   }
-  colony_screen_set_status(csv, game->status);
 }
 
 /* Docks / Drydock / Shipyard — same check as colony_preview.c / turn.c. */
@@ -944,7 +932,6 @@ void game_colony_area_tile_drop(
   int ci = from_fence ? -1 : game_colony_selected_colonist(game);
   if (!from_fence && (ci < 0 || ci >= colony->colonist_count)) {
     set_status(game, "Select a colonist first", NULL);
-    colony_screen_set_status(csv, game->status);
     return;
   }
   int job = from_fence ? 0 : (int)colony->colonists[ci].field_job;
@@ -961,7 +948,6 @@ void game_colony_area_tile_drop(
     job = water ? COLONIZE_JOB_FISHERMAN : COLONIZE_JOB_FARMER;
   }
   if (game_colony_refuse_nodocks(game, colony, job)) {
-    colony_screen_set_status(csv, game->status);
     return;
   }
   if (game_colony_plot_land_gate(game, colony, tile_index)) {
@@ -971,7 +957,6 @@ void game_colony_area_tile_drop(
     ci = game_colony_selected_colonist(game);
     if (ci < 0 || ci >= colony->colonist_count) {
       set_status(game, "Select a colonist first", NULL);
-      colony_screen_set_status(csv, game->status);
       return;
     }
   }
@@ -982,7 +967,6 @@ void game_colony_area_tile_drop(
   } else {
     set_status(game, "Cannot assign field", NULL);
   }
-  colony_screen_set_status(csv, game->status);
 }
 
 /*
@@ -1086,7 +1070,6 @@ void game_colony_commit_construction(ColonizeGameState* game, int bid) {
     }
   }
   colony_screen_close_construction(csv);
-  colony_screen_set_status(csv, game->status);
 }
 
 /* FUN_2f2b_348c param 0: the popup. Its build-up seats (plot stamps, job counter zeroed on
@@ -1196,7 +1179,6 @@ void game_colony_commit_job(ColonizeGameState* game, ColonizeColony* colony, int
     }
   }
   colony_screen_close_jobs(csv);
-  colony_screen_set_status(csv, game->status);
 }
 
 void game_colony_fence_drop(ColonizeGameState* game, ColonizeColony* colony) {
@@ -1236,11 +1218,9 @@ void game_colony_fence_drop(ColonizeGameState* game, ColonizeColony* colony) {
         csv->eject_open = true;
       } else {
         set_status(game, "Select a colonist first", NULL);
-        colony_screen_set_status(csv, game->status);
       }
     } else {
       set_status(game, "Select a colonist first", NULL);
-      colony_screen_set_status(csv, game->status);
     }
   } else {
     colony_screen_open_eject(csv, &game->colonies, game->colony_view_id, csv->selected_colonist);
@@ -1284,7 +1264,6 @@ bool game_colony_drag_drop(
         game_colony_load_hold(
           game, tid, drag->index, drag->amount > 0 ? drag->amount : 100
         );
-        colony_screen_set_status(csv, game->status);
       }
     }
   } else if (kind == UI_DRAG_COLONY_HOLD) {
@@ -1359,7 +1338,6 @@ bool game_colony_drag_drop(
         } else {
           set_status(game, "Hold empty", NULL);
         }
-        colony_screen_set_status(csv, game->status);
       }
       game_ui_drag_clear(game);
       return true;
@@ -1404,7 +1382,6 @@ bool game_colony_drag_drop(
       }
       if (csv->transport_unit_id >= 0 && game->units_ok) {
         game_colony_unload_hold(game, csv->transport_unit_id, drag->index, "Hold empty");
-        colony_screen_set_status(csv, game->status);
       }
     }
   } else if (kind == UI_DRAG_COLONY_COLONIST || kind == UI_DRAG_COLONY_OUTSIDE) {
@@ -2027,7 +2004,6 @@ void game_colony_apply_dock_order(
     break;
   }
   colony_screen_close_dock_orders(csv);
-  colony_screen_set_status(csv, game->status);
 }
 
 void game_center_on_selected_unit(ColonizeGameState* game) {

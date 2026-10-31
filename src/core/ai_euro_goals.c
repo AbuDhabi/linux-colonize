@@ -108,9 +108,6 @@ static int ai_euro_0a60_weight_seed(const ColonizeTurnContext* ctx, int nation_i
 int ai_euro_s_5952_stale_gross[AI_EURO_5952_LEDGER_SLOTS];
 int ai_euro_s_5952_stale_valid = 0;
 
-int ai_euro_20e6_type_flags(int dos_type);
-int ai_euro_20e6_dos_type(const ColonizeUnitPool* units, const ColonizeUnit* u);
-
 /*
  * DOS-LITERAL FUN_521d_0a60 raw 88184-88191: the goal-capability gate is a
  * single bit test, `(1 << (goal.code & 0x1f)) & DS:0x523d[type * 0xe]`, i.e.
@@ -192,8 +189,6 @@ static int ai_euro_0a60_unit_can_pursue_goal(
  * already recomputes for its own purpose). Recomputed fresh here too
  * (cheap, one pass) rather than exposing that function's private locals.
  */
-int ai_euro_20e6_own_colonies_on(const ColonizeTurnContext* ctx, int nation, int cid);
-int ai_euro_10ec_land_units_on(const ColonizeTurnContext* ctx, int nation, int cid);
 
 /*
  * Audit AE-9: the two halves of this function ARE the two later standalone
@@ -271,8 +266,6 @@ static void ai_euro_0a60_continent_presence(
  * act_state=10 (adjacent contact claim) doing the same, and the CONTACT
  * goals at spotted hostile ships.
  */
-int ai_euro_20e6_dos_type(const ColonizeUnitPool* units, const ColonizeUnit* u);
-int ai_euro_20e6_type_combat(int dos_type);
 
 /*
  * FUN_1427_0d38 stack-query counts over a tile's stack (2026-09-06b byte
@@ -2338,10 +2331,8 @@ COLONIZE_INTERNAL void ai_euro_colony_goals_colony_work(
    * `f(stock,target)`: below target → stock as-is (HORSES exception
    * above); at/above target → stock doubled (still capped to target
    * right after). `target` is `FUN_1000_8f2a()` — a single scalar
-   * whose callee is unresolved (three other unrelated call sites
-   * across this project, never named); approximated as a fixed 100,
-   * matching base Warehouse capacity — the only DOS-documented
-   * "target stock level" constant already in this codebase.
+   * resolved to the warehouse capacity (colonies_warehouse_capacity,
+   * see the 8f2a note below).
    * The DOS pre-loop over the units stacked on the colony tile
    * (+800 idle Pioneer / +1500 exposed combat-capable land unit on
    * a `stance==0` continent) IS ported — see the block just below;
@@ -2439,8 +2430,8 @@ COLONIZE_INTERNAL void ai_euro_colony_goals_colony_work(
      * (`s_0a60_pilot_state`, always fresh-zeroed here), but the DOS byte
      * is +0x314b = `ai_plan`, not the +0x314c act-state the shadow
      * mirrors — the same mislabel already corrected for the 4962 census
-     * gate (col1_stuff_census.c:166-187, ai_diplo.c:1592-1631,
-     * ai_contact.c:9061-9069, all reading `col1_ai_plan` ∈ {'A','G'}).
+     * gate (col1_stuff_census.c, ai_diplo.c, ai_contact_actions.c, all
+     * reading `col1_ai_plan` ∈ {'A','G'}).
      * 'A'/'G' are the garrison/assigned plans: a unit already spoken for
      * is not "exposed", so it must not raise this colony's work-queue
      * score. `col1_ai_plan` is save-backed and survives across turns,
@@ -2722,15 +2713,6 @@ void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
   if (!ctx || !ctx->map || !ctx->units) {
     return;
   }
-  /* FUN_15eb_28c8's structural port (T1.17) is reference-only, not called
-   * from the live colonist-job path below (see its own header comment for
-   * scope). W1.7 (2026-08-24) added a golden fixture verifying the 9-job
-   * formula — see tests/unit/test_ai_euro_28c8_job_score.c — but wiring it
-   * live is Tier 3 (docs/port_plan.md W3.1), a user-confirmed behavior
-   * change, not attempted here. External linkage (declared in ai_euro.h)
-   * so the fixture can call it directly; still address-taken by nothing
-   * else in this file, same convention as
-   * ai_euro_5d04_nation_planning_structural. */
   AiEuroInventory* inv = ai_goals_inventory(nation_id);
   ai_goals_clear_work_queue();
 
@@ -2763,60 +2745,3 @@ int ai_euro_village_nation_at(const ColonizeCol1Save* col1, int x, int y) {
  * rand(0,3) DOS-LCG draws DOS never makes. DOS walks a course with
  * FUN_479b_0972 (ai_euro_goal_walk_479b) and free-scores with LAB_4d2e
  * (ai_euro_20e6_wander_step).) */
-
-/*
- * ======================================================================
- * FUN_521d_20e6 — structural land port (2026-08-27)
- * ======================================================================
- * Transcribed from the clean 2215-line recovery in
- * original_sources_annotated/ai/move_scoring_20e6_full.md ("Raw recovered
- * C"). This block covers the Euro LAND path of the function, arm by arm:
- *
- *   prologue            → ai_euro_20e6_prologue      (raw lines ~1006-1090)
- *   explorer flag       → ai_euro_20e6_explorer_flag (iStack_6a, ~1095-1180)
- *   SCOUT/PATROL 0x56   → ai_euro_20e6_patrol_arm    (LAB_277a, ~1260-1275)
- *   explore ring        → ai_euro_land_explore_scan_target (LAB_2912→2a59,
- *                         ~1320-1480; replaces the 2026-08-15 thin scan)
- *   8-dir wander score  → ai_euro_20e6_wander_step   (LAB_4d2e→5183,
- *                         ~1940-2180)
- *   epilogue commit     → ai_euro_move_scoring_gate  (LAB_589e/5a78)
- *
- * 2026-09-06 deepening pass (the six thin pieces from port_plan.md's 20e6
- * row): LAB_52aa attack-odds tail (crown==2 halving + Soldier/Dragoon
- * colony mass gate, ai_euro_20e6_attack_term), 0x4c village arms
- * (ai_euro_20e6_village_arm → ai_contact AI wrappers), colonist labor loop
- * (ai_euro_20e6_labor_arm), LAB_3558 per-cargo unload mask
- * (ai_euro_20e6_unload_mask / _unload_by_mask in ai_euro_act_ship_dos),
- * −0x6168 rival strength (persistent 0a60 max-tracker + explore
- * fatigue → local_12), explore-plane low nibble (ai_euro_20e6_site_nibble
- * reads the real seen-plane site-score nibble).
- *
- * NOT here (own OpenCol mechanics already cover them, or closed as dead in
- * port_plan.md T1.2/T1.3): 0x42/0x65 found/contact writes; the LAB_3558
- * colony-sail matrix / HS spiral / work-queue haul tails beyond the unload
- * rule.
- *
- * DOS state this port models file-locally:
- *   DS:0xa13c (−0x5ec4) per-continent explorer count → ai_euro_s_20e6_explorers
- * (unit+0x3155/+0x3156, the explorer's 4-tile ring-hop wander latch, sits in
- * the ship-band tail LAB_4b2c and is not reached by the land path ported
- * here — not modelled.)
- *     (memset 0 at FUN_521d_0a60 entry every nation turn; mirrored in
- *     ai_euro_dispatcher_turn)
- *
- * Deliberate substitutions (each marked at its use site):
- *   - DS:0x9faa coarse fog plane is live: 0a60 clears and restamps it for each
- *     Euro nation; far probes require byte zero and ring hops test `& 6`.
- *   - explore-plane low nibble (FUN_1000_893a & 0xf): now the real seen-plane
- *     site-score nibble on DOS-imported maps (ai_euro_20e6_site_nibble);
- *     OpenCol-generated maps carry no nibble, old unseen→4 stand-in kept there.
- *   - −0x6168[continent] rival-strength: live (s_euro_rival_strength,
- *     the 0a60 max-tracker recomputed per call) + ai_euro_s_20e6_explore_fatigue for
- *     unit+0x3154; radius shrink and >40 halving now fire.
- *   - FUN_1000_8aac: resolved as the FUN_1427_0d38 stack-query dispatcher;
- *     ALL its case bodies byte-decoded 2026-09-06 (table at
- *     ai_euro_20e6_stack_count) — case 2 = total stack count (the old
- *     "# military types" reading was case 4), case 0xb = stack combat sum;
- *     the 0x42/0x65 gates (case 2 < 2 = "unit is alone") stay closed per
- *     T1.2 — OpenCol's goal-driven found/contact impulses cover them.
- */

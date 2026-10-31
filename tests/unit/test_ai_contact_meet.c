@@ -97,7 +97,7 @@ static int test_ai_only_meet_is_silent_for_human(void) {
   ctx.ai_popups = &pop;
   ctx.human_nation = 1; /* the player is France */
 
-  ai_contact_indian_meet_trade(&ctx, 5);
+  (void)ai_contact_try_first_welcome(&ctx, 0, 5); /* 3180 hands 022e the adjacent pair */
 
   int rc = 0;
   if (col1.indian[1].euro_diplo[0] == 0) {

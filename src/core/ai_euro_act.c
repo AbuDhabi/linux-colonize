@@ -6,7 +6,6 @@
  *
  * Sections:
  *   FUN_5952_035e equip pick (shared with the goals equip arm)
- *   Ship Europe exit (europe_exit)
  *   Land band stages: hunt_scout, treasure, roles
  *   ai_euro_act_land band driver
  *   DOS ship-act path: 09dc gate, 20e6 ship dos, 479b goal walk
@@ -93,44 +92,6 @@ int ai_euro_5952_equip_pick(const ColonizeColony* c, int target) {
     }
   }
   return pick;
-}
-
-/*
- * Ship stage 1: Europe treasure cash-in / dump-sell, then FUN_48d3_048e
- * Europe->map exit and its first scored ocean leg.
- */
-COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_ship_europe_exit(struct ai_euro_act_ctx* a) {
-  ColonizeUnit* u = a->u;
-
-  /* (The Europe/HS treasure cash-in that stood here was deleted 2026-09-23,
-   * port_bugs.md #746 — DOS's AI never puts a treasure on a ship.) */
-  /*
-   * No Europe-dock dump-sell in the per-unit act. The "sell every hold at the
-   * Europe dock" arm (ai_euro_try_transport_europe_sell) carried no DOS
-   * citation — only the manual and the wiki Boycott page — and was deleted
-   * 2026-09-18. It is not needed: DOS's Europe dock seller is the nation-level
-   * FUN_521d_5d04 pass (viceroy_overlays.c:83168-83192), ported as the
-   * `ai_euro_5d04_cb_sell_hold0` / `_cb_reward_case` loop, which empties the
-   * holds of every ship of type 0x0d..0x12 sitting in Europe — Privateers and
-   * Frigates included. The other two ported sellers are FUN_521d_20e6's
-   * delivery sell tail (raw 2140-2163, ai_euro_20e6_delivery_sell_tail) when
-   * no colony will take the delivery cargo, and FUN_364b_0688 phase O
-   * (viceroy_unpacked.c 57806-57848, europe_ai_colony_dump_sell_w) which
-   * sells the warehouse surplus a ship dumped into the colony.
-   */
-
-  /* Arrivals (lane 224+n) are placed by the FUN_48d3_06ba tail;
-   * departures run inside 5d04 before the unit waves. A hull still at
-   * the dock here failed that pass's departure gate (e.g. damage). */
-  const int exited_europe = 0;
-  if (ai_euro_in_europe(u->x, u->y)) {
-    u->moves = 0;
-    return AI_EURO_ACT_RETURN;
-  }
-
-  a->exited_europe = exited_europe;
-  a->u = u;
-  return AI_EURO_ACT_CONTINUE;
 }
 
 /*
@@ -292,7 +253,6 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_roles(struct ai_euro_act_ctx*
   }
 
   a->treasure_routed = treasure_routed;
-  a->wagon_hauled = wagon_hauled;
   a->u = u;
   return AI_EURO_ACT_CONTINUE;
 }
@@ -865,13 +825,13 @@ void ai_euro_goal_walk_479b(ColonizeTurnContext* ctx, ColonizeUnit* u) {
 void ai_euro_act_ship_dos(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id) {
   const int id = u->id;
   if (ai_euro_in_europe(u->x, u->y)) {
-    struct ai_euro_act_ctx a;
-    memset(&a, 0, sizeof(a));
-    a.ctx = ctx;
-    a.u = u;
-    a.nation_id = nation_id;
-    a.is_ship = 1;
-    (void)ai_euro_act_ship_europe_exit(&a);
+    /* Departures run inside 5d04 before the unit waves (arrivals, lane
+     * 224+n, are placed by the FUN_48d3_06ba tail): a hull still at the dock
+     * failed that pass's departure gate (e.g. damage) and ends its act.
+     * No Europe-dock dump-sell here either: DOS's seller is the nation-level
+     * FUN_521d_5d04 pass (ai_euro_5d04_cb_sell_hold0, deleted per-unit arm
+     * 2026-09-18), and the AI never ships a treasure (#746). */
+    u->moves = 0;
     return;
   }
   const int fresh = u->moves >= units_max_mp(ctx->units, id);

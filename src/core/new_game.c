@@ -271,10 +271,6 @@ static void new_game_ensure_sail_frame(NewGameWizard* ng, int frame) {
   new_game_load_pik(ng, name, &ng->levn[frame], &ng->levn_ok[frame]);
 }
 
-static bool new_game_is_directive(const char* line) {
-  return line && line[0] == '@';
-}
-
 static void new_game_clear_list(NewGameWizard* ng) {
   ng->option_count = 0;
   ng->selection = 0;
@@ -328,7 +324,7 @@ static void new_game_load_choice_section(NewGameWizard* ng, const char* section_
     if (saw_prose && section->blank_before && section->blank_before[i] && ++state > 2) {
       break;
     }
-    if (new_game_is_directive(line)) {
+    if (popup_msg_is_directive(line)) {
       const char* d = line + 1;
       if (strcasecmp(d, "options") == 0 || strcasecmp(d, "prompt") == 0) {
         state = 2;
@@ -1849,7 +1845,7 @@ static void new_game_render_sail(
       tw = atoi(line + 7);
       continue;
     }
-    if (new_game_is_directive(line)) {
+    if (popup_msg_is_directive(line)) {
       continue;
     }
     char buf[COLONIZE_MSG_LINE_LEN];

@@ -64,7 +64,7 @@ static int case_935_rebel_divisor_floor(void) {
   col1.colony[0].rebel_dividend = 0;
   col1.colony[0].rebel_divisor = 0; /* already decayed to 0 */
 
-  colony_prod_tick_rebel_accumulators(&colonies, c, &col1);
+  colony_prod_tick_rebel_accumulators(&colonies, c, &col1, 0);
 
   const int got = (int)col1.colony[0].rebel_divisor;
   free(col1.colony);

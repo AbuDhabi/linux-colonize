@@ -3139,8 +3139,8 @@ void ai_diplo_indian_alarm_delta(
   if (delta > 0 && euro_nation == 1) {
     delta >>= 1; /* French national bonus */
   }
-  if (delta > 0 && euro_nation >= 0 && euro_nation <= 3 &&
-      founding_fathers_nation_has(col1, euro_nation, FF_POCAHONTAS)) {
+  /* euro_nation is 0..3 here: ai_diplo_indian_slot rejects anything else. */
+  if (delta > 0 && founding_fathers_nation_has(col1, euro_nation, FF_POCAHONTAS)) {
     delta >>= 1;
   }
   const int old_v = (int)col1->indian[idx].alarm_by_player[euro_nation];

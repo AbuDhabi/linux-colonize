@@ -4707,10 +4707,10 @@ static int case_immigration_pressure(void) {
   eu.status[0] = '\0';
   eu.open_on_dock = false;
   if (!europe_tick_immigration_pressure_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&units), .colonies=(ColonizeColonyPool*)(&pool), .col1=(ColonizeCol1Save*)(NULL), .col1_ok=((NULL) != NULL), .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0) || eu.open_on_dock ||
-      eu.dock_count < 1 || strstr(eu.status, "Immigrant") == NULL) {
+      eu.dock_count < 1 || eu.status[0] != '\0') { /* no English status (#1337) */
     fprintf(
       stderr,
-      "phase5 want dock+status no-open open=%d dock=%d '%s'\n",
+      "phase5 want dock, empty status, no-open open=%d dock=%d '%s'\n",
       eu.open_on_dock ? 1 : 0,
       eu.dock_count,
       eu.status
@@ -6165,7 +6165,7 @@ static int case_phase_k_build_advisory(void) {
   }
   /* K craft crumbs: Weaver with empty cotton (suppress food-shortage crumb).
    * 2026-08-24 fix: the K "ran out of X" gate now uses actual craft demand
-   * (colony_craft_demand_mask — someone staffed producing a positive
+   * (the craft pass demand word — someone staffed producing a positive
    * tier-scaled input requirement), not "the building exists by name",
    * matching DOS FUN_15eb_0bd4/0b96's demand scratch word — so the
    * colonist must actually be assigned to the Weaver's House for the
@@ -6287,7 +6287,7 @@ static int case_phase_k_build_advisory(void) {
    * nag "Need lumber." — 2026-08-24 fix applies the same real-staffed-
    * demand gate (colony_prod_colony_hammers' out_lumber_use) already used
    * for the other five K goods above; lumber isn't a colony_craft.c recipe
-   * so it can't reuse colony_craft_demand_mask directly, but the principle
+   * so it is not in the craft pair pass, but the principle
    * (an unstaffed building has zero demand in DOS) is the same. */
   col->building_in_production = -1;
   col->colonist_count = 1;

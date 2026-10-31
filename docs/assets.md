@@ -280,7 +280,7 @@ Older VICEROY quadrant / RAM-buffer coast heuristics are **superseded** by this 
 
 **No per-tile texture variation, no coast animation frames (DOS verified 2026-10-28).** `FUN_6ba1_0d6c` walks the viewport and calls `FUN_6ba1_0938` per tile; its base blit `FUN_6ba1_05b8` -> `FUN_1101_0050` (asm 6ba1:05b8) copies the 16x16 block at `TERRAIN.SS` buffer (`DS:0x16c`, loaded by `FUN_74a4_0bbe`) + `FUN_1101_0026(class)*0x100`, `class` = `FUN_137f_0614(terrain byte)`; no x/y hash, RNG or per-tile RAM buffer enters the source offset. The `0xa598/0xa594/0xa59c` buffers are only the terrain/overlay/visibility map arrays, and `DS:0xa5a8` is a column-parity flag nothing reads for art. Coastline pieces (`FUN_6ba1_06e0`, `0x1ea4/0x1ea5` quadrant offsets) are static per tile. The only DOS "animation" of water is the CYCLE.DAT palette rotation (`game_water_cycle_tick`, already ported). Fog fringe (**104–107**), plow (**149**), and road **80–88** connectivity are drawn.
 
-`src/data/viceroy_tables.{h,c}` holds the one remaining `VICEROY.EXE` extract, used only by Colonizopedia terrain previews ([viceroy_tables.md](viceroy_tables.md)). World-map **feature art** (forest/hill/mountain/coast) uses the MAPEDIT rules above.
+No `VICEROY.EXE` table extract is baked into `src/` (the old `viceroy_tables` extract was retired 2026-10-31, [viceroy_tables.md](viceroy_tables.md)). World-map **feature art** (forest/hill/mountain/coast) uses the MAPEDIT rules above.
 
 ### Map menu bar
 
@@ -506,9 +506,7 @@ Colours come from `NAMES.TXT` `@COLORS` (`src/core/ui_colors.h`), under the
 The text and its `_` caret are drawn once through the dialog writer's shade map,
 like every caption around it (DOS `FUN_6f74_1e14` -> `FUN_6f74_0538`; no drop-shadow
 pass, port_bugs.md #1191, [popups_dialog_engine.md](popups_dialog_engine.md) "Dialog text shading"). Both fields are
-boxed by the same 1px green rectangle (`basic` ink). The wizard's box comes from
-`text_edit_frame_rect` (a `TEXT_EDIT_FRAME_PAD` 3px gap around the font's real ink
-rows). The in-game dialogs (`@COLONY` / `@RENAMECOLONY` /
+boxed by the same 1px green rectangle (`basic` ink). The in-game dialogs (`@COLONY` / `@RENAMECOLONY` /
 `@LANDHO` / `@TRADENAME` / `@HOWMUCH*`) are laid out by `popup_field_frame`
 (popup.c; geometry in popup.h, port_bugs.md #1181): the GAME.TXT line after the
 prompt is the field's caption, and the box is `width("W") * max length + 6` wide

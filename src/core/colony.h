@@ -271,8 +271,6 @@ bool colonies_can_found(
 /* Next default colony name for a nation without consuming it (port_bugs.md #682). */
 const char* colonies_peek_next_name(const ColonizeColonyPool* pool, int nation_id);
 
-/* Active colonies owned by a nation — DOS byte `nation + 0x9298` (port_bugs.md #681). */
-int colonies_nation_settlement_count(const ColonizeColonyPool* pool, int nation_id);
 
 /*
  * Found a colony. founder_type_index < 0 skips population (tests).
@@ -903,11 +901,12 @@ bool colonies_emit_warehouse_full_confirm(
 
 /*
  * Human construction refuse: @ALREADYHAVE, or @NOMOREWAREHOUSE for Warehouse
- * Expansion. building_name optional. No-op if ai_popups NULL.
+ * Expansion (told apart by building->row_plus1). building optional. No-op if
+ * ai_popups NULL.
  */
 void colonies_emit_already_have_chrome(
   const ColonizeColony* colony,
-  const char* building_name,
+  const ColonizeBuildingType* building,
   AiPopupState* ai_popups,
   const ColonizeMsgCatalog* messages
 );
@@ -1025,26 +1024,11 @@ int colonies_trade_route_service_stop(
   const ColonizeCol1TradeStop* stop
 );
 
-/* thin TRADE Edit helper (see docs/colony_goods.md#colonies_trade_stop_autofill) */
-void colonies_trade_stop_autofill(
-  ColonizeCol1TradeStop* stop,
-  const ColonizeColony* colony,
-  const ColonizeUnitPool* units,
-  int unit_id
-);
-
-/*
- * Thin TRADE cargo picker: set unload/load nibble lists explicitly (cap 6 each).
- * cargo_type values are @CARGO indices 0..15. Cite: ColonizeCol1TradeStop.
- */
-void colonies_trade_stop_set_cargos(
-  ColonizeCol1TradeStop* stop,
-  const int* unload_types,
-  int unload_n,
-  const int* load_types,
-  int load_n
-);
-
+/* Stockade/Fort/Fortress bits as owned (FUN_15eb_038e(0/1/2), literal; no tier fold). */
+#define COLONY_FORT_BIT_STOCKADE 1u
+#define COLONY_FORT_BIT_FORT 2u
+#define COLONY_FORT_BIT_FORTRESS 4u
+unsigned colonies_fort_bits(const ColonizeColonyPool* pool, const ColonizeColony* colony);
 /* ICONS.SS settlement marker #0–3 by fortification (none/stockade/fort/fortress). */
 int colonies_settlement_icon(const ColonizeColonyPool* pool, const ColonizeColony* colony);
 

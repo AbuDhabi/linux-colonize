@@ -181,11 +181,6 @@ static inline bool units_orders_follow_goto(int orders) {
          orders == UNITS_ORDER_AI_MOVE || orders == UNITS_ORDER_TRADE_ROUTE;
 }
 
-/* True if unit is ordered to stick to another unit id. */
-static inline bool units_orders_is_follow(int orders) {
-  return orders == UNITS_ORDER_FOLLOW;
-}
-
 void units_clear_orders(ColonizeUnitPool* pool, int unit_id);
 /*
  * Set sentry / fortify / fortified. Clears goto. Land units only for fortify.
@@ -279,6 +274,10 @@ bool units_is_pioneer(const ColonizeUnitPool* pool, int unit_id);
  * First call sets orders + one work-tick; further ticks via
  * units_pioneer_work_tick / turn_refresh.
  */
+/* Clear/Plow terrain gate (FUN_2b5a_0b34 + FUN_479b_01a6): false on water,
+ * Mountains/Hills and already-plowed open land; *out_clearing = forest. */
+bool units_pioneer_tile_can_clear_or_plow(
+  const ColonizeWorldMap* map, int x, int y, bool* out_clearing);
 /* DS:0x8542 as the last Pioneer body's FUN_281f_0614 left it (units_pioneer.c). */
 extern struct ColonizeColony* g_units_pioneer_0614_colony;
 bool units_pioneer_plow_w(

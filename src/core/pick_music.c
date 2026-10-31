@@ -11,6 +11,7 @@
 
 #include "core/pick_music_ids.h"
 #include "core/popup.h"
+#include "core/popup_msg.h"
 #include "core/ui_button.h"
 
 void pick_music_init(PickMusicDialog* dlg) {
@@ -40,10 +41,6 @@ void pick_music_close(PickMusicDialog* dlg) {
   dlg->selection = 0;
   dlg->option_count = 0;
   dlg->prompt[0] = '\0';
-}
-
-static bool pick_music_is_directive(const char* line) {
-  return line && line[0] == '@';
 }
 
 static bool pick_music_load_section(
@@ -94,7 +91,7 @@ static bool pick_music_load_section(
     if (!line || line[0] == '\0') {
       continue;
     }
-    if (pick_music_is_directive(line)) {
+    if (popup_msg_is_directive(line)) {
       if (strncmp(line, "@width=", 7) == 0) {
         dlg->width = atoi(line + 7);
         if (dlg->width < 80) {

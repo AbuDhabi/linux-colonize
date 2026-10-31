@@ -1393,7 +1393,6 @@ static GameUpdateStep game_colony_screen_mouse_click(
             "%s",
             tt && tt->name[0] ? tt->name : "Transport selected"
           );
-          colony_screen_set_status(csv, game->status);
         }
       }
       break;
@@ -1471,7 +1470,6 @@ static GameUpdateStep game_colony_screen_mouse_click(
         } else {
           game_colony_request_eject(game, csv->eject_colonist_index, role);
         }
-        colony_screen_set_status(csv, game->status);
       }
       break;
     }
@@ -1523,7 +1521,6 @@ static GameUpdateStep game_colony_screen_mouse_click(
           snprintf(
             game->status, sizeof(game->status), "%s", tt && tt->name[0] ? tt->name : "Unit selected"
           );
-          colony_screen_set_status(csv, game->status);
         }
       }
       break;
@@ -1584,7 +1581,6 @@ static GameUpdateStep game_colony_screen_mouse_click(
         game_colony_commit_job(game, colony, csv->job_ids[hit.index]);
       } else {
         colony_screen_close_jobs(csv);
-        colony_screen_set_status(csv, game->status);
       }
       break;
     case COLONY_HIT_JOBS_MORE:
@@ -1597,15 +1593,13 @@ static GameUpdateStep game_colony_screen_mouse_click(
       /* Custom House has no worker slot (colonies_assign_workplace
        * refuses it) — a plain click opens its per-cargo autosell
        * checklist instead of trying (and failing) to assign a colonist. */
-      const ColonizeBuildingType* bt = colonies_building_type(&game->colonies, hit.index);
-      if (bt && colonies_building_name_row(bt->name) == COLONY_BUILDING_CUSTOM_HOUSE) {
+      if (colonies_building_type_row(&game->colonies, hit.index) == COLONY_BUILDING_CUSTOM_HOUSE) {
         ColonizeColony* col = colonies_get_mut(&game->colonies, game->colony_view_id);
         if (col && hit.index >= 0 && hit.index < COLONIZE_BUILDING_TYPES_MAX &&
             col->has_building[hit.index]) {
           colony_screen_open_custom_house(csv, col, &game->messages);
         } else {
           set_status(game, "Build it first", NULL);
-          colony_screen_set_status(csv, game->status);
         }
       } else {
         game_colony_assign_building_drop(game, hit.index);
@@ -1630,7 +1624,6 @@ static GameUpdateStep game_colony_screen_mouse_click(
       colonies_clear_construction(&game->colonies, game->colony_view_id);
       colony_screen_close_construction(csv);
       set_status(game, "Construction cleared", NULL);
-      colony_screen_set_status(csv, game->status);
       break;
     case COLONY_HIT_CONSTRUCTION_ROW:
       if (hit.index >= 0 && hit.index < csv->buildable_count) {
@@ -1642,7 +1635,6 @@ static GameUpdateStep game_colony_screen_mouse_click(
         }
       } else {
         colony_screen_close_construction(csv);
-        colony_screen_set_status(csv, game->status);
       }
       break;
     case COLONY_HIT_CONSTRUCTION_MORE:
@@ -1692,7 +1684,6 @@ static GameUpdateStep game_colony_screen_key_enter(
         game_colony_commit_job(game, colony, csv->job_ids[csv->jobs_selection]);
       } else {
         colony_screen_close_jobs(csv);
-        colony_screen_set_status(csv, game->status);
       }
       return GAME_UPDATE_RETURN_TRUE;
     }
@@ -1717,7 +1708,6 @@ static GameUpdateStep game_colony_screen_key_enter(
           } else {
             set_status(game, "Cannot equip unit", NULL);
           }
-          colony_screen_set_status(csv, game->status);
         } else {
           game_colony_request_eject(game, csv->eject_colonist_index, role);
         }
@@ -1749,7 +1739,6 @@ static GameUpdateStep game_colony_screen_key_enter(
         colonies_clear_construction(&game->colonies, game->colony_view_id);
         set_status(game, "Construction cleared", NULL);
         colony_screen_close_construction(csv);
-        colony_screen_set_status(csv, game->status);
       } else if (bi >= 0 && bi < csv->buildable_count) {
         /* Shift+Enter is the keyboard twin of the Shift-click queue pick. */
         if (input->shift_held) {
@@ -1759,7 +1748,6 @@ static GameUpdateStep game_colony_screen_key_enter(
         }
       } else {
         colony_screen_close_construction(csv);
-        colony_screen_set_status(csv, game->status);
       }
       return GAME_UPDATE_RETURN_TRUE;
     }
@@ -1832,7 +1820,6 @@ static GameUpdateStep game_colony_focus_key(
     break;
   }
   csv->blink_epoch_ms = csv->blink_ms; /* FUN_2f2b_2e2a full redraw: DS:0x334 on */
-  colony_screen_set_status(csv, game->status);
   return GAME_UPDATE_RETURN_TRUE;
 }
 
@@ -2133,7 +2120,6 @@ static GameUpdateStep game_colony_screen_keys(
       } else {
         game_colony_open_load_prompt(game, colony, cargo);
       }
-      colony_screen_set_status(csv, game->status);
       return GAME_UPDATE_RETURN_TRUE;
     }
     if ((ch == 'r' || ch == 'R') && colony && !csv->jobs_open && !csv->construction_open &&
@@ -2473,7 +2459,7 @@ static GameUpdateStep game_europe_screen_menu_keys(
         break;
       case EUROPE_MENU_DOCK:
         rows = eu->dock_menu_count;
-        for (int i = 0; i < rows && i < 32; ++i) {
+        for (int i = 0; i < rows && i < EUROPE_DOCK_MENU_MAX; ++i) {
           greyed |= eu->dock_menu_greyed[i] ? 1u << i : 0u;
         }
         break;

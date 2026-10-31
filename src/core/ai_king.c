@@ -86,10 +86,6 @@
  */
 
 /* ===== Crown/boycott messaging & dump-goods helpers (ai_king_crown_nation .. ai_king_teaparty_party_name) ===== */
-int ai_king_crown_nation(int human_nation) {
-  return (human_nation == 0) ? 1 : 0;
-}
-
 int ai_king_pick_dump_goods_cargo(
   uint16_t boycott_bitmap,
   uint16_t candidate_mask,

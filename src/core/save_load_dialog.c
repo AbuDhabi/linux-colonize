@@ -72,12 +72,14 @@ static void save_load_format_label(
       leader[--n] = '\0';
     }
   }
+  char of_the[24];
   snprintf(
     out,
     out_sz,
-    "%s %s of the %s, %s %u%s",
+    "%s %s %s %s, %s %u%s",
     diff,
     leader,
+    reports_misc_word(19, "", of_the, sizeof(of_the)), /* LABELS @MISC 19 "of the" */
     reports_nation_adjective_display_name(info->human_nation),
     reports_season_name(info->autumn != 0),
     (unsigned)info->year,

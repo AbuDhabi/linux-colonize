@@ -162,8 +162,8 @@ eat the braces at draw time via `popup_markup_text_width` /
 menu rows (@ARMOPTIONS; greyed rows stay all-grey like DOS), colony-screen
 custom-house/dock-orders titles, plus the pre-existing brace-aware paths
 (title menu, `europe_draw_prose`, pedia, new_game). Plain-text sinks strip
-via `popup_msg_strip_markup` (window-title status via `game_status_text`,
-`colony_screen_set_status`, ai_contact/ai_diplo/ai_euro status lines).
+via `popup_msg_strip_markup` (the port-only debug status via `game_status_text`,
+ai_contact/ai_diplo/ai_euro status lines).
 
 ### `%NUMBERn$` — the `$` is literal
 

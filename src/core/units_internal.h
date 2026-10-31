@@ -94,7 +94,6 @@ extern int g_units_last_combat;
 extern ColonizeEnterReason g_units_last_enter_reason;
 extern ColonizeUnitsMoveWatchFn g_units_move_watch;
 extern void* g_units_move_watch_user;
-extern int g_units_native_chrome_owned;
 extern int g_units_native_gear_armed;
 extern int g_units_native_gear_mounted;
 /* 0 while units_apply_land_loss_outcome runs for a beaten ATTACKER (1b0e raw 100731). */
@@ -111,7 +110,6 @@ bool units_defender_is_dos_scratch_row(void);
 void units_dissolve_notify(int phase);
 void units_log_ident( const ColonizeUnitPool* pool, int unit_id, char* out, size_t out_size );
 int units_tile_is_ocean_or_hs(const ColonizeCol1Save* col1, int x, int y);
-bool units_unit_is_sea(const ColonizeUnitPool* pool, const ColonizeUnit* u);
 
 /* --- owned by units_combat.c --- */
 extern bool g_units_colony_autodefender;

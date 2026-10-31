@@ -1,5 +1,6 @@
 #include "core/ai_popup.h"
 #include "core/ai_popup_render.h"
+#include "core/ai_diplo.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -892,17 +893,7 @@ bool ai_popup_requeue_current(AiPopupState* st) {
 }
 
 int ai_popup_portrait_tier_from_alarm(int alarm) {
-  /* FUN_15dc_00a2 */
-  if (alarm < 0x19) {
-    return 0;
-  }
-  if (alarm < 0x32) {
-    return 1;
-  }
-  if (alarm < 0x4b) {
-    return 2;
-  }
-  return 3;
+  return ai_relation_quartile(alarm); /* FUN_15dc_00a2 */
 }
 
 void ai_popup_set_last_portrait(AiPopupState* st, int tribe, int tier) {

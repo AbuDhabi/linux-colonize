@@ -66,11 +66,11 @@
  * pad[1] (the bit latches below) are in use; pad[2] is reserved — never read
  * or written — so a new latch byte can claim it without a save-format change.
  */
+/* The pad's nation is the power the King follows: DS:0x5398 in hot-seat
+ * (col1_fixed_human), else the control-table human — raw head.human_player
+ * can be a stale 0 in older port saves (col1_save_human_nation_from). */
 static inline uint8_t* ai_king_latch_pad(ColonizeCol1Save* col1) {
-  int n = (int)col1->head.human_player;
-  if (n < 0 || n >= (int)COLONIZE_COL1_NATION_COUNT) {
-    n = 0;
-  }
+  const int n = col1_fixed_human(col1, col1_save_human_nation(col1));
   return col1->nation[n].unknown23_pad;
 }
 
@@ -236,6 +236,18 @@ void ai_king_cache_nation_sol(ColonizeTurnContext* ctx, int nation);
 int ai_king_independence_declared(const ColonizeCol1Save* col1);
 
 /*
+ * DOS new-game REF seed (75c2:360b..3643, diff = DS:0x53a6): regulars
+ * 8*diff+15, dragoons 5*(diff+1), man-o-wars 3*diff+2, artillery 6*diff+2.
+ * Fills out[0..3] in head.expeditionary_force[] order.
+ */
+static inline void ai_king_ref_seed_floor(int diff, uint16_t out[4]) {
+  out[0] = (uint16_t)(8 * diff + 15);
+  out[1] = (uint16_t)(5 * (diff + 1));
+  out[2] = (uint16_t)(3 * diff + 2);
+  out[3] = (uint16_t)(6 * diff + 2);
+}
+
+/*
  * MENU.TXT @GAME "DECLARE INDEPENDENCE" command (MAP_MENU_ACTION_
  * DECLARE_INDEPENDENCE). Below AI_KING_DECLARE_SOL_MIN: GAME.TXT @TOOTORY OK
  * notice. At/above threshold and not yet at war: same Never/Yes @DECLARE
@@ -277,7 +289,9 @@ void ai_king_tax_delta_ai(ColonizeTurnContext* ctx, int nation_id, int delta);
  * — only for callers with no save in hand. The real slot is the one the
  * War-of-the-Spanish-Succession merger vacated (DOS FUN_43f7_0218 → DS:0x53d2
  * = head.crown_nation_id); prefer ai_king_crown_nation_col1. */
-int ai_king_crown_nation(int human_nation);
+static inline int ai_king_crown_nation(int human_nation) {
+  return (human_nation == 0) ? 1 : 0;
+}
 
 /* Crown slot per the save: head.crown_nation_id when set (DOS 0x53d2 — the
  * slot the succession merger emptied), else the fallback formula. */

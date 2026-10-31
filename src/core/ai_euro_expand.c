@@ -48,10 +48,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-int ai_euro_type_is_wagon_name(ColonizeUnitKind kind);
-int ai_euro_has_useful_goto(const ColonizeUnit* u, const ColonizeWorldMap* map);
-int ai_euro_ship_enter_europe(ColonizeTurnContext* ctx, ColonizeUnit* ship);
-
 void ai_euro_set_goto(ColonizeUnit* u, int orders, int gx, int gy) {
   if (!u) {
     return;
@@ -123,24 +119,6 @@ int ai_euro_unit_hold_has_capacity(const ColonizeUnitPool* units, const Colonize
   return 0;
 }
 
-/* True when the unit (wagon or ship) carries cargo_type in any hold. */
-int ai_euro_unit_hold_has_cargo_type(
-  const ColonizeUnitPool* units,
-  const ColonizeUnit* w,
-  int cargo_type
-) {
-  if (!units || !w || cargo_type < 0 || cargo_type >= COLONIZE_CARGO_COUNT) {
-    return 0;
-  }
-  const int n = units_goods_hold_count(units, w->id);
-  for (int h = 0; h < n; ++h) {
-    if (units_hold_amount(units, w->id, h) > 0 && w->hold_goods_type[h] == cargo_type) {
-      return 1;
-    }
-  }
-  return 0;
-}
-
 /*
  * (`ai_euro_colony_haul_threshold` / `ai_euro_colony_haul_cargo_short` — the
  * shared "stock < 20 / 10 / pop*2" ladder — were deleted 2026-09-18 with the
@@ -158,8 +136,6 @@ int ai_euro_unit_hold_has_cargo_type(
  * quantity is `min(stock[g], 100)` inside the 20e6 LOAD matrix, md:3126-3129,
  * live in `ai_euro_20e6_load_pick`'s call sites.)
  */
-
-int ai_euro_20e6_dos_type(const ColonizeUnitPool* units, const ColonizeUnit* u);
 
 /*
  * Free commodity holds on a hauler — DOS `unit_type_hold_capacity(0x5237) −
@@ -446,17 +422,6 @@ void ai_euro_wagon_errand_clear_all(void) {
   memset(ai_euro_s_20e6_wagon_errand, 0, sizeof(ai_euro_s_20e6_wagon_errand));
 }
 
-/* Defined later in this file (after their 20e6 dependencies). */
-int ai_euro_20e6_load_pick(
-  ColonizeTurnContext* ctx, const ColonizeColony* c, int nation, int is_ship
-);
-int ai_euro_20e6_wagon_village_errand(
-  ColonizeTurnContext* ctx, int nation_id, ColonizeUnit* wagon
-);
-int ai_euro_20e6_wagon_origin_walk(
-  ColonizeTurnContext* ctx, int nation_id, ColonizeUnit* u
-);
-
 /*
  * Wagon Train beat, DOS shape (FUN_521d_20e6 land arm):
  *
@@ -526,14 +491,7 @@ int ai_euro_try_wagon_haul(
          * (DOSBox independence 7->8: Bahia reads 4 after a Furs dump). */
         const uint8_t idle_before = c->cargo_idle_turns;
         for (;;) {
-          int hold = -1;
-          const int n = units_goods_hold_count(ctx->units, wagon->id);
-          for (int h = 0; h < n; ++h) {
-            if (units_hold_amount(ctx->units, wagon->id, h) > 0) {
-              hold = h;
-              break;
-            }
-          }
+          const int hold = units_first_goods_hold(ctx->units, wagon->id);
           if (hold < 0) {
             break;
           }
@@ -810,64 +768,3 @@ int ai_euro_type_is_wagon_name(ColonizeUnitKind kind) {
   /* @UNIT row 12 is "Wagon Train"; no roster spells it "Supply Train". */
   return kind == UNITS_KIND_WAGON;
 }
-
-/*
- * The AI_EURO_*_PURCHASE_GOLD / AI_EURO_VETERAN_SOLDIER_TRAIN_GOLD constants
- * that used to sit here were the OpenCol-shaped hire matrix's private price
- * copies; they went unreferenced when that matrix was retired 2026-09-07e and
- * are removed 2026-09-07. The real prices are the DS:0x978d stride-6 purchase
- * table europe.c now owns (europe_purchase_price, audit AE-17), and DOS
- * 5d04 never trains a Veteran in Europe for gold at all (its only Veteran path
- * is the College bVar5 profession promote).
- */
-
-/* ========================================================================
- * FUN_521d_5d04 — euro_nation_planning, structural port (2026-08-18)
- *
- * Ports the function's own control flow + arithmetic 1:1 from the raw
- * decompile (original_sources_decompiled/viceroy_unpacked_2.c:85822-86564)
- * for the part that's genuinely resolved (raw lines 85872-86064 — the
- * difficulty-scaled treasury bump and the Frigate/Man-O-War-threat /
- * no-ships / cargo-short gate cascade); callees stay stubbed throughout,
- * per request.
- *
- * Resolved this pass (cross-referenced against save_format_map.md /
- * col1_save.h / euro_g_table_0a60.md — see those for the trace): year/
- * turn/difficulty (col1->head), nation.gold (32-bit, direct — the DOS body
- * does manual 16-bit lo/hi carry arithmetic on nation+0x2a/+0x2c that the
- * already-32-bit OpenCol `gold` field doesn't need), the per-nation census
- * block (colony_counts/ship_counts/colony_pop_totals/armed_ship_counts/
- * ship_cargo_totals/census_pop_proxy — col1_save.h `ColonizeCol1Stuff`),
- * unit_type_counts[nation][16]/[17], DS:0x5382 bit0 — **confirmed** (live
- * DOSBox-X capture, 2026-08-18, `BPM 237D:5382`: `or byte [5382],01` fires
- * 00→01 exactly on Declare Independence) as `game_options.woi`, settling
- * the earlier conflict with an older, looser "NEW WORLD path" guess in
- * euro_dispatcher.c / SYMBOL_MAP.md for the same bit — that guess was
- * wrong, both docs corrected. FUN_281f_09fc(building_index)
- * confirmed elsewhere (euro_unit_act.md) as `has_building` indexed by
- * NAMES.TXT `@BUILDING` file order — index 0xd in that order is "College"
- * (cross-checked against that same doc's independently-confirmed index
- * 0x24 = "Lumber Mill"), FUN_281f_0808 confirmed as `destroy_unit`
- * (move_scoring_ship.md).
- *
- * Deliberately NOT re-ported this pass: raw lines 86065-86564 (the Europe
- * hire ladder + profession/reward loop tail, ~500 raw lines). Traced
- * enough to see it's the same mechanic `ai_euro.c`'s existing extensive
- * "5d04" thin-hire coverage (peace tools/wagon matrix, war Soldier/
- * Dragoon/Artillery hire, buy ladder, `AiEuroInventory.profession_demand`
- * already wired) already approximates — re-transcribing it blind risks
- * duplicating/conflicting with that tested behavior rather than adding
- * value, the same "scope down after inspection" call the 0a60 structural
- * pilot made. Its own callees (FUN_281f_07e0/02e4/0b78/0c9a/095c/0be6/
- * 0c68/0aec, FUN_291f_0b26/0afc/0c3e/09ea/0a2e/0ec2/0d8e/0dc6/0c14,
- * FUN_1d1d_0ec6, FUN_281f_0aba) stay unresolved.
- *
- * Live now: only the treasury bump (`ai_euro_5d04_treasury_bump`) replaces
- * the old function's simplified formula, called from both this function
- * and `ai_euro_nation_planning` below. The gate cascade
- * (`ai_euro_5d04_compute_flags`) is a faithful reference implementation —
- * computed, logged nowhere, not yet gating any mutation — since its two
- * real consumers (bVar5 feeds the deferred hire ladder; the destroy-unit
- * branch is a live-side-effecting op this first pass deliberately keeps
- * stubbed per "be safe").
- * ======================================================================== */

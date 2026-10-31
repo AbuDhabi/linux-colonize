@@ -63,8 +63,6 @@
  * per act, from the 20e6 unload/settle flow, and now so does this port.
  */
 
-int ai_euro_20e6_unit_col5(const ColonizeUnitPool* pool, int dos_type);
-
 /*
  * FUN_521d_20e6 hold-cargo colony-delivery matrix (md:2047-2139;
  * viceroy_overlays.asm 137180-137466, labels 004026/004038/0040a1/0041e5).
@@ -158,7 +156,7 @@ int ai_euro_20e6_delivery_tallies(
  * Muskets aboard (iStack_44 == 0xf) adds a threat term:
  *   +0x10 when the human holds colonies on this continent
  *        (−0x6b1a = colony_counts_by_continent[human][cid], DS:0x94e6)
- *   over the 20-tile ring (DS:0xc8/0xde = ai_euro_k_20e6_ring20_dx/dy): in-bounds
+ *   over the 20-tile ring (DS:0xc8/0xde = MAP_RING20_DX/DY): in-bounds
  *        tile with presence < 4 → +0x18; Indian-held tile →
  *        quartile(alarm_by_player[tribe][nation]) * 0x10
  * Shared tail: +0x1b bit 0x02 (NEARBY_FRIGATE) and cargo-ship type < 0x10 →
@@ -258,8 +256,8 @@ static int ai_euro_20e6_delivery_colony_pick(
         score += 0x10; /* md:2089-2090 */
       }
       for (int r = 0; r < 20; ++r) {
-        const int tx = c->x + (int)ai_euro_k_20e6_ring20_dx[r];
-        const int ty = c->y + (int)ai_euro_k_20e6_ring20_dy[r];
+        const int tx = c->x + MAP_RING20_DX[r];
+        const int ty = c->y + MAP_RING20_DY[r];
         if (tx < 0 || ty < 0 || tx >= (int)ctx->map->width || ty >= (int)ctx->map->height) {
           continue; /* FUN_1000_84f2 map_tile_in_bounds */
         }
@@ -1069,14 +1067,7 @@ static int ai_euro_20e6_ship_berth_arrival(
   /* md:3002-3007: dump every hold into the colony, unconditionally. */
   int dumped = 0;
   for (;;) {
-    int hold = -1;
-    const int n = units_goods_hold_count(ctx->units, ship->id);
-    for (int h = 0; h < n; ++h) {
-      if (units_hold_amount(ctx->units, ship->id, h) > 0) {
-        hold = h;
-        break;
-      }
-    }
+    const int hold = units_first_goods_hold(ctx->units, ship->id);
     if (hold < 0) {
       break;
     }
@@ -2548,39 +2539,3 @@ int ai_euro_20e6_colony_sail_pick(
   *out_y = by;
   return 1;
 }
-
-/* --- 20e6 unload/settle: stage helpers --------------------------------- */
-
-/*
- * First-colony found approach (TURN3→4): landfall-keyed found tile. Call before
- * the 20e6 scoring gate so settlers are not FOUND-yanked into Braves.
- * Skips beachhead tip acts (TURN2→3) — only after pioneer stays aboard (FR) or
- * cargo is empty (SP/DU). Cite: test-saves-ai/TURN3-4.
- */
-
-/* --- first-colony landing: stage helpers ------------------------------- */
-
-/* ========================================================================
- * FUN_521d_20e6 / FUN_521d_0a60 per-unit act — stage split (2026-09-16)
- *
- * `ai_euro_unit_act` below used to carry the whole act body (~2060 lines) in
- * one function. It is now a driver that runs the DOS stages in the same order,
- * as a chain of static per-stage helpers. The split is purely structural: no
- * statement was reordered, no gate changed, and every RNG-drawing call keeps
- * its position in the stream.
- *
- * Stage order (each helper's own header names its DOS citation):
- *   head (in ai_euro_unit_act)    guards, 049e notify, roam-abort, coastal
- *                                 embark / mil unload, MoW sail-home, early
- *                                 20e6 move-scoring gate, on-colony admit
- *   ai_euro_act_ship_dos          ship act (20e6 hull path + 479b walk)
- *   ai_euro_act_land              Treasure/Missionary/Wagon land band
- *
- * Locals that cross stage boundaries live in `struct ai_euro_act_ctx`; each
- * helper aliases the ones it needs at entry and writes the mutated ones back
- * at its fall-through exit. Control flow that used to be a bare `return;`
- * inside the body is carried out as `AI_EURO_ACT_RETURN` and honoured by the
- * caller, so an early bail still ends the act exactly where it did before.
- * ======================================================================== */
-
-#include "core/ai_euro_internal.h" /* AiEuroActStatus, struct ai_euro_act_ctx */

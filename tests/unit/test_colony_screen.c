@@ -1795,22 +1795,6 @@ static int case_colony_screen_render_workflow(void) {
     }
   }
 
-  colony_screen_set_status(&view, "test status");
-  if (strcmp(view.status, "test status") != 0) {
-    fprintf(stderr, "set_status failed\n");
-    if (font_ok) {
-      font_file_free(&font);
-    }
-    if (phys0_ok) {
-      ss_free(&phys0);
-    }
-    ss_free(&terrain);
-    map_free(&map);
-    assets_msg_free(&names);
-    colony_screen_free(&view);
-    return 1;
-  }
-
   /* Hit-tests: colonist row, carpenter slot, construction banner, exit. */
   {
     colony_screen_reset_ui(&view);

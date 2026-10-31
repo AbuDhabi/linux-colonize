@@ -45,16 +45,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* Defined further down with the FUN_5952_035e tick; 28c8 needs the same
- * DS:0x8dc8 / DS:0x8e0a ledger pair. */
-void ai_euro_5952_ledgers(
-  const ColonizeWorld* world,
-  const ColonizeColonyPool* pool,
-  const ColonizeColony* col,
-  const ColonizeCol1Save* col1,
-  int gross[AI_EURO_5952_LEDGER_SLOTS],
-  int demand[AI_EURO_5952_LEDGER_SLOTS]
-);
 
 /*
  * FUN_15eb_28c8 — colonist work-plot scorer, DOS-LITERAL (raw 12908-13158).
@@ -1874,9 +1864,6 @@ static void ai_euro_5952_carpenter_arm(
  * eligibility test between FUN_281f_0c9a (expert) and profession 0x1b
  * (Indian Convert), IS ported — see :2626-2637 below, port_bugs.md #568.)
  */
-int ai_euro_20e6_nearest_village(
-  const ColonizeTurnContext* ctx, int x, int y, int* out_dist
-);
 
 /*
  * The bad-winner stop of the 5952 placement passes. `FUN_281f_0b6e` is a
@@ -3219,17 +3206,6 @@ COLONIZE_INTERNAL void ai_euro_5952_seed_horses(
   col->stock[COLONIZE_CARGO_HORSES] = 2;
 }
 
-/* FUN_5952_035e tile-improvement arm (raw 94402-94551, port_bugs.md #612) — the
- * body lives beside the 20e6 terrain/ring tables it shares. */
-void ai_euro_5952_improve_best_plot(
-  ColonizeTurnContext* ctx, ColonizeColony* col, int* out_improvement_owner, int* out_best_plot
-);
-/* FUN_5952_035e raw 94370-94400 — the 20-tool purchase (#640) and the
- * `turn % 7 == 0` inter-colony road-connect arm (#641); both run immediately
- * before the improve arm. */
-ColonizeColony* ai_euro_5952_tools_supply_and_connect(
-  ColonizeTurnContext* ctx, ColonizeColony* col
-);
 
 /*
  * DOS-LITERAL raw 94570-94584 (colony_tick_5952_035e.md:1053-1060, port_bugs.md

@@ -94,7 +94,7 @@ const char* trade_screen_stop_label(
   if (c && c->active && c->name[0]) {
     return c->name;
   }
-  return "(colony)";
+  return ""; /* miss = empty, no typed English */
 }
 
 static int trade_icon_width(const ColonizeSpriteSheet* icons, int cargo) {

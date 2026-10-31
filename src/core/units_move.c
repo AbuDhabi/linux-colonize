@@ -479,18 +479,13 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_combat_pre(units_move_ctx* c) {
     if (foe_nation >= 4 && foe_nation <= 11) {
       const int base = (int)col1->head.difficulty + 5;
       int delta = base;
-      if (col1->tribe) {
-        for (uint16_t ti = 0; ti < col1->head.tribe_count; ++ti) {
-          ColonizeCol1Tribe* vt = &col1->tribe[ti];
-          if ((int)vt->x != dest_x || (int)vt->y != dest_y) {
-            continue;
-          }
-          delta = base * 2;
-          vt->alarm[unit->nation_id].attacks++;
-          if (vt->state.capital) {
-            delta = base * 6;
-          }
-          break;
+      const int vti = col1_save_tribe_index_at(col1, dest_x, dest_y);
+      if (vti >= 0) {
+        ColonizeCol1Tribe* vt = &col1->tribe[vti];
+        delta = base * 2;
+        vt->alarm[unit->nation_id].attacks++;
+        if (vt->state.capital) {
+          delta = base * 6;
         }
       }
       /* Full FUN_4cc6_00f2 (port_bugs.md #1004): the trespass slam is a
@@ -576,12 +571,9 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_combat_resolve(units_move_ctx* c) {
     if (c->village_temp >= 0 && col1 && col1->tribe) {
       /* FUN_5fef_1b0e 5fef:26f6-271a: a village with population > 1
        * loses one person and emits 0x48; the final loss emits 0x4a. */
-      for (uint16_t ti = 0; ti < col1->head.tribe_count; ++ti) {
-        const ColonizeCol1Tribe* tribe = &col1->tribe[ti];
-        if ((int)tribe->x == dest_x && (int)tribe->y == dest_y && tribe->population > 1) {
-          win_sound = 0x48;
-          break;
-        }
+      const ColonizeCol1Tribe* tribe = col1_save_tribe_at(col1, dest_x, dest_y);
+      if (tribe && tribe->population > 1) {
+        win_sound = 0x48;
       }
     }
     if (phantom_defender && colonies) {
@@ -961,24 +953,22 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_commit_step(units_move_ctx* c) {
     c->foreign_colony_entry || c->reason == COLONIZE_ENTER_COMBAT_NAVAL;
   if (!relink_advance) {
     units_vis_mask_after_move(pool, map, unit_id, dest_x, dest_y, dest_owner);
-  }
-  /*
-   * DOS-LITERAL FUN_465b_0000 raw 75712 / 75813: `FUN_281f_07a0(0x281f)` (the
-   * far thunk to FUN_13f1_02f8) sits in the mover, unconditionally, right after
-   * the arrival bookkeeping (0948 stack_set_xy, 084e, 07fe) on both of that
-   * body's move-commit arms. So DOS reveals once per *step*, not once per turn:
-   * a hull that takes three steps stamps its owner nibble onto the unclaimed
-   * tiles around all three, water included, which is why the seed-100 TURN2/3
-   * layer3 grids show 0x11/0x21/0x31 blocks along each AI ship's whole route.
-   * The port previously revealed only at the turn top
-   * (turn.c turn_reveal_fog_for_nation, FUN_3844_00f2) plus the human order
-   * paths, so every intermediate tile of an AI multi-step move went unstamped
-   * (port_bugs.md #530 S4). The 1b0e winner advance (0948 relink, above) is
-   * not a move-commit arm and reveals nothing (america2 38->39: a French
-   * Privateer advancing onto the tile of the Merchantman it beat leaves the
-   * Dutch stack beside it unmarked).
-   */
-  if (!relink_advance) {
+    /*
+     * DOS-LITERAL FUN_465b_0000 raw 75712 / 75813: `FUN_281f_07a0(0x281f)` (the
+     * far thunk to FUN_13f1_02f8) sits in the mover, unconditionally, right after
+     * the arrival bookkeeping (0948 stack_set_xy, 084e, 07fe) on both of that
+     * body's move-commit arms. So DOS reveals once per *step*, not once per turn:
+     * a hull that takes three steps stamps its owner nibble onto the unclaimed
+     * tiles around all three, water included, which is why the seed-100 TURN2/3
+     * layer3 grids show 0x11/0x21/0x31 blocks along each AI ship's whole route.
+     * The port previously revealed only at the turn top
+     * (turn.c turn_reveal_fog_for_nation, FUN_3844_00f2) plus the human order
+     * paths, so every intermediate tile of an AI multi-step move went unstamped
+     * (port_bugs.md #530 S4). The 1b0e winner advance (0948 relink, above) is
+     * not a move-commit arm and reveals nothing (america2 38->39: a French
+     * Privateer advancing onto the tile of the Merchantman it beat leaves the
+     * Dutch stack beside it unmarked).
+     */
     (void)units_reveal_sight_w(c->w, unit);
   }
   return UNITS_MOVE_CONTINUE;

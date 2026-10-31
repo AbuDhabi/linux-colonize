@@ -7,6 +7,7 @@
 #include "core/ai_popup.h"
 #include "core/map_menu.h"
 #include "core/popup.h"
+#include "core/popup_msg.h"
 #include "core/reports.h"
 #include "core/reports_names.h"
 #include "core/strutil.h"
@@ -32,10 +33,6 @@ void cheat_list_close(CheatListDialog* dlg) {
   dlg->option_count = 0;
   dlg->prompt[0] = '\0';
   /* has_result / result_* intentionally preserved until the next open/init. */
-}
-
-static bool cheat_list_is_directive(const char* line) {
-  return line && line[0] == '@';
 }
 
 /*
@@ -72,7 +69,7 @@ bool cheat_list_catalog_rows(
   int filled = 0;
   for (int i = 0; i < section->line_count && filled < count; ++i) {
     const char* line = section->lines[i];
-    if (!line || line[0] == '\0' || cheat_list_is_directive(line)) {
+    if (!line || line[0] == '\0' || popup_msg_is_directive(line)) {
       continue;
     }
     if (row < skip_rows) {
@@ -100,7 +97,7 @@ static bool cheat_list_fill_from_section(
     if (!line || line[0] == '\0') {
       continue;
     }
-    if (cheat_list_is_directive(line)) {
+    if (popup_msg_is_directive(line)) {
       if (strncmp(line, "@width=", 7) == 0) {
         dlg->width = atoi(line + 7);
         if (dlg->width < 80) {
@@ -484,7 +481,7 @@ bool cheat_list_open_debug_flags(
   if (section) {
     for (int i = 0; i < section->line_count && n < 7; ++i) {
       const char* line = section->lines[i];
-      if (!line || line[0] == '\0' || cheat_list_is_directive(line)) {
+      if (!line || line[0] == '\0' || popup_msg_is_directive(line)) {
         continue;
       }
       if (dlg->prompt[0] == '\0' && n == 0) {
@@ -506,13 +503,6 @@ bool cheat_list_open_debug_flags(
   }
   if (dlg->prompt[0] == '\0') {
     str_copy_trunc(dlg->prompt, sizeof(dlg->prompt), k_fallback_prompt);
-  }
-  {
-    /* Multi-select only saves on Enter (Esc / click-outside cancels and
-     * discards toggles) — say so, matching the TRADE cargo picker hint. */
-    char with_hint[COLONIZE_MSG_LINE_LEN + 32];
-    snprintf(with_hint, sizeof(with_hint), "%s (Space toggle, Enter OK)", dlg->prompt);
-    str_copy_trunc(dlg->prompt, sizeof(dlg->prompt), with_hint);
   }
   for (int i = 0; i < n; ++i) {
     const int on = (initial_mask & (uint16_t)(1u << i)) != 0;

@@ -2,7 +2,7 @@
  * Sections:
  *  - Recruit, train & purchase commit flows (europe_compute_recruit_passage .. europe_open_recruit_menu)
  *  - Dock unit typing, kit application & mirror units (europe_dock_unit_dos_type .. europe_spawn_dock_mirror_unit)
- *  - Dock arms buy/sell menu (europe_arm_buy_cost .. europe_pop_dock_immigrant_ex)
+ *  - Dock arms buy/sell menu (europe_arm_buy_cost .. europe_apply_dock_menu_row)
  */
 
 #include "core/europe.h"
@@ -45,12 +45,6 @@ static bool europe_arm_row_enabled(
   const EuropeDockImmigrant* d,
   int row,
   int* out_price
-);
-static bool europe_pop_dock_immigrant_ex(
-  EuropeScreen* eu,
-  char* out_name,
-  size_t out_name_size,
-  int* out_profession
 );
 
 /* ===================== Recruit, train & purchase commit flows (europe_compute_recruit_passage .. europe_open_recruit_menu) ===================== */
@@ -122,7 +116,7 @@ bool europe_recruit_from_pool_ex(EuropeScreen* eu, int pool_index, ColonizeDosRn
     return false;
   }
   if (!eu->pool[pool_index].filled) {
-    europe_set_status(eu, "That recruit is unavailable.");
+    eu->status[0] = '\0';
     return false;
   }
   if (!europe_recruit_affordable(eu)) {
@@ -140,13 +134,7 @@ bool europe_recruit_from_pool_ex(EuropeScreen* eu, int pool_index, ColonizeDosRn
   slot->present = true;
   slot->sentry = true;
   slot->dos_type = europe_dock_type_roll(eu, slot->name, slot->profession, rng);
-  snprintf(
-    eu->status,
-    sizeof(eu->status),
-    "Recruited %s (-%d$).",
-    slot->name,
-    eu->recruit_passage
-  );
+  eu->status[0] = '\0';
   diag_info(
     "EUROPE recruited %s (job %d) for %d$ passage (gold=%d)",
     slot->name, slot->profession, eu->recruit_passage, eu->gold
@@ -194,7 +182,7 @@ bool europe_recruit_free_from_pool_ex(
   slot->present = true;
   slot->sentry = true;
   slot->dos_type = europe_dock_type_roll(eu, slot->name, slot->profession, rng);
-  snprintf(eu->status, sizeof(eu->status), "%s joins the docks.", slot->name);
+  eu->status[0] = '\0';
   europe_refill_pool_slot_rng(eu, pool_index, false, rng);
   return true;
 }
@@ -215,7 +203,7 @@ bool europe_brewster_pick_from_pool_ex(
    * ship ARRIVAL (DS:0x14c). A Brewster pick answered after the end of turn
    * was wiping the pending auto-open of the ship that had just docked. */
   europe_refresh_recruit_passage(eu);
-  snprintf(eu->status, sizeof(eu->status), "Immigrant arrives in Europe.");
+  eu->status[0] = '\0';
   return true;
 }
 
@@ -294,7 +282,7 @@ bool europe_train_ex(EuropeScreen* eu, int train_index, ColonizeDosRng* rng) {
   slot->present = true;
   slot->sentry = true;
   slot->dos_type = europe_dock_type_roll(eu, slot->name, slot->profession, rng);
-  snprintf(eu->status, sizeof(eu->status), "Trained %s (-%d$).", t->expert_name, t->cost);
+  eu->status[0] = '\0';
   diag_info("EUROPE trained %s for %d$ (gold=%d)", t->expert_name, t->cost, eu->gold);
   return true;
 }
@@ -377,7 +365,8 @@ bool europe_purchase_commit(
     europe_purse_move(eu, g_europe_live_save, europe_purse_nation(eu), -cost);
     EuropeHarborShip* slot = &eu->harbor[eu->harbor_ships++];
     europe_clear_ship(slot);
-    slot->type_index = -1; /* resolved by name in game_loop / caller */
+    slot->type_index = -1; /* no pool here: europe_ship_type_index resolves the kind */
+    slot->kind_plus1 = (int)p->kind + 1;
     snprintf(slot->name, sizeof(slot->name), "%s", pname);
     /* FUN_38fd_4b50 raw 64895-64896: the new hull's +0x314d/+0x314e take
      * the nation tile (+0x32/+0x33) at purchase; it later sails from them. */
@@ -387,7 +376,7 @@ bool europe_purchase_commit(
       slot->exit_east = eu->last_exit_east;
     }
     europe_refresh_harbor_selection(eu);
-    snprintf(eu->status, sizeof(eu->status), "Purchased %s (-%d$).", pname, cost);
+    eu->status[0] = '\0';
     diag_info("EUROPE purchased ship %s for %d$ (gold=%d)", pname, cost, eu->gold);
     return true;
   }
@@ -400,8 +389,9 @@ bool europe_purchase_commit(
   slot->profession = -1;
   slot->present = true;
   slot->sentry = true;
+  slot->artillery = p->kind == UNITS_KIND_ARTILLERY;
   slot->dos_type = europe_dock_type_roll(eu, slot->name, slot->profession, rng);
-  snprintf(eu->status, sizeof(eu->status), "Purchased %s (-%d$).", pname, cost);
+  eu->status[0] = '\0';
   diag_info("EUROPE purchased %s for %d$ (gold=%d)", pname, cost, eu->gold);
   return true;
 }
@@ -570,7 +560,7 @@ int europe_dock_unit_type_index(const ColonizeUnitPool* units, int dos_type) {
  * the plain bottom-right box, a Veteran Dragoon most visibly (port_bugs.md).
  * dos_type is the field the @ARMOPTIONS rows move around and is what
  * europe_dock_sprite already picks the sprite from; Artillery carries no
- * dos_type of its own and is name-flagged there, so it is here too.
+ * dos_type of its own and is flagged by d->artillery there, so it is here too.
  */
 int europe_dock_display_type_index(
   const ColonizeUnitPool* units, const EuropeDockImmigrant* d
@@ -579,14 +569,11 @@ int europe_dock_display_type_index(
     return -1;
   }
   int ti = -1;
-  if (europe_dock_name_is_artillery(d->name)) {
+  if (d->artillery) {
     ti = units_kind_type_index(units, UNITS_KIND_ARTILLERY);
   }
   if (ti < 0) {
     ti = europe_dock_unit_type_index(units, d->dos_type);
-  }
-  if (ti < 0) {
-    ti = units_find_type(units, d->name);
   }
   if (ti < 0) {
     ti = units_kind_type_index(units, UNITS_KIND_COLONIST);
@@ -742,7 +729,7 @@ int europe_spawn_dock_mirror_unit(
  * Soldiers or Dragoons and buy otherwise, Tools sell for Pioneers, Horses
  * sell for Dragoons or Scouts.
  */
-/* ===================== Dock arms buy/sell menu (europe_arm_buy_cost .. europe_pop_dock_immigrant_ex) ===================== */
+/* ===================== Dock arms buy/sell menu (europe_arm_buy_cost .. europe_apply_dock_menu_row) ===================== */
 static int europe_arm_buy_cost(const EuropeScreen* eu, int cargo, int qty) {
   return europe_buy_price(eu, cargo) * qty;
 }
@@ -1051,7 +1038,7 @@ bool europe_apply_dock_menu_row_ex(
   }
 
   if (gold_delta < 0 && eu->gold < -gold_delta) {
-    europe_set_status(eu, "The treasury cannot afford that.");
+    eu->status[0] = '\0';
     return false;
   }
   /* 38fd:3b4a/3ba0/3bfc `add [bx+0x2a],..` — the bound record's treasury, so
@@ -1121,38 +1108,4 @@ bool europe_apply_dock_menu_row(
   int row
 ) {
   return europe_apply_dock_menu_row_ex(eu, units, NULL, nation_id, dock_index, row);
-}
-
-static bool europe_pop_dock_immigrant_ex(
-  EuropeScreen* eu,
-  char* out_name,
-  size_t out_name_size,
-  int* out_profession
-);
-
-bool europe_pop_dock_immigrant(EuropeScreen* eu, char* out_name, size_t out_name_size) {
-  return europe_pop_dock_immigrant_ex(eu, out_name, out_name_size, NULL);
-}
-
-static bool europe_pop_dock_immigrant_ex(
-  EuropeScreen* eu,
-  char* out_name,
-  size_t out_name_size,
-  int* out_profession
-) {
-  if (!eu || eu->dock_count <= 0) {
-    return false;
-  }
-  if (out_name && out_name_size > 0) {
-    snprintf(out_name, out_name_size, "%s", eu->dock[0].name);
-  }
-  if (out_profession) {
-    *out_profession = eu->dock[0].profession;
-  }
-  for (int i = 1; i < eu->dock_count; ++i) {
-    eu->dock[i - 1] = eu->dock[i];
-  }
-  eu->dock_count--;
-  memset(&eu->dock[eu->dock_count], 0, sizeof(eu->dock[0]));
-  return true;
 }

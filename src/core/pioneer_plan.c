@@ -37,11 +37,6 @@ static void pioneer_plan_set(int x, int y, uint8_t bits) {
   s_plan[y * 256 + x] = bits;
 }
 
-static bool pioneer_plan_forest(const ColonizeWorldMap* map, int x, int y) {
-  const int pedia = map_pedia_terrain_index_at(map, x, y);
-  return pedia >= 8 && pedia <= 23;
-}
-
 /* The live answer, explored-ness aside (reconcile only asks about tiles in sight). */
 static uint8_t pioneer_plan_live_bits(const ColonizeWorld* w, int nation, int x, int y) {
   const ColonizeWorldMap* map = w->map;
@@ -56,14 +51,9 @@ static uint8_t pioneer_plan_live_bits(const ColonizeWorld* w, int nation, int x,
     return 0; /* native settlement / rival colony */
   }
   uint8_t bits = 0;
-  /* Same terrain gates as units_pioneer_tile_can_clear_or_plow / the road body. */
-  const int pedia = map_pedia_terrain_index_at(map, x, y);
-  if (pedia != 0x1b && pedia != 0x1c) {
-    if (pioneer_plan_forest(map, x, y)) {
-      bits |= PIONEER_PLAN_CLEAR | PIONEER_PLAN_PLOW;
-    } else if (!map_tile_is_plowed(map, x, y)) {
-      bits |= PIONEER_PLAN_PLOW;
-    }
+  bool clearing = false;
+  if (units_pioneer_tile_can_clear_or_plow(map, x, y, &clearing)) {
+    bits |= clearing ? (PIONEER_PLAN_CLEAR | PIONEER_PLAN_PLOW) : PIONEER_PLAN_PLOW;
   }
   if (!map_tile_has_road(map, x, y) && !map_tile_has_city(map, x, y) && !col) {
     bits |= PIONEER_PLAN_ROAD;

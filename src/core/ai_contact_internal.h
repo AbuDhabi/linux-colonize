@@ -25,8 +25,6 @@ void ai_contact_raid_alarm_tail(
 /* Test-only externs (port_bugs.md #1106): no production caller. */
 /* Last colony-raid loot kind applied. */
 int ai_contact_last_raid_kind(void);
-/* Adjacency sweep over the nation's Braves (ai_contact_raid.c header). */
-void ai_contact_indian_meet_trade(ColonizeTurnContext* ctx, int nation_id);
 /* Argument-defaulting shims of ai_contact_try_village_meet_unit_at /
  * ai_contact_try_ship_village_unit (unit_id / tribe_index -1). */
 int ai_contact_try_village_meet(
@@ -80,11 +78,6 @@ enum {
 enum {
   AI_CONTACT_LEARNSTAY_YES = 1,
   AI_CONTACT_LEARNSTAY_NO = 2
-};
-
-enum {
-  AI_CONTACT_DEMAND_TOOLS = 1, /* −10 tools (stock/unit ≥20), friction −3 */
-  AI_CONTACT_DEMAND_GOLD = 2   /* −15 gold (treasury ≥50), friction −3 */
 };
 
 enum {
@@ -244,12 +237,8 @@ int ai_contact_2820_met_bit(const ColonizeTurnContext* ctx, int e, int nation_id
 int ai_contact_2e92_candidates(const AiContact2820* s, int goods[3], int slots[3]);
 int ai_contact_2820_sell_price( const ColonizeCol1Indian* ind, int cargo, int ask, int qty, int difficulty, int alarm, AiContact2820* s );
 int ai_contact_a618_skill(ColonizeTurnContext* ctx, int nation_id, const ColonizeCol1Tribe* t);
-int ai_contact_apply_demand_gold( ColonizeTurnContext* ctx, ColonizeCol1Indian* ind, int nation_id, int e );
-int ai_contact_apply_demand_tools( ColonizeTurnContext* ctx, ColonizeCol1Indian* ind, int nation_id, int e, ColonizeUnit* other, int near_x, int near_y );
-int ai_contact_auto_trade( ColonizeTurnContext* ctx, ColonizeCol1Indian* ind, int nation_id, int e, ColonizeUnit* unit );
 int ai_contact_brave_walked_up_to(const ColonizeUnit* brave, int cx, int cy);
 int ai_contact_is_visit_brave( const ColonizeTurnContext* ctx, int nation_id, int e, const ColonizeUnit* brave );
-int ai_contact_enqueue_demand_amount_choice( ColonizeTurnContext* ctx, int e, int nation_id, ColonizeUnit* other, int near_x, int near_y );
 int ai_contact_enqueue_incite_target_choice( ColonizeTurnContext* ctx, int e, int nation_id, int is_missionary, int is_capital );
 int ai_contact_enter_hostile_village( ColonizeTurnContext* ctx, int e, int nation_id, ColonizeUnit* u );
 int ai_contact_euro_is_human(const ColonizeTurnContext* ctx, int e);
@@ -257,12 +246,12 @@ int ai_contact_is_petty_criminal(const ColonizeUnitPool* units, const ColonizeUn
 int ai_contact_meet_economics_2154( ColonizeTurnContext* ctx, int indian_nation, const ColonizeCol1Tribe* tribe, AiContactMeetEcon2154* out );
 void ai_contact_2820_sort(const int16_t* key, int* order);
 int ai_contact_nearest_colony( const ColonizeTurnContext* ctx, int nation, int x, int y, int continent, int min_tools, int max_dist, int* out_dist );
+int ai_contact_visit_home_tribe(const ColonizeTurnContext* ctx, int nation_id, int home_tribe_index);
 int ai_contact_visit_demand_allowed( ColonizeTurnContext* ctx, const ColonizeCol1Indian* ind, const ColonizeCol1Tribe* t, int nation_id, int e, int brave_id, int alarm );
 int ai_contact_welcome_pending(const AiPopupState* st, int e, int nation_id);
 void ai_contact_apply_beg_food( ColonizeTurnContext* ctx, ColonizeCol1Indian* ind, int nation_id, int e, int colony_id, int home_tribe, int accept );
 void ai_contact_apply_buy0( ColonizeTurnContext* ctx, ColonizeCol1Indian* ind, int nation_id, int e, int payload, int choice );
 void ai_contact_apply_buywhich( ColonizeTurnContext* ctx, ColonizeCol1Indian* ind, int nation_id, int e, int unit_id, int cargo );
-void ai_contact_apply_gift_gold( ColonizeTurnContext* ctx, ColonizeCol1Indian* ind, int nation_id, int e, unsigned gold_cost, int friction_decay );
 void ai_contact_apply_incite( ColonizeTurnContext* ctx, ColonizeCol1Indian* ind, int nation_id, int e, int target, int is_missionary, int is_capital );
 void ai_contact_apply_raid_loot( ColonizeTurnContext* ctx, ColonizeColony* c, int indian_nation, int target_euro, AiRaidKind kind );
 void ai_contact_apply_reparations( ColonizeTurnContext* ctx, ColonizeCol1Indian* ind, int nation_id, int e, int flavor, int accept );
@@ -276,7 +265,6 @@ void ai_contact_clamp_alarms(ColonizeCol1Indian* ind);
 void ai_contact_clear_peace(ColonizeCol1Save* col1, int indian_nation, int euro_nation);
 void ai_contact_enqueue_incite_confirm( ColonizeTurnContext* ctx, ColonizeCol1Indian* ind, int nation_id, int e, int target, int is_missionary, int is_capital );
 void ai_contact_enqueue_village_meet( ColonizeTurnContext* ctx, int e, int nation_id, int is_missionary, int is_capital, int unit_id, int tribe_index );
-void ai_contact_gift_or_demand( ColonizeTurnContext* ctx, ColonizeCol1Indian* ind, int nation_id, int e, ColonizeUnit* other, int near_x, int near_y );
 void ai_contact_human_chrome( ColonizeTurnContext* ctx, int e, AiPopupTag tag, int nation_b, const char* title, const char* body );
 void ai_contact_live_among_natives( ColonizeTurnContext* ctx, int e, int nation_id, ColonizeUnit* u, ColonizeCol1Tribe* t );
 void ai_contact_local_rng(ColonizeTurnContext* ctx, int nation_id, ColonizeDosRng* out);

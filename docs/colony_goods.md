@@ -95,9 +95,3 @@ load exactly the load-list cargos greedily by colony stock (highest stock
 first, 100-unit holds) until the transport is full or stock runs out.
 Empty lists move nothing — no unload-all / surplus-ladder fallback.
 Returns 1 if any transfer happened. Cite: ColonizeCol1TradeStop.
-
-## colonies_trade_stop_autofill
-
-Thin TRADE Edit helper: fill unload nibbles from selected unit holds;
-for a colony stop, fill load nibbles from surplus ladder (tools…food).
-Europe (colony NULL): unload only. Cite: ColonizeCol1TradeStop.

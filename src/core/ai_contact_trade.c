@@ -334,21 +334,11 @@ int ai_contact_try_village_gifts(ColonizeTurnContext* ctx, int nation_id) {
     }
     ColonizeColony* c = &ctx->colonies->colonies[best_ci];
     /* The visiting Brave's own village record (DOS FUN_281f_0a4c bind). */
-    ColonizeCol1Tribe* t = NULL;
-    if (brave->home_tribe_id >= 0 && brave->home_tribe_id < (int)ctx->col1->head.tribe_count &&
-        (int)ctx->col1->tribe[brave->home_tribe_id].nation_id == nation_id) {
-      t = &ctx->col1->tribe[brave->home_tribe_id];
-    } else {
-      for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
-        if ((int)ctx->col1->tribe[ti].nation_id == nation_id) {
-          t = &ctx->col1->tribe[ti];
-          break;
-        }
-      }
+    const int home_index = ai_contact_visit_home_tribe(ctx, nation_id, brave->home_tribe_id);
+    if (home_index < 0) {
+      continue; /* raw 96705: no origin byte, no encounter */
     }
-    if (!t) {
-      continue;
-    }
+    ColonizeCol1Tribe* t = &ctx->col1->tribe[home_index];
     {
       /* The Brave's own step already rolled this encounter (022e via 3180 in
        * the 465b tail, ai_contact_visit_step_roll): reuse that verdict. */
@@ -919,32 +909,25 @@ static ColonizeUnit* ai_contact_reparations_visitor(
   return NULL;
 }
 
-/* The visiting unit's own village record (DOS FUN_281f_0a4c bind). */
-static int ai_contact_reparations_home_tribe(
-  const ColonizeTurnContext* ctx, int nation_id, const ColonizeUnit* brave
-) {
+/*
+ * The visiting Brave's own village record (DOS FUN_281f_0a4c bind), shared by
+ * every FUN_5bfb_022e arm (beg, gift, demand, reparations). No fallback: DOS
+ * aborts the WHOLE encounter when the visiting unit's origin byte is unset --
+ * `if (*(char *)(param_3 * 0x1c + 0x314a) < '\0') goto LAB_5bfb_1005;`
+ * (viceroy 96705), right before FUN_281f_0a4c binds DS:0x8d4a to that village
+ * record. The old "first village of the nation" fallback made the refusal's
+ * +0x80 (LAB_5bfb_0ff2) land on a village that is not the demanding Brave's
+ * home, so units_native_village_grudge -- which reads the mover's own +0x314a
+ * row, exactly like FUN_521d_0906 on DS:0x54f6 -- never saw the grudge.
+ * Returns the tribe index, or -1 (caller ends the visit).
+ */
+int ai_contact_visit_home_tribe(const ColonizeTurnContext* ctx, int nation_id, int home_tribe_index) {
   if (!ctx || !ctx->col1 || !ctx->col1->tribe) {
     return -1;
   }
-  if (brave && brave->home_tribe_id >= 0 &&
-      brave->home_tribe_id < (int)ctx->col1->head.tribe_count &&
-      (int)ctx->col1->tribe[brave->home_tribe_id].nation_id == nation_id) {
-    return brave->home_tribe_id;
-  }
-  /*
-   * No fallback: DOS aborts the WHOLE encounter when the visiting unit's
-   * origin byte is unset — `if (*(char *)(param_3 * 0x1c + 0x314a) < '\0')
-   * goto LAB_5bfb_1005;` (viceroy 96705), right before FUN_281f_0a4c binds
-   * DS:0x8d4a to that village record. The old "first village of the nation"
-   * fallback made the refusal's +0x80 (LAB_5bfb_0ff2) land on a village that
-   * is not the demanding Brave's home, so units_native_village_grudge — which
-   * reads the mover's own +0x314a row, exactly like FUN_521d_0906 on
-   * DS:0x54f6 — never saw the grudge and the Brave never answered a refusal.
-   */
-  for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
-    if ((int)ctx->col1->tribe[ti].nation_id == nation_id) {
-      return (int)ti;
-    }
+  if (home_tribe_index >= 0 && home_tribe_index < (int)ctx->col1->head.tribe_count &&
+      (int)ctx->col1->tribe[home_tribe_index].nation_id == nation_id) {
+    return home_tribe_index;
   }
   return -1;
 }
@@ -1066,7 +1049,7 @@ void ai_contact_try_village_reparations(ColonizeTurnContext* ctx, int nation_id)
 
     if (city_ci >= 0) {
       ColonizeColony* c = &ctx->colonies->colonies[city_ci];
-      const int tribe_index = ai_contact_reparations_home_tribe(ctx, nation_id, brave);
+      const int tribe_index = ai_contact_visit_home_tribe(ctx, nation_id, brave ? brave->home_tribe_id : -1);
       if (tribe_index < 0) {
         continue;
       }
@@ -1199,7 +1182,7 @@ void ai_contact_try_village_reparations(ColonizeTurnContext* ctx, int nation_id)
       continue;
     }
     brave = ai_contact_reparations_visitor(ctx, nation_id, e, wag->x, wag->y);
-    const int tribe_index = ai_contact_reparations_home_tribe(ctx, nation_id, brave);
+    const int tribe_index = ai_contact_visit_home_tribe(ctx, nation_id, brave ? brave->home_tribe_id : -1);
     if (tribe_index < 0) {
       continue;
     }
@@ -2380,34 +2363,6 @@ int ai_contact_ai_wagon_village_trade(
     return 0;
   }
   return ai_contact_2820_begin(ctx, ind, indian_nation, euro_nation, unit);
-}
-
-int ai_contact_auto_trade(
-  ColonizeTurnContext* ctx, ColonizeCol1Indian* ind, int nation_id, int e, ColonizeUnit* unit
-) {
-  if (!ctx || !ctx->col1_ok || !ctx->col1 || !ind || !unit || unit->nation_id != e) {
-    return 0;
-  }
-  if (!ind->euro_diplo[e]) {
-    return 0;
-  }
-  if (ai_contact_euro_is_human(ctx, e)) {
-    return ai_contact_2820_begin(ctx, ind, nation_id, e, unit);
-  }
-  int slot = -1;
-  for (int h = 0; h < COLONIZE_UNIT_CARGO_MAX; ++h) {
-    if (unit->hold_goods_type[h] == COLONIZE_CARGO_TRADE_GOODS && unit->hold_goods_amount[h] > 0) {
-      slot = h;
-      break;
-    }
-  }
-  if (slot < 0) {
-    /* port_bugs.md #798: DOS gates LAB_002e92 on `if (-1 < iStack_c8)` (2820 doc
-     * 284) — an empty-handed unit cannot buy, it only ever gets @BRING. The
-     * old `ai_contact_auto_buy_2e92` fallback here was invented. */
-    return 0;
-  }
-  return ai_contact_2820_begin_slot(ctx, ind, nation_id, e, unit, slot);
 }
 
 /*

@@ -375,8 +375,8 @@ static int test_crown_nation_bells_negation(void) {
     colonies.colony_count = 2;
   }
 
-  colony_prod_tick_rebel_accumulators(&colonies, &colonies.colonies[0], &col1);
-  colony_prod_tick_rebel_accumulators(&colonies, &colonies.colonies[1], &col1);
+  colony_prod_tick_rebel_accumulators(&colonies, &colonies.colonies[0], &col1, 0);
+  colony_prod_tick_rebel_accumulators(&colonies, &colonies.colonies[1], &col1, 0);
 
   /* 100 - (100 >> 6) = 99, then + 4 for the rebel peer, - (4 >> 1) for the
    * crown's own colony. With the old peer-of-human formula the two swapped. */

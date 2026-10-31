@@ -224,8 +224,11 @@ int ai_native_step_first_contact(
       continue;
     }
     int e = -1;
-    const int oid = units_id_at(units, nx, ny);
-    const ColonizeUnit* o = oid >= 0 ? units_get_const(units, oid) : NULL;
+    /* 3180: local_44 = FUN_281f_07e0(tile), the stack head; its nation is
+     * local_46 (the encounter's euro) and 022e re-reads the same head for
+     * the Wagon Train test (local_42). */
+    const int oid = units_tile_head_id_at(units, nx, ny);
+    ColonizeUnit* o = oid >= 0 ? units_get(units, oid) : NULL;
     if (o && o->active && o->nation_id >= 0 && o->nation_id <= 3 && !units_is_sea(units, oid)) {
       e = o->nation_id;
     } else if (ai_s_native_colonies) {
@@ -242,13 +245,10 @@ int ai_native_step_first_contact(
      * (first contact, or a visit that went through) closes the nation for
      * the rest of the scan; a failed mood roll lets the next tile of the
      * same nation roll again and turn its head (DOSBox 1504->1505). */
-    {
-      /* raw 98633-98635: the tile's stack head (07e0) takes the scan
-       * direction as its facing byte before the encounter resolves. */
-      ColonizeUnit* head = units_get(units, units_tile_head_id_at(units, nx, ny));
-      if (head) {
-        head->last_dir = (int8_t)d;
-      }
+    /* raw 98633-98635: the tile's stack head (07e0) takes the scan
+     * direction as its facing byte before the encounter resolves. */
+    if (o) {
+      o->last_dir = (int8_t)d;
     }
     if (ind->euro_diplo[e] == 0) {
       (void)ai_contact_try_first_welcome(s_ai_native_ctx, e, nation_id);

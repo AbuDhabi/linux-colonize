@@ -94,7 +94,7 @@ bool europe_harbor_push_ex(
     }
   }
   slot->turns_left = 0;
-  snprintf(eu->status, sizeof(eu->status), "%s in harbor.", slot->name);
+  eu->status[0] = '\0';
   europe_refresh_harbor_selection(eu);
   return true;
 }
@@ -148,13 +148,7 @@ bool europe_enqueue_expected(
   eu->last_exit_y = exit_y;
   eu->last_exit_east = exit_east;
   eu->last_exit_valid = true;
-  snprintf(
-    eu->status,
-    sizeof(eu->status),
-    "%s expected in %d turn(s).",
-    slot->name,
-    slot->turns_left
-  );
+  eu->status[0] = '\0';
   return true;
 }
 
@@ -181,7 +175,7 @@ void europe_board_sentry_dockers(
       break;
     }
     int type_tag = 0;
-    const bool is_artillery = europe_dock_name_is_artillery(eu->dock[di].name);
+    const bool is_artillery = eu->dock[di].artillery;
     if (is_artillery) {
       type_tag = -2;
     } else if (units) {
@@ -276,14 +270,7 @@ bool europe_set_sail_from_harbor(
   }
   europe_refresh_harbor_selection(eu);
   eu->bound[eu->bound_ships++] = ship;
-  snprintf(
-    eu->status,
-    sizeof(eu->status),
-    "%s bound for %s (%d turns).",
-    ship.name,
-    eu->colony_region[0] ? eu->colony_region : "",
-    ship.turns_left
-  );
+  eu->status[0] = '\0';
   diag_info(
     "EUROPE %s departs for the colonies: %d turns, exit (%d,%d) %s",
     ship.name, ship.turns_left, ship.exit_x, ship.exit_y,
@@ -1554,7 +1541,7 @@ int europe_tick_immigration_pressure_w(
        * succeeded (port_bugs.md #675). */
       eu->crosses_immigrant_seen = true;
       /* port_bugs.md #223: keep open_on_dock — arrivals own it (see above). */
-      snprintf(eu->status, sizeof(eu->status), "Immigrant arrives in Europe.");
+      eu->status[0] = '\0';
       return 1;
     }
   }

@@ -196,7 +196,7 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@HERESY0` | Done | `ai_contact_denounce_heresy` — real GAME.TXT body via `popup_msg_fill`, both outcomes (mission taken over / missionary burned) |
 | `@HERESY1` | Done | as `@HERESY0` |
 | `@INDIANBURN` | Done | `FUN_4cc6_0000` mission clear (`ai_contact_demand.c`) — real GAME.TXT body via `popup_msg_fill` |
-| `@INDIANWIN0` | Done | Native attacker beats a human land defender: ai_contact ambush arm **and** the generic `units_combat_outcome_popups` path (braves stepping onto defended tiles); `units_set_native_combat_chrome_owned` keeps the two from doubling |
+| `@INDIANWIN0` | Done | Native attacker beats a human land defender: `units_combat_outcome_popups` queues @INDIANWIN0, or @INDIANWIN1 / @INDIANWIN2 when the gear step armed / mounted the Brave (raw 101088-101095) |
 | `@INDIANWIN1` | Done | Ambush arm only (muskets seized); generic path has no native seizure, like DOS |
 | `@INDIANWIN2` | Done | Ambush arm only (horses seized) |
 | `@INDIANLOSE` | Done | Native attack repulsed; LABELS defeat/defeats by defender type (`<7`) |

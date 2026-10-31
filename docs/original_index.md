@@ -45,7 +45,7 @@ compiles these files.
 | [`viceroy_unpacked.c`](../original_sources_decompiled/viceroy_unpacked.c) / [`.asm`](../original_sources_decompiled/viceroy_unpacked.asm) | Unpacked `VICEROY.EXE` | ~125k / ~305k lines | Raw export — full game logic, RTLink overlays, map gen, UI |
 | [`mapedit.c`](../original_sources_decompiled/mapedit.c) | `MAPEDIT.EXE` | ~23k lines | Static world-map **feature art** (coasts, transitions, forest/hill/river masks); the editor itself is ported as `src/core/mapedit.c` ([mapedit.md](mapedit.md)) |
 | `gsound.c.zip` / [`.asm`](../original_sources_decompiled/gsound.asm) | `GSOUND.COL` | ~2.3k / ~43k lines | GM MIDI driver + voice bytecode interpreter |
-| `COLONIZE/VICEROY.EXE` | Shipped binary | ~483 KB | Table extraction, file byte offsets (`scripts/extract_viceroy_tables.py`) |
+| `COLONIZE/VICEROY.EXE` | Shipped binary | ~483 KB | Table extraction, file byte offsets |
 | `COLONIZE/MAPEDIT.EXE` | Shipped binary | — | Authority for static map compositor rules |
 
 **Address-space warning:** VICEROY and MAPEDIT are **separate** programs. Never equate
@@ -351,7 +351,6 @@ Layout and bridge → [savegame.md](savegame.md). Field atlas →
 | Path | Purpose |
 |------|---------|
 | `COLONIZE/Colonization.pdf` | Official manual + tech supplement — feature gaps in [manual_gap.md](manual_gap.md) |
-| `scripts/extract_viceroy_tables.py` | Pull static tables from `VICEROY.EXE` → `src/data/viceroy_tables.c` ([viceroy_tables.md](viceroy_tables.md)) |
 | `scripts/gen_fun_catalog.py` | Regenerate light `FUN_*` catalog + module map ([FUNCTION_CATALOG.md](../original_sources_annotated/FUNCTION_CATALOG.md)) |
 | `data/soundfonts/` | FluidSynth bank for `GSOUND.COL` playback |
 | `test-assets*`, `test-saves*` | Minimal TXT/DB and save fixtures for automated tests |

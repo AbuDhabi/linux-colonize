@@ -1,13 +1,13 @@
 /*
- * Indian contact — friction/gift-gold, demand economics, visit mood, beg-food, incite & relation tick
+ * Indian contact — incite, meet economics, visit mood, beg-food, incite & relation tick
  *
  * Split out of ai_contact.c (2026-09-23) verbatim; shared symbols are
  * declared in ai_contact_internal.h. See ai_contact.c for the module
  * prologue and the DOS provenance notes.
  *
  * Sections:
- *   Friction/gift-gold, choice popups & incite pricing/confirmation
- *   Tools/gold demand pipeline & gift-or-demand economics (raw 2154)
+ *   Incite pricing/confirmation
+ *   Nearest colony & meet economics (raw 2154)
  *   Visit mood, demand gating & beg-food flow
  *   Human incite response, missionary convert/flee, WoI defect, prelude & relation tick
  */
@@ -44,117 +44,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* ===================== Friction/gift-gold, choice popups & incite pricing/confirmation (ai_contact_pair_cool .. ai_contact_apply_incite) ===================== */
+/* ===================== Incite pricing/confirmation (ai_contact_incite_price .. ai_contact_apply_incite) ===================== */
 
-
-/*
- * Cool an Indian×Euro pair by `amount` (port_bugs.md #1007). Goes through the whole
- * of FUN_4cc6_00f2, so the cooling also clears the attack-confirmed bit and,
- * below 0x4b, the war bit, and runs the 5-point village-word tier clamp — all
- * of which the old raw store on alarm_by_player[e] bypassed. It writes no
- * village word of its own: DOS's coolers either zero ONE village's whole word
- * (the acting Brave's home, which these arms do not have in hand) or spend
- * through 0d6c, and no DOS site decays every village of a nation.
- */
-static void ai_contact_pair_cool(
-  ColonizeTurnContext* ctx,
-  int nation_id,
-  int e,
-  int amount
-) {
-  if (!ctx || amount <= 0 || e < 0 || e > 3) {
-    return;
-  }
-  ai_contact_alarm_delta_00f2(ctx, nation_id, e, -amount);
-}
-
-/*
- * Apply the 022e auto-gift gold drain (Large −10 / friction −2, Generous
- * −20 / −3). There is no DOS body for the amounts — the cited
- * FUN_5bfb_102a is a plural/singular text formatter with no gold or alarm
- * arithmetic — so these are a stand-in, now reached only from
- * ai_contact_gift_or_demand; the invented player-driven gift CHOICE that used
- * to call it with −5 was deleted with port_bugs.md #1006.
- * Pocahontas: gift decays full friction (half-rate applies only to positive
- * alarm/friction bumps — prelude/encroachment/raid; wiki/fandom).
- */
-void ai_contact_apply_gift_gold(
-  ColonizeTurnContext* ctx,
-  ColonizeCol1Indian* ind,
-  int nation_id,
-  int e,
-  unsigned gold_cost,
-  int friction_decay
-) {
-  if (!ctx || !ctx->col1_ok || !ctx->col1 || !ind || e < 0 || e > 3) {
-    return;
-  }
-  if (!ind->euro_diplo[e]) {
-    return;
-  }
-  /*
-   * port_bugs.md #1005: the nation alarm scalar alone (FUN_281f_030c), not a
-   * max() over the tribes' DS:0x54f6 attitude words. DOS's gift/demand gates
-   * read 030c; the only gate reads of a village word (FUN_5bfb_022e raw
-   * 87333, FUN_4962_0018 raw 94967) are keyed on the acting Brave's OWN home
-   * village, never a nation-wide maximum — so one un-missioned village at
-   * attitude 83 used to make the whole tribe refuse gifts at alarm 0.
-   */
-  const int alarm = ai_diplo_indian_alarm(ctx->col1, nation_id, e);
-  if (alarm >= 40) {
-    return;
-  }
-  /* audit G3: one treasury per nation — the human's live purse is
-   * EuropeScreen.gold and the record lags it, so the gate and the debit both
-   * go through the accessor pair. Gifts are human-reachable (the CONTACT_GIFT
-   * amount CHOICE below), which is exactly the case the record-only read got
-   * wrong: a player who had just sold in Europe could not afford a gift his
-   * sidebar said he could. */
-  if (europe_nation_gold(ctx->europe, ctx->col1, e) < gold_cost) {
-    return;
-  }
-  europe_nation_gold_add(ctx->europe, ctx->col1, e, -(long)gold_cost);
-  ai_contact_pair_cool(ctx, nation_id, e, friction_decay);
-  {
-    char gift_fb[AI_POPUP_BODY_LEN];
-    snprintf(
-      gift_fb,
-      sizeof(gift_fb),
-      "Gift of gold eases tensions with the %s.",
-      ai_contact_tribe_name(nation_id)
-    );
-    ai_contact_human_chrome(
-      ctx, e, AI_POPUP_TAG_CONTACT_GIFT, nation_id, "Gift", gift_fb
-    );
-  }
-}
-
-/*
- * Shared head/tail of the human amount CHOICE enqueues (audit AC-29): the
- * "is a human CHOICE reachable at all" guard and the titleless enqueue.
- */
-static int ai_contact_choice_ctx_ready(const ColonizeTurnContext* ctx, int e) {
-  return ctx && ctx->ai_popups && ctx->col1_ok && ctx->col1 && e >= 0 && e <= 3 &&
-         ai_contact_euro_is_human(ctx, e);
-}
-
-static int ai_contact_enqueue_choice(
-  ColonizeTurnContext* ctx,
-  AiPopupTag tag,
-  int e,
-  int nation_id,
-  int payload,
-  const char* body,
-  const char* const* labels,
-  const int* ids,
-  int n
-) {
-  return ai_popup_enqueue_choice_ctx(
-           ctx->ai_popups, tag, e, nation_id, payload, NULL, body, labels, ids, n
-         )
-           ? 1
-           : 0;
-}
 
 /*
  * FUN_4d56_417e price (Incite Indians / WARPATH — identified 2026-08-13,
@@ -606,10 +497,9 @@ void ai_contact_apply_incite(
   ai_contact_alarm_delta_00f2(ctx, nation_id, target, 100);
   europe_nation_gold_add(ctx->europe, ctx->col1, e, -(long)price); /* audit G3 */
 }
-/* ===================== Tools/gold demand pipeline & gift-or-demand economics (raw 2154) (ai_contact_nearest_colony .. ai_contact_gift_or_demand) ===================== */
+/* ===================== Nearest colony & meet economics (raw 2154) (ai_contact_nearest_colony .. ai_contact_meet_economics_2154) ===================== */
 
 
-/* Nearest Euro colony with warehouse tools ≥20 (mid demand tools arm). */
 /*
  * The one "nearest active colony of `nation`" scan behind the three this file
  * used to hand-roll (audit AC-7). `min_tools` >= 0 also demands that much
@@ -654,164 +544,6 @@ int ai_contact_nearest_colony(
     *out_dist = best_d;
   }
   return best;
-}
-
-static ColonizeColony* ai_contact_nearest_tools_colony(
-  ColonizeTurnContext* ctx,
-  int e,
-  int near_x,
-  int near_y
-) {
-  if (!ctx || e < 0 || e > 3) {
-    return NULL;
-  }
-  const int ci = ai_contact_nearest_colony(ctx, e, near_x, near_y, -1, 20, 99, NULL);
-  return ci >= 0 ? &ctx->colonies->colonies[ci] : NULL;
-}
-
-static int ai_contact_demand_can_pay_tools(
-  ColonizeTurnContext* ctx,
-  int e,
-  ColonizeUnit* other,
-  int near_x,
-  int near_y
-) {
-  if (ai_contact_nearest_tools_colony(ctx, e, near_x, near_y)) {
-    return 1;
-  }
-  return other && other->tools >= 20;
-}
-
-static int ai_contact_demand_can_pay_gold(const ColonizeTurnContext* ctx, int e) {
-  /* audit G3: single treasury — tribute demands hit the human. */
-  return ctx && ctx->col1_ok && ctx->col1 && e >= 0 && e <= 3 &&
-         europe_nation_gold(ctx->europe, ctx->col1, e) >= 50u;
-}
-
-/*
- * Shared 40..54 demand band gate (audit AC-4): must be met, and the nation
- * alarm scalar must sit in the mid band — below 40 there is nothing to
- * appease, at 55 and above the tribe refuses to talk at all. port_bugs.md #1005:
- * reads ai_diplo_indian_alarm (FUN_281f_030c), not a max() over the tribes'
- * attitude words.
- */
-static int ai_contact_demand_band_ok(
-  ColonizeTurnContext* ctx,
-  const ColonizeCol1Indian* ind,
-  int nation_id,
-  int e
-) {
-  if (!ctx || !ctx->col1_ok || !ctx->col1 || !ind || e < 0 || e > 3) {
-    return 0;
-  }
-  if (!ind->euro_diplo[e]) {
-    return 0;
-  }
-  const int alarm = ai_diplo_indian_alarm(ctx->col1, nation_id, e);
-  if (alarm >= 55 || alarm < 40) {
-    return 0;
-  }
-  return 1;
-}
-
-/*
- * Mid-band demand tools drain (−10 stock / wagon hold / unit tools) + friction −3.
- * Cite: FUN_5bfb_102a / 1092; GAME.TXT @INDIANWAGONS; indian_contact.md mid demand.
- */
-int ai_contact_apply_demand_tools(
-  ColonizeTurnContext* ctx,
-  ColonizeCol1Indian* ind,
-  int nation_id,
-  int e,
-  ColonizeUnit* other,
-  int near_x,
-  int near_y
-) {
-  if (!ai_contact_demand_band_ok(ctx, ind, nation_id, e)) {
-    return 0;
-  }
-  ColonizeColony* c = ai_contact_nearest_tools_colony(ctx, e, near_x, near_y);
-  if (c) {
-    c->stock[COLONIZE_CARGO_TOOLS] -= 10;
-  } else if (other && other->tools >= 20) {
-    other->tools -= 10;
-  } else {
-    return 0;
-  }
-  ai_contact_pair_cool(ctx, nation_id, e, 3);
-  ai_contact_human_chrome(
-    ctx, e, AI_POPUP_TAG_CONTACT_DEMAND, nation_id, "", ""
-  );
-  return 1;
-}
-
-/*
- * Mid-band demand gold drain (−15 when treasury ≥50) + friction −3.
- * Cite: indian_contact.md mid demand gold stand-in (tools short / player pick).
- */
-int ai_contact_apply_demand_gold(
-  ColonizeTurnContext* ctx,
-  ColonizeCol1Indian* ind,
-  int nation_id,
-  int e
-) {
-  if (!ai_contact_demand_band_ok(ctx, ind, nation_id, e)) {
-    return 0;
-  }
-  if (europe_nation_gold(ctx->europe, ctx->col1, e) < 50u) {
-    return 0;
-  }
-  europe_nation_gold_add(ctx->europe, ctx->col1, e, -15L); /* audit G3 */
-  ai_contact_pair_cool(ctx, nation_id, e, 3);
-  ai_contact_human_chrome(
-    ctx, e, AI_POPUP_TAG_CONTACT_DEMAND, nation_id, "", ""
-  );
-  return 1;
-}
-
-/*
- * Human Demand amount CHOICE (tools vs gold) when mid-band and purse allows.
- * Returns 1 if enqueued. Cite: FUN_5bfb_102a / 1092; gift amount CHOICE mirror.
- */
-int ai_contact_enqueue_demand_amount_choice(
-  ColonizeTurnContext* ctx,
-  int e,
-  int nation_id,
-  ColonizeUnit* other,
-  int near_x,
-  int near_y
-) {
-  if (!ai_contact_choice_ctx_ready(ctx, e)) {
-    return 0;
-  }
-  const int can_tools = ai_contact_demand_can_pay_tools(ctx, e, other, near_x, near_y);
-  const int can_gold = ai_contact_demand_can_pay_gold(ctx, e);
-  if (!can_tools && !can_gold) {
-    return 0;
-  }
-  const char* labels[2];
-  int ids[2];
-  int n = 0;
-  if (can_tools) {
-    labels[n] = "Pay tools (10)";
-    ids[n] = AI_CONTACT_DEMAND_TOOLS;
-    n++;
-  }
-  if (can_gold) {
-    labels[n] = "Pay gold (15)";
-    ids[n] = AI_CONTACT_DEMAND_GOLD;
-    n++;
-  }
-  char body[AI_POPUP_BODY_LEN];
-  snprintf(
-    body,
-    sizeof(body),
-    "The %s demand tribute. How do you pay?",
-    ai_contact_tribe_name(nation_id)
-  );
-  return ai_contact_enqueue_choice(
-    ctx, AI_POPUP_TAG_CONTACT_DEMAND, e, nation_id, 0, body, labels, ids, n
-  );
 }
 
 /*
@@ -1146,126 +878,6 @@ int ai_contact_meet_economics_2154(
   return 1;
 }
 
-/*
- * Gift / demand (5bfb_102a / 1092 via ai_popup).
- * 2154 tables: gift Generous when ask[0]-bid[0]≥1, gold≥0x4b, thin RNG;
- * else Large when gold≥20. Demand: ask[0]<bid[0] → gold-first else tools-first.
- * Cite: indian_meet_scoring_2154.md; FUN_5bfb after 2a1f_0434.
- */
-void ai_contact_gift_or_demand(
-  ColonizeTurnContext* ctx,
-  ColonizeCol1Indian* ind,
-  int nation_id,
-  int e,
-  ColonizeUnit* other,
-  int near_x,
-  int near_y
-) {
-  if (!ctx || !ctx->col1_ok || !ctx->col1 || !ind || !other || e < 0 || e > 3) {
-    return;
-  }
-  if (!ind->euro_diplo[e]) {
-    return;
-  }
-  const int alarm = ai_diplo_indian_alarm(ctx->col1, nation_id, e);
-  /*
-   * Same ≥55 gate as refuse-talk/teach: alarmed → no gift and no demand
-   * payoff (no invented gold penalties). Cite: fandom Alarm — refuse trade.
-   * port_bugs.md #1005: the gate is the nation alarm scalar alone; the village
-   * attitude words are per-village state and DOS never maxes them here.
-   * The wording band below is chrome only — it still asks whether any
-   * village of the nation is sour enough to be in the demand band, which
-   * only decides which refuse sentence prints.
-   */
-  if (alarm >= 55) {
-    return; /* alarmed / very high — raids handle hostility; no invented gold penalty */
-  }
-
-  /* audit G3: single treasury — this whole band is human-reachable, so the
-   * three purse gates below read through the accessor rather than the record
-   * the human's live purse only reaches at save time. */
-  const uint32_t purse = europe_nation_gold(ctx->europe, ctx->col1, e);
-
-  AiContactMeetEcon2154 econ;
-  memset(&econ, 0, sizeof(econ));
-  int have_econ = 0;
-  const ColonizeCol1Tribe* sample = NULL;
-  if (ctx->col1->tribe) {
-    for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
-      const ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
-      if ((int)t->nation_id == nation_id) {
-        sample = t;
-        break;
-      }
-    }
-  }
-  if (sample) {
-    have_econ = ai_contact_meet_economics_2154(ctx, nation_id, sample, &econ);
-  }
-  const int ask0 = have_econ ? (int)econ.ask[0] : 0;
-  const int bid0 = have_econ ? (int)econ.bid[0] : 0;
-  const int delta = ask0 - bid0;
-
-  /* Low friction gift / tribute (2154 ask−bid + gold≥0x4b → Generous). */
-  if (alarm < 40) {
-    /* Cannot pay −10 gift drain → refuse with status (widgets unparked). */
-    if (purse < 10u) {
-      return;
-    }
-    if (purse < 20u) {
-      return; /* mid purse: skip silent (needs ≥20 band to auto-gift Large) */
-    }
-    /*
-     * DOS 5bfb after 2154: Generous when delta≥1, gold≥0x4b, and delta≥RNG
-     * (281f_04d4 stand-in). Else Large. Cite: indian_meet_scoring_2154.md.
-     */
-    int generous = 0;
-    if (delta >= 1 && purse >= 0x4bu) {
-      ColonizeDosRng local;
-      ai_contact_local_rng(ctx, nation_id, &local);
-      ColonizeDosRng* rng = ctx->rng ? ctx->rng : &local;
-      const int roll = dos_rng_range(rng, 1, 100);
-      if (delta >= roll) {
-        generous = 1;
-      }
-    }
-    if (generous) {
-      ai_contact_apply_gift_gold(ctx, ind, nation_id, e, 20u, 3);
-      return;
-    }
-    ai_contact_apply_gift_gold(ctx, ind, nation_id, e, 10u, 2);
-    return;
-  }
-
-  /*
-   * Mid friction (40–54) demand / payoff; ≥55 refused above.
-   * ask[0] < bid[0] → gold-first; else tools-first (DOS LAB_5bfb_096c shape).
-   */
-  {
-    const int gold_first = have_econ && ask0 < bid0;
-    if (gold_first) {
-      if (ai_contact_demand_can_pay_gold(ctx, e)) {
-        ai_contact_apply_demand_gold(ctx, ind, nation_id, e);
-        return;
-      }
-      if (ai_contact_demand_can_pay_tools(ctx, e, other, near_x, near_y)) {
-        ai_contact_apply_demand_tools(ctx, ind, nation_id, e, other, near_x, near_y);
-        return;
-      }
-    } else {
-      if (ai_contact_demand_can_pay_tools(ctx, e, other, near_x, near_y)) {
-        ai_contact_apply_demand_tools(ctx, ind, nation_id, e, other, near_x, near_y);
-        return;
-      }
-      if (ai_contact_demand_can_pay_gold(ctx, e)) {
-        ai_contact_apply_demand_gold(ctx, ind, nation_id, e);
-        return;
-      }
-    }
-  }
-  {
-  }
-}
 /* ===================== Visit mood, demand gating & beg-food flow (ai_contact_beg_food_gift .. ai_contact_try_village_beg_food) ===================== */
 
 
@@ -1526,7 +1138,9 @@ int ai_contact_visit_step_roll(
  * the capital doubling) reads that record. smell #74: this used to re-scan
  * for the FIRST tribe of the nation, so a visit by a satellite village
  * zeroed the capital's word and charged the capital's doubled refuse cost.
- * -1 keeps the old first-tribe fallback for a caller with no visit record.
+ * No first-tribe fallback (raw 96705, ai_contact_visit_home_tribe): DOS never
+ * reaches this body without the origin byte; a bad index applies no
+ * settlement-scoped effect.
  */
 void ai_contact_apply_beg_food(
   ColonizeTurnContext* ctx,
@@ -1549,20 +1163,11 @@ void ai_contact_apply_beg_food(
   }
   int capital = 0;
   ColonizeCol1Tribe* target_tribe = NULL;
-  if (ctx->col1->tribe) {
-    if (home_tribe >= 0 && home_tribe < (int)ctx->col1->head.tribe_count &&
-        (int)ctx->col1->tribe[home_tribe].nation_id == nation_id) {
-      target_tribe = &ctx->col1->tribe[home_tribe];
+  {
+    const int home_index = ai_contact_visit_home_tribe(ctx, nation_id, home_tribe);
+    if (home_index >= 0) {
+      target_tribe = &ctx->col1->tribe[home_index];
       capital = target_tribe->state.capital != 0;
-    } else {
-      for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
-        ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
-        if ((int)t->nation_id == nation_id) {
-          target_tribe = t;
-          capital = t->state.capital != 0;
-          break;
-        }
-      }
     }
   }
   ai_contact_bind_names(ctx);
@@ -1860,24 +1465,11 @@ int ai_contact_try_village_beg_food(ColonizeTurnContext* ctx, int nation_id) {
      * DOS gate (`0 < *0x9e58 - *0x9e78`) and the mirror of the gift arm's
      * `bid[0] > ask[0]` food surplus.
      */
-    const ColonizeCol1Tribe* home = NULL;
-    int home_index = -1;
-    if (visit_home_tribe >= 0 && visit_home_tribe < (int)ctx->col1->head.tribe_count &&
-        (int)ctx->col1->tribe[visit_home_tribe].nation_id == nation_id) {
-      home = &ctx->col1->tribe[visit_home_tribe];
-      home_index = visit_home_tribe;
-    } else {
-      for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
-        if ((int)ctx->col1->tribe[ti].nation_id == nation_id) {
-          home = &ctx->col1->tribe[ti];
-          home_index = (int)ti;
-          break;
-        }
-      }
+    const int home_index = ai_contact_visit_home_tribe(ctx, nation_id, visit_home_tribe);
+    if (home_index < 0) {
+      continue; /* raw 96705: no origin byte, no encounter */
     }
-    if (!home) {
-      continue;
-    }
+    const ColonizeCol1Tribe* home = &ctx->col1->tribe[home_index];
     AiContactMeetEcon2154 econ;
     memset(&econ, 0, sizeof(econ));
     if (!ai_contact_meet_economics_2154(ctx, nation_id, home, &econ)) {

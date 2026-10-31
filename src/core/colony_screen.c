@@ -30,7 +30,7 @@
 
 /*
  * Sections:
- *  - View state, refresh helpers & subpanel close (colony_screen_set_status .. colony_screen_close_construction) (~line 40)
+ *  - View state, refresh helpers & subpanel close (colony_screen_reset_ui .. colony_screen_close_construction) (~line 40)
  *  - Subpanel open/close & popup font/text helpers (colony_screen_open_construction .. colony_screen_open_custom_house) (~line 304)
  *  - Popup open: eject/jobs/dock-orders & minimap origin (colony_screen_open_eject .. colony_screen_minimap_origin) (~line 478)
  *  - PIK loading, view load/free (colony_screen_load_pik .. colony_screen_free) (~line 721)
@@ -40,15 +40,7 @@
  * colony_screen_popups.c; cross-file seams are in colony_screen_internal.h.
  */
 
-/* ===================== View state, refresh helpers & subpanel close (colony_screen_set_status .. colony_screen_close_construction) ===================== */
-
-void colony_screen_set_status(ColonyScreenView* view, const char* text) {
-  if (!view) {
-    return;
-  }
-  snprintf(view->status, sizeof(view->status), "%s", text ? text : "");
-  popup_msg_strip_markup(view->status); /* plain status text, no {} markup */
-}
+/* ===================== View state, refresh helpers & subpanel close (colony_screen_reset_ui .. colony_screen_close_construction) ===================== */
 
 void colony_screen_reset_ui(ColonyScreenView* view) {
   if (!view) {
@@ -937,7 +929,6 @@ bool colony_screen_load(ColonyScreenView* view, const char* data_dir, char* err,
     diag_warn("Colony screen: FONTINTR.FF unavailable — popups keep the screen font");
   }
 
-  colony_screen_set_status(view, "Colony ready. Esc or C returns to map.");
   diag_info(
     "Colony screen loaded (WOODPANL %dx%d, PARCH %d, WOODTILE %d, BUILDING %d, ICONS %d, COLONY.PIK %dx%d)",
     view->frame.width,

@@ -931,5 +931,5 @@ void europe_reset_campaign_nation(EuropeScreen* eu, int nation) {
   eu->immigration_pressure = 0;
   eu->boycott_bitmap = 0;
   /* DOS FUN_38fd_6024: recruit pool (+2..+4) filled; docks empty; pressure 0. */
-  europe_set_status(eu, "Home port ready. Recruit / Purchase / Train / S Sail.");
+  eu->status[0] = '\0';
 }

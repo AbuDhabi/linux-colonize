@@ -31,14 +31,10 @@ struct ai_euro_act_ctx {
   ColonizeTurnContext* ctx;
   ColonizeUnit* u; /* re-read after every call that can free/replace the unit */
   int nation_id;
-  int is_ship;
-  /* ship band */
-  int exited_europe;
   /* land band */
   ColonizeUnitKind ukind; /* unit's @UNIT type-row kind (never string-derived) */
   int is_treasure;
   int treasure_routed;
-  int wagon_hauled;
 };
 
 /*
@@ -222,11 +218,6 @@ void ai_euro_5952_colony_prelude(
 void ai_euro_set_goto(ColonizeUnit* u, int orders, int gx, int gy);
 int ai_euro_is_ship_type(const ColonizeUnitPool* units, int unit_id);
 int ai_euro_unit_hold_has_capacity(const ColonizeUnitPool* units, const ColonizeUnit* w);
-int ai_euro_unit_hold_has_cargo_type(
-  const ColonizeUnitPool* units,
-  const ColonizeUnit* w,
-  int cargo_type
-);
 int ai_euro_hauler_free_holds(const ColonizeUnitPool* units, const ColonizeUnit* u);
 int ai_euro_20e6_ship_hold_budget(
   const ColonizeUnitPool* units, const ColonizeUnit* ship
@@ -276,10 +267,6 @@ int ai_euro_village_nation_at(const ColonizeCol1Save* col1, int x, int y);
 #define AI_20E6_TYPE_COUNT 23
 extern uint32_t ai_euro_s_20e6_type_cache_valid;
 void ai_euro_20e6_refresh_type_cache(const ColonizeUnitPool* units);
-extern const int8_t ai_euro_k_20e6_ring20_dx[20];
-extern const int8_t ai_euro_k_20e6_ring20_dy[20];
-extern const int8_t ai_euro_k_dos_ring20_dx[20]; /* DS:0xc8 slot order */
-extern const int8_t ai_euro_k_dos_ring20_dy[20]; /* DS:0xde */
 void ai_euro_5952_improve_best_plot(
   ColonizeTurnContext* ctx, ColonizeColony* col, int* out_improvement_owner, int* out_best_plot
 );
@@ -623,7 +610,6 @@ COLONIZE_INTERNAL void ai_euro_5952_lumber_purchase(
   struct EuropeScreen* eu, struct ColonizeCol1Save* col1, ColonizeColony* col, int turn,
   bool lumber_producer_placed
 );
-AiEuroActStatus ai_euro_act_ship_europe_exit(struct ai_euro_act_ctx* a);
 AiEuroActStatus ai_euro_act_land_hunt_scout(struct ai_euro_act_ctx* a);
 AiEuroActStatus ai_euro_act_land_treasure(struct ai_euro_act_ctx* a);
 AiEuroActStatus ai_euro_act_land_roles(struct ai_euro_act_ctx* a);

@@ -68,9 +68,6 @@ bool text_edit_handle_mouse(
   int field_h
 );
 
-/* Total drawn width including the trailing caret cell. */
-int text_edit_field_width(const ColonizeFont* font, const char* buf);
-
 /*
  * NAMES.TXT @COLORS entries, under the WOODPANL / in-game palette:
  *   text = basic 68 (85,150,52) green (glyph shade 1)
@@ -88,29 +85,6 @@ typedef struct TextEditColors {
 } TextEditColors;
 
 void text_edit_default_colors(TextEditColors* out);
-
-/* Gap between the field frame and the text's ink, on every side. */
-#define TEXT_EDIT_FRAME_PAD 3
-
-/*
- * Frame rect for a field whose first glyph is drawn at (x, y) and whose text
- * area is box_w wide. Sized off the font's actual ink rows — not off the
- * caller's line height, which carries interline slack that would otherwise
- * show up as dead space under the text.
- */
-void text_edit_frame_rect(
-  const ColonizeFont* font,
-  int x,
-  int y,
-  int box_w,
-  int* out_x,
-  int* out_y,
-  int* out_w,
-  int* out_h
-);
-
-/* 1px green rectangle around the field. */
-void text_edit_draw_frame(ColonizeFramebuffer8* fb, int x, int y, int w, int h, uint8_t color);
 
 void text_edit_render(
   const TextEditState* st,

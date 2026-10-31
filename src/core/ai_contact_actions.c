@@ -967,12 +967,12 @@ static void ai_contact_speak_with_chief(
   tok.string0 = tribe;
   char body[AI_POPUP_BODY_LEN];
   char fb[AI_POPUP_BODY_LEN];
-  int kill = 1;
 
+  /* Every path that does not return below falls to LAB_3a22 (kill). */
   if (alarm < 0x4b) {
     const int thr = dos_rng_range(rng, 0, seasoned ? 140 : 100);
     if (alarm < 0x19 || (alarm >> 2) < thr) {
-      kill = 0;
+      int kill = 0;
       if (nation_id == 6) {
         const int hi = (8 - diff) << (seasoned ? 1 : 0);
         if (dos_rng_range(rng, 0, hi) == 0) {
@@ -1832,29 +1832,12 @@ static AiContactPopupStatus ai_contact_apply_popup_result_tags(
   }
 
   /*
-   * Demand amount CHOICE (FUN_5bfb_102a / 1092 stand-in): tools vs gold.
-   * Cite: indian_contact.md mid demand amount widget.
+   * CONTACT_DEMAND is chrome only (the Demand Tribute OKs from
+   * ai_contact_demand_tribute / the 022e demand arm). The tools-vs-gold
+   * amount CHOICE it used to answer had no DOS body and is gone (port_bugs.md
+   * #1349); acknowledging the tag keeps the result ending the beat.
    */
   if (popup->result_tag == AI_POPUP_TAG_CONTACT_DEMAND) {
-    int near_x = 0;
-    int near_y = 0;
-    ColonizeUnit* other =
-      ai_contact_find_adjacent_euro(ctx, nation_id, e, &near_x, &near_y);
-    if (!other && ctx->col1->tribe) {
-      for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
-        const ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
-        if ((int)t->nation_id == nation_id) {
-          near_x = t->x;
-          near_y = t->y;
-          break;
-        }
-      }
-    }
-    if (popup->result_choice_id == AI_CONTACT_DEMAND_TOOLS) {
-      ai_contact_apply_demand_tools(ctx, ind, nation_id, e, other, near_x, near_y);
-    } else if (popup->result_choice_id == AI_CONTACT_DEMAND_GOLD) {
-      ai_contact_apply_demand_gold(ctx, ind, nation_id, e);
-    }
     return AI_CONTACT_POPUP_DONE;
   }
 
@@ -1948,22 +1931,8 @@ static void ai_contact_apply_popup_result_menu(
   ColonizeCol1Tribe* menu_village = ai_contact_menu_village(ctx, nation_id, menu_unit);
   int near_x = 0;
   int near_y = 0;
-  ColonizeUnit* other = ai_contact_find_adjacent_euro(ctx, nation_id, e, &near_x, &near_y);
-  if (menu_unit) {
-    other = menu_unit;
-    near_x = menu_unit->x;
-    near_y = menu_unit->y;
-  }
-  if (!other && ctx->col1->tribe) {
-    for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
-      const ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
-      if ((int)t->nation_id == nation_id) {
-        near_x = t->x;
-        near_y = t->y;
-        break;
-      }
-    }
-  }
+  ColonizeUnit* other =
+    menu_unit ? menu_unit : ai_contact_find_adjacent_euro(ctx, nation_id, e, &near_x, &near_y);
 
   /*
    * port_bugs.md 2026-09-04 (user-observed DOS, then confirmed in the ASM): a unit
@@ -2018,32 +1987,12 @@ static void ai_contact_apply_popup_result_menu(
     break;
   case AI_CONTACT_CHOICE_DEMAND: {
     /* "Demand Tribute" — thunk_FUN_1000_a5f4 on the acting unit. */
+    /* Row 8 is only built for a known armed land unit
+     * (ai_contact_enqueue_village_meet: cls.attack != 0, zero without a
+     * unit), and every production caller passes one; the no-unit tools/gold
+     * "gift" stand-in that stood here had no DOS body (port_bugs.md #1349). */
     if (menu_unit && menu_village) {
       ai_contact_demand_tribute(ctx, e, nation_id, menu_unit, menu_village);
-      break;
-    }
-    /*
-     * Mid-band + human popups → tools/gold amount CHOICE (FUN_5bfb_102a).
-     * Alarmed (≥55) → gift_or_demand refuse OK "The %s refuse demands."
-     * (CONTACT_DEMAND; no amount CHOICE / no drain). Cite:
-     * indian_contact.md demand amount widget / alarmed refuse.
-     */
-    /* port_bugs.md #1005: nation alarm scalar (FUN_281f_030c), which is what
-     * DOS's FUN_4d56_4528 demand entry gates on — not a max() over the
-     * tribes' DS:0x54f6 attitude words. */
-    const int alarm = ai_diplo_indian_alarm(ctx->col1, nation_id, e);
-    const int demand_band = alarm >= 40 && alarm < 55;
-    if (demand_band && ctx->ai_popups && ai_contact_euro_is_human(ctx, e)) {
-      if (ai_contact_enqueue_demand_amount_choice(
-            ctx, e, nation_id, other, near_x, near_y
-          )) {
-        break;
-      }
-    }
-    if (other) {
-      ai_contact_gift_or_demand(ctx, ind, nation_id, e, other, near_x, near_y);
-    } else if (alarm >= 55) {
-      /* No adjacent Euro unit — still show alarmed refuse chrome. */
     }
     break;
   }

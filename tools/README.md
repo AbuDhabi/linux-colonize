@@ -55,7 +55,6 @@ These require Python 3.
 
 | Name | Purpose | Invocation | Needs |
 |------|---------|-----------|-------|
-| `extract_viceroy_tables.py` | Extract static data tables from COLONIZE/VICEROY.EXE to src/data/viceroy_tables.c | `python3 scripts/extract_viceroy_tables.py` | Python 3 stdlib only; reads COLONIZE/VICEROY.EXE |
 | `gen_fun_catalog.py` | Generate/merge original_sources_annotated/FUNCTION_CATALOG.md and MODULE_MAP.md | `python3 scripts/gen_fun_catalog.py [--seed JSON] [--output-dir DIR]` | Python 3 stdlib only; parses Ghidra C exports, merges human-filled fields |
 
 ## Shell Utilities (tools/)

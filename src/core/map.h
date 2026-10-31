@@ -45,8 +45,7 @@ extern const int MAP_DIR8_DY[8];
  * four diagonals (NW, NE, SE, SW), then the twelve distance-2 tiles, in DOS's
  * own order. This is a different walk from MAP_DIR8 above and callers rely on
  * the index order (ai_euro's +0x3156 latches a slot number into a save field).
- * Byte-identical in col1_bridge.c, map_gen.c, ai_contact.c and ai.c. NOT the
- * same table as ai_euro.c's k_20e6_ring20_*, a different (spiral) order.
+ * Byte-identical in col1_bridge.c, map_gen.c, ai_contact.c and ai.c.
  */
 extern const int MAP_RING20_DX[20];
 extern const int MAP_RING20_DY[20];
@@ -335,6 +334,9 @@ bool map_tile_is_lake(const ColonizeWorldMap* map, int x, int y);
 int map_tile_tribe_or_presence(const ColonizeWorldMap* map, int x, int y);
 /* DOS FUN_281f_0682: unit-presence bit only (layer2 bit0) → owner nibble. */
 int map_tile_owner_or_presence(const ColonizeWorldMap* map, int x, int y);
+/* FUN_137f_0314 / 03e4 core: inset (FUN_137f_000a), layer2 & bits, owner
+ * nibble; -1 when off the inset, no bit, or nibble 0xf. */
+int map_tile_layer2_owner(const ColonizeWorldMap* map, int x, int y, unsigned bits);
 int map_terrain_sprite_at(const ColonizeWorldMap* map, int x, int y);
 int map_phys0_forest_sprite_at(const ColonizeWorldMap* map, int x, int y);
 /* PHYS0 149 when tile is plowed (runtime improve); -1 otherwise. */
@@ -421,10 +423,6 @@ bool map_tile_is_land(const ColonizeWorldMap* map, int x, int y);
  * the DOS colony coastal SAVE FIELD (+0x1c bit 0x40) use
  * map_tile_is_open_sea_adjacent() instead. */
 bool map_tile_is_coastal(const ColonizeWorldMap* map, int x, int y);
-/* Water-side complement of map_tile_is_coastal: (x,y) is ocean or high seas
- * and at least one of its 8 neighbours is neither. Off-map neighbours are
- * skipped, so a map-rim water tile is not coast by itself. */
-bool map_tile_is_coast_water(const ColonizeWorldMap* map, int x, int y);
 /*
  * Predicate behind the DOS colony coastal bit (+0x1c bit 0x40): some INSET
  * 8-neighbour is ocean/high seas AND the lowest-region such neighbour is

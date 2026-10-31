@@ -156,7 +156,8 @@ void colony_prod_refresh_sol_flags(ColonizeColony* colony, const ColonizeCol1Sav
 void colony_prod_tick_rebel_accumulators(
   const ColonizeColonyPool* pool,
   const ColonizeColony* colony,
-  ColonizeCol1Save* col1
+  ColonizeCol1Save* col1,
+  int human_nation /* DS:0x5394; the crown test goes through col1_fixed_human */
 );
 
 /*

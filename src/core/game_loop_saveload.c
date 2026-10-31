@@ -262,13 +262,8 @@ static bool game_apply_col1_save(ColonizeGameState* game, ColonizeCol1Save* load
    * declaration the pools legitimately drain, so leave those alone.
    */
   if (!ai_king_independence_declared(&game->col1)) {
-    const int diff = game->col1.head.difficulty;
-    const uint16_t floor[4] = {
-      (uint16_t)(8 * diff + 15),
-      (uint16_t)(5 * (diff + 1)),
-      (uint16_t)(3 * diff + 2),
-      (uint16_t)(6 * diff + 2)
-    };
+    uint16_t floor[4];
+    ai_king_ref_seed_floor(game->col1.head.difficulty, floor);
     for (int i = 0; i < 4; ++i) {
       if (game->col1.head.expeditionary_force[i] < floor[i]) {
         game->col1.head.expeditionary_force[i] = floor[i];
@@ -453,11 +448,7 @@ static bool game_capture_col1(ColonizeGameState* game, char* err, size_t err_siz
         game->col1.head.expeditionary_force[1] == 0 &&
         game->col1.head.expeditionary_force[2] == 0 &&
         game->col1.head.expeditionary_force[3] == 0) {
-      const int diff = game->col1.head.difficulty;
-      game->col1.head.expeditionary_force[0] = (uint16_t)(8 * diff + 15);
-      game->col1.head.expeditionary_force[1] = (uint16_t)(5 * (diff + 1));
-      game->col1.head.expeditionary_force[2] = (uint16_t)(3 * diff + 2);
-      game->col1.head.expeditionary_force[3] = (uint16_t)(6 * diff + 2);
+      ai_king_ref_seed_floor(game->col1.head.difficulty, game->col1.head.expeditionary_force);
     }
     game->col1_ok = true;
     /* DOS samples DS:0x8d80 from the BIOS tick (0040:006C, 18.2 Hz) once per

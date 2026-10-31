@@ -71,7 +71,6 @@ typedef struct PediaTerrainPreview {
   int terrain_sprite; /* TERRAIN.SS index, or -1 */
   int phys0_sprites[PEDIA_PREVIEW_PHYS0_MAX];
   int phys0_count;
-  uint8_t class_flag; /* from viceroy_terrain_meta[0] */
 } PediaTerrainPreview;
 
 typedef struct PediaPage {

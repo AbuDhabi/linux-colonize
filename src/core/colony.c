@@ -40,23 +40,38 @@
 #define COLONY_MAP_ICON_NONE 3
 
 /* ===================== Map icons, fortification tier & colony lookup/fog queries (colonies_settlement_icon .. colonies_reveal_founded_w) ===================== */
-int colonies_settlement_icon(const ColonizeColonyPool* pool, const ColonizeColony* c) {
+/*
+ * FUN_15eb_038e(0/1/2) = FUN_15eb_035e: one literal bit test per tier
+ * (Stockade / Fort / Fortress, building records 0/1/2). The completion writer
+ * FUN_15eb_1030(idx, 1) only ORs a bit in and never clears the tier below, and
+ * FUN_15eb_3650 refuses an upgrade without its predecessor, so a grown colony
+ * reads 1 / 3 / 7. A lone upper bit only follows a raid burn of a lower tier
+ * (FUN_5fef_0f14), and every DOS probe then reads the bits as they are — no
+ * "Fortress implies Fort" fold anywhere.
+ */
+unsigned colonies_fort_bits(const ColonizeColonyPool* pool, const ColonizeColony* c) {
   if (!pool || !c) {
-    return COLONY_MAP_ICON_NONE;
+    return 0;
   }
-  const int fortress = colonies_building_row(pool, COLONY_BUILDING_FORTRESS);
-  if (fortress >= 0 && c->has_building[fortress]) {
-    return COLONY_MAP_ICON_FORTRESS;
+  static const ColonizeBuildingRow rows[3] = {
+    COLONY_BUILDING_STOCKADE, COLONY_BUILDING_FORT, COLONY_BUILDING_FORTRESS
+  };
+  unsigned bits = 0;
+  for (int i = 0; i < 3; ++i) {
+    const int b = colonies_building_row(pool, rows[i]);
+    if (b >= 0 && b < COLONIZE_BUILDING_TYPES_MAX && c->has_building[b]) {
+      bits |= 1u << i;
+    }
   }
-  const int fort = colonies_building_row(pool, COLONY_BUILDING_FORT);
-  if (fort >= 0 && c->has_building[fort]) {
-    return COLONY_MAP_ICON_FORT;
-  }
-  const int stockade = colonies_building_row(pool, COLONY_BUILDING_STOCKADE);
-  if (stockade >= 0 && c->has_building[stockade]) {
-    return COLONY_MAP_ICON_STOCKADE;
-  }
-  return COLONY_MAP_ICON_NONE;
+  return bits;
+}
+
+int colonies_settlement_icon(const ColonizeColonyPool* pool, const ColonizeColony* c) {
+  const unsigned bits = colonies_fort_bits(pool, c);
+  return (bits & COLONY_FORT_BIT_FORTRESS) ? COLONY_MAP_ICON_FORTRESS
+         : (bits & COLONY_FORT_BIT_FORT)   ? COLONY_MAP_ICON_FORT
+         : (bits & COLONY_FORT_BIT_STOCKADE) ? COLONY_MAP_ICON_STOCKADE
+                                             : COLONY_MAP_ICON_NONE;
 }
 
 /* File-local since the 2026-09-14 duplication pass (audit CO-29): the only
@@ -78,6 +93,12 @@ static int colonies_fortification_tier(const ColonizeColonyPool* pool, const Col
   }
 }
 
+/*
+ * Also DOS's per-nation settlement byte `nation + 0x9298` (written raw 58030,
+ * decremented raw 58154; the Build handler refuses at 0x26 == 38, asm
+ * 0x22595): the port recounts the pool, the same quantity by construction.
+ * port_bugs.md #681.
+ */
 int colonies_count_for_nation(const ColonizeColonyPool* pool, int nation) {
   if (!pool) {
     return 0;
@@ -675,25 +696,6 @@ bool colonies_can_found(
     }
   }
   return true;
-}
-
-/*
- * DOS keeps a per-nation settlement count in the byte `nation + 0x9298`
- * (written raw 58030, decremented raw 58154) and the Build handler refuses
- * at 0x26 == 38 (asm 0x22595). The port has no such byte, so it recounts the
- * pool — the same quantity by construction. port_bugs.md #681.
- */
-int colonies_nation_settlement_count(const ColonizeColonyPool* pool, int nation_id) {
-  if (!pool) {
-    return 0;
-  }
-  int n = 0;
-  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-    if (pool->colonies[i].active && pool->colonies[i].nation_id == nation_id) {
-      ++n;
-    }
-  }
-  return n;
 }
 
 /*

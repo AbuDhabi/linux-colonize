@@ -837,6 +837,7 @@ static int case_europe_workflow(void) {
   const int harbor_before = eu.harbor_ships;
   if (!europe_purchase(&eu, 1) || eu.harbor_ships != harbor_before + 1 ||
       strcmp(eu.harbor[eu.harbor_ships - 1].name, "Caravel") != 0 ||
+      eu.harbor[eu.harbor_ships - 1].kind_plus1 != (int)eu.purchase[1].kind + 1 ||
       eu.gold != gold_pre_buy_ship - 1000) {
     fprintf(stderr, "purchase Caravel failed: %s\n", eu.status);
     europe_free(&eu);
@@ -885,7 +886,7 @@ static int case_europe_workflow(void) {
     eu.menu_selection = 0; /* "Yes" */
     if (!europe_menu_confirm_ex(&eu, NULL) || eu.gold != gold_before - confirm_cost ||
         eu.dock_count != dock_before + 1 ||
-        strcmp(eu.dock[0].name, "Artillery") != 0 || /* newest at slot 0 (#999) */
+        strcmp(eu.dock[0].name, "Artillery") != 0 || !eu.dock[0].artillery || /* newest at slot 0 (#999) */
         eu.menu != EUROPE_MENU_NONE || eu.artillery_bought != bought_before + 1) {
       fprintf(stderr, "purchase 'Yes' answer did not debit/spawn correctly\n");
       europe_free(&eu);
@@ -2224,6 +2225,7 @@ static int case_europe_workflow(void) {
       return 1;
     }
     snprintf(d.name, sizeof(d.name), "%s", "Artillery");
+    d.artillery = true; /* the row's identity, not its name (#1343) */
     ti = europe_dock_display_type_index(&units, &d);
     if (ti != units_find_type(&units, "Artillery") ||
         unit_chrome_corner_for_type(ti, false) != UNIT_CHROME_CORNER_TOP_CENTER) {

@@ -217,14 +217,6 @@ COLONIZE_INTERNAL void ai_021a_set_visit_turn(ColonizeUnit* u, int turn) {
   u->col1_hold_raw_valid = 1;
 }
 
-/* FUN_15dc_00a2 alarm tier: <25 0, <50 1, <75 2, else 3. */
-static int ai_021a_alarm_tier(int alarm) {
-  if (alarm < 0x19) return 0;
-  if (alarm < 0x32) return 1;
-  if (alarm < 0x4b) return 2;
-  return 3;
-}
-
 /* struct ai_021a_ctx / Ai021aDirStatus now live in ai_internal.h. */
 
 /*
@@ -660,7 +652,7 @@ COLONIZE_INTERNAL Ai021aDirStatus ai_021a_dir_terrain(struct ai_021a_ctx* c) {
       if (adj_foreign) {
         if (adj_nation < 4) {
           const int a = ai_diplo_indian_alarm(col1, nation_id, adj_nation);
-          if (ai_021a_alarm_tier(a) > 0) {
+          if (ai_relation_quartile(a) > 0) {
             score += ((a - 0x32) >> 1) + 8;
           }
         }
@@ -672,7 +664,7 @@ COLONIZE_INTERNAL Ai021aDirStatus ai_021a_dir_terrain(struct ai_021a_ctx* c) {
       const int a = ai_diplo_indian_alarm(col1, nation_id, adj_nation);
       if (a >= 0x5f) {
         score += 0x10;
-      } else if (ai_021a_alarm_tier(a) > 0) {
+      } else if (ai_relation_quartile(a) > 0) {
         score += ((a - 0x32) >> 1) + 5;
       }
     }
@@ -704,7 +696,7 @@ COLONIZE_INTERNAL Ai021aDirStatus ai_021a_dir_terrain(struct ai_021a_ctx* c) {
           score += 0x32;
         }
         const int a = ai_diplo_indian_alarm(col1, nation_id, fn);
-        if (ai_021a_alarm_tier(a) > 0) {
+        if (ai_relation_quartile(a) > 0) {
           score += (a - 0x32) >> 2;
         }
       } else {
@@ -748,7 +740,7 @@ COLONIZE_INTERNAL Ai021aDirStatus ai_021a_dir_angry(struct ai_021a_ctx* c) {
       const int dcol = map_dos_dist(col->x - nx, col->y - ny);
       const int a = ai_diplo_indian_alarm(col1, nation_id, col->nation_id);
       if (dcol < 12) {
-        score += ((ai_021a_alarm_tier(a) + 1) * (12 - dcol)) >> 2;
+        score += ((ai_relation_quartile(a) + 1) * (12 - dcol)) >> 2;
       }
     }
   } else {
@@ -833,7 +825,7 @@ COLONIZE_INTERNAL Ai021aDirStatus ai_021a_dir_angry(struct ai_021a_ctx* c) {
           score -= dcol * 2;
         }
       } else if (dcol < 12) {
-        score += ((ai_021a_alarm_tier(a) + 1) * (12 - dcol)) >> 2;
+        score += ((ai_relation_quartile(a) + 1) * (12 - dcol)) >> 2;
       }
     }
   }
@@ -1160,11 +1152,10 @@ int ai_native_021a_tail(
   ColonizeCol1Indian* ind = (indian >= 0 && indian < 8) ? &col1->indian[indian] : NULL;
   const int turn_w = (int)col1->head.turn;
   const int cool = turn_w + turn_w / -25;
-  int owner = -1;
   if (flags & 0x0a) {
     const int dx = (dir < 8) ? u->x + k_ai_dir8_dx[dir] : u->x;
     const int dy = (dir < 8) ? u->y + k_ai_dir8_dy[dir] : u->y;
-    owner = ai_owner_nibble(map, dx, dy);
+    const int owner = ai_owner_nibble(map, dx, dy);
     if (ind && owner >= 0 && owner < 4) {
       if (ind->contact_state[owner] == 2) {
         return 8;

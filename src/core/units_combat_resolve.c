@@ -934,6 +934,15 @@ bool units_resolve_naval_combat_ff_w(
 /* ===================== Coastal fort fire, ship-slowing & foreign-colony capture setup (units_coastal_fort_attack_strength .. units_capture_claim_ring) ===================== */
 
 
+/* Live @BUILDING name (NAMES.TXT) of the firing tier: Fortress if its bit is
+ * owned, else Fort; "" if unset. */
+static const char* units_fort_fire_name(const ColonizeColonyPool* colonies, const ColonizeColony* col) {
+  const int row = (colonies_fort_bits(colonies, col) & COLONY_FORT_BIT_FORTRESS)
+    ? colonies_building_row(colonies, COLONY_BUILDING_FORTRESS)
+    : colonies_building_row(colonies, COLONY_BUILDING_FORT);
+  return row >= 0 ? colonies->building_types[row].name : "";
+}
+
 int units_coastal_fort_attack_strength(
   const ColonizeColonyPool* colonies,
   const ColonizeColony* colony,
@@ -947,22 +956,13 @@ int units_coastal_fort_attack_strength(
    * SUM of two independent stockade-level probes, not an either/or —
    *   local_c  = (FUN_281f_09fc(1) != 0);            // Fort level
    *   if (FUN_281f_09fc(2) != 0) local_c++;          // Fortress level
-   * A Fortress colony answers YES to both probes (FUN_157e_0008 raw 8895-8908
-   * sums all three level probes), so local_c reaches 2 there and 1 for a plain
-   * Fort. The port stores the two buildings as separate flags and an upgraded
-   * colony may carry only the Fortress flag, so the Fort probe is spelled as
-   * "has at least Fort level".
+   * 09fc is FUN_15eb_038e, a literal bit test (port_bugs.md #1342): a grown
+   * Fortress colony keeps its Fort bit (completion never clears the tier
+   * below), so local_c is 2 there and 1 for a plain Fort; a lone Fortress bit
+   * left by a raid burn counts 1, as in DOS.
    */
-  const int fortress_row = colonies_building_row(colonies, COLONY_BUILDING_FORTRESS);
-  const int fort_row = colonies_building_row(colonies, COLONY_BUILDING_FORT);
-  const int has_fortress =
-    fortress_row >= 0 && fortress_row < COLONIZE_BUILDING_TYPES_MAX &&
-    colony->has_building[fortress_row];
-  const int has_fort =
-    (fort_row >= 0 && fort_row < COLONIZE_BUILDING_TYPES_MAX &&
-     colony->has_building[fort_row]) ||
-    has_fortress;
-  const int tier = (has_fort ? 1 : 0) + (has_fortress ? 1 : 0);
+  const unsigned bits = colonies_fort_bits(colonies, colony);
+  const int tier = ((bits & COLONY_FORT_BIT_FORT) ? 1 : 0) + ((bits & COLONY_FORT_BIT_FORTRESS) ? 1 : 0);
   if (tier <= 0) {
     return 0;
   }
@@ -1386,22 +1386,9 @@ void units_ship_slow_scan_w(
     const ColonizeColony* col = cid >= 0 ? colonies_get(colonies, cid) : NULL;
     if (col && col->active && col->nation_id != u->nation_id && u->moves > 0 &&
         units_ship_slow_gate(col1, u->nation_id, col->nation_id, mover_kind)) {
-      const int fortress = colonies_building_row(colonies, COLONY_BUILDING_FORTRESS);
-      const int fort = colonies_building_row(colonies, COLONY_BUILDING_FORT);
-      const char* bname = NULL;
-      int drain = 0;
-      if (fortress >= 0 && col->has_building[fortress]) {
-        drain = 50;
-        /* Live @BUILDING name (NAMES.TXT); "" fallback if unset. */
-        bname = colonies->building_types[fortress].name[0]
-          ? colonies->building_types[fortress].name
-          : "";
-      } else if (fort >= 0 && col->has_building[fort]) {
-        drain = 2;
-        bname = colonies->building_types[fort].name[0]
-          ? colonies->building_types[fort].name
-          : "";
-      }
+      const unsigned fbits = colonies_fort_bits(colonies, col);
+      const int drain = (fbits & COLONY_FORT_BIT_FORTRESS) ? 50 : (fbits & COLONY_FORT_BIT_FORT) ? 2 : 0;
+      const char* bname = drain > 0 ? units_fort_fire_name(colonies, col) : NULL;
       if (drain > 0) {
         /* DOS-LITERAL viceroy_overlays.asm:151576 / 151586: `ADD [unit+0x3149], 0x32`
          * (Fortress) / `, 0x2` (Fort) on the spent byte, no clamp — DOSBox
@@ -1608,14 +1595,7 @@ static int units_coastal_fort_fire_impl(
     /* port_bugs.md #261: analysis header for the unit-less attacker. */
     char fort_label[80];
     {
-      const int fortress = colonies_building_row(colonies, COLONY_BUILDING_FORTRESS);
-      const int is_fortress = fortress >= 0 && fortress < COLONIZE_BUILDING_TYPES_MAX &&
-        col->has_building[fortress];
-      /* Live @BUILDING name (NAMES.TXT); "" fallback if unset. */
-      const int fort = colonies_building_row(colonies, COLONY_BUILDING_FORT);
-      const char* bname = is_fortress
-        ? (colonies->building_types[fortress].name[0] ? colonies->building_types[fortress].name : "")
-        : (fort >= 0 && colonies->building_types[fort].name[0] ? colonies->building_types[fort].name : "");
+      const char* bname = units_fort_fire_name(colonies, col);
       snprintf(
         fort_label, sizeof(fort_label), "%s %s",
         col->name[0] ? col->name : "", bname
@@ -1667,14 +1647,7 @@ static int units_coastal_fort_fire_impl(
           const ColonizeUnitType* ship_type = before ? units_type(units, before->type_index) : NULL;
           PopupMsgTokens tok;
           memset(&tok, 0, sizeof(tok));
-          const int fortress = colonies_building_row(colonies, COLONY_BUILDING_FORTRESS);
-          const int is_fortress = fortress >= 0 && fortress < COLONIZE_BUILDING_TYPES_MAX &&
-            col->has_building[fortress];
-          /* Live @BUILDING name (NAMES.TXT); "" fallback if unset. */
-          const int fort = colonies_building_row(colonies, COLONY_BUILDING_FORT);
-          tok.string0 = is_fortress
-            ? (colonies->building_types[fortress].name[0] ? colonies->building_types[fortress].name : "")
-            : (fort >= 0 && colonies->building_types[fort].name[0] ? colonies->building_types[fort].name : "");
+          tok.string0 = units_fort_fire_name(colonies, col);
           tok.string1 = col->name[0] ? col->name : "";
           tok.string2 = units_combat_nation_label(col1, ship_nation);
           tok.string3 = ship_type && ship_type->name[0] ? ship_type->name : "";

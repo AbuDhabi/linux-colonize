@@ -16,16 +16,7 @@ void ui_button_draw_frame(
   if (!framebuffer || !framebuffer->pixels || w < 2 || h < 2) {
     return;
   }
-  const int x1 = x + w - 1;
-  const int y1 = y + h - 1;
-  for (int px = x; px <= x1; ++px) {
-    fb_put(framebuffer, px, y, dark);
-    fb_put(framebuffer, px, y1, light);
-  }
-  for (int py = y; py <= y1; ++py) {
-    fb_put(framebuffer, x, py, dark);
-    fb_put(framebuffer, x1, py, light);
-  }
+  fb_rect_outline(framebuffer, x, y, w, h, dark, light);
 }
 
 void ui_button_measure(

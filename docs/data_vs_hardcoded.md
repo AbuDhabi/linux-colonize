@@ -11,7 +11,7 @@ For file-by-file navigation see [original_index.md](original_index.md). Formats 
 | Prefer | When |
 |--------|------|
 | **Read at runtime from `COLONIZE/`** | MicroProse shipped the value as an editable catalog, graphic, map, font, sound driver, or save. Altering the file changes DOS behavior. |
-| **Extract once → bake into `src/`** | The value lives only inside an `.EXE` (or is pure algorithm). There is no parallel `.TXT` / `.DAT` table. Regenerate via script when possible (`scripts/extract_viceroy_tables.py`). |
+| **Extract once → bake into `src/`** | The value lives only inside an `.EXE` (or is pure algorithm). There is no parallel `.TXT` / `.DAT` table. |
 | **Never as a runtime dependency** | Memory dumps, decomp C/ASM, RE tool EXEs (`VR_*.EXE`), installer helpers, sample `CONFIG.SYS` text. Use only as evidence while porting. |
 
 When the printed manual / Terrain Chart disagrees with `NAMES.TXT`, **`NAMES.TXT` wins** for numbers. Use the manual for qualitative rules the catalogs omit (town-commons dual produce, SoL ±1, Adam Smith gate, etc.). Community wiki digests ([fandom_col1994.md](fandom_col1994.md) and similar) are **tier-3** evidence only — after original code and the manual — never runtime data.
@@ -27,7 +27,7 @@ When the printed manual / Terrain Chart disagrees with `NAMES.TXT`, **`NAMES.TXT
 | `original_sources_annotated/` | Labeled / commented working copy of selected clusters (phase 1: AI accessors + nation turns). Prefer this when a symbol exists; fall back to the raw export. **Not** compiled. |
 | `original_memory_dumps/` | DOSBox-X save-states (live VGA / RAM). RE evidence only. |
 | `original_saves/` / `test-saves*` | Col1 binary layout oracles — not “game data catalogs”. |
-| `src/data/` | Baked tables extracted from EXEs (e.g. `viceroy_tables.c`). |
+| `src/data/` | Baked data (test fixtures; the `viceroy_tables.c` extract was retired 2026-10-31). |
 | `COLONIZE/Colonization.pdf` | Manual + tech supplement — feature intent, not machine tables. |
 
 ---
@@ -142,7 +142,6 @@ These do **not** appear as editable MicroProse catalogs. Recover from decomp / b
 
 | Table | Source | OpenCol home |
 |-------|--------|------------|
-| Terrain meta (Colonizopedia preview only; DS mapping unverified) | `VICEROY.EXE` DS tables | `src/data/viceroy_tables.c` via `scripts/extract_viceroy_tables.py` — see [viceroy_tables.md](viceroy_tables.md) |
 | Resource type by terrain class (29 ints) | MAPEDIT DS `0x4de` | Currently hardcoded in `map.c` (`mapedit_resource_type_by_terrain`) — same “extract once” class |
 | Manufacturing free-colonist rates `3/6/9` | Computed by DOS `FUN_15eb_1d4c` / `15eb_15c6` (no `0x16103` table) | `colony_production.c` — see [building_production.md](building_production.md) |
 
@@ -192,7 +191,7 @@ These do **not** appear as editable MicroProse catalogs. Recover from decomp / b
 
 Already **file-driven** in practice: MADSPACK art/fonts, `GAME`/`MENU`/`LABELS`/`NAMES`/`COLONY`/`PEDIA` text, `AMER2.MP` / scenario `.MP`, `TRIBE.TXT` (AMERICA), `GSOUND.COL`, Col1 saves, report PIKs.
 
-Already **baked** (correctly): DOS RNG, map gen pipeline, MAPEDIT compositor + resource-type table, `viceroy_tables.c`, colony production tier math, much UI layout, sound ID map.
+Already **baked** (correctly): DOS RNG, map gen pipeline, MAPEDIT compositor + resource-type table, colony production tier math, much UI layout, sound ID map.
 
 **No MicroProse text in the binary (rule since 2026-09-21).** The port relies
 strictly on the shipped `COLONIZE/*.TXT` catalogs for the game's wording; only
@@ -261,7 +260,7 @@ oddly can hide a lookup that never worked.
 
 - [original_index.md](original_index.md) — FUN_* and file index
 - [assets.md](assets.md) — MADSPACK, map layers, UI wiring
-- [viceroy_tables.md](viceroy_tables.md) — extracted VICEROY DS tables
+- [viceroy_tables.md](viceroy_tables.md) — retired VICEROY DS table extract
 - [terrain_yields.md](terrain_yields.md) / [building_production.md](building_production.md) — yield & manufacturing rules
 - [decomp_inventory.md](decomp_inventory.md) — known Ghidra disassembly faults
 - [savegame.md](savegame.md) — `COLONY##.SAV` layout

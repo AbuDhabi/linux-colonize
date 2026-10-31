@@ -486,29 +486,6 @@ bool map_tile_is_coastal(const ColonizeWorldMap* map, int x, int y) {
   return false;
 }
 
-/*
- * Water-side complement of map_tile_is_coastal, from ai_euro.c's
- * ai_euro_tile_is_coast_water (ai.c carried a byte-identical bool twin).
- * Off-map neighbours are skipped rather than treated as land, so a map-rim
- * water tile is coast only if a real land neighbour exists.
- */
-bool map_tile_is_coast_water(const ColonizeWorldMap* map, int x, int y) {
-  if (!map || !(map_tile_is_water(map, x, y) || map_tile_is_high_seas(map, x, y))) {
-    return false;
-  }
-  for (int d = 0; d < 8; ++d) {
-    const int nx = x + MAP_DIR8_DX[d];
-    const int ny = y + MAP_DIR8_DY[d];
-    if (!map_in_bounds(map, nx, ny)) {
-      continue;
-    }
-    if (!map_tile_is_water(map, nx, ny) && !map_tile_is_high_seas(map, nx, ny)) {
-      return true;
-    }
-  }
-  return false;
-}
-
 bool map_tile_is_high_seas(const ColonizeWorldMap* map, int x, int y) {
   if (!map_in_bounds(map, x, y)) {
     return false;
@@ -1292,29 +1269,30 @@ bool map_tile_is_open_sea_adjacent(const ColonizeWorldMap* map, int x, int y) {
   return best == 1 || best == 0x10;
 }
 
-/* DOS FUN_281f_0682: unit-presence bit only (layer2 bit0) → owner nibble. */
-int map_tile_owner_or_presence(const ColonizeWorldMap* map, int x, int y) {
-  if (!map_in_bounds(map, x, y) || !map->layer2) {
+/* FUN_137f_0314 (bits HAS_UNIT) / FUN_137f_03e4 (HAS_CITY): FUN_137f_000a
+ * inset gate, layer2 & bits, then the layer3 owner nibble (0xf -> -1,
+ * FUN_137f_0200). */
+int map_tile_layer2_owner(const ColonizeWorldMap* map, int x, int y, unsigned bits) {
+  if (!map_coords_inset(map, x, y) || !map->layer2) {
     return -1;
   }
   const uint8_t l2 = map->layer2[(size_t)y * (size_t)map->width + (size_t)x];
-  if ((l2 & MAP_OCCUPANCY_HAS_UNIT) == 0) {
+  if ((l2 & bits) == 0) {
     return -1;
   }
   const int hi = (int)((map_get_layer3(map, x, y) >> MAP_L3_OWNER_SHIFT) & MAP_L3_OWNER_MASK);
   return hi == 0x0f ? -1 : hi;
 }
 
+/* DOS FUN_281f_0682 = FUN_137f_0314: unit-presence bit only. */
+int map_tile_owner_or_presence(const ColonizeWorldMap* map, int x, int y) {
+  return map_tile_layer2_owner(map, x, y, MAP_OCCUPANCY_HAS_UNIT);
+}
+
+/* DOS FUN_281f_06d2 = FUN_137f_0428: 03e4 (settlement), falling back to 0314
+ * (unit); both read the same nibble, so one combined bit test is equivalent. */
 int map_tile_tribe_or_presence(const ColonizeWorldMap* map, int x, int y) {
-  if (!map_in_bounds(map, x, y) || !map->layer2) {
-    return -1;
-  }
-  const uint8_t l2 = map->layer2[(size_t)y * (size_t)map->width + (size_t)x];
-  if ((l2 & (MAP_OCCUPANCY_HAS_CITY | MAP_OCCUPANCY_HAS_UNIT)) == 0) {
-    return -1;
-  }
-  const int hi = (int)((map_get_layer3(map, x, y) >> MAP_L3_OWNER_SHIFT) & MAP_L3_OWNER_MASK);
-  return hi == 0x0f ? -1 : hi;
+  return map_tile_layer2_owner(map, x, y, MAP_OCCUPANCY_HAS_CITY | MAP_OCCUPANCY_HAS_UNIT);
 }
 
 static uint8_t map_terrain_overlay(uint8_t terrain_byte) {

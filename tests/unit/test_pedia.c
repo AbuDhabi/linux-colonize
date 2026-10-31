@@ -78,6 +78,8 @@ static int case_terrain_preview_sprites(void) {
   char err[256];
   if (expect_preview(0, 0, 0, NULL, err, sizeof(err)) != 0 ||
       expect_preview(4, 4, 0, NULL, err, sizeof(err)) != 0 ||
+      /* Marsh: no overlay (the retired viceroy_terrain_meta gave it mountain 36, #1336). */
+      expect_preview(6, 6, 0, NULL, err, sizeof(err)) != 0 ||
       expect_preview(8, 0, 1, forest8, err, sizeof(err)) != 0 ||
       expect_preview(9, 8, 0, NULL, err, sizeof(err)) != 0 ||
       expect_preview(13, 5, 1, forest13, err, sizeof(err)) != 0 ||

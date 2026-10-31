@@ -68,4 +68,13 @@ static inline int clamp_int(int v, int lo, int hi) {
  */
 bool file_slurp(const char* path, uint8_t** out_buf, size_t* out_size, char* err, size_t err_size);
 
+/*
+ * Atomically replace `path` with the finished temp file `tmp` (same dir).
+ * MSVCRT's rename() fails when the destination exists (POSIX replaces it), so
+ * on _WIN32 the old file is removed first: a small window with neither file,
+ * but the new one is already complete on disk. Returns rename()==0; on failure
+ * the caller still owns `tmp`. One body for settings, col1_save and the HoF.
+ */
+bool file_replace(const char* tmp, const char* path);
+
 #endif

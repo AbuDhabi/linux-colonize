@@ -9,7 +9,6 @@
 #include "core/strutil.h"
 #include "core/unit_chrome.h"
 #include "core/units_move.h"
-#include "data/viceroy_tables.h"
 
 static const char* k_category_labels[PEDIA_CAT_COUNT] = {
   "", "", "", "", "", "", ""
@@ -151,8 +150,14 @@ static const char* pedia_category_section_prefix(PediaCategory category) {
   return k_category_prefixes[category];
 }
 
+/*
+ * PHYS0 canopy for forest terrain (map index & 7). Scrub (1) is TERRAIN-only.
+ * Canopies are PHYS0.SS mixed-forest sprites 64-79 (not mountain 32-47 or
+ * resource 96-99).
+ */
 static int pedia_forest_phys0(int forest_index) {
-  return viceroy_forest_phys0_sprite(forest_index & 7);
+  static const int k_canopy[8] = {70, -1, 64, 65, 66, 69, 67, 68};
+  return k_canopy[forest_index & 7];
 }
 
 /*
@@ -180,7 +185,6 @@ void pedia_terrain_preview(int terrain_index, PediaTerrainPreview* out) {
   }
   memset(out, 0, sizeof(*out));
   out->terrain_sprite = -1;
-  out->class_flag = viceroy_terrain_class(terrain_index);
 
   if (terrain_index < 0 || terrain_index >= PEDIA_TERRAIN_COUNT) {
     return;
@@ -205,14 +209,14 @@ void pedia_terrain_preview(int terrain_index, PediaTerrainPreview* out) {
     return;
   }
 
-  if (terrain_index == 27 || out->class_flag == VICEROY_TERRAIN_CLASS_MOUNTAIN) {
+  if (terrain_index == 27) {
     if (out->phys0_count < PEDIA_PREVIEW_PHYS0_MAX) {
       out->phys0_sprites[out->phys0_count++] = 36;
     }
     return;
   }
 
-  if (terrain_index == 28 || out->class_flag == VICEROY_TERRAIN_CLASS_HILLS) {
+  if (terrain_index == 28) {
     if (out->phys0_count < PEDIA_PREVIEW_PHYS0_MAX) {
       out->phys0_sprites[out->phys0_count++] = 48;
     }

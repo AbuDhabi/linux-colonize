@@ -452,6 +452,9 @@ struct ColonizeGameState {
   uint8_t menu_col_hilite;
   uint8_t menu_col_select;
   ColonizePopupColors menu_popup_colors;
+  /* Port-only debug line, never drawn: set_status / snprintf literals here
+   * (English, not catalog text) reach only play_driver and the test harness
+   * logs via game_status_text. DOS has no such line; keep it out of the UI. */
   char status[128];
   /* Set from main each frame; used by Combat Analysis nested present loop. */
   ColonizePlatform* platform;
@@ -625,13 +628,6 @@ bool game_do_found_colony_at_unit(ColonizeGameState* game, int uid);
 /* @NOCOLONIESEITHER at the top of the shared Build/Join handler (port_bugs.md
  * #688). True = the gate fired and the order is dropped. */
 bool game_woi_blocks_colony_orders(ColonizeGameState* game);
-void game_emit_warehouse_full(
-  ColonizeGameState* game,
-  int colony_id,
-  int cargo_type,
-  int deposited,
-  int already_included
-);
 void game_enqueue_yes_no(
   ColonizeGameState* game,
   GameMapConfirm confirm,
@@ -670,7 +666,6 @@ bool game_request_indian_land_choice(
   int y
 );
 bool game_pioneer_land_gate(ColonizeGameState* game, GameIndianLandKind kind);
-void game_request_noport_found_confirm(ColonizeGameState* game, int uid);
 void game_request_overboard_confirm(ColonizeGameState* game);
 void game_service_europe_bar(ColonizeGameState* game);
 void game_service_colony_bar(ColonizeGameState* game);

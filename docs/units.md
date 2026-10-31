@@ -61,22 +61,14 @@ Drydock/Shipyard colony is unlinked from its tile and re-placed at
 (nation-20, nation-20) — the off-map Europe slot — on the spot. Pass NULL
 to clear (headless callers leave it unset and keep the ship on its tile).
 
-## units_set_native_combat_chrome_owned
+## Native gear step (@INDIANWIN1/2)
 
-ai_contact's ambush arm draws its own @INDIANWIN1/2 chrome (muskets/horses
-seizure line, chief portrait), so it sets this around its
-units_resolve_land_combat call to keep the generic native-attacker
-@INDIANWIN0/@INDIANLOSE chrome in units_combat_outcome_popups quiet.
-Every other native attack path (braves stepping onto human tiles via
-units_try_move, alarm marches) gets the generic chrome.
-
-## units_last_native_gear_step
-
-FUN_5fef_1b0e's `bVar13` / `bVar14` gear-step flags from the last land loss
-resolved (port_bugs.md #645). `armed` = the brave stepped to Armed (@INDIANWIN
-tag suffix '1'), `mounted` = stepped to Mtd. (suffix '2'). The type step and
-the tribe tally happen inside the combat path; these are only the chrome
-picks for the owner of the @INDIANWIN popup. Clear before a resolve.
+FUN_5fef_1b0e's `bVar13` / `bVar14` gear-step flags (port_bugs.md #645) live in
+`g_units_native_gear_armed` / `_mounted` (units_internal.h). The land-loss
+outcome sets them when a native winner steps to Armed / Mtd.;
+units_combat_outcome_popups consumes them and appends the tag suffix
+(raw 101088-101095: '1' = armed, '2' = mounted) to @INDIANWIN0. There is no
+separate ai_contact chrome owner.
 
 ## units_set_combat_music_hooks
 

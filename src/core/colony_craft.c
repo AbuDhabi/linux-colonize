@@ -345,34 +345,6 @@ void colony_craft_one_colony_ex(
   colony_craft_run(pool, colony, NULL, delta, sol_bonus, gross_out, NULL, false, ai_controlled);
 }
 
-/* See header: demand[in_cargo] = someone staffed produced a positive
- * tier-scaled input requirement for that recipe this tick (stock not read). */
-void colony_craft_demand_mask(
-  const ColonizeColonyPool* pool,
-  const ColonizeColony* colony,
-  int sol_bonus,
-  bool demand[COLONIZE_CARGO_COUNT]
-) {
-  if (!demand) {
-    return;
-  }
-  memset(demand, 0, sizeof(bool) * COLONIZE_CARGO_COUNT);
-  if (!pool || !colony || !colony->active) {
-    return;
-  }
-
-  ColonyCraftPairIter it;
-  colony_craft_pairs_begin(&it);
-  const ColonizeCraftRecipe* rec = NULL;
-  int total_out = 0;
-  int total_in = 0;
-  while (colony_craft_pairs_next(&it, pool, colony, sol_bonus, &rec, &total_out, &total_in)) {
-    if (total_in > 0) {
-      demand[rec->in_cargo] = true;
-    }
-  }
-}
-
 /*
  * Preview helper: same recipe pass as colony_craft_one_colony but records shortfalls
  * and does not require mutating the live colony (operates on scratch stock).

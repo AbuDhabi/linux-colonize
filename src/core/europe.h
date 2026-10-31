@@ -156,6 +156,9 @@ typedef struct EuropeDockImmigrant {
   /* Tools a Pioneer row carries (DOS +0x3159 stays on the dock record); 0 =
    * the kit its type is given (europe_apply_dock_row_kit). */
   int tools;
+  /* @UNIT row 11 (UNITS_KIND_ARTILLERY): an Artillery piece has no dos_type of
+   * its own. Set at purchase; europe_dock_push_load derives it for its callers. */
+  bool artillery;
 } EuropeDockImmigrant;
 
 typedef struct EuropeRecruitClass {
@@ -183,7 +186,10 @@ typedef struct EuropePurchaseOption {
 } EuropePurchaseOption;
 
 typedef struct EuropeHarborShip {
-  int type_index; /* into ColonizeUnitPool types; -1 until resolved by name */
+  int type_index; /* into ColonizeUnitPool types; -1 = purchased hull, see kind_plus1 */
+  /* ColonizeUnitKind + 1 of a purchased hull (europe_purchase_commit has no
+   * pool to resolve type_index with); 0 = unset. europe_ship_type_index. */
+  int kind_plus1;
   char name[32];
   int cargo_types[EUROPE_SHIP_CARGO_MAX]; /* passenger unit type indices */
   int cargo_professions[EUROPE_SHIP_CARGO_MAX]; /* @JOB per passenger */
@@ -562,6 +568,8 @@ void europe_icon_flow_advance(EuropeIconFlow* f, int w);
 /* Sprite size with the 14×16 fallback the transit boxes always used. */
 void europe_icon_flow_size(const ColonizeSpriteSheet* icons, int sprite, int* w, int* h);
 
+/* Pool type slot of a harbor ship: type_index, else its purchased kind; -1. */
+int europe_ship_type_index(const ColonizeUnitPool* units, const EuropeHarborShip* ship);
 /* europe_dock_display_type_index -- see docs/europe.md#europe_dock_display_type_index */
 int europe_dock_display_type_index(
   const ColonizeUnitPool* units, const EuropeDockImmigrant* d
@@ -584,9 +592,6 @@ void europe_apply_dock_unit_kit(ColonizeUnit* u, int dos_type);
 /* The row's kit: its type's, with the row's own tools when it carries any. */
 void europe_apply_dock_row_kit(ColonizeUnit* u, const EuropeDockImmigrant* d);
 
-/* Move the (236,236) mirror unit behind a dock entry to a new @UNIT type. */
-bool europe_pop_dock_immigrant(EuropeScreen* eu, char* out_name, size_t out_name_size);
-/* Pop with profession; returns false if empty. */
 
 bool europe_harbor_push(
   EuropeScreen* eu,

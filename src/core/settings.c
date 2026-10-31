@@ -278,7 +278,7 @@ bool settings_save_file(const char* path, const ColonizeSettings* in, char* err,
     remove(tmp);
     return false;
   }
-  if (rename(tmp, path) != 0) {
+  if (!file_replace(tmp, path)) {
     set_err(err, err_size, "settings: cannot replace %s: %s", path, strerror(errno));
     remove(tmp);
     return false;

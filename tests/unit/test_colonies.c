@@ -606,9 +606,15 @@ static int unit_alreadyhave_chrome(void) {
     return 1;
   }
 
+  const ColonizeBuildingType press = {
+    .name = "Printing Press", .row_plus1 = COLONY_BUILDING_PRINTING_PRESS + 1
+  };
+  const ColonizeBuildingType wh_exp = {
+    .name = "Warehouse Expansion", .row_plus1 = COLONY_BUILDING_WAREHOUSE_EXPANSION + 1
+  };
   AiPopupState pops;
   ai_popup_init(&pops);
-  colonies_emit_already_have_chrome(col, "Printing Press", &pops, &game_txt);
+  colonies_emit_already_have_chrome(col, &press, &pops, &game_txt);
   if (pops.queue_count < 1 ||
       (strstr(pops.queue[0].body, "Williamsburg") == NULL &&
        strstr(pops.queue[0].body, "already") == NULL &&
@@ -624,7 +630,7 @@ static int unit_alreadyhave_chrome(void) {
   }
 
   ai_popup_init(&pops);
-  colonies_emit_already_have_chrome(col, "Warehouse Expansion", &pops, &game_txt);
+  colonies_emit_already_have_chrome(col, &wh_exp, &pops, &game_txt);
   if (pops.queue_count < 1 ||
       (strstr(pops.queue[0].body, "Williamsburg") == NULL &&
        strstr(pops.queue[0].body, "expansion") == NULL &&
@@ -2150,140 +2156,6 @@ static int case_colonies_core(void) {
   }
 
   /*
-   * TRADE Edit autofill: unload from unit holds; load from colony surplus.
-   * Cite: colonies_trade_stop_autofill.
-   */
-  {
-    ColonizeUnitPool units;
-    memset(&units, 0, sizeof(units));
-    units_reset(&units);
-    units_set_occupancy_map(NULL);
-    units.type_count = 1;
-    snprintf(units.types[0].name, sizeof(units.types[0].name), "Wagon Train");
-    units.types[0].movement = 2;
-    units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
-    units.types[0].cargo = 2;
-
-    ColonizeColony* c = colonies_get_mut(&pool, cid);
-    CHECK(c != NULL, "autofill colony");
-    if (c) {
-      c->stock[COLONIZE_CARGO_TOOLS] = 80;
-      c->stock[COLONIZE_CARGO_LUMBER] = 80;
-      c->stock[COLONIZE_CARGO_ORE] = 5;
-      const int wid = units_spawn(&units, 0, c->x, c->y);
-      ColonizeUnit* w = units_get(&units, wid);
-      CHECK(w != NULL, "autofill wagon");
-      if (w) {
-        CHECK(units_load_goods(&units, wid, COLONIZE_CARGO_FOOD, 20) == 20, "autofill FOOD hold");
-        ColonizeCol1TradeStop st;
-        memset(&st, 0, sizeof(st));
-        st.colony_index = (uint16_t)cid;
-        colonies_trade_stop_autofill(&st, c, &units, wid);
-        CHECK(st.unload_count == 1, "autofill unload FOOD");
-        CHECK(
-          col1_trade_nibble_cargo(st.unload_cargo_nibbles, 0) == COLONIZE_CARGO_FOOD,
-          "autofill unload nibble FOOD"
-        );
-        CHECK(st.load_count >= 2, "autofill load tools+lumber surplus");
-        CHECK(
-          col1_trade_nibble_cargo(st.load_cargo_nibbles, 0) == COLONIZE_CARGO_TOOLS,
-          "autofill load TOOLS first"
-        );
-        CHECK(
-          col1_trade_nibble_cargo(st.load_cargo_nibbles, 1) == COLONIZE_CARGO_LUMBER,
-          "autofill load LUMBER second"
-        );
-        /* Europe: unload only */
-        ColonizeCol1TradeStop eu;
-        memset(&eu, 0, sizeof(eu));
-        eu.colony_index = 999;
-        colonies_trade_stop_autofill(&eu, NULL, &units, wid);
-        CHECK(eu.unload_count == 1 && eu.load_count == 0, "Europe autofill unload-only");
-      }
-    }
-  }
-
-  /*
-   * TRADE cargo picker setter: explicit unload TOOLS + load SILVER (not autofill).
-   * Cite: colonies_trade_stop_set_cargos; ColonizeCol1TradeStop.
-   */
-  {
-    ColonizeUnitPool units;
-    memset(&units, 0, sizeof(units));
-    units_reset(&units);
-    units_set_occupancy_map(NULL);
-    units.type_count = 1;
-    snprintf(units.types[0].name, sizeof(units.types[0].name), "Wagon Train");
-    units.types[0].movement = 2;
-    units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
-    units.types[0].cargo = 2;
-
-    ColonizeColony* c = colonies_get_mut(&pool, cid);
-    CHECK(c != NULL, "picker colony");
-    if (c) {
-      c->stock[COLONIZE_CARGO_TOOLS] = 40;
-      c->stock[COLONIZE_CARGO_SILVER] = 80;
-      c->stock[COLONIZE_CARGO_FOOD] = 5;
-      const int tools0 = c->stock[COLONIZE_CARGO_TOOLS];
-      const int silver0 = c->stock[COLONIZE_CARGO_SILVER];
-
-      const int wid = units_spawn(&units, 0, c->x, c->y);
-      ColonizeUnit* w = units_get(&units, wid);
-      CHECK(w != NULL, "picker wagon");
-      if (w) {
-        w->nation_id = c->nation_id;
-        CHECK(units_load_goods(&units, wid, COLONIZE_CARGO_TOOLS, 20) == 20, "picker TOOLS");
-        CHECK(units_load_goods(&units, wid, COLONIZE_CARGO_FOOD, 20) == 20, "picker FOOD");
-
-        ColonizeCol1TradeStop st;
-        memset(&st, 0, sizeof(st));
-        st.colony_index = (uint16_t)cid;
-        const int unload_t[] = {COLONIZE_CARGO_TOOLS};
-        const int load_t[] = {COLONIZE_CARGO_SILVER};
-        colonies_trade_stop_set_cargos(&st, unload_t, 1, load_t, 1);
-        CHECK(st.unload_count == 1 && st.load_count == 1, "picker counts");
-        CHECK(
-          col1_trade_nibble_cargo(st.unload_cargo_nibbles, 0) == COLONIZE_CARGO_TOOLS,
-          "picker unload TOOLS"
-        );
-        CHECK(
-          col1_trade_nibble_cargo(st.load_cargo_nibbles, 0) == COLONIZE_CARGO_SILVER,
-          "picker load SILVER"
-        );
-        CHECK(
-          colonies_trade_route_service_stop(&pool, cid, &units, wid, &st) == 1,
-          "picker service"
-        );
-        CHECK(c->stock[COLONIZE_CARGO_TOOLS] == tools0 + 20, "picker unload TOOLS");
-        /* DOS load phase drains warehouse stock into free holds (100/hold). */
-        CHECK(c->stock[COLONIZE_CARGO_SILVER] == silver0 - 80, "picker load SILVER");
-        int food_left = 0;
-        int silver_on = 0;
-        const int nh = units_goods_hold_count(&units, wid);
-        for (int h = 0; h < nh; ++h) {
-          if (w->hold_goods_type[h] == COLONIZE_CARGO_FOOD) {
-            food_left += w->hold_goods_amount[h];
-          }
-          if (w->hold_goods_type[h] == COLONIZE_CARGO_SILVER) {
-            silver_on += w->hold_goods_amount[h];
-          }
-        }
-        CHECK(food_left == 20, "picker FOOD stays aboard");
-        CHECK(silver_on == 80, "picker SILVER aboard");
-
-        /* Europe: unload list only */
-        ColonizeCol1TradeStop eu;
-        memset(&eu, 0, sizeof(eu));
-        eu.colony_index = 999;
-        colonies_trade_stop_set_cargos(&eu, unload_t, 1, load_t, 1);
-        /* Force load_count 0 for Europe sell path semantics in setter use. */
-        colonies_trade_stop_set_cargos(&eu, unload_t, 1, NULL, 0);
-        CHECK(eu.unload_count == 1 && eu.load_count == 0, "Europe picker unload-only");
-      }
-    }
-  }
-
-  /*
    * TRADE stop Col1 nibbles: unload only listed cargo; load listed cargo.
    * Cite: ColonizeCol1TradeStop; colonies_trade_route_service_stop.
    */
@@ -3389,7 +3261,7 @@ static int unit_settlement_count_and_name_peek(void) {
   colonies_set_occupancy_map(NULL);
 
   int rc = 0;
-  if (colonies_nation_settlement_count(&pool, 0) != 0) {
+  if (colonies_count_for_nation(&pool, 0) != 0) {
     fprintf(stderr, "settlement count: empty pool not 0\n");
     rc = 1;
   }
@@ -3414,9 +3286,9 @@ static int unit_settlement_count_and_name_peek(void) {
     fprintf(stderr, "first colony took '%s', peek promised '%s'\n", ca->name, first);
     rc = 1;
   }
-  if (colonies_nation_settlement_count(&pool, 0) != 2 ||
-      colonies_nation_settlement_count(&pool, 1) != 1 ||
-      colonies_nation_settlement_count(&pool, 2) != 0) {
+  if (colonies_count_for_nation(&pool, 0) != 2 ||
+      colonies_count_for_nation(&pool, 1) != 1 ||
+      colonies_count_for_nation(&pool, 2) != 0) {
     fprintf(stderr, "settlement count: per-nation tally wrong\n");
     rc = 1;
   }

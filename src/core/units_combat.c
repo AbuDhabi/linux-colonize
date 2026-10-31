@@ -313,18 +313,8 @@ int units_spawn_village_temp_defender(
     return -1;
   }
 
-  int tribe_index = -1;
-  if (col1->tribe) {
-    for (uint16_t ti = 0; ti < col1->head.tribe_count; ++ti) {
-      const ColonizeCol1Tribe* t = &col1->tribe[ti];
-      if ((int)t->x == village_x && (int)t->y == village_y &&
-          (int)t->nation_id == indian_nation) {
-        tribe_index = (int)ti;
-        break;
-      }
-    }
-  }
-  if (tribe_index < 0) {
+  const int tribe_index = col1_save_tribe_index_at(col1, village_x, village_y);
+  if (tribe_index < 0 || (int)col1->tribe[tribe_index].nation_id != indian_nation) {
     return -1;
   }
 
@@ -397,18 +387,10 @@ void units_finish_village_temp_defender(
   if (!attacker_won || !col1 || !col1->tribe) {
     return;
   }
-  ColonizeCol1Tribe* tribe = NULL;
-  int indian_nation = -1;
-  for (uint16_t ti = 0; ti < col1->head.tribe_count; ++ti) {
-    ColonizeCol1Tribe* t = &col1->tribe[ti];
-    if ((int)t->x == village_x && (int)t->y == village_y && t->nation_id >= 4 &&
-        t->nation_id <= 11) {
-      tribe = t;
-      indian_nation = (int)t->nation_id;
-      break;
-    }
-  }
-  if (!tribe || indian_nation < 4) {
+  const int tribe_index = col1_save_tribe_index_at(col1, village_x, village_y);
+  ColonizeCol1Tribe* tribe = tribe_index >= 0 ? &col1->tribe[tribe_index] : NULL;
+  const int indian_nation = tribe ? (int)tribe->nation_id : -1;
+  if (indian_nation < 4 || indian_nation > 11) {
     return;
   }
   /*
@@ -426,16 +408,8 @@ void units_finish_village_temp_defender(
 }
 
 int units_tribe_nation_at(const ColonizeCol1Save* col1, int x, int y) {
-  if (!col1 || !col1->tribe) {
-    return -1;
-  }
-  for (uint16_t ti = 0; ti < col1->head.tribe_count; ++ti) {
-    const ColonizeCol1Tribe* t = &col1->tribe[ti];
-    if ((int)t->x == x && (int)t->y == y && t->nation_id >= 4 && t->nation_id <= 11) {
-      return (int)t->nation_id;
-    }
-  }
-  return -1;
+  const ColonizeCol1Tribe* t = col1_save_village_at(col1, x, y);
+  return t ? (int)t->nation_id : -1;
 }
 
 int units_combat_human_involved(const ColonizeCol1Save* col1, int nat_a, int nat_b) {
@@ -497,7 +471,7 @@ static const char* units_combat_nation_label_form(
      * wants — column 0 is the plural (FUN_281f_0a1a, raw 100798 %STRING0). */
     return plural ? reports_tribe_name(nation_id - 4) : reports_tribe_singular_name(nation_id - 4);
   }
-  return "enemy";
+  return "";
 }
 
 /* Colony name, else village tribe, else LABELS "Wilderness". */
@@ -513,12 +487,10 @@ static const char* units_combat_place_label(
       return col->name;
     }
   }
-  if (col1 && col1->tribe) {
-    for (uint16_t ti = 0; ti < col1->head.tribe_count; ++ti) {
-      const ColonizeCol1Tribe* t = &col1->tribe[ti];
-      if ((int)t->x == x && (int)t->y == y && t->nation_id >= 4 && t->nation_id <= 11) {
-        return units_combat_nation_label(col1, (int)t->nation_id);
-      }
+  {
+    const int tn = units_tribe_nation_at(col1, x, y);
+    if (tn >= 0) {
+      return units_combat_nation_label(col1, tn);
     }
   }
   /* port_bugs.md: a fight right outside a town is "near <colony>", not "near
@@ -551,14 +523,8 @@ static const char* units_combat_unit_label(
   const ColonizeUnitPool* pool,
   const ColonizeUnit* u
 ) {
-  if (!u) {
-    return "unit";
-  }
-  const ColonizeUnitType* t = units_type(pool, u->type_index);
-  if (t && t->name[0]) {
-    return t->name;
-  }
-  return "unit";
+  const ColonizeUnitType* t = u ? units_type(pool, u->type_index) : NULL;
+  return t ? t->name : ""; /* catalog miss = "" (no typed English) */
 }
 
 /*
@@ -2510,7 +2476,14 @@ void units_combat_outcome_popups(
   int ambush,
   const ColonizeCol1Save* col1
 ) {
-  (void)ambush; /* @INDIANWIN1/2 seizure chrome stays with ai_contact's arm. */
+  (void)ambush;
+  /* FUN_5fef_1b0e bVar13/bVar14 (raw 100733/100741), read at raw 101088-101095:
+   * consume the gear step the loss outcome just fired so it never leaks into
+   * a later fight. */
+  const int gear_armed = g_units_native_gear_armed;
+  const int gear_mounted = g_units_native_gear_mounted;
+  g_units_native_gear_armed = 0;
+  g_units_native_gear_mounted = 0;
   if (!units_combat_human_involved(col1, atk_nation, def_nation)) {
     return;
   }
@@ -2521,8 +2494,7 @@ void units_combat_outcome_popups(
   if (!is_naval) {
     /*
      * Euro attacker (incl. vs natives): @EUROPEWIN / @EUROPELOSE.
-     * Native attacker vs human: @INDIANWIN0/@INDIANLOSE below (ai_contact's
-     * ambush arm suppresses it and draws its richer version itself).
+     * Native attacker vs human: @INDIANWIN0/1/2 / @INDIANLOSE below.
      * Cite: FUN_5fef_1b0e both-euro gate; indian raid ambush fill.
      */
     if (atk_nation < 4) {
@@ -2559,16 +2531,12 @@ void units_combat_outcome_popups(
           &tok,
           "");
       }
-    } else if (atk_nation >= 4 && atk_nation <= 11 && def_nation >= 0 && def_nation <= 3 &&
-               !g_units_native_chrome_owned) {
+    } else if (atk_nation >= 4 && atk_nation <= 11 && def_nation >= 0 && def_nation <= 3) {
       /*
        * Native attacker vs the human on the generic combat path (a Brave
        * stepping onto a defended tile via units_try_move, alarm marches):
        * DOS FUN_5fef_1b0e fills the @INDIANWIN/@INDIANLOSE chrome on every
-       * land resolution (0x5230 @UNIT-name subst, viceroy ~101087) — the
-       * port only drew it from ai_contact's ambush arm, so these attacks
-       * resolved silently (user-reported). ai_contact keeps its richer
-       * version (seizure lines, chief portrait) via the owned flag.
+       * land resolution (0x5230 @UNIT-name subst, viceroy ~101087).
        */
       PopupMsgTokens tok;
       memset(&tok, 0, sizeof(tok));
@@ -2580,11 +2548,13 @@ void units_combat_outcome_popups(
       tok.string2 = units_combat_unit_label(pool, def_u);
       tok.string3 = units_combat_place_label(col1, place_x, place_y);
       if (atk_wins) {
-        /* @INDIANWIN0: {tribe} ambush {nation unit} near {place}! */
+        /* @INDIANWIN0: {tribe} ambush {nation unit} near {place}!
+         * DOS raw 101088-101095: tag suffix '1' (bVar13 armed) then '2'
+         * (bVar14 mounted, wins); %STRING4 = FUN_281f_09a4(attacker nation). */
         tok.string4 = units_combat_nation_label(col1, atk_nation);
         units_combat_enqueue_tok(
           AI_POPUP_TAG_COMBAT_AMBUSH,
-          "INDIANWIN0",
+          gear_mounted ? "INDIANWIN2" : gear_armed ? "INDIANWIN1" : "INDIANWIN0",
           atk_nation,
           def_nation,
           0,
@@ -2630,18 +2600,6 @@ static int units_count_nation_on_tile(
     }
   }
   return count;
-}
-
-static bool units_tile_has_tribe(const ColonizeCol1Save* col1, int x, int y) {
-  if (!col1 || !col1->tribe) {
-    return false;
-  }
-  for (uint16_t i = 0; i < col1->head.tribe_count; ++i) {
-    if ((int)col1->tribe[i].x == x && (int)col1->tribe[i].y == y) {
-      return true;
-    }
-  }
-  return false;
 }
 
 /*
@@ -2764,15 +2722,7 @@ static int col1_destroy_tribe_at(
   int x,
   int y
 ) {
-  if (!col1 || !col1->tribe) {
-    return -1;
-  }
-  for (uint16_t i = 0; i < col1->head.tribe_count; ++i) {
-    if ((int)col1->tribe[i].x == x && (int)col1->tribe[i].y == y) {
-      return col1_destroy_tribe_index(col1, units, map, (int)i);
-    }
-  }
-  return -1;
+  return col1_destroy_tribe_index(col1, units, map, col1_save_tribe_index_at(col1, x, y));
 }
 
 int units_destroy_village_at_w(const ColonizeWorld* w, int x, int y) {
@@ -3051,7 +3001,8 @@ bool units_try_native_settlement_fallout_w(
   if (!col1 || !units || defender_nation_id < 4) {
     return false;
   }
-  if (!units_tile_has_tribe(col1, tile_x, tile_y)) {
+  const int tribe_index = col1_save_tribe_index_at(col1, tile_x, tile_y);
+  if (tribe_index < 0) {
     return false;
   }
   if (units_count_nation_on_tile(units, tile_x, tile_y, defender_nation_id) > 0) {
@@ -3064,19 +3015,10 @@ bool units_try_native_settlement_fallout_w(
    * viceroy_unpacked.c ~101416–101466 (-0xcc doubles / boosts amount).
    * Mission byte (+5): convert-join owner + Jesuit bit0x10.
    */
-  int rich_capital = 0;
-  uint8_t mission = COL1_TRIBE_MISSION_NONE;
-  if (col1->tribe) {
-    for (uint16_t i = 0; i < col1->head.tribe_count; ++i) {
-      if ((int)col1->tribe[i].x == tile_x && (int)col1->tribe[i].y == tile_y) {
-        rich_capital = col1->tribe[i].state.capital ? 1 : 0;
-        mission = col1->tribe[i].mission;
-        break;
-      }
-    }
-  }
+  const int rich_capital = col1->tribe[tribe_index].state.capital ? 1 : 0;
+  const uint8_t mission = col1->tribe[tribe_index].mission;
 
-  const int tribe_nation = col1_destroy_tribe_at(col1, units, map, tile_x, tile_y);
+  const int tribe_nation = col1_destroy_tribe_index(col1, units, map, tribe_index);
   if (tribe_nation < 0) {
     return false;
   }
@@ -3165,18 +3107,16 @@ bool units_try_native_settlement_fallout_w(
        */
       ai_diplo_indian_hostility_sync(col1, attacker_nation_id);
     }
-  }
 
-  /*
-   * port_bugs.md #381: treasure is NOT Cortes-gated. FUN_5fef_31ea runs the peel for
-   * every conqueror (viceroy_unpacked.c ~101407-101495) — Cortes (local -6) is
-   * only one of the three "or" terms that let the low-difficulty roll pay out
-   * (`roll == 0 || rich || cortes`) plus a +50% / +10-per-unit bonus, and at
-   * difficulty 2 and 3 the amount is unconditional for everyone. The port
-   * wrapped the whole block in the Cortes test, so a player without him could
-   * burn any number of villages and never see a Treasure Train.
-   */
-  if (attacker_nation_id >= 0 && attacker_nation_id < 4) {
+    /*
+     * port_bugs.md #381: treasure is NOT Cortes-gated. FUN_5fef_31ea runs the peel for
+     * every conqueror (viceroy_unpacked.c ~101407-101495) — Cortes (local -6) is
+     * only one of the three "or" terms that let the low-difficulty roll pay out
+     * (`roll == 0 || rich || cortes`) plus a +50% / +10-per-unit bonus, and at
+     * difficulty 2 and 3 the amount is unconditional for everyone. The port
+     * wrapped the whole block in the Cortes test, so a player without him could
+     * burn any number of villages and never see a Treasure Train.
+     */
     /* @LOOT/@LOOT2 slots 1/2 (FUN_5fef_31ea raw ~101470): the tribe name
      * (FUN_281f_09a4) and @LEVELS[rich ? 4 : tech]. */
     const int level_row =
@@ -3277,29 +3217,13 @@ void units_lcr_counters_import(const uint8_t in[2]) {
  * with FUN_281f_0370 = FUN_124c_0040 (octile, map_dos_dist) and keeps the
  * LAST tribe on a tie (`iVar1 <= local_4`, raw 80944-80987); a diagonal
  * neighbour is distance 1, not 2 (America seed-100 save 27: the burial claim
- * draw is rand(1,6), not rand(1,7)). */
+ * draw is rand(1,6), not rand(1,7)). colonies_nearest_tribe_on with no
+ * continent filter is that scan; this returns the tribe's nation id. */
 static int units_lcr_nearest_tribe_dist(
   const ColonizeCol1Save* col1, int x, int y, int* out_dist
 ) {
-  if (!col1 || !col1->tribe) {
-    return -1;
-  }
-  int best = -1;
-  int best_d = 0x7fffffff;
-  for (uint16_t i = 0; i < col1->head.tribe_count; ++i) {
-    const ColonizeCol1Tribe* tr = &col1->tribe[i];
-    const int dx = x - (int)tr->x;
-    const int dy = y - (int)tr->y;
-    const int d = map_dos_dist(dx, dy);
-    if (d <= best_d) {
-      best_d = d;
-      best = tr->nation_id;
-    }
-  }
-  if (out_dist) {
-    *out_dist = best_d;
-  }
-  return best;
+  const int ti = colonies_nearest_tribe_on(col1, NULL, x, y, -1, out_dist);
+  return ti >= 0 ? (int)col1->tribe[ti].nation_id : -1;
 }
 
 /* Credits the one treasury for `nation` (europe_nation_gold_add picks the live
@@ -3857,9 +3781,7 @@ bool units_resolve_lcr_rumour_w(
     units_lcr_popup(nation, human_nation, "LOSTCITY1", 0, &tok);
     if (nation == human_nation) {
       units_play_event_sound(0x37); /* FUN_65dd_0004 65dd:04a9 case 1: queued tune (281f_048e) */
-    }
-    /* 65dd:04a9, right after that 0x37: FUN_281f_0524(8), human explorer only. */
-    if (nation == human_nation) {
+      /* 65dd:04a9, right after that 0x37: FUN_281f_0524(8), human explorer only. */
       (void)woodcut_fire(col1, WOODCUT_THE_FOUNTAIN_OF_YOUTH);
     }
     /*
