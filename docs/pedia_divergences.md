@@ -75,7 +75,7 @@ match the DS bytes cell for cell. Everything below is about what those numbers l
   from an eastward high-seas→high-seas step (`FUN_4720_015c` raw ~76048; `units_capture.c:665`);
   westward it only comes from stepping off the map rim. Sea Lane also fishes like Ocean (3) but
   never has a Fishery.
-- "BORREAL" is a typo in TERRAIN8 and 16.
+- "BORREAL" is a typo in TERRAIN8 and 16. Other PEDIA typos: [dos_text_typos.md](dos_text_typos.md).
 
 ### HIDDEN
 - **Movement** (`FUN_465b_0000`; `map.c`, `units_move.c`): 1/3 MP when both tiles have road or
