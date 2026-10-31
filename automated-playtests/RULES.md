@@ -103,6 +103,9 @@ not for a big empire. Era targets (check them with `advise` and `colonies`):
 - Campaign dir `automated-playtests/campaignN/`: `README.md` (journal),
   `bugs.md`, `shots/`, `saves/`.
 - New game: `python3 tools/play.py start DIR --seed N --live-ticks`.
+  From the title menu `key Down` (Start a Game in AMERICA), `key Return`;
+  then each step prints `STATUS new game: ...` with `CHOICES (new game)`:
+  `choose N` for map / difficulty / nation, `key Return` for the rest.
   Plain `--seed` pins the timer word like VR_SEED.EXE, so every reseeded roll
   (chief's gift/tales, rumours, raids) repeats each time; `--live-ticks`
   moves it like the DOS clock and stays reproducible. A resume without
@@ -200,7 +203,20 @@ Cost = number of calls x context size. Output size matters much less.
   editor row N (from 0) is y = 71 + 20*N; Unload cells x 116-198, Load cells
   x 199+: click right of the existing icons to add (a list opens), click an
   icon to remove it. OK = `click 295 179`. Assign: `activate` the wagon,
-  `key t`, `choose` the route, `choose` the first stop.
+  `key t`, `choose` the route, `choose` the first stop. Click a row's
+  Destination cell (x 40) to add or change a stop (the list ends with
+  "(Delete Destination)"). Editing stops renumbers them: a wagon on the
+  route heads for the stop that now has its old index.
+- A new Discoverer game has Tutorial Hints on; each hint eats the next key.
+  Send `option hints off` once (campaign 14).
+- `export N` (no cargo) lists the Custom House rows that are on. Tobacco,
+  cotton, ore and silver start on: list before you toggle.
+- `sell H CARGO AMT` sells AMT tons from the first CARGO hold (the partial
+  sale). Each sale runs the market step once: see "Silver" below.
+- ORDERS Automate (`key q`, settings `divergences.scout_autoexplore` /
+  `ship_autoexplore`) explores on its own; `units` prints `automated` and
+  advise does not count those units as idle. `goto` takes a unit off
+  Automate. An automated Scout walks away from a treasure it found.
 - `work N CI B` takes the same row numbers as `build` BIDs (Armory = 3,
   Town Hall 9, Carpenter's Shop 35, Lumber Mill 36, Blacksmith's House 39,
   Weaver's House 21).
@@ -344,6 +360,21 @@ Economy and natives
   Pay the Inca for a silver tile before the war (650) if you need it early.
 - Silver crashes: 19 in 1550, 7 by 1630, 2 by 1660. Do not build the
   economy on it past the first century.
+- Silver (campaign 14, sell 1 / buy 2 reached in 1698): the price word
+  steps down one per market step while the silver volume (nr) is >= 100;
+  each ton sold adds 3.68 (Discoverer), attrition takes 8 a turn, so after a
+  century nr sits near -400..-800. One step runs per harbor sale and one per
+  turn. Stockpile, then sell 600+ tons in one visit (19 -> 14, nr ~1250 left,
+  then one step a turn); keep a few tons for 1-ton `sell H silver 1` sales,
+  each one more step. Silver Deposits deplete (Barbados' two died after
+  ~420 tons): plan a second and third deposit.
+- A lone Treasure (no other unit on its tile) is a Brave target even at
+  alarm 12 (1/8 roll per adjacent Brave): stack a unit on it while it walks.
+- Converts come from braves of your mission villages visiting your
+  colonies; missions next to colonies pay. 10 took until 1696 (6 missions,
+  Brebeuf).
+- A village whose only land neighbour holds a fortified Brave (Arawak
+  (45,30), next to Fort Orange) cannot be entered from a ship.
 - Tory penalty: -1 on every tile and building once
   round(pop x Tory%) >= 10 - difficulty (6 on Viceroy). On Viceroy keep pop
   at 6 or less until SoL rises (pop 7 needs ~22% SoL, pop 8 ~38%).
@@ -472,6 +503,13 @@ War of Independence
   (soldiers / colonists, easy kills for Continental cavalry). The check runs after the Crown moves, and every colony must be
   yours then: garrison a retaken colony before ending the turn. A small
   colony lost late can end the war: retake it while fewer than 8 remain.
+  The win check also needs the Crown to hold NO colony (ai_king_war.c):
+  campaign 14 had the REF at 6 land units and still had to march 13
+  cavalry from Penobscot to Peru to retake Boston (1725).
+- Before declaring, give every colony an armed unit, inland ones too: once
+  the REF pool was empty the Crown raised 11 Tory soldiers around the
+  unarmed silver colonies (campaign 14 branch A). Keep pop x (100 - SoL)
+  x 2 / 100 + 1 below the garrison's attack sum (eject colonists if needed).
 
 ## Recording
 

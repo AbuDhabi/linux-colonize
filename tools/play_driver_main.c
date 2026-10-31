@@ -28,7 +28,8 @@
  *   choose N                    answer the open choice popup with row N (arrows + Return; message
  *                               popups queued in front are closed first); also a list dialog
  *                               `status` prints as CHOICES (list ...): Go To port list, trade
- *                               pickers, Europe Recruit / Train / Purchase list (row 0 = none)
+ *                               pickers, Europe Recruit / Train / Purchase list (row 0 = none);
+ *                               a new-game step's row (map, difficulty, nation; `status` lists them)
  *   type TEXT                   text input, one char per frame (name fields)
  *   click X Y [shift|ctrl|alt]  left click; rclick X Y; dclick X Y
  *   drag X1 Y1 X2 Y2 [shift]    left-button drag
@@ -60,14 +61,17 @@
  *                               gives Go To only to the active unit (ERR when refused, or when
  *                               the pathfinder finds no route: the turn's moves are spent)
  *   declare                     GAME menu Declare Independence (answer its popup with `choose`)
- *   option eot on|off           Game Options "End of Turn" (stop at turn end, no auto-end)
+ *   option eot|hints on|off     Game Options "End of Turn" (stop at turn end, no auto-end) /
+ *                               "Tutorial Hints" (on in a new Discoverer game; a hint eats the next key)
  *   europe                      open the Europe screen and print gold, RECRUIT / TRAIN /
  *                               PURCHASE rows, MARKET (cargo id, prices) and HARBOR ships
  *   recruit N | train N | purchase N   Europe list row N (1-based, as `europe` prints;
  *                               purchase answers its Yes/No itself)
- *   sell H [CARGO]              harbor ship H sells every hold of CARGO (default: all holds)
+ *   sell H [CARGO [AMT]]        harbor ship H sells every hold of CARGO (default: all holds); with AMT
+ *                               only AMT tons of the first CARGO hold (the @HOWMUCH5 partial sale)
  *   buy H CARGO [AMT]           harbor ship H buys AMT (default 100, capped by room) of CARGO
- *   sail H                      harbor ship H sails (answers its own @SAILAWAY Yes); refused while a
+ *   sail H                      harbor ship H sails (answers its own @SAILAWAY Yes; plain messages
+ *                               in front, such as a sale's price notice, are closed first); refused while a
  *                               popup is open or queued; another popup opening first is left up
  *                               (WARN; the sail prompt waits behind it)
  *   colony N                    open colony N's screen (index from `colonies`)
@@ -87,7 +91,7 @@
  *   unload UID [CARGO]          transport UID in a colony unloads every hold (of CARGO); WARN when a
  *                               cargo is over the warehouse cap (the excess spoils at turn end)
  *                               (CARGO for load / unload / buy / sell / export: id or @CARGO name prefix)
- *   export N CARGO              toggle CARGO on colony N's Custom House checklist
+ *   export N [CARGO]            toggle CARGO on colony N's Custom House checklist (no CARGO: list the rows on)
  *   equip UID ROLE              unit UID on a colony tile takes role ROLE (COLONIZE_EJECT_*, 4 dragoon)
  *   admit UID                   unit UID on a colony tile joins that colony (prints colonist index)
  *   eject N CI ROLE             colonist CI of colony N leaves as ROLE (COLONIZE_EJECT_*, 0 colonist);
@@ -278,16 +282,24 @@ bool platform_poll_input(ColonizePlatform* p, ColonizeInputState* out) {
     if (want < 0 && pop && pop->open && pop->current.tag == AI_POPUP_TAG_COLONY_EVENT) {
       want = 0;
     }
+    /* The row read from stdin is kept until the Return: each poll taps one arrow, and
+     * re-asking stdin after the first arrow made `choose 2` move the highlight one row
+     * per command (c13 D17, c14: three `choose 2` to take the privateer's prize). */
+    static int s_stdin_want = -1;
+    if (want < 0 && s_stdin_want >= 0 && pop && pop->open && s_stdin_want < pop->current.choice_count) {
+      want = s_stdin_want;
+    }
     if (want < 0 && pop && pop->open && pop->current.choice_count > 0) {
       /* A choice popup (AI demand, treaty, alliance) must not take a blind Return:
        * its highlighted row is often the provocative one (playtest C10: "We laugh at
        * your puny threats" started a war). Block on stdin for `choose N`; `sync`
        * still releases the client, anything else is dropped with an ERR. */
-      want = nested_choose_from_stdin(pop);
+      want = s_stdin_want = nested_choose_from_stdin(pop);
     }
     if (want >= 0 && pop->selection != want) {
       tap(pop->selection < want ? SDLK_DOWN : SDLK_UP, -1, 0);
     } else {
+      s_stdin_want = -1;
       tap(SDLK_RETURN, -1, 0);
       printf("NESTED: Return pressed in a modal loop%s%s\n", want >= 0 ? " on " : "",
              want >= 0 ? pop->current.choices[want] : "");
@@ -582,6 +594,38 @@ static void print_status(void) {
            (unsigned)europe_nation_gold(&g->europe, &g->col1, g->human_nation), vx, vy, cols, rows,
            game_map_zoom_tile_px(g->map_zoom), MAP_VIEW_ORIGIN_Y, g->map_cursor_x, g->map_cursor_y);
   }
+  /* New-game wizard (campaign 14 D1: every step read "main map (new game)"): the step,
+   * its rows and the highlighted one; `choose N` picks a row, Return confirms the rest. */
+  const NewGameWizard* ng = &g->new_game;
+  if (new_game_active(ng)) {
+    static const char* const k_phase[] = {"idle", "map choice", "map file", "customize", "difficulty",
+                                           "nation", "leader name", "nation lore", "nation lore",
+                                           "hot-seat powers", "king", "sailing", "starting"};
+    const int ph = (int)ng->phase;
+    printf("STATUS new game: %s", ph >= 0 && ph < (int)(sizeof(k_phase) / sizeof(k_phase[0])) ? k_phase[ph] : "?");
+    if (ng->phase == NEW_GAME_PHASE_LEADER_NAME) {
+      printf(" \"%s\" (`type` edits, Return accepts)", ng->leader_name);
+    } else if (ng->option_count <= 0 || ng->phase == NEW_GAME_PHASE_MULTI) {
+      printf(" (Return continues)");
+    }
+    printf("\n");
+    if (ng->option_count > 0 && ng->phase >= NEW_GAME_PHASE_AMERICA_CHOICE && ng->phase <= NEW_GAME_PHASE_NATION &&
+        ng->phase != NEW_GAME_PHASE_CUSTOMIZE) {
+      printf("CHOICES (new game):");
+      for (int i = 0; i < ng->option_count; ++i) {
+        printf(" [%d] %s", i, ng->options[i]);
+      }
+      printf(" (sel %d)\n", ng->selection);
+    }
+  }
+  /* Popups waiting behind a screen (Europe, colony) block `sail` and keys, but show
+   * nothing: name them. */
+  for (int i = 0; !g->ai_popups.open && i < g->ai_popups.queue_count; ++i) {
+    printf("STATUS queued popup %d: %s\n", (int)g->ai_popups.queue[i].tag, g->ai_popups.queue[i].body);
+  }
+  if (g->ai_popups.has_result) {
+    printf("STATUS popup result pending (tag %d)\n", (int)g->ai_popups.result_tag);
+  }
   const ColonizeUnit* sel = g->units.selected_id >= 0 ? units_get_const(&g->units, g->units.selected_id) : NULL;
   if (sel) {
     printf("STATUS selected unit %d %s at (%d,%d) moves %d orders %d\n", sel->id, unit_name(sel), sel->x, sel->y,
@@ -602,6 +646,9 @@ static void print_units(void) {
            u->orders, u->profession);
     if (u->aboard_ship_id >= 0) {
       printf(" aboard %d", u->aboard_ship_id);
+    }
+    if (u->automated) {
+      printf(" automated"); /* ORDERS Automate (pioneer plan / scout / ship explore): orders 0 is not idle */
     }
     if (u->col1_flags15 & 0x80u) {
       printf(" damaged");
@@ -785,7 +832,7 @@ static void print_advise(void) {
       continue;
     }
     dragoons += unit_kind_is(u, UNITS_KIND_DRAGOON) || unit_kind_is(u, UNITS_KIND_CONT_CAV);
-    if (u->orders == 0 && u->moves > 0 && u->aboard_ship_id < 0) {
+    if (u->orders == 0 && u->moves > 0 && u->aboard_ship_id < 0 && !u->automated) {
       printf("ADVISE WARN unit %d %s at (%d,%d) has no orders (blocks endturn)\n", u->id, unit_name(u), u->x,
              u->y);
     }
@@ -1183,7 +1230,20 @@ static bool command(char* line) {
     tap(code, m, ch);
     ok = flush_frames(10);
   } else if (strcmp(op, "choose") == 0 && argc > 1) {
-    if (!choose_list_row(a1, &ok)) {
+    NewGameWizard* ng = &g_game->new_game;
+    if (new_game_active(ng) && ng->option_count > 0 && ng->phase >= NEW_GAME_PHASE_AMERICA_CHOICE &&
+        ng->phase <= NEW_GAME_PHASE_NATION && ng->phase != NEW_GAME_PHASE_CUSTOMIZE &&
+        !g_game->ai_popups.open) {
+      /* A wizard row: highlight it (what a click on another row does), then Return. */
+      if (a1 < 0 || a1 >= ng->option_count) {
+        printf("ERR choose %d: the new-game step has rows 0..%d\n", a1, ng->option_count - 1);
+        return true;
+      }
+      ng->selection = a1;
+      tap(SDLK_RETURN, -1, 0);
+      ok = flush_frames(20);
+      print_status();
+    } else if (!choose_list_row(a1, &ok)) {
       ok = choose_popup_row(a1);
     }
   } else if (strcmp(op, "type") == 0) {
@@ -1394,6 +1454,11 @@ static bool command(char* line) {
         return false;
       }
     }
+    /* The ORDERS Go To row takes a unit off Automate (game_loop_eot.c: any other order);
+     * units_set_goto_w alone left an automated Scout retargeting its own way. */
+    if (gu && gu->nation_id == g_game->human_nation) {
+      units_get(&g_game->units, a1)->automated = false;
+    }
     const ColonizeWorld w = game_world(g_game);
     if (!units_set_goto_w(&w, a1, a2, atoi(argv[3]))) {
       /* A seen tile the unit cannot enter: land for a ship, water for a land unit,
@@ -1418,14 +1483,20 @@ static bool command(char* line) {
     /* GAME menu "Declare Independence": its confirm comes up as a choice popup (`choose`). */
     game_apply_map_menu_action(g_game, MAP_MENU_ACTION_DECLARE_INDEPENDENCE);
     ok = flush_frames(10);
-  } else if (strcmp(op, "option") == 0 && argc > 2 && strcmp(argv[1], "eot") == 0) {
-    /* Game Options "End of Turn": the bit the options dialog's OK writes. */
+  } else if (strcmp(op, "option") == 0 && argc > 2 && (strcmp(argv[1], "eot") == 0 || strcmp(argv[1], "hints") == 0)) {
+    /* Game Options "End of Turn" / "Tutorial Hints": the bits the options dialog's OK writes
+     * (a Discoverer game starts with hints on; each hint eats the next key). */
     if (!g_game->col1_ok) {
       printf("ERR no game loaded\n");
       return true;
     }
-    g_game->col1.head.game_options.end_of_turn = strcmp(argv[2], "on") == 0;
-    printf("OPTION eot %s\n", g_game->col1.head.game_options.end_of_turn ? "on" : "off");
+    const bool on = strcmp(argv[2], "on") == 0;
+    if (argv[1][0] == 'e') {
+      g_game->col1.head.game_options.end_of_turn = on;
+    } else {
+      g_game->col1.head.game_options.tutorial_hints = on;
+    }
+    printf("OPTION %s %s\n", argv[1], on ? "on" : "off");
   } else if (strcmp(op, "europe") == 0) {
     /* VIEW menu Europe (refused on the main map after the declaration), then the lists. */
     if (!g_game->in_europe) {
@@ -1465,8 +1536,22 @@ static bool command(char* line) {
       /* sail H answers its own @SAILAWAY Yes/No (C12-O11: a scripted `choose 0` meant for it
        * declined a mercenary offer that opened first). A second prompt queued behind an open
        * one shares the single map_confirm slot and wedged the screen (C12-B4): refuse. */
+      /* Plain messages first (a player clicks them away): each harbor sale queues its
+       * "price has fallen" notice, and those blocked the next `sail` (campaign 14 D2). */
+      for (int n = 0; n < 40 && ai_popup_busy(&g_game->ai_popups); ++n) {
+        const AiPopupState* bp = &g_game->ai_popups;
+        if (bp->open && bp->current.choice_count > 0) {
+          break;
+        }
+        if (bp->open) {
+          tap(SDLK_RETURN, -1, 0);
+        }
+        if (!flush_frames(5)) {
+          return false;
+        }
+      }
       if (g_game->ai_popups.open || ai_popup_busy(&g_game->ai_popups)) {
-        printf("ERR sail %d: a popup is open or queued: answer it first\n", a1);
+        printf("ERR sail %d: a popup is open or queued: answer it first (`status` names it)\n", a1);
         print_new_log();
         return true;
       }
@@ -1479,6 +1564,22 @@ static bool command(char* line) {
         printf("SAIL %d %s\n", a1, sp->open ? "prompt still open" : "sailed");
       } else if (sp->open) {
         printf("WARN sail %d: another popup opened first (the sail prompt waits behind it): read CHOICES\n", a1);
+      }
+    } else if (op[0] == 's' && argc > 3) {
+      /* sell H CARGO AMT: the @HOWMUCH5 partial sale (shift-drag onto the market) of AMT
+       * tons from the first hold of CARGO; the same europe_sell_hold_partial the dialog runs. */
+      eu->selected_harbor = a1;
+      int hold = -1;
+      for (int h = 0; h < EUROPE_SHIP_CARGO_MAX && hold < 0; ++h) {
+        hold = eu->harbor[a1].hold_goods_type[h] == a2 && eu->harbor[a1].hold_goods_amount[h] > 0 ? h : -1;
+      }
+      if (hold < 0) {
+        printf("ERR harbor ship %d has no cargo %d\n", a1, a2);
+      } else if (!game_europe_boycott_gate(g_game, a2)) {
+        const int amt = atoi(argv[3]);
+        europe_sell_hold_partial(eu, &g_game->col1, g_game->human_nation, a1, hold,
+                                 amt < 1 ? 1 : amt > 100 ? 100 : amt);
+        game_europe_drain_price_events(g_game);
       }
     } else if (op[0] == 's') {
       /* sell H [CARGO]: every hold of CARGO (else every hold, best first); stops at a boycott. */
@@ -1692,6 +1793,22 @@ static bool command(char* line) {
     printf("EXPORT %s cargo %d %s\n", c->name, a2,
            europe_custom_house_cargo_enabled(c->custom_house_bits, a2) ? "on" : "off");
     ok = flush_frames(2);
+  } else if (strcmp(op, "export") == 0 && argc == 2) {
+    /* export N: list the checklist, so a toggle never flips a row that was already on
+     * (campaign 13 D14, campaign 14: tobacco / cotton / silver default on). */
+    if (a1 < 0 || a1 >= COLONIZE_COLONIES_MAX || !g_game->colonies.colonies[a1].active ||
+        g_game->colonies.colonies[a1].nation_id != g_game->human_nation) {
+      printf("ERR no colony %d of yours\n", a1);
+      return true;
+    }
+    const ColonizeColony* c = &g_game->colonies.colonies[a1];
+    printf("EXPORT %s on:", c->name);
+    for (int i = 0; i < (int)COLONIZE_COL1_CARGO_TYPES; ++i) {
+      if (europe_custom_house_cargo_enabled(c->custom_house_bits, i)) {
+        printf(" %d %s", i, reports_cargo_name(i));
+      }
+    }
+    printf("\n");
   } else if ((strcmp(op, "load") == 0 && argc > 2) || (strcmp(op, "unload") == 0 && argc > 1)) {
     /* load UID CARGO [AMT] / unload UID [CARGO]: cargo between a transport and the colony
      * it stands in, as the colony screen's dock drags do (unload: every hold, or every hold
@@ -1768,7 +1885,10 @@ static bool command(char* line) {
         } else {
           colonies_unit_build_info(ids[i], &nm, NULL, NULL);
         }
-        printf(" %d %s;", ids[i], nm ? nm : "?");
+        /* FUN_15eb_3650 keeps the current project listed after it is built (the menu's
+         * "(COMPLETE)" row, colonies_build_keeps_current): say so (c13 D5, c14 D3). */
+        const bool done = ids[i] >= 0 && ids[i] < g_game->colonies.building_type_count && bc->has_building[ids[i]];
+        printf(" %d %s%s;", ids[i], nm ? nm : "?", done ? " (COMPLETE: pick the next build)" : "");
       }
       printf("\n");
       /* A colony screen left open stalls the next `auto` / `endturn`. */

@@ -1826,9 +1826,13 @@ static GameMenuActionStatus game_menu_action_orders(ColonizeGameState* game, Map
     (void)pioneer_plan_toggle(&w, game->human_nation, game->map_cursor_x, game->map_cursor_y, bit);
     return GAME_MENU_ACTION_DONE;
   }
-  if (action != MAP_MENU_ACTION_AUTOMATE && action != MAP_MENU_ACTION_WAIT_UNIT &&
-      action != MAP_MENU_ACTION_NO_ORDERS && game->units_ok) {
-    /* Any other order given to an automated unit takes it off Automate. */
+  if (action >= MAP_MENU_ACTION_ACTIVATE_UNIT && action <= MAP_MENU_ACTION_DUMP_OVERBOARD &&
+      action != MAP_MENU_ACTION_WAIT_UNIT && action != MAP_MENU_ACTION_TRADE_CREATE &&
+      action != MAP_MENU_ACTION_TRADE_EDIT && action != MAP_MENU_ACTION_TRADE_DELETE && game->units_ok) {
+    /* Any other ORDERS row given to an automated unit takes it off Automate. Other menus
+     * (TRADE route editing, reports, VIEW, GAME) are not orders: campaign 14 created a
+     * trade route while an automated caravel was the selected unit, it lost Automate but
+     * kept its Go To onto a sea-lane tile, and sailed itself to Europe on arrival. */
     ColonizeUnit* sel = units_get(&game->units, game->units.selected_id);
     if (sel) {
       sel->automated = false;

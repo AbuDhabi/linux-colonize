@@ -201,6 +201,23 @@ static int case_ship(void) {
   explore_auto_step(&w, u);
   CHECK(u->automated && u->orders == UNITS_ORDER_GOTO && u->goto_y >= 6);
 
+  /* A ship already on the sea lane: Go To refuses every lane tile further east
+   * (units_enter_probe_w reason 5). Those are skipped, not counted as path misses
+   * (campaign 14: 8 of them cancelled the caravel), so the ship heads for the one
+   * ordinary-ocean frontier tile (7,10) even though nine lane tiles score better. */
+  for (int i = 0; i < 144; ++i) {
+    const int x = i % 12;
+    s_map.terrain[i] = x >= 1 ? T_HIGH_SEAS : T_OCEAN;
+    s_map.seen[i] = x < 8 ? 0x10 : 0;
+  }
+  s_map.terrain[10 * 12 + 7] = T_OCEAN;
+  u->x = 2;
+  u->y = 1;
+  u->automated = true;
+  u->orders = UNITS_ORDER_NONE;
+  explore_auto_step(&w, u);
+  CHECK(u->automated && u->orders == UNITS_ORDER_GOTO && u->goto_x == 7 && u->goto_y == 10);
+
   /* A Scout setting does not automate ships. */
   s.ship_autoexplore = false;
   s.scout_autoexplore = true;

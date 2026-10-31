@@ -217,6 +217,12 @@ void explore_auto_step(const ColonizeWorld* w, ColonizeUnit* u) {
         if (score >= best_score || tried || explore_auto_unsafe(w, u, x, y)) {
           continue;
         }
+        /* A target Go To refuses outright (further east on the sea lane from a ship already
+         * on it: units_enter_probe_w reason 5) is not a path miss; counting it toward
+         * EXPLORE_AUTO_GOTO_TRIES cancelled ships out in the Atlantic lane (campaign 14). */
+        if (ship && !units_can_enter_w(w, u->type_index, x, y, u->id)) {
+          continue;
+        }
         best_x = x;
         best_y = y;
         best_score = score;

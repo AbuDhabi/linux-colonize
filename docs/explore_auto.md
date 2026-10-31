@@ -16,7 +16,8 @@ guard, no sail-for-Europe), `map_menu.c` (row). Test: `unit_explore_auto`.
   tile sailed: lowest `map_dos_dist` × 256 ÷ unseen tiles the ship's sight would
   reveal there (`map_sight_each`, `units_sight_radius`; ties go to scan order); unexplored land and lakes do not
   count, a ship cannot clear them, nor does the 1-tile map rim (`map_coords_inset`),
-  which sight never reveals (also for Scouts). A target the pathfinder cannot reach is skipped.
+  which sight never reveals (also for Scouts). A target the pathfinder cannot reach is skipped,
+  and so is one Go To refuses outright (a lane tile further east of a ship already on the lane).
 - A target on the sea lane does not sail the ship to Europe (the high-seas Go To sail
   intent is off for automated units).
 - No unseen ocean left in reach = automation ends. Same hostile avoidance as Scouts.
