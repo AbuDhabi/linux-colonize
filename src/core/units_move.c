@@ -3086,7 +3086,7 @@ static bool units_goto_director(
    * Not ported: DOS reads DS:0xa572/0xa574 stale when the unit snap failed
    * — OpenCol skips that flood instead.
    */
-  const bool near_tier = adx <= 6 && ady <= 6;
+  const bool near_tier = adx <= 7 && ady <= 7;
   bool near_missed = false;
   if (near_tier) {
     if (out_flood) *out_flood = true;
