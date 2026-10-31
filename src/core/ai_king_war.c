@@ -582,8 +582,9 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
 
 /*
  * The DOS king beat for the crown slot, run from turn.c's EURO step for
- * that slot BEFORE ai_euro_nation_turn (per-slot order raw 6394/6407:
- * 3844_00f2 → 43f7_2424 → 2022, then the 6d8e thunk). 2022's crown branch
+ * that slot BEFORE ai_euro_nation_turn (FUN_130d_0290 per-slot order:
+ * raw 6394 FUN_281f_0644 → 3844_00f2 tail → 291f_0a66 → 43f7_2424 (raw
+ * 58392) → 2022, then raw 6407 FUN_281f_0638 → 521d_6d8e). 2022's crown branch
  * is the wave landing (0982/06a6); it never moves a unit. Movement follows
  * in the ordinary euro turn.
  */

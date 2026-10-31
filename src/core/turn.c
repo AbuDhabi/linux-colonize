@@ -717,8 +717,10 @@ COLONIZE_INTERNAL void turn_step_euro(ColonizeTurnProcessor* proc, ColonizeTurnC
       diag_info("TURN european nation %d%s", n, n == ctx->human_nation ? " (human)" : "");
       turn_euro_slot_eot(proc, ctx, n);
       if (turn_euro_nation_is_ref(ctx, n)) {
-        /* DOS per-slot order (raw 6394/6407): king beat (00f2→2424→2022,
-         * wave spawn + bookkeeping) first, then the full euro turn moves
+        /* DOS per-slot order (FUN_130d_0290 raw 6394 FUN_281f_0644, then raw
+         * 6407 FUN_281f_0638): king beat (0644 → 3844_00f2 tail → 291f_0a66
+         * → 43f7_2424 (raw 58392) → 2022, wave spawn + bookkeeping) first,
+         * then the full euro turn (0638 → 521d_6d8e) moves
          * the REF units through the ordinary 5b66/20e6 arms. D1 closed
          * 2026-09-07g. */
         ai_king_ref_pre_euro_beat(ctx);

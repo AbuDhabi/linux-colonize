@@ -1752,11 +1752,13 @@ static void ai_euro_5d04_hire_ladder_tail(
 
   /* raw 92592-92625: gold-spend recruit-slot swap (Europe recruit price
    * falls with accumulated crosses: base + base*crosses/(-1-needed)). */
-  if (!woi && !dock_has_non_ship_unit && !f->cargo_short &&
-      (!has_any_colony ||
-       (!unit_flag_bit5 && !every_third_turn &&
-        (stuff->colony_counts[nation_id] >> 1) <=
-          colonies_want_colonists - stuff->free_colonist_counts[nation_id]))) {
+  /* asm 521d:6283-62d1: local_4 (expand_signal) is forced 0 when
+   * colony_counts == 0, then the gate is a flat AND; the Ghidra
+   * `!bVar24 ||` short-circuit is not in the asm (the a0b8 - 9408 >=
+   * 9298>>1 compare runs with zero colonies too). */
+  if (!woi && !dock_has_non_ship_unit && !f->cargo_short && !expand_signal &&
+      colonies_want_colonists - (int)stuff->free_colonist_counts[nation_id] >=
+        (stuff->colony_counts[nation_id] >> 1)) {
     const int base = ((int)nat->recruit_count - difficulty + 7) * 20;
     const long scaled =
       ((long)base * (long)nat->current_crosses) / (-1L - (long)nat->needed_crosses);
@@ -1767,8 +1769,10 @@ static void ai_euro_5d04_hire_ladder_tail(
     if (reserve < 0) {
       reserve = 0;
     }
-    const long recruit_swap_price = scaled + base; /* DOS local_38 */
-    if (nat->gold >= (uint32_t)(recruit_swap_price + reserve)) {
+    /* asm 521d:6320-6332: local_38 and local_38 + reserve are 16-bit words,
+     * CWD-extended and compared signed (JG/JL on the high word) to gold. */
+    const int16_t recruit_swap_price = (int16_t)(scaled + base); /* DOS local_38 */
+    if ((int32_t)nat->gold >= (int32_t)(int16_t)(recruit_swap_price + reserve)) {
       europe_nation_gold_add(ctx->europe, ctx->col1, nation_id, -recruit_swap_price);
       const int slot = dos_rng_range(ctx->rng, 0, 2); /* nat->recruit[3] */
       const int candidate = ai_euro_5d04_cb_dock_pop_candidate(nat->recruit[slot]);

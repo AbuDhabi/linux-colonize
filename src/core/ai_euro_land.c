@@ -1663,7 +1663,7 @@ static int ai_euro_20e6_labor_arm(ColonizeTurnContext* ctx, ColonizeUnit* u, Ai2
  * bonus (+50% when no own colony here, ×2 colonists, +local_12>>tier, +16
  * when an explore goal exists). Radius 3 (DOS local_12 rival-strength term
  * read as 0 — see block header). Coastal gate = FUN_15eb_00a2 any-neighbour-
- * ocean via map_tile_is_coastal. Skips LCR class 0x1b and tiles another own
+ * ocean via map_tile_is_coastal. Skips class 0x1b (@TOOMOUNTAIN) and tiles another own
  * unit is already committed to (unit+0x314c==7) within the radius-2 ring.
  */
 static int ai_euro_land_explore_scan_target(
@@ -1749,7 +1749,7 @@ static int ai_euro_land_explore_scan_target(
         score += 0x10;
       }
       if (map_dos_terr_class_at(ctx->map, tx, ty) == 0x1b) {
-        continue; /* LCR */
+        continue; /* class 0x1b, @TOOMOUNTAIN */
       }
       /* raw 89134: `0d12(x,y) && 06b4(DS:0x8dba, DS:0x8dbc) == 1` — a water
        * neighbour whose lowest region id is the open sea; a tile touching only
@@ -2653,7 +2653,8 @@ static int ai_euro_20e6_border_park_arm(
  * (bVar20) carrying military or Pioneers (8aac modes 4 + 3) with no unload
  * mask, outside the War of Independence, rolls FUN_281f_04d4(0, 0x10) once
  * per act; on 0 it picks a random inset tile (rng(2, w-3), rng(2, h-3)) and,
- * if that is open-sea water more than 7 Manhattan tiles away, latches unit
+ * if that is open-sea water more than 7 tiles away by FUN_281f_037a
+ * (= FUN_124c_007c/0040 max + min/2, raw 88648, 2759-2792), latches unit
  * +0x3148 bit 0x10 and commits it as the goto (LAB_27f5). With the bit
  * already set, rng(0, 0x30) == 0 clears it. Both the count and unload mask
  * remain the ship band's saved DOS locals, even after partial unloading.
@@ -2691,7 +2692,7 @@ int ai_euro_20e6_ship_far_roam(
     if (!map_tile_is_water(ctx->map, tx, ty) || !ai_euro_20e6_open_sea(ctx->map, tx, ty)) {
       return 0;
     }
-    if (abs(tx - u->x) + abs(ty - u->y) <= 7) {
+    if (map_dos_dist(tx - u->x, ty - u->y) <= 7) {
       return 0;
     }
     *flags |= 0x10;
@@ -3321,10 +3322,8 @@ int ai_euro_20e6_wagon_origin_walk(
  * the 4393 work-queue haul (ai_euro_try_ship_trade_haul) declines, which is
  * where LAB_457e sits in the raw flow, and behind the same
  * `!at_war && !ship_has_useful_goto` chain guard as its
- * neighbours. The cadence never fires on
- * any golden fixture (AI_20E6_HS_TRACE over golden_ai_turns / _mid01 /
- * _late01 / _joint / smoke_play: zero hits) and all 57 ctest cases stay
- * green. Kill switch / bisect: AI_20E6_HS_CADENCE=0.
+ * neighbours. The cadence fires on the goldens (46 hits in the 2026-10-31
+ * leaf count). Kill switch / bisect: AI_20E6_HS_CADENCE=0.
  *
  * Thin: DOS also stamps orders 0x45 and act_state 3/0xb on the unit; the port
  * stamps UNITS_ORDER_AI_SAIL onto the spiral tile and leaves the actual

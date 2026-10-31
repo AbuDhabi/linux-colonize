@@ -153,6 +153,12 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_treasure(struct ai_euro_act_c
   /* 20e6 returned with a bound course: FUN_521d_5b66 cases 0x0b/0x0c walk it
    * with FUN_479b_0972 (arrival on a 0x0b goal exhausts MP, raw 77098). */
   if (treasure_routed && (u->orders == AI_EURO_ACT_GOAL || u->orders == AI_EURO_ACT_STEP)) {
+    /* Every 27f5 bind leaves through `goto LAB_5a78` (raw 90225-90227), whose
+     * at-goal test (raw 90423-90431) exhausts a unit bound to its own tile
+     * (treasure arm 3 with the nearest own unit at d = 0) before 5b66 walks. */
+    if (u->orders == AI_EURO_ACT_GOAL && u->goto_x == u->x && u->goto_y == u->y) {
+      u->moves = 0; /* FUN_281f_0934 */
+    }
     ai_euro_goal_walk_479b(ctx, u);
     return AI_EURO_ACT_RETURN;
   }
@@ -426,7 +432,9 @@ static int ai_euro_20e6_ship_dos(ColonizeTurnContext* ctx, ColonizeUnit* u, int 
     /* At an own berth FUN_281f_0920 (FUN_1427_10be) has parked the hull and its
      * boarded members at (-2,-2) before 0d38 counts (raw 89412-89413), so
      * local_a8 is the carrier stack, not the colony's residents (America
-     * seed-100 save 19: an emptied hull takes the 457e sail-home arm). */
+     * seed-100 save 19: an emptied hull takes the 457e sail-home arm). This
+     * pre-arrival count stands only until the berth band below refreshes it
+     * from the post-assemble load. */
     tile_stack_others_at_entry = u->cargo_count;
   } else {
     /* LAB_3558 unload mask + loop. The loop exhausts every unloaded
@@ -475,11 +483,14 @@ static int ai_euro_20e6_ship_dos(ColonizeTurnContext* ctx, ColonizeUnit* u, int 
       return 0;
     }
   }
-  /* Berth block / goods delivery / sell / LAB_4393 haul. */
+  /* Berth block / goods delivery / sell / LAB_4393 haul. The berth's
+   * LAB_3558 (reached from the arrival block, raw 90371) fills berth_band and
+   * unload_mask (local_9c); stack_other stays -1 when it was not entered. */
+  AiEuroShipBandCounts berth_band = {.stack_other = -1};
   if (tasked && at_own_colony) {
     /* Raw 2996-3138 is above LAB_3558's local_6 gates: a FOUND/MIL_EXPAND
      * transport services its berth first, then resumes the stored goal. */
-    if (ai_euro_20e6_tasked_ship_berth_arrival(ctx, nation_id, u)) {
+    if (ai_euro_20e6_tasked_ship_berth_arrival(ctx, nation_id, u, &berth_band, &unload_mask)) {
       return 1; /* the hull is gone */
     }
   } else if (!tasked) {
@@ -487,7 +498,8 @@ static int ai_euro_20e6_ship_dos(ColonizeTurnContext* ctx, ColonizeUnit* u, int 
     const int oy = u->goto_y;
     const int oo = u->orders;
     const int haul = ai_euro_try_ship_trade_haul_snapshot(
-      ctx, nation_id, u, at_own_colony ? -1 : tile_stack_others_at_entry, &delivery_at_entry
+      ctx, nation_id, u, at_own_colony ? -1 : tile_stack_others_at_entry, &delivery_at_entry,
+      at_own_colony ? &berth_band : NULL, &unload_mask
     );
     if (haul) {
       u = units_get(ctx->units, id);
@@ -503,6 +515,12 @@ static int ai_euro_20e6_ship_dos(ColonizeTurnContext* ctx, ColonizeUnit* u, int 
       ai_euro_20e6_ship_tail_5a78(ctx, u, nation_id);
       return 0;
     }
+  }
+  if (berth_band.stack_other >= 0) {
+    /* raw 89411-89444: local_a8 = 08bc(ship, 2) - 1 after 0920's park and
+     * 10be boarding, and post-fold local_4a + local_48 for the 4d2e roam. */
+    tile_stack_others_at_entry = berth_band.stack_other;
+    roam_military_founders = berth_band.military + berth_band.pioneers;
   }
   /* LAB_457e: a tasked hull leaves 20e6 here. */
   if (tasked) {

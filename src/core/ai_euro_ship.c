@@ -1153,14 +1153,16 @@ static int ai_euro_20e6_ship_berth_arrival(
     const int turn = (ctx->turn_number && *ctx->turn_number) ? (int)*ctx->turn_number : 0;
     const ColonizeWorld pw = world_from_turn_ctx(ctx);
     const int ship_prio = ai_goals_composite_unit_priority_w(&pw, nation_id, ship->x, ship->y, arrival_dos_type, ship->profession, turn, colonies_count_for_nation(ctx->colonies, nation_id));
-    for (int ui = 0; ui < units_slot_end(ctx->units); ++ui) {
+    /* asm 521d:31f1-32f2: the colony tile's chain, FUN_281f_02ee head
+     * (+0x315c) then FUN_281f_02e4 next (+0x315e), newest arrival first —
+     * not slot order. */
+    for (int lid = units_tile_head_id_at(ctx->units, c->x, c->y); lid >= 0;
+         lid = units_tile_chain_next_id(ctx->units, lid)) {
       if (ai_euro_s_0a60_work_registered[nation_id] >= 0x19) {
         break;
       }
-      /* Slot walk (Leads 2, 2026-09-10): `ui` is an array index; the id-keyed
-       * shadow below keeps its `lu->id` key and its 256-wide guard. */
-      ColonizeUnit* lu = &ctx->units->units[ui];
-      if (!lu->active || lu->nation_id != nation_id || lu->aboard_ship_id >= 0 ||
+      ColonizeUnit* lu = units_get(ctx->units, lid);
+      if (!lu || !lu->active || lu->nation_id != nation_id || lu->aboard_ship_id >= 0 ||
           lu->id == ship->id || lu->id < 0 || lu->id >= COLONIZE_UNITS_MAX) {
         continue;
       }
@@ -1265,7 +1267,8 @@ static int ai_euro_20e6_berth_exit(
  * (raw 89726) are local_6-gated, so LAB_457e then returns it to its stored
  * goal. Returns 1 when the hull is gone. */
 int ai_euro_20e6_tasked_ship_berth_arrival(
-  ColonizeTurnContext* ctx, int nation_id, ColonizeUnit* ship
+  ColonizeTurnContext* ctx, int nation_id, ColonizeUnit* ship,
+  AiEuroShipBandCounts* out_band, int* out_mask
 ) {
   if (!ai_euro_20e6_ship_dump_enabled()) {
     return 0;
@@ -1276,7 +1279,12 @@ int ai_euro_20e6_tasked_ship_berth_arrival(
   }
   AiEuroShipBandCounts band = {0};
   int mask = 0;
-  return ai_euro_20e6_berth_exit(ctx, nation_id, &ship, cowered, &band, &mask) == 2;
+  const int gone = ai_euro_20e6_berth_exit(ctx, nation_id, &ship, cowered, &band, &mask) == 2;
+  if (!cowered && out_band && out_mask) {
+    *out_band = band;
+    *out_mask = mask;
+  }
+  return gone;
 }
 
 /*
@@ -1291,12 +1299,12 @@ int ai_euro_try_ship_trade_haul(
   int nation_id,
   ColonizeUnit* ship
 ) {
-  return ai_euro_try_ship_trade_haul_snapshot(ctx, nation_id, ship, -1, NULL);
+  return ai_euro_try_ship_trade_haul_snapshot(ctx, nation_id, ship, -1, NULL, NULL, NULL);
 }
 
 int ai_euro_try_ship_trade_haul_snapshot(
   ColonizeTurnContext* ctx, int nation_id, ColonizeUnit* ship, int stack_other,
-  int* out_delivery_type
+  int* out_delivery_type, AiEuroShipBandCounts* out_band, int* out_mask
 ) {
   if (!ctx || !ctx->units || !ctx->map || !ctx->colonies || !ship || !ship->active) {
     return 0;
@@ -1348,6 +1356,10 @@ int ai_euro_try_ship_trade_haul_snapshot(
     int berth_mask = 0;
     if (ai_euro_20e6_berth_exit(ctx, nation_id, &ship, cowered, &band, &berth_mask) != 0) {
       return 1;
+    }
+    if (out_band && out_mask) {
+      *out_band = band;
+      *out_mask = berth_mask;
     }
     stack_other = band.stack_other; /* local_a8, pre-unload (raw 89412-89413) */
     const int urgency = ai_euro_0a60_work_registered(nation_id);

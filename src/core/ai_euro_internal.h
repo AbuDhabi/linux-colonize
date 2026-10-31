@@ -406,15 +406,20 @@ int ai_euro_try_ship_trade_haul(
   int nation_id,
   ColonizeUnit* ship
 );
+struct AiEuroShipBandCounts;
 /* out_delivery_type (may be NULL): DOS local_44, the delivery tally taken at
  * LAB_521d_3558 AFTER the own-berth dump + load (the arrival block ends in
- * `goto LAB_3558`, 20e6 raw 90371); untouched when the band is not entered. */
+ * `goto LAB_3558`, 20e6 raw 90371); untouched when the band is not entered.
+ * out_band / out_mask (may be NULL): the berth's LAB_3558 counts (local_a8,
+ * post-fold local_4a, local_48, ...) and unload mask local_9c, which the
+ * rest of 20e6 (457e cadence, 4d2e far roam) reads; untouched likewise. */
 int ai_euro_try_ship_trade_haul_snapshot(
   ColonizeTurnContext* ctx, int nation_id, ColonizeUnit* ship, int stack_other,
-  int* out_delivery_type
+  int* out_delivery_type, struct AiEuroShipBandCounts* out_band, int* out_mask
 );
 int ai_euro_20e6_tasked_ship_berth_arrival(
-  ColonizeTurnContext* ctx, int nation_id, ColonizeUnit* ship
+  ColonizeTurnContext* ctx, int nation_id, ColonizeUnit* ship,
+  struct AiEuroShipBandCounts* out_band, int* out_mask
 );
 int ai_euro_ship_enter_europe(ColonizeTurnContext* ctx, ColonizeUnit* ship);
 void ai_euro_ship_leave_europe(ColonizeTurnContext* ctx, ColonizeUnit* ship);
