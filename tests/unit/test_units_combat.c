@@ -2292,6 +2292,66 @@ static int unit_lcr_burial3_treasure_fizzles_in(void) {
   return rc;
 }
 
+/*
+ * FUN_5fef_0352 raw 99527 (asm 5fef:08a9/08ae): with winner guns 0 the whole damage-vs-sink
+ * block, fleet-pool gate and census included, is skipped, so the hull is always damaged. A
+ * Privateer beaten by a Caravel or by a land unit (the capture sweep, raw 100878-100882), whose
+ * nation has more than 8 armed ships (the gate's sink clause, raw 99552), must still limp home.
+ */
+static int unit_gunless_winner_never_sinks(void) {
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  pool.type_count = 3;
+  snprintf(pool.types[0].name, sizeof(pool.types[0].name), "Privateer");
+  pool.types[0].kind_plus1 = UNITS_KIND_PRIVATEER + 1;
+  pool.types[0].attack = 8;
+  pool.types[0].guns = 8;
+  pool.types[0].hull = 4;
+  pool.types[0].defense = 8;
+  pool.types[0].cargo = 2;
+  pool.types[0].movement = 8;
+  pool.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  snprintf(pool.types[1].name, sizeof(pool.types[1].name), "Caravel");
+  pool.types[1].kind_plus1 = UNITS_KIND_CARAVEL + 1;
+  pool.types[1].hull = 2;
+  pool.types[1].defense = 2;
+  pool.types[1].cargo = 2;
+  pool.types[1].movement = 4;
+  pool.types[1].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  snprintf(pool.types[2].name, sizeof(pool.types[2].name), "Soldiers");
+  pool.types[2].attack = 2;
+  pool.types[2].defense = 2;
+  pool.types[2].movement = 1;
+  pool.types[2].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  col1.stuff.armed_ship_counts[1] = 9;
+  units_set_combat_colonies(NULL);
+  units_set_combat_human_nation(-1);
+  int rc = 0;
+  for (int winner_type = 1; winner_type <= 2 && rc == 0; ++winner_type) {
+    const int lose = units_spawn_allow_stack(&pool, 0, 3, 2);
+    const int win = units_spawn_allow_stack(&pool, winner_type, 4, 2);
+    units_get(&pool, lose)->nation_id = 1;
+    units_get(&pool, win)->nation_id = 0;
+    const int alive = units_apply_naval_loss_outcome(&pool, lose, win, 0, 0, 0, &col1, NULL);
+    const ColonizeUnit* l = units_get_const(&pool, lose);
+    if (!alive || !l || !l->active || (l->col1_flags15 & 0x80u) == 0) {
+      fprintf(stderr, "gunless-winner: type %d sank the Privateer (alive=%d)\n", winner_type,
+              alive);
+      rc = 1;
+    } else if (col1.stuff.armed_ship_counts[1] != 9) {
+      fprintf(stderr, "gunless-winner: census moved (%d)\n", col1.stuff.armed_ship_counts[1]);
+      rc = 1;
+    }
+    (void)units_despawn(&pool, win);
+    if (units_get(&pool, lose)) {
+      (void)units_despawn(&pool, lose);
+    }
+  }
+  return rc;
+}
+
 static const TestCase k_cases[] = {
   {"unit_royal_loss_tax_cut", unit_royal_loss_tax_cut},
   {"unit_combat_music_sting", unit_combat_music_sting},
@@ -2306,6 +2366,7 @@ static const TestCase k_cases[] = {
   {"unit_1b0e_resolve_handicaps", unit_1b0e_resolve_handicaps},
   {"unit_1b0e_defender_bonus_live", unit_1b0e_defender_bonus_live},
   {"unit_naval_stack_sweep", unit_naval_stack_sweep},
+  {"unit_gunless_winner_never_sinks", unit_gunless_winner_never_sinks},
   {"unit_combat_cheat_footer_roll_before_dialog", unit_combat_cheat_footer_roll_before_dialog},
   {"unit_reset_hooks_clears_wiring", unit_reset_hooks_clears_wiring},
   {"unit_indian_massacre_names_victim", unit_indian_massacre_names_victim},

@@ -2058,8 +2058,12 @@ int units_apply_naval_loss_outcome(
   const int lhull = lt ? lt->hull : 0;
   int damaged = units_ship_damage_vs_sink(rng, wguns, lhull);
   /* port_bugs.md #867: DOS raw 99527-99570 layers the fleet-pool / crown-MoW gate
-   * on top of that roll. */
-  damaged = units_naval_damage_gate(pool, col1, lose, wt, win->nation_id, damaged);
+   * on top of that roll, but only inside `if (winner_type*0xe + 0x523b != 0)` (raw 99527;
+   * asm 5fef:08a9 / 5fef:08ae jumps past the gate and the census with bVar11 still 1). A
+   * gunless winner (Caravel, any land unit) therefore always leaves the hull damaged. */
+  if (wguns > 0) {
+    damaged = units_naval_damage_gate(pool, col1, lose, wt, win->nation_id, damaged);
+  }
   /* DOS-LITERAL FUN_5fef_0352 raw 99570-99579: a sunk hull leaves the census
    * at once (cargo total, type count, armed count). A later hull of the same
    * 0ec0 walk reads the reduced totals in its own gate. */
