@@ -1469,6 +1469,43 @@ static int test_colony_jobs_menu_seats_indoor_worker(void) {
 }
 
 /*
+ * docs/dos_bugs.md DB-15: the validator caps @JOB 9 (Rum Distiller) with `occupation > 8`, so
+ * the refusal popup mirror must answer a refused fourth Distiller with @MORETHANTHREE
+ * (FUN_2f2b_011e raw 47192), not a silent refusal.
+ */
+static int test_colony_rum_distiller_refusal_popup(void) {
+  static ColonizeGameState game;
+  ColonizeMsgCatalog names;
+  if (!jobs_menu_fixture(&game, &names)) {
+    return fail("jobs fixture");
+  }
+  ColonizeColony* col = &game.colonies.colonies[0];
+  const int shop = colonies_building_row(&game.colonies, COLONY_BUILDING_CARPENTERS_SHOP);
+  const int rum = colonies_building_row(&game.colonies, COLONY_BUILDING_RUM_DISTILLERS_HOUSE);
+  int rc = 0;
+  if (colonies_building_occupation(&game.colonies, rum) != 9) {
+    rc = fail("fixture: the Rum Distiller's House must seat @JOB 9");
+  }
+  col->has_building[rum] = true;
+  for (int i = 1; i <= 3; ++i) {
+    col->colonists[i] = col->colonists[0];
+    col->colonists[i].building_type = rum;
+  }
+  col->colonist_count = col->population = 4;
+  game_colony_assign_building_drop(&game, rum);
+  if (col->colonists[0].building_type != shop) {
+    rc = fail("the validator must refuse a fourth Rum Distiller");
+  } else if (!game.ai_popups.open || game.ai_popups.current.tag != AI_POPUP_TAG_INFO) {
+    fprintf(stderr, "  popup open=%d tag=%d\n", game.ai_popups.open,
+            (int)game.ai_popups.current.tag);
+    rc = fail("a refused fourth Rum Distiller must raise @MORETHANTHREE");
+  }
+  fx_map_free(&game.world_map);
+  assets_msg_free(&names);
+  return rc;
+}
+
+/*
  * docs/dos_bugs.md DB-54 (port_bugs.md #1205): DOS's jobs menu stamps each elected plot and
  * zeroes the job counter just by opening; the port's opening changes nothing.
  */
@@ -2409,6 +2446,7 @@ static const TestCase k_cases[] = {
     {"test_ai_euro_5952_equip_pioneer", test_ai_euro_5952_equip_pioneer},
     {"test_colony_shift_pick_moves_highlight", test_colony_shift_pick_moves_highlight},
     {"test_colony_jobs_menu_seats_indoor_worker", test_colony_jobs_menu_seats_indoor_worker},
+    {"test_colony_rum_distiller_refusal_popup", test_colony_rum_distiller_refusal_popup},
     {"test_colony_jobs_menu_open_has_no_side_effects", test_colony_jobs_menu_open_has_no_side_effects},
     {"test_game_world_view", test_game_world_view},
     {"test_goto_place_opens_travelplace_list", test_goto_place_opens_travelplace_list},
