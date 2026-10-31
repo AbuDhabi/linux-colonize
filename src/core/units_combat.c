@@ -2025,7 +2025,8 @@ int units_apply_naval_loss_outcome(
   /* FUN_5fef_0352 5fef:07db-0803: both combatants are ships and the fight
    * is visible → 0x4d (COLDIG 10 cheering + fireworks) *before* the
    * damage / sink / seizure split — a naval-win beat, not a capture cue. */
-  if (show_popups && units_combat_is_visible(pool, winner_id, loser_id)) {
+  if (show_popups && units_is_sea(pool, winner_id) && units_is_sea(pool, loser_id) &&
+      units_combat_is_visible(pool, winner_id, loser_id)) {
     units_play_event_sound(0x4d);
   }
 

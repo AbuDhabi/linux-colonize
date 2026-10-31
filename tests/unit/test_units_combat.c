@@ -2352,6 +2352,61 @@ static int unit_gunless_winner_never_sinks(void) {
   return rc;
 }
 
+static int g_cue_4d_calls = 0;
+
+static void unit_cue_4d_play_mock(int id) {
+  if (id == 0x4d) {
+    g_cue_4d_calls++;
+  }
+}
+
+/*
+ * FUN_5fef_0352 asm 5fef:07db-0803: the 0x4d naval-win cue sits behind a 0xd..0x12 range test
+ * on BOTH type bytes, so a land winner (the capture sweep) plays nothing, a ship winner does.
+ */
+static int unit_naval_win_cue_ships_only(void) {
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  pool.type_count = 2;
+  snprintf(pool.types[0].name, sizeof(pool.types[0].name), "Caravel");
+  pool.types[0].kind_plus1 = UNITS_KIND_CARAVEL + 1;
+  pool.types[0].hull = 2;
+  pool.types[0].defense = 2;
+  pool.types[0].cargo = 2;
+  pool.types[0].movement = 4;
+  pool.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  snprintf(pool.types[1].name, sizeof(pool.types[1].name), "Soldiers");
+  pool.types[1].attack = 2;
+  pool.types[1].defense = 2;
+  pool.types[1].movement = 1;
+  pool.types[1].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units_set_combat_colonies(NULL);
+  units_set_combat_human_nation(-1);
+  units_set_ff_col1(NULL); /* no col1: units_combat_is_visible says yes */
+  units_set_combat_music_hooks(unit_cue_4d_play_mock, unit_event_sfx_active_id_mock);
+  int rc = 0;
+  for (int winner_type = 0; winner_type <= 1; ++winner_type) {
+    const int lose = units_spawn_allow_stack(&pool, 0, 3, 2);
+    const int win = units_spawn_allow_stack(&pool, winner_type, 4, 2);
+    units_get(&pool, lose)->nation_id = 1;
+    units_get(&pool, win)->nation_id = 0;
+    g_cue_4d_calls = 0;
+    (void)units_apply_naval_loss_outcome(&pool, lose, win, 0, 0, 1, NULL, NULL);
+    const int want = winner_type == 0 ? 1 : 0;
+    if (g_cue_4d_calls != want) {
+      fprintf(stderr, "naval-cue: winner type %d played 0x4d %d times (want %d)\n", winner_type,
+              g_cue_4d_calls, want);
+      rc = 1;
+    }
+    (void)units_despawn(&pool, win);
+    if (units_get(&pool, lose)) {
+      (void)units_despawn(&pool, lose);
+    }
+  }
+  units_set_combat_music_hooks(NULL, NULL);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
   {"unit_royal_loss_tax_cut", unit_royal_loss_tax_cut},
   {"unit_combat_music_sting", unit_combat_music_sting},
@@ -2367,6 +2422,7 @@ static const TestCase k_cases[] = {
   {"unit_1b0e_defender_bonus_live", unit_1b0e_defender_bonus_live},
   {"unit_naval_stack_sweep", unit_naval_stack_sweep},
   {"unit_gunless_winner_never_sinks", unit_gunless_winner_never_sinks},
+  {"unit_naval_win_cue_ships_only", unit_naval_win_cue_ships_only},
   {"unit_combat_cheat_footer_roll_before_dialog", unit_combat_cheat_footer_roll_before_dialog},
   {"unit_reset_hooks_clears_wiring", unit_reset_hooks_clears_wiring},
   {"unit_indian_massacre_names_victim", unit_indian_massacre_names_victim},
