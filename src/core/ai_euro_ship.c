@@ -1228,17 +1228,55 @@ static int ai_euro_20e6_ship_berth_arrival(
   return c->id;
 }
 
+/*
+ * The arrival block's two exits (raw 90371 / 90373): cower -> plan 'C' +
+ * LAB_5899 stay (returns 1), else `goto LAB_3558`, whose 0920 park + 0d38
+ * counts (raw 89412-89423) snapshot `band` and whose shore unload scan (raw
+ * 89440-89612) runs before any local_6 gate. Returns 2 when the hull is
+ * gone, else 0; `*ship` is re-fetched after an unload.
+ */
+static int ai_euro_20e6_berth_exit(
+  ColonizeTurnContext* ctx, int nation_id, ColonizeUnit** ship, int cowered,
+  AiEuroShipBandCounts* band, int* mask
+) {
+  if (cowered) {
+    /* Raw 90373: +0x314b = 'C', then LAB_5899 / 589e stay (orders 5 or 6),
+     * which the 5a78 tail leaves alone (america2 resync 203). */
+    (*ship)->col1_ai_plan = 0x43;
+    ai_euro_20e6_stay_tail_589e(*ship);
+    return 1;
+  }
+  *mask = ai_euro_20e6_unload_mask_snapshot(ctx, *ship, nation_id, band);
+  const int sid = (*ship)->id;
+  if (*mask != 0 && ai_euro_20e6_unload_by_mask(ctx, *ship, nation_id, *mask) > 0) {
+    *ship = units_get(ctx->units, sid);
+    if (!*ship || !(*ship)->active) {
+      return 2;
+    }
+    (*ship)->moves = 0;
+  }
+  return 0;
+}
+
 /* Raw 2996-3138 precedes every local_6 (`plan == 't' || 'i'`) gate. A
  * tasked hull therefore still dumps, reserves/assembles passengers, and
- * reloads at its own berth before LAB_457e returns it to its stored goal. */
+ * reloads at its own berth, then cowers or runs the LAB_3558 unload like an
+ * untasked one; only the colony-sail pick (raw 89614) and the dock demand
+ * (raw 89726) are local_6-gated, so LAB_457e then returns it to its stored
+ * goal. Returns 1 when the hull is gone. */
 int ai_euro_20e6_tasked_ship_berth_arrival(
   ColonizeTurnContext* ctx, int nation_id, ColonizeUnit* ship
 ) {
   if (!ai_euro_20e6_ship_dump_enabled()) {
-    return -1;
+    return 0;
   }
   int cowered = 0;
-  return ai_euro_20e6_ship_berth_arrival(ctx, nation_id, ship, &cowered);
+  if (ai_euro_20e6_ship_berth_arrival(ctx, nation_id, ship, &cowered) < 0) {
+    return 0;
+  }
+  AiEuroShipBandCounts band = {0};
+  int mask = 0;
+  return ai_euro_20e6_berth_exit(ctx, nation_id, &ship, cowered, &band, &mask) == 2;
 }
 
 /*
@@ -1295,13 +1333,6 @@ int ai_euro_try_ship_trade_haul_snapshot(
   const int berthed_at = ai_euro_20e6_ship_dump_enabled()
                            ? ai_euro_20e6_ship_berth_arrival(ctx, nation_id, ship, &cowered)
                            : -1;
-  if (cowered) {
-    /* Raw 90373: +0x314b = 'C', then LAB_5899 / 589e stay (orders 5 or 6),
-     * which the 5a78 tail leaves alone (america2 resync 203). */
-    ship->col1_ai_plan = 0x43;
-    ai_euro_20e6_stay_tail_589e(ship);
-    return 1;
-  }
   /*
    * The arrival block ends in `goto LAB_3558` (raw 90371), so a berthed hull
    * runs the same LAB_3558 band as a hull at sea: 0920 park + 0d38 counts
@@ -1314,16 +1345,11 @@ int ai_euro_try_ship_trade_haul_snapshot(
    */
   if (berthed_at >= 0) {
     AiEuroShipBandCounts band = {0};
-    const int berth_mask = ai_euro_20e6_unload_mask_snapshot(ctx, ship, nation_id, &band);
-    const int sid = ship->id;
-    if (berth_mask != 0 && ai_euro_20e6_unload_by_mask(ctx, ship, nation_id, berth_mask) > 0) {
-      ship = units_get(ctx->units, sid);
-      if (!ship || !ship->active) {
-        return 1;
-      }
-      ship->moves = 0;
+    int berth_mask = 0;
+    if (ai_euro_20e6_berth_exit(ctx, nation_id, &ship, cowered, &band, &berth_mask) != 0) {
+      return 1;
     }
-    stack_other = band.stack_other;
+    stack_other = band.stack_other; /* local_a8, pre-unload (raw 89412-89413) */
     const int urgency = ai_euro_0a60_work_registered(nation_id);
     int cx = 0;
     int cy = 0;
@@ -1341,8 +1367,7 @@ int ai_euro_try_ship_trade_haul_snapshot(
   /* An own-colony berth loads its cargo before the 89725 dock-demand test.
    * 1537→1538: the Dutch Merchantman loads 22 Furs, then sets its Europe
    * course to collect the land unit waiting at the dock. */
-  if (berthed_at >= 0 && ship->cargo_count == 0 &&
-      ai_euro_20e6_europe_dock_demand(ctx, ship, nation_id)) {
+  if (berthed_at >= 0 && ai_euro_20e6_europe_dock_demand(ctx, ship, nation_id, stack_other)) {
     return 2;
   }
   /* At an own berth DOS 0920 selects the hull and boarded members at

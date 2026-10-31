@@ -376,7 +376,9 @@ int ai_euro_europe_dock_land_units(const ColonizeUnitPool* units, int nation_id)
 int ai_euro_europe_lane_ships(const ColonizeUnitPool* units, int nation_id);
 int ai_euro_20e6_3fa6_sail_home(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id);
 int ai_euro_20e6_missionary_arm(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id);
-int ai_euro_20e6_europe_dock_demand(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id);
+int ai_euro_20e6_europe_dock_demand(
+  ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id, int stack_other
+);
 int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id);
 /* FUN_5952_035e indoor-expert pass (OVL15 0x1cb2-0x1e65), ahead of the scored
  * indoor pass: seats unplaced indoor experts in their own job. */
@@ -607,7 +609,6 @@ COLONIZE_INTERNAL void ai_euro_5952_lumber_purchase(
   struct EuropeScreen* eu, struct ColonizeCol1Save* col1, ColonizeColony* col, int turn,
   bool lumber_producer_placed
 );
-AiEuroActStatus ai_euro_act_land_hunt_scout(struct ai_euro_act_ctx* a);
 AiEuroActStatus ai_euro_act_land_treasure(struct ai_euro_act_ctx* a);
 AiEuroActStatus ai_euro_act_land_roles(struct ai_euro_act_ctx* a);
 /* Test-only externs (port_bugs.md #1106), no production caller. */

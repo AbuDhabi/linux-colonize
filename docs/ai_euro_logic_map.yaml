@@ -209,8 +209,8 @@ graphs:
         label: Progressed? (moved, spent MP, or despawned)
       - id: encounter
         kind: call
-        label: Ended adjacent to the human → 153e audience
-        fn: ai_diplo.c:ai_diplo_153e_encounter
+        label: Land mover progressed → encounter scan (3180 meet / 153e audience)
+        fn: ai_contact.c:ai_contact_encounter_scan
         dos: FUN_5bfb_3180 on the moving unit's step; param_4 = AI unit arms @WANTSTUFF (also on AI unloads, which land through FUN_465b_0000 via ai_euro_3180_euro_side, DOSBox 1591)
         status: structural
         note: "Per-act granularity vs DOS per-step; human talks dedupe once per pair per turn. A queued human talk is pumped (units_pump_combat_popups) before the drain re-acts the unit: DOS 153e blocks inside the step (raw 98667), so its 0x40 treaty is live for the next 20e6 attack gate (campaign3 C3-B1). AI encounters call 13b0 then the shared 153e exit (raw 98414-98425), refreshing the other nation's treaty timer for the mover; Franklin of the mover halves it."
@@ -388,50 +388,19 @@ graphs:
         dos: 0a60 raw lines 1-189
         status: dos
         note: FOUND/MIL_EXPAND eligibility (bits 2/3) from 0d38 stack counts (military ≥2 or mobilizable → bits 2+3; Pioneers → bit 2); spare-transport bit5 (one ship per nation per turn, using the earlier census so 5d04 purchases do not count); act_state 1/2/3 → 0 on tile, 10 at a contact claim, 1 when aboard/off-map; foreign hostile ship → CONTACT prio 3 (Frigates only post-declaration).
-      - id: ship_reset
-        kind: step
-        label: Reset ship-pressure tallies
-        fn: ai_euro.c:ai_euro_ship_pressure_reset
-        dos: FUN_4962_0018 raw 78239-78242
-        status: dos
       - id: sec_d
         kind: loop
         label: "D: own colony loop"
         fn: ai_euro_goals.c:ai_euro_colony_goals
         dos: 0a60 colony loop raw 190-980
         status: structural
-      - id: d_flags
-        kind: call
-        label: Refresh colony ai_flags — ship probe, field tallies, NEEDS_COLONISTS, WANTS_PIONEER_WORK
-        fn: ai_euro.c:ai_euro_refresh_colony_ai_flags
-        dos: FUN_4962_0018 phase-3 ship probe (blockade bits 0x01/0x02); FUN_5952_035e raw 94200-94206, 555-563
-        status: dos
-      - id: d_absorb
-        kind: call
-        label: Absorption arm (tile re-scan) + equip arm + the five FUN_5952_0306 build-preference calls - FUN_5952_035e raw 94231-94395
-        dos: FUN_5952_035e raw 94231-94395 (annotated colony_tick_5952_035e.md:594-793)
-        dos: FUN_5952_035e raw 94231-94352 (annotated colony_tick_5952_035e.md:594-719)
-        status: dos
-        note: "5952 absorption enumerates the physical tile chain, latest arrival first (15eb_09c0/0924), confirmed by fresh 1598 roster order. RE-HOSTED 2026-09-18 out of the unit act into the colony tick, at DOS's position: after every +0x1b flag write and the by-profession census, before the build-preference / construction cascade. Absorption is a TILE RE-SCAN with DOS's loop semantics — outer gate `DS:0x8d72 != 0 && (+0x1b & 0x10)`, inner scan over the colony slots past +0x1f, at most one take-in per pass (iStack_32) and restart from the top, `+0x1f < 0x20` re-read at every loop test. local_ee is FUN_15eb_0902 = DS:0x30e[@UNIT type], the type's DEFAULT @JOB (units_type_default_job), NOT the @UNIT code: 0x13 Colonist (unconditional), 0x14 Pioneer ((+0x1b & 0x80) && local_16 == 0, or G-stance 0), 0x15/0x17 Soldier/Dragoon ((a) iStack_76 < 0 && !(+0x1b & 8) — a dead branch — or (b) an expert other than @JOB 0x15 with census aiStack_68[0x13]/[0x15] non-zero, or (c) +0x1b & 4), 0x16 Scout (G-stance 0 or stock[horses] < 0x34). Admission is colonies_admit_unit_w (FUN_15eb_1068 job 0x12): equipment refunded to stock, profession kept. The Soldier case also ++s the tick-local iStack_76, clears +0x1b bit 2 and consumes one census cell ([0x15] first). local_16 is a real tick-local seeded from `0x13 < +0xb6` and latched by the Pioneer case. Equip arm (raw 94276-94352): pop > 1; local_90 = G-stance 0 && pop > 10 && dos_rng_range(0,3) == 0 && !(+0x1b & 0x10) — drawn once per AI colony per turn, which is where the shared LCG stream now sees it; ((+0x1b & 0x48) || local_90) && stock[muskets] > 0x31; target 0x15, or 0x17 on stock[horses] > 0x33; ai_euro_5952_equip_pick scores the colonist, the expert strip reads DOS's leaked loop variable (colonist pop-1), then colonies_eject_colonist. COMPLETED 2026-09-18: all THREE local_136 targets are live and share local_8e, so a later arm overrides an earlier one and at most one re-type happens per tick - Scout (raw 94277-94285: stock[horses] > 0x65, then pop < 10 && pop < FUN_1000_8e6c() = ai_euro_colony_wanted_size skips THIS ARM ONLY, then !(+0x1b & 0x10); scorer target stays 0x16 so the -99 expert strip does not apply; 50 horses charged by FUN_15eb_1068), Pioneer (raw 94300-94303: local_90 && unit_type_counts[nation][2] == 0 (DS:-0x6db2 = 0x924e, stride 0x13) && local_10 (func_0x0001a684 = FUN_2a1f_0494 -> FUN_521d_03d0 founding_expansion_urgency) && 0x13 < LIVE stock[tools], not the frozen local_16), Soldier/Dragoon (raw 94304-94312). Then raw 94353-94395, the five FUN_OVL15_L0000__002a82 = FUN_5952_0306(cargo, want) calls (ai_euro_5952_build_pref_0306), DOS's only AI +0x8d specialty_cargo writer: clears are warehouse_capacity <= stock[cargo] and DS:0x8dc8[cargo] != 0 (gross production; the port's invented boycotted clear is retired). Tags 0xf/0xe/0xd/8 = Muskets/Tools/Trade Goods/Horses. Arm 1 target = (belligerence + 2) * 0x32 (DS:-0x6a9a col 0); uStack_96 latched between arms 1 and 2; arm 2 = trade goods < 100 && DS:0x84bc[nation*0x10+0xd] < 4 && (+0x1c & 0x20 WAGON_TRAIN); arm 3 = horses < 0x32; arm 4 = local_16 == 0 && (+0x1b & 0x80); arm 5 re-stamps Muskets from iStack_76 / +0x8e / (+0x1b & 8) / uStack_96, the one place the absorption's ++ is observable. Flag note (2026-09-18): colony +0x1b bit 6 (0x40), the high half of the `+0x1b & 0x48` equip gate, is GARRISON DEFICIT POSITIVE — raw 94147 `if (0 < local_76) +0x1b |= 0x40`, local_76 being the tick's running garrison shortfall. It is not a veteran/experience flag. This replaces the invented 11-cargo surplus-haul ladder in ai_euro_colony_inventory. ADDED 2026-09-24 (port_bugs.md #914): raw 94362-94367, immediately after arm 5 and before the +0xb6 horse arm, the MUSKET-SURPLUS BANK - `if (local_76 == 0 && 199 < stock[muskets] && nation[+0x49] < 0x14) { nation[+0x49]++; stock[muskets] -= 0x32; }`. nation+0x49 is the musket-LOT bank (Ai5d04HireScratch.musket_bank_lots) that FUN_521d_5d04's Europe hire arm spends to arm a recruit for free; +0x4a (musket_bank_raw) is its raw counterpart, normalized against it by the +-0x32 loop at raw 84272-84278."
-      - id: d_threat
-        kind: call
-        label: Threat accumulator → garrison_quota
-        fn: ai_euro_goals.c:ai_euro_colony_threat_seed_5952
-        dos: FUN_5952_035e 11×11 scan
-        status: dos
-        note: Floor from building chain rows 0-2; outside>0x32; stance nibble; WoI and SMALL_AI colony adjustments; Indian war-declare block lives in ai_contact.c.
       - id: d_labor
         kind: step
-        label: Colony ship-pressure gate
+        label: Colony ship-pressure gate — blockade bits 0x01/0x02 set → CONTACT (code 0) at the colony, prio 8 with bit 0x02 else 5
         fn: ai_euro_goals.c:ai_euro_colony_goals_colony_labor
-        dos: FUN_521d_0a60 raw 87603-87607
+        dos: "FUN_521d_0a60 raw 87600-87606 (thunk_FUN_2a1f_0470(n, x, y, 0, bit1 ? 8 : 5)), inside the coastal-colony (+0x1c & 0x40) block"
         status: dos
-        note: "Construction, stock-shortage and low-population LABOR heuristics removed after fresh 1555 DOS goal-table proof. LABOR is produced only by the garrison-demand loop below."
-      - id: d_colony
-        kind: step
-        label: COLONY / COLONY_ALT primary — blockade bits set → prio 8
-        dos: 0a60 thunk_FUN_2a1f_0470 call #2
-        status: dos
+        note: "Was COLONY/COLONY_ALT (codes 5/8) with no coastal gate; DOS posts code 0. Construction, stock-shortage and low-population LABOR heuristics removed after fresh 1555 DOS goal-table proof. LABOR is produced only by the garrison-demand loop below. The blockade bits themselves are written by the EOT census (ai_euro_census_ship_pressure_refresh, FUN_4962_0018 incl. its raw 78239-78242 tally reset), not inside 0a60."
       - id: d_work
         kind: step
         label: Work-queue haul score → ai_goals_upsert_work
@@ -457,14 +426,9 @@ graphs:
     edges:
       - [clear_wq, sec_a]
       - [sec_a, housekeeping]
-      - [housekeeping, ship_reset]
-      - [ship_reset, sec_d]
-      - [sec_d, d_flags, "each own colony"]
-      - [d_flags, d_threat]
-      - [d_threat, d_absorb]
-      - [d_absorb, d_labor]
-      - [d_labor, d_colony]
-      - [d_colony, d_work]
+      - [housekeeping, sec_d]
+      - [sec_d, d_labor, "each own coastal colony"]
+      - [d_labor, d_work]
       - [d_work, d_garrison]
       - [d_garrison, sec_d, "next colony"]
       - [sec_d, producers, "done"]
@@ -630,7 +594,7 @@ graphs:
         fn: ai_euro_ship.c:ai_euro_20e6_ship_berth_arrival
         dos: md:1691 gate (capacity_table[type] != 0, iStack_2e == 0)
         status: dos
-        note: Hull test is DOS's own — any type 0x0d..0x12 with holds, Privateer/Frigate/Man-O-War included (widened from a Caravel/Merchantman/Galleon name list 2026-09-18). Raw 2996-3138 precedes the local_6 (`t`/`i`) gates, so a tasked hull still dumps, reserves/assembles passengers, and reloads before resuming its stored goal; fresh 1576 made this ordering observable.
+        note: Hull test is DOS's own — any type 0x0d..0x12 with holds, Privateer/Frigate/Man-O-War included (widened from a Caravel/Merchantman/Galleon name list 2026-09-18). Raw 2996-3138 precedes the local_6 (`t`/`i`) gates, so a tasked hull still dumps, reserves/assembles passengers, reloads, then cowers ('C', raw 90373) or runs the LAB_3558 unload before resuming its stored goal (only the colony-sail pick raw 89614 and the dock demand raw 89726 are local_6-gated; the dock demand reads the pre-unload local_a8 snapshot, raw 89412); fresh 1576 made this ordering observable.
       - id: clear_marks
         kind: step
         label: Clear stale board marks on the berth stack
@@ -736,19 +700,13 @@ graphs:
         fn: ai_euro_act.c:ai_euro_act_land
         status: dos
         note: "2026-10-26: the port-only tail after the arms (0a60 goal re-read, FOUND-on-arrival, the MILITARY / CONTACT try_attack + colony-capture arm and the ai_euro_score_move drain) is deleted. 0a60 never binds MILITARY / CONTACT to these types (DS:0x523d rows 0x00 / 0x20 / 0x00) and all three have @UNIT attack 0. A declined arm now takes 20e6's own pre-LAB_4d2e gate, and CONTINUE hands the unit to unit_act's LAB_5a78 tail + FUN_521d_5b66 dispatch like every other land unit."
-      - id: lcr
-        kind: decision
-        label: Standing on a Lost City Rumour?
-        fn: units_combat.c:units_resolve_lcr_rumour_w
-        dos: FUN_65dd_0004
-        status: dos
       - id: treasure
         kind: step
         label: Treasure — cash at any own colony (20e6 arm 1), else walk to nearest own colony (arm 2) / own unit (arm 3), else 47b9 destroy
         fn: ai_euro_land.c:ai_euro_20e6_treasure_cash_in
         dos: 20e6 treasure band raw 89997-90040 (iStack_2e==0 cash-in first, then LAB_4701 / LAB_27f5 / LAB_47b9)
         status: dos
-        note: "Whole band literal 2026-09-23 (port_bugs.md #745/#746). Cash-in is untaxed, any own colony, coastal or not; arm 2 walks to the NEAREST own colony on the same landmass with no coastline term; arm 3 walks to the nearest own unit on the landmass, else destroys when the adjacent-claim probe names the human. The Europe-cash / board-ship / coast-target / Cortes-galleon cluster was deleted: no DOS site boards an AI treasure (FUN_4720_049e has no 0x0a term) and the King-galleon offer is human-control gated (FUN_465b_0000 raw 75800)."
+        note: "Whole band literal 2026-09-23 (port_bugs.md #745/#746). Cash-in is untaxed, any own colony, coastal or not; arm 2 walks to the NEAREST own colony on the same landmass with no coastline term; arm 3 walks to the nearest own unit on the landmass (plan '!', orders 0x0b: asm OVL14 0x482b MOV DX,0x21; JMP LAB_27f5), else destroys when the adjacent-claim probe names the human. The Europe-cash / board-ship / coast-target / Cortes-galleon cluster was deleted: no DOS site boards an AI treasure (FUN_4720_049e has no 0x0a term) and the King-galleon offer is human-control gated (FUN_465b_0000 raw 75800)."
       - id: missionary
         kind: step
         label: "Missionary — alarm-weighted village pick (plan 'J'), else strip to Free Colonist (+0x3146 = 0) and fall through to the pre-LAB_4d2e gate on its pre-strip locals"
@@ -778,9 +736,7 @@ graphs:
         kind: end
         label: "return — RETURN ends the act; CONTINUE: unit_act runs LAB_5a78 + 5b66"
     edges:
-      - [bind, lcr]
-      - [lcr, treasure, "resolve rumour, unit survives"]
-      - [lcr, end, "unit vanished"]
+      - [bind, treasure]
       - [treasure, end, "cashed / destroyed"]
       - [treasure, walk, "course bound"]
       - [treasure, fallthrough, "treasure, arms declined"]
@@ -854,15 +810,15 @@ graphs:
         status: dos
       - id: recall
         kind: decision
-        label: Surplus recall — colony flag 0x04 → clear, garrison_quota--, walk home
+        label: "After a failed / countdown-skipped scan: Scout or Pioneer, stance 0, home on this continent → walk home 'N'; else explorer ring-hop 4 tiles on a latched direction; else surplus recall (colony flag 0x04 → clear, garrison_quota--, walk home)"
         fn: ai_euro_land.c:ai_euro_20e6_surplus_recall_arm
-        dos: raw 85313-85337
+        dos: md:2409-2490 — home walk md:2987-2991 (OVL14 0x4a0f), hop md:2416-2458, recall md:2468-2490 (raw 90149 / dup 85313-85337)
         status: dos
       - id: explore
         kind: step
-        label: Explorer — windowed ring scan (site nibble, fog, far-probe), else ring-hop 4 tiles on a latched direction
-        fn: ai_euro_land.c:ai_euro_20e6_ring_hop
-        dos: LAB_2912→2a59 ring scan; raw 2416-2458 ring hop (+0x3155/+0x3156, DS:0x9faa & 6 gate); raw 87555-87558 unit stamps 5 for profession-carrying types, 1 otherwise
+        label: Explorer — windowed ring scan (site nibble, fog, far-probe); skipped while the +0x3155 hop countdown runs
+        fn: ai_euro_land.c:ai_euro_land_explore_scan_target
+        dos: LAB_2912→2a59 ring scan (md:1392-1611; +0x3155 countdown md:1599-1611); raw 87555-87558 unit stamps 5 for profession-carrying types, 1 otherwise
         status: dos
         note: "port_bugs.md #683, ported 2026-09-23: the ring scan's own commit tail is now live. Raw 89272-89275 — `if (0 < local_c) { if (local_6a != 0) { if (best != own tile) goto LAB_521d_27f5; *(param_1 * 0x1c + 0x314c) = 7; goto LAB_521d_5a78; } }` — writes act_state 7 (UNITS_ORDER_BUILD_COLONY) when the best-scoring site is the tile the unit already stands on. It is the only AI writer of act_state 7 in the image, and it is what makes the two readers of that byte live: this scan's own raw-89182 reject (a candidate ring holding another unit already committed to 7 is skipped) and the human @TOONEARBUILD scan at raw 45670. 20e6 then returns 0 (raw 90445) and FUN_521d_5b66 dispatches its switch case 7 = FUN_1000_93ea = FUN_479b_076e (found colony) in the same call — ported as the act_state-7 consumer at the move-scoring-gate exit in ai_euro_unit_act, which calls ai_euro_found_with_unit. Port-only guard: a tile that refuses the colony resets the unit to act_state 5 rather than leaving it wedged behind 20e6's entry bail (raw 88404-88406)."
       - id: wander
@@ -913,12 +869,12 @@ graphs:
       - [village, ret0, "handled"]
       - [village, labor, "no"]
       - [labor, ret0, "handled"]
-      - [labor, recall, "no"]
-      - [recall, ret0, "handled"]
-      - [recall, explore, "no, explorer"]
-      - [recall, gate_4d2e, "no, not explorer"]
+      - [labor, explore, "no, explorer"]
+      - [labor, recall, "no, not explorer"]
       - [explore, score, "target"]
-      - [explore, gate_4d2e, "no target, no hop"]
+      - [explore, recall, "no target"]
+      - [recall, ret0, "handled"]
+      - [recall, gate_4d2e, "no"]
       - [wander, surplus_tail]
       - [surplus_tail, ret0, "yes: LAB_5888 garrison hold"]
       - [surplus_tail, border_park, "no"]
@@ -939,6 +895,25 @@ graphs:
         dos: FUN_5952_035e via 2a1f_0530 → 521d_5cf6 → 2a1f_05a8 — raw 93119, inside the PRELUDE colony loop
         status: dos
         note: "Runs first in ai_euro_dispatcher_turn (before planning / 0342 / 0a60 / any unit act), matching the DOS 6d8e prelude. The trailing 28c8_reassign call and the planning-time 5952 build-cascade loop are gone. port_bugs.md #1107 split ai_euro_colony_tick_run into stages over AiEuroColonyTick: _open (tory weight, prologue, pioneer trio), _unseat_all, _food_pass, _pass2, _specialist_restore; the lumber / carpenter / indoor / build / specialists / horses arms are called from the per-colony loop."
+      - id: d_threat
+        kind: call
+        label: Threat accumulator → garrison_quota
+        fn: ai_euro_goals.c:ai_euro_5952_colony_prelude
+        dos: FUN_5952_035e 11×11 scan
+        status: dos
+        note: Prelude stage of the colony tick (ai_euro_5952_colony_prelude, raw 94097-94352) — threat seed, Indian war-declare block, ai_flags refresh, absorption/equip. Floor from building chain rows 0-2; outside>0x32; stance nibble; WoI and SMALL_AI colony adjustments; Indian war-declare block lives in ai_contact.c.
+      - id: d_flags
+        kind: call
+        label: Refresh colony ai_flags — field tallies, NEEDS_COLONISTS, WANTS_PIONEER_WORK (blockade bits come from the EOT census)
+        fn: ai_euro.c:ai_euro_refresh_colony_ai_flags
+        dos: FUN_5952_035e raw 94200-94209
+        status: dos
+      - id: d_absorb
+        kind: call
+        label: Absorption arm (tile re-scan) + equip arm + the five FUN_5952_0306 build-preference calls - FUN_5952_035e raw 94231-94395
+        dos: FUN_5952_035e raw 94231-94395 (annotated colony_tick_5952_035e.md:594-793)
+        status: dos
+        note: "5952 absorption enumerates the physical tile chain, latest arrival first (15eb_09c0/0924), confirmed by fresh 1598 roster order. RE-HOSTED 2026-09-18 out of the unit act into the colony tick, at DOS's position: after every +0x1b flag write and the by-profession census, before the build-preference / construction cascade. Absorption is a TILE RE-SCAN with DOS's loop semantics — outer gate `DS:0x8d72 != 0 && (+0x1b & 0x10)`, inner scan over the colony slots past +0x1f, at most one take-in per pass (iStack_32) and restart from the top, `+0x1f < 0x20` re-read at every loop test. local_ee is FUN_15eb_0902 = DS:0x30e[@UNIT type], the type's DEFAULT @JOB (units_type_default_job), NOT the @UNIT code: 0x13 Colonist (unconditional), 0x14 Pioneer ((+0x1b & 0x80) && local_16 == 0, or G-stance 0), 0x15/0x17 Soldier/Dragoon ((a) iStack_76 < 0 && !(+0x1b & 8) — a dead branch — or (b) an expert other than @JOB 0x15 with census aiStack_68[0x13]/[0x15] non-zero, or (c) +0x1b & 4), 0x16 Scout (G-stance 0 or stock[horses] < 0x34). Admission is colonies_admit_unit_w (FUN_15eb_1068 job 0x12): equipment refunded to stock, profession kept. The Soldier case also ++s the tick-local iStack_76, clears +0x1b bit 2 and consumes one census cell ([0x15] first). local_16 is a real tick-local seeded from `0x13 < +0xb6` and latched by the Pioneer case. Equip arm (raw 94276-94352): pop > 1; local_90 = G-stance 0 && pop > 10 && dos_rng_range(0,3) == 0 && !(+0x1b & 0x10) — drawn once per AI colony per turn, which is where the shared LCG stream now sees it; ((+0x1b & 0x48) || local_90) && stock[muskets] > 0x31; target 0x15, or 0x17 on stock[horses] > 0x33; ai_euro_5952_equip_pick scores the colonist, the expert strip reads DOS's leaked loop variable (colonist pop-1), then colonies_eject_colonist. COMPLETED 2026-09-18: all THREE local_136 targets are live and share local_8e, so a later arm overrides an earlier one and at most one re-type happens per tick - Scout (raw 94277-94285: stock[horses] > 0x65, then pop < 10 && pop < FUN_1000_8e6c() = ai_euro_colony_wanted_size skips THIS ARM ONLY, then !(+0x1b & 0x10); scorer target stays 0x16 so the -99 expert strip does not apply; 50 horses charged by FUN_15eb_1068), Pioneer (raw 94300-94303: local_90 && unit_type_counts[nation][2] == 0 (DS:-0x6db2 = 0x924e, stride 0x13) && local_10 (func_0x0001a684 = FUN_2a1f_0494 -> FUN_521d_03d0 founding_expansion_urgency) && 0x13 < LIVE stock[tools], not the frozen local_16), Soldier/Dragoon (raw 94304-94312). Then raw 94353-94395, the five FUN_OVL15_L0000__002a82 = FUN_5952_0306(cargo, want) calls (ai_euro_5952_build_pref_0306), DOS's only AI +0x8d specialty_cargo writer: clears are warehouse_capacity <= stock[cargo] and DS:0x8dc8[cargo] != 0 (gross production; the port's invented boycotted clear is retired). Tags 0xf/0xe/0xd/8 = Muskets/Tools/Trade Goods/Horses. Arm 1 target = (belligerence + 2) * 0x32 (DS:-0x6a9a col 0); uStack_96 latched between arms 1 and 2; arm 2 = trade goods < 100 && DS:0x84bc[nation*0x10+0xd] < 4 && (+0x1c & 0x20 WAGON_TRAIN); arm 3 = horses < 0x32; arm 4 = local_16 == 0 && (+0x1b & 0x80); arm 5 re-stamps Muskets from iStack_76 / +0x8e / (+0x1b & 8) / uStack_96, the one place the absorption's ++ is observable. Flag note (2026-09-18): colony +0x1b bit 6 (0x40), the high half of the `+0x1b & 0x48` equip gate, is GARRISON DEFICIT POSITIVE — raw 94147 `if (0 < local_76) +0x1b |= 0x40`, local_76 being the tick's running garrison shortfall. It is not a veteran/experience flag. This replaces the invented 11-cargo surplus-haul ladder in ai_euro_colony_inventory. ADDED 2026-09-24 (port_bugs.md #914): raw 94362-94367, immediately after arm 5 and before the +0xb6 horse arm, the MUSKET-SURPLUS BANK - `if (local_76 == 0 && 199 < stock[muskets] && nation[+0x49] < 0x14) { nation[+0x49]++; stock[muskets] -= 0x32; }`. nation+0x49 is the musket-LOT bank (Ai5d04HireScratch.musket_bank_lots) that FUN_521d_5d04's Europe hire arm spends to arm a recruit for free; +0x4a (musket_bank_raw) is its raw counterpart, normalized against it by the +-0x32 loop at raw 84272-84278."
       - id: pioneer
         kind: loop
         label: Pioneer supply / road-connect / tile-improve trio — FUN_5952_035e raw 94370-94551
@@ -1016,7 +991,10 @@ graphs:
         kind: end
         label: return
     edges:
-      - [loop, pioneer, "each colony"]
+      - [loop, d_threat, "each colony"]
+      - [d_threat, d_flags]
+      - [d_flags, d_absorb]
+      - [d_absorb, pioneer]
       - [pioneer, idle]
       - [idle, pass1]
       - [pass1, pass2]

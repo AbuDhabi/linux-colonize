@@ -573,18 +573,11 @@ void ai_euro_0a60_goal_orders_structural(ColonizeTurnContext* ctx, int nation_id
         u->id >= COLONIZE_UNITS_MAX) {
       continue;
     }
-    /*
-     * Pioneer work orders 8/9 are FUN_521d_5b66's own switch cases, i.e.
-     * act states DOS's raw 88164 gate (`0/5/6 only`) already refuses — the
-     * explicit skip stays because units_pioneer_work_tick, not 5b66, drives
-     * the job here and must not be hijacked mid-job.
-     */
-    if (u->orders == UNITS_ORDER_CLEAR_PLOW || u->orders == UNITS_ORDER_BUILD_ROAD) {
-      continue;
-    }
     if (u->col1_ai_plan == 'A') {
       continue; /* already admitted as labor */
     }
+    /* raw 88160-88162: every act state < 10, Pioneer work orders 8/9
+     * included, gets '?' before the 0/5/6 gate below protects the job. */
     if (u->orders < AI_EURO_ACT_ADJACENT) {
       u->col1_ai_plan = 0x3f; /* '?' pending-decision placeholder */
     }
@@ -2234,40 +2227,28 @@ COLONIZE_INTERNAL void ai_euro_colony_goals_colony_labor(
   ColonizeTurnContext* ctx, int nation_id, ColonizeColony* c,
   AiEuroInventory* inv, int urgency
 ) {
-  (void)ctx;
   (void)inv;
   (void)urgency;
   /* FUN_521d_0a60 raw 87603-87607 only registers ship-pressure goals here.
    * Its sole LABOR producer is the +0x8e garrison loop at raw 87684-87696,
    * ported below. Construction/stock/low-population LABOR goals were a
    * duplicate port heuristic (1555 fresh DOS goal-table trace). */
-  if (c->ai_flags & (COLONIZE_COLONY_AI_NEARBY_ARMED_SHIP |
-                     COLONIZE_COLONY_AI_NEARBY_FRIGATE)) {
-    /*
-     * Real 0a60 write site (raw decomp, thunk_FUN_2a1f_0470 call #2 in
-     * the colony loop): code is actually CONTACT(0), not a distinct
-     * COLONY/COLONY_ALT type — OpenCol keeps its own COLONY/COLONY_ALT
-     * codes (downstream ai_euro_unit_act already branches on them for
-     * "go work/garrison this colony", a real behavior CONTACT's own
-     * downstream handling — move-and-attack — doesn't have), but the
-     * *gate* is real DOS: only fires when the colony's ai_flags bit0
-     * (nearby armed ship) or bit1 (nearby Man-O-War) is set — prio 8 if
-     * bit1, else 5. Was unconditional ("else always register a visit
-     * goal"), which invented a goal DOS wouldn't have here and let it
-     * out-compete FOUND under the real prio-weighted formula whenever a
-     * colony had nothing better to report — see
-     * euro_goal_orders_0a60_full.md, "blocks getting the structure
-     * right" fix, 2026-08-18 (root cause of the unit_ai_euro_expand
-     * regression from making the goal-consumption tail live).
-     */
+  /*
+   * DOS-LITERAL FUN_521d_0a60 raw 87600-87606: inside the own-colony block,
+   * which is itself gated on the colony's coastal bit (raw 87600,
+   * `colony[i] +0x1c & 0x40`; live map_tile_is_coastal, as the garrison
+   * loop below), a colony whose +0x1b ai_flags carry bit0 (nearby armed
+   * ship) or bit1 (nearby Man-O-War) posts a goal of CODE 0 (CONTACT) at
+   * its own tile, prio 8 with bit1 else 5:
+   *   thunk_FUN_2a1f_0470(nation, x, y, 0, (-(bit1 == 0) & 0xfffd) + 8)
+   * (The port used to post COLONY/COLONY_ALT here; DOS has no such code at
+   * this site.)
+   */
+  if ((c->ai_flags & (COLONIZE_COLONY_AI_NEARBY_ARMED_SHIP |
+                      COLONIZE_COLONY_AI_NEARBY_FRIGATE)) &&
+      map_tile_is_coastal(ctx->map, c->x, c->y)) {
     const int mow = (c->ai_flags & COLONIZE_COLONY_AI_NEARBY_FRIGATE) != 0;
-    ai_goals_upsert_primary(
-      nation_id,
-      c->x,
-      c->y,
-      mow ? AI_GOAL_COLONY_ALT : AI_GOAL_COLONY,
-      mow ? 8 : 5
-    );
+    ai_goals_upsert_primary(nation_id, c->x, c->y, AI_GOAL_CONTACT, mow ? 8 : 5);
   }
 }
 

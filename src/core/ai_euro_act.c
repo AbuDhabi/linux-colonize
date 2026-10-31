@@ -6,7 +6,7 @@
  *
  * Sections:
  *   FUN_5952_035e equip pick (shared with the goals equip arm)
- *   Land band stages: hunt_scout, treasure, roles
+ *   Land band stages: treasure, roles
  *   ai_euro_act_land band driver
  *   DOS ship-act path: 09dc gate, 20e6 ship dos, 479b goal walk
  */
@@ -92,43 +92,6 @@ int ai_euro_5952_equip_pick(const ColonizeColony* c, int target) {
     }
   }
   return pick;
-}
-
-/*
- * Land stage 1: LCR on entry. (The land-war engage/hunt and scout arms that
- * stood here went with the #530 fit layer: only Treasure / Missionary /
- * Wagon reach this band; military and Scouts take the DOS 20e6 gate + 479b
- * walk in ai_euro_unit_act.)
- */
-COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_hunt_scout(struct ai_euro_act_ctx* a) {
-  ColonizeTurnContext* const ctx = a->ctx;
-  ColonizeUnit* u = a->u;
-
-  /*
-   * LCR (FUN_65dd_0004 thin transcription): any land unit standing on a
-   * rumour clears it and rolls a manual outcome — Scouts get a better-
-   * weighted table (units_resolve_lcr_rumour), de Soto keeps outcomes
-   * positive. AI nations have no modeled EuropeScreen recruit pool, so
-   * Fountain of Youth is a no-op for them (see units_resolve_lcr_rumour).
-   * Not gated on is_scout: that was this port's own over-restriction
-   * (player-caught) — any AI land unit walking onto an LCR triggers it in
-   * DOS, Scout is just better at it.
-   * Cite: units_resolve_lcr_rumour; Colonization.pdf Lost City Rumours.
-   */
-  if (ctx->map && map_tile_has_rumour(ctx->map, u->x, u->y)) {
-    /* europe stays NULL as before: an AI LCR credits the save, never the
-     * human-bound EuropeScreen (gold / Fountain of Youth recruit pool). */
-    ColonizeWorld lw = world_from_turn_ctx(ctx);
-    lw.europe = NULL;
-    (void)units_resolve_lcr_rumour_w(&lw, u->id, -1);
-    /* Vanish / hostile-burial outcomes may have despawned the scout. */
-    if (!u->active) {
-      return AI_EURO_ACT_RETURN;
-    }
-  }
-
-  a->u = u;
-  return AI_EURO_ACT_CONTINUE;
 }
 
 /*
@@ -333,8 +296,10 @@ AiEuroActStatus ai_euro_act_land(struct ai_euro_act_ctx* a) {
   a->is_treasure = ai_euro_is_treasure_kind(ukind);
   a->treasure_routed = 0;
 
-  if (ai_euro_act_land_hunt_scout(a) == AI_EURO_ACT_RETURN ||
-      ai_euro_act_land_treasure(a) == AI_EURO_ACT_RETURN ||
+  /* No LCR stage here: DOS resolves a rumour only inside the mover,
+   * FUN_465b_0000 raw 75788-75791 (units_move.c); the act-level LCR roll
+   * that stood first was an OpenCol invention. */
+  if (ai_euro_act_land_treasure(a) == AI_EURO_ACT_RETURN ||
       ai_euro_act_land_roles(a) == AI_EURO_ACT_RETURN) {
     return AI_EURO_ACT_RETURN;
   }
@@ -505,7 +470,7 @@ static int ai_euro_20e6_ship_dos(ColonizeTurnContext* ctx, ColonizeUnit* u, int 
     }
     /* FUN_521d_20e6 raw 89725-89728: dock demand precedes goods delivery
      * when the hull has not entered the own-colony berth block. */
-    if (tile_stack_others_at_entry == 0 && ai_euro_20e6_europe_dock_demand(ctx, u, nation_id)) {
+    if (ai_euro_20e6_europe_dock_demand(ctx, u, nation_id, tile_stack_others_at_entry)) {
       ai_euro_20e6_ship_tail_5a78(ctx, u, nation_id);
       return 0;
     }
@@ -514,7 +479,9 @@ static int ai_euro_20e6_ship_dos(ColonizeTurnContext* ctx, ColonizeUnit* u, int 
   if (tasked && at_own_colony) {
     /* Raw 2996-3138 is above LAB_3558's local_6 gates: a FOUND/MIL_EXPAND
      * transport services its berth first, then resumes the stored goal. */
-    (void)ai_euro_20e6_tasked_ship_berth_arrival(ctx, nation_id, u);
+    if (ai_euro_20e6_tasked_ship_berth_arrival(ctx, nation_id, u)) {
+      return 1; /* the hull is gone */
+    }
   } else if (!tasked) {
     const int ox = u->goto_x;
     const int oy = u->goto_y;

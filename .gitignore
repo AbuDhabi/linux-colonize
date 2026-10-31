@@ -21,6 +21,7 @@ original_sources_decompiled/
 original_sources_annotated/
 original_memory_dumps/
 settings.json
+!tests-automated-regression/*/settings.json
 dist/
 build-release/
 build-static/

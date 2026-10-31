@@ -2900,18 +2900,16 @@ int ai_euro_20e6_treasure_cash_in(
   return 1; /* DOS destroys the unit whatever the value byte held */
 }
 
-/* raw 88987-89009: the 0x42 / 0x65 park arms of the LAB_4d2e tail (no
- * attack scored, no surplus-garrison hold). A type with @UNIT flag bit0 (the
- * armed hulls) or bit2 (the land fighters) that is outside a colony
- * (local_2e != 0), stands on its own goal tile (FUN_521d_0116: code 0 for
- * bit0, code 2 for bit2, best prio 1..4) and has no stackmate (08bc mode 2
- * < 2) parks there: plan 'B' / 'e', LAB_5899. DOSBox independence 5->6: the
+/* raw 88987-89009 (md:2925-2945): the 0x42 / 0x65 park arms of the LAB_4d2e
+ * tail (no attack scored, no surplus-garrison hold), each needing no
+ * stackmate (08bc mode 2 < 2), then plan 'B' / 'e', LAB_5899:
+ *   'B': @UNIT flag bit0 (the armed hulls), outside a colony (local_2e != 0),
+ *        own CONTACT goal (FUN_521d_0116 code 0) on the tile with prio 1..4;
+ *   'e': flag bit2 (the land fighters), any nonzero ESCORT (code 2) prio —
+ *        no local_2e test and no prio cap. DOSBox independence 5->6: the
  * crown's new Man-O-War reaches its goal (50,53) and saves 'B', orders 5.
  * Returns 1 when the unit parked. */
 int ai_euro_20e6_park_arms_4d2e(ColonizeTurnContext* ctx, ColonizeUnit* u, const Ai20e6Unit* s) {
-  if (s->home_dist == 0) {
-    return 0;
-  }
   const int flags = ai_euro_20e6_type_flags(s->dos_type);
   int stack = 0;
   for (int i = 0; i < units_slot_end(ctx->units); ++i) {
@@ -2924,8 +2922,11 @@ int ai_euro_20e6_park_arms_4d2e(ColonizeTurnContext* ctx, ColonizeUnit* u, const
     if ((flags & bit) == 0) {
       continue;
     }
+    if (arm == 0 && s->home_dist == 0) {
+      continue; /* local_2e == 0 */
+    }
     const int prio = ai_goals_max_primary_prio(u->nation_id, u->x, u->y, code);
-    if (prio != 0 && prio < 5 && stack < 2) {
+    if (prio != 0 && (arm == 1 || prio < 5) && stack < 2) {
       u->col1_ai_plan = arm == 0 ? 0x42 : 0x65;
       ai_euro_20e6_stay_tail_589e(u);
       return 1;
@@ -3151,7 +3152,8 @@ int ai_euro_20e6_47b9_dead_end(ColonizeTurnContext* ctx, ColonizeUnit* u, int na
   }
   /*
    * arm 3 (raw 90018-90030): nearest own unit (FUN_281f_08a8) whose tile's
-   * continent id equals the treasure's → LAB_27f5 walk to it.
+   * continent id equals the treasure's → LAB_27f5 walk to it, plan '!'
+   * (asm OVL14 0x482b: MOV DX,0x21; JMP LAB_27f5 -> 20c6 orders 0x0b).
    */
   {
     const int mate = ai_euro_20e6_nearest_own_unit(ctx, nation_id, u->id, u->x, u->y);
@@ -3162,7 +3164,8 @@ int ai_euro_20e6_47b9_dead_end(ColonizeTurnContext* ctx, ColonizeUnit* u, int na
             u->goto_y == mu->y) {
           return 1;
         }
-        ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, mu->x, mu->y);
+        u->col1_ai_plan = 0x21; /* '!' */
+        ai_euro_set_goto(u, AI_EURO_ACT_GOAL, mu->x, mu->y);
         return 1;
       }
     }
@@ -3607,13 +3610,17 @@ int ai_euro_20e6_3fa6_sail_home(ColonizeTurnContext* ctx, ColonizeUnit* u, int n
  * only the 1-in-32 LAB_521d_457e cadence and the Man-O-War arm, so a nation
  * whose queue was growing had no signal at all (port_bugs.md #954).
  */
-int ai_euro_20e6_europe_dock_demand(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id) {
+int ai_euro_20e6_europe_dock_demand(
+  ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id, int stack_other
+) {
   Ai20e6Unit s;
   if (!ai_euro_20e6_ship_band_entry(ctx, u, nation_id, &s)) {
     return 0;
   }
-  if (u->cargo_count != 0) {
-    return 0; /* local_a8 = stack-1 */
+  /* local_a8 = 08bc(ship, 2) - 1, snapshotted at raw 89412-89413 BEFORE the
+   * LAB_3558 unload; the caller passes that snapshot, not the live load. */
+  if (stack_other != 0) {
+    return 0;
   }
   {
     const int holds = units_goods_hold_count(ctx->units, u->id);
@@ -3666,13 +3673,10 @@ static int ai_euro_20e6_4d2e_tail(
    * an attack) DOS runs the 0x42 / 0x65 / 0x46 park arms before the 0x39
    * fallthrough, and each of them reaches LAB_5899, which forces
    * `local_76 = 8` — the scored direction is dropped and the unit stays.
-   * Only the 0x46 arm is ported here; the 0x42 / 0x65 arms (raw
-   * 88989-89009) are the pioneer work codes, which this port runs at act
-   * level in ai_euro_act_land_roles. `local_8e` (raw 88612) is 0 on every
-   * path that reaches this point in the port: it is set only by the DOS
-   * own-colony-with-2+-garrison entry at raw 88584-88612, whose own
-   * outcome (0x47) never reaches the wander scorer's tail arms.
-   * See ai_euro_20e6_border_park_arm.
+   * The 0x42 / 0x65 goal-tile parks (raw 88989-89009) are
+   * ai_euro_20e6_park_arms_4d2e, the 0x46 border park is
+   * ai_euro_20e6_border_park_arm; both run below. `local_8e` (raw 88612)
+   * is the surplus-garrison entry, handled first.
    */
   /*
    * raw 88982-88984, the first test of the LAB_4d2e tail after
@@ -3990,23 +3994,6 @@ int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, int nat
       }
     }
     /*
-     * OVL14 0x4a0f-0x4a4e (raw 90095-90097), after the Missionary arm and
-     * before the explorer block: a Scout or Pioneer on a stance-0 continent
-     * whose nearest own colony (uStack_62) is on this continent walks home,
-     * plan 'N' (MOV DX,0x4e; JMP 27f5). Standing in it, the LAB_5a78 tail
-     * exhausts it (independence-seed-100 000001: two new Spanish Scouts stay
-     * in Havana with plan 'N', order 0).
-     */
-    if (!force_wander && (s.dos_type == UNITS_KIND_SCOUT || s.dos_type == UNITS_KIND_PIONEER) &&
-        s.stance == 0 && s.home_cid == s.cid && s.home_colony >= 0) {
-      const ColonizeColony* home = colonies_get(ctx->colonies, s.home_colony);
-      if (home && home->active) {
-        u->col1_ai_plan = 0x4e; /* 'N' */
-        ai_euro_set_goto(u, AI_EURO_ACT_GOAL, home->x, home->y);
-        return 0;
-      }
-    }
-    /*
      * Raw 1600-1611 hop countdown, DOS shape: +0x3155 != 0 → decrement and
      * SKIP the ring scan (the flow drops straight to the LAB_4b2c hop arm,
      * which re-commits the latched slot's target); +0x3155 == 0 → reset the
@@ -4018,18 +4005,10 @@ int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, int nat
       uint8_t* sc = ai_euro_20e6_hold_scratch(u);
       if (sc[1] != 0) {
         sc[1]--;
-        hop_scan = 0;
-        if (ai_euro_20e6_ring_hop(ctx, u, &s)) {
-          return 0;
-        }
+        hop_scan = 0; /* md:1611 then md:1617 `goto LAB_304c`: hop below */
       } else {
         sc[2] = 0xff; /* raw 1602 */
       }
-    }
-    /* Raw 85313-85337, DOS position: after the hop block, before the
-     * settlement-step scorer below. */
-    if (!force_wander && ai_euro_20e6_surplus_recall_arm(ctx, u, &s)) {
-      return 0;
     }
     const int scan_r = (!force_wander && s.explorer && hop_scan)
                          ? ai_euro_land_explore_scan_target(ctx, u, nation_id, &s, s.explorer, &fx, &fy)
@@ -4049,9 +4028,34 @@ int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, int nat
       gx = fx;
       gy = fy;
       is_roam = 1; /* unit+0x314c==5 idle-roam (explore ring) */
-    } else if (!force_wander && s.explorer && hop_scan && ai_euro_20e6_ring_hop(ctx, u, &s)) {
-      return 0; /* raw 2416-2458: scan failed, hop 4 tiles out instead */
     } else {
+      /* DOS order after a failed (or countdown-skipped) ring scan, md:2409-
+       * 2490: home walk 'N' (the md:2409 test's else arm, md:2987-2991), else
+       * the explorer hop (md:2416-2458), else the surplus recall (md:2468-
+       * 2490, raw 90149 / dup 85313-85337), then the Pioneer 'R' gate. */
+      /*
+       * OVL14 0x4a0f-0x4a4e (raw 90095-90097), after the Missionary arm and
+       * before the explorer block: a Scout or Pioneer on a stance-0 continent
+       * whose nearest own colony (uStack_62) is on this continent walks home,
+       * plan 'N' (MOV DX,0x4e; JMP 27f5). Standing in it, the LAB_5a78 tail
+       * exhausts it (independence-seed-100 000001: two new Spanish Scouts stay
+       * in Havana with plan 'N', order 0).
+       */
+      if (!force_wander && (s.dos_type == UNITS_KIND_SCOUT || s.dos_type == UNITS_KIND_PIONEER) &&
+          s.stance == 0 && s.home_cid == s.cid && s.home_colony >= 0) {
+        const ColonizeColony* home = colonies_get(ctx->colonies, s.home_colony);
+        if (home && home->active) {
+          u->col1_ai_plan = 0x4e; /* 'N' */
+          ai_euro_set_goto(u, AI_EURO_ACT_GOAL, home->x, home->y);
+          return 0;
+        }
+      }
+      if (!force_wander && s.explorer && ai_euro_20e6_ring_hop(ctx, u, &s)) {
+        return 0; /* md:2416-2458: hop 4 tiles out (latched slot on a countdown) */
+      }
+      if (!force_wander && ai_euro_20e6_surplus_recall_arm(ctx, u, &s)) {
+        return 0;
+      }
       /* Raw 90183-90206 (the Pioneer 'R' gate) sits right here in DOS, after
        * the LAB_277a patrol arm and the ring scan, immediately ahead of the
        * pre-LAB_4d2e gate (america resync 84->85: a Pioneer standing on its

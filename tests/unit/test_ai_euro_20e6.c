@@ -1057,7 +1057,7 @@ static int unit_europe_dock_demand_throttled_by_lane(void) {
     fixture_free(&f);
     return fail("fixture tallies should be 1 and 1");
   }
-  if (ai_euro_20e6_europe_dock_demand(&f.ctx, idle, nation)) {
+  if (ai_euro_20e6_europe_dock_demand(&f.ctx, idle, nation, 0)) {
     fixture_free(&f);
     return fail("dock demand must not fire when the lane already covers the queue");
   }
@@ -1066,7 +1066,7 @@ static int unit_europe_dock_demand_throttled_by_lane(void) {
   bound->col1_ai_plan = 0;
   f.ctx.ai_euro_dock_census_valid[nation] = 1;
   f.ctx.ai_euro_dock_census[nation] = 0;
-  if (ai_euro_20e6_europe_dock_demand(&f.ctx, idle, nation)) {
+  if (ai_euro_20e6_europe_dock_demand(&f.ctx, idle, nation, 0)) {
     fixture_free(&f);
     return fail("post-census dock purchase must not raise DS:0x945a");
   }

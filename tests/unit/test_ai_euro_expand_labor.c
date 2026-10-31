@@ -119,8 +119,9 @@ static int unit_labor_shortage_join(void) {
  */
 
 /*
- * Col1 +0x1b ai_flags: foreign Man-O-War within MD≤5 sets bit1 → COLONY_ALT
- * (code 8, prio 8). Cite: FUN_4962_0018; euro_dispatcher COLONY 5|8.
+ * Col1 +0x1b ai_flags: foreign Man-O-War within MD≤5 sets bit1 → a goal of
+ * code 0 (CONTACT), prio 8, at the coastal colony. Cite: FUN_4962_0018;
+ * FUN_521d_0a60 raw 87600-87606.
  */
 
 /*
@@ -569,18 +570,18 @@ static int unit_colony_ai_flags_mow_colony_alt(void) {
   int found_alt = 0;
   for (int i = 0; i < 16; ++i) {
     const AiGoalSlot* g = ai_goals_primary(nation, i);
-    if (g && g->code == AI_GOAL_COLONY_ALT && g->x == 2 && g->y == 4 && g->prio >= 8) {
+    if (g && g->code == AI_GOAL_CONTACT && g->x == 2 && g->y == 4 && g->prio >= 8) {
       found_alt = 1;
       break;
     }
   }
   if (!found_alt) {
     fx_map_free(&map);
-    return fail("expected COLONY_ALT prio 8 at colony under MoW pressure");
+    return fail("expected CONTACT prio 8 at colony under MoW pressure (0a60 raw 87603-87606)");
   }
 
   fx_map_free(&map);
-  fprintf(stderr, "unit_ai_euro_expand: colony ai_flags MoW COLONY_ALT ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: colony ai_flags MoW CONTACT ok\n");
   return 0;
 }
 
