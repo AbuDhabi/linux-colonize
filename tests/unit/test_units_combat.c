@@ -2352,6 +2352,56 @@ static int unit_gunless_winner_never_sinks(void) {
   return rc;
 }
 
+/*
+ * Fort fire runs the FUN_5fef_1b0e difficulty handicaps (raw 100535-100556). rng NULL: the fort
+ * wins iff atk >= def.
+ *   Explorer (1), human ship, AI fort, fort strength 1, ship defense 1:
+ *     atk 12 -> halved 6; def 8 + 3 peel = 11 -> fort misses.
+ *   Discoverer (0), human fort, AI ship, fort strength 1, ship defense 3:
+ *     atk 12 + 4 peel = 16 -> doubled 32; def 24 -> fort hits.
+ */
+static int unit_fort_fire_difficulty_handicaps(void) {
+  int rc = 0;
+  for (int k = 0; k < 2 && rc == 0; ++k) {
+    ColonizeUnitPool pool;
+    memset(&pool, 0, sizeof(pool));
+    pool.type_count = 1;
+    pool.types[0].movement = 5;
+    pool.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
+    pool.types[0].defense = k == 0 ? 1 : 3;
+    pool.types[0].hull = 10;
+    ColonizeColonyPool colonies;
+    colonies_init(&colonies);
+    colonies_set_occupancy_map(NULL);
+    EuropeScreen eu;
+    memset(&eu, 0, sizeof(eu));
+    units_set_combat_colonies(&colonies);
+    units_set_combat_europe(&eu);
+    ColonizeCol1Save c1;
+    memset(&c1, 0, sizeof(c1));
+    for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
+      c1.head.founding_father[i] = -1;
+    }
+    c1.head.difficulty = k == 0 ? 1 : 0;
+    /* k 0: fort nation 0 is AI, ship nation 1 human; k 1: the reverse. */
+    c1.player[0].control = k == 0 ? 1 : 0;
+    c1.player[1].control = k == 0 ? 0 : 1;
+    const int s = units_spawn_allow_stack(&pool, 0, 3, 2);
+    units_get(&pool, s)->nation_id = 1;
+    (void)units_fort_vs_ship(&pool, 1, 0, 2, 2, s, NULL, &c1, "Fort", "");
+    const ColonizeUnit* u = units_get_const(&pool, s);
+    const int hit = !(u && u->active && u->x == 3 && u->y == 2);
+    const int want_hit = k == 1;
+    if (hit != want_hit) {
+      fprintf(stderr, "fort-handicap: case %d want hit=%d got %d\n", k, want_hit, hit);
+      rc = 1;
+    }
+    units_set_combat_europe(NULL);
+    units_set_combat_colonies(NULL);
+  }
+  return rc;
+}
+
 static int g_cue_4d_calls = 0;
 
 static void unit_cue_4d_play_mock(int id) {
@@ -2423,6 +2473,7 @@ static const TestCase k_cases[] = {
   {"unit_naval_stack_sweep", unit_naval_stack_sweep},
   {"unit_gunless_winner_never_sinks", unit_gunless_winner_never_sinks},
   {"unit_naval_win_cue_ships_only", unit_naval_win_cue_ships_only},
+  {"unit_fort_fire_difficulty_handicaps", unit_fort_fire_difficulty_handicaps},
   {"unit_combat_cheat_footer_roll_before_dialog", unit_combat_cheat_footer_roll_before_dialog},
   {"unit_reset_hooks_clears_wiring", unit_reset_hooks_clears_wiring},
   {"unit_indian_massacre_names_victim", unit_indian_massacre_names_victim},
