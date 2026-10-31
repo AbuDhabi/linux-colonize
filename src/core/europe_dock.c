@@ -127,8 +127,13 @@ bool europe_recruit_from_pool_ex(EuropeScreen* eu, int pool_index, ColonizeDosRn
      */
     return false;
   }
-  europe_purse_move(eu, g_europe_live_save, europe_purse_nation(eu), -eu->recruit_passage);
+  /* FUN_38fd_4884 raw 64768-64769 charges, refills and counts only when the harbor spawn
+   * (thunk_FUN_291f_0b26) succeeded; a full dock consumes nothing. */
   EuropeDockImmigrant* slot = europe_dock_insert_front(eu);
+  if (!slot) {
+    return false;
+  }
+  europe_purse_move(eu, g_europe_live_save, europe_purse_nation(eu), -eu->recruit_passage);
   snprintf(slot->name, sizeof(slot->name), "%s", eu->pool[pool_index].name);
   slot->profession = eu->pool[pool_index].profession;
   slot->present = true;
@@ -177,6 +182,9 @@ bool europe_recruit_free_from_pool_ex(
   /* FUN_38fd_4884 with param_1 != 0: passage forced to 0, the +6 recruit
    * counter and the +0x2e crosses word are left alone (64695-64697, 64778). */
   EuropeDockImmigrant* slot = europe_dock_insert_front(eu);
+  if (!slot) {
+    return false; /* as raw 64769, a failed spawn leaves the pool slot */
+  }
   snprintf(slot->name, sizeof(slot->name), "%s", name);
   slot->profession = profession;
   slot->present = true;
@@ -275,8 +283,13 @@ bool europe_train_ex(EuropeScreen* eu, int train_index, ColonizeDosRng* rng) {
      * port_bugs.md #893. */
     return false;
   }
-  europe_purse_move(eu, g_europe_live_save, europe_purse_nation(eu), -t->cost);
+  /* FUN_38fd_41ce raw 64432-64440: the harbor spawn comes first and the
+   * purse is charged only when it succeeded. */
   EuropeDockImmigrant* slot = europe_dock_insert_front(eu);
+  if (!slot) {
+    return false;
+  }
+  europe_purse_move(eu, g_europe_live_save, europe_purse_nation(eu), -t->cost);
   snprintf(slot->name, sizeof(slot->name), "%s", t->expert_name);
   slot->profession = t->job_index;
   slot->present = true;
@@ -380,11 +393,17 @@ bool europe_purchase_commit(
     diag_info("EUROPE purchased ship %s for %d$ (gold=%d)", pname, cost, eu->gold);
     return true;
   }
+  /* DOS bug not reproduced: FUN_38fd_4b50 raw 64877-64886 debits the purse
+   * before FUN_281f_095c and keeps the gold when the spawn fails. The port
+   * takes the dock slot first and refuses with nothing charged. */
+  EuropeDockImmigrant* slot = europe_dock_insert_front(eu);
+  if (!slot) {
+    return false;
+  }
   europe_purse_move(eu, g_europe_live_save, europe_purse_nation(eu), -cost);
   if (p->kind == UNITS_KIND_ARTILLERY) {
     eu->artillery_bought += 1;
   }
-  EuropeDockImmigrant* slot = europe_dock_insert_front(eu);
   snprintf(slot->name, sizeof(slot->name), "%s", pname);
   slot->profession = -1;
   slot->present = true;

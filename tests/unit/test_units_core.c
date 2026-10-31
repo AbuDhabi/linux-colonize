@@ -2,6 +2,7 @@
 #include "core/units_internal.h"
 #include "core/dos_buggy.h"
 #include "core/ai_popup_render.h"
+#include "core/europe_internal.h"
 
 #include "../common/test_runner.h"
 
@@ -7833,6 +7834,41 @@ static int case_fountain_of_youth(void) {
         fprintf(stderr, "fountain: pool slot %d not refilled\n", i);
         return 1;
       }
+    }
+    /* A full dock refuses the recruit (FUN_38fd_4884 raw 64768-64769: nothing is charged or
+     * refilled when the spawn fails): no crash, and the pool slot's colonist stays on offer. */
+    {
+      char before[sizeof(feu.pool[1].name)];
+      snprintf(before, sizeof(before), "%s", feu.pool[1].name);
+      feu.dock_count = EUROPE_DOCK_MAX;
+      feu.gold = 100000;
+      const bool free_ok = europe_recruit_free_from_pool_ex(&feu, 1, NULL);
+      const bool paid_ok = europe_recruit_from_pool_ex(&feu, 1, NULL);
+      if (free_ok || paid_ok || feu.dock_count != EUROPE_DOCK_MAX || feu.gold != 100000 ||
+          strcmp(before, feu.pool[1].name) != 0) {
+        fprintf(stderr, "fountain full dock: free %d paid %d dock %d gold %d\n", free_ok,
+                paid_ok, feu.dock_count, feu.gold);
+        return 1;
+      }
+      /* Train (FUN_38fd_41ce raw 64432-64440 charges only after the spawn) and a dock
+       * purchase refuse the same way: nothing charged, no Artillery count bump. */
+      int land_buy = -1;
+      for (int i = 0; i < feu.purchase_count && land_buy < 0; ++i) {
+        if (!feu.purchase[i].is_ship) {
+          land_buy = i;
+        }
+      }
+      const int art0 = feu.artillery_bought;
+      const bool train_ok = feu.train_count > 0 && europe_train_ex(&feu, 0, NULL);
+      const bool buy_ok = land_buy >= 0 && europe_purchase_commit(&feu, land_buy, 500, NULL);
+      if (feu.train_count <= 0 || land_buy < 0 || train_ok || buy_ok ||
+          feu.dock_count != EUROPE_DOCK_MAX || feu.gold != 100000 ||
+          feu.artillery_bought != art0) {
+        fprintf(stderr, "fountain full dock: train %d buy %d (row %d) dock %d gold %d\n",
+                train_ok, buy_ok, land_buy, feu.dock_count, feu.gold);
+        return 1;
+      }
+      feu.dock_count = 8;
     }
     europe_free(&feu);
     fprintf(stderr, "fountain of youth 8x free recruit pick ok\n");
