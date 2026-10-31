@@ -3105,7 +3105,7 @@ static int sp_34(void) {
   {
     founding_fathers_reset();
     col1.head.game_options.woi = 1;
-    col1.head.game_options.ref_present = 0;
+    col1.head.game_options.intervention_announced = 0;
     /* Fresh scenario: DOS 0a22 spends once per game (0x5382 bit2) — earlier
      * subtests already announced; reset the latch. */
     ai_king_latch_set(&col1, AI_KING_INTERVENE_ANNOUNCED_BYTE, 0);
@@ -3147,7 +3147,7 @@ static int sp_34(void) {
       return fail("free drain should spawn the foreign intervention force");
     }
     col1.head.game_options.woi = 0;
-    col1.head.game_options.ref_present = 0;
+    col1.head.game_options.intervention_announced = 0;
     memset(col1.head.backup_force, 0, sizeof(col1.head.backup_force));
     founding_fathers_reset();
     fprintf(stderr, "unit_ai_king: WoI bell pool intervention spend ok\n");

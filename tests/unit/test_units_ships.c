@@ -227,7 +227,7 @@ static int unit_refit_drydock(void) {
   return 0;
 }
 
-/* Helper: full warehouse unload → @WAREHOUSEFULL. */
+/* Helper: full warehouse unload still lands the hold and raises `full`. */
 static int unit_warehouse_full(void) {
   ColonizeMsgCatalog names;
   assets_msg_init(&names);
@@ -287,44 +287,8 @@ static int unit_warehouse_full(void) {
     return 1;
   }
 
-  ColonizeMsgCatalog game_txt;
-  assets_msg_init(&game_txt);
-  if (!assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT")) {
-    fprintf(stderr, "whfull: GAME.TXT load failed\n");
-    assets_msg_free(&names);
-    return 1;
-  }
-  AiPopupState pops;
-  ai_popup_init(&pops);
-  colonies_emit_warehouse_full_chrome(
-    &colonies, col, COLONIZE_CARGO_LUMBER, "Lumber", 100, 0, &pops, &game_txt
-  );
-  if (pops.queue_count < 1 ||
-      (strstr(pops.queue[0].body, "warehouse") == NULL &&
-       strstr(pops.queue[0].body, "Warehouse") == NULL &&
-       strstr(pops.queue[0].body, "Packed") == NULL)) {
-    fprintf(
-      stderr,
-      "whfull: WAREHOUSEFULL popup weak q=%d body='%s'\n",
-      pops.queue_count,
-      pops.queue_count > 0 ? pops.queue[0].body : ""
-    );
-    assets_msg_free(&game_txt);
-    assets_msg_free(&names);
-    return 1;
-  }
-  if (strstr(pops.queue[0].body, "Lumber") == NULL &&
-      strstr(pops.queue[0].body, "lumber") == NULL &&
-      strstr(pops.queue[0].body, "100") == NULL) {
-    fprintf(stderr, "whfull: popup missing cargo/cap '%s'\n", pops.queue[0].body);
-    assets_msg_free(&game_txt);
-    assets_msg_free(&names);
-    return 1;
-  }
-
-  assets_msg_free(&game_txt);
   assets_msg_free(&names);
-  fprintf(stderr, "unit_units: WAREHOUSEFULL popup ok\n");
+  fprintf(stderr, "unit_units: full-warehouse transfer ok\n");
   return 0;
 }
 

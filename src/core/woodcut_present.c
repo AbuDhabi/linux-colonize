@@ -7,7 +7,6 @@
  * This file is UI.
  */
 #include "core/woodcut.h"
-#include "core/woodcut_present.h"
 
 #include <stddef.h>
 #include <stdio.h>
@@ -35,7 +34,7 @@ static bool woodcut_load_sheet(
   const char* name,
   ColonizeSpriteSheet* out
 ) {
-  return cinematic_load_sheet(data_dir, name, out, "Woodcut");
+  return ss_load_asset(data_dir, name, out, "Woodcut");
 }
 
 /* WOODCUT.TXT @WOODCUT line `id` (line 0 is id 0's "A NEW WORLD"). */

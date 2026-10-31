@@ -59,18 +59,15 @@ void game_apply_mouse_cursor(
 );
 
 /*
- * TEST PROBES — everything below this line (audit GL-35).
+ * Accessors below (audit GL-35): main.c and tools/play_driver_main.c use
+ * game_assets_ok/_error, game_try_start_intro, game_modal_open,
+ * game_turn_busy and game_ai_popup_tag; the rest are test probes for
+ * tests/smoke/test_play_smoke.c, test_new_game.c, test_hall_of_fame.c, ...,
+ * which read private ColonizeGameState without the struct definition. A new
+ * src/ caller of a probe means the state belongs somewhere reachable.
  *
- * The module's real public surface is the block above: game_create/destroy,
- * game_set_platform, game_update, game_render, game_status_text and
- * game_apply_mouse_cursor. The 19 accessors that follow have no caller in
- * src/ or tools/ at all; they exist so tests/smoke/test_play_smoke.c,
- * tests/unit/test_new_game.c and tests/unit/test_hall_of_fame.c can read
- * private ColonizeGameState without a header for the struct. Adding a caller
- * in src/ means the state belongs somewhere reachable, not here.
- *
- * game_modal_open is the exception and is genuinely internal API as well: it
- * is the popup-blocking invariant's gate and has 13 uses inside game_loop.c.
+ * game_modal_open is also the popup-blocking gate used across the
+ * game_loop_* family.
  */
 
 /* New-game wizard / campaign identity (for smoke tests). */
@@ -127,7 +124,6 @@ int game_ai_popup_tag(const ColonizeGameState* game);
 bool game_save_dialog_open(const ColonizeGameState* game);
 bool game_turn_busy(const ColonizeGameState* game);
 uint32_t game_turn_number(const ColonizeGameState* game);
-int game_colony_count(const ColonizeGameState* game);
 int game_selected_unit(const ColonizeGameState* game);
 /* False when id is not an active unit. is_sea/moves/x/y may be NULL. */
 bool game_unit_info(

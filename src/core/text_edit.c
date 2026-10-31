@@ -15,26 +15,12 @@ static bool local_clip_get(char* out, size_t cap) {
   if (!out || cap == 0) {
     return false;
   }
-  size_t n = strlen(g_local_clip);
-  if (n + 1 > cap) {
-    n = cap - 1;
-  }
-  memcpy(out, g_local_clip, n);
-  out[n] = '\0';
-  return n > 0;
+  str_copy_trunc(out, cap, g_local_clip);
+  return out[0] != '\0';
 }
 
 static void local_clip_set(const char* text) {
-  if (!text) {
-    g_local_clip[0] = '\0';
-    return;
-  }
-  size_t n = strlen(text);
-  if (n + 1 > sizeof(g_local_clip)) {
-    n = sizeof(g_local_clip) - 1;
-  }
-  memcpy(g_local_clip, text, n);
-  g_local_clip[n] = '\0';
+  str_copy_trunc(g_local_clip, sizeof(g_local_clip), text);
 }
 
 void text_edit_set_clipboard(const TextEditClipboard* clipboard) {
@@ -367,22 +353,15 @@ bool text_edit_handle_mouse(
   return false;
 }
 
-/* A char the face lacks costs 0, as font.c draws it (FUN_1c11_000c, port_bugs.md #1229). */
-static int char_width(const ColonizeFont* font, unsigned char ch) {
-  if (font && font->section_data) {
-    return ch < 128 ? font->char_widths[ch] : 0;
-  }
-  return 6;
-}
-
-/* Pixel width of the first n bytes of buf, as text_edit_render draws them. */
+/* Pixel width of the first n bytes of buf, as text_edit_render draws them; a
+ * char the face lacks costs 0 (font_char_advance, FUN_1c11_000c, #1229). */
 static int text_edit_prefix_width(const ColonizeFont* font, const char* buf, int n) {
   if (!buf) {
     return 0;
   }
   int w = 0;
   for (int i = 0; i < n && buf[i]; ++i) {
-    w += char_width(font, (unsigned char)buf[i]);
+    w += font_char_advance(font, (unsigned char)buf[i]);
   }
   return w;
 }
@@ -392,7 +371,7 @@ static int text_edit_index_at_x(const ColonizeFont* font, const char* buf, int d
   const int n = buf_len(buf);
   int w = 0;
   for (int i = 0; i < n; ++i) {
-    const int cw = char_width(font, (unsigned char)buf[i]);
+    const int cw = font_char_advance(font, (unsigned char)buf[i]);
     if (dx < w + cw / 2) {
       return i;
     }

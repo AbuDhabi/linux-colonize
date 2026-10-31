@@ -73,8 +73,6 @@ ColonizeEnterReason units_enter_probe_w(
 );
 /* Last reason from units_enter_probe / units_try_move (0 if none). */
 ColonizeEnterReason units_last_enter_reason(void);
-/* Short player status for a probe reason (never NULL). */
-const char* units_enter_reason_status(ColonizeEnterReason reason);
 
 bool units_can_enter_w(
   const ColonizeWorld* w,
@@ -196,6 +194,15 @@ bool units_order_trade_route(ColonizeUnitPool* pool, int unit_id);
 /* Despawn unit (map disband). False if missing. */
 bool units_disband(ColonizeUnitPool* pool, int unit_id);
 
+/* Port-only Automate (pioneer_plan / explore_auto): drop the flag and a pending Go To. */
+void units_automate_cancel(ColonizeUnitPool* pool, ColonizeUnit* u);
+/* Port-only Automate load: set the flag on the first unflagged unit of `nation` on
+ * (x,y) that `want` accepts (the payloads key units by tile; two matching units
+ * on one tile may swap which one is automated). */
+void units_automate_reattach(
+  ColonizeUnitPool* pool, int x, int y, int nation,
+  bool (*want)(const ColonizeUnitPool* pool, const ColonizeUnit* u)
+);
 /* Wake sentry/fortified/fortify-in-progress and restore full MP. */
 bool units_wake(ColonizeUnitPool* pool, int unit_id);
 /* True if unit skips selection until woken (sentry or fortified). */
@@ -280,19 +287,30 @@ bool units_pioneer_tile_can_clear_or_plow(
   const ColonizeWorldMap* map, int x, int y, bool* out_clearing);
 /* DS:0x8542 as the last Pioneer body's FUN_281f_0614 left it (units_pioneer.c). */
 extern struct ColonizeColony* g_units_pioneer_0614_colony;
+/* Why a plow/road order was refused, or what a work tick reports (Tools used
+ * up). The sim writes only the code; the UI words it (game_pioneer_reason_text,
+ * game_dialogs.c). `reason` is optional; it is written only when one of these
+ * happens, so callers start it at UNITS_PIONEER_OK. */
+typedef enum UnitsPioneerReason {
+  UNITS_PIONEER_OK = 0,
+  UNITS_PIONEER_NOT_PIONEER,
+  UNITS_PIONEER_ALREADY_PLOWED, /* also raises @NOPLOW */
+  UNITS_PIONEER_CANNOT_PLOW,
+  UNITS_PIONEER_CANNOT_ROAD,
+  UNITS_PIONEER_NOROAD, /* road/settlement tile; GAME.TXT @NOROAD */
+  UNITS_PIONEER_TOOLS_USED_UP /* also raises @USEDUPTOOLS */
+} UnitsPioneerReason;
 bool units_pioneer_plow_w(
   const ColonizeWorld* w,
   int unit_id,
-  char* err,
-  size_t err_size,
+  UnitsPioneerReason* reason,
   AiPopupState* ai_popups,
   const ColonizeMsgCatalog* messages
 );
 bool units_pioneer_road_w(
   const ColonizeWorld* w,
   int unit_id,
-  char* err,
-  size_t err_size,
+  UnitsPioneerReason* reason,
   AiPopupState* ai_popups,
   const ColonizeMsgCatalog* messages
 );
@@ -302,8 +320,7 @@ bool units_pioneer_road_w(
 bool units_pioneer_work_tick_w(
   const ColonizeWorld* w,
   int unit_id,
-  char* err,
-  size_t err_size,
+  UnitsPioneerReason* reason,
   AiPopupState* ai_popups,
   const ColonizeMsgCatalog* messages
 );

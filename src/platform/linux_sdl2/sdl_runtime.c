@@ -10,15 +10,16 @@
 #include <time.h>
 #ifdef _WIN32
 #include <direct.h>
-#include <sys/timeb.h>
 #define mkdir(path, mode) _mkdir(path)
 #endif
 
 #include "platform/diagnostics.h"
 #include "platform/platform.h"
+#include "core/dos_rng.h"
 #include "core/json_min.h" /* json_write_escaped_string — input log strings */
 #include "core/sound.h"
 #include "core/screen_geom.h" /* SCREEN_MAX_W / SCREEN_MAX_H — resize clamp */
+#include "core/strutil.h"
 #include "core/ss.h" /* COLONIZE_SS_TRANSPARENT — the cursor key, platform.h:138 */
 
 struct ColonizePlatform {
@@ -453,21 +454,6 @@ static void mouse_to_logical(
  * per line (JSON Lines), as the event arrives — before platform_key_from_sdl or the edge
  * flags fold it. Record shape: docs/settings.md "Input log". */
 
-static int64_t input_log_wall_ms(void) {
-#ifdef _WIN32
-  /* mingw msvcrt has no timespec_get. */
-  struct _timeb tb;
-  _ftime(&tb);
-  return (int64_t)tb.time * 1000 + tb.millitm;
-#else
-  struct timespec ts;
-  if (timespec_get(&ts, TIME_UTC) != TIME_UTC) {
-    return (int64_t)time(NULL) * 1000;
-  }
-  return (int64_t)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
-#endif
-}
-
 static void input_log_open(ColonizePlatform* platform, const char* dir) {
   if (!dir || !dir[0]) {
     return;
@@ -476,7 +462,7 @@ static void input_log_open(ColonizePlatform* platform, const char* dir) {
     diag_warn("Input log: cannot create %s: %s", dir, strerror(errno));
     return;
   }
-  platform->input_log_unix_ms0 = input_log_wall_ms();
+  platform->input_log_unix_ms0 = dos_rng_wall_ms();
   platform->input_log_ticks0 = SDL_GetTicks();
   const time_t now = (time_t)(platform->input_log_unix_ms0 / 1000);
   const struct tm* tm_now = localtime(&now);
@@ -489,7 +475,12 @@ static void input_log_open(ColonizePlatform* platform, const char* dir) {
     path, sizeof(path), "%s/input_%s_%03d.jsonl", dir, stamp,
     (int)(platform->input_log_unix_ms0 % 1000)
   );
+#ifdef _WIN32
+  /* msvcrt rejects C11's "x" (no-clobber) flag; the ms-stamped name is unique enough. */
+  platform->input_log = fopen(path, "wb");
+#else
   platform->input_log = fopen(path, "wbx");
+#endif
   if (!platform->input_log) {
     diag_warn("Input log: cannot open %s: %s", path, strerror(errno));
     return;
@@ -953,14 +944,9 @@ bool platform_clipboard_get(char* out, size_t out_size) {
   if (!text) {
     return false;
   }
-  size_t n = strlen(text);
-  if (n + 1 > out_size) {
-    n = out_size - 1;
-  }
-  memcpy(out, text, n);
-  out[n] = '\0';
+  str_copy_trunc(out, out_size, text);
   SDL_free(text);
-  return n > 0;
+  return out[0] != '\0';
 }
 
 void platform_clipboard_set(const char* text) {

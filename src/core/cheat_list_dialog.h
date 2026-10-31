@@ -65,7 +65,7 @@ typedef struct CheatListDialog {
   char options[CHEAT_LIST_MAX_OPTIONS][CHEAT_LIST_LABEL_LEN];
   int option_ids[CHEAT_LIST_MAX_OPTIONS]; /* fog nation / tribe nation_id / etc. */
   int option_count;
-  /* Multi-select (TRADE unload/load): Space/click toggles; Enter confirms. */
+  /* Multi-select (DEBUG flags checkbox list): Space/click toggles; Enter confirms. */
   bool multi_select;
   uint16_t selected_mask; /* bit i = option i selected */
   /* Set when the user confirms; survives close so the caller can apply. */

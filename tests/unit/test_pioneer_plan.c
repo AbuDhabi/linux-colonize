@@ -139,7 +139,7 @@ static int case_automate(void) {
   u->tools = 20;
   for (int t = 0; t < 16 && u->orders == UNITS_ORDER_BUILD_ROAD; ++t) {
     u->moves = units_max_mp(&s_pool, u->id);
-    (void)units_pioneer_work_tick_w(&w, u->id, NULL, 0, NULL, NULL);
+    (void)units_pioneer_work_tick_w(&w, u->id, NULL, NULL, NULL);
   }
   CHECK(u->tools == 0 && !u->automated);
   /* Out of tools cancels. */

@@ -2,7 +2,10 @@
 #define COLONIZE_CORE_GAME_DIALOGS_H
 
 /*
- * Internal header, included by game_loop.c and game_dialogs.c only.
+ * Internal header of the game_loop_* family (game_loop*.c, game_dialogs.c,
+ * game_tutorial.c via game_loop_internal.h), tools/play_driver_main.c and a
+ * few seam tests (test_play_smoke, test_tutorial_hints, test_stage_seams,
+ * test_regression_replay).
  *
  * game_dialogs.c holds the dialog-wiring family that used to sit in the
  * middle of game_loop.c (game_request_* / game_open_* / game_apply_*_result
@@ -678,5 +681,10 @@ bool game_try_found_colony_at_cursor(ColonizeGameState* game);
 void game_try_prompt_landho(ColonizeGameState* game, int dest_x, int dest_y);
 const char* key_name(ColonizeKey key);
 void set_status(ColonizeGameState* game, const char* prefix, const char* detail);
+/* Status-line wording of a pioneer order's UnitsPioneerReason (port-only
+ * notices live here, not in sim; @NOROAD comes from GAME.TXT). "" for OK. */
+const char* game_pioneer_reason_text(
+  const ColonizeMsgCatalog* messages, UnitsPioneerReason reason, char* buf, size_t buf_size
+);
 
 #endif /* COLONIZE_CORE_GAME_DIALOGS_H */

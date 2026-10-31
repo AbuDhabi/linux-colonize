@@ -110,6 +110,12 @@ static char* parse_raw_string(Parser* ps) {
             v = v * 16 + (unsigned int)(isdigit((unsigned char)h) ? h - '0' : (tolower(h) - 'a' + 10));
             ps->p++;
           }
+          if (v == 0) {
+            /* A NUL would silently truncate the C string. */
+            perr(ps, "\\u0000 not supported");
+            free(buf);
+            return NULL;
+          }
           cp = v; /* BMP only; good enough for our controlled output */
           break;
         }
@@ -179,31 +185,43 @@ static JsonValue* parse_string(Parser* ps) {
   return v;
 }
 
+/* Skip one or more digits; false when there is none. */
+static bool skip_digits(Parser* ps) {
+  if (!isdigit((unsigned char)*ps->p)) {
+    return false;
+  }
+  while (isdigit((unsigned char)*ps->p)) {
+    ps->p++;
+  }
+  return true;
+}
+
+/* RFC 8259 number: -?(0|[1-9][0-9]*)(\.[0-9]+)?([eE][+-]?[0-9]+)? */
 static JsonValue* parse_number(Parser* ps) {
   const char* start = ps->p;
   if (*ps->p == '-') {
     ps->p++;
   }
-  while (isdigit((unsigned char)*ps->p)) {
+  bool ok;
+  if (*ps->p == '0') {
     ps->p++;
+    ok = !isdigit((unsigned char)*ps->p); /* no leading zeros */
+  } else {
+    ok = skip_digits(ps);
   }
-  if (*ps->p == '.') {
+  if (ok && *ps->p == '.') {
     ps->p++;
-    while (isdigit((unsigned char)*ps->p)) {
-      ps->p++;
-    }
+    ok = skip_digits(ps);
   }
-  if (*ps->p == 'e' || *ps->p == 'E') {
+  if (ok && (*ps->p == 'e' || *ps->p == 'E')) {
     ps->p++;
     if (*ps->p == '+' || *ps->p == '-') {
       ps->p++;
     }
-    while (isdigit((unsigned char)*ps->p)) {
-      ps->p++;
-    }
+    ok = skip_digits(ps);
   }
-  if (ps->p == start) {
-    perr(ps, "expected number");
+  if (!ok) {
+    perr(ps, "bad number");
     return NULL;
   }
   JsonValue* v = jv_new(ps, JV_NUM);
@@ -526,7 +544,7 @@ bool json_get_hex(const JsonValue* obj, const char* key, uint8_t* out, size_t ou
 
 bool json_get_cstr_fixed(const JsonValue* obj, const char* key, char* buf, size_t buf_len) {
   const char* s = json_get_str(obj, key);
-  if (!s) {
+  if (!s || !buf || buf_len == 0) {
     return false;
   }
   memset(buf, 0, buf_len);

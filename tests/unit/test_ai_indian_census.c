@@ -460,10 +460,10 @@ static int test_brave_replacement_cycle(void) {
   int nation = -1;
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
     const ColonizeUnit* u = &units.units[i];
-    if (u->active && u->nation_id >= 4 && u->home_tribe_id >= 0 &&
-        u->home_tribe_id < (int)save.head.tribe_count) {
+    if (u->active && u->nation_id >= 4 && u->home_tribe_index >= 0 &&
+        u->home_tribe_index < (int)save.head.tribe_count) {
       victim = u->id;
-      home = u->home_tribe_id;
+      home = u->home_tribe_index;
       nation = u->nation_id;
       break;
     }
@@ -521,7 +521,7 @@ static int test_brave_replacement_cycle(void) {
   int found = -1;
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
     const ColonizeUnit* u = &units.units[i];
-    if (u->active && u->home_tribe_id == home && u->nation_id == nation) {
+    if (u->active && u->home_tribe_index == home && u->nation_id == nation) {
       found = i;
     }
   }

@@ -673,7 +673,6 @@ static void colony_screen_draw_jobs_popup(
         (on_plot && job < COLONIZE_FIELD_JOB_COUNT)
           ? colony_yield_for_worker(
               map, colony->x + dx, colony->y + dy, job, profession, has_docks, sol_b_field,
-              colony->colony_flags,
               col1 && founding_fathers_nation_has(col1, colony->nation_id, FF_HENRY_HUDSON)
             )
           : 0;
@@ -1139,13 +1138,8 @@ COLONIZE_INTERNAL bool colony_screen_hit_multifunction(ColonyScreenHitCtx* a) {
   if (view->multi_mode == COLONY_MULTI_UNITS && units && mx >= COLONY_MULTI_X &&
       mx < COLONY_MULTI_BTN_X && my >= COLONY_PANEL_CONTENT_Y && my < COLONY_CARGO_STRIP_Y) {
     ColonyMultiUnitSlot slots[COLONY_MULTI_UNITS_SLOT_MAX];
-    const int px = COLONY_MULTI_X + 2;
-    const int pane_w = COLONY_MULTI_W - 19;
-    const int py = COLONY_PANEL_CONTENT_Y;
-    const int pane_h = COLONY_PANEL_CONTENT_H;
     const int slot_count = colony_screen_multi_units_layout(
-      view, units, px, py + COLONY_MULTI_UNITS_TITLE_H, pane_w, pane_h - COLONY_MULTI_UNITS_TITLE_H,
-      slots, COLONY_MULTI_UNITS_SLOT_MAX
+      view, units, slots, COLONY_MULTI_UNITS_SLOT_MAX
     );
     for (int i = 0; i < slot_count; ++i) {
       if (mx >= slots[i].x && mx < slots[i].x + slots[i].w && my >= slots[i].y &&
@@ -1221,8 +1215,6 @@ COLONIZE_INTERNAL bool colony_screen_hit_transports(ColonyScreenHitCtx* a) {
 /* Fortification strip: outside units and the empty fence (eject target). */
 COLONIZE_INTERNAL bool colony_screen_hit_fence(ColonyScreenHitCtx* a) {
   const ColonyScreenView* view = a->view;
-  const ColonizeColonyPool* pool = a->pool;
-  const ColonizeColony* colony = a->colony;
   const ColonizeUnitPool* units = a->units;
   const int mx = a->mx;
   const int my = a->my;
@@ -1232,7 +1224,7 @@ COLONIZE_INTERNAL bool colony_screen_hit_fence(ColonyScreenHitCtx* a) {
   if (view->outside_unit_count > 0 && units && view->icons_ok) {
     int fence_x, fence_y, fence_w, fence_h;
     colony_screen_fence_rect(
-      view, pool, colony, slot_x, slot_y, &fence_x, &fence_y, &fence_w, &fence_h
+      slot_x, slot_y, &fence_x, &fence_y, &fence_w, &fence_h
     );
     int icons[COLONY_OUTSIDE_MAX];
     int map_i[COLONY_OUTSIDE_MAX];
@@ -1281,7 +1273,7 @@ COLONIZE_INTERNAL bool colony_screen_hit_fence(ColonyScreenHitCtx* a) {
     /* No outside units: still allow fence clicks for eject. */
     int fence_x, fence_y, fence_w, fence_h;
     colony_screen_fence_rect(
-      view, pool, colony, slot_x, slot_y, &fence_x, &fence_y, &fence_w, &fence_h
+      slot_x, slot_y, &fence_x, &fence_y, &fence_w, &fence_h
     );
     if (mx >= fence_x && my >= fence_y && mx < fence_x + fence_w && my < fence_y + fence_h) {
       a->hit.kind = COLONY_HIT_FENCE;
@@ -1540,7 +1532,7 @@ ColonyScreenHitResult colony_screen_hit_test(
    * slot_of_cat[] is the DS:0x266 SLOT each category landed in: DOS scans
    * slots, not categories (see colony_screen_hit_buildings). */
   colony_screen_assign_slot_positions_ex(
-    pool, colony, a.slot_x, a.slot_y, a.slot_of_cat, colony_screen_layout_seed(view)
+    colony, a.slot_x, a.slot_y, a.slot_of_cat, colony_screen_layout_seed(view)
   );
 
   /* Hit priority = stage order; the first stage returning true owns the click. */

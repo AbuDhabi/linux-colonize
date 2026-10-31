@@ -126,12 +126,10 @@ static int unit_fort_fire_dissolve_and_europe(void) {
   units_set_phantom_lunge_hook(unit_test_phantom_lunge_hook, NULL);
 
   int rc = 0;
-  char st[96];
-  st[0] = '\0';
   (void)units_coastal_fort_fire_pulse_w(
     &(ColonizeWorld){.units = &pool, .colonies = &colonies, .map = &map,
                      .col1 = &c1, .col1_ok = true, .rng = NULL},
-    1, st, sizeof(st)
+    1
   );
 
   /* FUN_364b_03f6 raw 57100 (0352): one camera edge-scroll onto the colony; 1b0e
@@ -192,7 +190,7 @@ static int unit_fort_fire_dissolve_and_europe(void) {
     (void)units_coastal_fort_fire_pulse_w(
       &(ColonizeWorld){.units = &pool, .colonies = &colonies, .map = &map,
                        .col1 = &c1, .col1_ok = true, .rng = NULL},
-      1, st, sizeof(st)
+      1
     );
     const ColonizeUnit* u3 = units_get(&pool, s3);
     if (!u3 || !u3->active || u3->x != 6 || u3->y != 6) {
@@ -750,7 +748,7 @@ static int unit_capture_ring_and_alarm_vent(void) {
     const int bid = units_spawn_allow_stack(&pool, 1, 3, 4);
     ColonizeUnit* brave = units_get(&pool, bid);
     units_set_nation(brave, 4);
-    brave->home_tribe_id = 0;
+    brave->home_tribe_index = 0;
     brave->moves = 0; /* natives: SPENT byte — 0 = fresh full allotment */
     (void)units_try_move_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .rng=(ColonizeDosRng*)(&rng)}, bid, 4, 4);
 
@@ -789,7 +787,7 @@ static int unit_capture_ring_and_alarm_vent(void) {
       const int b2 = units_spawn_allow_stack(&pool, 1, 3, 4);
       ColonizeUnit* br2 = units_get(&pool, b2);
       units_set_nation(br2, 4);
-      br2->home_tribe_id = 0;
+      br2->home_tribe_index = 0;
       br2->moves = 0; /* spent byte: fresh */
       (void)units_try_move_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .rng=(ColonizeDosRng*)(&rng)}, b2, 4, 4);
       if (col1.indian[0].alarm_by_player[0] != 40) {
@@ -945,11 +943,11 @@ static int unit_village_raze_tail(void) {
   const int b_home1 = units_spawn_allow_stack(&pool, brave_t, 5, 6);
   const int b_free = units_spawn_allow_stack(&pool, brave_t, 5, 7);
   units_get(&pool, b_home0)->nation_id = 4;
-  units_get(&pool, b_home0)->home_tribe_id = 0;
+  units_get(&pool, b_home0)->home_tribe_index = 0;
   units_get(&pool, b_home1)->nation_id = 4;
-  units_get(&pool, b_home1)->home_tribe_id = 1;
+  units_get(&pool, b_home1)->home_tribe_index = 1;
   units_get(&pool, b_free)->nation_id = 4;
-  units_get(&pool, b_free)->home_tribe_id = -1;
+  units_get(&pool, b_free)->home_tribe_index = -1;
 
   ColonizeWorld w = {.units = &pool, .map = &map, .col1 = &col1, .col1_ok = true};
   int rc = 0;
@@ -965,7 +963,7 @@ static int unit_village_raze_tail(void) {
     rc = 1;
   }
   u = units_get_const(&pool, b_home1);
-  if (rc == 0 && (!u || !u->active || u->home_tribe_id != 0)) {
+  if (rc == 0 && (!u || !u->active || u->home_tribe_index != 0)) {
     fprintf(stderr, "raze #552: other village's brave must stay, home 1 -> 0\n");
     rc = 1;
   }

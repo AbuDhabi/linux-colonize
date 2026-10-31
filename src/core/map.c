@@ -617,6 +617,12 @@ int map_resource_type_for_yield(const ColonizeWorldMap* map, int x, int y) {
   return map_resource_type_at_ex(map, x, y, true);
 }
 
+/* FUN_12ab_0540 / FUN_137f_0598 rumour hash over map coordinates. */
+static bool map_rumour_hash_hit(int x, int y, int seed) {
+  const unsigned hash = (unsigned)(((y >> 2) * 0x13 + (x >> 2) * 0x11 + seed + 8) & 0x1f);
+  return (int)hash + (x & 3) * -4 == (y & 3);
+}
+
 static bool map_procedural_rumour_at(const ColonizeWorldMap* map, int x, int y) {
   if (!map_in_bounds(map, x, y) || map->specials_off) {
     return false;
@@ -639,11 +645,7 @@ static bool map_procedural_rumour_at(const ColonizeWorldMap* map, int x, int y) 
    * (DS:0x5f16, DS:0x634c), so both hashes live in the same coordinate space.
    * Biasing one and not the other put rumours one tile off the resource grid
    * they share a seed with (smell_audit_2026-09-09 #98). */
-  const int dos_x = x;
-  const int dos_y = y;
-  const unsigned hash =
-    (unsigned)(((dos_y >> 2) * 0x13 + (dos_x >> 2) * 0x11 + (int)map_resource_seed(map) + 8) & 0x1f);
-  return (int)hash + (dos_x & 3) * -4 == (dos_y & 3);
+  return map_rumour_hash_hit(x, y, (int)map_resource_seed(map));
 }
 
 /*
@@ -664,9 +666,7 @@ bool map_dos_0598_rumour_tile(const ColonizeWorldMap* map, int x, int y) {
   if (nib != 0x0f) {
     return false;
   }
-  const int seed = (int)map->prime_resource_seed;
-  const unsigned hash = (unsigned)(((y >> 2) * 0x13 + (x >> 2) * 0x11 + seed + 8) & 0x1f);
-  return (int)hash + (x & 3) * -4 == (y & 3);
+  return map_rumour_hash_hit(x, y, (int)map->prime_resource_seed);
 }
 
 static bool map_has_rumour_at(const ColonizeWorldMap* map, int x, int y) {

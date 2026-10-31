@@ -155,7 +155,7 @@ static int reports_naval_build_rows(
       const bool is_ship = units_is_sea(units, u->id);
       /* Docked-in-Europe ships are represented separately (and more
        * completely — resolved cargo/hold state) via europe->harbor[]. */
-      if (reports_unit_in_europe(u->x, u->y)) {
+      if (units_coords_in_europe_park(u->x, u->y)) {
         continue;
       }
       if (!is_ship && !map_tile_is_water(map, u->x, u->y)) {
@@ -647,7 +647,7 @@ static int reports_foreign_build_rows(
     ForeignRow* r = &rows[n++];
     memset(r, 0, sizeof(*r));
     const ColonizeCol1Player* p = &col1->player[i];
-    r->leader = p->name[0] ? p->name : reports_nation_adjective(i);
+    r->leader = p->name[0] ? p->name : reports_nation_adjective_display_name(i);
     r->adjective = reports_nation_adjective_woi(col1, i); /* OVL06 asm 105176: 09a4 */
     r->is_crown = (crown == i);
     if (r->is_crown) {
@@ -824,7 +824,7 @@ void reports_render_foreign(
  *     0-distance RGB match against the plate DAC (VICEROY.PAL < 152) at both
  *     golden indices, no remap needed here unlike ICONS.SS sprites).
  *     Right-aligned: tribe level (Semi-Nomadic/Agrarian/Advanced/Civilized
- *     by indian.tech, reports_tribe_level), same color.
+ *     by indian.tech, reports_tribe_level_display_name), same color.
  *   line 2 (fixed columns, black — golden-sampled (0,0,0) exactly), each
  *     column skipped when its count is 0:
  *     "<n> Villages"    — tribe[].nation_id count, always shown.
@@ -975,9 +975,9 @@ static int reports_indian_build_rows(
     }
     IndianRow* r = &rows[n++];
     r->nation_id = nation_id;
-    r->name = reports_tribe_name(t);
+    r->name = reports_tribe_display_name(t);
     r->color = k_indian_tribe_colors[t];
-    r->level = reports_tribe_level(ind->tech);
+    r->level = reports_tribe_level_display_name(ind->tech);
     r->tech = ind->tech > 3 ? 3 : ind->tech;
     r->villages = villages;
     r->missions = missions;
@@ -1093,7 +1093,7 @@ void reports_render_indian(
     /*
      * "Missions" (@MISC #28) and "Horse Herds" (@MISC #45) are real
      * LABELS.TXT words, live-resolved 2026-08-27. "Muskets" is the
-     * NAMES.TXT @CARGO name (reports_cargo_name, 2026-08-28). The
+     * NAMES.TXT @CARGO name (reports_cargo_display_name, 2026-08-28). The
      * settlement noun comes from @LEVELS — see the DOS-LITERAL note below.
      */
     char buf[32];
@@ -1112,7 +1112,7 @@ void reports_render_indian(
       reports_draw_line(font, fb, REPORTS_INDIAN_MISSIONS_X, stats_y, buf, REPORTS_INDIAN_TEXT_COLOR);
     }
     if (r->muskets > 0) {
-      snprintf(buf, sizeof(buf), "%d %s", r->muskets, reports_cargo_name(COLONIZE_CARGO_MUSKETS));
+      snprintf(buf, sizeof(buf), "%d %s", r->muskets, reports_cargo_display_name(COLONIZE_CARGO_MUSKETS));
       reports_draw_line(font, fb, REPORTS_INDIAN_MUSKETS_X, stats_y, buf, REPORTS_INDIAN_TEXT_COLOR);
     }
     if (r->horse_herds > 0) {

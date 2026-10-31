@@ -117,7 +117,7 @@ static void write_game_options(FILE* f, const ColonizeCol1GameOptions* g) {
   int n = 0;
   fputc('{', f);
   wb(f, &n, "woi", g->woi);
-  wb(f, &n, "ref_present", g->ref_present);
+  wb(f, &n, "intervention_announced", g->intervention_announced);
   wb(f, &n, "woi_crosses_event", g->woi_crosses_event);
   wb(f, &n, "independence_chrome", g->independence_chrome);
   wb(f, &n, "calendar_latch", g->calendar_latch);
@@ -137,7 +137,7 @@ static void write_game_options(FILE* f, const ColonizeCol1GameOptions* g) {
 static void read_game_options(const JsonValue* o, ColonizeCol1GameOptions* g) {
   bool v;
   if (json_get_bool(o, "woi", &v)) g->woi = v;
-  if (json_get_bool(o, "ref_present", &v)) g->ref_present = v;
+  if (json_get_bool2(o, "intervention_announced", "ref_present", &v)) g->intervention_announced = v; /* old key, pre-2026-10-31 */
   if (json_get_bool(o, "woi_crosses_event", &v)) g->woi_crosses_event = v;
   if (json_get_bool(o, "independence_chrome", &v)) g->independence_chrome = v;
   if (json_get_bool(o, "calendar_latch", &v)) g->calendar_latch = v;

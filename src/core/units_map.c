@@ -4,7 +4,7 @@
  * Tile occupancy, sight/vision, combat hook registration & context setters.
  *
  * Sections:
- *  - Tile occupancy/sight/vision, combat hook registration & context setters (units_is_on_map .. units_enter_reason_status)
+ *  - Tile occupancy/sight/vision, combat hook registration & context setters (units_is_on_map .. units_last_enter_reason)
  *  - Viewer sight for foreign units (units_seen_reset .. units_shown_to)
  */
 
@@ -32,7 +32,7 @@
 /* Occupancy map handle shared by the units*.c split (was a units.c static). */
 ColonizeWorldMap* units_occupancy_map = NULL;
 
-/* ===================== Tile occupancy/sight/vision, combat hook registration & context setters (units_is_on_map .. units_enter_reason_status) ===================== */
+/* ===================== Tile occupancy/sight/vision, combat hook registration & context setters (units_is_on_map .. units_last_enter_reason) ===================== */
 
 
 bool units_is_on_map(const ColonizeUnit* unit) {
@@ -288,7 +288,7 @@ static void units_clear_slot(ColonizeUnitPool* pool, ColonizeUnit* unit) {
   unit->tools = 0;
   unit->muskets = 0;
   unit->horses = 0;
-  unit->home_tribe_id = -1;
+  unit->home_tribe_index = -1;
   unit->col1_counter16 = 0;
   unit->mp_spent_turn = 0;
   unit->aboard_moves = -1;
@@ -371,9 +371,9 @@ bool units_despawn(ColonizeUnitPool* pool, int unit_id) {
    * despawn goes through, matching 0824.
    */
   if (g_units_fallout_col1 && g_units_fallout_col1->tribe && unit->nation_id >= 4 &&
-      unit->home_tribe_id >= 0 &&
-      unit->home_tribe_id < (int)g_units_fallout_col1->head.tribe_count) {
-    g_units_fallout_col1->tribe[unit->home_tribe_id].state.needs_colonist = 1;
+      unit->home_tribe_index >= 0 &&
+      unit->home_tribe_index < (int)g_units_fallout_col1->head.tribe_count) {
+    g_units_fallout_col1->tribe[unit->home_tribe_index].state.needs_colonist = 1;
   }
   units_census_count_destroy(unit);
   units_clear_slot(pool, unit);
@@ -459,9 +459,8 @@ static void units_reveal_tile_effects(void* vctx, int x, int y, bool outer) {
     ctx->pacific = true;
   }
   if (map->layer3) {
-    const int owner = (map_get_layer3(map, x, y) >> 4) & 0x0f;
     /* FUN_137f_0200 < 0 (nibble 0xf) and not a rumour spot (FUN_137f_0598). */
-    if (owner == 0x0f && !map_tile_has_rumour(map, x, y)) {
+    if (units_tile_owner_nibble(map, x, y) < 0 && !map_tile_has_rumour(map, x, y)) {
       /*
        * Never claim a settlement tile: village nibble must stay the tribe's
        * nation (DOS invariant; euro nibble there triggers @COLONYFLAG).
@@ -547,8 +546,8 @@ uint8_t units_vis_mask_for_tile(const ColonizeWorldMap* map, int x, int y, int m
   }
   if (mover_nation >= 0 && mover_nation < 4 && map->layer3 && x >= 0 && y >= 0 &&
       x < map->width && y < map->height) {
-    const int owner = (map_get_layer3(map, x, y) >> 4) & 0x0f;
-    if (owner < 4) { /* 0x10 << nibble, byte-truncated: nibbles ≥ 4 contribute nothing */
+    const int owner = units_tile_owner_nibble(map, x, y);
+    if (owner >= 0 && owner < 4) { /* 0x10 << nibble, byte-truncated: nibbles ≥ 4 contribute nothing */
       mask = (uint8_t)(mask | (1u << owner));
     }
   }
@@ -914,15 +913,6 @@ const ColonizeUnitType* units_type(const ColonizeUnitPool* pool, int type_index)
   return &pool->types[type_index];
 }
 
-/* Debug-log helpers (defined with the order commands below). */
-const char* units_order_name(int orders);
-void units_log_ident(
-  const ColonizeUnitPool* pool,
-  int unit_id,
-  char* out,
-  size_t out_size
-);
-
 int g_units_last_combat = 0;
 ColonizeEnterReason g_units_last_enter_reason = COLONIZE_ENTER_OK;
 const ColonizeCol1Save* g_units_ff_col1 = NULL;
@@ -1280,44 +1270,6 @@ ColonizeEnterReason units_last_enter_reason(void) {
   return g_units_last_enter_reason;
 }
 
-const char* units_enter_reason_status(ColonizeEnterReason reason) {
-  switch (reason) {
-  case COLONIZE_ENTER_OK:
-  case COLONIZE_ENTER_DOCK:
-    return "Moved";
-  case COLONIZE_ENTER_LANDFALL:
-    return "Landfall";
-  case COLONIZE_ENTER_COMBAT_LAND:
-  case COLONIZE_ENTER_COMBAT_NAVAL:
-    return "Battle started";
-  case COLONIZE_ENTER_BOUNCE_FOREIGN:
-    return "Cannot attack (non-combat unit)";
-  case COLONIZE_ENTER_BOUNCE_PEACE:
-    return "At peace — cannot attack";
-  case COLONIZE_ENTER_BLOCKED_DOMAIN:
-    return "Wrong terrain";
-  case COLONIZE_ENTER_BLOCKED_EDGE:
-  case COLONIZE_ENTER_EDGE_SAIL: /* port_bugs.md #717 */
-    return "Map edge";
-  case COLONIZE_ENTER_BLOCKED_HS_SAIL:
-    return "Need sail order for high seas";
-  case COLONIZE_ENTER_VILLAGE_ILLEGAL:
-    return "Cannot enter village";
-  case COLONIZE_ENTER_BOARD:
-    return "Boarded ship";
-  case COLONIZE_ENTER_VILLAGE_SHIP:
-    return "Native settlement entered";
-  case COLONIZE_ENTER_LAKE_BLOCKED:
-    return "Ship cannot enter lake";
-  case COLONIZE_ENTER_LANDFIRST:
-    return "Must unload troops first";
-  case COLONIZE_ENTER_NO_MP:
-    return "No moves left";
-  case COLONIZE_ENTER_BLOCKED:
-  default:
-    return "Move blocked";
-  }
-}
 
 /* ===================== Viewer sight for foreign units (units_seen_reset .. units_shown_to) ===================== */
 

@@ -139,7 +139,7 @@ const char* reports_misc_word(int index, const char* fallback, char* out, size_t
  * several @MISC words into one PopupMsgTokens before the text is filled
  * (nation + defeat verb + place in the combat popups), and a single static
  * made every token read back the word resolved last — the same aliasing bug
- * reports_cargo_name documents above.
+ * reports_cargo_display_name documents above.
  */
 const char* reports_misc_display_word(int index, const char* fallback) {
   static char buf[8][64];
@@ -227,12 +227,12 @@ const char* reports_names_field(const char* section, int row, int col) {
 }
 
 /*
- * Per-index buffer, same reason as reports_cargo_name: @VALOR (FUN_5fef_172c
+ * Per-index buffer, same reason as reports_cargo_display_name: @VALOR (FUN_5fef_172c
  * raw 100139-100142) puts the old and new @JOB names in STRING1/STRING2 at
  * once, and the shared reports_names_field scratch made both read the new one
  * ("promoted from Free Colonists to Free Colonists", playtest C2-B4).
  */
-const char* reports_job_name(int job) {
+const char* reports_job_display_name(int job) {
   static char buf[32][32];
   if (job < 0 || job >= k_job_count || job >= 32) {
     return "";
@@ -244,13 +244,13 @@ const char* reports_job_name(int job) {
 }
 
 /*
- * Per-index buffer, same reason as reports_tribe_name below: the village
+ * Per-index buffer, same reason as reports_tribe_display_name below: the village
  * trade dialogs (@BRING, @BADCARGO, @BUYWHICH, @CHIEFHOWDY) fetch three cargo
  * names into one token set before filling the text, and the shared
  * reports_names_field scratch made all three read back the last one
  * ("Cigars, Cigars and Cigars", three "Ore" choice rows). bugs 2026-09-15.
  */
-const char* reports_cargo_name(int cargo) {
+const char* reports_cargo_display_name(int cargo) {
   static char buf[COLONIZE_COL1_CARGO_TYPES][32];
   if (cargo < 0 || cargo >= (int)COLONIZE_COL1_CARGO_TYPES) {
     return "";
@@ -260,12 +260,16 @@ const char* reports_cargo_name(int cargo) {
   return buf[cargo];
 }
 
-const char* reports_ff_name(int idx) {
+/* Per-index buffer: reports_names_field's scratch is shared, so two FF names
+ * held at once (e.g. a Congress choice list) would alias the last one. */
+const char* reports_ff_display_name(int idx) {
+  static char buf[COLONIZE_COL1_FF_COUNT][40];
   if (idx < 0 || idx >= (int)COLONIZE_COL1_FF_COUNT) {
     return "";
   }
   const char* live = reports_names_field("FATHERS", idx, 0);
-  return live ? live : "";
+  str_copy_trunc(buf[idx], sizeof(buf[idx]), live ? live : "");
+  return buf[idx];
 }
 
 /*
@@ -275,7 +279,7 @@ const char* reports_ff_name(int idx) {
  * shared scratch buffer would have every row alias the last tribe parsed.
  * A per-index buffer here keeps each tribe's name independently alive.
  */
-const char* reports_tribe_name(int t) {
+const char* reports_tribe_display_name(int t) {
   static char live[COLONIZE_COL1_INDIAN_COUNT][40];
   if (t < 0 || t >= (int)COLONIZE_COL1_INDIAN_COUNT) {
     return "";
@@ -288,32 +292,19 @@ const char* reports_tribe_name(int t) {
   return "";
 }
 
-const char* reports_ff_display_name(int idx) {
-  return reports_ff_name(idx);
-}
-
 /*
  * NAMES.TXT @FOUNDING (the six category words that sit above @FATHERS in the
  * same file). DOS keeps them as the DS:0x96e8 stride-2 pointer table the
  * Congress debate builder indexes by @FATHERS type column.
  */
-static const char* k_ff_category_names[] = {
-  "", "", "", "", "", ""
-};
-
 const char* reports_ff_category_display_name(int type) {
   static char buf[32];
-  const int count = (int)(sizeof(k_ff_category_names) / sizeof(k_ff_category_names[0]));
-  if (type < 0 || type >= count) {
+  if (type < 0 || type >= 6) {
     return "";
   }
   const char* live = reports_names_field("FOUNDING", type, 0);
-  str_copy_trunc(buf, sizeof(buf), live ? live : k_ff_category_names[type]);
+  str_copy_trunc(buf, sizeof(buf), live ? live : "");
   return buf;
-}
-
-const char* reports_job_display_name(int job) {
-  return reports_job_name(job);
 }
 
 /*
@@ -338,20 +329,12 @@ const char* reports_job_short_name(int job) {
   return live[job];
 }
 
-const char* reports_cargo_display_name(int cargo) {
-  return reports_cargo_name(cargo);
-}
-
-const char* reports_tribe_display_name(int t) {
-  return reports_tribe_name(t);
-}
-
 /*
  * Copy one NAMES.TXT field into a caller-owned buffer, falling back to a
  * literal when the catalog is absent. Callers pass a per-index buffer rather
  * than sharing reports_names_field's single scratch one: several of these
  * accessors get called back-to-back while a screen builds a rows[] array
- * (same hazard reports_tribe_name / reports_nation_adjective document).
+ * (same hazard reports_tribe_display_name / reports_nation_adjective_display_name document).
  */
 static const char* reports_names_or(
   char* buf, size_t buf_size, const char* section, int row, int col, const char* literal
@@ -494,9 +477,9 @@ const char* reports_dock_type_name(int dos_type) {
  * NAMES.TXT @NATIONALITY (row = nation). Dedicated per-nation buffer, not
  * the shared ff/job/cargo scratch one — Foreign Affairs stores this into a
  * `rows[]` array (r->leader / r->adjective, two calls per row) before
- * drawing, same aliasing hazard as reports_tribe_name.
+ * drawing, same aliasing hazard as reports_tribe_display_name.
  */
-const char* reports_nation_adjective(int nation) {
+const char* reports_nation_adjective_display_name(int nation) {
   static char live[COLONIZE_COL1_NATION_COUNT][20];
   if (nation < 0 || nation >= (int)COLONIZE_COL1_NATION_COUNT) {
     return "";
@@ -510,9 +493,9 @@ const char* reports_nation_adjective(int nation) {
 }
 
 /* NAMES.TXT @LEVELS column 0 (row = tech, capped 0..3). Own buffer for the
- * same reason as reports_nation_adjective — used inside the Indian
- * Adviser's rows[] builder alongside reports_tribe_name. */
-const char* reports_tribe_level(uint8_t tech) {
+ * same reason as reports_nation_adjective_display_name — used inside the Indian
+ * Adviser's rows[] builder alongside reports_tribe_display_name. */
+const char* reports_tribe_level_display_name(uint8_t tech) {
   static char live[4][20];
   if (tech > 3) {
     tech = 3;
@@ -523,10 +506,6 @@ const char* reports_tribe_level(uint8_t tech) {
     return live[tech];
   }
   return "";
-}
-
-const char* reports_nation_adjective_display_name(int nation) {
-  return reports_nation_adjective(nation);
 }
 
 /* DOS FUN_15b3_01e0 / FUN_15b3_0198 (viceroy_unpacked.c 9138-9172): the
@@ -543,7 +522,7 @@ static const char* reports_nation_woi_word(
       return reports_misc_display_word(tory_row, "");
     }
   }
-  return reports_nation_adjective(nation);
+  return reports_nation_adjective_display_name(nation);
 }
 
 const char* reports_nation_adjective_woi(const ColonizeCol1Save* col1, int nation) {
@@ -554,14 +533,11 @@ const char* reports_nation_plural_woi(const ColonizeCol1Save* col1, int nation) 
   return reports_nation_woi_word(col1, nation, 86, 87);
 }
 
-const char* reports_tribe_level_display_name(uint8_t tech) {
-  return reports_tribe_level(tech);
-}
 void reports_names_load_catalogs(const char* data_dir) {
   if (!data_dir) {
     return;
   }
-  /* NAMES.TXT @FATHERS live names (reports_ff_name) — best-effort, falls back
+  /* NAMES.TXT @FATHERS live names (reports_ff_display_name) — best-effort, falls back
    * to the hand-typed k_ff_names table when missing (tests, old data dirs). */
   if (g_reports_names_ok) {
     assets_msg_free(&g_reports_names);

@@ -23,7 +23,7 @@ static bool fab_read_u16(FabBitReader* br, uint16_t* out) {
   if (br->pos + 2 > br->src_size) {
     return false;
   }
-  *out = (uint16_t)(br->src[br->pos] | (br->src[br->pos + 1] << 8));
+  *out = rd_u16_le(br->src + br->pos);
   br->pos += 2;
   return true;
 }

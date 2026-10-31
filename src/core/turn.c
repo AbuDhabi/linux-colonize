@@ -24,7 +24,6 @@
 #include "core/founding_fathers.h"
 #include "core/reports.h"
 #include "core/reports_names.h"
-#include "core/unit_chrome.h"
 #include "core/woodcut.h"
 #include "platform/diagnostics.h"
 
@@ -131,19 +130,12 @@ void turn_clear_mp_spent_all_nations(ColonizeUnitPool* pool) {
   }
 }
 
-void turn_refresh_moves_for_nation_w(
-  const ColonizeWorld* w,
-  int nation_id,
-  AiPopupState* ai_popups,
-  const ColonizeMsgCatalog* messages
-) {
+void turn_refresh_moves_for_nation_w(const ColonizeWorld* w, int nation_id) {
   ColonizeUnitPool* pool = w->units;
   const ColonizeCol1Save* col1 = w->col1;
   ColonizeWorldMap* map = w->map;
   /* port_bugs.md #626: the pioneer work tick moved to the activation rotation, so
    * the refresh no longer emits text of its own. */
-  (void)ai_popups;
-  (void)messages;
 
   if (!pool) {
     return;
@@ -280,7 +272,7 @@ bool turn_rotation_lasting_step_w(
     return false;
   }
   if (u->orders == UNITS_ORDER_CLEAR_PLOW || u->orders == UNITS_ORDER_BUILD_ROAD) {
-    (void)units_pioneer_work_tick_w(w, u->id, NULL, 0, ai_popups, messages);
+    (void)units_pioneer_work_tick_w(w, u->id, NULL, ai_popups, messages);
     /* FUN_479b_01a6 raw 76753 / FUN_479b_0526 raw 76886: an aborted body
      * clears the order and returns BEFORE FUN_281f_0934 spends the
      * allotment, so the unit drops straight back into the player's hands
@@ -317,34 +309,6 @@ void turn_idle_human_activate(ColonizeUnitPool* pool, ColonizeUnit* u) {
      * back above it. */
     units_tile_stack_sort_at(pool, u->x, u->y);
   }
-}
-
-/*
- * The idle player's human turn: the rotation brings every unit up in turn,
- * lasting orders run, and Space (No Orders) spends each unit that waits.
- * independence-seed-100 000001 -> 000002: the Dutch Fortify ships save as
- * Fortified.
- */
-void turn_idle_human_rotation_w(const ColonizeWorld* w, int human_nation) {
-  if (!w || !w->units) {
-    return;
-  }
-  ColonizeUnitPool* pool = w->units;
-  pool->selected_id = -1;
-  for (int guard = 0; guard < COLONIZE_UNITS_MAX * 2; ++guard) {
-    if (!turn_select_next_unit(pool, human_nation)) {
-      break;
-    }
-    ColonizeUnit* u = units_get(pool, pool->selected_id);
-    if (!u) {
-      break;
-    }
-    turn_idle_human_activate(pool, u);
-    if (turn_rotation_lasting_step_w(w, u, NULL, NULL)) {
-      u->moves = 0; /* Space */
-    }
-  }
-  pool->selected_id = -1;
 }
 
 /* ===================== End-of-turn/autosave option gates & report readiness checks (turn_option_end_of_turn .. turn_report_ok_inefficient) ===================== */
@@ -698,7 +662,7 @@ static void turn_euro_slot_eot(ColonizeTurnProcessor* proc, ColonizeTurnContext*
       }
       if (ctx->units) {
         const ColonizeWorld rw = world_from_turn_ctx(ctx);
-        turn_refresh_moves_for_nation_w(&rw, n, ctx->ai_popups, ctx->messages);
+        turn_refresh_moves_for_nation_w(&rw, n);
         if (n >= 0 && n < 4) {
           /* FUN_3844_0004 (port_bugs.md #725): AI owner — the lone Convert just
            * vanishes, no @DEADCONVERTS popup. */
@@ -816,7 +780,7 @@ COLONIZE_INTERNAL void turn_step_indian(ColonizeTurnProcessor* proc, ColonizeTur
       }
       if (ctx->units) {
         const ColonizeWorld rw = world_from_turn_ctx(ctx);
-        turn_refresh_moves_for_nation_w(&rw, n, ctx->ai_popups, ctx->messages);
+        turn_refresh_moves_for_nation_w(&rw, n);
       }
       /*
        * FUN_4d56_1b3a phase 2 (raw viceroy_unpacked.c:81709-81715):
@@ -1016,7 +980,7 @@ COLONIZE_INTERNAL void turn_step_king(ColonizeTurnProcessor* proc, ColonizeTurnC
       ai_king_peacetime_merc_offer(ctx);
       turn_set_active_nation(ctx, ctx->human_nation);
       const ColonizeWorld rw = world_from_turn_ctx(ctx);
-      turn_refresh_moves_for_nation_w(&rw, ctx->human_nation, ctx->ai_popups, ctx->messages);
+      turn_refresh_moves_for_nation_w(&rw, ctx->human_nation);
       if (ctx->human_nation >= 0 && ctx->human_nation < 4) {
         /* FUN_3844_0004 (port_bugs.md #725): human owner — FUN_281f_0652(0xee2, 4)
          * = @DEADCONVERTS, once per Convert lost. */

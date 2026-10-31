@@ -542,7 +542,7 @@ bool game_tutorial_europe_cannot_afford(ColonizeGameState* game, int hidx, int c
   }
   char name[32];
   tut_cargo_name(cargo, name, sizeof(name));
-  snprintf(eu->status, sizeof(eu->status), "%s (%d)", name, cost);
+  eu->status[0] = '\0';
   PopupMsgTokens tok;
   memset(&tok, 0, sizeof(tok));
   tok.string0 = name;

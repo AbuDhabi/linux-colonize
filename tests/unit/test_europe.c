@@ -2882,7 +2882,7 @@ static int case_europe_dragoon_roll_and_caption(void) {
     return 1;
   }
   const char* singular = reports_job_short_name(UNITS_JOB_SOLDIER);
-  const char* plural = reports_job_name(UNITS_JOB_SOLDIER);
+  const char* plural = reports_job_display_name(UNITS_JOB_SOLDIER);
   char want[80];
   snprintf(want, sizeof(want), "(%s)", singular ? singular : "");
   if (!singular || !singular[0] || !strstr(cap3, want)) {

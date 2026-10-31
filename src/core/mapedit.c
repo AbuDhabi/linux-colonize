@@ -124,19 +124,6 @@ static const char* me_str(const MapEditor* ed, unsigned ds) {
   return mapedit_exe_str(ed->exe, ed->exe_size, ds);
 }
 
-static bool me_load_ss(MapEditor* ed, const char* file, ColonizeSpriteSheet* out) {
-  char path[640];
-  char err[256];
-  if (!dos_compat_normalize_asset_path(ed->data_dir, file, path, sizeof(path))) {
-    return false;
-  }
-  if (!ss_load(path, out, err, sizeof(err))) {
-    diag_warn("mapedit: %s: %s", file, err);
-    return false;
-  }
-  return true;
-}
-
 static bool me_load_font(MapEditor* ed, const char* file, ColonizeFont* out) {
   char path[640];
   char err[256];
@@ -632,7 +619,7 @@ int mapedit_find_continents(ColonizeWorldMap* map) {
             nid = ((y == 1 || H - y == 2) && pass == 0) ? 0x10 : 0;
             do {
               ++nid;
-            } while (cnt[nid] != 0 && nid < 0x4002 - 1);
+            } while (nid < 0x4002 - 1 && cnt[nid] != 0);
             if (nid > 0x3fff) {
               nid = 0x3fff;
             }
@@ -1531,11 +1518,11 @@ bool mapedit_init(MapEditor* ed, const MapEditOptions* opt) {
   }
   ed->font_intr_ok = me_load_font(ed, "FONTINTR.FF", &ed->font_intr);
   ed->font_tiny_ok = me_load_font(ed, "FONTTINY.FF", &ed->font_tiny);
-  ed->terrain_ok = me_load_ss(ed, "TERRAIN.SS", &ed->terrain);
-  ed->phys0_ok = me_load_ss(ed, "PHYS0.SS", &ed->phys0);
-  ed->icons_ok = me_load_ss(ed, "ICONS.SS", &ed->icons);
-  ed->woodtile_ok = me_load_ss(ed, "WOODTILE.SS", &ed->woodtile);
-  ed->cursor_ok = me_load_ss(ed, "CURSOR.SS", &ed->cursor);
+  ed->terrain_ok = ss_load_asset(ed->data_dir, "TERRAIN.SS", &ed->terrain, "mapedit");
+  ed->phys0_ok = ss_load_asset(ed->data_dir, "PHYS0.SS", &ed->phys0, "mapedit");
+  ed->icons_ok = ss_load_asset(ed->data_dir, "ICONS.SS", &ed->icons, "mapedit");
+  ed->woodtile_ok = ss_load_asset(ed->data_dir, "WOODTILE.SS", &ed->woodtile, "mapedit");
+  ed->cursor_ok = ss_load_asset(ed->data_dir, "CURSOR.SS", &ed->cursor, "mapedit");
   ed->mapedit_txt_ok = me_load_txt(ed, "MAPEDIT.TXT", &ed->mapedit_txt);
   ed->mapmenu_txt_ok = me_load_txt(ed, "MAPMENU.TXT", &ed->mapmenu_txt);
   ed->names_txt_ok = me_load_txt(ed, "NAMES.TXT", &ed->names_txt);

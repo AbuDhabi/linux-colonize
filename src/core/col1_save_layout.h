@@ -73,10 +73,10 @@ typedef struct ColonizeCol1Tut1 {
 typedef struct ColonizeCol1GameOptions {
   /* DS:0x5382 low byte — WoI/REF latches (was unused01). */
   uint16_t woi : 1; /* 0x01 — declare independence */
-  uint16_t ref_present : 1; /* 0x02 — foreign intervention ANNOUNCED
+  uint16_t intervention_announced : 1; /* 0x02 — foreign intervention ANNOUNCED
                                (FUN_43f7_1528 raw 74493, the EXE's only
-                               writer; never cleared). The port label
-                               `ref_present` is historical — port_bugs.md #865. */
+                               writer; never cleared). Was `ref_present`
+                               (sav_json still reads that key) — port_bugs.md #865. */
   uint16_t woi_crosses_event : 1; /* 0x04 — confirmed 2026-08-18 live DOSBox-X
                                       capture: fires on the "foreign
                                       intervention force, pending enough
@@ -243,7 +243,7 @@ typedef struct ColonizeCol1Head {
    * ai_king_latch_get in ai_king.h); nothing but the market tick writes here now.
    *   [0] WoI  [1] REF  [2] boycott  [3] merc  [4] unused  [5] congress
    * Those bytes collide with DOS price words 0–2 until stand-ins migrate to
-   * game_options.woi / ref_present (0x5382).
+   * game_options.woi / intervention_announced (0x5382).
    *
    * Formula traced 2026-08-19 (FUN_38fd_0058, new-game init at DOS
    * 121528-121538): despite the name, this is NOT the displayed price —

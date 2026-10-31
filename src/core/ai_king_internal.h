@@ -2,8 +2,9 @@
 #define COLONIZE_CORE_AI_KING_INTERNAL_H
 
 /*
- * Stage seams for ai_king.c's FUN_43f7_0982 REF invasion wave
- * (ai_king_0982_*). See core/internal.h for the COLONIZE_INTERNAL /
+ * Stage seams for ai_king_ref.c's FUN_43f7_0982 REF invasion wave
+ * (ai_king_0982_*), plus the cross-file seams of the ai_king_* split
+ * (banner below). See core/internal.h for the COLONIZE_INTERNAL /
  * COLONIZE_TESTING pattern this follows.
  */
 
@@ -153,8 +154,8 @@ void ai_king_do_declare(ColonizeTurnContext* ctx, int human);
 void ai_king_multirev_accept(ColonizeTurnContext* ctx, int human, int sol);
 /* FUN_43f7_1528 @INTERVENTION announce (also CHEAT Advance Revolution stage 3). */
 void ai_king_1528_announce(ColonizeTurnContext* ctx, int human);
-int ai_king_do_merc_hire_at(ColonizeTurnContext* ctx, int human, int hx, int hy,
-                                   int regular_count, int artillery_or_cavalry_roll, int price);
+int ai_king_do_merc_hire(ColonizeTurnContext* ctx, int human,
+                         int regular_count, int artillery_or_cavalry_roll, int price);
 int ai_king_do_merc_peace_hire(
   ColonizeTurnContext* ctx, int human, int regular, int artillery, int price
 );
@@ -182,8 +183,8 @@ int ai_king_intervention_nation_slot(
 );
 int ai_king_is_mow(const ColonizeUnitPool* units, const ColonizeUnit* u);
 void ai_king_merc_offer(ColonizeTurnContext* ctx);
-void ai_king_merc_payload_parts(int payload, int* out_hx, int* out_hy, int* out_regular_count,
-                                       int* out_artillery_or_cavalry_roll, int* out_price);
+void ai_king_merc_payload_parts(int payload, int* out_regular_count,
+                                int* out_artillery_or_cavalry_roll, int* out_price);
 void ai_king_merc_peace_payload_parts(
   int payload, int* out_regular, int* out_artillery, int* out_price
 );
@@ -220,7 +221,6 @@ void ai_king_teaparty_party_name(
 );
 int ai_king_teaparty_payload(int applied, int cargo);
 void ai_king_teaparty_payload_parts(int payload, int* out_applied, int* out_cargo);
-int ai_king_weakest_port(ColonizeTurnContext* ctx, int nation_id, int* out_x, int* out_y);
 void ai_king_write_rival_nation_slots(ColonizeCol1Save* col1, int human);
 
 #endif /* COLONIZE_CORE_AI_KING_INTERNAL_H */

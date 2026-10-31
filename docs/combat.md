@@ -180,7 +180,7 @@ decompile through them is trusted.
 | Arty vs natives on settlement | Defender arty, attacker native, settlement tile | `<<=1` |
 | Spanish ambush | Attacker nation 2, defender native, settlement tile (villages) | +50% |
 | WoI crown open-field | WoI, **crown** attacker, land tile (not ocean — `FUN_281f_0768 == 0`) | `+= difficulty * atk / 20` |
-| WoI REF +50% | WoI, Euro attacker, **on colony**, and (attacker is **crown** **or** `ref_present`) | +50% (`0x8d01\|0x80`) |
+| WoI REF +50% | WoI, Euro attacker, **on colony**, and (attacker is **crown** **or** `intervention_announced`) | +50% (`0x8d01\|0x80`) |
 | WoI support % | WoI, Euro attacker, **on colony** | Crown: +`(100−SoL)%` (Tories); else +`SoL%` (Rebels) |
 | Human-colony damper (raw 100536-100543) — **resolve-only** | `difficulty < 2`, no WoI (or no colony on the defended tile, or attacker is a hull 0xd-0x12); defender a **human-controlled** European (`uVar15 < 4 && 0x543f[uVar15] == 0`), **colony** on the attacked tile (`-1 < iVar18`), turn `DS:0x538e < 0x50` | attacker −25% (diff 0) / `>>1` (diff 1) |
 | **Discoverer beginner shield** (raw 100544-100545, ported 2026-09-08) — **resolve-only** | as the row above, plus `difficulty == 0` and the defender is the **auto-spawned** stand-in (`bVar28` — militia/Revere phantom) | attacker `= 0` → the roll `RNG(1, def+0) <= 0` always loses. A human player's undefended town cannot be taken on Discoverer in the first 80 turns |
@@ -201,7 +201,7 @@ nothing. Pinned by `tests/unit/test_combat_strength.c`
 `test_woi_crown_ship_bombards_colony`.
 
 Crown nation = DS:`0x53d2` (OpenCol: peer of human Euro slot, same as
-`ai_king_crown_nation`). WoI / `ref_present` read the real `game_options`
+`ai_king_crown_nation`). WoI / `intervention_announced` read the real `game_options`
 bits (the old `market_demand_pool_raw[0]/[1]` stand-ins were retired 2026-08-28 — that
 array is DOS `market_demand_pool`, see king_ref.md).
 
@@ -249,7 +249,7 @@ Mirror DOS `0x8d00` / `0x8d02` / high / `a156` for Combat Analysis.
 | `COMBAT_FLAG_ARTILLERY` | `flags` / hi | Open-field ÷4 |
 | `COMBAT_FLAG_AMBUSH` | `flags` / hi | Spanish +50% |
 | `COMBAT_FLAG_FORTIFY` | `flags` | Fortify +2 `local_1a` |
-| `COMBAT_FLAG_REF` | `flags` / hi | Colony WoI +50% (crown or `ref_present`) |
+| `COMBAT_FLAG_REF` | `flags` / hi | Colony WoI +50% (crown or `intervention_announced`) |
 | `COMBAT_FLAG_TORIES` | `flags2` | Crown support % = 100−SoL |
 | `COMBAT_FLAG_REBELS` / `SOL` | `flags2` | Rebel support % = SoL |
 | `COMBAT_FLAG_ARTY_COLONY` | `flags2` | Arty×2 vs natives |

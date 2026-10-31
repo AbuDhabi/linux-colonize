@@ -231,7 +231,7 @@ the real order is `param_1` = acting Euro nation, `param_2` = the adjacent
 tile's owner id, `param_3` = 0906's own flag, `param_4` = the unit index on
 that tile (`-1` for Euro owners and for the settlement probe). The tension
 row key is the *tile unit's* `+0x06` home settlement id (`DS:0x314a`,
-`ColonizeUnit.home_tribe_id`), not the Indian nation — same key
+`ColonizeUnit.home_tribe_index`), not the Indian nation — same key
 `ai_contact_colony_raid_repelled_w` and `units_combat.c` write with. The "stride 9" is the
 settlement-record stride, so the cell is `col1->tribe[home].alarm[nation]`
 read as one signed word (`col1_tribe_attitude`).
@@ -273,7 +273,7 @@ the unit stands on a settlement tile (`FUN_281f_06be`). Euro-owned units get
 control byte 0). **Indian-owned units are zeroed by either gate:**
 `FUN_281f_030c` alarm (`ai_diplo_indian_alarm`) `< 0x19`, or
 `DS:0x54f6[unit.+0x314a][colony nation]`
-(`col1_tribe_attitude(&col1->tribe[home_tribe_id], euro)`) `< 0x80` — the row key
+(`col1_tribe_attitude(&col1->tribe[home_tribe_index], euro)`) `< 0x80` — the row key
 is the adjacent unit's own home settlement, the same key the `0906` claim
 above and the raid/combat writers use. The tail is
 `floor = min(threat, 0x10); threat = max(threat / (walls + 1), floor);
@@ -290,7 +290,7 @@ push the quota below 2. Covered by
 the raiding tribe's word toward the raided Euro nation right before it
 returns, for every loot kind (including "Nothing"). Its one entry,
 `ai_contact_colony_raid_repelled_w`, does it via
-`col1_tribe_attitude_set(&col1->tribe[home_tribe_id], target_euro, 0)` after
+`col1_tribe_attitude_set(&col1->tribe[home_tribe_index], target_euro, 0)` after
 `ai_contact_apply_raid_loot`. DOS stores 0 into the **whole word**, so a raid
 wipes the village's `friction` *and* its `attacks` count toward that European.
 

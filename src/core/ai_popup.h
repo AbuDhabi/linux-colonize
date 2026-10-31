@@ -518,7 +518,6 @@ void popup_chrome_ok(
   const char* fallback
 );
 
-bool ai_popup_queue_pending(const AiPopupState* st);
 bool ai_popup_busy(const AiPopupState* st); /* open or queued */
 
 /* If !open && queue non-empty, pop front into current and open. */

@@ -280,13 +280,12 @@ static void post_fill_plane(
         if (cost <= 0 || cost >= 8) {
           continue;
         }
-        plane[cx * 18 + cy] = (uint8_t)(plane[cx * 18 + cy] | (uint8_t)(1u << d));
+        plane[cx * COLONIZE_COL1_CONNECT_PLANE_H + cy] |= (uint8_t)(1u << d);
         const int nx = cx + MAP_DIR8_DX[d];
         const int ny = cy + MAP_DIR8_DY[d];
         if (nx >= 0 && nx < (int)COLONIZE_COL1_CONNECT_PLANE_W && ny >= 0 &&
             ny < (int)COLONIZE_COL1_CONNECT_PLANE_H) {
-          plane[nx * 18 + ny] =
-            (uint8_t)(plane[nx * 18 + ny] | (uint8_t)(1u << ((d + 4) & 7)));
+          plane[nx * COLONIZE_COL1_CONNECT_PLANE_H + ny] |= (uint8_t)(1u << ((d + 4) & 7));
         }
       }
     }

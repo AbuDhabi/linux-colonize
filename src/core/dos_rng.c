@@ -81,6 +81,21 @@ void dos_rng_set_tick_word(int32_t word) {
 static bool s_synth_ticks;
 static uint32_t s_synth_reads;
 
+int64_t dos_rng_wall_ms(void) {
+#ifdef _WIN32
+  /* mingw msvcrt has no timespec_get. */
+  struct _timeb tb;
+  _ftime(&tb);
+  return (int64_t)tb.time * 1000 + tb.millitm;
+#else
+  struct timespec ts;
+  if (timespec_get(&ts, TIME_UTC) != TIME_UTC) {
+    return (int64_t)time(NULL) * 1000;
+  }
+  return (int64_t)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+#endif
+}
+
 static uint32_t dos_rng_tick_now(void) {
   if (s_synth_ticks && s_dos_rng_tick >= 0) {
     /* Port-only (play_driver --live-ticks): a reproducible "moving" tick, the
@@ -96,20 +111,7 @@ static uint32_t dos_rng_tick_now(void) {
   if (s_dos_rng_tick >= 0) {
     return (uint32_t)s_dos_rng_tick;
   }
-  int64_t ms;
-#ifdef _WIN32
-  /* mingw msvcrt has no timespec_get. */
-  struct _timeb tb;
-  _ftime(&tb);
-  ms = (int64_t)tb.time * 1000 + tb.millitm;
-#else
-  struct timespec ts;
-  if (timespec_get(&ts, TIME_UTC) != TIME_UTC) {
-    return (uint32_t)time(NULL);
-  }
-  ms = (int64_t)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
-#endif
-  return (uint32_t)(ms * 182 / 10000);
+  return (uint32_t)(dos_rng_wall_ms() * 182 / 10000);
 }
 
 void dos_rng_set_synth_ticks(bool on) {

@@ -11,7 +11,7 @@
 
 bool render_load_sheet(const char* data_dir, const char* name, ColonizeSpriteSheet* out) {
   memset(out, 0, sizeof(*out));
-  return cinematic_load_sheet(data_dir, name, out, "render");
+  return ss_load_asset(data_dir, name, out, "render");
 }
 
 bool render_load_font(const char* data_dir, const char* name, ColonizeFont* out) {

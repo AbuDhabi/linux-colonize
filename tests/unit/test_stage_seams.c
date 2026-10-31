@@ -1225,7 +1225,7 @@ static int test_ai_brave_field_attack(void) {
     b->x = 5;
     b->y = 5;
     b->aboard_ship_id = -1;
-    b->home_tribe_id = 0;
+    b->home_tribe_index = 0;
     b->moves = 0; /* Braves store thirds SPENT (conventions.md) */
     b->last_dir = 8;
     for (int d = 0; d < 8; ++d) {
@@ -1237,7 +1237,7 @@ static int test_ai_brave_field_attack(void) {
       f->x = 5 + MAP_DIR8_DX[d];
       f->y = 5 + MAP_DIR8_DY[d];
       f->aboard_ship_id = -1;
-      f->home_tribe_id = -1;
+      f->home_tribe_index = -1;
       f->moves = 1;
     }
     units.next_id = 10;

@@ -83,11 +83,8 @@ typedef struct Ai021aResult {
   int flags; /* DOS [bp-0x82] of the winning dir */
 } Ai021aResult;
 
-extern int ai_s_seed100_init_pulse;
 extern uint32_t ai_s_init_pulse_seed;
 extern int ai_s_seed100_midturn_turn;
-extern int ai_s_lcg_in_pick;
-extern int ai_s_lcg_pick_burns;
 extern uint32_t ai_s_lcg_total_nexts;
 extern const ColonizeColonyPool* ai_s_native_colonies;
 extern const int k_ai_dir8_dx[9];
@@ -160,8 +157,6 @@ int ai_diplo_military_score(const ColonizeTurnContext* ctx, int nation_id);
 /* True if any of 8 Indian slots is at war (ai_diplo_indian_at_war: WAR bit
  * or relation < 26). */
 int ai_diplo_indian_any_at_war(const ColonizeCol1Save* col1, int euro_nation);
-/* Force the Indian-hostility session cache (sync re-derives it). */
-void ai_diplo_indian_hostility_set(int euro_nation, uint8_t value);
 #endif
 
 void ai_native_nation_pulse(

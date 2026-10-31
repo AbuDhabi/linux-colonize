@@ -315,18 +315,19 @@ bool settings_load_file(const char* path, ColonizeSettings* out, char* err, size
   if (!probe) {
     return true;
   }
+  /* Refuse a huge file before reading it (settings.json is a few hundred bytes). */
+  const bool too_big = fseek(probe, 0, SEEK_END) != 0 || ftell(probe) > (long)(1u << 20);
   fclose(probe);
+  if (too_big) {
+    set_err(err, err_size, "settings: %s is not a settings file", path);
+    return false;
+  }
 
   uint8_t* raw = NULL;
   size_t raw_size = 0;
   char slurp_err[200] = {0};
   if (!file_slurp(path, &raw, &raw_size, slurp_err, sizeof(slurp_err))) {
     set_err(err, err_size, "settings: %s", slurp_err[0] ? slurp_err : "cannot read file");
-    return false;
-  }
-  if (raw_size > (1u << 20)) {
-    free(raw);
-    set_err(err, err_size, "settings: %s is not a settings file", path);
     return false;
   }
   char* text = (char*)malloc(raw_size + 1);
@@ -464,8 +465,8 @@ bool settings_init(const char* path, char* err, size_t err_size) {
    * preference file is in play"; on the corrupt-file path no preferences were
    * recovered (we fall back to defaults and leave the bad file alone), so the
    * DOS-faithful no-preferences behaviour is what callers want there —
-   * settings_apply_to_head is skipped for a new game (game_loop.c:7639) and
-   * game_try_start_intro (game_loop.c:12091) stays out.
+   * settings_apply_to_head is skipped for a new game (game_commit_new_campaign,
+   * game_loop_render.c) and game_try_start_intro (game_loop_update.c) stays out.
    */
   g_settings_loaded = false;
   if (path && path[0]) {

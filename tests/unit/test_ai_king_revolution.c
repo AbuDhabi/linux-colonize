@@ -8,7 +8,7 @@ static int case_revolution_lose2_no_colonies(void) {
     ai_king_latch_set(&end, 0, 1);
     end.head.game_options.woi = 1;
     ai_king_latch_set(&end, 1, 1); /* REF already invading */
-    end.head.game_options.ref_present = 1;
+    end.head.game_options.intervention_announced = 1;
     ai_king_latch_set(&end, 4, 0);
     end.head.year = 1785;
     end.player[0].control = 0;
@@ -102,7 +102,7 @@ static int case_revolution_lose1_no_ports(void) {
     ai_king_latch_set(&end, 0, 1);
     end.head.game_options.woi = 1;
     ai_king_latch_set(&end, 1, 1); /* REF already invading */
-    end.head.game_options.ref_present = 1;
+    end.head.game_options.intervention_announced = 1;
     ai_king_latch_set(&end, 4, 0);
     end.head.year = 1785;
     end.player[0].control = 0;
@@ -205,7 +205,7 @@ static int case_revolution_warn_one_colony(void) {
     ai_king_latch_set(&end, 0, 1);
     end.head.game_options.woi = 1;
     ai_king_latch_set(&end, 1, 1);
-    end.head.game_options.ref_present = 1;
+    end.head.game_options.intervention_announced = 1;
     ai_king_latch_set(&end, 4, 0);
     ai_king_latch_set(&end, 6, 0);
     ai_king_latch_set(&end, 7, 0);
@@ -435,7 +435,7 @@ static int case_revolution_warn3_pop_share(void) {
     ai_king_latch_set(&end, 0, 1);
     end.head.game_options.woi = 1;
     ai_king_latch_set(&end, 1, 1);
-    end.head.game_options.ref_present = 1;
+    end.head.game_options.intervention_announced = 1;
     ai_king_latch_set(&end, 4, 0);
     ai_king_latch_set(&end, 10, 0);
     end.head.year = 1600;
@@ -638,7 +638,7 @@ static int case_revolution_lose3_pop_share(void) {
     ai_king_latch_set(&end, 0, 1);
     end.head.game_options.woi = 1;
     ai_king_latch_set(&end, 1, 1);
-    end.head.game_options.ref_present = 1;
+    end.head.game_options.intervention_announced = 1;
     ai_king_latch_set(&end, 4, 0);
     end.head.year = 1785;
     end.player[0].control = 0;
@@ -764,7 +764,7 @@ static int case_revolution_win_1850(void) {
     ai_king_latch_set(&end, 0, 1);
     end.head.game_options.woi = 1;
     ai_king_latch_set(&end, 1, 1);
-    end.head.game_options.ref_present = 1;
+    end.head.game_options.intervention_announced = 1;
     ai_king_latch_set(&end, 4, 0);
     end.head.year = 1850;
     end.player[0].control = 0;
@@ -899,7 +899,7 @@ static int case_revolution_retiring2_1850_stalemate(void) {
     ai_king_latch_set(&end, 0, 1);
     end.head.game_options.woi = 1;
     ai_king_latch_set(&end, 1, 1);
-    end.head.game_options.ref_present = 1;
+    end.head.game_options.intervention_announced = 1;
     ai_king_latch_set(&end, 4, 0);
     end.head.year = 1850;
     end.player[0].control = 0;
@@ -1049,7 +1049,7 @@ static int case_peacetime_retiring_1800(void) {
     ai_king_latch_set(&end, 0, 0);
     end.head.game_options.woi = 0;
     ai_king_latch_set(&end, 1, 0);
-    end.head.game_options.ref_present = 0;
+    end.head.game_options.intervention_announced = 0;
     ai_king_latch_set(&end, 4, 0);
     end.head.year = 1800;
     end.player[0].control = 0;
@@ -1249,7 +1249,7 @@ static int case_wartime_soonretiring1_1840(void) {
     ai_king_latch_set(&end, 0, 1);
     end.head.game_options.woi = 1;
     ai_king_latch_set(&end, 1, 1);
-    end.head.game_options.ref_present = 1;
+    end.head.game_options.intervention_announced = 1;
     ai_king_latch_set(&end, 4, 0);
     ai_king_latch_set(&end, 9, 0);
     end.head.year = 1840;

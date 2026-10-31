@@ -35,7 +35,7 @@ static int case_enqueue_and_present_info(void) {
   if (!ai_popup_enqueue_ok(&st, AI_POPUP_TAG_INFO, "Title", "Hello body")) {
     return fail("enqueue_ok failed");
   }
-  if (!ai_popup_queue_pending(&st) || st.queue_count != 1) {
+  if (st.queue_count != 1) {
     return fail("queue should have 1");
   }
   if (!ai_popup_try_present_next(&st) || !st.open) {

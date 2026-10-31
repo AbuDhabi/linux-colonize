@@ -130,7 +130,7 @@ int ai_euro_s_5952_stale_valid = 0;
  * "ColonizeUnit.type_index"): the pre-#511 name-keyed equivalent of the bit
  * test below. Never reached in a real game, where every type resolves.
  */
-static int ai_euro_0a60_can_pursue_goal_by_name(
+static int ai_euro_0a60_can_pursue_goal_by_kind(
   ColonizeUnitKind kind, int goal_code, int is_ship, int has_bit2, int has_bit3
 ) {
   switch (goal_code) {
@@ -143,17 +143,17 @@ static int ai_euro_0a60_can_pursue_goal_by_name(
       if (is_ship) {
         return has_bit3;
       }
-      return has_bit3 && (ai_euro_is_military_name(kind) || ai_euro_is_artillery_name(kind));
+      return has_bit3 && (ai_euro_is_military_kind(kind) || ai_euro_is_artillery_kind(kind));
     case AI_GOAL_MILITARY:
       if (is_ship) {
         return has_bit3;
       }
-      return ai_euro_is_military_name(kind) || ai_euro_is_artillery_name(kind);
+      return ai_euro_is_military_kind(kind) || ai_euro_is_artillery_kind(kind);
     case AI_GOAL_ESCORT:
       if (is_ship) {
         return 0;
       }
-      return ai_euro_is_military_name(kind) || kind == UNITS_KIND_SCOUT;
+      return ai_euro_is_military_kind(kind) || kind == UNITS_KIND_SCOUT;
     default:
       return 1;
   }
@@ -167,7 +167,7 @@ static int ai_euro_0a60_unit_can_pursue_goal(
     return 0;
   }
   if (dos_type < 0) {
-    return ai_euro_0a60_can_pursue_goal_by_name(kind, goal_code, is_ship, has_bit2, has_bit3);
+    return ai_euro_0a60_can_pursue_goal_by_kind(kind, goal_code, is_ship, has_bit2, has_bit3);
   }
   if (((1u << (unsigned)(goal_code & 0x1f)) & (unsigned)ai_euro_20e6_type_flags(dos_type)) == 0) {
     return 0;
@@ -344,17 +344,6 @@ static void ai_euro_0a60_stack_counts(
  * Scanned over the ship's capacity, never the array bound, so the 255
  * empty-hold sentinel (col1_bridge.c:2485) is not an occupant.
  */
-int ai_euro_0a60_goods_holds_used(const ColonizeUnitPool* units, const ColonizeUnit* u) {
-  const int cap = units_ship_capacity(units, u->id);
-  int goods = 0;
-  for (int i = 0; i < cap && i < COLONIZE_UNIT_CARGO_MAX; ++i) {
-    if (units_hold_amount(units, u->id, i) > 0) {
-      goods++;
-    }
-  }
-  return goods;
-}
-
 /*
  * DOS-LITERAL raw 87511-87514: `0x5237[type] == unit+0x3150` — every GOODS
  * hold in use. A transport carrying only passengers is never "full", never
@@ -366,7 +355,7 @@ int ai_euro_0a60_goods_holds_used(const ColonizeUnitPool* units, const ColonizeU
  */
 static int ai_euro_0a60_ship_full(const ColonizeUnitPool* units, const ColonizeUnit* u) {
   const int cap = units_ship_capacity(units, u->id);
-  return cap > 0 && ai_euro_0a60_goods_holds_used(units, u) >= cap;
+  return cap > 0 && units_holds_used(units, u->id) >= cap;
 }
 
 static void ai_euro_0a60_unit_housekeeping(ColonizeTurnContext* ctx, int nation_id) {
@@ -608,7 +597,7 @@ void ai_euro_0a60_goal_orders_structural(ColonizeTurnContext* ctx, int nation_id
     }
 
     const ColonizeUnitKind ukind = ai_euro_unit_kind(ctx->units, u);
-    const int unit_is_ship = ai_euro_is_ship_type(ctx->units, u->id);
+    const int unit_is_ship = units_is_sea(ctx->units, u->id);
     const int unit_continent = map_continent_id_at(ctx->map, u->x, u->y);
 
     /* unit+0x3148 bits 2/3, written by ai_euro_0a60_unit_housekeeping from
@@ -1263,7 +1252,7 @@ static int ai_euro_nation_is_human(const ColonizeTurnContext* ctx, int nation) {
  * DS:0x54f6 read site (this closes the 5952_035e half of the "two parked
  * tension readers" punch-list row, docs/indians.md): the row key is the
  * ADJACENT unit's own home settlement id — DOS unit +0x06 / DS:0x314a =
- * `ColonizeUnit.home_tribe_id` — not the tribe owning the nearest village.
+ * `ColonizeUnit.home_tribe_index` — not the tribe owning the nearest village.
  * The apparent "stride 9 words" is the settlement record stride 0x12, so
  * the cell is that record's attitude[nation] word = tribe.alarm[nation]
  * (col1_tribe_attitude, signed; raw 94967 `w < 0x80`). Repointed off the
@@ -2101,9 +2090,9 @@ static void ai_euro_colony_threat_seed_5952(
           }
           {
             int tension = 0;
-            if (col1 && col1->tribe && u->home_tribe_id >= 0 &&
-                u->home_tribe_id < (int)col1->head.tribe_count) {
-              tension = col1_tribe_attitude(&col1->tribe[u->home_tribe_id], nation_id);
+            if (col1 && col1->tribe && u->home_tribe_index >= 0 &&
+                u->home_tribe_index < (int)col1->head.tribe_count) {
+              tension = col1_tribe_attitude(&col1->tribe[u->home_tribe_index], nation_id);
             }
             if (tension < 0x80) {
               v = 0;

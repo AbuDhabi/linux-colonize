@@ -27,18 +27,18 @@
 
 /*
  * Sections:
- *  - Cargo nibble, terrain/tile-mask & Europe coord helpers (~line 37)
- *  - Trade-route cursor & Europe dock/job helpers (~line 169)
- *  - Colony building & building-chain bit encode/decode (~line 294)
- *  - Unit-type/ship-root mapping & runtime template init (~line 491)
- *  - Map occupancy/density sync & unit MP helpers (~line 672)
- *  - COL1 -> runtime apply (save import): 11 stages + dispatcher (~line 910)
- *  - Unit list sanitize for DOS export (~line 2276)
- *  - Runtime -> COL1 capture (save export): 12 stages + dispatcher (~line 2429)
- *  - New-world discovery & adjacent-tribe contact (~line 3853)
+ *  - Cargo nibble & terrain/tile-mask helpers
+ *  - Trade-route cursor & Europe dock/job helpers
+ *  - Colony building & building-chain bit encode/decode
+ *  - Unit-type/ship-root mapping & runtime template init
+ *  - Map occupancy/density sync & unit MP helpers
+ *  - COL1 -> runtime apply (save import)
+ *  - Unit list sanitize for DOS export
+ *  - Runtime -> COL1 capture (save export)
+ *  - New-world discovery & adjacent-tribe contact
  */
 
-/* ===================== Cargo nibble, terrain/tile-mask & Europe coord helpers (col1_unit_set_cargo_item .. col1_coord_is_europe) ===================== */
+/* ===================== Cargo nibble & terrain/tile-mask helpers (col1_unit_set_cargo_item .. col1_mp_terrain_to_tile) ===================== */
 
 /* Nibble slot gi (0..5) of a COL1 unit's cargo_item_0..5. */
 static void col1_unit_set_cargo_item(ColonizeCol1Unit* dst, int gi, int t) {
@@ -138,10 +138,6 @@ uint8_t col1_mp_terrain_to_tile(uint8_t mp_terrain_byte) {
     out |= 0x80u;
   }
   return out;
-}
-
-static bool col1_coord_is_europe(uint8_t x, uint8_t y) {
-  return x >= 200 || y >= 200;
 }
 
 /*
@@ -755,7 +751,7 @@ static void col1_bridge_sync_map_occupancy(
         continue;
       }
       /* Europe dock sentinels (x/y >= 200) are off the playable map grid. */
-      if (u->x >= 200 || u->y >= 200) {
+      if (units_coords_in_europe_park(u->x, u->y)) {
         continue;
       }
       col1_occupancy_or_xy(save, map, width, height, u->x, u->y, MAP_OCCUPANCY_HAS_UNIT);
@@ -947,12 +943,6 @@ COLONIZE_INTERNAL Col1StageStatus col1_bridge_apply_head(Col1ApplyCtx* ctx) {
                            (size_t)save->head.map_size_x * (size_t)save->head.map_size_y) {
     COL1_STAGE_FAIL(err, err_size, "save map layers incomplete");
   }
-  /* The port's Indian-hostility sticky cache is session state, not saved:
-   * re-derive it from the loaded alarm matrix. */
-  for (int e = 0; e < 4; ++e) {
-    ai_diplo_indian_hostility_sync((ColonizeCol1Save*)save, e);
-  }
-
   memset(local, 0, sizeof(*local));
   local->year = save->head.year;
   local->autumn = save->head.autumn;
@@ -1642,7 +1632,7 @@ COLONIZE_INTERNAL Col1StageStatus col1_bridge_apply_units(Col1ApplyCtx* ctx) {
     if (consumed && consumed[i]) {
       continue;
     }
-    if (col1_coord_is_europe(src->x, src->y)) {
+    if (units_coords_in_europe_park(src->x, src->y)) {
       local->skipped_europe_units++;
       /* Human ships stay in Europe harbor UI; AI fleets stay as live Europe units. */
       if (europe && (src->nation_id == (uint8_t)col1_bridge_mirror_nation(save, local->human_nation)) &&
@@ -1735,6 +1725,7 @@ COLONIZE_INTERNAL Col1StageStatus col1_bridge_apply_units(Col1ApplyCtx* ctx) {
         EuropeDockImmigrant* row = docked ? &europe->dock[europe->dock_count - 1] : NULL;
         if (row) {
           row->dos_type = dos_type;
+          row->artillery = artillery;
           /* +0x314c is the row's board flag: 1 boards the next ship, 0 is
            * "Don't get on next ship" (38fd:3ade / 3aea; FUN_1427_10be raw
            * 8658-8664 boards a dock unit only on 1). port_bugs.md #1158. */
@@ -1887,9 +1878,9 @@ COLONIZE_INTERNAL Col1StageStatus col1_bridge_apply_units(Col1ApplyCtx* ctx) {
       /* DOS unit+0x06 / origin: home tribe index for Braves only; 0xff = none.
        * Euros always -1 (starter bugs exported origin=0 which is tribe[0]). */
       if ((src->nation_id & 0xF) < 4 || src->origin == 0xff) {
-        u->home_tribe_id = -1;
+        u->home_tribe_index = -1;
       } else {
-        u->home_tribe_id = (int)src->origin;
+        u->home_tribe_index = (int)src->origin;
       }
       /* Repack the 8 named single-bit fields (was one unknown15_lo:7 blob;
        * see col1_save.h) back into the raw byte col1_flags15 expects. */
@@ -3193,7 +3184,7 @@ COLONIZE_INTERNAL void col1_bridge_capture_unit_records(Col1CaptureCtx* ctx) {
            ? nat == ai_king_crown_nation_col1(save, (int)save->head.human_player)
            : save->player[nat].control == 2);
       uint8_t vis = (uint8_t)(src->col1_vis_mask & 0x0Fu);
-      if (src->x >= 200 || src->y >= 200) {
+      if (units_coords_in_europe_park(src->x, src->y)) {
         /* Live: 007a's 0968 clears a hull sailing for Europe, units made
          * there start at 0, a damaged or repaired hull keeps its map mask. */
       } else if (nat >= 0 && nat < 4 && !crown) {
@@ -3346,8 +3337,8 @@ COLONIZE_INTERNAL void col1_bridge_capture_unit_records(Col1CaptureCtx* ctx) {
       }
     } else {
       dst->origin =
-        (uint8_t)(src->home_tribe_id < 0 || src->home_tribe_id > 255 ? 0xff
-                                                                    : (src->home_tribe_id & 0xff));
+        (uint8_t)(src->home_tribe_index < 0 || src->home_tribe_index > 255 ? 0xff
+                                                                    : (src->home_tribe_index & 0xff));
     }
     dst->ai_plan =
       src->col1_ai_plan != 0 ? src->col1_ai_plan : COL1_UNIT_UNKNOWN16_HI_DEFAULT;
@@ -3735,10 +3726,7 @@ COLONIZE_INTERNAL void col1_bridge_capture_europe_lanes(Col1CaptureCtx* ctx) {
     for (int li = 0; li < 3; ++li) {
       for (int si = 0; si < lanes[li].count; ++si) {
         const EuropeHarborShip* ship = &lanes[li].list[si];
-        int ship_ti = ship->type_index;
-        if (ship_ti < 0) {
-          ship_ti = units_find_type(units, ship->name);
-        }
+        const int ship_ti = europe_ship_type_index(units, ship);
         if (ship_ti < 0 || written + 1 + ship->cargo_count > capacity) {
           continue;
         }
@@ -3956,7 +3944,8 @@ COLONIZE_INTERNAL void col1_bridge_capture_occupancy(Col1CaptureCtx* ctx) {
   /* Blank-template census only — never freshen mid-campaign lag. */
   if (col1_stuff_census_window_is_blank(&save->stuff)) {
     const ColonizeWorld cw = world_make(
-      (ColonizeUnitPool*)units, (ColonizeColonyPool*)colonies, NULL, save, save != NULL, NULL, NULL
+      (ColonizeUnitPool*)units, (ColonizeColonyPool*)colonies, (ColonizeWorldMap*)map, save,
+      save != NULL, NULL, NULL
     );
     col1_stuff_census_fill_blank_w(&cw, &save->stuff);
   }

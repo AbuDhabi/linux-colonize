@@ -30,8 +30,8 @@ typedef enum NameEntryKind {
   NAME_ENTRY_KIND_FOUND = 1,  /* @COLONY */
   NAME_ENTRY_KIND_RENAME = 2, /* @RENAMECOLONY */
   NAME_ENTRY_KIND_LANDHO = 3, /* @LANDHO — name the New World */
-  NAME_ENTRY_KIND_TRADE_NAME = 4,  /* @TRADENAME — create wizard (colony_id = route slot) */
-  NAME_ENTRY_KIND_TRADE_RENAME = 5, /* @TRADENAME — editor title click (colony_id = route slot) */
+  NAME_ENTRY_KIND_TRADE_NAME = 4,  /* @TRADENAME — create wizard (target = route slot) */
+  NAME_ENTRY_KIND_TRADE_RENAME = 5, /* @TRADENAME — editor title click (target = route slot) */
   NAME_ENTRY_KIND_FIND_COLONY = 6,  /* @FINDCITY — VIEW "Find Colony" search text */
   NAME_ENTRY_KIND_MAP_NEW = 7,      /* map editor MAPEDIT.TXT @NEWNAME, max 20 */
   NAME_ENTRY_KIND_MAP_SAVEAS = 8    /* map editor MAPEDIT.TXT @SAVEAS, max 14 */
@@ -51,7 +51,7 @@ typedef struct NameEntryDialog {
   bool has_result;
   bool result_cancelled;
   NameEntryKind result_kind;
-  int result_colony_id;
+  int result_target; /* name_entry_open payload: colony id (RENAME), trade_route[] slot (TRADE_*), else -1 */
   char result_name[NAME_ENTRY_NAME_LEN];
 
   int dialog_x;
@@ -72,7 +72,7 @@ bool name_entry_open(
   NameEntryKind kind,
   const char* prompt,
   const char* initial_name,
-  int colony_id
+  int target
 );
 
 /* Field caption of the dialog just opened (name_entry_open clears it). */

@@ -112,13 +112,12 @@ typedef struct TurnProduceCtx {
   ColonizeColonyProdDelta local_delta; /* delta when the caller passes NULL */
   /* begin */
   uint16_t mask_before_a;
-  char status_at_entry[sizeof(((EuropeScreen*)0)->status)];
+  bool status_written; /* #397: this colony wrote europe->status this tick */
   int stock_before[COLONIZE_CARGO_COUNT]; /* aiStack_ae / local_6c */
   int pop;
   /* compose (Phase A) */
   int depl_n;
   int field_food;
-  int sol_b_phase_a;
   bool colony_ai_controlled;
   int craft_unmet_cap[COLONIZE_CARGO_COUNT];
   int craft_unmet_gross[COLONIZE_CARGO_COUNT];

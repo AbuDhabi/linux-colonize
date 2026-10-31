@@ -228,10 +228,8 @@ static void trade_draw_cargo_strip(
     const int sprite = TRADE_CARGO_ICON_BASE + ct;
     if (icons && sprite >= 0 && sprite < icons->sprite_count) {
       ss_blit_sprite(icons, sprite, fb, x, y);
-      x += icons->sprites[sprite].width + TRADE_ICON_GAP;
-    } else {
-      x += 10 + TRADE_ICON_GAP;
     }
+    x += trade_icon_width(icons, ct) + TRADE_ICON_GAP;
   }
 }
 

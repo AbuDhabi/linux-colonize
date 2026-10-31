@@ -45,6 +45,9 @@ typedef struct ColonizeSpriteSheet {
 } ColonizeSpriteSheet;
 
 bool ss_load(const char* path, ColonizeSpriteSheet* out_sheet, char* err, size_t err_size);
+/* Resolve `name` under data_dir (DOS case rules) and ss_load it; `tag` prefixes
+ * the not-found / failed-to-load diagnostics. The one asset-dir .SS loader. */
+bool ss_load_asset(const char* data_dir, const char* name, ColonizeSpriteSheet* out, const char* tag);
 void ss_free(ColonizeSpriteSheet* sheet);
 void ss_blit_sprite(
   const ColonizeSpriteSheet* sheet,

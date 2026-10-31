@@ -24,7 +24,6 @@
 #include "core/ui_colors.h"
 #include "core/turn.h"
 #include "core/ui_button.h"
-#include "core/unit_chrome.h"
 #include "platform/diagnostics.h"
 #include "platform/platform.h"
 
@@ -1006,7 +1005,7 @@ ColonyFocusKeyResult colony_screen_focus_key(
   const int ships = view->docked_transport_count;
   ColonyMultiUnitSlot slots[COLONY_MULTI_UNITS_SLOT_MAX];
   const int pane_units =
-    units ? colony_screen_multi_units_layout(view, units, 0, 0, 1, 1, slots, COLONY_MULTI_UNITS_SLOT_MAX)
+    units ? colony_screen_multi_units_layout(view, units, slots, COLONY_MULTI_UNITS_SLOT_MAX)
           : 0;
   if (key == COLONIZE_KEY_TAB) {
     /* focus = wrap(focus + 1, 5); 2 is skipped with no ship in port (DS:0x33c), 3 unless the

@@ -14,7 +14,6 @@
 #include "core/ai_euro.h"
 #include "core/col1_save.h"
 #include "core/dos_rng.h"
-#include "core/font.h"
 #include "core/founding_fathers.h"
 #include "core/ai_diplo.h"
 #include "core/popup_msg.h"
@@ -25,7 +24,6 @@
 #include "core/europe.h"
 #include "core/ss.h"
 #include "core/strutil.h"
-#include "core/unit_chrome.h"
 #include "core/units_cargo.h"
 #include "platform/diagnostics.h"
 

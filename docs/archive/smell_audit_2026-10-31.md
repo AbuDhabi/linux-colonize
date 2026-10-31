@@ -1,4 +1,4 @@
-STATUS: OPEN (2026-10-31). Read-only smell audit of src/ (8 slices, Opus agents) plus a cppcheck pass. High/Medium items and the recurring patterns were filed and fixed as port_bugs.md #1333-#1350 (remainder #1351); the Low list below is still open. None of the findings below had an OPEN row in docs/port_bugs.md when the audit ran. File a finding as a port_bugs.md row before you work on it. Severity is the reviewing agent's call. Only the [V] rows were spot-checked by hand.
+STATUS: CLOSED (2026-10-31). Read-only smell audit of src/ (8 slices) plus a cppcheck pass. Every item was filed and fixed or refuted as port_bugs.md #1333-#1359 (resolutions in archive/bugs_fixed_pending.md). Not a spec; line numbers are pre-fix.
 
 Format: `path:line` — category — problem — fix.
 

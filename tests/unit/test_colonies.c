@@ -3218,8 +3218,7 @@ static int unit_work_plot_ring_593(void) {
       continue;
     }
     food += colony_yield_for_worker(
-      &map, wt.x, wt.y, wt.colonist->field_job, wt.colonist->profession, true, 0,
-      c->colony_flags, false
+      &map, wt.x, wt.y, wt.colonist->field_job, wt.colonist->profession, true, 0, false
     );
   }
   CHECK(food > 0, "#593: the outer-ring Fisherman produces food");
@@ -3543,7 +3542,7 @@ static int unit_colony_cheat_helpers(void) {
   c->population = 2;
 
   /* T: a unit-less Free Colonist on field job 0, no plot, headcount + 1. */
-  CHECK(colonies_cheat_add_colonist(&pool, c, 7), "cheat T adds a colonist");
+  CHECK(colonies_cheat_add_colonist(c, 7), "cheat T adds a colonist");
   CHECK(c->colonist_count == 3 && c->population == 3, "cheat T headcount 3");
   CHECK(c->colonists[2].active && c->colonists[2].unit_type_index == 7 &&
           c->colonists[2].profession == UNITS_JOB_NONE &&
@@ -3551,9 +3550,9 @@ static int unit_colony_cheat_helpers(void) {
           c->colonists[2].turns_in_job == 0,
         "cheat T colonist: Free Colonist profession, food job, unseated");
   while (c->colonist_count < COLONIZE_COLONY_POP_MAX) {
-    (void)colonies_cheat_add_colonist(&pool, c, 0);
+    (void)colonies_cheat_add_colonist(c, 0);
   }
-  CHECK(!colonies_cheat_add_colonist(&pool, c, 0) &&
+  CHECK(!colonies_cheat_add_colonist(c, 0) &&
           c->colonist_count == COLONIZE_COLONY_POP_MAX,
         "cheat T refuses past the pop cap");
 

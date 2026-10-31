@@ -179,6 +179,46 @@ static bool game_friendly_colony_at(const ColonizeGameState* game, int x, int y)
  * port folds both DOS gates into one reason), @SHIPLAKE (LAKE_BLOCKED) and
  * @LANDFIRST (LANDFIRST). Anything else keeps the plain status line.
  */
+/* Port-only status line for a probe reason (never NULL); UI-owned text. */
+static const char* game_enter_reason_status(ColonizeEnterReason reason) {
+  switch (reason) {
+  case COLONIZE_ENTER_OK:
+  case COLONIZE_ENTER_DOCK:
+    return "Moved";
+  case COLONIZE_ENTER_LANDFALL:
+    return "Landfall";
+  case COLONIZE_ENTER_COMBAT_LAND:
+  case COLONIZE_ENTER_COMBAT_NAVAL:
+    return "Battle started";
+  case COLONIZE_ENTER_BOUNCE_FOREIGN:
+    return "Cannot attack (non-combat unit)";
+  case COLONIZE_ENTER_BOUNCE_PEACE:
+    return "At peace — cannot attack";
+  case COLONIZE_ENTER_BLOCKED_DOMAIN:
+    return "Wrong terrain";
+  case COLONIZE_ENTER_BLOCKED_EDGE:
+  case COLONIZE_ENTER_EDGE_SAIL: /* port_bugs.md #717 */
+    return "Map edge";
+  case COLONIZE_ENTER_BLOCKED_HS_SAIL:
+    return "Need sail order for high seas";
+  case COLONIZE_ENTER_VILLAGE_ILLEGAL:
+    return "Cannot enter village";
+  case COLONIZE_ENTER_BOARD:
+    return "Boarded ship";
+  case COLONIZE_ENTER_VILLAGE_SHIP:
+    return "Native settlement entered";
+  case COLONIZE_ENTER_LAKE_BLOCKED:
+    return "Ship cannot enter lake";
+  case COLONIZE_ENTER_LANDFIRST:
+    return "Must unload troops first";
+  case COLONIZE_ENTER_NO_MP:
+    return "No moves left";
+  case COLONIZE_ENTER_BLOCKED:
+  default:
+    return "Move blocked";
+  }
+}
+
 static void game_report_enter_reason(
   ColonizeGameState* game, int sid, ColonizeEnterReason reason
 ) {
@@ -207,7 +247,7 @@ static void game_report_enter_reason(
     popup_msg_fill(&game->messages, section, NULL, fallback, body, sizeof(body));
     ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
   }
-  set_status(game, units_enter_reason_status(reason), NULL);
+  set_status(game, game_enter_reason_status(reason), NULL);
 }
 
 /*
@@ -239,7 +279,7 @@ bool game_commit_sea_lane_step(ColonizeGameState* game, int sid, int dest_x, int
   if (ok) {
     snprintf(game->status, sizeof(game->status), "Moved unit to (%d,%d)", dest_x, dest_y);
   } else {
-    set_status(game, units_enter_reason_status(units_last_enter_reason()), NULL);
+    set_status(game, game_enter_reason_status(units_last_enter_reason()), NULL);
   }
   return ok;
 }
@@ -371,7 +411,7 @@ COLONIZE_INTERNAL GameMoveStep game_move_sea_unit(
       const int n = selected->cargo_count;
       const ColonizeWorld w = game_world(game);
       if (!units_try_move_w(&w, sid, dest_x, dest_y)) {
-        set_status(game, units_enter_reason_status(units_last_enter_reason()), NULL);
+        set_status(game, game_enter_reason_status(units_last_enter_reason()), NULL);
         return GAME_MOVE_RETURN_FALSE;
       }
       game->units.selected_id = sid;
@@ -395,7 +435,7 @@ COLONIZE_INTERNAL GameMoveStep game_move_sea_unit(
             return GAME_MOVE_RETURN_TRUE;
           }
         }
-        set_status(game, units_enter_reason_status(landfall), NULL);
+        set_status(game, game_enter_reason_status(landfall), NULL);
         return GAME_MOVE_RETURN_FALSE;
       }
       /* FUN_4720_015c raw 76005-76006: a settlement owner 0..3 skips the

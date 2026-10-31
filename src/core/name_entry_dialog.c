@@ -6,6 +6,7 @@
 #include "core/map_menu.h"
 #include "core/popup.h"
 #include "core/strutil.h"
+#include "core/ui_button.h"
 
 void name_entry_init(NameEntryDialog* dlg) {
   if (!dlg) {
@@ -33,15 +34,8 @@ static void name_entry_finish(NameEntryDialog* dlg, bool cancelled) {
   dlg->result_cancelled = cancelled;
   dlg->result_kind = dlg->kind;
   if (!cancelled) {
+    /* Empty LANDHO name: caller fills the NAMES.TXT @COLONYNAME nation default. */
     str_copy_trunc(dlg->result_name, sizeof(dlg->result_name), dlg->name);
-    if (dlg->result_name[0] == '\0') {
-      if (dlg->kind == NAME_ENTRY_KIND_LANDHO) {
-        /* Caller fills NAMES.TXT @COLONYNAME nation default. */
-        dlg->result_name[0] = '\0';
-      } else {
-        str_copy_trunc(dlg->result_name, sizeof(dlg->result_name), "");
-      }
-    }
   } else {
     /* Cancel: keep typed/seed text for LANDHO so discovery still names the land. */
     if (dlg->kind == NAME_ENTRY_KIND_LANDHO) {
@@ -58,7 +52,7 @@ bool name_entry_open(
   NameEntryKind kind,
   const char* prompt,
   const char* initial_name,
-  int colony_id
+  int target
 ) {
   if (!dlg || kind == NAME_ENTRY_KIND_NONE) {
     return false;
@@ -66,7 +60,7 @@ bool name_entry_open(
   name_entry_init(dlg);
   dlg->has_result = false;
   dlg->kind = kind;
-  dlg->result_colony_id = colony_id;
+  dlg->result_target = target;
   str_copy_trunc(
     dlg->prompt,
     sizeof(dlg->prompt),
@@ -129,13 +123,11 @@ bool name_entry_handle_input(NameEntryDialog* dlg, const ColonizeInputState* inp
     return true;
   }
   if (input->mouse_left_clicked) {
-    if (input->mouse_x < dlg->dialog_x || input->mouse_y < dlg->dialog_y ||
-        input->mouse_x >= dlg->dialog_x + dlg->dialog_w ||
-        input->mouse_y >= dlg->dialog_y + dlg->dialog_h) {
-      name_entry_finish(dlg, true);
-    } else {
-      name_entry_finish(dlg, false);
-    }
+    /* Click outside the box cancels, inside accepts. */
+    name_entry_finish(
+      dlg,
+      !ui_rect_hit(dlg->dialog_x, dlg->dialog_y, dlg->dialog_w, dlg->dialog_h, input->mouse_x, input->mouse_y)
+    );
     return true;
   }
   return true;

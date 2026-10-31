@@ -125,15 +125,6 @@ bool founding_fathers_nation_has(const ColonizeCol1Save* col1, int nation, int f
 int founding_fathers_bolivar_sol_bonus(const ColonizeCol1Save* col1, int nation);
 
 /*
- * Benjamin Franklin gate (docs/fandom_col1994.md / PEDIA):
- * King's European wars no longer affect New World relations; Europeans in the
- * New World always offer peace in negotiations.
- * Ownership: founding_fathers_nation_has (per-nation bitmask). Wired from ai_diplo
- * declare_war (war-hit side effects; the euro_balance pass was deleted 2026-10-18, port_bugs.md #1104).
- */
-bool founding_fathers_franklin_keeps_nw_peace(const ColonizeCol1Save* col1, int nation);
-
-/*
  * Father Jean de Brebeuf gate (docs/fandom_col1994.md):
  * All missionaries function as experts (Jesuit-grade). Ownership only —
  * no elect crosses fiction. Wired from ai_contact mid-band convert

@@ -31,10 +31,8 @@ static bool options_load_section(
   OptionsDialogKind kind,
   const ColonizeMsgCatalog* game_txt,
   const char* section_name,
-  const char* fallback_prompt,
-  const char* const* fallback_labels,
   const uint8_t* initial_values,
-  int fallback_count,
+  int value_count,
   int width
 ) {
   if (!dlg) {
@@ -78,16 +76,16 @@ static bool options_load_section(
       /* Raw label: the writer draws '~' hotkey letters and {} spans in the hilite ink. */
       str_copy_trunc(dlg->labels[dlg->option_count], sizeof(dlg->labels[0]), line);
       dlg->values[dlg->option_count] =
-        (initial_values && dlg->option_count < fallback_count) ? initial_values[dlg->option_count]
+        (initial_values && dlg->option_count < value_count) ? initial_values[dlg->option_count]
                                                               : 0;
       dlg->option_count++;
     }
   }
 
-  if (dlg->option_count <= 0 && fallback_labels && fallback_count > 0) {
-    str_copy_trunc(dlg->prompt, sizeof(dlg->prompt), fallback_prompt);
-    for (int i = 0; i < fallback_count && i < OPTIONS_DIALOG_MAX; ++i) {
-      str_copy_trunc(dlg->labels[i], sizeof(dlg->labels[i]), fallback_labels[i]);
+  /* Catalog miss: value_count blank rows (no typed wording), so the toggles still work. */
+  if (dlg->option_count <= 0) {
+    dlg->prompt[0] = '\0';
+    for (int i = 0; i < value_count && i < OPTIONS_DIALOG_MAX; ++i) {
       dlg->values[i] = initial_values ? initial_values[i] : 0;
       dlg->option_count++;
     }
@@ -105,16 +103,6 @@ bool options_dialog_open_game(
   const ColonizeMsgCatalog* game_txt,
   const ColonizeCol1GameOptions* opts
 ) {
-  static const char* const k_fb[] = {
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-    ""
-  };
   uint8_t vals[8] = {0};
   if (opts) {
     vals[0] = opts->show_indian_moves ? 1 : 0;
@@ -132,8 +120,6 @@ bool options_dialog_open_game(
     OPTIONS_KIND_GAME,
     game_txt,
     "GAMEOPTIONS",
-    "",
-    k_fb,
     vals,
     8,
     190
@@ -145,18 +131,6 @@ bool options_dialog_open_colony(
   const ColonizeMsgCatalog* game_txt,
   const ColonizeCol1ColonyReportOptions* opts
 ) {
-  static const char* const k_fb[] = {
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-    ""
-  };
   /*
    * Every DS:0x5384/0x5385 bit is a *suppress* flag: FUN_2b5a_223a sets it
    * when the checkbox is clear, and the EOT reporters fire on `bit == 0`
@@ -180,8 +154,6 @@ bool options_dialog_open_colony(
     OPTIONS_KIND_COLONY,
     game_txt,
     "COLONYOPTIONS",
-    "",
-    k_fb,
     vals,
     10,
     220
@@ -195,9 +167,6 @@ bool options_dialog_open_sound(
   bool event_music,
   bool sound_effects
 ) {
-  static const char* const k_fb[] = {
-    "", "", ""
-  };
   uint8_t vals[3] = {
     background_music ? 1 : 0, event_music ? 1 : 0, sound_effects ? 1 : 0
   };
@@ -206,8 +175,6 @@ bool options_dialog_open_sound(
     OPTIONS_KIND_SOUND,
     game_txt,
     "SOUNDOPTIONS",
-    "",
-    k_fb,
     vals,
     3,
     190

@@ -332,7 +332,7 @@ static int unit_multi_units_pane_roster(void) {
 
   ColonyMultiUnitSlot slots[COLONY_MULTI_UNITS_SLOT_MAX];
   const int n = colony_screen_multi_units_layout(
-    &view, &units, 0, 0, 200, 100, slots, COLONY_MULTI_UNITS_SLOT_MAX
+    &view, &units, slots, COLONY_MULTI_UNITS_SLOT_MAX
   );
   bool saw_ship = false;
   bool saw_colonist = false;
@@ -1055,14 +1055,14 @@ static int case_colony_screen_render_workflow(void) {
     int layout_x[32];
     int layout_y[32];
     colony_screen_assign_slot_positions_ex(
-      &pool, col, layout_x, layout_y, NULL, colony_screen_layout_seed(&view)
+      col, layout_x, layout_y, NULL, colony_screen_layout_seed(&view)
     );
     int strip_x = 0;
     int strip_y = 0;
     int strip_w = 0;
     int strip_h = 0;
     colony_screen_fence_rect(
-      &view, &pool, col, layout_x, layout_y, &strip_x, &strip_y, &strip_w, &strip_h
+      layout_x, layout_y, &strip_x, &strip_y, &strip_w, &strip_h
     );
     if (strip_x != fence_x + 5 || strip_y != fence_y + 3 || strip_w != COLONY_FENCE_W ||
         strip_h != COLONY_FENCE_H || strip_y + strip_h > COLONY_BOTTOM_SEPARATOR_Y) {

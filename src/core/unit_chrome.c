@@ -5,7 +5,6 @@
 #include <string.h>
 
 #include "core/assets.h"
-#include "core/fb.h"
 #include "core/strutil.h"
 #include "core/units.h"
 

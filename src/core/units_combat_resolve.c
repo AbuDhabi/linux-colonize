@@ -393,7 +393,7 @@ bool units_resolve_land_combat_ff_w(
       col1,
       g_units_combat_colonies,
       atk_nation,
-      atk ? atk->home_tribe_id : -1,
+      atk ? atk->home_tribe_index : -1,
       def_nation,
       def_x,
       def_y,
@@ -509,7 +509,7 @@ bool units_resolve_land_combat_ff_w(
       col1,
       g_units_combat_colonies,
       atk_nation,
-      lose_snap.home_tribe_id,
+      lose_snap.home_tribe_index,
       def_nation,
       win_snap.x,
       win_snap.y,
@@ -553,7 +553,7 @@ bool units_resolve_land_combat_ff_w(
             atk_nation,
             def_nation,
             raid_cid,
-            lose_snap.home_tribe_id,
+            lose_snap.home_tribe_index,
             forced,
             g_units_combat_human_nation
           );
@@ -1044,7 +1044,8 @@ bool units_fort_vs_ship(
   int defender_id,
   ColonizeDosRng* rng,
   const ColonizeCol1Save* col1,
-  const char* atk_label
+  const char* atk_label,
+  const char* fort_name
 ) {
   ColonizeUnit* def = units_get(pool, defender_id);
   if (!def || !def->active || !units_is_sea(pool, defender_id) || attack_str <= 0) {
@@ -1185,13 +1186,13 @@ bool units_fort_vs_ship(
       tok.string0 = units_combat_nation_label(col1, def->nation_id);
       tok.string1 = dt->name;
       /*
-       * %STRING2 %STRING3 = the winner nation + hull (0352 raw 99654-99658).
-       * The fort's temp attacker has no unit type of its own, so the pair is
-       * the firing nation and an empty hull — the old "shore"/"batteries"
-       * words were typed English, not catalog text (port_bugs.md #987).
+       * %STRING2 %STRING3 = the winner nation + unit name (0352 raw 99654-99658:
+       * *(winner type * 0xe + 0x5230)). The fort's winner is the 03f6 phantom,
+       * row 0x17, whose +0 name word DS:0x5372 = local_18 = the Fort/Fortress
+       * building name (raw 57097), so %STRING3 is the structure name.
        */
       tok.string2 = units_combat_nation_label(col1, fort_nation);
-      tok.string3 = "";
+      tok.string3 = fort_name ? fort_name : "";
       units_combat_enqueue_tok(
         AI_POPUP_TAG_COMBAT_SHIP, "SHIPSUNK", def->nation_id, -1, 0, &tok, ""
       );
@@ -1569,9 +1570,7 @@ void units_sentry_wake_scan(
 static int units_coastal_fort_fire_impl(
   const ColonizeWorld* w,
   int only_colony_id,
-  int human_nation,
-  char* status,
-  size_t status_size
+  int human_nation
 ) {
   ColonizeUnitPool* units = w->units;
   const ColonizeColonyPool* colonies = w->colonies;
@@ -1594,8 +1593,8 @@ static int units_coastal_fort_fire_impl(
     }
     /* port_bugs.md #261: analysis header for the unit-less attacker. */
     char fort_label[80];
+    const char* bname = units_fort_fire_name(colonies, col);
     {
-      const char* bname = units_fort_fire_name(colonies, col);
       snprintf(
         fort_label, sizeof(fort_label), "%s %s",
         col->name[0] ? col->name : "", bname
@@ -1667,11 +1666,8 @@ static int units_coastal_fort_fire_impl(
            */
           units_combat_pump_popups();
         }
-        if (units_fort_vs_ship(units, atk, col->nation_id, col->x, col->y, targets[t], rng, col1, fort_label)) {
+        if (units_fort_vs_ship(units, atk, col->nation_id, col->x, col->y, targets[t], rng, col1, fort_label, bname)) {
           sunk++;
-          if (human_chrome && status && status_size > 0) {
-            snprintf(status, status_size, "Coastal fort sank a ship.");
-          }
         }
         /* Drain this fort's own outcome chrome (@SHIPSUNK / repair notice)
          * before the next fort fires - the pump this pulse was missing
@@ -1684,16 +1680,12 @@ static int units_coastal_fort_fire_impl(
   return sunk;
 }
 
-int units_coastal_fort_fire_pulse_w(
-  const ColonizeWorld* w, int human_nation, char* status, size_t status_size
-) {
-  return units_coastal_fort_fire_impl(w, -1, human_nation, status, status_size);
+int units_coastal_fort_fire_pulse_w(const ColonizeWorld* w, int human_nation) {
+  return units_coastal_fort_fire_impl(w, -1, human_nation);
 }
 
-int units_coastal_fort_fire_colony_w(
-  const ColonizeWorld* w, int colony_id, int human_nation, char* status, size_t status_size
-) {
-  return colony_id < 0 ? 0 : units_coastal_fort_fire_impl(w, colony_id, human_nation, status, status_size);
+int units_coastal_fort_fire_colony_w(const ColonizeWorld* w, int colony_id, int human_nation) {
+  return colony_id < 0 ? 0 : units_coastal_fort_fire_impl(w, colony_id, human_nation);
 }
 
 
@@ -1814,7 +1806,7 @@ bool units_native_village_grudge(
       euro_nation > 3) {
     return false;
   }
-  const int home = mover->home_tribe_id;
+  const int home = mover->home_tribe_index;
   if (home < 0 || home >= (int)col1->head.tribe_count) {
     return false;
   }

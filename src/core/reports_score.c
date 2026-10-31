@@ -352,8 +352,8 @@ void reports_compute_score_w(
     }
 
     out->congress = reports_count_ff_for_nation(col1, human) * 5;
-    /* Audit G3: the live store for the human is EuropeScreen.gold — the
-     * no-col1 fallback 35 lines below already read it. */
+    /* Audit G3: the live store for the human is EuropeScreen.gold, read
+     * through europe_nation_gold. */
     const uint32_t treasury_gold = europe_nation_gold(europe, col1, human);
     if (treasury_gold >= 1000u) {
       out->treasury = (int)(treasury_gold / 1000u);
@@ -364,7 +364,7 @@ void reports_compute_score_w(
     if (out->independence_achieved && out->declare_year < 1780) {
       out->early_revolution_pts = (1780 - out->declare_year) * 2;
     }
-    if (col1->head.game_options.ref_present && nat->liberty_bells_pool >= 100) {
+    if (col1->head.game_options.intervention_announced && nat->liberty_bells_pool >= 100) {
       out->bells_pts = (int)nat->liberty_bells_pool / 100;
       if (out->bells_pts > 100) {
         out->bells_pts = 100;
@@ -390,7 +390,9 @@ void reports_compute_score_w(
         }
       }
     }
-    const uint32_t gold = europe ? (uint32_t)europe->gold : 0u;
+    /* No col1 = no nation records: the screen purse is the only store
+     * (europe_nation_gold's purse arm, negative clamped to 0). */
+    const uint32_t gold = europe && europe->gold > 0 ? (uint32_t)europe->gold : 0u;
     out->treasury = (int)(gold / 1000u);
   }
 
@@ -502,7 +504,7 @@ void reports_render_score(
   const ColonizeFont* body_font = (view && view->title_font_ok) ? &view->title_font : font;
 
   const char* diff_name = reports_difficulty_title(sc.difficulty);
-  const char* nation_adj = reports_nation_adjective(human);
+  const char* nation_adj = reports_nation_adjective_display_name(human);
 
   /* Subtitle: "<difficulty rank> <leader> of the <nation>: <Season> <year>" (FUN_41f2_0092
    * raw 71101-71117: FUN_281f_0178 appends DS:0x50 " ", FUN_281f_01be DS:0x55 ": ",
@@ -617,7 +619,7 @@ void reports_render_score(
         shown++;
         continue;
       }
-      reports_draw_line(body_font, fb, x, y, reports_ff_name(idx), REPORTS_SCORE_GREEN_COLOR);
+      reports_draw_line(body_font, fb, x, y, reports_ff_display_name(idx), REPORTS_SCORE_GREEN_COLOR);
       shown++;
     }
   }
@@ -682,7 +684,7 @@ void reports_render_score(
     );
     colors[n_lines++] = REPORTS_SCORE_GREEN_COLOR;
   }
-  if (col1->head.game_options.ref_present && col1->nation[human].liberty_bells_pool >= 100) {
+  if (col1->head.game_options.intervention_announced && col1->nation[human].liberty_bells_pool >= 100) {
     /* DOS label is the runtime pointer DS:0x97e4 — the NAMES.TXT @CARGO name
      * table (DS:0x97de = row 15 Muskets, docs/combat_analysis.md; 2-byte
      * stride) at row 18, "Liberty Bells". */

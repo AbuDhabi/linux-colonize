@@ -125,7 +125,7 @@ static void combat_analysis_push_row_icon(
  * NAMES.TXT @LEVELS column 1 (verified COLONIZE/NAMES.TXT rows 0-4: "Camp",
  * "Village", "City", "City", "Capital" — row 4's tech column is "<Any>",
  * i.e. the capital override rather than a fifth tech tier). No existing
- * accessor reads this column (reports_tribe_level reads column 0, the tech
+ * accessor reads this column (reports_tribe_level_display_name reads column 0, the tech
  * name); `row` here is 0-3 for the tech-indexed noun, or 4 for "Capital".
  */
 static const char* combat_analysis_village_noun(int row, const char* fallback) {

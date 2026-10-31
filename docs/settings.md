@@ -256,7 +256,7 @@ every time. Tests never call `settings_init`, so harnesses never play it.
 
 ## What is *not* in the file
 
-The rest of `game_options` (`DS:0x5382` low bits: `woi`, `ref_present`,
+The rest of `game_options` (`DS:0x5382` low bits: `woi`, `intervention_announced`,
 `woi_crosses_event`, `independence_chrome`, `calendar_latch`,
 `independence_force`, `ref_unit_threshold`) is game state, not preference, and
 `cheats_enabled` is a per-game Alt-WIN unlock (the map-screen Alt-W/I/N toggle writes it in-session and it is saved with the game). Two CHEAT entries also write the live head, not `settings.json`: Advance Revolution sets `independence_force` on its last stage (port_bugs.md #1171) and Reveal Map > Complete Map clears the live `show_indian_moves` bit (DS:0x5383 bit 7, port_bugs.md #1170); the next Options confirm flushes the latter to `settings.json` like any other change. `settings_apply_to_head` never

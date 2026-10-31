@@ -20,12 +20,6 @@ const char* reports_labels_field(const char* section, int index);
 const char* reports_misc_word(int index, const char* fallback, char* out, size_t out_sz);
 const char* reports_ctitle_word(int index);
 
-const char* reports_ff_name(int idx);
-const char* reports_job_name(int job);
-const char* reports_cargo_name(int cargo);
-const char* reports_tribe_name(int t);
-const char* reports_nation_adjective(int nation);
-const char* reports_tribe_level(uint8_t tech);
 
 extern const int k_job_count;
 

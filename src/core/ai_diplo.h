@@ -232,8 +232,6 @@ int ai_diplo_465b_band(ColonizeCol1Save* col1, int attacker, int defender);
 int ai_diplo_465b_band_ctx(ColonizeTurnContext* ctx, int attacker, int defender);
 
 int ai_diplo_at_war(const ColonizeCol1Save* col1, int nation_a, int nation_b);
-/* True if Euro nation is at war with any other Euro (feeler / drift / lift gate). */
-int ai_diplo_at_war_with_any(const ColonizeCol1Save* col1, int nation);
 /* First declare: thin 153e sting + war-hit. Franklin pair → no-op (fandom NW peace). */
 void ai_diplo_declare_war(ColonizeCol1Save* col1, int nation_a, int nation_b);
 /* Test fixture helper: clear WAR both ways, set PEACE|MET (no production
@@ -303,19 +301,6 @@ uint8_t ai_diplo_indian_read(const ColonizeCol1Save* col1, int euro_nation, int 
  * the FUN_5bfb_153e hostile tier. (Comment said 50 until 2026-09-09, smell
  * #57; the live constant has been 26 since the 153e band was ported.) */
 int ai_diplo_indian_at_war(const ColonizeCol1Save* col1, int euro_nation, int indian_idx);
-
-/* Read the OpenCol Indian-hostility sticky (nation record +0x4b, unknown26[11],
- * the one byte of that block DOS never touches): 0 clear, 1 at-war, 2 very-low
- * deepen. Moved off +0x48 2026-09-09 (smell #52) — that byte is the DOS
- * FUN_4d56_4528 grace/waiver counter.
- * No production reader since port_bugs.md #1104 (matrix tick / make_peace /
- * declare_war_ctx chrome deleted); kept in sync for tests. */
-uint8_t ai_diplo_indian_hostility_sticky(const ColonizeCol1Save* col1, int euro_nation);
-
-/* Sync sticky from relation matrix (set/clear/deepen). Call after relation hits. */
-void ai_diplo_indian_hostility_sync(ColonizeCol1Save* col1, int euro_nation);
-/* New game / load (via ai_euro_reset): clear the sticky cache (port_bugs.md #1103). */
-void ai_diplo_reset(void);
 
 /*
  * Fandom capital-destroy surrender: reset alarm/friction toward euro, set

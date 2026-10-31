@@ -1338,7 +1338,7 @@ void game_refresh_orders_menu(ColonizeGameState* game) {
     ctx.plan_bits =
       pioneer_plan_valid_bits(&w, game->human_nation, game->map_cursor_x, game->map_cursor_y);
   }
-  map_menu_refresh_orders(&game->map_menu, &ctx);
+  map_menu_refresh(&game->map_menu, &ctx);
 }
 
 char game_key_letter(ColonizeKey key) {
@@ -1576,6 +1576,11 @@ static bool game_map_blink_running(const ColonizeGameState* game) {
   }
   /* End-of-turn pipeline, or anything modal over the map. */
   if (turn_processor_active(&game->turn_proc)) {
+    return false;
+  }
+  /* Port-only: the map seen around a DOS-sized screen stands still, as if
+   * the screen had taken the whole display (DOS never shows it there). */
+  if (game_screen_on_map()) {
     return false;
   }
   /* woodcut / closing are GAME_MODAL_LIST members (port_bugs.md #1122). */
@@ -3695,10 +3700,6 @@ bool game_turn_busy(const ColonizeGameState* game) {
 
 uint32_t game_turn_number(const ColonizeGameState* game) {
   return game ? game->turn_number : 0;
-}
-
-int game_colony_count(const ColonizeGameState* game) {
-  return (game && game->colonies_ok) ? game->colonies.colony_count : 0;
 }
 
 int game_selected_unit(const ColonizeGameState* game) {

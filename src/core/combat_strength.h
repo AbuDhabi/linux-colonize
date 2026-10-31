@@ -28,7 +28,7 @@
 #define COMBAT_FLAG_AMBUSH 0x1000u /* Spanish +50% (0x8d01 bit4) */
 #define COMBAT_FLAG_TORIES 0x0002u /* a156 bit1 — crown attacker uses 100−SoL */
 #define COMBAT_FLAG_REBELS 0x0004u /* a156 bit2 — rebel attacker uses SoL */
-#define COMBAT_FLAG_REF 0x8000u /* 0x8d01 bit7 — colony WoI +50% (crown or ref_present) */
+#define COMBAT_FLAG_REF 0x8000u /* 0x8d01 bit7 — colony WoI +50% (crown or intervention_announced) */
 #define COMBAT_FLAG_ARTY_COLONY 0x0001u /* a156 bit0 artillery vs natives */
 /* Fatigue: attacker below one whole movement point (DOS 1b0e ~100374). */
 #define COMBAT_FLAG_FATIGUE_33 0x0100u /* 0x8d01 bit0 — 2 thirds left, ×2/3 */

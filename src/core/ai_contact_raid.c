@@ -425,7 +425,7 @@ static void ai_contact_raid_wreak_bulletin(
   popup_msg_fill(ctx->messages, "RAIDWREAK", &tok, "", body, sizeof(body));
   if (body[0]) {
     ai_contact_human_chrome(
-      ctx, human, AI_POPUP_TAG_CONTACT_RAID, indian_nation, "Raid", body
+      ctx, human, AI_POPUP_TAG_CONTACT_RAID, indian_nation, body
     );
   }
 }
@@ -706,7 +706,7 @@ int ai_contact_colony_raid_repelled_w(
   int indian_nation,
   int euro_nation,
   int colony_id,
-  int home_tribe_id,
+  int home_tribe_index,
   int forced,
   int human_nation
 ) {
@@ -768,10 +768,10 @@ int ai_contact_colony_raid_repelled_w(
    * that 1b0e's own site 1 deliberately skips on this limb (docs/indians.md).
    * Fires for every kind, "Nothing" included.
    */
-  if (col1->tribe && home_tribe_id >= 0 &&
-      (uint16_t)home_tribe_id < col1->head.tribe_count) {
+  if (col1->tribe && home_tribe_index >= 0 &&
+      (uint16_t)home_tribe_index < col1->head.tribe_count) {
     /* DOS zeroes the WHOLE word, i.e. both friction and attacks. */
-    col1_tribe_attitude_set(&col1->tribe[home_tribe_id], euro_nation, 0);
+    col1_tribe_attitude_set(&col1->tribe[home_tribe_index], euro_nation, 0);
   }
   return (int)kind;
 }
@@ -890,7 +890,7 @@ static void ai_contact_raid_human_chrome(
     );
   }
   ai_contact_human_chrome(
-    ctx, target_euro, AI_POPUP_TAG_CONTACT_RAID, nation_id, "",
+    ctx, target_euro, AI_POPUP_TAG_CONTACT_RAID, nation_id,
     raid_line[0] ? raid_line : NULL
   );
 }

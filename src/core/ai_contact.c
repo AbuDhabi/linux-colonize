@@ -212,13 +212,11 @@ void ai_contact_human_chrome(
   int e,
   AiPopupTag tag,
   int nation_b,
-  const char* title,
   const char* body
 ) {
   if (!ctx || !body || !ai_contact_euro_is_human(ctx, e)) {
     return;
   }
-  (void)title;
   ai_contact_set_status(ctx, body);
   if (ctx->ai_popups) {
     ai_popup_enqueue_ok_ctx(
@@ -334,7 +332,7 @@ static void ai_contact_00f2_burn_body(
 ) {
   PopupMsgTokens tok;
   memset(&tok, 0, sizeof(tok));
-  tok.string0 = reports_tribe_name(nation_id - 4); /* 4cc6_0000: 0a1a(tribe) */
+  tok.string0 = reports_tribe_display_name(nation_id - 4); /* 4cc6_0000: 0a1a(tribe) */
   tok.string1 = ai_contact_euro_name(col1, euro);
   popup_msg_fill(messages, "INDIANBURN", &tok, "", out, out_size);
 }
@@ -361,7 +359,7 @@ void ai_contact_alarm_delta_00f2(
   }
   char body[AI_POPUP_BODY_LEN];
   ai_contact_00f2_burn_body(ctx->messages, ctx->col1, nation_id, euro, body, sizeof(body));
-  ai_contact_human_chrome(ctx, euro, AI_POPUP_TAG_CONTACT_RAID, nation_id, "", body);
+  ai_contact_human_chrome(ctx, euro, AI_POPUP_TAG_CONTACT_RAID, nation_id, body);
 }
 
 /*
@@ -504,7 +502,6 @@ void ai_contact_apply_welcome_accept(
    * both raise a village word before the formal welcome, and that grudge
    * survives first contact in DOS.
    */
-  ai_diplo_indian_hostility_sync(ctx->col1, e);
 
   /* No land grant: FUN_5bfb_0182 (raw 96536-96559) only ORs PEACE and
    * raises the human's @INDIANPEACE text; the "land you occupy" grant that
@@ -515,7 +512,7 @@ void ai_contact_apply_welcome_accept(
   const char* euro = ai_contact_euro_plural(ctx->col1, e); /* 5bfb_0182 0a1a */
   PopupMsgTokens peace_tok;
   memset(&peace_tok, 0, sizeof(peace_tok));
-  peace_tok.string0 = reports_tribe_name(nation_id - 4); /* 5bfb_0182: 0a1a(tribe) */
+  peace_tok.string0 = reports_tribe_display_name(nation_id - 4); /* 5bfb_0182: 0a1a(tribe) */
   peace_tok.string1 = euro;
   char peace_fb[AI_POPUP_BODY_LEN];
   peace_fb[0] = '\0';
@@ -523,7 +520,7 @@ void ai_contact_apply_welcome_accept(
   popup_msg_fill(
     ctx->messages, "INDIANPEACE", &peace_tok, peace_fb, peace_body, sizeof(peace_body)
   );
-  ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, "", peace_body);
+  ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, peace_body);
 
   /*
    * DOS-LITERAL FUN_5bfb_0182 (5bfb:01ee-0203): @INDIANCOME when
@@ -543,7 +540,7 @@ void ai_contact_apply_welcome_accept(
     popup_msg_fill(
       ctx->messages, "INDIANCOME", &come_tok, come_fb, come_body, sizeof(come_body)
     );
-    ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, "", come_body);
+    ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, come_body);
   }
 
   /*
@@ -576,7 +573,6 @@ void ai_contact_apply_welcome_reject(
    * (port_bugs.md #1228), nor did the `attacks++` retired 2026-09-08 (#66).
    */
   ai_contact_alarm_delta_00f2(ctx, nation_id, e, 100); /* DOS +100 hostility */
-  ai_diplo_indian_hostility_sync(ctx->col1, e);
 
   const char* tribe = ai_contact_tribe_name(nation_id);
   PopupMsgTokens shun_tok;
@@ -588,7 +584,7 @@ void ai_contact_apply_welcome_reject(
   popup_msg_fill(
     ctx->messages, "INDIANSHUN", &shun_tok, shun_fb, shun_body, sizeof(shun_body)
   );
-  ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_REFUSE, nation_id, NULL, shun_body);
+  ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_REFUSE, nation_id, shun_body);
 }
 
 static void ai_contact_enqueue_welcome(ColonizeTurnContext* ctx, int e, int nation_id) {
@@ -668,17 +664,7 @@ static void ai_contact_enqueue_welcome(ColonizeTurnContext* ctx, int e, int nati
     2
   );
   /* @INDIANWELCOME is a chief audience: IND{tribe}A{tier} portrait (P8.6). */
-  if (nation_id >= 4 && nation_id <= 11) {
-    const int alarm = ai_diplo_indian_alarm(ctx->col1, nation_id, e);
-    ai_popup_set_last_portrait(
-      ctx->ai_popups, nation_id - 4, ai_popup_portrait_tier_from_alarm(alarm)
-    );
-  }
-  {
-    char st[96];
-    snprintf(st, sizeof(st), "The %s offer peace.", tribe);
-    ai_contact_set_status(ctx, st);
-  }
+  ai_contact_chief_flair(ctx, e, nation_id);
 }
 
 int ai_contact_try_first_welcome(ColonizeTurnContext* ctx, int euro_nation, int indian_nation) {
@@ -982,7 +968,7 @@ void ai_contact_enqueue_village_meet(
   PopupMsgTokens tok;
   memset(&tok, 0, sizeof(tok));
   tok.string0 = ai_contact_level_noun(ctx, (int)ind->tech);
-  tok.string1 = reports_tribe_name(nation_id - 4); /* 4d56_4528: 0a1a(tribe) */
+  tok.string1 = reports_tribe_display_name(nation_id - 4); /* 4d56_4528: 0a1a(tribe) */
   char fb[AI_POPUP_BODY_LEN];
   fb[0] = '\0';
   char body[AI_POPUP_BODY_LEN];
@@ -1176,8 +1162,8 @@ void ai_contact_village_attack_choice(
 }
 
 /*
- * FUN_4d56_4528 human warn CHOICE before combatish village enter.
- * Relation-banded body (0x1710…0x172e stand-in). Cite: indian_settlement_4528.md.
+ * FUN_465b_0000 human warn CHOICE before the first attack on a calm tribe:
+ * @WHACKINDIANS (DS:0x13ad) Yes/No, asked once (bit 0x04). docs/popups_catalog.md.
  */
 static int ai_contact_whack_pending(const AiPopupState* st, int unit_id) {
   return ai_popup_pending(
@@ -1410,7 +1396,7 @@ static void ai_contact_ship_advisor_chrome(
   int indian_nation,
   const char* body
 ) {
-  ai_contact_human_chrome(ctx, euro_nation, AI_POPUP_TAG_INFO, indian_nation, "", body);
+  ai_contact_human_chrome(ctx, euro_nation, AI_POPUP_TAG_INFO, indian_nation, body);
   if (ctx->ai_popups) {
     ai_popup_set_last_portrait(ctx->ai_popups, -1, 0);
   }

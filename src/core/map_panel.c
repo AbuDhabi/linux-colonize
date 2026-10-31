@@ -259,7 +259,7 @@ bool map_panel_minimap_click(
   int* out_tile_x,
   int* out_tile_y
 ) {
-  if (!map || map->width <= 0 || map->height <= 0) {
+  if (!map || map->width == 0 || map->height == 0) {
     return false;
   }
   int ox, oy, mw, mh, origin_x, origin_y;

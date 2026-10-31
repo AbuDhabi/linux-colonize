@@ -208,16 +208,10 @@ static bool new_game_load_pik(NewGameWizard* ng, const char* name, ColonizePikIm
 }
 
 static bool new_game_load_ss(NewGameWizard* ng, const char* name, ColonizeSpriteSheet* out, bool* ok) {
-  char path[512];
-  char err[256];
   if (*ok) {
     return true;
   }
-  if (!dos_compat_normalize_asset_path(ng->data_dir, name, path, sizeof(path))) {
-    return false;
-  }
-  if (!ss_load(path, out, err, sizeof(err))) {
-    diag_warn("new_game: failed to load %s: %s", name, err);
+  if (!ss_load_asset(ng->data_dir, name, out, "new_game")) {
     return false;
   }
   *ok = true;

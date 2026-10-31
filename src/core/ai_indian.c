@@ -147,17 +147,20 @@ static int ai_indian_152e_spawn_brave(
   if (!units_spawn_room(ctx->units, (int)t->nation_id)) {
     return -1;
   }
-  /* NAMES pool index == DOS type index for 0x13..0x16 (ai_euro.c k[] map). */
-  int type_index = dos_type;
-  if (type_index < 0x13) {
-    type_index = UNITS_KIND_BRAVE;
+  /* DOS type 0x13..0x16 == @UNIT row == ColonizeUnitKind; map the row to
+   * its pool slot. */
+  ColonizeUnitKind kind = (ColonizeUnitKind)dos_type;
+  if (dos_type < UNITS_KIND_BRAVE) {
+    kind = UNITS_KIND_BRAVE;
   }
-  if (type_index > 0x16) {
-    type_index = UNITS_KIND_MTD_WARRIOR;
+  if (dos_type > UNITS_KIND_MTD_WARRIOR) {
+    kind = UNITS_KIND_MTD_WARRIOR;
   }
-  if (type_index >= ctx->units->type_count) {
-    type_index = UNITS_KIND_BRAVE; /* small NAMES pools: fall back to plain Brave. */
-    if (type_index >= ctx->units->type_count) {
+  int type_index = units_kind_type_index(ctx->units, kind);
+  if (type_index < 0) {
+    /* small NAMES pools: fall back to plain Brave. */
+    type_index = units_kind_type_index(ctx->units, UNITS_KIND_BRAVE);
+    if (type_index < 0) {
       return -1;
     }
   }
@@ -171,7 +174,7 @@ static int ai_indian_152e_spawn_brave(
     return -1;
   }
   u->nation_id = (int)t->nation_id;
-  u->home_tribe_id = tribe_index; /* DOS +0x314a, stamped by 152e itself. */
+  u->home_tribe_index = tribe_index; /* DOS +0x314a, stamped by 152e itself. */
   /*
    * DOS +0x3149 = 0. Careful: for a native unit `moves` carries DOS
    * SPENT-thirds semantics (turn.c:186 sets natives to 0 at every refresh,

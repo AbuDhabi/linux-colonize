@@ -25,6 +25,8 @@ uint16_t dos_rng_next(ColonizeDosRng* rng);
  * ai_nation_reseed; -1 until then (no reseed). With live ticks on (unseeded
  * main.c) every 04ca reads the clock instead, as VICEROY does (playtest C2-O1:
  * every rumour of a game rolled the same outcome). */
+/* Wall clock in ms since the epoch (also the input log's timestamp). */
+int64_t dos_rng_wall_ms(void);
 void dos_rng_set_83a6(int32_t seed);
 int32_t dos_rng_get_83a6(void); /* -1 until a nation reseed */
 void dos_rng_reseed_83a6(ColonizeDosRng* rng);

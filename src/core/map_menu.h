@@ -228,11 +228,6 @@ void map_menu_set_cheat_visible(MapMenuBar* bar, bool visible);
  */
 void map_menu_refresh(MapMenuBar* bar, const MapMenuOrdersContext* ctx);
 
-/* Back-compat alias used by game_loop. */
-static inline void map_menu_refresh_orders(MapMenuBar* bar, const MapMenuOrdersContext* ctx) {
-  map_menu_refresh(bar, ctx);
-}
-
 /* Alt+letter opens the matching bar menu (title ~hotkey). True if opened/toggled. */
 bool map_menu_open_alt_hotkey(MapMenuBar* bar, char letter);
 

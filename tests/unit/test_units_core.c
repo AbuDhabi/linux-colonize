@@ -1466,7 +1466,7 @@ static int case_terrain_mp_improvements(void) {
      */
     bool road3_ok = true;
     while (!map_tile_has_road(&tmap, px, py)) {
-      road3_ok = units_pioneer_road_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&tmap)}, pid3, pmsg, sizeof(pmsg), NULL, NULL);
+      road3_ok = units_pioneer_road_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&tmap)}, pid3, NULL, NULL, NULL);
       if (!road3_ok) {
         break;
       }
@@ -1522,7 +1522,7 @@ static int case_terrain_mp_improvements(void) {
       pu4->tools = 100;
       bool road4_ok = true;
       while (!map_tile_has_road(&tmap, rx, ry)) {
-        road4_ok = units_pioneer_road_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(&colonies_road), .map=(ColonizeWorldMap*)(&tmap)}, pid4, pmsg, sizeof(pmsg), NULL, NULL);
+        road4_ok = units_pioneer_road_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(&colonies_road), .map=(ColonizeWorldMap*)(&tmap)}, pid4, NULL, NULL, NULL);
         if (!road4_ok) {
           break;
         }
@@ -1554,7 +1554,7 @@ static int case_terrain_mp_improvements(void) {
     pu3->col1_counter16 = 0;
     const int farm_base = colony_yield_for_tile(&tmap, px, py, COLONIZE_JOB_FARMER);
     /* Plains plow: terr_cost+2 = 3 turns for non-Hardy; drive ticks to completion. */
-    if (!units_pioneer_plow_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&tmap)}, pid3, pmsg, sizeof(pmsg), NULL, NULL)) {
+    if (!units_pioneer_plow_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&tmap)}, pid3, NULL, NULL, NULL)) {
       fprintf(stderr, "phase7 plow start failed (%s)\n", pmsg);
       map_free(&tmap);
       map_free(&map);
@@ -1562,7 +1562,7 @@ static int case_terrain_mp_improvements(void) {
       return 1;
     }
     while (pu3->orders == UNITS_ORDER_CLEAR_PLOW) {
-      if (!units_pioneer_work_tick_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&tmap)}, pid3, pmsg, sizeof(pmsg), NULL, NULL)) {
+      if (!units_pioneer_work_tick_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&tmap)}, pid3, NULL, NULL, NULL)) {
         fprintf(stderr, "phase7 plow tick failed (%s)\n", pmsg);
         map_free(&tmap);
         map_free(&map);
@@ -3708,17 +3708,10 @@ static int case_coastal_fort_naval_fire(void) {
     }
     foe->nation_id = 1;
 
-    char fort_status[80];
-    fort_status[0] = '\0';
     const int sunk =
-      units_coastal_fort_fire_pulse_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&fcol1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL)}, 0, fort_status, sizeof(fort_status));
+      units_coastal_fort_fire_pulse_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&fcol1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL)}, 0);
     if (sunk < 1 || (units_get(&pool, foe_id) && units_get(&pool, foe_id)->active)) {
       fprintf(stderr, "Fort at war should sink adjacent enemy ship (sunk=%d)\n", sunk);
-      pool.types[caravel_ti].defense = old_def;
-      return 1;
-    }
-    if (strstr(fort_status, "sank") == NULL) {
-      fprintf(stderr, "fort fire want sank status got '%s'\n", fort_status);
       pool.types[caravel_ti].defense = old_def;
       return 1;
     }
@@ -3736,7 +3729,7 @@ static int case_coastal_fort_naval_fire(void) {
     }
     foe->nation_id = 1;
     foe->moves = 4 * UNITS_MP_PER_TILE;
-    if (units_coastal_fort_fire_pulse_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&fcol1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL)}, -1, NULL, 0) != 0) {
+    if (units_coastal_fort_fire_pulse_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&fcol1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL)}, -1) != 0) {
       fprintf(stderr, "ship-slow: fort should miss high-def ship\n");
       pool.types[caravel_ti].defense = old_def;
       return 1;
@@ -3761,7 +3754,7 @@ static int case_coastal_fort_naval_fire(void) {
     const int peace_id = units_spawn_allow_stack(&pool, caravel_ti, wx, wy);
     foe = units_get(&pool, peace_id);
     foe->nation_id = 1;
-    if (units_coastal_fort_fire_pulse_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&fcol1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL)}, -1, NULL, 0) != 0) {
+    if (units_coastal_fort_fire_pulse_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&fcol1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL)}, -1) != 0) {
       fprintf(stderr, "Fort at peace should not sink Caravel\n");
       pool.types[caravel_ti].defense = old_def;
       return 1;
@@ -3776,7 +3769,7 @@ static int case_coastal_fort_naval_fire(void) {
     const int stale_id = units_spawn_allow_stack(&pool, caravel_ti, wx, wy);
     foe = units_get(&pool, stale_id);
     foe->nation_id = 1;
-    if (units_coastal_fort_fire_pulse_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&fcol1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL)}, -1, NULL, 0) != 0) {
+    if (units_coastal_fort_fire_pulse_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&fcol1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL)}, -1) != 0) {
       fprintf(stderr, "Fort with PEACE set (stale WAR bit) must not fire\n");
       pool.types[caravel_ti].defense = old_def;
       return 1;
@@ -3791,7 +3784,7 @@ static int case_coastal_fort_naval_fire(void) {
     const int unmet_id = units_spawn_allow_stack(&pool, caravel_ti, wx, wy);
     foe = units_get(&pool, unmet_id);
     foe->nation_id = 1;
-    if (units_coastal_fort_fire_pulse_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&fcol1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL)}, -1, NULL, 0) != 0) {
+    if (units_coastal_fort_fire_pulse_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&fcol1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL)}, -1) != 0) {
       fprintf(stderr, "Fort must not fire on an unmet nation's Caravel\n");
       pool.types[caravel_ti].defense = old_def;
       return 1;
@@ -3812,7 +3805,7 @@ static int case_coastal_fort_naval_fire(void) {
       ColonizeUnit* pr = units_get(&pool, pid);
       pr->nation_id = 1;
       const int psunk =
-        units_coastal_fort_fire_pulse_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&fcol1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL)}, -1, NULL, 0);
+        units_coastal_fort_fire_pulse_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&fcol1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL)}, -1);
       if (psunk < 1 || (units_get(&pool, pid) && units_get(&pool, pid)->active)) {
         fprintf(stderr, "Fort should sink Privateer at peace\n");
         pool.types[priv_ti].defense = old_pdef;
@@ -5354,7 +5347,7 @@ static int case_combat_woi_ref_support(void) {
       memset(&c1, 0, sizeof(c1));
       c1.head.difficulty = 4;
       c1.head.game_options.woi = 1;
-      c1.head.game_options.ref_present = 1;
+      c1.head.game_options.intervention_announced = 1;
       c1.player[0].control = 0;
       c1.player[1].control = 1;
       for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
@@ -5383,7 +5376,7 @@ static int case_combat_woi_ref_support(void) {
       sctx.colonies = &cols;
       sctx.col1 = &c1;
 
-      /* Human rebel attacks on colony with ref_present → +50% REF. */
+      /* Human rebel attacks on colony with intervention_announced → +50% REF. */
       {
         const int aid = units_spawn_allow_stack(&pool, sol, 10, 10);
         const int did = units_spawn_allow_stack(&pool, sol, 10, 10);
@@ -5455,9 +5448,9 @@ static int case_combat_woi_ref_support(void) {
         units_despawn(&pool, did);
       }
 
-      /* Open field: no REF flag even with ref_present. */
+      /* Open field: no REF flag even with intervention_announced. */
       {
-        c1.head.game_options.ref_present = 1;
+        c1.head.game_options.intervention_announced = 1;
         const int aid = units_spawn_allow_stack(&pool, sol, 11, 11);
         const int did = units_spawn_allow_stack(&pool, sol, 11, 11);
         ColonizeUnit* a = units_get(&pool, aid);
@@ -6662,7 +6655,7 @@ static int case_combat_port_ship_fate_discharge(void) {
           return 1;
         }
         b->nation_id = 4;
-        b->home_tribe_id = 0;
+        b->home_tribe_index = 0;
         v->nation_id = 1;
         pool.types[brave3].attack = 8;
         pool.types[soldier3].defense = 1;
@@ -6697,7 +6690,7 @@ static int case_combat_port_ship_fate_discharge(void) {
           return 1;
         }
         b->nation_id = 4;
-        b->home_tribe_id = 1;
+        b->home_tribe_index = 1;
         v->nation_id = 1;
         pool.types[brave3].attack = 0;
         pool.types[soldier3].defense = 8;
@@ -7108,7 +7101,7 @@ static int case_combat_fort_fire_repair(void) {
         return 1;
       }
       char st[64];
-      (void)units_coastal_fort_fire_pulse_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&c1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL)}, -1, st, sizeof(st));
+      (void)units_coastal_fort_fire_pulse_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&c1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL)}, -1);
       ship = units_get(&pool, sid_miss);
       if (!ship || !ship->active) {
         fprintf(stderr, "fort miss should leave ship alive\n");
@@ -7137,7 +7130,7 @@ static int case_combat_fort_fire_repair(void) {
        * (4): keep hull clear of it so this asserts the damaged path and not
        * the guns == hull coin flip. See units_ship_damage_vs_sink. */
       pool.types[car].hull = 8;
-      (void)units_coastal_fort_fire_pulse_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&c1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL)}, -1, st, sizeof(st));
+      (void)units_coastal_fort_fire_pulse_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&c1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL)}, -1);
       ship = units_get(&pool, sid_hit);
       if (!ship || !ship->active) {
         fprintf(stderr, "close fort hit should damage not sink\n");

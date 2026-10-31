@@ -337,6 +337,10 @@ static void voice_tick(GsoundVm* vm, uint16_t vaddr) {
         break;
       }
       case 0xED: { /* chord: n, notes[n], dur */
+        /* DOS-LITERAL gsound.asm caseD_ed 1000:05a8-0665: n = CBW of the count
+         * byte, the note loop compares unsigned (`CMP i,n / JC`), so a count
+         * >= 0x80 runs ~64k iterations with the slot store wrapping in DS
+         * ([BX+SI+0x8200], 16-bit). Kept: ds[] is a full 64k+1 segment. */
         const uint16_t n = (uint16_t)(int16_t)(int8_t)b1;
         const int first = (int)(int8_t)b2 + (int)(int8_t)v[V_TRANSPOSE];
         if (first != (int)slots[0]) {

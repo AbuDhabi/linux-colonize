@@ -1067,7 +1067,7 @@ int ai_euro_at_war_any_peer(const ColonizeCol1Save* col1, int nation_id) {
  * old substring list needed both spellings; units_name_kind carries all of
  * them (same defect class as the fixed ai_king "Cavalry != Dragoon" bug).
  */
-int ai_euro_is_military_name(ColonizeUnitKind k) {
+int ai_euro_is_military_kind(ColonizeUnitKind k) {
   /* Deliberately NOT units_kind_is_military: that set also holds Artillery,
    * which this port keeps separate (siege + border wake, below). */
   return k == UNITS_KIND_SOLDIER || k == UNITS_KIND_DRAGOON || k == UNITS_KIND_REGULAR ||
@@ -1075,7 +1075,7 @@ int ai_euro_is_military_name(ColonizeUnitKind k) {
 }
 
 /* @UNIT row 11 ("Artillery", or a pool spelling it "Cannon"). */
-int ai_euro_is_artillery_name(ColonizeUnitKind kind) {
+int ai_euro_is_artillery_kind(ColonizeUnitKind kind) {
   return kind == UNITS_KIND_ARTILLERY;
 }
 
@@ -1131,7 +1131,7 @@ int ai_euro_land_is_fortified(const ColonizeUnit* u) {
  */
 
 /* Treasure train, identified by @UNIT type row (manual Treasure Trains). */
-int ai_euro_is_treasure_name(ColonizeUnitKind kind) {
+int ai_euro_is_treasure_kind(ColonizeUnitKind kind) {
   return kind == UNITS_KIND_TREASURE;
 }
 
@@ -1147,7 +1147,7 @@ int ai_euro_is_treasure_name(ColonizeUnitKind kind) {
  */
 
 /* Missionary / Jesuit Missionary, identified by @UNIT type row. */
-static int ai_euro_is_missionary_name(ColonizeUnitKind kind) {
+static int ai_euro_is_missionary_kind(ColonizeUnitKind kind) {
   return kind == UNITS_KIND_MISSIONARY;
 }
 
@@ -1164,7 +1164,7 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
    * runs" (tr9 11 -> 12: the English Scout's 22nd shuttle act at Fort Nassau
    * scores at spent 12 and loses the 465b roll). */
 
-  const int is_ship = ai_euro_is_ship_type(ctx->units, u->id);
+  const int is_ship = units_is_sea(ctx->units, u->id);
 
   /*
    * No land-unit-initiated embark arm here. DOS boarding is ship-side only:
@@ -1236,8 +1236,8 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
   if ((u->orders != AI_EURO_ACT_GOAL || fresh_allotment) && !is_pioneer_job_active) {
     const ColonizeUnitKind gate_kind = ai_euro_unit_kind(ctx->units, u);
     int gate_r = 0;
-    if (ai_euro_is_treasure_name(gate_kind) || ai_euro_is_missionary_name(gate_kind) ||
-        ai_euro_type_is_wagon_name(gate_kind)) {
+    if (ai_euro_is_treasure_kind(gate_kind) || ai_euro_is_missionary_kind(gate_kind) ||
+        ai_euro_is_wagon_kind(gate_kind)) {
       struct ai_euro_act_ctx a;
       memset(&a, 0, sizeof(a));
       a.ctx = ctx;
@@ -1362,7 +1362,7 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
    */
   if (u->orders == UNITS_ORDER_CLEAR_PLOW || u->orders == UNITS_ORDER_BUILD_ROAD) {
     const ColonizeWorld pw = world_from_turn_ctx(ctx);
-    (void)units_pioneer_work_tick_w(&pw, u->id, NULL, 0, ctx->ai_popups, ctx->messages);
+    (void)units_pioneer_work_tick_w(&pw, u->id, NULL, ctx->ai_popups, ctx->messages);
     return;
   }
 
@@ -1431,7 +1431,7 @@ static void ai_euro_dispatcher_turn_reset(ColonizeTurnContext* ctx) {
     if (units_get_const(ctx->units, i) != NULL) {
       continue;
     }
-    ai_euro_s_20e6_wagon_errand[i] = 0;
+    ai_euro_wagon_errand_set(i, 0);
   }
 }
 
@@ -1470,7 +1470,7 @@ static void ai_euro_dispatcher_turn_plan(ColonizeTurnContext* ctx, int nation_id
 }
 
 /* Step 7 of ai_euro_dispatcher_turn: the FUN_521d_6d8e wave/drain unit-act
- * loop (and its legacy AI_6D8E_DOS_LOOP=0 ordering). */
+ * loop. */
 static void ai_euro_dispatcher_turn_unit_waves(ColonizeTurnContext* ctx, int nation_id) {
   /*
    * 6–7. FUN_521d_6d8e raw 93237-93325 (re-read 2026-09-15; the old "ships
@@ -1494,12 +1494,7 @@ static void ai_euro_dispatcher_turn_unit_waves(ColonizeTurnContext* ctx, int nat
    * England's slots 67, 62, 60, 52, 49 kept their MP and 0a60 orders). A
    * no-progress act is drained on to the >0x14 sticky clear as in DOS
    * (port_bugs.md #1134; the old port-only spin guard left the MP).
-   *
-   * That DOS shape is the default since 2026-09-15. AI_6D8E_DOS_LOOP=0
-   * restores the legacy "wave 0 = ships, one act per unit per pass" shape
-   * (bisect aid only).
    */
-  const int dos_loop = !(getenv("AI_6D8E_DOS_LOOP") && getenv("AI_6D8E_DOS_LOOP")[0] == '0');
   int any_acted;
   int guard = 0;
   do {
@@ -1509,16 +1504,15 @@ static void ai_euro_dispatcher_turn_unit_waves(ColonizeTurnContext* ctx, int nat
     }
     for (int wave = 0; wave < 2; ++wave) {
       int wave_acted = 0;
-      for (int i = units_slot_end(ctx->units) - 1; i >= 0 && !(dos_loop && wave_acted); --i) {
+      for (int i = units_slot_end(ctx->units) - 1; i >= 0 && !wave_acted; --i) {
         ColonizeUnit* u = &ctx->units->units[i];
         if (!u->active || u->nation_id != nation_id) {
           continue;
         }
-        const int is_ship = ai_euro_is_ship_type(ctx->units, u->id);
         const ColonizeUnitKind ukind = ai_euro_unit_kind(ctx->units, u);
         const int is_wave0_type =
           ukind == UNITS_KIND_TREASURE || ukind == UNITS_KIND_ARTILLERY || ukind == UNITS_KIND_WAGON;
-        const int in_wave = (wave != 0) || (dos_loop ? is_wave0_type : is_ship);
+        const int in_wave = (wave != 0) || is_wave0_type;
         if (!in_wave) {
           continue;
         }
@@ -1554,7 +1548,7 @@ static void ai_euro_dispatcher_turn_unit_waves(ColonizeTurnContext* ctx, int nat
           u->moves = 0;
           u->aboard_moves = 0;
           wave_acted = 1;
-          if (wave == 1 || !dos_loop) {
+          if (wave == 1) {
             any_acted = 1;
           }
           continue;
@@ -1566,7 +1560,7 @@ static void ai_euro_dispatcher_turn_unit_waves(ColonizeTurnContext* ctx, int nat
          * spent byte (DOSBox independence 10->11: the crown Man-O-War saves
          * spent 9 at x = 244). */
         int first_act = 1;
-        while (u->active && (first_act || (dos_loop && u->moves > 0 && u->x < 128))) {
+        while (u->active && (first_act || (u->moves > 0 && u->x < 128))) {
           first_act = 0;
         const int before_moves = u->moves;
         const int before_x = u->x;
@@ -1630,9 +1624,6 @@ static void ai_euro_dispatcher_turn_unit_waves(ColonizeTurnContext* ctx, int nat
           }
           (void)ai_contact_encounter_scan(ctx, nation_id, u->x, u->y);
         }
-        if (!progressed && !dos_loop) {
-          break;
-        }
         /* port_bugs.md #1134: no port-only spin guard. DOS raw 93247-93257
          * re-acts a no-progress unit in this same drain until the >0x14
          * sticky clear (FUN_281f_0934) exhausts it; breaking out with MP
@@ -1642,9 +1633,8 @@ static void ai_euro_dispatcher_turn_unit_waves(ColonizeTurnContext* ctx, int nat
         /* DOS: "wave 1 acted someone" — but DOS only ever acts a unit
          * that still has MP, whereas the port's first-colony wake arm above
          * admits 0-MP settlers; count only real progress so a no-op act
-         * cannot spin the outer loop to the guard. Legacy shape counts
-         * either wave (ships act in both). */
-        if (wave == 1 || !dos_loop) {
+         * cannot spin the outer loop to the guard. */
+        if (wave == 1) {
           any_acted = 1;
         }
         }
@@ -1726,7 +1716,6 @@ void ai_euro_reset(void) {
   memset(ai_euro_s_5952_ring1, 0, sizeof(ai_euro_s_5952_ring1));
   memset(ai_euro_s_5952_docks_started, 0, sizeof(ai_euro_s_5952_docks_started));
   memset(ai_euro_s_5952_arty_plot, 0, sizeof(ai_euro_s_5952_arty_plot)); /* port_bugs.md #1103 */
-  ai_diplo_reset(); /* port_bugs.md #1103: Indian-hostility sticky cache */
   memset(ai_euro_s_5952_census_nonexpert, 0, sizeof(ai_euro_s_5952_census_nonexpert));
   memset(ai_euro_s_5952_census_vet_soldier, 0, sizeof(ai_euro_s_5952_census_vet_soldier));
   memset(ai_euro_s_5952_census_carpenter, 0, sizeof(ai_euro_s_5952_census_carpenter));

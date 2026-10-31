@@ -26,7 +26,7 @@
  *     settings_init), nothing here is consulted and the DOS defaults stand.
  *
  * Only user-facing options live here. The DS:0x5382 low bits (woi,
- * ref_present, the independence latches) and cheats_enabled are game state,
+ * intervention_announced, the independence latches) and cheats_enabled are game state,
  * not preferences, and are never read or written by this module.
  */
 

@@ -682,8 +682,7 @@ void colony_screen_draw_multifunction(
         : 10;
     ColonyMultiUnitSlot slots[COLONY_MULTI_UNITS_SLOT_MAX];
     const int slot_count = colony_screen_multi_units_layout(
-      view, units, px, py + COLONY_MULTI_UNITS_TITLE_H, pane_w, pane_h - COLONY_MULTI_UNITS_TITLE_H,
-      slots, COLONY_MULTI_UNITS_SLOT_MAX
+      view, units, slots, COLONY_MULTI_UNITS_SLOT_MAX
     );
     for (int i = 0; i < slot_count; ++i) {
       const ColonizeUnit* u = units_get_const(units, slots[i].unit_id);

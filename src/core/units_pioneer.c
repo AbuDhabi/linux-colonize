@@ -102,7 +102,7 @@ static int units_pioneer_work_needed(const ColonizeUnit* u, const ColonizeWorldM
  * body made no search. */
 ColonizeColony* g_units_pioneer_0614_colony = NULL;
 
-static ColonizeColony* units_nearest_colony_dos(
+ColonizeColony* units_nearest_colony_dos(
   ColonizeColonyPool* colonies,
   int x,
   int y,
@@ -186,7 +186,7 @@ static void units_pioneer_native_land_tail(
     uint32_t* gold = &col1->nation[nation].gold;
     const long have = (long)*gold;
     if ((long)(price >> 1) <= have - (long)price) {
-      colonies_indian_land_pay(col1, map, u->x, u->y, nation, gold, price);
+      colonies_indian_land_pay(col1, map, u->x, u->y, gold, price);
       return; /* FUN_479b_00ca returned 1 — bought, no alarm */
     }
   }
@@ -283,13 +283,12 @@ static bool units_pioneer_wear_tools(ColonizeUnitPool* pool, ColonizeUnit* u) {
 /* @USEDUPTOOLS after demotion (human / unset-human only). */
 static void units_pioneer_emit_useduptools(
   const ColonizeUnit* u,
-  char* err,
-  size_t err_size,
+  UnitsPioneerReason* reason,
   AiPopupState* ai_popups,
   const ColonizeMsgCatalog* messages
 ) {
-  if (err && err_size) {
-    snprintf(err, err_size, "Tools used up — now a colonist");
+  if (reason) {
+    *reason = UNITS_PIONEER_TOOLS_USED_UP;
   }
   if (!ai_popups || !u) {
     return;
@@ -333,8 +332,7 @@ static void units_pioneer_emit_order_gate(
 bool units_pioneer_work_tick_w(
   const ColonizeWorld* w,
   int unit_id,
-  char* err,
-  size_t err_size,
+  UnitsPioneerReason* reason,
   AiPopupState* ai_popups,
   const ColonizeMsgCatalog* messages
 ) {
@@ -372,12 +370,10 @@ bool units_pioneer_work_tick_w(
       return false;
     }
   } else {
-    bool clearing = false;
-    if (!units_pioneer_tile_can_clear_or_plow(map, u->x, u->y, &clearing)) {
+    if (!units_pioneer_tile_can_clear_or_plow(map, u->x, u->y, NULL)) {
       u->orders = UNITS_ORDER_NONE;
       return false;
     }
-    (void)clearing;
   }
 
   /* FUN_281f_0934 stand-in: exhaust MP for this act (spent-aware, audit A9). */
@@ -421,7 +417,7 @@ bool units_pioneer_work_tick_w(
       }
     }
     if (demoted) {
-      units_pioneer_emit_useduptools(u, err, err_size, ai_popups, messages);
+      units_pioneer_emit_useduptools(u, reason, ai_popups, messages);
     }
     /* LAB_479b_0687 tail: base 3 (0d6c mode 1). */
     units_pioneer_native_land_tail(w, u, map, colonies, ai_popups, messages, 3);
@@ -524,7 +520,7 @@ bool units_pioneer_work_tick_w(
        * GAME.TXT section; the port fired it on every chop on top of
        * @CLEARCUT, double-notifying. */
       if (demoted) {
-        units_pioneer_emit_useduptools(u, err, err_size, ai_popups, messages);
+        units_pioneer_emit_useduptools(u, reason, ai_popups, messages);
       }
       /*
        * LAB_479b_043b tail: base 5 (0d6c mode 2). DOS gates it on `!bVar2`,
@@ -536,7 +532,7 @@ bool units_pioneer_work_tick_w(
       map_tile_set_plowed(map, u->x, u->y, true);
       const bool demoted = units_pioneer_wear_tools(pool, u);
       if (demoted) {
-        units_pioneer_emit_useduptools(u, err, err_size, ai_popups, messages);
+        units_pioneer_emit_useduptools(u, reason, ai_popups, messages);
       }
       /* port_bugs.md #633: DOS's plow completion writes no status text. */
     }
@@ -556,8 +552,7 @@ static ColonizeUnit* units_pioneer_begin_order(
   int unit_id,
   const ColonizeWorldMap* map,
   int order,
-  char* err,
-  size_t err_size,
+  UnitsPioneerReason* reason,
   AiPopupState* ai_popups,
   const ColonizeMsgCatalog* messages
 ) {
@@ -578,8 +573,8 @@ static ColonizeUnit* units_pioneer_begin_order(
    * port_bugs.md #628: no tools gate either — DOS never reads tools at order time.
    */
   if (!u || !map || !units_is_pioneer(pool, unit_id)) {
-    if (err && err_size) {
-      snprintf(err, err_size, "Select a Pioneer");
+    if (reason) {
+      *reason = UNITS_PIONEER_NOT_PIONEER;
     }
     return NULL;
   }
@@ -589,8 +584,7 @@ static ColonizeUnit* units_pioneer_begin_order(
 bool units_pioneer_plow_w(
   const ColonizeWorld* w,
   int unit_id,
-  char* err,
-  size_t err_size,
+  UnitsPioneerReason* reason,
   AiPopupState* ai_popups,
   const ColonizeMsgCatalog* messages
 ) {
@@ -598,21 +592,21 @@ bool units_pioneer_plow_w(
   ColonizeWorldMap* map = w->map;
 
   ColonizeUnit* u = units_pioneer_begin_order(
-    pool, unit_id, map, UNITS_ORDER_CLEAR_PLOW, err, err_size, ai_popups, messages
+    pool, unit_id, map, UNITS_ORDER_CLEAR_PLOW, reason, ai_popups, messages
   );
   if (!u) {
     return false;
   }
   if (map_tile_is_plowed(map, u->x, u->y)) {
-    if (err && err_size) {
-      snprintf(err, err_size, "Already plowed");
+    if (reason) {
+      *reason = UNITS_PIONEER_ALREADY_PLOWED;
     }
     units_pioneer_emit_order_gate(u, ai_popups, messages, "NOPLOW", "");
     return false;
   }
   if (!units_pioneer_tile_can_clear_or_plow(map, u->x, u->y, NULL)) {
-    if (err && err_size) {
-      snprintf(err, err_size, "Cannot plow here");
+    if (reason) {
+      *reason = UNITS_PIONEER_CANNOT_PLOW;
     }
     return false;
   }
@@ -635,14 +629,13 @@ bool units_pioneer_plow_w(
       );
     }
   }
-  return units_pioneer_work_tick_w(w, unit_id, err, err_size, ai_popups, messages);
+  return units_pioneer_work_tick_w(w, unit_id, reason, ai_popups, messages);
 }
 
 bool units_pioneer_road_w(
   const ColonizeWorld* w,
   int unit_id,
-  char* err,
-  size_t err_size,
+  UnitsPioneerReason* reason,
   AiPopupState* ai_popups,
   const ColonizeMsgCatalog* messages
 ) {
@@ -651,14 +644,14 @@ bool units_pioneer_road_w(
   ColonizeColonyPool* colonies = w->colonies;
 
   ColonizeUnit* u = units_pioneer_begin_order(
-    pool, unit_id, map, UNITS_ORDER_BUILD_ROAD, err, err_size, ai_popups, messages
+    pool, unit_id, map, UNITS_ORDER_BUILD_ROAD, reason, ai_popups, messages
   );
   if (!u) {
     return false;
   }
   if (!map_tile_is_land(map, u->x, u->y) || map_tile_is_high_seas(map, u->x, u->y)) {
-    if (err && err_size) {
-      snprintf(err, err_size, "Cannot build road here");
+    if (reason) {
+      *reason = UNITS_PIONEER_CANNOT_ROAD;
     }
     return false;
   }
@@ -666,9 +659,8 @@ bool units_pioneer_road_w(
    * = road OR settlement before raising @NOROAD, so Build Road is never
    * offered on a colony/village tile. */
   if (units_pioneer_road_mask(map, colonies, u->x, u->y)) {
-    if (err && err_size) {
-      popup_msg_fill(messages, "NOROAD", NULL, "", err, err_size);
-      popup_msg_strip_markup(err);
+    if (reason) {
+      *reason = UNITS_PIONEER_NOROAD;
     }
     units_pioneer_emit_order_gate(u, ai_popups, messages, "NOROAD", "");
     return false;
@@ -683,7 +675,7 @@ bool units_pioneer_road_w(
       diag_info("ORDER %s: build road tile (%d,%d) tools=%d", who, u->x, u->y, u->tools);
     }
   }
-  return units_pioneer_work_tick_w(w, unit_id, err, err_size, ai_popups, messages);
+  return units_pioneer_work_tick_w(w, unit_id, reason, ai_popups, messages);
 }
 
 bool units_adjacent(int ax, int ay, int bx, int by) {

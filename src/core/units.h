@@ -131,12 +131,15 @@ typedef struct ColonizeUnit {
   int orders; /* @ORDERS: 0=none, 1=sentry, 3=goto, … */
   int goto_x; /* UNITS_GOTO_NONE (0xFF) = none */
   int goto_y;
-  int follow_unit_id; /* -1 none; target when orders==UNITS_ORDER_FOLLOW */
+  /* -1 none. Overloaded by orders: UNITS_ORDER_FOLLOW = the followed unit id;
+   * UNITS_ORDER_TRADE_ROUTE = the trade_route[] slot it runs (DOS +0x17 low
+   * nibble, col1_bridge route cursor; game_apply_trade_dest). */
+  int follow_unit_id;
   int profession; /* NAMES.TXT @JOB index; 28 = none (COL1 plain colonist) */
   int tools; /* carried tools (Pioneers); 0–100 in steps of 20 */
   int muskets; /* 0 or 50 when armed */
   int horses; /* 0 or 50 when mounted */
-  int home_tribe_id; /* DOS unit+0x06 / DS:314a; -1 = none */
+  int home_tribe_index; /* DOS unit+0x06 / DS:314a; -1 = none */
   /* COL1 unit+0x16, DOS multi-purpose counter: Brave labor pulse, treasure
    * clock, ship repair timer, trade-route stop index, cower timer, Europe
    * voyage turns. Was turns_worked. */

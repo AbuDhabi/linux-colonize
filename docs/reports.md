@@ -263,7 +263,7 @@ independently golden-confirmed.
   `game_loop.c`). Esc/Enter/OK on the detail view returns to the grid.
 - Strings: title "LABOR ADVISER REPORT" resolves live (`reports_title`);
   job names (live from `NAMES.TXT @JOB`) via
-  `reports_job_name()`; "(Click on item to zoom)" (`@MISC` #56) and the
+  `reports_job_display_name()`; "(Click on item to zoom)" (`@MISC` #56) and the
   detail page's "Off Mapboard (Europe)"/"On Mapboard"/"In Colonies"
   (#53/#54/#55) resolve live (2026-08-28).
 - Port status: Done (golden `labor.png`/`labor_detail.png`) —
@@ -529,7 +529,7 @@ independently golden-confirmed.
 - Click targets: none.
 - Strings: title "INDIAN ADVISER REPORT"; tribe names from NAMES.TXT
   @TRIBES col 0 (plural, not the singular/adjective col 1 used elsewhere);
-  tribe-level words live from `@LEVELS` (`reports_tribe_level`, 2026-08-26);
+  tribe-level words live from `@LEVELS` (`reports_tribe_level_display_name`, 2026-08-26);
   "Missions"/"Horse Herds" from `@MISC` 28/45, "Muskets" from `@CARGO`. The
   settlement noun is **not** a hardcoded "Villages": DOS-LITERAL
   `FUN_3f41_010a` raw 69557-69564 takes the tribe's own `NAMES.TXT @LEVELS`

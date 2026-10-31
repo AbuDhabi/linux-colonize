@@ -107,6 +107,9 @@ int font_draw_glyph_shaded(
  * the face lacks (DOS); with no face loaded every char is the builtin 6px cell. */
 int font_text_width_skip(const ColonizeFont* font, const char* text, const char* skipset);
 
+/* Advance of one char as font_draw_text draws it (0 if the face lacks it). */
+int font_char_advance(const ColonizeFont* font, unsigned char ch);
+
 /* font_text_width_skip with FONT_SKIP_HOTKEY. */
 int font_text_width(const ColonizeFont* font, const char* text);
 

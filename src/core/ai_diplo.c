@@ -99,8 +99,6 @@
  * the OpenCol-only Euro-alliance hit, gone with T2.4). */
 /* At-war gate: relation < 26, i.e. DOS alarm > 0x4a. */
 #define AI_DIPLO_INDIAN_AT_WAR_REL 26 /* alarm > 0x4a (FUN_5bfb_153e hostile tier) */
-/* Very-low deepen: relation < 16, i.e. DOS alarm >= 85. */
-#define AI_DIPLO_INDIAN_VERY_LOW_REL 16 /* alarm >= 85: sticky deepen band (OpenCol) */
 /* Retired: AI_DIPLO_INDIAN_HARASS_GOLD (invented −2g/turn native-war drain).
  * No native machinery (FUN_4d56_152e, 4cc6_00f2, 5952_035e, 465b_0000) touches
  * a Euro treasury. docs/archive/smell_audit_2026-09-09.md #49. */
@@ -109,9 +107,6 @@
  * floor; DOS never assigns the byte (surrender idiom FUN_43f7_0108,
  * viceroy_unpacked.c:73555-73557 = clear_both(0xb) then or_both(0x60)), so both
  * writes go through ai_diplo_or_both. docs/archive/smell_audit_2026-09-10.md #16. */
-#define AI_DIPLO_STICKY_CLEAR 0u
-#define AI_DIPLO_STICKY_AT_WAR 1u
-#define AI_DIPLO_STICKY_DEEP 2u
 
 /* ===================== Forward declarations & retired war-friction notes ===================== */
 static uint8_t* ai_diplo_timer_byte(ColonizeCol1Save* col1, int nation, int peer);
@@ -163,63 +158,6 @@ COLONIZE_INTERNAL int ai_diplo_indian_any_at_war(const ColonizeCol1Save* col1, i
     }
   }
   return 0;
-}
-
-/* Port-only cache, never saved: re-derived on load (col1_bridge_apply_w). */
-static uint8_t s_indian_hostility_sticky[4];
-
-uint8_t ai_diplo_indian_hostility_sticky(const ColonizeCol1Save* col1, int euro_nation) {
-  if (!col1 || euro_nation < 0 || euro_nation >= 4) {
-    return AI_DIPLO_STICKY_CLEAR;
-  }
-  return s_indian_hostility_sticky[euro_nation];
-}
-
-void ai_diplo_reset(void) {
-  memset(s_indian_hostility_sticky, 0, sizeof(s_indian_hostility_sticky));
-}
-
-COLONIZE_INTERNAL void ai_diplo_indian_hostility_set(int euro_nation, uint8_t value) {
-  if (euro_nation >= 0 && euro_nation < 4) {
-    s_indian_hostility_sticky[euro_nation] = value;
-  }
-}
-
-/*
- * Sync the sticky stand-in (session cache, not saved) from the
- * Indian alarm matrix (via ai_diplo_indian_read).
- *  0 — no Indian at-war slots (all unmet r==0, or relation ≥
- *      AI_DIPLO_INDIAN_AT_WAR_REL = 26)
- *  1 — any contacted slot at war (0 < relation < 26)
- *  2 — deepen when already hostile and any slot very low
- *      (0 < relation < AI_DIPLO_INDIAN_VERY_LOW_REL = 16)
- * Relation is the inverse of DOS alarm, so the bands are DOS alarm > 0x4a
- * (FUN_5bfb_153e hostile tier) and alarm ≥ 85 respectively. Unmet r==0 is
- * not war (seed-100 early TURN goldens).
- */
-void ai_diplo_indian_hostility_sync(ColonizeCol1Save* col1, int euro_nation) {
-  if (!col1 || euro_nation < 0 || euro_nation >= 4) {
-    return;
-  }
-  int any_war = 0;
-  int any_very_low = 0;
-  for (int idx = 0; idx < 8; ++idx) {
-    const uint8_t r = ai_diplo_indian_read(col1, euro_nation, idx);
-    if (r == 0) {
-      continue; /* unmet */
-    }
-    if (r < AI_DIPLO_INDIAN_AT_WAR_REL) {
-      any_war = 1;
-    }
-    if (r < AI_DIPLO_INDIAN_VERY_LOW_REL) {
-      any_very_low = 1;
-    }
-  }
-  uint8_t next = AI_DIPLO_STICKY_CLEAR;
-  if (any_war) {
-    next = any_very_low ? AI_DIPLO_STICKY_DEEP : AI_DIPLO_STICKY_AT_WAR;
-  }
-  s_indian_hostility_sticky[euro_nation] = next;
 }
 
 void ai_diplo_indian_capital_surrender(
@@ -307,7 +245,6 @@ void ai_diplo_indian_capital_surrender(
   ai_diplo_or_both(
     col1, indian_nation, euro_nation, (uint8_t)(COL1_INDIAN_MET_BIT | COL1_INDIAN_PEACE_BIT)
   );
-  ai_diplo_indian_hostility_sync(col1, euro_nation);
 }
 
 /* ===================== Diplomacy byte accessors, war/peace declarations & sound hook (ai_diplo_timer_byte .. ai_diplo_make_peace) ===================== */
@@ -486,21 +423,6 @@ int ai_diplo_465b_band(ColonizeCol1Save* col1, int attacker, int defender) {
 
 int ai_diplo_at_war(const ColonizeCol1Save* col1, int nation_a, int nation_b) {
   return (ai_diplo_read(col1, nation_a, nation_b) & AI_DIPLO_WAR) != 0;
-}
-
-int ai_diplo_at_war_with_any(const ColonizeCol1Save* col1, int nation) {
-  if (!col1 || nation < 0 || nation >= 4) {
-    return 0;
-  }
-  for (int other = 0; other < 4; ++other) {
-    if (other == nation) {
-      continue;
-    }
-    if (ai_diplo_at_war(col1, nation, other)) {
-      return 1;
-    }
-  }
-  return 0;
 }
 
 void ai_diplo_declare_war(ColonizeCol1Save* col1, int nation_a, int nation_b) {
@@ -1474,7 +1396,7 @@ static const char* ai_talk_name(ColonizeTurnContext* ctx, int n) {
 /* FUN_281f_0a1a form: tribe plural (@TRIBES column 0) / WoI-aware Euro plural. */
 static const char* ai_talk_plural(ColonizeTurnContext* ctx, int n) {
   if (n >= 4 && n <= 11) {
-    return reports_tribe_name(n - 4);
+    return reports_tribe_display_name(n - 4);
   }
   return reports_nation_plural_woi(ctx->col1, n);
 }
@@ -1548,6 +1470,8 @@ static void ai_talk_unit_to_europe(ColonizeTurnContext* ctx, int unit_id) {
       return;
     }
     if (europe_dock_push_load(ctx->europe, units_display_name(ctx->units, u), u->profession)) {
+      ctx->europe->dock[ctx->europe->dock_count - 1].artillery =
+        units_type_kind(units_type(ctx->units, u->type_index)) == UNITS_KIND_ARTILLERY;
       (void)units_despawn(ctx->units, unit_id);
     }
     return;
@@ -1592,10 +1516,10 @@ static int ai_talk_withdraw(ColonizeTurnContext* ctx, int who, int near_nation) 
 }
 
 static void ai_talk_body(
-  ColonizeTurnContext* ctx, const char* tag, const PopupMsgTokens* tok, const char* fallback,
+  ColonizeTurnContext* ctx, const char* tag, const PopupMsgTokens* tok,
   char* out, size_t out_size
 ) {
-  popup_msg_fill(ctx->messages, tag, tok, fallback, out, out_size);
+  popup_msg_fill(ctx->messages, tag, tok, "", out, out_size);
 }
 
 /*
@@ -1641,14 +1565,14 @@ static const char* ai_talk_usa_tag(
 }
 
 static void ai_talk_ok(
-  ColonizeTurnContext* ctx, const char* tag, const PopupMsgTokens* tok_in, const char* fallback
+  ColonizeTurnContext* ctx, const char* tag, const PopupMsgTokens* tok_in
 ) {
   PopupMsgTokens usa_tok = *tok_in;
   char usa_tag[32];
   tag = ai_talk_usa_tag(ctx, tag, &usa_tok, usa_tag, sizeof(usa_tag));
   const PopupMsgTokens* tok = &usa_tok;
   char body[AI_POPUP_BODY_LEN];
-  ai_talk_body(ctx, tag, tok, fallback, body, sizeof(body));
+  ai_talk_body(ctx, tag, tok, body, sizeof(body));
   s_talk.pending = 0;
   (void)ai_popup_enqueue_ok_ctx(
     ctx->ai_popups, AI_POPUP_TAG_DIPLO_TALK, s_talk.self, s_talk.target, 0,
@@ -1664,7 +1588,7 @@ static void ai_talk_ok(
 
 /* Enqueue a CHOICE for `stage`; labels from GAME.TXT when present. */
 static void ai_talk_choice(
-  ColonizeTurnContext* ctx, const char* tag, const PopupMsgTokens* tok_in, const char* fallback,
+  ColonizeTurnContext* ctx, const char* tag, const PopupMsgTokens* tok_in,
   const char* const* fallback_labels, int count, int stage
 ) {
   PopupMsgTokens usa_tok = *tok_in;
@@ -1672,7 +1596,7 @@ static void ai_talk_choice(
   tag = ai_talk_usa_tag(ctx, tag, &usa_tok, usa_tag, sizeof(usa_tag));
   const PopupMsgTokens* tok = &usa_tok;
   char body[AI_POPUP_BODY_LEN];
-  ai_talk_body(ctx, tag, tok, fallback, body, sizeof(body));
+  ai_talk_body(ctx, tag, tok, body, sizeof(body));
   char buf[AI_POPUP_CHOICE_MAX][AI_POPUP_CHOICE_LEN];
   const ColonizeMsgSection* sec = ctx->messages ? assets_msg_find(ctx->messages, tag) : NULL;
   const int nch = sec ? popup_msg_choices(sec, buf, AI_POPUP_CHOICE_MAX) : 0;
@@ -1742,7 +1666,7 @@ static void ai_talk_peace_offer(ColonizeTurnContext* ctx) {
   }
   static const char* const no_fallback[2] = {"", ""};
   k->stage = AI_TALK_ST_WORTHY;
-  ai_talk_choice(ctx, "WORTHY", &tok, "", no_fallback, 2, AI_TALK_ST_WORTHY);
+  ai_talk_choice(ctx, "WORTHY", &tok, no_fallback, 2, AI_TALK_ST_WORTHY);
 }
 
 /* ai_talk_advance is a state machine over Ai153eTalk stages; each stage below
@@ -1771,9 +1695,9 @@ static AiTalkStepStatus ai_talk_stage_third(
       : assets_msg_line_or(ctx->messages, "MEEKNESS", k->manly ? 1 : 0, "");
     static const char* const lab_a[2] = {"", ""};
     if (k->third < 4) {
-      ai_talk_choice(ctx, "APOSTATES", &third_party_tokens, "", lab_a, 2, AI_TALK_ST_THIRD);
+      ai_talk_choice(ctx, "APOSTATES", &third_party_tokens, lab_a, 2, AI_TALK_ST_THIRD);
     } else {
-      ai_talk_choice(ctx, "HEATHEN", &third_party_tokens, "", lab_a, 2, AI_TALK_ST_THIRD);
+      ai_talk_choice(ctx, "HEATHEN", &third_party_tokens, lab_a, 2, AI_TALK_ST_THIRD);
     }
     return AI_TALK_STEP_RETURN;
   }
@@ -1788,7 +1712,7 @@ static AiTalkStepStatus ai_talk_stage_piracy(
   const int alert = (ai_diplo_read(col1, t, h) & AI_DIPLO_PRIVATEER_SIGHTED) != 0;
   if (alert && !k->crown_armed && col1->stuff.unit_type_counts[h][16] != 0) {
     static const char* const lab[2] = {"", ""};
-    ai_talk_choice(ctx, "PIRACY", tok, "", lab, 2, AI_TALK_ST_PIRACY);
+    ai_talk_choice(ctx, "PIRACY", tok, lab, 2, AI_TALK_ST_PIRACY);
     return AI_TALK_STEP_RETURN;
   }
   return AI_TALK_STEP_CONTINUE;
@@ -1807,7 +1731,7 @@ static AiTalkStepStatus ai_talk_stage_sieges(
     }
     if (ask) {
       static const char* const lab[2] = {"", ""};
-      ai_talk_choice(ctx, "SIEGES", tok, "", lab, 2, AI_TALK_ST_SIEGES);
+      ai_talk_choice(ctx, "SIEGES", tok, lab, 2, AI_TALK_ST_SIEGES);
       return AI_TALK_STEP_RETURN;
     }
   }
@@ -1825,7 +1749,7 @@ static AiTalkStepStatus ai_talk_stage_tribute(
     tt.number0 = k->score;
     tt.has_number0 = true;
     static const char* const lab[2] = {"", ""};
-    ai_talk_choice(ctx, "TRIBUTE", &tt, "", lab, 2, AI_TALK_ST_TRIBUTE);
+    ai_talk_choice(ctx, "TRIBUTE", &tt, lab, 2, AI_TALK_ST_TRIBUTE);
     return AI_TALK_STEP_RETURN;
   }
   return AI_TALK_STEP_CONTINUE;
@@ -1861,7 +1785,7 @@ static AiTalkStepStatus ai_talk_stage_wantstuff(
       "",
       ""
     };
-    ai_talk_choice(ctx, "WANTSTUFF", &tw, "", lab, 2, AI_TALK_ST_WANTSTUFF);
+    ai_talk_choice(ctx, "WANTSTUFF", &tw, lab, 2, AI_TALK_ST_WANTSTUFF);
     return AI_TALK_STEP_RETURN;
   }
   return AI_TALK_STEP_CONTINUE;
@@ -1909,7 +1833,7 @@ static AiTalkStepStatus ai_talk_stage_worthy(
     tr.string0 = leader2 ? leader2 : ai_talk_name(ctx, t);
     tr.string1 = (t >= 0 && t < 4 && col1) ? col1_player_country_name(col1, t) : ai_talk_name(ctx, t);
     if (ai_talk_peace(ctx, h, t) && k->score >= 0x65) {
-      ai_talk_ok(ctx, "PROVOKE", tok, "");
+      ai_talk_ok(ctx, "PROVOKE", tok);
       ai_diplo_clear_both(col1, h, t, AI_DIPLO_PEACE);
     } else if (k->score == 999) {
       /*
@@ -1917,7 +1841,7 @@ static AiTalkStepStatus ai_talk_stage_worthy(
        * 0x1940 "WARMANLY" here — no MEEK variant and no +USA suffix,
        * unlike the WAR+tone site in the @GIVECASH tail.
        */
-      ai_talk_ok(ctx, "WARMANLY", &tr, "");
+      ai_talk_ok(ctx, "WARMANLY", &tr);
       ai_diplo_clear_both(col1, h, t, AI_DIPLO_PEACE);
     } else {
       /*
@@ -1925,7 +1849,7 @@ static AiTalkStepStatus ai_talk_stage_worthy(
        * ai_talk_usa_tag).  Ultimatum only: DOS changes no relation bit
        * on this leg.
        */
-      ai_talk_ok(ctx, "RID", &tr, "");
+      ai_talk_ok(ctx, "RID", &tr);
     }
     k->stage = AI_TALK_ST_PEACEMENU;
     return AI_TALK_STEP_CONTINUE;
@@ -1958,7 +1882,7 @@ static AiTalkStepStatus ai_talk_stage_givecash(
       tt.has_number0 = true;
       k->pending_gold = offer;
       static const char* const lab[2] = {"", ""};
-      ai_talk_choice(ctx, "GIVECASH", &tt, "", lab, 2, AI_TALK_ST_GIVECASH);
+      ai_talk_choice(ctx, "GIVECASH", &tt, lab, 2, AI_TALK_ST_GIVECASH);
       return AI_TALK_STEP_RETURN;
     }
   }
@@ -1975,7 +1899,7 @@ static AiTalkStepStatus ai_talk_stage_givecash(
     PopupMsgTokens tw = *tok;
     tw.string0 = wl2 ? wl2 : ai_talk_name(ctx, t);
     tw.string1 = ai_talk_name(ctx, t);
-    ai_talk_ok(ctx, k->manly ? "WARMANLY" : "WARMEEK", &tw, "");
+    ai_talk_ok(ctx, k->manly ? "WARMANLY" : "WARMEEK", &tw);
   }
   return AI_TALK_STEP_CONTINUE;
 }
@@ -2007,7 +1931,7 @@ static AiTalkStepStatus ai_talk_stage_peacemenu(
         tp.string2 = reports_difficulty_title((diff >= 0 && diff < 5) ? diff : 0);
         tp.string3 = ctx->col1->player[h].name;
       }
-      ai_talk_choice(ctx, tag, &tp, "", lab, 4, AI_TALK_ST_PEACEMENU);
+      ai_talk_choice(ctx, tag, &tp, lab, 4, AI_TALK_ST_PEACEMENU);
       return AI_TALK_STEP_RETURN;
     }
   }
@@ -2046,7 +1970,7 @@ static AiTalkStepStatus ai_talk_stage_ally_pick(
     return AI_TALK_STEP_CONTINUE;
   }
   char body[AI_POPUP_BODY_LEN];
-  ai_talk_body(ctx, "MILITARY", tok, "", body, sizeof(body));
+  ai_talk_body(ctx, "MILITARY", tok, body, sizeof(body));
   s_talk.pending = AI_TALK_ST_ALLY_PICK;
   /* No MYR figure: nothing between 2d50 and the 2e32 show sets DS:0x1f60. */
   (void)ai_popup_enqueue_choice_ctx(
@@ -2068,13 +1992,13 @@ static AiTalkStepStatus ai_talk_stage_ally_pay(
   PopupMsgTokens tp = *tok;
   tp.string0 = ai_talk_plural(ctx, p); /* OVL16 asm 150895/150935: 0a1a(pick) */
   if (!ai_talk_met(ctx, t, p)) {
-    ai_talk_ok(ctx, "NOCONTACT", &tp, "");
+    ai_talk_ok(ctx, "NOCONTACT", &tp);
     return AI_TALK_STEP_CONTINUE;
   }
   const int t_peace_p = (p < 4) ? ai_talk_peace(ctx, t, p)
                                 : (col1->indian[p - 4].euro_diplo[t] & COL1_INDIAN_PEACE_BIT) != 0;
   if (!t_peace_p) {
-    ai_talk_ok(ctx, "ALREADYSMITE", &tp, "");
+    ai_talk_ok(ctx, "ALREADYSMITE", &tp);
     return AI_TALK_STEP_CONTINUE;
   }
   long base;
@@ -2094,7 +2018,7 @@ static AiTalkStepStatus ai_talk_stage_ally_pay(
   tp.number0 = cost;
   tp.has_number0 = true;
   static const char* const lab[2] = {"", ""};
-  ai_talk_choice(ctx, p < 4 ? "SMITEEUROPE" : "SMITEINDIANS", &tp, "", lab, 2, AI_TALK_ST_ALLY_PAY);
+  ai_talk_choice(ctx, p < 4 ? "SMITEEUROPE" : "SMITEINDIANS", &tp, lab, 2, AI_TALK_ST_ALLY_PAY);
   return AI_TALK_STEP_RETURN;
 }
 
@@ -2303,7 +2227,7 @@ static void ai_talk_resume(ColonizeTurnContext* ctx, int stage, int choice) {
         PopupMsgTokens tw = tok;
         tw.string0 = gl2 ? gl2 : ai_talk_name(ctx, t);
         tw.string1 = ai_talk_name(ctx, t);
-        ai_talk_ok(ctx, k->manly ? "WARMANLY" : "WARMEEK", &tw, "");
+        ai_talk_ok(ctx, k->manly ? "WARMANLY" : "WARMEEK", &tw);
       }
       k->stage = AI_TALK_ST_PEACEMENU;
       ai_talk_advance(ctx);
@@ -2313,7 +2237,7 @@ static void ai_talk_resume(ColonizeTurnContext* ctx, int stage, int choice) {
       if (choice == 2) {
         /* withdraw demand by the human (raw :98252-98330) */
         if (!k->any_border) {
-          ai_talk_ok(ctx, "NOTHINGWITHDRAW", &tok, "");
+          ai_talk_ok(ctx, "NOTHINGWITHDRAW", &tok);
         } else if (!k->manly || k->latch) {
           int cost = (diff + 2) * k->border_value * (k->at_war ? 0x32 : 0x19);
           if (k->worthy_end) {
@@ -2330,18 +2254,18 @@ static void ai_talk_resume(ColonizeTurnContext* ctx, int stage, int choice) {
           }
           k->withdraw_cost = cost;
           if (europe_nation_gold(ctx->europe, col1, h) < (uint32_t)cost || k->latch) {
-            ai_talk_ok(ctx, "NOTWITHDRAW", &tok, "");
+            ai_talk_ok(ctx, "NOTWITHDRAW", &tok);
           } else {
             PopupMsgTokens tc = tok;
             tc.number0 = cost;
             tc.has_number0 = true;
             static const char* const lab[3] = {"", "", ""};
             k->stage = AI_TALK_ST_WITHDRAW;
-            ai_talk_choice(ctx, "MAYBEWITHDRAW", &tc, "", lab, 3, AI_TALK_ST_WITHDRAW);
+            ai_talk_choice(ctx, "MAYBEWITHDRAW", &tc, lab, 3, AI_TALK_ST_WITHDRAW);
             return;
           }
         } else {
-          ai_talk_ok(ctx, "WITHDRAW", &tok, "");
+          ai_talk_ok(ctx, "WITHDRAW", &tok);
           (void)ai_talk_withdraw(ctx, t, h);
         }
       } else if (choice == 3) {
@@ -2356,16 +2280,16 @@ static void ai_talk_resume(ColonizeTurnContext* ctx, int stage, int choice) {
         tribute_gold *= 100;
         if (tribute_gold <= 0) {
           if (!k->worthy_end) {
-            ai_talk_ok(ctx, "THREATS", &tok, "");
+            ai_talk_ok(ctx, "THREATS", &tok);
           } else {
-            ai_talk_ok(ctx, "PROVOKE", &tok, "");
+            ai_talk_ok(ctx, "PROVOKE", &tok);
             ai_diplo_clear_both(col1, h, t, AI_DIPLO_PEACE);
           }
         } else {
           PopupMsgTokens tg = tok;
           tg.number0 = tribute_gold;
           tg.has_number0 = true;
-          ai_talk_ok(ctx, "GIFTS", &tg, "");
+          ai_talk_ok(ctx, "GIFTS", &tg);
           ai_talk_gold(ctx, t, h, tribute_gold);
         }
       } else if (choice == 4) {
@@ -2392,10 +2316,10 @@ static void ai_talk_resume(ColonizeTurnContext* ctx, int stage, int choice) {
          * refuse` — roll <= the HUMAN's field-combat total → they back down.
          * (Was inverted here before 2026-09-06.) */
         if (ai_talk_rng(ctx, 0, span) <= (int)col1->stuff.field_combat_totals[h]) {
-          ai_talk_ok(ctx, "WITHDRAW", &tok, "");
+          ai_talk_ok(ctx, "WITHDRAW", &tok);
           (void)ai_talk_withdraw(ctx, t, h);
         } else {
-          ai_talk_ok(ctx, "WARMANLY", &tok, "");
+          ai_talk_ok(ctx, "WARMANLY", &tok);
           ai_diplo_clear_both(col1, h, t, AI_DIPLO_PEACE);
         }
       }
@@ -2411,7 +2335,7 @@ static void ai_talk_resume(ColonizeTurnContext* ctx, int stage, int choice) {
       if (choice == 1) {
         const int p = k->ally_pick;
         if (europe_nation_gold(ctx->europe, col1, h) < (uint32_t)k->ally_cost) {
-          ai_talk_ok(ctx, "UNFORTUNATE", &tok, "");
+          ai_talk_ok(ctx, "UNFORTUNATE", &tok);
         } else {
           /* decomp 98373-98379: 0a10(t, p, 0x40) clear-both runs for BOTH
            * victim kinds (the port used to clear only on the Euro arm). */
@@ -2438,7 +2362,7 @@ static void ai_talk_resume(ColonizeTurnContext* ctx, int stage, int choice) {
           PopupMsgTokens tm = tok;
           tm.string0 = ai_talk_plural(ctx, t);
           tm.string1 = ai_talk_plural(ctx, p);
-          ai_talk_ok(ctx, "MERCENARY", &tm, "");
+          ai_talk_ok(ctx, "MERCENARY", &tm);
           ai_talk_gold(ctx, h, t, k->ally_cost);
         }
       }
@@ -2740,7 +2664,7 @@ static int ai_diplo_153e_encounter_gated(
     /* 5bfb:15cf: the same "MET (0x20) still clear" test gates woodcut 10. */
     (void)woodcut_fire(col1, WOODCUT_MEETING_FELLOW_EUROPEANS);
   }
-  ai_talk_ok(ctx, hello, &tok, "");
+  ai_talk_ok(ctx, hello, &tok);
   k->stage = AI_TALK_ST_THIRD;
   ai_talk_advance(ctx);
   /* Headless (no popup queue): the idle player answers every audience
@@ -2892,8 +2816,8 @@ static void ai_diplo_13b0_treaty_tick(ColonizeTurnContext* ctx, int a, int b) {
        * ai_diplo_wake_border_garrisons. */
       for (int i = 0; i < units_slot_end(ctx->units) && !encounter; ++i) {
         const ColonizeUnit* u = &ctx->units->units[i];
-        if (!u->active || u->nation_id != a || u->aboard_ship_id >= 0 || u->x >= 200 ||
-            u->y >= 200) {
+        if (!u->active || u->nation_id != a || u->aboard_ship_id >= 0 ||
+            units_coords_in_europe_park(u->x, u->y)) {
           continue;
         }
         for (int j = 0; j < units_slot_end(ctx->units) && !encounter; ++j) {

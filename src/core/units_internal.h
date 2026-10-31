@@ -51,9 +51,7 @@ bool units_is_combat_role(const ColonizeUnitPool* pool, const ColonizeUnit* u);
 
 /* --- owned by units.c --- */
 extern int g_units_combat_human_nation;
-extern char g_units_homeport[4][24];
 extern char g_units_levels[5][24];
-extern char g_units_nationality[4][24];
 bool units_move_crosses_shore( const ColonizeWorldMap* map, const ColonizeColonyPool* colonies, int from_x, int from_y, int to_x, int to_y );
 ColonizeUnit* units_slot(ColonizeUnitPool* pool);
 /* Slot bookkeeping (units_map.c): index slot->id / drop it, bump slot_end. */
@@ -125,7 +123,6 @@ const ColonizeUnit* units_last_active(const ColonizeUnitPool* pool);
 bool units_combat_is_visible(const ColonizeUnitPool* pool, int a_id, int b_id);
 void units_combat_music_sting(void);
 const char* units_combat_nation_label(const ColonizeCol1Save* col1, int nation_id);
-const char* units_combat_nation_label_plural(const ColonizeCol1Save* col1, int nation_id);
 void units_combat_outcome_popups( const ColonizeUnitPool* pool, const ColonizeUnit* win, const ColonizeUnit* lose, int atk_wins, int atk_nation, int def_nation, int is_naval, int ambush, const ColonizeCol1Save* col1 );
 int units_domain_blocker_at( const ColonizeUnitPool* pool, int x, int y, int mover_id, int mover_nation );
 void units_finish_village_temp_defender( ColonizeUnitPool* pool, ColonizeCol1Save* col1, ColonizeWorldMap* map, int temp_id, int attacker_won, int attacker_nation, int village_x, int village_y, int attacker_x, int attacker_y, ColonizeDosRng* rng );
@@ -135,6 +132,8 @@ int units_indian_attack_alarm_vent_amount( const ColonizeCol1Save* col1, int def
 void units_indian_attack_tension_clear( const ColonizeCol1Save* col1, const ColonizeColonyPool* colonies, int atk_nation, int atk_home_tribe, int def_nation, int def_x, int def_y, int atk_wins );
 void units_indian_tension_clear( const ColonizeCol1Save* col1, int tribe_index, int euro_nation );
 int units_naval_evade_power(const ColonizeUnitPool* pool, int unit_id);
+/* FUN_281f_0614 = FUN_15eb_0142 nearest colony (units_pioneer.c). */
+ColonizeColony* units_nearest_colony_dos( ColonizeColonyPool* colonies, int x, int y, int filter_nation, int* out_dist );
 const ColonizeColony* units_nearest_own_drydock_colony( const ColonizeColonyPool* colonies, int nation_id, int x, int y );
 void units_play_event_sound(int id);
 int units_promote_on_win( ColonizeUnitPool* pool, ColonizeUnit* winner, const ColonizeCol1Save* col1, int winner_str, int loser_str, ColonizeDosRng* rng );
@@ -153,7 +152,7 @@ int units_tribe_nation_at(const ColonizeCol1Save* col1, int x, int y);
 bool units_at_war_for_move(const ColonizeCol1Save* col1, int nation_a, int nation_b);
 void units_capture_claim_ring(ColonizeWorldMap* map, int x, int y, int new_owner);
 int units_colony_plunder_stock_sum(const ColonizeColony* col);
-bool units_fort_vs_ship( ColonizeUnitPool* pool, int attack_str, int fort_nation, int fort_x, int fort_y, int defender_id, ColonizeDosRng* rng, const ColonizeCol1Save* col1, const char* atk_label );
+bool units_fort_vs_ship( ColonizeUnitPool* pool, int attack_str, int fort_nation, int fort_x, int fort_y, int defender_id, ColonizeDosRng* rng, const ColonizeCol1Save* col1, const char* atk_label, const char* fort_name );
 bool units_native_village_grudge(
   const ColonizeCol1Save* col1, const ColonizeUnit* mover, int euro_nation
 );

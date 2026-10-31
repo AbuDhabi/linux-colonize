@@ -34,21 +34,13 @@
 #include <string.h>
 
 /* ===== Mercenary hire offers (ai_king_merc_payload .. ai_king_merc_offer) ===== */
-static int ai_king_merc_payload(int hx, int hy, int regular_count, int artillery_or_cavalry_roll, int price) {
-  /* Packed unsigned: hx >= 32 sets bit 31, which overflows a signed shift. */
-  return (int)(((uint32_t)(hx & 0x3f) << 26) | ((uint32_t)(hy & 0x3f) << 20) |
-               ((uint32_t)(regular_count & 0xf) << 16) |
+static int ai_king_merc_payload(int regular_count, int artillery_or_cavalry_roll, int price) {
+  return (int)(((uint32_t)(regular_count & 0xf) << 16) |
                ((uint32_t)(artillery_or_cavalry_roll & 1) << 15) | (uint32_t)(price & 0x7fff));
 }
 
-void ai_king_merc_payload_parts(int payload, int* out_hx, int* out_hy, int* out_regular_count,
-                                       int* out_artillery_or_cavalry_roll, int* out_price) {
-  if (out_hx) {
-    *out_hx = (int)(((uint32_t)payload >> 26) & 0x3fu);
-  }
-  if (out_hy) {
-    *out_hy = (payload >> 20) & 0x3f;
-  }
+void ai_king_merc_payload_parts(int payload, int* out_regular_count,
+                                int* out_artillery_or_cavalry_roll, int* out_price) {
   if (out_regular_count) {
     *out_regular_count = (payload >> 16) & 0xf;
   }
@@ -74,17 +66,15 @@ void ai_king_merc_payload_parts(int payload, int* out_hx, int* out_hy, int* out_
  * (−0x61ba): slot 0 = regular_count Regulars-class, and exactly one of slot 1
  * (Cavalry) or slot 3 (Artillery) per the offer-time coin flip.
  *
- * DOS re-derives the landing colony inside 10f0 at accept time; hx/hy from
- * the payload survive only as an offer-time sanity field (see
- * ai_king_merc_payload). Returns 1 when the hire went through, 0 when the
- * treasury cannot cover the price.
+ * DOS derives the landing colony inside 10f0 at accept time. Returns 1 when
+ * the hire went through, 0 when the treasury cannot cover the price.
  */
-int ai_king_do_merc_hire_at(ColonizeTurnContext* ctx, int human, int hx, int hy,
-                                   int regular_count, int artillery_or_cavalry_roll, int price) {
+int ai_king_do_merc_hire(ColonizeTurnContext* ctx, int human,
+                         int regular_count, int artillery_or_cavalry_roll, int price) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->units || human < 0 || human >= 4) {
     return 0;
   }
-  if (regular_count < 1 || price < 0 || hx < 0 || hy < 0) {
+  if (regular_count < 1 || price < 0) {
     return 0;
   }
   if (europe_nation_gold(ctx->europe, ctx->col1, human) < (uint32_t)price) {
@@ -106,31 +96,16 @@ int ai_king_do_merc_hire_at(ColonizeTurnContext* ctx, int human, int hx, int hy,
    * when it actually puts troops ashore. */
   if (ctx->status && ctx->status_size) {
     snprintf(ctx->status, ctx->status_size,
-             "Mercenaries join the Continental cause (−%d gold).", price);
+             "Mercenaries join the Continental cause (-%d gold).", price);
   }
   ai_king_10f0_land(ctx, human, 1, merc_counts);
   return 1;
 }
 
 /*
- * OpenCol-invented stand-in, NOT a faithful port of FUN_43f7_2244 or
- * FUN_43f7_2022 — corrected 2026-08-14, see king_ref.md "2244/2022 —
- * corrected". Neither DOS function has an SoL/300-gold gate or a
- * once-per-war human CHOICE; 2022 is a recurring per-turn self-funded
- * roll (any Euro nation's own treasury, wartime); 2244 is 2022's
- * peacetime twin for AI nations only, unrelated to a human hire offer.
- * This function now ports 2022's rebel branch faithfully: recurring
- * per-turn 1-in-3 roll while REF is absent or the Artillery backup pool
- * is empty; on a hit, roll quantity/price and offer a CHOICE (or
- * auto-accept without ai_popups). market_demand_pool_raw[3] is no longer a gate —
- * DOS has no once-per-war flag here — kept only as a "pending offer
- * already queued" guard so a re-roll can't stack a second CHOICE while
- * one is unanswered.
- */
-/*
  * @UNIT row name for a mercenary count slot. DOS splices the live type-table
  * pointer (`type * 0xe + 0x5230`), so a modded NAMES.TXT @UNIT block wins;
- * the DOS spelling is the fallback for the synthetic test pools.
+ * a pool without that row yields "" (no typed fallback).
  */
 const char* ai_king_merc_unit_name(
   const ColonizeUnitPool* units, ColonizeUnitKind kind
@@ -173,6 +148,10 @@ static void ai_king_merc_fill_dialog(
   labels[1] = nch >= 2 ? choice_buf[1] : "";
 }
 
+/* FUN_43f7_2022 rebel branch (see ai_king_internal.h / king_ref.md "2244/2022
+ * — corrected"): per-turn 1-in-3 roll after the declaration, gated off while
+ * the intervention is announced and the Man-O-War pool is non-empty; a hit
+ * offers @MERCENARIES. Headless play never hires (Space = "No thank you"). */
 void ai_king_merc_offer(ColonizeTurnContext* ctx) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->units || !ctx->rng) {
     return;
@@ -213,13 +192,8 @@ void ai_king_merc_offer(ColonizeTurnContext* ctx) {
   if (europe_nation_gold(ctx->europe, ctx->col1, human) < (uint32_t)price) {
     return; /* DOS silently skips the offer when unaffordable — no status/dialog */
   }
-  int hx = 0;
-  int hy = 0;
   /* port_bugs.md #878g: FUN_43f7_2022's merc body has NO colony pick — the
-   * landing colony is chosen by 10f0's own roulette on accept. Keep the
-   * weakest-port probe only to fill the port-side hx/hy payload; a failure
-   * must not abort the offer after the draws have already been burnt. */
-  (void)ai_king_weakest_port(ctx, human, &hx, &hy);
+   * landing colony is chosen by 10f0's own roulette on accept. */
   if (ai_king_human_popups(ctx)) {
     PopupMsgTokens tok;
     memset(&tok, 0, sizeof(tok));
@@ -267,11 +241,11 @@ void ai_king_merc_offer(ColonizeTurnContext* ctx) {
     const int ids[] = {AI_KING_CHOICE_DECLINE, AI_KING_CHOICE_HIRE};
     if (ai_popup_enqueue_choice_ctx(ctx->ai_popups, AI_POPUP_TAG_KING_MERC, human,
                                     ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, human),
-                                    ai_king_merc_payload(hx, hy, regular_count, artillery_or_cavalry_roll, price), NULL,
+                                    ai_king_merc_payload(regular_count, artillery_or_cavalry_roll, price), NULL,
                                     body, labels, ids, 2)) {
       if (ctx->status && ctx->status_size) {
         snprintf(ctx->status, ctx->status_size,
-                 "Mercenaries offer to join the Continental cause (−%d gold).", price);
+                 "Mercenaries offer to join the Continental cause (-%d gold).", price);
       }
       return;
     }
@@ -548,7 +522,7 @@ int ai_king_do_merc_peace_hire(
   merc_counts[0] = regular;
   merc_counts[3] = artillery;
   if (ctx->status && ctx->status_size) {
-    snprintf(ctx->status, ctx->status_size, "Mercenaries hired (−%d gold).", price);
+    snprintf(ctx->status, ctx->status_size, "Mercenaries hired (-%d gold).", price);
   }
   /* DOS debits before 10f0 runs; a failed roulette / water scan keeps the
    * gold spent. Kept literal. 10f0 raw 74307 lands for DS:0x5398: in

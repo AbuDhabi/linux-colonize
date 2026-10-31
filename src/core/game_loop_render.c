@@ -325,32 +325,17 @@ static void europe_draw_box_border(
 
 /* Two-line header + ship icons inside an Expected/Bound/Loading water box. */
 /*
- * @UNIT type for unit_chrome's orders-box corner (port_bugs.md #419). Must use the
- * SAME by-name fallback the sprite lookup above uses: europe_purchase() files
- * a freshly bought hull with type_index = -1 ("resolved by name in game_loop /
- * caller"), and feeding that -1 straight to unit_chrome_corner_for_type made
- * it miss the 0x0d..0x12 ship range and fall through to BOTTOM_RIGHT — DOS
- * FUN_112b_01ba puts Caravel/Merchantman (0x0d/0x0e) TOP_LEFT and
- * Galleon..Man-O-War (0x0f..0x12) TOP_RIGHT. A Merchantman bought in Europe
- * is the commonest way to see it (the starting Caravel sails in from the map
- * with its type already resolved), which is why the box sat off the stern on
- * that hull only.
+ * port_bugs.md #419: a freshly bought hull has type_index = -1 and only
+ * kind_plus1, so every harbor-ship type lookup goes through
+ * europe_ship_type_index (never the -1 straight to unit_chrome_corner_for_type,
+ * which would miss the 0x0d..0x12 ship range: DOS FUN_112b_01ba puts
+ * Caravel/Merchantman TOP_LEFT and Galleon..Man-O-War TOP_RIGHT).
  */
-static int europe_ship_display_type(const ColonizeUnitPool* units, const EuropeHarborShip* ship) {
-  if (!units || !ship) {
-    return -1;
-  }
-  if (ship->type_index >= 0) {
-    return ship->type_index;
-  }
-  return units_find_type(units, ship->name);
-}
 
-/* The icon sprite of that same resolved type — audit GL-4: this used to be a
- * second copy of the type-index-or-find-by-name resolution above (and GL-3: a
- * verbatim twin of europe.c's static europe_ship_icon_sprite). */
+/* The icon sprite of that resolved type (audit GL-3/GL-4: one resolver, one
+ * europe_ship_icon_sprite). */
 int europe_ship_icon_sprite(const ColonizeUnitPool* units, const EuropeHarborShip* ship) {
-  const ColonizeUnitType* ut = units_type(units, europe_ship_display_type(units, ship));
+  const ColonizeUnitType* ut = units_type(units, europe_ship_type_index(units, ship));
   return ut ? ut->icon_sprite : -1;
 }
 
@@ -422,7 +407,7 @@ static void europe_render_transit_box(
       sprite,
       f.x,
       f.y,
-      europe_ship_display_type(&game->units, &ships[i]),
+      europe_ship_type_index(&game->units, &ships[i]),
       game->human_nation,
       UNITS_ORDER_NONE,
       ships[i].cargo_count > 0,
@@ -1066,11 +1051,7 @@ static int europe_harbor_open_holds(const ColonizeUnitPool* units, const EuropeH
   if (!units || !ship) {
     return 0;
   }
-  int ti = ship->type_index;
-  if (ti < 0) {
-    ti = units_find_type(units, ship->name);
-  }
-  const ColonizeUnitType* ut = units_type(units, ti);
+  const ColonizeUnitType* ut = units_type(units, europe_ship_type_index(units, ship));
   if (!ut || ut->cargo <= 0) {
     return 0;
   }
@@ -1193,7 +1174,7 @@ static void render_europe_chrome(
     const int sel = (eu->selected_harbor >= 0 && eu->selected_harbor < eu->harbor_ships)
                       ? eu->selected_harbor
                       : 0;
-    const int ti = game->units_ok ? europe_ship_display_type(&game->units, &eu->harbor[sel]) : -1;
+    const int ti = game->units_ok ? europe_ship_type_index(&game->units, &eu->harbor[sel]) : -1;
     const ColonizeUnitType* ut = ti >= 0 ? units_type(&game->units, ti) : NULL;
     const char* tname = ut ? ut->name : "";
     const bool split = ti >= 0 && ti == units_kind_type_index(&game->units, UNITS_KIND_MERCHANTMAN);
@@ -1563,13 +1544,7 @@ static bool game_load_ss_asset(
   ColonizeSpriteSheet* out,
   const char* desc
 ) {
-  char path[512];
-  char err[256];
-  if (!dos_compat_normalize_asset_path(game->resolved_data_dir, file, path, sizeof(path))) {
-    return false;
-  }
-  if (!ss_load(path, out, err, sizeof(err))) {
-    diag_warn("Failed to load %s: %s", file, err);
+  if (!ss_load_asset(game->resolved_data_dir, file, out, "Game")) {
     return false;
   }
   diag_info("Loaded %s with %d sprites", desc, out->sprite_count);
@@ -1624,7 +1599,8 @@ static ColonizePalette* game_water_cycle_report_palette(ColonizeGameState* game)
 void game_water_cycle_tick(ColonizeGameState* game) {
   ColonizePalette* report_pal = game_water_cycle_report_palette(game);
   if (game->water_cycle_count == 0 || !game->map_palette_ok ||
-      (game_screen_owns_display(game) && !report_pal) || game->woodcut.open ||
+      ((game_screen_owns_display(game) || game_screen_on_map()) && !report_pal) ||
+      game->woodcut.open ||
       game->declaration.open || game->opening.open || game->closing.open) {
     return;
   }
@@ -2172,7 +2148,6 @@ ColonizeGameState* game_create(const ColonizeGameConfig* config) {
   game_create_load_screens(game);
 
   diag_info("Game config save_dir=%s", config->save_dir ? config->save_dir : "(null)");
-  dos_compat_init();
   return game;
 }
 
@@ -2241,7 +2216,6 @@ void game_destroy(ColonizeGameState* game) {
   assets_msg_free(&game->pedia);
   assets_msg_free(&game->names);
   debug_atlas_free(&game->debug_atlas);
-  dos_compat_shutdown();
   free(game);
 }
 

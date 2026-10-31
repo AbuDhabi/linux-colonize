@@ -82,77 +82,13 @@ ColonizeUnit* units_slot(ColonizeUnitPool* pool) {
 }
 
 /*
- * NAMES.TXT @NATIONALITY adjectives ("English"/"French"/"Spanish"/"Dutch"),
- * cached at type-load time: DOS's nation_name_ptr (FUN_15b3_01e0, reached as
- * func_0x00018b94 from FUN_5fef_0352) reads the DS:-0x72f6 adjective table
- * for every combat / unit substitution, never the player's @COLONYNAME
- * ("New Spain"). Copied rather than aliased so a caller's catalog going out
- * of scope cannot dangle here. port_bugs.md: "New Spain Privateer".
- */
-char g_units_nationality[4][24];
-
-/*
- * NAMES.TXT @HOMEPORT ("London"/"La Rochelle"/"Seville"/"Amsterdam") — DOS's
- * DS:-0x7c74 table, the @SHIPDAMAGE %STRING2 when the loser's nation owns no
- * Drydock colony (FUN_5fef_0352: the ship goes to Europe, not to some other
- * colony).
- */
-char g_units_homeport[4][24];
-
-/* Bounded copy: NAMES rows are COLONIZE_MSG_LINE_LEN wide, these cells 24. */
-static void units_copy_row(char* dst, size_t cap, const char* src) {
-  size_t n = 0;
-  while (src && src[n] && n + 1 < cap) {
-    dst[n] = src[n];
-    n++;
-  }
-  dst[n] = '\0';
-}
-
-static void units_cache_names_rows(
-  const ColonizeMsgCatalog* names, const char* section, char out[4][24],
-  const char* const fallback[4]
-) {
-  for (int i = 0; i < 4; ++i) {
-    units_copy_row(out[i], 24, fallback[i]);
-  }
-  const ColonizeMsgSection* sec = names ? assets_msg_find(names, section) : NULL;
-  if (!sec) {
-    return;
-  }
-  int row = 0;
-  for (int i = 0; i < sec->line_count && row < 4; ++i) {
-    char line[COLONIZE_MSG_LINE_LEN];
-    snprintf(line, sizeof(line), "%s", sec->lines[i]);
-    char* semi = strchr(line, ';');
-    if (semi) {
-      *semi = '\0';
-    }
-    char* comma = strchr(line, ',');
-    if (comma) {
-      *comma = '\0';
-    }
-    str_trim(line);
-    if (line[0] == '\0') {
-      continue;
-    }
-    units_copy_row(out[row], 24, line);
-    row++;
-  }
-}
-
-/*
  * NAMES.TXT @LEVELS column 1 ("Camp"/"Village"/"City"/"City"/"Capital") —
  * DOS's DS:0x9634 stride-6 table, the @LOOT/@LOOT2 %STRING2 indexed by the
  * razed tribe's tech, or 4 for a capital (FUN_5fef_31ea local -0xc0).
  */
 char g_units_levels[5][24];
 
-static void units_cache_nationality(const ColonizeMsgCatalog* names) {
-  static const char* const k_euro[4] = {"", "", "", ""};
-  static const char* const k_port[4] = {"", "", "", ""};
-  units_cache_names_rows(names, "NATIONALITY", g_units_nationality, k_euro);
-  units_cache_names_rows(names, "HOMEPORT", g_units_homeport, k_port);
+static void units_cache_levels(const ColonizeMsgCatalog* names) {
   for (int i = 0; i < 5; ++i) {
     if (!names ||
         !assets_msg_row_field(names, "LEVELS", i, 1, g_units_levels[i], sizeof(g_units_levels[i]))) {
@@ -195,11 +131,11 @@ int units_build_code_to_index(int raw_code) {
 }
 
 bool units_build_project_info(int raw_code, const char** name, int* hammers, int* tools_cost) {
-  const int idx = units_build_code_to_index(raw_code);
-  if (idx < 0) {
+  if (units_build_code_to_index(raw_code) < 0) {
     return false;
   }
-  const UnitsBuildRow* row = &g_units_build_rows[idx - COLONIZE_UNIT_INDEX_ARTILLERY];
+  /* Build code 0x2a..0x30 = @UNIT rows 11..17 = g_units_build_rows[0..6]. */
+  const UnitsBuildRow* row = &g_units_build_rows[raw_code - COLONIZE_UNIT_BUILD_CODE_FIRST];
   if (name) {
     *name = row->name;
   }
@@ -238,7 +174,7 @@ bool units_load_types(ColonizeUnitPool* pool, const ColonizeMsgCatalog* names) {
     return false;
   }
   pool->type_count = 0;
-  units_cache_nationality(names);
+  units_cache_levels(names);
 
   const ColonizeMsgSection* section = assets_msg_find(names, "UNIT");
   if (!section) {
@@ -690,14 +626,13 @@ void units_slot_reset_defaults(
   slot->tools = 0;
   slot->muskets = 0;
   slot->horses = 0;
-  slot->home_tribe_id = -1;
+  slot->home_tribe_index = -1;
   slot->col1_counter16 = 0;
   /* A unit created at DOS index unit_count inherits the bytes 06b4 does not
    * write (+0x0d..+0x0f, +0x13..+0x15) from the record compaction left there. */
   if (pool->unit_count >= 0 && pool->unit_count < COLONIZE_UNITS_DOS_MAX &&
       pool->dos_tail[pool->unit_count].valid && pool->dos_tail[pool->unit_count].raw_valid) {
     memcpy(slot->col1_hold_raw, pool->dos_tail[pool->unit_count].raw, sizeof(slot->col1_hold_raw));
-    slot->col1_hold_raw_valid = 1;
     slot->col1_hold_raw[0] = 0; /* +0x3150 */
     if (type_index == 0x0c) {
       slot->col1_hold_raw[8] = 0; /* +0x3158 */
@@ -844,7 +779,7 @@ void units_set_nation(ColonizeUnit* unit, int nation_id) {
     return;
   }
   unit->nation_id = nation_id;
-  if (unit->x >= 200 || unit->y >= 200) {
+  if (units_coords_in_europe_park(unit->x, unit->y)) {
     /* FUN_1427_06b4 writes +3 = nation (no visibility); only an on-map
      * placement stamps the owner bit. */
     unit->col1_vis_mask = 0;

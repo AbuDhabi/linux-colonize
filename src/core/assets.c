@@ -10,6 +10,7 @@
 
 #include "platform/diagnostics.h"
 #include "platform/platform.h"
+#include "core/bytes.h"
 #include "core/strutil.h"
 
 static bool file_exists(const char* path) {
@@ -205,7 +206,7 @@ bool assets_detect_madspack(const char* path, char* info, size_t info_size) {
   if (n < 16 || memcmp(hdr, "MADSPACK 2.0", 12) != 0) {
     return false;
   }
-  uint16_t chunks = (uint16_t)(hdr[14] | (hdr[15] << 8));
+  uint16_t chunks = rd_u16_le(hdr + 14);
   snprintf(info, info_size, "MADSPACK 2.0 chunks=%u", chunks);
   return true;
 }

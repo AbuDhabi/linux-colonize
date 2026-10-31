@@ -266,7 +266,7 @@ void reports_render_congress_page1(
    * Fathers" — composed with the golden's punctuation/spacing. */
   char w1[48], w2[48], w3[48];
   const int woi = col1->head.game_options.woi != 0;
-  const int ref_arrived = col1->head.game_options.ref_present != 0;
+  const int ref_arrived = col1->head.game_options.intervention_announced != 0;
   /* DOS reads DS:0x53d4 raw and hands it straight to the nationality-string
    * sub (FUN_281f_09a4), both here and at the intervention lineup below
    * (viceroy_unpacked.c 69686 / 69777). No crown/self exclusion, no "pick
@@ -291,7 +291,7 @@ void reports_render_congress_page1(
       "%s: (%s)",
       reports_misc_word(112, "", w1, sizeof(w1)),
       nat->next_founding_father >= 0
-        ? reports_ff_name(nat->next_founding_father)
+        ? reports_ff_display_name(nat->next_founding_father)
         : reports_misc_display_word(3, "")
     );
   } else if (!ref_arrived) {
@@ -303,7 +303,7 @@ void reports_render_congress_page1(
       line,
       line_sz,
       "%s %s:",
-      reports_nation_adjective(ally),
+      reports_nation_adjective_display_name(ally),
       reports_misc_word(113, "", w1, sizeof(w1))
     );
   }
@@ -397,7 +397,7 @@ void reports_render_congress_page1(
     line,
     line_sz,
     "%s %s:",
-    reports_nation_adjective(human),
+    reports_nation_adjective_display_name(human),
     reports_misc_word(85, "", w1, sizeof(w1))
   );
   reports_draw_line(font, fb, 4, REPORTS_CONGRESS_TEXT3_Y, line, 146);
@@ -476,7 +476,7 @@ void reports_render_congress_page1(
       const int row_h = REPORTS_CONGRESS_FORCE_H;
       snprintf(
         line, line_sz, "%s %s:",
-        reports_nation_adjective(ally), /* DOS: FUN_281f_09a4(DS:0x53d4), raw */
+        reports_nation_adjective_display_name(ally), /* DOS: FUN_281f_09a4(DS:0x53d4), raw */
         reports_misc_word(111, "", w1, sizeof(w1))
       );
       reports_draw_line(font, fb, 8, interv_row_y, line, 15);
@@ -518,7 +518,7 @@ void reports_render_congress_page1(
         fb,
         REPORTS_CONGRESS_FF_COL_X0 + col * REPORTS_CONGRESS_FF_COL_STEP,
         y + row * step,
-        reports_ff_name(i),
+        reports_ff_display_name(i),
         97
       );
       shown++;
@@ -712,7 +712,7 @@ static void reports_labor_job_counts(
        * Colonists-type unit. reports_labor_normalize_job folds UNITS_JOB_
        * NONE into that regardless of @UNIT type. */
       job = reports_labor_normalize_job(job);
-      if (reports_unit_in_europe(u->x, u->y)) {
+      if (units_coords_in_europe_park(u->x, u->y)) {
         europe_counts[job]++;
       } else if (reports_xy_is_own_colony(col1, human, u->x, u->y)) {
         /* On the colony's own tile (garrison, e.g.) but not colony
@@ -818,7 +818,7 @@ void reports_render_labor_grid(
       char num[16];
       snprintf(num, sizeof(num), "%d", count);
       const int text_x = cx + REPORTS_LABOR_TEXT_DX;
-      reports_draw_line(font, fb, text_x, cy, reports_job_name(job), 146);
+      reports_draw_line(font, fb, text_x, cy, reports_job_display_name(job), 146);
       /* Count sits at a fixed x per column (golden: every row's number lines
        * up under the same point regardless of name length — not centered
        * under each name individually) and a paler/whiter 15 (not 14 — the
@@ -843,7 +843,7 @@ void reports_render_labor_detail(
   const ColonizeSpriteSheet* icons = reports_icons_for(view, COLONIZE_REPORT_LABOR);
   font = (view && view->title_font_ok) ? &view->title_font : font;
 
-  snprintf(line, line_sz, "(%s)", reports_job_name(job));
+  snprintf(line, line_sz, "(%s)", reports_job_display_name(job));
   if (font) {
     /* FUN_3f41_0d3e raw 69994-70000: "(" job ")" through FUN_281f_0100 at FONTTINY[0] + 6,
      * ink 0x91. */
@@ -869,7 +869,7 @@ void reports_render_labor_detail(
       false, -1, -1
     );
   }
-  snprintf(line, line_sz, "%s: %d", reports_job_name(job), sum);
+  snprintf(line, line_sz, "%s: %d", reports_job_display_name(job), sum);
   reports_draw_line(font, fb, 14, header_y, line, 146);
 
   const int bd_x_label = 0xa0;

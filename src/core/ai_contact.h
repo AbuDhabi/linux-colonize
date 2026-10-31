@@ -389,7 +389,7 @@ const char* ai_contact_tribe_name(int nation_id);
  *
  * `forced` is DOS's `param_4` (1b0e's `local_ca`), which bypasses the walls
  * check at the head of 0f14 so the repelled party still loots.
- * `home_tribe_id` is the raider's `+0x314a` origin (the DS:0x54f6 row key).
+ * `home_tribe_index` is the raider's `+0x314a` origin (the DS:0x54f6 row key).
  * `human_nation` = the human Euro (0..3), or -1 to read DS:0x543f control.
  * Returns the AiRaidKind applied (AI_RAID_NOTHING = 0 when nothing happened).
  */
@@ -398,7 +398,7 @@ int ai_contact_colony_raid_repelled_w(
   int indian_nation,
   int euro_nation,
   int colony_id,
-  int home_tribe_id,
+  int home_tribe_index,
   int forced,
   int human_nation
 );

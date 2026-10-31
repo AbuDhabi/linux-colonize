@@ -72,11 +72,6 @@ void ai_euro_set_goto(ColonizeUnit* u, int orders, int gx, int gy) {
   }
 }
 
-int ai_euro_is_ship_type(const ColonizeUnitPool* units, int unit_id) {
-  /* Dispatcher ship wave: sea domain (SHIP_A..C stand-in). */
-  return units_is_sea(units, unit_id);
-}
-
 /*
  * Deleted 2026-09-23 (port_bugs.md #746): ai_euro_find_boardable_ship,
  * ai_euro_try_treasure_board_sail, ai_euro_treasure_gold_from_unit,
@@ -147,14 +142,7 @@ int ai_euro_hauler_free_holds(const ColonizeUnitPool* units, const ColonizeUnit*
     return 0;
   }
   const int cap = units_goods_hold_count(units, u->id);
-  int used = 0;
-  for (int i = 0; i < cap && i < COLONIZE_UNIT_CARGO_MAX; ++i) {
-    /* units_hold_amount folds the COL1 255 empty-hold sentinel to 0, so an
-     * imported DOS save's Euro hull does not read as fully loaded. */
-    if (units_hold_amount(units, u->id, i) > 0) {
-      ++used;
-    }
-  }
+  const int used = units_holds_used(units, u->id);
   return cap > used ? cap - used : 0;
 }
 
@@ -223,7 +211,7 @@ int ai_euro_20e6_ship_hold_budget(
  * `−0x6db4`/`−0x6da4`, and `FUN_1000_8b74`) — DEAD END, see the doc note.
  * The base `!= 0x12` term is what ships here; the two narrowings would only
  * *remove* warships from the queue, and in this port only wagons and
- * `ai_euro_is_cargo_ship_name` hulls ever reach this function, so the
+ * `ai_euro_is_cargo_ship_kind` hulls ever reach this function, so the
  * unresolved half is unreachable rather than approximated.
  *
  * OpenCol-only, kept from the pre-decode version and now sourced from the
@@ -375,7 +363,7 @@ int ai_euro_4393_work_queue_haul_pick(
  * only ever stores 0 or 1) so an original DOS save's value survives a
  * load→save with no rewrite.
  */
-uint8_t ai_euro_s_20e6_wagon_errand[COLONIZE_UNITS_MAX];
+static uint8_t ai_euro_s_20e6_wagon_errand[COLONIZE_UNITS_MAX];
 
 /*
  * DOS unit byte +0x315a — the "cower in port" counter. +0x315a = COL1 unit
@@ -459,7 +447,7 @@ int ai_euro_try_wagon_haul(
   if (!ctx || !ctx->units || !ctx->colonies || !wagon || !wagon->active) {
     return 0;
   }
-  if (!ai_euro_type_is_wagon_name(ai_euro_unit_kind(ctx->units, wagon))) {
+  if (!ai_euro_is_wagon_kind(ai_euro_unit_kind(ctx->units, wagon))) {
     return 0;
   }
   /* No cargo-flag entry gate any more: the DOS band runs for every wagon —
@@ -526,7 +514,7 @@ int ai_euro_try_wagon_haul(
           if (qty > 0 &&
               colonies_transfer_to_unit(ctx->colonies, cid, ctx->units, wagon->id, g, qty) >
                 0) {
-            ai_euro_s_20e6_wagon_errand[wagon->id] = 1;
+            ai_euro_wagon_errand_set(wagon->id, 1);
             /* DOS's land arm writes only +0x3158 here (md:3136) — the
              * wagon's +0x314a stays bound to this, its home colony. */
             if (getenv("AI_20E6_LOAD_TRACE")) {
@@ -545,7 +533,7 @@ int ai_euro_try_wagon_haul(
      * (capital distance halved, min 1), trade via the 2820 shell on arrival,
      * destroy when no village shares the landmass (LAB_47b9).
      */
-    if (ai_euro_s_20e6_wagon_errand[wagon->id] &&
+    if (ai_euro_wagon_errand_get(wagon->id) &&
         ai_euro_20e6_wagon_village_errand(ctx, nation_id, wagon)) {
       return 1;
     }
@@ -764,7 +752,7 @@ void ai_euro_colony_inventory(ColonizeTurnContext* ctx, int nation_id) {
 
 /* --- 5d04 planning / hire ---------------------------------------------- */
 
-int ai_euro_type_is_wagon_name(ColonizeUnitKind kind) {
+int ai_euro_is_wagon_kind(ColonizeUnitKind kind) {
   /* @UNIT row 12 is "Wagon Train"; no roster spells it "Supply Train". */
   return kind == UNITS_KIND_WAGON;
 }

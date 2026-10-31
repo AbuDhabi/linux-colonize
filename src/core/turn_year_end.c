@@ -23,7 +23,6 @@
 #include "core/founding_fathers.h"
 #include "core/reports.h"
 #include "core/reports_names.h"
-#include "core/unit_chrome.h"
 #include "core/woodcut.h"
 #include "platform/diagnostics.h"
 

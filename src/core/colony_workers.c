@@ -16,7 +16,6 @@
 #include "core/col1_save.h"
 #include "core/dos_buggy.h"
 #include "core/dos_rng.h"
-#include "core/font.h"
 #include "core/founding_fathers.h"
 #include "core/ai_contact.h"
 #include "core/ai_diplo.h"
@@ -28,7 +27,6 @@
 #include "core/europe.h"
 #include "core/ss.h"
 #include "core/strutil.h"
-#include "core/unit_chrome.h"
 #include "core/units_cargo.h"
 #include "platform/diagnostics.h"
 
@@ -474,7 +472,7 @@ static void colonies_assign_field_land_reaction(
       /* gold = NULL: the spend goes through europe_nation_gold_add, the one
        * sanctioned writer; land_pay still does lands_bought++ + the purchased
        * stamp (FUN_479b_00ca / FUN_281f_068c). */
-      colonies_indian_land_pay(col1, map, x, y, nation, NULL, price);
+      colonies_indian_land_pay(col1, map, x, y, NULL, price);
       europe_nation_gold_add(w->europe, col1, nation, -(long)price);
       return;
     }

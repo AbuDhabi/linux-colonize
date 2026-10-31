@@ -175,7 +175,7 @@ void units_try_capture_foreign_colony_at(
        * (colony survived). Raw 101040 clears the raider's DS:0x54f6 row and
        * raw 101059-101064 vents `difficulty − 10` of alarm.
        */
-      units_indian_tension_clear(col1, u->home_tribe_id, snap.nation_id);
+      units_indian_tension_clear(col1, u->home_tribe_index, snap.nation_id);
       if (!g_units_indian_combat_vent_done) {
         units_indian_attack_alarm_vent(
           col1,
@@ -219,7 +219,7 @@ void units_try_capture_foreign_colony_at(
     }
     /* Same limb with `local_c != 0` (the colony is gone): raw 101086 sets
      * `local_a6 = 0xffce` — a flat −50, with no difficulty term. */
-    units_indian_tension_clear(col1, u->home_tribe_id, snap.nation_id);
+    units_indian_tension_clear(col1, u->home_tribe_index, snap.nation_id);
     if (!g_units_indian_combat_vent_done) {
       units_indian_attack_alarm_vent(col1, u->nation_id, snap.nation_id, -50);
     }
@@ -521,9 +521,9 @@ ColonizeEnterReason units_enter_probe_w(
       const size_t vidx = (size_t)y * (size_t)map->width + (size_t)x;
       if (vidx < (size_t)map->width * (size_t)map->height &&
           (map->layer2[vidx] & MAP_OCCUPANCY_HAS_CITY) != 0) {
-        occupant_owner = (int)((map_get_layer3(map, x, y) >> 4) & 0x0fu);
+        occupant_owner = units_tile_owner_nibble(map, x, y); /* 0xf = -1 */
         if (occupant_owner > 11) {
-          occupant_owner = -1; /* 0xf = unowned */
+          occupant_owner = -1;
         }
       }
     }

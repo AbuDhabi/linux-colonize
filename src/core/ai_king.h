@@ -47,7 +47,7 @@
 /* port_bugs.md #252 / #865: @INTERVENTION "declares war" announcement fires once.
  * DOS-LITERAL FUN_43f7_1528 raw 74493 `*(byte*)0x5382 |= 2` — this is the ONLY
  * writer of 0x5382 bit 0x02 in the whole EXE and it is never cleared, so the
- * latch IS the save bit: head.game_options.ref_present (historical port label).
+ * latch IS the save bit: head.game_options.intervention_announced (historical port label).
  * Every DOS reader of bit 0x02 means "intervention announced": combat raw
  * 100504 (colony Bombard +50%), score raw 71327/71638/... (`bit2 && bells>99`),
  * 0a22 raw 73347/73365, 2022 raw 75007, congress header raw 69686. */
@@ -96,7 +96,7 @@ static inline int ai_king_latch_get(const ColonizeCol1Save* col1, int which) {
   }
   if (which == AI_KING_INTERVENE_ANNOUNCED_BYTE) {
     /* DOS-LITERAL: DS:0x5382 bit 0x02 (FUN_43f7_1528 raw 74493). */
-    return col1->head.game_options.ref_present ? 1 : 0;
+    return col1->head.game_options.intervention_announced ? 1 : 0;
   }
   const uint8_t* pad = ai_king_latch_pad((ColonizeCol1Save*)col1);
   if (which == AI_KING_ENDGAME_BYTE) {
@@ -123,7 +123,7 @@ static inline void ai_king_latch_set(ColonizeCol1Save* col1, int which, int valu
   if (which == AI_KING_INTERVENE_ANNOUNCED_BYTE) {
     /* DOS-LITERAL: DS:0x5382 bit 0x02 (FUN_43f7_1528 raw 74493); DOS never
      * clears it, but tests / new-game reset need the zero path. */
-    col1->head.game_options.ref_present = value ? 1 : 0;
+    col1->head.game_options.intervention_announced = value ? 1 : 0;
     return;
   }
   uint8_t* pad = ai_king_latch_pad(col1);
@@ -156,7 +156,7 @@ static inline void ai_king_latch_clear(ColonizeCol1Save* col1) {
     return;
   }
   col1->head.game_options.woi = 0;
-  col1->head.game_options.ref_present = 0;
+  col1->head.game_options.intervention_announced = 0;
   uint8_t* pad = ai_king_latch_pad(col1);
   pad[0] = 0;
   pad[1] = 0;

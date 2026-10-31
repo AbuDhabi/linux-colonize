@@ -75,7 +75,7 @@ static bool declaration_load_sheet(
   } else {
     snprintf(name, sizeof(name), "DEC-LOW%c.SS", 'A' + (slot - 26));
   }
-  if (!cinematic_load_sheet(data_dir, name, &d->sheets[slot], "Declaration cinematic")) {
+  if (!ss_load_asset(data_dir, name, &d->sheets[slot], "Declaration cinematic")) {
     return false;
   }
   d->sheet_ok[slot] = true;

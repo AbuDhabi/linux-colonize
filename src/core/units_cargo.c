@@ -1197,7 +1197,7 @@ static int units_spawn_aboard_impl(
     return -1;
   }
   /* units_slot reuses inactive rows — clear like units_spawn_allow_stack.
-   * home_tribe_id must be -1 so Col1 origin exports as 0xff (DOS cargo UI);
+   * home_tribe_index must be -1 so Col1 origin exports as 0xff (DOS cargo UI);
    * leftover 0 looks like tribe[0] and breaks passenger treatment. */
   const ColonizeUnitType* type = &pool->types[type_index];
   units_slot_reset_defaults(pool, slot, type, type_index, ship->x, ship->y);

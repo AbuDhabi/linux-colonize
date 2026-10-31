@@ -336,7 +336,6 @@ void colonies_indian_land_pay(
   const ColonizeWorldMap* map,
   int x,
   int y,
-  int nation_id,
   uint32_t* gold,
   int cost
 );
@@ -447,7 +446,7 @@ void colonies_colonist_tail_stash(const ColonizeColonyPool* pool, ColonizeColony
 /* Colony-screen cheat keys (FUN_2f2b_6372 tail; callers gate on cheats_enabled).
  * T / S / % ^ / ! — docs/colony.md "Colony-screen cheat keys". */
 bool colonies_cheat_add_colonist(
-  ColonizeColonyPool* pool, ColonizeColony* col, int colonist_type_index
+  ColonizeColony* col, int colonist_type_index
 );
 bool colonies_cheat_profession_from_job(
   const ColonizeColonyPool* pool, ColonizeColony* col, int colonist_index
@@ -856,18 +855,6 @@ int colonies_warehouse_capacity(
   const ColonizeColonyPool* pool,
   const ColonizeColony* colony,
   int cargo_type
-);
-
-/* @WAREHOUSEFULL numbers (port_bugs.md #433) (see docs/colony_goods.md#colonies_emit_warehouse_full_chrome) */
-void colonies_emit_warehouse_full_chrome(
-  const ColonizeColonyPool* pool,
-  const ColonizeColony* colony,
-  int cargo_type,
-  const char* cargo_name,
-  int deposited,
-  int already_included,
-  AiPopupState* ai_popups,
-  const ColonizeMsgCatalog* messages
 );
 
 /*

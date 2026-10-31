@@ -769,6 +769,9 @@ static int ai_king_woi_pop_share_pct(
         }
       }
     }
+    /* The mirror rows are FUN_4962_0006 saturating bytes: clamp the same. */
+    human_pop = human_pop > 0xff ? 0xff : human_pop;
+    crown_pop = crown_pop > 0xff ? 0xff : crown_pop;
   }
   return ((crown_pop + 1) * 100) / ((human_pop + 1) + (crown_pop + 1));
 }
@@ -1535,17 +1538,15 @@ void ai_king_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState* po
       ai_king_claim_status(ctx);
       break;
     case AI_POPUP_TAG_KING_MERC:
-      /* FUN_43f7_2022 rebel branch: Hire → spend the rolled price, spawn at
-       * the offer-time landing pick (payload); Decline → status only, no
+      /* FUN_43f7_2022 rebel branch: Hire → spend the rolled price, 10f0
+       * picks the landing colony at accept time; Decline → status only, no
        * gate — DOS has no once-per-war flag, next turn may roll again. */
       if (popup->result_choice_id == AI_KING_CHOICE_HIRE) {
-        int hx = 0;
-        int hy = 0;
         int regular_count = 0;
         int artillery_or_cavalry_roll = 0;
         int price = 0;
-        ai_king_merc_payload_parts(popup->result_payload, &hx, &hy, &regular_count, &artillery_or_cavalry_roll, &price);
-        if (!ai_king_do_merc_hire_at(ctx, human, hx, hy, regular_count, artillery_or_cavalry_roll, price) &&
+        ai_king_merc_payload_parts(popup->result_payload, &regular_count, &artillery_or_cavalry_roll, &price);
+        if (!ai_king_do_merc_hire(ctx, human, regular_count, artillery_or_cavalry_roll, price) &&
             ctx->status && ctx->status_size) {
           snprintf(ctx->status, ctx->status_size, "Cannot afford mercenaries.");
         }

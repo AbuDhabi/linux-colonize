@@ -166,7 +166,7 @@ typedef int (*ColonizeUnitsRaidRepelledFn)(
   int indian_nation,
   int euro_nation,
   int colony_id,
-  int home_tribe_id,
+  int home_tribe_index,
   int forced,
   int human_nation
 );
@@ -267,7 +267,7 @@ int units_coastal_fort_attack_strength(
  * EOT pulse: each Fort/Fortress colony fires on adjacent ocean ships that are
  * at war with the colony owner, or Privateers (peace ignored). Fort win →
  * sink ship (no hold plunder). Fort loss → ship stopped (moves=0).
- * Optional human status line. Returns ships sunk. Cite: FUN_364b_03f6.
+ * Returns ships sunk (the human chrome is the popup queue). Cite: FUN_364b_03f6.
  */
 /*
  * FUN_5bfb_3180 naval half, run by units_try_move after every committed
@@ -280,17 +280,10 @@ void units_ship_slow_scan_w(
   const ColonizeWorld* w,
   int unit_id
 );
-int units_coastal_fort_fire_pulse_w(
-  const ColonizeWorld* w,
-  int human_nation,
-  char* status,
-  size_t status_size
-);
+int units_coastal_fort_fire_pulse_w(const ColonizeWorld* w, int human_nation);
 /* FUN_364b_03f6 for ONE colony: DOS fires it at the top of that colony's
  * EOT (FUN_364b_0688 raw 57227, thunk 291f_09ce), in the owner's slot. */
-int units_coastal_fort_fire_colony_w(
-  const ColonizeWorld* w, int colony_id, int human_nation, char* status, size_t status_size
-);
+int units_coastal_fort_fire_colony_w(const ColonizeWorld* w, int colony_id, int human_nation);
 
 /* After units_try_move: 0 none, 1 attacker won, -1 attacker lost. */
 int units_last_combat_outcome(void);

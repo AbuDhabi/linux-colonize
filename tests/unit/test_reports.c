@@ -627,7 +627,7 @@ static int case_synthetic_independence_score(void) {
   c.head.year = 1790;
   c.head.difficulty = 2;
   c.head.game_options.woi = 1;
-  c.head.game_options.ref_present = 1;
+  c.head.game_options.intervention_announced = 1;
   c.head.game_options.independence_chrome = 1;
   c.head.king_audience_streak = 17;
   c.head.king_audience_last_pick = 76;

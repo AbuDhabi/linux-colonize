@@ -10,10 +10,6 @@
 #include "core/unit_chrome.h"
 #include "core/units_move.h"
 
-static const char* k_category_labels[PEDIA_CAT_COUNT] = {
-  "", "", "", "", "", "", ""
-};
-
 static const char* k_category_prefixes[] = {
   "CARGO",
   "UNIT",
@@ -114,7 +110,7 @@ int pedia_category_count(PediaCategory category) {
  * with the "~COLONIZOPEDIA" menu title and carries one "---" separator
  * between Terrain Types and Colonist Skills, so the n-th category is the
  * n-th row once the title, the separator and the @END marker are skipped.
- * k_category_labels stays the fallback (tests, missing data dir).
+ * Empty string on a miss (tests, missing data dir).
  */
 const char* pedia_category_label(PediaCategory category) {
   const ColonizeMsgCatalog* menu = g_pedia_menu_txt;
@@ -140,7 +136,7 @@ const char* pedia_category_label(PediaCategory category) {
       cat++;
     }
   }
-  return k_category_labels[category];
+  return "";
 }
 
 static const char* pedia_category_section_prefix(PediaCategory category) {
@@ -428,7 +424,6 @@ bool pedia_page(
 
   out->category = category;
   out->index = index;
-  snprintf(out->category_label, sizeof(out->category_label), "%s", pedia_category_label(category));
 
   char fallback[PEDIA_TITLE_LEN];
   fallback[0] = '\0';
@@ -775,21 +770,13 @@ static const char* pedia_label(const ColonizeMsgCatalog* labels, int idx, const 
 static void pedia_category_subtitle(
   const ColonizeMsgCatalog* pedia, PediaCategory cat, char* out, size_t out_size
 ) {
-  static const char* k_fallback[PEDIA_CAT_COUNT] = {
-    "", "", "", "",
-    "", "", ""
-  };
   const int line = (int)cat;
   out[0] = '\0';
   if (pedia) {
     const ColonizeMsgSection* sec = assets_msg_find(pedia, "PEDIA");
     if (sec && line >= 0 && line < sec->line_count) {
       snprintf(out, out_size, "%s", sec->lines[line]);
-      return;
     }
-  }
-  if (line >= 0 && line < PEDIA_CAT_COUNT) {
-    snprintf(out, out_size, "%s", k_fallback[line]);
   }
 }
 
@@ -1191,7 +1178,7 @@ static int pedia_article_unit(
     stats + used, sizeof(stats) - used, "   %s: %d", pedia_label(a->labels, 182, ""), movement
   );
   if (cargo != 0) {
-    used += (size_t)snprintf(
+    snprintf(
       stats + used,
       sizeof(stats) - used,
       "   (%s: %d)",

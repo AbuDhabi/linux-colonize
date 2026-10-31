@@ -16,7 +16,6 @@
 #include "core/ai_euro.h"
 #include "core/col1_save.h"
 #include "core/dos_rng.h"
-#include "core/font.h"
 #include "core/founding_fathers.h"
 #include "core/ai_diplo.h"
 #include "core/popup_msg.h"
@@ -27,7 +26,6 @@
 #include "core/europe.h"
 #include "core/ss.h"
 #include "core/strutil.h"
-#include "core/unit_chrome.h"
 #include "core/units_cargo.h"
 #include "platform/diagnostics.h"
 
@@ -493,9 +491,8 @@ void colonies_colonist_tail_stash(const ColonizeColonyPool* pool, ColonizeColony
  * paid. The plot comes from the 3930 recompute the arm's
  * redraw runs (colonies_recompute_plots_w). */
 bool colonies_cheat_add_colonist(
-  ColonizeColonyPool* pool, ColonizeColony* col, int colonist_type_index
+  ColonizeColony* col, int colonist_type_index
 ) {
-  (void)pool;
   if (!col || !col->active || col->colonist_count < 0 ||
       col->colonist_count >= COLONIZE_COLONY_POP_MAX) {
     return false;
@@ -1195,14 +1192,12 @@ void colonies_indian_land_pay(
   const ColonizeWorldMap* map,
   int x,
   int y,
-  int nation_id,
   uint32_t* gold,
   int cost
 ) {
   if (!col1) {
     return;
   }
-  (void)nation_id;
   if (gold && cost > 0) {
     *gold = (*gold >= (uint32_t)cost) ? (*gold - (uint32_t)cost) : 0u;
   }
@@ -1258,7 +1253,7 @@ int colonies_found_with_indian_land_w(
       if (*gold < (uint32_t)cost) {
         return -1;
       }
-      colonies_indian_land_pay(col1, map, x, y, nation_id, gold, cost);
+      colonies_indian_land_pay(col1, map, x, y, gold, cost);
     }
   }
   return colonies_found(

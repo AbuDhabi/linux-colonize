@@ -116,6 +116,15 @@ static void test_json_min_edges(void) {
   check(!json_get_u64(v, "neg", &u) && u == 7, "negative u64 is absent");
   check(json_get_i64(v, "n", &i) && i == 42, "in-range i64 reads");
   json_free(v);
+
+  /* RFC 8259 number grammar; \u0000 would truncate the C string. */
+  static const char* const bad[] = {"[-]", "[1e]", "[01]", "[1.]", "[-.5]", "[\"a\\u0000b\"]"};
+  for (size_t k = 0; k < sizeof(bad) / sizeof(bad[0]); ++k) {
+    check(json_parse(bad[k], NULL, 0) == NULL, bad[k]);
+  }
+  v = json_parse("[0, -0, 0.5, -1.25e-3, 1E+5, 10]", NULL, 0);
+  check(v != NULL, "valid numbers parse");
+  json_free(v);
 }
 
 /* window_log_lines clamps into 0..WINDOW_LOG_MAX_LINES, and the ring keeps the
@@ -279,7 +288,7 @@ static void test_head_bridge_preserves_state(void) {
   ColonizeCol1Head head;
   memset(&head, 0, sizeof(head));
   head.game_options.woi = 1;
-  head.game_options.ref_present = 1;
+  head.game_options.intervention_announced = 1;
   head.game_options.independence_force = 1;
   head.game_options.cheats_enabled = 1;
 
@@ -291,7 +300,7 @@ static void test_head_bridge_preserves_state(void) {
   settings_apply_to_head(&s, &head);
 
   check(head.game_options.woi == 1, "woi preserved");
-  check(head.game_options.ref_present == 1, "ref_present preserved");
+  check(head.game_options.intervention_announced == 1, "intervention_announced preserved");
   check(head.game_options.independence_force == 1, "independence_force preserved");
   check(head.game_options.cheats_enabled == 1, "cheats_enabled preserved");
   check(head.game_options.end_of_turn == 1, "end_of_turn applied");

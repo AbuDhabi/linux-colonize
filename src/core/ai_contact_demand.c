@@ -362,7 +362,7 @@ void ai_contact_enqueue_incite_confirm(
     /* @NOCONTACT (0x16b7): the tribe has never met the named nation. */
     char nb[AI_POPUP_BODY_LEN];
     popup_msg_fill(ctx->messages, "NOCONTACT", &tok, "", nb, sizeof(nb));
-    ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_INCITE, nation_id, "Incite", nb);
+    ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_INCITE, nation_id, nb);
     return;
   }
   const uint32_t price =
@@ -415,14 +415,14 @@ static void ai_contact_incite_warfare_chrome(
   memset(&tok, 0, sizeof(tok));
   tok.string0 = ai_contact_tribe_name(nation_id);
   tok.string1 = ai_contact_euro_name(ctx->col1, inciter);
-  tok.string2 = reports_tribe_name(nation_id - 4); /* 417e: 0a1a(tribe) */
+  tok.string2 = reports_tribe_display_name(nation_id - 4); /* 417e: 0a1a(tribe) */
   tok.string3 = ai_contact_euro_name(ctx->col1, target);
   char fb[AI_POPUP_BODY_LEN];
   fb[0] = '\0';
   char body[AI_POPUP_BODY_LEN];
   popup_msg_fill(ctx->messages, "INDIANWARFARE", &tok, fb, body, sizeof(body));
   ai_contact_human_chrome(
-    ctx, viewer, AI_POPUP_TAG_CONTACT_INCITE, nation_id, "Incite", body
+    ctx, viewer, AI_POPUP_TAG_CONTACT_INCITE, nation_id, body
   );
 }
 
@@ -463,7 +463,7 @@ void ai_contact_apply_incite(
     tok.string0 = ai_contact_euro_plural(ctx->col1, target);
     char body[AI_POPUP_BODY_LEN];
     popup_msg_fill(ctx->messages, "NOCONTACT", &tok, "", body, sizeof(body));
-    ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_INCITE, nation_id, "Incite", body);
+    ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_INCITE, nation_id, body);
     return;
   }
   const uint32_t price =
@@ -477,7 +477,7 @@ void ai_contact_apply_incite(
       body, sizeof(body)
     );
     ai_contact_human_chrome(
-      ctx, e, AI_POPUP_TAG_CONTACT_INCITE, nation_id, "Incite", body
+      ctx, e, AI_POPUP_TAG_CONTACT_INCITE, nation_id, body
     );
     return;
   }
@@ -488,7 +488,7 @@ void ai_contact_apply_incite(
     tok.string0 = ai_contact_euro_plural(ctx->col1, target);
     char body[AI_POPUP_BODY_LEN];
     popup_msg_fill(ctx->messages, "ALREADYSMITE", &tok, "", body, sizeof(body));
-    ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_INCITE, nation_id, "Incite", body);
+    ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_INCITE, nation_id, body);
     return;
   }
   ai_contact_incite_warfare_chrome(ctx, e, nation_id, e, target);
@@ -1028,6 +1028,18 @@ void ai_contact_visit_mood_clear(int nation_id, int e) {
   ai_contact_s_visit_mood[nation_id - 4][e].valid = 0;
 }
 
+/* This turn's 022e mood record for (tribe nation, euro), or NULL. */
+const AiContactVisitMood* ai_contact_visit_mood_this_turn(
+  const ColonizeTurnContext* ctx, int nation_id, int e
+) {
+  if (nation_id < 4 || nation_id > 11 || e < 0 || e > 3) {
+    return NULL;
+  }
+  const AiContactVisitMood* m = &ai_contact_s_visit_mood[nation_id - 4][e];
+  const int turn = (ctx && ctx->turn_number) ? (int)*ctx->turn_number : -1;
+  return (m->valid && m->turn == turn) ? m : NULL;
+}
+
 /*
  * Answers DOS's `if (!bVar6)` for the demand half. Returns 1 when DOS would
  * fall into LAB_5bfb_0def, 0 when the encounter is generous (bVar6) or the
@@ -1042,10 +1054,9 @@ int ai_contact_visit_demand_allowed(
   int brave_id,
   int alarm
 ) {
-  if (nation_id >= 4 && nation_id <= 11 && e >= 0 && e <= 3) {
-    const AiContactVisitMood* m = &ai_contact_s_visit_mood[nation_id - 4][e];
-    const int turn = (ctx && ctx->turn_number) ? (int)*ctx->turn_number : -1;
-    if (m->valid && m->turn == turn && m->brave_id == brave_id) {
+  {
+    const AiContactVisitMood* m = ai_contact_visit_mood_this_turn(ctx, nation_id, e);
+    if (m && m->brave_id == brave_id) {
       return m->generous_visit ? 0 : 1;
     }
   }
@@ -1091,11 +1102,11 @@ int ai_contact_visit_step_roll(
   }
   ColonizeCol1Indian* ind = &ctx->col1->indian[nation_id - 4];
   const ColonizeUnit* brave = units_get_const(ctx->units, brave_id);
-  if (!brave || brave->home_tribe_id < 0 ||
-      brave->home_tribe_id >= (int)ctx->col1->head.tribe_count) {
+  if (!brave || brave->home_tribe_index < 0 ||
+      brave->home_tribe_index >= (int)ctx->col1->head.tribe_count) {
     return 0;
   }
-  const ColonizeCol1Tribe* t = &ctx->col1->tribe[brave->home_tribe_id];
+  const ColonizeCol1Tribe* t = &ctx->col1->tribe[brave->home_tribe_index];
   const int alarm = ai_diplo_indian_alarm(ctx->col1, nation_id, e);
   if (alarm > 0x4a) {
     return 0; /* raw 96752: no peaceful visit at all */
@@ -1213,10 +1224,8 @@ void ai_contact_apply_beg_food(
      * across two functions, so the fall-through is an explicit re-entry here.
      */
     {
-      const AiContactVisitMood* pm =
-        (nation_id >= 4 && nation_id <= 11) ? &ai_contact_s_visit_mood[nation_id - 4][e] : NULL;
-      const int turn = ctx->turn_number ? (int)*ctx->turn_number : -1;
-      const int was_generous = pm && pm->valid && pm->turn == turn && pm->generous_visit;
+      const AiContactVisitMood* pm = ai_contact_visit_mood_this_turn(ctx, nation_id, e);
+      const int was_generous = pm && pm->generous_visit;
       if (!was_generous && ctx->rng &&
           dos_rng_range(ctx->rng, 0, (int)ctx->col1->head.difficulty) != 0) {
         return; /* raw 87692: goto LAB_5bfb_1005 -- visit over */
@@ -1246,10 +1255,8 @@ void ai_contact_apply_beg_food(
       d *= 2;
     }
     {
-      const AiContactVisitMood* pm =
-        (nation_id >= 4 && nation_id <= 11) ? &ai_contact_s_visit_mood[nation_id - 4][e] : NULL;
-      const int turn = ctx->turn_number ? (int)*ctx->turn_number : -1;
-      if (pm && pm->valid && pm->turn == turn && pm->calm_roll_ok) {
+      const AiContactVisitMood* pm = ai_contact_visit_mood_this_turn(ctx, nation_id, e);
+      if (pm && pm->calm_roll_ok) {
         d >>= 1;
       }
     }
@@ -1328,9 +1335,8 @@ int ai_contact_is_visit_brave(
   if (!ctx || !brave || nation_id < 4 || nation_id > 11 || e < 0 || e > 3) {
     return 0;
   }
-  const AiContactVisitMood* m = &ai_contact_s_visit_mood[nation_id - 4][e];
-  const int turn = ctx->turn_number ? (int)*ctx->turn_number : -1;
-  return m->valid && m->turn == turn && m->brave_id == brave->id;
+  const AiContactVisitMood* m = ai_contact_visit_mood_this_turn(ctx, nation_id, e);
+  return m && m->brave_id == brave->id;
 }
 
 static int ai_contact_beg_food_pending(const AiPopupState* st) {
@@ -1443,7 +1449,7 @@ int ai_contact_try_village_beg_food(ColonizeTurnContext* ctx, int nation_id) {
         }
         brave_adjacent = true;
         visit_brave_id = bu->id;
-        visit_home_tribe = bu->home_tribe_id;
+        visit_home_tribe = bu->home_tribe_index;
       }
       if (!brave_adjacent) {
         continue;
@@ -1853,13 +1859,13 @@ void ai_contact_indian_woi_defect(ColonizeTurnContext* ctx, int nation_id) {
     PopupMsgTokens gtok;
     memset(&gtok, 0, sizeof(gtok));
     gtok.string0 = ai_contact_tribe_name(nation_id);
-    gtok.string1 = reports_tribe_name(nation_id - 4); /* 4d56_1816: 0a1a(tribe) */
+    gtok.string1 = reports_tribe_display_name(nation_id - 4); /* 4d56_1816: 0a1a(tribe) */
     char gfb[AI_POPUP_BODY_LEN];
     gfb[0] = '\0';
     char gbody[AI_POPUP_BODY_LEN];
     popup_msg_fill(ctx->messages, "INDIANGRUDGE", &gtok, gfb, gbody, sizeof(gbody));
     ai_contact_human_chrome(
-      ctx, human, AI_POPUP_TAG_CONTACT_RAID, nation_id, "Grudge", gbody
+      ctx, human, AI_POPUP_TAG_CONTACT_RAID, nation_id, gbody
     );
   }
 

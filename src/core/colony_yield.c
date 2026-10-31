@@ -293,18 +293,15 @@ static int colony_yield_pipeline(
   int profession,
   int sol_bonus,
   bool has_docks,
-  uint8_t colony_flags,
   bool has_hudson
 ) {
   /* Field-job expert-fish/farmer re-add now goes through `sol_bonus`
    * itself (see the is_expert_food_fish block below) rather than
    * reconstructing it from the colony's SoL latch bits directly — the
    * DOS variable it mirrors (`local_1c`) already folds those bits in
-   * upstream of both fold points. `colony_flags` stays a parameter for
-   * API symmetry with colony_yield_town_commons (a different DOS
-   * function, FUN_15eb_1f72, which does read its own latch bits
-   * directly), but this function no longer needs it directly. */
-  (void)colony_flags;
+   * upstream of both fold points. Unlike colony_yield_town_commons
+   * (FUN_15eb_1f72, which reads its own latch bits) this needs no
+   * colony_flags. */
   if (!map || field_job < 0 || field_job >= COLONIZE_FIELD_JOB_COUNT) {
     return 0;
   }
@@ -727,7 +724,7 @@ bool colony_yield_worked_tiles_next(ColonizeWorkedTileIter* it, ColonizeWorkedTi
  * Fisherman tile is meant to be scored as if Docks existed (port_bugs.md #609).
  */
 int colony_yield_for_tile(const ColonizeWorldMap* map, int x, int y, int field_job) {
-  return colony_yield_pipeline(map, x, y, field_job, -1, 0, true, 0, false);
+  return colony_yield_pipeline(map, x, y, field_job, -1, 0, true, false);
 }
 
 int colony_yield_for_tile_in_colony(
@@ -739,7 +736,7 @@ int colony_yield_for_tile_in_colony(
   int field_job
 ) {
   return colony_yield_pipeline(
-    map, x, y, field_job, -1, 0, colony_yield_colony_has_docks(pool, colony), 0, false
+    map, x, y, field_job, -1, 0, colony_yield_colony_has_docks(pool, colony), false
   );
 }
 
@@ -751,11 +748,10 @@ int colony_yield_for_worker(
   int profession,
   bool has_docks,
   int sol_bonus,
-  uint8_t colony_flags,
   bool has_hudson
 ) {
   return colony_yield_pipeline(
-    map, x, y, field_job, profession, sol_bonus, has_docks, colony_flags, has_hudson
+    map, x, y, field_job, profession, sol_bonus, has_docks, has_hudson
   );
 }
 

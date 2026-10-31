@@ -220,7 +220,7 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_roles(struct ai_euro_act_ctx*
    * good after its first park.
    */
   int wagon_hauled = 0;
-  if (!treasure_routed && ai_euro_type_is_wagon_name(ukind)) {
+  if (!treasure_routed && ai_euro_is_wagon_kind(ukind)) {
     if (ai_euro_try_wagon_haul(ctx, nation_id, u)) {
       wagon_hauled = 1;
     }
@@ -330,7 +330,7 @@ AiEuroActStatus ai_euro_act_land(struct ai_euro_act_ctx* a) {
   const ColonizeUnitKind ukind = ai_euro_unit_kind(ctx->units, a->u);
 
   a->ukind = ukind;
-  a->is_treasure = ai_euro_is_treasure_name(ukind);
+  a->is_treasure = ai_euro_is_treasure_kind(ukind);
   a->treasure_routed = 0;
 
   if (ai_euro_act_land_hunt_scout(a) == AI_EURO_ACT_RETURN ||

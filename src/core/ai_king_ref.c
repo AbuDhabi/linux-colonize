@@ -6,7 +6,7 @@
  * crown/boycott, tea-party and REF-bookkeeping helpers.
  *
  * Sections:
- *   REF landing site selection (ai_king_10f0_pick_colony .. ai_king_weakest_port)
+ *   REF landing site selection (ai_king_10f0_pick_colony .. ai_king_10f0_pick_spawn)
  *   REF garrison scoring & invasion mechanics (ai_king_0982_garrison_score .. ai_king_ref_wave)
  *   REF landing, announce & disembark (ai_king_10f0_spawn_unit .. ai_king_spend_woi_bell_pool)
  */
@@ -47,7 +47,7 @@
  */
 #define AI_KING_10F0_CANDIDATES 10
 
-/* ===== REF landing site selection (ai_king_10f0_pick_colony .. ai_king_weakest_port) ===== */
+/* ===== REF landing site selection (ai_king_10f0_pick_colony .. ai_king_10f0_pick_spawn) ===== */
 static int ai_king_10f0_pick_colony(const ColonizeTurnContext* ctx, int human, int* out_x,
                                     int* out_y) {
   if (!ctx || !out_x || !out_y || human < 0 || human >= 4) {
@@ -237,36 +237,6 @@ static bool ai_king_10f0_pick_spawn(const ColonizeTurnContext* ctx, int human, i
   *out_x = bx;
   *out_y = by;
   return true;
-}
-
-/* FUN_43f7_060a-shaped: weakest garrison (pop × fort). */
-int ai_king_weakest_port(ColonizeTurnContext* ctx, int nation_id, int* out_x, int* out_y) {
-  if (!ctx || !ctx->colonies || !out_x || !out_y) {
-    return -1;
-  }
-  int best = -1;
-  int best_score = 999999;
-  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-    const ColonizeColony* c = &ctx->colonies->colonies[i];
-    if (!c->active || c->nation_id != nation_id) {
-      continue;
-    }
-    int garrison = c->population;
-    if (colonies_has_fortification(ctx->colonies, c)) {
-      garrison *= 2;
-    }
-    /* Prefer coastal ports when garrison pressure is close (REF landing sites). */
-    if (ctx->map && map_tile_is_coastal(ctx->map, c->x, c->y)) {
-      garrison = (garrison * 9) / 10;
-    }
-    if (garrison < best_score) {
-      best_score = garrison;
-      best = c->id;
-      *out_x = c->x;
-      *out_y = c->y;
-    }
-  }
-  return best;
 }
 
 /*
@@ -1240,7 +1210,7 @@ static const char* ai_king_1528_announce_colony(const ColonizeTurnContext* ctx, 
  *   - the arrival popup is @MERCS naming rival slot 2, not @INTERVENE /
  *     @INTERVENTION naming slot 1, and there is no music switch (74396-406);
  *   - the Man-O-War that carried them in is despawned afterwards (74451).
- * Audit D6 (2026-09-10) folded ai_king_do_merc_hire_at's separate spawner
+ * Audit D6 (2026-09-10) folded ai_king_do_merc_hire's separate spawner
  * into this path; before that the paid hire had no terrain test at all.
  *
  * `backup_force` is the real mapped DOS pool array

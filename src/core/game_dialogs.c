@@ -226,11 +226,7 @@ bool game_try_enter_europe(ColonizeGameState* game) {
   game->in_colony = false;
   game->in_report = false;
   sound_set_bgm(3); /* FUN_75c2_2778 75c2:27a9: Europe screen → tune pool 3 (281f_0498) */
-  snprintf(
-    game->europe.status,
-    sizeof(game->europe.status),
-    "Home port ready. Recruit / Train / S Sail / Esc."
-  );
+  game->europe.status[0] = '\0';
   game_tutorial_europe_opened(game);
   game_track_screen(game);
   diag_info(
@@ -471,10 +467,9 @@ static bool game_found_finalize(ColonizeGameState* game, int uid, const char* ch
   units_founder_loot(&game->units, uid, &tools, &muskets, &horses);
 
   const int hn = game->human_nation;
-  uint32_t* gold = NULL;
 
   const ColonizeWorld w = game_world(game);
-  const int cid = colonies_found_with_indian_land_w(&w, gold, cx, cy, hn, type_index, profession, tools, muskets, horses);
+  const int cid = colonies_found_with_indian_land_w(&w, NULL, cx, cy, hn, type_index, profession, tools, muskets, horses);
   if (cid < 0) {
     set_status(game, "Cannot found colony here", NULL);
     return false;
@@ -2041,10 +2036,10 @@ static void game_apply_name_entry_result(ColonizeGameState* game) {
   if (kind == NAME_ENTRY_KIND_TRADE_RENAME) {
     if (!game->name_entry.result_cancelled && game->col1_ok &&
         game->name_entry.result_name[0] &&
-        game->name_entry.result_colony_id >= 0 &&
-        game->name_entry.result_colony_id < (int)COLONIZE_COL1_TRADE_ROUTE_COUNT) {
+        game->name_entry.result_target >= 0 &&
+        game->name_entry.result_target < (int)COLONIZE_COL1_TRADE_ROUTE_COUNT) {
       ColonizeCol1TradeRoute* r =
-        &game->col1.trade_route[game->name_entry.result_colony_id];
+        &game->col1.trade_route[game->name_entry.result_target];
       str_copy_trunc(r->name, sizeof(r->name), game->name_entry.result_name);
     }
     game->name_entry.has_result = false;
@@ -2087,7 +2082,7 @@ static void game_apply_name_entry_result(ColonizeGameState* game) {
     game_tutorial_landho(game); /* FUN_2b5a_001e tail: @TUTORIAL2 */
   } else if (!game->name_entry.result_cancelled) {
     ColonizeColony* col =
-      colonies_get_mut(&game->colonies, game->name_entry.result_colony_id);
+      colonies_get_mut(&game->colonies, game->name_entry.result_target);
     if (col) {
       str_copy_trunc(col->name, sizeof(col->name), game->name_entry.result_name);
       snprintf(
@@ -2136,8 +2131,17 @@ void game_try_prompt_landho(ColonizeGameState* game, int dest_x, int dest_y) {
   game_open_landho_name_entry(game);
 }
 
-/* Persist DEBUG HUD toggles (mouse coords, building rects, logs) to settings.json. */
 /* ===================== Settings, debug HUD & trade-service screen requests (game_persist_debug_hud .. game_trade_service_screen_request) ===================== */
+/* Store prefs and write settings.json; a write failure only warns. */
+static void game_settings_commit(const ColonizeSettings* prefs) {
+  settings_set(prefs);
+  char err[256];
+  if (!settings_flush(err, sizeof(err))) {
+    diag_warn("Could not save settings: %s", err);
+  }
+}
+
+/* Persist DEBUG HUD toggles (mouse coords, building rects, logs) to settings.json. */
 void game_persist_debug_hud(const ColonizeGameState* game) {
   if (!game || !settings_is_loaded()) {
     return;
@@ -2146,11 +2150,7 @@ void game_persist_debug_hud(const ColonizeGameState* game) {
   prefs.show_mouse_coords = game->debug_show_mouse_coords;
   prefs.show_building_rects = game->debug_building_rects;
   prefs.debug_logs = game->debug_logs;
-  settings_set(&prefs);
-  char err[256];
-  if (!settings_flush(err, sizeof(err))) {
-    diag_warn("Could not save settings: %s", err);
-  }
+  game_settings_commit(&prefs);
 }
 
 /*
@@ -2163,11 +2163,7 @@ static void game_persist_settings(const ColonizeGameState* game) {
   if (game && game->col1_ok) {
     settings_capture_from_head(&prefs, &game->col1.head);
   }
-  settings_set(&prefs);
-  char err[256];
-  if (!settings_flush(err, sizeof(err))) {
-    diag_warn("Could not save settings: %s", err);
-  }
+  game_settings_commit(&prefs);
 }
 
 static void game_apply_options_result(ColonizeGameState* game) {
@@ -2203,11 +2199,7 @@ static void game_apply_options_result(ColonizeGameState* game) {
           prefs.background_music = bg;
           prefs.event_music = ev;
           prefs.sound_effects = sfx;
-          settings_set(&prefs);
-          char err[256];
-          if (!settings_flush(err, sizeof(err))) {
-            diag_warn("Could not save settings: %s", err);
-          }
+          game_settings_commit(&prefs);
         }
         set_status(game, "Sound options updated", NULL);
       }
@@ -2781,7 +2773,7 @@ static bool game_apply_popup_map_and_colony(ColonizeGameState* game) {
     ai_popup_consume_result(&game->ai_popups);
     if (cancelled || game->trade_create_stage != 2) {
       game->trade_create_stage = 0;
-  return true;
+      return true;
     }
     game->trade_create_sea = (choice == 1) ? 1u : 0u;
     game->trade_create_stage = 3;
@@ -2978,7 +2970,7 @@ static bool game_apply_popup_contact(ColonizeGameState* game) {
         units_mp_exhaust_unit(&game->units, uid);
       }
       set_status(game, "We respect their wishes", NULL);
-  return true;
+      return true;
     }
     const int hn = game->human_nation;
     if (choice == GAME_INDIAN_LAND_OFFER && game->col1_ok && hn >= 0 && hn < 4) {
@@ -2988,7 +2980,7 @@ static bool game_apply_popup_contact(ColonizeGameState* game) {
         /* gold = NULL: the spend goes through europe_nation_gold_add, the one
          * sanctioned writer; land_pay does lands_bought++ + the 0x10 stamp
          * (FUN_281f_0af6, INC indian+5, FUN_15eb_0668). */
-        colonies_indian_land_pay(col1, &game->world_map, x, y, hn, NULL, price);
+        colonies_indian_land_pay(col1, &game->world_map, x, y, NULL, price);
         europe_nation_gold_add(&game->europe, col1, hn, -(long)price);
         char body[AI_POPUP_BODY_LEN];
         popup_msg_fill(
@@ -3012,14 +3004,15 @@ static bool game_apply_popup_contact(ColonizeGameState* game) {
         break;
       case GAME_INDIAN_LAND_FOREST:
       case GAME_INDIAN_LAND_ROAD: {
-        char msg[96];
-        msg[0] = '\0';
+        char buf[96];
+        UnitsPioneerReason why = UNITS_PIONEER_OK;
         game->units.selected_id = uid;
         const ColonizeWorld w = game_world(game);
         const bool ok =
           kind == GAME_INDIAN_LAND_FOREST
-            ? units_pioneer_plow_w(&w, uid, msg, sizeof(msg), &game->ai_popups, &game->messages)
-            : units_pioneer_road_w(&w, uid, msg, sizeof(msg), &game->ai_popups, &game->messages);
+            ? units_pioneer_plow_w(&w, uid, &why, &game->ai_popups, &game->messages)
+            : units_pioneer_road_w(&w, uid, &why, &game->ai_popups, &game->messages);
+        const char* msg = game_pioneer_reason_text(&game->messages, why, buf, sizeof(buf));
         if (!ok) {
           set_status(game, msg[0] ? msg : "Cannot work here", NULL);
         } else {
@@ -3051,7 +3044,7 @@ static bool game_apply_popup_contact(ColonizeGameState* game) {
         game->units.selected_id = unit_id;
         ai_popup_consume_result(&game->ai_popups);
         (void)game_try_unit_move(game, dest_x, dest_y);
-  return true;
+        return true;
       }
     } else {
       /* Smell #105: a goto-delegated confirm must not re-fire next frame —
@@ -3098,7 +3091,7 @@ static bool game_apply_popup_contact(ColonizeGameState* game) {
         game->colony_attack_ok_payload = dest_x | (dest_y << 8);
         (void)game_try_unit_move(game, dest_x, dest_y);
         game->colony_attack_ok_unit = -1;
-  return true;
+        return true;
       }
     } else {
       /* Smell #105: see the WHACK cancel above. */
@@ -3164,7 +3157,7 @@ static bool game_apply_popup_diplo_and_scout(ColonizeGameState* game) {
       popup_msg_fill(&game->messages, "KISSSORRY", &tok, fallback, body, sizeof(body));
       ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
       (void)ai_popup_present_now(&game->ai_popups, AI_POPUP_TAG_INFO);
-  return true;
+      return true;
     }
     (void)europe_buyback_boycott(eu, &game->col1, game->human_nation, cargo_type);
   return true;
@@ -3277,7 +3270,7 @@ static bool game_apply_popup_diplo_and_scout(ColonizeGameState* game) {
         (void)ai_diplo_153e_encounter_forced(&ctx, u->nation_id, col->nation_id, unit_id);
       }
       game_after_unit_action(game);
-  return true;
+      return true;
     }
     if (choice == 2) {
       /* Infiltrate — DOS roll: threshold = (fortification-chain count + 6)*2,
@@ -3328,7 +3321,7 @@ static bool game_apply_popup_diplo_and_scout(ColonizeGameState* game) {
         units_despawn(&game->units, unit_id);
         game_after_unit_action(game);
       }
-  return true;
+      return true;
     }
     if (choice == 3) {
       /* Attack Colony: rejoin the ordinary attack path (443 confirm already
@@ -3338,7 +3331,7 @@ static bool game_apply_popup_diplo_and_scout(ColonizeGameState* game) {
       game->colony_attack_ok_payload = payload;
       (void)game_try_unit_move(game, dest_x, dest_y);
       game->colony_attack_ok_unit = -1;
-  return true;
+      return true;
     }
     set_status(game, "The scouts hold their ground", NULL);
   return true;
@@ -3567,4 +3560,30 @@ void game_apply_ai_popup_result(ColonizeGameState* game) {
     }
   }
   ai_popup_consume_result(&game->ai_popups);
+}
+
+const char* game_pioneer_reason_text(
+  const ColonizeMsgCatalog* messages, UnitsPioneerReason reason, char* buf, size_t buf_size
+) {
+  switch (reason) {
+    case UNITS_PIONEER_NOT_PIONEER:
+      return "Select a Pioneer";
+    case UNITS_PIONEER_ALREADY_PLOWED:
+      return "Already plowed";
+    case UNITS_PIONEER_CANNOT_PLOW:
+      return "Cannot plow here";
+    case UNITS_PIONEER_CANNOT_ROAD:
+      return "Cannot build road here";
+    case UNITS_PIONEER_TOOLS_USED_UP:
+      return "Tools used up — now a colonist";
+    case UNITS_PIONEER_NOROAD:
+      if (buf && buf_size) {
+        popup_msg_fill(messages, "NOROAD", NULL, "", buf, buf_size);
+        popup_msg_strip_markup(buf);
+        return buf;
+      }
+      return "";
+    default:
+      return "";
+  }
 }

@@ -498,7 +498,7 @@ static int case_530_native_step_wakes_landfall(void) {
     ColonizeUnit* b = units_get(&units, id);
     if (!b) { fx_map_free(&map); return 1; }
     b->nation_id = 4;
-    b->home_tribe_id = 0;
+    b->home_tribe_index = 0;
     b->moves = 0;
     b->last_dir = 8;
     /* Empty immediate neighbours; sentries two tiles away ensure any

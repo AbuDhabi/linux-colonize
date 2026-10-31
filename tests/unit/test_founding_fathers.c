@@ -313,6 +313,52 @@ int main(void) {
     }
   }
 
+  /* FUN_4345_0342 case 0xe for an AI nation: the Frigate spawns on the
+   * westbound lane 232+n with orders 0, goto = the nation's return tile
+   * (+0x32/+0x33) and counter 0 — not next to a colony. */
+  {
+    ColonizeCol1Save jcol1;
+    col1_save_init(&jcol1);
+    seed_unclaimed(&jcol1);
+    ff_test_calendar(&jcol1);
+    jcol1.player[1].control = 1;
+    memset(&jcol1.nation[1], 0, sizeof(jcol1.nation[1]));
+    jcol1.nation[1].liberty_bells_pool = 48;
+    jcol1.nation[1].next_founding_father = FF_JOHN_PAUL_JONES;
+    jcol1.nation[1].return_from_europe_x = 37;
+    jcol1.nation[1].return_from_europe_y = 41;
+    ColonizeUnitPool jun;
+    memset(&jun, 0, sizeof(jun));
+    units_reset(&jun);
+    units_set_occupancy_map(NULL);
+    jun.type_count = 1;
+    snprintf(jun.types[0].name, sizeof(jun.types[0].name), "Frigate");
+    jun.types[0].movement = 6;
+    jun.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
+    jun.types[0].cargo = 4;
+    ColonizeTurnContext jctx;
+    memset(&jctx, 0, sizeof(jctx));
+    jctx.human_nation = 0;
+    jctx.col1 = &jcol1;
+    jctx.col1_ok = true;
+    jctx.units = &jun;
+    founding_fathers_tick(&jctx);
+    if (!founding_fathers_nation_has(&jcol1, 1, FF_JOHN_PAUL_JONES)) {
+      return fail("Jones AI elect");
+    }
+    const ColonizeUnit* jf = NULL;
+    for (int i = 0; i < units_slot_end(&jun); ++i) {
+      if (jun.units[i].active) {
+        jf = &jun.units[i];
+      }
+    }
+    if (!jf || jun.unit_count != 1 || jf->nation_id != 1 || jf->x != 233 || jf->y != 233 ||
+        jf->orders != UNITS_ORDER_NONE || jf->goto_x != 37 || jf->goto_y != 41 ||
+        jf->col1_counter16 != 0) {
+      return fail("Jones AI Frigate must sit on lane 232+n with the return-tile goto");
+    }
+  }
+
   /* port_bugs.md #728: FUN_4345_0342 case 0x14 rewrites only the three recruit
    * slots — colonists already on the docks stay Indentured / Criminal. */
   {
@@ -730,7 +776,7 @@ int main(void) {
       map_free(&map);
       return fail("deep Magellan bumped land unit");
     }
-    turn_refresh_moves_for_nation_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&units), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&deep_col1), .col1_ok=true}, 0, NULL, NULL);
+    turn_refresh_moves_for_nation_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&units), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&deep_col1), .col1_ok=true}, 0);
     if (caravel->moves != units_type_max_mp(&units.types[2]) + UNITS_MP_PER_TILE) {
       free(deep_col1.colony);
       map_free(&map);
@@ -2420,7 +2466,7 @@ int main(void) {
 
     ColonizeDosRng rng;
     dos_rng_seed(&rng, 7);
-    turn_refresh_moves_for_nation_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&upool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&cmap), .col1=(ColonizeCol1Save*)(&ccol1), .col1_ok=true}, 0, NULL, NULL);
+    turn_refresh_moves_for_nation_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&upool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&cmap), .col1=(ColonizeCol1Save*)(&ccol1), .col1_ok=true}, 0);
     units_set_native_fallout_context(&ccol1, &cmap);
     if (!units_resolve_land_combat(&upool, sid, bid, &rng)) {
       free(ccol1.tribe);

@@ -69,7 +69,7 @@ static ColonizeUnit* ki_brave(KiFix* f, int nation, int home, int* out_id) {
   ColonizeUnit* u = units_get(&f->units, id);
   if (u) {
     u->nation_id = nation;
-    u->home_tribe_id = home;
+    u->home_tribe_index = home;
   }
   *out_id = id;
   return u;
@@ -125,15 +125,15 @@ static int case_kill_nation_effects(void) {
     KI_FAIL("brave without a home village must survive (DOS 00e0 only walks home-bound units)\n");
   }
   u = units_get(&f.units, id_az3);
-  if (!u || !u->active || u->home_tribe_id != 1) {
-    KI_FAIL("Aztec brave home 3 must remap to 1 (got %d)\n", u ? u->home_tribe_id : -99);
+  if (!u || !u->active || u->home_tribe_index != 1) {
+    KI_FAIL("Aztec brave home 3 must remap to 1 (got %d)\n", u ? u->home_tribe_index : -99);
   }
   u = units_get(&f.units, id_az1);
-  if (!u || !u->active || u->home_tribe_id != 0) {
-    KI_FAIL("Aztec brave home 1 must remap to 0 (got %d)\n", u ? u->home_tribe_id : -99);
+  if (!u || !u->active || u->home_tribe_index != 0) {
+    KI_FAIL("Aztec brave home 1 must remap to 0 (got %d)\n", u ? u->home_tribe_index : -99);
   }
   u = units_get(&f.units, id_euro);
-  if (!u || !u->active || u->home_tribe_id != 0) {
+  if (!u || !u->active || u->home_tribe_index != 0) {
     KI_FAIL("Euro units are never destroyed or renumbered by 00e0\n");
   }
   if (f.col1.stuff.tribe_village_counts[0] != 0 || !f.col1.indian[0].extinct) {

@@ -183,14 +183,12 @@ static int colony_screen_slot_size_class(int slot) {
  * under settings.json divergences.modern_prng.
  */
 void colony_screen_assign_slot_positions_ex(
-  const ColonizeColonyPool* pool,
   const ColonizeColony* colony,
   int* xs,
   int* ys,
   int* out_slot, /* optional, indexed by category: the DS:0x266 SLOT it landed in */
   uint32_t seed_base /* DS:0x8d80, see colony_screen_layout_seed */
 ) {
-  (void)pool;
   int perm[COLONY_DOS_SLOT_COUNT];
   for (int i = 0; i < COLONY_DOS_SLOT_COUNT; ++i) {
     perm[i] = -1;
@@ -369,9 +367,6 @@ enum {
  * colony_screen_assign_slot_positions_ex.
  */
 void colony_screen_fence_rect(
-  const ColonyScreenView* view,
-  const ColonizeColonyPool* pool,
-  const ColonizeColony* colony,
   const int* xs,
   const int* ys,
   int* out_x,
@@ -379,9 +374,6 @@ void colony_screen_fence_rect(
   int* out_w,
   int* out_h
 ) {
-  (void)view;
-  (void)pool;
-  (void)colony;
   *out_x = COLONY_VIEWPORT_X + xs[COLONY_CAT_FORTIFICATION] + COLONY_FENCE_UNIT_OFFSET_X;
   *out_y = COLONY_VIEWPORT_Y + ys[COLONY_CAT_FORTIFICATION] + COLONY_FENCE_UNIT_OFFSET_Y;
   *out_w = COLONY_FENCE_W;
@@ -468,14 +460,10 @@ bool colony_screen_unit_on_fence(const ColonizeUnitPool* units, const ColonizeUn
 int colony_screen_multi_units_layout(
   const ColonyScreenView* view,
   const ColonizeUnitPool* units,
-  int px,
-  int py,
-  int pane_w,
-  int pane_h,
   ColonyMultiUnitSlot* out,
   int max
 ) {
-  if (!view || !units || !out || max <= 0 || pane_w <= 0 || pane_h <= 0) {
+  if (!view || !units || !out || max <= 0) {
     return 0;
   }
   /* Land units only (colonist-class + Artillery); ships/wagons stay on the
@@ -491,13 +479,8 @@ int colony_screen_multi_units_layout(
    * first 5 units fill the bottom row of full 16x16 icons at x=0xd5 step
    * 0x12, y=0x9e; every unit past that goes on an overflow row above —
    * y=0x98, then y=0x90 — as a 3x5 miniature at step 5, 17 per row (the
-   * scaled-blit path at 2f2b:1f14). Absolute screen coordinates, like DOS;
-   * px/py/pane_* only bound the caller's clip.
+   * scaled-blit path at 2f2b:1f14). Absolute screen coordinates, like DOS.
    */
-  (void)px;
-  (void)py;
-  (void)pane_w;
-  (void)pane_h;
   int count = 0;
   for (int i = 0; i < n && count < max; ++i) {
     const ColonizeUnit* u = units_get_const(units, ids[i]);
@@ -754,7 +737,7 @@ void colony_screen_blit_buildings(
   int slot_x[32];
   int slot_y[32];
   colony_screen_assign_slot_positions_ex(
-    pool, colony, slot_x, slot_y, NULL, colony_screen_layout_seed(view)
+    colony, slot_x, slot_y, NULL, colony_screen_layout_seed(view)
   );
   /* Pass 1: every building sprite first. Badges/worker strips/production
    * counters go in a second pass so an overlapping neighbour's sprite can
@@ -924,7 +907,7 @@ void colony_screen_blit_buildings(
    */
   int fence_x = 0, fence_y = 0, fence_w = COLONY_FENCE_W, fence_h = COLONY_FENCE_H;
   colony_screen_fence_rect(
-    view, pool, colony, slot_x, slot_y, &fence_x, &fence_y, &fence_w, &fence_h
+    slot_x, slot_y, &fence_x, &fence_y, &fence_w, &fence_h
   );
 
   /* Outside units: Note 1 strip centered on the fortification. */

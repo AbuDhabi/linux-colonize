@@ -157,7 +157,8 @@ typedef struct EuropeDockImmigrant {
    * the kit its type is given (europe_apply_dock_row_kit). */
   int tools;
   /* @UNIT row 11 (UNITS_KIND_ARTILLERY): an Artillery piece has no dos_type of
-   * its own. Set at purchase; europe_dock_push_load derives it for its callers. */
+   * its own. Set from the unit's kind by the purchase and by each dock-push caller
+   * that has one (never from the row's name). */
   bool artillery;
 } EuropeDockImmigrant;
 

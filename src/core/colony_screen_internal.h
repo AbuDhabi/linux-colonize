@@ -82,7 +82,6 @@ typedef struct PeopleEntry {
 /* ===================== Shared drawing / layout helpers ===================== */
 
 void colony_screen_assign_slot_positions_ex(
-  const ColonizeColonyPool* pool,
   const ColonizeColony* colony,
   int* xs,
   int* ys,
@@ -280,9 +279,6 @@ void colony_screen_draw_vline(
   int color
 );
 void colony_screen_fence_rect(
-  const ColonyScreenView* view,
-  const ColonizeColonyPool* pool,
-  const ColonizeColony* colony,
   const int* xs,
   const int* ys,
   int* out_x,

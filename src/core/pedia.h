@@ -51,7 +51,6 @@ typedef enum PediaViewMode {
 #define PEDIA_TITLE_LEN 48
 #define PEDIA_BODY_MAX_LINES 20
 #define PEDIA_BODY_LINE_LEN 160
-#define PEDIA_CATEGORY_LABEL_LEN 32
 
 #define PEDIA_LIST_COLS 3
 /* Link greens from NAMES.TXT @COLORS (basic / hilite). */
@@ -76,7 +75,6 @@ typedef struct PediaTerrainPreview {
 typedef struct PediaPage {
   PediaCategory category;
   int index;
-  char category_label[PEDIA_CATEGORY_LABEL_LEN];
   char title[PEDIA_TITLE_LEN];
   char body[PEDIA_BODY_MAX_LINES][PEDIA_BODY_LINE_LEN];
   int body_line_count;

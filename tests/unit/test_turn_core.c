@@ -926,7 +926,7 @@ static int case_production_rules_field(void) {
    * excluded — no +1 here, unlike Farmer/Sugar/Tobacco/Cotton/Fur
    * Trapper/Fisherman below. */
   const int convert_yld =
-    colony_yield_for_worker(&map, fx, fy, COLONIZE_JOB_LUMBERJACK, COLONIZE_PROF_CONVERT, true, 0, 0, false);
+    colony_yield_for_worker(&map, fx, fy, COLONIZE_JOB_LUMBERJACK, COLONIZE_PROF_CONVERT, true, 0, false);
   if (convert_yld != base) {
     fprintf(
       stderr,
@@ -954,7 +954,7 @@ static int case_production_rules_field(void) {
     }
     const int farmer_base = colony_yield_for_tile(&map, ffx, ffy, COLONIZE_JOB_FARMER);
     const int farmer_convert =
-      colony_yield_for_worker(&map, ffx, ffy, COLONIZE_JOB_FARMER, COLONIZE_PROF_CONVERT, true, 0, 0, false);
+      colony_yield_for_worker(&map, ffx, ffy, COLONIZE_JOB_FARMER, COLONIZE_PROF_CONVERT, true, 0, false);
     if (farmer_convert != farmer_base + 1) {
       fprintf(
         stderr,
@@ -1012,7 +1012,7 @@ static int case_production_rules_field(void) {
     }
   }
   const int wrong_expert =
-    colony_yield_for_worker(&map, fx, fy, COLONIZE_JOB_LUMBERJACK, COLONIZE_PROF_FREE_COLONIST, true, 0, 0, false);
+    colony_yield_for_worker(&map, fx, fy, COLONIZE_JOB_LUMBERJACK, COLONIZE_PROF_FREE_COLONIST, true, 0, false);
   if (wrong_expert != base) {
     fprintf(
       stderr,
@@ -1359,7 +1359,7 @@ static int case_field_lumberjack(void) {
   col->stock[COLONIZE_CARGO_FOOD] = 100;
   const int before = col->stock[COLONIZE_CARGO_LUMBER];
   const int expect =
-    colony_yield_for_worker(&map, fx, fy, COLONIZE_JOB_LUMBERJACK, col->colonists[0].profession, true, 0, 0, false);
+    colony_yield_for_worker(&map, fx, fy, COLONIZE_JOB_LUMBERJACK, col->colonists[0].profession, true, 0, false);
   ColonizeTurnResult prod;
   ColonizeColonyProdDelta delta;
   memset(&prod, 0, sizeof(prod));
@@ -1389,7 +1389,7 @@ static int case_field_lumberjack(void) {
   col->population = 15;
   col->colonist_count = 15;
   const int base_yield =
-    colony_yield_for_worker(&map, fx, fy, COLONIZE_JOB_LUMBERJACK, col->colonists[0].profession, true, 0, 0, false);
+    colony_yield_for_worker(&map, fx, fy, COLONIZE_JOB_LUMBERJACK, col->colonists[0].profession, true, 0, false);
   ColonizeColonyPreview prev;
   colony_preview_compute_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(NULL), .col1_ok=((NULL) != NULL)}, col, &prev);
   if (prev.goods[COLONIZE_CARGO_LUMBER] != base_yield - 1) {
@@ -1905,7 +1905,7 @@ static int case_fisherman_needs_docks(void) {
   }
   col->has_building[docks] = false;
   const int no_docks_yld = colony_yield_for_worker(
-    &map, fx, fy, COLONIZE_JOB_FISHERMAN, col->colonists[0].profession, false, 0, 0,
+    &map, fx, fy, COLONIZE_JOB_FISHERMAN, col->colonists[0].profession, false, 0,
     false
   );
   if (no_docks_yld != 0) {
@@ -1915,7 +1915,7 @@ static int case_fisherman_needs_docks(void) {
     return 1;
   }
   const int with_docks_yld = colony_yield_for_worker(
-    &map, fx, fy, COLONIZE_JOB_FISHERMAN, col->colonists[0].profession, true, 0, 0,
+    &map, fx, fy, COLONIZE_JOB_FISHERMAN, col->colonists[0].profession, true, 0,
     false
   );
   if (with_docks_yld <= 0) {
@@ -2020,7 +2020,7 @@ static int case_expert_farmer_flat_bonus(void) {
   }
   const int base = colony_yield_for_tile(&map, fx, fy, COLONIZE_JOB_FARMER);
   const int expert_yld =
-    colony_yield_for_worker(&map, fx, fy, COLONIZE_JOB_FARMER, COLONIZE_JOB_FARMER, true, 0, 0, false);
+    colony_yield_for_worker(&map, fx, fy, COLONIZE_JOB_FARMER, COLONIZE_JOB_FARMER, true, 0, false);
   /* 2026-09-03: the improvement stack (farmer +1, plow, river) applies to
    * expert and non-expert alike (asm 15eb:1c32-1c9c is skill-blind except
    * for u sizing, and u=1 for food jobs), so the expert delta over the
@@ -5773,7 +5773,7 @@ static int case_census_live_peel(void) {
     units_set_nation(su, 0);
   }
 
-  col1_stuff_census_refresh_colony_counts_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&units), .colonies=(ColonizeColonyPool*)(&pool), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true}, &col1.stuff);
+  col1_stuff_census_4962_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&units), .colonies=(ColonizeColonyPool*)(&pool), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true}, &col1.stuff, 0);
   if (col1.stuff.colony_counts[0] != 1 || col1.stuff.colony_pop_totals[0] != 3) {
     fprintf(
       stderr,

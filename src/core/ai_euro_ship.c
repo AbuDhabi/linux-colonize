@@ -531,7 +531,7 @@ int ai_euro_20e6_wagon_village_errand(
     return 0;
   }
   if (!ctx->col1_ok || !ctx->col1 || !ctx->col1->tribe || ctx->col1->head.tribe_count == 0) {
-    ai_euro_s_20e6_wagon_errand[wagon->id] = 0;
+    ai_euro_wagon_errand_set(wagon->id, 0);
     return 0;
   }
   const int cid = map_continent_id_at(ctx->map, wagon->x, wagon->y);
@@ -560,7 +560,7 @@ int ai_euro_20e6_wagon_village_errand(
       fprintf(stderr, "[47b9] errand wagon %d n%d (%d,%d) no village on cid %d -> destroy\n",
               wagon->id, nation_id, wagon->x, wagon->y, cid);
     }
-    ai_euro_s_20e6_wagon_errand[wagon->id] = 0;
+    ai_euro_wagon_errand_set(wagon->id, 0);
     (void)units_despawn(ctx->units, wagon->id);
     return 1;
   }
@@ -575,7 +575,7 @@ int ai_euro_20e6_wagon_village_errand(
        * adjacency. `ai_contact_ai_wagon_village_trade` lives in
        * ai_contact_trade.c, so the clear sits at the call site instead, but
        * under the same gate. */
-      ai_euro_s_20e6_wagon_errand[wagon->id] = 0;
+      ai_euro_wagon_errand_set(wagon->id, 0);
       /* The trade is the 479b step onto the village: the wagon faces it,
        * and 465b's LAB_0bd1 exit clears the orders and bumps +0x315a
        * (DOSBox independence 4->5: the crown wagon saves orders 0,
@@ -1271,7 +1271,7 @@ int ai_euro_try_ship_trade_haul_snapshot(
    * That is the ONLY hull test FUN_521d_20e6 applies before the arrival block
    * and the delivery band — any unit type 0x0d..0x12 (Caravel..Man-O-War) with
    * a nonzero hold capacity runs both. The port used to gate this whole
-   * function on `ai_euro_is_cargo_ship_name` (Caravel/Merchantman/Galleon),
+   * function on `ai_euro_is_cargo_ship_kind` (Caravel/Merchantman/Galleon),
    * which left a Privateer's capture loot (FUN_5fef_0352 hands the winner the
    * loser's holds, viceroy_overlays.c:85035-85050) with no DOS consumer at
    * all. Widened to the DOS shape 2026-09-18; the 4393 work-queue peel below

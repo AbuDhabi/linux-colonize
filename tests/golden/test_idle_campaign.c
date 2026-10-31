@@ -35,6 +35,34 @@
 
 #define VR_SEED 100u
 
+/*
+ * The idle player's human turn: the rotation brings every unit up in turn,
+ * lasting orders run, and Space (No Orders) spends each unit that waits.
+ * independence-seed-100 000001 -> 000002: the Dutch Fortify ships save as
+ * Fortified.
+ */
+static void idle_human_rotation(const ColonizeWorld* w, int human_nation) {
+  if (!w || !w->units) {
+    return;
+  }
+  ColonizeUnitPool* pool = w->units;
+  pool->selected_id = -1;
+  for (int guard = 0; guard < COLONIZE_UNITS_MAX * 2; ++guard) {
+    if (!turn_select_next_unit(pool, human_nation)) {
+      break;
+    }
+    ColonizeUnit* u = units_get(pool, pool->selected_id);
+    if (!u) {
+      break;
+    }
+    turn_idle_human_activate(pool, u);
+    if (turn_rotation_lasting_step_w(w, u, NULL, NULL)) {
+      u->moves = 0; /* Space */
+    }
+  }
+  pool->selected_id = -1;
+}
+
 /* One uninterrupted DOS autosave series. Saves are named by year (yearly
  * campaign) or by save number (every-turn campaign). */
 typedef struct {
@@ -375,11 +403,11 @@ int main(int argc, char** argv) {
        * DS:0x5392 = 0xffff (raw 46833) and the idle player ends it there. */
       {
         /* The idle player's rotation: lasting orders run as each unit comes
-         * up, Space spends the rest (turn_idle_human_rotation_w). */
+         * up, Space spends the rest (idle_human_rotation). */
         ColonizeTurnContext rctx;
         golden_ctx(&fx, &rctx);
         const ColonizeWorld rw = world_from_turn_ctx(&rctx);
-        turn_idle_human_rotation_w(&rw, fx.br.human_nation);
+        idle_human_rotation(&rw, fx.br.human_nation);
       }
       fx.units.selected_id = -1;
       stepped = golden_turn(&fx);

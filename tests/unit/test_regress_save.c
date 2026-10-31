@@ -23,13 +23,13 @@
  * #865 (docs/archive/bugs_closed.md): DS:0x5382 bit 0x02 means "foreign
  * intervention ANNOUNCED" (FUN_43f7_1528 raw 74493, the bit's only writer,
  * never cleared) — not "REF present". The port stores that latch on
- * head.game_options.ref_present (AI_KING_INTERVENE_ANNOUNCED_BYTE,
+ * head.game_options.intervention_announced (AI_KING_INTERVENE_ANNOUNCED_BYTE,
  * ai_king.h) and keeps the separate "crown force on the map" port-only
  * latch in the human nation's unknown23_pad[0] bit 0x08
  * (AI_KING_REF_PRESENT_BYTE, set/cleared at ai_king_war.c:328/352/955/1052).
  * This guard: (a) the announce bit round-trips a save write/read, (b) the
  * port-only pad latch does not alias it (setting/clearing REF_PRESENT_BYTE
- * must not touch game_options.ref_present), and (c) the two DOS-literal
+ * must not touch game_options.intervention_announced), and (c) the two DOS-literal
  * readers cited in the row — combat_strength.c's colony Bombard +50%
  * (raw 100504) and reports_score.c's SoL/score bells_pts arm
  * (raw 71327 `bit2 && bells>99`) — see the round-tripped bit.
@@ -64,7 +64,7 @@ static int case_865_intervention_announce_latch(void) {
   ai_king_latch_set(&save, AI_KING_INTERVENE_ANNOUNCED_BYTE, 1);
   ai_king_latch_set(&save, AI_KING_REF_PRESENT_BYTE, 1);
   ai_king_latch_set(&save, AI_KING_REF_PRESENT_BYTE, 0);
-  if (!save.head.game_options.ref_present) {
+  if (!save.head.game_options.intervention_announced) {
     fprintf(stderr, "case_865: pad latch clear must not clear the announce bit\n");
     return 1;
   }
@@ -97,7 +97,7 @@ static int case_865_intervention_announce_latch(void) {
     ok = 0;
   }
 
-  /* reports_score.c raw 71327: `game_options.ref_present && bells>=100`. */
+  /* reports_score.c raw 71327: `game_options.intervention_announced && bells>=100`. */
   if (ok) {
     ColonizeWorld w;
     memset(&w, 0, sizeof(w));
@@ -105,7 +105,7 @@ static int case_865_intervention_announce_latch(void) {
     ColonizeScoreBreakdown score;
     reports_compute_score_w(&w, &score, 0);
     if (score.bells_pts <= 0) {
-      fprintf(stderr, "case_865: SoL/score bells_pts reader did not see ref_present\n");
+      fprintf(stderr, "case_865: SoL/score bells_pts reader did not see intervention_announced\n");
       ok = 0;
     }
   }
@@ -146,7 +146,7 @@ static int case_865_intervention_announce_latch(void) {
       ColonizeCombatEngageResult er;
       combat_land_engage(&sctx, aid, did, &er);
       if ((er.atk_flags.flags & COMBAT_FLAG_REF) == 0) {
-        fprintf(stderr, "case_865: Bombard +50%% reader did not see round-tripped ref_present\n");
+        fprintf(stderr, "case_865: Bombard +50%% reader did not see round-tripped intervention_announced\n");
         ok = 0;
       }
     }

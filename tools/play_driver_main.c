@@ -1177,13 +1177,13 @@ static bool command(char* line) {
        strcmp(op, "sell") == 0 || strcmp(op, "export") == 0)) {
     a2 = -1;
     for (int i = 0; i < (int)COLONIZE_COL1_CARGO_TYPES && a2 < 0; ++i) {
-      const char* name = reports_cargo_name(i);
+      const char* name = reports_cargo_display_name(i);
       a2 = name[0] && strncasecmp(name, argv[2], strlen(argv[2])) == 0 ? i : -1;
     }
     if (a2 < 0) {
       printf("ERR unknown cargo %s; ids:", argv[2]);
       for (int i = 0; i < (int)COLONIZE_COL1_CARGO_TYPES; ++i) {
-        printf(" %d %s", i, reports_cargo_name(i));
+        printf(" %d %s", i, reports_cargo_display_name(i));
       }
       printf("\n");
       return true;
@@ -1805,7 +1805,7 @@ static bool command(char* line) {
     printf("EXPORT %s on:", c->name);
     for (int i = 0; i < (int)COLONIZE_COL1_CARGO_TYPES; ++i) {
       if (europe_custom_house_cargo_enabled(c->custom_house_bits, i)) {
-        printf(" %d %s", i, reports_cargo_name(i));
+        printf(" %d %s", i, reports_cargo_display_name(i));
       }
     }
     printf("\n");
@@ -1847,7 +1847,7 @@ static bool command(char* line) {
       const int cap = colonies_warehouse_capacity(&g_game->colonies, wc, c);
       if (cap > 0 && wc->stock[c] > cap) {
         printf("WARN %s %s %d over the warehouse cap %d: the excess spoils at turn end (load it back)\n",
-               wc->name, reports_cargo_name(c), wc->stock[c], cap);
+               wc->name, reports_cargo_display_name(c), wc->stock[c], cap);
       }
     }
     ok = flush_frames(2);
@@ -2055,7 +2055,7 @@ static bool command(char* line) {
                  (t->mission & COL1_TRIBE_MISSION_JESUIT_BIT) ? "J" : "");
       }
       printf("VILLAGE (%d,%d) %s%s%s%s pop %d mission %s tension %d alarm %d\n", t->x, t->y,
-             reports_tribe_name(ni), t->state.capital ? " capital" : "", t->state.scouted ? " visited" : "",
+             reports_tribe_display_name(ni), t->state.capital ? " capital" : "", t->state.scouted ? " visited" : "",
              t->state.learned ? " taught" : "", t->population, mission, col1_tribe_attitude(t, me),
              c1->indian[ni].alarm_by_player[me]);
     }

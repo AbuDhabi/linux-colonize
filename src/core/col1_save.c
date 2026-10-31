@@ -979,7 +979,10 @@ bool col1_save_read_file(const char* path, ColonizeCol1Save* out, char* err, siz
   bool ok = parse_from_stream(file_take, &ctx, out, err, err_size);
   if (ok && (size_t)file_size > expect) {
     const size_t tail = (size_t)file_size - expect;
-    uint8_t* tail_buf = malloc(tail);
+    /* ponytail: sanity cap only — real extension tails are tens of KB; a
+     * bigger tail means a corrupt or foreign file, so it fails like a short
+     * read below instead of a blind huge malloc. */
+    uint8_t* tail_buf = tail <= ((size_t)64u << 20) ? malloc(tail) : NULL;
     if (tail_buf && fseek(f, (long)expect, SEEK_SET) == 0 &&
         fread(tail_buf, 1, tail, f) == tail) {
       if (!col1_save_set_ext(out, tail_buf, tail)) {
@@ -1044,6 +1047,7 @@ bool col1_save_write_file(const char* path, const ColonizeCol1Save* save, char* 
   }
   Col1FileCtx ctx = {.f = f};
   bool ok = emit_to_stream(file_put, &ctx, save, err, err_size);
+  const long written = ftell(f); /* logged below; no second ext build */
   /* fflush before fclose so a delayed ENOSPC is reported while the stream is
    * still ours to diagnose; fclose's own status is still checked, since it is
    * the only place some libc implementations surface a failed final flush. */
@@ -1073,7 +1077,7 @@ bool col1_save_write_file(const char* path, const ColonizeCol1Save* save, char* 
     return false;
   }
   free(tmp_path);
-  diag_info("col1_save_write_file %s (%zu bytes)", path, col1_save_total_size(save));
+  diag_info("col1_save_write_file %s (%ld bytes)", path, written);
   if (err && err_size > 0) {
     err[0] = '\0';
   }

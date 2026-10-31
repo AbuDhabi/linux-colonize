@@ -194,8 +194,6 @@ bool platform_audio_enabled(const ColonizePlatform* platform);
 
 /* DOS-compat hooks called by core logic. The module is an asset-name shim only;
  * it carries no tick or port emulation (see dos_compat.c). */
-void dos_compat_init(void);
-void dos_compat_shutdown(void);
 bool dos_compat_normalize_asset_path(
   const char* data_dir,
   const char* dos_asset_name,

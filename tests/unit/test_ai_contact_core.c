@@ -175,7 +175,7 @@ static void run_colony_raid(void) {
   }
   const int q0 = w.ai_popups->queue_count;
   (void)ai_contact_colony_raid_repelled_w(
-    &w, 4, rc->nation_id, cid, brave->home_tribe_id, 0, ctx.human_nation
+    &w, 4, rc->nation_id, cid, brave->home_tribe_index, 0, ctx.human_nation
   );
   if (ctx.status && ctx.status_size && w.ai_popups->queue_count > q0) {
     snprintf(
@@ -562,8 +562,8 @@ static int sp_05(void) {
     brave->y = 5;
     brave->moves = 0;
     /* Raid marker: 0f14's tail zeroes the home village's attitude word for
-     * every kind incl. "Nothing" — but only with a valid home_tribe_id. */
-    brave->home_tribe_id = 0;
+     * every kind incl. "Nothing" — but only with a valid home_tribe_index. */
+    brave->home_tribe_index = 0;
     /* Cleanup SP colony so later arms stay on EN fixtures. */
     csp->active = false;
     ind->alarm_by_player[2] = 0;
@@ -893,7 +893,7 @@ static int sp_12(void) {
 
   /*
    * First-meet status (gold in 10..19 → gift skips silent; learned → teach skips):
-   * FUN_5bfb_022e WELCOME → "The … offer peace."
+   * FUN_5bfb_022e WELCOME (no-popup auto-accept path).
    */
   ind->euro_diplo[0] = 0;
   ind->euro_diplo[0] = (uint8_t)(ind->euro_diplo[0] & ~0x40u);
@@ -1283,7 +1283,7 @@ static int sp_17(void) {
     brave->x = 5;
     brave->y = 5;
     brave->moves = 0;
-    brave->home_tribe_id = 0; /* raid-mark: 0f14 tail zeroes home attitude */
+    brave->home_tribe_index = 0; /* raid-mark: 0f14 tail zeroes home attitude */
     ind->alarm_by_player[0] = 45; /* raid gate >=40, below thin at-war (alarm > 50) */
     col1.tribe[0].alarm[0].friction = 65;
     col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT; /* not at-war */
@@ -4003,7 +4003,7 @@ static int sp_38(void) {
         return fail("convert visit spawn brave");
       }
       bravem->nation_id = 4;
-      bravem->home_tribe_id = 0;
+      bravem->home_tribe_index = 0;
 
       /*
        * smell #75: the standing-adjacency convert pulse is retired — the
@@ -4552,7 +4552,7 @@ static int sp_44(void) {
       if (beg_brave >= 0) {
         units_get(&units, beg_brave)->nation_id = 4;
         /* raw 96705: no origin byte (+0x314a), no 022e encounter. */
-        units_get(&units, beg_brave)->home_tribe_id = 0;
+        units_get(&units, beg_brave)->home_tribe_index = 0;
         /* …and it must have WALKED there this turn (DOS move-tail trigger). */
         ai_native_note_brave_turn_origin(
           beg_brave, colonies.colonies[0].x + 3, colonies.colonies[0].y + 3);
@@ -4750,7 +4750,7 @@ static int sp_45(void) {
       return fail("spawn reparations-visit Brave");
     }
     units_get(&units, rep_brave)->nation_id = 4;
-    units_get(&units, rep_brave)->home_tribe_id = 0;
+    units_get(&units, rep_brave)->home_tribe_index = 0;
     /* Same DOS move-tail trigger the gift / beg arms use. */
     ai_native_note_brave_turn_origin(
       rep_brave, colonies.colonies[0].x + 3, colonies.colonies[0].y + 3);
@@ -5114,7 +5114,7 @@ static int sp_47(void) {
       return fail("spawn gift-visit Brave");
     }
     units_get(&units, gift_brave)->nation_id = 4;
-    units_get(&units, gift_brave)->home_tribe_id = 0; /* raw 96705 origin byte */
+    units_get(&units, gift_brave)->home_tribe_index = 0; /* raw 96705 origin byte */
     /*
      * DOS runs the visit off the Brave's move tail, so the port needs the
      * pre-move tile: this Brave walked in from three tiles away, it did not

@@ -26,7 +26,6 @@
 #include "core/founding_fathers.h"
 #include "core/reports.h"
 #include "core/reports_names.h"
-#include "core/unit_chrome.h"
 #include "core/woodcut.h"
 #include "platform/diagnostics.h"
 
@@ -36,10 +35,15 @@
  *  - Colony production chrome & popups: SoL, inefficient gov, built, need-tools
  *  - Per-colony production tick
  *  - Colony production logging & per-nation scheduling
+ *
+ * The English europe->status sentences below are port-only debug text: the
+ * strip is never drawn (the player sees the catalog popups), unit tests read
+ * it, and the #397 Phase K gate keys on TurnProduceCtx.status_written, not
+ * on its wording.
  */
 
 /* ===================== Colony production chrome & popups: SoL, inefficient gov, built, need-tools (turn_emit_inefficient_gov_chrome .. turn_emit_needtools_notice) ===================== */
-static void turn_emit_inefficient_gov_chrome(
+static bool turn_emit_inefficient_gov_chrome(
   ColonizeColony* colony,
   ColonizeCol1Save* col1,
   EuropeScreen* europe,
@@ -49,7 +53,7 @@ static void turn_emit_inefficient_gov_chrome(
   const ColonizeMsgCatalog* messages
 ) {
   if (!colony || !col1) {
-    return;
+    return false;
   }
   /* DS:0xa897 — dialogs only for the human's own colonies. */
   const bool chrome = (colony->nation_id == human_nation) && europe != NULL;
@@ -116,11 +120,11 @@ static void turn_emit_inefficient_gov_chrome(
   }
 
   if (!chrome || !status_buf[0]) {
-    return;
+    return false;
   }
   snprintf(europe->status, sizeof(europe->status), "%s", status_buf);
   if (!ai_popups || !section) {
-    return;
+    return true;
   }
   char body[AI_POPUP_BODY_LEN];
   PopupMsgTokens tok;
@@ -130,13 +134,14 @@ static void turn_emit_inefficient_gov_chrome(
   tok.has_number0 = true;
   popup_msg_fill(messages, section, &tok, "", body, sizeof(body));
   ai_popup_enqueue_colony_event(ai_popups, colony->id, AI_POPUP_ZOOM_TAB_KEEP, body);
+  return true;
 }
 
 /*
  * FUN_364b_0688 Phase D: one SoL latch or decade chrome popup for the human.
  * Match decomp nest: latch transitions before decade. Cite: colony_eot_production.md.
  */
-static void turn_emit_sol_phase_d_chrome(
+static bool turn_emit_sol_phase_d_chrome(
   ColonizeColony* colony,
   ColonizeCol1Save* col1,
   EuropeScreen* europe,
@@ -148,7 +153,7 @@ static void turn_emit_sol_phase_d_chrome(
   const ColonizeMsgCatalog* messages
 ) {
   if (!colony || colony->nation_id != human_nation || !europe) {
-    return;
+    return false;
   }
   const char* section = NULL;
   const char* cname = colony->name[0] ? colony->name : "";
@@ -182,7 +187,7 @@ static void turn_emit_sol_phase_d_chrome(
   }
 
   if (!section) {
-    return;
+    return false;
   }
   PopupMsgTokens tok;
   memset(&tok, 0, sizeof(tok));
@@ -197,11 +202,12 @@ static void turn_emit_sol_phase_d_chrome(
    * the first sentence of the same catalog section as the popup. */
   popup_msg_fill_status(messages, section, &tok, europe->status, sizeof(europe->status));
   if (!ai_popups) {
-    return;
+    return true;
   }
   char body[AI_POPUP_BODY_LEN];
   popup_msg_fill(messages, section, &tok, "", body, sizeof(body));
   ai_popup_enqueue_colony_event(ai_popups, colony->id, AI_POPUP_ZOOM_TAB_KEEP, body);
+  return true;
 }
 
 /*
@@ -234,32 +240,9 @@ void turn_compose_colony_bells_crosses(
   int crosses = 0;
   if (pool && colony && colony->active) {
     const int nation_id = colony->nation_id;
-    /* Jefferson / Paine / Penn — fandom_col1994.md Political / Religious FF. */
-    const int statesmen_pct =
-      (col1 && founding_fathers_nation_has(col1, nation_id, FF_THOMAS_JEFFERSON)) ? 50 : 0;
-    const int paine_tax_pct =
-      (col1 && founding_fathers_nation_has(col1, nation_id, FF_THOMAS_PAINE) && nation_id >= 0 &&
-       nation_id < (int)COLONIZE_COL1_NATION_COUNT)
-        ? (int)col1->nation[nation_id].tax_rate
-        : 0;
     const bool nation_has_penn =
       col1 && founding_fathers_nation_has(col1, nation_id, FF_WILLIAM_PENN);
-    const bool nation_is_ai = col1 && nation_id >= 0 &&
-                              nation_id < (int)COLONIZE_COL1_NATION_COUNT &&
-                              col1->player[nation_id].control != 0;
-    /* DOS-LITERAL FUN_15eb_1f72 raw 11327 (viceroy_unpacked.c:12624-12626):
-     * the AI bells subsidy is gated on BOTH the AI/non-human control byte
-     * (nation >= 4 || byte[nation*0x34+0x543f] != 0, i.e. nation_is_ai) AND
-     * `FUN_15eb_3960(nation, 0x12)` — FF slot 0x12 = 18 = FF_SIMON_BOLIVAR
-     * held by that nation. The port previously keyed the subsidy arg (used
-     * ONLY for that (+ (pop+3)/5) add, colony_production.c:870) on
-     * nation_is_ai alone, over-granting the subsidy to AI nations that
-     * haven't recruited Bolivar yet. port_bugs.md #938b. */
-    const bool nation_is_ai_bolivar_subsidy =
-      nation_is_ai && founding_fathers_nation_has(col1, nation_id, FF_SIMON_BOLIVAR);
-    bells = colony_prod_colony_bells_ff(
-      pool, colony, statesmen_pct, paine_tax_pct, nation_is_ai_bolivar_subsidy, sol_bonus
-    );
+    bells = colony_prod_colony_bells_nation(pool, colony, col1, sol_bonus);
     crosses = colony_prod_colony_crosses_ff(pool, colony, nation_has_penn, sol_bonus);
   }
   if (out_bells) {
@@ -329,7 +312,7 @@ void turn_emit_built_chrome(
  * where an idle-carpenter or BUY-topped colony (and every unit project) went
  * silent.
  */
-static void turn_emit_needtools_notice(
+static bool turn_emit_needtools_notice(
   const ColonizeColonyPool* pool,
   const ColonizeColony* colony,
   const ColonizeCol1Save* col1,
@@ -339,14 +322,14 @@ static void turn_emit_needtools_notice(
   const ColonizeMsgCatalog* messages
 ) {
   if (!pool || !colony || colony->building_in_production < 0) {
-    return;
+    return false;
   }
   if (colony->nation_id != human_nation) {
-    return;
+    return false;
   }
   /* Gate !(DS:0x5384 & 0x10). */
   if (col1 && col1->head.colony_report_options.report_tools_needed_for_production) {
-    return;
+    return false;
   }
   const int bip = colony->building_in_production;
   const char* pname = NULL;
@@ -355,28 +338,28 @@ static void turn_emit_needtools_notice(
   if (!colonies_unit_build_info(bip, &pname, &hammers_need, &tools_cost)) {
     const ColonizeBuildingType* bt = colonies_building_type(pool, bip);
     if (!bt) {
-      return;
+      return false;
     }
     /* Already-owned project takes DOS's @ALREADYHAVE arm instead. */
     if (bip < COLONIZE_BUILDING_TYPES_MAX && colony->has_building[bip]) {
-      return;
+      return false;
     }
     pname = bt->name;
     hammers_need = bt->hammers;
     tools_cost = bt->tools_cost;
   }
   if (hammers_need <= 0 || colony->hammers < hammers_need) {
-    return;
+    return false;
   }
   const int tools_have = colony->stock[COLONIZE_CARGO_TOOLS];
   if (tools_cost <= 0 || tools_have >= tools_cost) {
-    return;
+    return false;
   }
   if (europe) {
     snprintf(europe->status, sizeof(europe->status), "Need tools.");
   }
   if (!ai_popups) {
-    return;
+    return europe != NULL;
   }
   char body[AI_POPUP_BODY_LEN];
   PopupMsgTokens tok;
@@ -393,6 +376,7 @@ static void turn_emit_needtools_notice(
   }
   popup_msg_fill(messages, section, &tok, "", body, sizeof(body));
   ai_popup_enqueue_colony_event(ai_popups, colony->id, AI_POPUP_ZOOM_TAB_CONSTRUCTION, body);
+  return europe != NULL;
 }
 
 /*
@@ -539,7 +523,6 @@ void turn_compose_colony_fields(
       c->profession,
       has_docks,
       sol_b_field,
-      colony->colony_flags,
       has_hudson
     );
     const int cargo = colony_yield_job_cargo(c->field_job);
@@ -576,21 +559,17 @@ void turn_compose_colony_fields(
 /* Entry snapshot: +0x90 mask, status strip, stock, population. */
 COLONIZE_INTERNAL TurnProduceStatus turn_produce_begin(TurnProduceCtx* pc) {
   ColonizeColony* const colony = pc->colony;
-  EuropeScreen* const europe = pc->europe;
   /* FUN_364b_0688: clear cargo_produced_mask (+0x90) at production start. */
   pc->mask_before_a = colony->cargo_produced_mask;
   colony->cargo_produced_mask = 0;
   /* port_bugs.md #397: europe->status is shared across the whole colony loop, so
    * "status empty" as the Phase K crumb gate let ANY earlier colony's
    * message (birth, food low, cargo ready, ...) suppress every later
-   * colony's "has run out of X" popup for the rest of the EOT. Snapshot the
-   * strip at THIS colony's entry: the crumb yields only to a message this
-   * same colony wrote this tick (its own food/birth chrome outranks it),
-   * never to another colony's leftovers. */
-  pc->status_at_entry[0] = '\0';
-  if (europe) {
-    snprintf(pc->status_at_entry, sizeof(pc->status_at_entry), "%s", europe->status);
-  }
+   * colony's "has run out of X" popup for the rest of the EOT. The crumb
+   * yields only to a message this same colony wrote this tick (its own
+   * food/birth chrome outranks it), never to another colony's leftovers:
+   * every status write below sets status_written. */
+  pc->status_written = false;
   for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
     pc->stock_before[c] = colony->stock[c];
   }
@@ -674,7 +653,6 @@ COLONIZE_INTERNAL void turn_produce_compose(TurnProduceCtx* pc) {
    * below.
    */
   const int sol_b_phase_a = colony_prod_sol_bonus(col1, colony);
-  pc->sol_b_phase_a = sol_b_phase_a;
   /*
    * DOS-LITERAL FUN_364b_0688 Phase B raw 57241-57243: the per-cargo net is
    * `FUN_281f_0b50(cargo)` (gross - demand - unmet[input]) only for the
@@ -805,6 +783,7 @@ COLONIZE_INTERNAL void turn_produce_food(TurnProduceCtx* pc) {
       } else {
         snprintf(europe->status, sizeof(europe->status), "Food shortage.");
       }
+      pc->status_written = true;
     }
   }
 }
@@ -860,7 +839,7 @@ COLONIZE_INTERNAL void turn_produce_sol(TurnProduceCtx* pc) {
     }
     const int sol_after = colony_prod_sol_percent(col1, app);
     colony_prod_refresh_sol_flags(app, col1);
-    turn_emit_sol_phase_d_chrome(
+    pc->status_written |= turn_emit_sol_phase_d_chrome(
       app,
       col1,
       europe,
@@ -871,7 +850,7 @@ COLONIZE_INTERNAL void turn_produce_sol(TurnProduceCtx* pc) {
       ai_popups,
       messages
     );
-    turn_emit_inefficient_gov_chrome(
+    pc->status_written |= turn_emit_inefficient_gov_chrome(
       app, col1, europe, human_nation, sol_after, ai_popups, messages
     );
   }
@@ -935,6 +914,7 @@ COLONIZE_INTERNAL void turn_produce_horses(TurnProduceCtx* pc) {
           horse_has_stable ? "Stable bred %d horses." : "Horses bred: %d.",
           breed.bred
         );
+        pc->status_written = true;
       }
     }
   }
@@ -1042,7 +1022,7 @@ COLONIZE_INTERNAL void turn_produce_custom_house(TurnProduceCtx* pc) {
         const char* cargo_name =
           (sale->cargo >= 0 && sale->cargo < europe->cargo_count)
             ? europe->cargo[sale->cargo].name
-            : reports_cargo_name(sale->cargo); /* NAMES @CARGO row; miss "" (#1100) */
+            : reports_cargo_display_name(sale->cargo); /* NAMES @CARGO row; miss "" (#1100) */
         char line[AI_POPUP_BAR_MSG_LEN];
         int n = snprintf(
           line,
@@ -1189,6 +1169,7 @@ COLONIZE_INTERNAL void turn_produce_education(TurnProduceCtx* pc) {
       /* DOS 0xde7 @TRAINFAIL, then out of the graduation loop entirely. */
       if (tell) {
         snprintf(europe->status, sizeof(europe->status), "No students to teach.");
+        pc->status_written = true;
         if (ai_popups) {
           fallback[0] = '\0';
           memset(&tok, 0, sizeof(tok));
@@ -1240,6 +1221,7 @@ COLONIZE_INTERNAL void turn_produce_education(TurnProduceCtx* pc) {
       } else {
         snprintf(europe->status, sizeof(europe->status), "%s trained.", skill_name);
       }
+      pc->status_written = true;
       if (ai_popups) {
         memset(&tok, 0, sizeof(tok));
         tok.string0 = cname;
@@ -1452,6 +1434,7 @@ COLONIZE_INTERNAL void turn_produce_birth(TurnProduceCtx* pc) {
       } else {
         snprintf(europe->status, sizeof(europe->status), "Colony birth.");
       }
+      pc->status_written = true;
       if (ai_popups) {
         char body[AI_POPUP_BODY_LEN];
         PopupMsgTokens tok;
@@ -1583,6 +1566,7 @@ COLONIZE_INTERNAL TurnProduceStatus turn_produce_starve(TurnProduceCtx* pc) {
       } else {
         snprintf(europe->status, sizeof(europe->status), "Colonist starved.");
       }
+      pc->status_written = true;
       if (ai_popups) {
         const char* sec = (col1 && col1->head.autumn) ? "STARVE2" : "STARVE1";
         char body[AI_POPUP_BODY_LEN];
@@ -1626,6 +1610,7 @@ COLONIZE_INTERNAL TurnProduceStatus turn_produce_starve(TurnProduceCtx* pc) {
       } else {
         snprintf(europe->status, sizeof(europe->status), "Food stores depleted.");
       }
+      pc->status_written = true;
       if (ai_popups) {
         const char* sec = (col1 && col1->head.autumn) ? "FOOD2" : "FOOD1";
         char body[AI_POPUP_BODY_LEN];
@@ -1643,6 +1628,7 @@ COLONIZE_INTERNAL TurnProduceStatus turn_produce_starve(TurnProduceCtx* pc) {
       } else {
         snprintf(europe->status, sizeof(europe->status), "Food stores low.");
       }
+      pc->status_written = true;
       if (ai_popups) {
         char body[AI_POPUP_BODY_LEN];
         PopupMsgTokens tok;
@@ -1689,7 +1675,6 @@ COLONIZE_INTERNAL void turn_produce_hammers(TurnProduceCtx* pc) {
     /* Composed in Phase A (see the composition-boundary comment above);
      * DOS Phase L only reads the scratch word back with `0b50(0x10)`. */
     const int hammers_add = hammers_phase_a;
-    int hammers = 0;
     if (hammers_add > 0) {
       /*
        * Hammers cost lumber 1:1, capped by lumber actually on hand (this
@@ -1708,7 +1693,7 @@ COLONIZE_INTERNAL void turn_produce_hammers(TurnProduceCtx* pc) {
        * (port_bugs.md #1023 — DOS spends it through the lumber demand word in
        * the Phase B cargo loop, raw 57238-57253, and only banks the hammer
        * word here at raw 57730). Phase L just banks what was paid for. */
-      hammers = hammers_paid;
+      const int hammers = hammers_paid;
       /* DOS adds the Phase A net word into the signed 16-bit +0x92 hammer
        * bank and clamps a negative wrapped result to zero (FUN_364b_0688 raw
        * 57730-57738). Keep the word arithmetic explicit; signed overflow in
@@ -1736,6 +1721,7 @@ COLONIZE_INTERNAL void turn_produce_hammers(TurnProduceCtx* pc) {
             } else {
               snprintf(europe->status, sizeof(europe->status), "Building completed.");
             }
+            pc->status_written = true;
             turn_emit_built_chrome(messages, ai_popups, colony, bname);
           }
         }
@@ -1753,6 +1739,7 @@ COLONIZE_INTERNAL void turn_produce_hammers(TurnProduceCtx* pc) {
         sizeof(europe->status),
         "No hammers for construction."
       );
+      pc->status_written = true;
     }
 
     if (hammers_add <= 0) {
@@ -1795,7 +1782,8 @@ COLONIZE_INTERNAL void turn_produce_hammers(TurnProduceCtx* pc) {
    * above because DOS runs it every EOT, hammers produced or not, and for
    * unit projects as well as buildings (port_bugs.md #537).
    */
-  turn_emit_needtools_notice(pool, colony, col1, europe, human_nation, ai_popups, messages);
+  pc->status_written |=
+    turn_emit_needtools_notice(pool, colony, col1, europe, human_nation, ai_popups, messages);
 }
 
 /* Phase K: "ran out of X" demand crumbs. */
@@ -1806,7 +1794,6 @@ COLONIZE_INTERNAL void turn_produce_crumbs(TurnProduceCtx* pc) {
   const int human_nation = pc->human_nation;
   AiPopupState* const ai_popups = pc->ai_popups;
   const ColonizeMsgCatalog* const messages = pc->messages;
-  const char* const status_at_entry = pc->status_at_entry;
   const int hammers_phase_a = pc->hammers_phase_a;
   const int lumber_before_hammers = pc->lumber_before_hammers;
   int* const craft_unmet_cap = pc->craft_unmet_cap;
@@ -1814,7 +1801,7 @@ COLONIZE_INTERNAL void turn_produce_crumbs(TurnProduceCtx* pc) {
   int* const craft_net = pc->craft_net;
   /* Phase K demand crumbs (hammers/tools already above): raw / craft empty. */
   if (colony->nation_id == human_nation && europe &&
-      strcmp(europe->status, status_at_entry) == 0 && turn_report_ok_raw(col1)) {
+      !pc->status_written && turn_report_ok_raw(col1)) {
     /*
      * DOS gates each "ran out of X" msg on a demand scratch word (set by
      * FUN_15eb_0bd4/0b96 from the SAME turn's tier-scaled worker output,
@@ -2417,7 +2404,7 @@ void turn_run_one_colony_production_w(
    * coastal battery, opens each colony's EOT — after the earlier slots'
    * moves (DOSBox independence 5->6: the Dutch fort fires on the crown
    * Man-O-War that parked beside it this turn). */
-  (void)units_coastal_fort_fire_colony_w(w, colony->id, human_nation, NULL, 0);
+  (void)units_coastal_fort_fire_colony_w(w, colony->id, human_nation);
   /* FUN_364b_0688 raw 57228: FUN_281f_0c72 -> FUN_15eb_26e4 claim stamp,
    * then raw 57229: FUN_281f_0c22 -> FUN_15eb_3930 before the colony
    * produces (port_bugs.md #1080). */

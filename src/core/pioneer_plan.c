@@ -177,11 +177,8 @@ static bool pioneer_plan_claimed(const ColonizeUnitPool* pool, const ColonizeUni
   return false;
 }
 
-static void pioneer_plan_cancel(ColonizeUnitPool* pool, ColonizeUnit* u) {
-  u->automated = false;
-  if (u->orders == UNITS_ORDER_GOTO) {
-    units_clear_orders(pool, u->id);
-  }
+static bool pioneer_plan_is_pioneer(const ColonizeUnitPool* pool, const ColonizeUnit* u) {
+  return units_is_pioneer(pool, u->id);
 }
 
 #define PIONEER_PLAN_GOTO_TRIES 8
@@ -200,7 +197,7 @@ bool pioneer_plan_auto_step(
   ColonizeWorldMap* map = w->map;
   if (!pioneer_plan_enabled() || !units_is_pioneer(pool, u->id) ||
       u->tools < PIONEER_PLAN_TOOLS_MIN) {
-    pioneer_plan_cancel(pool, u);
+    units_automate_cancel(pool, u);
     return false;
   }
   const int continent = map_continent_id_at(map, u->x, u->y);
@@ -237,7 +234,7 @@ bool pioneer_plan_auto_step(
       }
     }
     if (best_x < 0) {
-      pioneer_plan_cancel(pool, u);
+      units_automate_cancel(pool, u);
       return false;
     }
     if (best_x == u->x && best_y == u->y) {
@@ -245,8 +242,8 @@ bool pioneer_plan_auto_step(
         units_clear_orders(pool, u->id);
       }
       const bool ok = best_job == PIONEER_PLAN_ROAD
-        ? units_pioneer_road_w(w, u->id, NULL, 0, ai_popups, messages)
-        : units_pioneer_plow_w(w, u->id, NULL, 0, ai_popups, messages);
+        ? units_pioneer_road_w(w, u->id, NULL, ai_popups, messages)
+        : units_pioneer_plow_w(w, u->id, NULL, ai_popups, messages);
       if (ok) {
         return true;
       }
@@ -260,7 +257,7 @@ bool pioneer_plan_auto_step(
     tried_x[attempt] = best_x;
     tried_y[attempt] = best_y;
   }
-  pioneer_plan_cancel(pool, u);
+  units_automate_cancel(pool, u);
   return false;
 }
 
@@ -346,14 +343,6 @@ void pioneer_plan_deserialize(const uint8_t* data, size_t size, ColonizeUnitPool
     return;
   }
   for (int k = 0; k < autos; ++k, p += 3) {
-    /* ponytail: two Pioneers sharing a tile may swap which one is automated. */
-    for (int i = 0; i < units_slot_end(units); ++i) {
-      ColonizeUnit* u = &units->units[i];
-      if (u->active && !u->automated && u->x == p[0] && u->y == p[1] && u->nation_id == p[2] &&
-          units_is_pioneer(units, u->id)) {
-        u->automated = true;
-        break;
-      }
-    }
+    units_automate_reattach(units, p[0], p[1], p[2], pioneer_plan_is_pioneer);
   }
 }

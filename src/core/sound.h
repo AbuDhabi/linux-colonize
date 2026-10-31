@@ -163,7 +163,8 @@ bool sound_gsound_event_at(
   uint8_t* out_data2,
   uint8_t* out_channel
 );
-/* Render a short offline buffer (mono S16) for smoke tests; returns frames written. */
+/* Render a short offline buffer (mono S16) for smoke tests; returns frames written.
+ * Not for use while a platform audio device pulls sound_render_s16 (same VM). */
 int sound_render_offline_mono(int song_id, int16_t* dst, int max_frames, int sample_rate);
 
 #endif

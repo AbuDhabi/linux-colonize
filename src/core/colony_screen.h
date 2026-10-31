@@ -585,10 +585,6 @@ ColonyScreenHitResult colony_screen_hit_test(
 int colony_screen_multi_units_layout(
   const ColonyScreenView* view,
   const ColonizeUnitPool* units,
-  int px,
-  int py,
-  int pane_w,
-  int pane_h,
   ColonyMultiUnitSlot* out,
   int max
 );

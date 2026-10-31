@@ -263,7 +263,7 @@ int ai_native_step_first_contact(
      * settlement tile (FUN_137f_0392 >= 0), or has no home village.
      */
     if (fired || (u->col1_flags15 & 0x08u) || ai_021a_settle_owner(map, u->x, u->y) >= 4 ||
-        u->home_tribe_id < 0) {
+        u->home_tribe_index < 0) {
       continue;
     }
     if (ai_021a_trace_enabled()) {
@@ -305,8 +305,8 @@ int ai_native_step_first_contact(
      * (LAB_5bfb_0def tail, after @INDIANCOMMENT).
      */
     if (!colony_here && !(o && o->type_index == 0x0c)) {
-      if (mood == 1 && u->home_tribe_id < (int)col1->head.tribe_count && col1->tribe) {
-        col1_tribe_attitude_set(&col1->tribe[u->home_tribe_id], e, 0);
+      if (mood == 1 && u->home_tribe_index < (int)col1->head.tribe_count && col1->tribe) {
+        col1_tribe_attitude_set(&col1->tribe[u->home_tribe_index], e, 0);
       }
       continue;
     }
@@ -411,8 +411,8 @@ COLONIZE_INTERNAL AiNativeStepStatus ai_native_brave_step(
    * deliberate departure in the despawn arm; everything else is verbatim.
    */
   if (col1 &&
-      (u->home_tribe_id < 0 ||
-       u->home_tribe_id >= (int)col1->head.tribe_count)) {
+      (u->home_tribe_index < 0 ||
+       u->home_tribe_index >= (int)col1->head.tribe_count)) {
     units_despawn(units, u->id);
     return AI_NATIVE_STEP_STOP;
   }
@@ -740,7 +740,6 @@ void ai_native_nation_pulse(
     return;
   }
 
-  ai_s_seed100_init_pulse = seed100_init_burns ? 1 : 0;
   if (seed100_init_burns) {
     (void)ai_init_sched_apply(rng, nation_id, -1);
   }
@@ -811,8 +810,6 @@ void ai_native_nation_pulse(
     }
     brave_index++;
   }
-
-  ai_s_seed100_init_pulse = 0;
 }
 
 /*
@@ -1007,10 +1004,7 @@ void ai_indian_nation_turn(ColonizeTurnContext* ctx, int nation_id) {
  * matching how these arrays start at program launch).
  */
 void ai_native_reset(void) {
-  ai_s_seed100_init_pulse = 0;
   ai_s_seed100_midturn_turn = 0;
-  ai_s_lcg_in_pick = 0;
-  ai_s_lcg_pick_burns = 0;
   ai_s_lcg_total_nexts = 0;
   memset(s_brave_origin_x, 0, sizeof(s_brave_origin_x));
   memset(s_brave_origin_y, 0, sizeof(s_brave_origin_y));

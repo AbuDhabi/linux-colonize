@@ -37,8 +37,8 @@ void cheat_list_close(CheatListDialog* dlg) {
 
 /*
  * Live-catalog row loader shared by the CHEAT Create Unit list stages
- * (DEBUG.TXT @CREATE / @CSHIP / @FOREIGN / @FOREIGN2). Same "live wins,
- * literal fallback" shape as cheat_list_open_setview, but returns plain
+ * (DEBUG.TXT @CREATE / @CSHIP / @FOREIGN / @FOREIGN2). Like
+ * cheat_list_open_setview it reads the live catalog, but returns plain
  * strings for a caller that builds its own labels[]/ids[] pair rather than
  * opening the dialog directly. Counts non-directive, non-blank rows (blank
  * lines are already dropped by assets_msg_load_file); `skip_rows` is how
@@ -184,7 +184,7 @@ bool cheat_list_open_kill_indians(
 
   /* @TRIBES field 1 — the singular tribe word ("Inca"), the same column the
    * map panel and the unit labels name one tribe by. The caller's catalog
-   * wins; reports_tribe_singular_name supplies the literal fallback. */
+   * wins; reports_tribe_singular_name reads the shared NAMES.TXT (miss = ""). */
   /* DOS case 0x67 (ndisasm 0x23bdc-0x23c9b): one row per tribe whose indian
    * record +3 bit 0x80 (extinct) is clear, id = tribe + 1; none left = the
    * cheat exits without a list. */
@@ -495,11 +495,9 @@ bool cheat_list_open_debug_flags(
       labels[n++] = line;
     }
   }
-  if (n < 7) {
-    n = 7;
-    for (int i = 0; i < 7; ++i) {
-      labels[i] = k_fallback[i];
-    }
+  /* Pad only the rows the catalog is missing; live labels stay. */
+  for (; n < 7; ++n) {
+    labels[n] = k_fallback[n];
   }
   if (dlg->prompt[0] == '\0') {
     str_copy_trunc(dlg->prompt, sizeof(dlg->prompt), k_fallback_prompt);

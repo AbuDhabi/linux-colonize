@@ -1,4 +1,5 @@
 #include "core/village_trade_intel.h"
+#include "core/colony.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -53,7 +54,7 @@ static VillageTradeIntelEntry* village_trade_intel_find(int x, int y, bool creat
 static void village_trade_intel_store(VillageTradeIntelKnown* k, const int* goods, int n) {
   unsigned char count = 0;
   for (int i = 0; goods && i < n && count < VILLAGE_TRADE_INTEL_GOODS; ++i) {
-    if (goods[i] >= 0 && goods[i] < 16) {
+    if (goods[i] >= 0 && goods[i] < COLONIZE_CARGO_COUNT) {
       k->goods[count++] = (signed char)goods[i];
     }
   }
@@ -196,7 +197,7 @@ static const uint8_t* intel_get_known(const uint8_t* p, VillageTradeIntelKnown* 
   k->n = (n <= VILLAGE_TRADE_INTEL_GOODS) ? n : 0;
   for (int i = 0; i < VILLAGE_TRADE_INTEL_GOODS; ++i) {
     const signed char g = (signed char)*p++;
-    k->goods[i] = (g >= 0 && g < 16) ? g : 0;
+    k->goods[i] = (g >= 0 && g < COLONIZE_CARGO_COUNT) ? g : 0;
   }
   return p;
 }

@@ -321,7 +321,7 @@ int ai_goals_composite_unit_priority_w(
  * Both Indian-range reads wired 2026-09-08 (decomp 87319-87340):
  *   alarm  = FUN_281f_030c(owner - 4, nation)  = ai_diplo_indian_alarm
  *   gate   = alarm > 0x4a
- *   if (unit_id >= 0 && DS:0x54f6[unit.home_tribe_id][nation] > 0x7f)
+ *   if (unit_id >= 0 && DS:0x54f6[unit.home_tribe_index][nation] > 0x7f)
  *            gate = true
  *   return gate ? owner : -1
  * i.e. an adjacent native raises a contact claim only when that nation is

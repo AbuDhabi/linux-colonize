@@ -481,7 +481,7 @@ static int test_beg_conceded_falls_into_gift_863(void) {
     return fail("#863: spawn brave");
   }
   bu->nation_id = 4;
-  bu->home_tribe_id = 0;
+  bu->home_tribe_index = 0;
   /* The DOS move-tail selector both halves share. */
   ai_native_note_brave_turn_origin(bid, 9, 9);
 
@@ -557,7 +557,7 @@ static int test_beg_conceded_falls_into_gift_863(void) {
     return fail("second generous visit: spawn Brave");
   }
   second->nation_id = 4;
-  second->home_tribe_id = 0;
+  second->home_tribe_index = 0;
   ai_native_note_brave_turn_origin(second_id, 9, 9);
   ai_contact_visit_mood_publish(&ctx, 4, 0, second_id, 1);
   c->stock[COLONIZE_CARGO_FOOD] = 20;

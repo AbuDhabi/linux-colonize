@@ -139,7 +139,7 @@ void reports_render_economic_trade(
   for (int c = 0; c < (int)COLONIZE_COL1_CARGO_TYPES; ++c) {
     const int row_top = REPORTS_ECON1_ROW0_Y + c * REPORTS_ECON1_ROW_STEP;
     const int text_y = row_top + 2;
-    reports_draw_line(font, fb, REPORTS_ECON1_LABEL_X, text_y, reports_cargo_name(c), REPORTS_ECON_LABEL_COLOR);
+    reports_draw_line(font, fb, REPORTS_ECON1_LABEL_X, text_y, reports_cargo_display_name(c), REPORTS_ECON_LABEL_COLOR);
 
     const int32_t tons = nat ? nat->trade.tons[c] : 0;
     const int32_t g = nat ? nat->trade.gold[c] : 0;
@@ -498,6 +498,24 @@ static void reports_render_colony_sidebar(
   reports_draw_line(font, fb, REPORTS_COLONY_NAME_X, row_top, c->name, REPORTS_COLONY_LABEL_COLOR);
 }
 
+/* FUN_1427_04d6 with param_2 == 1: the @UNIT size column, overridden to 2
+ * for Dragoon/Scout/Cont.Cav. (@UNIT 4/5/7) and 3 for Artillery (0xb). */
+static int reports_garrison_rank(const ColonizeUnitPool* units, int id) {
+  const ColonizeUnit* unit = units_get_const(units, id);
+  if (!unit) {
+    return 0;
+  }
+  const int dos_type = units_display_type_index(units, id);
+  if (dos_type == 4 || dos_type == 5 || dos_type == 7) {
+    return 2;
+  }
+  if (dos_type == 11) {
+    return 3;
+  }
+  const ColonizeUnitType* ut = units_type(units, unit->type_index);
+  return ut ? ut->space : 0;
+}
+
 void reports_render_colony_garrisons(
   const ColonizeReportsView* view,
   const ColonizeCol1Save* col1,
@@ -588,16 +606,15 @@ void reports_render_colony_garrisons(
        * (FUN_3f41_1ed8 raw 110106-110108, `FUN_1427_04d6(head, 1)`).
        * FUN_1427_04d6 (raw ~7612-7683) buckets the chain by a pseudo-size
        * key, walking size classes 6 down to 1 and moving each match to the
-       * front of the list, so the *last*-processed (smallest, 1) bucket
-       * ends up frontmost and size 6 ends up at the back — i.e. the chain,
-       * read front-to-back, is *ascending* by size, and FUN_3f41_1ed8 draws
-       * it front-to-back, so the visible row is size-ascending too. With
+       * front of the list; the restore walk then reverses that order, so
+       * the drawn row is size-DESCENDING (golden colony_p1.png: Artillery
+       * before Dragoon; see the sort below). With
        * `param_2 == 1` the size key (normally the `@UNIT` size/space column,
        * `DS:0x5238`) is overridden for four types: Dragoon/Scout/Cont.Cav.
        * (@UNIT 4/5/7) force to pseudo-size 2, Artillery (@UNIT 0xb) to
-       * pseudo-size 3. Reproduced here as a stable ascending sort of a
-       * copied id list (same idiom as map_panel_stack_rank), leaving the
-       * pool untouched.
+       * pseudo-size 3 (reports_garrison_rank). Reproduced here as a stable
+       * descending sort of a copied id list (same idiom as
+       * map_panel_stack_rank), leaving the pool untouched.
        */
       int stack_ids[COLONIZE_UNITS_MAX];
       int stack_count = 0;
@@ -627,33 +644,13 @@ void reports_render_colony_garrisons(
         }
         stack_ids[stack_count++] = unit->id;
       }
-      /* Stable insertion sort, pseudo-size DESCENDING (ties keep pool order).
-       * Golden colony_p1.png draws Artillery (3) before Dragoon (2) — the
-       * earlier "ascending" reading of FUN_1427_04d6 above was wrong about
-       * the final chain order (the restore walk reverses it). */
+      /* Stable insertion sort, pseudo-size DESCENDING (ties keep pool order). */
       for (int i = 1; i < stack_count; ++i) {
         const int id = stack_ids[i];
-        const ColonizeUnit* unit = units_get_const(units, id);
-        const int dos_type = unit ? units_display_type_index(units, id) : 0;
-        const ColonizeUnitType* ut = unit ? units_type(units, unit->type_index) : NULL;
-        int rank = ut ? ut->space : 0;
-        if (dos_type == 4 || dos_type == 5 || dos_type == 7) {
-          rank = 2;
-        } else if (dos_type == 11) {
-          rank = 3;
-        }
+        const int rank = reports_garrison_rank(units, id);
         int j = i - 1;
         while (j >= 0) {
-          const ColonizeUnit* pu = units_get_const(units, stack_ids[j]);
-          const int pdos_type = pu ? units_display_type_index(units, stack_ids[j]) : 0;
-          const ColonizeUnitType* put = pu ? units_type(units, pu->type_index) : NULL;
-          int prank = put ? put->space : 0;
-          if (pdos_type == 4 || pdos_type == 5 || pdos_type == 7) {
-            prank = 2;
-          } else if (pdos_type == 11) {
-            prank = 3;
-          }
-          if (prank >= rank) {
+          if (reports_garrison_rank(units, stack_ids[j]) >= rank) {
             break;
           }
           stack_ids[j + 1] = stack_ids[j];
@@ -739,18 +736,6 @@ void reports_render_colony_sol(
   }
 
   const int town_hall_idx = colonies ? colonies_building_row(colonies, COLONY_BUILDING_TOWN_HALL) : -1;
-  /* DOS-LITERAL FUN_15eb_1f72 raw 12634-12641: AI subsidy also needs Bolivar. #938b. */
-  const bool nation_is_ai =
-    human >= 0 && human < (int)COLONIZE_COL1_NATION_COUNT && col1->player[human].control != 0 &&
-    founding_fathers_nation_has(col1, human, FF_SIMON_BOLIVAR);
-  const int statesmen_pct =
-    founding_fathers_nation_has(col1, human, FF_THOMAS_JEFFERSON) ? 50 : 0;
-  const int paine_tax_pct =
-    (founding_fathers_nation_has(col1, human, FF_THOMAS_PAINE) &&
-     human >= 0 && human < (int)COLONIZE_COL1_NATION_COUNT)
-      ? (int)col1->nation[human].tax_rate
-      : 0;
-
   /* `rows[].colony` is the pool colony paired by tile — needed for both the
    * Bolivar-aware SoL% and the bell-production formula below, same formula
    * turn.c's EOT bells tally uses. */
@@ -787,13 +772,11 @@ void reports_render_colony_sol(
       reports_draw_line(font, fb, REPORTS_COLONY_BUILDING_X, row_top, press_label, REPORTS_COLONY_LABEL_COLOR);
     }
 
-    /* Bell production — same formula turn.c's EOT bells tally uses. */
+    /* Bell production — the number the turn credited (Phase A stamp) when
+     * this turn composed it, else the same live formula. */
     int bells = 0;
     if (colonies && colony) {
-      const int sol_bonus = colony_prod_sol_bonus(col1, colony);
-      bells = colony_prod_colony_bells_ff(
-        colonies, colony, statesmen_pct, paine_tax_pct, nation_is_ai, sol_bonus
-      );
+      bells = colony_prod_colony_bells_this_turn(colonies, colony, col1);
     }
     if (icons) {
       ss_blit_sprite(icons, REPORTS_COLONY_BELL_ICON, fb, REPORTS_COLONY_BELL_X, row_top - 5);

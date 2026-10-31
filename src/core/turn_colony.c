@@ -25,7 +25,6 @@
 #include "core/founding_fathers.h"
 #include "core/reports.h"
 #include "core/reports_names.h"
-#include "core/unit_chrome.h"
 #include "core/woodcut.h"
 #include "platform/diagnostics.h"
 
@@ -104,6 +103,8 @@ static void turn_colony_unit_construction_one(ColonizeTurnContext* ctx, Colonize
     ctx->col1->stuff.unit_type_counts[col->nation_id][uidx]++;
   }
   if (ctx->europe && col->nation_id == ctx->human_nation) {
+    /* Port-only debug text (europe->status is never drawn; tests read it).
+     * The player sees @BUILT via turn_emit_built_chrome. */
     snprintf(ctx->europe->status, sizeof(ctx->europe->status), "%s completed.", name);
     turn_emit_built_chrome(ctx->messages, ctx->ai_popups, col, name);
   }
@@ -382,7 +383,7 @@ static void turn_woi_bell_test(ColonizeTurnContext* ctx, int n, int bells) {
    * confirmed live 2026-08-18 as exactly this dialog's one-shot).
    */
   /* DOS-LITERAL raw 73347: `(0x5382 & 6) == 0` — bit 0x02 is the
-   * intervention-ANNOUNCE latch (game_options.ref_present, port_bugs.md
+   * intervention-ANNOUNCE latch (game_options.intervention_announced, port_bugs.md
    * #865), bit 0x04 the hint one-shot. */
   /* port_bugs.md #1057c: 0a22 runs per colony for the OWNING nation, so the
    * `bells < pool` test (raw 73345-73346) and the 0f66 %NUMBER0 read the
@@ -391,7 +392,7 @@ static void turn_woi_bell_test(ColonizeTurnContext* ctx, int n, int bells) {
     (unsigned)bells < founding_fathers_bells_pool(ctx->col1, n) ? n : -1;
   /* Headless (no popup queue) the one-shot still latches: the idle
    * player OKs both notices (independence-seed-100 000003 sets 0x04). */
-  if (!ctx->col1->head.game_options.ref_present &&
+  if (!ctx->col1->head.game_options.intervention_announced &&
       !ctx->col1->head.game_options.woi_crosses_event &&
       hint_nation >= 0) {
     const int ally = (int)ctx->col1->head.rival_nation_slot_1;

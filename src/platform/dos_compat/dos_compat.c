@@ -5,18 +5,13 @@
 
 #include "platform/platform.h"
 
-/* This module is the DOS-era asset-name shim; it owns no clock. The former
+/* This module is the DOS-era asset-name shim; it owns no clock (the empty
+ * dos_compat_init/shutdown went 2026-10-31, #1359). The former
  * tick/port stubs (set_tick_rate_hz / tick_count / in_port / out_port /
  * ptr_from_segment_offset / trace_unknown) were removed: nothing read them, and
  * their hardcoded 18 Hz contradicted the real DOS clocks documented in
  * game_loop.c (IRQ0 at PIT divisor 0x7a8 = 608.77 Hz, and its /10 = 60.877 Hz).
  * If a DOS tick is ever needed, take it from those, not from here. */
-
-void dos_compat_init(void) {
-}
-
-void dos_compat_shutdown(void) {
-}
 
 static void uppercase_copy(char* out, size_t out_size, const char* in) {
   size_t i = 0;

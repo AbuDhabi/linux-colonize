@@ -275,9 +275,7 @@ int ai_contact_try_village_gifts(ColonizeTurnContext* ctx, int nation_id) {
     int beg_conceded = 0;
     /* One encounter, one mood verdict — drop last turn's. */
     {
-      const AiContactVisitMood* pm = &ai_contact_s_visit_mood[nation_id - 4][e];
-      const int pturn = ctx->turn_number ? (int)*ctx->turn_number : -1;
-      if (!(pm->valid && pm->turn == pturn)) {
+      if (!ai_contact_visit_mood_this_turn(ctx, nation_id, e)) {
         ai_contact_visit_mood_clear(nation_id, e);
       }
     }
@@ -317,9 +315,7 @@ int ai_contact_try_village_gifts(ColonizeTurnContext* ctx, int nation_id) {
          */
         /* 022e is bound to this step's Brave. An earlier visitor may still
          * be adjacent and have walked up this turn (fresh 1553, two gifts). */
-        const AiContactVisitMood* selected = &ai_contact_s_visit_mood[nation_id - 4][e];
-        const int selected_turn = ctx->turn_number ? (int)*ctx->turn_number : -1;
-        if (selected->valid && selected->turn == selected_turn
+        if (ai_contact_visit_mood_this_turn(ctx, nation_id, e)
               ? !ai_contact_is_visit_brave(ctx, nation_id, e, bu)
               : !ai_contact_brave_walked_up_to(bu, c->x, c->y)) {
           continue;
@@ -334,7 +330,7 @@ int ai_contact_try_village_gifts(ColonizeTurnContext* ctx, int nation_id) {
     }
     ColonizeColony* c = &ctx->colonies->colonies[best_ci];
     /* The visiting Brave's own village record (DOS FUN_281f_0a4c bind). */
-    const int home_index = ai_contact_visit_home_tribe(ctx, nation_id, brave->home_tribe_id);
+    const int home_index = ai_contact_visit_home_tribe(ctx, nation_id, brave->home_tribe_index);
     if (home_index < 0) {
       continue; /* raw 96705: no origin byte, no encounter */
     }
@@ -342,12 +338,11 @@ int ai_contact_try_village_gifts(ColonizeTurnContext* ctx, int nation_id) {
     {
       /* The Brave's own step already rolled this encounter (022e via 3180 in
        * the 465b tail, ai_contact_visit_step_roll): reuse that verdict. */
-      const AiContactVisitMood* m = &ai_contact_s_visit_mood[nation_id - 4][e];
-      const int turn = ctx->turn_number ? (int)*ctx->turn_number : -1;
+      const AiContactVisitMood* m = ai_contact_visit_mood_this_turn(ctx, nation_id, e);
       /* port_bugs.md #863: a conceded beg re-enters this arm after the fact
        * (ai_contact_apply_beg_food), where the record carries bVar7 and may
        * predate this Brave selection -- accept it on beg_conceded alone. */
-      if (m->valid && m->turn == turn && (m->brave_id == brave->id || m->beg_conceded)) {
+      if (m && (m->brave_id == brave->id || m->beg_conceded)) {
         beg_conceded = m->beg_conceded;
         if (!m->generous_visit) {
           continue;
@@ -426,7 +421,7 @@ int ai_contact_try_village_gifts(ColonizeTurnContext* ctx, int nation_id) {
           char body[AI_POPUP_BODY_LEN];
           popup_msg_fill(ctx->messages, "INDIANSCONVERT", &tok, "", body, sizeof(body));
           ai_contact_human_chrome(
-            ctx, e, AI_POPUP_TAG_CONTACT_CONVERT, nation_id, "", body
+            ctx, e, AI_POPUP_TAG_CONTACT_CONVERT, nation_id, body
           );
         }
         const int convert_type = units_kind_type_index(ctx->units, UNITS_KIND_COLONIST);
@@ -491,7 +486,7 @@ int ai_contact_try_village_gifts(ColonizeTurnContext* ctx, int nation_id) {
           body, sizeof(body)
         );
         ai_contact_human_chrome(
-          ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, "Gift", body
+          ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, body
         );
       }
     } else {
@@ -577,7 +572,7 @@ int ai_contact_try_village_gifts(ColonizeTurnContext* ctx, int nation_id) {
           body, sizeof(body)
         );
         ai_contact_human_chrome(
-          ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, "Gift", body
+          ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, body
         );
       }
     }
@@ -1021,12 +1016,11 @@ void ai_contact_try_village_reparations(ColonizeTurnContext* ctx, int nation_id)
      * human-only) before the visit exits. Only a !bVar6 visit gets here
      * (America seed-100 turn 22->23: tribe 51 after tribe 50's gift). */
     if (ind->contact_state[e] == 2) {
-      const AiContactVisitMood* m = &ai_contact_s_visit_mood[nation_id - 4][e];
-      const int turn = ctx->turn_number ? (int)*ctx->turn_number : -1;
-      const ColonizeUnit* v = (m->valid && m->turn == turn && !m->generous_visit)
+      const AiContactVisitMood* m = ai_contact_visit_mood_this_turn(ctx, nation_id, e);
+      const ColonizeUnit* v = (m && !m->generous_visit)
                                 ? units_get_const(ctx->units, m->brave_id) : NULL;
-      if (v && v->home_tribe_id >= 0 && v->home_tribe_id < (int)ctx->col1->head.tribe_count) {
-        col1_tribe_attitude_set(&ctx->col1->tribe[v->home_tribe_id], e, 0);
+      if (v && v->home_tribe_index >= 0 && v->home_tribe_index < (int)ctx->col1->head.tribe_count) {
+        col1_tribe_attitude_set(&ctx->col1->tribe[v->home_tribe_index], e, 0);
       }
       continue;
     }
@@ -1049,7 +1043,7 @@ void ai_contact_try_village_reparations(ColonizeTurnContext* ctx, int nation_id)
 
     if (city_ci >= 0) {
       ColonizeColony* c = &ctx->colonies->colonies[city_ci];
-      const int tribe_index = ai_contact_visit_home_tribe(ctx, nation_id, brave ? brave->home_tribe_id : -1);
+      const int tribe_index = ai_contact_visit_home_tribe(ctx, nation_id, brave ? brave->home_tribe_index : -1);
       if (tribe_index < 0) {
         continue;
       }
@@ -1182,7 +1176,7 @@ void ai_contact_try_village_reparations(ColonizeTurnContext* ctx, int nation_id)
       continue;
     }
     brave = ai_contact_reparations_visitor(ctx, nation_id, e, wag->x, wag->y);
-    const int tribe_index = ai_contact_visit_home_tribe(ctx, nation_id, brave ? brave->home_tribe_id : -1);
+    const int tribe_index = ai_contact_visit_home_tribe(ctx, nation_id, brave ? brave->home_tribe_index : -1);
     if (tribe_index < 0) {
       continue;
     }
@@ -1819,7 +1813,7 @@ static void ai_contact_2820_buy_phase(
     tok.string2 = ai_contact_cargo_name(wanted[2]);
     char body[AI_POPUP_BODY_LEN];
     popup_msg_fill(ctx->messages, "BRING", &tok, "", body, sizeof(body));
-    ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, "", body);
+    ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, body);
     ai_contact_intel_note_buys(ctx, e, nation_id, unit, wanted);
   }
   if (human && t && t->sticky_trade_good == 0xfe) {
@@ -1829,7 +1823,7 @@ static void ai_contact_2820_buy_phase(
     s->active = 0;
     char body[AI_POPUP_BODY_LEN];
     popup_msg_fill(ctx->messages, "BADHAGGLE3", NULL, "", body, sizeof(body));
-    ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_REFUSE, nation_id, "", body);
+    ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_REFUSE, nation_id, body);
     return;
   }
   if (s->cargo < 0) {
@@ -1840,7 +1834,7 @@ static void ai_contact_2820_buy_phase(
     if (human) {
       char body[AI_POPUP_BODY_LEN];
       popup_msg_fill(ctx->messages, "DEFICIT", NULL, "", body, sizeof(body));
-      ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_REFUSE, nation_id, "", body);
+      ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_REFUSE, nation_id, body);
     }
     return;
   }
@@ -2029,7 +2023,7 @@ void ai_contact_apply_buy0(
         tok.string0 = ai_contact_cargo_name(cargo);
         char body[AI_POPUP_BODY_LEN];
         popup_msg_fill(ctx->messages, "BADHAGGLE2", &tok, "", body, sizeof(body));
-        ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_REFUSE, nation_id, "", body);
+        ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_REFUSE, nation_id, body);
       }
       return;
     }
@@ -2056,7 +2050,7 @@ void ai_contact_apply_buy0(
     tok.has_number0 = true;
     char body[AI_POPUP_BODY_LEN];
     popup_msg_fill(ctx->messages, "NOTENOUGH", &tok, "", body, sizeof(body));
-    ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_REFUSE, nation_id, "", body);
+    ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_REFUSE, nation_id, body);
   }
   s->active = 0;
 }
@@ -2144,7 +2138,7 @@ static void ai_contact_2820_dispatch(
     tok.string3 = ai_contact_cargo_name(wanted[2]);
     char body[AI_POPUP_BODY_LEN];
     popup_msg_fill(ctx->messages, "BADCARGO", &tok, "", body, sizeof(body));
-    ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_REFUSE, nation_id, "", body);
+    ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_REFUSE, nation_id, body);
     ai_contact_intel_note_buys(ctx, e, nation_id, unit, wanted);
     s->active = 0;
     return;
@@ -2156,7 +2150,7 @@ static void ai_contact_2820_dispatch(
     tok.string0 = ai_contact_cargo_name(s->cargo);
     char body[AI_POPUP_BODY_LEN];
     popup_msg_fill(ctx->messages, "BADHAGGLE1", &tok, "", body, sizeof(body));
-    ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_REFUSE, nation_id, "", body);
+    ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_REFUSE, nation_id, body);
     s->active = 0;
     return;
   }
@@ -2173,9 +2167,8 @@ static void ai_contact_2820_dispatch(
  * Shell entry: tables + hold pick. Returns 1 when the trade ran or a CHOICE
  * was queued, 0 when nothing could be priced (no tribe / econ).
  */
-static int ai_contact_2820_begin_slot(
-  ColonizeTurnContext* ctx, ColonizeCol1Indian* ind, int nation_id, int e, ColonizeUnit* unit,
-  int pick_slot
+int ai_contact_2820_begin(
+  ColonizeTurnContext* ctx, ColonizeCol1Indian* ind, int nation_id, int e, ColonizeUnit* unit
 ) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || !ind || !unit || e < 0 || e > 3 ||
       unit->nation_id != e) {
@@ -2213,16 +2206,6 @@ static int ai_contact_2820_begin_slot(
   s->sold_ok = 1;
   const int holds = units_holds_used(ctx->units, unit->id);
   const int human = ai_contact_euro_is_human(ctx, e);
-  if (pick_slot >= 0 && pick_slot < COLONIZE_UNIT_CARGO_MAX && unit->hold_goods_amount[pick_slot] > 0) {
-    s->slot = pick_slot;
-    s->cargo = unit->hold_goods_type[pick_slot];
-    s->qty = unit->hold_goods_amount[pick_slot];
-    ai_contact_2820_dispatch(ctx, ind, nation_id, e, unit, s);
-    if (!human && ctx->rng) {
-      *ctx->rng = s->rng;
-    }
-    return 1;
-  }
   if (holds > 1) {
     if (!human) {
       s->slot = dos_rng_range(&s->rng, 0, holds - 1);
@@ -2291,12 +2274,6 @@ static int ai_contact_2820_begin_slot(
     *ctx->rng = s->rng;
   }
   return 1;
-}
-
-int ai_contact_2820_begin(
-  ColonizeTurnContext* ctx, ColonizeCol1Indian* ind, int nation_id, int e, ColonizeUnit* unit
-) {
-  return ai_contact_2820_begin_slot(ctx, ind, nation_id, e, unit, -1);
 }
 
 /* Hold-pick CHOICE result (human, multi-hold unit). */
@@ -2414,7 +2391,7 @@ void ai_contact_apply_trade_offer(
     tok.string1 = ai_contact_cargo_name(s->cargo);
     char body[AI_POPUP_BODY_LEN];
     popup_msg_fill(ctx->messages, "BADHAGGLE0", &tok, "", body, sizeof(body));
-    ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_REFUSE, nation_id, "", body);
+    ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_REFUSE, nation_id, body);
     return;
   }
   if (choice == AI_CONTACT_TRADE_OFFER_GIFT && s->round == 0) {

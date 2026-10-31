@@ -51,7 +51,6 @@ static int unit_indian_war_capital_hunt(void) {
   /* At war with Indian slot 0 (nation 4). */
   col1.indian[0].alarm_by_player[nation] = 80; /* relation 20 */
   col1.indian[0].euro_diplo[nation] |= COL1_INDIAN_MET_BIT;
-  ai_diplo_indian_hostility_sync(&col1, nation);
 
   ColonizeCol1Tribe tribes[2];
   memset(tribes, 0, sizeof(tribes));

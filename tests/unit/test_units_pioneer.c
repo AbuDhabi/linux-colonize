@@ -81,7 +81,7 @@ static int unit_clearcut_lumber(void) {
 
   char msg[96];
   msg[0] = '\0';
-  if (!units_pioneer_plow_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map)}, pid, msg, sizeof(msg), &pops, &game_txt)) {
+  if (!units_pioneer_plow_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map)}, pid, NULL, &pops, &game_txt)) {
     fprintf(stderr, "clearcut: plow start failed (%s)\n", msg);
     assets_msg_free(&game_txt);
     map_free(&map);
@@ -91,7 +91,7 @@ static int unit_clearcut_lumber(void) {
   int guard = 0;
   while (u->orders == UNITS_ORDER_CLEAR_PLOW && guard++ < 16) {
     u->moves = 1 * UNITS_MP_PER_TILE;
-    if (!units_pioneer_work_tick_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map)}, pid, msg, sizeof(msg), &pops, &game_txt)) {
+    if (!units_pioneer_work_tick_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map)}, pid, NULL, &pops, &game_txt)) {
       fprintf(stderr, "clearcut: work tick failed (%s)\n", msg);
       assets_msg_free(&game_txt);
       map_free(&map);
@@ -235,7 +235,7 @@ static int unit_useduptools(void) {
    */
   for (int tick = 0; tick < 10 && u->orders == UNITS_ORDER_BUILD_ROAD; ++tick) {
     u->moves = 1 * UNITS_MP_PER_TILE;
-    if (!units_pioneer_work_tick_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map)}, pid, msg, sizeof(msg), &pops, &game_txt)) {
+    if (!units_pioneer_work_tick_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map)}, pid, NULL, &pops, &game_txt)) {
       fprintf(stderr, "usedup: work tick failed (%s)\n", msg);
       assets_msg_free(&game_txt);
       map_free(&map);
@@ -299,7 +299,7 @@ static int unit_useduptools(void) {
     ju->col1_counter16 = 0;
     for (int tick = 0; tick < 10 && ju->orders == UNITS_ORDER_BUILD_ROAD; ++tick) {
       ju->moves = 1 * UNITS_MP_PER_TILE;
-      (void)units_pioneer_work_tick_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map)}, jid, msg, sizeof(msg), &pops, &game_txt);
+      (void)units_pioneer_work_tick_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map)}, jid, NULL, &pops, &game_txt);
     }
     if (ju->type_index != missionary) {
       fprintf(stderr, "usedup #509: jesuit should revert to Missionaries, got type=%d\n",
@@ -330,7 +330,7 @@ static int unit_useduptools(void) {
     zu->col1_counter16 = 0;
     for (int tick = 0; tick < 10 && zu->orders == UNITS_ORDER_BUILD_ROAD; ++tick) {
       zu->moves = 1 * UNITS_MP_PER_TILE;
-      (void)units_pioneer_work_tick_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map)}, zid, msg, sizeof(msg), &pops, &game_txt);
+      (void)units_pioneer_work_tick_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map)}, zid, NULL, &pops, &game_txt);
     }
     if (!map_tile_has_road(&map, x3, y3) || zu->type_index != pioneer || zu->tools != 236) {
       fprintf(stderr, "usedup #636: want road, Pioneer, tools 236; got road=%d type=%d tools=%d\n",
@@ -463,7 +463,7 @@ static int unit_pioneer_case8_tail(void) {
     int guard = 0;
     while (u->orders == UNITS_ORDER_CLEAR_PLOW && guard++ < 24) {
       u->moves = 1 * UNITS_MP_PER_TILE;
-      (void)units_pioneer_work_tick_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map)}, pid, NULL, 0, NULL, NULL);
+      (void)units_pioneer_work_tick_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map)}, pid, NULL, NULL, NULL);
     }
     units_despawn(&pool, pid);
     const int got = (int)col->stock[COLONIZE_CARGO_LUMBER];
@@ -504,7 +504,7 @@ static int unit_pioneer_case8_tail(void) {
     int guard = 0;
     while (u->orders == UNITS_ORDER_CLEAR_PLOW && guard++ < 24) {
       u->moves = 1 * UNITS_MP_PER_TILE;
-      (void)units_pioneer_work_tick_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map)}, pid, NULL, 0, NULL, NULL);
+      (void)units_pioneer_work_tick_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map)}, pid, NULL, NULL, NULL);
     }
     units_despawn(&pool, pid);
     if (col1.indian[0].alarm_by_player[0] != 15) {
@@ -554,7 +554,7 @@ static int unit_pioneer_case8_tail(void) {
     int guard = 0;
     while (u->orders == UNITS_ORDER_CLEAR_PLOW && guard++ < 24) {
       u->moves = 1 * UNITS_MP_PER_TILE;
-      (void)units_pioneer_work_tick_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map)}, pid, NULL, 0, NULL, NULL);
+      (void)units_pioneer_work_tick_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map)}, pid, NULL, NULL, NULL);
     }
     units_despawn(&pool, pid);
     if (col1.indian[0].alarm_by_player[1] != 0) {
@@ -641,7 +641,7 @@ static int unit_pioneer_dos_gates_2026_09_22(void) {
     err[0] = '\0';
     if (!units_pioneer_plow_w(
           &(ColonizeWorld){.units = &pool, .colonies = &colonies, .map = &map},
-          pid, err, sizeof(err), NULL, NULL)) {
+          pid, NULL, NULL, NULL)) {
       fprintf(stderr, "piodos #615: 0-MP plow order refused: %s\n", err);
       rc = 1;
     } else if (units_get(&pool, pid)->col1_counter16 != 1) {
@@ -654,7 +654,7 @@ static int unit_pioneer_dos_gates_2026_09_22(void) {
       err[0] = '\0';
       units_pioneer_road_w(
         &(ColonizeWorld){.units = &pool, .colonies = &colonies, .map = &map},
-        pid, err, sizeof(err), NULL, NULL);
+        pid, NULL, NULL, NULL);
       if (units_get(&pool, pid)->col1_counter16 != 1) {
         fprintf(
           stderr,
@@ -696,7 +696,7 @@ static int unit_pioneer_dos_gates_2026_09_22(void) {
       err[0] = '\0';
       if (!units_pioneer_plow_w(
             &(ColonizeWorld){.units = &pool, .colonies = &colonies, .map = &map},
-            pid, err, sizeof(err), NULL, NULL)) {
+            pid, NULL, NULL, NULL)) {
         fprintf(stderr, "piodos #619: Arctic plow refused: %s\n", err);
         rc = 1;
       }
@@ -724,16 +724,16 @@ static int unit_pioneer_dos_gates_2026_09_22(void) {
       for (int t = 0; t < 40 && units_get(&pool, pid)->orders == UNITS_ORDER_BUILD_ROAD; ++t) {
         units_pioneer_work_tick_w(
           &(ColonizeWorld){.units = &pool, .colonies = &colonies, .map = &map},
-          pid, NULL, 0, NULL, NULL);
+          pid, NULL, NULL, NULL);
       }
       err[0] = '\0';
       units_pioneer_road_w(
         &(ColonizeWorld){.units = &pool, .colonies = &colonies, .map = &map},
-        pid, err, sizeof(err), NULL, NULL);
+        pid, NULL, NULL, NULL);
       for (int t = 0; t < 40 && units_get(&pool, pid)->orders == UNITS_ORDER_BUILD_ROAD; ++t) {
         units_pioneer_work_tick_w(
           &(ColonizeWorld){.units = &pool, .colonies = &colonies, .map = &map},
-          pid, NULL, 0, NULL, NULL);
+          pid, NULL, NULL, NULL);
       }
       if (!map_tile_has_road(&map, 10, 9)) {
         fprintf(stderr, "piodos #617: road never completed\n");
@@ -753,7 +753,7 @@ static int unit_pioneer_dos_gates_2026_09_22(void) {
       err[0] = '\0';
       if (units_pioneer_road_w(
             &(ColonizeWorld){.units = &pool, .colonies = &colonies, .map = &map},
-            pid2, err, sizeof(err), NULL, NULL) ||
+            pid2, NULL, NULL, NULL) ||
           units_get(&pool, pid2)->orders == UNITS_ORDER_BUILD_ROAD) {
         fprintf(stderr, "piodos #618: road accepted on a settlement tile\n");
         rc = 1;
@@ -813,7 +813,6 @@ static int unit_pioneer_order_gates(void) {
     return 1;
   }
 
-  char msg[96];
   AiPopupState pops;
 
   /* 1) Non-pioneer → ONLYPIO */
@@ -830,8 +829,7 @@ static int unit_pioneer_order_gates(void) {
     cu->nation_id = 0;
     cu->moves = 1 * UNITS_MP_PER_TILE;
     ai_popup_init(&pops);
-    msg[0] = '\0';
-    if (units_pioneer_plow_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map)}, cid, msg, sizeof(msg), &pops, &game_txt)) {
+    if (units_pioneer_plow_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map)}, cid, NULL, &pops, &game_txt)) {
       fprintf(stderr, "ordgate: non-pioneer plow should fail\n");
       assets_msg_free(&game_txt);
       map_free(&map);
@@ -872,8 +870,7 @@ static int unit_pioneer_order_gates(void) {
     pu->tools = 100;
     pu->moves = 1 * UNITS_MP_PER_TILE;
     ai_popup_init(&pops);
-    msg[0] = '\0';
-    if (units_pioneer_plow_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map)}, pid, msg, sizeof(msg), &pops, &game_txt)) {
+    if (units_pioneer_plow_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map)}, pid, NULL, &pops, &game_txt)) {
       fprintf(stderr, "ordgate: plowed plow should fail\n");
       assets_msg_free(&game_txt);
       map_free(&map);
@@ -914,8 +911,7 @@ static int unit_pioneer_order_gates(void) {
     pu->tools = 100;
     pu->moves = 1 * UNITS_MP_PER_TILE;
     ai_popup_init(&pops);
-    msg[0] = '\0';
-    if (units_pioneer_road_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map)}, pid, msg, sizeof(msg), &pops, &game_txt)) {
+    if (units_pioneer_road_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(NULL), .map=(ColonizeWorldMap*)(&map)}, pid, NULL, &pops, &game_txt)) {
       fprintf(stderr, "ordgate: existing road should fail\n");
       assets_msg_free(&game_txt);
       map_free(&map);

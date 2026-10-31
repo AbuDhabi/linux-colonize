@@ -4571,6 +4571,7 @@ int main(void) {
     eu[0].last_exit_valid = true;
     eu[0].purchase_count = 1;
     eu[0].purchase[0].is_ship = true;
+    eu[0].purchase[0].kind = UNITS_KIND_CARAVEL; /* @UNIT row identity, as europe_pool.c k_purchase_opts fills it */
     snprintf(eu[0].purchase[0].name, sizeof(eu[0].purchase[0].name), "Caravel");
     if (!europe_purchase_commit(&eu[0], 0, 1000, NULL) || eu[0].harbor[0].exit_x != 2 ||
         eu[0].harbor[0].exit_y != 50 || eu[0].harbor[0].exit_east) {

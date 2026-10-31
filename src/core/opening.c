@@ -114,7 +114,7 @@ int opening_parse_path(const char* data_dir, int* xs, int* ys, int out_max) {
   while (count < out_max && fgets(line, (int)sizeof(line), f)) {
     int x = 0;
     int y = 0;
-    if (sscanf(line, "%d , %d", &x, &y) < 2 && sscanf(line, "%d,%d", &x, &y) < 2) {
+    if (sscanf(line, "%d , %d", &x, &y) < 2) { /* " , " also matches "," */
       continue;
     }
     xs[count] = x;
@@ -478,7 +478,7 @@ bool opening_open(OpeningCinematic* o, const char* data_dir) {
   char err[256];
   int loaded = 0;
   for (int i = 0; i < OPENING_SHEET_COUNT; ++i) {
-    if (!cinematic_load_sheet(data_dir, kOpeningSheets[i], &o->sheets[i], "Opening cinematic")) {
+    if (!ss_load_asset(data_dir, kOpeningSheets[i], &o->sheets[i], "Opening cinematic")) {
       continue;
     }
     o->sheet_ok[i] = true;

@@ -13,6 +13,7 @@
 
 #include "core/mapedit.h"
 #include "core/screen_geom.h"
+#include "core/settings.h"
 #include "platform/diagnostics.h"
 #include "platform/platform.h"
 
@@ -51,11 +52,10 @@ int main(int argc, char** argv) {
     if (strcmp(a, "--data-dir") == 0 && i + 1 < argc) {
       opt.data_dir = argv[++i];
     } else if (strcmp(a, "--scale") == 0 && i + 1 < argc) {
-      scale = atoi(argv[++i]);
-      if (scale < 1) scale = 1;
-      if (scale > 8) scale = 8;
+      scale = settings_clamp_window_scale(atoi(argv[++i]));
     } else if (a[0] == '?') {
       usage(opt.data_dir);
+      diag_shutdown();
       return 0;
     } else if (a[0] == '-' || a[0] == '/') {
       for (const char* p = a + 1; *p; ++p) {
@@ -70,6 +70,7 @@ int main(int argc, char** argv) {
       }
     } else {
       fprintf(stderr, "Unknown argument: %s\n", a);
+      diag_shutdown();
       return 2;
     }
   }

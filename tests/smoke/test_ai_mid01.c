@@ -5,7 +5,7 @@
  * MID01: load TURN7, stamp mid-war Indian×Euro fields, write MID01.SAV.
  * MID02: load MID01, run one full joint turn (Euro + Indian), capture MID02.SAV.
  * Pair compare: joint field list vs golden_ai_turns (units/Braves, tribes,
- * colonies, euro_relation, relation_by_indian, sticky) — structural diff that
+ * colonies, euro_relation, relation_by_indian) — structural diff that
  * calendar advanced and both sides still carry Euro+Brave units.
  */
 #include "core/ai_diplo.h"
@@ -27,13 +27,6 @@
 #define TEST_NAME "smoke_ai_mid01"
 #include "tests/common/joint_fixture.h"
 #include "tests/common/test_fail.h"
-
-/* The sticky cache is session state re-derived from the alarm matrix
- * (ai_diplo_indian_hostility_sync), never a save byte. */
-static unsigned smoke_sticky(const ColonizeCol1Save* s) {
-  ai_diplo_indian_hostility_sync((ColonizeCol1Save*)s, 0);
-  return ai_diplo_indian_hostility_sticky(s, 0);
-}
 
 #define MID01_PATH "test-saves-ai/MID01.SAV"
 #define MID02_PATH "test-saves-ai/MID02.SAV"
@@ -63,12 +56,6 @@ static int compare_mid_pair(const ColonizeCol1Save* a, const ColonizeCol1Save* b
     );
     return 0;
   }
-  if (smoke_sticky(a) < 2 || smoke_sticky(b) < 1) {
-    fprintf(stderr, "MID pair sticky lost (a=%u b=%u)\n",
-            (unsigned)smoke_sticky(a),
-            (unsigned)smoke_sticky(b));
-    return 0;
-  }
   /* Tribe count stable-ish (growth may add; never wipe). */
   if (b->head.tribe_count == 0) {
     fprintf(stderr, "MID02 lost tribes\n");
@@ -83,7 +70,7 @@ static int compare_mid_pair(const ColonizeCol1Save* a, const ColonizeCol1Save* b
 
 static int write_mid01_from_turn7(void) {
   /* Mid-war stamp: hot relation rows cooled to 35, every contacted tribe's
-   * alarm forced to 90 (sticky derives to 2, DEEP: relation < 16), calendar
+   * alarm forced to 90 (relation < 16), calendar
    * floored into the 1500s. */
   const JointHostilityStamp st = {
     .year_floor = 1500,
@@ -220,10 +207,6 @@ int main(void) {
   if (mid.head.year < 1500) {
     col1_save_free(&mid);
     return fail("MID01 should be stamped mid-campaign year");
-  }
-  if (smoke_sticky(&mid) < 2) {
-    col1_save_free(&mid);
-    return fail("MID01 sticky stamp");
   }
   col1_save_free(&mid);
 

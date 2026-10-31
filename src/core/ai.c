@@ -148,7 +148,7 @@ void ai_coarse_fog_euro_restamp(
   if (units) {
     for (int i = 0; i < units_slot_end(units); ++i) {
       const ColonizeUnit* u = &units->units[i];
-      if (!u->active || u->nation_id != nation_id || u->x >= 200 || u->y >= 200) {
+      if (!u->active || u->nation_id != nation_id || units_coords_in_europe_park(u->x, u->y)) {
         continue;
       }
       const int ix = ai_coarse_fog_explore_index(u->x, u->y);
@@ -251,20 +251,13 @@ int ai_step_audit_enabled(void) {
   return cached;
 }
 
-/* Seed-100 init pulse: selects the quiet ASM path. */
-int ai_s_seed100_init_pulse;
 uint32_t ai_s_init_pulse_seed;
 /* Calendar turn during a seed-100 mid-turn pulse (0 = not mid-turn); trace lines only. */
 int ai_s_seed100_midturn_turn;
 
-int ai_s_lcg_in_pick;
-int ai_s_lcg_pick_burns;
 uint32_t ai_s_lcg_total_nexts;
 
 int ai_rng_range(AiRng* rng, int lo, int hi_inclusive) {
-  if (ai_s_lcg_in_pick) {
-    ai_s_lcg_pick_burns++;
-  }
   ai_s_lcg_total_nexts++;
   return dos_rng_range(rng, lo, hi_inclusive);
 }
@@ -889,7 +882,7 @@ static void ai_spawn_brave_near(
       units_set_nation(u, nation_id);
       u->goto_x = 0xFF;
       u->goto_y = 0xFF;
-      u->home_tribe_id = tribe_index;
+      u->home_tribe_index = tribe_index;
       /* FUN_1427_06b4 raw 7735-7737: a native unit's +0x12 word (021a's
        * last-visit stamp) = DS:0x538e, turn 0 at new game. Leaving 06b4's
        * 0xff there made every starting Brave skip colony visits as

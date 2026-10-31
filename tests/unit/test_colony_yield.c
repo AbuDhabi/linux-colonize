@@ -320,11 +320,11 @@ static int case_fisherman_major_river(void) {
   /* port_bugs.md #883: Fisherman falls in the `7 < job` arm of the Convert +1
    * whitelist (FUN_15eb_18ec raw 11973-11979) — Convert gets +1 over free. */
   const int free_fish = colony_yield_for_worker(
-    &map, fx, fy, COLONIZE_JOB_FISHERMAN, COLONIZE_PROF_FREE_COLONIST, /*has_docks=*/true, 0, 0,
+    &map, fx, fy, COLONIZE_JOB_FISHERMAN, COLONIZE_PROF_FREE_COLONIST, /*has_docks=*/true, 0,
     false
   );
   const int convert_fish = colony_yield_for_worker(
-    &map, fx, fy, COLONIZE_JOB_FISHERMAN, COLONIZE_PROF_CONVERT, /*has_docks=*/true, 0, 0, false
+    &map, fx, fy, COLONIZE_JOB_FISHERMAN, COLONIZE_PROF_CONVERT, /*has_docks=*/true, 0, false
   );
   map_free(&map);
   if (convert_fish != free_fish + 1) {
@@ -364,7 +364,7 @@ static int case_expert_ore_miner_hills_road_sol(void) {
   map.terrain[hy * map.width + hx] = (uint8_t)(0x20u); /* Hills, no forest/river */
   map_tile_set_road(&map, hx, hy, true);
   const int free_ore = colony_yield_for_worker(
-    &map, hx, hy, COLONIZE_JOB_ORE_MINER, COLONIZE_PROF_FREE_COLONIST, /*has_docks=*/true, 1, 0,
+    &map, hx, hy, COLONIZE_JOB_ORE_MINER, COLONIZE_PROF_FREE_COLONIST, /*has_docks=*/true, 1,
     false
   );
   if (free_ore != 6) {
@@ -373,7 +373,7 @@ static int case_expert_ore_miner_hills_road_sol(void) {
     return 1;
   }
   const int expert_ore = colony_yield_for_worker(
-    &map, hx, hy, COLONIZE_JOB_ORE_MINER, COLONIZE_JOB_ORE_MINER, /*has_docks=*/true, 1, 0,
+    &map, hx, hy, COLONIZE_JOB_ORE_MINER, COLONIZE_JOB_ORE_MINER, /*has_docks=*/true, 1,
     false
   );
   if (expert_ore != 12) {
@@ -384,7 +384,7 @@ static int case_expert_ore_miner_hills_road_sol(void) {
   /* port_bugs.md #883: Ore Miner is excluded from the Convert +1 whitelist
    * (FUN_15eb_18ec raw 11973-11979) — Convert gets no bonus over free. */
   const int convert_ore = colony_yield_for_worker(
-    &map, hx, hy, COLONIZE_JOB_ORE_MINER, COLONIZE_PROF_CONVERT, /*has_docks=*/true, 1, 0,
+    &map, hx, hy, COLONIZE_JOB_ORE_MINER, COLONIZE_PROF_CONVERT, /*has_docks=*/true, 1,
     false
   );
   map_free(&map);
@@ -445,7 +445,7 @@ static int case_expert_fur_trapper_hudson(void) {
   }
   map_tile_set_road(&map, mx, my, true);
   const int free_fur = colony_yield_for_worker(
-    &map, mx, my, COLONIZE_JOB_FUR_TRAPPER, COLONIZE_PROF_FREE_COLONIST, /*has_docks=*/true, 2, 0,
+    &map, mx, my, COLONIZE_JOB_FUR_TRAPPER, COLONIZE_PROF_FREE_COLONIST, /*has_docks=*/true, 2,
     false
   );
   if (free_fur != 7) {
@@ -454,7 +454,7 @@ static int case_expert_fur_trapper_hudson(void) {
     return 1;
   }
   const int expert_fur = colony_yield_for_worker(
-    &map, mx, my, COLONIZE_JOB_FUR_TRAPPER, COLONIZE_JOB_FUR_TRAPPER, /*has_docks=*/true, 2, 0,
+    &map, mx, my, COLONIZE_JOB_FUR_TRAPPER, COLONIZE_JOB_FUR_TRAPPER, /*has_docks=*/true, 2,
     false
   );
   if (expert_fur != 14) {
@@ -477,11 +477,11 @@ static int case_expert_fur_trapper_hudson(void) {
    *            (old post-hoc order: (5−2)×2 = 6)
    */
   const int free_fur_hudson = colony_yield_for_worker(
-    &map, mx, my, COLONIZE_JOB_FUR_TRAPPER, COLONIZE_PROF_FREE_COLONIST, /*has_docks=*/true, 2, 0,
+    &map, mx, my, COLONIZE_JOB_FUR_TRAPPER, COLONIZE_PROF_FREE_COLONIST, /*has_docks=*/true, 2,
     true
   );
   const int expert_fur_hudson = colony_yield_for_worker(
-    &map, mx, my, COLONIZE_JOB_FUR_TRAPPER, COLONIZE_JOB_FUR_TRAPPER, /*has_docks=*/true, 2, 0,
+    &map, mx, my, COLONIZE_JOB_FUR_TRAPPER, COLONIZE_JOB_FUR_TRAPPER, /*has_docks=*/true, 2,
     true
   );
   if (free_fur_hudson != 14 || expert_fur_hudson != 28) {
@@ -495,7 +495,7 @@ static int case_expert_fur_trapper_hudson(void) {
     return 1;
   }
   const int convert_fur_hudson = colony_yield_for_worker(
-    &map, mx, my, COLONIZE_JOB_FUR_TRAPPER, COLONIZE_PROF_CONVERT, /*has_docks=*/true, 0, 0, true
+    &map, mx, my, COLONIZE_JOB_FUR_TRAPPER, COLONIZE_PROF_CONVERT, /*has_docks=*/true, 0, true
   );
   if (convert_fur_hudson != 11) {
     fprintf(
@@ -507,7 +507,7 @@ static int case_expert_fur_trapper_hudson(void) {
     return 1;
   }
   const int tory_fur_hudson = colony_yield_for_worker(
-    &map, mx, my, COLONIZE_JOB_FUR_TRAPPER, COLONIZE_PROF_FREE_COLONIST, /*has_docks=*/true, -2, 0,
+    &map, mx, my, COLONIZE_JOB_FUR_TRAPPER, COLONIZE_PROF_FREE_COLONIST, /*has_docks=*/true, -2,
     true
   );
   if (tory_fur_hudson != 8) {
@@ -521,11 +521,11 @@ static int case_expert_fur_trapper_hudson(void) {
   }
   /* Non-fur jobs must be untouched by the flag. */
   const int hudson_lumber = colony_yield_for_worker(
-    &map, mx, my, COLONIZE_JOB_LUMBERJACK, COLONIZE_PROF_FREE_COLONIST, /*has_docks=*/true, 0, 0,
+    &map, mx, my, COLONIZE_JOB_LUMBERJACK, COLONIZE_PROF_FREE_COLONIST, /*has_docks=*/true, 0,
     true
   );
   const int plain_lumber = colony_yield_for_worker(
-    &map, mx, my, COLONIZE_JOB_LUMBERJACK, COLONIZE_PROF_FREE_COLONIST, /*has_docks=*/true, 0, 0,
+    &map, mx, my, COLONIZE_JOB_LUMBERJACK, COLONIZE_PROF_FREE_COLONIST, /*has_docks=*/true, 0,
     false
   );
   map_free(&map);
@@ -566,7 +566,7 @@ static int case_expert_farmer_game_resource(void) {
     return 1;
   }
   const int free_game = colony_yield_for_worker(
-    &map, gx, gy, COLONIZE_JOB_FARMER, COLONIZE_PROF_FREE_COLONIST, /*has_docks=*/true, 0, 0,
+    &map, gx, gy, COLONIZE_JOB_FARMER, COLONIZE_PROF_FREE_COLONIST, /*has_docks=*/true, 0,
     false
   );
   if (free_game != 4) {
@@ -575,7 +575,7 @@ static int case_expert_farmer_game_resource(void) {
     return 1;
   }
   const int expert_game = colony_yield_for_worker(
-    &map, gx, gy, COLONIZE_JOB_FARMER, COLONIZE_JOB_FARMER, /*has_docks=*/true, 0, 0,
+    &map, gx, gy, COLONIZE_JOB_FARMER, COLONIZE_JOB_FARMER, /*has_docks=*/true, 0,
     false
   );
   map_free(&map);
@@ -617,11 +617,11 @@ static int case_hills_farmer(void) {
     return 1;
   }
   const int free_hill = colony_yield_for_worker(
-    &map, hx, hy, COLONIZE_JOB_FARMER, COLONIZE_PROF_FREE_COLONIST, true, 0, 0,
+    &map, hx, hy, COLONIZE_JOB_FARMER, COLONIZE_PROF_FREE_COLONIST, true, 0,
     false
   );
   const int expert_hill = colony_yield_for_worker(
-    &map, hx, hy, COLONIZE_JOB_FARMER, COLONIZE_JOB_FARMER, true, 0, 0,
+    &map, hx, hy, COLONIZE_JOB_FARMER, COLONIZE_JOB_FARMER, true, 0,
     false
   );
   map_free(&map);
@@ -673,7 +673,6 @@ static int case_tundra_farmer_sol_readd(void) {
   }
   const int expert_farmer_sol = colony_yield_for_worker(
     &map, tx, ty, COLONIZE_JOB_FARMER, COLONIZE_JOB_FARMER, /*has_docks=*/true, /*sol_bonus=*/3,
-    /*colony_flags=*/0,
     false
   );
   map_free(&map);
@@ -735,11 +734,11 @@ static int case_silver_miner_collapse(void) {
   /* Bare rock, no road: free colonist 0, expert 1 (base 1 would have paid
    * 1 and 2 respectively, plus the stack, before the collapse was ported). */
   const int bare_free = colony_yield_for_worker(
-    &map, mx, my, COLONIZE_JOB_SILVER_MINER, COLONIZE_PROF_FREE_COLONIST, true, 0, 0,
+    &map, mx, my, COLONIZE_JOB_SILVER_MINER, COLONIZE_PROF_FREE_COLONIST, true, 0,
     false
   );
   const int bare_expert = colony_yield_for_worker(
-    &map, mx, my, COLONIZE_JOB_SILVER_MINER, COLONIZE_JOB_SILVER_MINER, true, 0, 0,
+    &map, mx, my, COLONIZE_JOB_SILVER_MINER, COLONIZE_JOB_SILVER_MINER, true, 0,
     false
   );
   if (bare_free != 0 || bare_expert != 1) {
@@ -752,7 +751,7 @@ static int case_silver_miner_collapse(void) {
   /* A positive SoL bonus cannot escape the collapse either — DOS folds it
    * in before this branch, which then overwrites the total outright. */
   if (colony_yield_for_worker(
-        &map, mx, my, COLONIZE_JOB_SILVER_MINER, COLONIZE_JOB_SILVER_MINER, true, 3, 0,
+        &map, mx, my, COLONIZE_JOB_SILVER_MINER, COLONIZE_JOB_SILVER_MINER, true, 3,
         false
       ) != 1) {
     fprintf(stderr, "bare mountain silver, expert + sol 3, want 1\n");
@@ -764,11 +763,11 @@ static int case_silver_miner_collapse(void) {
    * is suppressed with the rest of the stack (so the expert stays 1). */
   map.improve[my * map.width + mx] |= MAP_IMPROVE_ROAD;
   const int road_free = colony_yield_for_worker(
-    &map, mx, my, COLONIZE_JOB_SILVER_MINER, COLONIZE_PROF_FREE_COLONIST, true, 0, 0,
+    &map, mx, my, COLONIZE_JOB_SILVER_MINER, COLONIZE_PROF_FREE_COLONIST, true, 0,
     false
   );
   const int road_expert = colony_yield_for_worker(
-    &map, mx, my, COLONIZE_JOB_SILVER_MINER, COLONIZE_JOB_SILVER_MINER, true, 0, 0,
+    &map, mx, my, COLONIZE_JOB_SILVER_MINER, COLONIZE_JOB_SILVER_MINER, true, 0,
     false
   );
   if (road_free != 1 || road_expert != 1) {
@@ -782,7 +781,7 @@ static int case_silver_miner_collapse(void) {
   /* port_bugs.md #883: Silver Miner is excluded from the Convert +1 whitelist
    * (FUN_15eb_18ec raw 11973-11979) — Convert gets no bonus over free. */
   const int road_convert = colony_yield_for_worker(
-    &map, mx, my, COLONIZE_JOB_SILVER_MINER, COLONIZE_PROF_CONVERT, true, 0, 0,
+    &map, mx, my, COLONIZE_JOB_SILVER_MINER, COLONIZE_PROF_CONVERT, true, 0,
     false
   );
   if (road_convert != road_free) {
@@ -800,15 +799,15 @@ static int case_silver_miner_collapse(void) {
    * (with sol_bonus 2: (1+2)x2 + 2 = 8). */
   map.layer2[my * map.width + mx] |= MAP_LAYER2_SUPPRESS;
   const int depl_free = colony_yield_for_worker(
-    &map, mx, my, COLONIZE_JOB_SILVER_MINER, COLONIZE_PROF_FREE_COLONIST, true, 0, 0,
+    &map, mx, my, COLONIZE_JOB_SILVER_MINER, COLONIZE_PROF_FREE_COLONIST, true, 0,
     false
   );
   const int depl_expert = colony_yield_for_worker(
-    &map, mx, my, COLONIZE_JOB_SILVER_MINER, COLONIZE_JOB_SILVER_MINER, true, 0, 0,
+    &map, mx, my, COLONIZE_JOB_SILVER_MINER, COLONIZE_JOB_SILVER_MINER, true, 0,
     false
   );
   const int depl_expert_sol = colony_yield_for_worker(
-    &map, mx, my, COLONIZE_JOB_SILVER_MINER, COLONIZE_JOB_SILVER_MINER, true, 2, 0,
+    &map, mx, my, COLONIZE_JOB_SILVER_MINER, COLONIZE_JOB_SILVER_MINER, true, 2,
     false
   );
   if (depl_free != 2 || depl_expert != 4 || depl_expert_sol != 8) {
@@ -836,11 +835,11 @@ static int case_silver_miner_collapse(void) {
   map.improve[sy * map.width + sx] = 0;
   map.layer2[sy * map.width + sx] = 0;
   const int dep_free = colony_yield_for_worker(
-    &map, sx, sy, COLONIZE_JOB_SILVER_MINER, COLONIZE_PROF_FREE_COLONIST, true, 0, 0,
+    &map, sx, sy, COLONIZE_JOB_SILVER_MINER, COLONIZE_PROF_FREE_COLONIST, true, 0,
     false
   );
   const int dep_expert = colony_yield_for_worker(
-    &map, sx, sy, COLONIZE_JOB_SILVER_MINER, COLONIZE_JOB_SILVER_MINER, true, 0, 0,
+    &map, sx, sy, COLONIZE_JOB_SILVER_MINER, COLONIZE_JOB_SILVER_MINER, true, 0,
     false
   );
   if (dep_free != 3 || dep_expert != 6) {
@@ -869,22 +868,22 @@ static int case_silver_miner_collapse(void) {
     return 1;
   }
   const int spent_free = colony_yield_for_worker(
-    &map, sx, sy, COLONIZE_JOB_SILVER_MINER, COLONIZE_PROF_FREE_COLONIST, true, 0, 0,
+    &map, sx, sy, COLONIZE_JOB_SILVER_MINER, COLONIZE_PROF_FREE_COLONIST, true, 0,
     false
   );
   const int spent_expert = colony_yield_for_worker(
-    &map, sx, sy, COLONIZE_JOB_SILVER_MINER, COLONIZE_JOB_SILVER_MINER, true, 0, 0,
+    &map, sx, sy, COLONIZE_JOB_SILVER_MINER, COLONIZE_JOB_SILVER_MINER, true, 0,
     false
   );
   /* Road re-enters the stack (raw 11954, `3 < local_14`, unit u = 1 free /
    * 2 for the matching expert): 2 and 4. */
   map.improve[sy * map.width + sx] |= MAP_IMPROVE_ROAD;
   const int spent_road_free = colony_yield_for_worker(
-    &map, sx, sy, COLONIZE_JOB_SILVER_MINER, COLONIZE_PROF_FREE_COLONIST, true, 0, 0,
+    &map, sx, sy, COLONIZE_JOB_SILVER_MINER, COLONIZE_PROF_FREE_COLONIST, true, 0,
     false
   );
   const int spent_road_expert = colony_yield_for_worker(
-    &map, sx, sy, COLONIZE_JOB_SILVER_MINER, COLONIZE_JOB_SILVER_MINER, true, 0, 0,
+    &map, sx, sy, COLONIZE_JOB_SILVER_MINER, COLONIZE_JOB_SILVER_MINER, true, 0,
     false
   );
   map.improve[sy * map.width + sx] = 0;
@@ -903,11 +902,11 @@ static int case_silver_miner_collapse(void) {
    * so an Ore Miner on the same bare rock keeps base 4 (+expert, +road). */
   map.terrain[my * map.width + mx] = 0xa0u;
   const int ore_free = colony_yield_for_worker(
-    &map, mx, my, COLONIZE_JOB_ORE_MINER, COLONIZE_PROF_FREE_COLONIST, true, 0, 0,
+    &map, mx, my, COLONIZE_JOB_ORE_MINER, COLONIZE_PROF_FREE_COLONIST, true, 0,
     false
   );
   const int ore_expert = colony_yield_for_worker(
-    &map, mx, my, COLONIZE_JOB_ORE_MINER, COLONIZE_JOB_ORE_MINER, true, 0, 0,
+    &map, mx, my, COLONIZE_JOB_ORE_MINER, COLONIZE_JOB_ORE_MINER, true, 0,
     false
   );
   map_free(&map);
@@ -1041,11 +1040,11 @@ static int case_fur_trapper_beaver(void) {
     return 1;
   }
   const int free_fur = colony_yield_for_worker(
-    &map, bx, by, COLONIZE_JOB_FUR_TRAPPER, COLONIZE_PROF_FREE_COLONIST, /*has_docks=*/true, 0, 0,
+    &map, bx, by, COLONIZE_JOB_FUR_TRAPPER, COLONIZE_PROF_FREE_COLONIST, /*has_docks=*/true, 0,
     false
   );
   const int expert_fur = colony_yield_for_worker(
-    &map, bx, by, COLONIZE_JOB_FUR_TRAPPER, COLONIZE_JOB_FUR_TRAPPER, /*has_docks=*/true, 0, 0,
+    &map, bx, by, COLONIZE_JOB_FUR_TRAPPER, COLONIZE_JOB_FUR_TRAPPER, /*has_docks=*/true, 0,
     false
   );
   map_free(&map);
@@ -1095,21 +1094,21 @@ static int case_fur_trapper_river_double_count(void) {
   int rc = 0;
   map.terrain[ti] = (uint8_t)(10u | 0x40u); /* minor river */
   const int minor = colony_yield_for_worker(
-    &map, mx, my, COLONIZE_JOB_FUR_TRAPPER, COLONIZE_PROF_FREE_COLONIST, /*has_docks=*/true, 0, 0,
+    &map, mx, my, COLONIZE_JOB_FUR_TRAPPER, COLONIZE_PROF_FREE_COLONIST, /*has_docks=*/true, 0,
     false
   );
   map.terrain[ti] = (uint8_t)(10u | 0x40u | 0x80u); /* major river */
   const int major = colony_yield_for_worker(
-    &map, mx, my, COLONIZE_JOB_FUR_TRAPPER, COLONIZE_PROF_FREE_COLONIST, /*has_docks=*/true, 0, 0,
+    &map, mx, my, COLONIZE_JOB_FUR_TRAPPER, COLONIZE_PROF_FREE_COLONIST, /*has_docks=*/true, 0,
     false
   );
   const int major_expert = colony_yield_for_worker(
-    &map, mx, my, COLONIZE_JOB_FUR_TRAPPER, COLONIZE_JOB_FUR_TRAPPER, /*has_docks=*/true, 0, 0,
+    &map, mx, my, COLONIZE_JOB_FUR_TRAPPER, COLONIZE_JOB_FUR_TRAPPER, /*has_docks=*/true, 0,
     false
   );
   map_tile_set_road(&map, mx, my, true);
   const int major_road = colony_yield_for_worker(
-    &map, mx, my, COLONIZE_JOB_FUR_TRAPPER, COLONIZE_PROF_FREE_COLONIST, /*has_docks=*/true, 0, 0,
+    &map, mx, my, COLONIZE_JOB_FUR_TRAPPER, COLONIZE_PROF_FREE_COLONIST, /*has_docks=*/true, 0,
     false
   );
   map_free(&map);
@@ -1187,7 +1186,7 @@ static int case_expert_fur_trapper_base_zero(void) {
   map.terrain[7] = (uint8_t)(3u | 0x40u | 0x80u); /* Prairie + major river */
   map_tile_set_road(&map, 7, 0, true);
   const int expert_fur = colony_yield_for_worker(
-    &map, 7, 0, COLONIZE_JOB_FUR_TRAPPER, COLONIZE_JOB_FUR_TRAPPER, /*has_docks=*/true, 2, 0,
+    &map, 7, 0, COLONIZE_JOB_FUR_TRAPPER, COLONIZE_JOB_FUR_TRAPPER, /*has_docks=*/true, 2,
     /*has_hudson=*/true
   );
   map_free(&map);
@@ -1307,7 +1306,7 @@ static int case_depletion_counter_tally(void) {
    */
   const int yld0 = colony_yield_for_worker(
     &map, mx, my, COLONIZE_JOB_ORE_MINER, COLONIZE_PROF_FREE_COLONIST, /*has_docks=*/true,
-    /*sol_bonus=*/-1000, /*colony_flags=*/0, /*has_hudson=*/false
+    /*sol_bonus=*/-1000, /*has_hudson=*/false
   );
   if (yld0 != 0) {
     fprintf(stderr, "depletion yield-0 setup: want yld==0 got %d\n", yld0);
@@ -1349,10 +1348,10 @@ static int resource_delta_case(
     return 1;
   }
   const int free_with = colony_yield_for_worker(
-    &map_res, rx, ry, field_job, COLONIZE_PROF_FREE_COLONIST, true, 0, 0, false
+    &map_res, rx, ry, field_job, COLONIZE_PROF_FREE_COLONIST, true, 0, false
   );
   const int expert_with =
-    colony_yield_for_worker(&map_res, rx, ry, field_job, field_job, true, 0, 0, false);
+    colony_yield_for_worker(&map_res, rx, ry, field_job, field_job, true, 0, false);
   map_free(&map_res);
 
   ColonizeWorldMap map_bare;
@@ -1375,10 +1374,10 @@ static int resource_delta_case(
     return 1;
   }
   const int free_without = colony_yield_for_worker(
-    &map_bare, bx, by, field_job, COLONIZE_PROF_FREE_COLONIST, true, 0, 0, false
+    &map_bare, bx, by, field_job, COLONIZE_PROF_FREE_COLONIST, true, 0, false
   );
   const int expert_without =
-    colony_yield_for_worker(&map_bare, bx, by, field_job, field_job, true, 0, 0, false);
+    colony_yield_for_worker(&map_bare, bx, by, field_job, field_job, true, 0, false);
   map_free(&map_bare);
 
   const int free_delta = free_with - free_without;
@@ -1464,20 +1463,20 @@ static int case_lumberjack_free_u2_stack(void) {
   }
   const size_t ti = (size_t)my * (size_t)map.width + (size_t)mx;
   const int bare = colony_yield_for_worker(
-    &map, mx, my, COLONIZE_JOB_LUMBERJACK, COLONIZE_PROF_FREE_COLONIST, true, 0, 0, false
+    &map, mx, my, COLONIZE_JOB_LUMBERJACK, COLONIZE_PROF_FREE_COLONIST, true, 0, false
   );
   map_tile_set_road(&map, mx, my, true);
   const int road = colony_yield_for_worker(
-    &map, mx, my, COLONIZE_JOB_LUMBERJACK, COLONIZE_PROF_FREE_COLONIST, true, 0, 0, false
+    &map, mx, my, COLONIZE_JOB_LUMBERJACK, COLONIZE_PROF_FREE_COLONIST, true, 0, false
   );
   map_tile_set_road(&map, mx, my, false);
   map.terrain[ti] = (uint8_t)(10u | 0x40u); /* minor river */
   const int minor = colony_yield_for_worker(
-    &map, mx, my, COLONIZE_JOB_LUMBERJACK, COLONIZE_PROF_FREE_COLONIST, true, 0, 0, false
+    &map, mx, my, COLONIZE_JOB_LUMBERJACK, COLONIZE_PROF_FREE_COLONIST, true, 0, false
   );
   map.terrain[ti] = (uint8_t)(10u | 0x40u | 0x80u); /* major river */
   const int major = colony_yield_for_worker(
-    &map, mx, my, COLONIZE_JOB_LUMBERJACK, COLONIZE_PROF_FREE_COLONIST, true, 0, 0, false
+    &map, mx, my, COLONIZE_JOB_LUMBERJACK, COLONIZE_PROF_FREE_COLONIST, true, 0, false
   );
   map_free(&map);
   if (road != bare + 2 || minor != bare + 2 || major != bare + 4) {
@@ -1625,18 +1624,18 @@ static int case_tb41_42_49_fixed(void) {
     const size_t ti = (size_t)my * (size_t)map.width + (size_t)mx;
     map.terrain[ti] = (uint8_t)(10u | 0x40u);
     const int minor = colony_yield_for_worker(
-      &map, mx, my, COLONIZE_JOB_FUR_TRAPPER, COLONIZE_PROF_FREE_COLONIST, true, 0, 0, false
+      &map, mx, my, COLONIZE_JOB_FUR_TRAPPER, COLONIZE_PROF_FREE_COLONIST, true, 0, false
     );
     map.terrain[ti] = (uint8_t)(10u | 0x40u | 0x80u);
     const int major = colony_yield_for_worker(
-      &map, mx, my, COLONIZE_JOB_FUR_TRAPPER, COLONIZE_PROF_FREE_COLONIST, true, 0, 0, false
+      &map, mx, my, COLONIZE_JOB_FUR_TRAPPER, COLONIZE_PROF_FREE_COLONIST, true, 0, false
     );
     const int major_expert = colony_yield_for_worker(
-      &map, mx, my, COLONIZE_JOB_FUR_TRAPPER, COLONIZE_JOB_FUR_TRAPPER, true, 0, 0, false
+      &map, mx, my, COLONIZE_JOB_FUR_TRAPPER, COLONIZE_JOB_FUR_TRAPPER, true, 0, false
     );
     map_tile_set_road(&map, mx, my, true);
     const int major_road = colony_yield_for_worker(
-      &map, mx, my, COLONIZE_JOB_FUR_TRAPPER, COLONIZE_PROF_FREE_COLONIST, true, 0, 0, false
+      &map, mx, my, COLONIZE_JOB_FUR_TRAPPER, COLONIZE_PROF_FREE_COLONIST, true, 0, false
     );
     /* 3+1 / 3+1+1 / (3<<1)+2+2 / 3+road1+river1+major1 */
     if (minor != 4 || major != 5 || major_expert != 10 || major_road != 6) {

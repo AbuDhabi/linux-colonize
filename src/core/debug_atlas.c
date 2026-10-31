@@ -19,21 +19,6 @@ void debug_atlas_init(DebugAtlas* atlas) {
   atlas->index = -1;
 }
 
-void debug_atlas_free(DebugAtlas* atlas) {
-  if (!atlas) {
-    return;
-  }
-  if (atlas->loaded) {
-    if (atlas->loaded_kind == DEBUG_ATLAS_KIND_SS) {
-      ss_free(&atlas->ss);
-    } else {
-      pik_free(&atlas->pik);
-    }
-  }
-  memset(atlas, 0, sizeof(*atlas));
-  atlas->index = -1;
-}
-
 static void debug_atlas_upper_ext(char* ext) {
   for (char* p = ext; *p; ++p) {
     *p = (char)toupper((unsigned char)*p);
@@ -103,6 +88,11 @@ static void debug_atlas_unload(DebugAtlas* atlas) {
   }
   atlas->loaded = false;
   atlas->load_error[0] = '\0';
+}
+
+void debug_atlas_free(DebugAtlas* atlas) {
+  debug_atlas_unload(atlas);
+  debug_atlas_init(atlas);
 }
 
 bool debug_atlas_load(DebugAtlas* atlas, const char* data_dir, int index) {

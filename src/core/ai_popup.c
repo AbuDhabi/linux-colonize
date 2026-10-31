@@ -199,10 +199,10 @@ bool ai_popup_bar_service(AiPopupState* st, uint32_t now_ms, bool dismiss) {
     /*
      * port_bugs.md #425: the sale lines run AI_POPUP_BAR_SALE_SPEEDUP times faster
      * than DOS at the user's explicit request. That is arm kind 1 — DOS's
-     * gold "success" arm, and the only kind this ring produces (the Custom
-     * House autosell run and the European Status sell lines both come in
-     * through ai_popup_enqueue_bar_message). Any other arm kind keeps DOS's
-     * dwell; the dead `|| kind == 2` disjunct went 2026-09-10 (audit #20 —
+     * gold "success" arm, which ai_popup_enqueue_bar_message stamps (the Custom
+     * House autosell run and the European Status sell lines). The red refusal
+     * (kind 3, ai_popup_enqueue_bar_refusal) keeps DOS's dwell; the dead
+     * `|| kind == 2` disjunct went 2026-09-10 (audit #20 —
      * nothing in either game arms kind 2, see ai_popup_bar_message_color).
      */
     if (st->bar_msg_kind[0] == 1) {
@@ -331,7 +331,7 @@ bool ai_popup_enqueue_choice_ctx(
   return ai_popup_enqueue(st, &req);
 }
 
-/* LABELS.TXT @MISC 34/35 (DS:0x2dfe/0x2e00); literals until the file loads. */
+/* LABELS.TXT @MISC 34/35 (DS:0x2dfe/0x2e00); empty until the file loads. */
 static char g_colony_event_continue[AI_POPUP_CHOICE_LEN] = "";
 static char g_colony_event_zoom[AI_POPUP_CHOICE_LEN] = "";
 
@@ -705,10 +705,6 @@ static void ai_popup_log_present(const AiPopupRequest* req) {
   );
 }
 
-bool ai_popup_queue_pending(const AiPopupState* st) {
-  return st && st->queue_count > 0;
-}
-
 bool ai_popup_busy(const AiPopupState* st) {
   return st && (st->open || st->queue_count > 0 || st->has_result);
 }
@@ -912,7 +908,7 @@ void ai_popup_set_last_portrait(AiPopupState* st, int tribe, int tier) {
  * clamp a negative to -1, drop the call entirely above the sheet family's top
  * index (MSS0..5, MYR0..3).
  */
-static void ai_popup_set_last_graphic(AiPopupState* st, int* field, int value, int max_value) {
+static void ai_popup_set_last_graphic(int* field, int value, int max_value) {
   if (value > max_value) {
     return;
   }
@@ -923,14 +919,14 @@ void ai_popup_set_last_graphic_mss(AiPopupState* st, int mss) {
   if (!st || !st->last_enqueue_ok || st->queue_count <= 0) {
     return;
   }
-  ai_popup_set_last_graphic(st, &st->queue[st->queue_count - 1].graphic_mss, mss, 5);
+  ai_popup_set_last_graphic(&st->queue[st->queue_count - 1].graphic_mss, mss, 5);
 }
 
 void ai_popup_set_last_graphic_myr(AiPopupState* st, int nation) {
   if (!st || !st->last_enqueue_ok || st->queue_count <= 0) {
     return;
   }
-  ai_popup_set_last_graphic(st, &st->queue[st->queue_count - 1].graphic_myr, nation, 3);
+  ai_popup_set_last_graphic(&st->queue[st->queue_count - 1].graphic_myr, nation, 3);
 }
 
 void ai_popup_set_last_disabled(AiPopupState* st, uint32_t mask) {

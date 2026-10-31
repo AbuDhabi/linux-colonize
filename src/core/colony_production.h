@@ -231,6 +231,22 @@ int colony_prod_colony_bells_ff(
   bool nation_is_ai,
   int sol_bonus
 );
+/* colony_prod_colony_bells_ff with the owning nation's FF inputs (Jefferson,
+ * Paine tax, AI control + Bolivar subsidy) read from col1. */
+int colony_prod_colony_bells_nation(
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* colony,
+  const ColonizeCol1Save* col1,
+  int sol_bonus
+);
+/* This turn's bells: the Phase A stamp (prod_bells_phase_a) when
+ * prod_compose_stamp matches head.turn + 1, else a live
+ * colony_prod_colony_bells_nation at colony_prod_sol_bonus. */
+int colony_prod_colony_bells_this_turn(
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* colony,
+  const ColonizeCol1Save* col1
+);
 /*
  * nation_has_penn — William Penn, "+50% cross production": folds into each
  * Preacher worker individually (colony_prod_crosses_worker), stacking with

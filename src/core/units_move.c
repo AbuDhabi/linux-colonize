@@ -1555,6 +1555,27 @@ bool units_disband(ColonizeUnitPool* pool, int unit_id) {
   return units_despawn(pool, unit_id);
 }
 
+void units_automate_cancel(ColonizeUnitPool* pool, ColonizeUnit* u) {
+  u->automated = false;
+  if (u->orders == UNITS_ORDER_GOTO) {
+    units_clear_orders(pool, u->id);
+  }
+}
+
+void units_automate_reattach(
+  ColonizeUnitPool* pool, int x, int y, int nation,
+  bool (*want)(const ColonizeUnitPool* pool, const ColonizeUnit* u)
+) {
+  for (int i = 0; pool && i < units_slot_end(pool); ++i) {
+    ColonizeUnit* u = &pool->units[i];
+    if (u->active && !u->automated && u->x == x && u->y == y && u->nation_id == nation &&
+        want(pool, u)) {
+      u->automated = true;
+      return;
+    }
+  }
+}
+
 bool units_wake(ColonizeUnitPool* pool, int unit_id) {
   ColonizeUnit* u = units_get(pool, unit_id);
   if (!u || !u->active) {
@@ -1845,7 +1866,7 @@ static int units_flood_owner_term(
    * the port cannot reproduce, so the term is Euro-only. */
   if (owner <= 3 && col1 && map->improve &&
       map->improve[(size_t)ny * (size_t)map->width + (size_t)nx] != 0) {
-    const int peer = (int)((map_get_layer3(map, nx, ny) >> 4) & 0x0fu);
+    const int peer = units_tile_owner_nibble(map, nx, ny);
     /* DOS 88d6: euro_relation & 0x40 = PEACE (bit map re-derived 2026-08-27). */
     if (peer >= 0 && peer <= 3 && peer != owner &&
         (col1->nation[owner].euro_relation[peer] & AI_DIPLO_PEACE) != 0) {
@@ -1940,7 +1961,8 @@ static bool units_flood_euro_colony_at(const ColonizeWorldMap* map, int x, int y
   if (!map_tile_has_city(map, x, y)) {
     return false;
   }
-  return ((map_get_layer3(map, x, y) >> 4) & 0x0fu) <= 3;
+  const int owner = units_tile_owner_nibble(map, x, y);
+  return owner >= 0 && owner <= 3;
 }
 
 /*

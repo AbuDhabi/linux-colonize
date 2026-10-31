@@ -15,17 +15,6 @@ cap (EOT spoilage, @WAREHOUSEFULL unload confirm, colony-screen alert ink),
 not here; cargo_type is unused by the body (`(void)` cast) and is kept only
 so the ~10 call sites stay readable (audit CO-28).
 
-## colonies_emit_warehouse_full_chrome
-
-Human unload chrome: GAME.TXT @WAREHOUSEFULL when warehouse has no room.
-cargo_name optional (miss = empty string). No-op if ai_popups NULL, and for
-Food (FUN_479b_0f60 never warns on Food).
-@WAREHOUSEFULL's numbers (port_bugs.md #433): NUMBER0 = what the warehouse
-already held BEFORE this deposit, NUMBER1 = capacity, NUMBER2 = the
-deposit itself. `deposited` = units the player just unloaded (or tried
-to); `already_included` = how much of that has already been added to
-colony->stock by the time this is called (0 when the transfer failed).
-
 ## colonies_specialty_cargo_update
 
 FUN_5952_0306: set/clear specialty_cargo (+0x8d).

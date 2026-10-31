@@ -184,11 +184,11 @@ graphs:
         fn: ai_euro_goals.c:ai_euro_0a60_goal_orders_structural
       - id: unit_loop
         kind: loop
-        label: "do { wave 0: Treasure/Artillery/Wagon; wave 1: all; ids high→low; first unit with MP drained, rescan } while wave 1 progressed && guard<64"
+        label: "do { wave 0: Treasure/Artillery/Wagon; wave 1: all; ids high→low; first unit with MP drained, rescan } while wave 1 progressed (spin backstop guard<COLONIZE_UNITS_MAX)"
         fn: ai_euro.c:ai_euro_dispatcher_turn
         dos: 6d8e steps 6–7, raw 93237-93325
         status: structural
-        note: "DOS shape ported 2026-09-15 (was ships-first, one act per unit per pass — a mislabelled type constant in the annotated header). Wave 0 = types 0x0a/0x0b/0x0c (bVar4), wave 1 = every unit; each wave scans ids high→low, takes the first unit with MP, acts it until MP==0, then leaves; the outer loop restarts from the top and returns when wave 1 found nobody. Port-only: a no-progress act marks the unit exhausted for the scan (DOS re-acts until the >0x14 sticky clear) and the guard<64 ceiling stays."
+        note: "DOS shape ported 2026-09-15 (was ships-first, one act per unit per pass — a mislabelled type constant in the annotated header). Wave 0 = types 0x0a/0x0b/0x0c (bVar4), wave 1 = every unit; each wave scans ids high→low, takes the first unit with MP, acts it until MP==0, then leaves; the outer loop restarts from the top and returns when wave 1 found nobody. A no-progress act is re-acted until the >0x14 sticky clear as in DOS (port_bugs.md #1134); the outer guard is a port-only spin backstop at COLONIZE_UNITS_MAX. The legacy AI_6D8E_DOS_LOOP=0 ships-first shape was deleted 2026-10-31 (#1356)."
       - id: skip
         kind: decision
         label: Skip? (inactive / other nation / aboard ship / land in wave 0)

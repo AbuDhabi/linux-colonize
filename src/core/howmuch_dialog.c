@@ -9,6 +9,7 @@
 #include "core/popup_msg.h"
 #include "core/strutil.h"
 #include "core/text_edit.h"
+#include "core/ui_button.h"
 #include "core/window_log.h"
 #include "platform/diagnostics.h"
 
@@ -237,13 +238,11 @@ bool howmuch_handle_input(HowmuchDialog* dlg, const ColonizeInputState* input) {
     return true;
   }
   if (input->mouse_left_clicked) {
-    if (input->mouse_x < dlg->dialog_x || input->mouse_y < dlg->dialog_y ||
-        input->mouse_x >= dlg->dialog_x + dlg->dialog_w ||
-        input->mouse_y >= dlg->dialog_y + dlg->dialog_h) {
-      howmuch_finish(dlg, true);
-    } else {
-      howmuch_finish(dlg, false);
-    }
+    /* Click outside the box cancels, inside accepts. */
+    howmuch_finish(
+      dlg,
+      !ui_rect_hit(dlg->dialog_x, dlg->dialog_y, dlg->dialog_w, dlg->dialog_h, input->mouse_x, input->mouse_y)
+    );
     return true;
   }
   return true;

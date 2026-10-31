@@ -178,8 +178,7 @@ static int ai_king_audience_roll(
     (int)(turn / 30);
 
   AiKingAudienceFlavor flavor;
-  memset(&flavor, 0, sizeof(flavor));
-  flavor.section = "KINGTAX";
+  memset(&flavor, 0, sizeof(flavor)); /* every rung below sets .section */
   const ColonizeMsgCatalog* msgs = ctx->messages;
 
   int delta;

@@ -192,7 +192,7 @@ bool closing_open(ClosingCinematic* c, const char* data_dir) {
 
   int loaded = 0;
   for (int i = 0; i < CLOSING_SHEET_COUNT; ++i) {
-    if (!cinematic_load_sheet(data_dir, kClosingSheets[i], &c->sheets[i], "Closing cinematic")) {
+    if (!ss_load_asset(data_dir, kClosingSheets[i], &c->sheets[i], "Closing cinematic")) {
       continue;
     }
     c->sheet_ok[i] = true;

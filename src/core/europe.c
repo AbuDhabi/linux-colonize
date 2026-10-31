@@ -302,11 +302,8 @@ bool europe_dock_push_load(EuropeScreen* eu, const char* name, int profession) {
   slot->present = true;
   slot->sentry = true;
   slot->dos_type = europe_dock_type_for(slot->name, profession);
-  /* ponytail: these callers (col1_bridge, ai_diplo, ai_king_war, disembark)
-   * pass only a name, so an Artillery row is still told by the @UNIT row 11
-   * name here; drop once they set ->artillery from the unit's kind. */
-  const char* art = reports_names_field("UNIT", UNITS_KIND_ARTILLERY, 0);
-  slot->artillery = slot->name[0] && art && art[0] && strcmp(slot->name, art) == 0;
+  /* ->artillery stays false: a caller that knows the unit's kind sets it
+   * (col1_bridge load, ai_diplo send-to-Europe, the disembark below). */
   return true;
 }
 
@@ -459,6 +456,7 @@ void europe_disembark_passengers_to_dock(
       if (kind == (int)UNITS_KIND_CONT_ARMY || kind == (int)UNITS_KIND_CONT_CAV) {
         eu->dock[eu->dock_count - 1].dos_type = kind;
       }
+      eu->dock[eu->dock_count - 1].artillery = kind == (int)UNITS_KIND_ARTILLERY;
     }
     /* The unit record keeps its Tools byte +0x3159 through 03d0's relink. */
     eu->dock[eu->dock_count - 1].tools = ship->cargo_tools[i];

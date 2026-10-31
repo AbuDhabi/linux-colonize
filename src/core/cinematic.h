@@ -172,21 +172,4 @@ static inline bool cinematic_load_background(
   return true;
 }
 
-/* ss_load with the two cinematic diagnostics; `tag` prefixes both. */
-static inline bool cinematic_load_sheet(
-  const char* data_dir, const char* name, ColonizeSpriteSheet* out, const char* tag
-) {
-  char path[512];
-  char err[256];
-  if (!dos_compat_normalize_asset_path(data_dir, name, path, sizeof(path))) {
-    diag_warn("%s: %s not found.", tag, name);
-    return false;
-  }
-  if (!ss_load(path, out, err, sizeof(err))) {
-    diag_warn("%s: %s failed to load: %s", tag, name, err);
-    return false;
-  }
-  return true;
-}
-
 #endif

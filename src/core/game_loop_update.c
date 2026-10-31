@@ -352,7 +352,7 @@ void game_europe_open_buy_prompt_for(ColonizeGameState* game, int hidx, int carg
     &game->messages, "HOWMUCH4", &tok, "", prompt, sizeof(prompt)
   );
   if (max_amt <= 0) {
-    snprintf(eu->status, sizeof(eu->status), "%s", "No empty hold.");
+    eu->status[0] = '\0';
   } else {
     howmuch_open(
       &game->howmuch,
@@ -385,8 +385,7 @@ void game_europe_open_buy_prompt(ColonizeGameState* game) {
 typedef bool (*GamePioneerOrderFn)(
   const ColonizeWorld*,
   int,
-  char*,
-  size_t,
+  UnitsPioneerReason*,
   AiPopupState*,
   const ColonizeMsgCatalog*
 );
@@ -409,10 +408,11 @@ static bool game_key_pioneer_order(
   if (game_pioneer_land_gate(game, land_kind)) {
     return true;
   }
-  char msg[96] = ""; /* fn leaves it untouched on some paths */
+  UnitsPioneerReason why = UNITS_PIONEER_OK; /* fn leaves it untouched on some paths */
+  char buf[96];
   const ColonizeWorld w = game_world(game);
-  fn(&w, sid, msg, sizeof(msg), &game->ai_popups, &game->messages);
-  set_status(game, msg, NULL);
+  fn(&w, sid, &why, &game->ai_popups, &game->messages);
+  set_status(game, game_pioneer_reason_text(&game->messages, why, buf, sizeof(buf)), NULL);
   return true;
 }
 
@@ -1270,6 +1270,14 @@ static void game_colony_focus_area(ColonyScreenView* csv, int tile_index) {
   colonies_field_tile_delta(tile_index, &csv->area_dx, &csv->area_dy);
 }
 
+/* Open a pedia article from the colony screen; leaving it returns to that colony
+ * (game_open_pedia_article clears the return target, so capture the id first). */
+static void game_open_pedia_from_colony(ColonizeGameState* game, PediaCategory cat, int index) {
+  const int cid = game->colony_view_id;
+  game_open_pedia_article(game, cat, index, false);
+  game->pedia_return_colony_id = cid;
+}
+
 /* The terrain article of the area-view cell (dx, dy) off the colony tile, unless its
  * FUN_15eb_23f2 plot byte (the DS:0x8df0 cache) is 0x10 (off the map, unexplored):
  * FUN_281f_078c -> FUN_13e4_003a, FUN_291f_0428 (right-click raw 51399-51403, F1 raw
@@ -1288,9 +1296,7 @@ static void game_colony_area_pedia(
   if (game->world_map_ok) {
     index = map_pedia_terrain_index_at(&game->world_map, colony->x + dx, colony->y + dy);
   }
-  const int cid = game->colony_view_id;
-  game_open_pedia_article(game, PEDIA_CAT_TERRAIN, index, false);
-  game->pedia_return_colony_id = cid;
+  game_open_pedia_from_colony(game, PEDIA_CAT_TERRAIN, index);
   game_status_from_menu_row(game, "REPORTS", 1, game->status, sizeof(game->status));
 }
 
@@ -1348,9 +1354,7 @@ static void game_colony_screen_help(
   if (index < 0) {
     return;
   }
-  const int cid = game->colony_view_id;
-  game_open_pedia_article(game, cat, index, false);
-  game->pedia_return_colony_id = cid;
+  game_open_pedia_from_colony(game, cat, index);
 }
 
 /* Colony screen: left-click dispatch over every panel of the colony view. */
@@ -1864,13 +1868,11 @@ static void game_colony_construction_help(
     return;
   }
   const int unit_row = units_build_code_to_index(bid);
-  const int cid = game->colony_view_id;
   if (unit_row >= 0) {
-    game_open_pedia_article(game, PEDIA_CAT_UNIT, unit_row, false);
+    game_open_pedia_from_colony(game, PEDIA_CAT_UNIT, unit_row);
   } else {
-    game_open_pedia_article(game, PEDIA_CAT_BUILDING, bid, false);
+    game_open_pedia_from_colony(game, PEDIA_CAT_BUILDING, bid);
   }
-  game->pedia_return_colony_id = cid;
 }
 
 /*
@@ -1943,9 +1945,7 @@ static void game_colony_list_help(
       );
     }
   }
-  const int cid = game->colony_view_id;
-  game_open_pedia_article(game, PEDIA_CAT_JOB, job, false);
-  game->pedia_return_colony_id = cid;
+  game_open_pedia_from_colony(game, PEDIA_CAT_JOB, job);
 }
 
 /* Colony-screen keyboard: Escape / Enter, the C construction toggle, the
@@ -2321,9 +2321,7 @@ COLONIZE_INTERNAL GameUpdateStep game_update_colony_screen(ColonizeGameState* ga
        * article, back to the colony screen on exit. @BUILDING row order is
        * the pedia building index (pedia.c PEDIA_CAT_BUILDING). */
       if (hit.kind == COLONY_HIT_BUILDING && hit.index >= 0) {
-        const int cid = game->colony_view_id;
-        game_open_pedia_article(game, PEDIA_CAT_BUILDING, hit.index, false);
-        game->pedia_return_colony_id = cid;
+        game_open_pedia_from_colony(game, PEDIA_CAT_BUILDING, hit.index);
         return GAME_UPDATE_RETURN_TRUE;
       }
     }
@@ -2493,10 +2491,7 @@ static void game_europe_screen_help(ColonizeGameState* game, EuropeScreen* eu) {
   } else if (eu->focus == 1 && eu->harbor_ships != 0) {
     if (eu->selected_harbor >= 0 && eu->selected_harbor < eu->harbor_ships) {
       const EuropeHarborShip* hs = &eu->harbor[eu->selected_harbor];
-      index = hs->type_index;
-      if (index < 0 && game->units_ok) {
-        index = units_find_type(&game->units, hs->name); /* as game_europe_sail_harbor */
-      }
+      index = game->units_ok ? europe_ship_type_index(&game->units, hs) : hs->type_index;
     }
   } else if (eu->focus == 2 && eu->dock_count != 0) {
     if (eu->dock_selected < 0 || eu->dock_selected >= eu->dock_count) {
@@ -2586,7 +2581,7 @@ static GameUpdateStep game_europe_screen_keys(
   /* L / '=' : howmuch buy. U : sell the lowest-key hold (FUN_479b_0f60). */
   if (input->last_key == COLONIZE_KEY_L) {
     if (eu->selected_harbor < 0) {
-      snprintf(eu->status, sizeof(eu->status), "%s", "Select a ship first.");
+      eu->status[0] = '\0';
     } else {
       game_europe_open_buy_prompt(game);
     }
@@ -2608,7 +2603,7 @@ static GameUpdateStep game_europe_screen_keys(
       return GAME_UPDATE_RETURN_TRUE;
     }
     if (input->last_key == COLONIZE_KEY_S) {
-      snprintf(eu->status, sizeof(eu->status), "%s", "Select a ship first.");
+      eu->status[0] = '\0';
       return GAME_UPDATE_RETURN_TRUE;
     }
   }
@@ -2686,7 +2681,7 @@ static GameUpdateStep game_europe_screen_mouse(
     case EUROPE_HIT_HARBOR_SHIP:
       eu->focus = 1; /* FUN_38fd_2edc raw 61012-61016 */
       eu->selected_harbor = hit.index;
-      snprintf(eu->status, sizeof(eu->status), "Selected %s.", eu->harbor[hit.index].name);
+      eu->status[0] = '\0';
       ui_drag_begin(&game->ui_drag, UI_DRAG_EUROPE_HARBOR_SHIP, hit.index, -1, 0);
       if (game->units_ok && game_icons(game)) {
         const int sprite = europe_ship_icon_sprite(&game->units, &eu->harbor[hit.index]);
@@ -2722,7 +2717,7 @@ static GameUpdateStep game_europe_screen_mouse(
           game_europe_ask_boycott_buyback(game, hit.index);
         }
       } else if (eu->selected_harbor < 0) {
-        snprintf(eu->status, sizeof(eu->status), "%s", "Select a ship first.");
+        eu->status[0] = '\0';
       } else {
         ui_drag_begin(&game->ui_drag, UI_DRAG_EUROPE_MARKET, hit.index, -1, 100);
         game_ui_drag_set_icon(game, EUROPE_CARGO_ICON_BASE + hit.index);

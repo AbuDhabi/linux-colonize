@@ -9,20 +9,13 @@
 #include "core/world.h"
 
 /*
- * FUN_4962_0018 census window fill for blank templates only.
- * Never call on mid-campaign RMW — DOS leaves lag intentional.
+ * Blank census template: col1_stuff_census_4962_w for nations 0..3, without
+ * the unit-origin bind. Only for a blank window (save-writing path) — never
+ * freshen a mid-campaign window; DOS's per-nation lag is intentional.
  */
 bool col1_stuff_census_window_is_blank(const ColonizeCol1Stuff* stuff);
 
 void col1_stuff_census_fill_blank_w(
-  const ColonizeWorld* w,
-  ColonizeCol1Stuff* stuff
-);
-/*
- * FUN_4962_0018 thin live peel: colony_counts + pop/mean, and when units!=NULL
- * also unit_type / ship / combat tallies (DOS EOT freshen). Cite: census_tally.md.
- */
-void col1_stuff_census_refresh_colony_counts_w(
   const ColonizeWorld* w,
   ColonizeCol1Stuff* stuff
 );

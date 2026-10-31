@@ -37,7 +37,6 @@
  */
 
 #define SOUND_MAX_EVENTS 32768
-#define SOUND_GSOUND_IMG_HDR 512
 #define SOUND_TICK_HZ GSOUND_TICK_HZ
 #define SOUND_MAX_TRACK_TICKS 14400u /* 4 minutes @ ~60 Hz */
 #define SOUND_SFX_MAX 64
@@ -103,7 +102,6 @@ typedef struct SoundState {
   int sfx_queue_len;
   int sfx_playing; /* -1 = idle */
   double sfx_pos;  /* source sample position */
-  int sfx_last_index; /* diagnostics */
 
 #if defined(COLONIZE_HAS_FLUIDSYNTH)
   fluid_settings_t* fluid_settings;
@@ -137,7 +135,9 @@ static bool sound_load_gsound(const char* data_dir) {
     return false;
   }
   const long sz = (long)file_size;
-  if (sz < SOUND_GSOUND_IMG_HDR + 0x3400) {
+  /* Only the header-paragraph word is read here; gsound_vm_create validates
+   * the image size behind the header. */
+  if (sz < 10) {
     free(file);
     return false;
   }
@@ -171,6 +171,8 @@ static bool sound_load_gsound(const char* data_dir) {
     }
   }
   diag_info("sound: GSOUND.COL loaded songs=%d img=%zu", songs, g_sound.gsound_img_size);
+  /* With no songs the VM stays: it still carries the COLDIG.BIN sfx table
+   * (gsound_vm_sfx_table) and dispatches the sfx ids. gsound_ok gates music only. */
   return songs > 0;
 }
 
@@ -1368,6 +1370,9 @@ bool sound_gsound_event_at(
 }
 
 int sound_render_offline_mono(int song_id, int16_t* dst, int max_frames, int sample_rate) {
+  /* Test-only: drives the one shared VM through sound_render_s16, the same
+   * path a live SDL audio callback pulls, so a caller with an open device
+   * would interleave both consumers on one song. Smoke tests open none. */
   if (!dst || max_frames <= 0 || !g_sound.inited) {
     return 0;
   }

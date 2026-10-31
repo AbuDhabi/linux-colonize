@@ -59,7 +59,6 @@ void reports_draw_line(
 );
 int reports_line_step(const ColonizeFont* font);
 int reports_clamp_nation(int human_nation);
-bool reports_unit_in_europe(int x, int y);
 bool reports_xy_is_own_colony(const ColonizeCol1Save* col1, int human, int x, int y);
 int reports_colony_rebel_pct(const ColonizeCol1Colony* c);
 void reports_draw_icon_bar(

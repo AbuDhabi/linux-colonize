@@ -92,13 +92,7 @@ static const char* europe_label(
   int idx,
   const char* fallback
 ) {
-  if (eu && eu->labels && section) {
-    const ColonizeMsgSection* sec = assets_msg_find(eu->labels, section);
-    if (sec && idx >= 0 && idx < sec->line_count && sec->lines[idx][0]) {
-      return sec->lines[idx];
-    }
-  }
-  return fallback;
+  return assets_msg_line_or(eu ? eu->labels : NULL, section, idx, fallback);
 }
 
 static void europe_push_sale_status(EuropeScreen* eu, int cargo_type, int amount, int net) {
@@ -656,8 +650,9 @@ int europe_sell_unit_hold_w(
 
   /*
    * Map/transport dump-sell (no harbor chrome). Tax path = europe_sell_proceeds:
-   * bid * amount * (100 - eu->tax_percent) / 100 — same Crown cut as
-   * europe_sell_hold. Cite: Colonization.pdf Europe buy/sell + tax;
+   * gross = bid * amount, net = gross - gross * tax / 100 (FUN_364b_0688 via
+   * europe_net_after_tax) — same Crown cut as europe_sell_hold.
+   * Cite: Colonization.pdf Europe buy/sell + tax;
    * docs/manual_gap.md Europe commodity trade.
    */
   if (!eu || !units) {

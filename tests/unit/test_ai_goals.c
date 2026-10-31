@@ -282,7 +282,7 @@ static int case_indian_hostility_gate(void) {
   memset(&pool, 0, sizeof(pool));
   pool.units[0].active = true;
   pool.units[0].id = 1;
-  pool.units[0].home_tribe_id = 1; /* village 1 of the tribe array */
+  pool.units[0].home_tribe_index = 1; /* village 1 of the tribe array */
   units_pool_sync(&pool);
 
   const int me = 2;    /* acting Euro nation */

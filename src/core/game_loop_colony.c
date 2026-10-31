@@ -502,7 +502,7 @@ bool game_colony_cheat_key(
     case 't':
     case 'T': {
       int type = game->units_ok ? units_kind_type_index(&game->units, UNITS_KIND_COLONIST) : -1;
-      (void)colonies_cheat_add_colonist(&game->colonies, colony, type);
+      (void)colonies_cheat_add_colonist(colony, type);
       break;
     }
     case 's':
@@ -1467,19 +1467,16 @@ int game_voyage_turns(ColonizeGameState* game, int new_world_x) {
 void game_europe_sail_harbor(ColonizeGameState* game, int hidx) {
   EuropeScreen* eu = &game->europe;
   if (eu->harbor_ships <= 0 || hidx < 0 || hidx >= eu->harbor_ships) {
-    snprintf(eu->status, sizeof(eu->status), "%s", "No ships in harbor.");
+    eu->status[0] = '\0';
     return;
   }
   if (!game->units_ok) {
-    snprintf(eu->status, sizeof(eu->status), "%s", "Cannot sail: units unavailable.");
+    eu->status[0] = '\0';
     return;
   }
   EuropeHarborShip* hs = &eu->harbor[hidx];
   if (hs->type_index < 0) {
-    const int resolved = units_find_type(&game->units, hs->name);
-    if (resolved >= 0) {
-      hs->type_index = resolved;
-    }
+    hs->type_index = europe_ship_type_index(&game->units, hs);
   }
   europe_set_sail_from_harbor(
     eu, hidx, game_voyage_turns(game, hs->exit_x), &game->units, game->human_nation
@@ -1502,7 +1499,7 @@ void game_europe_sail_harbor(ColonizeGameState* game, int hidx) {
 void game_europe_request_sail(ColonizeGameState* game, int hidx) {
   EuropeScreen* eu = &game->europe;
   if (eu->harbor_ships <= 0 || hidx < 0 || hidx >= eu->harbor_ships) {
-    snprintf(eu->status, sizeof(eu->status), "%s", "No ships in harbor.");
+    eu->status[0] = '\0';
     return;
   }
   game_enqueue_yes_no(
@@ -1547,7 +1544,7 @@ bool game_europe_drag_drop(ColonizeGameState* game, int mx, int my, bool shift) 
         europe_buy_cargo_w(&w, game->human_nation, hidx, drag->index, drag->amount > 0 ? drag->amount : 100);
         game_europe_drain_price_events(game);
       } else {
-        snprintf(eu->status, sizeof(eu->status), "%s", "Select a ship first.");
+        eu->status[0] = '\0';
       }
     }
   } else if (kind == UI_DRAG_EUROPE_HOLD) {

@@ -531,10 +531,7 @@ void game_europe_deliver_bound_ships(ColonizeGameState* game) {
 
     char name[32];
     snprintf(name, sizeof(name), "%s", slot->name);
-    int type_index = slot->type_index;
-    if (type_index < 0) {
-      type_index = units_find_type(&game->units, name); /* purchased ship, never resolved */
-    }
+    const int type_index = europe_ship_type_index(&game->units, slot); /* purchased: kind_plus1 */
     if (type_index < 0) {
       diag_warn("Europe arrival: could not resolve ship type for '%s' — parked in lane", name);
       break;
@@ -1179,8 +1176,9 @@ static int game_trade_stop_coords(
 }
 
 /*
- * Aim TRADE_ROUTE unit at stop index. OpenCol stand-in: follow_unit_id = route
- * slot (0..11); col1_counter16 = stop index. Load/unload nibbles still thin.
+ * Aim TRADE_ROUTE unit at stop index. Route cursor while orders == TRADE_ROUTE:
+ * follow_unit_id = trade_route[] slot (0..11, not a unit id), col1_counter16 = stop
+ * index; DOS packs both into the unit +0x17 profession byte (col1_bridge.c).
  */
 int game_trade_route_aim_stop(ColonizeGameState* game, ColonizeUnit* u, int stop_i) {
   if (!game || !game->col1_ok || !u || u->orders != UNITS_ORDER_TRADE_ROUTE) {
@@ -1211,8 +1209,8 @@ int game_trade_route_aim_stop(ColonizeGameState* game, ColonizeUnit* u, int stop
 
 /*
  * Stop service (before advancing): Europe=999 ship sells holds; own colony
- * uses colonies_trade_route_service_stop (Col1 load/unload nibbles when set).
- * TRADE Edit nibble UI still thin. Cite: ColonizeCol1TradeStop;
+ * uses colonies_trade_route_service_stop (Col1 load/unload nibbles when set;
+ * edited on trade_screen.c). Cite: ColonizeCol1TradeStop;
  * Colonization.pdf Trade Routes.
  */
 static void game_trade_route_service_stop(ColonizeGameState* game, ColonizeUnit* u) {
@@ -1905,36 +1903,38 @@ static GameMenuActionStatus game_menu_action_orders(ColonizeGameState* game, Map
     case MAP_MENU_ACTION_CLEAR_FOREST:
     case MAP_MENU_ACTION_PLOW_FIELDS: {
       const int sid = game->units.selected_id;
-      char msg[96];
-      msg[0] = '\0';
+      char buf[96];
+      UnitsPioneerReason why = UNITS_PIONEER_OK;
       /* @INDIANFOREST: thunk_FUN_1000_91fc asks when the clear order is given (game_pioneer_land_gate). */
       if (game_pioneer_land_gate(game, GAME_INDIAN_LAND_FOREST)) {
         return GAME_MENU_ACTION_DONE;
       }
       const ColonizeWorld w = game_world(game);
       if (!game->world_map_ok || !game->units_ok ||
-          !units_pioneer_plow_w(&w, sid, msg, sizeof(msg), &game->ai_popups, &game->messages)) {
+          !units_pioneer_plow_w(&w, sid, &why, &game->ai_popups, &game->messages)) {
+        const char* msg = game_pioneer_reason_text(&game->messages, why, buf, sizeof(buf));
         set_status(game, msg[0] ? msg : "Cannot plow", NULL);
       } else {
-        set_status(game, msg, NULL);
+        set_status(game, game_pioneer_reason_text(&game->messages, why, buf, sizeof(buf)), NULL);
         game_wait_next_unit(game);
       }
       return GAME_MENU_ACTION_DONE;
     }
     case MAP_MENU_ACTION_BUILD_ROAD: {
       const int sid = game->units.selected_id;
-      char msg[96];
-      msg[0] = '\0';
+      char buf[96];
+      UnitsPioneerReason why = UNITS_PIONEER_OK;
       /* @INDIANROAD: thunk_FUN_1000_9304 asks when the road order is given (game_pioneer_land_gate). */
       if (game_pioneer_land_gate(game, GAME_INDIAN_LAND_ROAD)) {
         return GAME_MENU_ACTION_DONE;
       }
       const ColonizeWorld w = game_world(game);
       if (!game->world_map_ok || !game->units_ok ||
-          !units_pioneer_road_w(&w, sid, msg, sizeof(msg), &game->ai_popups, &game->messages)) {
+          !units_pioneer_road_w(&w, sid, &why, &game->ai_popups, &game->messages)) {
+        const char* msg = game_pioneer_reason_text(&game->messages, why, buf, sizeof(buf));
         set_status(game, msg[0] ? msg : "Cannot build road", NULL);
       } else {
-        set_status(game, msg, NULL);
+        set_status(game, game_pioneer_reason_text(&game->messages, why, buf, sizeof(buf)), NULL);
         game_wait_next_unit(game);
       }
       return GAME_MENU_ACTION_DONE;

@@ -390,10 +390,6 @@ int reports_clamp_nation(int human_nation) {
 }
 
 
-bool reports_unit_in_europe(int x, int y) {
-  return x >= 200 || y >= 200;
-}
-
 /* True if (x,y) is one of this nation's own colony tiles — a unit standing
  * there (garrison, e.g.) counts as "In Colonies" for the labor report even
  * though it's a separate col1->unit[] record, not colony population. */

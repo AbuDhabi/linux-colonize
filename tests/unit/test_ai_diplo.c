@@ -154,9 +154,6 @@ static int case_declare_peace_narrative(void) {
   if (!ai_diplo_at_war(&col1, 0, 1) || ai_diplo_at_war(&col1, 0, 2)) {
     return fail("ai_diplo_at_war should report the declared pair only");
   }
-  if (!ai_diplo_at_war_with_any(&col1, 0) || ai_diplo_at_war_with_any(&col1, 2)) {
-    return fail("ai_diplo_at_war_with_any should detect any Euro×Euro war");
-  }
   if (col1.nation[0].unknown26[1] != 0 || col1.nation[1].unknown26[0] != 0) {
     return fail("declare_war must not seed a war-fatigue treaty timer");
   }
@@ -908,8 +905,8 @@ static int case_r3_r4_sugar_rum_cigars_boycott(void) {
     if ((sg.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_SUGAR_BIT) == 0) {
       return fail("peace must not lift a king Sugar boycott (port_bugs.md #1104)");
     }
-    if (ai_diplo_at_war_with_any(&sg, 0) || ai_diplo_at_war(&sg, 0, 1)) {
-      return fail("after peace, at_war / at_war_with_any should be clear");
+    if (ai_diplo_at_war(&sg, 0, 1)) {
+      return fail("after peace, at_war should be clear");
     }
 
     /* R4/R11: no Rum+Cigars+Cotton wartime boycott on declare. */
@@ -1203,10 +1200,10 @@ static int case_marathon3_franklin_peace_gate(void) {
     fr.head.founding_father[FF_BENJAMIN_FRANKLIN] = 0;
     fr.nation[0].founding_fathers[FF_BENJAMIN_FRANKLIN / 8] |=
       (uint8_t)(1u << (FF_BENJAMIN_FRANKLIN % 8));
-    if (!founding_fathers_franklin_keeps_nw_peace(&fr, 0)) {
+    if (!founding_fathers_nation_has(&fr, 0, FF_BENJAMIN_FRANKLIN)) {
       return fail("M3R1 Franklin: ownership gate should be true for nation 0");
     }
-    if (founding_fathers_franklin_keeps_nw_peace(&fr, 1)) {
+    if (founding_fathers_nation_has(&fr, 1, FF_BENJAMIN_FRANKLIN)) {
       return fail("M3R1 Franklin: peer without FF must not keep NW peace alone");
     }
 

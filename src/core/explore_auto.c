@@ -70,13 +70,12 @@ static bool explore_auto_unsafe(const ColonizeWorld* w, const ColonizeUnit* u, i
   }
   for (int dy = -1; dy <= 1; ++dy) {
     for (int dx = -1; dx <= 1; ++dx) {
-      const int occ = units_id_at(w->units, x + dx, y + dy);
-      const ColonizeUnit* o = occ >= 0 ? units_get_const(w->units, occ) : NULL;
-      if (!o || o->nation_id == u->nation_id) {
-        continue;
-      }
-      if ((dx == 0 && dy == 0) || explore_auto_hostile(w, u->nation_id, o->nation_id)) {
-        return true;
+      int slot = 0;
+      for (const ColonizeUnit* o; (o = units_next_on_tile_const(w->units, x + dx, y + dy, &slot));) {
+        if (o->nation_id != u->nation_id &&
+            ((dx == 0 && dy == 0) || explore_auto_hostile(w, u->nation_id, o->nation_id))) {
+          return true;
+        }
       }
     }
   }
@@ -140,13 +139,6 @@ static int explore_auto_ship_gain(const ColonizeWorldMap* map, int nation, int x
   return g.unseen;
 }
 
-static void explore_auto_cancel(ColonizeUnitPool* pool, ColonizeUnit* u) {
-  u->automated = false;
-  if (u->orders == UNITS_ORDER_GOTO) {
-    units_clear_orders(pool, u->id);
-  }
-}
-
 void explore_auto_step(const ColonizeWorld* w, ColonizeUnit* u) {
   if (!w || !w->map || !w->units || !u || !u->automated || !explore_auto_is_explorer(w->units, u)) {
     return;
@@ -154,7 +146,7 @@ void explore_auto_step(const ColonizeWorld* w, ColonizeUnit* u) {
   ColonizeUnitPool* pool = w->units;
   const ColonizeWorldMap* map = w->map;
   if (!explore_auto_allowed(pool, u) || u->nation_id < 0 || u->nation_id > 3) {
-    explore_auto_cancel(pool, u);
+    units_automate_cancel(pool, u);
     return;
   }
   if (!units_is_on_map(u)) {
@@ -226,7 +218,7 @@ void explore_auto_step(const ColonizeWorld* w, ColonizeUnit* u) {
       }
     }
     if (best_x < 0) {
-      explore_auto_cancel(pool, u);
+      units_automate_cancel(pool, u);
       return;
     }
     if (u->orders == UNITS_ORDER_GOTO && u->goto_x == best_x && u->goto_y == best_y) {
@@ -247,7 +239,7 @@ void explore_auto_step(const ColonizeWorld* w, ColonizeUnit* u) {
     tried_x[attempt] = best_x;
     tried_y[attempt] = best_y;
   }
-  explore_auto_cancel(pool, u);
+  units_automate_cancel(pool, u);
 }
 
 bool explore_auto_automate(const ColonizeWorld* w, ColonizeUnit* u) {
@@ -324,16 +316,8 @@ void explore_auto_deserialize(const uint8_t* data, size_t size, ColonizeUnitPool
     return;
   }
   for (int k = 0; k < autos; ++k, p += 3) {
-    /* ponytail: two explorers of one kind sharing a tile may swap which one is automated. */
-    for (int i = 0; units && i < units_slot_end(units); ++i) {
-      ColonizeUnit* u = &units->units[i];
-      if (u->active && !u->automated && u->x == p[0] && u->y == p[1] &&
-          u->nation_id == (p[2] & 0x7f) &&
-          ((p[2] & 0x80) ? explore_auto_is_ship(units, u) : explore_auto_is_scout(units, u))) {
-        u->automated = true;
-        break;
-      }
-    }
+    units_automate_reattach(units, p[0], p[1], p[2] & 0x7f,
+                            (p[2] & 0x80) ? explore_auto_is_ship : explore_auto_is_scout);
   }
   const int visited = p[0] | (p[1] << 8);
   p += 2;

@@ -49,11 +49,11 @@ bool colony_yield_colony_has_docks(
  *     colony_yield_worked_tiles_begin(&it, colony);
  *     while (colony_yield_worked_tiles_next(&it, &w)) { ... }
  *
- * and then the caller's own 9-argument yield call, unchanged:
+ * and then the caller's own 8-argument yield call, unchanged:
  *
  *     colony_yield_for_worker(map, w.x, w.y, w.colonist->field_job,
  *                             w.colonist->profession, has_docks,
- *                             sol_bonus, colony->colony_flags, has_hudson)
+ *                             sol_bonus, has_hudson)
  *
  * The iterator deliberately does NOT make that call itself: has_docks,
  * sol_bonus and has_hudson are per-colony answers the three callers derive
@@ -148,7 +148,6 @@ int colony_yield_for_worker(
   int profession,
   bool has_docks,
   int sol_bonus,
-  uint8_t colony_flags,
   bool has_hudson
 );
 

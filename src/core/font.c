@@ -226,6 +226,10 @@ static int font_text_width_run(
   return width;
 }
 
+int font_char_advance(const ColonizeFont* font, unsigned char ch) {
+  return font_face_advance(font, ch, false);
+}
+
 int font_text_width_skip(const ColonizeFont* font, const char* text, const char* skipset) {
   return font_text_width_run(font, text, skipset, false);
 }
@@ -249,79 +253,35 @@ bool font_glyph_ink_bounds(
   if (!out_min_x || !out_min_y || !out_max_x || !out_max_y) {
     return false;
   }
-  int min_x = 0;
-  int min_y = 0;
+  /* Draw the glyph once into a scratch cell (every shade inked as 1) and scan
+   * it, so the FF decode lives only in draw_ff_glyph. A face's cell is at most
+   * 255x255 (uint8_t widths/height); the builtin glyph is 5x7. */
+  const bool face = font && font->section_data;
+  const int w = face ? (ch < 128 ? font->char_widths[ch] : 0) : 5;
+  const int h = face ? font->max_height : 7;
+  if (w <= 0 || h <= 0) {
+    return false;
+  }
+  static const uint8_t k_ink[4] = {0, 1, 1, 1};
+  uint8_t px[255 * 255];
+  memset(px, 0, (size_t)w * (size_t)h);
+  ColonizeFramebuffer8 cell = {.width = w, .height = h, .pixels = px};
+  font_draw_glyph_shaded(font, &cell, 0, 0, ch, k_ink);
+  int min_x = w;
+  int min_y = h;
   int max_x = -1;
   int max_y = -1;
-  bool any = false;
-
-  if (font && font->section_data && ch < 128 && font->char_widths[ch] != 0) {
-    const int width = font->char_widths[ch];
-    const int height = font->max_height;
-    size_t pos = font->char_offsets[ch];
-    min_x = width;
-    min_y = height;
-    for (int row = 0; row < height; ++row) {
-      int col = 0;
-      while (col < width) {
-        if (pos >= font->section_size) {
-          break;
-        }
-        const uint8_t byte = font->section_data[pos++];
-        for (int shift = 6; shift >= 0; shift -= 2) {
-          const uint8_t shade = (uint8_t)((byte >> shift) & 0x03u);
-          if (shade != 0) {
-            if (col < min_x) {
-              min_x = col;
-            }
-            if (col > max_x) {
-              max_x = col;
-            }
-            if (row < min_y) {
-              min_y = row;
-            }
-            if (row > max_y) {
-              max_y = row;
-            }
-            any = true;
-          }
-          col += 1;
-          if (col >= width) {
-            break;
-          }
-        }
-      }
-    }
-  } else if (!(font && font->section_data)) {
-    if (ch < 32 || ch > 126) {
-      ch = '?';
-    }
-    const uint8_t* glyph = FONT5X7[ch - 32];
-    min_x = 5;
-    min_y = 7;
-    for (int col = 0; col < 5; ++col) {
-      uint8_t bits = glyph[col];
-      for (int row = 0; row < 7; ++row) {
-        if (bits & (1u << row)) {
-          if (col < min_x) {
-            min_x = col;
-          }
-          if (col > max_x) {
-            max_x = col;
-          }
-          if (row < min_y) {
-            min_y = row;
-          }
-          if (row > max_y) {
-            max_y = row;
-          }
-          any = true;
-        }
+  for (int row = 0; row < h; ++row) {
+    for (int col = 0; col < w; ++col) {
+      if (px[row * w + col]) {
+        min_x = col < min_x ? col : min_x;
+        max_x = col > max_x ? col : max_x;
+        min_y = row < min_y ? row : min_y;
+        max_y = row > max_y ? row : max_y;
       }
     }
   }
-
-  if (!any) {
+  if (max_x < 0) {
     return false;
   }
   *out_min_x = min_x;

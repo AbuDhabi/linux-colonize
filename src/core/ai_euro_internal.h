@@ -161,10 +161,10 @@ void ai_euro_refresh_colony_ai_flags(
   ColonizeColony* c
 );
 int ai_euro_at_war_any_peer(const ColonizeCol1Save* col1, int nation_id);
-int ai_euro_is_military_name(ColonizeUnitKind k);
-int ai_euro_is_artillery_name(ColonizeUnitKind kind);
+int ai_euro_is_military_kind(ColonizeUnitKind k);
+int ai_euro_is_artillery_kind(ColonizeUnitKind kind);
 int ai_euro_land_is_fortified(const ColonizeUnit* u);
-int ai_euro_is_treasure_name(ColonizeUnitKind kind);
+int ai_euro_is_treasure_kind(ColonizeUnitKind kind);
 
 bool ai_euro_5952_job_is_expert(int job);
 /* local_80/local_1e/local_7e placement-section gate (raw 94570-94584,
@@ -216,7 +216,6 @@ void ai_euro_5952_colony_prelude(
   ColonizeTurnContext* ctx, int nation_id, ColonizeColony* c
 );
 void ai_euro_set_goto(ColonizeUnit* u, int orders, int gx, int gy);
-int ai_euro_is_ship_type(const ColonizeUnitPool* units, int unit_id);
 int ai_euro_unit_hold_has_capacity(const ColonizeUnitPool* units, const ColonizeUnit* w);
 int ai_euro_hauler_free_holds(const ColonizeUnitPool* units, const ColonizeUnit* u);
 int ai_euro_20e6_ship_hold_budget(
@@ -233,7 +232,6 @@ int ai_euro_4393_work_queue_haul_pick(
   int* out_x,
   int* out_y
 );
-extern uint8_t ai_euro_s_20e6_wagon_errand[COLONIZE_UNITS_MAX];
 extern int16_t ai_euro_s_0a60_work_registered[4];
 extern uint16_t ai_euro_s_0a60_mask_mil[4];
 extern uint16_t ai_euro_s_0a60_mask_found[4];
@@ -246,7 +244,7 @@ int ai_euro_try_wagon_haul(
 );
 void ai_euro_found_with_unit(ColonizeTurnContext* ctx, ColonizeUnit* founder, int nation_id);
 void ai_euro_colony_inventory(ColonizeTurnContext* ctx, int nation_id);
-int ai_euro_type_is_wagon_name(ColonizeUnitKind kind);
+int ai_euro_is_wagon_kind(ColonizeUnitKind kind);
 extern ColonizeTurnContext* ai_euro_s_5d04_ctx;
 extern int ai_euro_s_5d04_nation;
 int ai_euro_5d04_port_type_for(const ColonizeUnitPool* pool, int dos_code);
@@ -260,7 +258,6 @@ void ai_euro_nation_planning(ColonizeTurnContext* ctx, int nation_id);
 #define AI_EURO_F3148_FOUND 0x04u /* stack_has_founders_or_military */
 #define AI_EURO_F3148_MIL 0x08u   /* stack_has_military */
 #define AI_EURO_F3148_SPARE 0x20u /* spare-transport mark */
-int ai_euro_0a60_goods_holds_used(const ColonizeUnitPool* units, const ColonizeUnit* u);
 void ai_euro_0a60_goal_orders_structural(ColonizeTurnContext* ctx, int nation_id);
 void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id);
 int ai_euro_village_nation_at(const ColonizeCol1Save* col1, int x, int y);
@@ -392,7 +389,7 @@ void ai_euro_5952_178f_unseat(
   const ColonizeWorld* world, ColonizeColony* col, int s, const AiEuro28c8JobCandidate* best
 );
 void ai_euro_try_attack(ColonizeTurnContext* ctx, ColonizeUnit* u, int tx, int ty);
-int ai_euro_is_cargo_ship_name(ColonizeUnitKind kind);
+int ai_euro_is_cargo_ship_kind(ColonizeUnitKind kind);
 int ai_euro_20e6_load_pick(
   ColonizeTurnContext* ctx,
   const ColonizeColony* c,

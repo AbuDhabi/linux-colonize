@@ -1359,7 +1359,7 @@ COLONIZE_INTERNAL int ai_goals_stack_settler_pick(
  *   DS:0x54f6 = the settlement record's own attitude[euro] word
  *     (ColonizeCol1Tribe.alarm[euro], col1_tribe_attitude — docs/indian_alarm.md
  *     "third layer"), keyed by the *tile unit's* home settlement id (DOS
- *     unit +0x06 / DS:0x314a = ColonizeUnit.home_tribe_id) x the acting Euro
+ *     unit +0x06 / DS:0x314a = ColonizeUnit.home_tribe_index) x the acting Euro
  *     nation. `0x7f < attitude` — over 127, signed.
  *
  * So: an adjacent native only raises a contact claim when the nation is
@@ -1387,7 +1387,7 @@ int ai_goals_filter_profession_by_distance_wealth(
     if (!gate && unit_id >= 0 && units && col1 && col1->tribe &&
         nation_id >= 0 && nation_id < 4) {
       const ColonizeUnit* tu = units_get_const(units, unit_id);
-      const int home = tu ? tu->home_tribe_id : -1;
+      const int home = tu ? tu->home_tribe_index : -1;
       if (home >= 0 && home < (int)col1->head.tribe_count) {
         /*
          * Decomp 87333:

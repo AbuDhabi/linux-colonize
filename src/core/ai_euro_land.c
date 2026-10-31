@@ -454,7 +454,6 @@ void ai_euro_5952_improve_best_plot(
    * AI stream, which this slot never drew from. */
   ColonizeWorld pw = world_from_turn_ctx(ctx);
   pw.rng = NULL;
-  char err[64];
   int worked = 0;
   const int road_bits = ai_euro_5952_tile_road_or_settlement(ctx->map, tx, ty);
   const int plowed = map_tile_is_plowed(ctx->map, tx, ty) ? 0x40 : 0;
@@ -479,10 +478,10 @@ void ai_euro_5952_improve_best_plot(
    * the human order entry from zeroing the 99 (dos_bugs.md DB-46). */
   if (do_plow) {
     ph->orders = UNITS_ORDER_CLEAR_PLOW;
-    worked = units_pioneer_plow_w(&pw, pid, err, sizeof(err), NULL, NULL) ? 1 : 0;
+    worked = units_pioneer_plow_w(&pw, pid, NULL, NULL, NULL) ? 1 : 0;
   } else if (do_road) {
     ph->orders = UNITS_ORDER_BUILD_ROAD;
-    worked = units_pioneer_road_w(&pw, pid, err, sizeof(err), NULL, NULL) ? 1 : 0;
+    worked = units_pioneer_road_w(&pw, pid, NULL, NULL, NULL) ? 1 : 0;
   }
   if (worked) {
     /* FUN_479b_0158 subtracts 0x14 from the byte at +0x3159 before its
@@ -665,10 +664,9 @@ static int ai_euro_5952_road_connect_0000(ColonizeTurnContext* ctx, ColonizeColo
     ph->col1_counter16 = 99;            /* +0x315a = 99 */
     ColonizeWorld pw = world_from_turn_ctx(ctx);
     pw.rng = NULL; /* as in the plow/road slot above: no 00f2 expel roll */
-    char err[64];
     g_units_pioneer_0614_colony = NULL;
     ph->orders = UNITS_ORDER_BUILD_ROAD; /* as above: keep the 99 (DB-46) */
-    const int built = units_pioneer_road_w(&pw, pid, err, sizeof(err), NULL, NULL) ? 1 : 0;
+    const int built = units_pioneer_road_w(&pw, pid, NULL, NULL, NULL) ? 1 : 0;
     if (built) {
       /* FUN_479b_0526 completion calls FUN_479b_0158, which subtracts
        * 0x14 from the physical byte even when it underflows. */
@@ -4249,6 +4247,6 @@ void ai_euro_try_attack(ColonizeTurnContext* ctx, ColonizeUnit* u, int tx, int t
 }
 
 /* Caravel / Merchantman / Galleon — New-World cargo haul (manual trade ships). */
-int ai_euro_is_cargo_ship_name(ColonizeUnitKind kind) {
+int ai_euro_is_cargo_ship_kind(ColonizeUnitKind kind) {
   return kind == UNITS_KIND_CARAVEL || kind == UNITS_KIND_MERCHANTMAN || kind == UNITS_KIND_GALLEON;
 }

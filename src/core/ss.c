@@ -128,11 +128,6 @@ static bool decode_sprite(
 
   memset(out_pixels, bg, (size_t)header->width * (size_t)header->height);
 
-  if (stream_len == 0) {
-    free(decoded);
-    return true;
-  }
-
   if (k >= stream_len) {
     free(decoded);
     return true;
@@ -527,4 +522,18 @@ void ss_tile_rect(
       }
     }
   }
+}
+
+bool ss_load_asset(const char* data_dir, const char* name, ColonizeSpriteSheet* out, const char* tag) {
+  char path[640];
+  char err[256];
+  if (!dos_compat_normalize_asset_path(data_dir, name, path, sizeof(path))) {
+    diag_warn("%s: %s not found.", tag, name);
+    return false;
+  }
+  if (!ss_load(path, out, err, sizeof(err))) {
+    diag_warn("%s: %s failed to load: %s", tag, name, err);
+    return false;
+  }
+  return true;
 }

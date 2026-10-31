@@ -3246,7 +3246,7 @@ static int unit_border_park_does_not_refresh_encounter_timer(void) {
 }
 
 /* 0a60 derives each continent's stance from local presence and strength.
- * A war with an absent peer and the Indian hostility latch add no pressure. */
+ * A war with an absent peer adds no pressure. */
 static int unit_stance_ignores_remote_war_and_sticky(void) {
   Fixture f;
   if (fixture_init(&f, 1) != 0) return 1;
@@ -3262,13 +3262,11 @@ static int unit_stance_ignores_remote_war_and_sticky(void) {
   ai_euro_refresh_continent_stance(&f.ctx, 1);
   const int peaceful = ai_euro_continent_stance_at(1, cid);
   ai_diplo_declare_war(&f.col1, 1, 2);
-  ai_diplo_indian_hostility_set(1, 2);
   ai_euro_refresh_continent_stance(&f.ctx, 1);
   const int hostile = ai_euro_continent_stance_at(1, cid);
-  ai_diplo_indian_hostility_set(1, 0);
   fixture_free(&f);
   if (cid < 0 || peaceful != 0 || hostile != peaceful)
-    return fail("remote war or sticky hostility changed local continent stance");
+    return fail("remote war changed local continent stance");
   return 0;
 }
 

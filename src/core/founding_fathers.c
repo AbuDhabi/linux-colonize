@@ -166,14 +166,6 @@ bool founding_fathers_nation_has(const ColonizeCol1Save* col1, int nation, int f
   return (byte & (uint8_t)(1u << (ff_index % 8))) != 0;
 }
 
-bool founding_fathers_franklin_keeps_nw_peace(const ColonizeCol1Save* col1, int nation) {
-  /*
-   * docs/fandom_col1994.md Benjamin Franklin — NW peer peace gate.
-   * Ownership via founding_fathers_nation_has (per-nation bitmask).
-   */
-  return founding_fathers_nation_has(col1, nation, FF_BENJAMIN_FRANKLIN);
-}
-
 bool founding_fathers_brebeuf_missionaries_are_experts(
   const ColonizeCol1Save* col1,
   int nation
@@ -619,13 +611,6 @@ static bool ff_enqueue_debate_from_slate(
   );
 }
 
-static int16_t advance_next_candidate(const ColonizeCol1Save* col1, int elected_idx) {
-  (void)col1;
-  (void)elected_idx;
-  /* DOS FUN_4345_0342: after elect, next_founding_father = -1 (re-debate). */
-  return -1;
-}
-
 /*
  * DOS FUN_4345_0a22 / 06d2: when next_founding_father < 0, open Congress debate
  * (one unclaimed candidate per @FATHERS type) or AI auto-pick into next.
@@ -967,60 +952,6 @@ static int effect_las_casas_assimilate(
   return touched;
 }
 
-static bool ff_find_coastal_water(
-  ColonizeWorldMap* map,
-  ColonizeColonyPool* colonies,
-  ColonizeUnitPool* units,
-  int nation_id,
-  int* out_x,
-  int* out_y
-) {
-  static const int dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
-  static const int dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
-
-  if (!map || !out_x || !out_y) {
-    return false;
-  }
-
-  if (colonies) {
-    /* Pool bound (colonies_abandon leaves holes and shrinks colony_count). */
-    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-      const ColonizeColony* col = &colonies->colonies[i];
-      if (!col->active || col->nation_id != nation_id) {
-        continue;
-      }
-      if (!map_tile_is_coastal(map, col->x, col->y)) {
-        continue;
-      }
-      for (int d = 0; d < 8; ++d) {
-        const int nx = col->x + dx[d];
-        const int ny = col->y + dy[d];
-        if (map_tile_is_water(map, nx, ny)) {
-          *out_x = nx;
-          *out_y = ny;
-          return true;
-        }
-      }
-    }
-  }
-
-  if (units) {
-    for (int i = 0; i < units_slot_end(units); ++i) {
-      const ColonizeUnit* u = &units->units[i];
-      if (!u->active || u->nation_id != nation_id || !units_is_on_map(u)) {
-        continue;
-      }
-      if (!units_is_sea(units, u->id)) {
-        continue;
-      }
-      *out_x = u->x;
-      *out_y = u->y;
-      return true;
-    }
-  }
-  return false;
-}
-
 /*
  * John Paul Jones: free Frigate. Returns true on spawn.
  *
@@ -1033,17 +964,17 @@ static bool ff_find_coastal_water(
  * So the Frigate is already sailing to America and arrives by itself
  * (port_bugs.md #1328; #467 had read the lane as the Europe dock). Counter 0
  * at 232+n hops on the next 06ba tick exactly like a 1-turn departure, so
- * the human's hull goes into Bound with voyage 1. An AI nation keeps the
- * coastal-water stand-in (the port has no AI Europe model).
+ * the human's hull goes into Bound with voyage 1. Any other nation gets the
+ * DOS hull itself on 232+n, which ai_euro_europe_lane_tick hops to 228+n /
+ * 224+n and places off the landfall goto like any departing AI ship.
  */
 static bool effect_jones_frigate(
-  ColonizeWorldMap* map,
-  ColonizeColonyPool* colonies,
+  ColonizeCol1Save* col1,
   ColonizeUnitPool* units,
   EuropeScreen* europe,
   int nation_id
 ) {
-  if (!units || !map) {
+  if (!units || nation_id < 0 || nation_id > 3) {
     return false;
   }
   /* DOS-LITERAL FUN_4345_0342 case 0xe (raw 73044ff): `095c(0x11, ...)` —
@@ -1061,19 +992,21 @@ static bool effect_jones_frigate(
     const ColonizeUnitType* ty = units_type(units, ship_ty);
     return europe_bound_push(europe, ship_ty, ty && ty->name[0] ? ty->name : "", 1);
   }
-  int sx = 0;
-  int sy = 0;
-  if (!ff_find_coastal_water(map, colonies, units, nation_id, &sx, &sy)) {
-    return false;
-  }
-  const int sid = units_spawn_allow_stack(units, ship_ty, sx, sy);
-  if (sid < 0) {
-    return false;
-  }
+  /* 095c(0x11, n, n - 0x18, n - 0x18): x = y = 232+n as a byte. */
+  const int lane = 232 + nation_id;
+  const int sid = units_spawn_allow_stack_nation(units, ship_ty, lane, lane, nation_id);
   ColonizeUnit* ship = units_get(units, sid);
-  if (ship) {
-    units_set_nation(ship, nation_id);
+  if (!ship) {
+    return false;
   }
+  units_set_nation(ship, nation_id);
+  ship->orders = UNITS_ORDER_NONE; /* +0x314c = 0 */
+  if (col1) {
+    /* +0x314d/e = nation +0x32/+0x33 (-0x77c6/-0x77c5). */
+    ship->goto_x = col1->nation[nation_id].return_from_europe_x;
+    ship->goto_y = col1->nation[nation_id].return_from_europe_y;
+  }
+  ship->col1_counter16 = 0; /* +0x315a */
   return true;
 }
 
@@ -1224,7 +1157,7 @@ static void apply_effect(
       break;
     case FF_JOHN_PAUL_JONES:
       /* Manual/wiki: free Frigate. No gold fallback. */
-      (void)effect_jones_frigate(map, colonies, units, europe, nation_id);
+      (void)effect_jones_frigate(col1, units, europe, nation_id);
       break;
     case FF_THOMAS_JEFFERSON:
       /* Wiki: liberty bell production of statesmen +50%.
@@ -1341,7 +1274,8 @@ static bool elect_commit(
   if (nat->founding_father_count < 65535u) {
     nat->founding_father_count++;
   }
-  nat->next_founding_father = advance_next_candidate(col1, idx);
+  /* DOS FUN_4345_0342: after elect, next_founding_father = -1 (re-debate). */
+  nat->next_founding_father = -1;
 
   EuropeScreen* europe = (nation_id == ctx->human_nation) ? ctx->europe : NULL;
   apply_effect(ctx, col1, nat, europe, nation_id, ctx->human_nation, idx);

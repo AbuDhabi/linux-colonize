@@ -281,12 +281,7 @@ void turn_clear_mp_spent_all_nations(ColonizeUnitPool* pool);
  * map may be NULL; when non-NULL with col1, arms native settlement fallout
  * (FUN_5fef_31ea-shaped).
  */
-void turn_refresh_moves_for_nation_w(
-  const ColonizeWorld* w,
-  int nation_id,
-  AiPopupState* ai_popups,
-  const ColonizeMsgCatalog* messages
-);
+void turn_refresh_moves_for_nation_w(const ColonizeWorld* w, int nation_id);
 /* Select next human unit with moves > 0; centers not done here. */
 /* FUN_1427_1410 eligibility: the rotation filter turn_select_next_unit applies. */
 bool turn_unit_in_rotation(const ColonizeUnitPool* pool, const ColonizeUnit* u, int human_nation);
@@ -313,10 +308,8 @@ bool turn_rotation_lasting_step_w(
   const ColonizeWorld* w, ColonizeUnit* u, AiPopupState* ai_popups,
   const ColonizeMsgCatalog* messages
 );
-/* Headless idle human turn: cycle every unit, Space on each that waits. */
 /* FUN_1427_08ea: make `u` the active unit, relinked to the top of its tile. */
 void turn_idle_human_activate(ColonizeUnitPool* pool, ColonizeUnit* u);
-void turn_idle_human_rotation_w(const ColonizeWorld* w, int human_nation);
 
 /* Read Col1 end_of_turn / autosave option bits (false if no save). */
 bool turn_option_end_of_turn(const ColonizeCol1Save* col1, bool col1_ok);

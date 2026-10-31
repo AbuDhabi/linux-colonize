@@ -986,7 +986,7 @@ static int run_init_and_turns(
         return 1;
       }
       ColonizeWorld w820 = world_make(&units, NULL, NULL, NULL, false, NULL, NULL);
-      turn_refresh_moves_for_nation_w(&w820, rival, NULL, NULL);
+      turn_refresh_moves_for_nation_w(&w820, rival);
       ai_euro_nation_turn(&ctx, rival);
       if (units.selected_id != human_sel) {
         fprintf(

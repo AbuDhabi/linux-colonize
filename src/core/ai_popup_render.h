@@ -11,7 +11,6 @@
 
 #include <stdbool.h>
 
-int ai_popup_option_at_y(const AiPopupState* st, int mouse_y);
 void ai_popup_finish(AiPopupState* st, bool cancelled, int choice_id);
 
 #endif /* COLONIZE_CORE_AI_POPUP_RENDER_H */

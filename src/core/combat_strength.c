@@ -261,13 +261,13 @@ static int combat_woi_active(const ColonizeCol1Save* col1) {
   return col1->head.game_options.woi != 0;
 }
 
-static int combat_ref_present(const ColonizeCol1Save* col1) {
+static int combat_intervention_announced(const ColonizeCol1Save* col1) {
   if (!col1) {
     return 0;
   }
   /* DOS-LITERAL: DS:0x5382 bit 0x02 (raw 100504) = "foreign intervention
    * announced" (FUN_43f7_1528 raw 74493), not "REF landed" — port_bugs.md #865. */
-  return col1->head.game_options.ref_present != 0;
+  return col1->head.game_options.intervention_announced != 0;
 }
 
 /*
@@ -817,7 +817,7 @@ static void combat_apply_1b0e_peels(
     } else {
       /* On colony: +50% if crown attacker OR intervention announced
        * (raw 100504 `0x5382 & 2`; 0x8d01|0x80). */
-      if (atk_is_crown || combat_ref_present(ctx->col1)) {
+      if (atk_is_crown || combat_intervention_announced(ctx->col1)) {
         io->atk_strength += io->atk_strength >> 1;
         io->atk_flags.flags |= COMBAT_FLAG_REF;
         /*

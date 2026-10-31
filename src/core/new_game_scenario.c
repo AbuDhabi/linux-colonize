@@ -1,7 +1,6 @@
 /*
  * @SCENARIO start-tile lookup, split out of new_game.c 2026-09-16 so ai.c can
- * place the landfall without linking the new-game wizard screens. Pure move:
- * the body is byte-identical to its new_game.c original.
+ * place the landfall without linking the new-game wizard screens.
  *
  * This file is SIM.
  */
@@ -30,6 +29,9 @@ bool new_game_scenario_start(
    * left nations 2 and 3 sharing a tile -- two AI fleets stacked on the same
    * water with nowhere to sail.
    */
+  /* AMER2's row, kept for a NAMES.TXT miss or an unlisted stem: the callers'
+   * own fallbacks are one tile for every nation (game_loop_render 39,10;
+   * ai.c human_start), which would stack all four fleets. */
   int xs[4] = {34, 39, 47, 50};
   int ys[4] = {20, 10, 61, 33};
   if (names_txt && map_stem) {
@@ -40,7 +42,7 @@ bool new_game_scenario_start(
         if (!line || line[0] == '\0' || line[0] == ';') {
           continue;
         }
-        char stem[64];
+        char stem[64] = ""; /* a row led by ',' leaves %[ unmatched */
         int px[4] = {0, 0, 0, 0};
         int py[4] = {0, 0, 0, 0};
         int n = sscanf(

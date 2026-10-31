@@ -945,7 +945,7 @@ int ai_native_pick_dir_021a(
   const int cool = turn_w + turn_w / -25; /* 021a:22b idiv by -25 */
   const int unit_fa = ai_mask_fa_flags(map, x, y) & 0x0a;
   const int unit_river = (int)(map_get_terrain_or(map, x, y, 25) & 0x40u);
-  const int home = u->home_tribe_id;
+  const int home = u->home_tribe_index;
   const int dump = ai_score_at_match(nation_id, x, y);
 
   /* 0x291: FUN_1427_0bce — 0 when standing on a settlement tile. */
@@ -1195,7 +1195,7 @@ int ai_native_021a_tail(
     const int col_idx = ai_goals_nearest_colony_15eb_0142(
       map, ai_s_native_colonies, u->x, u->y, -1, continent, &col_dist
     );
-    const int home = u->home_tribe_id;
+    const int home = u->home_tribe_index;
     const ColonizeCol1Tribe* village =
       (home >= 0 && home < (int)col1->head.tribe_count) ? &col1->tribe[home] : NULL;
     if (col_idx >= 0 && village) {

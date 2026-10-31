@@ -988,7 +988,7 @@ static void ai_euro_5d04_cb_unit_exhaust(int idx) {
   {
     const ColonizeUnit* sh = units_get(ctx->units, ship_id);
     int room = sh ? units_ship_capacity(ctx->units, ship_id) -
-                      (sh->cargo_count + ai_euro_0a60_goods_holds_used(ctx->units, sh))
+                      (sh->cargo_count + units_holds_used(ctx->units, sh->id))
                   : 0;
     for (int k = 0; k < n && room > 0; ++k) {
       ColonizeUnit* u = ai_euro_5d04_cb_unit(order[k]);
@@ -1443,7 +1443,7 @@ static void ai_euro_5d04_hire_tail_colony_demand(Ai5d04HireTail* t) {
         europe_nation_gold_add(ctx->europe, ctx->col1, nation_id, -(long)adj);
       }
     }
-    int bought_this_iteration = 0; /* DOS bVar8_2 */
+    int bought_this_iteration; /* DOS bVar8_2 */
     int buy_guard = 0;
     do {
       if (++buy_guard > 64) {
@@ -1594,7 +1594,6 @@ static void ai_euro_5d04_hire_tail_departing_ships(Ai5d04HireTail* t) {
     }
     int idx2 = ai_euro_5d04_cb_list_iter_first(-1);
     while (!matched && idx2 >= 0) {
-      int next2 = idx2;
       const ColonizeUnit* ship2 = ai_euro_5d04_cb_unit(idx2);
       const int flags3148 = (ship2 && ship2->col1_flags15 & 0x80) ? 0x80 : 0; /* damaged */
       const int dispatch2 = ai_euro_5d04_cb_unit_dispatch_byte(idx2);
@@ -1641,7 +1640,6 @@ static void ai_euro_5d04_hire_tail_departing_ships(Ai5d04HireTail* t) {
           hired_this_pass = 0;
           matched = 1;
           ai_euro_5d04_cb_unit_exhaust(idx2);
-          next2 = idx2;
         } else {
           for (int p = 15; p >= 0; --p) {
             /* raw: break when 0x5237[type] (capacity) == unit+0x3150 (cargo). */
@@ -1651,7 +1649,7 @@ static void ai_euro_5d04_hire_tail_departing_ships(Ai5d04HireTail* t) {
              * (port_bugs.md #530 side lead; same finding as #527): a passenger
              * never occupies a DOS hold, so a transport carrying colonists
              * still buys cargo here. */
-            const int used = ai_euro_0a60_goods_holds_used(ctx->units, sh);
+            const int used = units_holds_used(ctx->units, sh->id);
             if (cap == used || f->cargo_short || !has_any_colony) {
               break;
             }
@@ -1672,11 +1670,9 @@ static void ai_euro_5d04_hire_tail_departing_ships(Ai5d04HireTail* t) {
           }
           ai_euro_5d04_cb_unit_exhaust(idx2);
           matched = 1;
-          next2 = idx2;
         }
       }
-      next2 = ai_euro_5d04_cb_list_iter_next(idx2);
-      idx2 = next2;
+      idx2 = ai_euro_5d04_cb_list_iter_next(idx2);
     }
   } while (matched);
 

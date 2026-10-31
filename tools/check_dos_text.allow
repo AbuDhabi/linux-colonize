@@ -1,7 +1,6 @@
 # path|normalised fragment|reason   (tools/check_dos_text.py)
 # Reviewed false positives: generic short phrases that also occur in the DOS text, or port-invented
 # wording. Rows marked "reviewed:" were checked by hand after the 2026-10-22 sweep.
-src/core/ai_contact.c|offer peace|reviewed: port status "The <tribe> offer peace."; TXT hit is Pedia prose. Probably port-invented
 src/core/ai_king_ref.c|the colonies|generic noun phrase used as the colony-name stand-in; the DOS hit is a history sentence in PEDIA
 src/core/europe_dock.c|to front|reviewed: internal arm-row debug names (lower case); probably fine
 src/core/europe_dock.c|sell muskets|reviewed: internal arm-row debug names (lower case); probably fine
@@ -25,7 +24,7 @@ src/core/game_loop_render.c|new world|new-game map-path label (proper noun, part
 src/core/turn.c|end of turn|port status line "End of Turn - <date>"; DOS TXT only has the menu item
 src/core/turn_production.c|need tools|port marker status, popup comes from the catalog; the TXT hit is Pedia prose
 src/core/turn_year_end.c|the king of|port status sentence; the TXT hit is the audience title "The King of %COUNTRY"
-src/core/units_map.c|map edge|port blocked-move status; the TXT hit is Pedia prose
+src/core/game_loop_orders.c|map edge|port blocked-move status; the TXT hit is Pedia prose
 src/core/units_move.c|trade route|lower-case order name (debug/diag)
 src/core/units_move.c|build colony|lower-case order name (debug/diag)
 src/core/units_move.c|build road|lower-case order name (debug/diag)

@@ -429,21 +429,6 @@ void colony_prod_tick_rebel_accumulators(
     pop = 0;
   }
 
-  const int nation_id = colony->nation_id;
-  const int statesmen_pct =
-    (nation_id >= 0 && founding_fathers_nation_has(col1, nation_id, FF_THOMAS_JEFFERSON))
-      ? 50
-      : 0;
-  const int paine_tax_pct =
-    (nation_id >= 0 && nation_id < (int)COLONIZE_COL1_NATION_COUNT &&
-     founding_fathers_nation_has(col1, nation_id, FF_THOMAS_PAINE))
-      ? (int)col1->nation[nation_id].tax_rate
-      : 0;
-  /* DOS-LITERAL FUN_15eb_1f72 raw 12634-12641: the AI bells subsidy needs
-   * both the AI-control gate and FF 0x12 (Bolivar) held. port_bugs.md #938b. */
-  const bool nation_is_ai = nation_id >= 0 && nation_id < (int)COLONIZE_COL1_NATION_COUNT &&
-                             col1->player[nation_id].control != 0 &&
-                             founding_fathers_nation_has(col1, nation_id, FF_SIMON_BOLIVAR);
   /*
    * Real SoL bonus, NOT 0. DOS FUN_364b_0688 computes this colony's bells
    * exactly once (`local_ba = FUN_281f_0b50(0x12, 0)` — the net bells entry of
@@ -471,18 +456,7 @@ void colony_prod_tick_rebel_accumulators(
    * col1 turn, or a tick that never ran Phase A) fall back to a live
    * derivation, which for them IS the pre-tick state.
    */
-  const int sol_b = colony_prod_sol_bonus(col1, colony);
-  /* +1 so that turn 0 still produces a stamp distinct from the "never
-   * composed" 0 — same encoding turn.c writes at the Phase A boundary. */
-  const uint32_t this_turn_stamp = (uint32_t)col1->head.turn + 1u;
-  int bells;
-  if (colony->prod_compose_stamp == this_turn_stamp) {
-    bells = colony->prod_bells_phase_a;
-  } else {
-    bells = colony_prod_colony_bells_ff(
-      pool, colony, statesmen_pct, paine_tax_pct, nation_is_ai, sol_b
-    );
-  }
+  int bells = colony_prod_colony_bells_this_turn(pool, colony, col1);
 
   /*
    * DOS FUN_364b_0688, viceroy_unpacked.c:57349-57357, one if/else with two
@@ -509,7 +483,7 @@ void colony_prod_tick_rebel_accumulators(
    * pair before this tick updates it, matching DOS's read order.
    */
   const int woi = col1->head.game_options.woi != 0;
-  if (woi && nation_id == colony_prod_crown_nation(col1, human_nation)) {
+  if (woi && colony->nation_id == colony_prod_crown_nation(col1, human_nation)) {
     /* WoI + crown-occupied: bells feed Tory (negative half). */
     bells = -(bells >> 1);
   } else if (bells < pop) {
@@ -643,7 +617,6 @@ int colony_prod_colony_crosses_ff(
   }
   const bool colony_has_cathedral =
     colonies_has_building_row(pool, colony, COLONY_BUILDING_CATHEDRAL);
-  int cross_workers = 0;
   for (int p = 0; p < colony->colonist_count; ++p) {
     const ColonizeColonist* c = &colony->colonists[p];
     if (!c->active || c->building_type < 0 || c->building_type >= pool->building_type_count) {
@@ -653,7 +626,6 @@ int colony_prod_colony_crosses_ff(
     if (colonies_building_row_chain(row) != COLONIES_CHAIN_CHURCH) {
       continue;
     }
-    cross_workers++;
     crosses +=
       colony_prod_crosses_worker_row(row, c->profession, sol_bonus, colony_has_cathedral, nation_has_penn);
   }
@@ -662,7 +634,6 @@ int colony_prod_colony_crosses_ff(
    * (FUN_15eb_1f72) never sees it, so an unworked church earns no SoL
    * bonus. The old "attach it to the passives when nobody works" fallback
    * was invented and is gone. */
-  (void)cross_workers;
   return crosses;
 }
 
@@ -700,7 +671,6 @@ int colony_prod_colony_bells_ff(
    * (so an AI nation owning them multiplied it). Both fixed 2026-09-24.
    */
   int bells = 0;
-  int bell_workers = 0;
   for (int p = 0; p < colony->colonist_count; ++p) {
     const ColonizeColonist* c = &colony->colonists[p];
     if (!c->active || c->building_type < 0 || c->building_type >= pool->building_type_count) {
@@ -710,7 +680,6 @@ int colony_prod_colony_bells_ff(
     if (colonies_building_row_chain(row) != COLONIES_CHAIN_TOWN_HALL) {
       continue;
     }
-    bell_workers++;
     /* NOT Jefferson-folded here — manufacturing_worker_calc_1d4c.md's own
      * Statesman-body trace (`15eb:1f18`) is exactly `v = base; if (skill)
      * v <<= 1`, nothing else; no Jefferson/Press/Paine call anywhere in
@@ -725,7 +694,6 @@ int colony_prod_colony_bells_ff(
    * below) but no SoL bonus. The old "attach it to the passive when
    * nobody works" fallback was invented; the crosses sibling above
    * deleted exactly the same thing. */
-  (void)bell_workers;
 
   /* raw 12619: bare `+= 1`, no building test. */
   bells += 1;
@@ -777,6 +745,49 @@ int colony_prod_colony_bells_ff(
     bells = bells * (100 + bonus_pct) / 100;
   }
   return bells;
+}
+
+int colony_prod_colony_bells_nation(
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* colony,
+  const ColonizeCol1Save* col1,
+  int sol_bonus
+) {
+  if (!colony) {
+    return 0;
+  }
+  /* FUN_15eb_1f72 reads the owning nation's Jefferson (3960 flag 0x0f),
+   * Paine (0x11 + tax byte) and, for the AI subsidy, the control byte AND
+   * Bolivar (0x12, raw 12634-12641, port_bugs.md #938b). */
+  const int nation_id = colony->nation_id;
+  const bool in_range = col1 && nation_id >= 0 && nation_id < (int)COLONIZE_COL1_NATION_COUNT;
+  const int statesmen_pct =
+    founding_fathers_nation_has(col1, nation_id, FF_THOMAS_JEFFERSON) ? 50 : 0;
+  const int paine_tax_pct =
+    (in_range && founding_fathers_nation_has(col1, nation_id, FF_THOMAS_PAINE))
+      ? (int)col1->nation[nation_id].tax_rate
+      : 0;
+  const bool ai_subsidy = in_range && col1->player[nation_id].control != 0 &&
+                          founding_fathers_nation_has(col1, nation_id, FF_SIMON_BOLIVAR);
+  return colony_prod_colony_bells_ff(
+    pool, colony, statesmen_pct, paine_tax_pct, ai_subsidy, sol_bonus
+  );
+}
+
+int colony_prod_colony_bells_this_turn(
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* colony,
+  const ColonizeCol1Save* col1
+) {
+  if (!colony) {
+    return 0;
+  }
+  /* +1 so that turn 0 still produces a stamp distinct from the "never
+   * composed" 0 — same encoding turn_produce_compose writes. */
+  if (col1 && colony->prod_compose_stamp == (uint32_t)col1->head.turn + 1u) {
+    return colony->prod_bells_phase_a;
+  }
+  return colony_prod_colony_bells_nation(pool, colony, col1, colony_prod_sol_bonus(col1, colony));
 }
 
 int colony_prod_colony_hammers(

@@ -763,7 +763,7 @@ static void ai_contact_learnstay_apply(
   tok.string1 = ai_contact_job_name(skill);
   char body[AI_POPUP_BODY_LEN];
   popup_msg_fill(ctx->messages, "LEARNDONE", &tok, "", body, sizeof(body));
-  ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_TEACH, nation_id, "Teach", body);
+  ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_TEACH, nation_id, body);
 }
 
 /*
@@ -864,7 +864,7 @@ static void ai_contact_live_among_natives_body(
     if (is_convert) {
       char body[AI_POPUP_BODY_LEN];
       popup_msg_fill(ctx->messages, "TEACHCONVERT", NULL, "", body, sizeof(body));
-      ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_TEACH, nation_id, "Teach", body);
+      ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_TEACH, nation_id, body);
       return;
     }
     /* @JOB 19 ("Colonist") is the port's free-colonist alias (newborns,
@@ -923,7 +923,7 @@ static void ai_contact_live_among_natives_body(
   }
   char body[AI_POPUP_BODY_LEN];
   popup_msg_fill(ctx->messages, section, &tok, "", body, sizeof(body));
-  ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_TEACH, nation_id, "Teach", body);
+  ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_TEACH, nation_id, body);
 }
 
 /*
@@ -1043,7 +1043,7 @@ static void ai_contact_speak_with_chief(
                                     : ai_contact_cargo_name(COLONIZE_CARGO_MUSKETS);
           fb[0] = '\0';
           popup_msg_fill(ctx->messages, "CHIEFHOWDY", &ht, fb, body, sizeof(body));
-          ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, "Chief", body);
+          ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, body);
           village_trade_intel_note_skill(e, t->x, t->y, skill);
           if (want[0] >= 0) {
             village_trade_intel_note_buys(e, t->x, t->y, want, 3);
@@ -1058,13 +1058,13 @@ static void ai_contact_speak_with_chief(
             if (human) {
               fb[0] = '\0';
               popup_msg_fill(ctx->messages, "CHIEFGUIDES", &tok, fb, body, sizeof(body));
-              ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, "Chief", body);
+              ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, body);
               /* OVL13:0x003c2b `PUSH 1 / CALLF FUN_1000_900c` between
                * @CHIEFGUIDES and @WELLSEASONED is FUN_281f_0e1c →
                * FUN_6b7e_00c0, the map-viewport repaint — not a sound cue
                * (port_bugs.md #502). The port repaints every frame; nothing to do. */
               popup_msg_fill(ctx->messages, "WELLSEASONED", NULL, "", body, sizeof(body));
-              ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, "Chief", body);
+              ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, body);
             }
             return;
           }
@@ -1080,7 +1080,7 @@ static void ai_contact_speak_with_chief(
             if (human) {
               fb[0] = '\0';
               popup_msg_fill(ctx->messages, "CHIEFGIFT", &tok, fb, body, sizeof(body));
-              ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, "Chief", body);
+              ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, body);
             }
             /* port_bugs.md: the human's live treasury is EuropeScreen.gold; the
              * accessor picks the store by nation (audit G3). */
@@ -1090,7 +1090,7 @@ static void ai_contact_speak_with_chief(
           /* r == 2, or a seasoned scout rolling 1: tales of nearby lands. */
           if (human) {
             popup_msg_fill(ctx->messages, "CHIEFAREA", &tok, "", body, sizeof(body));
-            ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, "Chief", body);
+            ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, body);
           }
           if (ctx->map) {
             /*
@@ -1114,7 +1114,7 @@ static void ai_contact_speak_with_chief(
         tok.string1 = ai_contact_euro_name(ctx->col1, e);
         fb[0] = '\0';
         popup_msg_fill(ctx->messages, "CHIEFBORED", &tok, fb, body, sizeof(body));
-        ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, "Chief", body);
+        ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, body);
         return;
       }
     }
@@ -1129,14 +1129,14 @@ static void ai_contact_speak_with_chief(
     }
     fb[0] = '\0';
     popup_msg_fill(ctx->messages, "CHIEFKILL", &tok, fb, body, sizeof(body));
-    ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, "Chief", body);
+    ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, body);
     units_despawn(ctx->units, u->id);
     return;
   }
   tok.string1 = ai_contact_euro_name(ctx->col1, e);
   fb[0] = '\0';
   popup_msg_fill(ctx->messages, "CHIEFBORED", &tok, fb, body, sizeof(body));
-  ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, "Chief", body);
+  ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, body);
 }
 
 /*
@@ -1226,35 +1226,35 @@ static void ai_contact_demand_tribute(
           c->stock[good] += qty;
         }
         tok.string0 = title;
-        tok.string1 = reports_tribe_name(nation_id - 4); /* OVL13 0x169d: 0a1a(tribe) */
+        tok.string1 = reports_tribe_display_name(nation_id - 4); /* OVL13 0x169d: 0a1a(tribe) */
         tok.number0 = qty;
         tok.has_number0 = true;
         tok.string2 = ai_contact_cargo_name(good);
         tok.string3 = c ? c->name : "";
         fb[0] = '\0';
         popup_msg_fill(ctx->messages, "EXTORTSTUFF", &tok, fb, body, sizeof(body));
-        ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_DEMAND, nation_id, "Tribute", body);
+        ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_DEMAND, nation_id, body);
       } else {
         tok.string0 = title;
-        tok.string1 = reports_tribe_name(nation_id - 4); /* OVL13 0x1692: 0a1a(tribe) */
+        tok.string1 = reports_tribe_display_name(nation_id - 4); /* OVL13 0x1692: 0a1a(tribe) */
         fb[0] = '\0';
         popup_msg_fill(ctx->messages, "EXTORTPOOR", &tok, fb, body, sizeof(body));
-        ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_DEMAND, nation_id, "Tribute", body);
+        ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_DEMAND, nation_id, body);
         bump = 0;
       }
     } else {
       tok.string0 = title;
       tok.string1 = col1->player[e].name;
-      tok.string2 = reports_tribe_name(nation_id - 4); /* OVL13 0x1689: 0a1a(tribe) */
+      tok.string2 = reports_tribe_display_name(nation_id - 4); /* OVL13 0x1689: 0a1a(tribe) */
       fb[0] = '\0';
       popup_msg_fill(ctx->messages, "EXTORTNO", &tok, fb, body, sizeof(body));
-      ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_DEMAND, nation_id, "Tribute", body);
+      ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_DEMAND, nation_id, body);
     }
   } else {
     tok.string0 = tribe;
     fb[0] = '\0';
     popup_msg_fill(ctx->messages, "EXTORTLAUGH", &tok, fb, body, sizeof(body));
-    ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_DEMAND, nation_id, "Tribute", body);
+    ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_DEMAND, nation_id, body);
   }
   if (bump != 0) {
     ai_contact_alarm_delta_00f2(ctx, nation_id, e, bump); /* full 4cc6_00f2 */
@@ -1515,7 +1515,7 @@ static void ai_contact_denounce_heresy(
     }
     fb[0] = '\0';
     popup_msg_fill(ctx->messages, "HERESY1", &tok, fb, body, sizeof(body));
-    ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_CONVERT, nation_id, "", body);
+    ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_CONVERT, nation_id, body);
     d_them = -d_them;
   } else {
     /* a594 / @HERESY0: human mission takes over (asm 126605-126609). */
@@ -1524,7 +1524,7 @@ static void ai_contact_denounce_heresy(
     }
     fb[0] = '\0';
     popup_msg_fill(ctx->messages, "HERESY0", &tok, fb, body, sizeof(body));
-    ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_CONVERT, nation_id, "", body);
+    ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_CONVERT, nation_id, body);
     /*
      * DB-7 fix extended: the installed mission takes the Jesuit bit on the
      * same test as the establish body (thunk_FUN_1000_a5dc: profession 0x18
@@ -1620,7 +1620,7 @@ static void ai_contact_establish_mission(
   if (ai_contact_euro_is_human(ctx, e)) {
     sound_play(0x8024);
   }
-  ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_CONVERT, nation_id, "", body);
+  ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_CONVERT, nation_id, body);
   t->mission = (uint8_t)e;
   if (u->profession == UNITS_JOB_MISSIONARY || founding_fathers_nation_has(col1, e, FF_JEAN_DE_BREBEUF)) {
     t->mission = (uint8_t)(t->mission | COL1_TRIBE_MISSION_JESUIT_BIT);
@@ -1717,17 +1717,17 @@ int ai_contact_enter_hostile_village(
   char body[AI_POPUP_BODY_LEN];
   if (r <= alarm) {
     popup_msg_fill(ctx->messages, "KILLWAGONS", &tok, "", body, sizeof(body));
-    ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_REFUSE, nation_id, "", body);
+    ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_REFUSE, nation_id, body);
     units_despawn(ctx->units, u->id);
     return 0;
   }
   if (r <= alarm * 2) {
     popup_msg_fill(ctx->messages, "MADATWAGONS", &tok, "", body, sizeof(body));
-    ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_REFUSE, nation_id, "", body);
+    ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_REFUSE, nation_id, body);
     return 0;
   }
   popup_msg_fill(ctx->messages, "GRUDGEWAGONS", &tok, "", body, sizeof(body));
-  ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, "", body);
+  ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, body);
   return 1;
 }
 
@@ -1903,7 +1903,7 @@ static AiContactPopupStatus ai_contact_apply_popup_result_tags(
     } else {
       char body[AI_POPUP_BODY_LEN];
       popup_msg_fill(ctx->messages, "LEARNLATER", NULL, "", body, sizeof(body));
-      ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_TEACH, nation_id, "Teach", body);
+      ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_TEACH, nation_id, body);
     }
     return AI_CONTACT_POPUP_DONE;
   }
@@ -2027,8 +2027,7 @@ static void ai_contact_apply_popup_result_menu(
   case AI_CONTACT_CHOICE_INCITE: {
     /*
      * FUN_4d56_417e Mode 1: show the "whom would you like us to attack"
-     * target-nation CHOICE. No eligible target (every other Euro nation is
-     * the Crown, or the inciter itself) → refuse OK; affordability is NOT a
+     * target-nation CHOICE. Affordability is NOT a
      * row filter in DOS, it is the @UNFORTUNATE answer after the confirm.
      * Re-unpack the same is_missionary/is_capital bits the Meet CHOICE
      * itself was enqueued with (ai_contact_enqueue_village_meet) and carry
@@ -2036,20 +2035,9 @@ static void ai_contact_apply_popup_result_menu(
      */
     const int is_missionary = popup->result_payload & 1;
     const int is_capital = (popup->result_payload >> 1) & 1;
-    if (!ai_contact_enqueue_incite_target_choice(ctx, e, nation_id, is_missionary, is_capital)) {
-      /* Port-authored: no GAME.TXT section covers this no-eligible-target
-       * refusal (distinct from @UNFORTUNATE, the affordability case). */
-      char refuse_fb[AI_POPUP_BODY_LEN];
-      snprintf(
-        refuse_fb,
-        sizeof(refuse_fb),
-        "No other nation is available for the %s to incite.",
-        ai_contact_tribe_name(nation_id)
-      );
-      ai_contact_human_chrome(
-        ctx, e, AI_POPUP_TAG_CONTACT_INCITE, nation_id, "Incite", refuse_fb
-      );
-    }
+    /* DOS has no refusal text here: the row set (every Euro but the inciter
+     * and the Crown) is never empty, so a 0 return is only a full queue. */
+    (void)ai_contact_enqueue_incite_target_choice(ctx, e, nation_id, is_missionary, is_capital);
     break;
   }
   default:

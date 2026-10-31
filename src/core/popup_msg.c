@@ -204,28 +204,16 @@ void popup_msg_apply_tokens(
     /* Keep {} — the DOS dialog writer colors braced spans with the hilite
      * ink (FUN_6f74_0538); brace-aware renderers eat them at draw time. */
     if (src[i] == '%' && tok) {
-      if (strncmp(src + i, "%STRING0", 8) == 0) {
-        popup_msg_append(dst, dst_size, &used, tok->string0 ? tok->string0 : "");
-        i += 8;
-        continue;
-      }
-      if (strncmp(src + i, "%STRING1", 8) == 0) {
-        popup_msg_append(dst, dst_size, &used, tok->string1 ? tok->string1 : "");
-        i += 8;
-        continue;
-      }
-      if (strncmp(src + i, "%STRING2", 8) == 0) {
-        popup_msg_append(dst, dst_size, &used, tok->string2 ? tok->string2 : "");
-        i += 8;
-        continue;
-      }
-      if (strncmp(src + i, "%STRING3", 8) == 0) {
-        popup_msg_append(dst, dst_size, &used, tok->string3 ? tok->string3 : "");
-        i += 8;
-        continue;
-      }
-      if (strncmp(src + i, "%STRING4", 8) == 0) {
-        popup_msg_append(dst, dst_size, &used, tok->string4 ? tok->string4 : "");
+      /* A 7-char prefix match means src[i + 7] is in bounds (at worst the NUL). */
+      const bool is_str = strncmp(src + i, "%STRING", 7) == 0;
+      const bool is_num = !is_str && strncmp(src + i, "%NUMBER", 7) == 0;
+      const char d = (is_str || is_num) ? src[i + 7] : '\0';
+      if (is_str && d >= '0' && d <= '4') {
+        const char* const strs[] = {
+          tok->string0, tok->string1, tok->string2, tok->string3, tok->string4
+        };
+        const char* v = strs[d - '0'];
+        popup_msg_append(dst, dst_size, &used, v ? v : "");
         i += 8;
         continue;
       }
@@ -234,30 +222,12 @@ void popup_msg_apply_tokens(
         i += 8;
         continue;
       }
-      if (strncmp(src + i, "%NUMBER0", 8) == 0) {
+      if (is_num && d >= '0' && d <= '3') {
+        const bool has[] = {tok->has_number0, tok->has_number1, tok->has_number2, tok->has_number3};
+        const int nums[] = {tok->number0, tok->number1, tok->number2, tok->number3};
+        const int k = d - '0';
         char num[16];
-        snprintf(num, sizeof(num), "%d", tok->has_number0 ? tok->number0 : 0);
-        popup_msg_append(dst, dst_size, &used, num);
-        i += 8;
-        continue;
-      }
-      if (strncmp(src + i, "%NUMBER1", 8) == 0) {
-        char num[16];
-        snprintf(num, sizeof(num), "%d", tok->has_number1 ? tok->number1 : 0);
-        popup_msg_append(dst, dst_size, &used, num);
-        i += 8;
-        continue;
-      }
-      if (strncmp(src + i, "%NUMBER2", 8) == 0) {
-        char num[16];
-        snprintf(num, sizeof(num), "%d", tok->has_number2 ? tok->number2 : 0);
-        popup_msg_append(dst, dst_size, &used, num);
-        i += 8;
-        continue;
-      }
-      if (strncmp(src + i, "%NUMBER3", 8) == 0) {
-        char num[16];
-        snprintf(num, sizeof(num), "%d", tok->has_number3 ? tok->number3 : 0);
+        snprintf(num, sizeof(num), "%d", has[k] ? nums[k] : 0);
         popup_msg_append(dst, dst_size, &used, num);
         i += 8;
         continue;

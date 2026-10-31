@@ -901,7 +901,6 @@ void colony_screen_draw_area_overlays(
       c->profession,
       has_docks,
       sol_b_field,
-      colony->colony_flags,
       col1 && founding_fathers_nation_has(col1, colony->nation_id, FF_HENRY_HUDSON)
     );
     if (cargo >= 0 && yld > 0) {

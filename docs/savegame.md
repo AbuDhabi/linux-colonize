@@ -238,7 +238,7 @@ Full opaque-field inventory: **[save_format_map.md](save_format_map.md)**.
   Import (`col1_bridge_apply`) reads only the first `holds_occupied` cargo
   slots: trailing `cargo_hold[]` bytes can be stale (see
   `docs/report_screens.md` "`col1_bridge_apply` transport-chain bugs").
-- Boarded euros: `origin=0xff` (`home_tribe_id=-1`), pioneer `cargo_hold[5]=100`
+- Boarded euros: `origin=0xff` (`home_tribe_index=-1`), pioneer `cargo_hold[5]=100`
   tools; Discoverer English pioneer profession `28` (Hardy is French-only).
   Ship/wagon `profession=0` (`FUN_1427_06b4`); never `28` — ships must look like
   transports. Exception: while a unit runs a trade route (`orders=2`) DOS reuses

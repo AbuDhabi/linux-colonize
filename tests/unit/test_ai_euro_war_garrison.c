@@ -498,7 +498,7 @@ static int unit_garrison_stay_clears_stale_goto(void) {
  * tile → 1" latch could never produce).
  *
  * Then the two DOS zeroing gates, each re-run from the same fixture:
- *   - DS:0x54f6 attitude (tribe[home_tribe_id].alarm[euro] word) < 0x80 → 0
+ *   - DS:0x54f6 attitude (tribe[home_tribe_index].alarm[euro] word) < 0x80 → 0
  *   - FUN_281f_030c alarm (alarm_by_player) < 0x19 → 0
  */
 static int unit_garrison_quota_threat_seed(void) {
@@ -545,10 +545,10 @@ static int unit_garrison_quota_threat_seed(void) {
     return fail("threat-seed brave spawn");
   }
   b0->nation_id = indian;
-  b0->home_tribe_id = 0;
+  b0->home_tribe_index = 0;
   b0->moves = 0;
   b1->nation_id = indian;
-  b1->home_tribe_id = 0;
+  b1->home_tribe_index = 0;
   b1->moves = 0;
 
   ColonizeCol1Save col1;

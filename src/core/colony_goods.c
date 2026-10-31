@@ -15,7 +15,6 @@
 #include "core/ai_euro.h"
 #include "core/col1_save.h"
 #include "core/dos_rng.h"
-#include "core/font.h"
 #include "core/founding_fathers.h"
 #include "core/ai_diplo.h"
 #include "core/popup_msg.h"
@@ -26,7 +25,6 @@
 #include "core/europe.h"
 #include "core/ss.h"
 #include "core/strutil.h"
-#include "core/unit_chrome.h"
 #include "core/units_cargo.h"
 #include "platform/diagnostics.h"
 
@@ -84,54 +82,6 @@ int colonies_warehouse_capacity(
     level = 2;
   }
   return 100 * (1 + level);
-}
-
-void colonies_emit_warehouse_full_chrome(
-  const ColonizeColonyPool* pool,
-  const ColonizeColony* colony,
-  int cargo_type,
-  const char* cargo_name,
-  int deposited,
-  int already_included,
-  AiPopupState* ai_popups,
-  const ColonizeMsgCatalog* messages
-) {
-  if (!ai_popups || !colony || !colony->active) {
-    return;
-  }
-  if (cargo_type < 0 || cargo_type >= COLONIZE_CARGO_COUNT) {
-    return;
-  }
-  /* FUN_479b_0f60 (viceroy_unpacked.c 77396): the @WAREHOUSEFULL confirm is
-   * gated `(cap < stock + amount) && (local_18 != 0)` — Food never warns,
-   * because food over capacity is the new-colonist rule, not spoilage. */
-  if (cargo_type == COLONIZE_CARGO_FOOD) {
-    return;
-  }
-  const int cap = colonies_warehouse_capacity(pool, colony, cargo_type);
-  /* port_bugs.md #433: NUMBER0 is the pre-deposit stock; back out whatever part of
-   * this deposit has already landed in stock[]. */
-  int stock = colony->stock[cargo_type] - (already_included > 0 ? already_included : 0);
-  if (stock < 0) {
-    stock = 0;
-  }
-  const char* cname = colony->name[0] ? colony->name : "";
-  const char* gname = (cargo_name && cargo_name[0]) ? cargo_name : "";
-  char body[AI_POPUP_BODY_LEN];
-  PopupMsgTokens tok;
-  memset(&tok, 0, sizeof(tok));
-  tok.string0 = cname;
-  tok.string1 = gname;
-  tok.number0 = stock;
-  tok.has_number0 = true;
-  tok.number1 = cap;
-  tok.has_number1 = true;
-  tok.number2 = deposited > 0 ? deposited : 0;
-  tok.has_number2 = true;
-  /* No DOS text in the binary: on catalog miss, popup_msg_fill yields "" —
-   * never a typed English fallback (port_bugs.md #820). */
-  popup_msg_fill(messages, "WAREHOUSEFULL", &tok, "", body, sizeof(body));
-  ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, body);
 }
 
 /*

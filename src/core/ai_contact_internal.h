@@ -265,7 +265,7 @@ void ai_contact_clamp_alarms(ColonizeCol1Indian* ind);
 void ai_contact_clear_peace(ColonizeCol1Save* col1, int indian_nation, int euro_nation);
 void ai_contact_enqueue_incite_confirm( ColonizeTurnContext* ctx, ColonizeCol1Indian* ind, int nation_id, int e, int target, int is_missionary, int is_capital );
 void ai_contact_enqueue_village_meet( ColonizeTurnContext* ctx, int e, int nation_id, int is_missionary, int is_capital, int unit_id, int tribe_index );
-void ai_contact_human_chrome( ColonizeTurnContext* ctx, int e, AiPopupTag tag, int nation_b, const char* title, const char* body );
+void ai_contact_human_chrome( ColonizeTurnContext* ctx, int e, AiPopupTag tag, int nation_b, const char* body );
 void ai_contact_live_among_natives( ColonizeTurnContext* ctx, int e, int nation_id, ColonizeUnit* u, ColonizeCol1Tribe* t );
 void ai_contact_local_rng(ColonizeTurnContext* ctx, int nation_id, ColonizeDosRng* out);
 /* Village-visit tune: FUN_1000_86c4(0,3)==0 -> FUN_1000_8688(5), then 7 (Inca,
@@ -276,6 +276,7 @@ void ai_contact_mark_visit_brave( const ColonizeTurnContext* ctx, int nation_id,
 void ai_contact_set_status(ColonizeTurnContext* ctx, const char* msg);
 void ai_contact_try_village_reparations(ColonizeTurnContext* ctx, int nation_id);
 void ai_contact_visit_mood_clear(int nation_id, int e);
+const AiContactVisitMood* ai_contact_visit_mood_this_turn( const ColonizeTurnContext* ctx, int nation_id, int e );
 void ai_contact_visit_mood_publish( const ColonizeTurnContext* ctx, int nation_id, int e, int brave_id, int generous_visit );
 
 #endif /* COLONIZE_CORE_AI_CONTACT_INTERNAL_H */

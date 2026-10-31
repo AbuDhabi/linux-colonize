@@ -570,9 +570,6 @@ int europe_cash_treasure(EuropeScreen* eu, int treasure_value) {
   if (tax < 0) {
     tax = 0;
   }
-  if (tax > 100) {
-    tax = 100;
-  }
   /*
    * FUN_48d3_06ba: Crown cut = min(tax_rate, 50). GAME.TXT @LOOTCASH still
    * describes tax-rate share; DOS clamps the treasure path at 50%.

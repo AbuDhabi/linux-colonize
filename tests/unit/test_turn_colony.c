@@ -646,8 +646,8 @@ static int refresh_does_not_tick_pioneer_work(void) {
   const ColonizeWorld w = {
     .units = &pool, .colonies = &colonies, .map = &map, .col1 = NULL, .col1_ok = false
   };
-  turn_refresh_moves_for_nation_w(&w, 0, NULL, NULL);
-  turn_refresh_moves_for_nation_w(&w, 1, NULL, NULL);
+  turn_refresh_moves_for_nation_w(&w, 0);
+  turn_refresh_moves_for_nation_w(&w, 1);
 
   int rc = 0;
   /*
@@ -658,7 +658,7 @@ static int refresh_does_not_tick_pioneer_work(void) {
    */
   hu->mp_spent_turn = 1;
   au->mp_spent_turn = 1;
-  turn_refresh_moves_for_nation_w(&w, 0, NULL, NULL);
+  turn_refresh_moves_for_nation_w(&w, 0);
   if (hu->mp_spent_turn != 1 || au->mp_spent_turn != 1) {
     fprintf(stderr, "#713: the per-nation refresh must not clear the spent byte\n");
     rc = 1;

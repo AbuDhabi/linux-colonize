@@ -24,7 +24,7 @@
 #include "platform/platform.h"
 #include "platform/diagnostics.h"
 
-int ai_popup_option_at_y(const AiPopupState* st, int mouse_y) {
+static int ai_popup_option_at_y(const AiPopupState* st, int mouse_y) {
   if (!st) {
     return -1;
   }

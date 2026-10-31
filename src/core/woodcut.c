@@ -1,5 +1,4 @@
 #include "core/woodcut.h"
-#include "core/woodcut_present.h"
 
 #include <stddef.h>
 #include <stdio.h>
@@ -19,8 +18,8 @@ _Static_assert(
   offsetof(ColonizeCol1Head, unknown05) == offsetof(ColonizeCol1Head, event) + 2,
   "woodcut once-only array must be event[2] + unknown05[2]"
 );
-ColonizeWoodcutSoundFn g_woodcut_play;
-ColonizeWoodcutSoundFn g_woodcut_set_bgm;
+static ColonizeWoodcutSoundFn g_woodcut_play;
+static ColonizeWoodcutSoundFn g_woodcut_set_bgm;
 
 void woodcut_set_sound_hooks(ColonizeWoodcutSoundFn play_fn, ColonizeWoodcutSoundFn set_bgm_fn) {
   g_woodcut_play = play_fn;

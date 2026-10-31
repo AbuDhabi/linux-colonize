@@ -393,8 +393,7 @@ static int ai_euro_28c8_score_full(
       const int cargo = dos_buggy_behavior() ? job : colony_yield_job_cargo(job);
       int yld = profession >= 0
                   ? colony_yield_for_worker(
-                      ctx->map, tx, ty, job, profession, has_docks, sol_b_field,
-                      col->colony_flags, has_hudson
+                      ctx->map, tx, ty, job, profession, has_docks, sol_b_field, has_hudson
                     )
                   : colony_yield_for_tile_in_colony(
                       ctx->colonies, col, ctx->map, tx, ty, job
@@ -1156,7 +1155,7 @@ void ai_euro_5952_ledgers(
                         ? COLONIZE_CARGO_FOOD : c->field_job;
     gross[cargo] += colony_yield_for_worker(
       world->map, col->x + dx, col->y + dy, c->field_job, c->profession, docks,
-      sol_field, col->colony_flags, hudson
+      sol_field, hudson
     );
   }
 
@@ -1198,28 +1197,13 @@ void ai_euro_5952_ledgers(
     pool, col, col1 && founding_fathers_nation_has(col1, col->nation_id, FF_WILLIAM_PENN),
     sol_bonus
   );
-  /* port_bugs.md #928: the DOS ledgers are refreshed by FUN_281f_0c04 ->
-   * FUN_15eb_1f72, and 1f72 reads the owning nation's Jefferson (3960 flag
-   * 0x0f, raw 12621) and Paine (flag 0x11 + the nation tax byte, raw
-   * 12625-12633) itself — so the probe sees the real FF state, not a
-   * FF-free estimate. The port used to pass 0/0 here and under-valued Town
-   * Hall seats for an AI that owns them. Args built exactly as the EOT
-   * composer does (turn_production.c ~270-277). */
-  const int probe_statesmen_pct =
-    (col1 && founding_fathers_nation_has(col1, col->nation_id, FF_THOMAS_JEFFERSON)) ? 50 : 0;
-  const int probe_paine_tax_pct =
-    (col1 && founding_fathers_nation_has(col1, col->nation_id, FF_THOMAS_PAINE) &&
-     col->nation_id >= 0 && col->nation_id < (int)COLONIZE_COL1_NATION_COUNT)
-      ? (int)col1->nation[col->nation_id].tax_rate
-      : 0;
-  gross[AI_EURO_5952_BELLS] = colony_prod_colony_bells_ff(
-    pool, col, probe_statesmen_pct, probe_paine_tax_pct,
-    /* FUN_15eb_1f72 raw 12634-12641: subsidy needs Bolivar too (#938b). */
-    col1 ? (col1->player[col->nation_id].control != 0 &&
-            founding_fathers_nation_has(col1, col->nation_id, FF_SIMON_BOLIVAR))
-         : true,
-    sol_bonus
-  );
+  /* port_bugs.md #928/#938b: FUN_281f_0c04 -> FUN_15eb_1f72 reads the owning
+   * nation's Jefferson, Paine (+ tax byte) and control+Bolivar subsidy itself,
+   * so the probe takes the same nation-aware inputs as the EOT composer.
+   * col1 == NULL (bare test fixtures) keeps the FF-free, subsidised arm. */
+  gross[AI_EURO_5952_BELLS] =
+    col1 ? colony_prod_colony_bells_nation(pool, col, col1, sol_bonus)
+         : colony_prod_colony_bells_ff(pool, col, 0, 0, true, sol_bonus);
   demand[COLONIZE_CARGO_FOOD] = col->population * 2;
 }
 
