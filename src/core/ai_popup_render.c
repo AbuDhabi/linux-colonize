@@ -214,7 +214,6 @@ void ai_popup_set_portrait_source(const char* data_dir) {
         ss_free(&g_portrait_sheets[t][a]);
       }
       g_portrait_state[t][a] = 0;
-      (void)0;
     }
   }
   for (int i = 0; i < 6; ++i) {
