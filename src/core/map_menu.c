@@ -194,11 +194,12 @@ static const MapMenuAction k_menu_rows_cup[] = {
   MAP_MENU_ACTION_CHEAT_SHOW_STRATEGY, MAP_MENU_ACTION_CHEAT_SHOW_COLONY_SITES,
   MAP_MENU_ACTION_CHEAT_TEST_ROUTINE
 };
-/* Row 4 is the "---" separator line. */
+/* Row 8 is "Complete", which DOS FUN_74a4_0000 never adds (ids 0x70-0x75 only) — left out of the table so
+ * the loader drops it. Miscellaneous (0x76) is a port addition. */
 static const MapMenuAction k_menu_rows_pedia[] = {
   U, MAP_MENU_ACTION_PEDIA_CARGO, MAP_MENU_ACTION_PEDIA_UNIT, MAP_MENU_ACTION_PEDIA_TERRAIN,
-  MAP_MENU_ACTION_SEPARATOR, MAP_MENU_ACTION_PEDIA_JOB, MAP_MENU_ACTION_PEDIA_BUILDING,
-  MAP_MENU_ACTION_PEDIA_FATHER, MAP_MENU_ACTION_PEDIA_MISC
+  MAP_MENU_ACTION_PEDIA_JOB, MAP_MENU_ACTION_PEDIA_BUILDING, MAP_MENU_ACTION_PEDIA_FATHER,
+  MAP_MENU_ACTION_PEDIA_MISC
 };
 #undef U
 
@@ -421,8 +422,7 @@ static void map_menu_insert_port_item(
 }
 
 /*
- * DOS FUN_74a4_0000 inserts empty-label separators (not in MENU.TXT except PEDIA
- * --- which we skip on load and re-insert here). Cite: viceroy_unpacked.c:119308+.
+ * DOS FUN_74a4_0000 inserts empty-label separators (not in MENU.TXT). Cite: viceroy_unpacked.c:119308+.
  */
 static void map_menu_insert_dos_separators(MapMenuPulldown* menu) {
   if (!menu) {
@@ -537,9 +537,8 @@ static bool map_menu_load_section(
       continue;
     }
     MapMenuAction action = map_menu_classify(section_name, i);
-    /* Skip MENU.TXT --- for PEDIA — DOS inserts the sep in FUN_74a4_0000. */
-    if (action == MAP_MENU_ACTION_SEPARATOR) {
-      continue;
+    if (action == MAP_MENU_ACTION_UNIMPLEMENTED && strcmp(section_name, "PEDIA") == 0) {
+      continue; /* "Complete": not in the DOS pulldown */
     }
     map_menu_append_item(menu, label, action);
   }

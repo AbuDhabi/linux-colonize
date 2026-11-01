@@ -343,6 +343,28 @@ static int case_pedia_categories(void) {
     fixture_free(&fx);
     return 1;
   }
+  /* Each row opens its own category: label and action must stay paired
+   * (a shifted row table keeps the action order but mislabels it). */
+  static const MapMenuAction want[] = {
+    MAP_MENU_ACTION_PEDIA_CARGO,  MAP_MENU_ACTION_PEDIA_UNIT,  MAP_MENU_ACTION_PEDIA_TERRAIN,
+    MAP_MENU_ACTION_SEPARATOR,    MAP_MENU_ACTION_PEDIA_JOB,   MAP_MENU_ACTION_PEDIA_BUILDING,
+    MAP_MENU_ACTION_PEDIA_FATHER, MAP_MENU_ACTION_SEPARATOR,   MAP_MENU_ACTION_PEDIA_MISC
+  };
+  static const char* want_label[] = {
+    "Cargo Types", "Unit Types", "Terrain Types", "", "Colonist Skills",
+    "Colony Buildings", "Founding Fathers", "", "Miscellaneous"
+  };
+  for (int i = 0; i < 9; ++i) {
+    const MapMenuItem* it = &bar->menus[pedia_i].items[i];
+    if (it->action != want[i] || strcmp(it->label, want_label[i]) != 0) {
+      fprintf(
+        stderr, "pedia item %d '%s' action %d, want '%s' action %d\n", i, it->label,
+        (int)it->action, want_label[i], (int)want[i]
+      );
+      fixture_free(&fx);
+      return 1;
+    }
+  }
   fixture_free(&fx);
   return 0;
 }

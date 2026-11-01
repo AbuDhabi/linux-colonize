@@ -107,9 +107,8 @@ int pedia_category_count(PediaCategory category) {
 
 /*
  * MENU.TXT @PEDIA is the live source of these seven rows: the section opens
- * with the "~COLONIZOPEDIA" menu title and carries one "---" separator
- * between Terrain Types and Colonist Skills, so the n-th category is the
- * n-th row once the title, the separator and the @END marker are skipped.
+ * with the "~COLONIZOPEDIA" menu title, so the n-th category is the n-th row
+ * once the title and the @END marker are skipped.
  * Empty string on a miss (tests, missing data dir).
  */
 const char* pedia_category_label(PediaCategory category) {
@@ -124,9 +123,6 @@ const char* pedia_category_label(PediaCategory category) {
     for (int i = 0; i < sec->line_count; ++i) {
       const char* line = sec->lines[i];
       if (!line || line[0] == '\0' || line[0] == '@' || line[0] == '~') {
-        continue;
-      }
-      if (strncmp(line, "---", 3) == 0) {
         continue;
       }
       if (cat == (int)category) {
