@@ -32,6 +32,9 @@ original game data — you must provide your own copy of the DOS game.
   picker, then tick the human powers).
 - `-D` — self-running demo; a key quits.
 - `settings.json` `sound_options.soundfont` — override the bundled soundfont.
+- `settings.json` `divergences` — opt-in non-DOS extras (`pioneer_plan`,
+  `scout_autoexplore`, `ship_autoexplore`, `current_vision`, ...); all off by
+  default.
 
 Settings and saves are written next to the game data.
 

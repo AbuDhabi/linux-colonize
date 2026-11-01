@@ -3,6 +3,59 @@
 Player-facing changes. Bracketed numbers are [docs/port_bugs.md](docs/port_bugs.md) row ids (closed
 rows live in [docs/archive/bugs_closed.md](docs/archive/bugs_closed.md)).
 
+## 1.0 — 2026-11-01
+
+Covers `0.9-beta` (2026-10-27) to 2026-11-01: 66 commits, 60 bug rows
+resolved. Not exhaustive.
+
+### New (port-only, off by default in `settings.json` `divergences`)
+
+- Pioneer plan: VIEW Plan Pioneer marks tiles to clear, plow or road;
+  ORDERS Automate (`Q`) works the plan.
+- Scout and ship Automate: explore until nothing unseen is in reach.
+- Current vision: fog veil over tiles none of your units or colonies see
+  now.
+
+### Gameplay
+
+- Foreign units show only when your units or colonies could see them.
+- Natives visit colonies again: gifts, food begging, demands. [1322]
+- RNG streaks no longer run ~18x longer than in DOS. [1324]
+- Speak With Chief rolls fairly and plays the village tune. [1311] [1320]
+- Ships from Europe sail to their own exit tile, also after save/load;
+  John Paul Jones' Frigate spawns in the right lane. [1312] [1319] [1328]
+  [1361]
+- Captured colony takes the loser's ships in port. [1313]
+- Mercenary arrival names the seller. [1314]
+- Make Landfall puts every unit ashore. [1326]
+- A criminal blessed in Europe sails back as a missionary. [1317]
+- La Salle's Stockade goes to the admitted colony only; ship repair needs a
+  Drydock. [1329] [1330]
+- DOS bugs fixed: one-sided wars, Go To ping-pong, Custom House in a
+  captured colony exporting nothing.
+
+### Controls
+
+- Mouse wheel on the map zooms in and out.
+- Europe Sail Away Yes/No no longer goes deaf. [1360]
+- Automated Pioneer out of tools leaves Automate at once. [1318]
+
+### User Interface
+
+- Colopedia: terrain titles fixed; Game Concept pages are title-only as in
+  DOS. [1327] [1331]
+- Native food offer no longer cut off; more typed English removed.
+  [1332] [1337] [1362]
+
+### Map editor
+
+- Dialogs, help font, minimap box, name labels, ESC and window close fixed.
+  [1303]-[1310]
+
+### Windows
+
+- Settings save after the first one works. [1338]
+
 ## 0.9-beta — 2026-10-27
 
 Covers `0.8-beta-bugfix-1` (2026-10-22) to 2026-10-27: 103 commits, 139 bug
