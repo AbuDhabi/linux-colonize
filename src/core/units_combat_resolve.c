@@ -863,43 +863,13 @@ bool units_resolve_naval_combat_ff_w(
     const int def_x = def->x;
     const int def_y = def->y;
     const int def_nation = def->nation_id;
-    const int atk_nation = atk->nation_id;
     /* DOS 0ec0: every unit on the loser tile, in chain order, takes its own loss. */
-    const int def_alive = units_sweep_naval_stack_after_loss(
+    (void)units_sweep_naval_stack_after_loss(
       pool, def_x, def_y, def_nation, attacker_id, defender_id, col1, rng
     );
-    {
-      const ColonizeUnitType* wt = units_type(pool, atk->type_index);
-      const int is_priv = units_type_is_privateer(wt);
-      const int human = units_combat_human_involved(col1, atk_nation, def_nation);
-      /*
-       * port_bugs.md: the "captured/seized" cue belongs to a Privateer (or the
-       * Royal Navy) taking an UNARMED transport as a prize — and only when
-       * the prize is actually TAKEN (sunk/seized), not when it escapes
-       * damaged. A warship defeating a warship is damage-or-sink only.
-       */
-      const int def_transport = dt && dt->attack == 0;
-      if (human && def_transport && !def_alive && !is_priv) {
-        /*
-         * Crown / warship seizure → Royal Navy @SEIZURESEA. port_bugs.md #986: a
-         * PRIVATEER prize gets no dialog here. @SEIZURE* is Royal Navy / Army
-         * wording and no catalog section covers a privateer capture, so the
-         * port shows nothing rather than typed English; the real DOS cue is
-         * a numeric message id not yet matched to a tag (docs/popup_tag_ids.md).
-         */
-        PopupMsgTokens tok;
-        memset(&tok, 0, sizeof(tok));
-        tok.string0 = dt && dt->name[0] ? dt->name : "";
-        units_combat_enqueue_tok(
-          AI_POPUP_TAG_COMBAT_SEIZURE,
-          "SEIZURESEA",
-          atk_nation,
-          def_nation,
-          0,
-          &tok,
-          "");
-      }
-    }
+    /* No captured/seized cue for a ship-vs-ship win (port_bugs.md #1383): DOS
+     * pushes @SEIZURESEA (0x1297) only from the Crown seizure FUN_43f7_0512;
+     * FUN_5fef_1b0e and FUN_5fef_0352 never do. */
     g_units_last_combat = 1;
     units_dissolve_notify(1);
     units_combat_pump_popups();

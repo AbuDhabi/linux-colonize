@@ -1,0 +1,30 @@
+# French attacks on Tupi braves standing in the open (Combat Analysis on): a win, a win, a loss.
+# Start: turns_war_combat's start (France, Spring 1600, turn 108; Tupi met and at peace, euro_diplo 0x60,
+# Tupi alarm toward France 0; Quebec's veteran Dragoon #131 active), fixture: Tupi Armed Braves #42
+# moved from (45,22) to open land (44,23) NW of Quebec; Tupi Armed Braves #60 made plain Braves at
+# (46,25) SE of Quebec; Tupi Armed Braves #16 made plain Braves at (43,24); Quebec Free Colonist #142
+# made a Soldiers with no orders; Pioneers #126 alone on (44,25) made a Soldiers (tools 0, no orders);
+# re-saved once, then RT_RNG LCG state set to 839414. Rolls come from the saved LCG, so the outcomes are fixed.
+key KP_7                 # Dragoon attacks the Armed Braves NW: @WHACKINDIANS "Shall we attack the {Tupi}, Your Excellency?"
+wait 30
+key Return               # Yes (asked once: sets euro_diplo bit 0x04, 96 -> 100): Combat Analysis dialog
+wait 30
+key Return               # dismiss: the Dragoon wins, the Armed Braves die; gear-return coin (FUN_5fef_0352 raw
+wait 30                  #  99364-99377) hands the tribe one musket lot (muskets 2 -> 3); home village 46 needs_colonist
+key Return               # "{French} defeat {Tupi Armed Braves} near Quebec!"; Soldiers #142 selected
+wait 30
+key KP_3                 # Soldiers attack the Braves SE: no @WHACKINDIANS this time, Combat Analysis dialog
+wait 30
+key Return               # dismiss: the Soldiers win (no promotion), the Braves die; village 68 needs_colonist
+wait 30
+key Return               # "{French} defeat {Tupi Braves} near Quebec!"; Soldiers #126 on (44,25) selected
+wait 30
+key KP_7                 # Soldiers attack the Braves NW on (43,24): Combat Analysis dialog
+wait 30
+key Return               # dismiss: the Soldiers lose (a defending brave takes no muskets: the gear step is
+wait 30                  #  for a native attacker only, FUN_5fef_1b0e raw 100730-100744)
+key Return               # "{French Soldiers} routed! Unit demoted to {Colonists} status." (@DEMOTE)
+wait 30
+key Return               # "{Tupi Braves} defeats {French} near Guadeloupe!"; alarm_by_player[France] 0 -> 12;
+wait 30                  #  no French unit left to move (selected -1)
+shot

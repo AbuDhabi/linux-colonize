@@ -438,6 +438,10 @@ typedef struct ColonyScreenView {
   int press_region;     /* DS:0x8d54 of the held press (FUN_2f2b_40a0), 6 once a drag runs, 0x14 none */
   ColonyMultiMode prev_multi_mode; /* DS:0x338: never reset */
   int tab_pressed;      /* DS:0x339 while a tab press is held; -1 none */
+  /* DS:0xb98: a scout's Infiltrate view of a foreign colony (FUN_5f7a_000e raw
+   * 98856-98859). Look only: the screen's click/key handlers skip their work
+   * while it is set (port_bugs.md #1382). Set by game_enter_colony_view. */
+  bool spy_view;
 } ColonyScreenView;
 
 /* DS:0x334 blink phase: 0x14 ticks of the 60.877 Hz DS:0x92e8 clock (~328 ms)

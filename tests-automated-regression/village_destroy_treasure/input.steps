@@ -1,0 +1,37 @@
+# Dragoons burn two Tupi villages down to nothing: plain camp 31 (no treasure) and the capital at (46,26) (treasure + surrender).
+# Start: village_dragoon_attack's input.sav, fixture-edited through sav_json and re-saved through one no-op replay:
+#  - camp 31 (43,23): population 3 -> 1, French mission (mission byte 1);
+#  - camp 69 (46,26): population 3 -> 1, made the Tupi capital (capital bit; the real capital 7 at (35,26) cleared,
+#    indians[7].capitol 46,26), French mission already there; Tupi brave #64 (slot 63) moved off it to camp 47 (46,22)
+#    (its home is the capital, so it dies with it);
+#  - Tupi muskets 2 -> 0 (indians[7].muskets), so the defenders are plain Braves (armed ones beat both Dragoons at the capital);
+#  - Dragoons 131 (slot 130) and veteran 136 (slot 135) moved from (43,24) to (45,25), orders cleared, full moves.
+# Combat analysis is on: every attack shows the analysis box first (no popup text). Each win over a population-1 village
+# razes it (FUN_4d56_00e0 compacts the tribe array, its braves die, the Tupi village count DS:0x962a drops) and France's
+# villages_burned +1; Attack Village sets the attack-confirmed bit (euro_diplo / relation_by_indian 96 -> 100), alarm +9.
+# The French mission comes back as a Missionary on each razed tile (FUN_5fef_1b0e, port_bugs.md #551); the
+# subjugated-convert roll misses both times. The capital's fall clamps the French alarm 18 -> 15, which clears the 0x04
+# attack bit both ways again (euro_diplo / relation_by_indian back to 96; ai_diplo_indian_capital_surrender).
+# RNG: the combat, convert and treasure rolls come from the game stream; the outcomes are what this RNG state gives.
+key KP_8     # Dragoon 125 at (43,24) steps into camp 31: village menu Demand Tribute / Attack Village / Cancel Action ("wave to you happily")
+key Down
+key Return   # Attack Village
+wait 30
+key Return   # combat analysis box
+wait 30
+key Return   # "French defeat Tupi Braves near Guadeloupe!"
+wait 30
+key Return   # @LOOT2 "French burn Tupi Camp! Natives flee in panic!" (tribe tech 0, non-Spanish roll missed: no treasure); Dragoon 131 at (45,25) is next
+wait 30
+key KP_3     # Dragoon 131 steps into the capital (46,26): village menu again
+key Down
+key Return   # Attack Village
+wait 30
+key Return   # combat analysis box
+wait 30
+key Return   # "French defeat Tupi Braves near Quebec!"
+wait 30
+key Return   # @INDIANBOW "The Tupi tribe bows before the might of the French..." (capital fell: alarm clamp, DS:0x54f6 walk)
+wait 30
+key Return   # @LOOT "French loot and burn Tupi Capital! 600$ worth of treasure..." (rich capital: Treasure train on the razed tile); Dragoon 136 is next
+wait 60

@@ -6933,7 +6933,8 @@ static int case_combat_privateer_seizure(void) {
         units_despawn(&pool, did);
       }
 
-      /* The Royal-Navy / warship arm still shows @SEIZURESEA. */
+      /* port_bugs.md #1383: a warship win is silent too; @SEIZURESEA belongs to
+       * the Crown seizure FUN_43f7_0512 only. */
       ai_popup_clear(&pops);
       const int frig = units_find_type(&pool, "Frigate");
       if (frig < 0) {
@@ -6960,15 +6961,15 @@ static int case_combat_privateer_seizure(void) {
           break;
         }
       }
-      if (!found) {
-        fprintf(stderr, "SEIZURESEA popup missing (queue=%d)\n", pops.queue_count);
+      if (found) {
+        fprintf(stderr, "warship win must not enqueue SEIZURESEA (queue=%d)\n", pops.queue_count);
         return 1;
       }
       (void)units_despawn(&pool, aid2);
       if (units_get(&pool, did2) && units_get(&pool, did2)->active) {
         units_despawn(&pool, did2);
       }
-      fprintf(stderr, "unit_units: privateer prize silent, Royal Navy SEIZURESEA ok\n");
+      fprintf(stderr, "unit_units: privateer and warship prizes silent\n");
   combat_phase2_close();
   return 0;
 }

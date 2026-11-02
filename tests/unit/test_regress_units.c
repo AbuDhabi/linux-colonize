@@ -813,6 +813,53 @@ static int case_834_native_winner_colony_latch(void) {
 }
 
 /*
+ * port_bugs.md #1384 — the #834 latch is the native ATTACKER's: DOS sets
+ * `+0x3148 |= 0x10` only in 1b0e's attacker-wins branch. A native DEFENDER
+ * beating a Euro attacker who stands in a colony gets no latch.
+ */
+static int case_1384_native_defender_no_colony_latch(void) {
+  LandFixture fx;
+  if (land_fixture_init(&fx) != 0) {
+    return 1;
+  }
+  int rc = 0;
+  const int colonist = units_find_type(&fx.pool, "Colonists");
+  const int brave = units_find_type(&fx.pool, "Braves");
+  if (colonist < 0 || brave < 0) {
+    fprintf(stderr, "case_1384: types missing\n");
+    land_fixture_free(&fx);
+    return 1;
+  }
+  ColonizeColony* col = &fx.colonies.colonies[0];
+  col->active = true;
+  col->id = 0;
+  col->nation_id = 0;
+  col->x = 3;
+  col->y = 3;
+  snprintf(col->name, sizeof(col->name), "Jamestown");
+  fx.colonies.colony_count = 1;
+  units_set_combat_colonies(&fx.colonies);
+
+  const int lid = units_spawn_allow_stack(&fx.pool, colonist, 3, 3); /* Euro attacker in the colony, loses */
+  const int wid = units_spawn_allow_stack(&fx.pool, brave, 4, 3);    /* native defender outside, wins */
+  units_get(&fx.pool, lid)->nation_id = 0;
+  units_get(&fx.pool, wid)->nation_id = 4;
+
+  g_units_loss_winner_attacked = 0;
+  units_apply_land_loss_outcome(&fx.pool, lid, wid, &fx.col1, 0, NULL);
+  g_units_loss_winner_attacked = 1;
+
+  const ColonizeUnit* w = units_get(&fx.pool, wid);
+  if (!w || (w->col1_flags15 & 0x10u) != 0) {
+    fprintf(stderr, "case_1384: native defender got the colony-raid latch (col1_flags15 & 0x10)\n");
+    rc = 1;
+  }
+  units_set_combat_colonies(NULL);
+  land_fixture_free(&fx);
+  return rc;
+}
+
+/*
  * port_bugs.md #868 — DOS-LITERAL FUN_5bfb_312e raw 98448 (+0x3150): the naval
  * evade/ship-slow power term subtracts 4 per GOODS hold in use, never 4 per
  * passenger. A troop-laden Man-O-War must not be weakened by its passengers.
@@ -876,6 +923,7 @@ static const TestCase k_cases[] = {
     {"case_465b_0673_vis_or_behind_mover", case_465b_0673_vis_or_behind_mover},
     {"case_1b0e_relinks_attacker", case_1b0e_relinks_attacker},
     {"case_834_native_winner_colony_latch", case_834_native_winner_colony_latch},
+    {"case_1384_native_defender_no_colony_latch", case_1384_native_defender_no_colony_latch},
     {"case_868_naval_evade_goods_not_passengers", case_868_naval_evade_goods_not_passengers},
 };
 TEST_MAIN(k_cases)

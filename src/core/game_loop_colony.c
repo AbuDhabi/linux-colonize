@@ -147,6 +147,10 @@ static void game_colony_reveal_new_building(ColonizeGameState* game, int cid, in
 }
 
 void game_enter_colony(ColonizeGameState* game, int cid) {
+  game_enter_colony_view(game, cid, false);
+}
+
+void game_enter_colony_view(ColonizeGameState* game, int cid, bool spy) {
   if (cid < 0) {
     set_status(game, "No colony at cursor", NULL);
     return;
@@ -183,6 +187,7 @@ void game_enter_colony(ColonizeGameState* game, int cid) {
   }
   sound_set_bgm(2);
   colony_screen_reset_ui(&game->colony_screen);
+  game->colony_screen.spy_view = spy;
   const ColonizeColony* col = colonies_get(&game->colonies, cid);
   if (col && col->colonist_count > 0) {
     game->colony_screen.selected_colonist = 0;
@@ -198,7 +203,9 @@ void game_enter_colony(ColonizeGameState* game, int cid) {
    * into place the first time the colony is opened.
    */
   game_colony_reveal_new_building(game, cid, reveal_bid);
-  game_tutorial_colony_opened(game, cid); /* 6cd4 raw 56026-56070: @TUTORIAL4 / @TUTORIAL12 */
+  if (!spy) {
+    game_tutorial_colony_opened(game, cid); /* 6cd4 raw 56026-56070: @TUTORIAL4 / @TUTORIAL12 (DS:0xb98 == 0) */
+  }
   if (diag_info_enabled() && col) {
     const char* project = "-";
     if (col->building_in_production >= 0 &&

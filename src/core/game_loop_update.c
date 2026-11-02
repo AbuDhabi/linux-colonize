@@ -2200,7 +2200,9 @@ COLONIZE_INTERNAL GameUpdateStep game_update_colony_screen(ColonizeGameState* ga
       colony_screen_refresh_transports(csv, &game->units, colony);
     }
     game_service_colony_bar(game);
-    game_tutorial_colony_refresh(game); /* FUN_2f2b_2d90: @TUTORIAL16 */
+    if (!csv->spy_view) {
+      game_tutorial_colony_refresh(game); /* FUN_2f2b_2d90: @TUTORIAL16 */
+    }
     /* The Units-pane focus lives only on the Units tab: every DOS tab switch turns it into
      * the colonist focus (FUN_2f2b_6372 raw 55565-55566, 55594-55596; raw 51475-51477). */
     if (csv->focus == COLONY_FOCUS_UNITS && csv->multi_mode != COLONY_MULTI_UNITS) {
@@ -2276,6 +2278,26 @@ COLONIZE_INTERNAL GameUpdateStep game_update_colony_screen(ColonizeGameState* ga
         game_colony_construction_help(game, input, colony, csv);
       } else {
         game_colony_list_help(game, input, colony, csv);
+      }
+      return GAME_UPDATE_RETURN_TRUE;
+    }
+
+    /* DS:0xb98 Infiltrate view (port_bugs.md #1382): look only. DOS's colony
+     * key and click handlers skip their work while it is set (FUN_2f2b_6372
+     * raw 55185, the FUN_2f2b_2f3e loop raw 49762). Escape (no sub-panel can
+     * be open here) and the exit button leave; a tab press still switches. */
+    if (csv->spy_view) {
+      if (input->last_key == COLONIZE_KEY_ESCAPE) {
+        return game_colony_screen_keys(game, input, colony, csv, cmap);
+      }
+      if (input->mouse_left_clicked && colony) {
+        const ColonyScreenHitResult hit = colony_screen_hit_test(
+          csv, &game->colonies, colony, game->units_ok ? &game->units : NULL, input->mouse_x,
+          input->mouse_y
+        );
+        if (hit.kind == COLONY_HIT_EXIT || hit.kind == COLONY_HIT_MULTI_BTN) {
+          return game_colony_screen_mouse_click(game, input, colony, csv, cmap);
+        }
       }
       return GAME_UPDATE_RETURN_TRUE;
     }

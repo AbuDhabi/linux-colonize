@@ -3373,7 +3373,7 @@ static bool game_apply_popup_diplo_and_scout(ColonizeGameState* game) {
       const int roll = dos_rng_range(&game->move_rng, 1, 0x24);
       if (threshold < roll) {
         game->colony_screen.multi_mode = COLONY_MULTI_UNITS; /* raw 98857: DS:0x337 = 1 */
-        game_enter_colony(game, cid);
+        game_enter_colony_view(game, cid, true); /* raw 98856: DS:0xb98 = 1 */
       } else {
         PopupMsgTokens tok;
         memset(&tok, 0, sizeof(tok));

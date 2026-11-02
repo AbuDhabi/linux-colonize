@@ -1,0 +1,33 @@
+# An Iroquois raid on Port au Prince during turn 108's AI turn.
+# Start: turns_school_training's input.sav (France, Spring 1600, turn 108; England at peace, the
+# Europe-bound Caravel held at sea, French units fortified) with fixture edits through sav_json:
+# Iroquois (indians[3]) alarm_by_player[France] 13 -> 100; the France attitude word of the four
+# Iroquois villages round Port au Prince (tribes 31, 45, 53, 57) friction 0 -> 200; Brave #29 (home
+# village 31) moved from (26,62) to (26,63), beside Port au Prince (27,64; pop 1, no walls, no
+# soldier). Re-saved once through a no-op replay (load noise baked in).
+# Turn 108 end: the Brave attacks Port au Prince and loses to the colonist (@INDIANLOSE, the Brave
+# dies); DOS FUN_5fef_1b0e's loser-at-colony limb hands off to FUN_5fef_0f14: @RAIDSTORES, 10 of
+# Port au Prince's 20 Furs stolen (rand(min(h,10), h), h = 10), village 31's word zeroed,
+# head.event.indian_raid set. Another Iroquois Brave ambushes the fortified French Scouts at (30,62)
+# (@INDIANWIN2, Horses seized). Iroquois alarm toward France ends at 87.
+key space                  # end turn 108
+wait 300
+key Return                 # Help: Time Scale (two turns per year from 1600)
+wait 100
+key Return                 # (AI turn running; nested pump, spare press)
+wait 100
+key Return                 # @INDIANLOSE: French Colonists defeat Iroquois near Port au Prince
+wait 100
+key Return                 # (spare press)
+wait 100
+key Return                 # @RAIDSTORES: Iroquois raiding party attacks stores in Port au Prince, Furs stolen
+wait 100
+key Return                 # (spare press)
+wait 100
+key Return                 # @INDIANWIN2: Iroquois ambush French Scouts near Port au Prince, Horses seized
+wait 100
+key Return                 # SoL in Quebec up to 60%: Continue turn
+wait 100
+key Return                 # price of Cigars rises
+wait 100
+shot                       # Autumn 1600: End of Turn

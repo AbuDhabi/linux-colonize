@@ -1,0 +1,30 @@
+# Seasoned Scouts spy on a foreign (Dutch, at peace) colony: @SCOUTCOLONY (FUN_5f7a_000e) row 1 "Infiltrate Colony"
+# (GAME.TXT has no "Negotiate" row: Meet With Mayor / Infiltrate Colony / Attack Colony / Nothing; Meet and Nothing are
+# map_contact_scout_colony's). Start: map_contact_scout_colony's input.sav (France spring 1599, gold 429, difficulty 4;
+# Seasoned Scouts #77 (39,39) and #95 (37,39) beside Fort Orange (38,40), #77 active), fixture-edited through sav_json
+# and re-saved through one no-op replay: RTST RT_RNG LCG state 0x6b -> 0x01840982 (one LCG step on), so the infiltrate
+# roll RNG(1,36) is 12 instead of 1. Threshold = (Stockade chain 1 + 6) * 2 = 14, halved for a Seasoned Scout (7),
+# + difficulty - 2 = 9: 12 > 9 opens the spy view. (DS:0x83a6 is unset in the save, so the 04ca reseed is skipped.)
+# The infiltrate spends the scout's allotment and draws once (RNG record moves 0x01840982 -> 0x2aa70a3d); nothing
+# in Fort Orange or Dutch state changes.
+key KP_1     # #77 bumps Fort Orange: @SCOUTCOLONY "Our scouts have reached the outskirts of Fort Orange" (4 rows)
+wait 20
+key Down
+key Return   # row 1 "Infiltrate Colony": roll 12 > 9, Fort Orange's colony screen opens on the Units Present tab (DS:0x337 = 1)
+wait 30
+shot
+click 220 167          # spy view is look only (DS:0xb98, port_bugs.md #1382): the Dutch Dragoon under Units Present opens no options menu
+wait 20
+drag 80 95 120 75     # a Dutch worker dragged from a building onto a land tile: nothing moves
+wait 20
+key c                  # construction picker key: ignored
+wait 20
+shot
+key Escape   # close the spy view: back on the map, #77 out of moves, colonist #88 is next
+wait 30
+key w        # Wait: skip #88, Scout #95 is selected
+wait 20
+key KP_3     # #95 bumps Fort Orange: @SCOUTCOLONY again
+wait 20
+key Escape   # menu cancelled = "Nothing" (choice 4): #95's allotment spent, no roll; Caravel #126 in Quebec is next
+wait 60

@@ -1,0 +1,18 @@
+# Fixture: europe_equip_units' start verbatim (Europe base, 60000 gold, six plain Free Colonists on the dock:
+# slots 0-2 upper quay y 146, 3-5 lower quay y 169; x = 241, 258, 275) and the empty Caravel (2 holds) in the harbor at (153,153).
+# DOS has no unit drag in Europe (FUN_38fd_4e8e drag modes: 8/9 transit ships, 10 goods; FUN_38fd_1aba region 4 = dock,
+# which a drag maps to 0xf = no target): dock units board only when a ship sails (europe_board_sentry_dockers: every
+# sentried dock unit, front first, while the ship has a free hold); the @ARMOPTIONS rows toggle the board flag.
+key e                    # open the European Status screen
+wait 10
+drag 241 146 153 153     # dock colonist dragged onto the harbor Caravel: the press opens its dock menu, the release does nothing
+key Escape               # close the menu without a choice
+click 241 146            # slot 0 menu again (6 rows, no Move to front on slot 0)
+click 120 77             # "Don't get on next ship.": slot 0 stays when a ship sails
+drag 10 188 152 170      # buy 100 Food into the Caravel's first hold: one hold left for a passenger
+drag 152 170 300 150     # the Food hold dropped on empty dock space: no target, nothing sold
+drag 152 170 258 146     # the Food hold dropped on a dock colonist: nothing sold, no menu
+drag 153 153 110 140     # Caravel dragged onto Bound for the New World: @SAILAWAY
+key Return               # "Yes, steady as she goes": slot 1 boards (slot 0 skipped), the full Caravel leaves slots 2-5 on the dock;
+                         # the last harbor ship gone, Europe closes to the map
+shot
