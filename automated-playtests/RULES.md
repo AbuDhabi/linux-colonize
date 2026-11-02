@@ -506,6 +506,12 @@ War of Independence
   The win check also needs the Crown to hold NO colony (ai_king_war.c):
   campaign 14 had the REF at 6 land units and still had to march 13
   cavalry from Penobscot to Peru to retake Boston (1725).
+- Never strip a retaken colony to reach the next one: campaign 15 retook 9
+  colonies and lost 3 straight back to Tory uprisings the turn the guns left.
+  Check `near` for ` damaged` before an attack: a damaged gun that loses is
+  destroyed. A Tory Fort sinks a ship left next to it at end of turn: unload,
+  then sail out of range in the same turn. Two ships on one tile: the
+  passengers leave with whichever ship moves first.
 - Before declaring, give every colony an armed unit, inland ones too: once
   the REF pool was empty the Crown raised 11 Tory soldiers around the
   unarmed silver colonies (campaign 14 branch A). Keep pop x (100 - SoL)

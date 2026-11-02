@@ -683,8 +683,16 @@ static void print_near(int cx, int cy, int r) {
     if (!u->active || u->x < cx - r || u->x > cx + r || u->y < cy - r || u->y > cy + r) {
       continue;
     }
-    printf("NEAR %d %s nation %d at (%d,%d) moves %d orders %d%s\n", u->id, unit_name(u), u->nation_id, u->x,
-           u->y, MP_LEFT(u), u->orders, u->aboard_ship_id >= 0 ? " aboard" : "");
+    /* Cargo tons aboard: a privateer hunt wants loaded ships (an empty one only sinks). */
+    int cargo = 0;
+    for (int h = 0; h < COLONIZE_UNIT_CARGO_MAX; ++h) {
+      cargo += u->hold_goods_amount[h];
+    }
+    /* damaged: a hurt gun that attacks and loses is destroyed (campaign 15 lost 8 at Havana). */
+    printf("NEAR %d %s nation %d at (%d,%d) moves %d orders %d%s%s", u->id, unit_name(u), u->nation_id, u->x,
+           u->y, MP_LEFT(u), u->orders, u->aboard_ship_id >= 0 ? " aboard" : "",
+           (u->col1_flags15 & 0x80u) ? " damaged" : "");
+    printf(cargo > 0 ? " cargo %d\n" : "\n", cargo);
   }
 }
 
