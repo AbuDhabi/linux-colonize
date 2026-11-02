@@ -1,5 +1,6 @@
 #include "core/col1_post_map.h"
 
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -324,8 +325,12 @@ bool col1_post_map_is_blank(const ColonizeCol1PostMap* pm) {
   if (!pm) {
     return true;
   }
+  /* Planes + tallies only: the 10-byte tail (boot_timer, seed) is stamped at
+   * new game, so a port save with never-built planes still has a nonzero tail.
+   * DOS builds the planes only at new game (FUN_75c2_235c -> FUN_67f4_0088) and
+   * FUN_75c2_0288 loads them verbatim, so zero planes would break its Go To. */
   const uint8_t* p = (const uint8_t*)pm;
-  for (size_t i = 0; i < sizeof(*pm); ++i) {
+  for (size_t i = 0; i < offsetof(ColonizeCol1PostMap, save_path_blob); ++i) {
     if (p[i] != 0) {
       return false;
     }

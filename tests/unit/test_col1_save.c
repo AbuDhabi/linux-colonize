@@ -3213,6 +3213,24 @@ int main(void) {
     assets_msg_free(&names);
   }
 
+  /* A stamped tail (boot_timer / seed) must not hide never-built planes:
+   * DOS loads the planes verbatim (FUN_75c2_0288) and never rebuilds them. */
+  {
+    ColonizeCol1PostMap pm;
+    memset(&pm, 0, sizeof(pm));
+    pm.boot_timer = 116843;
+    pm.prime_resource_seed = 28568;
+    if (!col1_post_map_is_blank(&pm)) {
+      fprintf(stderr, "post_map blank: stamped tail hid zero planes\n");
+      return 1;
+    }
+    pm.land_connectivity[0] = 1;
+    if (col1_post_map_is_blank(&pm)) {
+      fprintf(stderr, "post_map blank: built plane read as blank\n");
+      return 1;
+    }
+  }
+
   /* FUN_67f4_0088 rebuild vs COLONY00: tallies exact; planes near-match. */
   {
     ColonizeCol1Save orig;
