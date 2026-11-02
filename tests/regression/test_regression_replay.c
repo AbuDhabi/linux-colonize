@@ -6,6 +6,8 @@
  *   input.jsonl  settings.json debug.input_logger log of the test span
  *   output.sav   save taken on the main map after the last input
  *   turns        optional: N, the number of turns the test ends (default 0)
+ *   settings.json optional: settings the replay runs with (divergences)
+ *   output.frame optional: FNV-1a hash of the final frame (render-only checks)
  * The harness loads input.sav, feeds the logged events back frame by frame
  * through a replay platform, lets the game settle on the main map, saves,
  * and requires the save to match output.sav byte for byte.
@@ -41,6 +43,7 @@
 
 #include "col1_json.h"
 #include "core/ai_popup.h"
+#include "core/dos_rng.h"
 #include "core/game_dialogs.h"
 #include "core/game_loop.h"
 #include "core/game_loop_internal.h"
@@ -647,6 +650,15 @@ static int run_test(const char* name) {
     }
   }
   (void)settings_init(settings_file, NULL, 0);
+  {
+    /* The startup-read divergences main.c applies after settings_init. A
+     * modern_prng test needs a `seed` to replay (0 without one). */
+    const ColonizeSettings* prefs = settings_get();
+    units_set_unlimited(prefs->unlimited_units);
+    if (prefs->modern_prng) {
+      dos_rng_modern_seed(prefs->seed_present ? (uint64_t)prefs->seed : 0u);
+    }
+  }
 #ifndef _WIN32
   /* The limit above is checked between frames; this catches one frame that
    * never returns (a stray Return ending the turn runs the AI inline). */
@@ -750,11 +762,34 @@ static int run_test(const char* name) {
   }
   char act_sav[700];
   snprintf(act_sav, sizeof(act_sav), "%s/actual.sav", out_dir);
-  if (compare_saves(out_sav, act_sav, out_dir)) {
-    rc = 0;
-  } else {
-    printf("  actual save: %s\n", act_sav);
+  /* Render-only divergences (current_vision) never reach the save: the
+   * test's optional output.frame pins the final frame's pixel hash. */
+  uint64_t frame_hash = 14695981039346656037ull;
+  for (int i = 0; i < fb.width * fb.height; ++i) {
+    frame_hash = (frame_hash ^ fb.pixels[i]) * 1099511628211ull;
   }
+  char frame_path[700];
+  snprintf(frame_path, sizeof(frame_path), "%s/actual.frame", out_dir);
+  FILE* frame_file = fopen(frame_path, "wb");
+  if (frame_file) {
+    fprintf(frame_file, "%016llx\n", (unsigned long long)frame_hash);
+    fclose(frame_file);
+  }
+  if (!compare_saves(out_sav, act_sav, out_dir)) {
+    printf("  actual save: %s\n", act_sav);
+    goto done;
+  }
+  snprintf(frame_path, sizeof(frame_path), "%s/output.frame", dir);
+  char* want = read_text(frame_path, NULL);
+  unsigned long long want_hash = 0;
+  if (want && (sscanf(want, "%llx", &want_hash) != 1 || want_hash != frame_hash)) {
+    printf("  final frame hash %016llx differs from output.frame\n", (unsigned long long)frame_hash);
+    write_shot(out_dir, "end", &fb, &pal, game);
+    free(want);
+    goto done;
+  }
+  free(want);
+  rc = 0;
 done:
   free(pixels);
   free(rp.recs);

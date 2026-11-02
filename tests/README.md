@@ -174,7 +174,8 @@ Most executables expect **repo root** as cwd (`WORKING_DIRECTORY` in CMake).
 | `input.jsonl` | `debug.input_logger` log (docs/settings.md "Input log") of the test span |
 | `output.sav` | save taken on the main map right after the last input |
 | `input.steps` | optional: the step script `input.jsonl` was compiled from (see "Authoring from a step script") |
-| `settings.json` | optional: the settings the replay runs with (e.g. a `divergences` switch); default settings without it |
+| `settings.json` | optional: the settings the replay runs with (e.g. a `divergences` switch); default settings without it. The harness applies the startup-read `unlimited_units` and `modern_prng` as `main.c` does (xoshiro seeded from `seed`, 0 without one) |
+| `output.frame` | optional: FNV-1a hash of the final frame's palette indices, for render-only behaviour the save never sees (`current_vision`); `--bless` refreshes it when present (create it empty to start) |
 | `turns` | optional: N, the number of turns the test ends (multi-turn tests, see below); 0 without it |
 
 The harness loads `input.sav`, waits for the main map, replays the log one

@@ -1,0 +1,20 @@
+# DOS unit limit, the twin of map_unlimited_units (same start: 298 unit records, divergences off).
+# CHEAT Create Unit (Shift-F1, row 0 Colonists) four times: two appear on (44,22) (records 299, 300),
+# then FUN_1427_06b4 refuses each further one with @TOOMANYUNITS; no UNXT chunk is written.
+key w alt
+key i alt
+key n alt
+key F1 shift             # Create Unit list
+key Return               # Colonists: record 299
+key F1 shift
+key Return               # Colonists: record 300
+key F1 shift
+key Return               # refused
+shot
+key Return               # @TOOMANYUNITS OK
+key F1 shift
+key Return               # refused
+shot
+key Return               # @TOOMANYUNITS OK
+shot
+key w alt                # cheat mode off

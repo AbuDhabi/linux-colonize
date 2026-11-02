@@ -1,0 +1,17 @@
+# divergences.modern_prng (settings.json, seed 1234): the same three Lost City Rumours as
+# map_rumour_colonist_outcomes (same input.sav), rolled from the seeded xoshiro256** stream instead
+# of the DOS LCG (state 2293), so all three come out different; the save gains RTST record 13.
+key KP_6                   # Scout east onto (30,62): "nothing but rumors" (LCG: small treasure 300)
+wait 3
+key Return
+wait 2
+key s                      # sentry the Scout: Preacher #131 is selected
+wait 2
+key KP_6                   # east onto (39,22): small friendly tribe's gift, gold 429 -> 467 (LCG: @LOSTCITY5 despawn)
+wait 3
+key Return                 # colonist #134 is selected
+wait 2
+key KP_4                   # west onto (36,25): "nothing but rumors" (LCG: Cibola)
+wait 3
+key Return
+wait 2

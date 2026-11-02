@@ -112,6 +112,24 @@ Step-script Europe tests (same base save, fixture edits noted in each `input.ste
 | `europe_sell_goods` | Drag-sells, `-` (whole first hold, then the "No Cotton in cargo hold!" red bar), `_` and Shift+drag amount prompts, `U` one lowest-key hold per press, the ship menu's Unload all, `U` on an empty ship (red bar) |
 | `europe_board_dock_units` | `europe_equip_units`' start + the empty harbor Caravel: a dock colonist dragged onto the ship only opens its dock menu (DOS has no unit drag in Europe), slot 0 set "Don't get on next ship", 100 Food bought, the Food hold dropped on empty dock space and on a dock colonist (nothing), the Caravel sails: one colonist boards the free hold, slot 0 and four sentried colonists stay on the dock |
 
+## Divergence tests
+
+Each opts into one `divergences` switch (docs/settings.md) through its own
+`settings.json`; `map_current_vision` is render-only, so it also pins the final
+frame in `output.frame` (its `output.sav` equals `map_move_land_tile_by_tile`'s).
+
+| Test | Does |
+|------|------|
+| `pioneer_auto_goto` | `divergences.pioneer_plan`; Hardy Pioneer plans a road two tiles away (VIEW Plan Pioneer), ORDERS Automate walks it there (Go To, order 3) until its moves run out |
+| `pioneer_auto_start_work` | `divergences.pioneer_plan`; Hardy Pioneer plans Clear Forest / Plow on its own tile, Automate starts the job on its own tile (order 8, progress 1, moves spent) |
+| `pioneer_auto_road_instant` | `divergences.pioneer_plan`; Hardy Pioneer plans a road on its own unroaded plains tile, Automate finishes it at once (Hardy plains threshold 1; tools 100 to 80, plan bit cleared) |
+| `map_scout_autoexplore` | `divergences.scout_autoexplore`; from `map_rumour_colonist_outcomes`' start (Seasoned Scout #77 on (29,62), full moves): `q` Automate picks the next-door Iroquois village over the (30,62) rumour (both points of interest, scan order) and walks in: woodcut + @ACTIONS menu, Cancel Action (Escape) spends its moves, the village joins `SAUT`'s entered-settlement set, Preacher #131 selected |
+| `map_ship_autoexplore` | `divergences.ship_autoexplore`; from `map_move_ship_tile_by_tile`'s start (Caravel on (47,29), 4 moves): `q` Automate heads for (52,28), the seen ocean tile that lifts the most fog per tile sailed, and sails until its moves run out at (51,28) (orders 3); fog lifts, `SAUT` saved |
+| `map_modern_prng` | `divergences.modern_prng` (`settings.json` seed 1234); `map_rumour_colonist_outcomes`' start, the same three rumours roll from the seeded xoshiro256** stream: Scout finds nothing (LCG: 300 treasure), Preacher #131 gets a small tribe's gift, gold 429 to 467 (LCG: despawned), colonist #134 finds nothing (LCG: Cibola); the save gains RTST record 13 |
+| `map_unlimited_units` | `divergences.unlimited_units`; `map_cheat_create_unit` start plus 145 sentried French Colonists on Quebec (45,24), 298 unit records: CHEAT Create Unit (Shift-F1, Colonists) four times; all four appear on (44,22), 302 records, the two past 300 saved in the `UNXT` chunk |
+| `map_unit_limit_refused` | Same start, divergences off: the first two Creates appear (records 299, 300), the next two are refused with @TOOMANYUNITS (FUN_1427_06b4); 300 records, no `UNXT` chunk |
+| `map_current_vision` | `divergences.current_vision`; `map_move_land_tile_by_tile`'s steps: the save is unchanged, `output.frame` pins the dithered veil over tiles no unit or colony sees after the moves |
+
 ## Multi-turn tests
 
 Each `turns_*` test has a `turns` file (the number of turns it ends); the start state and every
@@ -130,6 +148,7 @@ step are commented in its `input.steps`.
 | `turns_fortify_sentry` | 2 | Same start; Fortify (5) becomes Fortified (6) next turn; a sentried colonist boards the departing Caravel, rides to Montreal and is woken there; a sentried Scout stays sentried, another is woken by a neighbour and re-sentried |
 | `turns_school_training` | 2 | Same start; Quebec + Schoolhouse, an Expert Fisherman teacher at counter 2: the counter reaches 4, a Free Colonist student becomes Expert Fisherman (@TRAINPROFESSION), the counter resets |
 | `turns_pioneer_automate` | 3 | Same start, `divergences.pioneer_plan`; Hardy Pioneer plans Plow (43,25) and Road (44,24), Automate: plow done autumn 1600, walks to (44,24) and builds the road autumn 1601 (tools 100 to 60) |
+| `turns_hard_king` | 2 | `turns_declare_independence_ref`'s start and declaration with `divergences.hard_king`: five REF waves a turn (Montreal x3, Quebec, Port au Prince); the Tories take Montreal, Port au Prince and Quebec, sink two Caravels and capture rebels ("all but 2 of our colonies"); REF pool 49/25/14/26 to 31/15/4/18 |
 | `turns_founding_father_join` | 2 | Spring 1600 start (French units sentried), next father Pocahontas, bell pool 1000 of 1009: she joins (notice, congress, Colonizopedia), Franklin picked next, tension and alarm with every tribe zeroed; the Caravel's Europe arrival screen closed, woken units re-sentried |
 | `turns_declare_independence_ref` | 2 | From `map_declare_independence`'s start (units sentried): declares, the REF lands near Montreal (@INVASION, intervention, Continental Army popups), a second wave takes Montreal and captures rebels |
 | `turns_hotseat_rounds` | 2 | From `hotseat_handoff`'s start: two full hot-seat rounds 1492 to 1494, England and Spain handing over through @MULTINEXT with France and the Netherlands (AI) between |

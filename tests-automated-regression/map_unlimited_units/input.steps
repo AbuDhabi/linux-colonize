@@ -1,0 +1,17 @@
+# divergences.unlimited_units (settings.json). Fixture: map_cheat_create_unit start (France 1599, Preacher #131
+# selected on (44,22)) plus 145 sentried French Colonists on Quebec (45,24): 298 unit records, re-saved once.
+# CHEAT Create Unit (Shift-F1, row 0 Colonists) four times: DOS (FUN_1427_06b4) stops at 300 records with
+# @TOOMANYUNITS; here all four appear on (44,22), 302 records, the two past 300 saved in the UNXT chunk.
+key w alt
+key i alt
+key n alt
+key F1 shift             # Create Unit list
+key Return               # Colonists: record 299
+key F1 shift
+key Return               # Colonists: record 300
+key F1 shift
+key Return               # Colonists: record 301 (DOS: @TOOMANYUNITS)
+key F1 shift
+key Return               # Colonists: record 302
+shot
+key w alt                # cheat mode off

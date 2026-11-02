@@ -1,0 +1,21 @@
+# divergences.current_vision (settings.json): render-only, so output.sav = map_move_land_tile_by_tile's
+# and output.frame pins the final frame (veil over tiles no unit or colony sees now).
+key p        # P with a non-Pioneer selected: no order, nothing opens
+key KP_4     # west onto prairie, orthogonal (-3/3)
+key KP_1     # SW diagonal onto plains
+key KP_4     # west onto forest, but road to road costs 1/3
+key KP_7     # NW diagonal into Guadeloupe (own colony, 1/3)
+key KP_6     # east onto road
+key KP_3     # SE diagonal along the road
+key KP_6     # east onto road-less forest with 2/3 left: the overspend roll lets him in and ends his turn
+# the game hands over to the wagon train in Guadeloupe (2 moves)
+key KP_6     # east along the road
+key KP_3     # SE diagonal
+key KP_3     # SE diagonal
+key KP_9     # NE diagonal
+key KP_8     # north into Quebec: a wagon arriving in a colony spends all its moves
+# next up: a colonist on (42,25)
+key KP_7     # NW diagonal into Guadeloupe
+key KP_6     # east onto the road
+key KP_3     # SE diagonal: third road step uses the colonist's last third, next colonist is selected
+shot

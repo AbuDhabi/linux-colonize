@@ -1,0 +1,180 @@
+# divergences.hard_king (settings.json): turns_declare_independence_ref's start and declaration, with up to difficulty + 1 REF waves a turn.
+# Start: map_declare_independence's input.sav (France, Spring 1599, turn 107; every French colony at 59% SoL)
+# with every French unit that had no orders / go-to / pioneer job put on sentry (orders 1), so only
+# units the war wakes need attention. The declaration steps are map_declare_independence's.
+# Turn 107 end: the Crown's first wave lands near Montreal (@INVASION, ai_king_0982_invasion, raised
+# inside the King's beat while the AI turn runs). Turn 108 end: a second wave lands near Montreal,
+# the Tories beat the defenders, march into Montreal (captured, colony owner -> crown slot 2) and
+# defeat/capture rebels near Guadeloupe. Ends at the start of Autumn 1600 (turn 109).
+click 22 3               # GAME menu
+click 50 85              # DECLARE INDEPENDENCE: Never / Yes confirm
+wait 1
+click 150 162            # Yes!: WoI, rival slots, congress latch, backup force, Euro withdrawal, REF diplo
+wait 2
+key Return               # War of the Spanish Succession notice (Spain cedes New Spain to the Dutch)
+wait 2
+key Return               # signing cinematic: skip the animation to the finished signature
+wait 2
+key Return               # close the cinematic
+wait 2
+key Return               # @INDEPENDENCE letter OK; every rebel unit's moves are spent: End of Turn
+wait 2
+key space                # end turn 107
+wait 30
+key Return               # REF lands near Montreal (nested in the King's beat)
+wait 10
+key Return               # REF lands near Quebec (nested in the King's beat)
+wait 10
+key Return               # REF lands near Port au Prince (nested in the King's beat)
+wait 10
+key Return               # REF lands near Montreal (fourth wave) (nested in the King's beat)
+wait 10
+key Return               # REF lands near Montreal (fifth wave) (nested in the King's beat)
+wait 10
+key Return               # (nested popup) (nested in the King's beat)
+wait 10
+key Return               # Rebel cargo of 14 Sugar captured (nested in the King's beat)
+wait 10
+key Return               # Rebel cargo of 10 Furs captured (nested in the King's beat)
+wait 10
+key Return               # Rebel Caravel sunk (nested in the King's beat)
+wait 10
+key Return               # SoL Port au Prince 62% (Continue turn)
+wait 10
+key Return               # hint: the King's armies and New World tactics
+wait 10
+key Return               # Netherlands considers intervention (8000 bells)
+wait 10
+key Return               # SoL Martinique 62%
+wait 10
+key Return               # SoL Guadeloupe 62%
+wait 10
+key Return               # SoL Montreal 60%
+wait 10
+key Return               # SoL Quebec 61%
+wait 10
+key Return               # Continental Army mobilizes at Quebec
+wait 10
+shot
+key s                    # turn 108: sentry the Scout the war woke (29,62)
+wait 3
+shot
+key s                    # sentry the Preacher at (44,22)
+wait 3
+shot
+key space                # end turn 108
+wait 30
+# 54 presses: five landings again, Tories take Montreal, Port au Prince and Quebec, combat, captures, two Caravels sunk
+key Return
+wait 10
+key Return
+wait 10
+key Return
+wait 10
+key Return
+wait 10
+key Return
+wait 10
+key Return
+wait 10
+key Return
+wait 10
+key Return
+wait 10
+key Return
+wait 10
+key Return
+wait 10
+key Return
+wait 10
+key Return
+wait 10
+key Return
+wait 10
+key Return
+wait 10
+key Return
+wait 10
+key Return
+wait 10
+key Return
+wait 10
+key Return
+wait 10
+key Return
+wait 10
+key Return
+wait 10
+key Return
+wait 10
+key Return
+wait 10
+key Return
+wait 10
+key Return
+wait 10
+key Return
+wait 10
+key Return
+wait 10
+key Return
+wait 10
+key Return
+wait 10
+key Return
+wait 10
+key Return
+wait 10
+key Return
+wait 10
+key Return
+wait 10
+key Return
+wait 10
+key Return
+wait 10
+key Return
+wait 10
+key Return
+wait 10
+key Return
+wait 10
+key Return
+wait 10
+key Return
+wait 10
+key Return
+wait 10
+key Return
+wait 10
+key Return
+wait 10
+key Return
+wait 10
+key Return
+wait 10
+key Return
+wait 10
+key Return
+wait 10
+key Return
+wait 10
+key Return
+wait 10
+key Return
+wait 10
+key Return
+wait 10
+key Return
+wait 10
+key Return
+wait 10
+key Return
+wait 10
+key Return
+wait 10
+key Return               # Colonization Help: Time Scale (two turns per year from 1600)
+wait 10
+key Return               # the King's forces control all but 2 of our colonies
+wait 10
+shot
