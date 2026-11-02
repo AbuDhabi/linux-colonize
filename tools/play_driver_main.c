@@ -104,6 +104,9 @@
  *                               grouped by 8x8 block ("FOG x0,y0 n"), to aim scouts at; the first
  *                               40 tiles also print as "FOGTILE x,y"
  *   rumours                     list seen rumour tiles with terrain (h hill, m mountain)
+ *   plan X Y clear|plow|road    VIEW Plan Pioneer toggle on tile X,Y (divergences.pioneer_plan;
+ *                               clear cycles Clear -> Clear+Plow -> none); ORDERS Automate (`key q`)
+ *                               then walks a Pioneer through the plan
  *   activate ID                 wake and select unit ID (the stack-list pick by id;
  *                               in game, A on a stack opens the picker); waits up to 60 frames
  *                               for a queued popup / modal to clear; on ERR the following keys
@@ -148,6 +151,7 @@
 #include "core/map.h"
 #include "core/map_panel.h"
 #include "core/new_game.h"
+#include "core/pioneer_plan.h"
 #include "core/reports_names.h"
 #include "core/screen_geom.h"
 #include "core/settings.h"
@@ -646,6 +650,9 @@ static void print_units(void) {
            u->orders, u->profession);
     if (u->aboard_ship_id >= 0) {
       printf(" aboard %d", u->aboard_ship_id);
+    }
+    if (u->orders == UNITS_ORDER_GOTO) {
+      printf(" goto %d,%d", u->goto_x, u->goto_y);
     }
     if (u->automated) {
       printf(" automated"); /* ORDERS Automate (pioneer plan / scout / ship explore): orders 0 is not idle */
@@ -1962,6 +1969,18 @@ static bool command(char* line) {
       printf("ERR buybuild: nothing to buy in %s\n", g_game->colonies.colonies[a1].name);
       tap(SDLK_ESCAPE, -1, 0);
       ok = flush_frames(5);
+    }
+  } else if (strcmp(op, "plan") == 0 && argc > 3) {
+    /* plan X Y clear|plow|road: VIEW Plan Pioneer toggle on tile X,Y (pioneer_plan.h). */
+    const uint8_t bit = strcmp(argv[3], "clear") == 0 ? PIONEER_PLAN_CLEAR
+                      : strcmp(argv[3], "plow") == 0 ? PIONEER_PLAN_PLOW : PIONEER_PLAN_ROAD;
+    const ColonizeWorld w = game_world(g_game);
+    if (!pioneer_plan_enabled()) {
+      printf("ERR plan: divergences.pioneer_plan is off\n");
+    } else if (!pioneer_plan_toggle(&w, g_game->human_nation, a1, a2, bit)) {
+      printf("ERR plan (%d,%d) %s refused\n", a1, a2, argv[3]);
+    } else {
+      printf("PLAN (%d,%d) bits %u\n", a1, a2, pioneer_plan_at(a1, a2));
     }
   } else if (strcmp(op, "fog") == 0) {
     /* Exploration check: every land tile the human has not seen (the playable

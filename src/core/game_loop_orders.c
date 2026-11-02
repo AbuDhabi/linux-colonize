@@ -590,6 +590,7 @@ void game_foreign_trade_price_hold(
   /* @TRADENOWANT prints the refused cargo as %NUMBER0 %STRING0 (raw 99042-99048). */
   tok.string0 = tok.string1;
   tok.number0 = deal.sold_qty;
+  tok.has_number0 = tok.has_number1 = tok.has_number2 = true; /* unset flags print 0 (c15) */
   if (deal.offer_cargo < 0) {
     game_foreign_trade_refuse(
       game, "TRADENOWANT", &tok,

@@ -1704,6 +1704,22 @@ static AiTalkStepStatus ai_talk_stage_third(
   return AI_TALK_STEP_CONTINUE;
 }
 
+/* FUN_5bfb_153e raw 97778-97781 / 97833-97837 / 97898-97902: PIRACY, SIEGES and TRIBUTE
+ * set %STRING0 = 0618(0, "LEADER", target) = @GREATLEADER ("Our King"), %STRING1 =
+ * 09a4(human); %STRING2 = the target's player.country_name ("New France") for PIRACY
+ * and TRIBUTE, 09a4(target) for SIEGES. */
+static PopupMsgTokens ai_talk_leader_tok(
+  ColonizeTurnContext* ctx, const PopupMsgTokens* tok, int t, bool country
+) {
+  PopupMsgTokens lt = *tok;
+  const char* leader = ai_talk_great_line(ctx, "GREATLEADER", t);
+  lt.string0 = leader ? leader : "";
+  if (country) {
+    lt.string2 = col1_player_country_name(ctx->col1, t);
+  }
+  return lt;
+}
+
 static AiTalkStepStatus ai_talk_stage_piracy(
   ColonizeTurnContext* ctx, Ai153eTalk* k, const PopupMsgTokens* tok, int h, int t
 ) {
@@ -1712,7 +1728,8 @@ static AiTalkStepStatus ai_talk_stage_piracy(
   const int alert = (ai_diplo_read(col1, t, h) & AI_DIPLO_PRIVATEER_SIGHTED) != 0;
   if (alert && !k->crown_armed && col1->stuff.unit_type_counts[h][16] != 0) {
     static const char* const lab[2] = {"", ""};
-    ai_talk_choice(ctx, "PIRACY", tok, lab, 2, AI_TALK_ST_PIRACY);
+    const PopupMsgTokens lt = ai_talk_leader_tok(ctx, tok, t, true);
+    ai_talk_choice(ctx, "PIRACY", &lt, lab, 2, AI_TALK_ST_PIRACY);
     return AI_TALK_STEP_RETURN;
   }
   return AI_TALK_STEP_CONTINUE;
@@ -1731,7 +1748,8 @@ static AiTalkStepStatus ai_talk_stage_sieges(
     }
     if (ask) {
       static const char* const lab[2] = {"", ""};
-      ai_talk_choice(ctx, "SIEGES", tok, lab, 2, AI_TALK_ST_SIEGES);
+      const PopupMsgTokens lt = ai_talk_leader_tok(ctx, tok, t, false);
+      ai_talk_choice(ctx, "SIEGES", &lt, lab, 2, AI_TALK_ST_SIEGES);
       return AI_TALK_STEP_RETURN;
     }
   }
@@ -1745,7 +1763,7 @@ static AiTalkStepStatus ai_talk_stage_tribute(
   if (k->score != 0 && k->manly &&
       /* OVL16 5bfb:240b-241e (raw 97894-97897): gold strictly above the score (#1138). */
       europe_nation_gold(ctx->europe, ctx->col1, h) > (uint32_t)k->score) {
-    PopupMsgTokens tt = *tok;
+    PopupMsgTokens tt = ai_talk_leader_tok(ctx, tok, t, true);
     tt.number0 = k->score;
     tt.has_number0 = true;
     static const char* const lab[2] = {"", ""};

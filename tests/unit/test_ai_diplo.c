@@ -1939,6 +1939,8 @@ static void talk474_flat(char* out, size_t cap, const char* body) {
   }
 }
 
+static int s_talk474_saw_piracy;
+
 static int talk474_drain(ColonizeTurnContext* ctx, AiPopupState* pop, int* saw_worthy,
                          int* saw_wise) {
   for (int guard = 0; guard < 16 && pop->queue_count > 0; ++guard) {
@@ -1952,6 +1954,14 @@ static int talk474_drain(ColonizeTurnContext* ctx, AiPopupState* pop, int* saw_w
       if (!strstr(flat, "by order of the King") || strstr(flat, "by order of France")) {
         fprintf(stderr, "unit_ai_diplo: #474 WORTHY body='%s'\n", flat);
         return fail("#474: @WORTHY %STRING0 must be @GREATLEADER2[target]");
+      }
+    }
+    if (strstr(flat, "most displeased")) {
+      /* raw 97778-97781: %STRING0 = @GREATLEADER[target], %STRING2 = target country. */
+      s_talk474_saw_piracy = 1;
+      if (!strstr(flat, "Our King is most displeased") || !strstr(flat, "off the coast of France")) {
+        fprintf(stderr, "unit_ai_diplo: PIRACY body='%s'\n", flat);
+        return fail("@PIRACY %STRING0/2 must be @GREATLEADER[target] + target country");
       }
     }
     if (strstr(flat, "wise leader")) {
@@ -2048,12 +2058,17 @@ static int case_153e_talk_tokens_474(void) {
     return 1;
   }
   ai_popup_init(&epop);
+  /* The PIRACY gate (raw 97776-97777): grievance bit, a privateer of the human's. */
+  s_talk474_saw_piracy = 0;
+  ai_diplo_write(&e, 1, 0, (uint8_t)(ai_diplo_read(&e, 1, 0) | AI_DIPLO_PRIVATEER_SIGHTED));
+  e.stuff.unit_type_counts[0][16] = 1;
   (void)ai_diplo_153e_encounter_forced(&ectx, 0, 1, pa->id);
   if (talk474_drain(&ectx, &epop, &saw_worthy, &saw_wise) != 0) {
     return 1;
   }
-  if (!saw_worthy || !saw_wise) {
-    fprintf(stderr, "unit_ai_diplo: #474 saw_worthy=%d saw_wise=%d\n", saw_worthy, saw_wise);
+  if (!saw_worthy || !saw_wise || !s_talk474_saw_piracy) {
+    fprintf(stderr, "unit_ai_diplo: #474 saw_worthy=%d saw_wise=%d saw_piracy=%d\n", saw_worthy, saw_wise,
+            s_talk474_saw_piracy);
     return fail("#474: fixture must reach both @WORTHY and @OLDPEACEMEEK");
   }
   return 0;
