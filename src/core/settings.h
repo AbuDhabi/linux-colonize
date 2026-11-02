@@ -111,6 +111,7 @@ typedef struct ColonizeSettings {
   bool current_vision;  /* fog-blue checkerboard on seen tiles outside live unit/colony sight */
   bool scout_autoexplore; /* ORDERS Automate on a Scout explores (explore_auto.h) */
   bool ship_autoexplore;  /* ORDERS Automate on a ship explores the ocean (explore_auto.h) */
+  bool hard_king;         /* harder REF: waves per turn by difficulty, seize-landings, 5x5 garrison */
 } ColonizeSettings;
 
 /* DOS new-game state (0x5382=0xc600, 0x5384=0, 0x5386=0x0e) plus port

@@ -2,6 +2,7 @@
  * King war events, non-combat gate, 43f7_0082 spawn types. */
 #include "test_ai_king_common.h"
 #include "core/dos_buggy.h"
+#include "core/settings.h"
 
 /* FUN_38fd_5930 @KINGNEWWAR: Crown cancels peace with a random peer, grants gold + vets. */
 static int test_king_new_war_event(void) {
@@ -608,6 +609,152 @@ static int case_tb38_land_ignores_stale_nibble(void) {
   return 0;
 }
 
+/* ===== divergences.hard_king (docs/settings.md) ===== */
+
+static void hard_king_set(bool on) {
+  ColonizeSettings st = *settings_get();
+  st.hard_king = on;
+  settings_set(&st);
+}
+
+static int count_crown(const TbInvFx* f, int type_index, int* ys, int ys_cap) {
+  int n = 0;
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* u = &f->units.units[i];
+    if (u->active && u->nation_id == 1 && u->type_index == type_index) {
+      if (ys && n < ys_cap) {
+        ys[n] = u->y;
+      }
+      n++;
+    }
+  }
+  return n;
+}
+
+/* Waves per turn = difficulty + 1 while hulls last, each at another colony. */
+static int hard_king_waves(int difficulty, int* ys) {
+  static ColonizeCol1Save col1;
+  TbInvFx f;
+  if (!tb_inv_fx_init(&f)) {
+    return -1;
+  }
+  tb_inv_add_colony(&f, 1, 5, 2);
+  tb_inv_add_colony(&f, 1, 15, 2);
+  tb_inv_add_colony(&f, 1, 25, 2);
+  memset(&col1, 0, sizeof(col1));
+  col1.head.difficulty = (uint8_t)difficulty;
+  col1.head.expeditionary_force[0] = 12;
+  col1.head.expeditionary_force[2] = 3;
+  ai_king_set_independence(&col1, 1);
+  f.ctx.col1 = &col1;
+  f.ctx.col1_ok = true;
+  hard_king_set(true);
+  ai_king_ref_wave(&f.ctx);
+  hard_king_set(false);
+  const int n = count_crown(&f, 1, ys, 5);
+  map_free(&f.map);
+  return n;
+}
+
+static int case_hard_king_waves_per_turn(void) {
+  int ys[5] = {0};
+  if (hard_king_waves(0, ys) != 1) {
+    return fail("hard_king: Discoverer lands one wave a turn");
+  }
+  const int n = hard_king_waves(4, ys);
+  if (n != 3) {
+    fprintf(stderr, "hard_king: Viceroy hulls=%d (want 3: pool of 3)\n", n);
+    return fail("hard_king: Viceroy lands a wave per hull, up to 5");
+  }
+  int band[3] = {0};
+  for (int i = 0; i < 3; ++i) {
+    band[ys[i] / 10] = 1;
+  }
+  if (!band[0] || !band[1] || !band[2]) {
+    return fail("hard_king: the three waves must hit three different colonies");
+  }
+  return 0;
+}
+
+/* The target's own units no longer steer the landing to empty tiles. */
+static int hard_king_soldier_survives(bool hard) {
+  TbInvFx f;
+  memset(&f, 0, sizeof(f));
+  fx_units_init(&f.units);
+  f.units.type_count = 1;
+  f.units.types[0].kind_plus1 = UNITS_KIND_REGULAR + 1;
+  f.units.types[0].movement = 1;
+  f.units.types[0].attack = 3;
+  f.units.types[0].defense = 2;
+  char err[128];
+  if (!map_alloc(&f.map, 8, 8, err, sizeof(err))) {
+    return -1;
+  }
+  for (int i = 0; i < 64; ++i) {
+    f.map.terrain[i] = 1;
+    f.map.layer3[i] = 0xf1;
+  }
+  const int sid = units_spawn_allow_stack(&f.units, 0, 4, 3);
+  units_set_nation(units_get(&f.units, sid), 0);
+  ColonizeColony col;
+  memset(&col, 0, sizeof(col));
+  col.x = 5;
+  col.y = 3;
+  f.ctx.units = &f.units;
+  f.ctx.map = &f.map;
+  f.ctx.human_nation = 0;
+  uint16_t force[4] = {3, 0, 0, 0};
+  hard_king_set(hard);
+  dos_buggy_behavior_set(false); /* TB-38: crown-held = a live crown unit, not the nibble */
+  ai_king_0982_land_troops(&f.ctx, 1, force, &col, map_continent_id_at(&f.map, 4, 3), 0, 3, 4, 4);
+  dos_buggy_behavior_set(true);
+  hard_king_set(false);
+  const ColonizeUnit* s = units_get_const(&f.units, sid);
+  const int alive = s && s->active && s->nation_id == 0;
+  units_set_occupancy_map(NULL);
+  map_free(&f.map);
+  return alive;
+}
+
+static int case_hard_king_lands_on_units(void) {
+  if (hard_king_soldier_survives(false) != 1) {
+    return fail("hard_king off: DOS landing avoids the soldier's tile");
+  }
+  if (hard_king_soldier_survives(true) != 0) {
+    return fail("hard_king on: the landing seizes the soldier's tile");
+  }
+  return 0;
+}
+
+/* A soldier two tiles out makes its colony the less attractive target. */
+static int hard_king_target_y(bool hard) {
+  TbInvFx f;
+  if (!tb_inv_fx_init(&f)) {
+    return -1;
+  }
+  tb_inv_add_colony(&f, 1, 5, 3);
+  tb_inv_add_colony(&f, 1, 20, 3);
+  units_set_nation(units_get(&f.units, units_spawn_allow_stack(&f.units, 0, 3, 20)), 0);
+  uint16_t force[4] = {6, 0, 1, 0};
+  hard_king_set(hard);
+  tb_inv_run(&f, force);
+  hard_king_set(false);
+  int y = -1;
+  (void)count_crown(&f, 1, &y, 1);
+  map_free(&f.map);
+  return y;
+}
+
+static int case_hard_king_area_garrison(void) {
+  const int off = hard_king_target_y(false);
+  const int on = hard_king_target_y(true);
+  if (off < 15 || on < 0 || on > 10) {
+    fprintf(stderr, "hard_king: MoW y off=%d on=%d (want ~20 / ~5)\n", off, on);
+    return fail("hard_king: 5x5 soldiers must count against the colony's attractiveness");
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
     {"test_king_new_war_event", test_king_new_war_event},
     {"test_king_noncombat_never_attacks", test_king_noncombat_never_attacks},
@@ -616,5 +763,8 @@ static const TestCase k_cases[] = {
     {"case_tb39_invasion_past_ten_colonies", case_tb39_invasion_past_ten_colonies},
     {"case_tb37_garrison_reads_neighbour_head", case_tb37_garrison_reads_neighbour_head},
     {"case_tb38_land_ignores_stale_nibble", case_tb38_land_ignores_stale_nibble},
+    {"case_hard_king_waves_per_turn", case_hard_king_waves_per_turn},
+    {"case_hard_king_lands_on_units", case_hard_king_lands_on_units},
+    {"case_hard_king_area_garrison", case_hard_king_area_garrison},
 };
 TEST_MAIN(k_cases)

@@ -20,6 +20,7 @@ struct ai_king_0982_ctx {
   uint16_t* force;
   bool exhaust;
   bool landed;
+  bool* targeted; /* [COLONIZE_COLONIES_MAX] or NULL; divergences.hard_king multi-wave */
 };
 
 #ifdef COLONIZE_TESTING

@@ -28,6 +28,7 @@
 #include "core/popup_msg.h"
 #include "core/reports.h"
 #include "core/dos_buggy.h"
+#include "core/settings.h"
 #include "core/strutil.h"
 #include "core/units.h"
 
@@ -245,6 +246,37 @@ static bool ai_king_10f0_pick_spawn(const ColonizeTurnContext* ctx, int human, i
  *   ×2 with a Fortress, ×1.5 with a Fort, min 1.
  */
 /* ===== REF garrison scoring & invasion mechanics (ai_king_0982_garrison_score .. ai_king_ref_wave) ===== */
+/*
+ * Port divergence (settings.json divergences.hard_king, docs/settings.md): the
+ * colony owner's land units with attack > 1 standing within Chebyshev 2 of
+ * the colony but off its tile, i.e. the 5x5 reinforcements DOS ignores.
+ * Returns the count; *x16 (if set) gets their summed 004a strength >> 4.
+ */
+static int ai_king_hard_area_military(const ColonizeTurnContext* ctx, const ColonizeColony* c,
+                                      int* x16) {
+  const ColonizeCombatStrengthCtx cs = combat_strength_ctx_from_turn(ctx);
+  int n = 0;
+  int sum = 0;
+  for (int i = 0; i < units_slot_end(ctx->units); ++i) {
+    const ColonizeUnit* u = &ctx->units->units[i];
+    if (!u->active || u->nation_id != c->nation_id || !units_is_on_map(u) ||
+        units_is_sea(ctx->units, u->id) || abs(u->x - c->x) > 2 || abs(u->y - c->y) > 2 ||
+        (u->x == c->x && u->y == c->y)) {
+      continue;
+    }
+    const ColonizeUnitType* t = units_type(ctx->units, u->type_index);
+    if (!t || t->attack <= 1) {
+      continue;
+    }
+    n++;
+    sum += combat_unit_base_x8(&cs, u->id, 1, NULL) >> 4;
+  }
+  if (x16) {
+    *x16 = sum;
+  }
+  return n;
+}
+
 COLONIZE_INTERNAL int ai_king_0982_garrison_score(const ColonizeTurnContext* ctx, const ColonizeColony* c) {
   int g = (c->stock[COLONIZE_CARGO_MUSKETS] + 50) / 100 + 1;
   const ColonizeCombatStrengthCtx cs = combat_strength_ctx_from_turn(ctx);
@@ -262,6 +294,11 @@ COLONIZE_INTERNAL int ai_king_0982_garrison_score(const ColonizeTurnContext* ctx
     g <<= 1;
   } else if (fort >= 0 && c->has_building[fort]) {
     g = (g * 3) >> 1;
+  }
+  if (settings_get()->hard_king) {
+    int area = 0;
+    (void)ai_king_hard_area_military(ctx, c, &area);
+    g += area; /* outside the walls: no Fort/Fortress multiplier */
   }
   return g < 1 ? 1 : g;
 }
@@ -666,10 +703,14 @@ COLONIZE_INTERNAL void ai_king_0982_land_troops(
             k = 3;
           }
         } else {
+          /* divergences.hard_king: the target's own units do not count, so
+           * their tiles tie with empty ones and get seized (0512). */
+          const bool hard = settings_get()->hard_king;
           int stack = 0;
           for (int i = 0; i < units_slot_end(ctx->units); ++i) {
             const ColonizeUnit* u = &ctx->units->units[i];
-            if (u->active && u->x == nx && u->y == ny && units_is_on_map(u)) {
+            if (u->active && u->x == nx && u->y == ny && units_is_on_map(u) &&
+                !(hard && u->nation_id == c->nation_id)) {
               ++stack;
             }
           }
@@ -754,9 +795,12 @@ COLONIZE_INTERNAL void ai_king_0982_invasion(struct ai_king_0982_ctx* w) {
   int cidx[COLONIZE_COLONIES_MAX];
   int n = 0;
   int last_tile_head_id = -1; /* DOS local_4c: 07e0 of the last scored colony tile */
+  /* divergences.hard_king: later waves of a turn skip colonies already
+   * invaded this turn (w->targeted) unless no other port is left. */
+  for (int skip_pass = w->targeted ? 0 : 1; skip_pass < 2 && n == 0; ++skip_pass)
   for (int i = 0; i < COLONIZE_COLONIES_MAX && n < max_targets; ++i) {
     const ColonizeColony* c = &ctx->colonies->colonies[i];
-    if (!c->active || c->nation_id != human) {
+    if (!c->active || c->nation_id != human || (skip_pass == 0 && w->targeted[i])) {
       continue;
     }
     /* DOS-LITERAL FUN_43f7_0982 raw 74001-74003: `(colony[+0x1c] & 0x40)` —
@@ -766,7 +810,11 @@ COLONIZE_INTERNAL void ai_king_0982_invasion(struct ai_king_0982_ctx* w) {
       continue;
     }
     const int inv = 100 - ai_king_colony_sol_at(ctx, human, c->x, c->y);
-    int sc = c->colonist_count * (inv + 25) - 75 * ai_king_0982_tile_strength(ctx, c->x, c->y);
+    int strength = ai_king_0982_tile_strength(ctx, c->x, c->y);
+    if (settings_get()->hard_king) {
+      strength += ai_king_hard_area_military(ctx, c, NULL);
+    }
+    int sc = c->colonist_count * (inv + 25) - 75 * strength;
     if (sc < inv) {
       sc = inv;
     }
@@ -956,6 +1004,9 @@ COLONIZE_INTERNAL void ai_king_0982_invasion(struct ai_king_0982_ctx* w) {
         }
         landed = true;
         exhaust = false;
+        if (w->targeted) {
+          w->targeted[cidx[pick]] = true;
+        }
         /* @INVASION (thin 1528 announce). */
         PopupMsgTokens tok;
         memset(&tok, 0, sizeof(tok));
@@ -1035,18 +1086,42 @@ void ai_king_ref_wave(ColonizeTurnContext* ctx) {
   if (total < 5 || total == (int)force[2]) {
     exhaust = true;
   }
-  if (total != (int)force[2] && ctx->colonies) {
+  /*
+   * divergences.hard_king: up to difficulty + 1 waves a turn (Discoverer 1 ..
+   * Viceroy 5), each spending one hull from force[2]; an empty MoW pool or
+   * land pools ends the turn's waves early. Later waves prefer colonies not
+   * yet invaded this turn. Only the first wave can trigger the exhaust wipe.
+   */
+  const int max_waves = settings_get()->hard_king ? (int)ctx->col1->head.difficulty + 1 : 1;
+  bool targeted[COLONIZE_COLONIES_MAX];
+  memset(targeted, 0, sizeof(targeted));
+  for (int wave = 0; wave < max_waves && ctx->colonies; ++wave) {
+    if (wave > 0) {
+      total = (int)force[0] + (int)force[1] + (int)force[2] + (int)force[3];
+      if (force[2] == 0 || (int)force[0] + (int)force[1] + (int)force[3] == 0) {
+        break;
+      }
+    }
+    if (total == (int)force[2]) {
+      break;
+    }
     struct ai_king_0982_ctx w;
     memset(&w, 0, sizeof(w));
     w.ctx = ctx;
     w.crown = crown;
     w.human = human;
     w.force = force;
-    w.exhaust = exhaust;
-    w.landed = landed;
+    w.exhaust = wave == 0 ? exhaust : false;
+    w.landed = false;
+    w.targeted = max_waves > 1 ? targeted : NULL;
     ai_king_0982_invasion(&w);
-    exhaust = w.exhaust;
-    landed = w.landed;
+    if (wave == 0) {
+      exhaust = w.exhaust;
+    }
+    landed = landed || w.landed;
+    if (!w.landed) {
+      break;
+    }
   }
   if (landed) {
     ai_king_set_ref_present(ctx->col1, 1);

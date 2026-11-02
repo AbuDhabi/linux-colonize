@@ -58,7 +58,7 @@ defaults no matter what file is sitting in the build directory.
     "menu": false, "mouse_coords": false, "building_rects": false, "logs": false,
     "trace_autosaves": false, "input_logger": false, "input_logger_directory": "./input_logs"
   },
-  "divergences": { "unlimited_units": false, "modern_prng": false, "pioneer_plan": false, "current_vision": false, "scout_autoexplore": false, "ship_autoexplore": false },
+  "divergences": { "unlimited_units": false, "modern_prng": false, "pioneer_plan": false, "current_vision": false, "scout_autoexplore": false, "ship_autoexplore": false, "hard_king": false },
   "data_dir": "./COLONIZE",
   "save_dir": "",
   "no_sound": false,
@@ -121,6 +121,16 @@ in RTST record 13, written only while on; off = DOS draws and saves unchanged.
 `divergences.scout_autoexplore` offers ORDERS Automate (`Q`) to Scouts, which then
 explore on their own (docs/explore_auto.md); `divergences.ship_autoexplore` does the same
 for ships (ocean fog only). Both off = no row for those units and no `SAUT` chunk.
+`divergences.hard_king` makes the War of Independence REF tougher (`ai_king_ref.c`):
+(1) `ai_king_ref_wave` runs up to difficulty + 1 FUN_43f7_0982 waves a turn
+(Discoverer 1 .. Viceroy 5), each spending one Man-O-War from the pool; an empty hull
+or land pool ends the turn's waves, and later waves skip colonies already invaded this
+turn while another coastal colony is left; (2) the landing sweep
+(`ai_king_0982_land_troops`) no longer counts the target's own units in a tile's stack,
+so occupied tiles tie with empty ones and get seized (FUN_43f7_0512, units destroyed);
+(3) target scoring adds the target's land units with attack > 1 within Chebyshev 2 of
+the colony (off its tile) to the tile strength and, outside the Fort/Fortress
+multiplier, to the garrison score. Off = DOS. Nothing saved.
 `divergences.current_vision` dithers (1-pixel checkerboard: 1/4 fog blue, palette 60..62, over 3/4 pixel; palette-nearest LUT) every seen
 map tile that no unit or colony of the viewed nation currently sees: unit tiles
 from `units_sight_radius` + the `map_sight_each` domain gate, colonies radius 1.
