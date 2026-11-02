@@ -442,8 +442,9 @@ Combat loss remaps **unit type** (not merely profession). Cite:
   (win) and the attacker's tile (loss). Colony tiles are exempt (DOS naval
   fights never occur there; a port garrison must not drown). With the whole
   defender stack removed/rerouted, the attacker's move-through completes.
-- Privateer winner + human → `@SEIZURESEA` — only when the transport is
-  actually taken (sunk), not when it escapes damaged.
+- No captured/seized popup for a ship-vs-ship win (port_bugs.md #1383):
+  `@SEIZURESEA` (0x1297) is pushed only by the Crown seizure FUN_43f7_0512;
+  FUN_5fef_1b0e / 0352 never use it.
 - The damaged loser's goto fields (+0x314d/e) get its nation's
   return-from-Europe tile, so the repaired hull knows where to come back to
   (`units_ship_enter_repair`, DOS-LITERAL raw 99618-99619).
