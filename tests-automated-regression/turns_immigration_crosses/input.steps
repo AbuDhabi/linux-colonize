@@ -14,5 +14,5 @@ key Return                 # pick it: the Distiller joins the Europe dock
 wait 60
 key Return                 # Sons of Liberty in Quebec up to 60%
 wait 60
-key Return                 # price of Cigars rises to 12
+key Return                 # price of Cigars rises to 11
 wait 60

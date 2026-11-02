@@ -10,7 +10,7 @@ key Return                 # Colonization Help: Time Scale (two turns a year fro
 wait 60
 key Return                 # Sons of Liberty in Quebec up to 60%: Continue turn
 wait 60
-key Return                 # price of Cigars in La Rochelle rises to 12
+key Return                 # price of Cigars in La Rochelle rises to 11
 wait 60
 key space                  # end turn 109 (Autumn 1600): the Caravel is still at sea
 wait 300
@@ -51,7 +51,7 @@ key Return                 # Tupi gift (6 Tobacco) at Guadeloupe
 wait 60
 key Return                 # price of Cigars falls to 11
 wait 60
-key Return                 # price of Coats rises to 12
+key Return                 # price of Coats rises to 11
 wait 60
 key space                  # end turn 111 (Autumn 1601)
 wait 300

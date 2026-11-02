@@ -1916,7 +1916,7 @@ static AiTalkStepStatus ai_talk_stage_givecash(
     const char* wl2 = ai_talk_great_line(ctx, "GREATLEADER2", t);
     PopupMsgTokens tw = *tok;
     tw.string0 = wl2 ? wl2 : ai_talk_name(ctx, t);
-    tw.string1 = ai_talk_name(ctx, t);
+    tw.string1 = (t >= 0 && t < 4 && ctx->col1) ? col1_player_country_name(ctx->col1, t) : ai_talk_name(ctx, t);
     ai_talk_ok(ctx, k->manly ? "WARMANLY" : "WARMEEK", &tw);
   }
   return AI_TALK_STEP_CONTINUE;
@@ -2244,7 +2244,7 @@ static void ai_talk_resume(ColonizeTurnContext* ctx, int stage, int choice) {
         const char* gl2 = ai_talk_great_line(ctx, "GREATLEADER2", t);
         PopupMsgTokens tw = tok;
         tw.string0 = gl2 ? gl2 : ai_talk_name(ctx, t);
-        tw.string1 = ai_talk_name(ctx, t);
+        tw.string1 = (t >= 0 && t < 4 && col1) ? col1_player_country_name(col1, t) : ai_talk_name(ctx, t);
         ai_talk_ok(ctx, k->manly ? "WARMANLY" : "WARMEEK", &tw);
       }
       k->stage = AI_TALK_ST_PEACEMENU;

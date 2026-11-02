@@ -144,7 +144,7 @@ void game_europe_drain_price_events(ColonizeGameState* game) {
     memset(&tok, 0, sizeof(tok));
     tok.string0 = eu->cargo[c].name;
     tok.string1 = eu->port_city;
-    tok.number0 = eu->cargo[c].bid;
+    tok.number0 = europe_sell_price(eu, c); /* FUN_291f_09ea = euro_price - 1 */
     tok.has_number0 = true;
     char body[AI_POPUP_BODY_LEN];
     popup_msg_fill(

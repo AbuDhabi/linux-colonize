@@ -959,7 +959,7 @@ COLONIZE_INTERNAL void turn_step_king(ColonizeTurnProcessor* proc, ColonizeTurnC
             memset(&tok, 0, sizeof(tok));
             tok.string0 = ctx->europe->cargo[c].name;
             tok.string1 = ctx->europe->port_city;
-            tok.number0 = ctx->europe->cargo[c].bid;
+            tok.number0 = europe_sell_price(ctx->europe, c); /* FUN_291f_09ea */
             tok.has_number0 = true;
             popup_chrome_ok(
               ctx->ai_popups, ctx->messages,

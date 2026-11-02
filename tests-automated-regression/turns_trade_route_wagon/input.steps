@@ -13,7 +13,7 @@ key Return                 # Colonization Help: Time Scale
 wait 60
 key Return                 # Sons of Liberty in Quebec up to 60%
 wait 60
-key Return                 # price of Cigars rises to 12 (the wagon then runs Guadeloupe -> Quebec -> toward Montreal)
+key Return                 # price of Cigars rises to 11 (the wagon then runs Guadeloupe -> Quebec -> toward Montreal)
 wait 60
 key space                  # end turn 109
 wait 300
@@ -35,5 +35,5 @@ key Return                 # Tupi gift (11 Furs) at Quebec
 wait 60
 key Return                 # price of Cigars falls to 11
 wait 60
-key Return                 # price of Coats rises to 12; the wagon is back in Guadeloupe, aimed at Quebec
+key Return                 # price of Coats rises to 11; the wagon is back in Guadeloupe, aimed at Quebec
 wait 60

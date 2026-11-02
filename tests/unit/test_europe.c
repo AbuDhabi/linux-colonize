@@ -2045,12 +2045,13 @@ static int case_europe_workflow(void) {
     tick.status[0] = '\0';
     europe_tick_market_prices_w(&tick_w, 0, 0u);
     /* Real DOS wording, GAME.TXT @PRICEDOWN (COLONIZE/GAME.TXT:1687-1689):
-       "The price of {cargo} in {port} has fallen to {bid}." */
-    if (tick.cargo[tg].bid != 9 || strstr(tick.status, "has fallen to 9") == NULL ||
+       "The price of {cargo} in {port} has fallen to {NUMBER0}." NUMBER0 is
+       FUN_291f_09ea = the sell price, bid - 1 (port_bugs.md #1372). */
+    if (tick.cargo[tg].bid != 9 || strstr(tick.status, "has fallen to 8") == NULL ||
         strstr(tick.status, "Trade Goods") == NULL) {
       fprintf(
         stderr,
-        "market fall status want bid=9+'has fallen to 9'+'Trade Goods' got bid=%d '%s'\n",
+        "market fall status want bid=9+'has fallen to 8'+'Trade Goods' got bid=%d '%s'\n",
         tick.cargo[tg].bid,
         tick.status
       );

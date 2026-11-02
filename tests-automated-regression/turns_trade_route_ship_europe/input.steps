@@ -13,7 +13,7 @@ key Return                 # Colonization Help: Time Scale
 wait 60
 key Return                 # Sons of Liberty in Quebec up to 60%
 wait 60
-key Return                 # price of Cigars rises to 12 (then the route ship sails for Europe)
+key Return                 # price of Cigars rises to 11 (then the route ship sails for Europe)
 wait 60
 key space                  # end turn 109
 wait 300
@@ -35,7 +35,7 @@ key Return                 # Tupi gift (6 Tobacco) at Guadeloupe
 wait 60
 key Return                 # price of Cigars falls to 11
 wait 60
-key Return                 # price of Coats rises to 12; the Caravel docks, the route sells/buys, the Europe screen opens
+key Return                 # price of Coats rises to 11; the Caravel docks, the route sells/buys, the Europe screen opens
 wait 60
 key e                      # leave Europe (the Caravel is already Bound for New France)
 wait 30
@@ -49,7 +49,7 @@ key Return                 # Sons of Liberty in Martinique up to 61%
 wait 60
 key Return                 # price of Coats falls to 11 (the Caravel is back at (50,29))
 wait 60
-key Return                 # price of Trade Goods rises to 4; the Caravel sails toward Quebec
+key Return                 # price of Trade Goods rises to 3; the Caravel sails toward Quebec
 wait 60
 key space                  # end turn 113
 wait 300
@@ -61,7 +61,7 @@ key Return                 # Sons of Liberty in Guadeloupe up to 81%
 wait 60
 key Return                 # rebel sentiment 61%
 wait 60
-key Return                 # price of Cloth rises to 14
+key Return                 # price of Cloth rises to 13
 wait 60
 key Return                 # price of Coats falls to 10; the Caravel enters Quebec and unloads the Tools, its passenger waits for orders
 wait 60

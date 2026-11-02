@@ -1302,14 +1302,14 @@ void europe_tick_market_prices_w(
    *   "The price of {%STRING0} in %STRING1 has risen to {%NUMBER0$}."
    *   "The price of {%STRING0} in %STRING1 has fallen to {%NUMBER0$}."
    * STRING0 = cargo name (-0x6840 @CARGO table), STRING1 = nation home-port
-   * city (-0x7c74 table == eu->port_city), NUMBER0 = new bid.
+   * city (-0x7c74 table == eu->port_city), NUMBER0 = FUN_291f_09ea(cargo) = the new sell price (euro_price - 1, port_bugs.md #1372).
    */
   if (last_rise >= 0 && eu->messages) {
     PopupMsgTokens tok = {0};
     tok.string0 = eu->cargo[last_rise].name;
     tok.string1 = eu->port_city;
     tok.has_number0 = true;
-    tok.number0 = eu->cargo[last_rise].bid;
+    tok.number0 = europe_sell_price(eu, last_rise);
     popup_msg_fill(eu->messages, "PRICEUP", &tok, "", eu->status, sizeof(eu->status));
     popup_msg_strip_markup(eu->status);
   } else if (last_fall >= 0 && eu->messages) {
@@ -1317,7 +1317,7 @@ void europe_tick_market_prices_w(
     tok.string0 = eu->cargo[last_fall].name;
     tok.string1 = eu->port_city;
     tok.has_number0 = true;
-    tok.number0 = eu->cargo[last_fall].bid;
+    tok.number0 = europe_sell_price(eu, last_fall);
     popup_msg_fill(eu->messages, "PRICEDOWN", &tok, "", eu->status, sizeof(eu->status));
     popup_msg_strip_markup(eu->status);
   } else if (last_rise >= 0 || last_fall >= 0) {

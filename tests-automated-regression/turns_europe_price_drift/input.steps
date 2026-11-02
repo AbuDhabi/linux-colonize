@@ -22,7 +22,7 @@ key Return                 # Colonization Help: Time Scale
 wait 60
 key Return                 # Sons of Liberty in Quebec up to 60%
 wait 60
-key Return                 # price of Cigars rises to 12
+key Return                 # price of Cigars rises to 11
 wait 60
 key e                      # Europe again (turn 109)
 wait 30

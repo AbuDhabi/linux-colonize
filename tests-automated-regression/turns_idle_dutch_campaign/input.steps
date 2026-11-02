@@ -41,7 +41,7 @@ shot
 key Return                 # Sons of Liberty membership in New Holland is up to 73%, Your Excellency.  The more Liberty Bells our Statesmen generate,
 wait 60
 shot
-key Return                 # The price of Silver in Amsterdam has fallen to 6$.
+key Return                 # The price of Silver in Amsterdam has fallen to 5$.
 wait 60
 shot
 key s                      # sentry unit 51 (woke up, needs orders)
@@ -137,6 +137,6 @@ shot
 key Return                 # Sons of Liberty membership in Montreal is up to 40%, Your Excellency.  The more Liberty Bells our Statesmen generate, th
 wait 60
 shot
-key Return                 # The price of Rum in Amsterdam has risen to 20$.
+key Return                 # The price of Rum in Amsterdam has risen to 19$.
 wait 60
 shot

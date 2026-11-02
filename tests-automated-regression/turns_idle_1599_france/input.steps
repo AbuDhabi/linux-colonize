@@ -33,7 +33,7 @@ shot
 key Return                 # Sons of Liberty membership in Quebec is up to 60%, Your Excellency.  The more Liberty Bells our Statesmen generate, the 
 wait 60
 shot
-key Return                 # The price of Cigars in La Rochelle has risen to 12$.
+key Return                 # The price of Cigars in La Rochelle has risen to 11$.
 wait 60
 shot
 key e                      # leave the Europe screen (a ship arrived in port)
@@ -150,7 +150,7 @@ shot
 key Return                 # French colonists CAPTURED by the English! / English defeat French Colonists near Guadeloupe! / The price of Cigars in La
 wait 60
 shot
-key Return                 # The price of Coats in La Rochelle has risen to 12$.
+key Return                 # The price of Coats in La Rochelle has risen to 11$.
 wait 60
 shot
 key s                      # sentry unit 74 (woke up, needs orders)
@@ -198,10 +198,10 @@ shot
 key Return                 # Sons of Liberty membership in Martinique is up to 61%, Your Excellency.  The more Liberty Bells our Statesmen generate, 
 wait 60
 shot
-key Return                 # The price of Coats in La Rochelle has fallen to 11$.
+key Return                 # The price of Coats in La Rochelle has fallen to 10$.
 wait 60
 shot
-key Return                 # The price of Trade Goods in La Rochelle has risen to 4$.
+key Return                 # The price of Trade Goods in La Rochelle has risen to 3$.
 wait 60
 shot
 key space                  # End of Turn (turn 6 of the test ends)
@@ -267,6 +267,6 @@ shot
 key Return                 # Sons of Liberty membership in Quebec is up to 71%, Your Excellency.  The more Liberty Bells our Statesmen generate, the 
 wait 60
 shot
-key Return                 # The price of Coats in La Rochelle has fallen to 10$.
+key Return                 # The price of Coats in La Rochelle has fallen to 9$.
 wait 60
 shot

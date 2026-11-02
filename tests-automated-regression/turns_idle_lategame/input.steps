@@ -31,7 +31,7 @@ shot
 key Return                 # King increases military spending.  Regulars added to royal expeditionary force.  Colonial leaders express alarm.
 wait 60
 shot
-key Return                 # The price of Cigars in Amsterdam has fallen to 19$.
+key Return                 # The price of Cigars in Amsterdam has fallen to 18$.
 wait 60
 shot
 key s                      # sentry unit 49 (woke up, needs orders)
@@ -58,7 +58,7 @@ shot
 key Return                 # Montreal has run out of lumber, Your Excellency.  Our carpenters cannot continue their work until a new supply is found.
 wait 60
 shot
-key Return                 # The price of Coats in Amsterdam has risen to 5$.
+key Return                 # The price of Coats in Amsterdam has risen to 4$.
 wait 60
 shot
 key space                  # End of Turn (turn 3 of the test ends)
@@ -154,6 +154,6 @@ shot
 key Return                 # Iron Works under construction in New Amsterdam requires 100 tools for completion.  Only 96 tools are currently available
 wait 60
 shot
-key Return                 # The price of Cigars in Amsterdam has risen to 20$.
+key Return                 # The price of Cigars in Amsterdam has risen to 19$.
 wait 60
 shot
