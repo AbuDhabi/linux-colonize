@@ -340,6 +340,20 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_denied(units_move_ctx* c) {
   return UNITS_MOVE_CONTINUE;
 }
 
+/* DOS-LITERAL FUN_465b_0000 LAB_465b_05ca raw 75643-75649: every bVar4 arm
+ * (foreign unit OR foreign settlement owner, any mover nation) passes
+ * `cost <= left || spent == 0 || (FUN_281f_04ca(DS:0x83a6), bVar4)`: never
+ * denied, no step charge, but a mover short of the step cost with something
+ * already spent reseeds the LCG before the 0a14 -> 1b0e fight. port_bugs.md #1323. */
+static void units_465b_05ca_bvar4_reseed(const units_move_ctx* c) {
+  const int cost = units_move_cost(c->pool, c->unit_id, c->map, c->dest_x, c->dest_y);
+  const int remaining = units_remaining_mp(c->pool, c->unit_id);
+  if (cost > remaining && remaining < units_max_mp(c->pool, c->unit_id) && c->rng &&
+      c->w->rng_reseed_set) {
+    dos_rng_seed(c->rng, c->w->rng_reseed);
+  }
+}
+
 /* Combat reason but no armed map defender: fight the colony itself.
  * CONTINUE = proceed to the shared step gate (old `goto combat_entry_resolved`). */
 COLONIZE_INTERNAL UnitsMoveStatus units_move_combat_no_foe(units_move_ctx* c) {
@@ -382,6 +396,7 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_combat_no_foe(units_move_ctx* c) {
     c->foreign_colony_entry = true;
     units_465b_0673_vis_or(pool, c->map, c->unit, dest_x, dest_y);
   }
+  units_465b_05ca_bvar4_reseed(c);
   if (!units_revere_defend_colony_tile(pool, colonies, unit_id, dest_x, dest_y, c->rng)) {
     return UNITS_MOVE_RETURN_FALSE;
   }
@@ -518,14 +533,7 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_combat_pre(units_move_ctx* c) {
    * step cost with something already spent reseeds the LCG ahead of the
    * combat roll (DOSBox america 448->449: English Dragoon onto a Brave at
    * (29,39), reseed between the 00f2 expel draw and rng(1,86)). */
-  {
-    const int cost = units_move_cost(pool, unit_id, c->map, dest_x, dest_y);
-    const int remaining = units_remaining_mp(pool, unit_id);
-    if (cost > remaining && remaining < units_max_mp(pool, unit_id) && c->rng &&
-        c->w->rng_reseed_set) {
-      dos_rng_seed(c->rng, c->w->rng_reseed);
-    }
-  }
+  units_465b_05ca_bvar4_reseed(c);
   return UNITS_MOVE_CONTINUE;
 }
 
@@ -751,6 +759,16 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_colony_entry(units_move_ctx* c) {
     units_mp_exhaust(pool, c->unit);
     g_units_last_enter_reason = COLONIZE_ENTER_NO_MP;
     return UNITS_MOVE_RETURN_FALSE;
+  }
+  /* bVar4 holds for a human mover too (06be reads the settlement owner);
+   * the 05ca reseed precedes the fight. The cost cap of 3 on a settlement
+   * tile (raw 75466) plus the 01ce stop above mean only a human can be short. */
+  {
+    const ColonizeColony* fc =
+      colonies_get(colonies, colonies_id_at(colonies, dest_x, dest_y));
+    if (fc && fc->active && fc->nation_id != c->unit->nation_id) {
+      units_465b_05ca_bvar4_reseed(c);
+    }
   }
   /* Paul Revere: empty foreign colony tile → auto-arm from muskets + fight.
    * Cite: PEDIA / docs/fandom_col1994.md Paul Revere. */

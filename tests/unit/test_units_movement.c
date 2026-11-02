@@ -1268,7 +1268,73 @@ static int unit_tb1_coarse_ne_link(void) {
   return 0;
 }
 
+/*
+ * port_bugs.md #1323: FUN_465b_0000 LAB_465b_05ca raw 75643-75649. A move into
+ * an undefended foreign colony is a bVar4 arm for a human mover too: a mover
+ * short of the step cost with something spent reseeds (04ca DS:0x83a6) before
+ * the fight; a fresh mover does not.
+ */
+static int unit_colony_entry_bvar4_reseed_1323(void) {
+  units_set_occupancy_map(NULL);
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  pool.type_count = 1;
+  pool.types[0].movement = 1;
+  pool.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  char err[128];
+  if (!map_alloc(&map, 8, 8, err, sizeof(err))) {
+    fprintf(stderr, "reseed_1323: map_alloc failed: %s\n", err);
+    return 1;
+  }
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
+  ColonizeColony* col = &colonies.colonies[0];
+  col->active = true;
+  col->id = 0;
+  col->nation_id = 1;
+  col->x = 4;
+  col->y = 3;
+  colonies.colony_count = 1;
+  units_set_combat_human_nation(0);
+  const int id = units_spawn_allow_stack(&pool, 0, 3, 3);
+  ColonizeUnit* u = units_get(&pool, id);
+  units_set_nation(u, 0);
+  ColonizeDosRng rng;
+  ColonizeWorld w = {.units = &pool, .map = &map, .colonies = &colonies, .rng = &rng};
+  w.rng_reseed = 1234;
+  w.rng_reseed_set = true;
+  int rc = 0;
+  for (int pass = 0; pass < 2; ++pass) {
+    u->moves = pass == 0 ? 1 : UNITS_MP_PER_TILE; /* short + spent, then fresh */
+    dos_rng_seed(&rng, 77);
+    units_move_ctx c = {
+      .w = &w, .pool = &pool, .map = &map, .colonies = &colonies, .rng = &rng,
+      .unit_id = id, .unit = u, .dest_x = 4, .dest_y = 3, .reason = COLONIZE_ENTER_OK,
+      .village_temp = -1, .village_nation = -1, .foe = -1,
+    };
+    if (units_move_cost(&pool, id, &map, 4, 3) <= 1) {
+      fprintf(stderr, "reseed_1323: fixture step cost must exceed 1\n");
+      rc = 1;
+      break;
+    }
+    (void)units_move_colony_entry(&c);
+    ColonizeDosRng want;
+    dos_rng_seed(&want, pass == 0 ? 1234 : 77);
+    if (rng.state != want.state) {
+      fprintf(stderr, "reseed_1323: pass %d rng state %u want %u\n", pass,
+              (unsigned)rng.state, (unsigned)want.state);
+      rc = 1;
+    }
+  }
+  map_free(&map);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
+  {"unit_colony_entry_bvar4_reseed_1323", unit_colony_entry_bvar4_reseed_1323},
   {"unit_tb44_flood_key_rules", unit_tb44_flood_key_rules},
   {"unit_tb1_coarse_ne_link", unit_tb1_coarse_ne_link},
   {"unit_far_flood_keeps_probe_type", unit_far_flood_keeps_probe_type},
