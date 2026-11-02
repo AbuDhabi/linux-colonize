@@ -4,8 +4,10 @@ One subdirectory per test: `input.sav`, `input.jsonl`, `output.sav`.
 Run by `regression_replay` (ctest); format and recording recipe in
 [tests/README.md](../tests/README.md#input-replay-regressions).
 
-Every test stays inside one turn (the harness enforces it), so AI and
-end-of-turn changes never move an expected save.
+Every test without a `turns` file stays inside one turn (the harness enforces
+it), so AI and end-of-turn changes never move its expected save. The `turns_*`
+tests end the number of turns their `turns` file names (tests/README.md
+"Multi-turn tests"); AI and end-of-turn fixes may move them on purpose.
 
 The `colony_*`, `map_*` and `village_*` tests were authored from `input.steps` scripts
 (`tools/regression_script.py`; each step is commented there). They start from
@@ -84,3 +86,37 @@ Step-script Europe tests (same base save, fixture edits noted in each `input.ste
 | `europe_equip_units_poor` | 120 gold: unaffordable rows refused, muskets bought and sold, blessing free |
 | `europe_ship_menu` | Galleon (Cotton 40 / Rum 20 / Furs 10) + empty Caravel in the harbor: a ship-icon release opens the ship menu (@EUROPESHIPCLICK / @EUROPESHIPOPTIONS, 3 rows when empty, 4 with goods), Move to front reorders the harbor, No changes / Esc / empty box space do nothing, S / Space / Enter open it, Unload all cargo sells every hold (port_bugs.md #1176) |
 | `europe_sell_goods` | Drag-sells, `-` (whole first hold, then the "No Cotton in cargo hold!" red bar), `_` and Shift+drag amount prompts, `U` one lowest-key hold per press, the ship menu's Unload all, `U` on an empty ship (red bar) |
+
+## Multi-turn tests
+
+Each `turns_*` test has a `turns` file (the number of turns it ends); the start state and every
+step are commented in its `input.steps`.
+
+| Test | Turns | Does |
+|------|-------|------|
+| `turns_spring_1600_events` | 1 | From `map_unit_orders`' output (autumn 1599): the last unit sentried, Space ends the turn; Spring 1600 events (Spanish Succession: Spain withdraws, REF Regulars, rebel 50%, Coats price), a go-to Scout reaches an Iroquois village and speaks with the chief |
+| `turns_colony_birth_and_horses` | 2 | Autumn 1599 start (go-to units sentried, combat analysis off; the English take Guadeloupe in turn 2, its four popups answered), Quebec food 195: at 205 the birth takes 200, a Free Colonist is born (@NEWCOLONIST); horses breed in Quebec and Montreal both turns |
+| `turns_colony_build_complete` | 2 | Same start; Quebec Lumber Mill hammers 50/52 completes at end of turn; Montreal Artillery at 192 hammers with 34 tools raises @NEEDTOOLS, completes next turn once tools reach 40 |
+| `turns_colony_starvation` | 2 | Same start; Quebec's food workers made statesmen, food 3: @FOOD1 stores depleted, next turn a colonist starves (@STARVE2) |
+| `turns_warehouse_spoilage` | 2 | Same start; Quebec (no Warehouse) cotton 130 / furs 120 spoil to 100 (@SPOIL2), Montreal (+Warehouse) lumber 230 to 200 (@SPOIL1) while furs 150 stay; @CARGOREADY1 for tobacco reaching 100 |
+| `turns_custom_house_exports` | 2 | Same start; Quebec + Custom House: 100 Furs sold at end of turn 1, 52 Tobacco at turn 2 (stock sold down to 50), tax deducted, gold rises |
+| `turns_pioneer_jobs_complete` | 2 | Spring 1600 start (England and France at peace, the Europe-bound Caravel held at sea, French units fortified); Pioneers' job counters near done: road (+10 hammers to Quebec) and clear forest (@CLEARCUT, lumber to Guadeloupe) finish in autumn 1600, plow in spring 1601; tools 100 to 80 each; freed Pioneers fortified |
+| `turns_goto_long_land` | 2 | Same start; a Free Colonist with Go To Quebec walks the roads from Guadeloupe and arrives next turn (order cleared, asks for orders); a Caravel with Go To Port Montreal docks in spring 1601 |
+| `turns_fortify_sentry` | 2 | Same start; Fortify (5) becomes Fortified (6) next turn; a sentried colonist boards the departing Caravel, rides to Montreal and is woken there; a sentried Scout stays sentried, another is woken by a neighbour and re-sentried |
+| `turns_school_training` | 2 | Same start; Quebec + Schoolhouse, an Expert Fisherman teacher at counter 2: the counter reaches 4, a Free Colonist student becomes Expert Fisherman (@TRAINPROFESSION), the counter resets |
+| `turns_pioneer_automate` | 3 | Same start, `divergences.pioneer_plan`; Hardy Pioneer plans Plow (43,25) and Road (44,24), Automate: plow done autumn 1600, walks to (44,24) and builds the road autumn 1601 (tools 100 to 60) |
+| `turns_founding_father_join` | 2 | Spring 1600 start (French units sentried), next father Pocahontas, bell pool 1000 of 1009: she joins (notice, congress, Colonizopedia), Franklin picked next, tension and alarm with every tribe zeroed; the Caravel's Europe arrival screen closed, woken units re-sentried |
+| `turns_declare_independence_ref` | 2 | From `map_declare_independence`'s start (units sentried): declares, the REF lands near Montreal (@INVASION, intervention, Continental Army popups), a second wave takes Montreal and captures rebels |
+| `turns_hotseat_rounds` | 2 | From `hotseat_handoff`'s start: two full hot-seat rounds 1492 to 1494, England and Spain handing over through @MULTINEXT with France and the Netherlands (AI) between |
+| `turns_war_combat` | 2 | Spring 1600 start, England at war: Quebec's Dragoon routs a fortified English Dragoon twice (Dragoon to Soldier to Colonist), England takes Guadeloupe, offers a demarcation treaty, refused (@WARMEEK) |
+| `turns_native_mission_trade` | 2 | Spring 1600 start: a Missionary walks to the Tupi camp and establishes a mission (tension zeroed); the Iroquois bring 16 Ore to Port au Prince (@INDIANGIVESTUFF) |
+| `turns_ship_europe_roundtrip` | 4 | Spring 1600 start (other units fortified, England at peace, Caravel #148 parked): a loaded Caravel on the high seas sails for Europe (`r`), docks in turn 110, cargo sold, a colonist recruited, sails back with two colonists and reappears at (50,29) in turn 112 |
+| `turns_trade_route_wagon` | 3 | Same start, routes from `map_trade_route_assign`: a Wagon Train runs Guadeloupe to Quebec to Montreal and back (100 Lumber, 12 Cotton moved) |
+| `turns_trade_route_ship_europe` | 6 | Same start: a Caravel route with a Europe stop (sell Tobacco/Furs, buy Tools) and Quebec (unload Tools): sails out, trades in Europe, returns, unloads 100 Tools, aims at Europe again |
+| `turns_immigration_crosses` | 1 | Same start, crosses one tick past the threshold (2 drained per waiting dock colonist): Brewster's @RECRUITCHOOSE pick, Master Distiller chosen lands on the docks, pool slot refilled |
+| `turns_europe_price_drift` | 2 | Same start, two Galleons in Europe with 600 Furs each: the first unload drops the Furs price (notice), the second sells next turn at the lower price; the market tick runs both turn ends |
+| `turns_idle_1492_start` | 6 | `early-game-seed-100/TURN1.SAV` re-saved: England's Caravel sentried at sea, 1492 to 1498; France, Spain and the Dutch land and found their first colonies |
+| `turns_idle_1599_france` | 8 | `turns_spring_1600_events`' output, idle units sentried: spring 1600 to 1604, English attacks and captures (Guadeloupe, Montreal), native gifts, English diplomacy, a new Dutch colony |
+| `turns_idle_dutch_campaign` | 5 | `dutch-campaign/COLONY03.SAV` (1669), idle units sentried: late Euro AI, a native raid beaten off, REF additions, Jan de Witt joins |
+| `turns_idle_lategame` | 5 | `valid-lategame-saves/COLONY06.SAV` (1680), idle units sentried: native raids, buildings completed, Juan de Sepulveda joins, a new Spanish colony |
+| `turns_idle_independence` | 5 | `independence-seed-100/000002.SAV` (spring 1681, declared), idle units sentried: REF landings, Tories take Bahia, Quebec and St. Louis, fort fire, Continental Army, mercenary offer declined |

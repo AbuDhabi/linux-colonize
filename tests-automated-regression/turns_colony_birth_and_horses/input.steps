@@ -1,0 +1,42 @@
+# Start: turns_spring_1600_events' input.sav (France, autumn 1599, turn 107; map_unit_orders' output).
+# Fixture edits (sav_json): every French map unit without orders or on go-to is sentried (so Space
+# ends each turn), Combat Analysis off (the English attack on Guadeloupe in the AI turn would
+# otherwise hold an extra modal), Quebec food 195.
+# Two turns: Quebec nets +10 food a turn, so the first end of turn takes it to 205: the Phase I
+# birth (food >= 200) debits 200, a Free Colonist is born on the Quebec tile and @NEWCOLONIST is
+# shown; the second turn adds 10 more (food 195 -> 15). Horses breed both turns with surplus food
+# (Quebec 38 -> 42, Montreal 88 -> 96).
+key space                  # end the turn (autumn 1599)
+wait 300
+key Return                 # @NEWCOLONIST: population increase in Quebec: Continue turn
+wait 60
+key Return                 # War of the Spanish Succession ends: Spain cedes New Spain to the Dutch
+wait 60
+key Return                 # King increases military spending: Regulars added to the REF
+wait 60
+key Return                 # Rebel sentiment 50%
+wait 60
+key Return                 # price of Coats in La Rochelle rises
+wait 60
+shot
+key s                      # sentry Scout 77 (spring 1600)
+wait 30
+key s                      # sentry the newborn Free Colonist 161 on the Quebec tile: nothing left to move
+wait 30
+key space                  # end the turn (spring 1600)
+wait 300
+key Return                 # Colonization Help: Time Scale (two turns per year from now on)
+wait 300
+key Return                 # English defeat French Colonists near Guadeloupe
+wait 100
+key Return                 # French wagon train captured by the English
+wait 60
+key Return                 # French colonists captured by the English
+wait 60
+key Return                 # English march into Guadeloupe, 90$ plundered
+wait 60
+key Return                 # SoL membership in Quebec up to 60%: Continue turn
+wait 60
+key Return                 # price of Cigars in La Rochelle rises
+wait 60
+shot

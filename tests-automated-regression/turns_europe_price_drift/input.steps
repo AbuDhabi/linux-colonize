@@ -1,0 +1,50 @@
+# Furs dumped in La Rochelle on two consecutive turns. Base: turns_spring_1600_events' output (France, Spring 1600, turn 108).
+# Fixture: Caravels #121 and #148 turned into Galleons (type 15) docked in the Europe harbor (237,237, counter 0), each with
+# six holds of 100 Furs; every other French map unit fortified (orders 6), France and England at peace (euro_relation 0x60
+# both ways, else English raids capture units). Furs bid 4 at the start.
+# Turn 108: 600 Furs sold, the bid falls to 3 during the sale (@PRICEDOWN notice); turn 109: 600 more sold at 3; the
+# Furs ledger (nr / tons / gold) and the EOT market tick move across both turn ends (turn 108 -> 110).
+key e                      # open the European Status screen (Galleon A selected in the harbor)
+wait 30
+key Return                 # harbor options for Galleon A
+wait 60
+key Down
+key Down                   # "Unload all cargo" (row 2)
+key Return                 # sell all six holds: "The price of Furs in La Rochelle has fallen" notice opens
+wait 60
+key Return                 # dismiss it: five holds sold at 4, the last at 3
+wait 60
+key e                      # leave Europe
+wait 30
+key space                  # end turn 108
+wait 300
+key Return                 # Colonization Help: Time Scale
+wait 60
+key Return                 # Sons of Liberty in Quebec up to 60%
+wait 60
+key Return                 # price of Cigars rises to 12
+wait 60
+key e                      # Europe again (turn 109)
+wait 30
+click 172 155              # Galleon B's icon (second in the harbor): its options menu
+wait 30
+key Down
+key Down                   # "Unload all cargo"
+key Return                 # six holds of Furs sold at 3 (no further drop)
+wait 60
+key e                      # leave Europe
+wait 30
+key space                  # end turn 109
+wait 300
+key Return                 # Iroquois gift (16 Ore) at Port au Prince
+wait 60
+key Return                 # King raises the tax by 1% (Kiss pinky ring, row 0)
+wait 60
+key Return                 # Sons of Liberty in Port au Prince up to 12%
+wait 60
+key Return                 # Sons of Liberty in Martinique up to 51%
+wait 60
+key Return                 # Sons of Liberty in Guadeloupe up to 70%
+wait 60
+key Return                 # new cargo of Horses at Montreal (storage full)
+wait 60

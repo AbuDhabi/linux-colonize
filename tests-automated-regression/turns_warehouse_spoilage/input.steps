@@ -1,0 +1,45 @@
+# Start: turns_spring_1600_events' input.sav (France, autumn 1599, turn 107; map_unit_orders' output).
+# Fixture edits (sav_json): every French map unit without orders or on go-to is sentried (so Space
+# ends each turn), Combat Analysis off (the English attack on Guadeloupe in the AI turn would
+# otherwise hold an extra modal). Quebec (no Warehouse, capacity 100): cotton 130, furs 120,
+# tobacco 99. Montreal: + Warehouse (warehouse_level 1, capacity 200), furs 150, lumber 230.
+# Two turns. Turn 1 end: Phase P spoilage clips Montreal lumber 230 -> 200 (@SPOIL1, 30 tons),
+# keeps its furs 150 (under the Warehouse cap), clips Quebec cotton and furs to 100 (@SPOIL2, two
+# cargos) and Quebec tobacco lands exactly on 100 (@CARGOREADY1); food is never clipped. Turn 2:
+# everything stays at or under capacity, no further notices.
+key space                  # end the turn (autumn 1599)
+wait 300
+key Return                 # @SPOIL1 Montreal (Warehouse, cap 200): 30 Lumber thrown away: Continue turn
+wait 60
+key Return                 # @SPOIL2 Quebec (no Warehouse, cap 100): Cotton 130 and Furs 120 clipped, 'some of our cargo': Continue turn
+wait 60
+key Return                 # @CARGOREADY1: Tobacco in Quebec at its storage capacity (100): Continue turn
+wait 60
+key Return                 # War of the Spanish Succession ends: Spain cedes New Spain to the Dutch
+wait 60
+key Return                 # King increases military spending: Regulars added to the REF
+wait 60
+key Return                 # Rebel sentiment 50%
+wait 60
+key Return                 # price of Coats in La Rochelle rises
+wait 60
+shot
+key s                      # sentry Scout 77 (spring 1600): nothing left to move
+wait 30
+key space                  # end the turn (spring 1600)
+wait 300
+key Return                 # Colonization Help: Time Scale (two turns per year from now on)
+wait 300
+key Return                 # English defeat French Colonists near Guadeloupe
+wait 100
+key Return                 # French wagon train captured by the English
+wait 60
+key Return                 # French colonists captured by the English
+wait 60
+key Return                 # English march into Guadeloupe, 90$ plundered
+wait 60
+key Return                 # SoL membership in Quebec up to 60%: Continue turn
+wait 60
+key Return                 # price of Cigars in La Rochelle rises
+wait 60
+shot

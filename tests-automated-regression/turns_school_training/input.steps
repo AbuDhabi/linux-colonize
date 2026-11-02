@@ -1,0 +1,35 @@
+# From turns_spring_1600_events' output (France, Spring 1600, turn 108). Fixture edits (sav_json):
+# England <-> France at peace (euro_relation 96 both ways), the Caravel sailing to Europe (unit 148)
+# given 15 turns left, every idle / sentried / go-to French unit on the map Fortified (order 6), then
+# Quebec gets a Schoolhouse (buildings.schoolhouse 1) and its Expert Fisherman (colonist 2,
+# profession 8, school level 1 = 4 turns) is seated as its teacher (occupation 18, his tile 5
+# freed). His +0x60 education counter (specialty[1].even) stays at the saved 2.
+# Covers: the teaching counter ticks each end of turn (2 -> 3 -> 4); at 4 the teacher graduates a
+# random Free Colonist student (Quebec colonists 0, 3, 4; the Indian Convert is not a student) to
+# Expert Fisherman, with the @TRAINPROFESSION notice, and the teacher's counter restarts at 0.
+key space                  # end turn 108
+wait 300
+key Return                 # Help: Time Scale (two turns per year from 1600)
+wait 100
+key Return                 # SoL in Quebec up to 60%: Continue turn
+wait 100
+key Return                 # price of Cigars rises
+wait 100
+shot                       # Autumn 1600: End of Turn
+key space                  # end turn 109
+wait 300
+key Return                 # Iroquois gift of 16 Ore to Port au Prince
+wait 60
+key Return                 # King raises tax to 27%: Kiss pinky ring
+wait 60
+key Return                 # SoL in Port au Prince 12%: Continue turn
+wait 60
+key Return                 # SoL in Martinique 51%: Continue turn
+wait 60
+key Return                 # SoL in Guadeloupe 70%: Continue turn
+wait 60
+key Return                 # Horses cargo ready at Montreal (warehouse full): Continue turn
+wait 60
+key Return                 # @TRAINPROFESSION: a colonist in Quebec has learned Fisherman
+wait 100
+shot                       # Spring 1601: End of Turn

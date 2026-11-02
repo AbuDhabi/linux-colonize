@@ -5,6 +5,7 @@
  *   input.sav    save the test starts from (taken on the main map)
  *   input.jsonl  settings.json debug.input_logger log of the test span
  *   output.sav   save taken on the main map after the last input
+ *   turns        optional: N, the number of turns the test ends (default 0)
  * The harness loads input.sav, feeds the logged events back frame by frame
  * through a replay platform, lets the game settle on the main map, saves,
  * and requires the save to match output.sav byte for byte.
@@ -45,6 +46,7 @@
 #include "core/game_loop_internal.h"
 #include "core/map_panel.h"
 #include "core/units.h"
+#include "core/window_log.h"
 #include "core/json_min.h"
 #include "core/screen_geom.h"
 #include "core/settings.h"
@@ -59,6 +61,9 @@
 /* ponytail: floor so a one-keypress log (duration ~0) can still load the
  * frames it needs; the spec's 2x duration is the limit above it. */
 #define MIN_TIME_LIMIT_MS 1000
+/* Extra wall time per turn a multi-turn test ends: the AI and end-of-turn
+ * work run inside frames, at debug-build speed. */
+#define TURN_TIME_MS 30000
 
 enum {
   R_MOVE, R_DOWN, R_UP, R_KEY_DOWN, R_KEY_UP, R_TEXT, R_FOCUS_LOST, R_RESIZE, R_QUIT, R_IGNORED
@@ -90,6 +95,13 @@ struct ColonizePlatform {
   bool outer_on;
   ColonizePalette outer;
   int outer_x, outer_y, outer_w, outer_h;
+  /* Wall-clock limit, checked in every poll too: a nested pump (combat
+   * outcome popups during the AI turn) never returns to the main loop. */
+  uint64_t deadline_ms;
+  /* REGRESSION_SHOTS: polls the main loop did not make (a nested pump: AI
+   * turn combat popups) print the popup text before their presses. */
+  const ColonizeGameState* shots_game;
+  bool main_poll;
 };
 
 /* ===== Log parsing ===== */
@@ -277,7 +289,25 @@ static void fold(ColonizePlatform* p, const Rec* r, ColonizeInputState* out) {
   }
 }
 
+static uint64_t wall_ms(void);
+static bool press_next(const ColonizePlatform* p);
+static void print_popup_text(const ColonizeGameState* g);
+
 bool platform_poll_input(ColonizePlatform* p, ColonizeInputState* out) {
+  if (p->deadline_ms && p->next >= p->count && wall_ms() > p->deadline_ms) {
+    printf("  timeout: the log ran out inside a nested popup pump (an unanswered popup?)\n");
+    fflush(stdout);
+#ifdef _WIN32
+    exit(1);
+#else
+    _exit(1);
+#endif
+  }
+  if (p->shots_game && !p->main_poll && p->replaying && press_next(p)) {
+    printf("  nested press %06u (inside a pump, no screenshot)\n", (unsigned)p->frame);
+    print_popup_text(p->shots_game);
+  }
+  p->main_poll = false;
   out->text_input_len = 0;
   out->text_input[0] = '\0';
   if (!p->replaying || p->next >= p->count) {
@@ -334,6 +364,24 @@ static const char* off_map_reason(const ColonizeGameState* g);
 
 /* ===== Screenshots ===== */
 
+/* Popup text shown since the last call and the open popup's rows: enough
+ * to script most answers without opening the PNG. */
+static void print_popup_text(const ColonizeGameState* g) {
+  static unsigned log_seen;
+  const unsigned n = window_log_total() - log_seen;
+  for (int age = (int)(n < (unsigned)window_log_count() ? n : (unsigned)window_log_count()) - 1; age >= 0; --age) {
+    printf("    log: %.200s\n", window_log_line(age));
+  }
+  log_seen = window_log_total();
+  if (g->ai_popups.open && g->ai_popups.current.choice_count > 0) {
+    printf("    choices:");
+    for (int i = 0; i < g->ai_popups.current.choice_count; ++i) {
+      printf(" [%d] %s", i, g->ai_popups.current.choices[i]);
+    }
+    printf(" (sel %d)\n", g->ai_popups.selection);
+  }
+}
+
 /* REGRESSION_SHOTS=1 (authoring aid, tools/regression_script.py): binary PPM
  * of the frame the player saw before each mouse/key press, plus the start and
  * end screens, in the test's failure-artefact directory. */
@@ -352,6 +400,7 @@ static void write_shot(const char* out_dir, const char* tag, const ColonizeFrame
     printf(" at (%d,%d) moves %d", sel->x, sel->y, sel->moves);
   }
   printf("; %s\n", off_map_reason(g) ? off_map_reason(g) : "main map");
+  print_popup_text(g);
   char path[700];
   snprintf(path, sizeof(path), "%s/shot_%s.ppm", out_dir, tag);
   FILE* f = fopen(path, "wb");
@@ -554,9 +603,24 @@ static int run_test(const char* name) {
       break;
     }
   }
+  /* Multi-turn tests (tests/README.md "Multi-turn tests") name the number of
+   * turns they end in `turns`; every other test stays inside its turn. */
+  unsigned turns = 0;
+  {
+    char turns_file[600];
+    snprintf(turns_file, sizeof(turns_file), "%s/turns", dir);
+    char* text = read_text(turns_file, NULL);
+    if (text && sscanf(text, "%u", &turns) != 1) {
+      printf("  %s: not a number\n", turns_file);
+      free(text);
+      return 1;
+    }
+    free(text);
+  }
   const uint32_t duration_ms = rp.recs[rp.count - 1].t_ms - rp.recs[0].t_ms;
   const uint64_t limit_ms =
-    2u * (uint64_t)duration_ms > MIN_TIME_LIMIT_MS ? 2u * (uint64_t)duration_ms : MIN_TIME_LIMIT_MS;
+    (2u * (uint64_t)duration_ms > MIN_TIME_LIMIT_MS ? 2u * (uint64_t)duration_ms : MIN_TIME_LIMIT_MS) +
+    (uint64_t)turns * TURN_TIME_MS;
   make_dirs(out_dir);
   /* The options dialogs flush settings.json: keep it in the test's out dir (fresh
    * defaults every run), not ./settings.json at the repo root. */
@@ -601,22 +665,25 @@ static int run_test(const char* name) {
     return 1;
   }
   game_set_platform(game, &rp);
-  /* The tests stay inside one turn, so AI and end-of-turn changes never
-   * move their expected saves. */
+  /* Single-turn tests stay inside their turn, so AI and end-of-turn changes
+   * never move their expected saves; multi-turn tests end exactly `turns`. */
   const unsigned start_turn = game->col1.head.turn;
   const char* shots = getenv("REGRESSION_SHOTS");
   const bool want_shots = shots && shots[0] && strcmp(shots, "0") != 0;
+  rp.shots_game = want_shots ? game : NULL;
 
   uint8_t* pixels = malloc((size_t)screen_w * (size_t)screen_h);
   ColonizeFramebuffer8 fb = {.width = screen_w, .height = screen_h, .pixels = pixels};
   ColonizePalette pal;
   const uint64_t start = wall_ms();
+  rp.deadline_ms = start + limit_ms;
   uint32_t prev_ms = rp.now_ms;
   int settled = 0;
   const char* phase = "start (waiting for the main map)";
   int rc = 1;
   for (;;) {
     ColonizeInputState input = {0};
+    rp.main_poll = true;
     platform_poll_input(&rp, &input);
     const uint32_t dt = rp.now_ms - prev_ms;
     prev_ms = rp.now_ms;
@@ -665,9 +732,15 @@ static int run_test(const char* name) {
   if (want_shots) {
     write_shot(out_dir, "end", &fb, &pal, game);
   }
-  if (game->col1.head.turn != start_turn) {
-    printf("  the test crossed a turn boundary (turn %u -> %u); keep it inside one turn\n",
-           start_turn, (unsigned)game->col1.head.turn);
+  if (game->col1.head.turn != start_turn + turns) {
+    if (turns == 0) {
+      printf("  the test crossed a turn boundary (turn %u -> %u); keep it inside one turn\n",
+             start_turn, (unsigned)game->col1.head.turn);
+    } else {
+      printf("  the test ended %d turns, `turns` says %u (turn %u -> %u)\n",
+             (int)game->col1.head.turn - (int)start_turn, turns, start_turn,
+             (unsigned)game->col1.head.turn);
+    }
     goto done;
   }
   if (!game_save_col1_named(game, "actual.sav", err, sizeof(err))) {

@@ -1,0 +1,92 @@
+# France at war with England: a French Dragoon attacks twice, the English answer on their turns.
+# Start: turns_spring_1600_events' output (France, Spring 1600, turn 108; England already at war with
+# France) re-saved once; fixture: every French unit with no orders / go-to / pioneer job on sentry,
+# except Quebec's Dragoon (unit 131, Veteran Soldier, was fortifying), given no orders and full moves
+# and made the active unit (head.active_unit 131, map cursor 45,24).
+# Turn 108: the Dragoon attacks the fortified English Dragoon on (45,23): it is routed and demoted to
+# Soldiers. England's turn: they beat the colonists near Guadeloupe, capture the wagon train and the
+# colonists and march into Guadeloupe (captured: owner -> England, 90 gold plundered).
+# Turn 109: the Dragoon attacks the same unit again (Soldiers routed -> Colonists); England then opens
+# talks and offers a demarcation treaty, refused ("No": @WARMEEK, still at war). England's next turn
+# beats the French Pioneers near Guadeloupe. Outcomes are fixed by the replayed RNG.
+key KP_8                 # turn 108: Dragoon attacks north (45,23)
+wait 60
+key Return               # combat popups (nested in the attack): English Dragoons routed, demoted to Soldiers
+wait 60
+key Return               # French defeat English Dragoons near Quebec
+wait 60
+key Return
+wait 60
+key space                # end turn 108
+wait 300
+key Return               # Colonization Help: Time Scale
+wait 100
+key Return               # (AI turn still running; presses between popups are ignored)
+wait 100
+key Return
+wait 100
+key Return               # English defeat French Colonists near Guadeloupe; wagon train captured
+wait 100
+key Return               # French colonists captured by the English
+wait 100
+key Return               # English march into Guadeloupe, 90 gold plundered
+wait 100
+key Return               # SoL Quebec 60% (Continue turn)
+wait 100
+key Return               # price of Cigars rises; the Caravel reaching Europe opens the Europe screen
+wait 100
+key Escape               # leave the Europe screen
+wait 60
+key s                    # turn 109: sentry the units woken by the English next to Quebec / Montreal
+wait 30
+key s
+wait 30
+key s
+wait 30
+key s
+wait 30
+key s
+wait 30
+key s
+wait 30
+key s
+wait 30
+key s
+wait 30
+key s
+wait 30
+key KP_8                 # the Dragoon attacks (45,23) again
+wait 60
+key Return               # English Soldiers routed, demoted to Colonists
+wait 60
+key Return               # French defeat English Soldiers near Quebec
+wait 60
+key Return               # English greeting ("we again welcome you to New England")
+wait 60
+key Return               # (talks continue)
+wait 60
+key Down                 # demarcation treaty offer: No
+key Return
+wait 60
+key Return               # @WARMEEK "Prepare for WAR!"
+wait 60
+key s                    # sentry the last two units in Quebec: End of Turn
+wait 30
+key s
+wait 30
+key space                # end turn 109
+wait 400
+key Return               # the Iroquois bring 16 Ore to Port au Prince
+wait 100
+key Return               # English defeat French Pioneers near Guadeloupe (AI turn; spare presses fall between popups)
+wait 100
+key Return
+wait 100
+key Return               # King raises tax to 27%: Kiss pinky ring
+wait 100
+key Return               # SoL Port au Prince 12% (Continue turn)
+wait 100
+key Return               # SoL Martinique 51% (Continue turn)
+wait 100
+key Return               # new cargo of Horses at Montreal (Continue turn)
+wait 100

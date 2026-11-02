@@ -1,0 +1,46 @@
+# From turns_spring_1600_events' output (France, Spring 1600, turn 108). Fixture edits (sav_json):
+# England <-> France at peace (euro_relation 96 both ways), the Caravel sailing to Europe (unit 148)
+# given 15 turns left, every idle / sentried / go-to French unit on the map Fortified (order 6), then
+#   unit 123 (Free Colonist in Quebec) No Orders (0) and made the active unit (head.active_unit 123);
+#   unit 142 (Free Colonist in Quebec) Sentry (1);
+#   unit 79 (Caravel in Quebec) Go To Port Montreal (orders 3, goto (43,27));
+#   Scouts 73 (30,62) and 90 (24,66) near Port au Prince Sentry (1).
+# Load: the Dragoon's Fortify (order 5, from map_unit_orders) turns Fortified (6) as his turn starts.
+# Covers: Fortify (5) becomes Fortified (6) on the next turn; the sentried colonist boards the
+# Caravel as it sails out of Quebec, rides to Montreal and is woken there to ask for orders;
+# sentried Scout 90 stays sentried over both turns while Scout 73 is woken by a neighbour.
+wait 30
+key f                      # colonist 124 (unit 123) in Quebec: Fortify (order 5); the Caravel then sails, taking the sentried colonist
+wait 200
+key space                  # end turn 108
+wait 300
+key Return                 # Help: Time Scale (two turns per year from 1600)
+wait 150
+key Return                 # SoL in Quebec up to 60%: Continue turn
+wait 150
+key Return                 # price of Cigars rises
+wait 150
+key s                      # Autumn 1600: the Caravel has docked in Montreal; its passenger 143 is woken and asks for orders: Sentry
+wait 150
+shot
+key space                  # end turn 109
+wait 300
+key Return                 # Iroquois gift of 16 Ore to Port au Prince
+wait 60
+key Return                 # King raises tax to 27%: Kiss pinky ring
+wait 60
+key Return                 # SoL in Port au Prince 12%: Continue turn
+wait 60
+key Return                 # SoL in Martinique 51%: Continue turn
+wait 60
+key Return                 # SoL in Guadeloupe 70%: Continue turn
+wait 60
+key Return                 # Horses cargo ready at Montreal (warehouse full): Continue turn
+wait 150
+key s                      # Spring 1601: Scout 74 (unit 73) woken by a neighbour: Sentry again
+wait 60
+key s                      # Caravel 80 in Montreal (go-to done): Sentry
+wait 60
+key s                      # colonist 143 in Montreal, woken again during the AI turn: Sentry
+wait 60
+shot

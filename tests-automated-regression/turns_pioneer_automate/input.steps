@@ -1,0 +1,60 @@
+# divergences.pioneer_plan (settings.json, as pioneer_auto_start_work).
+# From turns_spring_1600_events' output (France, Spring 1600, turn 108). Fixture edits (sav_json):
+# England <-> France at peace (euro_relation 96 both ways), the Caravel sailing to Europe (unit 148)
+# given 15 turns left, every idle / sentried / go-to French unit on the map Fortified (order 6), then
+# Pioneer 120 (100 tools, on roaded plains (43,25) under two fortified colonists) made a Hardy
+# Pioneer (profession 20) with No Orders and progress 0, and made the active unit (head.active_unit
+# 120, stuff.x/y = 43,25).
+# Covers: Automate over three ended turns. Plan: Plow on (43,25), Road on (44,24). Automate starts
+# the Plow on its own tile (order 8, progress 1; plains (3+2)>>1 = 2), done in Autumn 1600 (mask
+# 0x40, tools 80); the unit then walks to the next planned tile (44,24) in Spring 1601 and builds
+# the Road there in Autumn 1601 (plains 3>>1 = 1: at once; mask 0x08, tools 60, Quebec
+# hammers_purchased +10).
+key n                      # VIEW Plan Pioneer on, cursor on the Pioneer's tile (43,25)
+key p                      # plan Plow Fields on (43,25)
+key Right
+key Up
+key r                      # plan a road on (44,24)
+key Left
+key Down
+key n                      # Plan Pioneer off, cursor back on (43,25)
+key a                      # Activate: three units here, Choose unit from stack opens
+wait 30
+key Return                 # first row: the Pioneer
+wait 30
+key q                      # ORDERS Automate: Plow on its own tile (order 8, progress 1)
+wait 60
+shot
+key space                  # end turn 108
+wait 300
+key Return                 # Help: Time Scale (two turns per year from 1600)
+wait 100
+key Return                 # SoL in Quebec up to 60%: Continue turn
+wait 100
+key Return                 # price of Cigars rises
+wait 100
+shot                       # Autumn 1600: plow done, End of Turn (automated units ask nothing)
+key space                  # end turn 109
+wait 300
+key Return                 # Iroquois gift of 16 Ore to Port au Prince
+wait 60
+key Return                 # King raises tax to 27%: Kiss pinky ring
+wait 60
+key Return                 # SoL in Port au Prince 12%: Continue turn
+wait 60
+key Return                 # SoL in Martinique 51%: Continue turn
+wait 60
+key Return                 # SoL in Guadeloupe 70%: Continue turn
+wait 60
+key Return                 # Horses cargo ready at Montreal (warehouse full): Continue turn
+wait 60
+shot                       # Spring 1601: the Pioneer has walked to (44,24)
+key space                  # end turn 110
+wait 300
+key Return                 # Tupi gift of 6 Tobacco to Guadeloupe
+wait 60
+key Return                 # price of Cigars falls
+wait 60
+key Return                 # price of Coats rises
+wait 60
+shot                       # Autumn 1601: road on (44,24) done, End of Turn

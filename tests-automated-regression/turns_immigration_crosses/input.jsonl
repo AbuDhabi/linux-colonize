@@ -1,0 +1,14 @@
+{"type":"session","version":1,"t_ms":0,"window_scale":2,"screen_w":320,"screen_h":200,"audio":false}
+{"type":"key_down","t_ms":1000,"frame":0,"keycode":32,"mod":0}
+{"type":"text","t_ms":1000,"frame":0,"text":" "}
+{"type":"key_up","t_ms":1048,"frame":3,"keycode":32,"mod":0}
+{"type":"key_down","t_ms":6024,"frame":314,"keycode":13,"mod":0}
+{"type":"key_up","t_ms":6072,"frame":317,"keycode":13,"mod":0}
+{"type":"key_down","t_ms":7208,"frame":388,"keycode":1073741905,"mod":0}
+{"type":"key_up","t_ms":7256,"frame":391,"keycode":1073741905,"mod":0}
+{"type":"key_down","t_ms":7432,"frame":402,"keycode":13,"mod":0}
+{"type":"key_up","t_ms":7480,"frame":405,"keycode":13,"mod":0}
+{"type":"key_down","t_ms":8616,"frame":476,"keycode":13,"mod":0}
+{"type":"key_up","t_ms":8664,"frame":479,"keycode":13,"mod":0}
+{"type":"key_down","t_ms":9800,"frame":550,"keycode":13,"mod":0}
+{"type":"key_up","t_ms":9848,"frame":553,"keycode":13,"mod":0}

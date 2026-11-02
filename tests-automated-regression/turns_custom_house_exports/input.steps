@@ -1,0 +1,38 @@
+# Start: turns_spring_1600_events' input.sav (France, autumn 1599, turn 107; map_unit_orders' output).
+# Fixture edits (sav_json): every French map unit without orders or on go-to is sentried (so Space
+# ends each turn), Combat Analysis off (the English attack on Guadeloupe in the AI turn would
+# otherwise hold an extra modal). Quebec: + Custom House (its export rows as saved: Furs and
+# Tobacco among them), furs 150, tobacco 94 (Quebec nets +4 tobacco a turn).
+# Two turns. Turn 1: the Custom House sells furs above 99 down to 50 (100 Furs, 400 gross, 26% tax,
+# +296 net); tobacco 98 stays. Turn 2: tobacco 102 is sold down to 50 (52 Tobacco, +154 net).
+# Gold 429 -> 727 (the English plunder of Guadeloupe takes 152 of it).
+key space                  # end the turn (autumn 1599)
+wait 300
+key Return                 # (the Custom House sale line 'Quebec sells 100 Furs ...' needs no answer) War of the Spanish Succession ends: Spain cedes New Spain to the Dutch
+wait 60
+key Return                 # King increases military spending: Regulars added to the REF
+wait 60
+key Return                 # Rebel sentiment 50%
+wait 60
+key Return                 # price of Coats in La Rochelle rises
+wait 60
+shot
+key s                      # sentry Scout 77 (spring 1600): nothing left to move
+wait 30
+key space                  # end the turn (spring 1600)
+wait 300
+key Return                 # Colonization Help: Time Scale (two turns per year from now on)
+wait 300
+key Return                 # English defeat French Colonists near Guadeloupe
+wait 100
+key Return                 # French wagon train captured by the English
+wait 60
+key Return                 # French colonists captured by the English
+wait 60
+key Return                 # English march into Guadeloupe, 90$ plundered
+wait 60
+key Return                 # (after 'Quebec sells 52 Tobacco ...') SoL membership in Quebec up to 60%: Continue turn
+wait 60
+key Return                 # price of Cigars in La Rochelle rises
+wait 60
+shot

@@ -1,0 +1,42 @@
+# From turns_spring_1600_events' output (France, Spring 1600, turn 108). Fixture edits (sav_json):
+# England <-> France at peace (euro_relation 96 both ways; at war England takes Guadeloupe), the
+# Caravel sailing to Europe (unit 148) given 15 turns left so Europe never opens, and every idle /
+# sentried / go-to French unit on the map set to Fortified (order 6: no neighbour wakes, no orders asked).
+# The three Pioneers (100 tools) get job progress (col1_counter16) close to done:
+#   unit 120 Plow (43,25) = 3, unit 124 Clear Forest (42,25) = 4, unit 126 Build Road (44,25) = 5.
+# Covers: jobs run to completion over two ended turns; road done (mask 0x08 at (44,25), Quebec
+# hammers_purchased +10) and forest cleared (terrain 0xc -> 0x4 at (42,25), @CLEARCUT, Guadeloupe
+# lumber +20) in Autumn 1600, plow done (mask 0x40 at (43,25)) in Spring 1601; each job costs 20
+# tools (100 -> 80); a freed Pioneer asks for orders and is fortified.
+key space                  # end turn 108
+wait 300
+key Return                 # Help: Time Scale (two turns per year from 1600)
+wait 60
+key Return                 # SoL in Quebec up to 60%: Continue turn
+wait 60
+key Return                 # price of Cigars rises
+wait 60
+key Return                 # @CLEARCUT: Pioneers clear forest near Guadeloupe, 20 lumber
+wait 60
+key f                      # road Pioneer (44,25) done, asks for orders: Fortify (clear Pioneer has no moves left)
+wait 30
+shot
+key space                  # end turn 109 (Autumn 1600)
+wait 300
+key Return                 # Iroquois gift of 16 Ore to Port au Prince
+wait 60
+key Return                 # King raises tax to 27%: Kiss pinky ring
+wait 60
+key Return                 # SoL in Port au Prince 12%: Continue turn
+wait 60
+key Return                 # SoL in Martinique 51%: Continue turn
+wait 60
+key Return                 # SoL in Guadeloupe 70%: Continue turn
+wait 60
+key Return                 # Horses cargo ready at Montreal (warehouse full): Continue turn
+wait 60
+key f                      # plow Pioneer (43,25) done, asks for orders: Fortify
+wait 30
+key f                      # clear Pioneer (42,25), free since last turn, asks for orders: Fortify
+wait 30
+shot

@@ -1,0 +1,24 @@
+# Hot-seat (docs/hotseat.md), two full rounds across two calendar turn changes (1492 -> 1494).
+# Start: hotseat_handoff's input.sav (original_saves/hotseat/hotseat_1522.sav re-saved by the port),
+# no fixture edits: England (DS:0x5398, the fixed power) and Spain are human, bit 0x80 set; England's
+# caravel is on sentry, Spain's caravel (with its two passengers aboard) has no orders. The End of
+# Turn option is off. Each round: @MULTINEXT for England, England ends its turn, France (AI), then
+# @MULTINEXT for Spain over a blanked screen, Spain ends its turn, the Netherlands (AI), year change.
+key Return               # turn 0: English Player Turn (load resumes England)
+wait 100
+key space                # England: nothing to move, End of Turn
+wait 300
+key Return               # Spanish Player Turn
+wait 100
+key s                    # Spain: sentry the caravel; its last unit has orders, so Spain's turn ends itself
+wait 400
+key Return               # turn 1 (1493): English Player Turn
+wait 100
+key space                # England ends its turn
+wait 300
+key Return               # Spanish Player Turn
+wait 100
+key space                # Spain: all units sentried, End of Turn
+wait 400
+key Return               # turn 2 (1494): English Player Turn; ends idle on England's main map
+wait 100

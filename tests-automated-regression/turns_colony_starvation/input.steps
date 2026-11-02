@@ -1,0 +1,42 @@
+# Start: turns_spring_1600_events' input.sav (France, autumn 1599, turn 107; map_unit_orders' output).
+# Fixture edits (sav_json): every French map unit without orders or on go-to is sentried (so Space
+# ends each turn), Combat Analysis off (the English attack on Guadeloupe in the AI turn would
+# otherwise hold an extra modal). Quebec: both farmers and the fisherman (colonists 0-2) made
+# statesmen and taken off their plots (only the colony tile feeds 6 colonists), food 3.
+# Two turns. Turn 1: food 3 runs out (stock clamped at 0, not starting the turn at 0 so nobody
+# dies): @FOOD1 "food stores depleted". Turn 2: the turn starts at 0 food with a shortfall, so a
+# colonist starves (pop 6 -> 5, Phase J victim rand(0, pop-1)) with @STARVE2. No horses bred.
+key space                  # end the turn (autumn 1599)
+wait 300
+key Return                 # SoL membership in Quebec up to 60%: Continue turn
+wait 60
+key Return                 # @FOOD1: food stores depleted in Quebec: Continue turn
+wait 60
+key Return                 # War of the Spanish Succession ends: Spain cedes New Spain to the Dutch
+wait 60
+key Return                 # King increases military spending: Regulars added to the REF
+wait 60
+key Return                 # Rebel sentiment 50%
+wait 60
+key Return                 # price of Coats in La Rochelle rises
+wait 60
+shot
+key s                      # sentry Scout 77 (spring 1600): nothing left to move
+wait 30
+key space                  # end the turn (spring 1600)
+wait 300
+key Return                 # Colonization Help: Time Scale (two turns per year from now on)
+wait 300
+key Return                 # English defeat French Colonists near Guadeloupe
+wait 100
+key Return                 # French wagon train captured by the English
+wait 60
+key Return                 # French colonists captured by the English
+wait 60
+key Return                 # English march into Guadeloupe, 90$ plundered
+wait 60
+key Return                 # @STARVE2: Quebec has run out of food, colonists starving: Continue turn
+wait 60
+key Return                 # price of Cigars in La Rochelle rises
+wait 60
+shot

@@ -1,0 +1,39 @@
+# Wagon Train on a land trade route across three turns. Base: turns_spring_1600_events' output (France, Spring 1600, turn 108).
+# Fixture: trade routes copied from map_trade_route_assign's output (route 0 "Land Haul": Guadeloupe load Lumber+Furs,
+# Quebec unload Lumber+Ore / load Cotton, Montreal unload Cotton; route 1 "Sea Ferry"); Wagon Train #77 in Guadeloupe
+# empty, orders TRADE_ROUTE (2), route 0 stop 0 (profession byte 0x00 = stop<<4 | route), goto = Guadeloupe, moves spent;
+# Guadeloupe Lumber 100 (warehouse cap); every other French map unit fortified (orders 6), Caravel #148 (bound for
+# Europe) parked in Quebec, France and England at peace (euro_relation 0x60 both ways, else English raids capture units).
+# The wagon runs on its own each turn: turn 109 Guadeloupe loads 100 Lumber -> Quebec unloads it, loads 12 Cotton -> aims
+# at Montreal; turn 110 Montreal unloads the Cotton -> aims at Guadeloupe; turn 111 back in Guadeloupe (stop 0 again),
+# nothing left to load, aims at Quebec (stop 1).
+key space                  # end turn 108 (every unit has orders)
+wait 300
+key Return                 # Colonization Help: Time Scale
+wait 60
+key Return                 # Sons of Liberty in Quebec up to 60%
+wait 60
+key Return                 # price of Cigars rises to 12 (the wagon then runs Guadeloupe -> Quebec -> toward Montreal)
+wait 60
+key space                  # end turn 109
+wait 300
+key Return                 # Iroquois gift (16 Ore) at Port au Prince
+wait 60
+key Return                 # King raises the tax by 1% (Kiss pinky ring, row 0)
+wait 60
+key Return                 # Sons of Liberty in Port au Prince up to 12%
+wait 60
+key Return                 # Sons of Liberty in Martinique up to 51%
+wait 60
+key Return                 # Sons of Liberty in Guadeloupe up to 70%
+wait 60
+key Return                 # new cargo of Horses at Montreal (storage full); the wagon unloads Cotton in Montreal
+wait 60
+key space                  # end turn 110
+wait 300
+key Return                 # Tupi gift (11 Furs) at Quebec
+wait 60
+key Return                 # price of Cigars falls to 11
+wait 60
+key Return                 # price of Coats rises to 12; the wagon is back in Guadeloupe, aimed at Quebec
+wait 60

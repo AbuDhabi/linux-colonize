@@ -1,0 +1,18 @@
+# Crosses immigration with Brewster across one turn end. Base: turns_spring_1600_events' output (France, Spring 1600, turn 108;
+# France owns William Brewster, FF 20, and has 13 colonists waiting on the Europe dock).
+# Fixture: France current_crosses 135 (needed 108; the 584a tick drains 2 per waiting dock colonist, so 135 - 26 = 109 > 108
+# crosses the threshold on this turn end), recruit pool [1, 9 (Master Distiller), 28 (Free Colonist)];
+# every French map unit fortified (orders 6), Caravel #148 (bound for Europe) parked in Quebec, France and England at peace.
+# Brewster: slot 0 is shown as Free Colonists (europe_apply_brewster purge) in the @RECRUITCHOOSE pick; the picked Master Distiller lands on the
+# dock (unit #149 at 237,237, profession 9), crosses reset to 0, the slot refills.
+key space                  # end turn 108
+wait 300
+key Return                 # Colonization Help: Time Scale
+wait 60
+key Down                   # Brewster pick ("Religious unrest in France..."): row 1 Master Distiller
+key Return                 # pick it: the Distiller joins the Europe dock
+wait 60
+key Return                 # Sons of Liberty in Quebec up to 60%
+wait 60
+key Return                 # price of Cigars rises to 12
+wait 60

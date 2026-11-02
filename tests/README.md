@@ -175,6 +175,7 @@ Most executables expect **repo root** as cwd (`WORKING_DIRECTORY` in CMake).
 | `output.sav` | save taken on the main map right after the last input |
 | `input.steps` | optional: the step script `input.jsonl` was compiled from (see "Authoring from a step script") |
 | `settings.json` | optional: the settings the replay runs with (e.g. a `divergences` switch); default settings without it |
+| `turns` | optional: N, the number of turns the test ends (multi-turn tests, see below); 0 without it |
 
 The harness loads `input.sav`, waits for the main map, replays the log one
 logged frame per `platform_poll_input` call (nested polls inside
@@ -197,9 +198,40 @@ Recording one:
    caps idle gaps at 20 frames (the replay costs ~5 ms a frame), then re-run
    the test to confirm it still matches.
 
-A test must stay inside one turn: the harness fails it ("crossed a turn
-boundary") when the turn number at the end differs from the loaded one, so AI
-and end-of-turn work never moves an expected save.
+A test without a `turns` file must stay inside one turn: the harness fails it
+("crossed a turn boundary") when the turn number at the end differs from the
+loaded one, so AI and end-of-turn work never moves its expected save.
+
+### Multi-turn tests
+
+A `turns_*` test carries a `turns` file holding N: its end save must be
+exactly N turns past the start (the hot-seat handoff, which stays in one
+calendar turn, is a `turns`-less test). These guard what only end-of-turn
+processing does: colony growth and completion, pioneer jobs, training, sailing
+to and from Europe, trade routes, founding fathers, the AI, natives and the King,
+through the real popup pipeline. Every human unit needs orders (or is moved) so
+Space at End of Turn ends the turn; every popup the turn raises is answered in
+`input.steps`. The time limit grows by 30 s per turn (a 1599 AI turn replays in
+about 2 s). AI, turn and production changes move these saves on purpose: when a
+fix changes one, read the field diff, confirm the change is the fix's, and
+re-bless (`tools/regression_script.py NAME --bless`). A popup added or removed
+shifts every later input, so the failure shows as a desync after it; re-script
+from the first `shot` that differs.
+
+Authoring traps found writing the first 26:
+- Popups the AI turn raises in a nested pump (combat outcomes, captures, fort
+  fire, invasion) get no screenshot; under `REGRESSION_SHOTS` the harness prints
+  `nested press NNNNNN` plus their `log:` text instead. If the log runs out
+  inside such a pump the test fails as "the log ran out inside a nested popup pump".
+- Sentried units wake when a foreign unit comes alongside (FUN_5bfb_3180), which
+  stops the turn from ending; fixtures fortify (orders 6) bystanders instead.
+- Pioneer job counters and Fortify (5) to Fortified (6) also tick on load for
+  units with full moves, so a job one step from done finishes before the test's
+  first input.
+- A unit's trade-route cursor is packed in its profession byte as `stop << 4 | route`.
+- The spring 1600 French start (`turns_spring_1600_events`' output) is at war with
+  England: the English take Guadeloupe within two turns unless the fixture sets
+  `nations[0].euro_relation[1]` / `nations[1].euro_relation[0]` to peace (0x60).
 
 ### Authoring from a step script
 
@@ -210,7 +242,9 @@ and runs the test with `REGRESSION_SHOTS=1`: the harness writes the screen
 before every mouse/key press, plus the start and end screens, to
 `build/debug/regression_out/NAME/` (the tool turns them into PNGs) and prints
 the map view origin, cursor and selected unit for each, so map tiles can be
-hit by pixel. A missing `output.sav` is seeded with `input.sav`, which makes
+hit by pixel. Under each shot line it lists the popup text shown since the
+previous shot (`log:`) and the open popup's rows (`choices:`), enough to script
+most popup answers without opening the PNGs. A missing `output.sav` is seeded with `input.sav`, which makes
 the harness's field diff list exactly what the steps changed; once that diff
 is right, `--bless` copies the run's `actual.sav` to `output.sav`. Start saves
 may be fixture-edited through `sav_json` (moves, stock, gold); re-save an

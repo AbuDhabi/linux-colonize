@@ -1,0 +1,34 @@
+{"type":"session","version":1,"t_ms":0,"window_scale":2,"screen_w":320,"screen_h":200,"audio":false}
+{"type":"key_down","t_ms":1000,"frame":0,"keycode":32,"mod":0}
+{"type":"text","t_ms":1000,"frame":0,"text":" "}
+{"type":"key_up","t_ms":1048,"frame":3,"keycode":32,"mod":0}
+{"type":"key_down","t_ms":6024,"frame":314,"keycode":13,"mod":0}
+{"type":"key_up","t_ms":6072,"frame":317,"keycode":13,"mod":0}
+{"type":"key_down","t_ms":7208,"frame":388,"keycode":13,"mod":0}
+{"type":"key_up","t_ms":7256,"frame":391,"keycode":13,"mod":0}
+{"type":"key_down","t_ms":8392,"frame":462,"keycode":13,"mod":0}
+{"type":"key_up","t_ms":8440,"frame":465,"keycode":13,"mod":0}
+{"type":"key_down","t_ms":9576,"frame":536,"keycode":32,"mod":0}
+{"type":"text","t_ms":9576,"frame":536,"text":" "}
+{"type":"key_up","t_ms":9624,"frame":539,"keycode":32,"mod":0}
+{"type":"key_down","t_ms":14600,"frame":850,"keycode":13,"mod":0}
+{"type":"key_up","t_ms":14648,"frame":853,"keycode":13,"mod":0}
+{"type":"key_down","t_ms":15784,"frame":924,"keycode":13,"mod":0}
+{"type":"key_up","t_ms":15832,"frame":927,"keycode":13,"mod":0}
+{"type":"key_down","t_ms":16968,"frame":998,"keycode":13,"mod":0}
+{"type":"key_up","t_ms":17016,"frame":1001,"keycode":13,"mod":0}
+{"type":"key_down","t_ms":18152,"frame":1072,"keycode":13,"mod":0}
+{"type":"key_up","t_ms":18200,"frame":1075,"keycode":13,"mod":0}
+{"type":"key_down","t_ms":19336,"frame":1146,"keycode":13,"mod":0}
+{"type":"key_up","t_ms":19384,"frame":1149,"keycode":13,"mod":0}
+{"type":"key_down","t_ms":20520,"frame":1220,"keycode":13,"mod":0}
+{"type":"key_up","t_ms":20568,"frame":1223,"keycode":13,"mod":0}
+{"type":"key_down","t_ms":21704,"frame":1294,"keycode":32,"mod":0}
+{"type":"text","t_ms":21704,"frame":1294,"text":" "}
+{"type":"key_up","t_ms":21752,"frame":1297,"keycode":32,"mod":0}
+{"type":"key_down","t_ms":26728,"frame":1608,"keycode":13,"mod":0}
+{"type":"key_up","t_ms":26776,"frame":1611,"keycode":13,"mod":0}
+{"type":"key_down","t_ms":27912,"frame":1682,"keycode":13,"mod":0}
+{"type":"key_up","t_ms":27960,"frame":1685,"keycode":13,"mod":0}
+{"type":"key_down","t_ms":29096,"frame":1756,"keycode":13,"mod":0}
+{"type":"key_up","t_ms":29144,"frame":1759,"keycode":13,"mod":0}
