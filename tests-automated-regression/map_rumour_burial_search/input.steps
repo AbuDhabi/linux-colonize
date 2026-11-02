@@ -1,0 +1,19 @@
+# Burial mounds searched. Fixture: map_rumour_colonist_outcomes' start (no de Soto) with lcr_case5_bonus_used cleared and
+# RT_RNG LCG state 13888. Seasoned Scout #77 (29,62) selected; Preacher #131 at (38,22), colonist #134 at (37,25).
+# FUN_65dd_0004 case 4: @LOSTCITY4 is asked first (65dd:04eb local_3c) and the payout block draws only after "search".
+key KP_6                   # Scout east onto (30,62): roll 4, gate 72 + 20 -> @LOSTCITY4 Search / Stay clear
+wait 30
+key Return                 # "Let us search for treasure!": nearest village 1 tile away, claim roll RNG(1, (1 + 5) << 2) = 24 misses (< 4 claims);
+wait 30                    # gate >= 65 -> @BURIAL3, Treasure (RNG(1,8) + 14) * 200 = 4200 on the tile
+key Return
+wait 30
+key s                      # sentry the Scout: Preacher #131 is selected
+wait 20
+key KP_6                   # east onto (39,22): nothing (@LOSTCITY6)
+wait 30
+key Return                 # colonist #134 is selected
+wait 20
+key KP_4                   # west onto (36,25): small treasure 110 (skill 0, not multiplied), gold 429 -> 539
+wait 30
+key Return
+wait 20

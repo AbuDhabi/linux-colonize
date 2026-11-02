@@ -1,0 +1,23 @@
+# Speak With Chief at three UNSCOUTED Tupi camps (village_scout_visit only speaks at scouted ones).
+# Start: village_scout_visit's input.sav, fixture-edited through sav_json and re-saved through one no-op replay:
+#  - Seasoned Scout 130 (slot 129) moved from (42,27) to (45,26), west of unscouted village 69 (46,26);
+#  - Scout 134 (slot 133) moved from (36,24) to (45,22), west of unscouted village 47 (46,22);
+#  - Scout 129 (slot 128, plain) stays at (43,24), south of unscouted village 31 (43,23). Tupi alarm for France 0.
+# RNG (src/core/ai_contact_actions.c ai_contact_speak_with_chief): thr = rand(0, 100 | 140 seasoned); alarm 0 < thr on an
+# unscouted village gives @CHIEFHOWDY then an outcome roll rand(1,3) (1 guides = promotion, 2 tales, 3 gift); the
+# Tupi have no kill roll. Draws come from the game stream, so the outcomes are this RNG state's. Each visit marks the
+# village scouted and forfeits the Scout's moves.
+key KP_8     # Scout 129 steps north into village 31: menu Speak With Chief / Demand Tribute / Attack Village / Cancel Action
+key Return   # Speak With Chief: @CHIEFHOWDY (Master Tobacco Planters; wants Rum, Coats, ...)
+key Return   # @CHIEFGUIDES "provide you with guides": the plain Scout is promoted (profession 28 -> 22)
+key Return   # @WELLSEASONED "Our Scouts have improved to Seasoned status"
+key Return   # dismiss; Seasoned Scout 130 is selected
+key KP_6     # Scout 130 steps east into village 69: menu
+key Return   # Speak With Chief: @CHIEFHOWDY (Master Cotton Planters)
+key Return   # @CHIEFAREA "tales of nearby lands": radius-6 reveal around the Scout (colony / unit vis bits for France)
+key Return   # dismiss; Scout 134 is selected
+key KP_6     # Scout 134 steps east into village 47: menu
+key Return   # Speak With Chief: @CHIEFHOWDY
+key Return   # @CHIEFGUIDES: promoted
+key Return   # @WELLSEASONED
+key Return   # dismiss; no Scout left with moves, Colonist 88 in Guadeloupe is selected

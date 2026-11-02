@@ -1,0 +1,10 @@
+# Wagon Train trades with a foreign colony (FUN_5f7a_0662 -> FUN_5f7a_020e, docs/foreign_colony_trade.md).
+# Fixture (map_found_colony start, France spring 1599): the five French go-to units sentried; England and France at
+# peace (nations[0].euro_relation[1] = nations[1].euro_relation[0] = 0x60); France has Jan de Witt (FF 4,
+# founding_fathers[0] |= 0x10); Wagon Train #82 (unit index 81) in Guadeloupe (41,24), full moves, holds Ore 50 /
+# Lumber 20, active with the cursor on it. English Cayenne (38,23): Ore 75, Furs 50.
+key KP_4                   # west along the road (40,24)
+key KP_4                   # west along the road (39,24), beside Cayenne
+key KP_7                   # bump Cayenne: the move ends (whole allotment spent), "Which cargo shall we offer" 50 Ore / 20 Lumber / Nothing
+key Return                 # row 0 "50 Ore": @TRADEWITH 50 Furs or 206$ (the gold offer draws once off the move RNG)
+key Return                 # row 0 "We'll take the 50 Furs.": hold 0 becomes Furs 50, Cayenne Ore 125 / Furs 0; colonist #88 is next

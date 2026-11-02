@@ -1,0 +1,32 @@
+# Native trade (FUN_4d56_2820 sell / 2e92 buy, src/core/ai_contact_trade.c) by ship and by Wagon Train at Tupi camps.
+# Start: village_scout_visit's input.sav, fixture-edited through sav_json and re-saved through one no-op replay:
+#  - the three Scouts sentried (orders 1);
+#  - Caravel 126 (slot 125) moved from Quebec to the sea tile (47,26) east of Tupi village 69 (46,26), orders cleared,
+#    full moves, holds 100 Cloth + 50 Rum; it is the active unit (cursor on it);
+#  - Wagon Train 82 (slot 81) moved from Guadeloupe to (43,24) south of Tupi village 31 (43,23), orders cleared,
+#    full moves, holds 100 Trade Goods + 100 Cloth.
+# RNG: the trade draws from the game stream (haggle rolls, the post-buy alarm roll); the RTST RNG record moves.
+# Choosing Trade forfeits the unit's moves (FUN_4d56_4528 tail).
+key KP_4     # Caravel steps west into village 69: menu Trade With Village / Cancel Action
+key Return   # Trade With Village: "Which cargo shall we offer to trade" 100 Cloth / 50 Rum / Nothing
+key Down
+key Return   # 50 Rum: offer 121 with accept / "A fairer price would be 245" / gift / Never mind
+key Down
+key Down
+key Return   # "let the Rum be our gift": Rum hold emptied, no popup for the gift itself
+key Return   # dismiss the wanted-goods notice (Coats, Cigars, even Cloth)
+key Return   # buy menu Furs / Cotton / Tobacco / Nothing: Furs
+key Down
+key Down
+key Return   # "fill up your holds with 12 Furs" (a ship buys sold qty 50 >> 2): Never mind, nothing bought; the Wagon Train is selected
+key KP_8     # Wagon Train steps north into village 31: menu Trade With Village / Cancel Action
+key Return   # Trade: cargo menu 100 Trade Goods / 100 Cloth / Nothing
+key Return   # Trade Goods: offer 86
+key Down
+key Return   # "A fairer price would be 146": haggled up, "trying our patience ... raise our offer to 114"
+key Return   # accept 114: Trade Goods sold, gold 429 -> 543
+key Return   # dismiss the wanted-goods notice (Rum, Coats, even Cigars)
+key Return   # buy menu: Furs, "fill up your wagons with 100 Furs for 262 (of 543)"
+key Down
+key Return   # "A fairer price would be 131": "Our patience with your haggling is exhausted", nothing bought
+key Return   # dismiss; no unit with moves left but the keeper Colonist 88 in Guadeloupe, which is selected

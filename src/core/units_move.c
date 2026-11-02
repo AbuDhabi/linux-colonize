@@ -356,6 +356,17 @@ static void units_465b_05ca_bvar4_reseed(const units_move_ctx* c) {
 
 /* Combat reason but no armed map defender: fight the colony itself.
  * CONTINUE = proceed to the shared step gate (old `goto combat_entry_resolved`). */
+/* A lost attack's charge: 1b0e's entry FUN_281f_0934 spent the whole
+ * allotment before the roll (viceroy_unpacked.c:100381-100383), and the spent
+ * byte keeps that pre-demotion value (DOSBox independence 5->6: a crown
+ * Cavalry beaten to Regulars saves spent 12, its Cavalry allotment). */
+static void units_move_charge_attack_loss(ColonizeUnitPool* pool, int unit_id, int pre_max) {
+  ColonizeUnit* atk = units_get(pool, unit_id);
+  if (atk && atk->active) {
+    atk->moves = atk->nation_id >= 4 ? pre_max : units_max_mp(pool, unit_id) - pre_max;
+  }
+}
+
 COLONIZE_INTERNAL UnitsMoveStatus units_move_combat_no_foe(units_move_ctx* c) {
   ColonizeUnitPool* const pool = c->pool;
   ColonizeColonyPool* const colonies = c->colonies;
@@ -397,7 +408,9 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_combat_no_foe(units_move_ctx* c) {
     units_465b_0673_vis_or(pool, c->map, c->unit, dest_x, dest_y);
   }
   units_465b_05ca_bvar4_reseed(c);
+  const int militia_pre_max = units_max_mp(pool, unit_id);
   if (!units_revere_defend_colony_tile(pool, colonies, unit_id, dest_x, dest_y, c->rng)) {
+    units_move_charge_attack_loss(pool, unit_id, militia_pre_max); /* port_bugs.md #1375 */
     return UNITS_MOVE_RETURN_FALSE;
   }
   c->unit = units_get(pool, unit_id);
@@ -636,15 +649,7 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_combat_resolve(units_move_ctx* c) {
    * walk-in/advance path via `combat_attack_entry`.
    */
   if (!won) {
-    ColonizeUnit* atk_mp = units_get(pool, unit_id);
-    if (atk_mp && atk_mp->active) {
-      /* The spent byte keeps the entry 0934's value through a demotion
-       * (DOSBox independence 5->6: a crown Cavalry beaten to Regulars
-       * saves spent 12, its Cavalry allotment). */
-      atk_mp->moves = atk_mp->nation_id >= 4
-        ? attack_pre_max
-        : units_max_mp(pool, unit_id) - attack_pre_max;
-    }
+    units_move_charge_attack_loss(pool, unit_id, attack_pre_max);
     return UNITS_MOVE_RETURN_FALSE;
   }
   c->unit = units_get(pool, unit_id);
@@ -772,7 +777,9 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_colony_entry(units_move_ctx* c) {
   }
   /* Paul Revere: empty foreign colony tile → auto-arm from muskets + fight.
    * Cite: PEDIA / docs/fandom_col1994.md Paul Revere. */
+  const int militia_pre_max = units_max_mp(pool, unit_id);
   if (!units_revere_defend_colony_tile(pool, colonies, unit_id, dest_x, dest_y, c->rng)) {
+    units_move_charge_attack_loss(pool, unit_id, militia_pre_max); /* port_bugs.md #1375 */
     return UNITS_MOVE_RETURN_FALSE;
   }
   c->unit = units_get(pool, unit_id);

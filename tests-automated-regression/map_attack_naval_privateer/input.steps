@@ -1,0 +1,23 @@
+# Naval attacks, Combat Analysis on: a Privateer loses to an unarmed Caravel and goes to Europe for
+# repairs; a Frigate's attack on the same Caravel is evaded.
+# Start: turns_war_combat's start (France, Spring 1600, turn 108, at war with England; French units
+# sentried, combat analysis on), fixture: French Caravel #79 made an empty Privateer (type 16) at
+# sea (47,24), active (map cursor 47,24); French Caravel #121 made a Frigate (type 17, no orders,
+# full moves, 3 goods holds: cargo 2 x69, 4 x39, 1 x50) at sea (47,23); English Caravel #0 (no
+# goods holds: holds_occupied 0) moved from Port Royal to sea (48,24); re-saved once.
+# Rolls come from the saved LCG, so the outcomes are fixed.
+key KP_6                 # Privateer attacks the Caravel east: Combat Analysis dialog
+wait 30
+key Return               # dismiss: the Caravel's evade roll (FUN_5bfb_312e, power 7 vs 22) fails, the combat roll is lost
+wait 30
+key Return               # "{French Privateer} damaged! Ship returns to {La Rochelle} for repairs." (@SHIPDAMAGE;
+wait 30                  #  the gunless winner cannot sink it; Quebec has no Drydock: the hull goes to France's Expected lane 245, repair timer 2)
+click 120 96             # select the Frigate on (47,23) (view origin now 40,18)
+wait 30
+key KP_3                 # Frigate attacks the Caravel SE: Combat Analysis dialog
+wait 30
+key Return               # dismiss: the Caravel's evade roll (power 7 vs 9) succeeds
+wait 30
+key Return               # "{English Caravel} evades {French Frigate}." (@EVASIVE, no outcome); Frigate's moves spent; Dragoon #131 in Quebec selected next
+wait 30
+shot

@@ -1,0 +1,15 @@
+# A Soldier attacks a fortified veteran Dragoon and loses (Combat Analysis on): the loser is demoted.
+# Start: turns_war_combat's start (France, Spring 1600, turn 108, at war with England; French units
+# sentried, combat analysis on), fixture: Quebec's active unit 131 made a plain Soldiers (type 1,
+# profession 28 Free Colonist, full moves) and re-saved once.
+# English Dragoon #113 (veteran, fortified) stands on the hills at (45,23), north of Quebec.
+# The roll comes from the saved LCG, so the outcome is fixed: the Soldiers lose.
+key KP_8                 # attack north: Combat Analysis dialog (FUN_636c_0000) before the roll
+wait 30
+key Return               # dismiss the analysis: roll lost, "{French Soldiers} routed! Unit demoted to {Colonists}" (@DEMOTE)
+wait 30
+key Return               # "{English Dragoons} defeat {French} near Quebec!"
+wait 30
+key Return               # last combat popup closed; no French unit left to move (selected -1)
+wait 30
+shot

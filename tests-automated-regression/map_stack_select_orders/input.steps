@@ -1,0 +1,22 @@
+# Picking units out of a map stack, then View Pieces and Center View. Fixture (map_found_colony start, France spring
+# 1599): the five French go-to units sentried (orders 1, stale goto_x/goto_y zeroed); three of them stand on the open
+# tile (43,25): Tobacconist #125, Free Colonist #134, Petty Criminal #135, full moves. Preacher #131 selected.
+# Stack picker FUN_2b5a_1b5a (unit_stack.c): opening it changes nothing; a pick on a row with orders cancels them
+# (dialog stays open), a pick on the order-less row activates that unit and closes (port two-step, user rule).
+click 136 144              # click the (43,25) stack (view origin 35,17): "Units Present" picker, 3 rows
+click 150 100              # row 1 (Free Colonist #134): sentry cancelled, picker stays open
+click 150 100              # row 1 again: #134 activated, picker closes
+key f                      # Fortify #134 (orders 5); the next unit (Caravel #136 in Quebec) is selected
+click 88 128               # the stack again (view origin now 38,18): row 1 shows the F badge
+click 150 116              # row 2 (Petty Criminal #135): sentry cancelled
+click 150 116              # row 2 again: #135 activated
+key s                      # Sentry #135 again (orders 1); Caravel #136 selected
+click 88 128               # the stack a third time
+click 150 82               # row 0 (Tobacconist #125): sentry cancelled
+click 150 82               # row 0 again: #125 activated
+key space                  # No orders: #125 done for the turn (orders 0); next unit (#126) selected
+key v                      # View Pieces: no unit selected, the cursor stays on (45,24)
+key KP_4                   # the keypad moves the view cursor only: (44,24)
+key KP_4                   # (43,24)
+key KP_1                   # (42,25)
+key c                      # Center View on the cursor: the view is already centred there, nothing moves

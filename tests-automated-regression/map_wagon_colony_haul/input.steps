@@ -1,0 +1,40 @@
+# Wagon Train haul between two colonies in one turn. Fixture (map_found_colony start, France spring 1599): the five
+# French go-to units sentried; Wagon Train #82 (unit index 81) moved from Guadeloupe into Quebec (45,24), full moves,
+# empty holds (stale hold bytes zeroed), made the active unit with the map cursor on Quebec.
+# Quebec stock Cotton 12 / Horses 38; Montreal (43,27) Cotton 0 / Horses 88; the road (45,25)-(44,26) joins them.
+click 168 128              # open Quebec
+wait 10
+click 172 152              # select the Wagon Train in the dock row ("Loading: Wagon Train")
+wait 5
+drag 67 188 132 171        # Cotton -> wagon hold 0: the whole 12
+wait 5
+drag 162 188 144 171 shift # Horses -> wagon hold 1, amount prompt (0-38)
+wait 5
+key Backspace
+key Backspace
+key 2
+key 5
+key Return                 # load 25 Horses (13 stay)
+wait 5
+key Escape                 # back to the map, the wagon still selected
+wait 5
+key KP_2                   # south onto the road (45,25), 1/3
+wait 10
+key KP_1                   # south-west along the road (44,26), 1/3
+wait 10
+key KP_1                   # south-west into Montreal (43,27): a wagon arriving in a colony spends all its moves
+wait 10
+click 152 160              # open Montreal (view origin 34,18); the wagon is the dock selection
+wait 10
+drag 132 171 67 188        # wagon hold 0 (Cotton 12) -> warehouse; Horses shift down to hold 0
+wait 5
+drag 144 171 162 188 shift # Horses hold -> warehouse, amount prompt (0-25)
+wait 5
+key Backspace
+key Backspace
+key 1
+key 0
+key Return                 # unload 10 Horses (Montreal 98), 15 stay aboard
+wait 5
+key Escape                 # back to the map
+wait 5

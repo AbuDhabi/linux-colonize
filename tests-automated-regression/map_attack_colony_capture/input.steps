@@ -1,0 +1,26 @@
+# Combat Analysis on: a Dragoon captures a lone Colonist, then a second Dragoon takes undefended Cayenne.
+# Start: turns_war_combat's start (France, Spring 1600, turn 108, at war with England; French units
+# sentried, combat analysis on), fixture: veteran Dragoon #131 and #87 (made a veteran Dragoon, no
+# orders, full moves) moved to (39,23) east of English Cayenne (38,23, pop 2, no unit on its tile),
+# #131 active (map cursor 39,23); English Colonist #89 moved to (38,22), no orders; re-saved once.
+# Rolls come from the saved LCG, so the outcomes are fixed.
+key KP_7                 # #131 attacks the Colonist at (38,22): Combat Analysis dialog
+wait 30
+key Return               # dismiss: roll won
+wait 30
+key Return               # "{English} colonists CAPTURED by the {French}!" (@COLONISTCAPTURE): flips to France, joins (39,23)
+wait 30
+key Return               # "{French} defeat {English Colonists} near Cayenne!"; #87 selected next
+wait 30
+key KP_4                 # #87 attacks Cayenne: no armed defender, the colony militia phantom fights (1b0e bVar28); analysis
+wait 30
+key Return               # dismiss: roll won
+wait 30
+key Return               # "{French} defeat {English Colonists} near Cayenne!"
+wait 30
+key Return               # "{French} march into {Cayenne}! {270$} plundered!" (gold 429 -> 699); the captured colony's screen opens
+wait 30
+wait 60                  # the colony screen takes no key for its first frames
+key Escape               # leave Cayenne's colony screen (now French, Custom House bits re-armed: dos_bugs.md DB-66)
+wait 30
+shot

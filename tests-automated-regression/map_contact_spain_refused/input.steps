@@ -1,0 +1,14 @@
+# First contact with Spain, every offer refused. Same start as map_contact_spain_first (France spring 1599, the five
+# go-to units sentried, Spanish Dragoon index 98 at (44,24), France and Spain unmet, Preacher #131 at (44,22) selected).
+# FUN_5bfb_153e audience (ai_diplo.c): @HELLOFIRST, @APOSTATES joined (Iroquois alarm +50, one RNG draw), @WORTHY
+# refused, @GIVECASH (Spain offers 400) refused, @WARMEEK. Pair left MET only (0x20): no PEACE, no treaty timer;
+# nation_relation[2] = this turn (the 153e stamp), not turn + 16.
+key KP_2                   # Preacher steps south to (44,23), beside the Spanish Dragoon: @HELLOFIRST
+key Return                 # dismiss: @APOSTATES "join with us" against the Iroquois
+key Down
+key Return                 # row 1 "Yes! Let us teach the Iroquois a lesson!": @WORTHY demarcation treaty
+key Down
+key Return                 # row 1 "No": @GIVECASH "We will give you 400$"
+key Down
+key Return                 # row 1 "Alas, it is God's will.": @WARMEEK "Prepare for WAR!"
+key Return                 # dismiss: talk over (no peace menu off peace), the next unit (#136) is selected

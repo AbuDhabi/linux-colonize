@@ -1,0 +1,20 @@
+# Combat Analysis off: a Dragoon captures a Wagon Train, then an Artillery attacking in the open loses
+# to a lone Colonist and is damaged.
+# Start: turns_war_combat's start (France, Spring 1600, turn 108, at war with England; French units
+# sentried), fixture: head.game_options.combat_analysis off; English Wagon Train #98 moved to (44,23)
+# (NW of Quebec), English Colonist #85 moved to (46,25) (SE of Quebec, open grassland, no orders);
+# Quebec's Artillery #139 woken (no orders, full moves); re-saved once.
+# Rolls come from the saved LCG, so the outcomes are fixed.
+key KP_7                 # veteran Dragoon #131 attacks the Wagon Train: no analysis dialog
+wait 30
+key Return               # "{English} wagon train CAPTURED by the {French}!" (@WAGONCAPTURE): wagon flips to France, joins Quebec's tile
+wait 30
+key Return               # "{French} defeat {English Wagon Train} near Quebec!"; Artillery #139 selected next
+wait 30
+key KP_3                 # Artillery attacks the Colonist: open-field >>2 on the gun (docs/combat.md peels), loses
+wait 30
+key Return               # "French Artillery {damaged}. Further damage will destroy it." (@ARTILLERY; damaged bit set, moves spent)
+wait 30
+key Return               # "{English Colonists} defeat {French} near Quebec!"; nothing left to move
+wait 30
+shot

@@ -1,0 +1,15 @@
+# A Dragoon loses to an undefended colony's militia: the attack still spends its whole allotment
+# (1b0e's entry FUN_281f_0934, port_bugs.md #1375), so the demoted Soldiers (spent 12) give way
+# to the next unit instead of attacking again.
+# Start: map_attack_colony_capture's input.sav (France, Spring 1600, at war with England; veteran
+# Dragoons #131 and #87 at (39,23) east of English Cayenne (38,23, pop 2, no unit on its tile),
+# #131 active, Combat Analysis on). Rolls come from the saved LCG, so the outcome is fixed.
+key KP_4                 # #131 attacks Cayenne: the colony militia phantom fights; analysis
+wait 30
+key Return               # dismiss: roll lost
+wait 30
+key Return               # "{French Dragoons} routed! Unit demoted to {Soldiers} status."
+wait 30
+key Return               # "{English Colonists} defeat {French} near Cayenne!"; #87 selected next
+wait 30
+shot

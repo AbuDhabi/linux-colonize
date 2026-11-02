@@ -1,0 +1,41 @@
+# Hernando de Soto and the Fountain of Youth. Fixture: map_rumour_colonist_outcomes' start with France's de Soto bit
+# restored (nations[1].founding_fathers[0] bit 7), the_fountain_of_youth woodcut event bit cleared, RT_RNG LCG state 17.
+# FUN_65dd_0004: a Scout with de Soto rolls with skill 3 and bVar4 set, which skips the Fountain's terrain gate
+# ((class & 7) > 3, explored > 3) and rerolls Nothing / Vanishes / trespass; a non-Scout explorer gets neither.
+key KP_6                   # Seasoned Scout #77 east onto (30,62), mixed forest (class 10, would fail the gate): @LOSTCITY1
+wait 30
+key Return                 # the Fountain of Youth woodcut
+wait 30
+key Return                 # eight free recruit picks (FUN_38fd_4884(1,0)); each pick refills its pool slot off the game stream
+wait 30
+key Down
+key Down
+key Return                 # pick 1: row 3
+wait 30
+key Down
+key Down
+key Return                 # pick 2: row 3, Expert Lumberjacks
+wait 30
+key Down
+key Return                 # pick 3: row 2
+wait 30
+key Return                 # pick 4: row 1
+wait 30
+key Return                 # pick 5: row 1, Master Fur Traders
+wait 30
+key Return                 # picks 6-8: row 1
+wait 30
+key Return
+wait 30
+key Return
+wait 30
+key s                      # sentry the Scout: Preacher #131 is selected
+wait 20
+key KP_6                   # east onto (39,22): de Soto does not protect a non-Scout, @LOSTCITY5, the unit is despawned
+wait 30
+key Return                 # colonist #134 is selected
+wait 20
+key KP_4                   # west onto (36,25): chief's gift 4d10*2 = 50 (@LOSTCITY7), gold 429 -> 479
+wait 30
+key Return
+wait 20

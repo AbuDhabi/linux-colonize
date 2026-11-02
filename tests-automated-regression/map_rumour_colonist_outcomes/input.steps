@@ -1,0 +1,21 @@
+# Lost City Rumours rolled by a Seasoned Scout and two colonists, no de Soto. Fixture (sav_json, re-saved once):
+# map_move_land_tile_by_tile's start (France 1599); rumours restored at (30,62), (39,22), (36,25) (path owner nibble 0xf =
+# never visited: col1_bridge marks visited tiles' rumours consumed); France's Hernando de Soto bit cleared
+# (nations[1].founding_fathers[0] bit 7); lcr_case5_bonus_used set (no case-5 -> burial latch); RTST RT_LCR_COUNTS
+# explored 10; RT_RNG LCG state 2293 (the rolls are the first draws: FUN_65dd_0004 with DS:0x83a6 = -1 does not reseed).
+# Seasoned Scout #77 (29,62) selected, full moves; Preacher #131 moved to (38,22), colonist #134 to (37,25), both full
+# moves, no orders; other French units with moves fortified.
+key KP_6                   # Scout east onto (30,62): roll 3 (small treasure) 3d8*10 = 150, Seasoned (skill 2) x2 = 300 (@LOSTCITY3)
+wait 30
+key Return                 # gold 429 -> 729
+wait 20
+key s                      # sentry the Scout: Preacher #131 is selected
+wait 20
+key KP_6                   # east onto (39,22): roll 5 kept (skill 0 rerolls nothing, latch used) -> @LOSTCITY5, the unit is despawned
+wait 30
+key Return                 # colonist #134 is selected
+wait 20
+key KP_4                   # west onto (36,25), forest class 9 qualifies: Cibola (@LOSTCITY2), Treasure 3500 (hundreds 20 + 15) on the tile
+wait 30
+key Return
+wait 20

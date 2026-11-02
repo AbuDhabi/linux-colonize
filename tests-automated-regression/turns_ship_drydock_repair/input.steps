@@ -1,0 +1,42 @@
+# Start: turns_school_training's input.sav (France, Spring 1600, turn 108; England at peace, the
+# Europe-bound Caravel held at sea, French units fortified, Quebec Schoolhouse + teacher). Fixture
+# edits (sav_json), re-saved through one no-op replay: Quebec gets a Drydock (docks bits 3), and
+# the two fortified ships on its tile are made combat-damaged (ship_damaged = bit7, orders 0): the
+# Caravel with repair timer (col1_counter16) 0, the other hull re-typed Merchantman (@UNIT 14,
+# defense = repair threshold 6) with timer 2; no unit selected (head.active_unit 65535).
+# Covers FUN_3844_00f2: damaged hulls stay out of the orders rotation, the timer ticks +1 and +1
+# more on a colony tile each end of turn; the Caravel reaches 2 in turn 1 and the Merchantman
+# 6 in turn 2, bit7 clears and @REFIT ("has completed its repairs in Quebec") shows; each
+# repaired hull then asks for orders.
+key space                  # end turn 108
+wait 300
+key Return                 # Help: Time Scale (two turns per year from 1600)
+wait 100
+key Return                 # SoL in Quebec up to 60%: Continue turn
+wait 100
+key Return                 # price of Cigars rises
+wait 100
+key Return                 # @REFIT: Caravel has completed its repairs in Quebec
+wait 100
+shot                       # Autumn 1600: the repaired Caravel asks for orders
+key s                      # sentry it
+wait 30
+key space                  # end turn 109
+wait 300
+key Return                 # Iroquois gift of 16 Ore to Port au Prince
+wait 60
+key Return                 # King raises tax to 27%: Kiss pinky ring
+wait 60
+key Return                 # SoL in Port au Prince 12%: Continue turn
+wait 60
+key Return                 # SoL in Martinique 51%: Continue turn
+wait 60
+key Return                 # SoL in Guadeloupe 70%: Continue turn
+wait 60
+key Return                 # Horses cargo ready at Montreal (warehouse full): Continue turn
+wait 60
+key Return                 # @TRAINPROFESSION: a colonist in Quebec has learned Fisherman
+wait 60
+key Return                 # @REFIT: Merchantman has completed its repairs in Quebec
+wait 60
+shot                       # Spring 1601: the repaired Merchantman asks for orders

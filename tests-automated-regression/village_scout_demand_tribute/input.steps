@@ -1,0 +1,25 @@
+# Demand Tribute (thunk_FUN_1000_a5f4, src/core/ai_contact_actions.c ai_contact_demand_tribute) from three Scouts.
+# Start: village_scout_visit's input.sav, fixture-edited through sav_json and re-saved through one no-op replay:
+#  - the 17 Tupi braves (nation 11) handed to the Sioux (nation 10), so the Tupi side of the roll is
+#    indian = (0 + 0) * 2 + alarm/2 = 0 and France's euro (106: exposed field combat + land total/2) beats it;
+#  - Tupi village 62 (41,27) has tribute_paid (bit 0x10) set;
+#  - Arawak (indians[2]) alarm for France 80; Scout 134 moved from (36,24) to (36,16), south of the Arawak capital (36,15).
+# RNG: each demand draws rand(0,euro) then rand(0,indian) from the game stream (RTST RNG record moves).
+#  - village 31: indian 0, so win = rand(0,106) > 0 (it is): @EXTORTSTUFF, the top-bid good (Furs) into the nearest
+#    own colony (Quebec, colony 1): min(room, 3*top_bid+10) = 28; tribute_paid set; bump (difficulty 4 + 1) * 2 = 10,
+#    halved for France (4cc6_00f2) = +5 Tupi alarm.
+#  - village 62: already paid and indian (2) < euro, alarm < 50: @EXTORTPOOR whatever the roll, bump 0.
+#  - Arawak capital: alarm 80 >= 75: @EXTORTLAUGH whatever the roll, bump 5 halved = +2.
+# Every pick forfeits the Scout's moves (FUN_4d56_4528 tail).
+key KP_8     # Scout 129 at (43,24) steps north into Tupi village 31 (43,23): menu Speak With Chief / Demand Tribute / Attack Village / Cancel Action
+key Down     # select Demand Tribute
+key Return   # @EXTORTSTUFF "deliver 28 Furs to Quebec": Quebec Furs 0 -> 28, village 31 tribute_paid, Tupi alarm 0 -> 5
+key Return   # dismiss; Scout 130 is selected
+key KP_4     # Seasoned Scout 130 at (42,27) steps west into village 62 (41,27, tribute already paid): menu
+key Down
+key Return   # @EXTORTPOOR "no gifts worthy of your magnificence": nothing given, alarm unchanged
+key Return   # dismiss; Scout 134 is selected
+key KP_8     # Scout 134 at (36,16) steps north into the Arawak capital (36,15): the angry greeting ("war drums"), same menu
+key Down
+key Return   # @EXTORTLAUGH "We laugh at your puny threats": Arawak alarm 80 -> 82
+key Return   # dismiss; no Scout left with moves, Colonist 88 in Guadeloupe is selected

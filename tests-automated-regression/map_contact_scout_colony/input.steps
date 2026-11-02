@@ -1,0 +1,18 @@
+# Scouts at a foreign (Dutch, at peace) colony: @SCOUTCOLONY (FUN_5f7a_000e). Fixture (map_found_colony start, France
+# spring 1599, gold 429): the five French go-to units sentried; Seasoned Scouts #77 and #95 (unit index 76, 94) moved
+# beside Fort Orange (38,40) to (39,39) and (37,39), full moves, no orders, stale goto cleared; #77 active, cursor on it.
+key KP_1                   # #77 bumps Fort Orange: @SCOUTCOLONY Meet With Mayor / Infiltrate / Attack / Nothing
+key Up
+key Return                 # row 3 "Nothing": the scouts stay put, whole allotment spent; colonist #88 is next
+key w                      # Wait: skip #88, Scout #95 is selected
+key KP_3                   # #95 bumps Fort Orange: @SCOUTCOLONY again
+key Return                 # row 0 "Meet With Mayor": forced FUN_5bfb_153e audience, @HELLOMEEK (already met)
+key Return                 # dismiss: @OLDPEACEMEEK peace menu
+key Up
+key Return                 # row 3 "We suggest an alliance.": @MILITARY "You must attack the infidel", target list
+key Down
+key Down
+key Down
+key Return                 # row 3 Iroquois: @SMITEINDIANS "in exchange for 3250$" Pay / Never mind
+key Return                 # "Pay 3250$." with 429 gold: "your treasury is insufficient", nothing paid, no war
+key Return                 # dismiss: talk over (treaty timer re-armed), Caravel #126 in Quebec is next

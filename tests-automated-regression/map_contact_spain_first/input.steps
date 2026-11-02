@@ -1,0 +1,10 @@
+# First contact with Spain, treaty accepted. Fixture (map_found_colony start, France spring 1599): the five French
+# go-to units sentried (orders 1) so nothing moves after the talk; Spanish Dragoon (unit index 98) moved to (44,24),
+# full moves, no orders. France and Spain unmet (nations[1].euro_relation[2] = nations[2].euro_relation[1] = 0).
+# Preacher #131 at (44,22) selected. FUN_5bfb_3180 Euro x Euro branch -> FUN_5bfb_153e audience (ai_diplo.c):
+# the unmet pair forces the talk; @HELLOFIRST, @APOSTATES (third-party demand), @WORTHY treaty, @OLDPEACEMEEK menu.
+key KP_2                   # Preacher steps south to (44,23), beside the Spanish Dragoon: @HELLOFIRST "welcome to New Spain"
+key Return                 # dismiss: @APOSTATES "join with us" against the Iroquois
+key Return                 # row 0 "Never! The Iroquois are a harmless and peaceful people!": @WORTHY demarcation treaty
+key Return                 # row 0 "Yes": PEACE | MET both ways, nation_relation[2] = turn + 16; @OLDPEACEMEEK menu
+key Return                 # row 0 "Go in peace, Spanish brothers.": talk over, the next unit (#136) is selected
