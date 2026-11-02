@@ -61,8 +61,10 @@ static bool explore_auto_hostile(const ColonizeWorld* w, int nation, int other) 
   return other < 0 || other > 3 || ai_diplo_at_war(w->col1, nation, other) != 0;
 }
 
-/* A foreign unit or colony on (x,y), or a hostile unit next to it. */
+/* A foreign unit or colony on (x,y), or a hostile unit next to it. A tribe's
+ * own units on its settlement tile are not a threat unless at war (#1369). */
 static bool explore_auto_unsafe(const ColonizeWorld* w, const ColonizeUnit* u, int x, int y) {
+  const ColonizeCol1Tribe* t = w->col1 ? col1_save_tribe_at(w->col1, x, y) : NULL;
   const int cid = w->colonies ? colonies_id_at(w->colonies, x, y) : -1;
   const ColonizeColony* col = cid >= 0 ? colonies_get(w->colonies, cid) : NULL;
   if (col && col->active && col->nation_id != u->nation_id) {
@@ -73,7 +75,8 @@ static bool explore_auto_unsafe(const ColonizeWorld* w, const ColonizeUnit* u, i
       int slot = 0;
       for (const ColonizeUnit* o; (o = units_next_on_tile_const(w->units, x + dx, y + dy, &slot));) {
         if (o->nation_id != u->nation_id &&
-            ((dx == 0 && dy == 0) || explore_auto_hostile(w, u->nation_id, o->nation_id))) {
+            ((dx == 0 && dy == 0 && !(t && o->nation_id == (int)t->nation_id)) ||
+             explore_auto_hostile(w, u->nation_id, o->nation_id))) {
           return true;
         }
       }

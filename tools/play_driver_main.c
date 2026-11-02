@@ -143,6 +143,7 @@
 #include "core/colony_screen.h"
 #include "core/colony_production.h"
 #include "core/colony_yield.h"
+#include "core/dos_buggy.h"
 #include "core/dos_rng.h"
 #include "core/europe.h"
 #include "core/game_dialogs.h"
@@ -2154,6 +2155,9 @@ int main(int argc, char** argv) {
     return 2;
   }
   snprintf(g_dir, sizeof(g_dir), "%s", argv[1]);
+  /* Play as opencol does: the test runner's constructor turns the tolerated
+   * DOS bugs on for goldens (port_bugs.md #1370, TB-2 ship switch). */
+  dos_buggy_behavior_set(false);
   const char* load = NULL;
   bool seed_set = false;
   uint32_t seed = 0;

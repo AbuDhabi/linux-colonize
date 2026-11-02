@@ -6,6 +6,7 @@
 
 #include "../common/test_runner.h"
 #include "core/assets.h"
+#include "core/col1_save.h"
 #include "core/colony.h"
 #include "core/map.h"
 #include "core/pioneer_plan.h"
@@ -96,10 +97,33 @@ static int case_scout(void) {
   CHECK(again && n2 == n);
   free(again);
 
-  /* Everything seen: nothing to explore cancels. */
+  /* Everything seen: an unvisited settlement with its own brave on the tile is
+   * still the target (#1369); the brave is not a threat at peace. */
   for (int i = 0; i < 144; ++i) {
     s_map.seen[i] = 0x10;
   }
+  units_get(&s_pool, fid)->x = 11;
+  units_get(&s_pool, fid)->y = 11;
+  ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  ColonizeCol1Tribe tribe = {0};
+  tribe.nation_id = 4;
+  tribe.x = 6;
+  tribe.y = 6;
+  col1.head.tribe_count = 1;
+  col1.tribe = &tribe;
+  s_map.layer2[6 * 12 + 6] |= MAP_OCCUPANCY_HAS_CITY;
+  const int bid = units_spawn(&s_pool, units_kind_type_index(&s_pool, UNITS_KIND_BRAVE), 6, 6);
+  CHECK(bid >= 0);
+  units_get(&s_pool, bid)->nation_id = 4;
+  const ColonizeWorld wv = {.units = &s_pool, .colonies = &s_colonies, .map = &s_map, .col1 = &col1};
+  u->orders = UNITS_ORDER_NONE;
+  explore_auto_step(&wv, u);
+  CHECK(u->automated && u->orders == UNITS_ORDER_GOTO && u->goto_x == 6 && u->goto_y == 6);
+  units_get(&s_pool, bid)->x = 10;
+  s_map.layer2[6 * 12 + 6] &= (uint8_t)~MAP_OCCUPANCY_HAS_CITY;
+
+  /* Everything seen and visited: nothing to explore cancels. */
   u->orders = UNITS_ORDER_NONE;
   explore_auto_step(&w, u);
   CHECK(!u->automated && u->orders == UNITS_ORDER_NONE);
