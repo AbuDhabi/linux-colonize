@@ -183,7 +183,7 @@ logged frame per `platform_poll_input` call (nested polls inside
 they did live; the game clock follows the logged `t_ms`), then waits until the
 game has sat idle on the main map for 60 frames, saves, and requires the save to
 equal `output.sav` byte for byte. The whole replay may take at most twice the
-log's input span (last `t_ms` − first; floor 1 s), else it fails as a timeout.
+log's input span (last `t_ms` − first; floor 5 s), else it fails as a timeout.
 
 Recording one:
 

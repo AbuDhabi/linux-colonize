@@ -1,6 +1,6 @@
 # Quebec with a Custom House added (fixture). Its export checklist starts as: Sugar Tobacco Cotton Furs Ore Silver Rum Cigars Cloth Coats on; Lumber Horses Trade Goods Tools Muskets off.
 click 168 128              # open Quebec
-wait 10
+wait 1
 click 68 26               # click the Custom House: the "Which cargos shall our Custom House export?" panel (16 rows, Food first: FUN_2f2b_4424)
 click 150 33              # panel frame above the rows: nothing happens, panel stays open
 # select all: switch on every row that is off
@@ -40,4 +40,4 @@ click 270 60              # click outside the panel: it closes
 click 68 26               # reopen once more (state kept)
 click 270 60              # outside click closes it
 click 306 179             # exit button: back to the map
-wait 20
+wait 2

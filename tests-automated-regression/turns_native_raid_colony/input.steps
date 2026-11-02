@@ -11,23 +11,23 @@
 # head.event.indian_raid set. Another Iroquois Brave ambushes the fortified French Scouts at (30,62)
 # (@INDIANWIN2, Horses seized). Iroquois alarm toward France ends at 87.
 key space                  # end turn 108
-wait 300
+wait 30
 key Return                 # Help: Time Scale (two turns per year from 1600)
-wait 100
+wait 10
 key Return                 # (AI turn running; nested pump, spare press)
-wait 100
+wait 10
 key Return                 # @INDIANLOSE: French Colonists defeat Iroquois near Port au Prince
-wait 100
+wait 10
 key Return                 # (spare press)
-wait 100
+wait 10
 key Return                 # @RAIDSTORES: Iroquois raiding party attacks stores in Port au Prince, Furs stolen
-wait 100
+wait 10
 key Return                 # (spare press)
-wait 100
+wait 10
 key Return                 # @INDIANWIN2: Iroquois ambush French Scouts near Port au Prince, Horses seized
-wait 100
+wait 10
 key Return                 # SoL in Quebec up to 60%: Continue turn
-wait 100
+wait 10
 key Return                 # price of Cigars rises
-wait 100
+wait 10
 shot                       # Autumn 1600: End of Turn

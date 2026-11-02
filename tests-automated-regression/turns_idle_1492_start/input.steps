@@ -4,23 +4,23 @@
 # idles six turns while France, Spain and the Dutch sail in, land and found their first
 # colonies (colony_count 0 -> 3), natives and the Europe market move. Whole-game drift guard.
 key s                      # sentry the Caravel: no unit left, the turn ends by itself (1492 -> 1493)
-wait 300
+wait 30
 key space                  # End of Turn (Spring 1494)
-wait 300
+wait 30
 key space                  # End of Turn (Spring 1495)
-wait 300
+wait 30
 key space                  # End of Turn (Spring 1496)
-wait 300
+wait 30
 shot
 key Return                 # Religious unrest in England: Master Carpenters available in London
-wait 60
+wait 6
 shot
 key Return                 # Master Carpenters ready on the London docks
-wait 60
+wait 6
 shot
 key space                  # End of Turn (Spring 1497)
-wait 300
+wait 30
 shot
 key space                  # End of Turn (Spring 1498)
-wait 300
+wait 30
 shot

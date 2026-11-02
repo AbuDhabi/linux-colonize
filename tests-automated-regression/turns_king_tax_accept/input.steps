@@ -4,29 +4,29 @@
 # ("Kiss pinky ring."): the tax rate rises to 27%, no @TEAPARTY, no boycott, Quebec keeps its Tobacco.
 # Everything else as turns_king_tax_tea_party / turns_school_training (Fisherman graduates).
 key space                  # end turn 108
-wait 300
+wait 30
 key Return                 # Help: Time Scale (two turns per year from 1600)
-wait 100
+wait 10
 key Return                 # SoL in Quebec up to 60%: Continue turn
-wait 100
+wait 10
 key Return                 # price of Cigars rises
-wait 100
+wait 10
 shot                       # Autumn 1600: End of Turn
 key space                  # end turn 109
-wait 300
+wait 30
 key Return                 # Iroquois gift of 16 Ore to Port au Prince
-wait 60
+wait 6
                            # King raises tax by 1% to 27% (@KINGTAX variant: tenth wife)
 key Return                 # @TAXOPTIONS row 0: Kiss pinky ring (tax now 27%)
-wait 60
+wait 6
 key Return                 # SoL in Port au Prince 12%: Continue turn
-wait 60
+wait 6
 key Return                 # SoL in Martinique 51%: Continue turn
-wait 60
+wait 6
 key Return                 # SoL in Guadeloupe 70%: Continue turn
-wait 60
+wait 6
 key Return                 # Horses cargo ready at Montreal (warehouse full): Continue turn
-wait 60
+wait 6
 key Return                 # @TRAINPROFESSION: a colonist in Quebec has learned Fisherman
-wait 100
+wait 10
 shot                       # Spring 1601: End of Turn

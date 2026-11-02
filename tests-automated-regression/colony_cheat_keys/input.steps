@@ -1,7 +1,7 @@
 # Fixture: colony_building_assignment's Quebec (France, 6 colonists), head.game_options.cheats_enabled (DS:0x5383 bit5) = 1 in the save.
 # Colony-screen cheat keys, only with the bit set (FUN_2f2b_6372 tail, 2f2b:63c2).
 click 168 128            # open Quebec; colonist 0 is selected
-wait 10
+wait 1
 shot
 key space              # Space: FUN_364b_0688 on Quebec, one extra production tick
 shot

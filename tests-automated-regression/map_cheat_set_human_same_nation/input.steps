@@ -10,6 +10,6 @@ shot
 key Down
 shot
 key Return               # French
-wait 30
+wait 3
 shot
 key w alt

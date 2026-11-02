@@ -59,8 +59,9 @@
 /* main.c sleeps 16 ms a frame; idle frames outside the log advance this much. */
 #define IDLE_FRAME_MS 16u
 /* ponytail: floor so a one-keypress log (duration ~0) can still load the
- * frames it needs; the spec's 2x duration is the limit above it. */
-#define MIN_TIME_LIMIT_MS 1000
+ * frames it needs, with room for slower machines than the dev box; the
+ * spec's 2x duration is the limit above it. */
+#define MIN_TIME_LIMIT_MS 5000
 /* Extra wall time per turn a multi-turn test ends: the AI and end-of-turn
  * work run inside frames, at debug-build speed. */
 #define TURN_TIME_MS 30000

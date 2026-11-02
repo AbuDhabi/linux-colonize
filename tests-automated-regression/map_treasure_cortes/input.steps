@@ -5,14 +5,14 @@
 # ship #2 (was a Caravel at sea (47,29)) is an empty Galleon, so France owns one; Treasure #131 (1000 gold) on (44,24) selected,
 # Treasure #95 (500 gold) on (44,23). The offer text is longer than the non-Cortes one: its answer rows are at y 142 and 154.
 key KP_6                   # east into Quebec: @KINGGALLEON3 offer popup
-wait 20
+wait 2
 click 160 136              # accept: Crown share 26% of 1000 = 260, 740 added (gold 429 -> 1169)
-wait 20                    # @LOOTCASH popup
+wait 2                    # @LOOTCASH popup
 key Return
-wait 30                    # the next unit with moves comes up: the Colonist #88 riding the Caravel at sea
+wait 3                    # the next unit with moves comes up: the Colonist #88 riding the Caravel at sea
 key s                      # sentry it (the hand-off used to skip it, port_bugs.md #1175a); Treasure #95 is selected
-wait 10
+wait 1
 key KP_3                   # SE into Quebec: offered again although France owns a Galleon
-wait 20
+wait 2
 click 165 148              # decline: the treasure stays in Quebec
-wait 30                    # (no moves left; selection moves on to the ship #126 in Quebec, not past it)
+wait 3                    # (no moves left; selection moves on to the ship #126 in Quebec, not past it)

@@ -5,5 +5,5 @@ shot
 key n     # Plan Pioneer off (still View Pieces)
 key a     # Activate the Pioneer under the cursor
 key q     # ORDERS Automate: road job on its own tile; plains threshold 3 >> 1 (Hardy) = 1, so the road is done at once (80 tools, order 0, plan bit gone, still automated)
-wait 20
+wait 2
 shot

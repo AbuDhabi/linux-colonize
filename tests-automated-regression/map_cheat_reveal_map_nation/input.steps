@@ -6,6 +6,6 @@ key i alt
 key n alt
 key F4 shift
 key Return               # English (row 1)
-wait 20
+wait 2
 shot
 key w alt

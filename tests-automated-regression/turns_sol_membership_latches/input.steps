@@ -10,36 +10,36 @@
 # their notices); turn 2 runs with the new +1/+2/0 production bonuses (Guadeloupe re-crosses 50%
 # and its food runs low), the tax raise is accepted.
 key space                  # end turn 108
-wait 300
+wait 30
 key Return                 # Help: Time Scale (two turns per year from 1600)
-wait 100
+wait 10
 key Return                 # @REBELUNANIMOUS Martinique 100%: Continue turn
-wait 100
+wait 10
 key Return                 # @TORYMAJORITY Guadeloupe down to 48%: Continue turn
-wait 100
+wait 10
 key Return                 # @REBELMAJORITY Montreal up to 50%: Continue turn
-wait 100
+wait 10
 key Return                 # @TORYMINORITY Quebec down from 100% to 94%: Continue turn
-wait 100
+wait 10
 key Return                 # @REBELUP50 rebel sentiment 63%
-wait 100
+wait 10
 key Return                 # price of Cigars rises
-wait 100
+wait 10
 shot                       # Autumn 1600: End of Turn
 key space                  # end turn 109
-wait 300
+wait 30
 key Return                 # Iroquois gift of 16 Ore to Port au Prince
-wait 60
+wait 6
 key Return                 # King raises tax to 27%: Kiss pinky ring
-wait 60
+wait 6
 key Return                 # SONSUP Port au Prince 12%: Continue turn
-wait 60
+wait 6
 key Return                 # @REBELMAJORITY Guadeloupe back up to 51% (latch re-armed): Continue turn
-wait 60
+wait 6
 key Return                 # @FOOD Guadeloupe down to 1 food: Continue turn
-wait 60
+wait 6
 key Return                 # Horses cargo ready at Montreal (warehouse full): Continue turn
-wait 60
+wait 6
 key Return                 # @TRAINPROFESSION: a colonist in Quebec has learned Fisherman
-wait 100
+wait 10
 shot                       # Spring 1601: End of Turn

@@ -5,20 +5,20 @@
 # Turn option is off. Each round: @MULTINEXT for England, England ends its turn, France (AI), then
 # @MULTINEXT for Spain over a blanked screen, Spain ends its turn, the Netherlands (AI), year change.
 key Return               # turn 0: English Player Turn (load resumes England)
-wait 100
+wait 10
 key space                # England: nothing to move, End of Turn
-wait 300
+wait 30
 key Return               # Spanish Player Turn
-wait 100
+wait 10
 key s                    # Spain: sentry the caravel; its last unit has orders, so Spain's turn ends itself
-wait 400
+wait 40
 key Return               # turn 1 (1493): English Player Turn
-wait 100
+wait 10
 key space                # England ends its turn
-wait 300
+wait 30
 key Return               # Spanish Player Turn
-wait 100
+wait 10
 key space                # Spain: all units sentried, End of Turn
-wait 400
+wait 40
 key Return               # turn 2 (1494): English Player Turn; ends idle on England's main map
-wait 100
+wait 10

@@ -6,16 +6,16 @@
 # Seasoned Scout #77 (29,62) selected, full moves; Preacher #131 moved to (38,22), colonist #134 to (37,25), both full
 # moves, no orders; other French units with moves fortified.
 key KP_6                   # Scout east onto (30,62): roll 3 (small treasure) 3d8*10 = 150, Seasoned (skill 2) x2 = 300 (@LOSTCITY3)
-wait 30
+wait 3
 key Return                 # gold 429 -> 729
-wait 20
+wait 2
 key s                      # sentry the Scout: Preacher #131 is selected
-wait 20
+wait 2
 key KP_6                   # east onto (39,22): roll 5 kept (skill 0 rerolls nothing, latch used) -> @LOSTCITY5, the unit is despawned
-wait 30
+wait 3
 key Return                 # colonist #134 is selected
-wait 20
+wait 2
 key KP_4                   # west onto (36,25), forest class 9 qualifies: Cibola (@LOSTCITY2), Treasure 3500 (hundreds 20 + 15) on the tile
-wait 30
+wait 3
 key Return
-wait 20
+wait 2

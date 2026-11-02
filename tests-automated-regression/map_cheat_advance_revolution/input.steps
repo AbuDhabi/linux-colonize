@@ -9,24 +9,24 @@ key w alt
 key i alt
 key n alt
 key F7 shift
-wait 20
+wait 2
 key Return               # @SUCCESSION notice
-wait 20
+wait 2
 key F7 shift
-wait 20
+wait 2
 key Return               # signing cinematic: skip the animation
-wait 20
+wait 2
 key Return               # close the cinematic
-wait 20
+wait 2
 key Return               # @INDEPENDENCE letter OK
-wait 20
+wait 2
 key F7 shift
-wait 20
+wait 2
 key Return               # @INTERVENTION
-wait 20
+wait 2
 key F7 shift
-wait 20
+wait 2
 key Return               # @FORCED
-wait 20
+wait 2
 shot
 key w alt

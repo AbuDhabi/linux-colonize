@@ -1,7 +1,7 @@
 # Fixture: colony_building_assignment's Quebec (France, 6 colonists); cheats_enabled (DS:0x5383 bit5) clear.
 # The colony-screen cheat keys (FUN_2f2b_6372 tail) are gated on that bit, so with it clear every one is ignored, Space included: only the colony visit itself changes the save.
 click 168 128            # open Quebec; colonist 0 is selected
-wait 10
+wait 1
 shot
 key space              # Space: FUN_364b_0688 on Quebec, one extra production tick
 shot

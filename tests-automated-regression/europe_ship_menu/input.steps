@@ -3,7 +3,7 @@
 # A mouse release over a ship icon opens its menu (FUN_38fd_2bfe, @EUROPESHIPCLICK + @EUROPESHIPOPTIONS); so do S, Space and Enter with a ship selected.
 # Rows keep their DOS ids: Move to front, Set sail, [Unload all cargo only while a goods hold is occupied], No changes.
 key e                    # open the European Status screen
-wait 10
+wait 1
 click 172 155            # Caravel icon: its menu has 3 rows (no cargo to unload)
 click 150 92             # row 1 Move to front: harbor order becomes Caravel, Galleon; Caravel selected
 click 172 155            # Galleon icon (now second): menu with 4 rows
@@ -22,6 +22,6 @@ click 172 155            # Galleon icon: selects it, menu with 4 rows
 key Escape
 key s                    # S with the Galleon selected: its 4-row menu
 click 150 109            # row 3 Unload all cargo: the holds are sold last first (Furs 10, Rum 20, Cotton 40)
-wait 30
+wait 3
 shot
 key e                    # leave Europe

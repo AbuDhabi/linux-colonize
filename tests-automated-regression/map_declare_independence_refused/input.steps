@@ -4,12 +4,12 @@
 # nothing is declared, no WoI/REF/latch writes. Close the notice with Enter, then again with a click to cover both routes.
 click 22 3               # GAME menu
 click 50 85              # DECLARE INDEPENDENCE: @TOOTORY notice
-wait 10
+wait 1
 key Return               # dismiss the notice
-wait 10
+wait 1
 click 22 3               # GAME menu again
 click 50 85              # DECLARE INDEPENDENCE again: same notice
-wait 10
+wait 1
 shot
 click 160 100            # a click on the notice dismisses it too
-wait 10
+wait 1

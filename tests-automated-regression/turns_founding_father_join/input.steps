@@ -8,75 +8,75 @@
 # Benjamin Franklin (row 3), and the turn after runs with the new pick locked in (two turns).
 # England is at war with France: it captures Guadeloupe and its units wake the sentries near Quebec.
 key space                # end turn 108 (Spring 1600)
-wait 300
+wait 30
 key Return               # Colonization Help: Time Scale
-wait 650
+wait 65
 key Return               # English defeat French Colonists near Guadeloupe; wagon train captured
-wait 60
+wait 6
 key Return               # French colonists captured by the English
-wait 60
+wait 6
 key Return               # English march into Guadeloupe, 90 gold plundered
-wait 60
+wait 6
 key Return               # Pocahontas has joined the Continental Congress
-wait 60
+wait 6
 key Return               # congress screen: skip the animation
-wait 60
+wait 6
 key Return               # congress screen: (second key)
-wait 60
+wait 6
 key Return               # congress screen: close
-wait 60
+wait 6
 key Return               # Colonizopedia entry for Pocahontas: close
-wait 60
+wait 6
 key Down                 # congress picker (next father): Ferdinand Magellan
 key Down                 # John Paul Jones
 key Down                 # Benjamin Franklin
 key Return               # Franklin becomes next_founding_father (19)
-wait 60
+wait 6
 key Return               # SoL Quebec 60% (Continue turn)
-wait 300
+wait 30
 key Return               # price of Cigars rises; the Caravel reaching Europe opens the Europe screen
-wait 60
+wait 6
 key Escape               # leave the Europe screen
-wait 60
+wait 6
 key s                    # turn 109 (Autumn 1600): sentry the eleven units woken next to the English
-wait 30
+wait 3
 key s
-wait 30
+wait 3
 key s
-wait 30
+wait 3
 key s
-wait 30
+wait 3
 key s
-wait 30
+wait 3
 key s
-wait 30
+wait 3
 key s
-wait 30
+wait 3
 key s
-wait 30
+wait 3
 key s
-wait 30
+wait 3
 key s
-wait 30
+wait 3
 key s                    # last one: End of Turn
-wait 30
+wait 3
 key space                # end turn 109
-wait 400
+wait 40
 key Return               # the Iroquois bring 16 Ore to Port au Prince
-wait 100
+wait 10
 key Return               # English warnings to leave New England and an English victory over French Pioneers
-wait 100                 # near Guadeloupe (nested in the AI turn; spare presses fall between popups)
+wait 10                 # near Guadeloupe (nested in the AI turn; spare presses fall between popups)
 key Return
-wait 100
+wait 10
 key Return
-wait 100
+wait 10
 key Return
-wait 100
+wait 10
 key Return               # King raises tax to 27%: Kiss pinky ring
-wait 100
+wait 10
 key Return               # SoL Port au Prince 12% (Continue turn)
-wait 100
+wait 10
 key Return               # SoL Martinique 51% (Continue turn)
-wait 100
+wait 10
 key Return               # new cargo of Horses at Montreal (Continue turn)
-wait 100
+wait 10

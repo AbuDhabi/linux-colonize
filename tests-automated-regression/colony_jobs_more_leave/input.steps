@@ -2,7 +2,7 @@
 # FUN_2f2b_348c param 0 lists @JOB 0..0x18: 16 job rows, so the leave-as rows overflow onto
 # page 1 and "(More)" flips between the job list and the leave-colony list (port_bugs.md #1224).
 click 168 128              # open Quebec
-wait 10
+wait 1
 click 236 43               # click the selected colonist's tile: the jobs menu, page 0
 shot
 click 120 166              # (More), page 0's last row: page 1 = (More) + the leave-as rows

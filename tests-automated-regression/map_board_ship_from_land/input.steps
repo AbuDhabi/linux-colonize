@@ -5,4 +5,4 @@
 # (orders 3) sentried so nothing auto-walks.
 key KP_6                   # step east onto the ship's sea tile: the Scout boards (sentried, moves spent, chained under the
                            # ship), and the ship becomes the selection (view scrolls to it)
-wait 20
+wait 2

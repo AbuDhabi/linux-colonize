@@ -2,7 +2,7 @@
 # An unaffordable row is still listed but greyed; picking it only says "The treasury cannot afford that." and the menu stays open.
 # Bless as Missionaries costs nothing, so it works at any balance. Dock slots 0-2 at y 146 (x 241, 258, 275); rows are 12 px apart.
 key e                    # open the European Status screen
-wait 10
+wait 1
 click 241 146            # slot 0 Colonist menu (6 rows: NoBoard, Muskets, Tools, Horses, Bless, NoChanges)
 click 120 100             # Equip with Tools (200) is greyed: refused, menu stays open
 click 120 112            # Equip with Horses (150) is greyed: refused, menu stays open

@@ -3,56 +3,56 @@
 # at peace (euro_relation 0x60 both ways, else English raids capture units), Caravel #148 (already bound for Europe)
 # parked in Quebec; Caravel #121 (Tobacco 69 + Furs 39) on the high seas at (50,29), full moves, selected.
 key r                      # Return to Europe from the high seas: the Caravel leaves the map for the eastbound lane
-wait 30
+wait 3
 key space                  # end turn 108 (no unit left to move)
-wait 300
+wait 30
 key Return                 # Colonization Help: Time Scale (two turns a year from now on)
-wait 60
+wait 6
 key Return                 # Sons of Liberty in Quebec up to 60%: Continue turn
-wait 60
+wait 6
 key Return                 # price of Cigars in La Rochelle rises to 11
-wait 60
+wait 6
 key space                  # end turn 109 (Autumn 1600): the Caravel is still at sea
-wait 300
+wait 30
 key Return                 # Iroquois gift (16 Ore) at Port au Prince
-wait 60
+wait 6
 key Return                 # King raises the tax by 1% (Kiss pinky ring, row 0)
-wait 60
+wait 6
 key Return                 # Sons of Liberty in Port au Prince up to 12%
-wait 60
+wait 6
 key Return                 # Sons of Liberty in Martinique up to 51%
-wait 60
+wait 6
 key Return                 # Sons of Liberty in Guadeloupe up to 70%
-wait 60
+wait 6
 key Return                 # new cargo of Horses ready at Montreal (storage full)
-wait 60
+wait 6
 # Spring 1601 (turn 110): the Caravel docks in La Rochelle and the Europe screen opens on it (Loading: Caravel).
 key Return                 # Enter on the harbor ship: European harbor options menu
-wait 60
+wait 6
 key Down
 key Down                   # "Unload all cargo" (row 2)
 key Return                 # sells 39 Furs (net 114) and 69 Tobacco (net 202): gold 429 -> 745
-wait 60
+wait 6
 click 293 52               # RECRUIT: three Free Colonists in the pool, passage 400 gold
-wait 30
+wait 3
 key Down                   # row 1, first Free Colonist
 key Return                 # recruited: gold 745 -> 345, the colonist joins the dock, the pool slot refills
-wait 60
+wait 6
 key Return                 # harbor options menu again
-wait 60
+wait 6
 key Down                   # "Set sail for the New World" (row 1)
 key Return                 # "Shall we set sail" prompt
-wait 60
+wait 6
 key Return                 # Yes: the Caravel sails west, two dock colonists board it ("get on next ship"), back to the map
-wait 60
+wait 6
 key space                  # end turn 110
-wait 300
+wait 30
 key Return                 # Tupi gift (6 Tobacco) at Guadeloupe
-wait 60
+wait 6
 key Return                 # price of Cigars falls to 11
-wait 60
+wait 6
 key Return                 # price of Coats rises to 11
-wait 60
+wait 6
 key space                  # end turn 111 (Autumn 1601)
-wait 300
+wait 30
 # Spring 1602 (turn 112): the Caravel reappears at (50,29) with the two colonists aboard, selected, full moves.

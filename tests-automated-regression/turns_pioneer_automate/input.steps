@@ -19,42 +19,42 @@ key Left
 key Down
 key n                      # Plan Pioneer off, cursor back on (43,25)
 key a                      # Activate: three units here, Choose unit from stack opens
-wait 30
+wait 3
 key Return                 # first row: the Pioneer
-wait 30
+wait 3
 key q                      # ORDERS Automate: Plow on its own tile (order 8, progress 1)
-wait 60
+wait 6
 shot
 key space                  # end turn 108
-wait 300
+wait 30
 key Return                 # Help: Time Scale (two turns per year from 1600)
-wait 100
+wait 10
 key Return                 # SoL in Quebec up to 60%: Continue turn
-wait 100
+wait 10
 key Return                 # price of Cigars rises
-wait 100
+wait 10
 shot                       # Autumn 1600: plow done, End of Turn (automated units ask nothing)
 key space                  # end turn 109
-wait 300
+wait 30
 key Return                 # Iroquois gift of 16 Ore to Port au Prince
-wait 60
+wait 6
 key Return                 # King raises tax to 27%: Kiss pinky ring
-wait 60
+wait 6
 key Return                 # SoL in Port au Prince 12%: Continue turn
-wait 60
+wait 6
 key Return                 # SoL in Martinique 51%: Continue turn
-wait 60
+wait 6
 key Return                 # SoL in Guadeloupe 70%: Continue turn
-wait 60
+wait 6
 key Return                 # Horses cargo ready at Montreal (warehouse full): Continue turn
-wait 60
+wait 6
 shot                       # Spring 1601: the Pioneer has walked to (44,24)
 key space                  # end turn 110
-wait 300
+wait 30
 key Return                 # Tupi gift of 6 Tobacco to Guadeloupe
-wait 60
+wait 6
 key Return                 # price of Cigars falls
-wait 60
+wait 6
 key Return                 # price of Coats rises
-wait 60
+wait 6
 shot                       # Autumn 1601: road on (44,24) done, End of Turn

@@ -5,4 +5,4 @@ key d shift
 shot
 key Return                 # @DISBANDSHIP OK: nothing is disbanded
 shot
-wait 5
+wait 1

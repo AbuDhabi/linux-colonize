@@ -11,5 +11,5 @@ shot
 key n     # Plan Pioneer off, cursor back on the Pioneer
 key a     # Activate it
 key q     # ORDERS Automate: Go To (16,39) (order 3), paced one step this turn until the moves run out
-wait 60
+wait 6
 shot

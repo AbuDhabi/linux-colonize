@@ -25,4 +25,4 @@ shot
 key d shift
 click 160 96               # Yes: the colonist is gone
 shot
-wait 5
+wait 1

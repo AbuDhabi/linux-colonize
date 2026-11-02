@@ -2,44 +2,44 @@
 # Picker rows are 8 px apart, row 0 "(No Production)" at y=43; the More... page needs >22 rows,
 # which no colony state can reach (max 21 projects), so it is not exercised.
 click 168 128              # open Quebec (map tile 45,24)
-wait 10
+wait 1
 click 282 141              # CHANGE: construction picker opens, highlight on the current project
-wait 5
+wait 1
 click 150 143              # pick Church (building, 64 hammers): project becomes Church
-wait 5
+wait 1
 click 282 141              # CHANGE again
-wait 5
+wait 1
 click 150 159              # pick Artillery (unit project, 192 hammers 40 tools)
-wait 5
+wait 1
 key c                      # keyboard: C opens the picker, highlight on Artillery
-wait 5
+wait 1
 key Down                   # Artillery -> Wagon Train
-wait 3
+wait 1
 key Return                 # commit the highlighted row: Wagon Train (unit, 40 hammers)
-wait 5
+wait 1
 click 282 141              # CHANGE
-wait 5
+wait 1
 key Escape                 # Escape only closes the picker, project stays Wagon Train
-wait 5
+wait 1
 click 282 141              # CHANGE
-wait 5
+wait 1
 click 20 100               # click outside the picker also closes it, project unchanged
-wait 5
+wait 1
 click 282 141              # CHANGE
-wait 5
+wait 1
 click 150 39               # "(No Production)" row clears the project
-wait 5
+wait 1
 key c                      # C: highlight starts on (No Production)
-wait 5
+wait 1
 key Down
 key Down
 key Down
 key Down
 key Down                   # -> Stockade, Drydock, Schoolhouse, Warehouse, Stable
-wait 3
+wait 1
 key Up                     # back up to Warehouse
-wait 3
+wait 1
 key Return                 # commit Warehouse (80 hammers): the real end project
-wait 5
+wait 1
 key Escape                 # leave the colony, back on the map
-wait 5
+wait 1

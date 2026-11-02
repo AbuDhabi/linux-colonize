@@ -8,76 +8,76 @@
 # defeat/capture rebels near Guadeloupe. Ends at the start of Autumn 1600 (turn 109).
 click 22 3               # GAME menu
 click 50 85              # DECLARE INDEPENDENCE: Never / Yes confirm
-wait 10
+wait 1
 click 150 162            # Yes!: WoI, rival slots, congress latch, backup force, Euro withdrawal, REF diplo
-wait 20
+wait 2
 key Return               # War of the Spanish Succession notice (Spain cedes New Spain to the Dutch)
-wait 20
+wait 2
 key Return               # signing cinematic: skip the animation to the finished signature
-wait 20
+wait 2
 key Return               # close the cinematic
-wait 20
+wait 2
 key Return               # @INDEPENDENCE letter OK; every rebel unit's moves are spent: End of Turn
-wait 20
+wait 2
 key space                # end turn 107
-wait 300
+wait 30
 key Return               # Royal Expeditionary Force lands near Montreal (nested in the King's beat)
-wait 100
+wait 10
 key Return               # SoL Port au Prince 62% (Continue turn)
-wait 100
+wait 10
 key Return               # hint: the King's armies and New World tactics (ambush bonus)
-wait 100
+wait 10
 key Return               # Netherlands considers intervention (8000 bells)
-wait 100
+wait 10
 key Return               # SoL Martinique 62% (Continue turn)
-wait 100
+wait 10
 key Return               # SoL Guadeloupe 62% (Continue turn)
-wait 100
+wait 10
 key Return               # SoL Montreal 60% (Continue turn)
-wait 100
+wait 10
 key Return               # SoL Quebec 61% (Continue turn)
-wait 100
+wait 10
 key Return               # Continental Army mobilizes at Quebec (Veteran Dragoons promoted)
-wait 100
+wait 10
 shot
 key s                    # turn 108: sentry the Scout the war woke (29,62)
-wait 30
+wait 3
 shot
 key s                    # sentry the Preacher at (44,22): End of Turn
-wait 30
+wait 3
 shot
 key space                # end turn 108
-wait 300
+wait 30
 shot
 key Return               # AI turn popups (second landing near Montreal, Tory victories, Montreal captured, captures near Guadeloupe); some presses land between popups and are ignored
-wait 100
+wait 10
 shot
 key Return               # AI turn popups (second landing near Montreal, Tory victories, Montreal captured, captures near Guadeloupe); some presses land between popups and are ignored
-wait 100
+wait 10
 shot
 key Return               # AI turn popups (second landing near Montreal, Tory victories, Montreal captured, captures near Guadeloupe); some presses land between popups and are ignored
-wait 100
+wait 10
 shot
 key Return               # AI turn popups (second landing near Montreal, Tory victories, Montreal captured, captures near Guadeloupe); some presses land between popups and are ignored
-wait 100
+wait 10
 shot
 key Return               # AI turn popups (second landing near Montreal, Tory victories, Montreal captured, captures near Guadeloupe); some presses land between popups and are ignored
-wait 100
+wait 10
 shot
 key Return               # AI turn popups (second landing near Montreal, Tory victories, Montreal captured, captures near Guadeloupe); some presses land between popups and are ignored
-wait 100
+wait 10
 shot
 key Return               # AI turn popups (second landing near Montreal, Tory victories, Montreal captured, captures near Guadeloupe); some presses land between popups and are ignored
-wait 100
+wait 10
 shot
 key Return               # AI turn popups (second landing near Montreal, Tory victories, Montreal captured, captures near Guadeloupe); some presses land between popups and are ignored
-wait 100
+wait 10
 shot
 key Return               # AI turn popups (second landing near Montreal, Tory victories, Montreal captured, captures near Guadeloupe); some presses land between popups and are ignored
-wait 100
+wait 10
 shot
 key Return               # AI turn popups (second landing near Montreal, Tory victories, Montreal captured, captures near Guadeloupe); some presses land between popups and are ignored
-wait 100
+wait 10
 shot
 key Return               # Colonization Help: Time Scale (two turns per year from 1600)
-wait 100
+wait 10

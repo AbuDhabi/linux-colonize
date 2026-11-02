@@ -5,5 +5,5 @@ shot
 key n     # Plan Pioneer off
 key a     # Activate the Pioneer under the cursor
 key q     # ORDERS Automate: starts that job on its own tile (order 8, progress 1, moves spent, still automated)
-wait 20
+wait 2
 shot

@@ -3,7 +3,7 @@
 # 30-ton sale (30<<2 = 120) pushes it over and raises @PRICEDOWN. Hold i is at x = 152+12i, y 171; market cell i at x = 10+19i, y 189.
 # Sale = (bid-1)*tons gross, tax = 6% (floor) cut from it, net credited, status line "N Good sold for G. 6% Tax: T. Net: M".
 key e                    # open the European Status screen
-wait 10
+wait 1
 drag 152 171 100 100     # hold dropped on the sky, not the market: nothing sold
 # Drag route: a whole hold onto the market strip sells all of it.
 drag 152 171 48 189      # Tobacco 100 @ 4 = 400, tax 24, net 376
@@ -36,6 +36,6 @@ click 153 155            # the Galleon's icon: ship menu (4 rows)
 click 150 109            # row 3 Unload all cargo: Rum 50
 key Return               # OK the Rum @PRICEDOWN popup (Rum 10 + 50 tons crossed the fall step)
 key u                    # empty ship: red bar "No cargo on board!" (queued behind the sale lines)
-wait 130
+wait 13
 shot
 key e                    # leave Europe

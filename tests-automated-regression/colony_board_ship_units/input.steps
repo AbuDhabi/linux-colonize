@@ -11,13 +11,13 @@
 # Units Present row (y 163): Artillery #143 x220, #127 x237, Dragoon #135 x255, #146 x272, #91 x290.
 # Caravel A icon (132,152), Caravel B icon (148,152), Caravel A hold 0 (132,171).
 click 168 128              # open Quebec
-wait 10
+wait 1
 drag 154 119 132 152       # fence colonist #127 -> Caravel A icon: does not board (only selects #127)
 drag 123 44 132 152        # Town Hall statesman -> Caravel A icon: nothing, he keeps working
 drag 154 119 148 152       # fence colonist #127 -> full Caravel B icon: nothing
 drag 154 119 132 171       # fence colonist #127 -> Caravel A's hold box: nothing
 click 312 151              # multi pane: Units Present tab
-wait 5
+wait 1
 click 237 163              # select colonist #127
 click 237 163              # second click: @UNITOPTIONS (Move to front / Sentry / Fortify)
 click 110 106              # "Sentry / Board ship": #127 sentried (allotment spent)
@@ -32,18 +32,18 @@ click 110 95               # "Move to front": #146 first in line for the next de
 key Escape                 # back to the map (View Pieces mode)
 rclick 168 128             # View Pieces on Quebec
 key a                      # Activate unit: the stack picker (Caravel A, Soldier, Caravel B, ...)
-wait 5
+wait 1
 key Down
 key Down
 key Return                 # row 2: full Caravel B
-wait 5
+wait 1
 key KP_9                   # B sails out to (46,23): no free hold, no sentried unit boards
-wait 20
+wait 2
 rclick 104 128             # View Pieces on Quebec (the view scrolled with B)
 key a                      # stack picker: Caravel A heads it
-wait 5
+wait 1
 key Return                 # Caravel A
-wait 5
+wait 1
 key KP_9                   # A sails out to (46,23): #146 (moved to front) and #127 board, both holds;
-wait 20                    # the sentried Dragoon #135 stays in Quebec (without the Move to front, #135 and #127 board)
+wait 2                    # the sentried Dragoon #135 stays in Quebec (without the Move to front, #135 and #127 board)
 shot

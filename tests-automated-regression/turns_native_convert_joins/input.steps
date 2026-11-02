@@ -8,42 +8,42 @@
 # tile, owned by the colony's nation). In spring 1601 the convert asks for orders and joins the
 # colony (B; rebel divisor +100); turn 110 it works a land tile (food 2 -> 9 by autumn 1601).
 key space                  # end turn 108
-wait 300
+wait 30
 key Return                 # Help: Time Scale (two turns per year from 1600)
-wait 100
+wait 10
 key Return                 # SoL in Quebec up to 60%: Continue turn
-wait 100
+wait 10
 key Return                 # price of Cigars rises
-wait 100
+wait 10
 shot                       # Autumn 1600: End of Turn
 key space                  # end turn 109
-wait 300
+wait 30
 key Return                 # @INDIANSCONVERT: converts join Port au Prince (instead of the 16 Ore gift)
-wait 60
+wait 6
 key Return                 # King raises tax to 27%: Kiss pinky ring
-wait 60
+wait 6
 key Return                 # SoL in Port au Prince 12%: Continue turn
-wait 60
+wait 6
 key Return                 # SoL in Martinique 51%: Continue turn
-wait 60
+wait 6
 key Return                 # SoL in Guadeloupe 70%: Continue turn
-wait 60
+wait 6
 key Return                 # Horses cargo ready at Montreal (warehouse full): Continue turn
-wait 60
+wait 6
 key Return                 # @TRAINPROFESSION: a colonist in Quebec has learned Fisherman
-wait 100
+wait 10
 shot                       # Spring 1601: the new Indian Convert at Port au Prince asks for orders
 key b                      # Join Colony: the convert joins Port au Prince on a land tile
-wait 30
+wait 3
 shot
 key space                  # end turn 110
-wait 300
+wait 30
 key Return                 # Tupi gift of 6 Tobacco to Guadeloupe
-wait 60
+wait 6
 key Return                 # SoL in Port au Prince 10%: Continue turn
-wait 60
+wait 6
 key Return                 # price of Cigars falls
-wait 60
+wait 6
 key Return                 # price of Coats rises
-wait 60
+wait 6
 shot                       # Autumn 1601

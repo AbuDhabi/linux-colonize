@@ -22,4 +22,4 @@ key Return                 # all eight rows unchecked; Enter commits and closes 
 click 22 3                 # GAME menu again
 click 38 13                # Game Options again: all eight rows still unchecked (choices persisted)
 click 290 120              # click outside the dialog: commits (no change) and closes
-wait 20
+wait 2

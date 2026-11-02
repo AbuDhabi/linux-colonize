@@ -16,15 +16,15 @@ key F2 shift
 shot                     # both rows still ticked
 key Escape               # cancel without change
 key F8 shift             # Show Strategy on
-wait 20
+wait 2
 shot
 key F9 shift             # Show Colony Sites on
-wait 20
+wait 2
 shot
 key F10 shift            # Test Routine
 shot
 key F8 shift             # strategy overlay off
 key F9 shift             # colony sites overlay off
-wait 20
+wait 2
 shot
 key w alt

@@ -8,60 +8,60 @@
 # (gold 429 -> 745) and 100 Tools bought (-> 145), it sails west with a dock colonist aboard; turn 113 it reappears at
 # (50,29) and heads for Quebec; turn 114 it unloads the Tools in Quebec (stock 0 -> 100) and aims at the Europe stop again.
 key space                  # end turn 108 (every unit has orders)
-wait 300
+wait 60
 key Return                 # Colonization Help: Time Scale
-wait 60
+wait 12
 key Return                 # Sons of Liberty in Quebec up to 60%
-wait 60
+wait 12
 key Return                 # price of Cigars rises to 11 (then the route ship sails for Europe)
-wait 60
+wait 12
 key space                  # end turn 109
-wait 300
+wait 60
 key Return                 # Iroquois gift (16 Ore) at Port au Prince
-wait 60
+wait 12
 key Return                 # King raises the tax by 1% (Kiss pinky ring, row 0)
-wait 60
+wait 12
 key Return                 # Sons of Liberty in Port au Prince up to 12%
-wait 60
+wait 12
 key Return                 # Sons of Liberty in Martinique up to 51%
-wait 60
+wait 12
 key Return                 # Sons of Liberty in Guadeloupe up to 70%
-wait 60
+wait 12
 key Return                 # new cargo of Horses at Montreal (storage full)
-wait 60
+wait 12
 key space                  # end turn 110
-wait 300
+wait 60
 key Return                 # Tupi gift (6 Tobacco) at Guadeloupe
-wait 60
+wait 12
 key Return                 # price of Cigars falls to 11
-wait 60
+wait 12
 key Return                 # price of Coats rises to 11; the Caravel docks, the route sells/buys, the Europe screen opens
-wait 60
+wait 12
 key e                      # leave Europe (the Caravel is already Bound for New France)
-wait 30
+wait 6
 key space                  # end turn 111 (no popups)
-wait 300
+wait 60
 key space                  # end turn 112
-wait 300
+wait 60
 key Return                 # Sons of Liberty in Port au Prince up to 21%
-wait 60
+wait 12
 key Return                 # Sons of Liberty in Martinique up to 61%
-wait 60
+wait 12
 key Return                 # price of Coats falls to 11 (the Caravel is back at (50,29))
-wait 60
+wait 12
 key Return                 # price of Trade Goods rises to 3; the Caravel sails toward Quebec
-wait 60
+wait 12
 key space                  # end turn 113
-wait 300
+wait 60
 key Return                 # Aztec food gift
-wait 60
+wait 12
 key Return                 # Tupi ask Montreal for food: row 0 declines
-wait 60
+wait 12
 key Return                 # Sons of Liberty in Guadeloupe up to 81%
-wait 60
+wait 12
 key Return                 # rebel sentiment 61%
-wait 60
+wait 12
 key Return                 # price of Cloth rises to 13
-wait 60
+wait 12
 key Return                 # price of Coats falls to 10; the Caravel enters Quebec and unloads the Tools, its passenger waits for orders
-wait 60
+wait 12

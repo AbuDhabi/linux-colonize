@@ -5,22 +5,22 @@
 # #131 active (map cursor 39,23); English Colonist #89 moved to (38,22), no orders; re-saved once.
 # Rolls come from the saved LCG, so the outcomes are fixed.
 key KP_7                 # #131 attacks the Colonist at (38,22): Combat Analysis dialog
-wait 30
+wait 3
 key Return               # dismiss: roll won
-wait 30
+wait 3
 key Return               # "{English} colonists CAPTURED by the {French}!" (@COLONISTCAPTURE): flips to France, joins (39,23)
-wait 30
+wait 3
 key Return               # "{French} defeat {English Colonists} near Cayenne!"; #87 selected next
-wait 30
+wait 3
 key KP_4                 # #87 attacks Cayenne: no armed defender, the colony militia phantom fights (1b0e bVar28); analysis
-wait 30
+wait 3
 key Return               # dismiss: roll won
-wait 30
+wait 3
 key Return               # "{French} defeat {English Colonists} near Cayenne!"
-wait 30
+wait 3
 key Return               # "{French} march into {Cayenne}! {270$} plundered!" (gold 429 -> 699); the captured colony's screen opens
-wait 30
-wait 60                  # the colony screen takes no key for its first frames
+wait 3
+wait 6                  # the colony screen takes no key for its first frames
 key Escape               # leave Cayenne's colony screen (now French, Custom House bits re-armed: dos_bugs.md DB-66)
-wait 30
+wait 3
 shot

@@ -2,32 +2,32 @@
 # Buy price = hammer deficit x 13 (+ tools deficit x (tools price 6 + 4)); BUY only tops the stock up,
 # the project completes at the next turn change (not exercised: tests stay inside one turn).
 click 168 128              # open Quebec (map tile 45,24)
-wait 10
+wait 1
 key 3                      # Construction tab (DOS DS:0x337 starts at 0 = Production)
-wait 3
+wait 1
 click 217 141              # BUY: "Cost to complete Lumber Mill: 416, Treasury: 716", rows Never mind / Complete it
-wait 8
+wait 1
 click 100 139              # Never mind: nothing changes, treasury still 716
-wait 8
+wait 1
 click 217 141              # BUY again
-wait 8
+wait 1
 click 100 150              # Complete it: treasury 716-416 = 300, hammers 20 -> 52, hammers_purchased += 32
-wait 8
+wait 1
 click 282 141              # CHANGE
-wait 5
+wait 1
 click 150 103              # Printing Press (52 hammers, 20 tools): hammers carry over, only tools are short
-wait 5
+wait 1
 key b                      # keyboard BUY: "Cost to complete Printing Press: 200, Treasury: 300"
-wait 8
+wait 1
 click 100 150              # Complete it: treasury 300-200 = 100, tools stock 0 -> 20
-wait 8
+wait 1
 click 282 141              # CHANGE
-wait 5
+wait 1
 click 150 151              # Church (64 hammers): 12 short = 156 gold, more than the 100 treasury
-wait 5
+wait 1
 click 217 141              # BUY: refused, info popup "Cost to complete Church: 156, Treasury: 100", no choice
-wait 8
+wait 1
 key Return                 # dismiss the popup: nothing bought, project is Church
-wait 8
+wait 1
 key Escape                 # leave the colony, back on the map
-wait 5
+wait 1

@@ -9,38 +9,38 @@
 # Covers: Fortify (5) becomes Fortified (6) on the next turn; the sentried colonist boards the
 # Caravel as it sails out of Quebec, rides to Montreal and is woken there to ask for orders;
 # sentried Scout 90 stays sentried over both turns while Scout 73 is woken by a neighbour.
-wait 30
+wait 3
 key f                      # colonist 124 (unit 123) in Quebec: Fortify (order 5); the Caravel then sails, taking the sentried colonist
-wait 200
+wait 20
 key space                  # end turn 108
-wait 300
+wait 30
 key Return                 # Help: Time Scale (two turns per year from 1600)
-wait 150
+wait 15
 key Return                 # SoL in Quebec up to 60%: Continue turn
-wait 150
+wait 15
 key Return                 # price of Cigars rises
-wait 150
+wait 15
 key s                      # Autumn 1600: the Caravel has docked in Montreal; its passenger 143 is woken and asks for orders: Sentry
-wait 150
+wait 15
 shot
 key space                  # end turn 109
-wait 300
+wait 30
 key Return                 # Iroquois gift of 16 Ore to Port au Prince
-wait 60
+wait 6
 key Return                 # King raises tax to 27%: Kiss pinky ring
-wait 60
+wait 6
 key Return                 # SoL in Port au Prince 12%: Continue turn
-wait 60
+wait 6
 key Return                 # SoL in Martinique 51%: Continue turn
-wait 60
+wait 6
 key Return                 # SoL in Guadeloupe 70%: Continue turn
-wait 60
+wait 6
 key Return                 # Horses cargo ready at Montreal (warehouse full): Continue turn
-wait 150
+wait 15
 key s                      # Spring 1601: Scout 74 (unit 73) woken by a neighbour: Sentry again
-wait 60
+wait 6
 key s                      # Caravel 80 in Montreal (go-to done): Sentry
-wait 60
+wait 6
 key s                      # colonist 143 in Montreal, woken again during the AI turn: Sentry
-wait 60
+wait 6
 shot

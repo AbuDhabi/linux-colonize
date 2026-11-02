@@ -7,12 +7,12 @@ key n alt
 key F5 shift
 key Down
 key Return               # French
-wait 30
+wait 3
 shot
 key e                    # French European Status
-wait 30
+wait 3
 shot
 key Escape
-wait 30
+wait 3
 shot
 key w alt

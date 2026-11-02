@@ -6,7 +6,7 @@
 # Soldier = ..,SellMuskets,BuyHorses,..; Scout = ..,BuyMuskets,SellHorses,..; Pioneer = ..,SellTools,..; blessed colonist = ..,Unbless,..
 # A Pioneer / Missionary offers no row to switch kit directly (no muskets/horses/tools/bless rows): it must become a Colonist first.
 key e                    # open the European Status screen
-wait 10
+wait 1
 click 241 146            # slot 0 Dragoon menu (4 rows: no ToFront on slot 0)
 click 120 112            # Sell Horses: Dragoon -> Soldier
 click 241 146            # slot 0 Soldier (4 rows)

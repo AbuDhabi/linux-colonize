@@ -7,14 +7,14 @@
 # Tory uprising stay out; the map shows View mode with "End of Turn" in the sidebar.
 click 22 3               # GAME menu
 click 50 85              # DECLARE INDEPENDENCE: Never / Yes confirm
-wait 10
+wait 1
 click 150 162            # Yes!: WoI, rival slots, congress latch, backup force, Euro withdrawal, REF diplo
-wait 20
+wait 2
 key Return               # War of the Spanish Succession notice (Spain cedes New Spain to the Dutch)
-wait 20
+wait 2
 key Return               # signing cinematic: skip the animation to the finished signature
-wait 20
+wait 2
 key Return               # close the cinematic
-wait 20
+wait 2
 key Return               # @INDEPENDENCE letter OK
-wait 20
+wait 2

@@ -2,5 +2,5 @@
 {"type":"key_down","t_ms":1000,"frame":0,"keycode":101,"mod":0}
 {"type":"text","t_ms":1000,"frame":0,"text":"e"}
 {"type":"key_up","t_ms":1048,"frame":3,"keycode":101,"mod":0}
-{"type":"key_down","t_ms":1384,"frame":24,"keycode":27,"mod":0}
-{"type":"key_up","t_ms":1432,"frame":27,"keycode":27,"mod":0}
+{"type":"key_down","t_ms":1240,"frame":15,"keycode":27,"mod":0}
+{"type":"key_up","t_ms":1288,"frame":18,"keycode":27,"mod":0}

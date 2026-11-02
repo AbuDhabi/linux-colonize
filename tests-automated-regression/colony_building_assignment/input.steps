@@ -2,7 +2,7 @@
 # Start: 3 statesmen in the Town Hall (people strip 3,4,5), colonists 0,1,2 work tiles.
 # People strip icons: x = 5 + 8*i, y = 155. Drop points sit above each building's worker strip.
 click 168 128              # open Quebec
-wait 10
+wait 1
 drag 13 155 27 104         # strip colonist 1 (convert) -> Carpenter's Shop (1 of 3)
 drag 21 155 27 104         # strip colonist 2 (fisherman) -> Carpenter's Shop (2 of 3)
 drag 236 43 27 104         # drag from a work tile does not carry the worker: it only selects colonist 0

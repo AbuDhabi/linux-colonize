@@ -6,13 +6,13 @@
 # Brewster: slot 0 is shown as Free Colonists (europe_apply_brewster purge) in the @RECRUITCHOOSE pick; the picked Master Distiller lands on the
 # dock (unit #149 at 237,237, profession 9), crosses reset to 0, the slot refills.
 key space                  # end turn 108
-wait 300
+wait 30
 key Return                 # Colonization Help: Time Scale
-wait 60
+wait 6
 key Down                   # Brewster pick ("Religious unrest in France..."): row 1 Master Distiller
 key Return                 # pick it: the Distiller joins the Europe dock
-wait 60
+wait 6
 key Return                 # Sons of Liberty in Quebec up to 60%
-wait 60
+wait 6
 key Return                 # price of Cigars rises to 11
-wait 60
+wait 6

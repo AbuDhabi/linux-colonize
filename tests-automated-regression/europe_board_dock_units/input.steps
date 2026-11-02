@@ -4,7 +4,7 @@
 # which a drag maps to 0xf = no target): dock units board only when a ship sails (europe_board_sentry_dockers: every
 # sentried dock unit, front first, while the ship has a free hold); the @ARMOPTIONS rows toggle the board flag.
 key e                    # open the European Status screen
-wait 10
+wait 1
 drag 241 146 153 153     # dock colonist dragged onto the harbor Caravel: the press opens its dock menu, the release does nothing
 key Escape               # close the menu without a choice
 click 241 146            # slot 0 menu again (6 rows, no Move to front on slot 0)

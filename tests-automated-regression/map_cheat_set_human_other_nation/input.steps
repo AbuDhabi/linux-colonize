@@ -8,12 +8,12 @@ key i alt
 key n alt
 key F5 shift
 key Return               # English
-wait 30
+wait 3
 shot
 key e                    # English European Status
-wait 30
+wait 3
 shot
 key Escape
-wait 30
+wait 3
 shot
 key w alt

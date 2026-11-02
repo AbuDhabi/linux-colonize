@@ -6,15 +6,15 @@
 # Quebec's Artillery #139 woken (no orders, full moves); re-saved once.
 # Rolls come from the saved LCG, so the outcomes are fixed.
 key KP_7                 # veteran Dragoon #131 attacks the Wagon Train: no analysis dialog
-wait 30
+wait 3
 key Return               # "{English} wagon train CAPTURED by the {French}!" (@WAGONCAPTURE): wagon flips to France, joins Quebec's tile
-wait 30
+wait 3
 key Return               # "{French} defeat {English Wagon Train} near Quebec!"; Artillery #139 selected next
-wait 30
+wait 3
 key KP_3                 # Artillery attacks the Colonist: open-field >>2 on the gun (docs/combat.md peels), loses
-wait 30
+wait 3
 key Return               # "French Artillery {damaged}. Further damage will destroy it." (@ARTILLERY; damaged bit set, moves spent)
-wait 30
+wait 3
 key Return               # "{English Colonists} defeat {French} near Quebec!"; nothing left to move
-wait 30
+wait 3
 shot

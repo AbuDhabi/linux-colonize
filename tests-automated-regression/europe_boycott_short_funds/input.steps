@@ -3,7 +3,7 @@
 # Clicking the boycotted market cell raises @KISSUP (two rows: refuse, then "Pay 3000"); the purse is only tested after Pay.
 # Hold i is at x = 152+12i, y 171; market cell i at x = 10+19i, y 189; @KISSUP rows at y 156 (refuse) and 168 (Pay).
 key e                    # open the European Status screen
-wait 10
+wait 1
 click 48 189             # Tobacco cell: @KISSUP quoting 3000
 click 150 168            # "Pay 3000.": gold 1500 < 3000 -> @KISSSORRY "we only have 1500 available", nothing changes
 key Return               # OK the @KISSSORRY popup

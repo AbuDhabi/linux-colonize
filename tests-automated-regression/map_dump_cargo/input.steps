@@ -17,9 +17,9 @@ shot
 click 100 141              # clicking the greyed row does nothing, the menu closes
 shot
 key w                      # wait for next unit: Caravel A at (48,24), passengers only
-wait 30
+wait 3
 click 88 3                 # Dump is greyed here too
 shot
 click 100 141
 shot
-wait 5
+wait 1

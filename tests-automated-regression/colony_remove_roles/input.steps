@@ -3,7 +3,7 @@
 # opens the "leave as" popup (rows y: Colonist 83, Pioneer 91, Soldier 99, Scout 107, Dragoon 115, Missionary 123).
 # Rows whose gear is missing are greyed. Colonists leave from the end of the strip so indices stay put.
 click 135 175              # open Montreal
-wait 10
+wait 1
 drag 59 155 131 112        # colonist 6 -> fence: role popup
 click 100 83               # plain Colonist
 drag 50 155 131 112        # colonist 5 -> fence

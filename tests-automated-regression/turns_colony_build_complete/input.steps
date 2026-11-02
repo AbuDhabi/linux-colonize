@@ -9,32 +9,32 @@
 # (40 needed, 37 on hand). Turn 2: tools reach 40, the Artillery completes (hammers 0, tools 0,
 # a new Artillery on the Montreal tile) with its notice.
 key space                  # end the turn (autumn 1599)
-wait 300
+wait 30
 key Return                 # @NEEDTOOLS: Artillery in Montreal needs 40 tools, 37 available: Continue turn
-wait 60
+wait 6
 key Return                 # Quebec colony produces Lumber Mill: Continue turn
-wait 60
+wait 6
 key Return                 # King increases military spending: Regulars added to the REF
-wait 60
+wait 6
 key Return                 # price of Coats in La Rochelle rises
-wait 60
+wait 6
 shot
 key s                      # sentry Scout 77 (spring 1600): nothing left to move
-wait 30
+wait 3
 key space                  # end the turn (spring 1600)
-wait 300
+wait 30
 key Return                 # Colonization Help: Time Scale (two turns per year from now on)
-wait 300
+wait 30
 key Return                 # English defeat French Colonists near Guadeloupe
-wait 100
+wait 10
 key Return                 # French wagon train captured by the English
-wait 60
+wait 6
 key Return                 # French colonists captured by the English
-wait 60
+wait 6
 key Return                 # English march into Guadeloupe, 90$ plundered
-wait 60
+wait 6
 key Return                 # Montreal colony produces Artillery: Continue turn
-wait 60
+wait 6
 key Return                 # price of Cigars in La Rochelle rises
-wait 60
+wait 6
 shot

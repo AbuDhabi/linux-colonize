@@ -7,10 +7,10 @@ key KP_4                 # (45,29)
 key KP_4                 # (44,29): still none
 shot
 key KP_4                 # (43,29): (42,29) is land in the 3x3 -> woodcut 1, then the name prompt
-wait 30
+wait 3
 shot
 key Return               # dismiss the woodcut
-wait 30
+wait 3
 shot
 key z shift              # name entry: type "Zeta" over the selected default
 key e
@@ -18,5 +18,5 @@ key t
 key a
 shot
 key Return               # accept the name
-wait 30
+wait 3
 shot

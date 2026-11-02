@@ -5,11 +5,11 @@
 # English Dragoon #113 (veteran, fortified) stands on the hills at (45,23), north of Quebec.
 # The roll comes from the saved LCG, so the outcome is fixed: the Soldiers lose.
 key KP_8                 # attack north: Combat Analysis dialog (FUN_636c_0000) before the roll
-wait 30
+wait 3
 key Return               # dismiss the analysis: roll lost, "{French Soldiers} routed! Unit demoted to {Colonists}" (@DEMOTE)
-wait 30
+wait 3
 key Return               # "{English Dragoons} defeat {French} near Quebec!"
-wait 30
+wait 3
 key Return               # last combat popup closed; no French unit left to move (selected -1)
-wait 30
+wait 3
 shot

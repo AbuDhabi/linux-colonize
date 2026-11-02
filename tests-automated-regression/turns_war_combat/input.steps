@@ -10,83 +10,83 @@
 # talks and offers a demarcation treaty, refused ("No": @WARMEEK, still at war). England's next turn
 # beats the French Pioneers near Guadeloupe. Outcomes are fixed by the replayed RNG.
 key KP_8                 # turn 108: Dragoon attacks north (45,23)
-wait 60
+wait 6
 key Return               # combat popups (nested in the attack): English Dragoons routed, demoted to Soldiers
-wait 60
+wait 6
 key Return               # French defeat English Dragoons near Quebec
-wait 60
+wait 6
 key Return
-wait 60
+wait 6
 key space                # end turn 108
-wait 300
+wait 30
 key Return               # Colonization Help: Time Scale
-wait 100
+wait 10
 key Return               # (AI turn still running; presses between popups are ignored)
-wait 100
+wait 10
 key Return
-wait 100
+wait 10
 key Return               # English defeat French Colonists near Guadeloupe; wagon train captured
-wait 100
+wait 10
 key Return               # French colonists captured by the English
-wait 100
+wait 10
 key Return               # English march into Guadeloupe, 90 gold plundered
-wait 100
+wait 10
 key Return               # SoL Quebec 60% (Continue turn)
-wait 100
+wait 10
 key Return               # price of Cigars rises; the Caravel reaching Europe opens the Europe screen
-wait 100
+wait 10
 key Escape               # leave the Europe screen
-wait 60
+wait 6
 key s                    # turn 109: sentry the units woken by the English next to Quebec / Montreal
-wait 30
+wait 3
 key s
-wait 30
+wait 3
 key s
-wait 30
+wait 3
 key s
-wait 30
+wait 3
 key s
-wait 30
+wait 3
 key s
-wait 30
+wait 3
 key s
-wait 30
+wait 3
 key s
-wait 30
+wait 3
 key s
-wait 30
+wait 3
 key KP_8                 # the Dragoon attacks (45,23) again
-wait 60
+wait 6
 key Return               # English Soldiers routed, demoted to Colonists
-wait 60
+wait 6
 key Return               # French defeat English Soldiers near Quebec
-wait 60
+wait 6
 key Return               # English greeting ("we again welcome you to New England")
-wait 60
+wait 6
 key Return               # (talks continue)
-wait 60
+wait 6
 key Down                 # demarcation treaty offer: No
 key Return
-wait 60
+wait 6
 key Return               # @WARMEEK "Prepare for WAR!"
-wait 60
+wait 6
 key s                    # sentry the last two units in Quebec: End of Turn
-wait 30
+wait 3
 key s
-wait 30
+wait 3
 key space                # end turn 109
-wait 400
+wait 40
 key Return               # the Iroquois bring 16 Ore to Port au Prince
-wait 100
+wait 10
 key Return               # English defeat French Pioneers near Guadeloupe (AI turn; spare presses fall between popups)
-wait 100
+wait 10
 key Return
-wait 100
+wait 10
 key Return               # King raises tax to 27%: Kiss pinky ring
-wait 100
+wait 10
 key Return               # SoL Port au Prince 12% (Continue turn)
-wait 100
+wait 10
 key Return               # SoL Martinique 51% (Continue turn)
-wait 100
+wait 10
 key Return               # new cargo of Horses at Montreal (Continue turn)
-wait 100
+wait 10

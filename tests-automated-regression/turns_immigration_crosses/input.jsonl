@@ -2,13 +2,13 @@
 {"type":"key_down","t_ms":1000,"frame":0,"keycode":32,"mod":0}
 {"type":"text","t_ms":1000,"frame":0,"text":" "}
 {"type":"key_up","t_ms":1048,"frame":3,"keycode":32,"mod":0}
-{"type":"key_down","t_ms":6024,"frame":314,"keycode":13,"mod":0}
-{"type":"key_up","t_ms":6072,"frame":317,"keycode":13,"mod":0}
-{"type":"key_down","t_ms":7208,"frame":388,"keycode":1073741905,"mod":0}
-{"type":"key_up","t_ms":7256,"frame":391,"keycode":1073741905,"mod":0}
-{"type":"key_down","t_ms":7432,"frame":402,"keycode":13,"mod":0}
-{"type":"key_up","t_ms":7480,"frame":405,"keycode":13,"mod":0}
-{"type":"key_down","t_ms":8616,"frame":476,"keycode":13,"mod":0}
-{"type":"key_up","t_ms":8664,"frame":479,"keycode":13,"mod":0}
-{"type":"key_down","t_ms":9800,"frame":550,"keycode":13,"mod":0}
-{"type":"key_up","t_ms":9848,"frame":553,"keycode":13,"mod":0}
+{"type":"key_down","t_ms":1704,"frame":44,"keycode":13,"mod":0}
+{"type":"key_up","t_ms":1752,"frame":47,"keycode":13,"mod":0}
+{"type":"key_down","t_ms":2024,"frame":64,"keycode":1073741905,"mod":0}
+{"type":"key_up","t_ms":2072,"frame":67,"keycode":1073741905,"mod":0}
+{"type":"key_down","t_ms":2248,"frame":78,"keycode":13,"mod":0}
+{"type":"key_up","t_ms":2296,"frame":81,"keycode":13,"mod":0}
+{"type":"key_down","t_ms":2568,"frame":98,"keycode":13,"mod":0}
+{"type":"key_up","t_ms":2616,"frame":101,"keycode":13,"mod":0}
+{"type":"key_down","t_ms":2888,"frame":118,"keycode":13,"mod":0}
+{"type":"key_up","t_ms":2936,"frame":121,"keycode":13,"mod":0}

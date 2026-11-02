@@ -9,33 +9,33 @@
 # 1601 (order cleared, moves spent).
 # Returns pressed while the AI turn runs are eaten by its nested polls (one per turn here), so
 # each turn's popup chain gets one Return more than it has popups; shots confirm the state.
-wait 200                   # Spring 1600: the go-to pacer walks the colonist; the Caravel waits
+wait 40                   # Spring 1600: the go-to pacer walks the colonist; the Caravel waits
 key space                  # end turn 108
-wait 300
+wait 60
 key Return                 # (eaten while the AI turn runs)
-wait 150
+wait 30
 key Return                 # Help: Time Scale (two turns per year from 1600)
-wait 150
+wait 30
 key Return                 # SoL in Quebec up to 60%: Continue turn
-wait 150
+wait 30
 key Return                 # price of Cigars rises
-wait 150
+wait 30
 shot                       # Autumn 1600: colonist 84 has arrived in Quebec, go-to cleared, asks for orders
 key f                      # Fortify him
-wait 150
+wait 30
 shot
 key space                  # end turn 109
-wait 300
+wait 60
 key Return                 # Iroquois gift of 16 Ore to Port au Prince
-wait 60
+wait 12
 key Return                 # King raises tax to 27%: Kiss pinky ring
-wait 60
+wait 12
 key Return                 # SoL in Port au Prince 12%: Continue turn
-wait 60
+wait 12
 key Return                 # SoL in Martinique 51%: Continue turn
-wait 60
+wait 12
 key Return                 # SoL in Guadeloupe 70%: Continue turn
-wait 60
+wait 12
 key Return                 # Horses cargo ready at Montreal (warehouse full): Continue turn
-wait 150
+wait 30
 shot                       # Spring 1601: the Caravel has docked in Montreal, order cleared; End of Turn

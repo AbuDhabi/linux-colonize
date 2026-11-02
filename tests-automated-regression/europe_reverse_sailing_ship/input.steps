@@ -3,7 +3,7 @@
 # Ships sit in the boxes as icons: Expected x 5.., Bound x 75.., y ~153; passengers ride after their ship (a click on one picks the ship).
 # Lane membership after each step (E = Expected Soon, B = Bound): start E[Galleon,Merchantman] B[Caravel].
 key e                    # open the European Status screen
-wait 10
+wait 1
 drag 12 153 110 140      # Galleon: Expected Soon -> Bound For New England (reversed westbound): E[M] B[C,G]
 drag 95 153 40 140       # Caravel picked by its colonist passenger icon: Bound -> Expected Soon: E[M,C] B[G]
 drag 83 153 40 140       # Galleon: Bound -> Expected Soon again; the Bound box is now empty: E[M,C,G] B[]

@@ -4,7 +4,7 @@
 # Guadeloupe (41,24) at (40,23), (40,24), (40,25); France has no military unit there.
 # Guadeloupe stock: muskets 100, horses 100. People strip icons: x = 5 + 9*i, y = 155; fence drop (131,112).
 click 104 128              # open Guadeloupe
-wait 10
+wait 1
 drag 32 155 131 112        # colonist 3 -> fence: role popup
 click 100 87               # Colonist: refused with @SIEGE
 key Return                 # dismiss

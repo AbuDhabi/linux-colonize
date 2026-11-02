@@ -4,9 +4,9 @@
 # year loop stops at Spain: @MULTINEXT on a blanked screen, the rebind to
 # Spain, then Spain's own 00f2 and Move Pieces. Same calendar turn throughout.
 key Return                 # English Player Turn
-wait 10
+wait 1
 key space                  # End of Turn
-wait 200
+wait 20
 shot                       # Spanish Player Turn over a black screen
 key Return
-wait 100
+wait 10

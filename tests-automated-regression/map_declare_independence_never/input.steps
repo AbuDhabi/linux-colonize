@@ -3,12 +3,12 @@
 # opens the Never/Yes confirm (rows: Never! y 150, Yes! y 162); Never! (click, then keyboard route) and a re-open each leave the save unchanged.
 click 22 3               # GAME menu
 click 50 85              # DECLARE INDEPENDENCE: "Shall we declare our independence from France..." Never / Yes
-wait 10
+wait 1
 shot
 click 150 150            # Never!
-wait 10
+wait 1
 click 22 3               # GAME menu again
 click 50 85              # confirm again
-wait 10
+wait 1
 key Return               # Enter takes the first row (Never!)
-wait 10
+wait 1

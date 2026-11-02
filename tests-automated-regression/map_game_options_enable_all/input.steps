@@ -20,4 +20,4 @@ key Return                 # Enter commits and closes the dialog (water_color_cy
 click 22 3                 # reopen: the choices persisted
 click 38 13                # Game Options again: all eight rows still checked
 key Escape                 # Esc cancels the reopened dialog (no change)
-wait 20
+wait 2

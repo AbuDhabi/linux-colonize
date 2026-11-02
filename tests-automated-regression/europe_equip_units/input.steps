@@ -4,7 +4,7 @@
 # Menu rows: Colonist = NoBoard,[ToFront],Muskets,Tools,Horses,Bless,NoChanges; Soldier = NoBoard,[ToFront],SellMuskets,BuyHorses,NoChanges;
 # Scout = NoBoard,[ToFront],BuyMuskets,SellHorses,NoChanges ([ToFront] on every slot but 0). Rows are 12 px apart (FONTINTR glyph 9 + 3), the dialog is centred vertically.
 key e                    # open the European Status screen
-wait 10
+wait 1
 # Routes that do not exist: dragging goods onto a dock unit, dragging a dock unit onto the market.
 drag 294 188 258 146     # Muskets from the market strip dropped on a dock colonist: ignored
 drag 162 188 275 146     # Horses from the market strip dropped on a dock colonist: ignored

@@ -7,23 +7,23 @@
 # re-saved once, then RT_RNG LCG state set to 134623. Rolls come from the saved LCG, so the outcomes
 # are fixed.
 key KP_6                 # Privateer attacks the Caravel east: Combat Analysis dialog
-wait 30
+wait 3
 key Return               # dismiss: evade roll fails, the Privateer wins; plunder pass 1 (both holds fit: hold 0)
-wait 30
+wait 3
 key Return               # @CARGOCAPTURE "{English} cargo of {100 Furs} captured by {French Privateer}!"
-wait 30
+wait 3
 key Return               # @CARGOCAPTURE "... {100 Tools} ..."
-wait 30
+wait 3
 key Return               # @SHIPSUNK "{English Caravel sunk} by French Privateer!" (an unarmed Caravel after turn 0x4f
-wait 30                  #  always sinks, FUN_5fef_0352 raw 99527-99570); Frigate #121 selected next
+wait 3                  #  always sinks, FUN_5fef_0352 raw 99527-99570); Frigate #121 selected next
 key KP_9                 # Frigate attacks the Merchantman NE: Combat Analysis dialog
-wait 30
+wait 3
 key Return               # dismiss: evade fails, the Frigate wins; one free hold, four loser holds:
-wait 30                  #  @PICKACARGO "Which cargo shall we capture?" [Nothing, 100 Muskets, 100 Tools, 100 Trade Goods, 100 Horses]
+wait 3                  #  @PICKACARGO "Which cargo shall we capture?" [Nothing, 100 Muskets, 100 Tools, 100 Trade Goods, 100 Horses]
 key Down                 # row 1: 100 Muskets
-wait 10
+wait 1
 key Return               # picked: the Muskets go aboard with no @CARGOCAPTURE (a human pick clears DS:0xa154,
-wait 30                  #  FUN_5fef_016c); the Merchantman's other holds are emptied (FUN_5fef_0352 5fef:05e6)
+wait 3                  #  FUN_5fef_016c); the Merchantman's other holds are emptied (FUN_5fef_0352 5fef:05e6)
 key Return               # @SHIPDAMAGE "{English Merchantman} damaged! Ship returns to {London} for repairs."
-wait 30                  #  Dragoon #131 in Quebec selected next
+wait 3                  #  Dragoon #131 in Quebec selected next
 shot

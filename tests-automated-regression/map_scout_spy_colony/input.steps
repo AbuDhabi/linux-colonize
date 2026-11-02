@@ -8,23 +8,23 @@
 # The infiltrate spends the scout's allotment and draws once (RNG record moves 0x01840982 -> 0x2aa70a3d); nothing
 # in Fort Orange or Dutch state changes.
 key KP_1     # #77 bumps Fort Orange: @SCOUTCOLONY "Our scouts have reached the outskirts of Fort Orange" (4 rows)
-wait 20
+wait 2
 key Down
 key Return   # row 1 "Infiltrate Colony": roll 12 > 9, Fort Orange's colony screen opens on the Units Present tab (DS:0x337 = 1)
-wait 30
+wait 3
 shot
 click 220 167          # spy view is look only (DS:0xb98, port_bugs.md #1382): the Dutch Dragoon under Units Present opens no options menu
-wait 20
+wait 2
 drag 80 95 120 75     # a Dutch worker dragged from a building onto a land tile: nothing moves
-wait 20
+wait 2
 key c                  # construction picker key: ignored
-wait 20
+wait 2
 shot
 key Escape   # close the spy view: back on the map, #77 out of moves, colonist #88 is next
-wait 30
+wait 3
 key w        # Wait: skip #88, Scout #95 is selected
-wait 20
+wait 2
 key KP_3     # #95 bumps Fort Orange: @SCOUTCOLONY again
-wait 20
+wait 2
 key Escape   # menu cancelled = "Nothing" (choice 4): #95's allotment spent, no roll; Caravel #126 in Quebec is next
-wait 60
+wait 6

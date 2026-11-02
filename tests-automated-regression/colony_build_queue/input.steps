@@ -2,46 +2,46 @@
 # Shift-click / Shift+Enter queues behind the current project and keeps the picker open;
 # queued rows are drawn with their 1-based position in yellow. Picker rows: 8 px apart, row 0 at y=43.
 click 168 128              # open Quebec (map tile 45,24)
-wait 10
+wait 1
 key 3                      # Construction tab (DOS DS:0x337 starts at 0 = Production)
-wait 3
+wait 1
 click 282 141              # CHANGE: picker opens on Lumber Mill
-wait 5
+wait 1
 click 150 151 shift        # Shift-click Church: queued as 1, picker stays open
-wait 5
+wait 1
 click 150 79 shift         # Shift-click Warehouse: queued as 2
-wait 5
+wait 1
 click 150 167 shift        # Shift-click Wagon Train: queued as 3
-wait 5
+wait 1
 click 150 151 shift        # Shift-click Church again: already queued, refused
-wait 5
+wait 1
 click 150 143 shift        # Shift-click Lumber Mill (the current project): refused
-wait 5
+wait 1
 key Escape                 # closes the picker; the queue stays
-wait 5
+wait 1
 click 282 141              # CHANGE: the queued rows are still numbered
-wait 5
+wait 1
 click 150 87               # plain click on Stable: new project Stable, the whole queue is wiped
-wait 5
+wait 1
 click 282 141              # CHANGE: no numbers any more
-wait 5
+wait 1
 click 150 39               # "(No Production)": nothing in production
-wait 5
+wait 1
 click 282 141              # CHANGE
-wait 5
+wait 1
 click 150 103 shift        # Shift-click Printing Press with nothing in production starts it, picker stays open
-wait 5
+wait 1
 click 150 151 shift        # Shift-click Church: queued as 1 behind Printing Press
-wait 5
+wait 1
 key Down                   # keyboard: Church -> Blacksmith's Shop
-wait 3
+wait 1
 key Return shift           # Shift+Enter queues it as 2
-wait 5
+wait 1
 key Down                   # Blacksmith's Shop -> Wagon Train
-wait 3
+wait 1
 key Return shift           # Shift+Enter queues it as 3
-wait 5
+wait 1
 key Escape                 # close the picker; project Printing Press, queue Church, Blacksmith's Shop, Wagon Train
-wait 5
+wait 1
 key Escape                 # leave the colony, back on the map
-wait 5
+wait 1

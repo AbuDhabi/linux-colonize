@@ -5,4 +5,4 @@
 key d shift
 click 160 96               # @SUREDISBAND Yes: the Dragoon is gone, Colonist 135 is selected, not Caravel A
 shot
-wait 5
+wait 1

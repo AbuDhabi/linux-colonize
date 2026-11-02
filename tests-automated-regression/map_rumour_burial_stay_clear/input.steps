@@ -1,17 +1,17 @@
 # Burial mounds left alone: map_rumour_burial_search's start (same fixture). "Stay clear" draws nothing (65dd:04eb local_3c = 2
 # skips the payout block), so the colonists' rolls take the stream straight after the Scout's two draws.
 key KP_6                   # Scout east onto (30,62): @LOSTCITY4
-wait 30
+wait 3
 key Down
 key Return                 # "Stay clear of those!": no claim roll, no payout, no popup
-wait 30
+wait 3
 key s                      # sentry the Scout: Preacher #131 is selected
-wait 20
+wait 2
 key KP_6                   # east onto (39,22): survivors (@LOSTCITY9), a Free Colonist joins on the tile
-wait 30
+wait 3
 key Return                 # colonist #134 is selected
-wait 20
+wait 2
 key KP_4                   # west onto (36,25), Tupi village closer than 3 (FUN_281f_0d84), Tupi met: roll 8 kept (skill 0), @LOSTCITY8;
-wait 30                    # alarm + RNG(1,6) + (difficulty 4 - 0 + 1) * 5, halved for France: Tupi alarm 0 -> 13
+wait 3                    # alarm + RNG(1,6) + (difficulty 4 - 0 + 1) * 5, halved for France: Tupi alarm 0 -> 13
 key Return
-wait 20
+wait 2

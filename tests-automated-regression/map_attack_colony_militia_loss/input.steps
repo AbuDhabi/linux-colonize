@@ -5,11 +5,11 @@
 # Dragoons #131 and #87 at (39,23) east of English Cayenne (38,23, pop 2, no unit on its tile),
 # #131 active, Combat Analysis on). Rolls come from the saved LCG, so the outcome is fixed.
 key KP_4                 # #131 attacks Cayenne: the colony militia phantom fights; analysis
-wait 30
+wait 3
 key Return               # dismiss: roll lost
-wait 30
+wait 3
 key Return               # "{French Dragoons} routed! Unit demoted to {Soldiers} status."
-wait 30
+wait 3
 key Return               # "{English Colonists} defeat {French} near Cayenne!"; #87 selected next
-wait 30
+wait 3
 shot

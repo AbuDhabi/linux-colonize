@@ -6,7 +6,7 @@
 # (orders 3) sentried so nothing auto-walks.
 key KP_6                   # step east onto the full ship's tile: refused silently (no popup, no message); the Scout stays
                            # at (47,25) with its moves, ship and cargo untouched, Scout still selected
-wait 20
+wait 2
 key s                      # Sentry the Scout: proves the keypress above left it selected and ashore (orders 1, moves
                            # spent); the selection moves on to the next unit with moves (view scrolls)
-wait 20
+wait 2
