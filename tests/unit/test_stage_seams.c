@@ -156,6 +156,46 @@ static int test_ai_021a_dir_tile(void) {
   return 0;
 }
 
+/* 021a's dres is FUN_1000_8908 -> FUN_281f_0718 -> FUN_137f_04b0, which
+ * hides a special only on a native settlement tile (FUN_137f_0392). A Euro
+ * colony tile (settlement bit, owner nibble 0) keeps its special, so dres
+ * must read 1 there. */
+static int test_ai_021a_dres_euro_colony_tile(void) {
+  for (int t = 0; t < 8; ++t) {
+    for (int seed = 1; seed < 256; ++seed) {
+      ColonizeWorldMap map;
+      if (!fx_map_alloc(&map, 8, 8, t, /*with_seen=*/true)) {
+        return fail("map alloc");
+      }
+      map.prime_resource_seed = (uint16_t)seed;
+      ColonizeUnitPool units;
+      fx_units_init(&units);
+      struct ai_021a_ctx c;
+      memset(&c, 0, sizeof(c));
+      c.map = &map;
+      c.units = &units;
+      c.x = 4;
+      c.y = 4;
+      c.threat_nation = -1;
+      (void)ai_021a_dir_tile(&c); /* learn the destination tile */
+      /* Only the destination is a colony tile: a settlement next to it
+       * would trigger the visit-cooldown skip. */
+      map.layer2[c.ny * map.width + c.nx] = MAP_OCCUPANCY_HAS_CITY;
+      const Ai021aDirStatus st = ai_021a_dir_tile(&c);
+      const int dos_res = map_dos_resource_at(&map, c.nx, c.ny);
+      fx_map_free(&map);
+      if (st == AI_021A_DIR_OK && dos_res >= 0) {
+        if (c.dres != 1) {
+          fprintf(stderr, "021a dres: terrain=%d seed=%d dres=%d\n", t, seed, c.dres);
+          return fail("021a dres hid a Euro colony tile's special (DOS 04b0 keeps it)");
+        }
+        return 0;
+      }
+    }
+  }
+  return fail("no seed/terrain put a special on the destination tile");
+}
+
 /* port_bugs.md #553: FUN_465b_0000 local_4 — the settlement owner of a Euro
  * colony tile, overridden by the stack head's nation. ai_native_brave_step
  * uses it to keep a Brave from walking INTO a foreign colony (DOS attacks or
@@ -2824,6 +2864,7 @@ static const TestCase k_cases[] = {
     {"test_ai_contact_raid_alarm_delta", test_ai_contact_raid_alarm_delta},
     {"test_ai_contact_raid_sound_rows", test_ai_contact_raid_sound_rows},
     {"test_ai_021a_dir_tile", test_ai_021a_dir_tile},
+    {"test_ai_021a_dres_euro_colony_tile", test_ai_021a_dres_euro_colony_tile},
     {"test_ai_465b_dest_owner", test_ai_465b_dest_owner},
     {"test_ai_brave_field_attack", test_ai_brave_field_attack},
     {"test_game_render_select_palette", test_game_render_select_palette},

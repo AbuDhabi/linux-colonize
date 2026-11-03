@@ -533,11 +533,17 @@ static int map_resource_terrain_class(uint8_t terrain_byte) {
  * FUN_12ab_0458: coordinate hash + resource table. DOS coords are 1-based.
  * Ocean (25) yields fish (type 7); arctic/high seas table entries are -1.
  */
+typedef enum MapResourceGate {
+  MAP_RES_SPRITE, /* FUN_12ab_0380 (MAPEDIT): any settlement hides it */
+  MAP_RES_YIELD,  /* no settlement gate */
+  MAP_RES_DOS,    /* FUN_137f_04b0: native settlements only (FUN_137f_0392) */
+} MapResourceGate;
+
 static int map_resource_type_at_ex(
   const ColonizeWorldMap* map,
   int x,
   int y,
-  bool ignore_settlement
+  MapResourceGate gate
 ) {
   if (!map_in_bounds(map, x, y) || map->specials_off) {
     return -1;
@@ -545,8 +551,16 @@ static int map_resource_type_at_ex(
   const uint8_t terrain_byte = map_get_terrain(map, x, y);
   const uint8_t layer2 = map->layer2 ? map->layer2[y * map->width + x] : 0;
   /* Layer2 bit1 marks settlement ownership — skip resources for sprites (FUN_12ab_0380). */
-  if (!ignore_settlement && (layer2 & 2u) != 0) {
+  if (gate == MAP_RES_SPRITE && (layer2 & 2u) != 0) {
     return -1;
+  }
+  /* FUN_137f_0392 raw 6814-6836: interior, layer2 bit 1 and FUN_137f_0200
+   * owner >= 4 (nibble 0xf reads -1). A European colony keeps its special. */
+  if (gate == MAP_RES_DOS && (layer2 & 2u) != 0 && map_coords_inset(map, x, y)) {
+    const int owner = (int)((map_get_layer3(map, x, y) >> MAP_L3_OWNER_SHIFT) & MAP_L3_OWNER_MASK);
+    if (owner >= 4 && owner != 0x0f) {
+      return -1;
+    }
   }
 
   /* No +1: `x`/`y` are already whatever coordinate space the seed hash
@@ -575,20 +589,22 @@ static int map_resource_type_at_ex(
     ((((dos_y >> 2) * 3 + (dos_x >> 2)) - forest_hash_adjust) + (int)(map_resource_seed(map) & 0xff)) & 0xf;
   /* Coordinate hash gate — asm-exact, and unconditional. Player-confirmed
    * 2026-08-18 (colony_prod02's New Holland): this used to be gated on
-   * `!ignore_settlement || settlement-bit-clear`, so a `_for_yield` call
-   * (ignore_settlement=true) on a tile that also has the settlement bit
+   * `sprite gate || settlement-bit-clear`, so a `_for_yield` call
+   * (no settlement gate) on a tile that also has the settlement bit
    * set — i.e. every colony's own center tile — skipped the hash check
    * entirely and always reported a match for the terrain's resource type,
    * whether or not that coordinate's hash actually landed there. The
    * settlement gate belongs only on the *earlier* early-return (still
-   * above, `!ignore_settlement && settlement -> -1`); this hash check is a
+   * above, `MAP_RES_SPRITE && settlement -> -1`); this hash check is a
    * separate concern (FUN_12ab_0458 has no settlement logic in it at all)
    * and must always run. */
   if (seed_hash_cell != tile_hash_cell && (seed_hash_cell ^ 10) != tile_hash_cell) {
     return -1;
   }
 
-  int class_id = map_resource_terrain_class(terrain_byte);
+  /* FUN_137f_04b0 raw 6930 reads the class through FUN_13e4_003a. */
+  int class_id = gate == MAP_RES_DOS ? map_dos_terr_class_at(map, x, y)
+                                     : map_resource_terrain_class(terrain_byte);
   if (class_id < 0 || class_id >= 29) {
     return -1;
   }
@@ -610,11 +626,15 @@ static int map_resource_type_at_ex(
 }
 
 int map_resource_type_at(const ColonizeWorldMap* map, int x, int y) {
-  return map_resource_type_at_ex(map, x, y, false);
+  return map_resource_type_at_ex(map, x, y, MAP_RES_SPRITE);
 }
 
 int map_resource_type_for_yield(const ColonizeWorldMap* map, int x, int y) {
-  return map_resource_type_at_ex(map, x, y, true);
+  return map_resource_type_at_ex(map, x, y, MAP_RES_YIELD);
+}
+
+int map_dos_resource_at(const ColonizeWorldMap* map, int x, int y) {
+  return map_resource_type_at_ex(map, x, y, MAP_RES_DOS);
 }
 
 /* FUN_12ab_0540 / FUN_137f_0598 rumour hash over map coordinates. */
