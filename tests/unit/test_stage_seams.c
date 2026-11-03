@@ -1766,6 +1766,61 @@ static int test_board_step_watch_and_ship_margin(void) {
   return rc;
 }
 
+/* FUN_364b_03f6's fort phantom edge-scrolls on the colony tile (raw 57101),
+ * the lunge's origin, not on the defender. The colony tile sits in the
+ * margin and the defender just outside it; an own unit on the defender's
+ * tile keeps both in live sight. */
+static int test_phantom_lunge_edge_scroll_uses_colony_tile(void) {
+  static ColonizeGameState game;
+  int ox = 0;
+  edge_scroll_init(&game, &ox);
+  const int y = 30;
+  ColonizeUnit* u = units_get(&game.units, units_spawn(&game.units, 0, ox + 2, y));
+  int rc = (ox <= 1 || !u) ? fail("phantom lunge: fixture") : 0;
+  if (rc == 0) {
+    u->nation_id = 0;
+    game_phantom_lunge(&game, &game.units, 0, 1, ox + 1, y, ox + 2, y);
+    if (game.map_view_x != ox + 1 || game.map_view_y != y) {
+      fprintf(stderr, "  view (%d,%d), want (%d,%d)\n", game.map_view_x, game.map_view_y,
+              ox + 1, y);
+      rc = fail("phantom lunge: the colony tile in the margin centres the view on it");
+    }
+  }
+  edge_scroll_free(&game);
+  return rc;
+}
+
+/* FUN_5fef_1b0e's lunge is the FUN_112b_0eb6 slide from the attacker's tile
+ * (raw 100566-100610), so the view edge-scrolls on the attacker's tile and
+ * never centres on the defender. */
+static int test_combat_edge_scroll_uses_attacker_tile(void) {
+  static ColonizeGameState game;
+  int ox = 0;
+  edge_scroll_init(&game, &ox);
+  const int y = 30;
+  ColonizeUnit* a = units_get(&game.units, units_spawn(&game.units, 0, ox + 2, y));
+  int rc = (ox <= 1 || !a) ? fail("combat scroll: fixture") : 0;
+  if (rc == 0) {
+    a->nation_id = 0;
+    game_combat_watch(&game, &game.units, a->id, ox + 1, y);
+    if (game.map_view_x != 30 || game.map_view_y != 30) {
+      fprintf(stderr, "  view (%d,%d) after the first fight\n", game.map_view_x, game.map_view_y);
+      rc = fail("combat scroll: a defender in the margin must not scroll (attacker is outside it)");
+    }
+  }
+  if (rc == 0) {
+    a->x = ox + 1;
+    game_combat_watch(&game, &game.units, a->id, ox, y);
+    if (game.map_view_x != ox + 1 || game.map_view_y != y) {
+      fprintf(stderr, "  view (%d,%d), want (%d,%d)\n", game.map_view_x, game.map_view_y,
+              ox + 1, y);
+      rc = fail("combat scroll: an attacker in the margin centres on the attacker's tile");
+    }
+  }
+  edge_scroll_free(&game);
+  return rc;
+}
+
 /*
  * port_bugs.md #1208: ORDERS Go to Place (0x321) is the same FUN_647e_01c6 list as Go to Port
  * (case 2b5a:28d4 -> FUN_2b5a_1dfc): @TRAVELPLACE, no Europe row, own colonies on the unit's
@@ -2712,6 +2767,9 @@ static const TestCase k_cases[] = {
     {"test_activate_ignores_foreign_unit", test_activate_ignores_foreign_unit},
     {"test_move_edge_scroll_uses_departure_tile", test_move_edge_scroll_uses_departure_tile},
     {"test_board_step_watch_and_ship_margin", test_board_step_watch_and_ship_margin},
+    {"test_phantom_lunge_edge_scroll_uses_colony_tile",
+     test_phantom_lunge_edge_scroll_uses_colony_tile},
+    {"test_combat_edge_scroll_uses_attacker_tile", test_combat_edge_scroll_uses_attacker_tile},
     {"test_colony_list_keys_wrap", test_colony_list_keys_wrap},
     {"test_colony_custom_house_keys", test_colony_custom_house_keys},
     {"test_screen_f1_focus_article", test_screen_f1_focus_article},

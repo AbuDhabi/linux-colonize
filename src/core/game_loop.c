@@ -961,7 +961,7 @@ void game_combat_watch(
 ) {
   ColonizeGameState* game = (ColonizeGameState*)user;
   const ColonizeUnit* atk = pool ? units_get_const(pool, attacker_id) : NULL;
-  if (!game || !game->platform || !game->world_map_ok || (!atk && attacker_id >= 0)) {
+  if (!game || !game->world_map_ok || (!atk && attacker_id >= 0)) {
     return;
   }
   /* Only when the human can see the fight (live sight of either tile). */
@@ -969,12 +969,18 @@ void game_combat_watch(
       (!atk || !game_tile_live_seen(game, atk->x, atk->y))) {
     return;
   }
-  /* Centre at every zoom; only the lunge is zoom-0-only. */
-  game_set_view_center(game, def_x, def_y);
   if (!atk) {
-    return; /* attacker_id < 0: centre only (fort phantom without an Artillery row) */
+    /* attacker_id < 0: centre only (fort phantom without an Artillery row) */
+    game_set_view_center(game, def_x, def_y);
+    return;
   }
-  if (game->map_zoom != 0 || !game->unit_icons_ok) {
+  /* FUN_5fef_1b0e's lunge (raw 100578-100610) is the FUN_112b_0eb6 slide
+   * with the ATTACKER's tile as its start (uVar21/22 = +0x3144/+0x3145,
+   * raw 100566-100567), so the view only edge-scrolls on that tile (raw
+   * 2627), at every zoom, and never centres on the defender. The view is
+   * game state, so the test runs before the platform check. */
+  game_camera_edge_center(game, atk->x, atk->y);
+  if (!game->platform || game->map_zoom != 0 || !game->unit_icons_ok) {
     return;
   }
   /* port_bugs.md #365: same chrome standing or lunging — see game_move_watch. */
@@ -991,22 +997,24 @@ void game_combat_watch(
 }
 
 /* FUN_364b_03f6 fort phantom (FUN_478c_002c, graphic byte *DS:0x52cc = the
- * Artillery row icon): centre on the ship, then lunge from the colony tile.
- * Nothing enters the pool, so no piece is hidden. */
+ * Artillery row icon): edge-scroll on the colony tile (FUN_281f_0352 =
+ * FUN_1984_02fc, raw 57101), then lunge from it (FUN_281f_0a14 =
+ * FUN_5fef_1b0e, raw 57109). Nothing enters the pool, so no piece is
+ * hidden. */
 void game_phantom_lunge(
   void* user, const ColonizeUnitPool* pool, int type_index, int nation_id,
   int from_x, int from_y, int def_x, int def_y
 ) {
   ColonizeGameState* game = (ColonizeGameState*)user;
   const ColonizeUnitType* type = pool ? units_type(pool, type_index) : NULL;
-  if (!game || !type || !game->platform || !game->world_map_ok) {
+  if (!game || !type || !game->world_map_ok) {
     return;
   }
   if (!game_tile_live_seen(game, def_x, def_y) && !game_tile_live_seen(game, from_x, from_y)) {
     return;
   }
-  game_set_view_center(game, def_x, def_y);
-  if (game->map_zoom != 0 || !game->unit_icons_ok) {
+  game_camera_edge_center(game, from_x, from_y);
+  if (!game->platform || game->map_zoom != 0 || !game->unit_icons_ok) {
     return;
   }
   ColonizeUnit ph;
