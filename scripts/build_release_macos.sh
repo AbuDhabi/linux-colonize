@@ -172,7 +172,7 @@ chmod +x "$PKG_DIR/opencol.command"
 echo "== Resolving bundled libraries =="
 # Transitive closure of the Homebrew and deps-macos dylibs the binaries load.
 # The list file is its own work queue: line N is scanned, new libs are appended.
-# LIBMAP records "<file name dylibbundler will create>|<origin>" per library;
+# LIBMAP records "<file name in lib/>|<origin>" per library;
 # the license step and the final sanity check work from it.
 LIBMAP="$DEPS_LIST.map"
 : > "$LIBMAP"
@@ -188,7 +188,11 @@ while [ "$i" -le "$(wc -l < "$DEPS_LIST")" ]; do
       real="$(realpath "$dep")"
       origin="$(origin_of "$real")"
       grep -qxF "$real" "$DEPS_LIST" || echo "$real" >> "$DEPS_LIST"
-      grep -qxF "${dep##*/}|$origin" "$LIBMAP" || echo "${dep##*/}|$origin" >> "$LIBMAP"
+      # dylibbundler copies a symlinked lib under its real file name
+      # (libfluidsynth.3.dylib -> libfluidsynth.3.2.3.dylib), so map both names.
+      for n in "${dep##*/}" "${real##*/}"; do
+        grep -qxF "$n|$origin" "$LIBMAP" || echo "$n|$origin" >> "$LIBMAP"
+      done
     done <<EOF
 $found
 EOF
