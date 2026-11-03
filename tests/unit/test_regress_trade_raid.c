@@ -487,7 +487,49 @@ static int case_heresy_third_nation_seeds_mission(void) {
   return 0;
 }
 
+/*
+ * FUN_4cc6_03f8 ring pass (raw 81045-81057): the tile belongs to its chain
+ * head's nation (FUN_281f_07e0, newest arrival) and the sum then takes every
+ * armed unit in the chain, whatever its nation. Base: the (12,10) Dutch
+ * colony, pop 10, 7 buildings, scores 3. Two attack-2 units on ring tile
+ * (11,11); the second to arrive is the head.
+ */
+static ColonizeUnitPool s_threat_units;
+
+static int heresy_with_stack(int first_nation, int second_nation) {
+  memset(&s_threat_units, 0, sizeof(s_threat_units));
+  units_reset(&s_threat_units);
+  units_set_occupancy_map(NULL);
+  s_threat_units.type_count = 1;
+  memset(s_threat_units.types, 0, sizeof(s_threat_units.types[0]));
+  s_threat_units.types[0].attack = 2;
+  const int nations[2] = {first_nation, second_nation};
+  for (int k = 0; k < 2; ++k) {
+    const int id = units_spawn_allow_stack(&s_threat_units, 0, 11, 11);
+    ColonizeUnit* u = units_get(&s_threat_units, id);
+    if (!u) {
+      return -1000;
+    }
+    u->nation_id = nations[k];
+    units_tile_stack_arrive(&s_threat_units, id);
+  }
+  return heresy_presence_ex(12, 10, 10, 7, false, -1, &s_threat_units);
+}
+
+static int case_threat_ring_mixed_stack(void) {
+  /* Brave below a Dutch head: Dutch tile, both units sum -> 3 + 4. */
+  const int dutch_head = heresy_with_stack(4, 2);
+  /* Dutch unit in the lowest slot under a Brave head: tile abandoned -> 3. */
+  const int brave_head = heresy_with_stack(2, 4);
+  if (dutch_head != 7 || brave_head != 3) {
+    fprintf(stderr, "threat ring: dutch_head=%d brave_head=%d\n", dutch_head, brave_head);
+    return fail("ring owner is the chain head; the sum takes every armed unit (#768)");
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+    {"case_threat_ring_mixed_stack", case_threat_ring_mixed_stack},
     {"case_heresy_presence_dos_distance", case_heresy_presence_dos_distance},
     {"case_heresy_human_difficulty", case_heresy_human_difficulty},
     {"case_heresy_third_nation_seeds_mission", case_heresy_third_nation_seeds_mission},
