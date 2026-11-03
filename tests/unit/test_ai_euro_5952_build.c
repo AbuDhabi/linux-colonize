@@ -921,7 +921,7 @@ static int case_tools_purchase_records_buy_volume(void) {
   return ok ? 0 : fail("#640: 20-tool buy must write the separate 1d80 trade ledger");
 }
 
-/* dos_bugs.md DB-64 (playtest C3-O3): FUN_281f_0614's any-nation rebind
+/* dos_bugs_ai.md DB-64 (playtest C3-O3): FUN_281f_0614's any-nation rebind
  * (raw 76902) takes an AI neighbour's colony, never a human-controlled one. */
 static int case_0614_rebind_spares_human_colony(void) {
   Fx f;

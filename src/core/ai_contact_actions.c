@@ -1463,6 +1463,7 @@ static void ai_contact_denounce_heresy(
       if (v->state.capital) {
         village_pull <<= 1;
       }
+      /* Per-village owner; DOS compares two loop invariants: dos_bugs.md DB-69. */
       if ((int)(v->mission & COL1_TRIBE_MISSION_NATION_MASK) == e) {
         mine += village_pull;
       } else {

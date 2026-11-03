@@ -3,7 +3,7 @@
 STATUS: complete 2026-10-23. The port plays saves 000001..000014 (turn 80, 1572 .. turn 94, 1586)
 byte-identical to DOS, continuously and with a save/reload before every turn. CTests
 `golden_idle_america2` and `golden_idle_america2_reload` run `golden_idle_campaign america2 1 14`.
-Save 15 turns on a DOS read of an uninitialised stack word ([dos_bugs.md](dos_bugs.md) DB-4), so
+Save 15 turns on a DOS read of an uninitialised stack word ([dos_bugs_ai.md](dos_bugs_ai.md) DB-4), so
 the archive ends at 14 (saves 13 and 14 restored 2026-10-23 after the hull-step writer,
 port_bugs.md #1135). Triage and fix history:
 git history (`docs/archive/idle_america2_fixed_2026-10-21_23.md`,

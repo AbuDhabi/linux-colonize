@@ -404,7 +404,7 @@ COLONIZE_INTERNAL AiNativeStepStatus ai_native_brave_step(
    * (u+0x314a < 0 or >= DS:0x539a) is destroyed (FUN_281f_0808), not
    * re-homed; 021a returns -1 and 14fe's "step" lands on the freed slot.
    *
-   * DOS-LITERAL deviation (port_bugs.md #826): DOS returns -1 here and its
+   * DOS-LITERAL deviation (port_bugs.md #826, dos_bugs_ai.md DB-72): DOS returns -1 here and its
    * caller FUN_4d56_14fe, which only tests the result against 8, then
    * dereferences the freed unit record — a use-after-free the port does not
    * reproduce. The port STOPs the Brave cleanly instead. This is the one

@@ -127,7 +127,7 @@ int ai_euro_20e6_delivery_tallies(
     if (ct > max_type) {
       max_type = ct;
     }
-    /* DOS bug not reproduced (docs/dos_bugs.md DB-25): DOS keeps the tally in
+    /* DOS bug not reproduced (docs/dos_bugs_ai.md DB-25): DOS keeps the tally in
      * a signed byte (`ADD byte [BP+SI-0xc6],AL`, overlays asm 136273), so two
      * 100-lots of one cargo read -56. */
     tally[ct] += amt;
@@ -2215,7 +2215,7 @@ int ai_euro_20e6_unload_mask_snapshot(
     }
     /* FUN_521d_20e6 raw 89463/89470: DOS resets local_9c here, inside the loop
      * (so only the last land neighbour counts, and a rejected shore clears the
-     * previous one). DOS bug not reproduced (docs/dos_bugs.md DB-26): the mask
+     * previous one). DOS bug not reproduced (docs/dos_bugs_ai.md DB-26): the mask
      * is reset once before the loop and accumulates over the neighbours. */
     const int cid = map_continent_id_at(ctx->map, ax, ay);
     if (cid < 0 || ai_euro_continent_stance_at(nation, cid) == 0) {

@@ -703,7 +703,7 @@ static void ai_indian_152e_village_growth(
     }
     if (threat_nation >= 0) {
       int threat_alarm_gain = threat_score << (capital_mult ? 1 : 0); /* DOS local_c */
-      /* DOS bug not reproduced (docs/dos_bugs.md DB-31): the accumulator is
+      /* DOS bug not reproduced (docs/dos_bugs_ai.md DB-31): the accumulator is
        * a signed byte (raw 81503, `*pcVar2 - (char)local_c`), so a
        * threat >= 128 wraps it positive and cools instead of heating; the
        * port saturates at -128. */

@@ -3,7 +3,7 @@
 STATUS: complete 2026-10-21. The port plays saves 000001..000063 (turn 9, 1501 .. turn 77, 1569)
 byte-identical to DOS, continuously and with a save/reload before every turn. CTests
 `golden_idle_america` and `golden_idle_america_reload` run `golden_idle_campaign america 1 63`.
-Save 64 turns on a DOS read of an uninitialised stack word ([dos_bugs.md](dos_bugs.md) DB-4), so
+Save 64 turns on a DOS read of an uninitialised stack word ([dos_bugs_ai.md](dos_bugs_ai.md) DB-4), so
 the archive was trimmed to 1..63. Fix history:
 git history (`docs/archive/idle_america_fixed_2026-10-19_21.md`,
 deleted 2026-10-28). Sister campaigns (done):

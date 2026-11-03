@@ -134,7 +134,7 @@ Continue / Zoom rows, MSS figure; popups.md "Colony-event choices"). The
 | `@CANCELPEACE` | Done | DIPLO_* CHOICE structural; 10ec AI→human war-declare CHOICE prompt body now the real GAME.TXT line via `popup_msg_fill` |
 | `@SIGNTREATY` | Done | DIPLO_* CHOICE structural; peace-concluded OK popup body now the real GAME.TXT line via `popup_msg_fill` (Tools-embargo-lift chrome may override) |
 | `@DECLAREWAR` | Done | DIPLO_* CHOICE structural; war-declared OK popup body now the real GAME.TXT line via `popup_msg_fill` (boycott/hostility chrome may override); also `13b0` treaty-cancel-without-peace notice (2026-08-27) |
-| `@CANCELTREATY` | n/a — DOS shows nothing | `FUN_5bfb_13b0` cancel branch pushes tag `0x1898`, which no `COLONIZE/*.TXT` ships, so DOS cancels the treaty silently (popups.md "Missing sections show nothing"). Data bug [dos_bugs.md](dos_bugs.md) DB-52: the port shows a port-authored notice when the section is missing; a GAME.TXT that ships it wins |
+| `@CANCELTREATY` | n/a — DOS shows nothing | `FUN_5bfb_13b0` cancel branch pushes tag `0x1898`, which no `COLONIZE/*.TXT` ships, so DOS cancels the treaty silently (popups.md "Missing sections show nothing"). Data bug [dos_bugs_ai.md](dos_bugs_ai.md) DB-52: the port shows a port-authored notice when the section is missing; a GAME.TXT that ships it wins |
 | `@HAVETREATY` | Done | euro-attack confirm gate in `ai_contact.c` (real GAME.TXT body via `popup_msg_fill`, 2026-09-01) |
 | `@WHACKINDIANS` | Done (structural) | `FUN_465b_0000` → `ai_contact_try_whack_confirm` (2026-08-27): Yes/No before the first attack on a calm tribe, asked once (bit 0x04); real GAME.TXT body via `popup_msg_fill` |
 | `@VILLAGEHAPPY` | Done | Village-meet body picked by alarm band (`ai_contact_enqueue_village_meet`, `ai_contact.c`) — real GAME.TXT via `popup_msg_fill`; the tag itself is built at runtime from the DS `"VILLAGE"` stem (0x1710) + band suffix, as in DOS. Confirmed 2026-09-16 |
@@ -382,7 +382,7 @@ Continue / Zoom rows, MSS figure; popups.md "Colony-event choices"). The
 | `@NOTHINGWITHDRAW` | Done | `FUN_5bfb_153e` encounter dialog — live in the `ai_diplo.c` talk machine (2026-09-06) |
 | `@MAYBEWITHDRAW` | Done | `FUN_5bfb_153e` encounter dialog — live in the `ai_diplo.c` talk machine (2026-09-06) |
 | `@PROVOKE` | Done | 153e worthy cascade, 1st leg (`worthy && at_peace && score >= 0x65`) → war; also the PEACEMENU threat arm |
-| `@WARMEEK` | Done | 153e WAR+tone tail; showing @GIVECASH forces the MEEK tone in DOS (raw :98017); the port keeps the encounter tone ([dos_bugs.md](dos_bugs.md) DB-51) |
+| `@WARMEEK` | Done | 153e WAR+tone tail; showing @GIVECASH forces the MEEK tone in DOS (raw :98017); the port keeps the encounter tone ([dos_bugs_ai.md](dos_bugs_ai.md) DB-51) |
 | `@WARMANLY` | Done | 153e WAR+tone tail **and** the post-tribute war declaration (raw :97960, `score == 999`) — 2nd leg ported 2026-09-08 |
 | `@THREATS` | Done | `FUN_5bfb_153e` encounter dialog — live in the `ai_diplo.c` talk machine (2026-09-06) |
 | `@GIFTS` | Done | `FUN_5bfb_153e` encounter dialog — live in the `ai_diplo.c` talk machine (2026-09-06) |

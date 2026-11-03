@@ -756,6 +756,58 @@ static int pioneer_training_skipped_past_turn_99(void) {
 }
 
 /*
+ * TB-56 (C-71): the dispatch-0 Pioneer training writes only the type in DOS
+ * (raw 92770-92783), so the Pioneer keeps the record's tools byte (0 here);
+ * opencol (dos_buggy_behavior() off) gives it the 100 tools it paid for.
+ */
+static int pioneer_training_tools(void) {
+  const int nation = 1;
+  for (int buggy = 0; buggy < 2; ++buggy) {
+    int checked = 0;
+    for (int s = 0; s < 24 && !checked; ++s) {
+      Fixture f;
+      if (fixture_init(&f, nation, 99, (unsigned)(7 + s * 13)) != 0) {
+        return 1;
+      }
+      f.col1.stuff.colony_counts[nation] = 0;
+      f.col1.stuff.colony_pop_totals[nation] = 0;
+      f.col1.stuff.free_colonist_counts[nation] = 0;
+      f.col1.stuff.unit_type_counts[nation][2] = 2;
+      f.col1.nation[nation].gold = 5000;
+      f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_TOOLS] = 1;
+      f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_MUSKETS] = 200;
+      if (spawn_europe_ship(&f, nation) < 0 || spawn_europe_colonist(&f, nation, 0, 0x1c) < 0) {
+        fixture_free(&f);
+        return fail("spawn europe stack");
+      }
+      dos_buggy_behavior_set(buggy != 0);
+      ai_euro_dispatcher_turn(&f.ctx, nation);
+      dos_buggy_behavior_set(true);
+      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+        const ColonizeUnit* u = &f.units.units[i];
+        if (!u->active || u->nation_id != nation ||
+            strcmp(units_display_name(&f.units, u), "Pioneer") != 0) {
+          continue;
+        }
+        const int want = buggy ? 0 : 100;
+        if (u->tools != want) {
+          fprintf(stderr, "buggy=%d seed %u: Pioneer tools %d, want %d\n", buggy,
+                  (unsigned)(7 + s * 13), u->tools, want);
+          fixture_free(&f);
+          return fail("5d04 Pioneer training tools");
+        }
+        checked = 1;
+      }
+      fixture_free(&f);
+    }
+    if (!checked) {
+      return fail("no seed trained a Pioneer");
+    }
+  }
+  return 0;
+}
+
+/*
  * port_bugs.md #1135 (america resync 157): the Pioneer arm's two rolls miss with
  * `goto LAB_521d_638a` (raw 92749, 92754), past the Missionary arm. Turn 105
  * (> 99, % 7 == 0) with 2 own Pioneers: whenever the first rng(0,2) passes,
@@ -1185,6 +1237,7 @@ static const TestCase k_cases[] = {
     {"recruit_swap_spawns_sentry_and_refills_pool", recruit_swap_spawns_sentry_and_refills_pool},
     {"pioneer_training_skipped_past_turn_99", pioneer_training_skipped_past_turn_99},
     {"pioneer_roll_miss_skips_missionary_arm", pioneer_roll_miss_skips_missionary_arm},
+    {"pioneer_training_tools", pioneer_training_tools},
     {"dock_walk_is_newest_first", dock_walk_is_newest_first},
     {"missionary_bless_roll_matches_dos_one_in_four", missionary_bless_roll_matches_dos_one_in_four},
     {"dos_type_table_is_names_txt_unit_order", dos_type_table_is_names_txt_unit_order},

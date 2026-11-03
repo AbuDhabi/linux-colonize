@@ -27,9 +27,9 @@ Harmless for Cavalry->Regulars (sprite and name derive from type); required by
 the port's armed-colonist body model for Dragoons->Soldiers. Leave unless kit
 bytes ever feed a REF display.
 
-### #780 — moved to dos_bugs.md DB-10
+### #780 — moved to dos_bugs_ai.md DB-10
 DOS writes profession 0xff; the port guards the write. DOS is the buggy side,
-so the entry now lives in [dos_bugs.md](dos_bugs.md) DB-10 (2026-10-22).
+so the entry now lives in [dos_bugs_ai.md](dos_bugs_ai.md) DB-10 (2026-10-22).
 
 ### #908 — Colonist jobs menu is narrower than FUN_2f2b_348c
 DOS's jobs menu also lists the leave-as rows @JOB 0x13..0x18 in the same list

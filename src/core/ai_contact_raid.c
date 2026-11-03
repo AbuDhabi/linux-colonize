@@ -151,12 +151,12 @@ static int ai_contact_raid_roll_stores_cargo(
   do {
     i = i + 1;
     cargo = dos_rng_range(rng, 0, 0xf);
-    /* DOS tests the rolled cargo's pile, not the horses (dos_bugs.md DB-49). */
+    /* DOS tests the rolled cargo's pile, not the horses (dos_bugs_ai.md DB-49). */
     if (ind && ind->horse_herds == 0 && i == 1 && c->stock[COLONIZE_CARGO_HORSES] > 0x34 &&
         dos_rng_range(rng, 0, 1) == 0) {
       cargo = COLONIZE_CARGO_HORSES;
     }
-    /* DOS bug not reproduced (docs/dos_bugs.md DB-29): DOS burns a dummy
+    /* DOS bug not reproduced (docs/dos_bugs_ai.md DB-29): DOS burns a dummy
      * rand(0,200) here for Muskets (raw 99826-99829; asm 5fef:1119-1135
      * computes rand - difficulty*i into CX and never reads it). */
   } while (i < 100 && c->stock[cargo] < 10);
@@ -327,7 +327,7 @@ COLONIZE_INTERNAL AiRaidKind ai_contact_pick_raid_kind(
         }
         break;
       }
-      /* dos_bugs.md DB-50: the walk down burns a Church under its Cathedral.
+      /* dos_bugs_ai.md DB-50: the walk down burns a Church under its Cathedral.
        * The port burns the top owned tier instead. Warehouse and Capitol keep
        * the base row: their apply arm takes one level off the counter. */
       const int chain = colonies_building_row_chain(row);

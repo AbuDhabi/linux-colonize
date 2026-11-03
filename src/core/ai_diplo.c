@@ -213,7 +213,7 @@ void ai_diplo_indian_capital_surrender(
       ColonizeCol1Tribe* t = &col1->tribe[ti];
       /* FUN_5fef_1b0e raw 101293-101298: the zeroing loop compares each
        * settlement's +2 nation byte (4..11) with the TRIBE index at DS:0x8d52
-       * (0..7). DOS bug not reproduced (docs/dos_bugs.md DB-22): DOS thereby
+       * (0..7). DOS bug not reproduced (docs/dos_bugs_ai.md DB-22): DOS thereby
        * clears the dwellings of the wrong tribe (America seed-100 resync 236:
        * Sioux capital razed, three dwellings kept 32); the port clears the
        * razed tribe's own (nation byte == tribe index + 4). */
@@ -1226,7 +1226,8 @@ Ai153eWorthinessScore ai_diplo_153e_worthiness_score(
   }
   out.forced = forced_conflict; /* raw iStack_c survives to phase 2's tally gate */
 
-  /* raw 545-563: final scaling. */
+  /* raw 545-563: final scaling. 32-bit here; DOS wraps at 16 bits
+   * (dos_bugs_ai.md DB-68). */
   int scaled = ((difficulty + 8) * combat_delta_sum * 10) / 100;
   if (!at_war) {
     combat_delta_sum = scaled >> 2;
@@ -1984,6 +1985,7 @@ static AiTalkStepStatus ai_talk_stage_ally_pick(
       continue;
     }
     if (p >= 4 && p <= 11 &&
+        /* DOS hands 0a42 the unshifted id here: dos_bugs_ai.md DB-67. */
         (col1->tribe == NULL || col1->indian[p - 4].extinct || /* 5bfb:2da9 test [0x8d4e+3],0x80 */
          (col1->indian[p - 4].euro_diplo[h] & COL1_INDIAN_MET_BIT) == 0)) {
       continue;
@@ -2208,7 +2210,7 @@ static void ai_talk_resume(ColonizeTurnContext* ctx, int stage, int choice) {
          * DOS (OVL16 asm 0x2995-0x29B2) indexes the colony stock rows with
          * [bp-0xa2], the loop counter left at 4 by the euro rival-tally
          * do-while, not the picked cargo [bp-0xb2], so it always moves Furs.
-         * The port moves the named cargo (docs/dos_bugs.md DB-8). want_amount
+         * The port moves the named cargo (docs/dos_bugs_ai.md DB-8). want_amount
          * was capped to the source stock when picked; the floor is a guard.
          * Receiver is uncapped like DOS.
          */
@@ -2249,7 +2251,7 @@ static void ai_talk_resume(ColonizeTurnContext* ctx, int stage, int choice) {
          * OVL16 listing at euro_diplo_153e_full.md:1377): showing the
          * @GIVECASH offer overwrites the shared tone buffer with "MEEK", so
          * DOS's refusal after an offer is always @WARMEEK. The port keeps the
-         * encounter tone, as the no-offer path does (dos_bugs.md DB-51).
+         * encounter tone, as the no-offer path does (dos_bugs_ai.md DB-51).
          * %STRING0/1 per the 0618/0416 operands, as in the cascade legs.
          */
         const char* gl2 = ai_talk_great_line(ctx, "GREATLEADER2", t);
@@ -2921,7 +2923,7 @@ static void ai_diplo_13b0_treaty_tick(ColonizeTurnContext* ctx, int a, int b) {
      * DOS 13b0 cancel branch shows tag 0x1898 = "CANCELTREATY" — but
      * GAME.TXT ships NO @CANCELTREATY section, so the dialog open fails and
      * real DOS cancels the treaty silently (bits/timers only, no popup).
-     * That is a data bug (dos_bugs.md DB-52): the port shows a
+     * That is a data bug (dos_bugs_ai.md DB-52): the port shows a
      * port-authored notice when the section is missing.
      */
     body[0] = '\0';
@@ -2930,7 +2932,7 @@ static void ai_diplo_13b0_treaty_tick(ColonizeTurnContext* ctx, int a, int b) {
     } else if (ctx->messages && assets_msg_find(ctx->messages, "CANCELTREATY")) {
       popup_msg_fill(ctx->messages, "CANCELTREATY", &tok, NULL, body, sizeof(body));
     } else {
-      /* dos_bugs.md DB-52: port-authored notice for the missing section. */
+      /* dos_bugs_ai.md DB-52: port-authored notice for the missing section. */
       snprintf(body, sizeof(body), "The %s cancel their treaty with the %s.",
                na ? na : "", nb ? nb : "");
     }

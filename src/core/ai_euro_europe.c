@@ -651,16 +651,21 @@ static void ai_euro_5d04_cb_set_unit_dispatch_byte(int idx, int value) {
   } else if (value == 4) {
     u->muskets = 50;
     u->horses = 50;
-  } else if (value == 2 && u->col1_hold_raw_valid && u->col1_hold_raw[9] > 100) {
-    /* The record's +0x3159 is a residue byte the export keeps raw on a
-     * non-Pioneer (col1_bridge.c); as a Pioneer it now reads as tools
-     * (america seed-100 192->193: a French Pioneer bought with 236). */
-    u->tools = u->col1_hold_raw[9];
+  } else if (value == 2) {
+    /* TB-56 (C-71): DOS FUN_521d_5d04 raw 92770-92783 writes only the type
+     * (+ the 291f_0c14(0xe, 100) market booking for 100 tools); +0x3159 keeps
+     * whatever the record held, usually 0 (continuous 1587: the Spanish
+     * Pioneer saves tools 0), and FUN_479b_0158 then wraps it to 236..
+     * (#628, #636). Fixed: the Pioneer carries the 100 tools it paid for. */
+    if (!dos_buggy_behavior()) {
+      u->tools = 100;
+    } else if (u->col1_hold_raw_valid && u->col1_hold_raw[9] > 100) {
+      /* The record's +0x3159 is a residue byte the export keeps raw on a
+       * non-Pioneer (col1_bridge.c); as a Pioneer it now reads as tools
+       * (america seed-100 192->193: a French Pioneer bought with 236). */
+      u->tools = u->col1_hold_raw[9];
+    }
   }
-  /* value == 2: DOS-LITERAL FUN_521d_5d04 raw 92770-92783 writes only the
-   * type (+ the 291f_0c14(0xe, 100) market booking); +0x3159 keeps whatever
-   * the record held, usually 0 (continuous 1587: the Spanish Pioneer saves
-   * tools 0). units_is_pioneer is type-only and 0158 wraps, so it works. */
 }
 static int ai_euro_5d04_cb_unit_profession(int idx) {
   const ColonizeUnit* u = ai_euro_5d04_cb_unit(idx);
@@ -1408,7 +1413,7 @@ static void ai_euro_5d04_hire_tail_colony_demand(Ai5d04HireTail* t) {
   /* raw 92810-92982: colony demand vs. purchase loop. `local_24` is read
    * by the departing-ship loop (raw 93020) whether or not this block
    * runs; DOS leaves it unset when skipped. The port starts it at 0
-   * instead: docs/dos_bugs.md DB-5. */
+   * instead: docs/dos_bugs_ai.md DB-5. */
   int colony_demand_total = 0;
   int colony_demand_base = ai_euro_5d04_cb_colony_demand_query(dock_head_idx, 4); /* DOS local_22 */
   if (woi) {
@@ -1430,7 +1435,7 @@ static void ai_euro_5d04_hire_tail_colony_demand(Ai5d04HireTail* t) {
       }
     }
     if (dock_artillery == 0 && colony_demand_total > 5) {
-      uint32_t adj = 0;
+      uint32_t adj = 0; /* DOS leaves local_38 unset before turn 40: dos_bugs_ai.md DB-73 */
       if (turn > 0x27) {
         adj = (uint32_t)((difficulty - 10) * -100);
       }

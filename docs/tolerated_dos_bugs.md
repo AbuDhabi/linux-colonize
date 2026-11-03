@@ -803,3 +803,21 @@ cannot alternate tiers. A near-flood miss still falls back to the far tier.
 **Blocks removal:** tried ungated 2026-10-31: fails all six idle gates
 (`golden_idle_continuous`, `_america`, `_america2` and their `_reload`s).
 **Status:** tolerated (user, 2026-10-31). Fixed in opencol 2026-10-31, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.
+
+### TB-56 — 5d04 Pioneer training leaves the tools byte stale
+Was dos_bug_candidates_2026-10-22.md C-71.
+**DOS:** `FUN_521d_5d04` raw 92770-92783 turns a dock Colonist into a Pioneer
+(dispatch byte 2) and books 100 tools on the market (`291f_0c14(0xe, 100)`),
+but writes only the type: +0x3159 keeps whatever the record held (usually 0),
+and `FUN_479b_0158` then wraps it to 236.. on the first improvement (#628, #636).
+
+**Effect:** AI Pioneers bought this way start with 0 (or residue) tools although
+the nation paid for 100.
+
+**Port (reproduces it):** `ai_euro_5d04_cb_set_unit_dispatch_byte`
+(`src/core/ai_euro_europe.c`), value 2 arm. The fix sets `tools = 100`.
+Test: `unit_ai_euro_5d04_hire` `pioneer_training_tools`.
+
+**Blocks removal:** tried ungated 2026-11-03: fails `golden_idle_continuous` and
+`golden_idle_reload`.
+**Status:** tolerated (user, 2026-11-03). Fixed in opencol 2026-11-03, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.

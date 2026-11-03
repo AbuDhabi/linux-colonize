@@ -1718,7 +1718,7 @@ static int sp_23(void) {
      * port_bugs.md #924: the burn arm has no DOS lumber/construction step — it
      * rolls an owned @BUILDING row; DOS then walks the chain DOWN to the
      * lowest owned tier (FUN_5fef_0f14 raw 99832-99863), the port burns the
-     * top owned tier (dos_bugs.md DB-50). Church (0x25) / Cathedral
+     * top owned tier (dos_bugs_ai.md DB-50). Church (0x25) / Cathedral
      * (0x26) are legal targets, the Town Hall chain (root 9) never is.
      */
     colonies.building_type_count = 3;
@@ -1757,7 +1757,7 @@ static int sp_23(void) {
     if (!c_burn->has_building[0]) {
       return fail("BURN must never burn the Town Hall chain (0a88 root 9)");
     }
-    /* dos_bugs.md DB-50: the top owned tier burns (DOS: the Church). */
+    /* dos_bugs_ai.md DB-50: the top owned tier burns (DOS: the Church). */
     if (c_burn->has_building[2]) {
       return fail("BURN should clear the Cathedral, the chain's top owned tier");
     }

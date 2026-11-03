@@ -209,7 +209,7 @@ static int ai_euro_5952_plot_job(const ColonizeColony* col, int plot) {
 /*
  * The colony DS:0x8542 holds after a phantom Pioneer's road (TB-14): FUN_479b_0526
  * rebinds it to the colony nearest the road of ANY nation (FUN_281f_0614 filter
- * -1, raw 76902). dos_bugs.md DB-64: a human-controlled colony is never taken
+ * -1, raw 76902). dos_bugs_ai.md DB-64: a human-controlled colony is never taken
  * (the AI tick rewrote its jobs and build, playtest C3-O3); the ticking colony
  * keeps the charge and the rest of the tick.
  */
@@ -582,7 +582,7 @@ static int ai_euro_5952_road_connect_0000(ColonizeTurnContext* ctx, ColonizeColo
     /* local_18 / local_1e: DOS seeds them from the colony ONCE (raw 93599-93600)
      * and every walk steps them, so a later candidate's |dx|/|dy| test and
      * walk start from wherever the last walk stopped. DOS bug not reproduced
-     * (docs/dos_bugs.md DB-23): the port restarts at the colony for each
+     * (docs/dos_bugs_ai.md DB-23): the port restarts at the colony for each
      * candidate. */
     int cx = col->x;
     int cy = col->y;
@@ -1062,7 +1062,7 @@ int ai_euro_10ec_war_worthy(const ColonizeTurnContext* ctx, int a, int b) {
     /* For each of a/b: met-but-unpeaced with the focus nation only passes when the
      * focus nation is no stronger (−0x6be4 word, −0x6bf0 byte). DOS compares
      * b's word but a's −0x6bf0 byte in the second clause (raw 97172-97173,
-     * copy-paste slip). DOS bug not reproduced (docs/dos_bugs.md DB-27): b's
+     * copy-paste slip). DOS bug not reproduced (docs/dos_bugs_ai.md DB-27): b's
      * byte is compared. */
     const int fa = col1->nation[a].euro_relation[focus] & (AI_DIPLO_PEACE | AI_DIPLO_MET);
     if (fa == AI_DIPLO_MET &&
@@ -2360,10 +2360,10 @@ int ai_euro_20e6_wander_step(
        * DOS then reads `FUN_15b3_0004(nation, −1)` = the byte before the
        * nation's relation row (nation[n−1] +0x13b, a trade-table tail byte;
        * DS:0x883b for nation 0) — a stray read whose value is not knowable
-       * statically. The port stands in with the relation to the occupant's
-       * nation, which is the only reading under which the arm is coherent
-       * (port_bugs.md #521, 2026-09-22: without it a foe on unclaimed land was
-       * never scored and land units went passive).
+       * statically. The port takes the relation to the occupant's nation
+       * instead (DOS bug, docs/dos_bugs_ai.md DB-71; port_bugs.md #521,
+       * 2026-09-22: without it a foe on unclaimed land was never scored and
+       * land units went passive).
        */
       const int partner = owner >= 0 ? owner : (hu ? hu->nation_id : -1);
       const int rel = ai_euro_20e6_diplo(ctx->col1, nation, partner);
@@ -2776,7 +2776,7 @@ static int ai_euro_20e6_ring_hop(ColonizeTurnContext* ctx, ColonizeUnit* u, cons
   }
   /* raw 90126-90138 (dup 85300): DOS stores the signed max(dx*4, dy*4), so a
    * NW-side slot stores -4 and the countdown runs ~252 steps. DOS bug not
-   * reproduced (docs/dos_bugs.md DB-28): store the larger absolute value. */
+   * reproduced (docs/dos_bugs_ai.md DB-28): store the larger absolute value. */
   const int hax = hx < 0 ? -hx : hx;
   const int hay = hy < 0 ? -hy : hy;
   sc[1] = (uint8_t)(hax < hay ? hay : hax); /* raw 2447-2453 */
@@ -2999,6 +2999,7 @@ int ai_euro_20e6_missionary_arm(ColonizeTurnContext* ctx, ColonizeUnit* u, int n
       const bool human_ok = human >= 0 && human < 4;
       if (europe_nation_gold(ctx->europe, ctx->col1, nation_id) < 0x9c4u ||
           (human_ok && ai_diplo_indian_alarm(col1, tn, human) > 0x4a) ||
+          /* DOS 8c28 passes the tribe index without +4: dos_bugs_ai.md DB-70. */
           (human_ok && (col1->indian[tn - 4].euro_diplo[human] & COL1_INDIAN_MET_BIT) == 0) ||
           (human >= 0 && human < 4 && ctx->euro_power_rank_ok &&
            ctx->euro_power_rank[human] <= ctx->euro_power_rank[nation_id])) {

@@ -280,7 +280,7 @@ COLONIZE_INTERNAL Ai021aDirStatus ai_021a_dir_tile(struct ai_021a_ctx* c) {
     att = (owner < 4 && village) ? col1_tribe_attitude(village, owner) : 0;
     if (owner >= 4) {
       hostile = 0;
-      /* DOS bug not reproduced (docs/dos_bugs.md DB-30): DOS skips the
+      /* DOS bug not reproduced (docs/dos_bugs_ai.md DB-30): DOS skips the
        * grudge store on this other-tribe arm (OVL13 0x6af-0x6ba), so the
        * previous direction's latch carries over; the port clears it. */
       grudge = 0;

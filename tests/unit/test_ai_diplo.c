@@ -1730,7 +1730,7 @@ static int case_153e_wantstuff_demand(void) {
     if (!saw_wantstuff) {
       return fail("153e wantstuff: the goods demand CHOICE must be queued");
     }
-    /* docs/dos_bugs.md DB-8: the NAMED cargo moves (DOS moves Furs). */
+    /* docs/dos_bugs_ai.md DB-8: the NAMED cargo moves (DOS moves Furs). */
     if (qcol.colonies[1].stock[COLONIZE_CARGO_MUSKETS] != 60 ||
         qcol.colonies[0].stock[COLONIZE_CARGO_MUSKETS] != 0) {
       fprintf(stderr, "unit_ai_diplo: muskets src=%d dst=%d\n",
