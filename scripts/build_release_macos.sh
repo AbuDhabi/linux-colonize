@@ -378,7 +378,8 @@ for banned in readline sndfile portaudio FLAC vorbis opus mpg123 mp3lame ogg; do
     fi
   done
 done
-[ -f "$PKG_DIR/lib/libfluidsynth.3.dylib" ] || { echo "error: lib/libfluidsynth.3.dylib missing" >&2; exit 1; }
+# dylibbundler names it after the real file (libfluidsynth.3.<minor>.<patch>.dylib).
+ls "$PKG_DIR"/lib/libfluidsynth.3*.dylib >/dev/null 2>&1 || { echo "error: lib/libfluidsynth.3*.dylib missing" >&2; exit 1; }
 # The oldest macOS the package loads on is the newest deployment target of any
 # binary in it (Homebrew bottles target the macOS of their build machine).
 MINOS="$(sort -V "$MINOS_LIST" | tail -n 1)"
