@@ -83,7 +83,8 @@ echo "== FluidSynth $FLUID_VER (shared, minimal) =="
 # Same switches as build_static_deps.sh, plus the ones that default ON on macOS
 # or are not on Linux: portaudio is off by default, ladspa/midishare are
 # disabled, enable-framework=OFF gives a plain dylib. CoreAudio and CoreMIDI
-# stay on.mkdir -p "$FS_SRC"
+# stay on.
+mkdir -p "$FS_SRC"
 if [ ! -f "$FS_SRC/fluidsynth-$FLUID_VER.tar.gz" ]; then
   curl -fL --retry 3 -o "$FS_SRC/fluidsynth-$FLUID_VER.tar.gz.part" "$FLUID_URL"
   mv "$FS_SRC/fluidsynth-$FLUID_VER.tar.gz.part" "$FS_SRC/fluidsynth-$FLUID_VER.tar.gz"
