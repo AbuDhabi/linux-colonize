@@ -634,8 +634,8 @@ int ai_contact_meet_economics_2154(
 
   for (int y = ty - 2; y <= ty + 2; ++y) {
     for (int x = tx - 2; x <= tx + 2; ++x) {
-      if (x < 0 || y < 0 || x >= ctx->map->width || y >= ctx->map->height) {
-        continue;
+      if (!map_coords_inset(ctx->map, x, y)) {
+        continue; /* raw 81958: FUN_281f_0302, the interior test */
       }
       const int lx = x - tx + 2;
       const int ly = y - ty + 2;

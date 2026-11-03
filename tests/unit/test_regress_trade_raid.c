@@ -528,7 +528,65 @@ static int case_threat_ring_mixed_stack(void) {
   return 0;
 }
 
+/*
+ * FUN_4d56_2154 phase 2 (raw 81956-81959) gates every tribe +-2 tile on
+ * FUN_281f_0302 (FUN_137f_000a, 1 <= x < width-1, 1 <= y < height-1).
+ * A village at (1,1) has 7 tiles of its +-2 window on row 0 / column 0.
+ * DOS never reads them, so turning them from mountains (no bucket at
+ * tech 0) into plains must not move any bid or ask.
+ */
+static int meet_econ_rim(int rim_terrain, AiContactMeetEcon2154* out) {
+  const int vx = 1;
+  static ColonizeCol1Save col1;
+  static ColonizeCol1Tribe tribe;
+  ColonizeWorldMap map;
+  char err[128];
+  memset(&map, 0, sizeof(map));
+  if (!map_alloc(&map, 8, 8, err, sizeof(err))) {
+    return 0;
+  }
+  for (int y = 0; y < 8; ++y) {
+    for (int x = 0; x < 8; ++x) {
+      const int inner = x >= vx && x <= vx + 2 && y >= vx && y <= vx + 2;
+      const int rim = x == 0 || y == 0;
+      map.terrain[y * 8 + x] = rim ? rim_terrain : inner ? 3 : 0xa0; /* 0xa0 = mountains */
+      map.layer3[y * 8 + x] = 0xf1;
+    }
+  }
+  col1_save_init(&col1);
+  memset(&tribe, 0, sizeof(tribe));
+  tribe.nation_id = 4;
+  tribe.x = (uint8_t)vx;
+  tribe.y = (uint8_t)vx;
+  tribe.population = 4;
+  col1.indian[0].tech = 0;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.map = &map;
+  const int ok = ai_contact_meet_economics_2154(&ctx, 4, &tribe, out);
+  map_free(&map);
+  return ok;
+}
+
+static int case_meet_econ_skips_map_rim(void) {
+  AiContactMeetEcon2154 a;
+  AiContactMeetEcon2154 b;
+  if (!meet_econ_rim(0xa0, &a) || !meet_econ_rim(3, &b)) {
+    return fail("2154 rim fixture did not run");
+  }
+  if (a.bid[0] <= 0 || memcmp(a.bid, b.bid, sizeof(a.bid)) != 0 ||
+      memcmp(a.ask, b.ask, sizeof(a.ask)) != 0) {
+    fprintf(stderr, "2154 rim: mountain rim bid0=%d bid3=%d, plains rim bid0=%d bid3=%d\n",
+            a.bid[0], a.bid[3], b.bid[0], b.bid[3]);
+    return fail("2154 phase 2 must skip the map rim (FUN_281f_0302)");
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+    {"case_meet_econ_skips_map_rim", case_meet_econ_skips_map_rim},
     {"case_threat_ring_mixed_stack", case_threat_ring_mixed_stack},
     {"case_heresy_presence_dos_distance", case_heresy_presence_dos_distance},
     {"case_heresy_human_difficulty", case_heresy_human_difficulty},
