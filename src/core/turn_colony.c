@@ -330,14 +330,6 @@ static void turn_notify_dock_immigrant(
     "EUROPE immigrant on the docks: %s (crosses)",
     immigrant_name && immigrant_name[0] ? immigrant_name : ""
   );
-  if (ctx->status && ctx->status_size > 0) {
-    snprintf(
-      ctx->status,
-      ctx->status_size,
-      "Immigrant arrives in Europe: %s",
-      immigrant_name && immigrant_name[0] ? immigrant_name : ""
-    );
-  }
   /* 5e52 raw 68596-68600: with tutorial hints on (DS:0x5382 bit7) the
    * first such immigrant also gets @TUTORIAL5, once (DS:0x5387 bit0). */
   const bool tutorial5 = ctx->col1_ok && ctx->col1 &&
@@ -423,22 +415,14 @@ static void turn_woi_bell_test(ColonizeTurnContext* ctx, int n, int bells) {
   {
     const unsigned pool = founding_fathers_bells_pool(ctx->col1, n);
     const unsigned needed = founding_fathers_bells_needed(ctx->col1, n);
-    founding_fathers_woi_intervention_chrome(ctx, n, pool, needed);
     if (pool < needed) {
       return;
     }
     if (ai_king_spend_woi_bell_pool(ctx, n)) {
+      /* port_bugs.md #538: the bell spend only ANNOUNCES (DOS 0a22 ->
+       * FUN_43f7_1528); the force itself lands from 2022's free drain
+       * on a later turn. */
       founding_fathers_consume_woi_bell_pool(ctx, n);
-      if (ctx->status && ctx->status_size > 0 && n == ctx->human_nation) {
-        /* port_bugs.md #538: the bell spend only ANNOUNCES (DOS 0a22 ->
-         * FUN_43f7_1528); the force itself lands from 2022's free drain
-         * on a later turn. */
-        snprintf(
-          ctx->status,
-          ctx->status_size,
-          "Foreign intervention force joins the rebellion!"
-        );
-      }
     }
   }
 }
@@ -709,9 +693,6 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
         /* Headless: DOS 4884 resolves the pick inside 5e52, before the colony
          * tick; an idle player's Space takes the first option. */
         (void)units_brewster_apply_slot_w(&iw, ctx->human_nation, 0);
-      }
-      if (ctx->status && ctx->status_size > 0) {
-        snprintf(ctx->status, ctx->status_size, "Religious unrest: choose an immigrant.");
       }
     } else if (imm == 1) {
       /* Mirror dock immigrant as Europe-map unit for Col1 capture. DOS raw

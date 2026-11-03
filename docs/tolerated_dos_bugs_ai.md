@@ -3,12 +3,126 @@
 STATUS: living record, not an audit dump. Authoritative.
 
 Second file of [tolerated_dos_bugs.md](tolerated_dos_bugs.md), split off to
-keep each file under the doc-length limit. It holds TB-9..TB-30, the entries
+keep each file under the doc-length limit. It holds TB-3, 4, 6, 7, 8, TB-9..TB-30, 37, 38, 50, 52 and 56 (re-split
+2026-11-03), the entries
 about the Euro AI (colony tick, ships, land units) and the native AI (villages,
 Braves). The rules, the id scheme and the entry format are the ones in
 tolerated_dos_bugs.md; ids are shared across both files and never reused.
 
 ## Entries
+
+### TB-3 — Euro AI delivery sell books its trade ledger twice
+**DOS:** when a Euro AI ship's delivery matrix in FUN_521d_20e6 picks no colony,
+the sell tail (raw 89828-89851) dumps every hold for gold. Per hold it calls
+`FUN_291f_0a2e` -> `FUN_38fd_1dfa`, which already credits the nation's
+`trade.gold[g]` (+0x7c, tax-adjusted) and `trade.tons[g]` / `trade.tons2[g]`
+(+0xbc / +0xfc) with the quantity. The tail then adds the untaxed
+`DS:0x84bc price * qty` to `trade.gold[g]` and `qty` to `trade.tons[g]` a
+second time. The treasury (+0x2a) is credited once, untaxed.
+
+**Effect:** that AI nation's per-cargo trade ledger (gold and tons sold)
+overstates these sales roughly twofold. The port reads `trade.gold` /
+`trade.tons` only for the human nation (Trade report, King's tax-raise goods
+pick FUN_38fd_3dc8), so for AI nations the inflated values mostly just live in
+the save. `trade.tons2`, which the market price model sums, is booked once.
+
+**Port (reproduces it):** `ai_euro_20e6_delivery_sell_tail`
+(`src/core/ai_euro_ship.c`).
+
+**Blocks removal:** the ledgers are saved, and the idle campaigns
+(`golden_idle_*`) byte-compare saves with DOS; a single booking changes those
+bytes from the first AI delivery sell on. Not test-run.
+**Status:** tolerated (2026-10-21). Fixed in opencol 2026-10-27, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.
+
+### TB-4 — AI warehouse dump-sell adds the cargo index to tons sold
+**DOS:** FUN_364b_0688 phase O (raw 57806-57848) sells a non-human Euro
+colony's warehouse surplus. Per cargo it calls `FUN_291f_0a2e` ->
+`FUN_38fd_1dfa` (ledgers + volume, as in TB-3), then adds to `trade.tons[c]`
+the loop's cargo index `c` instead of the amount (raw 57829-57833, asm
+364b:17bd `ADD [BX+0xbc],AX` with AX = cargo index), and adds the untaxed gross
+`DS:0x84bc price * amount` to `trade.gold[c]` on top of 1dfa's taxed credit. The
+treasury (+0x2a) is credited once, untaxed.
+
+**Effect:** same ledger as TB-3: the AI nation's `trade.tons[c]` gains a
+spurious `c` per dump-sell and `trade.gold[c]` is roughly doubled. Same readers,
+so mostly invisible outside the save.
+
+**Port (reproduces it):** `europe_ai_colony_dump_sell_w`
+(`src/core/europe_market.c`).
+
+**Blocks removal:** as TB-3 (saved ledgers, byte-compared by `golden_idle_*`).
+Not test-run.
+**Status:** tolerated (2026-10-21). Fixed in opencol 2026-10-27, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.
+
+### TB-6 — Euro AI buying from natives scores the wrong goods
+**DOS:** in the native trade session (FUN_4d56_2820, LAB_002e92, asm
+4d56:31b8-3204), after a sale the AI picks which of three offered goods to buy.
+The offer list is the bid-sorted cargo order with Muskets, Food, Tools and
+Trade Goods skipped. The pick does not score that list: it reads three raw
+bytes of the sorted array at `BP-0x86 - i`, i.e. sorted slots 16, 15 and 14,
+scores each with the `DS:0x84bc` price row and keeps the first strict maximum
+(seed -9999), then uses the winning index 0..2 into the filtered list. Slot 16
+is one past the 16-byte array and aliases the low byte of the haggle round
+counter `iStack_88`, which is 0 whenever the AI gets here, so it scores Food.
+
+**Effect:** which good a Euro AI unit buys from a village depends on the
+prices of Food and the top two unfiltered cargos, not on the prices of the
+goods actually offered; in practice an arbitrary pick, usually the first
+offer. Human players choose through @BUYWHICH and are not affected.
+
+**Port (reproduces it):** `ai_contact_2e92_ai_pick`
+(`src/core/ai_contact_trade.c`). Came from port_bugs.md #796.
+
+**Blocks removal:** tried 2026-10-21 (score the offered goods' price bytes);
+fails `golden_idle_independence` and `_reload`; reverted.
+[Details](archive/tolerated_dos_bugs_evidence_2026-10-24.md#tb-6).
+**Status:** tolerated (2026-10-21). Fixed in opencol 2026-10-27, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.
+
+### TB-7 — Villages-per-continent table holds only the last tribe's villages
+**DOS:** the Indian census FUN_4962_06b6 (raw ~78392-78406) runs once per tribe
+type (eight calls from FUN_4d56_1816). Each call zeroes the whole
+`village_counts_by_continent[16]` table (`DS:0x947e`; it is not per tribe),
+then counts only the current tribe's settlements into it. After the eight
+calls it holds the villages of whichever tribe ran last, not all villages.
+
+**Effect:** the reader is the Euro AI's continent balance check FUN_521d_0492
+(raw 87098-87136, `ai_goals.c`), which compares
+`continent land / 12` with villages + Euro colonies on that continent to
+decide whether a continent is crowded. With most tribes' villages missing,
+the AI treats continents as emptier than they are when planning colonies.
+
+**Port (reproduces it):** `ai_contact_indian_census_4962_06b6`
+(`src/core/ai_contact_demand.c`). Unit test `unit_ai_indian_census` pins the
+last-tribe-only result.
+
+**Blocks removal:** tried 2026-10-21 (count every settlement); fails all six
+idle gates (the table is saved) and `unit_ai_indian_census`; reverted.
+[Details](archive/tolerated_dos_bugs_evidence_2026-10-24.md#tb-7).
+**Status:** tolerated (2026-10-21). Fixed in opencol 2026-10-27, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.
+
+### TB-8 — Indian horse breeding credits the last settlement's tribe
+**DOS:** in each tribe's turn, the census FUN_4962_06b6 (raw 78392-78406) walks
+every settlement through `FUN_281f_0a4c` (= `FUN_15dc_0032`), leaving the bound
+tribe pointer `DS:0x8d4e` on the nation of the last settlement in the array.
+The horse-breeding step of FUN_4d56_1816 (raw 81617-81628) then reads
+`horse_herds` (+8) and writes `horse_breeding` (+10) through that pointer, but
+caps the result at `(pop + 25) * 2`, where `pop` is the *current* tribe's
+population total (`DS:0x9622[tribe]`).
+
+**Effect:** whichever tribe owns the last settlement record gets its horse
+breeding advanced on every tribe's turn (up to eight times a turn), while the
+other tribes never breed through this step. Each add is clamped to the cap of
+the tribe whose turn it is, so a small tribe's turn can pull the last tribe's
+breeding value down to that small tribe's cap.
+
+**Port (reproduces it):** the §6c horse-breeding block after
+`ai_contact_indian_census_4962_06b6` in `src/core/ai_contact_demand.c`.
+Unit test `unit_ai_indian_census` pins it.
+
+**Blocks removal:** tried 2026-10-21 (breed the current tribe); fails all six
+idle gates and `unit_ai_indian_census`; reverted.
+[Details](archive/tolerated_dos_bugs_evidence_2026-10-24.md#tb-8).
+**Status:** tolerated (2026-10-21). Fixed in opencol 2026-10-27, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.
 
 ### TB-9 — Euro AI colony-site scan gives its own-tile bonus to tile (0,0)
 **DOS:** FUN_521d_20e6, the explorer's colony-site scan (raw 89123-89125, asm
@@ -539,3 +653,108 @@ scorer in `src/core/ai_native_021a.c` (`facing + 1` / `facing - 1` test, no
 fails all six idle gates; reverted.
 [Details](archive/tolerated_dos_bugs_evidence_2026-10-24.md#tb-30).
 **Status:** tolerated (2026-10-22). Fixed in opencol 2026-10-27, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.
+
+### TB-37 — REF wave planner tests the owner of a stale unit index
+**DOS:** while scoring each human coastal colony's garrison, FUN_43f7_0982 (raw
+74033-74041) walks the colony's eight neighbours and, for each land tile, tests
+`unit[local_4c].owner == crown` before re-reading the tile's stack with 07e0.
+`local_4c` is not the neighbour's top unit: it holds whatever the last
+assignment left, first the head of the last colony tile scored, later where the
+previous chain walk stopped. When it is -1 the read lands on DS:0x312b, which
+held 0 in DOSBox. The test was meant to ask whether this neighbour tile's own
+top unit belongs to the crown.
+
+**Effect:** whether the crown's units next to a target count against its
+garrison need depends on an unrelated stale index. The King's second and later
+invasion waves are sized by it.
+
+**Port (reproduces it):** `ai_king_0982_invasion` (`src/core/ai_king_ref.c`,
+`last_tile_head_id`).
+
+**Blocks removal:** tried 2026-10-22 (test the neighbour tile's own head unit);
+fails `golden_idle_independence` and `_reload`; reverted.
+[Details](archive/tolerated_dos_bugs_evidence_2026-10-24.md#tb-37).
+**Status:** tolerated (2026-10-22). Fixed in opencol 2026-10-27, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.
+
+### TB-38 — REF landing sweep tests "crown-held" through a stale owner nibble
+**DOS:** the landing sweep of FUN_43f7_0982 (raw 74190) decides whether a
+neighbouring land tile is already crown-held with `FUN_281f_06dc(x, y) ==
+crown`, the layer3 owner nibble. The unit mover FUN_281f_023a sets the nibble
+when a stack arrives but never clears it when the tile empties. The test was
+meant to ask "is a crown unit standing here"; a stale crown nibble answers yes
+for an empty tile.
+
+**Effect:** the King's landing party treats tiles its units once stood on as
+occupied. Cavalry and Artillery land alone on such an empty tile, and the
+two-sweep Regular seizure logic (smallest enemy stack first) skips it.
+
+**Port (reproduces it):** `ai_king_0982_land_troops` (`src/core/ai_king_ref.c`)
+tests `units_tile_owner_nibble(...) == crown`.
+
+**Blocks removal:** tried 2026-10-22 (test for an active crown unit on the
+tile); fails `golden_idle_independence` and `_reload`; reverted.
+[Details](archive/tolerated_dos_bugs_evidence_2026-10-24.md#tb-38).
+**Status:** tolerated (2026-10-22). Fixed in opencol 2026-10-27, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.
+
+### TB-50 — An AI hull sailing for Europe stays the current unit
+**DOS:** the movers FUN_465b_0000 (raw 76484) and FUN_479b_0972 (raw 77099)
+make the hull the current unit DS:0x5392 before FUN_291f_0208 sends it to
+Europe. Nothing clears it until the human's Move Pieces entry, so the human's
+autosave names the last AI hull that sailed (save header byte 0x22).
+
+**Effect:** stale RAM in the save; nothing in play reads it before the human's
+turn resets it.
+
+**Port (reproduces it):** `ai_euro_ship_enter_europe`
+(`src/core/ai_euro_ship.c`) sets `units.selected_id`.
+
+**Blocks removal:** tried 2026-10-23: without the write every idle golden and
+its reload twin fail (8 tests), on header byte 0x22 only (port 0xff, DOS the
+hull's index); no other byte drifts. Removing it needs that byte on the idle
+golden ignore list ([idle_campaign.md](idle_campaign.md)).
+**Status:** tolerated (2026-10-23). Came from dos_bug_candidates_2026-10-22.md C-81. Fixed in opencol 2026-10-27, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.
+
+### TB-52 — An AI that breaks a treaty by attacking never goes to war
+**DOS:** FUN_465b_0000 raw 75558-75595. When a Euro attack meets the treaty bit
+0x40 in either relation row, a human attacker gets @CANCELPEACE and the
+target's row gains WAR (2). A computer attacker gets @DECLAREWAR (plus @SNEAK
+for a human defender) but no WAR write on either side. Then 0x40 is cleared
+both ways and the attacker's 0x01 dropped. Read from the decomp only; the
+DOSBox evidence for "no WAR write" (independence 4->5) covers an attack with no
+treaty. An AI attacks a treaty partner once its cooldown (nation +0x40+peer)
+reaches 0; the path-step mover does it (FUN_479b_0972, campaign8 CN8-O17).
+
+**Effect:** an AI unit attacks a treaty partner's colony or unit, the player is
+told "now at war", and neither row carries WAR: the pair sits at neither peace
+nor war. If the attack takes the colony, TB-32's capture tail sets WAR only in
+the loser's row toward the captor, so the AI side still has no WAR. AI against
+AI behaves the same way.
+
+**Port (reproduces it):** `ai_diplo_465b_band_ctx` (`src/core/ai_diplo.c`, the
+AI-attacker @DECLAREWAR arm), called from `units_move_combat_pre`
+(`units_move.c`), `ai_euro_try_attack` (`ai_euro_land.c`) and `ai_contact.c`.
+The fix is `ai_diplo_or_both(col1, attacker, defender, AI_DIPLO_WAR)` in that
+arm.
+
+**Blocks removal:** tried 2026-10-27 (that one line); fails
+`golden_idle_america`, `golden_idle_america_reload` and `golden_ai_joint`
+(`unit_ai_contact_core` too, which locks the DOS read); reverted.
+**Status:** tolerated (user, 2026-10-27). Fixed in opencol 2026-10-27, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.
+
+### TB-56 — 5d04 Pioneer training leaves the tools byte stale
+Was dos_bug_candidates_2026-10-22.md C-71.
+**DOS:** `FUN_521d_5d04` raw 92770-92783 turns a dock Colonist into a Pioneer
+(dispatch byte 2) and books 100 tools on the market (`291f_0c14(0xe, 100)`),
+but writes only the type: +0x3159 keeps whatever the record held (usually 0),
+and `FUN_479b_0158` then wraps it to 236.. on the first improvement (#628, #636).
+
+**Effect:** AI Pioneers bought this way start with 0 (or residue) tools although
+the nation paid for 100.
+
+**Port (reproduces it):** `ai_euro_5d04_cb_set_unit_dispatch_byte`
+(`src/core/ai_euro_europe.c`), value 2 arm. The fix sets `tools = 100`.
+Test: `unit_ai_euro_5d04_hire` `pioneer_training_tools`.
+
+**Blocks removal:** tried ungated 2026-11-03: fails `golden_idle_continuous` and
+`golden_idle_reload`.
+**Status:** tolerated (user, 2026-11-03). Fixed in opencol 2026-11-03, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.

@@ -423,15 +423,6 @@ void ai_king_tax_teaparty(ColonizeTurnContext* ctx, int human, int cargo) {
   nat->boycott_bitmap = (uint16_t)(nat->boycott_bitmap | (uint16_t)(1u << cargo));
   ai_king_set_boycott(ctx->col1, 1);
 
-  if (ctx->status && ctx->status_size) {
-    snprintf(
-      ctx->status,
-      ctx->status_size,
-      "Audience: tea party! Tax stays at %u%%. %s boycotted in Europe.",
-      nat->tax_rate,
-      reports_cargo_display_name(cargo)
-    );
-  }
   if (ai_king_human_popups(ctx)) {
     ai_king_enqueue_teaparty_ok(ctx, human, cargo);
     /* DOS 3dc8 shows @TEAPARTY inline, right after the refused audience — the
@@ -574,10 +565,6 @@ void ai_king_tax_hike_apply(
       (void)dos_rng_next(ctx->rng);
     }
     ai_king_tax_commit(ctx, human, delta);
-    if (ctx->status && ctx->status_size) {
-      snprintf(ctx->status, ctx->status_size,
-               "Audience: the King lowers taxes to %u%%.", nat->tax_rate);
-    }
     if (ai_king_human_popups(ctx)) {
       /* @KINGVICTORY: "To celebrate our recent victory over %STRING2, we have
        * magnanimously decided to LOWER your tax rate by {%NUMBER0%%}. The tax
@@ -638,10 +625,6 @@ void ai_king_tax_hike_apply(
      * popups disabled for this nation — DOS's own choice UI has nothing to
      * drive here either, so there is nothing to defer: the hike stands. */
     ai_king_tax_commit(ctx, human, delta);
-    if (ctx->status && ctx->status_size) {
-      snprintf(ctx->status, ctx->status_size,
-               "Audience: the King raises taxes to %u%%.", nat->tax_rate);
-    }
     if (ai_king_human_popups(ctx)) {
       /* Same rung section as the choice arm below, just without the
        * tea-party rows DOS has nothing to offer here. */
@@ -741,10 +724,6 @@ void ai_king_tax_hike_apply(
    * Space takes the first option, Accept (independence-seed-100 000002:
    * DOS 60 -> 62 %). The old SoL/bells tea-party heuristic was invented. */
   ai_king_tax_commit(ctx, human, delta);
-  if (ctx->status && ctx->status_size) {
-    snprintf(ctx->status, ctx->status_size,
-             "Audience: the King raises taxes to %u%%.", nat->tax_rate);
-  }
 }
 
 /*
@@ -1137,8 +1116,7 @@ void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
    * Thin 160a independence rename (the letter animation itself lives in
    * core/declaration.c and is armed by game_loop off the KING_LETTER popup).
    * Writable Col1 player.country_name (and europe.nation_name if present).
-   * Congress status below; same-turn 0982/1528 wave may overwrite if it spawns
-   * (wave only writes status when non-empty arrival — leave congress if empty).
+   * No status line (DOS shows only the popups below).
    * Human queue: thin rename OK + WoI-begins OK (FUN_43f7_160a / 1a26 chain).
    * Letter chrome: KING_LETTER body carries the @INDEPENDENCE wording; the
    * signing animation (DECOIND.PIK + DEC-UPP/LOW/SQIG.SS) is core/declaration.c.
@@ -1147,9 +1125,6 @@ void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
   /* port_bugs.md #239: no "United Colonies" rename — DOS 160a is only the signing
    * cinematic and never touches country_name. Under the WoI the player
    * faction reads "Rebel"/"Rebels" (@MISC 69/86) via reports_nation_*_woi. */
-  if (ctx->status && ctx->status_size) {
-    snprintf(ctx->status, ctx->status_size, "Congress declares independence!");
-  }
   if (ai_king_human_popups(ctx)) {
     /* FUN_43f7_160a rename OK; the cinematic rides on the KING_LETTER tag. */
     const char* leader =

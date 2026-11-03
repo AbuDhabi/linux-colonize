@@ -89,16 +89,6 @@ void founding_fathers_reset_bells_pool(ColonizeTurnContext* ctx, int nation_id);
  */
 bool founding_fathers_try_elect(ColonizeTurnContext* ctx, int nation_id);
 
-/*
- * FUN_4345_0a22 phase 3 (thin): status while WoI bell pool grows toward
- * intervention threshold. Called from turn.c during WoI EOT.
- */
-void founding_fathers_woi_intervention_chrome(
-  ColonizeTurnContext* ctx,
-  int nation_id,
-  unsigned pool,
-  unsigned needed
-);
 
 /*
  * After ai_king_spend_woi_bell_pool succeeds: zero the bell pool.

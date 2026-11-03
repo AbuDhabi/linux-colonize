@@ -92,12 +92,6 @@ int ai_king_do_merc_hire(ColonizeTurnContext* ctx, int human,
   int merc_counts[4] = {0, 0, 0, 0};
   merc_counts[0] = regular_count;
   merc_counts[artillery_or_cavalry_roll == 0 ? 3 : 1] = 1;
-  /* Stand-in status first: the landing overwrites it with the @MERCS line
-   * when it actually puts troops ashore. */
-  if (ctx->status && ctx->status_size) {
-    snprintf(ctx->status, ctx->status_size,
-             "Mercenaries join the Continental cause (-%d gold).", price);
-  }
   ai_king_10f0_land(ctx, human, 1, merc_counts);
   return 1;
 }
@@ -243,10 +237,6 @@ void ai_king_merc_offer(ColonizeTurnContext* ctx) {
                                     ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, human),
                                     ai_king_merc_payload(regular_count, artillery_or_cavalry_roll, price), NULL,
                                     body, labels, ids, 2)) {
-      if (ctx->status && ctx->status_size) {
-        snprintf(ctx->status, ctx->status_size,
-                 "Mercenaries offer to join the Continental cause (-%d gold).", price);
-      }
       return;
     }
   }
@@ -360,11 +350,6 @@ void ai_king_frigate_accept(ColonizeTurnContext* ctx, int nation) {
     return;
   }
   if (nation == ctx->human_nation) {
-    /* Port-authored notice: no GAME.TXT section covers the frigate-departure
-     * status beat (KINGFRIGATE only carries the audience offer itself). */
-    if (ctx->status && ctx->status_size) {
-      snprintf(ctx->status, ctx->status_size, "Royal frigate dispatched.");
-    }
     ai_king_tax_hike_apply(ctx, nation, 10, NULL);
   }
 }
@@ -521,9 +506,6 @@ int ai_king_do_merc_peace_hire(
   int merc_counts[4] = {0, 0, 0, 0};
   merc_counts[0] = regular;
   merc_counts[3] = artillery;
-  if (ctx->status && ctx->status_size) {
-    snprintf(ctx->status, ctx->status_size, "Mercenaries hired (-%d gold).", price);
-  }
   /* DOS debits before 10f0 runs; a failed roulette / water scan keeps the
    * gold spent. Kept literal. 10f0 raw 74307 lands for DS:0x5398: in
    * hot-seat the fixed power gets the force whoever paid (DOS-LITERAL). */

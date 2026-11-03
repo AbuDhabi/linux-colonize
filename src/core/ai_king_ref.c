@@ -684,7 +684,7 @@ COLONIZE_INTERNAL void ai_king_0982_land_troops(
          * nibble, not the top unit's nation. 023a never clears the nibble
          * when a tile empties, so a stale crown nibble counts as crown-held
          * (tr9 18->19: the Artillery lands alone on empty (44,61)).
-         * DOS bug, reproduced for now (docs/tolerated_dos_bugs.md TB-38). */
+         * DOS bug, reproduced for now (docs/tolerated_dos_bugs_ai.md TB-38). */
         /* TB-38: fixed under !dos_buggy_behavior() to "an active crown
          * unit stands here". */
         int crown_held = 0;
@@ -852,7 +852,7 @@ COLONIZE_INTERNAL void ai_king_0982_invasion(struct ai_king_0982_ctx* w) {
        * unit with a non-zero attack byte decrementing the need. DOSBox
        * independence-seed-100 3->4: the second wave lands six units next to
        * the first wave's four tiles.
-       * DOS bug, reproduced for now (docs/tolerated_dos_bugs.md TB-37).
+       * DOS bug, reproduced for now (docs/tolerated_dos_bugs_ai.md TB-37).
        * TB-37: fixed under !dos_buggy_behavior() to test this neighbour
        * tile's own head unit.
        */

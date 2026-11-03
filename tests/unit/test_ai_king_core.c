@@ -434,10 +434,6 @@ static int sp_03(void) {
               col1.nation[0].tax_rate);
       return fail("audience cut branch should lower tax_rate by 4 (seed 1)");
     }
-    if (!strstr(status, "lowers taxes") || !strstr(status, "46")) {
-      fprintf(stderr, "unit_ai_king: cut branch status: '%s'\n", status);
-      return fail("audience cut branch should mention the lowered rate");
-    }
     if (col1.head.expeditionary_force[0] != 1) {
       fprintf(stderr, "unit_ai_king: 1d42 pool[0]=%u royal=%d\n",
               (unsigned)col1.head.expeditionary_force[0],
@@ -555,10 +551,6 @@ static int sp_06(void) {
     }
     if (col1.head.expeditionary_force[0] <= pool_before) {
       return fail("1d42 purse-threshold buy should grow REF this turn");
-    }
-    if (!strstr(status, "raises taxes") || !strstr(status, "4")) {
-      fprintf(stderr, "unit_ai_king: big-raise status: '%s'\n", status);
-      return fail("big-raise branch should mention the new rate in status");
     }
     col1.nation[0].royal_money = 0; /* keep later blocks purse-quiet */
   }
@@ -752,7 +744,7 @@ static int sp_08(void) {
   return 0;
 }
 
-/* reset + SoL 40-49 restless chrome */
+/* reset + SoL 40-49: no restless status line (DOS 2424 shows nothing) */
 static int sp_09(void) {
   /*
    * Reset for the rest of the file: turn back below the interval gate
@@ -773,8 +765,8 @@ static int sp_09(void) {
   memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
 
   /*
-   * Thin pre-declare SoL chrome: SoL 40..49 → restless status; no congress yet.
-   * Autumn skips tax so status is not overwritten by a tax hike line.
+   * SoL 40..49: no congress yet, and no status line — the port's invented
+   * "restless" line is gone (#1405 follow-up).
    */
   year = 1590;
   autumn = 1;
@@ -801,29 +793,18 @@ static int sp_09(void) {
   if (ai_king_latch_get(&col1, 0) != 0) {
     return fail("SoL 45 should not declare WoI");
   }
-  if (!strstr(status, "Sons of Liberty") || !strstr(status, "45")) {
-    fprintf(stderr, "unit_ai_king: SoL chrome status: '%s'\n", status);
-    return fail("SoL 40-49 should set restless status line");
-  }
-  /* restless chrome must not set WoI. */
-  if (ai_king_latch_get(&col1, 0) != 0) {
-    return fail("restless SoL chrome must leave WoI clear");
-  }
-  /* Optional tax mention when tax_rate already in refuse band (≥20). */
-  if (col1.nation[0].tax_rate >= 20 &&
-      !strstr(status, "Tax is at") && !strstr(status, "tax")) {
-    fprintf(stderr, "unit_ai_king: restless+high-tax status: '%s'\n", status);
-    return fail("SoL restless with high tax_rate should mention tax");
+  if (status[0] != '\0') {
+    fprintf(stderr, "unit_ai_king: SoL 45 status: '%s'\n", status);
+    return fail("SoL 40-49 must not write an invented status line");
   }
   return 0;
 }
 
-/* 2424 decile SoL notify survives restless chrome */
+/* 2424 decile SoL notify dedup cache */
 static int sp_10(void) {
   /*
-   * 2424 tail decile SoL notify (DS:0x53d8 dedup) must survive the restless
-   * chrome below it: both fire in the SoL 40..49 band, and the restless
-   * block used to unconditionally overwrite ctx->status.
+   * 2424 tail decile SoL notify (DS:0x53d8 dedup): the notify itself is the
+   * @REBELUP popup (no status line), the cache must still advance.
    */
   {
     year = 1590;
@@ -839,10 +820,6 @@ static int sp_10(void) {
     ai_king_latch_set(&col1, 5, 0);
     status[0] = '\0';
     ai_king_nation_turn(&ctx);
-    if (!strstr(status, "Congress notes")) {
-      fprintf(stderr, "unit_ai_king: decile+restless status: '%s'\n", status);
-      return fail("decile SoL notify must not be clobbered by restless chrome");
-    }
     /* DOS dedup: 0x53d8 = report/10 after the notify. */
     if (col1.head.sol_pct_last_notified != 4) {
       fprintf(stderr, "unit_ai_king: sol_pct_last_notified=%d (want 4)\n",
@@ -850,13 +827,6 @@ static int sp_10(void) {
       return fail("decile notify should cache report/10 into sol_pct_last_notified");
     }
     col1.stuff.census_pop_proxy[0] = 0; /* close the decile gate for later blocks */
-    /* port_bugs.md #1098: the notify's claim on the status line lasts one 2424 —
-     * next turn's restless line replaces the stale notify. */
-    ai_king_nation_turn(&ctx);
-    if (strstr(status, "Congress notes") || !strstr(status, "45")) {
-      fprintf(stderr, "unit_ai_king: next-turn restless status: '%s'\n", status);
-      return fail("stale decile notify must yield to the next turn's restless line");
-    }
   }
   return 0;
 }
@@ -2287,11 +2257,6 @@ static int sp_26(void) {
       assets_msg_free(&game_txt);
       return fail("Accept must not boycott anything");
     }
-    if (!strstr(status, "raised") || !strstr(status, "14")) {
-      fprintf(stderr, "unit_ai_king: Accept status: '%s'\n", status);
-      assets_msg_free(&game_txt);
-      return fail("Accept apply should status the committed hike rate");
-    }
   return 0;
 }
 
@@ -2778,10 +2743,6 @@ static int sp_30(void) {
       if (count_nation(&units, 0) != decline_units_before) {
         return fail("apply Decline must not spawn rebel troop-gift units");
       }
-      if (!strstr(status, "Mercenaries declined")) {
-        fprintf(stderr, "unit_ai_king: Decline status: '%s'\n", status);
-        return fail("apply Decline should write Mercenaries declined. status");
-      }
       for (int i = 0; i < pop.queue_count; ++i) {
         if (pop.queue[i].tag == AI_POPUP_TAG_KING_MERC &&
             pop.queue[i].kind == AI_POPUP_KIND_OK &&
@@ -2930,7 +2891,7 @@ static int sp_31(void) {
 static int sp_32(void) {
 
     /*
-     * Restless chrome: SoL 45 -> status only (invented wood OK demoted).
+     * SoL 45 band: no status, no invented OK.
      * Autumn + SoL 45 + taxes below declare; peacetime (clear WoI).
      * Force single-colony SoL (earlier 1eca block may leave colony_count=2).
      */
@@ -2955,9 +2916,9 @@ static int sp_32(void) {
       if (ai_king_latch_get(&col1, 0) != 0) {
         return fail("restless+ai_popups must leave WoI clear");
       }
-      if (!strstr(status, "Sons of Liberty") || !strstr(status, "45")) {
-        fprintf(stderr, "unit_ai_king: restless+popups status: '%s'\n", status);
-        return fail("restless+ai_popups should still set restless status");
+      if (status[0] != '\0') {
+        fprintf(stderr, "unit_ai_king: SoL 45 + popups status: '%s'\n", status);
+        return fail("SoL 40-49 with popups must not write an invented status line");
       }
       for (int i = 0; i < pop.queue_count; ++i) {
         if (pop.queue[i].kind == AI_POPUP_KIND_OK &&

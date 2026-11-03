@@ -1394,6 +1394,12 @@ static void ai_euro_5d04_hire_tail_candidates(Ai5d04HireTail* t) {
   t->tools_trained_this_pass = tools_trained_this_pass;
 }
 
+/* AI Artillery price (dos_bugs_ai.md DB-73): the Europe purchase price plus
+ * FUN_38fd_4b50's +100 per Artillery the nation already bought. */
+COLONIZE_INTERNAL uint32_t ai_euro_5d04_artillery_price(const ColonizeCol1Nation* nat) {
+  return (uint32_t)(europe_purchase_price(UNITS_KIND_ARTILLERY) + (int)nat->artillery_count * 100);
+}
+
 static void ai_euro_5d04_hire_tail_colony_demand(Ai5d04HireTail* t) {
   ColonizeTurnContext* ctx = t->ctx;
   const int nation_id = t->nation_id;
@@ -1435,10 +1441,12 @@ static void ai_euro_5d04_hire_tail_colony_demand(Ai5d04HireTail* t) {
       }
     }
     if (dock_artillery == 0 && colony_demand_total > 5) {
-      uint32_t adj = 0; /* DOS leaves local_38 unset before turn 40: dos_bugs_ai.md DB-73 */
-      if (turn > 0x27) {
-        adj = (uint32_t)((difficulty - 10) * -100);
-      }
+      /* DOS raw 92834: local_38 = (10 - difficulty) * 100 from turn 40 on and
+       * unset before (dos_bugs_ai.md DB-73). Port (user 2026-11-03): the AI
+       * pays the Europe purchase price, 500 + 100 per Artillery the nation
+       * already bought (FUN_38fd_4b50's nation+0x1e escalation), and the buy
+       * bumps that counter. */
+      uint32_t adj = ai_euro_5d04_artillery_price(nat);
       if (nat->king_grace_counter != 0) {
         nat->king_grace_counter--;
         adj = 0;
@@ -1446,6 +1454,9 @@ static void ai_euro_5d04_hire_tail_colony_demand(Ai5d04HireTail* t) {
       if (nat->gold >= adj && ai_euro_5d04_cb_goal_trigger(0xb, nation_id, nation_id - 0x14, nation_id - 0x14) >= 0) {
         demand_remaining--;
         europe_nation_gold_add(ctx->europe, ctx->col1, nation_id, -(long)adj);
+        if (nat->artillery_count < 0xffff) {
+          nat->artillery_count++;
+        }
       }
     }
     int bought_this_iteration; /* DOS bVar8_2 */

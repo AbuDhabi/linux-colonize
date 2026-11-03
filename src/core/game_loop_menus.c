@@ -1286,14 +1286,51 @@ void game_open_save_load(ColonizeGameState* game, SaveLoadMode mode) {
  * dialog engine (FUN_281f_0998), not the status bar. GAME.TXT @SAVEGOOD /
  * @SAVEERROR / @LOADGOOD / @LOADNOT / @LOADOLD / @LOADSIZE / @LOADERROR all
  * take %STRING0 = the "COLONY##.SAV" slot filename; @SAVEGOOD additionally
- * takes an executable-side noun in %STRING1. The port deliberately uses its
- * own wording there. col1_save_validate_head's fixed error text
+ * takes the game description in %STRING1 (game_save_good_description).
+ * col1_save_validate_head's fixed error text
  * ("is not a valid save file" / "is an obsolete save file" / "does not
  * match the current map size", mirroring FUN_75c2_0840) tells LOADNOT /
  * LOADOLD / LOADSIZE apart; any other read failure (missing file, I/O
  * error — the port has no on-disk corruption case DOS's version check
  * doesn't already cover) maps to LOADERROR.
  */
+/*
+ * DOS-LITERAL FUN_7562_030a raw 119740-119765: @SAVEGOOD %STRING1 =
+ * DS:0x8394[difficulty] " " <leader> " " [DS:0x2de0] (LABELS @MISC 19) " "
+ * DS:0x8d0a[slot] (@NATIONALITY) " " DS:0x5e <season> " " <year> DS:0x60, for the
+ * first slot whose control byte (0x543f) is 0, else slot 0. DS:0x5e / 0x60 are
+ * read from VICEROY.EXE (miss = ""). DOSBox 2026-11-03 (french-campaign, Spring
+ * 1582): "Viceroy Jacques Cartier of the French (Spring 1582)".
+ */
+static void game_save_good_description(ColonizeGameState* game, char* out, size_t out_size) {
+  int slot = -1;
+  for (int i = 0; slot < 0 && i < 4; ++i) {
+    if (game->col1.player[i].control == 0) {
+      slot = i;
+    }
+  }
+  if (slot < 0) {
+    slot = 0;
+  }
+  const int d = (int)game->col1.head.difficulty;
+  char of_the[24];
+  char open[4];
+  char close[4];
+  (void)reports_ds_string(game->resolved_data_dir, 0x5e, open, sizeof(open));
+  (void)reports_ds_string(game->resolved_data_dir, 0x60, close, sizeof(close));
+  snprintf(
+    out, out_size, "%s %s %s %s %s%s %u%s",
+    reports_difficulty_title(d >= 0 && d < 5 ? d : 0),
+    game->col1.player[slot].name,
+    reports_misc_word(19, "", of_the, sizeof(of_the)),
+    reports_nation_adjective_display_name(slot),
+    open,
+    reports_season_name(game->game_autumn != 0),
+    (unsigned)game->game_year,
+    close
+  );
+}
+
 static void game_show_save_load_popup(
   ColonizeGameState* game, const char* section, const char* filename, const char* noun
 ) {
@@ -1330,16 +1367,10 @@ void game_apply_save_load_result(ColonizeGameState* game) {
       game_show_save_load_popup(game, "SAVEERROR", filename, NULL);
       return;
     }
-    snprintf(
-      game->status,
-      sizeof(game->status),
-      "Saved COLONY%02d (turn %u, year %u)",
-      slot,
-      game->turn_number,
-      game->game_year
-    );
     diag_info("Save succeeded for COLONY%02d (turn %u)", slot, game->turn_number);
-    game_show_save_load_popup(game, "SAVEGOOD", filename, "Campaign");
+    char desc[128];
+    game_save_good_description(game, desc, sizeof(desc));
+    game_show_save_load_popup(game, "SAVEGOOD", filename, desc);
     return;
   }
 
@@ -1362,14 +1393,6 @@ void game_apply_save_load_result(ColonizeGameState* game) {
     game_show_save_load_popup(game, section, filename, NULL);
     return;
   }
-  snprintf(
-    game->status,
-    sizeof(game->status),
-    "Loaded COLONY%02d (turn %u, year %u)",
-    slot,
-    game->turn_number,
-    game->game_year
-  );
   diag_info(
     "Load succeeded: slot=COLONY%02d turn=%u year=%u units=%d colonies=%d",
     slot,

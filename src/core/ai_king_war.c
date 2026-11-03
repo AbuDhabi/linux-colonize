@@ -406,9 +406,7 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
    * Soldier → Continental Army, Dragoon → Continental Cavalry. Pops a
    * singular/plural status line per colony that actually promoted someone
    * (decomp 0x132d "one unit" / 0x1336 "%d units"). Washington FF mass
-   * promote / combat-upgrade path is separate and untouched here. The
-   * SoL 40..49 "restless" band is status-text only (below), not a promote
-   * band in 1eca.
+   * promote / combat-upgrade path is separate and untouched here.
    */
   /* port_bugs.md #250 + DOS FUN_43f7_2022: the 1eca mobilization runs exactly ONCE,
    * on the first war-act turn after the declaration — gated on nation_flags
@@ -1132,34 +1130,12 @@ int ai_king_year_end_woi(ColonizeTurnContext* ctx) {
  * 5e52 opens the nation's 00f2, before the colony loop, so a hike prices
  * this turn's Custom House sales (independence-seed-100 000002).
  */
-/*
- * port_bugs.md #1098: which status buffer a King tax-audience line (5e52 tax event
- * or its answered popup) or the 2424 decile SoL notify last claimed. The
- * port's restless-SoL line in 2424 leaves a claimed status alone and drops
- * the claim. A static, not a ctx field: the ctx is rebuilt every frame and
- * the audience answer lands between the FINISH (5e52) and KING (2424) steps.
- */
-static const char* s_king_status_claim;
-
-static void ai_king_claim_status(const ColonizeTurnContext* ctx) {
-  if (ctx->status && ctx->status_size) {
-    s_king_status_claim = ctx->status;
-  }
-}
-
 void ai_king_human_5e52_tail(ColonizeTurnContext* ctx) {
   if (!ctx || ai_king_independence_declared(ctx->col1_ok ? ctx->col1 : NULL)) {
     return;
   }
   const int popups_before = ctx->ai_popups ? ctx->ai_popups->queue_count : 0;
-  char status_before[AI_POPUP_BODY_LEN] = "";
-  if (ctx->status && ctx->status_size) {
-    snprintf(status_before, sizeof(status_before), "%s", ctx->status);
-  }
   ai_king_tax_event(ctx);
-  if (ctx->status && ctx->status_size && strcmp(status_before, ctx->status) != 0) {
-    ai_king_claim_status(ctx); /* the tax audience wrote the status line */
-  }
   if (!ctx->ai_popups || ctx->ai_popups->queue_count == popups_before) {
     (void)ai_king_new_war_event(ctx);
   }
@@ -1288,16 +1264,6 @@ void ai_king_nation_turn_2424(ColonizeTurnContext* ctx) {
       const int falling = !rising && last > (sol + 4) / 10;
       if (rising || falling) {
         const char* country = reports_nation_country_name(ctx->human_nation & 3);
-        if (ctx->status && ctx->status_size && ctx->status[0] == '\0') {
-          snprintf(
-            ctx->status,
-            ctx->status_size,
-            rising ? "Congress notes rising Sons of Liberty (%d%%)."
-                   : "Congress notes falling Sons of Liberty (%d%%).",
-            sol
-          );
-          ai_king_claim_status(ctx);
-        }
         if (ai_king_human_popups(ctx)) {
           PopupMsgTokens tok;
           memset(&tok, 0, sizeof(tok));
@@ -1315,33 +1281,8 @@ void ai_king_nation_turn_2424(ColonizeTurnContext* ctx) {
         ctx->col1->head.sol_pct_last_notified = (int16_t)(sol / 10);
       }
     }
-    /*
-     * Thin pre-declare SoL chrome:
-     * SoL AI_KING_RESTLESS_SOL_MIN..(DECLARE_MIN-1) → restless status line
-     * below the declare threshold. market_demand_pool_raw consistency: do not set WoI[0] /
-     * congress[5] here (declare only). Optional tax mention when tax_rate
-     * already in the refuse band (≥20) — reads existing tax_rate; no invented
-     * tax formula. Do not clobber thin 38fd_5be8 tax audience / hike status
-     * from 1d42 (ai_popup CHOICE when queue attached). (2564 is menu-only.)
-     */
-    const bool keep_claimed = ctx->status && s_king_status_claim == ctx->status;
-    s_king_status_claim = NULL;
-    if (sol >= AI_KING_RESTLESS_SOL_MIN && sol < AI_KING_DECLARE_SOL_MIN && ctx->status &&
-        ctx->status_size) {
-      if (!keep_claimed) {
-        const uint8_t tax =
-            (ctx->col1_ok && ctx->col1 && ctx->human_nation >= 0 && ctx->human_nation < 4)
-                ? ctx->col1->nation[ctx->human_nation].tax_rate
-                : 0;
-        if (tax >= AI_KING_BOYCOTT_TAX_MIN) {
-          snprintf(ctx->status, ctx->status_size,
-                   "Sons of Liberty grow restless (%d%%). Tax is at %u%%.", sol, tax);
-        } else {
-          snprintf(ctx->status, ctx->status_size, "Sons of Liberty grow restless (%d%%).", sol);
-        }
-        /* Restless: status only (no invented wood OK). */
-      }
-    }
+    /* #1405 follow-up: the invented SoL 40-49 "restless" status line is gone —
+     * DOS 2424 shows nothing in that band (the decile notify is @REBELUP). */
   }
 
   if (ctx->active_turn_nation) {
@@ -1409,36 +1350,21 @@ void ai_king_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState* po
         ai_king_teaparty_payload_parts(popup->result_payload, &applied, &cargo);
         if (popup->result_choice_id == AI_KING_CHOICE_ACCEPT) {
           ai_king_tax_commit(ctx, human, applied);
-          if (ctx->status && ctx->status_size && ctx->col1_ok && ctx->col1 &&
-              human >= 0 && human < 4) {
-            snprintf(ctx->status, ctx->status_size,
-                     "Audience: taxes raised to %u%%.",
-                     ctx->col1->nation[human].tax_rate);
-          }
-          ai_king_claim_status(ctx);
         } else if (popup->result_choice_id == AI_KING_CHOICE_REFUSE) {
           ai_king_tax_teaparty(ctx, human, cargo);
-          ai_king_claim_status(ctx);
         }
       }
       break;
     case AI_POPUP_TAG_KING_MERC:
       /* FUN_43f7_2022 rebel branch: Hire → spend the rolled price, 10f0
-       * picks the landing colony at accept time; Decline → status only, no
+       * picks the landing colony at accept time; Decline → nothing, no
        * gate — DOS has no once-per-war flag, next turn may roll again. */
       if (popup->result_choice_id == AI_KING_CHOICE_HIRE) {
         int regular_count = 0;
         int artillery_or_cavalry_roll = 0;
         int price = 0;
         ai_king_merc_payload_parts(popup->result_payload, &regular_count, &artillery_or_cavalry_roll, &price);
-        if (!ai_king_do_merc_hire(ctx, human, regular_count, artillery_or_cavalry_roll, price) &&
-            ctx->status && ctx->status_size) {
-          snprintf(ctx->status, ctx->status_size, "Cannot afford mercenaries.");
-        }
-      } else if (popup->result_choice_id == AI_KING_CHOICE_DECLINE) {
-        if (ctx->status && ctx->status_size) {
-          snprintf(ctx->status, ctx->status_size, "Mercenaries declined.");
-        }
+        (void)ai_king_do_merc_hire(ctx, human, regular_count, artillery_or_cavalry_roll, price);
       }
       break;
     case AI_POPUP_TAG_KING_MERC_PEACE:
@@ -1450,23 +1376,13 @@ void ai_king_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState* po
         int artillery = 0;
         int price = 0;
         ai_king_merc_peace_payload_parts(popup->result_payload, &regular, &artillery, &price);
-        if (!ai_king_do_merc_peace_hire(ctx, human, regular, artillery, price) &&
-            ctx->status && ctx->status_size) {
-          snprintf(ctx->status, ctx->status_size, "Cannot afford mercenaries.");
-        }
-      } else if (popup->result_choice_id == AI_KING_CHOICE_DECLINE) {
-        if (ctx->status && ctx->status_size) {
-          snprintf(ctx->status, ctx->status_size, "Mercenaries declined.");
-        }
+        (void)ai_king_do_merc_peace_hire(ctx, human, regular, artillery, price);
       }
       break;
     case AI_POPUP_TAG_KING_FRIGATE:
       /* FUN_3844_00f2 tail: Yes → Frigate sails from Europe + 3dc8(KINGTAX, 10). */
       if (popup->result_choice_id == AI_KING_CHOICE_ACCEPT) {
         ai_king_frigate_accept(ctx, human); /* + 3dc8 audience line */
-        ai_king_claim_status(ctx);
-      } else if (ctx->status && ctx->status_size) {
-        snprintf(ctx->status, ctx->status_size, "The Crown's frigate is declined.");
       }
       break;
     case AI_POPUP_TAG_KING_CONGRESS:

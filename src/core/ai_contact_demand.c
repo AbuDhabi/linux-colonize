@@ -1207,12 +1207,6 @@ void ai_contact_apply_beg_food(
       d -= 5;
     }
     ai_diplo_indian_relation_delta(ctx->col1, nation_id, e, -d);
-    if (ctx->status && ctx->status_size) {
-      snprintf(
-        ctx->status, ctx->status_size, "We share %d food with the %s.", gift,
-        ai_contact_tribe_name(nation_id)
-      );
-    }
     /*
      * DOS-LITERAL FUN_5bfb_022e raw 87687-87698 (port_bugs.md #863): the conceded
      * beg does NOT end the visit. It sets bVar7, and when the encounter was
@@ -1273,12 +1267,6 @@ void ai_contact_apply_beg_food(
      * the same tribe's gift visit, and the gift's stamp is gone). */
     if (ind && ind->contact_state[e] == 2) {
       ind->contact_state[e] = 0;
-    }
-    if (ctx->status && ctx->status_size) {
-      snprintf(
-        ctx->status, ctx->status_size, "We turn the %s away empty-handed.",
-        ai_contact_tribe_name(nation_id)
-      );
     }
   }
 }
@@ -1547,12 +1535,6 @@ int ai_contact_try_village_beg_food(ColonizeTurnContext* ctx, int nation_id) {
           )) {
         /* FUN_5bfb_022e +0x534: FUN_291f_019c(@INDIANBEGFOOD, DS:0x8d52) (port_bugs.md #1220). */
         ai_contact_chief_flair(ctx, e, nation_id);
-        if (ctx->status && ctx->status_size) {
-          snprintf(
-            ctx->status, ctx->status_size, "The %s beg for food at %s.",
-            ai_contact_tribe_name(nation_id), ctx->colonies->colonies[best_ci].name
-          );
-        }
       }
     } else {
       /* DOS-LITERAL FUN_5bfb_022e raw 0x5717e: an AI Euro answers
@@ -1826,9 +1808,8 @@ void ai_contact_indian_woi_defect(ColonizeTurnContext* ctx, int nation_id) {
    * (type == param_1+4 where param_1 is the tribe *type*, 0-7) collapses
    * to exactly `nation_id` here since this call always passes the
    * defecting tribe's own type. DOS then shows the human player an
-   * informational popup (string id 0x14c8, exact text unrecoverable
-   * without a live capture) only when anything was actually cleared —
-   * folded into the existing status line instead.
+   * informational popup (tag 0x14c8 = @INDIANBURN) only when anything was
+   * actually cleared — shown below, after @INDIANGRUDGE.
    */
   int missions_cleared = 0;
   if (ctx->col1->tribe) {
@@ -1851,9 +1832,8 @@ void ai_contact_indian_woi_defect(ColonizeTurnContext* ctx, int nation_id) {
    * tribe's two name forms (281f_09a4 / 281f_0a1a) and flushes the dialog
    * with BX = 0x14f6 right before the ±100 alarm pair
    * (viceroy_unpacked.asm 136388). The port had only a status line here
-   * because the tag id was unresolved. The mission-clear note keeps riding
-   * the status line, since DOS's own mission-clear popup is the separate
-   * @INDIANBURN inside FUN_4cc6_0000.
+   * because the tag id was unresolved. DOS's own mission-clear popup is
+   * the separate @INDIANBURN inside FUN_4cc6_0000, shown below.
    */
   {
     ai_contact_bind_names(ctx);
@@ -1870,25 +1850,18 @@ void ai_contact_indian_woi_defect(ColonizeTurnContext* ctx, int nation_id) {
     );
   }
 
-  if (ctx->status && ctx->status_size > 0) {
-    ai_contact_bind_names(ctx);
-    /* Smell #68: the mechanic is a TORY flip (+100 alarm vs. rebels, -100
-     * vs. Crown) — the old line said "declares for the rebel cause". */
-    if (missions_cleared) {
-      snprintf(
-        ctx->status,
-        ctx->status_size,
-        "The %s tribe declares for the Crown! Our missions among them are cleared.",
-        ai_contact_tribe_name(nation_id)
-      );
-    } else {
-      snprintf(
-        ctx->status,
-        ctx->status_size,
-        "The %s tribe declares for the Crown!",
-        ai_contact_tribe_name(nation_id)
-      );
-    }
+  /* FUN_4cc6_0000 raw 80795-80800: @INDIANBURN (0x14c8) when a mission was
+   * cleared and the owner is human-controlled (DS:0x543f == 0). %STRING0 =
+   * 0a1a(tribe), %STRING1 = 09a4(euro). The old invented status line
+   * ("declares for the Crown! ...") is gone (#1405 follow-up). */
+  if (missions_cleared) {
+    PopupMsgTokens btok;
+    memset(&btok, 0, sizeof(btok));
+    btok.string0 = reports_tribe_display_name(nation_id - 4);
+    btok.string1 = ai_contact_euro_name(ctx->col1, human);
+    char bbody[AI_POPUP_BODY_LEN];
+    popup_msg_fill(ctx->messages, "INDIANBURN", &btok, "", bbody, sizeof(bbody));
+    ai_contact_human_chrome(ctx, human, AI_POPUP_TAG_CONTACT_RAID, nation_id, bbody);
   }
 }
 
@@ -2009,7 +1982,7 @@ void ai_contact_indian_prelude(ColonizeTurnContext* ctx, int nation_id) {
  *       c = FUN_281f_081c(unit)             // = FUN_1427_0f0e = continent
  *       if (c >= 0) tribe_dwellings_91cc[slot*16+c] = min(255, +v)
  *
- * **DOS bug, reproduced for now (docs/tolerated_dos_bugs.md TB-7):**
+ * **DOS bug, reproduced for now (docs/tolerated_dos_bugs_ai.md TB-7):**
  * `village_counts_by_continent[]` is zeroed on every call but only refilled
  * from the *current* tribe type, so after the eight 1816 calls it holds the
  * last surviving tribe type's villages only. FUN_4962_0018 (the Euro census)
@@ -2154,7 +2127,7 @@ void ai_contact_indian_relation_tick(ColonizeTurnContext* ctx, int nation_id) {
    * bound to the last settlement's nation. FUN_4d56_1816 raw 81617-81628
    * reads herds and writes breeding through that pointer, but caps it using
    * the CURRENT nation's census total (param_1). A DOS bug, reproduced for
-   * now (docs/tolerated_dos_bugs.md TB-8): later nation turns can repeatedly
+   * now (docs/tolerated_dos_bugs_ai.md TB-8): later nation turns can repeatedly
    * breed the last settlement's nation.
    */
   {

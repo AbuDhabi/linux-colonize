@@ -620,6 +620,7 @@ AiEuroActStatus ai_euro_act_land_roles(struct ai_euro_act_ctx* a);
 int ai_euro_5d04_dos_type_code(const ColonizeUnitPool* pool, int type_index);
 /* 5d04's Europe dock walk (bound to ai_euro_s_5d04_ctx/_nation): slot indices
  * in DOS tile-chain order, newest arrival first; -1 at the end. */
+uint32_t ai_euro_5d04_artillery_price(const ColonizeCol1Nation* nat);
 int ai_euro_5d04_cb_list_iter_first(int list_id);
 int ai_euro_5d04_cb_list_iter_next(int prev);
 /* Live-tally wrapper of ai_euro_20e6_457e_hs_cadence_snapshot. */

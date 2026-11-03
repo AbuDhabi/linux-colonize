@@ -4115,8 +4115,6 @@ bool col1_contact_adjacent_tribe(
   int x,
   int y,
   int european_nation,
-  char* status_out,
-  size_t status_size,
   int* out_first_indian_nation
 ) {
   if (out_first_indian_nation) {
@@ -4160,8 +4158,7 @@ bool col1_contact_adjacent_tribe(
     }
     any = true;
   }
-  if (any && first_name && status_out && status_size > 0) {
-    snprintf(status_out, status_size, "You encounter the %s", first_name);
-  }
+  /* No status line: DOS first contact speaks through the @WELCOME chain
+   * (ai_contact_try_first_welcome). */
   return any;
 }

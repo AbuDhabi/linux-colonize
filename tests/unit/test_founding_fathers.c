@@ -174,9 +174,6 @@ int main(void) {
   if (founding_fathers_try_elect(&ctx, 0) || nat->next_founding_father != -1) {
     return fail("zero bell pool re-nominated after election");
   }
-  if (strstr(status, "Founding Father elected") == NULL) {
-    return fail("status line missing");
-  }
   /* DOS-LITERAL FUN_4345_0a22 raw 73370: the pool word is zeroed on elect
      (surplus over the threshold is discarded), port_bugs.md #933. */
   if (nat->liberty_bells_pool != 0) {

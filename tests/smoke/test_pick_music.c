@@ -135,13 +135,6 @@ int main(void) {
   dlg.selection = 0;
   enter.last_key = COLONIZE_KEY_ENTER;
   pick_music_handle_input(&dlg, &game_txt, &enter, NULL, status, sizeof(status));
-  if (strstr(status, "Bird Song") == NULL) {
-    fprintf(stderr, "status should mention Bird Song, got '%s'\n", status);
-    sound_shutdown();
-    pick_music_close(&dlg);
-    assets_msg_free(&game_txt);
-    return 1;
-  }
 
   /* Preview decode should produce non-silent audio even while autoplay is parked. */
   enum { FRAMES = 44100 / 4 };

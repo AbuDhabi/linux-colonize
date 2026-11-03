@@ -408,7 +408,7 @@ bool game_ship_sail_to_europe(ColonizeGameState* game, int sid) {
         hold_amts,
         EUROPE_SHIP_CARGO_MAX
       )) {
-    set_status(game, "Failed to sail ship", NULL);
+    diag_warn("sail to Europe: despawn of ship %d failed", sid);
   } else {
     const int voyage_turns = game_voyage_turns_for(game, voyage_ship_count, exit_x);
     if (!europe_enqueue_expected(
@@ -475,17 +475,6 @@ bool game_ship_sail_to_europe(ColonizeGameState* game, int sid) {
         sizeof(cargo_tools)
       );
       game->europe.expected[game->europe.expected_ships - 1].origin_plus1 = origin_plus1;
-      if (cargo_count > 0) {
-        snprintf(
-          game->status,
-          sizeof(game->status),
-          "%s sailed to Europe (+%d aboard)",
-          ship_name,
-          cargo_count
-        );
-      } else {
-        snprintf(game->status, sizeof(game->status), "%s sailed to Europe", ship_name);
-      }
       diag_info(
         "Sailed %s to Europe (exit %d,%d cargo=%d)", ship_name, exit_x, exit_y, cargo_count
       );
@@ -729,11 +718,6 @@ void game_finish_end_turn(ColonizeGameState* game, const ColonizeTurnResult* res
     game->europe.open_on_dock = false;
     sound_set_bgm(3); /* FUN_75c2_2778: Europe pool */
     game_tutorial_europe_opened(game);
-  }
-  if (result && result->year_end_defeat) {
-    snprintf(game->status, sizeof(game->status), "Defeat: no colonies remain.");
-  } else if (result && result->year_end_victory) {
-    snprintf(game->status, sizeof(game->status), "Victory: independence won.");
   }
   const ColonizeUnit* sel = units_get_const(&game->units, game->units.selected_id);
   if (sel && sel->active) {
@@ -1478,37 +1462,30 @@ void game_order_board(ColonizeGameState* game) {
    * forces sentry-aboard (the "fortified soldier became sentried and vanished
    * onto the ship" report). */
   const ColonizeUnit* lu = land_id >= 0 ? units_get_const(&game->units, land_id) : NULL;
-  if (lu && (lu->orders == UNITS_ORDER_FORTIFY || lu->orders == UNITS_ORDER_FORTIFIED)) {
-    set_status(game, "Unit is fortified", NULL);
-  } else if (land_id < 0 || ship_id < 0) {
-    set_status(game, "Select land unit and cursor on adjacent ship (or reverse)", NULL);
-  } else if (!units_board(&game->units, land_id, ship_id)) {
-    set_status(game, "Cannot board (need adjacent ship with free hold)", NULL);
-  } else {
-    const ColonizeUnit* ship = units_get_const(&game->units, ship_id);
-    snprintf(
-      game->status, sizeof(game->status), "Boarded ship (hold %d)", ship ? ship->cargo_count : 0
-    );
+  const bool fortified =
+    lu && (lu->orders == UNITS_ORDER_FORTIFY || lu->orders == UNITS_ORDER_FORTIFIED);
+  /* DOS shows no message on either outcome (no-DOS-text rule, #1405). */
+  game->status[0] = '\0';
+  if (!fortified && land_id >= 0 && ship_id >= 0) {
+    (void)units_board(&game->units, land_id, ship_id);
   }
 }
 
 void game_order_unload(ColonizeGameState* game) {
   const int sid = game->units.selected_id;
+  game->status[0] = '\0'; /* DOS shows no message here (#1405) */
   if (sid < 0 || !units_is_sea(&game->units, sid)) {
-    set_status(game, "Select a ship to unload", NULL);
     return;
   }
   const ColonizeUnit* ship = units_get_const(&game->units, sid);
   const int pax_id = (ship && ship->cargo_count > 0) ? ship->cargo_ids[0] : -1;
   const ColonizeWorld w = game_world(game);
   if (!units_unload_w(&w, sid, game->map_cursor_x, game->map_cursor_y)) {
-    set_status(game, "Cannot unload (need adjacent free land)", NULL);
     return;
   }
   if (pax_id >= 0) {
     game->units.selected_id = pax_id;
   }
-  set_status(game, "Unit unloaded", NULL);
 }
 
 /*
@@ -1521,11 +1498,8 @@ void game_order_unload(ColonizeGameState* game) {
 void game_order_return_europe(ColonizeGameState* game) {
   const int sid = game->units.selected_id;
   const ColonizeUnit* ship = units_get_const(&game->units, sid);
-  if (!ship || !units_is_sea(&game->units, sid)) {
-    set_status(game, "Select a ship to sail to Europe", NULL);
-  } else if (!units_on_high_seas(&game->world_map, ship->x, ship->y)) {
-    set_status(game, "Ship must be on high seas", NULL);
-  } else {
+  if (ship && units_is_sea(&game->units, sid) &&
+      units_on_high_seas(&game->world_map, ship->x, ship->y)) {
     (void)game_ship_sail_to_europe(game, sid);
   }
 }
@@ -1581,7 +1555,6 @@ void game_apply_goto_port(ColonizeGameState* game, int id) {
   }
   int dest_x = 0;
   int dest_y = 0;
-  const char* name = "";
   if (id == TRAVEL_DEST_EUROPE) {
     const ColonizeUnit* ship = units_get_const(&game->units, uid);
     if (!ship || !game->world_map_ok) {
@@ -1595,7 +1568,6 @@ void game_apply_goto_port(ColonizeGameState* game, int id) {
           &game->units, &game->world_map, ship->x, ship->y, ship->nation_id, &dest_x, &dest_y)) {
       return;
     }
-    name = game_trade_europe_label(game);
   } else {
     const ColonizeColony* target = colonies_get(&game->colonies, id);
     if (!target) {
@@ -1603,14 +1575,8 @@ void game_apply_goto_port(ColonizeGameState* game, int id) {
     }
     dest_x = target->x;
     dest_y = target->y;
-    name = target->name;
   }
-  const int rc = game_issue_goto(game, uid, dest_x, dest_y);
-  if (rc < 0) {
-    set_status(game, "Cannot go there", NULL);
-  } else if (rc == 0) {
-    snprintf(game->status, sizeof(game->status), "Go to %s", name);
-  }
+  (void)game_issue_goto(game, uid, dest_x, dest_y);
 }
 
 typedef enum GameMenuActionStatus {
@@ -1672,8 +1638,6 @@ static GameMenuActionStatus game_menu_action_system(ColonizeGameState* game, Map
     case MAP_MENU_ACTION_PICK_MUSIC:
       if (!pick_music_open(&game->pick_music, &game->messages)) {
         set_status_menu_row(game, "GAME", 4, "GAME.TXT @PICKMUSIC missing");
-      } else {
-        set_status(game, "", "Esc closes");
       }
       return GAME_MENU_ACTION_DONE;
     case MAP_MENU_ACTION_OPTIONS:
@@ -1752,7 +1716,6 @@ static GameMenuActionStatus game_menu_action_view(ColonizeGameState* game, MapMe
        * blinking tile cursor at its current spot — matches a right-click,
        * just without needing a target tile. */
       game_select_tile(game, game->map_cursor_x, game->map_cursor_y);
-      set_status(game, "Viewing map", NULL);
       return GAME_MENU_ACTION_DONE;
     case MAP_MENU_ACTION_MOVE_PIECES: {
       /* Hand control to the control-queue unit at/after the current
@@ -1763,18 +1726,11 @@ static GameMenuActionStatus game_menu_action_view(ColonizeGameState* game, MapMe
         game_center_on_selected_unit(game);
         return GAME_MENU_ACTION_DONE;
       }
-      const bool found = game_select_next_unit_awaiting_orders(game);
-      if (!found) {
-        set_status(game, "No units awaiting orders", NULL);
+      if (!game_select_next_unit_awaiting_orders(game)) {
         return GAME_MENU_ACTION_DONE;
       }
       game->view_pieces_mode = false;
       game_center_on_selected_unit(game);
-      const ColonizeUnit* next = units_get_const(&game->units, game->units.selected_id);
-      snprintf(
-        game->status, sizeof(game->status), "Selected %s",
-        next ? units_display_name(&game->units, next) : "unit"
-      );
       return GAME_MENU_ACTION_DONE;
     }
     case MAP_MENU_ACTION_PLAN_PIONEER:
@@ -1864,18 +1820,12 @@ static GameMenuActionStatus game_menu_action_orders(ColonizeGameState* game, Map
         /* FUN_2b5a_2866 -> FUN_2b5a_1b5a: a stack of two or more gets the same
          * picker as a map click (colony tiles included); the pick wakes and
          * selects (game_click_activate_unit). */
-        set_status(game, "Choose unit from stack", NULL);
         return GAME_MENU_ACTION_DONE;
       }
-      if (at < 0) {
-        set_status(game, "No unit at cursor", NULL);
-      } else {
+      if (at >= 0) {
         units_wake(&game->units, at);
         game->units.selected_id = at;
         game->view_pieces_mode = false;
-        const ColonizeUnit* u = units_get_const(&game->units, at);
-        const ColonizeUnitType* ut = u ? units_type(&game->units, u->type_index) : NULL;
-        snprintf(game->status, sizeof(game->status), "Activated %s", ut ? ut->name : "");
       }
       return GAME_MENU_ACTION_DONE;
     }
@@ -1897,10 +1847,8 @@ static GameMenuActionStatus game_menu_action_orders(ColonizeGameState* game, Map
     }
     case MAP_MENU_ACTION_SENTRY: {
       const int uid = game->units.selected_id;
-      if (uid < 0 || !units_order_sentry(&game->units, uid)) {
-        set_status(game, "Cannot sentry", NULL);
-      } else {
-        set_status(game, "", NULL);
+      game->status[0] = '\0';
+      if (uid >= 0 && units_order_sentry(&game->units, uid)) {
         game_wait_next_unit(game);
       }
       return GAME_MENU_ACTION_DONE;
@@ -1928,7 +1876,7 @@ static GameMenuActionStatus game_menu_action_orders(ColonizeGameState* game, Map
       if (!game->world_map_ok || !game->units_ok ||
           !units_pioneer_plow_w(&w, sid, &why, &game->ai_popups, &game->messages)) {
         const char* msg = game_pioneer_reason_text(&game->messages, why, buf, sizeof(buf));
-        set_status(game, msg[0] ? msg : "Cannot plow", NULL);
+        set_status(game, msg, NULL);
       } else {
         set_status(game, game_pioneer_reason_text(&game->messages, why, buf, sizeof(buf)), NULL);
         game_wait_next_unit(game);
@@ -1947,7 +1895,7 @@ static GameMenuActionStatus game_menu_action_orders(ColonizeGameState* game, Map
       if (!game->world_map_ok || !game->units_ok ||
           !units_pioneer_road_w(&w, sid, &why, &game->ai_popups, &game->messages)) {
         const char* msg = game_pioneer_reason_text(&game->messages, why, buf, sizeof(buf));
-        set_status(game, msg[0] ? msg : "Cannot build road", NULL);
+        set_status(game, msg, NULL);
       } else {
         set_status(game, game_pioneer_reason_text(&game->messages, why, buf, sizeof(buf)), NULL);
         game_wait_next_unit(game);
@@ -1970,9 +1918,7 @@ static GameMenuActionStatus game_menu_action_goto_and_cargo(ColonizeGameState* g
     case MAP_MENU_ACTION_GOTO_PLACE: {
       const int sid = game->units.selected_id;
       const ColonizeUnit* u = units_get_const(&game->units, sid);
-      if (sid < 0 || !u || !u->active || !units_is_on_map(u)) {
-        set_status(game, "Select a unit", NULL);
-      } else {
+      if (sid >= 0 && u && u->active && units_is_on_map(u)) {
         game_open_goto_port_picker(game, sid);
       }
       return GAME_MENU_ACTION_DONE;
@@ -1980,7 +1926,6 @@ static GameMenuActionStatus game_menu_action_goto_and_cargo(ColonizeGameState* g
     case MAP_MENU_ACTION_TRADE_ROUTE: {
       const int sid = game->units.selected_id;
       if (sid < 0 || !units_is_transport(&game->units, sid)) {
-        set_status(game, "Select a ship or wagon", NULL);
         return GAME_MENU_ACTION_DONE;
       }
       game_open_trade_route_picker(game, 1); /* begin */
@@ -2031,7 +1976,6 @@ static GameMenuActionStatus game_menu_action_goto_and_cargo(ColonizeGameState* g
     }
     case MAP_MENU_ACTION_LOAD_CARGO: {
       if (!game->world_map_ok || !game->units_ok) {
-        set_status(game, "Cannot load cargo", NULL);
         return GAME_MENU_ACTION_DONE;
       }
       game_order_board(game);
@@ -2039,7 +1983,6 @@ static GameMenuActionStatus game_menu_action_goto_and_cargo(ColonizeGameState* g
     }
     case MAP_MENU_ACTION_UNLOAD_CARGO: {
       if (!game->world_map_ok || !game->units_ok) {
-        set_status(game, "Select a ship to unload", NULL);
         return GAME_MENU_ACTION_DONE;
       }
       game_order_unload(game);
@@ -2048,7 +1991,6 @@ static GameMenuActionStatus game_menu_action_goto_and_cargo(ColonizeGameState* g
     case MAP_MENU_ACTION_RETURN_EUROPE: {
       /* Same rules as key H. */
       if (!game->world_map_ok || !game->units_ok || !game->europe_ok) {
-        set_status(game, "Cannot return to Europe", NULL);
         return GAME_MENU_ACTION_DONE;
       }
       game_order_return_europe(game);
@@ -2330,7 +2272,6 @@ void game_map_click_dispatch(ColonizeGameState* game, int mx, int my) {
 
   if (game->units_ok &&
       unit_stack_try_open(&game->unit_stack, &game->units, mx, my, game->human_nation)) {
-    set_status(game, "Choose unit from stack", NULL);
     return;
   }
 

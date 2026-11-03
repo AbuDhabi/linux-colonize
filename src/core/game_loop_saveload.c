@@ -837,7 +837,6 @@ void game_retire_after_score(ColonizeGameState* game) {
   sound_set_bgm(SOUND_TITLE_BGM_POOL); /* both paths end at the title menu */
   if (!game->col1_ok) {
     game->in_menu = true;
-    set_status(game, "Retired to main menu", NULL);
     return;
   }
   ColonizeScoreBreakdown sc;
@@ -868,11 +867,10 @@ void game_retire_after_score(ColonizeGameState* game) {
     sound_play(sound_retire_tune_id(sc.exploits_tier));
     game_build_exploits(game, &sc);
     game->in_exploits = true;
-    set_status(game, "Exploits", "Any key or click continues");
   } else {
     game->in_hall_of_fame = true;
-    set_status(game, reports_misc_display_word(192, ""), "Any key or click returns to menu");
   }
+  game->status[0] = '\0';
 }
 
 void game_open_retire_score(ColonizeGameState* game) {
@@ -881,7 +879,6 @@ void game_open_retire_score(ColonizeGameState* game) {
   }
   game_open_report(game, COLONIZE_REPORT_SCORE);
   game->report_exits_to_menu = true;
-  set_status(game, "Final score", "Any key or click continues");
 }
 
 /* The game is over: DS:0x53c2 cleared, the main loop returns to the title menu. */

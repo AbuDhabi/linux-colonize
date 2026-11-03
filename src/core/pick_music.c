@@ -161,25 +161,19 @@ bool pick_music_open(PickMusicDialog* dlg, const ColonizeMsgCatalog* game_txt) {
 
 static void pick_music_play_song(const PickMusicOption* opt, char* status, size_t status_size) {
   if (!opt || opt->kind != PICK_MUSIC_KIND_SONG || opt->song_id <= 0) {
-    if (status && status_size > 0) {
-      snprintf(status, status_size, "No song mapped for %s", opt ? opt->label : "?");
-    }
-    return;
+    return; /* DOS shows nothing either way; the invented status lines are gone */
   }
   /* Preview path: plays immediately without changing map BGM. */
   sound_play_preview(opt->song_id);
-  if (status && status_size > 0) {
-    if (sound_audio_output_ready()) {
-      snprintf(status, status_size, "Playing: %s (0x%02x)", opt->label, opt->song_id);
-    } else {
-      snprintf(
-        status,
-        status_size,
-        "Selected: %s (0x%02x; no audio device — try without --nosound)",
-        opt->label,
-        opt->song_id
-      );
-    }
+  /* Kept (port-only): the --nosound / no-device hint has no DOS counterpart. */
+  if (status && status_size > 0 && !sound_audio_output_ready()) {
+    snprintf(
+      status,
+      status_size,
+      "Selected: %s (0x%02x; no audio device — try without --nosound)",
+      opt->label,
+      opt->song_id
+    );
   }
 }
 

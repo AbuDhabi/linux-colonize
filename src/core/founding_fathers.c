@@ -481,33 +481,6 @@ void founding_fathers_consume_woi_bell_pool(ColonizeTurnContext* ctx, int nation
   founding_fathers_reset_bells_pool(ctx, nation_id);
 }
 
-/*
- * FUN_4345_0a22 phase 3 (thin): status while WoI bell pool grows toward
- * intervention threshold. VGA-identical chrome remains PARKED.
- */
-void founding_fathers_woi_intervention_chrome(
-  ColonizeTurnContext* ctx,
-  int nation_id,
-  unsigned pool,
-  unsigned needed
-) {
-  if (!ctx || nation_id != ctx->human_nation) {
-    return;
-  }
-  if (pool == 0u || pool >= needed) {
-    return;
-  }
-  if (ctx->status && ctx->status_size > 0 && pool >= needed / 2u) {
-    snprintf(
-      ctx->status,
-      ctx->status_size,
-      "Liberty bells rally foreign intervention (%u/%u).",
-      pool,
-      needed
-    );
-  }
-}
-
 static int ff_debate_pending(const AiPopupState* p) {
   if (!p) {
     return 0;
@@ -640,9 +613,6 @@ static void ensure_next_candidate(ColonizeTurnContext* ctx, int nation_id) {
     /* A slate already rolled (and escaped, or carried over) re-presents
      * verbatim — cancelling or waiting a turn must not reroll it. */
     if (ff_enqueue_debate_from_slate(ctx, ctx->ai_popups, nation_id)) {
-      if (ctx->status && ctx->status_size > 0) {
-        snprintf(ctx->status, ctx->status_size, "Congress debates founding fathers.");
-      }
       return;
     }
     int ids[AI_POPUP_CHOICE_MAX];
@@ -662,10 +632,7 @@ static void ensure_next_candidate(ColonizeTurnContext* ctx, int nation_id) {
       memcpy(s_ff_debate_slate, ids, sizeof(ids[0]) * (size_t)n);
       s_ff_debate_slate_n = n;
       s_ff_debate_slate_nation = nation_id;
-      if (ff_enqueue_debate_from_slate(ctx, ctx->ai_popups, nation_id) &&
-          ctx->status && ctx->status_size > 0) {
-        snprintf(ctx->status, ctx->status_size, "Congress debates founding fathers.");
-      }
+      (void)ff_enqueue_debate_from_slate(ctx, ctx->ai_popups, nation_id);
     }
     return;
   }
@@ -1280,9 +1247,6 @@ static bool elect_commit(
   EuropeScreen* europe = (nation_id == ctx->human_nation) ? ctx->europe : NULL;
   apply_effect(ctx, col1, nat, europe, nation_id, ctx->human_nation, idx);
 
-  if (ctx->status && ctx->status_size > 0 && nation_id == ctx->human_nation) {
-    snprintf(ctx->status, ctx->status_size, "Founding Father elected (#%d)", idx);
-  }
   diag_info(
     "FF nation %d elected #%d %s (count=%u)",
     nation_id, idx, reports_ff_display_name(idx), (unsigned)nat->founding_father_count
@@ -1413,15 +1377,6 @@ void founding_fathers_apply_popup_result(ColonizeTurnContext* ctx, AiPopupState*
   const unsigned pool = founding_fathers_bells_pool(ctx->col1, nation);
   if (pool >= needed) {
     (void)elect_commit(ctx, nation, idx);
-  } else if (ctx->status && ctx->status_size > 0 && nation == ctx->human_nation) {
-    snprintf(
-      ctx->status,
-      ctx->status_size,
-      "Congress seeks %s (%u/%u bells).",
-      reports_ff_display_name(idx),
-      pool,
-      needed
-    );
   }
 }
 

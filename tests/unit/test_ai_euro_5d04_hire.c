@@ -755,6 +755,20 @@ static int pioneer_training_skipped_past_turn_99(void) {
   return 0;
 }
 
+/* DB-73: the AI pays the Europe Artillery price, 500 + 100 per prior buy. */
+static int artillery_price_escalates(void) {
+  ColonizeCol1Nation nat;
+  memset(&nat, 0, sizeof(nat));
+  if (ai_euro_5d04_artillery_price(&nat) != 500) {
+    return fail("first Artillery must cost 500");
+  }
+  nat.artillery_count = 3;
+  if (ai_euro_5d04_artillery_price(&nat) != 800) {
+    return fail("fourth Artillery must cost 800");
+  }
+  return 0;
+}
+
 /*
  * TB-56 (C-71): the dispatch-0 Pioneer training writes only the type in DOS
  * (raw 92770-92783), so the Pioneer keeps the record's tools byte (0 here);
@@ -1238,6 +1252,7 @@ static const TestCase k_cases[] = {
     {"pioneer_training_skipped_past_turn_99", pioneer_training_skipped_past_turn_99},
     {"pioneer_roll_miss_skips_missionary_arm", pioneer_roll_miss_skips_missionary_arm},
     {"pioneer_training_tools", pioneer_training_tools},
+    {"artillery_price_escalates", artillery_price_escalates},
     {"dock_walk_is_newest_first", dock_walk_is_newest_first},
     {"missionary_bless_roll_matches_dos_one_in_four", missionary_bless_roll_matches_dos_one_in_four},
     {"dos_type_table_is_names_txt_unit_order", dos_type_table_is_names_txt_unit_order},

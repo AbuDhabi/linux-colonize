@@ -348,7 +348,7 @@ static int ai_euro_20e6_delivery_colony_pick(
  * adds the UNtaxed euro_price*qty to trade.gold[g] and qty to trade.tons[g] a
  * second time. Only the +0x2a treasury credit is single, and it is untaxed —
  * the AI dump-sell pays no Crown cut on this path. Ported as written: a DOS
- * bug, reproduced for now (docs/tolerated_dos_bugs.md TB-3).
+ * bug, reproduced for now (docs/tolerated_dos_bugs_ai.md TB-3).
  *
  * DOS walks `holds_occupied` taking slot 0 each time (the compaction leaves
  * stale bytes past the count, which saves carry).

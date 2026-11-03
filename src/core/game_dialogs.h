@@ -519,8 +519,8 @@ bool game_defer_turn_flow(ColonizeGameState* game);
 void game_enter_colony(ColonizeGameState* game, int cid);
 /* spy = DS:0xb98, the scout's look-only Infiltrate view (port_bugs.md #1382). */
 void game_enter_colony_view(ColonizeGameState* game, int cid, bool spy);
-void game_europe_open_buy_prompt(ColonizeGameState* game);
 void game_europe_open_buy_prompt_for(ColonizeGameState* game, int hidx, int cargo);
+void game_europe_buy_full_load(ColonizeGameState* game, int hidx, int cargo);
 void game_europe_sail_harbor(ColonizeGameState* game, int hidx);
 void game_europe_service_trade_harbor(ColonizeGameState* game);
 void game_fill_turn_context(ColonizeGameState* game, ColonizeTurnContext* ctx);

@@ -157,7 +157,6 @@ void game_select_unit(ColonizeGameState* game, int unit_id) {
    * toolless Pioneer-professioned Colonist still reads "Colonists" here.
    * The Naval report's passenger column deliberately reads the profession
    * instead (port_bugs.md #605), which is a separate, port-side extension. */
-  snprintf(game->status, sizeof(game->status), "Selected %s", units_display_name(&game->units, u));
   /* FUN_2b5a_0e52 raw 42330-42332: the piece-selected tutorial hint chain
    * FUN_2b5a_0070 (@TUTORIAL1 ... @TUTORIAL19, port_bugs.md #730). */
   game_tutorial_piece_selected(game, unit_id);
@@ -177,48 +176,8 @@ static bool game_friendly_colony_at(const ColonizeGameState* game, int x, int y)
  * blocking dialog (not just a status-bar line): @CANNOTATTACK / @SHIPCOMBAT
  * (BOUNCE_FOREIGN, split by the mover's own domain — land vs sea, since the
  * port folds both DOS gates into one reason), @SHIPLAKE (LAKE_BLOCKED) and
- * @LANDFIRST (LANDFIRST). Anything else keeps the plain status line.
+ * @LANDFIRST (LANDFIRST). Anything else is refused silently.
  */
-/* Port-only status line for a probe reason (never NULL); UI-owned text. */
-static const char* game_enter_reason_status(ColonizeEnterReason reason) {
-  switch (reason) {
-  case COLONIZE_ENTER_OK:
-  case COLONIZE_ENTER_DOCK:
-    return "Moved";
-  case COLONIZE_ENTER_LANDFALL:
-    return "Landfall";
-  case COLONIZE_ENTER_COMBAT_LAND:
-  case COLONIZE_ENTER_COMBAT_NAVAL:
-    return "Battle started";
-  case COLONIZE_ENTER_BOUNCE_FOREIGN:
-    return "Cannot attack (non-combat unit)";
-  case COLONIZE_ENTER_BOUNCE_PEACE:
-    return "At peace — cannot attack";
-  case COLONIZE_ENTER_BLOCKED_DOMAIN:
-    return "Wrong terrain";
-  case COLONIZE_ENTER_BLOCKED_EDGE:
-  case COLONIZE_ENTER_EDGE_SAIL: /* port_bugs.md #717 */
-    return "Map edge";
-  case COLONIZE_ENTER_BLOCKED_HS_SAIL:
-    return "Need sail order for high seas";
-  case COLONIZE_ENTER_VILLAGE_ILLEGAL:
-    return "Cannot enter village";
-  case COLONIZE_ENTER_BOARD:
-    return "Boarded ship";
-  case COLONIZE_ENTER_VILLAGE_SHIP:
-    return "Native settlement entered";
-  case COLONIZE_ENTER_LAKE_BLOCKED:
-    return "Ship cannot enter lake";
-  case COLONIZE_ENTER_LANDFIRST:
-    return "Must unload troops first";
-  case COLONIZE_ENTER_NO_MP:
-    return "No moves left";
-  case COLONIZE_ENTER_BLOCKED:
-  default:
-    return "Move blocked";
-  }
-}
-
 static void game_report_enter_reason(
   ColonizeGameState* game, int sid, ColonizeEnterReason reason
 ) {
@@ -247,7 +206,6 @@ static void game_report_enter_reason(
     popup_msg_fill(&game->messages, section, NULL, fallback, body, sizeof(body));
     ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
   }
-  set_status(game, game_enter_reason_status(reason), NULL);
 }
 
 /*
@@ -276,11 +234,6 @@ bool game_commit_sea_lane_step(ColonizeGameState* game, int sid, int dest_x, int
     u->goto_x = prev_gx;
     u->goto_y = prev_gy;
   }
-  if (ok) {
-    snprintf(game->status, sizeof(game->status), "Moved unit to (%d,%d)", dest_x, dest_y);
-  } else {
-    set_status(game, game_enter_reason_status(units_last_enter_reason()), NULL);
-  }
   return ok;
 }
 
@@ -302,7 +255,6 @@ COLONIZE_INTERNAL GameMoveStep game_move_passenger_unload(
   /* Awake passenger: walk onto adjacent land → unload. */
   if (selected->aboard_ship_id >= 0) {
     if (selected->orders == UNITS_ORDER_SENTRY) {
-      set_status(game, "Wake unit from stack first", NULL);
       return GAME_MOVE_RETURN_FALSE;
     }
     const int ship_id = selected->aboard_ship_id;
@@ -321,7 +273,6 @@ COLONIZE_INTERNAL GameMoveStep game_move_passenger_unload(
       return GAME_MOVE_RETURN_FALSE;
     }
     game->units.selected_id = sid;
-    snprintf(game->status, sizeof(game->status), "Disembarked to (%d,%d)", dest_x, dest_y);
     game_after_unit_action(game);
     return GAME_MOVE_RETURN_TRUE;
   }
@@ -406,20 +357,12 @@ COLONIZE_INTERNAL GameMoveStep game_move_sea_unit(
       return GAME_MOVE_RETURN_TRUE;
     }
     if (dest_land && game_friendly_colony_at(game, dest_x, dest_y)) {
-      /* units_try_move puts passengers ashore on docking (port_bugs.md), so count
-       * them before the move to report what came off. */
-      const int n = selected->cargo_count;
+      /* units_try_move puts passengers ashore on docking (port_bugs.md). */
       const ColonizeWorld w = game_world(game);
       if (!units_try_move_w(&w, sid, dest_x, dest_y)) {
-        set_status(game, game_enter_reason_status(units_last_enter_reason()), NULL);
         return GAME_MOVE_RETURN_FALSE;
       }
       game->units.selected_id = sid;
-      if (n > 0) {
-        snprintf(game->status, sizeof(game->status), "Docked; %d disembarked", n);
-      } else {
-        snprintf(game->status, sizeof(game->status), "Moved to colony (%d,%d)", dest_x, dest_y);
-      }
       game_after_unit_action(game);
       return GAME_MOVE_RETURN_TRUE;
     }
@@ -435,7 +378,6 @@ COLONIZE_INTERNAL GameMoveStep game_move_sea_unit(
             return GAME_MOVE_RETURN_TRUE;
           }
         }
-        set_status(game, game_enter_reason_status(landfall), NULL);
         return GAME_MOVE_RETURN_FALSE;
       }
       /* FUN_4720_015c raw 76005-76006: a settlement owner 0..3 skips the
@@ -458,12 +400,6 @@ COLONIZE_INTERNAL GameMoveStep game_move_sea_unit(
         /* DOS FUN_4720_015c writes the landfall reason (2/3) only when some
          * passenger's spent byte is below its max — with none, reason stays 0
          * and the move is simply refused, no @LANDFALL prompt (port_bugs.md #423). */
-        set_status(
-          game,
-          selected->cargo_count > 0 ? "No unit aboard has moves left" :
-                                      "No unit ready to disembark",
-          NULL
-        );
         return GAME_MOVE_RETURN_FALSE;
       }
       {
@@ -505,7 +441,6 @@ COLONIZE_INTERNAL GameMoveStep game_move_sea_unit(
           units_landfall_wake_tile(&game->units, sid);
           const ColonizeWorld w = game_world(game);
           if (!units_unload_passenger_w(&w, sid, pax_ready, dest_x, dest_y)) {
-            set_status(game, "Move blocked", NULL);
             return GAME_MOVE_RETURN_FALSE;
           }
           /*
@@ -525,12 +460,10 @@ COLONIZE_INTERNAL GameMoveStep game_move_sea_unit(
             }
           }
           game->units.selected_id = pax_ready;
-          snprintf(game->status, sizeof(game->status), "Landfall at (%d,%d)", dest_x, dest_y);
           game_after_unit_action(game);
           return GAME_MOVE_RETURN_TRUE;
         }
       }
-      set_status(game, "Landfall…", NULL);
       return GAME_MOVE_RETURN_TRUE;
     }
   }
@@ -801,7 +734,6 @@ COLONIZE_INTERNAL GameMoveStep game_move_native_prompts(
          * extra pre-charge double-billed the non-combat mover.
          */
         (void)combatish;
-        set_status(game, "Village…", NULL);
         game_after_unit_action(game);
         return GAME_MOVE_RETURN_TRUE;
       }
@@ -818,7 +750,6 @@ COLONIZE_INTERNAL GameMoveStep game_move_native_prompts(
       ColonizeTurnContext ctx;
       game_fill_turn_context(game, &ctx);
       if (ai_contact_try_whack_confirm(&ctx, selected->nation_id, foe->nation_id, sid, dest_x, dest_y)) {
-        set_status(game, "Attack?", NULL);
         return GAME_MOVE_RETURN_TRUE;
       }
     }
@@ -848,7 +779,6 @@ COLONIZE_INTERNAL GameMoveStep game_move_native_prompts(
                     game->ai_popups.queue[qi].nation_a == sid;
         }
         if (pending) {
-          set_status(game, "Scouts…", NULL);
           return GAME_MOVE_RETURN_TRUE;
         }
         PopupMsgTokens tok;
@@ -876,7 +806,6 @@ COLONIZE_INTERNAL GameMoveStep game_move_native_prompts(
               labels, ids, 4
             )) {
           (void)ai_popup_present_now(&game->ai_popups, AI_POPUP_TAG_SCOUT_COLONY);
-          set_status(game, "Scouts…", NULL);
           return GAME_MOVE_RETURN_TRUE;
         }
       }
@@ -971,7 +900,6 @@ COLONIZE_INTERNAL GameMoveStep game_move_colony_prompts(
       if (ai_contact_try_euro_attack_confirm(
             &ctx, selected->nation_id, target_nation, sid, dest_x, dest_y
           )) {
-        set_status(game, "Attack?", NULL);
         return GAME_MOVE_RETURN_TRUE;
       }
     }
@@ -1008,9 +936,7 @@ COLONIZE_INTERNAL GameMoveStep game_move_colony_prompts(
       ColonizeTurnContext ctx;
       game_fill_turn_context(game, &ctx);
       if (ai_contact_try_tired_attack_confirm(&ctx, sid, dest_x, dest_y)) {
-        /* GAME.TXT @HALF popup is enqueued by ai_contact.c; this status-bar
-         * echo is port-authored and deliberately not that catalog wording. */
-        set_status(game, "Confirm the attack?", NULL);
+        /* GAME.TXT @HALF popup is enqueued by ai_contact.c. */
         return GAME_MOVE_RETURN_TRUE;
       }
     }
@@ -1026,12 +952,9 @@ COLONIZE_INTERNAL GameMoveStep game_move_commit(
     const int mp_before = selected->moves;
     const ColonizeWorld w = game_world(game);
     if (!units_try_move_w(&w, sid, dest_x, dest_y)) {
-      if (units_last_combat_outcome() < 0) {
-        set_status(game, "Combat lost", NULL);
-        game_after_unit_action(game);
-      } else if (selected->moves < mp_before) {
-        /* DOS charges MP on failed partial-overspend rolls even when the unit stays. */
-        set_status(game, "Move failed", NULL);
+      if (units_last_combat_outcome() < 0 || selected->moves < mp_before) {
+        /* Combat lost, or DOS charged MP on a failed partial-overspend roll
+         * even though the unit stays. */
         game_after_unit_action(game);
       } else {
         game_report_enter_reason(game, sid, units_last_enter_reason());
@@ -1039,12 +962,10 @@ COLONIZE_INTERNAL GameMoveStep game_move_commit(
       return GAME_MOVE_RETURN_FALSE;
     }
     if (units_last_enter_reason() == COLONIZE_ENTER_BOARD) {
-      set_status(game, "Boarded ship", NULL);
       game_after_unit_action(game);
       return GAME_MOVE_RETURN_TRUE;
     }
     if (units_last_combat_outcome() > 0) {
-      snprintf(game->status, sizeof(game->status), "Combat won at (%d,%d)", dest_x, dest_y);
       game_after_unit_action(game);
       return GAME_MOVE_RETURN_TRUE;
     }
@@ -1136,7 +1057,6 @@ bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y) {
   }
 
   game_move_arrival_tail(game, selected);
-  snprintf(game->status, sizeof(game->status), "Moved unit to (%d,%d)", dest_x, dest_y);
   game_after_unit_action(game);
   return true;
 }
@@ -1257,18 +1177,12 @@ void game_after_unit_action(ColonizeGameState* game) {
    */
   if (game->col1_ok && u->nation_id >= 0 && u->nation_id <= 3 && units_is_on_map(u) &&
       !units_is_sea(&game->units, u->id)) {
-    char contact[80];
-    contact[0] = '\0';
     int first_indian = -1;
-    if (col1_contact_adjacent_tribe(
-          &game->col1, u->x, u->y, u->nation_id, contact, sizeof(contact), &first_indian
-        )) {
+    if (col1_contact_adjacent_tribe(&game->col1, u->x, u->y, u->nation_id, &first_indian)) {
       if (first_indian >= 4) {
         ColonizeTurnContext ctx;
         game_fill_turn_context(game, &ctx);
         (void)ai_contact_try_first_welcome(&ctx, u->nation_id, first_indian);
-      } else if (contact[0]) {
-        snprintf(game->status, sizeof(game->status), "%s", contact);
       }
     }
     /* FUN_5bfb_3180: adjacent Brave or tribe-owned land also opens contact. */
@@ -1369,11 +1283,6 @@ void game_after_unit_action(ColonizeGameState* game) {
   if (game_select_next_unit_awaiting_orders(game)) {
     game->view_pieces_mode = false;
     game_center_on_selected_unit(game);
-    const ColonizeUnit* next = units_get_const(&game->units, game->units.selected_id);
-    snprintf(
-      game->status, sizeof(game->status), "Selected %s",
-      next ? units_display_name(&game->units, next) : "unit"
-    );
     return;
   }
   game_no_unit_left(game, exhausted_x, exhausted_y);

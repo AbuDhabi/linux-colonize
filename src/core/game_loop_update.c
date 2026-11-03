@@ -241,7 +241,6 @@ bool game_try_start_intro(ColonizeGameState* game) {
     return false;
   }
   game->opening_just_opened = true;
-  set_status(game, "Colonization", NULL);
   return true;
 }
 
@@ -328,9 +327,8 @@ void game_colony_open_load_prompt(
 /*
  * European Status buy prompt: the @HOWMUCH4 amount dialog for the selected
  * market cargo, sized by the selected ship's free room (DOS FUN_38fd_1fa2,
- * smell audit #83). Audit GL-14: key L and the '=' text key carried the same
- * thirty lines twice. Both call sites have already checked that a ship is
- * selected.
+ * smell audit #83), param_4 != 0: Shift+L, '+' and Shift+drag. Callers
+ * have already checked that a ship is selected.
  */
 void game_europe_open_buy_prompt_for(ColonizeGameState* game, int hidx, int cargo) {
   EuropeScreen* eu = &game->europe;
@@ -367,8 +365,19 @@ void game_europe_open_buy_prompt_for(ColonizeGameState* game, int hidx, int carg
   }
 }
 
-void game_europe_open_buy_prompt(ColonizeGameState* game) {
-  game_europe_open_buy_prompt_for(game, game->europe.selected_harbor, game->europe.selected_market);
+/*
+ * FUN_38fd_1fa2 param_4 == 0: the full load (hold room, at most 100) with no
+ * amount prompt. Short gold refuses the whole buy with the red "<cargo>
+ * (<cost>) too expensive!" line plus @TUTORIAL18 (europe_buy_cargo_w writes
+ * the line). Plain market drag, key l and '=' (FUN_38fd_4f6e 38fd:51f3-520b).
+ */
+void game_europe_buy_full_load(ColonizeGameState* game, int hidx, int cargo) {
+  const bool short_gold = game_tutorial_europe_cannot_afford(game, hidx, cargo);
+  const ColonizeWorld w = game_world(game);
+  europe_buy_cargo_w(&w, game->human_nation, hidx, cargo, 100);
+  if (!short_gold) {
+    game_europe_drain_price_events(game);
+  }
 }
 
 /*
@@ -962,10 +971,6 @@ static GameUpdateStep game_pacer_goto_step(
           game->map_cursor_x = next->x;
           game->map_cursor_y = next->y;
           game_set_view_center(game, next->x, next->y);
-          snprintf(
-            game->status, sizeof(game->status), "Selected %s",
-            units_display_name(&game->units, next)
-          );
         }
       } else {
         const ColonizeUnit* stuck = units_get_const(&game->units, active_id);
@@ -1132,10 +1137,6 @@ COLONIZE_INTERNAL GameUpdateStep game_update_unit_pacer(ColonizeGameState* game,
         game->map_cursor_x = next->x;
         game->map_cursor_y = next->y;
         game_set_view_center(game, next->x, next->y);
-        snprintf(
-          game->status, sizeof(game->status), "Selected %s",
-          units_display_name(&game->units, next)
-        );
       } else {
         /* FUN_2b5a_3b68 raw 46840-46848: the Move Pieces pass re-tests the
          * active unit and, with none left, runs 0e52's no-unit arm. */
@@ -1462,14 +1463,6 @@ static GameUpdateStep game_colony_screen_mouse_click(
           colony_screen_close_eject(csv);
           if (ok) {
             game_colony_select_outside(game, uid);
-            snprintf(
-              game->status,
-              sizeof(game->status),
-              "Equipped as %s",
-              colonies_eject_role_name(role)
-            );
-          } else {
-            set_status(game, "Cannot equip unit", NULL);
           }
         } else {
           game_colony_request_eject(game, csv->eject_colonist_index, role);
@@ -1523,7 +1516,7 @@ static GameUpdateStep game_colony_screen_mouse_click(
           const ColonizeUnit* tu = units_get_const(&game->units, hit.index);
           const ColonizeUnitType* tt = tu ? units_type(&game->units, tu->type_index) : NULL;
           snprintf(
-            game->status, sizeof(game->status), "%s", tt && tt->name[0] ? tt->name : "Unit selected"
+            game->status, sizeof(game->status), "%s", tt ? tt->name : ""
           );
         }
       }
@@ -1604,8 +1597,6 @@ static GameUpdateStep game_colony_screen_mouse_click(
         if (col && hit.index >= 0 && hit.index < COLONIZE_BUILDING_TYPES_MAX &&
             col->has_building[hit.index]) {
           colony_screen_open_custom_house(csv, col, &game->messages);
-        } else {
-          set_status(game, "Build it first", NULL);
         }
       } else {
         game_colony_assign_building_drop(game, hit.index);
@@ -1629,7 +1620,6 @@ static GameUpdateStep game_colony_screen_mouse_click(
       colonies_build_queue_clear(&game->colonies, game->colony_view_id);
       colonies_clear_construction(&game->colonies, game->colony_view_id);
       colony_screen_close_construction(csv);
-      set_status(game, "Construction cleared", NULL);
       break;
     case COLONY_HIT_CONSTRUCTION_ROW:
       if (hit.index >= 0 && hit.index < csv->buildable_count) {
@@ -1710,9 +1700,6 @@ static GameUpdateStep game_colony_screen_key_enter(
           colony_screen_close_eject(csv);
           if (ok) {
             game_colony_select_outside(game, csv->selected_outside_unit);
-            snprintf(game->status, sizeof(game->status), "Equipped as %s", colonies_eject_role_name(role));
-          } else {
-            set_status(game, "Cannot equip unit", NULL);
           }
         } else {
           game_colony_request_eject(game, csv->eject_colonist_index, role);
@@ -1743,7 +1730,6 @@ static GameUpdateStep game_colony_screen_key_enter(
       } else if (csv->construction_selection == 0) {
         colonies_build_queue_clear(&game->colonies, game->colony_view_id);
         colonies_clear_construction(&game->colonies, game->colony_view_id);
-        set_status(game, "Construction cleared", NULL);
         colony_screen_close_construction(csv);
       } else if (bi >= 0 && bi < csv->buildable_count) {
         /* Shift+Enter is the keyboard twin of the Shift-click queue pick. */
@@ -2603,12 +2589,17 @@ static GameUpdateStep game_europe_screen_keys(
     }
   }
 
-  /* L / '=' : howmuch buy. U : sell the lowest-key hold (FUN_479b_0f60). */
+  /* l / '=' : full-load buy; L (Shift) / '+' : @HOWMUCH4 amount prompt
+   * (FUN_38fd_4f6e 38fd:51ba-520b: boycott gate, then FUN_38fd_1fa2 with
+   * param_4 = (key == '+' || key == 'L')). U : sell the lowest-key hold
+   * (FUN_479b_0f60). */
   if (input->last_key == COLONIZE_KEY_L) {
-    if (eu->selected_harbor < 0) {
-      eu->status[0] = '\0';
-    } else {
-      game_europe_open_buy_prompt(game);
+    if (eu->selected_harbor >= 0 && !game_europe_boycott_gate(game, eu->selected_market)) {
+      if (input->shift_held) {
+        game_europe_open_buy_prompt_for(game, eu->selected_harbor, eu->selected_market);
+      } else {
+        game_europe_buy_full_load(game, eu->selected_harbor, eu->selected_market);
+      }
     }
     return GAME_UPDATE_RETURN_TRUE;
   }
@@ -2648,18 +2639,15 @@ static GameUpdateStep game_europe_screen_keys(
       }
       return GAME_UPDATE_RETURN_TRUE;
     }
-    if (ch == '=' && eu->selected_harbor >= 0) {
-      /* Same as key L. */
-      game_europe_open_buy_prompt(game);
-      return GAME_UPDATE_RETURN_TRUE;
-    }
-    if (ch == '+' && eu->selected_harbor >= 0) {
-      if (game_europe_boycott_gate(game, eu->selected_market)) {
-        return GAME_UPDATE_RETURN_TRUE; /* FUN_38fd_4f6e 38fd:51ba-51f3 */
+    if ((ch == '=' || ch == '+') && eu->selected_harbor >= 0) {
+      /* Same branch as key l / L (38fd:51ba): '=' full load, '+' prompt. */
+      if (!game_europe_boycott_gate(game, eu->selected_market)) {
+        if (ch == '+') {
+          game_europe_open_buy_prompt_for(game, eu->selected_harbor, eu->selected_market);
+        } else {
+          game_europe_buy_full_load(game, eu->selected_harbor, eu->selected_market);
+        }
       }
-      const ColonizeWorld w = game_world(game);
-      europe_buy_cargo_w(&w, game->human_nation, eu->selected_harbor, eu->selected_market, 1);
-      game_europe_drain_price_events(game);
       return GAME_UPDATE_RETURN_TRUE;
     }
     if (ch == '-' || ch == '_') {
@@ -3140,10 +3128,7 @@ static GameUpdateStep game_map_mouse_click(
         const int rc = game_issue_goto(game, uid, mx, my);
         if (rc == 0) {
           /* Movement is paced in game_update (10 steps/sec). */
-          snprintf(game->status, sizeof(game->status), "Go to (%d,%d)", mx, my);
           game_set_view_center(game, u->x, u->y);
-        } else if (rc < 0) {
-          set_status(game, "Cannot go there", NULL);
         }
         return GAME_UPDATE_RETURN_TRUE;
       }
@@ -3205,18 +3190,12 @@ COLONIZE_INTERNAL GameUpdateStep game_update_map_menu_bar(ColonizeGameState* gam
         input->last_key != COLONIZE_KEY_NONE;
       if (any_input) {
         game->terrain_peel_phase = 0;
-        set_status_menu_row(game, "VIEW", 9, "off");
         return GAME_UPDATE_RETURN_TRUE;
       }
       if (game->terrain_peel_phase < 3 &&
           game->elapsed_ms - game->hidden_terrain_phase_ms >= HIDDEN_TERRAIN_STEP_MS) {
         game->terrain_peel_phase++;
         game->hidden_terrain_phase_ms = game->elapsed_ms;
-        if (game->terrain_peel_phase == 2) {
-          set_status_menu_row(game, "VIEW", 9, "roads, resources hidden");
-        } else {
-          set_status_menu_row(game, "VIEW", 9, "hills and forest hidden");
-        }
       }
     }
 
@@ -3555,9 +3534,6 @@ COLONIZE_INTERNAL GameUpdateStep game_update_map_keys(ColonizeGameState* game, c
       return GAME_UPDATE_RETURN_TRUE;
     }
     if (uid >= 0 && units_order_fortify(&game->units, uid)) {
-      set_status(
-        game, units_is_sea(&game->units, uid) ? "Anchoring in harbor" : "Fortifying", NULL
-      );
       game_wait_next_unit(game);
       return GAME_UPDATE_RETURN_TRUE;
     }
@@ -3764,7 +3740,6 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
     if (colonize_input_any_key_or_click(input)) {
       game->in_exploits = false;
       game->in_hall_of_fame = true;
-      set_status(game, reports_misc_display_word(192, ""), "Any key or click returns to menu");
     }
     return true;
   }

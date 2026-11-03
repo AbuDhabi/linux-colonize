@@ -431,12 +431,6 @@ int ai_contact_try_village_gifts(ColonizeTurnContext* ctx, int nation_id) {
             convert->profession = COLONIZE_PROF_CONVERT;
           }
         }
-        if (ctx->status && ctx->status_size && !human_convert) {
-          snprintf(
-            ctx->status, ctx->status_size, "The %s send a convert to %s.",
-            ai_contact_tribe_name(nation_id), c->name
-          );
-        }
         return 1; /* DOS: goto LAB_5bfb_1000 — the visit is resolved */
       }
     }
@@ -563,12 +557,6 @@ int ai_contact_try_village_gifts(ColonizeTurnContext* ctx, int nation_id) {
           ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, body
         );
       }
-    }
-    if (ctx->status && ctx->status_size && !human) {
-      snprintf(
-        ctx->status, ctx->status_size, "The %s bring gifts to %s.",
-        ai_contact_tribe_name(nation_id), c->name
-      );
     }
     return 1; /* this Brave's gift-bearing encounter is resolved */
   }
@@ -1471,7 +1459,7 @@ int ai_contact_2e92_candidates(const AiContact2820* s, int goods[3], int slots[3
  * so it is `(int8_t)s->round` here, and `cand[]` itself is never indexed out
  * of bounds. The chosen index then selects from the FILTERED list
  * (`aiStack_d6[iStack_5e]`): a DOS bug, reproduced for now (port_bugs.md #796,
- * docs/tolerated_dos_bugs.md TB-6).
+ * docs/tolerated_dos_bugs_ai.md TB-6).
  * Returns 0..2.
  */
 static int ai_contact_2e92_ai_pick(

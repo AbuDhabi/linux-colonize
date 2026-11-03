@@ -360,6 +360,7 @@ typedef struct EuropeScreen {
   /* EuropeScreen bar_event -- see docs/europe.md#europescreen-bar_event */
   char bar_event[EUROPE_BAR_EVENT_MAX][EUROPE_BAR_EVENT_LEN];
   int bar_event_count;
+  bool bar_event_red[EUROPE_BAR_EVENT_MAX]; /* DOS arm kind 3 (refusal ink) */
   /* LABELS.TXT for that wording (@CMESSAGE). NULL → built-in fallbacks. */
   const struct ColonizeMsgCatalog* labels;
   /* GAME.TXT (europe_set_messages) — sections like @KISSSORRY that this

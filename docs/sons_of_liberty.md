@@ -208,7 +208,6 @@ applied in EOT field/craft/hammers/bells/crosses and preview.
 |-------|------|--------------|
 | Declare | Nation SoL ≥ **50%** (manual / `FUN_43f7_2564`) | `AI_KING_DECLARE_SOL_MIN`. DOS has no per-turn auto-check: declaring is menu-only (row below). The bit-`0x80`-gated first popup is a hotseat disambiguation step (set only by the new-game nation select, `FUN_75c2_10ae`) with no equivalent under the port's single `human_nation`, so the single @DECLARE Never/Yes is the complete behaviour (`ai_king_show_declare_choice` comment) |
 | Declare (menu) | MENU.TXT `@GAME` "DECLARE INDEPENDENCE" (`FUN_43f7_2564`) | `ai_king_menu_declare_independence` / `MAP_MENU_ACTION_DECLARE_INDEPENDENCE` — below `AI_KING_DECLARE_SOL_MIN` shows `@TOOTORY` (`0x1386`); at/above the `@DECLARE` confirm; already-WoI is a status-only no-op. See `original_sources_annotated/ai/king_ref.md` |
-| Restless chrome | SoL **40..49** | `AI_KING_RESTLESS_SOL_MIN` |
 | Mercenary offer (`FUN_43f7_2022`) | No SoL gate: 1-in-3 per-turn roll while REF is not present or the Artillery backup pool is empty | `AI_KING_MERC_ROLL_CHANCE` |
 
 Post-declare, liberty bells shift from FF election toward foreign intervention
@@ -225,8 +224,7 @@ Uses **colony** SoL at the unit’s tile ([`ai_king_colony_sol_at`](../src/core/
 | Colony SoL | Effect |
 |------------|--------|
 | **> 49** | Colony-tile, Veteran-profession (`unit+0x315b==0x15`) Soldier → Continental Army; Dragoon → Continental Cavalry. Cap `max(1, min(pop/2, pop*(sol-50)/50))` per colony. Regular and already-Continental units never match the raw-type test and are left untouched; a colony-tile Soldier/Dragoon *without* Veteran profession is also skipped. **No fortify requirement**: the body tests only `unit+0x3146` (type) and `unit+0x315b` (profession), never `unit+0x08` (`orders`). |
-| **40..49** | Restless status text only (`AI_KING_RESTLESS_SOL_MIN`..`AI_KING_DECLARE_SOL_MIN-1`) — **not** a promote band in `1eca` itself |
-| **&lt; 40** | No effect |
+| **&le; 49** | No effect (the port's invented SoL 40..49 "restless" status line is gone; DOS shows nothing there) |
 
 This is the manual's “Continental Army Muster” (&lt;50% colony contributes 0),
 run by `ai_king_war_act`; the declare Confirm popup chains ref_wave+war_act the

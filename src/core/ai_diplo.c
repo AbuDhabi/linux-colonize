@@ -576,7 +576,7 @@ static void ai_diplo_465b_say(
  *   0x40 in either row, attacker AI      -> @DECLAREWAR (09a4(atk), 09a4(def));
  *   then 0x40 cleared both ways and the attacker's 0x01 dropped
  *   (ai_diplo_465b_band). No WAR|MET write and no DS:0x53c8 write otherwise.
- *   The AI arm's missing WAR write is tolerated_dos_bugs.md TB-52.
+ *   The AI arm's missing WAR write is tolerated_dos_bugs_ai.md TB-52.
  *   TB-53: the no-treaty arm writes nothing in DOS; fixed under !dos_buggy_behavior().
  * Returns 1 when DOS also calls FUN_281f_04ac(4) (the @SNEAK / @CANCELPEACE
  * arms): the caller sets BGM pool 4 (this file links without sound.c).

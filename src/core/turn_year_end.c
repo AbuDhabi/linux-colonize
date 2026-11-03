@@ -180,9 +180,6 @@ COLONIZE_INTERNAL bool turn_year_end_woi_chrome(
      * block); setting it at the latch suppressed the win sequence
      * (port_bugs.md #259 — the game just carried on with a status line). */
     ctx->col1->head.turn_loop_running = 0; /* DS:0x53c2 clear */
-    if (ctx->status && ctx->status_size > 0) {
-      snprintf(ctx->status, ctx->status_size, "Victory: independence won.");
-    }
     return true;
   }
   if (end == AI_KING_ENDGAME_LOST) {

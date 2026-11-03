@@ -90,7 +90,6 @@ bool col1_bridge_init_template(
  * Does NOT set euro_diplo — first contact is ai_contact_try_first_welcome.
  * If out_first_indian_nation is non-NULL, writes Col1 nation id 4..11 for the
  * first unmet tribe this call (else -1).
- * Writes a short status when a new contact happens (optional).
  * Returns true if any village was contacted this call.
  */
 bool col1_contact_adjacent_tribe(
@@ -98,8 +97,6 @@ bool col1_contact_adjacent_tribe(
   int x,
   int y,
   int european_nation,
-  char* status_out,
-  size_t status_size,
   int* out_first_indian_nation
 );
 

@@ -3670,8 +3670,8 @@ static int case_europe_buy_short_gold_refuses(void) {
   ColonizeWorld w = world_make(NULL, NULL, NULL, NULL, false, NULL, eu);
   const int b = europe_buy_cargo_w(&w, -1, 0, COLONIZE_CARGO_TOOLS, 100);
   if (b != 0 || eu->gold != 150 || eu->harbor[0].hold_goods_amount[0] != 0 ||
-      strstr(eu->status, "(200)") == NULL) {
-    fprintf(stderr, "short gold: bought %d gold %d status \"%s\"\n", b, eu->gold, eu->status);
+      eu->bar_event_count != 1 || !eu->bar_event_red[0] || strstr(eu->bar_event[0], "(200)") == NULL) {
+    fprintf(stderr, "short gold: bought %d gold %d bar \"%s\"\n", b, eu->gold, eu->bar_event[0]);
     rc = 1;
   }
   eu->gold = 200; /* exactly covers it */

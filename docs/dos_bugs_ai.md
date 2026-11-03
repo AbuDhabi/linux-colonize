@@ -299,6 +299,10 @@ Was C-70.
 assigned only when turn >= 40, so before that the purchase reads a stale or
 uninitialised stack word. Same class as DB-5.
 
-**Port:** `src/core/ai_euro_europe.c` (colony demand vs. purchase block) starts
-the price at 0, the value the King-grace arm also uses.
-**Status:** done (user 2026-11-03; port already differed, all goldens pass).
+**Port:** `src/core/ai_euro_europe.c` (colony demand vs. purchase block): the
+AI pays the Europe purchase price at any turn, 500 + 100 per Artillery the
+nation already bought (`FUN_38fd_4b50`'s nation+0x1e escalation), and the buy
+bumps that counter. This also replaces DOS's `(10 - difficulty) * 100` from
+turn 40 on (user decision). The King-grace arm still makes the buy free.
+Test: `unit_ai_euro_5d04_hire` `artillery_price_escalates`.
+**Status:** done (user 2026-11-03; ungated fix passes all goldens).

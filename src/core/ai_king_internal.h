@@ -89,8 +89,6 @@ void ai_king_nation_turn(ColonizeTurnContext* ctx);
  * Human + ai_popups → CHOICE; else auto-declare.
  */
 #define AI_KING_DECLARE_SOL_MIN 50
-/* Restless chrome band immediately below declare (SoL 40..49 when min=50). */
-#define AI_KING_RESTLESS_SOL_MIN 40
 /*
  * MoW hold fill uses real ship capacity (units_ship_capacity / type->cargo,
  * capped at COLONIZE_UNIT_CARGO_MAX=6). Cite: fandom REF “man-o-war with 6

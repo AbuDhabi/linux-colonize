@@ -2558,14 +2558,7 @@ void game_commit_new_campaign(ColonizeGameState* game) {
     }
   }
   game_demo_after_new_campaign(game);
-  snprintf(
-    game->status,
-    sizeof(game->status),
-    "%s of %s (%s)",
-    game->leader_name,
-    new_game_nation_name(game->human_nation),
-    map_label
-  );
+  game->status[0] = '\0';
   diag_info(
     "NEWGAME %s of %s, difficulty %d, map %s, year %u",
     game->leader_name,
@@ -2612,7 +2605,6 @@ void activate_menu_selection(ColonizeGameState* game) {
     game->in_menu = false;
     game->in_hall_of_fame = true;
     game->hof_inserted = -1; /* FUN_41f2_0f56(NULL): local_156 stays -1 */
-    set_status(game, "Menu", "hall");
     return;
     }
     case TITLE_MENU_ROW_CUSTOMIZE: {
@@ -2624,7 +2616,6 @@ void activate_menu_selection(ColonizeGameState* game) {
       &game->messages,
       game->names_ok ? &game->names : NULL
     );
-    set_status(game, "New game", "customize");
     return;
     }
     case TITLE_MENU_ROW_AMERICA: {
@@ -2636,7 +2627,6 @@ void activate_menu_selection(ColonizeGameState* game) {
       &game->messages,
       game->names_ok ? &game->names : NULL
     );
-    set_status(game, "New game", "scenario map");
     return;
     }
     case TITLE_MENU_ROW_NEW_WORLD: {
@@ -2648,11 +2638,9 @@ void activate_menu_selection(ColonizeGameState* game) {
       &game->messages,
       game->names_ok ? &game->names : NULL
     );
-    set_status(game, "New game", "generated map");
     return;
     }
     default:
       break;
   }
-  set_status(game, "Menu", "unknown option");
 }

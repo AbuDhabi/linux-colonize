@@ -152,7 +152,6 @@ void game_enter_colony(ColonizeGameState* game, int cid) {
 
 void game_enter_colony_view(ColonizeGameState* game, int cid, bool spy) {
   if (cid < 0) {
-    set_status(game, "No colony at cursor", NULL);
     return;
   }
   game->in_colony = true;
@@ -192,7 +191,6 @@ void game_enter_colony_view(ColonizeGameState* game, int cid, bool spy) {
   if (col && col->colonist_count > 0) {
     game->colony_screen.selected_colonist = 0;
   }
-  snprintf(game->status, sizeof(game->status), "Entered %s", col ? col->name : "");
   game_track_screen(game);
   /*
    * DOS-LITERAL FUN_2f2b_6cd4 raw 55975 reveal block: with DS:0x34a >= 0 the
@@ -263,7 +261,6 @@ static void game_auto_assign_new_colonist(ColonizeGameState* game, int colony_id
  */
 void game_join_colony_order(ColonizeGameState* game) {
   if (!game || !game->units_ok || !game->colonies_ok) {
-    set_status(game, "Cannot join colony", NULL);
     return;
   }
   if (game_woi_blocks_colony_orders(game)) {
@@ -289,12 +286,6 @@ void game_join_colony_order(ColonizeGameState* game) {
   }
   game_auto_assign_new_colonist(game, cid, ci);
   game->units.selected_id = -1;
-  snprintf(
-    game->status,
-    sizeof(game->status),
-    "Joined %s",
-    col->name[0] ? col->name : ""
-  );
   game_wait_next_unit(game); /* back to the Move Pieces loop */
 }
 
@@ -332,7 +323,6 @@ void game_colony_finish_eject(
     &game->colonies, game->colony_view_id, colonist_index, &game->units, role
   );
   if (uid < 0) {
-    set_status(game, "Cannot leave colony", NULL);
     return;
   }
   game_colony_select_outside(game, uid);
@@ -341,14 +331,8 @@ void game_colony_finish_eject(
     colonies_abandon(&game->colonies, game->colony_view_id);
     game->in_colony = false;
     game->colony_view_id = -1;
-    /* One write: set_status(game, game->status, ...) would snprintf the
-     * buffer onto itself (overlapping copy, UB — gcc -Wrestrict). */
-    set_status(game, "Colony abandoned", NULL);
     return;
   }
-  snprintf(
-    game->status, sizeof(game->status), "Left as %s", colonies_eject_role_name(role)
-  );
   game_tutorial_colony_assigned(game); /* leave-as picks go through 2f3e too (291f_054c) */
 }
 
@@ -366,7 +350,6 @@ bool game_colony_request_eject(
   }
   const ColonizeColony* colony = colonies_get(&game->colonies, game->colony_view_id);
   if (!colony || colonist_index < 0) {
-    set_status(game, "Cannot leave colony", NULL);
     return true;
   }
   /* fandom Stockade/Colony: with Stockade/Fort/Fortress cannot voluntarily
@@ -455,12 +438,10 @@ bool game_colony_request_eject(
     );
     const char* labels[2] = {filled[0], filled[1]};
     const int ids[2] = {1, 2};
-    if (!ai_popup_enqueue_choice_ctx(
+    if (ai_popup_enqueue_choice_ctx(
           &game->ai_popups, AI_POPUP_TAG_COLONY_ABANDON, colonist_index, role, 0, NULL, body,
           labels, ids, 2
         )) {
-      set_status(game, "Cannot abandon colony now", NULL);
-    } else {
       /* Player-initiated: open at once, never behind queued EOT chrome or a
        * colony-zoom hold (DOS nests it in the colony screen's own loop). */
       (void)ai_popup_present_now(&game->ai_popups, AI_POPUP_TAG_COLONY_ABANDON);
@@ -763,19 +744,14 @@ static void game_colony_workplace_refusal(
         colonies_occupation_worker_count(
           &game->colonies, col, COLONIES_JOB_TEACHER, -1
         ) >= school_tier) {
-      set_status(game, "School is full", NULL);
       colonies_emit_school_faculty_chrome(school_tier, &game->ai_popups, &game->messages);
     } else if (c && teaching && !colonies_profession_may_teach(c->profession)) {
-      set_status(game, "Need a skilled teacher", NULL);
       colonies_emit_noteacher_chrome(&game->ai_popups, &game->messages);
     } else if (
       c && teaching &&
       colonies_school_tier_shortfall(&game->colonies, col, c->profession) != 0
     ) {
       const int need = colonies_school_tier_shortfall(&game->colonies, col, c->profession);
-      set_status(
-        game, need >= 3 ? "Need a university" : "Need a college", NULL
-      );
       colonies_emit_need_school_chrome(
         c->profession, need, &game->ai_popups, &game->messages
       );
@@ -783,10 +759,7 @@ static void game_colony_workplace_refusal(
                colonies_occupation_worker_count(
                  &game->colonies, col, occupation, ci
                ) > 2) {
-      set_status(game, "Building is full", NULL);
       colonies_emit_more_than_three_chrome(col, &game->ai_popups, &game->messages);
-    } else {
-      set_status(game, "Cannot assign here", NULL);
     }
     /* Player-initiated refusal: DOS runs it as a nested dialog from the colony
      * screen's own loop, so it must show now, not behind queued chrome. */
@@ -794,26 +767,18 @@ static void game_colony_workplace_refusal(
 }
 
 void game_colony_assign_building_drop(ColonizeGameState* game, int building_index) {
-  if (building_index < 0) {
-    set_status(game, "Build it first", NULL);
-  } else if (!colonies_building_workable(&game->colonies, building_index)) {
-    /* port_bugs.md: refuse BEFORE resolving the colonist — the resolver admits an
-     * outside unit into the colony as a side effect, and a failing drop onto
-     * e.g. the Printing Press was consuming it as an invisible unassigned
-     * colonist ("vanishes the colonist"). */
-    set_status(game, "No one works there", NULL);
-  } else {
+  /* port_bugs.md: refuse an unbuilt / unworkable target BEFORE resolving the
+   * colonist — the resolver admits an outside unit into the colony as a side
+   * effect, and a failing drop onto e.g. the Printing Press was consuming it
+   * as an invisible unassigned colonist ("vanishes the colonist"). */
+  if (building_index >= 0 && colonies_building_workable(&game->colonies, building_index)) {
     const int ci = game_colony_selected_colonist(game);
     if (ci < 0) {
-      set_status(game, "Select a colonist first", NULL);
+      /* nothing selected */
     } else if (colonies_assign_workplace(
                  &game->colonies, game->colony_view_id, ci, building_index
                )) {
       game_colony_assign_building_sound(&game->colonies, building_index);
-      const ColonizeBuildingType* bt = colonies_building_type(&game->colonies, building_index);
-      snprintf(
-        game->status, sizeof(game->status), "Assigned to %s", bt ? bt->name : ""
-      );
       game_tutorial_colony_assigned(game);
     } else {
       game_colony_workplace_refusal(game, ci, building_index);
@@ -844,7 +809,7 @@ static bool game_colony_assign_field(
  * Fisherman on a dockless colony: DOS raises GAME.TXT @NODOCKS in the assign
  * path (2f3e) below both the tile click (3fa6) and the jobs popup (348c), so
  * one gate serves both callers (port_bugs.md #1111). Returns true when it refused;
- * the caller publishes game->status to the colony screen.
+ * one gate serves both callers (port_bugs.md #1111). Returns true when it refused.
  */
 static bool game_colony_refuse_nodocks(
   ColonizeGameState* game, const ColonizeColony* colony, int job
@@ -858,7 +823,6 @@ static bool game_colony_refuse_nodocks(
   /* Player-raised from inside the colony screen: present on the spot, or the
    * colony_zoom_popup_hold keeps it queued until the screen closes (#916). */
   game_colony_present_now(game, AI_POPUP_TAG_INFO);
-  set_status(game, "No docks", NULL);
   return true;
 }
 
@@ -942,7 +906,6 @@ void game_colony_area_tile_drop(
    * gate has passed. */
   int ci = from_fence ? -1 : game_colony_selected_colonist(game);
   if (!from_fence && (ci < 0 || ci >= colony->colonist_count)) {
-    set_status(game, "Select a colonist first", NULL);
     return;
   }
   int job = from_fence ? 0 : (int)colony->colonists[ci].field_job;
@@ -967,16 +930,12 @@ void game_colony_area_tile_drop(
   if (from_fence) {
     ci = game_colony_selected_colonist(game);
     if (ci < 0 || ci >= colony->colonist_count) {
-      set_status(game, "Select a colonist first", NULL);
       return;
     }
   }
   if (game_colony_assign_field(game, ci, tile_index, job)) {
     game_colony_assign_job_sound(job);
-    snprintf(game->status, sizeof(game->status), "Working as %s", colony_yield_job_name(job));
     game_tutorial_colony_assigned(game);
-  } else {
-    set_status(game, "Cannot assign field", NULL);
   }
 }
 
@@ -1060,17 +1019,7 @@ void game_colony_commit_construction(ColonizeGameState* game, int bid) {
   /* A plain (non-Shift) pick replaces the whole plan, port-only build queue
    * included — Shift-click is the only way to keep one. */
   colonies_build_queue_clear(&game->colonies, game->colony_view_id);
-  if (colonies_set_construction_ex(&game->colonies, game->colony_view_id, bid, &bopts)) {
-    const ColonizeBuildingType* bt = colonies_building_type(&game->colonies, bid);
-    const char* uname = NULL;
-    if (!bt) {
-      colonies_unit_build_info(bid, &uname, NULL, NULL);
-    }
-    snprintf(
-      game->status, sizeof(game->status), "Building %s",
-      bt ? bt->name : (uname ? uname : "project")
-    );
-  } else {
+  if (!colonies_set_construction_ex(&game->colonies, game->colony_view_id, bid, &bopts)) {
     /* FUN_2f2b_5bd2 raw 52665-52667 stores any listed row as +0x94 and clears +0x1c bit 0x80,
      * no message: the only row the 3650 filter refuses is the built current project kept by its
      * tail (port_bugs.md #1218), so it stays (#1223). @ALREADYHAVE is EOT-only (turn_colony.c). */
@@ -1145,9 +1094,9 @@ void game_colony_commit_job(ColonizeGameState* game, ColonizeColony* colony, int
     return;
   }
   if (game_colony_refuse_nodocks(game, colony, job)) {
-    /* status already set */
+    /* @NODOCKS already shown */
   } else if (ci < 0 || !colony || ci >= colony->colonist_count) {
-    set_status(game, "Select a colonist first", NULL);
+    /* nothing selected */
   } else if (job >= COLONIZE_FIELD_JOB_COUNT) {
     /* port_bugs.md #900: an indoor row is a workplace pick, not a field pick. Route it
      * through colonies_assign_workplace so the DOS seating validator (thunk_FUN_1000_9808:
@@ -1156,7 +1105,6 @@ void game_colony_commit_job(ColonizeGameState* game, ColonizeColony* colony, int
     const int building = colonies_job_workplace_building(&game->colonies, colony, job);
     if (colonies_assign_workplace(&game->colonies, game->colony_view_id, ci, building)) {
       game_colony_assign_job_sound(job);
-      snprintf(game->status, sizeof(game->status), "Working as %s", colonies_profession_name(job));
       game_tutorial_colony_assigned(game);
     } else {
       game_colony_workplace_refusal(game, ci, building);
@@ -1183,10 +1131,7 @@ void game_colony_commit_job(ColonizeGameState* game, ColonizeColony* colony, int
     }
     if (ok) {
       game_colony_assign_job_sound(job);
-      snprintf(game->status, sizeof(game->status), "Working as %s", colony_yield_job_name(job));
       game_tutorial_colony_assigned(game);
-    } else {
-      set_status(game, "Cannot assign field", NULL);
     }
   }
   colony_screen_close_jobs(csv);
@@ -1227,11 +1172,7 @@ void game_colony_fence_drop(ColonizeGameState* game, ColonizeColony* colony) {
           }
         }
         csv->eject_open = true;
-      } else {
-        set_status(game, "Select a colonist first", NULL);
       }
-    } else {
-      set_status(game, "Select a colonist first", NULL);
     }
   } else {
     colony_screen_open_eject(csv, &game->colonies, game->colony_view_id, csv->selected_colonist);
@@ -1392,7 +1333,7 @@ bool game_colony_drag_drop(
         return true;
       }
       if (csv->transport_unit_id >= 0 && game->units_ok) {
-        game_colony_unload_hold(game, csv->transport_unit_id, drag->index, "Hold empty");
+        game_colony_unload_hold(game, csv->transport_unit_id, drag->index, NULL);
       }
     }
   } else if (kind == UI_DRAG_COLONY_COLONIST || kind == UI_DRAG_COLONY_OUTSIDE) {
@@ -1555,12 +1496,8 @@ bool game_europe_drag_drop(ColonizeGameState* game, int mx, int my, bool shift) 
         /* Shift+drag: @HOWMUCH4 amount entry instead of a full 100 load
          * (same prompt as the keyboard path). */
         game_europe_open_buy_prompt_for(game, hidx, drag->index);
-      } else if (hidx >= 0 && game_tutorial_europe_cannot_afford(game, hidx, drag->index)) {
-        /* FUN_38fd_1fa2: a full load the treasury cannot pay is refused (@TUTORIAL18). */
       } else if (hidx >= 0) {
-        const ColonizeWorld w = game_world(game);
-        europe_buy_cargo_w(&w, game->human_nation, hidx, drag->index, drag->amount > 0 ? drag->amount : 100);
-        game_europe_drain_price_events(game);
+        game_europe_buy_full_load(game, hidx, drag->index);
       } else {
         eu->status[0] = '\0';
       }
@@ -1811,7 +1748,6 @@ void game_colony_unload_all_cargo(ColonizeGameState* game, int unit_id) {
     return;
   }
   const int holds = units_goods_hold_count(&game->units, unit_id);
-  int total = 0;
   for (int guard = 0; guard < holds; ++guard) {
     const ColonizeUnit* tu = units_get_const(&game->units, unit_id);
     if (!tu) {
@@ -1835,12 +1771,6 @@ void game_colony_unload_all_cargo(ColonizeGameState* game, int unit_id) {
     if (moved <= 0) {
       break; /* non-zero return: stop the whole loop */
     }
-    total += moved;
-  }
-  if (total > 0) {
-    snprintf(game->status, sizeof(game->status), "Unloaded %d", total);
-  } else {
-    set_status(game, "No cargo to unload", NULL);
   }
 }
 
@@ -1941,17 +1871,11 @@ bool game_fortify_treaty_confirm(ColonizeGameState* game, int uid) {
 }
 
 bool game_order_fortify(ColonizeGameState* game, int uid) {
-  const bool ship = uid >= 0 && game->units_ok && units_is_sea(&game->units, uid);
   if (game_fortify_treaty_confirm(game, uid)) {
     set_status(game, "", NULL);
     return false;
   }
-  if (uid < 0 || !units_order_fortify(&game->units, uid)) {
-    set_status(game, ship ? "Cannot anchor" : "Cannot fortify", NULL);
-    return false;
-  }
-  set_status(game, ship ? "Anchoring in harbor" : "Fortifying", NULL);
-  return true;
+  return uid >= 0 && units_order_fortify(&game->units, uid);
 }
 
 void game_colony_apply_dock_order(
@@ -1997,7 +1921,6 @@ void game_colony_apply_dock_order(
     break;
   case COLONY_DOCK_ORDER_CLEAR:
     units_wake(&game->units, uid);
-    set_status(game, "Orders cleared", NULL);
     break;
   case COLONY_DOCK_ORDER_SENTRY:
     units_order_sentry(&game->units, uid);
@@ -2022,11 +1945,9 @@ void game_colony_apply_dock_order(
 void game_center_on_selected_unit(ColonizeGameState* game) {
   const ColonizeUnit* selected = units_get_const(&game->units, game->units.selected_id);
   if (!selected || !selected->active) {
-    set_status(game, "No active unit to center on", NULL);
     return;
   }
   game->map_cursor_x = selected->x;
   game->map_cursor_y = selected->y;
   game_set_view_center(game, selected->x, selected->y);
-  set_status(game, "Centered on active unit", NULL);
 }

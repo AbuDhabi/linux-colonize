@@ -32,7 +32,7 @@
  * Sections:
  *  - Calendar/date, active-nation/fog & unit-move-refresh helpers
  *  - End-of-turn/autosave option gates & report readiness checks
- *  - Euro AI turn-order selection & phase finish status
+ *  - Euro AI turn-order selection
  *  - Turn processor state machine: setup/euro/indian/finish/king steps & reset
  */
 
@@ -382,7 +382,7 @@ int turn_report_ok_inefficient(const ColonizeCol1Save* col1) {
  * return above; with AI colonies now in scope the test would have been wrong,
  * so it is gone.
  */
-/* ===================== Euro AI turn-order selection & phase finish status (turn_euro_ai_should_run .. turn_finish_status) ===================== */
+/* ===================== Euro AI turn-order selection (turn_euro_ai_should_run ..) ===================== */
 /* Hot-seat (docs/hotseat.md): a control-0 slot other than the power at the
  * controls. The year loop stops there for its handoff (130d_0290 raw 6369). */
 static bool turn_slot_is_other_human(const ColonizeTurnContext* ctx, int nation_id) {
@@ -475,30 +475,6 @@ static int turn_next_euro_ai_below_human(const ColonizeTurnContext* ctx, int sta
     return -1;
   }
   return next;
-}
-
-static void turn_finish_status(ColonizeTurnContext* ctx, const ColonizeTurnResult* result) {
-  if (!ctx || !ctx->status || ctx->status_size == 0 || !ctx->game_year || !ctx->game_autumn ||
-      !ctx->turn_number) {
-    return;
-  }
-  if (result && result->year_end_defeat) {
-    snprintf(ctx->status, ctx->status_size, "Defeat: no colonies remain.");
-    return;
-  }
-  if (result && result->year_end_victory) {
-    snprintf(ctx->status, ctx->status_size, "Victory: independence won.");
-    return;
-  }
-  char date[32];
-  turn_format_date(*ctx->game_year, *ctx->game_autumn, date, sizeof(date));
-  snprintf(
-    ctx->status,
-    ctx->status_size,
-    "End of Turn — %s (turn %u)",
-    date,
-    (unsigned)*ctx->turn_number
-  );
 }
 
 /* ===================== Turn processor state machine: setup/euro/indian/finish/king steps & reset (turn_processor_start .. turn_reset) ===================== */
@@ -865,7 +841,6 @@ static void turn_step_all_ai_anchor(ColonizeTurnProcessor* proc, ColonizeTurnCon
   proc->show_indicator = false;
   turn_set_active_nation(ctx, n);
   turn_request_autosave(proc, ctx);
-  turn_finish_status(ctx, &proc->result);
   proc->step = TURN_PROC_IDLE;
 }
 
@@ -1050,7 +1025,6 @@ COLONIZE_INTERNAL void turn_step_king(ColonizeTurnProcessor* proc, ColonizeTurnC
        * 0x5392 = 0xffff before picking. game_finish_end_turn does both after
        * its autosave, so the file carries DS:0x5392 as DOS has it then. */
       turn_request_autosave(proc, ctx);
-      turn_finish_status(ctx, &proc->result);
       diag_info(
         "turn_end: turn=%u year=%u autumn=%u colonies=%d shortages=%d immigrants=%d",
         (unsigned)*ctx->turn_number,

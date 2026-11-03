@@ -203,7 +203,13 @@ static bool run(void) {
   render("save dialog");
   if (!frame(COLONIZE_KEY_ENTER)) return fail("save confirm");
   if (game_save_dialog_open(g_game)) return fail("save dialog still open");
-  if (strstr(game_status_text(g_game), "Saved COLONY") == NULL) return fail("save status");
+  {
+    char saved[512];
+    struct stat sst;
+    if (!savegame_colony_slot_path("./test-saves-play", 0, saved, sizeof(saved)) || stat(saved, &sst) != 0) {
+      return fail("save file COLONY00.SAV not written");
+    }
+  }
   render("map after save");
   /* C4-B2: the colony screen lays out buildings from the DS:0x8d80 value the save carries. */
   if (g_game->col1.post_map.boot_timer == 0 ||

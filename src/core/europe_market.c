@@ -616,7 +616,7 @@ int europe_ai_colony_dump_sell_w(
        * trade.gold[] and — verbatim, asm 364b:17bd `ADD [BX+0xbc],AX` with
        * AX = the loop's CARGO INDEX, not the amount — the index to
        * trade.tons[]. Both decompiles and the listing agree. A DOS bug,
-       * reproduced for now (docs/tolerated_dos_bugs.md TB-4).
+       * reproduced for now (docs/tolerated_dos_bugs_ai.md TB-4).
        */
       /* TB-4: fixed under !dos_buggy_behavior(): 1dfa's booking stands alone. */
       if (dos_buggy_behavior()) {
@@ -829,7 +829,16 @@ int europe_buy_cargo_w(
    * punctuation, no typed wording).
    */
   if ((long)ask * buy > eu->gold) {
-    snprintf(eu->status, sizeof(eu->status), "%s (%d)", eu->cargo[cargo_type].name, ask * buy);
+    /* FUN_38fd_1fa2 refusal: cargo name, DS:0xfd7 "(", cost, DS:0xfd9 ")",
+     * @CMESSAGE 8 "too expensive!", red bar arm kind 3 (thunk_FUN_291f_0b50;
+     * DOSBox: "Food (900) too expensive!"). */
+    if (eu->bar_event_count < EUROPE_BAR_EVENT_MAX) {
+      eu->bar_event_red[eu->bar_event_count] = true;
+      snprintf(
+        eu->bar_event[eu->bar_event_count++], EUROPE_BAR_EVENT_LEN, "%s (%d) %s",
+        eu->cargo[cargo_type].name, ask * buy, europe_label(eu, "CMESSAGE", 8, "")
+      );
+    }
     return 0;
   }
 
