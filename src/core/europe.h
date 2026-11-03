@@ -839,6 +839,11 @@ void europe_nation_tick_market_prices_w(const ColonizeWorld* w, int nation, uint
  * roll. One call per nation. port_bugs.md #1016.
  */
 void europe_market_seed_tail_w(const ColonizeWorld* w, int nation, uint32_t turn);
+/* DOS unit records of the bound nation with no unit in the pool: harbor and
+ * lane ships with their passengers, plus dock rows without a (236,236) mirror. */
+int europe_offpool_unit_count(
+  const EuropeScreen* eu, const ColonizeUnitPool* units, int nation_id
+);
 /*
  * FUN_38fd_584a score: (pop+units)<<1 if <4000, +8, cap 4000;
  * AI ((8-diff)*score)>>3; English (nation 0) *2/3.

@@ -1414,6 +1414,35 @@ void europe_market_seed_tail_w(const ColonizeWorld* w, int nation, uint32_t turn
   }
 }
 
+int europe_offpool_unit_count(
+  const EuropeScreen* eu, const ColonizeUnitPool* units, int nation_id
+) {
+  int n = 0;
+  for (int i = 0; i < eu->harbor_ships; ++i) {
+    n += 1 + eu->harbor[i].cargo_count;
+  }
+  for (int i = 0; i < eu->expected_ships; ++i) {
+    n += 1 + eu->expected[i].cargo_count;
+  }
+  for (int i = 0; i < eu->bound_ships; ++i) {
+    n += 1 + eu->bound[i].cargo_count;
+  }
+  /* Every dock colonist is a DOS unit record; only some have a (236,236)
+   * mirror unit in the pool, which the pool count already covers. */
+  int mirrors = 0;
+  for (int i = 0; units && i < units_slot_end(units); ++i) {
+    const ColonizeUnit* u = &units->units[i];
+    if (u->active && u->x == EUROPE_PARK_XY && u->y == EUROPE_PARK_XY &&
+        u->nation_id == nation_id) {
+      mirrors++;
+    }
+  }
+  if (eu->dock_count > mirrors) {
+    n += eu->dock_count - mirrors;
+  }
+  return n;
+}
+
 int europe_compute_immigration_score_w(
   const ColonizeWorld* w,
   int nation_id
@@ -1450,7 +1479,13 @@ int europe_compute_immigration_score_w(
   }
   /* DOS counts every unit record of the nation, including colonists waiting
    * on the Europe docks — those are the (236,236) mirror units in the pool
-   * (seed-100 TURN5→6: needed 9→10 once the first immigrant landed). */
+   * (seed-100 TURN5→6: needed 9→10 once the first immigrant landed).
+   * FUN_38fd_584a raw 68265-68271 walks every unit record, so the bound
+   * nation's harbor and lane ships, their passengers and mirror-less dock
+   * rows (kept in EuropeScreen, not in the pool) count too. */
+  if (w->europe && nation_id == (int)w->europe->bound_nation) {
+    units_n += europe_offpool_unit_count(w->europe, units, nation_id);
+  }
   int score = pop + units_n;
   if (score < 4000) {
     score <<= 1;

@@ -3684,7 +3684,31 @@ static int case_europe_buy_short_gold_refuses(void) {
   return rc;
 }
 
+/* FUN_38fd_584a raw 68265-68271 counts every unit record of the nation, so the bound
+ * nation's harbor ship, its passenger and a dock row with no (236,236) mirror unit count. */
+static int case_europe_immigration_counts_offpool_units(void) {
+  EuropeScreen* eu = (EuropeScreen*)calloc(1, sizeof(*eu));
+  if (!eu) {
+    return 1;
+  }
+  eu->bound_nation = 1;
+  const ColonizeWorld w = {.europe = eu};
+  const int base = europe_compute_immigration_score_w(&w, 1); /* (0 << 1) + 8 */
+  const int pax[1] = {0};
+  (void)europe_harbor_push_ex(eu, 0, "Ship", pax, NULL, 1, NULL, NULL);
+  eu->dock_count = 1;
+  eu->dock[0].present = true;
+  const int with = europe_compute_immigration_score_w(&w, 1); /* (3 << 1) + 8 */
+  free(eu);
+  if (base != 8 || with != 14) {
+    fprintf(stderr, "offpool score: base %d (want 8) with %d (want 14)\n", base, with);
+    return 1;
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+    {"case_europe_immigration_counts_offpool_units", case_europe_immigration_counts_offpool_units},
     {"case_europe_buy_short_gold_refuses", case_europe_buy_short_gold_refuses},
     {"case_europe_purse_single_door", case_europe_purse_single_door},
     {"case_europe_ship_own_exit_tile", case_europe_ship_own_exit_tile},

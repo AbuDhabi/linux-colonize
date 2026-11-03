@@ -4719,6 +4719,9 @@ static int case_immigration_pressure(void) {
     icol.head.difficulty = 4; /* Viceroy → AI score half */
     icol.player[0].control = 0;
     icol.player[1].control = 1;
+    /* The phase-5 immigrant above is a DOS unit record (584a counts it); empty the dock so
+     * the base stays pop 5. */
+    eu.dock_count = 0;
     col->nation_id = 1;
     eu.current_crosses = 0;
     eu.immigration_pressure = 0;
