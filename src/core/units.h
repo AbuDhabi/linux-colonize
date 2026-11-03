@@ -162,7 +162,7 @@ typedef struct ColonizeUnit {
   /* Raw DOS unit +0x06 (origin). Euro units DO carry values here in original
    * campaign saves (home colony index, 0-based) — not just Braves. */
   uint8_t col1_origin;
-  /* Port-only, not saved: bit7 came from combat damage (repair timer), so the
+  /* Port-only, saved in RTST RT_REPAIR (runtime_ext.c): bit7 came from combat damage (repair timer), so the
    * completion popup says "repaired", not "construction complete". */
   uint8_t repair_pending;
   /* Port-only AI first-colony landfall goto memory, not saved (see docs/units.md#colonizeunit-ai_landfall_wait). */

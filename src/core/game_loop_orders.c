@@ -1214,7 +1214,17 @@ void game_after_unit_action(ColonizeGameState* game) {
   game->view_pan_hold_unit = -1;
   ColonizeUnit* u = units_get(&game->units, game->units.selected_id);
   if (!u || !u->active) {
-    game_select_tile(game, game->map_cursor_x, game->map_cursor_y);
+    /* port_bugs.md #1376: the acting unit is gone (killed, vanished, or a
+     * damaged hull sent to Europe). DOS's Move Pieces pass (FUN_2b5a_3b68
+     * raw 46840-46848) re-tests the active unit, finds it ineligible and
+     * scans on from its slot (FUN_1427_14a0) — the same hand-off as an
+     * exhausted unit below, not View Pieces. The stale selected_id is the
+     * scan start. */
+    if (game->view_pieces_mode) {
+      game_select_tile(game, game->map_cursor_x, game->map_cursor_y);
+    } else {
+      game_wait_next_unit(game);
+    }
     return;
   }
   if (game->world_map_ok && u->nation_id >= 0 && u->nation_id <= 3 && units_is_on_map(u)) {
@@ -1229,7 +1239,17 @@ void game_after_unit_action(ColonizeGameState* game) {
    * Cibola, treasure, burial mounds, …); de Soto keeps outcomes positive. */
   if (game->world_map_ok && units_is_on_map(u) && map_tile_has_rumour(&game->world_map, u->x, u->y)) {
     const ColonizeWorld w = game_world(game);
+    const int lcr_x = u->x;
+    const int lcr_y = u->y;
     (void)units_resolve_lcr_rumour_w(&w, u->id, game->human_nation);
+    if (!u->active) {
+      /* @LOSTCITY5: the explorer vanished (its slot is cleared, x/y 0) —
+       * keep the view on its tile (port_bugs.md #1377) and hand on. */
+      game->map_cursor_x = lcr_x;
+      game->map_cursor_y = lcr_y;
+      game_after_unit_action(game);
+      return;
+    }
   }
   /*
    * First contact / village friction: land units only. Natives do not hail

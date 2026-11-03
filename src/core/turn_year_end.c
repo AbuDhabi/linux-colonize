@@ -174,69 +174,40 @@ COLONIZE_INTERNAL void turn_year_end_era_end(
   }
 }
 
-/* Returns true when this section already fired the WoI victory latch —
- * caller must return immediately, matching the original function's mid-body
- * `return;` at that point. */
+/* FUN_3844_0442 asks every King question of DS:0x5398, the fixed power
+ * (docs/hotseat.md), whoever is at the controls. */
+static ColonizeTurnContext turn_year_end_king_ctx(const ColonizeTurnContext* ctx) {
+  ColonizeTurnContext k = *ctx;
+  k.human_nation = turn_year_end_human(ctx);
+  return k;
+}
+
+/* WoI block (FUN_3844_0442 raw 58470-58556): win, else lose, else one @WARNn,
+ * all from ai_king_year_end_woi. Returns true when the war ended this turn:
+ * the win and the lose dialogs both leave the block past §D and §E. */
 COLONIZE_INTERNAL bool turn_year_end_woi_chrome(
   ColonizeTurnContext* ctx, ColonizeTurnResult* out, int woi_latched
 ) {
-  const int woi = woi_latched;
-  /* Endgame latch WON = independence achieved (reports); also skip re-fire. */
-  const int already_won =
-    ctx->col1_ok && ctx->col1 &&
-    ai_king_latch_get(ctx->col1, AI_KING_ENDGAME_BYTE) == AI_KING_ENDGAME_WON;
-
-  if (woi && !already_won && !out->year_end_defeat) {
-    const int crown = ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, ctx->human_nation);
-    /*
-     * Section C1 (FUN_3844_0442 raw 58468-58497): the king slice's win arm,
-     * gate and sequence both. This used to be a silent copy of the gate that
-     * set the latches without @WINNING or the @KINGLOSE audience, and it runs
-     * first (campaign5: the war ended with no announcement at all).
-     */
-    if (ai_king_woi_try_win(ctx)) {
-      out->year_end_victory = true;
-      /* calendar_latch (0x5382|0x10 "scoring complete") is NOT set here:
-       * DOS sets it only after the score chain runs (main-loop 0x104
-       * block); setting it at the latch suppressed the win sequence
-       * (port_bugs.md #259 — the game just carried on with a status line). */
-      ctx->col1->head.turn_loop_running = 0; /* DS:0x53c2 clear */
-      if (ctx->status && ctx->status_size > 0) {
-        snprintf(ctx->status, ctx->status_size, "Victory: independence won.");
-      }
-      return true;
+  if (!woi_latched || out->year_end_defeat || !ctx->col1_ok || !ctx->col1) {
+    return false;
+  }
+  ColonizeTurnContext k = turn_year_end_king_ctx(ctx);
+  const int end = ai_king_year_end_woi(&k);
+  if (end == AI_KING_ENDGAME_WON) {
+    out->year_end_victory = true;
+    /* calendar_latch (0x5382|0x10 "scoring complete") is NOT set here:
+     * DOS sets it only after the score chain runs (main-loop 0x104
+     * block); setting it at the latch suppressed the win sequence
+     * (port_bugs.md #259 — the game just carried on with a status line). */
+    ctx->col1->head.turn_loop_running = 0; /* DS:0x53c2 clear */
+    if (ctx->status && ctx->status_size > 0) {
+      snprintf(ctx->status, ctx->status_size, "Victory: independence won.");
     }
-
-    /*
-     * Section C2: WoI crown vs human SoL ratio (FUN year-end C2).
-     * Was bells proxy; now pop-weighted colony SoL via ai_king_sol_percent.
-     *
-     * NOT gated on crown colonies. raw 58493 opens the C1 arm with
-     * `(crown_colony_count == 0) || (0x5382 & 0x20)`; the C2 body (58507
-     * onward — rebel-colony tally, SoL ratio, 0xf29/0xf39) sits after that
-     * arm's closing brace, still inside `(0x5382&1) && !(0x5382&8)`. The port
-     * used to require `crown_colonies > 0`, so a King wiped out on land but
-     * still strong at sea (C1's fleet/REF gates unmet) emitted no chrome at
-     * all. Still thin: DOS also raises the same two bands off the rebel-
-     * colony tally (`colony flags +0x1c & 0x40` < 3 / == 0) and the human
-     * colony count (< 3 / == 0), which the port does not carry.
-     */
-    if (ctx->status && ctx->status_size > 0 && ctx->col1_ok && ctx->col1) {
-      const int human = turn_year_end_human(ctx); /* raw 58515 iVar5 = DS:0x5398 */
-      const int human_sol =
-        (human >= 0 && human < 4) ? ai_king_sol_percent(ctx, human) : 0;
-      const int crown_sol = ai_king_sol_percent(ctx, crown);
-      /* raw 58522 verbatim: `((crown + 1) * 100) / (human + 1 + crown + 1)`.
-       * Both operands carry their own +1 guard; the port dropped one of them,
-       * which read a 50/50 board as 100 instead of 50. */
-      const unsigned sol = ((unsigned)crown_sol + 1u) * 100u /
-                           ((unsigned)human_sol + 1u + (unsigned)crown_sol + 1u);
-      if (sol > 89u) {
-        snprintf(ctx->status, ctx->status_size, "Crown peace offer.");
-      } else if (sol > 79u) {
-        snprintf(ctx->status, ctx->status_size, "Independence pressure.");
-      }
-    }
+    return true;
+  }
+  if (end == AI_KING_ENDGAME_LOST) {
+    ctx->col1->head.turn_loop_running = 0; /* LAB_3844_04ec: DS:0x53c2 = 0 */
+    return true;
   }
   return false;
 }
@@ -391,28 +362,9 @@ COLONIZE_INTERNAL void turn_year_end_defeat_check(
       }
     }
   }
-  /*
-   * port_bugs.md: the zero-colonies defeat was peacetime-only — the King
-   * capturing every town during the War of Independence ended nothing.
-   * During WoI the same condition is the revolution being crushed, and it
-   * does not wait for the year-1600 grace either.
-   */
+  /* The WoI zero-colony loss is 0442's lose arm (@LOSING2, then @KINGWIN),
+   * in turn_year_end_woi_chrome; this is Section B, peacetime only. */
   if (woi) {
-    if (human_colonies == 0) {
-      out->year_end_defeat = true;
-      if (ctx->col1_ok && ctx->col1) {
-        /* calendar_latch waits for the score chain, as at the era end. */
-        ctx->col1->head.turn_loop_running = 0;
-        /* port_bugs.md: keep the endgame latch in step so the @LOSING game-over
-         * chain (retire score) recognizes the war as over too. */
-        if (ai_king_latch_get(ctx->col1, AI_KING_ENDGAME_BYTE) == AI_KING_ENDGAME_NONE) {
-          ai_king_latch_set(ctx->col1, AI_KING_ENDGAME_BYTE, AI_KING_ENDGAME_LOST);
-        }
-      }
-      if (ctx->status && ctx->status_size > 0) {
-        snprintf(ctx->status, ctx->status_size, "The revolution is crushed.");
-      }
-    }
     return;
   }
   if (year < 1600) {
@@ -470,9 +422,9 @@ void turn_run_year_end_chrome(ColonizeTurnContext* ctx, ColonizeTurnResult* out)
   /*
    * FUN_3844_0442 thin peels:
    *   B — peacetime, year≥1600, zero human colonies → defeat latch
-   *   C1 — WoI + zero crown colonies → victory (fleet + REF pool thin)
-   *   E — the 1790/1840 @SOONRETIRING0/1 notice is ai_king_emit_soon_retiring's
-   *       (raw 58618-58628); this function adds nothing there (#1273)
+   *   C — WoI: win, else @LOSINGn, else one @WARNn (ai_king_year_end_woi)
+   *   D — rival nations' independence (peacetime)
+   *   E — @SOONRETIRING0/1, @RETIRING/@RETIRING2 (ai_king_year_end_calendar)
    * Cite: viceroy_unpacked.c ~58430+; turn/year_end_chrome.md.
    */
   if (!ctx || !out) {
@@ -516,10 +468,15 @@ void turn_run_year_end_chrome(ColonizeTurnContext* ctx, ColonizeTurnResult* out)
     ctx->col1_ok && ctx->col1 && ctx->col1->head.game_options.woi != 0;
 
   turn_year_end_era_end(ctx, out, year, splash_done, woi_latched);
+  /* raw 58463 else-arm: Section B (@LOSENOCOLONIES) excludes the rest. */
+  turn_year_end_defeat_check(ctx, out, year, woi_latched);
   if (turn_year_end_woi_chrome(ctx, out, woi_latched)) {
     return;
   }
   turn_year_end_rival_independence(ctx, out, woi_latched);
-  turn_year_end_defeat_check(ctx, out, year, woi_latched);
+  if (!out->year_end_defeat && ctx->col1_ok && ctx->col1) {
+    ColonizeTurnContext k = turn_year_end_king_ctx(ctx);
+    (void)ai_king_year_end_calendar(&k);
+  }
 }
 

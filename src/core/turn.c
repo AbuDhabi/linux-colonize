@@ -753,7 +753,8 @@ COLONIZE_INTERNAL void turn_step_indian(ColonizeTurnProcessor* proc, ColonizeTur
       const int n = proc->nation_cursor;
       diag_info("TURN native nation %d", n);
       proc->show_indicator = true;
-      if (n == 4) {
+      if (n == 4 && !proc->day_advanced) {
+        const int popups_before = ctx->ai_popups ? ctx->ai_popups->queue_count : 0;
         turn_advance_day(proc, ctx);
         /* raw 6462-6466: a win in FUN_3844_0442 (0x104) saves COLONY10.SAV,
          * clears 0x53c2 (no slot of the next day runs) and launches the
@@ -765,6 +766,15 @@ COLONIZE_INTERNAL void turn_step_indian(ColonizeTurnProcessor* proc, ColonizeTur
           proc->step = TURN_PROC_IDLE;
           return;
         }
+        /* FUN_3844_0442's dialogs are modal in DOS: answer them (and run the
+         * retire chain) before the day top (port_bugs.md #1387). */
+        proc->day_advanced = true;
+        if (ctx->ai_popups && ctx->ai_popups->queue_count > popups_before) {
+          return;
+        }
+      }
+      if (n == 4) {
+        proc->day_advanced = false;
         /* DOS-LITERAL day top, raw 6353-6363 (port_bugs.md #713): FUN_281f_0550
          * (the 00f8 rank refresh), then +0x3149 = 0 for every unit of every
          * nation, then 0676 (the Indian mid-pass) — before nation 0's EOT.

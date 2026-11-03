@@ -12,7 +12,3 @@
 {"type":"key_up","t_ms":2904,"frame":119,"keycode":13,"mod":0}
 {"type":"key_down","t_ms":3240,"frame":140,"keycode":13,"mod":0}
 {"type":"key_up","t_ms":3288,"frame":143,"keycode":13,"mod":0}
-{"type":"key_down","t_ms":3624,"frame":164,"keycode":13,"mod":0}
-{"type":"key_up","t_ms":3672,"frame":167,"keycode":13,"mod":0}
-{"type":"key_down","t_ms":4008,"frame":188,"keycode":13,"mod":0}
-{"type":"key_up","t_ms":4056,"frame":191,"keycode":13,"mod":0}

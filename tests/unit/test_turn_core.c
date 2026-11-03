@@ -5231,6 +5231,8 @@ static int case_year_end_defeat_victory(void) {
       fprintf(stderr, "year-end C1 REF-fat must block victory\n");
       return 1;
     }
+    /* No founding-coastal colony: that turn fell to @LOSING1 (raw 58507). */
+    ai_king_latch_set(&fat, AI_KING_ENDGAME_BYTE, AI_KING_ENDGAME_NONE);
     fat.head.game_options.independence_force = 1;
     status[0] = '\0';
     memset(&out, 0, sizeof(out));
@@ -5279,161 +5281,6 @@ static int case_year_end_defeat_victory(void) {
     return 1;
   }
   fprintf(stderr, "year-end game-era richest ok\n");
-  return 0;
-}
-
-static int case_year_end_c2_peace(void) {
-  fx_begin();
-  ColonizeColonyPool pool;
-  colonies_init(&pool);
-  colonies_set_occupancy_map(NULL);
-  uint16_t year = 1600;
-  uint16_t autumn = 0;
-  uint32_t turn_number = 200;
-  char status[64];
-  ColonizeTurnContext ctx;
-  memset(&ctx, 0, sizeof(ctx));
-  ctx.messages = test_game_txt();
-  ctx.names = test_names_txt();
-  ctx.game_year = &year;
-  ctx.game_autumn = &autumn;
-  ctx.turn_number = &turn_number;
-  ctx.human_nation = 0;
-  ctx.colonies = &pool;
-  ctx.status = status;
-  ctx.status_size = sizeof(status);
-
-  ColonizeTurnResult out;
-  memset(&out, 0, sizeof(out));
-  /* Setup only (no check): the state the E game-era section leaves behind in
-   * the original single block -- one human colony "Jamestown" with 5
-   * colonists, so defeat B does not fire. */
-  year = 1800;
-  ColonizeColony* c = &pool.colonies[0];
-  memset(c, 0, sizeof(*c));
-  c->active = true;
-  c->nation_id = 0;
-  c->building_in_production = -1;
-  pool.colony_count = 1;
-  snprintf(c->name, sizeof(c->name), "Jamestown");
-  c->colonist_count = 5;
-  c->population = 1; /* ai_king_sol_percent weighs the live pool count */
-  /* C2: WoI + crown colonies + high crown SoL → peace offer status. */
-  year = 1700;
-  status[0] = '\0';
-  memset(&out, 0, sizeof(out));
-  ColonizeCol1Save c2;
-  col1_save_init(&c2);
-  c2.head.game_options.woi = 1; /* WoI */
-  c2.head.colony_count = 2;
-  c2.colony = calloc(2, sizeof(ColonizeCol1Colony));
-  if (!c2.colony) {
-    return 1;
-  }
-  c2.colony[0].nation_id = 0;
-  c2.colony[0].population = 1;
-  c2.colony[0].rebel_dividend = 5;
-  c2.colony[0].rebel_divisor = 100;
-  c2.colony[1].nation_id = 1;
-  c2.colony[1].population = 1;
-  c2.colony[1].rebel_dividend = 90;
-  c2.colony[1].rebel_divisor = 100;
-  ColonizeColony* crown_c2 = &pool.colonies[1];
-  memset(crown_c2, 0, sizeof(*crown_c2));
-  crown_c2->active = true;
-  crown_c2->nation_id = 1;
-  crown_c2->population = 1;
-  crown_c2->building_in_production = -1;
-  if (pool.colony_count < 2) {
-    pool.colony_count = 2;
-  }
-  ctx.col1 = &c2;
-  ctx.col1_ok = true;
-  ctx.colonies = &pool;
-  turn_run_year_end_chrome(&ctx, &out);
-  if (out.year_end_victory || strstr(status, "peace") == NULL) {
-    fprintf(
-      stderr,
-      "year-end C2 want peace status got victory=%d '%s'\n",
-      out.year_end_victory,
-      status
-    );
-    free(c2.colony);
-    return 1;
-  }
-  free(c2.colony);
-  ctx.col1 = NULL;
-  ctx.col1_ok = false;
-  fprintf(stderr, "year-end C2 peace ok\n");
-
-  /*
-   * smell #21: C2 is NOT under C1's crown-colony guard. raw 58493 opens the
-   * C1 arm with `(crown_colony_count == 0) || (0x5382 & 0x20)`; the C2 body
-   * at 58507 sits after that arm closes, still inside
-   * `(0x5382 & 1) && !(0x5382 & 8)`. Crown with ZERO colonies but a REF pool
-   * too fat for C1 to fire must still raise the peace-offer band.
-   */
-  year = 1700;
-  status[0] = '\0';
-  memset(&out, 0, sizeof(out));
-  ColonizeCol1Save c2b;
-  col1_save_init(&c2b);
-  c2b.head.game_options.woi = 1;
-  c2b.head.colony_count = 2;
-  c2b.colony = calloc(2, sizeof(ColonizeCol1Colony));
-  if (!c2b.colony) {
-    return 1;
-  }
-  c2b.colony[0].nation_id = 0; /* human, no bells accumulated → SoL 0 */
-  c2b.colony[0].population = 1;
-  c2b.colony[0].rebel_dividend = 0;
-  c2b.colony[0].rebel_divisor = 100;
-  /*
-   * The crown's SoL comes from its own rebel pair, never from a
-   * `liberty_bells_pool / 4` stand-in — that stand-in is deleted
-   * (port_bugs.md #424: nation bell totals run into the millions in real DOS
-   * saves, so every hit of it read as 100%). C1's crown-colony gate counts
-   * the RUNTIME pool (below, which stays crownless so the gate is open and
-   * only the fat REF pool stops C1); ai_king_sol_percent reads the COL1
-   * records, so this record is what gives the crown a SoL history to
-   * compare against.
-   */
-  c2b.colony[1].nation_id = 1; /* crown */
-  c2b.colony[1].population = 1;
-  c2b.colony[1].rebel_dividend = 100;
-  c2b.colony[1].rebel_divisor = 100;
-  /* REF pool fat: ref_score = ef[0] + 2 - (ef[1]==0) - (ef[3]==0) = 5 ⇒
-   * !ref_thin ⇒ C1 cannot fire even with the crown wiped off the map. */
-  c2b.head.expeditionary_force[0] = 5;
-  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-    pool.colonies[i].active = false;
-  }
-  ColonizeColony* human_c2b = &pool.colonies[0];
-  memset(human_c2b, 0, sizeof(*human_c2b));
-  human_c2b->active = true;
-  human_c2b->nation_id = 0;
-  human_c2b->population = 1; /* both records sit at (0,0): the live +0x1f */
-  human_c2b->building_in_production = -1;
-  pool.colony_count = 1;
-  ctx.col1 = &c2b;
-  ctx.col1_ok = true;
-  ctx.colonies = &pool;
-  ctx.units = NULL;
-  turn_run_year_end_chrome(&ctx, &out);
-  if (out.year_end_victory || strstr(status, "peace") == NULL) {
-    fprintf(
-      stderr,
-      "year-end C2 crownless want peace status got victory=%d '%s'\n",
-      out.year_end_victory,
-      status
-    );
-    free(c2b.colony);
-    return 1;
-  }
-  free(c2b.colony);
-  ctx.col1 = NULL;
-  ctx.col1_ok = false;
-  fprintf(stderr, "year-end C2 runs with no crown colonies ok\n");
   return 0;
 }
 
@@ -6972,7 +6819,6 @@ static const TestCase k_cases[] = {
   {"year_end_defeat_victory", case_year_end_defeat_victory},
   {"year_end_scoring_waits_for_chain", case_year_end_scoring_waits_for_chain},
   {"year_end_victory_stops_turn", case_year_end_victory_stops_turn},
-  {"year_end_c2_peace", case_year_end_c2_peace},
   {"year_end_section_d", case_year_end_section_d},
   {"census_profession_tally", case_census_profession_tally},
   {"census_live_peel", case_census_live_peel},

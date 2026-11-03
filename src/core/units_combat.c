@@ -1783,12 +1783,30 @@ static void units_ship_damaged_to_europe(ColonizeUnitPool* pool, ColonizeUnit* l
   if (turns < 1) {
     turns = 1;
   }
-  const bool east =
-    g_units_fallout_map ? (lose->x >= (int)g_units_fallout_map->width / 2) : true;
-  if (europe_enqueue_expected(
-        eu, lose->type_index, lt && lt->name[0] ? lt->name : "", NULL, NULL, 0,
-        lose->hold_goods_type, lose->hold_goods_amount, lose->x, lose->y, east, turns
-      )) {
+  /* port_bugs.md #1386: DOS FUN_5fef_0352 raw 99618-99619 only READS the
+   * nation return-from-Europe tile (-0x77c6/-0x77c5) into the hull's goto
+   * (+0x314d/e); it never writes the nation record. The port's live copy of
+   * the human's return tile is eu->last_exit_* (synced to the nation record
+   * at save), so the hull re-exports there and the enqueue must not
+   * overwrite it with the fight tile. */
+  const int ex = eu->last_exit_valid ? eu->last_exit_x : lose->goto_x;
+  const int ey = eu->last_exit_valid ? eu->last_exit_y : lose->goto_y;
+  const bool east = eu->last_exit_valid ? eu->last_exit_east
+                    : g_units_fallout_map ? (ex >= (int)g_units_fallout_map->width / 2)
+                                          : true;
+  const int keep_x = eu->last_exit_x;
+  const int keep_y = eu->last_exit_y;
+  const bool keep_east = eu->last_exit_east;
+  const bool keep_valid = eu->last_exit_valid;
+  const bool queued = europe_enqueue_expected(
+    eu, lose->type_index, lt && lt->name[0] ? lt->name : "", NULL, NULL, 0,
+    lose->hold_goods_type, lose->hold_goods_amount, ex, ey, east, turns
+  );
+  eu->last_exit_x = keep_x;
+  eu->last_exit_y = keep_y;
+  eu->last_exit_east = keep_east;
+  eu->last_exit_valid = keep_valid;
+  if (queued) {
     /* The Europe wait IS the repair (same rule turn_route_damaged_ships
      * used): she docks seaworthy. */
     lose->col1_flags15 = (uint8_t)(lose->col1_flags15 & 0x7fu);
@@ -3849,11 +3867,14 @@ bool units_resolve_lcr_rumour_w(
   }
   case COLONIZE_LCR_TRESPASS_ANGER: {
     const int tribe = roll.trespass_tribe;
-    if (col1 && tribe >= 0 && nation >= 0 && nation < 4) {
-      ai_diplo_indian_relation_delta(col1, tribe, nation, -roll.trespass_mag);
-    }
     tok.string0 = units_combat_nation_label(col1, tribe);
     units_lcr_popup(nation, human_nation, "LOSTCITY8", 0, &tok);
+    /* port_bugs.md #1378: raw 103650-103651 (after the popup, past 65dd:04eb)
+     * FUN_281f_0d6c(local_32, nation, local_38, 0) — the bare thunk to the
+     * whole FUN_4cc6_00f2, escalation tail included, as the SCREWED arm. */
+    if (col1 && tribe >= 0 && nation >= 0 && nation < 4) {
+      ai_contact_alarm_delta_00f2_w(w, tribe, nation, roll.trespass_mag);
+    }
     break;
   }
   case COLONIZE_LCR_VANISHES:
@@ -3861,6 +3882,10 @@ bool units_resolve_lcr_rumour_w(
     /* 65dd:0778 (case 5): human → tune pool 1 (map) before the unit goes. */
     if (nation == human_nation) {
       units_set_bgm_pool(1);
+      /* port_bugs.md #1377: FUN_65dd_0004 shows the popup in the dispatch,
+       * with the explorer still on its tile, BEFORE the 65dd:080a tail
+       * despawns it — present it now (headless: no pump, stays queued). */
+      units_combat_pump_popups();
     }
     /* 65dd:080a tail: only the despawn arm (local_e) redraws 7×7 and presents
      * with the fizzle (FUN_281f_03ea, 8) — the piece pixelates away. */

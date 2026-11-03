@@ -157,6 +157,8 @@ typedef struct ColonizeTurnProcessor {
    * game, just switches ctx->human_nation). */
   bool handoff_pending;
   int handoff_nation;
+  /* The calendar step + FUN_3844_0442 ran; the day top waits for its dialogs. */
+  bool day_advanced;
 } ColonizeTurnProcessor;
 
 /* Advance year / autumn / turn counter per @TIMECHANGE. */

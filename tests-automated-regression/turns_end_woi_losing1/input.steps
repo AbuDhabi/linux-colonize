@@ -7,7 +7,8 @@
 # (raw 58506-58548: ports == 0 -> 1, share > 89 -> 3, colonies == 0 -> 2, last write wins) picks @LOSING1
 # ("King's Forces control all ports in New France!"), the @KINGWIN throne audience follows, then the retire
 # chain (F10 score report, exploits screen, Hall of Fame; the harness starts from an empty HALLFAME.DAT) and the
-# title menu, with no @SCORED (port_bugs.md #1232). The save is taken on the title menu; output.hallfame pins
+# title menu, with no @SCORED (port_bugs.md #1232). 0442 runs right after the calendar step and LAB_3844_04ec clears DS:0x53c2, so no slot of the new
+# day runs (port_bugs.md #1387). The save is taken on the title menu; output.hallfame pins
 # the record.
 key space                # end turn 109 (Autumn 1600)
 wait 30

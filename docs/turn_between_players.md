@@ -173,7 +173,7 @@ Major thunks (catalog):
 | KING market | `38fd_0058` / `5e52` family | `europe_tick_market_prices` | **Done** — attrition + colony→`price_group` half + phases 2–3 pressure |
 | KING human refresh | return to Move Pieces | MP + select next | **Done** |
 | KING autosave | `130d_0172` | autosave flags | **Done** |
-| Year-end chrome | `3844_0442` | `turn_run_year_end_chrome` | **Done** — B/C1(+fleet+REF+map+latch)/C2/D(+auto-declare)/E(+richest); Hall of Fame ported (`HALLFAME.DAT`, port_bugs.md #1289; [reports_score.md](reports_score.md)) |
+| Year-end chrome | `3844_0442` | `turn_run_year_end_chrome` | **Done** — B, then the WoI block (win/lose/@WARNn, `ai_king_year_end_woi`), D, E (@SOONRETIRING/@RETIRING, `ai_king_year_end_calendar`); its dialogs are answered before the day top (`day_advanced`, port_bugs.md #1387); Hall of Fame ported (`HALLFAME.DAT`, port_bugs.md #1289; [reports_score.md](reports_score.md)) |
 | Demo / autoplay tail | `130d` `0x826` / `0x828` tail | `game_autoplay_after_turn` | **Done** — [demo.md](demo.md) |
 
 ### Known reshape (do not paper over)

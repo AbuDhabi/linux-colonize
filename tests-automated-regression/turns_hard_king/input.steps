@@ -5,7 +5,9 @@
 # Turn 107 end: the Crown's first wave lands near Montreal (@INVASION, ai_king_0982_invasion, raised
 # inside the King's beat while the AI turn runs). Turn 108 end: a second wave lands near Montreal,
 # the Tories beat the defenders, march into Montreal (captured, colony owner -> crown slot 2) and
-# defeat/capture rebels near Guadeloupe. Ends at the start of Autumn 1600 (turn 109).
+# defeat/capture rebels near Guadeloupe. Spring 1600: FUN_3844_0442 counts ports by the founding coastal bit
+# (+0x1c 0x40); none of the French colonies left has it, so @LOSING1, @KINGWIN and the retire chain end the
+# game on the title menu (port_bugs.md #1388); output.hallfame pins the record.
 click 22 3               # GAME menu
 click 50 85              # DECLARE INDEPENDENCE: Never / Yes confirm
 wait 1
@@ -175,6 +177,13 @@ key Return
 wait 10
 key Return               # Colonization Help: Time Scale (two turns per year from 1600)
 wait 10
-key Return               # the King's forces control all but 2 of our colonies
+key Return               # @LOSING1: no French colony carries the founding coastal bit (port_bugs.md #1388)
 wait 10
-shot
+key Return               # @KINGWIN throne audience
+wait 10
+key Return               # F10 score report
+wait 10
+key Return               # exploits screen
+wait 10
+key Return               # Hall of Fame: title menu
+wait 10

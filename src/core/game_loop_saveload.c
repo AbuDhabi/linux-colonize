@@ -344,7 +344,12 @@ static bool game_load_col1_loaded(
   }
   game_hotseat_announce(game, game->human_nation);
   const ColonizeUnit* sel = units_get_const(&game->units, game->units.selected_id);
-  if (!game_unit_selectable(game, sel)) {
+  /* port_bugs.md #1381(b): a saved active unit that is a damaged piece is not
+   * kept — DOS re-picks through FUN_1427_1410, whose bit7 clause (raw
+   * 8804-8805, turn_unit_in_rotation) skips it. */
+  const bool sel_damaged = sel && (sel->col1_flags15 & 0x80u) &&
+    !combat_type_is_artillery(units_type(&game->units, sel->type_index));
+  if (!game_unit_selectable(game, sel) || sel_damaged) {
     game_move_pieces_entry(game);
   }
   return true;

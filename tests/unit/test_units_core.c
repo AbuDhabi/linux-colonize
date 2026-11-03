@@ -1940,8 +1940,12 @@ static int case_fortify_sentry_disband(void) {
     /* A later night: the refresh hands Fortified its allotment (#715). */
     su->orders = UNITS_ORDER_FORTIFIED;
     su->moves = 3 * UNITS_MP_PER_TILE;
-    if (!units_wake(&pool, sid) || su->orders != UNITS_ORDER_NONE || su->moves <= 0) {
-      fprintf(stderr, "wake fortified failed\n");
+    /* #1380: the activate handler writes the order byte only (raw 42717). */
+    su->goto_x = 12;
+    su->goto_y = 34;
+    if (!units_wake(&pool, sid) || su->orders != UNITS_ORDER_NONE || su->moves <= 0 ||
+        su->goto_x != 12 || su->goto_y != 34) {
+      fprintf(stderr, "wake fortified failed (goto %d,%d)\n", su->goto_x, su->goto_y);
       ss_free(&icons);
       map_free(&map);
       assets_msg_free(&names);

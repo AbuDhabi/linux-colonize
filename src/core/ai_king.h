@@ -30,16 +30,8 @@
 #define AI_KING_ENDGAME_WON 1
 #define AI_KING_ENDGAME_LOST 2
 #define AI_KING_CONGRESS_BYTE 5
-/* Mid-war @WARN1 once-per-episode (ports<3, DOS 3844_0442); clear at >=3. */
-#define AI_KING_WARN1_BYTE 6
-/* Mid-war @WARN2 once-per-episode (colonies<3, DOS); clear at >=3. */
-#define AI_KING_WARN2_BYTE 7
-/* Peacetime Spring 1790 @SOONRETIRING0 once. */
-#define AI_KING_SOONRETIRE0_BYTE 8
-/* Wartime 1840 @SOONRETIRING1 once. */
-#define AI_KING_SOONRETIRE1_BYTE 9
-/* Mid-war @WARN3 once-per-episode (crown pop share 80–89%, DOS); clear when <80%. */
-#define AI_KING_WARN3_BYTE 10
+/* ids 6-10 (pad[1] bits 0x08-0x80) are free: the @WARNn / @SOONRETIRINGn
+ * once-latches were port-side and DOS has none (port_bugs.md #1391/#1392). */
 /* port_bugs.md: the first REF wave waits one full turn after the declaration —
  * set to 1 on declare, consumed (cleared, no landing) by the first wave
  * tick. */
@@ -78,11 +70,6 @@ static inline int ai_king_latch_bit(int which) {
   switch (which) {
     case AI_KING_BOYCOTT_BYTE: return 0x01;
     case AI_KING_CONGRESS_BYTE: return 0x04;
-    case AI_KING_WARN1_BYTE: return 0x08;
-    case AI_KING_WARN2_BYTE: return 0x10;
-    case AI_KING_WARN3_BYTE: return 0x20;
-    case AI_KING_SOONRETIRE0_BYTE: return 0x40;
-    case AI_KING_SOONRETIRE1_BYTE: return 0x80;
     default: return 0;
   }
 }
@@ -275,11 +262,16 @@ int ai_king_cheat_advance_revolution(ColonizeTurnContext* ctx);
 int ai_king_spend_woi_bell_pool(ColonizeTurnContext* ctx, int nation_id);
 
 /*
- * FUN_3844_0442 C1 (raw 58468-58497) for the year-end chrome: tests the
- * independence-won gate and, when it passes, runs the full win sequence
- * (latches, victory tune, @WINNING, @KINGLOSE audience). Returns true on a win.
+ * FUN_3844_0442's King pieces, run by the year-end chrome right after the
+ * calendar step (port_bugs.md #1387), for ctx->human_nation = DS:0x5398.
+ * ai_king_year_end_woi: the WoI block (raw 58470-58556) — win (@WINNING,
+ * @KINGLOSE audience), else lose (@LOSINGn, @KINGWIN audience), else one
+ * @WARNn; returns AI_KING_ENDGAME_WON / _LOST / _NONE.
+ * ai_king_year_end_calendar: @SOONRETIRING0/1 and @RETIRING/@RETIRING2
+ * (raw 58617-58649); true when the calendar ended the game.
  */
-bool ai_king_woi_try_win(ColonizeTurnContext* ctx);
+int ai_king_year_end_woi(ColonizeTurnContext* ctx);
+bool ai_king_year_end_calendar(ColonizeTurnContext* ctx);
 /* FUN_38fd_5be8 peacetime tax roll for an AI nation (no dialog). port_bugs.md #1053. */
 void ai_king_tax_event_ai(ColonizeTurnContext* ctx, int nation_id);
 /* 38fd_3dc8's explicit AI delta: clamp and store, without an audience. */

@@ -2,6 +2,23 @@
  * revolution end ladder: @LOSING/@WARN/@WINNING/@RETIRING2/@SCORED/@SOONRETIRING bands. */
 #include "test_ai_king_common.h"
 
+/* The human's 00f2 King beat, then FUN_3844_0442's King pieces (run by the
+ * year-end chrome after the calendar step, port_bugs.md #1387). */
+static void rev_turn(ColonizeTurnContext* ctx) {
+  /* The port count reads the founding coastal bit (+0x1c 0x40, #1388): give
+   * the fixtures' colonies on water-adjacent tiles the bit founding would. */
+  for (int i = 0; ctx->colonies && ctx->map && i < COLONIZE_COLONIES_MAX; ++i) {
+    ColonizeColony* c = &ctx->colonies->colonies[i];
+    if (c->active && map_tile_is_coastal(ctx->map, c->x, c->y)) {
+      c->colony_flags |= COLONIZE_COLONY_FLAG_COASTAL;
+    }
+  }
+  ai_king_nation_turn(ctx);
+  if (ai_king_year_end_woi(ctx) == AI_KING_ENDGAME_NONE) {
+    (void)ai_king_year_end_calendar(ctx);
+  }
+}
+
 static int case_revolution_lose2_no_colonies(void) {
     ColonizeCol1Save end;
     col1_save_init(&end);
@@ -10,6 +27,7 @@ static int case_revolution_lose2_no_colonies(void) {
     ai_king_latch_set(&end, 1, 1); /* REF already invading */
     end.head.game_options.intervention_announced = 1;
     ai_king_latch_set(&end, 4, 0);
+    end.head.expeditionary_force[0] = 5; /* REF in Europe: the win test (raw 58470, first) fails */
     end.head.year = 1785;
     end.player[0].control = 0;
     snprintf(end.player[0].name, sizeof(end.player[0].name), "Washington");
@@ -59,7 +77,7 @@ static int case_revolution_lose2_no_colonies(void) {
     ectx.messages = &game_txt;
     ectx.ai_popups = &pop;
 
-    ai_king_nation_turn(&ectx);
+    rev_turn(&ectx);
     if (ai_king_latch_get(&end, 4) != 2) {
       fprintf(stderr, "unit_ai_king: rev-lose2 endgame=%d status='%s'\n",
               ai_king_latch_get(&end, 4), estatus);
@@ -89,6 +107,15 @@ static int case_revolution_lose2_no_colonies(void) {
         fx_map_free(&emap);
         return fail("rev-lose2 should enqueue @LOSING2 INFO OK");
       }
+      int throne = 0; /* port_bugs.md #1389: @KINGWIN follows @LOSING2 */
+      for (int i = 0; i < pop.queue_count; ++i) {
+        throne |= pop.queue[i].tag == AI_POPUP_TAG_KING_THRONE;
+      }
+      if (!throne) {
+        assets_msg_free(&game_txt);
+        fx_map_free(&emap);
+        return fail("rev-lose2 should queue the @KINGWIN throne audience");
+      }
     }
     assets_msg_free(&game_txt);
     fx_map_free(&emap);
@@ -104,6 +131,7 @@ static int case_revolution_lose1_no_ports(void) {
     ai_king_latch_set(&end, 1, 1); /* REF already invading */
     end.head.game_options.intervention_announced = 1;
     ai_king_latch_set(&end, 4, 0);
+    end.head.expeditionary_force[0] = 5; /* REF in Europe: the win test (raw 58470, first) fails */
     end.head.year = 1785;
     end.player[0].control = 0;
     snprintf(end.player[0].name, sizeof(end.player[0].name), "Washington");
@@ -162,7 +190,7 @@ static int case_revolution_lose1_no_ports(void) {
     ectx.messages = &game_txt;
     ectx.ai_popups = &pop;
 
-    ai_king_nation_turn(&ectx);
+    rev_turn(&ectx);
     if (ai_king_latch_get(&end, 4) != 2) {
       fprintf(stderr, "unit_ai_king: rev-lose1 endgame=%d status='%s'\n",
               ai_king_latch_get(&end, 4), estatus);
@@ -286,23 +314,13 @@ static int case_revolution_warn_one_colony(void) {
     ectx.messages = &game_txt;
     ectx.ai_popups = &pop;
 
-    ai_king_nation_turn(&ectx);
+    rev_turn(&ectx);
     if (ai_king_latch_get(&end, 4) != 0) {
       fprintf(stderr, "unit_ai_king: warn1 endgame=%d status='%s'\n",
               ai_king_latch_get(&end, 4), estatus);
       assets_msg_free(&game_txt);
       fx_map_free(&emap);
       return fail("warn1 must not latch endgame");
-    }
-    if (ai_king_latch_get(&end, 6) != 0) {
-      assets_msg_free(&game_txt);
-      fx_map_free(&emap);
-      return fail("colonies<3 outranks ports<3: market_demand_pool_raw[6] must stay clear");
-    }
-    if (ai_king_latch_get(&end, 7) != 1) {
-      assets_msg_free(&game_txt);
-      fx_map_free(&emap);
-      return fail("warn2 should set market_demand_pool_raw[7] episode latch");
     }
     if (!strstr(estatus, "all but 1") || !strstr(estatus, "lose the war")) {
       fprintf(stderr, "unit_ai_king: warn2 status: '%s'\n", estatus);
@@ -340,86 +358,24 @@ static int case_revolution_warn_one_colony(void) {
       }
     }
 
-    /* Second turn with the latch set: no second @WARN2 enqueue. */
+    /* port_bugs.md #1392: no latch, the next turn shows @WARN2 again. */
     {
       const int q0 = pop.queue_count;
       estatus[0] = '\0';
-      ai_king_nation_turn(&ectx);
-      if (ai_king_latch_get(&end, 7) != 1) {
-        assets_msg_free(&game_txt);
-        fx_map_free(&emap);
-        return fail("warn latch should remain while one colony left");
-      }
+      rev_turn(&ectx);
       int rewarn = 0;
       for (int i = q0; i < pop.queue_count; ++i) {
         if (pop.queue[i].kind == AI_POPUP_KIND_OK &&
-            strstr(pop.queue[i].body, "all but 1")) {
+            strstr(pop.queue[i].body, "lose the war") &&
+            strstr(pop.queue[i].body, "colonies")) {
           rewarn = 1;
           break;
         }
       }
-      if (rewarn) {
+      if (!rewarn) {
         assets_msg_free(&game_txt);
         fx_map_free(&emap);
-        return fail("warn2 must not re-enqueue while latched");
-      }
-    }
-
-    /* port_bugs.md batch (DOS 3844_0442): warn band is <3 ports/colonies, so the
-     * episode clears only at >=3 — reclaim TWO coastal colonies to clear,
-     * then drop back below to re-fire. */
-    {
-      ColonizeColony* c2 = &cp.colonies[1];
-      memset(c2, 0, sizeof(*c2));
-      c2->active = true;
-      c2->nation_id = 0;
-      c2->x = 8;
-      c2->y = 5;
-      ColonizeColony* c3 = &cp.colonies[2];
-      memset(c3, 0, sizeof(*c3));
-      c3->active = true;
-      c3->nation_id = 0;
-      c3->x = 10;
-      c3->y = 5;
-      emap.terrain[10 + 5 * 16] = 1; /* land tile for the third port */
-      cp.colony_count = 3;
-      estatus[0] = '\0';
-      ai_king_nation_turn(&ectx);
-      if (ai_king_latch_get(&end, 6) != 0 || ai_king_latch_get(&end, 7) != 0) {
-        assets_msg_free(&game_txt);
-        fx_map_free(&emap);
-        return fail("warn latches should clear when ports/colonies>1");
-      }
-      c2->active = false;
-      c3->active = false;
-      cp.colony_count = 1;
-      const int q1 = pop.queue_count;
-      estatus[0] = '\0';
-      ai_king_nation_turn(&ectx);
-      if (ai_king_latch_get(&end, 7) != 1) {
-        assets_msg_free(&game_txt);
-        fx_map_free(&emap);
-        return fail("warn should re-latch after reclaim then drop to one");
-      }
-      int found_port = 0;
-      int found_col = 0;
-      for (int i = q1; i < pop.queue_count; ++i) {
-        if (pop.queue[i].kind != AI_POPUP_KIND_OK) {
-          continue;
-        }
-        if (strstr(pop.queue[i].body, "surrender") &&
-            strstr(pop.queue[i].body, "all but 1")) {
-          found_port = 1;
-        }
-        if (strstr(pop.queue[i].body, "lose the war") &&
-            strstr(pop.queue[i].body, "colonies")) {
-          found_col = 1;
-        }
-      }
-      if (!found_col || found_port) {
-        assets_msg_free(&game_txt);
-        fx_map_free(&emap);
-        return fail("@WARN2 alone should re-enqueue after the reclaim episode");
+        return fail("warn2 must re-enqueue every turn the condition holds");
       }
     }
 
@@ -545,16 +501,11 @@ static int case_revolution_warn3_pop_share(void) {
     ectx.messages = &game_txt;
     ectx.ai_popups = &pop;
 
-    ai_king_nation_turn(&ectx);
+    rev_turn(&ectx);
     if (ai_king_latch_get(&end, 4) != 0) {
       assets_msg_free(&game_txt);
       fx_map_free(&emap);
       return fail("warn3 must not latch endgame");
-    }
-    if (ai_king_latch_get(&end, 10) != 1) {
-      assets_msg_free(&game_txt);
-      fx_map_free(&emap);
-      return fail("warn3 should set market_demand_pool_raw[10] episode latch");
     }
     {
       int found = 0;
@@ -576,7 +527,7 @@ static int case_revolution_warn3_pop_share(void) {
     {
       const int q0 = pop.queue_count;
       estatus[0] = '\0';
-      ai_king_nation_turn(&ectx);
+      rev_turn(&ectx);
       int re = 0;
       for (int i = q0; i < pop.queue_count; ++i) {
         if (pop.queue[i].kind == AI_POPUP_KIND_OK &&
@@ -586,30 +537,20 @@ static int case_revolution_warn3_pop_share(void) {
           break;
         }
       }
-      if (re) {
+      if (!re) { /* port_bugs.md #1392: every turn, no latch */
         assets_msg_free(&game_txt);
         fx_map_free(&emap);
-        return fail("warn3 must not re-enqueue while latched");
+        return fail("warn3 must re-enqueue every turn the share holds");
       }
     }
-    /* Drop crown share below 80% → clear latch; raise again → re-fire. */
+    /* Drop crown share below 80%: no @WARN3; raise again: it fires. */
     cp.colonies[3].population = 10; /* crown 11/(41+11) = 21% */
     estatus[0] = '\0';
-    ai_king_nation_turn(&ectx);
-    if (ai_king_latch_get(&end, 10) != 0) {
-      assets_msg_free(&game_txt);
-      fx_map_free(&emap);
-      return fail("warn3 latch should clear when pop share <80%");
-    }
+    rev_turn(&ectx);
     cp.colonies[3].population = 232; /* crown back to 85% under the DOS +1 formula */
     const int q1 = pop.queue_count;
     estatus[0] = '\0';
-    ai_king_nation_turn(&ectx);
-    if (ai_king_latch_get(&end, 10) != 1) {
-      assets_msg_free(&game_txt);
-      fx_map_free(&emap);
-      return fail("warn3 should re-latch after share returns to 80–89%");
-    }
+    rev_turn(&ectx);
     {
       int found = 0;
       for (int i = q1; i < pop.queue_count; ++i) {
@@ -721,7 +662,7 @@ static int case_revolution_lose3_pop_share(void) {
     ectx.messages = &game_txt;
     ectx.ai_popups = &pop;
 
-    ai_king_nation_turn(&ectx);
+    rev_turn(&ectx);
     if (ai_king_latch_get(&end, 4) != 2) {
       fprintf(stderr, "unit_ai_king: lose3 endgame=%d status='%s'\n",
               ai_king_latch_get(&end, 4), estatus);
@@ -825,7 +766,7 @@ static int case_revolution_win_1850(void) {
     ectx.messages = &game_txt;
     ectx.ai_popups = &pop;
 
-    ai_king_nation_turn(&ectx);
+    rev_turn(&ectx);
     if (ai_king_latch_get(&end, 4) != 1) {
       fprintf(stderr, "unit_ai_king: rev-win endgame=%d status='%s'\n",
               ai_king_latch_get(&end, 4), estatus);
@@ -974,7 +915,7 @@ static int case_revolution_retiring2_1850_stalemate(void) {
     ectx.messages = &game_txt;
     ectx.ai_popups = &pop;
 
-    ai_king_nation_turn(&ectx);
+    rev_turn(&ectx);
     /* FUN_3844_0442 raw 58629-58649: the 1850 arm shows @RETIRING2 and runs the retire chain,
      * nothing more. No loss latch and no war state change (port_bugs.md #1232). */
     if (ai_king_latch_get(&end, 4) != 0 || ai_king_latch_get(&end, 1) != 1) {
@@ -1019,8 +960,12 @@ static int case_revolution_retiring2_1850_stalemate(void) {
     end.head.game_options.calendar_latch = 1;
     ai_popup_init(&pop);
     estatus[0] = '\0';
-    ai_king_nation_turn(&ectx);
-    if (pop.queue_count != 0 || ai_king_latch_get(&end, 4) != 0) {
+    rev_turn(&ectx);
+    int war_end_again = 0; /* a @WARNn may show (the war block is not 0x10-gated) */
+    for (int i = 0; i < pop.queue_count; ++i) {
+      war_end_again |= pop.queue[i].tag == AI_POPUP_TAG_KING_WAR_END;
+    }
+    if (war_end_again || ai_king_latch_get(&end, 4) != 0) {
       fprintf(stderr, "unit_ai_king: kept playing: queue=%d endgame=%d status='%s'\n",
               pop.queue_count, ai_king_latch_get(&end, 4), estatus);
       assets_msg_free(&game_txt);
@@ -1029,7 +974,7 @@ static int case_revolution_retiring2_1850_stalemate(void) {
     }
     cp.colonies[0].active = false;
     cp.colony_count = 0;
-    ai_king_nation_turn(&ectx);
+    rev_turn(&ectx);
     if (ai_king_latch_get(&end, 4) != 2) {
       fprintf(stderr, "unit_ai_king: kept playing, no colonies: endgame=%d status='%s'\n",
               ai_king_latch_get(&end, 4), estatus);
@@ -1100,7 +1045,7 @@ static int case_peacetime_retiring_1800(void) {
     ectx.messages = &game_txt;
     ectx.ai_popups = &pop;
 
-    ai_king_nation_turn(&ectx);
+    rev_turn(&ectx);
     /* No endgame latch: after "Keep playing anyway." a later declaration fights a live war. */
     if (ai_king_latch_get(&end, 4) != 0) {
       fprintf(stderr, "unit_ai_king: 1800 endgame=%d status='%s'\n",
@@ -1138,7 +1083,7 @@ static int case_peacetime_retiring_1800(void) {
     end.head.game_options.calendar_latch = 1;
     ai_popup_init(&pop);
     estatus[0] = '\0';
-    ai_king_nation_turn(&ectx);
+    rev_turn(&ectx);
     if (pop.queue_count != 0 || strstr(estatus, "steps down")) {
       assets_msg_free(&game_txt);
       return fail("1800 @RETIRING must not repeat once scoring is complete");
@@ -1196,11 +1141,7 @@ static int case_peacetime_soonretiring0_1790(void) {
     ectx.messages = &game_txt;
     ectx.ai_popups = &pop;
 
-    ai_king_nation_turn(&ectx);
-    if (ai_king_latch_get(&end, 8) != 1) {
-      assets_msg_free(&game_txt);
-      return fail("1790 spring should set market_demand_pool_raw[8] @SOONRETIRING0 latch");
-    }
+    rev_turn(&ectx);
     if (!strstr(estatus, "retire in 1800")) {
       fprintf(stderr, "unit_ai_king: soon0 status: '%s'\n", estatus);
       assets_msg_free(&game_txt);
@@ -1224,7 +1165,8 @@ static int case_peacetime_soonretiring0_1790(void) {
     {
       const int q0 = pop.queue_count;
       estatus[0] = '\0';
-      ai_king_nation_turn(&ectx);
+      end.head.autumn = 1; /* raw 58618 `0x538c == 0`: Spring only (#1391) */
+      rev_turn(&ectx);
       int re = 0;
       for (int i = q0; i < pop.queue_count; ++i) {
         if (pop.queue[i].kind == AI_POPUP_KIND_OK &&
@@ -1235,7 +1177,7 @@ static int case_peacetime_soonretiring0_1790(void) {
       }
       if (re) {
         assets_msg_free(&game_txt);
-        return fail("@SOONRETIRING0 must not re-enqueue while latched");
+        return fail("@SOONRETIRING0 is Spring 1790 only");
       }
     }
     assets_msg_free(&game_txt);
@@ -1322,18 +1264,8 @@ static int case_wartime_soonretiring1_1840(void) {
     ectx.messages = &game_txt;
     ectx.ai_popups = &pop;
 
-    ai_king_nation_turn(&ectx);
-    if (ai_king_latch_get(&end, 9) != 1) {
-      assets_msg_free(&game_txt);
-      fx_map_free(&emap);
-      return fail("1840 WoI should set market_demand_pool_raw[9] @SOONRETIRING1 latch");
-    }
-    if (!strstr(estatus, "weary of this long war") && !strstr(estatus, "1850")) {
-      fprintf(stderr, "unit_ai_king: soon1 status: '%s'\n", estatus);
-      assets_msg_free(&game_txt);
-      fx_map_free(&emap);
-      return fail("1840 should set @SOONRETIRING1 status");
-    }
+    rev_turn(&ectx);
+    /* The status line holds the same-turn @WARN2 (shown first, raw 58540). */
     {
       int found = 0;
       for (int i = 0; i < pop.queue_count; ++i) {
@@ -1353,7 +1285,8 @@ static int case_wartime_soonretiring1_1840(void) {
     {
       const int q0 = pop.queue_count;
       estatus[0] = '\0';
-      ai_king_nation_turn(&ectx);
+      end.head.autumn = 1; /* raw 58618 `0x538c == 0`: Spring only (#1391) */
+      rev_turn(&ectx);
       int re = 0;
       for (int i = q0; i < pop.queue_count; ++i) {
         if (pop.queue[i].kind == AI_POPUP_KIND_OK &&
@@ -1365,7 +1298,7 @@ static int case_wartime_soonretiring1_1840(void) {
       if (re) {
         assets_msg_free(&game_txt);
         fx_map_free(&emap);
-        return fail("@SOONRETIRING1 must not re-enqueue while latched");
+        return fail("@SOONRETIRING1 is Spring 1840 only");
       }
     }
     assets_msg_free(&game_txt);

@@ -5,7 +5,8 @@
 # fortified (land, orders 6) or sentried (ships, orders 1).
 # End of turn 109: the Crown's turn lands a wave near Roanoke and the Tories fight near Guadeloupe (popups
 # answered in the nested pump). Spring 1840: FUN_3844_0442 raw 58617-58628 (`!(0x5382 & 0x10)`, season 0,
-# year 0x730 = 1840, no war gate) shows @SOONRETIRING1 ("General Jacques Cartier, the people are weary of this
+# year 0x730 = 1840, no war gate) shows @SOONRETIRING1 right after the calendar step, before the Indian gifts
+# (port_bugs.md #1387; no latch, #1391) ("General Jacques Cartier, the people are weary of this
 # long war ..."); the war goes on.
 key space                # end turn 109 (Autumn 1839)
 wait 30
@@ -23,10 +24,10 @@ key Return               # Rebel colonists CAPTURED by the Tory (nested pump)
 wait 10
 key Return               # Tories defeat Rebel Colonists near Guadeloupe (nested pump)
 wait 10
+key Return               # @SOONRETIRING1: the people are weary of this long war
+wait 10
 key Return               # Iroquois gift of 11 Cotton to Port au Prince
 wait 10
 key Return               # Tupi gift of 16 Furs to Quebec
-wait 10
-key Return               # @SOONRETIRING1: the people are weary of this long war
 wait 10
 shot                     # Spring 1840

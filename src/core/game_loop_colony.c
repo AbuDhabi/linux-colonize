@@ -257,7 +257,8 @@ static void game_auto_assign_new_colonist(ColonizeGameState* game, int colony_id
  *     popup. @FULL has no DS tag in docs/popup_tag_ids.md and no push of one
  *     anywhere near this handler — it belongs to the Europe immigration
  *     path, not to Join;
- *   - on success DOS calls FUN_281f_0e1c(1) (next unit) and does NOT open
+ *   - on success DOS calls FUN_281f_0e1c(1) (the FUN_6b7e_00c0 viewport
+ *     repaint; the Move Pieces loop then picks the next unit) and does NOT open
  *     the colony screen.
  */
 void game_join_colony_order(ColonizeGameState* game) {
@@ -294,7 +295,7 @@ void game_join_colony_order(ColonizeGameState* game) {
     "Joined %s",
     col->name[0] ? col->name : ""
   );
-  game_wait_next_unit(game); /* FUN_281f_0e1c(1) */
+  game_wait_next_unit(game); /* back to the Move Pieces loop */
 }
 
 /* One selection: colony colonist index, or admit selected outside unit first. */

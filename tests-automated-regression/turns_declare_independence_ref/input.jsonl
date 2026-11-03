@@ -96,3 +96,7 @@
 {"type":"key_up","t_ms":12472,"frame":717,"keycode":1073741893,"mod":0}
 {"type":"key_down","t_ms":12488,"frame":718,"keycode":13,"mod":0}
 {"type":"key_up","t_ms":12536,"frame":721,"keycode":13,"mod":0}
+{"type":"key_down","t_ms":12872,"frame":742,"keycode":1073741893,"mod":0}
+{"type":"key_up","t_ms":12888,"frame":743,"keycode":1073741893,"mod":0}
+{"type":"key_down","t_ms":12904,"frame":744,"keycode":13,"mod":0}
+{"type":"key_up","t_ms":12952,"frame":747,"keycode":13,"mod":0}

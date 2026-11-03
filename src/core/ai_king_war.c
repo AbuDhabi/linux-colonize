@@ -7,7 +7,7 @@
  *
  * Sections:
  *   War declaration events & REF war conduct (ai_king_new_war_event .. ai_king_ref_pre_euro_beat)
- *   War of Independence endgame scoring (ai_king_human_coastal_ports .. ai_king_check_revolution_end)
+ *   War of Independence endgame scoring (ai_king_human_coastal_ports .. ai_king_year_end_woi)
  *   Nation turn driver & popup result dispatch (ai_king_nation_turn .. ai_king_apply_popup_result)
  */
 
@@ -78,6 +78,7 @@ int ai_king_new_war_event(ColonizeTurnContext* ctx) {
   if (peace_n == 0 || met_no_peace != 0 || strength_peers > strength_self) {
     return 0;
   }
+  dos_rng_reseed_83a6(ctx->rng); /* raw ~68363: FUN_281f_04ca(DS:0x83a6) */
   if (dos_rng_range(ctx->rng, 0, (4 - peace_n) * 20) > difficulty) {
     return 0;
   }
@@ -623,36 +624,38 @@ void ai_king_human_2022_beat(ColonizeTurnContext* ctx) {
  *   Warn: the same digit patch on "@WARN%d" (raw 58506-58534, 58540) —
  *     `ports < 3 → 1`, `share ≥ 80 → 3`, `colonies < 3 → 2`, again last write
  *     wins — shown only when neither the win nor the lose dialog took the
- *     turn, so at most one @WARN%d per turn.
- *   Wartime calendar stop: exact year 1850 (raw 58630) → @RETIRING2.
- * Latches market_demand_pool_raw[4]; score reads won/lost.
+ *     turn, so at most one @WARN%d per turn, every turn (no latch, #1392).
+ * Win is tested first (raw 58470-58500). Ports = colonies with the founding
+ * coastal bit +0x1c & 0x40 (raw 58498-58505, #1388). Latches the endgame
+ * byte; score reads won/lost.
  */
-/* ===== War of Independence endgame scoring (ai_king_human_coastal_ports .. ai_king_check_revolution_end) ===== */
+/* ===== War of Independence endgame scoring (ai_king_human_coastal_ports .. ai_king_year_end_woi) ===== */
 static int ai_king_human_coastal_ports(const ColonizeTurnContext* ctx, int human) {
   if (!ctx || human < 0 || human > 3) {
     return 0;
   }
   int n = 0;
-  if (ctx->colonies && ctx->map && ctx->colonies->colony_count > 0) {
+  if (ctx->colonies && ctx->colonies->colony_count > 0) {
     for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
       const ColonizeColony* c = &ctx->colonies->colonies[i];
       if (!c->active || c->nation_id != human) {
         continue;
       }
-      if (map_tile_is_coastal(ctx->map, c->x, c->y)) {
+      /* DOS raw 58498-58505: colony record +0x1c & 0x40 (founding coastal bit). */
+      if ((c->colony_flags & COLONIZE_COLONY_FLAG_COASTAL) != 0) {
         ++n;
       }
     }
     return n;
   }
   /* Col1 colony list (smoke / bridge) when runtime pool empty. */
-  if (ctx->col1_ok && ctx->col1 && ctx->map && ctx->col1->colony) {
+  if (ctx->col1_ok && ctx->col1 && ctx->col1->colony) {
     for (uint16_t i = 0; i < ctx->col1->head.colony_count; ++i) {
       const ColonizeCol1Colony* c = &ctx->col1->colony[i];
       if ((int)c->nation_id != human) {
         continue;
       }
-      if (map_tile_is_coastal(ctx->map, (int)c->x, (int)c->y)) {
+      if (c->flags.coastal) {
         ++n;
       }
     }
@@ -875,7 +878,7 @@ typedef enum {
   AI_KING_WOI_END_DONE = 1      /* stage ended the check (was a bare `return;`) */
 } AiKingWoiEndStatus;
 
-/* Shared state for the stages of one ai_king_check_revolution_end pass. */
+/* Shared state for the stages of one ai_king_year_end_woi pass. */
 struct ai_king_woi_end_ctx {
   ColonizeTurnContext* ctx;
   int human;
@@ -883,7 +886,6 @@ struct ai_king_woi_end_ctx {
   int ports;
   int colonies;
   int pop_pct;
-  int year;
   int warn_sel;
   const char* country;
   const char* leader;
@@ -891,7 +893,7 @@ struct ai_king_woi_end_ctx {
 
 /*
  * LOSE arms (@LOSING1/2/3, DOS FUN_3844_0442 raw 58507-58534). Extracted
- * verbatim from ai_king_check_revolution_end.
+ * verbatim from the old 2424 end check.
  */
 static AiKingWoiEndStatus ai_king_woi_end_lose(struct ai_king_woi_end_ctx* w) {
   ColonizeTurnContext* const ctx = w->ctx;
@@ -940,7 +942,7 @@ static AiKingWoiEndStatus ai_king_woi_end_lose(struct ai_king_woi_end_ctx* w) {
 
 /*
  * WIN arm (@KINGLOSE, DOS FUN_3844_0442 C1 raw 58468-58497). Extracted
- * verbatim from ai_king_check_revolution_end.
+ * verbatim from the old 2424 end check.
  */
 static AiKingWoiEndStatus ai_king_woi_end_win(struct ai_king_woi_end_ctx* w) {
   ColonizeTurnContext* const ctx = w->ctx;
@@ -1026,100 +1028,57 @@ static AiKingWoiEndStatus ai_king_woi_end_win(struct ai_king_woi_end_ctx* w) {
 }
 
 /*
- * The one @WARN%d the selector picked, plus the 1850 wartime calendar end
- * (@RETIRING2). Extracted verbatim from ai_king_check_revolution_end.
+ * The one @WARN%d the selector picked (DOS raw 58538-58556), reached only
+ * when neither the win nor the lose dialog left the block. %STRING0 is the
+ * human's new-world country name (`0x5398 * 0x34 + 0x5426`, raw 58553) and all
+ * three number slots are filled for every warn body (raw 58554-58556). No
+ * latch: 0442 re-shows it every turn the condition holds (port_bugs.md #1392).
  */
 static void ai_king_woi_end_warn(struct ai_king_woi_end_ctx* w) {
-  ColonizeTurnContext* const ctx = w->ctx;
-  const int human = w->human;
-  const int crown = w->crown;
-  const int ports = w->ports;
-  const int colonies = w->colonies;
-  const int pop_pct = w->pop_pct;
-  const int year = w->year;
-  const int warn_sel = w->warn_sel;
-  const char* const country = w->country;
-  const char* const leader = w->leader;
-  (void)country;
-
-  /*
-   * The war did not end this turn — show the ONE warn the selector picked
-   * (DOS raw 58538-58551, reached only when neither the win nor the lose
-   * dialog jumped out of the block). %STRING0 is the human's new-world
-   * country name (`0x5398 * 0x34 + 0x5426`, raw 58553) and all three number
-   * slots are filled for every warn body (raw 58554-58556).
-   */
-  if (warn_sel > 0) {
-    const int warn_byte = (warn_sel == 2)   ? AI_KING_WARN2_BYTE
-                          : (warn_sel == 3) ? AI_KING_WARN3_BYTE
-                                            : AI_KING_WARN1_BYTE;
-    if (ai_king_latch_get(ctx->col1, warn_byte) == 0) {
-      PopupMsgTokens tok;
-      memset(&tok, 0, sizeof(tok));
-      ai_king_warn_numbers(&tok, ports, colonies, pop_pct);
-      tok.string0 = country;
-      char tag[16];
-      snprintf(tag, sizeof(tag), "WARN%d", warn_sel);
-      /*
-       * Do not clobber same-turn wave/war_act status (1528 @INVASION, 2244
-       * merc). The warn still enqueues its INFO OK; status when buffer empty.
-       */
-      ai_king_emit_ok(
-        ctx, tag, &tok, "", AI_POPUP_TAG_INFO, human, crown, warn_sel, 0, NULL, 0
-      );
-      ai_king_latch_set(ctx->col1, warn_byte, 1);
-    }
+  if (w->warn_sel <= 0) {
+    return;
   }
-  /*
-   * Wartime calendar end. DOS raw 58617-58649, asm 3844:0a02-0b44:
-   *   if (!(0x5382 & 0x10)) { ... if (((year == 0x708) && !woi) || (year == 0x73a)) ... }
-   * — under a declared WoI (this whole function's precondition) only the
-   * `year == 1850` arm can fire, with NO crown-units term. It shows
-   * @RETIRING2 (DS:0xf89) and runs the retire chain; nothing in it touches
-   * the war: no loss latch, so after @SCORED "Keep playing anyway." (0x5382 |=
-   * 0x10, calendar_latch) the win / @LOSINGn checks above go on as before and
-   * only this calendar block stays off (port_bugs.md #1232). KING_WAR_END
-   * payload 2: the dismissal runs the chain, then @SCORED.
-   */
-  if (!ctx->col1->head.game_options.calendar_latch && year == AI_KING_YEAR_CAP) {
-    const char* estate = ai_king_richest_colony_name(ctx, human);
-    PopupMsgTokens tok;
-    memset(&tok, 0, sizeof(tok));
-    /* raw 58635 `FUN_281f_0438(0, *(0x53a6 * 2 - 0x7c6c))`: %STRING0 is the
-     * DIFFICULTY title, not a fixed "Viceroy" (same table 38fd_5930 uses at
-     * raw 68388). */
-    const int diff = (int)ctx->col1->head.difficulty;
-    tok.string0 = reports_difficulty_title((diff >= 0 && diff < 5) ? diff : 4);
-    tok.string1 = leader;
-    tok.string2 = estate;
-    ai_king_emit_ok(
-      ctx, "RETIRING2", &tok, "", AI_POPUP_TAG_KING_WAR_END, human, crown, 2, 1,
-      NULL, 0
-    );
-  }
+  PopupMsgTokens tok;
+  memset(&tok, 0, sizeof(tok));
+  ai_king_warn_numbers(&tok, w->ports, w->colonies, w->pop_pct);
+  tok.string0 = w->country;
+  char tag[16];
+  snprintf(tag, sizeof(tag), "WARN%d", w->warn_sel);
+  ai_king_emit_ok(
+    w->ctx, tag, &tok, "", AI_POPUP_TAG_INFO, w->human, w->crown, w->warn_sel, 0, NULL, 0
+  );
 }
 
-static void ai_king_check_revolution_end(ColonizeTurnContext* ctx) {
+int ai_king_year_end_woi(ColonizeTurnContext* ctx) {
   if (!ctx || !ctx->col1_ok || !ctx->col1) {
-    return;
+    return AI_KING_ENDGAME_NONE;
   }
   if (!ai_king_independence_declared(ctx->col1)) {
-    return;
+    return AI_KING_ENDGAME_NONE;
   }
   if (ai_king_latch_get(ctx->col1, AI_KING_ENDGAME_BYTE) != AI_KING_ENDGAME_NONE) {
-    return; /* already resolved */
+    return AI_KING_ENDGAME_NONE; /* already resolved */
   }
   const int human = ctx->human_nation;
   if (human < 0 || human >= 4) {
-    return;
+    return AI_KING_ENDGAME_NONE;
   }
   const int crown = ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, human);
+  const ColonizeCol1Player* pl = &ctx->col1->player[human];
+  struct ai_king_woi_end_ctx w;
+  memset(&w, 0, sizeof(w));
+  w.ctx = ctx;
+  w.human = human;
+  w.crown = crown;
+  w.leader = (pl->name[0] != '\0') ? pl->name : "";
+  /* raw 58470-58500: the win test comes first and leaves the block. */
+  if (ai_king_woi_end_win(&w) == AI_KING_WOI_END_DONE) {
+    return AI_KING_ENDGAME_WON;
+  }
   const int ports = ai_king_human_coastal_ports(ctx, human);
   const int colonies = ai_king_human_colonies(ctx, human);
   const int pop_pct = ai_king_woi_pop_share_pct(ctx, human, crown);
-  const ColonizeCol1Player* pl = &ctx->col1->player[human];
   const char* country = col1_player_country_name(ctx->col1, human);
-  const char* leader = (pl->name[0] != '\0') ? pl->name : "";
   /*
    * Mid-war warn selector — DOS FUN_3844_0442 builds the warn tag the same
    * way it builds the lose tag: one digit patched into a base name
@@ -1150,57 +1109,18 @@ static void ai_king_check_revolution_end(ColonizeTurnContext* ctx) {
   if (colonies < 3) {
     warn_sel = 2;
   }
-  /*
-   * Episode latches (port-side; DOS re-shows the selected warn every turn the
-   * condition holds — see the audit lead). Each clears when its own band is
-   * left, so a later relapse re-fires.
-   */
-  if (ports >= 3) {
-    ai_king_latch_set(ctx->col1, AI_KING_WARN1_BYTE, 0);
-  }
-  if (colonies >= 3) {
-    ai_king_latch_set(ctx->col1, AI_KING_WARN2_BYTE, 0);
-  }
-  if (pop_pct < AI_KING_WARN3_PCT_MIN) {
-    ai_king_latch_set(ctx->col1, AI_KING_WARN3_BYTE, 0);
-  }
-  const int year = (int)ctx->col1->head.year;
-
-  struct ai_king_woi_end_ctx w;
-  memset(&w, 0, sizeof(w));
-  w.ctx = ctx;
-  w.human = human;
-  w.crown = crown;
   w.ports = ports;
   w.colonies = colonies;
   w.pop_pct = pop_pct;
-  w.year = year;
   w.warn_sel = warn_sel;
   w.country = country;
-  w.leader = leader;
-
   if (ai_king_woi_end_lose(&w) == AI_KING_WOI_END_DONE) {
-    return;
-  }
-  if (ai_king_woi_end_win(&w) == AI_KING_WOI_END_DONE) {
-    return;
+    return AI_KING_ENDGAME_LOST;
   }
   ai_king_woi_end_warn(&w);
+  return AI_KING_ENDGAME_NONE;
 }
 
-bool ai_king_woi_try_win(ColonizeTurnContext* ctx) {
-  if (!ctx || !ctx->col1_ok || !ctx->col1 || ctx->human_nation < 0 || ctx->human_nation >= 4) {
-    return false;
-  }
-  const ColonizeCol1Player* pl = &ctx->col1->player[ctx->human_nation];
-  struct ai_king_woi_end_ctx w;
-  memset(&w, 0, sizeof(w));
-  w.ctx = ctx;
-  w.human = ctx->human_nation;
-  w.crown = ai_king_crown_nation_col1(ctx->col1, ctx->human_nation);
-  w.leader = (pl->name[0] != '\0') ? pl->name : "";
-  return ai_king_woi_end_win(&w) == AI_KING_WOI_END_DONE;
-}
 
 /* ===== Nation turn driver & popup result dispatch (ai_king_nation_turn .. ai_king_apply_popup_result) ===== */
 /*
@@ -1248,29 +1168,55 @@ COLONIZE_INTERNAL void ai_king_nation_turn(ColonizeTurnContext* ctx) {
 }
 
 /*
- * @SOONRETIRING0 (1790, peacetime) / @SOONRETIRING1 (1840, wartime): one
- * emitter (raw 58618-58628). %STRING0 = the difficulty title (raw 58622
- * `FUN_281f_0438(0, *(0x53a6 * 2 - 0x7c6c))`, the same splice @RETIRING2
- * makes at raw 58643), %STRING1 = the leader. The 1840 body reads only
- * %STRING1, but DOS fills both slots. Latches its byte.
+ * FUN_3844_0442 calendar block (raw 58617-58649, asm 3844:0a02-0b44), run by
+ * the year-end chrome right after the calendar step (port_bugs.md #1387):
+ *   if (!(0x5382 & 0x10)) {
+ *     season 0 && ((1790 && !WoI) || 1840) -> @SOONRETIRING0/1 (digit
+ *       `year != 1790`), %STRING0 the difficulty title, %STRING1 the leader;
+ *     (1800 && !WoI) || 1850 -> @RETIRING / @RETIRING2, %STRING2 the human's
+ *       most populous colony, then the retire chain (FUN_281f_0574, no
+ *       @RETIRE confirm) and @SCORED after it (port_bugs.md #1231).
+ *   }
+ * Gated on 0x5382 & 0x10 (calendar_latch, set by the chain) alone: no endgame
+ * latch, so after "Keep playing anyway." a later declaration fights a live war
+ * (port_bugs.md #1232), and no once-latch (the spring test makes it once).
+ * KING_WAR_END payload 2: the dismissal runs the chain, then @SCORED.
+ * Returns true when the calendar ended the game (DS:0x53c2 cleared).
  */
-static void ai_king_emit_soon_retiring(ColonizeTurnContext* ctx, int variant) {
+bool ai_king_year_end_calendar(ColonizeTurnContext* ctx) {
+  if (!ctx || !ctx->col1_ok || !ctx->col1 || ctx->col1->head.game_options.calendar_latch) {
+    return false;
+  }
   const int human = ctx->human_nation;
-  const char* leader =
-    (human >= 0 && human < 4 && ctx->col1->player[human].name[0] != '\0')
-      ? ctx->col1->player[human].name
-      : "";
+  if (human < 0 || human >= 4) {
+    return false;
+  }
+  const int woi = ai_king_independence_declared(ctx->col1);
+  const int year = (int)ctx->col1->head.year;
+  const int diff = (int)ctx->col1->head.difficulty;
+  const int crown = ai_king_crown_nation_col1(ctx->col1, human);
   PopupMsgTokens tok;
   memset(&tok, 0, sizeof(tok));
-  const int diff = (int)ctx->col1->head.difficulty;
   tok.string0 = reports_difficulty_title((diff >= 0 && diff < 5) ? diff : 4);
-  tok.string1 = leader;
-  ai_king_emit_ok(
-    ctx, variant ? "SOONRETIRING1" : "SOONRETIRING0", &tok, "", AI_POPUP_TAG_INFO, human,
-    ai_king_crown_nation_col1(ctx->col1, human),
-    variant ? AI_KING_SOONRETIRE1_YEAR : AI_KING_SOONRETIRE0_YEAR, 0, NULL, 0
-  );
-  ai_king_latch_set(ctx->col1, variant ? AI_KING_SOONRETIRE1_BYTE : AI_KING_SOONRETIRE0_BYTE, 1);
+  tok.string1 = ctx->col1->player[human].name;
+  if (ctx->col1->head.autumn == 0 &&
+      ((year == AI_KING_SOONRETIRE0_YEAR && !woi) || year == AI_KING_SOONRETIRE1_YEAR)) {
+    const int variant = year != AI_KING_SOONRETIRE0_YEAR;
+    ai_king_emit_ok(
+      ctx, variant ? "SOONRETIRING1" : "SOONRETIRING0", &tok, "", AI_POPUP_TAG_INFO, human,
+      crown, year, 0, NULL, 0
+    );
+  }
+  if ((year == AI_KING_PEACE_YEAR_CAP && !woi) || year == AI_KING_YEAR_CAP) {
+    tok.string2 = ai_king_richest_colony_name(ctx, human);
+    ai_king_emit_ok(
+      ctx, year == AI_KING_YEAR_CAP ? "RETIRING2" : "RETIRING", &tok, "",
+      AI_POPUP_TAG_KING_WAR_END, human, crown, 2, 1, NULL, 0
+    );
+    ctx->col1->head.turn_loop_running = 0; /* DS:0x53c2 = 0 */
+    return true;
+  }
+  return false;
 }
 
 void ai_king_nation_turn_2424(ColonizeTurnContext* ctx) {
@@ -1285,7 +1231,7 @@ void ai_king_nation_turn_2424(ColonizeTurnContext* ctx) {
    * The lose/@WARN group used to be armed here by a port-invented
    * "WoI + REF-present at turn entry" precondition; DOS gates it on
    * `0x5382 & 1 && !(0x5382 & 8)` alone (raw 58505), which
-   * ai_king_check_revolution_end tests for itself.
+   * ai_king_year_end_woi tests for itself.
    */
   /* External boycott clear (Fugger/diplo) → drop refuse even mid-war / off-tax years. */
   if (ctx->col1_ok && ctx->col1) {
@@ -1317,44 +1263,6 @@ void ai_king_nation_turn_2424(ColonizeTurnContext* ctx) {
     if (!(ctx->col1_ok && ctx->col1 && ctx->human_nation >= 0 && ctx->human_nation < 4 &&
           ctx->col1->player[ctx->human_nation].control != 0)) {
       ai_king_frigate_offer(ctx, ctx->human_nation);
-    }
-    /*
-     * Peacetime Spring 1790 anniversary (year_end_chrome 0x6fe): @SOONRETIRING0
-     * once before the 1800 @RETIRING. Cite: turn/year_end_chrome.md.
-     */
-    if (king_slot && ctx->col1_ok && ctx->col1 &&
-        ai_king_latch_get(ctx->col1, AI_KING_ENDGAME_BYTE) == AI_KING_ENDGAME_NONE &&
-        ai_king_latch_get(ctx->col1, AI_KING_SOONRETIRE0_BYTE) == 0 &&
-        (int)ctx->col1->head.year == AI_KING_SOONRETIRE0_YEAR &&
-        !(ctx->game_autumn && *ctx->game_autumn != 0)) {
-      ai_king_emit_soon_retiring(ctx, 0);
-    }
-    /*
-     * Peacetime calendar end, FUN_3844_0442 raw 58629-58649 (asm 3844:0a8d-0b44):
-     * year 1800 with no WoI → @RETIRING (DS:0xf80; the wartime 1850 arm takes
-     * @RETIRING2 at 0xf89), %STRING0 the difficulty title, %STRING1 the leader,
-     * %STRING2 the human's most populous colony, then straight into the retire
-     * chain (FUN_281f_0574 = FUN_41f2_14a8, no @RETIRE confirm). @SCORED comes
-     * after the chain (raw 58667-58676), not before it (port_bugs.md #1231).
-     * Gated like DOS on the year and 0x5382 & 0x10 (calendar_latch, set by the
-     * chain) alone, with no endgame latch: after "Keep playing anyway." a
-     * later declaration fights a live war (port_bugs.md #1232). KING_WAR_END
-     * payload 2, as @RETIRING2: the dismissal runs the chain, then @SCORED.
-     */
-    if (king_slot && ctx->col1_ok && ctx->col1 &&
-        !ctx->col1->head.game_options.calendar_latch &&
-        (int)ctx->col1->head.year == AI_KING_PEACE_YEAR_CAP) {
-      const int human = ctx->human_nation;
-      PopupMsgTokens tok;
-      memset(&tok, 0, sizeof(tok));
-      const int diff = (int)ctx->col1->head.difficulty;
-      tok.string0 = reports_difficulty_title((diff >= 0 && diff < 5) ? diff : 4);
-      tok.string1 = (human >= 0 && human < 4) ? ctx->col1->player[human].name : "";
-      tok.string2 = ai_king_richest_colony_name(ctx, human);
-      ai_king_emit_ok(
-        ctx, "RETIRING", &tok, "", AI_POPUP_TAG_KING_WAR_END, human,
-        ai_king_crown_nation_col1(ctx->col1, human), 2, 1, NULL, 0
-      );
     }
     /*
      * FUN_43f7_2424 tail: decile SoL notify (DS:0x53d8 dedup), full port
@@ -1431,28 +1339,6 @@ void ai_king_nation_turn_2424(ColonizeTurnContext* ctx) {
         /* Restless: status only (no invented wood OK). */
       }
     }
-  }
-
-  if (ai_king_independence_declared(ctx->col1_ok ? ctx->col1 : NULL)) {
-    /*
-     * Wartime 1840 anniversary (year_end_chrome 0x730): @SOONRETIRING1 once.
-     * Any season while WoI; does not latch endgame.
-     */
-    if (ctx->col1_ok && ctx->col1 &&
-        ai_king_latch_get(ctx->col1, AI_KING_ENDGAME_BYTE) == AI_KING_ENDGAME_NONE &&
-        ai_king_latch_get(ctx->col1, AI_KING_SOONRETIRE1_BYTE) == 0 &&
-        (int)ctx->col1->head.year == AI_KING_SOONRETIRE1_YEAR) {
-      ai_king_emit_soon_retiring(ctx, 1);
-    }
-    /*
-     * D1 (2026-09-07g): the wave + war bookkeeping moved to
-     * ai_king_ref_pre_euro_beat, run from the crown slot's own EURO step
-     * BEFORE ai_euro_nation_turn — DOS's per-slot order (00f2→2424 king
-     * beat, then 6d8e; raw 6394/6407). This king slice keeps only the
-     * chrome above and the end check, which DOS also evaluates after the
-     * movement it observes.
-     */
-    ai_king_check_revolution_end(ctx);
   }
 
   if (ctx->active_turn_nation) {

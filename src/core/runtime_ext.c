@@ -30,6 +30,7 @@ enum {
   RT_HOLD_AMOUNT = 11, /* v1: i32 DS:0x8dc4 units_last_hold_amount (last 317c slot amount) */
   RT_LCR_COUNTS = 12,  /* v1: u8 DS:0x1dc6 rumours explored, u8 DS:0x1dc7 Cibola count */
   RT_XOSHIRO = 13,     /* v1: 4x u64 xoshiro256** state; written only under divergences.modern_prng */
+  RT_REPAIR = 14,      /* v1: per damaged ship {u8 x, u8 y, u8 nation, u8 type_index, u8 repair_pending} */
 };
 
 #define RT_UNIT_TAIL_ENTRY 17
@@ -219,6 +220,23 @@ uint8_t* runtime_ext_serialize(
     units_path_state_export(p);
     rt_record(&b, RT_PATH, 1, p, sizeof p);
   }
+  if (units) {
+    /* port_bugs.md #1381(a): the port-only damage marker (units.h) that
+     * separates a combat-damaged hull from one under construction (both carry
+     * bit7). Keyed by tile like PPLN: record indices move on a save. */
+    size_t n = 0;
+    for (int i = 0; i < units_slot_end(units); ++i) {
+      n += units->units[i].active && units->units[i].repair_pending ? 5 : 0;
+    }
+    if (n) rt_record_head(&b, RT_REPAIR, 1, n); /* absent = none (keeps old saves byte-identical) */
+    for (int i = 0; n && i < units_slot_end(units); ++i) {
+      const ColonizeUnit* u = &units->units[i];
+      if (!u->active || !u->repair_pending) continue;
+      const uint8_t p[5] = {(uint8_t)u->x, (uint8_t)u->y, (uint8_t)u->nation_id,
+                            (uint8_t)u->type_index, u->repair_pending};
+      rt_bytes(&b, p, sizeof p);
+    }
+  }
   if (dos_rng_modern_state()) {
     const uint64_t* xo = dos_rng_modern_state();
     uint8_t p[32];
@@ -311,6 +329,20 @@ void runtime_ext_deserialize(
         break;
       case RT_PATH:
         if (len == UNITS_PATH_STATE_SIZE) units_path_state_import(p, map);
+        break;
+      case RT_REPAIR:
+        for (size_t k = 0; units && len % 5 == 0 && k + 5 <= len; k += 5) {
+          const uint8_t* e = p + k;
+          for (int i = 0; i < units_slot_end(units); ++i) {
+            ColonizeUnit* u = &units->units[i];
+            if (u->active && !u->repair_pending && (u->col1_flags15 & 0x80u) &&
+                u->x == e[0] && u->y == e[1] && u->nation_id == e[2] &&
+                u->type_index == e[3]) {
+              u->repair_pending = e[4];
+              break;
+            }
+          }
+        }
         break;
       case RT_XOSHIRO:
         /* Applied only while modern_prng is on; an all-zero state would stick. */

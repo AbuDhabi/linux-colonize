@@ -1179,11 +1179,27 @@ void turn_route_damaged_ships(ColonizeTurnContext* ctx, int nation) {
       const int turns = europe_voyage_turns_roll(ctx->rng, magellan, fleet, u->x);
       /* Same edge rule as the manual sail-to-Europe path so the ship comes
        * back on the side it left from. */
-      const bool east = ctx->map ? (u->x >= (int)ctx->map->width / 2) : true;
-      if (europe_enqueue_expected(
-            ctx->europe, u->type_index, ty ? ty->name : "", NULL, NULL, 0,
-            u->hold_goods_type, u->hold_goods_amount, u->x, u->y, east, turns
-          )) {
+      /* port_bugs.md #1386: like units_ship_damaged_to_europe, the hull
+       * re-exports to the nation return tile and the enqueue must not
+       * overwrite it with the hull's tile (DOS FUN_5fef_0352 only reads it). */
+      EuropeScreen* eu = ctx->europe;
+      const int keep_x = eu->last_exit_x;
+      const int keep_y = eu->last_exit_y;
+      const bool keep_east = eu->last_exit_east;
+      const bool keep_valid = eu->last_exit_valid;
+      const int ex = keep_valid ? keep_x : u->x;
+      const int ey = keep_valid ? keep_y : u->y;
+      const bool east = keep_valid ? keep_east
+                        : ctx->map ? (u->x >= (int)ctx->map->width / 2) : true;
+      const bool queued = europe_enqueue_expected(
+        eu, u->type_index, ty ? ty->name : "", NULL, NULL, 0,
+        u->hold_goods_type, u->hold_goods_amount, ex, ey, east, turns
+      );
+      eu->last_exit_x = keep_x;
+      eu->last_exit_y = keep_y;
+      eu->last_exit_east = keep_east;
+      eu->last_exit_valid = keep_valid;
+      if (queued) {
         if (ctx->status && ctx->status_size > 0) {
           snprintf(
             ctx->status, ctx->status_size, "%s sails to Europe for repairs.",

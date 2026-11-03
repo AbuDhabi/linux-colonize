@@ -81,3 +81,6 @@ wait 10
 shot
 key Return               # Colonization Help: Time Scale (two turns per year from 1600)
 wait 10
+shot
+key Return               # @WARN1: ports (founding coastal bit) < 3 (port_bugs.md #1388; every turn, #1392)
+wait 10

@@ -61,14 +61,14 @@
  *   same-turn 1528 may overwrite status).
  * Mid-war @WARN%d: ONE digit-patch selector per turn (raw 58506-58534, twin
  *   of @LOSING%d), precedence colonies<3 (2) > share ≥80% (3) > ports<3 (1);
- *   the selected warn keeps a port-side episode latch — nation unknown23_pad[1] bits 0x08/0x10/0x20
- *   for @WARN1/2/3 — each cleared when its own band is left, so a relapse
- *   re-fires. @LOSING3 takes the turn instead when share ≥90%.
- * Calendar @SOONRETIRING0 (1790 spring peacetime): head.market_demand_pool_raw[8] once.
- * Calendar @SOONRETIRING1 (1840 WoI): head.market_demand_pool_raw[9] once.
- * Revolution end (raw 58470-58556): lose on one @LOSING%d selector, DOS
- *   precedence 0 colonies (2) > share ≥90% (3) > 0 coastal ports (1); win on
- *   the C1 triple with NO year gate; @RETIRING2 on year 1850 alone.
+ *   shown every turn the condition holds (no latch, port_bugs.md #1392).
+ *   @LOSING3 takes the turn instead when share >=90%.
+ * Calendar @SOONRETIRING0/1 (Spring 1790 peacetime / Spring 1840), @RETIRING
+ *   (1800 peacetime) / @RETIRING2 (1850): ai_king_year_end_calendar.
+ * Revolution end (raw 58470-58556): win first (C1 triple, NO year gate), else
+ *   one @LOSING%d selector, precedence 0 colonies (2) > share >=90% (3) > 0
+ *   founding-coastal ports (1, +0x1c & 0x40). All of 0442 runs from the
+ *   year-end chrome right after the calendar step (port_bugs.md #1387).
  * SoL restless chrome (40..49): status only (no invented wood OK).
  * backup_force: DOS 0x53e2…0x53e8 foreign-intervention pools, seeded on
  *   declare by the ported FUN_43f7_1a26 body and drained by 10f0.

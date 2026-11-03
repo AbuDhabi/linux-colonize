@@ -1,0 +1,9 @@
+# Failed Infiltrate (FUN_5f7a_000e raw 98856-98879, port_bugs.md #1379). Fixture = map_contact_scout_colony's start
+# (France spring 1599 beside Dutch Fort Orange (38,40); Seasoned Scout #77 active at (39,39)). The roll there is
+# always 1 vs 9, so Infiltrate fails: @LOSTOURSCOUTS, the scout is deleted (0808), Fort Orange stables +100 horses,
+# and 0e1c(1) is only the viewport repaint: the Move Pieces loop hands control to the next unit, colonist #88.
+key KP_1                   # #77 bumps Fort Orange: @SCOUTCOLONY Meet With Mayor / Infiltrate / Attack / Nothing
+key Down
+key Return                 # row 1 "Infiltrate": roll fails, @LOSTOURSCOUTS
+key Return                 # dismiss: #77 gone, colonist #88 selected (not View Pieces)
+key w                      # Wait: skip #88, Scout #95 is selected (proves a unit had the controls)

@@ -125,7 +125,7 @@ capture can round-trip those bytes instead of fabricating sentinels.
 ## ColonizeUnit ai_landfall_wait
 
 Port-only, not saved (COLNXEXT does not carry it; a save/load mid-opening
-loses it, same as repair_pending above). AI first-colony landfall goto
+loses it). AI first-colony landfall goto
 memory: set alongside `orders = UNITS_ORDER_SENTRY` at every AI unload
 site that means "wait ashore for the next landfall act", cleared once the
 unit gets a real order. Exists because DOS's own `+0x314c == 1` after an

@@ -7,7 +7,8 @@
 # selector, last write wins: ports (colonies with the founding coastal bit +0x1c 0x40) < 3 -> 1, crown share of
 # the census colony population (c+1)*100/((h+1)+(c+1)) > 79 -> 3, census colonies < 3 -> 2; no lose arm
 # (colonies 0 -> 2, share > 89 -> 3, ports 0 -> 1) fires.
-# End of turn 109: a REF wave near Quebec and Tory fights near Guadeloupe (nested pump), then @WARN1
+# End of turn 109: a REF wave near Quebec and Tory fights near Guadeloupe (nested pump), then @WARN1 right after
+# the calendar step, before the Indian pass (port_bugs.md #1387; shown every turn, no latch, #1392)
 # ("the King's forces control all but 2 of the ports in New France!").
 key space                # end turn 109 (Autumn 1600)
 wait 30
@@ -25,8 +26,8 @@ key Return               # Rebel colonists CAPTURED by the Tory (nested pump)
 wait 10
 key Return               # Tories defeat Rebel Colonists near Guadeloupe (nested pump)
 wait 10
-key Return               # Iroquois gift of 11 Cotton to Port au Prince
-wait 10
 key Return               # @WARN1: all but 2 of the ports in New France
+wait 10
+key Return               # Iroquois gift of 11 Cotton to Port au Prince
 wait 10
 shot                     # Spring 1601

@@ -6,7 +6,8 @@
 # the nested pump), then FUN_3844_0442's lose arm (ai_king_woi_end_lose) picks @LOSING3 (Crown >= 90% of the
 # population), the @KINGWIN throne audience follows, then the retire chain (F10 score report, exploits screen,
 # Hall of Fame; the harness starts from an empty HALLFAME.DAT) and the title menu. There is no @SCORED after a
-# lost war (port_bugs.md #1232). The save is taken on the title menu; output.hallfame pins the record.
+# lost war (port_bugs.md #1232). 0442 runs right after the calendar step and LAB_3844_04ec clears DS:0x53c2, so no slot of the new
+# day runs (port_bugs.md #1387). The save is taken on the title menu; output.hallfame pins the record.
 key space                # end turn 109
 wait 30
 key Return               # Royal Expeditionary Force lands near Port au Prince (nested pump)

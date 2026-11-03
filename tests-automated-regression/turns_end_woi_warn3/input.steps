@@ -30,8 +30,8 @@ key Return               # Rebel colonists CAPTURED by the Tory (nested pump)
 wait 10
 key Return               # Tories defeat Rebel Colonists near Guadeloupe (nested pump)
 wait 10
-key Return               # Iroquois gift of 11 Cotton to Port au Prince
-wait 10
 key Return               # @WARN3: the King's forces control 83% of the New France population
+wait 10
+key Return               # Iroquois gift of 11 Cotton to Port au Prince
 wait 10
 shot                     # Spring 1601

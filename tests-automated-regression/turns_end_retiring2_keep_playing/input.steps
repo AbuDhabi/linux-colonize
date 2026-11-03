@@ -5,7 +5,7 @@
 # End of turn 109: a REF wave near Roanoke and Tory fights near Guadeloupe (nested pump). Spring 1850: the
 # wartime calendar end, FUN_3844_0442 raw 58629-58676 (`!(0x5382 & 0x10)`, year 0x73a = 1850, any war state):
 # @RETIRING2 ("War-weary Continental Congress sues for peace! ...", estate = the most populous French colony:
-# Quebec), the retire chain without the @RETIRE confirm (F10 score report, exploits screen, Hall of Fame; the
+# Quebec) right after the calendar step, before the Indian pass (port_bugs.md #1387), the retire chain without the @RETIRE confirm (F10 score report, exploits screen, Hall of Fame; the
 # harness starts from an empty HALLFAME.DAT), then @SCORED (port_bugs.md #1232); "Keep playing anyway." (row 1)
 # returns to the map with calendar_latch (0x5382 |= 0x10) set and the war still on (no endgame latch).
 # Turn 110 (Spring to Autumn 1850, still year 1850): the calendar block is off, so no second @RETIRING2;
@@ -26,10 +26,6 @@ key Return               # Rebel colonists CAPTURED by the Tory (nested pump)
 wait 10
 key Return               # Tories defeat Rebel Colonists near Guadeloupe (nested pump)
 wait 10
-key Return               # Iroquois gift of 11 Cotton to Port au Prince
-wait 10
-key Return               # Tupi gift of 16 Furs to Quebec
-wait 10
 key Return               # @RETIRING2: War-weary Continental Congress sues for peace (estate near Quebec)
 wait 10
 key Return               # F10 score report
@@ -39,7 +35,11 @@ wait 10
 key Return               # Hall of Fame
 wait 10
 key Down                 # @SCORED: bar to row 1
-key Return               # "Keep playing anyway.": main map
+key Return               # "Keep playing anyway.": the day goes on (DS:0x53c2 = 1)
+wait 10
+key Return               # Iroquois gift of 11 Cotton to Port au Prince
+wait 10
+key Return               # Tupi gift of 16 Furs to Quebec
 wait 10
 shot                     # Spring 1850
 key s                    # Caravel #71 (woken by the fighting) sentried

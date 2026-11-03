@@ -2,13 +2,13 @@
 # sea, French units fortified) with the calendar moved to Autumn 1789 (head.year 1789, autumn 1).
 # End of turn 108 advances to Spring 1790: FUN_3844_0442 raw 58617-58628 (`!(0x5382 & 0x10)`, season 0, year
 # 0x6fe = 1790, no WoI) shows @SOONRETIRING0 ("Viceroy Jacques Cartier plans to retire in 1800!"), %STRING0 the
-# difficulty title. The port latches it (AI_KING_SOONRETIRE0_BYTE); DOS shows it once because only Spring 1790
-# matches. The year does not end the game.
+# difficulty title, right after the calendar step and before the human's colony EOT (port_bugs.md #1387). No
+# latch: only Spring 1790 matches (#1391). The year does not end the game.
 key space                # end turn 108 (Autumn 1789)
 wait 30
-key Return               # SoL in Quebec up to 60%: Continue turn
-wait 10
 key Return               # @SOONRETIRING0: Viceroy Jacques Cartier plans to retire in 1800
+wait 10
+key Return               # SoL in Quebec up to 60%: Continue turn
 wait 10
 key Return               # price of Cigars rises
 wait 10

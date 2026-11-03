@@ -1607,7 +1607,11 @@ bool units_wake(ColonizeUnitPool* pool, int unit_id) {
     return false;
   }
   const int prev = u->orders;
-  units_clear_orders(pool, unit_id);
+  /* DOS's activate handler writes the order byte only (viceroy 42717/42781):
+   * the +0x314d/e go-to bytes survive the wake (port_bugs.md #1380).
+   * follow_unit_id is port-only. */
+  u->orders = UNITS_ORDER_NONE;
+  u->follow_unit_id = -1;
   u->automated = false; /* waking is the UI's cancel for Automate too */
   /*
    * Only a hold passenger's zero is a park: the zero stands for the carried

@@ -2,15 +2,14 @@
 # sea, French units fortified) with the calendar moved to Autumn 1799 (head.year 1799, autumn 1).
 # End of turn 108 reaches Spring 1800: the peacetime calendar end, FUN_3844_0442 raw 58629-58676
 # (`!(0x5382 & 0x10)`, year 0x708 = 1800, no WoI): @RETIRING ("Viceroy Jacques Cartier steps down ...",
-# estate = the most populous French colony, last of ties: Montreal), the retire chain without the @RETIRE
+# estate = the most populous French colony, last of ties: Montreal) right after the calendar step, before any
+# slot of the new day (port_bugs.md #1387), the retire chain without the @RETIRE
 # confirm (F10 score report, exploits screen, Hall of Fame), then @SCORED; "Keep playing anyway." (row 1)
 # returns to the map with calendar_latch (0x5382 |= 0x10) set. The empty Hall of Fame file is written too.
 # Turn 109 (Spring 1800 to Autumn 1800) plays on: the calendar block is off, nothing re-fires; the King's tax
 # raise is accepted (@TAXOPTIONS row 0), as in turns_king_tax_accept.
 key space                # end turn 108 (Autumn 1799)
 wait 30
-key Return               # SoL in Quebec up to 60%: Continue turn
-wait 10
 key Return               # @RETIRING: Viceroy Jacques Cartier steps down (estate near Montreal)
 wait 10
 key Return               # F10 score report
@@ -19,10 +18,12 @@ key Return               # exploits screen
 wait 10
 key Return               # Hall of Fame
 wait 10
-key Return               # price of Cigars rises
-wait 10
 key Down                 # @SCORED: bar to row 1
-key Return               # "Keep playing anyway.": main map
+key Return               # "Keep playing anyway.": the day goes on (DS:0x53c2 = 1)
+wait 10
+key Return               # SoL in Quebec up to 60%: Continue turn
+wait 10
+key Return               # price of Cigars rises
 wait 10
 shot                     # Spring 1800: End of Turn
 key space                # end turn 109

@@ -436,13 +436,13 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@INTERVENE` | Done thin | `FUN_43f7_1528` ally-landing arm — `ai_king_ref.c` `ai_king_10f0_announce` `popup_msg_fill`; VGA PARKED |
 | `@EXPLOITS` | Done thin | `FUN_41f2_0b70` retire Colonization Rating screen — `game_build_exploits` renders the real header (`%NUMBER0`=rating, `%STRING0`=nation) in `game_loop_saveload.c` `game_build_exploits`; VGA/SS art shown, HoF-plate chrome thin |
 | `@SCORE` | Done thin | same chain — first `tier+1` `@SCORE` rows split at the comma (category / `%STRING0`=leader surname), `game_loop_saveload.c` `game_build_exploits` |
-| `@LOSING1` | Done thin | WoI lose all ports — `ai_king_check_revolution_end` |
-| `@WARN1` | Done | WoI ports<3, lowest-priority selector arm — `ai_king_check_revolution_end` (`market_demand_pool_raw[6]`) |
-| `@LOSING2` | Done thin | WoI lose all colonies — `ai_king_check_revolution_end` |
-| `@WARN2` | Done | WoI colonies<3, wins the selector — `ai_king_check_revolution_end` (`market_demand_pool_raw[7]`) |
-| `@LOSING3` | Done thin | WoI crown pop share ≥90% — `ai_king_check_revolution_end` |
-| `@WARN3` | Done | WoI crown pop share ≥80% (below the 90% `@LOSING3`), outranked by colonies<3 — `market_demand_pool_raw[10]` episode |
-| `@WINNING` | Done | WoI win — `ai_king_check_revolution_end`; precedes the `@KINGLOSE` throne audience then the CLOSING.EXE cinematic; win tune pool 3 |
+| `@LOSING1` | Done thin | WoI lose all ports (founding coastal bit +0x1c 0x40, #1388) — `ai_king_year_end_woi` |
+| `@WARN1` | Done | WoI ports<3, lowest-priority selector arm — `ai_king_year_end_woi`, every turn |
+| `@LOSING2` | Done thin | WoI lose all colonies — `ai_king_year_end_woi`, then `@KINGWIN` (#1389) |
+| `@WARN2` | Done | WoI colonies<3, wins the selector — `ai_king_year_end_woi`, every turn |
+| `@LOSING3` | Done thin | WoI crown pop share ≥90% — `ai_king_year_end_woi` |
+| `@WARN3` | Done | WoI crown pop share ≥80% (below the 90% `@LOSING3`), outranked by colonies<3 — `ai_king_year_end_woi`, every turn |
+| `@WINNING` | Done | WoI win — `ai_king_year_end_woi` (tested first, raw 58470); precedes the `@KINGLOSE` throne audience then the CLOSING.EXE cinematic; win tune pool 3 |
 | `@OTHERGRANTED` | Done thin | `FUN_3844_0442` §D rival-nation independence (raw 58596-58611, ids `0xf4b`/`0xf3f` NAMES/INDEPENDENT dual-load resolve to the republic rename) — `turn_year_end.c` `turn_year_end_rival_independence` / `turn_year_end_rival_popup`; renames the nation and clears war/ally bits toward every other power; VGA PARKED |
 | `@OTHERMIGHT` | Done thin | `FUN_3844_0442` §D rising SoL pressure on a rival (raw 58570-58582, id `0xf5e`) — `turn_year_end.c` `turn_year_end_rival_independence`; hysteresis band ported (`thresh-20`/cache) |
 | `@OTHERLESS` | Done thin | `FUN_3844_0442` §D falling SoL pressure on a rival (raw 58583-58593, id `0xf69`) — `turn_year_end.c` `turn_year_end_rival_independence` |
@@ -469,10 +469,10 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@INDIANWARPATH2` | Done | the pay confirm DOS shows after the target pick (`ai_contact_enqueue_incite_confirm`, tag 0x16c1): real body + `Pay`/`Never mind.` rows; `@NOCONTACT` before the quote, `@UNFORTUNATE` / `@ALREADYSMITE` after it 2026-09-16. Was merged into the menu labels |
 | `@INDIANWARFARE` | Done | Incite announcement at `FUN_4d56_417e` LAB_4499 (tag 0x16e9) — real GAME.TXT body via `popup_msg_fill`, fires for both the human incite and the AI missionary auto-incite. Confirmed 2026-09-16 |
 | `@LOSENOCOLONIES` | Done thin | Section B zero-colony defeat OK + `ENDGAME_LOST` latch (`turn_run_year_end_chrome`) |
-| `@SOONRETIRING0` | Done thin | peacetime Spring 1790 — `ai_king_nation_turn_2424` (+ `ai_king_human_5e52_tail`; `ai_king_nation_turn` is a test-only wrapper) (`market_demand_pool_raw[8]`) |
-| `@SOONRETIRING1` | Done thin | wartime 1840 — `ai_king_nation_turn_2424` (+ `ai_king_human_5e52_tail`; `ai_king_nation_turn` is a test-only wrapper) (`market_demand_pool_raw[9]`) |
-| `@RETIRING` | Done thin | peacetime year 1800 (raw 58629-58649, DS:0xf80) — `ai_king_nation_turn_2424`, KING_WAR_END payload 2: dismissal runs the retire chain, then `@SCORED`; gated on `calendar_latch` (0x5382 & 0x10) alone, no endgame latch |
-| `@RETIRING2` | Done thin | WoI year 1850 (DS:0xf89) — `ai_king_check_revolution_end`, KING_WAR_END payload 2 like `@RETIRING`: retire chain, then `@SCORED`; no loss latch, so after Keep playing the war goes on and a later loss ends the game with no second chain (port_bugs.md #1232) |
+| `@SOONRETIRING0` | Done thin | peacetime Spring 1790 — `ai_king_year_end_calendar` (Spring only, no latch, #1391) |
+| `@SOONRETIRING1` | Done thin | Spring 1840 — `ai_king_year_end_calendar` (Spring only, no latch, #1391) |
+| `@RETIRING` | Done thin | peacetime year 1800 (raw 58629-58649, DS:0xf80) — `ai_king_year_end_calendar` (year-end chrome, #1387), KING_WAR_END payload 2: dismissal runs the retire chain, then `@SCORED`; gated on `calendar_latch` (0x5382 & 0x10) alone, no endgame latch |
+| `@RETIRING2` | Done thin | WoI year 1850 (DS:0xf89) — `ai_king_year_end_calendar`, KING_WAR_END payload 2 like `@RETIRING`: retire chain, then `@SCORED`; no loss latch, so after Keep playing the war goes on and a later loss ends the game with no second chain (port_bugs.md #1232) |
 | `@HOWTOWIN` | Done thin | after declare — `ai_king_do_declare` INFO (invent WoI-begins demoted) |
 | `@ARTILLERY` | Done | already real (`units_combat.c` `units_apply_land_loss_outcome` `units_combat_enqueue_tok`) — verified against DOS FUN_5fef_016c raw 99475 |
 | `@ARTILLERY2` | Done | already real (`units_combat.c` `units_apply_land_loss_outcome` `units_combat_enqueue_tok`) — verified against DOS FUN_5fef_016c raw 99486 |

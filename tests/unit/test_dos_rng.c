@@ -2,10 +2,12 @@
  * against reference values, and the dos_rng + RTST plumbing on top. */
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "../common/test_runner.h"
 #include "core/dos_rng.h"
 #include "core/runtime_ext.h"
+#include "core/units.h"
 #include "third_party/xoshiro256starstar.h"
 
 static int g_failures;
@@ -97,6 +99,33 @@ static void test_04ca_synth_tick(void) {
   check(dos_rng_04ca_word(100) == 100, "synth off: fixed word");
 }
 
+/* port_bugs.md #1381(a): RTST RT_REPAIR carries the port-only damage marker
+ * across a save, keyed by tile/nation/type; only a bit7 hull takes it. */
+static void test_rtst_repair_pending(void) {
+  static ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof pool);
+  for (int i = 0; i < 2; ++i) {
+    ColonizeUnit* u = &pool.units[i];
+    u->active = 1;
+    u->id = i;
+    u->x = 10;
+    u->y = 20;
+    u->nation_id = 1;
+    u->type_index = 17;
+    u->col1_flags15 = 0x80u;
+  }
+  pool.units[0].repair_pending = 1;
+  units_pool_sync(&pool);
+  size_t n = 0;
+  uint8_t* blob = runtime_ext_serialize(&pool, NULL, &n);
+  pool.units[0].repair_pending = 0;
+  pool.units[0].col1_flags15 = 0; /* repaired: the marker must go to the other hull */
+  runtime_ext_deserialize(&pool, NULL, NULL, blob, n);
+  free(blob);
+  check(pool.units[0].repair_pending == 0, "RT_REPAIR skips a hull without bit7");
+  check(pool.units[1].repair_pending == 1, "RT_REPAIR restores repair_pending");
+}
+
 #define CASE_(fn) \
   static int tc_##fn(void) { \
     g_failures = 0; \
@@ -107,6 +136,7 @@ CASE_(test_xoshiro_reference)
 CASE_(test_modern_stream)
 CASE_(test_04ca_live_tick)
 CASE_(test_04ca_synth_tick)
+CASE_(test_rtst_repair_pending)
 #undef CASE_
 
 static const TestCase k_cases[] = {
@@ -114,6 +144,7 @@ static const TestCase k_cases[] = {
   {"test_modern_stream", tc_test_modern_stream},
   {"test_04ca_live_tick", tc_test_04ca_live_tick},
   {"test_04ca_synth_tick", tc_test_04ca_synth_tick},
+  {"test_rtst_repair_pending", tc_test_rtst_repair_pending},
 };
 
 TEST_MAIN(k_cases)

@@ -3394,8 +3394,12 @@ static bool game_apply_popup_diplo_and_scout(ColonizeGameState* game) {
         ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
         (void)ai_popup_present_now(&game->ai_popups, AI_POPUP_TAG_INFO);
         col->stock[COLONIZE_CARGO_HORSES] += 100; /* +0xaa += 100 */
-        units_despawn(&game->units, unit_id);
-        game_after_unit_action(game);
+        units_despawn(&game->units, unit_id); /* raw 98878 FUN_281f_0808 */
+        /* raw 98879 FUN_281f_0e1c(1) is only the FUN_6b7e_00c0 viewport
+         * repaint; control returns to the Move Pieces loop, which picks the
+         * next unit (port_bugs.md #1379) — same hand-off as Join Colony. */
+        game->units.selected_id = -1;
+        game_wait_next_unit(game);
       }
       return true;
     }

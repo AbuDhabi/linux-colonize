@@ -2,14 +2,13 @@
 # sea, French units fortified) with the calendar moved to Autumn 1799 (head.year 1799, autumn 1).
 # End of turn 108 reaches Spring 1800: the peacetime calendar end, FUN_3844_0442 raw 58629-58676
 # (`!(0x5382 & 0x10)`, year 0x708 = 1800, no WoI): @RETIRING ("Viceroy Jacques Cartier steps down ...",
-# estate = the most populous French colony, last of ties: Montreal), the retire chain without the @RETIRE
+# estate = the most populous French colony, last of ties: Montreal) right after the calendar step, before any
+# slot of the new day (port_bugs.md #1387), the retire chain without the @RETIRE
 # confirm (F10 score report, exploits screen, Hall of Fame; the harness starts from an empty HALLFAME.DAT),
 # then @SCORED (port_bugs.md #1231): "That's all." ends on the title menu. The save is taken there
 # (calendar_latch set); output.hallfame pins the record.
 key space                # end turn 108 (Autumn 1799)
 wait 30
-key Return               # SoL in Quebec up to 60%: Continue turn
-wait 10
 key Return               # @RETIRING: Viceroy Jacques Cartier steps down (estate near Montreal)
 wait 10
 key Return               # F10 score report
@@ -17,8 +16,6 @@ wait 10
 key Return               # exploits screen
 wait 10
 key Return               # Hall of Fame
-wait 10
-key Return               # price of Cigars rises
 wait 10
 key Return               # @SCORED row 0 "That's all.": title menu
 wait 10
