@@ -976,7 +976,14 @@ void ai_contact_enqueue_village_meet(
   int ids[AI_POPUP_CHOICE_MAX];
   static char lbl[AI_POPUP_CHOICE_MAX][AI_POPUP_CHOICE_LEN];
   int n = 0;
-  const int met = ind->euro_diplo[e] != 0;
+  /*
+   * DOS-LITERAL FUN_4d56_4528 OVL13::00492d (viceroy_overlays.asm 130511-130517):
+   * `FUN_1000_8c28(e, [BP-0x2]) & 0x40` gates rows 3, 4, 5, 7 and 8. [BP-0x2] is
+   * settlement +2 (nation id 4..11), so the byte read is the Euro-side
+   * nation[e].relation_by_indian[tribe] and the bit is PEACE, not MET: once
+   * peace is cleared only rows 1/2, 6, 9 and 10 remain.
+   */
+  const int peace = (ai_diplo_read(ctx->col1, e, nation_id) & AI_DIPLO_PEACE) != 0;
   /*
    * DOS row 3/4 gate reads the settlement's mission byte as *signed*:
    * `+5 < 0` (0x80..0xff) means "no mission", anything else is an owner in the
@@ -1015,28 +1022,28 @@ void ai_contact_enqueue_village_meet(
     if ((cls.is_wagon || cls.is_ship) && alarm >= 0x4b) {
       AI_CONTACT_MENU_ADD(1, AI_CONTACT_CHOICE_ENTER_HOSTILE); /* row 2 */
     }
-    if (met && cls.is_missionary && foreign_owner < 0) {
+    if (peace && cls.is_missionary && foreign_owner < 0) {
       AI_CONTACT_MENU_ADD(2, AI_CONTACT_CHOICE_MISSION); /* row 3 */
     }
-    if (met && cls.is_missionary && foreign_owner >= 0 && foreign_owner != e) {
+    if (peace && cls.is_missionary && foreign_owner >= 0 && foreign_owner != e) {
       AI_CONTACT_MENU_ADD(3, AI_CONTACT_CHOICE_HERESY); /* row 4 */
     }
-    if (met && !cls.is_missionary && cls.can_live_among) {
+    if (peace && !cls.is_missionary && cls.can_live_among) {
       AI_CONTACT_MENU_ADD(4, AI_CONTACT_CHOICE_TEACH); /* row 5 */
     }
     if (cls.is_scout) {
       AI_CONTACT_MENU_ADD(5, AI_CONTACT_CHOICE_CHIEF); /* row 6 */
     }
-    if (met && cls.is_missionary) {
+    if (peace && cls.is_missionary) {
       AI_CONTACT_MENU_ADD(6, AI_CONTACT_CHOICE_INCITE); /* row 7 */
     }
-    if (met && !cls.is_missionary && cls.attack != 0 && !cls.is_ship) {
+    if (peace && !cls.is_missionary && cls.attack != 0 && !cls.is_ship) {
       AI_CONTACT_MENU_ADD(7, AI_CONTACT_CHOICE_DEMAND); /* row 8 */
     }
     /* row 9: land unit with attack != 0. DOS adds it early for attack > 1
      * and again at OVL13::004a85 for attack != 0 — that label is also the
-     * unmet jump target (OVL13::00493f), so the second add is not met-gated
-     * and the two collapse to attack != 0. */
+     * no-peace jump target (OVL13::00493f), so the second add is not
+     * peace-gated and the two collapse to attack != 0. */
     if (!cls.is_ship && cls.attack != 0) {
       AI_CONTACT_MENU_ADD(8, AI_CONTACT_CHOICE_ATTACK_VILLAGE);
     }
@@ -1094,8 +1101,9 @@ int ai_contact_try_village_meet_unit_at(
   ColonizeCol1Indian* ind = &ctx->col1->indian[indian_nation - 4];
   /*
    * FUN_4d56_4528 human land arm (OVL13::004932..004ad0): the @ACTIONS menu
-   * is built for every land unit, met or not — the met test (TEST AL,0x40 at
-   * OVL13::00493b) only gates rows 3-8, and the only met-bit abort in the
+   * is built for every land unit, met or not — the PEACE test (TEST AL,0x40 at
+   * OVL13::00493b) only gates rows 3, 4, 5, 7 and 8 (row 6 Chief is added
+   * before it), and the only met-bit abort in the
    * function is the ship head's @DONTKNOWSHIPS. It is also built at any
    * alarm (@VILLAGEWAR body + "Enter Hostile Village" row). Only the legacy
    * no-unit callers keep the old unmet / at-war refusals. (port_bugs.md #542: the

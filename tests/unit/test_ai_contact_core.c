@@ -5909,6 +5909,8 @@ static int sp_53(void) {
     col1.tribe[0].alarm[0].attacks = 0;
     col1.indian[0].tech = 0;
     ind->euro_diplo[0] = (uint8_t)(COL1_INDIAN_MET_BIT | COL1_INDIAN_PEACE_BIT);
+    /* The @ACTIONS peace gate reads the Euro-side byte (FUN_1000_8c28(e, tribe+4)). */
+    col1.nation[0].relation_by_indian[0] = (uint8_t)(COL1_INDIAN_MET_BIT | COL1_INDIAN_PEACE_BIT);
     ind->alarm_by_player[0] = 10;
     col1.nation[0].gold = 0;
     /* Unit types: 0 Brave, 1 Free Colonist (existing); add Scout / Soldier / Wagon / Missionary. */
@@ -6250,7 +6252,9 @@ static int sp_54(void) {
        * jumps past rows 3-8 to the row-9 add) — no invented raid warn. */
       {
         const uint8_t saved_diplo = ind->euro_diplo[0];
+        const uint8_t saved_rel = col1.nation[0].relation_by_indian[0];
         ind->euro_diplo[0] = 0;
+        col1.nation[0].relation_by_indian[0] = 0;
         ai_popup_clear(&pop_menu);
         if (!ai_contact_try_village_meet_unit(&ctx, 0, 4, 0, 0, sold_id)) {
           return fail("menu: unmet soldier should still get the @ACTIONS menu");
@@ -6261,6 +6265,99 @@ static int sp_54(void) {
           return fail("menu: unmet soldier rows should be Attack / Cancel");
         }
         ind->euro_diplo[0] = saved_diplo;
+        col1.nation[0].relation_by_indian[0] = saved_rel;
+      }
+      /*
+       * The OVL13::00492d gate is PEACE 0x40 of the Euro-side byte
+       * (FUN_1000_8c28(e, tribe+4) = nation[e].relation_by_indian[tribe]), not
+       * "met". Euro side MET only, Indian side MET|PEACE: rows 3/4/5/7/8 drop.
+       * Soldier -> Attack/Cancel, scout -> Chief/Attack/Cancel, missionary ->
+       * Cancel.
+       */
+      {
+        const uint8_t saved_diplo = ind->euro_diplo[0];
+        const uint8_t saved_rel = col1.nation[0].relation_by_indian[0];
+        const uint8_t saved_mission = col1.tribe[0].mission;
+        ind->euro_diplo[0] = (uint8_t)(COL1_INDIAN_MET_BIT | COL1_INDIAN_PEACE_BIT);
+        col1.nation[0].relation_by_indian[0] = (uint8_t)COL1_INDIAN_MET_BIT;
+        col1.tribe[0].mission = 0xff;
+        ai_popup_clear(&pop_menu);
+        if (!ai_contact_try_village_meet_unit(&ctx, 0, 4, 0, 0, sold_id)) {
+          return fail("menu: met-no-peace soldier should get the @ACTIONS menu");
+        }
+        if (pop_menu.queue[0].choice_count != 2 ||
+            pop_menu.queue[0].choice_ids[0] != AI_CONTACT_CHOICE_ATTACK ||
+            pop_menu.queue[0].choice_ids[1] != 5 /* Cancel */) {
+          fprintf(stderr, "unit_ai_contact: met-no-peace soldier rows %d first %d\n",
+                  pop_menu.queue[0].choice_count, pop_menu.queue[0].choice_ids[0]);
+          return fail("menu: met-no-peace soldier rows should be Attack / Cancel (no Demand)");
+        }
+        const int f_sid = units_spawn_allow_stack(&units, 2, 6, 5);
+        ColonizeUnit* f_scout = units_get(&units, f_sid);
+        if (!f_scout) {
+          return fail("menu: spawn scout");
+        }
+        f_scout->nation_id = 0;
+        f_scout->profession = UNITS_JOB_NONE;
+        ai_popup_clear(&pop_menu);
+        if (!ai_contact_try_village_meet_unit(&ctx, 0, 4, 0, 0, f_sid)) {
+          return fail("menu: met-no-peace scout should get the @ACTIONS menu");
+        }
+        if (pop_menu.queue[0].choice_count != 3 || pop_menu.queue[0].choice_ids[0] != 9 /* Chief */ ||
+            pop_menu.queue[0].choice_ids[1] != AI_CONTACT_CHOICE_ATTACK ||
+            pop_menu.queue[0].choice_ids[2] != 5 /* Cancel */) {
+          return fail("menu: met-no-peace scout rows should be Chief / Attack / Cancel");
+        }
+        units_despawn(&units, f_sid);
+        const int f_mid = units_spawn_allow_stack(&units, 5, 6, 5);
+        ColonizeUnit* f_mis = units_get(&units, f_mid);
+        if (!f_mis) {
+          return fail("menu: spawn missionary");
+        }
+        f_mis->nation_id = 0;
+        f_mis->profession = UNITS_JOB_NONE;
+        ai_popup_clear(&pop_menu);
+        if (!ai_contact_try_village_meet_unit(&ctx, 0, 4, 1, 0, f_mid)) {
+          return fail("menu: met-no-peace missionary should get the @ACTIONS menu");
+        }
+        if (pop_menu.queue[0].choice_count != 1 || pop_menu.queue[0].choice_ids[0] != 5 /* Cancel */) {
+          return fail("menu: met-no-peace missionary rows should be Cancel only (no Mission / Incite)");
+        }
+        /* A rival's mission in the village: row 4 (Heresy) is peace-gated too. */
+        col1.tribe[0].mission = 1;
+        ai_popup_clear(&pop_menu);
+        if (!ai_contact_try_village_meet_unit(&ctx, 0, 4, 1, 0, f_mid)) {
+          return fail("menu: met-no-peace missionary (rival mission) should get the @ACTIONS menu");
+        }
+        if (pop_menu.queue[0].choice_count != 1 || pop_menu.queue[0].choice_ids[0] != 5 /* Cancel */) {
+          fprintf(stderr, "unit_ai_contact: met-no-peace heresy rows %d first %d\n",
+                  pop_menu.queue[0].choice_count, pop_menu.queue[0].choice_ids[0]);
+          return fail("menu: met-no-peace missionary rows should be Cancel only (no Heresy)");
+        }
+        col1.tribe[0].mission = 0xff;
+        units_despawn(&units, f_mid);
+        /* A free colonist: row 5 (Live Among) is peace-gated. */
+        const int f_cid = units_spawn_allow_stack(&units, 1, 6, 5);
+        ColonizeUnit* f_col = units_get(&units, f_cid);
+        if (!f_col) {
+          return fail("menu: spawn colonist");
+        }
+        f_col->nation_id = 0;
+        f_col->profession = UNITS_JOB_NONE;
+        ai_popup_clear(&pop_menu);
+        if (!ai_contact_try_village_meet_unit(&ctx, 0, 4, 0, 0, f_cid)) {
+          return fail("menu: met-no-peace colonist should get the @ACTIONS menu");
+        }
+        if (pop_menu.queue[0].choice_count != 1 || pop_menu.queue[0].choice_ids[0] != 5 /* Cancel */) {
+          fprintf(stderr, "unit_ai_contact: met-no-peace colonist rows %d first %d\n",
+                  pop_menu.queue[0].choice_count, pop_menu.queue[0].choice_ids[0]);
+          return fail("menu: met-no-peace colonist rows should be Cancel only (no Live Among)");
+        }
+        units_despawn(&units, f_cid);
+        ai_popup_clear(&pop_menu);
+        ind->euro_diplo[0] = saved_diplo;
+        col1.nation[0].relation_by_indian[0] = saved_rel;
+        col1.tribe[0].mission = saved_mission;
       }
       ai_popup_clear(&pop_menu);
       units_despawn(&units, sold_id);
