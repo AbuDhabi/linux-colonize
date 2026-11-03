@@ -184,7 +184,9 @@ was actually credited.
 
 ## europe_voyage_turns_roll
 
-FUN_48d3_0002 voyage roll. rng NULL → 1 (no roll). The x<3 west-edge
+FUN_48d3_0002 voyage roll. rng NULL → 1 (no roll). Every call first
+reseeds through `dos_rng_reseed_83a6` (raw 77571 `FUN_281f_04ca`), for all
+callers: AI lane, human crossings, damaged hull, gift Frigate. The x<3 west-edge
 branch in DOS only burns RNG(0,1)+an FF test and discards both — there
 is no west-edge sail penalty in the shipped code (PEDIA's Magellan
 "west edge" line describes the 10% delay this FF removes). The port still

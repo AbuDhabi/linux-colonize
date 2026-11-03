@@ -1510,6 +1510,10 @@ void ai_euro_nation_turn(ColonizeTurnContext* ctx, int nation_id) {
     return;
   }
 
+  /* FUN_3844_00f2 tail (raw 58409-58419): @KINGFRIGATE auto-accept for AI
+   * nations. Its voyage roll (own 04ca) runs before 6d8e's entry reseed. */
+  ai_king_frigate_offer(ctx, nation_id);
+
   /* FUN_521d_6d8e entry: FUN_281f_04ca reseeds from timer word. */
   ai_nation_reseed(ctx);
 
@@ -1532,8 +1536,6 @@ void ai_euro_nation_turn(ColonizeTurnContext* ctx, int nation_id) {
    * caller FUN_281f_0668 is in the HUMAN arm of the year loop (raw 6418),
    * so it moved to turn.c's TURN_PROC_KING tail as the @MERCENARIES offer
    * (ai_king_peacetime_merc_offer, 2026-09-15). */
-  /* FUN_3844_00f2 tail: @KINGFRIGATE auto-accept for AI nations. */
-  ai_king_frigate_offer(ctx, nation_id);
 
   if (!ctx->map) {
     return;

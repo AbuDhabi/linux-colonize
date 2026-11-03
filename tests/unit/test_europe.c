@@ -1069,6 +1069,7 @@ static int case_europe_workflow(void) {
     ColonizeDosRng vr;
     ColonizeDosRng vm;
     ColonizeDosRng vf;
+    dos_rng_set_83a6(-1); /* the roll reseeds from a set 83a6 word; keep these streams free */
     dos_rng_seed(&vr, 7u);
     dos_rng_seed(&vm, 7u);
     dos_rng_seed(&vf, 7u);
@@ -3885,7 +3886,31 @@ static int case_europe_damaged_hull_heads_harbor(void) {
   return rc;
 }
 
+/* FUN_48d3_0002 raw 77571 reseeds through FUN_281f_04ca(DS:0x83a6) before its RNG(1,100)
+ * on every call, so two streams in different states end the roll in the same state under
+ * one 83a6 word. */
+static int case_europe_voyage_roll_reseeds_83a6(void) {
+  ColonizeDosRng a;
+  ColonizeDosRng b;
+  ColonizeDosRng want;
+  dos_rng_seed(&a, 1u);
+  dos_rng_seed(&b, 4242u);
+  dos_rng_seed(&want, 1234u);
+  (void)dos_rng_range(&want, 1, 100);
+  dos_rng_set_83a6(1234);
+  const int ta = europe_voyage_turns_roll(&a, false, 3, 40);
+  const int tb = europe_voyage_turns_roll(&b, false, 3, 40);
+  dos_rng_set_83a6(-1);
+  if (a.state != want.state || b.state != want.state || ta != tb) {
+    fprintf(stderr, "voyage roll must reseed from 83a6: %08x %08x want %08x\n", a.state,
+            b.state, want.state);
+    return 1;
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+    {"case_europe_voyage_roll_reseeds_83a6", case_europe_voyage_roll_reseeds_83a6},
     {"case_europe_damaged_hull_heads_harbor", case_europe_damaged_hull_heads_harbor},
     {"case_europe_trade_route_return_tile", case_europe_trade_route_return_tile},
     {"case_europe_arrival_woodcut_first_non_route", case_europe_arrival_woodcut_first_non_route},
