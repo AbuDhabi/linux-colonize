@@ -2177,6 +2177,121 @@ static int test_europe_repairing_hull_press_no_pickup(void) {
 }
 
 /*
+ * FUN_38fd_3c86 raw 64101-64120: over a dock unit the press (DS:0x7ec) selects it and puts its
+ * caption on the status line (thunk_FUN_291f_0daa = FUN_38fd_3694); the release (DS:0x7f4)
+ * over the dock opens the @ARMOPTIONS menu for the left button (thunk_FUN_291f_0e28) and the
+ * unit article for the right one (FUN_291f_0942). A release whose press the screen never saw
+ * opens nothing.
+ */
+static int test_europe_dock_menu_on_release(void) {
+  ColonizeGameConfig cfg = {.data_dir = "./COLONIZE", .save_dir = "./build/debug"};
+  ColonizeGameState* game = game_create(&cfg);
+  if (!game || !game_assets_ok(game)) {
+    fprintf(stderr, "SKIP: no COLONIZE/ assets\n");
+    if (game) {
+      game_destroy(game);
+    }
+    return TR_SKIP;
+  }
+  int rc = 0;
+  EuropeScreen* eu = &game->europe;
+  eu->harbor_ships = 0;
+  eu->dock_count = 1;
+  memset(&eu->dock[0], 0, sizeof(eu->dock[0]));
+  eu->dock[0].present = true;
+  eu->dock[0].profession = UNITS_JOB_NONE;
+  int px = -1;
+  int py = -1;
+  for (int y = 0; y < 200 && px < 0; ++y) {
+    for (int x = 0; x < 320; ++x) {
+      const EuropeHitResult h = game_europe_hit(game, x, y);
+      if (h.kind == EUROPE_HIT_DOCK && h.index == 0) {
+        px = x;
+        py = y;
+        break;
+      }
+    }
+  }
+  if (px < 0) {
+    rc = fail("fixture: dock slot hit spot");
+  }
+  game->in_europe = true;
+  ColonizeInputState in;
+  memset(&in, 0, sizeof(in));
+  in.mouse_x = px;
+  in.mouse_y = py;
+  if (rc == 0) {
+    eu->status[0] = '\0';
+    in.mouse_left_clicked = true;
+    in.mouse_left_down = true;
+    (void)game_update_europe_screen(game, &in);
+    if (eu->menu != EUROPE_MENU_NONE || !eu->status[0] || eu->focus != 2) {
+      fprintf(stderr, "  press: menu %d status '%s' focus %d\n", (int)eu->menu, eu->status,
+              eu->focus);
+      rc = fail("a left press on a dock unit shows its caption, no menu yet");
+    }
+  }
+  if (rc == 0) {
+    in.mouse_left_clicked = false;
+    in.mouse_left_down = false;
+    in.mouse_left_released = true;
+    (void)game_update_europe_screen(game, &in);
+    if (eu->menu != EUROPE_MENU_DOCK || eu->menu_dock_index != 0) {
+      fprintf(stderr, "  release: menu %d\n", (int)eu->menu);
+      rc = fail("a left release over the dock opens the dock menu");
+    }
+    europe_menu_close(eu);
+  }
+  if (rc == 0) {
+    in.mouse_left_released = false;
+    in.mouse_right_clicked = true;
+    in.mouse_right_down = true;
+    (void)game_update_europe_screen(game, &in);
+    in.mouse_right_clicked = false;
+    in.mouse_right_down = false;
+    in.mouse_right_released = true;
+    (void)game_update_europe_screen(game, &in);
+    if (!game->in_pedia || !game->pedia_return_europe || eu->menu != EUROPE_MENU_NONE) {
+      fprintf(stderr, "  right: pedia %d return %d menu %d\n", game->in_pedia,
+              game->pedia_return_europe, (int)eu->menu);
+      rc = fail("a right release over the dock opens the unit article");
+    }
+    game->in_pedia = false;
+    game->pedia_return_europe = false;
+    game->in_europe = true;
+  }
+  if (rc == 0) {
+    in.mouse_right_released = false;
+    in.mouse_left_released = true;
+    (void)game_update_europe_screen(game, &in);
+    if (eu->menu != EUROPE_MENU_NONE) {
+      rc = fail("a release with no press on the screen opens nothing");
+    }
+  }
+  if (rc == 0) {
+    /* Pressed on the dock, released over the market: nothing opens. */
+    in.mouse_left_released = false;
+    in.mouse_left_clicked = true;
+    in.mouse_left_down = true;
+    (void)game_update_europe_screen(game, &in);
+    in.mouse_left_clicked = false;
+    in.mouse_left_down = false;
+    in.mouse_left_released = true;
+    in.mouse_x = 162;
+    in.mouse_y = 188;
+    (void)game_update_europe_screen(game, &in);
+    if (eu->menu != EUROPE_MENU_NONE) {
+      fprintf(stderr, "  away: menu %d hit %d\n", (int)eu->menu,
+              (int)game_europe_hit(game, 162, 188).kind);
+      rc = fail("a dock press released over the market opens nothing");
+    }
+  }
+  game->in_europe = false;
+  game_destroy(game);
+  return rc;
+}
+
+/*
  * port_bugs.md #1214: the encroachment popup keeps DOS's "offer gold" row and greys it when the
  * treasury is short (FUN_2b5a_123e raw 42484-42488: FUN_291f_01b6(box, 2, 1)). Fixture: the
  * map_pioneer_native_forest_offer start (the Pioneer on Tupi forest (45,22), offer 422).
@@ -2789,6 +2904,7 @@ static const TestCase k_cases[] = {
     {"test_indian_land_offer_row_greyed", test_indian_land_offer_row_greyed},
     {"test_europe_buy_prompt_names_hull_type", test_europe_buy_prompt_names_hull_type},
     {"test_europe_repairing_hull_press_no_pickup", test_europe_repairing_hull_press_no_pickup},
+    {"test_europe_dock_menu_on_release", test_europe_dock_menu_on_release},
     {"test_brewster_pick_names_home_port", test_brewster_pick_names_home_port},
     {"test_crossing_stamps_nation_return_tile", test_crossing_stamps_nation_return_tile},
     {"test_europe_repaints_reset_harbor_selection", test_europe_repaints_reset_harbor_selection},

@@ -2693,6 +2693,15 @@ static GameUpdateStep game_europe_screen_keys(
 static GameUpdateStep game_europe_screen_mouse(
   ColonizeGameState* game, const ColonizeInputState* input, EuropeScreen* eu
 ) {
+  /* The menus confirm on the press, so a release may only act when this screen took the
+   * press. Every release ends the press, even one that ends a drag. */
+  if (input->mouse_left_clicked || input->mouse_right_clicked) {
+    game->europe_press_on_screen = true;
+  }
+  const bool press_on_screen = game->europe_press_on_screen;
+  if (input->mouse_left_released || input->mouse_right_released) {
+    game->europe_press_on_screen = false;
+  }
   if (input->mouse_right_clicked && ui_drag_active(&game->ui_drag)) {
     game_ui_drag_clear(game);
     return GAME_UPDATE_RETURN_TRUE;
@@ -2701,6 +2710,36 @@ static GameUpdateStep game_europe_screen_mouse(
   if (ui_drag_active(&game->ui_drag) && input->mouse_left_released) {
     game_europe_drag_drop(game, input->mouse_x, input->mouse_y, input->shift_held);
     return GAME_UPDATE_RETURN_TRUE;
+  }
+
+  /*
+   * FUN_38fd_3c86 raw 64101-64120, over a dock unit: the press (DS:0x7ec, either button)
+   * selects it (DS:0xf9a = 2, DS:0x9e2c) and shows its caption (thunk_FUN_291f_0daa =
+   * FUN_38fd_3694); the release (DS:0x7f4) inside the dock rect opens @ARMOPTIONS for the
+   * left button (thunk_FUN_291f_0e28) or the unit article for the right one (DS:0x7e4,
+   * FUN_291f_0942). Both edges are tested in one call, so a same-frame pair does both.
+   */
+  const bool dock_press = input->mouse_left_clicked || input->mouse_right_clicked;
+  const bool dock_release =
+    (input->mouse_left_released || input->mouse_right_released) && press_on_screen;
+  if ((dock_press || dock_release) && !ui_drag_active(&game->ui_drag)) {
+    const EuropeHitResult dh = game_europe_hit(game, input->mouse_x, input->mouse_y);
+    if (dh.kind == EUROPE_HIT_DOCK && dh.index >= 0 && dh.index < eu->dock_count) {
+      eu->focus = 2;
+      eu->dock_selected = dh.index;
+      if (dock_press) {
+        (void)europe_dock_caption(eu, dh.index, eu->status, sizeof eu->status);
+      }
+      if (dock_release && input->mouse_left_released) {
+        eu->menu_dock_index = dh.index;
+        europe_build_dock_menu(eu, &game->messages, dh.index);
+        europe_menu_open(eu, EUROPE_MENU_DOCK);
+      } else if (dock_release) {
+        game_open_pedia_article(game, PEDIA_CAT_UNIT, eu->dock[dh.index].dos_type, false);
+        game->pedia_return_europe = true;
+      }
+      return GAME_UPDATE_RETURN_TRUE;
+    }
   }
 
   if (input->mouse_left_clicked) {
@@ -2771,13 +2810,6 @@ static GameUpdateStep game_europe_screen_mouse(
       break;
     case EUROPE_HIT_BTN_TRAIN:
       europe_menu_open(eu, EUROPE_MENU_TRAIN);
-      break;
-    case EUROPE_HIT_DOCK:
-      eu->focus = 2; /* FUN_38fd_3c86 raw 64102-64104 */
-      eu->dock_selected = hit.index;
-      eu->menu_dock_index = hit.index;
-      europe_build_dock_menu(eu, &game->messages, hit.index);
-      europe_menu_open(eu, EUROPE_MENU_DOCK);
       break;
     case EUROPE_HIT_EXPECTED:
       if (hit.index >= 0 && hit.index < eu->expected_ships) {
@@ -3677,6 +3709,10 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
     shifted.mouse_x -= screen_off_x;
     shifted.mouse_y -= screen_off_y;
     input = &shifted;
+  }
+  /* A press is the Europe screen's only if game_europe_screen_mouse claims it. */
+  if (input->mouse_left_clicked || input->mouse_right_clicked) {
+    game->europe_press_on_screen = false;
   }
 
   /*
