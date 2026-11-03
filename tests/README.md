@@ -171,13 +171,14 @@ Most executables expect **repo root** as cwd (`WORKING_DIRECTORY` in CMake).
 | File | What |
 |------|------|
 | `input.sav` | save the test starts from, taken on the main map |
-| `input.jsonl` | `debug.input_logger` log (docs/settings.md "Input log") of the test span |
+| `input.jsonl` | `debug.input_logger` log (docs/settings.md "Input log") of the test span; none in an idle test |
 | `output.sav` | save taken on the main map right after the last input |
 | `input.steps` | optional: the step script `input.jsonl` was compiled from (see "Authoring from a step script") |
 | `settings.json` | optional: the settings the replay runs with (e.g. a `divergences` switch); default settings without it. The harness applies the startup-read `unlimited_units` and `modern_prng` as `main.c` does (xoshiro seeded from `seed`, 0 without one) |
 | `output.frame` | optional: FNV-1a hash of the final frame's palette indices, for render-only behaviour the save never sees (`current_vision`); `--bless` refreshes it when present (create it empty to start) |
 | `turns` | optional: N, the number of turns the test ends (multi-turn tests, see below); 0 without it |
 | `ends_on_title` | optional, empty: the test ends on the title menu (Retire, a won or lost War of Independence) instead of the main map; the save is taken there |
+| `idle` | optional, empty, with `turns`: an idle test (see "Idle tests" below); the harness plays the turns, no `input.jsonl` |
 | `output.hallfame` | optional: the `HALLFAME.DAT` the test leaves. Every test starts from an empty Hall of Fame in its out dir (`game->hof_path`), so a replay never reads or writes `COLONIZE/HALLFAME.DAT`; `--bless` refreshes it when present (create it empty to start) |
 
 The harness loads `input.sav`, waits for the main map, replays the log one
@@ -220,6 +221,22 @@ fix changes one, read the field diff, confirm the change is the fix's, and
 re-bless (`tools/regression_script.py NAME --bless`). A popup added or removed
 shifts every later input, so the failure shows as a desync after it; re-script
 from the first `shot` that differs.
+
+#### Idle tests
+
+A drift guard that only idles (the `turns_idle_*` tests) carries an empty
+`idle` file instead of `input.jsonl`: the harness plays its `turns` itself,
+reacting to the screen rather than replaying frames, so an AI change that adds,
+drops or reorders a popup or wakes another unit moves only the save, never the
+inputs. Every 20 polls (`IDLE_GAP_FRAMES`) it presses: Return on any popup,
+modal, Colonizopedia or report; Esc on the colony or Europe screen; `s` on a
+unit asking for orders (not one walking a Go To); Space at the End of Turn
+prompt until `turns` turns have ended. A nested pump with nothing up (Combat
+Analysis) gets Return after 300 polls. After the last turn it only answers
+popups, then settles and saves. Re-bless with `tools/regression_script.py NAME
+--bless` (no steps to compile); `REGRESSION_SHOTS=1` prints each `idle press`
+with the popup text it answered. Every popup takes its default row, so a fixture
+that needs another answer (a refused tax, a declined offer) is a scripted test.
 
 Authoring traps found writing the first 26:
 - Popups the AI turn raises in a nested pump (combat outcomes, captures, fort

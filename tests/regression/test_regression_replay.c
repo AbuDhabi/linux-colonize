@@ -12,6 +12,9 @@
  *                won or lost war); the save is taken there
  *   output.hallfame optional: the HALLFAME.DAT the test leaves (each test starts
  *                from an empty one in its out dir, never COLONIZE/HALLFAME.DAT)
+ *   idle         optional (empty file), with `turns` and no input.jsonl: the
+ *                harness plays the turns itself (idle_key below), so a popup
+ *                added or removed by an AI change cannot desync later inputs
  * The harness loads input.sav, feeds the logged events back frame by frame
  * through a replay platform, lets the game settle on the main map, saves,
  * and requires the save to match output.sav byte for byte.
@@ -53,6 +56,7 @@
 #include "core/game_loop_internal.h"
 #include "core/map_panel.h"
 #include "core/units.h"
+#include "core/units_move.h"
 #include "core/window_log.h"
 #include "core/json_min.h"
 #include "core/screen_geom.h"
@@ -72,6 +76,12 @@
 /* Extra wall time per turn a multi-turn test ends: the AI and end-of-turn
  * work run inside frames, at debug-build speed. */
 #define TURN_TIME_MS 30000
+/* Idle tests: polls between two harness presses (the recorded idle tests
+ * waited 30-60 frames between keys; the pace only has to be fixed). */
+#define IDLE_GAP_FRAMES 20
+/* A nested pump with no popup or modal up (Combat Analysis) gets a Return
+ * after this many polls, as play_driver does. */
+#define IDLE_NESTED_FRAMES 300
 
 enum {
   R_MOVE, R_DOWN, R_UP, R_KEY_DOWN, R_KEY_UP, R_TEXT, R_FOCUS_LOST, R_RESIZE, R_QUIT, R_IGNORED
@@ -110,6 +120,11 @@ struct ColonizePlatform {
    * turn combat popups) print the popup text before their presses. */
   const ColonizeGameState* shots_game;
   bool main_poll;
+  /* Idle tests: the game the harness plays, the turn it stops ending turns
+   * at, and polls since its last press. */
+  const ColonizeGameState* idle_game;
+  uint32_t idle_end_turn;
+  unsigned idle_quiet;
 };
 
 /* ===== Log parsing ===== */
@@ -301,9 +316,42 @@ static uint64_t wall_ms(void);
 static bool press_next(const ColonizePlatform* p);
 static void print_popup_text(const ColonizeGameState* g);
 
+/* Idle tests: the key an idling player presses now, COLONIZE_KEY_NONE to
+ * wait. Every popup and modal takes its default row (Return), the colony
+ * and Europe screens are left (Esc), a unit asking for orders is sentried,
+ * the End of Turn prompt is confirmed until the target turn is reached. */
+static ColonizeKey idle_key(ColonizePlatform* p, bool main_poll) {
+  const ColonizeGameState* g = p->idle_game;
+  if (++p->idle_quiet < IDLE_GAP_FRAMES) {
+    return COLONIZE_KEY_NONE;
+  }
+  if (g->ai_popups.open || game_modal_open(g) || g->in_pedia || g->in_report) {
+    return COLONIZE_KEY_ENTER;
+  }
+  if (!main_poll) {
+    return p->idle_quiet >= IDLE_NESTED_FRAMES ? COLONIZE_KEY_ENTER : COLONIZE_KEY_NONE;
+  }
+  if (g->in_colony || g->in_europe) {
+    return COLONIZE_KEY_ESCAPE;
+  }
+  if (g->in_menu || ai_popup_busy(&g->ai_popups) || game_turn_busy(g) ||
+      g->col1.head.turn >= p->idle_end_turn) {
+    return COLONIZE_KEY_NONE;
+  }
+  if (game_end_turn_prompt_active(g)) {
+    return COLONIZE_KEY_SPACE;
+  }
+  const ColonizeUnit* sel =
+    g->units.selected_id >= 0 ? units_get_const(&g->units, g->units.selected_id) : NULL;
+  /* A Go To unit steps between idle-looking frames: let it walk. */
+  return sel && !units_orders_follow_goto(sel->orders) ? COLONIZE_KEY_S : COLONIZE_KEY_NONE;
+}
+
 bool platform_poll_input(ColonizePlatform* p, ColonizeInputState* out) {
   if (p->deadline_ms && p->next >= p->count && wall_ms() > p->deadline_ms) {
-    printf("  timeout: the log ran out inside a nested popup pump (an unanswered popup?)\n");
+    printf(p->idle_game ? "  timeout: the idle turns did not finish (status: %s)\n"
+                        : "  timeout: the log ran out inside a nested popup pump (an unanswered popup?)\n",
+           p->idle_game ? game_status_text(p->idle_game) : "");
     fflush(stdout);
 #ifdef _WIN32
     exit(1);
@@ -315,10 +363,25 @@ bool platform_poll_input(ColonizePlatform* p, ColonizeInputState* out) {
     printf("  nested press %06u (inside a pump, no screenshot)\n", (unsigned)p->frame);
     print_popup_text(p->shots_game);
   }
+  const bool main_poll = p->main_poll;
   p->main_poll = false;
   out->text_input_len = 0;
   out->text_input[0] = '\0';
-  if (!p->replaying || p->next >= p->count) {
+  if (p->idle_game) {
+    p->now_ms += IDLE_FRAME_MS;
+    const ColonizeKey k = idle_key(p, main_poll);
+    if (k != COLONIZE_KEY_NONE) {
+      p->idle_quiet = 0;
+      out->last_key = k;
+      if (p->shots_game) {
+        printf("  idle press %s at turn %u%s\n",
+               k == COLONIZE_KEY_ENTER ? "Return" : k == COLONIZE_KEY_ESCAPE ? "Escape"
+               : k == COLONIZE_KEY_SPACE ? "Space" : "s",
+               (unsigned)p->idle_game->col1.head.turn, main_poll ? "" : " (nested pump)");
+        print_popup_text(p->idle_game);
+      }
+    }
+  } else if (!p->replaying || p->next >= p->count) {
     p->now_ms += IDLE_FRAME_MS;
   } else {
     const uint32_t f = p->frame++;
@@ -597,9 +660,13 @@ static int run_test(const char* name) {
 
   ColonizePlatform rp;
   memset(&rp, 0, sizeof(rp));
-  int screen_w = 0, screen_h = 0;
+  int screen_w = 320, screen_h = 200;
   bool audio = false;
-  if (!parse_log(in_log, &rp, &screen_w, &screen_h, &audio)) {
+  char idle_file[600];
+  snprintf(idle_file, sizeof(idle_file), "%s/idle", dir);
+  struct stat idle_st;
+  const bool idle = stat(idle_file, &idle_st) == 0;
+  if (!idle && !parse_log(in_log, &rp, &screen_w, &screen_h, &audio)) {
     return 1;
   }
   if (audio) {
@@ -631,7 +698,11 @@ static int run_test(const char* name) {
   snprintf(title_file, sizeof(title_file), "%s/ends_on_title", dir);
   struct stat title_st;
   const bool ends_on_title = stat(title_file, &title_st) == 0;
-  const uint32_t duration_ms = rp.recs[rp.count - 1].t_ms - rp.recs[0].t_ms;
+  if (idle && turns == 0) {
+    printf("  an idle test needs a `turns` file\n");
+    return 1;
+  }
+  const uint32_t duration_ms = rp.count ? rp.recs[rp.count - 1].t_ms - rp.recs[0].t_ms : 0;
   const uint64_t limit_ms =
     (2u * (uint64_t)duration_ms > MIN_TIME_LIMIT_MS ? 2u * (uint64_t)duration_ms : MIN_TIME_LIMIT_MS) +
     (uint64_t)turns * TURN_TIME_MS;
@@ -727,9 +798,15 @@ static int run_test(const char* name) {
       if (rp.next == 0 && (!off_map_reason(game) || hotseat_hello)) {
         /* Loaded and idle: hand the frames over to the log. */
         rp.replaying = true;
-        rp.frame = rp.recs[0].frame;
-        prev_ms = rp.recs[0].t_ms - IDLE_FRAME_MS;
-        phase = "replay";
+        if (idle) {
+          rp.idle_game = game;
+          rp.idle_end_turn = start_turn + turns;
+          phase = "idle turns";
+        } else {
+          rp.frame = rp.recs[0].frame;
+          prev_ms = rp.recs[0].t_ms - IDLE_FRAME_MS;
+          phase = "replay";
+        }
         if (want_shots) {
           write_shot(out_dir, "start", &fb, &pal, game);
         }
@@ -741,9 +818,12 @@ static int run_test(const char* name) {
         write_shot(out_dir, tag, &fb, &pal, game);
       }
     } else {
-      phase = "settle (after the last input)";
+      if (!idle) {
+        phase = "settle (after the last input)";
+      }
       const char* why = off_map_reason(game);
-      const bool at_end = ends_on_title ? game->in_menu : why == NULL;
+      const bool at_end = (ends_on_title ? game->in_menu : why == NULL) &&
+                          (!idle || game->col1.head.turn >= start_turn + turns);
       settled = at_end ? settled + 1 : 0;
       if (settled >= SETTLE_FRAMES) {
         break;

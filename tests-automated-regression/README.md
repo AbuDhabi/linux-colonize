@@ -7,7 +7,10 @@ Run by `regression_replay` (ctest); format and recording recipe in
 Every test without a `turns` file stays inside one turn (the harness enforces
 it), so AI and end-of-turn changes never move its expected save. The `turns_*`
 tests end the number of turns their `turns` file names (tests/README.md
-"Multi-turn tests"); AI and end-of-turn fixes may move them on purpose.
+"Multi-turn tests"); AI and end-of-turn fixes may move them on purpose. The
+`turns_idle_*` tests have no input log: an `idle` file makes the harness play
+their turns (tests/README.md "Idle tests"), so a fix moves their save but never
+desyncs them.
 
 The `colony_*`, `map_*` and `village_*` tests were authored from `input.steps` scripts
 (`tools/regression_script.py`; each step is commented there). They start from

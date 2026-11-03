@@ -195,10 +195,12 @@ def main():
         sys.exit(__doc__)
     name = args[0]
     test = os.path.join(ROOT, name)
-    with open(os.path.join(test, 'input.steps')) as f:
-        recs = compile_steps(f.readlines())
-    with open(os.path.join(test, 'input.jsonl'), 'w') as f:
-        f.writelines(json.dumps(r, separators=(',', ':')) + '\n' for r in recs)
+    # An idle test (empty `idle` file) has no steps: the harness plays its turns.
+    if not os.path.exists(os.path.join(test, 'idle')):
+        with open(os.path.join(test, 'input.steps')) as f:
+            recs = compile_steps(f.readlines())
+        with open(os.path.join(test, 'input.jsonl'), 'w') as f:
+            f.writelines(json.dumps(r, separators=(',', ':')) + '\n' for r in recs)
     if not os.path.exists(os.path.join(test, 'output.sav')):
         shutil.copy(os.path.join(test, 'input.sav'), os.path.join(test, 'output.sav'))
     out = os.path.join(OUT, name)
