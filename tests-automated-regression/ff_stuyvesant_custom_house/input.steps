@@ -1,0 +1,19 @@
+# Peter Stuyvesant gates the Custom House (FUN_15eb_3650 raw 13691-13694: row needs FF 3).
+# Start: colony_change_construction's input (France, 1599, owns Stuyvesant; Quebec pop 6, Lumber Mill in
+# production). Picker highlight starts on the current project (Lumber Mill, row 12); with Stuyvesant row 6 is
+# CUSTOM HOUSE (160 hammers, 50 tools), between Stable and Printing Press.
+click 168 128              # open Quebec (map tile 45,24)
+wait 1
+key c                      # construction picker opens on Lumber Mill (row 12)
+wait 1
+key Up
+key Up
+key Up
+key Up
+key Up
+key Up                     # six rows up: row 6
+wait 1
+key Return                 # commit row 6: Custom House becomes Quebec's project
+wait 1
+key Escape                 # back to the map
+wait 1

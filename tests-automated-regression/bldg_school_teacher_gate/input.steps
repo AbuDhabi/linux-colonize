@@ -1,0 +1,28 @@
+# Start: turns_school_training's input.sav (France, Spring 1600, turn 108; England at peace, units
+# fortified; Quebec Schoolhouse with an Expert Fisherman teacher). Fixture edits (sav_json, re-saved
+# through one no-op replay): Quebec Schoolhouse + College (schoolhouse bits 3), Town Hall colonist 4
+# given the Elder Statesman specialty (profession 17, school level 3); Montreal Schoolhouse + College
+# + University (schoolhouse bits 7), Town Hall colonist 4 made an Elder Statesman too.
+# Covers the school-tier gate at assignment (colonies_assign_workplace; the teacher's @JOB level vs
+# the building, docs/building_production.md "Education"): in Quebec the Elder Statesman is refused by
+# the College (@NEEDUNIVERSITY) and stays a statesman, the Master Blacksmith (level 2) joins it as a
+# second teacher (faculty 2; occupation 18, his counter zeroed); in Montreal the University takes the
+# Elder Statesman (occupation 18, counter zeroed). (colony_building_assignment covers @NEEDCOLLEGE,
+# @NOTEACHER and the full faculty.)
+click 120 112              # open Quebec (45,24)
+wait 3
+drag 37 155 150 55         # strip colonist 4 (Elder Statesman) -> College
+wait 3
+key Return                 # @NEEDUNIVERSITY: "We must build a university to teach that profession (Statesman)"
+wait 3
+drag 45 155 150 55         # strip colonist 5 (Master Blacksmith) -> College: accepted
+wait 3
+key Escape                 # back to the map
+wait 3
+click 88 160               # open Montreal (43,27)
+wait 3
+drag 117 41 150 60         # first Town Hall worker (colonist 4, Elder Statesman) -> University: accepted
+wait 3
+key Escape                 # back to the map
+wait 3
+shot

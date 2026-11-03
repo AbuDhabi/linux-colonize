@@ -1,0 +1,35 @@
+# Three veteran Dragoons attack English colonies behind three fortification tiers (Combat Analysis on).
+# Start: map_attack_colony_capture's input.sav (France, Spring 1600, turn 108, at war with England),
+# fixture: Cayenne (38,23) given Stockade+Fort (fortification 3) and English Colonist #89 moved in as a
+# plain Soldiers (no orders); St. Louis (40,20) given Stockade+Fort+Fortress (7) and English Dragoon #138
+# moved in as a plain Soldiers (no orders); Port Royal (37,20) given a Stockade (1) and its Colonist #85
+# made a Fortified (orders 6) Soldiers (Stockade 4 + fortify 2 = local_1a 6, FUN_157e_015e).
+# French veteran Dragoons: #131 at (39,23) (active), #87 moved to (39,21), Colonist #83 made a veteran
+# Dragoon at (38,21); re-saved once. Rolls come from the saved LCG, so the outcomes are fixed.
+key KP_4                 # #131 attacks Cayenne (Fort, local_1a 6): Combat Analysis dialog
+wait 3
+key Return               # dismiss: roll won
+wait 3
+key Return               # "{English Soldiers} routed! Unit demoted to {Colonists}" (@DEMOTE); Cayenne not entered
+wait 3
+key Return               # "{French} defeat {English Soldiers} near Cayenne!"; #83 selected next
+wait 3
+shot
+key KP_7                 # #83 attacks Port Royal (Stockade + fortified Soldier): Combat Analysis
+wait 3
+key Return               # dismiss: roll lost
+wait 3
+key Return               # "{French Dragoons} routed! Unit demoted to {Soldiers}" (@DEMOTE), moves spent
+wait 3
+key Return               # "{English Soldiers} defeat {French} near Port Royal!"; #87 selected next
+wait 3
+shot
+key KP_9                 # #87 attacks St. Louis (Fortress, local_1a 8): Combat Analysis
+wait 3
+key Return               # dismiss: roll lost
+wait 3
+key Return               # "{French Dragoons} routed! Unit demoted to {Soldiers}"; the winning English
+wait 3                  #  Soldier is promoted (profession 28 -> 21 veteran, FUN_5fef_172c, no popup: AI unit)
+key Return               # "{English Soldiers} defeat {French} near St. Louis!"; no French unit left to move
+wait 3
+shot

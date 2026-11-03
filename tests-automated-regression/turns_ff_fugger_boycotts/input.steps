@@ -1,0 +1,23 @@
+# Jakob Fugger joins: every boycott is lifted (FUN_4345_0342 case 1 writes nation+0x20 = 0).
+# Start: turns_pioneer_jobs_complete's output (France, Spring 1601, turn 110; England at peace,
+# every French map unit fortified, the Europe-bound Caravel held at sea). Fixture (sav_json): France
+# next_founding_father = 1 (Fugger), liberty_bells_pool = 1000 (threshold 1009 with 5 fathers, the
+# turn's bells cross it), boycott_bitmap = 0x0810 (Furs + Cloth boycotted).
+# Covers: Fugger elected at end of turn 110 (founding_fathers bit 1, count 6, pool zeroed then refilled
+# by the colonies after the electing one), boycott_bitmap 0x0810 -> 0; Adam Smith picked next.
+key space                  # end turn 110 (Spring 1601)
+wait 30
+key Return                 # Tupi gift of 6 Tobacco to Guadeloupe
+wait 6
+key Return                 # Jakob Fugger has joined the Continental Congress
+wait 6
+key Return                 # congress screen: close
+wait 6
+key Return                 # Colonizopedia entry for Fugger: close
+wait 6
+key Return                 # next father picker: row 0 Adam Smith
+wait 6
+key Return                 # price of Cigars falls
+wait 6
+key Return                 # price of Coats rises
+wait 6

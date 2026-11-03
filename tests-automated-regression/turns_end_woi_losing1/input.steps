@@ -1,0 +1,35 @@
+# Lose the War of Independence on ports (@LOSING1). Start: turns_declare_independence_ref's output.sav (France,
+# Autumn 1600, turn 109; the Tories hold Montreal) with English St. Louis (pop 1, inland) handed to France and
+# Quebec, Guadeloupe and Port au Prince handed to the Crown (colony nation, the units on their tiles too); every
+# French unit without orders fortified (land, orders 6) or sentried (ships, orders 1). France keeps Martinique
+# and St. Louis: 2 colonies, no colony with the founding coastal bit (+0x1c 0x40), crown share below 90%.
+# End of turn 109: Tory fights near Guadeloupe (nested pump), then FUN_3844_0442's lose selector
+# (raw 58506-58548: ports == 0 -> 1, share > 89 -> 3, colonies == 0 -> 2, last write wins) picks @LOSING1
+# ("King's Forces control all ports in New France!"), the @KINGWIN throne audience follows, then the retire
+# chain (F10 score report, exploits screen, Hall of Fame; the harness starts from an empty HALLFAME.DAT) and the
+# title menu, with no @SCORED (port_bugs.md #1232). The save is taken on the title menu; output.hallfame pins
+# the record.
+key space                # end turn 109 (Autumn 1600)
+wait 30
+key Return               # nested pump
+wait 10
+key Return               # Rebel colonists CAPTURED by the Tory (nested pump)
+wait 10
+key Return               # Tories defeat Rebel Colonists near Guadeloupe (nested pump)
+wait 10
+key Return               # nested pump
+wait 10
+key Return               # Rebel colonists CAPTURED by the Tory (nested pump)
+wait 10
+key Return               # Tories defeat Rebel Colonists near Guadeloupe (nested pump)
+wait 10
+key Return               # @LOSING1: King's Forces control all ports in New France
+wait 10
+key Return               # @KINGWIN throne audience
+wait 10
+key Return               # F10 score report
+wait 10
+key Return               # exploits screen
+wait 10
+key Return               # Hall of Fame: title menu
+wait 10

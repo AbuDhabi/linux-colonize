@@ -1,0 +1,15 @@
+# Frigate vs Frigate where the loser's navy is the bigger one: the beaten English Frigate is sunk, not damaged.
+# Start: combat_naval_frigate_drydock's re-saved input (France, Spring 1600, turn 108, at war with England;
+# two empty English Frigates at (48,22) and (48,24), Quebec and Plymouth with a Drydock), fixture: census
+# stuff.unit_type_counts[0][Frigate] = 2 and armed_ship_counts[0] = 2 (England's two Frigates), the
+# Privateer sentried, Frigate #121 at (47,23) active; re-saved once. FUN_5fef_0352 raw 99527-99570, armed
+# hull outside the WoI: loser and winner both Frigates and the winner nation counts fewer Frigates (France 0)
+# than the loser (2) -> sunk whatever the guns/hull roll says (with England's count at 0 the same win
+# only damages it: combat_naval_frigate_drydock). The attack roll comes from the saved LCG.
+key KP_9                 # Frigate attacks the English Frigate NE: Combat Analysis
+wait 3
+key Return               # dismiss: roll won
+wait 3
+key Return               # @SHIPSUNK "{English Frigate sunk} by French Frigate!"; census: England's Frigate,
+wait 3                  #  armed-ship, unit and cargo tallies drop; #121 moves onto (48,22); Dragoon #131 next
+shot

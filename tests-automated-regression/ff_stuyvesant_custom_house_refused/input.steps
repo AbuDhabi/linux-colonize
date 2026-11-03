@@ -1,0 +1,20 @@
+# Without Peter Stuyvesant the Custom House is not offered (FUN_15eb_3650 raw 13691-13694).
+# Start: colony_change_construction's input (France, 1599; Quebec pop 6, Lumber Mill in production).
+# Fixture (sav_json): France's Stuyvesant bit (founding_fathers bit 3) cleared, count 4.
+# Same keys as ff_stuyvesant_custom_house: with no Custom House row the list is one shorter, so six rows up
+# from Lumber Mill (row 11) lands on STABLE (catalog row 17) instead (Custom House is catalog row 18).
+click 168 128              # open Quebec (map tile 45,24)
+wait 1
+key c                      # construction picker opens on Lumber Mill (row 12)
+wait 1
+key Up
+key Up
+key Up
+key Up
+key Up
+key Up                     # six rows up: row 6
+wait 1
+key Return                 # commit row 6: Stable becomes Quebec's project
+wait 1
+key Escape                 # back to the map
+wait 1

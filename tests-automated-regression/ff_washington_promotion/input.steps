@@ -1,0 +1,30 @@
+# George Washington: a non-veteran Soldier or Dragoon that wins is always promoted (FUN_5fef_172c: the
+# FUN_281f_07b4(nation, 0xb) test short-circuits the FUN_281f_04d4 promotion roll, so no RNG draw).
+# Start: map_attack_brave_field's input (France, Spring 1600; Tupi braves in the open around Quebec, Quebec
+# Free Colonist #142 and Pioneers #126 made Soldiers, RT_RNG LCG state 839414). Fixture (sav_json): France
+# also owns Washington (founding_fathers bit 11, count 6). Same three attacks as map_attack_brave_field.
+key KP_7                 # veteran Dragoon #131 attacks the Armed Braves NW: @WHACKINDIANS
+wait 3
+key Return               # Yes: Combat Analysis dialog
+wait 3
+key Return               # dismiss: the Dragoon wins (already veteran, profession 0x15: no promotion outside the WoI)
+wait 3
+key Return               # "{French} defeat {Tupi Armed Braves} near Quebec!"; Soldiers #142 selected
+wait 3
+key KP_3                 # Soldiers attack the Braves SE: Combat Analysis dialog
+wait 3
+key Return               # dismiss: the Soldiers win (as in map_attack_brave_field)
+wait 3
+key Return               # "{French} defeat {Tupi Braves} near Quebec!"
+wait 3
+key Return               # "Our Soldiers have hardened to Veteran status": #142 Free Colonist (0x1c) -> Veteran Soldier (0x15)
+wait 3                   #  (map_attack_brave_field: the roll fails, no promotion)
+key KP_7                 # Soldiers #126 on (44,25) attack the Braves on (43,24): Combat Analysis dialog
+wait 3
+key Return               # dismiss: with no promotion draw the LCG is one step behind map_attack_brave_field's,
+wait 3                   #  and this fight is won (there: lost, @DEMOTE)
+key Return               # "{French} defeat {Tupi Braves} near Guadeloupe!"
+wait 3
+key Return               # Veteran status again: #126 -> Veteran Soldier (0x15); no French unit left to move
+wait 3
+shot

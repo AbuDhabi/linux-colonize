@@ -1,0 +1,19 @@
+# The King buys a REF unit from the royal purse. Start: turns_king_tax_accept's input.sav (France, Spring 1600,
+# turn 108; England at peace, French units fortified) with France's royal_money (nation +0x22) 1790 and the
+# Expeditionary Force pools [95,25,14,26] (regulars, cavalry, Man-O-War, artillery; the load-time seed floor
+# keeps pre-WoI pools at or above [?,25,14,26]).
+# End of turn 108: FUN_43f7_1d42 (peacetime, human slot of 2424): growth (4*8 + 10) doubled from 1600 = 84,
+# purse 1874 >= 0x708, so one pool unit is bought, last write wins: (95+2)/3 > 25 picks Cavalry, 95/4 > 26 does
+# not pick Artillery, (95+25+26+5)/10 > 14 overrides with Man-O-War: pool [95,25,15,26], @KINGBUY ("Man-O-War
+# added to royal expeditionary force"), purse 1874 - 1800 = 74.
+key space                # end turn 108
+wait 30
+key Return               # Help: Time Scale (two turns per year from 1600)
+wait 10
+key Return               # SoL in Quebec up to 60%: Continue turn
+wait 10
+key Return               # @KINGBUY: Man-O-War added to royal expeditionary force
+wait 10
+key Return               # price of Cigars rises
+wait 10
+shot                     # Autumn 1600: End of Turn

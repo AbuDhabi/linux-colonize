@@ -1,0 +1,25 @@
+# Bartolome de las Casas joins: FUN_4345_0342 case 0x18 turns profession 0x1b (Indian Convert) into 0x1c
+# (Free Colonist) for owned map units of type 0 only, and for every colonist of owned colonies.
+# Start: turns_pioneer_jobs_complete's output (France, Spring 1601, turn 110; England at peace,
+# every French map unit fortified, the Europe-bound Caravel held at sea). Fixture (sav_json): France
+# liberty_bells_pool = 1000 (threshold 1009 with 5 fathers; the turn's bells cross it) and next_founding_father = 24;
+# unit 127 (Colonist, fortified at (43,25)) given profession 27, unit 139 (at Quebec) made a Soldier
+# (type 1) with profession 27.
+# Covers: Quebec's convert colonist and unit 127 become Free Colonists (28); the Soldier keeps 27 (DOS
+# tests unit type 0). Juan de Sepulveda replaces him in the picker; Adam Smith (row 0) is picked.
+key space                  # end turn 110 (Spring 1601)
+wait 30
+key Return                 # Tupi gift of 6 Tobacco to Guadeloupe
+wait 6
+key Return                 # Bartolome de las Casas has joined the Continental Congress
+wait 6
+key Return                 # congress screen: close
+wait 6
+key Return                 # Colonizopedia entry: close
+wait 6
+key Return                 # next father picker: row 0 Adam Smith
+wait 6
+key Return                 # price of Cigars falls
+wait 6
+key Return                 # price of Coats rises
+wait 6

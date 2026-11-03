@@ -1,0 +1,21 @@
+# Armed hulls fight beside two Drydock ports (Combat Analysis on): each loser is damaged and limps to its
+# own nation's nearest Drydock colony instead of Europe.
+# Start: map_attack_naval_privateer's input.sav (France, Spring 1600, turn 108, at war with England;
+# French Privateer #79 at (47,24) active, Frigate #121 at (47,23)), fixture: Quebec and English Plymouth
+# given Docks + Drydock (docks 3); Frigate #121's holds emptied; English Caravel #0 at (48,24) made an
+# empty Frigate; English Merchantman #76 moved to sea (48,22) as an empty Frigate (the census still
+# counts no English Frigate, so FUN_5fef_0352's "own count < 2" clause keeps a losing one damaged, never
+# sunk); re-saved once, then RT_RNG LCG state set to 271828. Rolls come from the saved LCG.
+key KP_6                 # Privateer attacks the English Frigate east: Combat Analysis (a stronger defender
+wait 3                  #  never evades, FUN_5bfb_312e)
+key Return               # dismiss: roll lost
+wait 3
+key Return               # @SHIPDAMAGE "{French Privateer} damaged! Ship returns to {Quebec} for repairs."
+wait 3                  #  (moved to Quebec, bit7, timer 0); Frigate #121 selected next
+key KP_9                 # Frigate attacks the English Frigate NE: Combat Analysis
+wait 3
+key Return               # dismiss: roll won
+wait 3
+key Return               # @SHIPDAMAGE "{English Frigate} damaged! Ship returns to {Plymouth} for repairs."
+wait 3                  #  (moved to Plymouth, Frigate repair floor 4); #121 moves onto (48,22); Dragoon #131 next
+shot

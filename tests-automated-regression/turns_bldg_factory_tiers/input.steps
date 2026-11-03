@@ -1,0 +1,20 @@
+# Start: turns_school_training's input.sav (France, Spring 1600, turn 108; England at peace, the
+# Europe-bound Caravel held at sea, French units fortified, Quebec Schoolhouse + teacher at counter 2).
+# Fixture edits (sav_json, re-saved through one no-op replay): one Town Hall statesman per colony
+# moved into a production building (occupation = @JOB row):
+#   Quebec (SoL bonus +1): Blacksmith's House..Iron Works (blacksmiths_house bits 7), colonist 3 -> 14
+#     (Blacksmith), ore 50.
+#   Montreal (no SoL bonus): Armory (armory bit 1), colonist 4 -> 15 (Gunsmith), tools 50.
+#   Guadeloupe (SoL bonus +1): Armory..Arsenal (armory bits 7), colonist 2 -> 15, tools 50.
+#   Martinique (no SoL bonus): Armory + Magazine (armory bits 3), colonist 0 -> 15, tools 50.
+# Covers the FUN_15eb_1d4c tier arithmetic for a free colonist (tag 3 + SoL, shop re-adds the tag,
+# factory x1.5) and the input side (FUN_15eb_0bd4 factory (G*2)/3 vs the muskets pair's 1:1 through
+# FUN_15eb_0b96, port_bugs.md #910): Iron Works 10 tools from 6 ore; Armory 3 muskets from 3 tools;
+# Magazine 6 from 6; Arsenal 10 from 10.
+key space                  # end turn 108
+wait 30
+key Return                 # Help: Time Scale (two turns per year from 1600)
+wait 10
+key Return                 # price of Cigars rises (no Quebec SoL notice: a statesman left the Town Hall)
+wait 10
+shot                       # Autumn 1600: End of Turn

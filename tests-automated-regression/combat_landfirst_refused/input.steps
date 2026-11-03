@@ -1,0 +1,16 @@
+# A Dragoon aboard a Frigate tries to attack an enemy unit ashore: @LANDFIRST (FUN_4720_015c reason 9),
+# then lands on an empty tile instead.
+# Start: map_attack_naval_privateer's input.sav (France, Spring 1600, turn 108, at war with England),
+# fixture: Quebec's veteran Dragoon #131 moved aboard French Frigate #121 at (47,23) (sentried; boarded
+# on load), English Dragoon #114 moved to the forest (46,22) NW of the Frigate with no orders, Frigate
+# #121 made the active unit (map cursor 47,23); re-saved once. No combat is fought, so no roll is drawn.
+click 152 96               # click the Frigate's tile: "Units Present" picker (Frigate, Dragoons (aboard))
+click 150 106              # row 1 (the Dragoon): sentry cancelled, picker stays open
+click 150 106              # row 1 again: the Dragoon is activated aboard
+key KP_7                   # step NW onto the English Dragoon's tile: refused, @LANDFIRST "Land units cannot
+wait 3                    #  enter an enemy occupied square from on board a ship..."; nothing moves, no roll
+key Return                 # dismiss
+wait 3
+key KP_1                   # step SW onto the empty land (46,24): disembarks, whole allotment spent;
+wait 3                    #  the English Dragoon at (45,23) turns to face it (FUN_5bfb_3180); Privateer #79 next
+shot

@@ -1,0 +1,25 @@
+# Start: turns_school_training's input.sav (France, Spring 1600, turn 108; England at peace, the
+# Europe-bound Caravel held at sea, French units fortified, Quebec Schoolhouse with an Expert
+# Fisherman teacher, colonist 2). Fixture edits (sav_json, re-saved through one no-op replay):
+#   Quebec: Schoolhouse + College (schoolhouse bits 3), the teacher's specialty made Master
+#     Blacksmith (profession 14, school level 2 = 6 turns), his counter (specialty[1].even) 5.
+#   Montreal: Schoolhouse + College + University (schoolhouse bits 7), statesman colonist 4 seated as
+#     teacher (occupation 18) with Elder Statesman specialty (profession 17, level 3 = 8 turns),
+#     counter (specialty[2].even) 7.
+# Covers FUN_364b_0688 phases F-G with level-2 and level-3 teachers: each counter reaches its
+# level's turns, a random Free Colonist student takes the teacher's specialty (@TRAINPROFESSION;
+# Montreal colonist 0 -> Statesman, Quebec colonist 0 -> Blacksmith), each teacher's counter resets
+# to 0. Colonies run from the highest index down, so Montreal's notice comes first.
+key space                  # end turn 108
+wait 30
+key Return                 # Help: Time Scale (two turns per year from 1600)
+wait 10
+key Return                 # @TRAINPROFESSION: a colonist in Montreal has learned Statesman
+wait 10
+key Return                 # SoL in Quebec up to 60%: Continue turn
+wait 10
+key Return                 # @TRAINPROFESSION: a colonist in Quebec has learned Blacksmith
+wait 10
+key Return                 # price of Cigars rises
+wait 10
+shot                       # Autumn 1600: End of Turn

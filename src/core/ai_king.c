@@ -61,7 +61,7 @@
  *   same-turn 1528 may overwrite status).
  * Mid-war @WARN%d: ONE digit-patch selector per turn (raw 58506-58534, twin
  *   of @LOSING%d), precedence colonies<3 (2) > share ≥80% (3) > ports<3 (1);
- *   the selected warn keeps a port-side episode latch — market_demand_pool_raw[6]/[7]/[10]
+ *   the selected warn keeps a port-side episode latch — nation unknown23_pad[1] bits 0x08/0x10/0x20
  *   for @WARN1/2/3 — each cleared when its own band is left, so a relapse
  *   re-fires. @LOSING3 takes the turn instead when share ≥90%.
  * Calendar @SOONRETIRING0 (1790 spring peacetime): head.market_demand_pool_raw[8] once.

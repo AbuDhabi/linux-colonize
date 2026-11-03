@@ -1,0 +1,24 @@
+# Two French Artillery attack English Cayenne (Stockade) held by a Soldier and lose (Combat Analysis on).
+# Start: map_attack_colony_capture's input.sav (France, Spring 1600, turn 108, at war with England),
+# fixture: English Colonist #89 moved into Cayenne (38,23, fortification 1 = Stockade) as a plain Soldiers
+# (no orders); the two veteran Dragoons at (39,23) made Artillery: #131 (active) sound, #87 already damaged
+# (flags15 bit7, attack 5-2); re-saved once, then RT_RNG LCG state set to 9001. The colony tile counts as a
+# settlement, so neither gun takes the open-field >>2 (FUN_5fef_1b0e); rolls come from the saved LCG.
+key KP_4                 # #131 attacks Cayenne: Combat Analysis dialog
+wait 3
+key Return               # dismiss: roll lost
+wait 3
+key Return               # @ARTILLERY "French Artillery {damaged}. Further damage will destroy it." (bit7 set, moves spent)
+wait 3
+key Return               # "{English Soldiers} defeat {French} near Cayenne!"; damaged #87 selected next
+wait 3
+shot
+key KP_4                 # #87 attacks Cayenne: Combat Analysis
+wait 3
+key Return               # dismiss: roll lost
+wait 3
+key Return               # "Damaged French Artillery {destroyed}" (second loss despawns it, FUN_5fef_0352)
+wait 3
+key Return               # "{English Soldiers} defeat {French} near Cayenne!"; no French unit left to move
+wait 3
+shot

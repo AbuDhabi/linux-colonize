@@ -1,0 +1,35 @@
+# Hire mercenaries during the War of Independence. Start: turns_declare_independence_ref's output.sav (France,
+# Autumn 1600, turn 109, declared; the Tories hold Montreal) with English Roanoke (coastal, pop 2) handed to
+# France (three founding-coastal ports, so no @WARN1 is due), French gold 10000, and every French unit without
+# orders fortified (land, orders 6) or sentried (ships, orders 1).
+# End of turn 109: a REF wave near Roanoke and Tory fights near Guadeloupe (nested pump), two native gifts,
+# then the human's FUN_43f7_2022 beat (raw ~75007-75070; intervention not announced, so the merc arm runs):
+# RNG(0,2) == 0, 2 Regulars (difficulty 4), the coin picks Artillery, price (2 + 2) * (14 + 4) * 100 = 7200.
+# @MERCENARIES (%STRING0 = rival slot 2's country, England) answered "Pay {7200$}." (row 1, choice 2): gold
+# 10000 to 2800 and FUN_43f7_10f0(1) lands the hire (@MERCS "English mercenaries arrive in Quebec.").
+key space                # end turn 109 (Autumn 1600)
+wait 30
+key Return               # Royal Expeditionary Force lands near Roanoke (nested pump)
+wait 10
+key Return               # nested pump
+wait 10
+key Return               # Rebel colonists CAPTURED by the Tory (nested pump)
+wait 10
+key Return               # Tories defeat Rebel Colonists near Guadeloupe (nested pump)
+wait 10
+key Return               # nested pump
+wait 10
+key Return               # Rebel colonists CAPTURED by the Tory (nested pump)
+wait 10
+key Return               # Tories defeat Rebel Colonists near Guadeloupe (nested pump)
+wait 10
+key Return               # Iroquois gift of 11 Cotton to Port au Prince
+wait 10
+key Return               # Tupi gift of 16 Furs to Quebec
+wait 10
+key Down                 # @MERCENARIES: bar to row 1
+key Return               # "Pay {7200$}."
+wait 10
+key Return               # @MERCS: English mercenaries arrive in Quebec
+wait 10
+shot                     # Spring 1601; Caravel #71 asks for orders

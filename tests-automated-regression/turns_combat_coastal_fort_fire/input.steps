@@ -1,0 +1,37 @@
+# An English coastal Fort fires on a French Caravel moored beside it at the top of England's colony EOT.
+# Start: turns_war_combat's input.sav (France, Spring 1600, turn 108, at war with England; French units
+# sentried, Dragoon #131 active), fixture: English Jamestown (48,19) given Stockade + Fort (fortification 3,
+# no Artillery: battery 4 * 1 tier * 1 = 4, FUN_364b_03f6); the empty French Caravel #79 moved out of Quebec
+# to the sea tile (49,18) NE of Jamestown, sentried; Quebec given Docks + Drydock (docks 3); re-saved once.
+# England's colony EOT opens its turn-109 slot, after the French end turn 108, so the Caravel is still there.
+key s                    # sentry the Dragoon: End of Turn
+wait 3
+key space                # end turn 108
+wait 30
+key Return               # Colonization Help: Time Scale
+wait 10
+key Return               # @FORTFIRE "{Fort} at {Jamestown} opens fire on {French Caravel}!" (France's ship:
+wait 10                 #  human chrome), then the battery's Combat Analysis
+key Return               # dismiss the analysis: the fort hits
+wait 10
+key Return               # @SHIPDAMAGE "{French Caravel} damaged! Ship returns to {Quebec} for repairs." (nearest
+wait 10                 #  own Drydock; goto = return-from-Europe tile 49,30; repair bill 0 vs a doubled fort)
+key Return               # (AI turn running; presses between popups are ignored)
+wait 10
+key Return               # English defeat French Colonists near Guadeloupe; wagon train captured
+wait 10
+key Return               # French colonists captured by the English
+wait 10
+key Return               # English march into Guadeloupe, 90 gold plundered
+wait 10
+key Return               # SoL Quebec 60% (Continue turn)
+wait 10
+key Return
+wait 10
+key Return               # price of Cigars rises
+wait 10
+key Return               # "{Caravel} has completed its repairs in {Quebec}." (French turn-109 repair tick);
+wait 10                 #  Caravel #148 reaching Europe opens the Europe screen
+key Escape               # leave the Europe screen; the repaired Caravel asks for orders
+wait 6
+shot

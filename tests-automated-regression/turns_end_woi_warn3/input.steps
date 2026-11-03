@@ -1,0 +1,37 @@
+# Start: turns_declare_independence_ref's output.sav (France, Autumn 1600, turn 109, War of Independence
+# declared; the Tories hold Montreal) with every French unit without orders fortified (land, orders 6) or
+# sentried (ships, orders 1), English Roanoke (pop 2, coastal) handed to France and Quebec,
+# Guadeloupe and English Cayenne to the Crown (colony nation, the units on their tiles too). France keeps
+# Martinique, Port au Prince and Roanoke: 3 colonies, 2 ports (ports < 3 selects 1, overwritten by the share
+# test); crown share 83%.
+# FUN_3844_0442 raw 58505-58556 (WoI declared, war not resolved): one @WARN%d a turn from the digit-patch
+# selector, last write wins: ports (colonies with the founding coastal bit +0x1c 0x40) < 3 -> 1, crown share of
+# the census colony population (c+1)*100/((h+1)+(c+1)) > 79 -> 3, census colonies < 3 -> 2; no lose arm
+# (colonies 0 -> 2, share > 89 -> 3, ports 0 -> 1) fires.
+# End of turn 109: a REF wave near Roanoke, Tory fights near Guadeloupe, a Caravel evades a Man-O-War
+# (nested pump), then @WARN3 ("the King's forces control 83% of the New France population").
+key space                # end turn 109 (Autumn 1600)
+wait 30
+key Return               # Royal Expeditionary Force lands near Roanoke (nested pump)
+wait 10
+key Return               # nested pump
+wait 10
+key Return               # Rebel colonists CAPTURED by the Tory (nested pump)
+wait 10
+key Return               # Tories defeat Rebel Colonists near Guadeloupe (nested pump)
+wait 10
+key Return               # nested pump
+wait 10
+key Return               # Rebel Caravel evades Tory Man-O-War (nested pump)
+wait 10
+key Return               # nested pump
+wait 10
+key Return               # Rebel colonists CAPTURED by the Tory (nested pump)
+wait 10
+key Return               # Tories defeat Rebel Colonists near Guadeloupe (nested pump)
+wait 10
+key Return               # Iroquois gift of 11 Cotton to Port au Prince
+wait 10
+key Return               # @WARN3: the King's forces control 83% of the New France population
+wait 10
+shot                     # Spring 1601

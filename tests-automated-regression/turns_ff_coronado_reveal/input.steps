@@ -1,0 +1,23 @@
+# Francisco de Coronado joins: FUN_4345_0342 case 6 runs FUN_13f1_00a6 for every colony (no owner test):
+# the electing nation's seen bit (0x10 << nation) on the 11x11 square around each colony.
+# Start: turns_pioneer_jobs_complete's output (France, Spring 1601, turn 110; England at peace,
+# every French map unit fortified, the Europe-bound Caravel held at sea). Fixture (sav_json): France
+# liberty_bells_pool = 1000 (threshold 1009 with 5 fathers; the turn's bells cross it) and next_founding_father = 6.
+# Covers: France's seen bit 0x20 set on every tile within 5 of all 14 colonies (English, Spanish, Dutch
+# and French alike), nowhere else.
+key space                  # end turn 110 (Spring 1601)
+wait 30
+key Return                 # Tupi gift of 6 Tobacco to Guadeloupe
+wait 6
+key Return                 # Francisco Coronado has joined the Continental Congress
+wait 6
+key Return                 # congress screen: close
+wait 6
+key Return                 # Colonizopedia entry: close
+wait 6
+key Return                 # next father picker: row 0 Adam Smith
+wait 6
+key Return                 # price of Cigars falls
+wait 6
+key Return                 # price of Coats rises
+wait 6

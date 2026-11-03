@@ -1,0 +1,32 @@
+# Start: turns_declare_independence_ref's output.sav (France, Autumn 1600, turn 109, War of Independence
+# declared; the Tories hold Montreal) with the calendar moved to Autumn 1839 (head.year 1839, autumn 1),
+# English Roanoke (coastal, pop 2) handed to France so France keeps three founding-coastal ports (+0x1c 0x40:
+# Quebec, Port au Prince, Roanoke) and no @WARN1 is due in DOS either, and every French unit without orders
+# fortified (land, orders 6) or sentried (ships, orders 1).
+# End of turn 109: the Crown's turn lands a wave near Roanoke and the Tories fight near Guadeloupe (popups
+# answered in the nested pump). Spring 1840: FUN_3844_0442 raw 58617-58628 (`!(0x5382 & 0x10)`, season 0,
+# year 0x730 = 1840, no war gate) shows @SOONRETIRING1 ("General Jacques Cartier, the people are weary of this
+# long war ..."); the war goes on.
+key space                # end turn 109 (Autumn 1839)
+wait 30
+key Return               # Royal Expeditionary Force lands near Roanoke (nested pump)
+wait 10
+key Return               # nested pump
+wait 10
+key Return               # Rebel colonists CAPTURED by the Tory (nested pump)
+wait 10
+key Return               # Tories defeat Rebel Colonists near Guadeloupe (nested pump)
+wait 10
+key Return               # nested pump
+wait 10
+key Return               # Rebel colonists CAPTURED by the Tory (nested pump)
+wait 10
+key Return               # Tories defeat Rebel Colonists near Guadeloupe (nested pump)
+wait 10
+key Return               # Iroquois gift of 11 Cotton to Port au Prince
+wait 10
+key Return               # Tupi gift of 16 Furs to Quebec
+wait 10
+key Return               # @SOONRETIRING1: the people are weary of this long war
+wait 10
+shot                     # Spring 1840

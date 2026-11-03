@@ -1,0 +1,25 @@
+# Start: turns_school_training's input.sav (France, Spring 1600, turn 108; England at peace, units
+# fortified), re-saved through one no-op replay, no edits. Guadeloupe (41,24) has no Docks; its NW
+# plot (40,23) is ocean (terrain 0x19). Minimap centre (260,67), 24 px plots: NW (236,43), E (284,67).
+# Covers the Docks gate on fishing (FUN_15eb_18ec raw 11967-11969 zeroes the yield; the assign
+# paths answer with GAME.TXT @NODOCKS): a Town Hall statesman dragged onto the ocean plot is refused
+# with @NODOCKS and stays in the Town Hall; the field-jobs menu of the Master Tobacco Planter on E
+# lists Fisherman (0/0 Food, rows are not docks-gated, FUN_15eb_3454) and picking it is refused with
+# @NODOCKS too, so he keeps farming E. The save is unchanged (no plot, job or stock moves).
+click 56 112               # open Guadeloupe
+wait 3
+drag 97 118 236 43         # Town Hall statesman -> ocean plot NW
+wait 3
+key Return                 # @NODOCKS: "We cannot operate fishing boats at this colony until we build Docks"
+wait 3
+click 284 67               # select the worker on plot E
+wait 3
+click 284 67               # click him again: field-jobs menu
+wait 3
+click 150 109              # Fisherman row
+wait 3
+key Return                 # @NODOCKS again
+wait 3
+key Escape                 # back to the map
+wait 3
+shot

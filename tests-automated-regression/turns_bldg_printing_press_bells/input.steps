@@ -1,0 +1,17 @@
+# Start: turns_school_training's input.sav (France, Spring 1600, turn 108; England at peace, the
+# Europe-bound Caravel held at sea, French units fortified). Fixture edits (sav_json, re-saved
+# through one no-op replay): Quebec gets a Printing Press (printing_press bit 1); Montreal gets
+# Printing Press + Newspaper (printing_press bits 3).
+# Covers the FUN_15eb_1f72 bells tail (port_bugs.md #926/#927): Newspaper v <<= 1, else Press
+# v += v >> 1, once on the colony total. Quebec 19 bells -> 28 (rebel_dividend 415 + 28 = 443 after
+# the >>6 decay; control 434), Montreal 15 -> 30 (Newspaper only, not Press + Newspaper: 385, control
+# 370); nation bell pool +24 over the control run (636 -> 660).
+key space                  # end turn 108
+wait 30
+key Return                 # Help: Time Scale (two turns per year from 1600)
+wait 10
+key Return                 # SoL in Quebec up to 61%: Continue turn
+wait 10
+key Return                 # price of Cigars rises
+wait 10
+shot                       # Autumn 1600: End of Turn

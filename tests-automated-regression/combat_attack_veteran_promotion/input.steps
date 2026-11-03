@@ -1,0 +1,16 @@
+# A Free Colonist Soldiers beats an English Soldiers in the open and is promoted to Veteran (@VETERAN).
+# Start: map_attack_colony_capture's input.sav (France, Spring 1600, turn 108, at war with England),
+# fixture: active Dragoon #131 at (39,23) made a plain Soldiers (type 1, profession 28 Free Colonist), the
+# other Dragoon #87 there fortified (orders 6); English Colonist #89 on the plains at (38,22) made a plain
+# Soldiers with no orders; re-saved once, then RT_RNG LCG state set to 123457. Rolls come from the saved LCG.
+key KP_7                 # the Soldiers attack NW: Combat Analysis dialog
+wait 3
+key Return               # dismiss: roll won
+wait 3
+key Return               # "{English Soldiers} routed! Unit demoted to {Colonists}" (@DEMOTE)
+wait 3
+key Return               # "{French} defeat {English Soldiers} near Cayenne!"; the winner's promotion roll
+wait 3                  #  (FUN_5fef_172c) succeeds: profession 28 -> 21 Veteran Soldier
+key Return               # @VETERAN "Our {Soldiers} have hardened to {Veteran} status, Your Excellency!"
+wait 3                  #  attack moves spent; no French unit left to move
+shot

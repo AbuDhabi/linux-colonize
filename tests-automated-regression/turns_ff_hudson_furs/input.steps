@@ -1,0 +1,15 @@
+# Henry Hudson doubles fur trapping: FUN_15eb_18ec raw 11970-11973 shifts the Furs field yield left once
+# (after the improvement stack and expert doubling, before the Convert +1) when the colony owner holds FF 8.
+# Start: turns_pioneer_jobs_complete's output (France, Spring 1601, turn 110; England at peace, every French
+# map unit fortified, the Europe-bound Caravel held at sea). Fixture (sav_json): France owns Hudson
+# (founding_fathers bit 8, count 6); Quebec's colonist 0 (Free Colonist farmer) moved to the N plot (45,23)
+# as a Fur Trapper (occupation 4).
+# Covers: Quebec Furs 0 -> 6 at end of turn (the same fixture without Hudson makes 3).
+key space                  # end turn 110 (Spring 1601)
+wait 30
+key Return                 # Tupi gift of 6 Tobacco to Guadeloupe
+wait 6
+key Return                 # price of Cigars falls
+wait 6
+key Return                 # price of Coats rises
+wait 6

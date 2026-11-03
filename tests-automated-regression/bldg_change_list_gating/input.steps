@@ -1,0 +1,29 @@
+# Start: turns_school_training's input.sav (France, Spring 1600, turn 108; England at peace, units
+# fortified). Fixture edit (sav_json, re-saved through one no-op replay): Montreal gets Docks +
+# Drydock + Shipyard (docks bits 7). View origin (38,18), 16 px tiles, y0 8.
+# Covers the FUN_15eb_3650 buildable gate as the C picker lists it:
+#   Quebec (pop 6, Schoolhouse, Docks, no Press, no Stockade, France without Adam Smith):
+#     16 rows = (No Production), Stockade, Armory, Drydock, Warehouse, Stable, Custom House
+#     (Stuyvesant), Printing Press, the four shops, Fur Trading Post, Lumber Mill, Church,
+#     Blacksmith's Shop, Wagon Train. No Fort (needs the Stockade), College / Magazine /
+#     Shipyard (min pop 8), Newspaper (needs the Press), factories (Adam Smith), ships (no Shipyard).
+#   Montreal (pop 7, Shipyard by fixture): 21 rows, the same buildings with Schoolhouse in place of
+#     Drydock, plus Caravel, Merchantman, Galleon, Privateer, Frigate (ships need only the Shipyard bit;
+#     Man-O-War never). Picks are by row position, so a gate change moves them.
+click 120 112              # open Quebec (45,24)
+wait 3
+key c                      # construction picker (Lumber Mill highlighted)
+wait 3
+click 150 99               # row 7: Printing Press (52 hammers, 20 tools)
+wait 3
+key Escape                 # back to the map
+wait 3
+click 88 160               # open Montreal (43,27)
+wait 3
+key c                      # picker: 21 rows, ships at the bottom
+wait 3
+click 150 167              # row 18: Galleon (320 hammers, 100 tools)
+wait 3
+key Escape                 # back to the map
+wait 3
+shot

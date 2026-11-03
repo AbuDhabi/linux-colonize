@@ -1,0 +1,16 @@
+# Adam Smith gates the factory rows (FUN_15eb_3650 raw 13707-13711: Arsenal, Textile Mill, Cigar Factory,
+# Rum Factory, Fur Factory, Iron Works need FF 0).
+# Start: colony_change_construction's input (France, 1599; Quebec pop 6, Lumber Mill in production).
+# Fixture (sav_json): Quebec owns the Fur Trading Post (fur_traders_house bits 3 = House + Post) and France
+# owns Adam Smith (founding_fathers bit 0, count 6). Fur Factory (min pop 6, catalog row 34) is listed
+# right above Lumber Mill.
+click 168 128              # open Quebec (map tile 45,24)
+wait 1
+key c                      # construction picker opens on Lumber Mill
+wait 1
+key Up                     # one row up: Fur Factory
+wait 1
+key Return                 # commit: Fur Factory becomes Quebec's project (building_in_production 34)
+wait 1
+key Escape                 # back to the map
+wait 1

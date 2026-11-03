@@ -1,0 +1,23 @@
+# Start: turns_school_training's input.sav (France, Spring 1600, turn 108; England at peace, the
+# Europe-bound Caravel held at sea, French units fortified). Fixture edits (sav_json, re-saved
+# through one no-op replay): Quebec gets Docks + Drydock + Shipyard (docks bits 7), project Caravel
+# (raw code 44: 128 hammers, 40 tools), hammers 128, tools 40; Montreal the same buildings, project
+# Merchantman (raw code 45: 192 hammers, 80 tools), hammers 192, tools 50.
+# Covers FUN_364b_0114 for ships: Montreal is short of tools, @NEEDTOOLS (80 needed, 50 on hand)
+# and nothing changes; Quebec's Caravel is spawned on the colony tile (hammers 0, tools 40 -> 0,
+# unit_type_counts[France][13] 2 -> 3, the project stays Caravel) with its "produces" notice, and
+# the new ship asks for orders in autumn 1600. (Capture writes the human's Europe-lane hulls after
+# the chain pass, so the new record takes slot 148 and the sailing Caravel moves to 149.)
+key space                  # end turn 108
+wait 30
+key Return                 # Help: Time Scale (two turns per year from 1600)
+wait 10
+key Return                 # @NEEDTOOLS: Merchantman in Montreal needs 80 tools, 50 available: Continue turn
+wait 10
+key Return                 # SoL in Quebec up to 60%: Continue turn
+wait 10
+key Return                 # Quebec colony produces Caravel: Continue turn
+wait 10
+key Return                 # price of Cigars rises
+wait 10
+shot                       # Autumn 1600: the new Caravel asks for orders

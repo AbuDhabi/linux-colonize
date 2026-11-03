@@ -1,0 +1,15 @@
+# Start: turns_school_training's input.sav (France, Spring 1600, turn 108; England at peace, the
+# Europe-bound Caravel held at sea, French units fortified). Fixture edits (sav_json, re-saved
+# through one no-op replay): Quebec gets Church + Cathedral (church bits 3) and statesman colonist 3
+# made a Preacher (occupation 16); Montreal gets a Church (church bit 1), nobody in it.
+# Covers the FUN_15eb_1f72 crosses composer: colony base +1 (every colony), +1 Church, +1 Cathedral
+# (the same passive +1 each, not scaled), worker 3 + SoL 1, doubled colony-wide by the Cathedral = 8.
+# Quebec 11, Montreal 2, three other colonies 1 each. The 584a dock drain (several colonists waiting
+# on the dock) clamps the old 5 crosses to 0 first, so current_crosses goes 5 -> 16 (control: 5 -> 5).
+key space                  # end turn 108
+wait 30
+key Return                 # Help: Time Scale (two turns per year from 1600)
+wait 10
+key Return                 # price of Cigars rises (no Quebec SoL notice: a statesman left the Town Hall)
+wait 10
+shot                       # Autumn 1600: End of Turn

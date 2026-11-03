@@ -1,0 +1,15 @@
+# Without Adam Smith no factory row is offered (FUN_15eb_3650 raw 13707-13711).
+# Start: colony_change_construction's input (France, 1599; Quebec pop 6, Lumber Mill in production).
+# Fixture (sav_json): Quebec owns the Fur Trading Post (fur_traders_house bits 3 = House + Post); France
+# does not own Adam Smith. Same keys as ff_adam_smith_fur_factory: the row above Lumber Mill is now
+# Rum Distillery (catalog row 28), not Fur Factory.
+click 168 128              # open Quebec (map tile 45,24)
+wait 1
+key c                      # construction picker opens on Lumber Mill
+wait 1
+key Up                     # one row up: Rum Distillery
+wait 1
+key Return                 # commit: Rum Distillery becomes Quebec's project (building_in_production 28)
+wait 1
+key Escape                 # back to the map
+wait 1

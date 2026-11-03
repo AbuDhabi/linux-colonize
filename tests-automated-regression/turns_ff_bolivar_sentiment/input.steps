@@ -1,0 +1,28 @@
+# Simon Bolivar joins: FUN_4345_0342 case 0x12 adds 20 to DS:0x53d0 (rebel_sentiment_report, cap 100);
+# FUN_15eb_0274 adds 20 to every colony's SoL from now on (human owner).
+# Start: turns_pioneer_jobs_complete's output (France, Spring 1601, turn 110; England at peace,
+# every French map unit fortified, the Europe-bound Caravel held at sea). Fixture (sav_json): France
+# liberty_bells_pool = 1000 (threshold 1009 with 5 fathers; the turn's bells cross it) and next_founding_father = 18.
+# Covers: rebel_sentiment_report / France rebel_sentiment 53 -> 75 (55 without him: see turns_ff_fugger_boycotts),
+# Montreal crosses 50% (SoL notice, 66%) and @REBELUP50 reports 75%;
+# Benjamin Franklin replaces him in the picker.
+key space                  # end turn 110 (Spring 1601)
+wait 30
+key Return                 # Tupi gift of 6 Tobacco to Guadeloupe
+wait 6
+key Return                 # Simon Bolivar has joined the Continental Congress
+wait 6
+key Return                 # congress screen: close
+wait 6
+key Return                 # Colonizopedia entry: close
+wait 6
+key Return                 # next father picker: row 0 Adam Smith
+wait 6
+key Return                 # SoL in Montreal up to 66%: Continue turn
+wait 6
+key Return                 # rebel sentiment rising: 75%
+wait 6
+key Return                 # price of Cigars falls
+wait 6
+key Return                 # price of Coats rises
+wait 6

@@ -1,0 +1,8 @@
+# Sieur de La Salle, admit-time grant: FUN_15eb_1068's admit tail (raw 11311-11314) gives the colony being
+# joined a Stockade once its population is > 2 and its owner holds FF 9; only that colony (port_bugs.md #1329).
+# Start: map_join_colony's input (France, 1599; free colonist #128 on the Quebec (45,24) tile selected, full
+# moves). Fixture (sav_json): France owns La Salle (founding_fathers bit 9, count 6) though no colony has a
+# Stockade yet (Quebec pop 6, Montreal 7, Guadeloupe 4).
+key b                      # Join Colony: #128 joins Quebec (pop 6 -> 7) and Quebec gets its Stockade (fortification 1);
+                           # Montreal and Guadeloupe stay unfortified
+shot

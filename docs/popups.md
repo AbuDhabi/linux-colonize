@@ -525,7 +525,7 @@ fragment. Related sections are listed in the first column.
 | `@INVASION` / intervene | REF / ally arrival | Done thin | REF `@INVASION`; ally `@INTERVENTION`+`@INTERVENE` |
 | Crown capture | REF takes colony | Done thin | `@CAPTURED3` via `units_combat_notify_colony_captured` (`COMBAT_COLONY`; the reserved `KING_CAPTURE` tag has no producer) |
 | Revolution win/lose | End WoI | Done thin | `@WINNING` / `@LOSING1` / `@LOSING2` / `@RETIRING2` via `popup_msg_fill`; latches |
-| Mid-war warn | WoI | Done | ONE `@WARN%d` per turn from DOS's digit-patch selector (raw 58506-58534): colonies<3 → `@WARN2` > share ≥80% → `@WARN3` > ports<3 → `@WARN1`; skipped on a turn that wins or loses the war; port-side episode latches `market_demand_pool_raw[6]/[7]/[10]`. `@LOSING3` takes over at share ≥90% |
+| Mid-war warn | WoI | Done | ONE `@WARN%d` per turn from DOS's digit-patch selector (raw 58506-58534): colonies<3 → `@WARN2` > share ≥80% → `@WARN3` > ports<3 → `@WARN1`; skipped on a turn that wins or loses the war; port-side episode latches in the human nation's `unknown23_pad[1]` (bits 0x08/0x10/0x20, `ai_king_latch_set`). `@LOSING3` takes over at share ≥90% |
 | `@CONTINENTAL` FF elect | Founding Father debate | Done | `FF_CONGRESS` |
 | 1800 peacetime end | Auto-end | Done thin | `@SCORED` CHOICE; That's all → `@RETIRING` + retire score; latch `market_demand_pool_raw[4]=3` |
 | Anniversary soon-retire | Calendar | Done thin | `@SOONRETIRING0` Spring 1790 peacetime; `@SOONRETIRING1` 1840 WoI |
