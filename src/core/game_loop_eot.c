@@ -1214,89 +1214,17 @@ int game_trade_route_aim_stop(ColonizeGameState* game, ColonizeUnit* u, int stop
 }
 
 /*
- * Stop service (before advancing): Europe=999 ship sells holds; own colony
- * uses colonies_trade_route_service_stop (Col1 load/unload nibbles when set;
- * edited on trade_screen.c). Cite: ColonizeCol1TradeStop;
- * Colonization.pdf Trade Routes.
+ * Colony-stop service (FUN_479b_0bd0 raw 77256-77316). Europe stops are
+ * serviced in the harbor (game_europe_service_trade_harbor). The caller has
+ * checked that the unit stands on the colony tile (FUN_479b_0b84).
  */
-static void game_trade_route_service_stop(ColonizeGameState* game, ColonizeUnit* u) {
-  if (!game || !u || !game->col1_ok) {
-    return;
-  }
-  const int route = u->follow_unit_id;
-  if (route < 0 || route >= (int)COLONIZE_COL1_TRADE_ROUTE_COUNT) {
-    return;
-  }
-  const ColonizeCol1TradeRoute* r = &game->col1.trade_route[route];
-  const int si = u->col1_counter16;
-  if (si < 0 || si >= (int)r->dest_count) {
-    return;
-  }
-  const ColonizeCol1TradeStop* st = &r->stop[si];
-  const uint16_t cidx = st->colony_index;
-  if (cidx == 999) {
-    /*
-     * Lane-full fallback only (game_trade_route_retarget really crosses to
-     * Europe when it can). The old extra `u->x >= 200 || u->y >= 200` arm
-     * was a stale Europe-sentinel test: this port keeps crossing ships in
-     * EuropeScreen's harbor/expected/bound arrays, never as live units at
-     * DOS's 228/232/244+n coordinates, so the only reachable condition is a
-     * sea unit standing on a high-seas tile.
-     */
-    if (units_is_sea(&game->units, u->id) &&
-        map_tile_is_high_seas(&game->world_map, u->x, u->y)) {
-      /*
-       * DOS FUN_479b_0bd0 Europe arrival (viceroy_unpacked.c:77254-77286):
-       * for every unload-list cargo, repeat `FUN_281f_0c2c` (find a hold of
-       * that type) → `FUN_291f_0d02` (sell it) until no hold is left — the
-       * loop ends only when the FIND fails, never on a refused sale. Then
-       * BUY the load-list cargos (FUN_38fd_1fa2 via FUN_291f_0b42), one
-       * 100-unit hold per list entry, gold permitting.
-       *
-       * Sweeping the slot array once is the same set of sales without the
-       * re-scan (europe_sell_unit_hold zeroes the slot in place, it does not
-       * compact), and it matches game_europe_service_trade_harbor's copy
-       * exactly. The old shape broke out of the whole cargo on the first
-       * refused sale, so one boycotted hold stranded every later hold of
-       * that cargo aboard.
-       */
-      const int holds = units_goods_hold_count(&game->units, u->id);
-      const int hold_max = holds < COLONIZE_UNIT_CARGO_MAX ? holds : COLONIZE_UNIT_CARGO_MAX;
-      for (int i = 0; i < (int)st->unload_count && i < 6; ++i) {
-        const int want = col1_trade_nibble_cargo(st->unload_cargo_nibbles, i);
-        for (int h = 0; h < hold_max; ++h) {
-          if (u->hold_goods_amount[h] > 0 && u->hold_goods_amount[h] < 255 &&
-              u->hold_goods_type[h] == want) {
-            const ColonizeWorld w = game_world(game);
-            (void)europe_sell_unit_hold_w(&w, u->id, h);
-          }
-        }
-      }
-      for (int i = 0; i < (int)st->load_count && i < 6; ++i) {
-        const int ct = col1_trade_nibble_cargo(st->load_cargo_nibbles, i);
-        const ColonizeWorld w = game_world(game);
-        (void)europe_buy_unit_cargo_w(&w, u->id, ct, 100);
-      }
-      game_europe_drain_price_events(game); /* sells/buys now stamp the record themselves (G3) */
-    }
-    return;
-  }
-  /* Stops hold DOS colony indices, not port ids: once a colony is deleted
-   * (colonies_trade_stops_on_delete shifts the stops) the two part ways. */
-  const int cid = colonies_id_at_dos_index(&game->colonies, (int)cidx);
-  const ColonizeColony* col = colonies_get(&game->colonies, cid);
-  if (!col || !col->active || col->nation_id != game->human_nation) {
-    return;
-  }
-  /* Ship: allow adjacent coastal berth. */
-  if (units_is_sea(&game->units, u->id)) {
-    if (abs(u->x - col->x) > 1 || abs(u->y - col->y) > 1) {
-      return;
-    }
-  } else if (u->x != col->x || u->y != col->y) {
-    return;
-  }
-  (void)colonies_trade_route_service_stop(&game->colonies, cid, &game->units, u->id, st);
+static void game_trade_route_service_stop(
+  ColonizeGameState* game,
+  ColonizeUnit* u,
+  const ColonizeCol1TradeStop* st,
+  int colony_id
+) {
+  (void)colonies_trade_route_service_stop(&game->colonies, colony_id, &game->units, u->id, st);
 }
 
 /* If TRADE_ROUTE unit is at current stop (or has no goto), service then advance. */
@@ -1318,6 +1246,9 @@ void game_trade_route_retarget(ColonizeGameState* game, ColonizeUnit* u) {
   if (!at_dest) {
     return;
   }
+  const int si_here = u->col1_counter16;
+  const ColonizeCol1TradeStop* st =
+    (game->col1_ok && si_here >= 0 && si_here < (int)r->dest_count) ? &r->stop[si_here] : NULL;
   /*
    * Europe stop, ship on the sea lane: DOS actually sails the ship to
    * Europe — it crosses (voyage turns), docks, sells/buys the stop's
@@ -1325,35 +1256,72 @@ void game_trade_route_retarget(ColonizeGameState* game, ColonizeUnit* u) {
    * sea lane tile, then returns. Never visits Europe"). Stamp the route
    * on the Expected slot; the harbor service + return leg live in
    * game_europe_service_trade_harbor / game_europe_deliver_bound_ships.
-   * Lane full → fall through to the old service-in-place fallback.
    */
-  {
-    const int si_here = u->col1_counter16;
-    if (game->col1_ok && game->europe_ok && si_here >= 0 && si_here < (int)r->dest_count &&
-        r->stop[si_here].colony_index == 999 && units_is_sea(&game->units, u->id) &&
-        map_tile_is_high_seas(&game->world_map, u->x, u->y)) {
-      const int uid = u->id;
-      const int before = game->europe.expected_ships;
-      /* Refused (War of Independence) or lane full → fall through to the
-       * service-in-place fallback below with the ship still on the map. */
-      (void)game_ship_sail_to_europe(game, uid);
-      if (game->europe.expected_ships > before) {
-        EuropeHarborShip* slot = &game->europe.expected[game->europe.expected_ships - 1];
-        slot->trade_route_plus1 = route + 1;
-        slot->trade_stop = si_here;
-        return; /* unit despawned into the Atlantic lane */
-      }
-      u = units_get(&game->units, uid);
-      if (!u || !u->active) {
+  if (st && st->colony_index == 999 && game->europe_ok && units_is_sea(&game->units, u->id) &&
+      map_tile_is_high_seas(&game->world_map, u->x, u->y)) {
+    /*
+     * War of Independence: DOS FUN_479b_0972 raw 77094-77101 runs the arrival
+     * sail (FUN_291f_0208 -> FUN_48d3_007a) only if `(DS:0x5382 & 1) == 0 ||
+     * (crown && type 0x12)`, silently. The ship never reaches the dock lane,
+     * so FUN_479b_0b84(unit, 999) stays false: no sale, no purchase, and the
+     * route keeps this stop (orders 2 kept, raw 77113-77116). No popup.
+     */
+    if (game_europe_blocked_by_woi(game) && !game_ship_woi_europe_exempt(game, u)) {
+      return;
+    }
+    const int uid = u->id;
+    const int before = game->europe.expected_ships;
+    (void)game_ship_sail_to_europe(game, uid);
+    if (game->europe.expected_ships > before) {
+      EuropeHarborShip* slot = &game->europe.expected[game->europe.expected_ships - 1];
+      slot->trade_route_plus1 = route + 1;
+      slot->trade_stop = si_here;
+    }
+    /* Departed (unit despawned into the Atlantic lane), or lane full: not on
+     * the dock lane either way, so 0b84 is false and the stop is kept. */
+    return;
+  }
+  if (st && st->colony_index == 999) {
+    /*
+     * Any other unit on a Europe stop (a wagon, a ship off the lane, no
+     * Europe loaded): FUN_479b_0b84(unit, 999) raw 77158-77175 is true only
+     * on the dock lane, so FUN_479b_0bd0 takes its not-arrived arm (raw
+     * 77212-77246): re-aim the Europe stop (FUN_291f_02ea raw 77229, then
+     * FUN_291f_0ec2 raw 77244) and keep the stop index. Port stand-in for the
+     * aim: game_trade_stop_coords.
+     */
+    (void)game_trade_route_aim_stop(game, u, si_here);
+    return;
+  }
+  if (st) {
+    /*
+     * DOS FUN_479b_0b84 raw 77158-77175: a colony stop is reached only when
+     * the unit's tile equals the colony record's tile (+0x5d46/+0x5d47 of
+     * record idx, idx = the stop's DOS colony index, not a port id), for
+     * ships and wagons alike. Not there (goto NONE, or a goto left from an
+     * older aim): FUN_479b_0bd0's not-arrived arm (raw 77234-77238) re-aims
+     * the SAME stop's colony tile and keeps the stop index.
+     */
+    const int cid = colonies_id_at_dos_index(&game->colonies, (int)st->colony_index);
+    const ColonizeColony* col = colonies_get(&game->colonies, cid);
+    if (col && col->active) {
+      if (u->x != col->x || u->y != col->y) {
+        (void)game_trade_route_aim_stop(game, u, si_here);
         return;
+      }
+      if (col->nation_id == game->human_nation) {
+        game_trade_route_service_stop(game, u, st, cid);
       }
     }
   }
-  game_trade_route_service_stop(game, u);
   /*
-   * DOS FUN_479b_0bd0 tail: a route whose stops are all the same port warns
-   * @ROUTELOOP {%STRING0} and parks the unit for the turn.
+   * DOS FUN_479b_0bd0 tail: raw 77317-77318 advance the stop
+   * (`local_6 = (local_6+1) % count; FUN_281f_08b2`) on EVERY arrival, and
+   * only then raw 77319-77334 test whether all stops are the same colony and,
+   * if so, warn @ROUTELOOP {%STRING0} and end the unit's move (FUN_281f_0934).
    */
+  const int next = (u->col1_counter16 + 1) % (int)r->dest_count;
+  (void)game_trade_route_aim_stop(game, u, next);
   bool all_same = true;
   for (int i = 1; i < (int)r->dest_count; ++i) {
     if (r->stop[i].colony_index != r->stop[0].colony_index) {
@@ -1369,10 +1337,7 @@ void game_trade_route_retarget(ColonizeGameState* game, ColonizeUnit* u) {
     popup_msg_fill(&game->messages, "ROUTELOOP", &tok, "", body, sizeof(body));
     ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
     u->moves = 0;
-    return;
   }
-  const int next = (u->col1_counter16 + 1) % (int)r->dest_count;
-  (void)game_trade_route_aim_stop(game, u, next);
 }
 
 /*

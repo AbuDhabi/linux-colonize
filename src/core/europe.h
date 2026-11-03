@@ -877,12 +877,6 @@ int europe_nation_refill_pool_slot(
 
 /* FUN_38fd_0718 for a nation record: unit id parked in the Europe limbo, or -1. */
 int europe_nation_harbor_spawn(const ColonizeWorld* w, int nation_id, int profession);
-/* europe_sell_unit_hold_w -- see docs/europe.md#europe_sell_unit_hold_w */
-int europe_sell_unit_hold_w(
-  const ColonizeWorld* w,
-  int unit_id,
-  int hold_index
-);
 
 /* Forward decls — avoid pulling colony/col1 into every europe consumer. */
 struct ColonizeColonyPool;
@@ -951,13 +945,6 @@ int europe_buy_cargo_w(
   const ColonizeWorld* w,
   int buyer_nation,
   int harbor_index,
-  int cargo_type,
-  int amount
-);
-/* europe_buy_unit_cargo_w -- see docs/europe.md#europe_buy_unit_cargo_w */
-int europe_buy_unit_cargo_w(
-  const ColonizeWorld* w,
-  int unit_id,
   int cargo_type,
   int amount
 );

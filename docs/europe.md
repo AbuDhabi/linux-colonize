@@ -648,16 +648,6 @@ rewrites needed_crosses, and on a crossing empties one pool slot into a
 real unit record (FUN_38fd_0718), refills it (FUN_38fd_46d4) and zeroes
 the crosses. Returns 1 when an immigrant was created, else 0.
 
-## europe_sell_unit_hold_w
-
-Sell one commodity hold from a map/transport ColonizeUnit into eu->gold.
-No harbor UI — proceeds via europe_sell_proceeds (bid × amount × (100−tax)/100).
-Cite: Colonization.pdf Europe buy/sell + tax; same Crown cut as harbor
-europe_sell_hold / GAME.TXT tax rate path. Clears the hold on success.
-The withheld tax is credited to the hold owner's royal_money (DOS
-`nation+0x22 += tax`); `col1` may be NULL. Smell audit #51.
-Returns gold credited (0 if empty/invalid).
-
 ## europe_custom_house_autosell_w
 
 FUN_364b_0688 Custom House auto-sell (colony EOT after production).
@@ -710,13 +700,6 @@ free = @UNIT cargo capacity − goods holds used (passengers do not count:
 3208 reads +0x3150, which only the goods loader FUN_15eb_30b8 raises); room =
 free*100, plus the part-full matching holds ONLY when free == 0. A NULL
 `units` falls back to the six-slot maximum. 0 = the "no room" arm.
-
-## europe_buy_unit_cargo_w
-
-Trade-route load list at a Europe stop: buy up to `amount` (≤100) of
-cargo_type straight into a map/transport unit's holds. Flat ask price,
-boycott gated. Cite: DOS FUN_479b_0bd0 load phase → FUN_38fd_1fa2.
-Returns units bought (0 = no gold / boycott / no room).
 
 ## europe_hit_test_ex
 

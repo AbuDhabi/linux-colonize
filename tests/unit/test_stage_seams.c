@@ -638,6 +638,202 @@ static int test_trade_route_ship_aims_colony_tile(void) {
   return rc;
 }
 
+/* Trade-route seam fixture: 8x8 map filled with `terrain`, one unit type (wagon or
+ * caravel, 2 holds), human nation 0, popups ready, route 0 with 2 stops. */
+static void trade_seam_init(ColonizeGameState* game, int terrain, bool sea) {
+  memset(game, 0, sizeof(*game));
+  (void)fx_map_alloc(&game->world_map, 8, 8, terrain, /*with_seen=*/true);
+  game->world_map_ok = true;
+  game->human_nation = 0;
+  game->col1_ok = true;
+  fx_units_init(&game->units);
+  game->units_ok = true;
+  game->units.type_count = 1;
+  game->units.types[0].kind_plus1 = (sea ? UNITS_KIND_CARAVEL : UNITS_KIND_WAGON) + 1;
+  game->units.types[0].movement = sea ? 4 : 2;
+  game->units.types[0].domain = sea ? COLONIZE_UNIT_DOMAIN_SEA : COLONIZE_UNIT_DOMAIN_LAND;
+  game->units.types[0].cargo = 2;
+  fx_colonies_init(&game->colonies);
+  game->colonies_ok = true;
+  ai_popup_init(&game->ai_popups);
+  game->col1.trade_route[0].dest_count = 2;
+  units_set_occupancy_map(&game->world_map);
+  colonies_set_occupancy_map(&game->world_map);
+}
+
+static void trade_seam_free(ColonizeGameState* game) {
+  colonies_set_occupancy_map(NULL);
+  units_set_occupancy_map(NULL);
+  fx_map_free(&game->world_map);
+}
+
+static ColonizeUnit* trade_seam_unit(ColonizeGameState* game, int x, int y, int stop) {
+  ColonizeUnit* u = units_get(&game->units, units_spawn(&game->units, 0, x, y));
+  if (u) {
+    u->nation_id = 0;
+    u->orders = UNITS_ORDER_TRADE_ROUTE;
+    u->follow_unit_id = 0;
+    u->col1_counter16 = stop;
+    u->goto_x = x;
+    u->goto_y = y;
+    u->moves = 6;
+  }
+  return u;
+}
+
+static int trade_seam_held(const ColonizeGameState* game, const ColonizeUnit* u, int cargo) {
+  int n = 0;
+  for (int h = 0; h < units_goods_hold_count(&game->units, u->id); ++h) {
+    if (u->hold_goods_type[h] == cargo) {
+      n += u->hold_goods_amount[h];
+    }
+  }
+  return n;
+}
+
+/* FUN_479b_0b84 raw 77158-77175: route stops hold DOS colony indices. After a colony
+ * is gone (a hole in the port pool), DOS index 1 is the third port colony (id 2); the
+ * stop must service that colony, not port id 1. */
+static int test_trade_route_stop_uses_dos_colony_index(void) {
+  ColonizeGameState game;
+  trade_seam_init(&game, 2, false);
+  ColonizeColony* a = fx_colony_add(&game.colonies, 0, 1, 1, 1);
+  ColonizeColony* gone = fx_colony_add(&game.colonies, 0, 3, 1, 1);
+  ColonizeColony* c = fx_colony_add(&game.colonies, 0, 5, 1, 1);
+  gone->active = false;
+  c->stock[COLONIZE_CARGO_SUGAR] = 60;
+  game.col1.nation[0].trade.euro_price[COLONIZE_CARGO_SUGAR] = 4;
+  ColonizeCol1TradeRoute* route = &game.col1.trade_route[0];
+  route->stop[0].colony_index = 1; /* DOS index of c */
+  route->stop[0].load_count = 1;
+  col1_trade_nibble_set(route->stop[0].load_cargo_nibbles, 0, COLONIZE_CARGO_SUGAR);
+  route->stop[1].colony_index = 0;
+  ColonizeUnit* w = trade_seam_unit(&game, c->x, c->y, 0);
+  int rc = 0;
+  if (!w) {
+    rc = fail("dos-index wagon spawn");
+  } else {
+    game_trade_route_retarget(&game, w);
+    if (trade_seam_held(&game, w, COLONIZE_CARGO_SUGAR) != 60 ||
+        c->stock[COLONIZE_CARGO_SUGAR] != 0) {
+      rc = fail("trade stop looked the DOS index up as a port id");
+    } else if (w->col1_counter16 != 1 || w->goto_x != a->x || w->goto_y != a->y) {
+      rc = fail("dos-index stop did not advance");
+    }
+  }
+  trade_seam_free(&game);
+  return rc;
+}
+
+/* FUN_479b_0bd0 raw 77234-77238: a unit whose goto is spent but which does not stand
+ * on the stop colony's tile (FUN_479b_0b84 exact tile) is not at the stop: it re-aims
+ * the SAME stop instead of servicing or advancing. */
+static int test_trade_route_off_tile_reaims_same_stop(void) {
+  ColonizeGameState game;
+  trade_seam_init(&game, 2, false);
+  ColonizeColony* a = fx_colony_add(&game.colonies, 0, 2, 2, 1);
+  (void)fx_colony_add(&game.colonies, 0, 6, 6, 1);
+  a->stock[COLONIZE_CARGO_SUGAR] = 60;
+  game.col1.nation[0].trade.euro_price[COLONIZE_CARGO_SUGAR] = 4;
+  ColonizeCol1TradeRoute* route = &game.col1.trade_route[0];
+  route->stop[0].colony_index = 0;
+  route->stop[0].load_count = 1;
+  col1_trade_nibble_set(route->stop[0].load_cargo_nibbles, 0, COLONIZE_CARGO_SUGAR);
+  route->stop[1].colony_index = 1;
+  ColonizeUnit* w = trade_seam_unit(&game, 3, 2, 0); /* next to a, not on it */
+  int rc = 0;
+  if (!w) {
+    rc = fail("off-tile wagon spawn");
+  } else {
+    w->goto_x = UNITS_GOTO_NONE;
+    w->goto_y = UNITS_GOTO_NONE;
+    game_trade_route_retarget(&game, w);
+    if (w->col1_counter16 != 0 || w->goto_x != a->x || w->goto_y != a->y ||
+        a->stock[COLONIZE_CARGO_SUGAR] != 60) {
+      rc = fail("off-tile unit serviced or skipped its stop");
+    }
+  }
+  trade_seam_free(&game);
+  return rc;
+}
+
+/* FUN_479b_0bd0 raw 77317-77334: the stop advances on every arrival BEFORE the
+ * all-same-colony @ROUTELOOP check, which then ends the move. */
+static int test_trade_route_routeloop_advances_stop(void) {
+  ColonizeGameState game;
+  trade_seam_init(&game, 2, false);
+  ColonizeColony* a = fx_colony_add(&game.colonies, 0, 2, 2, 1);
+  game.col1.trade_route[0].stop[0].colony_index = 0;
+  game.col1.trade_route[0].stop[1].colony_index = 0;
+  ColonizeUnit* w = trade_seam_unit(&game, a->x, a->y, 0);
+  int rc = 0;
+  if (!w) {
+    rc = fail("routeloop wagon spawn");
+  } else {
+    game_trade_route_retarget(&game, w);
+    if (w->col1_counter16 != 1 || w->moves != 0 ||
+        game.ai_popups.queue_count + game.ai_popups.open < 1) {
+      rc = fail("routeloop did not advance the stop before the warning");
+    }
+  }
+  trade_seam_free(&game);
+  return rc;
+}
+
+/* FUN_479b_0972 raw 77094-77101: in the War of Independence a route ship reaching its
+ * Europe stop on the high seas does not sail (silently) and never reaches the dock lane
+ * (FUN_479b_0b84(unit, 999) false), so it trades nothing there and keeps the stop. */
+static int test_trade_route_woi_europe_stop_no_trade(void) {
+  ColonizeGameState game;
+  trade_seam_init(&game, T_HIGH_SEAS, true);
+  game.europe_ok = true;
+  game.col1.head.game_options.woi = 1;
+  (void)fx_colony_add(&game.colonies, 0, 1, 1, 1);
+  ColonizeCol1TradeRoute* route = &game.col1.trade_route[0];
+  route->stop[0].colony_index = 999;
+  route->stop[0].unload_count = 1;
+  col1_trade_nibble_set(route->stop[0].unload_cargo_nibbles, 0, COLONIZE_CARGO_FURS);
+  route->stop[1].colony_index = 0;
+  ColonizeUnit* s = trade_seam_unit(&game, 4, 4, 0);
+  int rc = 0;
+  if (!s || units_load_goods(&game.units, s->id, COLONIZE_CARGO_FURS, 50) != 50) {
+    rc = fail("woi ship fixture");
+  } else {
+    game_trade_route_retarget(&game, s);
+    if (s->col1_counter16 != 0 || trade_seam_held(&game, s, COLONIZE_CARGO_FURS) != 50 ||
+        game.ai_popups.queue_count != 0 || game.ai_popups.open) {
+      rc = fail("WoI Europe stop traded, advanced or popped up");
+    }
+  }
+  trade_seam_free(&game);
+  return rc;
+}
+
+/* FUN_479b_0b84(unit, 999) raw 77158-77175 is true only on the dock lane: a wagon whose
+ * stop is Europe is never there, so FUN_479b_0bd0 keeps the stop (not-arrived arm, raw
+ * 77212-77246) instead of advancing. */
+static int test_trade_route_europe_stop_off_lane_keeps_stop(void) {
+  ColonizeGameState game;
+  trade_seam_init(&game, 2, false);
+  (void)fx_colony_add(&game.colonies, 0, 1, 1, 1);
+  game.col1.trade_route[0].stop[0].colony_index = 999;
+  game.col1.trade_route[0].stop[1].colony_index = 0;
+  ColonizeUnit* w = trade_seam_unit(&game, 4, 4, 0);
+  int rc = 0;
+  if (!w) {
+    rc = fail("europe-stop wagon spawn");
+  } else {
+    w->goto_x = UNITS_GOTO_NONE;
+    w->goto_y = UNITS_GOTO_NONE;
+    game_trade_route_retarget(&game, w);
+    if (w->col1_counter16 != 0) {
+      rc = fail("off-lane unit advanced past its Europe stop");
+    }
+  }
+  trade_seam_free(&game);
+  return rc;
+}
+
 /* DOS FUN_2b5a_1e66 raw 42862-42864 assigns order 2 and immediately calls
  * FUN_479b_0bd0(unit, 1). Starting a full-MP wagon at the other stop must
  * therefore retain control long enough to begin moving, even when another
@@ -2881,6 +3077,11 @@ static const TestCase k_cases[] = {
     {"test_game_colony_outside_role_tools_residue", test_game_colony_outside_role_tools_residue},
     {"test_colony_zoom_hold_survives_pedia_detour", test_colony_zoom_hold_survives_pedia_detour},
     {"test_trade_route_wagon_services_arrival_stop", test_trade_route_wagon_services_arrival_stop},
+    {"test_trade_route_stop_uses_dos_colony_index", test_trade_route_stop_uses_dos_colony_index},
+    {"test_trade_route_off_tile_reaims_same_stop", test_trade_route_off_tile_reaims_same_stop},
+    {"test_trade_route_routeloop_advances_stop", test_trade_route_routeloop_advances_stop},
+    {"test_trade_route_woi_europe_stop_no_trade", test_trade_route_woi_europe_stop_no_trade},
+    {"test_trade_route_europe_stop_off_lane_keeps_stop", test_trade_route_europe_stop_off_lane_keeps_stop},
     {"test_trade_route_begin_moves_wagon_to_selected_stop", test_trade_route_begin_moves_wagon_to_selected_stop},
     {"test_goto_treasure_gets_king_galleon_offer", test_goto_treasure_gets_king_galleon_offer},
     {"test_ship_bumps_foreign_colony_trade_arm", test_ship_bumps_foreign_colony_trade_arm},

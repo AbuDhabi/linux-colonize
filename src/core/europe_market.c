@@ -135,7 +135,7 @@ static void europe_push_sale_status(EuropeScreen* eu, int cargo_type, int amount
  * ---------------------------------------------------------------------
  * The one Europe sell pipeline (audit SC-16 / SC-17).
  *
- * europe_sell_hold, europe_sell_hold_partial and europe_sell_unit_hold each
+ * europe_sell_hold, europe_sell_hold_partial and a map-unit sell each
  * wrote this sequence out in full, with three separately-maintained copies
  * of the same smell-audit comment block. The order below is DOS's and is
  * load-bearing:
@@ -638,109 +638,6 @@ int europe_ai_colony_dump_sell_w(
   }
   return total;
 }
-
-int europe_sell_unit_hold_w(
-  const ColonizeWorld* w,
-  int unit_id,
-  int hold_index
-) {
-  EuropeScreen* eu = w->europe;
-  struct ColonizeCol1Save* col1 = w->col1;
-  ColonizeUnitPool* units = w->units;
-
-  /*
-   * Map/transport dump-sell (no harbor chrome). Tax path = europe_sell_proceeds:
-   * gross = bid * amount, net = gross - gross * tax / 100 (FUN_364b_0688 via
-   * europe_net_after_tax) — same Crown cut as europe_sell_hold.
-   * Cite: Colonization.pdf Europe buy/sell + tax;
-   * docs/manual_gap.md Europe commodity trade.
-   */
-  if (!eu || !units) {
-    return 0;
-  }
-  ColonizeUnit* u = units_get(units, unit_id);
-  if (!u || !u->active || !units_is_transport(units, unit_id)) {
-    return 0;
-  }
-  if (hold_index < 0 || hold_index >= COLONIZE_UNIT_CARGO_MAX) {
-    return 0;
-  }
-  const int amt = u->hold_goods_amount[hold_index];
-  const int ctype = u->hold_goods_type[hold_index];
-  if (amt <= 0 || amt >= 255) {
-    return 0;
-  }
-  /* Seller = the hold's owner, so an AI-owned hold credits the AI purse. */
-  const int gained = europe_sell_commit(
-    eu, col1, (int)u->nation_id, &u->hold_goods_type[hold_index],
-    &u->hold_goods_amount[hold_index], amt
-  );
-  if (gained <= 0) {
-    return 0;
-  }
-  const char* cname =
-    (ctype >= 0 && ctype < eu->cargo_count) ? eu->cargo[ctype].name : "";
-  diag_info(
-    "EUROPE sold %d %s from unit %d: bid=%d tax=%d%% proceeds=%d gold=%d",
-    amt, cname, unit_id, europe_sell_price(eu, ctype), eu->tax_percent, gained, eu->gold
-  );
-  return gained;
-}
-
-int europe_buy_unit_cargo_w(
-  const ColonizeWorld* w,
-  int unit_id,
-  int cargo_type,
-  int amount
-) {
-  EuropeScreen* eu = w->europe;
-  struct ColonizeCol1Save* col1 = w->col1;
-  ColonizeUnitPool* units = w->units;
-
-  /*
-   * Map/transport buy (no harbor chrome) — trade-route load list at a Europe
-   * stop (DOS FUN_479b_0bd0 → FUN_38fd_1fa2 via FUN_291f_0b42). Flat ask ×
-   * bought, boycott gated, volume price applied, same as europe_buy_cargo.
-   */
-  if (!eu || !units || cargo_type < 0 || cargo_type >= eu->cargo_count || amount <= 0) {
-    return 0;
-  }
-  ColonizeUnit* u = units_get(units, unit_id);
-  if (!u || !u->active || !units_is_transport(units, unit_id)) {
-    return 0;
-  }
-  if (europe_cargo_boycotted_ex(eu, col1, (int)u->nation_id, cargo_type)) {
-    return 0;
-  }
-  const int ask = eu->cargo[cargo_type].ask;
-  if (ask <= 0) {
-    return 0;
-  }
-  int buy = amount > 100 ? 100 : amount;
-  const int can_afford = eu->gold / ask;
-  if (buy > can_afford) {
-    buy = can_afford;
-  }
-  if (buy <= 0) {
-    return 0;
-  }
-  const int loaded = units_load_goods(units, unit_id, cargo_type, buy);
-  if (loaded <= 0) {
-    return 0;
-  }
-  europe_purse_move(eu, col1, (int)u->nation_id, -(long)loaded * ask);
-  /* Smell audit #50: ledger (1d80 gold −= ask·amt) + price move. */
-  europe_apply_trade_volume(
-    eu, col1, (int)u->nation_id, col1 ? (int)col1->head.human_player : (int)u->nation_id,
-    cargo_type, loaded, 1, 1
-  );
-  diag_info(
-    "EUROPE bought %d %s onto unit %d: ask=%d cost=%d gold=%d",
-    loaded, eu->cargo[cargo_type].name, unit_id, ask, loaded * ask, eu->gold
-  );
-  return loaded;
-}
-
 
 int europe_harbor_cargo_room(
   const EuropeScreen* eu,

@@ -1342,7 +1342,7 @@ static void render_europe_market_and_buttons(
     }
     /* Boycotted cargo (ai_king.c tea-party / ai_diplo.c embargo): price text
      * in red — trading is blocked until the boycott lifts (europe_buy_cargo /
-     * europe_sell_hold / europe_sell_unit_hold refuse it; see
+     * europe_sell_hold refuse it; see
      * europe_cargo_boycotted). Source: fandom Boycott (Col). */
     const bool boycotted = europe_cargo_boycotted_ex(
       eu, game->col1_ok ? &game->col1 : NULL, game->human_nation, i
