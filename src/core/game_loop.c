@@ -615,7 +615,7 @@ COLONIZE_INTERNAL void game_move_watch_w(
 
   ColonizeGameState* game = (ColonizeGameState*)user;
   const ColonizeUnit* unit = pool ? units_get_const(pool, unit_id) : NULL;
-  if (!game || !unit || !map || !colonies || !game->platform || !game->col1_ok) {
+  if (!game || !unit || !map || !colonies || !game->col1_ok) {
     return;
   }
   const bool own = unit->nation_id == game->human_nation;
@@ -629,25 +629,18 @@ COLONIZE_INTERNAL void game_move_watch_w(
          !game_tile_live_seen(game, to_x, to_y))) {
       return;
     }
-    game_set_view_center(game, to_x, to_y);
-  } else {
-    /* port_bugs.md: scripted own-nation moves — the allied intervention force's
-     * disembark slides — can originate entirely off-screen, where the slide
-     * plays invisibly (a player-driven unit is by definition on screen, so
-     * this recentre never fires for ordinary moves). */
-    int cols = 0;
-    int rows = 0;
-    game_map_zoom_view_size(game->map_zoom, &cols, &rows);
-    int vx = 0;
-    int vy = 0;
-    map_panel_clamp_view_origin(
-      (int)game->world_map.width, (int)game->world_map.height, game->map_view_x,
-      game->map_view_y, cols, rows, &vx, &vy
-    );
-    if (from_x < vx || from_y < vy || from_x >= vx + cols || from_y >= vy + rows ||
-        to_x < vx || to_y < vy || to_x >= vx + cols || to_y >= vy + rows) {
-      game_set_view_center(game, to_x, to_y);
-    }
+  }
+  /* FUN_465b_0000 raw 75699-75704 slides every own step and each shown
+   * foreign step (local_a) through FUN_281f_02d0 -> FUN_112b_0eb6, which first
+   * runs FUN_1984_02fc on the slide's DEPARTURE tile (raw 2627; param_4/5 =
+   * the mover's pre-move +0x3144/+0x3145): the view moves only when that tile
+   * is within 2 of a scrollable edge, and then centres on it, never on the
+   * arrival. An off-screen departure (the intervention force's disembark) is
+   * past every margin, so it still recentres. The view is game state, so the
+   * test runs before the platform check. */
+  game_camera_edge_center(game, from_x, from_y);
+  if (!game->platform) {
+    return;
   }
 
   static uint8_t* s_slide_fb;
@@ -830,7 +823,7 @@ void game_map_zoom_view_size(int zoom, int* out_cols, int* out_rows);
  * the 2-tile edge band that is not already at the map rim. */
 void game_camera_edge_center(void* user, int x, int y) {
   ColonizeGameState* game = (ColonizeGameState*)user;
-  if (!game || !game->platform || !game->world_map_ok) {
+  if (!game || !game->world_map_ok) {
     return;
   }
   const int mw = (int)game->world_map.width;

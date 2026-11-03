@@ -19,6 +19,7 @@
 #include "core/colony_screen.h"
 #include "core/dos_buggy.h"
 #include "core/game_loop_internal.h"
+#include "core/map_panel.h"
 #include "core/popup.h"
 #include "core/turn_internal.h"
 
@@ -1604,6 +1605,167 @@ static int test_activate_ignores_foreign_unit(void) {
   return rc;
 }
 
+/* Edge-scroll fixture: 60x60 land, one land type (1 tile a turn), human
+ * France, zoom 0, view centred on (30,30); *ox = the view's left column. No
+ * rumour on row 30 columns ox..ox+2. Free with edge_scroll_free. */
+static void edge_scroll_init(ColonizeGameState* game, int* ox) {
+  memset(game, 0, sizeof(*game));
+  (void)fx_map_alloc(&game->world_map, 60, 60, /*terrain_fill=*/2, /*with_seen=*/true);
+  game->world_map_ok = true;
+  game->human_nation = 0;
+  game->col1_ok = true;
+  game->col1.player[0].named_new_world = 1;
+  ai_popup_clear(&game->ai_popups);
+  fx_units_init(&game->units);
+  game->units_ok = true;
+  game->units.type_count = 1;
+  game->units.types[0].movement = 1;
+  game->units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  fx_colonies_init(&game->colonies);
+  game->colonies_ok = true;
+  units_set_occupancy_map(&game->world_map);
+  colonies_set_occupancy_map(&game->world_map);
+  int cols = 0;
+  int rows = 0;
+  game_map_zoom_view_size(0, &cols, &rows);
+  game->map_zoom = 0;
+  game->map_view_x = 30;
+  game->map_view_y = 30;
+  int oy = 0;
+  map_panel_clamp_view_origin(60, 60, 30, 30, cols, rows, ox, &oy);
+  for (uint16_t s = 1; s < 512 && (map_tile_has_rumour(&game->world_map, *ox, 30) ||
+                                   map_tile_has_rumour(&game->world_map, *ox + 1, 30) ||
+                                   map_tile_has_rumour(&game->world_map, *ox + 2, 30));
+       ++s) {
+    game->world_map.prime_resource_seed = s;
+  }
+}
+
+static void edge_scroll_free(ColonizeGameState* game) {
+  units_set_move_watch(NULL, NULL);
+  colonies_set_occupancy_map(NULL);
+  units_set_occupancy_map(NULL);
+  fx_map_free(&game->world_map);
+}
+
+/* FUN_112b_0eb6 raw 2627 runs FUN_1984_02fc on the DEPARTURE tile before the
+ * slide, and the human step tail does not centre. A unit two columns inside
+ * the view's left edge steps west twice: the first step (departure outside the
+ * 2-tile margin, arrival inside) must not scroll; the second (departure
+ * inside) centres on the departure tile, not the arrival. */
+static int test_move_edge_scroll_uses_departure_tile(void) {
+  static ColonizeGameState game;
+  int ox = 0;
+  edge_scroll_init(&game, &ox);
+  const int y = 30;
+  ColonizeUnit* u = units_get(&game.units, units_spawn(&game.units, 0, ox + 2, y));
+  int rc = (ox <= 1 || !u) ? fail("edge scroll: fixture") : 0;
+  if (rc == 0) {
+    u->nation_id = 0;
+    u->moves = 9;
+    game.units.selected_id = u->id;
+    units_set_move_watch(game_move_watch, &game);
+    (void)game_try_unit_move(&game, ox + 1, y);
+    if (u->x != ox + 1) {
+      rc = fail("edge scroll: first step did not land");
+    } else if (game.map_view_x != 30 || game.map_view_y != 30) {
+      fprintf(stderr, "  view (%d,%d) after step 1\n", game.map_view_x, game.map_view_y);
+      rc = fail("edge scroll: arrival in the margin must not scroll (departure is outside it)");
+    }
+  }
+  if (rc == 0) {
+    game.units.selected_id = u->id;
+    (void)game_try_unit_move(&game, ox, y);
+    if (u->x != ox) {
+      rc = fail("edge scroll: second step did not land");
+    } else if (game.map_view_x != ox + 1 || game.map_view_y != y) {
+      fprintf(stderr, "  view (%d,%d), want (%d,%d)\n", game.map_view_x, game.map_view_y,
+              ox + 1, y);
+      rc = fail("edge scroll: a departure in the margin centres on the departure tile");
+    }
+  }
+  edge_scroll_free(&game);
+  return rc;
+}
+
+static int s_board_watch_calls;
+static int s_board_watch_to_x;
+static bool s_board_watch_aboard;
+static int s_board_watch_sprite;
+
+static void board_watch(
+  void* user, const ColonizeUnitPool* pool, const ColonizeWorldMap* map,
+  const ColonizeColonyPool* colonies, int unit_id, int from_x, int from_y, int to_x, int to_y
+) {
+  const ColonizeUnit* u = units_get_const(pool, unit_id);
+  ++s_board_watch_calls;
+  s_board_watch_to_x = to_x;
+  s_board_watch_aboard = u && u->aboard_ship_id >= 0 && u->x == to_x && u->y == to_y;
+  s_board_watch_sprite = units_map_sprite(pool, unit_id);
+  game_move_watch(user, pool, map, colonies, unit_id, from_x, from_y, to_x, to_y);
+}
+
+/* A land unit stepping onto its ship is an ordinary FUN_465b_0000 step: the
+ * raw 75704 slide (and its departure-tile edge test) runs for the passenger,
+ * once, and the passenger is resolvable there (aboard, on the ship's tile).
+ * Then raw 75711-75721 activates the ship through FUN_1427_08ea, whose
+ * FUN_1984_02fc margin test runs only when FUN_1427_1330 passes (the ship
+ * has MP). The ship sits in the margin, the passenger just outside it. A
+ * queued popup parks the hand-off, so a spent ship keeps the focus. */
+static int test_board_step_watch_and_ship_margin(void) {
+  static ColonizeGameState game;
+  int rc = 0;
+  for (int ship_mp = 12; ship_mp >= 0 && rc == 0; ship_mp -= 12) {
+    int ox = 0;
+    edge_scroll_init(&game, &ox);
+    const int y = 30;
+    game.units.type_count = 2;
+    game.units.types[1].domain = COLONIZE_UNIT_DOMAIN_SEA;
+    game.units.types[1].movement = 4;
+    game.units.types[1].cargo = 2;
+    game.world_map.terrain[(size_t)y * game.world_map.width + (size_t)(ox + 1)] = 25;
+    ColonizeUnit* p = units_get(&game.units, units_spawn(&game.units, 0, ox + 2, y));
+    ColonizeUnit* s = p ? units_get(&game.units, units_spawn(&game.units, 1, ox + 1, y)) : NULL;
+    if (ox <= 1 || !p || !s || !map_tile_is_water(&game.world_map, ox + 1, y)) {
+      rc = fail("board: fixture");
+      break;
+    }
+    p->nation_id = 0;
+    p->moves = 3;
+    s->nation_id = 0;
+    s->moves = ship_mp;
+    const int pid = p->id;
+    const int sid = s->id;
+    game.units.selected_id = pid;
+    (void)ai_popup_enqueue_ok(&game.ai_popups, AI_POPUP_TAG_INFO, NULL, "x");
+    s_board_watch_calls = 0;
+    s_board_watch_aboard = false;
+    s_board_watch_sprite = -1;
+    units_set_move_watch(board_watch, &game);
+    (void)game_try_unit_move(&game, ox + 1, y);
+    p = units_get(&game.units, pid);
+    if (!p || p->aboard_ship_id != sid || game.units.selected_id != sid) {
+      rc = fail("board: the step must board and hand the focus to the ship");
+    } else if (s_board_watch_calls != 1 || s_board_watch_to_x != ox + 1 ||
+               !s_board_watch_aboard || s_board_watch_sprite < 0) {
+      fprintf(stderr, "  watch calls %d, to_x %d (want %d), aboard %d, sprite %d\n",
+              s_board_watch_calls, s_board_watch_to_x, ox + 1, s_board_watch_aboard,
+              s_board_watch_sprite);
+      rc = fail("board: the step fires the move watch once, for the resolvable passenger");
+    } else {
+      const int want_x = ship_mp > 0 ? ox + 1 : 30;
+      if (game.map_view_x != want_x || game.map_view_y != y) {
+        fprintf(stderr, "  ship MP %d: view (%d,%d), want (%d,%d)\n", ship_mp, game.map_view_x,
+                game.map_view_y, want_x, y);
+        rc = fail("board: only a ship with MP left takes the margin test");
+      }
+    }
+    ai_popup_clear(&game.ai_popups);
+    edge_scroll_free(&game);
+  }
+  return rc;
+}
+
 /*
  * port_bugs.md #1208: ORDERS Go to Place (0x321) is the same FUN_647e_01c6 list as Go to Port
  * (case 2b5a:28d4 -> FUN_2b5a_1dfc): @TRAVELPLACE, no Europe row, own colonies on the unit's
@@ -2548,6 +2710,8 @@ static const TestCase k_cases[] = {
     {"test_game_world_view", test_game_world_view},
     {"test_goto_place_opens_travelplace_list", test_goto_place_opens_travelplace_list},
     {"test_activate_ignores_foreign_unit", test_activate_ignores_foreign_unit},
+    {"test_move_edge_scroll_uses_departure_tile", test_move_edge_scroll_uses_departure_tile},
+    {"test_board_step_watch_and_ship_margin", test_board_step_watch_and_ship_margin},
     {"test_colony_list_keys_wrap", test_colony_list_keys_wrap},
     {"test_colony_custom_house_keys", test_colony_custom_house_keys},
     {"test_screen_f1_focus_article", test_screen_f1_focus_article},

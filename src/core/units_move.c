@@ -279,6 +279,14 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_board(units_move_ctx* c) {
   }
   units_occupancy_refresh_tile(pool, ox, oy, unit_id);
   units_occupancy_refresh_tile(pool, dest_x, dest_y, -1);
+  /* No boarding branch in DOS, so the step also takes the raw 75704 slide
+   * (FUN_112b_0eb6) and its departure-tile edge scroll. The passenger is off
+   * the map now, so units_move_watch_notify would skip it; call the watch. */
+  if (g_units_move_watch) {
+    g_units_move_watch(
+      g_units_move_watch_user, pool, map, colonies, unit_id, ox, oy, dest_x, dest_y
+    );
+  }
   g_units_last_enter_reason = COLONIZE_ENTER_BOARD;
   return UNITS_MOVE_RETURN_TRUE;
 }
