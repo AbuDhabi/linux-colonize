@@ -1884,6 +1884,40 @@ static int test_screen_f1_focus_article(void) {
 }
 
 /*
+ * @HOWMUCH4 STRING1 is the hull's @UNIT type name: FUN_38fd_1fa2 raw 60414-60415 reads
+ * `type * 0xe + 0x5230` off the ship's +0x3146, not a per-ship name.
+ */
+static int test_europe_buy_prompt_names_hull_type(void) {
+  ColonizeGameConfig cfg = {.data_dir = "./COLONIZE", .save_dir = "./build/debug"};
+  ColonizeGameState* game = game_create(&cfg);
+  if (!game || !game_assets_ok(game)) {
+    fprintf(stderr, "SKIP: no COLONIZE/ assets\n");
+    if (game) {
+      game_destroy(game);
+    }
+    return TR_SKIP;
+  }
+  int rc = 0;
+  EuropeScreen* eu = &game->europe;
+  const int caravel = units_kind_type_index(&game->units, UNITS_KIND_CARAVEL);
+  const ColonizeUnitType* ct = units_type(&game->units, caravel);
+  eu->harbor_ships = 0;
+  if (!ct || !europe_harbor_push_ex(eu, caravel, "Shipname", NULL, NULL, 0, NULL, NULL)) {
+    rc = fail("fixture: Caravel in harbor");
+  } else {
+    game_europe_open_buy_prompt_for(game, eu->harbor_ships - 1, 0);
+    if (!game->howmuch.open || !strstr(game->howmuch.prompt, ct->name) ||
+        strstr(game->howmuch.prompt, "Shipname")) {
+      fprintf(stderr, "  open %d prompt '%s' want '%s'\n", game->howmuch.open,
+              game->howmuch.prompt, ct->name);
+      rc = fail("@HOWMUCH4 names the hull's @UNIT type, not the ship's name");
+    }
+  }
+  game_destroy(game);
+  return rc;
+}
+
+/*
  * port_bugs.md #1214: the encroachment popup keeps DOS's "offer gold" row and greys it when the
  * treasury is short (FUN_2b5a_123e raw 42484-42488: FUN_291f_01b6(box, 2, 1)). Fixture: the
  * map_pioneer_native_forest_offer start (the Pioneer on Tupi forest (45,22), offer 422).
@@ -2494,6 +2528,7 @@ static const TestCase k_cases[] = {
     {"test_colony_construction_page_default", test_colony_construction_page_default},
     {"test_colony_construction_two_pages_live", test_colony_construction_two_pages_live},
     {"test_indian_land_offer_row_greyed", test_indian_land_offer_row_greyed},
+    {"test_europe_buy_prompt_names_hull_type", test_europe_buy_prompt_names_hull_type},
     {"test_click_spent_unit_hands_off", test_click_spent_unit_hands_off},
     {"test_eot_off_unit_used_up_ends_turn", test_eot_off_unit_used_up_ends_turn},
     {"test_hotseat_dos_save_round_trip", test_hotseat_dos_save_round_trip},
