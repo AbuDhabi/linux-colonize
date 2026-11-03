@@ -344,10 +344,7 @@ void game_europe_open_buy_prompt_for(ColonizeGameState* game, int hidx, int carg
   /* FUN_38fd_1fa2 raw 60414-60415: STRING1 = the hull's @UNIT name (+0x3146). */
   const ColonizeUnitType* hull_type = NULL;
   if (hidx >= 0 && hidx < eu->harbor_ships) {
-    const EuropeHarborShip* hs = &eu->harbor[hidx];
-    hull_type = units_type(
-      &game->units, hs->type_index >= 0 ? hs->type_index : units_find_type(&game->units, hs->name)
-    );
+    hull_type = units_type(&game->units, europe_ship_type_index(&game->units, &eu->harbor[hidx]));
   }
   tok.string1 = hull_type ? hull_type->name : "";
   tok.number0 = max_amt;

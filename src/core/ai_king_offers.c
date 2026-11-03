@@ -378,16 +378,15 @@ void ai_king_frigate_offer(ColonizeTurnContext* ctx, int nation) {
   }
   /* FUN_4962_0018 raw 78159-78165: the -0x6db4 tally walks every unit of the nation, Europe
    * lanes included. The human's harbor/expected/bound hulls are out of the pool, so count them
-   * here (type -1 = by name). */
-  if (nation == ctx->human_nation && ctx->europe && (int)ctx->europe->bound_nation == nation) {
+   * here. */
+  if (ft >= 0 && nation == ctx->human_nation && ctx->europe &&
+      (int)ctx->europe->bound_nation == nation) {
     const EuropeScreen* eu = ctx->europe;
     const EuropeHarborShip* lists[3] = {eu->harbor, eu->expected, eu->bound};
     const int counts[3] = {eu->harbor_ships, eu->expected_ships, eu->bound_ships};
     for (int l = 0; l < 3; ++l) {
       for (int i = 0; i < counts[l]; ++i) {
-        const EuropeHarborShip* s = &lists[l][i];
-        const int t = s->type_index >= 0 ? s->type_index : units_find_type(ctx->units, s->name);
-        if (t == ft) {
+        if (europe_ship_type_index(ctx->units, &lists[l][i]) == ft) {
           return;
         }
       }

@@ -621,3 +621,15 @@ every mission's weight lands on one side; the per-village owner computed into
 **Port:** `ai_contact_denounce_heresy` (`src/core/ai_contact_actions.c`)
 compares each village's mission owner (`v->mission & NATION_MASK`) with `e`.
 **Status:** done (user 2026-11-03; port already differed, all goldens pass).
+
+### DB-74 — Europe purchase keeps the gold when the unit cannot spawn
+**DOS:** `FUN_38fd_4b50` (raw 64877-64886): after @REALLYBUY answer 1 the purse
+(`nation+0x2a`) is debited first, then `FUN_281f_095c` spawns the unit on the dock.
+When the spawn fails (unit cap / full dock) the return is -1 and nothing refunds the
+price: the player pays for nothing.
+
+**Port:** `europe_purchase_commit` (`src/core/europe_dock.c`) takes the dock slot
+first and refuses with nothing charged when the dock is full (same order as the
+recruit and training paths, port_bugs.md #1416). Test: `unit_units_core`
+(fountain full-dock case).
+**Status:** done (user 2026-11-03, PR #1 from UncleTawnos).

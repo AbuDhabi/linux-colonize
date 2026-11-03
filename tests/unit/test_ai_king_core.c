@@ -3588,8 +3588,8 @@ static int case_king_frigate_gate_counts_europe(void) {
   col->ai_flags |= COLONIZE_COLONY_AI_NEARBY_FRIGATE;
   colonies.colony_count = 1;
   europe.harbor_ships = 1;
-  europe.harbor[0].type_index = -1; /* bought in Europe: resolved by name */
-  snprintf(europe.harbor[0].name, sizeof(europe.harbor[0].name), "Frigate");
+  europe.harbor[0].type_index = -1; /* bought in Europe: resolved by kind */
+  europe.harbor[0].kind_plus1 = UNITS_KIND_FRIGATE + 1;
   ai_king_frigate_offer(&tc, 0);
   const int with_harbor = pop.queue_count;
   europe.harbor_ships = 0;
