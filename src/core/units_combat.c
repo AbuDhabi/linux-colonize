@@ -3846,15 +3846,14 @@ bool units_resolve_lcr_rumour_w(
        * crosses word untouched (64763 is `param_1 == 0` only) and no +6 recruit
        * bump (64771). Tail order (64767-64774): create the unit, then refill the
        * emptied slot with 46d4(0) off the shared stream — and only on success.
-       * port_bugs.md #496.
+       * A refused create still costs its type roll and the caller runs all
+       * eight (raw 103729-103731 has no early exit). port_bugs.md #496.
        */
       for (int i = 0; i < 8; ++i) {
         const int profession = (int)col1->nation[nation].recruit[1];
-        const int id = europe_nation_harbor_spawn(w, nation, profession);
-        if (id < 0) {
-          break;
+        if (europe_nation_harbor_spawn(w, nation, profession) >= 0) {
+          europe_nation_refill_pool_slot(col1, nation, 1, false, rng);
         }
-        europe_nation_refill_pool_slot(col1, nation, 1, false, rng);
       }
     }
     break;

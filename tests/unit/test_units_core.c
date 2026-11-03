@@ -4510,6 +4510,16 @@ static int case_lcr_outcome_dispatch(void) {
   return 0;
 }
 
+/* Every create refused: DOS FUN_1427_06b4 at the 300-record limit. */
+static void fountain_cap_gate(void* user, int nation, int* out_external, bool* out_human,
+                              int* out_census) {
+  (void)user;
+  (void)nation;
+  *out_external = 300;
+  *out_human = false;
+  *out_census = 0;
+}
+
   /*
    * port_bugs.md #496: Fountain of Youth runs the eight FUN_291f_0d2c(1,0) picks
    * for an AI nation too (raw 103725-103731 sits outside the `local_a != 0`
@@ -4545,6 +4555,10 @@ static int case_lcr_fountain_ai(void) {
     }
     ColonizeDosRng arng;
     dos_rng_seed(&arng, 12345 * 7);
+    int foy_x = -1;
+    int foy_y = -1;
+    uint32_t foy_state = 0;
+    uint8_t foy_lcr[2] = {0, 0};
     int trials = 0;
     bool saw_ai_fountain = false;
     const int dock_before_all = eu.dock_count;
@@ -4555,6 +4569,10 @@ static int case_lcr_fountain_ai(void) {
             continue;
           }
           trials++;
+          foy_x = x;
+          foy_y = y;
+          foy_state = arng.state;
+          units_lcr_counters_export(foy_lcr);
           int limbo_before = 0;
           for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
             if (pool.units[i].active && pool.units[i].nation_id == 1 &&
@@ -4600,9 +4618,43 @@ static int case_lcr_fountain_ai(void) {
       }
     }
     const int dock_after_all = eu.dock_count;
+    /*
+     * Replay that Fountain with nation 1 at the unit cap. Each of the eight
+     * picks still makes its 0718 type roll (a Soldier slot rolls the Dragoon
+     * RNG) and the caller runs all eight (raw 103729-103731, no early exit),
+     * so a Soldier slot costs 8 more draws than a Colonist one.
+     */
+    unsigned long foy_draws[2] = {0, 0};
+    for (int k = 0; saw_ai_fountain && k < 2; ++k) {
+      acol1.nation[1].recruit[1] = (uint8_t)(k ? UNITS_JOB_SOLDIER : 0x13);
+      units_lcr_counters_import(foy_lcr);
+      arng.state = foy_state;
+      map.layer2[foy_y * map.width + foy_x] &= (uint8_t)~MAP_LAYER2_LCR_CONSUMED;
+      const int sid = units_spawn_allow_stack(&pool, scout_ti, foy_x, foy_y);
+      ColonizeUnit* su = units_get(&pool, sid);
+      if (!su) {
+        europe_free(&eu);
+        fprintf(stderr, "LCR AI FoY cap: scout spawn\n");
+        return 1;
+      }
+      su->nation_id = 1;
+      units_set_spawn_gate_hook(fountain_cap_gate, NULL);
+      const unsigned long d0 = dos_rng_draw_count();
+      (void)units_resolve_lcr_rumour_w(&(ColonizeWorld){.units = &pool, .map = &map, .col1 = &acol1, .col1_ok = true, .rng = &arng, .europe = &eu}, sid, 0);
+      foy_draws[k] = dos_rng_draw_count() - d0;
+      units_set_spawn_gate_hook(NULL, NULL);
+      if (units_get(&pool, sid)) {
+        units_despawn(&pool, sid);
+      }
+    }
     europe_free(&eu);
     if (!saw_ai_fountain) {
       fprintf(stderr, "LCR AI FoY: no AI Fountain over %d trials\n", trials);
+      return 1;
+    }
+    if (foy_draws[1] != foy_draws[0] + 8) {
+      fprintf(stderr, "LCR AI FoY cap: draws colonist %lu soldier %lu (want +8)\n", foy_draws[0],
+              foy_draws[1]);
       return 1;
     }
     if (dock_after_all != dock_before_all) {
