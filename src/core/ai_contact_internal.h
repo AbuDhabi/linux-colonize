@@ -278,5 +278,8 @@ void ai_contact_try_village_reparations(ColonizeTurnContext* ctx, int nation_id)
 void ai_contact_visit_mood_clear(int nation_id, int e);
 const AiContactVisitMood* ai_contact_visit_mood_this_turn( const ColonizeTurnContext* ctx, int nation_id, int e );
 void ai_contact_visit_mood_publish( const ColonizeTurnContext* ctx, int nation_id, int e, int brave_id, int generous_visit );
+/* Denounce Heresy's per-village weights (thunk_FUN_1000_a594 village loop):
+ * the denouncer e's side (mine) and the rival `foreign`'s (pro_me). */
+COLONIZE_INTERNAL void ai_contact_heresy_weights( ColonizeTurnContext* ctx, int e, int nation_id, int foreign, int* out_mine, int* out_pro_me );
 
 #endif /* COLONIZE_CORE_AI_CONTACT_INTERNAL_H */

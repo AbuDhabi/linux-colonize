@@ -8,6 +8,7 @@
 #include "core/col1_save.h"
 #include "core/colony.h"
 #include "core/dos_rng.h"
+#include "core/map.h"
 #include "core/turn.h"
 #include "core/units.h"
 
@@ -346,7 +347,150 @@ static int case_805_haggle_reask_needs_met_bit(void) {
   return 0;
 }
 
+/*
+ * The heresy weights read FUN_4cc6_03f8's leaning nation. DOS (raw
+ * 81111-81113) gates colonies on FUN_281f_037a = max + min/2 < 7, and (raw
+ * 81146-81155) counts only the +0x84 building bits, which Warehouse Expansion
+ * does not have. One village of tribe 4 at (10,10), no mission; one Dutch (2)
+ * colony; foreign = 2, so its score lands on pro_me. human_diff >= 0 makes the
+ * Dutch human at that difficulty (raw 81120-81140 scaling).
+ */
+static int heresy_weights_ex(
+  int cx, int cy, int pop, int plain_buildings, bool whe, int human_diff,
+  const ColonizeUnitPool* units, int e, int foreign, uint8_t mission, int* out_mine
+) {
+  static ColonizeCol1Save col1;
+  static ColonizeCol1Tribe tribe;
+  static ColonizeColonyPool pool;
+  ColonizeWorldMap map;
+  char err[128];
+  memset(&map, 0, sizeof(map));
+  if (!map_alloc(&map, 20, 20, err, sizeof(err))) {
+    return -1000;
+  }
+  for (int i = 0; i < 20 * 20; ++i) {
+    map.terrain[i] = 1;
+    map.layer3[i] = 0xf1;
+  }
+  col1_save_init(&col1);
+  memset(&tribe, 0, sizeof(tribe));
+  tribe.nation_id = 4;
+  tribe.x = 10;
+  tribe.y = 10;
+  tribe.mission = mission;
+  tribe.population = 4;
+  col1.tribe = &tribe;
+  col1.head.tribe_count = 1;
+  col1.indian[0].tech = 0;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  pool.building_types[plain_buildings].row_plus1 = COLONY_BUILDING_WAREHOUSE_EXPANSION + 1;
+  pool.building_type_count = plain_buildings + 1;
+  ColonizeColony* c = &pool.colonies[0];
+  c->id = 0;
+  c->active = true;
+  c->nation_id = 2;
+  c->x = (uint8_t)cx;
+  c->y = (uint8_t)cy;
+  c->population = (uint8_t)pop;
+  c->building_in_production = -1;
+  for (int b = 0; b < plain_buildings; ++b) {
+    c->has_building[b] = true;
+  }
+  c->has_building[plain_buildings] = whe;
+  pool.colony_count = 1;
+  pool.next_id = 1;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.map = &map;
+  ctx.colonies = &pool;
+  ctx.units = (ColonizeUnitPool*)units;
+  ctx.human_nation = human_diff >= 0 ? 2 : 0;
+  col1.head.difficulty = (uint8_t)(human_diff >= 0 ? human_diff : 0);
+  int mine = 0;
+  int pro_me = 0;
+  ai_contact_heresy_weights(&ctx, e, 4, foreign, &mine, &pro_me);
+  map_free(&map);
+  if (out_mine) {
+    *out_mine = mine;
+  }
+  return pro_me;
+}
+
+static int heresy_presence_ex(
+  int cx, int cy, int pop, int plain_buildings, bool whe, int human_diff,
+  const ColonizeUnitPool* units
+) {
+  return heresy_weights_ex(cx, cy, pop, plain_buildings, whe, human_diff, units, 0, 2,
+                           COL1_TRIBE_MISSION_NONE, NULL);
+}
+
+static int heresy_presence(int cx, int cy, int pop, int plain_buildings, bool whe) {
+  return heresy_presence_ex(cx, cy, pop, plain_buildings, whe, -1, NULL);
+}
+
+static int case_heresy_presence_dos_distance(void) {
+  /* (16,12): Chebyshev 6 but DOS 6 + 2/2 = 7, outside the < 7 gate. */
+  const int far = heresy_presence(16, 12, 20, 0, false);  if (far != 0) {
+    fprintf(stderr, "heresy: far colony pro_me=%d\n", far);
+    return fail("a colony at DOS distance 7 must not lean the village");
+  }
+  /* Control: the same colony at DOS 6 does lean it. */
+  if (heresy_presence(16, 10, 20, 0, false) <= 0) {
+    return fail("a colony at DOS distance 6 must lean the village");
+  }
+  /* (12,10), pop 10, 7 plain buildings: base 13 -> 3; one more counted
+   * building would make base 14 -> 4. Warehouse Expansion has no bit. */
+  const int without = heresy_presence(12, 10, 10, 7, false);
+  const int with = heresy_presence(12, 10, 10, 7, true);
+  if (without != 3 || with != 3) {
+    fprintf(stderr, "heresy: whe off=%d on=%d\n", without, with);
+    return fail("Warehouse Expansion must not count as a FUN_4cc6_03f8 building");
+  }
+  return 0;
+}
+
+/*
+ * FUN_4cc6_03f8 human scaling (raw 81120-81140): a human colony's building
+ * bits count {1/2, 3/4, 1/1, 3/2, 2/1} by difficulty, and the difficulty
+ * itself joins the base. Colony at (11,10) (d = 1), pop 10, 16 buildings: AI
+ * base 6+8+((16-8)>>2) = 16 -> 30/5 = 6; human at difficulty 0: 8 -> 14 ->
+ * 26/5 = 5; at difficulty 4: 32 -> 6+8+4+6 = 24 -> 46/5 = 9.
+ */
+static int case_heresy_human_difficulty(void) {
+  const int ai = heresy_presence_ex(11, 10, 10, 16, false, -1, NULL);
+  const int d0 = heresy_presence_ex(11, 10, 10, 16, false, 0, NULL);
+  const int d4 = heresy_presence_ex(11, 10, 10, 16, false, 4, NULL);
+  if (ai != 6 || d0 != 5 || d4 != 9) {
+    fprintf(stderr, "heresy human: ai=%d d0=%d d4=%d\n", ai, d0, d4);
+    return fail("a human colony's threat must scale with difficulty (FUN_4cc6_03f8)");
+  }
+  return 0;
+}
+
+/*
+ * thunk_FUN_1000_a594: a village leaning toward a third nation seeds its
+ * mission weight with that lean. The denouncer is 0 and the rival 1; the
+ * (12,10) Dutch colony scores 3, and 4 with a mission that is not Dutch
+ * (FUN_4cc6_03f8 adds half). The mission is the denouncer's (byte 0,
+ * population 4): mine = 4 + 4 = 8, pro_me 0.
+ */
+static int case_heresy_third_nation_seeds_mission(void) {
+  int mine = 0;
+  const int pro_me = heresy_weights_ex(12, 10, 10, 7, false, -1, NULL, 0, 1, 0, &mine);
+  if (mine != 8 || pro_me != 0) {
+    fprintf(stderr, "heresy third nation: mine=%d pro_me=%d (want 8 0)\n", mine, pro_me);
+    return fail("a third nation's lean must seed the village's mission weight");
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+    {"case_heresy_presence_dos_distance", case_heresy_presence_dos_distance},
+    {"case_heresy_human_difficulty", case_heresy_human_difficulty},
+    {"case_heresy_third_nation_seeds_mission", case_heresy_third_nation_seeds_mission},
     {"case_830_stores_amount_is_a_roll", case_830_stores_amount_is_a_roll},
     {"case_832_stores_cargo_retry_loop", case_832_stores_cargo_retry_loop},
     {"case_795_buy_candidate_uses_sorted_slot", case_795_buy_candidate_uses_sorted_slot},

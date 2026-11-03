@@ -1261,148 +1261,58 @@ static void ai_contact_demand_tribute(
   }
 }
 
-/*
- * FUN_4cc6_03f8 — strongest nearby Euro presence for a village: returns the
- * owning nation of the best-scoring colony within DOS distance < 7 (or -1)
- * and its score. Ring pass: for the 20 work-ring tiles, sum the attack
- * column of that tile's land units with attack > 1 into threat[owner];
- * halved when the tile holds a Euro settlement, halved again on the outer
- * ring (|dx| ≥ 2 or |dy| ≥ 2). Colony pass: human owner → (building weight,
- * divisor) by difficulty {1/2, 3/4, 1/1, 3/2, 2/1}, AI → (1,1);
- * built = Σ built-building bits × weight / divisor; pop6 = min(6, pop);
- * score = ((2*max(0,pop-6) + min(tech, pop>>1) + pop6 + difficulty +
- * ((built-8)>>2)) * 2 - dist - 1) / (dist + 4); halved if the colony sits
- * on another continent; += threat[owner]; halved for the French; halved
- * when the owner has Pocahontas. Tail: with a mission in the village, the
- * best score is scaled by who owns it: same nation → Jesuit ×1/2, plain
- * ×3/4; other nation → Jesuit ×2, plain ×3/2.
- */
-static int ai_contact_4cc6_03f8(
+/* The village loop of thunk_FUN_1000_a594: per village of the tribe, the
+ * FUN_4cc6_03f8 lean and the mission weight (see the comment below). */
+COLONIZE_INTERNAL void ai_contact_heresy_weights(
   ColonizeTurnContext* ctx,
+  int e,
   int nation_id,
-  const ColonizeCol1Tribe* v,
-  int* out_score
+  int foreign,
+  int* out_mine,
+  int* out_pro_me
 ) {
-  *out_score = 0;
-  if (!ctx || !ctx->col1 || !v) {
-    return -1;
-  }
+  int mine = 0;
+  int pro_me = 0;
   const ColonizeCol1Save* col1 = ctx->col1;
-  const int vx = (int)v->x;
-  const int vy = (int)v->y;
-  const int vcont = ctx->map ? map_continent_id_at(ctx->map, vx, vy) : -1;
-  const int tech = (int)col1->indian[nation_id - 4].tech;
-  int threat[4] = {0, 0, 0, 0};
-  if (ctx->units && ctx->map) {
-    for (int k = 0; k < 20; ++k) {
-      const int tx = vx + MAP_RING20_DX[k];
-      const int ty = vy + MAP_RING20_DY[k];
-      if (!map_coords_inset(ctx->map, tx, ty) || map_tile_is_water(ctx->map, tx, ty)) {
+  if (col1->tribe) {
+    for (uint16_t ti = 0; ti < col1->head.tribe_count; ++ti) {
+      const ColonizeCol1Tribe* v = &col1->tribe[ti];
+      if ((int)v->nation_id != nation_id) {
         continue;
       }
-      int owner = -1;
-      int sum = 0;
-      /* Slot walk (DOS record order, and `i` is not a unit id) — see
-       * ai_contact_land_combat_sum's note. Fixed 2026-09-10. */
-      for (int i = 0; i < units_slot_end(ctx->units); ++i) {
-        const ColonizeUnit* u = &ctx->units->units[i];
-        if (!u->active || u->x != tx || u->y != ty || u->aboard_ship_id >= 0) {
-          continue;
-        }
-        if (owner < 0) {
-          owner = u->nation_id;
-        }
-        /* DOS-LITERAL FUN_4cc6_03f8 raw 81047-81057: the owner is read from the
-         * FIRST unit of the tile chain only; the sum then walks the whole chain
-         * with no per-unit nation re-test — only the 0xd..0x12 hull-range test
-         * (units_is_sea) and attack > 1. Port-side nation re-filter removed
-         * 2026-09-23 (port_bugs.md #768); differs only on a mixed-nation stack. */
-        if (units_is_sea(ctx->units, u->id)) {
-          continue;
-        }
-        const ColonizeUnitType* t = units_type(ctx->units, u->type_index);
-        if (t && t->attack > 1) {
-          sum += t->attack;
-        }
+      int village_pull = 0;
+      int sc = 0;
+      /* FUN_4cc6_03f8, the shared copy (max + min/2 distance, no Warehouse /
+       * Capitol Expansion bits, sign-tested mission byte). */
+      const ColonizeWorld tw = world_from_turn_ctx(ctx);
+      const int leaning_nation = ai_indian_village_threat_w(&tw, ctx->human_nation, (int)ti, &sc);
+      if (leaning_nation == foreign) {
+        pro_me += sc;
+      } else if (leaning_nation == e) {
+        mine += sc;
+      } else {
+        village_pull = sc;
       }
-      if (owner < 0 || owner > 3) {
+      if (v->mission == COL1_TRIBE_MISSION_NONE) {
         continue;
       }
-      if (ctx->colonies && colonies_id_at(ctx->colonies, tx, ty) >= 0) {
-        sum >>= 1;
+      village_pull += (int)v->population;
+      if (v->mission & COL1_TRIBE_MISSION_JESUIT_BIT) {
+        village_pull *= 2;
       }
-      if (abs(MAP_RING20_DX[k]) >= 2 || abs(MAP_RING20_DY[k]) >= 2) {
-        sum >>= 1;
+      if (v->state.capital) {
+        village_pull <<= 1;
       }
-      threat[owner] += sum;
-    }
-  }
-  int best = -1;
-  int best_score = 0;
-  if (ctx->colonies) {
-    for (int ci = 0; ci < COLONIZE_COLONIES_MAX; ++ci) {
-      const ColonizeColony* c = &ctx->colonies->colonies[ci];
-      if (!c->active || c->nation_id < 0 || c->nation_id > 3) {
-        continue;
-      }
-      const int d = map_chebyshev(vx, vy, c->x, c->y);
-      if (d >= 7) {
-        continue;
-      }
-      const int owner = c->nation_id;
-      int weight = 1;
-      int divisor = 1;
-      int diff = 0;
-      if (ai_contact_euro_is_human(ctx, owner)) {
-        diff = (int)col1->head.difficulty;
-        static const int k_w[5] = {1, 3, 1, 3, 2};
-        static const int k_d[5] = {2, 4, 1, 2, 1};
-        if (diff >= 0 && diff <= 4) {
-          weight = k_w[diff];
-          divisor = k_d[diff];
-        }
-      }
-      int built = 0;
-      for (int b = 0; b < COLONIZE_BUILDING_TYPES_MAX && b < 48; ++b) {
-        if (c->has_building[b]) {
-          built += weight;
-        }
-      }
-      built /= divisor;
-      const int pop = c->population;
-      const int pop6 = pop < 6 ? pop : 6;
-      int half = pop >> 1;
-      if (tech < half) {
-        half = tech;
-      }
-      int score = (((pop6 - pop) * -2 + half + pop6 + diff + ((built - 8) >> 2)) * 2 - d - 1) / (d + 4);
-      if (ctx->map && map_continent_id_at(ctx->map, c->x, c->y) != vcont) {
-        score >>= 1;
-      }
-      score += threat[owner];
-      if (owner == 1) {
-        score >>= 1;
-      }
-      if (founding_fathers_nation_has(col1, owner, FF_POCAHONTAS)) {
-        score >>= 1;
-      }
-      if (best_score < score) {
-        best_score = score;
-        best = owner;
+      /* Per-village owner; DOS compares two loop invariants: dos_bugs.md DB-69. */
+      if ((int)(v->mission & COL1_TRIBE_MISSION_NATION_MASK) == e) {
+        mine += village_pull;
+      } else {
+        pro_me += village_pull;
       }
     }
   }
-  if (best_score > 0 && best >= 0 && v->mission != COL1_TRIBE_MISSION_NONE) {
-    const int owner = (int)(v->mission & COL1_TRIBE_MISSION_NATION_MASK);
-    const int jesuit = (v->mission & COL1_TRIBE_MISSION_JESUIT_BIT) != 0;
-    if (owner == best) {
-      best_score = jesuit ? (best_score >> 1) : (best_score - (best_score >> 2));
-    } else {
-      best_score = jesuit ? (best_score << 1) : (best_score + (best_score >> 1));
-    }
-  }
-  *out_score = best_score;
-  return best;
+  *out_mine = mine;
+  *out_pro_me = pro_me;
 }
 
 /*
@@ -1437,40 +1347,7 @@ static void ai_contact_denounce_heresy(
   }
   int mine = 0;
   int pro_me = 0;
-  if (col1->tribe) {
-    for (uint16_t ti = 0; ti < col1->head.tribe_count; ++ti) {
-      const ColonizeCol1Tribe* v = &col1->tribe[ti];
-      if ((int)v->nation_id != nation_id) {
-        continue;
-      }
-      int village_pull = 0;
-      int sc = 0;
-      const int leaning_nation = ai_contact_4cc6_03f8(ctx, nation_id, v, &sc);
-      if (leaning_nation == foreign) {
-        pro_me += sc;
-      } else if (leaning_nation == e) {
-        mine += sc;
-      } else {
-        village_pull = sc;
-      }
-      if (v->mission == COL1_TRIBE_MISSION_NONE) {
-        continue;
-      }
-      village_pull += (int)v->population;
-      if (v->mission & COL1_TRIBE_MISSION_JESUIT_BIT) {
-        village_pull *= 2;
-      }
-      if (v->state.capital) {
-        village_pull <<= 1;
-      }
-      /* Per-village owner; DOS compares two loop invariants: dos_bugs.md DB-69. */
-      if ((int)(v->mission & COL1_TRIBE_MISSION_NATION_MASK) == e) {
-        mine += village_pull;
-      } else {
-        pro_me += village_pull;
-      }
-    }
-  }
+  ai_contact_heresy_weights(ctx, e, nation_id, foreign, &mine, &pro_me);
   /*
    * thunk_FUN_1000_a594 viceroy_overlays.asm 126507:
    * IMUL BX,[BP+6],0x1c / CMP byte ptr [BX+0x315b],0x3 / MOV AX,1 —
