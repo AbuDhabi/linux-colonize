@@ -19,6 +19,19 @@ static uint8_t s_visited[256 * 256];
 #define EXPLORE_AUTO_GOTO_TRIES 8
 /* Rumours and unvisited settlements win over a frontier tile this much closer. */
 #define EXPLORE_AUTO_POI_BONUS 4
+/* Steps toward one Go To target without a new closest distance before it is dropped:
+ * the DOS Go To can ping-pong between two tiles for good (campaign 16: a Scout
+ * swung between (26,32) and (27,31) for 70 turns aiming at (26,46)). */
+#define EXPLORE_AUTO_STALL_STEPS 12
+
+/* Per pool slot: the current target's progress and the one target given up on.
+ * ponytail: one banned target per unit, not saved; a ring if two stalls alternate. */
+typedef struct ExploreAutoTrack {
+  int id;
+  int tx, ty, px, py, best, stall;
+  int ban_x, ban_y;
+} ExploreAutoTrack;
+static ExploreAutoTrack s_track[COLONIZE_UNITS_MAX];
 
 static bool explore_auto_is_ship(const ColonizeUnitPool* pool, const ColonizeUnit* u) {
   return pool && u && units_is_sea(pool, u->id);
@@ -40,6 +53,41 @@ bool explore_auto_allowed(const ColonizeUnitPool* pool, const ColonizeUnit* u) {
 
 void explore_auto_reset(void) {
   memset(s_visited, 0, sizeof(s_visited));
+  memset(s_track, 0, sizeof(s_track));
+}
+
+static void explore_auto_track(ExploreAutoTrack* tr, const ColonizeUnit* u, int x, int y) {
+  if (x == tr->tx && y == tr->ty) {
+    return; /* the same target re-issued (another one failed first) keeps its count */
+  }
+  tr->tx = x;
+  tr->ty = y;
+  tr->px = u->x;
+  tr->py = u->y;
+  tr->best = map_dos_dist(x - u->x, y - u->y);
+  tr->stall = 0;
+}
+
+/* Count a step toward the unit's Go To target; true once it has stalled (target banned). */
+static bool explore_auto_stalled(ExploreAutoTrack* tr, const ColonizeUnit* u) {
+  if (u->orders != UNITS_ORDER_GOTO || u->goto_x != tr->tx || u->goto_y != tr->ty ||
+      (u->x == tr->px && u->y == tr->py)) {
+    return false;
+  }
+  tr->px = u->x;
+  tr->py = u->y;
+  const int d = map_dos_dist(tr->tx - u->x, tr->ty - u->y);
+  if (d < tr->best) {
+    tr->best = d;
+    tr->stall = 0;
+    return false;
+  }
+  if (++tr->stall <= EXPLORE_AUTO_STALL_STEPS) {
+    return false;
+  }
+  tr->ban_x = tr->tx;
+  tr->ban_y = tr->ty;
+  return true;
 }
 
 void explore_auto_note_village(int nation, int x, int y) {
@@ -159,6 +207,15 @@ void explore_auto_step(const ColonizeWorld* w, ColonizeUnit* u) {
   const int sight = ship ? units_sight_radius(pool, u, w->col1) : 0;
   const int nation = u->nation_id;
   const int continent = map_continent_id_at(map, u->x, u->y);
+  ExploreAutoTrack* tr = &s_track[u - pool->units];
+  if (tr->id != u->id + 1) { /* id + 1: a zeroed slot matches no unit */
+    memset(tr, 0, sizeof(*tr));
+    tr->id = u->id + 1;
+    tr->tx = tr->ty = tr->ban_x = tr->ban_y = -1;
+  }
+  if (explore_auto_stalled(tr, u)) {
+    units_clear_orders(pool, u->id);
+  }
   int tried_x[EXPLORE_AUTO_GOTO_TRIES];
   int tried_y[EXPLORE_AUTO_GOTO_TRIES];
   for (int attempt = 0; attempt < EXPLORE_AUTO_GOTO_TRIES; ++attempt) {
@@ -168,7 +225,8 @@ void explore_auto_step(const ColonizeWorld* w, ColonizeUnit* u) {
     int best_score = 1 << 30;
     for (int y = 0; y < (int)map->height; ++y) {
       for (int x = 0; x < (int)map->width; ++x) {
-        if ((x == u->x && y == u->y) || !map_tile_seen_by(map, x, y, nation)) {
+        if ((x == u->x && y == u->y) || (x == tr->ban_x && y == tr->ban_y) ||
+            !map_tile_seen_by(map, x, y, nation)) {
           continue;
         }
         if (ship ? !explore_auto_ocean(map, x, y)
@@ -225,6 +283,7 @@ void explore_auto_step(const ColonizeWorld* w, ColonizeUnit* u) {
       return;
     }
     if (u->orders == UNITS_ORDER_GOTO && u->goto_x == best_x && u->goto_y == best_y) {
+      explore_auto_track(tr, u, best_x, best_y); /* a Go To set before tracking (load) */
       return;
     }
     /* Path probe without the rng: the anti-backtrack reroll would draw. */
@@ -234,6 +293,7 @@ void explore_auto_step(const ColonizeWorld* w, ColonizeUnit* u) {
     int ny = 0;
     if (units_set_goto_w(w, u->id, best_x, best_y) &&
         units_next_goto_step_w(&probe, u->id, &nx, &ny)) {
+      explore_auto_track(tr, u, best_x, best_y);
       return;
     }
     if (u->orders == UNITS_ORDER_GOTO) {

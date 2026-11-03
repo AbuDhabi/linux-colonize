@@ -76,7 +76,7 @@
  *                               (WARN; the sail prompt waits behind it)
  *   colony N                    open colony N's screen (index from `colonies`)
  *   field N CI TILE JOB         colonist CI of colony N onto ring tile TILE (0 N .. 7 NW), field job JOB
- *                               (refused on native land at peace: the screen asks @INDIANLAND;
+ *                               (on native land at peace it runs the screen drop: @INDIANLAND asks, `choose`, then `field` again;
  *                               refused on a plot another colonist works, and on what the screen blocks
  *                               (another colony's plot or centre, a village, a foreign guard); water takes only fishing
  *                               (job 8) and needs Docks, land never takes fishing)
@@ -263,6 +263,13 @@ static int nested_choose_from_stdin(const AiPopupState* pop) {
         fflush(stdout);
         return nested_pick_row(pop);
       }
+    } else if (strncmp(line, "status", 6) == 0) {
+      /* C16: a later `status` hid the question; repeat it. */
+      printf("NESTED CHOICES:");
+      for (int i = 0; i < pop->current.choice_count; ++i) {
+        printf(" [%d] %s", i, pop->current.choices[i]);
+      }
+      printf(" (sel %d): answer with choose N\n", pop->selection);
     } else if (line[0] != '\n' && line[0] != '#') {
       line[strcspn(line, "\r\n")] = '\0';
       printf("ERR nested choice popup open, \"%s\" dropped: answer with choose N\n", line);
@@ -1711,8 +1718,18 @@ static bool command(char* line) {
         : -1;
       if (tribe >= 0 &&
           ai_contact_indian_has_peace(&g_game->col1, g_game->col1.tribe[tribe].nation_id, g_game->human_nation)) {
-        printf("ERR native land: drag the colonist there on the colony screen (@INDIANLAND)\n");
-        return true;
+        /* Run the screen's own plot drop, which asks @INDIANLAND (respect / offer /
+         * take): answer with `choose`, then send `field` again for the job. */
+        if (!g_game->in_colony || g_game->colony_view_id != id) {
+          game_enter_colony(g_game, id);
+          flush_frames(10);
+        }
+        game_colony_select_colonist(g_game, a2);
+        game_colony_area_tile_drop(g_game, colonies_get_mut(&g_game->colonies, id),
+                                   g_game->world_map_ok ? &g_game->world_map : NULL, tile);
+        printf("NATIVE LAND plot %d: answer @INDIANLAND with `choose`, then `field` again for the job\n", tile);
+        ok = flush_frames(10);
+        return ok;
       }
     }
     const bool done = op[0] == 'f' ? colonies_assign_field_w(&w, id, a2, atoi(argv[3]), atoi(argv[4]))

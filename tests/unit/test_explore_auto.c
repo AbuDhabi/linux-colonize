@@ -77,6 +77,28 @@ static int case_scout(void) {
   CHECK(u->automated && u->orders == UNITS_ORDER_GOTO);
   CHECK(map_dos_dist(u->goto_x - units_get(&s_pool, fid)->x, u->goto_y - units_get(&s_pool, fid)->y) > 1);
 
+  /* Campaign 16: a Go To that swings between two tiles without getting closer is
+   * dropped after EXPLORE_AUTO_STALL_STEPS steps and its target is not chosen again. */
+  units_get(&s_pool, fid)->x = 11;
+  units_get(&s_pool, fid)->y = 11;
+  u->x = 1;
+  u->y = 1;
+  u->orders = UNITS_ORDER_NONE;
+  explore_auto_step(&w, u);
+  const int sx = u->goto_x;
+  const int sy = u->goto_y;
+  int kept = 0;
+  for (int i = 0; i < 14; ++i) {
+    u->x = u->y = (i % 2 == 0) ? 0 : 1; /* (0,0) is never closer than (1,1) */
+    explore_auto_step(&w, u);
+    if (u->goto_x == sx && u->goto_y == sy) {
+      ++kept;
+    }
+  }
+  CHECK(kept == 12);
+  CHECK(u->automated && u->orders == UNITS_ORDER_GOTO);
+  CHECK(u->goto_x != sx || u->goto_y != sy);
+
   /* Pioneer Automate leaves an automated Scout alone. */
   CHECK(!pioneer_plan_auto_step(&w, u, NULL, NULL));
   CHECK(u->automated);
