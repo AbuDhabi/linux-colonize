@@ -135,6 +135,7 @@
 #include <string.h>
 #include <strings.h>
 #include <sys/stat.h>
+#include <time.h>
 
 #include "core/ai_contact.h"
 #include "core/ai_king.h"
@@ -2215,6 +2216,11 @@ int main(int argc, char** argv) {
   }
   diag_set_info_enabled(settings_get()->debug_logs);
   units_set_unlimited(settings_get()->unlimited_units);
+  if (settings_get()->modern_prng) {
+    /* same as main.c: campaign seed when set, else wall clock + stack address */
+    dos_rng_modern_seed(seed_set ? (uint64_t)seed
+                                 : (uint64_t)time(NULL) ^ ((uint64_t)(uintptr_t)&seed << 16));
+  }
 
   screen_geom_set(SCREEN_BASE_W, SCREEN_BASE_H);
   ColonizeGameConfig cfg = {
