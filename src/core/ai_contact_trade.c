@@ -1408,10 +1408,16 @@ static void ai_contact_2820_gift_settle(
   }
 }
 
-/* The three highest-ask goods (acStack_7c after zeroing last_bought/last_sold). */
-static void ai_contact_2820_wanted(const AiContact2820* s, const ColonizeCol1Tribe* t, int out[3]) {
+/* The three highest-ask goods (acStack_7c after zeroing last_bought/last_sold),
+ * also zeroing `drop` when it is a cargo id (-1 = none). */
+static void ai_contact_2820_wanted(
+  const AiContact2820* s, const ColonizeCol1Tribe* t, int drop, int out[3]
+) {
   int16_t ask[16];
   memcpy(ask, s->ask, sizeof(ask));
+  if (drop >= 0 && drop < 16) {
+    ask[drop] = 0;
+  }
   if (t && t->last_bought < 16) {
     ask[t->last_bought] = 0;
   }
@@ -1779,7 +1785,11 @@ static void ai_contact_2820_buy_phase(
     return;
   }
   int wanted[3];
-  ai_contact_2820_wanted(s, t, wanted);
+  /* TB-28 fixed path: a Horses/Muskets sale leaves last_bought = 0xff, so the
+   * pre-sale asks would still name the cargo just sold (and bought horses
+   * breed into a sell good within a few turns). Drop it, as DOS's
+   * last_bought = cargo does for every other sale. */
+  ai_contact_2820_wanted(s, t, dos_buggy_behavior() ? -1 : s->cargo, wanted);
   if (wanted[0] != s->cargo && wanted[1] != s->cargo && human) {
     /* @BRING 0x1587 */
     PopupMsgTokens tok;
@@ -2105,7 +2115,7 @@ static void ai_contact_2820_dispatch(
   if (lb == s->cargo || ls == s->cargo || s->ask[s->cargo] == 0) {
     /* @BADCARGO 0x1561: STRING0 = cargo, STRING1..3 = the three highest asks. */
     int wanted[3];
-    ai_contact_2820_wanted(s, t, wanted);
+    ai_contact_2820_wanted(s, t, -1, wanted);
     PopupMsgTokens tok;
     memset(&tok, 0, sizeof(tok));
     tok.string0 = ai_contact_cargo_name(s->cargo);

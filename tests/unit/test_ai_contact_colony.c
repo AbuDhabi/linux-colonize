@@ -583,7 +583,7 @@ static int test_beg_conceded_falls_into_gift_863(void) {
  * pool slot 8, and again at slot 9, and confirm only slot 8 blanks
  * tribe.last_bought to 0xff instead of the sold cargo.
  */
-static int run_803_trade_case(int filler_units, uint8_t* out_last_bought) {
+static int run_803_trade_case(int filler_units, int cargo, uint8_t* out_last_bought) {
   ColonizeCol1Save col1;
   col1_save_init(&col1);
   col1.head.difficulty = 2;
@@ -610,6 +610,12 @@ static int run_803_trade_case(int filler_units, uint8_t* out_last_bought) {
   ind->alarm_by_player[0] = 10; /* high relation: avoid the refuse gate */
   for (int c = 1; c < 8; ++c) {
     ind->tons[c] = 300; /* every good in stock so 2820's ask[] table is live */
+  }
+  if (cargo == COLONIZE_CARGO_HORSES) {
+    /* Glut rum/cigars/cloth/coats so Horses is the top pre-sale ask. */
+    for (int c = 9; c < 13; ++c) {
+      ind->tons[c] = 3000;
+    }
   }
 
   ColonizeWorldMap map;
@@ -675,7 +681,7 @@ static int run_803_trade_case(int filler_units, uint8_t* out_last_bought) {
     return fail("#803: trader spawn");
   }
   trader->nation_id = 0;
-  trader->hold_goods_type[0] = COLONIZE_CARGO_TRADE_GOODS;
+  trader->hold_goods_type[0] = cargo;
   trader->hold_goods_amount[0] = 50;
   const int slot = (int)(trader - units.units);
 
@@ -788,10 +794,10 @@ static int test_803_last_bought_keyed_on_unit_slot(void) {
     return fail("#803: could not locate filler counts landing the trader on slots 8/9");
   }
 
-  if (run_803_trade_case(slot8_filler, &lb_slot8)) {
+  if (run_803_trade_case(slot8_filler, COLONIZE_CARGO_TRADE_GOODS, &lb_slot8)) {
     return 1;
   }
-  if (run_803_trade_case(slot9_filler, &lb_slot9)) {
+  if (run_803_trade_case(slot9_filler, COLONIZE_CARGO_TRADE_GOODS, &lb_slot9)) {
     return 1;
   }
 
@@ -811,13 +817,33 @@ static int test_803_last_bought_keyed_on_unit_slot(void) {
    * Trade Goods sale from pool slot 8 records the cargo. */
   uint8_t lb_fixed = 0xaa;
   dos_buggy_behavior_set(false);
-  const int rc = run_803_trade_case(slot8_filler, &lb_fixed);
+  int rc = run_803_trade_case(slot8_filler, COLONIZE_CARGO_TRADE_GOODS, &lb_fixed);
+  if (!rc && lb_fixed != (uint8_t)COLONIZE_CARGO_TRADE_GOODS) {
+    rc = fail("TB-28 fixed: slot-8 trader must record the sold cargo");
+  }
+  /* A Horses sale keeps last_bought = 0xff, but the post-sale @BRING (and the
+   * sidebar buys intel it feeds) must still leave the horses just sold out. */
+  if (!rc) {
+    rc = run_803_trade_case(slot9_filler, COLONIZE_CARGO_HORSES, &lb_fixed);
+  }
   dos_buggy_behavior_set(true);
   if (rc) {
     return 1;
   }
-  if (lb_fixed != (uint8_t)COLONIZE_CARGO_TRADE_GOODS) {
-    return fail("TB-28 fixed: slot-8 trader must record the sold cargo");
+  if (lb_fixed != 0xffu) {
+    return fail("TB-28 fixed: a Horses sale leaves last_bought = 0xff");
+  }
+  int ib[3];
+  int is[3];
+  int ibn = 0;
+  int isn = 0;
+  if (!village_trade_intel_get(0, 5, 5, ib, &ibn, is, &isn) || ibn != 3) {
+    return fail("TB-28 fixed: post-sale @BRING should record three wanted goods");
+  }
+  for (int k = 0; k < ibn; ++k) {
+    if (ib[k] == COLONIZE_CARGO_HORSES) {
+      return fail("TB-28 fixed: post-sale @BRING must not name the horses just sold");
+    }
   }
   return 0;
 }

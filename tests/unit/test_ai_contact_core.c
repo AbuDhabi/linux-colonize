@@ -3167,6 +3167,15 @@ static int sp_31(void) {
         if (!village_trade_intel_get(0, 5, 5, ib, &ibn, is, &isn) || isn != cc - 1) {
           return fail("2820: @BUYWHICH should record the village's goods for sale");
         }
+        /* The post-sale @BRING names the new wants: the sold cargo drops out. */
+        if (ibn != 3) {
+          return fail("2820: post-sale @BRING should record the village's three wanted goods");
+        }
+        for (int k = 0; k < ibn; ++k) {
+          if (ib[k] == COLONIZE_CARGO_TRADE_GOODS) {
+            return fail("2820: post-sale buys intel still lists the cargo just sold");
+          }
+        }
         for (int k = 0; k < isn; ++k) {
           if (is[k] + 1 != pop.queue[bw].choice_ids[k]) {
             return fail("2820: @BUYWHICH intel goods differ from the offered choices");

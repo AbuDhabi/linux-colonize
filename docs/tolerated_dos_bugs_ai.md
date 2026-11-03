@@ -606,6 +606,12 @@ pool slot as the proxy (port_bugs.md #803). Pinned by
 `golden_idle_independence` and `_reload`, and `unit_ai_contact_colony` (#803
 test); reverted. [Details](archive/tolerated_dos_bugs_evidence_2026-10-24.md#tb-28).
 **Status:** tolerated (2026-10-22). Fixed in opencol 2026-10-27, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.
+With the fix, a Horses/Muskets sale leaves `last_bought = 0xff`, so the post-sale
+@BRING (built from pre-sale asks) would name the cargo just sold. Bought horses
+breed into the tribe's top sell good within a few turns, after which the village
+refuses horses with @BADCARGO. So the fixed path also drops the sold cargo from the
+@BRING wants (2026-11-03, `ai_contact_2820_buy_phase`), as DOS's
+`last_bought = cargo` does for every other sale.
 
 ### TB-29 — Village colony-cover mask uses the wrong coordinate frame
 **DOS:** FUN_4d56_2154 (raw 81816, asm 4d56:21b2-2227) builds a 5x5 mask of
