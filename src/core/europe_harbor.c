@@ -188,10 +188,8 @@ bool europe_enqueue_expected(
   slot->turns_left = europe_clamp_voyage_turns(voyage_turns);
   slot->voyage_turns = slot->turns_left; /* TB-48 fix reads it */
   slot->departed_this_turn = true;
-  eu->last_exit_x = exit_x;
-  eu->last_exit_y = exit_y;
-  eu->last_exit_east = exit_east;
-  eu->last_exit_valid = true;
+  /* No nation return tile here: only the crossing stamps it (FUN_48d3_007a,
+   * game_ship_sail_to_europe); a save import also lands here. */
   eu->status[0] = '\0';
   return true;
 }

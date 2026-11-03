@@ -1911,6 +1911,58 @@ static int test_screen_f1_focus_article(void) {
 }
 
 /*
+ * Only the crossing stamps the nation's return tile: FUN_48d3_007a raw 77602-77607 copies the
+ * crossing ship's tile into nation +0x32/+0x33. Queuing an Expected hull (a save import) does
+ * not. Fixture: turns_ship_europe_roundtrip's start, French Caravel on the high seas at (50,29).
+ */
+static int test_crossing_stamps_nation_return_tile(void) {
+  ColonizeGameConfig cfg = {.data_dir = "./COLONIZE", .save_dir = "./build/debug"};
+  ColonizeGameState* game = game_create(&cfg);
+  if (!game || !game_assets_ok(game)) {
+    fprintf(stderr, "SKIP: no COLONIZE/ assets\n");
+    if (game) {
+      game_destroy(game);
+    }
+    return TR_SKIP;
+  }
+  char err[256];
+  int rc = 0;
+  if (!game_load_col1_file(
+        game, "tests-automated-regression/turns_ship_europe_roundtrip/input.sav", err,
+        sizeof(err)
+      )) {
+    fprintf(stderr, "  %s\n", err);
+    game_destroy(game);
+    return fail("fixture save load");
+  }
+  EuropeScreen* eu = &game->europe;
+  eu->last_exit_x = 1;
+  eu->last_exit_y = 1;
+  eu->last_exit_valid = true;
+  const int before = eu->expected_ships;
+  if (!europe_enqueue_expected(eu, 0, "", NULL, NULL, 0, NULL, NULL, 10, 20, false, 2) ||
+      eu->last_exit_x != 1 || eu->last_exit_y != 1) {
+    fprintf(stderr, "  enqueue: return tile (%d,%d)\n", eu->last_exit_x, eu->last_exit_y);
+    rc = fail("queuing an Expected hull leaves the nation return tile");
+  }
+  eu->expected_ships = before;
+  int sid = -1;
+  for (int i = 0; i < units_slot_end(&game->units); ++i) {
+    const ColonizeUnit* u = &game->units.units[i];
+    if (u->active && u->x == 50 && u->y == 29 && units_is_sea(&game->units, u->id)) {
+      sid = u->id;
+    }
+  }
+  if (sid < 0 || !game_ship_sail_to_europe(game, sid) || eu->last_exit_x != 50 ||
+      eu->last_exit_y != 29) {
+    fprintf(stderr, "  sail %d: return tile (%d,%d)\n", sid, eu->last_exit_x, eu->last_exit_y);
+    rc = fail("the crossing stamps the ship's tile as the nation return tile");
+  }
+  game_destroy(game);
+  return rc;
+}
+
+/*
  * Brewster's @RECRUITCHOOSE %STRING0 is the nation's home port: FUN_38fd_4884 raw 64708
  * (param_2 != 0) passes DS:(nation*2 - 0x7c74), the NAMES @HOMEPORT row, to FUN_281f_0438.
  */
@@ -2586,6 +2638,7 @@ static const TestCase k_cases[] = {
     {"test_indian_land_offer_row_greyed", test_indian_land_offer_row_greyed},
     {"test_europe_buy_prompt_names_hull_type", test_europe_buy_prompt_names_hull_type},
     {"test_brewster_pick_names_home_port", test_brewster_pick_names_home_port},
+    {"test_crossing_stamps_nation_return_tile", test_crossing_stamps_nation_return_tile},
     {"test_click_spent_unit_hands_off", test_click_spent_unit_hands_off},
     {"test_eot_off_unit_used_up_ends_turn", test_eot_off_unit_used_up_ends_turn},
     {"test_hotseat_dos_save_round_trip", test_hotseat_dos_save_round_trip},

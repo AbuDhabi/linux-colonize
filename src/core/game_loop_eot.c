@@ -467,6 +467,12 @@ bool game_ship_sail_to_europe(ColonizeGameState* game, int sid) {
       }
     } else {
       sailed = true;
+      /* FUN_48d3_007a raw 77602-77607: only the crossing itself stamps the
+       * nation's return tile (+0x32/+0x33) with the ship's tile. */
+      game->europe.last_exit_x = exit_x;
+      game->europe.last_exit_y = exit_y;
+      game->europe.last_exit_east = exit_east;
+      game->europe.last_exit_valid = true;
       game_europe_fill_expected_treasure_gold(
         &game->europe, cargo_treasure_gold, cargo_count
       );
@@ -1419,6 +1425,22 @@ void game_europe_service_trade_harbor(ColonizeGameState* game) {
     }
     game_europe_drain_price_events(game); /* sells/buys now stamp the record themselves (G3) */
     const int next = (si + 1) % (int)r->dest_count;
+    /* FUN_479b_0bd0 raw 77226-77236: a route ship leaving Europe for a colony
+     * stop gets that colony's tile as its own +0x314d/e before FUN_291f_0ec2
+     * sails it, so the voyage roll and the FUN_48d3_048e landing aim at the
+     * colony, not at the tile it crossed from. */
+    const ColonizeColony* nc =
+      r->stop[next].colony_index == 999
+        ? NULL
+        : colonies_get(
+            &game->colonies,
+            colonies_id_at_dos_index(&game->colonies, (int)r->stop[next].colony_index)
+          );
+    if (nc && nc->active) {
+      ship->exit_x = nc->x;
+      ship->exit_y = nc->y;
+      ship->exit_east = nc->x >= (int)game->world_map.width / 2;
+    }
     const int bound_before = eu->bound_ships;
     if (!europe_set_sail_from_harbor(
           eu, i, game_voyage_turns(game, ship->exit_x), &game->units, game->human_nation
@@ -1426,8 +1448,7 @@ void game_europe_service_trade_harbor(ColonizeGameState* game) {
       ++i; /* outbound lane full — stay docked, retry next EOT */
       continue;
     }
-    /* Returns through its own lane tile: europe_set_sail_from_harbor keeps
-     * the per-ship exit (DOS FUN_48d3_0346). */
+    /* europe_set_sail_from_harbor keeps the per-ship exit (DOS FUN_48d3_0346). */
     if (eu->bound_ships > bound_before) {
       eu->bound[eu->bound_ships - 1].trade_stop = next;
     }

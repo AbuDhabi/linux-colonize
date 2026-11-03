@@ -3632,6 +3632,12 @@ static int case_europe_ship_own_exit_tile(void) {
   /* Caribbean ship arrives first, Pacific ship last (nation tile = Pacific). */
   (void)europe_enqueue_expected(eu, 0, "Merchantman", NULL, NULL, 0, NULL, NULL, 40, 20, true, 1);
   (void)europe_enqueue_expected(eu, 0, "Galleon", NULL, NULL, 0, NULL, NULL, 2, 50, false, 1);
+  /* The crossing (game_ship_sail_to_europe, FUN_48d3_007a) stamps the nation tile, not the
+   * enqueue: the Galleon crossed last. */
+  eu->last_exit_x = 2;
+  eu->last_exit_y = 50;
+  eu->last_exit_east = false;
+  eu->last_exit_valid = true;
   europe_tick_voyages(eu, NULL);
   europe_tick_voyages(eu, NULL);
   (void)europe_harbor_push_ex(eu, 0, "Caravel", NULL, NULL, 0, NULL, NULL); /* purchased */
@@ -3707,7 +3713,46 @@ static int case_europe_immigration_counts_offpool_units(void) {
   return 0;
 }
 
+/* FUN_479b_0bd0 raw 77226-77236: a route ship serviced in the Europe harbor whose next stop
+ * is a colony leaves with that colony's tile as its +0x314d/e, not the tile it crossed from. */
+static int case_europe_trade_route_return_tile(void) {
+  ColonizeGameState* game = calloc(1, sizeof(*game));
+  if (!game) {
+    return 1;
+  }
+  game->europe_ok = true;
+  game->col1_ok = true;
+  game->units_ok = true;
+  game->world_map.width = 58;
+  game->colonies.colonies[0].active = true;
+  game->colonies.colonies[0].id = 1;
+  game->colonies.colonies[0].x = 20;
+  game->colonies.colonies[0].y = 30;
+  game->col1.trade_route[0].dest_count = 2;
+  game->col1.trade_route[0].stop[0].colony_index = 999;
+  game->col1.trade_route[0].stop[1].colony_index = 0;
+  EuropeScreen* eu = &game->europe;
+  (void)europe_harbor_push_ex(eu, 0, "A", NULL, NULL, 0, NULL, NULL);
+  eu->harbor[0].exit_x = 50;
+  eu->harbor[0].exit_y = 10;
+  eu->harbor[0].trade_route_plus1 = 1;
+  eu->harbor[0].trade_stop = 0;
+  game_europe_service_trade_harbor(game);
+  int rc = 0;
+  if (eu->bound_ships != 1 || eu->bound[0].exit_x != 20 || eu->bound[0].exit_y != 30 ||
+      eu->bound[0].trade_stop != 1) {
+    fprintf(
+      stderr, "route return: bound %d exit (%d,%d) stop %d, want 1 (20,30) 1\n", eu->bound_ships,
+      eu->bound[0].exit_x, eu->bound[0].exit_y, eu->bound[0].trade_stop
+    );
+    rc = 1;
+  }
+  free(game);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
+    {"case_europe_trade_route_return_tile", case_europe_trade_route_return_tile},
     {"case_europe_immigration_counts_offpool_units", case_europe_immigration_counts_offpool_units},
     {"case_europe_buy_short_gold_refuses", case_europe_buy_short_gold_refuses},
     {"case_europe_purse_single_door", case_europe_purse_single_door},

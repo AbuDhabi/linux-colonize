@@ -1303,6 +1303,18 @@ bool ai_init_new_game(const AiNewGameParams* params, char* err, size_t err_size)
     if (n == params->human_nation) {
       landfalls[n][0] = params->human_start_x;
       landfalls[n][1] = params->human_start_y;
+      /* Map setup writes nation +0x32/+0x33 for all four nations (FUN_684c_08c0
+       * raw 107143-107153, FUN_6cb2_24b8 raw 113548-113567); the human's is its
+       * landfall too, and the Europe return tile mirrors it. */
+      params->col1->nation[n].return_from_europe_x = (uint8_t)landfalls[n][0];
+      params->col1->nation[n].return_from_europe_y = (uint8_t)landfalls[n][1];
+      if (params->europe) {
+        params->europe->last_exit_x = landfalls[n][0];
+        params->europe->last_exit_y = landfalls[n][1];
+        params->europe->last_exit_east =
+          params->map ? landfalls[n][0] >= (int)params->map->width / 2 : true;
+        params->europe->last_exit_valid = true;
+      }
       continue;
     }
     int ax = params->human_start_x;
