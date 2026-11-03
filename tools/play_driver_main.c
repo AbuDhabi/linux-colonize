@@ -761,6 +761,11 @@ static void print_europe_screen(bool full) {
         printf(" hold %d x%d", eu->harbor[i].hold_goods_type[h], eu->harbor[i].hold_goods_amount[h]);
       }
     }
+    if (eu->harbor[i].damaged) {
+      /* C17: the counter counts UP to the hull's defense (europe_harbor.c raw 58340-58350). */
+      const ColonizeUnitType* ty = units_type(&g_game->units, europe_ship_type_index(&g_game->units, &eu->harbor[i]));
+      printf(" damaged (repair %d/%d turns)", eu->harbor[i].repair_counter, ty ? ty->defense : 0);
+    }
     printf("\n");
   }
 }
@@ -1523,6 +1528,12 @@ static bool command(char* line) {
     printf("OPTION %s %s\n", argv[1], on ? "on" : "off");
   } else if (strcmp(op, "europe") == 0) {
     /* VIEW menu Europe (refused on the main map after the declaration), then the lists. */
+    if (!g_game->in_europe && g_game->ai_popups.open) {
+      /* C17: the screen opened over a native treaty Yes/No; the next Escape on the
+       * Europe screen answered it No (war with the Apache). Answer the popup first. */
+      printf("ERR europe: a popup is open; answer its CHOICES first\n");
+      return true;
+    }
     if (!g_game->in_europe) {
       game_apply_map_menu_action(g_game, MAP_MENU_ACTION_EUROPE);
       ok = flush_frames(10);
@@ -1588,6 +1599,9 @@ static bool command(char* line) {
         printf("SAIL %d %s\n", a1, sp->open ? "prompt still open" : "sailed");
       } else if (sp->open) {
         printf("WARN sail %d: another popup opened first (the sail prompt waits behind it): read CHOICES\n", a1);
+      } else {
+        /* C17: a damaged hull under repair refuses the sail silently (raw 61023). */
+        printf("ERR sail %d: no sail prompt%s\n", a1, eu->harbor[a1].damaged ? " (damaged, under repair)" : "");
       }
     } else if (op[0] == 's' && argc > 3) {
       /* sell H CARGO AMT: the @HOWMUCH5 partial sale (shift-drag onto the market) of AMT
@@ -1670,6 +1684,12 @@ static bool command(char* line) {
     if (a1 < 0 || a1 >= COLONIZE_COLONIES_MAX || !g_game->colonies.colonies[a1].active ||
         g_game->colonies.colonies[a1].nation_id != g_game->human_nation) {
       printf("ERR no colony %d of yours\n", a1);
+      return true;
+    }
+    if (game_ai_popup_tag(g_game) >= 0) {
+      /* C17: a second `field` onto native land queued another @INDIANLAND under the
+       * open one; later Escapes/chooses then answered the wrong plot. */
+      printf("ERR %s: popup tag %d is open; answer it with `choose` first\n", op, game_ai_popup_tag(g_game));
       return true;
     }
     const int id = g_game->colonies.colonies[a1].id;

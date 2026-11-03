@@ -1274,7 +1274,9 @@ static void game_trade_route_service_stop(ColonizeGameState* game, ColonizeUnit*
     }
     return;
   }
-  int cid = (int)cidx;
+  /* Stops hold DOS colony indices, not port ids: once a colony is deleted
+   * (colonies_trade_stops_on_delete shifts the stops) the two part ways. */
+  const int cid = colonies_id_at_dos_index(&game->colonies, (int)cidx);
   const ColonizeColony* col = colonies_get(&game->colonies, cid);
   if (!col || !col->active || col->nation_id != game->human_nation) {
     return;

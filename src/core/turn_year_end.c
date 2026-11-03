@@ -234,7 +234,10 @@ COLONIZE_INTERNAL void turn_year_end_rival_independence(
         continue; /* raw 58563 once-only latch */
       }
       const int v = turn_year_end_rival_rebels(dcol1, rival);
-      const char* country = turn_year_end_country_name(dcol1, rival);
+      /* FUN_291f_0ac8(0, 0, n) ahead of all three popups: %STRING0 is the mode-0
+       * country phrase ("France"), not player[n].country_name ("New France"),
+       * which only @OTHERGRANTED's %STRING1 reads (nation*0x34+0x5426). */
+      const char* country = reports_nation_country_phrase(rival, 0);
       const char* adj = reports_nation_adjective_display_name(rival);
       if (v < thresh) {
         PopupMsgTokens tok;
@@ -268,7 +271,7 @@ COLONIZE_INTERNAL void turn_year_end_rival_independence(
       } else {
         /* raw 58596-58611: @OTHERGRANTED. */
         char old_country[sizeof(dcol1->player[rival].country_name) + 1];
-        snprintf(old_country, sizeof(old_country), "%s", country);
+        snprintf(old_country, sizeof(old_country), "%s", turn_year_end_country_name(dcol1, rival));
         const char* newname = turn_year_end_independent_name(rival);
         char leader[sizeof(dcol1->player[rival].name) + 1];
         snprintf(leader, sizeof(leader), "%s", turn_year_end_leader_name(dcol1, rival));
@@ -299,7 +302,7 @@ COLONIZE_INTERNAL void turn_year_end_rival_independence(
         }
         PopupMsgTokens gtok;
         memset(&gtok, 0, sizeof(gtok));
-        gtok.string0 = old_country;
+        gtok.string0 = country;
         gtok.string1 = old_country;
         gtok.string2 = leader;
         gtok.string3 = newname;

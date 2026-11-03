@@ -494,7 +494,10 @@ static int test_colony_zoom_hold_survives_pedia_detour(void) {
  * but the runtime keeps its unpacked stop index in col1_counter16 (+0x315a).
  * A wagon's ordinary colony-arrival reset must not erase that runtime cursor
  * before game_trade_route_retarget services the stop. */
-static int test_trade_route_wagon_services_arrival_stop(void) {
+/* gap: a deleted colony sits ahead of both stops, so the stops' DOS colony
+ * indices (dense, active-only) no longer equal the port ids (campaign 17: a
+ * burned colony made the silver wagon service a French colony's slot). */
+static int trade_route_arrival_case(bool gap) {
   ColonizeGameState game;
   memset(&game, 0, sizeof(game));
   if (!fx_map_alloc(&game.world_map, 8, 8, /*terrain_fill=*/2, /*with_seen=*/true)) {
@@ -514,6 +517,9 @@ static int test_trade_route_wagon_services_arrival_stop(void) {
 
   fx_colonies_init(&game.colonies);
   game.colonies_ok = true;
+  if (gap) {
+    fx_colony_add(&game.colonies, 0, 1, 1, 1)->active = false;
+  }
   ColonizeColony* load = fx_colony_add(&game.colonies, 0, 5, 4, 1);
   ColonizeColony* other = fx_colony_add(&game.colonies, 0, 6, 4, 1);
   load->stock[COLONIZE_CARGO_SUGAR] = 60;
@@ -522,8 +528,8 @@ static int test_trade_route_wagon_services_arrival_stop(void) {
 
   ColonizeCol1TradeRoute* route = &game.col1.trade_route[0];
   route->dest_count = 2;
-  route->stop[0].colony_index = (uint16_t)other->id;
-  route->stop[1].colony_index = (uint16_t)load->id;
+  route->stop[0].colony_index = 1; /* DOS index of `other` */
+  route->stop[1].colony_index = 0; /* DOS index of `load` */
   route->stop[1].load_count = 1;
   col1_trade_nibble_set(
     route->stop[1].load_cargo_nibbles, 0, COLONIZE_CARGO_SUGAR
@@ -570,6 +576,10 @@ static int test_trade_route_wagon_services_arrival_stop(void) {
   units_set_occupancy_map(NULL);
   fx_map_free(&game.world_map);
   return rc;
+}
+
+static int test_trade_route_wagon_services_arrival_stop(void) {
+  return trade_route_arrival_case(false) || trade_route_arrival_case(true);
 }
 
 /* DOS FUN_479b_0bd0 raw 77234-77238 copies the DS:0x8542 colony record's

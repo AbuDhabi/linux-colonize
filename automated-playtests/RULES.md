@@ -174,8 +174,11 @@ Cost = number of calls x context size. Output size matters much less.
   Never mind. [1] Unload ... anyway`). The driver's `unload` does not ask:
   it prints `WARN ... over the warehouse cap`; `load` the excess back or it
   spoils at turn end (campaign 11 lost 100 tools).
-- `field` refuses a plot on native land at peace (the game would ask
-  pay/take there). Drag the colonist onto it on the colony screen instead.
+- `field` on native land at peace opens the game's @INDIANLAND question
+  (`NATIVE LAND plot N`): answer it with `choose`, then send `field` again.
+  `field`, `work` and `europe` refuse while any popup is open (campaign 17:
+  stacked @INDIANLAND popups, and an Escape on the Europe screen that
+  answered a queued treaty No and started a war).
   It also refuses a plot another colonist works (`ERR plot N is worked by
   colonist K`): move that one first. Before this check the old worker was
   left with no job at all (`field_job -1 slot -1`, eating, producing nothing).
@@ -296,7 +299,8 @@ Cost = number of calls x context size. Output size matters much less.
   `sell H [CARGO]` (all holds of CARGO, or every hold), `buy H CARGO [AMT]`
   (default 100), `sail H` (answers its own Yes; a popup that opens instead,
   such as a mercenary offer, is printed as CHOICES and left for you).
-  Never send `sail` twice for one ship. Read the rows before each recruit:
+  Never send `sail` twice for one ship. A HARBOR row `damaged (repair N/D
+  turns)` is under repair and cannot sail until N reaches D. Read the rows before each recruit:
   the pool changes after every pick. `key Escape` leaves the screen. Never
   use `key e` to leave: on the main map E opens Europe. A ship sailing from
   Europe arrives at the tile it last left from. Cargo and passengers

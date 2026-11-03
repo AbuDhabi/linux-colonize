@@ -1171,7 +1171,6 @@ int turn_europe_harbor_repairs(ColonizeTurnContext* ctx) {
   }
   int idx[16];
   const int n = europe_harbor_repair_tick(ctx->europe, ctx->units, idx, 16);
-  if (n) fprintf(stderr, "DBGREPAIR %d\n", n);
   for (int k = 0; k < n && k < 16; ++k) {
     const EuropeHarborShip* s = &ctx->europe->harbor[idx[k]];
     const ColonizeUnitType* ty =
