@@ -3,7 +3,7 @@ key g                  # G = Go to Place: @TRAVELPLACE list (Quebec, Montreal, M
 key Escape             # Esc cancels the list (no order, wagon stays selected)
 key g                  # Go to Place again
 click 96 89            # Quebec: the wagon rides the roads there, order cleared on arrival
-wait 8
+wait 20                # the wagon finishes its ride first: keys pressed while a Go To runs are dropped
 # Caravel A (Quebec dock, 12 moves) is next. G = Go to Port: colony picker (Europe, Quebec greyed, Montreal, Port au Prince; lake colony Guadeloupe is not offered to a ship)
 key g                  # open the picker
 key Escape             # picker cancelled: no order, ship stays selected
