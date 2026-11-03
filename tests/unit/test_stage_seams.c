@@ -20,6 +20,7 @@
 #include "core/dos_buggy.h"
 #include "core/game_loop_internal.h"
 #include "core/popup.h"
+#include "core/reports.h"
 #include "core/turn_internal.h"
 
 #include "../common/ai_fixture.h"
@@ -1910,6 +1911,35 @@ static int test_screen_f1_focus_article(void) {
 }
 
 /*
+ * Brewster's @RECRUITCHOOSE %STRING0 is the nation's home port: FUN_38fd_4884 raw 64708
+ * (param_2 != 0) passes DS:(nation*2 - 0x7c74), the NAMES @HOMEPORT row, to FUN_281f_0438.
+ */
+static int test_brewster_pick_names_home_port(void) {
+  ColonizeGameConfig cfg = {.data_dir = "./COLONIZE", .save_dir = "./build/debug"};
+  ColonizeGameState* game = game_create(&cfg);
+  if (!game || !game_assets_ok(game)) {
+    fprintf(stderr, "SKIP: no COLONIZE/ assets\n");
+    if (game) {
+      game_destroy(game);
+    }
+    return TR_SKIP;
+  }
+  int rc = 0;
+  const char* port = reports_home_port_name(0);
+  ai_popup_clear(&game->ai_popups);
+  units_brewster_enqueue_pick(&game->europe, &game->ai_popups, &game->messages, 0);
+  if (game->ai_popups.queue_count != 1 || !port[0] ||
+      !strstr(game->ai_popups.queue[0].body, port)) {
+    fprintf(stderr, "  queue %d port '%s' body '%s'\n", game->ai_popups.queue_count, port,
+            game->ai_popups.queue_count > 0 ? game->ai_popups.queue[0].body : "");
+    rc = fail("@RECRUITCHOOSE %STRING0 names the home port");
+  }
+  ai_popup_clear(&game->ai_popups);
+  game_destroy(game);
+  return rc;
+}
+
+/*
  * @HOWMUCH4 STRING1 is the hull's @UNIT type name: FUN_38fd_1fa2 raw 60414-60415 reads
  * `type * 0xe + 0x5230` off the ship's +0x3146, not a per-ship name.
  */
@@ -2555,6 +2585,7 @@ static const TestCase k_cases[] = {
     {"test_colony_construction_two_pages_live", test_colony_construction_two_pages_live},
     {"test_indian_land_offer_row_greyed", test_indian_land_offer_row_greyed},
     {"test_europe_buy_prompt_names_hull_type", test_europe_buy_prompt_names_hull_type},
+    {"test_brewster_pick_names_home_port", test_brewster_pick_names_home_port},
     {"test_click_spent_unit_hands_off", test_click_spent_unit_hands_off},
     {"test_eot_off_unit_used_up_ends_turn", test_eot_off_unit_used_up_ends_turn},
     {"test_hotseat_dos_save_round_trip", test_hotseat_dos_save_round_trip},

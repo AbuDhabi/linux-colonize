@@ -1499,9 +1499,9 @@ void units_brewster_enqueue_pick(
   PopupMsgTokens tok;
   memset(&tok, 0, sizeof(tok));
   tok.country = europe->nation_name[0] ? europe->nation_name : "";
-  /* DOS supplies an executable-side destination noun here. Keep the port's
-   * own wording distinct from the editable catalog text. */
-  tok.string0 = "the embarkation pool";
+  /* FUN_38fd_4884 raw 64708 (Brewster arm, param_2 != 0) sets %STRING0 from
+   * DS:(nation*2 - 0x7c74), the NAMES @HOMEPORT row ("London"). */
+  tok.string0 = units_home_port_name(NULL, human);
   char body[AI_POPUP_BODY_LEN];
   if (game_txt) {
     popup_msg_fill(game_txt, "RECRUITCHOOSE", &tok, "", body, sizeof(body));
