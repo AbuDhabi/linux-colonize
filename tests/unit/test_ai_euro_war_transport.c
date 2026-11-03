@@ -967,6 +967,104 @@ static int unit_unload_runs_3180_ai_encounter(void) {
   return 0;
 }
 
+/*
+ * FUN_465b_0000 raw 75450 / 75792: a landing onto a rumour whose LCR changes
+ * the unit count (survivors join) jumps to LAB_465b_0bd1, so the 3180 13b0
+ * limb does not meet the French unit next door. Control: an outcome that
+ * leaves the count alone still meets them.
+ */
+static int unit_unload_lcr_count_change_skips_3180(void) {
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  ColonizeWorldMap map;
+  if (!fx_map_alloc(&map, 8, 8, 1, false)) {
+    return fail("lcr-unload alloc map");
+  }
+  map.terrain[4 * 8 + 2] = 25; /* ship tile at sea */
+  for (uint16_t s = 1; s < 512 && !map_tile_has_rumour(&map, 3, 4); ++s) {
+    map.prime_resource_seed = s;
+  }
+  ColonizeUnitPool units;
+  fx_units_init(&units);
+  units.type_count = 2;
+  units.types[0].movement = 1;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[0].kind_plus1 = UNITS_KIND_COLONIST + 1; /* survivors spawn this */
+  units.types[1].movement = 4;
+  units.types[1].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  units.types[1].cargo = 2;
+  ColonizeUnit* fr = units_get(&units, units_spawn(&units, 0, 4, 4));
+  if (!fr || !map_tile_has_rumour(&map, 3, 4)) {
+    fx_map_free(&map);
+    return fail("lcr-unload fixture");
+  }
+  fr->nation_id = 1;
+  const int fid = fr->id;
+  int seen_changed = 0;
+  int seen_same = 0;
+  int rc = 0;
+  for (int seed = 1; seed < 400 && rc == 0 && (!seen_changed || !seen_same); ++seed) {
+    map.layer2[4 * 8 + 3] &= (uint8_t)~MAP_LAYER2_LCR_CONSUMED;
+    memset(col1.nation, 0, sizeof(col1.nation));
+    ColonizeUnit* ship = units_get(&units, units_spawn(&units, 1, 2, 4));
+    ColonizeUnit* pax = units_get(&units, units_spawn(&units, 0, 1, 4));
+    if (!ship || !pax) {
+      rc = fail("lcr-unload spawn");
+      break;
+    }
+    ship->nation_id = 3;
+    pax->nation_id = 3;
+    const int sid = ship->id;
+    const int pid = pax->id;
+    if (!units_board(&units, pid, sid)) {
+      rc = fail("lcr-unload board");
+      break;
+    }
+    ColonizeDosRng rng;
+    dos_rng_seed(&rng, (uint32_t)seed * 12345u);
+    ColonizeTurnContext ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.units = &units;
+    ctx.map = &map;
+    ctx.col1 = &col1;
+    ctx.col1_ok = true;
+    ctx.human_nation = 0;
+    ctx.rng = &rng;
+    const int before = units_active_count(&units);
+    (void)ai_euro_unload_pax_at(&ctx, units_get(&units, sid), units_get(&units, pid), 3, 4,
+                                UNITS_ORDER_NONE, -1, -1);
+    pax = units_get(&units, pid);
+    const bool alive = pax && pax->active && pax->x == 3 && pax->y == 4;
+    const bool changed = units_active_count(&units) != before;
+    const bool met = (col1.nation[3].euro_relation[1] & AI_DIPLO_MET) != 0;
+    if (alive && changed) {
+      seen_changed++;
+      if (met) {
+        fprintf(stderr, "lcr-unload: count change (seed %d) still ran 3180\n", seed);
+        rc = 1;
+      }
+    } else if (alive && !changed) {
+      seen_same++;
+      if (!met) {
+        fprintf(stderr, "lcr-unload: unchanged count (seed %d) skipped 3180\n", seed);
+        rc = 1;
+      }
+    }
+    for (int i = 0; i < units_slot_end(&units); ++i) {
+      if (units.units[i].active && units.units[i].id != fid) {
+        units_despawn(&units, units.units[i].id);
+      }
+    }
+  }
+  fx_map_free(&map);
+  if (rc == 0 && (!seen_changed || !seen_same)) {
+    fprintf(stderr, "lcr-unload: outcomes not reached (changed %d same %d)\n", seen_changed,
+            seen_same);
+    rc = 1;
+  }
+  return rc;
+}
+
 /* Stand-in for game_combat_popup_pump: answers every queued talk choice with
  * option 1, as the playtest player did ("Yes", "Go in peace"). */
 typedef struct TalkPump {
@@ -1078,6 +1176,7 @@ static const TestCase k_cases[] = {
     {"unit_3180_human_talk_answered_before_next_act",
      unit_3180_human_talk_answered_before_next_act},
     {"unit_unload_runs_3180_ai_encounter", unit_unload_runs_3180_ai_encounter},
+    {"unit_unload_lcr_count_change_skips_3180", unit_unload_lcr_count_change_skips_3180},
     {"unit_unload_regular_threatened", unit_unload_regular_threatened},
     {"unit_unload_continental_army_threatened", unit_unload_continental_army_threatened},
     {"unit_unload_continental_cavalry_threatened", unit_unload_continental_cavalry_threatened},

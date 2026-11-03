@@ -776,6 +776,116 @@ static int test_goto_treasure_gets_king_galleon_offer(void) {
   return rc;
 }
 
+/* FUN_465b_0000 raw 75450 / 75792: a human explorer whose rumour changes the
+ * unit count (survivors join) skips the FUN_5bfb_3180 contact work, so neither
+ * the unmet village next door (FUN_5bfb_022e MET bit) nor the Dutch unit on
+ * the other side (FUN_5bfb_153e MET bit) is met on this move. Control: an
+ * outcome that leaves the count alone meets both. */
+static int test_human_lcr_count_change_skips_contact(void) {
+  ColonizeGameState game;
+  memset(&game, 0, sizeof(game));
+  if (!fx_map_alloc(&game.world_map, 8, 8, /*terrain_fill=*/2, /*with_seen=*/true)) {
+    return fail("human lcr map alloc");
+  }
+  game.world_map_ok = true;
+  game.human_nation = 0;
+  game.col1_ok = true;
+  fx_units_init(&game.units);
+  game.units_ok = true;
+  game.units.type_count = 1;
+  game.units.types[0].kind_plus1 = UNITS_KIND_COLONIST + 1;
+  game.units.types[0].movement = 2;
+  game.units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  fx_colonies_init(&game.colonies);
+  game.colonies_ok = true;
+  units_set_occupancy_map(&game.world_map);
+  colonies_set_occupancy_map(&game.world_map);
+  game.col1.player[0].named_new_world = 1;
+  for (int n = 1; n < 4; ++n) {
+    game.col1.player[n].control = 1;
+  }
+  for (uint16_t s = 1; s < 512 && !map_tile_has_rumour(&game.world_map, 3, 3); ++s) {
+    game.world_map.prime_resource_seed = s;
+  }
+  ColonizeCol1Tribe tribe;
+  memset(&tribe, 0, sizeof(tribe));
+  tribe.nation_id = 4;
+  tribe.x = 4;
+  tribe.y = 3;
+  game.col1.tribe = &tribe;
+  game.col1.head.tribe_count = 1;
+  int seen_changed = 0;
+  int seen_same = 0;
+  const int32_t saved_83a6 = dos_rng_get_83a6();
+  int rc = map_tile_has_rumour(&game.world_map, 3, 3) ? 0 : fail("no rumour at (3,3)");
+  for (int seed = 1; seed < 400 && rc == 0 && (!seen_changed || !seen_same); ++seed) {
+    game.world_map.layer2[3 * 8 + 3] &= (uint8_t)~MAP_LAYER2_LCR_CONSUMED;
+    memset(&game.col1.indian[0], 0, sizeof(game.col1.indian[0]));
+    ai_popup_init(&game.ai_popups);
+    ColonizeUnit* u = units_get(&game.units, units_spawn(&game.units, 0, 3, 3));
+    if (!u) {
+      rc = fail("human lcr spawn");
+      break;
+    }
+    u->nation_id = 0;
+    u->moves = 6;
+    const int uid = u->id;
+    game.units.selected_id = uid;
+    ColonizeUnit* dutch = units_get(&game.units, units_spawn_allow_stack(&game.units, 0, 2, 3));
+    if (!dutch) {
+      rc = fail("human lcr spawn neighbour");
+      break;
+    }
+    dutch->nation_id = 1;
+    game.col1.head.turn = (uint16_t)seed; /* 153e talks once per pair per turn */
+    ai_diplo_talk_reset();
+    ai_diplo_write(&game.col1, 0, 1, 0);
+    ai_diplo_write(&game.col1, 1, 0, 0);
+    /* FUN_65dd_0004 reseeds from the 83a6 word (an earlier case may have set it). */
+    dos_rng_set_83a6((int32_t)seed * 12345);
+    dos_rng_seed(&game.move_rng, (uint32_t)seed * 12345u);
+    const int before = units_active_count(&game.units);
+    game_after_unit_action(&game);
+    u = units_get(&game.units, uid);
+    const bool alive = u && u->active;
+    const bool changed = units_active_count(&game.units) != before;
+    const bool met = (game.col1.indian[0].euro_diplo[0] & COL1_INDIAN_MET_BIT) != 0;
+    const bool euro_met = (ai_diplo_read(&game.col1, 0, 1) & COL1_INDIAN_MET_BIT) != 0;
+    if (alive && changed) {
+      seen_changed++;
+      if (met || euro_met) {
+        fprintf(stderr, "human lcr: count change (seed %d) still ran contact (tribe %d euro %d)\n",
+                seed, met, euro_met);
+        rc = 1;
+      }
+    } else if (alive && !changed) {
+      seen_same++;
+      if (!met || !euro_met) {
+        fprintf(stderr, "human lcr: unchanged count (seed %d) skipped contact (tribe %d euro %d)\n",
+                seed, met, euro_met);
+        rc = 1;
+      }
+    }
+    for (int i = 0; i < units_slot_end(&game.units); ++i) {
+      if (game.units.units[i].active) {
+        units_despawn(&game.units, game.units.units[i].id);
+      }
+    }
+  }
+  if (rc == 0 && (!seen_changed || !seen_same)) {
+    fprintf(stderr, "human lcr: outcomes not reached (changed %d same %d)\n", seen_changed,
+            seen_same);
+    rc = 1;
+  }
+  dos_rng_set_83a6(saved_83a6);
+  game.col1.tribe = NULL;
+  game.col1.head.tribe_count = 0;
+  colonies_set_occupancy_map(NULL);
+  units_set_occupancy_map(NULL);
+  fx_map_free(&game.world_map);
+  return rc;
+}
+
 /*
  * Playtest C3-B4: a ship bumping a foreign Euro colony must reach the
  * FUN_5f7a_0662 trade arm (FUN_4720_015c leaves the step valid, raw
@@ -2659,6 +2769,7 @@ static const TestCase k_cases[] = {
     {"test_trade_route_wagon_services_arrival_stop", test_trade_route_wagon_services_arrival_stop},
     {"test_trade_route_begin_moves_wagon_to_selected_stop", test_trade_route_begin_moves_wagon_to_selected_stop},
     {"test_goto_treasure_gets_king_galleon_offer", test_goto_treasure_gets_king_galleon_offer},
+    {"test_human_lcr_count_change_skips_contact", test_human_lcr_count_change_skips_contact},
     {"test_ship_bumps_foreign_colony_trade_arm", test_ship_bumps_foreign_colony_trade_arm},
     {"test_trade_route_ship_aims_colony_tile", test_trade_route_ship_aims_colony_tile},
     {"test_ai_euro_5952_absorb_colonist", test_ai_euro_5952_absorb_colonist},

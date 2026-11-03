@@ -1016,7 +1016,15 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_rumour(units_move_ctx* c) {
       lw.col1 = c->col1; /* == g_units_ff_col1 here (w->col1 was NULL) */
       lw.col1_ok = lw.col1 != NULL;
     }
+    /* raw 75450 / 75792: DOS saves the live unit count (DS:0x539c) at entry
+     * and, when the LCR changed it (survivors, Cibola / burial Treasure, the
+     * Fountain recruits, a vanished explorer), jumps to LAB_465b_0bd1: no
+     * 0984 -> 3180 scan and bVar5 stays false. units_move_finish reads the
+     * flag. The colony arrival stage still runs but is a no-op: a rumour
+     * tile never holds a colony. */
+    const int units_before = units_active_count(c->pool);
     (void)units_resolve_lcr_rumour_w(&lw, c->unit_id, -1);
+    c->lcr_count_changed = units_active_count(c->pool) != units_before;
     c->unit = units_get(c->pool, c->unit_id);
     if (!c->unit || !c->unit->active) {
       return UNITS_MOVE_RETURN_TRUE;
@@ -1154,7 +1162,7 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_finish(units_move_ctx* c) {
    * bVar4 colony entry and a 1b0e winner's advance `goto LAB_465b_0bd1`
    * first (tr9 10 -> 11: the English Regular taking Vlissingen turns no
    * neighbour's head). */
-  if (!c->combat_attack_entry && !c->foreign_colony_entry) {
+  if (!c->combat_attack_entry && !c->foreign_colony_entry && !c->lcr_count_changed) {
     /* FUN_5bfb_3180 naval half: adjacent foreign warship / Fort / Fortress
      * may eat the mover's remaining MP (see units_ship_slow_scan). */
     units_ship_slow_scan_w(c->w, unit_id);
@@ -1179,7 +1187,9 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_finish(units_move_ctx* c) {
       c->unit->y
     );
   }
+  /* An LCR count change reaches 0bd1 by goto with bVar5 still false. */
   g_units_465b_settled = !c->combat_attack_entry && !c->foreign_colony_entry &&
+                         !c->lcr_count_changed &&
                          reason != COLONIZE_ENTER_COMBAT_LAND &&
                          reason != COLONIZE_ENTER_COMBAT_NAVAL;
   return UNITS_MOVE_RETURN_TRUE;

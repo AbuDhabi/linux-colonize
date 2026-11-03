@@ -497,17 +497,20 @@ int ai_euro_unload_pax_at(
   pax->moves = 0;
   /* FUN_465b_0000 raw 75763/75788-75791: a Euro unit stepping onto a rumour
    * tile rolls the LCR (FUN_2a1f_0178 -> FUN_65dd_0004) inside the move,
-   * before the contact scan; a vanished unit skips the rest of the move. */
+   * before the contact scan; any change of the unit count (DS:0x539c, raw
+   * 75450 / 75792: survivors, Treasure, Fountain recruits, a vanished
+   * explorer) skips the rest of the move, the 3180 scan below included. */
   if (ctx->map && map_tile_has_rumour(ctx->map, pax->x, pax->y)) {
     /* europe stays NULL as before: an AI LCR credits the save, never the
      * human-bound EuropeScreen (gold / Fountain of Youth recruit pool). */
     ColonizeWorld lw = world_from_turn_ctx(ctx);
     lw.europe = NULL;
+    const int units_before = units_active_count(ctx->units);
     (void)units_resolve_lcr_rumour_w(&lw, pax->id, -1);
-    pax = units_get(ctx->units, pax->id);
-    if (!pax || !pax->active) {
+    if (units_active_count(ctx->units) != units_before) {
       return 1;
     }
+    pax = units_get(ctx->units, pax->id);
   }
   /*
    * FUN_5bfb_3180 after landfall: Indian first contact from an adjacent

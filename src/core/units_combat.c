@@ -3914,6 +3914,9 @@ bool units_resolve_lcr_rumour_w(
       ColonizeUnit* nu = units_get(pool, nid);
       if (nu) {
         units_set_nation(nu, nation);
+        /* raw 103722 FUN_281f_089e(explorer) -> FUN_1427_0362: the explorer is
+         * relinked to the chain head, back on top of the survivor. */
+        units_tile_stack_arrive(pool, unit_id);
       }
     }
     tok.string0 = (nation >= 0 && nation <= 3) ? reports_nation_country_name(nation)

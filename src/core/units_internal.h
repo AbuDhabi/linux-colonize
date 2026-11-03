@@ -196,6 +196,7 @@ typedef struct units_move_ctx {
   bool combat_attack_entry;   /* attack full-exhaust charge at the step gate */
   bool foreign_colony_entry;  /* 465b bVar4 settlement arm */
   bool dest_rumour;           /* FUN_281f_075e read before arrival */
+  bool lcr_count_changed;     /* raw 75792: the LCR changed DS:0x539c */
   int ox;                     /* origin tile, captured at the step commit */
   int oy;
 } units_move_ctx;

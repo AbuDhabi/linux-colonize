@@ -4,6 +4,7 @@
 #include "core/ai_popup_render.h"
 #include "core/europe_internal.h"
 
+#include "../common/test_catalogs.h"
 #include "../common/test_runner.h"
 
 /* Split into named cases 2026-09-23 (was one 6.7k-line main()).
@@ -4036,6 +4037,154 @@ static int case_tb47_brewster_cap_keeps_crosses(void) {
     return 1;
   }
   return 0;
+}
+
+/* FUN_465b_0000 raw 75450 / 75792: an LCR that changes the unit count
+ * jumps to LAB_465b_0bd1, skipping the 0984 -> FUN_5bfb_3180 scan, so a
+ * foreign Sentry beside the rumour stays asleep. Control: an outcome that
+ * leaves the count alone runs the scan and wakes it (raw 98628-98646). */
+static int case_lcr_count_change_skips_3180(void) {
+  if (!test_names_txt()) {
+    return TR_SKIP;
+  }
+  if (fx_open() != 0) {
+    return 1;
+  }
+  const size_t ti = (size_t)15 * map.width + 9;
+  map.layer3[ti] = (uint8_t)(0xf0u | (map.layer3[ti] & 0x0fu));
+  map.prime_resource_seed = 100;
+  int from_x = -1;
+  int from_y = 15;
+  int foe_x = -1;
+  int foe_y = -1;
+  for (int d = 0; d < 8; ++d) {
+    const int nx = 9 + MAP_DIR8_DX[d];
+    const int ny = 15 + MAP_DIR8_DY[d];
+    if (map_tile_is_water(&map, nx, ny) || map_tile_has_rumour(&map, nx, ny)) {
+      continue;
+    }
+    if (from_x < 0) {
+      from_x = nx;
+      from_y = ny;
+    } else if (foe_x < 0) {
+      foe_x = nx;
+      foe_y = ny;
+    }
+  }
+  if (!map_dos_0598_rumour_tile(&map, 9, 15) || from_x < 0 || foe_x < 0) {
+    fprintf(stderr, "LCR 3180 skip: fixture tiles missing\n");
+    return 1;
+  }
+  bool baseline[COLONIZE_UNITS_MAX];
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    baseline[i] = pool.units[i].active;
+  }
+  int seen_changed = 0;
+  int seen_same = 0;
+  int rc = 0;
+  for (int seed = 1; seed < 400 && rc == 0 && (!seen_changed || !seen_same); ++seed) {
+    /* Re-arm the rumour: the last explorer's sight stamped its owner nibble. */
+    map.layer2[ti] &= (uint8_t)~MAP_LAYER2_LCR_CONSUMED;
+    map.layer3[ti] = (uint8_t)(0xf0u | (map.layer3[ti] & 0x0fu));
+    ColonizeUnit* foe = units_get(&pool, units_spawn_allow_stack(&pool, colonist, foe_x, foe_y));
+    ColonizeUnit* u = units_get(&pool, units_spawn_allow_stack(&pool, colonist, from_x, from_y));
+    if (!foe || !u) {
+      rc = 1;
+      fprintf(stderr, "LCR 3180 skip: spawn failed\n");
+      break;
+    }
+    units_set_nation(foe, 2);
+    foe->orders = UNITS_ORDER_SENTRY;
+    units_set_nation(u, 1);
+    const int uid = u->id;
+    ColonizeDosRng rng;
+    dos_rng_seed(&rng, (uint32_t)seed * 12345u);
+    const int before = units_active_count(&pool);
+    units_try_move_w(&(ColonizeWorld){.units = &pool, .map = &map, .rng = &rng}, uid, 9, 15);
+    u = units_get(&pool, uid);
+    const bool alive_on_rumour = u && u->active && u->x == 9 && u->y == 15;
+    const bool changed = units_active_count(&pool) != before;
+    if (alive_on_rumour && changed) {
+      seen_changed++;
+      if (foe->orders != UNITS_ORDER_SENTRY) {
+        fprintf(stderr, "LCR count change (seed %d) still ran the 3180 sentry wake\n", seed);
+        rc = 1;
+      }
+    } else if (alive_on_rumour && !changed) {
+      seen_same++;
+      if (foe->orders == UNITS_ORDER_SENTRY) {
+        fprintf(stderr, "LCR without count change (seed %d) skipped the 3180 wake\n", seed);
+        rc = 1;
+      }
+    }
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      if (pool.units[i].active && !baseline[i]) {
+        units_despawn(&pool, pool.units[i].id);
+      }
+    }
+  }
+  if (rc == 0 && (!seen_changed || !seen_same)) {
+    fprintf(stderr, "LCR 3180 skip: outcomes not reached (changed %d same %d)\n",
+            seen_changed, seen_same);
+    rc = 1;
+  }
+  fx_close();
+  return rc;
+}
+
+/* FUN_65dd_0004 case 9 raw 103717-103722: after the survivor spawn (095c
+ * puts it at the chain head) FUN_281f_089e(explorer) -> FUN_1427_0362
+ * relinks the explorer, so the explorer is back on top of the stack. */
+static int case_lcr_survivors_explorer_on_top(void) {
+  if (!test_names_txt()) {
+    return TR_SKIP;
+  }
+  if (fx_open() != 0) {
+    return 1;
+  }
+  ColonizeDosRng rng;
+  dos_rng_seed(&rng, 12345u * 7u);
+  int hits = 0;
+  int rc = 0;
+  for (int i = 0; i < (int)(map.width * map.height) && hits == 0 && rc == 0; ++i) {
+    const int x = i % (int)map.width;
+    const int y = i / (int)map.width;
+    if (!map_tile_has_rumour(&map, x, y) || units_id_at(&pool, x, y) >= 0) {
+      continue;
+    }
+    const int sid = units_spawn_allow_stack(&pool, colonist, x, y);
+    ColonizeUnit* su = units_get(&pool, sid);
+    if (!su) {
+      continue;
+    }
+    units_set_nation(su, 1);
+    (void)units_resolve_lcr_rumour_w(&(ColonizeWorld){.units = &pool, .map = &map, .rng = &rng}, sid, -1);
+    su = units_get(&pool, sid);
+    int slot = 0;
+    for (ColonizeUnit* o = units_next_on_tile(&pool, x, y, &slot); o != NULL && su && su->active;
+         o = units_next_on_tile(&pool, x, y, &slot)) {
+      if (o->id == sid || o->type_index != colonist) {
+        continue;
+      }
+      hits++;
+      if (su->tile_stack_order <= o->tile_stack_order) {
+        fprintf(stderr, "LCR survivors: explorer order %llu not above survivor %llu\n",
+                (unsigned long long)su->tile_stack_order, (unsigned long long)o->tile_stack_order);
+        rc = 1;
+      }
+      units_despawn(&pool, o->id);
+      break;
+    }
+    if (su && su->active) {
+      units_despawn(&pool, sid);
+    }
+  }
+  if (rc == 0 && hits == 0) {
+    fprintf(stderr, "LCR survivors: outcome never rolled\n");
+    rc = 1;
+  }
+  fx_close();
+  return rc;
 }
 
 static int case_lcr_case_matrix(void) {
@@ -8080,6 +8229,8 @@ static const TestCase k_cases[] = {
   {"lcr_outcome_dispatch", case_lcr_outcome_dispatch},
   {"lcr_fountain_ai", case_lcr_fountain_ai},
   {"lcr_burial_trespass", case_lcr_burial_trespass},
+  {"lcr_count_change_skips_3180", case_lcr_count_change_skips_3180},
+  {"lcr_survivors_explorer_on_top", case_lcr_survivors_explorer_on_top},
   {"lcr_burial3_spawn_failure_silent", case_lcr_burial3_spawn_failure_silent},
   {"lcr_trespass_village_index", case_lcr_trespass_village_index},
   {"enter_probe_matrix", case_enter_probe_matrix},
