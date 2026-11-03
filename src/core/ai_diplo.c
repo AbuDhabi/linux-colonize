@@ -44,11 +44,22 @@
  * Peer flags: `nation[a].euro_relation[b]` (DS −0x77c4 / Col1 mapped).
  * Do NOT use unknown26[4..7] for flags — those save bytes are unrelated and
  * false-triggered WAR (Privateer spam on seed-100 TURN1→2).
- * Remaining unknown26 OpenCol stand-ins (timers / sticky / privateer mask):
- *   [0..3] treaty timers  [9] Privateer spawn mask  [11] Indian sticky
- * ([8] carried the sticky until 2026-09-09 (smell #52); that byte is DOS's
- * FUN_4d56_4528 grace/waiver counter — [11] is the block's one dead byte.)
- * Indian×Euro full 15b3 matrix still PORT DEBT (thin feeler / war-hit / sticky).
+ * Nation +0x40..+0x4b (the old `unknown26[12]`) carries no OpenCol stand-in
+ * any more: every byte is a named DOS field in col1_save_layout.h —
+ * +0x40-43 treaty_timer (DS -0x77b8; FUN_5bfb_13b0 / 153e tail write,
+ * FUN_521d_6d8e prelude raw 93173-93188 decrements, ai_diplo_treaty_timers),
+ * +0x44/45 recruit LFSR, +0x46 last_colony_founded_turn, +0x48
+ * king_grace_counter, +0x49 musket_bank_lots (the old "Privateer spawn mask"
+ * slot), +0x4a/4b carry word (the old "Indian sticky" slot; the sticky itself
+ * was invention and is gone). DOS saves round-trip these bytes verbatim.
+ * The 15b3 relation quartet (0004 read / 0032 write / 0066 or_both / 00d0
+ * clear_both, raw 9056-9117) is ported over the full 12x12 range, Indian
+ * rows included (ai_diplo_flag_byte's quadrant map); 15b3_0144..0274 are
+ * name/adjective/leader table getters, not relations. The Indian×Euro
+ * scalar is indian[].alarm_by_player, written only by FUN_4cc6_00f2
+ * (ai_diplo_indian_alarm_delta + ai_contact_alarm_delta_00f2*). The old
+ * "thin feeler / war-hit / sticky" Indian layer had no DOS body and is
+ * retired (port_bugs.md #965, #1104).
  * Phase 1 deepen (T3 roadmap): unmet euro_relation==0 no longer stamped;
  * relation==0 is unmet not war; a met tribe's Euro-side row is 0x60 = 96 =
  * MET|PEACE (seed-100 TURN3+) — a bitfield, never a scalar floor (audit #16).
@@ -638,7 +649,7 @@ void ai_diplo_declare_war_ctx(ColonizeTurnContext* ctx, int nation_a, int nation
   const int already = ai_diplo_at_war(ctx->col1, nation_a, nation_b);
   const int human = ai_diplo_involves_human(ctx, nation_a, nation_b);
   ai_diplo_declare_war(ctx->col1, nation_a, nation_b);
-  /* Franklin may no-op declare — only chrome when WAR actually stuck. */
+  /* Chrome only on a fresh WAR (no Franklin gate, port_bugs.md #472). */
   const int now_war = ai_diplo_at_war(ctx->col1, nation_a, nation_b);
   if (!already && now_war) {
     if (human) {
@@ -2991,11 +3002,9 @@ void ai_diplo_13b0_encounter(ColonizeTurnContext* ctx, int mover, int other) {
  * clamp-down arm is implemented below.
  *
  * DOS reads iVar2/iVar5 already clamped to [0,100] from the same storage
- * this function's caller writes (0x5b1c == relation_by_indian). OpenCol's
- * relation_by_indian is [0,255] (separate PORT DEBT, not rescoped here —
- * see port_plan.md) so old/new are locally capped to 99 for this tier
- * check only, matching DOS's own `if (iVar5>99) iVar5=99` clamp; storage
- * itself is untouched.
+ * this function's caller writes (0x5b1c == indian[].alarm_by_player, 0..100
+ * in the port too); only the NEW value is capped to 99 for this tier check,
+ * matching DOS's own `if (iVar5>99) iVar5=99`; storage itself is untouched.
  */
 /* ===================== Indian tension tier, alarm delta & relation accessors (ai_diplo_indian_tension_tier_update .. ai_diplo_indian_relation) ===================== */
 static void ai_diplo_indian_tension_tier_update(
@@ -3063,9 +3072,17 @@ void ai_diplo_indian_alarm_delta(
   /*
    * FUN_4cc6_00f2: table[0x5b1c + (tribe*0x27+euro)*2] = clamp(old + delta, 0, 100);
    * on a 5-point tier crossing after a negative delta, clamp the tribes'
-   * DS:0x54f6 tension slots (ai_diplo_indian_tension_tier_update). DOS also
-   * clears diplo bit 4 / war bit 2 (281f_0a10) on a negative delta once
-   * below 75 — not mirrored here (OpenCol war state lives in euro_diplo).
+   * DS:0x54f6 tension slots (ai_diplo_indian_tension_tier_update), and clear
+   * relation bit 4 (any cooling) / WAR bit 2 (below 75) both ways (281f_0a10).
+   *
+   * This is the whole of 00f2 EXCEPT its escalation tail (raw 80864-80915:
+   * new alarm == 100 && PEACE bit -> RNG(0,10) mission burn via 2a1f_0398),
+   * which lives in ai_contact_alarm_delta_00f2(_w). The tail needs the
+   * post-add alarm to be 100, which a NEGATIVE delta can never produce (old
+   * <= 100), so a bare call with delta < 0 IS the whole DOS body — the only
+   * production callers left (Pocahontas FUN_4345_0342 case 0x10, the 1b0e
+   * native-attack vent) pass negative deltas only. Any delta >= 0 must go
+   * through the ai_contact wrapper.
    *
    * 2026-09-07d: the positive-delta halving moved here from the call sites —
    * DOS does it INSIDE 00f2 (raw 80844-80850): France (euro 1) halves, then

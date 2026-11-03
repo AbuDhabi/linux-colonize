@@ -1422,11 +1422,6 @@ void ai_king_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState* po
         }
       }
       break;
-    case AI_POPUP_TAG_KING_DUMP_GOODS:
-      /* Dump-goods modal: choice_id is cargo index to OR into boycott_bitmap. */
-      ai_king_apply_dump_goods_choice(ctx, human, popup->result_choice_id);
-      ai_king_claim_status(ctx);
-      break;
     case AI_POPUP_TAG_KING_MERC:
       /* FUN_43f7_2022 rebel branch: Hire → spend the rolled price, 10f0
        * picks the landing colony at accept time; Decline → status only, no

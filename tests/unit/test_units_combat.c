@@ -973,6 +973,11 @@ static int unit_village_raze_tail(void) {
     fprintf(stderr, "raze: village 0 not destroyed\n");
     rc = 1;
   }
+  /* FUN_5fef_1b0e raw 100655-100658: only a human razer sets Indian +3 bit 0x40. */
+  if (rc == 0 && col1.indian[0].woi_defect_forced) {
+    fprintf(stderr, "raze: AI razer must not set woi_defect_forced (bit 0x40)\n");
+    rc = 1;
+  }
   const ColonizeUnit* u = units_get_const(&pool, b_home0);
   if (rc == 0 && u && u->active) {
     fprintf(stderr, "raze #552: brave bound to the razed village survived\n");
@@ -1013,9 +1018,15 @@ static int unit_village_raze_tail(void) {
         rc = 1;
       }
       /* Raze village 1 (rival Jesuit mission; now index 0) and 2 (own Jesuit). */
+      units_set_combat_human_nation(0);
       if (rc == 0 && (!units_try_native_settlement_fallout_w(&w, 0, 4, 6, 6, 500, 6, 6) ||
                       !units_try_native_settlement_fallout_w(&w, 0, 4, 1, 6, 500, 1, 6))) {
         fprintf(stderr, "raze: villages 1/2 not destroyed\n");
+        rc = 1;
+      }
+      units_set_combat_human_nation(-1);
+      if (rc == 0 && !col1.indian[0].woi_defect_forced) {
+        fprintf(stderr, "raze: human razer must set woi_defect_forced (bit 0x40)\n");
         rc = 1;
       }
     }

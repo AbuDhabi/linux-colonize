@@ -264,6 +264,9 @@ instruction. On one byte it is fine. It found the 3180 facing writer.
   accepted (only `BPDEL #` / `BPDEL *`); drop a BP with `BPDEL *` and re-add the rest.
 - `BPM` is unusable on a hot byte: this build also stops on reads (a 5x5 scan loop at 9e0f:0452
   fired 80 times on a unit record byte before the turn began). Use code breakpoints.
+  Do not rely on it as a READ watch: on 2026-11-03 a `BPM 237e:9632` (the @LEVELS
+  string-id word) stayed silent while the F9 report read it and drew "Semi-Nomadic";
+  only changes (and a spurious first "00 -> value" stop after arming) were reported.
 - Uninitialised-local hunts (america save 64, 20e6's `local_ea` = SS:e7c4): log the word at every
   routine entry you care about (`E` lines) and at `BPINT 21 3f/42` (overlay loader reads: the
   seek offset names the overlay, `codeOffset - 0x170`); a value equal to an overlay's read length

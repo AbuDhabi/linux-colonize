@@ -507,7 +507,7 @@ Odds / resolve: [combat.md](combat.md).
 ### Ship → village
 
 Not landfall: `@DONTKNOWSHIPS` / `@MADATSHIPS` ([move_enter.md](move_enter.md);
-settlement head `FUN_4d56_4528` warn→Attack Done thin; `2820` ported —
+settlement head `FUN_4d56_4528` warn→Attack Done; `2820` ported —
 see `ai_contact_trade.c` / `ai_contact_actions.c` above).
 
 ### Nation turn shell

@@ -368,6 +368,8 @@ bool game_ship_sail_to_europe(ColonizeGameState* game, int sid) {
    * the count BEFORE the despawn below, or every crossing is scored one hull
    * short (game_voyage_ship_count). */
   const int voyage_ship_count = game_voyage_ship_count(game);
+  /* +0x314a rides the record onto the lane (FUN_48d3_015e leaves it). */
+  const int origin_plus1 = ship->col1_origin < 0x80 ? (int)ship->col1_origin + 1 : 0;
   int type_index = -1;
   char ship_name[32];
   int cargo_types[EUROPE_SHIP_CARGO_MAX];
@@ -472,6 +474,7 @@ bool game_ship_sail_to_europe(ColonizeGameState* game, int sid) {
         game->europe.expected[game->europe.expected_ships - 1].cargo_tools, cargo_tools,
         sizeof(cargo_tools)
       );
+      game->europe.expected[game->europe.expected_ships - 1].origin_plus1 = origin_plus1;
       if (cargo_count > 0) {
         snprintf(
           game->status,
@@ -600,6 +603,7 @@ void game_europe_deliver_bound_ships(ColonizeGameState* game) {
     /* Trade-route return leg: re-arm the route before the slot is popped. */
     const int trade_route = slot->trade_route_plus1 - 1;
     const int trade_stop = slot->trade_stop;
+    const int origin_plus1 = slot->origin_plus1;
     /* Spawn confirmed — now it is safe to remove the ship from the lane. */
     for (int j = idx + 1; j < eu->bound_ships; ++j) {
       eu->bound[j - 1] = eu->bound[j];
@@ -617,6 +621,13 @@ void game_europe_deliver_bound_ships(ColonizeGameState* game) {
        * ("vanished after two turns"). Stamp the human owner explicitly.
        */
       units_set_nation(ship, game->human_nation);
+      /* DOS keeps +0x314a across the crossing; a colony deleted meanwhile
+       * unbound it (raw 58190-58200 walks every record, lanes included). */
+      ship->col1_origin = 0xff;
+      if (origin_plus1 > 0 && game->colonies_ok &&
+          colonies_dos_index(&game->colonies, origin_plus1 - 1) >= 0) {
+        ship->col1_origin = (uint8_t)(origin_plus1 - 1);
+      }
       for (int i = 0; i < ship->cargo_count && i < cargo_count; ++i) {
         ColonizeUnit* pax = units_get(&game->units, ship->cargo_ids[i]);
         if (pax) {

@@ -165,10 +165,10 @@ Major thunks (catalog):
 | SETUP nation ticks | Europe/census crumbs | `turn_run_nation_ticks` | **Done** — human+AI bells/crosses accrue; [`europe_nation_eot.md`](../original_sources_annotated/turn/europe_nation_eot.md), [`census_tally.md`](../original_sources_annotated/turn/census_tally.md), [`nation_ticks_bells_ff.md`](../original_sources_annotated/turn/nation_ticks_bells_ff.md) |
 | EURO lone Convert | `3844_0004` | `units_tick_convert_outside_colony` | **Done** — type 0 + @JOB 27, in bounds, no settlement on tile, stack < 2; +0x16 > 8 despawns, human owner gets `@DEADCONVERTS` (0xee2 mode 4). No DOS site expires a Treasure train (port_bugs.md #725) |
 | EURO ship-build ready | `00f2` unit walk | `units_tick_ship_build_ready` | **Done** — despite the name this is the bit7 **repair** timer (threshold = `defense` / `0x5235`, double speed on a colony tile); DOS has no ship-construction popup, the one completion arm is `@REFIT` |
-| EURO Drydock repair | colony EOT | `units_tick_drydock_repair` | **Done** — clears combat-damage bit7 once the repair timer reaches the type threshold (no Drydock building required, port_bugs.md #254); `@REFIT` chrome Done thin; after the timer tick |
+| EURO Drydock repair | colony EOT | `units_tick_drydock_repair` | **Done** — clears combat-damage bit7 once the repair timer reaches the type threshold (no Drydock building required, port_bugs.md #254); `@REFIT` chrome Done; after the timer tick |
 | EURO fog reveal | `281f_07a0` in `00f2` | `turn_reveal_fog_for_nation` | **Done** — every Euro nation's unit walk (human at KING, AI at its EURO step), full `13f1_0158` side effects via `units_reveal_sight_w`; colony radius-2 invention removed (DOS reveals ±5 only at founding) |
 | EURO AI | `521d_6d8e` after `00f2` | `ai_euro_nation_turn` | **Done**: four idle campaigns match DOS ([idle_campaign.md](idle_campaign.md)); the deferred-band tail closed 2026-10-26 (port_bugs.md #1291) |
-| INDIAN | `4d56_1b3a` mid-pass → `1816(slot)` ×8 | `ai_indian_nation_turn` | **Done** (logic level, D2 closed 2026-09-08) — [`mid_pass_indian_rank.md`](../original_sources_annotated/turn/mid_pass_indian_rank.md); Euro rank `5bfb_00f8` **Done** thin |
+| INDIAN | `4d56_1b3a` mid-pass → `1816(slot)` ×8 | `ai_indian_nation_turn` | **Done** (logic level, D2 closed 2026-09-08) — [`mid_pass_indian_rank.md`](../original_sources_annotated/turn/mid_pass_indian_rank.md); Euro rank `5bfb_00f8` **Done** |
 | KING king | `43f7_2424` in `00f2` | `ai_king_nation_turn_2424` (+ `ai_king_human_5e52_tail`; `ai_king_nation_turn` is a test-only wrapper) | **Done** — `golden_idle_independence` matches DOS through the War of Independence |
 | KING market | `38fd_0058` / `5e52` family | `europe_tick_market_prices` | **Done** — attrition + colony→`price_group` half + phases 2–3 pressure |
 | KING human refresh | return to Move Pieces | MP + select next | **Done** |
@@ -221,7 +221,7 @@ broke the Dutch TURN2→3 first contact).
 - **`FUN_3844_0442`**: **UI mapped**
   ([`year_end_chrome.md`](../original_sources_annotated/turn/year_end_chrome.md));
   B/C1(+fleet+REF pool+map+latch)/C2/D(+auto-declare)/E(+richest) status
-  **Done** thin; Hall of Fame: [reports_score.md](reports_score.md).
+  **Done**; Hall of Fame: [reports_score.md](reports_score.md).
 - **Demo / independence splash** (`130d_019e` / `0222`): both build a
   command line and chain-exec through `FUN_130d_000a`. `0222` is the
   DS:0x104 WoI-won exit to CLOSING.EXE, ported as `closing.c`. `019e` (the
@@ -234,8 +234,8 @@ broke the Dutch TURN2→3 first contact).
   (`ai_contact_meet_economics_2154`); the −0x6790 stance table
   (`ai_euro_refresh_continent_stance`) is ported too.
 - **Nation EOT arms**: ship-build ready (`defense`/`0x5235` combat) + §C Merc
-  (+`48d3_0002` duration) **Done** thin; live census colony+unit tallies
-  **Done** thin; AI fog reveal **Done** (2026-08-29).
+  (+`48d3_0002` duration) **Done**; live census colony+unit tallies
+  **Done**; AI fog reveal **Done** (2026-08-29).
 - **Deep-map pass (docs):** `0688` F–H/K/O–P, `5e52`/`0058` interiors,
   [`coastal_fort_fire.md`](../original_sources_annotated/turn/coastal_fort_fire.md)
   ([combat.md](combat.md) player-facing summary),
@@ -250,5 +250,5 @@ broke the Dutch TURN2→3 first contact).
 |------|------|
 | Calendar / production unit | `tests/unit/test_turn_core.c`, `test_turn_school.c`, `test_turn_colony.c` (`make test T=unit_turn_core` etc.; seams in `turn_internal.h`) |
 | Early AI T2 | `golden_ai_turns` (`TURN1`…`TURN7`) |
-| King thin | `unit_ai_king_core`, `unit_ai_king_war`, `unit_ai_king_revolution` |
+| King | `unit_ai_king_core`, `unit_ai_king_war`, `unit_ai_king_revolution` |
 | Saves / autosave fields | [savegame.md](savegame.md) |

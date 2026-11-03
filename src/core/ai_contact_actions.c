@@ -1733,7 +1733,7 @@ int ai_contact_enter_hostile_village(
 
 
 /*
- * Non-menu popup-result arms (WELCOME / REPARATIONS / GIFT / trade picks /
+ * Non-menu popup-result arms (WELCOME / REPARATIONS / trade picks /
  * DEMAND / BEGFOOD / INCITE / LEARNSTAY). Extracted verbatim from
  * ai_contact_apply_popup_result; each arm that used to `return;` now
  * reports AI_CONTACT_POPUP_DONE.
@@ -1791,17 +1791,6 @@ static AiContactPopupStatus ai_contact_apply_popup_result_tags(
    * MEET therefore falls through to the menu arm as a Leave.
    */
   if (popup->result_cancelled && popup->result_tag != AI_POPUP_TAG_CONTACT_MEET) {
-    return AI_CONTACT_POPUP_DONE;
-  }
-
-  /*
-   * CONTACT_GIFT is OK-chrome only — the refuse notice and the 022e auto-gift
-   * notice. There is no gift row in NAMES.TXT @ACTIONS and no DOS body for a
-   * player-driven gift amount, so the Small/Large/Generous CHOICE this used to
-   * answer was invented and unreachable (port_bugs.md #1006). Acknowledging the tag
-   * keeps the chrome result ending the beat instead of falling through.
-   */
-  if (popup->result_tag == AI_POPUP_TAG_CONTACT_GIFT) {
     return AI_CONTACT_POPUP_DONE;
   }
 

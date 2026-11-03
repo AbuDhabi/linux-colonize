@@ -812,18 +812,6 @@ int europe_buy_cargo_w(
     eu->status[0] = '\0';
     return 0;
   }
-  int can_afford = eu->gold / ask;
-  if (can_afford <= 0) {
-    /* FUN_38fd_1fa2 raw 60435-60445: the short-treasury refusal puts the
-     * cargo name and the cost of the priced lot on the status line
-     * ("<cargo> (<cost>)", DS 0xfd7/0xfd9 punctuation) — no typed wording. */
-    int lot = amount < 100 ? amount : 100;
-    if (lot > room_total) {
-      lot = room_total;
-    }
-    snprintf(eu->status, sizeof(eu->status), "%s (%d)", eu->cargo[cargo_type].name, ask * lot);
-    return 0;
-  }
   int buy = amount;
   if (buy > 100) {
     buy = 100;
@@ -831,10 +819,17 @@ int europe_buy_cargo_w(
   if (buy > room_total) {
     buy = room_total;
   }
-  if (buy > can_afford) {
-    buy = can_afford;
-  }
-  if (buy <= 0) {
+  /*
+   * DOS-LITERAL FUN_38fd_1fa2 raw 60419-60445 (port_bugs.md #1018): the amount
+   * is clamp(typed, 0, room<=100) — FUN_281f_035c is a stack-check + far jmp to
+   * the clamp FUN_124c_000c (ndisasm file 0x1A94C), DS:0x9cc8 is the typed
+   * number (FUN_6f74_3848 atoi) — never an affordability clamp. Then
+   * `gold < price * amount` refuses the WHOLE buy: no partial fill. The
+   * refusal puts "<cargo> (<cost>)" on the status line (DS 0xfd7/0xfd9
+   * punctuation, no typed wording).
+   */
+  if ((long)ask * buy > eu->gold) {
+    snprintf(eu->status, sizeof(eu->status), "%s (%d)", eu->cargo[cargo_type].name, ask * buy);
     return 0;
   }
 

@@ -510,16 +510,23 @@ int colonies_occupation_worker_count(
   return n;
 }
 
-int colonies_school_tier_shortfall(int profession, int building_tier) {
-  if (building_tier <= 0) {
-    return 0;
-  }
+/*
+ * DOS-LITERAL thunk_FUN_1000_9808 overlays.c:60474-60484 (and the jobs menu,
+ * FUN_2f2b_348c raw 13540-13553, FUN_15eb_038e): level 3 asks
+ * `FUN_1000_8bec(0xe)` (University owned), level 2 asks `FUN_1000_8bec(0xd)`
+ * (College owned) and nothing else, so a University standing without its
+ * College (raid burn 0f14 clears the lowest tier first) refuses a level-2
+ * teacher. Level 1 has no building test. known_divergences.md #909.
+ */
+int colonies_school_tier_shortfall(
+  const ColonizeColonyPool* pool, const ColonizeColony* col, int profession
+) {
   const int need = colonies_job_school_tier(profession);
-  if (need != 2 && need != 3) {
-    return 0;
+  if (need == 3 && !colonies_has_building_row(pool, col, COLONY_BUILDING_UNIVERSITY)) {
+    return 3;
   }
-  if (need > building_tier) {
-    return need;
+  if (need == 2 && !colonies_has_building_row(pool, col, COLONY_BUILDING_COLLEGE)) {
+    return 2;
   }
   return 0;
 }

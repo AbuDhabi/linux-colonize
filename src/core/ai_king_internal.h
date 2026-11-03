@@ -98,9 +98,7 @@ void ai_king_nation_turn(ColonizeTurnContext* ctx);
  * war_act beat up to min(moves, capacity) (1 MP/pax); full unload with
  * moves left → AI_SAIL next human coast; after that sail step, if still
  * carrying and now adjacent to the next colony → unload same beat.
- * PARK: full embark UI chrome; dump-goods boycott modal
- * CHOICE Done (pick API + Europe bid>0 weight for auto; KING_DUMP_GOODS for
- * human; VGA PARKED).
+ * PARK: full embark UI chrome.
  */
 /* 10f0 (re-read 2026-08-28): the intervention force is the HUMAN's — one
  * Man-O-War on the best water tile by the colony + Cont. Cav. ≤2 /
@@ -149,7 +147,6 @@ void ai_king_10f0_land(
  * for test_regress_ai_tables.c. */
 int ai_king_0982_max_landing(const ColonizeTurnContext* ctx);
 void ai_king_1d42_royal_purse(ColonizeTurnContext* ctx);
-void ai_king_apply_dump_goods_choice(ColonizeTurnContext* ctx, int human, int cargo);
 int ai_king_colony_sol_at(const ColonizeTurnContext* ctx, int nation_id, int x, int y);
 void ai_king_do_declare(ColonizeTurnContext* ctx, int human);
 void ai_king_multirev_accept(ColonizeTurnContext* ctx, int human, int sol);
@@ -175,7 +172,6 @@ void ai_king_emit_ok(
 );
 void ai_king_enqueue_teaparty_ok(ColonizeTurnContext* ctx, int human, int cargo);
 int ai_king_force_total(const uint16_t force[4]);
-int ai_king_format_boycott_cargos(char* buf, size_t buf_size, uint16_t bitmap);
 void ai_king_frigate_accept(ColonizeTurnContext* ctx, int nation);
 int ai_king_human_colonies(const ColonizeTurnContext* ctx, int human);
 int ai_king_human_popups(const ColonizeTurnContext* ctx);

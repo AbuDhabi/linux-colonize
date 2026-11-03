@@ -3463,12 +3463,6 @@ static int sp_34(void) {
       if (col1.nation[0].gold != 50u) {
         return fail("retired Meet gift row should move no gold");
       }
-      for (int qi = 0; qi < pop.queue_count; ++qi) {
-        if (pop.queue[qi].tag == AI_POPUP_TAG_CONTACT_GIFT &&
-            pop.queue[qi].kind == AI_POPUP_KIND_CHOICE) {
-          return fail("no gift amount CHOICE should exist (port_bugs.md #1006)");
-        }
-      }
 
     }
   return 0;

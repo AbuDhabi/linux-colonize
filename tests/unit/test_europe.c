@@ -942,6 +942,22 @@ static int case_europe_workflow(void) {
     europe_free(&eu);
     return 1;
   }
+  /* known_divergences.md #909: FUN_1cf8_000a's tie order over the stock @JOB
+   * costs (job byte order): 13 before 8 at 1000, 0 before 9 at 1100, 20 before
+   * 10 at 1200. */
+  {
+    static const int want[] = {6, 5, 15, 7, 12, 13, 8, 14, 0, 9, 20, 10, 11, 24, 16, 17, 21};
+    const int nwant = (int)(sizeof(want) / sizeof(want[0]));
+    bool ok = eu.train_count == nwant;
+    for (int i = 0; ok && i < nwant; ++i) {
+      ok = eu.train[i].job_index == want[i];
+    }
+    if (!ok) {
+      fprintf(stderr, "train tie order differs from FUN_1cf8_000a (count %d)\n", eu.train_count);
+      europe_free(&eu);
+      return 1;
+    }
+  }
   if (eu.train_count < 1) {
     fprintf(stderr, "expected train options from @JOB\n");
     europe_free(&eu);
@@ -3639,7 +3655,36 @@ static int case_europe_ship_own_exit_tile(void) {
   return rc;
 }
 
+/* port_bugs.md #1018: DOS FUN_38fd_1fa2 refuses a buy the treasury cannot
+ * cover outright (gold < price * amount), it never partial-fills. */
+static int case_europe_buy_short_gold_refuses(void) {
+  EuropeScreen* eu = (EuropeScreen*)calloc(1, sizeof(*eu));
+  if (!eu) {
+    return 1;
+  }
+  int rc = 0;
+  (void)europe_harbor_push_ex(eu, 0, "Caravel", NULL, NULL, 0, NULL, NULL);
+  eu->cargo_count = COLONIZE_CARGO_TOOLS + 1;
+  eu->cargo[COLONIZE_CARGO_TOOLS].ask = 2;
+  eu->gold = 150; /* covers 75 of the 100 asked */
+  ColonizeWorld w = world_make(NULL, NULL, NULL, NULL, false, NULL, eu);
+  const int b = europe_buy_cargo_w(&w, -1, 0, COLONIZE_CARGO_TOOLS, 100);
+  if (b != 0 || eu->gold != 150 || eu->harbor[0].hold_goods_amount[0] != 0 ||
+      strstr(eu->status, "(200)") == NULL) {
+    fprintf(stderr, "short gold: bought %d gold %d status \"%s\"\n", b, eu->gold, eu->status);
+    rc = 1;
+  }
+  eu->gold = 200; /* exactly covers it */
+  if (europe_buy_cargo_w(&w, -1, 0, COLONIZE_CARGO_TOOLS, 100) != 100 || eu->gold != 0) {
+    fprintf(stderr, "exact gold: gold %d\n", eu->gold);
+    rc = 1;
+  }
+  free(eu);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
+    {"case_europe_buy_short_gold_refuses", case_europe_buy_short_gold_refuses},
     {"case_europe_purse_single_door", case_europe_purse_single_door},
     {"case_europe_ship_own_exit_tile", case_europe_ship_own_exit_tile},
     {"case_europe_lanes_past_old_caps", case_europe_lanes_past_old_caps},

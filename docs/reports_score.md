@@ -48,8 +48,8 @@ Hall of Fame / Exploits). Shared chrome, fill bars and F2-F9 stay in
   - Liberty Bells: `min(100, liberty_bells_total / 100)`, gated on REF
     present (`0x5382|0x02`) and bells ≥ 100; `1a26` zeroes the human's
     `liberty_bells_total` at the Declaration so this is "bells since
-    declaring". Label is a runtime pointer (DS:`0x97e4`) outside the `@MISC`
-    table — text unresolved, "Liberty Bells" stand-in.
+    declaring". Label is the runtime pointer DS:`0x97e4` = the NAMES.TXT
+    `@CARGO` name table, row 18 (`reports_names_field("CARGO", 18, 0)`).
   - Independence Achieved (`@MISC` #116 #119, "(n prior nations)" #143):
     `100 >> prior_nations` percent, where prior_nations = other Euro powers
     with `nation_flags & 0x04`. Total = sum × `(8 + (8 >> prior)) / 8`

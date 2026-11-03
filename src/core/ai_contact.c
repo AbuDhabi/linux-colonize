@@ -154,13 +154,11 @@ void ai_contact_set_status(ColonizeTurnContext* ctx, const char* msg) {
  *   9 Attack Village          → ATTACK (game_loop commits the move)
  *  10 Cancel Action           → LEAVE
  * GIFT has no DOS @ACTIONS row (a gold gift is not a village action; goods
- * gifts live inside the 2820 trade flow) — kept only for the legacy
- * gift-amount CHOICE path, never listed. Cite: indian_actions_menu.md.
+ * gifts live inside the 2820 trade flow); id 2 stays unused. Cite:
+ * indian_actions_menu.md.
  */
 
 /* @LEARNSTAY CHOICE ids (thunk_FUN_1000_a618): 1 = "Then I shall become…". */
-
-/* Gift amount CHOICE ids (CONTACT_GIFT; FUN_5bfb_102a amount stand-in). */
 
 /*
  * Reparations CHOICE (CONTACT_REPARATIONS; FUN_5bfb_022e LAB_5bfb_0def).

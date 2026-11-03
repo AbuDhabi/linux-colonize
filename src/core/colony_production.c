@@ -114,6 +114,9 @@ static int colony_prod_scale_by_class(int profession, int free_tier_output) {
   return free_tier_output;
 }
 
+/* FUN_15eb_1d4c's skill-match flag [bp-0x1c] (asm 15eb:1d5a-1d76): set to 1
+ * when FUN_15eb_0e52 (colonist +0x40 profession) == FUN_15eb_0e18 (+0x20
+ * occupation), else 0. Nothing else writes it. */
 static bool colony_prod_craft_skill_matches(int profession, int craft_profession) {
   if (profession < 0) {
     return false;

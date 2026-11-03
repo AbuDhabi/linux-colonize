@@ -22,7 +22,6 @@
 #include "core/popup_msg.h"
 #include "core/reports.h"
 #include "core/reports_names.h"
-#include "core/ui_colors.h"
 #include "core/turn.h"
 #include "core/ui_button.h"
 #include "core/unit_chrome.h"
@@ -988,7 +987,10 @@ void colony_screen_blit_buildings(
         lx = 0;
       }
       lx += slot_ox;
-      fb_fill_rect(framebuffer, lx, ly, w1, h, COLONIZE_COL_SHADOW);
+      /* FUN_2f2b_05ee (asm after LAB_2f2b_06ba): FUN_281f_00ba -> FUN_1b9e_000a
+       * (x AX, y DX, w BX; stack: colour = PUSH 0, height = 7, then the
+       * DS:0x2da8..0x2dae target surface far ptr). Colour is literal 0. */
+      fb_fill_rect(framebuffer, lx, ly, w1, h, 0);
       font_draw_text(font, framebuffer, lx + 1, ly + 1, bt->name, 15);
       break;
     }

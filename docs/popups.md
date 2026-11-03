@@ -365,7 +365,9 @@ sites are `38fd:5b6e PUSH 0x1134` = `@KINGNEWWAR` (`ai_king.c`) and
 `FUN_38fd_3694`/`4f6e` are the `5930` body re-decoded into neighbouring switch
 tables (all carry `0x1134`), not real sites.
 
-Still not wired: `FUN_479b_076e`'s idx-5 WoI popup.
+The colony-name prompt's MSS 5 (`FUN_479b_076e` @ 479b:0823, human nations
+only) is wired in `popup_msg.c` (`{"COLONY", 5}`); the old "idx-5 WoI popup"
+note meant this latch and is closed.
 
 Modal input (`game_dialogs.c` `game_handle_modal_input`): early gate before
 parent hotkeys (E/Q/etc.) — pick_music → save_load → options →
@@ -520,7 +522,7 @@ fragment. Related sections are listed in the first column.
 | Popup / `@SECTION`s | When | Status | Port |
 |---------------------|------|--------|------|
 | Tax audience Accept/Refuse | King tax hike | Done | `KING_AUDIENCE` |
-| Dump-goods cargo | Refuse → boycott pick | Done | `KING_DUMP_GOODS` |
+| Dump-goods cargo | Refuse → boycott pick | Done | `ai_king_pick_dump_goods_cargo` picks the cargo; the tea party is the single 3dc8 answer-2 seize (`@TEAPARTY`), no second CHOICE |
 | Tax/boycott follow-up | After audience | Done | `KING_TAX` OK from `@TEAPARTY` / `@KINGTAX` / rung sections (`@KINGNAVACT` …) via `popup_msg_fill` |
 | Audience flavour sections | Which text the tax audience shows | Done | `FUN_38fd_5be8` names a section per ladder rung: `@KINGVICTORY` (cut) / `@KINGWIFE` (+1) / `@KINGWAR` (+2) / `@KINGNAVACT` (+3-4) / `@KINGSTAMPACT` (+5-8), with `%STRING2` from `@COUNTRIES` / `@ORDINAL` / the player's New World name (`ai_king.c` `AiKingAudienceFlavor`) |
 | King's audience chamber | `@KINGWELCOME0` / `@AUDIENCE` menu / `@KINGBLESS` / `@KINGLAUGH` / `@KINGNO` / `@KINGFUND` / `@KINGLOWER` / `@KINGRAISE` / `@KINGNOTHING` | n/a | Cut feature: the chamber is `FUN_38fd_462e`, which nothing calls in `viceroy_unpacked.asm` or `viceroy_overlays.asm`, and its menu text (`@AUDIENCE` `0x10d4`) and refusal (`@KINGGOAWAY` `0x10c9`) were removed from the shipped `GAME.TXT`. Its five actions (`38fd:44a4`, `38fd:4590`, three thunks) have no other caller either |

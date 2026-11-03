@@ -172,10 +172,12 @@ typedef struct ColonizeCol1Head {
   ColonizeCol1ColonyReportOptions colony_report_options;
   ColonizeCol1Tut2 tut2;
   ColonizeCol1Tut3 tut3;
-  /* DS:0x5388 (was unknown39[2]) — scenario/start-mode marker set from
-   * FUN_75c2_235c's param at new-game start. Tested nonzero when founding
-   * the first colony to show extra intro guidance text
-   * (viceroy_unpacked.c:107782). */
+  /* DS:0x5388 (was unknown39[2]) — America-map game: FUN_75c2_235c raw
+   * 121510 stores its param, which the main menu (FUN_75c2_2778 raw 121825)
+   * passes as `choice == 2` (AMER2.MP or a picked .MP; DS:0x2174 = picked);
+   * 0 for a generated New World and the demo. Sole reader FUN_6a09_0006 raw
+   * 107782 (new-game tribe placement): nonzero loads village sites from
+   * TRIBE.TXT. Never read after new game; carried in the save only. */
   uint16_t start_mode_marker;
   uint16_t year;
   uint16_t autumn; /* non-zero if autumn */
@@ -489,12 +491,23 @@ typedef struct ColonizeCol1Unit {
      goto pending, cleared on arrival; see turn/nation_eot_ship_spawn.md */
   uint8_t ship_damaged : 1; /* bit7 (0x80) — FUN_1427_13b0 */
   uint8_t moves;
-  uint8_t origin; /* unknown16[0]: home tribe / origin settlement */
+  uint8_t origin; /* +0x314a, signed: <0 (0xff) unbound. Euro: home colony
+     DOS index — FUN_1427_06b4 spawn = colony on the tile (FUN_15eb_0a76),
+     FUN_4962_0018 census binds an unbound unit on a colony tile, AI binds
+     (5952_035e / 20e6 / 4d56_4528), colony delete unbinds/shifts; it rides
+     the record across the Europe lanes. Native: home village index
+     (0x54ec + i*0x12). Port: ColonizeUnit.col1_origin / home_tribe_index,
+     EuropeHarborShip.origin_plus1. */
   uint8_t ai_plan; /* unknown16[1]: ASCII plan; default 'X' (0x58) */
   uint8_t orders;
   uint8_t goto_x;
   uint8_t goto_y;
-  uint8_t facing : 3; /* 0..7 last dir (+0x0b); writers FUN_5bfb_3180, FUN_6662_0f74, FUN_521d_20e6, FUN_4d56_021a */
+  /* facing | facing_pad << 3 = the signed byte +0x314f, ColonizeUnit.last_dir:
+   * -1 none, 0..7 last step dir, 8 stay. Every DOS access is the whole
+   * signed byte (writers FUN_6662_0f74, FUN_6cb2_24b8, FUN_5bfb_3180,
+   * FUN_4d56_4528, FUN_521d_20e6; spawn leaves the reused slot's byte).
+   * Split kept for the JSON keys. */
+  uint8_t facing : 3;
   uint8_t facing_pad : 5;
   uint8_t holds_occupied;
   uint8_t cargo_item_0 : 4;
@@ -518,7 +531,13 @@ typedef struct ColonizeCol1NationTrade {
 } ColonizeCol1NationTrade;
 
 typedef struct ColonizeCol1Nation {
-  uint8_t nation_flags; /* +0; live bits 0x04/0x08/0x40 @ −0x77f8 (was unknown19).
+  uint8_t nation_flags; /* +0 @ −0x77f8 (was unknown19); whole byte zeroed at
+     new game (FUN_38fd_6024, ndisasm 0x3674B). 0x04 independent (below);
+     0x08 WoI mobilization done (FUN_43f7_2022 test+set; FUN_5fef_172c reads
+     the human's); 0x20 King-audience-held latch, set only by the cut
+     chamber FUN_38fd_462e (never called), cleared every FUN_38fd_5e52 tick;
+     0x40 crosses-immigrant latch (5e52 raw 68603). 0x01/0x02/0x10/0x80
+     dead: no DOS access in any export.
      Bit 0x04 named 2026-08-19 (found via rebellion_pct_last_notified's
      context): "this nation has achieved independence from its King" —
      set when a nation's computed rebellion percentage crosses the
@@ -616,12 +635,8 @@ typedef struct ColonizeCol1Nation {
      thunk of its own, so or_both/clear_both are the only mutation channel;
      FUN_4cc6_00f2's cool-below-75 clear is the only other toucher. */
   /*
-   * OpenCol diplo stand-ins (exact DS PARKED, deliberately NOT touched this
-   * pass — this union is live, load-bearing gameplay code across
-   * ai_diplo.c/ai_euro.c, not an unused mystery byte). Two sub-ranges got
-   * concrete (if partial) DOS answers 2026-08-19, both confirming the
-   * OpenCol names below are functional stand-ins, not decodes — findings
-   * recorded here without renaming/restructuring anything live:
+   * Nation +0x40..+0x4b: every byte is a DOS field now (no OpenCol stand-in
+   * left; the union name is historical). Decode history:
    *   +0x44/+0x45 (now recruit_lfsr/recruit_salt): real DOS content is per-nation
    *     recruit-type RNG cycling state, nothing to do with diplomacy —
    *     seeded once at nation creation (FUN_38fd_6024: RNG(1,32)/RNG(0,31)),
@@ -648,9 +663,9 @@ typedef struct ColonizeCol1Nation {
    *     nation owns Benjamin Franklin (FF bit 0x13 via FUN_15eb_3960);
    *     FUN_521d_6d8e decrements it every turn and, at 0, may relapse the
    *     pair into war (relation bit 0x08 latch, 1-in-3); FUN_465b_0000
-   *     reads it as a nonzero "skip encounter escalation" gate. OpenCol
-   *     treaty_timer[4] decrement matches; the expiry action is an OpenCol
-   *     simplification.
+   *     reads it as a nonzero "skip encounter escalation" gate. Port:
+   *     ai_diplo_treaty_timers is the literal 6d8e prelude (raw
+   *     93173-93188), 13b0 / 153e write it the DOS way.
    *   +0x46/+0x47: int16 last_colony_founded_turn (DS -0x77b2) — written
    *     = turn by the found-colony order body FUN_479b_076e, read by the
    *     unit desirability score FUN_521d_052c (`+= (turn-stamp)>>4` when
@@ -823,8 +838,8 @@ typedef struct ColonizeCol1Indian {
   uint8_t woi_defect_resolved : 1;
   /* bit 0x40 (bit6): WoI guaranteed-defect override — FUN_4d56_1816. When
    * set, skips the relation/RNG eligibility gate and always rolls the
-   * final defect chance. Trigger for this bit not identified (not set
-   * anywhere read this pass) — reserved for a future find. */
+   * final defect chance. Set by FUN_5fef_1b0e raw 100655-100658 when a
+   * human razes a village of the tribe (units_combat.c). */
   uint8_t woi_defect_forced : 1;
   uint8_t extinct : 1; /* bit7 */
   uint8_t unknown31b_pad; /* 0x8d4e+4 — confirmed dead 2026-08-24: zero literal
@@ -946,8 +961,9 @@ typedef struct ColonizeCol1Stuff {
    * convention as the earlier unknown31b/31c_pad rename. */
   uint8_t village_counts_by_continent[16]; /* DS:0x947e */
   uint8_t continent_presence_flags[16]; /* DS:0x95f2 (−0x6a0e); was unknown_ds_95f2.
-     Per-continent AI presence bits (0x01 own unit, 0x02/0x04 foreign colony);
-     writers FUN_4d56_4528 / FUN_5952_035e, readers in ai_contact.c / ai_euro.c. */
+     Per-continent census bits, rebuilt per nation by FUN_4962_0018: 0x01
+     Indian tribe, 0x02 foreign unit, 0x04 foreign colony, 0x08 own fortified
+     land unit off a settlement; readers FUN_4d56_4528 / FUN_521d_20e6. */
   uint8_t land_unit_counts_by_continent[64]; /* DS:0x94a6 */
   uint8_t colony_counts_by_continent[64]; /* DS:0x94e6 (−0x6b1a); was
      unknown_ds_94e6. [continent + nation*0x10]++ per own colony, FUN_4962_0018. */
@@ -966,7 +982,9 @@ typedef struct ColonizeCol1Stuff {
    * Witt detail grid ("Average Colony", @MISC #97) — see reports.c.
    */
   uint8_t avg_colony_pop[8];
-  uint8_t ui_toggle_336; /* DS:0x336 — FUN_2f2b_* (smcol: show_colony_prod_quantities) */
+  uint8_t ui_toggle_336; /* DS:0x336 — colony-screen production numbers ('N'
+     key 2f2b:667c, click 2f2b:609e); 2f2b copies it to DS:0x70, which the
+     badge drawers FUN_104b_0478 / FUN_1097_0394 test. Static init 0 (off). */
   uint8_t tribe_data_9184[8];
   uint8_t tribe_population_totals[8]; /* DS:0x9622 */
   uint8_t tribe_village_counts[8]; /* DS:0x962a */

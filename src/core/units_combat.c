@@ -2948,11 +2948,11 @@ bool units_try_native_settlement_fallout_w(
   ColonizeDosRng* rng = w->rng;
 
   /*
-   * Post-win fallout for FUN_5fef_31ea (structural): destroy native village
-   * when explicitly conquering an empty dwelling (caller: village temp Brave
-   * arm when population < 2). Convert-join before destroy when mission owned
-   * by attacker; Cortes treasure after. Not triggered merely by killing a map
-   * Brave on the tile.
+   * FUN_5fef_1b0e dwelling-destroy arm (raw 100650-100673) + its FUN_5fef_31ea
+   * tail (raw 101188-101310), in DOS order: bit 0x40, 0248 destroy, mission
+   * return, convert roll, BGM 4, villages_burned, treasure + LOOT, then the
+   * LAB_5fef_362a capital block. Caller: the phantom-defender win arm when
+   * population < 2 (units_finish_village_temp_defender).
    */
   if (!col1 || !units || defender_nation_id < 4) {
     return false;
@@ -2973,6 +2973,19 @@ bool units_try_native_settlement_fallout_w(
    */
   const int rich_capital = col1->tribe[tribe_index].state.capital ? 1 : 0;
   const uint8_t mission = col1->tribe[tribe_index].mission;
+  const bool human_attacker = attacker_nation_id >= 0 && attacker_nation_id < 4 &&
+    col1_nation_is_human(col1, attacker_nation_id, g_units_combat_human_nation);
+
+  /* DOS-LITERAL FUN_5fef_1b0e raw 100655-100658: a human razer sets the
+   * village tribe's Indian record +3 bit 0x40 ([0x8d4e], bound by 0a4c at raw
+   * 100402) before 0248 destroys the dwelling: the WoI forced-defect bit
+   * FUN_4d56_1816 reads (woi_defect_forced). */
+  if (human_attacker) {
+    const int tn = (int)col1->tribe[tribe_index].nation_id;
+    if (tn >= 4 && tn <= 11) {
+      col1->indian[tn - 4].woi_defect_forced = 1;
+    }
+  }
 
   const int tribe_nation = col1_destroy_tribe_index(col1, units, map, tribe_index);
   if (tribe_nation < 0) {
@@ -2991,6 +3004,10 @@ bool units_try_native_settlement_fallout_w(
                              convert_x, convert_y);
 
   if (attacker_nation_id >= 0 && attacker_nation_id < 4) {
+    /* 31ea raw 101197-101200: FUN_281f_04ac(4) for a human razer. */
+    if (human_attacker) {
+      units_set_bgm_pool(4);
+    }
     /*
      * col1_save.h ColonizeCol1Nation.villages_burned; reports.c scores
      * villages_penalty = -(difficulty+1)*villages_burned. Increment on
@@ -2999,6 +3016,58 @@ bool units_try_native_settlement_fallout_w(
     if (col1->nation[attacker_nation_id].villages_burned < 255u) {
       col1->nation[attacker_nation_id].villages_burned++;
     }
+    /*
+     * port_bugs.md #381: treasure is NOT Cortes-gated. FUN_5fef_31ea runs the peel for
+     * every conqueror (viceroy_unpacked.c ~101407-101495) — Cortes (local -6) is
+     * only one of the three "or" terms that let the low-difficulty roll pay out
+     * (`roll == 0 || rich || cortes`) plus a +50% / +10-per-unit bonus, and at
+     * difficulty 2 and 3 the amount is unconditional for everyone. The port
+     * wrapped the whole block in the Cortes test, so a player without him could
+     * burn any number of villages and never see a Treasure Train.
+     */
+    /* @LOOT/@LOOT2 slots 1/2 (FUN_5fef_31ea raw ~101470): the tribe name
+     * (FUN_281f_09a4) and @LEVELS[rich ? 4 : tech]. */
+    const int level_row =
+      rich_capital ? 4 : (int)col1->indian[(tribe_nation - 4) & 7].tech;
+    const char* loot_level = (level_row >= 0 && level_row < 5) ? g_units_levels[level_row] : "";
+    int gold = gold_amount;
+    if (gold <= 0) {
+      gold = units_conquest_treasure_gold(
+        col1, attacker_nation_id, tribe_nation, rng, rich_capital);
+    }
+    if (gold > 0) {
+      (void)units_spawn_treasure_train(units, tile_x, tile_y, attacker_nation_id, gold);
+      units_set_bgm_pool(2); /* raw 101276 FUN_281f_04ac(2), no human gate */
+      if (units_combat_human_involved(col1, attacker_nation_id, defender_nation_id)) {
+        PopupMsgTokens tok;
+        memset(&tok, 0, sizeof(tok));
+        tok.string0 = units_combat_nation_label(col1, attacker_nation_id);
+        tok.string1 = units_combat_nation_label(col1, tribe_nation);
+        tok.string2 = loot_level;
+        tok.number0 = gold;
+        tok.has_number0 = true;
+        units_combat_enqueue_tok(
+          AI_POPUP_TAG_COMBAT_LOOT, "LOOT", attacker_nation_id, defender_nation_id, gold, &tok,
+          "");
+      }
+    } else if (units_combat_human_involved(col1, attacker_nation_id, defender_nation_id)) {
+      /* Peel came up empty — DOS 0x1cd1 (@LOOT2), not @NOLOOT. */
+      PopupMsgTokens tok;
+      memset(&tok, 0, sizeof(tok));
+      tok.string0 = units_combat_nation_label(col1, attacker_nation_id);
+      tok.string1 = units_combat_nation_label(col1, tribe_nation);
+      tok.string2 = loot_level;
+      units_combat_enqueue_tok(
+        AI_POPUP_TAG_COMBAT_LOOT,
+        "LOOT2",
+        attacker_nation_id,
+        defender_nation_id,
+        0,
+        &tok,
+        "");
+    }
+    /* LAB_5fef_362a (raw 101284-101309): runs after the treasure and its
+     * LOOT popup, so @INDIANBOW follows @LOOT. */
     if (rich_capital) {
       /*
        * Fandom Capital destroy: hostile tribe surrenders once — hostility
@@ -3023,7 +3092,7 @@ bool units_try_native_settlement_fallout_w(
        * — the mechanics were ported, the popup was not). Gate = the
        * attacker's control byte (raw 101300).
        */
-      if (col1_nation_is_human(col1, attacker_nation_id, g_units_combat_human_nation)) {
+      if (human_attacker) {
         PopupMsgTokens btok;
         memset(&btok, 0, sizeof(btok));
         btok.string0 = units_combat_nation_label(col1, tribe_nation);
@@ -3061,56 +3130,6 @@ bool units_try_native_settlement_fallout_w(
        * LAB_5fef_362a with no alarm or relation write at all, so the +5 that
        * used to sit here was a copy of a neighbouring arm's magnitude.
        */
-    }
-
-    /*
-     * port_bugs.md #381: treasure is NOT Cortes-gated. FUN_5fef_31ea runs the peel for
-     * every conqueror (viceroy_unpacked.c ~101407-101495) — Cortes (local -6) is
-     * only one of the three "or" terms that let the low-difficulty roll pay out
-     * (`roll == 0 || rich || cortes`) plus a +50% / +10-per-unit bonus, and at
-     * difficulty 2 and 3 the amount is unconditional for everyone. The port
-     * wrapped the whole block in the Cortes test, so a player without him could
-     * burn any number of villages and never see a Treasure Train.
-     */
-    /* @LOOT/@LOOT2 slots 1/2 (FUN_5fef_31ea raw ~101470): the tribe name
-     * (FUN_281f_09a4) and @LEVELS[rich ? 4 : tech]. */
-    const int level_row =
-      rich_capital ? 4 : (int)col1->indian[(tribe_nation - 4) & 7].tech;
-    const char* loot_level = (level_row >= 0 && level_row < 5) ? g_units_levels[level_row] : "";
-    int gold = gold_amount;
-    if (gold <= 0) {
-      gold = units_conquest_treasure_gold(
-        col1, attacker_nation_id, tribe_nation, rng, rich_capital);
-    }
-    if (gold > 0) {
-      (void)units_spawn_treasure_train(units, tile_x, tile_y, attacker_nation_id, gold);
-      if (units_combat_human_involved(col1, attacker_nation_id, defender_nation_id)) {
-        PopupMsgTokens tok;
-        memset(&tok, 0, sizeof(tok));
-        tok.string0 = units_combat_nation_label(col1, attacker_nation_id);
-        tok.string1 = units_combat_nation_label(col1, tribe_nation);
-        tok.string2 = loot_level;
-        tok.number0 = gold;
-        tok.has_number0 = true;
-        units_combat_enqueue_tok(
-          AI_POPUP_TAG_COMBAT_LOOT, "LOOT", attacker_nation_id, defender_nation_id, gold, &tok,
-          "");
-      }
-    } else if (units_combat_human_involved(col1, attacker_nation_id, defender_nation_id)) {
-      /* Peel came up empty — DOS 0x1cd1 (@LOOT2), not @NOLOOT. */
-      PopupMsgTokens tok;
-      memset(&tok, 0, sizeof(tok));
-      tok.string0 = units_combat_nation_label(col1, attacker_nation_id);
-      tok.string1 = units_combat_nation_label(col1, tribe_nation);
-      tok.string2 = loot_level;
-      units_combat_enqueue_tok(
-        AI_POPUP_TAG_COMBAT_LOOT,
-        "LOOT2",
-        attacker_nation_id,
-        defender_nation_id,
-        0,
-        &tok,
-        "");
     }
   }
   return true;

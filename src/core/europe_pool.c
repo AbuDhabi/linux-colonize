@@ -580,46 +580,31 @@ static void europe_init_pool(EuropeScreen* eu) {
 }
 
 /*
- * DOS `FUN_38fd_41ce` (the Train dialog) collects every @JOB with a positive
- * hire cost in job order, exactly as the loop below does, and then hands the
- * cost array and the parallel job-id array to `FUN_291f_0ed0` ->
- * `FUN_1cf8_000a` before drawing a single row. That routine is a sort: it
- * walks for the first descending step, lifts that element out (shifting the
- * tail left), finds the first slot whose key is >= the lifted key, shifts
- * right and drops it in — an ascending sort by cost. So the Train list is
- * ordered cheapest-first, not by @JOB index the way this port had it
- * (port_bugs.md).
- *
- * Transcribed rather than replaced with a qsort because the tie order is
- * observable and is this algorithm's own: an element only moves on a strictly
- * descending step, and re-enters *before* every equal key. With stock
- * NAMES.TXT that puts Carpenters before Fishermen at 1000, Farmers before
- * Distiller at 1100, and Pioneers before Tobacconists at 1200. Costs come
- * from NAMES.TXT, so a modded table has to re-sort the same way.
+ * DOS `FUN_38fd_41ce` (asm 38fd:41f2-4239, raw 64345-64361) collects every @JOB
+ * row 0..0x1b whose cost word DS:0x8ea8+job*8 (the catalog's 4th column, loader
+ * 75c2:1b2e) is > 0 into a word key array (local_ae) and a parallel BYTE job
+ * array (local_cc) in job order, then calls `FUN_291f_0ed0` -> `FUN_1cf8_000a`
+ * with AX = the count before drawing a row. Fed through the same routine here
+ * (units_dos_sort_1cf8), so the tie order is DOS's own: an element moves only
+ * on a strictly descending step and re-enters before every equal key. Stock
+ * NAMES.TXT gives Carpenters before Fishermen at 1000, Farmers before Distiller
+ * at 1100, Pioneers before Tobacconists at 1200.
  */
 static void europe_sort_train_by_cost(EuropeTrainOption* a, int n) {
   if (!a || n < 2) {
     return;
   }
-  int i = 0;
-  while (i < n - 1) {
-    if (a[i + 1].cost >= a[i].cost) {
-      ++i;
-      continue;
-    }
-    const EuropeTrainOption lifted = a[i + 1];
-    for (int k = 0; k < n - 2 - i; ++k) {
-      a[i + 1 + k] = a[i + 2 + k];
-    }
-    int pos = 0;
-    while (pos < n - 1 && a[pos].cost < lifted.cost) {
-      ++pos;
-    }
-    for (int k = n - 2; k >= pos; --k) {
-      a[k + 1] = a[k];
-    }
-    a[pos] = lifted;
-    /* DOS does not rewind `local_12` here — the scan resumes where it was. */
+  uint16_t key[EUROPE_TRAIN_MAX];
+  int order[EUROPE_TRAIN_MAX];
+  EuropeTrainOption copy[EUROPE_TRAIN_MAX];
+  for (int i = 0; i < n; ++i) {
+    key[i] = (uint16_t)a[i].cost;
+    order[i] = i;
+    copy[i] = a[i];
+  }
+  units_dos_sort_1cf8(key, order, n);
+  for (int i = 0; i < n; ++i) {
+    a[i] = copy[order[i]];
   }
 }
 

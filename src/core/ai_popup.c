@@ -55,7 +55,6 @@ static int ai_popup_chain_key(AiPopupTag tag, int nation_a, int nation_b) {
   switch (tag) {
     case AI_POPUP_TAG_CONTACT_MEET:
     case AI_POPUP_TAG_CONTACT_TEACH:
-    case AI_POPUP_TAG_CONTACT_GIFT:
     case AI_POPUP_TAG_CONTACT_DEMAND:
     case AI_POPUP_TAG_CONTACT_RAID:
     case AI_POPUP_TAG_CONTACT_CONVERT:
@@ -519,14 +518,10 @@ static const char* ai_popup_tag_name(AiPopupTag tag) {
       return "KING_LETTER";
     case AI_POPUP_TAG_FF_CONGRESS:
       return "FF_CONGRESS";
-    case AI_POPUP_TAG_KING_DUMP_GOODS:
-      return "KING_DUMP_GOODS";
     case AI_POPUP_TAG_CONTACT_MEET:
       return "CONTACT_MEET";
     case AI_POPUP_TAG_CONTACT_TEACH:
       return "CONTACT_TEACH";
-    case AI_POPUP_TAG_CONTACT_GIFT:
-      return "CONTACT_GIFT";
     case AI_POPUP_TAG_CONTACT_DEMAND:
       return "CONTACT_DEMAND";
     case AI_POPUP_TAG_CONTACT_RAID:

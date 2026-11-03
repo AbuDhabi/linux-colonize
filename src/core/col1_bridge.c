@@ -1557,6 +1557,7 @@ COLONIZE_INTERNAL void col1_bridge_apply_europe_lanes(Col1ApplyCtx* ctx) {
         slot->cargo_tools[c] = pax_tools[c];
       }
       col1_bridge_europe_ship_route_load(save, src, slot);
+      slot->origin_plus1 = src->origin < 0x80 ? (int)src->origin + 1 : 0; /* +0x314a, raw like map units */
       consumed[i] = true;
       local->skipped_europe_units++;
     }
@@ -1675,6 +1676,8 @@ COLONIZE_INTERNAL Col1StageStatus col1_bridge_apply_units(Col1ApplyCtx* ctx) {
               save, src, &europe->harbor[europe->harbor_ships - 1]
             );
             harbor_src[europe->harbor_ships - 1] = i;
+            europe->harbor[europe->harbor_ships - 1].origin_plus1 =
+              src->origin < 0x80 ? (int)src->origin + 1 : 0;
             /* The docked hull's own exit tile (+0x314d/+0x314e), which
              * europe_set_sail_from_harbor sails from (FUN_48d3_0346). */
             if (src->ship_damaged) {
@@ -3672,7 +3675,7 @@ COLONIZE_INTERNAL void col1_bridge_capture_dock_rows(Col1CaptureCtx* ctx) {
       dst->nation_id = n;
       dst->vis_mask = 0; /* Europe sentinel units carry vis 0 in DOS saves */
       dst->ai_plan = COL1_UNIT_UNKNOWN16_HI_DEFAULT;
-      dst->origin = 0xff; /* home-colony byte can't survive the Europe screen */
+      dst->origin = 0xff; /* 06b4 in Europe: no colony tile (271/271 DOS dock units) */
       dst->orders = orders;
       dst->profession = (uint8_t)(row->profession < 0 ? UNITS_JOB_NONE : row->profession);
       dst->transport_chain.prev_unit_idx = -1;
@@ -3821,7 +3824,13 @@ COLONIZE_INTERNAL void col1_bridge_capture_europe_lanes(Col1CaptureCtx* ctx) {
         dst->nation_id = n;
         dst->vis_mask = 0; /* Europe sentinel units carry vis 0 in DOS saves */
         dst->ai_plan = COL1_UNIT_UNKNOWN16_HI_DEFAULT;
-        dst->origin = 0xff; /* home-colony byte can't survive the Europe screen */
+        /* +0x314a crosses with the hull (11 of 16 human lane ships in
+         * original_saves carry a colony index); id -> DOS index like 3338. */
+        dst->origin = 0xff;
+        if (ship->origin_plus1 > 0 && ctx->colonies) {
+          const int found = colonies_dos_index(ctx->colonies, ship->origin_plus1 - 1);
+          dst->origin = found >= 0 ? (uint8_t)found : 0xff;
+        }
         dst->orders = on_route ? (uint8_t)UNITS_ORDER_TRADE_ROUTE : 0;
         if (on_route) {
           dst->profession = (uint8_t)(((route_stop & 0xf) << 4) | (route_slot & 0xf));

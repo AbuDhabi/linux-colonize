@@ -770,14 +770,14 @@ static void game_colony_workplace_refusal(
       colonies_emit_noteacher_chrome(&game->ai_popups, &game->messages);
     } else if (
       c && teaching &&
-      colonies_school_tier_shortfall(c->profession, school_tier) != 0
+      colonies_school_tier_shortfall(&game->colonies, col, c->profession) != 0
     ) {
-      const int need = colonies_school_tier_shortfall(c->profession, school_tier);
+      const int need = colonies_school_tier_shortfall(&game->colonies, col, c->profession);
       set_status(
         game, need >= 3 ? "Need a university" : "Need a college", NULL
       );
       colonies_emit_need_school_chrome(
-        c->profession, school_tier, &game->ai_popups, &game->messages
+        c->profession, need, &game->ai_popups, &game->messages
       );
     } else if (c && occupation > 9 &&
                colonies_occupation_worker_count(

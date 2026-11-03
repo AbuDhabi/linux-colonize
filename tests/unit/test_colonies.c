@@ -833,7 +833,7 @@ static int unit_needschool_chrome(void) {
   }
   AiPopupState pops;
   ai_popup_init(&pops);
-  colonies_emit_need_school_chrome(COLONIZE_PROF_BLACKSMITH, 1, &pops, &game_txt);
+  colonies_emit_need_school_chrome(COLONIZE_PROF_BLACKSMITH, 2, &pops, &game_txt);
   if (pops.queue_count < 1 ||
       (strstr(pops.queue[0].body, "college") == NULL &&
        strstr(pops.queue[0].body, "College") == NULL &&
@@ -859,7 +859,7 @@ static int unit_needschool_chrome(void) {
     return 1;
   }
   ai_popup_init(&pops);
-  colonies_emit_need_school_chrome(COLONIZE_PROF_PREACHER, 2, &pops, &game_txt);
+  colonies_emit_need_school_chrome(COLONIZE_PROF_PREACHER, 3, &pops, &game_txt);
   if (pops.queue_count < 1 ||
       (strstr(pops.queue[0].body, "university") == NULL &&
        strstr(pops.queue[0].body, "University") == NULL &&
@@ -881,6 +881,16 @@ static int unit_needschool_chrome(void) {
   col->colonists[0].building_type = -1;
   if (!colonies_assign_workplace(&pool, 1, 0, 2)) {
     fprintf(stderr, "needschool: Preacher should assign to University\n");
+    return 1;
+  }
+
+  /* known_divergences.md #909: University without College refuses a level-2
+   * teacher — DOS asks 8bec(0xd) only (overlays.c:60482). */
+  col->colonists[0].profession = COLONIZE_PROF_BLACKSMITH;
+  col->colonists[0].building_type = -1;
+  if (colonies_assign_workplace(&pool, 1, 0, 2) ||
+      colonies_school_tier_shortfall(&pool, col, COLONIZE_PROF_BLACKSMITH) != 2) {
+    fprintf(stderr, "needschool: Blacksmith must need a College beside the University\n");
     return 1;
   }
 

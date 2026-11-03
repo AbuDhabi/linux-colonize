@@ -489,6 +489,15 @@ static int run_init_and_turns(
     const ColonizeWorld pw = world_make(&units, NULL, &map, &col1, col1_ok, NULL, &europe);
     europe_seed_campaign_w(&pw, 0x6024u);
   }
+  /* DS:0x5388 = 235c param = America-map choice (original_saves: 1 on every
+   * golden_idle_america save, 0 on the generated mapgen/early-game ones). */
+  if (col1.head.start_mode_marker != (america ? 1u : 0u)) {
+    fprintf(stderr, "%s: start_mode_marker %u\n", label, col1.head.start_mode_marker);
+    map_free(&map);
+    col1_save_free(&col1);
+    assets_msg_free(&names);
+    return 1;
+  }
   if (!col1_ok || col1.head.tribe_count == 0) {
     fprintf(stderr, "%s: expected tribes, got %u\n", label, col1.head.tribe_count);
     map_free(&map);

@@ -521,8 +521,8 @@ void game_tutorial_europe_opened(ColonizeGameState* game) {
  * outright, the status line shows the cargo and its cost, and a plain drag
  * (param_4 == 0) adds this hint. No tutorial-option gate and no latch: DOS
  * shows it on every such drag. %NUMBER0 = price per unit, %NUMBER1 = gold.
- * Returns true when the buy was refused. The Shift (amount prompt) arm is
- * port_bugs.md #1018 (docs/known_divergences.md).
+ * Returns true when the buy was refused. The Shift (amount prompt) arm
+ * refuses the same way (port_bugs.md #1018, europe_buy_cargo_w).
  */
 bool game_tutorial_europe_cannot_afford(ColonizeGameState* game, int hidx, int cargo) {
   EuropeScreen* eu = &game->europe;

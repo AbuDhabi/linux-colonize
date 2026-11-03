@@ -218,10 +218,10 @@ static int reports_naval_build_rows(
   /* Europe-side ships — harbor (docked, Location = port), expected (sailing
    * back to Europe, Location = High Seas / Destination = port), bound
    * (sailing to the New World, Location = High Seas / Destination = this
-   * nation's named colony region). Not independently golden-verified (no
-   * Europe-side ship in naval.png's save) — built from EuropeScreen's own
-   * already-resolved harbor/expected/bound lists by the same shape as the
-   * on-mapboard loop above. */
+   * nation's named colony region). These are the strings DOS prints for the
+   * sentinel lanes: FUN_49dd_02d0 names an off-map x = 236+n (in port) from
+   * [DS:0x838c + n*2] and any other off-map x as [DS:0x2e32] = @MISC 60
+   * (docs/known_divergences.md #974; only the row order differs). */
   if (europe) {
     /* LABELS.TXT @MISC row 60 "High Seas". */
     const char* high_seas = reports_misc_display_word(60, "");

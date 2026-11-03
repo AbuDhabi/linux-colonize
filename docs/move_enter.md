@@ -150,8 +150,9 @@ village, or an empty enemy colony alike. The `FUN_4720_049e` jump table at
 `4720:060a` maps reason 9 to `push 0x1429` = **@LANDFIRST**, "Land units
 cannot enter an enemy occupied square from on board a ship." There is no
 amphibious assault in DOS and no shipboard walk-in capture (port_bugs.md #485).
-The port keeps `@LANDFIRST` on the *ship*-mover direction too as a stand-in;
-DOS refuses that step with no reason word and shows nothing (port_bugs.md #486).
+A *ship* bumping enemy-held land gets no reason word in DOS and shows nothing;
+the port matches (`units_enter_probe_w` returns the silent `BLOCKED_DOMAIN`,
+port_bugs.md #486).
 
 Ship **sight radius** is not a `@UNIT` column either: `FUN_13f1_02f8`
 (`CODE_17:13f1:02f8-0356`) builds it in DI from hardcoded type compares —

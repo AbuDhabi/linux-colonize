@@ -79,7 +79,7 @@ static inline int ai_relation_quartile(int v) {
  * 2026-08-27 static close: DOS bit 0x08 = "amicable-negotiation latch".
  * Set at 153e's common tail (viceroy_unpacked.c:98415) when the pair is
  * already MET and (peace kept or target weaker). Consumed by
- * FUN_521d_6d8e: when the pair's cooldown (unknown26 +0x40..) reads 0 and
+ * FUN_521d_6d8e: when the pair's cooldown (nation +0x40.. treaty_timer) reads 0 and
  * the latch is set, 1-in-3 per turn → `rel = (rel & 0xb7) | WAR` (clears
  * 0x08|0x40, declares war) — a random relapse after a truce cools off.
  * Also read by the 0a60 continent-stance gate (ai_euro.c) and cleared by
@@ -232,7 +232,8 @@ int ai_diplo_465b_band(ColonizeCol1Save* col1, int attacker, int defender);
 int ai_diplo_465b_band_ctx(ColonizeTurnContext* ctx, int attacker, int defender);
 
 int ai_diplo_at_war(const ColonizeCol1Save* col1, int nation_a, int nation_b);
-/* First declare: thin 153e sting + war-hit. Franklin pair → no-op (fandom NW peace). */
+/* Declare: clear PEACE, or WAR|MET both ways, zero DS:0x53c8 for Euro pairs.
+ * No sting, no Franklin gate (port_bugs.md #472). */
 void ai_diplo_declare_war(ColonizeCol1Save* col1, int nation_a, int nation_b);
 /* Test fixture helper: clear WAR both ways, set PEACE|MET (no production
  * caller; DOS treaties are signed by FUN_5bfb_13b0). */
@@ -260,6 +261,10 @@ void ai_diplo_13b0_encounter(ColonizeTurnContext* ctx, int mover, int other);
  * Use these at sites transcribed from DOS (152e, 1816, 2820, 417e, 0x4b gates).
  */
 int ai_diplo_indian_alarm(const ColonizeCol1Save* col1, int indian_nation, int euro_nation);
+/* FUN_4cc6_00f2 minus its alarm==100 mission-burn tail. Unreachable for
+ * delta < 0, so a bare call is the whole DOS body only for negative deltas
+ * (Pocahontas, the 1b0e vent); delta >= 0 goes through
+ * ai_contact_alarm_delta_00f2 / _w. */
 void ai_diplo_indian_alarm_delta(
   ColonizeCol1Save* col1,
   int indian_nation,

@@ -516,13 +516,16 @@ int colonies_school_building_tier(
 );
 
 /*
- * Required school tier (2 or 3) if profession needs a higher school than
- * building_tier; else 0.
+ * @NEEDUNIVERSITY 3 / @NEEDCOLLEGE 2 when the colony lacks the exact @BUILDING
+ * row the profession's @JOB school level asks for (DOS 8bec(0xe) / 8bec(0xd)),
+ * else 0. See colony_plots.c.
  */
-int colonies_school_tier_shortfall(int profession, int building_tier);
+int colonies_school_tier_shortfall(
+  const ColonizeColonyPool* pool, const ColonizeColony* col, int profession
+);
 /* Best school tier the colony OWNS (University 3 / College 2 / Schoolhouse 1,
- * 0 none) — both the faculty cap and the @NEEDCOLLEGE/@NEEDUNIVERSITY test
- * read this, never the clicked school row. port_bugs.md #580 / #589. */
+ * 0 none) — the faculty cap reads this, never the clicked school row.
+ * port_bugs.md #580 / #589. */
 int colonies_school_owned_tier(const ColonizeColonyPool* pool, const ColonizeColony* col);
 /* DOS @JOB occupation a workable building employs (9..18), or -1. */
 int colonies_building_occupation(const ColonizeColonyPool* pool, int building_type);
@@ -540,10 +543,11 @@ void colonies_emit_noteacher_chrome(
   const ColonizeMsgCatalog* messages
 );
 
-/* @NEEDCOLLEGE / @NEEDUNIVERSITY when profession tier exceeds school building. */
+/* @NEEDCOLLEGE (need 2) / @NEEDUNIVERSITY (need 3), need from
+ * colonies_school_tier_shortfall. */
 void colonies_emit_need_school_chrome(
   int profession,
-  int building_tier,
+  int need,
   AiPopupState* ai_popups,
   const ColonizeMsgCatalog* messages
 );

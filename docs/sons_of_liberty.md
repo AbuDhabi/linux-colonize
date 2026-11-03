@@ -159,13 +159,13 @@ with SoL: the port maps `0x40` as **coastal**.
 |------|--------|------|
 | Colony SoL ≥ 50% / ≥ 100% | Production +1 / +2 (via sol latches in full DOS mod) | **Wired** (`colony_prod_sol_bonus`) |
 | Tory count vs `10−diff` | `−⌊tories / thresh⌋` on production | **Wired** (same helper; AI Tory count zeroed, FUN_15eb_1d4c 15eb:1dbf) |
-| Nation SoL ≥ 50% | May declare independence | **Structural Wired** (SoL only; `FUN_43f7_2564`) |
-| Nation SoL 40..49 | Restless chrome | **Wired** thin |
+| Nation SoL ≥ 50% | May declare independence | **Wired** (SoL only; `FUN_43f7_2564`) |
+| Nation SoL 40..49 | Restless chrome | **Wired** |
 | — (no SoL gate) | Mercenary offer `FUN_43f7_2022`: 1-in-3 per-turn roll | **Wired** (`ai_king_offers.c`) |
-| Colony SoL at unit tile >50 / 40..50 | Cont. promote / Soldier→Veteran | **Wired** thin |
+| Colony SoL at unit tile >50 / 40..50 | Cont. promote / Soldier→Veteran | **Wired** |
 | Bolivar elected | +20 SoL (DOS display-time) | **Wired** (`founding_fathers_bolivar_sol_bonus`) |
 | Rebel sentiment points | Score +1 per point | **Wired** |
-| Year-end SoL C2 / D SoL chrome | Peace / pressure / rival dialogs | **Wired** thin (pop-weighted SoL via `ai_king_sol_percent`; C2 crown/human ratio; D rival pick via `rival_nation_slot_1/_2`, `(8−difficulty)×10` auto-declare, `rebellion_pct_last_notified` dedup; decile status via `sol_pct_last_notified`) |
+| Year-end SoL C2 / D SoL chrome | Peace / pressure / rival dialogs | **Wired** (pop-weighted SoL via `ai_king_sol_percent`; C2 crown/human ratio; D rival pick via `rival_nation_slot_1/_2`, `(8−difficulty)×10` auto-declare, `rebellion_pct_last_notified` dedup; decile status via `sol_pct_last_notified`) |
 | Combat popular-support % | Attacker side’s SoL/Tory share **on colony** | **Wired** (`combat_apply_1b0e_peels`: colony REF +50% + Tory/Rebel %) — [combat.md](combat.md) |
 | Cont. Army muster by colony SoL | Declare-turn 1eca promote (Veteran Soldier/Dragoon on colony tile; SoL>49) | **Wired** (`ai_king_war_act`; popup Confirm chains ref_wave+war_act) |
 | Map pop digit colors | White &lt;50 / green ≥50 / cyan 100 (+0x1c SoL latches) | **Wired** (`colony_chrome.c`, DOS `FUN_112b_0c64` badge) |
@@ -262,7 +262,7 @@ ported as `reports_score_rating` — see [difficulty.md](difficulty.md).
 
 | Section | SoL use | Port |
 |---------|---------|------|
-| C2 (WoI) | Crown vs human SoL ratio; pressure if >79, peace if >89 | **Wired** thin (`ai_king_sol_percent`) |
+| C2 (WoI) | Crown vs human SoL ratio; pressure if >79, peace if >89 | **Wired** (`ai_king_sol_percent`) |
 | D (peace) | Rival SoL vs threshold `(8−difficulty)×10` | **Wired** — `rebel_sentiment × census_pop_proxy / 100` capped 100 (`turn_year_end_rival_rebels`; DS `−0x6bf0` = `census_pop_proxy`, not a continent table) |
 
 Details: [`year_end_chrome.md`](../original_sources_annotated/turn/year_end_chrome.md).

@@ -2457,6 +2457,8 @@ void game_commit_new_campaign(ColonizeGameState* game) {
                game->col1.player[game->human_nation].name);
     }
     colony_screen_set_layout_seed(&game->colony_screen, game->col1.post_map.boot_timer);
+    /* DS:0x336 badge-numbers toggle rides the save (stuff.ui_toggle_336, 0 = off). */
+    game->colony_screen.show_production_numbers = game->col1.stuff.ui_toggle_336 != 0;
     /*
      * ai_init_new_game seeds the DOS new-game words; a loaded settings.json
      * then overrides them with the player's remembered options. Gated on

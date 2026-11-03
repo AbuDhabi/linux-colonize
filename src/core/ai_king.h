@@ -29,7 +29,8 @@
 #define AI_KING_ENDGAME_NONE 0
 #define AI_KING_ENDGAME_WON 1
 #define AI_KING_ENDGAME_LOST 2
-#define AI_KING_CONGRESS_BYTE 5
+/* id 5 (pad[1] bit 0x04) is free: AI_KING_CONGRESS_BYTE was a write-only
+ * FUN_43f7_2564 stand-in; 2564 writes no such latch (deleted 2026-11-03). */
 /* ids 6-10 (pad[1] bits 0x08-0x80) are free: the @WARNn / @SOONRETIRINGn
  * once-latches were port-side and DOS has none (port_bugs.md #1391/#1392). */
 /* port_bugs.md: the first REF wave waits one full turn after the declaration —
@@ -69,7 +70,6 @@ static inline uint8_t* ai_king_latch_pad(ColonizeCol1Save* col1) {
 static inline int ai_king_latch_bit(int which) {
   switch (which) {
     case AI_KING_BOYCOTT_BYTE: return 0x01;
-    case AI_KING_CONGRESS_BYTE: return 0x04;
     default: return 0;
   }
 }
@@ -206,8 +206,7 @@ int ai_king_new_war_event(ColonizeTurnContext* ctx);
 
 /*
  * Apply human choice from map AI popup:
- *   KING_AUDIENCE Accept/Refuse (38fd_5be8; Refuse → @TEAPARTY OK /
- *     KING_DUMP_GOODS then @TEAPARTY),
+ *   KING_AUDIENCE Accept/Refuse (38fd_5be8; Refuse → @TEAPARTY OK),
  *   KING_MERC Hire/Decline (2244; Hire → success follow-up OK;
  *     Decline → declined follow-up OK),
  *   KING_CONGRESS Confirm (2564/1a26 → rename + WoI-begins OK chain).

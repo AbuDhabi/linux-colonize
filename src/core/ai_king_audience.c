@@ -396,10 +396,13 @@ static uint16_t ai_king_teaparty_candidate_mask(
  * Tea-party choice apply: a human answered the KING_AUDIENCE CHOICE with
  * "hold a tea party" after a real tax raise. FUN_38fd_3dc8: revert the
  * just-applied hike, boycott the tonnage-walk-picked cargo, confiscate its
- * stock (ai_king_enqueue_teaparty_ok dumps up to 100 tons from the
- * richest human colony — thin stand-in for the colony-array seize into
- * DOS's own royal-stock pile, real field unresolved, see file header).
- * Used by both the human CHOICE-apply path and the no-popups auto path.
+ * stock. DOS-LITERAL raw 64285-64299 (answer 2): local_7c = min(100,
+ * stock[local_4]) of colony aiStack_a4[local_4] (the human COASTAL colony
+ * holding the most, colony+0x9a stock word), subtracted from that stock and
+ * added to the SAME colony's 32-bit +0xc2 rebel_dividend (SoL numerator).
+ * There is no royal-stock pile: the goods vanish and become rebel sentiment.
+ * The seize + @TEAPARTY (0x106a) live in ai_king_enqueue_teaparty_ok.
+ * Only caller: the KING_AUDIENCE Refuse result (ai_king_war.c).
  */
 void ai_king_tax_teaparty(ColonizeTurnContext* ctx, int human, int cargo) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || human < 0 || human >= 4) {
@@ -434,32 +437,6 @@ void ai_king_tax_teaparty(ColonizeTurnContext* ctx, int human, int cargo) {
     /* DOS 3dc8 shows @TEAPARTY inline, right after the refused audience — the
      * queue tail put it behind whatever else the turn had pending. */
     (void)ai_popup_move_tag_to_front(ctx->ai_popups, AI_POPUP_TAG_KING_TAX);
-  }
-}
-
-void ai_king_apply_dump_goods_choice(ColonizeTurnContext* ctx, int human, int cargo) {
-  if (!ctx || !ctx->col1_ok || !ctx->col1 || human < 0 || human >= 4) {
-    return;
-  }
-  if (cargo < 0 || cargo >= COLONIZE_CARGO_COUNT) {
-    return;
-  }
-  ColonizeCol1Nation* nat = &ctx->col1->nation[human];
-  nat->boycott_bitmap = (uint16_t)(nat->boycott_bitmap | (uint16_t)(1u << cargo));
-  if (ctx->status && ctx->status_size) {
-    char cargos[96];
-    if (ai_king_format_boycott_cargos(cargos, sizeof(cargos), nat->boycott_bitmap)) {
-      snprintf(
-        ctx->status,
-        ctx->status_size,
-        "Dump goods: boycotted in Europe: %s.",
-        cargos
-      );
-    }
-  }
-  /* GAME.TXT @TEAPARTY for the chosen dump cargo (thin 3dc8 stock dump). */
-  if (ai_king_human_popups(ctx)) {
-    ai_king_enqueue_teaparty_ok(ctx, human, cargo);
   }
 }
 
@@ -909,7 +886,7 @@ void ai_king_succession(ColonizeTurnContext* ctx) {
  * FUN_43f7_1a26 declare body (after 2564 confirm / auto).
  * Fallback-seeds REF by difficulty only when it is still all zero; seeds the
  * 10f0 foreign-intervention pools via ai_king_seed_backup_force_1a26;
- * withdraws other Euros; thin 160a rename; market_demand_pool_raw[5] congress.
+ * withdraws other Euros; thin 160a rename.
  */
 void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || human < 0 || human >= 4) {
@@ -924,8 +901,10 @@ void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
   ai_king_succession(ctx);
   ai_king_set_independence(ctx->col1, 1); /* WoI: market_demand_pool_raw[0] if not already */
   ai_king_write_rival_nation_slots(ctx->col1, human);
-  /* FUN_43f7_2564 congress-confirm stand-in. */
-  ai_king_latch_set(ctx->col1, AI_KING_CONGRESS_BYTE, 1);
+  /* FUN_43f7_2564 raw 75238-75240 writes nothing here: its @DECLARE (0x1397)
+   * answer 2 calls thunk_FUN_291f_0356 = FUN_210d_0dab (RTLink overlay load)
+   * + FUN_43f7_1a26, i.e. straight into this body. The port's write-only
+   * "congress" latch (pad[1] 0x04, no reader) was a stand-in and is gone. */
   /*
    * DOS FUN_43f7_1a26 writes only the foreign-intervention pool
    * (0x53e2..0x53e8 backup_force) here — the Expeditionary Force itself is

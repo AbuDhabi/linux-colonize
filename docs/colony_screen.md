@@ -324,8 +324,10 @@ the box. The caller's `+8` is this port's `COLONY_VIEWPORT_Y` origin.
 Ported as `ColonyScreenView.hover_building_row` (set each frame in
 `game_update_colony_screen` from `colony_screen_hit_test`, cleared while any
 sub-dialog or drag is up) plus a tail block in `colony_screen_blit_buildings`.
-Only the backdrop fill colour is approximate — DOS's is a windowed save-under
-blit through `DS:0x2da8..0x2dae`, not re-measured against a golden.
+The backdrop is a solid colour-0 fill: `FUN_281f_00ba` -> `FUN_1b9e_000a` with
+x/y/w in AX/DX/BX and stack args colour `PUSH 0`, height 7, then the far
+pointer of the target surface `DS:0x2da8..0x2dae` (where the colour sits, not
+a save-under). Text ink is 15 (`FUN_281f_01f0`).
 
 Right-click on a built building opens its Colonizopedia article
 (`PEDIA_CAT_BUILDING`; `@BUILDING` row order *is* the pedia building index)

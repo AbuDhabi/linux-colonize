@@ -367,6 +367,10 @@ static bool ai_setup_col1_template(const AiNewGameParams* p, char* err, size_t e
    * left every nation's Congress force bars empty (port_bugs.md).
    */
   ai_king_ref_seed_floor(p->col1->head.difficulty, p->col1->head.expeditionary_force);
+  /* FUN_75c2_235c raw 121510: DS:0x5388 = param, which the main menu
+   * (FUN_75c2_2778 raw 121825) passes as `choice == 2` — the America map
+   * (AMER2.MP or a picked .MP); 0 for a generated New World and the demo. */
+  p->col1->head.start_mode_marker = p->use_tribe_txt ? 1u : 0u;
   p->col1->head.year = 1492;
   p->col1->head.autumn = 0;
   p->col1->head.turn = 0;

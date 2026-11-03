@@ -46,7 +46,7 @@ Coolers:
 | Concede a goods demand | five `FUN_OVL16_L0040__003b*` arms | `-(price[cargo] * qty * 4) / 100`, proportional to what you hand over |
 | ~~Pay a gold demand~~ | — | **MISATTRIBUTED, corrected 2026-09-30 (port_bugs.md #1007):** `thunk_FUN_1000_a8b8` (`viceroy_overlays.c:84426-84726`) is the OVERLAY COPY of `FUN_5fef_0f14`, the colony-raid loot resolver — same `rand(0,0x29)` building pick, same `0x8542` colony record, same kind-1..4 arms with `0xfffc/0xfff4/0xfff0/0xfff8`, same `(tribe*9+euro)*2+0x54f6 = 0` tail. So this row duplicated the raid-tail row below and there is **no DOS gold-demand payoff body**. The port's mid-band payoff is a pure stand-in — see the row below |
 | **Buy** the plot instead of taking it | `FUN_0000_6582` non-human arm | 0 — no charge at all |
-| Gift of gold (022e auto-gift only) | **port stand-in, NO DOS BODY** | -2 (10 gold) / -3 (20 gold), through the same `ai_contact_pair_cool` as the demand arms (port_bugs.md #1007). The cited `FUN_5bfb_102a` (`viceroy_unpacked.c:97105-97125`) is a plural/singular TEXT FORMATTER with no gold or alarm arithmetic — citation dropped. `@ACTIONS` has no gift row and nothing ever enqueued `AI_CONTACT_CHOICE_GIFT`, so the **player-driven** gift action (its amount CHOICE, its three typed English labels and the -5/-1 Small band) was invented and dead, and was deleted 2026-10-01; the Indian-initiated auto-gift stand-in (`ai_contact_gift_or_demand`) was deleted with its dead driver on 2026-10-31 (port_bugs.md #1340) |
+| Gift of gold | **none in DOS** | No DOS body: `@ACTIONS` has no gift row and `FUN_5bfb_102a` is a plural/singular text formatter. The player gift action was deleted 2026-10-01 (port_bugs.md #1006), the Indian-initiated auto-gift stand-in 2026-10-31 (#1340), and the orphaned `AI_POPUP_TAG_CONTACT_GIFT` tag (id 12, never enqueued) 2026-11-03 |
 | Concede a tools / gold demand | **port stand-in, NO DOS BODY** | deleted 2026-10-31 (port_bugs.md #1340/#1349); was a flat -3 through `ai_contact_pair_cool` -> `ai_contact_alarm_delta_00f2` (so it clears the attack-confirmed bit, clears the war bit below 0x4b, and runs the 5-point tier clamp) and writing **no** village word: DOS's coolers either zero ONE village's whole word (the acting Brave's home, which these arms never hold) or spend through 0d6c, and no DOS site decays every village of a nation. The **amount** is still invented — there is no DOS demand-payoff body at all (port_bugs.md #1007) |
 | Any resolved native-vs-Euro land fight, or a raid | `FUN_5fef_1b0e` / `FUN_5fef_0f14` | that village's whole word -> 0 |
 | Raze their capital | `FUN_5fef_1b0e` | alarm clamped down to 15; every village word of the nation zeroed |
@@ -434,9 +434,20 @@ clamped to 20, so France lands on 70 and others on 100. It writes no village wor
 | Difficulty prelude | **RETIRED 2026-09-09** (smell #72): the `2+(4-diff)` chance / `5+(4-diff)` bump table was invented and ran off indian record +6, a byte no DOS export touches. `ai_contact_indian_prelude` now only clamps. The difficulty terms that *are* real: `FUN_465b_0000` trespass (`difficulty+5`), `FUN_0000_6582` land work (`difficulty+5`), WoI defect roll `rng(0,(5-difficulty)*2)==0`, map-gen seed `rand(0,14)+difficulty*2` — [difficulty.md](difficulty.md) §Indians |
 
 `@ATTITUDE` labels: Content, Uneasy, Restless, Angry, War (+ `@ATTITUDINAL`
-modifiers Extremely/Very/Rather/Somewhat/Slightly). **Nothing in the port or the
-decomp reads either catalog**: the F9 Indian Adviser prints the `@LEVELS` tech word
-and picks the chief portrait `113 + alarm quartile` (`reports_indian_build_rows`),
-so alarm never surfaces to the player as text. Method, dead leads and the capture
-that would settle it: [known_divergences.md](known_divergences.md) #1009. Do not
-invent a threshold table.
+modifiers Extremely/Very/Rather/Somewhat/Slightly). **Nothing in the port or in DOS
+reads either catalog** (settled 2026-11-03, was known_divergences.md #1009): the F9
+Indian Adviser prints the `@LEVELS` tech word and picks the chief portrait
+(`reports_indian_build_rows`), so alarm never surfaces to the player as text.
+Evidence: `FUN_75c2_10ae` (asm 75c2:1db8-1df6) writes the string ids into
+`DS:0x9348..0x935b` and nothing reads them: no literal, Ghidra negative
+(`-0x6cb8..-0x6ca5`) or `0x9346`/`0x9350`-style base form in any export, and the
+neighbours' indexed readers cannot spill in (`[BX+0x9340]` @VALUES is clamped to
+0..3 just before 4d56:2cd0, `[BX/SI+0x935c]` is indexed by a nation arg). The cut display
+left its index math behind as dead stores in `FUN_3f41_010a` (asm 3f41:0536-05a6):
+tier `local_56` = `FUN_281f_0a60` -> `FUN_15dc_00a2(alarm)` (0..3 at 25/50/75),
+modifier `local_64` = `(alarm - tier*25) / 5`, inverted (`4 - m`) for tier > 0,
+clamped 0..4, and `local_62` = tier, forced to 4 (War) when relation bit 0x40 is
+clear; `local_62`/`local_64`/`local_68` have no read xref. A DOSBox-X `BPM` on the
+ten words through three F9 reports drew nothing, but `BPM` is change-only in this
+build (a control `BPM` on the `@LEVELS` word DS:0x9632 stayed silent while F9 drew
+"Semi-Nomadic"), so the live run adds no read evidence. Do not wire these up.

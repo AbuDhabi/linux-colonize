@@ -155,34 +155,6 @@ int ai_king_pick_dump_goods_cargo(
   return -1;
 }
 
-/*
- * Comma-separated @CARGO names set in boycott_bitmap (presentation only).
- * Returns 1 if any bit set. Cite: king_ref refuse/holds chrome; Fugger partial
- * clear may leave a subset of bits while market_demand_pool_raw[2] still holds.
- */
-int ai_king_format_boycott_cargos(char* buf, size_t buf_size, uint16_t bitmap) {
-  if (!buf || buf_size == 0) {
-    return 0;
-  }
-  buf[0] = '\0';
-  size_t pos = 0;
-  int any = 0;
-  for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
-    if ((bitmap & (uint16_t)(1u << c)) == 0) {
-      continue;
-    }
-    if (any) {
-      if (pos + 2 >= buf_size) {
-        break;
-      }
-      pos += (size_t)snprintf(buf + pos, buf_size - pos, ", ");
-    }
-    pos += (size_t)snprintf(buf + pos, buf_size - pos, "%s", reports_cargo_display_name(c));
-    any = 1;
-  }
-  return any;
-}
-
 /* Human-facing map popup queue attached (game_loop); AI/auto path when NULL. */
 int ai_king_human_popups(const ColonizeTurnContext* ctx) {
   return (ctx && ctx->ai_popups) ? 1 : 0;
@@ -290,9 +262,9 @@ void ai_king_teaparty_party_name(
 
 /*
  * GAME.TXT @TEAPARTY follow-up OK after refuse / dump-goods apply.
- * Thin FUN_38fd_3dc8: dump min(100, stock) from richest human colony of cargo,
- * then enqueue KING_TAX OK with authentic tokens.
- * Cite: GAME.TXT @TEAPARTY; archive/popup_audit MissingWire → Done thin.
+ * FUN_38fd_3dc8 answer-2 arm (raw 64285-64307): seize min(100, stock) from
+ * the aiStack_a4 colony into its own rebel_dividend, then @TEAPARTY OK.
+ * Cite: GAME.TXT @TEAPARTY.
  */
 /* ===== Tea-party enqueue & intervention force selection (ai_king_enqueue_teaparty_ok .. ai_king_write_rival_nation_slots) ===== */
 void ai_king_enqueue_teaparty_ok(ColonizeTurnContext* ctx, int human, int cargo) {

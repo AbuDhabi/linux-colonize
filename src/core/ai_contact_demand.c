@@ -1731,8 +1731,9 @@ int ai_contact_ai_incite_human(
  * site isn't independently confirmed; substituted the same nation's own
  * already-mapped `tech` field (same conceptual quantity, most likely the
  * same table). Exact DOS status-message wording is not reproduced (see
- * doc). `woi_defect_forced` (DOS bit 0x40) has no known setter this pass —
- * the eligibility gate below never gets forced on for now. DOS's
+ * doc). `woi_defect_forced` (DOS bit 0x40) is set by FUN_5fef_1b0e raw
+ * 100655-100658 when a human razes a village of the tribe
+ * (units_try_native_settlement_fallout_w, units_combat.c). DOS's
  * `FUN_2a1f_0398` "mission clear" side-effect IS wired (below, after the
  * windfall) — byte-exact once its target (FUN_4cc6_0000) was fully read.
  */
@@ -1968,10 +1969,13 @@ void ai_contact_indian_prelude(ColonizeTurnContext* ctx, int nation_id) {
    * it" claim was false when written — the 152e accumulator (ai.c, DOS's
    * sole alarm-growth channel) and three ai_contact sites (tribute bump,
    * heresy pair, mission founding) still called the bare first half, so the
-   * burn could never fire from them. Fixed. The remaining bare
-   * ai_diplo_indian_alarm_delta callers (units.c, game_loop.c) genuinely
-   * have no turn context in hand; DOS has no bare writer at all — 0x5b1c is
-   * written only inside 00f2 — so those are still port debt.
+   * burn could never fire from them. Fixed. The context-less positive sites
+   * (colony land-work bill, pioneer charge, 465b trespass, LCR @SCREWED)
+   * moved to ai_contact_alarm_delta_00f2_w (port_bugs.md #1004). The two
+   * bare callers left — Pocahontas (FUN_4345_0342 case 0x10, raw 73093-73113)
+   * and the 1b0e native-attack vent — pass only NEGATIVE deltas, and the
+   * 00f2 tail (raw 80864-80915) needs the post-add alarm to be 100, which a
+   * negative delta cannot reach: for them the bare call IS the whole DOS body.
    */
 }
 

@@ -1534,6 +1534,7 @@ static GameUpdateStep game_colony_screen_mouse_click(
       }
       if (csv->multi_mode == COLONY_MULTI_PRODUCTION) {
         csv->show_production_numbers = !csv->show_production_numbers;
+        game->col1.stuff.ui_toggle_336 = csv->show_production_numbers ? 1 : 0;
       } else if (csv->multi_mode == COLONY_MULTI_CONSTRUCTION) {
         {
           ColoniesBuildableOpts bopts = game_colony_buildable_opts(game);
@@ -1576,6 +1577,7 @@ static GameUpdateStep game_colony_screen_mouse_click(
        * flips the game-wide badge-numbers toggle (DS:0x336). FUN_2f2b_47bc
        * treats it as an inner cell: focus and cursor move there. #1284. */
       csv->show_production_numbers = !csv->show_production_numbers;
+      game->col1.stuff.ui_toggle_336 = csv->show_production_numbers ? 1 : 0;
       csv->focus = COLONY_FOCUS_AREA;
       csv->area_dx = 0;
       csv->area_dy = 0;
@@ -2074,6 +2076,7 @@ static GameUpdateStep game_colony_screen_keys(
     }
     if (ch == 'n' || ch == 'N') {
       csv->show_production_numbers = !csv->show_production_numbers;
+      game->col1.stuff.ui_toggle_336 = csv->show_production_numbers ? 1 : 0;
       return GAME_UPDATE_RETURN_TRUE;
     }
     /* FUN_2f2b_6372 cheat tail (T S $ % ^ !), only with the cheat bit set and

@@ -86,11 +86,11 @@ flowchart TD
 | Mouse Go-To drag | Path then order 3 | `UI_DRAG_MAP_GOTO` → `units_set_goto` | Done |
 | Go to Place / Port | One `FUN_647e_01c6` list: `@TRAVELPLACE` (land) / `@SAILPORT` colony+Europe (ship) | both → `game_open_goto_port_picker` (port_bugs.md #1208) | Done |
 | Activate / Wait | Stack picker / next unit with MP | `unit_stack` + Wait | Done |
-| AI | Sets order bytes + goto / follow | `ai_euro` / `ai_king` / `ai_contact` | Done (structural) |
-| Colony docked units | `FUN_2f2b_5746` sentry/fortify/… popup | Second click on the selected icon → wood popup (`colony_screen_open_dock_orders`), from either the Transport strip (ships/wagons) or the Multifunction Units tab (land units + Artillery, DOS `FUN_2f2b_1e46`/`59a0`) | Done thin |
+| AI | Sets order bytes + goto / follow | `ai_euro` / `ai_king` / `ai_contact` | Done |
+| Colony docked units | `FUN_2f2b_5746` sentry/fortify/… popup | Second click on the selected icon → wood popup (`colony_screen_open_dock_orders`), from either the Transport strip (ships/wagons) or the Multifunction Units tab (land units + Artillery, DOS `FUN_2f2b_1e46`/`59a0`) | Done |
 | Europe dock | Don’t board / Board / Move front (`@ARMOPTIONS` dock rows) | `EUROPE_MENU_DOCK` | Done |
 | Europe harbor ship | Move to front / Set sail / Unload all cargo / No changes (`@EUROPESHIPOPTIONS`, `FUN_38fd_2bfe`) | `game_europe_open_ship_menu` (ship-icon release, S / Space / Enter), `AI_POPUP_TAG_EUROPE_SHIP_MENU` | Done (Set sail always offered) |
-| Ship options chrome | `@SHIPOPTIONS` (anchor / sentry / unload) | Colony dock popup wired (sea); land uses `@UNITOPTIONS`; chrome = the shared wood popup (D4 closed 2026-10-28) | Done thin |
+| Ship options chrome | `@SHIPOPTIONS` (anchor / sentry / unload) | Colony dock popup wired (sea); land uses `@UNITOPTIONS`; chrome = the shared wood popup (D4 closed 2026-10-28) | Done |
 
 ---
 
@@ -161,7 +161,7 @@ stateDiagram-v2
 | Begin Trade Route | ORDERS | Order 2; route picker (sea/land filtered) + starting-stop picker; cycle stops. Route slot + stop index live in the unit's profession byte (`+0x17`; `FUN_1427_0f64`/`0f8e`), so they survive a save | `units_order_trade_route` + aim/cycle; strict DOS nibble lists; cursor bridged through `profession` | Done |
 | Trade at stop | Arrival | Unload/load exactly the stop lists; Europe sell+auto-buy; @ROUTELOOP on 1-port routes; retarget; stay order 2 | `game_trade_route_retarget` (DOS 479b_0bd0) | Done |
 | FOLLOW | — | No DOS counterpart (`@ORDERS` has rows 0..12) | `units_follow_unit` / `units_advance_follow_one_step_w`: port API with no production caller (only `test_units_core`) | Unused |
-| AI_MOVE / AI_SAIL | AI planners | Goto-following course bytes | Same stepper as human goto | Done (structural) |
+| AI_MOVE / AI_SAIL | AI planners | Goto-following course bytes | Same stepper as human goto | Done |
 
 ### Pioneer
 
@@ -233,15 +233,15 @@ Full inventory in [popups.md](popups.md) §3 / `@SECTION` index. Order-related:
 | `@SECTION` | Trigger | Expected | OpenCol | Status |
 |------------|---------|----------|-------|--------|
 | `@ONLYPIO` | — | **Never shown.** The literal `ONLYPIO` does not occur in VICEROY.EXE; `0b34` raw 42211-42215 greys menu ids 0x312/0x313/0x314 instead | Popup deleted (port_bugs.md #621); `map_menu.c` greys the rows | Dead text |
-| `@NEEDTOOLS` / `@NEEDTOOLS0` | Colony construction tools shortage (DS 0x3745), colony EOT path only — **no pioneer path raises them** (port_bugs.md #635) | Modal | EOT `@NEEDTOOLS`/`@NEEDTOOLS0` | Done thin |
-| `@NOPLOW` | Plow on already-plowed | Modal | `@NOPLOW` ai_popup OK | Done thin |
-| `@NOROAD` | Road where road exists | Modal | `@NOROAD` ai_popup OK | Done thin |
-| `@USEDUPTOOLS` | Pioneer tools depleted | Modal | Type→Colonists + `@USEDUPTOOLS` ai_popup OK | Done thin |
+| `@NEEDTOOLS` / `@NEEDTOOLS0` | Colony construction tools shortage (DS 0x3745), colony EOT path only — **no pioneer path raises them** (port_bugs.md #635) | Modal | EOT `@NEEDTOOLS`/`@NEEDTOOLS0` | Done |
+| `@NOPLOW` | Plow on already-plowed | Modal | `@NOPLOW` ai_popup OK | Done |
+| `@NOROAD` | Road where road exists | Modal | `@NOROAD` ai_popup OK | Done |
+| `@USEDUPTOOLS` | Pioneer tools depleted | Modal | Type→Colonists + `@USEDUPTOOLS` ai_popup OK | Done |
 | `@SUREDISBAND` | Disband confirm | Yes/No | `AI_POPUP_TAG_MAP_CONFIRM` | Done |
 | `@DISBANDSHIP` | Ship carrying units | OK (error) | `AI_POPUP_TAG_INFO` | Done |
 | `@OVERBOARD` | Which cargo to dump | Hold picker (section has no rows) | Same | Done (port_bugs.md #984) |
 | `@LANDFALL` / `@LANDFALL2` | Ship→bare land | Stay / Make Landfall | Done — see [move_enter.md](move_enter.md) |
-| `@SHIPOPTIONS` / `@UNITOPTIONS` | Colony dock icon, 2nd click | Move to front / Clear orders / Sentry / Fortify (+ ship-only Unload all cargo) / No changes | `colony_screen_open_dock_orders`; ineligible rows omitted (matches `2f2b_5746`) | Done thin |
+| `@SHIPOPTIONS` / `@UNITOPTIONS` | Colony dock icon, 2nd click | Move to front / Clear orders / Sentry / Fortify (+ ship-only Unload all cargo) / No changes | `colony_screen_open_dock_orders`; ineligible rows omitted (matches `2f2b_5746`) | Done |
 | `@COLONYUNIT` | Title for the above | "Options for {unit}:" | `popup_msg_fill` | Done |
 
 ---

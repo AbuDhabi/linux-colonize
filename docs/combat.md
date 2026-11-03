@@ -270,7 +270,7 @@ Also stored: `base_combat`, `local_1a`, `terrain_byte`, `village_n`,
 | Trigger | move-enter / AI adjacent | move-enter / AI / king | Fight units on tile |
 | Empty village | — | `ENTER_VILLAGE_SHIP` abort | Temp Brave from dwelling (`1b0e`); fight from adjacent (no enter); pop drain |
 
-Village **attack** empty-tile defense is **Done** thin (`units_spawn_village_temp_defender`):
+Village **attack** empty-tile defense is **Done** (`units_spawn_village_temp_defender`):
 DOS `FUN_5fef_1b0e` spawns a phantom Brave (Armed / Mtd. from nation muskets /
 `horse_breeding>24`), fights, undoes the phantom, then `population--` or destroy
 when `population < 2`. Killing a map Brave on the tile does **not** burn the

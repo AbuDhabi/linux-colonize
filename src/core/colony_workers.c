@@ -73,18 +73,14 @@ void colonies_emit_school_faculty_chrome(
 
 void colonies_emit_need_school_chrome(
   int profession,
-  int building_tier,
+  int need,
   AiPopupState* ai_popups,
   const ColonizeMsgCatalog* messages
 ) {
-  if (!ai_popups) {
+  if (!ai_popups || (need != 2 && need != 3)) {
     return;
   }
-  const int shortfall = colonies_school_tier_shortfall(profession, building_tier);
-  if (shortfall != 2 && shortfall != 3) {
-    return;
-  }
-  const char* section = (shortfall == 3) ? "NEEDUNIVERSITY" : "NEEDCOLLEGE";
+  const char* section = (need == 3) ? "NEEDUNIVERSITY" : "NEEDCOLLEGE";
   const char* pname = colonies_profession_name(profession);
   char body[AI_POPUP_BODY_LEN];
   PopupMsgTokens tok;
@@ -191,9 +187,8 @@ int colonies_job_required_building_row(int job) {
  *   raw 13540-13553 (job 0x12, Teacher): the colonist's own specialty level
  *     (@JOB column 2, 0x1c remapped to 0x19) decides — level 4 drops the row,
  *     level 3 needs @BUILDING 0xe (University), level 2 needs 0xd (College).
- *     The same OWNED-tier reading as colonies_school_owned_tier (#580/#589);
- *     colonies_school_tier_shortfall is that test, already shared with the
- *     seating validator.
+ *     colonies_school_tier_shortfall is that test (exact row, not the best
+ *     owned tier: #909), shared with the seating validator.
  * Note DOS returns 0 (drop) here, never -1 (grey): greying is the leave-as
  * short-stock answer only.
  */
@@ -211,7 +206,7 @@ bool colonies_job_row_offered(
     if (!colonies_profession_may_teach(profession)) {
       return false;
     }
-    if (colonies_school_tier_shortfall(profession, colonies_school_owned_tier(pool, col)) != 0) {
+    if (colonies_school_tier_shortfall(pool, col, profession) != 0) {
       return false;
     }
   }
@@ -299,12 +294,12 @@ bool colonies_assign_workplace(
       }
       /* overlays.c:60474-60484: @JOB school level > 3 → @NOTEACHER; level 3
        * without a University (@BUILDING 0xe) → @NEEDUNIVERSITY; level 2
-       * without a College (0xd) → @NEEDCOLLEGE. Again the test is what the
-       * colony OWNS, never the tier of the clicked school row. */
+       * without a College (0xd) → @NEEDCOLLEGE. Each asks for that exact row
+       * the colony OWNS, never the tier of the clicked school row. */
       if (!colonies_profession_may_teach(c->profession)) {
         return false;
       }
-      if (colonies_school_tier_shortfall(c->profession, cap) != 0) {
+      if (colonies_school_tier_shortfall(pool, col, c->profession) != 0) {
         return false;
       }
     }

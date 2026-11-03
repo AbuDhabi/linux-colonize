@@ -7,6 +7,7 @@
 #include "core/assets.h"
 #include "core/font_file.h"
 #include "core/popup.h"
+#include "core/ai_popup_render.h"
 #include "core/popup_msg.h"
 #include "core/reports.h"
 #include "core/ss.h"

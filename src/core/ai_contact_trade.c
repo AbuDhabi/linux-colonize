@@ -108,26 +108,14 @@ static ColonizeCol1Tribe* ai_contact_2e92_visited_village(
 }
 
 /*
- * DS:0x8d4a — the settlement record FUN_4d56_2820 trades with. It is the
- * VISITED settlement (4528 binds it from the entered tile), not the tribe's
- * first record: 2820 reads/writes its +7 sticky good, +8 last_bought and
- * +9 last_sold, and FUN_4d56_2154's cover/econ tables are built around its
- * tile. The port used col1_tribe_first_of here until 2026-09-15, so trading
- * at any other village of a tribe priced and remembered goods against the
- * first one. The first-record fallback only covers callers whose unit is
- * not beside a settlement of that tribe (the OpenCol meet-pulse stand-in).
+ * DS:0x8d4a — the settlement record FUN_4d56_2820 trades with is the VISITED
+ * settlement (4528 binds it from the entered tile): 2820 reads/writes its +7
+ * sticky good, +8 last_bought and +9 last_sold, and FUN_4d56_2154's
+ * cover/econ tables are built around its tile. Every DOS 2820 caller is a
+ * village-entry arm (4528 Trade row, a5e8 Enter Hostile, the AI errand arm),
+ * so there is no first-record fallback: the OpenCol meet-pulse stand-in that
+ * needed one is gone.
  */
-static ColonizeCol1Tribe* ai_contact_2e92_tribe(
-  ColonizeTurnContext* ctx, int nation_id, const ColonizeUnit* unit
-) {
-  ColonizeCol1Tribe* v = ai_contact_2e92_visited_village(ctx, nation_id, unit);
-  if (v) {
-    return v;
-  }
-  /* Writes t->last_sold, so the const off col1_tribe_first_of is cast away. */
-  return (ColonizeCol1Tribe*)col1_tribe_first_of(ctx->col1, nation_id);
-}
-
 /* tribe+10+e*2 (int16: friction | attacks<<8) -= sub, floor 0; qty == 100 → 0. */
 static void ai_contact_2820_friction_sub(ColonizeCol1Tribe* t, int e, int sub, int qty) {
   if (!t || e < 0 || e > 3) {
@@ -1230,7 +1218,7 @@ void ai_contact_try_village_reparations(ColonizeTurnContext* ctx, int nation_id)
 static int ai_contact_2820_prepare(
   ColonizeTurnContext* ctx, int nation_id, const ColonizeUnit* unit, AiContact2820* s
 ) {
-  const ColonizeCol1Tribe* t = ai_contact_2e92_tribe(ctx, nation_id, unit);
+  const ColonizeCol1Tribe* t = ai_contact_2e92_visited_village(ctx, nation_id, unit);
   if (!t) {
     return 0;
   }
@@ -1794,7 +1782,7 @@ static void ai_contact_2820_buy_phase(
   ColonizeTurnContext* ctx, ColonizeCol1Indian* ind, int nation_id, int e, ColonizeUnit* unit,
   AiContact2820* s, int human
 ) {
-  ColonizeCol1Tribe* t = ai_contact_2e92_tribe(ctx, nation_id, unit);
+  ColonizeCol1Tribe* t = ai_contact_2e92_visited_village(ctx, nation_id, unit);
   if (!unit || !ai_contact_2e92_unit_can_take(ctx, unit)) {
     s->sold_ok = 0;
   }
@@ -1913,7 +1901,7 @@ COLONIZE_INTERNAL int ai_contact_auto_buy_2e92(
     return 0;
   }
   const int best = ai_contact_2e92_ai_pick(ctx, &s, e, goods, n);
-  ColonizeCol1Tribe* t = ai_contact_2e92_tribe(ctx, nation_id, unit);
+  ColonizeCol1Tribe* t = ai_contact_2e92_visited_village(ctx, nation_id, unit);
   const int qty = ai_contact_2820_buy_qty(ctx, unit, 0);
   const int price =
     ai_contact_2e92_price(ctx, ind, nation_id, e, goods[best], (int)s.bid[slots[best]], qty, &s.rng);
@@ -1988,7 +1976,7 @@ void ai_contact_apply_buy0(
     return; /* Never mind */
   }
   ColonizeUnit* unit = units_get(ctx->units, unit_id);
-  ColonizeCol1Tribe* t = ai_contact_2e92_tribe(ctx, nation_id, unit);
+  ColonizeCol1Tribe* t = ai_contact_2e92_visited_village(ctx, nation_id, unit);
   if (!unit) {
     s->active = 0;
     return;
@@ -2106,7 +2094,7 @@ static void ai_contact_2820_dispatch(
   AiContact2820* s
 ) {
   const int human = ai_contact_euro_is_human(ctx, e);
-  ColonizeCol1Tribe* t = ai_contact_2e92_tribe(ctx, nation_id, unit);
+  ColonizeCol1Tribe* t = ai_contact_2e92_visited_village(ctx, nation_id, unit);
   const int alarm = ai_diplo_indian_alarm(ctx->col1, nation_id, e); /* aiStack_d6[0] */
   if (s->cargo < 0) {
     ai_contact_2820_buy_phase(ctx, ind, nation_id, e, unit, s, human);
@@ -2304,14 +2292,6 @@ void ai_contact_apply_trade_pick(
 }
 
 /*
- * AI-silent path (Brave-adjacency meet pulse — an OpenCol stand-in; DOS's own
- * 2820 callers are the village-enter arms). Scope kept from the earlier
- * stand-in so the pulse does not strip every AI cargo unit each turn: sells
- * only a TRADE_GOODS hold (full LAB_002bbc mechanics, whole hold, then the
- * LAB_002e92 buy), or buys when empty-handed. `forced_price` is ignored.
- * Returns 1 when a sale, gift or purchase happened.
- */
-/*
  * AI wagon village-errand arrival (FUN_4d56_4528 AI arm, type 0xc → case 1
  * Trade → FUN_4d56_2820). Called from ai_euro's 20e6 village-errand walker
  * when an errand wagon reaches its village. Runs the real 2820 shell on the
@@ -2361,7 +2341,7 @@ void ai_contact_apply_trade_offer(
     return;
   }
   ColonizeUnit* unit = units_get(ctx->units, s->unit_id);
-  ColonizeCol1Tribe* t = ai_contact_2e92_tribe(ctx, nation_id, unit);
+  ColonizeCol1Tribe* t = ai_contact_2e92_visited_village(ctx, nation_id, unit);
   if (!unit || unit->hold_goods_amount[s->slot] <= 0 || unit->hold_goods_type[s->slot] != s->cargo) {
     s->active = 0;
     return;

@@ -219,6 +219,9 @@ typedef struct EuropeHarborShip {
    * defense column (europe_harbor_repair_tick). Harbor ships only. */
   bool damaged;
   int repair_counter;
+  /* DOS +0x314a home colony the hull carries across the Atlantic (no lane
+   * hop rewrites it), as ColonizeUnit.col1_origin + 1; 0 = unbound (0xff). */
+  int origin_plus1;
 } EuropeHarborShip;
 
 typedef enum EuropeHit {

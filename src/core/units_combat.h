@@ -82,14 +82,14 @@ int units_conquest_treasure_gold(
 );
 
 /*
- * Post-win fallout stand-in for FUN_5fef_31ea / inlined FUN_5fef_1b0e:
- * If defender was native on a tribe tile and no other same-nation Braves remain
- * on that tile after win, destroy tribe. Before destroy: subjugated convert-join
- * when tribe.mission low-nibble == attacker (PEDIA Sepulveda / @INDIANSLAVES) —
- * threshold 4|8 (±Spanish/Sepulveda/Las Casas), roll dos_rng_range(0,12).
- * Conquest treasure: gold_amount>0 is used as-is, else the FUN_5fef_31ea peel
- * rolls one (no Cortes gate — see port_bugs.md #381).
- * May adjust Indian relation via ai_diplo helpers when col1 is set.
+ * FUN_5fef_1b0e dwelling-destroy arm + its FUN_5fef_31ea tail, DOS order:
+ * human razer sets Indian +3 bit 0x40 (woi_defect_forced), destroy, own
+ * mission returns as a Missionary, subjugated convert roll (threshold 4|8
+ * ±Spanish/Sepulveda/Las Casas vs rand(0,12), @INDIANSLAVES), BGM 4,
+ * villages_burned++, treasure peel (gold_amount > 0 = test override) +
+ * @LOOT/@LOOT2 + BGM 2, then the capital-fall block (+ @INDIANBOW).
+ * Returns false (nothing done) when no village is on the tile or a
+ * defender-nation unit still stands there.
  */
 bool units_try_native_settlement_fallout_w(
   const ColonizeWorld* w,

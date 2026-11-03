@@ -801,16 +801,13 @@ static int sp_09(void) {
   if (ai_king_latch_get(&col1, 0) != 0) {
     return fail("SoL 45 should not declare WoI");
   }
-  if (ai_king_latch_get(&col1, 5) != 0) {
-    return fail("SoL 45 should not set congress confirm market_demand_pool_raw[5]");
-  }
   if (!strstr(status, "Sons of Liberty") || !strstr(status, "45")) {
     fprintf(stderr, "unit_ai_king: SoL chrome status: '%s'\n", status);
     return fail("SoL 40-49 should set restless status line");
   }
-  /* market_demand_pool_raw consistency: restless chrome must not set WoI or congress. */
-  if (ai_king_latch_get(&col1, 0) != 0 || ai_king_latch_get(&col1, 5) != 0) {
-    return fail("restless SoL chrome must leave WoI/congress market_demand_pool_raw clear");
+  /* restless chrome must not set WoI. */
+  if (ai_king_latch_get(&col1, 0) != 0) {
+    return fail("restless SoL chrome must leave WoI clear");
   }
   /* Optional tax mention when tax_rate already in refuse band (≥20). */
   if (col1.nation[0].tax_rate >= 20 &&
@@ -888,9 +885,6 @@ static int sp_11(void) {
     if (ai_king_latch_get(&col1, 0) != 0) {
       return fail("SoL 49 must not set WoI market_demand_pool_raw[0]");
     }
-    if (ai_king_latch_get(&col1, 5) != 0) {
-      return fail("SoL 49 must not set congress market_demand_pool_raw[5]");
-    }
   }
   return 0;
 }
@@ -938,9 +932,6 @@ static int sp_12(void) {
   }
   if (ai_king_latch_get(&col1, 0) == 0) {
     return fail("declare should set WoI flag market_demand_pool_raw[0]");
-  }
-  if (ai_king_latch_get(&col1, 5) == 0) {
-    return fail("declare should set congress confirm market_demand_pool_raw[5]");
   }
   /* port_bugs.md #239: NO rename — DOS 160a is only the signing cinematic;
    * "United Colonies" was a port invention. The faction reads Rebels/Tory
@@ -2532,9 +2523,9 @@ static int sp_28(void) {
     pop.result_payload = 60;
     ai_king_apply_popup_result(&ctx, &pop);
     ai_popup_consume_result(&pop);
-    if (ai_king_latch_get(&col1, 0) == 0 || ai_king_latch_get(&col1, 5) == 0) {
+    if (ai_king_latch_get(&col1, 0) == 0) {
       assets_msg_free(&game_txt);
-      return fail("apply Confirm should declare WoI + congress market_demand_pool_raw[5]");
+      return fail("apply Confirm should declare WoI");
     }
     /* R2: Confirm chain → @INDEPENDENCE letter OK. port_bugs.md #236: NO @HOWTOWIN
      * at declare — it fires at the first rebel recapture (units.c). */
@@ -2961,8 +2952,8 @@ static int sp_32(void) {
         return fail("restless+ai_popups SoL setup want 45");
       }
       ai_king_nation_turn(&ctx);
-      if (ai_king_latch_get(&col1, 0) != 0 || ai_king_latch_get(&col1, 5) != 0) {
-        return fail("restless+ai_popups must leave WoI/congress clear");
+      if (ai_king_latch_get(&col1, 0) != 0) {
+        return fail("restless+ai_popups must leave WoI clear");
       }
       if (!strstr(status, "Sons of Liberty") || !strstr(status, "45")) {
         fprintf(stderr, "unit_ai_king: restless+popups status: '%s'\n", status);

@@ -83,6 +83,28 @@ same entry only when the saved active unit is missing or not selectable
 resumes on the unit that was active. Kept so the input-replay regressions
 (recorded against that behaviour) keep driving the units they were written for.
 
+### #974 — F7 Naval: Europe-lane ships are EuropeScreen rows, not unit rows
+DOS `FUN_3f41_220c` lists a ship in port or mid-Atlantic as an ordinary unit
+record on the nation's sentinel diagonal (236+n in port, 232+n / 228+n
+westbound, 244+n / 240+n eastbound), in unit-array order. The port's
+`col1_bridge_apply` consumes those records into `EuropeScreen`'s
+harbor/expected/bound lists, so `reports_naval_build_rows` appends them after
+the map rows instead. Only the row ORDER differs; the cells match, settled
+statically 2026-11-03:
+- Location: `FUN_49dd_02d0` (viceroy_unpacked_2.c:77292-77324) first asks
+  `FUN_281f_0302` = `FUN_137f_000a` (in-bounds test, 1 <= x < width-1), which
+  fails for every sentinel. Off-map, `(char)(nation - x) == 0x14` (x = 236+n,
+  in port) prints the Europe port name `[DS:0x838c + nation*2]`
+  (= `eu->port_city`); every other off-map x prints `[DS:0x2e32]` =
+  LABELS.TXT line 75 = @MISC row 60 "High Seas" (`addr = 0x2d9c + 2*line`).
+- Destination: `nation - x` 0x18/0x1c (westbound) → New World name
+  `DS:0x5426 + nation*0x34` (`eu->colony_region`), 0x0c/0x10 (eastbound) →
+  port name, 0x14 (in port) → empty (asm OVL06_L0040 0027d4-00283c).
+
+The port's harbor (port_city / empty), expected (High Seas / port_city) and
+bound (High Seas / colony_region) rows are exactly those strings. Re-plumbing
+the lanes into the unit pool just to reproduce the interleaving is not worth it.
+
 ### Hot-seat edge cases (ported 2026-10-26 as port_bugs.md #1290)
 Two narrow differences after a hot-seat `@MULTIREV` "Yes" are listed in
 [hotseat.md](hotseat.md) "Divergences".
@@ -92,91 +114,6 @@ Two narrow differences after a hot-seat `@MULTIREV` "Yes" are listed in
 Static reading cannot settle these. Each names exactly what to capture. Do not
 change the port's behaviour on a guess.
 
-### #1009 — `@ATTITUDE` / `@ATTITUDINAL` have no located consumer
-Alarm never reaches the player as words. `NAMES.TXT @ATTITUDE` (Content /
-Uneasy / Restless / Angry / War) and `@ATTITUDINAL` (Extremely / Very / Rather
-/ Somewhat / Slightly) are shipped catalogs that no port code reads, and
-2026-10-01 established that **no decompiled DOS function reads them either**:
-`FUN_75c2_10ae` (`viceroy_unpacked.c:121168-121184`) loads `@ATTITUDE`
-(DS tag 0x2273) into `DS:0x9348..0x9351` and `@ATTITUDINAL` (DS tag 0x227c)
-into `DS:0x9352..0x935b`, and every word offset of both arrays has zero reads
-across all three decompiled files. The control is the `@LEVELS` table
-(`DS:0x5230`), loaded a few lines earlier by the same function, which *is* read
-back repeatedly in `viceroy_overlays.c` — so the sweep does surface real
-consumers. Leads checked and empty: all ~25 `FUN_281f_030c` (alarm read) call
-sites, and `FUN_281f_0a60`, which is a two-line thunk unrelated to NAMES.TXT. So
-either the display code was cut before release, or its base address is computed
-and never appears as a literal.
-The port's own alarm displays stay as they are: the F9 Indian Adviser's
-`@LEVELS` tech word plus the `113 + alarm quartile` chief portrait
-(`reports_indian_build_rows`, DOS-cited `3f41:0522..05d2`), the map sidebar
-tier glyph (`FUN_112b_0790`), and the village-meet body band
-(@VILLAGEHAPPY / MEDIUM / BAD / WAR).
-
-**Capture:** DOSBox-X watchpoint on `DS:0x9348-0x935b` through a session that
-reaches several alarm tiers, to see whether anything reads either array and on
-which screen. Until then do not invent a threshold table — 25 gradations only
-*suggest* modifier x label.
-
-### #909 — Craft audit statics
-- The origin of the skill-match flag `[bp-0x1c]` is unlocated.
-- Train dialog row order for the 1000/1100/1200 ties
-  (`FUN_291f_0ed0` = `FUN_1cf8_000a` is now read and ported as
-  `units_dos_sort_1cf8`, port_bugs.md #1176; the Train dialog's own key/tie
-  order still has to be traced and fed through it).
-- University-without-College seating of a level-2 teacher: DOS tests 8bec(0xd)
-  only, the port's `colonies_school_owned_tier` allows it. Unreachable by normal
-  play.
-- @TRAINFAIL stale %STRING0: moved to [dos_bugs.md](dos_bugs.md) DB-11
-  (2026-10-22).
-
 ### #915(c) — moved to tolerated_dos_bugs_ai.md TB-17
 The 5952 indoor pass `avail` carry-over and its unverified 0x7fff seed live in
 [tolerated_dos_bugs_ai.md](tolerated_dos_bugs_ai.md) TB-17.
-
-### #974 — F7 Naval: Europe-lane ships are EuropeScreen rows, not unit rows
-DOS `FUN_3f41_220c` has no Europe special case: a ship waiting in port or
-mid-Atlantic is an ordinary unit record on the nation's sentinel diagonal
-(236+n in port, 232+n / 228+n westbound, 244+n / 240+n eastbound — see
-`col1_bridge.c`'s lane notes), so it is listed by the same array pass as every
-other ship. Its Location comes from the shared namer `FUN_291f_0f82`
-(= `FUN_49dd_02d0`) applied to the sentinel coordinates, and its Destination
-from four x-delta arms (asm OVL06_L0040 0027d4-00283c): `nation - x` of 0x18 or
-0x1c takes the New World name at `DS:0x5426 + nation*0x34`, 0x0c or 0x10 takes
-the Europe port name from the pointer table at `DS:0x838c + nation*2`, and
-anything else draws an empty cell. A unit standing on a real map tile without a
-goto order gets no Destination at all (`FUN_281f_0302(x, y) != 0` skips it).
-
-The port cannot reproduce this as written: `col1_bridge_apply` consumes those
-sentinel unit records into `EuropeScreen`'s harbor/expected/bound lists, so they
-are not in the unit pool for `reports_naval_build_rows` to walk. The report
-rebuilds them from those lists instead and labels them "High Seas" (@MISC 60) /
-`europe->port_city` / `europe->colony_region` — the same two names DOS's two
-arms resolve to, reached a different way, plus a Location string DOS would
-have taken from the sentinel tile.
-
-What is actually unknown is only that Location: what `FUN_49dd_02d0` prints for
-an off-map sentinel coordinate. On-map it is settled and the port matches —
-`naval.png` shows "New Amsterdam" for a colony tile and "(51, 48)" for open
-water, which is exactly `reports_naval_location`. Settling the off-map case
-needs a live DOS capture of F7 with a ship in port and one mid-ocean; until
-then, re-plumbing the lanes would trade a working display for a guess.
-
-### #1018 — Europe buy with insufficient gold: partial fill vs outright reject
-`FUN_38fd_1fa2`'s committed-buy arm (viceroy_unpacked.c raw 60377-60503, `param_4 != 0`)
-clamps the requested amount to the hold's room (100 max), computes
-`price * amount`, compares it against the treasury via `FUN_281f_0a92`, and on
-`gold < cost` raises the insufficient-funds popup and returns **without buying
-anything** — no partial fill. The port's `europe_buy_cargo_w`
-(src/core/europe_market.c:793-882) instead computes `can_afford = eu->gold / ask`
-and silently clamps the purchase down to it, so the player always gets as much as
-they can pay for.
-
-Not resolvable statically: the amount reaching that check has already passed
-through `FUN_281f_035c(DS:0x9cc8, 0, amount)`, an unidentified clamp, so DOS's
-later funds test may be a dead safety net behind a pre-clamp that already equals
-"affordable amount" — in which case the port's behaviour is the DOS behaviour.
-Needs a live DOS capture: on the Europe screen, order more of a good than the
-treasury covers and record whether the hold fills partially or the buy is refused.
-Identify DS:0x9cc8 in the same session.
-

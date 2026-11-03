@@ -534,7 +534,7 @@ in the opencol binary), DB-7 (Denounce Jesuit; port also grades Brebeuf's Denoun
 Jesuit), DB-12 (Artillery price on cancel), DB-13 (de Witt trade debits the colony), DB-15, DB-34
 (1-ton spoilage), DB-36, DB-40 (Magellan dead RNG draw), DB-43, DB-46 (pioneer counter), DB-50,
 TB-47 (birth at unit cap), DB-9, DB-32, DB-47/48 (rumour counters, scout alarm), known_divergences
-#909 and #1018.
+#1018 (now ported: a short treasury refuses the whole buy).
 
 Candidates verified 2026-10-30 against the decomp and filed:
 1. **Terrain article title 16-23**: port_bugs.md #1327 (FIXED). DOS `FUN_6cb2_0eac` appends

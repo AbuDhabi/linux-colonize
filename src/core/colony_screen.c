@@ -840,12 +840,13 @@ bool colony_screen_load(ColonyScreenView* view, const char* data_dir, char* err,
   memset(view, 0, sizeof(*view));
   /*
    * DOS DS:0x336 — the game-wide "show numbers on production badges"
-   * toggle (colony 'N' key at 2f2b:667c, click at 2f2b:609e). Numbers on
-   * is the normal state; the shared badge drawer also forces the number
+   * toggle (colony 'N' key at 2f2b:667c, click at 2f2b:609e). The EXE
+   * image holds 0 (numbers off) and the save carries the byte
+   * (stuff.ui_toggle_336, loaded in game_loop_saveload.c); the shared badge drawer also forces the number
    * whenever the icons pack into an uncountable smear (FUN_1097_0174's
    * step==1 override), so a toggled-off screen still labels big amounts.
    */
-  view->show_production_numbers = true;
+  view->show_production_numbers = false;
 
   if (!colony_screen_load_pik(data_dir, "WOODPANL.PIK", &view->frame, err, err_size)) {
     return false;

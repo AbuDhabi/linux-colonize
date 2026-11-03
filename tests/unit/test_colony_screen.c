@@ -619,6 +619,12 @@ static int unit_building_hover_label(void) {
           fprintf(stderr, "hover_label: label pixel at x=%d escapes the panel clamp\n", x);
           rc = 1;
         }
+        /* FUN_2f2b_05ee: backdrop is a colour-0 fill (FUN_1b9e_000a stack arg 0), text ink 15. */
+        const uint8_t px = pixels_on[y * 320 + x];
+        if (px != 0 && px != 15) {
+          fprintf(stderr, "hover_label: label pixel %u at (%d,%d) is neither fill 0 nor ink 15\n", px, x, y);
+          rc = 1;
+        }
       }
     }
     if (rc == 0 && changed == 0) {

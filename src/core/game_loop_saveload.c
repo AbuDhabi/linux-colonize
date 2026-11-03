@@ -216,6 +216,8 @@ static bool game_apply_col1_save(ColonizeGameState* game, ColonizeCol1Save* load
   /* DS:0x8d80 (post_map.boot_timer) seeds every colony's building layout
    * (FUN_2f2b_0434); the save carries it, so hand it over. port_bugs.md #578. */
   colony_screen_set_layout_seed(&game->colony_screen, game->col1.post_map.boot_timer);
+  /* DS:0x336 badge-numbers toggle rides the save (stuff.ui_toggle_336, 0 = off). */
+  game->colony_screen.show_production_numbers = game->col1.stuff.ui_toggle_336 != 0;
   ai_diplo_talk_reset(); /* the outgoing game's 153e talk died with its popups */
   /* Repair invented wartime all-cargo embargo on the live save (const apply
    * cannot touch the snapshot). europe.boycott_bitmap already mapped 0xFFFF→0. */
@@ -465,6 +467,8 @@ static bool game_capture_col1(ColonizeGameState* game, char* err, size_t err_siz
       game->col1.post_map.boot_timer = colony_screen_layout_seed(&game->colony_screen);
     }
     colony_screen_set_layout_seed(&game->colony_screen, game->col1.post_map.boot_timer);
+    /* DS:0x336 badge-numbers toggle rides the save (stuff.ui_toggle_336, 0 = off). */
+    game->colony_screen.show_production_numbers = game->col1.stuff.ui_toggle_336 != 0;
     if (game->game_year == 0) {
       game->game_year = 1492;
     }

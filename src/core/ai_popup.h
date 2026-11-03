@@ -60,10 +60,12 @@ typedef enum AiPopupTag {
                                  * 160a signing cinematic (core/declaration.c) in front
                                  * of this popup the frame it is presented */
   AI_POPUP_TAG_FF_CONGRESS = 8, /* Continental Congress FF elect chrome */
-  AI_POPUP_TAG_KING_DUMP_GOODS = 9, /* refuse dump-goods second cargo CHOICE */
+  /* 9 retired: KING_DUMP_GOODS had no enqueue site; DOS 3dc8 has only the
+   * single answer-2 tea-party seize (ai_king_enqueue_teaparty_ok). */
   AI_POPUP_TAG_CONTACT_MEET = 10,
   AI_POPUP_TAG_CONTACT_TEACH = 11,
-  AI_POPUP_TAG_CONTACT_GIFT = 12,
+  /* 12 retired: CONTACT_GIFT had no DOS body and no enqueue site (the gift
+   * paths it served were deleted as #1006 / #1340). */
   AI_POPUP_TAG_CONTACT_DEMAND = 13,
   AI_POPUP_TAG_CONTACT_RAID = 14,
   AI_POPUP_TAG_CONTACT_CONVERT = 15,
