@@ -763,6 +763,19 @@ COLONIZE_INTERNAL GameUpdateStep game_update_services(ColonizeGameState* game, c
   return GAME_UPDATE_CONTINUE;
 }
 
+/* The selected human unit is executing its Go To (the pacer steps it). */
+static bool game_selected_goto_running(const ColonizeGameState* game) {
+  if (!game->units_ok || !game->world_map_ok || game->units.selected_id < 0) {
+    return false;
+  }
+  if (game->col1_ok && col1_all_ai_fixed_nation(&game->col1) >= 0) {
+    return false;
+  }
+  const ColonizeUnit* u = units_get_const(&game->units, game->units.selected_id);
+  return u && u->active && u->nation_id == game->human_nation && units_is_on_map(u) &&
+    u->moves > 0 && units_orders_follow_goto(u->orders);
+}
+
 /* Turn activation queue: paces the selected unit's queued go-to order. */
 /* The active unit's pending Go To: the village-entry guard, the goto-step
  * pacing clock and the step itself (port_bugs.md #418 routing). */
@@ -3796,6 +3809,13 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
   step = game_update_debug_atlas_screen(game, input);
   if (step != GAME_UPDATE_CONTINUE) {
     return step == GAME_UPDATE_RETURN_TRUE;
+  }
+
+  /* A unit under Go To moves on its own: DOS hands no key or click to Move
+   * Pieces (FUN_2b5a_3802) for it, so no direction key, order hotkey or menu
+   * may act on it mid-route. */
+  if (!game->in_menu && game_selected_goto_running(game)) {
+    return true;
   }
 
   if (input->last_key == COLONIZE_KEY_TILDE) {
