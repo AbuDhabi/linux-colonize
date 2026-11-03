@@ -921,7 +921,9 @@ static int ai_diplo_153e_skilled_units_at(const ColonizeTurnContext* ctx, int na
  * cancel to zero end to end (confirmed, not assumed — `target_land_units
  * < self_exposed(stub=0)` can never be true since counts are ≥0, so
  * `dominance_bonus` never leaves 0; the unit-score stub never matches).
- * `combat_delta_sum` likewise nets to exactly 0 through every stubbed
+ * That no longer holds: self_exposed now reads ai_contact_land_combat_sum,
+ * so `dominance_bonus` is live and picks the free peace-menu @WITHDRAW
+ * (raw 98098, see ai_talk_resume). `combat_delta_sum` likewise nets to exactly 0 through every stubbed
  * term — **except** `peace_bit_0x10` (`ai_diplo_read(self,target)&0x10`,
  * raw `uStack_9e`), the one non-stub, live-data read in this whole
  * function. If that bit is ever set for a real nation pair, it directly
@@ -2269,7 +2271,10 @@ static void ai_talk_resume(ColonizeTurnContext* ctx, int stage, int choice) {
         /* withdraw demand by the human (raw :98252-98330) */
         if (!k->any_border) {
           ai_talk_ok(ctx, "NOTHINGWITHDRAW", &tok);
-        } else if (!k->manly || k->latch) {
+        } else if (k->dominance == 0 || k->latch) {
+          /* FUN_5bfb_153e raw 98098 (asm 5bfb:29b6-29c2): the cost path when the
+           * dominance accumulator (iVar16 / local_ce) is 0 or local_b0 is set,
+           * otherwise the free @WITHDRAW. The AI's tone is not read here. */
           int cost = (diff + 2) * k->border_value * (k->at_war ? 0x32 : 0x19);
           if (k->worthy_end) {
             cost += cost >> 1;
@@ -3176,6 +3181,24 @@ uint8_t ai_diplo_indian_relation(
 /* ===================== Talk reset, popup result application & privateer sighting (ai_diplo_talk_reset .. ai_euro_465b_privateer_sighting) ===================== */
 void ai_diplo_talk_reset(void) {
   s_talk.active = 0;
+}
+
+COLONIZE_INTERNAL void ai_diplo_153e_test_peacemenu(
+  ColonizeTurnContext* ctx, int human, int target, int dominance, int manly, int latch, int choice
+) {
+  memset(&s_talk.self, 0, sizeof(s_talk) - offsetof(Ai153eTalk, self));
+  s_talk.active = 1;
+  s_talk.self = human;
+  s_talk.target = target;
+  s_talk.dominance = dominance;
+  s_talk.manly = manly;
+  s_talk.latch = latch;
+  s_talk.any_border = 1;
+  s_talk.third = -1;
+  s_talk.ally_pick = -1;
+  s_talk.want_cargo = -1;
+  s_talk.stage = AI_TALK_ST_PEACEMENU;
+  ai_talk_resume(ctx, AI_TALK_ST_PEACEMENU, choice);
 }
 
 void ai_diplo_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState* popup) {
