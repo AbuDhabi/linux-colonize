@@ -256,7 +256,7 @@ Continue / Zoom rows, MSS figure; popups.md "Colony-event choices"). The
 | `@LEARNMAD` | Done | Alarm/friction ≥40 refuse (both mid and hostile bands); `popup_msg_fill` |
 | `@LEARNSLOW` | Done | `ai_contact_live_among_natives` real body via `popup_msg_fill`; quartile-1 slow-learner roll (re-verified 2026-09-16) |
 | `@LEARNSTAY` | Done | Yes/No CHOICE `AI_POPUP_TAG_CONTACT_LEARNSTAY` (2026-08-28) |
-| `@LEARNLATER` | Done | `ai_contact_live_among_natives` real body via `popup_msg_fill`; `@LEARNSTAY` No branch (re-verified 2026-09-16) |
+| `@LEARNLATER` | Done | `ai_contact_live_among_natives` real body via `popup_msg_fill`; `@LEARNSTAY` No branch, Esc included (a618 `DEC AX; JZ`) (re-verified 2026-09-16) |
 | `@LEARNDONE` | Done | `ai_contact_live_among_natives` real body via `popup_msg_fill`; profession granted, village-taught bit set (re-verified 2026-09-16). Menu-path only — the AI-only auto pulse still skips this chain silently (design tension, not a regression: see `indian_contact.md` "preserve gift/trade chrome") |
 | `@TRADEMANY` | Done | create wizard cap popup (%NUMBER0=12) |
 | `@TRADESTART` | Done | destination pickers (create wizard + editor) |

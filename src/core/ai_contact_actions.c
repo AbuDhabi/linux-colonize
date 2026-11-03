@@ -1762,23 +1762,19 @@ static AiContactPopupStatus ai_contact_apply_popup_result_tags(
    * flavor because the two GAME.TXT sections print their rows in opposite
    * order (DOS reads `local_c != 2` at 0x1866 and `local_c == 1` at 0x1871).
    * Refusing runs LAB_5bfb_0ff2: village attitude word += 0x80, no goods.
-   * A dismissal (Esc) is neither — it drops the offer without moving goods
-   * and without the 0x80, so an accidental Esc cannot latch a village
-   * hostile; it only clears the pending record.
+   * Esc is a refusal too: FUN_6f74_2580 returns -1 on key 0x1b (raw
+   * 116780-116782), which fails both `local_c != 2` (raw 96896) and
+   * `local_c == 1` (raw 96964), so DOS takes LAB_5bfb_0ff2. A cancel carries
+   * choice id -1, which never equals accept_row.
    */
   if (popup->result_tag == AI_POPUP_TAG_CONTACT_REPARATIONS) {
     const int flavor = popup->result_payload;
-    if (popup->result_cancelled) {
-      if (e >= 0 && e <= 3) {
-        ai_contact_s_reparations[e].active = 0;
-      }
-      return AI_CONTACT_POPUP_DONE;
-    }
     const int accept_row = (flavor == AI_CONTACT_REPARATIONS_WAGONS)
                              ? AI_CONTACT_REPARATIONS_ROW1
                              : AI_CONTACT_REPARATIONS_ROW2;
     ai_contact_apply_reparations(
-      ctx, ind, nation_id, e, flavor, popup->result_choice_id == accept_row
+      ctx, ind, nation_id, e, flavor,
+      !popup->result_cancelled && popup->result_choice_id == accept_row
     );
     return AI_CONTACT_POPUP_DONE;
   }
@@ -1789,9 +1785,16 @@ static AiContactPopupStatus ai_contact_apply_popup_result_tags(
    * dispatch (OVL13:0x4bd2 `DEC AX; CMP AX,8; JA default`) sends -1 to the
    * switch default exactly like the Cancel row (id 10) — default keeps the
    * return code 1, so the 0x4c0a tail forfeits the unit's moves. A cancelled
-   * MEET therefore falls through to the menu arm as a Leave.
+   * MEET therefore falls through to the menu arm as a Leave. A cancelled
+   * BEGFOOD falls through as a Refuse: FUN_5bfb_022e raw 96774-96782 gives
+   * food only on `local_c == 2`, so -1 runs the refuse arm (raw
+   * 96807-96823). A cancelled @LEARNSTAY is a No (OVL13
+   * thunk_FUN_1000_a618: `DEC AX; JZ` on 019c's result, so -1 shows
+   * @LEARNLATER).
    */
-  if (popup->result_cancelled && popup->result_tag != AI_POPUP_TAG_CONTACT_MEET) {
+  if (popup->result_cancelled && popup->result_tag != AI_POPUP_TAG_CONTACT_MEET &&
+      popup->result_tag != AI_POPUP_TAG_CONTACT_BEGFOOD &&
+      popup->result_tag != AI_POPUP_TAG_CONTACT_LEARNSTAY) {
     return AI_CONTACT_POPUP_DONE;
   }
 
@@ -1843,7 +1846,8 @@ static AiContactPopupStatus ai_contact_apply_popup_result_tags(
   if (popup->result_tag == AI_POPUP_TAG_CONTACT_BEGFOOD) {
     ai_contact_apply_beg_food(
       ctx, ind, nation_id, e, popup->result_payload & 0xffff,
-      ((popup->result_payload >> 16) & 0xffff) - 1, popup->result_choice_id == 2
+      ((popup->result_payload >> 16) & 0xffff) - 1,
+      !popup->result_cancelled && popup->result_choice_id == 2
     );
     return AI_CONTACT_POPUP_DONE;
   }

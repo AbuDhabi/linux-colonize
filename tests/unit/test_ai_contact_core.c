@@ -4654,6 +4654,25 @@ static int sp_44(void) {
         spill_before < 100) {
       return fail("BEGFOOD decline adds into the flat alarm table at index 4");
     }
+    /* Esc is a Refuse: FUN_6f74_2580 returns -1 (raw 116780-116782) and
+     * FUN_5bfb_022e gives food only on `local_c == 2` (raw 96782). */
+    colonies.colonies[0].stock[COLONIZE_CARGO_FOOD] = 100;
+    col1.tribe[0].alarm[0].friction = 20;
+    ai_popup_clear(&pop);
+    pop.has_result = true;
+    pop.result_cancelled = true;
+    pop.result_choice_id = -1;
+    pop.result_tag = AI_POPUP_TAG_CONTACT_BEGFOOD;
+    pop.result_nation_a = 0;
+    pop.result_nation_b = 4;
+    pop.result_payload = 1 << 16;
+    ai_contact_apply_popup_result(&ctx, &pop);
+    if (colonies.colonies[0].stock[COLONIZE_CARGO_FOOD] != 100 ||
+        col1.tribe[0].alarm[0].friction != 30) {
+      fprintf(stderr, "unit_ai_contact: BEGFOOD Esc food %d word %d\n",
+              colonies.colonies[0].stock[COLONIZE_CARGO_FOOD], col1.tribe[0].alarm[0].friction);
+      return fail("Esc on BEGFOOD must refuse (no food, attitude word x1.5)");
+    }
     /* TB-12 fixed (dos_buggy_behavior off): the refuser's own alarm word rises. */
     col1.tribe[0].alarm[0].friction = 20;
     col1.indian[0].alarm_by_player[0] = 50;
@@ -4812,6 +4831,50 @@ static int sp_45(void) {
       );
       ctx.rng = saved_rng;
       return fail("LAB_5bfb_0ff2: a refused demand adds 0x80 to the attitude word");
+    }
+
+    /* --- Esc on @INDIANCITY is a refusal. FUN_6f74_2580 returns -1
+     * (raw 116780-116782); raw 96896 `local_c != 2` -> LAB_5bfb_0ff2 (+0x80). --- */
+    col1.tribe[0].alarm[0].friction = 20;
+    col1.tribe[0].alarm[0].attacks = 0;
+    col1.indian[0].contact_state[0] = 0;
+    ai_popup_clear(&rp);
+    dos_rng_seed(&rep_rng, 7u);
+    ai_contact_try_village_beg_food(&ctx, 4);
+    rq = -1;
+    for (int i = 0; i < rp.queue_count; ++i) {
+      if (rp.queue[i].tag == AI_POPUP_TAG_CONTACT_REPARATIONS &&
+          rp.queue[i].kind == AI_POPUP_KIND_CHOICE) {
+        rq = i;
+        break;
+      }
+    }
+    if (rq < 0) {
+      ctx.rng = saved_rng;
+      return fail("reparations demand should re-offer for the Esc case");
+    }
+    {
+      const int stock_before_esc = colonies.colonies[0].stock[COLONIZE_CARGO_TOOLS];
+      ai_popup_clear(&rp);
+      rp.has_result = true;
+      rp.result_cancelled = true; /* what ai_popup_cancel_current answers: id -1 */
+      rp.result_tag = AI_POPUP_TAG_CONTACT_REPARATIONS;
+      rp.result_nation_a = 0;
+      rp.result_nation_b = 4;
+      rp.result_payload = 0;
+      rp.result_choice_id = -1;
+      ai_contact_apply_popup_result(&ctx, &rp);
+      if (colonies.colonies[0].stock[COLONIZE_CARGO_TOOLS] != stock_before_esc) {
+        ctx.rng = saved_rng;
+        return fail("Esc on @INDIANCITY must not move the colony stores");
+      }
+      if (col1_tribe_attitude(&col1.tribe[0], 0) != 20 + 0x80) {
+        fprintf(
+          stderr, "unit_ai_contact: Esc attitude word %d\n", col1_tribe_attitude(&col1.tribe[0], 0)
+        );
+        ctx.rng = saved_rng;
+        return fail("Esc on @INDIANCITY is a refusal (attitude word += 0x80)");
+      }
     }
 
     /* --- @INDIANCITY accept: word zeroed, alarm eased, goods handed over. --- */
@@ -6435,6 +6498,18 @@ static int sp_55(void) {
         fprintf(stderr, "unit_ai_contact: learnlater status '%s'\n", st_menu);
         return fail("live among: No → @LEARNLATER, nothing applied");
       }
+      /* Esc (id -1) is a No too: OVL13 thunk_FUN_1000_a618 runs `DEC AX; JZ`
+       * on 019c's result, so -1 takes the @LEARNLATER arm. */
+      ans.result_cancelled = true;
+      ans.result_choice_id = -1;
+      st_menu[0] = '\0';
+      ai_contact_apply_popup_result(&ctx, &ans);
+      if (colonist->profession != UNITS_JOB_NONE || col1.tribe[0].state.learned ||
+          strstr(st_menu, "another time") == NULL) {
+        fprintf(stderr, "unit_ai_contact: esc learnlater status '%s'\n", st_menu);
+        return fail("live among: Esc → @LEARNLATER, nothing applied");
+      }
+      ans.result_cancelled = false;
       /* Yes → DONE: profession = village skill, learned latch, @LEARNDONE. */
       ans.result_choice_id = 1; /* AI_CONTACT_LEARNSTAY_YES */
       st_menu[0] = '\0';

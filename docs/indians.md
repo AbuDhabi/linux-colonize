@@ -391,7 +391,11 @@ whenever the dispatch returns code **1** — Trade, Denounce Heresy, Live Among
 The Natives, Speak With Chief, Incite, Demand Tribute and plain Leave — and
 **Esc on the menu** (the dialog `FUN_6f74_2580` returns -1, which `OVL13::004bd2`
 `DEC AX; CMP AX,8; JA default` routes to the same default as the Cancel row;
-the port treats a cancelled `CONTACT_MEET` as Leave). Only
+the port treats a cancelled `CONTACT_MEET` as Leave). The same -1 makes Esc
+a Refuse on @INDIANBEGFOOD (`FUN_5bfb_022e` gives only on `== 2`, raw 96782)
+and on the @INDIANCITY / @INDIANWAGONS demand (raw 96896 / 96964 → `LAB_5bfb_0ff2`,
+word += 0x80), a No on @LEARNSTAY (shows @LEARNLATER), and "take" on
+@INDIANFOREST / @INDIANROAD / @INDIANLAND. Only
 **Attack Village** (code 0; the move/combat spends MP itself) and **Establish
 Mission** (code 2) keep their movement. Full case table + the retraction of
 the old "8b24 is a harmless stat-cache refresh" reading:
