@@ -128,7 +128,15 @@ bool europe_recruit_from_pool_ex(EuropeScreen* eu, int pool_index, ColonizeDosRn
     return false;
   }
   /* FUN_38fd_4884 raw 64768-64769 charges, refills and counts only when the harbor spawn
-   * (thunk_FUN_291f_0b26) succeeded; a full dock consumes nothing. */
+   * (thunk_FUN_291f_0b26) succeeded; a full dock consumes nothing.
+   *
+   * FUN_38fd_4884 raw 64765-64766, param_1==0: a paid passage clears the crosses meter
+   * (nation+0x2e = 0) before the spawn, so a refused spawn clears it too. Without the
+   * clear the discount term kept the next price pinned near the 100 floor, so buying
+   * colonists never walked the price ladder up (port_bugs.md: "recruit price isn't
+   * increased by recruiting with gold"). */
+  eu->current_crosses = 0;
+  eu->immigration_pressure = 0;
   EuropeDockImmigrant* slot = europe_dock_insert_front(eu);
   if (!slot) {
     return false;
@@ -144,15 +152,6 @@ bool europe_recruit_from_pool_ex(EuropeScreen* eu, int pool_index, ColonizeDosRn
     "EUROPE recruited %s (job %d) for %d$ passage (gold=%d)",
     slot->name, slot->profession, eu->recruit_passage, eu->gold
   );
-  /*
-   * FUN_38fd_4884 tail, param_1==0 (viceroy_unpacked.c:64765): a *paid*
-   * passage clears the crosses meter (nation+0x2e = 0) before the +6
-   * counter bumps. Without it the discount term kept the next price pinned
-   * near the 100 floor, so buying colonists never walked the price ladder
-   * up (port_bugs.md: "recruit price isn't increased by recruiting with gold").
-   */
-  eu->current_crosses = 0;
-  eu->immigration_pressure = 0;
   europe_bump_recruit_count(eu);
   /* 64776: the emptied slot is refilled by `46d4(0)` off the shared stream. */
   europe_refill_pool_slot_rng(eu, pool_index, false, rng);
@@ -198,13 +197,17 @@ bool europe_recruit_free_from_pool_ex(
 bool europe_brewster_pick_from_pool_ex(
   EuropeScreen* eu, int pool_index, ColonizeDosRng* rng
 ) {
-  if (!eu || !europe_recruit_free_from_pool_ex(eu, pool_index, rng)) {
+  if (!eu || pool_index < 0 || pool_index >= EUROPE_POOL_SIZE) {
     return false;
   }
-  /* 4884 tail with param_1==0: +0x2e crosses zeroed after the pick; no +6
-   * recruit-count bump (param_2!=0 skips it). */
+  /* 4884 with param_1==0: +0x2e crosses zeroed BEFORE the spawn (raw 64765-64766), so a
+   * refused spawn (full dock) clears them too; no +6 recruit-count bump (param_2!=0
+   * skips it). */
   eu->current_crosses = 0;
   eu->immigration_pressure = 0;
+  if (!europe_recruit_free_from_pool_ex(eu, pool_index, rng)) {
+    return false;
+  }
   /* port_bugs.md #672: no nation_flags 0x40 latch on the Brewster branch — 5e52
    * raw 68601 sets it only inside the 07b4(nation,0x14)==0 arm. */
   /* port_bugs.md #223: do NOT clear open_on_dock here — that flag belongs to a
