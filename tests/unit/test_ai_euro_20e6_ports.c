@@ -812,6 +812,68 @@ static int sell_tail_falls_through_to_work_queue(void) {
 }
 
 /*
+ * The AI mover's FUN_5bfb_3180 Indian arm is gated on its tile being land
+ * (raw 98648-98672), with no unit-type test: an empty Caravel at sea heads for
+ * its own colony's Ore pickup at (10,4), and berthing there meets the unmet
+ * village at (11,5) next door.
+ */
+static int ship_berthing_in_colony_meets_tribe(void) {
+  const int nation = 1;
+  Fixture f;
+  if (fixture_init(&f, nation) != 0) {
+    return 1;
+  }
+  for (int x = 0; x < 16; ++x) {
+    f.map.terrain[3 * 16 + x] = 25; /* ocean row: colonies at y=4 are coastal */
+  }
+  ColonizeColony* c = &f.colonies.colonies[0];
+  c->id = 0;
+  c->active = true;
+  c->nation_id = nation;
+  c->x = 10;
+  c->y = 4;
+  c->population = 3;
+  c->colonist_count = 3;
+  c->stock[COLONIZE_CARGO_FOOD] = 60;
+  c->stock[COLONIZE_CARGO_ORE] = 150; /* the pickup queue's goods */
+  c->building_in_production = -1;
+  f.colonies.colony_count = 1;
+  f.colonies.next_id = 1;
+  ColonizeCol1Tribe tribe;
+  memset(&tribe, 0, sizeof(tribe));
+  tribe.nation_id = 4;
+  tribe.x = 11;
+  tribe.y = 5;
+  tribe.mission = COL1_TRIBE_MISSION_NONE;
+  f.col1.tribe = &tribe;
+  f.col1.head.tribe_count = 1;
+  f.map.layer2[5 * 16 + 11] |= 0x02u;
+  f.map.layer3[5 * 16 + 11] = (uint8_t)((f.map.layer3[5 * 16 + 11] & 0x0fu) | 0x40u);
+
+  const int ship_id = units_spawn(&f.units, 2, 8, 3);
+  ColonizeUnit* ship = units_get(&f.units, ship_id);
+  if (!ship) {
+    fixture_free(&f);
+    return fail("spawn ship");
+  }
+  ship->nation_id = nation;
+  ship->moves = 4 * UNITS_MP_PER_TILE;
+  ship->orders = 0;
+  const int met_before = (ai_diplo_read(&f.col1, nation, 4) & COL1_INDIAN_MET_BIT) != 0;
+
+  ai_euro_dispatcher_turn(&f.ctx, nation);
+
+  ship = units_get(&f.units, ship_id);
+  const int met_after = (ai_diplo_read(&f.col1, nation, 4) & COL1_INDIAN_MET_BIT) != 0;
+  fprintf(stderr, "ship-meets-tribe: ship at (%d,%d), met %d -> %d (want 0 -> 1)\n",
+          ship ? ship->x : -1, ship ? ship->y : -1, met_before, met_after);
+  f.col1.tribe = NULL;
+  f.col1.head.tribe_count = 0;
+  fixture_free(&f);
+  return (!met_before && met_after) ? 0 : fail("a hull berthed in a colony must meet the tribe");
+}
+
+/*
  * Not covered here, and why:
  *
  *   - The stale board-mark sweep itself (ai_euro_20e6_clear_stale_board_marks,
@@ -949,6 +1011,7 @@ static const TestCase k_cases[] = {
     {"wagon_off_landmass_is_destroyed", wagon_off_landmass_is_destroyed},
     {"sell_tail_untaxed_credit_and_double_book", sell_tail_untaxed_credit_and_double_book},
     {"sell_tail_falls_through_to_work_queue", sell_tail_falls_through_to_work_queue},
+    {"ship_berthing_in_colony_meets_tribe", ship_berthing_in_colony_meets_tribe},
 };
 
 TEST_MAIN(k_cases)

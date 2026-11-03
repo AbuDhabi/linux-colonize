@@ -1611,11 +1611,13 @@ static void ai_euro_dispatcher_turn_unit_waves(ColonizeTurnContext* ctx, int nat
          * that ends beside a tribe's unit or village opens first contact
          * right there, in the Euro phase — BEFORE that tribe's own 021a act
          * loop reads the MET bit (seed-100 TURN2: the Sioux Brave at (48,56)
-         * scores the Spanish soldier next to it as already met). Ships and
-         * the human are handled elsewhere (landfall hook / game_loop).
+         * scores the Spanish soldier next to it as already met). The arm
+         * is gated on the mover's tile being land (raw 98648-98672, no
+         * unit-type test), so a hull berthed in a colony meets too. The human
+         * is handled in game_loop, landings in ai_euro_unload_pax_at.
          */
         if (progressed && u->active && units_is_on_map(u) && u->aboard_ship_id < 0 &&
-            !units_is_sea(ctx->units, u->id) && moved_3180) {
+            ctx->map && !map_tile_is_water(ctx->map, u->x, u->y) && moved_3180) {
           /* 022e's met arm (5bfb:0422) parks the mover's x at its BP-0x2c,
            * the next 20e6's local_ea (SS:e7c4). Fresh 1565: a Spanish
            * Dragoon beside a met tribe border-parks on that 49. */

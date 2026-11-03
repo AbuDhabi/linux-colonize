@@ -886,6 +886,71 @@ static int test_human_lcr_count_change_skips_contact(void) {
   return rc;
 }
 
+/* A hull sailing into its own colony beside an unmet village runs the
+ * FUN_5bfb_3180 Indian arm (raw 98648-98672: land mover tile, land
+ * neighbour, no unit-type test) -> 066c -> 022e first contact (MET bit). */
+static int test_ship_in_colony_meets_tribe(void) {
+  ColonizeGameState game;
+  memset(&game, 0, sizeof(game));
+  if (!fx_map_alloc(&game.world_map, 8, 8, /*terrain_fill=*/2, /*with_seen=*/true)) {
+    return fail("ship contact map alloc");
+  }
+  game.world_map_ok = true;
+  game.human_nation = 0;
+  game.col1_ok = true;
+  ai_popup_init(&game.ai_popups);
+  fx_units_init(&game.units);
+  game.units_ok = true;
+  game.units.type_count = 1;
+  game.units.types[0].kind_plus1 = UNITS_KIND_CARAVEL + 1;
+  game.units.types[0].movement = 4;
+  game.units.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  game.units.types[0].cargo = 2;
+  fx_colonies_init(&game.colonies);
+  game.colonies_ok = true;
+  units_set_occupancy_map(&game.world_map);
+  colonies_set_occupancy_map(&game.world_map);
+  game.col1.player[0].named_new_world = 1;
+  for (int n = 1; n < 4; ++n) {
+    game.col1.player[n].control = 1;
+  }
+  for (uint16_t s = 1; s < 512 && map_tile_has_rumour(&game.world_map, 3, 3); ++s) {
+    game.world_map.prime_resource_seed = s;
+  }
+  game.world_map.terrain[3 * 8 + 2] = 25; /* ocean west of the colony */
+  ColonizeCol1Tribe tribe;
+  memset(&tribe, 0, sizeof(tribe));
+  tribe.nation_id = 4;
+  tribe.x = 4;
+  tribe.y = 3;
+  game.col1.tribe = &tribe;
+  game.col1.head.tribe_count = 1;
+  ColonizeColony* port = fx_colony_add(&game.colonies, 0, 3, 3, 1);
+  ColonizeUnit* ship = units_get(&game.units, units_spawn(&game.units, 0, 2, 3));
+  int rc = 0;
+  if (!port || !ship || map_tile_has_rumour(&game.world_map, 3, 3) ||
+      !map_tile_is_water(&game.world_map, 2, 3)) {
+    rc = fail("ship contact fixture");
+  } else {
+    port->colony_flags |= COLONIZE_COLONY_FLAG_COASTAL;
+    ship->nation_id = 0;
+    ship->moves = 12;
+    game.units.selected_id = ship->id;
+    (void)game_try_unit_move(&game, 3, 3);
+    if (ship->x != 3 || ship->y != 3) {
+      rc = fail("ship contact: the ship did not dock");
+    } else if ((game.col1.indian[0].euro_diplo[0] & COL1_INDIAN_MET_BIT) == 0) {
+      rc = fail("ship contact: a hull in a colony must meet the unmet tribe next door");
+    }
+  }
+  game.col1.tribe = NULL;
+  game.col1.head.tribe_count = 0;
+  colonies_set_occupancy_map(NULL);
+  units_set_occupancy_map(NULL);
+  fx_map_free(&game.world_map);
+  return rc;
+}
+
 /*
  * Playtest C3-B4: a ship bumping a foreign Euro colony must reach the
  * FUN_5f7a_0662 trade arm (FUN_4720_015c leaves the step valid, raw
@@ -2770,6 +2835,7 @@ static const TestCase k_cases[] = {
     {"test_trade_route_begin_moves_wagon_to_selected_stop", test_trade_route_begin_moves_wagon_to_selected_stop},
     {"test_goto_treasure_gets_king_galleon_offer", test_goto_treasure_gets_king_galleon_offer},
     {"test_human_lcr_count_change_skips_contact", test_human_lcr_count_change_skips_contact},
+    {"test_ship_in_colony_meets_tribe", test_ship_in_colony_meets_tribe},
     {"test_ship_bumps_foreign_colony_trade_arm", test_ship_bumps_foreign_colony_trade_arm},
     {"test_trade_route_ship_aims_colony_tile", test_trade_route_ship_aims_colony_tile},
     {"test_ai_euro_5952_absorb_colonist", test_ai_euro_5952_absorb_colonist},

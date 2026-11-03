@@ -1182,11 +1182,14 @@ void game_after_unit_action(ColonizeGameState* game) {
     }
   }
   /*
-   * First contact / village friction: land units only. Natives do not hail
-   * ships (DOS meet gates ocean tiles; FUN_5bfb_022e after landfall).
+   * First contact / village friction. FUN_5bfb_3180 raw 98648-98672 gates
+   * the 066c Indian arm on the mover's tile being land (local_36 == 0) and
+   * the neighbour being land, with no unit-type test: a ship at sea never
+   * meets, a hull berthed in a colony does.
    */
-  if (!lcr_count_changed && game->col1_ok && u->nation_id >= 0 && u->nation_id <= 3 &&
-      units_is_on_map(u) && !units_is_sea(&game->units, u->id)) {
+  if (!lcr_count_changed && game->col1_ok && game->world_map_ok && u->nation_id >= 0 &&
+      u->nation_id <= 3 && units_is_on_map(u) &&
+      !map_tile_is_water(&game->world_map, u->x, u->y)) {
     int first_indian = -1;
     if (col1_contact_adjacent_tribe(&game->col1, u->x, u->y, u->nation_id, &first_indian)) {
       if (first_indian >= 4) {
