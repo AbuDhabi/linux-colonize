@@ -30,6 +30,7 @@ deps-static/
 deps-container/
 build-windows/
 build-release-macos/
+deps-macos/
 deps-mingw/
 Testing/
 ripped_sound/

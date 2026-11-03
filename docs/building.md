@@ -38,9 +38,9 @@ built with the scripts in `scripts/`:
   container (glibc 2.17 baseline)
 - `scripts/build_release_windows.sh` — Windows zip (mingw cross-build)
 - `scripts/build_release_macos.sh` — macOS Apple Silicon zip. Unlike the
-  others it links SDL2 / FluidSynth dynamically and bundles the Homebrew
-  dylibs in `lib/` (`brew install cmake pkgconf sdl2 fluid-synth
-  dylibbundler`). CI: `.github/workflows/release-macos.yml` attaches the zip
+  others it links SDL2 / FluidSynth dynamically and bundles the dylibs in
+  `lib/` (FluidSynth built from source into `deps-macos/`, the rest from
+  Homebrew: `brew install cmake pkgconf sdl2 glib dylibbundler`). CI: `.github/workflows/release-macos.yml` attaches the zip
   to a published GitHub release.
 
 Output lands in `dist/`. The package READMEs are `scripts/release/README*.md`.

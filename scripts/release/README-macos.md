@@ -97,11 +97,14 @@ that map), `?` (usage). Run it from this folder too.
 - The original game content you copy into `COLONIZE/` remains the property of
   its rights holders and is not distributed here.
 
-The dynamic libraries in `lib/` come from Homebrew (SDL2 via sdl2-compat
-together with SDL3, FluidSynth, and the audio libraries FluidSynth links).
+The dynamic libraries in `lib/` are FluidSynth (built from source, minimal
+configuration, source URL in `THIRD_PARTY_LICENSES`) and, from Homebrew, SDL2
+(via sdl2-compat) together with SDL3, plus GLib and the libraries it needs.
 Their license texts are in `THIRD_PARTY_LICENSES`, one entry per Homebrew
 formula and version; each entry names the formula page on
 <https://formulae.brew.sh/>, which links the upstream homepage and source.
+`THIRD_PARTY_LICENSES` also carries the notice of TinySoundFont, which is
+compiled into the program.
 
 The libraries are separate files, so you can relink the program against
 modified versions of the LGPL ones by replacing the file in `lib/` (re-sign it
