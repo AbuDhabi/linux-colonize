@@ -3588,6 +3588,24 @@ static int case_europe_arrival_woodcut_first_non_route(void) {
             (int)eu->open_on_dock, (int)eu->docked_with_goods);
     rc = 1;
   }
+  /* Lane chain order is newest departure first (FUN_48d3_007a -> FUN_1427_0362 front-
+   * inserts into 244+n, each FUN_48d3_03d0 hop appends to the tail via FUN_1427_03a0),
+   * so of two non-route hulls docking together the later one is picked and docks first. */
+  memset(eu, 0, sizeof(*eu));
+  for (int k = 0; k < 2; ++k) {
+    EuropeHarborShip* s = &eu->expected[eu->expected_ships++];
+    s->type_index = k;
+    s->turns_left = 1;
+  }
+  eu->expected[1].hold_goods_amount[0] = 40; /* newest departure carries goods */
+  europe_tick_voyages(eu, NULL);
+  if (eu->harbor_ships != 2 || !eu->open_on_dock || !eu->docked_with_goods ||
+      eu->harbor[0].type_index != 1 || eu->harbor[1].type_index != 0) {
+    fprintf(stderr, "chain order: harbor %d open %d goods %d first %d (want 2/1/1/1)\n",
+            eu->harbor_ships, (int)eu->open_on_dock, (int)eu->docked_with_goods,
+            eu->harbor[0].type_index);
+    rc = 1;
+  }
   free(eu);
   return rc;
 }
@@ -3666,7 +3684,8 @@ static int case_europe_ship_own_exit_tile(void) {
     return 1;
   }
   int rc = 0;
-  /* Caribbean ship arrives first, Pacific ship last (nation tile = Pacific). */
+  /* Caribbean ship departs first, Pacific ship last (nation tile = Pacific). Both dock on
+   * the same tick, newest departure first (lane chain order), so the Galleon heads the harbor. */
   (void)europe_enqueue_expected(eu, 0, "Merchantman", NULL, NULL, 0, NULL, NULL, 40, 20, true, 1);
   (void)europe_enqueue_expected(eu, 0, "Galleon", NULL, NULL, 0, NULL, NULL, 2, 50, false, 1);
   /* The crossing (game_ship_sail_to_europe, FUN_48d3_007a) stamps the nation tile, not the
@@ -3686,7 +3705,7 @@ static int case_europe_ship_own_exit_tile(void) {
   for (int k = 0; k < 3; ++k) {
     (void)europe_set_sail_from_harbor(eu, 0, 1, NULL, 0);
   }
-  static const int want[3][3] = {{40, 20, 1}, {2, 50, 0}, {2, 50, 0}};
+  static const int want[3][3] = {{2, 50, 0}, {40, 20, 1}, {2, 50, 0}};
   for (int k = 0; k < 3; ++k) {
     const EuropeHarborShip* b = &eu->bound[k];
     if (eu->bound_ships != 3 || b->exit_x != want[k][0] || b->exit_y != want[k][1] ||

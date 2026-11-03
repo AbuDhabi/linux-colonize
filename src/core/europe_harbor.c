@@ -566,11 +566,18 @@ void europe_tick_voyages(EuropeScreen* eu, const ColonizeUnitPool* units) {
       eu->bound[i].turns_left--;
     }
   }
-  /* Move due Expected ships into harbor; passengers go to dock front. */
-  int i = 0;
-  while (i < eu->expected_ships) {
+  /*
+   * Move due Expected ships into harbor; passengers go to dock front.
+   * DOS lane-chain order: FUN_48d3_007a puts a departing hull at the HEAD of
+   * lane 244+n (FUN_1427_0362 -> FUN_1427_02ca front-inserts), and each
+   * FUN_48d3_03d0 hop walks its lane head->tail and appends every counter-0
+   * hull to the destination's TAIL (FUN_281f_08c6 -> FUN_1427_03a0). So the
+   * hulls in 240+n, and then on the 236+n dock, run newest departure first:
+   * the reverse of expected[], which europe_enqueue_expected appends in
+   * departure order.
+   */
+  for (int i = eu->expected_ships - 1; i >= 0; --i) {
     if (eu->expected[i].turns_left > 0) {
-      ++i;
       continue;
     }
     if (eu->harbor_ships >= EUROPE_HARBOR_MAX) {
