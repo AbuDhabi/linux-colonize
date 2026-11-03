@@ -1682,9 +1682,9 @@ static int case_europe_workflow(void) {
     }
 
     /*
-     * Passengers ride the same slots (europe_board_sentry_dockers): a Caravel
-     * carrying one immigrant plus one goods hold has no room for a second
-     * cargo.
+     * FUN_15eb_3208 raw 13375-13376 sizes the buy from the goods hold count
+     * (+0x3150) only, so a Caravel carrying one immigrant plus one goods hold
+     * still takes a second 100-ton cargo.
      */
     int pax[1] = {0};
     memset(cap_hold_types, 0, sizeof(cap_hold_types));
@@ -1702,12 +1702,13 @@ static int case_europe_workflow(void) {
     }
     const int pax_idx = cap.harbor_ships - 1;
     const int gold_pax = cap.gold;
-    if (europe_harbor_cargo_room(&cap, &cap_units, pax_idx, COLONIZE_CARGO_CLOTH) != 0 ||
-        europe_buy_cargo_w(&cap_w, -1, pax_idx, COLONIZE_CARGO_CLOTH, 100) != 0 ||
-        cap.gold != gold_pax || cap.harbor[pax_idx].hold_goods_amount[1] != 0) {
+    if (europe_harbor_cargo_room(&cap, &cap_units, pax_idx, COLONIZE_CARGO_CLOTH) != 100 ||
+        europe_buy_cargo_w(&cap_w, -1, pax_idx, COLONIZE_CARGO_CLOTH, 100) != 100 ||
+        cap.gold != gold_pax - 100 * cloth_ask ||
+        cap.harbor[pax_idx].hold_goods_amount[1] != 100) {
       fprintf(
         stderr,
-        "hold cap: passenger must occupy a Caravel hold, room=%d gold %d→%d hold1=%d\n",
+        "hold cap: passenger must not take a goods hold, room=%d gold %d→%d hold1=%d\n",
         europe_harbor_cargo_room(&cap, &cap_units, pax_idx, COLONIZE_CARGO_CLOTH),
         gold_pax,
         cap.gold,

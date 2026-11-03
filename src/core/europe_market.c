@@ -801,10 +801,10 @@ int europe_buy_cargo_w(
    * FUN_15eb_3208 for this ship's free room BEFORE charging anything and
    * bails to the "no room" popup when it comes back 0; the port used to walk
    * all six EUROPE_SHIP_CARGO_MAX slots unconditionally, so a Caravel (2
-   * holds) loaded 600 tons. Capacity is the @UNIT cargo column, minus goods
-   * slots already used, minus passengers (same slots — see
-   * europe_board_sentry_dockers). A NULL pool still falls back to the
-   * six-slot maximum, as europe_ship_cargo_cap always has.
+   * holds) loaded 600 tons. Capacity is the @UNIT cargo column minus goods
+   * slots already used (passengers do not count, europe_ship_free_slots).
+   * A NULL pool still falls back to the six-slot maximum, as
+   * europe_ship_cargo_cap always has.
    */
   const int free_slots = europe_ship_free_slots(ship, units);
   const int room_total = europe_harbor_cargo_room(eu, units, harbor_index, cargo_type);

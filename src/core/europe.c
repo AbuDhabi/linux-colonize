@@ -208,17 +208,18 @@ int europe_ship_cargo_cap(const EuropeHarborShip* ship, const ColonizeUnitPool* 
 }
 
 /*
- * Free goods slots in a harbor ship, DOS FUN_15eb_3208's first term:
- * `@UNIT cargo column (type*0xe+0x5237) − holds_occupied`. Passengers ride
- * the same slot array in DOS, and the port's boarding path already spends
- * them that way (europe_board_sentry_dockers), so they count here too.
+ * Free goods slots in a harbor ship, DOS FUN_15eb_3208's first term (raw
+ * 13375-13376): `@UNIT cargo column (type*0xe+0x5237) − holds_occupied`.
+ * Passengers do not count: +0x3150 is raised only by the goods loader
+ * FUN_15eb_30b8 (raw 13331), so the buy room FUN_38fd_1fa2 asks for (raw
+ * 60399) ignores who is aboard. Boarding is the other direction (FUN_4720_00e0
+ * charges goods against passengers, europe_board_sentry_dockers).
  */
 int europe_ship_free_slots(const EuropeHarborShip* ship, const ColonizeUnitPool* units) {
   if (!ship) {
     return 0;
   }
-  const int free_slots =
-    europe_ship_cargo_cap(ship, units) - europe_goods_slots_used(ship) - ship->cargo_count;
+  const int free_slots = europe_ship_cargo_cap(ship, units) - europe_goods_slots_used(ship);
   return free_slots > 0 ? free_slots : 0;
 }
 

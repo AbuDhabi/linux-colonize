@@ -704,7 +704,8 @@ this EOT, matching the DOS golden).
 
 Tons of room for `cargo_type` in a harbor ship — DOS FUN_15eb_3208 via the
 FUN_281f_0b96 thunk, the check FUN_38fd_1fa2 runs before charging a buy.
-free = @UNIT cargo capacity − goods holds used − passengers; room =
+free = @UNIT cargo capacity − goods holds used (passengers do not count:
+3208 reads +0x3150, which only the goods loader FUN_15eb_30b8 raises); room =
 free*100, plus the part-full matching holds ONLY when free == 0. A NULL
 `units` falls back to the six-slot maximum. 0 = the "no room" arm.
 
