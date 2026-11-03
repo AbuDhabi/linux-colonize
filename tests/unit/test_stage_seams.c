@@ -524,6 +524,8 @@ static int trade_route_arrival_case(bool gap) {
   ColonizeColony* load = fx_colony_add(&game.colonies, 0, 5, 4, 1);
   ColonizeColony* other = fx_colony_add(&game.colonies, 0, 6, 4, 1);
   load->stock[COLONIZE_CARGO_SUGAR] = 60;
+  /* The load key is the DS:0x84bc sell price x stock; price 0 loads nothing. */
+  game.col1.nation[0].trade.euro_price[COLONIZE_CARGO_SUGAR] = 4;
   units_set_occupancy_map(&game.world_map);
   colonies_set_occupancy_map(&game.world_map);
 

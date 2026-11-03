@@ -1214,9 +1214,10 @@ int game_trade_route_aim_stop(ColonizeGameState* game, ColonizeUnit* u, int stop
 }
 
 /*
- * Colony-stop service (FUN_479b_0bd0 raw 77256-77316). Europe stops are
- * serviced in the harbor (game_europe_service_trade_harbor). The caller has
- * checked that the unit stands on the colony tile (FUN_479b_0b84).
+ * Colony-stop service with the owner's DS:0x84bc sell-price row and boycott
+ * word (FUN_479b_0bd0 raw 77256-77316). Europe stops are serviced in the
+ * harbor (game_europe_service_trade_harbor). The caller has checked that the
+ * unit stands on the colony tile (FUN_479b_0b84).
  */
 static void game_trade_route_service_stop(
   ColonizeGameState* game,
@@ -1224,7 +1225,19 @@ static void game_trade_route_service_stop(
   const ColonizeCol1TradeStop* st,
   int colony_id
 ) {
-  (void)colonies_trade_route_service_stop(&game->colonies, colony_id, &game->units, u->id, st);
+  const int nation = u->nation_id;
+  const EuropeScreen* eu = game->europe_ok ? &game->europe : NULL;
+  int price[COLONIZE_CARGO_COUNT];
+  uint16_t boycott = 0;
+  for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
+    price[c] = europe_nation_sell_price(eu, &game->col1, nation, c);
+    if (europe_cargo_boycotted_ex(eu, &game->col1, nation, c)) {
+      boycott |= (uint16_t)(1u << c);
+    }
+  }
+  (void)colonies_trade_route_service_stop(
+    &game->colonies, colony_id, &game->units, u->id, st, price, boycott
+  );
 }
 
 /* If TRADE_ROUTE unit is at current stop (or has no goto), service then advance. */
