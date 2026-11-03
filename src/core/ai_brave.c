@@ -654,6 +654,12 @@ COLONIZE_INTERNAL AiNativeStepStatus ai_native_brave_step(
   {
     const int step_ox = u->x;
     const int step_oy = u->y;
+    /* LAB_465b_0673 raw 75660-75696 runs on every committed step, not only
+     * before an attack: 07fe ORs 0826(dest, own nation) into the Brave's
+     * origin chain, then with local_1c set 07d6 ORs the human's bit in, both
+     * before 0916 detaches it. */
+    units_465b_0673_vis_or(units, map, u, nx, ny);
+    units_465b_07d6_human_or(units, u, col1);
     const int dest_owner = units_tile_owner_nibble(map, nx, ny); /* 06dc, raw 75766 */
     u->x = nx;
     u->y = ny;

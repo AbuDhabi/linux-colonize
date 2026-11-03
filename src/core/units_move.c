@@ -81,13 +81,17 @@ void units_465b_0673_vis_or(
  * before 0916 detaches it (DOSBox independence 10->11: a crown wagon leaving
  * Bahia marks the Cavalry left behind as seen by the Dutch).
  */
-static void units_465b_07d6_human_or(ColonizeUnitPool* pool, const ColonizeUnit* unit) {
+void units_465b_07d6_human_or(
+  ColonizeUnitPool* pool, const ColonizeUnit* unit, const ColonizeCol1Save* col1
+) {
   const int human = g_units_combat_human_nation;
   if (human < 0 || human > 3 || !units_is_on_map(unit)) {
     return;
   }
   const uint8_t bit = (uint8_t)(1u << human);
-  if (unit->nation_id != human && (unit->col1_vis_mask & bit) == 0) {
+  /* raw 75660: local_1c starts as DS:0x53a2, show entire map. */
+  const bool show_all = col1 && col1->head.show_entire_map;
+  if (!show_all && unit->nation_id != human && (unit->col1_vis_mask & bit) == 0) {
     return;
   }
   for (int i = 0; i < units_slot_end(pool); ++i) {
@@ -917,7 +921,7 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_commit_step(units_move_ctx* c) {
 
   if (!c->combat_attack_entry && !c->foreign_colony_entry) {
     units_465b_0673_vis_or(pool, map, unit, dest_x, dest_y);
-    units_465b_07d6_human_or(pool, unit);
+    units_465b_07d6_human_or(pool, unit, c->col1);
   }
 
   /* Moving cancels sentry / fortify; Go-To cleared only on arrival elsewhere. */

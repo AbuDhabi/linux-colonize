@@ -133,6 +133,11 @@ void units_465b_0bd1_tail(ColonizeUnitPool* pool, int unit_id, int units_before,
 void units_465b_0673_vis_or(
   ColonizeUnitPool* pool, const ColonizeWorldMap* map, ColonizeUnit* unit, int dest_x, int dest_y
 );
+/* FUN_465b_0000 raw 75695-75696: when local_1c is set, FUN_281f_07d6 ORs the
+ * human's bit into the mover's origin chain (run after units_465b_0673_vis_or). */
+void units_465b_07d6_human_or(
+  ColonizeUnitPool* pool, const ColonizeUnit* unit, const ColonizeCol1Save* col1
+);
 int units_active_count(const ColonizeUnitPool* pool);
 
 /*

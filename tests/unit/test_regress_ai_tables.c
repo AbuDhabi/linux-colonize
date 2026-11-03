@@ -540,7 +540,77 @@ static int case_530_native_step_wakes_landfall(void) {
   return !saw_move;
 }
 
+/* FUN_465b_0000 LAB_465b_0673 (raw 75660-75696) runs on every committed
+ * step, not only before an attack: 0826/07fe OR the destination's watchers
+ * into the mover's origin chain, and with local_1c set 07d6 ORs the human's
+ * bit in too. local_1c starts as DS:0x53a2 (show entire map, mode 1) or is
+ * set because the mover already carries the human's bit (mode 0). */
+static int case_465b_quiet_brave_step_vis_or(void) {
+  for (int mode = 0; mode < 2; ++mode) {
+    int saw_move = 0;
+    for (int seed = 0; seed < 24 && !saw_move; ++seed) {
+      ColonizeWorldMap map;
+      ColonizeUnitPool units;
+      ColonizeCol1Save col1;
+      ColonizeCol1Tribe tribe = {.x=5, .y=5, .nation_id=4, .population=3};
+      if (!fx_map_alloc(&map, 12, 12, 0, true)) return 1;
+      memset(map.layer3, 0xf0, map.tile_count);
+      fx_units_init(&units);
+      ai_native_reset();
+      units.type_count = 1;
+      units.types[0].kind_plus1 = UNITS_KIND_BRAVE + 1;
+      units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+      units.types[0].movement = 1;
+      units.types[0].attack = units.types[0].defense = 1;
+      memset(&col1, 0, sizeof(col1));
+      col1.tribe = &tribe;
+      col1.head.tribe_count = 1;
+      /* French presence two tiles out: every neighbour of (5,5) is watched
+       * by nation 1, and no neighbour holds a foreign unit (no attack arm). */
+      for (int y = 3; y <= 7; ++y) for (int x = 3; x <= 7; ++x) {
+        if (x != 3 && x != 7 && y != 3 && y != 7) continue;
+        map_set_owner_nibble(&map, x, y, 1);
+        map_occupancy_set_layer2(&map, x, y, MAP_OCCUPANCY_HAS_UNIT, true);
+      }
+      ColonizeUnit* behind = units_get(&units, units_spawn_allow_stack(&units, 0, 5, 5));
+      ColonizeUnit* b = units_get(&units, units_spawn_allow_stack(&units, 0, 5, 5));
+      if (!behind || !b) { fx_map_free(&map); return 1; }
+      behind->nation_id = b->nation_id = 4;
+      behind->home_tribe_index = b->home_tribe_index = 0;
+      behind->col1_vis_mask = 0;
+      b->col1_vis_mask = mode == 0 ? 0x01 : 0x00; /* England (the human) */
+      col1.head.show_entire_map = mode == 1;
+      units_set_combat_human_nation(0);
+      b->moves = 0;
+      b->last_dir = 8;
+      ColonizeDosRng rng;
+      dos_rng_seed(&rng, (uint32_t)seed * 12345u + 7u);
+      int steps = 0;
+      (void)ai_native_brave_step(&units, &map, &col1, &rng, 4, false, b, 3, 0, &steps);
+      units_set_combat_human_nation(-1);
+      int rc = 0;
+      if (b->active && (b->x != 5 || b->y != 5)) {
+        saw_move = 1;
+        if ((behind->col1_vis_mask & 0x03) != 0x03) {
+          fprintf(stderr,
+                  "465b: mode %d quiet Brave step left vis %d behind (want France 0673 + England 07d6)\n",
+                  mode, behind->col1_vis_mask);
+          rc = 1;
+        }
+      }
+      fx_map_free(&map);
+      if (rc) return rc;
+    }
+    if (!saw_move) {
+      fprintf(stderr, "465b: mode %d quiet Brave test produced no move\n", mode);
+      return 1;
+    }
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+    {"case_465b_quiet_brave_step_vis_or", case_465b_quiet_brave_step_vis_or},
     {"case_530_goal_walk_partial_mp", case_530_goal_walk_partial_mp},
     {"case_530_ship_arrival_facing", case_530_ship_arrival_facing},
     {"case_530_native_step_wakes_landfall", case_530_native_step_wakes_landfall},
