@@ -3555,6 +3555,43 @@ done:
   return rc;
 }
 
+/* FUN_48d3_06ba raw 77968-77976 keeps the FIRST arriving hull not on a trade route
+ * (+0x314c != 2): it alone arms the auto-open, and woodcut 9 needs that hull's holds.
+ * A route hull's cargo does not count. */
+static int case_europe_arrival_woodcut_first_non_route(void) {
+  EuropeScreen* eu = (EuropeScreen*)calloc(1, sizeof(*eu));
+  if (!eu) {
+    return 1;
+  }
+  int rc = 0;
+  for (int k = 0; k < 2; ++k) {
+    EuropeHarborShip* s = &eu->expected[eu->expected_ships++];
+    s->type_index = 0;
+    s->turns_left = 1;
+  }
+  eu->expected[0].trade_route_plus1 = 1; /* route hull with goods */
+  eu->expected[0].hold_goods_amount[0] = 40;
+  europe_tick_voyages(eu, NULL);
+  if (eu->harbor_ships != 2 || !eu->open_on_dock || eu->docked_with_goods) {
+    fprintf(stderr, "first non-route: harbor %d open %d goods %d (want 2/1/0)\n",
+            eu->harbor_ships, (int)eu->open_on_dock, (int)eu->docked_with_goods);
+    rc = 1;
+  }
+  memset(eu, 0, sizeof(*eu));
+  EuropeHarborShip* r = &eu->expected[eu->expected_ships++];
+  r->turns_left = 1;
+  r->trade_route_plus1 = 1;
+  r->hold_goods_amount[0] = 40;
+  europe_tick_voyages(eu, NULL);
+  if (eu->harbor_ships != 1 || eu->open_on_dock || eu->docked_with_goods) {
+    fprintf(stderr, "route only: harbor %d open %d goods %d (want 1/0/0)\n", eu->harbor_ships,
+            (int)eu->open_on_dock, (int)eu->docked_with_goods);
+    rc = 1;
+  }
+  free(eu);
+  return rc;
+}
+
 /* #1071/#1072: past the old port caps (8 ships / 32 dockers) pushes still land. */
 static int case_europe_lanes_past_old_caps(void) {
   EuropeScreen* eu = (EuropeScreen*)calloc(1, sizeof(*eu));
@@ -3832,6 +3869,7 @@ static int case_europe_damaged_hull_heads_harbor(void) {
 static const TestCase k_cases[] = {
     {"case_europe_damaged_hull_heads_harbor", case_europe_damaged_hull_heads_harbor},
     {"case_europe_trade_route_return_tile", case_europe_trade_route_return_tile},
+    {"case_europe_arrival_woodcut_first_non_route", case_europe_arrival_woodcut_first_non_route},
     {"case_europe_immigration_counts_offpool_units", case_europe_immigration_counts_offpool_units},
     {"case_europe_buy_short_gold_refuses", case_europe_buy_short_gold_refuses},
     {"case_europe_buy_no_room_red_bar", case_europe_buy_no_room_red_bar},

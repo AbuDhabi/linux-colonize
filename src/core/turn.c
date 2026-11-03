@@ -894,6 +894,7 @@ COLONIZE_INTERNAL void turn_step_finish(ColonizeTurnProcessor* proc, ColonizeTur
       }
       turn_run_nation_ticks(ctx, &proc->result);
       ai_king_human_5e52_tail(ctx);
+      turn_run_human_europe_pass(ctx);
       turn_prod_only_nation = ctx->human_nation;
       turn_prod_only_set = true;
       turn_run_human_colony_eot(ctx, &proc->result);

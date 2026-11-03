@@ -4556,6 +4556,82 @@ static int case_ai_euro_crosses(void) {
   return 0;
 }
 
+/* FUN_3844_00f2 runs the 5e52 (raw 58375, the 5be8 tax audience included) before
+ * FUN_48d3_06ba (raw 58377), whose arrival pass cashes treasure at the live rate
+ * (raw 77981-78027). A rich nation with an unstocked colony gets a raise that
+ * commits at once (no tea-party cargo), so 1000 in treasure pays the new rate. */
+static int case_europe_pass_after_tax_audience(void) {
+  fx_begin();
+  ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
+  units_reset(&units);
+  units_set_occupancy_map(NULL);
+  if (!units_load_types(&units, test_names_txt())) {
+    fprintf(stderr, "SKIP: no COLONIZE/ assets\n");
+    return TR_SKIP;
+  }
+  const int treasure_ti = units_kind_type_index(&units, UNITS_KIND_TREASURE);
+  if (treasure_ti < 0) {
+    return 1;
+  }
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  ColonizeColony* col = &pool.colonies[0];
+  memset(col, 0, sizeof(*col));
+  col->active = true;
+  col->nation_id = 0;
+  col->colonist_count = 1;
+  col->population = 1;
+  pool.colony_count = 1;
+  ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  col1.player[0].control = 0;
+  col1.player[1].control = 1;
+  col1.player[2].control = 1;
+  col1.player[3].control = 1;
+  col1.head.difficulty = 2; /* interval 18 at 1492 */
+  col1.nation[0].tax_rate = 20;
+  EuropeScreen eu;
+  memset(&eu, 0, sizeof(eu));
+  eu.tax_percent = 20;
+  eu.gold = 200000; /* 5be8 score far past 100: a raise */
+  ColonizeDosRng rng;
+  dos_rng_seed(&rng, 1);
+  eu.expected_ships = 1;
+  eu.expected[0].turns_left = 1;
+  eu.expected[0].cargo_count = 1;
+  eu.expected[0].cargo_types[0] = treasure_ti;
+  eu.expected[0].cargo_professions[0] = -1;
+  eu.expected[0].cargo_treasure_gold[0] = 1000;
+  uint32_t turn = 36;
+  uint16_t year = 1492;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.messages = test_game_txt();
+  ctx.names = test_names_txt();
+  ctx.human_nation = 0;
+  ctx.units = &units;
+  ctx.colonies = &pool;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.europe = &eu;
+  ctx.turn_number = &turn;
+  ctx.game_year = &year;
+  ctx.rng = &rng;
+  ColonizeTurnProcessor proc;
+  memset(&proc, 0, sizeof(proc));
+  turn_step_finish(&proc, &ctx);
+  const int tax = (int)col1.nation[0].tax_rate;
+  const int want_gold = 200000 + 1000 * (100 - (tax > 50 ? 50 : tax)) / 100;
+  if (tax == 20 || eu.harbor_ships != 1 || eu.gold != want_gold) {
+    fprintf(stderr, "europe pass after audience: tax %d harbor %d gold %d (want %d)\n", tax,
+            eu.harbor_ships, eu.gold, want_gold);
+    return 1;
+  }
+  return 0;
+}
+
 /* port_bugs.md #923: DOS FUN_3844_00f2 runs the 5e52 immigration tick (raw 58375)
  * BEFORE the per-colony crosses add (raw 58386), so this turn's church output
  * must not be visible to the threshold compare. */
@@ -6905,6 +6981,7 @@ static const TestCase k_cases[] = {
   {"ai_euro_crosses", case_ai_euro_crosses},
   {"immigration_pressure", case_immigration_pressure},
   {"human_crosses_order", case_human_crosses_order},
+  {"europe_pass_after_tax_audience", case_europe_pass_after_tax_audience},
   {"no_free_ship_spawn", case_no_free_ship_spawn},
   {"horse_breed_units", case_horse_breed_units},
   {"horse_breed_colony", case_horse_breed_colony},

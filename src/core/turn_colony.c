@@ -626,6 +626,24 @@ void turn_run_ai_nation_eot(ColonizeTurnContext* ctx, ColonizeTurnResult* out, i
   }
 }
 
+/*
+ * FUN_48d3_06ba (thunk FUN_291f_0a82, FUN_3844_00f2 raw 58377): the human's
+ * Europe pass runs after the whole 5e52 (raw 58375, the 5be8 tax audience
+ * included) and before the colony loop (raw 58386). The lane hops (raw
+ * 77965-77980), the treasure cash-in at the live tax rate (raw 77981-78027)
+ * and the tail (raw 78029-78036: woodcut 9 + the auto-open DS:0x14c) are
+ * europe_tick_voyages' work.
+ */
+void turn_run_human_europe_pass(ColonizeTurnContext* ctx) {
+  if (!ctx || !ctx->europe) {
+    return;
+  }
+  europe_tick_voyages(ctx->europe, ctx->units);
+  if (ctx->europe->docked_with_goods) {
+    (void)woodcut_fire(ctx->col1, WOODCUT_CARGO_FROM_THE_NEW_WORLD);
+  }
+}
+
 void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
   if (!ctx) {
     return;
@@ -768,15 +786,8 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
       ctx->col1->nation[ctx->human_nation].current_crosses = ctx->europe->current_crosses;
       ctx->col1->nation[ctx->human_nation].needed_crosses = ctx->europe->needed_crosses;
     }
-    europe_tick_voyages(ctx->europe, ctx->units);
-    /*
-     * FUN_48d3_08bf: the human's Europe arrival pass ends with woodcut 9 when
-     * one of the ships that just docked was carrying goods, then sets the
-     * auto-open flag (DS:0x14c = europe.open_on_dock).
-     */
-    if (ctx->europe->docked_with_goods) {
-      (void)woodcut_fire(ctx->col1, WOODCUT_CARGO_FROM_THE_NEW_WORLD);
-    }
+    /* The lane hops, arrival and treasure cash-in run after the 5be8 tax
+     * audience: turn_run_human_europe_pass. */
   }
 
   /*

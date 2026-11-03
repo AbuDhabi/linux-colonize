@@ -583,21 +583,29 @@ void europe_tick_voyages(EuropeScreen* eu, const ColonizeUnitPool* units) {
     eu->expected_ships--;
     europe_clear_ship(&eu->expected[eu->expected_ships]);
     ship.turns_left = 0;
-    europe_disembark_passengers_to_dock(eu, &ship, units);
-    eu->harbor[eu->harbor_ships++] = ship;
-    eu->open_on_dock = true;
-    /* 255 is the empty-hold sentinel, not a full hold — the same guard every
-     * other hold consumer carries (europe_goods_slots_used, europe_sell_hold
-     * / _partial, europe_dos_0f60_pick, europe_buy_cargo, reports.c's cargo
-     * rows). units_despawn_ship_with_cargo copies the raw hold bytes in, so
-     * without it a sentinel hold fired the once-per-game "Cargo from the New
-     * World" woodcut (turn.c → WOODCUT_CARGO_FROM_THE_NEW_WORLD). */
-    for (int g = 0; g < EUROPE_SHIP_CARGO_MAX; ++g) {
-      if (ship.hold_goods_amount[g] > 0 && ship.hold_goods_amount[g] < 255) {
-        eu->docked_with_goods = true;
-        break;
+    /*
+     * FUN_48d3_06ba raw 77968-77976 (asm 48d3:06e6-0733): the scan of the
+     * arrival lane keeps the FIRST hull whose orders +0x314c != 2 (not on a
+     * trade route) as DS:0x14e. Only that hull arms the auto-open, and woodcut 9
+     * fires only if it has goods holds occupied (+0x3150).
+     */
+    if (!eu->open_on_dock && ship.trade_route_plus1 <= 0) {
+      eu->open_on_dock = true;
+      /* 255 is the empty-hold sentinel, not a full hold — the same guard every
+       * other hold consumer carries (europe_goods_slots_used, europe_sell_hold
+       * / _partial, europe_dos_0f60_pick, europe_buy_cargo, reports.c's cargo
+       * rows). units_despawn_ship_with_cargo copies the raw hold bytes in, so
+       * without it a sentinel hold fired the once-per-game "Cargo from the New
+       * World" woodcut (turn.c → WOODCUT_CARGO_FROM_THE_NEW_WORLD). */
+      for (int g = 0; g < EUROPE_SHIP_CARGO_MAX; ++g) {
+        if (ship.hold_goods_amount[g] > 0 && ship.hold_goods_amount[g] < 255) {
+          eu->docked_with_goods = true;
+          break;
+        }
       }
     }
+    europe_disembark_passengers_to_dock(eu, &ship, units);
+    eu->harbor[eu->harbor_ships++] = ship;
     europe_refresh_harbor_selection(eu);
     /* port_bugs.md #750: DOS composes the arrival line through the DS:0x2d54 status
      * API and GAME.TXT has no docked-ship tag, so there is nothing to show. */
