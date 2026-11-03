@@ -3690,6 +3690,59 @@ static int case_europe_buy_short_gold_refuses(void) {
   return rc;
 }
 
+/* FUN_38fd_1fa2 raw 60399-60406: FUN_281f_0b96 finds no room for the cargo, so the red bar
+ * reads @CMESSAGE 4 + the cargo name + DS:0xfcc "!" and nothing is bought. */
+static int case_europe_buy_no_room_red_bar(void) {
+  EuropeScreen* eu = (EuropeScreen*)calloc(1, sizeof(*eu));
+  if (!eu) {
+    return 1;
+  }
+  int hold_types[EUROPE_SHIP_CARGO_MAX];
+  int hold_amts[EUROPE_SHIP_CARGO_MAX];
+  for (int h = 0; h < EUROPE_SHIP_CARGO_MAX; ++h) {
+    hold_types[h] = COLONIZE_CARGO_FOOD;
+    hold_amts[h] = 100;
+  }
+  (void)europe_harbor_push_ex(eu, 0, "Galleon", NULL, NULL, 0, hold_types, hold_amts);
+  eu->cargo_count = COLONIZE_CARGO_TOOLS + 1;
+  snprintf(eu->cargo[COLONIZE_CARGO_TOOLS].name, sizeof(eu->cargo[0].name), "Tools");
+  eu->cargo[COLONIZE_CARGO_TOOLS].ask = 2;
+  eu->gold = 1000;
+  ColonizeWorld w = world_make(NULL, NULL, NULL, NULL, false, NULL, eu);
+  const int b = europe_buy_cargo_w(&w, -1, 0, COLONIZE_CARGO_TOOLS, 100);
+  int rc = 0;
+  if (b != 0 || eu->gold != 1000 || eu->bar_event_count != 1 || !eu->bar_event_red[0] ||
+      strstr(eu->bar_event[0], "Tools!") == NULL) {
+    fprintf(stderr, "no room: bought %d gold %d bars %d \"%s\"\n", b, eu->gold,
+            eu->bar_event_count, eu->bar_event[0]);
+    rc = 1;
+  }
+  free(eu);
+  if (rc != 0) {
+    return rc;
+  }
+  /* The amount prompt (param_4 != 0) checks the room first too: the same bar, no prompt. */
+  ColonizeGameState* game = calloc(1, sizeof(*game));
+  if (!game) {
+    return 1;
+  }
+  game->europe_ok = true;
+  eu = &game->europe;
+  (void)europe_harbor_push_ex(eu, 0, "Galleon", NULL, NULL, 0, hold_types, hold_amts);
+  eu->cargo_count = COLONIZE_CARGO_TOOLS + 1;
+  snprintf(eu->cargo[COLONIZE_CARGO_TOOLS].name, sizeof(eu->cargo[0].name), "Tools");
+  eu->cargo[COLONIZE_CARGO_TOOLS].ask = 2;
+  game_europe_open_buy_prompt_for(game, 0, COLONIZE_CARGO_TOOLS);
+  if (game->howmuch.open || eu->bar_event_count != 1 || !eu->bar_event_red[0] ||
+      strstr(eu->bar_event[0], "Tools!") == NULL) {
+    fprintf(stderr, "no room prompt: open %d bars %d \"%s\"\n", game->howmuch.open,
+            eu->bar_event_count, eu->bar_event[0]);
+    rc = 1;
+  }
+  free(game);
+  return rc;
+}
+
 /* FUN_38fd_584a raw 68265-68271 counts every unit record of the nation, so the bound
  * nation's harbor ship, its passenger and a dock row with no (236,236) mirror unit count. */
 static int case_europe_immigration_counts_offpool_units(void) {
@@ -3781,6 +3834,7 @@ static const TestCase k_cases[] = {
     {"case_europe_trade_route_return_tile", case_europe_trade_route_return_tile},
     {"case_europe_immigration_counts_offpool_units", case_europe_immigration_counts_offpool_units},
     {"case_europe_buy_short_gold_refuses", case_europe_buy_short_gold_refuses},
+    {"case_europe_buy_no_room_red_bar", case_europe_buy_no_room_red_bar},
     {"case_europe_purse_single_door", case_europe_purse_single_door},
     {"case_europe_ship_own_exit_tile", case_europe_ship_own_exit_tile},
     {"case_europe_lanes_past_old_caps", case_europe_lanes_past_old_caps},

@@ -356,6 +356,8 @@ void game_europe_open_buy_prompt_for(ColonizeGameState* game, int hidx, int carg
   );
   if (max_amt <= 0) {
     eu->status[0] = '\0';
+    /* FUN_38fd_1fa2 raw 60398-60406: the room check comes before the param_4 prompt. */
+    europe_buy_no_room_bar(eu, cargo);
   } else {
     howmuch_open(
       &game->howmuch,

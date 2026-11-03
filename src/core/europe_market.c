@@ -770,6 +770,20 @@ int europe_harbor_cargo_room(
   return room;
 }
 
+void europe_buy_no_room_bar(EuropeScreen* eu, int cargo_type) {
+  /* FUN_38fd_1fa2 raw 60399-60406: @CMESSAGE 4, the cargo name, DS:0xfcc "!", red bar arm
+   * kind 3 (thunk_FUN_291f_0b50(3, 0x78)). */
+  if (!eu || cargo_type < 0 || cargo_type >= eu->cargo_count ||
+      eu->bar_event_count >= EUROPE_BAR_EVENT_MAX) {
+    return;
+  }
+  eu->bar_event_red[eu->bar_event_count] = true;
+  snprintf(
+    eu->bar_event[eu->bar_event_count++], EUROPE_BAR_EVENT_LEN, "%s %s!",
+    europe_label(eu, "CMESSAGE", 4, ""), eu->cargo[cargo_type].name
+  );
+}
+
 int europe_buy_cargo_w(
   const ColonizeWorld* w,
   int buyer_nation,
@@ -810,6 +824,7 @@ int europe_buy_cargo_w(
   const int room_total = europe_harbor_cargo_room(eu, units, harbor_index, cargo_type);
   if (room_total <= 0) {
     eu->status[0] = '\0';
+    europe_buy_no_room_bar(eu, cargo_type);
     return 0;
   }
   int buy = amount;

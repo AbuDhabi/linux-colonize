@@ -941,6 +941,8 @@ int europe_harbor_cargo_room(
   int harbor_index,
   int cargo_type
 );
+/* The FUN_38fd_1fa2 no-room refusal: red bar "@CMESSAGE 4 <cargo>!". */
+void europe_buy_no_room_bar(EuropeScreen* eu, int cargo_type);
 
 /* Harbor buy; col1+buyer_nation feed the 1d80 nation trade ledger (smell
  * audit #50) — NULL col1 keeps the price move but skips the ledger. `units`
