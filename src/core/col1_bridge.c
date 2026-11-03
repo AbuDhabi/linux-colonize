@@ -1677,6 +1677,11 @@ COLONIZE_INTERNAL Col1StageStatus col1_bridge_apply_units(Col1ApplyCtx* ctx) {
             harbor_src[europe->harbor_ships - 1] = i;
             /* The docked hull's own exit tile (+0x314d/+0x314e), which
              * europe_set_sail_from_harbor sails from (FUN_48d3_0346). */
+            if (src->ship_damaged) {
+              /* A hull under repair in port (port_bugs.md #1381c). */
+              europe->harbor[europe->harbor_ships - 1].damaged = true;
+              europe->harbor[europe->harbor_ships - 1].repair_counter = (int)src->col1_counter16;
+            }
             if (src->goto_x != 0 || src->goto_y != 0) {
               EuropeHarborShip* hs = &europe->harbor[europe->harbor_ships - 1];
               hs->exit_x = (int)src->goto_x;
@@ -3824,6 +3829,14 @@ COLONIZE_INTERNAL void col1_bridge_capture_europe_lanes(Col1CaptureCtx* ctx) {
         dst->goto_x = gx;
         dst->goto_y = gy;
         dst->col1_counter16 = turns;
+        if (in_port && ship->damaged) {
+          /* DOS 0352 leaves a hull under repair at 236+n with bit7 and its
+           * +0x315a repair count (trace 2026-11-03, port_bugs.md #1381c). */
+          dst->ship_damaged = 1;
+          dst->col1_counter16 = (uint8_t)(ship->repair_counter < 0 ? 0
+                                          : ship->repair_counter > 255 ? 255
+                                                                       : ship->repair_counter);
+        }
         {
           int gi = 0;
           for (int h = 0; h < EUROPE_SHIP_CARGO_MAX && gi < 6; ++h) {

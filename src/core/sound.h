@@ -111,6 +111,11 @@ void sound_stop_preview(void);
 #define SOUND_TITLE_BGM_POOL 5
 
 void sound_set_bgm(int track);
+/* FUN_129f_0300 (thunk 281f_0498): arm the pool for the next pick, no restart. */
+void sound_set_bgm_pool(int track);
+/* FUN_129f_034c (thunk 281f_04b6): sound_set_bgm under the event-music gate, else
+ * sound_set_bgm_pool. */
+void sound_request_bgm(int track);
 /*
  * Pool 0 is not silence: DOS picks from the default pool (all 12 main tunes)
  * whenever no pool is armed (the title menu itself runs SOUND_TITLE_BGM_POOL). Set this

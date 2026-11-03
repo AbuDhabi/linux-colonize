@@ -26,6 +26,7 @@
 #include "core/founding_fathers.h"
 #include "core/reports.h"
 #include "core/reports_names.h"
+#include "core/sound.h"
 #include "core/woodcut.h"
 #include "platform/diagnostics.h"
 
@@ -36,10 +37,10 @@
  *  - Per-colony production tick
  *  - Colony production logging & per-nation scheduling
  *
- * The English europe->status sentences below are port-only debug text: the
- * strip is never drawn (the player sees the catalog popups), unit tests read
- * it, and the #397 Phase K gate keys on TurnProduceCtx.status_written, not
- * on its wording.
+ * europe->status is never drawn (the player sees the catalog popups): popup
+ * sites copy the first sentence of their GAME.TXT section into it for unit
+ * tests (catalog miss = ""; no port-written English, port_bugs.md #1405), and
+ * the #397 Phase K gate keys on TurnProduceCtx.status_written, not on it.
  */
 
 /* ===================== Colony production chrome & popups: SoL, inefficient gov, built, need-tools (turn_emit_inefficient_gov_chrome .. turn_emit_needtools_notice) ===================== */
@@ -86,8 +87,6 @@ static bool turn_emit_inefficient_gov_chrome(
 
   const char* cname = colony->name[0] ? colony->name : "";
   const char* section = NULL;
-  char status_buf[sizeof(europe->status)];
-  status_buf[0] = '\0';
 
   if (tories < thresh) {
     if ((colony->colony_flags & COLONIZE_COLONY_FLAG_INEFFICIENT_GOV) != 0) {
@@ -95,12 +94,6 @@ static bool turn_emit_inefficient_gov_chrome(
         (uint8_t)(colony->colony_flags & (uint8_t)~COLONIZE_COLONY_FLAG_INEFFICIENT_GOV);
       if (chrome && turn_report_ok_inefficient(col1)) {
         section = "EFFICIENT";
-        snprintf(
-          status_buf,
-          sizeof(status_buf),
-          "%s government efficiency improved.",
-          cname
-        );
       }
     }
   } else {
@@ -108,30 +101,23 @@ static bool turn_emit_inefficient_gov_chrome(
       colony->colony_flags |= COLONIZE_COLONY_FLAG_INEFFICIENT_GOV;
       if (chrome && turn_report_ok_inefficient(col1)) {
         section = "INEFFICIENT";
-        snprintf(
-          status_buf,
-          sizeof(status_buf),
-          "%s has inefficient government (%d+ tories).",
-          cname,
-          thresh
-        );
       }
     }
   }
 
-  if (!chrome || !status_buf[0]) {
+  if (!section) {
     return false;
   }
-  snprintf(europe->status, sizeof(europe->status), "%s", status_buf);
-  if (!ai_popups || !section) {
-    return true;
-  }
-  char body[AI_POPUP_BODY_LEN];
   PopupMsgTokens tok;
   memset(&tok, 0, sizeof(tok));
   tok.string0 = cname;
   tok.number0 = thresh;
   tok.has_number0 = true;
+  popup_msg_fill_status(messages, section, &tok, europe->status, sizeof(europe->status));
+  if (!ai_popups) {
+    return true;
+  }
+  char body[AI_POPUP_BODY_LEN];
   popup_msg_fill(messages, section, &tok, "", body, sizeof(body));
   ai_popup_enqueue_colony_event(ai_popups, colony->id, AI_POPUP_ZOOM_TAB_KEEP, body);
   return true;
@@ -257,23 +243,41 @@ void turn_compose_colony_bells_crosses(
  * DOS @BUILT — "%STRING0 colony produces {%STRING1}." One emitter for the
  * three completion paths (audit CO-11): turn_produce_one_colony's in-tick
  * building completion, turn_run_colony_unit_construction and
- * turn_run_colony_building_completion. The caller writes europe->status
- * first and passes it as `fallback`, exactly as all three did inline.
+ * turn_run_colony_building_completion. Callers pass only the human's own
+ * colony (DS:0xa897). building_row is the ColonizeBuildingRow, -1 for a unit.
  */
 void turn_emit_built_chrome(
   const ColonizeMsgCatalog* messages,
   AiPopupState* ai_popups,
   const ColonizeColony* colony,
-  const char* built_name
+  const char* built_name,
+  int building_row,
+  char* status,
+  size_t status_size
 ) {
-  if (!ai_popups || !colony) {
+  if (!colony) {
     return;
   }
-  char body[AI_POPUP_BODY_LEN];
   PopupMsgTokens tok;
   memset(&tok, 0, sizeof(tok));
   tok.string0 = colony->name[0] ? colony->name : "";
   tok.string1 = (built_name && built_name[0]) ? built_name : "";
+  if (status && status_size > 0) {
+    /* Debug status = @BUILT's first sentence (port_bugs.md #1405). */
+    popup_msg_fill_status(messages, "BUILT", &tok, status, status_size);
+  }
+  /* DOS-LITERAL FUN_364b_0114 raw 56953-56963: FUN_281f_04b6(3) for Armory,
+   * Magazine, Printing Press, Newspaper; 04b6(2) for every other building
+   * and every unit (port_bugs.md #1401). */
+  const bool pool3 = building_row == COLONY_BUILDING_ARMORY ||
+                     building_row == COLONY_BUILDING_MAGAZINE ||
+                     building_row == COLONY_BUILDING_PRINTING_PRESS ||
+                     building_row == COLONY_BUILDING_NEWSPAPER;
+  sound_request_bgm(pool3 ? 3 : 2);
+  if (!ai_popups) {
+    return;
+  }
+  char body[AI_POPUP_BODY_LEN];
   popup_msg_fill(messages, "BUILT", &tok, "", body, sizeof(body));
   ai_popup_enqueue_colony_event(ai_popups, colony->id, AI_POPUP_ZOOM_TAB_CONSTRUCTION, body);
 }
@@ -355,11 +359,8 @@ static bool turn_emit_needtools_notice(
   if (tools_cost <= 0 || tools_have >= tools_cost) {
     return false;
   }
-  if (europe) {
-    snprintf(europe->status, sizeof(europe->status), "Need tools.");
-  }
-  if (!ai_popups) {
-    return europe != NULL;
+  if (!europe && !ai_popups) {
+    return false;
   }
   char body[AI_POPUP_BODY_LEN];
   PopupMsgTokens tok;
@@ -375,7 +376,12 @@ static bool turn_emit_needtools_notice(
     tok.has_number1 = true;
   }
   popup_msg_fill(messages, section, &tok, "", body, sizeof(body));
-  ai_popup_enqueue_colony_event(ai_popups, colony->id, AI_POPUP_ZOOM_TAB_CONSTRUCTION, body);
+  if (europe) {
+    popup_msg_fill_status(messages, section, &tok, europe->status, sizeof(europe->status));
+  }
+  if (ai_popups) {
+    ai_popup_enqueue_colony_event(ai_popups, colony->id, AI_POPUP_ZOOM_TAB_CONSTRUCTION, body);
+  }
   return europe != NULL;
 }
 
@@ -453,7 +459,10 @@ static int turn_deplete_colony_mines(
       popup_msg_fill(messages, "DEPLETION", &tok, "", body, sizeof(body));
       snprintf(europe->status, sizeof(europe->status), "%s", body);
       if (ai_popups) {
-        ai_popup_enqueue_colony_event(ai_popups, colony->id, AI_POPUP_ZOOM_TAB_KEEP, body);
+        /* 364b_0000 x,y = the depleted tile (raw 57002, port_bugs.md #1393). */
+        ai_popup_enqueue_colony_event_at(
+          ai_popups, colony->id, AI_POPUP_ZOOM_TAB_KEEP, body, true, w.x, w.y
+        );
       }
     }
   }
@@ -777,12 +786,8 @@ COLONIZE_INTERNAL void turn_produce_food(TurnProduceCtx* pc) {
   }
   if (pc->field_food < consumed && out) {
     out->food_shortages++;
+    /* No DOS text here (port_bugs.md #1405); only the Phase K crumb marker. */
     if (europe && colony->nation_id == human_nation && turn_report_ok_food(col1)) {
-      if (colony->name[0]) {
-        snprintf(europe->status, sizeof(europe->status), "Food shortage in %s.", colony->name);
-      } else {
-        snprintf(europe->status, sizeof(europe->status), "Food shortage.");
-      }
       pc->status_written = true;
     }
   }
@@ -908,12 +913,7 @@ COLONIZE_INTERNAL void turn_produce_horses(TurnProduceCtx* pc) {
         delta->goods[COLONIZE_CARGO_HORSES] += horses_gain;
       }
       if (europe && colony->nation_id == human_nation) {
-        snprintf(
-          europe->status,
-          sizeof(europe->status),
-          horse_has_stable ? "Stable bred %d horses." : "Horses bred: %d.",
-          breed.bred
-        );
+        /* DOS has no breeding line; keep the marker only (port_bugs.md #1405). */
         pc->status_written = true;
       }
     }
@@ -1159,51 +1159,50 @@ COLONIZE_INTERNAL void turn_produce_education(TurnProduceCtx* pc) {
     c->turns_in_job = 0;
   }
   for (int t = 0; t < n_teach; ++t) {
-    const bool tell =
-      europe && colony->nation_id == human_nation && turn_report_ok_trained(col1);
+    const bool human = europe && colony->nation_id == human_nation;
+    const bool tell = human && turn_report_ok_trained(col1);
     const char* cname = colony->name[0] ? colony->name : "";
     char body[AI_POPUP_BODY_LEN];
-    char fallback[224];
     PopupMsgTokens tok;
+    memset(&tok, 0, sizeof(tok));
+    tok.string0 = cname;
     if (n_stud == 0) {
-      /* DOS 0xde7 @TRAINFAIL, then out of the graduation loop entirely. */
-      if (tell) {
-        snprintf(europe->status, sizeof(europe->status), "No students to teach.");
+      /* DOS 0xde7 @TRAINFAIL, then out of the graduation loop entirely. No
+       * 0x5384 report-option test on this call (ndisasm 0x2DFE9-0x2E00C,
+       * port_bugs.md #1400), unlike the three graduation popups below. */
+      if (human) {
+        popup_msg_fill_status(messages, "TRAINFAIL", &tok, europe->status, sizeof(europe->status));
         pc->status_written = true;
         if (ai_popups) {
-          fallback[0] = '\0';
-          memset(&tok, 0, sizeof(tok));
-          tok.string0 = cname;
-          popup_msg_fill(messages, "TRAINFAIL", &tok, fallback, body, sizeof(body));
+          popup_msg_fill(messages, "TRAINFAIL", &tok, "", body, sizeof(body));
           ai_popup_enqueue_colony_event(ai_popups, colony->id, AI_POPUP_ZOOM_TAB_KEEP, body);
         }
       }
       break;
+    }
+    /* raw 57546: FUN_281f_0498(2) per graduation, human colony (DS:0xa897)
+     * only and ahead of the report-option test (port_bugs.md #1401). */
+    if (human) {
+      sound_set_bgm_pool(2);
     }
     const int pick = rng ? dos_rng_range(rng, 0, n_stud - 1) : n_stud - 1;
     ColonizeColonist* student = &colony->colonists[students[pick]];
     const int prev_prof = student->profession;
     const char* skill_name = colonies_profession_name(teach_prof[t]);
     const char* chrome_sec;
-    enum { GRAD_SPECIALTY = 0, GRAD_CRIMINAL, GRAD_INDENTURED } grad = GRAD_SPECIALTY;
     if (prev_prof == COLONIZE_PROF_CRIMINAL) {
       /* DOS 0x1a -> 0x19, popup 0xdf1. */
       student->profession = COLONIZE_PROF_INDENTURED;
       chrome_sec = "TRAINCRIMINAL";
-      grad = GRAD_CRIMINAL;
-      fallback[0] = '\0';
     } else if (prev_prof == COLONIZE_PROF_INDENTURED) {
       /* DOS 0x19 -> 0x1c, popup 0xdff. */
       student->profession = COLONIZE_PROF_FREE_COLONIST;
       chrome_sec = "TRAININDENTURED";
-      grad = GRAD_INDENTURED;
-      fallback[0] = '\0';
     } else {
       /* DOS 0cae(student, aiStack_7e[t]) + 0438(1, jobtable[prof].name),
        * popup 0xe0f. */
       student->profession = teach_prof[t];
       chrome_sec = "TRAINPROFESSION";
-      fallback[0] = '\0';
     }
     /* port_bugs.md #565: DOS's graduation loop (raw 57540-57588) calls 0cae /
      * the ladder writers on the student and never 0a7e — the student keeps
@@ -1214,19 +1213,11 @@ COLONIZE_INTERNAL void turn_produce_education(TurnProduceCtx* pc) {
     }
     n_stud--;
     if (tell) {
-      if (grad == GRAD_CRIMINAL) {
-        snprintf(europe->status, sizeof(europe->status), "Criminal educated.");
-      } else if (grad == GRAD_INDENTURED) {
-        snprintf(europe->status, sizeof(europe->status), "Indentured educated.");
-      } else {
-        snprintf(europe->status, sizeof(europe->status), "%s trained.", skill_name);
-      }
+      tok.string1 = skill_name;
+      popup_msg_fill_status(messages, chrome_sec, &tok, europe->status, sizeof(europe->status));
       pc->status_written = true;
       if (ai_popups) {
-        memset(&tok, 0, sizeof(tok));
-        tok.string0 = cname;
-        tok.string1 = skill_name;
-        popup_msg_fill(messages, chrome_sec, &tok, fallback, body, sizeof(body));
+        popup_msg_fill(messages, chrome_sec, &tok, "", body, sizeof(body));
         ai_popup_enqueue_colony_event(ai_popups, colony->id, AI_POPUP_ZOOM_TAB_KEEP, body);
       }
     }
@@ -1429,17 +1420,13 @@ COLONIZE_INTERNAL void turn_produce_birth(TurnProduceCtx* pc) {
     }
     if (europe && colony->nation_id == human_nation) {
       /* DOS 0xe2f @NEWCOLONIST. Cite: colony_eot_production.md Phase I. */
-      if (colony->name[0]) {
-        snprintf(europe->status, sizeof(europe->status), "Birth in %s.", colony->name);
-      } else {
-        snprintf(europe->status, sizeof(europe->status), "Colony birth.");
-      }
+      PopupMsgTokens tok;
+      memset(&tok, 0, sizeof(tok));
+      tok.string0 = colony->name[0] ? colony->name : "";
+      popup_msg_fill_status(messages, "NEWCOLONIST", &tok, europe->status, sizeof(europe->status));
       pc->status_written = true;
       if (ai_popups) {
         char body[AI_POPUP_BODY_LEN];
-        PopupMsgTokens tok;
-        memset(&tok, 0, sizeof(tok));
-        tok.string0 = colony->name[0] ? colony->name : "";
         popup_msg_fill(
           messages, "NEWCOLONIST", &tok, "", body, sizeof(body)
         );
@@ -1544,35 +1531,36 @@ COLONIZE_INTERNAL TurnProduceStatus turn_produce_starve(TurnProduceCtx* pc) {
     starved_this_tick = 1;
     if (colony->colonist_count <= 0) {
       if (europe && colony->nation_id == human_nation) {
-        snprintf(
-          europe->status,
-          sizeof(europe->status),
-          "Colony %s vanished.",
-          vanish_name
-        );
+        /* raw 0x2E248: FUN_281f_04ac(1) before @VANISH (port_bugs.md #1401). */
+        sound_set_bgm(1);
+        PopupMsgTokens tok;
+        memset(&tok, 0, sizeof(tok));
+        tok.string0 = vanish_name;
+        popup_msg_fill_status(messages, "VANISH", &tok, europe->status, sizeof(europe->status));
         if (ai_popups) {
-          PopupMsgTokens tok;
-          memset(&tok, 0, sizeof(tok));
-          tok.string0 = vanish_name;
-          popup_chrome_ok(ai_popups, messages, "VANISH", &tok, europe->status);
+          /* 364b_0000 with the choice flag 0 (asm 0x2E25B): scroll + MSS, no
+           * Continue/Zoom rows. The colony is abandoned below, so pass its tile. */
+          char body[AI_POPUP_BODY_LEN];
+          popup_msg_fill(messages, "VANISH", &tok, "", body, sizeof(body));
+          ai_popup_enqueue_colony_event_at(
+            ai_popups, colony->id, AI_POPUP_ZOOM_TAB_KEEP, body, false, colony->x, colony->y
+          );
         }
       }
       (void)colonies_abandon(pool, colony_id);
       return TURN_PRODUCE_RETURN;
     }
     if (europe && colony->nation_id == human_nation) {
-      if (colony->name[0]) {
-        snprintf(europe->status, sizeof(europe->status), "Starvation in %s.", colony->name);
-      } else {
-        snprintf(europe->status, sizeof(europe->status), "Colonist starved.");
-      }
+      /* raw 0x2E26A: FUN_281f_04ac(1) before @STARVE1/2 (port_bugs.md #1401). */
+      sound_set_bgm(1);
+      const char* sec = (col1 && col1->head.autumn) ? "STARVE2" : "STARVE1";
+      PopupMsgTokens tok;
+      memset(&tok, 0, sizeof(tok));
+      tok.string0 = colony->name[0] ? colony->name : "";
+      popup_msg_fill_status(messages, sec, &tok, europe->status, sizeof(europe->status));
       pc->status_written = true;
       if (ai_popups) {
-        const char* sec = (col1 && col1->head.autumn) ? "STARVE2" : "STARVE1";
         char body[AI_POPUP_BODY_LEN];
-        PopupMsgTokens tok;
-        memset(&tok, 0, sizeof(tok));
-        tok.string0 = colony->name[0] ? colony->name : "";
         popup_msg_fill(messages, sec, &tok, "", body, sizeof(body));
         ai_popup_enqueue_colony_event(ai_popups, colony->id, AI_POPUP_ZOOM_TAB_PRODUCTION, body);
       }
@@ -1586,8 +1574,10 @@ COLONIZE_INTERNAL TurnProduceStatus turn_produce_starve(TurnProduceCtx* pc) {
    *   and post-eat stock < 8e32×4. Cite: FUN_15eb_0b52; ~57626–57636.
    * Surplus production (8e32==0) never warns — even if stock is modest.
    */
-  if (!starved_this_tick && need > 0 && europe &&
-      colony->nation_id == human_nation && turn_report_ok_food(col1)) {
+  /* port_bugs.md #1400: DOS tests the food report option (0x5384 & 0x40,
+   * ndisasm 0x2E321) only ahead of @FOODLOW; the @FOOD1/@FOOD2 calls
+   * (0x2E1ED..0x2E2B3) have none. */
+  if (!starved_this_tick && need > 0 && europe && colony->nation_id == human_nation) {
     const int stock = colony->stock[COLONIZE_CARGO_FOOD];
     const int food_shortfall = consumed - field_food; /* DOS 8e32 when >0 */
     /*
@@ -1603,39 +1593,34 @@ COLONIZE_INTERNAL TurnProduceStatus turn_produce_starve(TurnProduceCtx* pc) {
      * handled by the FOODLOW branch below.
      */
     if (stock == 0 && food_shortfall > 0 && !was_starving) {
-      if (colony->name[0]) {
-        snprintf(
-          europe->status, sizeof(europe->status), "Food depleted in %s.", colony->name
-        );
-      } else {
-        snprintf(europe->status, sizeof(europe->status), "Food stores depleted.");
-      }
+      /* raw 0x2E1ED: FUN_281f_04b6(1) before @FOOD1/2 (port_bugs.md #1401). */
+      sound_request_bgm(1);
+      const char* sec = (col1 && col1->head.autumn) ? "FOOD2" : "FOOD1";
+      PopupMsgTokens tok;
+      memset(&tok, 0, sizeof(tok));
+      tok.string0 = colony->name[0] ? colony->name : "";
+      popup_msg_fill_status(messages, sec, &tok, europe->status, sizeof(europe->status));
       pc->status_written = true;
       if (ai_popups) {
-        const char* sec = (col1 && col1->head.autumn) ? "FOOD2" : "FOOD1";
         char body[AI_POPUP_BODY_LEN];
-        PopupMsgTokens tok;
-        memset(&tok, 0, sizeof(tok));
-        tok.string0 = colony->name[0] ? colony->name : "";
         popup_msg_fill(messages, sec, &tok, "", body, sizeof(body));
         ai_popup_enqueue_colony_event(ai_popups, colony->id, AI_POPUP_ZOOM_TAB_PRODUCTION, body);
       }
     } else if (
-      stock > 0 && food_shortfall > 0 && stock < food_shortfall * 4
+      stock > 0 && food_shortfall > 0 && stock < food_shortfall * 4 &&
+      turn_report_ok_food(col1)
     ) {
-      if (colony->name[0]) {
-        snprintf(europe->status, sizeof(europe->status), "Food low in %s.", colony->name);
-      } else {
-        snprintf(europe->status, sizeof(europe->status), "Food stores low.");
-      }
+      /* raw 0x2E328: FUN_281f_0498(1) before @FOODLOW (port_bugs.md #1401). */
+      sound_set_bgm_pool(1);
+      PopupMsgTokens tok;
+      memset(&tok, 0, sizeof(tok));
+      tok.string0 = colony->name[0] ? colony->name : "";
+      tok.number0 = stock;
+      tok.has_number0 = true;
+      popup_msg_fill_status(messages, "FOODLOW", &tok, europe->status, sizeof(europe->status));
       pc->status_written = true;
       if (ai_popups) {
         char body[AI_POPUP_BODY_LEN];
-        PopupMsgTokens tok;
-        memset(&tok, 0, sizeof(tok));
-        tok.string0 = colony->name[0] ? colony->name : "";
-        tok.number0 = stock;
-        tok.has_number0 = true;
         popup_msg_fill(messages, "FOODLOW", &tok, "", body, sizeof(body));
         ai_popup_enqueue_colony_event(ai_popups, colony->id, AI_POPUP_ZOOM_TAB_KEEP, body);
       }
@@ -1716,13 +1701,11 @@ COLONIZE_INTERNAL void turn_produce_hammers(TurnProduceCtx* pc) {
             out->buildings_completed++;
           }
           if (europe && colony->nation_id == human_nation) {
-            if (bname && bname[0]) {
-              snprintf(europe->status, sizeof(europe->status), "%s completed.", bname);
-            } else {
-              snprintf(europe->status, sizeof(europe->status), "Building completed.");
-            }
             pc->status_written = true;
-            turn_emit_built_chrome(messages, ai_popups, colony, bname);
+            turn_emit_built_chrome(
+              messages, ai_popups, colony, bname, colonies_building_type_row(pool, bip),
+              europe->status, sizeof(europe->status)
+            );
           }
         }
       }
@@ -1731,14 +1714,10 @@ COLONIZE_INTERNAL void turn_produce_hammers(TurnProduceCtx* pc) {
       turn_report_ok_raw(col1)
     ) {
       /*
-       * Phase K thin: construction queued but zero hammers this tick.
-       * Gate !(5384&0x20). Cite: colony_eot_production.md Deep K.
+       * Construction queued but zero hammers this tick: DOS shows nothing here
+       * (the @LUMBER crumb is Phase K's); keep the status marker only, no typed
+       * text (port_bugs.md #1405). Gate !(5384&0x20).
        */
-      snprintf(
-        europe->status,
-        sizeof(europe->status),
-        "No hammers for construction."
-      );
       pc->status_written = true;
     }
 
@@ -1997,86 +1976,29 @@ COLONIZE_INTERNAL void turn_produce_spoilage(TurnProduceCtx* pc) {
     int spoil_types = 0;
     const int spoiled =
       colonies_apply_warehouse_spoilage(pool, colony, stock_before, &first_spoil, &spoil_types);
-    /* Phase P thin: human spoilage status; multi-type → goods phrasing. */
+    /* Phase P: human spoilage chrome; multi-type → goods phrasing. */
     if (spoiled > 0 && europe && colony->nation_id == human_nation) {
-      const char* wh = colonies_building_row_name(
-        (colony->warehouse_level > 1u) ? COLONY_BUILDING_WAREHOUSE_EXPANSION : COLONY_BUILDING_WAREHOUSE
-      );
       const char* where = (colony->name[0]) ? colony->name : NULL;
       const char* cargo_name = NULL;
       if (first_spoil >= 0 && first_spoil < europe->cargo_count) {
         cargo_name = europe->cargo[first_spoil].name;
       }
-      if (spoil_types > 1) {
-        if (where) {
-          snprintf(
-            europe->status,
-            sizeof(europe->status),
-            "%s in %s spoiled %d goods.",
-            wh,
-            where,
-            spoiled
-          );
-        } else {
-          snprintf(
-            europe->status,
-            sizeof(europe->status),
-            "%s spoiled %d goods.",
-            wh,
-            spoiled
-          );
-        }
-      } else if (cargo_name && cargo_name[0]) {
-        if (where) {
-          snprintf(
-            europe->status,
-            sizeof(europe->status),
-            "%s in %s spoiled %d %s.",
-            wh,
-            where,
-            spoiled,
-            cargo_name
-          );
-        } else {
-          snprintf(
-            europe->status,
-            sizeof(europe->status),
-            "%s spoiled %d %s.",
-            wh,
-            spoiled,
-            cargo_name
-          );
-        }
-      } else {
-        snprintf(
-          europe->status,
-          sizeof(europe->status),
-          "%s spoiled %d goods.",
-          wh,
-          spoiled
-        );
-      }
+      /* SPOIL1/2 tip warehouse; SPOIL3/4 if expanded (ndisasm 0x2E8D1 adds 2
+       * to the tag digit at warehouse level >= 2). Multi → 2/4. */
+      const int expanded = colony->warehouse_level > 1u;
+      const char* spoil_sec =
+        (spoil_types > 1) ? (expanded ? "SPOIL4" : "SPOIL2")
+                         : (expanded ? "SPOIL3" : "SPOIL1");
+      PopupMsgTokens tok;
+      memset(&tok, 0, sizeof(tok));
+      tok.string0 = where ? where : "";
+      tok.string1 = cargo_name && cargo_name[0] ? cargo_name : "";
+      tok.number0 = spoiled;
+      tok.has_number0 = true;
+      popup_msg_fill_status(messages, spoil_sec, &tok, europe->status, sizeof(europe->status));
       if (ai_popups) {
-        /* Phase P: SPOIL1/2 tip warehouse; SPOIL3/4 if expanded. Multi → 2/4. */
-        const int expanded = colony->warehouse_level > 1u;
-        const char* spoil_sec =
-          (spoil_types > 1) ? (expanded ? "SPOIL4" : "SPOIL2")
-                           : (expanded ? "SPOIL3" : "SPOIL1");
         char body[AI_POPUP_BODY_LEN];
-        PopupMsgTokens tok;
-        memset(&tok, 0, sizeof(tok));
-        tok.string0 = where ? where : "";
-        tok.string1 = cargo_name && cargo_name[0] ? cargo_name : "";
-        tok.number0 = spoiled;
-        tok.has_number0 = true;
-        popup_msg_fill(
-          messages,
-          spoil_sec,
-          &tok,
-          europe->status,
-          body,
-          sizeof(body)
-        );
+        popup_msg_fill(messages, spoil_sec, &tok, "", body, sizeof(body));
         ai_popup_enqueue_colony_event(ai_popups, colony->id, AI_POPUP_ZOOM_TAB_PRODUCTION, body);
       }
     }
@@ -2126,6 +2048,8 @@ COLONIZE_INTERNAL void turn_produce_cargo_ready(TurnProduceCtx* pc) {
       tok.string1 = cargo_name ? cargo_name : "";
       tok.number0 = cap > 0 ? cap : after;
       tok.has_number0 = true;
+      /* raw 57900: FUN_281f_0498(2) per crossing (port_bugs.md #1401). */
+      sound_set_bgm_pool(2);
       popup_msg_fill_status(messages, sec, &tok, europe->status, sizeof(europe->status));
       if (!ai_popups) {
         continue;

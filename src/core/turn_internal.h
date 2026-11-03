@@ -70,7 +70,10 @@ void turn_emit_built_chrome(
   const ColonizeMsgCatalog* messages,
   AiPopupState* ai_popups,
   const ColonizeColony* colony,
-  const char* built_name
+  const char* built_name,
+  int building_row,
+  char* status,
+  size_t status_size
 );
 /* Phase A field composition (FUN_15eb_18ec) shared by the EOT tick and
  * colony_preview.c (port_bugs.md #1111). gross[] = field workers + town-commons
@@ -155,6 +158,8 @@ void turn_produce_one_colony(
 void turn_run_colony_eot(ColonizeTurnContext* ctx, ColonizeTurnResult* out);
 void turn_run_human_colony_eot(ColonizeTurnContext* ctx, ColonizeTurnResult* out);
 void turn_route_damaged_ships(ColonizeTurnContext* ctx, int nation);
+/* Human hulls under repair in the Europe harbor: tick, @REFIT, count repaired. */
+int turn_europe_harbor_repairs(ColonizeTurnContext* ctx);
 bool turn_euro_nation_is_ref(const ColonizeTurnContext* ctx, int n);
 
 #ifdef COLONIZE_TESTING

@@ -1033,6 +1033,9 @@ COLONIZE_INTERNAL void turn_step_king(ColonizeTurnProcessor* proc, ColonizeTurnC
           ctx->messages
         );
         turn_route_damaged_ships(ctx, ctx->human_nation);
+        if (turn_europe_harbor_repairs(ctx) > 0) {
+          want_eu = 1; /* FUN_3844_00f2: DS:0x14c -> FUN_281f_05fa (Europe screen) */
+        }
         if (want_eu) {
           proc->result.request_europe_open = true;
         }

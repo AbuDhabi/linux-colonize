@@ -384,7 +384,7 @@ when `RNG(1,100)>89 && ships>2 && !Magellan` — both directions.
 | **U** / `-` / `_` | Sell best hold / all / some |
 | `$` / `]` / `[` | Cheat (only with `cheats_enabled` set): +1000 gold / tax +1 / tax −1 (`FUN_38fd_4f6e`) |
 
-Market bid/ask from `NAMES.TXT` `@CARGO` (ask = bid + burden + 1). Sale proceeds `floor(bid × amount × (100 − tax) / 100)`. Volume-price T0 via `europe_apply_volume_price` (**Done thin**; EOT attrition + half `market_demand_pool`); boycotts **Partial** structural. No pressure / price-trend / bid chrome exists in DOS: `FUN_38fd_0b64` (raw 59293-59351) draws only the 16 cells' `bid/ask` text (`FUN_38fd_0040` ask / `FUN_38fd_0016` price), the red boycott tint (`FUN_38fd_05e8`) and the selected-cell highlight rect, which the port matches — [manual_gap.md](manual_gap.md).
+Market bid/ask from `NAMES.TXT` `@CARGO` (ask = bid + burden + 1). Sale proceeds `floor(bid × amount × (100 − tax) / 100)`. Volume price via `europe_apply_trade_volume` (`europe_harbor.c`, full `FUN_38fd_0058` per-cargo tick, #1017; `europe_apply_volume_price` is a test-only wrapper); boycotts **Partial** structural. No pressure / price-trend / bid chrome exists in DOS: `FUN_38fd_0b64` (raw 59293-59351) draws only the 16 cells' `bid/ask` text (`FUN_38fd_0040` ask / `FUN_38fd_0016` price), the red boycott tint (`FUN_38fd_05e8`) and the selected-cell highlight rect, which the port matches — [manual_gap.md](manual_gap.md).
 
 ### Colony screen bring-up
 

@@ -2380,6 +2380,20 @@ static int sp_27(void) {
       assets_msg_free(&game_txt);
       return fail("Refuse apply should enqueue @TEAPARTY KING_TAX OK");
     }
+    /* port_bugs.md #1396: %STRING2 = the @HOMEPORT city (raw 64305), never the
+     * old typed "the home market". */
+    for (int i = 0; i < pop.queue_count; ++i) {
+      if (pop.queue[i].tag != AI_POPUP_TAG_KING_TAX) {
+        continue;
+      }
+      const char* port = reports_home_port_name(0);
+      if (strstr(pop.queue[i].body, "home market") ||
+          (port[0] && !strstr(pop.queue[i].body, port))) {
+        fprintf(stderr, "unit_ai_king: TEAPARTY body '%s' port '%s'\n", pop.queue[i].body, port);
+        assets_msg_free(&game_txt);
+        return fail("#1396: @TEAPARTY %STRING2 must be the @HOMEPORT city");
+      }
+    }
 
     /*
      * port_bugs.md #907 — boycotted-winner path. DOS-LITERAL FUN_38fd_3dc8 raw

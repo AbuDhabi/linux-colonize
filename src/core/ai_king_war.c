@@ -542,6 +542,9 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
           (void)ai_popup_enqueue_ok_ctx(
             ctx->ai_popups, AI_POPUP_TAG_INFO, human, -1, promoted, NULL, body
           );
+          /* asm 0x3E395 FUN_281f_0d9a(colony x, y) -> 1984_03b2: edge-scroll
+           * onto the colony (port_bugs.md #1394). */
+          ai_popup_set_last_camera(ctx->ai_popups, AI_POPUP_CAM_EDGE, c->x, c->y);
         }
       }
     }

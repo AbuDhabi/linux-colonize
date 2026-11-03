@@ -1060,23 +1060,18 @@ int units_tick_drydock_repair(
        * (-0x7c74 table). */
       const char* col_name = col ? (col->name[0] ? col->name : "")
                                  : units_home_port_name(NULL, nation_id);
+      PopupMsgTokens tok;
+      memset(&tok, 0, sizeof(tok));
+      tok.string0 = ship_name;
+      tok.string1 = col_name;
+      /* No port-written English (port_bugs.md #1405): the status strip gets
+       * the catalog's first sentence, a miss is "". */
       if (status && status_size > 0) {
-        snprintf(status, status_size, "%s repaired.", ship_name);
+        popup_msg_fill_status(messages, "REFIT", &tok, status, status_size);
       }
       if (ai_popups) {
         char body[AI_POPUP_BODY_LEN];
-        PopupMsgTokens tok;
-        memset(&tok, 0, sizeof(tok));
-        tok.string0 = ship_name;
-        tok.string1 = col_name;
-        popup_msg_fill(
-          messages,
-          "REFIT",
-          &tok,
-          status && status[0] ? status : "",
-          body,
-          sizeof(body)
-        );
+        popup_msg_fill(messages, "REFIT", &tok, "", body, sizeof(body));
         ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, body);
       }
     }

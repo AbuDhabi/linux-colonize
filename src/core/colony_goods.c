@@ -186,7 +186,10 @@ void colonies_emit_already_have_chrome(
   tok.string0 = cname;
   tok.string1 = bname;
   popup_msg_fill(messages, section, &tok, "", body, sizeof(body));
-  ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+  /* FUN_364b_0114 @NOMOREWAREHOUSE (ndisasm 0x2D134-0x2D149): FUN_364b_0000
+   * colony event, zoom tab 2 Construction, MSS 5 — same family as the
+   * Phase L @ALREADYHAVE (port_bugs.md #1398). */
+  ai_popup_enqueue_colony_event(ai_popups, colony->id, AI_POPUP_ZOOM_TAB_CONSTRUCTION, body);
 }
 
 void colonies_emit_more_than_three_chrome(

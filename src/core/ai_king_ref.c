@@ -591,6 +591,9 @@ static void ai_king_ref_tory_uprising(ColonizeTurnContext* ctx, int crown, int h
     (void)ai_popup_enqueue_ok_ctx(
       ctx->ai_popups, AI_POPUP_TAG_KING_ARRIVAL, human, crown, spawned, NULL, body
     );
+    /* asm 0x3CD79 FUN_281f_0d9a(colony x, y) -> 1984_03b2: edge-scroll onto
+     * the colony (port_bugs.md #1394). */
+    ai_popup_set_last_camera(ctx->ai_popups, AI_POPUP_CAM_EDGE, c->x, c->y);
   }
 }
 
@@ -1017,9 +1020,13 @@ COLONIZE_INTERNAL void ai_king_0982_invasion(struct ai_king_0982_ctx* w) {
           snprintf(ctx->status, ctx->status_size, "%s", body);
         }
         if (ai_king_human_popups(ctx)) {
+          sound_set_bgm(3); /* raw 74143 FUN_281f_04ac(3), port_bugs.md #1402 */
           (void)ai_popup_enqueue_ok_ctx(
             ctx->ai_popups, AI_POPUP_TAG_KING_ARRIVAL, human, crown, 0, NULL, body
           );
+          /* raw 74142 FUN_281f_0e08(x, y) -> 1984_029e: centre on the hull's
+           * landing tile (port_bugs.md #1394). */
+          ai_popup_set_last_camera(ctx->ai_popups, AI_POPUP_CAM_CENTRE, lx, ly);
           /* port_bugs.md #237: the landing popup BLOCKS before the disembark
            * slides — popup, then animations, then the rest, in sequence. */
           units_pump_combat_popups();
@@ -1366,11 +1373,11 @@ void ai_king_1528_announce(ColonizeTurnContext* ctx, int human) {
   const char* ally_name =
     (ally1 >= 0 && ally1 < 4) ? reports_nation_adjective_display_name(ally1) : ""; /* #878f: no typed text */
   const char* ally_country =
-    (ally1 >= 0 && ally1 < 4) ? reports_nation_country_name(ally1) : "A foreign power";
+    (ally1 >= 0 && ally1 < 4) ? reports_nation_country_name(ally1) : ""; /* #1405 */
   const char* crown_country = reports_nation_country_name(human);
   const char* announce_colony = ai_king_1528_announce_colony(ctx, human);
-  if (!announce_colony || !announce_colony[0]) {
-    announce_colony = "the colonies";
+  if (!announce_colony) {
+    announce_colony = ""; /* #1405: no typed fallback */
   }
   /* @FRIEND row for the ally ("French General Lafayette", ...) — 1528
    * splices GAME.TXT @FRIEND[ally] into %STRING2. */
@@ -1395,6 +1402,7 @@ void ai_king_1528_announce(ColonizeTurnContext* ctx, int human) {
   if (!ai_king_human_popups(ctx)) {
     return;
   }
+  sound_set_bgm(3); /* raw 74484 FUN_281f_04ac(3), port_bugs.md #1402 */
   char body[AI_POPUP_BODY_LEN];
   popup_msg_fill(ctx->messages, "INTERVENTION", &itok, "", body, sizeof(body));
   (void)ai_popup_enqueue_ok_ctx(
@@ -1418,7 +1426,7 @@ static void ai_king_10f0_announce(
    * Force"). */
   const char* ally_name =
     (ally1 >= 0 && ally1 < 4) ? reports_nation_adjective_display_name(ally1) : ""; /* #878f: no typed text */
-  const char* colony = "the colonies";
+  const char* colony = ""; /* #1405: DOS names the bound colony; no typed fallback */
   if (ctx->colonies) {
     const int cid = colonies_id_at(ctx->colonies, hx, hy);
     const ColonizeColony* c = cid >= 0 ? colonies_get(ctx->colonies, cid) : NULL;
@@ -1458,6 +1466,7 @@ static void ai_king_10f0_announce(
       ctx->ai_popups, AI_POPUP_TAG_KING_ARRIVAL, human,
       ai_king_crown_nation_col1(ctx->col1, human), landings, NULL, mbody
     );
+    ai_popup_set_last_camera(ctx->ai_popups, AI_POPUP_CAM_CENTRE, sx, sy); /* raw 74386 */
     units_pump_combat_popups();
   }
   if (!paid && ai_king_human_popups(ctx)) {
@@ -1474,6 +1483,7 @@ static void ai_king_10f0_announce(
     (void)ai_popup_enqueue_ok_ctx(
       ctx->ai_popups, AI_POPUP_TAG_KING_ARRIVAL, human, ally1, landings, NULL, body
     );
+    ai_popup_set_last_camera(ctx->ai_popups, AI_POPUP_CAM_CENTRE, sx, sy); /* raw 74386 */
     sound_set_bgm(3); /* FUN_43f7_10f0 43f7:145b: 281f_0498(3) Independence pool… */
     sound_play(0x3f); /* …then 43f7:1465: intervention tune after @INTERVENE */
     /* port_bugs.md #253: the arrival popup BLOCKS before the disembark slides,
@@ -1617,7 +1627,8 @@ void ai_king_10f0_land(
   }
   /* raw 74386 `FUN_281f_0e08(x, y, 0)` -> FUN_1984_029e is a camera centre on
    * the hull's tile (DS:0x17c/0x17e), not a reveal; the only reveal is the
-   * hull's 06b4 sight reveal above (port_bugs.md #878 lead). Camera unported. */
+   * hull's 06b4 sight reveal above (port_bugs.md #878 lead). The centre rides
+   * the arrival box (ai_popup_set_last_camera in ai_king_10f0_announce, #1394). */
   int landings = 1;
   static const int pool_k[3] = {0, 1, 3};
   /*

@@ -113,6 +113,8 @@ UnitChromeCorner unit_chrome_corner_for_type(int dos_unit_type_id, bool damaged)
  * unit's real orders byte.
  */
 #define UNIT_CHROME_ORDERS_REPAIR_BASE 0x100
+/* ICONS.SS id 0x38 (0-based 0x37): the red X over a damaged hull. */
+#define UNIT_CHROME_REPAIR_X_SPRITE 0x37
 /* FUN_112b_01ba raw 2122-2129: a foreign Privateer's badge is 'X'. */
 #define UNIT_CHROME_ORDERS_PRIVATEER_X 0x200
 /* Same routine: a foreign hull's goods-hold count digit (ordinary ink). */

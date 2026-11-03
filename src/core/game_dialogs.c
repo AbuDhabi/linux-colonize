@@ -471,7 +471,6 @@ static bool game_found_finalize(ColonizeGameState* game, int uid, const char* ch
   const ColonizeWorld w = game_world(game);
   const int cid = colonies_found_with_indian_land_w(&w, NULL, cx, cy, hn, type_index, profession, tools, muskets, horses);
   if (cid < 0) {
-    set_status(game, "Cannot found colony here", NULL);
     return false;
   }
 
@@ -552,17 +551,14 @@ bool game_do_found_colony_at_unit(ColonizeGameState* game, int uid) {
   }
   const ColonizeUnit* founder = units_get_const(&game->units, uid);
   if (!founder || !founder->active || !units_is_on_map(founder)) {
-    set_status(game, "No unit at cursor to found colony", NULL);
     return false;
   }
   if (units_is_sea(&game->units, uid)) {
-    set_status(game, "Ships cannot found colonies", NULL);
     return false;
   }
   const int cx = founder->x;
   const int cy = founder->y;
   if (!colonies_can_found(&game->colonies, &game->world_map, cx, cy)) {
-    set_status(game, "Cannot found colony here", NULL);
     return false;
   }
 
@@ -768,7 +764,6 @@ bool game_try_found_colony_at_cursor(ColonizeGameState* game) {
       sizeof(body)
     );
     ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
-    set_status(game, "Cannot found colony here", NULL);
     return false;
   }
   /* Pool bound (colonies_abandon leaves holes and shrinks colony_count). */
@@ -777,7 +772,7 @@ bool game_try_found_colony_at_cursor(ColonizeGameState* game) {
     if (col->active && map_tiles_adjacent(col->x, col->y, cx, cy, true)) {
       char body[AI_POPUP_BODY_LEN];
       PopupMsgTokens tok = {0};
-      tok.string0 = col->name[0] ? col->name : "nearby colony";
+      tok.string0 = col->name;
       popup_msg_fill(
         &game->messages,
         "TOONEAR",
@@ -787,8 +782,7 @@ bool game_try_found_colony_at_cursor(ColonizeGameState* game) {
         sizeof(body)
       );
       ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
-      set_status(game, "Cannot found colony here", NULL);
-      return false;
+        return false;
     }
   }
   /* asm 0x22620-0x22632: @TOOMOUNTAIN sits BEFORE the neighbour scan. */
@@ -803,7 +797,6 @@ bool game_try_found_colony_at_cursor(ColonizeGameState* game) {
       sizeof(body)
     );
     ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
-    set_status(game, "Cannot found colony here", NULL);
     return false;
   }
   /*
@@ -830,14 +823,12 @@ bool game_try_found_colony_at_cursor(ColonizeGameState* game) {
             sizeof(body)
           );
           ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
-          set_status(game, "Cannot found colony here", NULL);
-          return false;
+                return false;
         }
       }
     }
   }
   if (!colonies_can_found(&game->colonies, &game->world_map, cx, cy)) {
-    set_status(game, "Cannot found colony here", NULL);
     return false;
   }
   /* The Build handler founds with the active unit (DS:0x5392), not with
@@ -848,11 +839,9 @@ bool game_try_found_colony_at_cursor(ColonizeGameState* game) {
     uid = sel->id;
   }
   if (uid < 0) {
-    set_status(game, "No unit at cursor to found colony", NULL);
     return false;
   }
   if (units_is_sea(&game->units, uid)) {
-    set_status(game, "Ships cannot found colonies", NULL);
     return false;
   }
   game_found_confirm_chain(game, uid, GAME_FOUND_STAGE_NOPORT);
@@ -1333,7 +1322,6 @@ static void game_do_buy_construction(ColonizeGameState* game, int colony_id) {
   const int gold_before = (int)europe_nation_gold(&game->europe, col1, game->human_nation);
   int gold = gold_before;
   if (gold < gold_cost) {
-    set_status(game, "Need gold", NULL);
     return;
   }
   if (colonies_buy_construction_ex(&game->colonies, colony_id, col1, &gold)) {
@@ -1608,8 +1596,8 @@ static void game_europe_unload_all(ColonizeGameState* game, int hidx) {
  * (STRING0 = the ship's type name, STRING1 empty); the rows are the lines of
  * @EUROPESHIPOPTIONS, kept under their DOS ids 1 Move to front, 2 Set sail for
  * the New World, 3 Unload all cargo, 4 No changes. Row 2 is DOS-gated on the
- * ship not being damaged (unit +2 bit 7); harbor ships here carry no damage
- * flag, so it is always offered. Row 3 only while a goods hold is occupied.
+ * ship not being damaged (+0x3148 bit 7, raw 60825: a hull under repair in
+ * port, port_bugs.md #1381c). Row 3 only while a goods hold is occupied.
  */
 void game_europe_open_ship_menu(ColonizeGameState* game, int hidx) {
   if (!game || !game->europe_ok) {
@@ -1640,6 +1628,9 @@ void game_europe_open_ship_menu(ColonizeGameState* game, int hidx) {
     if (id == 3 && europe_hold_slot_kth(ship, 0) < 0) {
       continue;
     }
+    if (id == 2 && ship->damaged) {
+      continue;
+    }
     labels[n] = rows[id - 1];
     ids[n] = id;
     ++n;
@@ -1667,21 +1658,6 @@ void game_request_buy_construction_confirm(ColonizeGameState* game) {
     colonies_unit_build_info(colony->building_in_production, &uname, NULL, NULL);
   }
   const char* bname = (bt && bt->name[0]) ? bt->name : (uname ? uname : "");
-  /* port_bugs.md: a project the colony already owns can't be bought or completed —
-   * say so (@ALREADYHAVE) instead of quoting a meaningless price and letting
-   * "Complete it" do nothing. */
-  if (bt && colony->building_in_production < COLONIZE_BUILDING_TYPES_MAX &&
-      colony->has_building[colony->building_in_production]) {
-    PopupMsgTokens atok;
-    memset(&atok, 0, sizeof(atok));
-    atok.string0 = colony->name[0] ? colony->name : "";
-    atok.string1 = bname;
-    char abody[AI_POPUP_BODY_LEN];
-    popup_msg_fill(&game->messages, "ALREADYHAVE", &atok, "", abody, sizeof(abody));
-    ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, abody);
-    game_colony_present_now(game, AI_POPUP_TAG_INFO);
-    return;
-  }
   /* One uniform Buy, whether or not tools are short — DOS's own
    * FUN_2f2b_5e44 formula (colonies_construction_gold_cost) already sums
    * hammers+tools into one gold figure; the popup never differs by cause,
@@ -1692,7 +1668,6 @@ void game_request_buy_construction_confirm(ColonizeGameState* game) {
     &game->colonies, colony, game->col1_ok ? &game->col1 : NULL
   );
   if (game->europe.gold < gold_cost) {
-    set_status(game, "Need gold", NULL);
     PopupMsgTokens gtok;
     memset(&gtok, 0, sizeof(gtok));
     gtok.string0 = bname;

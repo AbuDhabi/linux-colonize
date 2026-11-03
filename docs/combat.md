@@ -5,7 +5,7 @@ naval odds, fortification / terrain / peel modifiers, Combat Analysis, promote /
 demote / capture / loot, and coastal Fort/Fortress batteries.
 
 Move-into-tile fight-vs-bounce gates stay in [move_enter.md](move_enter.md).
-Village warn→Attack (`4528`) Done thin; Euro AI attack scoring is the `20e6`
+Village Attack is the `4528` @ACTIONS case 9 (Done); Euro AI attack scoring is the `20e6`
 LAB_52aa term (`ai_euro_land.c`, logic map `move_scoring_gate` / `wander`);
 `2820` VGA chrome done (D4, [port_plan.md](port_plan.md)).
 
@@ -291,9 +291,10 @@ dwelling. Human `4528` `@ACTIONS` arm **Done** (P8.8); the AI arm is ported too.
 sunk / demoted piece "pixelates" away — DOS presents the outcome redraw by
 copying all 64000 px in 16-bit LFSR order (poly `0xB400`, asm file 0xF5E6;
 the catalog mislabels `0016` "delay"). Fired with dur 8 in the `1b0e` tail,
-`36fe`, `31ea`, and the LCR `65dd` vanish. Port: `units_set_combat_dissolve`
+`36fe`, `31ea`, and the LCR `65dd` tail when it spawned a Treasure (Cibola
+`@LOSTCITY2`, `@BURIAL3`: the Treasure fizzles in; `@LOSTCITY5` only repaints). Port: `units_set_combat_dissolve`
 two-phase hook (pre-snapshot / post-animate) around the land + naval outcome
-and the LCR despawn; `game_combat_dissolve` (game_loop.c) diff-gates identical
+and the LCR Treasure spawn; `game_combat_dissolve` (game_loop.c) diff-gates identical
 frames, so out-of-sight or in-colony fights stay instant.
 
 ### Land win (`units_resolve_land_combat_ff`)
@@ -417,11 +418,18 @@ Combat loss remaps **unit type** (not merely profession). Cite:
   So a damaged ship is in Europe the instant it loses, on the repair timer;
   it never lingers on its tile (which also left the sprite standing under the
   combat dissolve). `units_ship_enter_repair` does the teleport for both call
-  sites; the port's equivalent of the off-map slot is the Europe Expected lane
-  with the repair timer as the wait (`units_set_combat_europe` supplies the
-  screen; without it — headless — the hull stays put and
-  `turn_route_damaged_ships` remains the fallback). WoI human keeps the DOS
-  `goto`-to-sunk (no friendly Europe).
+  sites; for the human the off-map slot is the Europe harbor: the hull becomes
+  a damaged harbor ship (`EuropeHarborShip.damaged` / `repair_counter`, saved
+  as DOS's 236+n record with bit7 and +0x315a). It shows the red X (ICONS
+  0x38) and the repair digit, cannot sail (menu row 2, drag and S/Space/Enter
+  refuse it), and `europe_harbor_repair_tick` counts it +1 per turn to the
+  @UNIT defense column, then @REFIT names the home port and the Europe screen
+  opens (FUN_3844_00f2). DOS trace 2026-11-03 (port_bugs.md #1381c): Privateer
+  beaten by a Caravel lands at (237,237) with counter 6, shows digit 2, is
+  repaired two ticks later. `units_set_combat_europe` supplies the screen;
+  without it — headless — the hull stays put and `turn_route_damaged_ships`
+  makes the same harbor move at end of turn. AI hulls stay live units at
+  236+n. WoI human keeps the DOS `goto`-to-sunk (no friendly Europe).
 - **Repair timer** (`0x5235` column): `col1_counter16` preset to
   `max(0, loser.combat - winner.combat)`, the winner's value doubled when it
   is not a ship (fort fire), Frigate floor 4 / Man-O-War floor 8; the EOT ship

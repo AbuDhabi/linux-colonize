@@ -103,10 +103,11 @@ static void turn_colony_unit_construction_one(ColonizeTurnContext* ctx, Colonize
     ctx->col1->stuff.unit_type_counts[col->nation_id][uidx]++;
   }
   if (ctx->europe && col->nation_id == ctx->human_nation) {
-    /* Port-only debug text (europe->status is never drawn; tests read it).
-     * The player sees @BUILT via turn_emit_built_chrome. */
-    snprintf(ctx->europe->status, sizeof(ctx->europe->status), "%s completed.", name);
-    turn_emit_built_chrome(ctx->messages, ctx->ai_popups, col, name);
+    /* europe->status (never drawn; tests read it) = @BUILT's first sentence. */
+    turn_emit_built_chrome(
+      ctx->messages, ctx->ai_popups, col, name, -1, ctx->europe->status,
+      sizeof(ctx->europe->status)
+    );
   }
 }
 
@@ -145,22 +146,24 @@ static void turn_colony_building_completion_one(ColonizeTurnContext* ctx, Coloni
   if (!bt || bt->hammers <= 0 || col->hammers < bt->hammers) {
     return;
   }
+  const int built_row = colonies_building_type_row(ctx->colonies, col->building_in_production);
   if (!colonies_try_complete_building_ex(
         ctx->colonies, col->id, ctx->col1_ok ? ctx->col1 : NULL
       )) {
     /* FUN_364b_0114 raw 56906-56910: a Warehouse Expansion past level 1
      * refuses with @NOMOREWAREHOUSE each turn it sits complete. */
     if (col->nation_id == ctx->human_nation &&
-        colonies_building_type_row(ctx->colonies, col->building_in_production) ==
-          COLONY_BUILDING_WAREHOUSE_EXPANSION &&
+        built_row == COLONY_BUILDING_WAREHOUSE_EXPANSION &&
         col->warehouse_level > 1u) {
       colonies_emit_already_have_chrome(col, bt, ctx->ai_popups, ctx->messages);
     }
     return;
   }
   if (ctx->europe && col->nation_id == ctx->human_nation) {
-    snprintf(ctx->europe->status, sizeof(ctx->europe->status), "%s completed.", bt->name);
-    turn_emit_built_chrome(ctx->messages, ctx->ai_popups, col, bt->name);
+    turn_emit_built_chrome(
+      ctx->messages, ctx->ai_popups, col, bt->name, built_row, ctx->europe->status,
+      sizeof(ctx->europe->status)
+    );
   }
 }
 
@@ -1161,56 +1164,50 @@ void turn_route_damaged_ships(ColonizeTurnContext* ctx, int nation) {
       continue;
     }
     if (nation == ctx->human_nation && !woi && ctx->europe && u->cargo_count == 0) {
-      /*
-       * FUN_48d3_0002 gates the 2-turn crossing on DS:0x9418[nation] (the
-       * FUN_4962_0018 hull tally — turn_voyage_ship_count) and on Magellan
-       * (FF 5). Hardcoding count 1 / no-Magellan burned the RNG draw but
-       * could never take either branch, so a damaged ship's voyage home was
-       * always 1 turn regardless of fleet size. Reading stuff.ship_counts[]
-       * instead was still one spelling short of game_loop's: the census walks
-       * the live pool only, so a human with 2 hulls on the map and 3 in the
-       * lane rolled "3+ ships" on a manual crossing and "2 ships" here.
-       */
-      const bool magellan =
-        ctx->col1_ok && ctx->col1 &&
-        founding_fathers_nation_has(ctx->col1, nation, FF_FERDINAND_MAGELLAN);
-      const int fleet = turn_voyage_ship_count(ctx, nation);
-      /* port_bugs.md #1019: the roll's x is the New World side of the crossing. */
-      const int turns = europe_voyage_turns_roll(ctx->rng, magellan, fleet, u->x);
-      /* Same edge rule as the manual sail-to-Europe path so the ship comes
-       * back on the side it left from. */
-      /* port_bugs.md #1386: like units_ship_damaged_to_europe, the hull
-       * re-exports to the nation return tile and the enqueue must not
-       * overwrite it with the hull's tile (DOS FUN_5fef_0352 only reads it). */
-      EuropeScreen* eu = ctx->europe;
-      const int keep_x = eu->last_exit_x;
-      const int keep_y = eu->last_exit_y;
-      const bool keep_east = eu->last_exit_east;
-      const bool keep_valid = eu->last_exit_valid;
-      const int ex = keep_valid ? keep_x : u->x;
-      const int ey = keep_valid ? keep_y : u->y;
-      const bool east = keep_valid ? keep_east
-                        : ctx->map ? (u->x >= (int)ctx->map->width / 2) : true;
-      const bool queued = europe_enqueue_expected(
-        eu, u->type_index, ty ? ty->name : "", NULL, NULL, 0,
-        u->hold_goods_type, u->hold_goods_amount, ex, ey, east, turns
-      );
-      eu->last_exit_x = keep_x;
-      eu->last_exit_y = keep_y;
-      eu->last_exit_east = keep_east;
-      eu->last_exit_valid = keep_valid;
-      if (queued) {
-        if (ctx->status && ctx->status_size > 0) {
-          snprintf(
-            ctx->status, ctx->status_size, "%s sails to Europe for repairs.",
-            ty && ty->name[0] ? ty->name : ""
-          );
-        }
-        u->col1_flags15 = (uint8_t)(u->col1_flags15 & 0x7fu); /* repaired abroad */
+      /* Port-only fallback (a hull damaged with no Europe screen wired, or
+       * whose repair colony fell since): the same off-map slot DOS 0352 uses,
+       * the harbor under repair, timer kept (port_bugs.md #1381c). */
+      const bool east = ctx->map ? (u->goto_x >= (int)ctx->map->width / 2) : true;
+      if (europe_harbor_push_damaged(ctx->europe, u, ty && ty->name[0] ? ty->name : "", east)) {
         units_despawn(ctx->units, u->id);
       }
     }
   }
+}
+
+/*
+ * DOS FUN_3844_00f2 raw 58331-58361 for a hull in port (x = nation - 0x14):
+ * the repair tick, then @REFIT with %STRING1 the home port (-0x7c74, since
+ * FUN_281f_0302 finds no colony there) and DS:0x14c, which opens the Europe
+ * screen after the walk. Trace 2026-11-03: "Privateer has completed its
+ * repairs in La Rochelle." then the Europe screen (port_bugs.md #1381c).
+ */
+void units_play_event_sound(int id); /* units_internal.h; as units.c declares it */
+
+int turn_europe_harbor_repairs(ColonizeTurnContext* ctx) {
+  if (!ctx || !ctx->europe || !ctx->units) {
+    return 0;
+  }
+  int idx[16];
+  const int n = europe_harbor_repair_tick(ctx->europe, ctx->units, idx, 16);
+  if (n) fprintf(stderr, "DBGREPAIR %d\n", n);
+  for (int k = 0; k < n && k < 16; ++k) {
+    const EuropeHarborShip* s = &ctx->europe->harbor[idx[k]];
+    const ColonizeUnitType* ty =
+      units_type(ctx->units, europe_ship_type_index(ctx->units, s));
+    units_play_event_sound(0x54); /* same @REFIT sound as units_tick_drydock_repair */
+    if (!ctx->ai_popups) {
+      continue;
+    }
+    PopupMsgTokens tok;
+    memset(&tok, 0, sizeof(tok));
+    tok.string0 = ty && ty->name[0] ? ty->name : "";
+    tok.string1 = reports_home_port_name(ctx->human_nation);
+    char body[AI_POPUP_BODY_LEN];
+    popup_msg_fill(ctx->messages, "REFIT", &tok, "", body, sizeof(body));
+    ai_popup_enqueue_ok(ctx->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+  }
+  return n;
 }
 
 /*

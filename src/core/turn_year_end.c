@@ -132,39 +132,19 @@ COLONIZE_INTERNAL void turn_year_end_era_end(
         }
       }
     }
-    if (richest && dname) {
-      snprintf(
-        ctx->status,
-        ctx->status_size,
-        "Game era ends %u (%s, %s).",
-        (unsigned)year,
-        dname,
-        richest
-      );
-    } else if (richest) {
-      snprintf(
-        ctx->status,
-        ctx->status_size,
-        "Game era ends %u (%s).",
-        (unsigned)year,
-        richest
-      );
-    } else if (dname) {
-      snprintf(
-        ctx->status,
-        ctx->status_size,
-        "Game era ends %u (%s).",
-        (unsigned)year,
-        dname
-      );
-    } else {
-      snprintf(
-        ctx->status,
-        ctx->status_size,
-        "Game era ends %u.",
-        (unsigned)year
-      );
-    }
+    /* Debug status = the @RETIRING / @RETIRING2 popup's first sentence (no
+     * typed text, port_bugs.md #1405); the popup itself is ai_king_war.c's. */
+    PopupMsgTokens tok;
+    memset(&tok, 0, sizeof(tok));
+    tok.string0 = dname ? dname : "";
+    tok.string1 = (ctx->col1_ok && ctx->col1 && human >= 0 && human < 4)
+                    ? ctx->col1->player[human].name
+                    : "";
+    tok.string2 = richest ? richest : "";
+    popup_msg_fill_status(
+      ctx->messages, year == 0x73au ? "RETIRING2" : "RETIRING", &tok, ctx->status,
+      ctx->status_size
+    );
     /* DOS clears 0x53c2 here; LAB_0b4a ORs bit4 (calendar_latch) only after the
      * score chain, which game_retire_after_score runs (port_bugs.md #1232: set here
      * first, it zeroed the chain's score and hid its exploits screen). */
@@ -274,28 +254,18 @@ COLONIZE_INTERNAL void turn_year_end_rival_independence(
         if (v >= thresh - 20 &&
             v > (int)dcol1->nation[rival].rebellion_pct_last_notified) {
           if (ctx->status && ctx->status_size > 0) {
-            snprintf(
-              ctx->status,
-              ctx->status_size,
-              "The King of %s considers granting independence.",
-              country
-            );
+            popup_msg_fill_status(ctx->messages, "OTHERMIGHT", &tok, ctx->status, ctx->status_size);
           }
-          turn_year_end_rival_popup(ctx, "OTHERMIGHT", &tok, ctx->status);
+          turn_year_end_rival_popup(ctx, "OTHERMIGHT", &tok, "");
           dcol1->nation[rival].rebellion_pct_last_notified = (uint8_t)v;
         }
         /* raw 58584: falling band, re-reading the (possibly just written)
          * cache exactly as DOS does. */
         if (v < (int)dcol1->nation[rival].rebellion_pct_last_notified - 5) {
           if (ctx->status && ctx->status_size > 0) {
-            snprintf(
-              ctx->status,
-              ctx->status_size,
-              "Support for independence in %s is easing.",
-              country
-            );
+            popup_msg_fill_status(ctx->messages, "OTHERLESS", &tok, ctx->status, ctx->status_size);
           }
-          turn_year_end_rival_popup(ctx, "OTHERLESS", &tok, ctx->status);
+          turn_year_end_rival_popup(ctx, "OTHERLESS", &tok, "");
           dcol1->nation[rival].rebellion_pct_last_notified = (uint8_t)v;
         }
       } else {
@@ -413,9 +383,7 @@ COLONIZE_INTERNAL void turn_year_end_defeat_check(
       }
     }
   }
-  if (ctx->status && ctx->status_size > 0) {
-    snprintf(ctx->status, ctx->status_size, "Defeat: no colonies remain.");
-  }
+  /* No status line: DOS shows only @LOSENOCOLONIES (port_bugs.md #1405). */
 }
 
 void turn_run_year_end_chrome(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {

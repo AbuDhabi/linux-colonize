@@ -13,6 +13,10 @@
 #include "platform/diagnostics.h"
 #include "platform/platform.h"
 
+/* ai_popup_set_camera_hook (port_bugs.md #1393/#1394). */
+static AiPopupCameraFn g_ai_popup_camera;
+static void* g_ai_popup_camera_user;
+
 static void ai_popup_log_present(const AiPopupRequest* req);
 static const char* ai_popup_tag_name(AiPopupTag tag);
 
@@ -344,14 +348,29 @@ void ai_popup_set_colony_event_labels(const char* continue_label, const char* zo
   }
 }
 
-bool ai_popup_enqueue_colony_event(AiPopupState* st, int colony_id, int zoom_tab, const char* body) {
-  /* DOS FUN_364b_0000 appends the two rows with ids 1/2 (FUN_281f_0022).
-   * nation_b carries its param_3, the colony tab "Zoom to colony" selects. */
+bool ai_popup_enqueue_colony_event_at(
+  AiPopupState* st, int colony_id, int zoom_tab, const char* body, bool with_choices, int x, int y
+) {
+  /* DOS FUN_364b_0000 appends the two rows with ids 1/2 (FUN_281f_0022) when
+   * param_2 is set. nation_b carries its param_3, the colony tab "Zoom to
+   * colony" selects. */
   const char* labels[2] = {g_colony_event_continue, g_colony_event_zoom};
   const int ids[2] = {1, 2};
-  return ai_popup_enqueue_choice_ctx(
-    st, AI_POPUP_TAG_COLONY_EVENT, -1, zoom_tab, colony_id, NULL, body, labels, ids, 2
-  );
+  const bool ok = with_choices
+    ? ai_popup_enqueue_choice_ctx(
+        st, AI_POPUP_TAG_COLONY_EVENT, -1, zoom_tab, colony_id, NULL, body, labels, ids, 2
+      )
+    : ai_popup_enqueue_ok_ctx(st, AI_POPUP_TAG_COLONY_EVENT, -1, zoom_tab, colony_id, NULL, body);
+  /* raw 56839-56846: while the colony screen is closed, FUN_281f_0352 edge-
+   * scrolls onto (param_4, param_5), or the colony tile when param_4 == 0. */
+  if (ok) {
+    ai_popup_set_last_camera(st, AI_POPUP_CAM_EDGE, x < 0 ? -1 : x, y);
+  }
+  return ok;
+}
+
+bool ai_popup_enqueue_colony_event(AiPopupState* st, int colony_id, int zoom_tab, const char* body) {
+  return ai_popup_enqueue_colony_event_at(st, colony_id, zoom_tab, body, true, -1, -1);
 }
 
 void ai_popup_colony_zoom_elect(AiPopupState* st, int colony_id) {
@@ -831,6 +850,9 @@ static bool ai_popup_present_index(AiPopupState* st, int pick) {
   st->king_anim_frame = 0;
   st->king_anim_next_ms = 0;
   ai_popup_log_present(&st->current);
+  if (st->current.cam_mode != AI_POPUP_CAM_NONE && g_ai_popup_camera) {
+    g_ai_popup_camera(g_ai_popup_camera_user, &st->current);
+  }
   return true;
 }
 
@@ -934,6 +956,21 @@ void ai_popup_set_last_disabled(AiPopupState* st, uint32_t mask) {
     return;
   }
   st->queue[st->queue_count - 1].disabled_mask = mask;
+}
+
+void ai_popup_set_last_camera(AiPopupState* st, int mode, int x, int y) {
+  if (!st || !st->last_enqueue_ok || st->queue_count <= 0) {
+    return;
+  }
+  AiPopupRequest* req = &st->queue[st->queue_count - 1];
+  req->cam_mode = mode;
+  req->cam_x = x;
+  req->cam_y = y;
+}
+
+void ai_popup_set_camera_hook(AiPopupCameraFn fn, void* user) {
+  g_ai_popup_camera = fn;
+  g_ai_popup_camera_user = user;
 }
 
 void ai_popup_consume_result(AiPopupState* st) {

@@ -1395,7 +1395,7 @@ static GameUpdateStep game_colony_screen_mouse_click(
             game->status,
             sizeof(game->status),
             "%s",
-            tt && tt->name[0] ? tt->name : "Transport selected"
+            tt ? tt->name : ""
           );
         }
       }
@@ -2621,7 +2621,10 @@ static GameUpdateStep game_europe_screen_keys(
   if (input->last_key == COLONIZE_KEY_S || input->last_key == COLONIZE_KEY_SPACE ||
       input->last_key == COLONIZE_KEY_ENTER) {
     if (eu->selected_harbor >= 0) {
-      game_europe_open_ship_menu(game, eu->selected_harbor);
+      /* raw 67692: a damaged hull (bit7, not Artillery) gets no menu here. */
+      if (eu->selected_harbor < eu->harbor_ships && !eu->harbor[eu->selected_harbor].damaged) {
+        game_europe_open_ship_menu(game, eu->selected_harbor);
+      }
       return GAME_UPDATE_RETURN_TRUE;
     }
     if (input->last_key == COLONIZE_KEY_S) {

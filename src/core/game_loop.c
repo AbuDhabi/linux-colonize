@@ -850,6 +850,31 @@ void game_camera_edge_center(void* user, int x, int y) {
   }
 }
 
+/* ai_popup camera hook (port_bugs.md #1393/#1394): the request's camera move,
+ * made as the box presents. FUN_364b_0000 scrolls only while the colony
+ * screen is closed (DS:0x890 == 0); the war boxes never present over it. */
+void game_popup_camera(void* user, const AiPopupRequest* req) {
+  ColonizeGameState* game = (ColonizeGameState*)user;
+  if (!game || !req || !game->world_map_ok || game->in_colony) {
+    return;
+  }
+  int x = req->cam_x;
+  int y = req->cam_y;
+  if (x < 0) { /* FUN_364b_0000 param_4 == 0: the colony's own tile (DS:0x8542) */
+    const ColonizeColony* col = colonies_get(&game->colonies, req->payload);
+    if (!col) {
+      return;
+    }
+    x = col->x;
+    y = col->y;
+  }
+  if (req->cam_mode == AI_POPUP_CAM_CENTRE) {
+    game_set_view_center(game, x, y); /* FUN_1984_029e */
+  } else if (req->cam_mode == AI_POPUP_CAM_EDGE) {
+    game_camera_edge_center(game, x, y);
+  }
+}
+
 /* The outbound lunge frames shared by game_combat_watch and
  * game_phantom_lunge; mu (may be NULL) is the pool piece hidden meanwhile. */
 static void game_lunge_frames(

@@ -216,7 +216,7 @@ intervention → `0x3f` after `@INTERVENE` (ported); `41f2_0b70` Retire exploits
 optional event id — **every caller passes 0** (the NOMOREWAREHOUSE site pushes `AX`,
 which is 0 on that path), so no colony popup carries a sound (resolved 2026-08-29);
 `2b5a_2464` Pick Music. Pool switches
-`281f_04b6(n)` → `129f_034c` (`DS:0x9a = n`, restart if changed): `1` map at colony EOT
+`281f_04b6(n)` → `129f_034c` (`DS:0x9a = n`, restart if changed, only under the event-music gate; port `sound_request_bgm`; `281f_0498` → `129f_0300` sets the pool with no restart, port `sound_set_bgm_pool`; `281f_04ac` → `129f_0318`, port `sound_set_bgm`). Colony EOT (`364b`, port_bugs.md #1401): @BUILT 04b6(3 for Armory/Magazine/Printing Press/Newspaper, else 2), graduation and @CARGOREADY 0498(2), @FOOD1/2 04b6(1), @STARVE/@VANISH 04ac(1), @FOODLOW 0498(1); 04ac(3) before @SUCCESSION / @INVASION / @INTERVENTION (#1402). `1` map at colony EOT
 (`364b_0688`, when `0xa897`) and for a human *loser* of a naval fight (`5fef_0352`), `4`
 Military for a human naval *winner*, `2` colony pool on building complete (`364b_0114`) and
 after the King's Galleon popup (`5fef_1908`). Also (`281f_048e` = queue-next, `281f_0498` = pool switch, 2026-08-29 sweep): `48d3_06ba`

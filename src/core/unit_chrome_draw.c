@@ -288,6 +288,12 @@ static void unit_chrome_blit_unit_colored_shadow(
     sprite_index,
     sx
   );
+  /* FUN_112b_01ba 112b:075d-0785 (the decompile drops the args): with the
+   * repair digit up (local_1a) at full scale, ICONS 0x38 — the red X — at
+   * (sprite x + 4, y + 4). Seen on the DOS Europe harbor, port_bugs.md #1381c. */
+  if (unit_chrome_is_repair_badge(orders_index) && UNIT_CHROME_REPAIR_X_SPRITE < sheet->sprite_count) {
+    ss_blit_sprite(sheet, UNIT_CHROME_REPAIR_X_SPRITE, fb, sx + 4, y + 4);
+  }
 }
 
 static void unit_chrome_blit_unit_colored(

@@ -221,8 +221,8 @@ static int unit_trainfail(void) {
   ColonizeTurnResult prod;
   memset(&prod, 0, sizeof(prod));
   turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, &pops, &game_txt);
-  if (strstr(eu.status, "No students") == NULL) {
-    fprintf(stderr, "trainfail: status want No students got '%s'\n", eu.status);
+  if (strstr(eu.status, "teacher") == NULL) {
+    fprintf(stderr, "trainfail: status want @TRAINFAIL sentence got '%s'\n", eu.status);
     assets_msg_free(&game_txt);
     return 1;
   }
@@ -301,8 +301,8 @@ static int unit_trainprofession(void) {
     assets_msg_free(&game_txt);
     return 1;
   }
-  if (strstr(eu.status, "trained") == NULL) {
-    fprintf(stderr, "trainprof: status want trained got '%s'\n", eu.status);
+  if (strstr(eu.status, "specialty profession") == NULL) {
+    fprintf(stderr, "trainprof: status want @TRAINPROFESSION sentence got '%s'\n", eu.status);
     assets_msg_free(&game_txt);
     return 1;
   }

@@ -12,6 +12,7 @@
 #include "core/popup.h"
 #include "core/popup_msg.h"
 #include "core/reports.h"
+#include "core/reports_names.h"
 #include "core/ss.h"
 #include "core/trade_screen.h"
 #include "core/ui_colors.h"
@@ -124,10 +125,14 @@ static int unit_dock_orders_menu(void) {
   ColonyScreenView view;
   memset(&view, 0, sizeof(view));
   view.transport_unit_id = -1;
+  /* port_bugs.md #1395: @SHIPOPTIONS row 1 is `0 < DS:0x33e` (strip slot). */
+  view.docked_transport_ids[0] = wagon_id;
+  view.docked_transport_ids[1] = ship_id;
+  view.docked_transport_count = 2;
 
   int rc = 0;
 
-  /* Fresh ship, no cargo, not yet selected: Clear orders (already none) and
+  /* Fresh ship, no cargo, in strip slot 1: Clear orders (already none) and
    * Unload all cargo (nothing aboard) are omitted. */
   colony_screen_open_dock_orders(&view, &units, &game_txt, ship_id);
   if (!view.dock_orders_open || view.dock_orders_count != 4) {
@@ -158,6 +163,8 @@ static int unit_dock_orders_menu(void) {
     units_load_goods(&units, ship_id, COLONIZE_CARGO_SUGAR, 50);
     units_order_sentry(&units, ship_id);
     view.transport_unit_id = ship_id;
+    view.docked_transport_ids[0] = ship_id; /* front slot: no Move to front */
+    view.docked_transport_ids[1] = wagon_id;
     colony_screen_open_dock_orders(&view, &units, &game_txt, ship_id);
     if (view.dock_orders_count != 4 ||
         view.dock_orders_actions[0] != COLONY_DOCK_ORDER_CLEAR ||
@@ -231,6 +238,53 @@ static int unit_dock_orders_menu(void) {
     if (rc == 0 && !saw_fortify) {
       fprintf(stderr, "dock_orders: Artillery missing Fortify label\n");
       rc = 1;
+    }
+    /* port_bugs.md #1395: @UNITOPTIONS has 5 lines, the 5th "No changes."
+     * always offered; no Unload row on the land body. */
+    const int n = view.dock_orders_count;
+    if (rc == 0 && (n != 4 || view.dock_orders_actions[0] != COLONY_DOCK_ORDER_ACTIVATE ||
+                    view.dock_orders_actions[n - 1] != COLONY_DOCK_ORDER_CANCEL ||
+                    strcmp(view.dock_orders_labels[n - 1], "No changes.") != 0)) {
+      fprintf(stderr, "dock_orders: Artillery expected [Move, Sentry, Fortify, No changes.] got %d\n", n);
+      rc = 1;
+    }
+    /* 5746 row 1: unit != DS:0x8d78 (board_first_slot). */
+    units.board_first_slot = 2;
+    if (rc == 0 && units.units[2].id == artillery_id) {
+      colony_screen_open_dock_orders(&view, &units, &game_txt, artillery_id);
+      if (view.dock_orders_count != 3 || view.dock_orders_actions[0] == COLONY_DOCK_ORDER_ACTIVATE) {
+        fprintf(stderr, "dock_orders: front Artillery must not offer Move to front\n");
+        rc = 1;
+      }
+    }
+    units.board_first_slot = -1;
+  }
+
+  /* port_bugs.md #1395 %STRING1: " (" + @JOB column 1 + ")" for a colonist
+   * type whose profession != 0x1c (FUN_2f2b_5746). */
+  if (rc == 0) {
+    reports_names_load_catalogs("COLONIZE");
+    const int colonist_type = units_find_type(&units, "Colonists");
+    const int col_id = units_spawn_allow_stack(&units, colonist_type, 5, 5);
+    ColonizeUnit* cu = units_get(&units, col_id);
+    if (!cu) {
+      fprintf(stderr, "dock_orders: colonist spawn failed\n");
+      rc = 1;
+    } else {
+      cu->profession = COLONIZE_PROF_FREE_COLONIST;
+      colony_screen_open_dock_orders(&view, &units, &game_txt, col_id);
+      if (strchr(view.dock_orders_title, '(') != NULL) {
+        fprintf(stderr, "dock_orders: free colonist title '%s'\n", view.dock_orders_title);
+        rc = 1;
+      }
+      cu->profession = 0;
+      colony_screen_open_dock_orders(&view, &units, &game_txt, col_id);
+      char want[96];
+      snprintf(want, sizeof(want), " (%s)", reports_names_field("JOB", 0, 1));
+      if (strstr(view.dock_orders_title, want) == NULL) {
+        fprintf(stderr, "dock_orders: expert title '%s' lacks '%s'\n", view.dock_orders_title, want);
+        rc = 1;
+      }
     }
   }
 

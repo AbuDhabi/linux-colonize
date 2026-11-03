@@ -881,6 +881,7 @@ void ai_king_succession(ColonizeTurnContext* ctx) {
     tok.string2 = heir_adj;
     tok.string3 = merged_adj;
     char body[AI_POPUP_BODY_LEN];
+    sound_set_bgm(3); /* asm 0x3C712 FUN_281f_04ac(3), port_bugs.md #1402 */
     popup_msg_fill(ctx->messages, "SUCCESSION", &tok, "", body, sizeof(body));
     (void)ai_popup_enqueue_ok_ctx(
       ctx->ai_popups, AI_POPUP_TAG_INFO, human, merged, heir, NULL, body
@@ -1272,11 +1273,7 @@ static void ai_king_show_declare_choice(ColonizeTurnContext* ctx, int human, int
     if (ai_popup_enqueue_choice_ctx(ctx->ai_popups, AI_POPUP_TAG_KING_CONGRESS, human,
                                     ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, human), sol, NULL,
                                     body, labels, ids, 2)) {
-      if (ctx->status && ctx->status_size) {
-        snprintf(ctx->status, ctx->status_size,
-                 "Congress debates independence (SoL %d%%).", sol);
-      }
-      return;
+      return; /* #1405: the invented "Congress debates" status line is gone */
     }
     /* Queue full — fall through to auto declare. */
   }

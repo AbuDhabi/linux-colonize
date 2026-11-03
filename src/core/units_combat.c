@@ -1746,10 +1746,10 @@ const char* units_home_port_name(const ColonizeCol1Save* col1, int nation_id) {
  * DOS's off-map Europe slot for a damaged ship with no repair port (see
  * units_ship_enter_repair): FUN_5fef_0352 places the hull at
  * (nation-0x14, nation-0x14) and leaves the repair counter (+0x315a)
- * running. The port has no off-map unit slots, so the equivalent is the
- * Europe harbor's Expected lane with the DOS repair timer as the wait —
- * the ship leaves the map NOW (that is what makes it pixelate away under
- * the combat dissolve) and comes back when the timer is out.
+ * running. For the human that slot is the Europe harbor: the hull becomes
+ * a damaged harbor ship (europe_harbor_push_damaged) — it leaves the map NOW
+ * (that is what makes it pixelate away under the combat dissolve) and is
+ * repaired in port when the timer is out (europe_harbor_repair_tick).
  * Europe is the human's screen only. An AI hull (every nation, port_bugs.md
  * #871: the off-map relocation is not human-only) goes to its Europe dock
  * 236+n (DOS n - 0x14) — the same slot turn_route_damaged_ships holds it in until the
@@ -1779,37 +1779,16 @@ static void units_ship_damaged_to_europe(ColonizeUnitPool* pool, ColonizeUnit* l
     return; /* no friendly Europe during the WoI (DOS raw 85139 sinks her) */
   }
   const ColonizeUnitType* lt = units_type(pool, lose->type_index);
-  int turns = (int)lose->col1_counter16;
-  if (turns < 1) {
-    turns = 1;
-  }
-  /* port_bugs.md #1386: DOS FUN_5fef_0352 raw 99618-99619 only READS the
-   * nation return-from-Europe tile (-0x77c6/-0x77c5) into the hull's goto
-   * (+0x314d/e); it never writes the nation record. The port's live copy of
-   * the human's return tile is eu->last_exit_* (synced to the nation record
-   * at save), so the hull re-exports there and the enqueue must not
-   * overwrite it with the fight tile. */
-  const int ex = eu->last_exit_valid ? eu->last_exit_x : lose->goto_x;
-  const int ey = eu->last_exit_valid ? eu->last_exit_y : lose->goto_y;
-  const bool east = eu->last_exit_valid ? eu->last_exit_east
-                    : g_units_fallout_map ? (ex >= (int)g_units_fallout_map->width / 2)
-                                          : true;
-  const int keep_x = eu->last_exit_x;
-  const int keep_y = eu->last_exit_y;
-  const bool keep_east = eu->last_exit_east;
-  const bool keep_valid = eu->last_exit_valid;
-  const bool queued = europe_enqueue_expected(
-    eu, lose->type_index, lt && lt->name[0] ? lt->name : "", NULL, NULL, 0,
-    lose->hold_goods_type, lose->hold_goods_amount, ex, ey, east, turns
-  );
-  eu->last_exit_x = keep_x;
-  eu->last_exit_y = keep_y;
-  eu->last_exit_east = keep_east;
-  eu->last_exit_valid = keep_valid;
-  if (queued) {
-    /* The Europe wait IS the repair (same rule turn_route_damaged_ships
-     * used): she docks seaworthy. */
-    lose->col1_flags15 = (uint8_t)(lose->col1_flags15 & 0x7fu);
+  /* port_bugs.md #1381c (DOS trace 2026-11-03, VR_SOUND, French Privateer vs
+   * English Caravel): the hull lands at (237,237) with bit7, +0x315a 6 and
+   * goto = the nation return tile, which stays as it was (#1386). The
+   * Europe screen shows it in port under repair (red X + digit 2), the EOT
+   * tick counts 6 -> 7 -> 8, then @REFIT and the Europe screen open. So it
+   * goes to the harbor, damaged, not the Expected lane; the wait is the
+   * threshold minus the preset, not the preset. */
+  const bool east =
+    g_units_fallout_map ? (lose->goto_x >= (int)g_units_fallout_map->width / 2) : true;
+  if (europe_harbor_push_damaged(eu, lose, lt && lt->name[0] ? lt->name : "", east)) {
     units_despawn(pool, lose->id);
   }
 }
@@ -3502,6 +3481,7 @@ void units_lcr_burial_resolve_w(
   int dist = 0x7fffffff;
   const int near_tribe = units_lcr_nearest_tribe_dist(col1, x, y, &dist);
   int screwed_tribe = -1;
+  bool fizzle_in = false;
   if (near_tribe >= 0 && dist < 0x7fffffff) {
     const int span = (dist + 5) << skill;
     if (dos_rng_range(rng, 1, span < 1 ? 1 : span) < 4) {
@@ -3529,7 +3509,20 @@ void units_lcr_burial_resolve_w(
     units_lcr_popup(nation, human_nation, "BURIAL2", gold, &tok);
   } else {
     const int gold = (dos_rng_range(rng, 1, 8) + (skill + 5) * 2) * 2 * 100;
-    (void)units_spawn_treasure_train(pool, x, y, nation, gold);
+    /* port_bugs.md #1403: 65dd:080a tail, `local_4` set with the new Treasure
+     * (asm 0x61adc) -> 7x7 redraw + FUN_281f_03ea(8): it fizzles IN, human only. */
+    fizzle_in = nation == human_nation;
+    if (fizzle_in) {
+      units_dissolve_notify(0);
+    }
+    if (units_spawn_treasure_train(pool, x, y, nation, gold) < 0) {
+      /* `if (param_1 < 0) goto LAB_65dd_080a`: no popup, no @SCREWED; local_e
+       * stays 0 so nothing changed on screen (identical frames, no fizzle). */
+      if (fizzle_in) {
+        units_dissolve_notify(1);
+      }
+      return;
+    }
     /* 65dd:0654: human + no tribe claim → 0x24 treasure tune (281f_048e). */
     if (nation == human_nation && screwed_tribe < 0) {
       units_play_event_sound(0x24);
@@ -3545,6 +3538,11 @@ void units_lcr_burial_resolve_w(
     }
     PopupMsgTokens stok;
     memset(&stok, 0, sizeof(stok));
+    stok.string0 = units_combat_nation_label(col1, screwed_tribe);
+    /* port_bugs.md #1404: DOS shows @SCREWED (FUN_281f_0652(0x1dbe)) first,
+     * THEN FUN_281f_0d6c(tribe, nation, 100), so an escalation popup from the
+     * 4cc6_00f2 tail queues behind the box. */
+    units_lcr_popup(nation, human_nation, "SCREWED", 0, &stok);
     if (col1 && nation >= 0 && nation < 4) {
       /* DOS FUN_281f_0d6c(tribe, nation, 100): +100 there is an ALARM rise;
        * the port's relation accessor is sign-inverted (worse = negative),
@@ -3553,8 +3551,11 @@ void units_lcr_burial_resolve_w(
        * tail rolls rand(0,10) once the pair sits at alarm 100. */
       ai_contact_alarm_delta_00f2_w(w, screwed_tribe, nation, 100);
     }
-    stok.string0 = units_combat_nation_label(col1, screwed_tribe);
-    units_lcr_popup(nation, human_nation, "SCREWED", 0, &stok);
+  }
+  if (fizzle_in) {
+    /* The tail runs after the popups are answered (headless: no pump, no hook). */
+    units_combat_pump_popups();
+    units_dissolve_notify(1);
   }
 }
 
@@ -3617,9 +3618,14 @@ bool units_lcr_burial_apply_popup_w(
   /* DOS gates the whole block on local_3c == 1; Esc / row 2 = stay clear. */
   if (!popups->result_cancelled && popups->result_choice_id == 1) {
     const int payload = popups->result_payload;
+    const int nation = popups->result_nation_a;
+    const int skill = popups->result_nation_b;
+    /* Consume first: the BURIAL3 fizzle-in pumps @BURIAL3 / @SCREWED before
+     * it presents (#1403), and the pump refuses to run while a result is
+     * mid-application. The caller's own consume is then a no-op. */
+    ai_popup_consume_result(popups);
     units_lcr_burial_resolve_w(
-      w, popups->result_nation_a, human_nation,
-      payload & 0xff, (payload >> 8) & 0xff, popups->result_nation_b,
+      w, nation, human_nation, payload & 0xff, (payload >> 8) & 0xff, skill,
       (payload >> 16) & 0xff
     );
   }
@@ -3820,18 +3826,32 @@ bool units_resolve_lcr_rumour_w(
     if (nation == human_nation) {
       units_play_event_sound(0x3c); /* FUN_65dd_0004 65dd:04b6 case 2: queued tune (281f_048e) */
     }
-    /* Case 2 (103536-103548): Treasure unit with +0x315b = hundreds. */
+    /* Case 2 (103536-103548): Treasure unit with +0x315b = hundreds.
+     * port_bugs.md #1403: `local_4 = 1` (asm 0x616c3) -> the 65dd:080a tail
+     * redraws 7x7 and fizzles the Treasure IN (FUN_281f_03ea(8)), human only. */
+    const bool fizzle_in = nation == human_nation;
+    if (fizzle_in) {
+      units_dissolve_notify(0);
+    }
     const int gold = roll.treasure_hundreds * 100;
     const int treasure_id = units_spawn_treasure_train(pool, x, y, nation, gold);
     if (treasure_id < 0) {
       /* 103543 `if (param_1 < 0) goto LAB_65dd_080a`: no Treasure, no popup,
-       * and DS:0x1dc7 stays put (port_bugs.md #502). */
+       * and DS:0x1dc7 stays put (port_bugs.md #502). Nothing changed, so the
+       * paired phase 1 sees identical frames and skips the animation. */
+      if (fizzle_in) {
+        units_dissolve_notify(1);
+      }
       break;
     }
     s_lcr_cibola_total++; /* 103546: `*(char *)0x1dc7 += 1` after the spawn. */
     tok.has_number1 = true;
     tok.number1 = gold;
     units_lcr_popup(nation, human_nation, "LOSTCITY2", gold, &tok);
+    if (fizzle_in) {
+      units_combat_pump_popups();
+      units_dissolve_notify(1);
+    }
     break;
   }
   case COLONIZE_LCR_SURVIVORS_JOIN: {
@@ -3887,11 +3907,10 @@ bool units_resolve_lcr_rumour_w(
        * despawns it — present it now (headless: no pump, stays queued). */
       units_combat_pump_popups();
     }
-    /* 65dd:080a tail: only the despawn arm (local_e) redraws 7×7 and presents
-     * with the fizzle (FUN_281f_03ea, 8) — the piece pixelates away. */
-    units_dissolve_notify(0);
+    /* 65dd:080a tail (asm 0x61c89): case 5 sets local_e but not local_4, so
+     * FUN_281f_09ba repaints the 7x7 and presents it plainly — no
+     * FUN_281f_03ea fizzle (port_bugs.md #1403). */
     units_despawn(pool, unit_id);
-    units_dissolve_notify(1);
     break;
   case COLONIZE_LCR_BURIAL_MOUNDS: {
     if (nation == human_nation) {

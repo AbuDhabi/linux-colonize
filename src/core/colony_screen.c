@@ -655,11 +655,33 @@ void colony_screen_open_dock_orders(
   }
   colony_screen_close_subpanels(view);
 
+  /* Ships and cargo transports use @SHIPOPTIONS (DOS thunk_FUN_1000_99b8, the
+   * carrier strip: @UNIT cargo column != 0, so Wagon Trains too, port_bugs.md
+   * #782); ordinary land units use @UNITOPTIONS (FUN_2f2b_5746, raw 52321-52437).
+   * Feeding Artillery through the ship section exposed its Fortify row as
+   * "Anchor in harbor" (port_bugs.md #941). */
+  const bool transport = units_is_transport(units, unit_id);
+
+  /* port_bugs.md #1395 %STRING1, catalog text only:
+   *   5746: FUN_281f_0b28 (DS:0x30e[type] >= 0) && profession != 0x1c ->
+   *         " " (DS:0x50) "(" (DS:0x5e) @JOB column 1 (-0x715c + prof*8) ")" (DS:0x60);
+   *   99b8: type == 0x0a -> " (" + ltoa(+0x315b * 100) + ")". A Treasure has
+   *         cargo 0 so it never reaches the carrier strip on shipped NAMES.TXT. */
+  char suffix[64] = "";
+  if (transport) {
+    if (u->type_index == UNITS_KIND_TREASURE) {
+      snprintf(suffix, sizeof(suffix), " (%d)", units_treasure_value_gold(u));
+    }
+  } else if (units_type_has_profession_slot(u->type_index) &&
+             u->profession != COLONIZE_PROF_FREE_COLONIST) {
+    const char* job = reports_names_field("JOB", u->profession, 1);
+    snprintf(suffix, sizeof(suffix), " (%s)", job ? job : "");
+  }
   const ColonizeUnitType* type = units_type(units, u->type_index);
   PopupMsgTokens tok;
   memset(&tok, 0, sizeof(tok));
   tok.string0 = (type && type->name[0]) ? type->name : "";
-  tok.string1 = "";
+  tok.string1 = suffix;
   popup_msg_fill(
     messages,
     "COLONYUNIT",
@@ -672,26 +694,26 @@ void colony_screen_open_dock_orders(
    * the 190 used to be a literal here. 0 = no directive → measured rows. */
   view->dock_orders_width = popup_msg_take_pending_width();
 
-  /* Ships and cargo transports use @SHIPOPTIONS (including Wagon Trains,
-   * port_bugs.md #782); ordinary land units use @UNITOPTIONS. Feeding Artillery
-   * through the ship section exposed its Fortify row as "Anchor in harbor"
-   * (port_bugs.md #941). */
-  const bool transport = units_is_transport(units, unit_id);
   const char* options_section = transport ? "SHIPOPTIONS" : "UNITOPTIONS";
   const ColonizeMsgSection* opts = messages ? assets_msg_find(messages, options_section) : NULL;
+  /* DOS loops 1..5 (@UNITOPTIONS) / 1..6 (@SHIPOPTIONS); the last row
+   * ("No changes.") is always offered. A missing section = empty labels. */
+  const int cancel_index = transport ? 5 : 4;
 
-  /* No MicroProse text in the binary: a missing options section = empty rows. */
-  static const char* const k_fallback_options[] = {
-    "",
-    "",
-    "",
-    "",
-    "",
-    ""
-  };
-  const char* const* fallback = k_fallback_options;
-  const int fallback_count = 6;
-  const int cancel_index = 5;
+  /* 99b8 row 1: `0 < DS:0x33e` — the selected carrier-strip slot is not the
+   * front one. 5746 row 1: unit != DS:0x8d78, the "moved to front" unit
+   * (port: units->board_first_slot). */
+  bool not_front = true;
+  if (transport) {
+    not_front = false;
+    for (int i = 1; i < view->docked_transport_count; ++i) {
+      if (view->docked_transport_ids[i] == unit_id) {
+        not_front = true;
+      }
+    }
+  } else if (units->board_first_slot >= 0 && units->board_first_slot < COLONIZE_UNITS_MAX) {
+    not_front = units->units[units->board_first_slot].id != unit_id;
+  }
 
   bool has_goods = false;
   const int holds = units_goods_hold_count(units, unit_id);
@@ -703,9 +725,8 @@ void colony_screen_open_dock_orders(
   }
 
   view->dock_orders_count = 0;
-  const int line_count = (opts && opts->line_count > 0) ? opts->line_count : fallback_count;
-  for (int i = 0; i < line_count && view->dock_orders_count < COLONY_DOCK_ORDERS_MAX; ++i) {
-    const char* label = (opts && i < opts->line_count) ? opts->lines[i] : fallback[i];
+  for (int i = 0; i <= cancel_index && view->dock_orders_count < COLONY_DOCK_ORDERS_MAX; ++i) {
+    const char* label = (opts && i < opts->line_count) ? opts->lines[i] : "";
     if (popup_msg_is_directive(label)) {
       continue;
     }
@@ -715,7 +736,7 @@ void colony_screen_open_dock_orders(
       switch (i) {
       case 0:
         action = COLONY_DOCK_ORDER_ACTIVATE;
-        enabled = (unit_id != view->transport_unit_id);
+        enabled = not_front;
         break;
       case 1:
         action = COLONY_DOCK_ORDER_CLEAR;
@@ -729,13 +750,13 @@ void colony_screen_open_dock_orders(
         /* port_bugs.md #783 / 99b8 case 4: enabled iff
          * `orders != 5 && orders != 6 && *(char*)(idx*0x1c+0x3146) != '\f'`
          * — a Wagon Train (@UNIT row 0x0c) never gets the Fortify /
-         * "Anchor in harbor" row. */
+         * "Anchor in harbor" row. 5746 case 4 has no type test. */
         action = COLONY_DOCK_ORDER_FORTIFY;
         enabled =
           (u->orders != UNITS_ORDER_FORTIFY && u->orders != UNITS_ORDER_FORTIFIED &&
-           u->type_index != UNITS_KIND_WAGON);
+           !(transport && u->type_index == UNITS_KIND_WAGON));
         break;
-      case 4: /* "Unload all cargo" (99b8 case 5: holds_occupied != 0) */
+      case 4: /* @SHIPOPTIONS only: "Unload all cargo" (99b8 case 5: holds_occupied != 0) */
         action = COLONY_DOCK_ORDER_UNLOAD_ALL;
         enabled = has_goods;
         break;
@@ -744,7 +765,7 @@ void colony_screen_open_dock_orders(
       }
     }
     if (!enabled) {
-      /* DOS FUN_2f2b_5746 omits ineligible rows rather than graying them. */
+      /* DOS omits ineligible rows rather than graying them. */
       continue;
     }
     view->dock_orders_actions[view->dock_orders_count] = action;
@@ -755,19 +776,6 @@ void colony_screen_open_dock_orders(
       label
     );
     view->dock_orders_count++;
-  }
-  if (view->dock_orders_count <= 0) {
-    /* The cancel row is the section's own last line (@SHIPOPTIONS /
-     * @UNITOPTIONS ""), not a second hardcoded copy of it. */
-    const char* cancel_label = fallback[cancel_index];
-    if (opts && cancel_index < opts->line_count && opts->lines[cancel_index][0]) {
-      cancel_label = opts->lines[cancel_index];
-    }
-    view->dock_orders_actions[0] = COLONY_DOCK_ORDER_CANCEL;
-    snprintf(
-      view->dock_orders_labels[0], sizeof(view->dock_orders_labels[0]), "%s", cancel_label
-    );
-    view->dock_orders_count = 1;
   }
   view->dock_orders_unit_id = unit_id;
   view->dock_orders_selection = 0;

@@ -308,6 +308,9 @@ static const PopupMsgGraphicRow k_popup_msg_mss[] = {
    * in 364b push it (ndisasm 0x2d149-0x2e9b0, the 6th push before `CALL 0xef5f`). */
   {"REBELMAJORITY", 1}, {"REBELUNANIMOUS", 1}, {"TORYMINORITY", 1}, {"TORYMAJORITY", 1},
   {"SONSDOWN", 1},
+  /* port_bugs.md #1397: @SONSUP pushes param_6 = 1 then jumps into the
+   * SONSDOWN call (ndisasm 0x2DC60-0x2DC77). */
+  {"SONSUP", 1},
   /* MSS2 — courtier: gold, prices, treaties, court news. */
   {"MULTINEXT", 2},   {"OTHERMIGHT", 2},  {"OTHERLESS", 2},  {"PRICEUP", 2},
   {"PRICEDOWN", 2},   {"SOMEBOYCOTT", 2}, {"KISSUP", 2},     {"KISSSORRY", 2},
@@ -316,6 +319,8 @@ static const PopupMsgGraphicRow k_popup_msg_mss[] = {
   {"CAPTURED2", 2},   {"CANCELTREATY", 2},
   /* FUN_364b_0000 param_6 (see MSS1). */
   {"TRAINPROFESSION", 2}, {"TRAINFAIL", 2},
+  /* #1397: shared tail LAB_364b_0fdb (ndisasm 0x2DF15 / 0x2DF49, PUSH 2). */
+  {"TRAINCRIMINAL", 2}, {"TRAININDENTURED", 2},
   /* MSS3 — frontiersman: terrain work, scouts, rumours. */
   {"TUTORIAL3", 3},   {"TUTORIAL9", 3},   {"TUTORIAL10", 3}, {"TUTORIAL13", 3},
   {"NOPLOW", 3},      {"NOROAD", 3},      {"NOPORT", 3},     {"TUTNOSPACES", 3},
@@ -353,6 +358,11 @@ static const PopupMsgGraphicRow k_popup_msg_mss[] = {
   {"ORE", 5},         {"TOOLS", 5},       {"ALREADYHAVE", 5}, {"NEEDTOOLS", 5},
   {"NEEDTOOLS0", 5},  {"SPOIL1", 5},      {"SPOIL2", 5},     {"CARGOREADY0", 5},
   {"CARGOREADY1", 5}, {"CARGOREADY2", 5},
+  /* #1397: food tail 0x2E205-0x2E2B3 (PUSH 5 for @FOOD1/@FOOD2/@VANISH/
+   * @STARVE1) and the @SPOIL1/2 buffer digit-patched +2 at warehouse level
+   * >= 2 (0x2E8D1). */
+  {"FOOD1", 5},       {"FOOD2", 5},       {"STARVE1", 5},    {"VANISH", 5},
+  {"SPOIL3", 5},      {"SPOIL4", 5},
   /* Colony-screen abandon confirm: DOS 2f2b builds "ABANDON" (+"2" after
    * 1575 with no other colony) into a stack buffer and calls
    * FUN_281f_0652(name, 5) — a dynamic tag, so it is keyed by name here. */

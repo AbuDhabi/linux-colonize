@@ -67,7 +67,7 @@ Status: **Done** / **Partial** / **Missing** / **PARKED**.
 |-------|------|-----|-------|--------|
 | Land | Own colony | Stack / join | Enter | Done |
 | Land | Foreign Euro + defender | Combat | Combat | Done |
-| Land | Empty foreign Euro | Capture / Revere | Capture-on-enter + Revere | Done (thin) |
+| Land | Empty foreign Euro | Capture / Revere | Capture-on-enter + Revere | Done |
 | Land settler | Native village (no colony) | Illegal squat | Deny | Done |
 | Missionary / combatish | Native village | Meet / raid | Meet from adjacent (stay put): real `@ACTIONS` menu per unit type, met or not (P8.8; the invented unmet-tribe Attack/Leave warn is deleted, port_bugs.md #542); combatish Attack Village commits the move; `2820` trade + haggle in `ai_contact_trade.c` | Done |
 | Wagon | Colony tile | Exhaust MP (`465b:08f8`) | Exhaust on enter | Done |

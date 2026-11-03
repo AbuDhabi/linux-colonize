@@ -1044,6 +1044,29 @@ void sound_set_bgm(int track) {
   pthread_mutex_unlock(&g_sound.lock);
 }
 
+void sound_set_bgm_pool(int track) {
+  if (!g_sound.inited || !COLONIZE_SOUND_PLAYBACK_ENABLED) {
+    return;
+  }
+  pthread_mutex_lock(&g_sound.lock);
+  g_sound.category = track;
+  pthread_mutex_unlock(&g_sound.lock);
+}
+
+void sound_request_bgm(int track) {
+  if (!g_sound.inited || !COLONIZE_SOUND_PLAYBACK_ENABLED) {
+    return;
+  }
+  pthread_mutex_lock(&g_sound.lock);
+  const bool restart = g_sound.opts.event_music && !g_sound.opts.background_music;
+  pthread_mutex_unlock(&g_sound.lock);
+  if (restart) {
+    sound_set_bgm(track);
+  } else {
+    sound_set_bgm_pool(track);
+  }
+}
+
 /* True while the port's in-process OPENING/CLOSING cinematic is on screen. */
 void sound_set_demo(bool active) {
   if (!g_sound.inited) {

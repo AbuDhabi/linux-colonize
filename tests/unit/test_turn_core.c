@@ -3343,13 +3343,9 @@ static int case_food_shortage_status(void) {
   ColonizeTurnResult prod;
   memset(&prod, 0, sizeof(prod));
   turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(NULL), .col1_ok=((NULL) != NULL), .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, NULL, NULL);
-  if (prod.food_shortages < 1 || strstr(eu.status, "Food shortage") == NULL) {
-    fprintf(
-      stderr,
-      "food shortage want count+status got shortages=%d '%s'\n",
-      prod.food_shortages,
-      eu.status
-    );
+  /* No status text: DOS has none here (port_bugs.md #1405). */
+  if (prod.food_shortages < 1) {
+    fprintf(stderr, "food shortage want count got shortages=%d\n", prod.food_shortages);
     return 1;
   }
   fprintf(stderr, "food shortage status ok\n");
@@ -4259,7 +4255,8 @@ static int case_schoolhouse_education(void) {
   }
   fprintf(stderr, "colony education specialty ok\n");
 
-  /* Teacher ready, no students → status crumb. */
+  /* Teacher ready, no students → @TRAINFAIL (text: test_turn_school
+   * unit_trainfail); the counter still resets on qualifying. */
   {
     EuropeScreen eu;
     memset(&eu, 0, sizeof(eu));
@@ -4272,8 +4269,9 @@ static int case_schoolhouse_education(void) {
     col->stock[COLONIZE_CARGO_FOOD] = 50; /* avoid food-shortage overwrite */
     memset(&prod, 0, sizeof(prod));
     turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(NULL), .col1_ok=((NULL) != NULL), .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, NULL, NULL);
-    if (strstr(eu.status, "No students") == NULL) {
-      fprintf(stderr, "education no-students want status got '%s'\n", eu.status);
+    if (col->colonists[0].turns_in_job != 0) {
+      fprintf(stderr, "education no-students want teacher counter 0 got %d\n",
+              col->colonists[0].turns_in_job);
       return 1;
     }
     fprintf(stderr, "colony education no-students ok\n");
@@ -5148,8 +5146,9 @@ static int case_year_end_defeat_victory(void) {
   ColonizeTurnResult out;
   memset(&out, 0, sizeof(out));
   turn_run_year_end_chrome(&ctx, &out);
-  if (!out.year_end_defeat || strstr(status, "Defeat") == NULL) {
-    fprintf(stderr, "year-end defeat want latch+status got defeat=%d '%s'\n", out.year_end_defeat, status);
+  /* DOS has no status line here, only @LOSENOCOLONIES (port_bugs.md #1405). */
+  if (!out.year_end_defeat) {
+    fprintf(stderr, "year-end defeat want latch got defeat=%d\n", out.year_end_defeat);
     return 1;
   }
   /* WoI skips defeat. */
@@ -5276,8 +5275,9 @@ static int case_year_end_defeat_victory(void) {
   snprintf(c->name, sizeof(c->name), "Jamestown");
   c->colonist_count = 5;
   turn_run_year_end_chrome(&ctx, &out);
-  if (strstr(status, "Game era") == NULL || strstr(status, "Jamestown") == NULL) {
-    fprintf(stderr, "game-era want Jamestown status got '%s'\n", status);
+  /* Status = @RETIRING's first sentence (port_bugs.md #1405). */
+  if (strstr(status, "steps down") == NULL) {
+    fprintf(stderr, "game-era want @RETIRING status got '%s'\n", status);
     return 1;
   }
   fprintf(stderr, "year-end game-era richest ok\n");
@@ -5339,7 +5339,7 @@ static int case_year_end_section_d(void) {
   ctx.col1 = &dcol;
   ctx.col1_ok = true;
   turn_run_year_end_chrome(&ctx, &out);
-  if (strstr(status, "considers granting independence") == NULL) {
+  if (strstr(status, "considering granting") == NULL) {
     fprintf(stderr, "year-end D want @OTHERMIGHT rising got '%s'\n", status);
     return 1;
   }
@@ -5388,7 +5388,7 @@ static int case_year_end_section_d(void) {
   status[0] = '\0';
   memset(&out, 0, sizeof(out));
   turn_run_year_end_chrome(&ctx, &out);
-  if (strstr(status, "easing") == NULL) {
+  if (strstr(status, "Spies Report") == NULL) {
     fprintf(stderr, "year-end D want @OTHERLESS got '%s'\n", status);
     return 1;
   }
@@ -5699,8 +5699,8 @@ static int case_spoilage_spoil1(void) {
     assets_msg_free(&game_txt);
     return 1;
   }
-  if (strstr(eu.status, "spoiled") == NULL || strstr(eu.status, "Tobacco") == NULL) {
-    fprintf(stderr, "spoilage status want Tobacco spoiled got '%s'\n", eu.status);
+  if (strstr(eu.status, "Roanoke") == NULL || strstr(eu.status, "warehouse") == NULL) {
+    fprintf(stderr, "spoilage status want @SPOIL1 sentence got '%s'\n", eu.status);
     assets_msg_free(&game_txt);
     return 1;
   }
@@ -5897,7 +5897,9 @@ static int case_ship_build_ready(void) {
   }
   (void)units_tick_ship_build_ready(&units, &colonies, 0, 0, status, sizeof(status), &want_eu);
   /* Timer done; bit7 clear + @REFIT is the repair tick's (FUN_3844_00f2). */
-  (void)units_tick_drydock_repair(&units, &colonies, 0, 0, status, sizeof(status), NULL, NULL);
+  (void)units_tick_drydock_repair(
+    &units, &colonies, 0, 0, status, sizeof(status), NULL, test_game_txt()
+  );
   if ((u->col1_flags15 & 0x80u) != 0 || u->col1_counter16 < 4) {
     fprintf(
       stderr,
@@ -5907,8 +5909,8 @@ static int case_ship_build_ready(void) {
     );
     return 1;
   }
-  if (strstr(status, "repaired") == NULL) {
-    fprintf(stderr, "ship-build status want repaired got '%s'\n", status);
+  if (strstr(status, "has completed its repairs") == NULL) {
+    fprintf(stderr, "ship-build status want @REFIT sentence got '%s'\n", status);
     return 1;
   }
   if (want_eu != 0) {
@@ -5963,8 +5965,8 @@ static int case_phase_k_build_advisory(void) {
   ColonizeTurnResult prod;
   memset(&prod, 0, sizeof(prod));
   turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(NULL), .col1_ok=((NULL) != NULL), .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, NULL, NULL);
-  if (strstr(eu.status, "hammers") == NULL) {
-    fprintf(stderr, "build advisory K want hammers status got '%s'\n", eu.status);
+  if (eu.status[0] != '\0') {
+    fprintf(stderr, "build advisory K want no typed status got '%s'\n", eu.status);
     return 1;
   }
   fprintf(stderr, "build advisory K ok\n");
@@ -5988,7 +5990,7 @@ static int case_phase_k_build_advisory(void) {
   col->colonists[0].profession = COLONIZE_PROF_CARPENTER;
   eu.status[0] = '\0';
   memset(&prod, 0, sizeof(prod));
-  turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(NULL), .col1_ok=((NULL) != NULL), .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, NULL, NULL);
+  turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(NULL), .col1_ok=((NULL) != NULL), .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, NULL, test_game_txt());
   if (strstr(eu.status, "tools") == NULL) {
     fprintf(stderr, "build advisory K tools want status got '%s'\n", eu.status);
     return 1;

@@ -213,6 +213,12 @@ typedef struct EuropeHarborShip {
   /* EuropeHarborShip trade_route_plus1 -- see docs/europe.md#europeharborship-trade_route_plus1 */
   int trade_route_plus1;
   int trade_stop;
+  /* A combat-damaged hull under repair in port (DOS +0x3148 bit7 on a 236+n
+   * record, port_bugs.md #1381c): shown with the repair digit, cannot sail.
+   * repair_counter is DOS +0x315a, ticked +1 per turn up to the @UNIT
+   * defense column (europe_harbor_repair_tick). Harbor ships only. */
+  bool damaged;
+  int repair_counter;
 } EuropeHarborShip;
 
 typedef enum EuropeHit {
@@ -617,6 +623,23 @@ bool europe_harbor_push_ex(
   const int* hold_goods_type,
   const int* hold_goods_amount
 );
+
+/*
+ * A combat-damaged hull with no repair port goes straight into the harbor,
+ * under repair (DOS FUN_5fef_0352: x = y = nation - 0x14 with bit7 and the
+ * +0x315a preset kept; port_bugs.md #1381c). It keeps its goods holds, its
+ * repair counter (u->col1_counter16) and its re-export tile (u->goto_*, the
+ * nation return tile 0352 stamped). Returns false when the harbor is full.
+ */
+bool europe_harbor_push_damaged(EuropeScreen* eu, const ColonizeUnit* u, const char* name, bool exit_east);
+
+/*
+ * DOS FUN_3844_00f2's repair arm for the human's hulls in port: each damaged
+ * harbor ship's counter +1 (no colony bonus off the map); at the @UNIT
+ * defense column it is repaired. Writes up to `max` repaired harbor indices
+ * into `out` (for @REFIT) and returns how many.
+ */
+int europe_harbor_repair_tick(EuropeScreen* eu, const ColonizeUnitPool* units, int* out, int max);
 
 /* Map→Europe: enqueue Expected Soon (not instant harbor). */
 bool europe_enqueue_expected(

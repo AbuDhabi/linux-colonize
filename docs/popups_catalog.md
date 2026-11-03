@@ -15,7 +15,11 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 ## Appendix A — Full `GAME.TXT` `@SECTION` checklist
 
 "VGA PARKED" below = port-drawn frame, accepted under port_plan.md D4 (closed
-2026-10-28: "frames may stay port-drawn"); not open work.
+2026-10-28: "frames may stay port-drawn"); not open work. Rows that say "EOT …
+ai_popup OK" for a colony message are colony events (`FUN_364b_0000`: map scroll,
+Continue / Zoom rows, MSS figure; popups.md "Colony-event choices"). The
+2026-11-03 review replaced every "Done thin" label (gaps filed as port_bugs.md
+#1393-#1405).
 
 | `@SECTION` | Status | Port note |
 |------------|--------|-----------|
@@ -57,18 +61,18 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@SHIPCOMBAT` | Done | `game_report_enter_reason` (`game_loop_orders.c`) — real OK popup on `COLONIZE_ENTER_BOUNCE_FOREIGN` when the mover is sea (non-combat ship attacking a ship) |
 | `@SHIPLAKE` | Done | new gate: `units_enter_probe` denies a ship entering an enclosed water region with `COLONIZE_ENTER_LAKE_BLOCKED`; `game_report_enter_reason` shows the real OK popup. Uses `layer3` region nibble `> 1` (stricter than the shared `map_tile_is_lake` `!= 1`) since a zeroed/uncomputed region nibble (many synthetic test/AI fixtures) must not misread as a lake — real generated/loaded maps never legitimately carry region 0 on water |
 | `@LANDFIRST` | Done | new `COLONIZE_ENTER_LANDFIRST` reason (sea mover meeting a land foe on the dest tile); `game_report_enter_reason` shows the real OK popup |
-| `@SEACOLONY` | Done thin | Build Colony on water → ai_popup OK |
-| `@NOPORT` | Done thin | inland Build Colony → CHOICE cancel/proceed |
-| `@TOOMOUNTAIN` | Done thin | Build Colony on mountains → ai_popup OK |
-| `@BUILT` | Done thin | EOT building complete ai_popup OK (`@BUILT`); VGA PARKED |
+| `@SEACOLONY` | Done | Build Colony on water → ai_popup OK |
+| `@NOPORT` | Done | inland Build Colony → CHOICE cancel/proceed |
+| `@TOOMOUNTAIN` | Done | Build Colony on mountains → ai_popup OK |
+| `@BUILT` | Done | EOT building complete ai_popup OK (`@BUILT`); VGA PARKED |
 | `@FULL` | n/a | port_bugs.md #690: the port's Join-at-POP_MAX popup was invented and is gone. DOS's join branch (asm `0x227b2`) bails silently, and the 32-colonist cap inside the admit (`overlays.c:10252-10255`) says nothing; `@FULL` has no DS tag in `docs/popup_tag_ids.md` and no push/lea site near the handler |
-| `@NOTEACHER` | Done thin | unskilled → school assign refuse + ai_popup OK |
-| `@NEEDCOLLEGE` | Done thin | school assign when job tier 2 > building → ai_popup OK |
-| `@NEEDUNIVERSITY` | Done thin | school assign when job tier 3 > building → ai_popup OK |
-| `@TRAINFAIL` | Done thin | EOT Phase G ready teacher + no students ai_popup OK |
-| `@TRAINCRIMINAL` | Done thin | EOT Phase G Criminal→Indentured ai_popup OK |
-| `@TRAININDENTURED` | Done thin | EOT Phase G Indentured→Free ai_popup OK |
-| `@TRAINPROFESSION` | Done thin | EOT Phase G graduate + Phase H field-skill discover ai_popup OK |
+| `@NOTEACHER` | Done | unskilled → school assign refuse + ai_popup OK |
+| `@NEEDCOLLEGE` | Done | school assign when job tier 2 > building → ai_popup OK |
+| `@NEEDUNIVERSITY` | Done | school assign when job tier 3 > building → ai_popup OK |
+| `@TRAINFAIL` | Done | EOT Phase G ready teacher + no students ai_popup OK |
+| `@TRAINCRIMINAL` | Done | EOT Phase G Criminal→Indentured ai_popup OK |
+| `@TRAININDENTURED` | Done | EOT Phase G Indentured→Free ai_popup OK |
+| `@TRAINPROFESSION` | Done | EOT Phase G graduate + Phase H field-skill discover ai_popup OK |
 | `@SIEGE` | Done | colony-screen eject refusal (`game_colony_request_eject`, FUN_2f2b_011e code 0x14; siege test `colonies_siege_margin_w` = FUN_2f2b_0000) |
 | `@ABANDON` | Done | colony abandon confirm; `ai_popup` `AI_POPUP_TAG_COLONY_ABANDON` (2026-09-03 — was a colony-screen-local box with no wrap/width/figure) |
 | `@ABANDON2` | Done | same, picked when the owner has < 2 colonies **and** year > 1575 (DOS 2f2b `caseD_a` `CMP [0x538a],0x627`; the copy's "after 1600" is flavour text only) |
@@ -86,46 +90,46 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@COLLEGE2` | Done | purchase / train menus |
 | `@UNIV3` | Done | purchase / train menus |
 | `@NODOCKS` | Done | DOS site confirmed 2026-09-16: `viceroy_overlays.asm` OVL08_L0040 raw :0x13e2 LEA (`LAB_OVL08_L0040__0013e0+2`) OK popup; port shows it at Fisherman assignment without Docks — `game_loop.c` `"NODOCKS"` `popup_msg_fill` sites (colony job pick + keyboard path) |
-| `@CARGOREADY0` | Done thin | Phase P century tip ai_popup OK |
-| `@CARGOREADY1` | Done thin | Century tip at warehouse cap (basic); ship PARKED |
-| `@CARGOREADY2` | Done thin | Century tip at warehouse cap (expanded); ship PARKED |
-| `@LUMBER` | Done thin | EOT Phase K empty lumber + Carpenter ai_popup OK |
-| `@COTTON` | Done thin | EOT Phase K empty cotton + Weaver ai_popup OK |
-| `@TOBACCO` | Done thin | EOT Phase K empty tobacco + Tobacconist ai_popup OK |
-| `@CANESUGAR` | Done thin | EOT Phase K empty sugar + Distiller ai_popup OK |
-| `@FURS` | Done thin | EOT Phase K empty furs + Fur Trader ai_popup OK |
-| `@ORE` | Done thin | EOT Phase K empty ore + Blacksmith ai_popup OK |
-| `@TOOLS` | Done thin | EOT Phase K empty tools+muskets + Armory ai_popup OK |
-| `@FOOD1` | Done thin | EOT first starvation latch ai_popup OK (`@FOOD1`); VGA PARKED |
-| `@FOOD2` | Done thin | EOT first latch + autumn → winter-soon (`@FOOD2`); VGA PARKED |
-| `@VANISH` | Done thin | EOT last-colonist starve-kill → ai_popup OK + abandon; VGA PARKED |
-| `@STARVE1` | Done thin | EOT starve-kill ai_popup OK; spring/default |
-| `@STARVE2` | Done thin | EOT starve-kill + autumn → winter-coming (`@STARVE2`) |
-| `@FOODLOW` | Done thin | EOT production shortfall (`8e32`) and stock &lt; shortfall×4 (`@FOODLOW`); no warn on surplus harvest; VGA PARKED |
-| `@SPOIL1` | Done thin | EOT ai_popup OK; tip warehouse, single cargo |
-| `@SPOIL2` | Done thin | EOT multi-cargo tip warehouse (`spoil_types>1`) |
-| `@SPOIL3` | Done thin | EOT expanded warehouse single (`warehouse_level>1`) |
-| `@SPOIL4` | Done thin | EOT expanded warehouse multi |
-| `@BUYME0` | Done thin | colony Buy when gold < cost: OK with building / cost / gold tokens (`game_request_buy_construction_confirm`, `game_dialogs.c`); the affordable case is the `@BUYME1` confirm |
-| `@BUYME1` | Done thin | colony buy-construction CHOICE Never mind / Complete it |
-| `@DEFOREST` | Done thin | pioneer clear-forest near owned colony ai_popup OK |
-| `@DEPLETION` | Done thin | EOT ore/silver wrap ai_popup OK (`@DEPLETION`); VGA PARKED |
+| `@CARGOREADY0` | Done | Phase P century tip ai_popup OK |
+| `@CARGOREADY1` | Done | Century tip at warehouse cap (basic); ship PARKED |
+| `@CARGOREADY2` | Done | Century tip at warehouse cap (expanded); ship PARKED |
+| `@LUMBER` | Done | EOT Phase K empty lumber + Carpenter ai_popup OK |
+| `@COTTON` | Done | EOT Phase K empty cotton + Weaver ai_popup OK |
+| `@TOBACCO` | Done | EOT Phase K empty tobacco + Tobacconist ai_popup OK |
+| `@CANESUGAR` | Done | EOT Phase K empty sugar + Distiller ai_popup OK |
+| `@FURS` | Done | EOT Phase K empty furs + Fur Trader ai_popup OK |
+| `@ORE` | Done | EOT Phase K empty ore + Blacksmith ai_popup OK |
+| `@TOOLS` | Done | EOT Phase K empty tools+muskets + Armory ai_popup OK |
+| `@FOOD1` | Done | EOT first starvation latch ai_popup OK (`@FOOD1`); VGA PARKED |
+| `@FOOD2` | Done | EOT first latch + autumn → winter-soon (`@FOOD2`); VGA PARKED |
+| `@VANISH` | Done | EOT last-colonist starve-kill → colony event without choice rows (MSS 5, scroll to the colony tile) + abandon |
+| `@STARVE1` | Done | EOT starve-kill ai_popup OK; spring/default |
+| `@STARVE2` | Done | EOT starve-kill + autumn → winter-coming (`@STARVE2`) |
+| `@FOODLOW` | Done | EOT production shortfall (`8e32`) and stock &lt; shortfall×4 (`@FOODLOW`); no warn on surplus harvest; VGA PARKED |
+| `@SPOIL1` | Done | EOT ai_popup OK; tip warehouse, single cargo |
+| `@SPOIL2` | Done | EOT multi-cargo tip warehouse (`spoil_types>1`) |
+| `@SPOIL3` | Done | EOT expanded warehouse single (`warehouse_level>1`) |
+| `@SPOIL4` | Done | EOT expanded warehouse multi |
+| `@BUYME0` | Done | colony Buy when gold < cost: OK with building / cost / gold tokens (`game_request_buy_construction_confirm`, `game_dialogs.c`); the affordable case is the `@BUYME1` confirm |
+| `@BUYME1` | Done | colony buy-construction CHOICE Never mind / Complete it |
+| `@DEFOREST` | n/a | Never shown in DOS: the tag string is absent from VICEROY.EXE; the port does not emit it (port_bugs.md #278) |
+| `@DEPLETION` | Done | EOT ore/silver wrap colony event (MSS 3), scroll to the depleted tile |
 | `@UNITFLAG` | n/a | Col1 flag bits; not a dialog (no id in `popup_tag_ids.md`), re-verified 2026-09-16 |
 | `@COLONYFLAG` | n/a | Col1 flag bits; not a dialog (no id in `popup_tag_ids.md`), re-verified 2026-09-16 |
 | `@LOSTCITY0` | Done | Body of the 8 Fountain-of-Youth picks — DOS `38fd:4910` pushes tag `0x10f1` for the `4884(1,0)` arm, so the picks show "Which of the following individuals shall we recruit?" and **no** `@RECRUIT` "(0 gold)" passage line (`units_fountain_youth_enqueue_pick`) |
-| `@LOSTCITY1` | Done thin | Fountain of Youth — 8 dock immigrants (human only; AI has no EuropeScreen pool) |
-| `@LOSTCITY2` | Done thin | Seven Cities of Cibola — big treasure train (needs Galleon home) |
-| `@LOSTCITY3` | Done thin | Ruins gold, credited direct to nation |
+| `@LOSTCITY1` | Done | Fountain of Youth — 8 dock immigrants (human box; AI arm runs the same picks) |
+| `@LOSTCITY2` | Done | Seven Cities of Cibola — big treasure train (needs Galleon home) |
+| `@LOSTCITY3` | Done | Ruins gold, credited direct to nation |
 | `@LOSTCITY4` | Done | Burial mounds CHOICE (`AI_POPUP_TAG_LCR_BURIAL`): row 1 Search runs the payout block → `@BURIAL1`/`2`/`3`/`@SCREWED`, row 2 / Esc Stay clear rolls nothing (port_bugs.md #956) |
-| `@SCREWED` | Done thin | Hostile burial-ground natives — relation malus; 50/50 expedition lost (full combat resolve PARKED) |
-| `@BURIAL1` | Done thin | Burial search — nothing found |
-| `@BURIAL2` | Done thin | Burial search — trinkets (small gold) |
-| `@BURIAL3` | Done thin | Burial search — incredible treasure train (needs Galleon home) |
-| `@LOSTCITY5` | Done thin | Expedition vanishes — Scout despawns |
-| `@LOSTCITY6` | Done thin | Nothing but rumors |
-| `@LOSTCITY7` | Done thin | Friendly tribe's chief gift (small gold) |
-| `@LOSTCITY8` | Done thin | Trespassing near shrines — native relation malus, no combat |
-| `@LOSTCITY9` | Done thin | Survivors of a former colony join (free Colonist spawns) |
+| `@SCREWED` | Done | Hostile burial-ground natives — sound 0x32, box (MSS 3), then alarm +100 (`0d6c`); no combat, no despawn |
+| `@BURIAL1` | Done | Burial search — nothing found |
+| `@BURIAL2` | Done | Burial search — trinkets (small gold) |
+| `@BURIAL3` | Done | Burial search — incredible treasure train (needs Galleon home) |
+| `@LOSTCITY5` | Done | Expedition vanishes — Scout despawns |
+| `@LOSTCITY6` | Done | Nothing but rumors |
+| `@LOSTCITY7` | Done | Friendly tribe's chief gift (small gold) |
+| `@LOSTCITY8` | Done | Trespassing near shrines — native relation malus, no combat |
+| `@LOSTCITY9` | Done | Survivors of a former colony join (free Colonist spawns) |
 | `@SNEAK` | Done | User-confirmed: AI Euro attacks outright at peace, war declared as a side effect of the attack. A modal OK in DOS (`FUN_4720_049e` asm `0x3f1b4`, the plain message-box call as for @NODOCKS / @TRADENONE) that fires before the @DECLAREWAR choice (`0x3f262`): `ai_euro_try_attack` (`ai_euro_land.c`) queues `AI_POPUP_TAG_DIPLO_SNEAK` ahead of it and declares via `ai_diplo_declare_war_ctx` (port_bugs.md #980). Test: `unit_ai_diplo` (`popup_msg_fill` against the real GAME.TXT) |
 | `@CANCELPEACE` | Done | DIPLO_* CHOICE structural; 10ec AI→human war-declare CHOICE prompt body now the real GAME.TXT line via `popup_msg_fill` |
 | `@SIGNTREATY` | Done | DIPLO_* CHOICE structural; peace-concluded OK popup body now the real GAME.TXT line via `popup_msg_fill` (Tools-embargo-lift chrome may override) |
@@ -162,14 +166,14 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@INDIANFOREST` | Done | as `@INDIANLAND` (forest flavor); DOS `2b5a` LEAs 0x944 directly |
 | `@INDIANFOREST2` | n/a — dead GAME.TXT | no `INDIANFOREST2` DS string, and the one `@INDIANFOREST` site (`2b5a:1384`, `LEA AX,[0x944]`) takes the tag as a plain literal with no digit patch (2026-09-16) |
 | `@INDIANBRIBE` | Done | encroachment CHOICE row set. Confirmed 2026-09-16 |
-| `@NOPLOW` | Done thin | plow on already-plowed ai_popup OK |
-| `@NOROAD` | Done thin | road where road exists ai_popup OK |
+| `@NOPLOW` | Done | plow on already-plowed ai_popup OK |
+| `@NOROAD` | Done | road where road exists ai_popup OK |
 | `@VIOLATE` | Dead (DOS) | 2026-08-27: no `VIOLATE` tag-name string exists in `VICEROY.EXE` DS (`docs/popup_tag_ids.md` method), so DOS never displays this text — orphaned GAME.TXT entry. The earlier `FUN_4720_049e` lead resolves to `@HAVETREATY`/`@SNEAK`/`@CANCELPEACE`/`@DECLAREWAR` (encounter → war-declare flow, covered by `DIPLO_WAR`). Nothing to port. |
 | `@HALF` | Done | `AI_POPUP_TAG_COMBAT_HALF` CHOICE (FUN_5fef_1b0e) |
 | `@NOLOOT` | n/a | Alias unused, no DS id (no entry in `popup_tag_ids.md`); village burn uses `@LOOT2` (re-verified 2026-09-16) |
 | `@LOOT` | Done | Cortes/conquest treasure fallout |
 | `@LOOT2` | Done | village burn without treasure |
-| `@LOOTCASH` | Done thin | `europe_cash_treasure` status now the real GAME.TXT line (was invented "Treasure cash-in +$"); not combat — combat uses `@LOOTCAPTURE` capture |
+| `@LOOTCASH` | Done | `europe_cash_treasure` status now the real GAME.TXT line (was invented "Treasure cash-in +$"); not combat — combat uses `@LOOTCAPTURE` capture |
 | `@LOOTFOREIGN` | Done | AI cashes a treasure in its own colony (`FUN_521d_20e6` treasure arm, `units_ai_treasure_cash_in_colony`, `units.c`): pre-WoI OK, %STRING0 nationality, %STRING1 home port, %NUMBER0 gold |
 | `@LOOTCAPTURE` | Done | treasure nation-flip capture (`FUN_5fef_0352` raw 99392-99413); NUMBER0 = value, display only |
 | `@WAGONCAPTURE` | Done | wagon nation-flip capture |
@@ -213,7 +217,7 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@BURNED3` | Dead (DOS) | Bystander twin of `@BURNED` (tag `0x1c37`) in the same unreachable both-Euro arm; the native bystander uses `@INDIANBURNCOLONY2` |
 | `@EUROPEWIN` | Done | `{atk_nation} defeat {def_nation def_unit} near {place}!` |
 | `@EUROPELOSE` | Done | `{def_nation def_unit} defeat(s) {atk_nation} near {place}!` |
-| `@WAREHOUSEFULL` | Done thin | ship→colony unload when no room; spoilage remains `@SPOIL*` |
+| `@WAREHOUSEFULL` | Done | unload past capacity → 2-row CHOICE (MSS 5, colony/cargo/stock/cap/amount tokens); only choice 2 unloads |
 | `@EXTORTSTUFF` | Done | Demand Tribute (`thunk_FUN_1000_a5f4`, `ai_contact_demand_tribute`): won, village not yet extorted, 10 of its top good to the nearest colony |
 | `@EXTORTPOOR` | Done | same, not won (alarm < 50) or already extorted |
 | `@EXTORTLAUGH` | Done | same, Indian side stronger and not won, or alarm >= 75 |
@@ -246,10 +250,10 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@BUY0` | Done (structural) | `2820` `LAB_002e92` Accept / fairer / Never mind → `ai_contact_apply_buywhich`/`apply_buy0`; treasury shown in the accept row (2026-08-29) |
 | `@BUY1` | Done (structural) | `2820` buy-side haggle re-ask (tag built at runtime `"BUY"+digit`) (2026-08-27) |
 | `@NOTENOUGH` | Done (structural) | `2820` `LAB_002e92` can't-afford line on Accept, alarm +1 (2026-08-29) |
-| `@LEARNMASTER` | Done thin | Already-expert learner refuse; `popup_msg_fill`; does not consume village one-shot |
+| `@LEARNMASTER` | Done | Already-expert learner refuse; `popup_msg_fill`; does not consume village one-shot |
 | `@LEARNCRIMINAL` | Done | `ai_contact_live_among_natives` real body via `popup_msg_fill`; Petty Criminal refused outright, one-shot not consumed (re-verified 2026-09-16) |
 | `@LEARNALREADY` | Done | `ai_contact_live_among_natives` real body via `popup_msg_fill`; village already taught && !capital (re-verified 2026-09-16) |
-| `@LEARNMAD` | Done thin | Alarm/friction ≥40 refuse (both mid and hostile bands); `popup_msg_fill` |
+| `@LEARNMAD` | Done | Alarm/friction ≥40 refuse (both mid and hostile bands); `popup_msg_fill` |
 | `@LEARNSLOW` | Done | `ai_contact_live_among_natives` real body via `popup_msg_fill`; quartile-1 slow-learner roll (re-verified 2026-09-16) |
 | `@LEARNSTAY` | Done | Yes/No CHOICE `AI_POPUP_TAG_CONTACT_LEARNSTAY` (2026-08-28) |
 | `@LEARNLATER` | Done | `ai_contact_live_among_natives` real body via `popup_msg_fill`; `@LEARNSTAY` No branch (re-verified 2026-09-16) |
@@ -285,7 +289,7 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@MERCANTILISM` | n/a | Lead closed 2026-09-16: VICEROY.EXE has no DS string `MERCANTILISM` at all (`docs/popup_tag_ids.md` is the full dump of that table), so no code can name the section — DOS cannot reach it. The tax-raise triggers that exist all name their own section (`@KINGTAX` and the five `FUN_38fd_5be8` rungs). Dead text |
 | `@PURCHASETAX` | n/a | Same evidence as `@MERCANTILISM`: no `PURCHASETAX` DS string in VICEROY.EXE, hence no call site. Dead text |
 | `@TAXOPTIONS` | Done | ai_popup CHOICE structural |
-| `@TEAPARTY` | Done thin | king refuse/dump follow-up OK via `popup_msg_fill`; thin `3dc8` stock dump; VGA PARKED |
+| `@TEAPARTY` | Done | `3dc8` stock dump, sound 0x56, OK (MSS 1); %STRING2 = @HOMEPORT city; no box without a colony |
 | `@KISSUP` | Done | `FUN_38fd_2dfe` two-row CHOICE raised from the Europe market strip click (`game_europe_ask_boycott_buyback`, `src/core/game_loop.c`), tag `AI_POPUP_TAG_EUROPE_KISSUP`; `%STRING0` = cargo, `%STRING1` = the player's country, `%NUMBER0` = back taxes. DOS's row 2 ("Pay") is the paying answer. 2026-09-16 |
 | `@KISSSORRY` | Done | Shown only after "Pay", when the purse falls short — the order `38fd:2e6e` uses; `%NUMBER0` = gold on hand, no state change. 2026-09-16 |
 | `@PRICEUP` | Done | market price OK popup (EOT + buy/sell) |
@@ -303,14 +307,14 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@EUROPESHIPCLICK` | Done | Title of the Europe harbor ship menu (`game_europe_open_ship_menu`, STRING0 = ship type name; port_bugs.md #1176) |
 | `@ARMOPTIONS` | Done | Europe dock immigrant click — 12 GAME.TXT rows, DOS `FUN_38fd_37xx` |
 | `@COLONYUNIT` | Done | colony dock-orders popup title (`colony_screen_open_dock_orders`) |
-| `@UNITOPTIONS` | Done thin | colony dock-orders popup, land transport; chrome thin |
-| `@SHIPOPTIONS` | Done thin | colony dock-orders popup, sea transport; chrome thin |
+| `@UNITOPTIONS` | Done | colony dock-orders popup, land transport; chrome thin |
+| `@SHIPOPTIONS` | Done | colony dock-orders popup, sea transport; chrome thin |
 | `@EUROPESHIPOPTIONS` | Done | Rows of the Europe harbor ship menu, `FUN_38fd_2bfe` (`AI_POPUP_TAG_EUROPE_SHIP_MENU`, DOS row ids 1-4: Move to front / Set sail / Unload all cargo / No changes; Set sail always offered, Unload only with goods aboard) |
 | `@KINGFRIGATE` | Done | `ai_king_frigate_offer` Yes/No (FUN_3844_00f2 tail, 2026-08-29) |
 | `@KINGGALLEON2` | Done (structural) | `FUN_5fef_1908` CHOICE (tag built at runtime); VGA PARKED |
 | `@KINGGALLEON3` | Done (structural) | Cortes free-transport arm of the same function; VGA PARKED |
 | `@CASHTREASURE` | Done | `units_king_galleon_credit` (`units.c`, FUN_5fef_1908 else-branch, no King) — OK via `ai_popup_enqueue_ok` |
-| `@USEDUPTOOLS` | Done thin | pioneer tools demotion ai_popup OK; VGA PARKED |
+| `@USEDUPTOOLS` | Done | pioneer tools demotion ai_popup OK; VGA PARKED |
 | `@EVASIVE` | Done | already real (`units_combat_resolve.c` `units_resolve_naval_combat_ff_w` naval evasion via `units_combat_enqueue_tok`) — verified against DOS FUN_5fef_1b0e raw ~100629 |
 | `@KINGMERCY` | n/a | dead text: no `KINGMERCY` DS string in VICEROY.EXE — the tax-cut-on-REF-loss audience is cut content |
 | `@KINGNEWWAR` | Done (structural) | `FUN_38fd_5930` → `ai_king_new_war_event` (2026-08-27): real gate/roll/grant formula, OK popup with title/name/peer/gold/count tokens; VGA PARKED |
@@ -323,7 +327,7 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@ORDINAL` | Done | Not a popup: the 30-entry ordinal list the audience's `@KINGWIFE` rung indexes with the King's wife count. Same reader, 2026-09-16 |
 | `@NEEDTOOLS` | Done | EOT Phase L (raw 57737-57771) `turn_emit_needtools_notice` in `turn_production.c`: hammers ready, tools short but >0. Runs every EOT (not only on hammer-producing ticks) and covers unit projects too — port_bugs.md #537, 2026-09-20 |
 | `@NEEDTOOLS0` | Done | Same emitter, tools == 0 (DOS appends DS:0xeab "0" to DS:0xea1), 2026-09-20 |
-| `@ALREADYHAVE` | Done thin | construction set refused when already owned → ai_popup OK |
+| `@ALREADYHAVE` | Done | construction set refused when already owned → ai_popup OK |
 | `@LOBOTOMIZE` | Done | Clear Specialty confirm `AI_POPUP_TAG_COLONY_CLEARSPEC` (port_bugs.md #431) |
 | `@NATION0A` | Done | nation lore pages |
 | `@NATION0B` | Done | nation lore pages |
@@ -389,23 +393,23 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@SMITEEUROPE` | Done | `FUN_5bfb_153e` encounter dialog — live in the `ai_diplo.c` talk machine (2026-09-06) |
 | `@UNFORTUNATE` | Done | FUN_5bfb_13b0-family ally-hire affordability check (raw :98368) — `ai_diplo.c` AI_TALK_ST_ALLY_PAY (2026-09-16 verified) |
 | `@MERCENARY` | Done | FUN_5bfb_13b0-family ally-hire success (raw :98386), war-bit set both directions incl. Indian side — `ai_diplo.c` AI_TALK_ST_ALLY_PAY (2026-09-16 verified) |
-| `@SUCCESSION` | Done thin | `FUN_43f7_0218` Treaty of Utrecht announce — `ai_king_audience.c` `ai_king_succession` `popup_msg_fill("SUCCESSION", …)`; VGA PARKED |
-| `@REBELMAJORITY` | Done thin | EOT Phase D ai_popup OK (`turn_emit_sol_phase_d_chrome`); VGA PARKED |
-| `@REBELUNANIMOUS` | Done thin | EOT Phase D ai_popup OK; VGA PARKED |
-| `@TORYMINORITY` | Done thin | EOT Phase D ai_popup OK; VGA PARKED |
-| `@TORYMAJORITY` | Done thin | EOT Phase D ai_popup OK; VGA PARKED |
-| `@SONSUP` | Done thin | EOT Phase D decade chrome ai_popup OK; VGA PARKED |
-| `@SONSDOWN` | Done thin | EOT Phase D decade chrome ai_popup OK; VGA PARKED |
+| `@SUCCESSION` | Done | `FUN_43f7_0218` Treaty of Utrecht announce — `ai_king_audience.c` `ai_king_succession` `popup_msg_fill("SUCCESSION", …)`; VGA PARKED |
+| `@REBELMAJORITY` | Done | EOT Phase D ai_popup OK (`turn_emit_sol_phase_d_chrome`); VGA PARKED |
+| `@REBELUNANIMOUS` | Done | EOT Phase D ai_popup OK; VGA PARKED |
+| `@TORYMINORITY` | Done | EOT Phase D ai_popup OK; VGA PARKED |
+| `@TORYMAJORITY` | Done | EOT Phase D ai_popup OK; VGA PARKED |
+| `@SONSUP` | Done | EOT Phase D decade chrome ai_popup OK; VGA PARKED |
+| `@SONSDOWN` | Done | EOT Phase D decade chrome ai_popup OK; VGA PARKED |
 | `@REBELUP` | Done | `ai_king_nation_turn_2424` (+ `ai_king_human_5e52_tail`; `ai_king_nation_turn` is a test-only wrapper) (`ai_king_war.c`) decile SoL notify (FUN_43f7_2424 tail, 0x53d8 dedup) — rising, SoL<50, `ai_popup_enqueue_ok_ctx` |
 | `@REBELUP50` | Done | same 2424 tail, rising branch with SoL≥50 |
 | `@REBELDOWN` | Done | same 2424 tail, falling branch (report > (last+4)/10 hysteresis) |
-| `@REFIT` | Done thin | Drydock repair ai_popup OK (`@REFIT`); VGA PARKED |
-| `@WELLSEASONED` | Done thin | Indian teach Scout→Seasoned `CONTACT_TEACH` + `@WELLSEASONED` |
-| `@KINGBUY` | Done thin | `FUN_43f7_1d42` peacetime royal-purse buy — `ai_king.c` `ai_king_1d42_royal_purse` `popup_msg_fill("KINGBUY", …)`, %STRING0 pool name; VGA PARKED |
+| `@REFIT` | Done | Drydock repair ai_popup OK (`@REFIT`); VGA PARKED |
+| `@WELLSEASONED` | Done | Indian teach Scout→Seasoned `CONTACT_TEACH` + `@WELLSEASONED` |
+| `@KINGBUY` | Done | `FUN_43f7_1d42` peacetime royal-purse buy — `ai_king.c` `ai_king_1d42_royal_purse` `popup_msg_fill("KINGBUY", …)`, %STRING0 pool name; VGA PARKED |
 | `@INDEPENDENCE` | Done | `KING_LETTER` + signing cinematic (`declaration.c`) |
-| `@INVASION` | Done thin | REF `1528` wave OK/status via `popup_msg_fill`; VGA PARKED |
+| `@INVASION` | Done | REF `1528` wave OK/status via `popup_msg_fill`; VGA PARKED |
 | `@TOOTORY` | Done | `ai_king_menu_declare_independence` (FUN_43f7_2564 tail, sol<50 branch) — OK notice via `ai_popup_enqueue_ok_ctx` |
-| `@DECLARE` | Done thin | ai_popup CHOICE body+labels via `popup_msg_*`; VGA PARKED |
+| `@DECLARE` | Done | ai_popup CHOICE body+labels via `popup_msg_*`; VGA PARKED |
 | `@DEADCONVERTS` | Done | `FUN_3844_0004` (viceroy_unpacked.c 58268-58299, tag 0xee2): a lone Convert (type 0, profession 27) on a tile with no settlement ages `col1_counter16` and is removed when it passes 8; human owner gets the popup. Ported 2026-09-23 (`units_tick_convert_outside_colony`, port_bugs.md #725) |
 | `@TOOMANYUNITS` | Done | **NOT dead** (corrected 2026-10-05): `FUN_1427_06b4` raises it for a human nation when the allocator refuses (asm 0x6e85 `lea bx,[0x1f3]; call 181f:03fe`; DS 0x1f3 = "TOOMANYUNITS"). LEA site, missed by the PUSH-pair scan like @TOOMANYCOLONIES. Raised by `units_spawn_room`'s refused hook (game_loop_render.c). port_bugs.md #1068 |
 | `@TOOMANYCOLONIES` | Done | **NOT dead** (port_bugs.md #681, corrected 2026-09-23): the Build handler raises it at asm `0x227dc` (`lea bx,[0x9e5]; call 0x181f:0x3fe`) — a LEA site, which is why the PUSH-pair scan missed it — when `word [0x539e] >= 0x30` (48 colonies) or `byte [nation+0x9298] >= 0x26` (38 settlements for that nation) and there is no colony on the tile. Ported in `game_try_found_colony_at_cursor` |
@@ -414,8 +418,8 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@PICKMILITARY` | Done | slot / music dialogs |
 | `@PICKINDIAN` | Done | slot / music dialogs |
 | `@UPKEEP` | Dead tag | GAME.TXT-only: no `UPKEEP` string in VICEROY.EXE (`strings`, 2026-10-26), so DOS never raises it |
-| `@MOBILIZE` | Done thin | `FUN_43f7_1eca` single-unit promote — `ai_king_war.c` `ai_king_war_act` `popup_msg_fill`; VGA PARKED |
-| `@MOBILIZE2` | Done thin | `FUN_43f7_1eca` multi-unit promote — `ai_king_war.c` `ai_king_war_act` `popup_msg_fill`; VGA PARKED |
+| `@MOBILIZE` | Done | `FUN_43f7_1eca` single-unit promote — `ai_king_war.c` `ai_king_war_act` `popup_msg_fill`; VGA PARKED |
+| `@MOBILIZE2` | Done | `FUN_43f7_1eca` multi-unit promote — `ai_king_war.c` `ai_king_war_act` `popup_msg_fill`; VGA PARKED |
 | `@CANTMOBILIZE` | n/a | `FUN_43f7_1eca` (viceroy_unpacked.c 74910-74968) never emits this tag: the only messages it sends are 0x132d/0x1336 (`@MOBILIZE`/`@MOBILIZE2`) when `local_a != 0`; the `local_a == 0` (no muskets) fall-through is silent in DOS, and no other decompiled function references this section — dead GAME.TXT text, not ported |
 | `@KINGMOBILIZE` | n/a | `FUN_43f7_1d42` wartime arm (0x1320, OVL07:2d8a) is DEAD CODE in the shipped binary — the function's first instruction (`TEST [0x5382],1` / early RETF) makes the whole routine a peacetime-only no-op, so the branch guarding this tag is unreachable; see the `FUN_43f7_1d42` comment in `ai_king.c`. Correctly unported |
 | `@EUROPENOTAVAIL` | Done | 2026-09-16: `game_try_enter_europe` (`game_dialogs.c`) now renders the real GAME.TXT body + `AI_POPUP_TAG_INFO` OK popup on WoI-blocked entry, same pattern as `@FOREIGNNOTAVAIL`/`game_open_report`; previously only set a bare status string |
@@ -430,24 +434,24 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@HOWMUCH4` | Done | Europe buy amount |
 | `@HOWMUCH5` | Done | Europe sell amount |
 | `@AMBUSHHINT` | Done | already real (`turn_colony.c` `turn_woi_bell_test` `popup_chrome_ok("AMBUSHHINT", …)`, paired with `@CONSIDER`) — verified against DOS FUN_4345_0a22; VGA PARKED |
-| `@CONSIDER` | Done thin | `FUN_4345_0a22` wartime bell-pool ambush hint — `turn_colony.c` `turn_woi_bell_test` `popup_chrome_ok("CONSIDER", …)`, one-shot per `woi_crosses_event` latch; VGA PARKED |
-| `@INTERVENTION` | Done thin | `FUN_43f7_1528` ally-declare arm — `ai_king_ref.c` `ai_king_1528_announce` `popup_msg_fill`; VGA PARKED |
-| `@FRIEND` | Done thin | ally-name splice into `@INTERVENTION`/`@INVASION` %STRING2 — `ai_king_ref.c` `ai_king_1528_announce` `assets_msg_find("FRIEND")`; VGA PARKED |
-| `@INTERVENE` | Done thin | `FUN_43f7_1528` ally-landing arm — `ai_king_ref.c` `ai_king_10f0_announce` `popup_msg_fill`; VGA PARKED |
-| `@EXPLOITS` | Done thin | `FUN_41f2_0b70` retire Colonization Rating screen — `game_build_exploits` renders the real header (`%NUMBER0`=rating, `%STRING0`=nation) in `game_loop_saveload.c` `game_build_exploits`; VGA/SS art shown, HoF-plate chrome thin |
-| `@SCORE` | Done thin | same chain — first `tier+1` `@SCORE` rows split at the comma (category / `%STRING0`=leader surname), `game_loop_saveload.c` `game_build_exploits` |
-| `@LOSING1` | Done thin | WoI lose all ports (founding coastal bit +0x1c 0x40, #1388) — `ai_king_year_end_woi` |
+| `@CONSIDER` | Done | `FUN_4345_0a22` wartime bell-pool ambush hint — `turn_colony.c` `turn_woi_bell_test` `popup_chrome_ok("CONSIDER", …)`, one-shot per `woi_crosses_event` latch; VGA PARKED |
+| `@INTERVENTION` | Done | `FUN_43f7_1528` ally-declare arm — `ai_king_ref.c` `ai_king_1528_announce` `popup_msg_fill`; VGA PARKED |
+| `@FRIEND` | Done | ally-name splice into `@INTERVENTION`/`@INVASION` %STRING2 — `ai_king_ref.c` `ai_king_1528_announce` `assets_msg_find("FRIEND")`; VGA PARKED |
+| `@INTERVENE` | Done | `FUN_43f7_1528` ally-landing arm — `ai_king_ref.c` `ai_king_10f0_announce` `popup_msg_fill`; VGA PARKED |
+| `@EXPLOITS` | Done | `FUN_41f2_0b70` retire Colonization Rating screen — `game_build_exploits` renders the real header (`%NUMBER0`=rating, `%STRING0`=nation) in `game_loop_saveload.c` `game_build_exploits`; VGA/SS art shown, HoF-plate chrome thin |
+| `@SCORE` | Done | same chain — first `tier+1` `@SCORE` rows split at the comma (category / `%STRING0`=leader surname), `game_loop_saveload.c` `game_build_exploits` |
+| `@LOSING1` | Done | WoI lose all ports (founding coastal bit +0x1c 0x40, #1388) — `ai_king_year_end_woi` |
 | `@WARN1` | Done | WoI ports<3, lowest-priority selector arm — `ai_king_year_end_woi`, every turn |
-| `@LOSING2` | Done thin | WoI lose all colonies — `ai_king_year_end_woi`, then `@KINGWIN` (#1389) |
+| `@LOSING2` | Done | WoI lose all colonies — `ai_king_year_end_woi`, then `@KINGWIN` (#1389) |
 | `@WARN2` | Done | WoI colonies<3, wins the selector — `ai_king_year_end_woi`, every turn |
-| `@LOSING3` | Done thin | WoI crown pop share ≥90% — `ai_king_year_end_woi` |
+| `@LOSING3` | Done | WoI crown pop share ≥90% — `ai_king_year_end_woi` |
 | `@WARN3` | Done | WoI crown pop share ≥80% (below the 90% `@LOSING3`), outranked by colonies<3 — `ai_king_year_end_woi`, every turn |
 | `@WINNING` | Done | WoI win — `ai_king_year_end_woi` (tested first, raw 58470); precedes the `@KINGLOSE` throne audience then the CLOSING.EXE cinematic; win tune pool 3 |
-| `@OTHERGRANTED` | Done thin | `FUN_3844_0442` §D rival-nation independence (raw 58596-58611, ids `0xf4b`/`0xf3f` NAMES/INDEPENDENT dual-load resolve to the republic rename) — `turn_year_end.c` `turn_year_end_rival_independence` / `turn_year_end_rival_popup`; renames the nation and clears war/ally bits toward every other power; VGA PARKED |
-| `@OTHERMIGHT` | Done thin | `FUN_3844_0442` §D rising SoL pressure on a rival (raw 58570-58582, id `0xf5e`) — `turn_year_end.c` `turn_year_end_rival_independence`; hysteresis band ported (`thresh-20`/cache) |
-| `@OTHERLESS` | Done thin | `FUN_3844_0442` §D falling SoL pressure on a rival (raw 58583-58593, id `0xf69`) — `turn_year_end.c` `turn_year_end_rival_independence` |
-| `@SCORED` | Done thin | after the Hall of Fame of a WoI win or the 1800 `@RETIRING` chain (`FUN_3844_0442` asm 3844:0b64, `AI_POPUP_TAG_WAR_SCORED`): Keep playing (choice 2) resumes, That's all or Esc ends at the title menu (port_bugs.md #1231) |
-| `@TORYUPRISING` | Done thin | `FUN_43f7_06a6` — `ai_king_ref.c` `ai_king_ref_tory_uprising` `popup_msg_fill("TORYUPRISING", …)` with colony name; VGA PARKED |
+| `@OTHERGRANTED` | Done | `FUN_3844_0442` §D rival-nation independence (raw 58596-58611, ids `0xf4b`/`0xf3f` NAMES/INDEPENDENT dual-load resolve to the republic rename) — `turn_year_end.c` `turn_year_end_rival_independence` / `turn_year_end_rival_popup`; renames the nation and clears war/ally bits toward every other power; VGA PARKED |
+| `@OTHERMIGHT` | Done | `FUN_3844_0442` §D rising SoL pressure on a rival (raw 58570-58582, id `0xf5e`) — `turn_year_end.c` `turn_year_end_rival_independence`; hysteresis band ported (`thresh-20`/cache) |
+| `@OTHERLESS` | Done | `FUN_3844_0442` §D falling SoL pressure on a rival (raw 58583-58593, id `0xf69`) — `turn_year_end.c` `turn_year_end_rival_independence` |
+| `@SCORED` | Done | after the Hall of Fame of a WoI win or the 1800 `@RETIRING` chain (`FUN_3844_0442` asm 3844:0b64, `AI_POPUP_TAG_WAR_SCORED`): Keep playing (choice 2) resumes, That's all or Esc ends at the title menu (port_bugs.md #1231) |
+| `@TORYUPRISING` | Done | `FUN_43f7_06a6` — `ai_king_ref.c` `ai_king_ref_tory_uprising` `popup_msg_fill("TORYUPRISING", …)` with colony name; VGA PARKED |
 | `@CANNOTATTACK` | Done | `game_report_enter_reason` (`game_loop_orders.c`) — real OK popup on `COLONIZE_ENTER_BOUNCE_FOREIGN` when the mover is land (non-combat land unit attacking) |
 | `@TRADEMERCANTILISM` | Done | `FUN_5f7a_020e` raw 98928-98934 — no Jan de Witt (FF 4); %STRING0 = @GREATLEADER2[owner]. docs/foreign_colony_trade.md |
 | `@TRADEATWAR` | Done | `FUN_5f7a_020e` raw 98924-98927 — no peace treaty with the colony's owner (`FUN_281f_0a38 & 0x40`). docs/foreign_colony_trade.md |
@@ -460,23 +464,23 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@OVERBOARD` | Done | hold picker: rows = occupied goods holds, 99 = cancel (port_bugs.md #984) |
 | `@ALREADYREVOLUTION` | Done | ai_popup CHOICE structural |
 | `@SUREDISBAND` | Done | disband Yes/No |
-| `@NEWCOLONIST` | Done thin | EOT Phase I birth ai_popup OK (`@NEWCOLONIST`); VGA PARKED |
-| `@INEFFICIENT` | Done thin | EOT Tory-pressure ai_popup OK (`turn_emit_inefficient_gov_chrome`); VGA PARKED |
-| `@EFFICIENT` | Done thin | EOT Tory-pressure clear ai_popup OK; VGA PARKED |
-| `@CLEARCUT` | Done thin | pioneer clear-forest → lumber to nearest colony + ai_popup OK; also `@DEFOREST`; Hardy×2 / terrain×20 PARKED |
+| `@NEWCOLONIST` | Done | EOT Phase I birth ai_popup OK (`@NEWCOLONIST`); VGA PARKED |
+| `@INEFFICIENT` | Done | EOT Tory-pressure ai_popup OK (`turn_emit_inefficient_gov_chrome`); VGA PARKED |
+| `@EFFICIENT` | Done | EOT Tory-pressure clear ai_popup OK; VGA PARKED |
+| `@CLEARCUT` | Done | pioneer clear-forest → lumber to nearest colony + OK box (MSS 5), human only |
 | `@REALLYBUY` | Done | purchase confirm (port_bugs.md #753, 2026-09-23: 2-row Yes/No, FUN_38fd_4b50 raw 64874; escalation counter bumps before the answer) |
 | `@INDIANWARPATH` | Done | Incite Indians target menu (`ai_contact_enqueue_incite_target_choice`) — real GAME.TXT body 2026-09-16; rows are now plain nation names and are no longer filtered by affordability, as in DOS (viceroy_unpacked.c 83593-83607) |
 | `@INDIANWARPATH2` | Done | the pay confirm DOS shows after the target pick (`ai_contact_enqueue_incite_confirm`, tag 0x16c1): real body + `Pay`/`Never mind.` rows; `@NOCONTACT` before the quote, `@UNFORTUNATE` / `@ALREADYSMITE` after it 2026-09-16. Was merged into the menu labels |
 | `@INDIANWARFARE` | Done | Incite announcement at `FUN_4d56_417e` LAB_4499 (tag 0x16e9) — real GAME.TXT body via `popup_msg_fill`, fires for both the human incite and the AI missionary auto-incite. Confirmed 2026-09-16 |
-| `@LOSENOCOLONIES` | Done thin | Section B zero-colony defeat OK + `ENDGAME_LOST` latch (`turn_run_year_end_chrome`) |
-| `@SOONRETIRING0` | Done thin | peacetime Spring 1790 — `ai_king_year_end_calendar` (Spring only, no latch, #1391) |
-| `@SOONRETIRING1` | Done thin | Spring 1840 — `ai_king_year_end_calendar` (Spring only, no latch, #1391) |
-| `@RETIRING` | Done thin | peacetime year 1800 (raw 58629-58649, DS:0xf80) — `ai_king_year_end_calendar` (year-end chrome, #1387), KING_WAR_END payload 2: dismissal runs the retire chain, then `@SCORED`; gated on `calendar_latch` (0x5382 & 0x10) alone, no endgame latch |
-| `@RETIRING2` | Done thin | WoI year 1850 (DS:0xf89) — `ai_king_year_end_calendar`, KING_WAR_END payload 2 like `@RETIRING`: retire chain, then `@SCORED`; no loss latch, so after Keep playing the war goes on and a later loss ends the game with no second chain (port_bugs.md #1232) |
-| `@HOWTOWIN` | Done thin | after declare — `ai_king_do_declare` INFO (invent WoI-begins demoted) |
+| `@LOSENOCOLONIES` | Done | Section B zero-colony defeat OK + `ENDGAME_LOST` latch (`turn_run_year_end_chrome`) |
+| `@SOONRETIRING0` | Done | peacetime Spring 1790 — `ai_king_year_end_calendar` (Spring only, no latch, #1391) |
+| `@SOONRETIRING1` | Done | Spring 1840 — `ai_king_year_end_calendar` (Spring only, no latch, #1391) |
+| `@RETIRING` | Done | peacetime year 1800 (raw 58629-58649, DS:0xf80) — `ai_king_year_end_calendar` (year-end chrome, #1387), KING_WAR_END payload 2: dismissal runs the retire chain, then `@SCORED`; gated on `calendar_latch` (0x5382 & 0x10) alone, no endgame latch |
+| `@RETIRING2` | Done | WoI year 1850 (DS:0xf89) — `ai_king_year_end_calendar`, KING_WAR_END payload 2 like `@RETIRING`: retire chain, then `@SCORED`; no loss latch, so after Keep playing the war goes on and a later loss ends the game with no second chain (port_bugs.md #1232) |
+| `@HOWTOWIN` | Done | first colony capture during the WoI (5fef capture tail, latch `0x5386&1`), MSS 1 — `units_capture.c` |
 | `@ARTILLERY` | Done | already real (`units_combat.c` `units_apply_land_loss_outcome` `units_combat_enqueue_tok`) — verified against DOS FUN_5fef_016c raw 99475 |
 | `@ARTILLERY2` | Done | already real (`units_combat.c` `units_apply_land_loss_outcome` `units_combat_enqueue_tok`) — verified against DOS FUN_5fef_016c raw 99486 |
-| `@TIMECHANGE` | Done thin | `FUN_130d_0290` calendar-help — `LEA BX,[0x141]` (Ghidra-dropped tag arg, asm-confirmed) then `CALLF FUN_281f_03fe`, fired once at year==1600 && season==0 (the exact turn the calendar splits into Spring/Autumn) — `turn.c` `turn_processor_advance` TURN_PROC_SETUP, `popup_chrome_ok("TIMECHANGE", …)`; no tutorial-hints gate in DOS |
+| `@TIMECHANGE` | Done | `FUN_130d_0290` calendar-help — `LEA BX,[0x141]` (Ghidra-dropped tag arg, asm-confirmed) then `CALLF FUN_281f_03fe`, fired once at year==1600 && season==0 (the exact turn the calendar splits into Spring/Autumn) — `turn.c` `turn_processor_advance` TURN_PROC_SETUP, `popup_chrome_ok("TIMECHANGE", …)`; no tutorial-hints gate in DOS |
 | `@TEACHCONVERT` | Done | "Live among the natives" with a Convert (`ai_contact_actions.c`) — real GAME.TXT body. Confirmed 2026-09-16 |
 | `@SOMEBOYCOTT` | Done | OK notice after the Europe ship menu's row 3 "Unload all cargo" loop (`game_europe_unload_all`, FUN_38fd_2bfe) when any hold was boycotted (DOS: only slot 0, dos_bugs.md DB-58); the market-cell click raises `@KISSUP` (FUN_38fd_2dfe), not this |
 | `@KEEPSTOCKADE` | Done | stockade min-pop OK message |
@@ -506,8 +510,8 @@ Appendices and exhaustive `@SECTION` reference for [popups.md](popups.md).
 | `@KINGLOSE` | Done | WoI won — full-screen throne audience (KINGLSS1 + KINGLOSE.SS, FUN_75c2_20e2); dismissal plays the CLOSING.EXE cinematic (`closing.c`) then the retire score |
 | `@KINGWIN` | Done | WoI lost (@LOSING1-3) — full-screen throne audience (KINGWIN.SS); dismissal opens the retire score |
 | `@DISBANDSHIP` | Done | ship-with-cargo error OK (not Yes/No) |
-| `@NOMOREWAREHOUSE` | Done thin | Warehouse Expansion already owned → ai_popup OK |
-| `@NOMOREWAGONS` | Done thin | EOT Wagon Train project refused while wagons >= colonies (`FUN_364b_0114` wagon arm, `turn_colony.c`); colony-event box |
+| `@NOMOREWAREHOUSE` | Done | Warehouse Expansion already owned → ai_popup OK |
+| `@NOMOREWAGONS` | Done | EOT Wagon Train project refused while wagons >= colonies (`FUN_364b_0114` wagon arm, `turn_colony.c`); colony-event box |
 | `@BUILD1` | Done | sail captions |
 | `@BUILD2` | Done | sail captions |
 | `@BUILD3` | Done | sail captions |
@@ -549,9 +553,10 @@ Every writer of DS:0x1f5c (chief / King portrait), 0x1f5e (MSS) and 0x1f60 (MYR)
   and `SOONRETIRING` + n (FUN_3844_0442) and `INDIANWIN0` + n (FUN_5fef_1b0e) 1, `MISSION0` + n
   4, `ABANDON` / `LOSTCITY` + n (already rows).
 - **`FUN_364b_0000` param_6** (raw 56849, the colony-event box): @NOMOREWAREHOUSE /
-  @NOMOREWAGONS / @BUILT / @(IN)EFFICIENT / @STARVE2 / @FOODLOW / the raw-out crumbs / @ALREADYHAVE
-  / @NEEDTOOLS(0) / @SPOIL1/2 / @CARGOREADY0-2 5, @REBELMAJORITY / @REBELUNANIMOUS /
-  @TORYMINORITY / @TORYMAJORITY / @SONSDOWN 1, @TRAINPROFESSION / @TRAINFAIL 2, @NEWCOLONIST 4,
+  @NOMOREWAGONS / @BUILT / @(IN)EFFICIENT / @FOOD1/2 / @STARVE1/2 / @VANISH / @FOODLOW / the raw-out crumbs / @ALREADYHAVE
+  / @NEEDTOOLS(0) / @SPOIL1-4 (digit +2 at warehouse level ≥ 2) / @CARGOREADY0-2 5, @REBELMAJORITY / @REBELUNANIMOUS /
+  @TORYMINORITY / @TORYMAJORITY / @SONSUP (shared tail into the SONSDOWN call) / @SONSDOWN 1, @TRAINCRIMINAL /
+  @TRAININDENTURED / @TRAINPROFESSION / @TRAINFAIL 2, @NEWCOLONIST 4,
   @DEPLETION 3. All of the above are `k_popup_msg_mss` rows (`popup_msg.c`).
 - **Direct MSS writes**: @LANDHO 0 (2b5a:0028), @OVERBOARD 0 (FUN_2b5a_0f92, 0x21ef7),
   @SAILAWAY 0, @COLONY 5, the Europe Recruit / Purchase / FoY / Brewster boxes (wired before);

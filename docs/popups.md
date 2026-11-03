@@ -393,7 +393,12 @@ BUILT / NOMOREWAREHOUSE / NOMOREWAGONS / DEPLETION / SoL (SONS*/TORY*/REBEL*)
 / EFFICIENT / INEFFICIENT / TRAIN* / NEWCOLONIST / FOOD1-2 / FOODLOW /
 STARVE1-2 / ALREADYHAVE / NEEDTOOLS* / raw-out crumbs (LUMBER…TOOLS) /
 SPOIL* / CARGOREADY*. `@VANISH` stays optionless (DOS passes the choice flag
-false). `game_loop` latches the election (`ai_popup_colony_zoom_elect`) and
+false; `ai_popup_enqueue_colony_event_at(..., false, x, y)`). With the colony
+screen closed, DOS first edge-scrolls the map onto the colony (`FUN_281f_0352` →
+`1984_02fc`; `@DEPLETION` passes the depleted tile); the port carries the tile on
+`AiPopupRequest.cam_*` and `game_popup_camera` scrolls when the box presents
+(port_bugs.md #1393). War boxes ride the same field: `@INVASION` / `@INTERVENE`
+hard-centre (`1984_029e`), `@MOBILIZE*` / `@TORYUPRISING` edge-scroll (#1394). `game_loop` latches the election (`ai_popup_colony_zoom_elect`) and
 opens the colony screen via `ai_popup_take_colony_zoom` once no popups for
 that colony remain — mid-EOT too, like DOS. Not in the family (DOS
 `FUN_281f_0652` / ticker): TUTORIAL6, UNREST, WARN1/2, Custom House sale line.
@@ -447,7 +452,7 @@ fragment. Related sections are listed in the first column.
 | `@SAILPORT` | Unit ORDERS "Go to Port" (ships) | Done | `game_open_goto_port_picker`/`cheat_list` GOTO_PORT, DOS `FUN_647e_01c6`/`FUN_2b5a_1dfc`; Europe row first, rows filtered by `travel_dest_ok` (docs/unit_orders.md); paged (port_bugs.md #1194) by `cheat_list_open_dest_pages` (n <= 10 one page of n + 1 slots, else (n + 9) / 10 pages of 10, Europe = slot 0; LABELS @CTITLE 6 "(More)" as Previous / More; the DOS last-colony gap at Europe + 20/30/40 colonies not reproduced, dos_bugs.md DB-53), Europe row `@HOMEPORT (@COUNTRY)`, the ship's own colony greyed (`disabled_mask`, Up/Down wrap and skip it as `FUN_6f74_2580`), empty list shows nothing. No DOS screenshot of this box |
 | `@TRAVELPLACE` | Unit ORDERS "Go to Place" (land units) | Done | port_bugs.md #1208: the same `FUN_2b5a_1dfc` / `FUN_647e_01c6` list as Go to Port (ORDERS 0x320 and 0x321 share case 2b5a:28d4), titled `@TRAVELPLACE`: own colonies on the unit's continent, no Europe row, the colony he stands on left out (its slot still counts); replaces the port's invented click-a-tile mode (DOS has none; the mouse drag `FUN_2b5a_3462` stays). No DOS screenshot of this box |
 | `@OVERBOARD` | Which cargo to dump | Done | Hold picker (`AI_POPUP_TAG_OVERBOARD_WHICH`), ids = hold+1, 99 = cancel |
-| Order gates (`@NOPLOW`, `@NOROAD`, `@NEEDTOOLS`, …) | Illegal order | Done thin | `@NOPLOW`/`@NOROAD` (`units.c` `units_pioneer_emit_order_gate`) — `@ONLYPIO` is dead text (port_bugs.md #621: the literal is absent from VICEROY.EXE; `0b34` raw 42211-42215 greys the menu rows instead), EOT `@NEEDTOOLS`/`@NEEDTOOLS0` (`turn.c`), `@SEACOLONY`/`@TOOMOUNTAIN`/`@NOPORT` (`game_loop.c`) all call `popup_msg_fill` with the real GAME.TXT body at the DOS condition; see Appendix A |
+| Order gates (`@NOPLOW`, `@NOROAD`, `@NEEDTOOLS`, …) | Illegal order | Done | `@NOPLOW`/`@NOROAD` (`units.c` `units_pioneer_emit_order_gate`) — `@ONLYPIO` is dead text (port_bugs.md #621: the literal is absent from VICEROY.EXE; `0b34` raw 42211-42215 greys the menu rows instead), EOT `@NEEDTOOLS`/`@NEEDTOOLS0` (`turn.c`), `@SEACOLONY`/`@TOOMOUNTAIN`/`@NOPORT` (`game_loop.c`) all call `popup_msg_fill` with the real GAME.TXT body at the DOS condition; see Appendix A |
 
 ### 4. Colony screen
 
@@ -462,12 +467,12 @@ fragment. Related sections are listed in the first column.
 | `@COLONY` / `@RENAMECOLONY` | Found / rename | Done | Name entry after found (`@COLONY` wears the MSS5 nun, `479b:0823`); rename (bare, DOS latches nothing) = click colony title bar (DOS zone 10) or **R** (port extra) |
 | `@LANDHO` | Human move with land in the destination 3x3, `named_new_world` clear (`FUN_4720_049e` tail) | Done | Name New World (`colony_region`); the field opens on the live `player[turn].country_name` (DOS passes that buffer, so `@default=America` is dead; a new game stores NAMES `@COLONYNAME` there). Text-entry layout: `popup_field_frame` (port_bugs.md #1181); MSS0 admiral (`2b5a:0028`, #1183) |
 | `@HOWMUCH1`… | Cargo amount | Done | [`howmuch_dialog.c`](../src/core/howmuch_dialog.c) (`=` colony / Europe **L**) |
-| `@WAREHOUSEFULL` | Warehouse overflow | Done thin | Unload full → `ai_popup` OK; spoilage still `@SPOIL*` |
-| Train fails (`@NOTEACHER`, `@TRAINFAIL`, …) | School train | Done thin | EOT `@TRAINFAIL` (`turn.c`), assign-time `@NOTEACHER`/`@NEEDCOLLEGE`/`@NEEDUNIVERSITY` (`colony.c`) all `popup_msg_fill` real body at the DOS condition; see Appendix A |
+| `@WAREHOUSEFULL` | Warehouse overflow | Done | Unload past capacity → 2-row CHOICE (MSS 5); spoilage is `@SPOIL*` |
+| Train fails (`@NOTEACHER`, `@TRAINFAIL`, …) | School train | Done | EOT `@TRAINFAIL` (`turn.c`), assign-time `@NOTEACHER`/`@NEEDCOLLEGE`/`@NEEDUNIVERSITY` (`colony.c`) all `popup_msg_fill` real body at the DOS condition; see Appendix A |
 | `@FULL` | Join at population cap | n/a | port_bugs.md #690: DOS join bails silently at 32; no popup |
 | Spoil / starve (`@SPOIL*`, `@STARVE*`, …) | EOT production | Done | `ai_popup` OK from turn production |
-| Docked unit orders | `@COLONYUNIT` + `@SHIPOPTIONS`/`@UNITOPTIONS`, 2nd click on selected dock icon | Done thin | `colony_screen_open_dock_orders`; ineligible rows omitted (`2f2b_5746`); VGA chrome PARKED |
-| `@CARGOREADY*` | Century tip | Done thin | EOT century `@CARGOREADY0`–`2` |
+| Docked unit orders | `@COLONYUNIT` + `@SHIPOPTIONS`/`@UNITOPTIONS`, 2nd click on selected dock icon | Done | `colony_screen_open_dock_orders`; ineligible rows omitted (`2f2b_5746`); VGA chrome PARKED |
+| `@CARGOREADY*` | Century tip | Done | EOT century `@CARGOREADY0`–`2` |
 
 ### 5. Europe
 
@@ -479,7 +484,7 @@ fragment. Related sections are listed in the first column.
 | Europe dock orders | Don’t board / Board / Move front | Done | `EUROPE_MENU_DOCK` |
 | `@HOWMUCH4`/`5` | Buy/sell amount | Done | Europe **L**/**U** → howmuch |
 | `@PRICEUP` / `@PRICEDOWN` | Price change notice | Done | OK popup (EOT + immediate buy/sell) |
-| `@KINGTAX` / `@TAXOPTIONS` / `@TEAPARTY` | Tax audience (also map queue) | Done | `@KINGTAX` body + `@TAXOPTIONS` Kiss/Party; `@TEAPARTY` Done thin (stock dump + tokens) |
+| `@KINGTAX` / `@TAXOPTIONS` / `@TEAPARTY` | Tax audience (also map queue) | Done | `@KINGTAX` body + `@TAXOPTIONS` Kiss/Party; `@TEAPARTY` stock dump + tokens (%STRING2 = @HOMEPORT city, #1396), sound 0x56 |
 | `@KISSUP` / `@KISSSORRY` | Click a boycotted market cell | Done | `AI_POPUP_TAG_EUROPE_KISSUP` CHOICE (Unfair / Pay) from `game_europe_ask_boycott_buyback`; Pay then tests the purse and shows `@KISSSORRY` OK, exactly `FUN_38fd_2dfe`'s order |
 
 ### 6. Indian contact / trade / raids
@@ -522,13 +527,13 @@ fragment. Related sections are listed in the first column.
 | Merc Hire/Decline (`@MERCENARIES`) | Continental mercs | Done | `KING_MERC` |
 | Declare (`@DECLARE`) | Independence confirm | Done | `KING_CONGRESS` body+choices via `popup_msg_fill` / `popup_msg_choices` |
 | `@INDEPENDENCE` letter | Rename / letter | Done | `KING_LETTER` from `@INDEPENDENCE`; signing cinematic (`declaration.c`) |
-| `@INVASION` / intervene | REF / ally arrival | Done thin | REF `@INVASION`; ally `@INTERVENTION`+`@INTERVENE` |
-| Crown capture | REF takes colony | Done thin | `@CAPTURED3` via `units_combat_notify_colony_captured` (`COMBAT_COLONY`; the reserved `KING_CAPTURE` tag has no producer) |
-| Revolution win/lose | End WoI | Done thin | `@WINNING` / `@LOSING1` / `@LOSING2` / `@RETIRING2` via `popup_msg_fill`; latches |
+| `@INVASION` / intervene | REF / ally arrival | Done | REF `@INVASION`; ally `@INTERVENTION`+`@INTERVENE` |
+| Crown capture | REF takes colony | Done | `@CAPTURED3` via `units_combat_notify_colony_captured` (`COMBAT_COLONY`; the reserved `KING_CAPTURE` tag has no producer) |
+| Revolution win/lose | End WoI | Done | `@WINNING` / `@LOSING1` / `@LOSING2` / `@RETIRING2` via `popup_msg_fill`; latches |
 | Mid-war warn | WoI | Done | ONE `@WARN%d` per turn from DOS's digit-patch selector (raw 58506-58534): colonies<3 → `@WARN2` > share ≥80% → `@WARN3` > ports<3 → `@WARN1`; skipped on a turn that wins or loses the war; shown every turn the condition holds (no latch, port_bugs.md #1392), from the year-end chrome right after the calendar step (`ai_king_year_end_woi`, #1387). `@LOSING3` takes over at share ≥90% |
 | `@CONTINENTAL` FF elect | Founding Father debate | Done | `FF_CONGRESS` |
-| 1800 peacetime end | Auto-end | Done thin | `@SCORED` CHOICE; That's all → `@RETIRING` + retire score; latch `market_demand_pool_raw[4]=3` |
-| Anniversary soon-retire | Calendar | Done thin | `@SOONRETIRING0` Spring 1790 peacetime; `@SOONRETIRING1` 1840 WoI |
+| 1800 peacetime end | Auto-end | Done | `@RETIRING` (STRING2 = most populous colony) → retire score / HoF chain → `@SCORED` CHOICE (choice 2 keeps playing) |
+| Anniversary soon-retire | Calendar | Done | `@SOONRETIRING0` Spring 1790 peacetime; `@SOONRETIRING1` 1840 WoI |
 
 ### 9. Combat / loot / capture
 
@@ -549,12 +554,11 @@ Deep mechanics: [combat.md](combat.md).
 
 | Popup / `@SECTION`s | When | Status | Port |
 |---------------------|------|--------|------|
-| `@LOSENOCOLONIES` / defeat | No colonies | Done thin | DOS `3844_0442` Section B (year≥1600, peacetime, zero human colonies): `@LOSENOCOLONIES` OK (`%STRING0` difficulty title, `%STRING1` leader name) then `AI_KING_ENDGAME_LOST` → retire-score/HoF chain (`turn_run_year_end_chrome`) |
-| `@SCORE` / `@SCORED` / retire | Retire / F10 | Done thin | `@SCORED` + `@RETIRING` on peacetime 1800 That's all; F10 score; Hall of Fame in DOS `HALLFAME.DAT` |
-| `@LOSING*` / `@WARN*` / `@WINNING` | WoI end / anniversary | Done thin | `@WINNING`/`@LOSING1`–`3`/`@RETIRING`/`@RETIRING2`/`@WARN1`–`3`/`@SOONRETIRING0`/`1` Done thin |
-| `@TIMECHANGE` | Calendar help | Done thin | Fires once at year 1600 / season 0 (`FUN_130d_0290`, asm-recovered `LEA BX,[0x141]`) via `popup_chrome_ok` in `turn_processor_advance` |
-| 1850 WoI win | Year≥1850 + no crown | Done thin | `@WINNING` latch + INFO |
-| 1850 WoI stalemate | Year≥1850 + crown alive | Done thin | `@RETIRING2` latch lost + INFO |
+| `@LOSENOCOLONIES` / defeat | No colonies | Done | DOS `3844_0442` Section B (year≥1600, peacetime, zero human colonies): `@LOSENOCOLONIES` OK (`%STRING0` difficulty title, `%STRING1` leader name) then `AI_KING_ENDGAME_LOST` → retire-score/HoF chain (`turn_run_year_end_chrome`) |
+| `@SCORE` / `@SCORED` / retire | Retire / F10 | Done | `@SCORED` + `@RETIRING` on peacetime 1800 That's all; F10 score; Hall of Fame in DOS `HALLFAME.DAT` |
+| `@LOSING*` / `@WARN*` / `@WINNING` | WoI end / anniversary | Done | `@WINNING`/`@LOSING1`–`3`/`@RETIRING`/`@RETIRING2`/`@WARN1`–`3`/`@SOONRETIRING0`/`1` |
+| `@TIMECHANGE` | Calendar help | Done | Fires once at year 1600 / season 0 (`FUN_130d_0290`, asm-recovered `LEA BX,[0x141]`) via `popup_chrome_ok` in `turn_processor_advance` |
+| 1850 end | Year 1850 (WoI on) | Done | `@RETIRING2` → retire chain → `@SCORED` (DOS has no separate 1850 win arm; the WoI win test has no year gate) |
 
 See also [sons_of_liberty.md](sons_of_liberty.md),
 [`year_end_chrome.md`](../original_sources_annotated/turn/year_end_chrome.md).
@@ -572,7 +576,7 @@ Cycling rotates the map's water palette (settings.md); Tutorial Hints gates the
 
 | Popup / `@SECTION`s | When | Status | Port |
 |---------------------|------|--------|------|
-| `@LOSTCITY1`…`9`, `@BURIAL*`, `@SCREWED` | Lost City / ruins | Done thin | `units_resolve_lcr_rumour`; @LOSTCITY4 Search/Stay-clear CHOICE live for the human (`AI_POPUP_TAG_LCR_BURIAL`, port_bugs.md #956) and the payout block runs from its result; native-attack combat resolve on `@SCREWED` PARKED (50/50 despawn stand-in) |
+| `@LOSTCITY1`…`9`, `@BURIAL*`, `@SCREWED` | Lost City / ruins | Done | `units_resolve_lcr_rumour`; @LOSTCITY4 Search/Stay-clear CHOICE live for the human (`AI_POPUP_TAG_LCR_BURIAL`, port_bugs.md #956) and the payout block runs from its result; `@SCREWED` = box then alarm +100, no combat (DOS `65dd_0004`) |
 | `@TUTORIAL1`…`19`, `@TUT*` | Tutorial hints option | Done | Every hint has its DOS site; per-tag gates and latches in [popups_catalog.md](popups_catalog.md). `game_tutorial.c`: the piece-selected chain `FUN_2b5a_0070` (1, 11, 13, 14, 15, 3, 8, 9, 10, 19 in DOS order, at most one per activation, run on a click-select and on every rotation pick), land-ho `@TUTORIAL2`, colony bring-up 4 / 12, colony assign 7, colony refresh 16 (food short), Europe bring-up 17, Europe buy refusal 18 (no option gate, no latch). Elsewhere: `@TUTORIAL5` (`turn_colony.c`), `@TUTORIAL6` (`turn_production.c`), `@TUTNOLUMBER` / `@TUTNOSPACES` (Build Colony, `game_dialogs.c`). The GAME.TXT `@x` / `@y` / `@smallfont` directives of these sections are not applied (ai_popup reads neither) |
 | `WOODCUT.TXT` captions | Discovery woodcut scenes | Done | [`woodcut.c`](../src/core/woodcut.c) — `FUN_12fd_006c` once-only gate (DS:`0x540a` = `event` + `unknown05`) + tune table, `FUN_6f30_0062` presenter (WOODFRAM.SS frame, WDCUT`nn`.SS art, NAMEPLAT.SS 3-piece plate, FONT-NP.FF caption). Wired ids: 1 new world (land sighted, `FUN_4720_049e`), 2 building a colony (`479b:0950`), 3/4/5 natives/Aztec/Inca (`5bfb:038a`, by tribe tech class), 6 Pacific (`13f1:0280`), 7 entering a village (`4d56:478a`), 8 Fountain of Youth (`65dd:04a9`), 9 cargo from the New World (`48d3:08bf`, a ship docks in Europe with goods), 10 meeting fellow Europeans (`5bfb:15cf`, MET bit still clear), 11 colony burning + 13 Indian raid (`5fef`). Id 12 COLONY DESTROYED has art but **no** call site in the shipped EXE; ids 14-16 have captions but no art; 17-25 are demo-autoplay only |
 

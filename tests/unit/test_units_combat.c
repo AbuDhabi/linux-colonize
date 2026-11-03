@@ -161,14 +161,30 @@ static int unit_fort_fire_dissolve_and_europe(void) {
     fprintf(stderr, "fortfire2: damaged hull still on the map at (%d,%d)\n", u1->x, u1->y);
     rc = 1;
   }
-  if (rc == 0 && eu.expected_ships != 1) {
-    fprintf(stderr, "fortfire2: want 1 Europe-bound hull got %d\n", eu.expected_ships);
+  /* #1381c: in port under repair (DOS 236+n, bit7), not in the Expected lane;
+   * the tick counts +0x315a up to the @UNIT defense column, then repairs. */
+  if (rc == 0 && (eu.harbor_ships != 1 || eu.expected_ships != 0 || !eu.harbor[0].damaged)) {
+    fprintf(stderr, "fortfire2: want 1 damaged harbor hull got harbor %d expected %d\n",
+            eu.harbor_ships, eu.expected_ships);
     rc = 1;
   }
-  if (rc == 0 && eu.expected[0].turns_left < 1) {
-    fprintf(stderr, "fortfire2: repair wait must be at least a turn (got %d)\n",
-            eu.expected[0].turns_left);
+  if (rc == 0 && europe_set_sail_from_harbor(&eu, 0, 2, &pool, 1)) {
+    fprintf(stderr, "fortfire2: a hull under repair must not sail\n");
     rc = 1;
+  }
+  if (rc == 0) {
+    const int start = eu.harbor[0].repair_counter;
+    int ticks = 0;
+    int idx[2];
+    while (ticks < 20 && europe_harbor_repair_tick(&eu, &pool, idx, 2) == 0) {
+      ticks++;
+    }
+    if (eu.harbor[0].damaged || ticks + 1 != pool.types[0].defense - start ||
+        !europe_set_sail_from_harbor(&eu, 0, 2, &pool, 1)) {
+      fprintf(stderr, "fortfire2: repair from %d took %d ticks (damaged %d)\n", start, ticks + 1,
+              eu.harbor[0].damaged);
+      rc = 1;
+    }
   }
 
   /* An own Drydock port takes the hull instead — no Europe trip. */
@@ -198,7 +214,7 @@ static int unit_fort_fire_dissolve_and_europe(void) {
               u3 ? u3->x : -1, u3 ? u3->y : -1, u3 ? u3->active : 0);
       rc = 1;
     }
-    if (rc == 0 && eu.expected_ships != 1) {
+    if (rc == 0 && (eu.expected_ships != 0 || eu.harbor_ships != 0)) {
       fprintf(stderr, "fortfire2: drydock hull must not sail to Europe\n");
       rc = 1;
     }
@@ -2232,6 +2248,39 @@ static int unit_tb34_sink_decrements_ship_count(void) {
   return rc;
 }
 
+/* port_bugs.md #1403: FUN_65dd_0004 tail fizzles the BURIAL3 Treasure IN
+ * (`local_4` set, asm 0x61adc) for a human explorer only; an AI explorer
+ * (`local_a` = 0) gets no redraw at all. */
+static int unit_lcr_burial3_treasure_fizzles_in(void) {
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  pool.board_first_slot = -1;
+  pool.type_count = 1;
+  pool.types[0].kind_plus1 = (int)UNITS_KIND_TREASURE + 1;
+  ColonizeCol1Save c1;
+  memset(&c1, 0, sizeof(c1));
+  ColonizeDosRng rng;
+  dos_rng_seed(&rng, 1);
+  const ColonizeWorld w = {.units = &pool, .col1 = &c1, .col1_ok = true, .rng = &rng};
+  int rc = 0;
+  for (int human = 1; human >= 0 && rc == 0; --human) {
+    s_dissolve_count = 0;
+    units_set_combat_dissolve(unit_test_dissolve_hook, NULL);
+    units_lcr_burial_resolve_w(&w, 0, human ? 0 : -1, 4, 4, 0, 99);
+    units_set_combat_dissolve(NULL, NULL);
+    const int want = human ? 2 : 0;
+    if (s_dissolve_count != want || (want && (s_dissolve_phases[0] != 0 || s_dissolve_phases[1] != 1))) {
+      fprintf(stderr, "burial3 fizzle: human=%d dissolve count %d want %d\n", human, s_dissolve_count, want);
+      rc = 1;
+    }
+  }
+  if (rc == 0 && pool.unit_count != 2) {
+    fprintf(stderr, "burial3 fizzle: expected 2 Treasures, got %d units\n", pool.unit_count);
+    rc = 1;
+  }
+  return rc;
+}
+
 static const TestCase k_cases[] = {
   {"unit_royal_loss_tax_cut", unit_royal_loss_tax_cut},
   {"unit_combat_music_sting", unit_combat_music_sting},
@@ -2251,5 +2300,6 @@ static const TestCase k_cases[] = {
   {"unit_indian_massacre_names_victim", unit_indian_massacre_names_victim},
   {"unit_tb33_spanish_tech1_bound", unit_tb33_spanish_tech1_bound},
   {"unit_tb34_sink_decrements_ship_count", unit_tb34_sink_decrements_ship_count},
+  {"unit_lcr_burial3_treasure_fizzles_in", unit_lcr_burial3_treasure_fizzles_in},
 };
 TEST_MAIN_WRAPPED(k_cases, diag_init(0, NULL), diag_shutdown())

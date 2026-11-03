@@ -99,6 +99,49 @@ bool europe_harbor_push_ex(
   return true;
 }
 
+bool europe_harbor_push_damaged(EuropeScreen* eu, const ColonizeUnit* u, const char* name, bool exit_east) {
+  if (!u || !europe_harbor_push_ex(
+              eu, u->type_index, name, NULL, NULL, 0, u->hold_goods_type, u->hold_goods_amount
+            )) {
+    return false;
+  }
+  EuropeHarborShip* s = &eu->harbor[eu->harbor_ships - 1];
+  s->damaged = true;
+  s->repair_counter = (int)u->col1_counter16;
+  s->exit_x = u->goto_x;
+  s->exit_y = u->goto_y;
+  s->exit_east = exit_east;
+  return true;
+}
+
+int europe_harbor_repair_tick(EuropeScreen* eu, const ColonizeUnitPool* units, int* out, int max) {
+  if (!eu || !units) {
+    return 0;
+  }
+  int n = 0;
+  for (int i = 0; i < eu->harbor_ships; ++i) {
+    EuropeHarborShip* s = &eu->harbor[i];
+    if (!s->damaged) {
+      continue;
+    }
+    /* DOS-LITERAL FUN_3844_00f2 raw 58340-58350: +0x315a += 1 (the second
+     * +1 needs a colony tile), done when @UNIT[type].0x5235 <= +0x315a. */
+    if (s->repair_counter < 255) {
+      s->repair_counter++;
+    }
+    const ColonizeUnitType* ty = units_type(units, europe_ship_type_index(units, s));
+    if (!ty || ty->defense > s->repair_counter) {
+      continue;
+    }
+    s->damaged = false;
+    if (out && n < max) {
+      out[n] = i;
+    }
+    n++;
+  }
+  return n;
+}
+
 bool europe_enqueue_expected(
   EuropeScreen* eu,
   int type_index,
@@ -237,6 +280,11 @@ bool europe_set_sail_from_harbor(
     return false;
   }
   if (eu->bound_ships >= EUROPE_HARBOR_MAX) {
+    return false;
+  }
+  /* A hull under repair cannot sail: FUN_38fd_2bfe drops row 2, and the
+   * drag (raw 61023) and S/Space/Enter (raw 67692) paths refuse bit7. */
+  if (eu->harbor[harbor_index].damaged) {
     return false;
   }
   EuropeHarborShip ship;

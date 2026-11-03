@@ -11,7 +11,7 @@ wait 3
 key Return               # dismiss: the Caravel's evade roll (FUN_5bfb_312e, power 7 vs 22) fails, the combat roll is lost
 wait 3
 key Return               # "{French Privateer} damaged! Ship returns to {La Rochelle} for repairs." (@SHIPDAMAGE;
-wait 3                  #  the gunless winner cannot sink it; Quebec has no Drydock: the hull goes to France's Expected lane 245, repair timer 2, re-export goto = the return tile (49,30))
+wait 3                  #  the gunless winner cannot sink it; Quebec has no Drydock: the hull goes into the La Rochelle harbor under repair (237,237, bit7, counter 6 of 8, as DOS), re-export goto = the return tile (49,30))
 wait 3                   # the Frigate on (47,23) is selected next (port_bugs.md #1376: was View Pieces, nothing selected)
 wait 3
 key KP_3                 # Frigate attacks the Caravel SE: Combat Analysis dialog

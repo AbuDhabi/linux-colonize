@@ -304,9 +304,14 @@ void ai_king_enqueue_teaparty_ok(ColonizeTurnContext* ctx, int human, int cargo)
   }
 
   ColonizeColony* best = ai_king_teaparty_colony(ctx, human, cargo);
+  /* raw 64256-64265: no coastal colony picked (local_4 < 0) returns before the
+   * box, so @TEAPARTY always names a colony (port_bugs.md #1396). */
+  if (!best) {
+    return;
+  }
 
   int tons = 0;
-  if (best) {
+  {
     tons = best->stock[cargo] > 100 ? 100 : best->stock[cargo];
     best->stock[cargo] -= tons;
     /*
@@ -330,8 +335,11 @@ void ai_king_enqueue_teaparty_ok(ColonizeTurnContext* ctx, int human, int cargo)
    * copy it out before any other catalog lookup runs. */
   char cargo_nm[32];
   str_copy_trunc(cargo_nm, sizeof(cargo_nm), reports_cargo_display_name(cargo));
-  const char* colony_nm =
-    (best && best->name[0]) ? best->name : "a colonial warehouse";
+  const char* colony_nm = best->name;
+  /* raw 64305: %STRING2 = [DS:0x9e12]*2 - 0x7c74, the @HOMEPORT city (the
+   * table @LOOTCASH STRING1 reads). Copied: reports.c scratch is shared. */
+  char home_port[48];
+  str_copy_trunc(home_port, sizeof(home_port), reports_home_port_name(human));
   char party[96];
   ai_king_teaparty_party_name(party, sizeof(party), best, cargo);
 
@@ -339,9 +347,7 @@ void ai_king_enqueue_teaparty_ok(ColonizeTurnContext* ctx, int human, int cargo)
   memset(&tok, 0, sizeof(tok));
   tok.string0 = cargo_nm;
   tok.string1 = colony_nm;
-  /* DOS supplies this market noun from executable code. Use port-authored
-   * wording instead of compiling a duplicate of the catalog's place name. */
-  tok.string2 = "the home market";
+  tok.string2 = home_port;
   tok.string3 = party;
   tok.number0 = tons;
   tok.has_number0 = true;

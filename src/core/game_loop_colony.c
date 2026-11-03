@@ -1486,6 +1486,9 @@ void game_europe_sail_harbor(ColonizeGameState* game, int hidx) {
     return;
   }
   EuropeHarborShip* hs = &eu->harbor[hidx];
+  if (hs->damaged) {
+    return; /* under repair: no voyage roll, no sail (port_bugs.md #1381c) */
+  }
   if (hs->type_index < 0) {
     hs->type_index = europe_ship_type_index(&game->units, hs);
   }
@@ -1511,6 +1514,10 @@ void game_europe_request_sail(ColonizeGameState* game, int hidx) {
   EuropeScreen* eu = &game->europe;
   if (eu->harbor_ships <= 0 || hidx < 0 || hidx >= eu->harbor_ships) {
     eu->status[0] = '\0';
+    return;
+  }
+  /* raw 61023: a damaged hull never starts the sail drag (port_bugs.md #1381c). */
+  if (eu->harbor[hidx].damaged) {
     return;
   }
   game_enqueue_yes_no(
@@ -1965,7 +1972,6 @@ void game_colony_apply_dock_order(
     if (units_is_sea(&game->units, uid) ||
         units_is_transport(&game->units, uid)) {
       csv->transport_unit_id = uid;
-      set_status(game, "Transport selected", NULL);
     } else {
       /* port_bugs.md: on a land/military unit "Move to front" was a no-op —
        * it now heads the queue: first pick for a departing ship and the
@@ -1987,7 +1993,6 @@ void game_colony_apply_dock_order(
         }
       }
       csv->multi_unit_selected_id = uid;
-      set_status(game, "Moved to front", NULL);
     }
     break;
   case COLONY_DOCK_ORDER_CLEAR:

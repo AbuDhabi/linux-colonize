@@ -400,6 +400,19 @@ static void europe_render_transit_box(
     if (!europe_icon_flow_place(&f, sw, sh)) {
       break;
     }
+    const int ship_ti = europe_ship_type_index(&game->units, &ships[i]);
+    int ship_orders = UNITS_ORDER_NONE;
+    if (ships[i].damaged) {
+      /* port_bugs.md #1381c: a hull under repair in port wears the repair
+       * digit (threshold - counter, no halving off the map) and the red X. */
+      const ColonizeUnitType* sty = units_type(&game->units, ship_ti);
+      const int badge = unit_chrome_repair_badge_index(
+        ship_ti, true, sty ? sty->defense : 0, ships[i].repair_counter, false
+      );
+      if (badge >= 0) {
+        ship_orders = badge;
+      }
+    }
     unit_chrome_blit_unit_for_palette(
       framebuffer,
       font,
@@ -407,11 +420,11 @@ static void europe_render_transit_box(
       sprite,
       f.x,
       f.y,
-      europe_ship_type_index(&game->units, &ships[i]),
+      ship_ti,
       game->human_nation,
-      UNITS_ORDER_NONE,
+      ship_orders,
       ships[i].cargo_count > 0,
-      false,
+      ships[i].damaged,
       pal
     );
     if (i == selected_index) {
@@ -2158,6 +2171,7 @@ void game_set_platform(ColonizeGameState* game, ColonizePlatform* platform) {
   game->platform = platform;
   units_set_combat_human_nation(game->human_nation);
   units_set_camera_edge_hook(game_camera_edge_center, game);
+  ai_popup_set_camera_hook(game_popup_camera, game);
   units_set_phantom_lunge_hook(game_phantom_lunge, game);
 }
 
@@ -2166,6 +2180,7 @@ void game_destroy(ColonizeGameState* game) {
     return;
   }
   units_set_move_watch(NULL, NULL);
+  ai_popup_set_camera_hook(NULL, NULL);
   units_set_combat_watch(NULL, NULL);
   units_set_combat_dissolve(NULL, NULL);
   units_set_combat_popup_pump(NULL, NULL);

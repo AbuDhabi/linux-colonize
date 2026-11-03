@@ -4602,6 +4602,8 @@ int main(void) {
     eu[0].harbor[1].exit_x = 40;
     eu[0].harbor[1].exit_y = 20;
     eu[0].harbor[1].exit_east = true;
+    eu[0].harbor[1].damaged = true; /* #1381c: under repair in port */
+    eu[0].harbor[1].repair_counter = 6;
     if (rc == 0 &&
         !col1_bridge_capture_w(
           &(ColonizeWorld){.units = &units, .colonies = &colonies, .map = &map, .col1 = &save,
@@ -4620,6 +4622,11 @@ int main(void) {
           const bool galleon = u->type == (uint8_t)units_find_type(&units, "Galleon");
           if (u->goto_x != (galleon ? 40 : 2) || u->goto_y != (galleon ? 20 : 50)) {
             fprintf(stderr, "docked exit: export goto (%u,%u)\n", u->goto_x, u->goto_y);
+            rc = 1;
+          }
+          if (u->ship_damaged != galleon || u->col1_counter16 != (galleon ? 6 : 0)) {
+            fprintf(stderr, "docked exit: export damage %u counter %u\n", u->ship_damaged,
+                    u->col1_counter16);
             rc = 1;
           }
         }
@@ -4651,7 +4658,8 @@ int main(void) {
         const EuropeHarborShip* hs = &eu[1].harbor[k];
         const bool galleon = strcmp(hs->name, eu[0].harbor[1].name) == 0;
         if (hs->exit_x != (galleon ? 40 : 2) || hs->exit_y != (galleon ? 20 : 50) ||
-            hs->exit_east != galleon) {
+            hs->exit_east != galleon || hs->damaged != galleon ||
+            hs->repair_counter != (galleon ? 6 : 0)) {
           fprintf(stderr, "docked exit: import %s (%d,%d)\n", hs->name, hs->exit_x, hs->exit_y);
           rc = 1;
         }

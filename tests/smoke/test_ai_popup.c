@@ -937,6 +937,61 @@ static int case_dos_wrap_and_width(void) {
   return rc;
 }
 
+/* port_bugs.md #1393/#1394: a request's camera move reaches the hook the moment
+ * it presents (not at enqueue); colony events edge-scroll onto the colony
+ * (cam_x < 0) or an explicit tile, and choice rows are optional. */
+static int g_cam_calls;
+static AiPopupRequest g_cam_last;
+static void cam_hook(void* user, const AiPopupRequest* req) {
+  (void)user;
+  g_cam_calls++;
+  g_cam_last = *req;
+}
+
+static int case_camera_on_present(void) {
+  AiPopupState st;
+  ai_popup_init(&st);
+  g_cam_calls = 0;
+  ai_popup_set_camera_hook(cam_hook, NULL);
+  int rc = 0;
+  (void)ai_popup_enqueue_ok(&st, AI_POPUP_TAG_INFO, NULL, "plain");
+  (void)ai_popup_enqueue_ok(&st, AI_POPUP_TAG_KING_ARRIVAL, NULL, "landing");
+  ai_popup_set_last_camera(&st, AI_POPUP_CAM_CENTRE, 12, 34);
+  (void)ai_popup_enqueue_colony_event(&st, 5, AI_POPUP_ZOOM_TAB_KEEP, "built");
+  (void)ai_popup_enqueue_colony_event_at(&st, 6, AI_POPUP_ZOOM_TAB_KEEP, "gone", false, 7, 8);
+  if (g_cam_calls != 0) {
+    rc = fail("camera must not move at enqueue");
+  }
+  (void)ai_popup_try_present_next(&st);
+  ai_popup_finish(&st, false, 0);
+  ai_popup_consume_result(&st);
+  if (!rc && g_cam_calls != 0) {
+    rc = fail("a request without a camera move must not call the hook");
+  }
+  (void)ai_popup_try_present_next(&st);
+  if (!rc && (g_cam_calls != 1 || g_cam_last.cam_mode != AI_POPUP_CAM_CENTRE ||
+              g_cam_last.cam_x != 12 || g_cam_last.cam_y != 34)) {
+    rc = fail("@INVASION-style centre should reach the hook on present");
+  }
+  ai_popup_finish(&st, false, 0);
+  ai_popup_consume_result(&st);
+  (void)ai_popup_try_present_next(&st);
+  if (!rc && (g_cam_calls != 2 || g_cam_last.cam_mode != AI_POPUP_CAM_EDGE ||
+              g_cam_last.cam_x >= 0 || g_cam_last.payload != 5 ||
+              st.current.choice_count != 2)) {
+    rc = fail("colony event: edge scroll onto the colony tile, with choices");
+  }
+  ai_popup_finish(&st, false, 1);
+  ai_popup_consume_result(&st);
+  (void)ai_popup_try_present_next(&st);
+  if (!rc && (g_cam_calls != 3 || g_cam_last.cam_x != 7 || g_cam_last.cam_y != 8 ||
+              st.current.choice_count != 0 || st.current.tag != AI_POPUP_TAG_COLONY_EVENT)) {
+    rc = fail("colony event _at: explicit tile, no choice rows");
+  }
+  ai_popup_set_camera_hook(NULL, NULL);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
     {"case_fresh_idle", case_fresh_idle},
     {"case_enqueue_and_present_info", case_enqueue_and_present_info},
@@ -953,6 +1008,7 @@ static const TestCase k_cases[] = {
     {"case_rows_are_dos", case_rows_are_dos},
     {"case_help_footer_is_dos", case_help_footer_is_dos},
     {"case_dos_wrap_and_width", case_dos_wrap_and_width},
+    {"case_camera_on_present", case_camera_on_present},
 };
 
 TEST_MAIN(k_cases)

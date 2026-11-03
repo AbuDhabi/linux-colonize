@@ -285,7 +285,21 @@ typedef struct AiPopupRequest {
   /* Greyed rows, bit i = choice row i (FUN_291f_01b6 -> FUN_6f74_08fa option bit 0): grey
    * ink, Up / Down step past them, clicks ignore them (port_bugs.md #1214). */
   uint32_t disabled_mask;
+  /* Camera move made as the box presents (port_bugs.md #1393/#1394), so it lines up
+   * with the box even when the request waited in the queue. AI_POPUP_CAM_*;
+   * cam_x < 0 = the tile of the colony in payload (COLONY_EVENT). Skipped while
+   * the colony screen is open (FUN_364b_0000's DS:0x890 == 0 gate). */
+  int cam_mode;
+  int cam_x;
+  int cam_y;
 } AiPopupRequest;
+
+/* AiPopupRequest.cam_mode. */
+enum {
+  AI_POPUP_CAM_NONE = 0,
+  AI_POPUP_CAM_EDGE = 1,   /* FUN_1984_02fc edge test (281f_0352 / 281f_0d9a -> 03b2) */
+  AI_POPUP_CAM_CENTRE = 2  /* FUN_1984_029e hard centre (281f_0e08) */
+};
 
 /*
  * Status-line ring. DOS's FUN_1009_0036 waits min(armed deadline, now + 30
@@ -452,6 +466,15 @@ bool ai_popup_enqueue_choice_ctx(
 #define AI_POPUP_ZOOM_TAB_PRODUCTION 0
 #define AI_POPUP_ZOOM_TAB_CONSTRUCTION 2
 bool ai_popup_enqueue_colony_event(AiPopupState* st, int colony_id, int zoom_tab, const char* body);
+/*
+ * Full FUN_364b_0000 form: with_choices = its param_2 (false: plain OK box,
+ * e.g. @VANISH); (x, y) = its param_4/5 scroll tile, x < 0 = the colony's own
+ * tile (DOS param_4 == 0). The box edge-scrolls the map onto that tile when it
+ * presents (port_bugs.md #1393). The 4-argument form is (true, -1, -1).
+ */
+bool ai_popup_enqueue_colony_event_at(
+  AiPopupState* st, int colony_id, int zoom_tab, const char* body, bool with_choices, int x, int y
+);
 /* Override the built-in choice labels from LABELS.TXT @MISC 34/35. */
 void ai_popup_set_colony_event_labels(const char* continue_label, const char* zoom_label);
 /* Latch a "Zoom to colony." election (result_choice_id 2). */
@@ -612,6 +635,12 @@ void ai_popup_set_last_graphic_mss(AiPopupState* st, int mss);
 void ai_popup_set_last_graphic_myr(AiPopupState* st, int nation);
 /* Grey choice rows of the newest queued request (bit i = row i; FUN_291f_01b6). */
 void ai_popup_set_last_disabled(AiPopupState* st, uint32_t mask);
+/* Camera move for the newest queued request (AI_POPUP_CAM_*, tile x/y). */
+void ai_popup_set_last_camera(AiPopupState* st, int mode, int x, int y);
+/* Called with each request as it becomes the presented popup (game_loop moves
+ * the map camera; NULL = none, e.g. headless sim tests and MAPEDIT). */
+typedef void (*AiPopupCameraFn)(void* user, const AiPopupRequest* req);
+void ai_popup_set_camera_hook(AiPopupCameraFn fn, void* user);
 
 /*
  * The MSS{mss} / MYR{myr} decoration sheet itself (lazy load from the portrait
