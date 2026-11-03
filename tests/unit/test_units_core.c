@@ -4470,6 +4470,58 @@ static int case_lcr_fountain_ai(void) {
   return 0;
 }
 
+/* FUN_65dd_0004 raw 103685-103687: when the BURIAL3 Treasure spawn fails, DOS
+ * jumps past the popup and the @SCREWED +100 alarm block. A met Arawak village
+ * stands on the site so the claim roll hits; the pool has a Treasure row only
+ * in the control run. */
+static int case_lcr_burial3_spawn_failure_silent(void) {
+  ColonizeUnitPool* bp = calloc(1, sizeof(*bp));
+  ColonizeCol1Save* tcol1 = calloc(1, sizeof(*tcol1));
+  if (!bp || !tcol1) {
+    free(bp);
+    free(tcol1);
+    return 1;
+  }
+  int got[2] = {-1, -1};
+  int alarm[2] = {-1, -1};
+  for (int has_treasure = 0; has_treasure < 2; ++has_treasure) {
+    memset(bp, 0, sizeof(*bp));
+    units_reset(bp);
+    units_set_occupancy_map(NULL);
+    bp->type_count = 1;
+    bp->types[0].kind_plus1 = (has_treasure ? UNITS_KIND_TREASURE : UNITS_KIND_REGULAR) + 1;
+    col1_save_init(tcol1);
+    ColonizeCol1Tribe village;
+    memset(&village, 0, sizeof(village));
+    village.x = 3;
+    village.y = 3;
+    village.nation_id = 4;
+    tcol1->tribe = &village;
+    tcol1->head.tribe_count = 1;
+    tcol1->indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
+    ColonizeDosRng trng;
+    dos_rng_seed(&trng, 12345);
+    AiPopupState pops;
+    ai_popup_init(&pops);
+    units_set_combat_popups(&pops, test_game_txt());
+    const ColonizeWorld bw = {.units = bp, .col1 = tcol1, .col1_ok = true, .rng = &trng};
+    units_lcr_burial_resolve_w(&bw, 0, 0, 3, 3, 0, 99 /* gate >= 65: BURIAL3 */);
+    got[has_treasure] = pops.queue_count;
+    alarm[has_treasure] = tcol1->indian[0].alarm_by_player[0];
+    units_set_combat_popups(NULL, NULL);
+    tcol1->tribe = NULL;
+  }
+  free(bp);
+  free(tcol1);
+  if (got[0] != 0 || alarm[0] != 0 || got[1] != 2 || alarm[1] != 100) {
+    fprintf(stderr,
+            "BURIAL3: failed spawn popups %d alarm %d (want 0/0), spawned %d alarm %d (want 2/100)\n",
+            got[0], alarm[0], got[1], alarm[1]);
+    return 1;
+  }
+  return 0;
+}
+
   /*
    * port_bugs.md #497: case-8 burial trespass only stands (and only costs
    * relation) when the village's tribe has MET the explorer's nation
@@ -8028,6 +8080,7 @@ static const TestCase k_cases[] = {
   {"lcr_outcome_dispatch", case_lcr_outcome_dispatch},
   {"lcr_fountain_ai", case_lcr_fountain_ai},
   {"lcr_burial_trespass", case_lcr_burial_trespass},
+  {"lcr_burial3_spawn_failure_silent", case_lcr_burial3_spawn_failure_silent},
   {"lcr_trespass_village_index", case_lcr_trespass_village_index},
   {"enter_probe_matrix", case_enter_probe_matrix},
   {"board_from_land_sentry", case_board_from_land_sentry},

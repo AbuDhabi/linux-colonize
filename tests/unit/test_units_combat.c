@@ -2457,7 +2457,54 @@ static int unit_naval_win_cue_ships_only(void) {
   return rc;
 }
 
+/* FUN_5fef_31ea raw 101482-101487: a razed village's Treasure spawn that fails
+ * (no room / no row) zeroes the amount and shows no @LOOT. */
+static int unit_village_loot_spawn_failure_silent(void) {
+  ColonizeUnitPool* bp = calloc(1, sizeof(*bp));
+  if (!bp) {
+    return 1;
+  }
+  int got[2] = {-1, -1};
+  for (int has_treasure = 0; has_treasure < 2; ++has_treasure) {
+    memset(bp, 0, sizeof(*bp));
+    units_reset(bp);
+    units_set_occupancy_map(NULL);
+    bp->type_count = 1;
+    bp->types[0].kind_plus1 = (has_treasure ? UNITS_KIND_TREASURE : UNITS_KIND_REGULAR) + 1;
+    ColonizeCol1Tribe tribe;
+    memset(&tribe, 0, sizeof(tribe));
+    tribe.x = 3;
+    tribe.y = 3;
+    tribe.nation_id = 4;
+    tribe.population = 1;
+    ColonizeCol1Save col1;
+    memset(&col1, 0, sizeof(col1));
+    memset(col1.head.founding_father, 0xff, sizeof(col1.head.founding_father));
+    col1.head.tribe_count = 1;
+    col1.tribe = &tribe;
+    AiPopupState pops;
+    ai_popup_init(&pops);
+    units_set_combat_popups(&pops, NULL);
+    ColonizeWorld w = {.units = bp, .col1 = &col1, .col1_ok = true};
+    const bool razed = units_try_native_settlement_fallout_w(&w, 0, 4, 3, 3, 500, 3, 3);
+    int loot = 0;
+    for (int q = 0; q < pops.queue_count; ++q) {
+      loot += pops.queue[q].tag == AI_POPUP_TAG_COMBAT_LOOT;
+    }
+    units_set_combat_popups(NULL, NULL);
+    got[has_treasure] = razed ? loot : -1;
+  }
+  free(bp);
+  if (got[0] != 0 || got[1] != 1) {
+    fprintf(stderr, "LOOT popups: failed spawn %d (want 0), spawned %d (want 1)\n", got[0],
+            got[1]);
+    return 1;
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+  {"unit_village_loot_spawn_failure_silent", unit_village_loot_spawn_failure_silent},
   {"unit_royal_loss_tax_cut", unit_royal_loss_tax_cut},
   {"unit_combat_music_sting", unit_combat_music_sting},
   {"unit_fort_fire_dissolve_and_europe", unit_fort_fire_dissolve_and_europe},

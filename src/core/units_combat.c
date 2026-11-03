@@ -3041,9 +3041,12 @@ bool units_try_native_settlement_fallout_w(
         col1, attacker_nation_id, tribe_nation, rng, rich_capital);
     }
     if (gold > 0) {
-      (void)units_spawn_treasure_train(units, tile_x, tile_y, attacker_nation_id, gold);
+      const bool spawned =
+        units_spawn_treasure_train(units, tile_x, tile_y, attacker_nation_id, gold) >= 0;
       units_set_bgm_pool(2); /* raw 101276 FUN_281f_04ac(2), no human gate */
-      if (units_combat_human_involved(col1, attacker_nation_id, defender_nation_id)) {
+      /* FUN_5fef_31ea raw 101482-101487: a failed FUN_281f_095c spawn zeroes
+       * the amount and skips the @LOOT popup. */
+      if (spawned && units_combat_human_involved(col1, attacker_nation_id, defender_nation_id)) {
         PopupMsgTokens tok;
         memset(&tok, 0, sizeof(tok));
         tok.string0 = units_combat_nation_label(col1, attacker_nation_id);
