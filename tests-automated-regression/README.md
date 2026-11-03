@@ -83,6 +83,7 @@ the port, with fixture edits through `sav_json` where a test needs them
 | `map_board_ship_full_refused` | Same, Caravel #2 with both holds full: the step is refused silently, the Scout stays ashore |
 | `map_game_options_enable_all` | GAME > Game Options with every option off: all eight rows turned on (mouse and keyboard), reopened |
 | `map_game_options_disable_all` | Base save: all eight rows turned off, reopened, closed by an outside click |
+| `game_retire` | Base save: GAME menu Retire, @RETIRE Yes, F10 score, exploits screen, Hall of Fame, title menu (`ends_on_title`; `output.hallfame` pins the record) |
 
 The `europe_*` tests were recorded live and start from `port_saves/carpentry.SAV`. The `europe_*` ones use a copy
 edited with `sav_json` to 60000 gold and a recruit pool of Fishermen /
@@ -170,3 +171,6 @@ step are commented in its `input.steps`.
 | `turns_native_convert_joins` | 3 | Same start, French Jesuit missions in the three Iroquois villages by Port au Prince: turn 109's Brave visit sends an Indian Convert instead of 16 Ore (@INDIANSCONVERT); it joins Port au Prince (B) and works a land tile in turn 110 |
 | `turns_king_tax_accept` | 2 | `turns_king_tax_tea_party`'s start: turn 109's +1% tax raise (@KINGTAX) accepted through @TAXOPTIONS row 0 ('Kiss pinky ring'): tax 26% to 27%, no @TEAPARTY, no boycott, Quebec keeps its Tobacco |
 | `turns_native_raid_colony` | 1 | Same start, Iroquois alarm toward France 100, village words 200, Brave #29 beside Port au Prince: the Brave attacks and loses (@INDIANLOSE), 1b0e's colony limb raids (@RAIDSTORES, 10 of 20 Furs stolen, village word zeroed); a second Brave ambushes the French Scouts (@INDIANWIN2, Horses seized) |
+| `turns_woi_victory` | 1 | `map_declare_independence`'s output (declared) with the REF pools at [0,0,1,0]: end of turn 107 wins the war (@WINNING, @KINGLOSE, closing cinematic, score, exploits, Hall of Fame), @SCORED "That's all." ends on the title menu |
+| `turns_woi_victory_keep_playing` | 1 | Same, @SCORED "Keep playing anyway." returns to the main map in turn 108 (same save as the title-menu end) |
+| `turns_woi_defeat` | 1 | `turns_declare_independence_ref`'s output with Quebec, Guadeloupe and Martinique handed to the Crown: a REF wave and Tory fights, then @LOSING3 (Crown >= 90% of the population), @KINGWIN, score, exploits, Hall of Fame, title menu |

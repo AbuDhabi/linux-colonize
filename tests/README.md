@@ -177,6 +177,8 @@ Most executables expect **repo root** as cwd (`WORKING_DIRECTORY` in CMake).
 | `settings.json` | optional: the settings the replay runs with (e.g. a `divergences` switch); default settings without it. The harness applies the startup-read `unlimited_units` and `modern_prng` as `main.c` does (xoshiro seeded from `seed`, 0 without one) |
 | `output.frame` | optional: FNV-1a hash of the final frame's palette indices, for render-only behaviour the save never sees (`current_vision`); `--bless` refreshes it when present (create it empty to start) |
 | `turns` | optional: N, the number of turns the test ends (multi-turn tests, see below); 0 without it |
+| `ends_on_title` | optional, empty: the test ends on the title menu (Retire, a won or lost War of Independence) instead of the main map; the save is taken there |
+| `output.hallfame` | optional: the `HALLFAME.DAT` the test leaves. Every test starts from an empty Hall of Fame in its out dir (`game->hof_path`), so a replay never reads or writes `COLONIZE/HALLFAME.DAT`; `--bless` refreshes it when present (create it empty to start) |
 
 The harness loads `input.sav`, waits for the main map, replays the log one
 logged frame per `platform_poll_input` call (nested polls inside

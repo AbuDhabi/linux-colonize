@@ -342,6 +342,7 @@ struct ColonizeGameState {
   int colony_page; /* 0..k-1 = Military Garrisons; k..2k-1 = Sons of Liberty */
   int naval_page; /* Naval report (F7) page index — reports_naval_page_count */
   ColonizeHofEntry hof_entries[COLONIZE_HOF_MAX]; /* HALLFAME.DAT slots, ranked desc */
+  char hof_path[640]; /* "" = <data dir>/HALLFAME.DAT; regression_replay points it at its out dir */
   int hof_inserted; /* slot the Retire entry took (FUN_41f2_0f56 local_156), -1 = title-menu view */
   ColonizeHofEntry hof_retired; /* the Retire entry; line 5 when it placed 6th or lower (DB-57) */
   bool in_hall_of_fame; /* title-menu "View Hall of Fame" screen (reports_render_hall_of_fame) */

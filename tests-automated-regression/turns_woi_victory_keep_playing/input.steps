@@ -1,0 +1,25 @@
+# Win the War of Independence, then keep playing. Same start and chain as turns_woi_victory; at @SCORED
+# declared, every rebel unit's moves spent) with the Royal Expeditionary Force pools edited to [0,0,1,0]
+# (regulars, dragoons, Man-O-Wars, artillery): nothing left to land, no crown land unit on the map, no crown colony.
+# (An all-zero pool would be re-seeded on load, game_loop_saveload.c; the Man-O-War pool is not in the win test.)
+# End of turn 107: FUN_3844_0442 C1's win arm (ai_king_woi_end_win) fires: @WINNING, then the @KINGLOSE throne
+# audience, the CLOSING.EXE cinematic (closing.c), the retire chain without the @RETIRE confirm (F10 score report,
+# exploits screen, Hall of Fame; the harness starts from an empty HALLFAME.DAT), then @SCORED.
+# "Keep playing anyway." (row 1) returns to the main map: the war is won, the game goes on in turn 108.
+key space                # end turn 107
+wait 30
+key Return               # @WINNING: Royal Expeditionary Force annihilated
+wait 10
+key Return               # @KINGLOSE throne audience
+wait 10
+key Return               # CLOSING.EXE cinematic
+wait 10
+key Return               # F10 score report
+wait 10
+key Return               # exploits screen
+wait 10
+key Return               # Hall of Fame
+wait 10
+key Down                 # @SCORED: bar to "Keep playing anyway."
+key Return               # back to the main map, turn 108
+wait 10

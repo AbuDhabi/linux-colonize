@@ -10,7 +10,8 @@ into PNGs in build/debug/regression_out/NAME/ (shot_start.png, shot_<frame>.png
 = the screen right before each press, shot_end.png). A missing output.sav is
 seeded with input.sav, so the harness's field diff shows what the steps
 changed. --bless copies the run's actual.sav to output.sav (and actual.frame to
-output.frame when the test has one; create it empty to start pinning the frame).
+output.frame / HALLFAME.DAT to output.hallfame when the test has one; create it
+empty to start pinning it).
 
 Step script, one step per line, `#` starts a comment; x/y are 320x200
 logical screen pixels:
@@ -216,6 +217,9 @@ def main():
         if os.path.exists(os.path.join(test, 'output.frame')):
             shutil.copy(os.path.join(out, 'actual.frame'), os.path.join(test, 'output.frame'))
             print(f'blessed {test}/output.frame')
+        if os.path.exists(os.path.join(test, 'output.hallfame')):
+            shutil.copy(os.path.join(out, 'HALLFAME.DAT'), os.path.join(test, 'output.hallfame'))
+            print(f'blessed {test}/output.hallfame')
     sys.exit(rc)
 
 

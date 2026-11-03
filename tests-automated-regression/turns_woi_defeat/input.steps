@@ -1,0 +1,35 @@
+# Lose the War of Independence. Start: turns_declare_independence_ref's output.sav (France, Autumn 1600, turn 109;
+# the Tories hold Montreal) with Quebec, Guadeloupe and Martinique handed to the Crown (colony nation 2, the units
+# on their tiles too) and every other French unit without orders fortified (orders 6). France keeps Port au
+# Prince (pop 1); the Crown holds 18 of the 19 colonists.
+# End of turn 109: a REF wave lands near Port au Prince and the Tories fight around Guadeloupe (popups answered in
+# the nested pump), then FUN_3844_0442's lose arm (ai_king_woi_end_lose) picks @LOSING3 (Crown >= 90% of the
+# population), the @KINGWIN throne audience follows, then the retire chain (F10 score report, exploits screen,
+# Hall of Fame; the harness starts from an empty HALLFAME.DAT) and the title menu. There is no @SCORED after a
+# lost war (port_bugs.md #1232). The save is taken on the title menu; output.hallfame pins the record.
+key space                # end turn 109
+wait 30
+key Return               # Royal Expeditionary Force lands near Port au Prince (nested pump)
+wait 10
+key Return               # nested pump
+wait 10
+key Return               # Rebel colonists CAPTURED by the Tory (nested pump)
+wait 10
+key Return               # Tories defeat Rebel Colonists near Guadeloupe (nested pump)
+wait 10
+key Return               # nested pump
+wait 10
+key Return               # Rebel colonists CAPTURED by the Tory (nested pump)
+wait 10
+key Return               # Tories defeat Rebel Colonists near Guadeloupe (nested pump)
+wait 10
+key Return               # @LOSING3: King's Forces control over 90% of New France population
+wait 10
+key Return               # @KINGWIN throne audience
+wait 10
+key Return               # F10 score report
+wait 10
+key Return               # exploits screen
+wait 10
+key Return               # Hall of Fame: title menu
+wait 10

@@ -1,0 +1,17 @@
+# Retire from the GAME menu in peacetime: France 1599 (map_found_colony's input.sav). FUN_41f2_14a8: @RETIRE
+# confirm (Yes / No, the bar starts on No), the F10 score report, the exploits screen (FUN_41f2_0b70: rating 8%,
+# "Cartier Boulevard"), the Hall of Fame (FUN_41f2_0f56; the harness starts every test from an empty
+# HALLFAME.DAT, so the entry ranks 1st, score 174), then the title menu. The save is taken on the title menu:
+# calendar_latch ("scoring complete", 0x5382 & 0x10) set; output.hallfame pins the DOS 42-byte record.
+click 22 3               # GAME menu
+click 40 101             # Retire: @RETIRE "Do you really want to quit?"
+wait 2
+key Up                   # bar to Yes
+key Return               # Yes: F10 score report
+wait 4
+key Return               # exploits screen
+wait 4
+key Return               # Hall of Fame
+wait 4
+key Return               # title menu
+wait 4

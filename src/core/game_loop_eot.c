@@ -997,6 +997,10 @@ static void game_hof_path(const ColonizeGameState* game, char* out, size_t out_s
   if (!game) {
     return;
   }
+  if (game->hof_path[0]) {
+    snprintf(out, out_size, "%s", game->hof_path);
+    return;
+  }
   if (!dos_compat_normalize_asset_path(game->resolved_data_dir, "HALLFAME.DAT", out, out_size)) {
     snprintf(out, out_size, "%s/HALLFAME.DAT", game->resolved_data_dir);
   }

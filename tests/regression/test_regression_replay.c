@@ -8,6 +8,10 @@
  *   turns        optional: N, the number of turns the test ends (default 0)
  *   settings.json optional: settings the replay runs with (divergences)
  *   output.frame optional: FNV-1a hash of the final frame (render-only checks)
+ *   ends_on_title optional (empty file): the test ends on the title menu (Retire,
+ *                won or lost war); the save is taken there
+ *   output.hallfame optional: the HALLFAME.DAT the test leaves (each test starts
+ *                from an empty one in its out dir, never COLONIZE/HALLFAME.DAT)
  * The harness loads input.sav, feeds the logged events back frame by frame
  * through a replay platform, lets the game settle on the main map, saves,
  * and requires the save to match output.sav byte for byte.
@@ -559,6 +563,8 @@ static const char* off_map_reason(const ColonizeGameState* g) {
        : g->in_europe        ? "Europe screen"
        : g->in_pedia         ? "Colonizopedia"
        : g->in_report        ? "report screen"
+       : g->in_exploits      ? "exploits screen"
+       : g->in_hall_of_fame  ? "Hall of Fame"
        : g->in_debug_atlas   ? "debug atlas"
        : game_modal_open(g)  ? "modal open"
        : ai_popup_busy(&g->ai_popups) ? "popup open or queued"
@@ -621,6 +627,10 @@ static int run_test(const char* name) {
     }
     free(text);
   }
+  char title_file[600];
+  snprintf(title_file, sizeof(title_file), "%s/ends_on_title", dir);
+  struct stat title_st;
+  const bool ends_on_title = stat(title_file, &title_st) == 0;
   const uint32_t duration_ms = rp.recs[rp.count - 1].t_ms - rp.recs[0].t_ms;
   const uint64_t limit_ms =
     (2u * (uint64_t)duration_ms > MIN_TIME_LIMIT_MS ? 2u * (uint64_t)duration_ms : MIN_TIME_LIMIT_MS) +
@@ -672,6 +682,10 @@ static int run_test(const char* name) {
     printf("  no COLONIZE/ assets\n");
     return TR_SKIP;
   }
+  /* Retire writes the Hall of Fame: an empty private one, never the user's. */
+  snprintf(game->hof_path, sizeof(game->hof_path), "%s/HALLFAME.DAT", out_dir);
+  remove(game->hof_path);
+  game_hof_load(game);
   char err[256];
   if (!game_load_col1_file(game, in_sav, err, sizeof(err))) {
     printf("  cannot load %s: %s\n", in_sav, err);
@@ -728,7 +742,9 @@ static int run_test(const char* name) {
       }
     } else {
       phase = "settle (after the last input)";
-      settled = off_map_reason(game) ? 0 : settled + 1;
+      const char* why = off_map_reason(game);
+      const bool at_end = ends_on_title ? game->in_menu : why == NULL;
+      settled = at_end ? settled + 1 : 0;
       if (settled >= SETTLE_FRAMES) {
         break;
       }
@@ -789,6 +805,20 @@ static int run_test(const char* name) {
     goto done;
   }
   free(want);
+  {
+    char hof_want[640];
+    snprintf(hof_want, sizeof(hof_want), "%s/output.hallfame", dir);
+    size_t want_n = 0, got_n = 0;
+    char* hw = read_text(hof_want, &want_n);
+    char* hg = hw ? read_text(game->hof_path, &got_n) : NULL;
+    const bool hof_ok = !hw || (hg && want_n == got_n && memcmp(hw, hg, want_n) == 0);
+    free(hw);
+    free(hg);
+    if (!hof_ok) {
+      printf("  %s differs from output.hallfame\n", game->hof_path);
+      goto done;
+    }
+  }
   rc = 0;
 done:
   free(pixels);
