@@ -324,6 +324,7 @@ ColonizeUnit* units_get(ColonizeUnitPool* pool, int unit_id);
 const ColonizeUnit* units_get_const(const ColonizeUnitPool* pool, int unit_id);
 const ColonizeUnitType* units_type(const ColonizeUnitPool* pool, int type_index);
 bool units_is_sea(const ColonizeUnitPool* pool, int unit_id);
+bool units_unit_is_sea(const ColonizeUnitPool* pool, const ColonizeUnit* u);
 
 /* DOS @UNIT type codes, mapped through the @UNIT name, not the pool index (see docs/units.md#colonizeunitkind-dos-type-codes). */
 typedef enum ColonizeUnitKind {

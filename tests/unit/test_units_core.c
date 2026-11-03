@@ -2,6 +2,7 @@
 #include "core/units_internal.h"
 #include "core/dos_buggy.h"
 #include "core/ai_popup_render.h"
+#include "core/europe_internal.h"
 
 #include "../common/test_runner.h"
 
@@ -4469,6 +4470,58 @@ static int case_lcr_fountain_ai(void) {
   return 0;
 }
 
+/* FUN_65dd_0004 raw 103685-103687: when the BURIAL3 Treasure spawn fails, DOS
+ * jumps past the popup and the @SCREWED +100 alarm block. A met Arawak village
+ * stands on the site so the claim roll hits; the pool has a Treasure row only
+ * in the control run. */
+static int case_lcr_burial3_spawn_failure_silent(void) {
+  ColonizeUnitPool* bp = calloc(1, sizeof(*bp));
+  ColonizeCol1Save* tcol1 = calloc(1, sizeof(*tcol1));
+  if (!bp || !tcol1) {
+    free(bp);
+    free(tcol1);
+    return 1;
+  }
+  int got[2] = {-1, -1};
+  int alarm[2] = {-1, -1};
+  for (int has_treasure = 0; has_treasure < 2; ++has_treasure) {
+    memset(bp, 0, sizeof(*bp));
+    units_reset(bp);
+    units_set_occupancy_map(NULL);
+    bp->type_count = 1;
+    bp->types[0].kind_plus1 = (has_treasure ? UNITS_KIND_TREASURE : UNITS_KIND_REGULAR) + 1;
+    col1_save_init(tcol1);
+    ColonizeCol1Tribe village;
+    memset(&village, 0, sizeof(village));
+    village.x = 3;
+    village.y = 3;
+    village.nation_id = 4;
+    tcol1->tribe = &village;
+    tcol1->head.tribe_count = 1;
+    tcol1->indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
+    ColonizeDosRng trng;
+    dos_rng_seed(&trng, 12345);
+    AiPopupState pops;
+    ai_popup_init(&pops);
+    units_set_combat_popups(&pops, test_game_txt());
+    const ColonizeWorld bw = {.units = bp, .col1 = tcol1, .col1_ok = true, .rng = &trng};
+    units_lcr_burial_resolve_w(&bw, 0, 0, 3, 3, 0, 99 /* gate >= 65: BURIAL3 */);
+    got[has_treasure] = pops.queue_count;
+    alarm[has_treasure] = tcol1->indian[0].alarm_by_player[0];
+    units_set_combat_popups(NULL, NULL);
+    tcol1->tribe = NULL;
+  }
+  free(bp);
+  free(tcol1);
+  if (got[0] != 0 || alarm[0] != 0 || got[1] != 2 || alarm[1] != 100) {
+    fprintf(stderr,
+            "BURIAL3: failed spawn popups %d alarm %d (want 0/0), spawned %d alarm %d (want 2/100)\n",
+            got[0], alarm[0], got[1], alarm[1]);
+    return 1;
+  }
+  return 0;
+}
+
   /*
    * port_bugs.md #497: case-8 burial trespass only stands (and only costs
    * relation) when the village's tribe has MET the explorer's nation
@@ -4593,6 +4646,82 @@ static int case_lcr_burial_trespass(void) {
       "unit_units: LCR case-8 met gate ok (unmet %d, met %d @LOSTCITY8 over %d trials)\n",
       trespass_popups[0], trespass_popups[1], trial_count[1]
     );
+  fx_close();
+  return 0;
+}
+
+  /*
+   * Case 8 tests the nearest village's TABLE INDEX (FUN_65dd_0004 raw 103554-103556,
+   * `FUN_4cc6_0356 return < 3`), not its distance. Phase 0: villages 0-2 far away at (0,0),
+   * village 3 (met tribe) on the rumour tile -> never @LOSTCITY8. Phase 1: one met village 0
+   * at (0,0), far from every rumour tried -> @LOSTCITY8 still fires.
+   */
+static int case_lcr_trespass_village_index(void) {
+  if (fx_open() != 0 || fx_stage2() != 0) {
+    return 1;
+  }
+    const int scout_ti = units_find_type(&pool, "Scouts");
+    AiPopupState pops;
+    ai_popup_init(&pops);
+    units_set_combat_popups(&pops, test_game_txt());
+    int hits[2] = {0, 0};
+    for (int phase = 0; phase < 2; ++phase) {
+      ColonizeCol1Save tcol1;
+      memset(&tcol1, 0, sizeof(tcol1));
+      for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
+        tcol1.head.founding_father[i] = -1;
+      }
+      tcol1.stuff.census_pop_proxy[0] = 20;
+      tcol1.stuff.colony_counts[0] = 3;
+      tcol1.player[0].lcr_case5_bonus_used = 1;
+      ColonizeCol1Tribe tribes[4];
+      memset(tribes, 0, sizeof(tribes));
+      for (int i = 0; i < 4; ++i) {
+        tribes[i].nation_id = 4; /* tribe 4 = indian[0], met */
+      }
+      tcol1.indian[0].euro_diplo[0] = COL1_INDIAN_MET_BIT;
+      tcol1.tribe = tribes;
+      tcol1.head.tribe_count = phase == 0 ? 4 : 1;
+      ColonizeDosRng trng;
+      dos_rng_seed(&trng, 12345 * 11);
+      int trials = 0;
+      for (int pass = 0; pass < 8 && trials < 200; ++pass) {
+        for (int y = 0; y < (int)map.height && trials < 200; ++y) {
+          for (int x = 0; x < (int)map.width && trials < 200; ++x) {
+            if (!map_tile_has_rumour(&map, x, y) || (x < 6 && y < 6)) {
+              continue;
+            }
+            trials++;
+            tribes[3].x = (uint8_t)x;
+            tribes[3].y = (uint8_t)y;
+            const int sid = units_spawn_allow_stack(&pool, scout_ti, x, y);
+            ColonizeUnit* su = units_get(&pool, sid);
+            if (!su) {
+              continue;
+            }
+            su->nation_id = 0;
+            pops.queue_count = 0;
+            (void)units_resolve_lcr_rumour_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&tcol1), .col1_ok=true, .rng=(ColonizeDosRng*)(&trng), .europe=(EuropeScreen*)(NULL)}, sid, 0);
+            for (int q = 0; q < pops.queue_count; ++q) {
+              if (test_body_is_section(pops.queue[q].body, "LOSTCITY8")) {
+                hits[phase]++;
+              }
+            }
+            if (units_get(&pool, sid)) {
+              units_despawn(&pool, sid);
+            }
+            map.layer2[y * map.width + x] &= (uint8_t)~MAP_LAYER2_LCR_CONSUMED;
+          }
+        }
+      }
+    }
+    pops.queue_count = 0;
+    units_set_combat_popups(NULL, NULL);
+    if (hits[0] != 0 || hits[1] <= 0) {
+      fprintf(stderr, "LCR trespass index: index>=3 %d (want 0), far index 0 %d (want >0)\n",
+              hits[0], hits[1]);
+      return 1;
+    }
   fx_close();
   return 0;
 }
@@ -7834,6 +7963,41 @@ static int case_fountain_of_youth(void) {
         return 1;
       }
     }
+    /* A full dock refuses the recruit (FUN_38fd_4884 raw 64768-64769: nothing is charged or
+     * refilled when the spawn fails): no crash, and the pool slot's colonist stays on offer. */
+    {
+      char before[sizeof(feu.pool[1].name)];
+      snprintf(before, sizeof(before), "%s", feu.pool[1].name);
+      feu.dock_count = EUROPE_DOCK_MAX;
+      feu.gold = 100000;
+      const bool free_ok = europe_recruit_free_from_pool_ex(&feu, 1, NULL);
+      const bool paid_ok = europe_recruit_from_pool_ex(&feu, 1, NULL);
+      if (free_ok || paid_ok || feu.dock_count != EUROPE_DOCK_MAX || feu.gold != 100000 ||
+          strcmp(before, feu.pool[1].name) != 0) {
+        fprintf(stderr, "fountain full dock: free %d paid %d dock %d gold %d\n", free_ok,
+                paid_ok, feu.dock_count, feu.gold);
+        return 1;
+      }
+      /* Train (FUN_38fd_41ce raw 64432-64440 charges only after the spawn) and a dock
+       * purchase refuse the same way: nothing charged, no Artillery count bump. */
+      int land_buy = -1;
+      for (int i = 0; i < feu.purchase_count && land_buy < 0; ++i) {
+        if (!feu.purchase[i].is_ship) {
+          land_buy = i;
+        }
+      }
+      const int art0 = feu.artillery_bought;
+      const bool train_ok = feu.train_count > 0 && europe_train_ex(&feu, 0, NULL);
+      const bool buy_ok = land_buy >= 0 && europe_purchase_commit(&feu, land_buy, 500, NULL);
+      if (feu.train_count <= 0 || land_buy < 0 || train_ok || buy_ok ||
+          feu.dock_count != EUROPE_DOCK_MAX || feu.gold != 100000 ||
+          feu.artillery_bought != art0) {
+        fprintf(stderr, "fountain full dock: train %d buy %d (row %d) dock %d gold %d\n",
+                train_ok, buy_ok, land_buy, feu.dock_count, feu.gold);
+        return 1;
+      }
+      feu.dock_count = 8;
+    }
     europe_free(&feu);
     fprintf(stderr, "fountain of youth 8x free recruit pick ok\n");
   fx_close();
@@ -7916,6 +8080,8 @@ static const TestCase k_cases[] = {
   {"lcr_outcome_dispatch", case_lcr_outcome_dispatch},
   {"lcr_fountain_ai", case_lcr_fountain_ai},
   {"lcr_burial_trespass", case_lcr_burial_trespass},
+  {"lcr_burial3_spawn_failure_silent", case_lcr_burial3_spawn_failure_silent},
+  {"lcr_trespass_village_index", case_lcr_trespass_village_index},
   {"enter_probe_matrix", case_enter_probe_matrix},
   {"board_from_land_sentry", case_board_from_land_sentry},
   {"combat_ambush_spanish", case_combat_ambush_spanish},

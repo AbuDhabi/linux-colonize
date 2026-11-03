@@ -3,7 +3,15 @@ project(opencol C)
 
 # snprintf is used as a bounded strcpy throughout; its truncation is by design.
 # (Ubuntu gcc turns -Wformat on by default, so this must be global, not per target.)
-add_compile_options(-Wno-format-truncation)
+# GCC-only flag; clang warns that it is unknown.
+if(CMAKE_C_COMPILER_ID STREQUAL "GNU")
+  add_compile_options(-Wno-format-truncation)
+endif()
+
+# A file's _POSIX_C_SOURCE hides mkdtemp & co. on Darwin unless this is set too.
+if(APPLE)
+  add_compile_definitions(_DARWIN_C_SOURCE)
+endif()
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
@@ -292,7 +300,7 @@ if(COLONIZE_HAS_FLUIDSYNTH)
     endforeach()
     target_link_libraries(colonize_sim PUBLIC ${_fs_libs})
   else()
-    target_link_libraries(colonize_sim PUBLIC ${FLUIDSYNTH_LIBRARIES})
+    target_link_libraries(colonize_sim PUBLIC ${FLUIDSYNTH_LINK_LIBRARIES})
   endif()
   target_compile_definitions(colonize_sim PUBLIC COLONIZE_HAS_FLUIDSYNTH=1)
   message(STATUS "FluidSynth found — music backend enabled")
@@ -325,10 +333,17 @@ endif()
 # ---------------------------------------------------------------------------
 add_library(colonize_sim_linkcheck SHARED cmake/sim_linkcheck.c)
 target_link_libraries(colonize_sim_linkcheck PRIVATE colonize_sim)
-target_link_options(colonize_sim_linkcheck PRIVATE
-  -Wl,--no-undefined
-  -Wl,--whole-archive $<TARGET_FILE:colonize_sim> -Wl,--no-whole-archive
-)
+if(APPLE)
+  # Apple ld spelling of the same check (undefined symbols already fail a dylib link).
+  target_link_options(colonize_sim_linkcheck PRIVATE
+    -Wl,-force_load,$<TARGET_FILE:colonize_sim>
+  )
+else()
+  target_link_options(colonize_sim_linkcheck PRIVATE
+    -Wl,--no-undefined
+    -Wl,--whole-archive $<TARGET_FILE:colonize_sim> -Wl,--no-whole-archive
+  )
+endif()
 add_dependencies(colonize_sim_linkcheck colonize_sim)
 
 if(SDL2_FOUND)
@@ -442,6 +457,17 @@ function(colonize_add_test)
 
   add_executable(${CAT_NAME} ${_sources})
   target_compile_options(${CAT_NAME} PRIVATE ${COLONIZE_EXE_WARN_FLAGS})
+  if(APPLE)
+    # test_name_kinds.c's weak externs may stay unresolved in targets that do
+    # not link colonize_core; ELF allows that, Apple ld needs each one named.
+    target_link_options(${CAT_NAME} PRIVATE
+      -Wl,-U,_units_set_name_kind_resolver
+      -Wl,-U,_colonies_set_building_name_row_resolver
+      -Wl,-U,_colonies_set_building_row_name_resolver
+      -Wl,-U,_reports_names_load_catalogs
+      -Wl,-U,_dos_buggy_behavior_set
+    )
+  endif()
 
   target_include_directories(${CAT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
@@ -608,7 +634,7 @@ colonize_add_test(NAME smoke_pick_music
     src/platform/diagnostics.c
     src/core/strutil.c
     src/platform/dos_compat/dos_compat.c
-  LIBS m pthread ${FLUIDSYNTH_LIBRARIES}
+  LIBS m pthread ${FLUIDSYNTH_LINK_LIBRARIES}
   INCLUDE_DIRS ${FLUIDSYNTH_INCLUDE_DIRS}
   COMPILE_DEFS ${_fs_defs}
 )
@@ -1271,7 +1297,7 @@ colonize_add_test(NAME smoke_sound
     src/platform/diagnostics.c
     src/core/strutil.c
     src/platform/dos_compat/dos_compat.c
-  LIBS m pthread ${FLUIDSYNTH_LIBRARIES}
+  LIBS m pthread ${FLUIDSYNTH_LINK_LIBRARIES}
   INCLUDE_DIRS ${FLUIDSYNTH_INCLUDE_DIRS}
   COMPILE_DEFS ${_fs_defs}
 )

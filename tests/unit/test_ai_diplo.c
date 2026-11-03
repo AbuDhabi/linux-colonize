@@ -2173,7 +2173,90 @@ static int case_relation_writes_preserve_player_bytes(void) {
   return 0;
 }
 
+/*
+ * FUN_5bfb_153e raw 98098 (asm 5bfb:29b6-29c2), peace menu "withdraw your
+ * troops": the free @WITHDRAW is chosen by the dominance accumulator (!= 0,
+ * no latch), not by the AI's tone. The human has no gold, so the cost path
+ * ends in @NOTWITHDRAW and the AI Soldier next to the colony stays.
+ */
+static int case_153e_peacemenu_withdraw_dominance(void) {
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  if (!fx_map_alloc(&map, 16, 16, 0, false)) {
+    return fail("withdraw: alloc map");
+  }
+  static ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
+  units_reset(&units);
+  units_set_occupancy_map(NULL);
+  units.type_count = 1;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Soldier");
+  units.types[0].movement = 1;
+  units.types[0].attack = 2;
+  units.types[0].defense = 2;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  static ColonizeColonyPool cols;
+  colonies_init(&cols);
+  colonies_set_occupancy_map(NULL);
+  ColonizeColony* hc = &cols.colonies[0];
+  hc->id = 0;
+  hc->active = true;
+  hc->nation_id = 0;
+  hc->x = 5;
+  hc->y = 5;
+  hc->population = 1;
+  hc->colonist_count = 1;
+  hc->building_in_production = -1;
+  cols.colony_count = 1;
+  cols.next_id = 1;
+  static ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  col1.head.turn = 100;
+  col1.head.difficulty = 1;
+  col1.head.human_player = 0;
+  AiPopupState pop;
+  ColonizeDosRng rng;
+  dos_rng_seed(&rng, 7);
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.messages = test_game_txt();
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.map = &map;
+  ctx.units = &units;
+  ctx.colonies = &cols;
+  ctx.human_nation = 0;
+  ctx.ai_popups = &pop;
+  ctx.rng = &rng;
+  int rc = 0;
+  /* {dominance, manly, want_free} */
+  static const int k_rows[2][3] = {{0, 1, 0}, {2, 0, 1}};
+  for (int r = 0; r < 2 && rc == 0; ++r) {
+    const int sid = units_spawn(&units, 0, 4, 5);
+    ColonizeUnit* s = units_get(&units, sid);
+    if (!s) {
+      rc = fail("withdraw: spawn");
+      break;
+    }
+    s->nation_id = 1;
+    ai_popup_init(&pop);
+    ai_diplo_153e_test_peacemenu(&ctx, 0, 1, k_rows[r][0], k_rows[r][1], 0, 2);
+    const int freed = s->x != 4;
+    if (freed != k_rows[r][2]) {
+      fprintf(stderr, "  dominance %d manly %d: withdrawn %d want %d\n", k_rows[r][0],
+              k_rows[r][1], freed, k_rows[r][2]);
+      rc = fail("peace-menu withdraw: free iff dominance != 0 and no latch");
+    }
+    units_despawn(&units, sid);
+  }
+  ai_diplo_talk_reset();
+  fx_map_free(&map);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
+    {"case_153e_peacemenu_withdraw_dominance", case_153e_peacemenu_withdraw_dominance},
     {"case_relation_writes_preserve_player_bytes", case_relation_writes_preserve_player_bytes},
     {"case_153e_talk_tokens_474", case_153e_talk_tokens_474},
     {"case_declare_peace_narrative", case_declare_peace_narrative},

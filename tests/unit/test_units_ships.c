@@ -728,6 +728,30 @@ static int unit_europe_arrival_reveals(void) {
 }
 
 
+/* The Europe-arrival fallback takes the same interior tiles as FUN_48d3_0434
+ * raw 77795: an all-high-seas 6x6 map from corner (0,0) must give (1,1). */
+static int unit_hs_fallback_skips_map_rim(void) {
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  char err[128];
+  if (!map_alloc(&map, 6, 6, err, sizeof(err))) {
+    fprintf(stderr, "hs fallback rim: map_alloc failed: %s\n", err);
+    return 1;
+  }
+  for (int i = 0; i < 6 * 6; ++i) {
+    map.terrain[i] = 26;
+  }
+  int fx = -1;
+  int fy = -1;
+  const bool ok = units_find_high_seas_tile(NULL, &map, 0, 0, &fx, &fy);
+  map_free(&map);
+  if (!ok || fx != 1 || fy != 1) {
+    fprintf(stderr, "hs fallback rim: placed at (%d,%d) ok=%d, want (1,1)\n", fx, fy, ok);
+    return 1;
+  }
+  return 0;
+}
+
 /* FUN_465b_0000 → FUN_5fef_1908 King's Galleon offer (@KINGGALLEON2/3, @CASHTREASURE). */
 static int unit_king_galleon_offer(void) {
   ColonizeMsgCatalog names;
@@ -992,6 +1016,7 @@ static const TestCase k_cases[] = {
   {"unit_own_colony_dock_ignores_squatter", unit_own_colony_dock_ignores_squatter},
   {"unit_europe_arrival_reveals", unit_europe_arrival_reveals},
   {"unit_spawn_room_dos_gates", unit_spawn_room_dos_gates},
+  {"unit_hs_fallback_skips_map_rim", unit_hs_fallback_skips_map_rim},
   {"unit_tb2_departure_own_riders_only", unit_tb2_departure_own_riders_only},
   {"unit_repair_port_needs_drydock_bit", unit_repair_port_needs_drydock_bit},
 };

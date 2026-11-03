@@ -3536,7 +3536,76 @@ static int case_tb36_declare_seen_mask(void) {
   return rc;
 }
 
+/* FUN_4962_0018 raw 78159-78165 tallies every unit of the nation, so a Frigate on a Europe list
+ * blocks @KINGFRIGATE (the raw 58394 Frigate-count test). */
+static int case_king_frigate_gate_counts_europe(void) {
+  static ColonizeCol1Save col1;
+  static ColonizeUnitPool units;
+  static ColonizeColonyPool colonies;
+  static EuropeScreen europe;
+  static AiPopupState pop;
+  static ColonizeDosRng rng;
+  static char status[128];
+  fx_begin();
+  col1_save_init(&col1);
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    memset(&col1.nation[i], 0, sizeof(col1.nation[i]));
+  }
+  col1.head.turn = 8;
+  memset(&units, 0, sizeof(units));
+  units_reset(&units);
+  units.type_count = 1;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Frigate");
+  units.types[0].kind_plus1 = UNITS_KIND_FRIGATE + 1;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  units.types[0].movement = 6;
+  colonies_init(&colonies);
+  memset(&europe, 0, sizeof(europe));
+  europe.bound_nation = 0;
+  ai_popup_clear(&pop);
+  dos_rng_seed(&rng, 100u);
+  status[0] = '\0';
+  ColonizeTurnContext tc;
+  memset(&tc, 0, sizeof(tc));
+  tc.messages = test_game_txt();
+  tc.names = test_names_txt();
+  tc.human_nation = 0;
+  tc.col1 = &col1;
+  tc.col1_ok = true;
+  tc.units = &units;
+  tc.colonies = &colonies;
+  tc.europe = &europe;
+  tc.ai_popups = &pop;
+  tc.rng = &rng;
+  tc.status = status;
+  tc.status_size = sizeof(status);
+  ColonizeColony* col = &colonies.colonies[0];
+  col->active = true;
+  col->nation_id = 0;
+  col->x = 5;
+  col->y = 5;
+  col->ai_flags |= COLONIZE_COLONY_AI_NEARBY_FRIGATE;
+  colonies.colony_count = 1;
+  europe.harbor_ships = 1;
+  europe.harbor[0].type_index = -1; /* bought in Europe: resolved by name */
+  snprintf(europe.harbor[0].name, sizeof(europe.harbor[0].name), "Frigate");
+  ai_king_frigate_offer(&tc, 0);
+  const int with_harbor = pop.queue_count;
+  europe.harbor_ships = 0;
+  ai_king_frigate_offer(&tc, 0);
+  const int without = pop.queue_count;
+  col1_save_free(&col1);
+  if (with_harbor != 0 || without != 1) {
+    fprintf(stderr, "frigate gate: popups with harbor Frigate %d (want 0), without %d (want 1)\n",
+            with_harbor, without);
+    return fail("a Frigate in the Europe harbor must block @KINGFRIGATE");
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+  {"king_frigate_gate_counts_europe", case_king_frigate_gate_counts_europe},
   {"dump_goods_pick_api", case_dump_goods_pick_api},
   {"purge_tile_seize_notice_793", case_purge_tile_seize_notice_793},
   {"0982_land_crown_tile_first", case_0982_land_crown_tile_first},

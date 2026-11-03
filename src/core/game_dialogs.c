@@ -2706,13 +2706,18 @@ static void game_apply_howmuch_result(ColonizeGameState* game) {
     if (src < 0 || dst < 0) {
       return;
     }
-    const int moved = units_load_goods(&game->units, dst, cargo, amt);
+    /* FUN_2f2b_4fec raw 51687-51695: empty the slot whole, load the destination, put
+     * held - moved back on the source ship. */
+    int held = 0;
+    int ctype = cargo;
+    (void)units_unload_goods_hold(&game->units, src, hold, &ctype, &held);
+    const int moved =
+      held > 0 ? units_load_goods(&game->units, dst, ctype, amt < held ? amt : held) : 0;
+    if (held > moved) {
+      (void)units_load_goods(&game->units, src, ctype, held - moved);
+    }
     if (moved > 0) {
-      (void)units_unload_goods_hold(&game->units, src, hold, NULL, NULL);
-      if (moved < amt) {
-        (void)units_load_goods(&game->units, src, cargo, amt - moved);
-      }
-      game_colony_cargo_moved(game, moved, cargo, dst);
+      game_colony_cargo_moved(game, moved, ctype, dst);
     } else {
       game_colony_cargo_refusal(game, 4, -1, -1); /* FUN_2f2b_4fec: 2ec6(4, 0x78) */
     }

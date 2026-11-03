@@ -1495,6 +1495,43 @@ static int test_colony_jobs_menu_seats_indoor_worker(void) {
 }
 
 /*
+ * docs/dos_bugs.md DB-15: the validator caps @JOB 9 (Rum Distiller) with `occupation > 8`, so
+ * the refusal popup mirror must answer a refused fourth Distiller with @MORETHANTHREE
+ * (FUN_2f2b_011e raw 47192), not a silent refusal.
+ */
+static int test_colony_rum_distiller_refusal_popup(void) {
+  static ColonizeGameState game;
+  ColonizeMsgCatalog names;
+  if (!jobs_menu_fixture(&game, &names)) {
+    return fail("jobs fixture");
+  }
+  ColonizeColony* col = &game.colonies.colonies[0];
+  const int shop = colonies_building_row(&game.colonies, COLONY_BUILDING_CARPENTERS_SHOP);
+  const int rum = colonies_building_row(&game.colonies, COLONY_BUILDING_RUM_DISTILLERS_HOUSE);
+  int rc = 0;
+  if (colonies_building_occupation(&game.colonies, rum) != 9) {
+    rc = fail("fixture: the Rum Distiller's House must seat @JOB 9");
+  }
+  col->has_building[rum] = true;
+  for (int i = 1; i <= 3; ++i) {
+    col->colonists[i] = col->colonists[0];
+    col->colonists[i].building_type = rum;
+  }
+  col->colonist_count = col->population = 4;
+  game_colony_assign_building_drop(&game, rum);
+  if (col->colonists[0].building_type != shop) {
+    rc = fail("the validator must refuse a fourth Rum Distiller");
+  } else if (!game.ai_popups.open || game.ai_popups.current.tag != AI_POPUP_TAG_INFO) {
+    fprintf(stderr, "  popup open=%d tag=%d\n", game.ai_popups.open,
+            (int)game.ai_popups.current.tag);
+    rc = fail("a refused fourth Rum Distiller must raise @MORETHANTHREE");
+  }
+  fx_map_free(&game.world_map);
+  assets_msg_free(&names);
+  return rc;
+}
+
+/*
  * docs/dos_bugs.md DB-54 (port_bugs.md #1205): DOS's jobs menu stamps each elected plot and
  * zeroes the job counter just by opening; the port's opening changes nothing.
  */
@@ -1527,6 +1564,43 @@ static int test_colony_jobs_menu_open_has_no_side_effects(void) {
   }
   fx_map_free(&game.world_map);
   assets_msg_free(&names);
+  return rc;
+}
+
+/* FUN_2b5a_1b5a raw 42707: ORDERS > Activate ignores a foreign unit under the cursor. */
+static int test_activate_ignores_foreign_unit(void) {
+  static ColonizeGameState game;
+  memset(&game, 0, sizeof(game));
+  if (!fx_map_alloc(&game.world_map, 8, 8, /*terrain_fill=*/3, /*with_seen=*/true)) {
+    return fail("activate foreign map alloc");
+  }
+  game.world_map_ok = true;
+  game.human_nation = 0;
+  fx_units_init(&game.units);
+  game.units_ok = true;
+  game.units.type_count = 1;
+  game.units.types[0].movement = 1;
+  game.units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units_set_occupancy_map(&game.world_map);
+  const int uid = units_spawn(&game.units, 0, 3, 3);
+  ColonizeUnit* u = units_get(&game.units, uid);
+  int rc = 0;
+  if (!u) {
+    rc = fail("activate foreign unit spawn");
+  } else {
+    u->nation_id = 1;
+    u->orders = UNITS_ORDER_FORTIFIED;
+    game.units.selected_id = -1;
+    game.map_cursor_x = 3;
+    game.map_cursor_y = 3;
+    game_apply_map_menu_action(&game, MAP_MENU_ACTION_ACTIVATE_UNIT);
+    if (u->orders != UNITS_ORDER_FORTIFIED || game.units.selected_id != -1) {
+      fprintf(stderr, "  orders %d selected %d\n", u->orders, game.units.selected_id);
+      rc = fail("Activate on a foreign unit must not wake or select it");
+    }
+  }
+  units_set_occupancy_map(NULL);
+  fx_map_free(&game.world_map);
   return rc;
 }
 
@@ -1832,6 +1906,40 @@ static int test_screen_f1_focus_article(void) {
   game.in_europe = false;
   fx_map_free(&game.world_map);
   assets_msg_free(&names);
+  return rc;
+}
+
+/*
+ * @HOWMUCH4 STRING1 is the hull's @UNIT type name: FUN_38fd_1fa2 raw 60414-60415 reads
+ * `type * 0xe + 0x5230` off the ship's +0x3146, not a per-ship name.
+ */
+static int test_europe_buy_prompt_names_hull_type(void) {
+  ColonizeGameConfig cfg = {.data_dir = "./COLONIZE", .save_dir = "./build/debug"};
+  ColonizeGameState* game = game_create(&cfg);
+  if (!game || !game_assets_ok(game)) {
+    fprintf(stderr, "SKIP: no COLONIZE/ assets\n");
+    if (game) {
+      game_destroy(game);
+    }
+    return TR_SKIP;
+  }
+  int rc = 0;
+  EuropeScreen* eu = &game->europe;
+  const int caravel = units_kind_type_index(&game->units, UNITS_KIND_CARAVEL);
+  const ColonizeUnitType* ct = units_type(&game->units, caravel);
+  eu->harbor_ships = 0;
+  if (!ct || !europe_harbor_push_ex(eu, caravel, "Shipname", NULL, NULL, 0, NULL, NULL)) {
+    rc = fail("fixture: Caravel in harbor");
+  } else {
+    game_europe_open_buy_prompt_for(game, eu->harbor_ships - 1, 0);
+    if (!game->howmuch.open || !strstr(game->howmuch.prompt, ct->name) ||
+        strstr(game->howmuch.prompt, "Shipname")) {
+      fprintf(stderr, "  open %d prompt '%s' want '%s'\n", game->howmuch.open,
+              game->howmuch.prompt, ct->name);
+      rc = fail("@HOWMUCH4 names the hull's @UNIT type, not the ship's name");
+    }
+  }
+  game_destroy(game);
   return rc;
 }
 
@@ -2435,15 +2543,18 @@ static const TestCase k_cases[] = {
     {"test_ai_euro_5952_equip_pioneer", test_ai_euro_5952_equip_pioneer},
     {"test_colony_shift_pick_moves_highlight", test_colony_shift_pick_moves_highlight},
     {"test_colony_jobs_menu_seats_indoor_worker", test_colony_jobs_menu_seats_indoor_worker},
+    {"test_colony_rum_distiller_refusal_popup", test_colony_rum_distiller_refusal_popup},
     {"test_colony_jobs_menu_open_has_no_side_effects", test_colony_jobs_menu_open_has_no_side_effects},
     {"test_game_world_view", test_game_world_view},
     {"test_goto_place_opens_travelplace_list", test_goto_place_opens_travelplace_list},
+    {"test_activate_ignores_foreign_unit", test_activate_ignores_foreign_unit},
     {"test_colony_list_keys_wrap", test_colony_list_keys_wrap},
     {"test_colony_custom_house_keys", test_colony_custom_house_keys},
     {"test_screen_f1_focus_article", test_screen_f1_focus_article},
     {"test_colony_construction_page_default", test_colony_construction_page_default},
     {"test_colony_construction_two_pages_live", test_colony_construction_two_pages_live},
     {"test_indian_land_offer_row_greyed", test_indian_land_offer_row_greyed},
+    {"test_europe_buy_prompt_names_hull_type", test_europe_buy_prompt_names_hull_type},
     {"test_click_spent_unit_hands_off", test_click_spent_unit_hands_off},
     {"test_eot_off_unit_used_up_ends_turn", test_eot_off_unit_used_up_ends_turn},
     {"test_hotseat_dos_save_round_trip", test_hotseat_dos_save_round_trip},

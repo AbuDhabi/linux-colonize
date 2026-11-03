@@ -1045,6 +1045,23 @@ bool units_fort_vs_ship(
     if (def->nation_id >= 0 && def->nation_id <= 3 && col1->player[def->nation_id].control == 0) {
       defense -= adj;
     }
+    /*
+     * DOS-LITERAL FUN_5fef_1b0e difficulty handicaps, raw 100535-100556. 03f6 only fires at
+     * water tiles, so iVar18 (FUN_281f_07be colony on the target, raw 100386) is -1: the
+     * `diff < 2` gate always opens, and the colony-only -25%/-50% clause and the raw 100557
+     * colony tail never fire. The temp attacker's nation is the colony owner (raw 57094),
+     * always < 4, so the halving needs no turn test. Same rules as
+     * combat_apply_1b0e_resolve_handicaps, which needs a real attacker unit.
+     */
+    const int diff = (int)col1->head.difficulty;
+    if (diff < 2 && def->nation_id >= 0 && def->nation_id <= 3 &&
+        col1->player[def->nation_id].control == 0) {
+      atk >>= 1; /* raw 100549-100551 */
+    }
+    if (diff == 0 && fort_nation >= 0 && fort_nation <= 3 &&
+        col1->player[fort_nation].control == 0) {
+      atk <<= 1; /* raw 100554-100555 */
+    }
   }
   if (atk < 0) {
     atk = 0;

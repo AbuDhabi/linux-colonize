@@ -2025,7 +2025,8 @@ int units_apply_naval_loss_outcome(
   /* FUN_5fef_0352 5fef:07db-0803: both combatants are ships and the fight
    * is visible → 0x4d (COLDIG 10 cheering + fireworks) *before* the
    * damage / sink / seizure split — a naval-win beat, not a capture cue. */
-  if (show_popups && units_combat_is_visible(pool, winner_id, loser_id)) {
+  if (show_popups && units_is_sea(pool, winner_id) && units_is_sea(pool, loser_id) &&
+      units_combat_is_visible(pool, winner_id, loser_id)) {
     units_play_event_sound(0x4d);
   }
 
@@ -2058,8 +2059,12 @@ int units_apply_naval_loss_outcome(
   const int lhull = lt ? lt->hull : 0;
   int damaged = units_ship_damage_vs_sink(rng, wguns, lhull);
   /* port_bugs.md #867: DOS raw 99527-99570 layers the fleet-pool / crown-MoW gate
-   * on top of that roll. */
-  damaged = units_naval_damage_gate(pool, col1, lose, wt, win->nation_id, damaged);
+   * on top of that roll, but only inside `if (winner_type*0xe + 0x523b != 0)` (raw 99527;
+   * asm 5fef:08a9 / 5fef:08ae jumps past the gate and the census with bVar11 still 1). A
+   * gunless winner (Caravel, any land unit) therefore always leaves the hull damaged. */
+  if (wguns > 0) {
+    damaged = units_naval_damage_gate(pool, col1, lose, wt, win->nation_id, damaged);
+  }
   /* DOS-LITERAL FUN_5fef_0352 raw 99570-99579: a sunk hull leaves the census
    * at once (cargo total, type count, armed count). A later hull of the same
    * 0ec0 walk reads the reduced totals in its own gate. */
@@ -3036,9 +3041,12 @@ bool units_try_native_settlement_fallout_w(
         col1, attacker_nation_id, tribe_nation, rng, rich_capital);
     }
     if (gold > 0) {
-      (void)units_spawn_treasure_train(units, tile_x, tile_y, attacker_nation_id, gold);
+      const bool spawned =
+        units_spawn_treasure_train(units, tile_x, tile_y, attacker_nation_id, gold) >= 0;
       units_set_bgm_pool(2); /* raw 101276 FUN_281f_04ac(2), no human gate */
-      if (units_combat_human_involved(col1, attacker_nation_id, defender_nation_id)) {
+      /* FUN_5fef_31ea raw 101482-101487: a failed FUN_281f_095c spawn zeroes
+       * the amount and skips the @LOOT popup. */
+      if (spawned && units_combat_human_involved(col1, attacker_nation_id, defender_nation_id)) {
         PopupMsgTokens tok;
         memset(&tok, 0, sizeof(tok));
         tok.string0 = units_combat_nation_label(col1, attacker_nation_id);
@@ -3192,11 +3200,16 @@ void units_lcr_counters_import(const uint8_t in[2]) {
  * LAST tribe on a tie (`iVar1 <= local_4`, raw 80944-80987); a diagonal
  * neighbour is distance 1, not 2 (America seed-100 save 27: the burial claim
  * draw is rand(1,6), not rand(1,7)). colonies_nearest_tribe_on with no
- * continent filter is that scan; this returns the tribe's nation id. */
+ * continent filter is that scan; this returns the tribe's nation id.
+ * out_index (optional) receives the village-table index FUN_4cc6_0356
+ * actually returns (-1 if none). */
 static int units_lcr_nearest_tribe_dist(
-  const ColonizeCol1Save* col1, int x, int y, int* out_dist
+  const ColonizeCol1Save* col1, int x, int y, int* out_dist, int* out_index
 ) {
   const int ti = colonies_nearest_tribe_on(col1, NULL, x, y, -1, out_dist);
+  if (out_index) {
+    *out_index = ti;
+  }
   return ti >= 0 ? (int)col1->tribe[ti].nation_id : -1;
 }
 
@@ -3251,14 +3264,14 @@ typedef struct ColonizeLcrRoll {
  *     (103524-103534).
  *     On success: treasure = ((skill+2)*10 + RNG(1,20)) hundred gold as a
  *     Treasure unit on the tile (103536-103548).
- *   - case 8: de Soto rerolls it away (103552); a village within 3 tiles
- *     (DS:0x8db8 distance from the nearest-village scan) takes a relation
+ *   - case 8: de Soto rerolls it away (103552); when the nearest village is
+ *     village-table index 0..2 (any distance) its tribe takes a relation
  *     hit of RNG(1,6) + ((difficulty - skill) + 1) * 5, gated on that
  *     tribe having met the nation (FUN_281f_0a38 & 0x20). Met (103563-64
  *     `goto LAB_65dd_0320`) KEEPS case 8 — the @LOSTCITY8 trespass popup —
  *     and applies the hit; unmet clears local_32 to -1 and falls through to
- *     `local_8 = 6`, i.e. plain "Nothing" and no hit. No village within 3
- *     is also "Nothing" (103554-103568).
+ *     `local_8 = 6`, i.e. plain "Nothing" and no hit. A nearest village at
+ *     index >= 3 is also "Nothing" (103554-103568).
  *   - case 3: 3d8*10, times (skill+2)/2 when skill (103571-103578).
  *   - case 7: 4d10*2 (103580-103586).
  *   - case 5 (103597-103612): nation with < 5 census pop (DS:0x9410) and
@@ -3355,10 +3368,14 @@ static void units_lcr_roll_outcome(
       if (de_soto_reroll) {
         continue;
       }
-      int dist = 0x7fffffff;
-      const int tribe = units_lcr_nearest_tribe_dist(col1, x, y, &dist);
+      int vidx = -1;
+      const int tribe = units_lcr_nearest_tribe_dist(col1, x, y, NULL, &vidx);
       raw = 6; /* 103568: the fall-through case unless the met gate jumps out */
-      if (tribe >= 0 && dist < 3) {
+      /* FUN_65dd_0004 raw 103554-103556: the test is on the nearest village's TABLE INDEX
+       * (FUN_4cc6_0356 return), not its distance; -1 (no village) passes too and still draws
+       * RNG(1,6). DOS then reads a stale DS:0x8d50 tribe; the port has none, so the met gate
+       * below fails and it stays "Nothing". */
+      if (col1 && vidx < 3) {
         const int difficulty = col1 ? col1->head.difficulty : 0;
         /* 103557-103559: local_32 = the village's tribe, local_38 = the hit. */
         out->trespass_mag = dos_rng_range(rng, 1, 6) + ((difficulty - skill) + 1) * 5;
@@ -3498,7 +3515,7 @@ void units_lcr_burial_resolve_w(
   PopupMsgTokens tok;
   memset(&tok, 0, sizeof(tok));
   int dist = 0x7fffffff;
-  const int near_tribe = units_lcr_nearest_tribe_dist(col1, x, y, &dist);
+  const int near_tribe = units_lcr_nearest_tribe_dist(col1, x, y, &dist, NULL);
   int screwed_tribe = -1;
   bool fizzle_in = false;
   if (near_tribe >= 0 && dist < 0x7fffffff) {

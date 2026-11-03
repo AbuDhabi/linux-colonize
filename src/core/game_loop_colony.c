@@ -755,7 +755,7 @@ static void game_colony_workplace_refusal(
       colonies_emit_need_school_chrome(
         c->profession, need, &game->ai_popups, &game->messages
       );
-    } else if (c && occupation > 9 &&
+    } else if (c && occupation > 8 &&
                colonies_occupation_worker_count(
                  &game->colonies, col, occupation, ci
                ) > 2) {

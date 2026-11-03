@@ -2292,7 +2292,219 @@ static int unit_lcr_burial3_treasure_fizzles_in(void) {
   return rc;
 }
 
+/*
+ * FUN_5fef_0352 raw 99527 (asm 5fef:08a9/08ae): with winner guns 0 the whole damage-vs-sink
+ * block, fleet-pool gate and census included, is skipped, so the hull is always damaged. A
+ * Privateer beaten by a Caravel or by a land unit (the capture sweep, raw 100878-100882), whose
+ * nation has more than 8 armed ships (the gate's sink clause, raw 99552), must still limp home.
+ */
+static int unit_gunless_winner_never_sinks(void) {
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  pool.type_count = 3;
+  snprintf(pool.types[0].name, sizeof(pool.types[0].name), "Privateer");
+  pool.types[0].kind_plus1 = UNITS_KIND_PRIVATEER + 1;
+  pool.types[0].attack = 8;
+  pool.types[0].guns = 8;
+  pool.types[0].hull = 4;
+  pool.types[0].defense = 8;
+  pool.types[0].cargo = 2;
+  pool.types[0].movement = 8;
+  pool.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  snprintf(pool.types[1].name, sizeof(pool.types[1].name), "Caravel");
+  pool.types[1].kind_plus1 = UNITS_KIND_CARAVEL + 1;
+  pool.types[1].hull = 2;
+  pool.types[1].defense = 2;
+  pool.types[1].cargo = 2;
+  pool.types[1].movement = 4;
+  pool.types[1].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  snprintf(pool.types[2].name, sizeof(pool.types[2].name), "Soldiers");
+  pool.types[2].attack = 2;
+  pool.types[2].defense = 2;
+  pool.types[2].movement = 1;
+  pool.types[2].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  col1.stuff.armed_ship_counts[1] = 9;
+  units_set_combat_colonies(NULL);
+  units_set_combat_human_nation(-1);
+  int rc = 0;
+  for (int winner_type = 1; winner_type <= 2 && rc == 0; ++winner_type) {
+    const int lose = units_spawn_allow_stack(&pool, 0, 3, 2);
+    const int win = units_spawn_allow_stack(&pool, winner_type, 4, 2);
+    units_get(&pool, lose)->nation_id = 1;
+    units_get(&pool, win)->nation_id = 0;
+    const int alive = units_apply_naval_loss_outcome(&pool, lose, win, 0, 0, 0, &col1, NULL);
+    const ColonizeUnit* l = units_get_const(&pool, lose);
+    if (!alive || !l || !l->active || (l->col1_flags15 & 0x80u) == 0) {
+      fprintf(stderr, "gunless-winner: type %d sank the Privateer (alive=%d)\n", winner_type,
+              alive);
+      rc = 1;
+    } else if (col1.stuff.armed_ship_counts[1] != 9) {
+      fprintf(stderr, "gunless-winner: census moved (%d)\n", col1.stuff.armed_ship_counts[1]);
+      rc = 1;
+    }
+    (void)units_despawn(&pool, win);
+    if (units_get(&pool, lose)) {
+      (void)units_despawn(&pool, lose);
+    }
+  }
+  return rc;
+}
+
+/*
+ * Fort fire runs the FUN_5fef_1b0e difficulty handicaps (raw 100535-100556). rng NULL: the fort
+ * wins iff atk >= def.
+ *   Explorer (1), human ship, AI fort, fort strength 1, ship defense 1:
+ *     atk 12 -> halved 6; def 8 + 3 peel = 11 -> fort misses.
+ *   Discoverer (0), human fort, AI ship, fort strength 1, ship defense 3:
+ *     atk 12 + 4 peel = 16 -> doubled 32; def 24 -> fort hits.
+ */
+static int unit_fort_fire_difficulty_handicaps(void) {
+  int rc = 0;
+  for (int k = 0; k < 2 && rc == 0; ++k) {
+    ColonizeUnitPool pool;
+    memset(&pool, 0, sizeof(pool));
+    pool.type_count = 1;
+    pool.types[0].movement = 5;
+    pool.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
+    pool.types[0].defense = k == 0 ? 1 : 3;
+    pool.types[0].hull = 10;
+    ColonizeColonyPool colonies;
+    colonies_init(&colonies);
+    colonies_set_occupancy_map(NULL);
+    EuropeScreen eu;
+    memset(&eu, 0, sizeof(eu));
+    units_set_combat_colonies(&colonies);
+    units_set_combat_europe(&eu);
+    ColonizeCol1Save c1;
+    memset(&c1, 0, sizeof(c1));
+    for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
+      c1.head.founding_father[i] = -1;
+    }
+    c1.head.difficulty = k == 0 ? 1 : 0;
+    /* k 0: fort nation 0 is AI, ship nation 1 human; k 1: the reverse. */
+    c1.player[0].control = k == 0 ? 1 : 0;
+    c1.player[1].control = k == 0 ? 0 : 1;
+    const int s = units_spawn_allow_stack(&pool, 0, 3, 2);
+    units_get(&pool, s)->nation_id = 1;
+    (void)units_fort_vs_ship(&pool, 1, 0, 2, 2, s, NULL, &c1, "Fort", "");
+    const ColonizeUnit* u = units_get_const(&pool, s);
+    const int hit = !(u && u->active && u->x == 3 && u->y == 2);
+    const int want_hit = k == 1;
+    if (hit != want_hit) {
+      fprintf(stderr, "fort-handicap: case %d want hit=%d got %d\n", k, want_hit, hit);
+      rc = 1;
+    }
+    units_set_combat_europe(NULL);
+    units_set_combat_colonies(NULL);
+  }
+  return rc;
+}
+
+static int g_cue_4d_calls = 0;
+
+static void unit_cue_4d_play_mock(int id) {
+  if (id == 0x4d) {
+    g_cue_4d_calls++;
+  }
+}
+
+/*
+ * FUN_5fef_0352 asm 5fef:07db-0803: the 0x4d naval-win cue sits behind a 0xd..0x12 range test
+ * on BOTH type bytes, so a land winner (the capture sweep) plays nothing, a ship winner does.
+ */
+static int unit_naval_win_cue_ships_only(void) {
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  pool.type_count = 2;
+  snprintf(pool.types[0].name, sizeof(pool.types[0].name), "Caravel");
+  pool.types[0].kind_plus1 = UNITS_KIND_CARAVEL + 1;
+  pool.types[0].hull = 2;
+  pool.types[0].defense = 2;
+  pool.types[0].cargo = 2;
+  pool.types[0].movement = 4;
+  pool.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  snprintf(pool.types[1].name, sizeof(pool.types[1].name), "Soldiers");
+  pool.types[1].attack = 2;
+  pool.types[1].defense = 2;
+  pool.types[1].movement = 1;
+  pool.types[1].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units_set_combat_colonies(NULL);
+  units_set_combat_human_nation(-1);
+  units_set_ff_col1(NULL); /* no col1: units_combat_is_visible says yes */
+  units_set_combat_music_hooks(unit_cue_4d_play_mock, unit_event_sfx_active_id_mock);
+  int rc = 0;
+  for (int winner_type = 0; winner_type <= 1; ++winner_type) {
+    const int lose = units_spawn_allow_stack(&pool, 0, 3, 2);
+    const int win = units_spawn_allow_stack(&pool, winner_type, 4, 2);
+    units_get(&pool, lose)->nation_id = 1;
+    units_get(&pool, win)->nation_id = 0;
+    g_cue_4d_calls = 0;
+    (void)units_apply_naval_loss_outcome(&pool, lose, win, 0, 0, 1, NULL, NULL);
+    const int want = winner_type == 0 ? 1 : 0;
+    if (g_cue_4d_calls != want) {
+      fprintf(stderr, "naval-cue: winner type %d played 0x4d %d times (want %d)\n", winner_type,
+              g_cue_4d_calls, want);
+      rc = 1;
+    }
+    (void)units_despawn(&pool, win);
+    if (units_get(&pool, lose)) {
+      (void)units_despawn(&pool, lose);
+    }
+  }
+  units_set_combat_music_hooks(NULL, NULL);
+  return rc;
+}
+
+/* FUN_5fef_31ea raw 101482-101487: a razed village's Treasure spawn that fails
+ * (no room / no row) zeroes the amount and shows no @LOOT. */
+static int unit_village_loot_spawn_failure_silent(void) {
+  ColonizeUnitPool* bp = calloc(1, sizeof(*bp));
+  if (!bp) {
+    return 1;
+  }
+  int got[2] = {-1, -1};
+  for (int has_treasure = 0; has_treasure < 2; ++has_treasure) {
+    memset(bp, 0, sizeof(*bp));
+    units_reset(bp);
+    units_set_occupancy_map(NULL);
+    bp->type_count = 1;
+    bp->types[0].kind_plus1 = (has_treasure ? UNITS_KIND_TREASURE : UNITS_KIND_REGULAR) + 1;
+    ColonizeCol1Tribe tribe;
+    memset(&tribe, 0, sizeof(tribe));
+    tribe.x = 3;
+    tribe.y = 3;
+    tribe.nation_id = 4;
+    tribe.population = 1;
+    ColonizeCol1Save col1;
+    memset(&col1, 0, sizeof(col1));
+    memset(col1.head.founding_father, 0xff, sizeof(col1.head.founding_father));
+    col1.head.tribe_count = 1;
+    col1.tribe = &tribe;
+    AiPopupState pops;
+    ai_popup_init(&pops);
+    units_set_combat_popups(&pops, NULL);
+    ColonizeWorld w = {.units = bp, .col1 = &col1, .col1_ok = true};
+    const bool razed = units_try_native_settlement_fallout_w(&w, 0, 4, 3, 3, 500, 3, 3);
+    int loot = 0;
+    for (int q = 0; q < pops.queue_count; ++q) {
+      loot += pops.queue[q].tag == AI_POPUP_TAG_COMBAT_LOOT;
+    }
+    units_set_combat_popups(NULL, NULL);
+    got[has_treasure] = razed ? loot : -1;
+  }
+  free(bp);
+  if (got[0] != 0 || got[1] != 1) {
+    fprintf(stderr, "LOOT popups: failed spawn %d (want 0), spawned %d (want 1)\n", got[0],
+            got[1]);
+    return 1;
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+  {"unit_village_loot_spawn_failure_silent", unit_village_loot_spawn_failure_silent},
   {"unit_royal_loss_tax_cut", unit_royal_loss_tax_cut},
   {"unit_combat_music_sting", unit_combat_music_sting},
   {"unit_fort_fire_dissolve_and_europe", unit_fort_fire_dissolve_and_europe},
@@ -2306,6 +2518,9 @@ static const TestCase k_cases[] = {
   {"unit_1b0e_resolve_handicaps", unit_1b0e_resolve_handicaps},
   {"unit_1b0e_defender_bonus_live", unit_1b0e_defender_bonus_live},
   {"unit_naval_stack_sweep", unit_naval_stack_sweep},
+  {"unit_gunless_winner_never_sinks", unit_gunless_winner_never_sinks},
+  {"unit_naval_win_cue_ships_only", unit_naval_win_cue_ships_only},
+  {"unit_fort_fire_difficulty_handicaps", unit_fort_fire_difficulty_handicaps},
   {"unit_combat_cheat_footer_roll_before_dialog", unit_combat_cheat_footer_roll_before_dialog},
   {"unit_reset_hooks_clears_wiring", unit_reset_hooks_clears_wiring},
   {"unit_indian_massacre_names_victim", unit_indian_massacre_names_victim},

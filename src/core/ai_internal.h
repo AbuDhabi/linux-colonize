@@ -157,6 +157,10 @@ int ai_diplo_military_score(const ColonizeTurnContext* ctx, int nation_id);
 /* True if any of 8 Indian slots is at war (ai_diplo_indian_at_war: WAR bit
  * or relation < 26). */
 int ai_diplo_indian_any_at_war(const ColonizeCol1Save* col1, int euro_nation);
+/* Open the FUN_5bfb_153e peace menu with these phase-1 results, answer `choice`. */
+void ai_diplo_153e_test_peacemenu(
+  ColonizeTurnContext* ctx, int human, int target, int dominance, int manly, int latch, int choice
+);
 #endif
 
 void ai_native_nation_pulse(

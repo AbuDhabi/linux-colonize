@@ -341,7 +341,15 @@ void game_europe_open_buy_prompt_for(ColonizeGameState* game, int hidx, int carg
   PopupMsgTokens tok;
   memset(&tok, 0, sizeof(tok));
   tok.string0 = (cargo >= 0 && cargo < eu->cargo_count) ? eu->cargo[cargo].name : "";
-  tok.string1 = (hidx >= 0 && hidx < eu->harbor_ships) ? eu->harbor[hidx].name : "";
+  /* FUN_38fd_1fa2 raw 60414-60415: STRING1 = the hull's @UNIT name (+0x3146). */
+  const ColonizeUnitType* hull_type = NULL;
+  if (hidx >= 0 && hidx < eu->harbor_ships) {
+    const EuropeHarborShip* hs = &eu->harbor[hidx];
+    hull_type = units_type(
+      &game->units, hs->type_index >= 0 ? hs->type_index : units_find_type(&game->units, hs->name)
+    );
+  }
+  tok.string1 = hull_type ? hull_type->name : "";
   tok.number0 = max_amt;
   tok.has_number0 = true;
   tok.number1 = europe_buy_price(eu, cargo);
