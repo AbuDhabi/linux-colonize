@@ -2002,6 +2002,130 @@ static int test_indian_land_offer_row_greyed(void) {
 }
 
 /*
+ * Esc on @INDIANFOREST issues the order unpaid. FUN_6f74_2580 returns -1 on Esc (raw
+ * 116780-116782); FUN_2b5a_123e acts only on 1 (respect) / 2 (pay) (raw 42493/42498), so -1
+ * reaches the tail `unit+0x314c = 8` (raw 42511). Same fixture as above.
+ */
+static int test_indian_land_esc_takes(void) {
+  ColonizeGameConfig cfg = {.data_dir = "./COLONIZE", .save_dir = "./build/debug"};
+  ColonizeGameState* game = game_create(&cfg);
+  if (!game || !game_assets_ok(game)) {
+    fprintf(stderr, "SKIP: no COLONIZE/ assets\n");
+    if (game) {
+      game_destroy(game);
+    }
+    return TR_SKIP;
+  }
+  char err[256];
+  int rc = 0;
+  if (!game_load_col1_file(
+        game, "tests-automated-regression/map_pioneer_native_forest_offer/input.sav", err,
+        sizeof(err)
+      )) {
+    fprintf(stderr, "  %s\n", err);
+    game_destroy(game);
+    return fail("fixture save load");
+  }
+  ai_popup_clear(&game->ai_popups);
+  int pid = -1;
+  for (int i = 0; i < units_slot_end(&game->units); ++i) {
+    const ColonizeUnit* u = &game->units.units[i];
+    if (u->active && u->x == 45 && u->y == 22 && units_is_pioneer(&game->units, u->id)) {
+      pid = u->id;
+    }
+  }
+  game->units.selected_id = pid;
+  game->europe.gold = 1000;
+  if (pid < 0 || !game_pioneer_land_gate(game, GAME_INDIAN_LAND_FOREST) ||
+      !ai_popup_try_present_next(&game->ai_popups)) {
+    game_destroy(game);
+    return fail("Clear Forest on Tupi forest opens @INDIANFOREST");
+  }
+  ai_popup_cancel_current(&game->ai_popups);
+  game_apply_ai_popup_result(game);
+  const ColonizeUnit* pu = units_get(&game->units, pid);
+  if (!pu || pu->orders != UNITS_ORDER_CLEAR_PLOW) {
+    fprintf(stderr, "  orders %d\n", pu ? pu->orders : -1);
+    rc = fail("Esc on @INDIANFOREST clears the forest unpaid (orders 8)");
+  }
+  if (game->europe.gold != 1000) {
+    rc = fail("Esc on @INDIANFOREST pays nothing");
+  }
+  game_destroy(game);
+  return rc;
+}
+
+/*
+ * Esc on the @INDIANLAND plot drop seats the worker unpaid. FUN_2f2b_2f3e raw 50372-50373 acts
+ * only on 1 (respect, abort) / 2 (pay); -1 carries on into the seat. Fixture:
+ * colony_tile_native_land (Quebec (45,24), plot S Tupi-claimed, Tupi at peace).
+ */
+static int test_indian_land_plot_esc_takes(void) {
+  ColonizeGameConfig cfg = {.data_dir = "./COLONIZE", .save_dir = "./build/debug"};
+  ColonizeGameState* game = game_create(&cfg);
+  if (!game || !game_assets_ok(game)) {
+    fprintf(stderr, "SKIP: no COLONIZE/ assets\n");
+    if (game) {
+      game_destroy(game);
+    }
+    return TR_SKIP;
+  }
+  char err[256];
+  if (!game_load_col1_file(
+        game, "tests-automated-regression/colony_tile_native_land/input.sav", err, sizeof(err)
+      )) {
+    fprintf(stderr, "  %s\n", err);
+    game_destroy(game);
+    return fail("fixture save load");
+  }
+  ColonizeColony* col = colonies_get_mut(&game->colonies, colonies_id_at(&game->colonies, 45, 24));
+  int s_tile = -1;
+  for (int i = 0; i < COLONIZE_COLONY_FIELD_TILES_MAX; ++i) {
+    int dx = 0;
+    int dy = 0;
+    if (colonies_field_tile_delta(i, &dx, &dy) && dx == 0 && dy == 1) {
+      s_tile = i;
+    }
+  }
+  int ci = -1;
+  for (int i = 0; col && i < col->colonist_count && ci < 0; ++i) {
+    if (col->colonists[i].building_type >= 0) {
+      ci = i;
+    }
+  }
+  if (!col || s_tile < 0 || ci < 0 || col->tiles[s_tile] >= 0) {
+    game_destroy(game);
+    return fail("Quebec, a free plot S and an indoor colonist");
+  }
+  game->in_colony = true;
+  game->colony_view_id = col->id;
+  game->colony_screen.selected_colonist = ci;
+  game->colony_screen.selected_outside_unit = -1;
+  ai_popup_clear(&game->ai_popups);
+  const int gold_before = game->europe.gold;
+  game_colony_area_tile_drop(game, col, &game->world_map, s_tile);
+  if (!game->ai_popups.open) {
+    (void)ai_popup_try_present_next(&game->ai_popups);
+  }
+  if (!game->ai_popups.open || game->ai_popups.current.tag != AI_POPUP_TAG_INDIAN_LAND) {
+    game_destroy(game);
+    return fail("the drop on Tupi-claimed S opens @INDIANLAND");
+  }
+  ai_popup_cancel_current(&game->ai_popups);
+  game_apply_ai_popup_result(game);
+  int rc = 0;
+  if (col->tiles[s_tile] != ci) {
+    fprintf(stderr, "  tiles[S]=%d want %d\n", col->tiles[s_tile], ci);
+    rc = fail("Esc on @INDIANLAND seats the worker on the plot");
+  }
+  if (game->europe.gold != gold_before) {
+    rc = fail("Esc on @INDIANLAND pays nothing");
+  }
+  game_destroy(game);
+  return rc;
+}
+
+/*
  * campaign8 CN8-B1: clicking (or `activate`) a spent own unit is FUN_2b5a_1b5a + FUN_2b5a_0e52(0):
  * the order clears and the next unit awaiting orders takes control. It used to drop to View
  * Pieces with units still pending, so the turn stalled.
@@ -2554,6 +2678,8 @@ static const TestCase k_cases[] = {
     {"test_colony_construction_page_default", test_colony_construction_page_default},
     {"test_colony_construction_two_pages_live", test_colony_construction_two_pages_live},
     {"test_indian_land_offer_row_greyed", test_indian_land_offer_row_greyed},
+    {"test_indian_land_esc_takes", test_indian_land_esc_takes},
+    {"test_indian_land_plot_esc_takes", test_indian_land_plot_esc_takes},
     {"test_europe_buy_prompt_names_hull_type", test_europe_buy_prompt_names_hull_type},
     {"test_click_spent_unit_hands_off", test_click_spent_unit_hands_off},
     {"test_eot_off_unit_used_up_ends_turn", test_eot_off_unit_used_up_ends_turn},
