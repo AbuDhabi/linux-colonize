@@ -633,7 +633,8 @@ bool europe_harbor_push_ex(
  * under repair (DOS FUN_5fef_0352: x = y = nation - 0x14 with bit7 and the
  * +0x315a preset kept; port_bugs.md #1381c). It keeps its goods holds, its
  * repair counter (u->col1_counter16) and its re-export tile (u->goto_*, the
- * nation return tile 0352 stamped). Returns false when the harbor is full.
+ * nation return tile 0352 stamped). It goes in as harbor slot 0 (DOS links it
+ * at the head of the in-port chain). Returns false when the harbor is full.
  */
 bool europe_harbor_push_damaged(EuropeScreen* eu, const ColonizeUnit* u, const char* name, bool exit_east);
 

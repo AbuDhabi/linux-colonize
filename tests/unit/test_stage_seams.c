@@ -2114,6 +2114,69 @@ static int test_europe_buy_prompt_names_hull_type(void) {
 }
 
 /*
+ * A press on a hull under repair selects it but never picks it up: FUN_38fd_2edc raw 61023
+ * skips the FUN_38fd_1c64 drag for a damaged hull, so no hull icon rides the cursor. A
+ * seaworthy hull's press does pick its icon up.
+ */
+static int test_europe_repairing_hull_press_no_pickup(void) {
+  ColonizeGameConfig cfg = {.data_dir = "./COLONIZE", .save_dir = "./build/debug"};
+  ColonizeGameState* game = game_create(&cfg);
+  if (!game || !game_assets_ok(game)) {
+    fprintf(stderr, "SKIP: no COLONIZE/ assets\n");
+    if (game) {
+      game_destroy(game);
+    }
+    return TR_SKIP;
+  }
+  int rc = 0;
+  EuropeScreen* eu = &game->europe;
+  const int caravel = units_kind_type_index(&game->units, UNITS_KIND_CARAVEL);
+  eu->harbor_ships = 0;
+  if (!europe_harbor_push_ex(eu, caravel, "", NULL, NULL, 0, NULL, NULL)) {
+    rc = fail("fixture: Caravel in harbor");
+  }
+  int px = -1;
+  int py = -1;
+  for (int y = 0; rc == 0 && y < 200 && px < 0; ++y) {
+    for (int x = 0; x < 320; ++x) {
+      const EuropeHitResult h = game_europe_hit(game, x, y);
+      if (h.kind == EUROPE_HIT_HARBOR_SHIP && h.index == 0) {
+        px = x;
+        py = y;
+        break;
+      }
+    }
+  }
+  if (rc == 0 && px < 0) {
+    rc = fail("fixture: harbor hull hit spot");
+  }
+  game->in_europe = true;
+  for (int pass = 0; rc == 0 && pass < 2; ++pass) {
+    const bool damaged = pass == 1;
+    eu->harbor[0].damaged = damaged;
+    eu->selected_harbor = -1;
+    game_ui_drag_clear(game);
+    ColonizeInputState in;
+    memset(&in, 0, sizeof(in));
+    in.mouse_x = px;
+    in.mouse_y = py;
+    in.mouse_left_clicked = true;
+    in.mouse_left_down = true;
+    (void)game_update_europe_screen(game, &in);
+    if (eu->selected_harbor != 0 || game->ui_drag.cursor_ok == damaged) {
+      fprintf(stderr, "  damaged %d: selected %d cursor %d\n", damaged, eu->selected_harbor,
+              game->ui_drag.cursor_ok);
+      rc = fail(damaged ? "a press on a hull under repair picks up no icon"
+                        : "a press on a seaworthy hull picks up its icon");
+    }
+  }
+  game_ui_drag_clear(game);
+  game->in_europe = false;
+  game_destroy(game);
+  return rc;
+}
+
+/*
  * port_bugs.md #1214: the encroachment popup keeps DOS's "offer gold" row and greys it when the
  * treasury is short (FUN_2b5a_123e raw 42484-42488: FUN_291f_01b6(box, 2, 1)). Fixture: the
  * map_pioneer_native_forest_offer start (the Pioneer on Tupi forest (45,22), offer 422).
@@ -2725,6 +2788,7 @@ static const TestCase k_cases[] = {
     {"test_colony_construction_two_pages_live", test_colony_construction_two_pages_live},
     {"test_indian_land_offer_row_greyed", test_indian_land_offer_row_greyed},
     {"test_europe_buy_prompt_names_hull_type", test_europe_buy_prompt_names_hull_type},
+    {"test_europe_repairing_hull_press_no_pickup", test_europe_repairing_hull_press_no_pickup},
     {"test_brewster_pick_names_home_port", test_brewster_pick_names_home_port},
     {"test_crossing_stamps_nation_return_tile", test_crossing_stamps_nation_return_tile},
     {"test_europe_repaints_reset_harbor_selection", test_europe_repaints_reset_harbor_selection},

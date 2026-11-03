@@ -5897,7 +5897,7 @@ static int case_ship_build_ready(void) {
   (void)units_tick_ship_build_ready(&units, &colonies, 0, 0, status, sizeof(status), &want_eu);
   /* Timer done; bit7 clear + @REFIT is the repair tick's (FUN_3844_00f2). */
   (void)units_tick_drydock_repair(
-    &units, &colonies, 0, 0, status, sizeof(status), NULL, test_game_txt()
+    &units, &colonies, 0, 0, status, sizeof(status), NULL, test_game_txt(), NULL, 0
   );
   if ((u->col1_flags15 & 0x80u) != 0 || u->col1_counter16 < 4) {
     fprintf(
@@ -5922,7 +5922,9 @@ static int case_ship_build_ready(void) {
   units.types[0xd].defense = 2;
   status[0] = '\0';
   (void)units_tick_ship_build_ready(&units, &colonies, 0, 0, status, sizeof(status), &want_eu);
-  (void)units_tick_drydock_repair(&units, &colonies, 0, 0, status, sizeof(status), NULL, NULL);
+  (void)units_tick_drydock_repair(
+    &units, &colonies, 0, 0, status, sizeof(status), NULL, NULL, NULL, 0
+  );
   if ((u->col1_flags15 & 0x80u) != 0 || u->col1_counter16 != 2) {
     fprintf(
       stderr,
@@ -6756,7 +6758,96 @@ static int case_produce_seam_lumber(void) {
   return 0;
 }
 
+/*
+ * FUN_3844_00f2 raw 58326-58373: one loop walks the unit records from the last down and
+ * shows each @REFIT as the hull completes. The save writes the harbor hulls after the map
+ * units (col1_bridge_capture_europe_lanes), so the harbor popups come first, last harbor
+ * slot first, then the map hulls from the highest slot down.
+ */
+static int case_refit_unit_order(void) {
+  fx_begin();
+  static ColonizeUnitPool units;
+  units_reset(&units);
+  units_set_occupancy_map(NULL);
+  units.type_count = 14;
+  const char* const names[4] = {"Shipa", "Shipb", "Shipc", "Shipd"};
+  for (int t = 10; t < 14; ++t) {
+    snprintf(units.types[t].name, sizeof(units.types[t].name), "%s", names[t - 10]);
+    units.types[t].domain = COLONIZE_UNIT_DOMAIN_SEA;
+    units.types[t].defense = 4;
+  }
+  static ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  const char* const cnames[2] = {"Alpha", "Bravo"};
+  for (int c = 0; c < 2; ++c) {
+    ColonizeColony* col = &pool.colonies[c];
+    memset(col, 0, sizeof(*col));
+    col->active = true;
+    col->id = c + 1;
+    col->x = 10 + 2 * c;
+    col->y = 10 + 2 * c;
+    col->nation_id = 0;
+    snprintf(col->name, sizeof(col->name), "%s", cnames[c]);
+  }
+  pool.colony_count = 2;
+  for (int k = 0; k < 2; ++k) {
+    const int id = units_spawn_allow_stack(&units, 12 + k, 10 + 2 * k, 10 + 2 * k);
+    ColonizeUnit* u = units_get(&units, id);
+    if (!u) {
+      fprintf(stderr, "refit order: spawn failed\n");
+      return 1;
+    }
+    units_set_nation(u, 0);
+    u->col1_flags15 = 0x80;
+    u->col1_counter16 = 4;
+    u->repair_pending = 1;
+  }
+  static EuropeScreen eu;
+  memset(&eu, 0, sizeof(eu));
+  ColonizeUnit hull;
+  memset(&hull, 0, sizeof(hull));
+  hull.col1_origin = 0xff;
+  hull.col1_counter16 = 3;
+  hull.type_index = 10;
+  const bool a = europe_harbor_push_damaged(&eu, &hull, "Shipa", true);
+  hull.type_index = 11;
+  const bool b = europe_harbor_push_damaged(&eu, &hull, "Shipb", true);
+  if (!a || !b) {
+    fprintf(stderr, "refit order: harbor push failed\n");
+    return 1;
+  }
+  const int last_slot = eu.harbor[eu.harbor_ships - 1].type_index;
+  AiPopupState pop;
+  ai_popup_init(&pop);
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.messages = test_game_txt();
+  ctx.human_nation = 0;
+  ctx.units = &units;
+  ctx.colonies = &pool;
+  ctx.europe = &eu;
+  ctx.ai_popups = &pop;
+  static ColonizeTurnProcessor proc;
+  memset(&proc, 0, sizeof(proc));
+  turn_human_ship_repairs(&proc, &ctx);
+  const char* const want[4] = {names[last_slot - 10], names[last_slot == 10 ? 1 : 0], "Shipd",
+                               "Shipc"};
+  if (pop.queue_count != 4) {
+    fprintf(stderr, "refit order: want 4 @REFIT, got %d\n", pop.queue_count);
+    return 1;
+  }
+  for (int k = 0; k < 4; ++k) {
+    if (!strstr(pop.queue[k].body, want[k])) {
+      fprintf(stderr, "refit order: popup %d '%s' want %s\n", k, pop.queue[k].body, want[k]);
+      return 1;
+    }
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+  {"refit_unit_order", case_refit_unit_order},
   {"calendar", case_calendar},
   {"hotseat_slot_order", case_hotseat_slot_order},
   {"all_ai_slot_order", case_all_ai_slot_order},

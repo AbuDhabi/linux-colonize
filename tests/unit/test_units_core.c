@@ -7307,7 +7307,7 @@ static int case_combat_fort_fire_repair(void) {
       for (int t = 0; t < 4 && !repaired; ++t) {
         (void)units_tick_ship_build_ready(&pool, &colonies, 0, -1, st, sizeof(st), NULL);
         repaired = units_tick_drydock_repair(
-          &pool, &colonies, 0, 0, st, sizeof(st), NULL, NULL
+          &pool, &colonies, 0, 0, st, sizeof(st), NULL, NULL, NULL, 0
         );
       }
       ship = units_get(&pool, sid_hit);

@@ -112,7 +112,11 @@ bool europe_harbor_push_damaged(EuropeScreen* eu, const ColonizeUnit* u, const c
   s->exit_x = u->goto_x;
   s->exit_y = u->goto_y;
   s->exit_east = exit_east;
-  return true;
+  /* FUN_5fef_0352 raw 99642-99644: FUN_281f_0844 -> FUN_1427_02ca links the hull at the
+   * head of the in-port chain, and FUN_38fd_0666 lists the harbor from the head. Europe
+   * is not open during combat and every open resets the selection, so the selection
+   * write of move_to_front is never seen. */
+  return europe_harbor_move_to_front(eu, eu->harbor_ships - 1);
 }
 
 int europe_harbor_repair_tick(EuropeScreen* eu, const ColonizeUnitPool* units, int* out, int max) {

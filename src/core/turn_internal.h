@@ -188,6 +188,7 @@ void turn_step_euro(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx);
 void turn_step_indian(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx);
 void turn_step_finish(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx);
 void turn_step_king(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx);
+void turn_human_ship_repairs(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx);
 /* turn_produce_one_colony stages, DOS order (turn_production.c). */
 TurnProduceStatus turn_produce_begin(TurnProduceCtx* pc);
 void turn_produce_compose(TurnProduceCtx* pc);

@@ -1171,7 +1171,9 @@ int turn_europe_harbor_repairs(ColonizeTurnContext* ctx) {
   }
   int idx[16];
   const int n = europe_harbor_repair_tick(ctx->europe, ctx->units, idx, 16);
-  for (int k = 0; k < n && k < 16; ++k) {
+  /* Last harbor slot first: the records the save writes for the harbor run in slot order
+   * and FUN_3844_00f2 walks the records from the last down (raw 58326-58330). */
+  for (int k = (n < 16 ? n : 16) - 1; k >= 0; --k) {
     const EuropeHarborShip* s = &ctx->europe->harbor[idx[k]];
     const ColonizeUnitType* ty =
       units_type(ctx->units, europe_ship_type_index(ctx->units, s));

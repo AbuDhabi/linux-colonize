@@ -3751,7 +3751,33 @@ static int case_europe_trade_route_return_tile(void) {
   return rc;
 }
 
+/* FUN_5fef_0352 raw 99642-99644 -> FUN_1427_02ca: the damaged hull is linked at the head of
+ * the in-port chain, which FUN_38fd_0666 lists from the head, so it is harbor slot 0. */
+static int case_europe_damaged_hull_heads_harbor(void) {
+  EuropeScreen* eu = (EuropeScreen*)calloc(1, sizeof(*eu));
+  if (!eu) {
+    return 1;
+  }
+  (void)europe_harbor_push_ex(eu, 0, "A", NULL, NULL, 0, NULL, NULL);
+  ColonizeUnit hull;
+  memset(&hull, 0, sizeof(hull));
+  hull.col1_origin = 0xff;
+  const bool pushed = europe_harbor_push_damaged(eu, &hull, "B", true);
+  int rc = 0;
+  if (!pushed || eu->harbor_ships != 2 || !eu->harbor[0].damaged ||
+      strcmp(eu->harbor[0].name, "B") != 0 || strcmp(eu->harbor[1].name, "A") != 0) {
+    fprintf(
+      stderr, "damaged head: harbor %d slot0 '%s' damaged %d, want 2 'B' damaged\n",
+      eu->harbor_ships, eu->harbor[0].name, eu->harbor[0].damaged
+    );
+    rc = 1;
+  }
+  free(eu);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
+    {"case_europe_damaged_hull_heads_harbor", case_europe_damaged_hull_heads_harbor},
     {"case_europe_trade_route_return_tile", case_europe_trade_route_return_tile},
     {"case_europe_immigration_counts_offpool_units", case_europe_immigration_counts_offpool_units},
     {"case_europe_buy_short_gold_refuses", case_europe_buy_short_gold_refuses},

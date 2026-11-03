@@ -2718,7 +2718,10 @@ static GameUpdateStep game_europe_screen_mouse(
       eu->selected_harbor = hit.index;
       eu->status[0] = '\0';
       ui_drag_begin(&game->ui_drag, UI_DRAG_EUROPE_HARBOR_SHIP, hit.index, -1, 0);
-      if (game->units_ok && game_icons(game)) {
+      /* raw 61023: a hull under repair is selected but never picked up (no FUN_38fd_1c64
+       * drag icon). The session stays so its release still opens the ship menu, and a
+       * drop on Bound is refused in game_europe_request_sail. */
+      if (game->units_ok && game_icons(game) && !eu->harbor[hit.index].damaged) {
         const int sprite = europe_ship_icon_sprite(&game->units, &eu->harbor[hit.index]);
         game_ui_drag_set_icon(game, sprite);
       }
