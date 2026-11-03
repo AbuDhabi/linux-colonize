@@ -1131,10 +1131,9 @@ void game_apply_trade_dest(ColonizeGameState* game, int id) {
     }
     ColonizeCol1TradeRoute* r = &game->col1.trade_route[slot];
     memset(r, 0, sizeof(*r));
+    /* ndisasm 00061259-00061273: the typed @TRADENAME text is copied as is
+     * (FUN_1d1d_117e); an emptied field stays empty. */
     str_copy_trunc(r->name, sizeof(r->name), game->trade_create_name);
-    if (!r->name[0]) {
-      snprintf(r->name, sizeof(r->name), "Route %d", slot + 1);
-    }
     r->sea = game->trade_create_sea;
     r->dest_count = 2;
     r->stop[0].colony_index = (uint16_t)word0;
@@ -1255,7 +1254,7 @@ void game_apply_cheat_list_result(ColonizeGameState* game) {
         (game->col1_ok && id >= 0 && id < (int)COLONIZE_COL1_TRADE_ROUTE_COUNT &&
          game->col1.trade_route[id].name[0])
           ? game->col1.trade_route[id].name
-          : (label && label[0] ? label : "route");
+          : (label && label[0] ? label : "");
       tok.string0 = rname;
       game_enqueue_yes_no(
         game,
