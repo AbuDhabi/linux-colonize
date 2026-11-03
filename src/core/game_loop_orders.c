@@ -383,8 +383,10 @@ COLONIZE_INTERNAL GameMoveStep game_move_sea_unit(
       /* FUN_4720_015c raw 76005-76006: a settlement owner 0..3 skips the
        * landfall arm, so a ship's step onto a foreign Euro colony is valid and
        * reaches 465b's FUN_5f7a_0662 trade arm (game_move_native_prompts).
-       * Playtest C3-B4: the ship stopped here, silently. */
-      if (landfall == COLONIZE_ENTER_BLOCKED) {
+       * Playtest C3-B4: the ship stopped here, silently. C18-B1: a garrison
+       * on the colony tile makes the probe say BLOCKED_DOMAIN, but 015c never
+       * looks at land units for a ship's land step, so it trades too. */
+      if (landfall == COLONIZE_ENTER_BLOCKED || landfall == COLONIZE_ENTER_BLOCKED_DOMAIN) {
         const ColonizeColony* fc =
           colonies_get(&game->colonies, colonies_id_at(&game->colonies, dest_x, dest_y));
         if (fc && fc->active && fc->nation_id != selected->nation_id) {

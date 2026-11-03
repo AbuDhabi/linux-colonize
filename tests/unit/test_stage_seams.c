@@ -781,8 +781,9 @@ static int test_goto_treasure_gets_king_galleon_offer(void) {
  * FUN_5f7a_0662 trade arm (FUN_4720_015c leaves the step valid, raw
  * 76005-76006) instead of stopping silently in the landfall probe. With no
  * peace treaty the arm answers @TRADEATWAR and spends the whole allotment.
+ * Playtest C18-B1: same with a foreign garrison standing on the colony tile.
  */
-static int test_ship_bumps_foreign_colony_trade_arm(void) {
+static int ship_bumps_foreign_colony_case(bool garrison) {
   ColonizeGameState game;
   memset(&game, 0, sizeof(game));
   if (!fx_map_alloc(&game.world_map, 8, 8, /*terrain_fill=*/25, /*with_seen=*/true)) {
@@ -800,10 +801,12 @@ static int test_ship_bumps_foreign_colony_trade_arm(void) {
 
   fx_units_init(&game.units);
   game.units_ok = true;
-  game.units.type_count = 1;
+  game.units.type_count = 2;
   game.units.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
   game.units.types[0].movement = 4;
   game.units.types[0].cargo = 2;
+  game.units.types[1].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  game.units.types[1].movement = 1;
 
   fx_colonies_init(&game.colonies);
   game.colonies_ok = true;
@@ -811,6 +814,12 @@ static int test_ship_bumps_foreign_colony_trade_arm(void) {
   units_set_occupancy_map(&game.world_map);
   colonies_set_occupancy_map(&game.world_map);
 
+  if (garrison) {
+    ColonizeUnit* g = units_get(&game.units, units_spawn(&game.units, 1, colony->x, colony->y));
+    if (g) {
+      g->nation_id = 1;
+    }
+  }
   const int sid = units_spawn(&game.units, 0, 3, 3);
   ColonizeUnit* ship = units_get(&game.units, sid);
   int rc = 0;
@@ -833,6 +842,13 @@ static int test_ship_bumps_foreign_colony_trade_arm(void) {
   units_set_occupancy_map(NULL);
   fx_map_free(&game.world_map);
   return rc;
+}
+
+static int test_ship_bumps_foreign_colony_trade_arm(void) {
+  if (ship_bumps_foreign_colony_case(false) != 0) {
+    return 1;
+  }
+  return ship_bumps_foreign_colony_case(true);
 }
 
 /*

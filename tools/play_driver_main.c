@@ -314,8 +314,9 @@ bool platform_poll_input(ColonizePlatform* p, ColonizeInputState* out) {
     } else {
       s_stdin_want = -1;
       tap(SDLK_RETURN, -1, 0);
-      printf("NESTED: Return pressed in a modal loop%s%s\n", want >= 0 ? " on " : "",
-             want >= 0 ? pop->current.choices[want] : "");
+      /* c18: a nested message (@SNEAK / @DECLAREWAR) used to vanish with no text. */
+      printf("NESTED: Return pressed in a modal loop%s%s | %s\n", want >= 0 ? " on " : "",
+             want >= 0 ? pop->current.choices[want] : "", pop ? pop->current.body : "");
     }
   }
   out->text_input_len = 0;
