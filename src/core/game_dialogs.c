@@ -227,6 +227,7 @@ bool game_try_enter_europe(ColonizeGameState* game) {
     return false;
   }
   game->in_europe = true;
+  europe_reset_harbor_selection(&game->europe); /* FUN_38fd_55b6 raw 68140 -> 0dd4 */
   game->in_pedia = false;
   game->in_colony = false;
   game->in_report = false;
@@ -1091,6 +1092,10 @@ static void game_apply_map_confirm(ColonizeGameState* game) {
   if (!yes) {
     /* DOS declines are silent (every GAME_MAP_CONFIRM_* kind). */
     set_status(game, "", NULL);
+    if (conf == GAME_MAP_CONFIRM_EUROPE_SAIL) {
+      /* FUN_38fd_2a92 raw 60781: No also ends in 291f:0dd4. */
+      europe_reset_harbor_selection(&game->europe);
+    }
     return;
   }
   switch (conf) {

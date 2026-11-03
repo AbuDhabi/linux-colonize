@@ -712,6 +712,7 @@ COLONIZE_INTERNAL GameUpdateStep game_update_services(ColonizeGameState* game, c
       !game_europe_blocked_by_woi(game)) {
     game->in_europe = true;
     game->europe.open_on_dock = false;
+    europe_reset_harbor_selection(&game->europe); /* FUN_38fd_55b6 raw 68140 -> 0dd4 */
     sound_set_bgm(3);
     game_tutorial_europe_opened(game);
   }
@@ -2857,6 +2858,9 @@ static void game_pedia_leave(ColonizeGameState* game) {
     game->colony_view_id = game->pedia_return_colony_id;
   } else if (game->pedia_return_europe) {
     game->in_europe = true;
+    /* Every Europe article returns through FUN_38fd_1956 -> 291f:0dd4 ->
+     * FUN_38fd_081c: harbor selection back on slot 0. */
+    europe_reset_harbor_selection(&game->europe);
   }
   game->pedia_return_colony_id = -1;
   game->pedia_return_europe = false;

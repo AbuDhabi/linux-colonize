@@ -391,7 +391,9 @@ bool europe_purchase_commit(
       slot->exit_y = eu->last_exit_y;
       slot->exit_east = eu->last_exit_east;
     }
-    europe_refresh_harbor_selection(eu);
+    /* FUN_38fd_4b50 raw 64897: thunk_FUN_291f_0dd4 -> FUN_38fd_081c, harbor
+     * slot 0 after every purchase. */
+    europe_reset_harbor_selection(eu);
     eu->status[0] = '\0';
     diag_info("EUROPE purchased ship %s for %d$ (gold=%d)", pname, cost, eu->gold);
     return true;
@@ -413,6 +415,7 @@ bool europe_purchase_commit(
   slot->sentry = true;
   slot->artillery = p->kind == UNITS_KIND_ARTILLERY;
   slot->dos_type = europe_dock_type_roll(eu, slot->name, slot->profession, rng);
+  europe_reset_harbor_selection(eu); /* raw 64897, as above */
   eu->status[0] = '\0';
   diag_info("EUROPE purchased %s for %d$ (gold=%d)", pname, cost, eu->gold);
   return true;

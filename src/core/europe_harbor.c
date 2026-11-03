@@ -530,6 +530,12 @@ void europe_refresh_harbor_selection(EuropeScreen* eu) {
   eu->selected_harbor = 0;
 }
 
+void europe_reset_harbor_selection(EuropeScreen* eu) {
+  if (eu) {
+    eu->selected_harbor = eu->harbor_ships > 0 ? 0 : -1;
+  }
+}
+
 void europe_tick_voyages(EuropeScreen* eu, const ColonizeUnitPool* units) {
   if (!eu) {
     return;

@@ -1911,6 +1911,94 @@ static int test_screen_f1_focus_article(void) {
 }
 
 /*
+ * Every FUN_291f_0dd4 repaint ends in FUN_38fd_081c (raw 59178-59179), which zeroes the
+ * harbor selection DS:0x9e20/0x9e1c: the open (menu and both arrival auto-opens, raw 68140),
+ * the Sail answer Yes or No (FUN_38fd_2a92 raw 60781), the box drag, a purchase
+ * (FUN_38fd_4b50 raw 64897) and the return from a Europe article (FUN_38fd_1956).
+ */
+static int test_europe_repaints_reset_harbor_selection(void) {
+  static ColonizeGameState game;
+  memset(&game, 0, sizeof(game));
+  game.europe_ok = true;
+  game.found_open_colony_id = -1;
+  game.ff_pedia_after_report = -1;
+  game.pedia_return_colony_id = -1;
+  ai_popup_init(&game.ai_popups);
+  EuropeScreen* eu = &game.europe;
+  eu->harbor_ships = 3;
+  eu->selected_harbor = 2;
+  int rc = 0;
+  if (!game_try_enter_europe(&game) || eu->selected_harbor != 0) {
+    rc = fail("Europe open selects harbor slot 0");
+  }
+  game.in_europe = false;
+  eu->harbor_ships = 0;
+  eu->selected_harbor = 1;
+  if (rc == 0 && (!game_try_enter_europe(&game) || eu->selected_harbor != -1)) {
+    rc = fail("Europe open with an empty harbor selects nothing");
+  }
+  game.in_europe = false;
+  eu->harbor_ships = 3;
+  eu->selected_harbor = 2;
+  eu->open_on_dock = true;
+  ColonizeInputState in;
+  memset(&in, 0, sizeof(in));
+  (void)game_update_services(&game, &in, 16);
+  if (rc == 0 && (!game.in_europe || eu->selected_harbor != 0)) {
+    rc = fail("deferred arrival open selects harbor slot 0");
+  }
+  game.in_europe = false;
+  eu->selected_harbor = 2;
+  ColonizeTurnResult res;
+  memset(&res, 0, sizeof(res));
+  res.request_europe_open = true;
+  game_finish_end_turn(&game, &res);
+  if (rc == 0 && (!game.in_europe || eu->selected_harbor != 0)) {
+    rc = fail("end-of-turn arrival open selects harbor slot 0");
+  }
+  game.in_europe = false;
+  eu->selected_harbor = 2;
+  game.in_pedia = true;
+  game.pedia_view = PEDIA_VIEW_ARTICLE;
+  game.pedia_return_to_list = false;
+  game.pedia_return_colony_id = -1;
+  game.pedia_return_europe = true;
+  in.last_key = COLONIZE_KEY_ESCAPE;
+  (void)game_update_pedia_screen(&game, &in);
+  if (rc == 0 && (game.in_pedia || !game.in_europe || eu->selected_harbor != 0)) {
+    rc = fail("leaving a Europe article selects harbor slot 0");
+  }
+  eu->selected_harbor = 2;
+  eu->expected_ships = 1;
+  eu->expected[0].turns_left = 3;
+  ui_drag_begin(&game.ui_drag, UI_DRAG_EUROPE_EXPECTED_SHIP, 0, -1, 0);
+  (void)game_europe_drag_drop(&game, EUROPE_BOUND_X + 4, EUROPE_BOUND_Y + 4, false);
+  if (rc == 0 && (eu->bound_ships != 1 || eu->selected_harbor != 0)) {
+    rc = fail("box drag selects harbor slot 0");
+  }
+  eu->selected_harbor = 2;
+  game.map_confirm = GAME_MAP_CONFIRM_EUROPE_SAIL;
+  game.map_confirm_payload = 2;
+  game.ai_popups.has_result = true;
+  game.ai_popups.result_tag = AI_POPUP_TAG_MAP_CONFIRM;
+  game.ai_popups.result_cancelled = false;
+  game.ai_popups.result_choice_id = 0;
+  game_apply_ai_popup_result(&game);
+  if (rc == 0 && (eu->harbor_ships != 3 || eu->selected_harbor != 0)) {
+    rc = fail("declined sail selects harbor slot 0");
+  }
+  eu->selected_harbor = 2;
+  eu->purchase_count = 1;
+  eu->purchase[0].is_ship = true;
+  if (rc == 0 && (!europe_purchase_commit(eu, 0, 0, NULL) || eu->harbor_ships != 4 ||
+                  eu->selected_harbor != 0)) {
+    rc = fail("purchase selects harbor slot 0");
+  }
+  game.in_europe = false;
+  return rc;
+}
+
+/*
  * Only the crossing stamps the nation's return tile: FUN_48d3_007a raw 77602-77607 copies the
  * crossing ship's tile into nation +0x32/+0x33. Queuing an Expected hull (a save import) does
  * not. Fixture: turns_ship_europe_roundtrip's start, French Caravel on the high seas at (50,29).
@@ -2639,6 +2727,7 @@ static const TestCase k_cases[] = {
     {"test_europe_buy_prompt_names_hull_type", test_europe_buy_prompt_names_hull_type},
     {"test_brewster_pick_names_home_port", test_brewster_pick_names_home_port},
     {"test_crossing_stamps_nation_return_tile", test_crossing_stamps_nation_return_tile},
+    {"test_europe_repaints_reset_harbor_selection", test_europe_repaints_reset_harbor_selection},
     {"test_click_spent_unit_hands_off", test_click_spent_unit_hands_off},
     {"test_eot_off_unit_used_up_ends_turn", test_eot_off_unit_used_up_ends_turn},
     {"test_hotseat_dos_save_round_trip", test_hotseat_dos_save_round_trip},

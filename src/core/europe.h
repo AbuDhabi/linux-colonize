@@ -711,6 +711,10 @@ bool europe_bound_pop_arrived(
 );
 
 void europe_refresh_harbor_selection(EuropeScreen* eu);
+/* Every FUN_291f_0dd4 repaint (open, Sail answer, box drag, purchase, article
+ * return) ends in FUN_38fd_081c (raw 59178-59179), which zeroes the harbor
+ * selection DS:0x9e20/0x9e1c: back to harbor slot 0. */
+void europe_reset_harbor_selection(EuropeScreen* eu);
 
 /*
  * Decrement transit; move Expected→Harbor when due (passengers → dock front);

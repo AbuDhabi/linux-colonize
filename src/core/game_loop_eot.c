@@ -722,6 +722,7 @@ void game_finish_end_turn(ColonizeGameState* game, const ColonizeTurnResult* res
       !ai_popup_busy(&game->ai_popups)) {
     game->in_europe = true;
     game->europe.open_on_dock = false;
+    europe_reset_harbor_selection(&game->europe); /* FUN_38fd_55b6 raw 68140 -> 0dd4 */
     sound_set_bgm(3); /* FUN_75c2_2778: Europe pool */
     game_tutorial_europe_opened(game);
   }
