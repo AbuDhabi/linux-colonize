@@ -1,0 +1,40 @@
+name: release-macos
+
+# Builds the macOS (Apple Silicon) zip with scripts/build_release_macos.sh.
+# Published release: the zip is attached to that release.
+# Manual run: the zip is kept as a workflow artifact only.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  macos-arm64:
+    runs-on: macos-14
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Install build dependencies
+        run: brew install cmake pkgconf sdl2 fluid-synth dylibbundler
+
+      - name: Build package
+        run: bash scripts/build_release_macos.sh
+
+      - name: Attach zip to the release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: gh release upload "$TAG" dist/*.zip --clobber --repo "$GITHUB_REPOSITORY"
+
+      - name: Keep zip as workflow artifact
+        if: github.event_name != 'release'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: opencol-macos-arm64
+          path: dist/*.zip
+          if-no-files-found: error
