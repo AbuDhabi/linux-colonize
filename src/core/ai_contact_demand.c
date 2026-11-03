@@ -57,8 +57,9 @@
  *
  * 2026-08-14: both previously-unnamed tables identified while tracing the
  * deep Euro G-table (euro_g_table_0a60.md / FUN_4962_06b6, same DS
- * neighborhood) — neither is a static lookup constant, both are live
- * per-turn recomputed sums over this tribe *type* (nation_id-4):
+ * neighborhood) — neither is a static lookup constant, both are the
+ * tribe's census bytes (FUN_4962_06b6, on the tribe's turn) for this tribe
+ * slot (nation_id-4):
  *   table[-0x69d6][type] = count of villages of that tribe type
  *   table[-0x6e7c][type] = Σ combat_unit_base_x8(brave, mode=1) [attack-
  *                          mode value, matching the traced FUN_281f_09c8
@@ -84,46 +85,13 @@ static uint32_t ai_contact_incite_price(
   }
   const ColonizeCol1Save* col1 = ctx->col1;
 
-  /* `tribe.nation_id` is the full 4-11 nation id, not a 0-7 "type" —
-   * confirmed independently via colony.c/units.c's own `-4` indexing
-   * into col1->indian[8] — so this compares directly against `nation_id`,
-   * not `nation_id - 4`. (Was comparing against a `tribe_type` local that
-   * made this loop count zero villages always; see the discount-loop
-   * comment below for the matching fix + how this was found.) */
-  int village_count = 0;
-  if (col1->tribe) {
-    for (uint16_t ti = 0; ti < col1->head.tribe_count; ++ti) {
-      if ((int)col1->tribe[ti].nation_id == nation_id) {
-        ++village_count;
-      }
-    }
-  }
-  if (village_count > 0xff) {
-    village_count = 0xff;
-  }
-
-  int brave_value_sum = 0;
-  if (ctx->units) {
-    const ColonizeCombatStrengthCtx sctx = combat_strength_ctx_from_turn(ctx);
-    /* Slot walk, `u->id` to the id-taking accessors — see
-     * ai_contact_land_combat_sum's note (ids are 1-based and never recycled,
-     * so `i` is not a unit id). Fixed 2026-09-10. */
-    for (int i = 0; i < units_slot_end(ctx->units); ++i) {
-      const ColonizeUnit* u = &ctx->units->units[i];
-      if (!u->active || u->nation_id != nation_id) {
-        continue;
-      }
-      if (units_is_sea(ctx->units, u->id)) {
-        continue;
-      }
-      const int val = combat_unit_base_x8(&sctx, u->id, 1, NULL);
-      brave_value_sum += val;
-      if (brave_value_sum > 0xff) {
-        brave_value_sum = 0xff;
-        break;
-      }
-    }
-  }
+  /* raw 83538-83540 read the tribe's census bytes DS:0x962a (village count)
+   * and DS:0x9184 (sum of 09c8(u,1) over its units), written only by
+   * FUN_4962_06b6 on the tribe's turn, not a live recount: a village burned
+   * or braves lost since then do not move the price until the next census. */
+  const int slot = nation_id - 4;
+  const int village_count = (int)col1->stuff.tribe_village_counts[slot];
+  const int brave_value_sum = (int)col1->stuff.tribe_data_9184[slot];
 
   /* raw 83542-83543 reads both stock bytes as `*(char *)`, i.e. signed. */
   const int base =

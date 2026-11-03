@@ -5698,6 +5698,36 @@ static int sp_49(void) {
     if (paid_plain != paid_jesuit + 1500u) {
       return fail("417e -1500 discount must apply only to profession 0x18 (Jesuit)");
     }
+    /* raw 83538-83540 price the tribe's census bytes (0x962a villages,
+     * 0x9184 brave value), not a live recount: live map and units stay
+     * fixed, only the census rows move. */
+    {
+      const uint8_t vc_save = col1.stuff.tribe_village_counts[0];
+      const uint8_t bv_save = col1.stuff.tribe_data_9184[0];
+      uint32_t paid[3];
+      const uint8_t vcs[3] = {0, 10, 0};
+      const uint8_t bvs[3] = {0, 0, 40};
+      for (int k = 0; k < 3; ++k) {
+        col1.stuff.tribe_village_counts[0] = vcs[k];
+        col1.stuff.tribe_data_9184[0] = bvs[k];
+        col1.nation[1].gold = 100000;
+        ind->alarm_by_player[0] = 20;
+        col1.tribe[0].mission = COL1_TRIBE_MISSION_NONE;
+        if (!ai_contact_ai_incite_human(&ictx, ind, &col1.tribe[0], 4, 1, 0)) {
+          return fail("census incite should fire");
+        }
+        paid[k] = 100000u - col1.nation[1].gold;
+      }
+      /* base: villages*8 - 2*villages = +60, ((40>>2)&0xfe) = +10; times
+       * (alarm toward the inciter 0 + 75) * 2/3 (inciter 1 = French) = 50. */
+      if (paid[1] != paid[0] + 60u * 50u || paid[2] != paid[0] + 10u * 50u) {
+        fprintf(stderr, "census incite paid %u/%u/%u\n", (unsigned)paid[0], (unsigned)paid[1],
+                (unsigned)paid[2]);
+        return fail("incite price must read the census village/brave rows");
+      }
+      col1.stuff.tribe_village_counts[0] = vc_save;
+      col1.stuff.tribe_data_9184[0] = bv_save;
+    }
     ind->muskets = muskets_save;
     ind->horse_herds = horses_save;
     ind->alarm_by_player[0] = 20;
