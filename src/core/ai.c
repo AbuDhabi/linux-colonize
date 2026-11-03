@@ -381,8 +381,9 @@ static bool ai_setup_col1_template(const AiNewGameParams* p, char* err, size_t e
    * point of price every turn from 1492.
    *
    * Stream state at 235c entry (FUN_75c2_2778 menu, raw ~121790-121825): the timer
-   * seed, then 5 RNG(0,3) customize-axis draws for NEW WORLD / CUSTOMIZE
-   * (none for AMERICA, which sets the axes to 1), then the 16 pool draws.
+   * seed, then 5 RNG(0,3) customize-axis draws for NEW WORLD / AMERICA (menu
+   * choices 1-2; CUSTOMIZE, choice 3, sets the axes to 1 and draws none, raw
+   * 121786-121795), then the 16 pool draws.
    * Brute-forced from SEED100.SAV: seed 100, skip 5, one 0058 phase-1 decay
    * before the save (port_bugs.md #1084). Map gen and 6a09 reseed afterwards, so
    * drawing from a fresh copy here leaves their stream untouched.
@@ -390,7 +391,7 @@ static bool ai_setup_col1_template(const AiNewGameParams* p, char* err, size_t e
   {
     ColonizeDosRng pg_rng;
     dos_rng_seed(&pg_rng, ai_new_game_seed(p));
-    for (int i = 0; !p->use_tribe_txt && i < 5; ++i) {
+    for (int i = 0; !p->customize && i < 5; ++i) {
       (void)dos_rng_range(&pg_rng, 0, 3);
     }
     for (int c = 0; c < 16; ++c) {

@@ -484,6 +484,28 @@ static int run_init_and_turns(
   }
 
   {
+    /* FUN_75c2_2778 raw 121786-121795: menu choices 1-2 (NEW WORLD, AMERICA) make five
+     * RNG(0,3) axis draws off the boot seed before 235c's 16 market-pool draws; only
+     * CUSTOMIZE (choice 3) sets the axes to 1 and draws none. */
+    ColonizeDosRng want_rng;
+    dos_rng_seed(&want_rng, col1.post_map.boot_timer);
+    for (int i = 0; i < 5; ++i) {
+      (void)dos_rng_range(&want_rng, 0, 3);
+    }
+    for (int c = 0; c < 16; ++c) {
+      const int want = dos_rng_range(&want_rng, 600, 1000);
+      if (col1.head.market_demand_pool[c] != want) {
+        fprintf(stderr, "%s: market pool[%d] %u, want %d (after 5 axis draws)\n", label, c,
+                col1.head.market_demand_pool[c], want);
+        map_free(&map);
+        col1_save_free(&col1);
+        assets_msg_free(&names);
+        return 1;
+      }
+    }
+  }
+
+  {
     /* Map setup writes the human's landfall into nation +0x32/+0x33 too (FUN_684c_08c0 raw
      * 107143-107153), so a ship bought before the first crossing (stamped at FUN_38fd_4b50
      * raw 64895-64896) sails back to it. */

@@ -2411,6 +2411,7 @@ void game_commit_new_campaign(ColonizeGameState* game) {
     ai.difficulty = game->difficulty;
     ai.leader_name = game->leader_name;
     ai.use_tribe_txt = (ng->path == NEW_GAME_PATH_AMERICA);
+    ai.customize = (ng->path == NEW_GAME_PATH_CUSTOMIZE);
     ai.map_stem = stem[0] ? stem : NULL;
     ai.human_start_x = sx;
     ai.human_start_y = sy;
