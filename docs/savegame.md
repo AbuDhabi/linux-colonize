@@ -282,8 +282,11 @@ Full opaque-field inventory: **[save_format_map.md](save_format_map.md)**.
   121612-121646, starts there with counter 0), `240+n` = one hop short of
   Europe. Port mapping:
   `236+n` harbor, `228+n` Bound (`goto` = landfall), `244+n` Expected
-  (`goto` = exit tile); unit `+0x16` (`col1_counter16`) = voyage
-  turns left; passengers chained `pax0→…→ship` with the same x/y/goto/turns,
+  (`goto` = exit tile; `240+n` counter 0 for a hull that docks at the next
+  tick); unit `+0x16` (`col1_counter16`) = the lane counter, which
+  FUN_48d3_03d0 (raw 77761-77782) decrements before its hop test, so an
+  Expected hull on `244+n` with counter c docks after max(c,1)+1 ticks and
+  the import sets that; passengers chained `pax0→…→ship` with the same x/y/goto/turns,
   `orders=1`; Treasure `profession` = gold/100. Capture writes all three
   lanes that way (harbor passengers are already dock immigrants with their
   `(236,236)` mirror units, so only Expected/Bound carry cargo);
