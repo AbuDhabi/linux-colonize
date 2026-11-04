@@ -1014,6 +1014,30 @@ int units_tick_ship_build_ready(
  * old instant-drydock model. Construction ships (repair_pending==0 below
  * threshold) stay on units_tick_ship_build_ready.
  */
+void units_refit_popup(
+  const ColonizeUnitPool* pool,
+  const ColonizeColonyPool* colonies,
+  int unit_id,
+  AiPopupState* ai_popups,
+  const ColonizeMsgCatalog* messages
+) {
+  const ColonizeUnit* u = units_get_const(pool, unit_id);
+  if (!u || !ai_popups) {
+    return;
+  }
+  const ColonizeUnitType* ty = units_type(pool, u->type_index);
+  const ColonizeColony* col =
+    colonies ? colonies_get(colonies, colonies_id_at(colonies, u->x, u->y)) : NULL;
+  PopupMsgTokens tok;
+  memset(&tok, 0, sizeof(tok));
+  tok.string0 = (ty && ty->name[0]) ? ty->name : "";
+  /* DOS: colony name on a colony tile, else the nation's harbour (-0x7c74 table). */
+  tok.string1 = col ? (col->name[0] ? col->name : "") : units_home_port_name(NULL, u->nation_id);
+  char body[AI_POPUP_BODY_LEN];
+  popup_msg_fill(messages, "REFIT", &tok, "", body, sizeof(body));
+  ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+}
+
 int units_tick_drydock_repair(
   ColonizeUnitPool* pool,
   const ColonizeColonyPool* colonies,
@@ -1022,13 +1046,17 @@ int units_tick_drydock_repair(
   char* status,
   size_t status_size,
   AiPopupState* ai_popups,
-  const ColonizeMsgCatalog* messages
+  const ColonizeMsgCatalog* messages,
+  int* out_ids,
+  int out_max
 ) {
   if (!pool || nation_id < 0 || nation_id > 3) {
     return 0;
   }
   int repaired = 0;
-  for (int i = 0; i < units_slot_end(pool); ++i) {
+  /* FUN_3844_00f2 raw 58326-58330 walks the unit records from the last one down, so the
+   * @REFIT popups come in descending record order. */
+  for (int i = units_slot_end(pool) - 1; i >= 0; --i) {
     ColonizeUnit* u = &pool->units[i];
     if (!u->active || u->nation_id != nation_id || u->aboard_ship_id >= 0) {
       continue;
@@ -1050,6 +1078,9 @@ int units_tick_drydock_repair(
       colonies ? colonies_get(colonies, colonies_id_at(colonies, u->x, u->y)) : NULL;
     u->col1_flags15 = (uint8_t)(u->col1_flags15 & 0x7fu);
     u->repair_pending = 0;
+    if (out_ids && repaired < out_max) {
+      out_ids[repaired] = u->id;
+    }
     repaired++;
     if (col1_nation_is_human(g_units_ff_col1, nation_id, human_nation)) {
       /* FUN_3844_00f2 / @REFIT: repaired human ship, asm 89523-89534; gate =
@@ -1069,11 +1100,7 @@ int units_tick_drydock_repair(
       if (status && status_size > 0) {
         popup_msg_fill_status(messages, "REFIT", &tok, status, status_size);
       }
-      if (ai_popups) {
-        char body[AI_POPUP_BODY_LEN];
-        popup_msg_fill(messages, "REFIT", &tok, "", body, sizeof(body));
-        ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, body);
-      }
+      units_refit_popup(pool, colonies, u->id, ai_popups, messages);
     }
   }
   return repaired;
@@ -1499,9 +1526,9 @@ void units_brewster_enqueue_pick(
   PopupMsgTokens tok;
   memset(&tok, 0, sizeof(tok));
   tok.country = europe->nation_name[0] ? europe->nation_name : "";
-  /* DOS supplies an executable-side destination noun here. Keep the port's
-   * own wording distinct from the editable catalog text. */
-  tok.string0 = "the embarkation pool";
+  /* FUN_38fd_4884 raw 64708 (Brewster arm, param_2 != 0) sets %STRING0 from
+   * DS:(nation*2 - 0x7c74), the NAMES @HOMEPORT row ("London"). */
+  tok.string0 = units_home_port_name(NULL, human);
   char body[AI_POPUP_BODY_LEN];
   if (game_txt) {
     popup_msg_fill(game_txt, "RECRUITCHOOSE", &tok, "", body, sizeof(body));

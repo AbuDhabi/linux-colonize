@@ -708,7 +708,9 @@ int colonies_trade_route_service_stop(
   int colony_id,
   ColonizeUnitPool* units,
   int unit_id,
-  const ColonizeCol1TradeStop* stop
+  const ColonizeCol1TradeStop* stop,
+  const int* sell_price,
+  uint16_t boycott_bitmap
 ) {
   if (!pool || !units || !stop) {
     return 0;
@@ -723,11 +725,17 @@ int colonies_trade_route_service_stop(
   /*
    * Unload phase (DOS FUN_479b_0bd0): exactly the stop's unload-list cargos,
    * every matching hold, into the warehouse. No list → unload nothing.
+   * Boycotted cargos stay aboard (raw 77260 `if (FUN_291f_0cd8(cargo) == 0)`,
+   * 0cd8 -> FUN_38fd_05e8 raw 59010-59016 = `1<<cargo & nation+0x20`); the
+   * gate sits above the 999-or-colony split, so colony stops are gated too.
    */
   const int unload_n = (int)stop->unload_count;
   for (int i = 0; i < unload_n && i < 6; ++i) {
     const int want = col1_trade_nibble_cargo(stop->unload_cargo_nibbles, i);
     if (want < 0 || want >= COLONIZE_CARGO_COUNT) {
+      continue;
+    }
+    if (boycott_bitmap & (uint16_t)(1u << want)) {
       continue;
     }
     /* Re-scan holds each pass — unload may compact. */
@@ -754,28 +762,44 @@ int colonies_trade_route_service_stop(
   }
 
   /*
-   * Load phase (DOS: sort load-list cargos by weight×stock, take the best,
-   * load one hold, repeat until the transport is full or nothing is left).
-   * Port keeps the greedy shape with uniform weights: highest stock first.
+   * DOS-LITERAL FUN_479b_0bd0 raw 77290-77315 load phase:
+   *   while (+0x3150 holds used != 0x5237[type] capacity && last load ok) {
+   *     key[c] = byte DS:0x84bc[nation*0x10+c] * colony stock word, 16-bit,
+   *              for load-list cargos only (others 0);
+   *     FUN_291f_0ed0 -> FUN_1cf8_000a ascending sort with order 0..15;
+   *     if (key[15] != 0) FUN_291f_07f8(unit, order[15], 1, 0);
+   *   }
+   * The sort keeps tied maxima in index order, so a tie goes to the higher
+   * cargo index. Once every hold is used the loop ends, even if a part-full
+   * hold of a load-list cargo could still be topped up.
    */
   const int load_n = (int)stop->load_count;
+  const int cap = units_goods_hold_count(units, unit_id);
   for (int guard = 0; guard < COLONIZE_UNIT_CARGO_MAX + 2; ++guard) {
-    int best = -1;
-    int best_stock = 0;
+    if (units_holds_used(units, unit_id) == cap) {
+      break;
+    }
+    uint16_t key[COLONIZE_CARGO_COUNT];
+    int order[COLONIZE_CARGO_COUNT];
+    for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
+      key[c] = 0;
+      order[c] = c;
+    }
     for (int i = 0; i < load_n && i < 6; ++i) {
       const int ct = col1_trade_nibble_cargo(stop->load_cargo_nibbles, i);
       if (ct < 0 || ct >= COLONIZE_CARGO_COUNT) {
         continue;
       }
-      if (cmut->stock[ct] > best_stock) {
-        best_stock = cmut->stock[ct];
-        best = ct;
-      }
+      const int price = sell_price ? sell_price[ct] : 0;
+      key[ct] = (uint16_t)((unsigned)price * (unsigned)cmut->stock[ct]);
     }
-    if (best < 0) {
+    units_dos_sort_1cf8(key, order, COLONIZE_CARGO_COUNT);
+    if (key[COLONIZE_CARGO_COUNT - 1] == 0) {
       break;
     }
-    const int amt = best_stock > 100 ? 100 : best_stock;
+    const int best = order[COLONIZE_CARGO_COUNT - 1];
+    const int stock = cmut->stock[best];
+    const int amt = stock > 100 ? 100 : stock;
     if (colonies_transfer_to_unit(pool, colony_id, units, unit_id, best, amt) <= 0) {
       break;
     }

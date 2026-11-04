@@ -105,6 +105,16 @@ The port's harbor (port_city / empty), expected (High Seas / port_city) and
 bound (High Seas / colony_region) rows are exactly those strings. Re-plumbing
 the lanes into the unit pool just to reproduce the interleaving is not worth it.
 
+### @REFIT order across harbor and map hulls
+`FUN_3844_00f2` (raw 58326-58373) shows @REFIT in descending unit-record order,
+one loop over map and harbor (236+n) hulls. The port keeps harbor hulls in
+`eu->harbor` with no record index, so `turn_human_ship_repairs` uses the order
+the port saves them in (`col1_bridge_capture_europe_lanes` writes them after the
+map units): harbor hulls first, last slot first, then map hulls from the highest
+slot down. Exact for a game the port saved; after loading a DOS save, a turn in
+which a harbor hull and a map hull with a higher DOS record index both finish
+repairs shows the two popups in swapped order. Same data-model cost as #974.
+
 ### Hot-seat edge cases (ported 2026-10-26 as port_bugs.md #1290)
 Two narrow differences after a hot-seat `@MULTIREV` "Yes" are listed in
 [hotseat.md](hotseat.md) "Divergences".

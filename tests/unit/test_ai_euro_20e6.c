@@ -2907,7 +2907,10 @@ static int unit_europe_departure_runs_during_planning(void) {
     ship->goto_x = 10;
     ship->goto_y = 8;
     ship->col1_flags15 = damaged ? 0x80 : 0;
+    /* The slot's 6d8e entry reseed records the 83a6 word the voyage roll reseeds to. */
+    ai_nation_reseed(&f.ctx);
     ai_euro_nation_planning(&f.ctx, 1);
+    dos_rng_set_83a6(-1);
     const int lane = damaged ? 237 : 233;
     if (ship->x != lane || ship->y != lane ||
         (!damaged && (ship->col1_counter16 != 1 || f.rng.state != 23932311u))) {

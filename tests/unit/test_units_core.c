@@ -7307,7 +7307,7 @@ static int case_combat_fort_fire_repair(void) {
       for (int t = 0; t < 4 && !repaired; ++t) {
         (void)units_tick_ship_build_ready(&pool, &colonies, 0, -1, st, sizeof(st), NULL);
         repaired = units_tick_drydock_repair(
-          &pool, &colonies, 0, 0, st, sizeof(st), NULL, NULL
+          &pool, &colonies, 0, 0, st, sizeof(st), NULL, NULL, NULL, 0
         );
       }
       ship = units_get(&pool, sid_hit);
@@ -7976,6 +7976,18 @@ static int case_fountain_of_youth(void) {
           strcmp(before, feu.pool[1].name) != 0) {
         fprintf(stderr, "fountain full dock: free %d paid %d dock %d gold %d\n", free_ok,
                 paid_ok, feu.dock_count, feu.gold);
+        return 1;
+      }
+      /* FUN_38fd_4884 raw 64765-64768: a paid or Brewster pick clears the crosses before the
+       * spawn, so a refused spawn on a full dock clears them too. */
+      feu.current_crosses = 50;
+      const bool paid_again = europe_recruit_from_pool_ex(&feu, 1, NULL);
+      const int paid_crosses = feu.current_crosses;
+      feu.current_crosses = 50;
+      const bool brewster_ok = europe_brewster_pick_from_pool_ex(&feu, 1, NULL);
+      if (paid_again || brewster_ok || paid_crosses != 0 || feu.current_crosses != 0) {
+        fprintf(stderr, "full dock crosses: paid %d -> %d, brewster %d -> %d\n", paid_again,
+                paid_crosses, brewster_ok, feu.current_crosses);
         return 1;
       }
       /* Train (FUN_38fd_41ce raw 64432-64440 charges only after the spawn) and a dock

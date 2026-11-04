@@ -5,8 +5,7 @@
 # sentried dock unit, front first, while the ship has a free hold); the @ARMOPTIONS rows toggle the board flag.
 key e                    # open the European Status screen
 wait 1
-drag 241 146 153 153     # dock colonist dragged onto the harbor Caravel: the press opens its dock menu, the release does nothing
-key Escape               # close the menu without a choice
+drag 241 146 153 153     # dock colonist dragged onto the harbor Caravel: the menu opens only on a release over the dock (FUN_38fd_3c86 raw 64108-64113), so nothing happens
 click 241 146            # slot 0 menu again (6 rows, no Move to front on slot 0)
 click 120 77             # "Don't get on next ship.": slot 0 stays when a ship sails
 drag 10 188 152 170      # buy 100 Food into the Caravel's first hold: one hold left for a passenger
