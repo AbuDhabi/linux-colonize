@@ -980,57 +980,39 @@ void ai_euro_20e6_prologue(ColonizeTurnContext* ctx, const ColonizeUnit* u, int 
 }
 
 
-/* Per-nation, per-continent DOS −0x6b1a / −0x6a8e / −0x6a0e reads. */
-int ai_euro_20e6_own_colonies_on(const ColonizeTurnContext* ctx, int nation, int cid) {
-  int n = 0;
-  if (ctx->colonies && cid >= 0) {
-    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-      const ColonizeColony* c = &ctx->colonies->colonies[i];
-      if (c->active && c->nation_id == nation && map_continent_id_at(ctx->map, c->x, c->y) == cid) {
-        n++;
-      }
-    }
-  }
-  return n;
-}
-
-static int ai_euro_20e6_combat_value_on(const ColonizeTurnContext* ctx, int nation, int cid) {
-  int sum = 0;
-  if (cid < 0) {
+/* FUN_4962_0018 census rows (nation*0x10 + continent), frozen since that
+ * nation's last EOT census, never live recounts. Every DOS read these helpers
+ * stand in for is the census: FUN_521d_20e6 raw 88506, 88521, 88966, 89160,
+ * 89475-89535, FUN_5952_0000 raw 93613. The census counts hulls too (asm
+ * 4962:0171), which the old live walks skipped. */
+static int ai_euro_20e6_census_row(
+  const ColonizeTurnContext* ctx, const uint8_t* table, int nation, int cid
+) {
+  if (!ctx->col1_ok || !ctx->col1 || nation < 0 || nation > 3 || cid < 0 || cid > 15) {
     return 0;
   }
-  ColonizeCombatStrengthCtx sctx = combat_strength_ctx_from_turn(ctx);
-  /* Slot walk (Leads 2, 2026-09-10): `i` is an array index, not a unit id. */
-  for (int i = 0; i < units_slot_end(ctx->units); ++i) {
-    const ColonizeUnit* o = &ctx->units->units[i];
-    if (!o->active || o->nation_id != nation || units_is_sea(ctx->units, o->id)) {
-      continue;
-    }
-    if (map_continent_id_at(ctx->map, o->x, o->y) != cid) {
-      continue;
-    }
-    sum += combat_unit_base_x8(&sctx, o->id, 1, NULL);
-    if (sum > 255) {
-      return 255; /* DOS byte table */
-    }
-  }
-  return sum;
+  return table[nation * 16 + cid];
 }
 
-/* DS:0x95f2 continent_presence_flags bit 0x04: a foreign colony sits on cid. */
+/* −0x6b1a colony_counts_by_continent (writer raw 78255). */
+int ai_euro_20e6_own_colonies_on(const ColonizeTurnContext* ctx, int nation, int cid) {
+  return ai_euro_20e6_census_row(
+    ctx, ctx->col1 ? ctx->col1->stuff.colony_counts_by_continent : NULL, nation, cid
+  );
+}
+
+/* −0x6a8e combat_value_sum_by_continent (09c8(u,1), asm `ADD BX,0x9572`). */
+static int ai_euro_20e6_combat_value_on(const ColonizeTurnContext* ctx, int nation, int cid) {
+  return ai_euro_20e6_census_row(
+    ctx, ctx->col1 ? ctx->col1->stuff.combat_value_sum_by_continent : NULL, nation, cid
+  );
+}
+
+/* −0x6b5a land_unit_counts_by_continent (writer raw 78201). */
 int ai_euro_10ec_land_units_on(const ColonizeTurnContext* ctx, int nation, int cid) {
-  int n = 0;
-  /* Slot walk (Leads 2, 2026-09-10): `i` is an array index, not a unit id. */
-  for (int i = 0; i < units_slot_end(ctx->units); ++i) {
-    const ColonizeUnit* o = &ctx->units->units[i];
-    if (!o->active || o->nation_id != nation || units_is_sea(ctx->units, o->id)) {
-      continue;
-    }
-    if (map_continent_id_at(ctx->map, o->x, o->y) == cid) {
-      n++;
-    }
-  }
-  return n > 255 ? 255 : n; /* −0x6b5a byte table */
+  return ai_euro_20e6_census_row(
+    ctx, ctx->col1 ? ctx->col1->stuff.land_unit_counts_by_continent : NULL, nation, cid
+  );
 }
 
 /* DOS-LITERAL FUN_5bfb_10ec raw ~97148-97211 (bug #1034e: faithful port, name cited here). */

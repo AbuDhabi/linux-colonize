@@ -2508,6 +2508,7 @@ static int goalwalk_binding_after_turn(int subject_orders, int* out_gx, int* out
    * the removed low-population LABOR heuristic. Pin the 0a60 binding stage. */
   f.map.terrain[2 * f.map.width + 3] = 25;
   f.colonies.colonies[0].labor_shortage = 2;
+  seed_census(&f, nation); /* the 0a60 goal tables read the census rows */
   ai_euro_colony_goals(&f.ctx, nation);
   ai_euro_0a60_goal_orders_structural(&f.ctx, nation);
   const ColonizeUnit* u = units_get_const(&f.units, uid);
@@ -3470,7 +3471,39 @@ static int unit_spent_step_burns_465b_roll(void) {
   return ok ? 0 : fail("spent unit's step must reseed and burn the 465b roll, and not move");
 }
 
+/*
+ * The 20e6 per-continent counts (raw 88506, 88521, 89475-89535; FUN_5952_0000
+ * raw 93613) read the FUN_4962_0018 census: the land row includes a hull
+ * docked in a colony (asm 4962:0171), and a colony founded after the census is
+ * not in the colony row until the next census.
+ */
+static int unit_20e6_counts_read_census_snapshot(void) {
+  const int nation = 1;
+  Fixture f;
+  if (fixture_init(&f, nation) != 0) return 1;
+  treasure_add_colony(&f, 0, nation, 4, 4);
+  const int sid = units_spawn(&f.units, 1, 6, 4);
+  const int hid = units_spawn(&f.units, 2, 4, 4);
+  ColonizeUnit* s = units_get(&f.units, sid);
+  ColonizeUnit* h = units_get(&f.units, hid);
+  if (!s || !h) { fixture_free(&f); return fail("20e6 census spawn"); }
+  s->nation_id = nation;
+  h->nation_id = nation;
+  seed_census(&f, nation);
+  treasure_add_colony(&f, 1, nation, 8, 8); /* founded after the census */
+  const int cid = map_continent_id_at(&f.map, 4, 4);
+  const int cols = ai_euro_20e6_own_colonies_on(&f.ctx, nation, cid);
+  const int land = ai_euro_10ec_land_units_on(&f.ctx, nation, cid);
+  fixture_free(&f);
+  if (cid < 0 || cols != 1 || land != 2) {
+    fprintf(stderr, "20e6 census: colonies %d (want 1) land %d (want 2)\n", cols, land);
+    return fail("20e6 counts must read the census rows, not live walks");
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+    {"unit_20e6_counts_read_census_snapshot", unit_20e6_counts_read_census_snapshot},
     {"unit_spent_step_burns_465b_roll", unit_spent_step_burns_465b_roll},
     {"unit_10ec_skips_while_human_tops_rank", unit_10ec_skips_while_human_tops_rank},
     {"unit_garrison_soldier_counts_explorer_cap", unit_garrison_soldier_counts_explorer_cap},

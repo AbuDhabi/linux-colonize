@@ -980,6 +980,8 @@ static int case_road_connect_links_two_colonies(void) {
   fx_wake_colonists(&f, 3);
   fx_enable_road_arms(&f, 12345u, 10000);
   fx_colony_add(&f.colonies, NATION, 12, 8, 3);
+  /* Raw 93613 reads the census row, which counts both colonies. */
+  f.col1.stuff.colony_counts_by_continent[NATION * 16 + map_continent_id_at(&f.map, 12, 8)] = 2;
   f.col1.head.turn = 98; /* 98 % 7 == 0 */
   f.turn = 98;
   f.col->stock[COLONIZE_CARGO_TOOLS] = 50;
@@ -1352,6 +1354,8 @@ static int tb14_tick_open_run(bool buggy, int* out_stayed, int* out_owner, int* 
   fx_enable_road_arms(&f, 12345u, 10000);
   fx_colony_add(&f.colonies, NATION, 12, 8, 3);
   fx_colony_add(&f.colonies, 2, 10, 6, 1);
+  /* Raw 93613 reads the census row, which counts both own colonies. */
+  f.col1.stuff.colony_counts_by_continent[NATION * 16 + map_continent_id_at(&f.map, 12, 8)] = 2;
   f.col1.player[2].control = 1; /* AI-controlled: DB-64 keeps the rebind */
   f.col1.head.turn = 98; /* 98 % 7 == 0 */
   f.turn = 98;

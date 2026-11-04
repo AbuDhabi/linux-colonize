@@ -2,6 +2,7 @@
  * land hunts, adjacent-combat chain and defender preference ladder. */
 #include "test_ai_euro_war_common.h"
 #include "core/ai_internal.h"
+#include "core/col1_stuff_census.h"
 
 /*
  * Indian×Euro war: Soldier hunts toward capital tribe over nearer non-capital.
@@ -215,6 +216,13 @@ static int unit_sticky_contact_rehunt(void) {
   ctx.col1_ok = true;
   ctx.rng = &rng;
   ctx.rng_seed = 42;
+  /* FUN_521d_20e6 reads the FUN_4962_0018 census rows (raw 88506), which
+   * each nation's EOT census fills before the AI turn. */
+  {
+    const ColonizeWorld cw = world_from_turn_ctx(&ctx);
+    col1_stuff_census_4962_w(&cw, &col1.stuff, foe);
+    col1_stuff_census_4962_w(&cw, &col1.stuff, nation);
+  }
 
   ai_euro_dispatcher_turn(&ctx, nation);
 
