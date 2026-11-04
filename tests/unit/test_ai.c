@@ -547,8 +547,9 @@ static int run_init_and_turns(
   }
 
   if (!america) {
-    /* FUN_6a09_0006 tail (ai_place_tribes_procedural, ai.c): NEW WORLD-only
-     * mountain-adjacency Silver bid bonus. Sanity, not a byte-exact golden:
+    /* FUN_6a09_0006 tail (ai_tribes_mountain_silver_bonus, ai.c): Mountains
+     * Silver bid bonus, both paths (AMERICA is pinned against DOS by
+     * tribe_txt_init_new_game_matches_dos). Sanity, not a byte-exact golden:
      * no field should go negative (int16 wrap on an always-nonnegative
      * accumulator would be a real bug), and this seed's generated map is
      * expected to place at least one nation's tribes near a class-0x1b
@@ -1948,7 +1949,7 @@ static int case_tribe_txt_init_new_game_matches_dos(void) {
   ai.names = &names;
   ai.data_dir = "COLONIZE";
   ai.human_nation = human;
-  ai.difficulty = 0;
+  ai.difficulty = dos.head.difficulty; /* the recorded run is Viceroy (4) */
   ai.leader_name = "Test Governor";
   ai.use_tribe_txt = true;
   ai.map_stem = "AMER2";
@@ -1977,6 +1978,58 @@ static int case_tribe_txt_init_new_game_matches_dos(void) {
   }
   fprintf(stderr, "init_new_game tribe_txt: port %u villages, DOS %u, rows equal %d\n",
           col1.head.tribe_count, dos.head.tribe_count, same);
+  /* FUN_4d56_0038 raw 81282-81285: +7/+8/+9 = 0xff. DOS still has them at
+   * 0xff at turn 9 (an idle run never trades). */
+  int bytes_ok = 0;
+  for (int i = 0; i < n; ++i) {
+    const ColonizeCol1Tribe* a = &col1.tribe[i];
+    const ColonizeCol1Tribe* b = &dos.tribe[i];
+    if (a->sticky_trade_good != 0xff || a->last_bought != 0xff || a->last_sold != 0xff ||
+        a->sticky_trade_good != b->sticky_trade_good || a->last_bought != b->last_bought ||
+        a->last_sold != b->last_sold) {
+      rc = 1;
+    } else {
+      bytes_ok++;
+    }
+  }
+  /* FUN_6a09_0006 raw 108006-108020: the Mountains Silver bonus also runs on
+   * the TRIBE.TXT path. Set once at new game, so turn 9 still holds it. */
+  int silver_ok = 0;
+  for (int t = 0; t < 8; ++t) {
+    if (col1.indian[t].hill_silver_bid_bonus != dos.indian[t].hill_silver_bid_bonus) {
+      fprintf(stderr, "tribe %d silver bonus: port %d, DOS %d\n", t,
+              col1.indian[t].hill_silver_bid_bonus, dos.indian[t].hill_silver_bid_bonus);
+      rc = 1;
+    } else {
+      silver_ok++;
+    }
+  }
+  /* FUN_6a09_0006 raw 107756-107767: alarm = r(0,14) + (human ? 2*diff : 0)
+   * on the shared stream. 000001.SAV is turn 9 (the run's first save), so
+   * three non-human pairs have moved by play: Arawak/England, Tupi/France and
+   * Tupi/Dutch. Those three are checked against the same seed's TURN1.SAV. */
+  ColonizeCol1Save turn1;
+  col1_save_init(&turn1);
+  if (!col1_save_read_file("original_saves/early-game-seed-100/TURN1.SAV", &turn1, err,
+                           sizeof(err))) {
+    fprintf(stderr, "init_new_game tribe_txt: TURN1.SAV load failed\n");
+    rc = 1;
+  }
+  int alarm_ok = 0;
+  for (int t = 0; t < 8; ++t) {
+    for (int e = 0; e < 4; ++e) {
+      const bool moved_by_play = (t == 2 && e == 0) || (t == 7 && (e == 1 || e == 3));
+      const ColonizeCol1Save* want = moved_by_play ? &turn1 : &dos;
+      if (col1.indian[t].alarm_by_player[e] != want->indian[t].alarm_by_player[e]) {
+        rc = 1;
+      } else {
+        alarm_ok++;
+      }
+    }
+  }
+  col1_save_free(&turn1);
+  fprintf(stderr, "init_new_game tribe_txt: +7..+9 ok %d/%d, silver ok %d/8, alarms ok %d/32\n",
+          bytes_ok, n, silver_ok, alarm_ok);
 done:
   units_set_occupancy_map(NULL);
   colonies_set_occupancy_map(NULL);

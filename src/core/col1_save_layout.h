@@ -857,9 +857,9 @@ typedef struct ColonizeCol1Indian {
      offset-+9 touches in any of the 3 decompiled DOS exports. */
   uint16_t horse_breeding; /* +10; ±0x32 on acquire/tick — FUN_5bfb_* / 4d56 */
   int16_t hill_silver_bid_bonus; /* was unknown31d[2]. Resolved 2026-08-19:
-     write confirmed at map-gen (FUN_6a09_0006 NEW WORLD/procedural tribe
-     placement, ai_place_tribes_procedural — not the AMERICA/TRIBE.TXT
-     path) — scans the 5x5 tiles centered on EVERY placed tribe's own
+     write confirmed at map-gen (FUN_6a09_0006 tail raw 108006-108020, after
+     both the TRIBE.TXT and the procedural placement path;
+     ai_tribes_mountain_silver_bonus) — scans the 5x5 tiles centered on EVERY placed tribe's own
      tile (capitals and satellites alike, not "capitals only" as first
      summarized), `+= tech` per terrain-class-0x1b tile found.
      **2026-08-24 correction**: class 0x1b is **Mountains**, not Hills —
@@ -870,15 +870,15 @@ typedef struct ColonizeCol1Indian {
      ai_decoded_type's comment in ai.c). Thematically this fits better
      too — Col1 Silver comes from Mountains, not Hills. Field name kept
      unchanged (no rename of a live field), semantics corrected in this
-     comment and in ai_place_tribes_procedural's own write-side comment.
+     comment and in ai_tribes_mountain_silver_bonus's write-side comment.
      Read confirmed at trade-meet economics (FUN_4d56_2154): `/=
      difficulty`, feeds the tribe's Silver bid[7] (COLONIZE_CARGO_SILVER).
      I.e. a nation with more mountain-adjacent tribes and higher tech
      offers a better Silver price, tempered by difficulty. Was split as
      unknown31d[2] and manually reassembled little-endian in ai_contact.c;
      now a direct int16 (struct is #pragma pack(1), same bytes).
-     Write side wired 2026-08-24 (ai_place_tribes_procedural, ai.c) —
-     previously read-only dead weight since NEW WORLD games never
+     Write side wired 2026-08-24 (now ai_tribes_mountain_silver_bonus,
+     ai.c) — previously read-only dead weight since port games never
      populated it. See docs/archive/mysteries_catalog.md. */
   int16_t tons[COLONIZE_COL1_CARGO_TYPES];
   /* +0x2e — per-euro contact FSM 0/1/2 (FUN_5bfb_*); was unknown32[12]. */

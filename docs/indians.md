@@ -197,6 +197,13 @@ playable nations — cosmetic / scenario pool, not additional `indian[8]` slots.
 | AMERICA | `FUN_6a09_0006` TRIBE.TXT branch → `ai_place_tribes_from_txt`: each tribe's [`TRIBE.TXT`](../COLONIZE/TRIBE.TXT) section (named by `@TRIBES` column 2), every point jittered ±2 up to 100 tries; the first placed village is the capital |
 | NEW WORLD | Procedural `FUN_6a09_0006` → `ai_place_tribes_procedural` (capitals then satellites) |
 
+Both branches follow 6a09's entry `04ca` reseed and 32 init-loop `rand(0,14)`
+draws (raw 107756-107767, tribe-major, Euro-minor). Each draw is that tribe's
+starting alarm toward Euro `e`, plus `2*difficulty` when
+`player[e].control == 0` (human). New villages get `+5 mission` and `+7..+9`
+(sticky good, last bought, last sold) = `0xff` (FUN_4d56_0038, raw
+81282-81285).
+
 `FUN_1427_02ca` (raw 7497-7506) marks a newly spawned Brave's tile occupied,
 but leaves its owner nibble at `0xf` if `FUN_137f_0598` identifies a rumour
 there. The first seed-100 Inca Brave spawns on such a tile at (10,25); `021a`
@@ -204,8 +211,9 @@ then skips its stay direction. The port restores that nibble after its generic
 spawn occupancy update, and no longer adds six fitted Inca RNG draws after
 the first step (#849). The seed-100 golden now tests with occupancy bound.
 
-**NEW WORLD-only Silver bid bonus (wired 2026-08-24).** After every capital
-and satellite tribe is placed, `FUN_6a09_0006`'s own tail re-walks each tribe
+**Mountains Silver bid bonus (wired 2026-08-24, both paths).** After all
+villages and their Braves are placed (TRIBE.TXT or procedural; the loop sits
+at function level, raw 108006-108020), `FUN_6a09_0006`'s own tail re-walks each tribe
 and scans the 5×5 window centered on its own tile for terrain class `0x1b`,
 adding that nation's `tech` to `indian.hill_silver_bid_bonus` per hit (read
 side already fed the tribe's Silver bid — see `ai_contact.c`). Class `0x1b`
@@ -213,10 +221,10 @@ is **Mountains**, not Hills — the field's original name was a decode-era
 mislabel (raw `.asm` of `FUN_13e4_000e` and `map.c`'s independent
 MAPEDIT-derived convention agree: `0x1b`=Mountains, `0x1c`=Hills); kept the
 existing field name (no rename of a live field) and fixed the comments +
-the write side instead. AMERICA-mode tribes never get this bonus — it's
-specific to the NEW WORLD/procedural placement function, not the
-TRIBE.TXT path. Full trace: `col1_save.h`'s `hill_silver_bid_bonus` comment
-and `ai.c`'s `ai_place_tribes_procedural`/`ai_decoded_type`.
+the write side instead. Seed 100 on AMER2 matches all 8 values of
+`golden_idle_america_seed-100/000001.SAV`. Full trace: `col1_save_layout.h`'s
+`hill_silver_bid_bonus` comment and `ai.c`'s
+`ai_tribes_mountain_silver_bonus`/`ai_decoded_type`.
 
 Initial village population = **`3 + 2*tech`**. Growth `FUN_4d56_152e` /
 `ai_grow_villages`: accumulates on **capitals only** — satellite villages never
