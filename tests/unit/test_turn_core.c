@@ -7038,7 +7038,240 @@ static int case_refit_unit_order(void) {
   return 0;
 }
 
+/*
+ * The human 00f2 dialogs DOS shows as blocking calls (the 4884 Brewster pick
+ * and the 3dc8 audience inside 5e52, before the colony loop; @KINGFRIGATE at
+ * the 00f2 tail, before the 2244 merc roll) must be answered before the EOT
+ * moves past them. The driver answers a dialog the way the game does: between
+ * slices.
+ */
+typedef struct EotDialogFx {
+  ColonizeUnitPool units;
+  ColonizeColonyPool pool;
+  ColonizeCol1Save col1;
+  EuropeScreen eu;
+  AiPopupState pop;
+  ColonizeDosRng rng;
+  uint16_t year;
+  uint16_t autumn;
+  uint32_t turn;
+  char status[128];
+  ColonizeTurnContext ctx;
+  ColonizeTurnProcessor proc;
+  /* dos_rng_draw_count() around the first answer of the watched dialog. */
+  unsigned long draws_before_answer;
+  unsigned long draws_after_answer;
+} EotDialogFx;
+static EotDialogFx g_eotd;
+
+static ColonizeColony* eotd_setup(ColonizeTurnProcStep start, uint16_t year, uint32_t turn) {
+  fx_begin();
+  EotDialogFx* g = &g_eotd;
+  memset(g, 0, sizeof(*g));
+  units_reset(&g->units);
+  units_set_occupancy_map(NULL);
+  snprintf(g->units.types[0].name, sizeof(g->units.types[0].name), "Colonists");
+  g->units.types[0].movement = 1;
+  g->units.type_count = 1;
+  colonies_init(&g->pool);
+  colonies_set_occupancy_map(NULL);
+  ColonizeColony* col = &g->pool.colonies[0];
+  col->active = true;
+  col->nation_id = 0;
+  col->x = 5;
+  col->y = 5;
+  col->colonist_count = 4;
+  col->population = 4;
+  snprintf(col->name, sizeof(col->name), "Jamestown");
+  g->pool.colony_count = 1;
+  g->col1.player[0].control = 0;
+  for (int n = 1; n < 4; ++n) {
+    g->col1.player[n].control = 1;
+  }
+  g->col1.head.turn = (uint16_t)turn;
+  g->col1.head.difficulty = 2;
+  ai_popup_init(&g->pop);
+  dos_rng_seed(&g->rng, 12345u);
+  g->year = year;
+  g->turn = turn;
+  ColonizeTurnContext* ctx = &g->ctx;
+  ctx->messages = test_game_txt();
+  ctx->names = test_names_txt();
+  ctx->human_nation = 0;
+  ctx->units = &g->units;
+  ctx->colonies = &g->pool;
+  ctx->col1 = &g->col1;
+  ctx->col1_ok = true;
+  ctx->europe = &g->eu;
+  ctx->ai_popups = &g->pop;
+  ctx->rng = &g->rng;
+  ctx->game_year = &g->year;
+  ctx->game_autumn = &g->autumn;
+  ctx->turn_number = &g->turn;
+  ctx->status = g->status;
+  ctx->status_size = sizeof(g->status);
+  g->proc.step = start;
+  return col;
+}
+
+/* Run the EOT to idle, answering `tag` with `choice` whenever it is queued.
+ * Reports the produced-colony count and whether the EOT was still running at
+ * the first moment the dialog was pending. */
+static bool eotd_run(AiPopupTag tag, int choice, int* produced_at, bool* active_at) {
+  EotDialogFx* g = &g_eotd;
+  bool seen = false;
+  for (int i = 0; i < 64; ++i) {
+    const bool active = turn_processor_advance(&g->proc, &g->ctx);
+    int qi = -1;
+    for (int q = 0; q < g->pop.queue_count; ++q) {
+      if (g->pop.queue[q].tag == tag) {
+        qi = q;
+        break;
+      }
+    }
+    if (qi >= 0) {
+      const bool first = !seen;
+      if (first) {
+        seen = true;
+        *produced_at = g->proc.result.colonies_produced;
+        *active_at = active;
+        g->draws_before_answer = dos_rng_draw_count();
+      }
+      g->pop.has_result = true;
+      g->pop.result_tag = tag;
+      g->pop.result_nation_a = 0;
+      g->pop.result_cancelled = false;
+      g->pop.result_choice_id = choice;
+      g->pop.result_payload = g->pop.queue[qi].payload;
+      if (tag == AI_POPUP_TAG_BREWSTER_PICK) {
+        const ColonizeWorld w = {.units = &g->units, .europe = &g->eu, .rng = &g->rng};
+        (void)units_brewster_apply_popup_ex_w(&w, &g->pop);
+      } else {
+        ai_king_apply_popup_result(&g->ctx, &g->pop);
+      }
+      if (first) {
+        g->draws_after_answer = dos_rng_draw_count();
+      }
+    }
+    ai_popup_clear(&g->pop); /* every other dialog: dismissed */
+    if (!active) {
+      break;
+    }
+  }
+  return seen;
+}
+
+/* FUN_38fd_4884 raw 64766 zeroes the crosses inside 5e52 (raw 68607); this
+ * turn's colony crosses land after it (00f2 raw 58386). */
+static int case_brewster_pick_before_colony_crosses(void) {
+  ColonizeColony* col = eotd_setup(TURN_PROC_FINISH, 1600, 36);
+  EotDialogFx* g = &g_eotd;
+  col->prod_compose_stamp = (uint32_t)g->col1.head.turn + 1u;
+  col->prod_crosses_phase_a = 3;
+  g->col1.nation[0].founding_fathers[FF_WILLIAM_BREWSTER / 8] |=
+    (uint8_t)(1u << (FF_WILLIAM_BREWSTER % 8));
+  g->eu.current_crosses = 30000; /* well past any 584a threshold */
+  uint8_t census_before[32];
+  turn_tally_professions(&g->pool, &g->units, 0, census_before);
+  int produced = -1;
+  bool active = false;
+  if (!eotd_run(AI_POPUP_TAG_BREWSTER_PICK, 0, &produced, &active)) {
+    fprintf(stderr, "brewster: no @RECRUITCHOOSE pick was queued\n");
+    return 1;
+  }
+  if (g->eu.dock_count != 1 || g->eu.current_crosses != 3) {
+    fprintf(stderr, "brewster: dock %d crosses %u (want 1 / this turn's 3)\n", g->eu.dock_count,
+            (unsigned)g->eu.current_crosses);
+    return 1;
+  }
+  /* The 0a9e specialty census (raw 58374) precedes 5e52: the recruit is not in it. */
+  uint8_t census_after[32];
+  turn_tally_professions(&g->pool, &g->units, 0, census_after);
+  if (memcmp(turn_prof_census[0], census_before, sizeof census_before) != 0 ||
+      memcmp(census_after, census_before, sizeof census_before) == 0) {
+    fprintf(stderr, "brewster: census holds the recruit (or the pick spawned no unit)\n");
+    return 1;
+  }
+  return 0;
+}
+
+/* The 5be8 audience (FUN_38fd_3dc8 inside 5e52, raw 68617) is answered before
+ * the human colony loop (00f2 raw 58384-58389). */
+static int case_tax_audience_before_colony_eot(void) {
+  ColonizeColony* col = eotd_setup(TURN_PROC_FINISH, 1600, 36);
+  EotDialogFx* g = &g_eotd;
+  col->colony_flags |= COLONIZE_COLONY_FLAG_COASTAL;
+  col->stock[3] = 150;
+  g->col1.nation[0].trade.tons[3] = 10000;
+  g->eu.gold = 200000; /* 5be8 score far past 949: a raise */
+  int produced = -1;
+  bool active = false;
+  if (!eotd_run(AI_POPUP_TAG_KING_AUDIENCE, 1 /* AI_KING_CHOICE_ACCEPT */, &produced, &active)) {
+    fprintf(stderr, "audience: no kiss-the-ring / party choice was queued\n");
+    return 1;
+  }
+  if (produced != 0 || !active || g->col1.nation[0].tax_rate == 0) {
+    fprintf(stderr, "audience: colonies produced %d active %d tax %u at the dialog\n", produced,
+            (int)active, (unsigned)g->col1.nation[0].tax_rate);
+    return 1;
+  }
+  return 0;
+}
+
+/* @KINGFRIGATE (00f2 raw 58403) and its answer are settled before the year
+ * loop's 2244 merc roll (raw 6418): the EOT is still running. */
+static int case_frigate_before_merc_roll(void) {
+  ColonizeColony* col = eotd_setup(TURN_PROC_KING, 1600, 8);
+  col->ai_flags |= COLONIZE_COLONY_AI_NEARBY_FRIGATE;
+  int produced = -1;
+  bool active = false;
+  if (!eotd_run(AI_POPUP_TAG_KING_FRIGATE, 2 /* decline */, &produced, &active)) {
+    fprintf(stderr, "frigate: no @KINGFRIGATE offer was queued\n");
+    return 1;
+  }
+  if (!active || turn_processor_active(&g_eotd.proc)) {
+    fprintf(stderr, "frigate: EOT active %d at the offer, %d at the end\n", (int)active,
+            (int)turn_processor_active(&g_eotd.proc));
+    return 1;
+  }
+  return 0;
+}
+
+/* The accept arm's draws (the FUN_291f_0aee voyage roll, raw 58419, and the
+ * 3dc8 tea-party roulette, raw 64176) come before the 2244 merc roll (raw
+ * 6418, its 1-in-21 draw always taken): the EOT still draws after the answer. */
+static int case_frigate_accept_draws_before_merc_roll(void) {
+  ColonizeColony* col = eotd_setup(TURN_PROC_KING, 1600, 8);
+  EotDialogFx* g = &g_eotd;
+  col->ai_flags |= COLONIZE_COLONY_AI_NEARBY_FRIGATE;
+  col->colony_flags |= COLONIZE_COLONY_FLAG_COASTAL;
+  col->stock[3] = 150; /* a tea-party cargo for the roulette */
+  snprintf(g->units.types[1].name, sizeof(g->units.types[1].name), "Frigate");
+  g->units.types[1].kind_plus1 = UNITS_KIND_FRIGATE + 1;
+  g->units.types[1].movement = 6;
+  g->units.types[1].cargo = 4;
+  g->units.type_count = 2;
+  int produced = -1;
+  bool active = false;
+  if (!eotd_run(AI_POPUP_TAG_KING_FRIGATE, 1 /* AI_KING_CHOICE_ACCEPT */, &produced, &active)) {
+    fprintf(stderr, "frigate accept: no @KINGFRIGATE offer was queued\n");
+    return 1;
+  }
+  const unsigned long end = dos_rng_draw_count();
+  if (g->eu.bound_ships != 1 || !g->eu.bound[0].royal_gift ||
+      g->draws_after_answer <= g->draws_before_answer || end <= g->draws_after_answer) {
+    fprintf(stderr, "frigate accept: bound %d draws %lu -> %lu (answer) -> %lu (end)\n",
+            g->eu.bound_ships, g->draws_before_answer, g->draws_after_answer, end);
+    return 1;
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+  {"brewster_pick_before_colony_crosses", case_brewster_pick_before_colony_crosses},
+  {"tax_audience_before_colony_eot", case_tax_audience_before_colony_eot},
+  {"frigate_before_merc_roll", case_frigate_before_merc_roll},
+  {"frigate_accept_draws_before_merc_roll", case_frigate_accept_draws_before_merc_roll},
   {"refit_unit_order", case_refit_unit_order},
   {"calendar", case_calendar},
   {"hotseat_slot_order", case_hotseat_slot_order},

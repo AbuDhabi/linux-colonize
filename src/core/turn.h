@@ -138,13 +138,27 @@ typedef enum ColonizeTurnProcStep {
   TURN_PROC_FINISH, /* human colony production (indicator on — DOS paints the
                      * turn-owner box at the head of the human's own 00f2) */
   /*
+   * FINISH yields after the human's 5e52 immigration tick and again after its
+   * 5be8 tax roll whenever they queued a dialog. DOS shows those (the
+   * Brewster pick FUN_38fd_4884, raw 68607; the 3dc8 kiss-the-ring / party
+   * choice, raw 68617) as blocking calls before its own colony loop, so the
+   * answer must land before this turn's crosses, the Europe pass, the
+   * Custom House sales and the pick's RNG draws, not after them.
+   */
+  TURN_PROC_FINISH_5E52,
+  TURN_PROC_FINISH_COLONY,
+  /*
    * port_bugs.md #394/404/407: king (REF) + year-end + market + human refresh moved
    * out of FINISH into their own slice, so every colony popup FINISH queued is
    * presented and ANSWERED (and an elected colony zoom taken) before the
    * king's attacks run — DOS FUN_3844_00f2's dialogs are blocking calls, so
    * its production chrome can never still be pending when the king moves.
    */
-  TURN_PROC_KING
+  TURN_PROC_KING,
+  /* KING yields after 2424 + the @KINGFRIGATE offer when a dialog is queued:
+   * FUN_3844_00f2 asks @KINGFRIGATE (raw 58403) and applies the accept (raw
+   * 58409-58421) before the year loop's 2244 merc roll (raw 6418). */
+  TURN_PROC_KING_TAIL
 } ColonizeTurnProcStep;
 
 typedef struct ColonizeTurnProcessor {
@@ -222,6 +236,10 @@ void turn_run_colony_production_w(
 
 /* Crosses → dock immigrant; liberty bells counters (human + AI Euro Col1). */
 void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out);
+/* Its two halves (= turn_run_nation_ticks), split at the human 5e52
+ * immigration dialog so the interactive EOT can yield between them. */
+void turn_run_nation_ticks_immigration(ColonizeTurnContext* ctx, ColonizeTurnResult* out);
+void turn_run_nation_ticks_tail(ColonizeTurnContext* ctx, ColonizeTurnResult* out);
 /* One AI nation's 00f2 colony EOT (immigration, bells/FF, production), run in its slot. */
 void turn_run_ai_nation_eot(ColonizeTurnContext* ctx, ColonizeTurnResult* out, int n);
 

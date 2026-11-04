@@ -569,6 +569,9 @@ COLONIZE_INTERNAL void turn_step_setup(ColonizeTurnProcessor* proc, ColonizeTurn
         (unsigned)*ctx->turn_number, (unsigned)*ctx->game_year,
         (unsigned)*ctx->game_autumn, ctx->human_nation
       );
+      /* A turn abandoned at a FINISH yield (new game, load) must not skip
+       * a census in the next one. */
+      turn_prof_census_taken = -1;
       /* DOS FUN_3844_00f2 opens every nation's EOT with turn_owner_chrome
        * (281f_0590 → 1984_00aa); the human's own colony EOT now runs in
        * TURN_PROC_FINISH, which re-arms the same chrome there. SETUP itself
@@ -879,7 +882,11 @@ static void turn_step_all_ai_anchor(ColonizeTurnProcessor* proc, ColonizeTurnCon
   proc->step = TURN_PROC_IDLE;
 }
 
-/* Body of TURN_PROC_FINISH up to its early `return true;`. */
+COLONIZE_INTERNAL void turn_step_finish_5e52(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx);
+COLONIZE_INTERNAL void turn_step_finish_colony(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx);
+COLONIZE_INTERNAL void turn_step_king_tail(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx);
+
+/* Body of TURN_PROC_FINISH (part 1: up to the human 5e52 immigration tick). */
 COLONIZE_INTERNAL void turn_step_finish(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx) {
       {
         const int anchor = turn_all_ai_slot(ctx);
@@ -925,8 +932,41 @@ COLONIZE_INTERNAL void turn_step_finish(ColonizeTurnProcessor* proc, ColonizeTur
           &mw, ctx->human_nation, ctx->turn_number ? *ctx->turn_number : 0u
         );
       }
-      turn_run_nation_ticks(ctx, &proc->result);
+      /* 0a9e = FUN_4962_0606 (raw 58374): the specialty census is taken before
+       * 5e52, so a recruit picked there is not in it. */
+      if (ctx->colonies && ctx->human_nation >= 0 && ctx->human_nation < 4) {
+        turn_tally_professions(
+          ctx->colonies, ctx->units, ctx->human_nation, turn_prof_census[ctx->human_nation]
+        );
+        turn_prof_census_taken = ctx->human_nation;
+      }
+      turn_run_nation_ticks_immigration(ctx, &proc->result);
+      if (ctx->ai_popups && ai_popup_busy(ctx->ai_popups)) {
+        proc->step = TURN_PROC_FINISH_5E52; /* answer the 4884 pick first (turn.h) */
+        return;
+      }
+      turn_step_finish_5e52(proc, ctx);
+}
+
+/* FINISH, part 2: the rest of the human 5e52 (5be8 tax roll) after its
+ * immigration dialog was answered. */
+COLONIZE_INTERNAL void turn_step_finish_5e52(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx) {
+      turn_set_active_nation(ctx, ctx->human_nation);
+      proc->show_indicator = true;
+      turn_run_nation_ticks_tail(ctx, &proc->result);
       ai_king_human_5e52_tail(ctx);
+      if (ctx->ai_popups && ai_popup_busy(ctx->ai_popups)) {
+        proc->step = TURN_PROC_FINISH_COLONY; /* answer the 3dc8 choice first (turn.h) */
+        return;
+      }
+      turn_step_finish_colony(proc, ctx);
+}
+
+/* FINISH, part 3: the human Europe pass, 00f2 colony loop, census and 2022 beat. */
+COLONIZE_INTERNAL void turn_step_finish_colony(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx) {
+      turn_set_active_nation(ctx, ctx->human_nation);
+      proc->show_indicator = true;
+      /* 0a82 = 48d3_06ba (raw 58377): after the 3dc8 answer, before the colony loop. */
       turn_run_human_europe_pass(ctx);
       turn_prod_only_nation = ctx->human_nation;
       turn_prod_only_set = true;
@@ -997,11 +1037,22 @@ COLONIZE_INTERNAL void turn_human_ship_repairs(ColonizeTurnProcessor* proc, Colo
   }
 }
 
-/* Body of TURN_PROC_KING up to its terminal `return false;`. */
+/* Body of TURN_PROC_KING (part 1: the human 00f2 tail 2424 + @KINGFRIGATE). */
 COLONIZE_INTERNAL void turn_step_king(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx) {
       proc->show_indicator = false;
       turn_set_active_nation(ctx, ctx->human_nation);
       ai_king_nation_turn_2424(ctx);
+      if (ctx->ai_popups && ai_popup_busy(ctx->ai_popups)) {
+        proc->step = TURN_PROC_KING_TAIL; /* answer @KINGFRIGATE first (turn.h) */
+        return;
+      }
+      turn_step_king_tail(proc, ctx);
+}
+
+/* KING, part 2: everything after the human 00f2 tail (2244 merc offer on). */
+COLONIZE_INTERNAL void turn_step_king_tail(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx) {
+      proc->show_indicator = false;
+      turn_set_active_nation(ctx, ctx->human_nation);
       /*
        * FUN_38fd_0058 runs as the first act of each nation's own 5e52 (after
        * the reseed, before immigration): AI slots in turn_run_ai_nation_eot,
@@ -1143,10 +1194,19 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
       break;
     case TURN_PROC_FINISH:
       turn_step_finish(proc, ctx);
-      return proc->step != TURN_PROC_IDLE;
+      break;
+    case TURN_PROC_FINISH_5E52:
+      turn_step_finish_5e52(proc, ctx);
+      break;
+    case TURN_PROC_FINISH_COLONY:
+      turn_step_finish_colony(proc, ctx);
+      break;
     case TURN_PROC_KING:
       turn_step_king(proc, ctx);
-      return false;
+      break;
+    case TURN_PROC_KING_TAIL:
+      turn_step_king_tail(proc, ctx);
+      break;
     case TURN_PROC_IDLE:
     default:
       proc->step = TURN_PROC_IDLE;

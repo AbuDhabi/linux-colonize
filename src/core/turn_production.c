@@ -407,6 +407,7 @@ static bool turn_emit_needtools_notice(
  * unrelated per-nation flag block. port_bugs.md #563.)
  */
 uint8_t turn_prof_census[COLONIZE_COL1_NATION_COUNT][32];
+int turn_prof_census_taken = -1;
 
 /*
  * DOS-LITERAL FUN_364b_033a (raw 56977-57012), reached from Phase Q's
@@ -2372,8 +2373,11 @@ void turn_run_colony_production_with_w(
    * census is recomputed before the colony production loop. One production
    * pass = one turn here, so refresh all four Euro nations up front. */
   for (int n = 0; n < (int)COLONIZE_COL1_NATION_COUNT && n < 4; ++n) {
-    turn_tally_professions(pool, w->units, n, turn_prof_census[n]);
+    if (n != turn_prof_census_taken) {
+      turn_tally_professions(pool, w->units, n, turn_prof_census[n]);
+    }
   }
+  turn_prof_census_taken = -1;
   /* FUN_3844_00f2 raw 58384 walks colony indices from count - 1 down. */
   for (int i = COLONIZE_COLONIES_MAX - 1; i >= 0; --i) {
     if (pool->colonies[i].active && turn_prod_nation_in_scope(pool->colonies[i].nation_id)) {

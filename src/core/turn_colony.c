@@ -645,6 +645,14 @@ void turn_run_human_europe_pass(ColonizeTurnContext* ctx) {
 }
 
 void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
+  turn_run_nation_ticks_immigration(ctx, out);
+  turn_run_nation_ticks_tail(ctx, out);
+}
+
+/* The human 5e52 immigration tick (FUN_3844_00f2 raw 58375). The interactive
+ * EOT yields after it when a dialog is queued, so a Brewster pick is answered
+ * before the 5be8 tax roll and this turn's colony crosses, as in DOS. */
+void turn_run_nation_ticks_immigration(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
   if (!ctx) {
     return;
   }
@@ -704,7 +712,10 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
     const int imm = woi_now ? 0 : europe_tick_immigration_pressure_w(&iw, ctx->human_nation);
     if (imm == 2) {
       /* Brewster: player picks from the pool (@RECRUITCHOOSE); applied via
-       * units_brewster_apply_popup_ex_w in game_loop, crosses kept until then. */
+       * units_brewster_apply_popup_ex_w in game_loop. DOS 4884 is a blocking
+       * pick inside 5e52 (raw 68607): the EOT yields after this tick, so the
+       * answer zeroes the crosses (raw 64766) before this turn's colony
+       * crosses land in turn_run_nation_ticks_tail. */
       if (ctx->ai_popups) {
         units_brewster_enqueue_pick(ctx->europe, ctx->ai_popups, ctx->messages, ctx->human_nation);
       } else {
@@ -762,6 +773,23 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
         turn_notify_dock_immigrant(ctx, out, name);
       }
     }
+  }
+}
+
+void turn_run_nation_ticks_tail(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
+  (void)out;
+  if (!ctx) {
+    return;
+  }
+  int bells = 0;
+  int crosses = 0;
+  turn_count_bells_and_crosses_for_nation(
+    ctx->colonies, ctx->human_nation, ctx->col1_ok ? ctx->col1 : NULL, &bells, &crosses
+  );
+  (void)bells;
+  const bool human_bells_per_colony = ctx->col1_ok && ctx->col1 && ctx->human_nation >= 0 &&
+                                      ctx->human_nation < 4;
+  if (ctx->europe) {
     /*
      * port_bugs.md #923 / DOS FUN_3844_00f2: the immigration tick FUN_291f_0a90
      * (= FUN_38fd_5e52) runs at raw 58375, BEFORE the per-colony tick

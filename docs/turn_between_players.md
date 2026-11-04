@@ -82,6 +82,16 @@ the king moves. That yield is the whole reason for the split; DOS's `3844_00f2`
 dialogs are blocking calls, so its production chrome can never still be pending
 when the king runs (port_bugs.md #394/404/407).
 
+FINISH also yields twice *before* the colony loop when a dialog is queued
+(`TURN_PROC_FINISH_5E52` / `TURN_PROC_FINISH_COLONY`): after the 5e52
+immigration tick (`turn_run_nation_ticks_immigration`; the Brewster pick
+`FUN_38fd_4884` zeroes the crosses before this turn's colony crosses land) and
+after the 5be8 tax roll (`ai_king_human_5e52_tail`; the kiss-the-ring / party
+answer commits before the colony loop). Likewise KING yields after
+`ai_king_nation_turn_2424` (`TURN_PROC_KING_TAIL`), so @KINGFRIGATE and its
+answer come before the 2244 merc roll. Headless `turn_end` just runs the next
+slice, so its order is unchanged.
+
 ### `TURN_PROC_KING` (no indicator)
 
 | Step | OpenCol | DOS |
