@@ -2129,6 +2129,31 @@ static int case_153e_peacemenu_withdraw_all_land(void) {
 }
 
 /*
+ * FUN_5bfb_153e raw 97411: under WoI (DS:0x5382 & 1) the encounter jumps to
+ * the shared exit LAB_5bfb_30de (raw 98418-98427), which re-arms the treaty
+ * cooldown at peace: nation[target].treaty_timer[self] = (6 - difficulty) * 2.
+ */
+static int case_153e_woi_encounter_rearms_timer(void) {
+  static WithdrawFx fx;
+  if (!withdraw_fx_init(&fx, 0)) {
+    return fail("woi timer: alloc map");
+  }
+  fx.col1.head.game_options.woi = 1;
+  ai_diplo_make_peace(&fx.col1, 0, 1);
+  fx.col1.nation[1].treaty_timer[0] = 0;
+  const int uid = withdraw_fx_spawn(&fx, 1, 5, 6, 1, 0);
+  const int started = ai_diplo_153e_encounter(&fx.ctx, 0, 1, uid);
+  const int timer = fx.col1.nation[1].treaty_timer[0];
+  ai_diplo_talk_reset();
+  fx_map_free(&fx.map);
+  if (started || timer != (6 - 1) * 2) {
+    fprintf(stderr, "  started %d timer %d\n", started, timer);
+    return fail("woi: the closed gate must still re-arm the treaty timer at peace");
+  }
+  return 0;
+}
+
+/*
  * FUN_5bfb_153e @SIEGES paid (raw 97857-97884): every human unit with attack
  * byte > 1 (raw 97862), not a ship, whose own tile (a passenger's is its
  * hull's) borders the AI colony goes to Europe. There is no chain test, so
@@ -2215,6 +2240,7 @@ static const TestCase k_cases[] = {
     {"case_153e_peacemenu_withdraw_dominance", case_153e_peacemenu_withdraw_dominance},
     {"case_153e_peacemenu_withdraw_all_land", case_153e_peacemenu_withdraw_all_land},
     {"case_153e_wantstuff_receiver_dos_distance", case_153e_wantstuff_receiver_dos_distance},
+    {"case_153e_woi_encounter_rearms_timer", case_153e_woi_encounter_rearms_timer},
     {"case_153e_sieges_takes_passengers", case_153e_sieges_takes_passengers},
     {"case_relation_writes_preserve_player_bytes", case_relation_writes_preserve_player_bytes},
     {"case_153e_talk_tokens_474", case_153e_talk_tokens_474},

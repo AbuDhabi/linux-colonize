@@ -1316,7 +1316,6 @@ typedef struct Ai153eTalk {
   int want_amount; /* raw iStack_8a: demanded amount (deficit capped to source stock) */
   int want_src;    /* raw iStack_88: colony on the encounter tile (the human's) */
   int want_dst;    /* raw iStack_64: target's nearest colony (the receiver) */
-  int last_talk_turn[4][4];
   int pending; /* stage the last queued talk popup answers (0 = an OK) */
 } Ai153eTalk;
 static Ai153eTalk s_talk;
@@ -2487,22 +2486,20 @@ static int ai_diplo_153e_encounter_gated(
   if (s_talk.active) {
     return 0;
   }
-  if (!forced_gate && s_talk.last_talk_turn[human][target] == (int)col1->head.turn + 1) {
-    return 0; /* one talk per pair per turn (3180 fires per move) */
-  }
+  /* No per-pair/per-turn latch: FUN_5bfb_153e has none (raw 97411-97426). A
+   * repeat encounter in the same turn finds the gate closed (MET, fresh
+   * stamp) and takes the shared exit below like any other closed gate. */
   Ai153eWorthinessScore w =
     ai_diplo_153e_worthiness_score(ctx, human, target, unit_id, forced_gate);
   if (!w.handled) {
-    /* A closed gate (met, stamp under 16 turns old) jumps to LAB_34de, the
-     * shared exit, which still re-arms the treaty cooldown when at peace
+    /* A closed gate (met, stamp under 16 turns old) jumps to LAB_5bfb_30de,
+     * the shared exit, which still re-arms the treaty cooldown when at peace
      * (DOSBox independence-seed-100: Spain's timer toward the Dutch reads 4
-     * after every turn while the stamp stays 264). */
-    if (!col1->head.game_options.woi) {
-      ai_diplo_153e_finish_timer(ctx, human, target);
-    }
+     * after every turn while the stamp stays 264). WoI (0x5382 & 1) jumps
+     * there too (raw 97411), so the re-arm runs under WoI as well. */
+    ai_diplo_153e_finish_timer(ctx, human, target);
     return 0;
   }
-  s_talk.last_talk_turn[human][target] = (int)col1->head.turn + 1;
   memset(&s_talk.self, 0, sizeof(s_talk) - offsetof(Ai153eTalk, self));
   Ai153eTalk* k = &s_talk;
   k->active = 1;
