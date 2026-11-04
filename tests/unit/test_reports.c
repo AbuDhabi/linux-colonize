@@ -732,6 +732,73 @@ static int case_synthetic_independence_score(void) {
   return 0;
 }
 
+/* FUN_41f2_0092 asm 41f2:02e0-02fe: while WoI is on, colonists in colonies
+ * the crown (DS:0x53d2) holds score for the human too. Another power's colony
+ * never does, and the unit loop (41f2:0329-0345) stays owner-only, so a
+ * crown-owned unit does not count either. */
+static int case_score_counts_crown_colonies_in_woi(void) {
+  ColonizeCol1Save c;
+  memset(&c, 0, sizeof(c));
+  memset(c.head.founding_father, 0xff, sizeof(c.head.founding_father));
+  c.head.year = 1790;
+  c.head.difficulty = 2;
+  c.head.crown_nation_id = 1;
+  ColonizeCol1Colony cols[3];
+  memset(cols, 0, sizeof(cols));
+  cols[0].nation_id = 0;
+  cols[0].population = 1;
+  cols[1].nation_id = 1; /* captured by the crown */
+  cols[1].population = 2;
+  cols[2].nation_id = 2; /* another power: never counts */
+  cols[2].population = 3;
+  c.colony = cols;
+  c.head.colony_count = 3;
+  /* Two Colonists (type 0, profession 0): the human's counts, the crown's
+   * does not. A type-0 unit re-scores the last colony colonist (0: 4 points). */
+  ColonizeCol1Unit units[2];
+  memset(units, 0, sizeof(units));
+  units[0].nation_id = 0;
+  units[1].nation_id = 1;
+  c.unit = units;
+  c.head.unit_count = 2;
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  for (int i = 0; i < 3; ++i) {
+    pool.colonies[i].active = true;
+    pool.colonies[i].nation_id = (uint8_t)i;
+    pool.colonies[i].colonist_count = i + 1;
+    for (int p = 0; p <= i; ++p) {
+      pool.colonies[i].colonists[p].profession = 0;
+    }
+  }
+  /* got[woi][0]: save records only; got[woi][1]: live pool. */
+  int got[2][2];
+  for (int woi = 0; woi < 2; ++woi) {
+    c.head.game_options.woi = (uint8_t)woi;
+    ColonizeScoreBreakdown sc;
+    ColonizeWorld wr = world_make(NULL, NULL, NULL, &c, true, NULL, NULL);
+    reports_compute_score_w(&wr, &sc, 0);
+    got[woi][0] = sc.citizens;
+    ColonizeWorld wl = world_make(NULL, &pool, NULL, &c, true, NULL, NULL);
+    reports_compute_score_w(&wl, &sc, 0);
+    got[woi][1] = sc.citizens;
+  }
+  c.colony = NULL;
+  c.unit = NULL;
+  /* profession 0 is a specialist: 4 points each. WoI off: own colony 4 +
+   * own unit 4. WoI on: + the crown colony's 8. */
+  int rc = 0;
+  for (int k = 0; k < 2; ++k) {
+    if (got[0][k] != 8 || got[1][k] != 16) {
+      fprintf(stderr, "%s: citizens WoI off=%d on=%d (want 8 / 16)\n",
+              k ? "live pool" : "records", got[0][k], got[1][k]);
+      rc = 1;
+    }
+  }
+  return rc;
+}
+
 /*
  * Smell audit #86 — Congress points and the FF name grid must be the SAME
  * test. DOS FUN_41f2_0092 (viceroy_unpacked.c 71217-71233) runs one loop
@@ -1560,6 +1627,7 @@ static const TestCase k_cases[] = {
   {"recognition_multiplier", case_recognition_multiplier},
   {"rating_tiers", case_rating_tiers},
   {"synthetic_independence_score", case_synthetic_independence_score},
+  {"score_counts_crown_colonies_in_woi", case_score_counts_crown_colonies_in_woi},
   {"congress_ff_bitmask", case_congress_ff_bitmask},
   {"indian_tribe_listed_gate", case_indian_tribe_listed_gate},
   {"foreign_affairs_golden", case_foreign_affairs_golden},

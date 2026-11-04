@@ -193,6 +193,12 @@ static int reports_score_collect_citizen_jobs(
   if (!col1 || !jobs_out || max_out <= 0) {
     return 0;
   }
+  /* FUN_41f2_0092 asm 41f2:02e0-02fe: a colony also scores when WoI is on
+   * (0x5382 & 1) and its owner is the crown (DS:0x53d2), so colonists in
+   * colonies the REF captured still count. The unit loop below
+   * (41f2:0329-0345) compares the scored nation, not the unit owner, with
+   * 0x53d2, so units stay owner-only. */
+  const int crown = col1->head.game_options.woi ? (int)col1->head.crown_nation_id : -1;
   /* FUN_41f2_0092's colony loop (asm 41f2:02cd-0301) reads DOS's one colony
    * table through FUN_281f_09e6, so it always sees the colonies as they are
    * now. The port's col1->colony[] is only refreshed at a save capture, so
@@ -202,7 +208,7 @@ static int reports_score_collect_citizen_jobs(
   if (w->colonies) {
     for (int i = 0; i < COLONIZE_COLONIES_MAX && count < max_out; ++i) {
       const ColonizeColony* c = &w->colonies->colonies[i];
-      if (!c->active || c->nation_id != human) {
+      if (!c->active || ((int)c->nation_id != human && (int)c->nation_id != crown)) {
         continue;
       }
       const int pop = c->colonist_count > (int)COLONIZE_COL1_COLONY_POP_MAX
@@ -220,7 +226,7 @@ static int reports_score_collect_citizen_jobs(
   } else {
     for (uint16_t i = 0; i < col1->head.colony_count && count < max_out; ++i) {
       const ColonizeCol1Colony* c = &col1->colony[i];
-      if (c->nation_id != (uint8_t)human) {
+      if ((int)c->nation_id != human && (int)c->nation_id != crown) {
         continue;
       }
       const int pop =
