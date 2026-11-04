@@ -1590,8 +1590,9 @@ static int units_coastal_fort_fire_impl(
       }
       /*
        * port_bugs.md #465: ONE shot per neighbour tile, at the first SHIP in that
-       * tile's stack — FUN_364b_03f6 (raw 57068-57076) walks the stack with
-       * FUN_281f_02e4 only until the type byte lands in 0x0d..0x12, then
+       * tile's stack — FUN_364b_03f6 (raw 57073-57077) walks the tile chain,
+       * newest arrival first (FUN_281f_07e0 head, then FUN_281f_02e4 next, not
+       * pool order), only until the type byte lands in 0x0d..0x12, then
        * tests that one unit's nation nibble and fires. A tile whose stack
        * head is a ship of the colony's own nation is skipped entirely; the
        * port used to snapshot every hostile hull on the tile and fire at all
@@ -1599,15 +1600,15 @@ static int units_coastal_fort_fire_impl(
        */
       int targets[1];
       int target_count = 0;
-      int tile_cursor = 0;
-      for (const ColonizeUnit* u = units_next_on_tile_const(units, nx, ny, &tile_cursor); u != NULL;
-           u = units_next_on_tile_const(units, nx, ny, &tile_cursor)) {
-        if (!units_is_sea(units, u->id)) {
+      for (int id = units_tile_head_id_at(units, nx, ny); id >= 0;
+           id = units_tile_chain_next_id(units, id)) {
+        if (!units_is_sea(units, id)) {
           continue;
         }
+        const ColonizeUnit* u = units_get_const(units, id);
         const ColonizeUnitType* st = units_type(units, u->type_index);
         if (units_fort_fire_is_hostile(col1, col->nation_id, u, st)) {
-          targets[target_count++] = u->id;
+          targets[target_count++] = id;
         }
         break; /* first ship in the stack, hostile or not */
       }

@@ -102,7 +102,7 @@ static int unit_fort_fire_dissolve_and_europe(void) {
   ai_diplo_declare_war(&c1, 0, 1);
 
   /* Two hostile hulls on ONE water tile: DOS fires at the stack's first ship
-   * only. */
+   * only, the chain head = s2, the newer arrival. */
   const int s1 = units_spawn_allow_stack(&pool, 0, 3, 2);
   const int s2 = units_spawn_allow_stack(&pool, 0, 3, 2);
   if (s1 < 0 || s2 < 0) {
@@ -149,16 +149,16 @@ static int unit_fort_fire_dissolve_and_europe(void) {
             s_dissolve_count, s_dissolve_phases[0], s_dissolve_count > 1 ? s_dissolve_phases[1] : -1);
     rc = 1;
   }
-  /* #465: the second hull on the tile was never fired at. */
-  const ColonizeUnit* u2 = units_get(&pool, s2);
-  if (rc == 0 && (!u2 || !u2->active || u2->x != 3 || u2->y != 2)) {
-    fprintf(stderr, "fortfire2: second hull on the tile should be untouched\n");
+  /* #465: the other hull on the tile was never fired at. */
+  const ColonizeUnit* u1 = units_get(&pool, s1);
+  if (rc == 0 && (!u1 || !u1->active || u1->x != 3 || u1->y != 2)) {
+    fprintf(stderr, "fortfire2: older hull on the tile should be untouched\n");
     rc = 1;
   }
   /* #462/#463: the damaged hull left the map for Europe on the spot. */
-  const ColonizeUnit* u1 = units_get(&pool, s1);
-  if (rc == 0 && u1 && u1->active) {
-    fprintf(stderr, "fortfire2: damaged hull still on the map at (%d,%d)\n", u1->x, u1->y);
+  const ColonizeUnit* u2 = units_get(&pool, s2);
+  if (rc == 0 && u2 && u2->active) {
+    fprintf(stderr, "fortfire2: damaged hull still on the map at (%d,%d)\n", u2->x, u2->y);
     rc = 1;
   }
   /* #1381c: in port under repair (DOS 236+n, bit7), not in the Expected lane;
@@ -202,7 +202,7 @@ static int unit_fort_fire_dissolve_and_europe(void) {
     map.terrain[6 * 8 + 6] = 2;
     const int s3 = units_spawn_allow_stack(&pool, 0, 3, 2);
     units_get(&pool, s3)->nation_id = 1;
-    units_despawn(&pool, s2);
+    units_despawn(&pool, s1);
     (void)units_coastal_fort_fire_pulse_w(
       &(ColonizeWorld){.units = &pool, .colonies = &colonies, .map = &map,
                        .col1 = &c1, .col1_ok = true, .rng = NULL},
@@ -230,6 +230,91 @@ static int unit_fort_fire_dissolve_and_europe(void) {
   map_free(&map);
   if (rc == 0) {
     fprintf(stderr, "unit_units: fort fire dissolve + damaged-to-Europe ok\n");
+  }
+  return rc;
+}
+
+/*
+ * FUN_364b_03f6 raw 57073-57077 takes the tile's first ship down the stack
+ * chain (FUN_281f_07e0 head = newest arrival, FUN_281f_02e4 next), not the
+ * lowest pool slot. An own hull in the lower slot that arrived first must not
+ * shield a hostile hull that arrived after it; and the reverse must not fire.
+ */
+static int unit_fort_fire_aims_chain_head(void) {
+  int rc = 0;
+  for (int own_on_top = 0; own_on_top < 2 && rc == 0; ++own_on_top) {
+    ColonizeUnitPool pool;
+    memset(&pool, 0, sizeof(pool));
+    pool.type_count = 1;
+    pool.types[0].movement = 5;
+    pool.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
+    pool.types[0].defense = 2;
+    pool.types[0].hull = 10;
+
+    ColonizeWorldMap map;
+    memset(&map, 0, sizeof(map));
+    char err[128];
+    if (!map_alloc(&map, 8, 8, err, sizeof(err))) {
+      fprintf(stderr, "fortchain: map_alloc failed: %s\n", err);
+      return 1;
+    }
+    for (int i = 0; i < 8 * 8; ++i) {
+      map.terrain[i] = 25;
+    }
+    map.terrain[2 * 8 + 2] = 2;
+
+    ColonizeColonyPool colonies;
+    colonies_init(&colonies);
+    colonies_set_occupancy_map(NULL);
+    snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Fort");
+    colonies.building_type_count = 1;
+    ColonizeColony* col = &colonies.colonies[0];
+    col->active = true;
+    col->nation_id = 0;
+    col->x = 2;
+    col->y = 2;
+    col->population = 3;
+    col->has_building[0] = true;
+    colonies.colony_count = 1;
+
+    ColonizeCol1Save c1;
+    memset(&c1, 0, sizeof(c1));
+    for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
+      c1.head.founding_father[i] = -1;
+    }
+    ai_diplo_declare_war(&c1, 0, 1);
+
+    const int own = units_spawn_allow_stack(&pool, 0, 3, 2);
+    const int foe = units_spawn_allow_stack(&pool, 0, 3, 2);
+    units_get(&pool, own)->nation_id = 0;
+    units_get(&pool, foe)->nation_id = 1;
+    if (own_on_top) {
+      units_tile_stack_arrive(&pool, own);
+    }
+
+    EuropeScreen eu;
+    memset(&eu, 0, sizeof(eu));
+    units_set_combat_colonies(&colonies);
+    units_set_combat_human_nation(-1);
+    units_set_combat_europe(&eu);
+    s_dissolve_count = 0;
+    units_set_combat_dissolve(unit_test_dissolve_hook, NULL);
+    (void)units_coastal_fort_fire_pulse_w(
+      &(ColonizeWorld){.units = &pool, .colonies = &colonies, .map = &map,
+                       .col1 = &c1, .col1_ok = true, .rng = NULL},
+      -1
+    );
+    /* A hit on the foe brackets its outcome with dissolve phases 0 and 1. */
+    const int want = own_on_top ? 0 : 2;
+    if (s_dissolve_count != want) {
+      fprintf(stderr, "fortchain: own_on_top=%d want %d dissolve phases got %d\n",
+              own_on_top, want, s_dissolve_count);
+      rc = 1;
+    }
+    units_set_combat_dissolve(NULL, NULL);
+    units_set_combat_europe(NULL);
+    units_set_combat_colonies(NULL);
+    map_free(&map);
   }
   return rc;
 }
@@ -2508,6 +2593,7 @@ static const TestCase k_cases[] = {
   {"unit_royal_loss_tax_cut", unit_royal_loss_tax_cut},
   {"unit_combat_music_sting", unit_combat_music_sting},
   {"unit_fort_fire_dissolve_and_europe", unit_fort_fire_dissolve_and_europe},
+  {"unit_fort_fire_aims_chain_head", unit_fort_fire_aims_chain_head},
   {"unit_combat_sfx_visibility", unit_combat_sfx_visibility},
   {"unit_native_tile_attack_alarm", unit_native_tile_attack_alarm},
   {"unit_capture_ring_and_alarm_vent", unit_capture_ring_and_alarm_vent},
