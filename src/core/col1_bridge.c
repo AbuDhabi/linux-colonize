@@ -1390,6 +1390,9 @@ COLONIZE_INTERNAL Col1StageStatus col1_bridge_apply_units_reset(Col1ApplyCtx* ct
   return COL1_STAGE_OK;
 }
 
+static void col1_lane_chain_rank(const ColonizeCol1Save* save, uint8_t xy, int* rank);
+static void col1_lane_rank_perm(const int* rank, const int* src, int count, int* perm);
+
 /* Human Bound/Expected (and legacy harbor) lane ships + chained passengers. */
 COLONIZE_INTERNAL void col1_bridge_apply_europe_lanes(Col1ApplyCtx* ctx) {
   const ColonizeCol1Save* save = ctx->save;
@@ -1414,6 +1417,8 @@ COLONIZE_INTERNAL void col1_bridge_apply_europe_lanes(Col1ApplyCtx* ctx) {
      */
     const uint8_t xy_bound = (uint8_t)(228 + n);
     const uint8_t xy_expected = (uint8_t)(244 + n);
+    const int e0 = europe->expected_ships;
+    int* exp_src = malloc(((size_t)save->head.unit_count + 1) * sizeof(int));
     for (int i = 0; i < (int)save->head.unit_count; ++i) {
       const ColonizeCol1Unit* src = &save->unit[i];
       if (src->nation_id != n || src->type < 13 || src->type > 18 ||
@@ -1524,6 +1529,9 @@ COLONIZE_INTERNAL void col1_bridge_apply_europe_lanes(Col1ApplyCtx* ctx) {
                    hold_types, hold_amts, exit_x, exit_y, exit_east, turns
                  )) {
         slot = &europe->expected[europe->expected_ships - 1];
+        if (exp_src) {
+          exp_src[europe->expected_ships - 1 - e0] = i;
+        }
         slot->turns_left = turns;
         /* Restoring a save is not a departure — the ship is already at sea,
          * so it must not collect the departure turn europe_enqueue_expected
@@ -1561,6 +1569,37 @@ COLONIZE_INTERNAL void col1_bridge_apply_europe_lanes(Col1ApplyCtx* ctx) {
       consumed[i] = true;
       local->skipped_europe_units++;
     }
+    /*
+     * expected[] runs in departure order (europe_enqueue_expected appends).
+     * DOS keeps the 244+n lane as a tile chain: FUN_48d3_007a moves a hull
+     * there through FUN_281f_0948 (raw 77628) -> FUN_1427_040c -> FUN_1427_0362
+     * (raw 7513-7519), whose FUN_1427_02ca (raw 7478-7509) links each arrival
+     * on top (new +0x315c = -1, +0x315e = the old top). So the chain's top
+     * (rank 0) is the newest departure and its +0x315e tail the oldest. Order
+     * what this load pushed tail first, not by record index.
+     */
+    const int ne = europe->expected_ships - e0;
+    const int nu = (int)save->head.unit_count;
+    int* rank = ne > 1 ? malloc((size_t)nu * sizeof(int)) : NULL;
+    int* perm = ne > 1 ? malloc((size_t)ne * sizeof(int)) : NULL;
+    EuropeHarborShip* tmp = ne > 1 ? malloc((size_t)ne * sizeof(*tmp)) : NULL;
+    if (exp_src && rank && perm && tmp) {
+      col1_lane_chain_rank(save, xy_expected, rank);
+      for (int r = 0; r < nu; ++r) {
+        if (rank[r] >= 0) {
+          rank[r] = nu - rank[r]; /* oldest (tail) first */
+        }
+      }
+      col1_lane_rank_perm(rank, exp_src, ne, perm);
+      memcpy(tmp, europe->expected + e0, (size_t)ne * sizeof(*tmp));
+      for (int k = 0; k < ne; ++k) {
+        europe->expected[e0 + k] = tmp[perm[k]];
+      }
+    }
+    free(rank);
+    free(perm);
+    free(tmp);
+    free(exp_src);
   }
 }
 

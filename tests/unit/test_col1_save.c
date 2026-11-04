@@ -1457,6 +1457,105 @@ static bool test_europe_lane_ship_chain(char* err, size_t err_size) {
   return ok;
 }
 
+/* Europe-lane fixture: an 8x8 save with `n` blank records, human player 0,
+ * and a 23-type pool whose types 13..18 are hulls. Static use only (the pool
+ * is large). */
+typedef struct {
+  ColonizeCol1Save save;
+  ColonizeUnitPool units;
+  ColonizeWorldMap map;
+  ColonizeColonyPool colonies;
+  EuropeScreen europe;
+} LaneFx;
+
+static bool lane_fx_init(LaneFx* fx, int n, char* err, size_t err_size) {
+  memset(fx, 0, sizeof(*fx));
+  col1_save_init(&fx->save);
+  fx->save.head.map_size_x = 8;
+  fx->save.head.map_size_y = 8;
+  fx->save.head.unit_count = (uint16_t)n;
+  fx->save.head.human_player = 0;
+  fx->save.player[0].control = 0;
+  col1_save_stamp_head(&fx->save.head);
+  if (!col1_save_alloc_sections(&fx->save, err, err_size)) {
+    return false;
+  }
+  memset(fx->save.map.tile, 0, fx->save.map.tile_count);
+  for (int i = 0; i < n; ++i) {
+    fx->save.unit[i].profession = UNITS_JOB_NONE;
+    fx->save.unit[i].transport_chain.prev_unit_idx = -1;
+    fx->save.unit[i].transport_chain.next_unit_idx = -1;
+  }
+  units_reset(&fx->units);
+  fx->units.type_count = 23;
+  for (int t = 0; t < fx->units.type_count; ++t) {
+    fx->units.types[t].movement = 1;
+    fx->units.types[t].domain = (t >= 13 && t <= 18) ? COLONIZE_UNIT_DOMAIN_SEA
+                                                     : COLONIZE_UNIT_DOMAIN_LAND;
+    fx->units.types[t].cargo = (t >= 13 && t <= 18) ? 6 : 0;
+  }
+  units_set_occupancy_map(NULL);
+  colonies_init(&fx->colonies);
+  fx->europe.cargo_count = 16;
+  return true;
+}
+
+static ColonizeWorld lane_fx_world(LaneFx* fx) {
+  return (ColonizeWorld){.units = &fx->units, .colonies = &fx->colonies, .map = &fx->map,
+                         .col1 = &fx->save, .col1_ok = true, .europe = &fx->europe};
+}
+
+static bool lane_fx_apply(LaneFx* fx, char* err, size_t err_size) {
+  ColonizeCol1BridgeResult result;
+  const ColonizeWorld w = lane_fx_world(fx);
+  return col1_bridge_apply_w(&w, &result, err, err_size);
+}
+
+static void lane_fx_free(LaneFx* fx) {
+  units_set_occupancy_map(NULL);
+  col1_save_free(&fx->save);
+  map_free(&fx->map);
+}
+
+/* A record on lane tile xy (x = y = xy), human nation 0. */
+static void lane_fx_put(LaneFx* fx, int i, uint8_t xy, uint8_t type, uint8_t counter) {
+  ColonizeCol1Unit* u = &fx->save.unit[i];
+  u->x = xy;
+  u->y = xy;
+  u->type = type;
+  u->nation_id = 0;
+  u->col1_counter16 = counter;
+  u->goto_x = 3;
+  u->goto_y = 3;
+}
+
+/*
+ * DOS-save 244+n hulls load in lane-chain order. FUN_1427_02ca (raw
+ * 7478-7509) links each departing hull on top of the lane chain, so record 0
+ * (the top) sailed last and record 1 (its +0x315e tail) first: expected[],
+ * which runs in departure order, starts with record 1.
+ */
+static bool test_expected_lane_chain_order(char* err, size_t err_size) {
+  static LaneFx fx;
+  if (!lane_fx_init(&fx, 2, err, err_size)) {
+    return false;
+  }
+  lane_fx_put(&fx, 0, 244, 13, 2);
+  lane_fx_put(&fx, 1, 244, 14, 2);
+  fx.save.unit[0].transport_chain.prev_unit_idx = 1;
+  fx.save.unit[1].transport_chain.next_unit_idx = 0;
+  bool ok = lane_fx_apply(&fx, err, err_size);
+  if (ok && (fx.europe.expected_ships != 2 || fx.europe.expected[0].type_index != 14 ||
+             fx.europe.expected[1].type_index != 13)) {
+    snprintf(err, err_size, "expected lane: %d ships, types %d,%d (want 14,13)",
+             fx.europe.expected_ships, fx.europe.expected[0].type_index,
+             fx.europe.expected[1].type_index);
+    ok = false;
+  }
+  lane_fx_free(&fx);
+  return ok;
+}
+
 /* port_bugs.md #1107 seam: col1_bridge_apply_w / capture_w stages called directly
  * through col1_bridge_internal.h — abort status, ctx-owned maps, write-back. */
 static bool test_bridge_stage_seams(char* err, size_t err_size) {
@@ -1724,6 +1823,10 @@ int main(void) {
   }
   if (!test_europe_lane_ship_chain(err, sizeof(err))) {
     fprintf(stderr, "Europe lane chain: %s\n", err);
+    return 1;
+  }
+  if (!test_expected_lane_chain_order(err, sizeof(err))) {
+    fprintf(stderr, "Expected lane order: %s\n", err);
     return 1;
   }
   if (!test_europe_dock_in_session_order(err, sizeof(err))) {
