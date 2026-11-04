@@ -182,15 +182,7 @@ int ai_contact_ai_wagon_village_trade(
  * call started first contact. indian_nation is Col1 id 4..11.
  */
 int ai_contact_try_first_welcome(ColonizeTurnContext* ctx, int euro_nation, int indian_nation);
-/*
- * FUN_5bfb_3180 Indian-side neighbour scan for a Euro land unit at (x,y):
- * for each of the 8 neighbours the "other nation" is the unit standing there,
- * else the tile's tribe land owner (FUN_137f_03e4: layer2 bit 0x02 → layer3
- * owner nibble). Any Indian nation ≠ self opens first contact
- * (ai_contact_try_first_welcome). Returns number of welcomes opened.
- */
-int ai_contact_encounter_scan(ColonizeTurnContext* ctx, int euro_nation, int x, int y);
-/* The scan's "other nation" for tile (nx,ny): the unit standing there, else
+/* FUN_5bfb_3180's "other nation" for tile (nx,ny): the unit standing there, else
  * the settlement owner (a village resolved from the tribe records); -1 off
  * map or none. Needs ctx->col1 and ctx->map. */
 int ai_contact_neighbour_nation(const ColonizeTurnContext* ctx, int nx, int ny);

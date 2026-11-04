@@ -6,9 +6,10 @@
 # Turn 108: the Dragoon attacks the fortified English Dragoon on (45,23): it is routed and demoted to
 # Soldiers. England's turn: they beat the colonists near Guadeloupe, capture the wagon train and the
 # colonists and march into Guadeloupe (captured: owner -> England, 90 gold plundered).
-# Turn 109: the Dragoon attacks the same unit again (Soldiers routed -> Colonists); England then opens
-# talks and offers a demarcation treaty, refused ("No": @WARMEEK, still at war). England's next turn
-# beats the French Pioneers near Guadeloupe. Outcomes are fixed by the replayed RNG.
+# Turn 109: the Dragoon attacks the same unit again (Soldiers routed -> Colonists). An attack opens no
+# talk (FUN_465b_0000 jumps to LAB_465b_0bd1 past FUN_5bfb_3180, raw 75686-75693); on its turn England
+# steps beside Quebec, opens talks and offers a demarcation treaty, refused ("No": @WARMEEK, still at
+# war), then beats the French Pioneers near Guadeloupe. Outcomes are fixed by the replayed RNG.
 key KP_8                 # turn 108: Dragoon attacks north (45,23)
 wait 6
 key Return               # combat popups (nested in the attack): English Dragoons routed, demoted to Soldiers
@@ -61,14 +62,7 @@ key Return               # English Soldiers routed, demoted to Colonists
 wait 6
 key Return               # French defeat English Soldiers near Quebec
 wait 6
-key Return               # English greeting ("we again welcome you to New England")
-wait 6
-key Return               # (talks continue)
-wait 6
-key Down                 # demarcation treaty offer: No
 key Return
-wait 6
-key Return               # @WARMEEK "Prepare for WAR!"
 wait 6
 key s                    # sentry the last two units in Quebec: End of Turn
 wait 3
@@ -77,6 +71,13 @@ wait 3
 key space                # end turn 109
 wait 40
 key Return               # the Iroquois bring 16 Ore to Port au Prince
+wait 10
+key Return               # English greeting ("we again welcome you to New England")
+wait 6
+key Down                 # demarcation treaty offer: No
+key Return
+wait 6
+key Return               # @WARMEEK "Prepare for WAR!"
 wait 10
 key Return               # English defeat French Pioneers near Guadeloupe (AI turn; spare presses fall between popups)
 wait 10

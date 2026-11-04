@@ -98,6 +98,7 @@ void game_set_view_center(ColonizeGameState* game, int x, int y) {
 void game_do_end_turn(ColonizeGameState* game);
 void game_center_on_selected_unit(ColonizeGameState* game);
 void game_after_unit_action(ColonizeGameState* game);
+void game_after_unit_step(ColonizeGameState* game);
 bool game_units_pending_orders(const ColonizeGameState* game);
 bool game_select_next_unit_awaiting_orders(ColonizeGameState* game);
 
@@ -303,7 +304,7 @@ COLONIZE_INTERNAL GameMoveStep game_move_passenger_unload(
       return GAME_MOVE_RETURN_FALSE;
     }
     game->units.selected_id = sid;
-    game_after_unit_action(game);
+    game_after_unit_step(game);
     return GAME_MOVE_RETURN_TRUE;
   }
   return GAME_MOVE_CONTINUE;
@@ -354,7 +355,7 @@ COLONIZE_INTERNAL GameMoveStep game_move_sea_unit(
         if (!game_commit_sea_lane_step(game, sid, dest_x, dest_y)) {
           return GAME_MOVE_RETURN_FALSE;
         }
-        game_after_unit_action(game);
+        game_after_unit_step(game);
         return GAME_MOVE_RETURN_TRUE;
       }
       if (game->europe_ok) {
@@ -383,7 +384,7 @@ COLONIZE_INTERNAL GameMoveStep game_move_sea_unit(
       if (!game_commit_sea_lane_step(game, sid, dest_x, dest_y)) {
         return GAME_MOVE_RETURN_FALSE;
       }
-      game_after_unit_action(game);
+      game_after_unit_step(game);
       return GAME_MOVE_RETURN_TRUE;
     }
     if (dest_land && game_friendly_colony_at(game, dest_x, dest_y)) {
@@ -393,7 +394,7 @@ COLONIZE_INTERNAL GameMoveStep game_move_sea_unit(
         return GAME_MOVE_RETURN_FALSE;
       }
       game->units.selected_id = sid;
-      game_after_unit_action(game);
+      game_after_unit_step(game);
       return GAME_MOVE_RETURN_TRUE;
     }
     if (dest_land && !dest_water) {
@@ -492,7 +493,9 @@ COLONIZE_INTERNAL GameMoveStep game_move_sea_unit(
             }
           }
           game->units.selected_id = pax_ready;
-          game_after_unit_action(game);
+          /* ndisasm 0x3FE56-0x3FEA3: 086c makes the passenger active, then
+           * jmp 0xff5c (LAB_4720_061c) commits its step via 2a1f_0142. */
+          game_after_unit_step(game);
           return GAME_MOVE_RETURN_TRUE;
         }
       }
@@ -1004,7 +1007,7 @@ COLONIZE_INTERNAL GameMoveStep game_move_commit(
        * so read its id first and test it only if it kept the focus with MP
        * left. */
       const int ship_id = game->units.selected_id;
-      game_after_unit_action(game);
+      game_after_unit_step(game);
       const ColonizeUnit* ship = units_get_const(&game->units, ship_id);
       if (ship && ship->active && ship->moves > 0 && game->units.selected_id == ship_id) {
         game_camera_edge_center(game, ship->x, ship->y);
@@ -1103,7 +1106,7 @@ bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y) {
   }
 
   game_move_arrival_tail(game, selected);
-  game_after_unit_action(game);
+  game_after_unit_step(game);
   return true;
 }
 
@@ -1170,8 +1173,10 @@ void game_reveal_sight_for_unit(ColonizeGameState* game, const ColonizeUnit* u) 
   }
 }
 
-/* After spending moves: keep unit, advance to next with moves, or tile-select. */
-void game_after_unit_action(ColonizeGameState* game) {
+/* After spending moves: keep unit, advance to next with moves, or tile-select.
+ * `stepped`: the selected unit's action was a committed step (see
+ * game_after_unit_step). */
+static void game_after_unit_tail(ColonizeGameState* game, bool stepped) {
   if (!game || !game->units_ok) {
     return;
   }
@@ -1228,28 +1233,24 @@ void game_after_unit_action(ColonizeGameState* game) {
     }
   }
   /*
-   * First contact / village friction. FUN_5bfb_3180 raw 98648-98672 gates
-   * the 066c Indian arm on the mover's tile being land (local_36 == 0) and
-   * the neighbour being land, with no unit-type test: a ship at sea never
-   * meets, a hull berthed in a colony does.
+   * FUN_5bfb_3180 (raw 98457-98695): the human's move commits through the same
+   * FUN_465b_0000 tail as an AI move (FUN_4720_049e -> 2a1f_0142, raw 76124;
+   * 0984 -> 0192 -> 3180, raw 75794-75797), so it runs the same single
+   * direction loop: facing stamp, Indian first contact (066c -> 022e), 153e
+   * with an AI European (05fc, WoI-gated), one resolved encounter per nation
+   * (aiStack_20). Only after a real step: combat, village and colony entries
+   * jump to LAB_465b_0bd1 (raw 75489-75526, 75686-75693) and a fortify or
+   * build commits no move.
    */
+  if (stepped && !lcr_count_changed && game->col1_ok && game->world_map_ok &&
+      u->nation_id >= 0 && u->nation_id <= 3 && units_is_on_map(u)) {
+    ColonizeTurnContext sctx;
+    game_fill_turn_context(game, &sctx);
+    ai_euro_3180_after_step(&sctx, u);
+  }
   if (!lcr_count_changed && game->col1_ok && game->world_map_ok && u->nation_id >= 0 &&
       u->nation_id <= 3 && units_is_on_map(u) &&
       !map_tile_is_water(&game->world_map, u->x, u->y)) {
-    int first_indian = -1;
-    if (col1_contact_adjacent_tribe(&game->col1, u->x, u->y, u->nation_id, &first_indian)) {
-      if (first_indian >= 4) {
-        ColonizeTurnContext ctx;
-        game_fill_turn_context(game, &ctx);
-        (void)ai_contact_try_first_welcome(&ctx, u->nation_id, first_indian);
-      }
-    }
-    /* FUN_5bfb_3180: adjacent Brave or tribe-owned land also opens contact. */
-    {
-      ColonizeTurnContext sctx;
-      game_fill_turn_context(game, &sctx);
-      (void)ai_contact_encounter_scan(&sctx, u->nation_id, u->x, u->y);
-    }
     /*
      * Already-met village Meet is enqueued from adjacent step (no enter).
      * Exact-tile Meet kept only if a unit somehow stands on the dwelling.
@@ -1279,48 +1280,6 @@ void game_after_unit_action(ColonizeGameState* game) {
       }
     }
   }
-  /*
-   * FUN_5bfb_3180 Euro x Euro branch (raw 98457-98713, 5bfb:3180): for each
-   * of the 8 neighbours, the "other" nation is the owner of the unit on that
-   * tile (FUN_281f_07e0) or else the settlement owner (FUN_281f_06be) — so an
-   * ungarrisoned foreign colony counts too. The branch only runs when BOTH
-   * the mover's tile and the neighbour tile are land (FUN_281f_0768 == 0,
-   * local_36 / raw 98614) — a ship berthed in a colony qualifies (that is
-   * the @HELLOAHOY case), a ship at sea never does. Euro target + WoI clear
-   * (DS:0x5382 bit0) -> FUN_5bfb_153e via thunk_FUN_2a1f_05fc; a nonzero
-   * return stamps MET (0x20) both ways (port_bugs.md #545).
-   */
-  if (!lcr_count_changed && game->col1_ok && game->world_map_ok && u->nation_id >= 0 &&
-      u->nation_id <= 3 && units_is_on_map(u) && !game->col1.head.game_options.woi &&
-      !map_tile_is_water(&game->world_map, u->x, u->y)) {
-    for (int d = 0; d < 8; ++d) {
-      const int nx = u->x + MAP_DIR8_DX[d];
-      const int ny = u->y + MAP_DIR8_DY[d];
-      if (map_tile_is_water(&game->world_map, nx, ny)) {
-        continue;
-      }
-      int other = -1;
-      const int oid = units_id_at(&game->units, nx, ny);
-      const ColonizeUnit* o = oid >= 0 ? units_get_const(&game->units, oid) : NULL;
-      if (o && o->active) {
-        other = o->nation_id;
-      } else if (game->colonies_ok) {
-        const int ocid = colonies_id_at(&game->colonies, nx, ny);
-        const ColonizeColony* oc = ocid >= 0 ? colonies_get(&game->colonies, ocid) : NULL;
-        if (oc && oc->active) {
-          other = oc->nation_id;
-        }
-      }
-      if (other < 0 || other > 3 || other == u->nation_id) {
-        continue;
-      }
-      ColonizeTurnContext ctx;
-      game_fill_turn_context(game, &ctx);
-      if (ai_diplo_153e_encounter(&ctx, u->nation_id, other, u->id, d)) {
-        break;
-      }
-    }
-  }
   game->map_cursor_x = u->x;
   game->map_cursor_y = u->y;
   if (u->moves > 0) {
@@ -1344,6 +1303,14 @@ void game_after_unit_action(ColonizeGameState* game) {
     return;
   }
   game_no_unit_left(game, exhausted_x, exhausted_y);
+}
+
+void game_after_unit_action(ColonizeGameState* game) {
+  game_after_unit_tail(game, false);
+}
+
+void game_after_unit_step(ColonizeGameState* game) {
+  game_after_unit_tail(game, true);
 }
 
 bool game_key_move_delta(ColonizeKey key, int* out_dx, int* out_dy) {

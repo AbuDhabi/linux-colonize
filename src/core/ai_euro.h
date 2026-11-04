@@ -47,6 +47,14 @@ void ai_euro_census_ship_pressure_refresh(ColonizeTurnContext* ctx, int nation_i
 void ai_euro_europe_lane_tick(ColonizeTurnContext* ctx, int nation_id);
 
 /*
+ * FUN_5bfb_3180 after a committed step of `u` (FUN_465b_0000 tail, raw
+ * 75794-75797): the human's arrow-key, goto, landfall and boarding steps.
+ * Callers run it only for a real step; combat, village and colony entries
+ * jump to LAB_465b_0bd1 and skip it. See ai_euro.c.
+ */
+void ai_euro_3180_after_step(ColonizeTurnContext* ctx, ColonizeUnit* u);
+
+/*
  * FUN_15eb_28c8 — colonist work-plot job scoring, structural reference port
  * (docs/port_plan.md T1.17 / docs/port_plan.md W1.7). See ai_euro.c's own
  * header comment above the definition, and

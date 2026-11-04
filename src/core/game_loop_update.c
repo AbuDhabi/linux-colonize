@@ -942,7 +942,7 @@ static GameUpdateStep game_pacer_goto_step(
           game->view_pieces_mode = false;
         }
       } else if (stepped) {
-        game_after_unit_action(game);
+        game_after_unit_step(game);
       }
     } else if (stepped) {
       /* FUN_465b_0000 tail runs inside the step, before the route logic. */
@@ -952,8 +952,10 @@ static GameUpdateStep game_pacer_goto_step(
       }
       /* game_after_unit_action already does fog reveal / Land Ho! /
        * LCR / first-contact / view centering / next-unit-when-
-       * exhausted — the same tail a player-driven move gets. */
-      game_after_unit_action(game);
+       * exhausted — the same tail a player-driven move gets (FUN_479b_0972
+       * raw 77077 walks a human goto step through FUN_291f_044e, the
+       * arrow-key executor). */
+      game_after_unit_step(game);
     } else {
       /* Arrived (orders cleared), ran out of moves this step, or
        * genuinely stuck (blocked path) — none of those should freeze

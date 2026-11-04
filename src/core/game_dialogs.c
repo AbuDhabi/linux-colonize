@@ -2894,7 +2894,9 @@ static bool game_apply_popup_voyage(ColonizeGameState* game) {
             }
           }
           game->units.selected_id = pax_id;
-          game_after_unit_action(game);
+          /* ndisasm 0x3FE56 -> jmp 0xff5c: the passenger's step commits via
+           * 2a1f_0142 -> 465b_0000, 3180 tail included. */
+          game_after_unit_step(game);
         }
       }
     }
@@ -2930,7 +2932,7 @@ static bool game_apply_popup_voyage(ColonizeGameState* game) {
         /* No, remain in these waters — the DOS reason-5 tail still commits
          * the eastward step (sea lanes are traversable). */
         if (game_commit_sea_lane_step(game, ship_id, dest_x, dest_y)) {
-          game_after_unit_action(game);
+          game_after_unit_step(game); /* 0x3FEEA -> jmp 0xff5c (2a1f_0142) */
         }
       }
     }

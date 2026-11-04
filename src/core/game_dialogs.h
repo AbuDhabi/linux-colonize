@@ -498,6 +498,11 @@ typedef enum GameIndianLandKind {
 void activate_menu_selection(ColonizeGameState* game);
 int begin_menu_option_at_xy(const BeginMenuLayout* layout, int mx, int my);
 void game_after_unit_action(ColonizeGameState* game);
+/* game_after_unit_action for a committed step of the selected unit: also runs
+ * the FUN_5bfb_3180 tail (FUN_465b_0000 raw 75794-75797). Arrow-key, goto,
+ * disembark, landfall, boarding, docking and sea-lane steps; never combat,
+ * village or colony entries (LAB_465b_0bd1). */
+void game_after_unit_step(ColonizeGameState* game);
 
 /* Foreign-colony trade (FUN_5f7a_020e) — docs/foreign_colony_trade.md. */
 bool game_foreign_trade_open(

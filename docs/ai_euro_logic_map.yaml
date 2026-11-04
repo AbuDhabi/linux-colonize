@@ -210,7 +210,7 @@ graphs:
       - id: encounter
         kind: call
         label: Land mover progressed → encounter scan (3180 meet / 153e audience)
-        fn: ai_contact.c:ai_contact_encounter_scan
+        fn: ai_euro.c:ai_euro_3180_euro_side
         dos: FUN_5bfb_3180 on the moving unit's step; param_4 = AI unit arms @WANTSTUFF, param_5 = first direction at which that human nation neighbours (source colony tile, raw 97598-97601) (also on AI unloads, which land through FUN_465b_0000 via ai_euro_3180_euro_side, DOSBox 1591)
         status: structural
         note: "Per-act granularity vs DOS per-step; human talks dedupe once per pair per turn. A queued human talk is pumped (units_pump_combat_popups) before the drain re-acts the unit: DOS 153e blocks inside the step (raw 98667), so its 0x40 treaty is live for the next 20e6 attack gate (campaign3 C3-B1). AI encounters call 13b0 then the shared 153e exit (raw 98414-98425), refreshing the other nation's treaty timer for the mover; Franklin of the mover halves it."

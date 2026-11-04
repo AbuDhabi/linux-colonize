@@ -1059,6 +1059,10 @@ static int test_human_lcr_count_change_skips_contact(void) {
   tribe.y = 3;
   game.col1.tribe = &tribe;
   game.col1.head.tribe_count = 1;
+  /* The village tile carries the settlement bit and owner nibble that 3180's
+   * neighbour read (FUN_281f_06be -> FUN_137f_03e4) resolves. */
+  game.world_map.layer2[3 * 8 + 4] |= 0x02u;
+  game.world_map.layer3[3 * 8 + 4] = (uint8_t)((game.world_map.layer3[3 * 8 + 4] & 0x0fu) | 0x40u);
   int seen_changed = 0;
   int seen_same = 0;
   const int32_t saved_83a6 = dos_rng_get_83a6();
@@ -1090,7 +1094,7 @@ static int test_human_lcr_count_change_skips_contact(void) {
     dos_rng_set_83a6((int32_t)seed * 12345);
     dos_rng_seed(&game.move_rng, (uint32_t)seed * 12345u);
     const int before = units_active_count(&game.units);
-    game_after_unit_action(&game);
+    game_after_unit_step(&game);
     u = units_get(&game.units, uid);
     const bool alive = u && u->active;
     const bool changed = units_active_count(&game.units) != before;
@@ -1121,6 +1125,32 @@ static int test_human_lcr_count_change_skips_contact(void) {
     fprintf(stderr, "human lcr: outcomes not reached (changed %d same %d)\n", seen_changed,
             seen_same);
     rc = 1;
+  }
+  /* A tail that commits no step (combat, village or colony entry, fortify)
+   * jumps to LAB_465b_0bd1 past 3180 (raw 75797): same neighbours, no contact. */
+  if (rc == 0) {
+    game.world_map.layer2[3 * 8 + 3] |= MAP_LAYER2_LCR_CONSUMED;
+    memset(&game.col1.indian[0], 0, sizeof(game.col1.indian[0]));
+    ai_popup_init(&game.ai_popups);
+    ColonizeUnit* u = units_get(&game.units, units_spawn(&game.units, 0, 3, 3));
+    ColonizeUnit* dutch = units_get(&game.units, units_spawn_allow_stack(&game.units, 0, 2, 3));
+    if (!u || !dutch) {
+      rc = fail("human non-step spawn");
+    } else {
+      u->nation_id = 0;
+      u->moves = 6;
+      dutch->nation_id = 1;
+      game.units.selected_id = u->id;
+      game.col1.head.turn = 1000;
+      ai_diplo_talk_reset();
+      ai_diplo_write(&game.col1, 0, 1, 0);
+      ai_diplo_write(&game.col1, 1, 0, 0);
+      game_after_unit_action(&game);
+      if ((game.col1.indian[0].euro_diplo[0] & COL1_INDIAN_MET_BIT) != 0 ||
+          (ai_diplo_read(&game.col1, 0, 1) & COL1_INDIAN_MET_BIT) != 0) {
+        rc = fail("human non-step tail: no 3180 contact without a committed step");
+      }
+    }
   }
   dos_rng_set_83a6(saved_83a6);
   game.col1.tribe = NULL;
@@ -1170,6 +1200,9 @@ static int test_ship_in_colony_meets_tribe(void) {
   tribe.y = 3;
   game.col1.tribe = &tribe;
   game.col1.head.tribe_count = 1;
+  /* Settlement bit and owner nibble for 3180's neighbour read (FUN_137f_03e4). */
+  game.world_map.layer2[3 * 8 + 4] |= 0x02u;
+  game.world_map.layer3[3 * 8 + 4] = (uint8_t)((game.world_map.layer3[3 * 8 + 4] & 0x0fu) | 0x40u);
   ColonizeColony* port = fx_colony_add(&game.colonies, 0, 3, 3, 1);
   ColonizeUnit* ship = units_get(&game.units, units_spawn(&game.units, 0, 2, 3));
   int rc = 0;

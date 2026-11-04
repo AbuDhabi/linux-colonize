@@ -1781,7 +1781,106 @@ static int unit_3180_woi_skips_euro_limb(void) {
   return 0;
 }
 
+/*
+ * The human's move commits through FUN_465b_0000 too (FUN_4720_049e ->
+ * 2a1f_0142, raw 76124), so it runs the same 3180 loop. A human Dragoon (0)
+ * at (5,6) steps beside an AI unit (1) at (5,7); the hostile tribe makes 153e
+ * draw. Mode 0 runs the shared loop with the human mover, mode 1 the DOS limb
+ * (05fc -> 153e(human, AI, mover, d 4), raw 98654-98667), mode 2 the AI x AI
+ * limb an AI mover takes. Returns the RNG and the AI head's facing.
+ */
+static int human_3180_run(int mode, ColonizeDosRng* out, int* ai_dir) {
+  ai_diplo_talk_reset();
+  ColonizeWorldMap m;
+  if (!fx_map_alloc(&m, 16, 16, 1, false)) {
+    return fail("human 3180 alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    m.layer3[i] = 1;
+  }
+  static ColonizeUnitPool pool;
+  fx_units_init(&pool);
+  pool.type_count = 1;
+  pool.types[0].movement = 4;
+  pool.types[0].attack = 3;
+  pool.types[0].defense = 3;
+  pool.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  ColonizeUnit* h = units_get(&pool, units_spawn(&pool, 0, 5, 6));
+  ColonizeUnit* ai = units_get(&pool, units_spawn(&pool, 0, 5, 7));
+  if (!h || !ai) {
+    fx_map_free(&m);
+    return fail("human 3180 spawn");
+  }
+  h->nation_id = 0;
+  ai->nation_id = 1;
+  ai->last_dir = -1;
+  static ColonizeColonyPool cols;
+  fx_colonies_init(&cols);
+  static ColonizeCol1Save q;
+  col1_save_init(&q);
+  memset(q.nation, 0, sizeof(q.nation));
+  memset(q.head.nation_relation, 0, sizeof(q.head.nation_relation));
+  q.head.turn = 100;
+  q.head.difficulty = 1;
+  q.head.human_player = 0;
+  q.stuff.colony_counts[1] = 1;
+  q.stuff.colony_counts_by_continent[1 * 16 + 1] = 1;
+  q.stuff.field_combat_strength_by_continent[0 * 16 + 1] = 10; /* dominance 20 */
+  q.nation[0].euro_relation[1] |= AI_DIPLO_PEACE;
+  q.nation[1].euro_relation[0] |= AI_DIPLO_PEACE;
+  q.indian[0].alarm_by_player[1] = 0x50; /* ba 1 */
+  uint32_t turn = 100;
+  ColonizeDosRng rng;
+  dos_rng_seed(&rng, 11);
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.col1 = &q;
+  ctx.col1_ok = true;
+  ctx.map = &m;
+  ctx.units = &pool;
+  ctx.colonies = &cols;
+  ctx.human_nation = 0;
+  ctx.rng = &rng;
+  ctx.turn_number = &turn;
+  if (mode == 0) {
+    ai_euro_3180_after_step(&ctx, h);
+  } else if (mode == 1) {
+    (void)ai_diplo_153e_encounter(&ctx, 0, 1, h->id, 4);
+  } else {
+    ai_diplo_13b0_encounter(&ctx, 0, 1);
+  }
+  *out = rng;
+  *ai_dir = ai->last_dir;
+  fx_map_free(&m);
+  col1_save_free(&q);
+  return 0;
+}
+
+static int unit_3180_human_mover_opens_153e(void) {
+  ColonizeDosRng side;
+  ColonizeDosRng dos;
+  ColonizeDosRng ai_limb;
+  int side_dir = -1;
+  int dir = -1;
+  if (human_3180_run(0, &side, &side_dir) || human_3180_run(1, &dos, &dir) ||
+      human_3180_run(2, &ai_limb, &dir)) {
+    return 1;
+  }
+  if (memcmp(&dos, &ai_limb, sizeof(dos)) == 0) {
+    return fail("human 3180: the fixture must tell 153e from 13b0 (153e draws)");
+  }
+  if (memcmp(&side, &dos, sizeof(side)) != 0) {
+    return fail("human 3180: a human mover beside an AI European opens 153e (raw 98667)");
+  }
+  if (side_dir != 4) {
+    fprintf(stderr, "human 3180: AI facing %d, want 4\n", side_dir);
+    return fail("human 3180: +0x314f of the neighbour head = local_30 (raw 98650)");
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+    {"unit_3180_human_mover_opens_153e", unit_3180_human_mover_opens_153e},
     {"unit_3180_woi_skips_euro_limb", unit_3180_woi_skips_euro_limb},
     {"unit_3180_one_direction_loop", unit_3180_one_direction_loop},
     {"unit_3180_retries_next_human_tile", unit_3180_retries_next_human_tile},

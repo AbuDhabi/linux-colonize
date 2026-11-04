@@ -344,13 +344,15 @@ void ai_euro_sync_aboard_cargo_xy(ColonizeUnitPool* units, ColonizeUnit* ship) {
   }
 }
 
-/* FUN_5bfb_3180 for an AI Euro mover (465b commit tail -> 0984 -> 0192 ->
- * 3180): one direction loop (raw 98506-98693) that, per land neighbour of
- * another nation still open in aiStack_20, stamps the tile head's facing and
- * opens the human audience (153e), the AI x AI limb (05fc -> 13b0) or the
- * Indian first contact (066c -> 022e). Runs from the act drain and from AI
- * unloads, which land through FUN_465b_0000 too (DOSBox 1591: a Dutch
- * Dragoon unloaded beside French units signs with France). */
+/* FUN_5bfb_3180 for a European mover, AI or human (465b commit tail -> 0984
+ * -> 0192 -> 3180): one direction loop (raw 98506-98693) that, per land
+ * neighbour of another nation still open in aiStack_20, stamps the tile
+ * head's facing and opens the human audience (153e), the AI x AI limb
+ * (05fc -> 13b0) or the Indian first contact (066c -> 022e). Runs from the
+ * act drain and from AI unloads, which land through FUN_465b_0000 too
+ * (DOSBox 1591: a Dutch Dragoon unloaded beside French units signs with
+ * France), and from the human's own steps through ai_euro_3180_after_step:
+ * FUN_4720_049e commits through 2a1f_0142 -> 465b_0000 (raw 76124). */
 COLONIZE_INTERNAL void ai_euro_3180_euro_side(ColonizeTurnContext* ctx, ColonizeUnit* u,
                                               int nation_id, int progressed, int moved) {
   /*
@@ -417,15 +419,19 @@ COLONIZE_INTERNAL void ai_euro_3180_euro_side(ColonizeTurnContext* ctx, Colonize
     if (on < 4 && ctx->col1_ok && ctx->col1 && ctx->col1->head.game_options.woi) {
       continue;
     }
-    if (on < 4 && col1_nation_is_human(ctx->col1, on, ctx->human_nation)) {
-      if (mover_human) {
+    const int on_human = on < 4 && col1_nation_is_human(ctx->col1, on, ctx->human_nation);
+    if (on < 4 && (on_human || mover_human)) {
+      if (on_human && mover_human) {
         continue;
       }
       /* 153e's param_5 is this direction (raw 98667), the @WANTSTUFF source
        * tile; its return goes to aiStack_20 (raw 98674), so a 0 lets that
-       * human's next tile try again. */
-      done[on] = ai_diplo_153e_encounter(ctx, on, nation_id, u->id, d);
-      if (done[on] && ctx->ai_popups) {
+       * human's next tile try again. Its self is always the human: a human
+       * mover takes the first local_3a arm unswapped (raw 98654-98655), a
+       * human neighbour is swapped in by FUN_281f_0366 (raw 98658-98662). */
+      done[on] = on_human ? ai_diplo_153e_encounter(ctx, on, nation_id, u->id, d)
+                          : ai_diplo_153e_encounter(ctx, nation_id, on, u->id, d);
+      if (done[on] && ctx->ai_popups && !mover_human) {
         /* 3180 -> thunk_FUN_2a1f_05fc -> FUN_5bfb_153e (raw 98667) is a blocking
          * dialog inside this step: the treaty it signs (raw 98003, 0x40 both
          * ways) is live before 6d8e re-acts the unit, whose next 20e6 reads
@@ -445,6 +451,12 @@ COLONIZE_INTERNAL void ai_euro_3180_euro_side(ColonizeTurnContext* ctx, Colonize
        * Sioux Brave at (48,56) scores the Spanish soldier as already met). */
       done[on] = ai_contact_try_first_welcome(ctx, nation_id, on) > 0;
     }
+  }
+}
+
+void ai_euro_3180_after_step(ColonizeTurnContext* ctx, ColonizeUnit* u) {
+  if (ctx && u) {
+    ai_euro_3180_euro_side(ctx, u, u->nation_id, 1, 1);
   }
 }
 
