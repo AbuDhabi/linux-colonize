@@ -2520,7 +2520,8 @@ static int ai_diplo_153e_encounter_gated(
             amount = cs->stock[c];
           }
           /* raw 97615 byte[-0x7b44] = DS:0x84bc, whose writers (raw
-           * 6316-6320) store euro_price - 1 floored at 0. */
+           * 6316-6320 / 51962-51966 / 58996-59000) store euro_price - 1
+           * floored at 0. */
           const int price = (int)col1->nation[target].trade.euro_price[c] - 1;
           const int v = amount * (price > 0 ? price : 0);
           if (v >= thr && v >= best_v) {

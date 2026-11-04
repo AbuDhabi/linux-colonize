@@ -1179,9 +1179,11 @@ int units_apply_land_loss_outcome(
      * `attacker+0x3148 |= 0x10`. That bit is the guaranteed arm of the 0352
      * gear-return gate above, so a colony-raiding brave killed later always
      * hands its gear back. Only an ATTACKING native (port_bugs.md #1384): a native
-     * defender beating a Euro attacker who stands in a colony takes no latch. DOS's extra `(colony+0x1f > 1 || !bVar28)` term is
-     * always true at this entry point: `bVar28` is "no real unit defender was
-     * found", and this function is only ever reached with a live loser unit.
+     * defender beating a Euro attacker who stands in a colony takes no latch. DOS's extra `(colony+0x1f > 1 || !bVar28)` term
+     * (`bVar28`: no real unit defender was found) is not tested here. It is
+     * true for a live loser unit, but false on a 1-pop burn (raw 100686-100696):
+     * the pre-burn sweep reaches this arm through units_sweep_stack_after_loss,
+     * and units_try_capture_foreign_colony_at puts the bit back afterwards.
      */
     if (win->nation_id >= 4 && on_colony && g_units_loss_winner_attacked) {
       win->col1_flags15 = (uint8_t)(win->col1_flags15 | 0x10u);
