@@ -877,6 +877,18 @@ void game_open_retire_score(ColonizeGameState* game) {
   if (!game) {
     return;
   }
+  /* FUN_41f2_0092's unit loop (asm 41f2:0329-0345) reads DOS's one unit
+   * table (DS:0x3147 + 0x1c * i, count DS:0x539c). The port's citizen walk
+   * reads units from game->col1, which is otherwise refreshed only when a
+   * save is written, so bring it up to date before the score plate opens;
+   * the Hall of Fame entry is scored after the plate closes, from the same
+   * state. */
+  if (game->col1_ok) {
+    char err[256];
+    if (!game_capture_col1(game, err, sizeof(err))) {
+      diag_warn("retire score: capture failed: %s", err);
+    }
+  }
   game_open_report(game, COLONIZE_REPORT_SCORE);
   game->report_exits_to_menu = true;
 }
