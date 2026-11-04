@@ -2137,7 +2137,7 @@ int units_apply_naval_loss_outcome(
 }
 
 /*
- * FUN_5fef_0f14 kind 3 (raw 99989-100004): the Indian colony raid's "unit"
+ * FUN_5fef_0f14 kind 3 (pick raw 99866-99874, apply raw 99995-100004): the Indian colony raid's "unit"
  * outcome picks a SHIP lying in the colony's port — `FUN_281f_07e0`
  * (unit_index_on_tile of the colony tile), abort unless `FUN_281f_088a`
  * (stack_has_ship), then walk the stack down with `FUN_281f_02e4` until the
@@ -2162,16 +2162,25 @@ int units_apply_naval_loss_outcome(
  *
  * Returns 1 if the ship limped off damaged, 0 if it went down.
  */
-int units_raid_damage_ship(ColonizeUnitPool* pool, int ship_id, const ColonizeCol1Save* col1) {
+int units_raid_damage_ship(
+  ColonizeUnitPool* pool, int ship_id, const ColonizeCol1Save* col1, ColonizeDosRng* rng
+) {
   ColonizeUnit* lose = units_get(pool, ship_id);
   if (!lose || !lose->active || !units_is_sea(pool, ship_id)) {
     return 0;
   }
   const ColonizeUnitType* lt = units_type(pool, lose->type_index);
   const int human = units_combat_human_involved(col1, lose->nation_id, -1);
+  /* The raid arm has no winner unit: local_4 = 0x10, the Privateer row. */
+  const int pi = units_kind_type_index(pool, UNITS_KIND_PRIVATEER);
+  const ColonizeUnitType* pt = pi >= 0 ? units_type(pool, pi) : NULL;
 
   units_ship_lose_holds(pool, ship_id);
 
+  /* DOS-LITERAL FUN_5fef_0352 raw 99527-99529: the Privateer row has guns,
+   * so DOS still makes the damage-vs-sink draw FUN_281f_04d4(1, guns +
+   * loser hull) before raw 99567 throws the result away. */
+  (void)units_ship_damage_vs_sink(rng, pt ? pt->guns : 0, lt ? lt->hull : 0);
   int damaged = 1; /* raw 99567: param_2 < 0 → bVar11 = true */
   const ColonizeColony* home = units_nearest_own_drydock_colony(
     g_units_combat_colonies, lose->nation_id, lose->x, lose->y
@@ -2204,13 +2213,9 @@ int units_raid_damage_ship(ColonizeUnitPool* pool, int ship_id, const ColonizeCo
     return 0;
   }
 
-  {
-    /* The raid arm has no winner unit: DOS bills the repair against the
-     * Privateer's defense column (the raider stand-in). */
-    const int pi = units_kind_type_index(pool, UNITS_KIND_PRIVATEER);
-    const ColonizeUnitType* pt = pi >= 0 ? units_type(pool, pi) : NULL;
-    units_ship_enter_repair(pool, lose, pt ? pt->defense : 0, home, col1, human, -1);
-  }
+  /* DOS bills the repair against the Privateer's defense column (the raider
+   * stand-in). */
+  units_ship_enter_repair(pool, lose, pt ? pt->defense : 0, home, col1, human, -1);
   return 1;
 }
 

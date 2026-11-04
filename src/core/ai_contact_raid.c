@@ -595,7 +595,9 @@ void ai_contact_apply_raid_loot(
           ai_contact_s_last_ship_type, sizeof(ai_contact_s_last_ship_type), "%s", units_display_name(ctx->units, u)
         );
       }
-      (void)units_raid_damage_ship(ctx->units, ship_id, ctx->col1_ok ? ctx->col1 : NULL);
+      (void)units_raid_damage_ship(
+        ctx->units, ship_id, ctx->col1_ok ? ctx->col1 : NULL, ctx->rng
+      );
     }
     break;
   }

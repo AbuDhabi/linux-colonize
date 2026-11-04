@@ -797,7 +797,43 @@ static int case_raid_ship_is_chain_head(void) {
   return 0;
 }
 
+/* FUN_5fef_0352 raw 99527-99529: the stand-in Privateer row (local_4 = 0x10)
+ * has guns, so the raid makes the damage-vs-sink draw rand(1, guns + loser
+ * hull) before raw 99567 forces the damage anyway. */
+static int case_raid_ship_draws_once(void) {
+  ship_setup();
+  const int id = units_spawn_allow_stack(&s_ship_units, 1, 5, 5);
+  ColonizeDosRng ra;
+  ColonizeDosRng rb;
+  dos_rng_seed(&ra, 4242u * 12345u);
+  dos_rng_seed(&rb, 4242u * 12345u);
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.units = &s_ship_units;
+  ctx.rng = &ra;
+  ColonizeColony c;
+  memset(&c, 0, sizeof(c));
+  c.active = true;
+  c.x = 5;
+  c.y = 5;
+  if (id < 0) {
+    return fail("raid ship: spawn failed");
+  }
+  ai_contact_apply_raid_loot(&ctx, &c, 4, 0, AI_RAID_SHIP);
+  const ColonizeUnit* u = units_get(&s_ship_units, id);
+  (void)dos_rng_range(&rb, 1, 4 + 6); /* Privateer guns + Frigate hull */
+  const int got = dos_rng_range(&ra, 0, 0x7fff);
+  const int want = dos_rng_range(&rb, 0, 0x7fff);
+  if (!u || !u->active || got != want) {
+    fprintf(stderr, "raid ship draw: next %d, one-draw stream %d, alive %d\n", got, want,
+            u && u->active);
+    return fail("raid ship damage must make exactly one rand(1, guns+hull) draw");
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+    {"case_raid_ship_draws_once", case_raid_ship_draws_once},
     {"case_raid_ship_is_chain_head", case_raid_ship_is_chain_head},
     {"case_burn_ignores_expansion_mirror", case_burn_ignores_expansion_mirror},
     {"case_burn_clears_expansion_mirror", case_burn_clears_expansion_mirror},
