@@ -3579,11 +3579,6 @@ COLONIZE_INTERNAL GameUpdateStep game_update_map_keys(ColonizeGameState* game, c
     game_order_return_europe(game);
   }
 
-  /* O: board land unit onto adjacent ship (selected land↔cursor ship, or vice versa). */
-  if (input->last_key == COLONIZE_KEY_O && game->world_map_ok && game->units_ok) {
-    game_order_board(game);
-  }
-
   /* U: unload oldest passenger from selected ship onto cursor land tile. */
   if (input->last_key == COLONIZE_KEY_U && game->world_map_ok && game->units_ok) {
     game_order_unload(game);

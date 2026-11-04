@@ -1223,6 +1223,37 @@ static void step3180_free(ColonizeGameState* game) {
   trade_seam_free(game);
 }
 
+/* DOS has no plain O board key: MENU.TXT's only ~O row is Dump Cargo
+ * Overboard. O on the map must not board a land unit onto the ship at the
+ * cursor. */
+static int test_map_o_key_does_not_board(void) {
+  ColonizeGameState game;
+  ColonizeCol1Tribe tribe;
+  int rc = step3180_fixture(&game, &tribe) < 0 ? fail("o key fixture") : 0;
+  ColonizeUnit* ship = rc ? NULL : units_get(&game.units, units_spawn(&game.units, 1, 2, 3));
+  ColonizeUnit* land = ship ? units_get(&game.units, units_spawn(&game.units, 0, 3, 3)) : NULL;
+  if (rc == 0 && (!ship || !land)) {
+    rc = fail("o key: spawn");
+  }
+  if (rc == 0) {
+    ship->nation_id = 0;
+    land->nation_id = 0;
+    land->moves = 3;
+    game.units.selected_id = land->id;
+    game.map_cursor_x = 2;
+    game.map_cursor_y = 3;
+    ColonizeInputState in;
+    memset(&in, 0, sizeof(in));
+    in.last_key = COLONIZE_KEY_O;
+    (void)game_update_map_keys(&game, &in);
+    if (units_get_const(&game.units, land->id)->aboard_ship_id >= 0) {
+      rc = fail("O must not board the land unit onto the ship");
+    }
+  }
+  step3180_free(&game);
+  return rc;
+}
+
 /* A held 3180 wake dies with its tail. The early return (no selected unit)
  * drops it, so a later non-step tail of the same unit wakes nobody, and
  * units_reset_state (load / new game) clears it too. */
@@ -5007,6 +5038,7 @@ static const TestCase k_cases[] = {
     {"test_trade_route_begin_moves_wagon_to_selected_stop", test_trade_route_begin_moves_wagon_to_selected_stop},
     {"test_goto_treasure_gets_king_galleon_offer", test_goto_treasure_gets_king_galleon_offer},
     {"test_human_lcr_count_change_skips_contact", test_human_lcr_count_change_skips_contact},
+    {"test_map_o_key_does_not_board", test_map_o_key_does_not_board},
     {"test_deferred_wake_does_not_leak", test_deferred_wake_does_not_leak},
     {"test_human_passenger_ship_to_ship", test_human_passenger_ship_to_ship},
     {"test_human_board_reveals_with_passenger", test_human_board_reveals_with_passenger},

@@ -1450,11 +1450,13 @@ void game_europe_service_trade_harbor(ColonizeGameState* game) {
 
 /*
  * Board / unload / sail-home, shared by the MENU.TXT ORDERS rows and by the
- * keyboard keys O, U and H (audit GL-19: the menu arms re-implemented the key
+ * keyboard keys U and H (audit GL-19: the menu arms re-implemented the key
  * handlers line for line, fortified guard and status strings included). Each
  * caller keeps its own asset-availability prefix, which is the only thing that
  * differed: the menu rows answer "Cannot load cargo" / "Cannot return to
- * Europe" when the pools are not up, the keys simply do not fire.
+ * Europe" when the pools are not up, the keys simply do not fire. There is no
+ * plain O board key: DOS has none (MENU.TXT's only ~O row is Dump Cargo
+ * Overboard), so boarding is the Load Cargo row only.
  */
 void game_order_board(ColonizeGameState* game) {
   const int sid = game->units.selected_id;
