@@ -1609,6 +1609,10 @@ int ai_euro_ship_enter_europe(ColonizeTurnContext* ctx, ColonizeUnit* ship) {
     ctx->col1->nation[n].return_from_europe_x = (uint8_t)ox; /* -0x77c6 */
     ctx->col1->nation[n].return_from_europe_y = (uint8_t)oy;
   }
+  /* raw 77608 FUN_281f_0916 -> FUN_1427_12f6 -> 10be (raw 8722-8737): the
+   * hull rebuilds its load from the High Seas tile before the 02ee stamp
+   * walk (TB-2 under dos_buggy_behavior: other hulls' riders too). */
+  (void)units_ship_departure_pickup(ctx->units, ship->id, ox, oy);
   ship->col1_counter16 = ai_euro_lane_voyage_turns(ctx, n, ox);
   /* 08da -> FUN_1427_0968 clears the visibility nibble of the hull's whole
    * chain; off the map 0ce6 adds nothing back. A hull 5fef_0352 parked for

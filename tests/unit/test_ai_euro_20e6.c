@@ -1278,6 +1278,70 @@ static int unit_europe_lane_hop_appends_at_chain_tail(void) {
 }
 
 /*
+ * FUN_48d3_007a calls FUN_281f_0916 -> FUN_1427_12f6 -> 10be (raw 77608,
+ * 8722-8737) before stamping the riders, so the hull that sails for Europe
+ * rebuilds its load from the High Seas tile. A loose sentried colonist on
+ * the tile boards in both modes; the rider of the other hull transfers only
+ * under dos_buggy_behavior (TB-2).
+ */
+static int europe_entry_bucket_run(int buggy) {
+  const int nation = 1;
+  Fixture f;
+  if (fixture_init(&f, nation) != 0) return 1;
+  for (int y = 0; y < 16; ++y) {
+    for (int x = 12; x < 16; ++x) {
+      f.map.terrain[y * 16 + x] = 26;
+    }
+  }
+  const int other_id = units_spawn_allow_stack(&f.units, 2, 14, 4);
+  const int ship_id = units_spawn_allow_stack(&f.units, 2, 14, 4);
+  const int rider_id = units_spawn_allow_stack(&f.units, 0, 14, 4);
+  const int loose_id = units_spawn_allow_stack(&f.units, 0, 14, 4);
+  ColonizeUnit* other = units_get(&f.units, other_id);
+  ColonizeUnit* ship = units_get(&f.units, ship_id);
+  ColonizeUnit* rider = units_get(&f.units, rider_id);
+  ColonizeUnit* loose = units_get(&f.units, loose_id);
+  if (!other || !ship || !rider || !loose) {
+    fixture_free(&f);
+    return fail("bucket entry spawn");
+  }
+  other->nation_id = nation;
+  ship->nation_id = nation;
+  rider->nation_id = nation;
+  loose->nation_id = nation;
+  rider->orders = UNITS_ORDER_SENTRY;
+  loose->orders = UNITS_ORDER_SENTRY;
+  if (!units_board_stacked_restore(&f.units, rider_id, other_id)) {
+    fixture_free(&f);
+    return fail("bucket entry board");
+  }
+  dos_buggy_behavior_set(buggy != 0);
+  const int entered = ai_euro_ship_enter_europe(&f.ctx, ship);
+  dos_buggy_behavior_set(true);
+  if (!entered) {
+    fixture_free(&f);
+    return fail("bucket entry: hull on High Seas must enter the lane");
+  }
+  const int rider_ok = buggy ? rider->aboard_ship_id == ship_id && other->cargo_count == 0
+                             : rider->aboard_ship_id == other_id && other->cargo_count == 1;
+  const int ok = rider_ok && loose->aboard_ship_id == ship_id && loose->x == 244 + nation &&
+                 loose->col1_counter16 == ship->col1_counter16;
+  if (!ok) {
+    fprintf(stderr, "bucket entry (buggy %d): rider aboard %d, loose aboard %d at %d (ship %d other %d)\n",
+            buggy, rider->aboard_ship_id, loose->aboard_ship_id, loose->x, ship_id, other_id);
+  }
+  fixture_free(&f);
+  return ok ? 0 : fail("007a's 10be must rebuild the hull load from the tile");
+}
+
+static int unit_europe_entry_rebuilds_load_from_bucket(void) {
+  if (europe_entry_bucket_run(1) != 0) {
+    return 1;
+  }
+  return europe_entry_bucket_run(0);
+}
+
+/*
  * FUN_48d3_048e rings around the hull's own +0x314d/e (raw 77832-77833) with
  * no fallback. The hull's saved tile is (16,4), one past the east edge; a
  * passenger's goto (14,4) is not consulted. Column 14 is High Seas: the
@@ -3859,6 +3923,7 @@ static const TestCase k_cases[] = {
     {"unit_europe_lane_arrival_uses_hull_tile", unit_europe_lane_arrival_uses_hull_tile},
     {"unit_europe_lane_arrivals_place_in_chain_order", unit_europe_lane_arrivals_place_in_chain_order},
     {"unit_europe_lane_hop_appends_at_chain_tail", unit_europe_lane_hop_appends_at_chain_tail},
+    {"unit_europe_entry_rebuilds_load_from_bucket", unit_europe_entry_rebuilds_load_from_bucket},
     {"unit_delivery_matrix_skips_full_producer", unit_delivery_matrix_skips_full_producer},
     {"unit_delivery_sell_tail_dumps_cargo", unit_delivery_sell_tail_dumps_cargo},
     {"unit_load_matrix_picks_priced_cargo", unit_load_matrix_picks_priced_cargo},
