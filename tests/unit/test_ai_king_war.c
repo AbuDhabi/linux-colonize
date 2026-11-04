@@ -804,7 +804,31 @@ static int case_newwar_counts_fallback_crown(void) {
   return 0;
 }
 
+/*
+ * FUN_43f7_0218 ranks with FUN_1cf8_000a, which puts a moved key before equal
+ * earlier keys. Scores [10,5,5,20] rank as [2,1,0,3] (a stable sort gives
+ * [1,2,0,3]).
+ */
+static int case_rank_nations_tie_order(void) {
+  ColonizeCol1Save c;
+  col1_save_init(&c);
+  memset(&c.stuff, 0, sizeof(c.stuff));
+  const uint8_t pop[4] = {10, 5, 5, 20};
+  for (int i = 0; i < 4; ++i) {
+    c.stuff.census_pop_proxy[i] = pop[i];
+  }
+  int order[4];
+  ai_king_rank_nations_0218(&c, order);
+  if (order[0] != 2 || order[1] != 1 || order[2] != 0 || order[3] != 3) {
+    fprintf(stderr, "unit_ai_king: rank order %d %d %d %d\n", order[0], order[1], order[2],
+            order[3]);
+    return fail("rank: DOS tie rule must rank [2,1,0,3]");
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+    {"case_rank_nations_tie_order", case_rank_nations_tie_order},
     {"case_newwar_counts_fallback_crown", case_newwar_counts_fallback_crown},
     {"test_king_new_war_event", test_king_new_war_event},
     {"test_king_noncombat_never_attacks", test_king_noncombat_never_attacks},

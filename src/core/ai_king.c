@@ -427,23 +427,19 @@ int ai_king_intervention_nation_slot(
  * -0x6bf0 = 0x9410 census_pop_proxy — save_format_map.md rows 241/243/247;
  * the port's live FUN_4962_0018 census keeps all three fresh per turn).
  * Was an invented per-colony pop score before 2026-09-06.
+ * The sort is FUN_1cf8_000a (raw 18654; FUN_43f7_0218 calls it at raw 73632):
+ * a moved key goes before equal earlier keys, so ties do NOT keep index order.
  */
 void ai_king_rank_nations_0218(const ColonizeCol1Save* col1, int order[4]) {
-  int score[4] = {0, 0, 0, 0};
+  uint16_t key[4] = {0, 0, 0, 0};
   for (int n = 0; n < 4; ++n) {
     order[n] = n;
     if (col1) {
-      score[n] = 3 * (int)col1->stuff.ship_counts[n] + 2 * (int)col1->stuff.colony_counts[n] +
-                 (int)col1->stuff.census_pop_proxy[n];
+      key[n] = (uint16_t)(3 * col1->stuff.ship_counts[n] + 2 * col1->stuff.colony_counts[n] +
+                          col1->stuff.census_pop_proxy[n]);
     }
   }
-  for (int a = 1; a < 4; ++a) {
-    for (int b = a; b > 0 && score[order[b]] < score[order[b - 1]]; --b) {
-      const int t = order[b];
-      order[b] = order[b - 1];
-      order[b - 1] = t;
-    }
-  }
+  units_dos_sort_1cf8(key, order, 4);
 }
 
 /*
