@@ -1009,7 +1009,7 @@ static bool colonies_buy_construction_impl(
   /* Tops hammers/tools only — does NOT complete the project (matches
    * FUN_2f2b_5e44, which never touches has_building[]/spawns a unit
    * itself). Completion happens next turn via turn_run_colony_building_
-   * completion / turn_run_colony_unit_construction. */
+   * completion / turn_colony_unit_construction_one. */
   col->hammers = hammers_need;
   if (tools_deficit > 0) {
     col->stock[COLONIZE_CARGO_TOOLS] += tools_deficit;

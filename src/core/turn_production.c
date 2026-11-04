@@ -242,7 +242,7 @@ void turn_compose_colony_bells_crosses(
 /*
  * DOS @BUILT — "%STRING0 colony produces {%STRING1}." One emitter for the
  * three completion paths (audit CO-11): turn_produce_one_colony's in-tick
- * building completion, turn_run_colony_unit_construction and
+ * building completion, turn_colony_unit_construction_one and
  * turn_run_colony_building_completion. Callers pass only the human's own
  * colony (DS:0xa897). building_row is the ColonizeBuildingRow, -1 for a unit.
  */
@@ -2131,7 +2131,8 @@ void turn_produce_one_colony(
   ColonizeColonyProdDelta* delta,
   AiPopupState* ai_popups,
   const ColonizeMsgCatalog* messages,
-  ColonizeDosRng* rng
+  ColonizeDosRng* rng,
+  const ColonizeWorld* world
 ) {
   /* Stage order = FUN_364b_0688's DOS order (port_bugs.md #1107 split). */
   TurnProduceCtx ctx;
@@ -2157,6 +2158,7 @@ void turn_produce_one_colony(
   ctx.ai_popups = ai_popups;
   ctx.messages = messages;
   ctx.rng = rng;
+  ctx.world = world;
   if (turn_produce_begin(&ctx) == TURN_PRODUCE_RETURN) {
     return;
   }
@@ -2176,6 +2178,10 @@ void turn_produce_one_colony(
   }
   turn_produce_hammers(&ctx);
   turn_produce_crumbs(&ctx);
+  /* FUN_364b_0688 raw 57771-57774: a unit project's tools are spent
+   * and FUN_364b_0114 builds it here, before the cap re-read (raw 57743) and
+   * the spoilage / AI-sell loop (raw 57807). */
+  turn_colony_unit_construction_one(ctx.world, ctx.colony);
   turn_produce_produced_mask(&ctx);
   turn_produce_spoilage(&ctx);
   turn_produce_cargo_ready(&ctx);
@@ -2348,7 +2354,7 @@ void turn_run_one_colony_production_w(
     stock_before[c] = colony->stock[c];
   }
   turn_produce_one_colony(
-    pool, colony, map, col1, europe, human_nation, out, NULL, ai_popups, messages, rng
+    pool, colony, map, col1, europe, human_nation, out, NULL, ai_popups, messages, rng, w
   );
   turn_log_colony_production(
     pool, colony, col1, europe, stock_before, hammers_before, project_before

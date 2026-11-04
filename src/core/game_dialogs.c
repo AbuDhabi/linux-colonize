@@ -1280,7 +1280,7 @@ static void game_do_buy_construction(ColonizeGameState* game, int colony_id) {
    * the completion threshold (colonies_buy_construction, DOS's
    * FUN_2f2b_5e44 formula). Actual completion happens next turn's
    * construction processing (turn_run_colony_building_completion /
-   * turn_run_colony_unit_construction), same as a colony that reached the
+   * turn_colony_unit_construction_one), same as a colony that reached the
    * threshold through ordinary Carpenter production. */
   ColonizeCol1Save* col1 = game->col1_ok ? &game->col1 : NULL;
   const int gold_cost = colonies_construction_gold_cost_ex(&game->colonies, colony, col1);

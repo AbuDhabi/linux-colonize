@@ -371,6 +371,81 @@ static int unit_building_completion_supplies_tools_only_to_ai(void) {
   return 0;
 }
 
+/* FUN_364b_0688 raw 57771-57774 vs 57807: an Artillery project's 40
+ * tools are spent before spoilage. 150 tools, cap 100: DOS ends at 100
+ * (150-40=110, then 10 spoil); charging after spoilage gives 60. */
+static int unit_unit_project_tools_spent_before_spoilage(void) {
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
+  units_reset(&units);
+  units_set_occupancy_map(NULL);
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT") || !units_load_types(&units, &names) ||
+      !colonies_load_buildings(&pool, &names)) {
+    fprintf(stderr, "unit project: NAMES.TXT load failed\n");
+    assets_msg_free(&names);
+    return 1;
+  }
+  ColonizeColony* col = &pool.colonies[0];
+  memset(col, 0, sizeof(*col));
+  col->active = true;
+  col->id = 1;
+  col->nation_id = 0;
+  col->x = 5;
+  col->y = 5;
+  col->building_in_production = COLONIZE_UNIT_BUILD_ARTILLERY;
+  col->hammers = 192;
+  col->stock[COLONIZE_CARGO_TOOLS] = 150;
+  col->stock[COLONIZE_CARGO_FOOD] = 50;
+  col->colonists[0].active = true;
+  col->colonists[0].profession = COLONIZE_PROF_FREE_COLONIST;
+  col->colonists[0].building_type = -1;
+  col->colonists[0].field_job = COLONIZE_JOB_FARMER;
+  col->colonist_count = 1;
+  col->population = 1;
+  pool.colony_count = 1;
+
+  ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  col1.head.year = 1600;
+  ColonizeDosRng rng;
+  dos_rng_seed(&rng, 1);
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.human_nation = 0;
+  ctx.units = &units;
+  ctx.colonies = &pool;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng = &rng;
+  ColonizeTurnResult result;
+  memset(&result, 0, sizeof(result));
+  colonies_set_col1_context(&col1);
+  turn_run_colony_eot(&ctx, &result);
+  colonies_set_col1_context(NULL);
+  assets_msg_free(&names);
+
+  int artillery = 0;
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* u = &units.units[i];
+    if (u->active && units_type_is_artillery(units_type(&units, u->type_index))) {
+      artillery++;
+    }
+  }
+  if (artillery != 1 || col->hammers != 0 || col->stock[COLONIZE_CARGO_TOOLS] != 100) {
+    fprintf(
+      stderr, "unit project: artillery=%d hammers=%d tools=%d (want 1/0/100)\n", artillery, col->hammers,
+      col->stock[COLONIZE_CARGO_TOOLS]
+    );
+    return 1;
+  }
+  return 0;
+}
+
 /* Phase K @NEEDTOOLS0 when construction blocked on tools=0. */
 static int unit_needtools0(void) {
   ColonizeColonyPool pool;
@@ -702,6 +777,7 @@ static const TestCase k_cases[] = {
     {"unit_century_cargoready", unit_century_cargoready},
     {"unit_hammers_lumber_two_turns", unit_hammers_lumber_two_turns},
     {"unit_building_completion_supplies_tools_only_to_ai", unit_building_completion_supplies_tools_only_to_ai},
+    {"unit_unit_project_tools_spent_before_spoilage", unit_unit_project_tools_spent_before_spoilage},
     {"unit_eot_fog_reveal", unit_eot_fog_reveal},
     {"unit_needtools0", unit_needtools0},
     {"unit_needtools", unit_needtools},

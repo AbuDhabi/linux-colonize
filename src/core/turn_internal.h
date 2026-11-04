@@ -115,6 +115,7 @@ typedef struct TurnProduceCtx {
   AiPopupState* ai_popups;
   const ColonizeMsgCatalog* messages;
   ColonizeDosRng* rng;
+  const ColonizeWorld* world; /* unit-project completion; NULL = skip it */
   ColonizeColonyProdDelta local_delta; /* delta when the caller passes NULL */
   /* begin */
   uint16_t mask_before_a;
@@ -154,10 +155,13 @@ void turn_produce_one_colony(
   ColonizeColonyProdDelta* delta,
   AiPopupState* ai_popups,
   const ColonizeMsgCatalog* messages,
-  ColonizeDosRng* rng
+  ColonizeDosRng* rng,
+  const ColonizeWorld* world
 );
 
 /* --- owned by turn_colony.c --- */
+/* FUN_364b_0688 Phase L unit-project completion (FUN_364b_0114 unit arm). */
+void turn_colony_unit_construction_one(const ColonizeWorld* w, ColonizeColony* col);
 void turn_run_colony_eot(ColonizeTurnContext* ctx, ColonizeTurnResult* out);
 void turn_run_human_colony_eot(ColonizeTurnContext* ctx, ColonizeTurnResult* out);
 /* FUN_48d3_06ba, the human's Europe pass (lane hops, arrival, treasure, woodcut 9):

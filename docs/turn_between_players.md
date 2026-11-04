@@ -73,7 +73,7 @@ Order EN→FR→SP→DU; skip `human_nation` and withdrawn (`player.control==2`)
 
 | Step | OpenCol | DOS |
 |------|-------|-----|
-| **Human colony production** | `turn_run_colony_production` (`turn_prod_only_nation` = human) + `turn_run_colony_unit_construction` + `turn_run_colony_building_completion` | `FUN_364b_0688` inside the human's own `3844_00f2`, which `130d` runs **immediately before** that nation's Move Pieces |
+| **Human colony production** | `turn_run_colony_production` (`turn_prod_only_nation` = human; unit projects finish inside it) + `turn_run_colony_building_completion` | `FUN_364b_0688` inside the human's own `3844_00f2`, which `130d` runs **immediately before** that nation's Move Pieces |
 | Census / blockade probe | `ai_euro_census_ship_pressure_refresh(human)` | `FUN_291f_0a74` → `FUN_4962_0018` after the colony-EOT loop (`:58390`) |
 
 FINISH then **yields** (returns to the frame loop) so every production popup it

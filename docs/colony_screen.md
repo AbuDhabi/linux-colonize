@@ -114,7 +114,7 @@ tab's hammers bar (own block). Production-tab badge ink is white (15), not
   source of truth; completion via
   `colonies_try_complete_unit_construction` (spawns a real unit —
   buildings never spawn, so it's a separate function) driven by
-  `turn_run_colony_unit_construction`. NAMES `@UNIT` cost column is the
+  `turn_colony_unit_construction_one`. NAMES `@UNIT` cost column is the
   Europe purchase price, not the hammers cost.
 - **Hammer bar:** four rows of `need/4` each (remainder on first rows),
   fill left-to-right, stable icon positions (`row_capacity - 1`

@@ -36,9 +36,10 @@ ColonizeColony* g_turn_1528_last_walked_colony = NULL;
  *  - Nation tick: bells/crosses tally, immigrants, ship repair/routing
  */
 
-/* ===================== Colony construction & building completion (turn_run_colony_unit_construction .. turn_colony_free_production) ===================== */
-static void turn_colony_unit_construction_one(ColonizeTurnContext* ctx, ColonizeColony* col) {
-  if (!col->active || col->building_in_production < 0) {
+/* ===================== Colony construction & building completion (turn_colony_unit_construction_one .. turn_colony_free_production) ===================== */
+/* Called from turn_produce_one_colony between Phase K and spoilage. */
+void turn_colony_unit_construction_one(const ColonizeWorld* ctx, ColonizeColony* col) {
+  if (!ctx || !ctx->units || !col->active || col->building_in_production < 0) {
     return;
   }
   const char* name = NULL;
@@ -111,18 +112,6 @@ static void turn_colony_unit_construction_one(ColonizeTurnContext* ctx, Colonize
   }
 }
 
-static void turn_run_colony_unit_construction(ColonizeTurnContext* ctx) {
-  if (!ctx || !ctx->colonies || !ctx->units) {
-    return;
-  }
-  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-    ColonizeColony* col = &ctx->colonies->colonies[i];
-    if (turn_prod_nation_in_scope(col->nation_id)) {
-      turn_colony_unit_construction_one(ctx, col);
-    }
-  }
-}
-
 /*
  * Player-requested: BUY only tops hammers/tools up to the completion
  * threshold — it must NOT complete the project itself (colonies_buy_construction
@@ -131,9 +120,7 @@ static void turn_run_colony_unit_construction(ColonizeTurnContext* ctx) {
  * change this tick" gate — turn_produce_one_colony's own inline complete
  * check only fires when the colony *produces* new hammers that tick, which
  * misses a colony already sitting at/above threshold from a BUY with an
- * idle Carpenter or on a frozen Autumn tick). Sibling to
- * turn_run_colony_unit_construction above — same one-pass-per-turn shape,
- * real buildings instead of units. colonies_try_complete_building's own
+ * idle Carpenter or on a frozen Autumn tick). colonies_try_complete_building's own
  * has_building[] guard makes this safe to also run on a turn where the
  * inline per-colony-production path in turn_produce_one_colony already
  * completed the same project (second call just returns false).
@@ -180,14 +167,12 @@ static void turn_run_colony_building_completion(ColonizeTurnContext* ctx) {
 }
 
 /*
- * The colony end-of-turn trio, in DOS's order (audit CO-10): production,
- * then the two completion sweeps production itself cannot do.
- * turn_run_colony_production has no ColonizeUnitPool access
- * (colonies_try_complete_building never needed one; spawning a unit does),
- * so unit construction is its own pass; and BUY-topped-up (or otherwise
- * carpenter-idle / Autumn-frozen) real buildings sitting at or above the
- * hammer threshold need theirs, because turn_produce_one_colony's inline
- * complete check only fires on a tick that adds new hammers.
+ * The colony end-of-turn pass (audit CO-10): production, which also finishes
+ * unit projects inline (FUN_364b_0688 raw 57771-57774), then the
+ * building-completion sweep: BUY-topped-up (or otherwise carpenter-idle /
+ * Autumn-frozen) real buildings sitting at or above the hammer threshold need
+ * it, because turn_produce_one_colony's inline complete check only fires on a
+ * tick that adds new hammers.
  * The nation scoping (turn_prod_skip_* / turn_prod_only_*) stays at the call
  * sites: TURN_PROC_SETUP runs every AI nation, TURN_PROC_FINISH the human.
  */
@@ -202,7 +187,6 @@ static void turn_run_colony_eot_with(
   turn_run_colony_production_with_w(&pw, ctx->human_nation, out, ctx->ai_popups, ctx->messages, before, before_user);
   g_turn_1528_last_walked_colony = NULL;
   turn_set_birth_units_pool(NULL);
-  turn_run_colony_unit_construction(ctx);
   turn_run_colony_building_completion(ctx);
 }
 
@@ -220,7 +204,7 @@ void turn_colony_free_production(
   ColonizeTurnResult local;
   memset(&local, 0, sizeof(local));
   turn_produce_one_colony(
-    pool, colony, map, NULL, NULL, -1, out ? out : &local, out_delta, NULL, NULL, NULL
+    pool, colony, map, NULL, NULL, -1, out ? out : &local, out_delta, NULL, NULL, NULL, NULL
   );
 }
 
@@ -517,8 +501,8 @@ void turn_run_human_colony_eot(ColonizeTurnContext* ctx, ColonizeTurnResult* out
  * Colony-screen Space cheat (FUN_2f2b_6372 2f2b:6950 -> FUN_364b_0688 on the
  * viewed colony, with the 0648 redraw after it): ONE colony's production tick
  * outside the turn. It is the colony pass of turn_run_colony_eot_with for a
- * single colony: the same bell step, FUN_364b_0688 body and the two completion
- * sweeps, and none of the nation-level steps around the loop (specialty
+ * single colony: the same bell step, FUN_364b_0688 body and the building
+ * completion sweep, and none of the nation-level steps around the loop (specialty
  * census, last-turn bell reset, colony crosses). Pressing it twice produces
  * twice, as in DOS. The caller leaves the colony screen when the colony died.
  */
@@ -550,9 +534,6 @@ void turn_cheat_colony_tick(ColonizeTurnContext* ctx, ColonizeTurnResult* out, i
   );
   g_turn_1528_last_walked_colony = NULL;
   turn_set_birth_units_pool(NULL);
-  if (ctx->units) {
-    turn_colony_unit_construction_one(ctx, col);
-  }
   turn_colony_building_completion_one(ctx, col);
   if (nat && ctx->europe && n == ctx->human_nation) {
     ctx->europe->liberty_bells_pool = nat->liberty_bells_pool;
