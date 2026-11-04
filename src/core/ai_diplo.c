@@ -1453,27 +1453,48 @@ static void ai_talk_unit_to_europe(ColonizeTurnContext* ctx, int unit_id) {
     }
     return;
   }
-  u->x = 200;
-  u->y = 100;
-  u->orders = UNITS_ORDER_NONE;
-  u->goto_x = UNITS_GOTO_NONE;
-  u->goto_y = UNITS_GOTO_NONE;
-  u->moves = 0;
+  /* DOS-LITERAL FUN_5bfb_153e raw 98203-98207 (asm 5bfb:2bfa-2c10):
+   * FUN_281f_0880(unit, n - 0x14, n - 0x14) relinks it as the newest record
+   * on the nation's Europe dock (236+n), then +0x314d/e = the nation's
+   * landfall (-0x77c6/-0x77c5). Orders and MP are left alone. A passenger
+   * leaves its hull first (DOS unlinks it from the hull's tile chain). */
+  if (u->aboard_ship_id >= 0) {
+    (void)units_unboard(ctx->units, unit_id);
+  }
+  const int ox = u->x;
+  const int oy = u->y;
+  u->x = EUROPE_PARK_XY + u->nation_id;
+  u->y = EUROPE_PARK_XY + u->nation_id;
+  if (ctx->col1 && u->nation_id >= 0 && u->nation_id < 4) {
+    u->goto_x = (int)ctx->col1->nation[u->nation_id].return_from_europe_x;
+    u->goto_y = (int)ctx->col1->nation[u->nation_id].return_from_europe_y;
+  }
+  units_tile_stack_arrive(ctx->units, unit_id);
+  units_occupancy_notify_placed(ctx->units, ox, oy, u->x, u->y);
 }
 
-/* raw :98001-98032 / :98328-98358: military land units of `who` adjacent to
- * a colony of `near` are sent to Europe. Returns the count moved. */
-static int ai_talk_withdraw(ColonizeTurnContext* ctx, int who, int near_nation) {
+/* Land units of `who` adjacent to a colony of `near` go to Europe. Returns
+ * the count moved. FUN_5bfb_153e has two such loops:
+ *   SIEGES  raw 97857-97884 (human units): only attack byte > 1 (raw 97862);
+ *   peace-menu withdraw raw 98181-98212 (AI units, asm 5bfb:2c17-2c40): any
+ *   non-ship type, no attack test (`armed_only` = 0).
+ * Both gate on FUN_281f_0302 (on-map) at the unit's own x/y; a passenger
+ * shares its hull's tile in DOS, so it passes in both loops (neither tests
+ * the chain). */
+static int ai_talk_withdraw(ColonizeTurnContext* ctx, int who, int near_nation, int armed_only) {
   int moved = 0;
   /* Slot walk, `u->id` to units_is_sea — see ai_diplo_wake_border_garrisons. */
   for (int i = 0; i < units_slot_end(ctx->units); ++i) {
     const ColonizeUnit* u = &ctx->units->units[i];
-    if (!u->active || u->nation_id != who || u->aboard_ship_id >= 0 || u->x >= 200 ||
-        units_is_sea(ctx->units, u->id)) {
+    if (!u->active || u->nation_id != who || units_is_sea(ctx->units, u->id)) {
+      continue;
+    }
+    /* A passenger's x/y mirror its hull's (units_move.c), as in DOS. */
+    if (u->x >= 200 || u->y >= 200) {
       continue;
     }
     const ColonizeUnitType* t = units_type(ctx->units, u->type_index);
-    if (!t || t->attack <= 1) {
+    if (!t || (armed_only && t->attack <= 1)) {
       continue;
     }
     int adjacent = 0;
@@ -2156,7 +2177,7 @@ static void ai_talk_resume(ColonizeTurnContext* ctx, int stage, int choice) {
         }
         k->sieges_paid = 1;
         k->worthy = 0;
-        (void)ai_talk_withdraw(ctx, h, t);
+        (void)ai_talk_withdraw(ctx, h, t, 1);
       }
       break;
     case AI_TALK_ST_TRIBUTE:
@@ -2265,7 +2286,7 @@ static void ai_talk_resume(ColonizeTurnContext* ctx, int stage, int choice) {
           }
         } else {
           ai_talk_ok(ctx, "WITHDRAW", &tok);
-          (void)ai_talk_withdraw(ctx, t, h);
+          (void)ai_talk_withdraw(ctx, t, h, 0);
         }
       } else if (choice == 3) {
         /* tribute demand by the human (raw :98360-98395) */
@@ -2305,7 +2326,7 @@ static void ai_talk_resume(ColonizeTurnContext* ctx, int stage, int choice) {
     case AI_TALK_ST_WITHDRAW:
       if (choice == 1) {
         ai_talk_gold(ctx, h, t, k->withdraw_cost);
-        (void)ai_talk_withdraw(ctx, t, h);
+        (void)ai_talk_withdraw(ctx, t, h, 0);
       } else if (choice == 2) {
         int span = (int)col1->stuff.field_combat_totals[t] + (int)col1->stuff.field_combat_totals[h];
         if (k->at_war) {
@@ -2316,7 +2337,7 @@ static void ai_talk_resume(ColonizeTurnContext* ctx, int stage, int choice) {
          * (Was inverted here before 2026-09-06.) */
         if (ai_talk_rng(ctx, 0, span) <= (int)col1->stuff.field_combat_totals[h]) {
           ai_talk_ok(ctx, "WITHDRAW", &tok);
-          (void)ai_talk_withdraw(ctx, t, h);
+          (void)ai_talk_withdraw(ctx, t, h, 0);
         } else {
           ai_talk_ok(ctx, "WARMANLY", &tok);
           ai_diplo_clear_both(col1, h, t, AI_DIPLO_PEACE);
@@ -3162,6 +3183,20 @@ COLONIZE_INTERNAL void ai_diplo_153e_test_peacemenu(
   s_talk.want_cargo = -1;
   s_talk.stage = AI_TALK_ST_PEACEMENU;
   ai_talk_resume(ctx, AI_TALK_ST_PEACEMENU, choice);
+}
+
+COLONIZE_INTERNAL void ai_diplo_153e_test_sieges(
+  ColonizeTurnContext* ctx, int human, int target, int choice
+) {
+  memset(&s_talk.self, 0, sizeof(s_talk) - offsetof(Ai153eTalk, self));
+  s_talk.active = 1;
+  s_talk.self = human;
+  s_talk.target = target;
+  s_talk.third = -1;
+  s_talk.ally_pick = -1;
+  s_talk.want_cargo = -1;
+  s_talk.stage = AI_TALK_ST_SIEGES;
+  ai_talk_resume(ctx, AI_TALK_ST_SIEGES, choice);
 }
 
 void ai_diplo_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState* popup) {

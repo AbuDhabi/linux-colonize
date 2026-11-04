@@ -19,6 +19,7 @@
 #include "core/colony.h"
 #include "core/dos_buggy.h"
 #include "core/dos_rng.h"
+#include "core/europe.h"
 #include "core/founding_fathers.h"
 #include "core/map.h"
 #include "core/popup_msg.h"
@@ -1974,6 +1975,169 @@ static int case_153e_peacemenu_withdraw_dominance(void) {
   return rc;
 }
 
+/* Shared setup for the 153e withdraw loops: a 16x16 map, Colonist (attack
+ * 0) / Soldier (attack 2) / Caravel types, and one colony of
+ * `colony_nation` at 5,5. */
+typedef struct {
+  ColonizeWorldMap map;
+  ColonizeUnitPool units;
+  ColonizeColonyPool cols;
+  ColonizeCol1Save col1;
+  AiPopupState pop;
+  ColonizeDosRng rng;
+  ColonizeTurnContext ctx;
+} WithdrawFx;
+
+static int withdraw_fx_init(WithdrawFx* fx, int colony_nation) {
+  memset(fx, 0, sizeof(*fx));
+  if (!fx_map_alloc(&fx->map, 16, 16, 0, false)) {
+    return 0;
+  }
+  units_reset(&fx->units);
+  units_set_occupancy_map(NULL);
+  fx->units.type_count = 3;
+  static const struct {
+    const char* name;
+    int movement, attack, space, cargo, domain;
+  } k_types[3] = {
+    {"Colonist", 1, 0, 1, 0, COLONIZE_UNIT_DOMAIN_LAND},
+    {"Soldier", 1, 2, 1, 0, COLONIZE_UNIT_DOMAIN_LAND},
+    {"Caravel", 4, 0, 99, 2, COLONIZE_UNIT_DOMAIN_SEA},
+  };
+  for (int i = 0; i < 3; ++i) {
+    ColonizeUnitType* t = &fx->units.types[i];
+    snprintf(t->name, sizeof(t->name), "%s", k_types[i].name);
+    t->movement = k_types[i].movement;
+    t->attack = k_types[i].attack;
+    t->defense = 2;
+    t->space = k_types[i].space;
+    t->cargo = k_types[i].cargo;
+    t->domain = k_types[i].domain;
+  }
+  colonies_init(&fx->cols);
+  colonies_set_occupancy_map(NULL);
+  ColonizeColony* c = &fx->cols.colonies[0];
+  c->id = 0;
+  c->active = true;
+  c->nation_id = colony_nation;
+  c->x = 5;
+  c->y = 5;
+  c->population = 1;
+  c->colonist_count = 1;
+  c->building_in_production = -1;
+  fx->cols.colony_count = 1;
+  fx->cols.next_id = 1;
+  col1_save_init(&fx->col1);
+  memset(fx->col1.nation, 0, sizeof(fx->col1.nation));
+  fx->col1.head.turn = 100;
+  fx->col1.head.difficulty = 1;
+  fx->col1.head.human_player = 0;
+  ai_popup_init(&fx->pop);
+  dos_rng_seed(&fx->rng, 7);
+  fx->ctx.messages = test_game_txt();
+  fx->ctx.col1 = &fx->col1;
+  fx->ctx.col1_ok = true;
+  fx->ctx.map = &fx->map;
+  fx->ctx.units = &fx->units;
+  fx->ctx.colonies = &fx->cols;
+  fx->ctx.human_nation = 0;
+  fx->ctx.ai_popups = &fx->pop;
+  fx->ctx.rng = &fx->rng;
+  return 1;
+}
+
+static int withdraw_fx_spawn(WithdrawFx* fx, int type, int x, int y, int nation, int stack) {
+  const int id = stack ? units_spawn_allow_stack(&fx->units, type, x, y)
+                       : units_spawn(&fx->units, type, x, y);
+  ColonizeUnit* u = units_get(&fx->units, id);
+  if (u) {
+    u->nation_id = nation;
+  }
+  return id;
+}
+
+/*
+ * FUN_5bfb_153e raw 98181-98212 (asm 5bfb:2c17-2c40), the free peace-menu
+ * @WITHDRAW: every non-ship AI unit next to a human colony goes, attack byte
+ * or not, a passenger included (raw 98190 tests its own x/y, which is its
+ * hull's). Each lands on the nation's Europe dock (236+n, FUN_281f_0880 raw
+ * 98203) with goto = the nation's landfall (raw 98204-98207); orders stay.
+ */
+static int case_153e_peacemenu_withdraw_all_land(void) {
+  static WithdrawFx fx;
+  if (!withdraw_fx_init(&fx, 0)) {
+    return fail("withdraw all: alloc map");
+  }
+  fx.col1.nation[1].return_from_europe_x = 33;
+  fx.col1.nation[1].return_from_europe_y = 44;
+  const int dock = EUROPE_PARK_XY + 1;
+  const int cid = withdraw_fx_spawn(&fx, 0, 5, 6, 1, 0);  /* unarmed, adjacent */
+  const int fid = withdraw_fx_spawn(&fx, 1, 12, 12, 1, 0); /* armed, far away */
+  const int shid = withdraw_fx_spawn(&fx, 2, 6, 4, 1, 0);  /* hull, adjacent */
+  const int pid = withdraw_fx_spawn(&fx, 0, 6, 4, 1, 1);   /* unarmed passenger */
+  units_get(&fx.units, cid)->orders = UNITS_ORDER_FORTIFY;
+  int rc = 0;
+  if (!units_board_stacked_restore(&fx.units, pid, shid)) {
+    rc = fail("withdraw all: board the passenger");
+  }
+  if (rc == 0) {
+    ai_diplo_153e_test_peacemenu(&fx.ctx, 0, 1, 2, 0, 0, 2);
+    const ColonizeUnit* c = units_get_const(&fx.units, cid);
+    const ColonizeUnit* f = units_get_const(&fx.units, fid);
+    const ColonizeUnit* sh = units_get_const(&fx.units, shid);
+    const ColonizeUnit* p = units_get_const(&fx.units, pid);
+    if (c->x != dock || c->y != dock || c->goto_x != 33 || c->goto_y != 44) {
+      fprintf(stderr, "  colonist at %d,%d goto %d,%d\n", c->x, c->y, c->goto_x, c->goto_y);
+      rc = fail("an unarmed AI unit goes to its Europe dock (236+n), goto = landfall");
+    } else if (c->orders != UNITS_ORDER_FORTIFY) {
+      rc = fail("DOS leaves the unit's orders (+0x314c) alone");
+    } else if (p->aboard_ship_id >= 0 || p->x != dock || sh->cargo_count != 0) {
+      rc = fail("a passenger next to the colony leaves its hull for the dock");
+    } else if (sh->x != 6 || sh->y != 4 || f->x != 12) {
+      rc = fail("hulls and units away from the colony stay");
+    }
+  }
+  ai_diplo_talk_reset();
+  fx_map_free(&fx.map);
+  return rc;
+}
+
+/*
+ * FUN_5bfb_153e @SIEGES paid (raw 97857-97884): every human unit with attack
+ * byte > 1 (raw 97862), not a ship, whose own tile (a passenger's is its
+ * hull's) borders the AI colony goes to Europe. There is no chain test, so
+ * an armed passenger goes too; an unarmed one stays.
+ */
+static int case_153e_sieges_takes_passengers(void) {
+  static WithdrawFx fx;
+  if (!withdraw_fx_init(&fx, 1)) {
+    return fail("sieges: alloc map");
+  }
+  const int shid = withdraw_fx_spawn(&fx, 2, 6, 4, 0, 0); /* human hull beside the colony */
+  const int pid = withdraw_fx_spawn(&fx, 1, 6, 4, 0, 1);  /* armed passenger */
+  const int cid = withdraw_fx_spawn(&fx, 0, 6, 4, 0, 1);  /* unarmed passenger */
+  int rc = 0;
+  if (!units_board_stacked_restore(&fx.units, pid, shid) ||
+      !units_board_stacked_restore(&fx.units, cid, shid)) {
+    rc = fail("sieges: board the passengers");
+  }
+  if (rc == 0) {
+    ai_diplo_153e_test_sieges(&fx.ctx, 0, 1, 2);
+    const ColonizeUnit* p = units_get_const(&fx.units, pid);
+    const ColonizeUnit* c = units_get_const(&fx.units, cid);
+    const ColonizeUnit* sh = units_get_const(&fx.units, shid);
+    /* ctx.europe is NULL, so the human unit takes the 236+n park too. */
+    if (!p || p->aboard_ship_id >= 0 || p->x != EUROPE_PARK_XY) {
+      rc = fail("sieges: an armed human passenger beside the colony goes to Europe");
+    } else if (!c || c->aboard_ship_id != shid || !sh || sh->cargo_count != 1 || sh->x != 6) {
+      rc = fail("sieges: the unarmed passenger and the hull stay");
+    }
+  }
+  ai_diplo_talk_reset();
+  fx_map_free(&fx.map);
+  return rc;
+}
+
 /*
  * FUN_2b5a_1112 raw 42410-42413: fortify Break Treaty ORs WAR into the
  * partner's byte (unconditionally), clears PEACE both ways and touches
@@ -2023,6 +2187,8 @@ static const TestCase k_cases[] = {
     {"case_00f8_score_wraps_16bit", case_00f8_score_wraps_16bit},
     {"case_2b5a_1112_fortify_break_treaty", case_2b5a_1112_fortify_break_treaty},
     {"case_153e_peacemenu_withdraw_dominance", case_153e_peacemenu_withdraw_dominance},
+    {"case_153e_peacemenu_withdraw_all_land", case_153e_peacemenu_withdraw_all_land},
+    {"case_153e_sieges_takes_passengers", case_153e_sieges_takes_passengers},
     {"case_relation_writes_preserve_player_bytes", case_relation_writes_preserve_player_bytes},
     {"case_153e_talk_tokens_474", case_153e_talk_tokens_474},
     {"case_declare_peace_narrative", case_declare_peace_narrative},
