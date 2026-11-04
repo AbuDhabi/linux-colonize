@@ -281,24 +281,26 @@ Full opaque-field inventory: **[save_format_map.md](save_format_map.md)**.
   at the very next tick" (the new-game fleet, `FUN_75c2_235c` raw
   121612-121646, starts there with counter 0), `240+n` = one hop short of
   Europe. Port mapping:
-  `236+n` harbor, `228+n` Bound (`goto` = landfall), `244+n` Expected
-  (`goto` = exit tile; `240+n` counter 0 for a hull that docks at the next
-  tick); unit `+0x16` (`col1_counter16`) = the lane counter, which
-  FUN_48d3_03d0 (raw 77761-77782) decrements before its hop test, so an
-  Expected hull on `244+n` with counter c docks after max(c,1)+1 ticks and
-  the import sets that; passengers chained `pax0→…→ship` with the same x/y/goto/turns,
-  `orders=1`; Treasure `profession` = gold/100. Capture writes all three
-  lanes that way (harbor passengers are already dock immigrants with their
-  `(236,236)` mirror units, so only Expected/Bound carry cargo);
-  `return_from_europe_x/y` ← `last_exit`. Apply classifies human ships by
-  lane: `244+n` → Expected, `240+n` → Expected docking at the next tick
-  (turns 0; FUN_48d3_06ba hops it to `236+n` at raw 77979), `228+n` → Bound
-  (counter 0 kept verbatim there — it means "arrives next tick"); each
-  lane's hulls in its chain order, tail (oldest) first, `240+n` before
-  `244+n`; with chained passengers kept
-  aboard as `cargo_types`/`cargo_professions`; anything else at Europe
-  coords stays the old harbor path (passengers to the docks, matching the
-  OpenCol arrival model). Guarded by `unit_col1_save`'s recapture block
+  `236+n` harbor, `232+n` Bound (`goto` = landfall; `228+n` for a hull that
+  lands at the next tick, counter 1, or counter 0 for turns 0), `244+n`
+  Expected (`goto` = exit tile; `240+n` counter 0 for a hull that docks at
+  the next tick); unit `+0x16` (`col1_counter16`) = the lane counter, which
+  FUN_48d3_03d0 (raw 77761-77782) decrements before its hop test, so a hull
+  on a far lane (`244+n` or `232+n`) with counter c arrives after
+  max(c,1)+1 ticks and the import sets that; passengers chained
+  `pax0→…→ship` with the same x/y/goto/turns, `orders=1`; Treasure
+  `profession` = gold/100. Capture writes all three lanes that way (harbor
+  passengers are already dock immigrants with their `(236,236)` mirror
+  units, so only Expected/Bound carry cargo); `return_from_europe_x/y` ←
+  `last_exit`. Apply classifies human ships by lane: `244+n` → Expected,
+  `240+n` → Expected docking at the next tick (turns 0; FUN_48d3_06ba hops
+  it to `236+n` at raw 77979), `232+n` → Bound (turns max(c,1)+1; raw 77966
+  hops it to `228+n`, raw 77965 lands it), `228+n` → Bound (counter kept
+  verbatim there — 0 means "arrives next tick"). Each lane's hulls load in
+  its chain order, tail (oldest) first, `240+n` before `244+n`, with
+  chained passengers kept aboard as `cargo_types`/`cargo_professions`;
+  anything else at Europe coords stays the old harbor path (passengers to
+  the docks, matching the OpenCol arrival model). Guarded by `unit_col1_save`'s recapture block
   (colony/unit counts survive apply→capture on all 19 fixtures; COLONY04
   Expected lane, COLONY06 harbor + synthetic Bound round-trip). User-verified
   in DOS: a ship at sea in an OpenCol-written save arrives.

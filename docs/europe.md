@@ -60,6 +60,8 @@ its dock tick through a col1 save: the export writes the tick on which
 europe_tick_voyages would dock it as the DOS lane that docks on the same
 FUN_48d3_06ba pass (240+n counter 0 for the next pass, else 244+n counter
 ticks-1), and the import reads a 244+n counter c back as max(c,1)+1.
+A Bound ship likewise: 228+n counter 1 for a landing after the next tick
+(counter 0 for turns 0), else 232+n counter ticks-1, read back the same way.
 
 ## EuropeHarborShip trade_route_plus1
 
