@@ -311,15 +311,28 @@ int ai_native_step_first_contact(
      * (25,6) faces both French Dragoons at (25,7) and (24,7). The !bVar6
      * fall-out is the LAB_5bfb_0def else-limb: @INDIANCOMMENT to a human,
      * then the home village's attitude word toward e is cleared.
-     * The open-field Wagon Train head still only closes e here; its
-     * @INDIANWAGONS arm is not wired on this path yet.
+     *
+     * With a Wagon Train as the tile HEAD (raw 96687/96696: FUN_281f_07e0,
+     * type byte 0x0c, not the lowest slot) and no colony, a !bVar6 visit
+     * whose contact_state != 2 takes the @INDIANWAGONS arm (raw 96830,
+     * 96933-96976) and returns 1, closing e. A generous visit with no colony
+     * returns 0 (raw 96989) and leaves e open, wagon or not; contact_state
+     * == 2 takes the same word-zero else-limb (raw 96978-96987).
      */
     if (!colony_here) {
-      if (o && o->type_index == 0x0c) {
+      ColonizeUnit* wag =
+        (o && o->nation_id == e && units_type_is_wagon(units_type(units, o->type_index))) ? o : NULL;
+      const int wagon = mood == 1 && wag && ind->contact_state[e] != 2
+                          ? ai_contact_try_wagon_reparations(s_ai_native_ctx, nation_id, e, u, wag)
+                          : 0;
+      if (wagon > 0) {
         done[e] = 1;
+        resolved = 1;
         continue;
       }
-      if (mood == 1) {
+      /* -1: an earlier demand on e still waits for the human's answer; DOS
+       * would have resolved this one, never taken the @INDIANCOMMENT limb. */
+      if (mood == 1 && wagon == 0) {
         ai_contact_indian_comment(s_ai_native_ctx, nation_id, e, u);
       }
       continue;

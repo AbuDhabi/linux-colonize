@@ -1875,6 +1875,208 @@ static int run_pinned_colony_skips_open_field_wagon(void) {
 }
 
 /*
+ * @INDIANWAGONS in the open. FUN_5bfb_3180 -> FUN_5bfb_022e: a Brave steps
+ * next to a tile whose HEAD (FUN_281f_07e0, raw 96696) is an AI Wagon Train
+ * with no colony; a !bVar6 visit (contact_state 1 forces local_10, so bVar6
+ * is false whatever the 1..0x148 roll) takes the wagon arm (raw
+ * 96933-96976): the AI hands hold 0 over, the village word goes to 0 and the
+ * alarm falls by price*qty*4/100. A Soldier sits in the lower slot of the
+ * same tile. Second half: a generous visit with no colony returns 0 (raw
+ * 96989), so 3180 keeps scanning the same nation and turns the next tile's
+ * head (raw 98651).
+ */
+static int run_wagon_reparations_open_field(void) {
+  if (!test_names_txt()) {
+    return TR_SKIP;
+  }
+  for (int half = 0; half < 2; ++half) {
+    Ai152eFixture f;
+    if (ai_152e_fixture_init(&f, "wagon-open-field", 777u) != 0) {
+      return 1;
+    }
+    ai_contact_reset();
+    const int brave_ti = units_find_type(&f.units, "Brave");
+    const int wagon_ti = units_find_type(&f.units, "Wagon Train");
+    const int soldier_ti = units_find_type(&f.units, "Soldier");
+    const int bid = brave_ti >= 0 ? units_spawn_allow_stack(&f.units, brave_ti, 13, 10) : -1;
+    /* Generous half: no soldier under the wagon. */
+    const int sx = half == 0 ? 14 : 2;
+    const int sid =
+      soldier_ti >= 0 ? units_spawn_allow_stack(&f.units, soldier_ti, sx, sx == 2 ? 2 : 10) : -1;
+    const int wid = wagon_ti >= 0 ? units_spawn_allow_stack(&f.units, wagon_ti, 14, 10) : -1;
+    const int oid = soldier_ti >= 0 ? units_spawn_allow_stack(&f.units, soldier_ti, 12, 10) : -1;
+    ColonizeUnit* brave = units_get(&f.units, bid);
+    ColonizeUnit* sol = units_get(&f.units, sid);
+    ColonizeUnit* wag = units_get(&f.units, wid);
+    ColonizeUnit* other = units_get(&f.units, oid);
+    if (!brave || !sol || !wag || !other || sid > wid) {
+      fprintf(stderr, "wagon-open-field: spawn failed\n");
+      ai_152e_fixture_free(&f);
+      return 1;
+    }
+    brave->nation_id = 4;
+    brave->home_tribe_index = 0;
+    brave->col1_flags15 = 0;
+    sol->nation_id = wag->nation_id = other->nation_id = 1; /* AI (human is 0) */
+    sol->tile_stack_order = 1;
+    wag->tile_stack_order = 2; /* the wagon heads the tile; the soldier holds the lower slot */
+    other->last_dir = -1;
+    wag->hold_goods_type[0] = 3;
+    wag->hold_goods_amount[0] = 100;
+    f.col1.nation[1].trade.euro_price[3] = 11; /* price byte 10 */
+    f.col1.indian[0].euro_diplo[1] = (uint8_t)COL1_INDIAN_MET_BIT;
+    f.col1.indian[0].alarm_by_player[1] = 20;
+    f.col1.indian[0].contact_state[1] = half == 0 ? 1 : 0; /* 1: demand; 0 + word 0: generous */
+    col1_tribe_attitude_set(&f.tribes[0], 1, half == 0 ? 5 : 0);
+
+    ai_s_native_colonies = &f.colonies;
+    ai_native_bind_step_ctx(&f.ctx);
+    brave->moves = 0;
+    const int resolved = ai_native_step_first_contact(&f.units, &f.map, &f.col1, brave, 4);
+    ai_native_bind_step_ctx(NULL);
+    ai_s_native_colonies = NULL;
+
+    /* LAB_5bfb_1005 (raw 97094-97095) exhausts the Brave on every resolved
+     * 022e; the generous no-colony visit returns 0. */
+    const int exhausted = brave->moves != 0;
+    const int hold = wag->hold_goods_amount[0];
+    const int word = col1_tribe_attitude(&f.tribes[0], 1);
+    const int alarm = f.col1.indian[0].alarm_by_player[1];
+    const int next_dir = other->last_dir;
+    ai_contact_reset();
+    ai_152e_fixture_free(&f);
+    fprintf(stderr,
+            "wagon-open-field: half %d resolved %d exhausted %d hold %d word %d alarm %d next dir "
+            "%d\n",
+            half, resolved, exhausted, hold, word, alarm, next_dir);
+    const int ok = half == 0
+                     ? resolved == 1 && exhausted && hold == 0 && word == 0 && alarm < 20
+                     : resolved == 0 && !exhausted && hold == 100 && next_dir == 6;
+    if (!ok) {
+      return 1;
+    }
+  }
+  return 0;
+}
+
+/*
+ * FUN_5bfb_022e's wagon arm (raw 96933-96976) always resolves. While the
+ * port's pending-offer slot for the human is busy the demand cannot be
+ * queued; the visit must not fall into the @INDIANCOMMENT else-limb (raw
+ * 96978-96987), which zeroes the village word.
+ */
+static int run_wagon_demand_busy_slot_no_comment(void) {
+  if (!test_names_txt()) {
+    return TR_SKIP;
+  }
+  Ai152eFixture f;
+  ColonizeUnit* brave = NULL;
+  ColonizeUnit* wag = NULL;
+  if (wagon_visit_fixture(&f, "wagon-busy-slot", 0, &brave, &wag) != 0) {
+    return 1;
+  }
+  f.col1.indian[0].contact_state[0] = 1; /* local_10: never generous */
+  ai_contact_s_reparations[0].active = 1;
+  ai_contact_s_reparations[0].nation_id = 4;
+
+  ai_s_native_colonies = &f.colonies;
+  ai_native_bind_step_ctx(&f.ctx);
+  const int resolved = ai_native_step_first_contact(&f.units, &f.map, &f.col1, brave, 4);
+  ai_native_bind_step_ctx(NULL);
+  ai_s_native_colonies = NULL;
+
+  const int word = col1_tribe_attitude(&f.tribes[0], 0);
+  const int hold = wag->hold_goods_amount[0];
+  ai_contact_reset();
+  ai_152e_fixture_free(&f);
+  fprintf(stderr, "wagon-busy-slot: resolved %d word %d hold %d (want 0 5 100)\n", resolved, word,
+          hold);
+  return (resolved == 0 && word == 5 && hold == 100) ? 0 : 1;
+}
+
+/*
+ * contact_state 2 (the latched generous visit) never takes the wagon arm: a
+ * !bVar6 visit takes the @INDIANCOMMENT else-limb (FUN_5bfb_022e raw
+ * 96978-96987), which clears the village word, and the wagon keeps its hold.
+ * Word 0x7f with alarm 20 makes roughly a third of the seeds non-generous.
+ */
+static int run_wagon_state2_takes_comment(void) {
+  if (!test_names_txt()) {
+    return TR_SKIP;
+  }
+  int strict = 0;
+  int bad = 0;
+  for (uint32_t k = 1; k <= 32; ++k) {
+    Ai152eFixture f;
+    ColonizeUnit* brave = NULL;
+    ColonizeUnit* wag = NULL;
+    if (wagon_visit_fixture(&f, "wagon-state2", 1, &brave, &wag) != 0) {
+      return 1;
+    }
+    dos_rng_seed(&f.rng, k * 7919u);
+    f.col1.indian[0].contact_state[1] = 2;
+    col1_tribe_attitude_set(&f.tribes[0], 1, 0x7f);
+    ai_s_native_colonies = &f.colonies;
+    ai_native_bind_step_ctx(&f.ctx);
+    const int resolved = ai_native_step_first_contact(&f.units, &f.map, &f.col1, brave, 4);
+    ai_native_bind_step_ctx(NULL);
+    ai_s_native_colonies = NULL;
+    const AiContactVisitMood* m = ai_contact_visit_mood_this_turn(&f.ctx, 4, 1);
+    if (m && !m->generous_visit) {
+      strict++;
+      bad += resolved != 0 || wag->hold_goods_amount[0] != 100 ||
+             col1_tribe_attitude(&f.tribes[0], 1) != 0;
+    }
+    ai_contact_reset();
+    ai_152e_fixture_free(&f);
+  }
+  fprintf(stderr, "wagon-state2: %d non-generous visits, %d took the wagon arm or kept the word\n",
+          strict, bad);
+  return (strict > 0 && bad == 0) ? 0 : 1;
+}
+
+/*
+ * A resolved wagon demand closes e for the rest of the 3180 scan
+ * (aiStack_20[e], raw 98649). A second loaded Wagon Train of e at (12,10),
+ * met later in the direction loop, keeps its hold.
+ */
+static int run_wagon_demand_closes_nation(void) {
+  if (!test_names_txt()) {
+    return TR_SKIP;
+  }
+  Ai152eFixture f;
+  ColonizeUnit* brave = NULL;
+  ColonizeUnit* wag = NULL;
+  if (wagon_visit_fixture(&f, "wagon-closes-nation", 1, &brave, &wag) != 0) {
+    return 1;
+  }
+  ColonizeUnit* wag2 = units_get(
+    &f.units, units_spawn_allow_stack(&f.units, units_find_type(&f.units, "Wagon Train"), 12, 10)
+  );
+  if (!wag2) {
+    fprintf(stderr, "wagon-closes-nation: spawn failed\n");
+    ai_152e_fixture_free(&f);
+    return 1;
+  }
+  wag2->nation_id = 1;
+  wag2->hold_goods_type[0] = 3;
+  wag2->hold_goods_amount[0] = 100;
+  f.col1.indian[0].contact_state[1] = 1; /* local_10: never generous */
+  ai_s_native_colonies = &f.colonies;
+  ai_native_bind_step_ctx(&f.ctx);
+  const int resolved = ai_native_step_first_contact(&f.units, &f.map, &f.col1, brave, 4);
+  ai_native_bind_step_ctx(NULL);
+  ai_s_native_colonies = NULL;
+  const int hold1 = wag->hold_goods_amount[0];
+  const int hold2 = wag2->hold_goods_amount[0];
+  ai_contact_reset();
+  ai_152e_fixture_free(&f);
+  fprintf(stderr, "wagon-closes-nation: resolved %d holds %d %d (want 1 0 100)\n", resolved, hold1,
+          hold2);
+  return (resolved == 1 && hold1 == 0 && hold2 == 100) ? 0 : 1;
+}
+
+/*
  * The wagon arm (FUN_5bfb_022e raw 96933-96976) has no mood gate of its own:
  * it sits inside LAB_5bfb_0def, which only a !bVar6 visit reaches (raw
  * 96828), so the test is its callers'. Called directly on a generous record,
@@ -2748,5 +2950,9 @@ static const TestCase k_cases[] = {
     {"run_step_visit_serves_encounter_colony", run_step_visit_serves_encounter_colony},
     {"run_pinned_colony_skips_open_field_wagon", run_pinned_colony_skips_open_field_wagon},
     {"run_refused_beg_demands_begged_colony", run_refused_beg_demands_begged_colony},
+    {"run_wagon_reparations_open_field", run_wagon_reparations_open_field},
+    {"run_wagon_demand_busy_slot_no_comment", run_wagon_demand_busy_slot_no_comment},
+    {"run_wagon_state2_takes_comment", run_wagon_state2_takes_comment},
+    {"run_wagon_demand_closes_nation", run_wagon_demand_closes_nation},
 };
 TEST_MAIN(k_cases)
