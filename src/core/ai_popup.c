@@ -291,6 +291,20 @@ bool ai_popup_enqueue_ok_ctx(
   ai_popup_fill_base(&req, AI_POPUP_KIND_OK, tag, nation_a, nation_b, payload, title, body);
   /* DOS info wood: no choice rows in GAME.TXT — click/key dismisses. */
   req.choice_count = 0;
+  /* A missing TXT section shows nothing in DOS (FUN_7314_001a returns 1 at
+   * EOF, so no box is drawn; docs/popups.md "Missing sections show
+   * nothing"), so an OK with no text at all is dropped instead of opening an
+   * empty frame. The tags whose presentation or dismissal drives the game on
+   * (war end, throne audience, Congress announce, the @INDEPENDENCE letter
+   * that arms the declaration cinematic) still queue. */
+  if (!req.body[0] && !req.title[0] && tag != AI_POPUP_TAG_KING_WAR_END &&
+      tag != AI_POPUP_TAG_KING_THRONE && tag != AI_POPUP_TAG_FF_CONGRESS &&
+      tag != AI_POPUP_TAG_KING_LETTER) {
+    if (st) {
+      st->last_enqueue_ok = false;
+    }
+    return false;
+  }
   return ai_popup_enqueue(st, &req);
 }
 

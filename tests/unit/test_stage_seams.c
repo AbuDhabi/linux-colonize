@@ -32,6 +32,7 @@
 
 #define TEST_NAME "unit_stage_seams"
 #include "../common/test_fail.h"
+#include "../common/test_catalogs.h"
 
 /* dos_buggy_behavior: off at load (the opencol state); the test-binary
  * constructor (test_name_kinds.c, default priority, runs after this one) turns
@@ -799,6 +800,9 @@ static int ship_bumps_foreign_colony_case(bool garrison) {
   game.human_nation = 0;
   game.col1_ok = true;
   ai_popup_clear(&game.ai_popups);
+  if (test_game_txt()) { /* textless OKs are dropped (shallow copy, never freed here) */
+    game.messages = *test_game_txt();
+  }
 
   fx_units_init(&game.units);
   game.units_ok = true;
@@ -1413,6 +1417,9 @@ static int test_colony_shift_pick_moves_highlight(void) {
  * Carpenter's Shop of nation 1's colony 0. False on a fixture load failure. */
 static bool jobs_menu_fixture(ColonizeGameState* game, ColonizeMsgCatalog* names) {
   memset(game, 0, sizeof(*game));
+  if (test_game_txt()) { /* textless OKs are dropped (shallow copy, never freed here) */
+    game->messages = *test_game_txt();
+  }
   assets_msg_init(names);
   if (!assets_msg_load_file(names, "COLONIZE/NAMES.TXT")) {
     return false;
@@ -2879,6 +2886,9 @@ static int unload_all_boycott_notices(int boycotted_cargo) {
   }
   game->europe_ok = true;
   game->human_nation = 0;
+  if (test_game_txt()) { /* @SOMEBOYCOTT needs its text to queue */
+    game->messages = *test_game_txt();
+  }
   game->col1.nation[0].boycott_bitmap = (uint16_t)(1u << boycotted_cargo);
   EuropeScreen* eu = &game->europe;
   eu->harbor_ships = 1;
