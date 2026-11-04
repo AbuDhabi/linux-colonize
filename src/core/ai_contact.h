@@ -108,55 +108,11 @@ int ai_contact_continent_presence_4962(const ColonizeTurnContext* ctx, int natio
 int ai_contact_continent_war_count_a89c(const ColonizeTurnContext* ctx, int nation_id);
 
 /*
- * The single port of FUN_4962_0018's land-combat accumulators — Σ
- * FUN_281f_09c8(u, 1) over a nation's land units, recomputed live because the
- * port keeps no mirror of the census tables:
- *
- *   continent < 0, exposed_only 0 : the per-nation word (raw 78218-78220,
- *                                   `*(int *)(param_1 * 2 + -0x6be4) +=
- *                                   FUN_281f_09c8(u, 1)`) — no continent gate,
- *                                   so embarked units count
- *   continent >= 0, exposed_only 0: the same sum restricted to one continent
- *   continent >= 0, exposed_only 1: -0x6a4e (DS:0x95b2)
- *                                   field_combat_strength_by_continent, i.e.
- *                                   the continent row under DOS's own garrison
- *                                   gate (4962:022f-026e, raw 78222-78231):
- *
- *     settlement = FUN_281f_06be(u.x, u.y)
- *     if (settlement >= 0) {
- *       if (nation < 4 && control[nation] == 0) skip;   // human never counts
- *       if (ai_plan == 'A' || ai_plan == 'G') skip;     // garrison assignment
- *     }
- *     accumulate
- *
- * The gate byte is +0x314b = `ai_plan`, the goal letter FUN_521d_0a60 stamps
- * 'A' on a garrison assignment and ages to 'G' — NOT the orders byte at
- * +0x314c (which the same DOS function reads 5/6 from, for the separate
- * 0x9456 fortified tally). Embarked units stay out of every per-continent row:
- * DOS parks passengers off-map at (−2,−2), where FUN_281f_081c reports no
- * continent.
- *
- * `cap` is the byte/word saturation of the table being reproduced (255 for the
- * byte rows, 0xffff for the per-nation word). Shared by
- * ai_contact_colony_tick_war_5952 / the Demand-Tribute roll here and by
- * ai_diplo's FUN_5bfb_153e worthiness loop, which carried its own copy of the
- * exposed row until 2026-09-10 (audit #15). The per-nation twin of the same
- * gate is in col1_stuff_census.c, which fills the 0x942c byte at save time.
- */
-int ai_contact_land_combat_sum(
-  const ColonizeTurnContext* ctx,
-  int nation,
-  int continent,
-  int exposed_only,
-  int cap
-);
-
-/*
- * The 0x942c field/exposed garrison gate of FUN_4962_0018 (4962:022f-026e) on
- * its own: 1 when `u` belongs in the field tally, 0 when it is a garrison DOS
- * skips (standing on a settlement while its nation is human-controlled, or its
- * ai_plan is 'A'/'G'). col1_stuff_census.c's per-nation twin and
- * ai_contact_land_combat_sum's exposed row share this one copy (audit AC-9).
+ * The 0x942c / 0x95b2 field garrison gate of FUN_4962_0018 (4962:022f-026e,
+ * raw 78222-78231): 1 when `u` belongs in the field tally, 0 when it is a
+ * garrison DOS skips (standing on a settlement while its nation is
+ * human-controlled, or its ai_plan +0x314b is 'A'/'G', not the orders byte
+ * +0x314c). The census (col1_stuff_census.c) is its only caller.
  */
 int ai_contact_unit_counts_as_field(
   const ColonizeColonyPool* colonies,

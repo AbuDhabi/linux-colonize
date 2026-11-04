@@ -348,7 +348,7 @@ static int case_r11_no_indian_war_hit(void) {
   return 0;
 }
 
-static int case_trade_deepen_military_score(void) {
+static int case_trade_deepen(void) {
     ColonizeCol1Save tw;
     col1_save_init(&tw);
     memset(tw.nation, 0, sizeof(tw.nation));
@@ -387,86 +387,6 @@ static int case_trade_deepen_military_score(void) {
       return fail("colony-gap declare must leave the poorer side's gold alone");
     }
     free(tw.colony);
-
-    ColonizeUnitPool units;
-    memset(&units, 0, sizeof(units));
-    units_reset(&units);
-    units_set_occupancy_map(NULL);
-    units.type_count = 2;
-    snprintf(units.types[0].name, sizeof(units.types[0].name), "Soldier");
-    units.types[0].attack = 2;
-    units.types[0].defense = 2;
-    units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
-    snprintf(units.types[1].name, sizeof(units.types[1].name), "Caravel");
-    units.types[1].attack = 1;
-    units.types[1].defense = 1;
-    units.types[1].domain = COLONIZE_UNIT_DOMAIN_SEA;
-    const int sid = units_spawn(&units, 0, 1, 1);
-    const int ship = units_spawn(&units, 1, 2, 2);
-    if (sid < 0 || ship < 0) {
-      return fail("military score spawn");
-    }
-    units_get(&units, sid)->nation_id = 0;
-    units_get(&units, ship)->nation_id = 0;
-    ColonizeColonyPool colonies;
-    colonies_init(&colonies);
-    colonies_set_occupancy_map(NULL);
-    colonies.colonies[0].active = true;
-    colonies.colonies[0].nation_id = 0;
-    colonies.colonies[0].population = 4;
-    colonies.colony_count = 1;
-    ColonizeCol1Save sc;
-    col1_save_init(&sc);
-    sc.nation[0].gold = 100; /* must NOT reach the score any more */
-    ColonizeTurnContext ctx;
-    memset(&ctx, 0, sizeof(ctx));
-    ctx.messages = test_game_txt();
-    ctx.units = &units;
-    ctx.colonies = &colonies;
-    ctx.col1 = &sc;
-    ctx.col1_ok = true;
-    /*
-     * 2026-09-09 (#51): the score is DS:0x941c land_combat_strength — nothing
-     * else. Ships, colony population, fortifications, treasury and the 00f8
-     * rank must not contribute (the invented blend is retired).
-     * 2026-09-10 (sweep-3 D2): computed LIVE (Σ combat_unit_base_x8 over the
-     * nation's active land units), no longer read from the stuff mirror —
-     * that mirror has no live writer in an OpenCol-started game. The stale
-     * mirror values below must therefore NOT reach the score: the fixture's
-     * one Soldier (attack 2) is worth 2*8 = 16.
-     */
-    sc.stuff.land_combat_strength[0] = 137;
-    sc.stuff.land_combat_strength[1] = 40;
-    ctx.euro_power_rank_ok = true;
-    ctx.euro_power_rank[0] = 0;
-    ctx.euro_power_rank[1] = 3;
-    int score = ai_diplo_military_score(&ctx, 0);
-    if (score != 16) {
-      fprintf(stderr, "unit_ai_diplo: military_score %d (want 16)\n", score);
-      return fail("military_score must be the live land-unit x8 sum, not the mirror");
-    }
-    if (ai_diplo_military_score(&ctx, 1) != 0) {
-      return fail("military_score peer with no units must be 0 despite mirror 40");
-    }
-    /* Rank must not double-count: the 00f8 rank table is itself built from
-     * land_combat_strength, so flipping rank alone changes nothing. */
-    ctx.euro_power_rank[0] = 3;
-    if (ai_diplo_military_score(&ctx, 0) != 16) {
-      return fail("military_score must not add a rank term");
-    }
-    /* Treasury must not leak in either. */
-    sc.nation[0].gold = 100000;
-    score = ai_diplo_military_score(&ctx, 0);
-    if (score != 16) {
-      fprintf(stderr, "unit_ai_diplo: military_score with gold %d (want 16)\n", score);
-      return fail("military_score must not blend treasury");
-    }
-    /* No col1 → gate closed → 0. */
-    ctx.col1_ok = false;
-    if (ai_diplo_military_score(&ctx, 0) != 0) {
-      return fail("military_score without col1 must be 0");
-    }
-    ctx.col1_ok = true;
   return 0;
 }
 
@@ -2502,7 +2422,7 @@ static const TestCase k_cases[] = {
     {"case_153e_talk_tokens_474", case_153e_talk_tokens_474},
     {"case_declare_peace_narrative", case_declare_peace_narrative},
     {"case_r11_no_indian_war_hit", case_r11_no_indian_war_hit},
-    {"case_trade_deepen_military_score", case_trade_deepen_military_score},
+    {"case_trade_deepen", case_trade_deepen},
     {"case_declare_war_side_effects", case_declare_war_side_effects},
     {"case_indian_relation_read", case_indian_relation_read},
     {"case_r2_no_fatigue_tools", case_r2_no_fatigue_tools},

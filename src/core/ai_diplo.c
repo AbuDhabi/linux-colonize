@@ -864,7 +864,7 @@ int ai_diplo_00f8_top_ranked_nation(const ColonizeCol1Save* col1) {
  * cancel to zero end to end (confirmed, not assumed — `target_land_units
  * < self_exposed(stub=0)` can never be true since counts are ≥0, so
  * `dominance_bonus` never leaves 0; the unit-score stub never matches).
- * That no longer holds: self_exposed now reads ai_contact_land_combat_sum,
+ * That no longer holds: self_exposed now reads the -0x6a4e census row,
  * so `dominance_bonus` is live and picks the free peace-menu @WITHDRAW
  * (raw 98098, see ai_talk_resume). `combat_delta_sum` likewise nets to exactly 0 through every stubbed
  * term — **except** `peace_bit_0x10` (`ai_diplo_read(self,target)&0x10`,
@@ -933,7 +933,7 @@ int ai_diplo_00f8_top_ranked_nation(const ColonizeCol1Save* col1) {
  *   -0x6a4e  per-continent EXPOSED combat value (raw 442+) - distinct
  *            from the already-resolved -0x6e74/-0x6a8e sums this file's
  *            G-table exposes. WIRED 2026-09-09 (audit follow-up B):
- *            ai_contact_land_combat_sum(exposed_only) carries DOS's real gate
+ *            the census row (col1_stuff_census.c) carries DOS's real gate
  *            from FUN_4962_0018 (4962:022f-026e) — a unit leaves the row
  *            only when it stands on a settlement AND (ai_plan is 'A'/'G'
  *            OR its nation is human-controlled, the 0x543f class gate).
@@ -2685,62 +2685,6 @@ void ai_diplo_treaty_timers(ColonizeTurnContext* ctx, int nation_id) {
    * (alarm_by_player is byte-stable across the seed-100 TURN3..7 saves; the
    * only ±1 moves come from the FUN_4d56_152e accumulator in ai.c). The no-op
    * stub that used to be called here was deleted 2026-09-14. */
-}
-
-/*
- * Military strength of a Euro nation = the DS:0x941c census quantity
- * `stuff.land_combat_strength[]`, i.e. Σ FUN_281f_09c8(u, 1) over the
- * nation's land units (combat byte ×8 plus the veteran / Drake /
- * damaged-artillery peels), maintained by FUN_4962_0018 and ported in
- * col1_stuff_census.c — recomputed here rather than read out of the mirror,
- * see below.
- *
- * 2026-09-09 (smell #51): this used to be an invented blend —
- * Σ(attack+defense), +3 per ship, +2 per colonist of population, +5 per
- * fortification, gold/50, and +(3−rank)*2 off ctx->euro_power_rank. Every
- * other strength comparison in the port already reads the mirror: the
- * FUN_5952_035e war-decision block (:3109/:3124/:3127), the king
- * intervention math (ai_king.c:3887), FUN_5bfb_10ec (ai_euro.c:11369), the
- * unit-level foe test (ai_euro.c:3357) and the Foreign Affairs "Military
- * Power" row (reports.c:3142, the same word >> 3). The rank term was also a
- * double count: FUN_5bfb_00f8's rank table is itself built from
- * land_combat_strength (see ai_diplo_00f8_top_ranked_nation above), so the
- * blend added the same quantity twice on two different scales.
- *
- * The value is a word, ×8 the DOS combat byte. The AI_DIPLO_STRENGTH_* bands
- * that read this score are unchanged OpenCol constants — see their own note.
- *
- * 2026-09-10: computed LIVE instead of read out of `stuff`. The mirror is
- * refreshed only at each nation's end-of-turn tail (col1_stuff_census_4962_w,
- * called from turn.c), and col1_stuff_census_fill_blank (col1_stuff_census.c)
- * only runs from col1_bridge_capture (the save-WRITING path) while the census
- * window is still blank — so in an OpenCol-started game the word is 0 until
- * the first end-of-turn / (auto)save and stale between refreshes. A live
- * recompute never reads the stale value. ai_contact.c's FUN_5952_035e block and its Demand-Tribute roll made
- * the same call for the same reason (ai_contact_land_combat_sum, "the port
- * never refreshes the DS:0x95b2 / 0x91cc mirrors for an OpenCol-started game").
- *
- * The recompute reproduces FUN_4962_0018's per-nation arm byte for byte, so a
- * loaded DOS save yields the number the save already carries: every ACTIVE
- * unit of the nation whose TYPE domain is land — passengers in a hold
- * included, exactly as the census twin counts them (DOS scans the whole unit
- * array) — accumulated as Σ FUN_281f_09c8(u, 1) = combat_unit_base_x8(id, 1),
- * into a word that wraps at 16 bits rather than saturating like the two byte
- * rows beside it.
- */
-COLONIZE_INTERNAL int ai_diplo_military_score(const ColonizeTurnContext* ctx, int nation_id) {
-  if (!ctx || !ctx->col1_ok || !ctx->col1 || nation_id < 0 || nation_id >= 4) {
-    return 0;
-  }
-  /*
-   * The nation-wide row: every continent, no exposed gate. This used to be a
-   * private copy of ai_contact_land_combat_sum's walk (2026-09-14 audit
-   * AC-10). The one nominal difference is the tail: DOS's 0x941c word is a
-   * plain 16-bit ADD that wraps while the helper's `cap` saturates — but a
-   * 256-slot pool (COLONIZE_UNITS_MAX) of combat_unit_base_x8 values cannot
-   * reach 0xffff, so the two agree for every reachable input.
-   */
-  return ai_contact_land_combat_sum(ctx, nation_id, -1, 0, 0xffff);
 }
 
 

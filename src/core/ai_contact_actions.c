@@ -221,61 +221,6 @@ int ai_contact_unit_counts_as_field(
   return 1;
 }
 
-int ai_contact_land_combat_sum(
-  const ColonizeTurnContext* ctx,
-  int nation,
-  int continent,
-  int exposed_only,
-  int cap
-) {
-  if (!ctx || !ctx->units) {
-    return 0;
-  }
-  const ColonizeCombatStrengthCtx sctx = combat_strength_ctx_from_turn(ctx);
-  int sum = 0;
-  /*
-   * Slot walk, `u->id` to every id-taking accessor. `units_get_const`,
-   * `units_is_sea` and `combat_unit_base_x8` all take a unit ID; ids are
-   * handed out monotonically from 1 and never recycled (units.c:337,
-   * `units_reset` next_id = 1), so an `i`-as-id walk over
-   * COLONIZE_UNITS_MAX silently dropped every unit with id >= 256 in a long
-   * game plus the highest slot in a short one. DOS walks the unit ARRAY in
-   * record order (raw 78159: `for (local_1a = 0; local_1a < *(int *)0x539c;
-   * ++local_1a)` indexing `0x3144 + local_1a * 0x1c`), which is exactly a
-   * slot walk. Same idiom as col1_stuff_census's tally (ai_diplo's own copy
-   * was folded onto this helper by the 2026-09-14 audit, AC-10). Fixed
-   * 2026-09-10 (audit Leads item 1).
-   */
-  for (int i = 0; i < units_slot_end(ctx->units); ++i) {
-    const ColonizeUnit* u = &ctx->units->units[i];
-    if (!u->active || u->nation_id != nation || units_is_sea(ctx->units, u->id)) {
-      continue;
-    }
-    /* DOS parks a ship's passengers off-map at (−2,−2), where FUN_281f_081c
-     * reports no continent: they reach the nation-wide word (-0x6be4) but no
-     * per-continent row. The port rides passengers at the ship's own tile, so
-     * the exclusion has to be explicit — and only for continent rows. */
-    if (u->aboard_ship_id >= 0 && continent >= 0) {
-      continue;
-    }
-    if (continent >= 0 && ctx->map && map_continent_id_at(ctx->map, u->x, u->y) != continent) {
-      continue;
-    }
-    /* Shared 4962:022f-026e garrison gate; see ai_contact_unit_counts_as_field. */
-    if (exposed_only &&
-        !ai_contact_unit_counts_as_field(
-          ctx->colonies, ctx->col1_ok ? ctx->col1 : NULL, u
-        )) {
-      continue;
-    }
-    sum += combat_unit_base_x8(&sctx, u->id, 1, NULL);
-    if (sum >= cap) {
-      return cap;
-    }
-  }
-  return sum;
-}
-
 /*
  * DS:0x95f2[cont] `continent_presence_flags` — the single port of
  * FUN_4962_0018's presence writer (raw 78149-78312), shared by BOTH halves of
