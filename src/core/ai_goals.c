@@ -1006,7 +1006,6 @@ void ai_goals_plan_scratch_refresh(
     p->ship_cargo_total = 0;
     p->avg_colony_pop = 0;
   }
-  int wanting = 0;
   int live_colonies = 0;
   if (colonies) {
     for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
@@ -1015,9 +1014,6 @@ void ai_goals_plan_scratch_refresh(
         continue;
       }
       live_colonies++;
-      if (c->ai_flags & COLONIZE_COLONY_AI_NEEDS_COLONISTS) {
-        wanting++;
-      }
     }
     /*
      * The census byte is only as fresh as the last between-turns refresh;
@@ -1028,7 +1024,29 @@ void ai_goals_plan_scratch_refresh(
      */
     p->colony_count = (uint8_t)(live_colonies > 255 ? 255 : live_colonies);
   }
-  p->colonies_wanting_colonists = (uint8_t)(wanting > 255 ? 255 : wanting);
+}
+
+/* FUN_521d_6d8e raw 93109: `byte[nation + 0xa0b8] = 0` at turn entry. */
+void ai_goals_colonies_wanting_reset(int nation_id) {
+  if (nation_id >= 0 && nation_id < 4) {
+    s_plan[nation_id].colonies_wanting_colonists = 0;
+  }
+}
+
+/* FUN_521d_6d8e raw 93139-93141: `++` after an own colony's 5952 tick when
+ * the colony record DS:0x8542 points at has +0x1b & 0x10. Byte, wraps. */
+void ai_goals_colonies_wanting_bump(int nation_id) {
+  if (nation_id >= 0 && nation_id < 4) {
+    s_plan[nation_id].colonies_wanting_colonists++;
+  }
+}
+
+/* DS:0xa0b8 as DOS reads it in 5d04 (raw 92595, `(int)*(char *)`). */
+int ai_goals_colonies_wanting(int nation_id) {
+  if (nation_id < 0 || nation_id >= 4) {
+    return 0;
+  }
+  return (int)(int8_t)s_plan[nation_id].colonies_wanting_colonists;
 }
 
 /*

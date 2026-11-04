@@ -1144,8 +1144,8 @@ static void ai_euro_5d04_cb_colony_needs(int nation_id, int8_t out[16]) {
  * Replaces the old `inv->found_flags` construction-count stand-in.
  */
 static int ai_euro_5d04_cb_colonies_wanting_colonists(int nation_id) {
-  /* Counted during the 5952 ticks, through DS:0x8542 (ai_euro_s_6d8e_wanting). */
-  return ai_euro_s_6d8e_wanting[nation_id];
+  /* DS:0xa0b8, counted during the 5952 ticks through DS:0x8542. */
+  return ai_goals_colonies_wanting(nation_id);
 }
 
 /*

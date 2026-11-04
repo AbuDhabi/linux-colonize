@@ -1239,7 +1239,58 @@ static int tb21_tb25_fixed(void) {
   return 0;
 }
 
+/*
+ * DS:0xa0b8, the "colonies asking for colonists" count FUN_521d_03d0 reads,
+ * is zeroed at FUN_521d_6d8e entry (raw 93109) and bumped after each own
+ * colony's 5952 tick (raw 93139-93141). The turn-start prelude must not count
+ * last turn's flags: until the first tick ends 03d0 sees 0 and returns 8 (raw
+ * 87069-87070). The tick's restart drops a stale value and the count ends
+ * equal to this turn's flagged colonies.
+ */
+static int wanting_count_restarts_each_ai_turn(void) {
+  const int nation = 1;
+  Fixture f;
+  if (fixture_init(&f, nation, 5, 100) != 0) {
+    return 1;
+  }
+  ColonizeColony* c = fixture_ore_colony(&f, nation, 3);
+  c->ai_flags = COLONIZE_COLONY_AI_NEEDS_COLONISTS; /* last turn's flag */
+  /* Census bytes that make 03d0 compute 0 once the count is non-zero:
+   * (census_pop 0 - colonies 1) / 4 = 0, cargo 0, avg pop 9 > 7. */
+  f.col1.stuff.census_pop_proxy[nation] = 0;
+  f.col1.stuff.ship_cargo_totals[nation] = 0;
+  f.col1.stuff.avg_colony_pop[nation * 2] = 9;
+  ai_goals_plan_scratch(nation)->colonies_wanting_colonists = 0;
+  ai_goals_plan_scratch_refresh(&f.col1, &f.colonies, nation, 0);
+  if (ai_goals_colonies_wanting(nation) != 0 ||
+      ai_goals_founding_expansion_urgency(nation, f.colonies.colony_count) != 8) {
+    fprintf(stderr, "wanting %d urgency %d\n", ai_goals_colonies_wanting(nation),
+            ai_goals_founding_expansion_urgency(nation, f.colonies.colony_count));
+    fixture_free(&f);
+    return fail("the turn-start prelude must not count NEEDS_COLONISTS flags (raw 93109)");
+  }
+  ai_goals_plan_scratch(nation)->colonies_wanting_colonists = 1;
+  if (ai_goals_founding_expansion_urgency(nation, f.colonies.colony_count) == 8) {
+    fixture_free(&f);
+    return fail("fixture: a non-zero count must move 03d0 off its return-8 arm");
+  }
+  ai_goals_plan_scratch(nation)->colonies_wanting_colonists = 5; /* stale */
+  ai_euro_colony_tick_5952(&f.ctx, nation);
+  const int flagged = (c->ai_flags & COLONIZE_COLONY_AI_NEEDS_COLONISTS) != 0;
+  const int got = ai_goals_colonies_wanting(nation);
+  fixture_free(&f);
+  if (!flagged) {
+    return fail("fixture: the pop-3 all-land colony should keep NEEDS_COLONISTS");
+  }
+  if (got != 1) {
+    fprintf(stderr, "wanting after tick %d (want 1)\n", got);
+    return fail("the tick must restart DS:0xa0b8 and count this turn's flags");
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+    {"wanting_count_restarts_each_ai_turn", wanting_count_restarts_each_ai_turn},
     {"departing_ship_buys_wanted_cargo", departing_ship_buys_wanted_cargo},
     {"afloat_cargo_cancels_colony_demand", afloat_cargo_cancels_colony_demand},
     {"sold_amount_seeds_departure_gold_gate", sold_amount_seeds_departure_gold_gate},

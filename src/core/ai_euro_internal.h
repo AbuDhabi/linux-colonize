@@ -206,11 +206,10 @@ void ai_euro_5952_build_cascade_for_owner(
 );
 void ai_euro_colony_tick_5952(ColonizeTurnContext* ctx, int nation_id);
 /* FUN_521d_6d8e prelude colony loop (raw 93118-93142), filled by
- * ai_euro_colony_tick_5952: DS:0xa0cc[16] before the hull pass and the
- * DS:0xa0b8 wanting-colonists count, both read from the record each tick
- * left in DS:0x8542. */
+ * ai_euro_colony_tick_5952: DS:0xa0cc[16] before the hull pass, read from
+ * the record each tick left in DS:0x8542. The DS:0xa0b8 wanting-colonists
+ * count from the same loop lives in ai_goals (ai_goals_colonies_wanting). */
 extern int8_t ai_euro_s_6d8e_need[4][16];
-extern int8_t ai_euro_s_6d8e_wanting[4];
 void ai_euro_5952_colony_counters(
   ColonizeTurnContext* ctx, int nation_id, ColonizeColony* c
 );

@@ -3732,7 +3732,6 @@ COLONIZE_INTERNAL void ai_euro_colony_tick_specialist_restore(AiEuroColonyTick* 
 }
 
 int8_t ai_euro_s_6d8e_need[4][16];
-int8_t ai_euro_s_6d8e_wanting[4];
 
 /*
  * FUN_521d_6d8e raw 93122-93142, after each own colony's FUN_5952_035e: the
@@ -3761,7 +3760,7 @@ static void ai_euro_6d8e_prelude_read(int nation_id, ColonizeColony* col) {
     need[COLONIZE_CARGO_TOOLS]++;
   }
   if ((col->ai_flags & COLONIZE_COLONY_AI_NEEDS_COLONISTS) != 0) {
-    ai_euro_s_6d8e_wanting[nation_id]++;
+    ai_goals_colonies_wanting_bump(nation_id); /* raw 93139-93141 */
   }
   col->colony_flags = (uint8_t)(col->colony_flags & (uint8_t)~COLONIZE_COLONY_FLAG_WAGON_TRAIN);
 }
@@ -3781,7 +3780,9 @@ static void ai_euro_colony_tick_run(
   t.whole_tick = whole_tick;
   if (whole_tick) {
     memset(ai_euro_s_6d8e_need[nation_id], 0, sizeof ai_euro_s_6d8e_need[nation_id]);
-    ai_euro_s_6d8e_wanting[nation_id] = 0;
+    /* raw 93109: DS:0xa0b8 restarts at 0, so 03d0 in the first colony's
+     * tick (raw 94211) sees 0 and returns 8. */
+    ai_goals_colonies_wanting_reset(nation_id);
   }
   for (int ci = 0; ci < COLONIZE_COLONIES_MAX; ++ci) {
     g_colonies_plot_cache_colony = NULL;

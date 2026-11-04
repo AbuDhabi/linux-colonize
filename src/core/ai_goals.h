@@ -246,6 +246,15 @@ void ai_goals_plan_scratch_refresh(
   int leader_trait1
 );
 
+/*
+ * DS:0xa0b8 (colonies_wanting_colonists): FUN_521d_6d8e zeroes it at turn
+ * entry (raw 93109) and bumps it after each own colony's 5952 tick (raw
+ * 93139-93141); 03d0 and 5d04 read it live.
+ */
+void ai_goals_colonies_wanting_reset(int nation_id);
+void ai_goals_colonies_wanting_bump(int nation_id);
+int ai_goals_colonies_wanting(int nation_id);
+
 /* FUN_479b_076e's `-0x77b2` stamp: call when nation_id founds a colony. */
 void ai_goals_note_colony_founded(ColonizeCol1Save* col1, int nation_id, int turn);
 
