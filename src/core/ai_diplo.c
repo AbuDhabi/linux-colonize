@@ -841,34 +841,12 @@ int ai_diplo_00f8_top_ranked_nation(const ColonizeCol1Save* col1) {
 }
 
 /*
- * ai_diplo_settlement_owner_at (FUN_281f_06be tile-owner clone) and
- * ai_diplo_153e_exposed_combat_at (-0x6a4e / DS:0x95b2
- * field_combat_strength_by_continent) lived here. Both deleted 2026-09-10
- * (audit #15): they were a second, hand-synced port of the same DOS quantity
- * ai_contact_land_combat_sum(..., exposed_only = 1) already computes, and this
- * pass had to fix the identical "+0x314c orders vs +0x314b ai_plan" and
- * villages-as-8..15 misreadings in both copies. The 153e loop below now calls
- * the exported ai_contact helper — see ai_contact.h for the DOS gate, the raw
- * citations and the table-per-argument map.
+ * The -0x6a4e (DS:0x95b2 field_combat_strength_by_continent) and -0x6ada
+ * (DS:0x9526 skilled_unit_counts_by_continent) rows 153e reads are
+ * FUN_4962_0018 census rows (col1_stuff_census.c: the unit loop and, for
+ * -0x6ada, the colony population from raw 78238-78303), read from
+ * col1->stuff, not live recounts. See ai_diplo_153e_census_at.
  */
-
-/* -0x6ada skilled_unit_counts_by_continent: +1 per land unit whose type has a
- * profession slot (FUN_281f_0b78 / DS:0x30e >= 0 — colonist-class types 0..9). */
-static int ai_diplo_153e_skilled_units_at(const ColonizeTurnContext* ctx, int nation, int cid) {
-  int n = 0;
-  /* Slot walk — `i` is not a unit id; see ai_diplo_wake_border_garrisons. */
-  for (int i = 0; i < units_slot_end(ctx->units); ++i) {
-    const ColonizeUnit* u = &ctx->units->units[i];
-    if (!u->active || u->nation_id != nation || u->aboard_ship_id >= 0 ||
-        u->type_index < 0 || u->type_index > 9) {
-      continue;
-    }
-    if (map_continent_id_at(ctx->map, u->x, u->y) == cid) {
-      n++;
-    }
-  }
-  return n > 255 ? 255 : n;
-}
 
 /*
  * FUN_5bfb_153e — worthiness-score phase, structural reference port
@@ -976,39 +954,15 @@ static int ai_diplo_153e_skilled_units_at(const ColonizeTurnContext* ctx, int na
  *            phase's scope); no-ops here
  */
 
-static int ai_diplo_153e_colonies_at(
-  const ColonizeTurnContext* ctx, int nation, int continent_id
-) {
-  int n = 0;
-  if (!ctx->colonies) {
+/* Raw 97437-97492 read the FUN_4962_0018 census rows (-0x6b1a colonies,
+ * -0x6b5a land units, -0x6a4e exposed combat, -0x6ada skilled units plus
+ * colony population), not live recounts. `row` is a [nation*16+cid] table in
+ * col1->stuff, filled at each nation's EOT by col1_stuff_census.c. */
+static int ai_diplo_153e_census_at(const uint8_t* row, int nation, int continent_id) {
+  if (nation < 0 || nation > 3 || continent_id < 0 || continent_id > 15) {
     return 0;
   }
-  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-    const ColonizeColony* c = &ctx->colonies->colonies[i];
-    if (c->active && c->nation_id == nation &&
-        map_continent_id_at(ctx->map, c->x, c->y) == continent_id) {
-      ++n;
-    }
-  }
-  return n;
-}
-
-static int ai_diplo_153e_land_units_at(
-  const ColonizeTurnContext* ctx, int nation, int continent_id
-) {
-  int n = 0;
-  if (!ctx->units) {
-    return 0;
-  }
-  /* Slot walk, `u->id` to units_is_sea — see ai_diplo_wake_border_garrisons. */
-  for (int i = 0; i < units_slot_end(ctx->units); ++i) {
-    const ColonizeUnit* u = &ctx->units->units[i];
-    if (u->active && u->nation_id == nation && !units_is_sea(ctx->units, u->id) &&
-        map_continent_id_at(ctx->map, u->x, u->y) == continent_id) {
-      ++n;
-    }
-  }
-  return n;
+  return row[nation * 16 + continent_id];
 }
 
 Ai153eWorthinessScore ai_diplo_153e_worthiness_score(
@@ -1074,14 +1028,13 @@ Ai153eWorthinessScore ai_diplo_153e_worthiness_score(
   int worthy = 0;             /* raw local_a8 */
   const int target_threshold = (col1->stuff.colony_counts[target] > 1) ? 1 : 0;
   for (int cid = 1; cid < 0xf; ++cid) {
-    const int target_colonies = ai_diplo_153e_colonies_at(ctx, target, cid);
-    const int target_land_units = ai_diplo_153e_land_units_at(ctx, target, cid);
-    const int self_colonies = ai_diplo_153e_colonies_at(ctx, self, cid);
-    /* -0x6a4e (DS:0x95b2) exposed row, byte-capped — the one port of the
-     * FUN_4962_0018 gate lives in ai_contact (audit #15, 2026-09-10). */
-    const int self_exposed = ai_contact_land_combat_sum(ctx, self, cid, 1, 255);
-    const int target_exposed = ai_contact_land_combat_sum(ctx, target, cid, 1, 255);
-    const int self_skilled = ai_diplo_153e_skilled_units_at(ctx, self, cid);
+    const ColonizeCol1Stuff* st = &col1->stuff;
+    const int target_colonies = ai_diplo_153e_census_at(st->colony_counts_by_continent, target, cid);
+    const int target_land_units = ai_diplo_153e_census_at(st->land_unit_counts_by_continent, target, cid);
+    const int self_colonies = ai_diplo_153e_census_at(st->colony_counts_by_continent, self, cid);
+    const int self_exposed = ai_diplo_153e_census_at(st->field_combat_strength_by_continent, self, cid);
+    const int target_exposed = ai_diplo_153e_census_at(st->field_combat_strength_by_continent, target, cid);
+    const int self_skilled = ai_diplo_153e_census_at(st->skilled_unit_counts_by_continent, self, cid);
     if (target_threshold < target_colonies && target_land_units < self_exposed) {
       /* OVL16 5bfb:16bd `cmp [0x53a6],1; sbb cl,cl; and cl,1; add cl,1`: shift 2 at difficulty 0, else 1 (port_bugs.md #1136). */
       dominance_bonus += (self_exposed / (target_land_units + 1)) << (difficulty == 0 ? 2 : 1);
@@ -1127,7 +1080,7 @@ Ai153eWorthinessScore ai_diplo_153e_worthiness_score(
         worthy = 1;
       }
       const int cid = map_continent_id_at(ctx->map, c->x, c->y);
-      if (ai_diplo_153e_colonies_at(ctx, target, cid) == 0) {
+      if (ai_diplo_153e_census_at(col1->stuff.colony_counts_by_continent, target, cid) == 0) {
         value <<= 1;
       }
       border_value_sum += value;

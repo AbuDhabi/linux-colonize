@@ -16,6 +16,7 @@
 #include "core/ai_internal.h"
 #include "core/ai_popup.h"
 #include "core/col1_save.h"
+#include "core/col1_stuff_census.h"
 #include "core/colony.h"
 #include "core/dos_buggy.h"
 #include "core/dos_rng.h"
@@ -1146,6 +1147,14 @@ static int case_153e_phase1_border_probe(void) {
     wctx.units = &wunits;
     wctx.colonies = &wcol;
     wctx.human_nation = 0;
+    /* 153e reads the FUN_4962_0018 census rows (raw 97437-97492): census
+     * the scene, then restore the hand-set nation totals. */
+    {
+      const ColonizeWorld cw = world_from_turn_ctx(&wctx);
+      col1_stuff_census_4962_w(&cw, &w.stuff, 0);
+      col1_stuff_census_4962_w(&cw, &w.stuff, 1);
+      w.stuff.field_combat_totals[1] = 10;
+    }
     const Ai153eWorthinessScore ws = ai_diplo_153e_worthiness_score(&wctx, 0, 1, -1, 1);
     fx_map_free(&wmap);
     if (!ws.handled) {
@@ -1166,6 +1175,53 @@ static int case_153e_phase1_border_probe(void) {
     if (!wa.handled || wa.worthy || wa.score != 0) {
       return fail("153e: AI self must take the 13b0 branch (handled, no score)");
     }
+  return 0;
+}
+
+/* Raw 97445-97452: the worthy test reads the census rows -0x6a4e (exposed
+ * combat) and -0x6ada (skilled units). The census says the target has
+ * exposed strength and self has 5 skilled units on continent 1, while the
+ * live pools are empty: 153e must go by the census and come out worthy. */
+static int case_153e_reads_census_rows(void) {
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  if (!fx_map_alloc(&map, 16, 16, 0, false)) {
+    return fail("153e census: alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1;
+    map.layer3[i] = 1;
+  }
+  static ColonizeUnitPool units;
+  units_reset(&units);
+  units_set_occupancy_map(NULL);
+  static ColonizeColonyPool cols;
+  colonies_init(&cols);
+  colonies_set_occupancy_map(NULL);
+  static ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  col1.head.turn = 100;
+  col1.head.difficulty = 1;
+  col1.head.human_player = 0;
+  col1.stuff.field_combat_strength_by_continent[1 * 16 + 1] = 200; /* target exposed */
+  col1.stuff.skilled_unit_counts_by_continent[0 * 16 + 1] = 5;   /* self skilled > 4 */
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.messages = test_game_txt();
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.map = &map;
+  ctx.units = &units;
+  ctx.colonies = &cols;
+  ctx.human_nation = 0;
+  const Ai153eWorthinessScore ws = ai_diplo_153e_worthiness_score(&ctx, 0, 1, -1, 1);
+  fx_map_free(&map);
+  if (!ws.handled || !ws.worthy) {
+    fprintf(stderr, "unit_ai_diplo: census handled=%d worthy=%d\n", ws.handled, ws.worthy);
+    return fail("153e: the worthy test must read the census rows, not a live recount");
+  }
   return 0;
 }
 
@@ -2241,6 +2297,7 @@ static const TestCase k_cases[] = {
     {"case_153e_peacemenu_withdraw_all_land", case_153e_peacemenu_withdraw_all_land},
     {"case_153e_wantstuff_receiver_dos_distance", case_153e_wantstuff_receiver_dos_distance},
     {"case_153e_woi_encounter_rearms_timer", case_153e_woi_encounter_rearms_timer},
+    {"case_153e_reads_census_rows", case_153e_reads_census_rows},
     {"case_153e_sieges_takes_passengers", case_153e_sieges_takes_passengers},
     {"case_relation_writes_preserve_player_bytes", case_relation_writes_preserve_player_bytes},
     {"case_153e_talk_tokens_474", case_153e_talk_tokens_474},
