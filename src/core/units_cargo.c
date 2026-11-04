@@ -850,6 +850,78 @@ bool units_unload_passenger_w(
   return true;
 }
 
+bool units_transfer_passenger_w(
+  const ColonizeWorld* w,
+  int ship_id,
+  int pax_id,
+  int dest_x,
+  int dest_y
+) {
+  ColonizeUnitPool* pool = w->units;
+  ColonizeUnit* ship = units_get(pool, ship_id);
+  ColonizeUnit* pax = units_get(pool, pax_id);
+  g_units_last_enter_reason = COLONIZE_ENTER_BLOCKED; /* NO_MP below = passenger spent */
+  if (!ship || !pax || !w->map || pax->aboard_ship_id != ship_id ||
+      !units_adjacent(ship->x, ship->y, dest_x, dest_y) ||
+      !map_tile_is_water(w->map, dest_x, dest_y)) {
+    return false;
+  }
+  /*
+   * FUN_4720_015c raw 75988-75995: a land mover onto a water tile is refused
+   * only when the dest head is missing or foreign or thunk_FUN_2a1f_01a0
+   * finds no room; there is no source-terrain test, so an awake passenger
+   * steps onto an adjacent own ship like a unit walking aboard from shore.
+   */
+  const ColonizeUnitType* t = units_type(pool, pax->type_index);
+  const int target =
+    units_find_boardable_ship(pool, dest_x, dest_y, pax->nation_id, t && t->space > 0 ? t->space : 1);
+  if (target < 0) {
+    return false;
+  }
+  /* FUN_465b_0000 raw 75638-75651: same cost/allow gate as units_move_board. */
+  const int max = units_max_mp(pool, pax_id);
+  const int left = pax->moves > 0 ? pax->moves : (pax->aboard_moves >= 0 ? pax->aboard_moves : max);
+  int cost = map_move_spent_thirds(w->map, ship->x, ship->y, dest_x, dest_y);
+  if (cost < 1) {
+    cost = 1;
+  }
+  bool allow = left > 0 && (cost <= left || left >= max);
+  if (!allow && left > 0 && w->rng) {
+    allow = dos_rng_range(w->rng, 1, cost) <= left;
+  }
+  if (!allow) {
+    pax->moves = 0;
+    pax->aboard_moves = 0;
+    pax->mp_spent_turn = 1;
+    g_units_last_enter_reason = COLONIZE_ENTER_NO_MP;
+    return false;
+  }
+  const int saved_moves = pax->moves;
+  const int saved_aboard_moves = pax->aboard_moves;
+  units_remove_from_cargo(ship, pax_id);
+  pax->aboard_ship_id = -1;
+  pax->moves = left > cost ? left - cost : 0;
+  /* units_board = the port's walk-on board: passenger sentried, selection to
+   * the ship. */
+  if (!units_board(pool, pax_id, target)) {
+    ship->cargo_ids[ship->cargo_count++] = pax_id;
+    pax->aboard_ship_id = ship_id;
+    pax->moves = saved_moves;
+    pax->aboard_moves = saved_aboard_moves;
+    return false;
+  }
+  if (pax->aboard_moves == 0) {
+    pax->mp_spent_turn = 1;
+  }
+  units_occupancy_refresh_tile(pool, ship->x, ship->y, -1);
+  units_occupancy_refresh_tile(pool, dest_x, dest_y, -1);
+  /* Same 465b board step as units_move_board: FUN_5bfb_3180's sentry-wake
+   * arm (raw 98628-98646) around the receiving ship's tile. */
+  units_sentry_wake_scan(pool, w->map, w->colonies, target);
+  g_units_last_enter_reason = COLONIZE_ENTER_BOARD;
+  return true;
+}
+
 
 bool units_unload_w(
   const ColonizeWorld* w,

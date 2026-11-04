@@ -8351,8 +8351,97 @@ static int case_ship_arrival_sorts_existing_passenger_chain(void) {
   return ok ? 0 : 1;
 }
 
+/* FUN_4720_015c raw 75988-75995: an awake passenger at sea steps onto an
+ * adjacent own ship with room, paying the ocean step (465b raw 75638-75651). */
+static int case_passenger_ship_to_ship(void) {
+  ColonizeUnitPool p;
+  memset(&p, 0, sizeof(p));
+  units_reset_state();
+  units_reset(&p);
+  units_set_occupancy_map(NULL);
+  p.type_count = 2;
+  snprintf(p.types[0].name, sizeof(p.types[0].name), "Caravel");
+  p.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  p.types[0].cargo = 2;
+  p.types[0].space = 99;
+  p.types[0].movement = 4;
+  snprintf(p.types[1].name, sizeof(p.types[1].name), "Colonists");
+  p.types[1].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  p.types[1].space = 1;
+  p.types[1].movement = 2;
+  ColonizeWorldMap m;
+  memset(&m, 0, sizeof(m));
+  if (!map_alloc(&m, 8, 8, err, sizeof(err))) return 1;
+  memset(m.terrain, T_OCEAN, 64);
+  const int host = units_spawn_allow_stack(&p, 0, 4, 4);
+  const int pax = units_spawn_allow_stack(&p, 1, 4, 4);
+  const int other = units_spawn_allow_stack(&p, 0, 5, 4);
+  if (!units_board_stacked(&p, pax, host)) { map_free(&m); return 1; }
+  ColonizeUnit* u = units_get(&p, pax);
+  u->orders = UNITS_ORDER_NONE; /* awake */
+  u->moves = 2 * UNITS_MP_PER_TILE;
+  p.selected_id = pax;
+  ColonizeWorld w = {.units = &p, .map = &m};
+  const bool moved = units_transfer_passenger_w(&w, host, pax, 5, 4);
+  const ColonizeUnit* a = units_get_const(&p, pax);
+  const ColonizeUnit* h = units_get_const(&p, host);
+  const ColonizeUnit* o = units_get_const(&p, other);
+  const bool ok = moved && a && h && o && a->aboard_ship_id == other && a->x == 5 && a->y == 4 &&
+    h->cargo_count == 0 && o->cargo_count == 1 && a->orders == UNITS_ORDER_SENTRY &&
+    a->aboard_moves == UNITS_MP_PER_TILE && p.selected_id == other;
+  map_free(&m);
+  units_set_occupancy_map(NULL);
+  if (!ok) fprintf(stderr, "awake passenger must step onto the adjacent own ship\n");
+  return ok ? 0 : 1;
+}
+
+/* 1/3 MP left vs the ocean's 3 with no roll granted (FUN_465b_0000 raw
+ * 75649-75651): the step is refused but still charged. */
+static int case_passenger_ship_to_ship_lost_roll(void) {
+  ColonizeUnitPool p;
+  memset(&p, 0, sizeof(p));
+  units_reset_state();
+  units_reset(&p);
+  units_set_occupancy_map(NULL);
+  p.type_count = 2;
+  snprintf(p.types[0].name, sizeof(p.types[0].name), "Caravel");
+  p.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  p.types[0].cargo = 2;
+  p.types[0].space = 99;
+  p.types[0].movement = 4;
+  snprintf(p.types[1].name, sizeof(p.types[1].name), "Colonists");
+  p.types[1].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  p.types[1].space = 1;
+  p.types[1].movement = 2;
+  ColonizeWorldMap m;
+  memset(&m, 0, sizeof(m));
+  if (!map_alloc(&m, 8, 8, err, sizeof(err))) return 1;
+  memset(m.terrain, T_OCEAN, 64);
+  const int host = units_spawn_allow_stack(&p, 0, 4, 4);
+  const int pax = units_spawn_allow_stack(&p, 1, 4, 4);
+  const int other = units_spawn_allow_stack(&p, 0, 5, 4);
+  if (!units_board_stacked(&p, pax, host)) { map_free(&m); return 1; }
+  ColonizeUnit* u = units_get(&p, pax);
+  u->orders = UNITS_ORDER_NONE;
+  u->moves = 1;
+  ColonizeWorld w = {.units = &p, .map = &m}; /* rng NULL: the roll never passes */
+  const bool moved = units_transfer_passenger_w(&w, host, pax, 5, 4);
+  const ColonizeUnit* a = units_get_const(&p, pax);
+  const ColonizeUnit* h = units_get_const(&p, host);
+  const ColonizeUnit* o = units_get_const(&p, other);
+  const bool ok = !moved && a && h && o && a->aboard_ship_id == host && a->x == 4 &&
+    h->cargo_count == 1 && o->cargo_count == 0 && a->moves == 0 && a->aboard_moves == 0 &&
+    a->mp_spent_turn && units_last_enter_reason() == COLONIZE_ENTER_NO_MP;
+  map_free(&m);
+  units_set_occupancy_map(NULL);
+  if (!ok) fprintf(stderr, "lost roll must leave the passenger spent on its ship with NO_MP\n");
+  return ok ? 0 : 1;
+}
+
 static const TestCase k_cases[] = {
   {"ship_arrival_sorts_existing_passenger_chain", case_ship_arrival_sorts_existing_passenger_chain},
+  {"passenger_ship_to_ship", case_passenger_ship_to_ship},
+  {"passenger_ship_to_ship_lost_roll", case_passenger_ship_to_ship_lost_roll},
   {"starter_fleet", case_starter_fleet},
   {"tile_stack_head_arrival", case_tile_stack_head_tracks_movement},
   {"tile_stack_sink_oldest_end", case_tile_stack_sink_oldest_end},

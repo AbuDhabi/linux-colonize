@@ -290,6 +290,23 @@ COLONIZE_INTERNAL GameMoveStep game_move_passenger_unload(
     }
     const int ship_id = selected->aboard_ship_id;
     const ColonizeWorld w = game_world(game);
+    /* Onto an adjacent own ship with room (FUN_4720_015c raw 75988-75995):
+     * the same 465b step as walking aboard from shore, and the same focus
+     * hand-off to the receiving ship (game_move_land_unit's board arm). */
+    if (units_transfer_passenger_w(&w, ship_id, sid, dest_x, dest_y)) {
+      const int to_id = game->units.selected_id;
+      game_after_unit_step(game);
+      const ColonizeUnit* to = units_get_const(&game->units, to_id);
+      if (to && to->active && to->moves > 0 && game->units.selected_id == to_id) {
+        game_camera_edge_center(game, to->x, to->y);
+      }
+      return GAME_MOVE_RETURN_TRUE;
+    }
+    /* A lost MP roll already spent the passenger: report it, no unload probe. */
+    if (units_last_enter_reason() == COLONIZE_ENTER_NO_MP) {
+      game_report_enter_reason(game, sid, COLONIZE_ENTER_NO_MP);
+      return GAME_MOVE_RETURN_FALSE;
+    }
     if (!units_unload_passenger_w(&w, ship_id, sid, dest_x, dest_y)) {
       /*
        * port_bugs.md #721: DOS FUN_4720_015c reason 9 (viceroy_unpacked_2.c raw

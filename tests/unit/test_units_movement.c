@@ -1480,6 +1480,26 @@ static int unit_board_wakes_foreign_sentry(void) {
       rc = 1;
     }
   }
+  /* The ship-to-ship transfer is the same board step. */
+  const int own2 = rc == 0 ? units_spawn_allow_stack(&pool, 0, 3, 4) : -1;
+  if (rc == 0 && !units_get(&pool, own2)) {
+    fprintf(stderr, "board_wake: second ship spawn failed\n");
+    rc = 1;
+  }
+  if (rc == 0) {
+    units_get(&pool, own2)->nation_id = 0;
+    units_get(&pool, foe)->orders = UNITS_ORDER_SENTRY;
+    units_get(&pool, pax)->orders = UNITS_ORDER_NONE;
+    units_get(&pool, pax)->moves = UNITS_MP_PER_TILE;
+    if (!units_transfer_passenger_w(&w, own, pax, 3, 4) ||
+        units_get(&pool, pax)->aboard_ship_id != own2) {
+      fprintf(stderr, "board_wake: ship-to-ship transfer refused\n");
+      rc = 1;
+    } else if (units_get(&pool, foe)->orders == UNITS_ORDER_SENTRY) {
+      fprintf(stderr, "board_wake: a ship-to-ship transfer must wake the foreign sentry\n");
+      rc = 1;
+    }
+  }
   units_set_occupancy_map(NULL);
   map_free(&map);
   return rc;

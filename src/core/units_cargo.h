@@ -312,6 +312,16 @@ bool units_unload_w(
   int dest_x,
   int dest_y
 );
+/* Awake passenger steps onto an adjacent own ship with room (FUN_4720_015c).
+ * False = not that case or refused (a lost MP roll still spends the
+ * passenger, as in FUN_465b_0000, and leaves COLONIZE_ENTER_NO_MP). */
+bool units_transfer_passenger_w(
+  const ColonizeWorld* w,
+  int ship_id,
+  int pax_id,
+  int dest_x,
+  int dest_y
+);
 /* Unload a specific passenger onto dest; charges dest terrain MP (no gift). */
 bool units_unload_passenger_w(
   const ColonizeWorld* w,

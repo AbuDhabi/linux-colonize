@@ -1258,6 +1258,37 @@ static int test_deferred_wake_does_not_leak(void) {
   return rc;
 }
 
+/* FUN_4720_015c raw 75988-75995: an awake passenger's arrow step onto an
+ * adjacent own ship boards that ship instead of being refused as a landfall. */
+static int test_human_passenger_ship_to_ship(void) {
+  ColonizeGameState game;
+  ColonizeCol1Tribe tribe;
+  const int fr_id = step3180_fixture(&game, &tribe);
+  int rc = fr_id < 0 ? fail("ship-to-ship fixture") : 0;
+  ColonizeUnit* a = rc ? NULL : units_get(&game.units, units_spawn(&game.units, 1, 2, 3));
+  const int b_id = a ? units_spawn_allow_stack(&game.units, 1, 2, 4) : -1;
+  const int pax_id = a ? units_spawn(&game.units, 0, 1, 3) : -1;
+  if (rc == 0 && (!a || b_id < 0 || pax_id < 0 || !units_board(&game.units, pax_id, a->id))) {
+    rc = fail("ship-to-ship: ships / passenger");
+  }
+  if (rc == 0) {
+    a->nation_id = 0;
+    units_get(&game.units, b_id)->nation_id = 0;
+    ColonizeUnit* pax = units_get(&game.units, pax_id);
+    pax->nation_id = 0;
+    pax->orders = UNITS_ORDER_NONE;
+    pax->moves = UNITS_MP_PER_TILE;
+    game.units.selected_id = pax_id;
+    (void)game_try_unit_move(&game, 2, 4);
+    pax = units_get(&game.units, pax_id);
+    if (!pax || pax->aboard_ship_id != b_id) {
+      rc = fail("ship-to-ship: the awake passenger must board the adjacent own ship");
+    }
+  }
+  step3180_free(&game);
+  return rc;
+}
+
 /* @LANDFALL "Make landfall" makes the passenger active (FUN_281f_086c ->
  * FUN_1427_08ea sets DS:0x5392) and jumps to LAB_4720_061c (ndisasm
  * 0x3FE56-0x3FEA3 -> 0xff5c), the FUN_2a1f_0142 commit: the passenger's step
@@ -4722,6 +4753,7 @@ static const TestCase k_cases[] = {
     {"test_goto_treasure_gets_king_galleon_offer", test_goto_treasure_gets_king_galleon_offer},
     {"test_human_lcr_count_change_skips_contact", test_human_lcr_count_change_skips_contact},
     {"test_deferred_wake_does_not_leak", test_deferred_wake_does_not_leak},
+    {"test_human_passenger_ship_to_ship", test_human_passenger_ship_to_ship},
     {"test_human_landfall_runs_3180", test_human_landfall_runs_3180},
     {"test_human_village_visit_no_3180", test_human_village_visit_no_3180},
     {"test_human_landho_after_3180", test_human_landho_after_3180},
