@@ -1198,6 +1198,7 @@ static void game_after_unit_tail(ColonizeGameState* game, bool stepped) {
      * exhausted unit below, not View Pieces. FUN_1427_0824 (raw 7834-7836)
      * stepped DS:0x5392 back one record on the delete; units_despawn kept
      * that record in rotation_retest_id, so the scan re-tests it first. */
+    g_units_wake_deferred_id = -1; /* the mover is gone; drop its held wake */
     if (game->view_pieces_mode) {
       game_select_tile(game, game->map_cursor_x, game->map_cursor_y);
     } else {
@@ -1247,6 +1248,14 @@ static void game_after_unit_tail(ColonizeGameState* game, bool stepped) {
       return;
     }
   }
+  /* The step's 3180 sentry wake, held back by units_move_finish until the LCR
+   * above has run; a count change skips it (raw 75792). Same gap as the 3180
+   * arm below: an outcome deferred behind a popup has not changed the count
+   * yet, so the wake runs where DOS skips it. */
+  units_465b_deferred_wake(
+    &game->units, game->world_map_ok ? &game->world_map : NULL,
+    game->colonies_ok ? &game->colonies : NULL, u->id, !lcr_count_changed
+  );
   /*
    * FUN_5bfb_3180 (raw 98457-98695): the human's move commits through the same
    * FUN_465b_0000 tail as an AI move (FUN_4720_049e -> 2a1f_0142, raw 76124;

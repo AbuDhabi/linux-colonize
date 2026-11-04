@@ -1191,6 +1191,7 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_finish(units_move_ctx* c) {
   const int unit_id = c->unit_id;
   const ColonizeEnterReason reason = c->reason;
 
+  g_units_wake_deferred_id = -1;
   if (colonies) {
     units_try_capture_foreign_colony(pool, colonies, unit_id);
   }
@@ -1211,8 +1212,16 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_finish(units_move_ctx* c) {
      * may eat the mover's remaining MP (see units_ship_slow_scan). */
     units_ship_slow_scan_w(c->w, unit_id);
     /* FUN_5bfb_3180 sentry half: a foreign unit now adjacent wakes that stack's
-     * Sentry units (raw 98628-98646). Runs for every mover, land or sea. */
-    units_sentry_wake_scan(pool, map, colonies, unit_id);
+     * Sentry units (raw 98628-98646). Runs for every mover, land or sea.
+     * A human mover's LCR (raw 75788-75792) is still unrolled here
+     * (game_after_unit_tail resolves it behind its popups); a count change
+     * skips 3180, so the wake waits for units_465b_deferred_wake. */
+    if (c->unit && units_combat_human_involved(c->col1, c->unit->nation_id, -1) &&
+        map_tile_has_rumour(map, c->unit->x, c->unit->y)) {
+      g_units_wake_deferred_id = unit_id;
+    } else {
+      units_sentry_wake_scan(pool, map, colonies, unit_id);
+    }
   }
   c->unit = units_get(pool, unit_id);
   /* No named_new_world write here: FUN_4720_049e raw 76126-76135 is the
@@ -1334,6 +1343,18 @@ bool units_try_move_w(
 }
 
 bool g_units_465b_settled = false;
+int g_units_wake_deferred_id = -1;
+
+void units_465b_deferred_wake(
+  ColonizeUnitPool* pool, const ColonizeWorldMap* map, const ColonizeColonyPool* colonies,
+  int unit_id, bool run
+) {
+  const bool due = unit_id >= 0 && unit_id == g_units_wake_deferred_id;
+  g_units_wake_deferred_id = -1;
+  if (due && run) {
+    units_sentry_wake_scan(pool, map, colonies, unit_id);
+  }
+}
 
 int units_active_count(const ColonizeUnitPool* pool) {
   int n = 0;
@@ -2500,6 +2521,7 @@ void units_reset_state(void) {
   /* DS:0x1dc6/0x1dc7 are process-wide in DOS; the port keeps them per game
    * (dos_bugs.md DB-47). A port save's RTST chunk restores them after this. */
   units_lcr_counters_import((const uint8_t[2]){0, 0});
+  g_units_wake_deferred_id = -1; /* a held 3180 wake never outlives its game */
 }
 
 static uint8_t* path_w32(uint8_t* p, uint32_t v) {

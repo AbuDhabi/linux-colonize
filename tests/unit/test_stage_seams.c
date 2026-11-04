@@ -1091,6 +1091,8 @@ static int test_human_lcr_count_change_skips_contact(void) {
     dutch->nation_id = 1;
     /* 3180's facing stamp (raw 98648-98651) is skipped with the rest of 3180. */
     dutch->last_dir = -1;
+    /* So is its sentry wake (raw 98628-98646). */
+    dutch->orders = UNITS_ORDER_SENTRY;
     const int dutch_id = dutch->id;
     game.col1.head.turn = (uint16_t)seed; /* 153e talks once per pair per turn */
     ai_diplo_talk_reset();
@@ -1108,20 +1110,23 @@ static int test_human_lcr_count_change_skips_contact(void) {
     const bool met = (game.col1.indian[0].euro_diplo[0] & COL1_INDIAN_MET_BIT) != 0;
     const bool euro_met = (ai_diplo_read(&game.col1, 0, 1) & COL1_INDIAN_MET_BIT) != 0;
     const bool faced = dutch && dutch->last_dir >= 0;
+    const bool woke = dutch && dutch->orders != UNITS_ORDER_SENTRY;
     if (alive && changed) {
       seen_changed++;
-      if (met || euro_met || faced) {
+      if (met || euro_met || faced || woke) {
         fprintf(stderr,
-                "human lcr: count change (seed %d) still ran contact (tribe %d euro %d faced %d)\n",
-                seed, met, euro_met, faced);
+                "human lcr: count change (seed %d) still ran contact (tribe %d euro %d faced %d "
+                "woke %d)\n",
+                seed, met, euro_met, faced, woke);
         rc = 1;
       }
     } else if (alive && !changed) {
       seen_same++;
-      if (!met || !euro_met || !faced) {
+      if (!met || !euro_met || !faced || !woke) {
         fprintf(stderr,
-                "human lcr: unchanged count (seed %d) skipped contact (tribe %d euro %d faced %d)\n",
-                seed, met, euro_met, faced);
+                "human lcr: unchanged count (seed %d) skipped contact (tribe %d euro %d faced %d "
+                "woke %d)\n",
+                seed, met, euro_met, faced, woke);
         rc = 1;
       }
     }
@@ -1216,6 +1221,41 @@ static void step3180_free(ColonizeGameState* game) {
   game->col1.tribe = NULL;
   game->col1.head.tribe_count = 0;
   trade_seam_free(game);
+}
+
+/* A held 3180 wake dies with its tail. The early return (no selected unit)
+ * drops it, so a later non-step tail of the same unit wakes nobody, and
+ * units_reset_state (load / new game) clears it too. */
+static int test_deferred_wake_does_not_leak(void) {
+  ColonizeGameState game;
+  ColonizeCol1Tribe tribe;
+  const int fr_id = step3180_fixture(&game, &tribe);
+  int rc = fr_id < 0 ? fail("wake leak fixture") : 0;
+  ColonizeUnit* a = rc ? NULL : units_get(&game.units, units_spawn(&game.units, 0, 3, 3));
+  if (rc == 0 && !a) {
+    rc = fail("wake leak: spawn");
+  }
+  if (rc == 0) {
+    a->nation_id = 0;
+    a->moves = 0;
+    const int aid = a->id;
+    units_get(&game.units, fr_id)->orders = UNITS_ORDER_SENTRY;
+    g_units_wake_deferred_id = aid;
+    game.units.selected_id = -1;
+    game_after_unit_action(&game);
+    game.units.selected_id = aid;
+    game_after_unit_action(&game);
+    if (units_get_const(&game.units, fr_id)->orders != UNITS_ORDER_SENTRY) {
+      rc = fail("wake leak: a held wake survived the early return and fired later");
+    }
+    g_units_wake_deferred_id = aid;
+    units_reset_state();
+    if (g_units_wake_deferred_id != -1) {
+      rc = fail("wake leak: units_reset_state kept the held wake");
+    }
+  }
+  step3180_free(&game);
+  return rc;
 }
 
 /* @LANDFALL "Make landfall" makes the passenger active (FUN_281f_086c ->
@@ -4681,6 +4721,7 @@ static const TestCase k_cases[] = {
     {"test_trade_route_begin_moves_wagon_to_selected_stop", test_trade_route_begin_moves_wagon_to_selected_stop},
     {"test_goto_treasure_gets_king_galleon_offer", test_goto_treasure_gets_king_galleon_offer},
     {"test_human_lcr_count_change_skips_contact", test_human_lcr_count_change_skips_contact},
+    {"test_deferred_wake_does_not_leak", test_deferred_wake_does_not_leak},
     {"test_human_landfall_runs_3180", test_human_landfall_runs_3180},
     {"test_human_village_visit_no_3180", test_human_village_visit_no_3180},
     {"test_human_landho_after_3180", test_human_landho_after_3180},
