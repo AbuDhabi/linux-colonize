@@ -839,7 +839,10 @@ int europe_voyage_turns_roll(
   if (!rng) {
     return 1;
   }
-  /* 48d3:0042 RNG(1,100) always rolled; >0x59 && ship_counts>2 && !FF5 → 2. */
+  /* raw 77571: FUN_281f_04ca(DS:0x83a6) on every call (AI lane, human
+   * crossings, damaged hull, gift Frigate). Then 48d3:0042 RNG(1,100) always
+   * rolled; >0x59 && ship_counts>2 && !FF5 → 2. */
+  dos_rng_reseed_83a6(rng);
   const int roll = dos_rng_range(rng, 1, 100);
   const int turns = (roll > 89 && ship_count > 2 && !magellan) ? 2 : 1;
   /*

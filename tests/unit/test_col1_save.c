@@ -1457,6 +1457,402 @@ static bool test_europe_lane_ship_chain(char* err, size_t err_size) {
   return ok;
 }
 
+/* Europe-lane fixture: an 8x8 save with `n` blank records, human player 0,
+ * and a 23-type pool whose types 13..18 are hulls. Static use only (the pool
+ * is large). */
+typedef struct {
+  ColonizeCol1Save save;
+  ColonizeUnitPool units;
+  ColonizeWorldMap map;
+  ColonizeColonyPool colonies;
+  EuropeScreen europe;
+} LaneFx;
+
+static bool lane_fx_init(LaneFx* fx, int n, char* err, size_t err_size) {
+  memset(fx, 0, sizeof(*fx));
+  col1_save_init(&fx->save);
+  fx->save.head.map_size_x = 8;
+  fx->save.head.map_size_y = 8;
+  fx->save.head.unit_count = (uint16_t)n;
+  fx->save.head.human_player = 0;
+  fx->save.player[0].control = 0;
+  col1_save_stamp_head(&fx->save.head);
+  if (!col1_save_alloc_sections(&fx->save, err, err_size)) {
+    return false;
+  }
+  memset(fx->save.map.tile, 0, fx->save.map.tile_count);
+  for (int i = 0; i < n; ++i) {
+    fx->save.unit[i].profession = UNITS_JOB_NONE;
+    fx->save.unit[i].transport_chain.prev_unit_idx = -1;
+    fx->save.unit[i].transport_chain.next_unit_idx = -1;
+  }
+  units_reset(&fx->units);
+  fx->units.type_count = 23;
+  for (int t = 0; t < fx->units.type_count; ++t) {
+    fx->units.types[t].movement = 1;
+    fx->units.types[t].domain = (t >= 13 && t <= 18) ? COLONIZE_UNIT_DOMAIN_SEA
+                                                     : COLONIZE_UNIT_DOMAIN_LAND;
+    fx->units.types[t].cargo = (t >= 13 && t <= 18) ? 6 : 0;
+  }
+  units_set_occupancy_map(NULL);
+  colonies_init(&fx->colonies);
+  fx->europe.cargo_count = 16;
+  return true;
+}
+
+static ColonizeWorld lane_fx_world(LaneFx* fx) {
+  return (ColonizeWorld){.units = &fx->units, .colonies = &fx->colonies, .map = &fx->map,
+                         .col1 = &fx->save, .col1_ok = true, .europe = &fx->europe};
+}
+
+static bool lane_fx_apply(LaneFx* fx, char* err, size_t err_size) {
+  ColonizeCol1BridgeResult result;
+  const ColonizeWorld w = lane_fx_world(fx);
+  return col1_bridge_apply_w(&w, &result, err, err_size);
+}
+
+static void lane_fx_free(LaneFx* fx) {
+  units_set_occupancy_map(NULL);
+  col1_save_free(&fx->save);
+  map_free(&fx->map);
+}
+
+/* A record on lane tile xy (x = y = xy), human nation 0. */
+static void lane_fx_put(LaneFx* fx, int i, uint8_t xy, uint8_t type, uint8_t counter) {
+  ColonizeCol1Unit* u = &fx->save.unit[i];
+  u->x = xy;
+  u->y = xy;
+  u->type = type;
+  u->nation_id = 0;
+  u->col1_counter16 = counter;
+  u->goto_x = 3;
+  u->goto_y = 3;
+}
+
+/*
+ * DOS-save 244+n hulls load in lane-chain order. FUN_1427_02ca (raw
+ * 7478-7509) links each departing hull on top of the lane chain, so record 0
+ * (the top) sailed last and record 1 (its +0x315e tail) first: expected[],
+ * which runs in departure order, starts with record 1.
+ */
+static bool test_expected_lane_chain_order(char* err, size_t err_size) {
+  static LaneFx fx;
+  if (!lane_fx_init(&fx, 2, err, err_size)) {
+    return false;
+  }
+  lane_fx_put(&fx, 0, 244, 13, 2);
+  lane_fx_put(&fx, 1, 244, 14, 2);
+  fx.save.unit[0].transport_chain.prev_unit_idx = 1;
+  fx.save.unit[1].transport_chain.next_unit_idx = 0;
+  bool ok = lane_fx_apply(&fx, err, err_size);
+  if (ok && (fx.europe.expected_ships != 2 || fx.europe.expected[0].type_index != 14 ||
+             fx.europe.expected[1].type_index != 13)) {
+    snprintf(err, err_size, "expected lane: %d ships, types %d,%d (want 14,13)",
+             fx.europe.expected_ships, fx.europe.expected[0].type_index,
+             fx.europe.expected[1].type_index);
+    ok = false;
+  }
+  lane_fx_free(&fx);
+  return ok;
+}
+
+/*
+ * A DOS save taken between FUN_48d3_06ba's hops at raw 77980 (244+n -> 240+n)
+ * and raw 77979 (240+n -> 236+n) holds a hull on 240+n with its passenger
+ * chained. It loads as Expected with turns 0 and the passenger aboard, ahead
+ * of the 244+n hull, and docks at the next tick.
+ */
+static bool test_arriving_lane_import(char* err, size_t err_size) {
+  static LaneFx fx;
+  if (!lane_fx_init(&fx, 3, err, err_size)) {
+    return false;
+  }
+  lane_fx_put(&fx, 0, 244, 13, 2);
+  lane_fx_put(&fx, 1, 240, 0, 0);
+  lane_fx_put(&fx, 2, 240, 15, 0);
+  fx.save.unit[1].transport_chain.next_unit_idx = 2;
+  fx.save.unit[2].transport_chain.prev_unit_idx = 1;
+  bool ok = lane_fx_apply(&fx, err, err_size);
+  const EuropeScreen* eu = &fx.europe;
+  if (ok && (eu->expected_ships != 2 || eu->harbor_ships != 0 || eu->dock_count != 0 ||
+             eu->expected[0].type_index != 15 || eu->expected[0].turns_left != 0 ||
+             eu->expected[0].cargo_count != 1 || eu->expected[1].type_index != 13)) {
+    snprintf(err, err_size,
+             "arrival lane: expected %d harbor %d dock %d, [0] type %d turns %d pax %d",
+             eu->expected_ships, eu->harbor_ships, eu->dock_count, eu->expected[0].type_index,
+             eu->expected[0].turns_left, eu->expected[0].cargo_count);
+    ok = false;
+  }
+  if (ok) {
+    europe_tick_voyages(&fx.europe, &fx.units);
+    if (eu->harbor_ships != 1 || eu->harbor[0].type_index != 15 || eu->expected_ships != 1) {
+      snprintf(err, err_size, "arrival lane: after one tick harbor %d (type %d) expected %d",
+               eu->harbor_ships, eu->harbor[0].type_index, eu->expected_ships);
+      ok = false;
+    }
+  }
+  lane_fx_free(&fx);
+  return ok;
+}
+
+/* Apply `save` into fx's pool and Europe screen (fx->save is left alone). */
+static bool lane_fx_apply_save(LaneFx* fx, ColonizeCol1Save* save, char* err, size_t err_size) {
+  ColonizeCol1BridgeResult result;
+  ColonizeWorld w = lane_fx_world(fx);
+  w.col1 = save;
+  return col1_bridge_apply_w(&w, &result, err, err_size);
+}
+
+static bool lane_fx_capture(LaneFx* fx, char* err, size_t err_size) {
+  const ColonizeWorld w = lane_fx_world(fx);
+  return col1_bridge_capture_w(&w, 1492, 0, 1, 0, 3, 3, 3, 3, -1, true, err, err_size);
+}
+
+/* Save record of the first hull of `type` (types are unique per test). */
+static int lane_hull_rec(const ColonizeCol1Save* s, uint8_t type) {
+  for (int i = 0; i < (int)s->head.unit_count; ++i) {
+    if (s->unit[i].type == type) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+/* Tick `fx`'s voyages `n` times; out[k] = harbor ships after tick k+1. */
+static void lane_fx_ticks(LaneFx* fx, int n, int* out) {
+  for (int k = 0; k < n; ++k) {
+    europe_tick_voyages(&fx->europe, &fx->units);
+    out[k] = fx->europe.harbor_ships;
+  }
+}
+
+/*
+ * Expected hulls dock on the DOS tick across a col1 save. FUN_48d3_03d0 (raw
+ * 77761-77782) decrements a non-zero counter, then hops a hull whose counter
+ * reads 0: a 244+n hull with counter c reaches 240+n on FUN_48d3_06ba pass
+ * max(c,1) (raw 77980) and docks on the next one (raw 77979).
+ * (a) DOS records 244+n counter 2 and counter 0 dock on ticks 3 and 2.
+ * (b) The export writes the dock tick back: departed turns 2 (tick 3) =
+ *     244+n/2, turns 2 (tick 2) = 244+n/1, turns 1 (tick 1) = 240+n/0.
+ * (c) Re-imported, the three dock on ticks 1, 2, 3 as before the save.
+ */
+static bool test_expected_lane_dock_tick(char* err, size_t err_size) {
+  static LaneFx fx;
+  if (!lane_fx_init(&fx, 2, err, err_size)) {
+    return false;
+  }
+  lane_fx_put(&fx, 0, 244, 13, 2);
+  lane_fx_put(&fx, 1, 244, 14, 0);
+  bool ok = lane_fx_apply(&fx, err, err_size);
+  int docked[3] = {0, 0, 0};
+  if (ok) {
+    lane_fx_ticks(&fx, 3, docked);
+    if (docked[0] != 0 || docked[1] != 1 || docked[2] != 2) {
+      snprintf(err, err_size, "244+n import: harbor after ticks 1..3 = %d,%d,%d (want 0,1,2)",
+               docked[0], docked[1], docked[2]);
+      ok = false;
+    }
+  }
+  lane_fx_free(&fx);
+  if (!ok) {
+    return false;
+  }
+  if (!lane_fx_init(&fx, 0, err, err_size) || !lane_fx_apply(&fx, err, err_size)) {
+    lane_fx_free(&fx);
+    return false;
+  }
+  const struct {
+    uint8_t type;
+    int turns;
+    bool departed;
+    uint8_t want_xy;
+    uint8_t want_ctr;
+  } k_ships[3] = {{13, 2, true, 244, 2}, {14, 2, false, 244, 1}, {15, 1, false, 240, 0}};
+  for (int k = 0; k < 3; ++k) {
+    EuropeHarborShip* s = &fx.europe.expected[k];
+    memset(s, 0, sizeof(*s));
+    s->type_index = k_ships[k].type;
+    snprintf(s->name, sizeof(s->name), "Hull");
+    s->turns_left = k_ships[k].turns;
+    s->departed_this_turn = k_ships[k].departed;
+    s->exit_x = 3;
+    s->exit_y = 3;
+  }
+  fx.europe.expected_ships = 3;
+  ok = lane_fx_capture(&fx, err, err_size);
+  for (int k = 0; ok && k < 3; ++k) {
+    const int rec = lane_hull_rec(&fx.save, k_ships[k].type);
+    if (rec < 0 || fx.save.unit[rec].x != k_ships[k].want_xy ||
+        fx.save.unit[rec].col1_counter16 != k_ships[k].want_ctr) {
+      snprintf(err, err_size, "export type %u: lane %d counter %d (want %u/%u)",
+               k_ships[k].type, rec < 0 ? -1 : fx.save.unit[rec].x,
+               rec < 0 ? -1 : fx.save.unit[rec].col1_counter16, k_ships[k].want_xy,
+               k_ships[k].want_ctr);
+      ok = false;
+    }
+  }
+  static LaneFx back;
+  if (ok && (!lane_fx_init(&back, 0, err, err_size) ||
+             !lane_fx_apply_save(&back, &fx.save, err, err_size))) {
+    ok = false;
+  }
+  if (ok) {
+    lane_fx_ticks(&back, 3, docked);
+    if (back.europe.expected_ships + back.europe.harbor_ships != 3 || docked[0] != 1 ||
+        docked[1] != 2 || docked[2] != 3) {
+      snprintf(err, err_size, "round trip: harbor after ticks 1..3 = %d,%d,%d (want 1,2,3)",
+               docked[0], docked[1], docked[2]);
+      ok = false;
+    }
+  }
+  lane_fx_free(&back);
+  lane_fx_free(&fx);
+  return ok;
+}
+
+/* turns_left of the Bound ship of `type`, -1 when it is not Bound. */
+static int lane_bound_turns(const EuropeScreen* eu, int type) {
+  for (int i = 0; i < eu->bound_ships; ++i) {
+    if (eu->bound[i].type_index == type) {
+      return eu->bound[i].turns_left;
+    }
+  }
+  return -1;
+}
+
+/*
+ * Bound hulls keep their landing tick across a col1 save. FUN_48d3_0346 drops
+ * a departing hull on 232+n; FUN_48d3_06ba hops 228+n to the map (raw 77965)
+ * before 232+n to 228+n (raw 77966), and FUN_48d3_03d0 (raw 77761-77782)
+ * hops a hull once its counter reads 0, so a 232+n hull with counter c lands
+ * on pass max(c,1)+1 and a 228+n hull with counter 0 or 1 on the next one.
+ * (a) DOS records 232+n counter 2 and counter 0 load Bound, turns 3 and 2;
+ *     so does a 232+n counter 0 hull with goto (0,0), which is only the
+ *     legacy harbor shape on 228+n.
+ * (b) The export: departed turns 2 (lands after tick 3) = 232+n/2, turns 2 =
+ *     232+n/1, turns 1 = 228+n/1, turns 0 = 228+n/0.
+ * (c) Re-imported, the four come back with turns 3, 2, 1, 0.
+ */
+static bool test_bound_lane_save(char* err, size_t err_size) {
+  static LaneFx fx;
+  if (!lane_fx_init(&fx, 3, err, err_size)) {
+    return false;
+  }
+  lane_fx_put(&fx, 0, 232, 13, 2);
+  lane_fx_put(&fx, 1, 232, 14, 0);
+  lane_fx_put(&fx, 2, 232, 15, 0);
+  fx.save.unit[2].goto_x = 0;
+  fx.save.unit[2].goto_y = 0;
+  bool ok = lane_fx_apply(&fx, err, err_size);
+  if (ok && (fx.europe.bound_ships != 3 || fx.europe.harbor_ships != 0 ||
+             lane_bound_turns(&fx.europe, 13) != 3 || lane_bound_turns(&fx.europe, 14) != 2 ||
+             lane_bound_turns(&fx.europe, 15) != 2)) {
+    snprintf(err, err_size,
+             "232+n import: bound %d harbor %d, turns %d,%d,%d (want 3, 0, 3,2,2)",
+             fx.europe.bound_ships, fx.europe.harbor_ships, lane_bound_turns(&fx.europe, 13),
+             lane_bound_turns(&fx.europe, 14), lane_bound_turns(&fx.europe, 15));
+    ok = false;
+  }
+  lane_fx_free(&fx);
+  if (!ok) {
+    return false;
+  }
+  if (!lane_fx_init(&fx, 0, err, err_size) || !lane_fx_apply(&fx, err, err_size)) {
+    lane_fx_free(&fx);
+    return false;
+  }
+  const struct {
+    uint8_t type;
+    int turns;
+    bool departed;
+    uint8_t want_xy;
+    uint8_t want_ctr;
+    int want_back;
+  } k_ships[4] = {{13, 2, true, 232, 2, 3},
+                  {14, 2, false, 232, 1, 2},
+                  {15, 1, false, 228, 1, 1},
+                  {16, 0, false, 228, 0, 0}};
+  for (int k = 0; k < 4; ++k) {
+    EuropeHarborShip* s = &fx.europe.bound[k];
+    memset(s, 0, sizeof(*s));
+    s->type_index = k_ships[k].type;
+    snprintf(s->name, sizeof(s->name), "Hull");
+    s->turns_left = k_ships[k].turns;
+    s->departed_this_turn = k_ships[k].departed;
+    s->exit_x = 3;
+    s->exit_y = 3;
+  }
+  fx.europe.bound_ships = 4;
+  ok = lane_fx_capture(&fx, err, err_size);
+  for (int k = 0; ok && k < 4; ++k) {
+    const int rec = lane_hull_rec(&fx.save, k_ships[k].type);
+    if (rec < 0 || fx.save.unit[rec].x != k_ships[k].want_xy ||
+        fx.save.unit[rec].col1_counter16 != k_ships[k].want_ctr) {
+      snprintf(err, err_size, "bound export type %u: lane %d counter %d (want %u/%u)",
+               k_ships[k].type, rec < 0 ? -1 : fx.save.unit[rec].x,
+               rec < 0 ? -1 : fx.save.unit[rec].col1_counter16, k_ships[k].want_xy,
+               k_ships[k].want_ctr);
+      ok = false;
+    }
+  }
+  static LaneFx back;
+  if (ok && (!lane_fx_init(&back, 0, err, err_size) ||
+             !lane_fx_apply_save(&back, &fx.save, err, err_size))) {
+    ok = false;
+  }
+  for (int k = 0; ok && k < 4; ++k) {
+    if (lane_bound_turns(&back.europe, k_ships[k].type) != k_ships[k].want_back) {
+      snprintf(err, err_size, "bound round trip type %u: turns %d (want %d)", k_ships[k].type,
+               lane_bound_turns(&back.europe, k_ships[k].type), k_ships[k].want_back);
+      ok = false;
+    }
+  }
+  lane_fx_free(&back);
+  lane_fx_free(&fx);
+  return ok;
+}
+
+/*
+ * A Bound hull with turns_left 0 and no exit tile saves as 228+n counter 1,
+ * not 228+n counter 0 with goto (0,0), which the import files as a legacy
+ * docked ship. FUN_48d3_03d0 (raw 77772-77777) decrements counter 1 before
+ * its hop test, so DOS lands it on the same pass as counter 0.
+ */
+static bool test_bound_no_exit_save(char* err, size_t err_size) {
+  static LaneFx fx;
+  if (!lane_fx_init(&fx, 0, err, err_size) || !lane_fx_apply(&fx, err, err_size)) {
+    lane_fx_free(&fx);
+    return false;
+  }
+  EuropeHarborShip* s = &fx.europe.bound[0];
+  memset(s, 0, sizeof(*s));
+  s->type_index = 13;
+  snprintf(s->name, sizeof(s->name), "Hull");
+  fx.europe.bound_ships = 1;
+  bool ok = lane_fx_capture(&fx, err, err_size);
+  const int rec = ok ? lane_hull_rec(&fx.save, 13) : -1;
+  if (ok && (rec < 0 || fx.save.unit[rec].x != 228 || fx.save.unit[rec].col1_counter16 != 1)) {
+    snprintf(err, err_size, "no-exit export: lane %d counter %d (want 228/1)",
+             rec < 0 ? -1 : fx.save.unit[rec].x, rec < 0 ? -1 : fx.save.unit[rec].col1_counter16);
+    ok = false;
+  }
+  static LaneFx back;
+  if (ok && (!lane_fx_init(&back, 0, err, err_size) ||
+             !lane_fx_apply_save(&back, &fx.save, err, err_size))) {
+    ok = false;
+  }
+  if (ok && (back.europe.bound_ships != 1 || back.europe.harbor_ships != 0 ||
+             back.europe.bound[0].turns_left != 1)) {
+    snprintf(err, err_size, "no-exit round trip: bound %d harbor %d turns %d (want 1, 0, 1)",
+             back.europe.bound_ships, back.europe.harbor_ships,
+             back.europe.bound_ships > 0 ? back.europe.bound[0].turns_left : -1);
+    ok = false;
+  }
+  lane_fx_free(&back);
+  lane_fx_free(&fx);
+  return ok;
+}
+
 /* DOS keeps +0x3148 0x40 on the hull record whatever lane it is on (no write
  * clears it; only FUN_1427_06b4's creation zero, raw 7728), so royal_gift
  * must survive capture + apply in harbor, Expected and Bound. */
@@ -1826,6 +2222,26 @@ int main(void) {
   }
   if (!test_europe_lane_ship_chain(err, sizeof(err))) {
     fprintf(stderr, "Europe lane chain: %s\n", err);
+    return 1;
+  }
+  if (!test_expected_lane_chain_order(err, sizeof(err))) {
+    fprintf(stderr, "Expected lane order: %s\n", err);
+    return 1;
+  }
+  if (!test_arriving_lane_import(err, sizeof(err))) {
+    fprintf(stderr, "arrival lane import: %s\n", err);
+    return 1;
+  }
+  if (!test_expected_lane_dock_tick(err, sizeof(err))) {
+    fprintf(stderr, "Expected lane dock tick: %s\n", err);
+    return 1;
+  }
+  if (!test_bound_lane_save(err, sizeof(err))) {
+    fprintf(stderr, "Bound lane save: %s\n", err);
+    return 1;
+  }
+  if (!test_bound_no_exit_save(err, sizeof(err))) {
+    fprintf(stderr, "Bound no-exit save: %s\n", err);
     return 1;
   }
   if (!test_europe_dock_in_session_order(err, sizeof(err))) {
@@ -2248,9 +2664,11 @@ int main(void) {
         );
         return 1;
       }
-      /* COLONY04: human (3) Merchantman at 247 = sailing to Europe, 1 turn left. */
+      /* COLONY04: human (3) Merchantman at 247 = sailing to Europe, counter
+       * <= 1: it hops to 243 on the next FUN_48d3_06ba pass and docks on the
+       * one after (raw 77980, 77979), so turns_left 2. */
       if (strstr(fix->path, "lategame-saves/COLONY04.SAV") &&
-          (europe.expected_ships != 1 || europe.expected[0].turns_left != 1 ||
+          (europe.expected_ships != 1 || europe.expected[0].turns_left != 2 ||
            europe.expected[0].exit_x != 55 || europe.expected[0].exit_y != 48)) {
         fprintf(stderr, "COLONY04 expected lane wrong: n=%d turns=%d exit=(%d,%d)\n",
                 europe.expected_ships, europe.expected[0].turns_left,
@@ -2343,8 +2761,11 @@ int main(void) {
         {
           int with_voyage = 0;
           int pioneer_tools = -1;
+          /* Sailed this turn with 2 turns, it lands after tick 3: saved on
+           * 232+n counter 2, it loads with turns 3 (FUN_48d3_06ba raw 77966,
+           * then 77965). */
           for (int bi = 0; bi < europe3.bound_ships; ++bi) {
-            if (europe3.bound[bi].turns_left == 2) {
+            if (europe3.bound[bi].turns_left == 3) {
               with_voyage++;
               if (europe3.bound[bi].cargo_count == 1) {
                 pioneer_tools = europe3.bound[bi].cargo_tools[0];
@@ -2356,7 +2777,7 @@ int main(void) {
             return 1;
           }
           if (europe3.bound_ships != 3 || with_voyage != 1 || europe3.harbor_ships != 0) {
-            fprintf(stderr, "COLONY06 bound lane wrong: bound=%d turns2=%d harbor=%d\n",
+            fprintf(stderr, "COLONY06 bound lane wrong: bound=%d turns3=%d harbor=%d\n",
                     europe3.bound_ships, with_voyage, europe3.harbor_ships);
             return 1;
           }

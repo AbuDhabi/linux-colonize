@@ -99,6 +99,8 @@ int units_tick_ship_build_ready(
  * Drydock repair: clear combat-damage bit7 for finished ships on own Drydock
  * colony. Construction (col1_counter16 < defense thresh) stays on ship-build tick.
  * Returns ships repaired. ai_popups/messages optional — human repair emits @REFIT.
+ * Walks the slots high to low (FUN_3844_00f2); out_ids (optional) gets the
+ * repaired unit ids in that order.
  * Cite: building_production.md; combat.md fort bit7.
  */
 int units_tick_drydock_repair(
@@ -108,6 +110,17 @@ int units_tick_drydock_repair(
   int human_nation,
   char* status,
   size_t status_size,
+  AiPopupState* ai_popups,
+  const ColonizeMsgCatalog* messages,
+  int* out_ids,
+  int out_max
+);
+/* The @REFIT popup for a repaired ship (colony name on a colony tile, else the
+ * nation's harbour). No-op without ai_popups. */
+void units_refit_popup(
+  const ColonizeUnitPool* pool,
+  const ColonizeColonyPool* colonies,
+  int unit_id,
   AiPopupState* ai_popups,
   const ColonizeMsgCatalog* messages
 );

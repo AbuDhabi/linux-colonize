@@ -326,10 +326,13 @@ static void game_combat_analysis_present(const ColonizeCombatEngagement* eng, vo
   if (!combat_analysis_open(&game->combat_analysis, &game->units, eng)) {
     return;
   }
-  /* Analysis draws over the live map: centre it on the fight first. */
+  /* Analysis draws over the live map. 1b0e calls FUN_281f_0d9a(defender tile)
+   * just before FUN_2a1f_0704 (raw 100588); 0d9a -> FUN_1984_03b2 ->
+   * FUN_1984_02fc(x, y, x, y, 0): the edge-band scroll, not an unconditional
+   * centre. */
   const ColonizeUnit* ca_def = units_get_const(&game->units, eng->defender_id);
   if (ca_def) {
-    game_set_view_center(game, ca_def->x, ca_def->y);
+    game_camera_edge_center(game, ca_def->x, ca_def->y);
   }
   /* Headless / no platform: auto-dismiss (tests never set presenter). */
   if (!game->platform) {
@@ -399,7 +402,11 @@ COLONIZE_INTERNAL bool game_move_is_near_human(
   if (game->human_nation < 0 || game->human_nation > 3) {
     return false;
   }
-  const uint8_t mask = units_vis_mask_for_tile(map, x, y, mover->nation_id);
+  /* Raw 75662-75668 tests the mover's own vis byte after FUN_281f_07fe
+   * (= FUN_1427_0c72, an OR) folded the destination's FUN_281f_0826 mask in,
+   * so a mover the human already saw stays shown wherever it steps. */
+  const uint8_t mask = (uint8_t)(units_move_watch_vis_before() |
+                                 units_vis_mask_for_tile(map, x, y, mover->nation_id));
   return (mask & (1u << game->human_nation)) != 0;
 }
 
@@ -615,7 +622,7 @@ COLONIZE_INTERNAL void game_move_watch_w(
 
   ColonizeGameState* game = (ColonizeGameState*)user;
   const ColonizeUnit* unit = pool ? units_get_const(pool, unit_id) : NULL;
-  if (!game || !unit || !map || !colonies || !game->platform || !game->col1_ok) {
+  if (!game || !unit || !map || !colonies || !game->col1_ok) {
     return;
   }
   const bool own = unit->nation_id == game->human_nation;
@@ -629,25 +636,18 @@ COLONIZE_INTERNAL void game_move_watch_w(
          !game_tile_live_seen(game, to_x, to_y))) {
       return;
     }
-    game_set_view_center(game, to_x, to_y);
-  } else {
-    /* port_bugs.md: scripted own-nation moves — the allied intervention force's
-     * disembark slides — can originate entirely off-screen, where the slide
-     * plays invisibly (a player-driven unit is by definition on screen, so
-     * this recentre never fires for ordinary moves). */
-    int cols = 0;
-    int rows = 0;
-    game_map_zoom_view_size(game->map_zoom, &cols, &rows);
-    int vx = 0;
-    int vy = 0;
-    map_panel_clamp_view_origin(
-      (int)game->world_map.width, (int)game->world_map.height, game->map_view_x,
-      game->map_view_y, cols, rows, &vx, &vy
-    );
-    if (from_x < vx || from_y < vy || from_x >= vx + cols || from_y >= vy + rows ||
-        to_x < vx || to_y < vy || to_x >= vx + cols || to_y >= vy + rows) {
-      game_set_view_center(game, to_x, to_y);
-    }
+  }
+  /* FUN_465b_0000 raw 75699-75704 slides every own step and each shown
+   * foreign step (local_a) through FUN_281f_02d0 -> FUN_112b_0eb6, which first
+   * runs FUN_1984_02fc on the slide's DEPARTURE tile (raw 2627; param_4/5 =
+   * the mover's pre-move +0x3144/+0x3145): the view moves only when that tile
+   * is within 2 of a scrollable edge, and then centres on it, never on the
+   * arrival. An off-screen departure (the intervention force's disembark) is
+   * past every margin, so it still recentres. The view is game state, so the
+   * test runs before the platform check. */
+  game_camera_edge_center(game, from_x, from_y);
+  if (!game->platform) {
+    return;
   }
 
   static uint8_t* s_slide_fb;
@@ -830,7 +830,7 @@ void game_map_zoom_view_size(int zoom, int* out_cols, int* out_rows);
  * the 2-tile edge band that is not already at the map rim. */
 void game_camera_edge_center(void* user, int x, int y) {
   ColonizeGameState* game = (ColonizeGameState*)user;
-  if (!game || !game->platform || !game->world_map_ok) {
+  if (!game || !game->world_map_ok) {
     return;
   }
   const int mw = (int)game->world_map.width;
@@ -968,7 +968,7 @@ void game_combat_watch(
 ) {
   ColonizeGameState* game = (ColonizeGameState*)user;
   const ColonizeUnit* atk = pool ? units_get_const(pool, attacker_id) : NULL;
-  if (!game || !game->platform || !game->world_map_ok || (!atk && attacker_id >= 0)) {
+  if (!game || !game->world_map_ok || (!atk && attacker_id >= 0)) {
     return;
   }
   /* Only when the human can see the fight (live sight of either tile). */
@@ -976,12 +976,18 @@ void game_combat_watch(
       (!atk || !game_tile_live_seen(game, atk->x, atk->y))) {
     return;
   }
-  /* Centre at every zoom; only the lunge is zoom-0-only. */
-  game_set_view_center(game, def_x, def_y);
   if (!atk) {
-    return; /* attacker_id < 0: centre only (fort phantom without an Artillery row) */
+    /* attacker_id < 0: centre only (fort phantom without an Artillery row) */
+    game_set_view_center(game, def_x, def_y);
+    return;
   }
-  if (game->map_zoom != 0 || !game->unit_icons_ok) {
+  /* FUN_5fef_1b0e's lunge (raw 100578-100610) is the FUN_112b_0eb6 slide
+   * with the ATTACKER's tile as its start (uVar21/22 = +0x3144/+0x3145,
+   * raw 100566-100567), so the view only edge-scrolls on that tile (raw
+   * 2627), at every zoom, and never centres on the defender. The view is
+   * game state, so the test runs before the platform check. */
+  game_camera_edge_center(game, atk->x, atk->y);
+  if (!game->platform || game->map_zoom != 0 || !game->unit_icons_ok) {
     return;
   }
   /* port_bugs.md #365: same chrome standing or lunging — see game_move_watch. */
@@ -998,22 +1004,24 @@ void game_combat_watch(
 }
 
 /* FUN_364b_03f6 fort phantom (FUN_478c_002c, graphic byte *DS:0x52cc = the
- * Artillery row icon): centre on the ship, then lunge from the colony tile.
- * Nothing enters the pool, so no piece is hidden. */
+ * Artillery row icon): edge-scroll on the colony tile (FUN_281f_0352 =
+ * FUN_1984_02fc, raw 57101), then lunge from it (FUN_281f_0a14 =
+ * FUN_5fef_1b0e, raw 57109). Nothing enters the pool, so no piece is
+ * hidden. */
 void game_phantom_lunge(
   void* user, const ColonizeUnitPool* pool, int type_index, int nation_id,
   int from_x, int from_y, int def_x, int def_y
 ) {
   ColonizeGameState* game = (ColonizeGameState*)user;
   const ColonizeUnitType* type = pool ? units_type(pool, type_index) : NULL;
-  if (!game || !type || !game->platform || !game->world_map_ok) {
+  if (!game || !type || !game->world_map_ok) {
     return;
   }
   if (!game_tile_live_seen(game, def_x, def_y) && !game_tile_live_seen(game, from_x, from_y)) {
     return;
   }
-  game_set_view_center(game, def_x, def_y);
-  if (game->map_zoom != 0 || !game->unit_icons_ok) {
+  game_camera_edge_center(game, from_x, from_y);
+  if (!game->platform || game->map_zoom != 0 || !game->unit_icons_ok) {
     return;
   }
   ColonizeUnit ph;

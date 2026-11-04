@@ -149,7 +149,13 @@ void game_select_unit(ColonizeGameState* game, int unit_id) {
   game->view_pieces_mode = false;
   game->map_cursor_x = u->x;
   game->map_cursor_y = u->y;
-  game_set_view_center(game, u->x, u->y);
+  /* A player pick (map click, Enter, the stack picker) leaves the view where
+   * it was: FUN_2b5a_1b5a (raw 42779) activates the unit through
+   * FUN_281f_086c = FUN_1427_08ea, which runs only the FUN_1984_02fc margin
+   * test (raw 7843-7863), so a unit off screen or within 2 tiles of a
+   * scrollable edge still recentres. The game's own next-unit hand-offs
+   * centre through game_center_on_selected_unit. */
+  game_camera_edge_center(game, u->x, u->y);
   /* FUN_2b5a_0e52: selecting a piece re-reveals around it (281f_07a0). */
   game_reveal_sight_for_unit(game, u);
   /* units_display_name names the unit purely from its @UNIT row / equipment
@@ -964,7 +970,20 @@ COLONIZE_INTERNAL GameMoveStep game_move_commit(
       return GAME_MOVE_RETURN_FALSE;
     }
     if (units_last_enter_reason() == COLONIZE_ENTER_BOARD) {
+      /* units_board handed the focus to the ship. FUN_465b_0000 raw
+       * 75711-75721: a land mover arriving on water makes the destination
+       * chain's head, the ship, active through FUN_281f_086c = FUN_1427_08ea,
+       * which runs FUN_1984_02fc on its tile (raw 7856), but only when
+       * FUN_281f_0966 = FUN_1427_1330 (raw 8741) passes: the ship still has
+       * MP. The hand-off below can move the focus on when the ship is spent,
+       * so read its id first and test it only if it kept the focus with MP
+       * left. */
+      const int ship_id = game->units.selected_id;
       game_after_unit_action(game);
+      const ColonizeUnit* ship = units_get_const(&game->units, ship_id);
+      if (ship && ship->active && ship->moves > 0 && game->units.selected_id == ship_id) {
+        game_camera_edge_center(game, ship->x, ship->y);
+      }
       return GAME_MOVE_RETURN_TRUE;
     }
     if (units_last_combat_outcome() > 0) {
@@ -1131,8 +1150,9 @@ void game_after_unit_action(ColonizeGameState* game) {
   if (!game || !game->units_ok) {
     return;
   }
-  /* port_bugs.md #285: any unit action ends the manual-pan hold — from here the
-   * view follows the acting unit again. */
+  /* port_bugs.md #285: any unit action ends the manual-pan hold, so game_update
+   * again recentres on an active unit left off screen. Steps themselves only
+   * edge-scroll (game_move_watch_w). */
   game->view_pan_hold_unit = -1;
   ColonizeUnit* u = units_get(&game->units, game->units.selected_id);
   if (!u || !u->active) {
@@ -1266,7 +1286,6 @@ void game_after_unit_action(ColonizeGameState* game) {
   }
   game->map_cursor_x = u->x;
   game->map_cursor_y = u->y;
-  game_set_view_center(game, u->x, u->y);
   if (u->moves > 0) {
     return;
   }

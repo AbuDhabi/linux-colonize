@@ -6850,6 +6850,7 @@ static int case_welcome_accept_come_word(void) {
   c.col1_ok = true;
   c.ai_popups = &p;
   c.human_nation = 1;
+  c.messages = test_game_txt(); /* textless OKs are dropped */
   int rc = 0;
   tribes[76].population = 3;
   tribes[76].mission = 0xff;

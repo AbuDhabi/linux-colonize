@@ -356,6 +356,8 @@ void game_europe_open_buy_prompt_for(ColonizeGameState* game, int hidx, int carg
   );
   if (max_amt <= 0) {
     eu->status[0] = '\0';
+    /* FUN_38fd_1fa2 raw 60398-60406: the room check comes before the param_4 prompt. */
+    europe_buy_no_room_bar(eu, cargo);
   } else {
     howmuch_open(
       &game->howmuch,
@@ -712,6 +714,7 @@ COLONIZE_INTERNAL GameUpdateStep game_update_services(ColonizeGameState* game, c
       !game_europe_blocked_by_woi(game)) {
     game->in_europe = true;
     game->europe.open_on_dock = false;
+    europe_reset_harbor_selection(&game->europe); /* FUN_38fd_55b6 raw 68140 -> 0dd4 */
     sound_set_bgm(3);
     game_tutorial_europe_opened(game);
   }
@@ -2690,6 +2693,15 @@ static GameUpdateStep game_europe_screen_keys(
 static GameUpdateStep game_europe_screen_mouse(
   ColonizeGameState* game, const ColonizeInputState* input, EuropeScreen* eu
 ) {
+  /* The menus confirm on the press, so a release may only act when this screen took the
+   * press. Every release ends the press, even one that ends a drag. */
+  if (input->mouse_left_clicked || input->mouse_right_clicked) {
+    game->europe_press_on_screen = true;
+  }
+  const bool press_on_screen = game->europe_press_on_screen;
+  if (input->mouse_left_released || input->mouse_right_released) {
+    game->europe_press_on_screen = false;
+  }
   if (input->mouse_right_clicked && ui_drag_active(&game->ui_drag)) {
     game_ui_drag_clear(game);
     return GAME_UPDATE_RETURN_TRUE;
@@ -2698,6 +2710,38 @@ static GameUpdateStep game_europe_screen_mouse(
   if (ui_drag_active(&game->ui_drag) && input->mouse_left_released) {
     game_europe_drag_drop(game, input->mouse_x, input->mouse_y, input->shift_held);
     return GAME_UPDATE_RETURN_TRUE;
+  }
+
+  /*
+   * FUN_38fd_3c86 raw 64101-64120, over a dock unit: the press (DS:0x7ec, either button)
+   * selects it (DS:0xf9a = 2, DS:0x9e2c) and shows its caption (thunk_FUN_291f_0daa =
+   * FUN_38fd_3694); the release (DS:0x7f4) inside the dock rect opens @ARMOPTIONS for the
+   * left button (thunk_FUN_291f_0e28) or the unit article for the right one (DS:0x7e4,
+   * FUN_291f_0942). Both edges are tested in one call, so a same-frame pair does both.
+   * DOS also requires DS:0x7f6 (button-held word of FUN_1acb_0056, docs/dos_trace.md)
+   * around both; press_on_screen stands in for it on the release edge.
+   */
+  const bool dock_press = input->mouse_left_clicked || input->mouse_right_clicked;
+  const bool dock_release =
+    (input->mouse_left_released || input->mouse_right_released) && press_on_screen;
+  if ((dock_press || dock_release) && !ui_drag_active(&game->ui_drag)) {
+    const EuropeHitResult dh = game_europe_hit(game, input->mouse_x, input->mouse_y);
+    if (dh.kind == EUROPE_HIT_DOCK && dh.index >= 0 && dh.index < eu->dock_count) {
+      eu->focus = 2;
+      eu->dock_selected = dh.index;
+      if (dock_press) {
+        (void)europe_dock_caption(eu, dh.index, eu->status, sizeof eu->status);
+      }
+      if (dock_release && input->mouse_left_released) {
+        eu->menu_dock_index = dh.index;
+        europe_build_dock_menu(eu, &game->messages, dh.index);
+        europe_menu_open(eu, EUROPE_MENU_DOCK);
+      } else if (dock_release) {
+        game_open_pedia_article(game, PEDIA_CAT_UNIT, eu->dock[dh.index].dos_type, false);
+        game->pedia_return_europe = true;
+      }
+      return GAME_UPDATE_RETURN_TRUE;
+    }
   }
 
   if (input->mouse_left_clicked) {
@@ -2717,7 +2761,10 @@ static GameUpdateStep game_europe_screen_mouse(
       eu->selected_harbor = hit.index;
       eu->status[0] = '\0';
       ui_drag_begin(&game->ui_drag, UI_DRAG_EUROPE_HARBOR_SHIP, hit.index, -1, 0);
-      if (game->units_ok && game_icons(game)) {
+      /* raw 61023: a hull under repair is selected but never picked up (no FUN_38fd_1c64
+       * drag icon). The session stays so its release still opens the ship menu, and a
+       * drop on Bound is refused in game_europe_request_sail. */
+      if (game->units_ok && game_icons(game) && !eu->harbor[hit.index].damaged) {
         const int sprite = europe_ship_icon_sprite(&game->units, &eu->harbor[hit.index]);
         game_ui_drag_set_icon(game, sprite);
       }
@@ -2765,13 +2812,6 @@ static GameUpdateStep game_europe_screen_mouse(
       break;
     case EUROPE_HIT_BTN_TRAIN:
       europe_menu_open(eu, EUROPE_MENU_TRAIN);
-      break;
-    case EUROPE_HIT_DOCK:
-      eu->focus = 2; /* FUN_38fd_3c86 raw 64102-64104 */
-      eu->dock_selected = hit.index;
-      eu->menu_dock_index = hit.index;
-      europe_build_dock_menu(eu, &game->messages, hit.index);
-      europe_menu_open(eu, EUROPE_MENU_DOCK);
       break;
     case EUROPE_HIT_EXPECTED:
       if (hit.index >= 0 && hit.index < eu->expected_ships) {
@@ -2857,6 +2897,9 @@ static void game_pedia_leave(ColonizeGameState* game) {
     game->colony_view_id = game->pedia_return_colony_id;
   } else if (game->pedia_return_europe) {
     game->in_europe = true;
+    /* Every Europe article returns through FUN_38fd_1956 -> 291f:0dd4 ->
+     * FUN_38fd_081c: harbor selection back on slot 0. */
+    europe_reset_harbor_selection(&game->europe);
   }
   game->pedia_return_colony_id = -1;
   game->pedia_return_europe = false;
@@ -3668,6 +3711,10 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
     shifted.mouse_x -= screen_off_x;
     shifted.mouse_y -= screen_off_y;
     input = &shifted;
+  }
+  /* A press is the Europe screen's only if game_europe_screen_mouse claims it. */
+  if (input->mouse_left_clicked || input->mouse_right_clicked) {
+    game->europe_press_on_screen = false;
   }
 
   /*

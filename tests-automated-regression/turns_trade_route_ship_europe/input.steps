@@ -4,7 +4,7 @@
 # orders TRADE_ROUTE (2), route 1 stop 0 (profession byte 0x01 = stop<<4 | route), goto = its own tile, moves spent;
 # every other French map unit fortified (orders 6), Caravel #148 (bound for Europe) parked in Quebec, France and England
 # at peace (euro_relation 0x60 both ways, else English raids capture units).
-# Turn 109 the route sails the Caravel for Europe; turn 111 it docks: the Europe screen opens with both holds sold
+# Turn 109 the route sails the Caravel for Europe; turn 111 it docks (no Europe screen for a route hull) with both holds sold
 # (gold 429 -> 745) and 100 Tools bought (-> 145), it sails west with a dock colonist aboard; turn 113 it reappears at
 # (50,29) and heads for Quebec; turn 114 it unloads the Tools in Quebec (stock 0 -> 100) and aims at the Europe stop again.
 key space                  # end turn 108 (every unit has orders)
@@ -35,10 +35,10 @@ key Return                 # Tupi gift (6 Tobacco) at Guadeloupe
 wait 12
 key Return                 # price of Cigars falls to 11
 wait 12
-key Return                 # price of Coats rises to 11; the Caravel docks, the route sells/buys, the Europe screen opens
-wait 12
-key e                      # leave Europe (the Caravel is already Bound for New France)
-wait 6
+key Return                 # price of Coats rises to 11; the Caravel docks and the route sells/buys. A route hull does not
+                           # open the Europe screen (FUN_48d3_06ba raw 77968-77976 + 78029-78036: only a hull with
+                           # +0x314c != 2 arms DS:0x14c)
+wait 18
 key space                  # end turn 111 (no popups)
 wait 60
 key space                  # end turn 112

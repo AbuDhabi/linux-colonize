@@ -178,12 +178,13 @@ static int reports_score_unit_icon(int type, int prof, bool* generic_out) {
 }
 
 static int reports_score_collect_citizen_jobs(
-  const ColonizeCol1Save* col1,
+  const ColonizeWorld* w,
   int human,
   int* jobs_out,
   int* icons_out, /* optional: per-citizen strip sprite (equipped for units) */
   int max_out
 ) {
+  const ColonizeCol1Save* col1 = w->col1;
   int count = 0;
   /* DOS keeps the scored value in one stack local (-0x70) that only the
    * colony slot loop and the generic-pose branch assign: a unit whose map
@@ -192,20 +193,52 @@ static int reports_score_collect_citizen_jobs(
   if (!col1 || !jobs_out || max_out <= 0) {
     return 0;
   }
-  for (uint16_t i = 0; i < col1->head.colony_count && count < max_out; ++i) {
-    const ColonizeCol1Colony* c = &col1->colony[i];
-    if (c->nation_id != (uint8_t)human) {
-      continue;
-    }
-    const int pop =
-      c->population > COLONIZE_COL1_COLONY_POP_MAX ? COLONIZE_COL1_COLONY_POP_MAX
-                                                   : (int)c->population;
-    for (int p = 0; p < pop && count < max_out; ++p) {
-      scored = (int)c->profession[p];
-      if (icons_out) {
-        icons_out[count] = units_job_icon_sprite(reports_resolve_job(scored, -1));
+  /* FUN_41f2_0092 asm 41f2:02e0-02fe: a colony also scores when WoI is on
+   * (0x5382 & 1) and its owner is the crown (DS:0x53d2), so colonists in
+   * colonies the REF captured still count. The unit loop below
+   * (41f2:0329-0345) compares the scored nation, not the unit owner, with
+   * 0x53d2, so units stay owner-only. */
+  const int crown = col1->head.game_options.woi ? (int)col1->head.crown_nation_id : -1;
+  /* FUN_41f2_0092's colony loop (asm 41f2:02cd-0301) reads DOS's one colony
+   * table through FUN_281f_09e6, so it always sees the colonies as they are
+   * now. The port's col1->colony[] is only refreshed at a save capture, so
+   * with the live pool at hand the loop reads that instead. It yields the
+   * records col1_bridge's capture would write: active slots in slot order,
+   * colonist_count capped at 32, and a profession below 0 as 0x1c. */
+  if (w->colonies) {
+    for (int i = 0; i < COLONIZE_COLONIES_MAX && count < max_out; ++i) {
+      const ColonizeColony* c = &w->colonies->colonies[i];
+      if (!c->active || ((int)c->nation_id != human && (int)c->nation_id != crown)) {
+        continue;
       }
-    jobs_out[count++] = scored;
+      const int pop = c->colonist_count > (int)COLONIZE_COL1_COLONY_POP_MAX
+                        ? (int)COLONIZE_COL1_COLONY_POP_MAX
+                        : c->colonist_count;
+      for (int p = 0; p < pop && count < max_out; ++p) {
+        const int prof = c->colonists[p].profession;
+        scored = prof < 0 ? UNITS_JOB_NONE : prof;
+        if (icons_out) {
+          icons_out[count] = units_job_icon_sprite(reports_resolve_job(scored, -1));
+        }
+        jobs_out[count++] = scored;
+      }
+    }
+  } else {
+    for (uint16_t i = 0; i < col1->head.colony_count && count < max_out; ++i) {
+      const ColonizeCol1Colony* c = &col1->colony[i];
+      if ((int)c->nation_id != human && (int)c->nation_id != crown) {
+        continue;
+      }
+      const int pop =
+        c->population > COLONIZE_COL1_COLONY_POP_MAX ? COLONIZE_COL1_COLONY_POP_MAX
+                                                     : (int)c->population;
+      for (int p = 0; p < pop && count < max_out; ++p) {
+        scored = (int)c->profession[p];
+        if (icons_out) {
+          icons_out[count] = units_job_icon_sprite(reports_resolve_job(scored, -1));
+        }
+        jobs_out[count++] = scored;
+      }
     }
   }
   for (uint16_t i = 0; i < col1->head.unit_count && count < max_out; ++i) {
@@ -345,7 +378,7 @@ void reports_compute_score_w(
     {
       int jobs[REPORTS_SCORE_CITIZENS_MAX];
       const int n =
-        reports_score_collect_citizen_jobs(col1, human, jobs, NULL, REPORTS_SCORE_CITIZENS_MAX);
+        reports_score_collect_citizen_jobs(w, human, jobs, NULL, REPORTS_SCORE_CITIZENS_MAX);
       for (int i = 0; i < n; ++i) {
         out->citizens += reports_citizen_points_for_job(jobs[i]);
       }
@@ -579,7 +612,7 @@ void reports_render_score(
     int jobs[REPORTS_SCORE_CITIZENS_MAX];
     int icons[REPORTS_SCORE_CITIZENS_MAX];
     const int n =
-      reports_score_collect_citizen_jobs(col1, human, jobs, icons, REPORTS_SCORE_CITIZENS_MAX);
+      reports_score_collect_citizen_jobs(&sw, human, jobs, icons, REPORTS_SCORE_CITIZENS_MAX);
     icon_end_y = reports_score_draw_citizen_icons(
       view, fb, icons, n, REPORTS_SCORE_ICON_X, REPORTS_SCORE_ICON_Y
     );

@@ -127,6 +127,12 @@ uint32_t dos_rng_04ca_word(uint32_t fixed_word) {
   return s_live_ticks ? dos_rng_tick_now() : fixed_word;
 }
 
+void dos_rng_reseed_saveload(ColonizeDosRng* rng) {
+  if (rng && s_live_ticks) {
+    dos_rng_seed(rng, dos_rng_04ca_word(0u));
+  }
+}
+
 void dos_rng_tick_reseed(void) {
   s_tick_pending = 1;
 }

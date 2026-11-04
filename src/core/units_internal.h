@@ -92,6 +92,9 @@ extern int g_units_last_combat;
 extern ColonizeEnterReason g_units_last_enter_reason;
 extern ColonizeUnitsMoveWatchFn g_units_move_watch;
 extern void* g_units_move_watch_user;
+/* Calls the move watch, if any, with units_move_watch_vis_before() = vis_before
+ * (the mover's col1_vis_mask before the step) for the length of the call. */
+void units_move_watch_fire( const ColonizeUnitPool* pool, const ColonizeWorldMap* map, const ColonizeColonyPool* colonies, int unit_id, int from_x, int from_y, int to_x, int to_y, uint8_t vis_before );
 extern int g_units_native_gear_armed;
 extern int g_units_native_gear_mounted;
 /* 0 while units_apply_land_loss_outcome runs for a beaten ATTACKER (1b0e raw 100731). */
@@ -141,6 +144,8 @@ void units_set_bgm_pool(int pool);
 int units_ship_damage_vs_sink( ColonizeDosRng* rng, int winner_guns, int loser_hull );
 /* FUN_5fef_0352 raw 99527-99570 damage-vs-sink gate (port_bugs.md #867). */
 int units_naval_damage_gate( const ColonizeUnitPool* pool, const ColonizeCol1Save* col1, const ColonizeUnit* lose, const ColonizeUnitType* wt, int winner_nation, int damaged );
+/* FUN_5fef_0352 raw 99570-99579: census decrement for a hull a gunned winner sank. */
+void units_naval_sink_census( const ColonizeUnitPool* pool, const ColonizeCol1Save* col1, const ColonizeUnit* lose );
 void units_ship_enter_repair( ColonizeUnitPool* pool, ColonizeUnit* lose, int wstr, const ColonizeColony* home, const ColonizeCol1Save* col1, int human, int winner_nation );
 void units_ship_lose_holds(ColonizeUnitPool* pool, int ship_id);
 int units_sweep_naval_stack_after_loss( ColonizeUnitPool* pool, int x, int y, int loser_nation, int winner_id, int primary_loser_id, const ColonizeCol1Save* col1, ColonizeDosRng* rng );
@@ -152,7 +157,7 @@ int units_tribe_nation_at(const ColonizeCol1Save* col1, int x, int y);
 bool units_at_war_for_move(const ColonizeCol1Save* col1, int nation_a, int nation_b);
 void units_capture_claim_ring(ColonizeWorldMap* map, int x, int y, int new_owner);
 int units_colony_plunder_stock_sum(const ColonizeColony* col);
-bool units_fort_vs_ship( ColonizeUnitPool* pool, int attack_str, int fort_nation, int fort_x, int fort_y, int defender_id, ColonizeDosRng* rng, const ColonizeCol1Save* col1, const char* atk_label, const char* fort_name );
+bool units_fort_vs_ship( ColonizeUnitPool* pool, int attack_str, int fort_nation, int fort_x, int fort_y, int defender_id, ColonizeDosRng* rng, const ColonizeCol1Save* col1, const char* atk_label, const char* fort_name, bool show );
 bool units_native_village_grudge(
   const ColonizeCol1Save* col1, const ColonizeUnit* mover, int euro_nation
 );
@@ -198,6 +203,7 @@ typedef struct units_move_ctx {
   bool dest_rumour;           /* FUN_281f_075e read before arrival */
   int ox;                     /* origin tile, captured at the step commit */
   int oy;
+  uint8_t vis_before;         /* mover's col1_vis_mask at entry, for the watch */
 } units_move_ctx;
 
 #ifdef COLONIZE_TESTING

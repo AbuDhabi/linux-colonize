@@ -186,7 +186,7 @@ static int unit_refit_drydock(void) {
   g_refit_sound_calls = 0;
   units_set_combat_music_hooks(capture_refit_sound, NULL);
   const int repaired = units_tick_drydock_repair(
-    &pool, &colonies, 0, 0, st, sizeof(st), &pops, &game_txt
+    &pool, &colonies, 0, 0, st, sizeof(st), &pops, &game_txt, NULL, 0
   );
   units_set_combat_music_hooks(NULL, NULL);
   ship = units_get(&pool, sid);

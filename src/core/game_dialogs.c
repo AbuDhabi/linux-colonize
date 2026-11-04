@@ -173,7 +173,8 @@ void game_service_europe_bar(ColonizeGameState* game) {
     if (eu->bar_event_red[i]) {
       (void)ai_popup_enqueue_bar_refusal(&game->ai_popups, eu->bar_event[i]);
     } else {
-      (void)ai_popup_enqueue_bar_message(&game->ai_popups, eu->bar_event[i]);
+      /* Every non-red Europe line is a sell line (europe_push_sale_status). */
+      (void)ai_popup_enqueue_bar_sale(&game->ai_popups, eu->bar_event[i]);
     }
     eu->bar_event_red[i] = false;
   }
@@ -227,6 +228,7 @@ bool game_try_enter_europe(ColonizeGameState* game) {
     return false;
   }
   game->in_europe = true;
+  europe_reset_harbor_selection(&game->europe); /* FUN_38fd_55b6 raw 68140 -> 0dd4 */
   game->in_pedia = false;
   game->in_colony = false;
   game->in_report = false;
@@ -1091,6 +1093,10 @@ static void game_apply_map_confirm(ColonizeGameState* game) {
   if (!yes) {
     /* DOS declines are silent (every GAME_MAP_CONFIRM_* kind). */
     set_status(game, "", NULL);
+    if (conf == GAME_MAP_CONFIRM_EUROPE_SAIL) {
+      /* FUN_38fd_2a92 raw 60781: No also ends in 291f:0dd4. */
+      europe_reset_harbor_selection(&game->europe);
+    }
     return;
   }
   switch (conf) {

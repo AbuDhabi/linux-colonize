@@ -1047,7 +1047,7 @@ COLONIZE_INTERNAL void turn_produce_custom_house(TurnProduceCtx* pc) {
             sale->net
           );
         }
-        ai_popup_enqueue_bar_message(ai_popups, line);
+        ai_popup_enqueue_bar_sale(ai_popups, line);
       }
     }
   }

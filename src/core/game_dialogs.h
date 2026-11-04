@@ -354,6 +354,9 @@ struct ColonizeGameState {
   EuropeScreen europe;
   bool europe_ok;
   bool in_europe;
+  /* The last press reached the Europe screen itself, not a menu or popup that took it;
+   * only then may its release open the dock menu or article (FUN_38fd_3c86). */
+  bool europe_press_on_screen;
   ColonyScreenView colony_screen;
   bool colony_screen_ok;
   bool in_colony;

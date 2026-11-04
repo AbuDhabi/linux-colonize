@@ -135,12 +135,21 @@ static bool ai_popup_enqueue_bar_message_kind(
    * scroll past on the map and are otherwise gone. */
   window_log_push(text);
   st->bar_msg_kind[st->bar_msg_count] = (uint8_t)(kind < 0 ? 0 : kind);
+  st->bar_msg_sale[st->bar_msg_count] = false;
   st->bar_msg_count++;
   return true;
 }
 
 bool ai_popup_enqueue_bar_message(AiPopupState* st, const char* text) {
   return ai_popup_enqueue_bar_message_kind(st, text, 1);
+}
+
+bool ai_popup_enqueue_bar_sale(AiPopupState* st, const char* text) {
+  if (!ai_popup_enqueue_bar_message_kind(st, text, 1)) {
+    return false;
+  }
+  st->bar_msg_sale[st->bar_msg_count - 1] = true;
+  return true;
 }
 
 bool ai_popup_enqueue_bar_refusal(AiPopupState* st, const char* text) {
@@ -201,14 +210,13 @@ bool ai_popup_bar_service(AiPopupState* st, uint32_t now_ms, bool dismiss) {
     uint32_t hold = st->bar_msg_count > 1 ? AI_POPUP_BAR_MSG_MS : AI_POPUP_BAR_MSG_LAST_MS;
     /*
      * port_bugs.md #425: the sale lines run AI_POPUP_BAR_SALE_SPEEDUP times faster
-     * than DOS at the user's explicit request. That is arm kind 1 — DOS's
-     * gold "success" arm, which ai_popup_enqueue_bar_message stamps (the Custom
-     * House autosell run and the European Status sell lines). The red refusal
-     * (kind 3, ai_popup_enqueue_bar_refusal) keeps DOS's dwell; the dead
-     * `|| kind == 2` disjunct went 2026-09-10 (audit #20 —
-     * nothing in either game arms kind 2, see ai_popup_bar_message_color).
+     * than DOS at the user's explicit request: only the lines queued through
+     * ai_popup_enqueue_bar_sale (the Custom House autosell run and the
+     * European Status sell lines). Every other line keeps DOS's dwell,
+     * including the other gold kind-1 arms, the colony screen's cargo lines
+     * (FUN_281f_0dc2(1, 0x78, 0), raw 77421 / 77503).
      */
-    if (st->bar_msg_kind[0] == 1) {
+    if (st->bar_msg_sale[0]) {
       hold /= AI_POPUP_BAR_SALE_SPEEDUP;
     }
     st->bar_msg_until_ms = now_ms + hold;
@@ -220,6 +228,7 @@ bool ai_popup_bar_service(AiPopupState* st, uint32_t now_ms, bool dismiss) {
   for (int i = 1; i < st->bar_msg_count; ++i) {
     memcpy(st->bar_msg[i - 1], st->bar_msg[i], AI_POPUP_BAR_MSG_LEN);
     st->bar_msg_kind[i - 1] = st->bar_msg_kind[i];
+    st->bar_msg_sale[i - 1] = st->bar_msg_sale[i];
   }
   st->bar_msg_count--;
   st->bar_msg_until_ms = 0;
@@ -282,6 +291,22 @@ bool ai_popup_enqueue_ok_ctx(
   ai_popup_fill_base(&req, AI_POPUP_KIND_OK, tag, nation_a, nation_b, payload, title, body);
   /* DOS info wood: no choice rows in GAME.TXT — click/key dismisses. */
   req.choice_count = 0;
+  /* A missing TXT section shows nothing in DOS (FUN_7314_001a returns 1 at
+   * EOF, so no box is drawn; docs/popups.md "Missing sections show
+   * nothing"), so an OK with no text at all is dropped instead of opening an
+   * empty frame. The tags whose presentation or dismissal drives the game on
+   * (war end, throne audience, Congress announce, the @INDEPENDENCE letter
+   * that arms the declaration cinematic) still queue. A new OK tag whose
+   * dismissal or result_tag handler moves the game on must join this list,
+   * or a missing TXT section would silently skip that step. */
+  if (!req.body[0] && !req.title[0] && tag != AI_POPUP_TAG_KING_WAR_END &&
+      tag != AI_POPUP_TAG_KING_THRONE && tag != AI_POPUP_TAG_FF_CONGRESS &&
+      tag != AI_POPUP_TAG_KING_LETTER) {
+    if (st) {
+      st->last_enqueue_ok = false;
+    }
+    return false;
+  }
   return ai_popup_enqueue(st, &req);
 }
 
