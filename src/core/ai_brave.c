@@ -219,7 +219,6 @@ int ai_native_step_first_contact(
     return 0;
   }
   ColonizeCol1Indian* ind = &col1->indian[nation_id - 4];
-  int fired = 0;
   int resolved = 0;
   int done[4] = {0, 0, 0, 0};
   for (int d = 0; d < 8; ++d) {
@@ -258,7 +257,6 @@ int ai_native_step_first_contact(
     if (ind->euro_diplo[e] == 0) {
       (void)ai_contact_try_first_welcome(s_ai_native_ctx, e, nation_id);
       s_ai_first_contact_this_turn[nation_id - 4][e] = 1;
-      fired = 1;
       resolved = 1;
       done[e] = 1;
       continue;
@@ -266,9 +264,11 @@ int ai_native_step_first_contact(
     /*
      * Already met: 022e's visit-mood rolls (raw 96735-96760) — skipped when
      * the mover carries the pending-encounter bit, stands on an Indian
-     * settlement tile (FUN_137f_0392 >= 0), or has no home village.
+     * settlement tile (FUN_137f_0392 >= 0), or has no home village. A first
+     * contact on an earlier tile closes only its own nation (aiStack_20,
+     * raw 98649); other nations' visits still run.
      */
-    if (fired || (u->col1_flags15 & 0x08u) || ai_021a_settle_owner(map, u->x, u->y) >= 4 ||
+    if ((u->col1_flags15 & 0x08u) || ai_021a_settle_owner(map, u->x, u->y) >= 4 ||
         u->home_tribe_index < 0) {
       continue;
     }

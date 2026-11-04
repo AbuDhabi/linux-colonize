@@ -1666,6 +1666,65 @@ static int run_reparations_scan_past_empty_colony(void) {
 }
 
 /*
+ * FUN_5bfb_3180 closes a nation only through aiStack_20[nation] (raw
+ * 98649, 98674); a first contact on an earlier tile does not stop the scan
+ * for other nations. The Brave first meets the human's Soldier to the north
+ * (d 0), then visits the met AI colony to the east (d 2) with a !bVar6 mood
+ * (contact_state 1): the @INDIANCITY demand runs and the AI hands over.
+ */
+static int run_visit_after_first_contact(void) {
+  if (!test_names_txt()) {
+    return TR_SKIP;
+  }
+  Ai152eFixture f;
+  if (ai_152e_fixture_init(&f, "visit-after-first-contact", 777u) != 0) {
+    return 1;
+  }
+  ai_contact_reset();
+  ColonizeColony* col = &f.colonies.colonies[0];
+  col->active = true;
+  col->id = 0;
+  col->nation_id = 1;
+  col->x = 14;
+  col->y = 10;
+  col->stock[3] = 50;
+  snprintf(col->name, sizeof(col->name), "Testtown");
+  const int brave_ti = units_find_type(&f.units, "Brave");
+  const int soldier_ti = units_find_type(&f.units, "Soldier");
+  const int bid = brave_ti >= 0 ? units_spawn_allow_stack(&f.units, brave_ti, 13, 10) : -1;
+  const int sid = soldier_ti >= 0 ? units_spawn_allow_stack(&f.units, soldier_ti, 13, 9) : -1;
+  ColonizeUnit* brave = units_get(&f.units, bid);
+  ColonizeUnit* sol = units_get(&f.units, sid);
+  if (!brave || !sol) {
+    fprintf(stderr, "visit-after-first-contact: spawn failed\n");
+    ai_152e_fixture_free(&f);
+    return 1;
+  }
+  brave->nation_id = 4;
+  brave->home_tribe_index = 0;
+  brave->col1_flags15 = 0;
+  sol->nation_id = 0; /* human, not met yet */
+  f.col1.nation[1].trade.euro_price[3] = 11;
+  f.col1.indian[0].euro_diplo[1] = (uint8_t)COL1_INDIAN_MET_BIT;
+  f.col1.indian[0].alarm_by_player[1] = 20;
+  f.col1.indian[0].contact_state[1] = 1; /* local_10: never generous */
+  col1_tribe_attitude_set(&f.tribes[0], 1, 5);
+
+  ai_s_native_colonies = &f.colonies;
+  ai_native_bind_step_ctx(&f.ctx);
+  (void)ai_native_step_first_contact(&f.units, &f.map, &f.col1, brave, 4);
+  ai_native_bind_step_ctx(NULL);
+  ai_s_native_colonies = NULL;
+
+  const int met_human = f.col1.indian[0].euro_diplo[0] != 0;
+  const int stock = col->stock[3];
+  ai_152e_fixture_free(&f);
+  fprintf(stderr, "visit-after-first-contact: met human %d, AI colony stock %d\n", met_human,
+          stock);
+  return (met_human && stock < 50) ? 0 : 1;
+}
+
+/*
  * FUN_5bfb_3180 closes a nation (aiStack_20[e]) only when 022e returns
  * non-zero. An AI colony east of the Brave with empty stores and no wagon
  * leaves the visit unresolved, so the next tile of the same nation, a
@@ -2278,5 +2337,6 @@ static const TestCase k_cases[] = {
     {"run_visit_empty_colony", run_visit_empty_colony},
     {"run_unresolved_visit_keeps_nation_open", run_unresolved_visit_keeps_nation_open},
     {"run_reparations_scan_past_empty_colony", run_reparations_scan_past_empty_colony},
+    {"run_visit_after_first_contact", run_visit_after_first_contact},
 };
 TEST_MAIN(k_cases)
