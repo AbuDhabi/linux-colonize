@@ -23,6 +23,7 @@
 #include "core/popup.h"
 #include "core/reports.h"
 #include "core/turn_internal.h"
+#include "core/woodcut.h"
 
 #include "../common/ai_fixture.h"
 #include "../common/test_runner.h"
@@ -1158,6 +1159,218 @@ static int test_human_lcr_count_change_skips_contact(void) {
   colonies_set_occupancy_map(NULL);
   units_set_occupancy_map(NULL);
   fx_map_free(&game.world_map);
+  return rc;
+}
+
+/* Step-tail fixture: land everywhere but the ocean column x=2 rows 3..4; an
+ * unmet village at (4,3); an AI French unit at (3,2) facing -1. Type 0 =
+ * colonist, type 1 = caravel. A FUN_5bfb_3180 run from (3,3) stamps the
+ * French unit's facing and meets the village. */
+static int step3180_fixture(ColonizeGameState* game, ColonizeCol1Tribe* tribe) {
+  trade_seam_init(game, 2, false);
+  game->units.type_count = 2;
+  game->units.types[0].kind_plus1 = UNITS_KIND_COLONIST + 1;
+  game->units.types[0].cargo = 0;
+  game->units.types[0].movement = 1;
+  game->units.types[1].kind_plus1 = UNITS_KIND_CARAVEL + 1;
+  game->units.types[1].movement = 4;
+  game->units.types[1].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  game->units.types[1].cargo = 2;
+  game->col1.player[0].named_new_world = 1;
+  for (int n = 1; n < 4; ++n) {
+    game->col1.player[n].control = 1;
+  }
+  for (uint16_t s = 1; s < 512 && map_tile_has_rumour(&game->world_map, 3, 3); ++s) {
+    game->world_map.prime_resource_seed = s;
+  }
+  game->world_map.terrain[3 * 8 + 2] = 25; /* ocean */
+  game->world_map.terrain[4 * 8 + 2] = 25;
+  memset(tribe, 0, sizeof(*tribe));
+  tribe->nation_id = 4;
+  tribe->x = 4;
+  tribe->y = 3;
+  game->col1.tribe = tribe;
+  game->col1.head.tribe_count = 1;
+  game->world_map.layer2[3 * 8 + 4] |= 0x02u;
+  game->world_map.layer3[3 * 8 + 4] = (uint8_t)((game->world_map.layer3[3 * 8 + 4] & 0x0fu) | 0x40u);
+  ColonizeUnit* fr = units_get(&game->units, units_spawn(&game->units, 0, 3, 2));
+  if (!fr || map_tile_has_rumour(&game->world_map, 3, 3) ||
+      !map_tile_is_water(&game->world_map, 2, 3)) {
+    return -1;
+  }
+  fr->nation_id = 1;
+  fr->last_dir = -1;
+  return fr->id;
+}
+
+static void step3180_free(ColonizeGameState* game) {
+  game->col1.tribe = NULL;
+  game->col1.head.tribe_count = 0;
+  trade_seam_free(game);
+}
+
+/* @LANDFALL "Make landfall" makes the passenger active (FUN_281f_086c ->
+ * FUN_1427_08ea sets DS:0x5392) and jumps to LAB_4720_061c (ndisasm
+ * 0x3FE56-0x3FEA3 -> 0xff5c), the FUN_2a1f_0142 commit: the passenger's step
+ * runs the FUN_465b_0000 tail, FUN_5bfb_3180 included. */
+static int test_human_landfall_runs_3180(void) {
+  ColonizeGameState game;
+  ColonizeCol1Tribe tribe;
+  const int fr_id = step3180_fixture(&game, &tribe);
+  int rc = fr_id < 0 ? fail("landfall 3180 fixture") : 0;
+  ColonizeUnit* ship = rc ? NULL : units_get(&game.units, units_spawn(&game.units, 1, 2, 3));
+  const int pax_id = ship ? units_spawn(&game.units, 0, 1, 3) : -1; /* boards from beside */
+  if (rc == 0 && (!ship || pax_id < 0 || !units_board(&game.units, pax_id, ship->id))) {
+    rc = fail("landfall 3180: ship / passenger");
+  }
+  if (rc == 0) {
+    ship->nation_id = 0;
+    ship->moves = 12;
+    units_get(&game.units, pax_id)->nation_id = 0;
+    game.units.selected_id = ship->id;
+    (void)game_try_unit_move(&game, 3, 3);
+    if (units_get_const(&game.units, pax_id)->aboard_ship_id != ship->id) {
+      rc = fail("landfall 3180: the step must ask @LANDFALL first");
+    }
+    game.ai_popups.has_result = true;
+    game.ai_popups.result_tag = AI_POPUP_TAG_LANDFALL;
+    game.ai_popups.result_cancelled = false;
+    game.ai_popups.result_nation_a = ship->id;
+    game.ai_popups.result_nation_b = 3;
+    game.ai_popups.result_payload = 3;
+    game.ai_popups.result_choice_id = 1;
+    game_apply_ai_popup_result(&game);
+    const ColonizeUnit* pax = units_get_const(&game.units, pax_id);
+    if (rc == 0 && (!pax || pax->x != 3 || pax->y != 3)) {
+      rc = fail("landfall 3180: passenger did not land at (3,3)");
+    } else if (rc == 0 && (game.col1.indian[0].euro_diplo[0] & COL1_INDIAN_MET_BIT) == 0) {
+      rc = fail("landfall 3180: the passenger's landfall step must run FUN_5bfb_3180");
+    }
+  }
+  step3180_free(&game);
+  return rc;
+}
+
+/* A village visit from the next tile is FUN_465b_0000's dwelling dispatch (raw
+ * 75486-75490 -> 2a1f_016c, goto LAB_465b_0bd1), past the 3180 tail at raw
+ * 75797: the French unit beside the visitor keeps its facing. */
+static int test_human_village_visit_no_3180(void) {
+  ColonizeGameState game;
+  ColonizeCol1Tribe tribe;
+  const int fr_id = step3180_fixture(&game, &tribe);
+  int rc = fr_id < 0 ? fail("visit 3180 fixture") : 0;
+  ColonizeUnit* v = rc ? NULL : units_get(&game.units, units_spawn(&game.units, 0, 3, 3));
+  if (rc == 0 && !v) {
+    rc = fail("visit 3180: spawn");
+  }
+  if (rc == 0) {
+    v->nation_id = 0;
+    v->moves = 3;
+    game.units.selected_id = v->id;
+    (void)game_try_unit_move(&game, 4, 3);
+    const ColonizeUnit* fr = units_get_const(&game.units, fr_id);
+    if (v->x != 3 || v->y != 3 || !ai_contact_meet_pending_for_unit(&game.ai_popups, v->id)) {
+      rc = fail("visit 3180: the step must open the village menu, not enter");
+    } else if (!fr || fr->last_dir >= 0) {
+      rc = fail("visit 3180: a village visit must not run FUN_5bfb_3180");
+    }
+  }
+  step3180_free(&game);
+  return rc;
+}
+
+/* Position of woodcut `id` in the drained FIFO, -1 if absent. */
+static int drained_woodcut_index(const int* ids, int n, int id) {
+  for (int i = 0; i < n; ++i) {
+    if (ids[i] == id) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+/* FUN_4720_049e runs its @LANDHO scan (raw 76124-76141) only after
+ * FUN_2a1f_0142 returned, i.e. after FUN_465b_0000's 3180 tail (raw
+ * 75794-75797). A first landing beside an unmet village arms the first-contact
+ * woodcut (FUN_5bfb_022e) before the New World one. */
+static int test_human_landho_after_3180(void) {
+  ColonizeGameState game;
+  ColonizeCol1Tribe tribe;
+  const int fr_id = step3180_fixture(&game, &tribe);
+  int rc = fr_id < 0 ? fail("landho order fixture") : 0;
+  ColonizeUnit* m = rc ? NULL : units_get(&game.units, units_spawn(&game.units, 0, 3, 4));
+  if (rc == 0 && !m) {
+    rc = fail("landho order: spawn");
+  }
+  if (rc == 0) {
+    game.col1.player[0].named_new_world = 0;
+    m->nation_id = 0;
+    m->moves = 3;
+    game.units.selected_id = m->id;
+    woodcut_clear_pending();
+    (void)game_try_unit_move(&game, 3, 3);
+    int ids[8];
+    int n = 0;
+    while (n < 8 && woodcut_has_pending()) {
+      ids[n++] = woodcut_take_pending();
+    }
+    const int meet = drained_woodcut_index(ids, n, WOODCUT_THE_INCA_NATION);
+    const int land = drained_woodcut_index(ids, n, WOODCUT_DISCOVERY_OF_THE_NEW_WORLD);
+    if (m->x != 3 || m->y != 3) {
+      rc = fail("landho order: the colonist did not step to (3,3)");
+    } else if (meet < 0 || land < 0 || meet > land) {
+      fprintf(stderr, "landho order: meet woodcut at %d, new world at %d\n", meet, land);
+      rc = fail("landho order: the Land Ho scan must follow FUN_5bfb_3180");
+    }
+  }
+  woodcut_clear_pending();
+  step3180_free(&game);
+  return rc;
+}
+
+/* FUN_465b_0000 runs 0984 -> FUN_5bfb_3180 (raw 75794-75797) before the
+ * Treasure arm (raw 75800-75816), so a Treasure stepping into its own coastal
+ * colony beside an unmet village queues @INDIANWELCOME ahead of the King's
+ * Galleon offer. */
+static int test_human_treasure_offer_after_3180(void) {
+  ColonizeGameState game;
+  ColonizeCol1Tribe tribe;
+  const int fr_id = step3180_fixture(&game, &tribe);
+  int rc = fr_id < 0 ? fail("treasure order fixture") : 0;
+  game.units.type_count = 3;
+  game.units.types[2].kind_plus1 = UNITS_KIND_TREASURE + 1;
+  game.units.types[2].movement = 1;
+  game.units.types[2].cargo = 0;
+  ColonizeColony* port = rc ? NULL : fx_colony_add(&game.colonies, 0, 3, 3, 1);
+  ColonizeUnit* t = port ? units_get(&game.units, units_spawn(&game.units, 2, 3, 4)) : NULL;
+  if (rc == 0 && (!port || !t)) {
+    rc = fail("treasure order: colony / treasure");
+  }
+  if (rc == 0) {
+    port->colony_flags |= COLONIZE_COLONY_FLAG_COASTAL;
+    t->nation_id = 0;
+    t->profession = 10; /* +0x315b = gold/100 */
+    t->moves = 3;
+    game.units.selected_id = t->id;
+    (void)game_try_unit_move(&game, 3, 3);
+    int welcome = -1;
+    int galleon = -1;
+    for (int q = 0; q < game.ai_popups.queue_count; ++q) {
+      const int tag = game.ai_popups.queue[q].tag;
+      if (tag == AI_POPUP_TAG_CONTACT_WELCOME && welcome < 0) {
+        welcome = q;
+      } else if (tag == AI_POPUP_TAG_KING_GALLEON && galleon < 0) {
+        galleon = q;
+      }
+    }
+    if (t->x != 3 || t->y != 3) {
+      rc = fail("treasure order: the Treasure did not enter the colony");
+    } else if (welcome < 0 || galleon < 0 || welcome > galleon) {
+      fprintf(stderr, "treasure order: welcome at %d, galleon at %d\n", welcome, galleon);
+      rc = fail("treasure order: the King's Galleon offer must follow FUN_5bfb_3180");
+    }
+  }
+  step3180_free(&game);
   return rc;
 }
 
@@ -4417,6 +4630,10 @@ static const TestCase k_cases[] = {
     {"test_trade_route_begin_moves_wagon_to_selected_stop", test_trade_route_begin_moves_wagon_to_selected_stop},
     {"test_goto_treasure_gets_king_galleon_offer", test_goto_treasure_gets_king_galleon_offer},
     {"test_human_lcr_count_change_skips_contact", test_human_lcr_count_change_skips_contact},
+    {"test_human_landfall_runs_3180", test_human_landfall_runs_3180},
+    {"test_human_village_visit_no_3180", test_human_village_visit_no_3180},
+    {"test_human_landho_after_3180", test_human_landho_after_3180},
+    {"test_human_treasure_offer_after_3180", test_human_treasure_offer_after_3180},
     {"test_ship_in_colony_meets_tribe", test_ship_in_colony_meets_tribe},
     {"test_ship_bumps_foreign_colony_trade_arm", test_ship_bumps_foreign_colony_trade_arm},
     {"test_trade_route_ship_aims_colony_tile", test_trade_route_ship_aims_colony_tile},

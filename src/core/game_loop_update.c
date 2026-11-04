@@ -950,8 +950,8 @@ static GameUpdateStep game_pacer_goto_step(
       if (again && again->orders == UNITS_ORDER_TRADE_ROUTE) {
         game_trade_route_retarget(game, again);
       }
-      /* game_after_unit_action already does fog reveal / Land Ho! /
-       * LCR / first-contact / view centering / next-unit-when-
+      /* game_after_unit_step does fog reveal / LCR / 3180 / the treasure
+       * arm / Land Ho! / view centering / next-unit-when-
        * exhausted — the same tail a player-driven move gets (FUN_479b_0972
        * raw 77077 walks a human goto step through FUN_291f_044e, the
        * arrow-key executor). */

@@ -1023,11 +1023,12 @@ COLONIZE_INTERNAL GameMoveStep game_move_commit(
 }
 
 /*
- * FUN_465b_0000's human-only commit tail. DOS walks a human Go To through the
- * arrow-key executor (FUN_479b_0972 raw 77074-77080 -> FUN_291f_044e ->
- * FUN_4720_049e raw 76122-76124 -> FUN_2a1f_0142 -> FUN_465b_0000), so both
- * game_try_unit_move and the goto pacer run it after a committed step
- * (playtest C2-B2: a Treasure arriving by Go To got no King's Galleon offer).
+ * The wagon's colony-arrival sound of a committed human step. DOS walks a
+ * human Go To through the arrow-key executor (FUN_479b_0972 raw 77074-77080
+ * -> FUN_291f_044e -> FUN_4720_049e raw 76122-76124 -> FUN_2a1f_0142 ->
+ * FUN_465b_0000), so both game_try_unit_move and the goto pacer run it. The
+ * King's Galleon offer runs later, after 3180, in game_after_unit_tail
+ * (playtest C2-B2: a Treasure arriving by Go To got no offer).
  */
 void game_move_arrival_tail(ColonizeGameState* game, ColonizeUnit* u) {
   if (!game || !u || !u->active) {
@@ -1043,15 +1044,19 @@ void game_move_arrival_tail(ColonizeGameState* game, ColonizeUnit* u) {
       sound_play(0x52);
     }
   }
-  /*
-   * FUN_465b_0000 tail (viceroy_unpacked.c ~75800): a Treasure Train (type
-   * 0xa) of a human-controlled nation entering a colony tile whose record
-   * has the coastal bit (+0x1c & 0x40) fires FUN_5fef_1908 — the King's
-   * Galleon offer — for the unit that just moved, and nowhere else: this
-   * is DOS's only trigger (the end-of-turn sweep turn.c used to run was a
-   * port invention). All remaining gates live in the callee.
-   */
-  if (game->col1_ok && u->nation_id == game->human_nation &&
+}
+
+/*
+ * FUN_465b_0000 tail (raw 75800-75816): a Treasure Train (type 0xa) of a
+ * human-controlled nation entering a colony tile whose record has the
+ * coastal bit (+0x1c & 0x40) fires FUN_2a1f_0186 -> FUN_5fef_1908, the King's
+ * Galleon offer, for the unit that just moved, and nowhere else: this is
+ * DOS's only trigger (the end-of-turn sweep turn.c used to run was a port
+ * invention). game_after_unit_tail runs it after 3180 for every committed
+ * step, arrow key and Go To alike. All remaining gates live in the callee.
+ */
+static void game_treasure_step_offer(ColonizeGameState* game, const ColonizeUnit* u) {
+  if (game->col1_ok && u && u->active && u->nation_id == game->human_nation &&
       units_type_is_treasure(units_type(&game->units, u->type_index))) {
     const ColonizeWorld w = game_world(game);
     (void)units_king_galleon_offer_for_unit_w(&w, u->nation_id, u->id, &game->ai_popups, &game->messages);
@@ -1200,13 +1205,17 @@ static void game_after_unit_tail(ColonizeGameState* game, bool stepped) {
     }
     return;
   }
+  /* @LANDHO belongs to the human move executor's tail (FUN_4720_049e), not to
+   * the reveal: it scans the destination only after FUN_2a1f_0142 has returned
+   * (raw 76124-76141), i.e. after 465b's LCR, 3180 and treasure arms below
+   * (port_bugs.md #1178). DOS scans the destination even when the LCR took the
+   * unit, so the tile is captured here. */
+  bool landho_scan = false;
+  const int landho_x = u->x;
+  const int landho_y = u->y;
   if (game->world_map_ok && u->nation_id >= 0 && u->nation_id <= 3 && units_is_on_map(u)) {
     game_reveal_sight_for_unit(game, u);
-    /* @LANDHO belongs to the human move executor's tail (FUN_4720_049e), not to
-     * the reveal: it runs after a move, at the unit's new tile (port_bugs.md #1178). */
-    if (u->nation_id == game->human_nation) {
-      game_try_prompt_landho(game, u->x, u->y);
-    }
+    landho_scan = u->nation_id == game->human_nation;
   }
   /* LCR: Scout on rumour clears + rolls a manual outcome (Fountain of Youth,
    * Cibola, treasure, burial mounds, …); de Soto keeps outcomes positive.
@@ -1228,6 +1237,9 @@ static void game_after_unit_tail(ColonizeGameState* game, bool stepped) {
        * keep the view on its tile (port_bugs.md #1377) and hand on. */
       game->map_cursor_x = lcr_x;
       game->map_cursor_y = lcr_y;
+      if (landho_scan) {
+        game_try_prompt_landho(game, landho_x, landho_y);
+      }
       game_after_unit_action(game);
       return;
     }
@@ -1247,6 +1259,14 @@ static void game_after_unit_tail(ColonizeGameState* game, bool stepped) {
     ColonizeTurnContext sctx;
     game_fill_turn_context(game, &sctx);
     ai_euro_3180_after_step(&sctx, u);
+  }
+  /* FUN_465b_0000 raw 75800-75816: the King's Galleon offer follows 3180 in
+   * the same plain-step arm, behind the same raw-75792 count test. */
+  if (stepped && !lcr_count_changed) {
+    game_treasure_step_offer(game, u);
+  }
+  if (landho_scan) {
+    game_try_prompt_landho(game, landho_x, landho_y);
   }
   if (!lcr_count_changed && game->col1_ok && game->world_map_ok && u->nation_id >= 0 &&
       u->nation_id <= 3 && units_is_on_map(u) &&
