@@ -1812,6 +1812,47 @@ static bool test_bound_lane_save(char* err, size_t err_size) {
   return ok;
 }
 
+/*
+ * A Bound hull with turns_left 0 and no exit tile saves as 228+n counter 1,
+ * not 228+n counter 0 with goto (0,0), which the import files as a legacy
+ * docked ship. FUN_48d3_03d0 (raw 77772-77777) decrements counter 1 before
+ * its hop test, so DOS lands it on the same pass as counter 0.
+ */
+static bool test_bound_no_exit_save(char* err, size_t err_size) {
+  static LaneFx fx;
+  if (!lane_fx_init(&fx, 0, err, err_size) || !lane_fx_apply(&fx, err, err_size)) {
+    lane_fx_free(&fx);
+    return false;
+  }
+  EuropeHarborShip* s = &fx.europe.bound[0];
+  memset(s, 0, sizeof(*s));
+  s->type_index = 13;
+  snprintf(s->name, sizeof(s->name), "Hull");
+  fx.europe.bound_ships = 1;
+  bool ok = lane_fx_capture(&fx, err, err_size);
+  const int rec = ok ? lane_hull_rec(&fx.save, 13) : -1;
+  if (ok && (rec < 0 || fx.save.unit[rec].x != 228 || fx.save.unit[rec].col1_counter16 != 1)) {
+    snprintf(err, err_size, "no-exit export: lane %d counter %d (want 228/1)",
+             rec < 0 ? -1 : fx.save.unit[rec].x, rec < 0 ? -1 : fx.save.unit[rec].col1_counter16);
+    ok = false;
+  }
+  static LaneFx back;
+  if (ok && (!lane_fx_init(&back, 0, err, err_size) ||
+             !lane_fx_apply_save(&back, &fx.save, err, err_size))) {
+    ok = false;
+  }
+  if (ok && (back.europe.bound_ships != 1 || back.europe.harbor_ships != 0 ||
+             back.europe.bound[0].turns_left != 1)) {
+    snprintf(err, err_size, "no-exit round trip: bound %d harbor %d turns %d (want 1, 0, 1)",
+             back.europe.bound_ships, back.europe.harbor_ships,
+             back.europe.bound_ships > 0 ? back.europe.bound[0].turns_left : -1);
+    ok = false;
+  }
+  lane_fx_free(&back);
+  lane_fx_free(&fx);
+  return ok;
+}
+
 /* port_bugs.md #1107 seam: col1_bridge_apply_w / capture_w stages called directly
  * through col1_bridge_internal.h — abort status, ctx-owned maps, write-back. */
 static bool test_bridge_stage_seams(char* err, size_t err_size) {
@@ -2095,6 +2136,10 @@ int main(void) {
   }
   if (!test_bound_lane_save(err, sizeof(err))) {
     fprintf(stderr, "Bound lane save: %s\n", err);
+    return 1;
+  }
+  if (!test_bound_no_exit_save(err, sizeof(err))) {
+    fprintf(stderr, "Bound no-exit save: %s\n", err);
     return 1;
   }
   if (!test_europe_dock_in_session_order(err, sizeof(err))) {

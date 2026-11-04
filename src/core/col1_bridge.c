@@ -3834,13 +3834,16 @@ COLONIZE_INTERNAL void col1_bridge_capture_europe_lanes(Col1CaptureCtx* ctx) {
            */
           lane_xy = (uint8_t)(ticks <= 1 ? 240 + n : 244 + n);
           turns = (uint8_t)(ticks <= 1 ? 0 : far_ctr);
-        } else if (li == 1 && (tl > 0 || ship->departed_this_turn)) {
+        } else if (li == 1 && (tl > 0 || ship->departed_this_turn || (gx == 0 && gy == 0))) {
           /*
            * Bound the same way: 232+n (where FUN_48d3_0346 drops a departing
            * hull) counter ticks-1 lands on pass max(c,1)+1 (FUN_48d3_03d0
            * hop at raw 77966, then 77965); one tick is 228+n counter 1,
            * which 03d0 decrements and hops on the next pass. turns_left 0
-           * on a ship still at sea keeps 228+n counter 0.
+           * on a ship still at sea keeps 228+n counter 0, unless it has no
+           * exit tile: 228+n counter 0 with goto (0,0) is the legacy harbor
+           * shape the import files as docked, so it gets counter 1 (03d0
+           * raw 77772-77777 lands it on the same pass).
            */
           lane_xy = (uint8_t)(ticks <= 1 ? 228 + n : 232 + n);
           turns = (uint8_t)(ticks <= 1 ? 1 : far_ctr);
