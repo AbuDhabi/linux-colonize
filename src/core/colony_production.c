@@ -92,15 +92,28 @@ bool colony_prod_chain_input_is_flat(int chain) {
   return chain == COLONIES_CHAIN_ARMORY;
 }
 
-int colony_prod_chain_input_for_total_output(int building_row, int total_output) {
+int colony_prod_chain_input_for_total_output(
+  const ColonizeColonyPool* pool, const ColonizeColony* colony, int chain, int total_output
+) {
   if (total_output <= 0) {
     return 0;
   }
-  if (colony_prod_chain_input_is_flat(colonies_building_row_chain(building_row))) {
+  if (colony_prod_chain_input_is_flat(chain)) {
     return total_output;
   }
+  /* DOS-LITERAL FUN_15eb_0bd4 raw 10168-10174: `FUN_15eb_039e(FUN_15eb_0aec(out))
+   * > 2`. 0aec is the chain's base row; 039e (raw 9561-9577) walks the
+   * next-tier links and counts the rows the colony owns (FUN_15eb_038e). The
+   * discount needs all three tiers owned, not a worker in the factory. */
+  const int* rows = colonies_building_chain_rows(chain);
+  int owned = 0;
+  for (int t = 0; rows && t < 4 && rows[t] >= 0; ++t) {
+    if (colonies_dos_owns_row(pool, colony, rows[t])) {
+      owned++;
+    }
+  }
   return colony_prod_tier_input_for_output(
-    colony_prod_building_tier_row(building_row), total_output
+    owned > 2 ? COLONY_PROD_TIER_FACTORY : COLONY_PROD_TIER_HOUSE, total_output
   );
 }
 

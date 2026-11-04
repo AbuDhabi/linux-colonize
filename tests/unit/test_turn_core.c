@@ -6846,19 +6846,23 @@ static int case_phase_k_build_advisory(void) {
  *       furs, the old per-worker `(10*6+8)/9` wanted 7.
  *   (2) two criminals at sol_bonus 1 -> out 4 each, total 8; DOS wants
  *       (8*2)/3 = 5, the old per-worker round-up wanted 3+3 = 6.
+ *   (3) the worker sits in the Fur Factory but the colony owns only
+ *       that one building of the chain: 039e counts 1, so 10 coats need 10.
  */
 static int case_factory_input_colony_total(void) {
   ColonizeColonyPool pool;
   colonies_init(&pool);
   colonies_set_occupancy_map(NULL);
   snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Fur Factory");
-  pool.building_types[0].hammers = 0;
-  pool.building_type_count = 1;
+  snprintf(pool.building_types[1].name, sizeof(pool.building_types[1].name), "Fur Trader's House");
+  snprintf(pool.building_types[2].name, sizeof(pool.building_types[2].name), "Fur Trading Post");
+  pool.building_type_count = 3;
 
   /* Scenario 1: one free colonist, sol_bonus 1. */
   ColonizeColony* c = &pool.colonies[0];
   memset(c, 0, sizeof(*c));
   c->id = 0;
+  c->has_building[0] = c->has_building[1] = c->has_building[2] = true; /* 039e == 3 */
   c->active = true;
   c->population = 1;
   c->colonist_count = 1;
@@ -6886,6 +6890,7 @@ static int case_factory_input_colony_total(void) {
   /* Scenario 2: two criminals, sol_bonus 1 — 4 + 4 = 8 coats, 5 furs. */
   memset(c, 0, sizeof(*c));
   c->id = 0;
+  c->has_building[0] = c->has_building[1] = c->has_building[2] = true;
   c->active = true;
   c->population = 2;
   c->colonist_count = 2;
@@ -6903,6 +6908,31 @@ static int case_factory_input_colony_total(void) {
     fprintf(
       stderr,
       "factory two workers: coats=%d furs=%d expected +8/-5\n",
+      delta.goods[COLONIZE_CARGO_COATS],
+      delta.goods[COLONIZE_CARGO_FURS]
+    );
+    return 1;
+  }
+
+  /* Scenario 3: scenario 1's worker, only the factory owned. */
+  memset(c, 0, sizeof(*c));
+  c->id = 0;
+  c->has_building[0] = true; /* 039e == 1: no discount */
+  c->active = true;
+  c->population = 1;
+  c->colonist_count = 1;
+  c->building_in_production = -1;
+  c->colonists[0].active = true;
+  c->colonists[0].field_job = -1;
+  c->colonists[0].building_type = 0;
+  c->colonists[0].profession = COLONIZE_PROF_FREE_COLONIST;
+  c->stock[COLONIZE_CARGO_FURS] = 100;
+  memset(&delta, 0, sizeof(delta));
+  colony_craft_one_colony(&pool, c, &delta, 1);
+  if (delta.goods[COLONIZE_CARGO_COATS] != 10 || delta.goods[COLONIZE_CARGO_FURS] != -10) {
+    fprintf(
+      stderr,
+      "factory without the chain: coats=%d furs=%d expected +10/-10 (039e <= 2)\n",
       delta.goods[COLONIZE_CARGO_COATS],
       delta.goods[COLONIZE_CARGO_FURS]
     );
@@ -6927,7 +6957,9 @@ static int case_armory_flat_input(void) {
   pool.building_types[0].hammers = 0;
   snprintf(pool.building_types[1].name, sizeof(pool.building_types[1].name), "Iron Works");
   pool.building_types[1].hammers = 0;
-  pool.building_type_count = 2;
+  snprintf(pool.building_types[2].name, sizeof(pool.building_types[2].name), "Blacksmith's House");
+  snprintf(pool.building_types[3].name, sizeof(pool.building_types[3].name), "Blacksmith's Shop");
+  pool.building_type_count = 4;
 
   /* Scenario 1: one Master Gunsmith at an Arsenal (18 muskets), ample tools
    * — input is 1:1, not the factory (18*2)/3 = 12. */
@@ -6991,6 +7023,7 @@ static int case_armory_flat_input(void) {
    * free with an empty ore warehouse. */
   memset(c, 0, sizeof(*c));
   c->id = 0;
+  c->has_building[1] = c->has_building[2] = c->has_building[3] = true; /* 039e == 3 */
   c->active = true;
   c->population = 1;
   c->colonist_count = 1;

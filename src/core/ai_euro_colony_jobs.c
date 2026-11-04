@@ -1209,7 +1209,9 @@ void ai_euro_5952_ledgers(
   }
   for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
     if (craft_row[c] >= 0 && craft_in[c] >= 0) {
-      demand[craft_in[c]] += colony_prod_chain_input_for_total_output(craft_row[c], gross[c]);
+      demand[craft_in[c]] += colony_prod_chain_input_for_total_output(
+        pool, col, colonies_building_row_chain(craft_row[c]), gross[c]
+      );
     }
   }
 

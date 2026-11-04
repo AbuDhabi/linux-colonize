@@ -1831,6 +1831,14 @@ static int case_colonies_core(void) {
       c->colonists[0].building_type = works;
       c->colonists[0].profession = 19; /* free colonist */
       c->has_building[works] = true;
+      /* The (G<<1)/3 discount needs all three chain buildings owned
+       * (FUN_15eb_039e > 2, raw 10170-10172), not a worker in the factory. */
+      const int smithy = colonies_find_building(&pool, "Blacksmith's Shop");
+      CHECK(smithy >= 0, "Blacksmith's Shop row");
+      c->has_building[house] = true;
+      if (smithy >= 0) {
+        c->has_building[smithy] = true;
+      }
 
       static const int k_stock[] = {0, 1, 2, 3, 4, 5, 6, 9};
       static const int k_out[] = {0, 2, 3, 5, 6, 8, 9, 9};
@@ -1870,6 +1878,9 @@ static int case_colonies_core(void) {
       }
 
       c->has_building[house] = false;
+      if (smithy >= 0) {
+        c->has_building[smithy] = false;
+      }
       c->colonists[0].building_type = -1;
       c->colonist_count = saved_count;
       c->stock[COLONIZE_CARGO_ORE] = 0;
