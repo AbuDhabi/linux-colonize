@@ -11,6 +11,7 @@
 #include "core/europe.h"
 #include "core/founding_fathers.h"
 #include "core/reports.h"
+#include "core/reports_names.h"
 #include "core/turn_internal.h"
 #include "core/map.h"
 #include "core/ai_king.h"
@@ -20,6 +21,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
 #define TEST_NAME "unit_founding_fathers"
 #include "../common/test_fail.h"
@@ -67,6 +70,122 @@ static bool ff_build_minimal_col1_blob(ColonizeCol1Save* save, char* err, size_t
   save->head.unit_count = 1;
   save->head.tribe_count = 1;
   return true;
+}
+
+/* The shipped NAMES.TXT @FATHERS rows as {type, band 0, band 1, band 2}:
+ * the k_ff_type / k_ff_weight values the port compiled in before it read
+ * them from the catalog (FUN_75c2_1770 raw 121229-121246). */
+static const int k_ff_stock[COLONIZE_COL1_FF_COUNT][4] = {
+  {0, 2, 8, 6},   {0, 0, 5, 8},  {0, 9, 1, 0},  {0, 2, 4, 8},  {0, 2, 6, 10},
+  {1, 2, 10, 10}, {1, 3, 5, 7},  {1, 5, 10, 5}, {1, 10, 1, 0}, {1, 7, 5, 3},
+  {2, 6, 5, 1},   {2, 0, 4, 10}, {2, 10, 2, 1}, {2, 4, 8, 6},  {2, 0, 6, 7},
+  {3, 4, 5, 6},   {3, 7, 5, 3},  {3, 1, 2, 8},  {3, 0, 4, 6},  {3, 5, 5, 5},
+  {4, 7, 4, 1},   {4, 8, 5, 2},  {4, 6, 6, 1},  {4, 3, 8, 3},  {4, 0, 5, 10}
+};
+
+/* Headless human candidate roll at 1550 (band 0) with every Trade Father
+ * but Adam Smith elected: FUN_4345_06d2 rolls each category in order and
+ * the first row with a candidate becomes next_founding_father. */
+static int ff_next_pick_1550(void) {
+  ColonizeCol1Save c;
+  col1_save_init(&c);
+  seed_unclaimed(&c);
+  ff_test_calendar(&c);
+  c.head.year = 1550;
+  ColonizeCol1Nation* n = &c.nation[0];
+  memset(n, 0, sizeof(*n));
+  n->liberty_bells_pool = 10;
+  n->next_founding_father = -1;
+  const int granted[] = {FF_JAKOB_FUGGER, FF_PETER_MINUIT, FF_PETER_STUYVESANT, FF_JAN_DE_WITT};
+  for (int g = 0; g < 4; ++g) {
+    n->founding_fathers[granted[g] / 8] |= (uint8_t)(1u << (granted[g] % 8));
+  }
+  ColonizeDosRng rng;
+  dos_rng_seed(&rng, 7u);
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.human_nation = 0;
+  ctx.col1 = &c;
+  ctx.col1_ok = true;
+  ctx.rng = &rng;
+  (void)founding_fathers_try_elect(&ctx, 0);
+  return (int)n->next_founding_father;
+}
+
+/* Blocks that roll the Congress debate need the @FATHERS weights, which come
+ * from COLONIZE/NAMES.TXT. Without it they are skipped, and main returns
+ * TR_SKIP once every other block has passed. */
+static int ff_catalog_skips = 0;
+
+static bool ff_have_catalog(const char* block) {
+  if (reports_names_field("FATHERS", 0, 0)) {
+    return true;
+  }
+  fprintf(stderr, "unit_founding_fathers: %s skipped (no @FATHERS catalog)\n", block);
+  ff_catalog_skips++;
+  return false;
+}
+
+/* @FATHERS type and century weights come from NAMES.TXT. */
+static int ff_case_fathers_from_names(void) {
+  if (!reports_names_field("FATHERS", 0, 0)) {
+    return TR_SKIP;
+  }
+  for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
+    for (int b = 0; b < 3; ++b) {
+      if (founding_fathers_category(i) != k_ff_stock[i][0] ||
+          founding_fathers_century_weight(i, b) != k_ff_stock[i][1 + b]) {
+        fprintf(stderr, "father %d band %d: type %d weight %d, want %d %d\n", i, b,
+                founding_fathers_category(i), founding_fathers_century_weight(i, b),
+                k_ff_stock[i][0], k_ff_stock[i][1 + b]);
+        return 1;
+      }
+    }
+  }
+  const int stock_pick = ff_next_pick_1550();
+  if (stock_pick != FF_ADAM_SMITH) {
+    fprintf(stderr, "stock @FATHERS: next %d, want Adam Smith\n", stock_pick);
+    return 1;
+  }
+
+  /* Fixture catalog (invented names): Adam Smith's band-0 weight is 0 and
+   * the last row is missing. */
+  char dir[128];
+  char path[160];
+  snprintf(dir, sizeof(dir), "/tmp/colonize-ff-names-%ld", (long)getpid());
+  snprintf(path, sizeof(path), "%s/NAMES.TXT", dir);
+  FILE* f = mkdir(dir, 0700) == 0 ? fopen(path, "wb") : NULL;
+  if (!f) {
+    rmdir(dir);
+    return fail("fixture NAMES.TXT not written");
+  }
+  fputs("@FATHERS\r\n", f);
+  for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT - 1; ++i) {
+    fprintf(f, "Father %c, %d, %d, %d, %d\r\n", 'A' + i, k_ff_stock[i][0],
+            i == FF_ADAM_SMITH ? 0 : k_ff_stock[i][1], k_ff_stock[i][2], k_ff_stock[i][3]);
+  }
+  fputs("\r\n", f);
+  fclose(f);
+  reports_names_load_catalogs(dir);
+  unlink(path);
+  rmdir(dir);
+  const int last = (int)COLONIZE_COL1_FF_COUNT - 1;
+  const int miss_type = founding_fathers_category(last);
+  const int miss_weight = founding_fathers_century_weight(last, 0) +
+                          founding_fathers_century_weight(last, 1) +
+                          founding_fathers_century_weight(last, 2);
+  const int edited_pick = ff_next_pick_1550();
+  reports_names_load_catalogs("COLONIZE");
+  int rc = 0;
+  if (miss_type != -1 || miss_weight != 0) {
+    fprintf(stderr, "missing row: type %d weights %d, want -1 0\n", miss_type, miss_weight);
+    rc = 1;
+  }
+  if (edited_pick < 0 || k_ff_stock[edited_pick][0] != 1) {
+    fprintf(stderr, "Adam Smith weighted 0: next %d, want an Exploration Father\n", edited_pick);
+    rc = 1;
+  }
+  return rc;
 }
 
 int main(void) {
@@ -2499,7 +2618,7 @@ int main(void) {
   }
 
   /* Human + ai_popups: choose first (next < 0), accumulate, then elect. */
-  {
+  if (ff_have_catalog("Congress debate CHOICE")) {
     ColonizeCol1Save dcol1;
     col1_save_init(&dcol1);
     seed_unclaimed(&dcol1);
@@ -2584,7 +2703,7 @@ int main(void) {
    * head.founding_father[] is a first-claimer record, never a lock. An AI
    * Congress full of Fathers must not shrink the human's slate.
    */
-  {
+  if (ff_have_catalog("FF pool is per-nation")) {
     ColonizeCol1Save xcol1;
     col1_save_init(&xcol1);
     seed_unclaimed(&xcol1);
@@ -2629,7 +2748,7 @@ int main(void) {
 
   /* port_bugs.md: the debate is persistent — escaping re-presents it at once with
    * the SAME candidates, and a next-turn tick keeps them too (no reroll). */
-  {
+  if (ff_have_catalog("debate slate persistence")) {
     ColonizeCol1Save dcol1;
     col1_save_init(&dcol1);
     seed_unclaimed(&dcol1);
@@ -2816,7 +2935,7 @@ int main(void) {
 
 
   /* Century-weighted debate pick: same RNG seed → same category candidates. */
-  {
+  if (ff_have_catalog("century-weighted debate RNG")) {
     int ids_a[AI_POPUP_CHOICE_MAX];
     int ids_b[AI_POPUP_CHOICE_MAX];
     int na = 0;
@@ -2969,6 +3088,22 @@ int main(void) {
     fprintf(stderr, "unit_founding_fathers: WoI no-debate/no-elect ok\n");
   }
 
+  {
+    const int rc = ff_case_fathers_from_names();
+    if (rc == TR_SKIP) {
+      fprintf(stderr, "unit_founding_fathers: @FATHERS from NAMES.TXT skipped (no COLONIZE/)\n");
+      ff_catalog_skips++;
+    } else if (rc != 0) {
+      return 1;
+    } else {
+      fprintf(stderr, "unit_founding_fathers: @FATHERS from NAMES.TXT ok\n");
+    }
+  }
+
+  if (ff_catalog_skips > 0) {
+    printf("SKIP unit_founding_fathers (%d blocks need COLONIZE/NAMES.TXT)\n", ff_catalog_skips);
+    return TR_SKIP;
+  }
   printf("unit_founding_fathers: OK\n");
   return 0;
 }

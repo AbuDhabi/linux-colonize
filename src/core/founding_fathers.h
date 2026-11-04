@@ -102,6 +102,14 @@ void founding_fathers_consume_woi_bell_pool(ColonizeTurnContext* ctx, int nation
 void founding_fathers_reset(void);
 
 /*
+ * NAMES.TXT @FATHERS type (column 1) and century weight (column 2 + band,
+ * band 0/1/2 as FUN_4345_005a), as DOS FUN_75c2_1770 loads them. A miss
+ * gives type -1 and weight 0.
+ */
+int founding_fathers_category(int ff_index);
+int founding_fathers_century_weight(int ff_index, int band);
+
+/*
  * True if nation owns FF index. Per-nation bitmask ONLY (DOS FUN_15eb_3960);
  * head.founding_father[] is a write-once first-claimer record the DOS binary
  * never reads back — see the definition's comment (smell audit #83).

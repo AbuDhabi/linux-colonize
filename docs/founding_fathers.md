@@ -8,9 +8,12 @@ column below quotes `COLONIZE/PEDIA.TXT` `@FATHER0`–`@FATHER24` verbatim —
 this is a real shipped DOS asset (Tier 1), not wiki paraphrase.
 `docs/fandom_col1994.md` was cross-checked against it: the two agree on
 every Father, so fandom's summaries are safe to keep citing in code
-comments. The `@FATHERS` type/weight table in `COLONIZE/NAMES.TXT` was
-also diffed byte-for-byte against `founding_fathers.c`'s
-`k_ff_type`/`k_ff_weight` — **exact match**, all 25 rows.
+comments. The `@FATHERS` type and century-weight columns are read from
+`COLONIZE/NAMES.TXT` (`founding_fathers_category` /
+`founding_fathers_century_weight`), as DOS `FUN_75c2_1770` loads them into
+the DS:-0x69ae records (raw 121229-121246). A missing row or field gives
+type -1 and weight 0, so that Father is never offered. `unit_founding_fathers`
+checks the shipped rows against the values the port used to compile in.
 
 **PEDIA is not mechanics evidence.** The Effect column quotes PEDIA/manual
 text for what the Father is *supposed* to do; only the decomp says what DOS
