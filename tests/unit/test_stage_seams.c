@@ -2465,7 +2465,7 @@ static int test_combat_edge_scroll_uses_attacker_tile(void) {
   int rc = (ox <= 1 || !a) ? fail("combat scroll: fixture") : 0;
   if (rc == 0) {
     a->nation_id = 0;
-    game_combat_watch(&game, &game.units, a->id, ox + 1, y);
+    game_combat_watch(&game, &game.units, a->id, ox + 1, y, true);
     if (game.map_view_x != 30 || game.map_view_y != 30) {
       fprintf(stderr, "  view (%d,%d) after the first fight\n", game.map_view_x, game.map_view_y);
       rc = fail("combat scroll: a defender in the margin must not scroll (attacker is outside it)");
@@ -2473,11 +2473,78 @@ static int test_combat_edge_scroll_uses_attacker_tile(void) {
   }
   if (rc == 0) {
     a->x = ox + 1;
-    game_combat_watch(&game, &game.units, a->id, ox, y);
+    game_combat_watch(&game, &game.units, a->id, ox, y, true);
     if (game.map_view_x != ox + 1 || game.map_view_y != y) {
       fprintf(stderr, "  view (%d,%d), want (%d,%d)\n", game.map_view_x, game.map_view_y,
               ox + 1, y);
       rc = fail("combat scroll: an attacker in the margin centres on the attacker's tile");
+    }
+  }
+  edge_scroll_free(&game);
+  return rc;
+}
+
+/* FUN_5fef_1b0e lunges on its param_4, which FUN_465b_0000 passes as local_1c
+ * (raw 75660-75692): a rival-vs-rival fight on ground France has explored but
+ * nobody French watches is not shown; the same fight by an attacker France
+ * already saw is. */
+static int test_combat_lunge_reads_465b_local_1c(void) {
+  static ColonizeGameState game;
+  int ox = 0;
+  edge_scroll_init(&game, &ox);
+  const int y = 30;
+  ColonizeWorldMap* m = &game.world_map;
+  game.col1.player[1].control = 1;
+  game.col1.player[2].control = 1;
+  ColonizeUnit* a = units_get(&game.units, units_spawn(&game.units, 0, ox + 1, y));
+  ColonizeUnit* d = units_get(&game.units, units_spawn(&game.units, 0, ox, y));
+  int rc = (ox <= 1 || !a || !d || !m->layer3) ? fail("lunge show: fixture") : 0;
+  if (rc == 0) {
+    for (int ty = 0; ty < m->height; ++ty) {
+      for (int tx = 0; tx < m->width; ++tx) {
+        map_set_owner_nibble(m, tx, ty, 0x0f); /* nobody French anywhere */
+      }
+    }
+    map_set_owner_nibble(m, ox + 1, y, 1);
+    map_set_owner_nibble(m, ox, y, 2);
+    a->nation_id = 1;
+    d->nation_id = 2;
+    a->col1_vis_mask = 0;
+    if ((units_vis_mask_for_tile(m, ox, y, 1) & 0x01u) != 0) {
+      rc = fail("lunge show: defender tile must be unwatched by France");
+    }
+  }
+  if (rc == 0) {
+    map_reveal_tile(m, ox + 1, y, 0);
+    map_reveal_tile(m, ox, y, 0);
+    game_combat_watch(&game, &game.units, a->id, ox, y, true);
+    if (game.map_view_x != 30 || game.map_view_y != 30) {
+      rc = fail("lunge show: an unwatched rival fight must not play (explored is not enough)");
+    }
+  }
+  if (rc == 0) {
+    a->col1_vis_mask = 0x01u;
+    game_combat_watch(&game, &game.units, a->id, ox, y, true);
+    if (game.map_view_x != ox + 1 || game.map_view_y != y) {
+      fprintf(stderr, "  view (%d,%d), want (%d,%d)\n", game.map_view_x, game.map_view_y,
+              ox + 1, y);
+      rc = fail("lunge show: an attacker carrying France's bit plays the lunge");
+    }
+  }
+  /* The other local_1c arms, each from the unshown state: show_entire_map
+   * (DS:0x53a2), a human-played attacker, a human-played destination head
+   * (raw 75687-75689). */
+  for (int arm = 0; arm < 3 && rc == 0; ++arm) {
+    a->col1_vis_mask = 0;
+    game.map_view_x = 30;
+    game.map_view_y = 30;
+    game.col1.head.show_entire_map = arm == 0;
+    game.col1.player[1].control = arm == 1 ? 0 : 1;
+    game.col1.player[2].control = arm == 2 ? 0 : 1;
+    game_combat_watch(&game, &game.units, a->id, ox, y, true);
+    if (game.map_view_x != ox + 1 || game.map_view_y != y) {
+      fprintf(stderr, "  arm %d: view (%d,%d)\n", arm, game.map_view_x, game.map_view_y);
+      rc = fail("lunge show: show_entire_map, a human-played attacker or head plays the lunge");
     }
   }
   edge_scroll_free(&game);
@@ -4139,6 +4206,7 @@ static const TestCase k_cases[] = {
     {"test_phantom_lunge_edge_scroll_uses_colony_tile",
      test_phantom_lunge_edge_scroll_uses_colony_tile},
     {"test_combat_edge_scroll_uses_attacker_tile", test_combat_edge_scroll_uses_attacker_tile},
+    {"test_combat_lunge_reads_465b_local_1c", test_combat_lunge_reads_465b_local_1c},
     {"test_foreign_move_shown_by_prior_sighting", test_foreign_move_shown_by_prior_sighting},
     {"test_brave_step_watch_sees_entry_vis", test_brave_step_watch_sees_entry_vis},
     {"test_player_pick_keeps_view", test_player_pick_keeps_view},

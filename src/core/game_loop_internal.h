@@ -433,7 +433,8 @@ void game_phantom_lunge(
   int from_x, int from_y, int def_x, int def_y
 );
 void game_combat_watch(
-  void* user, const ColonizeUnitPool* pool, int attacker_id, int def_x, int def_y
+  void* user, const ColonizeUnitPool* pool, int attacker_id, int def_x, int def_y,
+  bool lunge_1b0e
 );
 void game_combat_dissolve(void* user, int phase);
 /* DOS FUN_281f_03ea fizzle present, shared by combat outcomes and the two

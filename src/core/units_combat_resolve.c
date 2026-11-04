@@ -178,7 +178,7 @@ static void units_combat_present_and_roll(
   /* port_bugs.md #233: the attack "bump" plays AFTER the analysis is dismissed —
    * analysis → bump → outcome popups, each blocking, per combat. */
   if (g_units_combat_watch) {
-    g_units_combat_watch(g_units_combat_watch_user, pool, attacker_id, def_x, def_y);
+    g_units_combat_watch(g_units_combat_watch_user, pool, attacker_id, def_x, def_y, true);
   }
 }
 
@@ -1202,7 +1202,7 @@ bool units_fort_vs_ship(
         g_units_phantom_lunge_user, pool, ati, fort_nation, fort_x, fort_y, def->x, def->y
       );
     } else {
-      g_units_combat_watch(g_units_combat_watch_user, pool, -1, def->x, def->y);
+      g_units_combat_watch(g_units_combat_watch_user, pool, -1, def->x, def->y, false);
     }
   }
   if (atk_wins) {

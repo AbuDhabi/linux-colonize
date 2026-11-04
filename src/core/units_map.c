@@ -950,7 +950,7 @@ void units_set_phantom_lunge_hook(ColonizeUnitsPhantomLungeFn fn, void* user) {
 
 void units_combat_watch_notify(const ColonizeUnitPool* pool, int unit_id, int x, int y) {
   if (g_units_combat_watch && pool) {
-    g_units_combat_watch(g_units_combat_watch_user, pool, unit_id, x, y);
+    g_units_combat_watch(g_units_combat_watch_user, pool, unit_id, x, y, false);
   }
 }
 

@@ -50,8 +50,10 @@ static void unit_test_camera_hook(void* user, int x, int y) {
   }
   s_cam_n++;
 }
-static void unit_test_watch_hook(void* user, const ColonizeUnitPool* pool, int id, int x, int y) {
-  (void)user; (void)pool;
+static void unit_test_watch_hook(
+  void* user, const ColonizeUnitPool* pool, int id, int x, int y, bool lunge_1b0e
+) {
+  (void)user; (void)pool; (void)lunge_1b0e;
   s_watch_n++; s_watch_id = id; s_watch_x = x; s_watch_y = y;
 }
 static void unit_test_phantom_lunge_hook(
