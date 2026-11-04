@@ -391,8 +391,8 @@ void ai_euro_resolve_landfall_goto(
  * 13b0 limb on a tile change. Runs from the act drain and from AI unloads,
  * which land through FUN_465b_0000 too (DOSBox 1591: a Dutch Dragoon
  * unloaded beside French units signs with France). */
-static void ai_euro_3180_euro_side(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id,
-                                   int progressed, int moved) {
+COLONIZE_INTERNAL void ai_euro_3180_euro_side(ColonizeTurnContext* ctx, ColonizeUnit* u,
+                                              int nation_id, int progressed, int moved) {
   /*
    * FUN_5bfb_3180 runs on the MOVING unit's step for AI units too: an
    * AI unit that ends its act adjacent to the human's units or colonies
@@ -416,42 +416,45 @@ static void ai_euro_3180_euro_side(ColonizeTurnContext* ctx, ColonizeUnit* u, in
       !col1_nation_is_human(ctx->col1, nation_id, ctx->human_nation) &&
       ctx->map && !map_tile_is_water(ctx->map, u->x, u->y)) {
     /* 3180's direction loop, local_30 0..7 in DS:0xb4/0xbe order (=
-     * MAP_DIR8); the first index at which a human nation neighbours is
-     * that talk's 153e param_5 (raw 98667), the @WANTSTUFF source tile. */
-    int human_dir[4] = {-1, -1, -1, -1};
+     * MAP_DIR8), calls 153e inline with param_5 = local_30 (raw 98667), the
+     * @WANTSTUFF source tile. aiStack_20[human] takes 153e's return (raw
+     * 98674) and gates the call (raw 98649), so a 0 lets that human's next
+     * tile try again with its own direction. */
+    int talked[4] = {0, 0, 0, 0};
     for (int d = 0; d < 8; ++d) {
       const int ax = u->x + MAP_DIR8_DX[d];
       const int ay = u->y + MAP_DIR8_DY[d];
       if (map_tile_is_water(ctx->map, ax, ay)) {
         continue;
       }
+      int owners[2] = {-1, -1};
       const int oid = units_id_at(ctx->units, ax, ay);
       const ColonizeUnit* o = oid >= 0 ? units_get_const(ctx->units, oid) : NULL;
-      if (o && o->active && o->nation_id >= 0 && o->nation_id < 4 &&
-          human_dir[o->nation_id] < 0 &&
-          col1_nation_is_human(ctx->col1, o->nation_id, ctx->human_nation)) {
-        human_dir[o->nation_id] = d;
+      if (o && o->active) {
+        owners[0] = o->nation_id;
       }
       if (ctx->colonies) {
         const int ccid = colonies_id_at(ctx->colonies, ax, ay);
         const ColonizeColony* cc = ccid >= 0 ? colonies_get(ctx->colonies, ccid) : NULL;
-        if (cc && cc->active && cc->nation_id >= 0 && cc->nation_id < 4 &&
-            human_dir[cc->nation_id] < 0 &&
-            col1_nation_is_human(ctx->col1, cc->nation_id, ctx->human_nation)) {
-          human_dir[cc->nation_id] = d;
+        if (cc && cc->active && cc->nation_id != owners[0]) {
+          owners[1] = cc->nation_id;
         }
       }
-    }
-    for (int hn = 0; hn < 4; ++hn) {
-      if (human_dir[hn] >= 0 &&
-          ai_diplo_153e_encounter(ctx, hn, nation_id, u->id, human_dir[hn]) &&
-          ctx->ai_popups) {
-        /* 3180 -> thunk_FUN_2a1f_05fc -> FUN_5bfb_153e (raw 98667) is a blocking
-         * dialog inside this step: the treaty it signs (raw 98003, 0x40 both
-         * ways) is live before 6d8e re-acts the unit, whose next 20e6 reads
-         * 0a38 & 0x40 (raw 88878-88880). Answer the queued talk now, or the
-         * mover attacks on the pre-treaty byte (campaign3 C3-B1). */
-        units_pump_combat_popups();
+      for (int k = 0; k < 2; ++k) {
+        const int hn = owners[k];
+        if (hn < 0 || hn > 3 || talked[hn] ||
+            !col1_nation_is_human(ctx->col1, hn, ctx->human_nation)) {
+          continue;
+        }
+        talked[hn] = ai_diplo_153e_encounter(ctx, hn, nation_id, u->id, d);
+        if (talked[hn] && ctx->ai_popups) {
+          /* 3180 -> thunk_FUN_2a1f_05fc -> FUN_5bfb_153e (raw 98667) is a blocking
+           * dialog inside this step: the treaty it signs (raw 98003, 0x40 both
+           * ways) is live before 6d8e re-acts the unit, whose next 20e6 reads
+           * 0a38 & 0x40 (raw 88878-88880). Answer the queued talk now, or the
+           * mover attacks on the pre-treaty byte (campaign3 C3-B1). */
+          units_pump_combat_popups();
+        }
       }
     }
   }

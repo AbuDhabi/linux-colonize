@@ -628,6 +628,9 @@ int ai_euro_5d04_dos_type_code(const ColonizeUnitPool* pool, int type_index);
 uint32_t ai_euro_5d04_artillery_price(const ColonizeCol1Nation* nat);
 int ai_euro_5d04_cb_list_iter_first(int list_id);
 int ai_euro_5d04_cb_list_iter_next(int prev);
+/* FUN_5bfb_3180's Euro halves for an AI mover (ai_euro.c). */
+void ai_euro_3180_euro_side(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id,
+                            int progressed, int moved);
 /* Live-tally wrapper of ai_euro_20e6_457e_hs_cadence_snapshot. */
 int ai_euro_20e6_457e_hs_cadence(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id);
 /* Test-only ai_goals.c externs (port_bugs.md #1106). */

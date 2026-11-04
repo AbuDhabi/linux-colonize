@@ -1509,7 +1509,101 @@ static int unit_3180_wantstuff_source_is_first_human_direction(void) {
   return 0;
 }
 
+/*
+ * FUN_5bfb_3180 stores 153e's return in aiStack_20[human] (raw 98674) and
+ * gates the call on it (raw 98649), so a 0 ("nothing to say", raw 97679,
+ * after its talk RNG draw) lets the next human neighbour tile run 153e
+ * again. Scene: AI Dragoon at (5,6), human units N (5,5) and S (5,7);
+ * dominance != 0 (census), peace, one tribe hostile to the AI (ba 1).
+ * Mode 0 runs the 3180 Euro side; mode n > 0 calls 153e n times directly.
+ * Returns the RNG state through *out.
+ */
+static int retry_3180_run(int mode, ColonizeDosRng* out) {
+  ai_diplo_talk_reset();
+  ColonizeWorldMap m;
+  if (!fx_map_alloc(&m, 16, 16, 1, false)) {
+    return fail("3180 retry alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    m.layer3[i] = 1;
+  }
+  static ColonizeUnitPool pool;
+  fx_units_init(&pool);
+  pool.type_count = 1;
+  pool.types[0].movement = 4;
+  pool.types[0].attack = 3;
+  pool.types[0].defense = 3;
+  pool.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  ColonizeUnit* ai = units_get(&pool, units_spawn(&pool, 0, 5, 6));
+  ColonizeUnit* h1 = units_get(&pool, units_spawn(&pool, 0, 5, 5));
+  ColonizeUnit* h2 = units_get(&pool, units_spawn(&pool, 0, 5, 7));
+  if (!ai || !h1 || !h2) {
+    fx_map_free(&m);
+    return fail("3180 retry spawn");
+  }
+  ai->nation_id = 1;
+  h1->nation_id = 0;
+  h2->nation_id = 0;
+  static ColonizeColonyPool cols;
+  fx_colonies_init(&cols);
+  static ColonizeCol1Save q;
+  col1_save_init(&q);
+  memset(q.nation, 0, sizeof(q.nation));
+  memset(q.head.nation_relation, 0, sizeof(q.head.nation_relation));
+  q.head.turn = 100;
+  q.head.difficulty = 1;
+  q.head.human_player = 0;
+  q.stuff.colony_counts[1] = 1;
+  q.stuff.colony_counts_by_continent[1 * 16 + 1] = 1;
+  q.stuff.field_combat_strength_by_continent[0 * 16 + 1] = 10; /* dominance 20 */
+  q.nation[0].euro_relation[1] |= AI_DIPLO_PEACE;
+  q.nation[1].euro_relation[0] |= AI_DIPLO_PEACE;
+  q.indian[0].alarm_by_player[1] = 0x50; /* ba 1 */
+  ColonizeDosRng rng;
+  dos_rng_seed(&rng, 11);
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.col1 = &q;
+  ctx.col1_ok = true;
+  ctx.map = &m;
+  ctx.units = &pool;
+  ctx.colonies = &cols;
+  ctx.human_nation = 0;
+  ctx.rng = &rng;
+  int rc = 0;
+  if (mode == 0) {
+    ai_euro_3180_euro_side(&ctx, ai, 1, 1, 1);
+  } else {
+    for (int i = 0; i < mode && rc == 0; ++i) {
+      if (ai_diplo_153e_encounter(&ctx, 0, 1, ai->id, i == 0 ? 0 : 4) != 0) {
+        rc = fail("3180 retry: the fixture's 153e must have nothing to say");
+      }
+    }
+  }
+  *out = rng;
+  fx_map_free(&m);
+  col1_save_free(&q);
+  return rc;
+}
+
+static int unit_3180_retries_next_human_tile(void) {
+  ColonizeDosRng side;
+  ColonizeDosRng one;
+  ColonizeDosRng two;
+  if (retry_3180_run(0, &side) || retry_3180_run(1, &one) || retry_3180_run(2, &two)) {
+    return 1;
+  }
+  if (memcmp(&one, &two, sizeof(one)) == 0) {
+    return fail("3180 retry: the fixture's 153e must draw (ba > 0) before its 0 return");
+  }
+  if (memcmp(&side, &two, sizeof(side)) != 0) {
+    return fail("a 0 from 153e must let 3180 try the next human tile (raw 98649/98674)");
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+    {"unit_3180_retries_next_human_tile", unit_3180_retries_next_human_tile},
     {"unit_3180_wantstuff_source_is_first_human_direction",
      unit_3180_wantstuff_source_is_first_human_direction},
     {"unit_aboard_rider_takes_sticky_slot", unit_aboard_rider_takes_sticky_slot},
