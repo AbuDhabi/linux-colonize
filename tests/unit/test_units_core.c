@@ -8438,10 +8438,82 @@ static int case_passenger_ship_to_ship_lost_roll(void) {
   return ok ? 0 : 1;
 }
 
+/* FUN_465b_0000 raw 75711-75722: boarding wakes a sentried receiving ship,
+ * and the focus goes to it only if FUN_1427_1330 passes (MP left, raw
+ * 8741-8762). A spent ship leaves the passenger active. Both 465b board
+ * paths: a walk-on from land and a ship-to-ship transfer. */
+static int case_board_wakes_sentried_spent_ship(void) {
+  ColonizeUnitPool p;
+  memset(&p, 0, sizeof(p));
+  units_reset_state();
+  units_reset(&p);
+  units_set_occupancy_map(NULL);
+  p.type_count = 2;
+  snprintf(p.types[0].name, sizeof(p.types[0].name), "Caravel");
+  p.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  p.types[0].cargo = 2;
+  p.types[0].space = 99;
+  p.types[0].movement = 4;
+  snprintf(p.types[1].name, sizeof(p.types[1].name), "Colonists");
+  p.types[1].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  p.types[1].space = 1;
+  p.types[1].movement = 2;
+  ColonizeWorldMap m;
+  memset(&m, 0, sizeof(m));
+  if (!map_alloc(&m, 8, 8, err, sizeof(err))) return 1;
+  memset(m.terrain, T_OCEAN, 64);
+  memset(m.layer3, 1, 64);
+  m.terrain[4 * 8 + 3] = T_GRASSLAND;
+  ColonizeWorld w = {.units = &p, .map = &m};
+  int bad = 0;
+  /* Walk-on: colonist at (3,4) onto the sentried, spent Caravel at (4,4). */
+  {
+    const int ship = units_spawn_allow_stack(&p, 0, 4, 4);
+    const int land = units_spawn_allow_stack(&p, 1, 3, 4);
+    units_get(&p, ship)->orders = UNITS_ORDER_SENTRY;
+    units_get(&p, ship)->moves = 0;
+    units_get(&p, land)->moves = 2 * UNITS_MP_PER_TILE;
+    p.selected_id = land;
+    const bool moved = units_try_move_w(&w, land, 4, 4);
+    const ColonizeUnit* s = units_get_const(&p, ship);
+    if (!moved || !s || units_get_const(&p, land)->aboard_ship_id != ship ||
+        s->orders != UNITS_ORDER_NONE || p.selected_id != land) {
+      fprintf(stderr, "walk-on: moved=%d orders=%d selected=%d (want ship awake, focus on pax)\n",
+              (int)moved, s ? s->orders : -1, p.selected_id);
+      bad = 1;
+    }
+  }
+  /* Ship to ship: an awake passenger aboard the Caravel at (1,2) steps onto
+   * the sentried, spent Caravel at (1,3). */
+  {
+    const int host = units_spawn_allow_stack(&p, 0, 1, 2);
+    const int pax = units_spawn_allow_stack(&p, 1, 1, 2);
+    const int other = units_spawn_allow_stack(&p, 0, 1, 3);
+    if (!units_board_stacked(&p, pax, host)) { map_free(&m); return 1; }
+    units_get(&p, pax)->orders = UNITS_ORDER_NONE;
+    units_get(&p, pax)->moves = 2 * UNITS_MP_PER_TILE;
+    units_get(&p, other)->orders = UNITS_ORDER_SENTRY;
+    units_get(&p, other)->moves = 0;
+    p.selected_id = pax;
+    const bool moved = units_transfer_passenger_w(&w, host, pax, 1, 3);
+    const ColonizeUnit* o = units_get_const(&p, other);
+    if (!moved || !o || units_get_const(&p, pax)->aboard_ship_id != other ||
+        o->orders != UNITS_ORDER_NONE || p.selected_id != pax) {
+      fprintf(stderr, "transfer: moved=%d orders=%d selected=%d (want ship awake, focus on pax)\n",
+              (int)moved, o ? o->orders : -1, p.selected_id);
+      bad = 1;
+    }
+  }
+  map_free(&m);
+  units_set_occupancy_map(NULL);
+  return bad;
+}
+
 static const TestCase k_cases[] = {
   {"ship_arrival_sorts_existing_passenger_chain", case_ship_arrival_sorts_existing_passenger_chain},
   {"passenger_ship_to_ship", case_passenger_ship_to_ship},
   {"passenger_ship_to_ship_lost_roll", case_passenger_ship_to_ship_lost_roll},
+  {"board_wakes_sentried_spent_ship", case_board_wakes_sentried_spent_ship},
   {"starter_fleet", case_starter_fleet},
   {"tile_stack_head_arrival", case_tile_stack_head_tracks_movement},
   {"tile_stack_sink_oldest_end", case_tile_stack_sink_oldest_end},

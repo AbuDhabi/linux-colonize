@@ -274,6 +274,12 @@ int units_dump_cargo_overboard(
 
 /* Board a land unit onto an adjacent ship. Returns false if capacity/adjacency fails. */
 bool units_board(ColonizeUnitPool* pool, int land_unit_id, int ship_id);
+/* FUN_465b_0000 raw 75711-75722 after a 465b board: wake a sentried receiving
+ * ship; keep the focus on it only if FUN_1427_1330 passes (`handed` = the
+ * mover had the focus before units_board). */
+void units_465b_board_wake_focus(
+  ColonizeUnitPool* pool, int land_unit_id, int ship_id, bool handed
+);
 /* Board without adjacency check (COL1 import; passenger already stacked on ship tile). */
 bool units_board_stacked(ColonizeUnitPool* pool, int land_unit_id, int ship_id);
 /*

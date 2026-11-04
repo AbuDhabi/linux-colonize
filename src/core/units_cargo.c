@@ -463,6 +463,32 @@ bool units_board(ColonizeUnitPool* pool, int land_unit_id, int ship_id) {
   return true;
 }
 
+/*
+ * FUN_465b_0000 raw 75711-75722: after a land mover steps onto water, the
+ * destination chain's head, the receiving ship, is woken if sentried
+ * (+0x314c 1 -> 0) and made active (FUN_281f_086c) only when FUN_281f_0966 =
+ * FUN_1427_1330 passes (raw 8741-8762: on the map, the moving nation's, not
+ * sentried or fortified, MP left). units_board hands the focus over
+ * unconditionally (`handed`: the mover had it), so give it back to the
+ * passenger when the gate fails; DOS leaves the sentried mover active and
+ * moves on from it.
+ */
+void units_465b_board_wake_focus(
+  ColonizeUnitPool* pool, int land_unit_id, int ship_id, bool handed
+) {
+  ColonizeUnit* ship = units_get(pool, ship_id);
+  if (!ship) {
+    return;
+  }
+  if (ship->orders == UNITS_ORDER_SENTRY) {
+    ship->orders = UNITS_ORDER_NONE;
+  }
+  if (handed && pool->selected_id == ship_id &&
+      (!units_is_on_map(ship) || ship->orders == UNITS_ORDER_FORTIFIED || ship->moves <= 0)) {
+    pool->selected_id = land_unit_id;
+  }
+}
+
 int units_find_boardable_ship(
   const ColonizeUnitPool* pool, int x, int y, int nation_id, int need_space
 ) {
@@ -898,11 +924,12 @@ bool units_transfer_passenger_w(
   }
   const int saved_moves = pax->moves;
   const int saved_aboard_moves = pax->aboard_moves;
+  const bool had_focus = pool->selected_id == pax_id;
   units_remove_from_cargo(ship, pax_id);
   pax->aboard_ship_id = -1;
   pax->moves = left > cost ? left - cost : 0;
   /* units_board = the port's walk-on board: passenger sentried, selection to
-   * the ship. */
+   * the ship; units_465b_board_wake_focus below applies raw 75711-75722. */
   if (!units_board(pool, pax_id, target)) {
     ship->cargo_ids[ship->cargo_count++] = pax_id;
     pax->aboard_ship_id = ship_id;
@@ -913,6 +940,7 @@ bool units_transfer_passenger_w(
   if (pax->aboard_moves == 0) {
     pax->mp_spent_turn = 1;
   }
+  units_465b_board_wake_focus(pool, pax_id, target, had_focus);
   units_occupancy_refresh_tile(pool, ship->x, ship->y, -1);
   units_occupancy_refresh_tile(pool, dest_x, dest_y, -1);
   /* Same 465b board step as units_move_board: FUN_5bfb_3180's sentry-wake

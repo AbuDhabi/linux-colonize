@@ -2695,8 +2695,12 @@ static int test_board_step_watch_and_ship_margin(void) {
     units_set_move_watch(board_watch, &game);
     (void)game_try_unit_move(&game, ox + 1, y);
     p = units_get(&game.units, pid);
-    if (!p || p->aboard_ship_id != sid || game.units.selected_id != sid) {
-      rc = fail("board: the step must board and hand the focus to the ship");
+    /* FUN_465b_0000 raw 75719-75721: the ship becomes active only when
+     * FUN_1427_1330 passes (MP left, raw 8741-8762). */
+    if (!p || p->aboard_ship_id != sid || (game.units.selected_id == sid) != (ship_mp > 0)) {
+      fprintf(stderr, "  ship MP %d: aboard %d, selected %d (ship %d)\n", ship_mp,
+              p ? p->aboard_ship_id : -2, game.units.selected_id, sid);
+      rc = fail("board: the step must board and hand the focus to a ship with MP left");
     } else if (s_board_watch_calls != 1 || s_board_watch_to_x != ox + 1 ||
                !s_board_watch_aboard || s_board_watch_sprite < 0) {
       fprintf(stderr, "  watch calls %d, to_x %d (want %d), aboard %d, sprite %d\n",

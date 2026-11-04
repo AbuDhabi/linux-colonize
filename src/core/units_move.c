@@ -241,6 +241,7 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_board(units_move_ctx* c) {
   }
   const int ox = unit->x;
   const int oy = unit->y;
+  const bool had_focus = pool->selected_id == unit_id;
   if (!units_board(pool, unit_id, ship_id)) {
     g_units_last_enter_reason = COLONIZE_ENTER_BLOCKED;
     return UNITS_MOVE_RETURN_FALSE;
@@ -281,6 +282,7 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_board(units_move_ctx* c) {
       }
     }
   }
+  units_465b_board_wake_focus(pool, unit_id, ship_id, had_focus);
   units_occupancy_refresh_tile(pool, ox, oy, unit_id);
   units_occupancy_refresh_tile(pool, dest_x, dest_y, -1);
   /* No boarding branch in DOS, so the step also takes the raw 75704 slide

@@ -297,7 +297,8 @@ COLONIZE_INTERNAL GameMoveStep game_move_passenger_unload(
       const int to_id = game->units.selected_id;
       game_after_unit_step(game);
       const ColonizeUnit* to = units_get_const(&game->units, to_id);
-      if (to && to->active && to->moves > 0 && game->units.selected_id == to_id) {
+      if (to && to->active && units_is_on_map(to) && to->moves > 0 &&
+          game->units.selected_id == to_id) {
         game_camera_edge_center(game, to->x, to->y);
       }
       return GAME_MOVE_RETURN_TRUE;
@@ -1015,18 +1016,20 @@ COLONIZE_INTERNAL GameMoveStep game_move_commit(
       return GAME_MOVE_RETURN_FALSE;
     }
     if (units_last_enter_reason() == COLONIZE_ENTER_BOARD) {
-      /* units_board handed the focus to the ship. FUN_465b_0000 raw
-       * 75711-75721: a land mover arriving on water makes the destination
+      /* units_465b_board_wake_focus left the focus on the ship only if it
+       * passes FUN_1427_1330, else on the sentried passenger. FUN_465b_0000
+       * raw 75711-75721: a land mover arriving on water makes the destination
        * chain's head, the ship, active through FUN_281f_086c = FUN_1427_08ea,
        * which runs FUN_1984_02fc on its tile (raw 7856), but only when
        * FUN_281f_0966 = FUN_1427_1330 (raw 8741) passes: the ship still has
-       * MP. The hand-off below can move the focus on when the ship is spent,
-       * so read its id first and test it only if it kept the focus with MP
+       * MP. The hand-off below can move the focus on, so read the focused id
+       * first and test it only if a ship on the map kept the focus with MP
        * left. */
       const int ship_id = game->units.selected_id;
       game_after_unit_step(game);
       const ColonizeUnit* ship = units_get_const(&game->units, ship_id);
-      if (ship && ship->active && ship->moves > 0 && game->units.selected_id == ship_id) {
+      if (ship && ship->active && units_is_on_map(ship) && ship->moves > 0 &&
+          game->units.selected_id == ship_id) {
         game_camera_edge_center(game, ship->x, ship->y);
       }
       return GAME_MOVE_RETURN_TRUE;
