@@ -55,8 +55,13 @@ verified) — the departure itself happens inside the same end-of-turn
 pass that has already run its FUN_48d3_03d0 decrement step, so the
 counter's first tick lands on the *next* turn. Modelling that here
 keeps turns_left holding DOS's own 1/2 for the save's col1_counter16
-byte instead of inflating it. Runtime only; a save taken between the
-order and the next tick reloads without the grace turn.
+byte instead of inflating it. Runtime only. An Expected ship still keeps
+its dock tick through a col1 save: the export writes the tick on which
+europe_tick_voyages would dock it as the DOS lane that docks on the same
+FUN_48d3_06ba pass (240+n counter 0 for the next pass, else 244+n counter
+ticks-1), and the import reads a 244+n counter c back as max(c,1)+1.
+A Bound ship likewise: 228+n counter 1 for a landing after the next tick
+(counter 0 for turns 0), else 232+n counter ticks-1, read back the same way.
 
 ## EuropeHarborShip trade_route_plus1
 

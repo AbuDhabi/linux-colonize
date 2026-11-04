@@ -1390,6 +1390,9 @@ COLONIZE_INTERNAL Col1StageStatus col1_bridge_apply_units_reset(Col1ApplyCtx* ct
   return COL1_STAGE_OK;
 }
 
+static void col1_lane_chain_rank(const ColonizeCol1Save* save, uint8_t xy, int* rank);
+static void col1_lane_rank_perm(const int* rank, const int* src, int count, int* perm);
+
 /* Human Bound/Expected (and legacy harbor) lane ships + chained passengers. */
 COLONIZE_INTERNAL void col1_bridge_apply_europe_lanes(Col1ApplyCtx* ctx) {
   const ColonizeCol1Save* save = ctx->save;
@@ -1411,16 +1414,31 @@ COLONIZE_INTERNAL void col1_bridge_apply_europe_lanes(Col1ApplyCtx* ctx) {
      * colonists sit on at (237,237), and the one no FUN_48d3_03d0 call walks.
      * The new-game fleet is created at 228+n with voyage counter 0
      * (FUN_75c2_235c, raw 121612-121646), i.e. Bound with turns_left 0.
+     * A hull still on 232+n is Bound too, one hop further out.
+     *
+     * 240+n is the eastbound arrival lane: FUN_48d3_06ba's last hop (raw
+     * 77980, thunk_FUN_2a1f_0246(-0xc, -0x10) -> FUN_48d3_03d0) moves each
+     * 244+n hull whose counter reached 0 there, and the next pass's hop at
+     * raw 77979 (-0x10 -> -0x14) docks it at 236+n. A save taken in between
+     * holds those hulls, passengers chained as on 244+n: Expected, docking at
+     * the next tick (turns_left 0).
      */
     const uint8_t xy_bound = (uint8_t)(228 + n);
+    const uint8_t xy_bound_far = (uint8_t)(232 + n);
+    const uint8_t xy_arriving = (uint8_t)(240 + n);
     const uint8_t xy_expected = (uint8_t)(244 + n);
+    const int e0 = europe->expected_ships;
+    int* exp_src = malloc(((size_t)save->head.unit_count + 1) * sizeof(int));
     for (int i = 0; i < (int)save->head.unit_count; ++i) {
       const ColonizeCol1Unit* src = &save->unit[i];
       if (src->nation_id != n || src->type < 13 || src->type > 18 ||
-          (src->x != xy_bound && src->x != xy_expected)) {
+          (src->x != xy_bound && src->x != xy_bound_far && src->x != xy_expected &&
+           src->x != xy_arriving)) {
         continue;
       }
-      const bool bound = src->x == xy_bound;
+      const bool bound_far = src->x == xy_bound_far;
+      const bool bound = src->x == xy_bound || bound_far;
+      const bool arriving = src->x == xy_arriving;
       /*
        * Legacy fallback: before this fix, harbor (docked) ships were written
        * at 228+n with counter 0 and goto (0,0) (the old, DOS-wrong lane
@@ -1430,8 +1448,8 @@ COLONIZE_INTERNAL void col1_bridge_apply_europe_lanes(Col1ApplyCtx* ctx) {
        * Bound hull, so treat it as a legacy-port harbor ship instead of
        * importing it as "lands next tick".
        */
-      const bool legacy_harbor =
-        bound && src->col1_counter16 == 0 && src->goto_x == 0 && src->goto_y == 0;
+      const bool legacy_harbor = bound && !bound_far && src->col1_counter16 == 0 &&
+                                 src->goto_x == 0 && src->goto_y == 0;
       const int ti = col1_unit_type_to_runtime(units, src->type);
       const ColonizeUnitType* ut = units_type(units, ti);
       int pax_types[EUROPE_SHIP_CARGO_MAX];
@@ -1495,12 +1513,24 @@ COLONIZE_INTERNAL void col1_bridge_apply_europe_lanes(Col1ApplyCtx* ctx) {
       /*
        * Bound keeps counter 0 verbatim — a 228+n hull with +0x315a == 0 lands
        * at the very next FUN_48d3_03d0 pass, which is what turns_left 0 means
-       * here (the new-game fleet is exactly this). Expected has no such state:
-       * its lane is 244+n, three hops out, so a zeroed counter there is a
-       * truncated save and 1 is the safe floor.
+       * here (the new-game fleet is exactly this).
+       *
+       * Expected: FUN_48d3_03d0 (raw 77761-77782) decrements a non-zero
+       * counter and hops the hull once it reads 0, so a 244+n hull with
+       * counter c reaches 240+n on pass max(c,1) (raw 77980) and docks on the
+       * next pass (raw 77979): max(c,1)+1 ticks. europe_tick_voyages docks a
+       * loaded ship (departed_this_turn false) on tick max(turns_left,1),
+       * hence the +1. A 240+n hull docks on the next pass: turns_left 0.
+       * Bound 232+n is the same kind of far lane: FUN_48d3_06ba hops 228+n
+       * to the map (raw 77965) before 232+n to 228+n (raw 77966), so a
+       * 232+n hull with counter c lands on pass max(c,1)+1, and
+       * game_europe_deliver_bound_ships lands a loaded ship with
+       * turns_left t >= 1 after tick t.
+       * col1_bridge_capture_europe_lanes writes the inverse.
        */
-      const int turns = bound ? (int)src->col1_counter16
-                              : (src->col1_counter16 > 0 ? (int)src->col1_counter16 : 1);
+      const int ctr = (int)src->col1_counter16;
+      const int far_turns = (ctr > 0 ? ctr : 1) + 1;
+      const int turns = bound_far ? far_turns : bound ? ctr : arriving ? 0 : far_turns;
       const int exit_x = (int)src->goto_x;
       const int exit_y = (int)src->goto_y;
       const bool exit_east = map->width > 0 ? exit_x >= map->width / 2 : true;
@@ -1524,6 +1554,9 @@ COLONIZE_INTERNAL void col1_bridge_apply_europe_lanes(Col1ApplyCtx* ctx) {
                    hold_types, hold_amts, exit_x, exit_y, exit_east, turns
                  )) {
         slot = &europe->expected[europe->expected_ships - 1];
+        if (exp_src) {
+          exp_src[europe->expected_ships - 1 - e0] = i;
+        }
         slot->turns_left = turns;
         /* Restoring a save is not a departure — the ship is already at sea,
          * so it must not collect the departure turn europe_enqueue_expected
@@ -1561,6 +1594,44 @@ COLONIZE_INTERNAL void col1_bridge_apply_europe_lanes(Col1ApplyCtx* ctx) {
       consumed[i] = true;
       local->skipped_europe_units++;
     }
+    /*
+     * expected[] runs in departure order (europe_enqueue_expected appends).
+     * DOS keeps the 244+n lane as a tile chain: FUN_48d3_007a moves a hull
+     * there through FUN_281f_0948 (raw 77628) -> FUN_1427_040c -> FUN_1427_0362
+     * (raw 7513-7519), whose FUN_1427_02ca (raw 7478-7509) links each arrival
+     * on top (new +0x315c = -1, +0x315e = the old top). So the chain's top
+     * (rank 0) is the newest departure and its +0x315e tail the oldest. Order
+     * what this load pushed tail first, not by record index. The 240+n hulls
+     * are a hop ahead of every 244+n hull, so they come first, each lane
+     * tail first.
+     */
+    const int ne = europe->expected_ships - e0;
+    const int nu = (int)save->head.unit_count;
+    int* rank = ne > 1 ? malloc((size_t)nu * sizeof(int)) : NULL;
+    int* rank_arr = ne > 1 ? malloc((size_t)nu * sizeof(int)) : NULL;
+    int* perm = ne > 1 ? malloc((size_t)ne * sizeof(int)) : NULL;
+    EuropeHarborShip* tmp = ne > 1 ? malloc((size_t)ne * sizeof(*tmp)) : NULL;
+    if (exp_src && rank && rank_arr && perm && tmp) {
+      col1_lane_chain_rank(save, xy_expected, rank);
+      col1_lane_chain_rank(save, xy_arriving, rank_arr);
+      for (int r = 0; r < nu; ++r) {
+        if (rank_arr[r] >= 0) {
+          rank[r] = nu - rank_arr[r]; /* 240+n, oldest (tail) first */
+        } else if (rank[r] >= 0) {
+          rank[r] = 2 * nu - rank[r]; /* then 244+n, oldest first */
+        }
+      }
+      col1_lane_rank_perm(rank, exp_src, ne, perm);
+      memcpy(tmp, europe->expected + e0, (size_t)ne * sizeof(*tmp));
+      for (int k = 0; k < ne; ++k) {
+        europe->expected[e0 + k] = tmp[perm[k]];
+      }
+    }
+    free(rank);
+    free(rank_arr);
+    free(perm);
+    free(tmp);
+    free(exp_src);
   }
 }
 
@@ -3711,10 +3782,12 @@ COLONIZE_INTERNAL void col1_bridge_capture_europe_lanes(Col1CaptureCtx* ctx) {
    * nation's Europe sentinel diagonal (FUN_48d3_007a / 0346 / 03d0):
    *   236+n  in port (harbor) — FUN_48d3_03d0 never walks this lane, and it
    *          is where genuine COLONY02 dock colonists sit (237,237)
-   *   228+n  sailing to the New World (Bound), goto = landfall; the last
-   *          westbound lane (232+n -> 228+n -> 224+n -> placed by 048e), and
-   *          where FUN_75c2_235c puts the new-game fleet with counter 0
-   *   244+n  sailing to Europe (Expected), goto = the exit tile
+   *   232+n  sailing to the New World (Bound), goto = landfall; 228+n, the
+   *          last westbound lane (232+n -> 228+n -> 224+n -> placed by 048e),
+   *          for a Bound hull that lands on the next tick, and where
+   *          FUN_75c2_235c puts the new-game fleet with counter 0
+   *   244+n  sailing to Europe (Expected), goto = the exit tile; 240+n for
+   *          an Expected hull that docks on the next tick
    * with `col1_counter16` (+0x16) = voyage turns left and passengers chained
    * pax0→pax1→…→ship, sharing x/y/goto/turns. Harbor passengers were
    * already disembarked to the docks on arrival (their (236,236) mirror
@@ -3746,7 +3819,35 @@ COLONIZE_INTERNAL void col1_bridge_capture_europe_lanes(Col1CaptureCtx* ctx) {
          * Dutch hull goto (50,15) while nation +0x32 = 52). */
         const uint8_t gx = (uint8_t)(ship->exit_x > 0 ? ship->exit_x : 0);
         const uint8_t gy = (uint8_t)(ship->exit_y > 0 ? ship->exit_y : 0);
-        const uint8_t turns = (uint8_t)(in_port ? 0 : (ship->turns_left < 0 ? 0 : ship->turns_left));
+        const int tl = ship->turns_left < 0 ? 0 : ship->turns_left;
+        uint8_t turns = (uint8_t)(in_port ? 0 : tl);
+        uint8_t lane_xy = lanes[li].xy;
+        const int ticks = ship->departed_this_turn ? tl + 1 : (tl > 1 ? tl : 1);
+        const uint8_t far_ctr = (uint8_t)(ticks - 1 > 255 ? 255 : ticks - 1);
+        if (li == 2) {
+          /*
+           * Inverse of the import: the tick on which europe_tick_voyages
+           * docks the ship (one later after a fresh departure), written as
+           * the DOS lane that docks on that FUN_48d3_06ba pass: 240+n counter
+           * 0 for the next pass (raw 77979), else 244+n counter ticks-1
+           * (FUN_48d3_03d0 hops it to 240+n on pass max(c,1), raw 77980).
+           */
+          lane_xy = (uint8_t)(ticks <= 1 ? 240 + n : 244 + n);
+          turns = (uint8_t)(ticks <= 1 ? 0 : far_ctr);
+        } else if (li == 1 && (tl > 0 || ship->departed_this_turn || (gx == 0 && gy == 0))) {
+          /*
+           * Bound the same way: 232+n (where FUN_48d3_0346 drops a departing
+           * hull) counter ticks-1 lands on pass max(c,1)+1 (FUN_48d3_03d0
+           * hop at raw 77966, then 77965); one tick is 228+n counter 1,
+           * which 03d0 decrements and hops on the next pass. turns_left 0
+           * on a ship still at sea keeps 228+n counter 0, unless it has no
+           * exit tile: 228+n counter 0 with goto (0,0) is the legacy harbor
+           * shape the import files as docked, so it gets counter 1 (03d0
+           * raw 77772-77777 lands it on the same pass).
+           */
+          lane_xy = (uint8_t)(ticks <= 1 ? 228 + n : 232 + n);
+          turns = (uint8_t)(ticks <= 1 ? 1 : far_ctr);
+        }
         /*
          * Trade-route cursor across the Atlantic. DOS keeps a route-running
          * ship on its route while it is in a Europe lane: FUN_48d3_015e
@@ -3778,8 +3879,8 @@ COLONIZE_INTERNAL void col1_bridge_capture_europe_lanes(Col1CaptureCtx* ctx) {
           }
           ColonizeCol1Unit* px = &neu[written];
           memset(px, 0, sizeof(*px));
-          px->x = lanes[li].xy;
-          px->y = lanes[li].xy;
+          px->x = lane_xy;
+          px->y = lane_xy;
           px->type = (uint8_t)pti;
           px->nation_id = n;
           px->vis_mask = 0; /* Europe sentinel units carry vis 0 in DOS saves */
@@ -3818,8 +3919,8 @@ COLONIZE_INTERNAL void col1_bridge_capture_europe_lanes(Col1CaptureCtx* ctx) {
         }
         ColonizeCol1Unit* dst = &neu[written];
         memset(dst, 0, sizeof(*dst));
-        dst->x = lanes[li].xy;
-        dst->y = lanes[li].xy;
+        dst->x = lane_xy;
+        dst->y = lane_xy;
         dst->type = (uint8_t)ship_ti;
         dst->nation_id = n;
         dst->vis_mask = 0; /* Europe sentinel units carry vis 0 in DOS saves */

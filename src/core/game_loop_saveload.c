@@ -390,7 +390,13 @@ bool game_load_col1_slot(ColonizeGameState* game, int slot, char* err, size_t er
     }
     diag_info("Loaded fallback save %s", fallback);
   }
-  return game_load_col1_loaded(game, &loaded, err, err_size);
+  if (!game_load_col1_loaded(game, &loaded, err, err_size)) {
+    return false;
+  }
+  /* FUN_7562_04e8 (raw 119802) -> FUN_75c2_0940: FUN_281f_04ca after the
+   * read (raw 120450), over the stream RTST restored. */
+  dos_rng_reseed_saveload(&game->move_rng);
+  return true;
 }
 
 bool game_load_col1_file(ColonizeGameState* game, const char* path, char* err, size_t err_size) {
@@ -402,7 +408,11 @@ bool game_load_col1_file(ColonizeGameState* game, const char* path, char* err, s
     col1_save_free(&loaded);
     return false;
   }
-  return game_load_col1_loaded(game, &loaded, err, err_size);
+  if (!game_load_col1_loaded(game, &loaded, err, err_size)) {
+    return false;
+  }
+  dos_rng_reseed_saveload(&game->move_rng); /* FUN_75c2_0940 raw 120450 */
+  return true;
 }
 
 /* Shared by both writers below: bring game->col1 up to date with the live
@@ -617,7 +627,12 @@ static void game_hotseat_announce(ColonizeGameState* game, int n) {
   }
 }
 
+/* Both DOS save paths, the save dialog (FUN_7562_030a raw 119738) and the
+ * autosave (FUN_7562_0034 raw 119600), write through FUN_75c2_0288, which runs
+ * FUN_281f_04ca (raw 120103). The port reseeds before the capture, so the
+ * RTST block holds the stream the game goes on with. */
 bool game_save_col1_slot(ColonizeGameState* game, int slot, char* err, size_t err_size) {
+  dos_rng_reseed_saveload(&game->move_rng);
   if (!game_capture_col1(game, err, err_size)) {
     return false;
   }
@@ -625,6 +640,7 @@ bool game_save_col1_slot(ColonizeGameState* game, int slot, char* err, size_t er
 }
 
 bool game_save_col1_autosave_slot(ColonizeGameState* game, int slot, char* err, size_t err_size) {
+  dos_rng_reseed_saveload(&game->move_rng);
   if (!game_capture_col1(game, err, err_size)) {
     return false;
   }

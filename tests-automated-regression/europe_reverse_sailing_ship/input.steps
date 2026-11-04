@@ -1,5 +1,5 @@
-# Fixture: Expected Soon lane gets a Galleon (turns 3, 100 sugar + 50 cloth) and a Merchantman (turns 2, one Soldier aboard);
-# Bound lane holds the Caravel with a Free Colonist (1 turn); a Caravel is Loading in the harbor. Gold 59000.
+# Fixture: Expected Soon lane gets a Galleon (lane counter 3: turns 4, 100 sugar + 50 cloth) and a Merchantman (counter 2: turns 3,
+# one Soldier aboard); Bound lane holds the Caravel with a Free Colonist (1 turn); a Caravel is Loading in the harbor. Gold 59000.
 # Ships sit in the boxes as icons: Expected x 5.., Bound x 75.., y ~153; passengers ride after their ship (a click on one picks the ship).
 # Lane membership after each step (E = Expected Soon, B = Bound): start E[Galleon,Merchantman] B[Caravel].
 key e                    # open the European Status screen

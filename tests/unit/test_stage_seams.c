@@ -2982,8 +2982,78 @@ static int test_goto_near_tier_boundary_tb55(void) {
   return rc;
 }
 
+/*
+ * Every DOS save (FUN_75c2_0288 raw 120103) and load (FUN_75c2_0940 raw 120450)
+ * runs FUN_281f_04ca = srand(tick). With live ticks on, both save wrappers and
+ * both loaders leave move_rng on the tick, the loaders over the stream RTST
+ * restored. With ticks fixed (--seed, tests, replays) a load keeps the RTST
+ * stream. Saves go to build/debug/saveload_reseed, removed after.
+ */
+static int test_saveload_reseeds_from_tick(void) {
+  ColonizeGameConfig cfg = {.data_dir = "./COLONIZE", .save_dir = "./build/debug/saveload_reseed"};
+  ColonizeGameState* game = game_create(&cfg);
+  if (!game || !game_assets_ok(game)) {
+    fprintf(stderr, "SKIP: no COLONIZE/ assets\n");
+    if (game) {
+      game_destroy(game);
+    }
+    return TR_SKIP;
+  }
+  char err[256];
+  int rc = 0;
+  if (!game_load_col1_file(
+        game, "tests-automated-regression/map_pioneer_native_forest_offer/input.sav", err,
+        sizeof(err)
+      )) {
+    fprintf(stderr, "  %s\n", err);
+    rc = fail("fixture save load");
+  }
+  dos_rng_set_live_ticks(true);
+  dos_rng_set_tick_word(101);
+  game->move_rng.state = 0x12345678u;
+  if (rc == 0 && (!game_save_col1_autosave_slot(game, 9, err, sizeof(err)) ||
+                  game->move_rng.state != 101u)) {
+    fprintf(stderr, "  %s state %08x\n", err, game->move_rng.state);
+    rc = fail("autosave reseeds from the tick");
+  }
+  dos_rng_set_tick_word(202);
+  game->move_rng.state = 0x12345678u;
+  if (rc == 0 && (!game_save_col1_slot(game, 0, err, sizeof(err)) ||
+                  game->move_rng.state != 202u)) {
+    fprintf(stderr, "  %s state %08x\n", err, game->move_rng.state);
+    rc = fail("slot save reseeds from the tick");
+  }
+  /* Slot 0's RTST carries state 202; a load ends on the tick instead. */
+  dos_rng_set_tick_word(303);
+  if (rc == 0 && (!game_load_col1_slot(game, 0, err, sizeof(err)) ||
+                  game->move_rng.state != 303u)) {
+    fprintf(stderr, "  %s state %08x\n", err, game->move_rng.state);
+    rc = fail("slot load reseeds from the tick, not RTST");
+  }
+  dos_rng_set_tick_word(404);
+  if (rc == 0 && (!game_load_col1_file(game, "./build/debug/saveload_reseed/COLONY00.SAV", err,
+                                       sizeof(err)) ||
+                  game->move_rng.state != 404u)) {
+    fprintf(stderr, "  %s state %08x\n", err, game->move_rng.state);
+    rc = fail("file load reseeds from the tick, not RTST");
+  }
+  dos_rng_set_live_ticks(false);
+  if (rc == 0 && (!game_load_col1_slot(game, 0, err, sizeof(err)) ||
+                  game->move_rng.state != 202u)) {
+    fprintf(stderr, "  %s state %08x\n", err, game->move_rng.state);
+    rc = fail("fixed ticks: the load keeps the RTST stream");
+  }
+  dos_rng_set_tick_word(-1);
+  remove("./build/debug/saveload_reseed/COLONY00.SAV");
+  remove("./build/debug/saveload_reseed/COLONY09.SAV");
+  remove("./build/debug/saveload_reseed");
+  game_destroy(game);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
     {"test_dos_buggy_default_off_tests_on", test_dos_buggy_default_off_tests_on},
+    {"test_saveload_reseeds_from_tick", test_saveload_reseeds_from_tick},
     {"test_goto_near_tier_boundary_tb55", test_goto_near_tier_boundary_tb55},
     {"test_map_pulldown_is_modal", test_map_pulldown_is_modal},
     {"test_turn_year_end_rival_rebels", test_turn_year_end_rival_rebels},
