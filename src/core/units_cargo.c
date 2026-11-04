@@ -2007,7 +2007,8 @@ bool units_find_high_seas_tile(
 }
 
 /*
- * FUN_48d3_0434: HS (0x1a) + empty or own nation.
+ * FUN_48d3_0434 (raw 77786-77806): interior tile (FUN_281f_0302 ->
+ * FUN_137f_000a, raw 77795), HS (0x1a) + empty or own nation.
  * FUN_48d3_048e: expand radius; for each ring scan horizontal then vertical
  * edges with ±radius offsets (decomp ~77836–77876).
  */
@@ -2018,7 +2019,7 @@ static bool units_hs_place_tile_ok(
   int x,
   int y
 ) {
-  if (!map || x < 0 || y < 0 || x >= (int)map->width || y >= (int)map->height) {
+  if (!map || !map_coords_inset(map, x, y)) {
     return false;
   }
   if (!map_tile_is_high_seas(map, x, y)) {
@@ -2095,13 +2096,9 @@ bool units_015e_hs_course(
   if (!map || !out_x || !out_y) {
     return false;
   }
-  /* FUN_281f_078c -> FUN_13e4_003a: a tile outside FUN_137f_000a's interior
-   * (x or y on the map border) reads class 0x19, never High Seas. */
+  /* units_hs_place_tile_ok carries FUN_137f_000a's interior test. */
   const int w = (int)map->width;
-  const int h = (int)map->height;
-#define HS015E_OK(x, y) \
-  ((x) >= 1 && (y) >= 1 && (x) < w - 1 && (y) < h - 1 && \
-   units_hs_place_tile_ok(pool, map, nation_id, (x), (y)))
+#define HS015E_OK(x, y) units_hs_place_tile_ok(pool, map, nation_id, (x), (y))
   for (int r = 1; r < w; ++r) {
     for (int x = start_x - r; x < start_x + r; ++x) {
       for (int y = start_y - r; y <= start_y + r; y += 2 * r) {

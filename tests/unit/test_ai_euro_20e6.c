@@ -1091,9 +1091,10 @@ static int unit_europe_lane_crossing_ticks(void) {
     for (int x = 12; x < 16; ++x) {
       f.map.terrain[y * 16 + x] = 25;
     }
-    f.map.terrain[y * 16 + 15] = 26;
+    /* x = 14: FUN_48d3_0434 never places on the x = 15 rim (FUN_137f_000a). */
+    f.map.terrain[y * 16 + 14] = 26;
   }
-  const int ship_id = units_spawn(&f.units, 2, 15, 4);
+  const int ship_id = units_spawn(&f.units, 2, 14, 4);
   ColonizeUnit* ship = units_get(&f.units, ship_id);
   if (!ship) {
     fixture_free(&f);
@@ -1107,7 +1108,7 @@ static int unit_europe_lane_crossing_ticks(void) {
   }
   const int east_turns = ship->col1_counter16;
   if (ship->x != 244 + nation || ship->y != 244 + nation || east_turns < 1 || east_turns > 2 ||
-      ship->goto_x != 15 || ship->goto_y != 4) {
+      ship->goto_x != 14 || ship->goto_y != 4) {
     fixture_free(&f);
     return fail("007a: lane 244+n, roll 1-2, landfall = the High Seas tile");
   }
@@ -1141,7 +1142,7 @@ static int unit_europe_lane_crossing_ticks(void) {
   }
   /* The 06ba tail (064e -> 048e) places the hull in the same tick that
    * brings it to 224+n: on the landfall High Seas tile itself here. */
-  if (ticks != west_turns + 1 || ship->x != 15 || ship->y != 4) {
+  if (ticks != west_turns + 1 || ship->x != 14 || ship->y != 4) {
     fixture_free(&f);
     return fail("westbound: roll T is placed at the landfall after T+1 ticks");
   }
@@ -1155,7 +1156,7 @@ static int unit_europe_lane_shared_arrival_transfers_passenger(void) {
   const int nation = 1;
   Fixture f;
   if (fixture_init(&f, nation) != 0) return 1;
-  f.map.terrain[4 * 16 + 15] = 26;
+  f.map.terrain[4 * 16 + 14] = 26; /* interior: FUN_48d3_0434 skips the rim */
   const int first_id = units_spawn_allow_stack(&f.units, 2, 224 + nation, 224 + nation);
   const int last_id = units_spawn_allow_stack(&f.units, 2, 224 + nation, 224 + nation);
   const int pax_id = units_spawn_allow_stack(&f.units, 0, 224 + nation, 224 + nation);
@@ -1167,7 +1168,7 @@ static int unit_europe_lane_shared_arrival_transfers_passenger(void) {
     return fail("shared arrival spawn");
   }
   first->nation_id = last->nation_id = pax->nation_id = nation;
-  first->goto_x = last->goto_x = 15;
+  first->goto_x = last->goto_x = 14;
   first->goto_y = last->goto_y = 4;
   first->col1_counter16 = last->col1_counter16 = 0;
   pax->orders = UNITS_ORDER_SENTRY;
@@ -1176,7 +1177,7 @@ static int unit_europe_lane_shared_arrival_transfers_passenger(void) {
     return fail("shared arrival board");
   }
   ai_euro_europe_lane_tick(&f.ctx, nation);
-  const int ok = first->x == 15 && first->y == 4 && last->x == 15 && last->y == 4 &&
+  const int ok = first->x == 14 && first->y == 4 && last->x == 14 && last->y == 4 &&
     first->cargo_count == 0 && last->cargo_count == 1 &&
     last->cargo_ids[0] == pax_id && pax->aboard_ship_id == last_id;
   fixture_free(&f);
