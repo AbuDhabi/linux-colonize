@@ -149,7 +149,13 @@ void game_select_unit(ColonizeGameState* game, int unit_id) {
   game->view_pieces_mode = false;
   game->map_cursor_x = u->x;
   game->map_cursor_y = u->y;
-  game_set_view_center(game, u->x, u->y);
+  /* A player pick (map click, Enter, the stack picker) leaves the view where
+   * it was: FUN_2b5a_1b5a (raw 42779) activates the unit through
+   * FUN_281f_086c = FUN_1427_08ea, which runs only the FUN_1984_02fc margin
+   * test (raw 7843-7863), so a unit off screen or within 2 tiles of a
+   * scrollable edge still recentres. The game's own next-unit hand-offs
+   * centre through game_center_on_selected_unit. */
+  game_camera_edge_center(game, u->x, u->y);
   /* FUN_2b5a_0e52: selecting a piece re-reveals around it (281f_07a0). */
   game_reveal_sight_for_unit(game, u);
   /* units_display_name names the unit purely from its @UNIT row / equipment

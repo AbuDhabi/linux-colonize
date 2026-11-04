@@ -15,7 +15,7 @@ shot
 key d shift
 key Return                 # @DISBANDSHIP "cannot disband a ship at sea while it is carrying units": OK, ship stays
 shot
-click 40 128               # tile (43,25): "Units Present" stack picker
+click 88 128               # tile (43,25): "Units Present" stack picker (view origin 38,18: picking Caravel A does not recentre)
 shot
 click 190 78               # pick the Tobacconist colonist (id 125)
 shot

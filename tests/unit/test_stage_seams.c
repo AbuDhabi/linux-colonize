@@ -1790,6 +1790,40 @@ static int test_phantom_lunge_edge_scroll_uses_colony_tile(void) {
   return rc;
 }
 
+/* A unit the player picks keeps the view when it is visible away from the
+ * edges: FUN_2b5a_1b5a -> FUN_281f_086c = FUN_1427_08ea runs only the
+ * FUN_1984_02fc margin test, so an off-screen pick still centres. */
+static int test_player_pick_keeps_view(void) {
+  static ColonizeGameState game;
+  int ox = 0;
+  edge_scroll_init(&game, &ox);
+  ColonizeUnit* a = units_get(&game.units, units_spawn(&game.units, 0, 32, 31));
+  ColonizeUnit* b = a ? units_get(&game.units, units_spawn(&game.units, 0, 50, 50)) : NULL;
+  int rc = (!a || !b) ? fail("player pick: fixture") : 0;
+  if (rc == 0) {
+    a->nation_id = 0;
+    a->moves = 3;
+    b->nation_id = 0;
+    b->moves = 3;
+    game_click_activate_unit(&game, a->id);
+    if (game.units.selected_id != a->id) {
+      rc = fail("player pick: click must select the unit");
+    } else if (game.map_view_x != 30 || game.map_view_y != 30) {
+      fprintf(stderr, "  view (%d,%d) after the click\n", game.map_view_x, game.map_view_y);
+      rc = fail("player pick: a visible interior unit must not scroll the view");
+    }
+  }
+  if (rc == 0) {
+    game_click_activate_unit(&game, b->id);
+    if (game.map_view_x != 50 || game.map_view_y != 50) {
+      fprintf(stderr, "  view (%d,%d), want (50,50)\n", game.map_view_x, game.map_view_y);
+      rc = fail("player pick: an off-screen unit is past every margin and centres");
+    }
+  }
+  edge_scroll_free(&game);
+  return rc;
+}
+
 static int s_near_human = -1;
 
 static void near_human_watch(
@@ -2944,6 +2978,7 @@ static const TestCase k_cases[] = {
     {"test_combat_edge_scroll_uses_attacker_tile", test_combat_edge_scroll_uses_attacker_tile},
     {"test_foreign_move_shown_by_prior_sighting", test_foreign_move_shown_by_prior_sighting},
     {"test_brave_step_watch_sees_entry_vis", test_brave_step_watch_sees_entry_vis},
+    {"test_player_pick_keeps_view", test_player_pick_keeps_view},
     {"test_colony_list_keys_wrap", test_colony_list_keys_wrap},
     {"test_colony_custom_house_keys", test_colony_custom_house_keys},
     {"test_screen_f1_focus_article", test_screen_f1_focus_article},
