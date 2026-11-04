@@ -585,7 +585,178 @@ static int case_meet_econ_skips_map_rim(void) {
   return 0;
 }
 
+/*
+ * FUN_5fef_0f14 kind 2. The picker reseeds from DS:0x83a6 when that word is
+ * set (raw 99773), so these cases park it at -1 and let each seed drive the
+ * stream.
+ */
+static ColonizeColonyPool s_burn_pool;
+
+static void burn_pool_types(ColonizeBuildingRow lo, ColonizeBuildingRow hi) {
+  colonies_init(&s_burn_pool);
+  colonies_set_occupancy_map(NULL);
+  s_burn_pool.building_types[0].row_plus1 = (int)lo + 1;
+  s_burn_pool.building_types[1].row_plus1 = (int)hi + 1;
+  s_burn_pool.building_type_count = 2;
+}
+
+/* Pool colony 0 owning type 0 and (when hi_owned) type 1, levels at 2, one
+ * colonist working in type 1. */
+static ColonizeColony* burn_colony(ColonizeBuildingRow lo, ColonizeBuildingRow hi, bool hi_owned) {
+  burn_pool_types(lo, hi);
+  ColonizeColony* c = &s_burn_pool.colonies[0];
+  memset(c, 0, sizeof(*c));
+  c->active = true;
+  c->building_in_production = -1;
+  c->population = 1;
+  c->colonist_count = 1;
+  c->colonists[0].active = true;
+  c->colonists[0].building_type = 1;
+  c->warehouse_level = 2;
+  c->capitol_level = 2;
+  c->has_building[0] = true;
+  c->has_building[1] = hi_owned;
+  s_burn_pool.colony_count = 1;
+  return c;
+}
+
+static void burn_ctx(ColonizeTurnContext* ctx, ColonizeCol1Save* col1, ColonizeDosRng* rng) {
+  memset(ctx, 0, sizeof(*ctx));
+  ctx->rng = rng;
+  ctx->colonies = &s_burn_pool;
+  ctx->col1 = col1;
+  ctx->col1_ok = true;
+}
+
+static AiRaidKind burn_pick(ColonizeColony* c, ColonizeCol1Save* col1, ColonizeDosRng* rng) {
+  ColonizeTurnContext ctx;
+  burn_ctx(&ctx, col1, rng);
+  return ai_contact_pick_raid_kind(&ctx, c, 4, 0, rng, 1);
+}
+
+static ColonizeCol1Save* burn_col1(void) {
+  static ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  col1.head.tribe_count = 0;
+  return &col1;
+}
+
+/* Warehouse Expansion has no DOS bit (FUN_364b_0114 raw 56911-56923), so the
+ * port's has_building mirror must not change the pick: a colony with the
+ * mirror and one without draw the same stream. */
+static int case_burn_ignores_expansion_mirror(void) {
+  ColonizeCol1Save* col1 = burn_col1();
+  const int32_t saved_83a6 = dos_rng_get_83a6();
+  dos_rng_set_83a6(-1);
+  int burns = 0;
+  int bad_seed = 0;
+  int bad_with = 0;
+  int bad_without = 0;
+  for (uint32_t seed = 1; seed < 300 && !bad_seed; ++seed) {
+    ColonizeDosRng ra;
+    ColonizeDosRng rb;
+    dos_rng_seed(&ra, seed * 12345u);
+    dos_rng_seed(&rb, seed * 12345u);
+    ColonizeColony* c =
+      burn_colony(COLONY_BUILDING_WAREHOUSE, COLONY_BUILDING_WAREHOUSE_EXPANSION, true);
+    const AiRaidKind ka = burn_pick(c, col1, &ra);
+    c = burn_colony(COLONY_BUILDING_WAREHOUSE, COLONY_BUILDING_WAREHOUSE_EXPANSION, false);
+    const AiRaidKind kb = burn_pick(c, col1, &rb);
+    burns += ka == AI_RAID_BURN;
+    if (ka != kb || dos_rng_range(&ra, 0, 0x7fff) != dos_rng_range(&rb, 0, 0x7fff)) {
+      bad_seed = (int)seed;
+      bad_with = (int)ka;
+      bad_without = (int)kb;
+    }
+  }
+  dos_rng_set_83a6(saved_83a6);
+  if (bad_seed) {
+    fprintf(stderr, "burn mirror: seed %d kind %d vs %d\n", bad_seed, bad_with, bad_without);
+    return fail("Warehouse Expansion mirror changed the burn pick (DOS has no 0x10 bit)");
+  }
+  return burns > 0 ? 0 : fail("burn mirror: no BURN sampled");
+}
+
+/* Seeds until a BURN, then applies it. Returns 0 when no BURN was sampled. */
+static int burn_apply(ColonizeBuildingRow lo, ColonizeBuildingRow hi, ColonizeColony** out) {
+  ColonizeCol1Save* col1 = burn_col1();
+  const int32_t saved_83a6 = dos_rng_get_83a6();
+  dos_rng_set_83a6(-1);
+  int found = 0;
+  for (uint32_t seed = 1; seed < 300 && !found; ++seed) {
+    ColonizeColony* c = burn_colony(lo, hi, true);
+    ColonizeDosRng rng;
+    dos_rng_seed(&rng, seed * 12345u);
+    if (burn_pick(c, col1, &rng) != AI_RAID_BURN) {
+      continue;
+    }
+    ColonizeTurnContext ctx;
+    burn_ctx(&ctx, col1, &rng);
+    ai_contact_apply_raid_loot(&ctx, c, 4, 0, AI_RAID_BURN);
+    *out = c;
+    found = 1;
+  }
+  dos_rng_set_83a6(saved_83a6);
+  return found;
+}
+
+/* raw 99951-99973: a Warehouse / Capitol burn at level 2 leaves level 1; the
+ * port's Expansion mirror (no DOS bit) must go with it. */
+static int case_burn_clears_expansion_mirror(void) {
+  ColonizeColony* c = NULL;
+  if (!burn_apply(COLONY_BUILDING_WAREHOUSE, COLONY_BUILDING_WAREHOUSE_EXPANSION, &c)) {
+    return fail("burn mirror: no Warehouse BURN sampled");
+  }
+  const int wh_level = c->warehouse_level;
+  const int wh = c->has_building[0];
+  const int whe = c->has_building[1];
+  if (!burn_apply(COLONY_BUILDING_CAPITOL, COLONY_BUILDING_CAPITOL_EXPANSION, &c)) {
+    return fail("burn mirror: no Capitol BURN sampled");
+  }
+  if (wh_level != 1 || !wh || whe || c->capitol_level != 1 || !c->has_building[0] ||
+      c->has_building[1]) {
+    fprintf(stderr, "burn mirror: wh level %d wh %d whe %d, cap level %d cap %d cpe %d\n",
+            wh_level, wh, whe, c->capitol_level, c->has_building[0], c->has_building[1]);
+    return fail("a 2->1 burn must drop the Expansion mirror and keep the base building");
+  }
+  return 0;
+}
+
+/* raw 99857-99864 walks up to the Cathedral; raw 99975-99983 evicts the crew
+ * only for a chain root, so the Cathedral's preacher keeps working, now in
+ * the Church. */
+static int case_upper_tier_burn_keeps_crew(void) {
+  ColonizeColony* c = NULL;
+  if (!burn_apply(COLONY_BUILDING_CHURCH, COLONY_BUILDING_CATHEDRAL, &c)) {
+    return fail("burn crew: no BURN sampled");
+  }
+  if (c->has_building[1] || !c->has_building[0] || c->colonists[0].building_type != 0) {
+    fprintf(stderr, "burn crew: church %d cathedral %d crew %d\n", c->has_building[0],
+            c->has_building[1], c->colonists[0].building_type);
+    return fail("Cathedral burn must keep its crew working in the Church");
+  }
+  return 0;
+}
+
+/* raw 99975-99985 never touches the project: a burn of the building the
+ * colony is producing leaves building_in_production as it was. */
+static int case_burn_keeps_project(void) {
+  ColonizeColony* c = burn_colony(COLONY_BUILDING_CHURCH, COLONY_BUILDING_CATHEDRAL, true);
+  c->building_in_production = 1;
+  const bool burned = colonies_destroy_building(&s_burn_pool, c->id, 1);
+  if (!burned || c->has_building[1] || c->building_in_production != 1) {
+    fprintf(stderr, "burn project: burned %d cathedral %d project %d (want 1 0 1)\n", burned,
+            c->has_building[1], c->building_in_production);
+    return fail("a burn must leave the colony's project alone");
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+    {"case_burn_ignores_expansion_mirror", case_burn_ignores_expansion_mirror},
+    {"case_burn_clears_expansion_mirror", case_burn_clears_expansion_mirror},
+    {"case_upper_tier_burn_keeps_crew", case_upper_tier_burn_keeps_crew},
+    {"case_burn_keeps_project", case_burn_keeps_project},
     {"case_meet_econ_skips_map_rim", case_meet_econ_skips_map_rim},
     {"case_threat_ring_mixed_stack", case_threat_ring_mixed_stack},
     {"case_heresy_presence_dos_distance", case_heresy_presence_dos_distance},

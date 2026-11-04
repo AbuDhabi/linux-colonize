@@ -530,10 +530,11 @@ else. Thin wrapper over units_build_project_info (DOS FUN_15eb_33aa).
 
 ## colonies_destroy_building
 
-Destroy a built building (not Town Hall). Clears has_building and moves any
-workplace colonists in that building to idle (building_type=-1). Cancels
-matching construction project. Returns false if missing/Town Hall/invalid.
-Cite: @RAIDBURN building loot needs safe destroy + workplace clear.
+Destroy a built building (not Town Hall); the raid burn of FUN_5fef_0f14 kind 2
+(raw 99975-99985). Clears has_building. A chain root's workers go idle
+(building_type=-1); under an upper tier they move to the best tier still owned,
+as DOS keeps their job. The construction project is left alone. Returns false
+if missing/Town Hall/invalid.
 
 ## Colony-screen cheat keys
 

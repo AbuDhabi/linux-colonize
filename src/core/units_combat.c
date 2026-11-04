@@ -1682,8 +1682,8 @@ const ColonizeColony* units_nearest_own_drydock_colony(
     return NULL;
   }
   /* DOS tests colony feature bit 7 (Drydock) only (FUN_5fef_0352 raw 99590):
-   * a lone Shipyard without its Drydock bit (DOS saves; DOS raids burn the
-   * lowest tier, DB-50) is no repair port (port_bugs.md #1330). Completed
+   * a lone Shipyard without its Drydock bit (only from saves) is no repair
+   * port (port_bugs.md #1330). Completed
    * tiers stay set, so a normal Shipyard colony still has the Drydock bit. */
   const int drydock = colonies_building_row(colonies, COLONY_BUILDING_DRYDOCK);
   if (drydock < 0 || drydock >= COLONIZE_BUILDING_TYPES_MAX) {

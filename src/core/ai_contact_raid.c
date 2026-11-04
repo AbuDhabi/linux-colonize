@@ -65,18 +65,21 @@ static int ai_contact_raid_0a88(int row) {
 }
 
 /*
- * The predecessor byte `DS:(row*0xc - 0x707a)` that FUN_5fef_0f14's kind-2
- * tail walks (raw 99859): the tier below `row` in its chain, or -1.
+ * The successor byte `DS:(row*0xc - 0x707a)` that FUN_5fef_0f14's kind-2
+ * tail walks (raw 99857-99864): the tier above `row` in its chain, or -1.
+ * -0x707a is the next-tier-up link (FUN_15eb_039e raw 9561-9577 counts owned
+ * tiers along it); -0x707b is the predecessor (FUN_15eb_14aa raw 11444-11455
+ * follows it down to the chain root).
  */
-static int ai_contact_raid_pred_row(int row) {
+static int ai_contact_raid_next_row(int row) {
   const int chain = colonies_building_row_chain(row);
   const int* rows = (chain >= 0) ? colonies_building_chain_rows(chain) : NULL;
   if (!rows) {
     return -1;
   }
-  for (int t = 1; t < 4 && rows[t] >= 0; ++t) {
+  for (int t = 0; t + 1 < 4 && rows[t + 1] >= 0; ++t) {
     if (rows[t] == row) {
-      return rows[t - 1];
+      return rows[t + 1];
     }
   }
   return -1;
@@ -116,11 +119,18 @@ COLONIZE_INTERNAL int ai_contact_raid_port_ship(ColonizeTurnContext* ctx, const 
  * 0f14's kind-2 arm passes rows up to 0x29 to the same call. Rows 0/1/2 are
  * Stockade / Fort / Fortress, so 0f14's demote chain is fortification-gated.
  * (port_bugs.md #827 lead L3, settled 2026-09-23.)
+ *
+ * Warehouse Expansion (0x10) and Capitol Expansion (0x1f) never get a bit in
+ * DOS: FUN_364b_0114 raw 56911-56923 only INCs colony +0x95 / +0x96 for them
+ * and jumps past FUN_281f_0bbe(row, 1). The port mirrors those tiers into
+ * has_building (col1_bridge.c), so they read as unowned here: a raid roll
+ * on them re-rolls and the successor walk stops at 0x0f / 0x1e, as in DOS.
  */
 static int ai_contact_raid_09fc(
   const ColonizeTurnContext* ctx, const ColonizeColony* c, ColonizeBuildingRow row
 ) {
-  if (!ctx || !ctx->colonies || !c) {
+  if (!ctx || !ctx->colonies || !c || row == COLONY_BUILDING_WAREHOUSE_EXPANSION ||
+      row == COLONY_BUILDING_CAPITOL_EXPANSION) {
     return 0;
   }
   const int b = colonies_building_row(ctx->colonies, row);
@@ -287,11 +297,11 @@ COLONIZE_INTERNAL AiRaidKind ai_contact_pick_raid_kind(
      *        if (row in {0x27,0x15,0x18,0x1b,0,1,2,0x20}) ok = false;
      *   } while (tries < 100 && (!FUN_281f_09fc(row) || !ok));
      *   if (tries > 99 || !ok) -> kind 0
-     * then walk the predecessor column down to the lowest tier the colony
-     * still owns (raw 99856-99863). Church 0x25 / Cathedral 0x26 are legal
-     * targets and a Cathedral walks down to the Church it sits on, which is
-     * what the port's "first built non-Town-Hall building" stand-in got wrong
-     * (port_bugs.md #924).
+     * then walk the successor column up to the top tier the colony owns
+     * (raw 99857-99864). Church 0x25 / Cathedral 0x26 are legal targets and a
+     * Church walks up to the Cathedral above it, which is what the port's
+     * "first built non-Town-Hall building" stand-in got wrong (port_bugs.md
+     * #924).
      */
     const int proj = c->building_in_production;
     const int proj_is_building = (proj >= 0 && proj < 0x2a) ? 1 : 0;
@@ -318,26 +328,11 @@ COLONIZE_INTERNAL AiRaidKind ai_contact_pick_raid_kind(
     if (tries > 99 || !ok) {
       kind = AI_RAID_NOTHING;
     } else {
-      /* raw 99856-99863: down to the lowest owned tier of this chain. */
-      for (;;) {
-        const int pred = ai_contact_raid_pred_row(row);
-        if (pred >= 0 && ai_contact_raid_09fc(ctx, c, (ColonizeBuildingRow)pred)) {
-          row = pred;
-          continue;
-        }
-        break;
-      }
-      /* dos_bugs_ai.md DB-50: the walk down burns a Church under its Cathedral.
-       * The port burns the top owned tier instead. Warehouse and Capitol keep
-       * the base row: their apply arm takes one level off the counter. */
-      const int chain = colonies_building_row_chain(row);
-      const int* rows = colonies_building_chain_rows(chain);
-      if (rows && chain != COLONIES_CHAIN_WAREHOUSE && chain != COLONIES_CHAIN_CAPITOL) {
-        for (int t = 0; t + 1 < 4 && rows[t + 1] >= 0; ++t) {
-          if (rows[t] == row && ai_contact_raid_09fc(ctx, c, (ColonizeBuildingRow)rows[t + 1])) {
-            row = rows[t + 1];
-          }
-        }
+      /* DOS-LITERAL raw 99857-99864: up the successor column while owned. */
+      for (int next = ai_contact_raid_next_row(row);
+           next >= 0 && ai_contact_raid_09fc(ctx, c, (ColonizeBuildingRow)next);
+           next = ai_contact_raid_next_row(row)) {
+        row = next;
       }
       ai_contact_s_raid_burn_row = row;
     }
@@ -508,9 +503,9 @@ void ai_contact_apply_raid_loot(
      *   row 0x1e (Capitol): colony+0x96 (capitol_level) DEC, bit cleared when
      *     it reaches 0; the popup always names the Capitol Expansion
      *     (DS:0x90f6) — literal DOS oddity.
-     *   everything else: FUN_281f_0bbe(row, 0) clears the bit, and the
-     *     workplace colonists are evicted (colonies_destroy_building already
-     *     does the FUN_281f_0c36(..., 0xd) reassignment).
+     *   everything else: FUN_281f_0bbe(row, 0) clears the bit; only a chain
+     *     root evicts its workers (FUN_281f_0c36(..., 0xd), raw 99975-99983),
+     *     and the project is untouched (colonies_destroy_building).
      */
     const int row = ai_contact_s_raid_burn_row;
     if (!ctx || !ctx->colonies || row < 0) {
@@ -537,6 +532,21 @@ void ai_contact_apply_raid_loot(
       name_row = COLONY_BUILDING_CAPITOL_EXPANSION;
     } else {
       destroy_row = row;
+    }
+    /* DOS has no Expansion bit to clear (FUN_364b_0114 raw 56911-56923);
+     * the port's has_building mirror of it means "level >= 2" (col1_bridge.c
+     * load), so drop it with the level. Left set, it would block the rebuild
+     * DOS allows (colonies_try_complete_building_ex owned check) and be saved
+     * back as level 2 (col1_bridge.c takes max(level, bits)). */
+    if (row == COLONY_BUILDING_WAREHOUSE || row == COLONY_BUILDING_CAPITOL) {
+      const bool wh = row == COLONY_BUILDING_WAREHOUSE;
+      const int exp_index = colonies_building_row(
+        ctx->colonies, wh ? COLONY_BUILDING_WAREHOUSE_EXPANSION : COLONY_BUILDING_CAPITOL_EXPANSION
+      );
+      if ((wh ? c->warehouse_level : c->capitol_level) < 2u && exp_index >= 0 &&
+          exp_index < COLONIZE_BUILDING_TYPES_MAX) {
+        c->has_building[exp_index] = false;
+      }
     }
     if (destroy_row >= 0) {
       const int bt_index = colonies_building_row(ctx->colonies, (ColonizeBuildingRow)destroy_row);
