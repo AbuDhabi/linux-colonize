@@ -1105,7 +1105,7 @@ int ai_contact_try_village_reparations(ColonizeTurnContext* ctx, int nation_id) 
          * keeps scanning the others. */
         ColonizeUnit* head = units_get(ctx->units, units_tile_head_id_at(ctx->units, c->x, c->y));
         if (head && units_type_is_wagon(units_type(ctx->units, head->type_index))) {
-          if (ai_contact_try_wagon_reparations(ctx, nation_id, e, brave, head)) {
+          if (ai_contact_try_wagon_reparations(ctx, nation_id, e, brave, head) > 0) {
             return 1; /* LAB_5bfb_1000: the visit resolved */
           }
           continue;
@@ -1202,7 +1202,19 @@ int ai_contact_try_village_reparations(ColonizeTurnContext* ctx, int nation_id) 
       continue;
     }
     brave = ai_contact_reparations_visitor(ctx, nation_id, e, wag->x, wag->y);
-    if (ai_contact_try_wagon_reparations(ctx, nation_id, e, brave, wag)) {
+    {
+      /* LAB_5bfb_0def is reached only with !bVar6 (raw 96828). */
+      const int tribe_index =
+        ai_contact_visit_home_tribe(ctx, nation_id, brave ? brave->home_tribe_index : -1);
+      if (tribe_index < 0 ||
+          !ai_contact_visit_demand_allowed(
+            ctx, ind, &ctx->col1->tribe[tribe_index], nation_id, e, brave ? brave->id : -1,
+            ai_diplo_indian_alarm(ctx->col1, nation_id, e)
+          )) {
+        continue;
+      }
+    }
+    if (ai_contact_try_wagon_reparations(ctx, nation_id, e, brave, wag) > 0) {
       return 1; /* LAB_5bfb_1000: the visit resolved */
     }
   }
@@ -1212,8 +1224,10 @@ int ai_contact_try_village_reparations(ColonizeTurnContext* ctx, int nation_id) 
 /*
  * FUN_5bfb_022e wagon arm (raw 96933-96976) for one encounter: `wag` is the
  * encounter tile's head (local_42, FUN_281f_07e0 type 0x0c), `brave` the
- * visiting mover. Caller has checked met, alarm <= 0x4a and contact_state
- * != 2. Returns 1 when the demand ran (LAB_5bfb_1000, local_1a = 1).
+ * visiting mover. Caller has checked met, alarm <= 0x4a, contact_state != 2
+ * and !bVar6 (the arm sits inside LAB_5bfb_0def). DOS always resolves here.
+ * Returns 1 when the demand ran (LAB_5bfb_1000, local_1a = 1), -1 when the
+ * port's one pending-offer slot for e is still waiting on the human's answer.
  */
 int ai_contact_try_wagon_reparations(
   ColonizeTurnContext* ctx, int nation_id, int e, ColonizeUnit* brave, ColonizeUnit* wag
@@ -1223,7 +1237,12 @@ int ai_contact_try_wagon_reparations(
     return 0;
   }
   if (ai_contact_s_reparations[e].active) {
-    return 0; /* an offer of ours is still on the queue */
+    /* Port-only, kept for the async popup: DOS shows @INDIANWAGONS modally
+     * and resolves it before the next Brave moves, but here the human answers
+     * after the native pulse, and ai_contact_s_reparations[e] holds one offer.
+     * A second demand on e in the same pulse would overwrite the first offer
+     * before its answer applies. */
+    return -1;
   }
   ColonizeCol1Indian* ind = &ctx->col1->indian[nation_id - 4];
   const int hold = 0;
@@ -1232,12 +1251,6 @@ int ai_contact_try_wagon_reparations(
       ai_contact_visit_home_tribe(ctx, nation_id, brave ? brave->home_tribe_index : -1);
     if (tribe_index < 0) {
       return 0;
-    }
-    if (!ai_contact_visit_demand_allowed(
-          ctx, ind, &ctx->col1->tribe[tribe_index], nation_id, e,
-          brave ? brave->id : -1, ai_diplo_indian_alarm(ctx->col1, nation_id, e)
-        )) {
-      return 0; /* bVar6 — generous encounter; DOS never reaches @INDIANWAGONS */
     }
     ind->contact_state[e] = 1;
     AiContactReparations* s = &ai_contact_s_reparations[e];

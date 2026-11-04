@@ -182,7 +182,8 @@ void ai_contact_set_visit_euro(int euro_nation);
 void ai_contact_set_visit_unit(int unit_id);
 
 /* FUN_5bfb_022e @INDIANWAGONS arm for one encounter whose tile head is a
- * Wagon Train (local_42, raw 96933-96976). 1 = demand ran (LAB_5bfb_1000). */
+ * Wagon Train (local_42, raw 96933-96976). The caller checks !bVar6. 1 = demand
+ * ran (LAB_5bfb_1000), -1 = e's pending-offer slot is busy (port-only). */
 int ai_contact_try_wagon_reparations(
   ColonizeTurnContext* ctx, int nation_id, int e, ColonizeUnit* brave, ColonizeUnit* wag
 );

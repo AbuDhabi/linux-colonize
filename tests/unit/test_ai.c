@@ -1665,6 +1665,61 @@ static int run_reparations_scan_past_empty_colony(void) {
   return resolved == 1 ? 0 : 1;
 }
 
+/* Brave at (13,10) of tribe 0, Wagon Train of `e` at (14,10) holding 100 of
+ * cargo 3, met, alarm 20, village word 5. */
+static int wagon_visit_fixture(Ai152eFixture* f, const char* label, int e, ColonizeUnit** brave,
+                               ColonizeUnit** wag) {
+  if (ai_152e_fixture_init(f, label, 777u) != 0) {
+    return 1;
+  }
+  ai_contact_reset();
+  const int bid = units_spawn_allow_stack(&f->units, units_find_type(&f->units, "Brave"), 13, 10);
+  const int wid =
+    units_spawn_allow_stack(&f->units, units_find_type(&f->units, "Wagon Train"), 14, 10);
+  *brave = units_get(&f->units, bid);
+  *wag = units_get(&f->units, wid);
+  if (!*brave || !*wag) {
+    fprintf(stderr, "%s: spawn failed\n", label);
+    ai_152e_fixture_free(f);
+    return 1;
+  }
+  (*brave)->nation_id = 4;
+  (*brave)->home_tribe_index = 0;
+  (*brave)->col1_flags15 = 0;
+  (*wag)->nation_id = e;
+  (*wag)->hold_goods_type[0] = 3;
+  (*wag)->hold_goods_amount[0] = 100;
+  f->col1.nation[e].trade.euro_price[3] = 11;
+  f->col1.indian[0].euro_diplo[e] = (uint8_t)COL1_INDIAN_MET_BIT;
+  f->col1.indian[0].alarm_by_player[e] = 20;
+  col1_tribe_attitude_set(&f->tribes[0], e, 5);
+  return 0;
+}
+
+/*
+ * The wagon arm (FUN_5bfb_022e raw 96933-96976) has no mood gate of its own:
+ * it sits inside LAB_5bfb_0def, which only a !bVar6 visit reaches (raw
+ * 96828), so the test is its callers'. Called directly on a generous record,
+ * the AI still hands hold 0 over.
+ */
+static int run_wagon_demand_no_mood_gate(void) {
+  if (!test_names_txt()) {
+    return TR_SKIP;
+  }
+  Ai152eFixture f;
+  ColonizeUnit* brave = NULL;
+  ColonizeUnit* wag = NULL;
+  if (wagon_visit_fixture(&f, "wagon-no-mood-gate", 1, &brave, &wag) != 0) {
+    return 1;
+  }
+  ai_contact_visit_mood_publish(&f.ctx, 4, 1, brave->id, 1);
+  const int r = ai_contact_try_wagon_reparations(&f.ctx, 4, 1, brave, wag);
+  const int hold = wag->hold_goods_amount[0];
+  ai_152e_fixture_free(&f);
+  fprintf(stderr, "wagon-no-mood-gate: returned %d hold %d\n", r, hold);
+  return (r == 1 && hold == 0) ? 0 : 1;
+}
+
 /*
  * A conceded food beg forces bVar6 on (FUN_5bfb_022e raw 96797-96805) and
  * runs the gift half (raw 96989 onward) with no second alarm test; the 0x31
@@ -2510,5 +2565,6 @@ static const TestCase k_cases[] = {
     {"run_convert_spawn_failure_unresolved", run_convert_spawn_failure_unresolved},
     {"run_zero_qty_demand_presented", run_zero_qty_demand_presented},
     {"run_conceded_beg_gifts_above_0x31", run_conceded_beg_gifts_above_0x31},
+    {"run_wagon_demand_no_mood_gate", run_wagon_demand_no_mood_gate},
 };
 TEST_MAIN(k_cases)
