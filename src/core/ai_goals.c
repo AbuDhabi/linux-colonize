@@ -1129,9 +1129,9 @@ int ai_goals_founding_expansion_urgency(int nation_id, int total_colony_count) {
  * `nation` (nation < 0 = any) restricted to `continent` (continent < 0 =
  * any), by the FUN_124c_0040 metric. Returns the colony index, -1 when
  * none, and writes the winning distance out through `out_dist` (DOS parks
- * it in DS:0x8db8; 9999 on a miss). DOS's `param_4 == -2` mode (derive the
- * continent from the probe tile and require colony flag 0x40) has no caller
- * in this segment and is not modelled.
+ * it in DS:0x8db8; 9999 on a miss). `continent == -2` is DOS's param_4 == -2
+ * mode (raw 9392-9394, 9409): the continent comes from the probe tile and
+ * only colonies with +0x1c bit 0x40 count (FUN_521d_20e6 raw 89692-89694).
  */
 int ai_goals_nearest_colony_15eb_0142(
   const ColonizeWorldMap* map,
@@ -1144,6 +1144,10 @@ int ai_goals_nearest_colony_15eb_0142(
 ) {
   int best = -1;
   int best_d = 9999;
+  const int coastal_only = continent == -2;
+  if (coastal_only) {
+    continent = map ? map_continent_id_at(map, x, y) : -1;
+  }
   if (colonies) {
     for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
       const ColonizeColony* c = &colonies->colonies[i];
@@ -1151,6 +1155,9 @@ int ai_goals_nearest_colony_15eb_0142(
         continue;
       }
       if (nation >= 0 && c->nation_id != nation) {
+        continue;
+      }
+      if (coastal_only && (c->colony_flags & COLONIZE_COLONY_FLAG_COASTAL) == 0) {
         continue;
       }
       if (continent >= 0) {

@@ -400,7 +400,7 @@ graphs:
         fn: ai_euro_goals.c:ai_euro_colony_goals_colony_labor
         dos: "FUN_521d_0a60 raw 87600-87606 (thunk_FUN_2a1f_0470(n, x, y, 0, bit1 ? 8 : 5)), inside the coastal-colony (+0x1c & 0x40) block"
         status: dos
-        note: "Was COLONY/COLONY_ALT (codes 5/8) with no coastal gate; DOS posts code 0. Construction, stock-shortage and low-population LABOR heuristics removed after fresh 1555 DOS goal-table proof. LABOR is produced only by the garrison-demand loop below. The blockade bits themselves are written by the EOT census (ai_euro_census_ship_pressure_refresh, FUN_4962_0018 incl. its raw 78239-78242 tally reset), not inside 0a60."
+        note: "Was COLONY/COLONY_ALT (codes 5/8) with no coastal gate; DOS posts code 0. Construction, stock-shortage and low-population LABOR heuristics removed after fresh 1555 DOS goal-table proof. LABOR is produced only by the garrison-demand loop below. The coastal gate (raw 87601, colony +0x1c bit 0x40) wraps d_labor, d_work and d_garrison and is tested at the caller in ai_euro_0a60_foreign_colony_producers. The blockade bits themselves are written by the EOT census (ai_euro_census_ship_pressure_refresh, FUN_4962_0018 incl. its raw 78239-78242 tally reset), not inside 0a60."
       - id: d_work
         kind: step
         label: Work-queue haul score → ai_goals_upsert_work

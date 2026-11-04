@@ -1172,7 +1172,108 @@ static int unit_3180_human_talk_answered_before_next_act(void) {
   return 0;
 }
 
+/*
+ * FUN_521d_20e6 raw 89692-89706: an own colony without +0x1c bit 0x40 keeps
+ * its colony-sail score, but the ship is sent to the nearest own bit-0x40
+ * colony on its continent (FUN_15eb_0142 mode -2). Inland I (pop 1, wants
+ * colonists) outscores coastal Q on the other island, so the pick is I's
+ * port P. With no port on I's island, I is skipped and Q wins.
+ */
+static int unit_colony_sail_inland_retargets_to_port(void) {
+  const int nation = 1;
+  ColonizeWorldMap map;
+  if (!fx_map_alloc(&map, 32, 16, 25, false)) {
+    return fail("sail-inland map");
+  }
+  for (int y = 4; y <= 8; ++y) {
+    for (int x = 2; x <= 8; ++x) {
+      map.terrain[y * 32 + x] = 1;
+      map.layer3[y * 32 + x] = 0xf1; /* continent 1 */
+      map.terrain[y * 32 + x + 18] = 1;
+      map.layer3[y * 32 + x + 18] = 0xf2; /* continent 2 */
+    }
+  }
+  ColonizeUnitPool units;
+  fx_units_init(&units);
+  units.type_count = 1;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Caravel");
+  units.types[0].movement = 4;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  units.types[0].cargo = 2;
+  const int sid = units_spawn(&units, 0, 14, 6);
+  ColonizeUnit* ship = units_get(&units, sid);
+  if (!ship) {
+    fx_map_free(&map);
+    return fail("sail-inland ship");
+  }
+  ship->nation_id = nation;
+  ColonizeColonyPool colonies;
+  fx_colonies_init(&colonies);
+  ColonizeColony* p = fx_colony_add(&colonies, nation, 2, 6, 8);
+  ColonizeColony* in = fx_colony_add(&colonies, nation, 6, 6, 1);
+  ColonizeColony* q = fx_colony_add(&colonies, nation, 20, 6, 4);
+  p->colony_flags = q->colony_flags = COLONIZE_COLONY_FLAG_COASTAL;
+  in->ai_flags = COLONIZE_COLONY_AI_NEEDS_COLONISTS;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.human_nation = 3;
+  int x = -1;
+  int y = -1;
+  int rc = 0;
+  if (!ai_euro_20e6_colony_sail_pick(&ctx, ship, nation, 0, 0, 0, &x, &y) || x != 2 || y != 6) {
+    fprintf(stderr, "sail-inland with port: pick (%d,%d), want (2,6)\n", x, y);
+    rc = fail("inland colony must be scored and sent to its continent's port");
+  }
+  p->active = false;
+  x = y = -1;
+  if (rc == 0 &&
+      (!ai_euro_20e6_colony_sail_pick(&ctx, ship, nation, 0, 0, 0, &x, &y) || x != 20 || y != 6)) {
+    fprintf(stderr, "sail-inland no port: pick (%d,%d), want (20,6)\n", x, y);
+    rc = fail("inland colony with no port on its continent must be skipped");
+  }
+  fx_map_free(&map);
+  return rc;
+}
+
+/*
+ * FUN_15eb_0142 mode -2 (raw 9392-9409) keeps the nearest own bit-0x40
+ * colony on the probe tile's continent with `iVar1 <= local_4`, so of two
+ * equidistant ports the later colony index wins.
+ */
+static int unit_nearest_port_mode_m2_later_tie_wins(void) {
+  const int nation = 1;
+  ColonizeWorldMap map;
+  if (!fx_map_alloc(&map, 16, 16, 25, false)) {
+    return fail("tie map");
+  }
+  for (int y = 4; y <= 8; ++y) {
+    for (int x = 2; x <= 8; ++x) {
+      map.terrain[y * 16 + x] = 1;
+      map.layer3[y * 16 + x] = 0xf1;
+    }
+  }
+  ColonizeColonyPool colonies;
+  fx_colonies_init(&colonies);
+  ColonizeColony* first = fx_colony_add(&colonies, nation, 2, 6, 1);
+  (void)fx_colony_add(&colonies, nation, 5, 6, 1); /* inland probe colony */
+  ColonizeColony* later = fx_colony_add(&colonies, nation, 8, 6, 1);
+  first->colony_flags = later->colony_flags = COLONIZE_COLONY_FLAG_COASTAL;
+  int d = -1;
+  const int got = ai_goals_nearest_colony_15eb_0142(&map, &colonies, 5, 6, nation, -2, &d);
+  fx_map_free(&map);
+  if (got != 2 || d != 3) {
+    fprintf(stderr, "mode -2 tie: got %d dist %d, want 2 dist 3\n", got, d);
+    return fail("equidistant ports: the later colony index must win");
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+    {"unit_nearest_port_mode_m2_later_tie_wins", unit_nearest_port_mode_m2_later_tie_wins},
+    {"unit_colony_sail_inland_retargets_to_port", unit_colony_sail_inland_retargets_to_port},
     {"unit_3180_human_talk_answered_before_next_act",
      unit_3180_human_talk_answered_before_next_act},
     {"unit_unload_runs_3180_ai_encounter", unit_unload_runs_3180_ai_encounter},

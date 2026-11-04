@@ -2457,12 +2457,9 @@ int ai_euro_20e6_unit_col5(const ColonizeUnitPool* pool, int dos_type) {
  *   (NEARBY_FRIGATE) ∧ ship != Frigate → −0x32; else bit 0x01
  *   (NEARBY_ARMED_SHIP) ∧ ship type < 0x11 → +(col5 − 10)*2;
  *   − ((dist >> 1) + 1); later ties win (DOS <=).
- * Non-coastal colonies are skipped (the `FUN_1000_8804(...,0xfffe)`
- * reachability probe for the +0x1c bit-0x40-clear case — a ship can't
- * reach them; re-anchored 2026-09-24 to move_scoring_20e6_full.md:2013 —
- * FUN_1000_8804 is an out-of-segment callee with no body in
- * viceroy_unpacked.c/_2.c, so "raw 8804" is the call-site's decompiled
- * function offset, not a viceroy_unpacked.c line number).
+ * A colony without +0x1c bit 0x40 is still scored, then retargeted to the
+ * nearest own bit-0x40 colony on its continent (FUN_281f_0614 -> FUN_15eb_0142
+ * mode -2, raw 89692-89706); skipped only when there is none.
  * Commit threshold (md:2031): peace best > −999, war-cargo best > 0.
  * +0x1b bit 0x08 (SHORT_DEFENDERS) is written by ai_euro_colony_threat_seed_5952;
  * bit 0x04 (MILITARY_SURPLUS) is the opposite side of that pair.
@@ -2499,9 +2496,6 @@ int ai_euro_20e6_colony_sail_pick(
     const int cid = map_continent_id_at(ctx->map, c->x, c->y);
     if (pioneers_b4 != 0 && (cid < 0 || ai_euro_continent_stance_at(nation, cid) == 0)) {
       continue; /* md:1946: Pioneer cargo only sails at nonzero stance */
-    }
-    if (!map_tile_is_coastal(ctx->map, c->x, c->y)) {
-      continue; /* 8804(...,0xfffe) reachability substitution */
     }
     int wanted = ai_euro_colony_wanted_size(ctx->colonies, c); /* FUN_1000_8e6c */
     if (wanted > 0xc) {
@@ -2560,13 +2554,30 @@ int ai_euro_20e6_colony_sail_pick(
     } else if ((c->ai_flags & COLONIZE_COLONY_AI_NEARBY_ARMED_SHIP) && ship_type < 0x11) {
       score += (ai_euro_20e6_unit_col5(ctx->units, ship_type) - 10) * 2;
     }
-    const int dist = map_dos_dist(ship->x - c->x, ship->y - c->y);
+    /*
+     * Raw 89692-89706: a colony without +0x1c bit 0x40 keeps its score but
+     * FUN_281f_0614(x, y, nation, -2) rebinds the target to the nearest own
+     * bit-0x40 colony on its continent (FUN_15eb_0142, later tie wins); none
+     * leaves 0x8dc6 = -1 and the candidate is skipped. Distance and the
+     * picked x,y come from the rebound colony.
+     */
+    const ColonizeColony* dest = c;
+    if ((c->colony_flags & COLONIZE_COLONY_FLAG_COASTAL) == 0) {
+      const int port = ai_goals_nearest_colony_15eb_0142(
+        ctx->map, ctx->colonies, c->x, c->y, nation, -2, NULL
+      );
+      if (port < 0) {
+        continue;
+      }
+      dest = &ctx->colonies->colonies[port];
+    }
+    const int dist = map_dos_dist(ship->x - dest->x, ship->y - dest->y);
     score -= (dist >> 1) + 1; /* iStack_b2 == 1 */
     if (score >= best) { /* DOS later-ties-win */
       best = score;
       have = 1;
-      bx = c->x;
-      by = c->y;
+      bx = dest->x;
+      by = dest->y;
     }
   }
   if (!have || best <= (mil == 0 ? -999 : 0)) {
