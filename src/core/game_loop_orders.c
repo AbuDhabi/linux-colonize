@@ -1242,7 +1242,8 @@ static void game_after_unit_tail(ColonizeGameState* game, bool stepped) {
    * The port's passenger is off the map, so reveal through an on-map view of
    * it standing on the ship's tile. Every board path (walk-on, ship-to-ship,
    * a Go To step) records its passenger in the sim; it is this tail's mover
-   * only if the focus is that passenger or the ship it now rides. */
+   * only if the focus is that passenger or a ship on its tile (the woken
+   * tile head need not be the hull it is filed under). */
   ColonizeUnit* mover = u;
   ColonizeUnit board_view;
   const ColonizeUnit* reveal_unit = u;
@@ -1250,7 +1251,8 @@ static void game_after_unit_tail(ColonizeGameState* game, bool stepped) {
   ColonizeUnit* pax = stepped ? units_get(&game->units, board_pax_id) : NULL;
   const ColonizeUnit* pax_ship =
     pax && pax->active ? units_get_const(&game->units, pax->aboard_ship_id) : NULL;
-  if (pax_ship && (pax == u || pax_ship == u)) {
+  if (pax_ship && (pax == u || (units_is_on_map(u) && units_is_sea(&game->units, u->id) &&
+                                u->x == pax_ship->x && u->y == pax_ship->y))) {
     mover = pax;
     board_view = *pax;
     board_view.aboard_ship_id = -1;

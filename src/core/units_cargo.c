@@ -472,20 +472,27 @@ bool units_board(ColonizeUnitPool* pool, int land_unit_id, int ship_id) {
  * unconditionally (`handed`: the mover had it), so give it back to the
  * passenger when the gate fails; DOS leaves the sentried mover active and
  * moves on from it.
+ * The woken hull is the tile head (FUN_281f_07e0 -> FUN_281f_08e4 =
+ * FUN_1427_0644: 04d6 puts hulls on top, then 0002 walks to the top), not the
+ * hull the port files the passenger under: DOS has no per-hull manifest until
+ * FUN_1427_10be picks riders up at departure.
  */
 void units_465b_board_wake_focus(
   ColonizeUnitPool* pool, int land_unit_id, int ship_id, bool handed
 ) {
-  ColonizeUnit* ship = units_get(pool, ship_id);
-  if (!ship) {
+  const ColonizeUnit* boarded = units_get_const(pool, ship_id);
+  if (!boarded) {
     return;
   }
+  const int head_id = units_tile_head_id_at(pool, boarded->x, boarded->y);
+  ColonizeUnit* ship = units_get(pool, head_id >= 0 ? head_id : ship_id);
   if (ship->orders == UNITS_ORDER_SENTRY) {
     ship->orders = UNITS_ORDER_NONE;
   }
-  if (handed && pool->selected_id == ship_id &&
-      (!units_is_on_map(ship) || ship->orders == UNITS_ORDER_FORTIFIED || ship->moves <= 0)) {
-    pool->selected_id = land_unit_id;
+  if (handed && pool->selected_id == ship_id) {
+    const bool gate =
+      units_is_on_map(ship) && ship->orders != UNITS_ORDER_FORTIFIED && ship->moves > 0;
+    pool->selected_id = gate ? ship->id : land_unit_id;
   }
 }
 

@@ -1343,6 +1343,46 @@ static int test_human_board_reveals_with_passenger(void) {
   return rc;
 }
 
+/* With two own hulls on the water tile the focus goes to the tile head
+ * (units_465b_board_wake_focus), which need not be the hull the passenger is
+ * filed under; the reveal is still the passenger's (raw 75783). */
+static int test_human_board_two_hulls_reveals_with_passenger(void) {
+  ColonizeGameState game;
+  ColonizeCol1Tribe tribe;
+  const int fr_id = step3180_fixture(&game, &tribe);
+  int rc = fr_id < 0 ? fail("two hulls fixture") : 0;
+  game.units.types[1].kind_plus1 = UNITS_KIND_GALLEON + 1;
+  game.world_map.terrain[5 * 8 + 2] = T_OCEAN;
+  ColonizeUnit* low = rc ? NULL : units_get(&game.units, units_spawn(&game.units, 1, 2, 3));
+  const int top_id = low ? units_spawn_allow_stack(&game.units, 1, 2, 3) : -1;
+  ColonizeUnit* col = top_id >= 0 ? units_get(&game.units, units_spawn(&game.units, 0, 3, 3)) : NULL;
+  if (rc == 0 && (!low || top_id < 0 || !col)) {
+    rc = fail("two hulls: spawn");
+  }
+  if (rc == 0) {
+    low->nation_id = 0;
+    low->moves = 12;
+    units_get(&game.units, top_id)->nation_id = 0;
+    units_get(&game.units, top_id)->moves = 12;
+    col->nation_id = 0;
+    col->moves = 3;
+    game.units.selected_id = col->id;
+    (void)game_try_unit_move(&game, 2, 3);
+    if (col->aboard_ship_id < 0) {
+      rc = fail("two hulls: the colonist must board");
+    } else if (game.units.selected_id == col->aboard_ship_id) {
+      fprintf(stderr, "two hulls: focus %d, filed under %d, head %d\n", game.units.selected_id,
+              col->aboard_ship_id, top_id);
+      rc = fail("two hulls: the fixture must put the focus on the other hull");
+    } else if (!map_tile_seen_by(&game.world_map, 1, 3, 0) ||
+               map_tile_seen_by(&game.world_map, 2, 5, 0)) {
+      rc = fail("two hulls: the reveal must be the passenger's radius 1");
+    }
+  }
+  step3180_free(&game);
+  return rc;
+}
+
 /* The ship-to-ship transfer is the same 465b board step (FUN_4720_015c ->
  * 465b), so it reveals with the passenger's radius at the receiving ship's
  * tile too (raw 75783), with MP on the receiving ship (focus moves to it)
@@ -4915,6 +4955,8 @@ static const TestCase k_cases[] = {
     {"test_deferred_wake_does_not_leak", test_deferred_wake_does_not_leak},
     {"test_human_passenger_ship_to_ship", test_human_passenger_ship_to_ship},
     {"test_human_board_reveals_with_passenger", test_human_board_reveals_with_passenger},
+    {"test_human_board_two_hulls_reveals_with_passenger",
+     test_human_board_two_hulls_reveals_with_passenger},
     {"test_human_transfer_reveals_with_passenger", test_human_transfer_reveals_with_passenger},
     {"test_goto_board_reveals_with_passenger", test_goto_board_reveals_with_passenger},
     {"test_human_landfall_runs_3180", test_human_landfall_runs_3180},

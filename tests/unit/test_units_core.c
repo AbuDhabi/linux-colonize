@@ -8509,11 +8509,67 @@ static int case_board_wakes_sentried_spent_ship(void) {
   return bad;
 }
 
+/* FUN_465b_0000 raw 75711-75722: with two own hulls on the water tile, 07e0
+ * -> 08e4 wakes and activates the tile head (the newer arrival), not the
+ * lower-slot hull units_find_boardable_ship files the passenger under. */
+static int case_board_wakes_tile_head_hull(void) {
+  ColonizeUnitPool p;
+  memset(&p, 0, sizeof(p));
+  units_reset_state();
+  units_reset(&p);
+  units_set_occupancy_map(NULL);
+  p.type_count = 2;
+  snprintf(p.types[0].name, sizeof(p.types[0].name), "Caravel");
+  p.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  p.types[0].cargo = 2;
+  p.types[0].space = 99;
+  p.types[0].movement = 4;
+  snprintf(p.types[1].name, sizeof(p.types[1].name), "Colonists");
+  p.types[1].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  p.types[1].space = 1;
+  p.types[1].movement = 2;
+  ColonizeWorldMap m;
+  memset(&m, 0, sizeof(m));
+  if (!map_alloc(&m, 8, 8, err, sizeof(err))) return 1;
+  memset(m.terrain, T_OCEAN, 64);
+  memset(m.layer3, 1, 64);
+  m.terrain[4 * 8 + 3] = T_GRASSLAND;
+  ColonizeWorld w = {.units = &p, .map = &m};
+  const int low = units_spawn_allow_stack(&p, 0, 4, 4);
+  const int top = units_spawn_allow_stack(&p, 0, 4, 4);
+  const int land = units_spawn_allow_stack(&p, 1, 3, 4);
+  for (int id = low; id <= top; ++id) {
+    units_get(&p, id)->orders = UNITS_ORDER_SENTRY;
+    units_get(&p, id)->moves = 4 * UNITS_MP_PER_TILE;
+  }
+  units_get(&p, land)->moves = 2 * UNITS_MP_PER_TILE;
+  p.selected_id = land;
+  int bad = 0;
+  if (units_tile_head_id_at(&p, 4, 4) != top ||
+      units_find_boardable_ship(&p, 4, 4, units_get_const(&p, low)->nation_id, 1) != low) {
+    fprintf(stderr, "fixture: head=%d boardable pick wanted %d\n",
+            units_tile_head_id_at(&p, 4, 4), low);
+    bad = 1;
+  }
+  const bool moved = units_try_move_w(&w, land, 4, 4);
+  if (!moved || units_get_const(&p, top)->orders != UNITS_ORDER_NONE ||
+      units_get_const(&p, low)->orders != UNITS_ORDER_SENTRY || p.selected_id != top) {
+    fprintf(stderr, "head: moved=%d top=%d low=%d selected=%d (want top awake + focused)\n",
+            (int)moved, units_get_const(&p, top)->orders, units_get_const(&p, low)->orders,
+            p.selected_id);
+    bad = 1;
+  }
+  map_free(&m);
+  units_set_occupancy_map(NULL);
+  return bad;
+}
+
 static const TestCase k_cases[] = {
   {"ship_arrival_sorts_existing_passenger_chain", case_ship_arrival_sorts_existing_passenger_chain},
   {"passenger_ship_to_ship", case_passenger_ship_to_ship},
   {"passenger_ship_to_ship_lost_roll", case_passenger_ship_to_ship_lost_roll},
   {"board_wakes_sentried_spent_ship", case_board_wakes_sentried_spent_ship},
+  {"board_wakes_tile_head_hull", case_board_wakes_tile_head_hull},
   {"starter_fleet", case_starter_fleet},
   {"tile_stack_head_arrival", case_tile_stack_head_tracks_movement},
   {"tile_stack_sink_oldest_end", case_tile_stack_sink_oldest_end},
