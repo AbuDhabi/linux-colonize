@@ -1085,13 +1085,20 @@ int ai_contact_try_village_reparations(ColonizeTurnContext* ctx, int nation_id) 
         /* raw 96857 `goto LAB_5bfb_0dea`: local_4c = -1 and back to
          * LAB_5bfb_0def, now with local_42 only, the encounter (colony)
          * tile's head when it is a Wagon Train (raw 96696). Neither: the
-         * @INDIANCOMMENT else-limb (raw 96978-96987). */
+         * @INDIANCOMMENT else-limb (raw 96978-96987). Unresolved arms
+         * `continue`: the one production caller (ai_brave.c, 022e param_1)
+         * always pins visit_euro to one European, so the loop ends here and
+         * returns 0 as DOS does; the -1 "every European" mode (tests only)
+         * keeps scanning the others. */
         ColonizeUnit* head = units_get(ctx->units, units_tile_head_id_at(ctx->units, c->x, c->y));
         if (head && units_type_is_wagon(units_type(ctx->units, head->type_index))) {
-          return ai_contact_try_wagon_reparations(ctx, nation_id, e, brave, head);
+          if (ai_contact_try_wagon_reparations(ctx, nation_id, e, brave, head)) {
+            return 1; /* LAB_5bfb_1000: the visit resolved */
+          }
+          continue;
         }
         ai_contact_indian_comment(ctx, nation_id, e, brave);
-        return 0;
+        continue;
       }
       ind->contact_state[e] = 1;
       if (dos_rng_range(ctx->rng, 0, (int)ctx->col1->head.difficulty + 1) == 0) {

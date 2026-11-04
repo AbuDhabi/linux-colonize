@@ -5,6 +5,7 @@
 
 #include "core/ai.h"
 #include "core/ai_contact.h"
+#include "core/ai_contact_internal.h"
 #include "core/ai_euro.h"
 #include "core/assets.h"
 #include "core/col1_save.h"
@@ -1614,6 +1615,57 @@ static int run_visit_empty_colony(void) {
 }
 
 /*
+ * The empty-colony limb of ai_contact_try_village_reparations leaves the
+ * visit unresolved, so with visit_euro == -1 (every European; test callers
+ * only, production pins 022e's param_1) the scan goes on to the next
+ * European rather than return. Human colony 0 has nothing to demand; AI
+ * colony 1 beside the same Brave does, so the call resolves on e == 1.
+ */
+static int run_reparations_scan_past_empty_colony(void) {
+  if (!test_names_txt()) {
+    return TR_SKIP;
+  }
+  Ai152eFixture f;
+  if (ai_152e_fixture_init(&f, "reparations-scan-all", 777u) != 0) {
+    return 1;
+  }
+  ai_contact_reset();
+  ai_contact_set_visit_euro(-1);
+  const int brave_ti = units_find_type(&f.units, "Brave");
+  const int bid = brave_ti >= 0 ? units_spawn_allow_stack(&f.units, brave_ti, 13, 10) : -1;
+  ColonizeUnit* brave = units_get(&f.units, bid);
+  if (!brave) {
+    fprintf(stderr, "reparations-scan-all: spawn failed\n");
+    ai_152e_fixture_free(&f);
+    return 1;
+  }
+  brave->nation_id = 4;
+  brave->home_tribe_index = 0;
+  brave->col1_flags15 = 0;
+  for (int e = 0; e < 2; ++e) {
+    ColonizeColony* col = &f.colonies.colonies[e];
+    col->active = true;
+    col->id = e;
+    col->nation_id = e;
+    col->x = e == 0 ? 14 : 12;
+    col->y = 10;
+    snprintf(col->name, sizeof(col->name), "Town%d", e);
+    f.col1.nation[e].trade.euro_price[3] = 11;
+    f.col1.indian[0].euro_diplo[e] = (uint8_t)COL1_INDIAN_MET_BIT;
+    f.col1.indian[0].alarm_by_player[e] = 20;
+    f.col1.indian[0].contact_state[e] = 1;
+    col1_tribe_attitude_set(&f.tribes[0], e, 5);
+    ai_contact_visit_mood_publish(&f.ctx, 4, e, bid, 0);
+  }
+  f.colonies.colonies[1].stock[3] = 50;
+
+  const int resolved = ai_contact_try_village_reparations(&f.ctx, 4);
+  ai_152e_fixture_free(&f);
+  fprintf(stderr, "reparations-scan-all: resolved %d\n", resolved);
+  return resolved == 1 ? 0 : 1;
+}
+
+/*
  * FUN_5bfb_3180 closes a nation (aiStack_20[e]) only when 022e returns
  * non-zero. An AI colony east of the Brave with empty stores and no wagon
  * leaves the visit unresolved, so the next tile of the same nation, a
@@ -2225,5 +2277,6 @@ static const TestCase k_cases[] = {
     {"run_152e_mission_nibble_out_of_domain", run_152e_mission_nibble_out_of_domain},
     {"run_visit_empty_colony", run_visit_empty_colony},
     {"run_unresolved_visit_keeps_nation_open", run_unresolved_visit_keeps_nation_open},
+    {"run_reparations_scan_past_empty_colony", run_reparations_scan_past_empty_colony},
 };
 TEST_MAIN(k_cases)
