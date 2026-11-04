@@ -651,6 +651,8 @@ AiEuro5952CascadeStatus ai_euro_5952_cascade_military(AiEuro5952Cascade* s);
 AiEuro5952CascadeStatus ai_euro_5952_cascade_chain_upgrades(AiEuro5952Cascade* s);
 void ai_euro_colony_tick_open(AiEuroColonyTick* t);
 void ai_euro_colony_tick_unseat_all(AiEuroColonyTick* t);
+/* Drops unseat_all's aiStack_12e profession cache (end of a colony tick). */
+void ai_euro_colony_tick_prof_cache_clear(void);
 void ai_euro_colony_tick_food_pass(AiEuroColonyTick* t);
 void ai_euro_colony_tick_pass2(AiEuroColonyTick* t);
 void ai_euro_colony_tick_specialist_restore(AiEuroColonyTick* t);

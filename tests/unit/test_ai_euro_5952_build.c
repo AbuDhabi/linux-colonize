@@ -86,6 +86,7 @@ static int fx_build(Fx* f, int pop) {
   f->ctx.human_nation = 0;
   ai_euro_5952_set_ring1_threat(f->col->id, 0);
   ai_euro_5952_labor_running = 0; /* local_76: garrison covered */
+  ai_euro_colony_tick_prof_cache_clear(); /* no colony tick in progress */
   return 0;
 }
 
@@ -1695,7 +1696,92 @@ static int case_tb16_fixed_forest_penalty_follows_tile(void) {
            ? 0 : fail("TB-16 fixed: the unpenalised Prairie plot wins");
 }
 
+/* Census stages only (asm 5952:21d4-2294), Free Colonists in every pop slot. */
+static int census_experts(Fx* f) {
+  AiEuro5952Cascade s;
+  memset(&s, 0, sizeof s);
+  s.ctx = &f->ctx;
+  s.pool = &f->colonies;
+  s.col = f->col;
+  s.col1 = &f->col1;
+  s.nation = NATION;
+  s.improvement_owner = NATION;
+  ai_euro_5952_cascade_census(&s);
+  return s.experts;
+}
+
+static void free_colonists(Fx* f) {
+  memset(f->col->tiles, -1, sizeof f->col->tiles);
+  for (int i = 0; i < f->col->colonist_count; ++i) {
+    f->col->colonists[i].active = true;
+    f->col->colonists[i].profession = COLONIZE_PROF_FREE_COLONIST;
+    f->col->colonists[i].field_job = -1;
+    f->col->colonists[i].building_type = -1;
+  }
+}
+
+/*
+ * The census's tile slots are the DS:0x8d72 list (FUN_15eb_0924 raw 9959,
+ * which keeps DS:0x30e[type] >= 0 via FUN_15eb_08e6 raw 9926-9935). A parked Wagon Train (profession 0 =
+ * Expert Farmer byte, DS:0x30e = -1) is not on it.
+ */
+static int case_census_skips_wagon_on_tile(void) {
+  Fx f;
+  if (fx_build(&f, 3) != 0) {
+    return 1;
+  }
+  free_colonists(&f);
+  const int wt = units_kind_type_index(&f.units, UNITS_KIND_WAGON);
+  const int id = wt < 0 ? -1
+                        : units_spawn_allow_stack_nation(&f.units, wt, f.col->x, f.col->y, NATION);
+  const ColonizeUnit* u = id >= 0 ? units_get_const(&f.units, id) : NULL;
+  if (!u || u->profession != 0) {
+    fx_done(&f);
+    return fail("spawn wagon with profession 0");
+  }
+  const int experts = census_experts(&f);
+  fx_done(&f);
+  if (experts != 0) {
+    return fail("census counted a Wagon Train as an expert (raw 95718 / 15eb_0924)");
+  }
+  return 0;
+}
+
+/*
+ * Pop slots read aiStack_12e, filled at the unseat-all loop (raw
+ * 94552-94555); a promotion after it (carpenter arm, raw 94723-94730) is
+ * invisible to the census (raw 95719-95720).
+ */
+static int case_census_reads_unseat_profession_cache(void) {
+  Fx f;
+  if (fx_build(&f, 3) != 0) {
+    return 1;
+  }
+  free_colonists(&f);
+  AiEuroColonyTick t;
+  memset(&t, 0, sizeof t);
+  t.ctx = &f.ctx;
+  t.world = world_from_turn_ctx(&f.ctx);
+  t.nation_id = NATION;
+  t.col = f.col;
+  ai_euro_colony_tick_unseat_all(&t);
+  f.col->colonists[0].profession = COLONIZE_PROF_CARPENTER;
+  const int during = census_experts(&f);
+  ai_euro_colony_tick_prof_cache_clear();
+  const int after = census_experts(&f);
+  fx_done(&f);
+  if (during != 0) {
+    return fail("census saw a promotion made after the aiStack_12e snapshot");
+  }
+  if (after != 1) {
+    return fail("outside a tick the census reads the live profession");
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+  {"case_census_skips_wagon_on_tile", case_census_skips_wagon_on_tile},
+  {"case_census_reads_unseat_profession_cache", case_census_reads_unseat_profession_cache},
   {"case_seam_cascade_head_stage", case_seam_cascade_head_stage},
   {"case_seam_colony_tick_unseat_all", case_seam_colony_tick_unseat_all},
   {"case_blacksmith_gate_reads_local_1b0", case_blacksmith_gate_reads_local_1b0},

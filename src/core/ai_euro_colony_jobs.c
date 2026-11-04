@@ -2006,6 +2006,20 @@ COLONIZE_INTERNAL int ai_euro_5952_docks_started(int colony_id) {
            : 0;
 }
 
+/* aiStack_12e: FUN_5952_035e caches every pop slot's profession once, at the
+ * unseat-all loop (raw 94552-94555 `aiStack_12e[local_ac] = FUN_281f_0c54()`),
+ * and the cascade census reads that cache for pop slots (raw 95719-95720
+ * `local_1a._2_2_ = aiStack_12e[local_ac]`), so promotions made in between
+ * (the carpenter arm's FUN_281f_0cae, raw 94723-94730) are not seen. NULL
+ * colony = no tick in progress (standalone cascade calls read live). */
+static const ColonizeColony* s_5952_prof_cache_col;
+static int s_5952_prof_cache_n;
+static int s_5952_prof_cache[COLONIZE_COLONY_POP_MAX];
+
+COLONIZE_INTERNAL void ai_euro_colony_tick_prof_cache_clear(void) {
+  s_5952_prof_cache_col = NULL;
+}
+
 int ai_euro_s_5952_census_nonexpert[COLONIZE_COLONIES_MAX]; /* aiStack_68[0x13] */
 int ai_euro_s_5952_census_vet_soldier[COLONIZE_COLONIES_MAX]; /* aiStack_68[0x15] */
 int ai_euro_s_5952_census_carpenter[COLONIZE_COLONIES_MAX];   /* aiStack_68[0x0d] = BP-0x4c */
@@ -2383,13 +2397,16 @@ COLONIZE_INTERNAL void ai_euro_5952_cascade_census(AiEuro5952Cascade* s) {
    * (DS:0x8d72), counting experts and the deepest @JOB class among them. */
   int experts = 0;
   int tier_max = 0;
+  const bool cached = s_5952_prof_cache_col == col;
   for (int i = 0; i < col->colonist_count && i < COLONIZE_COLONY_POP_MAX; ++i) {
     const ColonizeColonist* c = &col->colonists[i];
-    if (!c->active || !ai_euro_5952_job_is_expert(c->profession)) {
+    /* raw 95719-95720: pop slots read aiStack_12e, not the live byte. */
+    const int prof = (cached && i < s_5952_prof_cache_n) ? s_5952_prof_cache[i] : c->profession;
+    if (!c->active || !ai_euro_5952_job_is_expert(prof)) {
       continue;
     }
     ++experts;
-    const int t = ai_euro_5952_job_class(c->profession) % 4;
+    const int t = ai_euro_5952_job_class(prof) % 4;
     if (t > tier_max) {
       tier_max = t;
     }
@@ -2421,20 +2438,15 @@ COLONIZE_INTERNAL void ai_euro_5952_cascade_census(AiEuro5952Cascade* s) {
       }
     }
   }
-  if (ctx->units) {
-    for (int i = 0; i < units_slot_end(ctx->units); ++i) {
-      const ColonizeUnit* u = &ctx->units->units[i];
-      if (!u->active || !units_is_on_map(u) || u->x != col->x || u->y != col->y) {
-        continue;
-      }
-      if (u->nation_id != col->nation_id) {
-        continue;
-      }
-      const int dtype = ai_euro_20e6_dos_type(ctx->units, u);
-      if (dtype >= 0x0d && dtype <= 0x12) {
-        continue; /* ships are not colony slots */
-      }
-      if (ai_euro_5952_job_is_expert(u->profession)) {
+  {
+    /* raw 95718/95723: slots past pop are the DS:0x8d72 list (FUN_15eb_0924,
+     * DS:0x30e[type] >= 0, no nation test), so a Wagon Train's profession 0
+     * is never counted. */
+    int ids[COLONIZE_UNITS_MAX];
+    const int nt = ai_euro_5952_tile_stack(ctx, col, ids, COLONIZE_UNITS_MAX);
+    for (int k = 0; k < nt; ++k) {
+      const ColonizeUnit* u = units_get_const(ctx->units, ids[k]);
+      if (u && ai_euro_5952_job_is_expert(u->profession)) {
         ++experts;
         const int t = ai_euro_5952_job_class(u->profession) % 4;
         if (t > tier_max) {
@@ -3341,9 +3353,12 @@ COLONIZE_INTERNAL void ai_euro_colony_tick_unseat_all(AiEuroColonyTick* t) {
   t->n = col->colonist_count < COLONIZE_COLONY_POP_MAX ? col->colonist_count
                                                        : COLONIZE_COLONY_POP_MAX;
   const int n = t->n;
+  s_5952_prof_cache_col = col;
+  s_5952_prof_cache_n = n;
   for (int s = 0; s < n; ++s) {
     const ColonizeColonist* c = &col->colonists[s];
     prev_job[s] = c->field_job;
+    s_5952_prof_cache[s] = c->profession; /* aiStack_12e, raw 94555 */
     /*
      * DOS-LITERAL FUN_5952_035e raw 94551-94564 (clean body
      * colony_tick_5952_035e.md:1030-1043): the tick idles EVERY colonist
@@ -3722,6 +3737,7 @@ static void ai_euro_colony_tick_run(
   for (int ci = 0; ci < COLONIZE_COLONIES_MAX; ++ci) {
     g_colonies_plot_cache_colony = NULL;
     colonies_claim_snapshot_clear();
+    ai_euro_colony_tick_prof_cache_clear(); /* aiStack_12e lives one colony tick */
     ColonizeColony* col = &ctx->colonies->colonies[ci];
     if (!col->active || col->nation_id != nation_id) {
       continue;
@@ -3773,6 +3789,7 @@ static void ai_euro_colony_tick_run(
       ai_euro_6d8e_prelude_read(nation_id, col);
     }
   }
+  ai_euro_colony_tick_prof_cache_clear();
   s_28c8_l32 = AI_28C8_L32_OFF;
 }
 
