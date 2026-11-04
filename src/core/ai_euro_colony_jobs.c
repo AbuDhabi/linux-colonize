@@ -322,6 +322,19 @@ static int ai_euro_28c8_score_full(
   out_best->score = 0; /* local_12 = 0: DOS elects only a strictly positive score */
   out_best->yield = 0;
 
+  /* FUN_15eb_28c8 raw 12982-12984 / 13151-13153: a human colony of
+   * pop >= 3 with a project set, no Carpenter (1376(0xd), self already idle
+   * at raw 12972) and no food emergency makes this colonist a Carpenter
+   * without walking any plot. Reported as tile -1; the caller seats him. */
+  if (env.human && restrict_job < 0 && !env.food_emerg && col->population >= 3 &&
+      col->building_in_production >= 0 &&
+      colonies_occupation_worker_count(
+        ctx->colonies, col, COLONIZE_PROF_CARPENTER, colonist_slot
+      ) == 0) {
+    out_best->job = COLONIZE_PROF_CARPENTER;
+    return 1;
+  }
+
   /* DOS-LITERAL FUN_15eb_28c8 raw 12987-12996: the plot walk is over the
    * DS:0xc8/0xde delta tables (N,E,S,W,NW,NE,SE,SW), and since the election at
    * raw 13126 is strictly greater the earliest table index wins ties — so the
@@ -652,8 +665,8 @@ COLONIZE_INTERNAL int ai_euro_28c8_colonist_job_score_structural(
  * recompute FUN_15eb_3930 (`268e(); 287e(); 2ea0();`), run for HUMAN colonies
  * too (port_bugs.md #562). Every colonist not standing on a plot whose occupation
  * is a field job (FUN_15eb_0e18 < 9) is put through 28c8; when that finds
- * nothing the colonist becomes a Carpenter (`FUN_15eb_1068(slot, 0xd)`),
- * never a bell-ringer.
+ * nothing (or 28c8's own human Carpenter gate fires) the colonist
+ * becomes a Carpenter (`FUN_15eb_1068(slot, 0xd)`), never a bell-ringer.
  *
  * `colonist_slot` >= 0 restricts the pass to one colonist — the join path
  * (colonies_admit / ORDERS Join Colony), which is the caller port_bugs.md #562 is
@@ -686,7 +699,7 @@ void ai_euro_28c8_auto_assign_plots(ColonizeTurnContext* ctx, int colony_id, int
     AiEuro28c8JobCandidate best;
     const int ok =
       ai_euro_28c8_score_full(ctx, col, s, c->profession, -1, 0, &best);
-    if (ok && colonies_assign_field_w(&world, colony_id, s, best.tile, best.job)) {
+    if (ok && best.tile >= 0 && colonies_assign_field_w(&world, colony_id, s, best.tile, best.job)) {
       continue;
     }
     colonies_assign_carpenter_fallback(ctx->colonies, colony_id, s);
