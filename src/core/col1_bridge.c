@@ -1414,18 +1414,27 @@ COLONIZE_INTERNAL void col1_bridge_apply_europe_lanes(Col1ApplyCtx* ctx) {
      * colonists sit on at (237,237), and the one no FUN_48d3_03d0 call walks.
      * The new-game fleet is created at 228+n with voyage counter 0
      * (FUN_75c2_235c, raw 121612-121646), i.e. Bound with turns_left 0.
+     *
+     * 240+n is the eastbound arrival lane: FUN_48d3_06ba's last hop (raw
+     * 77980, thunk_FUN_2a1f_0246(-0xc, -0x10) -> FUN_48d3_03d0) moves each
+     * 244+n hull whose counter reached 0 there, and the next pass's hop at
+     * raw 77979 (-0x10 -> -0x14) docks it at 236+n. A save taken in between
+     * holds those hulls, passengers chained as on 244+n: Expected, docking at
+     * the next tick (turns_left 0).
      */
     const uint8_t xy_bound = (uint8_t)(228 + n);
+    const uint8_t xy_arriving = (uint8_t)(240 + n);
     const uint8_t xy_expected = (uint8_t)(244 + n);
     const int e0 = europe->expected_ships;
     int* exp_src = malloc(((size_t)save->head.unit_count + 1) * sizeof(int));
     for (int i = 0; i < (int)save->head.unit_count; ++i) {
       const ColonizeCol1Unit* src = &save->unit[i];
       if (src->nation_id != n || src->type < 13 || src->type > 18 ||
-          (src->x != xy_bound && src->x != xy_expected)) {
+          (src->x != xy_bound && src->x != xy_expected && src->x != xy_arriving)) {
         continue;
       }
       const bool bound = src->x == xy_bound;
+      const bool arriving = src->x == xy_arriving;
       /*
        * Legacy fallback: before this fix, harbor (docked) ships were written
        * at 228+n with counter 0 and goto (0,0) (the old, DOS-wrong lane
@@ -1504,8 +1513,9 @@ COLONIZE_INTERNAL void col1_bridge_apply_europe_lanes(Col1ApplyCtx* ctx) {
        * its lane is 244+n, three hops out, so a zeroed counter there is a
        * truncated save and 1 is the safe floor.
        */
-      const int turns = bound ? (int)src->col1_counter16
-                              : (src->col1_counter16 > 0 ? (int)src->col1_counter16 : 1);
+      const int turns = bound      ? (int)src->col1_counter16
+                        : arriving ? 0
+                                   : (src->col1_counter16 > 0 ? (int)src->col1_counter16 : 1);
       const int exit_x = (int)src->goto_x;
       const int exit_y = (int)src->goto_y;
       const bool exit_east = map->width > 0 ? exit_x >= map->width / 2 : true;
@@ -1576,18 +1586,24 @@ COLONIZE_INTERNAL void col1_bridge_apply_europe_lanes(Col1ApplyCtx* ctx) {
      * (raw 7513-7519), whose FUN_1427_02ca (raw 7478-7509) links each arrival
      * on top (new +0x315c = -1, +0x315e = the old top). So the chain's top
      * (rank 0) is the newest departure and its +0x315e tail the oldest. Order
-     * what this load pushed tail first, not by record index.
+     * what this load pushed tail first, not by record index. The 240+n hulls
+     * are a hop ahead of every 244+n hull, so they come first, each lane
+     * tail first.
      */
     const int ne = europe->expected_ships - e0;
     const int nu = (int)save->head.unit_count;
     int* rank = ne > 1 ? malloc((size_t)nu * sizeof(int)) : NULL;
+    int* rank_arr = ne > 1 ? malloc((size_t)nu * sizeof(int)) : NULL;
     int* perm = ne > 1 ? malloc((size_t)ne * sizeof(int)) : NULL;
     EuropeHarborShip* tmp = ne > 1 ? malloc((size_t)ne * sizeof(*tmp)) : NULL;
-    if (exp_src && rank && perm && tmp) {
+    if (exp_src && rank && rank_arr && perm && tmp) {
       col1_lane_chain_rank(save, xy_expected, rank);
+      col1_lane_chain_rank(save, xy_arriving, rank_arr);
       for (int r = 0; r < nu; ++r) {
-        if (rank[r] >= 0) {
-          rank[r] = nu - rank[r]; /* oldest (tail) first */
+        if (rank_arr[r] >= 0) {
+          rank[r] = nu - rank_arr[r]; /* 240+n, oldest (tail) first */
+        } else if (rank[r] >= 0) {
+          rank[r] = 2 * nu - rank[r]; /* then 244+n, oldest first */
         }
       }
       col1_lane_rank_perm(rank, exp_src, ne, perm);
@@ -1597,6 +1613,7 @@ COLONIZE_INTERNAL void col1_bridge_apply_europe_lanes(Col1ApplyCtx* ctx) {
       }
     }
     free(rank);
+    free(rank_arr);
     free(perm);
     free(tmp);
     free(exp_src);

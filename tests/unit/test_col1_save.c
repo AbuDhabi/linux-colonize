@@ -1556,6 +1556,45 @@ static bool test_expected_lane_chain_order(char* err, size_t err_size) {
   return ok;
 }
 
+/*
+ * A DOS save taken between FUN_48d3_06ba's hops at raw 77980 (244+n -> 240+n)
+ * and raw 77979 (240+n -> 236+n) holds a hull on 240+n with its passenger
+ * chained. It loads as Expected with turns 0 and the passenger aboard, ahead
+ * of the 244+n hull, and docks at the next tick.
+ */
+static bool test_arriving_lane_import(char* err, size_t err_size) {
+  static LaneFx fx;
+  if (!lane_fx_init(&fx, 3, err, err_size)) {
+    return false;
+  }
+  lane_fx_put(&fx, 0, 244, 13, 2);
+  lane_fx_put(&fx, 1, 240, 0, 0);
+  lane_fx_put(&fx, 2, 240, 15, 0);
+  fx.save.unit[1].transport_chain.next_unit_idx = 2;
+  fx.save.unit[2].transport_chain.prev_unit_idx = 1;
+  bool ok = lane_fx_apply(&fx, err, err_size);
+  const EuropeScreen* eu = &fx.europe;
+  if (ok && (eu->expected_ships != 2 || eu->harbor_ships != 0 || eu->dock_count != 0 ||
+             eu->expected[0].type_index != 15 || eu->expected[0].turns_left != 0 ||
+             eu->expected[0].cargo_count != 1 || eu->expected[1].type_index != 13)) {
+    snprintf(err, err_size,
+             "arrival lane: expected %d harbor %d dock %d, [0] type %d turns %d pax %d",
+             eu->expected_ships, eu->harbor_ships, eu->dock_count, eu->expected[0].type_index,
+             eu->expected[0].turns_left, eu->expected[0].cargo_count);
+    ok = false;
+  }
+  if (ok) {
+    europe_tick_voyages(&fx.europe, &fx.units);
+    if (eu->harbor_ships != 1 || eu->harbor[0].type_index != 15 || eu->expected_ships != 1) {
+      snprintf(err, err_size, "arrival lane: after one tick harbor %d (type %d) expected %d",
+               eu->harbor_ships, eu->harbor[0].type_index, eu->expected_ships);
+      ok = false;
+    }
+  }
+  lane_fx_free(&fx);
+  return ok;
+}
+
 /* port_bugs.md #1107 seam: col1_bridge_apply_w / capture_w stages called directly
  * through col1_bridge_internal.h — abort status, ctx-owned maps, write-back. */
 static bool test_bridge_stage_seams(char* err, size_t err_size) {
@@ -1827,6 +1866,10 @@ int main(void) {
   }
   if (!test_expected_lane_chain_order(err, sizeof(err))) {
     fprintf(stderr, "Expected lane order: %s\n", err);
+    return 1;
+  }
+  if (!test_arriving_lane_import(err, sizeof(err))) {
+    fprintf(stderr, "arrival lane import: %s\n", err);
     return 1;
   }
   if (!test_europe_dock_in_session_order(err, sizeof(err))) {

@@ -288,8 +288,11 @@ Full opaque-field inventory: **[save_format_map.md](save_format_map.md)**.
   lanes that way (harbor passengers are already dock immigrants with their
   `(236,236)` mirror units, so only Expected/Bound carry cargo);
   `return_from_europe_x/y` ← `last_exit`. Apply classifies human ships by
-  lane: `244+n` → Expected, `228+n` → Bound (counter 0 kept verbatim there —
-  it means "arrives next tick"), with chained passengers kept
+  lane: `244+n` → Expected, `240+n` → Expected docking at the next tick
+  (turns 0; FUN_48d3_06ba hops it to `236+n` at raw 77979), `228+n` → Bound
+  (counter 0 kept verbatim there — it means "arrives next tick"); each
+  lane's hulls in its chain order, tail (oldest) first, `240+n` before
+  `244+n`; with chained passengers kept
   aboard as `cargo_types`/`cargo_professions`; anything else at Europe
   coords stays the old harbor path (passengers to the docks, matching the
   OpenCol arrival model). Guarded by `unit_col1_save`'s recapture block
