@@ -2809,6 +2809,80 @@ static int test_colony_rum_distiller_refusal_popup(void) {
 }
 
 /*
+ * ORDERS Join Colony = FUN_291f_01ec -> FUN_364b_1aec (raw 57955-57966): the
+ * claim stamp and the FUN_15eb_3930 plot recompute run before the joiner is
+ * seated, so a worker whose plot an enemy now holds is moved off it.
+ */
+static int test_join_colony_recomputes_plots(void) {
+  static ColonizeGameState game;
+  memset(&game, 0, sizeof(game));
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
+    return fail("join: NAMES.TXT");
+  }
+  fx_colonies_init(&game.colonies);
+  const bool loaded = colonies_load_buildings(&game.colonies, &names) &&
+                      units_load_types(&game.units, &names);
+  assets_msg_free(&names);
+  if (!loaded || !fx_map_alloc(&game.world_map, 24, 24, 2 /* plains */, false)) {
+    return fail("join: fixture");
+  }
+  game.world_map_ok = game.units_ok = game.colonies_ok = true;
+  for (size_t i = 0; i < game.world_map.tile_count; ++i) {
+    game.world_map.layer3[i] = 0xf1u;
+  }
+  map_reveal_all(&game.world_map, 0);
+  const int soldier_t = units_kind_type_index(&game.units, UNITS_KIND_SOLDIER);
+  const int colonist_t = units_kind_type_index(&game.units, UNITS_KIND_COLONIST);
+  ColonizeColony* col = &game.colonies.colonies[0];
+  col->id = 0;
+  col->active = true;
+  col->nation_id = 0;
+  col->x = 10;
+  col->y = 10;
+  col->colonist_count = col->population = 1;
+  col->building_in_production = -1;
+  for (int i = 0; i < COLONIZE_COLONY_FIELD_TILES_MAX; ++i) {
+    col->tiles[i] = -1;
+  }
+  col->colonists[0].active = true;
+  col->colonists[0].unit_type_index = colonist_t;
+  col->colonists[0].profession = COLONIZE_PROF_FREE_COLONIST;
+  col->colonists[0].building_type = -1;
+  col->colonists[0].field_job = COLONIZE_JOB_FARMER;
+  const int north = colonies_field_tile_index(0, -1);
+  col->tiles[north] = 0;
+  game.colonies.colony_count = 1;
+  /* Fortified enemy Soldier on the worked N plot (10,9). */
+  ColonizeUnit* foe = units_get(&game.units, units_spawn_allow_stack(&game.units, soldier_t, 10, 9));
+  ColonizeUnit* joiner =
+    units_get(&game.units, units_spawn_allow_stack(&game.units, colonist_t, 10, 10));
+  if (!foe || !joiner) {
+    fx_map_free(&game.world_map);
+    return fail("join: spawn");
+  }
+  foe->nation_id = 1;
+  foe->orders = UNITS_ORDER_FORTIFIED;
+  game.world_map.layer2[9 * 24 + 10] |= MAP_OCCUPANCY_HAS_UNIT;
+  game.world_map.layer3[9 * 24 + 10] = (uint8_t)((1u << MAP_L3_OWNER_SHIFT) | 1u);
+  joiner->nation_id = 0;
+  game.human_nation = 0;
+  game.units.selected_id = joiner->id;
+  game_join_colony_order(&game);
+  int rc = 0;
+  if (col->colonist_count != 2 || colonies_colonist_tile(col, 0) == north) {
+    fprintf(stderr, "  pop %d, worker 0 tile %d (N=%d)\n", col->colonist_count,
+            colonies_colonist_tile(col, 0), north);
+    rc = fail("Join must recompute plots first: the worker leaves the enemy-held plot");
+  }
+  units_set_occupancy_map(NULL);
+  colonies_set_occupancy_map(NULL);
+  fx_map_free(&game.world_map);
+  return rc;
+}
+
+/*
  * docs/dos_bugs.md DB-54 (port_bugs.md #1205): DOS's jobs menu stamps each elected plot and
  * zeroes the job counter just by opening; the port's opening changes nothing.
  */
@@ -5320,6 +5394,7 @@ static const TestCase k_cases[] = {
     {"test_colony_fence_unit_jobs_list", test_colony_fence_unit_jobs_list},
     {"test_colony_fence_unit_jobs_extras", test_colony_fence_unit_jobs_extras},
     {"test_colony_jobs_menu_open_has_no_side_effects", test_colony_jobs_menu_open_has_no_side_effects},
+    {"test_join_colony_recomputes_plots", test_join_colony_recomputes_plots},
     {"test_game_world_view", test_game_world_view},
     {"test_goto_place_opens_travelplace_list", test_goto_place_opens_travelplace_list},
     {"test_activate_ignores_foreign_unit", test_activate_ignores_foreign_unit},

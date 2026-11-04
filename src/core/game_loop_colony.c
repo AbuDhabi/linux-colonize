@@ -276,10 +276,16 @@ void game_join_colony_order(ColonizeGameState* game) {
   if (!col || col->nation_id != game->human_nation) {
     return; /* asm 0x227be: wrong owner (or no colony) = silent return */
   }
+  const ColonizeWorld w = game_world(game);
+  /* DOS-LITERAL FUN_291f_01ec = JMPF FUN_364b_1aec (raw 57955-57966): the
+   * claim stamp (FUN_281f_0c72 -> 15eb_26e4) and the plot recompute
+   * (FUN_281f_0c22 -> 15eb_3956 -> 3930) run before the joiner is placed
+   * (FUN_291f_054c -> 2f2b_2f3e, which holds the cap test below). */
+  colonies_26e4_claim_stamp(&w, col);
+  colonies_recompute_plots_w(&w, cid);
   if (col->colonist_count >= COLONIZE_COLONY_POP_MAX) {
     return; /* overlays.c:10252-10255 bails without a word */
   }
-  const ColonizeWorld w = game_world(game);
   const int ci = colonies_admit_unit_w(&w, cid, sid);
   if (ci < 0) {
     return;
