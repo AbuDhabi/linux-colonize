@@ -357,13 +357,19 @@ int ai_contact_try_village_gifts(ColonizeTurnContext* ctx, int nation_id) {
         continue;
       }
     }
-    ai_contact_visit_mood_publish(ctx, nation_id, e, brave ? brave->id : -1, 1);
-  gifts_generous:
+    /* raw 96729-96731: bVar6 flips off and contact_state is stamped 2 as part
+     * of the mood roll, before the beg block (ai_contact_visit_step_roll does
+     * the same on the step). It is not a gate of the gift half: a conceded beg
+     * forces bVar6 back on (raw 96797-96805) and reaches LAB_5bfb_096c with
+     * no second alarm test, so gifts_generous below has none. */
     if (alarm > 0x31) {
-      ind->contact_state[e] = 2; /* DOS: bVar6 flips off, state stamped */
+      ind->contact_state[e] = 2;
+      ai_contact_visit_mood_publish(ctx, nation_id, e, brave->id, 0);
       ai_contact_mark_visit_brave(ctx, nation_id, brave->id);
       continue;
     }
+    ai_contact_visit_mood_publish(ctx, nation_id, e, brave ? brave->id : -1, 1);
+  gifts_generous:
     /*
      * DOS stamps state 2 and discharges this village's alarm word toward the
      * visited nation before the convert/gift split (both halves get it).

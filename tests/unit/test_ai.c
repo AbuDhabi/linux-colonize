@@ -1666,6 +1666,59 @@ static int run_reparations_scan_past_empty_colony(void) {
 }
 
 /*
+ * A conceded food beg forces bVar6 on (FUN_5bfb_022e raw 96797-96805) and
+ * runs the gift half (raw 96989 onward) with no second alarm test; the 0x31
+ * flip (raw 96729-96731) belongs to the mood roll before the beg. The visit's
+ * mood was not generous, alarm sits at 0x3c, difficulty 0 makes the
+ * rng(0, difficulty) abandon draw 0: the village gifts goods (bVar7 vetoes
+ * food, so @INDIANGIVESTUFF).
+ */
+static int run_conceded_beg_gifts_above_0x31(void) {
+  if (!test_names_txt()) {
+    return TR_SKIP;
+  }
+  Ai152eFixture f;
+  if (ai_152e_fixture_init(&f, "conceded-beg-gifts", 777u) != 0) {
+    return 1;
+  }
+  ai_contact_reset();
+  f.col1.head.difficulty = 0;
+  ColonizeColony* col = &f.colonies.colonies[0];
+  col->active = true;
+  col->id = 0;
+  col->nation_id = 1;
+  col->x = 14;
+  col->y = 10;
+  col->stock[COLONIZE_CARGO_FOOD] = 100;
+  snprintf(col->name, sizeof(col->name), "Testtown");
+  const int brave_ti = units_find_type(&f.units, "Brave");
+  const int bid = brave_ti >= 0 ? units_spawn_allow_stack(&f.units, brave_ti, 13, 10) : -1;
+  ColonizeUnit* brave = units_get(&f.units, bid);
+  if (!brave) {
+    fprintf(stderr, "conceded-beg-gifts: spawn failed\n");
+    ai_152e_fixture_free(&f);
+    return 1;
+  }
+  brave->nation_id = 4;
+  brave->home_tribe_index = 0;
+  f.col1.indian[0].euro_diplo[1] = (uint8_t)COL1_INDIAN_MET_BIT;
+  f.col1.indian[0].alarm_by_player[1] = 0x3c;
+  ai_contact_visit_mood_publish(&f.ctx, 4, 1, bid, 0);
+
+  ai_contact_apply_beg_food(&f.ctx, &f.col1.indian[0], 4, 1, 0, 0, 1);
+
+  const int alarm = ai_diplo_indian_alarm(&f.col1, 4, 1);
+  int goods = 0;
+  for (int g = 0; g < COLONIZE_CARGO_COUNT; ++g) {
+    goods += g == COLONIZE_CARGO_FOOD ? 0 : col->stock[g];
+  }
+  const int food = col->stock[COLONIZE_CARGO_FOOD];
+  ai_152e_fixture_free(&f);
+  fprintf(stderr, "conceded-beg-gifts: alarm %d food %d gifted goods %d\n", alarm, food, goods);
+  return (alarm > 0x31 && food == 50 && goods > 0) ? 0 : 1;
+}
+
+/*
  * FUN_5bfb_022e raw 96851-96861. The best cargo has a stock of 1; the
  * rng(0, difficulty + 1) == 0 draw halves it to 0 and DOS still presents
  * @INDIANCITY (local_1a = 1 at LAB_5bfb_1000). Spread seeds so some halve.
@@ -2456,5 +2509,6 @@ static const TestCase k_cases[] = {
     {"run_visit_after_first_contact", run_visit_after_first_contact},
     {"run_convert_spawn_failure_unresolved", run_convert_spawn_failure_unresolved},
     {"run_zero_qty_demand_presented", run_zero_qty_demand_presented},
+    {"run_conceded_beg_gifts_above_0x31", run_conceded_beg_gifts_above_0x31},
 };
 TEST_MAIN(k_cases)
