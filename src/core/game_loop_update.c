@@ -1456,7 +1456,7 @@ static GameUpdateStep game_colony_screen_mouse_click(
         const int ouid = csv->outside_unit_ids[hit.index];
         /* 44d4: a fence unit is colonist pop+n, so it presses like a worker
          * (raw 51248-51286): the press may start a drag, and only a release
-         * back on the already-selected unit opens the role popup
+         * back on the already-selected unit opens the jobs list
          * (game_colony_drag_drop). */
         const bool was_selected = csv->selected_outside_unit == ouid;
         /* In the People band (DOS region 0) FUN_2f2b_4310 takes the focus on
@@ -1813,13 +1813,14 @@ static GameUpdateStep game_colony_focus_key(
     }
     break;
   case COLONY_FOCUS_KEY_COLONIST_ENTER:
-    /* FUN_2f2b_348c(0): the jobs menu, or a fence unit's role list (the press twin). */
+    /* FUN_2f2b_348c(0): the jobs menu, for a selected fence unit too (2f2b:69b0 pushes
+     * 0, the press twin). */
     if (csv->selected_colonist >= 0) {
       game_colony_open_jobs(
         game, colony, cmap, colonies_colonist_tile(colony, csv->selected_colonist)
       );
     } else if (csv->selected_outside_unit >= 0) {
-      game_colony_fence_drop(game, colony);
+      game_colony_open_jobs(game, colony, cmap, -1);
     }
     break;
   case COLONY_FOCUS_KEY_SHIP_ENTER:
@@ -1925,8 +1926,8 @@ static void game_colony_list_help(
     }
     job = csv->job_ids[i];
     colony_screen_open_jobs(
-      csv, &game->colonies, game->world_map_ok ? &game->world_map : NULL, colony,
-      csv->jobs_tile_index
+      csv, &game->colonies, game->world_map_ok ? &game->world_map : NULL,
+      game->units_ok ? &game->units : NULL, colony, csv->jobs_tile_index
     );
   } else {
     const int i = input->mouse_right_clicked

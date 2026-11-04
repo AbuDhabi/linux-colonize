@@ -2598,7 +2598,7 @@ static int unit_tile_jobs_menu_lists_all_field_jobs(void) {
       continue;
     }
     view.jobs_open = false;
-    colony_screen_open_jobs(&view, NULL, NULL, &col, tile);
+    colony_screen_open_jobs(&view, NULL, NULL, NULL, &col, tile);
     if (!view.jobs_open || view.job_count != COLONIZE_FIELD_JOB_COUNT) {
       fprintf(
         stderr,
@@ -2662,7 +2662,7 @@ static int unit_tile_jobs_menu_lists_indoor_jobs(void) {
   /* No buildings at all -> the nine field jobs, then the leave-as rows 0x13..0x17
    * (port_bugs.md #1224); with no stock, Pioneer..Dragoon are FUN_15eb_3454's greyed 0xffff
    * rows, and no Church / Jesuit means no Missionary row. */
-  colony_screen_open_jobs(&view, &pool, NULL, col, tile);
+  colony_screen_open_jobs(&view, &pool, NULL, NULL, col, tile);
   if (view.job_count != COLONIZE_FIELD_JOB_COUNT + 5 ||
       view.jobs_greyed != (0xfu << (COLONIZE_FIELD_JOB_COUNT + 1))) {
     fprintf(stderr, "jobs_indoor: bare colony rows=%d greyed=%#x want %d / %#x\n",
@@ -2685,7 +2685,7 @@ static int unit_tile_jobs_menu_lists_indoor_jobs(void) {
     return 1;
   }
   col->has_building[rum] = true;
-  colony_screen_open_jobs(&view, &pool, NULL, col, tile);
+  colony_screen_open_jobs(&view, &pool, NULL, NULL, col, tile);
   bool saw_distiller = false;
   for (int i = 0; i < view.job_count; ++i) {
     if (view.job_ids[i] == COLONIZE_PROF_DISTILLER) {
@@ -2711,7 +2711,7 @@ static int unit_tile_jobs_menu_lists_indoor_jobs(void) {
   const int school = colonies_building_row(&pool, COLONY_BUILDING_SCHOOLHOUSE);
   const int college = colonies_building_row(&pool, COLONY_BUILDING_COLLEGE);
   col->has_building[school] = true;
-  colony_screen_open_jobs(&view, &pool, NULL, col, tile);
+  colony_screen_open_jobs(&view, &pool, NULL, NULL, col, tile);
   for (int i = 0; i < view.job_count; ++i) {
     if (view.job_ids[i] == COLONIES_JOB_TEACHER) {
       fprintf(stderr, "jobs_indoor: Teacher listed for a Free Colonist\n");
@@ -2719,7 +2719,7 @@ static int unit_tile_jobs_menu_lists_indoor_jobs(void) {
     }
   }
   col->colonists[0].profession = COLONIZE_PROF_DISTILLER; /* @JOB level 2 */
-  colony_screen_open_jobs(&view, &pool, NULL, col, tile);
+  colony_screen_open_jobs(&view, &pool, NULL, NULL, col, tile);
   for (int i = 0; i < view.job_count; ++i) {
     if (view.job_ids[i] == COLONIES_JOB_TEACHER) {
       fprintf(stderr, "jobs_indoor: Teacher listed with a Schoolhouse only\n");
@@ -2727,7 +2727,7 @@ static int unit_tile_jobs_menu_lists_indoor_jobs(void) {
     }
   }
   col->has_building[college] = true;
-  colony_screen_open_jobs(&view, &pool, NULL, col, tile);
+  colony_screen_open_jobs(&view, &pool, NULL, NULL, col, tile);
   bool saw_teacher = false;
   for (int i = 0; i < view.job_count; ++i) {
     if (view.job_ids[i] == COLONIES_JOB_TEACHER) {
@@ -2792,7 +2792,7 @@ static int unit_jobs_more_flips_to_leave_as_rows(void) {
   static ColonyScreenView view;
   memset(&view, 0, sizeof(view));
   view.selected_colonist = 0;
-  colony_screen_open_jobs(&view, &pool, NULL, &colony, 0);
+  colony_screen_open_jobs(&view, &pool, NULL, NULL, &colony, 0);
   int rc = 0;
 #define EXPECT(cond, ...)                                                                          \
   do {                                                                                             \

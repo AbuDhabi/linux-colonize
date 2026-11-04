@@ -2498,7 +2498,7 @@ static int test_colony_jobs_menu_seats_indoor_worker(void) {
   ColonizeColonist* c = &col->colonists[0];
   ColonyScreenView* csv = &game.colony_screen;
   int rc = 0;
-  colony_screen_open_jobs(csv, &game.colonies, &game.world_map, col, -1);
+  colony_screen_open_jobs(csv, &game.colonies, &game.world_map, &game.units, col, -1);
   if (!csv->jobs_open || csv->jobs_tile_index != -1) {
     rc = fail("Enter / a building-worker click must open the jobs menu with no plot");
   } else {
@@ -2509,6 +2509,262 @@ static int test_colony_jobs_menu_seats_indoor_worker(void) {
               col->tiles[3], c->field_job, c->building_type);
       rc = fail("a building worker's field pick must take the plot 28c8 elects");
     }
+  }
+  fx_map_free(&game.world_map);
+  assets_msg_free(&names);
+  return rc;
+}
+
+/* jobs_menu_fixture plus a Master Distiller (@JOB 9 specialty) standing on the fence, selected.
+ * Returns the unit id, or -1 on a fixture failure. */
+static int fence_jobs_fixture(ColonizeGameState* game, ColonizeMsgCatalog* names) {
+  if (!jobs_menu_fixture(game, names)) {
+    return -1;
+  }
+  if (!units_load_types(&game->units, names)) {
+    return -1;
+  }
+  game->units_ok = game->colonies_ok = true;
+  const int colonist_t = units_kind_type_index(&game->units, UNITS_KIND_COLONIST);
+  ColonizeUnit* u = units_get(&game->units, units_spawn_allow_stack(&game->units, colonist_t, 8, 8));
+  if (!u) {
+    return -1;
+  }
+  u->nation_id = 1;
+  u->profession = 9; /* @JOB 9, Master Distiller */
+  game->colony_screen.selected_colonist = -1;
+  game->colony_screen.selected_outside_unit = u->id;
+  return u->id;
+}
+
+/*
+ * A second click (or Enter) on a selected fence unit is FUN_2f2b_44d4 2f2b:4728-4733
+ * push 0 -> FUN_2f2b_348c(0), the full jobs list with the leave-as roles after the colony
+ * jobs; a field pick admits the unit (FUN_15eb_0fea arm 3) and seats it on the plot 28c8
+ * elects, a building pick seats it after the validator, a role pick re-equips it outside,
+ * and a full colony (pop 32, 2f2b:349f-34be) gets the leave-as list instead.
+ */
+static int test_colony_fence_unit_jobs_list(void) {
+  static ColonizeGameState game;
+  ColonizeMsgCatalog names;
+  int rc = 0;
+  /* 1. The list and 2. a field pick. */
+  int uid = fence_jobs_fixture(&game, &names);
+  if (uid < 0) {
+    return fail("fence jobs fixture");
+  }
+  ColonizeColony* col = &game.colonies.colonies[0];
+  ColonyScreenView* csv = &game.colony_screen;
+  game_colony_open_jobs(&game, col, &game.world_map, -1);
+  bool has_farmer = false;
+  bool has_role = false;
+  for (int i = 0; i < csv->job_count; ++i) {
+    has_farmer = has_farmer || csv->job_ids[i] == COLONIZE_JOB_FARMER;
+    has_role = has_role || csv->job_ids[i] == UNITS_JOB_COLONIST;
+  }
+  if (!csv->jobs_open || csv->eject_open || csv->jobs_unit_id != uid || !has_farmer || !has_role) {
+    fprintf(stderr, "  jobs_open=%d eject_open=%d unit=%d farmer=%d role=%d\n", csv->jobs_open,
+            csv->eject_open, csv->jobs_unit_id, has_farmer, has_role);
+    rc = fail("a selected fence unit must open the full jobs list (jobs + roles)");
+  } else {
+    /* 2f3e's validator (code 0xd, @NODOCKS) runs before 0c36 admits the unit: a Fisherman
+     * pick in this dockless colony leaves it outside. */
+    game_colony_commit_job(&game, col, COLONIZE_JOB_FISHERMAN);
+    if (col->colonist_count != 1 || !units_get_const(&game.units, uid)) {
+      rc = fail("a refused field pick (@NODOCKS) must leave the fence unit outside");
+    }
+    game_colony_open_jobs(&game, col, &game.world_map, -1);
+    game_colony_commit_job(&game, col, COLONIZE_JOB_FARMER);
+    const ColonizeColonist* c = &col->colonists[1];
+    if (col->colonist_count != 2 || units_get_const(&game.units, uid) || col->tiles[3] != 1 ||
+        c->field_job != COLONIZE_JOB_FARMER || c->profession != 9 ||
+        csv->selected_colonist != 1 || csv->jobs_open) {
+      fprintf(stderr, "  pop=%d unit=%p tiles[3]=%d job=%d prof=%d sel=%d\n",
+              col->colonist_count, (const void*)units_get_const(&game.units, uid), col->tiles[3],
+              c->field_job, c->profession, csv->selected_colonist);
+      rc = fail("a fence unit's field pick must admit it onto the plot 28c8 elects");
+    }
+  }
+  fx_map_free(&game.world_map);
+  assets_msg_free(&names);
+
+  /* 3. A building pick, first refused by @MORETHANTHREE, then seated. */
+  uid = fence_jobs_fixture(&game, &names);
+  if (uid < 0) {
+    return fail("fence jobs fixture");
+  }
+  col = &game.colonies.colonies[0];
+  const int shop = colonies_building_row(&game.colonies, COLONY_BUILDING_CARPENTERS_SHOP);
+  const int carpenter = colonies_building_occupation(&game.colonies, shop);
+  col->colonists[1] = col->colonists[0];
+  col->colonists[2] = col->colonists[0];
+  col->colonist_count = col->population = 3;
+  game_colony_open_jobs(&game, col, &game.world_map, -1);
+  game_colony_commit_job(&game, col, carpenter);
+  if (col->colonist_count != 3 || !units_get_const(&game.units, uid) ||
+      col->colonists[3].active) {
+    rc = fail("a refused building pick must leave the fence unit outside");
+  }
+  col->colonist_count = col->population = 1;
+  memset(&col->colonists[1], 0, 2 * sizeof(col->colonists[1]));
+  game_colony_open_jobs(&game, col, &game.world_map, -1);
+  game_colony_commit_job(&game, col, carpenter);
+  if (col->colonist_count != 2 || units_get_const(&game.units, uid) ||
+      col->colonists[1].building_type != shop) {
+    fprintf(stderr, "  pop=%d building=%d\n", col->colonist_count, col->colonists[1].building_type);
+    rc = fail("a fence unit's building pick must admit and seat it");
+  }
+  fx_map_free(&game.world_map);
+  assets_msg_free(&names);
+
+  /* 4. A role pick re-equips the unit where it stands. */
+  uid = fence_jobs_fixture(&game, &names);
+  if (uid < 0) {
+    return fail("fence jobs fixture");
+  }
+  col = &game.colonies.colonies[0];
+  col->stock[COLONIZE_CARGO_MUSKETS] = 50;
+  game_colony_open_jobs(&game, col, &game.world_map, -1);
+  game_colony_commit_job(&game, col, UNITS_JOB_COLONIST + COLONIZE_EJECT_SOLDIER);
+  const ColonizeUnit* u = units_get_const(&game.units, uid);
+  if (col->colonist_count != 1 || !u ||
+      u->type_index != units_kind_type_index(&game.units, UNITS_KIND_SOLDIER) ||
+      col->stock[COLONIZE_CARGO_MUSKETS] != 0) {
+    rc = fail("a fence unit's role pick must arm it outside the colony");
+  }
+  fx_map_free(&game.world_map);
+  assets_msg_free(&names);
+
+  /* 5. A full colony gets the leave-as list. */
+  uid = fence_jobs_fixture(&game, &names);
+  if (uid < 0) {
+    return fail("fence jobs fixture");
+  }
+  col = &game.colonies.colonies[0];
+  for (int i = 1; i < COLONIZE_COLONY_POP_MAX; ++i) {
+    col->colonists[i] = col->colonists[0];
+  }
+  col->colonist_count = col->population = COLONIZE_COLONY_POP_MAX;
+  game_colony_open_jobs(&game, col, &game.world_map, -1);
+  if (csv->jobs_open || !csv->eject_open || csv->eject_unit_id != uid) {
+    rc = fail("a fence unit in a colony of 32 must get the leave-as list");
+  }
+  fx_map_free(&game.world_map);
+  assets_msg_free(&names);
+  return rc;
+}
+
+/* The open popup is GAME.TXT @MORETHANTHREE (colonies_emit_more_than_three_chrome). */
+static bool popup_is_morethanthree(ColonizeGameState* game) {
+  char want[AI_POPUP_BODY_LEN];
+  popup_msg_fill(&game->messages, "MORETHANTHREE", NULL, "", want, sizeof(want));
+  return want[0] != '\0' && game->ai_popups.open &&
+         game->ai_popups.current.tag == AI_POPUP_TAG_INFO &&
+         strcmp(game->ai_popups.current.body, want) == 0;
+}
+
+/*
+ * Fence-unit jobs list extras: Clear Specialty on a fence unit (0cae -> 0e8c writes the
+ * unit's +0x315b); the own-role row is listed and enabled (348c `local_132 == local_8` -> -2)
+ * even where its gate fails; a building drop validates before admitting (2f3e).
+ */
+static int test_colony_fence_unit_jobs_extras(void) {
+  static ColonizeGameState game;
+  ColonizeMsgCatalog names;
+  int rc = 0;
+  /* 1. Clear Specialty. */
+  int uid = fence_jobs_fixture(&game, &names);
+  if (uid < 0) {
+    return fail("fence jobs fixture");
+  }
+  ColonizeColony* col = &game.colonies.colonies[0];
+  game_colony_open_jobs(&game, col, &game.world_map, -1);
+  game_colony_commit_job(&game, col, COLONY_JOB_CLEAR_SPECIALTY);
+  const AiPopupRequest* cur = &game.ai_popups.current;
+  if (!game.ai_popups.open || cur->tag != AI_POPUP_TAG_COLONY_CLEARSPEC || cur->nation_a != -1 ||
+      cur->nation_b != uid) {
+    rc = fail("Clear Specialty on a fence unit must ask @LOBOTOMIZE for that unit");
+  } else {
+    game.ai_popups.open = false;
+    game.ai_popups.has_result = true;
+    game.ai_popups.result_tag = AI_POPUP_TAG_COLONY_CLEARSPEC;
+    game.ai_popups.result_cancelled = false;
+    game.ai_popups.result_choice_id = 1;
+    game.ai_popups.result_nation_a = cur->nation_a;
+    game.ai_popups.result_nation_b = cur->nation_b;
+    game_apply_ai_popup_result(&game);
+    const ColonizeUnit* u = units_get_const(&game.units, uid);
+    if (!u || u->profession != COLONIZE_PROF_FREE_COLONIST || col->colonist_count != 1) {
+      rc = fail("@LOBOTOMIZE 'yes' must clear the fence unit's specialty");
+    }
+  }
+  fx_map_free(&game.world_map);
+  assets_msg_free(&names);
+
+  /* 2. A blessed Free Colonist (Missionary type) in a churchless colony: the Church gate
+   * fails, but the row of its own DS:0x30e job is forced listed and enabled. */
+  uid = fence_jobs_fixture(&game, &names);
+  if (uid < 0) {
+    return fail("fence jobs fixture");
+  }
+  col = &game.colonies.colonies[0];
+  ColonizeUnit* mu = units_get(&game.units, uid);
+  mu->type_index = units_kind_type_index(&game.units, UNITS_KIND_MISSIONARY);
+  mu->profession = COLONIZE_PROF_FREE_COLONIST;
+  const int own = UNITS_JOB_COLONIST + COLONIZE_EJECT_MISSIONARY;
+  if (units_type_default_job(mu->type_index) != own) {
+    rc = fail("fixture: the Missionary type's DS:0x30e job must be 0x18");
+  }
+  game_colony_open_jobs(&game, col, &game.world_map, -1);
+  const ColonyScreenView* csv = &game.colony_screen;
+  int row = -1;
+  for (int i = 0; i < csv->job_count; ++i) {
+    if (csv->job_ids[i] == own) {
+      row = i;
+    }
+  }
+  if (!csv->jobs_open || row < 0 || (csv->jobs_greyed & (1u << row)) != 0) {
+    fprintf(stderr, "  open=%d row=%d greyed=0x%x\n", csv->jobs_open, row,
+            (unsigned)csv->jobs_greyed);
+    rc = fail("a fence unit's own role row must be listed and enabled");
+  }
+  fx_map_free(&game.world_map);
+  assets_msg_free(&names);
+
+  /* 3. A fence unit dropped on a full Carpenter's Shop stays outside. */
+  uid = fence_jobs_fixture(&game, &names);
+  if (uid < 0) {
+    return fail("fence jobs fixture");
+  }
+  col = &game.colonies.colonies[0];
+  const int shop = colonies_building_row(&game.colonies, COLONY_BUILDING_CARPENTERS_SHOP);
+  col->colonists[1] = col->colonists[0];
+  col->colonists[2] = col->colonists[0];
+  col->colonist_count = col->population = 3;
+  game_colony_assign_building_drop(&game, shop);
+  if (col->colonist_count != 3 || !units_get_const(&game.units, uid) ||
+      !popup_is_morethanthree(&game)) {
+    rc = fail("a refused building drop must leave the fence unit outside, with @MORETHANTHREE");
+  }
+  fx_map_free(&game.world_map);
+  assets_msg_free(&names);
+
+  /* 4. Stockade drop (2f2b:4684-4693): a fence unit whose occupation is a role gets
+   * nothing; a colonist still gets the leave-as list. */
+  uid = fence_jobs_fixture(&game, &names);
+  if (uid < 0) {
+    return fail("fence jobs fixture");
+  }
+  col = &game.colonies.colonies[0];
+  game_colony_stockade_drop(&game, col, uid);
+  if (game.colony_screen.eject_open) {
+    rc = fail("a fence unit dropped on the stockade must open nothing");
+  }
+  game.colony_screen.selected_outside_unit = -1;
+  game.colony_screen.selected_colonist = 0;
+  game_colony_stockade_drop(&game, col, -1);
+  if (!game.colony_screen.eject_open) {
+    rc = fail("a colonist dropped on the stockade must open the leave-as list");
   }
   fx_map_free(&game.world_map);
   assets_msg_free(&names);
@@ -2542,7 +2798,7 @@ static int test_colony_rum_distiller_refusal_popup(void) {
   game_colony_assign_building_drop(&game, rum);
   if (col->colonists[0].building_type != shop) {
     rc = fail("the validator must refuse a fourth Rum Distiller");
-  } else if (!game.ai_popups.open || game.ai_popups.current.tag != AI_POPUP_TAG_INFO) {
+  } else if (!popup_is_morethanthree(&game)) {
     fprintf(stderr, "  popup open=%d tag=%d\n", game.ai_popups.open,
             (int)game.ai_popups.current.tag);
     rc = fail("a refused fourth Rum Distiller must raise @MORETHANTHREE");
@@ -5061,6 +5317,8 @@ static const TestCase k_cases[] = {
     {"test_colony_shift_pick_moves_highlight", test_colony_shift_pick_moves_highlight},
     {"test_colony_jobs_menu_seats_indoor_worker", test_colony_jobs_menu_seats_indoor_worker},
     {"test_colony_rum_distiller_refusal_popup", test_colony_rum_distiller_refusal_popup},
+    {"test_colony_fence_unit_jobs_list", test_colony_fence_unit_jobs_list},
+    {"test_colony_fence_unit_jobs_extras", test_colony_fence_unit_jobs_extras},
     {"test_colony_jobs_menu_open_has_no_side_effects", test_colony_jobs_menu_open_has_no_side_effects},
     {"test_game_world_view", test_game_world_view},
     {"test_goto_place_opens_travelplace_list", test_goto_place_opens_travelplace_list},

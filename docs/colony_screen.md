@@ -266,6 +266,25 @@ opening it is not free (348c's build-up seats stamp each elected plot and zero t
 job counter, Escape or not, port_bugs.md #1205); the port's opening changes nothing
 (docs/dos_bugs.md DB-54).
 
+A fence unit gets the same list. A second click on the selected fence unit
+(`FUN_2f2b_44d4` 2f2b:4728-4733) or Enter (2f2b:69b0) pushes 0, and the `jobs_unit_id` field
+marks the list as the unit's. The header and default row use its type's DS:0x30e job
+(`units_type_default_job`). The estimates come from a trial colonist in slot `pop`, and the
+role rows from `colony_screen_list_outside_roles`. A colony of 32 turns param 0 into the
+leave-as list (348c prologue 2f2b:349f-34be); a unit type with no DS:0x30e job keeps the
+leave-as list too. The pick commits through `FUN_15eb_0fea`:
+- a role row is arm 1, `game_colony_apply_outside_role`, and the unit stays outside;
+- Clear Specialty clears the unit's specialty byte;
+- a colony job is arm 3. `FUN_2f2b_2f3e` first runs the validator `thunk_FUN_1000_9808`
+  (`game_colony_fence_seat_refused`: the `colonies_assign_workplace` gates, applied to the
+  unit's specialty with no colony slot, with their refusal popups). Then
+  `colonies_admit_unit_idle_w` admits the unit, which is selected
+  (2f2b:3460-3466), and the colonist commit seats it.
+A fence unit dropped on a building runs the same validator first, so a refused drop leaves the
+unit outside. A fence unit dropped back on the stockade does nothing: 2f2b:4684-4693 opens the
+leave-as list only when the body's occupation is below 0x13, and a fence unit's occupation is
+its type's role.
+
 Leave-as mode (param 1, the fence drop): page 0 starts with the colonist's
 current occupation (bare @JOB name, the default row; picking it keeps him,
 `COLONY_EJECT_ROLE_STAY`), then the roles 0x13..0x18 with the tab and, per

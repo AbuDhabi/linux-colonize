@@ -358,6 +358,7 @@ typedef struct ColonyScreenView {
 
   bool jobs_open;
   int jobs_tile_index;
+  int jobs_unit_id; /* the fence unit the list is for (348c with sel >= pop); -1 = a colonist */
   int jobs_selection;
   int jobs_default_row; /* FUN_2f2b_348c 08ec default: the occupation's row, else 0 */
   int job_ids[COLONY_JOB_LIST_MAX];
@@ -488,12 +489,28 @@ bool colony_screen_list_key(ColonyScreenView* view, ColonizeKey key);
  * there), -1 = none (port_bugs.md #1213). */
 int colony_screen_custom_house_key(ColonyScreenView* view, const ColonizeInputState* input);
 
+/* `units` is read only for a selected fence unit (no colonist selected): DOS lists it the
+ * same jobs, roles on page 1 (FUN_2f2b_348c param 0). */
 void colony_screen_open_jobs(
   ColonyScreenView* view,
   const ColonizeColonyPool* pool,
   const ColonizeWorldMap* map,
+  const ColonizeUnitPool* units,
   const ColonizeColony* colony,
   int tile_index
+);
+/* The tools a fence body banks (FUN_15eb_0d8e: only a Pioneer's job lists Tools). */
+int colony_screen_unit_body_tools(const ColonizeUnitPool* units, const ColonizeUnit* u);
+/* Leave-as rows 0x13..0x18 for a fence unit, with out_enabled false for DOS's greyed
+ * rows; shared by the leave-as list and the jobs list's page 1. */
+int colony_screen_list_outside_roles(
+  const ColonizeColonyPool* pool,
+  const ColonizeUnitPool* units,
+  const ColonizeColony* colony,
+  const ColonizeUnit* unit,
+  int* out_roles,
+  bool* out_enabled,
+  int out_max
 );
 void colony_screen_close_jobs(ColonyScreenView* view);
 

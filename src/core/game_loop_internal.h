@@ -313,6 +313,8 @@ bool game_colony_drag_drop(
   bool shift
 );
 void game_colony_fence_drop(ColonizeGameState* game, ColonizeColony* colony);
+/* The drag-drop stockade arm; unit_id = the dragged fence unit, -1 for a colonist. */
+void game_colony_stockade_drop(ColonizeGameState* game, ColonizeColony* colony, int unit_id);
 bool game_colony_request_eject(
   ColonizeGameState* game,
   int colonist_index,

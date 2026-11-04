@@ -65,6 +65,7 @@ void colony_screen_reset_ui(ColonyScreenView* view) {
   view->buildable_count = 0;
   view->jobs_open = false;
   view->jobs_tile_index = -1;
+  view->jobs_unit_id = -1;
   view->jobs_selection = 0;
   view->job_count = 0;
   view->eject_open = false;
@@ -332,6 +333,7 @@ void colony_screen_close_jobs(ColonyScreenView* view) {
   }
   view->jobs_open = false;
   view->jobs_tile_index = -1;
+  view->jobs_unit_id = -1;
   view->jobs_selection = 0;
   view->job_count = 0;
 }
@@ -530,10 +532,76 @@ int colony_screen_unit_eject_role(const ColonizeUnitPool* units, const ColonizeU
   }
 }
 
+/* The body's tools as FUN_15eb_1068 (raw 11232-11243) and FUN_2f2b_348c (raw 50553-50569)
+ * bank them: the +0x3159 byte goes in only through the tools (0x0e) entry of the body's current
+ * job cargo list (FUN_15eb_0d8e), which only a Pioneer has. On any other type the byte is
+ * residue (a Pioneer stripped of tools in Europe keeps 100) and banking it gave free tools. */
+int colony_screen_unit_body_tools(const ColonizeUnitPool* units, const ColonizeUnit* u) {
+  return u && u->tools > 0 &&
+             units_type_kind(units_type(units, u->type_index)) == UNITS_KIND_PIONEER
+           ? u->tools
+           : 0;
+}
+
+/*
+ * The leave-as rows for a unit standing on the fence: FUN_2f2b_348c's rows 0x13..0x18, in
+ * leave-as mode and on page 1 of the jobs list alike. Rows are gated one by one through
+ * FUN_281f_0bb4 -> FUN_15eb_3454, whose >= 0x13 arm is profession-indexed and knows nothing
+ * about where the body stands, so this is colonies_list_eject_roles' list, Missionary
+ * included, with two inputs of the caller:
+ *  - port_bugs.md #972 (reverses #649): FUN_2f2b_348c raw 50553-50569, before the row loop,
+ *    takes the body's current @JOB (FUN_281f_0c0e -> FUN_15eb_0e18), asks FUN_15eb_0d8e for
+ *    that job's cargo list and adds 0x32 per muskets/horses entry (and the body's own tool
+ *    byte at +0x3159 for the tools entry) into stock for the whole dialog. So a Soldier on the
+ *    fence is gated on muskets + 50, a Dragoon on muskets + 50 and horses + 50.
+ *  - raw 50755-50757 `if (local_132 == local_8) local_e = -2`: the row of the body's own @JOB
+ *    (FUN_15eb_0e18 -> FUN_15eb_0902, the type's DS:0x30e job) is listed and enabled whatever
+ *    FUN_15eb_3454 answers (a blessed colonist in a churchless colony keeps his Missionary
+ *    row).
+ */
+int colony_screen_list_outside_roles(
+  const ColonizeColonyPool* pool,
+  const ColonizeUnitPool* units,
+  const ColonizeColony* colony,
+  const ColonizeUnit* unit,
+  int* out_roles,
+  bool* out_enabled,
+  int out_max
+) {
+  if (!colony || !unit || !out_roles || out_max <= 0) {
+    return 0;
+  }
+  int roles[COLONIZE_EJECT_ROLE_COUNT];
+  bool enabled[COLONIZE_EJECT_ROLE_COUNT];
+  const int n = colonies_list_eject_roles_gear(
+    pool, colony, colony_screen_unit_body_tools(units, unit),
+    unit->muskets > 0 ? UNITS_EQUIP_MUSKETS : 0, unit->horses > 0 ? UNITS_EQUIP_HORSES : 0,
+    unit->profession, roles, enabled, COLONIZE_EJECT_ROLE_COUNT
+  );
+  const int own = units_type_default_job(unit->type_index) - UNITS_JOB_COLONIST;
+  int out = 0;
+  for (int r = 0; r < COLONIZE_EJECT_ROLE_COUNT && out < out_max; ++r) {
+    int k = 0;
+    while (k < n && roles[k] != r) {
+      ++k;
+    }
+    if (k == n && r != own) {
+      continue;
+    }
+    out_roles[out] = r;
+    if (out_enabled) {
+      out_enabled[out] = r == own || enabled[k];
+    }
+    ++out;
+  }
+  return out;
+}
+
 void colony_screen_open_jobs(
   ColonyScreenView* view,
   const ColonizeColonyPool* pool,
   const ColonizeWorldMap* map,
+  const ColonizeUnitPool* units,
   const ColonizeColony* colony,
   int tile_index
 ) {
@@ -573,10 +641,19 @@ void colony_screen_open_jobs(
    * 50609-50615) — which is what colony_screen_draw_jobs_popup already does
    * via colony_yield_for_worker. So: no yield filter here. */
   (void)map;
-  const int sel_prof =
-    (colony && view->selected_colonist >= 0 && view->selected_colonist < colony->colonist_count)
-      ? colony->colonists[view->selected_colonist].profession
-      : COLONIZE_PROF_FREE_COLONIST;
+  const bool inside =
+    view->selected_colonist >= 0 && view->selected_colonist < colony->colonist_count;
+  /* With DS:0x8d7c >= pop (a fence unit) FUN_2f2b_348c param 0 builds the same list
+   * (2f2b:349f-34be forces leave-as mode only at pop >= 0x20, which game_colony_open_jobs
+   * routes to the leave-as list), and each row reads the body's own bytes: specialty +0x315b
+   * (FUN_15eb_0e52), occupation its type's DS:0x30e job (FUN_15eb_0e18 -> FUN_15eb_0902). */
+  const ColonizeUnit* fence = !inside && view->selected_outside_unit >= 0 && units
+                                ? units_get_const(units, view->selected_outside_unit)
+                                : NULL;
+  view->jobs_unit_id = fence ? fence->id : -1;
+  const int sel_prof = inside  ? colony->colonists[view->selected_colonist].profession
+                       : fence ? fence->profession
+                               : COLONIZE_PROF_FREE_COLONIST;
   /* port_bugs.md #900: the row loop is FUN_2f2b_348c raw 50753-50817's, over @JOB
    * 0..0x18 — not the nine field jobs. Jobs 0..8 have no required building and
    * are always listed; 9..0x12 (the indoor jobs, incl. @JOB 18 Teacher) appear
@@ -586,7 +663,7 @@ void colony_screen_open_jobs(
    * profession outside 0x13/0x19/0x1a/0x1b/0x1c) gets "Clear Specialty" (menu id
    * 0x61) as page 0's FIRST row, ahead of the jobs; picking it asks @LOBOTOMIZE
    * before wiping to 0x1c. */
-  if (view->selected_colonist >= 0 && view->selected_colonist < colony->colonist_count) {
+  if (inside || fence) {
     const int prof = sel_prof;
     if (prof != UNITS_JOB_COLONIST && prof != COLONIZE_PROF_INDENTURED &&
         prof != COLONIZE_PROF_CRIMINAL &&
@@ -607,11 +684,15 @@ void colony_screen_open_jobs(
    * (FUN_15eb_3454's >= 0x13 arm, raw 13556-13589: 0 drops a row, 0xffff greys it,
    * FUN_291f_01b6 raw 50801). Past 0x10 rows they land on page 1, which is how DOS's
    * "(More)" flips between the job list and the leave-colony list. */
-  if (view->selected_colonist >= 0 && view->selected_colonist < colony->colonist_count) {
+  {
     int roles[COLONIZE_EJECT_ROLE_COUNT];
     bool enabled[COLONIZE_EJECT_ROLE_COUNT];
-    const int n = colonies_list_eject_roles_gear(pool, colony, 0, 0, 0, sel_prof, roles, enabled,
-                                                 COLONIZE_EJECT_ROLE_COUNT);
+    const int n =
+      inside ? colonies_list_eject_roles_gear(pool, colony, 0, 0, 0, sel_prof, roles, enabled,
+                                              COLONIZE_EJECT_ROLE_COUNT)
+      : fence ? colony_screen_list_outside_roles(pool, units, colony, fence, roles, enabled,
+                                                 COLONIZE_EJECT_ROLE_COUNT)
+              : 0;
     for (int i = 0; i < n && view->job_count < COLONY_JOB_LIST_MAX; ++i) {
       if (!enabled[i]) {
         view->jobs_greyed |= 1u << view->job_count;
@@ -620,18 +701,22 @@ void colony_screen_open_jobs(
     }
   }
   /* raw 50812: the box's default row is the colonist's current occupation
-   * (FUN_291f_08ec) on the page that lists it, else the page's first row. */
+   * (FUN_291f_08ec) on the page that lists it, else the page's first row. A fence unit's
+   * occupation is its own role (FUN_15eb_0902), on page 1. */
   view->jobs_default_row = 0;
-  if (view->selected_colonist >= 0 && view->selected_colonist < colony->colonist_count) {
+  int occ = -1;
+  if (inside) {
     const ColonizeColonist* c = &colony->colonists[view->selected_colonist];
-    const int occ = c->field_job >= 0 ? c->field_job
-                    : (pool && c->building_type >= 0)
-                      ? colonies_building_occupation(pool, c->building_type)
-                      : -1;
-    for (int i = 0; i < view->job_count; ++i) {
-      if (occ >= 0 && view->job_ids[i] == occ) {
-        view->jobs_default_row = i;
-      }
+    occ = c->field_job >= 0 ? c->field_job
+          : (pool && c->building_type >= 0)
+            ? colonies_building_occupation(pool, c->building_type)
+            : -1;
+  } else if (fence) {
+    occ = units_type_default_job(fence->type_index);
+  }
+  for (int i = 0; i < view->job_count; ++i) {
+    if (occ >= 0 && view->job_ids[i] == occ) {
+      view->jobs_default_row = i;
     }
   }
   view->jobs_open = true;

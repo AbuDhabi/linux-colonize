@@ -2868,11 +2868,19 @@ static bool game_apply_popup_map_and_colony(ColonizeGameState* game) {
     /* @LOBOTOMIZE: only choice 1 clears — FUN_281f_0cae(colonist, 0x1c). */
     const bool go = !game->ai_popups.result_cancelled && game->ai_popups.result_choice_id == 1;
     const int who = game->ai_popups.result_nation_a;
+    const int unit_id = game->ai_popups.result_nation_b;
     ai_popup_consume_result(&game->ai_popups);
     if (go && game->in_colony) {
       ColonizeColony* col = colonies_get_mut(&game->colonies, game->colony_view_id);
       if (col && who >= 0 && who < col->colonist_count) {
         col->colonists[who].profession = COLONIZE_PROF_FREE_COLONIST;
+      } else if (who < 0 && game->units_ok) {
+        /* A fence unit (nation_a -1, nation_b = unit id): 0cae -> FUN_15eb_0e8c
+         * writes the unit's +0x315b specialty byte. */
+        ColonizeUnit* u = units_get(&game->units, unit_id);
+        if (u) {
+          u->profession = COLONIZE_PROF_FREE_COLONIST;
+        }
       }
     }
   return true;
