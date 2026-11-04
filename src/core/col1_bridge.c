@@ -1511,9 +1511,13 @@ COLONIZE_INTERNAL void col1_bridge_apply_europe_lanes(Col1ApplyCtx* ctx) {
         }
       }
       /*
-       * Bound keeps counter 0 verbatim — a 228+n hull with +0x315a == 0 lands
-       * at the very next FUN_48d3_03d0 pass, which is what turns_left 0 means
-       * here (the new-game fleet is exactly this).
+       * Bound 228+n loads counter c as turns_left max(c,1): FUN_48d3_03d0
+       * (raw 77761-77782) decrements a non-zero counter and hops the hull
+       * once it reads 0, so counter 0 (the new-game fleet) and counter 1 both
+       * land on the next pass, i.e. after one europe_tick_voyages. Counter 0
+       * kept verbatim as turns_left 0 would land at once on the next
+       * Europe-screen exit (game_europe_deliver_bound_ships), before that
+       * pass (port_bugs.md #1429).
        *
        * Expected: FUN_48d3_03d0 (raw 77761-77782) decrements a non-zero
        * counter and hops the hull once it reads 0, so a 244+n hull with
@@ -1529,8 +1533,9 @@ COLONIZE_INTERNAL void col1_bridge_apply_europe_lanes(Col1ApplyCtx* ctx) {
        * col1_bridge_capture_europe_lanes writes the inverse.
        */
       const int ctr = (int)src->col1_counter16;
-      const int far_turns = (ctr > 0 ? ctr : 1) + 1;
-      const int turns = bound_far ? far_turns : bound ? ctr : arriving ? 0 : far_turns;
+      const int near_turns = ctr > 0 ? ctr : 1;
+      const int far_turns = near_turns + 1;
+      const int turns = bound_far ? far_turns : bound ? near_turns : arriving ? 0 : far_turns;
       const int exit_x = (int)src->goto_x;
       const int exit_y = (int)src->goto_y;
       const bool exit_east = map->width > 0 ? exit_x >= map->width / 2 : true;

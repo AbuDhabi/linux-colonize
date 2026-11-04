@@ -282,7 +282,8 @@ Full opaque-field inventory: **[save_format_map.md](save_format_map.md)**.
   121612-121646, starts there with counter 0), `240+n` = one hop short of
   Europe. Port mapping:
   `236+n` harbor, `232+n` Bound (`goto` = landfall; `228+n` for a hull that
-  lands at the next tick, counter 1, or counter 0 for turns 0), `244+n`
+  lands at the next tick, counter 1, or counter 0 for turns 0; the import
+  reads counter 0 there as turns 1, since 03d0 lands both on the next pass), `244+n`
   Expected (`goto` = exit tile; `240+n` counter 0 for a hull that docks at
   the next tick); unit `+0x16` (`col1_counter16`) = the lane counter, which
   FUN_48d3_03d0 (raw 77761-77782) decrements before its hop test, so a hull

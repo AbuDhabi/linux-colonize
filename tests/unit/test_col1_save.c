@@ -1731,7 +1731,8 @@ static int lane_bound_turns(const EuropeScreen* eu, int type) {
  *     legacy harbor shape on 228+n.
  * (b) The export: departed turns 2 (lands after tick 3) = 232+n/2, turns 2 =
  *     232+n/1, turns 1 = 228+n/1, turns 0 = 228+n/0.
- * (c) Re-imported, the four come back with turns 3, 2, 1, 0.
+ * (c) Re-imported, the four come back with turns 3, 2, 1, 1 (228+n counter 0
+ *     and 1 both land on the next pass, port_bugs.md #1429).
  */
 static bool test_bound_lane_save(char* err, size_t err_size) {
   static LaneFx fx;
@@ -1771,7 +1772,7 @@ static bool test_bound_lane_save(char* err, size_t err_size) {
   } k_ships[4] = {{13, 2, true, 232, 2, 3},
                   {14, 2, false, 232, 1, 2},
                   {15, 1, false, 228, 1, 1},
-                  {16, 0, false, 228, 0, 0}};
+                  {16, 0, false, 228, 0, 1}};
   for (int k = 0; k < 4; ++k) {
     EuropeHarborShip* s = &fx.europe.bound[k];
     memset(s, 0, sizeof(*s));
@@ -2592,7 +2593,7 @@ int main(void) {
                   europe.harbor_ships, europe.bound_ships);
           return 1;
         }
-        if (europe.bound[0].turns_left != 0 || europe.bound[0].exit_x != 53 ||
+        if (europe.bound[0].turns_left != 1 || europe.bound[0].exit_x != 53 ||
             europe.bound[0].exit_y != 56) {
           fprintf(stderr, "COLONY06 bound[0] wrong: turns=%d exit=(%d,%d)\n",
                   europe.bound[0].turns_left, europe.bound[0].exit_x,
