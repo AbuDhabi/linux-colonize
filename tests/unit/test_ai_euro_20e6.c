@@ -3183,6 +3183,71 @@ static int unit_wander_hostile_stack_counts_every_unit(void) {
   return differs_tail > 0 ? 0 : fail("an armed unit below the chain head must cost -10");
 }
 
+/* Raw 88813-88820: a loaded hull's hostile-colony battery term is 0x14 per
+ * hold with a Fort (building bit 1) and 0x28 with a Fortress (bit 2); a
+ * Stockade alone (bit 0) costs nothing. Hull at (8,8) with one goods hold,
+ * met-not-at-peace colony at (10,8): dirs 1..3 border it. Returns the pick,
+ * -1 on fixture failure. */
+static int ship_fort_term_pick(int row, uint32_t seed) {
+  Fixture f;
+  if (fixture_init(&f, 1) != 0) return -1;
+  for (int i = 0; i < 16 * 16; ++i) {
+    f.map.terrain[i] = 25;
+    f.map.layer3[i] = 0xf1;
+  }
+  f.map.terrain[8 * 16 + 10] = 1;
+  f.map.layer3[8 * 16 + 10] = 0x21;
+  f.colonies.building_type_count = 3;
+  for (int b = 0; b < 3; ++b) {
+    f.colonies.building_types[b].row_plus1 = b + 1;
+  }
+  ColonizeColony* c = &f.colonies.colonies[0];
+  c->id = 0;
+  c->active = true;
+  c->nation_id = 2;
+  c->x = 10;
+  c->y = 8;
+  c->population = 1;
+  c->colonist_count = 1;
+  c->building_in_production = -1;
+  c->has_building[row] = true;
+  f.colonies.colony_count = 1;
+  f.colonies.next_id = 1;
+  ai_diplo_write(&f.col1, 1, 2, AI_DIPLO_MET);
+  dos_rng_seed(&f.rng, seed);
+  const int id = units_spawn(&f.units, 2, 8, 8);
+  ColonizeUnit* ship = units_get(&f.units, id);
+  if (!ship || units_load_goods(&f.units, id, COLONIZE_CARGO_TOOLS, 100) <= 0) {
+    fixture_free(&f);
+    return -1;
+  }
+  ship->nation_id = 1;
+  ship->last_dir = 8; /* no facing term */
+  Ai20e6Unit s;
+  ai_euro_20e6_prologue(&f.ctx, ship, 1, &s);
+  const int dir = ai_euro_20e6_wander_step(&f.ctx, ship, &s, NULL, NULL);
+  fixture_free(&f);
+  return dir;
+}
+
+static int unit_ship_fort_term_reads_fort_and_fortress_bits(void) {
+  int stockade_beside = 0;
+  int fort_beside = 0;
+  for (uint32_t seed = 1; seed <= 64; ++seed) {
+    const int st = ship_fort_term_pick(COLONY_BUILDING_STOCKADE, seed * 12345u);
+    const int fo = ship_fort_term_pick(COLONY_BUILDING_FORT, seed * 12345u);
+    if (st < 0 || fo < 0) {
+      return fail("ship fort term fixture");
+    }
+    stockade_beside += st >= 1 && st <= 3;
+    fort_beside += fo >= 1 && fo <= 3;
+  }
+  if (stockade_beside == 0) {
+    return fail("a Stockade alone must not charge the hull's battery term");
+  }
+  return fort_beside == 0 ? 0 : fail("a Fort must charge 0x14 per goods hold");
+}
+
 /* FUN_521d_0906 raw 87373: a tribe-owned neighbour keys 0896's grudge read
  * off the tile's chain head (07e0, newest arrival), not the lowest pool
  * slot. Two Braves on (9,8): the older one (slot 0) from a calm village, the
@@ -3611,6 +3676,8 @@ static const TestCase k_cases[] = {
     {"unit_ship_index_gates_skip_deleted_slots", unit_ship_index_gates_skip_deleted_slots},
     {"unit_wander_hostile_stack_counts_every_unit", unit_wander_hostile_stack_counts_every_unit},
     {"unit_contact_claim_reads_chain_head", unit_contact_claim_reads_chain_head},
+    {"unit_ship_fort_term_reads_fort_and_fortress_bits",
+     unit_ship_fort_term_reads_fort_and_fortress_bits},
     {"unit_ship_far_roam_uses_band_snapshot", unit_ship_far_roam_uses_band_snapshot},
     {"unit_ship_band_keeps_counts_after_unload", unit_ship_band_keeps_counts_after_unload},
     {"unit_ship_work_queue_uses_entry_stack", unit_ship_work_queue_uses_entry_stack},

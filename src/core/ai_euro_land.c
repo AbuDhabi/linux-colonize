@@ -2445,10 +2445,12 @@ int ai_euro_20e6_wander_step(
     }
     /*
      * Ship-only (raw 88808-88830): a hostile Euro colony (diplo & 0x60 ==
-     * 0x20) next to the destination costs 0x14 with a Stockade, 0x28 with a
-     * Fort (FUN_281f_0322 feature bits 1 / 2), plus 0x1e per Artillery in
-     * its stack, all multiplied by the ship's occupied goods holds — an
-     * empty hull ignores the batteries entirely.
+     * 0x20) next to the destination costs 0x14 with a Fort, 0x28 with a
+     * Fortress, plus 0x1e per Artillery in its stack, all multiplied by the
+     * ship's occupied goods holds — an empty hull ignores the batteries
+     * entirely. Raw 88813-88820: FUN_281f_0322(colony, 1) / (colony, 2) ->
+     * FUN_15eb_035e tests colony +0x84 building bit 1 (Fort) / bit 2
+     * (Fortress), each on its own; a Stockade alone (bit 0) costs nothing.
      */
     if (s->is_ship && goods_holds > 0) {
       for (int n = 0; n < 8; ++n) {
@@ -2462,12 +2464,11 @@ int ai_euro_20e6_wander_step(
         if ((ai_euro_20e6_diplo(ctx->col1, nation, fc->nation_id) & 0x60) != 0x20) {
           continue;
         }
-        const int bonus = colonies_fortification_defense_bonus_percent(ctx->colonies, fc);
         int pen = 0;
-        if (bonus >= 100) {
+        if (colonies_has_building_row(ctx->colonies, fc, COLONY_BUILDING_FORT)) {
           pen = 0x14;
         }
-        if (bonus >= 150) {
+        if (colonies_has_building_row(ctx->colonies, fc, COLONY_BUILDING_FORTRESS)) {
           pen = 0x28;
         }
         for (int i = 0; i < units_slot_end(ctx->units); ++i) {
