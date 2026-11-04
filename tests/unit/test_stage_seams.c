@@ -2517,7 +2517,50 @@ static int test_goto_near_tier_boundary_tb55(void) {
   return rc;
 }
 
+/* An end of turn parked behind FUN_3844_0442's dialogs (after the calendar
+ * step, before the day top) must not resume in a loaded world or after the
+ * game ends to the title: DOS returns from FUN_130d_0290 on DS:0x53c2 == 0
+ * (raw 6511). */
+static void park_eot(ColonizeGameState* game) {
+  turn_processor_start(&game->turn_proc);
+  game->turn_proc.step = TURN_PROC_INDIAN;
+  game->turn_proc.nation_cursor = 4;
+  game->turn_proc.day_advanced = true;
+}
+
+static int test_parked_eot_dropped_on_load_and_title(void) {
+  ColonizeGameConfig cfg = {.data_dir = "./COLONIZE", .save_dir = "./build/debug"};
+  ColonizeGameState* game = game_create(&cfg);
+  if (!game || !game_assets_ok(game)) {
+    fprintf(stderr, "SKIP: no COLONIZE/ assets\n");
+    if (game) {
+      game_destroy(game);
+    }
+    return TR_SKIP;
+  }
+  char err[256];
+  int rc = 0;
+  park_eot(game);
+  if (!game_load_col1_file(game, "tests-save-misc/tb55_near_tier_wagon.sav", err, sizeof(err))) {
+    fprintf(stderr, "  %s\n", err);
+    rc = fail("fixture save load");
+  }
+  if (rc == 0 && (turn_processor_active(&game->turn_proc) || game->turn_proc.day_advanced)) {
+    rc = fail("a load must drop the parked end of turn");
+  }
+  if (rc == 0) {
+    park_eot(game);
+    game_end_to_title(game);
+    if (turn_processor_active(&game->turn_proc) || game->turn_proc.day_advanced) {
+      rc = fail("ending to the title must drop the parked end of turn");
+    }
+  }
+  game_destroy(game);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
+    {"test_parked_eot_dropped_on_load_and_title", test_parked_eot_dropped_on_load_and_title},
     {"test_dos_buggy_default_off_tests_on", test_dos_buggy_default_off_tests_on},
     {"test_goto_near_tier_boundary_tb55", test_goto_near_tier_boundary_tb55},
     {"test_map_pulldown_is_modal", test_map_pulldown_is_modal},

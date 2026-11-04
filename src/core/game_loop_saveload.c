@@ -344,6 +344,9 @@ static bool game_load_col1_loaded(
   if (s_rebinding) {
     return true;
   }
+  /* A load starts the loaded world's year loop afresh: an end of turn parked
+   * behind the outgoing game's FUN_3844_0442 dialogs does not resume in it. */
+  memset(&game->turn_proc, 0, sizeof(game->turn_proc));
   game_hotseat_announce(game, game->human_nation);
   const ColonizeUnit* sel = units_get_const(&game->units, game->units.selected_id);
   /* port_bugs.md #1381(b): a saved active unit that is a damaged piece is not
@@ -886,6 +889,9 @@ void game_end_to_title(ColonizeGameState* game) {
   if (game->col1_ok) {
     game->col1.head.turn_loop_running = 0;
   }
+  /* DOS leaves the year loop on DS:0x53c2 == 0 (FUN_130d_0290 raw 6511): an
+   * end of turn parked behind FUN_3844_0442's dialogs does not resume. */
+  memset(&game->turn_proc, 0, sizeof(game->turn_proc));
   game->in_menu = true;
   sound_set_bgm(SOUND_TITLE_BGM_POOL);
   set_status(game, "OpenCol", NULL);

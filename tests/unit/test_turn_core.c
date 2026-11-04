@@ -5063,6 +5063,70 @@ static int case_year_end_victory_stops_turn(void) {
   return 0;
 }
 
+/* LAB_3844_04ec (raw 58657-58664): section B (@LOSENOCOLONIES) and @LOSING%d
+ * clear DS:0x53c2 with no @SCORED revive, and FUN_130d_0290 returns (raw
+ * 6511) before the next day top, so nothing of the new day runs: no tribe,
+ * no Euro slot, no colony EOT, no autosave. Human slot 3, no colonies. */
+static void game_end_day_run(bool woi, ColonizeTurnResult* out) {
+  fx_begin();
+  static ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  static uint16_t year;
+  static uint16_t autumn;
+  static uint32_t turn_number;
+  static char status[64];
+  static ColonizeCol1Save col1;
+  year = 1700;
+  autumn = 0;
+  turn_number = 250;
+  status[0] = '\0';
+  memset(&col1, 0, sizeof(col1));
+  col1.head.human_player = 3;
+  col1.head.game_options.woi = woi ? 1 : 0;
+  col1.head.game_options.autosave = 1; /* a day that ran on would request slot 9 */
+  col1.head.expeditionary_force[0] = 5; /* REF still stocked: no WoI win */
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.messages = test_game_txt();
+  ctx.names = test_names_txt();
+  ctx.game_year = &year;
+  ctx.game_autumn = &autumn;
+  ctx.turn_number = &turn_number;
+  ctx.human_nation = 3;
+  ctx.colonies = &pool;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.status = status;
+  ctx.status_size = sizeof(status);
+  *out = turn_end(&ctx);
+}
+
+static int case_losenocolonies_stops_day(void) {
+  ColonizeTurnResult out;
+  game_end_day_run(false, &out);
+  if (!out.year_end_defeat || out.request_autosave_turn || out.request_autosave_decade) {
+    fprintf(stderr, "losenocolonies: defeat %d autosave %d/%d (want 1, 0/0)\n",
+            (int)out.year_end_defeat, (int)out.request_autosave_turn,
+            (int)out.request_autosave_decade);
+    return 1;
+  }
+  return 0;
+}
+
+static int case_war_lost_stops_day(void) {
+  ColonizeTurnResult out;
+  game_end_day_run(true, &out);
+  if (!out.year_end_war_lost || out.year_end_victory || out.request_autosave_turn ||
+      out.request_autosave_decade) {
+    fprintf(stderr, "war lost: lost %d win %d autosave %d/%d (want 1, 0, 0/0)\n",
+            (int)out.year_end_war_lost, (int)out.year_end_victory,
+            (int)out.request_autosave_turn, (int)out.request_autosave_decade);
+    return 1;
+  }
+  return 0;
+}
+
 /* port_bugs.md #1232: the era end (1800) and the zero-colony defeat leave 0x5382 & 0x10
  * (calendar_latch, "scoring complete") to the retire chain, as DOS LAB_3844_0b4a sets it only
  * after FUN_281f_0574. Set here first, it zeroed the chain's score and hid its exploits. */
@@ -6817,6 +6881,8 @@ static const TestCase k_cases[] = {
   {"year_end_defeat_victory", case_year_end_defeat_victory},
   {"year_end_scoring_waits_for_chain", case_year_end_scoring_waits_for_chain},
   {"year_end_victory_stops_turn", case_year_end_victory_stops_turn},
+  {"losenocolonies_stops_day", case_losenocolonies_stops_day},
+  {"war_lost_stops_day", case_war_lost_stops_day},
   {"year_end_section_d", case_year_end_section_d},
   {"census_profession_tally", case_census_profession_tally},
   {"census_live_peel", case_census_live_peel},
