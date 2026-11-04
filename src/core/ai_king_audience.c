@@ -820,7 +820,6 @@ void ai_king_succession(ColonizeTurnContext* ctx) {
         c->nation_id = (uint8_t)heir;
         c->rebel_dividend = 0;
         c->rebel_divisor = 0;
-        map_set_owner_nibble(ctx->map, c->x, c->y, heir);
       }
     }
   }

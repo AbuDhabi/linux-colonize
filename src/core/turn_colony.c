@@ -1183,7 +1183,7 @@ void turn_route_damaged_ships(ColonizeTurnContext* ctx, int nation) {
       /* Port-only fallback (a hull damaged with no Europe screen wired, or
        * whose repair colony fell since): the same off-map slot DOS 0352 uses,
        * the harbor under repair, timer kept (port_bugs.md #1381c). */
-      const bool east = ctx->map ? (u->goto_x >= (int)ctx->map->width / 2) : true;
+      const bool east = europe_exit_east_of(ctx->map, u->goto_x);
       if (europe_harbor_push_damaged(ctx->europe, u, ty && ty->name[0] ? ty->name : "", east)) {
         units_despawn(ctx->units, u->id);
       }

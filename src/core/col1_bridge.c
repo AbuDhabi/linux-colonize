@@ -1538,7 +1538,7 @@ COLONIZE_INTERNAL void col1_bridge_apply_europe_lanes(Col1ApplyCtx* ctx) {
       const int turns = bound_far ? far_turns : bound ? near_turns : arriving ? 0 : far_turns;
       const int exit_x = (int)src->goto_x;
       const int exit_y = (int)src->goto_y;
-      const bool exit_east = map->width > 0 ? exit_x >= map->width / 2 : true;
+      const bool exit_east = europe_exit_east_of(map, exit_x);
       EuropeHarborShip* slot = NULL;
       if (legacy_harbor) {
         /* Legacy-port harbor ship (see comment above): import into the
@@ -1767,9 +1767,7 @@ COLONIZE_INTERNAL Col1StageStatus col1_bridge_apply_units(Col1ApplyCtx* ctx) {
               EuropeHarborShip* hs = &europe->harbor[europe->harbor_ships - 1];
               hs->exit_x = (int)src->goto_x;
               hs->exit_y = (int)src->goto_y;
-              hs->exit_east = ctx->map && ctx->map->width > 0
-                                ? hs->exit_x >= ctx->map->width / 2
-                                : true;
+              hs->exit_east = europe_exit_east_of(ctx->map, hs->exit_x);
             }
           }
         }
@@ -2326,7 +2324,7 @@ COLONIZE_INTERNAL void col1_bridge_apply_europe_nation(Col1ApplyCtx* ctx) {
         nat->return_from_europe_x < 200 && nat->return_from_europe_y < 200) {
       europe->last_exit_x = nat->return_from_europe_x;
       europe->last_exit_y = nat->return_from_europe_y;
-      europe->last_exit_east = map->width > 0 ? europe->last_exit_x >= map->width / 2 : true;
+      europe->last_exit_east = europe_exit_east_of(map, europe->last_exit_x);
       europe->last_exit_valid = true;
     }
     europe->gold = (int)nat->gold;

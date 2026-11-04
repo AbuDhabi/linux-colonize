@@ -8,4 +8,3 @@ Status: OPEN = no resolution yet (this file). FIXED / REFUTED = agent claims a f
 
 | # | Status | Bug Description | Resolution |
 |---|--------|------------------|------------|
-| 1431 | OPEN | The F10 score during play counts units from game->col1.unit[], which only a save capture refreshes, so a unit lost or gained since the last load or save still scores. DOS FUN_41f2_0092's unit loop (asm 41f2:0329-0345) reads the one live unit table. Colonies are already read live (reports_score_collect_citizen_jobs), and the retire path captures first (game_open_retire_score). Fix: a live unit walk in the capture's record order (the stale `scored` local makes unit points order-dependent), covering the off-pool Europe dock rows and harbor ships. From the PR #8 notes. | |

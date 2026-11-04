@@ -1870,7 +1870,7 @@ static bool test_royal_gift_lanes_roundtrip(char* err, size_t err_size) {
     return false;
   }
   memset(save.map.tile, 0, save.map.tile_count);
-  ColonizeUnitPool units;
+  static ColonizeUnitPool units; /* ~0.8 MB each: off the stack */
   memset(&units, 0, sizeof(units));
   units_reset(&units);
   units.type_count = 23;
@@ -1885,7 +1885,7 @@ static bool test_royal_gift_lanes_roundtrip(char* err, size_t err_size) {
   memset(&map, 0, sizeof(map));
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
-  EuropeScreen europe;
+  static EuropeScreen europe;
   memset(&europe, 0, sizeof(europe));
   europe.cargo_count = 16;
   ColonizeCol1BridgeResult result;
@@ -1920,7 +1920,7 @@ static bool test_royal_gift_lanes_roundtrip(char* err, size_t err_size) {
     snprintf(err, err_size, "royal gift: capture flagged %d lane hulls (want 3)", flagged);
     ok = false;
   }
-  ColonizeUnitPool reloaded;
+  static ColonizeUnitPool reloaded;
   memset(&reloaded, 0, sizeof(reloaded));
   units_reset(&reloaded);
   reloaded.type_count = units.type_count;
@@ -1929,7 +1929,7 @@ static bool test_royal_gift_lanes_roundtrip(char* err, size_t err_size) {
   memset(&map2, 0, sizeof(map2));
   ColonizeColonyPool colonies2;
   colonies_init(&colonies2);
-  EuropeScreen europe2;
+  static EuropeScreen europe2;
   memset(&europe2, 0, sizeof(europe2));
   europe2.cargo_count = 16;
   ok = ok && col1_bridge_apply_w(
@@ -2051,7 +2051,7 @@ static bool test_imported_tile_chain_order(char* err, size_t err_size) {
   save.unit[1].transport_chain.prev_unit_idx = -1;
   save.unit[1].transport_chain.next_unit_idx = -1;
 
-  ColonizeUnitPool units;
+  static ColonizeUnitPool units; /* off the stack: main already holds ~5 MB */
   memset(&units, 0, sizeof(units));
   units_reset(&units);
   units.type_count = 23;
@@ -2065,9 +2065,9 @@ static bool test_imported_tile_chain_order(char* err, size_t err_size) {
 
   ColonizeWorldMap map;
   memset(&map, 0, sizeof(map));
-  ColonizeColonyPool colonies;
+  static ColonizeColonyPool colonies;
   colonies_init(&colonies);
-  EuropeScreen europe;
+  static EuropeScreen europe;
   memset(&europe, 0, sizeof(europe));
   europe.cargo_count = 16;
   ColonizeCol1BridgeResult result;

@@ -1218,8 +1218,7 @@ bool ai_init_new_game(const AiNewGameParams* params, char* err, size_t err_size)
       if (params->europe) {
         params->europe->last_exit_x = landfalls[n][0];
         params->europe->last_exit_y = landfalls[n][1];
-        params->europe->last_exit_east =
-          params->map ? landfalls[n][0] >= (int)params->map->width / 2 : true;
+        params->europe->last_exit_east = europe_exit_east_of(params->map, landfalls[n][0]);
         params->europe->last_exit_valid = true;
       }
       continue;
