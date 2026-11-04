@@ -547,10 +547,10 @@ int ai_contact_continent_war_count_a89c(const ColonizeTurnContext* ctx, int nati
  * foreign-presence gate and the alarm floor, the same `nation == 2`
  * special-casing the surrounding block carries.
  *
- * The four census tables (-0x6a4e / -0x6be4 / -0x6e34 / -0x6e7c) are
- * recomputed live through ai_contact_land_combat_sum, exactly as the
- * Demand-Tribute roll below does: the port never refreshes the DS:0x95b2 /
- * 0x91cc mirrors for an OpenCol-started game.
+ * The four census tables (-0x6a4e / -0x6be4 / -0x6e34 / -0x6e7c, raw
+ * 94172-94184) are read from col1->stuff as the last FUN_4962_0018 (Euro EOT
+ * tail) and FUN_4962_06b6 (Indian turn) left them, as the Demand-Tribute roll
+ * below does: a unit that moved since its owner's census does not count.
  */
 void ai_contact_colony_tick_war_5952(ColonizeTurnContext* ctx, int nation_id, int cx, int cy) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->map || nation_id < 0 || nation_id > 3) {
@@ -573,11 +573,12 @@ void ai_contact_colony_tick_war_5952(ColonizeTurnContext* ctx, int nation_id, in
   if (nation_id != 2 && (presence & 6) != 0) {
     return;
   }
-  const int exposed = ai_contact_land_combat_sum(ctx, nation_id, cont, 1, 255);
+  const ColonizeCol1Stuff* st = &col1->stuff;
+  const int exposed = st->field_combat_strength_by_continent[nation_id * 16 + cont]; /* -0x6a4e */
   if (exposed <= 1) {
     return;
   }
-  const int total = ai_contact_land_combat_sum(ctx, nation_id, -1, 0, 0xffff);
+  const int total = st->land_combat_strength[nation_id]; /* -0x6be4 word */
   const int lim_a = nation_id == 2 ? (total << 2) : (total << 1);
   const int lim_b = nation_id == 2 ? (exposed << 3) : (exposed << 2);
   /* FUN_4cc6_0356(cx, cy, -1, cont): nearest village on the colony's own
@@ -603,10 +604,11 @@ void ai_contact_colony_tick_war_5952(ColonizeTurnContext* ctx, int nation_id, in
   if (tribe_nation < 4 || tribe_nation > 11) {
     return;
   }
-  if (ai_contact_land_combat_sum(ctx, tribe_nation, -1, 0, 255) > lim_a) {
+  const int slot = tribe_nation - 4; /* DS:0x8d52 */
+  if ((int)st->tribe_data_9184[slot] > lim_a) { /* -0x6e7c */
     return;
   }
-  if (ai_contact_land_combat_sum(ctx, tribe_nation, cont, 0, 255) >= lim_b) {
+  if ((int)st->tribe_dwellings_91cc[slot * 16 + cont] >= lim_b) { /* -0x6e34 */
     return;
   }
   if (nation_id != 2 && ai_diplo_indian_alarm(col1, tribe_nation, nation_id) <= 0x19) {
