@@ -1196,7 +1196,11 @@ void ai_contact_apply_beg_food(
         ind->contact_state[e] = 2; /* raw 87698 */
       }
       ai_contact_visit_mood_beg_conceded(ctx, nation_id, e);
+      /* The gift half serves 022e's local_4c, the begged colony (raw 96699). */
+      const int prev_colony = ai_contact_s_visit_colony;
+      ai_contact_s_visit_colony = colony_id;
       ai_contact_try_village_gifts(ctx, nation_id);
+      ai_contact_s_visit_colony = prev_colony;
     }
   } else {
     /*
@@ -1319,6 +1323,11 @@ int ai_contact_try_village_reparations(ColonizeTurnContext* ctx, int nation_id);
  */
 int ai_contact_s_visit_euro = -1;
 int ai_contact_s_visit_unit = -1;
+int ai_contact_s_visit_colony = -1;
+
+void ai_contact_set_visit_colony(int colony_id) {
+  ai_contact_s_visit_colony = colony_id;
+}
 
 void ai_contact_set_visit_euro(int euro_nation) {
   ai_contact_s_visit_euro = euro_nation;
@@ -1380,6 +1389,12 @@ int ai_contact_try_village_beg_food(ColonizeTurnContext* ctx, int nation_id) {
     int visit_home_tribe = -1;
     for (int ci = 0; ci < COLONIZE_COLONIES_MAX; ++ci) {
       ColonizeColony* c = &ctx->colonies->colonies[ci];
+      /* raw 96753-96756: the beg reads local_4c's food only (the colony on the
+       * 3180 encounter tile, raw 96699); a pinned colony short of food begs
+       * nothing, it never hands the beg to another adjacent colony. */
+      if (ai_contact_s_visit_colony >= 0 && ci != ai_contact_s_visit_colony) {
+        continue;
+      }
       if (!c->active || c->nation_id != e || c->stock[COLONIZE_CARGO_FOOD] <= 0x4a) {
         continue;
       }

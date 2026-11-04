@@ -279,10 +279,12 @@ int ai_native_step_first_contact(
      * block and the gift half (raw 96989 `if (local_4c < 0) goto
      * LAB_5bfb_1005`) both need a colony there; a bare unit gets neither. */
     int colony_here = 0;
+    int encounter_colony = -1;
     if (ai_s_native_colonies) {
       const int ecid = colonies_id_at(ai_s_native_colonies, nx, ny);
       const ColonizeColony* ec = ecid >= 0 ? colonies_get(ai_s_native_colonies, ecid) : NULL;
       colony_here = ec && ec->active && ec->nation_id == e;
+      encounter_colony = colony_here ? ecid : -1;
     }
     const int mood = ai_contact_visit_step_roll(s_ai_native_ctx, nation_id, e, u->id, colony_here);
     if (!mood) {
@@ -331,10 +333,14 @@ int ai_native_step_first_contact(
     /* 022e(param_1 = e): this encounter's European only. */
     ai_contact_set_visit_euro(e);
     ai_contact_set_visit_unit(u->id);
+    /* raw 96699: local_4c = FUN_281f_07be(encounter tile), fixed once for the
+     * whole visit; beg, gift and demand all serve this colony. */
+    ai_contact_set_visit_colony(encounter_colony);
     int visit = ai_contact_try_village_beg_food(s_ai_native_ctx, nation_id);
     if (!visit) {
       visit = ai_contact_try_village_gifts(s_ai_native_ctx, nation_id);
     }
+    ai_contact_set_visit_colony(-1);
     ai_contact_set_visit_unit(-1);
     ai_contact_set_visit_euro(-1);
     if (visit) {

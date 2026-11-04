@@ -180,6 +180,10 @@ int ai_contact_try_village_beg_food(ColonizeTurnContext* ctx, int nation_id);
  * unit tests' standalone calls). */
 void ai_contact_set_visit_euro(int euro_nation);
 void ai_contact_set_visit_unit(int unit_id);
+/* 022e local_4c (raw 96699): the colony on the encounter tile. While set
+ * (>= 0) the beg, gift and demand halves serve only that colony; -1 = the
+ * first adjacent colony (tests' standalone calls). */
+void ai_contact_set_visit_colony(int colony_id);
 
 /* FUN_5bfb_022e @INDIANWAGONS arm for one encounter whose tile head is a
  * Wagon Train (local_42, raw 96933-96976). The caller checks !bVar6. 1 = demand

@@ -282,6 +282,9 @@ int ai_contact_try_village_gifts(ColonizeTurnContext* ctx, int nation_id) {
       if (!c->active || c->nation_id != e) {
         continue;
       }
+      if (ai_contact_s_visit_colony >= 0 && ci != ai_contact_s_visit_colony) {
+        continue; /* 022e local_4c (raw 96699): the encounter colony */
+      }
       /* Slot walk — `ui` is not a unit id; see ai_contact_land_combat_sum. */
       for (int ui = 0; ui < units_slot_end(ctx->units); ++ui) {
         const ColonizeUnit* bu = &ctx->units->units[ui];
@@ -1046,6 +1049,9 @@ int ai_contact_try_village_reparations(ColonizeTurnContext* ctx, int nation_id) 
       if (!c->active || c->nation_id != e) {
         continue;
       }
+      if (ai_contact_s_visit_colony >= 0 && ci != ai_contact_s_visit_colony) {
+        continue; /* 022e local_4c (raw 96699, read at 96833): the encounter colony */
+      }
       ColonizeUnit* v = ai_contact_reparations_visitor(ctx, nation_id, e, c->x, c->y);
       if (!v) {
         continue;
@@ -1173,6 +1179,13 @@ int ai_contact_try_village_reparations(ColonizeTurnContext* ctx, int nation_id) 
       return 1; /* LAB_5bfb_1000: the visit resolved */
     }
 
+    /* A pinned local_4c never reaches the open-field walk: with a colony on
+     * the encounter tile DOS takes the colony arm, and reaches the wagon arm
+     * only through LAB_5bfb_0dea (raw 96857 -> 97098-97100: local_4c = -1,
+     * back to LAB_5bfb_0def) with local_42 = that tile's head, handled above. */
+    if (ai_contact_s_visit_colony >= 0) {
+      continue;
+    }
     /* `local_42` — no colony, but a Wagon Train (DOS type 0x0c) with cargo. */
     ColonizeUnit* wag = NULL;
     /* Slot walk — `ui` is not a unit id; see ai_contact_land_combat_sum. */

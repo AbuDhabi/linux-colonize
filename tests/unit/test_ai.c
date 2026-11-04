@@ -1665,6 +1665,120 @@ static int run_reparations_scan_past_empty_colony(void) {
   return resolved == 1 ? 0 : 1;
 }
 
+/*
+ * 022e binds one encounter colony, local_4c (FUN_5bfb_022e raw 96699), and
+ * both the beg (raw 96755) and the halves it falls into (LAB_5bfb_0def raw
+ * 96833, the gift half after a concession) read it. A Brave at (13,10)
+ * between two colonies of `e`, slot 0 at (12,10) and slot 1 at (14,10); the
+ * beg was at slot 1, so slot 0 must stay untouched.
+ */
+static int two_colony_beg_fixture(Ai152eFixture* f, const char* label, int e, int* bid) {
+  if (ai_152e_fixture_init(f, label, 777u) != 0) {
+    return 1;
+  }
+  ai_contact_reset();
+  f->col1.head.difficulty = 0;
+  for (int ci = 0; ci < 2; ++ci) {
+    ColonizeColony* col = &f->colonies.colonies[ci];
+    col->active = true;
+    col->id = ci;
+    col->nation_id = e;
+    col->x = ci ? 14 : 12;
+    col->y = 10;
+    col->stock[COLONIZE_CARGO_FOOD] = 100;
+    col->stock[3] = 50;
+    snprintf(col->name, sizeof(col->name), "Town%d", ci);
+  }
+  *bid = units_spawn_allow_stack(&f->units, units_find_type(&f->units, "Brave"), 13, 10);
+  ColonizeUnit* brave = units_get(&f->units, *bid);
+  if (!brave) {
+    fprintf(stderr, "%s: spawn failed\n", label);
+    ai_152e_fixture_free(f);
+    return 1;
+  }
+  brave->nation_id = 4;
+  brave->home_tribe_index = 0;
+  f->col1.nation[e].trade.euro_price[3] = 11;
+  f->col1.indian[0].euro_diplo[e] = (uint8_t)COL1_INDIAN_MET_BIT;
+  f->col1.indian[0].alarm_by_player[e] = 20;
+  col1_tribe_attitude_set(&f->tribes[0], e, 5);
+  ai_contact_visit_mood_publish(&f->ctx, 4, e, *bid, 0);
+  return 0;
+}
+
+static int run_conceded_beg_gifts_begged_colony(void) {
+  if (!test_names_txt()) {
+    return TR_SKIP;
+  }
+  Ai152eFixture f;
+  int bid = -1;
+  if (two_colony_beg_fixture(&f, "conceded-beg-colony", 1, &bid) != 0) {
+    return 1;
+  }
+  ai_contact_apply_beg_food(&f.ctx, &f.col1.indian[0], 4, 1, 1, 0, 1);
+  int other = 0;
+  int begged = 0;
+  for (int g = 0; g < COLONIZE_CARGO_COUNT; ++g) {
+    if (g != COLONIZE_CARGO_FOOD) {
+      other += f.colonies.colonies[0].stock[g];
+      begged += f.colonies.colonies[1].stock[g];
+    }
+  }
+  ai_152e_fixture_free(&f);
+  fprintf(stderr, "conceded-beg-colony: slot0 goods %d slot1 %d (want 50, >50)\n", other, begged);
+  return (other == 50 && begged > 50) ? 0 : 1;
+}
+
+/*
+ * The Brave's own step fixes local_4c once (FUN_5bfb_022e raw 96699) to the
+ * colony on the 3180 encounter tile. Same two-colony scene; the direction
+ * loop meets slot 1 (E, d 2) before slot 0 (W, d 6). Slot 1 holds 20 food,
+ * so the beg (raw 96753-96756, `0x4a < food`) asks nothing, and neither the
+ * beg nor the gift/demand halves may touch slot 0. Control run: with food in
+ * slot 1 too, the same seeds do beg there.
+ */
+static int run_step_visit_serves_encounter_colony(void) {
+  if (!test_names_txt()) {
+    return TR_SKIP;
+  }
+  int control_begs = 0;
+  int touched = 0;
+  for (uint32_t k = 1; k <= 24; ++k) {
+    for (int control = 0; control < 2; ++control) {
+      Ai152eFixture f;
+      int bid = -1;
+      if (two_colony_beg_fixture(&f, "step-visit-colony", 1, &bid) != 0) {
+        return 1;
+      }
+      dos_rng_seed(&f.rng, k * 7919u);
+      /* 2154 food: tundra (class 0) around the village scores no food, so
+       * bid[0] = 0 and ask[0] = 50: the beg rolls rng(1,100) <= 50. */
+      for (int y = 8; y <= 12; ++y) {
+        for (int x = 8; x <= 12; ++x) {
+          f.map.terrain[y * 32 + x] = 0;
+        }
+      }
+      f.colonies.colonies[1].stock[COLONIZE_CARGO_FOOD] = control ? 100 : 20;
+      int before[COLONIZE_CARGO_COUNT];
+      memcpy(before, f.colonies.colonies[0].stock, sizeof(before));
+      ai_s_native_colonies = &f.colonies;
+      ai_native_bind_step_ctx(&f.ctx);
+      (void)ai_native_step_first_contact(&f.units, &f.map, &f.col1, units_get(&f.units, bid), 4);
+      ai_native_bind_step_ctx(NULL);
+      ai_s_native_colonies = NULL;
+      const int slot0_same = memcmp(before, f.colonies.colonies[0].stock, sizeof(before)) == 0;
+      const int slot1_food = f.colonies.colonies[1].stock[COLONIZE_CARGO_FOOD];
+      ai_contact_reset();
+      ai_152e_fixture_free(&f);
+      touched += !slot0_same;
+      control_begs += control && slot1_food == 50;
+    }
+  }
+  fprintf(stderr, "step-visit-colony: slot 0 touched in %d of 48 runs, %d control begs\n", touched,
+          control_begs);
+  return (touched == 0 && control_begs > 0) ? 0 : 1;
+}
+
 /* Brave at (13,10) of tribe 0, Wagon Train of `e` at (14,10) holding 100 of
  * cargo 3, met, alarm 20, village word 5. */
 static int wagon_visit_fixture(Ai152eFixture* f, const char* label, int e, ColonizeUnit** brave,
@@ -1694,6 +1808,43 @@ static int wagon_visit_fixture(Ai152eFixture* f, const char* label, int e, Colon
   f->col1.indian[0].alarm_by_player[e] = 20;
   col1_tribe_attitude_set(&f->tribes[0], e, 5);
   return 0;
+}
+
+/*
+ * A pinned local_4c (FUN_5bfb_022e raw 96699) never reaches the open-field
+ * wagon walk. The encounter colony of e 1 sits at (3,3), out of the Brave's
+ * reach, so the colony arm finds no visitor; the loaded Wagon Train next to
+ * the Brave must keep its hold and the visit stays unresolved.
+ */
+static int run_pinned_colony_skips_open_field_wagon(void) {
+  if (!test_names_txt()) {
+    return TR_SKIP;
+  }
+  Ai152eFixture f;
+  ColonizeUnit* brave = NULL;
+  ColonizeUnit* wag = NULL;
+  if (wagon_visit_fixture(&f, "pinned-colony-wagon", 1, &brave, &wag) != 0) {
+    return 1;
+  }
+  ColonizeColony* col = &f.colonies.colonies[0];
+  col->active = true;
+  col->id = 0;
+  col->nation_id = 1;
+  col->x = 3;
+  col->y = 3;
+  snprintf(col->name, sizeof(col->name), "Fartown");
+  f.col1.indian[0].contact_state[1] = 1; /* local_10: never generous */
+  ai_contact_visit_mood_publish(&f.ctx, 4, 1, brave->id, 0);
+  ai_contact_set_visit_euro(1);
+  ai_contact_set_visit_colony(0);
+  const int resolved = ai_contact_try_village_reparations(&f.ctx, 4);
+  ai_contact_set_visit_colony(-1);
+  ai_contact_set_visit_euro(-1);
+  const int hold = wag->hold_goods_amount[0];
+  ai_contact_reset();
+  ai_152e_fixture_free(&f);
+  fprintf(stderr, "pinned-colony-wagon: resolved %d hold %d (want 0 100)\n", resolved, hold);
+  return (resolved == 0 && hold == 100) ? 0 : 1;
 }
 
 /*
@@ -2566,5 +2717,8 @@ static const TestCase k_cases[] = {
     {"run_zero_qty_demand_presented", run_zero_qty_demand_presented},
     {"run_conceded_beg_gifts_above_0x31", run_conceded_beg_gifts_above_0x31},
     {"run_wagon_demand_no_mood_gate", run_wagon_demand_no_mood_gate},
+    {"run_conceded_beg_gifts_begged_colony", run_conceded_beg_gifts_begged_colony},
+    {"run_step_visit_serves_encounter_colony", run_step_visit_serves_encounter_colony},
+    {"run_pinned_colony_skips_open_field_wagon", run_pinned_colony_skips_open_field_wagon},
 };
 TEST_MAIN(k_cases)
