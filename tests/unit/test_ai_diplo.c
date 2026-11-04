@@ -1331,7 +1331,10 @@ static int case_153e_phases_2_4_encounter(void) {
   return 0;
 }
 
-static int case_153e_wantstuff_demand(void) {
+/* `tie`: a second AI colony at (5,10), DOS distance 4 from the unit at (5,6)
+ * like the first at (8,8) (Chebyshev 4 vs 3). FUN_15eb_0142 (raw 9380-9421,
+ * max + min/2, `<=`) picks the later one; a Chebyshev `<` pick took (8,8). */
+static int wantstuff_run(int tie) {
     ColonizeWorldMap qmap;
     memset(&qmap, 0, sizeof(qmap));
     if (!fx_map_alloc(&qmap, 16, 16, 0, false)) {
@@ -1381,6 +1384,16 @@ static int case_153e_wantstuff_demand(void) {
     ac->building_in_production = -1;
     qcol.colony_count = 2;
     qcol.next_id = 2;
+    if (tie) {
+      ColonizeColony* tc = &qcol.colonies[2];
+      *tc = *ac;
+      tc->id = 2;
+      tc->x = 5;
+      tc->y = 10;
+      qcol.colony_count = 3;
+      qcol.next_id = 3;
+    }
+    const int rcv = tie ? 2 : 1;
     ColonizeCol1Save q;
     col1_save_init(&q);
     memset(q.nation, 0, sizeof(q.nation));
@@ -1451,18 +1464,31 @@ static int case_153e_wantstuff_demand(void) {
       return fail("153e wantstuff: the goods demand CHOICE must be queued");
     }
     /* docs/dos_bugs_ai.md DB-8: the NAMED cargo moves (DOS moves Furs). */
-    if (qcol.colonies[1].stock[COLONIZE_CARGO_MUSKETS] != 60 ||
+    if (qcol.colonies[rcv].stock[COLONIZE_CARGO_MUSKETS] != 60 ||
         qcol.colonies[0].stock[COLONIZE_CARGO_MUSKETS] != 0) {
-      fprintf(stderr, "unit_ai_diplo: muskets src=%d dst=%d\n",
+      fprintf(stderr, "unit_ai_diplo: muskets src=%d dst=%d (colony %d) other=%d\n",
               qcol.colonies[0].stock[COLONIZE_CARGO_MUSKETS],
-              qcol.colonies[1].stock[COLONIZE_CARGO_MUSKETS]);
-      return fail("153e wantstuff: accepting must move the demanded cargo by the demanded amount");
+              qcol.colonies[rcv].stock[COLONIZE_CARGO_MUSKETS], rcv,
+              qcol.colonies[3 - rcv].stock[COLONIZE_CARGO_MUSKETS]);
+      return fail(tie ? "153e wantstuff: the receiver is the last colony at the lowest DOS distance"
+                      : "153e wantstuff: accepting must move the demanded cargo by the demanded amount");
     }
     if (qcol.colonies[0].stock[COLONIZE_CARGO_FURS] != 10 ||
-        qcol.colonies[1].stock[COLONIZE_CARGO_FURS] != 0) {
+        qcol.colonies[rcv].stock[COLONIZE_CARGO_FURS] != 0) {
       return fail("153e wantstuff: Furs must not move (DB-8)");
     }
   return 0;
+}
+
+static int case_153e_wantstuff_demand(void) {
+  return wantstuff_run(0);
+}
+
+static int case_153e_wantstuff_receiver_dos_distance(void) {
+  if (!test_game_txt()) {
+    return TR_SKIP;
+  }
+  return wantstuff_run(1);
 }
 
 static int case_153e_worthy_cascade(void) {
@@ -2188,6 +2214,7 @@ static const TestCase k_cases[] = {
     {"case_2b5a_1112_fortify_break_treaty", case_2b5a_1112_fortify_break_treaty},
     {"case_153e_peacemenu_withdraw_dominance", case_153e_peacemenu_withdraw_dominance},
     {"case_153e_peacemenu_withdraw_all_land", case_153e_peacemenu_withdraw_all_land},
+    {"case_153e_wantstuff_receiver_dos_distance", case_153e_wantstuff_receiver_dos_distance},
     {"case_153e_sieges_takes_passengers", case_153e_sieges_takes_passengers},
     {"case_relation_writes_preserve_player_bytes", case_relation_writes_preserve_player_bytes},
     {"case_153e_talk_tokens_474", case_153e_talk_tokens_474},

@@ -20,6 +20,7 @@
 
 #include "core/ai_popup.h"
 #include "core/colony.h"
+#include "core/combat_analysis.h"
 #include "core/combat_strength.h"
 #include "core/dos_buggy.h"
 #include "core/europe.h"
@@ -30,6 +31,7 @@
 #include "core/reports_names.h"
 #include "core/strutil.h"
 #include "core/units.h"
+#include "core/units_internal.h"
 #include "core/woodcut.h"
 
 #include <stddef.h>
@@ -2528,7 +2530,7 @@ static int ai_diplo_153e_encounter_gated(
    * @WANTSTUFF demand pick (raw :97562-97593): only when the encounter's
    * moving unit (DOS param_4, from FUN_5bfb_3180) belongs to `target` — an
    * AI unit walked up to the human side. Receiver = target's nearest colony
-   * (FUN_1000_8804, nearest-by-distance approximated Chebyshev); source =
+   * (FUN_15eb_0142: max + min/2, last colony wins a tie); source =
    * the colony on the encounter tile (FUN_1000_89ae at unit+dir; the OpenCol
    * encounter has no direction, so the first adjacent colony stands in —
    * identical whenever one adjacent colony exists, which is the DOS case).
@@ -2539,23 +2541,11 @@ static int ai_diplo_153e_encounter_gated(
   {
     const ColonizeUnit* eu = units_get_const(ctx->units, unit_id);
     if (eu && eu->active && eu->nation_id == target && ctx->colonies) {
-      int dst = -1;
-      int best_d = 0x7fff;
-      for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-        const ColonizeColony* c = &ctx->colonies->colonies[i];
-        if (!c->active || c->nation_id != target) {
-          continue;
-        }
-        int dx0 = c->x - eu->x;
-        int dy0 = c->y - eu->y;
-        if (dx0 < 0) dx0 = -dx0;
-        if (dy0 < 0) dy0 = -dy0;
-        const int d = dx0 > dy0 ? dx0 : dy0;
-        if (d < best_d) {
-          best_d = d;
-          dst = i;
-        }
-      }
+      /* raw 97596: FUN_281f_0614 = FUN_15eb_0142(x, y, target, -1) (raw
+       * 9380-9421): max + min/2, `<=` so the last colony wins a tie. */
+      const ColonizeColony* near =
+        units_nearest_colony_dos(ctx->colonies, eu->x, eu->y, target, NULL);
+      const int dst = near ? (int)(near - ctx->colonies->colonies) : -1;
       int src = -1;
       for (int d = 0; d < 8 && src < 0; ++d) {
         src = colonies_id_at(ctx->colonies, eu->x + MAP_DIR8_DX[d], eu->y + MAP_DIR8_DY[d]);
