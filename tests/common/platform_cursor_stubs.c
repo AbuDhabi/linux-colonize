@@ -38,8 +38,16 @@ void platform_set_outer_palette(
 }
 #endif
 
+/* A virtual clock: sleeping advances it, so time-paced loops (the piece
+ * slide, the combat lunge) finish instantly and deterministically. */
+static uint32_t s_stub_ticks_ms;
+
+uint32_t platform_ticks_ms(void) {
+  return s_stub_ticks_ms;
+}
+
 void platform_sleep_ms(uint32_t ms) {
-  (void)ms;
+  s_stub_ticks_ms += ms;
 }
 
 bool platform_set_mouse_cursor_indexed(

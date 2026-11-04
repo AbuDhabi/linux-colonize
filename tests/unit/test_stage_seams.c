@@ -3644,6 +3644,41 @@ static int test_bar_screen_lines_do_not_block_map(void) {
   return rc;
 }
 
+/* FUN_112b_0eb6 (raw 2648-2713): 16 one-pixel steps, 15 waits of 10 (fast: 8)
+ * ticks of the 608.77 Hz clock, none after the last. Under the stubs' virtual
+ * clock the paced loop must show every one of the 16 frames and end exactly
+ * when the last wait does. */
+static int test_slide_pacing_matches_dos(void) {
+  static ColonizeGameState game;
+  memset(&game, 0, sizeof(game));
+  game.col1_ok = true;
+  int rc = 0;
+  for (int fast = 0; fast <= 1 && rc == 0; ++fast) {
+    game.col1.head.game_options.fast_piece_slide = (uint8_t)fast;
+    const uint32_t total = game_slide_total_ms(&game);
+    const uint32_t want_total = fast ? 197u : 246u;
+    const uint32_t t0 = platform_ticks_ms();
+    int frames = 1;
+    for (int f = 1; f < GAME_SLIDE_STEPS;) {
+      const int next = game_slide_wait_next(t0, total, f);
+      if (next != f + 1) {
+        fprintf(stderr, "  fast %d: frame %d followed by %d\n", fast, f, next);
+        rc = fail("slide pacing: a frame was skipped");
+        break;
+      }
+      f = next;
+      ++frames;
+    }
+    const uint32_t elapsed = platform_ticks_ms() - t0;
+    if (rc == 0 && (total != want_total || frames != GAME_SLIDE_STEPS || elapsed != total)) {
+      fprintf(stderr, "  fast %d: total %u ms (want %u), %d frames, %u ms elapsed\n", fast,
+              (unsigned)total, (unsigned)want_total, frames, (unsigned)elapsed);
+      rc = fail("slide pacing: 16 frames over the DOS duration");
+    }
+  }
+  return rc;
+}
+
 static int s_near_human = -1;
 
 static void near_human_watch(
@@ -5839,6 +5874,7 @@ static const TestCase k_cases[] = {
     {"test_player_pick_keeps_view", test_player_pick_keeps_view},
     {"test_bar_sale_speedup_only_on_sales", test_bar_sale_speedup_only_on_sales},
     {"test_bar_screen_lines_do_not_block_map", test_bar_screen_lines_do_not_block_map},
+    {"test_slide_pacing_matches_dos", test_slide_pacing_matches_dos},
     {"test_colony_list_keys_wrap", test_colony_list_keys_wrap},
     {"test_colony_custom_house_keys", test_colony_custom_house_keys},
     {"test_screen_f1_focus_article", test_screen_f1_focus_article},

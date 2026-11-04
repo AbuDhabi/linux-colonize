@@ -607,6 +607,24 @@ static void game_native_score_plot(
 static int s_vision_slide_unit = -1;
 static bool game_tile_live_seen(const ColonizeGameState* game, int x, int y);
 
+/* FUN_112b_0eb6 pacing (raw 2648-2713), shared by the move slide and the
+ * combat lunge: 0x10 >> zoom one-pixel steps with a wait of (fast ? 8 : 10)
+ * << zoom ticks of the 608.77 Hz DS:0x8338 clock between steps and none after
+ * the last, i.e. 15 waits, ~197 / ~246 ms a tile. Frames are placed by elapsed
+ * time, so a slow present never stretches the slide. */
+COLONIZE_INTERNAL uint32_t game_slide_total_ms(const ColonizeGameState* game) {
+  const bool fast = game->col1_ok && game->col1.head.game_options.fast_piece_slide;
+  return (GAME_SLIDE_STEPS - 1) * (fast ? 8u : 10u) * 100000u / 60877u;
+}
+
+COLONIZE_INTERNAL int game_slide_wait_next(uint32_t t0, uint32_t total_ms, int f) {
+  int next;
+  while ((next = 1 + (int)((platform_ticks_ms() - t0) * (GAME_SLIDE_STEPS - 1) / total_ms)) <= f) {
+    platform_sleep_ms(1);
+  }
+  return next < GAME_SLIDE_STEPS ? next : GAME_SLIDE_STEPS;
+}
+
 COLONIZE_INTERNAL void game_move_watch_w(
   const ColonizeWorld* w,
   void* user,
@@ -663,8 +681,8 @@ COLONIZE_INTERNAL void game_move_watch_w(
    * port_bugs.md: the sprite must visibly travel from the old tile to the new one
    * — for the player's own units too (a jump-cut reads as "no animation").
    * Zoom 0 only (16px tiles); the unit is hidden from the base frame and a
-   * chrome'd copy is blitted along the interpolated pixel path at an
-   * eyeball-visible ~25 fps.
+   * chrome'd copy is blitted along the interpolated pixel path, paced as DOS
+   * (game_slide_wait_next).
    */
   bool slid = false;
   if (game->map_zoom == 0 && game->unit_icons_ok) {
@@ -732,13 +750,13 @@ COLONIZE_INTERNAL void game_move_watch_w(
         const int y0 = MAP_MENU_BAR_H + fyl * 16 - shy;
         const int x1 = txl * 16 - shx;
         const int y1 = MAP_MENU_BAR_H + tyl * 16 - shy;
-        /* port_bugs.md: doubled once more ("can barely register they moved"). */
-        const int steps = fast ? 2 : 4;
-        const uint32_t delay_ms = fast ? 60u : 80u;
+        const int steps = GAME_SLIDE_STEPS;
+        const uint32_t total_ms = game_slide_total_ms(game);
         const bool was_active = mu->active;
         mu->active = false; /* keep the base frame from drawing it at `to` */
         s_vision_slide_unit = unit_id; /* its sight already lifted the fog at `to` */
-        for (int f = 1; f <= steps; ++f) {
+        const uint32_t t0 = platform_ticks_ms();
+        for (int f = 1;;) {
           game_render(game, &fb, &pal);
           const int px = x0 + (x1 - x0) * f / steps;
           const int py = y0 + (y1 - y0) * f / steps;
@@ -763,10 +781,10 @@ COLONIZE_INTERNAL void game_move_watch_w(
              * moving). Use the frame's real palette like the static draw. */
             &pal
           );
-          if (!platform_present(game->platform, &fb, &pal)) {
+          if (!platform_present(game->platform, &fb, &pal) || f >= steps) {
             break;
           }
-          platform_sleep_ms(delay_ms);
+          f = game_slide_wait_next(t0, total_ms, f);
         }
         mu->active = was_active;
         s_vision_slide_unit = -1;
@@ -907,8 +925,10 @@ static void game_lunge_frames(
   const int ddx = (def_x > from_x) - (def_x < from_x);
   const int ddy = (def_y > from_y) - (def_y < from_y);
   /* Outbound only, ending one full tile out (16px at zoom 0) as DOS's
-   * pixel-step loop does; the snap home below is a single frame. */
-  static const int k_step[3] = {6, 11, 16};
+   * pixel-step loop does; the snap home below is a single frame. The steps
+   * are FUN_112b_0eb6's, paced as the move slide (game_slide_wait_next). */
+  const int steps = GAME_SLIDE_STEPS;
+  const uint32_t total_ms = game_slide_total_ms(game);
   static uint8_t* s_lunge_fb;
   static size_t s_lunge_fb_cap;
   ColonizeFramebuffer8 fb;
@@ -924,15 +944,16 @@ static void game_lunge_frames(
     mu->active = false;
     s_vision_slide_unit = mu->id; /* keep its sight in the vision grid */
   }
-  for (int f = 0; f < 3; ++f) {
+  const uint32_t t0 = platform_ticks_ms();
+  for (int f = 1;;) {
     game_render(game, &fb, &pal);
     game_blit_unit_in_viewport(
       &fb,
       game_chrome_font(game),
       &game->unit_icons,
       sprite,
-      sxp + ddx * k_step[f],
-      syp + ddy * k_step[f],
+      sxp + ddx * 16 * f / steps,
+      syp + ddy * 16 * f / steps,
       dtype,
       nation_id,
       badge,
@@ -942,13 +963,10 @@ static void game_lunge_frames(
       /* port_bugs.md: same palette rule as the move slide — raw index went pink. */
       &pal
     );
-    if (!platform_present(game->platform, &fb, &pal)) {
+    if (!platform_present(game->platform, &fb, &pal) || f >= steps) {
       break;
     }
-    /* port_bugs.md: 3x slower with fast piece slide on, 6x slower without. */
-    platform_sleep_ms(
-      game->col1_ok && game->col1.head.game_options.fast_piece_slide ? 90u : 270u
-    );
+    f = game_slide_wait_next(t0, total_ms, f);
   }
   if (mu) {
     mu->active = was_active;
