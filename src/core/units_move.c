@@ -287,6 +287,13 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_board(units_move_ctx* c) {
    * (FUN_112b_0eb6) and its departure-tile edge scroll. The passenger is off
    * the map now, so units_move_watch_notify would skip it; call the watch. */
   units_move_watch_fire(pool, map, colonies, unit_id, ox, oy, dest_x, dest_y, c->vis_before);
+  /* The board is 465b's plain step (raw 75711-75723), so its tail still runs
+   * 0984 -> FUN_5bfb_3180 (raw 75794-75797). With a land mover on water only
+   * the sentry-wake arm applies (raw 98628-98646; the naval arms need a hull,
+   * the facing and encounter arms a land tile). 3180 reads the mover's
+   * nation and the destination (param_2/3), which the receiving ship
+   * shares; the boarded passenger is off the map. */
+  units_sentry_wake_scan(pool, map, colonies, ship_id);
   g_units_last_enter_reason = COLONIZE_ENTER_BOARD;
   return UNITS_MOVE_RETURN_TRUE;
 }

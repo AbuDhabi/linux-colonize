@@ -1430,6 +1430,61 @@ static int unit_ai_undefended_colony_band(void) {
   return rc;
 }
 
+/* Boarding is FUN_465b_0000's plain step (raw 75711-75723), so its tail runs
+ * FUN_5bfb_3180's sentry-wake arm (raw 98628-98646): a foreign sentried ship
+ * beside the receiving ship wakes. */
+static int unit_board_wakes_foreign_sentry(void) {
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  pool.type_count = 2;
+  pool.types[0].movement = 4;
+  pool.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  pool.types[0].cargo = 2;
+  pool.types[1].space = 1;
+  pool.types[1].movement = 1;
+  pool.types[1].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  char err[128];
+  if (!map_alloc(&map, 8, 8, err, sizeof(err))) {
+    fprintf(stderr, "board_wake: map_alloc failed: %s\n", err);
+    return 1;
+  }
+  for (int i = 0; i < 8 * 8; ++i) {
+    map.terrain[i] = (i % 8 == 4) ? 1 : 25; /* land column x=4, ocean elsewhere */
+    if (map.layer3) {
+      map.layer3[i] = 1; /* ocean, not lake */
+    }
+  }
+  units_set_occupancy_map(&map);
+  const int own = units_spawn_allow_stack(&pool, 0, 3, 3);
+  const int foe = units_spawn_allow_stack(&pool, 0, 2, 3);
+  const int pax = units_spawn_allow_stack(&pool, 1, 4, 3);
+  int rc = 0;
+  if (!units_get(&pool, own) || !units_get(&pool, foe) || !units_get(&pool, pax)) {
+    fprintf(stderr, "board_wake: spawn failed\n");
+    rc = 1;
+  }
+  const ColonizeWorld w = {.units = &pool, .map = &map};
+  if (rc == 0) {
+    units_get(&pool, own)->nation_id = 0;
+    units_get(&pool, foe)->nation_id = 1;
+    units_get(&pool, foe)->orders = UNITS_ORDER_SENTRY;
+    units_get(&pool, pax)->nation_id = 0;
+    units_get(&pool, pax)->moves = UNITS_MP_PER_TILE;
+    if (!units_try_move_w(&w, pax, 3, 3) || units_get(&pool, pax)->aboard_ship_id != own) {
+      fprintf(stderr, "board_wake: walk-on board refused\n");
+      rc = 1;
+    } else if (units_get(&pool, foe)->orders == UNITS_ORDER_SENTRY) {
+      fprintf(stderr, "board_wake: a walk-on board must wake the foreign sentry\n");
+      rc = 1;
+    }
+  }
+  units_set_occupancy_map(NULL);
+  map_free(&map);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
   {"unit_ai_undefended_colony_band", unit_ai_undefended_colony_band},
   {"unit_colony_entry_bvar4_reseed_1323", unit_colony_entry_bvar4_reseed_1323},
@@ -1447,5 +1502,6 @@ static const TestCase k_cases[] = {
   {"unit_fog_vis_mask_and_snapshot", unit_fog_vis_mask_and_snapshot},
   {"unit_colony_enter_hull_stack_gate_791_792", unit_colony_enter_hull_stack_gate_791_792},
   {"unit_move_stage_seam_1107", unit_move_stage_seam_1107},
+  {"unit_board_wakes_foreign_sentry", unit_board_wakes_foreign_sentry},
 };
 TEST_MAIN_WRAPPED(k_cases, diag_init(0, NULL), diag_shutdown())
