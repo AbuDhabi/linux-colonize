@@ -40,9 +40,11 @@ extern ColonizeUnitPool* turn_birth_units;
 /* --- owned by turn_production.c --- */
 extern const ColonizeMsgCatalog* turn_labels;
 extern uint8_t turn_prof_census[COLONIZE_COL1_NATION_COUNT][32];
-/* Nation whose census FUN_4962_0606 already took this pass (the human's, at
- * raw 58374 before its 5e52); the next colony production pass skips it once. */
-extern int turn_prof_census_taken;
+/* FUN_291f_0a9e -> FUN_4962_0606 into turn_prof_census[n], at the head of
+ * nation n's 00f2 (raw 58374: before 5e52 and the lane tick). A production
+ * pass scoped to one nation (turn_prod_only_set) reads that snapshot; an
+ * unscoped pass takes all four itself. */
+void turn_take_prof_census(ColonizeTurnContext* ctx, int nation_id);
 extern int turn_prod_only_nation;
 extern bool turn_prod_only_set;
 extern int turn_prod_skip_nation;

@@ -549,6 +549,7 @@ void turn_run_ai_nation_eot(ColonizeTurnContext* ctx, ColonizeTurnResult* out, i
     return;
   }
   if (!ctx->col1_ok || !ctx->col1) {
+    turn_take_prof_census(ctx, n); /* 00f2 raw 58374, before the lane tick */
     ai_euro_europe_lane_tick(ctx, n);
     turn_prod_only_nation = n;
     turn_prod_only_set = true;
@@ -562,6 +563,10 @@ void turn_run_ai_nation_eot(ColonizeTurnContext* ctx, ColonizeTurnResult* out, i
     return; /* withdrawn: no 00f2 */
   }
   ColonizeCol1Nation* nat = &ctx->col1->nation[n];
+  /* 00f2 raw 58374 FUN_291f_0a9e -> FUN_4962_0606, before 5e52 (58375) and
+   * the lane tick (58377): an expert who lands on the dock or is bought this
+   * turn does not count until next turn. */
+  turn_take_prof_census(ctx, n);
   if (!ctx->col1->head.game_options.woi) {
     ai_nation_reseed(ctx); /* 5e52 entry: FUN_281f_04ca(DS:0x83a6), raw 68542 */
     /* raw 68557: FUN_38fd_0058(0, -1), this nation's own price track. */
@@ -954,12 +959,15 @@ int turn_rank_euro_nations(
   return 0;
 }
 
-void turn_tally_professions(
-  const ColonizeColonyPool* colonies,
-  const ColonizeUnitPool* units,
-  int nation_id,
-  uint8_t out_hist[32]
-) {
+static void turn_tally_record(void* user, int type_index, int profession, bool is_hull) {
+  uint8_t* hist = user;
+  if (!is_hull && units_type_has_profession_slot(type_index) && profession >= 0 &&
+      profession < 32 && hist[profession] < 255u) {
+    hist[profession]++;
+  }
+}
+
+void turn_tally_professions_w(const ColonizeWorld* w, int nation_id, uint8_t out_hist[32]) {
   /*
    * FUN_4962_0606 (raw 78332-78372): zero hist[0x1d]; then count the
    * nation's units by profession — but ONLY those whose @UNIT type carries
@@ -970,29 +978,36 @@ void turn_tally_professions(
    * by its SPECIALTY (`FUN_281f_0c54`) — never by the field job it is
    * standing in, so a Free Colonist working a wheat plot is not an Expert
    * Farmer. 32 slots here (covers the whole @JOB range).
+   *
+   * The unit walk (raw 78351-78362) has no position test: every record of
+   * the nation counts, Europe docks and lanes included. The human's
+   * Europe-side units live only in the EuropeScreen here, so they are added
+   * from it, and the pool's (236,236) dock mirrors are skipped for their rows.
    */
   if (!out_hist) {
     return;
   }
   memset(out_hist, 0, 32);
-  if (nation_id < 0 || nation_id > 3) {
+  if (!w || nation_id < 0 || nation_id > 3) {
     return;
   }
+  const ColonizeUnitPool* units = w->units;
+  const ColonizeColonyPool* colonies = w->colonies;
+  const EuropeScreen* eu =
+    (w->europe && (int)w->europe->bound_nation == nation_id) ? w->europe : NULL;
   if (units) {
     for (int i = 0; i < units_slot_end(units); ++i) {
       const ColonizeUnit* u = &units->units[i];
       if (!u->active || u->nation_id != nation_id) {
         continue;
       }
-      if (!units_type_has_profession_slot(u->type_index)) {
+      if (eu && europe_is_dock_mirror(units, u, nation_id)) {
         continue;
       }
-      const int p = u->profession;
-      if (p >= 0 && p < 32 && out_hist[p] < 255u) {
-        out_hist[p]++;
-      }
+      turn_tally_record(out_hist, u->type_index, u->profession, false);
     }
   }
+  europe_for_each_offpool_record(eu, units, turn_tally_record, out_hist);
   if (colonies) {
     for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
       const ColonizeColony* c = &colonies->colonies[i];

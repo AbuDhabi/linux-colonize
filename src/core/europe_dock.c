@@ -633,9 +633,49 @@ void europe_apply_dock_row_kit(ColonizeUnit* u, const EuropeDockImmigrant* d) {
 }
 
 /* The shape europe_dock_mirror_unit_of and col1 capture look for. */
-static bool europe_is_dock_mirror(const ColonizeUnitPool* units, const ColonizeUnit* u, int nation_id) {
+bool europe_is_dock_mirror(const ColonizeUnitPool* units, const ColonizeUnit* u, int nation_id) {
   return u && u->active && u->nation_id == nation_id && u->x == EUROPE_PARK_XY &&
          u->y == EUROPE_PARK_XY && u->aboard_ship_id < 0 && !units_is_sea(units, u->id);
+}
+
+void europe_for_each_offpool_record(
+  const EuropeScreen* eu, const ColonizeUnitPool* units, EuropeRecordFn fn, void* user
+) {
+  if (!eu || !fn) {
+    return;
+  }
+  for (int r = 0; r < eu->dock_count && r < EUROPE_DOCK_MAX; ++r) {
+    const EuropeDockImmigrant* row = &eu->dock[r];
+    if (row->present) {
+      fn(user, europe_dock_display_type_index(units, row), row->profession, false);
+    }
+  }
+  /* Same lanes and records as col1_bridge_capture_europe_lanes. */
+  const struct {
+    const EuropeHarborShip* list;
+    int count;
+  } lanes[3] = {
+    {eu->harbor, eu->harbor_ships},
+    {eu->bound, eu->bound_ships},
+    {eu->expected, eu->expected_ships},
+  };
+  for (int li = 0; li < 3; ++li) {
+    for (int si = 0; si < lanes[li].count; ++si) {
+      const EuropeHarborShip* ship = &lanes[li].list[si];
+      fn(user, europe_ship_type_index(units, ship), -1, true);
+      for (int c = 0; c < ship->cargo_count && c < EUROPE_SHIP_CARGO_MAX; ++c) {
+        int pti = ship->cargo_types[c];
+        if (pti == -2) {
+          pti = units_kind_type_index(units, UNITS_KIND_ARTILLERY);
+        }
+        if (pti < 0) {
+          continue;
+        }
+        const int prof = ship->cargo_professions[c];
+        fn(user, pti, prof < 0 ? UNITS_JOB_NONE : prof, false);
+      }
+    }
+  }
 }
 
 /*

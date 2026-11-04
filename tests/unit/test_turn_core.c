@@ -5880,7 +5880,7 @@ static int case_census_profession_tally(void) {
   col->population = 3;
 
   uint8_t hist[32];
-  turn_tally_professions(&pool, &units, 0, hist);
+  turn_tally_professions_w(&(ColonizeWorld){.units = &units, .colonies = &pool}, 0, hist);
   if (hist[COLONIZE_PROF_STATESMAN] != 2) {
     fprintf(stderr, "tally statesman want 2 got %u\n", (unsigned)hist[COLONIZE_PROF_STATESMAN]);
     return 1;
@@ -5901,6 +5901,120 @@ static int case_census_profession_tally(void) {
 }
 
 /* Live census peel: colony counts + unit/combat tallies. */
+/*
+ * FUN_4962_0606 raw 78351-78362: the specialty census walks every unit record
+ * of the nation, Europe docks and lanes included. The human's Europe side
+ * lives in the EuropeScreen here: a dock row with no mirror (recruit, train,
+ * purchase), a dock row with its (236,236) mirror (counted once), and a
+ * harbor hull with one passenger.
+ */
+static int case_tally_counts_europe_side(void) {
+  fx_begin();
+  static ColonizeUnitPool units;
+  static EuropeScreen eu;
+  memset(&units, 0, sizeof(units));
+  units_reset(&units);
+  units_set_occupancy_map(NULL);
+  units.type_count = 14;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Colonists");
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  snprintf(units.types[13].name, sizeof(units.types[13].name), "Caravel");
+  units.types[13].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  units.types[13].cargo = 2;
+  const int mid = units_spawn(&units, 0, EUROPE_PARK_XY, EUROPE_PARK_XY);
+  ColonizeUnit* mirror = units_get(&units, mid);
+  if (!mirror) {
+    fprintf(stderr, "tally europe: mirror spawn failed\n");
+    return 1;
+  }
+  units_set_nation(mirror, 0);
+  mirror->profession = COLONIZE_PROF_TOBACCO_PLANTER;
+  memset(&eu, 0, sizeof(eu));
+  eu.bound_nation = 0;
+  snprintf(eu.dock[0].name, sizeof(eu.dock[0].name), "Colonists");
+  eu.dock[0].profession = COLONIZE_PROF_SUGAR_PLANTER; /* trained: no mirror */
+  eu.dock[0].present = true;
+  snprintf(eu.dock[1].name, sizeof(eu.dock[1].name), "Colonists");
+  eu.dock[1].profession = COLONIZE_PROF_TOBACCO_PLANTER;
+  eu.dock[1].present = true;
+  eu.dock[1].mirror_unit_id = mid;
+  eu.dock_count = 2;
+  eu.harbor[0].type_index = 13;
+  eu.harbor[0].cargo_count = 1;
+  eu.harbor[0].cargo_types[0] = 0;
+  eu.harbor[0].cargo_professions[0] = COLONIZE_PROF_COTTON_PLANTER;
+  eu.harbor_ships = 1;
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  uint8_t hist[32];
+  turn_tally_professions_w(
+    &(ColonizeWorld){.units = &units, .colonies = &pool, .europe = &eu}, 0, hist
+  );
+  if (hist[COLONIZE_PROF_SUGAR_PLANTER] != 1 || hist[COLONIZE_PROF_TOBACCO_PLANTER] != 1 ||
+      hist[COLONIZE_PROF_COTTON_PLANTER] != 1) {
+    fprintf(stderr, "tally europe: sugar %u tobacco %u cotton %u (want 1/1/1)\n",
+            (unsigned)hist[COLONIZE_PROF_SUGAR_PLANTER],
+            (unsigned)hist[COLONIZE_PROF_TOBACCO_PLANTER],
+            (unsigned)hist[COLONIZE_PROF_COTTON_PLANTER]);
+    return 1;
+  }
+  return 0;
+}
+
+/* FUN_3844_00f2 raw 58374: an AI nation's 0606 census runs at the head of its
+ * 00f2, before the 5e52 immigration (58375): this turn's immigrant expert does
+ * not count until next turn. */
+static int case_ai_census_before_immigration(void) {
+  fx_begin();
+  static ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
+  units_reset(&units);
+  units_set_occupancy_map(NULL);
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Colonists");
+  units.type_count = 1;
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  static ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  col1.player[0].control = 0;
+  col1.player[1].control = 1;
+  col1.nation[1].current_crosses = 8;
+  col1.nation[1].needed_crosses = 8;
+  for (int i = 0; i < 3; ++i) {
+    col1.nation[1].recruit[i] = COLONIZE_PROF_SUGAR_PLANTER;
+  }
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.messages = test_game_txt();
+  ctx.names = test_names_txt();
+  ctx.human_nation = 0;
+  ctx.units = &units;
+  ctx.colonies = &pool;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ColonizeTurnResult out;
+  memset(&out, 0, sizeof(out));
+  turn_prof_census[1][COLONIZE_PROF_SUGAR_PLANTER] = 7; /* must be retaken */
+  turn_run_ai_nation_eot(&ctx, &out, 1);
+  int experts = 0;
+  for (int i = 0; i < units_slot_end(&units); ++i) {
+    const ColonizeUnit* u = &units.units[i];
+    experts += u->active && u->nation_id == 1 && u->profession == COLONIZE_PROF_SUGAR_PLANTER;
+  }
+  if (experts != 1) {
+    fprintf(stderr, "ai census: setup wants one immigrant expert, got %d\n", experts);
+    return 1;
+  }
+  if (turn_prof_census[1][COLONIZE_PROF_SUGAR_PLANTER] != 0) {
+    fprintf(stderr, "ai census: immigrant counted the turn he arrived (%u)\n",
+            (unsigned)turn_prof_census[1][COLONIZE_PROF_SUGAR_PLANTER]);
+    return 1;
+  }
+  return 0;
+}
+
 static int case_census_live_peel(void) {
   fx_begin();
   ColonizeCol1Save col1;
@@ -7378,7 +7492,8 @@ static int case_brewster_pick_before_colony_crosses(void) {
     (uint8_t)(1u << (FF_WILLIAM_BREWSTER % 8));
   g->eu.current_crosses = 30000; /* well past any 584a threshold */
   uint8_t census_before[32];
-  turn_tally_professions(&g->pool, &g->units, 0, census_before);
+  const ColonizeWorld cw = {.units = &g->units, .colonies = &g->pool, .europe = &g->eu};
+  turn_tally_professions_w(&cw, 0, census_before);
   int produced = -1;
   bool active = false;
   if (!eotd_run(AI_POPUP_TAG_BREWSTER_PICK, 0, &produced, &active)) {
@@ -7392,7 +7507,7 @@ static int case_brewster_pick_before_colony_crosses(void) {
   }
   /* The 0a9e specialty census (raw 58374) precedes 5e52: the recruit is not in it. */
   uint8_t census_after[32];
-  turn_tally_professions(&g->pool, &g->units, 0, census_after);
+  turn_tally_professions_w(&cw, 0, census_after);
   if (memcmp(turn_prof_census[0], census_before, sizeof census_before) != 0 ||
       memcmp(census_after, census_before, sizeof census_before) == 0) {
     fprintf(stderr, "brewster: census holds the recruit (or the pick spawned no unit)\n");
@@ -7547,6 +7662,8 @@ static const TestCase k_cases[] = {
   {"war_lost_stops_day", case_war_lost_stops_day},
   {"year_end_section_d", case_year_end_section_d},
   {"census_profession_tally", case_census_profession_tally},
+  {"tally_counts_europe_side", case_tally_counts_europe_side},
+  {"ai_census_before_immigration", case_ai_census_before_immigration},
   {"census_live_peel", case_census_live_peel},
   {"spoilage_spoil1", case_spoilage_spoil1},
   {"spoilage_spoil2", case_spoilage_spoil2},

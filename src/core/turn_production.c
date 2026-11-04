@@ -407,7 +407,14 @@ static bool turn_emit_needtools_notice(
  * unrelated per-nation flag block. port_bugs.md #563.)
  */
 uint8_t turn_prof_census[COLONIZE_COL1_NATION_COUNT][32];
-int turn_prof_census_taken = -1;
+
+void turn_take_prof_census(ColonizeTurnContext* ctx, int nation_id) {
+  if (!ctx || nation_id < 0 || nation_id > 3) {
+    return;
+  }
+  const ColonizeWorld w = world_from_turn_ctx(ctx);
+  turn_tally_professions_w(&w, nation_id, turn_prof_census[nation_id]);
+}
 
 /*
  * DOS-LITERAL FUN_364b_033a (raw 56977-57012), reached from Phase Q's
@@ -2391,15 +2398,12 @@ void turn_run_colony_production_with_w(
   if (!pool) {
     return;
   }
-  /* FUN_4962_0606 via FUN_3844_00f2 (raw 58374): the per-nation specialty
-   * census is recomputed before the colony production loop. One production
-   * pass = one turn here, so refresh all four Euro nations up front. */
-  for (int n = 0; n < (int)COLONIZE_COL1_NATION_COUNT && n < 4; ++n) {
-    if (n != turn_prof_census_taken) {
-      turn_tally_professions(pool, w->units, n, turn_prof_census[n]);
-    }
+  /* FUN_4962_0606 via FUN_3844_00f2 (raw 58374): a slot's scoped pass reads
+   * the census its 00f2 took before 5e52 (turn_take_prof_census); an
+   * unscoped pass (tests, tools) refreshes all four Euro nations here. */
+  for (int n = 0; !turn_prod_only_set && n < (int)COLONIZE_COL1_NATION_COUNT && n < 4; ++n) {
+    turn_tally_professions_w(w, n, turn_prof_census[n]);
   }
-  turn_prof_census_taken = -1;
   /* FUN_3844_00f2 raw 58384 walks colony indices from count - 1 down. */
   for (int i = COLONIZE_COLONIES_MAX - 1; i >= 0; --i) {
     if (pool->colonies[i].active && turn_prod_nation_in_scope(pool->colonies[i].nation_id)) {

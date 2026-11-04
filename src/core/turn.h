@@ -262,15 +262,11 @@ void turn_refresh_euro_rank(ColonizeTurnContext* ctx);
 
 /*
  * FUN_4962_0606 thin — profession histogram for one Euro nation from colony
- * colonist jobs + map units' profession. out[32] saturates at 255.
+ * colonist specialties + every unit record's profession (the human's
+ * Europe-side units from w->europe). out[32] saturates at 255.
  * Cite: turn/census_tally.md; viceroy_unpacked.c ~78332–78373.
  */
-void turn_tally_professions(
-  const ColonizeColonyPool* colonies,
-  const ColonizeUnitPool* units,
-  int nation_id,
-  uint8_t out_hist[32]
-);
+void turn_tally_professions_w(const ColonizeWorld* w, int nation_id, uint8_t out_hist[32]);
 
 /*
  * DS:0x9418[nation] hull tally as FUN_48d3_0002 reads it — the input to the

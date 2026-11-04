@@ -590,6 +590,20 @@ int europe_dock_display_type_index(
   const ColonizeUnitPool* units, const EuropeDockImmigrant* d
 );
 
+/* A (236,236) dock mirror unit of the nation (it stands for a dock row). */
+bool europe_is_dock_mirror(const ColonizeUnitPool* units, const ColonizeUnit* u, int nation_id);
+/* The bound nation's Europe-side unit records that live only in this screen
+ * (DOS keeps every one as an ordinary unit record): present dock rows, then
+ * each harbor/bound/expected hull (is_hull) and its passengers, in the order
+ * col1_bridge_capture_europe_lanes writes them. profession is the record's
+ * +0x315b byte: an unset passenger profession (-1) is UNITS_JOB_NONE, as the
+ * capture writes it; a hull passes -1. A pool walk that adds these must not
+ * also count the dock mirrors. */
+typedef void (*EuropeRecordFn)(void* user, int type_index, int profession, bool is_hull);
+void europe_for_each_offpool_record(
+  const EuropeScreen* eu, const ColonizeUnitPool* units, EuropeRecordFn fn, void* user
+);
+
 /* Kit implied by a dock entry's type, for the mirror unit and for landing. */
 
 /* europe_spawn_dock_mirror_unit -- see docs/europe.md#europe_spawn_dock_mirror_unit */

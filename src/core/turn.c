@@ -571,9 +571,6 @@ COLONIZE_INTERNAL void turn_step_setup(ColonizeTurnProcessor* proc, ColonizeTurn
         (unsigned)*ctx->turn_number, (unsigned)*ctx->game_year,
         (unsigned)*ctx->game_autumn, ctx->human_nation
       );
-      /* A turn abandoned at a FINISH yield (new game, load) must not skip
-       * a census in the next one. */
-      turn_prof_census_taken = -1;
       /* DOS FUN_3844_00f2 opens every nation's EOT with turn_owner_chrome
        * (281f_0590 → 1984_00aa); the human's own colony EOT now runs in
        * TURN_PROC_FINISH, which re-arms the same chrome there. SETUP itself
@@ -936,12 +933,7 @@ COLONIZE_INTERNAL void turn_step_finish(ColonizeTurnProcessor* proc, ColonizeTur
       }
       /* 0a9e = FUN_4962_0606 (raw 58374): the specialty census is taken before
        * 5e52, so a recruit picked there is not in it. */
-      if (ctx->colonies && ctx->human_nation >= 0 && ctx->human_nation < 4) {
-        turn_tally_professions(
-          ctx->colonies, ctx->units, ctx->human_nation, turn_prof_census[ctx->human_nation]
-        );
-        turn_prof_census_taken = ctx->human_nation;
-      }
+      turn_take_prof_census(ctx, ctx->human_nation);
       turn_run_nation_ticks_immigration(ctx, &proc->result);
       if (ctx->ai_popups && ai_popup_busy(ctx->ai_popups)) {
         proc->step = TURN_PROC_FINISH_5E52; /* answer the 4884 pick first (turn.h) */
