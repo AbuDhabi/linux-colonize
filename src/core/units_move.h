@@ -152,6 +152,10 @@ typedef void (*ColonizeUnitsMoveWatchFn)(
   int to_y
 );
 void units_set_move_watch(ColonizeUnitsMoveWatchFn fn, void* user);
+/* The mover's vis mask (col1_vis_mask) as it was before the step the move
+ * watch is reporting: FUN_465b_0000 raw 75665 tests it, ORed with the
+ * destination's FUN_281f_0826 mask, for the viewer's bit. */
+uint8_t units_move_watch_vis_before(void);
 /* Fire the move watch for a unit already placed at its new tile (DOS 02d0 slide without a move). */
 void units_move_watch_notify(
   const ColonizeUnitPool* pool, const ColonizeWorldMap* map, const ColonizeColonyPool* colonies,

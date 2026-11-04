@@ -173,7 +173,8 @@ void game_service_europe_bar(ColonizeGameState* game) {
     if (eu->bar_event_red[i]) {
       (void)ai_popup_enqueue_bar_refusal(&game->ai_popups, eu->bar_event[i]);
     } else {
-      (void)ai_popup_enqueue_bar_message(&game->ai_popups, eu->bar_event[i]);
+      /* Every non-red Europe line is a sell line (europe_push_sale_status). */
+      (void)ai_popup_enqueue_bar_sale(&game->ai_popups, eu->bar_event[i]);
     }
     eu->bar_event_red[i] = false;
   }

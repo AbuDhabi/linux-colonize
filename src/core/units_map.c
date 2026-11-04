@@ -1006,6 +1006,25 @@ void units_pump_combat_popups(void) {
   units_combat_pump_popups();
 }
 void* g_units_move_watch_user = NULL;
+/* Live only while the watch runs; a nested watch saves and restores it. */
+static uint8_t g_units_move_watch_vis_before = 0;
+
+uint8_t units_move_watch_vis_before(void) {
+  return g_units_move_watch_vis_before;
+}
+
+void units_move_watch_fire(
+  const ColonizeUnitPool* pool, const ColonizeWorldMap* map, const ColonizeColonyPool* colonies,
+  int unit_id, int from_x, int from_y, int to_x, int to_y, uint8_t vis_before
+) {
+  if (!g_units_move_watch) {
+    return;
+  }
+  const uint8_t outer = g_units_move_watch_vis_before;
+  g_units_move_watch_vis_before = vis_before;
+  g_units_move_watch(g_units_move_watch_user, pool, map, colonies, unit_id, from_x, from_y, to_x, to_y);
+  g_units_move_watch_vis_before = outer;
+}
 
 void units_set_ff_col1(const ColonizeCol1Save* col1) {
   g_units_ff_col1 = col1;
@@ -1021,8 +1040,9 @@ void units_move_watch_notify(
   int unit_id, int from_x, int from_y
 ) {
   const ColonizeUnit* u = units_get_const(pool, unit_id);
-  if (g_units_move_watch && u && units_is_on_map(u)) {
-    g_units_move_watch(g_units_move_watch_user, pool, map, colonies, unit_id, from_x, from_y, u->x, u->y);
+  if (u && units_is_on_map(u)) {
+    /* A placed unit has no earlier step: its current mask stands in. */
+    units_move_watch_fire(pool, map, colonies, unit_id, from_x, from_y, u->x, u->y, u->col1_vis_mask);
   }
 }
 

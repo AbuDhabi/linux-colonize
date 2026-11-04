@@ -322,10 +322,10 @@ enum {
  * port_bugs.md #425 — EXPLICIT USER PREFERENCE, deliberately NOT DOS pacing: the
  * sale one-liners (Custom House autosell run, European Status sell lines) run
  * three times as fast as DOS, so a big autosell turn stops feeling like a
- * cutscene. Divides the two dwells above, and ONLY for arm kind 1 (DOS
- * FUN_1009_0244's first argument for the gold "success" ink) — any other
- * status-strip line keeps DOS's own timing. 500/3 = 166 ms held, 1971/3 =
- * 657 ms for the last line of a run.
+ * cutscene. Divides the two dwells above, and ONLY for lines queued by
+ * ai_popup_enqueue_bar_sale — any other status-strip line, the colony
+ * screen's gold kind-1 cargo lines included, keeps DOS's own timing.
+ * 500/3 = 166 ms held, 1971/3 = 657 ms for the last line of a run.
  */
 #define AI_POPUP_BAR_SALE_SPEEDUP 3u
 
@@ -382,6 +382,8 @@ typedef struct AiPopupState {
    * through ai_popup_enqueue_bar_refusal (the Europe `U` / `-` / `_` refusals).
    */
   uint8_t bar_msg_kind[AI_POPUP_BAR_MSG_MAX];
+  /* Line queued by ai_popup_enqueue_bar_sale: AI_POPUP_BAR_SALE_SPEEDUP. */
+  bool bar_msg_sale[AI_POPUP_BAR_MSG_MAX];
   int bar_msg_count;       /* [0] is the one on screen */
   uint32_t bar_msg_until_ms; /* dwell deadline; 0 = not started yet */
 
@@ -398,6 +400,8 @@ typedef struct AiPopupState {
  * like ai_popup_enqueue.
  */
 bool ai_popup_enqueue_bar_message(AiPopupState* st, const char* text);
+/* Same line, marked as a sale line (port_bugs.md #425 speed-up). */
+bool ai_popup_enqueue_bar_sale(AiPopupState* st, const char* text);
 
 /* Same strip with DOS arm kind 3 (red, FUN_281f_0de0 / FUN_38fd_1a0c): the
  * Europe screen's refusals ("No cargo on board!", "Nothing to transport"). */

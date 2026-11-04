@@ -2853,7 +2853,7 @@ static int unit_village_loot_spawn_failure_silent(void) {
     col1.tribe = &tribe;
     AiPopupState pops;
     ai_popup_init(&pops);
-    units_set_combat_popups(&pops, NULL);
+    units_set_combat_popups(&pops, test_game_txt()); /* textless OKs are dropped */
     ColonizeWorld w = {.units = bp, .col1 = &col1, .col1_ok = true};
     const bool razed = units_try_native_settlement_fallout_w(&w, 0, 4, 3, 3, 500, 3, 3);
     int loot = 0;

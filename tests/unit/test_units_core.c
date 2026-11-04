@@ -5241,7 +5241,7 @@ static int combat_phase2_open(AiPopupState* pops) {
     return 1;
   }
   ai_popup_init(pops);
-  units_set_combat_popups(pops, NULL);
+  units_set_combat_popups(pops, test_game_txt()); /* textless OKs are dropped */
   units_set_combat_human_nation(0);
   return 0;
 }
@@ -6862,7 +6862,7 @@ static int case_combat_treasure_capture(void) {
     return 1;
   }
       ai_popup_clear(&pops);
-      units_set_combat_popups(&pops, NULL);
+      units_set_combat_popups(&pops, test_game_txt());
       units_set_occupancy_map(NULL);
       units_set_native_fallout_context(NULL, NULL);
       ColonizeCol1Save c1;
@@ -6975,7 +6975,7 @@ static int case_combat_colony_capture_notify(void) {
     return 1;
   }
       ai_popup_clear(&pops);
-      units_set_combat_popups(&pops, NULL);
+      units_set_combat_popups(&pops, test_game_txt());
       ColonizeCol1Save c1;
       memset(&c1, 0, sizeof(c1));
       c1.player[0].control = 0;

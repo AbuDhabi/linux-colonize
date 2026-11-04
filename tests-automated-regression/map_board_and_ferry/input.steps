@@ -14,7 +14,7 @@ key a                      # Activate unit: the "Units Present" stack picker (FU
 key Return                 # pick its first row: Caravel A
 key KP_9                   # sail out to (46,23): the sentried colonist boards on departure (hold 1 of 2)
 wait 2
-click 120 128              # select the shore colonist at (46,24)
+click 136 112              # select the shore colonist at (46,24) (view origin 38,18: the ship's step does not recentre)
 key KP_8                   # step north onto the ship's tile: walks aboard (hold 2 of 2); the ship becomes the selection
 wait 2
 key KP_6                   # sail east (47,23)
