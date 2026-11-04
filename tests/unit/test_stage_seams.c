@@ -2995,6 +2995,41 @@ static int test_select_tile_rotation_retest(void) {
   return rc;
 }
 
+/* FUN_2b5a_1b5a raw 42779-42783: a left click on a lone own ship at sea makes it
+ * the active unit, away from the ship the rotation had picked. */
+static int test_click_selects_ship(void) {
+  static ColonizeGameState game;
+  memset(&game, 0, sizeof(game));
+  if (!fx_map_alloc(&game.world_map, 8, 8, /*terrain_fill=*/25, /*with_seen=*/true)) {
+    return fail("click ship map alloc");
+  }
+  game.world_map_ok = true;
+  fx_units_init(&game.units);
+  game.units_ok = true;
+  game.units.type_count = 1;
+  game.units.types[0].movement = 4;
+  game.units.types[0].cargo = 2;
+  game.units.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  fx_colonies_init(&game.colonies);
+  game.colonies_ok = true;
+  units_set_occupancy_map(NULL);
+  const int b = units_spawn(&game.units, 0, 2, 2);
+  const int c = units_spawn(&game.units, 0, 5, 5);
+  int rc = (b < 0 || c < 0) ? fail("click ship fixture") : 0;
+  if (rc == 0) {
+    units_get(&game.units, b)->moves = 12;
+    units_get(&game.units, c)->moves = 12;
+    game.units.selected_id = c;
+    game_map_click_dispatch(&game, 2, 2);
+    if (game.units.selected_id != b || game.view_pieces_mode) {
+      fprintf(stderr, "  selected %d, want %d\n", game.units.selected_id, b);
+      rc = fail("a click on a lone own ship must select it");
+    }
+  }
+  fx_map_free(&game.world_map);
+  return rc;
+}
+
 /* View Pieces (FUN_2b5a_0902 raw 42112) leaves 0x5392 on the active unit;
  * the next FUN_2b5a_0e52 re-tests it first (FUN_1427_1410, raw 42291), so
  * Move Pieces returns to it rather than to the first slot. */
@@ -5399,6 +5434,7 @@ static const TestCase k_cases[] = {
     {"test_goto_place_opens_travelplace_list", test_goto_place_opens_travelplace_list},
     {"test_activate_ignores_foreign_unit", test_activate_ignores_foreign_unit},
     {"test_select_tile_rotation_retest", test_select_tile_rotation_retest},
+    {"test_click_selects_ship", test_click_selects_ship},
     {"test_view_pieces_keeps_active_unit", test_view_pieces_keeps_active_unit},
     {"test_right_click_and_find_colony_keep_active_unit",
      test_right_click_and_find_colony_keep_active_unit},
