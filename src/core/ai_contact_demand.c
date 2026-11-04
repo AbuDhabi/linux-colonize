@@ -1240,6 +1240,28 @@ void ai_contact_apply_beg_food(
     if (ind && ind->contact_state[e] == 2) {
       ind->contact_state[e] = 0;
     }
+    /* raw 96823: `if (bVar6) goto LAB_5bfb_1005;` -- otherwise the refusal
+     * falls through `if (!bVar6)` into LAB_5bfb_0def (raw 96828-96833) with
+     * local_4c still the begged colony, and contact_state just left 2, so the
+     * village demands goods from the same colony. The visit is already
+     * resolved whatever the demand does. A human's answer can arrive after
+     * the roll aged out; re-stamp the record's turn as
+     * ai_contact_visit_mood_beg_conceded does. */
+    AiContactVisitMood* m =
+      (nation_id >= 4 && nation_id <= 11) ? &ai_contact_s_visit_mood[nation_id - 4][e] : NULL;
+    if (m && m->valid && !m->generous_visit) {
+      m->turn = ctx->turn_number ? (int)*ctx->turn_number : -1;
+      const int prev_euro = ai_contact_s_visit_euro;
+      const int prev_unit = ai_contact_s_visit_unit;
+      const int prev_colony = ai_contact_s_visit_colony;
+      ai_contact_set_visit_euro(e);
+      ai_contact_set_visit_unit(m->brave_id);
+      ai_contact_s_visit_colony = colony_id;
+      (void)ai_contact_try_village_reparations(ctx, nation_id);
+      ai_contact_set_visit_euro(prev_euro);
+      ai_contact_set_visit_unit(prev_unit);
+      ai_contact_s_visit_colony = prev_colony;
+    }
   }
 }
 

@@ -1730,6 +1730,33 @@ static int run_conceded_beg_gifts_begged_colony(void) {
 }
 
 /*
+ * A refused food beg on a !bVar6 visit falls into LAB_5bfb_0def
+ * (FUN_5bfb_022e raw 96823-96833): the village demands goods from the begged
+ * colony. Spain (e 2) always refuses; the AI then hands the Tobacco of slot 1
+ * over at @INDIANCITY, and slot 0 stays untouched.
+ */
+static int run_refused_beg_demands_begged_colony(void) {
+  if (!test_names_txt()) {
+    return TR_SKIP;
+  }
+  Ai152eFixture f;
+  int bid = -1;
+  if (two_colony_beg_fixture(&f, "refused-beg-colony", 2, &bid) != 0) {
+    return 1;
+  }
+  ai_contact_apply_beg_food(&f.ctx, &f.col1.indian[0], 4, 2, 1, 0, 0);
+  const int other = f.colonies.colonies[0].stock[3];
+  const int begged = f.colonies.colonies[1].stock[3];
+  const int food = f.colonies.colonies[1].stock[COLONIZE_CARGO_FOOD];
+  const int state = f.col1.indian[0].contact_state[2];
+  ai_152e_fixture_free(&f);
+  fprintf(stderr,
+          "refused-beg-colony: slot0 tobacco %d slot1 %d food %d state %d (want 50, <50, 100, 1)\n",
+          other, begged, food, state);
+  return (other == 50 && begged < 50 && food == 100 && state == 1) ? 0 : 1;
+}
+
+/*
  * The Brave's own step fixes local_4c once (FUN_5bfb_022e raw 96699) to the
  * colony on the 3180 encounter tile. Same two-colony scene; the direction
  * loop meets slot 1 (E, d 2) before slot 0 (W, d 6). Slot 1 holds 20 food,
@@ -2720,5 +2747,6 @@ static const TestCase k_cases[] = {
     {"run_conceded_beg_gifts_begged_colony", run_conceded_beg_gifts_begged_colony},
     {"run_step_visit_serves_encounter_colony", run_step_visit_serves_encounter_colony},
     {"run_pinned_colony_skips_open_field_wagon", run_pinned_colony_skips_open_field_wagon},
+    {"run_refused_beg_demands_begged_colony", run_refused_beg_demands_begged_colony},
 };
 TEST_MAIN(k_cases)
