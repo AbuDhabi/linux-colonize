@@ -699,7 +699,7 @@ int ai_contact_try_first_welcome(ColonizeTurnContext* ctx, int euro_nation, int 
 
 /* 3180's "other nation" for neighbour (nx,ny): the unit standing there, else
  * the tile's settlement owner; -1 off map or none. */
-static int ai_contact_neighbour_nation(const ColonizeTurnContext* ctx, int nx, int ny) {
+int ai_contact_neighbour_nation(const ColonizeTurnContext* ctx, int nx, int ny) {
   if (nx < 0 || ny < 0 || nx >= ctx->map->width || ny >= ctx->map->height) {
     return -1;
   }

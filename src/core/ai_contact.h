@@ -190,6 +190,10 @@ int ai_contact_try_first_welcome(ColonizeTurnContext* ctx, int euro_nation, int 
  * (ai_contact_try_first_welcome). Returns number of welcomes opened.
  */
 int ai_contact_encounter_scan(ColonizeTurnContext* ctx, int euro_nation, int x, int y);
+/* The scan's "other nation" for tile (nx,ny): the unit standing there, else
+ * the settlement owner (a village resolved from the tribe records); -1 off
+ * map or none. Needs ctx->col1 and ctx->map. */
+int ai_contact_neighbour_nation(const ColonizeTurnContext* ctx, int nx, int ny);
 /* 3180 -> 022e on an already-met tribe: some land neighbour of the land tile
  * (x,y) resolves (as in the scan) to a tribe whose MET bit (0a38 & 0x20) is
  * set for euro_nation. */

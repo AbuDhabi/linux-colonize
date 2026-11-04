@@ -2,6 +2,7 @@
  * threatened-colony unload and war transport (MoW / frigate). */
 #include "test_ai_euro_war_common.h"
 #include "../common/test_catalogs.h"
+#include "core/ai_contact.h"
 #include "core/ai_popup.h"
 
 /*
@@ -1602,7 +1603,109 @@ static int unit_3180_retries_next_human_tile(void) {
   return 0;
 }
 
+/*
+ * FUN_5bfb_3180 runs all limbs in one direction loop (raw 98506-98693).
+ * Same scene as the retry case, but the north tile holds an unmet tribe-4
+ * Brave (d 0) and only the south tile (d 4) is human. In DOS order the first
+ * contact (022e, alarm clamped to 20, raw 96620-96624) comes before 153e,
+ * which then sees no hostile tribe. Mode 0 runs the 3180 side, mode 1 calls
+ * the limbs in DOS order, mode 2 in the old split order. Also returns the
+ * Brave's facing byte (+0x314f, raw 98650-98652).
+ */
+static int order_3180_run(int mode, ColonizeDosRng* out, int* brave_dir) {
+  ai_diplo_talk_reset();
+  ColonizeWorldMap m;
+  if (!fx_map_alloc(&m, 16, 16, 1, false)) {
+    return fail("3180 order alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    m.layer3[i] = 1;
+  }
+  static ColonizeUnitPool pool;
+  fx_units_init(&pool);
+  pool.type_count = 1;
+  pool.types[0].movement = 4;
+  pool.types[0].attack = 3;
+  pool.types[0].defense = 3;
+  pool.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  ColonizeUnit* ai = units_get(&pool, units_spawn(&pool, 0, 5, 6));
+  ColonizeUnit* brave = units_get(&pool, units_spawn(&pool, 0, 5, 5));
+  ColonizeUnit* h = units_get(&pool, units_spawn(&pool, 0, 5, 7));
+  if (!ai || !brave || !h) {
+    fx_map_free(&m);
+    return fail("3180 order spawn");
+  }
+  ai->nation_id = 1;
+  brave->nation_id = 4;
+  brave->last_dir = -1;
+  h->nation_id = 0;
+  static ColonizeColonyPool cols;
+  fx_colonies_init(&cols);
+  static ColonizeCol1Save q;
+  col1_save_init(&q);
+  memset(q.nation, 0, sizeof(q.nation));
+  memset(q.head.nation_relation, 0, sizeof(q.head.nation_relation));
+  q.head.turn = 100;
+  q.head.difficulty = 1;
+  q.head.human_player = 0;
+  q.stuff.colony_counts[1] = 1;
+  q.stuff.colony_counts_by_continent[1 * 16 + 1] = 1;
+  q.stuff.field_combat_strength_by_continent[0 * 16 + 1] = 10; /* dominance 20 */
+  q.nation[0].euro_relation[1] |= AI_DIPLO_PEACE;
+  q.nation[1].euro_relation[0] |= AI_DIPLO_PEACE;
+  q.indian[0].alarm_by_player[1] = 0x50; /* ba 1 until first contact */
+  ColonizeDosRng rng;
+  dos_rng_seed(&rng, 11);
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.col1 = &q;
+  ctx.col1_ok = true;
+  ctx.map = &m;
+  ctx.units = &pool;
+  ctx.colonies = &cols;
+  ctx.human_nation = 0;
+  ctx.rng = &rng;
+  if (mode == 0) {
+    ai_euro_3180_euro_side(&ctx, ai, 1, 1, 1);
+  } else if (mode == 1) {
+    (void)ai_contact_try_first_welcome(&ctx, 1, 4);
+    (void)ai_diplo_153e_encounter(&ctx, 0, 1, ai->id, 4);
+  } else {
+    (void)ai_diplo_153e_encounter(&ctx, 0, 1, ai->id, 4);
+    (void)ai_contact_try_first_welcome(&ctx, 1, 4);
+  }
+  *out = rng;
+  *brave_dir = brave->last_dir;
+  fx_map_free(&m);
+  col1_save_free(&q);
+  return 0;
+}
+
+static int unit_3180_one_direction_loop(void) {
+  ColonizeDosRng side;
+  ColonizeDosRng dos;
+  ColonizeDosRng split;
+  int side_dir = -1;
+  int dir = -1;
+  if (order_3180_run(0, &side, &side_dir) || order_3180_run(1, &dos, &dir) ||
+      order_3180_run(2, &split, &dir)) {
+    return 1;
+  }
+  if (memcmp(&dos, &split, sizeof(dos)) == 0) {
+    return fail("3180 order: the fixture must tell the two orders apart");
+  }
+  if (memcmp(&side, &dos, sizeof(side)) != 0) {
+    return fail("3180 order: the Indian first contact (d 0) must precede 153e (d 4)");
+  }
+  if (side_dir != 0) {
+    fprintf(stderr, "3180 order: Brave facing %d, want 0\n", side_dir);
+    return fail("3180 order: +0x314f of the neighbour head = local_30");
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+    {"unit_3180_one_direction_loop", unit_3180_one_direction_loop},
     {"unit_3180_retries_next_human_tile", unit_3180_retries_next_human_tile},
     {"unit_3180_wantstuff_source_is_first_human_direction",
      unit_3180_wantstuff_source_is_first_human_direction},
