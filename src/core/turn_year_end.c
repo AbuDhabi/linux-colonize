@@ -184,6 +184,7 @@ COLONIZE_INTERNAL bool turn_year_end_woi_chrome(
   }
   if (end == AI_KING_ENDGAME_LOST) {
     ctx->col1->head.turn_loop_running = 0; /* LAB_3844_04ec: DS:0x53c2 = 0 */
+    out->year_end_war_lost = true;
     return true;
   }
   return false;

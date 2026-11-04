@@ -228,6 +228,7 @@ static inline int colonies_headcount(const ColonizeColony* colony) {
 #define COLONIZE_COLONY_AI_NEEDS_GARRISON 0x40u
 /* worked-tile road/plow want bit (see docs/colony.md#colonize_colony_ai_wants_pioneer_work) */
 #define COLONIZE_COLONY_AI_WANTS_PIONEER_WORK 0x80u
+#define COLONIZE_COLONY_FLAG_REF_LANDING 0x01u /* +0x1c bit 0: Tory uprising target (FUN_43f7_06a6) */
 #define COLONIZE_COLONY_FLAG_SOL_100 0x02u
 #define COLONIZE_COLONY_FLAG_SOL_50 0x04u
 /* inefficient-government latch history (see docs/colony.md#colonize_colony_flag_inefficient_gov) */

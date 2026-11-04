@@ -744,6 +744,19 @@ COLONIZE_INTERNAL void turn_step_indian(ColonizeTurnProcessor* proc, ColonizeTur
           proc->step = TURN_PROC_IDLE;
           return;
         }
+        /* LAB_3844_04ec (raw 58657-58664): section B (@LOSENOCOLONIES) and
+         * @LOSING%d clear DS:0x53c2 with bVar2 false, so LAB_3844_0b4a offers
+         * no @SCORED revive and FUN_130d_0290 returns (raw 6511) before the
+         * next day top: no rank refresh, tribe, Euro slot, colony EOT or
+         * autosave. The dialogs are answered on the idle path, where
+         * game_update's endgame gate runs the retire chain. A headless run
+         * (no human slot) keeps going. */
+        if ((proc->result.year_end_defeat || proc->result.year_end_war_lost) &&
+            turn_human_slot(ctx) >= 0) {
+          proc->show_indicator = false;
+          proc->step = TURN_PROC_IDLE;
+          return;
+        }
         /* FUN_3844_0442's dialogs are modal in DOS: answer them (and run the
          * retire chain) before the day top (port_bugs.md #1387). */
         proc->day_advanced = true;

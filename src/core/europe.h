@@ -222,6 +222,10 @@ typedef struct EuropeHarborShip {
   /* DOS +0x314a home colony the hull carries across the Atlantic (no lane
    * hop rewrites it), as ColonizeUnit.col1_origin + 1; 0 = unbound (0xff). */
   int origin_plus1;
+  /* Hull +0x3148 bit 0x40: the Crown's @KINGFRIGATE gift (FUN_3844_00f2 raw
+   * 58419). DOS never clears it (only FUN_1427_06b4's creation zero, raw
+   * 7728), so it crosses every lane; the map unit gets it back on arrival. */
+  bool royal_gift;
 } EuropeHarborShip;
 
 typedef enum EuropeHit {

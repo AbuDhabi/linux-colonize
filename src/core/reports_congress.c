@@ -240,6 +240,18 @@ static void reports_congress_draw_slots(
   }
 }
 
+/*
+ * DOS-LITERAL FUN_3f41_06d0 raw 69697-69706: local_56 = FUN_291f_0f66 (the
+ * threshold); with DS:0x5382 & 2 (intervention announced) it becomes
+ * max(pool, threshold). The bar and the cheat tail's second number both use
+ * it, and the drawn count is min(pool, local_56). Both compares are signed
+ * int, so a pool word past 32767 reads negative.
+ */
+int reports_congress_bells_scale(uint16_t pool_word, int need, bool ref_arrived) {
+  const int pool = (int16_t)pool_word;
+  return (ref_arrived && pool > need) ? pool : need;
+}
+
 void reports_render_congress_page1(
   const ColonizeReportsView* view,
   const ColonizeCol1Save* col1,
@@ -317,14 +329,17 @@ void reports_render_congress_page1(
    * the tail shows even when the header itself is empty (port_bugs.md #978).
    */
   if (col1->head.game_options.cheats_enabled) {
-    const unsigned pool = founding_fathers_bells_pool(col1, human);
-    const unsigned need = founding_fathers_bells_needed(col1, human);
-    const unsigned drawn = pool < need ? pool : need;
+    const uint16_t pool_word = (uint16_t)founding_fathers_bells_pool(col1, human);
+    const int pool = (int16_t)pool_word;
+    const int need = reports_congress_bells_scale(
+      pool_word, (int)founding_fathers_bells_needed(col1, human), ref_arrived
+    );
+    const int drawn = pool < need ? pool : need;
     const size_t at = strlen(line);
     if (at + 1 < line_sz) {
       char in_w[32];
       snprintf(
-        line + at, line_sz - at, " (%u %s %u)", need - drawn,
+        line + at, line_sz - at, " (%d %s %d)", need - drawn,
         reports_misc_word(26, "", in_w, sizeof(in_w)), need
       );
     }
@@ -334,8 +349,11 @@ void reports_render_congress_page1(
   }
 
   {
-    const unsigned pool = founding_fathers_bells_pool(col1, human);
-    const unsigned need = founding_fathers_bells_needed(col1, human);
+    const uint16_t pool_word = (uint16_t)founding_fathers_bells_pool(col1, human);
+    const int pool = (int16_t)pool_word;
+    const int need = reports_congress_bells_scale(
+      pool_word, (int)founding_fathers_bells_needed(col1, human), ref_arrived
+    );
     if (need > 0 && pool > 0) {
       /*
        * `3f41:07c8`..`3f41:08a4`: DX = the next-FF threshold
@@ -346,7 +364,7 @@ void reports_render_congress_page1(
        * 1135, need 1849) that is step 1 / shift 3 / 141 bells from x=4 to
        * x=179 — of which the 36 that get a 2px gap show their 2px left edge.
        */
-      const unsigned drawn = pool < need ? pool : need;
+      const int drawn = pool < need ? pool : need;
       reports_draw_dos_icon_bar(
         icons,
         font,

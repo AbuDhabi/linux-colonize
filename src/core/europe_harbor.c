@@ -109,6 +109,7 @@ bool europe_harbor_push_damaged(EuropeScreen* eu, const ColonizeUnit* u, const c
   s->damaged = true;
   s->repair_counter = (int)u->col1_counter16;
   s->origin_plus1 = u->col1_origin < 0x80 ? (int)u->col1_origin + 1 : 0;
+  s->royal_gift = (u->col1_flags15 & 0x40u) != 0;
   s->exit_x = u->goto_x;
   s->exit_y = u->goto_y;
   s->exit_east = exit_east;

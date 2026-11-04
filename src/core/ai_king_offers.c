@@ -302,25 +302,15 @@ static int ai_king_frigate_spawn(ColonizeTurnContext* ctx, int nation) {
   if (ti < 0) {
     return -1;
   }
-  int x = (int)ctx->col1->nation[nation].return_from_europe_x;
-  int y = (int)ctx->col1->nation[nation].return_from_europe_y;
-  if (x == 0 && y == 0) {
-    x = 236;
-    y = 236;
-  }
+  /* FUN_3844_00f2 raw 58409-58419: the gift is born on the westbound lane
+   * n - 0x18 (232+n, FUN_281f_095c), orders 0, goto = the nation's landfall
+   * +0x32/+0x33, +0x315a = voyage roll, +0x3148 |= 0x40. The lane tick
+   * (FUN_48d3_06ba) brings it over like any ship leaving Europe. */
+  const int land_x = (int)ctx->col1->nation[nation].return_from_europe_x;
+  const int land_y = (int)ctx->col1->nation[nation].return_from_europe_y;
   if (!units_spawn_room(ctx->units, nation)) {
     return -1;
   }
-  const int id = units_spawn_allow_stack(ctx->units, ti, x, y);
-  ColonizeUnit* u = units_get(ctx->units, id);
-  if (!u) {
-    return -1;
-  }
-  units_set_nation(u, nation);
-  u->orders = UNITS_ORDER_AI_SAIL;
-  u->col1_flags15 = (uint8_t)(u->col1_flags15 | 0x40u);
-  u->goto_x = x;
-  u->goto_y = y;
   const bool magellan = founding_fathers_nation_has(ctx->col1, nation, FF_FERDINAND_MAGELLAN);
   /*
    * DOS 58419 `FUN_291f_0aee(0x281f, iVar5, x, y)` — the SAME voyage roll
@@ -333,15 +323,41 @@ static int ai_king_frigate_spawn(ColonizeTurnContext* ctx, int nation) {
    * `< 3 hulls` fast crossing for the Crown's gift Frigate.
    */
   /* The x the DOS site pushes is the nation record's +0x32 landfall column
-   * (viceroy_unpacked.asm:93551); port_bugs.md #1019. */
-  const int land_x = (ctx->col1_ok && ctx->col1 && nation >= 0 &&
-                      nation < (int)COLONIZE_COL1_NATION_COUNT)
-                       ? (int)ctx->col1->nation[nation].return_from_europe_x
-                       : u->x;
+   * (viceroy_unpacked.asm:93551); port_bugs.md #1019. Rolled before the hull
+   * exists in the port: DS:0x9418 is the census tally, which does not count
+   * the new hull. */
   const int dur = europe_voyage_turns_roll(
     ctx->rng, magellan, turn_voyage_ship_count(ctx, nation), land_x
   );
+  if (nation == ctx->human_nation) {
+    /* The human's lane ships live in EuropeScreen's Bound list: 232+n with
+     * the roll is a just-departed Bound hull (europe_set_sail_from_harbor). */
+    EuropeScreen* eu = ctx->europe;
+    if (!eu || (int)eu->bound_nation != nation) {
+      return -1;
+    }
+    const ColonizeUnitType* ut = units_type(ctx->units, ti);
+    if (!europe_bound_push(eu, ti, ut ? ut->name : "", dur)) {
+      return -1;
+    }
+    EuropeHarborShip* s = &eu->bound[eu->bound_ships - 1];
+    s->exit_x = land_x;
+    s->exit_y = land_y;
+    s->exit_east = (ctx->map && ctx->map->width > 0) ? land_x >= ctx->map->width / 2 : true;
+    s->royal_gift = true;
+    return 0;
+  }
+  const int id = units_spawn_allow_stack_nation(ctx->units, ti, 232 + nation, 232 + nation, nation);
+  ColonizeUnit* u = units_get(ctx->units, id);
+  if (!u) {
+    return -1;
+  }
+  units_set_nation(u, nation);
+  u->orders = UNITS_ORDER_NONE;
+  u->goto_x = land_x;
+  u->goto_y = land_y;
   u->col1_counter16 = (uint8_t)dur;
+  u->col1_flags15 = (uint8_t)(u->col1_flags15 | 0x40u);
   return id;
 }
 

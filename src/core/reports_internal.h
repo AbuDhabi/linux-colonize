@@ -118,6 +118,9 @@ void reports_draw_right_shadowed(
 );
 
 /* --- owned by reports_congress.c --- */
+/* FUN_3f41_06d0 bells bar scale: the threshold, raised to the pool once the
+ * intervention is announced; the pool word compares as a signed int. */
+int reports_congress_bells_scale(uint16_t pool_word, int need, bool ref_arrived);
 void reports_render_religious(
   const ColonizeReportsView* view,
   const ColonizeCol1Save* col1,

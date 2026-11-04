@@ -758,7 +758,7 @@ static int unit_king_galleon_offer(void) {
   assets_msg_init(&names);
   if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
     fprintf(stderr, "galleon: NAMES.TXT load failed\n");
-    return 1;
+    return TR_SKIP;
   }
   ColonizeUnitPool pool;
   memset(&pool, 0, sizeof(pool));
@@ -846,23 +846,28 @@ static int unit_king_galleon_offer(void) {
     goto fail;
   }
 
-  /* Owning a Galleon without Cortes → no offer. */
-  const int gid = units_spawn_allow_stack(&pool, galleon_ti, 0, 3);
-  units_get(&pool, gid)->nation_id = 0;
+  /* Owning a Galleon without Cortes → no offer. The gate reads the census
+   * cell (FUN_465b_0000 raw 75805), not the live pool, so a census Galleon
+   * with no pool unit suppresses the offer. */
+  c1.stuff.unit_type_counts[0][galleon_ti] = 1;
   if (units_king_galleon_offer_for_unit_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&c1), .col1_ok=true, .europe=(EuropeScreen*)(NULL)}, 0, tid, &pops, NULL) != 0 ||
       pops.queue_count != 0) {
     fprintf(stderr, "galleon: own Galleon should suppress the offer\n");
     goto fail;
   }
-  units_despawn(&pool, gid);
+  c1.stuff.unit_type_counts[0][galleon_ti] = 0;
 
-  /* Offer enqueued; Refuse leaves the Treasure. */
+  /* Offer enqueued; Refuse leaves the Treasure. A Galleon bought since the
+   * last census (pool unit, census cell 0) does not block it yet. */
+  const int gid = units_spawn_allow_stack(&pool, galleon_ti, 0, 3);
+  units_get(&pool, gid)->nation_id = 0;
   if (units_king_galleon_offer_for_unit_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&c1), .col1_ok=true, .europe=(EuropeScreen*)(NULL)}, 0, tid, &pops, NULL) != 1 ||
       pops.queue_count != 1 || pops.queue[0].tag != AI_POPUP_TAG_KING_GALLEON ||
       pops.queue[0].payload != tid) {
     fprintf(stderr, "galleon: KINGGALLEON2 CHOICE not enqueued\n");
     goto fail;
   }
+  units_despawn(&pool, gid);
   /* Re-running while queued must not stack a duplicate. */
   (void)units_king_galleon_offer_for_unit_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&c1), .col1_ok=true, .europe=(EuropeScreen*)(NULL)}, 0, tid, &pops, NULL);
   if (pops.queue_count != 1) {

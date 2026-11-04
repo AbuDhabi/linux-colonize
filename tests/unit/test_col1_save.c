@@ -1854,6 +1854,104 @@ static bool test_bound_no_exit_save(char* err, size_t err_size) {
   return ok;
 }
 
+/* DOS keeps +0x3148 0x40 on the hull record whatever lane it is on (no write
+ * clears it; only FUN_1427_06b4's creation zero, raw 7728), so royal_gift
+ * must survive capture + apply in harbor, Expected and Bound. */
+static bool test_royal_gift_lanes_roundtrip(char* err, size_t err_size) {
+  ColonizeCol1Save save;
+  col1_save_init(&save);
+  save.head.map_size_x = 8;
+  save.head.map_size_y = 8;
+  save.head.unit_count = 0;
+  save.head.human_player = 0;
+  save.player[0].control = 0;
+  col1_save_stamp_head(&save.head);
+  if (!col1_save_alloc_sections(&save, err, err_size)) {
+    return false;
+  }
+  memset(save.map.tile, 0, save.map.tile_count);
+  ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
+  units_reset(&units);
+  units.type_count = 23;
+  for (int t = 0; t < units.type_count; ++t) {
+    units.types[t].movement = 1;
+    units.types[t].domain = (t >= 13 && t <= 18) ? COLONIZE_UNIT_DOMAIN_SEA
+                                                 : COLONIZE_UNIT_DOMAIN_LAND;
+    units.types[t].cargo = (t >= 13 && t <= 18) ? 6 : 0;
+  }
+  units_set_occupancy_map(NULL);
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  EuropeScreen europe;
+  memset(&europe, 0, sizeof(europe));
+  europe.cargo_count = 16;
+  ColonizeCol1BridgeResult result;
+  bool ok = col1_bridge_apply_w(
+    &(ColonizeWorld){.units=&units, .colonies=&colonies, .map=&map, .col1=&save,
+                     .col1_ok=true, .europe=&europe},
+    &result, err, err_size
+  );
+  EuropeHarborShip* lists[3] = {europe.harbor, europe.expected, europe.bound};
+  for (int l = 0; ok && l < 3; ++l) {
+    EuropeHarborShip* s = &lists[l][0];
+    memset(s, 0, sizeof(*s));
+    s->type_index = 17; /* Frigate */
+    snprintf(s->name, sizeof(s->name), "Frigate");
+    s->turns_left = l == 0 ? 0 : 2;
+    s->exit_x = 3;
+    s->exit_y = 3;
+    s->royal_gift = true;
+  }
+  europe.harbor_ships = europe.expected_ships = europe.bound_ships = 1;
+  europe.bound_nation = 0;
+  ok = ok && col1_bridge_capture_w(
+    &(ColonizeWorld){.units=&units, .colonies=&colonies, .map=&map, .col1=&save,
+                     .col1_ok=true, .europe=&europe},
+    1492, 0, 1, 0, 3, 3, 3, 3, -1, true, err, err_size
+  );
+  int flagged = 0;
+  for (int i = 0; ok && i < (int)save.head.unit_count; ++i) {
+    flagged += save.unit[i].bound_in_transit ? 1 : 0;
+  }
+  if (ok && flagged != 3) {
+    snprintf(err, err_size, "royal gift: capture flagged %d lane hulls (want 3)", flagged);
+    ok = false;
+  }
+  ColonizeUnitPool reloaded;
+  memset(&reloaded, 0, sizeof(reloaded));
+  units_reset(&reloaded);
+  reloaded.type_count = units.type_count;
+  memcpy(reloaded.types, units.types, sizeof(reloaded.types));
+  ColonizeWorldMap map2;
+  memset(&map2, 0, sizeof(map2));
+  ColonizeColonyPool colonies2;
+  colonies_init(&colonies2);
+  EuropeScreen europe2;
+  memset(&europe2, 0, sizeof(europe2));
+  europe2.cargo_count = 16;
+  ok = ok && col1_bridge_apply_w(
+    &(ColonizeWorld){.units=&reloaded, .colonies=&colonies2, .map=&map2, .col1=&save,
+                     .col1_ok=true, .europe=&europe2},
+    &result, err, err_size
+  );
+  if (ok && (europe2.harbor_ships != 1 || europe2.expected_ships != 1 ||
+             europe2.bound_ships != 1 || !europe2.harbor[0].royal_gift ||
+             !europe2.expected[0].royal_gift || !europe2.bound[0].royal_gift)) {
+    snprintf(err, err_size, "royal gift: reload harbor %d/%d expected %d/%d bound %d/%d",
+             europe2.harbor_ships, europe2.harbor[0].royal_gift, europe2.expected_ships,
+             europe2.expected[0].royal_gift, europe2.bound_ships, europe2.bound[0].royal_gift);
+    ok = false;
+  }
+  units_set_occupancy_map(NULL);
+  col1_save_free(&save);
+  map_free(&map);
+  map_free(&map2);
+  return ok;
+}
+
 /* port_bugs.md #1107 seam: col1_bridge_apply_w / capture_w stages called directly
  * through col1_bridge_internal.h — abort status, ctx-owned maps, write-back. */
 static bool test_bridge_stage_seams(char* err, size_t err_size) {
@@ -2117,6 +2215,10 @@ int main(void) {
   fprintf(stderr, "Col1 bridge apply/capture stage seams ok\n");
   if (!test_imported_tile_chain_order(err, sizeof(err))) {
     fprintf(stderr, "tile-chain order: %s\n", err);
+    return 1;
+  }
+  if (!test_royal_gift_lanes_roundtrip(err, sizeof(err))) {
+    fprintf(stderr, "royal gift lanes: %s\n", err);
     return 1;
   }
   if (!test_europe_lane_ship_chain(err, sizeof(err))) {

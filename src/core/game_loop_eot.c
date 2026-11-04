@@ -370,6 +370,8 @@ bool game_ship_sail_to_europe(ColonizeGameState* game, int sid) {
   const int voyage_ship_count = game_voyage_ship_count(game);
   /* +0x314a rides the record onto the lane (FUN_48d3_015e leaves it). */
   const int origin_plus1 = ship->col1_origin < 0x80 ? (int)ship->col1_origin + 1 : 0;
+  /* +0x3148 0x40 (the Crown's gift) rides the record too; DOS never clears it. */
+  const bool royal_gift = (ship->col1_flags15 & 0x40u) != 0;
   int type_index = -1;
   char ship_name[32];
   int cargo_types[EUROPE_SHIP_CARGO_MAX];
@@ -481,6 +483,7 @@ bool game_ship_sail_to_europe(ColonizeGameState* game, int sid) {
         sizeof(cargo_tools)
       );
       game->europe.expected[game->europe.expected_ships - 1].origin_plus1 = origin_plus1;
+      game->europe.expected[game->europe.expected_ships - 1].royal_gift = royal_gift;
       diag_info(
         "Sailed %s to Europe (exit %d,%d cargo=%d)", ship_name, exit_x, exit_y, cargo_count
       );
@@ -599,6 +602,7 @@ void game_europe_deliver_bound_ships(ColonizeGameState* game) {
     const int trade_route = slot->trade_route_plus1 - 1;
     const int trade_stop = slot->trade_stop;
     const int origin_plus1 = slot->origin_plus1;
+    const bool royal_gift = slot->royal_gift;
     /* Spawn confirmed — now it is safe to remove the ship from the lane. */
     for (int j = idx + 1; j < eu->bound_ships; ++j) {
       eu->bound[j - 1] = eu->bound[j];
@@ -622,6 +626,10 @@ void game_europe_deliver_bound_ships(ColonizeGameState* game) {
       if (origin_plus1 > 0 && game->colonies_ok &&
           colonies_dos_index(&game->colonies, origin_plus1 - 1) >= 0) {
         ship->col1_origin = (uint8_t)(origin_plus1 - 1);
+      }
+      if (royal_gift) {
+        /* The hull keeps FUN_3844_00f2's +0x3148 0x40 across the lane (raw 58419). */
+        ship->col1_flags15 = (uint8_t)(ship->col1_flags15 | 0x40u);
       }
       for (int i = 0; i < ship->cargo_count && i < cargo_count; ++i) {
         ColonizeUnit* pax = units_get(&game->units, ship->cargo_ids[i]);

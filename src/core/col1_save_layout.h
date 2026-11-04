@@ -486,9 +486,11 @@ typedef struct ColonizeCol1Unit {
      colony without bit2/bit3 already set requests garrison duty; matches
      the "garrison-check 0x3148 flags" already named in
      euro_goal_orders_0a60_full.md's own prologue table */
-  uint8_t bound_in_transit : 1; /* bit6 (0x40) — FUN_3844_00f2 /
-     FUN_38fd_4e8e: ship spawned/dispatched toward a colony with a landfall
-     goto pending, cleared on arrival; see turn/nation_eot_ship_spawn.md */
+  uint8_t bound_in_transit : 1; /* bit6 (0x40) — set only on the Crown's
+     @KINGFRIGATE gift (FUN_3844_00f2 raw 58419; raw 65810 is a Ghidra copy
+     of it); no DOS write clears it (only 06b4's creation zero, raw 7728).
+     Read by the loss tax cut (FUN_5fef_016c raw 99671); see
+     turn/nation_eot_ship_spawn.md */
   uint8_t ship_damaged : 1; /* bit7 (0x80) — FUN_1427_13b0 */
   uint8_t moves;
   uint8_t origin; /* +0x314a, signed: <0 (0xff) unbound. Euro: home colony

@@ -2144,7 +2144,7 @@ static int sp_26(void) {
     /*
      * King-audience CHOICE flow. The KING_AUDIENCE CHOICE decides whether
      * the rolled hike happens at all: the rate stays put while the dialog
-     * is on screen and only Accept ("kiss the ring") commits it; Refuse
+     * is on screen and any answer but the party (Esc too) commits it; Refuse
      * ("hold a tea party") leaves it and boycotts instead (port_bugs.md — DOS's
      * apply-then-revert put a raise the player had not answered into the
      * save, and reaches the same two end states). Payload carries the exact
@@ -3405,6 +3405,80 @@ static int case_0982_land_crown_tile_first(void) {
   return 0;
 }
 
+/* FUN_43f7_0982 raw 74022-74024 ranks targets with FUN_1cf8_000a, which is
+ * not stable: scores [A=125, B=375, C=125] sort to [C, A, B]. B (top) is too
+ * well garrisoned for pass 0, so the picker's next candidate is A in DOS (a
+ * stable sort gives [A, C, B] and picks C). */
+static int case_0982_target_tie_unstable_sort(void) {
+  fx_begin();
+  ColonizeUnitPool up;
+  memset(&up, 0, sizeof(up));
+  units_reset(&up);
+  units_set_occupancy_map(NULL);
+  up.type_count = 2;
+  up.types[0].kind_plus1 = UNITS_KIND_REGULAR + 1;
+  up.types[0].movement = 1;
+  up.types[0].attack = 3;
+  up.types[0].defense = 2;
+  up.types[1].kind_plus1 = UNITS_KIND_MAN_O_WAR + 1;
+  up.types[1].movement = 6;
+  up.types[1].domain = 1;
+  up.types[1].cargo = 6;
+  ColonizeWorldMap m;
+  memset(&m, 0, sizeof(m));
+  char err[128];
+  if (!map_alloc(&m, 13, 4, err, sizeof(err))) {
+    return fail("0982_tie: map_alloc");
+  }
+  for (int i = 0; i < 13 * 4; ++i) {
+    m.terrain[i] = i < 13 ? 25 : 1; /* row 0 ocean, rest land */
+    m.layer3[i] = 1;
+  }
+  ColonizeColonyPool cp;
+  colonies_init(&cp);
+  colonies_set_occupancy_map(NULL);
+  const int xs[3] = {2, 6, 10};
+  const int pop[3] = {1, 3, 1};
+  for (int i = 0; i < 3; ++i) {
+    ColonizeColony* col = &cp.colonies[i];
+    col->id = i;
+    col->active = true;
+    col->nation_id = 0;
+    col->x = xs[i];
+    col->y = 1;
+    col->colonist_count = pop[i];
+    col->colony_flags |= COLONIZE_COLONY_FLAG_COASTAL;
+  }
+  cp.colonies[1].stock[COLONIZE_CARGO_MUSKETS] = 3000; /* garrison need 31 */
+  ColonizeTurnContext tc;
+  memset(&tc, 0, sizeof(tc));
+  tc.units = &up;
+  tc.map = &m;
+  tc.colonies = &cp;
+  uint16_t force[4] = {3, 0, 1, 0};
+  struct ai_king_0982_ctx w;
+  memset(&w, 0, sizeof(w));
+  w.ctx = &tc;
+  w.crown = 1;
+  w.human = 0;
+  w.force = force;
+  ai_king_0982_invasion(&w);
+  int ship_x = -1;
+  for (int i = 0; i < units_slot_end(&up); ++i) {
+    const ColonizeUnit* u = &up.units[i];
+    if (u->active && u->type_index == 1) {
+      ship_x = u->x;
+    }
+  }
+  units_set_occupancy_map(NULL);
+  map_free(&m);
+  if (ship_x < 1 || ship_x > 3) {
+    fprintf(stderr, "0982_tie: Man-O-War at x=%d (want next to A at x=2)\n", ship_x);
+    return fail("0982_tie: equal scores rank through FUN_1cf8_000a (A before C)");
+  }
+  return 0;
+}
+
 typedef int (*SpineFn)(void);
 
 static const SpineFn k_spine[] = {
@@ -3457,6 +3531,63 @@ static int case_wave_mounted_cap_mix(void) { return fx_run(24); }
 static int case_wave_regular_heavy(void) { return fx_run(25); }
 static int case_popup_audience_accept(void) { return fx_run(26); }
 static int case_popup_audience_refuse_teaparty(void) { return fx_run(27); }
+
+/* FUN_38fd_3dc8 raw 64180/64285: Esc on the tax audience (the dialog returns
+ * -1, not 2) keeps the raise and boycotts nothing. */
+static int case_popup_audience_cancel_keeps_raise(void) {
+  if (!test_game_txt()) {
+    return TR_SKIP; /* the spine's wave status needs GAME.TXT */
+  }
+  int rc = 0;
+  for (int i = 0; i <= 26 && rc == 0; ++i) {
+    rc = k_spine[i]();
+  }
+  if (rc == 0) {
+    col1.nation[0].tax_rate = 10;
+    europe.tax_percent = 10;
+    col1.nation[0].boycott_bitmap = 0;
+    col1.nation[0].liberty_bells_pool = 0;
+    col1.colony[0].rebel_dividend = 100;
+    col1.colony[0].rebel_divisor = 100;
+    ai_popup_clear(&pop);
+    ColonizeDosRng rng;
+    dos_rng_seed(&rng, 1u);
+    ctx.rng = &rng;
+    ai_king_nation_turn(&ctx);
+    ctx.rng = NULL;
+    int qi = -1;
+    for (int i = 0; i < pop.queue_count; ++i) {
+      if (pop.queue[i].tag == AI_POPUP_TAG_KING_AUDIENCE &&
+          pop.queue[i].kind == AI_POPUP_KIND_CHOICE) {
+        qi = i;
+        break;
+      }
+    }
+    if (qi < 0) {
+      rc = fail("cancel setup: KING_AUDIENCE choice not queued");
+    } else {
+      pop.has_result = true;
+      pop.result_cancelled = true;
+      pop.result_choice_id = -1;
+      pop.result_tag = AI_POPUP_TAG_KING_AUDIENCE;
+      pop.result_nation_a = 0;
+      pop.result_nation_b = 1;
+      pop.result_payload = pop.queue[qi].payload;
+      /* payload = applied*100 + cargo (ai_king_teaparty_payload, see sp_26). */
+      const int want = 10 + pop.result_payload / 100;
+      ai_king_apply_popup_result(&ctx, &pop);
+      ai_popup_consume_result(&pop);
+      if (want == 10 || (int)col1.nation[0].tax_rate != want ||
+          col1.nation[0].boycott_bitmap != 0) {
+        fprintf(stderr, "unit_ai_king: cancel tax=%u boycott=0x%x (want %d/0)\n",
+                col1.nation[0].tax_rate, (unsigned)col1.nation[0].boycott_bitmap, want);
+        rc = fail("Esc on the tax audience must keep the raise (DOS reverts only on answer 2)");
+      }
+    }
+  }
+  fx_close();
+  return rc;
+}
 static int case_popup_congress_confirm(void) { return fx_run(28); }
 static int case_popup_post_confirm_invasion(void) { return fx_run(29); }
 static int case_popup_merc_hire_and_decline(void) { return fx_run(30); }
@@ -3510,7 +3641,9 @@ static int case_tb40_audience_own_sol(void) {
 }
 
 /* TB-36 fixed (flag off): the declaration sweep clears the crown's own seen
- * bit (crown 1 = 0x20) and keeps the low nibble. */
+ * bit (crown 1 = 0x20) and keeps the low nibble. The succession that picks
+ * crown 1 first hands its seen tiles to heir 2 (FUN_43f7_0218 raw
+ * 73658-73663), so the crown-only tile ends as 0x40. */
 static int case_tb36_declare_seen_mask(void) {
   int rc = fx_prefix(11);
   if (rc == 0) {
@@ -3525,8 +3658,8 @@ static int case_tb36_declare_seen_mask(void) {
       dos_buggy_behavior_set(true);
       if (col1.head.crown_nation_id != 1) {
         rc = fail("tb36: fixture crown is not 1");
-      } else if (map.seen[15 * 16 + 15] != 0x00 || map.seen[15 * 16 + 13] != 0x33) {
-        fprintf(stderr, "unit_ai_king: tb36 seen %02x %02x (want 00 33)\n",
+      } else if (map.seen[15 * 16 + 15] != 0x40 || map.seen[15 * 16 + 13] != 0x33) {
+        fprintf(stderr, "unit_ai_king: tb36 seen %02x %02x (want 40 33)\n",
                 map.seen[15 * 16 + 15], map.seen[15 * 16 + 13]);
         rc = fail("tb36: fixed declaration must mask with ~(0x10 << crown)");
       }
@@ -3604,11 +3737,117 @@ static int case_king_frigate_gate_counts_europe(void) {
   return 0;
 }
 
+/* FUN_3844_00f2 raw 58409-58419: the gift Frigate starts on the westbound
+ * lane 232+n (orders 0, goto = landfall, voyage roll, +0x3148 0x40), not on
+ * the landfall tile; the human's copy is a just-departed Bound ship. */
+static int case_king_frigate_sails_from_europe(void) {
+  static ColonizeCol1Save col1;
+  static ColonizeUnitPool units;
+  static ColonizeColonyPool colonies;
+  static EuropeScreen europe;
+  static AiPopupState pop;
+  static ColonizeDosRng rng;
+  static char status[128];
+  fx_begin();
+  col1_save_init(&col1);
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    memset(&col1.nation[i], 0, sizeof(col1.nation[i]));
+  }
+  col1.nation[0].return_from_europe_x = 41;
+  col1.nation[0].return_from_europe_y = 31;
+  col1.nation[1].return_from_europe_x = 40;
+  col1.nation[1].return_from_europe_y = 30;
+  col1.head.turn = 8;
+  memset(&units, 0, sizeof(units));
+  units_reset(&units);
+  units.type_count = 1;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Frigate");
+  units.types[0].kind_plus1 = UNITS_KIND_FRIGATE + 1;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  units.types[0].movement = 6;
+  colonies_init(&colonies);
+  memset(&europe, 0, sizeof(europe));
+  europe.bound_nation = 0;
+  ai_popup_clear(&pop);
+  dos_rng_seed(&rng, 100u);
+  status[0] = '\0';
+  ColonizeTurnContext tc;
+  memset(&tc, 0, sizeof(tc));
+  tc.messages = test_game_txt();
+  tc.names = test_names_txt();
+  tc.human_nation = 0;
+  tc.col1 = &col1;
+  tc.col1_ok = true;
+  tc.units = &units;
+  tc.colonies = &colonies;
+  tc.europe = &europe;
+  tc.ai_popups = &pop;
+  tc.rng = &rng;
+  tc.status = status;
+  tc.status_size = sizeof(status);
+  /* Three hulls each and a seed whose first roll is > 89: the voyage roll is
+   * then 2, so a hard-coded 1 at either store shows. */
+  for (int i = 0; i < 3; ++i) {
+    units_spawn_allow_stack_nation(&units, 0, 2, 2, 1);
+  }
+  europe.harbor_ships = 3;
+  uint32_t seed = 1;
+  for (;; ++seed) {
+    dos_rng_seed(&rng, seed);
+    if (europe_voyage_turns_roll(&rng, false, 3, 40) == 2) {
+      break;
+    }
+  }
+  dos_rng_seed(&rng, seed);
+  ai_king_frigate_accept(&tc, 1);
+  ColonizeUnit* ai = NULL;
+  for (int i = 0; i < units_slot_end(&units); ++i) {
+    if (units.units[i].active && units.units[i].nation_id == 1 && units.units[i].x == 233) {
+      ai = &units.units[i];
+    }
+  }
+  if (!ai || ai->x != 233 || ai->y != 233 || ai->orders != UNITS_ORDER_NONE ||
+      ai->goto_x != 40 || ai->goto_y != 30 || (ai->col1_flags15 & 0x40u) == 0 ||
+      ai->col1_counter16 != 2) {
+    if (ai) {
+      fprintf(stderr, "gift ai: at (%d,%d) orders %d goto (%d,%d) flags %02x counter %d\n", ai->x,
+              ai->y, ai->orders, ai->goto_x, ai->goto_y, ai->col1_flags15, ai->col1_counter16);
+    }
+    col1_save_free(&col1);
+    return fail("AI gift Frigate must sit on lane 233 with goto=landfall, orders 0, 0x40, roll");
+  }
+  /* The lane tick (FUN_48d3_06ba) must carry it on: 233 -> 229 -> 225. */
+  for (int t = 0; t < 3; ++t) {
+    ai_euro_europe_lane_tick(&tc, 1);
+  }
+  if (ai->x != 225 || ai->y != 225) {
+    fprintf(stderr, "gift ai: after 3 lane ticks at (%d,%d), want (225,225)\n", ai->x, ai->y);
+    col1_save_free(&col1);
+    return fail("the westbound lane tick must carry the gift Frigate to 224+n");
+  }
+  dos_rng_seed(&rng, seed);
+  ai_king_frigate_accept(&tc, 0);
+  const int human_units = count_nation(&units, 0);
+  const EuropeHarborShip* s = &europe.bound[0];
+  const bool ok = europe.bound_ships == 1 && human_units == 0 && s->type_index == 0 &&
+                  s->turns_left == 2 && s->departed_this_turn &&
+                  s->exit_x == 41 && s->exit_y == 31 && s->royal_gift;
+  col1_save_free(&col1);
+  if (!ok) {
+    fprintf(stderr, "gift human: bound %d pool units %d\n", europe.bound_ships, human_units);
+    return fail("human gift Frigate must be a just-departed Bound ship, not a map unit");
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
   {"king_frigate_gate_counts_europe", case_king_frigate_gate_counts_europe},
+  {"king_frigate_sails_from_europe", case_king_frigate_sails_from_europe},
   {"dump_goods_pick_api", case_dump_goods_pick_api},
   {"purge_tile_seize_notice_793", case_purge_tile_seize_notice_793},
   {"0982_land_crown_tile_first", case_0982_land_crown_tile_first},
+  {"0982_target_tie_unstable_sort", case_0982_target_tie_unstable_sort},
   {"sol_no_bells_fallback", case_sol_no_bells_fallback},
   {"audience_interval_and_tax_gates", case_audience_interval_and_tax_gates},
   {"audience_cut_branch_1d42", case_audience_cut_branch_1d42},
@@ -3636,6 +3875,7 @@ static const TestCase k_cases[] = {
   {"wave_regular_heavy", case_wave_regular_heavy},
   {"popup_audience_accept", case_popup_audience_accept},
   {"popup_audience_refuse_teaparty", case_popup_audience_refuse_teaparty},
+  {"popup_audience_cancel_keeps_raise", case_popup_audience_cancel_keeps_raise},
   {"popup_congress_confirm", case_popup_congress_confirm},
   {"popup_post_confirm_invasion", case_popup_post_confirm_invasion},
   {"popup_merc_hire_and_decline", case_popup_merc_hire_and_decline},

@@ -1336,19 +1336,13 @@ int units_king_galleon_offer_for_unit_w(
   }
   const bool woi = col1->head.game_options.woi != 0;
   const bool cortes = founding_fathers_nation_has(col1, nation_id, FF_HERNAN_CORTES);
-  /* FUN_465b_0000: per-nation unit-type count table (-0x6db4, stride 0x13), type 0xf = Galleon. */
-  bool has_galleon = false;
-  for (int i = 0; i < units_slot_end(pool); ++i) {
-    const ColonizeUnit* u = &pool->units[i];
-    if (!u->active || u->nation_id != nation_id) {
-      continue;
-    }
-    const ColonizeUnitType* ty = units_type(pool, u->type_index);
-    if (ty && ty->name[0] && units_type_is_galleon(ty)) {
-      has_galleon = true;
-      break;
-    }
-  }
+  /* FUN_465b_0000 raw 75805: DS[nation*0x13 - 0x6da5] is the census
+   * unit-type table (-0x6db4, stride 0x13) at type 0xf = Galleon, as
+   * FUN_4962_0018 last wrote it, so a hull bought or lost since then does
+   * not count yet. */
+  const int galleon_t = units_kind_type_index(pool, UNITS_KIND_GALLEON);
+  const bool has_galleon = galleon_t >= 0 && galleon_t < 0x13 &&
+                           col1->stuff.unit_type_counts[nation_id][galleon_t] != 0;
   if (!woi && !cortes && has_galleon) {
     return 0;
   }

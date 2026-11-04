@@ -20,6 +20,7 @@
 #include "core/colony.h"
 #include "core/combat_strength.h"
 #include "core/col1_save.h"
+#include "core/col1_stuff_census.h"
 #include "core/dos_buggy.h"
 #include "core/dos_rng.h"
 #include "core/europe.h"
@@ -552,9 +553,9 @@ void ai_king_tax_hike_apply(
    * showed the new rate in Europe/status before the player had answered.
    * The arithmetic outcome of both orderings is identical (accept = raised,
    * tea party = not raised), so the hike is now previewed here and committed
-   * in ai_king_apply_popup_result on Accept. Everything DOS never asks about
-   * (cuts, fully clamped deltas, the no-cargo fallback) still commits at
-   * once.
+   * in ai_king_apply_popup_result on any answer but the party (Esc too).
+   * Everything DOS never asks about (cuts, fully clamped deltas, the no-cargo
+   * fallback) still commits at once.
    */
   const int applied = ai_king_audience_preview_delta(nat, delta);
 
@@ -662,7 +663,7 @@ void ai_king_tax_hike_apply(
     tok.number0 = applied;
     tok.has_number0 = true;
     /* @KINGTAX "The tax rate is now {%NUMBER1%%}" — the total the raise would
-     * come to. The rate itself is still the old one until Accept. */
+     * come to. The rate itself is still the old one until the answer. */
     tok.number1 = proposed;
     tok.has_number1 = true;
     /* The rung sections open with "%STRING0 %STRING1." — the difficulty title
@@ -736,8 +737,8 @@ void ai_king_tax_hike_apply(
  *   - weakest AI (local_c) is merged INTO the next-weakest AI (local_a):
  *     its colonies change owner (rebel accumulators +0xc2/+0xc4 zeroed),
  *     its units transfer when standing in a colony and are DESPAWNED in
- *     the field (`0302(x,y)==0 → 0808`), map owner/vis and tribe-alarm
- *     nibbles are remapped (thin: skipped here);
+ *     the field (`0302(x,y)==0 → 0808`); seen bits, layer3 owner nibbles
+ *     and village mission nibbles pass to the heir;
  *   - @SUCCESSION (0x128c) announces the Treaty of Utrecht;
  *   - merged slot control=2, DS:0x53d2 = the vacated slot.
  * THIS is why the King must never inherit a live nation's estate (port_bugs.md
@@ -784,12 +785,31 @@ void ai_king_succession(ColonizeTurnContext* ctx) {
   if (merged < 0 || heir < 0) {
     return;
   }
-  /* Colonies: owner swap + rebel accumulators zeroed (DOS +0xc2/+0xc4). */
+  /* DOS-LITERAL FUN_43f7_0218 raw 73658-73672: every tile the merged nation
+   * had seen (bit 0x10 << n) is seen by the heir, and every layer3 owner
+   * nibble of the merged nation passes to the heir. */
+  if (ctx->map) {
+    const size_t n_tiles = (size_t)ctx->map->width * (size_t)ctx->map->height;
+    for (size_t t = 0; t < n_tiles; ++t) {
+      if (ctx->map->seen && (ctx->map->seen[t] & (0x10u << merged))) {
+        ctx->map->seen[t] |= (uint8_t)(0x10u << heir);
+      }
+      if (ctx->map->layer3 && (ctx->map->layer3[t] >> MAP_L3_OWNER_SHIFT) == (unsigned)merged) {
+        ctx->map->layer3[t] = (uint8_t)((ctx->map->layer3[t] & MAP_L3_CONTINENT_MASK) |
+                                        (unsigned)heir << MAP_L3_OWNER_SHIFT);
+      }
+    }
+  }
+  /* Colonies: owner swap + rebel accumulators zeroed (DOS +0xc2/+0xc4), and
+   * the tile's owner nibble stamped for the heir (raw 73696 FUN_281f_0704 ->
+   * FUN_137f_0228). 0228's other arm runs only when FUN_137f_0392 finds a
+   * village on the tile, never true under a Euro colony or unit. */
   if (ctx->colonies) {
     for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
       ColonizeColony* c = &ctx->colonies->colonies[i];
       if (c->active && c->nation_id == merged) {
         c->nation_id = heir;
+        map_set_owner_nibble(ctx->map, c->x, c->y, heir);
       }
     }
   }
@@ -800,6 +820,17 @@ void ai_king_succession(ColonizeTurnContext* ctx) {
         c->nation_id = (uint8_t)heir;
         c->rebel_dividend = 0;
         c->rebel_divisor = 0;
+        map_set_owner_nibble(ctx->map, c->x, c->y, heir);
+      }
+    }
+  }
+  /* raw 73699-73705: each village's mission (tribe +5) low nibble moves from
+   * the merged nation to the heir; the high nibble stays. */
+  if (col1->tribe) {
+    for (uint16_t i = 0; i < col1->head.tribe_count; ++i) {
+      uint8_t* m = &col1->tribe[i].mission;
+      if ((*m & COL1_TRIBE_MISSION_NATION_MASK) == (unsigned)merged) {
+        *m = (uint8_t)((*m & 0xf0u) | (unsigned)heir);
       }
     }
   }
@@ -814,10 +845,19 @@ void ai_king_succession(ColonizeTurnContext* ctx) {
       }
       if (map_coords_inset(ctx->map, u->x, u->y)) {
         units_set_nation(u, heir);
+        map_set_owner_nibble(ctx->map, u->x, u->y, heir); /* raw 73684 FUN_281f_0704 */
       } else {
         (void)units_despawn(ctx->units, u->id);
       }
     }
+  }
+  /* raw 73707-73708: FUN_291f_0a74 -> FUN_4962_0018 reruns the census for
+   * the merged slot, then the heir, before the 0x543f / 0x53d2 writes, so
+   * the census readers see the transfer at once. */
+  {
+    const ColonizeWorld cw = world_from_turn_ctx(ctx);
+    col1_stuff_census_4962_w(&cw, &col1->stuff, merged);
+    col1_stuff_census_4962_w(&cw, &col1->stuff, heir);
   }
   col1->player[merged].control = 2; /* withdrawn — the King's future slot */
   col1->head.crown_nation_id = (int16_t)merged;

@@ -15,7 +15,7 @@ static int test_king_new_war_event(void) {
   }
   memset(c.head.founding_father, -1, sizeof(c.head.founding_father));
   snprintf(c.player[2].country_name, sizeof(c.player[2].country_name), "Spain");
-  /* Human 0 at peace with 2 only (1 is the Crown/REF slot for human 0); 3 unmet. */
+  /* Human 0 at peace with 2 only; 1 and 3 unmet. */
   ai_diplo_or_both(&c, 0, 2, (uint8_t)(AI_DIPLO_MET | AI_DIPLO_PEACE));
   c.nation[0].gold = 50;
   uint32_t turn = 500; /* (0+2)*500 > 799 */
@@ -609,6 +609,98 @@ static int case_tb38_land_ignores_stale_nibble(void) {
   return 0;
 }
 
+/* FUN_43f7_06a6 Tory uprising fixture: one human colony at (2,10) with live
+ * population 8 and a stale col1 mirror record of population 0 (SoL 0), no
+ * REF pools left, crown 1, difficulty 0. Runs the wave until the uprising
+ * fires and returns the crown units spawned. */
+static int tory_fx_run(TbInvFx* f, ColonizeCol1Save* col1, ColonizeCol1Colony* mirror) {
+  if (!tb_inv_fx_init(f)) {
+    return -1;
+  }
+  f->units.type_count = 2;
+  memset(f->units.types, 0, 2 * sizeof(f->units.types[0]));
+  f->units.types[0].kind_plus1 = UNITS_KIND_SOLDIER + 1;
+  f->units.types[0].movement = 1;
+  f->units.types[0].attack = 2;
+  f->units.types[1].kind_plus1 = UNITS_KIND_DRAGOON + 1;
+  f->units.types[1].movement = 4;
+  f->units.types[1].attack = 3;
+  tb_inv_add_colony(f, 2, 10, 8);
+  memset(col1, 0, sizeof(*col1));
+  memset(mirror, 0, sizeof(*mirror));
+  mirror->nation_id = 0;
+  mirror->x = 2;
+  mirror->y = 10;
+  mirror->population = 0; /* stale: the colony grew since the last capture */
+  mirror->rebel_divisor = 100;
+  col1->colony = mirror;
+  col1->head.colony_count = 1;
+  col1->head.crown_nation_id = 1;
+  ai_king_set_independence(col1, 1);
+  f->ctx.col1 = col1;
+  f->ctx.col1_ok = true;
+  ColonizeDosRng rng;
+  dos_rng_seed(&rng, 7u * 12345u);
+  f->ctx.rng = &rng;
+  int spawned = 0;
+  for (int t = 0; t < 32 && spawned == 0; ++t) {
+    ai_king_ref_wave(&f->ctx);
+    for (int i = 0; i < units_slot_end(&f->units); ++i) {
+      spawned += f->units.units[i].active && f->units.units[i].nation_id == 1;
+    }
+  }
+  f->ctx.rng = NULL;
+  return spawned;
+}
+
+/* raw 73850-73856 walks the live colony array: the size is the live +0x1f
+ * population (8 * 100 * 2 / 100 + 0 + 1 = 17), and the +0x1c bit 0 latch
+ * (raw 73889) lands on the live colony, which the save capture copies. */
+static int case_tory_uprising_reads_live_colony(void) {
+  static TbInvFx f;
+  static ColonizeCol1Save col1;
+  static ColonizeCol1Colony mirror;
+  const int spawned = tory_fx_run(&f, &col1, &mirror);
+  int rc = 0;
+  if (spawned != 17 ||
+      (f.colonies.colonies[0].colony_flags & COLONIZE_COLONY_FLAG_REF_LANDING) == 0) {
+    fprintf(stderr, "tory: spawned %d (want 17) live latch %d\n", spawned,
+            (f.colonies.colonies[0].colony_flags & COLONIZE_COLONY_FLAG_REF_LANDING) != 0);
+    rc = fail("tory uprising must size and latch on the live colony");
+  }
+  map_free(&f.map);
+  return rc;
+}
+
+/* FUN_43f7_06a6 creates each unit through FUN_281f_095c -> FUN_1427_06b4,
+ * which zeroes +0x3149 (moves spent), and calls no 0934 after, so every
+ * uprising unit has the full MP of its final type. */
+static int case_tory_uprising_full_moves(void) {
+  static TbInvFx f;
+  static ColonizeCol1Save col1;
+  static ColonizeCol1Colony mirror;
+  const int spawned = tory_fx_run(&f, &col1, &mirror);
+  int rc = spawned > 0 ? 0 : fail("tory: the uprising did not fire");
+  int dragoons = 0;
+  for (int i = 0; rc == 0 && i < units_slot_end(&f.units); ++i) {
+    const ColonizeUnit* u = &f.units.units[i];
+    if (!u->active || u->nation_id != 1) {
+      continue;
+    }
+    dragoons += u->type_index == 1;
+    if (u->moves != units_max_mp(&f.units, u->id)) {
+      fprintf(stderr, "tory: unit %d type %d moves %d (want %d)\n", u->id, u->type_index,
+              u->moves, units_max_mp(&f.units, u->id));
+      rc = fail("tory uprising units must spawn with full moves");
+    }
+  }
+  if (rc == 0 && dragoons == 0) {
+    rc = fail("tory: fixture should roll at least one Dragoon");
+  }
+  map_free(&f.map);
+  return rc;
+}
+
 /* ===== divergences.hard_king (docs/settings.md) ===== */
 
 static void hard_king_set(bool on) {
@@ -755,7 +847,218 @@ static int case_hard_king_area_garrison(void) {
   return 0;
 }
 
+/*
+ * FUN_38fd_5930 raw 68340 skips self and DS:0x53d2 only. Before succession
+ * 0x53d2 = -1, so nation 1 (the port's fallback crown for human 0) counts:
+ * peace with it alone lets the event fire, and met-no-peace blocks it.
+ */
+static int case_newwar_counts_fallback_crown(void) {
+  ColonizeCol1Save c;
+  col1_save_init(&c);
+  c.head.difficulty = 0;
+  for (int i = 0; i < 4; ++i) {
+    c.player[i].control = (i == 0) ? 0 : 1;
+    memset(&c.nation[i], 0, sizeof(c.nation[i]));
+  }
+  memset(c.head.founding_father, -1, sizeof(c.head.founding_father));
+  if (c.head.crown_nation_id != -1) {
+    return fail("newwar: col1_save_init must leave crown_nation_id = -1");
+  }
+  ai_diplo_or_both(&c, 0, 1, (uint8_t)(AI_DIPLO_MET | AI_DIPLO_PEACE));
+  uint32_t turn = 500;
+  ColonizeDosRng rng;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.messages = test_game_txt();
+  ctx.names = test_names_txt();
+  ctx.col1 = &c;
+  ctx.col1_ok = true;
+  ctx.rng = &rng;
+  ctx.turn_number = &turn;
+  ctx.human_nation = 0;
+  dos_rng_seed(&rng, 100u);
+  int fired = 0;
+  for (int i = 0; i < 4000 && !fired; ++i) {
+    fired = ai_king_new_war_event(&ctx);
+  }
+  if (!fired) {
+    return fail("newwar: peace with nation 1 alone must let KINGNEWWAR fire before succession");
+  }
+  /* Nation 1 met, no peace; peace with 2: DOS blocks. */
+  c.nation[0].euro_relation[1] = AI_DIPLO_MET;
+  c.nation[1].euro_relation[0] = AI_DIPLO_MET;
+  ai_diplo_or_both(&c, 0, 2, (uint8_t)(AI_DIPLO_MET | AI_DIPLO_PEACE));
+  for (int i = 0; i < 2000; ++i) {
+    if (ai_king_new_war_event(&ctx)) {
+      return fail("newwar: met-no-peace nation 1 must block KINGNEWWAR before succession");
+    }
+  }
+  return 0;
+}
+
+/*
+ * FUN_43f7_0218 ranks with FUN_1cf8_000a, which puts a moved key before equal
+ * earlier keys. Scores [10,5,5,20] rank as [2,1,0,3] (a stable sort gives
+ * [1,2,0,3]).
+ */
+static int case_rank_nations_tie_order(void) {
+  ColonizeCol1Save c;
+  col1_save_init(&c);
+  memset(&c.stuff, 0, sizeof(c.stuff));
+  const uint8_t pop[4] = {10, 5, 5, 20};
+  for (int i = 0; i < 4; ++i) {
+    c.stuff.census_pop_proxy[i] = pop[i];
+  }
+  int order[4];
+  ai_king_rank_nations_0218(&c, order);
+  if (order[0] != 2 || order[1] != 1 || order[2] != 0 || order[3] != 3) {
+    fprintf(stderr, "unit_ai_king: rank order %d %d %d %d\n", order[0], order[1], order[2],
+            order[3]);
+    return fail("rank: DOS tie rule must rank [2,1,0,3]");
+  }
+  return 0;
+}
+
+/* Succession fixture: nation 3 (weakest) merges into 2. One colony of 3 at
+ * (4,4), one unit of 3 at (2,2) on a tile owned by tribe nibble 5, the (6,6)
+ * tile owned and seen by 3, and two villages: a Jesuit mission of 3 and a
+ * mission of 1. */
+typedef struct SuccFx {
+  ColonizeCol1Save c;
+  ColonizeColonyPool colonies;
+  ColonizeUnitPool units;
+  ColonizeWorldMap map;
+  ColonizeCol1Tribe tribes[2];
+} SuccFx;
+
+static int succ_fx_run(SuccFx* f) {
+  col1_save_init(&f->c);
+  memset(&f->c.stuff, 0, sizeof(f->c.stuff));
+  f->c.head.crown_nation_id = -1;
+  for (int n = 1; n < 4; ++n) {
+    f->c.player[n].control = 1;
+  }
+  const uint8_t pop[4] = {50, 40, 20, 10};
+  for (int n = 0; n < 4; ++n) {
+    f->c.stuff.census_pop_proxy[n] = pop[n];
+  }
+  memset(f->tribes, 0, sizeof(f->tribes));
+  f->tribes[0].mission = (uint8_t)(COL1_TRIBE_MISSION_JESUIT_BIT | 3u);
+  f->tribes[1].mission = 1u;
+  f->c.tribe = f->tribes;
+  f->c.head.tribe_count = 2;
+  if (!fx_map_alloc(&f->map, 8, 8, 2, true)) {
+    return fail("succession: alloc map");
+  }
+  for (int i = 0; i < 64; ++i) {
+    f->map.layer3[i] = 0xf1u; /* unowned, continent 1 */
+  }
+  f->map.layer3[6 * 8 + 6] = 0x31u;
+  f->map.seen[6 * 8 + 6] = (uint8_t)(0x10u << 3);
+  f->map.layer3[2 * 8 + 2] = 0x51u;
+  colonies_init(&f->colonies);
+  colonies_set_occupancy_map(NULL);
+  ColonizeColony* col = &f->colonies.colonies[0];
+  col->active = true;
+  col->nation_id = 3;
+  col->x = 4;
+  col->y = 4;
+  f->colonies.colony_count = 1;
+  memset(&f->units, 0, sizeof(f->units));
+  units_reset(&f->units);
+  units_set_occupancy_map(NULL);
+  f->units.type_count = 1;
+  snprintf(f->units.types[0].name, sizeof(f->units.types[0].name), "Free Colonist");
+  f->units.types[0].movement = 1;
+  ColonizeUnit* u = units_get(&f->units, units_spawn_allow_stack(&f->units, 0, 2, 2));
+  if (!u) {
+    map_free(&f->map);
+    return fail("succession: spawn unit");
+  }
+  units_set_nation(u, 3);
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.colonies = &f->colonies;
+  ctx.units = &f->units;
+  ctx.map = &f->map;
+  ctx.col1 = &f->c;
+  ctx.col1_ok = true;
+  ctx.human_nation = 0;
+  ai_king_succession(&ctx);
+  if (f->c.head.crown_nation_id != 3 || col->nation_id != 2) {
+    map_free(&f->map);
+    return fail("succession: setup should merge 3 into 2");
+  }
+  return 0;
+}
+
+/* FUN_43f7_0218 raw 73699-73705 hands the merged nation's missions to the
+ * heir (low nibble only; the high nibble stays, other nations' untouched). */
+static int case_succession_moves_missions(void) {
+  static SuccFx f;
+  if (succ_fx_run(&f) != 0) {
+    return 1;
+  }
+  int rc = 0;
+  if (f.tribes[0].mission != (uint8_t)(COL1_TRIBE_MISSION_JESUIT_BIT | 2u) ||
+      f.tribes[1].mission != 1u) {
+    fprintf(stderr, "missions %#x %#x\n", f.tribes[0].mission, f.tribes[1].mission);
+    rc = fail("succession: the merged nation's mission must pass to the heir");
+  }
+  map_free(&f.map);
+  return rc;
+}
+
+/* raw 73658-73672 pass the merged nation's seen bits and layer3 owner nibbles
+ * to the heir; raw 73684 / 73696 FUN_281f_0704 stamp the heir on every
+ * transferred unit's and colony's tile. */
+static int case_succession_rewrites_owner_map(void) {
+  static SuccFx f;
+  if (succ_fx_run(&f) != 0) {
+    return 1;
+  }
+  const uint8_t own_far = f.map.layer3[6 * 8 + 6];
+  const uint8_t own_unit = f.map.layer3[2 * 8 + 2];
+  const uint8_t own_col = f.map.layer3[4 * 8 + 4];
+  const uint8_t seen_far = f.map.seen[6 * 8 + 6];
+  int rc = 0;
+  if (own_far != 0x21u || own_unit != 0x21u || own_col != 0x21u ||
+      !(seen_far & (0x10u << 2))) {
+    fprintf(stderr, "layer3 far %#x unit %#x colony %#x seen %#x\n", own_far, own_unit, own_col,
+            seen_far);
+    rc = fail("succession: owner nibbles and seen bits must pass to the heir");
+  }
+  map_free(&f.map);
+  return rc;
+}
+
+/* raw 73707-73708 rerun FUN_4962_0018 for the merged slot and then the heir,
+ * so the census rows move with the transfer before the next day's census. */
+static int case_succession_reruns_census(void) {
+  static SuccFx f;
+  if (succ_fx_run(&f) != 0) {
+    return 1;
+  }
+  const ColonizeCol1Stuff* s = &f.c.stuff;
+  int rc = 0;
+  if (s->colony_counts[3] != 0 || s->census_pop_proxy[3] != 0 || s->colony_counts[2] != 1 ||
+      s->unit_type_counts[2][0] != 1) {
+    fprintf(stderr, "census colonies 3:%u 2:%u pop3 %u colonists2 %u\n", s->colony_counts[3],
+            s->colony_counts[2], s->census_pop_proxy[3], s->unit_type_counts[2][0]);
+    rc = fail("succession: the census must be rerun for the merged slot and the heir");
+  }
+  map_free(&f.map);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
+    {"case_tory_uprising_reads_live_colony", case_tory_uprising_reads_live_colony},
+    {"case_tory_uprising_full_moves", case_tory_uprising_full_moves},
+    {"case_succession_reruns_census", case_succession_reruns_census},
+    {"case_succession_moves_missions", case_succession_moves_missions},
+    {"case_succession_rewrites_owner_map", case_succession_rewrites_owner_map},
+    {"case_rank_nations_tie_order", case_rank_nations_tie_order},
+    {"case_newwar_counts_fallback_crown", case_newwar_counts_fallback_crown},
     {"test_king_new_war_event", test_king_new_war_event},
     {"test_king_noncombat_never_attacks", test_king_noncombat_never_attacks},
     {"case_43f7_0082_spawn_types", case_43f7_0082_spawn_types},
