@@ -1315,12 +1315,54 @@ static int test_human_landho_after_3180(void) {
       ids[n++] = woodcut_take_pending();
     }
     const int meet = drained_woodcut_index(ids, n, WOODCUT_THE_INCA_NATION);
+    const int early = drained_woodcut_index(ids, n, WOODCUT_DISCOVERY_OF_THE_NEW_WORLD);
+    const bool queued = ai_popup_busy(&game.ai_popups);
+    /* The meet popup is blocking in DOS, so the scan (and its woodcut and
+     * name dialog) waits until it is answered. */
+    ai_popup_init(&game.ai_popups);
+    game_landho_service(&game);
+    n = 0;
+    while (n < 8 && woodcut_has_pending()) {
+      ids[n++] = woodcut_take_pending();
+    }
     const int land = drained_woodcut_index(ids, n, WOODCUT_DISCOVERY_OF_THE_NEW_WORLD);
     if (m->x != 3 || m->y != 3) {
       rc = fail("landho order: the colonist did not step to (3,3)");
-    } else if (meet < 0 || land < 0 || meet > land) {
-      fprintf(stderr, "landho order: meet woodcut at %d, new world at %d\n", meet, land);
-      rc = fail("landho order: the Land Ho scan must follow FUN_5bfb_3180");
+    } else if (meet < 0 || !queued) {
+      fprintf(stderr, "landho order: meet woodcut at %d, popup queued %d\n", meet, (int)queued);
+      rc = fail("landho order: the step must run FUN_5bfb_3180 and queue its popup");
+    } else if (early >= 0 || land < 0) {
+      fprintf(stderr, "landho order: new world before answer %d, after %d\n", early, land);
+      rc = fail("landho order: the Land Ho scan must wait for the queued 3180 popup");
+    }
+  }
+  woodcut_clear_pending();
+  step3180_free(&game);
+  return rc;
+}
+
+/* The Land Ho scan sits in FUN_4720_049e's committed-step arm (raw
+ * 76123-76141); a non-step tail (fortify, sentry, combat) never scans. */
+static int test_human_nonstep_no_landho(void) {
+  ColonizeGameState game;
+  ColonizeCol1Tribe tribe;
+  const int fr_id = step3180_fixture(&game, &tribe);
+  int rc = fr_id < 0 ? fail("nonstep landho fixture") : 0;
+  ColonizeUnit* m = rc ? NULL : units_get(&game.units, units_spawn(&game.units, 0, 3, 4));
+  if (rc == 0 && !m) {
+    rc = fail("nonstep landho: spawn");
+  }
+  if (rc == 0) {
+    game.col1.player[0].named_new_world = 0;
+    m->nation_id = 0;
+    m->moves = 0;
+    game.units.selected_id = m->id;
+    woodcut_clear_pending();
+    game_after_unit_action(&game);
+    game_landho_service(&game);
+    if (woodcut_has_pending() || game.name_entry.open || game.col1.player[0].named_new_world ||
+        game.landho_deferred) {
+      rc = fail("nonstep landho: a non-step tail must not run the Land Ho scan");
     }
   }
   woodcut_clear_pending();
@@ -4633,6 +4675,7 @@ static const TestCase k_cases[] = {
     {"test_human_landfall_runs_3180", test_human_landfall_runs_3180},
     {"test_human_village_visit_no_3180", test_human_village_visit_no_3180},
     {"test_human_landho_after_3180", test_human_landho_after_3180},
+    {"test_human_nonstep_no_landho", test_human_nonstep_no_landho},
     {"test_human_treasure_offer_after_3180", test_human_treasure_offer_after_3180},
     {"test_ship_in_colony_meets_tribe", test_ship_in_colony_meets_tribe},
     {"test_ship_bumps_foreign_colony_trade_arm", test_ship_bumps_foreign_colony_trade_arm},

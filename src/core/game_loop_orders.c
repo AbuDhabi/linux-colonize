@@ -1209,13 +1209,16 @@ static void game_after_unit_tail(ColonizeGameState* game, bool stepped) {
    * the reveal: it scans the destination only after FUN_2a1f_0142 has returned
    * (raw 76124-76141), i.e. after 465b's LCR, 3180 and treasure arms below
    * (port_bugs.md #1178). DOS scans the destination even when the LCR took the
-   * unit, so the tile is captured here. */
+   * unit, so the tile is captured here. Only a committed step scans: the
+   * scan sits in the 2a1f_01ae != 0 arm (raw 76123-76141, destination =
+   * 0x5392 x/y + delta, raw 76117-76118); fortify, sentry, combat and the
+   * other non-step tails never reach it. */
   bool landho_scan = false;
   const int landho_x = u->x;
   const int landho_y = u->y;
   if (game->world_map_ok && u->nation_id >= 0 && u->nation_id <= 3 && units_is_on_map(u)) {
     game_reveal_sight_for_unit(game, u);
-    landho_scan = u->nation_id == game->human_nation;
+    landho_scan = stepped && u->nation_id == game->human_nation;
   }
   /* LCR: Scout on rumour clears + rolls a manual outcome (Fountain of Youth,
    * Cibola, treasure, burial mounds, …); de Soto keeps outcomes positive.

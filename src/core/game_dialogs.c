@@ -2046,6 +2046,14 @@ void game_try_prompt_landho(ColonizeGameState* game, int dest_x, int dest_y) {
   if (game->col1.player[game->human_nation].named_new_world) {
     return;
   }
+  /* The step's own popups (@INDIANWELCOME, the Galleon offer) are blocking in
+   * DOS and answered before this scan runs (raw 76124 returns first). */
+  if (!game_turn_flow_allowed(game)) {
+    game->landho_deferred = true;
+    game->landho_x = dest_x;
+    game->landho_y = dest_y;
+    return;
+  }
   /*
    * DOS-LITERAL FUN_4720_049e tail (viceroy_unpacked.c 76122-76142, asm
    * 4720:061c-06b2), run after FUN_2a1f_0142 committed the human's move: while
@@ -2067,6 +2075,13 @@ void game_try_prompt_landho(ColonizeGameState* game, int dest_x, int dest_y) {
   }
   (void)woodcut_fire(&game->col1, WOODCUT_DISCOVERY_OF_THE_NEW_WORLD);
   game_open_landho_name_entry(game);
+}
+
+void game_landho_service(ColonizeGameState* game) {
+  if (game && game->landho_deferred && game_turn_flow_allowed(game)) {
+    game->landho_deferred = false;
+    game_try_prompt_landho(game, game->landho_x, game->landho_y);
+  }
 }
 
 /* ===================== Settings, debug HUD & trade-service screen requests (game_persist_debug_hud .. game_trade_service_screen_request) ===================== */

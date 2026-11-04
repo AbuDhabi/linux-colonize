@@ -3755,6 +3755,10 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
     return step == GAME_UPDATE_RETURN_TRUE;
   }
 
+  /* A parked Land Ho scan runs before any further step or hand-off, as the
+   * DOS dialog would have (game_try_prompt_landho). */
+  game_landho_service(game);
+
   step = game_update_unit_pacer(game, input, dt_ms);
   if (step != GAME_UPDATE_CONTINUE) {
     return step == GAME_UPDATE_RETURN_TRUE;

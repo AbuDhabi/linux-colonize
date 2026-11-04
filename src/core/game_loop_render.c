@@ -2520,9 +2520,10 @@ void game_commit_new_campaign(ColonizeGameState* game) {
   sound_play(0x39); /* FUN_75c2_235c new-game init: Hornpipe first (75c2:2474) */
   const uint8_t human_mask = ng->human_mask;
   new_game_cancel(ng);
-  /* Drop the unit hand-off and colony open the previous campaign left
-   * parked, as game_apply_col1_save does. */
+  /* Drop the unit hand-off, Land Ho scan and colony open the previous
+   * campaign left parked, as game_apply_col1_save does. */
   game->turn_flow_deferred = false;
+  game->landho_deferred = false;
   game->found_open_colony_id = -1;
   game->in_menu = false;
   game->view_pieces_mode = false;

@@ -168,6 +168,12 @@ struct ColonizeGameState {
    * overland map, and only if there ISN'T an active popup").
    */
   bool turn_flow_deferred;
+  /* The FUN_4720_049e Land Ho scan of a step whose 465b/3180 tail queued a
+   * popup: DOS answers that popup first (blocking), then scans. Parked
+   * destination, replayed by game_landho_service. */
+  bool landho_deferred;
+  int landho_x;
+  int landho_y;
   /*
    * DOS DS:0x97b0: set when Move Pieces hands the player a unit awaiting
    * orders (FUN_2b5a_3802 raw 46235-46236), zeroed at the Move Pieces entry
@@ -693,6 +699,8 @@ bool game_try_enter_europe(ColonizeGameState* game);
 bool game_try_found_colony_at_cursor(ColonizeGameState* game);
 /* FUN_4720_049e tail: @LANDHO after a human move whose destination 3x3 holds land. */
 void game_try_prompt_landho(ColonizeGameState* game, int dest_x, int dest_y);
+/* Replays a Land Ho scan parked behind a popup, once the map is clear. */
+void game_landho_service(ColonizeGameState* game);
 const char* key_name(ColonizeKey key);
 void set_status(ColonizeGameState* game, const char* prefix, const char* detail);
 /* Status-line wording of a pioneer order's UnitsPioneerReason (port-only
