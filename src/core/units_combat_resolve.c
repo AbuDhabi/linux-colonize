@@ -1475,44 +1475,15 @@ void units_ship_slow_scan_w(
  *   - aboard (raw 98635-98638): a NON-ship type (outside 0x0d..0x12) standing
  *     on a water tile is a passenger in a hold and is left asleep.
  *
- * The same pass carries 3180's facing write (raw 98648-98651, inline below).
+ * The same pass carries 3180's facing write (raw 98648-98651, inline below)
+ * for native movers only. A European mover's facing write is owned by
+ * ai_euro_3180_euro_side, which interleaves it with the real encounter
+ * returns that close aiStack_20 (a closed 153e gate returns 0, raw 97426).
  *
  * DOS writes the order byte only; the port routes through units_wake so its
  * hold-passenger MP rule stays the single owner of that.
  * port_bugs.md #539 (REF landfall left the garrison's Sentry units asleep).
  */
-/*
- * aiStack_20[nation] after FUN_5bfb_3180's encounter call for a neighbour of
- * `owner` (raw 98652-98674). The encounters themselves run in the port's
- * contact scans; this only reports whether DOS would have latched the nation.
- *   Indian x Indian: alliance-share arm, always 1.
- *   Euro x Euro: FUN_5bfb_153e, not called during the WoI (DS:0x5382 bit0,
- *     latch stays 0); otherwise 153e returns 1 (raw 97406-97411 AI pair,
- *     97436 human audience).
- *   Euro x Indian: FUN_5bfb_022e returns 1 on first contact (MET clear);
- *     already met with a Euro mover it exits 0 at overlay 0x48c-0x49c
- *     (neighbour head not type 0x0c).
- * An already-met Brave mover's real 022e result (0 unless the tile holds a
- * colony or Wagon Train) lives in ai_native_step_first_contact, which runs
- * right after this scan and turns the remaining heads itself.
- */
-static int units_3180_contact_latch(const ColonizeCol1Save* col1, int mover_nation, int owner) {
-  if (mover_nation >= 4 && owner >= 4) {
-    return 1;
-  }
-  if (mover_nation < 4 && owner < 4) {
-    return col1 && col1->head.game_options.woi ? 0 : 1;
-  }
-  if (!col1) {
-    return 1;
-  }
-  const int euro = mover_nation < 4 ? mover_nation : owner;
-  const int indian = mover_nation < 4 ? owner : mover_nation;
-  if (col1->indian[indian - 4].euro_diplo[euro] == 0) {
-    return 1;
-  }
-  return mover_nation < 4 ? 0 : 1;
-}
 
 void units_sentry_wake_scan(
   ColonizeUnitPool* pool,
@@ -1560,15 +1531,18 @@ void units_sentry_wake_scan(
      * DOS-LITERAL FUN_5bfb_3180 raw 98648-98651: with mover and neighbour
      * both on land, the neighbour's stack head turns to face away from the
      * mover (+0x314f = the scan direction), once per nation until that
-     * nation's encounter latches aiStack_20. 021a scores the facing term
-     * off this byte, so a Brave beside a Euro unit that just stepped up
-     * picks with DOS's facing (seed-100 TURN3/TURN4 peel rows).
+     * nation's encounter latches aiStack_20. A native mover latches every
+     * nation on its first tile: Indian x Indian is the herd-share arm (1),
+     * and 022e with an Indian param_3 returns 1 on first contact; an
+     * already-met visit's real result lives in ai_native_step_first_contact,
+     * which turns the remaining heads itself.
      */
-    if (!dest_water && !map_tile_is_water(map, nx, ny) && !contact_latched[owner]) {
+    if (mover_nation >= 4 && !dest_water && !map_tile_is_water(map, nx, ny) &&
+        !contact_latched[owner]) {
       if (topu) {
         topu->last_dir = (int8_t)d;
       }
-      if (mover_nation >= 4 && owner >= 4 && g_units_fallout_col1) {
+      if (owner >= 4 && g_units_fallout_col1) {
         /* DOS-LITERAL FUN_5bfb_3180 raw 98684-98689: two native nations
          * meeting share horses — both herds become the larger (DS:0x5ade =
          * indian[].horse_herds). America resync 82 / 96. */
@@ -1581,7 +1555,7 @@ void units_sentry_wake_scan(
         a->horse_herds = (uint8_t)herds;
         b->horse_herds = (uint8_t)herds;
       }
-      contact_latched[owner] = units_3180_contact_latch(col1, mover_nation, owner);
+      contact_latched[owner] = 1;
     }
     if (!topu) {
       continue;

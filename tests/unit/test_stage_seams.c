@@ -1072,7 +1072,9 @@ static int test_human_lcr_count_change_skips_contact(void) {
     game.world_map.layer2[3 * 8 + 3] &= (uint8_t)~MAP_LAYER2_LCR_CONSUMED;
     memset(&game.col1.indian[0], 0, sizeof(game.col1.indian[0]));
     ai_popup_init(&game.ai_popups);
-    ColonizeUnit* u = units_get(&game.units, units_spawn(&game.units, 0, 3, 3));
+    /* The explorer walks onto the rumour, so the move's own 3180 halves
+     * (units_sentry_wake_scan) run too. */
+    ColonizeUnit* u = units_get(&game.units, units_spawn(&game.units, 0, 3, 4));
     if (!u) {
       rc = fail("human lcr spawn");
       break;
@@ -1087,6 +1089,9 @@ static int test_human_lcr_count_change_skips_contact(void) {
       break;
     }
     dutch->nation_id = 1;
+    /* 3180's facing stamp (raw 98648-98651) is skipped with the rest of 3180. */
+    dutch->last_dir = -1;
+    const int dutch_id = dutch->id;
     game.col1.head.turn = (uint16_t)seed; /* 153e talks once per pair per turn */
     ai_diplo_talk_reset();
     ai_diplo_write(&game.col1, 0, 1, 0);
@@ -1095,24 +1100,28 @@ static int test_human_lcr_count_change_skips_contact(void) {
     dos_rng_set_83a6((int32_t)seed * 12345);
     dos_rng_seed(&game.move_rng, (uint32_t)seed * 12345u);
     const int before = units_active_count(&game.units);
-    game_after_unit_step(&game);
+    (void)game_try_unit_move(&game, 3, 3);
     u = units_get(&game.units, uid);
-    const bool alive = u && u->active;
+    dutch = units_get(&game.units, dutch_id);
+    const bool alive = u && u->active && u->x == 3 && u->y == 3;
     const bool changed = units_active_count(&game.units) != before;
     const bool met = (game.col1.indian[0].euro_diplo[0] & COL1_INDIAN_MET_BIT) != 0;
     const bool euro_met = (ai_diplo_read(&game.col1, 0, 1) & COL1_INDIAN_MET_BIT) != 0;
+    const bool faced = dutch && dutch->last_dir >= 0;
     if (alive && changed) {
       seen_changed++;
-      if (met || euro_met) {
-        fprintf(stderr, "human lcr: count change (seed %d) still ran contact (tribe %d euro %d)\n",
-                seed, met, euro_met);
+      if (met || euro_met || faced) {
+        fprintf(stderr,
+                "human lcr: count change (seed %d) still ran contact (tribe %d euro %d faced %d)\n",
+                seed, met, euro_met, faced);
         rc = 1;
       }
     } else if (alive && !changed) {
       seen_same++;
-      if (!met || !euro_met) {
-        fprintf(stderr, "human lcr: unchanged count (seed %d) skipped contact (tribe %d euro %d)\n",
-                seed, met, euro_met);
+      if (!met || !euro_met || !faced) {
+        fprintf(stderr,
+                "human lcr: unchanged count (seed %d) skipped contact (tribe %d euro %d faced %d)\n",
+                seed, met, euro_met, faced);
         rc = 1;
       }
     }
