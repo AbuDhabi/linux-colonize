@@ -7805,6 +7805,70 @@ static int case_trade_route_departure_no_pickup(void) {
   return 0;
 }
 
+/* "Move to front" is a unit id (DOS DS:0x8d78): after units_pool_compact moves
+ * the marked sentry down a slot, the departing hull still boards it first, ahead
+ * of the two later arrivals it would otherwise take. */
+static int case_board_first_survives_compact(void) {
+  if (fx_open() != 0 || fx_stage2() != 0) {
+    return 1;
+  }
+  int tx = -1, ty = -1;
+  for (int y = 5; y < (int)map.height - 5 && tx < 0; ++y) {
+    for (int x = 5; x < (int)map.width - 5; ++x) {
+      if (!map_tile_is_water(&map, x, y)) {
+        tx = x;
+        ty = y;
+        break;
+      }
+    }
+  }
+  if (tx < 0) {
+    fprintf(stderr, "board-first compact: no land tile\n");
+    return 1;
+  }
+  map_occupancy_set_layer2(&map, tx, ty, MAP_OCCUPANCY_HAS_CITY, true);
+  const int ship = units_spawn_allow_stack(&pool, units_find_type(&pool, "Caravel"), tx, ty);
+  const int filler = units_spawn_allow_stack(&pool, pioneer, tx, ty);
+  const int marked = units_spawn_allow_stack(&pool, pioneer, tx, ty);
+  const int later1 = units_spawn_allow_stack(&pool, pioneer, tx, ty);
+  const int later2 = units_spawn_allow_stack(&pool, pioneer, tx, ty);
+  ColonizeUnit* s = units_get(&pool, ship);
+  if (!s || units_ship_capacity(&pool, ship) != 2 || later2 < 0) {
+    fprintf(stderr, "board-first compact: fixture\n");
+    return 1;
+  }
+  units_get(&pool, marked)->orders = UNITS_ORDER_SENTRY;
+  units_get(&pool, later1)->orders = UNITS_ORDER_SENTRY;
+  units_get(&pool, later2)->orders = UNITS_ORDER_SENTRY;
+  pool.board_first_id = marked;
+  const ColonizeUnit* before = units_get_const(&pool, marked);
+  const int slot_before = (int)(before - pool.units);
+  units_despawn(&pool, filler);
+  units_pool_compact(&pool);
+  const ColonizeUnit* after = units_get_const(&pool, marked);
+  if (!after || (int)(after - pool.units) >= slot_before || pool.board_first_id != marked) {
+    fprintf(stderr, "board-first compact: the marked unit did not move down (slot %d -> %d)\n",
+            slot_before, after ? (int)(after - pool.units) : -1);
+    return 1;
+  }
+  if (units_ship_departure_pickup(&pool, &map, ship, tx, ty) != 2 ||
+      units_get(&pool, marked)->aboard_ship_id != ship ||
+      units_get(&pool, later2)->aboard_ship_id != ship ||
+      units_get(&pool, later1)->aboard_ship_id >= 0) {
+    fprintf(stderr, "board-first compact: the marked sentry must board first (cargo %d)\n",
+            s->cargo_count);
+    return 1;
+  }
+  map_occupancy_set_layer2(&map, tx, ty, MAP_OCCUPANCY_HAS_CITY, false);
+  units_despawn(&pool, marked);
+  units_despawn(&pool, later1);
+  units_despawn(&pool, later2);
+  units_despawn(&pool, ship);
+  pool.board_first_id = -1;
+  fx_close();
+  return 0;
+}
+
   /* port_bugs.md: Go To onto a fogged square is always legal — the destination
    * check must not peek under the fog. Seen, it still validates. */
 static int case_goto_fogged_square(void) {
@@ -8176,6 +8240,42 @@ static int case_prev_live_id_is_slot_order(void) {
   return 0;
 }
 
+/* "Move to front" is a unit id. Despawning the front unit in the top
+ * slot trims slot_end, so the next spawn reuses that slot; the mark must not
+ * pass to the newcomer. */
+static int case_board_first_not_inherited_by_slot_reuse(void) {
+  static ColonizeUnitPool p;
+  memset(&p, 0, sizeof(p));
+  units_set_occupancy_map(NULL);
+  units_reset_state();
+  units_reset(&p);
+  p.type_count = 1;
+  snprintf(p.types[0].name, sizeof(p.types[0].name), "Soldier");
+  p.types[0].movement = 1;
+  p.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  const int a = units_spawn_allow_stack(&p, 0, 1, 1);
+  const int b = units_spawn_allow_stack(&p, 0, 1, 1);
+  if (a < 0 || b < 0) {
+    return 1;
+  }
+  const int b_slot = (int)(units_get_const(&p, b) - p.units);
+  p.board_first_id = b;
+  if (!units_despawn(&p, b)) {
+    return 1;
+  }
+  const int c = units_spawn_allow_stack(&p, 0, 1, 1);
+  const ColonizeUnit* cu = c >= 0 ? units_get_const(&p, c) : NULL;
+  if (!cu || (int)(cu - p.units) != b_slot) {
+    fprintf(stderr, "board_first: newcomer did not reuse the slot (setup)\n");
+    return 1;
+  }
+  if (p.board_first_id != -1) {
+    fprintf(stderr, "board_first: front mark %d survived its unit's despawn\n", p.board_first_id);
+    return 1;
+  }
+  return 0;
+}
+
 /*
  * DOS FUN_1427_0824 (raw 7776-7839) packs the unit array and FUN_1427_06b4
  * appends, so a new unit always follows every older one. A full pool with
@@ -8210,7 +8310,7 @@ static int case_pool_full_spawn_appends_after_compact(void) {
     return 1;
   }
   const int bf_id = p.units[3000].id;
-  p.board_first_slot = 3000;
+  p.board_first_id = bf_id;
   if (units_slot_end(&p) != COLONIZE_UNITS_MAX) {
     fprintf(stderr, "pool_full: slot_end %d\n", units_slot_end(&p));
     return 1;
@@ -8244,9 +8344,9 @@ static int case_pool_full_spawn_appends_after_compact(void) {
     }
     k++;
   }
-  if (k != old_n + 1 || p.board_first_slot < 0 || p.units[p.board_first_slot].id != bf_id) {
-    fprintf(stderr, "pool_full: walked %d of %d, board_first_slot %d\n", k, old_n + 1,
-            p.board_first_slot);
+  if (k != old_n + 1 || p.board_first_id != bf_id || !units_get_const(&p, bf_id)) {
+    fprintf(stderr, "pool_full: walked %d of %d, board_first_id %d\n", k, old_n + 1,
+            p.board_first_id);
     return 1;
   }
   return 0;
@@ -8700,5 +8800,7 @@ static const TestCase k_cases[] = {
   {"unit_ids_recycle_below_max", case_unit_ids_recycle_below_max},
   {"pool_full_spawn_appends_after_compact", case_pool_full_spawn_appends_after_compact},
   {"prev_live_id_is_slot_order", case_prev_live_id_is_slot_order},
+  {"board_first_not_inherited_by_slot_reuse", case_board_first_not_inherited_by_slot_reuse},
+  {"board_first_survives_compact", case_board_first_survives_compact},
 };
 TEST_MAIN(k_cases)

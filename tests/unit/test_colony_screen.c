@@ -248,16 +248,16 @@ static int unit_dock_orders_menu(void) {
       fprintf(stderr, "dock_orders: Artillery expected [Move, Sentry, Fortify, No changes.] got %d\n", n);
       rc = 1;
     }
-    /* 5746 row 1: unit != DS:0x8d78 (board_first_slot). */
-    units.board_first_slot = 2;
-    if (rc == 0 && units.units[2].id == artillery_id) {
+    /* 5746 row 1: unit != DS:0x8d78 (board_first_id). */
+    units.board_first_id = artillery_id;
+    if (rc == 0) {
       colony_screen_open_dock_orders(&view, &units, &game_txt, artillery_id);
       if (view.dock_orders_count != 3 || view.dock_orders_actions[0] == COLONY_DOCK_ORDER_ACTIVATE) {
         fprintf(stderr, "dock_orders: front Artillery must not offer Move to front\n");
         rc = 1;
       }
     }
-    units.board_first_slot = -1;
+    units.board_first_id = -1;
   }
 
   /* port_bugs.md #1395 %STRING1: " (" + @JOB column 1 + ")" for a colonist

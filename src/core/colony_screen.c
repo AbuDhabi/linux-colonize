@@ -172,8 +172,8 @@ void colony_screen_refresh_outside(
   }
   /* The pool's "front" unit (Move to front / freshly built Artillery) heads
    * the row. */
-  if (units->board_first_slot >= 0 && units->board_first_slot < COLONIZE_UNITS_MAX) {
-    const int front_id = units->units[units->board_first_slot].id;
+  if (units->board_first_id >= 0) {
+    const int front_id = units->board_first_id;
     for (int i = 1; i < view->outside_unit_count; ++i) {
       if (view->outside_unit_ids[i] == front_id) {
         memmove(&view->outside_unit_ids[1], &view->outside_unit_ids[0], (size_t)i * sizeof(view->outside_unit_ids[0]));
@@ -787,7 +787,7 @@ void colony_screen_open_dock_orders(
 
   /* 99b8 row 1: `0 < DS:0x33e` — the selected carrier-strip slot is not the
    * front one. 5746 row 1: unit != DS:0x8d78, the "moved to front" unit
-   * (port: units->board_first_slot). */
+   * (port: units->board_first_id). */
   bool not_front = true;
   if (transport) {
     not_front = false;
@@ -796,8 +796,8 @@ void colony_screen_open_dock_orders(
         not_front = true;
       }
     }
-  } else if (units->board_first_slot >= 0 && units->board_first_slot < COLONIZE_UNITS_MAX) {
-    not_front = units->units[units->board_first_slot].id != unit_id;
+  } else if (units->board_first_id >= 0) {
+    not_front = units->board_first_id != unit_id;
   }
 
   bool has_goods = false;

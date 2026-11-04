@@ -4295,7 +4295,7 @@ static int case_processor_packs_unit_pool(void) {
     pool.units[i].active = true;
     pool.units[i].id = 10 + i;
   }
-  pool.board_first_slot = 2;
+  pool.board_first_id = 12;
   units_pool_sync(&pool);
   if (!units_despawn(&pool, 11) || pool.slot_end != 3) {
     return 1;
@@ -4328,9 +4328,9 @@ static int case_processor_packs_unit_pool(void) {
   }
   (void)turn_processor_advance(&proc, &ctx);
   if (active != 1 || pool.slot_end != 2 || pool.units[0].id != 10 || pool.units[1].id != 12 ||
-      units_get_const(&pool, 12) != &pool.units[1] || pool.board_first_slot != 1) {
+      units_get_const(&pool, 12) != &pool.units[1] || pool.board_first_id != 12) {
     fprintf(stderr, "processor_packs: slot_end %d ids %d,%d bf %d\n", pool.slot_end,
-            pool.units[0].id, pool.units[1].id, pool.board_first_slot);
+            pool.units[0].id, pool.units[1].id, pool.board_first_id);
     return 1;
   }
   return 0;

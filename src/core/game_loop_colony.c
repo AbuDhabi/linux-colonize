@@ -1956,21 +1956,10 @@ void game_colony_apply_dock_order(
        * it now heads the queue: first pick for a departing ship and the
        * Units-pane selection.
        *
-       * Audit 2026-09-14 (section 3 incidental): pool->board_first_slot
-       * (then named board_first_id) is CONSUMED as a pool SLOT, not a unit id —
-       * units_ship_departure_pickup seeds its walk order with it and then
-       * skips `i == board_first_slot` while indexing pool->units[i] directly.
-       * Unit ids are handed out from pool->next_id and do not track slots
-       * (units_get scans for a matching u->id), so writing uid here put a
-       * random OTHER unit at the head of the boarding queue and left the
-       * flagged one in ordinary chain order. Write the slot. */
-      game->units.board_first_slot = -1;
-      for (int bi = 0; bi < units_slot_end(&game->units); ++bi) {
-        if (game->units.units[bi].active && game->units.units[bi].id == uid) {
-          game->units.board_first_slot = bi;
-          break;
-        }
-      }
+       * The pool stores the unit ID; a slot went stale when despawn
+       * trimmed it and the next spawn reused it. Consumers resolve the slot
+       * with units_get_const. */
+      game->units.board_first_id = uid;
       csv->multi_unit_selected_id = uid;
     }
     break;

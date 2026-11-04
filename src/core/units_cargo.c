@@ -597,8 +597,9 @@ int units_ship_departure_pickup(
   /* "Move to front" (port_bugs.md): the flagged unit is first in line. */
   int order[COLONIZE_UNITS_MAX];
   int on = 0;
-  const int first = pool->board_first_slot;
-  if (first >= 0 && first < COLONIZE_UNITS_MAX) {
+  const ColonizeUnit* front = pool->board_first_id >= 0 ? units_get_const(pool, pool->board_first_id) : NULL;
+  const int first = front ? (int)(front - pool->units) : -1;
+  if (first >= 0) {
     order[on++] = first;
   }
   /*

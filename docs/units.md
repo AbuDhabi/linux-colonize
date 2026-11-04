@@ -30,8 +30,8 @@ probing, backward-shift delete), both kept by `units_slot_reset_defaults` /
 `units_despawn`. `units_pool_sync` rebuilds them after hand edits
 (docs/conventions.md "Hand-filled unit pools"). DOS FUN_1427_0824 (raw
 7776-7839) packs its array on every delete; the port leaves holes and
-`units_pool_compact` closes them (live order kept, ids unchanged,
-`board_first_slot` remapped) at the top of each `turn_processor_advance`
+`units_pool_compact` closes them (live order kept, ids unchanged; the
+"Move to front" mark is a unit id, `board_first_id`) at the top of each `turn_processor_advance`
 slice except SETUP. It cannot run on delete or spawn: callers hold
 `ColonizeUnit*` and slot indices across a spawn (`units_spawn_aboard`'s ship,
 the 5d04 slot walk, `AiEuroCtx->u`). With `slot_end` at

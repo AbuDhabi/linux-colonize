@@ -188,10 +188,11 @@ typedef struct ColonizeUnitPool {
    * so a zeroed pool reads as none). An id, so it survives units_pool_compact.
    * game_select_tile drops it when the player leaves a live selection. */
   int rotation_retest_id;
-  /* port_bugs.md "Move to front": the unit in this pool SLOT (units[i], NOT a
-   * unit id) boards departing ships first and heads the colony rosters
-   * (-1 = none; DOS reorders its unit chain). Was board_first_id. */
-  int board_first_slot;
+  /* port_bugs.md "Move to front": this unit ID boards departing ships first
+   * and heads the colony rosters (-1 = none; DOS reorders its unit chain).
+   * An id, not a slot: despawn trims and reuses slots, so a slot could pass
+   * the mark to a newcomer; cleared when the unit is despawned. */
+  int board_first_id;
   int next_id;
   /* Once next_id reaches COLONIZE_UNITS_MAX, ids are recycled round-robin
    * from here (units_alloc_id, port_bugs.md #1094); 0 = start at id 1. */

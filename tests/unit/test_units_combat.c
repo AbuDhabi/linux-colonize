@@ -2519,7 +2519,7 @@ static int unit_tb34_sink_decrements_ship_count(void) {
 static int unit_lcr_burial3_treasure_fizzles_in(void) {
   ColonizeUnitPool pool;
   memset(&pool, 0, sizeof(pool));
-  pool.board_first_slot = -1;
+  pool.board_first_id = -1;
   pool.type_count = 1;
   pool.types[0].kind_plus1 = (int)UNITS_KIND_TREASURE + 1;
   ColonizeCol1Save c1;

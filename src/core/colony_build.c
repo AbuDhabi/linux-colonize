@@ -937,7 +937,7 @@ int colonies_try_complete_unit_construction(
     /* Player request: freshly built Artillery heads the colony's Units-
      * Present / Military row (same "front" slot as the Move-to-front order). */
     if (units_type_is_artillery(units_type(units, type_index))) {
-      units->board_first_slot = (int)(u - units->units);
+      units->board_first_id = u->id;
     }
   }
   if (units_type_is_artillery(units_type(units, type_index))) {

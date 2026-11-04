@@ -187,9 +187,6 @@ void units_pool_compact(ColonizeUnitPool* pool) {
   if (!pool || pool->slot_end == pool->unit_count) {
     return;
   }
-  const int bf = pool->board_first_slot;
-  const int first_id = (bf >= 0 && bf < pool->slot_end && units_slot_in_use(&pool->units[bf]))
-    ? pool->units[bf].id : -1;
   int w = 0;
   for (int i = 0; i < pool->slot_end; ++i) {
     if (units_slot_in_use(&pool->units[i])) {
@@ -201,8 +198,6 @@ void units_pool_compact(ColonizeUnitPool* pool) {
   }
   memset(&pool->units[w], 0, sizeof(pool->units[0]) * (size_t)(pool->slot_end - w));
   units_pool_sync(pool);
-  const ColonizeUnit* f = first_id >= 0 ? units_get_const(pool, first_id) : NULL;
-  pool->board_first_slot = f ? (int)(f - pool->units) : -1;
 }
 
 int units_prev_live_id(const ColonizeUnitPool* pool, int unit_id) {
@@ -308,6 +303,9 @@ const ColonizeUnit* units_last_active(const ColonizeUnitPool* pool) {
 }
 
 static void units_clear_slot(ColonizeUnitPool* pool, ColonizeUnit* unit) {
+  if (pool->board_first_id == unit->id) {
+    pool->board_first_id = -1; /* ids recycle (#1094): never hand "front" on */
+  }
   const int n = pool->unit_count; /* still counts this unit */
   if (n > 0 && n <= COLONIZE_UNITS_DOS_MAX) {
     units_dos_tail_stash(pool, n - 1, units_last_active(pool));
