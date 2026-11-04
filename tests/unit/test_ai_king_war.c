@@ -15,7 +15,7 @@ static int test_king_new_war_event(void) {
   }
   memset(c.head.founding_father, -1, sizeof(c.head.founding_father));
   snprintf(c.player[2].country_name, sizeof(c.player[2].country_name), "Spain");
-  /* Human 0 at peace with 2 only (1 is the Crown/REF slot for human 0); 3 unmet. */
+  /* Human 0 at peace with 2 only; 1 and 3 unmet. */
   ai_diplo_or_both(&c, 0, 2, (uint8_t)(AI_DIPLO_MET | AI_DIPLO_PEACE));
   c.nation[0].gold = 50;
   uint32_t turn = 500; /* (0+2)*500 > 799 */
@@ -755,7 +755,57 @@ static int case_hard_king_area_garrison(void) {
   return 0;
 }
 
+/*
+ * FUN_38fd_5930 raw 68340 skips self and DS:0x53d2 only. Before succession
+ * 0x53d2 = -1, so nation 1 (the port's fallback crown for human 0) counts:
+ * peace with it alone lets the event fire, and met-no-peace blocks it.
+ */
+static int case_newwar_counts_fallback_crown(void) {
+  ColonizeCol1Save c;
+  col1_save_init(&c);
+  c.head.difficulty = 0;
+  for (int i = 0; i < 4; ++i) {
+    c.player[i].control = (i == 0) ? 0 : 1;
+    memset(&c.nation[i], 0, sizeof(c.nation[i]));
+  }
+  memset(c.head.founding_father, -1, sizeof(c.head.founding_father));
+  if (c.head.crown_nation_id != -1) {
+    return fail("newwar: col1_save_init must leave crown_nation_id = -1");
+  }
+  ai_diplo_or_both(&c, 0, 1, (uint8_t)(AI_DIPLO_MET | AI_DIPLO_PEACE));
+  uint32_t turn = 500;
+  ColonizeDosRng rng;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.messages = test_game_txt();
+  ctx.names = test_names_txt();
+  ctx.col1 = &c;
+  ctx.col1_ok = true;
+  ctx.rng = &rng;
+  ctx.turn_number = &turn;
+  ctx.human_nation = 0;
+  dos_rng_seed(&rng, 100u);
+  int fired = 0;
+  for (int i = 0; i < 4000 && !fired; ++i) {
+    fired = ai_king_new_war_event(&ctx);
+  }
+  if (!fired) {
+    return fail("newwar: peace with nation 1 alone must let KINGNEWWAR fire before succession");
+  }
+  /* Nation 1 met, no peace; peace with 2: DOS blocks. */
+  c.nation[0].euro_relation[1] = AI_DIPLO_MET;
+  c.nation[1].euro_relation[0] = AI_DIPLO_MET;
+  ai_diplo_or_both(&c, 0, 2, (uint8_t)(AI_DIPLO_MET | AI_DIPLO_PEACE));
+  for (int i = 0; i < 2000; ++i) {
+    if (ai_king_new_war_event(&ctx)) {
+      return fail("newwar: met-no-peace nation 1 must block KINGNEWWAR before succession");
+    }
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+    {"case_newwar_counts_fallback_crown", case_newwar_counts_fallback_crown},
     {"test_king_new_war_event", test_king_new_war_event},
     {"test_king_noncombat_never_attacks", test_king_noncombat_never_attacks},
     {"case_43f7_0082_spawn_types", case_43f7_0082_spawn_types},

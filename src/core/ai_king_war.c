@@ -53,7 +53,10 @@ int ai_king_new_war_event(ColonizeTurnContext* ctx) {
   if ((difficulty + 2) * turn <= 799) {
     return 0;
   }
-  const int crown = ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, human);
+  /* DOS-LITERAL FUN_38fd_5930 raw 68340: `*(int*)0x53d2 != local_14` reads
+   * crown_nation_id raw. It is -1 until FUN_43f7_0218 (succession) fills it,
+   * so before succession only self is skipped (no fallback slot). */
+  const int crown = (int)col1->head.crown_nation_id;
   int peace_n = 0;
   int met_no_peace = 0;
   long strength_peers = 0;
