@@ -1002,8 +1002,82 @@ static int units_fort_fire_is_hostile(
 }
 
 /*
- * Fort battery vs one ship: attack strength vs ship defense (Drake scales
- * Privateer defense). Winner sink only — no temp attacker to despawn/plunder.
+ * FUN_5fef_0352 for one hull beaten by 03f6's temporary fort attacker (row
+ * 0x17, whose guns byte 0x537d = 0x523b + 0x17*0xe is set to the battery
+ * strength at raw 57096). port_bugs.md #249: the hull takes the same outcome
+ * as any naval loser: holds lost, damage-vs-sink with the fort strength as
+ * guns, the raw 99527-99570 gate, the sink census (raw 99570-99579), then the
+ * repair tail or the sinking with its popups. Returns true if sunk.
+ * `show` is 1b0e's param_4 (03f6 passes local_8, raw 57109), which 0ec0
+ * hands to 0352 as param_3: it gates the repair notice (raw 99645) and the
+ * @SHIPSUNK block (raw 99657).
+ */
+static bool units_fort_hull_loss(
+  ColonizeUnitPool* pool,
+  ColonizeUnit* def,
+  int attack_str,
+  int fort_nation,
+  ColonizeDosRng* rng,
+  const ColonizeCol1Save* col1,
+  const char* fort_name,
+  bool show
+) {
+  const ColonizeUnitType* dt = units_type(pool, def->type_index);
+  units_ship_lose_holds(pool, def->id);
+  const int lhull = dt && dt->hull > 0 ? dt->hull : 0;
+  /* Same DOS 0352 roll as the naval path — fort strength stands in for the
+   * winner's @UNIT guns column. See units_ship_damage_vs_sink. */
+  int damaged = units_ship_damage_vs_sink(rng, attack_str, lhull);
+  /* port_bugs.md #867: `wt` NULL = the winner is not a unit type (only the
+   * Frigate-vs-Frigate clause reads it). */
+  damaged = units_naval_damage_gate(pool, col1, def, NULL, fort_nation, damaged);
+  if (!damaged) {
+    units_naval_sink_census(pool, col1, def);
+  }
+  const ColonizeColony* home = NULL;
+  if (damaged) {
+    home = units_nearest_own_drydock_colony(
+      g_units_combat_colonies, def->nation_id, def->x, def->y
+    );
+    if (!home && col1 && col1->head.game_options.woi &&
+        def->nation_id == (int)col1->head.human_player) {
+      damaged = 0; /* WoI human with no drydock port: she goes down */
+    }
+  }
+  if (damaged) {
+    /* One repair path for both call sites: the fort has no unit of its own,
+     * so DOS's "winner is not a ship" doubling of the @UNIT combat column
+     * (0352 raw 99626-99628) is applied to the battery strength here. */
+    units_ship_enter_repair(pool, def, attack_str << 1, home, col1, show, fort_nation);
+    return false;
+  }
+  if (show) {
+    PopupMsgTokens tok;
+    memset(&tok, 0, sizeof(tok));
+    tok.string0 = units_combat_nation_label(col1, def->nation_id);
+    tok.string1 = dt ? dt->name : "";
+    /*
+     * %STRING2 %STRING3 = the winner nation + unit name (0352 raw 99654-99658:
+     * *(winner type * 0xe + 0x5230)). The fort's winner is the 03f6 phantom,
+     * row 0x17, whose +0 name word DS:0x5372 = local_18 = the Fort/Fortress
+     * building name (raw 57097), so %STRING3 is the structure name.
+     */
+    tok.string2 = units_combat_nation_label(col1, fort_nation);
+    tok.string3 = fort_name ? fort_name : "";
+    units_combat_enqueue_tok(
+      AI_POPUP_TAG_COMBAT_SHIP, "SHIPSUNK", def->nation_id, -1, 0, &tok, ""
+    );
+    units_play_event_sound(0x57);
+  }
+  /* FUN_5fef_0352 raw 99653-99690: Royal-flagged hull lost → tax cut (port_bugs.md #659). */
+  (void)units_royal_loss_tax_cut((ColonizeCol1Save*)col1, pool, def);
+  units_despawn(pool, def->id);
+  return true;
+}
+
+/*
+ * Fort battery vs the ships on one tile: attack strength vs the picked ship's
+ * defense (Drake scales Privateer defense); a win sweeps the whole tile.
  */
 bool units_fort_vs_ship(
   ColonizeUnitPool* pool,
@@ -1130,69 +1204,41 @@ bool units_fort_vs_ship(
     }
   }
   if (atk_wins) {
-    /*
-     * port_bugs.md #249: DOS engages via the REAL naval resolver (temp attacker →
-     * FUN_5fef_1b0e), so a fort win lands the same outcomes as any naval
-     * fight: holds lost, damage-vs-sink roll (fort strength as "guns"),
-     * damaged ship relocates to the repair port with the DOS repair timer
-     * (0352 doubles the repair bill when the winner is not a ship), popups.
-     */
-    const int human = units_combat_human_involved(col1, def->nation_id, fort_nation);
-    units_ship_lose_holds(pool, defender_id);
-    const int lhull = dt->hull > 0 ? dt->hull : 0;
-    /* Same DOS 0352 roll as the naval path — fort strength stands in for the
-     * winner's @UNIT guns column. See units_ship_damage_vs_sink. */
-    int damaged = units_ship_damage_vs_sink(rng, attack_str, lhull);
-    /* port_bugs.md #867: DOS reaches 0352 through the 1b0e temp attacker, so the
-     * raw 99527-99570 gate applies here too. `wt` NULL = the winner is not a
-     * unit type (only the Frigate-vs-Frigate clause reads it). */
-    damaged = units_naval_damage_gate(pool, col1, def, NULL, fort_nation, damaged);
-    const ColonizeColony* home = NULL;
-    if (damaged) {
-      home = units_nearest_own_drydock_colony(
-        g_units_combat_colonies, def->nation_id, def->x, def->y
-      );
-      if (!home && col1 && col1->head.game_options.woi &&
-          def->nation_id == (int)col1->head.human_player) {
-        damaged = 0; /* WoI human with no drydock port: she goes down */
-      }
-    }
     /* port_bugs.md #464: 364b_03f6 resolves through the real combat resolver
      * (FUN_291f_0a14 = FUN_5fef_1b0e, raw 57095), so the fort's kill gets
-     * 1b0e's own outcome redraw — the FUN_281f_03ea fizzle. Snapshot the
-     * "before" frame while the ship is still on its tile. */
+     * 1b0e's own outcome redraw — the FUN_281f_03ea fizzle, once per 1b0e
+     * call. Snapshot the "before" frame while the ships are still on their
+     * tile. */
     units_dissolve_notify(0);
-    if (damaged) {
-      /* One repair path for both call sites: the fort has no unit of its own,
-       * so DOS's "winner is not a ship" doubling of the @UNIT combat column
-       * (0352 raw 99626-99628) is applied to the battery strength here. */
-      units_ship_enter_repair(pool, def, attack_str << 1, home, col1, human, fort_nation);
-      units_dissolve_notify(1);
-      return false; /* ship survives damaged */
+    /*
+     * The defender is a hull, so 1b0e's win calls caseD_14 = FUN_5fef_0ec0
+     * (raw 100720-100722), which walks the defender's tile chain from its head
+     * (FUN_281f_02ee -> FUN_1427_0002) and runs 0352 on every unit there (raw
+     * 99718-99729). Each hull rolls its own damage-vs-sink in chain order, and
+     * a sink's census decrement feeds the next hull's gate.
+     * 0ec0 has no nation test; the port skips other nations as a guard only,
+     * since units of two nations should never share a sea tile.
+     */
+    const int nat = def->nation_id;
+    bool primary_sunk = false;
+    for (int id = units_tile_head_id_at(pool, def->x, def->y); id >= 0;) {
+      const int next = units_tile_chain_next_id(pool, id);
+      ColonizeUnit* u = units_get(pool, id);
+      if (u && u->nation_id == nat) {
+        const bool sunk = units_is_sea(pool, id)
+          ? units_fort_hull_loss(pool, u, attack_str, fort_nation, rng, col1, fort_name, show)
+          /* 0352 on water: local_2a set (raw 99356-99363) bars capture and
+           * demote (raw 99381-99384, 99434-99435), so a land loser is
+           * destroyed. */
+          : units_despawn(pool, id);
+        if (id == defender_id) {
+          primary_sunk = sunk;
+        }
+      }
+      id = next;
     }
-    if (human) {
-      PopupMsgTokens tok;
-      memset(&tok, 0, sizeof(tok));
-      tok.string0 = units_combat_nation_label(col1, def->nation_id);
-      tok.string1 = dt->name;
-      /*
-       * %STRING2 %STRING3 = the winner nation + unit name (0352 raw 99654-99658:
-       * *(winner type * 0xe + 0x5230)). The fort's winner is the 03f6 phantom,
-       * row 0x17, whose +0 name word DS:0x5372 = local_18 = the Fort/Fortress
-       * building name (raw 57097), so %STRING3 is the structure name.
-       */
-      tok.string2 = units_combat_nation_label(col1, fort_nation);
-      tok.string3 = fort_name ? fort_name : "";
-      units_combat_enqueue_tok(
-        AI_POPUP_TAG_COMBAT_SHIP, "SHIPSUNK", def->nation_id, -1, 0, &tok, ""
-      );
-      units_play_event_sound(0x57);
-    }
-    /* FUN_5fef_0352 raw 99653-99690: Royal-flagged hull lost → tax cut (port_bugs.md #659). */
-    (void)units_royal_loss_tax_cut((ColonizeCol1Save*)col1, pool, def);
-    units_despawn(pool, defender_id);
     units_dissolve_notify(1);
-    return true;
+    return primary_sunk;
   }
   /* port_bugs.md #249: fort loses the exchange → NOTHING happens (DOS undoes the
    * temp attacker and the ship sails on; the old ship-slow was invented). */

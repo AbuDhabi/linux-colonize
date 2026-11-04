@@ -10,8 +10,9 @@
  * port_bugs.md #462/#463/#464/#465 — coastal fort fire (FUN_364b_03f6, raw
  * 57016-57113) and the damaged-ship tail of FUN_5fef_0352:
  *
- *   #465  one salvo per neighbour tile, aimed at the FIRST ship in that
- *         tile's stack (raw 57068-57076), not at every hull on it.
+ *   #465  one salvo per neighbour tile, aimed at the FIRST ship down that
+ *         tile's chain (raw 57073-57077); a hit then runs FUN_5fef_0ec0 over
+ *         the tile (raw 100720-100722), so every hull there takes the loss.
  *   #464  the outcome is presented through the 1b0e fizzle, so the
  *         dissolve hook sees phase 0 then phase 1 around the despawn.
  *   #463  a damaged hull with no own Drydock/Shipyard colony is placed at
@@ -151,22 +152,21 @@ static int unit_fort_fire_dissolve_and_europe(void) {
             s_dissolve_count, s_dissolve_phases[0], s_dissolve_count > 1 ? s_dissolve_phases[1] : -1);
     rc = 1;
   }
-  /* #465: the other hull on the tile was never fired at. */
+  /* #465 fires once per tile, but the hit runs FUN_5fef_0ec0 over the sea
+   * tile (1b0e raw 100720-100722), so the older hull takes its own 0352 loss
+   * too. #462/#463: both damaged hulls left the map for Europe on the spot. */
   const ColonizeUnit* u1 = units_get(&pool, s1);
-  if (rc == 0 && (!u1 || !u1->active || u1->x != 3 || u1->y != 2)) {
-    fprintf(stderr, "fortfire2: older hull on the tile should be untouched\n");
-    rc = 1;
-  }
-  /* #462/#463: the damaged hull left the map for Europe on the spot. */
   const ColonizeUnit* u2 = units_get(&pool, s2);
-  if (rc == 0 && u2 && u2->active) {
-    fprintf(stderr, "fortfire2: damaged hull still on the map at (%d,%d)\n", u2->x, u2->y);
+  if (rc == 0 && ((u1 && u1->active) || (u2 && u2->active))) {
+    fprintf(stderr, "fortfire2: a damaged hull is still on the map (s1 %d, s2 %d)\n",
+            u1 && u1->active, u2 && u2->active);
     rc = 1;
   }
   /* #1381c: in port under repair (DOS 236+n, bit7), not in the Expected lane;
    * the tick counts +0x315a up to the @UNIT defense column, then repairs. */
-  if (rc == 0 && (eu.harbor_ships != 1 || eu.expected_ships != 0 || !eu.harbor[0].damaged)) {
-    fprintf(stderr, "fortfire2: want 1 damaged harbor hull got harbor %d expected %d\n",
+  if (rc == 0 && (eu.harbor_ships != 2 || eu.expected_ships != 0 || !eu.harbor[0].damaged ||
+                  !eu.harbor[1].damaged)) {
+    fprintf(stderr, "fortfire2: want 2 damaged harbor hulls got harbor %d expected %d\n",
             eu.harbor_ships, eu.expected_ships);
     rc = 1;
   }
@@ -182,6 +182,7 @@ static int unit_fort_fire_dissolve_and_europe(void) {
       ticks++;
     }
     if (eu.harbor[0].damaged || ticks + 1 != pool.types[0].defense - start ||
+        !europe_set_sail_from_harbor(&eu, 0, 2, &pool, 1) ||
         !europe_set_sail_from_harbor(&eu, 0, 2, &pool, 1)) {
       fprintf(stderr, "fortfire2: repair from %d took %d ticks (damaged %d)\n", start, ticks + 1,
               eu.harbor[0].damaged);
@@ -204,7 +205,6 @@ static int unit_fort_fire_dissolve_and_europe(void) {
     map.terrain[6 * 8 + 6] = 2;
     const int s3 = units_spawn_allow_stack(&pool, 0, 3, 2);
     units_set_nation(units_get(&pool, s3), 1);
-    units_despawn(&pool, s1);
     (void)units_coastal_fort_fire_pulse_w(
       &(ColonizeWorld){.units = &pool, .colonies = &colonies, .map = &map,
                        .col1 = &c1, .col1_ok = true, .rng = NULL},
@@ -326,7 +326,10 @@ static int unit_fort_fire_aims_chain_head(void) {
  * @FORTFIRE (raw 57100-57108), and is 1b0e's show flag for the phantom's
  * lunge (raw 57109): the human watches the colony tile (FUN_1427_0bfe, the 8
  * neighbours only) or the ship carries the human's visibility bit. Owning the
- * fort or the ship is not enough by itself.
+ * fort or the ship is not enough by itself. 0ec0 hands the same flag to 0352
+ * as param_3, which gates the repair notice (raw 99645) and @SHIPSUNK (raw
+ * 99657): each case runs once with a hull that survives damaged and once with
+ * one that sinks.
  */
 static int unit_fort_fire_fortfire_gate(void) {
   if (!test_game_txt()) {
@@ -343,14 +346,16 @@ static int unit_fort_fire_fortfire_gate(void) {
     {0, 0x01, 0, 1},
   };
   int rc = 0;
-  for (size_t c = 0; c < sizeof(k) / sizeof(k[0]) && rc == 0; ++c) {
+  for (size_t r = 0; r < 2 * (sizeof(k) / sizeof(k[0])) && rc == 0; ++r) {
+    const size_t c = r / 2;
+    const int sink = (int)(r % 2);
     ColonizeUnitPool pool;
     memset(&pool, 0, sizeof(pool));
     pool.type_count = 1;
     pool.types[0].movement = 5;
     pool.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
     pool.types[0].defense = 2;
-    pool.types[0].hull = 10;
+    pool.types[0].hull = sink ? 0 : 10; /* rng NULL: damaged iff hull >= fort strength */
 
     ColonizeWorldMap map;
     memset(&map, 0, sizeof(map));
@@ -389,6 +394,7 @@ static int unit_fort_fire_fortfire_gate(void) {
       c1.head.founding_father[i] = -1;
     }
     ai_diplo_declare_war(&c1, 0, 1);
+    c1.stuff.ship_cargo_totals[1] = 60; /* fleet room: the raw 99531-99548 bias stays off */
 
     const int foe = units_spawn_allow_stack(&pool, 0, 3, 2);
     units_get(&pool, foe)->nation_id = 1;
@@ -416,10 +422,23 @@ static int unit_fort_fire_fortfire_gate(void) {
       k[c].human
     );
     int fortfire = 0;
+    int shipdamage = 0;
+    int shipsunk = 0;
     for (int q = 0; q < pops.queue_count; ++q) {
       fortfire += test_body_is_section(pops.queue[q].body, "FORTFIRE");
+      shipdamage += test_body_is_section(pops.queue[q].body, "SHIPDAMAGE");
+      /* @SHIPSUNK has no token-free run long enough for a body match: count
+       * the ship tag and take the @FORTFIRE and damage notices off. */
+      shipsunk += pops.queue[q].tag == AI_POPUP_TAG_COMBAT_SHIP;
     }
-    if (fortfire != k[c].want || s_cam_n != k[c].want ||
+    shipsunk -= fortfire + shipdamage;
+    const ColonizeUnit* fu = units_get_const(&pool, foe);
+    const int gone = !(fu && fu->active && fu->x == 3 && fu->y == 2);
+    if (!gone || shipdamage != (sink ? 0 : k[c].want) || shipsunk != (sink ? k[c].want : 0)) {
+      fprintf(stderr, "fortgate case %zu sink %d: hit %d, @SHIPDAMAGE %d @SHIPSUNK %d, want %d\n",
+              c, sink, gone, shipdamage, shipsunk, k[c].want);
+      rc = 1;
+    } else if (fortfire != k[c].want || s_cam_n != k[c].want ||
         (k[c].want && (s_cam[0] != 2 || s_cam[1] != 2))) {
       fprintf(stderr, "fortgate case %zu: @FORTFIRE %d scrolls %d at (%d,%d), want %d\n", c,
               fortfire, s_cam_n, s_cam[0], s_cam[1], k[c].want);
@@ -2609,6 +2628,149 @@ static int unit_fort_fire_difficulty_handicaps(void) {
   return rc;
 }
 
+/*
+ * A fort hit runs FUN_5fef_0ec0 over the sea tile (1b0e raw 100720-100722), and
+ * each hull's 0352 sink leaves the census (raw 99570-99579). Two unarmed hulls
+ * with hull 0 (rng NULL: sunk) and a fleet with spare room (the raw 99531-99548
+ * bias stays off): both sink, cargo totals 60 -> 56, type count 3 -> 1. A
+ * land unit of the same nation on the tile, between them in the chain, is
+ * destroyed (0352 on water bars capture and demote, raw 99381-99384,
+ * 99434-99435) and the walk goes on past it.
+ */
+static int unit_fort_fire_sweep_census(void) {
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  pool.type_count = 2;
+  pool.types[0].movement = 4;
+  pool.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  pool.types[0].defense = 2;
+  pool.types[0].hull = 0;
+  pool.types[0].cargo = 2;
+  pool.types[1].movement = 1;
+  pool.types[1].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  pool.types[1].defense = 1;
+  units_set_combat_colonies(NULL);
+  units_set_combat_human_nation(-1);
+  ColonizeCol1Save c1;
+  memset(&c1, 0, sizeof(c1));
+  for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
+    c1.head.founding_father[i] = -1;
+  }
+  c1.player[0].control = 1;
+  c1.player[1].control = 1;
+  c1.stuff.ship_cargo_totals[1] = 60;
+  c1.stuff.unit_type_counts[1][0] = 3;
+  const int a = units_spawn_allow_stack(&pool, 0, 3, 2);
+  const int l = units_spawn_allow_stack(&pool, 1, 3, 2);
+  const int b = units_spawn_allow_stack(&pool, 0, 3, 2);
+  units_get(&pool, a)->nation_id = 1;
+  units_get(&pool, l)->nation_id = 1;
+  units_get(&pool, b)->nation_id = 1;
+  const bool sunk = units_fort_vs_ship(&pool, 4, 0, 2, 2, b, NULL, &c1, "Fort", "", false);
+  const ColonizeUnit* ua = units_get_const(&pool, a);
+  const ColonizeUnit* ul = units_get_const(&pool, l);
+  const ColonizeUnit* ub = units_get_const(&pool, b);
+  int rc = 0;
+  if (!sunk || (ua && ua->active) || (ul && ul->active) || (ub && ub->active) ||
+      c1.stuff.ship_cargo_totals[1] != 56 || c1.stuff.unit_type_counts[1][0] != 1) {
+    fprintf(stderr,
+            "fort-sweep-census: sunk %d, a %d, land %d, b %d, cargo %d (want 56), count %d (want 1)\n",
+            sunk, ua && ua->active, ul && ul->active, ub && ub->active,
+            c1.stuff.ship_cargo_totals[1], c1.stuff.unit_type_counts[1][0]);
+    rc = 1;
+  }
+  return rc;
+}
+
+/*
+ * 0ec0 runs 0352 down the tile chain (raw 99718-99729), newest first, and
+ * each 0352 makes one damage-vs-sink draw: rand(1, guns + hull) <= hull
+ * survives damaged. Two hulls with different hull values, two fort
+ * strengths: after the fight roll the draws go to the newer hull, then the
+ * older, and nothing else is drawn. The seed is the first one the fort wins
+ * where pool order would give a different outcome.
+ */
+static int unit_fort_fire_sweep_rng_order(void) {
+  static const int k_str[] = {3, 6};
+  static const int k_hull[2] = {2, 6}; /* [0] = older a, [1] = newer b */
+  int rc = 0;
+  for (size_t si = 0; si < sizeof(k_str) / sizeof(k_str[0]) && rc == 0; ++si) {
+    const int str = k_str[si];
+    bool found = false;
+    for (uint32_t seed = 1; seed < 500 && !found && rc == 0; ++seed) {
+      ColonizeUnitPool pool;
+      memset(&pool, 0, sizeof(pool));
+      pool.type_count = 2;
+      for (int t = 0; t < 2; ++t) {
+        pool.types[t].movement = 4;
+        pool.types[t].domain = COLONIZE_UNIT_DOMAIN_SEA;
+        pool.types[t].defense = 1;
+        pool.types[t].hull = k_hull[t];
+        pool.types[t].cargo = 2;
+      }
+      units_set_combat_colonies(NULL);
+      units_set_combat_human_nation(-1);
+      ColonizeCol1Save c1;
+      memset(&c1, 0, sizeof(c1));
+      for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
+        c1.head.founding_father[i] = -1;
+      }
+      c1.player[0].control = 1;
+      c1.player[1].control = 1;
+      c1.stuff.ship_cargo_totals[1] = 60; /* the raw 99531-99548 bias stays off */
+      const int a = units_spawn_allow_stack(&pool, 0, 3, 2);
+      const int b = units_spawn_allow_stack(&pool, 1, 3, 2);
+      units_get(&pool, a)->nation_id = 1;
+      units_get(&pool, b)->nation_id = 1;
+      ColonizeDosRng rng;
+      dos_rng_seed(&rng, seed);
+      ColonizeDosRng chain = rng;
+      ColonizeDosRng slot = rng;
+      const unsigned long n0 = dos_rng_draw_count();
+      (void)units_fort_vs_ship(&pool, str, 0, 2, 2, b, &rng, &c1, "Fort", "", false);
+      const unsigned long drawn = dos_rng_draw_count() - n0;
+      /* got[i]: 0 untouched, 1 damaged (parked at 237), 2 sunk */
+      int got[2];
+      const int ids[2] = {a, b};
+      for (int i = 0; i < 2; ++i) {
+        const ColonizeUnit* u = units_get_const(&pool, ids[i]);
+        got[i] = !(u && u->active) ? 2 : (u->x == 3 && u->y == 2) ? 0 : 1;
+      }
+      if (got[0] == 0 && got[1] == 0) {
+        continue; /* the fort missed */
+      }
+      (void)dos_rng_next(&chain); /* the fight roll */
+      (void)dos_rng_next(&slot);
+      int want_chain[2];
+      int want_slot[2];
+      for (int i = 1; i >= 0; --i) {
+        want_chain[i] = dos_rng_range(&chain, 1, str + k_hull[i]) <= k_hull[i] ? 1 : 2;
+      }
+      for (int i = 0; i < 2; ++i) {
+        want_slot[i] = dos_rng_range(&slot, 1, str + k_hull[i]) <= k_hull[i] ? 1 : 2;
+      }
+      if (want_chain[0] == want_slot[0] && want_chain[1] == want_slot[1]) {
+        continue; /* this seed cannot tell the orders apart */
+      }
+      found = true;
+      if (got[0] != want_chain[0] || got[1] != want_chain[1] || drawn != 3 ||
+          rng.state != chain.state) {
+        fprintf(stderr,
+                "fort-sweep-rng: str %d seed %u: a %d b %d (want %d %d), %lu draws (want 3), "
+                "next %u (want %u)\n",
+                str, (unsigned)seed, got[0], got[1], want_chain[0], want_chain[1], drawn,
+                (unsigned)dos_rng_next(&rng), (unsigned)dos_rng_next(&chain));
+        rc = 1;
+      }
+    }
+    if (!found && rc == 0) {
+      fprintf(stderr, "fort-sweep-rng: str %d: no seed in 1..499 tells the orders apart\n", str);
+      rc = 1;
+    }
+  }
+  return rc;
+}
+
 static int g_cue_4d_calls = 0;
 
 static void unit_cue_4d_play_mock(int id) {
@@ -2730,6 +2892,8 @@ static const TestCase k_cases[] = {
   {"unit_gunless_winner_never_sinks", unit_gunless_winner_never_sinks},
   {"unit_naval_win_cue_ships_only", unit_naval_win_cue_ships_only},
   {"unit_fort_fire_difficulty_handicaps", unit_fort_fire_difficulty_handicaps},
+  {"unit_fort_fire_sweep_census", unit_fort_fire_sweep_census},
+  {"unit_fort_fire_sweep_rng_order", unit_fort_fire_sweep_rng_order},
   {"unit_combat_cheat_footer_roll_before_dialog", unit_combat_cheat_footer_roll_before_dialog},
   {"unit_reset_hooks_clears_wiring", unit_reset_hooks_clears_wiring},
   {"unit_indian_massacre_names_victim", unit_indian_massacre_names_victim},
