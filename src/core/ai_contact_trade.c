@@ -413,10 +413,17 @@ int ai_contact_try_village_gifts(ColonizeTurnContext* ctx, int nation_id) {
           );
         }
         const int convert_type = units_kind_type_index(ctx->units, UNITS_KIND_COLONIST);
-        if (convert_type >= 0 && units_spawn_room(ctx->units, c->nation_id)) {
-          const int cid = units_spawn_allow_stack(ctx->units, convert_type, c->x, c->y);
+        {
+          const int cid = convert_type >= 0 && units_spawn_room(ctx->units, c->nation_id)
+                            ? units_spawn_allow_stack(ctx->units, convert_type, c->x, c->y) : -1;
           ColonizeUnit* convert = cid >= 0 ? units_get(ctx->units, cid) : NULL;
-          if (convert) {
+          if (!convert) {
+            /* raw 97012: `if (iVar9 < 0) goto LAB_5bfb_1005;` with local_1a
+             * still 0, so 3180 leaves this nation open and the Brave keeps
+             * its MP. The popup, contact_state 2 and the word zero stay. */
+            return 0;
+          }
+          {
             /*
              * DOS FUN_281f_095c(0, colony_owner, x, y) stamps the owner nibble
              * through the shared spawn helper (FUN_1427_02ca restamps tile

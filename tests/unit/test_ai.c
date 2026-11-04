@@ -1666,6 +1666,64 @@ static int run_reparations_scan_past_empty_colony(void) {
 }
 
 /*
+ * @INDIANSCONVERT whose spawn fails. FUN_5bfb_022e raw 97011-97012:
+ * `iVar9 = FUN_281f_095c(...); if (iVar9 < 0) goto LAB_5bfb_1005;` with
+ * local_1a still 0, so the visit does not resolve and the Brave keeps its MP.
+ * The AI colony's nation is at the 0xc9 census cap (FUN_1427_06b4 refuses).
+ */
+static int run_convert_spawn_failure_unresolved(void) {
+  if (!test_names_txt()) {
+    return TR_SKIP;
+  }
+  Ai152eFixture f;
+  if (ai_152e_fixture_init(&f, "convert-spawn-fail", 777u) != 0) {
+    return 1;
+  }
+  ai_contact_reset();
+  ColonizeColony* col = &f.colonies.colonies[0];
+  col->active = true;
+  col->id = 0;
+  col->nation_id = 1;
+  col->x = 14;
+  col->y = 10;
+  snprintf(col->name, sizeof(col->name), "Testtown");
+  const int brave_ti = units_find_type(&f.units, "Brave");
+  const int bid = brave_ti >= 0 ? units_spawn_allow_stack(&f.units, brave_ti, 13, 10) : -1;
+  ColonizeUnit* brave = units_get(&f.units, bid);
+  if (!brave) {
+    fprintf(stderr, "convert-spawn-fail: spawn failed\n");
+    ai_152e_fixture_free(&f);
+    return 1;
+  }
+  brave->nation_id = 4;
+  brave->home_tribe_index = 0;
+  brave->col1_flags15 = 0;
+  brave->moves = 0;
+  f.tribes[0].mission = 1;          /* mission owned by nation 1 */
+  f.col1.indian[0].tech = 14;       /* tech + 2 = 16 > any rng(0, 0xf) */
+  f.col1.indian[0].euro_diplo[1] = (uint8_t)COL1_INDIAN_MET_BIT;
+  f.col1.indian[0].alarm_by_player[1] = 0; /* generous: 0 <= rng(1, 0x148) */
+  f.col1.player[1].control = 1;
+  f.col1.stuff.all_unit_counts[1] = 0xc9;
+  units_set_ff_col1(&f.col1);
+
+  ai_s_native_colonies = &f.colonies;
+  ai_native_bind_step_ctx(&f.ctx);
+  const int resolved = ai_native_step_first_contact(&f.units, &f.map, &f.col1, brave, 4);
+  ai_native_bind_step_ctx(NULL);
+  ai_s_native_colonies = NULL;
+  units_set_ff_col1(NULL);
+
+  const int state = f.col1.indian[0].contact_state[1];
+  const int moves = brave->moves;
+  const int units_now = units_active_count(&f.units);
+  ai_152e_fixture_free(&f);
+  fprintf(stderr, "convert-spawn-fail: resolved %d moves %d state %d units %d\n", resolved,
+          moves, state, units_now);
+  return (resolved == 0 && moves == 0 && state == 2 && units_now == 1) ? 0 : 1;
+}
+
+/*
  * FUN_5bfb_3180 closes a nation only through aiStack_20[nation] (raw
  * 98649, 98674); a first contact on an earlier tile does not stop the scan
  * for other nations. The Brave first meets the human's Soldier to the north
@@ -2338,5 +2396,6 @@ static const TestCase k_cases[] = {
     {"run_unresolved_visit_keeps_nation_open", run_unresolved_visit_keeps_nation_open},
     {"run_reparations_scan_past_empty_colony", run_reparations_scan_past_empty_colony},
     {"run_visit_after_first_contact", run_visit_after_first_contact},
+    {"run_convert_spawn_failure_unresolved", run_convert_spawn_failure_unresolved},
 };
 TEST_MAIN(k_cases)
