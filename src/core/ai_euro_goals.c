@@ -2183,6 +2183,7 @@ static void ai_euro_colony_threat_seed_5952(
 }
 
 int ai_euro_5952_tools_latch = 0;
+int ai_euro_5952_labor_running = 0;
 
 /* FUN_5952_035e raw 94097-94352: per-colony state before placement.
  * Keep iStack_76 local to this whole prelude, including absorption. */
@@ -2218,6 +2219,10 @@ void ai_euro_5952_colony_prelude(
    * census, before the build-preference / construction cascade.
    */
   ai_euro_5952_absorb_equip(ctx, nation_id, c, &labor_running);
+  /* local_76 has no write between the raw 94245 ++ and the cascade's read at
+   * raw 95827 (asm 5952:266a). A frame local: on a road-connect rebind
+   * (TB-14) the cascade runs on the other record with this colony's value. */
+  ai_euro_5952_labor_running = labor_running;
 }
 
 /* --- 0a60 colony goals: stage helpers ---------------------------------- */

@@ -2717,8 +2717,11 @@ COLONIZE_INTERNAL AiEuro5952CascadeStatus ai_euro_5952_cascade_military(AiEuro59
     }
   }
 
-  /* 262c */
-  if (factory == 0 || (s->arty_on_tile != 0 && col->labor_shortage != 0)) {
+  /* 262c — FUN_5952_035e raw 95827, asm 5952:265d-266e: `CMP [BP+local_76],0`
+   * reads the tick's running garrison shortfall local_76 (after the on-tile
+   * military walk and the absorption ++), not the +0x8e byte stored before
+   * them (raw 94045). */
+  if (factory == 0 || (s->arty_on_tile != 0 && s->labor_running != 0)) {
     return AI_EURO_5952_CASCADE_NEXT; /* chain_upgrades */
   }
   if (col->stock[COLONIZE_CARGO_TOOLS] != 0) { /* 2670 */
@@ -2811,6 +2814,7 @@ void ai_euro_5952_build_cascade_for_owner(
   s.col1 = (ctx->col1_ok && ctx->col1) ? ctx->col1 : NULL;
   s.nation = (col->nation_id >= 0 && col->nation_id < 4) ? col->nation_id : 0;
   s.improvement_owner = improvement_owner;
+  s.labor_running = ai_euro_5952_labor_running;
 
   ai_euro_5952_cascade_setup(&s);
   ai_euro_5952_cascade_census(&s);

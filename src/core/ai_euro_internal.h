@@ -273,6 +273,10 @@ void ai_euro_5952_improve_best_plot(
 /* FUN_5952_035e local_16: seeded from +0xb6 > 0x13 at the tick top, set by a
  * Pioneer join (raw 94261), read by the 20-tool purchase (raw 94370). */
 extern int ai_euro_5952_tools_latch;
+/* FUN_5952_035e frame local local_76 (iStack_76) as it stands after the
+ * absorption arm (raw 94031-94056 + the raw 94245 ++), left by the prelude for
+ * the build cascade's Artillery gate (raw 95827). Not colony +0x8e. */
+extern int ai_euro_5952_labor_running;
 ColonizeColony* ai_euro_5952_tools_supply_and_connect(
   ColonizeTurnContext* ctx, ColonizeColony* col
 );
@@ -492,6 +496,7 @@ typedef struct AiEuro5952Cascade {
   int experts;
   int tier_max;
   int arty_on_tile;           /* iStack_92 */
+  int labor_running;          /* local_76 (ai_euro_5952_labor_running) */
   int hungry;                 /* iStack_a0 */
   int ring;                   /* uStack_a2 */
   int ring_nonland;           /* iStack_142 */

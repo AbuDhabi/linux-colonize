@@ -85,6 +85,7 @@ static int fx_build(Fx* f, int pop) {
   f->ctx.col1_ok = true;
   f->ctx.human_nation = 0;
   ai_euro_5952_set_ring1_threat(f->col->id, 0);
+  ai_euro_5952_labor_running = 0; /* local_76: garrison covered */
   return 0;
 }
 
@@ -485,7 +486,7 @@ static int case_artillery_capped_at_three_on_tile(void) {
   f.col->colony_flags =
     (uint8_t)(f.col->colony_flags & (uint8_t)~COLONIZE_COLONY_FLAG_COASTAL);
   f.col->stock[COLONIZE_CARGO_TOOLS] = 100;
-  f.col->labor_shortage = 1; /* asm 265b: sends 262c down the 268e arm */
+  ai_euro_5952_labor_running = 1; /* asm 266a local_76: sends 262c down the 268e arm */
   const int arty = units_find_type(&f.units, "Artillery");
   if (arty < 0) {
     fx_done(&f);
@@ -519,6 +520,123 @@ static int case_artillery_capped_at_three_on_tile(void) {
 }
 
 /*
+ * The 262c gate reads the frame local local_76 (raw
+ * 95827, asm 5952:266a), the garrison shortfall left after the on-tile
+ * military walk (raw 94054-94056) and the absorption ++ (raw 94245), not the
+ * +0x8e byte stored before them (raw 94045). One Artillery on the scanned
+ * tile: a covered garrison (local_76 0) still builds Artillery (2689) even
+ * though +0x8e says 2; a short one (local_76 1) skips to 268e, where the open
+ * 26e4 ship arm picks a Frigate (48) even though +0x8e says 0.
+ */
+static int case_artillery_gate_reads_running_shortfall(void) {
+  for (int pass = 0; pass < 2; ++pass) {
+    Fx f;
+    if (naval_fx(&f) != 0) {
+      return 1;
+    }
+    f.col->colony_flags =
+      (uint8_t)(f.col->colony_flags & (uint8_t)~COLONIZE_COLONY_FLAG_COASTAL);
+    f.col->stock[COLONIZE_CARGO_TOOLS] = 100;
+    f.col->labor_shortage = pass == 0 ? 2 : 0;
+    ai_euro_5952_labor_running = pass == 0 ? 0 : 1;
+    const int arty = units_find_type(&f.units, "Artillery");
+    const int id = arty >= 0 ? units_spawn(&f.units, arty, f.col->x, f.col->y) : -1;
+    ColonizeUnit* u = id >= 0 ? units_get(&f.units, id) : NULL;
+    if (!u) {
+      fx_done(&f);
+      return fail("artillery spawn");
+    }
+    u->nation_id = NATION;
+    ai_euro_5952_build_cascade(&f.ctx, f.col);
+    const int got = f.col->building_in_production;
+    fx_done(&f);
+    if (pass == 0 && got != 42) {
+      return fail("local_76 0, +0x8e 2: expected Artillery 42 (asm 2689)");
+    }
+    if (pass == 1 && got != 48) {
+      return fail("local_76 1, +0x8e 0: expected 268e Frigate 48 (asm 26e4)");
+    }
+  }
+  return 0;
+}
+
+/*
+ * The prelude hands the cascade local_76 as it stands after the
+ * on-tile military walk (raw 94054-94056), one below the +0x8e byte when an
+ * Artillery (attack > 1) stands in the colony.
+ */
+static int case_prelude_leaves_running_shortfall(void) {
+  Fx f;
+  if (naval_fx(&f) != 0) {
+    return 1;
+  }
+  const int arty = units_find_type(&f.units, "Artillery");
+  const int id = arty >= 0 ? units_spawn(&f.units, arty, f.col->x, f.col->y) : -1;
+  ColonizeUnit* u = id >= 0 ? units_get(&f.units, id) : NULL;
+  if (!u) {
+    fx_done(&f);
+    return fail("artillery spawn");
+  }
+  u->nation_id = NATION;
+  ai_euro_5952_labor_running = -99;
+  ai_euro_5952_colony_prelude(&f.ctx, NATION, f.col);
+  const int shortage = f.col->labor_shortage;
+  const int running = ai_euro_5952_labor_running;
+  fx_done(&f);
+  if (shortage < 1 || running != shortage - 1) {
+    fprintf(stderr, "  +0x8e %d running %d\n", shortage, running);
+    return fail("prelude must leave local_76 = +0x8e - 1 (raw 94054-94056)");
+  }
+  return 0;
+}
+
+/*
+ * The stored local_76 includes the absorption ++ (raw 94245). An
+ * Artillery and a Soldier stand in the colony: the tile walk takes both off
+ * (raw 94054-94056), then the Soldier case of the absorption arm (raw 94239,
+ * outer gate +0x1b & 0x10 from the +0x1c bit 0x10 hand-off at raw 94143,
+ * take via the sticky +0x1b & 4 at raw 94243) admits the Soldier and adds
+ * one back: running = +0x8e - 2 + 1.
+ */
+static int case_prelude_running_includes_absorption(void) {
+  Fx f;
+  if (naval_fx(&f) != 0) {
+    return 1;
+  }
+  f.col->colony_flags |= COLONIZE_COLONY_FLAG_SMALL_AI;            /* -> +0x1b 0x10 */
+  f.col->ai_flags |= COLONIZE_COLONY_AI_MILITARY_SURPLUS;          /* +0x1b 0x04 */
+  const char* const types[2] = {"Artillery", "Soldiers"};
+  for (int i = 0; i < 2; ++i) {
+    const int ti = units_find_type(&f.units, types[i]);
+    /* The arm walks the tile chain (15eb_09c0), so stack them properly. */
+    const int id = ti >= 0 ? units_spawn_allow_stack(&f.units, ti, f.col->x, f.col->y) : -1;
+    ColonizeUnit* u = id >= 0 ? units_get(&f.units, id) : NULL;
+    if (!u) {
+      fx_done(&f);
+      return fail("unit spawn");
+    }
+    u->nation_id = NATION;
+  }
+  ai_euro_5952_labor_running = -99;
+  ai_euro_5952_colony_prelude(&f.ctx, NATION, f.col);
+  const int shortage = f.col->labor_shortage;
+  const int running = ai_euro_5952_labor_running;
+  const unsigned flags = f.col->ai_flags;
+  fx_done(&f);
+  /* Population is no witness: the equip arm right after (raw 94276-94352,
+   * +0x1b & 0x40 with the refunded 50 Muskets) re-arms one colonist. The
+   * absorption's own `+0x1b &= 0xfb` (raw 94247) is. */
+  if ((flags & COLONIZE_COLONY_AI_MILITARY_SURPLUS) != 0) {
+    return fail("absorption arm must take the Soldier and clear +0x1b 4 (raw 94247)");
+  }
+  if (shortage < 2 || running != shortage - 2 + 1) {
+    fprintf(stderr, "  +0x8e %d running %d\n", shortage, running);
+    return fail("prelude must leave local_76 = +0x8e - 2 + 1 (raw 94056, 94245)");
+  }
+  return 0;
+}
+
+/*
  * asm 270d — the SMALL_AI writer: a colony under pop 10 that reaches the
  * chain-upgrade tail raises `+0x1c` bit 0x10.
  */
@@ -531,8 +649,8 @@ static int case_small_ai_flag_written(void) {
   f.col->colonist_count = 9;
   f.col->colony_flags =
     (uint8_t)(f.col->colony_flags & (uint8_t)~COLONIZE_COLONY_FLAG_COASTAL);
-  f.col->labor_shortage = 1;
-  /* asm 265b: `factory && arty_on_tile && labor_shortage` is what sends 262c
+  ai_euro_5952_labor_running = 1;
+  /* asm 265d-266e: `factory && arty_on_tile && local_76` is what sends 262c
    * down the 268e chain-upgrade arm where the SMALL_AI writer lives. */
   {
     const int arty = units_find_type(&f.units, "Artillery");
@@ -1595,6 +1713,9 @@ static const TestCase k_cases[] = {
   {"case_frigate_pick", case_frigate_pick},
   {"case_artillery_pick", case_artillery_pick},
   {"case_artillery_capped_at_three_on_tile", case_artillery_capped_at_three_on_tile},
+  {"case_artillery_gate_reads_running_shortfall", case_artillery_gate_reads_running_shortfall},
+  {"case_prelude_leaves_running_shortfall", case_prelude_leaves_running_shortfall},
+  {"case_prelude_running_includes_absorption", case_prelude_running_includes_absorption},
   {"case_small_ai_flag_written", case_small_ai_flag_written},
   {"case_docks_commit_suppresses_expert_purchase", case_docks_commit_suppresses_expert_purchase},
   {"case_food_pass_skips_unplaceable_colonist", case_food_pass_skips_unplaceable_colonist},
