@@ -452,6 +452,13 @@ COLONIZE_INTERNAL void ai_euro_3180_euro_side(ColonizeTurnContext* ctx, Colonize
     if (head) {
       head->last_dir = d;
     }
+    /* raw 98664-98666: a European neighbour runs 05fc only while
+     * `(DS:0x5382 & 1) == 0`. Under the War of Independence nothing runs and
+     * aiStack_20 stays 0: no 153e, no 13b0, no LAB_5bfb_30de timer re-arm,
+     * no MET stamp. */
+    if (on < 4 && ctx->col1_ok && ctx->col1 && ctx->col1->head.game_options.woi) {
+      continue;
+    }
     if (on < 4 && col1_nation_is_human(ctx->col1, on, ctx->human_nation)) {
       if (mover_human) {
         continue;

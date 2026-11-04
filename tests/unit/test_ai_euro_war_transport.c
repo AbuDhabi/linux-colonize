@@ -1704,7 +1704,85 @@ static int unit_3180_one_direction_loop(void) {
   return 0;
 }
 
+/*
+ * FUN_5bfb_3180 raw 98664-98666 calls 05fc for a European neighbour only
+ * while `(DS:0x5382 & 1) == 0`. An AI Dragoon (1) at (5,6) steps beside an
+ * AI unit (2) at (5,7): at peace time 153e -> 13b0 runs and 3180 stamps MET
+ * (raw 98676-98678); under the War of Independence nothing runs, so no MET
+ * and no LAB_5bfb_30de timer re-arm. The neighbour still gets its facing.
+ */
+static int unit_3180_woi_skips_euro_limb(void) {
+  for (int woi = 0; woi < 2; ++woi) {
+    ai_diplo_talk_reset();
+    ColonizeWorldMap m;
+    if (!fx_map_alloc(&m, 16, 16, 1, false)) {
+      return fail("3180 woi alloc map");
+    }
+    for (int i = 0; i < 256; ++i) {
+      m.layer3[i] = 1;
+    }
+    static ColonizeUnitPool pool;
+    fx_units_init(&pool);
+    pool.type_count = 1;
+    pool.types[0].movement = 4;
+    pool.types[0].attack = 3;
+    pool.types[0].defense = 3;
+    pool.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+    ColonizeUnit* ai = units_get(&pool, units_spawn(&pool, 0, 5, 6));
+    ColonizeUnit* other = units_get(&pool, units_spawn(&pool, 0, 5, 7));
+    if (!ai || !other) {
+      fx_map_free(&m);
+      return fail("3180 woi spawn");
+    }
+    ai->nation_id = 1;
+    other->nation_id = 2;
+    other->last_dir = -1;
+    static ColonizeColonyPool cols;
+    fx_colonies_init(&cols);
+    static ColonizeCol1Save q;
+    col1_save_init(&q);
+    memset(q.nation, 0, sizeof(q.nation));
+    memset(q.head.nation_relation, 0, sizeof(q.head.nation_relation));
+    q.head.turn = 100;
+    q.head.difficulty = 1;
+    q.head.human_player = 0;
+    q.head.game_options.woi = (unsigned)woi;
+    q.nation[1].treaty_timer[2] = 7;
+    uint32_t turn = 100;
+    ColonizeDosRng rng;
+    dos_rng_seed(&rng, 11);
+    ColonizeTurnContext ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.col1 = &q;
+    ctx.col1_ok = true;
+    ctx.map = &m;
+    ctx.units = &pool;
+    ctx.colonies = &cols;
+    ctx.human_nation = 0;
+    ctx.rng = &rng;
+    ctx.turn_number = &turn;
+    ai_euro_3180_euro_side(&ctx, ai, 1, 1, 1);
+    const int met = (ai_diplo_read(&q, 1, 2) & AI_DIPLO_MET) != 0;
+    const int timer = q.nation[1].treaty_timer[2];
+    const int facing = other->last_dir;
+    fx_map_free(&m);
+    col1_save_free(&q);
+    if (facing != 4) {
+      return fail("3180 woi: the neighbour head still takes the facing (raw 98650)");
+    }
+    if (!woi && !met) {
+      return fail("3180 woi: at peace time the AI x AI limb stamps MET");
+    }
+    if (woi && (met || timer != 7)) {
+      fprintf(stderr, "3180 woi: met %d timer %d\n", met, timer);
+      return fail("3180 woi: under WoI the European limb must not run (raw 98665)");
+    }
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+    {"unit_3180_woi_skips_euro_limb", unit_3180_woi_skips_euro_limb},
     {"unit_3180_one_direction_loop", unit_3180_one_direction_loop},
     {"unit_3180_retries_next_human_tile", unit_3180_retries_next_human_tile},
     {"unit_3180_wantstuff_source_is_first_human_direction",
