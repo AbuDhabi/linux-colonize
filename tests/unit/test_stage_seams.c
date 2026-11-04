@@ -3027,6 +3027,45 @@ static int test_new_campaign_drops_parked_flow(void) {
   return rc;
 }
 
+/* An Americas (AMER2) start with seed 100 runs the FUN_684c_08c0 band pick on
+ * the loaded map. DOS seed-100 save original_saves/golden_idle_america_seed-100
+ * /000001.SAV: 0x190 = 365, England +0x32/+0x33 (47,28), idle human Spain
+ * (37,14). */
+static int test_new_campaign_amer2_seed100_landfall(void) {
+  ColonizeGameConfig cfg = {
+    .data_dir = "./COLONIZE", .save_dir = "./build/debug", .rng_seed = 100, .rng_seed_set = true
+  };
+  ColonizeGameState* game = game_create(&cfg);
+  if (!game || !game_assets_ok(game)) {
+    fprintf(stderr, "SKIP: no COLONIZE/ assets\n");
+    if (game) {
+      game_destroy(game);
+    }
+    return TR_SKIP;
+  }
+  game->new_game.path = NEW_GAME_PATH_AMERICA;
+  game->new_game.generate_map = false;
+  game->new_game.nation = 2;
+  game->new_game.difficulty = 4;
+  snprintf(game->new_game.map_file, sizeof(game->new_game.map_file), "%s", "AMER2.MP");
+  game_commit_new_campaign(game);
+  int rc = 0;
+  const ColonizeUnit* ship = units_get_const(&game->units, game->units.selected_id);
+  if (!game->col1_ok || game->world_map.prime_resource_seed != 365 ||
+      game->col1.nation[0].return_from_europe_x != 47 ||
+      game->col1.nation[0].return_from_europe_y != 28 ||
+      game->col1.nation[2].return_from_europe_x != 37 ||
+      game->col1.nation[2].return_from_europe_y != 14 || !ship || ship->x != 37 || ship->y != 14) {
+    fprintf(stderr, "  prime %u England (%u,%u) Spain (%u,%u) ship (%d,%d)\n",
+            game->world_map.prime_resource_seed, game->col1.nation[0].return_from_europe_x,
+            game->col1.nation[0].return_from_europe_y, game->col1.nation[2].return_from_europe_x,
+            game->col1.nation[2].return_from_europe_y, ship ? ship->x : -1, ship ? ship->y : -1);
+    rc = fail("AMER2 seed-100 landfall through game_commit_new_campaign");
+  }
+  game_destroy(game);
+  return rc;
+}
+
 /*
  * Brewster's @RECRUITCHOOSE %STRING0 is the nation's home port: FUN_38fd_4884 raw 64708
  * (param_2 != 0) passes DS:(nation*2 - 0x7c74), the NAMES @HOMEPORT row, to FUN_281f_0438.
@@ -4225,6 +4264,7 @@ static const TestCase k_cases[] = {
     {"test_brewster_pick_names_home_port", test_brewster_pick_names_home_port},
     {"test_crossing_stamps_nation_return_tile", test_crossing_stamps_nation_return_tile},
     {"test_new_campaign_drops_parked_flow", test_new_campaign_drops_parked_flow},
+    {"test_new_campaign_amer2_seed100_landfall", test_new_campaign_amer2_seed100_landfall},
     {"test_europe_repaints_reset_harbor_selection", test_europe_repaints_reset_harbor_selection},
     {"test_click_spent_unit_hands_off", test_click_spent_unit_hands_off},
     {"test_eot_off_unit_used_up_ends_turn", test_eot_off_unit_used_up_ends_turn},

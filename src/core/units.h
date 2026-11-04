@@ -561,7 +561,7 @@ void units_path_state_import(const uint8_t in[UNITS_PATH_STATE_SIZE], const stru
 
 /*
  * Human starter: Caravel (Dutch Merchantman) with Pioneer+Soldier, placed by the
- * FUN_48d3_048e ring hunt from the nation's @SCENARIO / mapgen landfall tile.
+ * FUN_48d3_048e ring hunt from the nation's HS-rim landfall tile (FUN_684c_08c0).
  */
 void units_new_world_start(
   ColonizeUnitPool* pool,

@@ -66,9 +66,22 @@ bool map_gen_pick_start(
 
 /*
  * FUN_684c_08c0 LAB_684c_1b4c landfall for nation 0..3 (HS rim). Requires
- * map_generate to have filled map->euro_landfall_*.
+ * map_gen_assign_euro_landfalls to have filled map->euro_landfall_*.
  */
 bool map_gen_euro_landfall(const ColonizeWorldMap* map, int nation, int* out_x, int* out_y);
+
+/*
+ * FUN_684c_08c0 LAB_684c_1ad5..1b4c (raw 107131-107154): shuffle the nations
+ * into the four HS-rim bands and fill map->euro_landfall_*. map_generate calls
+ * it with loaded_map false; a loaded .MP map (param_1 != 0) runs the same pick
+ * after its finalize pass.
+ */
+void map_gen_assign_euro_landfalls(
+  ColonizeWorldMap* map,
+  ColonizeDosRng* rng,
+  int focus_nation,
+  bool loaded_map
+);
 
 /*
  * FUN_684c_08c0 LAB_684c_17f1 tail (HS outline rings, arctic rows, bit-4 forest

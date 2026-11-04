@@ -2002,7 +2002,7 @@ bool units_015e_hs_course(
  * nation's landfall tile (nation record `-0x77c6/-0x77c5`) or from where the
  * ship itself left the map (FUN_48d3_007a, raw 77604-77607 — every departure
  * restamps the nation tile, so "no saved exit tile" only happens at new-game
- * time, where @SCENARIO / LAB_684c_1b4c seeds it). REF Man-O-Wars and Europe
+ * time, where LAB_684c_1b4c seeds it). REF Man-O-Wars and Europe
  * purchases inherit the same nation tile (raw 99622, 107547, 112448, 114391).
  * So this function survives only as a *navigation target* helper — "which
  * Atlantic tile should a ship steer for to reach Europe" — where DOS has no
@@ -2111,14 +2111,13 @@ void units_new_world_start(
   /*
    * DOS-LITERAL FUN_48d3_048e (raw 77810-77896) + FUN_48d3_0434 (raw 77779).
    * DOS never scans the eastern half of the map for a starting tile: the
-   * nation's landfall tile (nation record `-0x77c6/-0x77c5`, seeded from
-   * @SCENARIO at raw 121035 or from LAB_684c_1b4c's HS-rim walk on generated
-   * maps) is copied into the new ship's `+0x314d/+0x314e` (raw 121627), and the
-   * Atlantic arrival tick runs the 048e expanding-ring hunt from exactly that
-   * tile, taking the first High Seas tile that is empty or holds our own unit.
-   * The @SCENARIO tiles are themselves High Seas, so the ring hits at e=0 and
-   * the fleet starts on the scenario tile. The old eastern-half scan put the
-   * Spanish AMER2 fleet on (29,61) instead of (47,61). (port_bugs.md #487)
+   * nation's landfall tile (nation record `-0x77c6/-0x77c5`, seeded by
+   * LAB_684c_1b4c's HS-rim walk on generated and loaded maps alike) is copied
+   * into the new ship's `+0x314d/+0x314e` (raw 121627), and the Atlantic
+   * arrival tick runs the 048e expanding-ring hunt from exactly that tile,
+   * taking the first High Seas tile that is empty or holds our own unit. The
+   * rim tiles are themselves High Seas, so the ring hits at e=0 and the fleet
+   * starts on the landfall tile. (port_bugs.md #487)
    */
   int sx = start_x;
   int sy = start_y;

@@ -158,7 +158,7 @@ Topic hub (graphics, units, settlements, contact): [indians.md](indians.md); ala
 
 | Manual feature | Status | Notes |
 |----------------|--------|-------|
-| Rival starter fleets + sail to landfall | Done | Path-independent `FUN_75c2_235c`: all four fleets at sentinel `228+n`, counter 0, goto = landfall — `FUN_684c` HS-rim on generated maps, `@SCENARIO` on AMERICA/TRIBE.TXT (port_bugs.md #490) — then Europe exit via `48d3_048e` / `ai_euro_act_*` dispatcher; seed-100 early fixture still gated — [port_plan.md](port_plan.md) |
+| Rival starter fleets + sail to landfall | Done | Path-independent `FUN_75c2_235c`: all four fleets at sentinel `228+n`, counter 0, goto = landfall — `FUN_684c` HS-rim on generated and AMERICA maps alike (port_bugs.md #490; DOS overwrites the startup `@SCENARIO` tiles) — then Europe exit via `48d3_048e` / `ai_euro_act_*` dispatcher; seed-100 early fixture still gated — [port_plan.md](port_plan.md) |
 | Unload, found colonies, combat, colony AI | Done | Not claimed 1:1. Rival-Euro AI closed at logic level 2026-09-07g (D1): `0a60` goals, `5d04` hire ladder (the invented OpenCol matrix is deleted), `20e6` land arms with the `3558` cargo matrices, colony tick and Col1 colony flags/SoL latches, BUY `hammers_purchased`, `depletion_counter` wrap, `warehouse_level`/`capitol_level`. Gates: the four DOSBox idle campaigns ([idle_campaign.md](idle_campaign.md)) plus `golden_ai_turns`, `smoke_ai_mid01`/`late01`. The Treasure/Missionary/Wagon band tail closed 2026-10-26 (port_bugs.md #1291) — [ai_euro_logic_map.yaml](ai_euro_logic_map.yaml) |
 
 ### Win / end sequences

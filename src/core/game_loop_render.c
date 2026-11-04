@@ -2300,12 +2300,16 @@ void game_commit_new_campaign(ColonizeGameState* game) {
     }
     /* FUN_684c_08c0 draws DS:0x190 before the loaded-map JMP (684c:08e2), so
      * a loaded map gets a seed too. DOS seed-100 Americas saves 365, the first
-     * range(1,0x7fff) after seeding 100. ponytail: own LCG; the port's Americas
-     * stream past this point is not DOS-aligned anyway. */
+     * range(1,0x7fff) after seeding 100. The loaded map then falls through to
+     * the same HS-rim band pick as a generated one (684c:08e2 -> 17f1 -> 1ad5,
+     * raw 107131-107154) with no draws in between; the startup-only @SCENARIO
+     * write (raw 121035) is overwritten. Seed 100 gives England (47,28) and
+     * Spain (37,14), as the DOS save golden_idle_america_seed-100/000001.SAV. */
     if (game->world_map_ok) {
       ColonizeDosRng seed_rng;
       dos_rng_seed(&seed_rng, game_pick_rng_seed(game, game->elapsed_ms));
       game->world_map.prime_resource_seed = (uint16_t)dos_rng_range(&seed_rng, 1, 0x7fff);
+      map_gen_assign_euro_landfalls(&game->world_map, &seed_rng, game->human_nation, true);
     }
     snprintf(map_label, sizeof(map_label), "%s", ng->map_file[0] ? ng->map_file : "AMER2.MP");
   }
@@ -2355,7 +2359,7 @@ void game_commit_new_campaign(ColonizeGameState* game) {
         sy = game->world_map.height / 2;
       }
     }
-  } else {
+  } else if (!map_gen_euro_landfall(&game->world_map, game->human_nation, &sx, &sy)) {
     char stem[64];
     snprintf(stem, sizeof(stem), "%s", ng->map_file);
     char* dot = strrchr(stem, '.');

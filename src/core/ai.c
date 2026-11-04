@@ -456,14 +456,15 @@ static void ai_pick_landfall(
   if (!p->map) {
     return;
   }
-  if (p->use_tribe_txt && p->names && p->map_stem && p->map_stem[0]) {
-    new_game_scenario_start(p->names, p->map_stem, nation, out_x, out_y);
-    return;
-  }
-  /* NEW WORLD: FUN_684c HS-rim landfalls from map_generate. */
+  /* FUN_684c HS-rim landfalls, generated or loaded map alike (raw 107131-107154). */
   if (map_gen_euro_landfall(p->map, nation, out_x, out_y)) {
     (void)avoid_x;
     (void)avoid_y;
+    return;
+  }
+  /* A map without landfalls (test fixtures): the @SCENARIO tiles. */
+  if (p->use_tribe_txt && p->names && p->map_stem && p->map_stem[0]) {
+    new_game_scenario_start(p->names, p->map_stem, nation, out_x, out_y);
     return;
   }
   if (!map_gen_pick_start(p->map, nation, avoid_x, avoid_y, 8, out_x, out_y)) {
@@ -492,8 +493,8 @@ static bool ai_spawn_euro_fleet(
    * FUN_281f_095c(type, nation, nation-0x1c, nation-0x1c), i.e. on the Europe
    * westbound sentinel (228+n, 228+n) with voyage counter +0x315a = 0 ("lands
    * at the next FUN_48d3_03d0 pass"), and the nation's landfall tile
-   * (-0x77c6/-0x77c5, seeded from @SCENARIO raw 121035 on a scenario map or
-   * from LAB_684c_1b4c's HS-rim walk on a generated one) is copied into the
+   * (-0x77c6/-0x77c5, seeded by LAB_684c_1b4c's HS-rim walk on every map; the
+   * startup-only @SCENARIO write at raw 121035 is overwritten) is copied into the
    * unit's +0x314d/+0x314e (raw 121627) as the arrival target. The human
    * nation's own FUN_48d3_06ba pass then lands his fleet before turn 1; the
    * three AI fleets land at their first tick through the ported 06ba/048e

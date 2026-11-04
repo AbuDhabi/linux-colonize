@@ -237,7 +237,63 @@ static int test_tb46_latitude_single_draw(void) {
   return rc;
 }
 
+/* FUN_684c_08c0 raw 113529-113536 (asm 684c:1b3a-1b4a) gives the focus nation
+ * on a generated map range(1,2): one of the middle bands (2h/5, 3h/5). */
+static int test_euro_landfall_focus_middle_band(void) {
+  int rc = 0;
+  for (uint32_t seed = 1; seed <= 24; ++seed) {
+    MapGenParams p = {1, 1, 1, 1, 1, seed, NULL, (int)(seed % 4)};
+    ColonizeWorldMap map;
+    memset(&map, 0, sizeof(map));
+    char err[256];
+    if (!map_generate(&map, &p, err, sizeof(err))) {
+      fprintf(stderr, "map_generate failed: %s\n", err);
+      return 1;
+    }
+    int x = -1, y = -1;
+    const int h5 = map.height / 5;
+    if (!map_gen_euro_landfall(&map, p.focus_nation, &x, &y) || (y != h5 * 2 && y != h5 * 3)) {
+      fprintf(stderr, "seed %u focus %d landfall y=%d not a middle band\n", seed, p.focus_nation, y);
+      rc = 1;
+    }
+    map_free(&map);
+  }
+  return rc;
+}
+
+/* DOS runs the same band pick on AMER2 (param_1 != 0, all four slots
+ * range(0,3)). DOS seed-100 save original_saves/golden_idle_america_seed-100
+ * /000001.SAV: 0x190 = 365, England (47,28), idle human Spain (37,14). France
+ * and the Dutch are not asserted (their AI ships departed and restamped the
+ * tile). */
+static int test_euro_landfall_amer2_seed100_matches_dos(void) {
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  char err[256];
+  if (!map_load_mp("COLONIZE/AMER2.MP", &map, err, sizeof(err))) {
+    fprintf(stderr, "map_load_mp failed: %s\n", err);
+    return 1;
+  }
+  map_gen_finalize_border_and_forest(map.terrain, (int)map.width, (int)map.height);
+  ColonizeDosRng rng;
+  dos_rng_seed(&rng, 100);
+  const int prime = dos_rng_range(&rng, 1, 0x7fff);
+  map_gen_assign_euro_landfalls(&map, &rng, 2, true);
+  int ex = -1, ey = -1, sx = -1, sy = -1;
+  const bool ok =
+    map_gen_euro_landfall(&map, 0, &ex, &ey) && map_gen_euro_landfall(&map, 2, &sx, &sy);
+  map_free(&map);
+  if (!ok || prime != 365 || ex != 47 || ey != 28 || sx != 37 || sy != 14) {
+    fprintf(stderr, "prime=%d England (%d,%d) Spain (%d,%d); DOS 365 (47,28) (37,14)\n", prime,
+            ex, ey, sx, sy);
+    return 1;
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+    {"test_euro_landfall_focus_middle_band", test_euro_landfall_focus_middle_band},
+    {"test_euro_landfall_amer2_seed100_matches_dos", test_euro_landfall_amer2_seed100_matches_dos},
     {"test_params_random_in_range", test_params_random_in_range},
     {"test_dims_and_land_budget", test_dims_and_land_budget},
     {"test_euro_landfall_nation0_is_water", test_euro_landfall_nation0_is_water},
