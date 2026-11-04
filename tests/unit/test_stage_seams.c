@@ -3982,7 +3982,63 @@ static int test_parked_eot_dropped_on_load_and_title(void) {
   return rc;
 }
 
+/* 8x8 land map, a human unit with attack at (3,3), a nation-1 unit at (4,3),
+ * nations 1-3 computer-run. Free with edge_scroll_free. */
+static int treaty_fixture(ColonizeGameState* game, int* uid) {
+  int ox = 0;
+  edge_scroll_init(game, &ox);
+  game->units.types[0].attack = 2;
+  game->units.types[0].defense = 1;
+  for (int n = 1; n < 4; ++n) {
+    game->col1.player[n].control = 1;
+  }
+  *uid = units_spawn(&game->units, 0, 3, 3);
+  ColonizeUnit* f = units_get(&game->units, units_spawn(&game->units, 0, 4, 3));
+  if (*uid < 0 || !f) {
+    return 0;
+  }
+  f->nation_id = 1;
+  return 1;
+}
+
+/* FUN_2b5a_1112 raw 42410-42413: Break Treaty on the fortify @HAVETREATY ORs WAR
+ * into the partner's row and clears PEACE both ways; no 0x01, no DS:0x53c8 write
+ * and no @DECLAREWAR. dos_buggy is on in tests, so the self row gets no WAR
+ * (TB-54). */
+static int test_fortify_break_treaty_answer(void) {
+  static ColonizeGameState game;
+  int uid = -1;
+  int rc = 0;
+  if (!treaty_fixture(&game, &uid)) {
+    rc = fail("treaty fixture");
+  } else {
+    game.col1.head.nation_relation[0] = 5;
+    game.col1.head.nation_relation[1] = 5;
+    ai_diplo_write(&game.col1, 0, 1, AI_DIPLO_MET | AI_DIPLO_PEACE);
+    ai_diplo_write(&game.col1, 1, 0, AI_DIPLO_MET | AI_DIPLO_PEACE);
+    game.ai_popups.has_result = true;
+    game.ai_popups.result_tag = AI_POPUP_TAG_FORTIFY_TREATY;
+    game.ai_popups.result_cancelled = false;
+    game.ai_popups.result_choice_id = 1;
+    game.ai_popups.result_nation_a = uid;
+    game.ai_popups.result_nation_b = 1;
+    game_apply_ai_popup_result(&game);
+    const uint8_t self = ai_diplo_read(&game.col1, 0, 1);
+    const uint8_t partner = ai_diplo_read(&game.col1, 1, 0);
+    if (self != AI_DIPLO_MET || partner != (AI_DIPLO_MET | AI_DIPLO_WAR) ||
+        game.col1.head.nation_relation[0] != 5 || game.col1.head.nation_relation[1] != 5 ||
+        game.ai_popups.queue_count != 0) {
+      fprintf(stderr, "  self 0x%02x partner 0x%02x queue %d\n", self, partner,
+              game.ai_popups.queue_count);
+      rc = fail("fortify Break Treaty: partner |= WAR, PEACE cleared, no declare-war popup");
+    }
+  }
+  edge_scroll_free(&game);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
+    {"test_fortify_break_treaty_answer", test_fortify_break_treaty_answer},
     {"test_parked_eot_dropped_on_load_and_title", test_parked_eot_dropped_on_load_and_title},
     {"test_dos_buggy_default_off_tests_on", test_dos_buggy_default_off_tests_on},
     {"test_saveload_reseeds_from_tick", test_saveload_reseeds_from_tick},

@@ -3146,9 +3146,9 @@ static bool game_apply_popup_contact(ColonizeGameState* game) {
     ColonizeUnit* u = units_get(&game->units, unit_id);
     if (brk && u && u->active && u->nation_id >= 0 && u->nation_id <= 3 && partner >= 0 &&
         partner <= 3 && game->col1_ok) {
-      ColonizeTurnContext ctx;
-      game_fill_turn_context(game, &ctx);
-      ai_diplo_declare_war_ctx(&ctx, u->nation_id, partner);
+      /* Partner's byte |= WAR, PEACE cleared both ways; no declare-war
+       * popup and no DS:0x53c8 write (raw 42410-42413). */
+      ai_diplo_2b5a_1112_break_treaty(&game->col1, u->nation_id, partner);
       (void)units_order_fortify(&game->units, unit_id);
     }
   return true;

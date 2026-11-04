@@ -432,6 +432,28 @@ int ai_diplo_465b_band(ColonizeCol1Save* col1, int attacker, int defender) {
   return treaty;
 }
 
+/*
+ * DOS-LITERAL FUN_2b5a_1112 raw 42410-42413: the fortify @HAVETREATY prompt
+ * (tag 0x932) answered 2 ORs WAR into the PARTNER's byte toward the
+ * fortifier, unconditionally, then clears PEACE both ways (FUN_281f_0a10).
+ * No 0x01 clear, no DS:0x53c8 write, no message. The one-row WAR is
+ * tolerated_dos_bugs.md TB-54; fixed (WAR both ways) under
+ * !dos_buggy_behavior().
+ */
+void ai_diplo_2b5a_1112_break_treaty(ColonizeCol1Save* col1, int self, int partner) {
+  if (!col1 || self < 0 || self > 3 || partner < 0 || partner > 3 || self == partner) {
+    return;
+  }
+  if (dos_buggy_behavior()) {
+    ai_diplo_write(
+      col1, partner, self, (uint8_t)(ai_diplo_read(col1, partner, self) | AI_DIPLO_WAR)
+    );
+  } else {
+    ai_diplo_or_both(col1, self, partner, AI_DIPLO_WAR); /* TB-54 */
+  }
+  ai_diplo_clear_both(col1, self, partner, AI_DIPLO_PEACE);
+}
+
 int ai_diplo_at_war(const ColonizeCol1Save* col1, int nation_a, int nation_b) {
   return (ai_diplo_read(col1, nation_a, nation_b) & AI_DIPLO_WAR) != 0;
 }
@@ -514,35 +536,6 @@ static void ai_diplo_popup_ok(
   (void)ai_popup_enqueue_ok_ctx(
     ctx->ai_popups, tag, nation_a, nation_b, 0, NULL, body
   );
-}
-
-/*
- * @DECLAREWAR base line ("The {%STRING0} and {%STRING1} are now at war.") —
- * authentic GAME.TXT text for the war-declared OK popup body (full FA 3f41
- * dialog remains PARKED).
- */
-static void ai_diplo_status_pair_line(
-  ColonizeTurnContext* ctx,
-  int nation_a,
-  int nation_b,
-  const char* tag,
-  const char* fallback
-) {
-  if (!ctx || !ctx->col1 || !ctx->status || ctx->status_size == 0) {
-    return;
-  }
-  if (!ai_diplo_involves_human(ctx, nation_a, nation_b)) {
-    return;
-  }
-  PopupMsgTokens tok = {0};
-  tok.string0 = ai_diplo_rival_name(ctx->col1, nation_a);
-  tok.string1 = ai_diplo_rival_name(ctx->col1, nation_b);
-  popup_msg_fill(ctx->messages, tag, &tok, fallback, ctx->status, ctx->status_size);
-  popup_msg_strip_markup(ctx->status); /* status line: no {} coloring */
-}
-
-static void ai_diplo_status_declare_war(ColonizeTurnContext* ctx, int nation_a, int nation_b) {
-  ai_diplo_status_pair_line(ctx, nation_a, nation_b, "DECLAREWAR", "");
 }
 
 /* One 465b band message: OK popup + status line (port convention: only when
@@ -634,39 +627,6 @@ int ai_diplo_465b_band_ctx(ColonizeTurnContext* ctx, int attacker, int defender)
   }
   (void)ai_diplo_465b_band(col1, attacker, defender);
   return music;
-}
-
-/* Sound hook (unit tests build ai_diplo.c without sound.c). */
-static void (*g_ai_diplo_sound_play)(int id) = NULL;
-void ai_diplo_set_sound_hook(void (*play_fn)(int id)) {
-  g_ai_diplo_sound_play = play_fn;
-}
-
-void ai_diplo_declare_war_ctx(ColonizeTurnContext* ctx, int nation_a, int nation_b) {
-  if (!ctx || !ctx->col1) {
-    return;
-  }
-  const int already = ai_diplo_at_war(ctx->col1, nation_a, nation_b);
-  const int human = ai_diplo_involves_human(ctx, nation_a, nation_b);
-  ai_diplo_declare_war(ctx->col1, nation_a, nation_b);
-  /* Chrome only on a fresh WAR (no Franklin gate, port_bugs.md #472). */
-  const int now_war = ai_diplo_at_war(ctx->col1, nation_a, nation_b);
-  if (!already && now_war) {
-    if (human) {
-      if (g_ai_diplo_sound_play) {
-        g_ai_diplo_sound_play(0x8020); /* FUN_5bfb_153e 5bfb:2c7c: war-declaration chord sting */
-      }
-    }
-    ai_diplo_status_declare_war(ctx, nation_a, nation_b);
-    /*
-     * The OK popup is the real @DECLAREWAR body (FUN_15b3 / 5bfb). The old
-     * "<cargo> boycott imposed." and "Natives grow hostile." overrides were
-     * port chrome and are gone (port_bugs.md #1104).
-     */
-    if (human && ctx->status && ctx->status_size > 0) {
-      ai_diplo_popup_ok(ctx, AI_POPUP_TAG_DIPLO_WAR, nation_a, nation_b, ctx->status);
-    }
-  }
 }
 
 /*

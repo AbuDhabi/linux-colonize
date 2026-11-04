@@ -566,13 +566,15 @@ calls `ai_diplo_declare_war` (WAR|MET both ways, DS:0x53c8 zeroed).
   nation's own row only.
 - FUN_465b_0000 raw 75527-75545 (Privateer sighting, weaker victim): WAR only
   in the victim's row toward the Privateer's owner.
+- FUN_2b5a_1112 raw 42410-42413 (fortify next to a treaty partner, Break
+  Treaty): WAR only in the partner's row toward the fortifier.
 
 **Effect:** Foreign Affairs (viewer row only) and the attack gates disagree by
 side: one nation reads war or no treaty while the other still reads peace.
 
 **Port (reproduces it):** `ai_diplo_465b_band_ctx`, `ai_talk_resume` (THIRD and
-ALLY_PAY arms), `ai_diplo_treaty_timers` (6d8e) and `ai_euro_465b_privateer_sighting`,
-all in `src/core/ai_diplo.c`. The fix writes the same bit both ways
+ALLY_PAY arms), `ai_diplo_treaty_timers` (6d8e), `ai_euro_465b_privateer_sighting`
+and `ai_diplo_2b5a_1112_break_treaty`, all in `src/core/ai_diplo.c`. The fix writes the same bit both ways
 (`ai_diplo_or_both` / `ai_diplo_clear_both`). Bilateral already: 13b0 sign and
 cancel, 153e PROVOKE/WARMANLY, @KINGNEWWAR (FUN_38fd_5930), the WoI declaration,
 FUN_43f7_0108, the year-end rename peace, TB-52/TB-53 arms.
