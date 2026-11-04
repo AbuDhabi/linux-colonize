@@ -1021,7 +1021,7 @@ int ai_contact_try_village_reparations(ColonizeTurnContext* ctx, int nation_id) 
       continue; /* unmet — first contact runs its own arm */
     }
     if (ai_contact_s_reparations[e].active) {
-      continue; /* an offer of ours is still on the queue */
+      continue; /* unanswered offer: never in play, see ai_contact_try_wagon_reparations */
     }
     /* 022e's own ceiling on the whole visit (`if (0x4a < iVar9) return;`). */
     if (ai_diplo_indian_alarm(ctx->col1, nation_id, e) > 0x4a) {
@@ -1250,11 +1250,11 @@ int ai_contact_try_wagon_reparations(
     return 0;
   }
   if (ai_contact_s_reparations[e].active) {
-    /* Port-only, kept for the async popup: DOS shows @INDIANWAGONS modally
-     * and resolves it before the next Brave moves, but here the human answers
-     * after the native pulse, and ai_contact_s_reparations[e] holds one offer.
-     * A second demand on e in the same pulse would overwrite the first offer
-     * before its answer applies. */
+    /* Port-only guard for the one offer slot. In play it never fires: the
+     * native pulse stops on a human demand until it is answered
+     * (ai_native_scan_suspend). Only a caller that never answers (turn_end
+     * with an undrained queue) still reaches it; overwriting the waiting
+     * offer would apply the wrong goods to its answer. */
     return -1;
   }
   ColonizeCol1Indian* ind = &ctx->col1->indian[nation_id - 4];

@@ -1370,6 +1370,9 @@ int ai_contact_try_village_beg_food(ColonizeTurnContext* ctx, int nation_id) {
     return 0;
   }
   ColonizeCol1Indian* ind = &ctx->col1->indian[nation_id - 4];
+  /* Port-only: an unanswered beg's answer reads ai_contact_s_visit_mood, which
+   * a second beg would overwrite. In play it never fires: the native pulse
+   * stops on a human demand until it is answered (ai_native_scan_suspend). */
   if (ctx->ai_popups && ai_contact_beg_food_pending(ctx->ai_popups)) {
     return 0;
   }

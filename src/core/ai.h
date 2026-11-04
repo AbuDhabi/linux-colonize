@@ -64,6 +64,14 @@ void ai_euro_nation_turn(ColonizeTurnContext* ctx, int nation_id);
 /* One native nation (4..11): village growth + DOS Brave pulse + contact/raids. */
 void ai_indian_nation_turn(ColonizeTurnContext* ctx, int nation_id);
 
+/* The last ai_indian_nation_turn stopped its Brave pulse on a human
+ * @INDIANBEGFOOD/@INDIANCITY/@INDIANWAGONS answer; calling it again for the
+ * same nation, after the answer, finishes the pulse. */
+int ai_native_pulse_suspended(void);
+/* Drop a stopped pulse; turn_processor_start calls it so a record left by an
+ * abandoned processor run can never steer the next turn. */
+void ai_native_pulse_abandon(void);
+
 /* FUN_7a65_0008 at 4d56:1182 plots each accepted 021a direction score. */
 typedef struct AiNativeScoreTile {
   int x;

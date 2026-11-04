@@ -2100,6 +2100,504 @@ static int run_wagon_demand_no_mood_gate(void) {
   return (r == 1 && hold == 0) ? 0 : 1;
 }
 
+/* Answer the waiting @INDIANCITY as the game does: close it, apply the row. */
+static void answer_city_demand(Ai152eFixture* f, AiPopupState* pop, int choice_id) {
+  ai_popup_clear(pop);
+  pop->has_result = true;
+  pop->result_cancelled = false;
+  pop->result_tag = AI_POPUP_TAG_CONTACT_REPARATIONS;
+  pop->result_nation_a = 0;
+  pop->result_nation_b = 4;
+  pop->result_payload = AI_CONTACT_REPARATIONS_CITY;
+  pop->result_choice_id = choice_id;
+  ai_contact_apply_popup_result(&f->ctx, pop);
+  ai_popup_clear(pop);
+}
+
+static int count_city_demands(const AiPopupState* pop) {
+  int n = 0;
+  for (int i = 0; i < pop->queue_count; ++i) {
+    n += pop->queue[i].tag == AI_POPUP_TAG_CONTACT_REPARATIONS;
+  }
+  return n;
+}
+
+/*
+ * Two Braves of one tribe each run 022e's @INDIANCITY demand on the same
+ * human colony in one 1816 pulse. DOS answers each inside 022e
+ * (FUN_291f_019c, raw 96882), so the second demand's cargo scan (raw
+ * 96843-96874) reads the stores the first answer handed over, and the first
+ * answer applies before the second Brave acts. Island: colony (14,10), Braves
+ * at (13,10) and (15,10) carrying the pending-encounter bit, water all round,
+ * so 021a stays and runs 3180 at the Brave's own tile (021a:13cc).
+ * The caller owns f (init'd here), game_txt and pop; returns the colony.
+ */
+static ColonizeColony* two_demand_scene(
+  Ai152eFixture* f, ColonizeMsgCatalog* game_txt, AiPopupState* pop, int bid[2]
+) {
+  if (!assets_msg_load_file(game_txt, "COLONIZE/GAME.TXT") || !f->map.layer2 || !f->map.layer3) {
+    fprintf(stderr, "two-demands: GAME.TXT / map layers missing\n");
+    return NULL;
+  }
+  f->ctx.messages = game_txt;
+  f->ctx.ai_popups = pop;
+  ai_contact_reset();
+  ai_native_reset();
+  for (int i = 0; i < 32 * 32; ++i) {
+    f->map.layer3[i] |= 0xf0u; /* unowned */
+  }
+  for (int y = 9; y <= 11; ++y) {
+    for (int x = 12; x <= 16; ++x) {
+      f->map.terrain[y * 32 + x] = (y == 10 && x >= 13 && x <= 15) ? 2 : 25;
+    }
+  }
+  map_set_owner_nibble(&f->map, 14, 10, 0);
+  f->map.layer2[10 * 32 + 14] |= 0x02u; /* settlement: 021a skips the colony tile */
+  ColonizeColony* col = &f->colonies.colonies[0];
+  col->active = true;
+  col->id = 0;
+  col->nation_id = 0;
+  col->x = 14;
+  col->y = 10;
+  col->stock[3] = 50; /* price 10: 500 beats cargo 4's 400, until demand 1 takes it */
+  col->stock[4] = 40;
+  snprintf(col->name, sizeof(col->name), "Testtown");
+  const int brave_ti = units_find_type(&f->units, "Brave");
+  bid[0] = units_spawn_allow_stack(&f->units, brave_ti, 13, 10);
+  bid[1] = units_spawn_allow_stack(&f->units, brave_ti, 15, 10);
+  for (int k = 0; k < 2; ++k) {
+    ColonizeUnit* b = units_get(&f->units, bid[k]);
+    if (!b) {
+      fprintf(stderr, "two-demands: spawn failed\n");
+      return NULL;
+    }
+    b->nation_id = 4;
+    b->home_tribe_index = 0;
+    b->col1_flags15 = 0x08u;
+    b->moves = 0;
+  }
+  f->col1.nation[0].trade.euro_price[3] = 11;
+  f->col1.nation[0].trade.euro_price[4] = 11;
+  f->col1.indian[0].euro_diplo[0] = (uint8_t)COL1_INDIAN_MET_BIT;
+  f->col1.indian[0].alarm_by_player[0] = 20;
+  f->col1.indian[0].contact_state[0] = 1; /* local_10: never generous */
+  col1_tribe_attitude_set(&f->tribes[0], 0, 5);
+  return col;
+}
+
+static int run_two_demands_one_pulse(void) {
+  if (!test_names_txt() || !test_game_txt()) {
+    return TR_SKIP;
+  }
+  Ai152eFixture f;
+  if (ai_152e_fixture_init(&f, "two-demands", 777u) != 0) {
+    return 1;
+  }
+  ColonizeMsgCatalog game_txt;
+  assets_msg_init(&game_txt);
+  AiPopupState pop;
+  ai_popup_init(&pop);
+  int rc = 1;
+  int bid[2];
+  ColonizeColony* col = two_demand_scene(&f, &game_txt, &pop, bid);
+  if (!col) {
+    goto done;
+  }
+
+  /* Demand 1: the pulse stops on it. */
+  ai_indian_nation_turn(&f.ctx, 4);
+  if (!ai_native_pulse_suspended() || count_city_demands(&pop) != 1) {
+    fprintf(stderr, "two-demands: first demand suspended %d popups %d (want 1 1)\n",
+            ai_native_pulse_suspended(), count_city_demands(&pop));
+    goto done;
+  }
+  const int qty1 = ai_contact_s_reparations[0].qty;
+  if (ai_contact_s_reparations[0].cargo != 3 || ai_contact_s_reparations[0].brave_id != bid[0]) {
+    fprintf(stderr, "two-demands: first demand cargo %d brave %d\n",
+            ai_contact_s_reparations[0].cargo, ai_contact_s_reparations[0].brave_id);
+    goto done;
+  }
+  answer_city_demand(&f, &pop, AI_CONTACT_REPARATIONS_ROW2); /* "Hand them over." */
+  const int stock1 = col->stock[3];
+  if (qty1 <= 0 || stock1 != 50 - qty1 || col1_tribe_attitude(&f.tribes[0], 0) != 0) {
+    fprintf(stderr, "two-demands: accept qty %d stock %d word %d\n", qty1, stock1,
+            col1_tribe_attitude(&f.tribes[0], 0));
+    goto done;
+  }
+
+  /* Demand 2: the second Brave. With at most 25 Tobacco left the scan must
+   * now pick cargo 4: it reads the stores after demand 1's answer. */
+  ai_indian_nation_turn(&f.ctx, 4);
+  const int qty2 = ai_contact_s_reparations[0].qty;
+  if (!ai_native_pulse_suspended() || count_city_demands(&pop) != 1 ||
+      ai_contact_s_reparations[0].brave_id != bid[1] || ai_contact_s_reparations[0].cargo != 4 ||
+      (qty2 != 40 && qty2 != 20)) {
+    fprintf(stderr,
+            "two-demands: second demand suspended %d popups %d brave %d cargo %d qty %d\n",
+            ai_native_pulse_suspended(), count_city_demands(&pop),
+            ai_contact_s_reparations[0].brave_id, ai_contact_s_reparations[0].cargo, qty2);
+    goto done;
+  }
+  answer_city_demand(&f, &pop, AI_CONTACT_REPARATIONS_ROW1); /* "Man the stockade." */
+  if (col->stock[3] != stock1 || col->stock[4] != 40 ||
+      col1_tribe_attitude(&f.tribes[0], 0) != 0x80) {
+    fprintf(stderr, "two-demands: refuse stock %d/%d word %d\n", col->stock[3], col->stock[4],
+            col1_tribe_attitude(&f.tribes[0], 0));
+    goto done;
+  }
+
+  /* The rest of the pulse: nothing left to ask, both Braves spent. */
+  ai_indian_nation_turn(&f.ctx, 4);
+  if (ai_native_pulse_suspended() || count_city_demands(&pop) != 0) {
+    fprintf(stderr, "two-demands: pulse did not finish\n");
+    goto done;
+  }
+  for (int k = 0; k < 2; ++k) {
+    const ColonizeUnit* b = units_get(&f.units, bid[k]);
+    if (b->moves < units_max_mp(&f.units, b->id)) {
+      fprintf(stderr, "two-demands: Brave %d not exhausted (%d)\n", k, b->moves);
+      goto done;
+    }
+  }
+  fprintf(stderr, "two demands one pulse ok (Tobacco %d, then cargo 4 %d)\n", qty1, qty2);
+  rc = 0;
+done:
+  ai_native_reset();
+  ai_contact_reset();
+  assets_msg_free(&game_txt);
+  ai_152e_fixture_free(&f);
+  return rc;
+}
+
+/*
+ * The same scene through turn_processor_advance (turn_step_indian): a
+ * stopped pulse keeps the slot (step INDIAN, cursor 4), and its resume slices
+ * skip the day top (raw 6353-6363: +0x3149 = 0 for every unit) that already
+ * ran. After the last answer the cursor walks on, and FUN_4d56_1b3a phase 3
+ * (the worked-tile claim) runs after tribe 11, not before.
+ */
+static int run_two_demands_turn_processor(void) {
+  if (!test_names_txt() || !test_game_txt()) {
+    return TR_SKIP;
+  }
+  Ai152eFixture f;
+  if (ai_152e_fixture_init(&f, "two-demands-proc", 777u) != 0) {
+    return 1;
+  }
+  ColonizeMsgCatalog game_txt;
+  assets_msg_init(&game_txt);
+  AiPopupState pop;
+  ai_popup_init(&pop);
+  int rc = 1;
+  int bid[2];
+  ColonizeColony* col = two_demand_scene(&f, &game_txt, &pop, bid);
+  if (!col) {
+    goto done;
+  }
+  ColonizeTurnProcessor proc;
+  turn_processor_start(&proc);
+  proc.step = TURN_PROC_INDIAN; /* SETUP and the calendar slice already ran */
+  proc.nation_cursor = 4;
+  proc.day_advanced = true;
+  const uint16_t year0 = f.year;
+
+  /* Slice 1: day top + tribe 4, stops on demand 1. */
+  if (!turn_processor_advance(&proc, &f.ctx) || proc.step != TURN_PROC_INDIAN ||
+      proc.nation_cursor != 4 || !ai_native_pulse_suspended() || count_city_demands(&pop) != 1) {
+    fprintf(stderr, "two-demands-proc: slice 1 step %d cursor %d suspended %d popups %d\n",
+            (int)proc.step, proc.nation_cursor, ai_native_pulse_suspended(),
+            count_city_demands(&pop));
+    goto done;
+  }
+  /* Sentinel: a Euro unit with no moves. A second day top would refill it. */
+  const int sid = units_spawn_allow_stack(&f.units, units_find_type(&f.units, "Soldier"), 2, 2);
+  ColonizeUnit* s = units_get(&f.units, sid);
+  if (!s) {
+    fprintf(stderr, "two-demands-proc: sentinel spawn failed\n");
+    goto done;
+  }
+  s->nation_id = 0;
+  s->moves = 0;
+  answer_city_demand(&f, &pop, AI_CONTACT_REPARATIONS_ROW2);
+
+  /* Slice 2: the resume runs into demand 2 (the second Brave). */
+  if (!turn_processor_advance(&proc, &f.ctx) || proc.step != TURN_PROC_INDIAN ||
+      proc.nation_cursor != 4 || !ai_native_pulse_suspended() || count_city_demands(&pop) != 1 ||
+      ai_contact_s_reparations[0].brave_id != bid[1] || units_get(&f.units, sid)->moves != 0 ||
+      f.year != year0) {
+    fprintf(stderr,
+            "two-demands-proc: slice 2 step %d cursor %d suspended %d popups %d brave %d "
+            "sentinel moves %d year %d\n",
+            (int)proc.step, proc.nation_cursor, ai_native_pulse_suspended(),
+            count_city_demands(&pop), ai_contact_s_reparations[0].brave_id,
+            units_get(&f.units, sid)->moves, (int)f.year);
+    goto done;
+  }
+  answer_city_demand(&f, &pop, AI_CONTACT_REPARATIONS_ROW1);
+
+  /* Slice 3: the pulse ends, the cursor moves to tribe 5. */
+  if (!turn_processor_advance(&proc, &f.ctx) || proc.step != TURN_PROC_INDIAN ||
+      proc.nation_cursor != 5 || ai_native_pulse_suspended() || count_city_demands(&pop) != 0 ||
+      units_get(&f.units, sid)->moves != 0) {
+    fprintf(stderr, "two-demands-proc: slice 3 step %d cursor %d suspended %d sentinel %d\n",
+            (int)proc.step, proc.nation_cursor, ai_native_pulse_suspended(),
+            units_get(&f.units, sid)->moves);
+    goto done;
+  }
+
+  /* Phase 3 marker: the colony works (14,9), still tribal land. */
+  for (int i = 0; i < COLONIZE_COLONY_FIELD_TILES_MAX; ++i) {
+    int dx = 0;
+    int dy = 0;
+    if (colonies_field_tile_delta(i, &dx, &dy) && dx == 0 && dy == -1) {
+      col->tiles[i] = 0;
+    }
+  }
+  map_set_owner_nibble(&f.map, 14, 9, 4);
+  for (int n = 5; n <= 11; ++n) {
+    if (proc.step != TURN_PROC_INDIAN || proc.nation_cursor != n ||
+        ai_owner_nibble(&f.map, 14, 9) != 4) {
+      fprintf(stderr, "two-demands-proc: before tribe %d step %d cursor %d owner %d\n", n,
+              (int)proc.step, proc.nation_cursor, ai_owner_nibble(&f.map, 14, 9));
+      goto done;
+    }
+    (void)turn_processor_advance(&proc, &f.ctx);
+  }
+  if (proc.step == TURN_PROC_INDIAN || ai_owner_nibble(&f.map, 14, 9) != 0) {
+    fprintf(stderr, "two-demands-proc: after tribe 11 step %d owner %d\n", (int)proc.step,
+            ai_owner_nibble(&f.map, 14, 9));
+    goto done;
+  }
+  fprintf(stderr, "two demands through the turn processor ok\n");
+  rc = 0;
+done:
+  ai_native_reset();
+  ai_contact_reset();
+  assets_msg_free(&game_txt);
+  ai_152e_fixture_free(&f);
+  return rc;
+}
+
+static int count_popups(const AiPopupState* pop, AiPopupTag tag) {
+  int n = 0;
+  for (int i = 0; i < pop->queue_count; ++i) {
+    n += pop->queue[i].tag == tag;
+  }
+  return n;
+}
+
+/*
+ * The same scene, but the colony holds 100 food and tundra rings the village,
+ * so 022e's beg (raw 96753-96756) can ask: @INDIANBEGFOOD waits for the human
+ * like @INDIANCITY, and the pulse stops on it before the second Brave acts.
+ */
+static int run_beg_food_stops_pulse(void) {
+  if (!test_names_txt() || !test_game_txt()) {
+    return TR_SKIP;
+  }
+  for (uint32_t k = 1; k <= 64; ++k) {
+    Ai152eFixture f;
+    if (ai_152e_fixture_init(&f, "beg-food-stops", 777u) != 0) {
+      return 1;
+    }
+    f.ctx.rng_seed = k; /* the pulse reseeds from it (ai_nation_reseed) */
+    f.ctx.rng_seed_set = true;
+    ColonizeMsgCatalog game_txt;
+    assets_msg_init(&game_txt);
+    AiPopupState pop;
+    ai_popup_init(&pop);
+    int bid[2];
+    ColonizeColony* col = two_demand_scene(&f, &game_txt, &pop, bid);
+    int begs = -1;
+    int demands = -1;
+    int suspended = 0;
+    int second_moves = -1;
+    if (col) {
+      col->stock[COLONIZE_CARGO_FOOD] = 100;
+      for (int y = 8; y <= 12; ++y) {
+        for (int x = 8; x <= 11; ++x) {
+          f.map.terrain[y * 32 + x] = 0;
+        }
+      }
+      ai_indian_nation_turn(&f.ctx, 4);
+      begs = count_popups(&pop, AI_POPUP_TAG_CONTACT_BEGFOOD);
+      demands = count_city_demands(&pop);
+      suspended = ai_native_pulse_suspended();
+      second_moves = units_get(&f.units, bid[1])->moves;
+    }
+    ai_native_reset();
+    ai_contact_reset();
+    assets_msg_free(&game_txt);
+    ai_152e_fixture_free(&f);
+    if (!col) {
+      return 1;
+    }
+    if (begs == 0) {
+      continue;
+    }
+    fprintf(stderr,
+            "beg-food-stops: seed %u suspended %d begs %d demands %d second Brave moves %d "
+            "(want 1 1 0 0)\n",
+            k, suspended, begs, demands, second_moves);
+    return (suspended && begs == 1 && demands == 0 && second_moves == 0) ? 0 : 1;
+  }
+  fprintf(stderr, "beg-food-stops: no seed begged\n");
+  return 1;
+}
+
+/*
+ * The resumed 3180 scan keeps aiStack_20 (raw 98649): the first Brave's
+ * demand closed the human, so its Soldier S of the Brave (d 4, after the
+ * colony at d 2) is not turned, while an AI Soldier SW (d 5) still is.
+ */
+static int run_resume_keeps_scan_latch(void) {
+  if (!test_names_txt() || !test_game_txt()) {
+    return TR_SKIP;
+  }
+  Ai152eFixture f;
+  if (ai_152e_fixture_init(&f, "resume-latch", 777u) != 0) {
+    return 1;
+  }
+  ColonizeMsgCatalog game_txt;
+  assets_msg_init(&game_txt);
+  AiPopupState pop;
+  ai_popup_init(&pop);
+  int rc = 1;
+  int bid[2];
+  if (!two_demand_scene(&f, &game_txt, &pop, bid)) {
+    goto done;
+  }
+  const int soldier_ti = units_find_type(&f.units, "Soldier");
+  f.map.terrain[11 * 32 + 13] = 2;
+  f.map.terrain[11 * 32 + 12] = 2;
+  ColonizeUnit* human = units_get(&f.units, units_spawn_allow_stack(&f.units, soldier_ti, 13, 11));
+  ColonizeUnit* ai = units_get(&f.units, units_spawn_allow_stack(&f.units, soldier_ti, 12, 11));
+  if (!human || !ai) {
+    fprintf(stderr, "resume-latch: spawn failed\n");
+    goto done;
+  }
+  human->nation_id = 0;
+  ai->nation_id = 1;
+  human->last_dir = -1;
+  ai->last_dir = -1;
+  f.col1.indian[0].euro_diplo[1] = (uint8_t)COL1_INDIAN_MET_BIT;
+  ai_indian_nation_turn(&f.ctx, 4);
+  if (!ai_native_pulse_suspended() || ai_contact_s_reparations[0].brave_id != bid[0]) {
+    fprintf(stderr, "resume-latch: first demand suspended %d brave %d\n",
+            ai_native_pulse_suspended(), ai_contact_s_reparations[0].brave_id);
+    goto done;
+  }
+  answer_city_demand(&f, &pop, AI_CONTACT_REPARATIONS_ROW2);
+  ai_indian_nation_turn(&f.ctx, 4);
+  fprintf(stderr, "resume-latch: human Soldier dir %d, AI Soldier dir %d (want -1 5)\n",
+          human->last_dir, ai->last_dir);
+  rc = (human->last_dir == -1 && ai->last_dir == 5) ? 0 : 1;
+done:
+  ai_native_reset();
+  ai_contact_reset();
+  assets_msg_free(&game_txt);
+  ai_152e_fixture_free(&f);
+  return rc;
+}
+
+/*
+ * A step-tail scan (ai_native_brave_step after the commit) that stops on a
+ * demand leaves the mover's LAB_5bfb_1005 exhaust (raw 97094-97095) to the
+ * resume. A Mounted Brave (4 MP) steps from (12,10) onto (13,10) next to the
+ * colony; after the answer it must be spent and must not act again.
+ */
+static int run_resume_exhausts_step_mover(void) {
+  if (!test_names_txt() || !test_game_txt()) {
+    return TR_SKIP;
+  }
+  Ai152eFixture f;
+  if (ai_152e_fixture_init(&f, "resume-exhaust", 777u) != 0) {
+    return 1;
+  }
+  ColonizeMsgCatalog game_txt;
+  assets_msg_init(&game_txt);
+  AiPopupState pop;
+  ai_popup_init(&pop);
+  int bid[2];
+  int rc = 1;
+  if (!two_demand_scene(&f, &game_txt, &pop, bid)) {
+    goto done;
+  }
+  ColonizeUnit* m = units_get(&f.units, bid[0]);
+  m->type_index = units_find_type(&f.units, "Mtd. Braves");
+  m->x = 12;
+  m->col1_flags15 = 0;
+  f.map.terrain[10 * 32 + 12] = 2;
+  for (int y = 9; y <= 11; ++y) {
+    f.map.terrain[y * 32 + 11] = 25; /* (12,10)'s only land exit is E */
+  }
+  /* Without the settlement bit 021a's visit scorer misses the colony, so the
+   * step carries no 0x80 visit (that would defer 022e to the next act's
+   * 021a:13d7 resolve, which exhausts on its own); 3180 still finds the
+   * colony in the pool. */
+  f.map.layer2[10 * 32 + 14] &= (uint8_t)~0x02u;
+  const int max_mp = units_max_mp(&f.units, m->id);
+  ai_indian_nation_turn(&f.ctx, 4);
+  const int moves_at_stop = m->moves;
+  if (!ai_native_pulse_suspended() || ai_contact_s_reparations[0].brave_id != bid[0] ||
+      m->x != 13 || m->y != 10 || moves_at_stop >= max_mp) {
+    fprintf(stderr, "resume-exhaust: stop suspended %d brave %d at (%d,%d) moves %d of %d\n",
+            ai_native_pulse_suspended(), ai_contact_s_reparations[0].brave_id, m->x, m->y,
+            moves_at_stop, max_mp);
+    goto done;
+  }
+  const int acts_at_stop = m->col1_counter16; /* 1816's per-act counter */
+  answer_city_demand(&f, &pop, AI_CONTACT_REPARATIONS_ROW2);
+  ai_indian_nation_turn(&f.ctx, 4);
+  fprintf(stderr,
+          "resume-exhaust: moves at stop %d, after resume %d of %d at (%d,%d), acts %d -> %d, "
+          "next demand brave %d (want %d at (13,10), no new act, %d)\n",
+          moves_at_stop, m->moves, max_mp, m->x, m->y, acts_at_stop, m->col1_counter16,
+          ai_contact_s_reparations[0].brave_id, max_mp, bid[1]);
+  rc = (m->moves == max_mp && m->x == 13 && m->y == 10 && m->col1_counter16 == acts_at_stop &&
+        ai_contact_s_reparations[0].brave_id == bid[1])
+         ? 0
+         : 1;
+done:
+  ai_native_reset();
+  ai_contact_reset();
+  assets_msg_free(&game_txt);
+  ai_152e_fixture_free(&f);
+  return rc;
+}
+
+/* A new turn processor drops a pulse record a loaded game or an earlier
+ * session left behind. */
+static int run_processor_start_drops_resume(void) {
+  if (!test_names_txt() || !test_game_txt()) {
+    return TR_SKIP;
+  }
+  Ai152eFixture f;
+  if (ai_152e_fixture_init(&f, "resume-stale", 777u) != 0) {
+    return 1;
+  }
+  ColonizeMsgCatalog game_txt;
+  assets_msg_init(&game_txt);
+  AiPopupState pop;
+  ai_popup_init(&pop);
+  int bid[2];
+  int before = -1;
+  int after = -1;
+  if (two_demand_scene(&f, &game_txt, &pop, bid)) {
+    ai_indian_nation_turn(&f.ctx, 4);
+    before = ai_native_pulse_suspended();
+    ColonizeTurnProcessor proc;
+    turn_processor_start(&proc);
+    after = ai_native_pulse_suspended();
+  }
+  ai_native_reset();
+  ai_contact_reset();
+  assets_msg_free(&game_txt);
+  ai_152e_fixture_free(&f);
+  fprintf(stderr, "resume-stale: suspended before %d after start %d (want 1 0)\n", before, after);
+  return (before == 1 && after == 0) ? 0 : 1;
+}
+
 /*
  * A conceded food beg forces bVar6 on (FUN_5bfb_022e raw 96797-96805) and
  * runs the gift half (raw 96989 onward) with no second alarm test; the 0x31
@@ -2954,5 +3452,11 @@ static const TestCase k_cases[] = {
     {"run_wagon_demand_busy_slot_no_comment", run_wagon_demand_busy_slot_no_comment},
     {"run_wagon_state2_takes_comment", run_wagon_state2_takes_comment},
     {"run_wagon_demand_closes_nation", run_wagon_demand_closes_nation},
+    {"run_two_demands_one_pulse", run_two_demands_one_pulse},
+    {"run_two_demands_turn_processor", run_two_demands_turn_processor},
+    {"run_beg_food_stops_pulse", run_beg_food_stops_pulse},
+    {"run_resume_keeps_scan_latch", run_resume_keeps_scan_latch},
+    {"run_resume_exhausts_step_mover", run_resume_exhausts_step_mover},
+    {"run_processor_start_drops_resume", run_processor_start_drops_resume},
 };
 TEST_MAIN(k_cases)

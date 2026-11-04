@@ -208,20 +208,69 @@ COLONIZE_INTERNAL void ai_native_bind_step_ctx(ColonizeTurnContext* ctx) {
   s_ai_native_ctx = ctx;
 }
 
-/* FUN_5bfb_3180 encounter scan around the unit's tile: from the step commit
- * tail and from 021a:13d7's pending-encounter resolve. Returns 1 when any
- * 022e resolved (first contact or visit); the mover's MP is then exhausted. */
-int ai_native_step_first_contact(
-  ColonizeUnitPool* units, const ColonizeWorldMap* map, ColonizeCol1Save* col1,
-  ColonizeUnit* u, int nation_id
+/*
+ * DOS answers @INDIANBEGFOOD (0x181c, FUN_5bfb_022e raw 96774), @INDIANCITY
+ * (0x1866, raw 96882) and @INDIANWAGONS (0x1871, raw 96959) with a blocking
+ * FUN_291f_019c inside 022e, inside the 3180 direction loop (066c -> 022e per
+ * direction, aiStack_20 raw 98649), inside the 1816 act loop. The answer's
+ * effects (stock, alarm, village word, the conceded beg's rand(0, difficulty))
+ * land before the scan's next direction and the next Brave. The port's popups
+ * are answered between turn slices, so the pulse stops right after the 022e
+ * that queued a human demand and turn_step_indian resumes it, in the next
+ * slice, from the next 3180 direction. A popup is answered before the next
+ * slice runs (game_update services the queue first).
+ */
+static struct {
+  int active;
+  int nation_id;
+  int unit_id;  /* the mover whose 3180 scan stopped */
+  int next_dir; /* 3180 local_30 to scan next */
+  int done[4];  /* 3180 aiStack_20[0..3] */
+  int brave_index;
+} s_pulse_resume;
+static int s_pulse_may_suspend; /* only the 1816 act loop stops; direct scans never do */
+
+int ai_native_pulse_suspended(void) {
+  return s_pulse_resume.active;
+}
+
+void ai_native_pulse_abandon(void) {
+  memset(&s_pulse_resume, 0, sizeof(s_pulse_resume));
+}
+
+/* Stop the scan when the 022e just run for European e left its human demand
+ * CHOICE waiting. Both enqueues key the popup (nation_a = e, nation_b = this
+ * tribe), so a popup another tribe or another European left in the queue
+ * never stops this scan. Needs the shared ctx->rng: the resume must continue
+ * the same stream. */
+static int ai_native_scan_suspend(
+  const ColonizeUnit* u, int nation_id, int e, int d, const int done[4]
 ) {
-  if (!s_ai_native_ctx || !col1 || nation_id < 4 || nation_id > 11) {
+  const AiPopupState* p = s_ai_native_ctx ? s_ai_native_ctx->ai_popups : NULL;
+  if (!s_pulse_may_suspend || !p || !s_ai_native_ctx->rng ||
+      (!ai_popup_pending(p, AI_POPUP_TAG_CONTACT_BEGFOOD, -1, AI_POPUP_KEY_NATION_AB, e, nation_id) &&
+       !ai_popup_pending(
+         p, AI_POPUP_TAG_CONTACT_REPARATIONS, -1, AI_POPUP_KEY_NATION_AB, e, nation_id
+       ))) {
     return 0;
   }
+  s_pulse_resume.active = 1;
+  s_pulse_resume.nation_id = nation_id;
+  s_pulse_resume.unit_id = u->id;
+  s_pulse_resume.next_dir = d + 1;
+  memcpy(s_pulse_resume.done, done, sizeof(s_pulse_resume.done));
+  return 1;
+}
+
+/* The 3180 direction loop from direction d0 on, with aiStack_20 in `done`.
+ * Returns 1 when any 022e resolved; stops early when a scan suspended. */
+static int ai_native_3180_scan(
+  ColonizeUnitPool* units, const ColonizeWorldMap* map, ColonizeCol1Save* col1,
+  ColonizeUnit* u, int nation_id, int d0, int done[4]
+) {
   ColonizeCol1Indian* ind = &col1->indian[nation_id - 4];
   int resolved = 0;
-  int done[4] = {0, 0, 0, 0};
-  for (int d = 0; d < 8; ++d) {
+  for (int d = d0; d < 8; ++d) {
     const int nx = u->x + k_ai_dir8_dx[d];
     const int ny = u->y + k_ai_dir8_dy[d];
     if (!map_coords_inset(map, nx, ny)) {
@@ -328,10 +377,14 @@ int ai_native_step_first_contact(
       if (wagon > 0) {
         done[e] = 1;
         resolved = 1;
+        if (ai_native_scan_suspend(u, nation_id, e, d, done)) {
+          return 1;
+        }
         continue;
       }
-      /* -1: an earlier demand on e still waits for the human's answer; DOS
-       * would have resolved this one, never taken the @INDIANCOMMENT limb. */
+      /* -1: an earlier demand on e still waits for the human's answer (only
+       * when nobody answers between slices); DOS would have resolved this
+       * one, never taken the @INDIANCOMMENT limb. */
       if (mood == 1 && wagon == 0) {
         ai_contact_indian_comment(s_ai_native_ctx, nation_id, e, u);
       }
@@ -359,12 +412,31 @@ int ai_native_step_first_contact(
     if (visit) {
       done[e] = 1;
       resolved = 1;
+      if (ai_native_scan_suspend(u, nation_id, e, d, done)) {
+        return 1;
+      }
     }
   }
+  return resolved;
+}
+
+/* FUN_5bfb_3180 encounter scan around the unit's tile: from the step commit
+ * tail and from 021a:13d7's pending-encounter resolve. Returns 1 when any
+ * 022e resolved (first contact or visit); the mover's MP is then exhausted. */
+int ai_native_step_first_contact(
+  ColonizeUnitPool* units, const ColonizeWorldMap* map, ColonizeCol1Save* col1,
+  ColonizeUnit* u, int nation_id
+) {
+  if (!s_ai_native_ctx || !col1 || nation_id < 4 || nation_id > 11) {
+    return 0;
+  }
+  int done[4] = {0, 0, 0, 0};
+  const int resolved = ai_native_3180_scan(units, map, col1, u, nation_id, 0, done);
   /* LAB_5bfb_1005 (raw 97094-97095): every resolved 022e (local_1a != 0)
    * exhausts the Indian mover (FUN_281f_0934), first contact or visit
-   * alike, from either caller (step tail or 021a:13d7). */
-  if (resolved) {
+   * alike, from either caller (step tail or 021a:13d7). A suspended scan
+   * exhausts on resume, after the answer (a mounted Brave reads its new max). */
+  if (resolved && !s_pulse_resume.active) {
     units_mp_exhaust(units, u);
   }
   return resolved;
@@ -774,6 +846,73 @@ COLONIZE_INTERNAL AiNativeStepStatus ai_native_brave_step(
 
 
 /* ===================== Nation pulse, indian nation turn, kill-nation & reset (ai_native_nation_pulse .. ai_native_reset) ===================== */
+/* The 1816 §8 act loop from `slot` on; returns early when a scan suspended. */
+static void ai_native_pulse_units(
+  ColonizeUnitPool* units, ColonizeWorldMap* map, ColonizeCol1Save* col1, AiRng* rng,
+  int nation_id, bool seed100_init_burns, int slot, int brave_index
+) {
+  for (int i = slot; i < units_slot_end(units); ++i) {
+    ColonizeUnit* u = &units->units[i];
+    if (!u->active || u->nation_id != nation_id || u->aboard_ship_id >= 0) {
+      continue;
+    }
+    if (units_is_sea(units, u->id)) {
+      continue;
+    }
+    int steps = 0;
+    const int max_mp = units_max_mp(units, u->id); /* FUN_281f_090c, per Brave type */
+    for (;;) {
+      if (ai_native_brave_step(
+            units, map, col1, rng, nation_id, seed100_init_burns, u,
+            max_mp, brave_index, &steps
+          ) == AI_NATIVE_STEP_STOP) {
+        break;
+      }
+    }
+    brave_index++;
+    if (s_pulse_resume.active) {
+      s_pulse_resume.brave_index = brave_index;
+      return;
+    }
+  }
+}
+
+/*
+ * Resume (see s_pulse_resume): finish the interrupted 3180 scan, run its
+ * LAB_5bfb_1005 exhaust, then the act loop from the slot after the mover.
+ * The mover is found again by unit id; the slot comes from where it sits now.
+ */
+static void ai_native_nation_pulse_resume(
+  ColonizeUnitPool* units, ColonizeWorldMap* map, ColonizeCol1Save* col1, AiRng* rng
+) {
+  const int nation_id = s_pulse_resume.nation_id;
+  const int brave_index = s_pulse_resume.brave_index;
+  int done[4];
+  memcpy(done, s_pulse_resume.done, sizeof(done));
+  s_pulse_resume.active = 0;
+  ColonizeUnit* u = units_get(units, s_pulse_resume.unit_id);
+  if (!u || !u->active || !col1) {
+    /* No 022e answer removes the mover, so this should never run. If it
+     * does, the rest of this pulse is skipped. */
+    diag_warn(
+      "native %d pulse resume lost mover %d; rest of pulse skipped", nation_id,
+      s_pulse_resume.unit_id
+    );
+    return;
+  }
+  s_pulse_may_suspend = 1;
+  (void)ai_native_3180_scan(units, map, col1, u, nation_id, s_pulse_resume.next_dir, done);
+  if (s_pulse_resume.active) {
+    s_pulse_resume.brave_index = brave_index;
+  } else {
+    units_mp_exhaust(units, u);
+    ai_native_pulse_units(
+      units, map, col1, rng, nation_id, false, (int)(u - units->units) + 1, brave_index
+    );
+  }
+  s_pulse_may_suspend = 0;
+}
+
 void ai_native_nation_pulse(
   ColonizeUnitPool* units,
   ColonizeWorldMap* map,
@@ -835,27 +974,10 @@ void ai_native_nation_pulse(
     ai_native_note_brave_turn_origin(u->id, u->x, u->y);
   }
 
-  int brave_index = 0;
-  for (int i = 0; i < units_slot_end(units); ++i) {
-    ColonizeUnit* u = &units->units[i];
-    if (!u->active || u->nation_id != nation_id || u->aboard_ship_id >= 0) {
-      continue;
-    }
-    if (units_is_sea(units, u->id)) {
-      continue;
-    }
-    int steps = 0;
-    const int max_mp = units_max_mp(units, u->id); /* FUN_281f_090c, per Brave type */
-    for (;;) {
-      if (ai_native_brave_step(
-            units, map, col1, rng, nation_id, seed100_init_burns, u,
-            max_mp, brave_index, &steps
-          ) == AI_NATIVE_STEP_STOP) {
-        break;
-      }
-    }
-    brave_index++;
-  }
+  s_pulse_resume.active = 0;
+  s_pulse_may_suspend = 1;
+  ai_native_pulse_units(units, map, col1, rng, nation_id, seed100_init_burns, 0, 0);
+  s_pulse_may_suspend = 0;
 }
 
 /*
@@ -980,19 +1102,25 @@ void ai_indian_nation_turn(ColonizeTurnContext* ctx, int nation_id) {
    *   9 meet/trade + raids (other paths; not inside 14fe).
    * The prelude uses isolated contact RNG; the pulse uses the shared stream.
    */
-  ai_nation_reseed(ctx);
+  /* A pulse stopped on a human's demand answer continues where it stopped;
+   * §1-6 and the pulse head already ran in the earlier slice. */
+  const int resume = s_pulse_resume.active && s_pulse_resume.nation_id == nation_id;
+  s_pulse_resume.active = resume;
+  if (!resume) {
+    ai_nation_reseed(ctx);
 
-  /* §2 WoI tribe defection (isolated RNG, no pulse LCG burn). */
-  ai_contact_indian_woi_defect(ctx, nation_id);
+    /* §2 WoI tribe defection (isolated RNG, no pulse LCG burn). */
+    ai_contact_indian_woi_defect(ctx, nation_id);
 
-  /* §2–4 alarm prelude (flags/mission). */
-  ai_contact_indian_prelude(ctx, nation_id);
+    /* §2–4 alarm prelude (flags/mission). */
+    ai_contact_indian_prelude(ctx, nation_id);
 
-  /* §5 tribe growth. */
-  ai_grow_villages(ctx, nation_id);
+    /* §5 tribe growth. */
+    ai_grow_villages(ctx, nation_id);
 
-  /* §6 relation / goods tick. */
-  ai_contact_indian_relation_tick(ctx, nation_id);
+    /* §6 relation / goods tick. */
+    ai_contact_indian_relation_tick(ctx, nation_id);
+  }
 
   AiRng local;
   AiRng* rng = ctx->rng;
@@ -1017,9 +1145,13 @@ void ai_indian_nation_turn(ColonizeTurnContext* ctx, int nation_id) {
   /* §7–8 quiet 14fe act loop. */
   ai_s_native_colonies = ctx->colonies;
   s_ai_native_ctx = ctx;
-  ai_native_nation_pulse(
-    ctx->units, ctx->map, ctx->col1_ok ? ctx->col1 : NULL, rng, nation_id, false
-  );
+  if (resume) {
+    ai_native_nation_pulse_resume(ctx->units, ctx->map, ctx->col1_ok ? ctx->col1 : NULL, rng);
+  } else {
+    ai_native_nation_pulse(
+      ctx->units, ctx->map, ctx->col1_ok ? ctx->col1 : NULL, rng, nation_id, false
+    );
+  }
   s_ai_native_ctx = NULL;
   ai_s_native_colonies = NULL; /* only read inside the pulse; do not outlive ctx */
 
@@ -1057,4 +1189,6 @@ void ai_native_reset(void) {
   memset(s_brave_origin_ok, 0, sizeof(s_brave_origin_ok));
   s_ai_native_ctx = NULL;
   memset(s_ai_first_contact_this_turn, 0, sizeof(s_ai_first_contact_this_turn));
+  memset(&s_pulse_resume, 0, sizeof(s_pulse_resume));
+  s_pulse_may_suspend = 0;
 }
