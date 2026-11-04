@@ -2144,7 +2144,7 @@ static int sp_26(void) {
     /*
      * King-audience CHOICE flow. The KING_AUDIENCE CHOICE decides whether
      * the rolled hike happens at all: the rate stays put while the dialog
-     * is on screen and only Accept ("kiss the ring") commits it; Refuse
+     * is on screen and any answer but the party (Esc too) commits it; Refuse
      * ("hold a tea party") leaves it and boycotts instead (port_bugs.md — DOS's
      * apply-then-revert put a raise the player had not answered into the
      * save, and reaches the same two end states). Payload carries the exact
@@ -3457,6 +3457,63 @@ static int case_wave_mounted_cap_mix(void) { return fx_run(24); }
 static int case_wave_regular_heavy(void) { return fx_run(25); }
 static int case_popup_audience_accept(void) { return fx_run(26); }
 static int case_popup_audience_refuse_teaparty(void) { return fx_run(27); }
+
+/* FUN_38fd_3dc8 raw 64180/64285: Esc on the tax audience (the dialog returns
+ * -1, not 2) keeps the raise and boycotts nothing. */
+static int case_popup_audience_cancel_keeps_raise(void) {
+  if (!test_game_txt()) {
+    return TR_SKIP; /* the spine's wave status needs GAME.TXT */
+  }
+  int rc = 0;
+  for (int i = 0; i <= 26 && rc == 0; ++i) {
+    rc = k_spine[i]();
+  }
+  if (rc == 0) {
+    col1.nation[0].tax_rate = 10;
+    europe.tax_percent = 10;
+    col1.nation[0].boycott_bitmap = 0;
+    col1.nation[0].liberty_bells_pool = 0;
+    col1.colony[0].rebel_dividend = 100;
+    col1.colony[0].rebel_divisor = 100;
+    ai_popup_clear(&pop);
+    ColonizeDosRng rng;
+    dos_rng_seed(&rng, 1u);
+    ctx.rng = &rng;
+    ai_king_nation_turn(&ctx);
+    ctx.rng = NULL;
+    int qi = -1;
+    for (int i = 0; i < pop.queue_count; ++i) {
+      if (pop.queue[i].tag == AI_POPUP_TAG_KING_AUDIENCE &&
+          pop.queue[i].kind == AI_POPUP_KIND_CHOICE) {
+        qi = i;
+        break;
+      }
+    }
+    if (qi < 0) {
+      rc = fail("cancel setup: KING_AUDIENCE choice not queued");
+    } else {
+      pop.has_result = true;
+      pop.result_cancelled = true;
+      pop.result_choice_id = -1;
+      pop.result_tag = AI_POPUP_TAG_KING_AUDIENCE;
+      pop.result_nation_a = 0;
+      pop.result_nation_b = 1;
+      pop.result_payload = pop.queue[qi].payload;
+      /* payload = applied*100 + cargo (ai_king_teaparty_payload, see sp_26). */
+      const int want = 10 + pop.result_payload / 100;
+      ai_king_apply_popup_result(&ctx, &pop);
+      ai_popup_consume_result(&pop);
+      if (want == 10 || (int)col1.nation[0].tax_rate != want ||
+          col1.nation[0].boycott_bitmap != 0) {
+        fprintf(stderr, "unit_ai_king: cancel tax=%u boycott=0x%x (want %d/0)\n",
+                col1.nation[0].tax_rate, (unsigned)col1.nation[0].boycott_bitmap, want);
+        rc = fail("Esc on the tax audience must keep the raise (DOS reverts only on answer 2)");
+      }
+    }
+  }
+  fx_close();
+  return rc;
+}
 static int case_popup_congress_confirm(void) { return fx_run(28); }
 static int case_popup_post_confirm_invasion(void) { return fx_run(29); }
 static int case_popup_merc_hire_and_decline(void) { return fx_run(30); }
@@ -3636,6 +3693,7 @@ static const TestCase k_cases[] = {
   {"wave_regular_heavy", case_wave_regular_heavy},
   {"popup_audience_accept", case_popup_audience_accept},
   {"popup_audience_refuse_teaparty", case_popup_audience_refuse_teaparty},
+  {"popup_audience_cancel_keeps_raise", case_popup_audience_cancel_keeps_raise},
   {"popup_congress_confirm", case_popup_congress_confirm},
   {"popup_post_confirm_invasion", case_popup_post_confirm_invasion},
   {"popup_merc_hire_and_decline", case_popup_merc_hire_and_decline},

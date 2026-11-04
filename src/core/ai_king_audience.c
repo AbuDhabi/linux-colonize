@@ -552,9 +552,9 @@ void ai_king_tax_hike_apply(
    * showed the new rate in Europe/status before the player had answered.
    * The arithmetic outcome of both orderings is identical (accept = raised,
    * tea party = not raised), so the hike is now previewed here and committed
-   * in ai_king_apply_popup_result on Accept. Everything DOS never asks about
-   * (cuts, fully clamped deltas, the no-cargo fallback) still commits at
-   * once.
+   * in ai_king_apply_popup_result on any answer but the party (Esc too).
+   * Everything DOS never asks about (cuts, fully clamped deltas, the no-cargo
+   * fallback) still commits at once.
    */
   const int applied = ai_king_audience_preview_delta(nat, delta);
 
@@ -662,7 +662,7 @@ void ai_king_tax_hike_apply(
     tok.number0 = applied;
     tok.has_number0 = true;
     /* @KINGTAX "The tax rate is now {%NUMBER1%%}" — the total the raise would
-     * come to. The rate itself is still the old one until Accept. */
+     * come to. The rate itself is still the old one until the answer. */
     tok.number1 = proposed;
     tok.has_number1 = true;
     /* The rung sections open with "%STRING0 %STRING1." — the difficulty title

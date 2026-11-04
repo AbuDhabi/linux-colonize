@@ -1330,7 +1330,8 @@ void ai_king_cache_nation_sol(ColonizeTurnContext* ctx, int nation) {
 }
 
 void ai_king_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState* popup) {
-  if (!ctx || !popup || !popup->has_result || popup->result_cancelled) {
+  if (!ctx || !popup || !popup->has_result ||
+      (popup->result_cancelled && popup->result_tag != AI_POPUP_TAG_KING_AUDIENCE)) {
     return;
   }
   const int human = (popup->result_nation_a >= 0 && popup->result_nation_a < 4)
@@ -1340,18 +1341,20 @@ void ai_king_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState* po
     case AI_POPUP_TAG_KING_AUDIENCE:
       /*
        * FUN_38fd_3dc8 village-goods choice. The hike is NOT applied yet
-       * (port_bugs.md: the popup proposes it, the answer settles it). Accept
-       * ("kiss the ring") → commit the delta packed in the payload. Refuse
+       * (port_bugs.md: the popup proposes it, the answer settles it). Refuse
        * ("tea party") → leave the rate alone and boycott the picked cargo.
+       * Any other answer, Esc included, commits the delta packed in the
+       * payload: DOS raises first (raw 64180) and reverts only when the
+       * answer is 2 (raw 64285); Esc returns -1, so the raise stands.
        */
       {
         int applied = 0;
         int cargo = -1;
         ai_king_teaparty_payload_parts(popup->result_payload, &applied, &cargo);
-        if (popup->result_choice_id == AI_KING_CHOICE_ACCEPT) {
-          ai_king_tax_commit(ctx, human, applied);
-        } else if (popup->result_choice_id == AI_KING_CHOICE_REFUSE) {
+        if (!popup->result_cancelled && popup->result_choice_id == AI_KING_CHOICE_REFUSE) {
           ai_king_tax_teaparty(ctx, human, cargo);
+        } else {
+          ai_king_tax_commit(ctx, human, applied);
         }
       }
       break;
