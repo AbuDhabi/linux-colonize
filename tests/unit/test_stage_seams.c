@@ -4001,6 +4001,29 @@ static int treaty_fixture(ColonizeGameState* game, int* uid) {
   return 1;
 }
 
+/* FUN_465b_0000 raw 75545 tests only the attacker's PEACE bit: a human attack on
+ * a peer whose rows carry PEACE|WAR still asks @HAVETREATY. */
+static int test_human_peace_war_asks_havetreaty(void) {
+  static ColonizeGameState game;
+  int uid = -1;
+  int rc = 0;
+  if (!treaty_fixture(&game, &uid)) {
+    rc = fail("treaty fixture");
+  } else {
+    ai_diplo_write(&game.col1, 0, 1, AI_DIPLO_MET | AI_DIPLO_PEACE | AI_DIPLO_WAR);
+    ai_diplo_write(&game.col1, 1, 0, AI_DIPLO_MET | AI_DIPLO_PEACE | AI_DIPLO_WAR);
+    const GameMoveStep step =
+      game_move_colony_prompts(&game, units_get(&game.units, uid), uid, 4, 3);
+    if (step != GAME_MOVE_RETURN_TRUE || game.ai_popups.queue_count != 1 ||
+        game.ai_popups.queue[0].tag != AI_POPUP_TAG_CONTACT_EURO_WAR) {
+      fprintf(stderr, "  step %d queue %d\n", (int)step, game.ai_popups.queue_count);
+      rc = fail("a human attack under PEACE|WAR asks @HAVETREATY");
+    }
+  }
+  edge_scroll_free(&game);
+  return rc;
+}
+
 /* FUN_2b5a_1112 raw 42410-42413: Break Treaty on the fortify @HAVETREATY ORs WAR
  * into the partner's row and clears PEACE both ways; no 0x01, no DS:0x53c8 write
  * and no @DECLAREWAR. dos_buggy is on in tests, so the self row gets no WAR
@@ -4038,6 +4061,7 @@ static int test_fortify_break_treaty_answer(void) {
 }
 
 static const TestCase k_cases[] = {
+    {"test_human_peace_war_asks_havetreaty", test_human_peace_war_asks_havetreaty},
     {"test_fortify_break_treaty_answer", test_fortify_break_treaty_answer},
     {"test_parked_eot_dropped_on_load_and_title", test_parked_eot_dropped_on_load_and_title},
     {"test_dos_buggy_default_off_tests_on", test_dos_buggy_default_off_tests_on},
