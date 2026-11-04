@@ -963,8 +963,8 @@ static int unit_tb2_departure_own_riders_only(void) {
     sb->cargo_ids[sb->cargo_count++] = pu->id;
   }
   dos_buggy_behavior_set(false);
-  const int taken_a = units_ship_departure_pickup(&pool, ship_a, 5, 5);
-  const int taken_b = units_ship_departure_pickup(&pool, ship_b, 5, 5);
+  const int taken_a = units_ship_departure_pickup(&pool, NULL, ship_a, 5, 5);
+  const int taken_b = units_ship_departure_pickup(&pool, NULL, ship_b, 5, 5);
   dos_buggy_behavior_set(true);
   int rc = 0;
   if (taken_a != 0 || taken_b != 0 || units_get(&pool, ship_a)->cargo_count != 0 ||

@@ -7714,7 +7714,7 @@ static int case_ship_switch_quirk(void) {
       sB->cargo_ids[sB->cargo_count++] = pu->id;
     }
     /* Ship A departs first: takes both of B's sentried passengers. */
-    if (units_ship_departure_pickup(&pool, shipA, wx, wy) != 2) {
+    if (units_ship_departure_pickup(&pool, &map, shipA, wx, wy) != 2) {
       fprintf(stderr, "ship-switch: departing ship should scoop both passengers\n");
       return 1;
     }
@@ -7735,7 +7735,7 @@ static int case_ship_switch_quirk(void) {
     }
     /* Awake passenger stays with its own ship. */
     units_get(&pool, pax1)->orders = UNITS_ORDER_NONE;
-    if (units_ship_departure_pickup(&pool, shipB, wx, wy) != 1 ||
+    if (units_ship_departure_pickup(&pool, &map, shipB, wx, wy) != 1 ||
         units_get(&pool, pax1)->aboard_ship_id != shipA ||
         units_get(&pool, pax2)->aboard_ship_id != shipB) {
       fprintf(stderr, "ship-switch: awake passenger must not transfer\n");
@@ -7746,6 +7746,61 @@ static int case_ship_switch_quirk(void) {
     units_despawn(&pool, shipA);
     units_despawn(&pool, shipB);
     fprintf(stderr, "unit_units: ship-switch departure pickup ok\n");
+  fx_close();
+  return 0;
+}
+
+/* FUN_1427_10be raw 8630-8644: a Trade Route hull leaving a settlement tile
+ * has budget 0, so no sentried unit boards and its own rider stays ashore.
+ * The same hull without the route boards both (control). */
+static int case_trade_route_departure_no_pickup(void) {
+  if (fx_open() != 0 || fx_stage2() != 0) {
+    return 1;
+  }
+  int tx = -1, ty = -1;
+  for (int y = 5; y < (int)map.height - 5 && tx < 0; ++y) {
+    for (int x = 5; x < (int)map.width - 5; ++x) {
+      if (!map_tile_is_water(&map, x, y)) {
+        tx = x;
+        ty = y;
+        break;
+      }
+    }
+  }
+  if (tx < 0) {
+    fprintf(stderr, "trade-route pickup: no land tile\n");
+    return 1;
+  }
+  map_occupancy_set_layer2(&map, tx, ty, MAP_OCCUPANCY_HAS_CITY, true);
+  const int caravel = units_find_type(&pool, "Caravel");
+  const int ship = units_spawn_allow_stack(&pool, caravel, tx, ty);
+  const int ashore = units_spawn_allow_stack(&pool, pioneer, tx, ty);
+  const int rider = units_spawn_allow_stack(&pool, pioneer, tx, ty);
+  ColonizeUnit* s = units_get(&pool, ship);
+  units_get(&pool, ashore)->orders = UNITS_ORDER_SENTRY;
+  if (!units_board_stacked(&pool, rider, ship)) {
+    fprintf(stderr, "trade-route pickup: rider did not board\n");
+    return 1;
+  }
+  s->orders = UNITS_ORDER_TRADE_ROUTE;
+  if (units_ship_departure_pickup(&pool, &map, ship, tx, ty) != 0 || s->cargo_count != 0 ||
+      units_get(&pool, ashore)->aboard_ship_id >= 0 ||
+      units_get(&pool, rider)->aboard_ship_id >= 0) {
+    fprintf(stderr, "trade-route pickup: route hull must take no one (cargo %d)\n",
+            s->cargo_count);
+    return 1;
+  }
+  s->orders = UNITS_ORDER_NONE;
+  units_get(&pool, rider)->orders = UNITS_ORDER_SENTRY;
+  if (units_ship_departure_pickup(&pool, &map, ship, tx, ty) != 2 || s->cargo_count != 2) {
+    fprintf(stderr, "trade-route pickup: plain hull should board both sentries\n");
+    return 1;
+  }
+  map_occupancy_set_layer2(&map, tx, ty, MAP_OCCUPANCY_HAS_CITY, false);
+  units_despawn(&pool, ashore);
+  units_despawn(&pool, rider);
+  units_despawn(&pool, ship);
+  fprintf(stderr, "unit_units: trade-route departure pickup ok\n");
   fx_close();
   return 0;
 }
@@ -8636,6 +8691,7 @@ static const TestCase k_cases[] = {
   {"colony_tile_visibility", case_colony_tile_visibility},
   {"selected_passenger_blink", case_selected_passenger_blink},
   {"ship_switch_quirk", case_ship_switch_quirk},
+  {"trade_route_departure_no_pickup", case_trade_route_departure_no_pickup},
   {"goto_fogged_square", case_goto_fogged_square},
   {"goto_hidden_foreign_unit", case_goto_hidden_foreign_unit},
   {"goto_into_village", case_goto_into_village},

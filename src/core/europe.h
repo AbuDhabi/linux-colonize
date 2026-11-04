@@ -674,6 +674,16 @@ bool europe_set_sail_from_harbor(
   ColonizeUnitPool* units,
   int nation_id
 );
+/* As above; board_dockers false = Trade Route departure: no boarding, the
+ * ship's riders go back to the dock. */
+bool europe_set_sail_from_harbor_ex(
+  EuropeScreen* eu,
+  int harbor_index,
+  int voyage_turns,
+  ColonizeUnitPool* units,
+  int nation_id,
+  bool board_dockers
+);
 
 /*
  * A hull that starts out already sailing for the New World: straight into

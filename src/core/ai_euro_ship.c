@@ -697,8 +697,9 @@ int ai_euro_20e6_wagon_village_errand(
  *     head, and 10be uses only that: a trade-route ship at sea (`03e4`
  *     tile_tribe_owner < 0, not in its own Europe slot) gets `free = 0` unless
  *     loose units remain after every other transport on the tile has claimed
- *     its own. Nothing here has a port counterpart — the port has no tile-stack
- *     chain, passengers live in `cargo_ids`.
+ *     its own. Only the settlement-tile budget 0 is ported
+ *     (units_ship_departure_pickup); the at-sea pre-pass has no counterpart —
+ *     the port has no tile-stack chain, passengers live in `cargo_ids`.
  *
  * So +0x314c only ever carries 0/1 in this sweep.
  *
@@ -1619,7 +1620,7 @@ int ai_euro_ship_enter_europe(ColonizeTurnContext* ctx, ColonizeUnit* ship) {
   /* raw 77608 FUN_281f_0916 -> FUN_1427_12f6 -> 10be (raw 8722-8737): the
    * hull rebuilds its load from the High Seas tile before the 02ee stamp
    * walk (TB-2 under dos_buggy_behavior: other hulls' riders too). */
-  (void)units_ship_departure_pickup(ctx->units, ship->id, ox, oy);
+  (void)units_ship_departure_pickup(ctx->units, ctx->map,ship->id, ox, oy);
   ship->col1_counter16 = ai_euro_lane_voyage_turns(ctx, n, ox);
   /* 08da -> FUN_1427_0968 clears the visibility nibble of the hull's whole
    * chain; off the map 0ce6 adds nothing back. A hull 5fef_0352 parked for
@@ -1716,7 +1717,7 @@ static void ai_euro_europe_place_arrival(ColonizeTurnContext* ctx, ColonizeUnit*
   /* 064e: FUN_281f_0920 (10be) then 048e's 0948 (040c), no 0644. */
   /* 064e's 10be peels the whole shared lane before 048e places this hull.
    * A sentried land unit may transfer from a later hull on that lane. */
-  (void)units_ship_departure_pickup(ctx->units, u->id, ox, oy);
+  (void)units_ship_departure_pickup(ctx->units, ctx->map,u->id, ox, oy);
   units_tile_stack_ship_relink(ctx->units, u->id, false);
   u->x = hx;
   u->y = hy;
@@ -2137,7 +2138,7 @@ int ai_euro_20e6_unload_mask_snapshot(
    * riders by that order, not by the port's aboard links (DOSBox
    * 2026-10-16, independence 1->2: French Galleons 58/109 at (1,53)). */
   if (map_tile_is_water(ctx->map, ship->x, ship->y)) {
-    (void)units_ship_departure_pickup(ctx->units, ship->id, ship->x, ship->y);
+    (void)units_ship_departure_pickup(ctx->units, ctx->map,ship->id, ship->x, ship->y);
   }
   (void)ai_euro_20e6_transport_assemble(ctx, nation, ship);
   /* asm 0x3693: FUN_1000_8b38 (040c) relinks the -2 chain on the ship's own tile. */

@@ -587,7 +587,9 @@ static int units_pickup_rank_04d6(const ColonizeUnitPool* pool, const ColonizeUn
   return t && t->space >= 1 && t->space <= 6 ? t->space : 0;
 }
 
-int units_ship_departure_pickup(ColonizeUnitPool* pool, int ship_id, int x, int y) {
+int units_ship_departure_pickup(
+  ColonizeUnitPool* pool, const ColonizeWorldMap* map, int ship_id, int x, int y
+) {
   ColonizeUnit* ship = units_get(pool, ship_id);
   if (!pool || !ship || !units_is_sea(pool, ship_id)) {
     return 0;
@@ -664,6 +666,14 @@ int units_ship_departure_pickup(ColonizeUnitPool* pool, int ship_id, int x, int 
     }
   }
   int room = units_ship_capacity(pool, ship_id) - goods;
+  /* FUN_1427_10be raw 8630-8644: a Trade Route hull (+0x314c == 2) on a
+   * settlement tile (FUN_137f_03e4 >= 0) keeps budget 0, so it takes no one
+   * and its own riders stay ashore. Not ported: the at-sea arm (the
+   * FUN_1427_101c pre-pass, where other hulls pick first; the port has no
+   * tile chain to replay). */
+  if (ship->orders == UNITS_ORDER_TRADE_ROUTE && map && map_tile_has_city(map, x, y)) {
+    room = 0;
+  }
   int chosen[COLONIZE_UNIT_CARGO_MAX];
   int nc = 0;
   /* TB-2: DOS boards any own-nation rider on the tile, other hulls' too;

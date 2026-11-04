@@ -987,7 +987,7 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_commit_step(units_move_ctx* c) {
    * group: sentried units there and riders of other own hulls (DOS
    * ship-switch bug, docs/tolerated_dos_bugs.md TB-2). */
   if (ship) {
-    (void)units_ship_departure_pickup(pool, unit_id, ox, oy);
+    (void)units_ship_departure_pickup(pool, map, unit_id, ox, oy);
   }
   /* FUN_281f_07e0 + 08e4 sorts the destination's existing chain for
    * ships too (FUN_465b_0000 raw 75709-75710), before 0948 relinks arrival. */
@@ -3288,7 +3288,7 @@ static bool units_goto_director(
               mu->goto_y < UNITS_GOTO_NONE) {
             const int ox = mu->x;
             const int oy = mu->y;
-            (void)units_ship_departure_pickup(mp, unit_id, ox, oy);
+            (void)units_ship_departure_pickup(mp, map, unit_id, ox, oy);
             units_tile_stack_ship_relink(mp, unit_id, false);
             mu->x = (uint8_t)mu->goto_x;
             mu->y = (uint8_t)mu->goto_y;

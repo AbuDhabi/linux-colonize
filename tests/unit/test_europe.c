@@ -3932,7 +3932,60 @@ static int case_europe_damaged_push_keeps_royal_gift(void) {
   return 0;
 }
 
+/* FUN_1427_10be raw 8630-8632: a Trade Route hull leaving the Europe dock on
+ * its route leg (FUN_48d3_0346, orders still 2) boards none of the sentried
+ * dockers, and its own rider stays on the dock. Control: the Sail click
+ * (orders 0) on the same harbor boards the docker. */
+static int case_europe_trade_route_departure_no_dockers(void) {
+  static ColonizeGameState game;
+  for (int route = 0; route < 2; ++route) {
+    memset(&game, 0, sizeof(game));
+    units_reset(&game.units);
+    units_set_occupancy_map(NULL);
+    game.units.type_count = 2;
+    snprintf(game.units.types[0].name, sizeof(game.units.types[0].name), "Frigate");
+    game.units.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
+    game.units.types[0].movement = 6;
+    game.units.types[0].cargo = 4;
+    snprintf(game.units.types[1].name, sizeof(game.units.types[1].name), "Colonist");
+    game.europe_ok = game.units_ok = game.col1_ok = true;
+    game.human_nation = 0;
+    game.col1.trade_route[0].dest_count = 2;
+    game.col1.trade_route[0].stop[0].colony_index = 999;
+    game.col1.trade_route[0].stop[1].colony_index = 0;
+    EuropeScreen* eu = &game.europe;
+    const int rider_type = 1;
+    const int rider_prof = 19;
+    if (!europe_harbor_push_ex(eu, 0, "Frigate", &rider_type, &rider_prof, 1, NULL, NULL) ||
+        !europe_dock_push_load(eu, "Colonist", 0) || eu->harbor[0].cargo_count != 1) {
+      fprintf(stderr, "trade-route dockers: setup failed\n");
+      return 1;
+    }
+    eu->dock[0].sentry = true;
+    if (route) {
+      eu->harbor[0].trade_route_plus1 = 1;
+      eu->harbor[0].trade_stop = 0;
+      game_europe_service_trade_harbor(&game);
+    } else if (!europe_set_sail_from_harbor(eu, 0, 1, &game.units, 0)) {
+      fprintf(stderr, "trade-route dockers: control sail refused\n");
+      return 1;
+    }
+    const int want_cargo = route ? 0 : 2;
+    const int want_dock = route ? 2 : 0;
+    if (eu->bound_ships != 1 || eu->bound[0].cargo_count != want_cargo ||
+        eu->dock_count != want_dock ||
+        (route && (eu->dock[1].profession != rider_prof || !eu->dock[1].sentry))) {
+      fprintf(stderr, "trade-route dockers (route %d): bound %d cargo %d dock %d\n", route,
+              eu->bound_ships, eu->bound_ships > 0 ? eu->bound[0].cargo_count : -1,
+              eu->dock_count);
+      return 1;
+    }
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+    {"case_europe_trade_route_departure_no_dockers", case_europe_trade_route_departure_no_dockers},
     {"case_europe_damaged_push_keeps_royal_gift", case_europe_damaged_push_keeps_royal_gift},
     {"case_europe_royal_gift_round_trip", case_europe_royal_gift_round_trip},
     {"case_europe_voyage_roll_reseeds_83a6", case_europe_voyage_roll_reseeds_83a6},

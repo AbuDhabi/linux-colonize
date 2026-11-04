@@ -1430,8 +1430,10 @@ void game_europe_service_trade_harbor(ColonizeGameState* game) {
       ship->exit_east = nc->x >= (int)game->world_map.width / 2;
     }
     const int bound_before = eu->bound_ships;
-    if (!europe_set_sail_from_harbor(
-          eu, i, game_voyage_turns(game, ship->exit_x), &game->units, game->human_nation
+    /* The route leg sails with orders 2, so FUN_1427_10be boards nobody
+     * (raw 8630-8632; europe_set_sail_from_harbor_ex). */
+    if (!europe_set_sail_from_harbor_ex(
+          eu, i, game_voyage_turns(game, ship->exit_x), &game->units, game->human_nation, false
         )) {
       ++i; /* outbound lane full — stay docked, retry next EOT */
       continue;

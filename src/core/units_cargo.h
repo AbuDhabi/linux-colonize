@@ -308,9 +308,12 @@ int units_find_boardable_ship(
  * first-served sweep boarding sentried land units on (x,y) AND passengers
  * riding other own ships still on (x,y), until the departing ship is full.
  * Each rider is charged its @UNIT size column, so a Treasure only transfers
- * to a hull with six free holds. Returns units taken.
+ * to a hull with six free holds. A Trade Route hull leaving a settlement
+ * takes nothing (map: settlement test; NULL = none). Returns units taken.
  */
-int units_ship_departure_pickup(ColonizeUnitPool* pool, int ship_id, int x, int y);
+int units_ship_departure_pickup(
+  ColonizeUnitPool* pool, const ColonizeWorldMap* map, int ship_id, int x, int y
+);
 /* Unload oldest passenger from ship onto dest (must be enterable land). */
 bool units_unload_w(
   const ColonizeWorld* w,

@@ -144,7 +144,7 @@ stateDiagram-v2
 | Anchor (ship) | 2nd Fortify menu / `@SHIPOPTIONS` | Sea unit at own colony or adjacent sea → fortify path | `MAP_MENU_ACTION_ANCHOR` → `game_order_fortify` (same handler as the land row) | Done |
 | Fortified | Overnight | Skip selection until woken; combat defense context-dependent | Skip via `units_orders_skip_turn` (bonus → [combat.md](combat.md)) | Done |
 | Sentry | ORDERS / **S** | Order 1; exhaust MP; skip until wake | `units_order_sentry` | Done |
-| Sentry auto-board | Ship leaves tile | Same-tile Sentry land board to capacity | `units_ship_departure_pickup` | Done |
+| Sentry auto-board | Ship leaves tile | Same-tile Sentry land board to capacity; none for a Trade Route ship leaving a colony or Europe (`FUN_1427_10be` budget 0, its riders stay ashore); the at-sea `FUN_1427_101c` pre-pass arm is not ported | `units_ship_departure_pickup`; Europe route leg `europe_set_sail_from_harbor_ex(..., false)` | Done |
 | Wake | Activate / stack / replace | Clear order; restore MP | `units_wake` | Done |
 | Sentry wake on enemy | A foreign unit steps onto an adjacent tile | `FUN_5bfb_3180` move tail (raw 98628-98646): for each of the 8 neighbours of the mover's destination whose stack is another nation's (no war/treaty gate), every **order 1** unit in that stack is cleared. Gated on mover-in-colony **or** settlement on the neighbour tile **or** neighbour water-ness == destination water-ness; a non-ship on a water tile (in a hold) is left asleep | `units_sentry_wake_scan` (units.c), called from `units_try_move` beside `units_ship_slow_scan_w` | Done |
 
