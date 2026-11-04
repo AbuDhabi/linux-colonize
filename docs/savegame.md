@@ -122,7 +122,10 @@ chunk, i.e. a DOS original or a DOS re-save). Covered by `unit_col1_save`
 with a save/reload before every turn, `GOLDEN_IDLE_RELOAD=1`, must stay
 byte-identical to DOS exactly where the continuous runs are). A save without
 the chunk loads the way DOS loads: every table zero, LCG reseeded from the
-turn number (`game_apply_col1_save`).
+turn number (`game_apply_col1_save`). With live ticks on (an unseeded game),
+every save and load then reseeds the LCG from the tick, as DOS does
+(FUN_281f_04ca in FUN_75c2_0288 raw 120103 and FUN_75c2_0940 raw 120450;
+`dos_rng_reseed_saveload`); a fixed-tick run keeps the RTST stream.
 
 ## API
 
