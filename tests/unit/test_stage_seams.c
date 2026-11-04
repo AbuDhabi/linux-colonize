@@ -1824,6 +1824,38 @@ static int test_player_pick_keeps_view(void) {
   return rc;
 }
 
+/* port_bugs.md #425 speeds up only the sale lines; the colony screen's cargo
+ * lines are armed with the same gold kind 1 (FUN_281f_0dc2(1, 0x78, 0), raw
+ * 77421 / 77503) and keep DOS's dwell. */
+static int test_bar_sale_speedup_only_on_sales(void) {
+  static AiPopupState st;
+  ai_popup_clear(&st);
+  (void)ai_popup_enqueue_bar_message(&st, "Loading 100 Furs onto Caravel");
+  (void)ai_popup_enqueue_bar_sale(&st, "100 Furs sold for 300");
+  (void)ai_popup_enqueue_bar_sale(&st, "50 Sugar sold for 150");
+  int rc = 0;
+  (void)ai_popup_bar_service(&st, 1000, false);
+  if (st.bar_msg_until_ms != 1000 + AI_POPUP_BAR_MSG_MS) {
+    fprintf(stderr, "  cargo line held %u ms\n", (unsigned)(st.bar_msg_until_ms - 1000));
+    rc = fail("bar sale: a colony cargo line keeps DOS's dwell");
+  }
+  (void)ai_popup_bar_service(&st, 1000, true);
+  (void)ai_popup_bar_service(&st, 2000, false);
+  if (rc == 0 && st.bar_msg_until_ms != 2000 + AI_POPUP_BAR_MSG_MS / AI_POPUP_BAR_SALE_SPEEDUP) {
+    fprintf(stderr, "  sale line held %u ms\n", (unsigned)(st.bar_msg_until_ms - 2000));
+    rc = fail("bar sale: a sale line with more behind it is sped up");
+  }
+  (void)ai_popup_bar_service(&st, 2000, true);
+  (void)ai_popup_bar_service(&st, 3000, false);
+  if (rc == 0 &&
+      st.bar_msg_until_ms != 3000 + AI_POPUP_BAR_MSG_LAST_MS / AI_POPUP_BAR_SALE_SPEEDUP) {
+    fprintf(stderr, "  last sale line held %u ms\n", (unsigned)(st.bar_msg_until_ms - 3000));
+    rc = fail("bar sale: the last sale line of a run is sped up");
+  }
+  ai_popup_clear(&st);
+  return rc;
+}
+
 static int s_near_human = -1;
 
 static void near_human_watch(
@@ -2979,6 +3011,7 @@ static const TestCase k_cases[] = {
     {"test_foreign_move_shown_by_prior_sighting", test_foreign_move_shown_by_prior_sighting},
     {"test_brave_step_watch_sees_entry_vis", test_brave_step_watch_sees_entry_vis},
     {"test_player_pick_keeps_view", test_player_pick_keeps_view},
+    {"test_bar_sale_speedup_only_on_sales", test_bar_sale_speedup_only_on_sales},
     {"test_colony_list_keys_wrap", test_colony_list_keys_wrap},
     {"test_colony_custom_house_keys", test_colony_custom_house_keys},
     {"test_screen_f1_focus_article", test_screen_f1_focus_article},
