@@ -1093,7 +1093,7 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_colony_arrival(units_move_ctx* c) {
   /*
    * DOS-LITERAL FUN_465b_0bd1 raw 75721: `FUN_281f_088a(unit) != 0 ||
    * type == 0x0c` gates the whole colony-enter arm (MP exhaust, the
-   * col1_counter16 reset and the destination-stack sentry wake below).
+   * col1_counter16 reset and the arriving-group sentry wake below).
    * FUN_281f_088a (== FUN_1427_1284, raw 8684-8702) walks the mover's tile
    * stack — evaluated before FUN_281f_0934 relinks it into the destination
    * stack, i.e. it still reads the ORIGIN tile's stack at this point even
@@ -1124,8 +1124,8 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_colony_arrival(units_move_ctx* c) {
   }
   if (colony_enter_gate) {
     units_mp_exhaust(pool, unit);
-    /* DOS raw 75731-75740: port_bugs.md #792 — +0x315a = 0 on arrival, then
-     * wake (clear Sentry orders on) every unit on the destination stack.
+    /* DOS raw 75731-75741: port_bugs.md #792 — +0x315a = 0 on arrival, then
+     * wake (clear Sentry orders on) the arriving group.
      *
      * Runtime trade routes unpack DOS's separate +0x315b profession-byte
      * cursor into col1_counter16 (see col1_bridge.c). Preserve that cursor:
@@ -1134,12 +1134,18 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_colony_arrival(units_move_ctx* c) {
     if (unit->orders != UNITS_ORDER_TRADE_ROUTE) {
       unit->col1_counter16 = 0;
     }
-    int dslot = 0;
-    for (ColonizeUnit* stacked = units_next_on_tile(pool, dest_x, dest_y, &dslot);
-         stacked != NULL;
-         stacked = units_next_on_tile(pool, dest_x, dest_y, &dslot)) {
-      if (stacked->orders == UNITS_ORDER_SENTRY) {
-        stacked->orders = UNITS_ORDER_NONE;
+    /* FUN_465b_0000 raw 75735-75741: the walk is FUN_281f_02ee =
+     * FUN_1427_0002 with AX = param_1 (the call at 465b:0912), the mover's own
+     * chain (hull + riders from FUN_1427_10be); the relink onto the
+     * destination comes later (FUN_281f_0948, raw 75768). Residents of the
+     * colony tile keep their Sentry. */
+    if (unit->orders == UNITS_ORDER_SENTRY) {
+      unit->orders = UNITS_ORDER_NONE;
+    }
+    for (int i = 0; i < unit->cargo_count && i < COLONIZE_UNIT_CARGO_MAX; ++i) {
+      ColonizeUnit* rider = units_get(pool, unit->cargo_ids[i]);
+      if (rider && rider->orders == UNITS_ORDER_SENTRY) {
+        rider->orders = UNITS_ORDER_NONE;
       }
     }
   }

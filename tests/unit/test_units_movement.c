@@ -896,12 +896,12 @@ static int unit_mp_entry_gating_713_724(void) {
 }
 /*
  * port_bugs.md #791/#792 — DOS-LITERAL FUN_465b_0bd1 raw 75721: the colony-enter
- * arm (MP exhaust, col1_counter16 reset, destination-stack sentry wake) is
+ * arm (MP exhaust, col1_counter16 reset, arriving-group sentry wake) is
  * gated on "hull present in the mover's origin tile stack OR mover is a
  * wagon (type 0x0c)", not on units_is_transport(mover). A plain land unit
  * leaving a tile that also holds a ship must be exhausted on entry; a plain
- * land unit leaving a tile with no ship must NOT be exhausted. Docking also
- * wakes Sentry units already in the colony and resets col1_counter16.
+ * land unit leaving a tile with no ship must NOT be exhausted. Docking resets
+ * col1_counter16 and leaves Sentry units already in the colony asleep.
  */
 static int unit_colony_enter_hull_stack_gate_791_792(void) {
   int rc = 0;
@@ -994,7 +994,8 @@ static int unit_colony_enter_hull_stack_gate_791_792(void) {
     }
   }
 
-  /* #792: docking wakes a Sentry unit already sitting in the colony. */
+  /* FUN_465b_0000 raw 75735-75741: docking wakes only the arriving group; a
+   * Sentry unit already sitting in the colony stays sentried. */
   const int sentry_id = units_spawn_allow_stack(&pool, 1, 4, 3);
   ColonizeUnit* sentry = units_get(&pool, sentry_id);
   if (sentry) {
@@ -1013,8 +1014,8 @@ static int unit_colony_enter_hull_stack_gate_791_792(void) {
       rc = 1;
     }
     sentry = units_get(&pool, sentry_id);
-    if (rc == 0 && sentry && sentry->orders != UNITS_ORDER_NONE) {
-      fprintf(stderr, "colony_enter_gate #792: sentry unit not woken by docking\n");
+    if (rc == 0 && sentry && sentry->orders != UNITS_ORDER_SENTRY) {
+      fprintf(stderr, "colony_enter_gate: resident sentry woken by docking\n");
       rc = 1;
     }
   }
