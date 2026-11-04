@@ -764,8 +764,12 @@ static int test_trade_route_off_tile_reaims_same_stop(void) {
 /* FUN_479b_0bd0 raw 77317-77334: the stop advances on every arrival BEFORE the
  * all-same-colony @ROUTELOOP check, which then ends the move. */
 static int test_trade_route_routeloop_advances_stop(void) {
+  if (!test_game_txt()) {
+    return TR_SKIP; /* a textless @ROUTELOOP is dropped (ai_popup_enqueue_ok_ctx) */
+  }
   ColonizeGameState game;
   trade_seam_init(&game, 2, false);
+  game.messages = *test_game_txt(); /* shallow copy, never freed here */
   ColonizeColony* a = fx_colony_add(&game.colonies, 0, 2, 2, 1);
   game.col1.trade_route[0].stop[0].colony_index = 0;
   game.col1.trade_route[0].stop[1].colony_index = 0;

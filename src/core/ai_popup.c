@@ -296,7 +296,9 @@ bool ai_popup_enqueue_ok_ctx(
    * nothing"), so an OK with no text at all is dropped instead of opening an
    * empty frame. The tags whose presentation or dismissal drives the game on
    * (war end, throne audience, Congress announce, the @INDEPENDENCE letter
-   * that arms the declaration cinematic) still queue. */
+   * that arms the declaration cinematic) still queue. A new OK tag whose
+   * dismissal or result_tag handler moves the game on must join this list,
+   * or a missing TXT section would silently skip that step. */
   if (!req.body[0] && !req.title[0] && tag != AI_POPUP_TAG_KING_WAR_END &&
       tag != AI_POPUP_TAG_KING_THRONE && tag != AI_POPUP_TAG_FF_CONGRESS &&
       tag != AI_POPUP_TAG_KING_LETTER) {

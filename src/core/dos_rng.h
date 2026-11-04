@@ -35,7 +35,9 @@ uint32_t dos_rng_04ca_word(uint32_t fixed_word); /* live ? tick now : fixed_word
 /* The FUN_281f_04ca every DOS save (FUN_75c2_0288 raw 120103) and load
  * (FUN_75c2_0940 raw 120450) runs. Live ticks only: a fixed-tick run (--seed,
  * tests, replays) keeps its stream, so an RTST reload plays like the
- * continuous run (docs/savegame.md RTST). */
+ * continuous run (docs/savegame.md RTST). This deliberately differs from
+ * dos_rng_reseed_83a6, which models the same DOS call but also reseeds under a
+ * fixed seed: under VR_SEED, DOS would reseed here too. */
 void dos_rng_reseed_saveload(ColonizeDosRng* rng);
 /* Port-only, play_driver --live-ticks: with a fixed tick word set, each tick
  * read returns that word mixed with a read counter (reproducible per command

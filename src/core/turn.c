@@ -923,7 +923,6 @@ COLONIZE_INTERNAL void turn_step_finish(ColonizeTurnProcessor* proc, ColonizeTur
       proc->step = TURN_PROC_KING;
 }
 
-/* Body of TURN_PROC_KING up to its terminal `return false;`. */
 /* The human's ship build/repair ticks of FUN_3844_00f2: map hulls, then the hulls in port. */
 COLONIZE_INTERNAL void turn_human_ship_repairs(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx) {
   int want_eu = 0;
@@ -965,6 +964,7 @@ COLONIZE_INTERNAL void turn_human_ship_repairs(ColonizeTurnProcessor* proc, Colo
   }
 }
 
+/* Body of TURN_PROC_KING up to its terminal `return false;`. */
 COLONIZE_INTERNAL void turn_step_king(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx) {
       proc->show_indicator = false;
       turn_set_active_nation(ctx, ctx->human_nation);

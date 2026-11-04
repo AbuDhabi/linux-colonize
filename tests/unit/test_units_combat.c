@@ -32,6 +32,14 @@ static void unit_test_dissolve_hook(void* user, int phase) {
   }
 }
 
+static int s_analysis_n;
+
+static void unit_test_analysis_hook(const ColonizeCombatEngagement* eng, void* user) {
+  (void)eng;
+  (void)user;
+  s_analysis_n++;
+}
+
 static int s_lunge_n, s_lunge_type, s_lunge_nation, s_lunge[4];
 static int s_cam[8], s_cam_n, s_watch_n, s_watch_id, s_watch_x, s_watch_y;
 static void unit_test_camera_hook(void* user, int x, int y) {
@@ -290,6 +298,9 @@ static int unit_fort_fire_aims_chain_head(void) {
     const int foe = units_spawn_allow_stack(&pool, 0, 3, 2);
     units_get(&pool, own)->nation_id = 0;
     units_get(&pool, foe)->nation_id = 1;
+    /* The human (nation 0) sees the foe hull, so 03f6 local_8 = 1b0e param_4
+     * and the outcome fizzle runs (raw 100716). */
+    units_get(&pool, foe)->col1_vis_mask = 0x01;
     if (own_on_top) {
       units_tile_stack_arrive(&pool, own);
     }
@@ -297,14 +308,14 @@ static int unit_fort_fire_aims_chain_head(void) {
     EuropeScreen eu;
     memset(&eu, 0, sizeof(eu));
     units_set_combat_colonies(&colonies);
-    units_set_combat_human_nation(-1);
+    units_set_combat_human_nation(0);
     units_set_combat_europe(&eu);
     s_dissolve_count = 0;
     units_set_combat_dissolve(unit_test_dissolve_hook, NULL);
     (void)units_coastal_fort_fire_pulse_w(
       &(ColonizeWorld){.units = &pool, .colonies = &colonies, .map = &map,
                        .col1 = &c1, .col1_ok = true, .rng = NULL},
-      -1
+      0
     );
     /* A hit on the foe brackets its outcome with dissolve phases 0 and 1. */
     const int want = own_on_top ? 0 : 2;
@@ -316,6 +327,7 @@ static int unit_fort_fire_aims_chain_head(void) {
     units_set_combat_dissolve(NULL, NULL);
     units_set_combat_europe(NULL);
     units_set_combat_colonies(NULL);
+    units_set_combat_human_nation(-1);
     map_free(&map);
   }
   return rc;
@@ -395,6 +407,9 @@ static int unit_fort_fire_fortfire_gate(void) {
     }
     ai_diplo_declare_war(&c1, 0, 1);
     c1.stuff.ship_cargo_totals[1] = 60; /* fleet room: the raw 99531-99548 bias stays off */
+    /* Combat Analysis on; every player.control is 0 here, so its ownership test passes
+     * for all cases and only 1b0e's param_4 (raw 100578) can keep it shut. */
+    c1.head.game_options.combat_analysis = 1;
 
     const int foe = units_spawn_allow_stack(&pool, 0, 3, 2);
     units_get(&pool, foe)->nation_id = 1;
@@ -413,6 +428,10 @@ static int unit_fort_fire_fortfire_gate(void) {
     s_cam_n = 0;
     s_lunge_n = 0;
     s_watch_n = 0;
+    s_analysis_n = 0;
+    s_dissolve_count = 0;
+    combat_analysis_set_presenter(unit_test_analysis_hook, NULL);
+    units_set_combat_dissolve(unit_test_dissolve_hook, NULL);
     units_set_camera_edge_hook(unit_test_camera_hook, NULL);
     units_set_combat_watch(unit_test_watch_hook, NULL);
     units_set_phantom_lunge_hook(unit_test_phantom_lunge_hook, NULL);
@@ -447,7 +466,14 @@ static int unit_fort_fire_fortfire_gate(void) {
       fprintf(stderr, "fortgate case %zu: lunges %d (watch %d), want %d\n", c, s_lunge_n,
               s_watch_n, k[c].want);
       rc = 1;
+    } else if (s_analysis_n != k[c].want || s_dissolve_count != 2 * k[c].want) {
+      /* 1b0e param_4 also gates the analysis (raw 100578) and the outcome fizzle (raw 100716). */
+      fprintf(stderr, "fortgate case %zu: analyses %d dissolve phases %d, want %d / %d\n", c,
+              s_analysis_n, s_dissolve_count, k[c].want, 2 * k[c].want);
+      rc = 1;
     }
+    combat_analysis_set_presenter(NULL, NULL);
+    units_set_combat_dissolve(NULL, NULL);
     units_set_phantom_lunge_hook(NULL, NULL);
     units_set_combat_watch(NULL, NULL);
     units_set_camera_edge_hook(NULL, NULL);
@@ -2688,7 +2714,9 @@ static int unit_fort_fire_sweep_census(void) {
  * survives damaged. Two hulls with different hull values, two fort
  * strengths: after the fight roll the draws go to the newer hull, then the
  * older, and nothing else is drawn. The seed is the first one the fort wins
- * where pool order would give a different outcome.
+ * where pool order would give a different outcome. The model below assumes
+ * 1b0e's fight is exactly one draw; a new draw there turns this red without a
+ * sweep bug.
  */
 static int unit_fort_fire_sweep_rng_order(void) {
   static const int k_str[] = {3, 6};

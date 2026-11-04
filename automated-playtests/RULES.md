@@ -108,7 +108,10 @@ not for a big empire. Era targets (check them with `advise` and `colonies`):
   `choose N` for map / difficulty / nation, `key Return` for the rest.
   Plain `--seed` pins the timer word like VR_SEED.EXE, so every reseeded roll
   (chief's gift/tales, rumours, raids) repeats each time; `--live-ticks`
-  moves it like the DOS clock and stays reproducible. A resume without
+  moves it like the DOS clock and stays reproducible, but only up to the
+  first save or load: both reseed from the tick word (FUN_75c2_0288 /
+  FUN_75c2_0940), so a replay that saves or loads at a different moment
+  diverges from there. A resume without
   `--seed` already reads the wall clock (varying, not reproducible).
 - Resume: `python3 tools/play.py start DIR --load DIR/saves/tNNN.sav`
   (path from the repo root).

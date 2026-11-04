@@ -1,6 +1,6 @@
 This is a user-maintained list of bugs. User puts reports in. Agents may annotate with a resolution (Status FIXED + one-sentence resolution) and then MOVE the row to [archive/bugs_fixed_pending.md](archive/bugs_fixed_pending.md) so this file stays small (OPEN rows only). User verifies rows there, then they are moved to [archive/bugs_closed.md](archive/bugs_closed.md).
 
-IDs in the `#` column are permanent and never reused; the archive holds #1-#1364 (verified rows in `bugs_closed.md`, rows awaiting verification in `bugs_fixed_pending.md`). **Next free ID: 1406.** Cite rows as `port_bugs.md #NNN`. Look an archived row up by grepping `| NNN |` in the archive file; never read `docs/archive/bugs_closed.md` whole.
+IDs in the `#` column are permanent and never reused; the archive holds #1-#1364 (verified rows in `bugs_closed.md`, rows awaiting verification in `bugs_fixed_pending.md`). **Next free ID: 1431.** Cite rows as `port_bugs.md #NNN`. Look an archived row up by grepping `| NNN |` in the archive file; never read `docs/archive/bugs_closed.md` whole.
 
 Only actionable rows live here. An accepted divergence from DOS, or a static question blocked on a live DOS capture, belongs in [docs/known_divergences.md](known_divergences.md) (it keeps its `#` id); a finding that resolves to "the port is right" is REFUTED into the pending archive. Never leave an unclosable row OPEN here.
 
@@ -8,3 +8,5 @@ Status: OPEN = no resolution yet (this file). FIXED / REFUTED = agent claims a f
 
 | # | Status | Bug Description | Resolution |
 |---|--------|------------------|------------|
+| 1429 | OPEN | Col1 import of a Bound hull on 228+n: counter 0 loads as turns_left 0, counter 1 as turns_left 1, but FUN_48d3_03d0 (raw 77761-77782) hops both on the same pass (a counter of 1 decrements to 0 and hops). Check that game_europe_deliver_bound_ships lands both on the same tick, or load counter c as max(c,1) (col1_bridge.c "Bound keeps counter 0 verbatim"). From the PR #6 review. | |
+| 1430 | OPEN | units_move_watch_notify (units_map.c) passes the unit's current col1_vis_mask as vis_before, after units_vis_mask_after_move has already overwritten it. DOS ORs into +0x3147 (FUN_1427_0c72) and never drops a viewer bit before the 465b show test (raw 75662-75668), so the passenger path (units_cargo.c) and the occupancy path (units_map.c) can skip a watch that DOS shows when the overwrite cleared a human bit. From the PR #4 review. | |

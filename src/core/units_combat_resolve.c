@@ -1146,8 +1146,10 @@ bool units_fort_vs_ship(
   }
   /* port_bugs.md #261: DOS engages through the real resolver (temp attacker →
    * FUN_5fef_1b0e), so a fort firing on a human-visible ship shows the
-   * Combat Analysis dialog before the roll, same as any naval fight. */
-  if (combat_analysis_should_show(col1, fort_nation, def->nation_id, g_units_combat_human_nation)) {
+   * Combat Analysis dialog before the roll, same as any naval fight. 1b0e
+   * draws it (FUN_2a1f_0704) only inside `if (param_4 != 0)` (raw 100578),
+   * and 03f6 passes local_8 there: `show`, not ownership alone. */
+  if (show && combat_analysis_should_show(col1, fort_nation, def->nation_id, g_units_combat_human_nation)) {
     units_combat_pump_popups(); /* answered popups precede the roll, as before */
   }
   const int fort_total = atk + defense;
@@ -1161,7 +1163,7 @@ bool units_fort_vs_ship(
     fort_roll = dos_rng_range(rng, 1, fort_total);
     atk_wins = fort_roll <= atk; /* 1b0e bVar8 = roll <= local_92 */
   }
-  {
+  if (show) {
     ColonizeCombatEngagement eng;
     memset(&eng, 0, sizeof(eng));
     eng.attacker_id = -1;
@@ -1208,8 +1210,11 @@ bool units_fort_vs_ship(
      * (FUN_291f_0a14 = FUN_5fef_1b0e, raw 57095), so the fort's kill gets
      * 1b0e's own outcome redraw — the FUN_281f_03ea fizzle, once per 1b0e
      * call. Snapshot the "before" frame while the ships are still on their
-     * tile. */
-    units_dissolve_notify(0);
+     * tile. 1b0e gates that fizzle on param_4 (raw 100716; decomp
+     * `if (param_4 != 0) { ... FUN_281f_03ea(8); }`), i.e. on `show`. */
+    if (show) {
+      units_dissolve_notify(0);
+    }
     /*
      * The defender is a hull, so 1b0e's win calls caseD_14 = FUN_5fef_0ec0
      * (raw 100720-100722), which walks the defender's tile chain from its head
@@ -1237,7 +1242,9 @@ bool units_fort_vs_ship(
       }
       id = next;
     }
-    units_dissolve_notify(1);
+    if (show) {
+      units_dissolve_notify(1);
+    }
     return primary_sunk;
   }
   /* port_bugs.md #249: fort loses the exchange → NOTHING happens (DOS undoes the

@@ -252,6 +252,12 @@ Authoring traps found writing the first 26:
 - The spring 1600 French start (`turns_spring_1600_events`' output) is at war with
   England: the English take Guadeloupe within two turns unless the fixture sets
   `nations[0].euro_relation[1]` / `nations[1].euro_relation[0]` to peace (0x60).
+- The `input.sav` of `turns_founding_father_join`, `turns_war_combat`,
+  `turns_combat_coastal_fort_fire` and `turns_native_mission_trade` is NOT a plain
+  re-save of `turns_spring_1600_events`' output: the French Caravel (record 148)
+  sits on 241/241 counter 0 instead of 245/245 counter 1, so it docks at the end of
+  turn 108 as the recorded scripts expect (commit 9acf1a6e). Regenerating those
+  inputs from spring 1600 must repeat that 3-byte retime.
 
 ### Authoring from a step script
 

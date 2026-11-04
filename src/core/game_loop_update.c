@@ -2718,6 +2718,8 @@ static GameUpdateStep game_europe_screen_mouse(
    * FUN_38fd_3694); the release (DS:0x7f4) inside the dock rect opens @ARMOPTIONS for the
    * left button (thunk_FUN_291f_0e28) or the unit article for the right one (DS:0x7e4,
    * FUN_291f_0942). Both edges are tested in one call, so a same-frame pair does both.
+   * DOS also requires DS:0x7f6 (button-held word of FUN_1acb_0056, docs/dos_trace.md)
+   * around both; press_on_screen stands in for it on the release edge.
    */
   const bool dock_press = input->mouse_left_clicked || input->mouse_right_clicked;
   const bool dock_release =

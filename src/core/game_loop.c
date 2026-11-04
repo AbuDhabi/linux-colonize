@@ -326,10 +326,13 @@ static void game_combat_analysis_present(const ColonizeCombatEngagement* eng, vo
   if (!combat_analysis_open(&game->combat_analysis, &game->units, eng)) {
     return;
   }
-  /* Analysis draws over the live map: centre it on the fight first. */
+  /* Analysis draws over the live map. 1b0e calls FUN_281f_0d9a(defender tile)
+   * just before FUN_2a1f_0704 (raw 100588); 0d9a -> FUN_1984_03b2 ->
+   * FUN_1984_02fc(x, y, x, y, 0): the edge-band scroll, not an unconditional
+   * centre. */
   const ColonizeUnit* ca_def = units_get_const(&game->units, eng->defender_id);
   if (ca_def) {
-    game_set_view_center(game, ca_def->x, ca_def->y);
+    game_camera_edge_center(game, ca_def->x, ca_def->y);
   }
   /* Headless / no platform: auto-dismiss (tests never set presenter). */
   if (!game->platform) {
