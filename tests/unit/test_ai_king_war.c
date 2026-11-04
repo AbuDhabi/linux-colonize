@@ -672,6 +672,35 @@ static int case_tory_uprising_reads_live_colony(void) {
   return rc;
 }
 
+/* FUN_43f7_06a6 creates each unit through FUN_281f_095c -> FUN_1427_06b4,
+ * which zeroes +0x3149 (moves spent), and calls no 0934 after, so every
+ * uprising unit has the full MP of its final type. */
+static int case_tory_uprising_full_moves(void) {
+  static TbInvFx f;
+  static ColonizeCol1Save col1;
+  static ColonizeCol1Colony mirror;
+  const int spawned = tory_fx_run(&f, &col1, &mirror);
+  int rc = spawned > 0 ? 0 : fail("tory: the uprising did not fire");
+  int dragoons = 0;
+  for (int i = 0; rc == 0 && i < units_slot_end(&f.units); ++i) {
+    const ColonizeUnit* u = &f.units.units[i];
+    if (!u->active || u->nation_id != 1) {
+      continue;
+    }
+    dragoons += u->type_index == 1;
+    if (u->moves != units_max_mp(&f.units, u->id)) {
+      fprintf(stderr, "tory: unit %d type %d moves %d (want %d)\n", u->id, u->type_index,
+              u->moves, units_max_mp(&f.units, u->id));
+      rc = fail("tory uprising units must spawn with full moves");
+    }
+  }
+  if (rc == 0 && dragoons == 0) {
+    rc = fail("tory: fixture should roll at least one Dragoon");
+  }
+  map_free(&f.map);
+  return rc;
+}
+
 /* ===== divergences.hard_king (docs/settings.md) ===== */
 
 static void hard_king_set(bool on) {
@@ -1024,6 +1053,7 @@ static int case_succession_reruns_census(void) {
 
 static const TestCase k_cases[] = {
     {"case_tory_uprising_reads_live_colony", case_tory_uprising_reads_live_colony},
+    {"case_tory_uprising_full_moves", case_tory_uprising_full_moves},
     {"case_succession_reruns_census", case_succession_reruns_census},
     {"case_succession_moves_missions", case_succession_moves_missions},
     {"case_succession_rewrites_owner_map", case_succession_rewrites_owner_map},

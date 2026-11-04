@@ -561,13 +561,7 @@ static void ai_king_ref_tory_uprising(ColonizeTurnContext* ctx, int crown, int h
         ColonizeUnit* nu = units_get(ctx->units, uid);
         if (nu) {
           units_set_nation(nu, crown);
-          /* Order-free like the 0982 wave (DOS creator default 0x58) —
-           * the euro act moves them from the next turn on (D1). */
-          /* port_bugs.md follow-up to 406: uprising irregulars spawn with the
-           * turn spent — the war-act loop runs this same beat and must not
-           * march them into the colony the moment they appear (the crown
-           * move pass ran before the king block in DOS). */
-          nu->moves = 0;
+          /* Order-free like the 0982 wave (DOS creator default 0x58). */
           if ((remaining & 1) != 0 &&
               dos_rng_range(ctx->rng, 0, (int)ctx->col1->head.difficulty + 1) != 0) {
             nu->profession = UNITS_JOB_SOLDIER; /* Veteran */
@@ -577,6 +571,11 @@ static void ai_king_ref_tory_uprising(ColonizeTurnContext* ctx, int crown, int h
             nu->type_index = dragoon_ty;
             nu->horses = UNITS_EQUIP_HORSES;
           }
+          /* FUN_1427_06b4 raw 7726 zeroes +0x3149 (moves spent) and 06a6
+           * calls no 0934 after, so each unit has the full MP of its final
+           * type. The crown slot's euro turn runs after this beat
+           * (ai_king_ref_pre_euro_beat), so they can act this turn. */
+          nu->moves = units_max_mp(ctx->units, uid);
           if (ctx->map) {
             nu->col1_vis_mask |= units_vis_mask_for_tile(ctx->map, nx, ny, crown);
           }
