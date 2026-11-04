@@ -6,6 +6,7 @@
 
 #include "core/col1_save.h"
 #include "core/reports.h"
+#include "core/reports_internal.h"
 #include "core/font_file.h"
 #include "core/pik.h"
 #include "core/reports_names.h"
@@ -711,6 +712,71 @@ static int case_congress_ff_bitmask(void) {
     fprintf(
       stderr, "empty FF bitmask must score 0 congress, got %d\n", sc.congress
     );
+    return 1;
+  }
+  return 0;
+}
+
+/* FUN_3f41_06d0 raw 69697-69706: the bells bar scale is the threshold, raised
+ * to the pool only once DS:0x5382 & 2 (intervention announced) is set; the
+ * pool compares signed. */
+static int case_congress_bells_scale_ref(void) {
+  if (reports_congress_bells_scale(2000u, 1849, false) != 1849) {
+    fprintf(stderr, "congress_bells_scale: before the intervention it is the threshold\n");
+    return 1;
+  }
+  if (reports_congress_bells_scale(2000u, 1849, true) != 2000) {
+    fprintf(stderr, "congress_bells_scale: after the intervention it rises to the pool\n");
+    return 1;
+  }
+  if (reports_congress_bells_scale(1000u, 1849, true) != 1849) {
+    fprintf(stderr, "congress_bells_scale: a smaller pool keeps the threshold\n");
+    return 1;
+  }
+  /* A 40000 word reads -25536, below the threshold. */
+  if (reports_congress_bells_scale(40000u, 1849, true) != 1849) {
+    fprintf(stderr, "congress_bells_scale: a pool word past 32767 must read negative\n");
+    return 1;
+  }
+  return 0;
+}
+
+/* Both page-1 sites (cheat tail and bells bar) use the raised scale once the
+ * intervention is announced: pool 3500 over a 2000 threshold (Discoverer) must
+ * draw exactly like pool 3500 over a 3500 threshold (Explorer). Without the
+ * raise the first shows 2000 in the tail and a 2000-bell bar. */
+static int case_congress_page1_uses_ref_scale(void) {
+  if (access("COLONIZE", F_OK) != 0) {
+    return TR_SKIP;
+  }
+  if (ensure_view() != 0) {
+    return 1;
+  }
+  static ColonizeCol1Save c;
+  static uint8_t px[2][320 * 200];
+  char line[256];
+  for (int k = 0; k < 2; ++k) {
+    memset(&c, 0, sizeof(c));
+    memset(c.head.founding_father, 0xff, sizeof(c.head.founding_father));
+    c.head.year = 1780;
+    c.head.difficulty = (uint8_t)k;
+    c.head.game_options.woi = 1;
+    c.head.game_options.intervention_announced = 1;
+    c.head.game_options.cheats_enabled = 1;
+    c.nation[0].liberty_bells_pool = 3500;
+    memset(px[k], 0, sizeof(px[k]));
+    ColonizeFramebuffer8 fb = {.width = 320, .height = 200, .pixels = px[k]};
+    reports_render_congress_page1(&g_view, &c, 0, &g_view.title_font, &fb, line, sizeof(line));
+  }
+  int bad = 0;
+  for (int i = 0; i < 320 * 200; ++i) {
+    if (px[0][i] != px[1][i] && bad++ < 4) {
+      fprintf(stderr, "congress p1 (%d,%d): need 2000 %d, need 3500 %d\n", i % 320, i / 320,
+              px[0][i], px[1][i]);
+    }
+  }
+  if (bad) {
+    fprintf(stderr, "congress p1: %d px differ\n", bad);
     return 1;
   }
   return 0;
@@ -1497,6 +1563,8 @@ static const TestCase k_cases[] = {
   {"rating_tiers", case_rating_tiers},
   {"synthetic_independence_score", case_synthetic_independence_score},
   {"congress_ff_bitmask", case_congress_ff_bitmask},
+  {"congress_bells_scale_ref", case_congress_bells_scale_ref},
+  {"congress_page1_uses_ref_scale", case_congress_page1_uses_ref_scale},
   {"indian_tribe_listed_gate", case_indian_tribe_listed_gate},
   {"foreign_affairs_golden", case_foreign_affairs_golden},
   {"indian_name_lines_golden", case_indian_name_lines_golden},
