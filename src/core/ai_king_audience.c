@@ -20,6 +20,7 @@
 #include "core/colony.h"
 #include "core/combat_strength.h"
 #include "core/col1_save.h"
+#include "core/col1_stuff_census.h"
 #include "core/dos_buggy.h"
 #include "core/dos_rng.h"
 #include "core/europe.h"
@@ -849,6 +850,14 @@ void ai_king_succession(ColonizeTurnContext* ctx) {
         (void)units_despawn(ctx->units, u->id);
       }
     }
+  }
+  /* raw 73707-73708: FUN_291f_0a74 -> FUN_4962_0018 reruns the census for
+   * the merged slot, then the heir, before the 0x543f / 0x53d2 writes, so
+   * the census readers see the transfer at once. */
+  {
+    const ColonizeWorld cw = world_from_turn_ctx(ctx);
+    col1_stuff_census_4962_w(&cw, &col1->stuff, merged);
+    col1_stuff_census_4962_w(&cw, &col1->stuff, heir);
   }
   col1->player[merged].control = 2; /* withdrawn — the King's future slot */
   col1->head.crown_nation_id = (int16_t)merged;

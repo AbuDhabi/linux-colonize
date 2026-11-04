@@ -940,7 +940,27 @@ static int case_succession_rewrites_owner_map(void) {
   return rc;
 }
 
+/* raw 73707-73708 rerun FUN_4962_0018 for the merged slot and then the heir,
+ * so the census rows move with the transfer before the next day's census. */
+static int case_succession_reruns_census(void) {
+  static SuccFx f;
+  if (succ_fx_run(&f) != 0) {
+    return 1;
+  }
+  const ColonizeCol1Stuff* s = &f.c.stuff;
+  int rc = 0;
+  if (s->colony_counts[3] != 0 || s->census_pop_proxy[3] != 0 || s->colony_counts[2] != 1 ||
+      s->unit_type_counts[2][0] != 1) {
+    fprintf(stderr, "census colonies 3:%u 2:%u pop3 %u colonists2 %u\n", s->colony_counts[3],
+            s->colony_counts[2], s->census_pop_proxy[3], s->unit_type_counts[2][0]);
+    rc = fail("succession: the census must be rerun for the merged slot and the heir");
+  }
+  map_free(&f.map);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
+    {"case_succession_reruns_census", case_succession_reruns_census},
     {"case_succession_moves_missions", case_succession_moves_missions},
     {"case_succession_rewrites_owner_map", case_succession_rewrites_owner_map},
     {"case_rank_nations_tie_order", case_rank_nations_tie_order},
