@@ -205,6 +205,19 @@ void units_pool_compact(ColonizeUnitPool* pool) {
   pool->board_first_slot = f ? (int)(f - pool->units) : -1;
 }
 
+int units_prev_live_id(const ColonizeUnitPool* pool, int unit_id) {
+  const ColonizeUnit* u = pool ? units_get_const(pool, unit_id) : NULL;
+  if (!u) {
+    return -1;
+  }
+  for (int i = (int)(u - pool->units) - 1; i >= 0; --i) {
+    if (pool->units[i].active) {
+      return pool->units[i].id;
+    }
+  }
+  return -1;
+}
+
 /* COLONIZE_UNITS_STRICT=1 (set for every ctest run): verify the bookkeeping
  * and abort on a pool filled by hand without units_pool_sync. The allocator
  * runs the full check; units_slot_end and units_get an O(1) one (the slot

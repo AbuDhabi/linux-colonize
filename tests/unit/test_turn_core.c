@@ -4161,6 +4161,48 @@ static int case_euro_power_rank(void) {
 
 /* port_bugs.md #1103: turn_reset drops the LABELS catalog pointer and the
  * FUN_43f7_1528 last-walked colony, both of which index the outgoing world. */
+/* The rotation walks SLOTS (FUN_1427_14a0 raw 8817-8843), and a disband
+ * re-tests the previous record first (FUN_1427_0824 raw 7834-7836). Slots
+ * hold recycled ids 5, 9, 3, 7. */
+static int case_rotation_slot_order_and_disband_seed(void) {
+  static ColonizeUnitPool pool;
+  units_set_occupancy_map(NULL);
+  units_reset(&pool);
+  pool.type_count = 1;
+  snprintf(pool.types[0].name, sizeof(pool.types[0].name), "Colonists");
+  pool.types[0].movement = 1;
+  const int ids[4] = {5, 9, 3, 7};
+  for (int i = 0; i < 4; ++i) {
+    ColonizeUnit* u = &pool.units[i];
+    u->active = true;
+    u->id = ids[i];
+    u->nation_id = 0;
+    u->x = 5 + i;
+    u->y = 5;
+    u->moves = 3;
+    u->aboard_ship_id = -1;
+  }
+  units_pool_sync(&pool);
+  pool.selected_id = 3;
+  if (!turn_select_next_unit(&pool, 0) || pool.selected_id != 7) {
+    fprintf(stderr, "rotation: after id 3 picked %d (want slot-next 7)\n", pool.selected_id);
+    return 1;
+  }
+  /* Disband id 3 (slot 2): prev is 9 (slot 1), tested first. */
+  pool.selected_id = turn_disband_rotation_seed(&pool, 3);
+  if (!units_despawn(&pool, 3) || !turn_select_next_unit(&pool, 0) || pool.selected_id != 9) {
+    fprintf(stderr, "disband: picked %d (want prev 9)\n", pool.selected_id);
+    return 1;
+  }
+  /* Disband slot 0 (id 5): 0x5392 stays 0, the unit after it is first. */
+  pool.selected_id = turn_disband_rotation_seed(&pool, 5);
+  if (!units_despawn(&pool, 5) || !turn_select_next_unit(&pool, 0) || pool.selected_id != 9) {
+    fprintf(stderr, "disband slot 0: picked %d (want 9)\n", pool.selected_id);
+    return 1;
+  }
+  return 0;
+}
+
 /* Each processor slice but SETUP packs the unit pool the way DOS
  * FUN_1427_0824 keeps its array packed; ids and live order survive. SETUP,
  * then the France (1) EURO slice, both real advances. */
@@ -7350,5 +7392,6 @@ static const TestCase k_cases[] = {
   {"produce_seam_begin", case_produce_seam_begin},
   {"produce_seam_lumber", case_produce_seam_lumber},
   {"processor_packs_unit_pool", case_processor_packs_unit_pool},
+  {"rotation_slot_order_and_disband_seed", case_rotation_slot_order_and_disband_seed},
 };
 TEST_MAIN(k_cases)

@@ -235,6 +235,9 @@ void units_pool_sync(ColonizeUnitPool* pool);
 /* Close the holes despawns left, keeping live order (DOS FUN_1427_0824's
  * packed array); see docs/units.md. Only at a turn-slice boundary. */
 void units_pool_compact(ColonizeUnitPool* pool);
+/* Id of the nearest live unit in a slot BEFORE unit_id's slot (DOS: the
+ * record before it in the packed FUN_1427_0824 array); -1 if none. */
+int units_prev_live_id(const ColonizeUnitPool* pool, int unit_id);
 
 bool units_load_types(ColonizeUnitPool* pool, const ColonizeMsgCatalog* names);
 void units_reset(ColonizeUnitPool* pool);

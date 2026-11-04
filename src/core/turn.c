@@ -209,31 +209,29 @@ bool turn_unit_in_rotation(const ColonizeUnitPool* pool, const ColonizeUnit* u, 
          combat_type_is_artillery(units_type(pool, u->type_index));
 }
 
+/* DOS FUN_1427_14a0 (raw 8817-8843): walk the SLOTS after the active one,
+ * wrapping, back to it inclusive; an unknown active unit scans from slot 0.
+ * Slot order, not id order: ids recycle and do not track slots. */
 bool turn_select_next_unit(ColonizeUnitPool* pool, int human_nation) {
   if (!pool) {
     return false;
   }
-  const int start = pool->selected_id;
-  int best_after = -1;
-  int best_any = -1;
-  for (int i = 0; i < units_slot_end(pool); ++i) {
-    const ColonizeUnit* u = &pool->units[i];
-    if (!turn_unit_in_rotation(pool, u, human_nation)) {
-      continue;
-    }
-    if (best_any < 0 || u->id < best_any) {
-      best_any = u->id;
-    }
-    if (u->id > start && (best_after < 0 || u->id < best_after)) {
-      best_after = u->id;
+  const int end = units_slot_end(pool);
+  const ColonizeUnit* cur = units_get_const(pool, pool->selected_id);
+  const int start = cur ? (int)(cur - pool->units) : -1;
+  for (int k = 1; k <= end; ++k) {
+    const int i = start < 0 ? k - 1 : (start + k) % end;
+    if (turn_unit_in_rotation(pool, &pool->units[i], human_nation)) {
+      pool->selected_id = pool->units[i].id;
+      return true;
     }
   }
-  const int pick = best_after >= 0 ? best_after : best_any;
-  if (pick < 0) {
-    return false;
-  }
-  pool->selected_id = pick;
-  return true;
+  return false;
+}
+
+int turn_disband_rotation_seed(const ColonizeUnitPool* pool, int unit_id) {
+  const int prev_id = units_prev_live_id(pool, unit_id);
+  return prev_id >= 0 ? units_prev_live_id(pool, prev_id) : -1;
 }
 
 bool turn_select_next_unit_awaiting_orders(ColonizeUnitPool* pool, int human_nation) {

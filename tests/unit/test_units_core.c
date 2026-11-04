@@ -8099,6 +8099,28 @@ static int case_unit_ids_recycle_below_max(void) {
   return 0;
 }
 
+/* The disband predecessor (FUN_1427_0824 raw 7834-7836 steps back one
+ * record) is the previous live SLOT, not the next-lower id. */
+static int case_prev_live_id_is_slot_order(void) {
+  static ColonizeUnitPool p;
+  memset(&p, 0, sizeof(p));
+  units_set_occupancy_map(NULL);
+  units_reset(&p);
+  const int ids[] = {5, 3, 0, 9}; /* slot 2 is a hole */
+  for (int i = 0; i < 4; ++i) {
+    p.units[i].active = ids[i] > 0;
+    p.units[i].id = ids[i];
+  }
+  units_pool_sync(&p);
+  if (units_prev_live_id(&p, 9) != 3 || units_prev_live_id(&p, 3) != 5 ||
+      units_prev_live_id(&p, 5) != -1 || units_prev_live_id(&p, 42) != -1) {
+    fprintf(stderr, "prev_live_id: 9->%d 3->%d 5->%d 42->%d\n", units_prev_live_id(&p, 9),
+            units_prev_live_id(&p, 3), units_prev_live_id(&p, 5), units_prev_live_id(&p, 42));
+    return 1;
+  }
+  return 0;
+}
+
 /*
  * DOS FUN_1427_0824 (raw 7776-7839) packs the unit array and FUN_1427_06b4
  * appends, so a new unit always follows every older one. A full pool with
@@ -8404,5 +8426,6 @@ static const TestCase k_cases[] = {
   {"fountain_of_youth", case_fountain_of_youth},
   {"unit_ids_recycle_below_max", case_unit_ids_recycle_below_max},
   {"pool_full_spawn_appends_after_compact", case_pool_full_spawn_appends_after_compact},
+  {"prev_live_id_is_slot_order", case_prev_live_id_is_slot_order},
 };
 TEST_MAIN(k_cases)

@@ -871,8 +871,8 @@ bool game_select_next_unit_awaiting_orders(ColonizeGameState* game) {
    * 42300) classes orders {5,6,8,9} as "lasting" — the unit still becomes
    * the active one, it just never waits for player input (order 5 is
    * promoted to Fortified there, below) — so a pioneer
-   * with order 8/9 is ticked exactly when its turn in the ascending-id
-   * rotation comes up, not in a burst at turn start.
+   * with order 8/9 is ticked exactly when its turn in the slot-order
+   * (FUN_1427_14a0) rotation comes up, not in a burst at turn start.
    *
    * This loop is that rotation: every hand-off site in the port funnels
    * through here, so the dispatch happens at the same point DOS's does.

@@ -901,14 +901,9 @@ static void game_do_disband(ColonizeGameState* game, int uid) {
     }
     return;
   }
-  /* The nearest unit before the disbanded one in pool (= id) order, any nation. */
-  int prev_id = -1;
-  for (int i = 0; i < units_slot_end(&game->units); ++i) {
-    const ColonizeUnit* p = &game->units.units[i];
-    if (p->active && p->id < uid && p->id > prev_id) {
-      prev_id = p->id;
-    }
-  }
+  /* Seed from the live record in the slot before the disbanded one, any
+   * nation (slot order, not id order: ids recycle and do not track slots). */
+  const int seed_id = turn_disband_rotation_seed(&game->units, uid);
   /* DOS prints nothing for a disband (FUN_2b5a_199e). */
   set_status(game, "", NULL);
   if (uid < 0 || !units_disband(&game->units, uid)) {
@@ -920,11 +915,9 @@ static void game_do_disband(ColonizeGameState* game, int uid) {
    * only runs for slot 0), and the map loop FUN_2b5a_3b68 / FUN_2b5a_0e52
    * re-tests that unit with FUN_1427_1410 (= turn_unit_in_rotation); only if it
    * fails does FUN_1427_14a0 scan forward from the slot after it, wrapping.
-   * turn_select_next_unit starts strictly after selected_id, so seed it one
-   * below the previous unit to put that unit itself into the search. No
-   * previous unit (slot 0) = scan from the top, as DOS does.
+   * See turn_disband_rotation_seed.
    */
-  game->units.selected_id = prev_id > 0 ? prev_id - 1 : -1;
+  game->units.selected_id = seed_id;
   game_wait_next_unit(game);
 }
 
