@@ -30,6 +30,11 @@ Hall of Fame / Exploits). Shared chrome, fill bars and F2-F9 stay in
     value. Golden: 138 colony points + 10 units x 2 = 158, 58 strip icons;
     generic poses draw `units_job_icon_sprite(prof)`. Points on the raw byte:
     0x1c→2, 25/26/27→1, else 4.
+    The colony loop reads DOS's one colony table (`FUN_281f_09e6`, asm
+    41f2:02cd-0301). With the live colony pool at hand the port walks that,
+    not `col1->colony[]` (refreshed only at a save capture), yielding what
+    the capture would write: active slots in slot order, `colonist_count`
+    capped at 32, a profession below 0 as 0x1c.
   - Label separators (`FUN_281f_01be` ": " then optional `0178` " "):
     Citizens, Rebel Sentiment, Early Revolution and Villages take two spaces;
     Congress, Gold, Liberty Bells, Independence one (the last two decomp-only).

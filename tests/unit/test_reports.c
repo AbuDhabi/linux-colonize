@@ -556,6 +556,69 @@ static int case_colony01_score(void) {
   return 0;
 }
 
+/* FUN_41f2_0092 reads DOS's one colony table, so the citizens score sees a
+ * colony as it is now. Here the save record still holds 1 colonist while the
+ * live colony has grown to 3; with the live pool at hand the score counts 3.
+ * The live walk yields what the capture would write: an inactive slot is no
+ * colony, colonist_count is capped at 32, and a profession below 0 is 0x1c
+ * (2 points). */
+static int case_score_reads_live_colonies(void) {
+  ColonizeCol1Save c;
+  memset(&c, 0, sizeof(c));
+  memset(c.head.founding_father, 0xff, sizeof(c.head.founding_father));
+  c.head.year = 1600;
+  c.head.difficulty = 2;
+  ColonizeCol1Colony rec;
+  memset(&rec, 0, sizeof(rec));
+  rec.population = 1; /* profession 0: a specialist, 4 points */
+  c.colony = &rec;
+  c.head.colony_count = 1;
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  pool.colonies[0].active = true;
+  pool.colonies[0].nation_id = 0;
+  pool.colonies[0].colonist_count = 3;
+  for (int p = 0; p < 3; ++p) {
+    pool.colonies[0].colonists[p].profession = 0;
+  }
+  ColonizeScoreBreakdown sc;
+  ColonizeWorld saved = world_make(NULL, NULL, NULL, &c, true, NULL, NULL);
+  reports_compute_score_w(&saved, &sc, 0);
+  const int from_record = sc.citizens;
+  ColonizeWorld live = world_make(NULL, &pool, NULL, &c, true, NULL, NULL);
+  reports_compute_score_w(&live, &sc, 0);
+  const int from_pool = sc.citizens;
+
+  /* Slot 1: a freed human slot that still holds 5 colonists. Slot 2: 40
+   * colonists, all with profession -1, which score as 32 x 0x1c. */
+  pool.colonies[1].active = false;
+  pool.colonies[1].nation_id = 0;
+  pool.colonies[1].colonist_count = 5;
+  for (int p = 0; p < 5; ++p) {
+    pool.colonies[1].colonists[p].profession = 0;
+  }
+  pool.colonies[2].active = true;
+  pool.colonies[2].nation_id = 0;
+  pool.colonies[2].colonist_count = 40;
+  for (int p = 0; p < COLONIZE_COLONY_POP_MAX; ++p) {
+    pool.colonies[2].colonists[p].profession = -1;
+  }
+  reports_compute_score_w(&live, &sc, 0);
+  const int edge_pool = sc.citizens;
+  c.colony = NULL;
+  int rc = 0;
+  if (from_record != 4 || from_pool != 12) {
+    fprintf(stderr, "citizens record=%d live=%d (want 4 / 12)\n", from_record, from_pool);
+    rc = 1;
+  }
+  if (edge_pool != 12 + 32 * 2) {
+    fprintf(stderr, "citizens with a freed slot and 40 x -1 = %d (want 76)\n", edge_pool);
+    rc = 1;
+  }
+  return rc;
+}
+
 /* Village penalty: -(difficulty+1) * burned. Formula-only, so a zeroed
  * synthetic Col1Save is enough (no need for a real save's other fields). */
 static int case_village_penalty_formula(void) {
@@ -1492,6 +1555,7 @@ static const TestCase k_cases[] = {
   {"render_congress_and_score", case_render_congress_and_score},
   {"colony01_reports_render_and_fields", case_colony01_reports_render_and_fields},
   {"colony01_score", case_colony01_score},
+  {"score_reads_live_colonies", case_score_reads_live_colonies},
   {"village_penalty_formula", case_village_penalty_formula},
   {"recognition_multiplier", case_recognition_multiplier},
   {"rating_tiers", case_rating_tiers},
