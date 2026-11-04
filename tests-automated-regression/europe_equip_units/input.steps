@@ -8,8 +8,7 @@ wait 1
 # Routes that do not exist: dragging goods onto a dock unit, dragging a dock unit onto the market.
 drag 294 188 258 146     # Muskets from the market strip dropped on a dock colonist: ignored
 drag 162 188 275 146     # Horses from the market strip dropped on a dock colonist: ignored
-drag 241 146 162 188     # dock colonist dragged onto the market: the press just opens the menu, the release does nothing
-key Escape               # close the menu without a choice
+drag 241 146 162 188     # dock colonist dragged onto the market: the menu opens only on a release over the dock (FUN_38fd_3c86 raw 64108-64113), so nothing happens
 # Equip one plain colonist per kit (the price comes off the treasury, the ledger of that good moves):
 click 241 146            # slot 0 menu (6 rows)
 click 120 88             # Arm with Muskets (-100 gold): Colonist -> Soldier

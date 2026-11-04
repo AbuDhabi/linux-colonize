@@ -157,6 +157,9 @@ void turn_produce_one_colony(
 /* --- owned by turn_colony.c --- */
 void turn_run_colony_eot(ColonizeTurnContext* ctx, ColonizeTurnResult* out);
 void turn_run_human_colony_eot(ColonizeTurnContext* ctx, ColonizeTurnResult* out);
+/* FUN_48d3_06ba, the human's Europe pass (lane hops, arrival, treasure, woodcut 9):
+ * after the human 5e52 and its tax audience, before the colony loop (00f2 raw 58377). */
+void turn_run_human_europe_pass(ColonizeTurnContext* ctx);
 void turn_route_damaged_ships(ColonizeTurnContext* ctx, int nation);
 /* Human hulls under repair in the Europe harbor: tick, @REFIT, count repaired. */
 int turn_europe_harbor_repairs(ColonizeTurnContext* ctx);
@@ -188,6 +191,7 @@ void turn_step_euro(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx);
 void turn_step_indian(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx);
 void turn_step_finish(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx);
 void turn_step_king(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx);
+void turn_human_ship_repairs(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx);
 /* turn_produce_one_colony stages, DOS order (turn_production.c). */
 TurnProduceStatus turn_produce_begin(TurnProduceCtx* pc);
 void turn_produce_compose(TurnProduceCtx* pc);

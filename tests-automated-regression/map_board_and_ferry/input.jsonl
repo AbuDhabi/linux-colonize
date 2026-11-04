@@ -36,9 +36,9 @@
 {"type":"key_up","t_ms":3320,"frame":145,"keycode":13,"mod":0}
 {"type":"key_down","t_ms":3496,"frame":156,"keycode":1073741921,"mod":0}
 {"type":"key_up","t_ms":3544,"frame":159,"keycode":1073741921,"mod":0}
-{"type":"mouse_move","t_ms":3752,"frame":172,"x":240,"y":256,"lx":120,"ly":128,"buttons":0}
-{"type":"mouse_down","t_ms":3768,"frame":173,"x":240,"y":256,"lx":120,"ly":128,"button":"left","clicks":1}
-{"type":"mouse_up","t_ms":3816,"frame":176,"x":240,"y":256,"lx":120,"ly":128,"button":"left","clicks":1}
+{"type":"mouse_move","t_ms":3752,"frame":172,"x":272,"y":224,"lx":136,"ly":112,"buttons":0}
+{"type":"mouse_down","t_ms":3768,"frame":173,"x":272,"y":224,"lx":136,"ly":112,"button":"left","clicks":1}
+{"type":"mouse_up","t_ms":3816,"frame":176,"x":272,"y":224,"lx":136,"ly":112,"button":"left","clicks":1}
 {"type":"key_down","t_ms":3992,"frame":187,"keycode":1073741920,"mod":0}
 {"type":"key_up","t_ms":4040,"frame":190,"keycode":1073741920,"mod":0}
 {"type":"key_down","t_ms":4248,"frame":203,"keycode":1073741918,"mod":0}

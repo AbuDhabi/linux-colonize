@@ -1342,7 +1342,7 @@ static void render_europe_market_and_buttons(
     }
     /* Boycotted cargo (ai_king.c tea-party / ai_diplo.c embargo): price text
      * in red — trading is blocked until the boycott lifts (europe_buy_cargo /
-     * europe_sell_hold / europe_sell_unit_hold refuse it; see
+     * europe_sell_hold refuse it; see
      * europe_cargo_boycotted). Source: fandom Boycott (Col). */
     const bool boycotted = europe_cargo_boycotted_ex(
       eu, game->col1_ok ? &game->col1 : NULL, game->human_nation, i
@@ -2097,30 +2097,7 @@ static void game_europe_spawn_reservation(
   void* user, int nation, int* out_external, bool* out_human, int* out_census
 ) {
   const ColonizeGameState* game = user;
-  int reserved = 0;
-  const EuropeScreen* eu = &game->europe;
-  for (int i = 0; i < eu->harbor_ships; ++i) {
-    reserved += 1 + eu->harbor[i].cargo_count;
-  }
-  for (int i = 0; i < eu->expected_ships; ++i) {
-    reserved += 1 + eu->expected[i].cargo_count;
-  }
-  for (int i = 0; i < eu->bound_ships; ++i) {
-    reserved += 1 + eu->bound[i].cargo_count;
-  }
-  /* Every dock colonist is a DOS unit record; only some have a (236,236)
-   * mirror unit in the pool, which the pool count already covers. */
-  int mirrors = 0;
-  for (int i = 0; i < units_slot_end(&game->units); ++i) {
-    const ColonizeUnit* u = &game->units.units[i];
-    if (u->active && u->x == 236 && u->y == 236 && u->nation_id == game->human_nation) {
-      mirrors++;
-    }
-  }
-  if (eu->dock_count > mirrors) {
-    reserved += eu->dock_count - mirrors;
-  }
-  *out_external = reserved;
+  *out_external = europe_offpool_unit_count(&game->europe, &game->units, game->human_nation);
   if (nation >= 0 && nation < 4 && game->col1_ok) {
     *out_human = game->col1.player[nation].control == 0;
   }
@@ -2434,6 +2411,7 @@ void game_commit_new_campaign(ColonizeGameState* game) {
     ai.difficulty = game->difficulty;
     ai.leader_name = game->leader_name;
     ai.use_tribe_txt = (ng->path == NEW_GAME_PATH_AMERICA);
+    ai.customize = (ng->path == NEW_GAME_PATH_CUSTOMIZE);
     ai.map_stem = stem[0] ? stem : NULL;
     ai.human_start_x = sx;
     ai.human_start_y = sy;

@@ -766,6 +766,7 @@ COLONIZE_INTERNAL AiNativeStepStatus ai_native_brave_step(
   {
     const int step_ox = u->x;
     const int step_oy = u->y;
+    const uint8_t vis_before = u->col1_vis_mask; /* the watch's show gate, raw 75665 */
     /* LAB_465b_0673 raw 75660-75696 runs on every committed step, not only
      * before an attack: 07fe ORs 0826(dest, own nation) into the Brave's
      * origin chain, then with local_1c set 07d6 ORs the human's bit in, both
@@ -786,12 +787,9 @@ COLONIZE_INTERNAL AiNativeStepStatus ai_native_brave_step(
     /* port_bugs.md: native steps commit inline instead of going through
      * units_move_unit, so they never reached the move-watch hook and
      * "Show Indian Moves" jump-cut while Euro AI steps slid. */
-    if (g_units_move_watch) {
-      g_units_move_watch(
-        g_units_move_watch_user, units, map, ai_s_native_colonies, u->id, step_ox, step_oy,
-        nx, ny
-      );
-    }
+    units_move_watch_fire(
+      units, map, ai_s_native_colonies, u->id, step_ox, step_oy, nx, ny, vis_before
+    );
   }
   u->moves = spent + cost;
   /*

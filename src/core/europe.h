@@ -633,7 +633,8 @@ bool europe_harbor_push_ex(
  * under repair (DOS FUN_5fef_0352: x = y = nation - 0x14 with bit7 and the
  * +0x315a preset kept; port_bugs.md #1381c). It keeps its goods holds, its
  * repair counter (u->col1_counter16) and its re-export tile (u->goto_*, the
- * nation return tile 0352 stamped). Returns false when the harbor is full.
+ * nation return tile 0352 stamped). It goes in as harbor slot 0 (DOS links it
+ * at the head of the in-port chain). Returns false when the harbor is full.
  */
 bool europe_harbor_push_damaged(EuropeScreen* eu, const ColonizeUnit* u, const char* name, bool exit_east);
 
@@ -711,6 +712,10 @@ bool europe_bound_pop_arrived(
 );
 
 void europe_refresh_harbor_selection(EuropeScreen* eu);
+/* Every FUN_291f_0dd4 repaint (open, Sail answer, box drag, purchase, article
+ * return) ends in FUN_38fd_081c (raw 59178-59179), which zeroes the harbor
+ * selection DS:0x9e20/0x9e1c: back to harbor slot 0. */
+void europe_reset_harbor_selection(EuropeScreen* eu);
 
 /*
  * Decrement transit; move Expected→Harbor when due (passengers → dock front);
@@ -839,6 +844,11 @@ void europe_nation_tick_market_prices_w(const ColonizeWorld* w, int nation, uint
  * roll. One call per nation. port_bugs.md #1016.
  */
 void europe_market_seed_tail_w(const ColonizeWorld* w, int nation, uint32_t turn);
+/* DOS unit records of the bound nation with no unit in the pool: harbor and
+ * lane ships with their passengers, plus dock rows without a (236,236) mirror. */
+int europe_offpool_unit_count(
+  const EuropeScreen* eu, const ColonizeUnitPool* units, int nation_id
+);
 /*
  * FUN_38fd_584a score: (pop+units)<<1 if <4000, +8, cap 4000;
  * AI ((8-diff)*score)>>3; English (nation 0) *2/3.
@@ -867,12 +877,6 @@ int europe_nation_refill_pool_slot(
 
 /* FUN_38fd_0718 for a nation record: unit id parked in the Europe limbo, or -1. */
 int europe_nation_harbor_spawn(const ColonizeWorld* w, int nation_id, int profession);
-/* europe_sell_unit_hold_w -- see docs/europe.md#europe_sell_unit_hold_w */
-int europe_sell_unit_hold_w(
-  const ColonizeWorld* w,
-  int unit_id,
-  int hold_index
-);
 
 /* Forward decls — avoid pulling colony/col1 into every europe consumer. */
 struct ColonizeColonyPool;
@@ -931,6 +935,8 @@ int europe_harbor_cargo_room(
   int harbor_index,
   int cargo_type
 );
+/* The FUN_38fd_1fa2 no-room refusal: red bar "@CMESSAGE 4 <cargo>!". */
+void europe_buy_no_room_bar(EuropeScreen* eu, int cargo_type);
 
 /* Harbor buy; col1+buyer_nation feed the 1d80 nation trade ledger (smell
  * audit #50) — NULL col1 keeps the price move but skips the ledger. `units`
@@ -939,13 +945,6 @@ int europe_buy_cargo_w(
   const ColonizeWorld* w,
   int buyer_nation,
   int harbor_index,
-  int cargo_type,
-  int amount
-);
-/* europe_buy_unit_cargo_w -- see docs/europe.md#europe_buy_unit_cargo_w */
-int europe_buy_unit_cargo_w(
-  const ColonizeWorld* w,
-  int unit_id,
   int cargo_type,
   int amount
 );

@@ -664,7 +664,9 @@ static void turn_euro_slot_eot(ColonizeTurnProcessor* proc, ColonizeTurnContext*
             ctx->status,
             ctx->status_size,
             ctx->ai_popups,
-            ctx->messages
+            ctx->messages,
+            NULL,
+            0
           );
           turn_route_damaged_ships(ctx, n);
           if (n != ctx->human_nation) {
@@ -912,6 +914,7 @@ COLONIZE_INTERNAL void turn_step_finish(ColonizeTurnProcessor* proc, ColonizeTur
       }
       turn_run_nation_ticks(ctx, &proc->result);
       ai_king_human_5e52_tail(ctx);
+      turn_run_human_europe_pass(ctx);
       turn_prod_only_nation = ctx->human_nation;
       turn_prod_only_set = true;
       turn_run_human_colony_eot(ctx, &proc->result);
@@ -938,6 +941,47 @@ COLONIZE_INTERNAL void turn_step_finish(ColonizeTurnProcessor* proc, ColonizeTur
        * above are answered (and an elected colony zoom taken) before the
        * king's REF beats run in TURN_PROC_KING — see turn.h. */
       proc->step = TURN_PROC_KING;
+}
+
+/* The human's ship build/repair ticks of FUN_3844_00f2: map hulls, then the hulls in port. */
+COLONIZE_INTERNAL void turn_human_ship_repairs(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx) {
+  int want_eu = 0;
+  (void)units_tick_ship_build_ready(
+    ctx->units,
+    ctx->colonies,
+    ctx->human_nation,
+    ctx->human_nation,
+    ctx->status,
+    ctx->status_size,
+    &want_eu
+  );
+  static int map_ids[COLONIZE_UNITS_MAX];
+  const int map_repaired = units_tick_drydock_repair(
+    ctx->units,
+    ctx->colonies,
+    ctx->human_nation,
+    ctx->human_nation,
+    ctx->status,
+    ctx->status_size,
+    NULL,
+    ctx->messages,
+    map_ids,
+    COLONIZE_UNITS_MAX
+  );
+  turn_route_damaged_ships(ctx, ctx->human_nation);
+  /* FUN_3844_00f2 raw 58326-58373 shows each @REFIT as it walks the records from the last
+   * down, map and harbor hulls in one loop. The save writes the harbor hulls after the map
+   * units (col1_bridge_capture_europe_lanes), so their popups come first (last harbor slot
+   * first, turn_europe_harbor_repairs), then the map hulls, already high to low. */
+  if (turn_europe_harbor_repairs(ctx) > 0) {
+    want_eu = 1; /* FUN_3844_00f2: DS:0x14c -> FUN_281f_05fa (Europe screen) */
+  }
+  for (int k = 0; k < map_repaired && k < COLONIZE_UNITS_MAX; ++k) {
+    units_refit_popup(ctx->units, ctx->colonies, map_ids[k], ctx->ai_popups, ctx->messages);
+  }
+  if (want_eu) {
+    proc->result.request_europe_open = true;
+  }
 }
 
 /* Body of TURN_PROC_KING up to its terminal `return false;`. */
@@ -1007,33 +1051,7 @@ COLONIZE_INTERNAL void turn_step_king(ColonizeTurnProcessor* proc, ColonizeTurnC
             ai_popup_enqueue_ok(ctx->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
           }
         }
-        int want_eu = 0;
-        (void)units_tick_ship_build_ready(
-          ctx->units,
-          ctx->colonies,
-          ctx->human_nation,
-          ctx->human_nation,
-          ctx->status,
-          ctx->status_size,
-          &want_eu
-        );
-        (void)units_tick_drydock_repair(
-          ctx->units,
-          ctx->colonies,
-          ctx->human_nation,
-          ctx->human_nation,
-          ctx->status,
-          ctx->status_size,
-          ctx->ai_popups,
-          ctx->messages
-        );
-        turn_route_damaged_ships(ctx, ctx->human_nation);
-        if (turn_europe_harbor_repairs(ctx) > 0) {
-          want_eu = 1; /* FUN_3844_00f2: DS:0x14c -> FUN_281f_05fa (Europe screen) */
-        }
-        if (want_eu) {
-          proc->result.request_europe_open = true;
-        }
+        turn_human_ship_repairs(proc, ctx);
         /* No King's-Galleon offer here: FUN_465b_0000 raw 75800-75815 is the
          * only DOS trigger and it fires on the move onto the colony tile
          * (game_loop.c move tail). The end-of-turn sweep that used to live

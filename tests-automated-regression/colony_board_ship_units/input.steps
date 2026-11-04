@@ -39,7 +39,7 @@ key Return                 # row 2: full Caravel B
 wait 1
 key KP_9                   # B sails out to (46,23): no free hold, no sentried unit boards
 wait 2
-rclick 104 128             # View Pieces on Quebec (the view scrolled with B)
+rclick 120 112             # View Pieces on Quebec (view origin 38,18: B's step does not recentre)
 key a                      # stack picker: Caravel A heads it
 wait 1
 key Return                 # Caravel A

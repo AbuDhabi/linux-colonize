@@ -55,8 +55,13 @@ verified) — the departure itself happens inside the same end-of-turn
 pass that has already run its FUN_48d3_03d0 decrement step, so the
 counter's first tick lands on the *next* turn. Modelling that here
 keeps turns_left holding DOS's own 1/2 for the save's col1_counter16
-byte instead of inflating it. Runtime only; a save taken between the
-order and the next tick reloads without the grace turn.
+byte instead of inflating it. Runtime only. An Expected ship still keeps
+its dock tick through a col1 save: the export writes the tick on which
+europe_tick_voyages would dock it as the DOS lane that docks on the same
+FUN_48d3_06ba pass (240+n counter 0 for the next pass, else 244+n counter
+ticks-1), and the import reads a 244+n counter c back as max(c,1)+1.
+A Bound ship likewise: 228+n counter 1 for a landing after the next tick
+(counter 0 for turns 0), else 232+n counter ticks-1, read back the same way.
 
 ## EuropeHarborShip trade_route_plus1
 
@@ -184,7 +189,9 @@ was actually credited.
 
 ## europe_voyage_turns_roll
 
-FUN_48d3_0002 voyage roll. rng NULL → 1 (no roll). The x<3 west-edge
+FUN_48d3_0002 voyage roll. rng NULL → 1 (no roll). Every call first
+reseeds through `dos_rng_reseed_83a6` (raw 77571 `FUN_281f_04ca`), for all
+callers: AI lane, human crossings, damaged hull, gift Frigate. The x<3 west-edge
 branch in DOS only burns RNG(0,1)+an FF test and discards both — there
 is no west-edge sail penalty in the shipped code (PEDIA's Magellan
 "west edge" line describes the 10% delay this FF removes). The port still
@@ -646,16 +653,6 @@ rewrites needed_crosses, and on a crossing empties one pool slot into a
 real unit record (FUN_38fd_0718), refills it (FUN_38fd_46d4) and zeroes
 the crosses. Returns 1 when an immigrant was created, else 0.
 
-## europe_sell_unit_hold_w
-
-Sell one commodity hold from a map/transport ColonizeUnit into eu->gold.
-No harbor UI — proceeds via europe_sell_proceeds (bid × amount × (100−tax)/100).
-Cite: Colonization.pdf Europe buy/sell + tax; same Crown cut as harbor
-europe_sell_hold / GAME.TXT tax rate path. Clears the hold on success.
-The withheld tax is credited to the hold owner's royal_money (DOS
-`nation+0x22 += tax`); `col1` may be NULL. Smell audit #51.
-Returns gold credited (0 if empty/invalid).
-
 ## europe_custom_house_autosell_w
 
 FUN_364b_0688 Custom House auto-sell (colony EOT after production).
@@ -704,16 +701,10 @@ this EOT, matching the DOS golden).
 
 Tons of room for `cargo_type` in a harbor ship — DOS FUN_15eb_3208 via the
 FUN_281f_0b96 thunk, the check FUN_38fd_1fa2 runs before charging a buy.
-free = @UNIT cargo capacity − goods holds used − passengers; room =
+free = @UNIT cargo capacity − goods holds used (passengers do not count:
+3208 reads +0x3150, which only the goods loader FUN_15eb_30b8 raises); room =
 free*100, plus the part-full matching holds ONLY when free == 0. A NULL
 `units` falls back to the six-slot maximum. 0 = the "no room" arm.
-
-## europe_buy_unit_cargo_w
-
-Trade-route load list at a Europe stop: buy up to `amount` (≤100) of
-cargo_type straight into a map/transport unit's holds. Flat ask price,
-boycott gated. Cite: DOS FUN_479b_0bd0 load phase → FUN_38fd_1fa2.
-Returns units bought (0 = no gold / boycott / no room).
 
 ## europe_hit_test_ex
 

@@ -366,8 +366,9 @@ static bool ai_setup_col1_template(const AiNewGameParams* p, char* err, size_t e
    * point of price every turn from 1492.
    *
    * Stream state at 235c entry (FUN_75c2_2778 menu, raw ~121790-121825): the timer
-   * seed, then 5 RNG(0,3) customize-axis draws for NEW WORLD / CUSTOMIZE
-   * (none for AMERICA, which sets the axes to 1), then the 16 pool draws.
+   * seed, then 5 RNG(0,3) customize-axis draws for NEW WORLD / AMERICA (menu
+   * choices 1-2; CUSTOMIZE, choice 3, sets the axes to 1 and draws none, raw
+   * 121786-121795), then the 16 pool draws.
    * Brute-forced from SEED100.SAV: seed 100, skip 5, one 0058 phase-1 decay
    * before the save (port_bugs.md #1084). Map gen and 6a09 reseed afterwards, so
    * drawing from a fresh copy here leaves their stream untouched.
@@ -375,7 +376,7 @@ static bool ai_setup_col1_template(const AiNewGameParams* p, char* err, size_t e
   {
     ColonizeDosRng pg_rng;
     dos_rng_seed(&pg_rng, ai_new_game_seed(p));
-    for (int i = 0; !p->use_tribe_txt && i < 5; ++i) {
+    for (int i = 0; !p->customize && i < 5; ++i) {
       (void)dos_rng_range(&pg_rng, 0, 3);
     }
     for (int c = 0; c < 16; ++c) {
@@ -1207,6 +1208,18 @@ bool ai_init_new_game(const AiNewGameParams* params, char* err, size_t err_size)
     if (n == params->human_nation) {
       landfalls[n][0] = params->human_start_x;
       landfalls[n][1] = params->human_start_y;
+      /* Map setup writes nation +0x32/+0x33 for all four nations (FUN_684c_08c0
+       * raw 107143-107153, FUN_6cb2_24b8 raw 113548-113567); the human's is its
+       * landfall too, and the Europe return tile mirrors it. */
+      params->col1->nation[n].return_from_europe_x = (uint8_t)landfalls[n][0];
+      params->col1->nation[n].return_from_europe_y = (uint8_t)landfalls[n][1];
+      if (params->europe) {
+        params->europe->last_exit_x = landfalls[n][0];
+        params->europe->last_exit_y = landfalls[n][1];
+        params->europe->last_exit_east =
+          params->map ? landfalls[n][0] >= (int)params->map->width / 2 : true;
+        params->europe->last_exit_valid = true;
+      }
       continue;
     }
     int ax = params->human_start_x;
@@ -1423,6 +1436,10 @@ void ai_euro_nation_turn(ColonizeTurnContext* ctx, int nation_id) {
     return;
   }
 
+  /* FUN_3844_00f2 tail (raw 58409-58419): @KINGFRIGATE auto-accept for AI
+   * nations. Its voyage roll (own 04ca) runs before 6d8e's entry reseed. */
+  ai_king_frigate_offer(ctx, nation_id);
+
   /* FUN_521d_6d8e entry: FUN_281f_04ca reseeds from timer word. */
   ai_nation_reseed(ctx);
 
@@ -1445,8 +1462,6 @@ void ai_euro_nation_turn(ColonizeTurnContext* ctx, int nation_id) {
    * caller FUN_281f_0668 is in the HUMAN arm of the year loop (raw 6418),
    * so it moved to turn.c's TURN_PROC_KING tail as the @MERCENARIES offer
    * (ai_king_peacetime_merc_offer, 2026-09-15). */
-  /* FUN_3844_00f2 tail: @KINGFRIGATE auto-accept for AI nations. */
-  ai_king_frigate_offer(ctx, nation_id);
 
   if (!ctx->map) {
     return;

@@ -17,7 +17,7 @@ key 5
 key Return                 # load 25 Horses (13 stay)
 wait 1
 key Escape                 # back to the map, the wagon still selected
-wait 1
+wait 160                   # what is left of the two Loading lines' 500 + 1971 ms; a key would cut them short
 key KP_2                   # south onto the road (45,25), 1/3
 wait 1
 key KP_1                   # south-west along the road (44,26), 1/3

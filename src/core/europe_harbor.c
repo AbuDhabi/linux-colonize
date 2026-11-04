@@ -112,7 +112,11 @@ bool europe_harbor_push_damaged(EuropeScreen* eu, const ColonizeUnit* u, const c
   s->exit_x = u->goto_x;
   s->exit_y = u->goto_y;
   s->exit_east = exit_east;
-  return true;
+  /* FUN_5fef_0352 raw 99642-99644: FUN_281f_0844 -> FUN_1427_02ca links the hull at the
+   * head of the in-port chain, and FUN_38fd_0666 lists the harbor from the head. Europe
+   * is not open during combat and every open resets the selection, so the selection
+   * write of move_to_front is never seen. */
+  return europe_harbor_move_to_front(eu, eu->harbor_ships - 1);
 }
 
 int europe_harbor_repair_tick(EuropeScreen* eu, const ColonizeUnitPool* units, int* out, int max) {
@@ -188,10 +192,8 @@ bool europe_enqueue_expected(
   slot->turns_left = europe_clamp_voyage_turns(voyage_turns);
   slot->voyage_turns = slot->turns_left; /* TB-48 fix reads it */
   slot->departed_this_turn = true;
-  eu->last_exit_x = exit_x;
-  eu->last_exit_y = exit_y;
-  eu->last_exit_east = exit_east;
-  eu->last_exit_valid = true;
+  /* No nation return tile here: only the crossing stamps it (FUN_48d3_007a,
+   * game_ship_sail_to_europe); a save import also lands here. */
   eu->status[0] = '\0';
   return true;
 }
@@ -532,6 +534,12 @@ void europe_refresh_harbor_selection(EuropeScreen* eu) {
   eu->selected_harbor = 0;
 }
 
+void europe_reset_harbor_selection(EuropeScreen* eu) {
+  if (eu) {
+    eu->selected_harbor = eu->harbor_ships > 0 ? 0 : -1;
+  }
+}
+
 void europe_tick_voyages(EuropeScreen* eu, const ColonizeUnitPool* units) {
   if (!eu) {
     return;
@@ -558,11 +566,18 @@ void europe_tick_voyages(EuropeScreen* eu, const ColonizeUnitPool* units) {
       eu->bound[i].turns_left--;
     }
   }
-  /* Move due Expected ships into harbor; passengers go to dock front. */
-  int i = 0;
-  while (i < eu->expected_ships) {
+  /*
+   * Move due Expected ships into harbor; passengers go to dock front.
+   * DOS lane-chain order: FUN_48d3_007a puts a departing hull at the HEAD of
+   * lane 244+n (FUN_1427_0362 -> FUN_1427_02ca front-inserts), and each
+   * FUN_48d3_03d0 hop walks its lane head->tail and appends every counter-0
+   * hull to the destination's TAIL (FUN_281f_08c6 -> FUN_1427_03a0). So the
+   * hulls in 240+n, and then on the 236+n dock, run newest departure first:
+   * the reverse of expected[], which europe_enqueue_expected appends in
+   * departure order.
+   */
+  for (int i = eu->expected_ships - 1; i >= 0; --i) {
     if (eu->expected[i].turns_left > 0) {
-      ++i;
       continue;
     }
     if (eu->harbor_ships >= EUROPE_HARBOR_MAX) {
@@ -575,21 +590,29 @@ void europe_tick_voyages(EuropeScreen* eu, const ColonizeUnitPool* units) {
     eu->expected_ships--;
     europe_clear_ship(&eu->expected[eu->expected_ships]);
     ship.turns_left = 0;
-    europe_disembark_passengers_to_dock(eu, &ship, units);
-    eu->harbor[eu->harbor_ships++] = ship;
-    eu->open_on_dock = true;
-    /* 255 is the empty-hold sentinel, not a full hold — the same guard every
-     * other hold consumer carries (europe_goods_slots_used, europe_sell_hold
-     * / _partial, europe_dos_0f60_pick, europe_buy_cargo, reports.c's cargo
-     * rows). units_despawn_ship_with_cargo copies the raw hold bytes in, so
-     * without it a sentinel hold fired the once-per-game "Cargo from the New
-     * World" woodcut (turn.c → WOODCUT_CARGO_FROM_THE_NEW_WORLD). */
-    for (int g = 0; g < EUROPE_SHIP_CARGO_MAX; ++g) {
-      if (ship.hold_goods_amount[g] > 0 && ship.hold_goods_amount[g] < 255) {
-        eu->docked_with_goods = true;
-        break;
+    /*
+     * FUN_48d3_06ba raw 77968-77976 (asm 48d3:06e6-0733): the scan of the
+     * arrival lane keeps the FIRST hull whose orders +0x314c != 2 (not on a
+     * trade route) as DS:0x14e. Only that hull arms the auto-open, and woodcut 9
+     * fires only if it has goods holds occupied (+0x3150).
+     */
+    if (!eu->open_on_dock && ship.trade_route_plus1 <= 0) {
+      eu->open_on_dock = true;
+      /* 255 is the empty-hold sentinel, not a full hold — the same guard every
+       * other hold consumer carries (europe_goods_slots_used, europe_sell_hold
+       * / _partial, europe_dos_0f60_pick, europe_buy_cargo, reports.c's cargo
+       * rows). units_despawn_ship_with_cargo copies the raw hold bytes in, so
+       * without it a sentinel hold fired the once-per-game "Cargo from the New
+       * World" woodcut (turn.c → WOODCUT_CARGO_FROM_THE_NEW_WORLD). */
+      for (int g = 0; g < EUROPE_SHIP_CARGO_MAX; ++g) {
+        if (ship.hold_goods_amount[g] > 0 && ship.hold_goods_amount[g] < 255) {
+          eu->docked_with_goods = true;
+          break;
+        }
       }
     }
+    europe_disembark_passengers_to_dock(eu, &ship, units);
+    eu->harbor[eu->harbor_ships++] = ship;
     europe_refresh_harbor_selection(eu);
     /* port_bugs.md #750: DOS composes the arrival line through the DS:0x2d54 status
      * API and GAME.TXT has no docked-ship tag, so there is nothing to show. */
@@ -1414,6 +1437,35 @@ void europe_market_seed_tail_w(const ColonizeWorld* w, int nation, uint32_t turn
   }
 }
 
+int europe_offpool_unit_count(
+  const EuropeScreen* eu, const ColonizeUnitPool* units, int nation_id
+) {
+  int n = 0;
+  for (int i = 0; i < eu->harbor_ships; ++i) {
+    n += 1 + eu->harbor[i].cargo_count;
+  }
+  for (int i = 0; i < eu->expected_ships; ++i) {
+    n += 1 + eu->expected[i].cargo_count;
+  }
+  for (int i = 0; i < eu->bound_ships; ++i) {
+    n += 1 + eu->bound[i].cargo_count;
+  }
+  /* Every dock colonist is a DOS unit record; only some have a (236,236)
+   * mirror unit in the pool, which the pool count already covers. */
+  int mirrors = 0;
+  for (int i = 0; units && i < units_slot_end(units); ++i) {
+    const ColonizeUnit* u = &units->units[i];
+    if (u->active && u->x == EUROPE_PARK_XY && u->y == EUROPE_PARK_XY &&
+        u->nation_id == nation_id) {
+      mirrors++;
+    }
+  }
+  if (eu->dock_count > mirrors) {
+    n += eu->dock_count - mirrors;
+  }
+  return n;
+}
+
 int europe_compute_immigration_score_w(
   const ColonizeWorld* w,
   int nation_id
@@ -1450,7 +1502,13 @@ int europe_compute_immigration_score_w(
   }
   /* DOS counts every unit record of the nation, including colonists waiting
    * on the Europe docks — those are the (236,236) mirror units in the pool
-   * (seed-100 TURN5→6: needed 9→10 once the first immigrant landed). */
+   * (seed-100 TURN5→6: needed 9→10 once the first immigrant landed).
+   * FUN_38fd_584a raw 68265-68271 walks every unit record, so the bound
+   * nation's harbor and lane ships, their passengers and mirror-less dock
+   * rows (kept in EuropeScreen, not in the pool) count too. */
+  if (w->europe && nation_id == (int)w->europe->bound_nation) {
+    units_n += europe_offpool_unit_count(w->europe, units, nation_id);
+  }
   int score = pop + units_n;
   if (score < 4000) {
     score <<= 1;

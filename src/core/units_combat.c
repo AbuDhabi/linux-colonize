@@ -1576,6 +1576,31 @@ int units_naval_damage_gate(
   return damaged;
 }
 
+/* DOS-LITERAL FUN_5fef_0352 raw 99570-99579: a hull the gunned winner sinks
+ * leaves the census at once (cargo total, type count, armed count), so a later
+ * hull of the same 0ec0 walk reads the reduced totals in its own gate. */
+void units_naval_sink_census(
+  const ColonizeUnitPool* pool, const ColonizeCol1Save* col1, const ColonizeUnit* lose
+) {
+  const ColonizeUnitType* lt = lose ? units_type(pool, lose->type_index) : NULL;
+  if (!col1 || !lt || lose->nation_id < 0 || lose->nation_id >= 4 || lose->type_index < 0 ||
+      lose->type_index >= 19) {
+    return;
+  }
+  ColonizeCol1Stuff* st = &((ColonizeCol1Save*)col1)->stuff;
+  const int n = lose->nation_id;
+  st->ship_cargo_totals[n] = (uint8_t)(st->ship_cargo_totals[n] - lt->cargo);
+  /* DOS bug, reproduced for now (docs/tolerated_dos_bugs.md TB-34). */
+  st->unit_type_counts[n][lose->type_index]--;
+  if (lt->attack != 0) {
+    st->armed_ship_counts[n]--;
+  }
+  /* TB-34: DOS never decrements DS:0x9418; fixed under !dos_buggy_behavior(). */
+  if (!dos_buggy_behavior() && st->ship_counts[n] > 0) {
+    st->ship_counts[n]--;
+  }
+}
+
 int units_apply_naval_loss_outcome(
   ColonizeUnitPool* pool,
   int loser_id,
@@ -2065,23 +2090,8 @@ int units_apply_naval_loss_outcome(
   if (wguns > 0) {
     damaged = units_naval_damage_gate(pool, col1, lose, wt, win->nation_id, damaged);
   }
-  /* DOS-LITERAL FUN_5fef_0352 raw 99570-99579: a sunk hull leaves the census
-   * at once (cargo total, type count, armed count). A later hull of the same
-   * 0ec0 walk reads the reduced totals in its own gate. */
-  if (!damaged && wguns > 0 && col1 && lt && lose->nation_id >= 0 && lose->nation_id < 4 &&
-      lose->type_index >= 0 && lose->type_index < 19) {
-    ColonizeCol1Stuff* st = &((ColonizeCol1Save*)col1)->stuff;
-    const int n = lose->nation_id;
-    st->ship_cargo_totals[n] = (uint8_t)(st->ship_cargo_totals[n] - lt->cargo);
-    /* DOS bug, reproduced for now (docs/tolerated_dos_bugs.md TB-34). */
-    st->unit_type_counts[n][lose->type_index]--;
-    if (lt->attack != 0) {
-      st->armed_ship_counts[n]--;
-    }
-    /* TB-34: DOS never decrements DS:0x9418; fixed under !dos_buggy_behavior(). */
-    if (!dos_buggy_behavior() && st->ship_counts[n] > 0) {
-      st->ship_counts[n]--;
-    }
+  if (!damaged && wguns > 0) {
+    units_naval_sink_census(pool, col1, lose);
   }
   /*
    * port_bugs.md #254: WoI human with no drydock port has no friendly Europe either

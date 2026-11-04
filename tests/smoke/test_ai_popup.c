@@ -258,6 +258,35 @@ static int case_set_last_after_dropped_enqueue(void) {
   return 0;
 }
 
+/* A missing TXT section shows nothing in DOS (FUN_7314_001a): an OK with no
+ * body and no title is dropped, and set_last_* then leaves the previous
+ * request alone. The flow-driving tags (war end, throne, Congress announce,
+ * the @INDEPENDENCE letter) still queue. */
+static int case_empty_ok_dropped(void) {
+  static AiPopupState st;
+  ai_popup_init(&st);
+  if (!ai_popup_enqueue_ok(&st, AI_POPUP_TAG_INFO, NULL, "x")) {
+    return fail("enqueue real OK");
+  }
+  if (ai_popup_enqueue_ok_ctx(&st, AI_POPUP_TAG_CONTACT_DEMAND, 0, 4, 0, "", "") ||
+      ai_popup_enqueue_ok(&st, AI_POPUP_TAG_INFO, NULL, NULL) || st.queue_count != 1) {
+    fprintf(stderr, "  queue_count %d after two empty OKs\n", st.queue_count);
+    return fail("empty OK should be dropped");
+  }
+  ai_popup_set_last_portrait(&st, 3, 2);
+  if (st.queue[0].portrait_tribe != -1) {
+    return fail("set_last_portrait patched the previous OK after an empty drop");
+  }
+  if (!ai_popup_enqueue_ok_ctx(&st, AI_POPUP_TAG_KING_WAR_END, 0, 1, 2, NULL, "") ||
+      !ai_popup_enqueue_ok_ctx(&st, AI_POPUP_TAG_KING_THRONE, 0, 1, 1, NULL, "") ||
+      !ai_popup_enqueue_ok_ctx(&st, AI_POPUP_TAG_FF_CONGRESS, 0, 3, -1, NULL, "") ||
+      !ai_popup_enqueue_ok_ctx(&st, AI_POPUP_TAG_KING_LETTER, 0, -1, 0, NULL, "") ||
+      st.queue_count != 5) {
+    return fail("flow-driving OK tags must queue even without text");
+  }
+  return 0;
+}
+
 /* Presentation tags: FA / King letter / Congress FF (chrome only). */
 static int case_chrome_tags(void) {
   AiPopupState st;
@@ -1003,6 +1032,7 @@ static const TestCase k_cases[] = {
     {"case_queue_overflow", case_queue_overflow},
     {"case_chrome_tags", case_chrome_tags},
     {"case_set_last_after_dropped_enqueue", case_set_last_after_dropped_enqueue},
+    {"case_empty_ok_dropped", case_empty_ok_dropped},
     {"case_render_layouts", case_render_layouts},
     {"case_placement_is_dos", case_placement_is_dos},
     {"case_siege_figure_is_dos", case_siege_figure_is_dos},

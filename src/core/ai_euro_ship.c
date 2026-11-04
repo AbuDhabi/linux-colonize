@@ -1555,13 +1555,13 @@ int ai_euro_try_ship_trade_haul_snapshot(
 
 
 /*
- * FUN_48d3_0002 (raw 77563-77588) for an AI hull: reseed from the timer word
- * (FUN_281f_04ca(DS:0x83a6) = ai_nation_reseed), then the shared 1-2 turn
- * roll over the nation's hull tally DS:0x9418 and Magellan. The second
- * argument is the New World x of the crossing (port_bugs.md #1019).
+ * FUN_48d3_0002 (raw 77563-77588) for an AI hull: the shared 1-2 turn roll
+ * (its FUN_281f_04ca(DS:0x83a6) reseed, raw 77571, is inside
+ * europe_voyage_turns_roll) over the nation's hull tally DS:0x9418 and
+ * Magellan. The second argument is the New World x of the crossing
+ * (port_bugs.md #1019).
  */
 static int ai_euro_lane_voyage_turns(ColonizeTurnContext* ctx, int nation_id, int new_world_x) {
-  ai_nation_reseed(ctx);
   const bool magellan = ctx->col1_ok && ctx->col1 &&
     founding_fathers_nation_has(ctx->col1, nation_id, FF_FERDINAND_MAGELLAN);
   return europe_voyage_turns_roll(

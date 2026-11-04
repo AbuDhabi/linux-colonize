@@ -4556,6 +4556,82 @@ static int case_ai_euro_crosses(void) {
   return 0;
 }
 
+/* FUN_3844_00f2 runs the 5e52 (raw 58375, the 5be8 tax audience included) before
+ * FUN_48d3_06ba (raw 58377), whose arrival pass cashes treasure at the live rate
+ * (raw 77981-78027). A rich nation with an unstocked colony gets a raise that
+ * commits at once (no tea-party cargo), so 1000 in treasure pays the new rate. */
+static int case_europe_pass_after_tax_audience(void) {
+  fx_begin();
+  ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
+  units_reset(&units);
+  units_set_occupancy_map(NULL);
+  if (!units_load_types(&units, test_names_txt())) {
+    fprintf(stderr, "SKIP: no COLONIZE/ assets\n");
+    return TR_SKIP;
+  }
+  const int treasure_ti = units_kind_type_index(&units, UNITS_KIND_TREASURE);
+  if (treasure_ti < 0) {
+    return 1;
+  }
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  ColonizeColony* col = &pool.colonies[0];
+  memset(col, 0, sizeof(*col));
+  col->active = true;
+  col->nation_id = 0;
+  col->colonist_count = 1;
+  col->population = 1;
+  pool.colony_count = 1;
+  ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  col1.player[0].control = 0;
+  col1.player[1].control = 1;
+  col1.player[2].control = 1;
+  col1.player[3].control = 1;
+  col1.head.difficulty = 2; /* interval 18 at 1492 */
+  col1.nation[0].tax_rate = 20;
+  EuropeScreen eu;
+  memset(&eu, 0, sizeof(eu));
+  eu.tax_percent = 20;
+  eu.gold = 200000; /* 5be8 score far past 100: a raise */
+  ColonizeDosRng rng;
+  dos_rng_seed(&rng, 1);
+  eu.expected_ships = 1;
+  eu.expected[0].turns_left = 1;
+  eu.expected[0].cargo_count = 1;
+  eu.expected[0].cargo_types[0] = treasure_ti;
+  eu.expected[0].cargo_professions[0] = -1;
+  eu.expected[0].cargo_treasure_gold[0] = 1000;
+  uint32_t turn = 36;
+  uint16_t year = 1492;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.messages = test_game_txt();
+  ctx.names = test_names_txt();
+  ctx.human_nation = 0;
+  ctx.units = &units;
+  ctx.colonies = &pool;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.europe = &eu;
+  ctx.turn_number = &turn;
+  ctx.game_year = &year;
+  ctx.rng = &rng;
+  ColonizeTurnProcessor proc;
+  memset(&proc, 0, sizeof(proc));
+  turn_step_finish(&proc, &ctx);
+  const int tax = (int)col1.nation[0].tax_rate;
+  const int want_gold = 200000 + 1000 * (100 - (tax > 50 ? 50 : tax)) / 100;
+  if (tax == 20 || eu.harbor_ships != 1 || eu.gold != want_gold) {
+    fprintf(stderr, "europe pass after audience: tax %d harbor %d gold %d (want %d)\n", tax,
+            eu.harbor_ships, eu.gold, want_gold);
+    return 1;
+  }
+  return 0;
+}
+
 /* port_bugs.md #923: DOS FUN_3844_00f2 runs the 5e52 immigration tick (raw 58375)
  * BEFORE the per-colony crosses add (raw 58386), so this turn's church output
  * must not be visible to the threshold compare. */
@@ -4719,6 +4795,9 @@ static int case_immigration_pressure(void) {
     icol.head.difficulty = 4; /* Viceroy → AI score half */
     icol.player[0].control = 0;
     icol.player[1].control = 1;
+    /* The phase-5 immigrant above is a DOS unit record (584a counts it); empty the dock so
+     * the base stays pop 5. */
+    eu.dock_count = 0;
     col->nation_id = 1;
     eu.current_crosses = 0;
     eu.immigration_pressure = 0;
@@ -5894,7 +5973,7 @@ static int case_ship_build_ready(void) {
   (void)units_tick_ship_build_ready(&units, &colonies, 0, 0, status, sizeof(status), &want_eu);
   /* Timer done; bit7 clear + @REFIT is the repair tick's (FUN_3844_00f2). */
   (void)units_tick_drydock_repair(
-    &units, &colonies, 0, 0, status, sizeof(status), NULL, test_game_txt()
+    &units, &colonies, 0, 0, status, sizeof(status), NULL, test_game_txt(), NULL, 0
   );
   if ((u->col1_flags15 & 0x80u) != 0 || u->col1_counter16 < 4) {
     fprintf(
@@ -5919,7 +5998,9 @@ static int case_ship_build_ready(void) {
   units.types[0xd].defense = 2;
   status[0] = '\0';
   (void)units_tick_ship_build_ready(&units, &colonies, 0, 0, status, sizeof(status), &want_eu);
-  (void)units_tick_drydock_repair(&units, &colonies, 0, 0, status, sizeof(status), NULL, NULL);
+  (void)units_tick_drydock_repair(
+    &units, &colonies, 0, 0, status, sizeof(status), NULL, NULL, NULL, 0
+  );
   if ((u->col1_flags15 & 0x80u) != 0 || u->col1_counter16 != 2) {
     fprintf(
       stderr,
@@ -6753,7 +6834,96 @@ static int case_produce_seam_lumber(void) {
   return 0;
 }
 
+/*
+ * FUN_3844_00f2 raw 58326-58373: one loop walks the unit records from the last down and
+ * shows each @REFIT as the hull completes. The save writes the harbor hulls after the map
+ * units (col1_bridge_capture_europe_lanes), so the harbor popups come first, last harbor
+ * slot first, then the map hulls from the highest slot down.
+ */
+static int case_refit_unit_order(void) {
+  fx_begin();
+  static ColonizeUnitPool units;
+  units_reset(&units);
+  units_set_occupancy_map(NULL);
+  units.type_count = 14;
+  const char* const names[4] = {"Shipa", "Shipb", "Shipc", "Shipd"};
+  for (int t = 10; t < 14; ++t) {
+    snprintf(units.types[t].name, sizeof(units.types[t].name), "%s", names[t - 10]);
+    units.types[t].domain = COLONIZE_UNIT_DOMAIN_SEA;
+    units.types[t].defense = 4;
+  }
+  static ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  const char* const cnames[2] = {"Alpha", "Bravo"};
+  for (int c = 0; c < 2; ++c) {
+    ColonizeColony* col = &pool.colonies[c];
+    memset(col, 0, sizeof(*col));
+    col->active = true;
+    col->id = c + 1;
+    col->x = 10 + 2 * c;
+    col->y = 10 + 2 * c;
+    col->nation_id = 0;
+    snprintf(col->name, sizeof(col->name), "%s", cnames[c]);
+  }
+  pool.colony_count = 2;
+  for (int k = 0; k < 2; ++k) {
+    const int id = units_spawn_allow_stack(&units, 12 + k, 10 + 2 * k, 10 + 2 * k);
+    ColonizeUnit* u = units_get(&units, id);
+    if (!u) {
+      fprintf(stderr, "refit order: spawn failed\n");
+      return 1;
+    }
+    units_set_nation(u, 0);
+    u->col1_flags15 = 0x80;
+    u->col1_counter16 = 4;
+    u->repair_pending = 1;
+  }
+  static EuropeScreen eu;
+  memset(&eu, 0, sizeof(eu));
+  ColonizeUnit hull;
+  memset(&hull, 0, sizeof(hull));
+  hull.col1_origin = 0xff;
+  hull.col1_counter16 = 3;
+  hull.type_index = 10;
+  const bool a = europe_harbor_push_damaged(&eu, &hull, "Shipa", true);
+  hull.type_index = 11;
+  const bool b = europe_harbor_push_damaged(&eu, &hull, "Shipb", true);
+  if (!a || !b) {
+    fprintf(stderr, "refit order: harbor push failed\n");
+    return 1;
+  }
+  const int last_slot = eu.harbor[eu.harbor_ships - 1].type_index;
+  AiPopupState pop;
+  ai_popup_init(&pop);
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.messages = test_game_txt();
+  ctx.human_nation = 0;
+  ctx.units = &units;
+  ctx.colonies = &pool;
+  ctx.europe = &eu;
+  ctx.ai_popups = &pop;
+  static ColonizeTurnProcessor proc;
+  memset(&proc, 0, sizeof(proc));
+  turn_human_ship_repairs(&proc, &ctx);
+  const char* const want[4] = {names[last_slot - 10], names[last_slot == 10 ? 1 : 0], "Shipd",
+                               "Shipc"};
+  if (pop.queue_count != 4) {
+    fprintf(stderr, "refit order: want 4 @REFIT, got %d\n", pop.queue_count);
+    return 1;
+  }
+  for (int k = 0; k < 4; ++k) {
+    if (!strstr(pop.queue[k].body, want[k])) {
+      fprintf(stderr, "refit order: popup %d '%s' want %s\n", k, pop.queue[k].body, want[k]);
+      return 1;
+    }
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+  {"refit_unit_order", case_refit_unit_order},
   {"calendar", case_calendar},
   {"hotseat_slot_order", case_hotseat_slot_order},
   {"all_ai_slot_order", case_all_ai_slot_order},
@@ -6811,6 +6981,7 @@ static const TestCase k_cases[] = {
   {"ai_euro_crosses", case_ai_euro_crosses},
   {"immigration_pressure", case_immigration_pressure},
   {"human_crosses_order", case_human_crosses_order},
+  {"europe_pass_after_tax_audience", case_europe_pass_after_tax_audience},
   {"no_free_ship_spawn", case_no_free_ship_spawn},
   {"horse_breed_units", case_horse_breed_units},
   {"horse_breed_colony", case_horse_breed_colony},

@@ -1442,6 +1442,9 @@ void game_europe_sail_harbor(ColonizeGameState* game, int hidx) {
   if ((eu->focus == 1 && eu->harbor_ships == 0) || (eu->focus == 2 && eu->dock_count == 0)) {
     eu->focus = 0;
   }
+  /* FUN_38fd_2a92 raw 60781: thunk_FUN_291f_0dd4 -> FUN_38fd_081c puts the
+   * harbor selection back on slot 0. */
+  europe_reset_harbor_selection(eu);
   /* port_bugs.md: sailing the LAST docked ship closes the European Status back
    * to the map — nothing is left to manage there. */
   if (eu->harbor_ships <= 0 && game->in_europe) {
@@ -1532,13 +1535,12 @@ bool game_europe_drag_drop(ColonizeGameState* game, int mx, int my, bool shift) 
         return true;
       }
     }
-  } else if (kind == UI_DRAG_EUROPE_EXPECTED_SHIP) {
-    if (hit.kind == EUROPE_HIT_BOUND) {
-      europe_reverse_transit(eu, true, drag->index);
-    }
-  } else if (kind == UI_DRAG_EUROPE_BOUND_SHIP) {
-    if (hit.kind == EUROPE_HIT_EXPECTED) {
-      europe_reverse_transit(eu, false, drag->index);
+  } else if (kind == UI_DRAG_EUROPE_EXPECTED_SHIP || kind == UI_DRAG_EUROPE_BOUND_SHIP) {
+    const bool from_expected = kind == UI_DRAG_EUROPE_EXPECTED_SHIP;
+    if (hit.kind == (from_expected ? EUROPE_HIT_BOUND : EUROPE_HIT_EXPECTED) &&
+        europe_reverse_transit(eu, from_expected, drag->index)) {
+      /* 38fd:3228 ends in 291f:0dd4: harbor selection back to slot 0. */
+      europe_reset_harbor_selection(eu);
     }
   }
 

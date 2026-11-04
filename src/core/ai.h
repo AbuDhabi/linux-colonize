@@ -43,6 +43,7 @@ typedef struct AiNewGameParams {
   int difficulty;
   const char* leader_name;
   bool use_tribe_txt; /* AMERICA / named .MP */
+  bool customize; /* CUSTOMIZE path: no customize-axis draws (FUN_75c2_2778 raw 121788) */
   const char* map_stem; /* e.g. "AMER2" for @SCENARIO landfalls; may be NULL */
   int human_start_x;
   int human_start_y;

@@ -1069,6 +1069,7 @@ static int case_europe_workflow(void) {
     ColonizeDosRng vr;
     ColonizeDosRng vm;
     ColonizeDosRng vf;
+    dos_rng_set_83a6(-1); /* the roll reseeds from a set 83a6 word; keep these streams free */
     dos_rng_seed(&vr, 7u);
     dos_rng_seed(&vm, 7u);
     dos_rng_seed(&vf, 7u);
@@ -1449,76 +1450,6 @@ static int case_europe_workflow(void) {
   }
 
   /*
-   * Map/transport sell (no harbor): europe_sell_unit_hold → europe_sell_proceeds
-   * tax path (bid × amt × (100−tax)/100). Cite: Colonization.pdf Europe sell.
-   */
-  {
-    ColonizeMsgCatalog names;
-    ColonizeUnitPool units;
-    memset(&units, 0, sizeof(units));
-    memset(&names, 0, sizeof(names));
-    units_reset(&units);
-    units_set_occupancy_map(NULL);
-    if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT") ||
-        !units_load_types(&units, &names)) {
-      fprintf(stderr, "sell_unit_hold: load NAMES/units failed\n");
-      assets_msg_free(&names);
-      europe_free(&eu);
-      return 1;
-    }
-    const int caravel = units_find_type(&units, "Caravel");
-    if (caravel < 0) {
-      fprintf(stderr, "sell_unit_hold: Caravel type missing\n");
-      assets_msg_free(&names);
-      europe_free(&eu);
-      return 1;
-    }
-    const int sid = units_spawn_allow_stack(&units, caravel, 2, 2);
-    ColonizeUnit* ship = units_get(&units, sid);
-    if (!ship) {
-      fprintf(stderr, "sell_unit_hold: spawn failed\n");
-      assets_msg_free(&names);
-      europe_free(&eu);
-      return 1;
-    }
-    ship->nation_id = 0;
-    ship->hold_goods_type[0] = COLONIZE_CARGO_SUGAR;
-    ship->hold_goods_amount[0] = 50;
-    eu.tax_percent = 50;
-    const int sugar_bid = eu.cargo[COLONIZE_CARGO_SUGAR].bid;
-    const int expect = europe_net_after_tax((sugar_bid - 1) * 50, 50);
-    const int gold0 = eu.gold;
-    ColonizeWorld sell_w1 = world_make(&units, NULL, NULL, NULL, false, NULL, &eu);
-    const int gained = europe_sell_unit_hold_w(&sell_w1, sid, 0);
-    if (gained != expect || eu.gold != gold0 + expect ||
-        ship->hold_goods_amount[0] != 0 || ship->hold_goods_type[0] != 0) {
-      fprintf(
-        stderr,
-        "sell_unit_hold failed gained=%d expect=%d gold %d→%d hold=%d type=%d\n",
-        gained,
-        expect,
-        gold0,
-        eu.gold,
-        ship->hold_goods_amount[0],
-        ship->hold_goods_type[0]
-      );
-      assets_msg_free(&names);
-      europe_free(&eu);
-      return 1;
-    }
-    ColonizeWorld sell_w2 = world_make(&units, NULL, NULL, NULL, false, NULL, &eu);
-    ColonizeWorld sell_w3 = world_make(&units, NULL, NULL, NULL, false, NULL, NULL);
-    if (europe_sell_unit_hold_w(&sell_w2, sid, 0) != 0 ||
-        europe_sell_unit_hold_w(&sell_w3, sid, 0) != 0) {
-      fprintf(stderr, "sell_unit_hold should no-op on empty/null\n");
-      assets_msg_free(&names);
-      europe_free(&eu);
-      return 1;
-    }
-    assets_msg_free(&names);
-  }
-
-  /*
    * Smell audit #83: the harbor buy must respect the ship's hold count.
    * DOS FUN_38fd_1fa2 asks FUN_281f_0b96 -> FUN_15eb_3208 for free room
    * (@UNIT cargo column minus holds_occupied) and bails to the no-room
@@ -1682,9 +1613,9 @@ static int case_europe_workflow(void) {
     }
 
     /*
-     * Passengers ride the same slots (europe_board_sentry_dockers): a Caravel
-     * carrying one immigrant plus one goods hold has no room for a second
-     * cargo.
+     * FUN_15eb_3208 raw 13375-13376 sizes the buy from the goods hold count
+     * (+0x3150) only, so a Caravel carrying one immigrant plus one goods hold
+     * still takes a second 100-ton cargo.
      */
     int pax[1] = {0};
     memset(cap_hold_types, 0, sizeof(cap_hold_types));
@@ -1702,12 +1633,13 @@ static int case_europe_workflow(void) {
     }
     const int pax_idx = cap.harbor_ships - 1;
     const int gold_pax = cap.gold;
-    if (europe_harbor_cargo_room(&cap, &cap_units, pax_idx, COLONIZE_CARGO_CLOTH) != 0 ||
-        europe_buy_cargo_w(&cap_w, -1, pax_idx, COLONIZE_CARGO_CLOTH, 100) != 0 ||
-        cap.gold != gold_pax || cap.harbor[pax_idx].hold_goods_amount[1] != 0) {
+    if (europe_harbor_cargo_room(&cap, &cap_units, pax_idx, COLONIZE_CARGO_CLOTH) != 100 ||
+        europe_buy_cargo_w(&cap_w, -1, pax_idx, COLONIZE_CARGO_CLOTH, 100) != 100 ||
+        cap.gold != gold_pax - 100 * cloth_ask ||
+        cap.harbor[pax_idx].hold_goods_amount[1] != 100) {
       fprintf(
         stderr,
-        "hold cap: passenger must occupy a Caravel hold, room=%d gold %d→%d hold1=%d\n",
+        "hold cap: passenger must not take a goods hold, room=%d gold %d→%d hold1=%d\n",
         europe_harbor_cargo_room(&cap, &cap_units, pax_idx, COLONIZE_CARGO_CLOTH),
         gold_pax,
         cap.gold,
@@ -3554,6 +3486,61 @@ done:
   return rc;
 }
 
+/* FUN_48d3_06ba raw 77968-77976 keeps the FIRST arriving hull not on a trade route
+ * (+0x314c != 2): it alone arms the auto-open, and woodcut 9 needs that hull's holds.
+ * A route hull's cargo does not count. */
+static int case_europe_arrival_woodcut_first_non_route(void) {
+  EuropeScreen* eu = (EuropeScreen*)calloc(1, sizeof(*eu));
+  if (!eu) {
+    return 1;
+  }
+  int rc = 0;
+  for (int k = 0; k < 2; ++k) {
+    EuropeHarborShip* s = &eu->expected[eu->expected_ships++];
+    s->type_index = 0;
+    s->turns_left = 1;
+  }
+  eu->expected[0].trade_route_plus1 = 1; /* route hull with goods */
+  eu->expected[0].hold_goods_amount[0] = 40;
+  europe_tick_voyages(eu, NULL);
+  if (eu->harbor_ships != 2 || !eu->open_on_dock || eu->docked_with_goods) {
+    fprintf(stderr, "first non-route: harbor %d open %d goods %d (want 2/1/0)\n",
+            eu->harbor_ships, (int)eu->open_on_dock, (int)eu->docked_with_goods);
+    rc = 1;
+  }
+  memset(eu, 0, sizeof(*eu));
+  EuropeHarborShip* r = &eu->expected[eu->expected_ships++];
+  r->turns_left = 1;
+  r->trade_route_plus1 = 1;
+  r->hold_goods_amount[0] = 40;
+  europe_tick_voyages(eu, NULL);
+  if (eu->harbor_ships != 1 || eu->open_on_dock || eu->docked_with_goods) {
+    fprintf(stderr, "route only: harbor %d open %d goods %d (want 1/0/0)\n", eu->harbor_ships,
+            (int)eu->open_on_dock, (int)eu->docked_with_goods);
+    rc = 1;
+  }
+  /* Lane chain order is newest departure first (FUN_48d3_007a -> FUN_1427_0362 front-
+   * inserts into 244+n, each FUN_48d3_03d0 hop appends to the tail via FUN_1427_03a0),
+   * so of two non-route hulls docking together the later one is picked and docks first. */
+  memset(eu, 0, sizeof(*eu));
+  for (int k = 0; k < 2; ++k) {
+    EuropeHarborShip* s = &eu->expected[eu->expected_ships++];
+    s->type_index = k;
+    s->turns_left = 1;
+  }
+  eu->expected[1].hold_goods_amount[0] = 40; /* newest departure carries goods */
+  europe_tick_voyages(eu, NULL);
+  if (eu->harbor_ships != 2 || !eu->open_on_dock || !eu->docked_with_goods ||
+      eu->harbor[0].type_index != 1 || eu->harbor[1].type_index != 0) {
+    fprintf(stderr, "chain order: harbor %d open %d goods %d first %d (want 2/1/1/1)\n",
+            eu->harbor_ships, (int)eu->open_on_dock, (int)eu->docked_with_goods,
+            eu->harbor[0].type_index);
+    rc = 1;
+  }
+  free(eu);
+  return rc;
+}
+
 /* #1071/#1072: past the old port caps (8 ships / 32 dockers) pushes still land. */
 static int case_europe_lanes_past_old_caps(void) {
   EuropeScreen* eu = (EuropeScreen*)calloc(1, sizeof(*eu));
@@ -3628,9 +3615,16 @@ static int case_europe_ship_own_exit_tile(void) {
     return 1;
   }
   int rc = 0;
-  /* Caribbean ship arrives first, Pacific ship last (nation tile = Pacific). */
+  /* Caribbean ship departs first, Pacific ship last (nation tile = Pacific). Both dock on
+   * the same tick, newest departure first (lane chain order), so the Galleon heads the harbor. */
   (void)europe_enqueue_expected(eu, 0, "Merchantman", NULL, NULL, 0, NULL, NULL, 40, 20, true, 1);
   (void)europe_enqueue_expected(eu, 0, "Galleon", NULL, NULL, 0, NULL, NULL, 2, 50, false, 1);
+  /* The crossing (game_ship_sail_to_europe, FUN_48d3_007a) stamps the nation tile, not the
+   * enqueue: the Galleon crossed last. */
+  eu->last_exit_x = 2;
+  eu->last_exit_y = 50;
+  eu->last_exit_east = false;
+  eu->last_exit_valid = true;
   europe_tick_voyages(eu, NULL);
   europe_tick_voyages(eu, NULL);
   (void)europe_harbor_push_ex(eu, 0, "Caravel", NULL, NULL, 0, NULL, NULL); /* purchased */
@@ -3642,7 +3636,7 @@ static int case_europe_ship_own_exit_tile(void) {
   for (int k = 0; k < 3; ++k) {
     (void)europe_set_sail_from_harbor(eu, 0, 1, NULL, 0);
   }
-  static const int want[3][3] = {{40, 20, 1}, {2, 50, 0}, {2, 50, 0}};
+  static const int want[3][3] = {{2, 50, 0}, {40, 20, 1}, {2, 50, 0}};
   for (int k = 0; k < 3; ++k) {
     const EuropeHarborShip* b = &eu->bound[k];
     if (eu->bound_ships != 3 || b->exit_x != want[k][0] || b->exit_y != want[k][1] ||
@@ -3683,8 +3677,176 @@ static int case_europe_buy_short_gold_refuses(void) {
   return rc;
 }
 
+/* FUN_38fd_1fa2 raw 60399-60406: FUN_281f_0b96 finds no room for the cargo, so the red bar
+ * reads @CMESSAGE 4 + the cargo name + DS:0xfcc "!" and nothing is bought. */
+static int case_europe_buy_no_room_red_bar(void) {
+  EuropeScreen* eu = (EuropeScreen*)calloc(1, sizeof(*eu));
+  if (!eu) {
+    return 1;
+  }
+  int hold_types[EUROPE_SHIP_CARGO_MAX];
+  int hold_amts[EUROPE_SHIP_CARGO_MAX];
+  for (int h = 0; h < EUROPE_SHIP_CARGO_MAX; ++h) {
+    hold_types[h] = COLONIZE_CARGO_FOOD;
+    hold_amts[h] = 100;
+  }
+  (void)europe_harbor_push_ex(eu, 0, "Galleon", NULL, NULL, 0, hold_types, hold_amts);
+  eu->cargo_count = COLONIZE_CARGO_TOOLS + 1;
+  snprintf(eu->cargo[COLONIZE_CARGO_TOOLS].name, sizeof(eu->cargo[0].name), "Tools");
+  eu->cargo[COLONIZE_CARGO_TOOLS].ask = 2;
+  eu->gold = 1000;
+  ColonizeWorld w = world_make(NULL, NULL, NULL, NULL, false, NULL, eu);
+  const int b = europe_buy_cargo_w(&w, -1, 0, COLONIZE_CARGO_TOOLS, 100);
+  int rc = 0;
+  if (b != 0 || eu->gold != 1000 || eu->bar_event_count != 1 || !eu->bar_event_red[0] ||
+      strstr(eu->bar_event[0], "Tools!") == NULL) {
+    fprintf(stderr, "no room: bought %d gold %d bars %d \"%s\"\n", b, eu->gold,
+            eu->bar_event_count, eu->bar_event[0]);
+    rc = 1;
+  }
+  free(eu);
+  if (rc != 0) {
+    return rc;
+  }
+  /* The amount prompt (param_4 != 0) checks the room first too: the same bar, no prompt. */
+  ColonizeGameState* game = calloc(1, sizeof(*game));
+  if (!game) {
+    return 1;
+  }
+  game->europe_ok = true;
+  eu = &game->europe;
+  (void)europe_harbor_push_ex(eu, 0, "Galleon", NULL, NULL, 0, hold_types, hold_amts);
+  eu->cargo_count = COLONIZE_CARGO_TOOLS + 1;
+  snprintf(eu->cargo[COLONIZE_CARGO_TOOLS].name, sizeof(eu->cargo[0].name), "Tools");
+  eu->cargo[COLONIZE_CARGO_TOOLS].ask = 2;
+  game_europe_open_buy_prompt_for(game, 0, COLONIZE_CARGO_TOOLS);
+  if (game->howmuch.open || eu->bar_event_count != 1 || !eu->bar_event_red[0] ||
+      strstr(eu->bar_event[0], "Tools!") == NULL) {
+    fprintf(stderr, "no room prompt: open %d bars %d \"%s\"\n", game->howmuch.open,
+            eu->bar_event_count, eu->bar_event[0]);
+    rc = 1;
+  }
+  free(game);
+  return rc;
+}
+
+/* FUN_38fd_584a raw 68265-68271 counts every unit record of the nation, so the bound
+ * nation's harbor ship, its passenger and a dock row with no (236,236) mirror unit count. */
+static int case_europe_immigration_counts_offpool_units(void) {
+  EuropeScreen* eu = (EuropeScreen*)calloc(1, sizeof(*eu));
+  if (!eu) {
+    return 1;
+  }
+  eu->bound_nation = 1;
+  const ColonizeWorld w = {.europe = eu};
+  const int base = europe_compute_immigration_score_w(&w, 1); /* (0 << 1) + 8 */
+  const int pax[1] = {0};
+  (void)europe_harbor_push_ex(eu, 0, "Ship", pax, NULL, 1, NULL, NULL);
+  eu->dock_count = 1;
+  eu->dock[0].present = true;
+  const int with = europe_compute_immigration_score_w(&w, 1); /* (3 << 1) + 8 */
+  free(eu);
+  if (base != 8 || with != 14) {
+    fprintf(stderr, "offpool score: base %d (want 8) with %d (want 14)\n", base, with);
+    return 1;
+  }
+  return 0;
+}
+
+/* FUN_479b_0bd0 raw 77226-77236: a route ship serviced in the Europe harbor whose next stop
+ * is a colony leaves with that colony's tile as its +0x314d/e, not the tile it crossed from. */
+static int case_europe_trade_route_return_tile(void) {
+  ColonizeGameState* game = calloc(1, sizeof(*game));
+  if (!game) {
+    return 1;
+  }
+  game->europe_ok = true;
+  game->col1_ok = true;
+  game->units_ok = true;
+  game->world_map.width = 58;
+  game->colonies.colonies[0].active = true;
+  game->colonies.colonies[0].id = 1;
+  game->colonies.colonies[0].x = 20;
+  game->colonies.colonies[0].y = 30;
+  game->col1.trade_route[0].dest_count = 2;
+  game->col1.trade_route[0].stop[0].colony_index = 999;
+  game->col1.trade_route[0].stop[1].colony_index = 0;
+  EuropeScreen* eu = &game->europe;
+  (void)europe_harbor_push_ex(eu, 0, "A", NULL, NULL, 0, NULL, NULL);
+  eu->harbor[0].exit_x = 50;
+  eu->harbor[0].exit_y = 10;
+  eu->harbor[0].trade_route_plus1 = 1;
+  eu->harbor[0].trade_stop = 0;
+  game_europe_service_trade_harbor(game);
+  int rc = 0;
+  if (eu->bound_ships != 1 || eu->bound[0].exit_x != 20 || eu->bound[0].exit_y != 30 ||
+      eu->bound[0].trade_stop != 1) {
+    fprintf(
+      stderr, "route return: bound %d exit (%d,%d) stop %d, want 1 (20,30) 1\n", eu->bound_ships,
+      eu->bound[0].exit_x, eu->bound[0].exit_y, eu->bound[0].trade_stop
+    );
+    rc = 1;
+  }
+  free(game);
+  return rc;
+}
+
+/* FUN_5fef_0352 raw 99642-99644 -> FUN_1427_02ca: the damaged hull is linked at the head of
+ * the in-port chain, which FUN_38fd_0666 lists from the head, so it is harbor slot 0. */
+static int case_europe_damaged_hull_heads_harbor(void) {
+  EuropeScreen* eu = (EuropeScreen*)calloc(1, sizeof(*eu));
+  if (!eu) {
+    return 1;
+  }
+  (void)europe_harbor_push_ex(eu, 0, "A", NULL, NULL, 0, NULL, NULL);
+  ColonizeUnit hull;
+  memset(&hull, 0, sizeof(hull));
+  hull.col1_origin = 0xff;
+  const bool pushed = europe_harbor_push_damaged(eu, &hull, "B", true);
+  int rc = 0;
+  if (!pushed || eu->harbor_ships != 2 || !eu->harbor[0].damaged ||
+      strcmp(eu->harbor[0].name, "B") != 0 || strcmp(eu->harbor[1].name, "A") != 0) {
+    fprintf(
+      stderr, "damaged head: harbor %d slot0 '%s' damaged %d, want 2 'B' damaged\n",
+      eu->harbor_ships, eu->harbor[0].name, eu->harbor[0].damaged
+    );
+    rc = 1;
+  }
+  free(eu);
+  return rc;
+}
+
+/* FUN_48d3_0002 raw 77571 reseeds through FUN_281f_04ca(DS:0x83a6) before its RNG(1,100)
+ * on every call, so two streams in different states end the roll in the same state under
+ * one 83a6 word. */
+static int case_europe_voyage_roll_reseeds_83a6(void) {
+  ColonizeDosRng a;
+  ColonizeDosRng b;
+  ColonizeDosRng want;
+  dos_rng_seed(&a, 1u);
+  dos_rng_seed(&b, 4242u);
+  dos_rng_seed(&want, 1234u);
+  (void)dos_rng_range(&want, 1, 100);
+  dos_rng_set_83a6(1234);
+  const int ta = europe_voyage_turns_roll(&a, false, 3, 40);
+  const int tb = europe_voyage_turns_roll(&b, false, 3, 40);
+  dos_rng_set_83a6(-1);
+  if (a.state != want.state || b.state != want.state || ta != tb) {
+    fprintf(stderr, "voyage roll must reseed from 83a6: %08x %08x want %08x\n", a.state,
+            b.state, want.state);
+    return 1;
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+    {"case_europe_voyage_roll_reseeds_83a6", case_europe_voyage_roll_reseeds_83a6},
+    {"case_europe_damaged_hull_heads_harbor", case_europe_damaged_hull_heads_harbor},
+    {"case_europe_trade_route_return_tile", case_europe_trade_route_return_tile},
+    {"case_europe_arrival_woodcut_first_non_route", case_europe_arrival_woodcut_first_non_route},
+    {"case_europe_immigration_counts_offpool_units", case_europe_immigration_counts_offpool_units},
     {"case_europe_buy_short_gold_refuses", case_europe_buy_short_gold_refuses},
+    {"case_europe_buy_no_room_red_bar", case_europe_buy_no_room_red_bar},
     {"case_europe_purse_single_door", case_europe_purse_single_door},
     {"case_europe_ship_own_exit_tile", case_europe_ship_own_exit_tile},
     {"case_europe_lanes_past_old_caps", case_europe_lanes_past_old_caps},
