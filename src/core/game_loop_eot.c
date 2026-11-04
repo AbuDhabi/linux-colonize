@@ -363,7 +363,7 @@ bool game_ship_sail_to_europe(ColonizeGameState* game, int sid) {
   }
   const int exit_x = ship->x;
   const int exit_y = ship->y;
-  const bool exit_east = exit_x >= (int)game->world_map.width / 2;
+  const bool exit_east = europe_exit_east_of(&game->world_map, exit_x);
   /* DS:0x9418 is a census tally taken while the ship is still a unit — take
    * the count BEFORE the despawn below, or every crossing is scored one hull
    * short (game_voyage_ship_count). */
@@ -1426,7 +1426,7 @@ void game_europe_service_trade_harbor(ColonizeGameState* game) {
     if (nc && nc->active) {
       ship->exit_x = nc->x;
       ship->exit_y = nc->y;
-      ship->exit_east = nc->x >= (int)game->world_map.width / 2;
+      ship->exit_east = europe_exit_east_of(&game->world_map, nc->x);
     }
     const int bound_before = eu->bound_ships;
     if (!europe_set_sail_from_harbor(

@@ -1468,17 +1468,20 @@ static void ai_talk_unit_to_europe(ColonizeTurnContext* ctx, int unit_id) {
        * (port_bugs #1312/#1361). Keep it on the harbor slot. */
       const int gx = u->goto_x;
       const int gy = u->goto_y;
+      /* +0x3148 0x40 (the Crown's gift) rides the record too; DOS never clears it. */
+      const bool royal_gift = (u->col1_flags15 & 0x40u) != 0;
       if (ctx->europe->harbor_ships < EUROPE_HARBOR_MAX && units_despawn_ship_with_cargo(
             ctx->units, unit_id, &type_index, name, sizeof(name), types, &n,
             COLONIZE_UNIT_CARGO_MAX, hold_t, hold_a, COLONIZE_UNIT_CARGO_MAX
+          ) && europe_harbor_push_ex(
+            ctx->europe, type_index, name, types, profs, n, hold_t, hold_a
           )) {
-        if (europe_harbor_push_ex(
-              ctx->europe, type_index, name, types, profs, n, hold_t, hold_a
-            ) && gx > 0 && gy > 0 && gx != UNITS_GOTO_NONE && gy != UNITS_GOTO_NONE) {
-          EuropeHarborShip* hs = &ctx->europe->harbor[ctx->europe->harbor_ships - 1];
+        EuropeHarborShip* hs = &ctx->europe->harbor[ctx->europe->harbor_ships - 1];
+        hs->royal_gift = royal_gift;
+        if (gx > 0 && gy > 0 && gx != UNITS_GOTO_NONE && gy != UNITS_GOTO_NONE) {
           hs->exit_x = gx;
           hs->exit_y = gy;
-          hs->exit_east = ctx->map && ctx->map->width > 0 ? gx >= ctx->map->width / 2 : true;
+          hs->exit_east = europe_exit_east_of(ctx->map, gx);
         }
       }
       return;

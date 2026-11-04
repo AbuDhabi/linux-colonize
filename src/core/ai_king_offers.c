@@ -343,7 +343,7 @@ static int ai_king_frigate_spawn(ColonizeTurnContext* ctx, int nation) {
     EuropeHarborShip* s = &eu->bound[eu->bound_ships - 1];
     s->exit_x = land_x;
     s->exit_y = land_y;
-    s->exit_east = (ctx->map && ctx->map->width > 0) ? land_x >= ctx->map->width / 2 : true;
+    s->exit_east = europe_exit_east_of(ctx->map, land_x);
     s->royal_gift = true;
     return 0;
   }
@@ -395,18 +395,9 @@ void ai_king_frigate_offer(ColonizeTurnContext* ctx, int nation) {
   /* FUN_4962_0018 raw 78159-78165: the -0x6db4 tally walks every unit of the nation, Europe
    * lanes included. The human's harbor/expected/bound hulls are out of the pool, so count them
    * here. */
-  if (ft >= 0 && nation == ctx->human_nation && ctx->europe &&
-      (int)ctx->europe->bound_nation == nation) {
-    const EuropeScreen* eu = ctx->europe;
-    const EuropeHarborShip* lists[3] = {eu->harbor, eu->expected, eu->bound};
-    const int counts[3] = {eu->harbor_ships, eu->expected_ships, eu->bound_ships};
-    for (int l = 0; l < 3; ++l) {
-      for (int i = 0; i < counts[l]; ++i) {
-        if (europe_ship_type_index(ctx->units, &lists[l][i]) == ft) {
-          return;
-        }
-      }
-    }
+  if (nation == ctx->human_nation &&
+      europe_nation_has_lane_ship(ctx->europe, ctx->units, nation, ft)) {
+    return;
   }
   int frig = 0;
   int other = 0;

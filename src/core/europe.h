@@ -585,6 +585,15 @@ void europe_icon_flow_size(const ColonizeSpriteSheet* icons, int sprite, int* w,
 
 /* Pool type slot of a harbor ship: type_index, else its purchased kind; -1. */
 int europe_ship_type_index(const ColonizeUnitPool* units, const EuropeHarborShip* ship);
+/* A harbor/Expected/Bound hull of `type_index` for the nation bound to `eu`.
+ * DOS's FUN_4962_0018 tally counts these lane units; the port's census walks
+ * only the unit pool, so census-based "owns a ship of type" gates add this. */
+bool europe_nation_has_lane_ship(
+  const EuropeScreen* eu, const ColonizeUnitPool* units, int nation, int type_index
+);
+/* Lane side of a map column: east half (x >= width/2) sails the east lane.
+ * No map (or width 0) = east, the default every lane writer used. */
+bool europe_exit_east_of(const ColonizeWorldMap* map, int x);
 /* europe_dock_display_type_index -- see docs/europe.md#europe_dock_display_type_index */
 int europe_dock_display_type_index(
   const ColonizeUnitPool* units, const EuropeDockImmigrant* d

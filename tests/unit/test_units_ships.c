@@ -857,6 +857,21 @@ static int unit_king_galleon_offer(void) {
   }
   c1.stuff.unit_type_counts[0][galleon_ti] = 0;
 
+  /* A Galleon docked in Europe is a DOS census unit; the port's census skips
+   * the harbor lists, so the gate reads them too. */
+  {
+    static EuropeScreen eu;
+    memset(&eu, 0, sizeof(eu));
+    eu.bound_nation = 0;
+    eu.harbor[0].type_index = galleon_ti;
+    eu.harbor_ships = 1;
+    if (units_king_galleon_offer_for_unit_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&c1), .col1_ok=true, .europe=&eu}, 0, tid, &pops, NULL) != 0 ||
+        pops.queue_count != 0) {
+      fprintf(stderr, "galleon: Europe-harbor Galleon should suppress the offer\n");
+      goto fail;
+    }
+  }
+
   /* Offer enqueued; Refuse leaves the Treasure. A Galleon bought since the
    * last census (pool unit, census cell 0) does not block it yet. */
   const int gid = units_spawn_allow_stack(&pool, galleon_ti, 0, 3);

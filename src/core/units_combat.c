@@ -1811,8 +1811,7 @@ static void units_ship_damaged_to_europe(ColonizeUnitPool* pool, ColonizeUnit* l
    * tick counts 6 -> 7 -> 8, then @REFIT and the Europe screen open. So it
    * goes to the harbor, damaged, not the Expected lane; the wait is the
    * threshold minus the preset, not the preset. */
-  const bool east =
-    g_units_fallout_map ? (lose->goto_x >= (int)g_units_fallout_map->width / 2) : true;
+  const bool east = europe_exit_east_of(g_units_fallout_map, lose->goto_x);
   if (europe_harbor_push_damaged(eu, lose, lt && lt->name[0] ? lt->name : "", east)) {
     units_despawn(pool, lose->id);
   }

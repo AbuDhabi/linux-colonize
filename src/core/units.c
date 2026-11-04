@@ -1339,10 +1339,13 @@ int units_king_galleon_offer_for_unit_w(
   /* FUN_465b_0000 raw 75805: DS[nation*0x13 - 0x6da5] is the census
    * unit-type table (-0x6db4, stride 0x13) at type 0xf = Galleon, as
    * FUN_4962_0018 last wrote it, so a hull bought or lost since then does
-   * not count yet. */
+   * not count yet. DOS's tally includes Europe-lane hulls; the port's census
+   * does not see the human's harbor/Expected/Bound lists, so add them. */
   const int galleon_t = units_kind_type_index(pool, UNITS_KIND_GALLEON);
-  const bool has_galleon = galleon_t >= 0 && galleon_t < 0x13 &&
-                           col1->stuff.unit_type_counts[nation_id][galleon_t] != 0;
+  const bool has_galleon =
+    galleon_t >= 0 && galleon_t < 0x13 &&
+    (col1->stuff.unit_type_counts[nation_id][galleon_t] != 0 ||
+     europe_nation_has_lane_ship(w->europe, pool, nation_id, galleon_t));
   if (!woi && !cortes && has_galleon) {
     return 0;
   }

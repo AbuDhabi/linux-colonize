@@ -19,6 +19,7 @@
 #include "core/colony_production.h"
 #include "core/dos_rng.h"
 #include "core/founding_fathers.h"
+#include "core/map.h"
 #include "core/popup_msg.h"
 #include "core/reports.h"
 #include "core/reports_names.h"
@@ -233,6 +234,28 @@ int europe_ship_type_index(const ColonizeUnitPool* units, const EuropeHarborShip
   return ship->kind_plus1 > 0
     ? units_kind_type_index(units, (ColonizeUnitKind)(ship->kind_plus1 - 1))
     : -1;
+}
+
+bool europe_exit_east_of(const ColonizeWorldMap* map, int x) {
+  return map && map->width > 0 ? x >= (int)map->width / 2 : true;
+}
+
+bool europe_nation_has_lane_ship(
+  const EuropeScreen* eu, const ColonizeUnitPool* units, int nation, int type_index
+) {
+  if (!eu || type_index < 0 || (int)eu->bound_nation != nation) {
+    return false;
+  }
+  const EuropeHarborShip* lists[3] = {eu->harbor, eu->expected, eu->bound};
+  const int counts[3] = {eu->harbor_ships, eu->expected_ships, eu->bound_ships};
+  for (int l = 0; l < 3; ++l) {
+    for (int i = 0; i < counts[l]; ++i) {
+      if (europe_ship_type_index(units, &lists[l][i]) == type_index) {
+        return true;
+      }
+    }
+  }
+  return false;
 }
 
 /*
