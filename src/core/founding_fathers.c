@@ -8,11 +8,13 @@
 #include "core/dos_rng.h"
 #include "core/popup_msg.h"
 #include "core/reports.h"
+#include "core/reports_names.h"
 #include "platform/diagnostics.h"
 #include "core/units.h"
 
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 /*
@@ -339,46 +341,41 @@ static bool ff_available_to(const ColonizeCol1Save* col1, int nation, int idx) {
   return !founding_fathers_nation_has(col1, nation, idx);
 }
 
-/* NAMES.TXT @FATHERS type column (0=Trade … 4=Religious). */
-static const uint8_t k_ff_type[COLONIZE_COL1_FF_COUNT] = {
-  0, 0, 0, 0, 0, /* Trade 0–4 */
-  1, 1, 1, 1, 1, /* Exploration 5–9 */
-  2, 2, 2, 2, 2, /* Military 10–14 (Cortes…JPJ) */
-  3, 3, 3, 3, 3, /* Political 15–19 */
-  4, 4, 4, 4, 4  /* Religious 20–24 */
-};
-
 /*
- * NAMES.TXT @FATHERS century weights (cols 3–5 after type).
- * Century band from FUN_4345_005a: 0 ≤1599, 1 1600–1699, 2 ≥1700.
+ * NAMES.TXT @FATHERS columns: name, type (0=Trade … 4=Religious), then the
+ * three century weights. FUN_75c2_1770 (raw 121229-121246) seeks "FATHERS"
+ * (DS:0x229f) and fills 25 six-byte records at DS:-0x69ae: name word, type
+ * byte at -0x69ac, weight bytes at -0x69ab..-0x69a9 (FUN_2a1f_088a per field).
+ * FUN_4345_06d2 (raw 73213-73214, 73223-73224) compares the type as a char
+ * and reads the byte at -0x69ab + band, the band coming from FUN_4345_005a
+ * (raw 73201, via thunk_FUN_2a1f_0046). A missing row or field reads as
+ * type -1 (no category) and weight 0, so that Father is never offered, as
+ * colonies_job_school_tier answers 0 for a missing @JOB field.
  */
-static const uint8_t k_ff_weight[COLONIZE_COL1_FF_COUNT][3] = {
-  {2, 8, 6},
-  {0, 5, 8},
-  {9, 1, 0},
-  {2, 4, 8},
-  {2, 6, 10},
-  {2, 10, 10},
-  {3, 5, 7},
-  {5, 10, 5},
-  {10, 1, 0},
-  {7, 5, 3},
-  {6, 5, 1},
-  {0, 4, 10},
-  {10, 2, 1},
-  {4, 8, 6},
-  {0, 6, 7},
-  {4, 5, 6},
-  {7, 5, 3},
-  {1, 2, 8},
-  {0, 4, 6},
-  {5, 5, 5},
-  {7, 4, 1},
-  {8, 5, 2},
-  {6, 6, 1},
-  {3, 8, 3},
-  {0, 5, 10}
-};
+static int ff_names_number(int idx, int col, int miss) {
+  if (idx < 0 || idx >= (int)COLONIZE_COL1_FF_COUNT) {
+    return miss;
+  }
+  const char* field = reports_names_field("FATHERS", idx, col);
+  if (!field) {
+    return miss;
+  }
+  char* end = NULL;
+  const long v = strtol(field, &end, 10);
+  return end == field ? miss : (int)v;
+}
+
+int founding_fathers_category(int ff_index) {
+  const int v = ff_names_number(ff_index, 1, -1);
+  return v < 0 ? -1 : (int)(int8_t)v;
+}
+
+int founding_fathers_century_weight(int ff_index, int band) {
+  if (band < 0 || band > 2) {
+    return 0;
+  }
+  return (int)(uint8_t)ff_names_number(ff_index, 2 + band, 0);
+}
 
 /* FUN_4345_005a: century band for @FATHERS weight column. */
 static int ff_century_band(const ColonizeCol1Save* col1) {
@@ -401,10 +398,10 @@ static int ff_century_band(const ColonizeCol1Save* col1) {
 static int ff_eligible_weight(
   const ColonizeCol1Save* col1, int nation, int i, int type, int band
 ) {
-  if ((int)k_ff_type[i] != type || !ff_available_to(col1, nation, i)) {
+  if (founding_fathers_category(i) != type || !ff_available_to(col1, nation, i)) {
     return 0;
   }
-  return (int)k_ff_weight[i][band];
+  return founding_fathers_century_weight(i, band);
 }
 
 /* FUN_4345_0080: count unclaimed FFs of type with non-zero weight this century. */
@@ -529,7 +526,7 @@ static void ff_debate_row_label(int idx, char* out, size_t out_size) {
   char category[16];
   char adviser[12];
   snprintf(name, sizeof(name), "%s", reports_ff_display_name(idx));
-  snprintf(category, sizeof(category), "%s", reports_ff_category_display_name(k_ff_type[idx]));
+  snprintf(category, sizeof(category), "%s", reports_ff_category_display_name(founding_fathers_category(idx)));
   snprintf(adviser, sizeof(adviser), "%s", reports_misc_display_word(103, ""));
   if (category[0] == '\0') {
     snprintf(out, out_size, "%s", name);
