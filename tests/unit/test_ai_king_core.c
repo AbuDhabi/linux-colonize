@@ -3661,8 +3661,113 @@ static int case_king_frigate_gate_counts_europe(void) {
   return 0;
 }
 
+/* FUN_3844_00f2 raw 58409-58419: the gift Frigate starts on the westbound
+ * lane 232+n (orders 0, goto = landfall, voyage roll, +0x3148 0x40), not on
+ * the landfall tile; the human's copy is a just-departed Bound ship. */
+static int case_king_frigate_sails_from_europe(void) {
+  static ColonizeCol1Save col1;
+  static ColonizeUnitPool units;
+  static ColonizeColonyPool colonies;
+  static EuropeScreen europe;
+  static AiPopupState pop;
+  static ColonizeDosRng rng;
+  static char status[128];
+  fx_begin();
+  col1_save_init(&col1);
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    memset(&col1.nation[i], 0, sizeof(col1.nation[i]));
+  }
+  col1.nation[0].return_from_europe_x = 41;
+  col1.nation[0].return_from_europe_y = 31;
+  col1.nation[1].return_from_europe_x = 40;
+  col1.nation[1].return_from_europe_y = 30;
+  col1.head.turn = 8;
+  memset(&units, 0, sizeof(units));
+  units_reset(&units);
+  units.type_count = 1;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Frigate");
+  units.types[0].kind_plus1 = UNITS_KIND_FRIGATE + 1;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  units.types[0].movement = 6;
+  colonies_init(&colonies);
+  memset(&europe, 0, sizeof(europe));
+  europe.bound_nation = 0;
+  ai_popup_clear(&pop);
+  dos_rng_seed(&rng, 100u);
+  status[0] = '\0';
+  ColonizeTurnContext tc;
+  memset(&tc, 0, sizeof(tc));
+  tc.messages = test_game_txt();
+  tc.names = test_names_txt();
+  tc.human_nation = 0;
+  tc.col1 = &col1;
+  tc.col1_ok = true;
+  tc.units = &units;
+  tc.colonies = &colonies;
+  tc.europe = &europe;
+  tc.ai_popups = &pop;
+  tc.rng = &rng;
+  tc.status = status;
+  tc.status_size = sizeof(status);
+  /* Three hulls each and a seed whose first roll is > 89: the voyage roll is
+   * then 2, so a hard-coded 1 at either store shows. */
+  for (int i = 0; i < 3; ++i) {
+    units_spawn_allow_stack_nation(&units, 0, 2, 2, 1);
+  }
+  europe.harbor_ships = 3;
+  uint32_t seed = 1;
+  for (;; ++seed) {
+    dos_rng_seed(&rng, seed);
+    if (europe_voyage_turns_roll(&rng, false, 3, 40) == 2) {
+      break;
+    }
+  }
+  dos_rng_seed(&rng, seed);
+  ai_king_frigate_accept(&tc, 1);
+  ColonizeUnit* ai = NULL;
+  for (int i = 0; i < units_slot_end(&units); ++i) {
+    if (units.units[i].active && units.units[i].nation_id == 1 && units.units[i].x == 233) {
+      ai = &units.units[i];
+    }
+  }
+  if (!ai || ai->x != 233 || ai->y != 233 || ai->orders != UNITS_ORDER_NONE ||
+      ai->goto_x != 40 || ai->goto_y != 30 || (ai->col1_flags15 & 0x40u) == 0 ||
+      ai->col1_counter16 != 2) {
+    if (ai) {
+      fprintf(stderr, "gift ai: at (%d,%d) orders %d goto (%d,%d) flags %02x counter %d\n", ai->x,
+              ai->y, ai->orders, ai->goto_x, ai->goto_y, ai->col1_flags15, ai->col1_counter16);
+    }
+    col1_save_free(&col1);
+    return fail("AI gift Frigate must sit on lane 233 with goto=landfall, orders 0, 0x40, roll");
+  }
+  /* The lane tick (FUN_48d3_06ba) must carry it on: 233 -> 229 -> 225. */
+  for (int t = 0; t < 3; ++t) {
+    ai_euro_europe_lane_tick(&tc, 1);
+  }
+  if (ai->x != 225 || ai->y != 225) {
+    fprintf(stderr, "gift ai: after 3 lane ticks at (%d,%d), want (225,225)\n", ai->x, ai->y);
+    col1_save_free(&col1);
+    return fail("the westbound lane tick must carry the gift Frigate to 224+n");
+  }
+  dos_rng_seed(&rng, seed);
+  ai_king_frigate_accept(&tc, 0);
+  const int human_units = count_nation(&units, 0);
+  const EuropeHarborShip* s = &europe.bound[0];
+  const bool ok = europe.bound_ships == 1 && human_units == 0 && s->type_index == 0 &&
+                  s->turns_left == 2 && s->departed_this_turn &&
+                  s->exit_x == 41 && s->exit_y == 31 && s->royal_gift;
+  col1_save_free(&col1);
+  if (!ok) {
+    fprintf(stderr, "gift human: bound %d pool units %d\n", europe.bound_ships, human_units);
+    return fail("human gift Frigate must be a just-departed Bound ship, not a map unit");
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
   {"king_frigate_gate_counts_europe", case_king_frigate_gate_counts_europe},
+  {"king_frigate_sails_from_europe", case_king_frigate_sails_from_europe},
   {"dump_goods_pick_api", case_dump_goods_pick_api},
   {"purge_tile_seize_notice_793", case_purge_tile_seize_notice_793},
   {"0982_land_crown_tile_first", case_0982_land_crown_tile_first},

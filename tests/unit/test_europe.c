@@ -11,6 +11,7 @@
 #include "core/dos_rng.h"
 #include "core/europe.h"
 #include "core/europe_internal.h"
+#include "core/game_dialogs.h"
 #include "core/game_loop_internal.h"
 #include "core/reports.h"
 #include "core/reports_names.h"
@@ -3683,7 +3684,101 @@ static int case_europe_buy_short_gold_refuses(void) {
   return rc;
 }
 
+/* A gift Frigate sailing map -> Europe -> back keeps +0x3148 0x40: DOS never
+ * clears it (only FUN_1427_06b4's creation zero, raw 7728) and the hull
+ * record rides the lanes whole. A plain hull stays without it. */
+static int case_europe_royal_gift_round_trip(void) {
+  static ColonizeGameState game;
+  int rc = 0;
+  for (int gift = 0; gift < 2 && rc == 0; ++gift) {
+    memset(&game, 0, sizeof(game));
+    char err[128];
+    if (!map_alloc(&game.world_map, 8, 8, err, sizeof(err))) {
+      fprintf(stderr, "gift round trip: map_alloc: %s\n", err);
+      return 1;
+    }
+    for (int i = 0; i < 64; ++i) {
+      game.world_map.terrain[i] = 26; /* high seas */
+    }
+    units_reset(&game.units);
+    units_set_occupancy_map(NULL);
+    game.units.type_count = 1;
+    snprintf(game.units.types[0].name, sizeof(game.units.types[0].name), "Frigate");
+    game.units.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
+    game.units.types[0].movement = 6;
+    game.units.types[0].cargo = 4;
+    game.europe_ok = game.units_ok = game.world_map_ok = true;
+    game.human_nation = 0;
+    EuropeScreen* eu = &game.europe;
+    eu->bound_nation = 0;
+    rc = 1;
+    ColonizeUnit* f = units_get(&game.units, units_spawn_allow_stack(&game.units, 0, 3, 3));
+    if (!f) {
+      goto done;
+    }
+    units_set_nation(f, 0);
+    f->col1_flags15 = (uint8_t)(f->col1_flags15 | (gift ? 0x40u : 0u));
+    if (!game_ship_sail_to_europe(&game, f->id) || eu->expected_ships != 1 ||
+        eu->expected[0].royal_gift != (gift != 0)) {
+      fprintf(stderr, "gift round trip (gift %d): Expected slot flag wrong\n", gift);
+      goto done;
+    }
+    eu->expected[0].turns_left = 0;
+    eu->expected[0].departed_this_turn = false;
+    europe_tick_voyages(eu, &game.units);
+    if (eu->harbor_ships != 1 ||
+        !europe_set_sail_from_harbor(eu, 0, 1, &game.units, 0) || eu->bound_ships != 1) {
+      fprintf(stderr, "gift round trip: harbor %d bound %d\n", eu->harbor_ships, eu->bound_ships);
+      goto done;
+    }
+    eu->bound[0].turns_left = 0;
+    game_europe_deliver_bound_ships(&game);
+    int flagged = 0;
+    int ships = 0;
+    for (int i = 0; i < units_slot_end(&game.units); ++i) {
+      const ColonizeUnit* u = &game.units.units[i];
+      if (u->active) {
+        ships++;
+        flagged += (u->col1_flags15 & 0x40u) ? 1 : 0;
+      }
+    }
+    if (ships == 1 && flagged == gift) {
+      rc = 0;
+    } else {
+      fprintf(stderr, "gift round trip (gift %d): %d ships back, %d with 0x40\n", gift, ships,
+              flagged);
+    }
+  done:
+    units_set_occupancy_map(NULL);
+    map_free(&game.world_map);
+  }
+  return rc;
+}
+
+/* Both damaged-hull paths (combat loss, end-of-turn routing) go through
+ * europe_harbor_push_damaged; the gift bit +0x3148 0x40 must ride along. */
+static int case_europe_damaged_push_keeps_royal_gift(void) {
+  for (int gift = 0; gift < 2; ++gift) {
+    static EuropeScreen eu;
+    memset(&eu, 0, sizeof(eu));
+    ColonizeUnit u;
+    memset(&u, 0, sizeof(u));
+    u.type_index = 0;
+    u.col1_origin = 0xff;
+    u.col1_flags15 = (uint8_t)(0x80u | (gift ? 0x40u : 0u));
+    if (!europe_harbor_push_damaged(&eu, &u, "Frigate", true) || eu.harbor_ships != 1 ||
+        eu.harbor[0].royal_gift != (gift != 0)) {
+      fprintf(stderr, "damaged push: gift %d -> harbor %d royal_gift %d\n", gift,
+              eu.harbor_ships, eu.harbor_ships ? eu.harbor[0].royal_gift : -1);
+      return 1;
+    }
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+    {"case_europe_damaged_push_keeps_royal_gift", case_europe_damaged_push_keeps_royal_gift},
+    {"case_europe_royal_gift_round_trip", case_europe_royal_gift_round_trip},
     {"case_europe_buy_short_gold_refuses", case_europe_buy_short_gold_refuses},
     {"case_europe_purse_single_door", case_europe_purse_single_door},
     {"case_europe_ship_own_exit_tile", case_europe_ship_own_exit_tile},

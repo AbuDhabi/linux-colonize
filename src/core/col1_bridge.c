@@ -1558,6 +1558,7 @@ COLONIZE_INTERNAL void col1_bridge_apply_europe_lanes(Col1ApplyCtx* ctx) {
       }
       col1_bridge_europe_ship_route_load(save, src, slot);
       slot->origin_plus1 = src->origin < 0x80 ? (int)src->origin + 1 : 0; /* +0x314a, raw like map units */
+      slot->royal_gift = src->bound_in_transit != 0; /* +0x3148 0x40, never cleared */
       consumed[i] = true;
       local->skipped_europe_units++;
     }
@@ -1678,6 +1679,7 @@ COLONIZE_INTERNAL Col1StageStatus col1_bridge_apply_units(Col1ApplyCtx* ctx) {
             harbor_src[europe->harbor_ships - 1] = i;
             europe->harbor[europe->harbor_ships - 1].origin_plus1 =
               src->origin < 0x80 ? (int)src->origin + 1 : 0;
+            europe->harbor[europe->harbor_ships - 1].royal_gift = src->bound_in_transit != 0;
             /* The docked hull's own exit tile (+0x314d/+0x314e), which
              * europe_set_sail_from_harbor sails from (FUN_48d3_0346). */
             if (src->ship_damaged) {
@@ -3838,6 +3840,7 @@ COLONIZE_INTERNAL void col1_bridge_capture_europe_lanes(Col1CaptureCtx* ctx) {
         dst->goto_x = gx;
         dst->goto_y = gy;
         dst->col1_counter16 = turns;
+        dst->bound_in_transit = ship->royal_gift ? 1u : 0u; /* +0x3148 0x40 */
         if (in_port && ship->damaged) {
           /* DOS 0352 leaves a hull under repair at 236+n with bit7 and its
            * +0x315a repair count (trace 2026-11-03, port_bugs.md #1381c). */
