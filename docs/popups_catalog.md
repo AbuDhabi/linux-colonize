@@ -256,7 +256,7 @@ Continue / Zoom rows, MSS figure; popups.md "Colony-event choices"). The
 | `@LEARNMAD` | Done | Alarm/friction ≥40 refuse (both mid and hostile bands); `popup_msg_fill` |
 | `@LEARNSLOW` | Done | `ai_contact_live_among_natives` real body via `popup_msg_fill`; quartile-1 slow-learner roll (re-verified 2026-09-16) |
 | `@LEARNSTAY` | Done | Yes/No CHOICE `AI_POPUP_TAG_CONTACT_LEARNSTAY` (2026-08-28) |
-| `@LEARNLATER` | Done | `ai_contact_live_among_natives` real body via `popup_msg_fill`; `@LEARNSTAY` No branch (re-verified 2026-09-16) |
+| `@LEARNLATER` | Done | `ai_contact_live_among_natives` real body via `popup_msg_fill`; `@LEARNSTAY` No branch, Esc included (a618 `DEC AX; JZ`) (re-verified 2026-09-16) |
 | `@LEARNDONE` | Done | `ai_contact_live_among_natives` real body via `popup_msg_fill`; profession granted, village-taught bit set (re-verified 2026-09-16). Menu-path only — the AI-only auto pulse still skips this chain silently (design tension, not a regression: see `indian_contact.md` "preserve gift/trade chrome") |
 | `@TRADEMANY` | Done | create wizard cap popup (%NUMBER0=12) |
 | `@TRADESTART` | Done | destination pickers (create wizard + editor) |
@@ -568,8 +568,8 @@ Every writer of DS:0x1f5c (chief / King portrait), 0x1f5e (MSS) and 0x1f60 (MYR)
   5fef_31ea @INDIANBOW, @INDIANBRIBE) and direct writes before @INDIANFOREST / @INDIANROAD /
   @INDIANLAND (0x222aa, 0x22494, 0x28bec) and @INDIANWARPATH (0x4b0c5). The port lacked it on
   the three encroachment boxes, @INDIANBRIBE, @LEARNSTAY, @INDIANWARPATH / 2, @INDIANBEGFOOD
-  and @MADATSHIPS (now `game_indian_land_portrait`, `ai_contact_chief_flair`); @INDIANCOMMENT is
-  never shown. The port gates the portrait on the section (`popup_msg_section_has_chief_portrait`,
+  and @MADATSHIPS (now `game_indian_land_portrait`, `ai_contact_chief_flair`); @INDIANCOMMENT
+  (`ai_contact_indian_comment`) goes through `ai_contact_human_chrome`. The port gates the portrait on the section (`popup_msg_section_has_chief_portrait`,
   the full 019c tag list incl. shared-tail jumps and the stack-built @TRADEn / @BUYn / @LEARN*):
   `ai_contact_human_chrome` used to stamp it on every native dialog, hiding the MSS figure of
   0652 sections (@RAID* nun, @RAIDWREAK / @KILLWAGONS frontiersman, @HERESYn friar) and adding

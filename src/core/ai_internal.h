@@ -58,6 +58,11 @@ void ai_021a_score_dir(struct ai_021a_ctx* c);
 int ai_465b_dest_owner(
   const ColonizeWorldMap* map, const ColonizeUnitPool* units, int x, int y
 );
+/* FUN_6a09_0006 TRIBE.TXT branch (ai.c); the caller does the entry reseed and
+ * the 32 init draws first. */
+bool ai_place_tribes_from_txt(
+  const AiNewGameParams* p, ColonizeCol1Tribe** tribes, int* count, int* capacity, AiRng* rng
+);
 #endif /* COLONIZE_TESTING */
 
 /* ===== Cross-file seams of the ai.c split (2026-09-23) =====
@@ -116,6 +121,9 @@ int ai_native_step_first_contact(
   ColonizeUnitPool* units, const ColonizeWorldMap* map, ColonizeCol1Save* col1,
   ColonizeUnit* u, int nation_id
 );
+/* Test seam: the turn context ai_native_step_first_contact reads (set by
+ * ai_indian_nation_turn around the pulse). NULL unbinds. */
+COLONIZE_INTERNAL void ai_native_bind_step_ctx(ColonizeTurnContext* ctx);
 
 int ai_native_021a_tail(
   ColonizeUnitPool* units,

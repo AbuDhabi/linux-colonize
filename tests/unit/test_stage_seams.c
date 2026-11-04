@@ -159,6 +159,46 @@ static int test_ai_021a_dir_tile(void) {
   return 0;
 }
 
+/* 021a's dres is FUN_1000_8908 -> FUN_281f_0718 -> FUN_137f_04b0, which
+ * hides a special only on a native settlement tile (FUN_137f_0392). A Euro
+ * colony tile (settlement bit, owner nibble 0) keeps its special, so dres
+ * must read 1 there. */
+static int test_ai_021a_dres_euro_colony_tile(void) {
+  for (int t = 0; t < 8; ++t) {
+    for (int seed = 1; seed < 256; ++seed) {
+      ColonizeWorldMap map;
+      if (!fx_map_alloc(&map, 8, 8, t, /*with_seen=*/true)) {
+        return fail("map alloc");
+      }
+      map.prime_resource_seed = (uint16_t)seed;
+      ColonizeUnitPool units;
+      fx_units_init(&units);
+      struct ai_021a_ctx c;
+      memset(&c, 0, sizeof(c));
+      c.map = &map;
+      c.units = &units;
+      c.x = 4;
+      c.y = 4;
+      c.threat_nation = -1;
+      (void)ai_021a_dir_tile(&c); /* learn the destination tile */
+      /* Only the destination is a colony tile: a settlement next to it
+       * would trigger the visit-cooldown skip. */
+      map.layer2[c.ny * map.width + c.nx] = MAP_OCCUPANCY_HAS_CITY;
+      const Ai021aDirStatus st = ai_021a_dir_tile(&c);
+      const int dos_res = map_dos_resource_at(&map, c.nx, c.ny);
+      fx_map_free(&map);
+      if (st == AI_021A_DIR_OK && dos_res >= 0) {
+        if (c.dres != 1) {
+          fprintf(stderr, "021a dres: terrain=%d seed=%d dres=%d\n", t, seed, c.dres);
+          return fail("021a dres hid a Euro colony tile's special (DOS 04b0 keeps it)");
+        }
+        return 0;
+      }
+    }
+  }
+  return fail("no seed/terrain put a special on the destination tile");
+}
+
 /* port_bugs.md #553: FUN_465b_0000 local_4 — the settlement owner of a Euro
  * colony tile, overridden by the stack head's nation. ai_native_brave_step
  * uses it to keep a Brave from walking INTO a foreign colony (DOS attacks or
@@ -975,6 +1015,181 @@ static int test_goto_treasure_gets_king_galleon_offer(void) {
     }
   }
 
+  colonies_set_occupancy_map(NULL);
+  units_set_occupancy_map(NULL);
+  fx_map_free(&game.world_map);
+  return rc;
+}
+
+/* FUN_465b_0000 raw 75450 / 75792: a human explorer whose rumour changes the
+ * unit count (survivors join) skips the FUN_5bfb_3180 contact work, so neither
+ * the unmet village next door (FUN_5bfb_022e MET bit) nor the Dutch unit on
+ * the other side (FUN_5bfb_153e MET bit) is met on this move. Control: an
+ * outcome that leaves the count alone meets both. */
+static int test_human_lcr_count_change_skips_contact(void) {
+  ColonizeGameState game;
+  memset(&game, 0, sizeof(game));
+  if (!fx_map_alloc(&game.world_map, 8, 8, /*terrain_fill=*/2, /*with_seen=*/true)) {
+    return fail("human lcr map alloc");
+  }
+  game.world_map_ok = true;
+  game.human_nation = 0;
+  game.col1_ok = true;
+  fx_units_init(&game.units);
+  game.units_ok = true;
+  game.units.type_count = 1;
+  game.units.types[0].kind_plus1 = UNITS_KIND_COLONIST + 1;
+  game.units.types[0].movement = 2;
+  game.units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  fx_colonies_init(&game.colonies);
+  game.colonies_ok = true;
+  units_set_occupancy_map(&game.world_map);
+  colonies_set_occupancy_map(&game.world_map);
+  game.col1.player[0].named_new_world = 1;
+  for (int n = 1; n < 4; ++n) {
+    game.col1.player[n].control = 1;
+  }
+  for (uint16_t s = 1; s < 512 && !map_tile_has_rumour(&game.world_map, 3, 3); ++s) {
+    game.world_map.prime_resource_seed = s;
+  }
+  ColonizeCol1Tribe tribe;
+  memset(&tribe, 0, sizeof(tribe));
+  tribe.nation_id = 4;
+  tribe.x = 4;
+  tribe.y = 3;
+  game.col1.tribe = &tribe;
+  game.col1.head.tribe_count = 1;
+  int seen_changed = 0;
+  int seen_same = 0;
+  const int32_t saved_83a6 = dos_rng_get_83a6();
+  int rc = map_tile_has_rumour(&game.world_map, 3, 3) ? 0 : fail("no rumour at (3,3)");
+  for (int seed = 1; seed < 400 && rc == 0 && (!seen_changed || !seen_same); ++seed) {
+    game.world_map.layer2[3 * 8 + 3] &= (uint8_t)~MAP_LAYER2_LCR_CONSUMED;
+    memset(&game.col1.indian[0], 0, sizeof(game.col1.indian[0]));
+    ai_popup_init(&game.ai_popups);
+    ColonizeUnit* u = units_get(&game.units, units_spawn(&game.units, 0, 3, 3));
+    if (!u) {
+      rc = fail("human lcr spawn");
+      break;
+    }
+    u->nation_id = 0;
+    u->moves = 6;
+    const int uid = u->id;
+    game.units.selected_id = uid;
+    ColonizeUnit* dutch = units_get(&game.units, units_spawn_allow_stack(&game.units, 0, 2, 3));
+    if (!dutch) {
+      rc = fail("human lcr spawn neighbour");
+      break;
+    }
+    dutch->nation_id = 1;
+    game.col1.head.turn = (uint16_t)seed; /* 153e talks once per pair per turn */
+    ai_diplo_talk_reset();
+    ai_diplo_write(&game.col1, 0, 1, 0);
+    ai_diplo_write(&game.col1, 1, 0, 0);
+    /* FUN_65dd_0004 reseeds from the 83a6 word (an earlier case may have set it). */
+    dos_rng_set_83a6((int32_t)seed * 12345);
+    dos_rng_seed(&game.move_rng, (uint32_t)seed * 12345u);
+    const int before = units_active_count(&game.units);
+    game_after_unit_action(&game);
+    u = units_get(&game.units, uid);
+    const bool alive = u && u->active;
+    const bool changed = units_active_count(&game.units) != before;
+    const bool met = (game.col1.indian[0].euro_diplo[0] & COL1_INDIAN_MET_BIT) != 0;
+    const bool euro_met = (ai_diplo_read(&game.col1, 0, 1) & COL1_INDIAN_MET_BIT) != 0;
+    if (alive && changed) {
+      seen_changed++;
+      if (met || euro_met) {
+        fprintf(stderr, "human lcr: count change (seed %d) still ran contact (tribe %d euro %d)\n",
+                seed, met, euro_met);
+        rc = 1;
+      }
+    } else if (alive && !changed) {
+      seen_same++;
+      if (!met || !euro_met) {
+        fprintf(stderr, "human lcr: unchanged count (seed %d) skipped contact (tribe %d euro %d)\n",
+                seed, met, euro_met);
+        rc = 1;
+      }
+    }
+    for (int i = 0; i < units_slot_end(&game.units); ++i) {
+      if (game.units.units[i].active) {
+        units_despawn(&game.units, game.units.units[i].id);
+      }
+    }
+  }
+  if (rc == 0 && (!seen_changed || !seen_same)) {
+    fprintf(stderr, "human lcr: outcomes not reached (changed %d same %d)\n", seen_changed,
+            seen_same);
+    rc = 1;
+  }
+  dos_rng_set_83a6(saved_83a6);
+  game.col1.tribe = NULL;
+  game.col1.head.tribe_count = 0;
+  colonies_set_occupancy_map(NULL);
+  units_set_occupancy_map(NULL);
+  fx_map_free(&game.world_map);
+  return rc;
+}
+
+/* A hull sailing into its own colony beside an unmet village runs the
+ * FUN_5bfb_3180 Indian arm (raw 98648-98672: land mover tile, land
+ * neighbour, no unit-type test) -> 066c -> 022e first contact (MET bit). */
+static int test_ship_in_colony_meets_tribe(void) {
+  ColonizeGameState game;
+  memset(&game, 0, sizeof(game));
+  if (!fx_map_alloc(&game.world_map, 8, 8, /*terrain_fill=*/2, /*with_seen=*/true)) {
+    return fail("ship contact map alloc");
+  }
+  game.world_map_ok = true;
+  game.human_nation = 0;
+  game.col1_ok = true;
+  ai_popup_init(&game.ai_popups);
+  fx_units_init(&game.units);
+  game.units_ok = true;
+  game.units.type_count = 1;
+  game.units.types[0].kind_plus1 = UNITS_KIND_CARAVEL + 1;
+  game.units.types[0].movement = 4;
+  game.units.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  game.units.types[0].cargo = 2;
+  fx_colonies_init(&game.colonies);
+  game.colonies_ok = true;
+  units_set_occupancy_map(&game.world_map);
+  colonies_set_occupancy_map(&game.world_map);
+  game.col1.player[0].named_new_world = 1;
+  for (int n = 1; n < 4; ++n) {
+    game.col1.player[n].control = 1;
+  }
+  for (uint16_t s = 1; s < 512 && map_tile_has_rumour(&game.world_map, 3, 3); ++s) {
+    game.world_map.prime_resource_seed = s;
+  }
+  game.world_map.terrain[3 * 8 + 2] = 25; /* ocean west of the colony */
+  ColonizeCol1Tribe tribe;
+  memset(&tribe, 0, sizeof(tribe));
+  tribe.nation_id = 4;
+  tribe.x = 4;
+  tribe.y = 3;
+  game.col1.tribe = &tribe;
+  game.col1.head.tribe_count = 1;
+  ColonizeColony* port = fx_colony_add(&game.colonies, 0, 3, 3, 1);
+  ColonizeUnit* ship = units_get(&game.units, units_spawn(&game.units, 0, 2, 3));
+  int rc = 0;
+  if (!port || !ship || map_tile_has_rumour(&game.world_map, 3, 3) ||
+      !map_tile_is_water(&game.world_map, 2, 3)) {
+    rc = fail("ship contact fixture");
+  } else {
+    port->colony_flags |= COLONIZE_COLONY_FLAG_COASTAL;
+    ship->nation_id = 0;
+    ship->moves = 12;
+    game.units.selected_id = ship->id;
+    (void)game_try_unit_move(&game, 3, 3);
+    if (ship->x != 3 || ship->y != 3) {
+      rc = fail("ship contact: the ship did not dock");
+    } else if ((game.col1.indian[0].euro_diplo[0] & COL1_INDIAN_MET_BIT) == 0) {
+      rc = fail("ship contact: a hull in a colony must meet the unmet tribe next door");
+    }
+  }
+  game.col1.tribe = NULL;
+  game.col1.head.tribe_count = 0;
   colonies_set_occupancy_map(NULL);
   units_set_occupancy_map(NULL);
   fx_map_free(&game.world_map);
@@ -3014,6 +3229,130 @@ static int test_indian_land_offer_row_greyed(void) {
 }
 
 /*
+ * Esc on @INDIANFOREST issues the order unpaid. FUN_6f74_2580 returns -1 on Esc (raw
+ * 116780-116782); FUN_2b5a_123e acts only on 1 (respect) / 2 (pay) (raw 42493/42498), so -1
+ * reaches the tail `unit+0x314c = 8` (raw 42511). Same fixture as above.
+ */
+static int test_indian_land_esc_takes(void) {
+  ColonizeGameConfig cfg = {.data_dir = "./COLONIZE", .save_dir = "./build/debug"};
+  ColonizeGameState* game = game_create(&cfg);
+  if (!game || !game_assets_ok(game)) {
+    fprintf(stderr, "SKIP: no COLONIZE/ assets\n");
+    if (game) {
+      game_destroy(game);
+    }
+    return TR_SKIP;
+  }
+  char err[256];
+  int rc = 0;
+  if (!game_load_col1_file(
+        game, "tests-automated-regression/map_pioneer_native_forest_offer/input.sav", err,
+        sizeof(err)
+      )) {
+    fprintf(stderr, "  %s\n", err);
+    game_destroy(game);
+    return fail("fixture save load");
+  }
+  ai_popup_clear(&game->ai_popups);
+  int pid = -1;
+  for (int i = 0; i < units_slot_end(&game->units); ++i) {
+    const ColonizeUnit* u = &game->units.units[i];
+    if (u->active && u->x == 45 && u->y == 22 && units_is_pioneer(&game->units, u->id)) {
+      pid = u->id;
+    }
+  }
+  game->units.selected_id = pid;
+  game->europe.gold = 1000;
+  if (pid < 0 || !game_pioneer_land_gate(game, GAME_INDIAN_LAND_FOREST) ||
+      !ai_popup_try_present_next(&game->ai_popups)) {
+    game_destroy(game);
+    return fail("Clear Forest on Tupi forest opens @INDIANFOREST");
+  }
+  ai_popup_cancel_current(&game->ai_popups);
+  game_apply_ai_popup_result(game);
+  const ColonizeUnit* pu = units_get(&game->units, pid);
+  if (!pu || pu->orders != UNITS_ORDER_CLEAR_PLOW) {
+    fprintf(stderr, "  orders %d\n", pu ? pu->orders : -1);
+    rc = fail("Esc on @INDIANFOREST clears the forest unpaid (orders 8)");
+  }
+  if (game->europe.gold != 1000) {
+    rc = fail("Esc on @INDIANFOREST pays nothing");
+  }
+  game_destroy(game);
+  return rc;
+}
+
+/*
+ * Esc on the @INDIANLAND plot drop seats the worker unpaid. FUN_2f2b_2f3e raw 50372-50373 acts
+ * only on 1 (respect, abort) / 2 (pay); -1 carries on into the seat. Fixture:
+ * colony_tile_native_land (Quebec (45,24), plot S Tupi-claimed, Tupi at peace).
+ */
+static int test_indian_land_plot_esc_takes(void) {
+  ColonizeGameConfig cfg = {.data_dir = "./COLONIZE", .save_dir = "./build/debug"};
+  ColonizeGameState* game = game_create(&cfg);
+  if (!game || !game_assets_ok(game)) {
+    fprintf(stderr, "SKIP: no COLONIZE/ assets\n");
+    if (game) {
+      game_destroy(game);
+    }
+    return TR_SKIP;
+  }
+  char err[256];
+  if (!game_load_col1_file(
+        game, "tests-automated-regression/colony_tile_native_land/input.sav", err, sizeof(err)
+      )) {
+    fprintf(stderr, "  %s\n", err);
+    game_destroy(game);
+    return fail("fixture save load");
+  }
+  ColonizeColony* col = colonies_get_mut(&game->colonies, colonies_id_at(&game->colonies, 45, 24));
+  int s_tile = -1;
+  for (int i = 0; i < COLONIZE_COLONY_FIELD_TILES_MAX; ++i) {
+    int dx = 0;
+    int dy = 0;
+    if (colonies_field_tile_delta(i, &dx, &dy) && dx == 0 && dy == 1) {
+      s_tile = i;
+    }
+  }
+  int ci = -1;
+  for (int i = 0; col && i < col->colonist_count && ci < 0; ++i) {
+    if (col->colonists[i].building_type >= 0) {
+      ci = i;
+    }
+  }
+  if (!col || s_tile < 0 || ci < 0 || col->tiles[s_tile] >= 0) {
+    game_destroy(game);
+    return fail("Quebec, a free plot S and an indoor colonist");
+  }
+  game->in_colony = true;
+  game->colony_view_id = col->id;
+  game->colony_screen.selected_colonist = ci;
+  game->colony_screen.selected_outside_unit = -1;
+  ai_popup_clear(&game->ai_popups);
+  const int gold_before = game->europe.gold;
+  game_colony_area_tile_drop(game, col, &game->world_map, s_tile);
+  if (!game->ai_popups.open) {
+    (void)ai_popup_try_present_next(&game->ai_popups);
+  }
+  if (!game->ai_popups.open || game->ai_popups.current.tag != AI_POPUP_TAG_INDIAN_LAND) {
+    game_destroy(game);
+    return fail("the drop on Tupi-claimed S opens @INDIANLAND");
+  }
+  ai_popup_cancel_current(&game->ai_popups);
+  game_apply_ai_popup_result(game);
+  int rc = 0;
+  if (col->tiles[s_tile] != ci) {
+    fprintf(stderr, "  tiles[S]=%d want %d\n", col->tiles[s_tile], ci);
+    rc = fail("Esc on @INDIANLAND seats the worker on the plot");
+  }
+  if (game->europe.gold != gold_before) {
+    rc = fail("Esc on @INDIANLAND pays nothing");
+  }
+  game_destroy(game);
+  return rc;
+}
+
+/*
  * campaign8 CN8-B1: clicking (or `activate`) a spent own unit is FUN_2b5a_1b5a + FUN_2b5a_0e52(0):
  * the order clears and the next unit awaiting orders takes control. It used to drop to View
  * Pieces with units still pending, so the turn stalled.
@@ -3653,6 +3992,7 @@ static const TestCase k_cases[] = {
     {"test_ai_contact_raid_alarm_delta", test_ai_contact_raid_alarm_delta},
     {"test_ai_contact_raid_sound_rows", test_ai_contact_raid_sound_rows},
     {"test_ai_021a_dir_tile", test_ai_021a_dir_tile},
+    {"test_ai_021a_dres_euro_colony_tile", test_ai_021a_dres_euro_colony_tile},
     {"test_ai_465b_dest_owner", test_ai_465b_dest_owner},
     {"test_ai_brave_field_attack", test_ai_brave_field_attack},
     {"test_game_render_select_palette", test_game_render_select_palette},
@@ -3668,6 +4008,8 @@ static const TestCase k_cases[] = {
     {"test_trade_route_europe_stop_off_lane_keeps_stop", test_trade_route_europe_stop_off_lane_keeps_stop},
     {"test_trade_route_begin_moves_wagon_to_selected_stop", test_trade_route_begin_moves_wagon_to_selected_stop},
     {"test_goto_treasure_gets_king_galleon_offer", test_goto_treasure_gets_king_galleon_offer},
+    {"test_human_lcr_count_change_skips_contact", test_human_lcr_count_change_skips_contact},
+    {"test_ship_in_colony_meets_tribe", test_ship_in_colony_meets_tribe},
     {"test_ship_bumps_foreign_colony_trade_arm", test_ship_bumps_foreign_colony_trade_arm},
     {"test_trade_route_ship_aims_colony_tile", test_trade_route_ship_aims_colony_tile},
     {"test_ai_euro_5952_absorb_colonist", test_ai_euro_5952_absorb_colonist},
@@ -3696,6 +4038,8 @@ static const TestCase k_cases[] = {
     {"test_colony_construction_page_default", test_colony_construction_page_default},
     {"test_colony_construction_two_pages_live", test_colony_construction_two_pages_live},
     {"test_indian_land_offer_row_greyed", test_indian_land_offer_row_greyed},
+    {"test_indian_land_esc_takes", test_indian_land_esc_takes},
+    {"test_indian_land_plot_esc_takes", test_indian_land_plot_esc_takes},
     {"test_europe_buy_prompt_names_hull_type", test_europe_buy_prompt_names_hull_type},
     {"test_europe_repairing_hull_press_no_pickup", test_europe_repairing_hull_press_no_pickup},
     {"test_europe_dock_menu_on_release", test_europe_dock_menu_on_release},

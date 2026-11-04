@@ -57,8 +57,9 @@
  *
  * 2026-08-14: both previously-unnamed tables identified while tracing the
  * deep Euro G-table (euro_g_table_0a60.md / FUN_4962_06b6, same DS
- * neighborhood) — neither is a static lookup constant, both are live
- * per-turn recomputed sums over this tribe *type* (nation_id-4):
+ * neighborhood) — neither is a static lookup constant, both are the
+ * tribe's census bytes (FUN_4962_06b6, on the tribe's turn) for this tribe
+ * slot (nation_id-4):
  *   table[-0x69d6][type] = count of villages of that tribe type
  *   table[-0x6e7c][type] = Σ combat_unit_base_x8(brave, mode=1) [attack-
  *                          mode value, matching the traced FUN_281f_09c8
@@ -84,46 +85,13 @@ static uint32_t ai_contact_incite_price(
   }
   const ColonizeCol1Save* col1 = ctx->col1;
 
-  /* `tribe.nation_id` is the full 4-11 nation id, not a 0-7 "type" —
-   * confirmed independently via colony.c/units.c's own `-4` indexing
-   * into col1->indian[8] — so this compares directly against `nation_id`,
-   * not `nation_id - 4`. (Was comparing against a `tribe_type` local that
-   * made this loop count zero villages always; see the discount-loop
-   * comment below for the matching fix + how this was found.) */
-  int village_count = 0;
-  if (col1->tribe) {
-    for (uint16_t ti = 0; ti < col1->head.tribe_count; ++ti) {
-      if ((int)col1->tribe[ti].nation_id == nation_id) {
-        ++village_count;
-      }
-    }
-  }
-  if (village_count > 0xff) {
-    village_count = 0xff;
-  }
-
-  int brave_value_sum = 0;
-  if (ctx->units) {
-    const ColonizeCombatStrengthCtx sctx = combat_strength_ctx_from_turn(ctx);
-    /* Slot walk, `u->id` to the id-taking accessors — see
-     * ai_contact_land_combat_sum's note (ids are 1-based and never recycled,
-     * so `i` is not a unit id). Fixed 2026-09-10. */
-    for (int i = 0; i < units_slot_end(ctx->units); ++i) {
-      const ColonizeUnit* u = &ctx->units->units[i];
-      if (!u->active || u->nation_id != nation_id) {
-        continue;
-      }
-      if (units_is_sea(ctx->units, u->id)) {
-        continue;
-      }
-      const int val = combat_unit_base_x8(&sctx, u->id, 1, NULL);
-      brave_value_sum += val;
-      if (brave_value_sum > 0xff) {
-        brave_value_sum = 0xff;
-        break;
-      }
-    }
-  }
+  /* raw 83538-83540 read the tribe's census bytes DS:0x962a (village count)
+   * and DS:0x9184 (sum of 09c8(u,1) over its units), written only by
+   * FUN_4962_06b6 on the tribe's turn, not a live recount: a village burned
+   * or braves lost since then do not move the price until the next census. */
+  const int slot = nation_id - 4;
+  const int village_count = (int)col1->stuff.tribe_village_counts[slot];
+  const int brave_value_sum = (int)col1->stuff.tribe_data_9184[slot];
 
   /* raw 83542-83543 reads both stock bytes as `*(char *)`, i.e. signed. */
   const int base =
@@ -666,8 +634,8 @@ int ai_contact_meet_economics_2154(
 
   for (int y = ty - 2; y <= ty + 2; ++y) {
     for (int x = tx - 2; x <= tx + 2; ++x) {
-      if (x < 0 || y < 0 || x >= ctx->map->width || y >= ctx->map->height) {
-        continue;
+      if (!map_coords_inset(ctx->map, x, y)) {
+        continue; /* raw 81958: FUN_281f_0302, the interior test */
       }
       const int lx = x - tx + 2;
       const int ly = y - ty + 2;
@@ -1228,7 +1196,11 @@ void ai_contact_apply_beg_food(
         ind->contact_state[e] = 2; /* raw 87698 */
       }
       ai_contact_visit_mood_beg_conceded(ctx, nation_id, e);
+      /* The gift half serves 022e's local_4c, the begged colony (raw 96699). */
+      const int prev_colony = ai_contact_s_visit_colony;
+      ai_contact_s_visit_colony = colony_id;
       ai_contact_try_village_gifts(ctx, nation_id);
+      ai_contact_s_visit_colony = prev_colony;
     }
   } else {
     /*
@@ -1267,6 +1239,28 @@ void ai_contact_apply_beg_food(
      * the same tribe's gift visit, and the gift's stamp is gone). */
     if (ind && ind->contact_state[e] == 2) {
       ind->contact_state[e] = 0;
+    }
+    /* raw 96823: `if (bVar6) goto LAB_5bfb_1005;` -- otherwise the refusal
+     * falls through `if (!bVar6)` into LAB_5bfb_0def (raw 96828-96833) with
+     * local_4c still the begged colony, and contact_state just left 2, so the
+     * village demands goods from the same colony. The visit is already
+     * resolved whatever the demand does. A human's answer can arrive after
+     * the roll aged out; re-stamp the record's turn as
+     * ai_contact_visit_mood_beg_conceded does. */
+    AiContactVisitMood* m =
+      (nation_id >= 4 && nation_id <= 11) ? &ai_contact_s_visit_mood[nation_id - 4][e] : NULL;
+    if (m && m->valid && !m->generous_visit) {
+      m->turn = ctx->turn_number ? (int)*ctx->turn_number : -1;
+      const int prev_euro = ai_contact_s_visit_euro;
+      const int prev_unit = ai_contact_s_visit_unit;
+      const int prev_colony = ai_contact_s_visit_colony;
+      ai_contact_set_visit_euro(e);
+      ai_contact_set_visit_unit(m->brave_id);
+      ai_contact_s_visit_colony = colony_id;
+      (void)ai_contact_try_village_reparations(ctx, nation_id);
+      ai_contact_set_visit_euro(prev_euro);
+      ai_contact_set_visit_unit(prev_unit);
+      ai_contact_s_visit_colony = prev_colony;
     }
   }
 }
@@ -1338,7 +1332,7 @@ static int ai_contact_beg_food_pending(const AiPopupState* st) {
  * when that block did not resolve the visit, which is why the port hangs
  * it off this function's tail rather than off a new ai.c call site.
  */
-void ai_contact_try_village_reparations(ColonizeTurnContext* ctx, int nation_id);
+int ai_contact_try_village_reparations(ColonizeTurnContext* ctx, int nation_id);
 
 /*
  * Trigger side of the above — once per Indian nation's §9 (post-pulse,
@@ -1351,6 +1345,11 @@ void ai_contact_try_village_reparations(ColonizeTurnContext* ctx, int nation_id)
  */
 int ai_contact_s_visit_euro = -1;
 int ai_contact_s_visit_unit = -1;
+int ai_contact_s_visit_colony = -1;
+
+void ai_contact_set_visit_colony(int colony_id) {
+  ai_contact_s_visit_colony = colony_id;
+}
 
 void ai_contact_set_visit_euro(int euro_nation) {
   ai_contact_s_visit_euro = euro_nation;
@@ -1371,6 +1370,9 @@ int ai_contact_try_village_beg_food(ColonizeTurnContext* ctx, int nation_id) {
     return 0;
   }
   ColonizeCol1Indian* ind = &ctx->col1->indian[nation_id - 4];
+  /* Port-only: an unanswered beg's answer reads ai_contact_s_visit_mood, which
+   * a second beg would overwrite. In play it never fires: the native pulse
+   * stops on a human demand until it is answered (ai_native_scan_suspend). */
   if (ctx->ai_popups && ai_contact_beg_food_pending(ctx->ai_popups)) {
     return 0;
   }
@@ -1412,6 +1414,12 @@ int ai_contact_try_village_beg_food(ColonizeTurnContext* ctx, int nation_id) {
     int visit_home_tribe = -1;
     for (int ci = 0; ci < COLONIZE_COLONIES_MAX; ++ci) {
       ColonizeColony* c = &ctx->colonies->colonies[ci];
+      /* raw 96753-96756: the beg reads local_4c's food only (the colony on the
+       * 3180 encounter tile, raw 96699); a pinned colony short of food begs
+       * nothing, it never hands the beg to another adjacent colony. */
+      if (ai_contact_s_visit_colony >= 0 && ci != ai_contact_s_visit_colony) {
+        continue;
+      }
       if (!c->active || c->nation_id != e || c->stock[COLONIZE_CARGO_FOOD] <= 0x4a) {
         continue;
       }
@@ -1548,8 +1556,7 @@ int ai_contact_try_village_beg_food(ColonizeTurnContext* ctx, int nation_id) {
    * Nothing begged this visit → LAB_5bfb_0def, the demand half's remaining
    * two sites (@INDIANCITY / @INDIANWAGONS reparations).
    */
-  ai_contact_try_village_reparations(ctx, nation_id);
-  return 0;
+  return ai_contact_try_village_reparations(ctx, nation_id);
 }
 /* ===================== Human incite response, missionary convert/flee, WoI defect, prelude & relation tick (ai_contact_ai_incite_human .. ai_contact_indian_relation_tick) ===================== */
 
@@ -1914,8 +1921,9 @@ void ai_contact_indian_prelude(ColonizeTurnContext* ctx, int nation_id) {
    * DISCRETE charge, not a drip — FUN_0000_6582, the shared colony tiles[]
    * writer, bills 10..60 the first time a colonist is seated on tribal land
    * (now colonies_assign_field_w). That is what moves early-game alarm in the
-   * DOS seed-100 saves; nothing here needs to drip. The @INDIANCOMMENT
-   * land-use chrome still has no located DOS trigger and stays retired.
+   * DOS seed-100 saves; nothing here needs to drip. @INDIANCOMMENT is the
+   * FUN_5bfb_022e else-limb (raw 96978-96987, ai_contact_indian_comment),
+   * not a tick here.
    */
 
   /*
@@ -1988,7 +1996,7 @@ void ai_contact_indian_prelude(ColonizeTurnContext* ctx, int nation_id) {
  * last surviving tribe type's villages only. FUN_4962_0018 (the Euro census)
  * is the array's other writer.
  */
-static void ai_contact_indian_census_4962_06b6(ColonizeTurnContext* ctx, int nation_id) {
+COLONIZE_INTERNAL void ai_contact_indian_census_4962_06b6(ColonizeTurnContext* ctx, int nation_id) {
   if (!ctx || !ctx->col1_ok || !ctx->col1) {
     return;
   }

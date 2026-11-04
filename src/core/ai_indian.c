@@ -249,9 +249,10 @@ static int ai_indian_tribe_mission_nation(const ColonizeCol1Tribe* t) {
  *
  *  1. Military pressure. The 20 tiles of DS:0xc8/0xde around the village (the
  *     colony work radius: 8 neighbours, the 4 at ±2 orthogonal, the 8
- *     knight-ish ones). On each in-bounds land tile, sum `type.attack` over
- *     every Euro-owned unit there whose attack is > 1 and which is not a ship
- *     (DOS types 0xd..0x12). Halve inside a native settlement, and halve again
+ *     knight-ish ones). On each in-bounds land tile whose chain head is
+ *     European, sum `type.attack` over every unit there, whatever its nation,
+ *     whose attack is > 1 and which is not a ship (DOS types 0xd..0x12), and
+ *     credit the head's nation. Halve inside a native settlement, and halve again
  *     unless the tile is one of the 8 immediate neighbours. Accumulate per
  *     nation.
  *
@@ -313,23 +314,17 @@ int ai_indian_village_threat_w(
     /*
      * One pass over the unit pool bucketed into the ring, rather than 20
      * passes: this runs per visible village per frame for the map chrome.
-     * `first` is the tile's leading unit whatever its nation — DOS reads the
-     * head of the tile's unit list and abandons the tile when it is not a
-     * European's (`(unit.nation & 0xf) < 4`).
+     * The tile owner is the chain head whatever its nation: DOS reads
+     * FUN_281f_07e0 (raw 81047) and abandons the tile when it is not a
+     * European's (`(unit.nation & 0xf) < 4`, raw 81048).
      */
     signed char in_ring[5][5];
     memset(in_ring, 0, sizeof(in_ring));
     for (int i = 0; i < 20; ++i) {
       in_ring[MAP_RING20_DY[i] + 2][MAP_RING20_DX[i] + 2] = 1;
     }
-    int first[5][5];
     int score[5][5];
-    for (int ry = 0; ry < 5; ++ry) {
-      for (int rx = 0; rx < 5; ++rx) {
-        first[ry][rx] = -1;
-        score[ry][rx] = 0;
-      }
-    }
+    memset(score, 0, sizeof(score));
     for (int ui = 0; ui < units_slot_end(pool); ++ui) {
       const ColonizeUnit* u = &pool->units[ui];
       if (!u->active || !units_is_on_map(u)) {
@@ -340,10 +335,10 @@ int ai_indian_village_threat_w(
       if (rx < 0 || rx > 4 || ry < 0 || ry > 4 || !in_ring[ry][rx]) {
         continue;
       }
-      if (first[ry][rx] < 0) {
-        first[ry][rx] = u->nation_id;
-      }
-      if (u->nation_id < 0 || u->nation_id > 3 || units_is_sea(pool, u->id)) {
+      /* DOS-LITERAL FUN_4cc6_03f8 raw 81050-81057: only the chain head's
+       * nation is tested; the sum takes every non-hull (0xd..0x12) unit with
+       * attack > 1, no per-unit nation re-test (port_bugs.md #768). */
+      if (units_is_sea(pool, u->id)) {
         continue;
       }
       const ColonizeUnitType* ty_def = units_type(pool, u->type_index);
@@ -354,13 +349,17 @@ int ai_indian_village_threat_w(
     for (int i = 0; i < 20; ++i) {
       const int rx = MAP_RING20_DX[i] + 2;
       const int ry = MAP_RING20_DY[i] + 2;
-      const int owner = first[ry][rx];
-      int s = score[ry][rx];
-      if (owner < 0 || owner > 3 || s <= 0) {
-        continue;
-      }
       const int tx = vx + MAP_RING20_DX[i];
       const int ty = vy + MAP_RING20_DY[i];
+      int s = score[ry][rx];
+      if (s <= 0) {
+        continue; /* checked first: the head scan is a pool walk */
+      }
+      const ColonizeUnit* head = units_get_const(pool, units_tile_head_id_at(pool, tx, ty));
+      const int owner = head ? head->nation_id : -1;
+      if (owner < 0 || owner > 3) {
+        continue;
+      }
       if (!map_coords_inset(map, tx, ty) || map_tile_is_water(map, tx, ty)) {
         continue;
       }

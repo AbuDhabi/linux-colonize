@@ -170,6 +170,8 @@ int ai_contact_unit_counts_as_field(
  * gets a real Give/Refuse CHOICE, AI Euro auto-accepts. See
  * ai_contact.c's own header comment on the implementation and
  * settlement_record_8d4a.md for the sign-convention resolution.
+ * Returns 1 when the visit resolved (022e local_1a): the beg fired, or the
+ * LAB_5bfb_0def demand it falls into was presented.
  */
 int ai_contact_try_village_beg_food(ColonizeTurnContext* ctx, int nation_id);
 
@@ -178,6 +180,24 @@ int ai_contact_try_village_beg_food(ColonizeTurnContext* ctx, int nation_id);
  * unit tests' standalone calls). */
 void ai_contact_set_visit_euro(int euro_nation);
 void ai_contact_set_visit_unit(int unit_id);
+/* 022e local_4c (raw 96699): the colony on the encounter tile. While set
+ * (>= 0) the beg, gift and demand halves serve only that colony; -1 = the
+ * first adjacent colony (tests' standalone calls). */
+void ai_contact_set_visit_colony(int colony_id);
+
+/* FUN_5bfb_022e @INDIANWAGONS arm for one encounter whose tile head is a
+ * Wagon Train (local_42, raw 96933-96976). The caller checks !bVar6. 1 = demand
+ * ran (LAB_5bfb_1000), -1 = e's pending-offer slot is busy (port-only). */
+int ai_contact_try_wagon_reparations(
+  ColonizeTurnContext* ctx, int nation_id, int e, ColonizeUnit* brave, ColonizeUnit* wag
+);
+
+/* FUN_5bfb_022e LAB_5bfb_0def else-limb (raw 96978-96987): a human hears
+ * @INDIANCOMMENT, then the visiting Brave's home village word toward e is
+ * zeroed; 022e returns 0 (the encounter does not resolve). */
+void ai_contact_indian_comment(
+  ColonizeTurnContext* ctx, int nation_id, int e, const ColonizeUnit* brave
+);
 
 /*
  * FUN_5bfb_022e generous half of the same already-met visit

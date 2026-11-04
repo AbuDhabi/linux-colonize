@@ -1178,12 +1178,20 @@ void game_after_unit_action(ColonizeGameState* game) {
     }
   }
   /* LCR: Scout on rumour clears + rolls a manual outcome (Fountain of Youth,
-   * Cibola, treasure, burial mounds, …); de Soto keeps outcomes positive. */
+   * Cibola, treasure, burial mounds, …); de Soto keeps outcomes positive.
+   * FUN_465b_0000 raw 75450 / 75792: an LCR that changed the unit count
+   * (DS:0x539c) jumps to LAB_465b_0bd1, so none of the FUN_5bfb_3180 contact
+   * work below runs on this move. Pickers the port defers behind a popup
+   * (Fountain of Youth recruits, the burial search) have not changed the
+   * count yet. */
+  bool lcr_count_changed = false;
   if (game->world_map_ok && units_is_on_map(u) && map_tile_has_rumour(&game->world_map, u->x, u->y)) {
     const ColonizeWorld w = game_world(game);
     const int lcr_x = u->x;
     const int lcr_y = u->y;
+    const int units_before = units_active_count(&game->units);
     (void)units_resolve_lcr_rumour_w(&w, u->id, game->human_nation);
+    lcr_count_changed = units_active_count(&game->units) != units_before;
     if (!u->active) {
       /* @LOSTCITY5: the explorer vanished (its slot is cleared, x/y 0) —
        * keep the view on its tile (port_bugs.md #1377) and hand on. */
@@ -1194,11 +1202,14 @@ void game_after_unit_action(ColonizeGameState* game) {
     }
   }
   /*
-   * First contact / village friction: land units only. Natives do not hail
-   * ships (DOS meet gates ocean tiles; FUN_5bfb_022e after landfall).
+   * First contact / village friction. FUN_5bfb_3180 raw 98648-98672 gates
+   * the 066c Indian arm on the mover's tile being land (local_36 == 0) and
+   * the neighbour being land, with no unit-type test: a ship at sea never
+   * meets, a hull berthed in a colony does.
    */
-  if (game->col1_ok && u->nation_id >= 0 && u->nation_id <= 3 && units_is_on_map(u) &&
-      !units_is_sea(&game->units, u->id)) {
+  if (!lcr_count_changed && game->col1_ok && game->world_map_ok && u->nation_id >= 0 &&
+      u->nation_id <= 3 && units_is_on_map(u) &&
+      !map_tile_is_water(&game->world_map, u->x, u->y)) {
     int first_indian = -1;
     if (col1_contact_adjacent_tribe(&game->col1, u->x, u->y, u->nation_id, &first_indian)) {
       if (first_indian >= 4) {
@@ -1253,8 +1264,8 @@ void game_after_unit_action(ColonizeGameState* game) {
    * (DS:0x5382 bit0) -> FUN_5bfb_153e via thunk_FUN_2a1f_05fc; a nonzero
    * return stamps MET (0x20) both ways (port_bugs.md #545).
    */
-  if (game->col1_ok && game->world_map_ok && u->nation_id >= 0 && u->nation_id <= 3 &&
-      units_is_on_map(u) && !game->col1.head.game_options.woi &&
+  if (!lcr_count_changed && game->col1_ok && game->world_map_ok && u->nation_id >= 0 &&
+      u->nation_id <= 3 && units_is_on_map(u) && !game->col1.head.game_options.woi &&
       !map_tile_is_water(&game->world_map, u->x, u->y)) {
     for (int d = 0; d < 8; ++d) {
       const int nx = u->x + MAP_DIR8_DX[d];

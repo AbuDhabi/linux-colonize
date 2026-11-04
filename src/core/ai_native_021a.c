@@ -268,7 +268,9 @@ COLONIZE_INTERNAL Ai021aDirStatus ai_021a_dir_tile(struct ai_021a_ctx* c) {
   const int settle = ai_021a_settle_owner(map, nx, ny);
   const int dfa = ai_mask_fa_flags(map, nx, ny) & 0x0a;
   const int driver = (int)(map_get_terrain_or(map, nx, ny, 25) & 0x40u);
-  const int dres = map_resource_type_at(map, nx, ny) >= 0;
+  /* FUN_1000_8908 -> FUN_281f_0718 -> FUN_137f_04b0 (raw 6905-6945, OVL13
+   * asm): only a native settlement (FUN_137f_0392) hides the special. */
+  const int dres = map_dos_resource_at(map, nx, ny) >= 0;
   int hostile = 0;
   int att = 0;
   if (owner < 0 || owner == nation_id) {
@@ -1181,7 +1183,7 @@ int ai_native_021a_tail(
      * makes the arrival step's own 3180 skip 022e, so the visit fires on the
      * Brave's next act. */
     u->col1_flags15 &= (uint8_t)~0x08u;
-    (void)ai_native_step_first_contact(units, map, col1, u, nation_id);
+    (void)ai_native_step_first_contact(units, map, col1, u, nation_id); /* exhausts on resolve */
     return 8;
   }
   if (flags & 0x80) {

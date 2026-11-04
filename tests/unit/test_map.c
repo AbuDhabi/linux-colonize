@@ -930,7 +930,35 @@ static int case_hidden_terrain_settlement_resource(void) {
   return 0;
 }
 
+/* FUN_137f_04b0 hides a resource only when FUN_137f_0392 >= 0 (raw
+ * 6814-6836: settlement bit and owner nibble 4..14). A Spanish colony tile
+ * keeps its special for the sim; a village tile does not. */
+static int case_dos_resource_settlement_gate(void) {
+  ColonizeWorldMap map;
+  char err[256];
+  memset(&map, 0, sizeof(map));
+  if (!map_alloc(&map, 58, 72, err, sizeof(err))) {
+    return 1;
+  }
+  const size_t ti = (size_t)30 * map.width + 42;
+  map.prime_resource_seed = 17580;
+  map.terrain[ti] = 15; /* Rain Forest */
+  map.layer2[ti] = MAP_OCCUPANCY_HAS_CITY;
+  map.layer3[ti] = 0x22; /* Spanish colony */
+  const int euro = map_dos_resource_at(&map, 42, 30);
+  const int sprite = map_resource_type_at(&map, 42, 30);
+  map.layer3[ti] = 0x52; /* village of tribe 5 */
+  const int village = map_dos_resource_at(&map, 42, 30);
+  map_free(&map);
+  if (euro != 6 || sprite != -1 || village != -1) {
+    fprintf(stderr, "dos resource: euro=%d sprite=%d village=%d\n", euro, sprite, village);
+    return 1;
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+  {"dos_resource_settlement_gate", case_dos_resource_settlement_gate},
   {"map_load_and_ocean", case_map_load_and_ocean},
   {"amer2_fixtures", case_amer2_fixtures},
   {"coast_overlays", case_coast_overlays},

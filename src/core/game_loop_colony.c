@@ -827,7 +827,7 @@ static bool game_colony_refuse_nodocks(
 }
 
 /*
- * @INDIANLAND gate of the shared assign function FUN_2f2b_2f3e (raw ~82264-82487,
+ * @INDIANLAND gate of the shared assign function FUN_2f2b_2f3e (raw 50355-50381,
  * port_bugs.md #1175). DS:0xbb8 arms it only for the plot click (3fa6) and the
  * drag-release (47bc, mode 6), never for the field-jobs popup (348c), so only
  * game_colony_area_tile_drop calls it. It runs after the validator (@NODOCKS)

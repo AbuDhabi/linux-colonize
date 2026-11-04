@@ -1,8 +1,11 @@
+#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "core/ai.h"
+#include "core/ai_contact.h"
+#include "core/ai_contact_internal.h"
 #include "core/ai_euro.h"
 #include "core/assets.h"
 #include "core/col1_save.h"
@@ -19,6 +22,7 @@
 #include "platform/platform.h"
 #include "../common/test_runner.h"
 #include "../common/ai_fixture.h"
+#include "../common/test_catalogs.h"
 #include "core/ai_internal.h"
 #include "core/dos_buggy.h"
 
@@ -600,8 +604,9 @@ static int run_init_and_turns(
   }
 
   if (!america) {
-    /* FUN_6a09_0006 tail (ai_place_tribes_procedural, ai.c): NEW WORLD-only
-     * mountain-adjacency Silver bid bonus. Sanity, not a byte-exact golden:
+    /* FUN_6a09_0006 tail (ai_tribes_mountain_silver_bonus, ai.c): Mountains
+     * Silver bid bonus, both paths (AMERICA is pinned against DOS by
+     * tribe_txt_init_new_game_matches_dos). Sanity, not a byte-exact golden:
      * no field should go negative (int16 wrap on an always-nonnegative
      * accumulator would be a real bug), and this seed's generated map is
      * expected to place at least one nation's tribes near a class-0x1b
@@ -1565,6 +1570,1375 @@ static int run_152e_mission_nibble_out_of_domain(void) {
 
 /* port_bugs.md #1103: ai_coarse_fog_reset wipes the DS:0x9faa plane that the 0a60
  * restamp (and mapgen) leave behind, as ai_init_new_game / load need. */
+/*
+ * A !bVar6 visit (contact_state 1) to a colony whose stores price to nothing.
+ * FUN_5bfb_022e raw 96857: local_40 < 0 -> LAB_5bfb_0dea, local_4c = -1,
+ * back to LAB_5bfb_0def. Half 0: the colony tile's head is an AI Wagon
+ * Train (local_42), so the wagon arm runs (raw 96933-96976), the visit
+ * resolves and LAB_5bfb_1005 exhausts the Brave. Half 1: no wagon, human
+ * colony: the else-limb shows @INDIANCOMMENT (raw 96978-96985), zeroes the
+ * village word (raw 96986) and returns 0; the Brave keeps its MP.
+ */
+static int run_visit_empty_colony(void) {
+  if (!test_names_txt() || !test_game_txt()) {
+    return TR_SKIP;
+  }
+  for (int half = 0; half < 2; ++half) {
+    Ai152eFixture f;
+    if (ai_152e_fixture_init(&f, "visit-empty-colony", 777u) != 0) {
+      return 1;
+    }
+    ColonizeMsgCatalog game_txt;
+    assets_msg_init(&game_txt);
+    if (!assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT")) {
+      fprintf(stderr, "visit-empty-colony: GAME.TXT load failed\n");
+      ai_152e_fixture_free(&f);
+      return 1;
+    }
+    AiPopupState pop;
+    ai_popup_init(&pop);
+    f.ctx.messages = &game_txt;
+    f.ctx.ai_popups = &pop;
+    ai_contact_reset();
+    const int e = half == 0 ? 1 : 0; /* 1 = AI, 0 = human */
+    ColonizeColony* col = &f.colonies.colonies[0];
+    col->active = true;
+    col->id = 0;
+    col->nation_id = e;
+    col->x = 14;
+    col->y = 10;
+    snprintf(col->name, sizeof(col->name), "Testtown");
+    const int brave_ti = units_find_type(&f.units, "Brave");
+    const int wagon_ti = units_find_type(&f.units, "Wagon Train");
+    const int bid = brave_ti >= 0 ? units_spawn_allow_stack(&f.units, brave_ti, 13, 10) : -1;
+    const int wid =
+      (half == 0 && wagon_ti >= 0) ? units_spawn_allow_stack(&f.units, wagon_ti, 14, 10) : -1;
+    ColonizeUnit* brave = units_get(&f.units, bid);
+    ColonizeUnit* wag = units_get(&f.units, wid);
+    if (!brave || (half == 0 && !wag)) {
+      fprintf(stderr, "visit-empty-colony: spawn failed\n");
+      assets_msg_free(&game_txt);
+      ai_152e_fixture_free(&f);
+      return 1;
+    }
+    brave->nation_id = 4;
+    brave->home_tribe_index = 0;
+    brave->col1_flags15 = 0;
+    brave->moves = 0; /* MP spent so far: a fresh step */
+    if (wag) {
+      wag->nation_id = e;
+      wag->hold_goods_type[0] = 3;
+      wag->hold_goods_amount[0] = 100;
+    }
+    f.col1.nation[e].trade.euro_price[3] = 11;
+    f.col1.indian[0].euro_diplo[e] = (uint8_t)COL1_INDIAN_MET_BIT;
+    f.col1.indian[0].alarm_by_player[e] = 20;
+    f.col1.indian[0].contact_state[e] = 1; /* local_10: never generous */
+    col1_tribe_attitude_set(&f.tribes[0], e, 5);
+
+    ai_s_native_colonies = &f.colonies;
+    ai_native_bind_step_ctx(&f.ctx);
+    const int resolved = ai_native_step_first_contact(&f.units, &f.map, &f.col1, brave, 4);
+    ai_native_bind_step_ctx(NULL);
+    ai_s_native_colonies = NULL;
+    const int exhausted = brave->moves != 0;
+
+    int ok = 1;
+    if (half == 0) {
+      ok = resolved == 1 && exhausted && wag->hold_goods_amount[0] == 0 &&
+           col1_tribe_attitude(&f.tribes[0], e) == 0;
+      fprintf(stderr, "visit-empty-colony wagon: resolved %d exhausted %d hold %d word %d\n",
+              resolved, exhausted, wag->hold_goods_amount[0], col1_tribe_attitude(&f.tribes[0], e));
+    } else {
+      int comment = 0;
+      for (int i = 0; i < pop.queue_count; ++i) {
+        if (pop.queue[i].tag == AI_POPUP_TAG_CONTACT_MEET && pop.queue[i].body[0]) {
+          comment = 1;
+        }
+      }
+      ok = resolved == 0 && !exhausted && comment && col1_tribe_attitude(&f.tribes[0], e) == 0;
+      fprintf(stderr, "visit-empty-colony comment: resolved %d exhausted %d popup %d word %d\n",
+              resolved, exhausted, comment, col1_tribe_attitude(&f.tribes[0], e));
+    }
+    assets_msg_free(&game_txt);
+    ai_152e_fixture_free(&f);
+    if (!ok) {
+      return 1;
+    }
+  }
+  return 0;
+}
+
+/*
+ * The empty-colony limb of ai_contact_try_village_reparations leaves the
+ * visit unresolved, so with visit_euro == -1 (every European; test callers
+ * only, production pins 022e's param_1) the scan goes on to the next
+ * European rather than return. Human colony 0 has nothing to demand; AI
+ * colony 1 beside the same Brave does, so the call resolves on e == 1.
+ */
+static int run_reparations_scan_past_empty_colony(void) {
+  if (!test_names_txt()) {
+    return TR_SKIP;
+  }
+  Ai152eFixture f;
+  if (ai_152e_fixture_init(&f, "reparations-scan-all", 777u) != 0) {
+    return 1;
+  }
+  ai_contact_reset();
+  ai_contact_set_visit_euro(-1);
+  const int brave_ti = units_find_type(&f.units, "Brave");
+  const int bid = brave_ti >= 0 ? units_spawn_allow_stack(&f.units, brave_ti, 13, 10) : -1;
+  ColonizeUnit* brave = units_get(&f.units, bid);
+  if (!brave) {
+    fprintf(stderr, "reparations-scan-all: spawn failed\n");
+    ai_152e_fixture_free(&f);
+    return 1;
+  }
+  brave->nation_id = 4;
+  brave->home_tribe_index = 0;
+  brave->col1_flags15 = 0;
+  for (int e = 0; e < 2; ++e) {
+    ColonizeColony* col = &f.colonies.colonies[e];
+    col->active = true;
+    col->id = e;
+    col->nation_id = e;
+    col->x = e == 0 ? 14 : 12;
+    col->y = 10;
+    snprintf(col->name, sizeof(col->name), "Town%d", e);
+    f.col1.nation[e].trade.euro_price[3] = 11;
+    f.col1.indian[0].euro_diplo[e] = (uint8_t)COL1_INDIAN_MET_BIT;
+    f.col1.indian[0].alarm_by_player[e] = 20;
+    f.col1.indian[0].contact_state[e] = 1;
+    col1_tribe_attitude_set(&f.tribes[0], e, 5);
+    ai_contact_visit_mood_publish(&f.ctx, 4, e, bid, 0);
+  }
+  f.colonies.colonies[1].stock[3] = 50;
+
+  const int resolved = ai_contact_try_village_reparations(&f.ctx, 4);
+  ai_152e_fixture_free(&f);
+  fprintf(stderr, "reparations-scan-all: resolved %d\n", resolved);
+  return resolved == 1 ? 0 : 1;
+}
+
+/*
+ * 022e binds one encounter colony, local_4c (FUN_5bfb_022e raw 96699), and
+ * both the beg (raw 96755) and the halves it falls into (LAB_5bfb_0def raw
+ * 96833, the gift half after a concession) read it. A Brave at (13,10)
+ * between two colonies of `e`, slot 0 at (12,10) and slot 1 at (14,10); the
+ * beg was at slot 1, so slot 0 must stay untouched.
+ */
+static int two_colony_beg_fixture(Ai152eFixture* f, const char* label, int e, int* bid) {
+  if (ai_152e_fixture_init(f, label, 777u) != 0) {
+    return 1;
+  }
+  ai_contact_reset();
+  f->col1.head.difficulty = 0;
+  for (int ci = 0; ci < 2; ++ci) {
+    ColonizeColony* col = &f->colonies.colonies[ci];
+    col->active = true;
+    col->id = ci;
+    col->nation_id = e;
+    col->x = ci ? 14 : 12;
+    col->y = 10;
+    col->stock[COLONIZE_CARGO_FOOD] = 100;
+    col->stock[3] = 50;
+    snprintf(col->name, sizeof(col->name), "Town%d", ci);
+  }
+  *bid = units_spawn_allow_stack(&f->units, units_find_type(&f->units, "Brave"), 13, 10);
+  ColonizeUnit* brave = units_get(&f->units, *bid);
+  if (!brave) {
+    fprintf(stderr, "%s: spawn failed\n", label);
+    ai_152e_fixture_free(f);
+    return 1;
+  }
+  brave->nation_id = 4;
+  brave->home_tribe_index = 0;
+  f->col1.nation[e].trade.euro_price[3] = 11;
+  f->col1.indian[0].euro_diplo[e] = (uint8_t)COL1_INDIAN_MET_BIT;
+  f->col1.indian[0].alarm_by_player[e] = 20;
+  col1_tribe_attitude_set(&f->tribes[0], e, 5);
+  ai_contact_visit_mood_publish(&f->ctx, 4, e, *bid, 0);
+  return 0;
+}
+
+static int run_conceded_beg_gifts_begged_colony(void) {
+  if (!test_names_txt()) {
+    return TR_SKIP;
+  }
+  Ai152eFixture f;
+  int bid = -1;
+  if (two_colony_beg_fixture(&f, "conceded-beg-colony", 1, &bid) != 0) {
+    return 1;
+  }
+  ai_contact_apply_beg_food(&f.ctx, &f.col1.indian[0], 4, 1, 1, 0, 1);
+  int other = 0;
+  int begged = 0;
+  for (int g = 0; g < COLONIZE_CARGO_COUNT; ++g) {
+    if (g != COLONIZE_CARGO_FOOD) {
+      other += f.colonies.colonies[0].stock[g];
+      begged += f.colonies.colonies[1].stock[g];
+    }
+  }
+  ai_152e_fixture_free(&f);
+  fprintf(stderr, "conceded-beg-colony: slot0 goods %d slot1 %d (want 50, >50)\n", other, begged);
+  return (other == 50 && begged > 50) ? 0 : 1;
+}
+
+/*
+ * A refused food beg on a !bVar6 visit falls into LAB_5bfb_0def
+ * (FUN_5bfb_022e raw 96823-96833): the village demands goods from the begged
+ * colony. Spain (e 2) always refuses; the AI then hands the Tobacco of slot 1
+ * over at @INDIANCITY, and slot 0 stays untouched.
+ */
+static int run_refused_beg_demands_begged_colony(void) {
+  if (!test_names_txt()) {
+    return TR_SKIP;
+  }
+  Ai152eFixture f;
+  int bid = -1;
+  if (two_colony_beg_fixture(&f, "refused-beg-colony", 2, &bid) != 0) {
+    return 1;
+  }
+  ai_contact_apply_beg_food(&f.ctx, &f.col1.indian[0], 4, 2, 1, 0, 0);
+  const int other = f.colonies.colonies[0].stock[3];
+  const int begged = f.colonies.colonies[1].stock[3];
+  const int food = f.colonies.colonies[1].stock[COLONIZE_CARGO_FOOD];
+  const int state = f.col1.indian[0].contact_state[2];
+  ai_152e_fixture_free(&f);
+  fprintf(stderr,
+          "refused-beg-colony: slot0 tobacco %d slot1 %d food %d state %d (want 50, <50, 100, 1)\n",
+          other, begged, food, state);
+  return (other == 50 && begged < 50 && food == 100 && state == 1) ? 0 : 1;
+}
+
+/*
+ * The Brave's own step fixes local_4c once (FUN_5bfb_022e raw 96699) to the
+ * colony on the 3180 encounter tile. Same two-colony scene; the direction
+ * loop meets slot 1 (E, d 2) before slot 0 (W, d 6). Slot 1 holds 20 food,
+ * so the beg (raw 96753-96756, `0x4a < food`) asks nothing, and neither the
+ * beg nor the gift/demand halves may touch slot 0. Control run: with food in
+ * slot 1 too, the same seeds do beg there.
+ */
+static int run_step_visit_serves_encounter_colony(void) {
+  if (!test_names_txt()) {
+    return TR_SKIP;
+  }
+  int control_begs = 0;
+  int touched = 0;
+  for (uint32_t k = 1; k <= 24; ++k) {
+    for (int control = 0; control < 2; ++control) {
+      Ai152eFixture f;
+      int bid = -1;
+      if (two_colony_beg_fixture(&f, "step-visit-colony", 1, &bid) != 0) {
+        return 1;
+      }
+      dos_rng_seed(&f.rng, k * 7919u);
+      /* 2154 food: tundra (class 0) around the village scores no food, so
+       * bid[0] = 0 and ask[0] = 50: the beg rolls rng(1,100) <= 50. */
+      for (int y = 8; y <= 12; ++y) {
+        for (int x = 8; x <= 12; ++x) {
+          f.map.terrain[y * 32 + x] = 0;
+        }
+      }
+      f.colonies.colonies[1].stock[COLONIZE_CARGO_FOOD] = control ? 100 : 20;
+      int before[COLONIZE_CARGO_COUNT];
+      memcpy(before, f.colonies.colonies[0].stock, sizeof(before));
+      ai_s_native_colonies = &f.colonies;
+      ai_native_bind_step_ctx(&f.ctx);
+      (void)ai_native_step_first_contact(&f.units, &f.map, &f.col1, units_get(&f.units, bid), 4);
+      ai_native_bind_step_ctx(NULL);
+      ai_s_native_colonies = NULL;
+      const int slot0_same = memcmp(before, f.colonies.colonies[0].stock, sizeof(before)) == 0;
+      const int slot1_food = f.colonies.colonies[1].stock[COLONIZE_CARGO_FOOD];
+      ai_contact_reset();
+      ai_152e_fixture_free(&f);
+      touched += !slot0_same;
+      control_begs += control && slot1_food == 50;
+    }
+  }
+  fprintf(stderr, "step-visit-colony: slot 0 touched in %d of 48 runs, %d control begs\n", touched,
+          control_begs);
+  return (touched == 0 && control_begs > 0) ? 0 : 1;
+}
+
+/* Brave at (13,10) of tribe 0, Wagon Train of `e` at (14,10) holding 100 of
+ * cargo 3, met, alarm 20, village word 5. */
+static int wagon_visit_fixture(Ai152eFixture* f, const char* label, int e, ColonizeUnit** brave,
+                               ColonizeUnit** wag) {
+  if (ai_152e_fixture_init(f, label, 777u) != 0) {
+    return 1;
+  }
+  ai_contact_reset();
+  const int bid = units_spawn_allow_stack(&f->units, units_find_type(&f->units, "Brave"), 13, 10);
+  const int wid =
+    units_spawn_allow_stack(&f->units, units_find_type(&f->units, "Wagon Train"), 14, 10);
+  *brave = units_get(&f->units, bid);
+  *wag = units_get(&f->units, wid);
+  if (!*brave || !*wag) {
+    fprintf(stderr, "%s: spawn failed\n", label);
+    ai_152e_fixture_free(f);
+    return 1;
+  }
+  (*brave)->nation_id = 4;
+  (*brave)->home_tribe_index = 0;
+  (*brave)->col1_flags15 = 0;
+  (*wag)->nation_id = e;
+  (*wag)->hold_goods_type[0] = 3;
+  (*wag)->hold_goods_amount[0] = 100;
+  f->col1.nation[e].trade.euro_price[3] = 11;
+  f->col1.indian[0].euro_diplo[e] = (uint8_t)COL1_INDIAN_MET_BIT;
+  f->col1.indian[0].alarm_by_player[e] = 20;
+  col1_tribe_attitude_set(&f->tribes[0], e, 5);
+  return 0;
+}
+
+/*
+ * A pinned local_4c (FUN_5bfb_022e raw 96699) never reaches the open-field
+ * wagon walk. The encounter colony of e 1 sits at (3,3), out of the Brave's
+ * reach, so the colony arm finds no visitor; the loaded Wagon Train next to
+ * the Brave must keep its hold and the visit stays unresolved.
+ */
+static int run_pinned_colony_skips_open_field_wagon(void) {
+  if (!test_names_txt()) {
+    return TR_SKIP;
+  }
+  Ai152eFixture f;
+  ColonizeUnit* brave = NULL;
+  ColonizeUnit* wag = NULL;
+  if (wagon_visit_fixture(&f, "pinned-colony-wagon", 1, &brave, &wag) != 0) {
+    return 1;
+  }
+  ColonizeColony* col = &f.colonies.colonies[0];
+  col->active = true;
+  col->id = 0;
+  col->nation_id = 1;
+  col->x = 3;
+  col->y = 3;
+  snprintf(col->name, sizeof(col->name), "Fartown");
+  f.col1.indian[0].contact_state[1] = 1; /* local_10: never generous */
+  ai_contact_visit_mood_publish(&f.ctx, 4, 1, brave->id, 0);
+  ai_contact_set_visit_euro(1);
+  ai_contact_set_visit_colony(0);
+  const int resolved = ai_contact_try_village_reparations(&f.ctx, 4);
+  ai_contact_set_visit_colony(-1);
+  ai_contact_set_visit_euro(-1);
+  const int hold = wag->hold_goods_amount[0];
+  ai_contact_reset();
+  ai_152e_fixture_free(&f);
+  fprintf(stderr, "pinned-colony-wagon: resolved %d hold %d (want 0 100)\n", resolved, hold);
+  return (resolved == 0 && hold == 100) ? 0 : 1;
+}
+
+/*
+ * @INDIANWAGONS in the open. FUN_5bfb_3180 -> FUN_5bfb_022e: a Brave steps
+ * next to a tile whose HEAD (FUN_281f_07e0, raw 96696) is an AI Wagon Train
+ * with no colony; a !bVar6 visit (contact_state 1 forces local_10, so bVar6
+ * is false whatever the 1..0x148 roll) takes the wagon arm (raw
+ * 96933-96976): the AI hands hold 0 over, the village word goes to 0 and the
+ * alarm falls by price*qty*4/100. A Soldier sits in the lower slot of the
+ * same tile. Second half: a generous visit with no colony returns 0 (raw
+ * 96989), so 3180 keeps scanning the same nation and turns the next tile's
+ * head (raw 98651).
+ */
+static int run_wagon_reparations_open_field(void) {
+  if (!test_names_txt()) {
+    return TR_SKIP;
+  }
+  for (int half = 0; half < 2; ++half) {
+    Ai152eFixture f;
+    if (ai_152e_fixture_init(&f, "wagon-open-field", 777u) != 0) {
+      return 1;
+    }
+    ai_contact_reset();
+    const int brave_ti = units_find_type(&f.units, "Brave");
+    const int wagon_ti = units_find_type(&f.units, "Wagon Train");
+    const int soldier_ti = units_find_type(&f.units, "Soldier");
+    const int bid = brave_ti >= 0 ? units_spawn_allow_stack(&f.units, brave_ti, 13, 10) : -1;
+    /* Generous half: no soldier under the wagon. */
+    const int sx = half == 0 ? 14 : 2;
+    const int sid =
+      soldier_ti >= 0 ? units_spawn_allow_stack(&f.units, soldier_ti, sx, sx == 2 ? 2 : 10) : -1;
+    const int wid = wagon_ti >= 0 ? units_spawn_allow_stack(&f.units, wagon_ti, 14, 10) : -1;
+    const int oid = soldier_ti >= 0 ? units_spawn_allow_stack(&f.units, soldier_ti, 12, 10) : -1;
+    ColonizeUnit* brave = units_get(&f.units, bid);
+    ColonizeUnit* sol = units_get(&f.units, sid);
+    ColonizeUnit* wag = units_get(&f.units, wid);
+    ColonizeUnit* other = units_get(&f.units, oid);
+    if (!brave || !sol || !wag || !other || sid > wid) {
+      fprintf(stderr, "wagon-open-field: spawn failed\n");
+      ai_152e_fixture_free(&f);
+      return 1;
+    }
+    brave->nation_id = 4;
+    brave->home_tribe_index = 0;
+    brave->col1_flags15 = 0;
+    sol->nation_id = wag->nation_id = other->nation_id = 1; /* AI (human is 0) */
+    sol->tile_stack_order = 1;
+    wag->tile_stack_order = 2; /* the wagon heads the tile; the soldier holds the lower slot */
+    other->last_dir = -1;
+    wag->hold_goods_type[0] = 3;
+    wag->hold_goods_amount[0] = 100;
+    f.col1.nation[1].trade.euro_price[3] = 11; /* price byte 10 */
+    f.col1.indian[0].euro_diplo[1] = (uint8_t)COL1_INDIAN_MET_BIT;
+    f.col1.indian[0].alarm_by_player[1] = 20;
+    f.col1.indian[0].contact_state[1] = half == 0 ? 1 : 0; /* 1: demand; 0 + word 0: generous */
+    col1_tribe_attitude_set(&f.tribes[0], 1, half == 0 ? 5 : 0);
+
+    ai_s_native_colonies = &f.colonies;
+    ai_native_bind_step_ctx(&f.ctx);
+    brave->moves = 0;
+    const int resolved = ai_native_step_first_contact(&f.units, &f.map, &f.col1, brave, 4);
+    ai_native_bind_step_ctx(NULL);
+    ai_s_native_colonies = NULL;
+
+    /* LAB_5bfb_1005 (raw 97094-97095) exhausts the Brave on every resolved
+     * 022e; the generous no-colony visit returns 0. */
+    const int exhausted = brave->moves != 0;
+    const int hold = wag->hold_goods_amount[0];
+    const int word = col1_tribe_attitude(&f.tribes[0], 1);
+    const int alarm = f.col1.indian[0].alarm_by_player[1];
+    const int next_dir = other->last_dir;
+    ai_contact_reset();
+    ai_152e_fixture_free(&f);
+    fprintf(stderr,
+            "wagon-open-field: half %d resolved %d exhausted %d hold %d word %d alarm %d next dir "
+            "%d\n",
+            half, resolved, exhausted, hold, word, alarm, next_dir);
+    const int ok = half == 0
+                     ? resolved == 1 && exhausted && hold == 0 && word == 0 && alarm < 20
+                     : resolved == 0 && !exhausted && hold == 100 && next_dir == 6;
+    if (!ok) {
+      return 1;
+    }
+  }
+  return 0;
+}
+
+/*
+ * FUN_5bfb_022e's wagon arm (raw 96933-96976) always resolves. While the
+ * port's pending-offer slot for the human is busy the demand cannot be
+ * queued; the visit must not fall into the @INDIANCOMMENT else-limb (raw
+ * 96978-96987), which zeroes the village word.
+ */
+static int run_wagon_demand_busy_slot_no_comment(void) {
+  if (!test_names_txt()) {
+    return TR_SKIP;
+  }
+  Ai152eFixture f;
+  ColonizeUnit* brave = NULL;
+  ColonizeUnit* wag = NULL;
+  if (wagon_visit_fixture(&f, "wagon-busy-slot", 0, &brave, &wag) != 0) {
+    return 1;
+  }
+  f.col1.indian[0].contact_state[0] = 1; /* local_10: never generous */
+  ai_contact_s_reparations[0].active = 1;
+  ai_contact_s_reparations[0].nation_id = 4;
+
+  ai_s_native_colonies = &f.colonies;
+  ai_native_bind_step_ctx(&f.ctx);
+  const int resolved = ai_native_step_first_contact(&f.units, &f.map, &f.col1, brave, 4);
+  ai_native_bind_step_ctx(NULL);
+  ai_s_native_colonies = NULL;
+
+  const int word = col1_tribe_attitude(&f.tribes[0], 0);
+  const int hold = wag->hold_goods_amount[0];
+  ai_contact_reset();
+  ai_152e_fixture_free(&f);
+  fprintf(stderr, "wagon-busy-slot: resolved %d word %d hold %d (want 0 5 100)\n", resolved, word,
+          hold);
+  return (resolved == 0 && word == 5 && hold == 100) ? 0 : 1;
+}
+
+/*
+ * contact_state 2 (the latched generous visit) never takes the wagon arm: a
+ * !bVar6 visit takes the @INDIANCOMMENT else-limb (FUN_5bfb_022e raw
+ * 96978-96987), which clears the village word, and the wagon keeps its hold.
+ * Word 0x7f with alarm 20 makes roughly a third of the seeds non-generous.
+ */
+static int run_wagon_state2_takes_comment(void) {
+  if (!test_names_txt()) {
+    return TR_SKIP;
+  }
+  int strict = 0;
+  int bad = 0;
+  for (uint32_t k = 1; k <= 32; ++k) {
+    Ai152eFixture f;
+    ColonizeUnit* brave = NULL;
+    ColonizeUnit* wag = NULL;
+    if (wagon_visit_fixture(&f, "wagon-state2", 1, &brave, &wag) != 0) {
+      return 1;
+    }
+    dos_rng_seed(&f.rng, k * 7919u);
+    f.col1.indian[0].contact_state[1] = 2;
+    col1_tribe_attitude_set(&f.tribes[0], 1, 0x7f);
+    ai_s_native_colonies = &f.colonies;
+    ai_native_bind_step_ctx(&f.ctx);
+    const int resolved = ai_native_step_first_contact(&f.units, &f.map, &f.col1, brave, 4);
+    ai_native_bind_step_ctx(NULL);
+    ai_s_native_colonies = NULL;
+    const AiContactVisitMood* m = ai_contact_visit_mood_this_turn(&f.ctx, 4, 1);
+    if (m && !m->generous_visit) {
+      strict++;
+      bad += resolved != 0 || wag->hold_goods_amount[0] != 100 ||
+             col1_tribe_attitude(&f.tribes[0], 1) != 0;
+    }
+    ai_contact_reset();
+    ai_152e_fixture_free(&f);
+  }
+  fprintf(stderr, "wagon-state2: %d non-generous visits, %d took the wagon arm or kept the word\n",
+          strict, bad);
+  return (strict > 0 && bad == 0) ? 0 : 1;
+}
+
+/*
+ * A resolved wagon demand closes e for the rest of the 3180 scan
+ * (aiStack_20[e], raw 98649). A second loaded Wagon Train of e at (12,10),
+ * met later in the direction loop, keeps its hold.
+ */
+static int run_wagon_demand_closes_nation(void) {
+  if (!test_names_txt()) {
+    return TR_SKIP;
+  }
+  Ai152eFixture f;
+  ColonizeUnit* brave = NULL;
+  ColonizeUnit* wag = NULL;
+  if (wagon_visit_fixture(&f, "wagon-closes-nation", 1, &brave, &wag) != 0) {
+    return 1;
+  }
+  ColonizeUnit* wag2 = units_get(
+    &f.units, units_spawn_allow_stack(&f.units, units_find_type(&f.units, "Wagon Train"), 12, 10)
+  );
+  if (!wag2) {
+    fprintf(stderr, "wagon-closes-nation: spawn failed\n");
+    ai_152e_fixture_free(&f);
+    return 1;
+  }
+  wag2->nation_id = 1;
+  wag2->hold_goods_type[0] = 3;
+  wag2->hold_goods_amount[0] = 100;
+  f.col1.indian[0].contact_state[1] = 1; /* local_10: never generous */
+  ai_s_native_colonies = &f.colonies;
+  ai_native_bind_step_ctx(&f.ctx);
+  const int resolved = ai_native_step_first_contact(&f.units, &f.map, &f.col1, brave, 4);
+  ai_native_bind_step_ctx(NULL);
+  ai_s_native_colonies = NULL;
+  const int hold1 = wag->hold_goods_amount[0];
+  const int hold2 = wag2->hold_goods_amount[0];
+  ai_contact_reset();
+  ai_152e_fixture_free(&f);
+  fprintf(stderr, "wagon-closes-nation: resolved %d holds %d %d (want 1 0 100)\n", resolved, hold1,
+          hold2);
+  return (resolved == 1 && hold1 == 0 && hold2 == 100) ? 0 : 1;
+}
+
+/*
+ * The wagon arm (FUN_5bfb_022e raw 96933-96976) has no mood gate of its own:
+ * it sits inside LAB_5bfb_0def, which only a !bVar6 visit reaches (raw
+ * 96828), so the test is its callers'. Called directly on a generous record,
+ * the AI still hands hold 0 over.
+ */
+static int run_wagon_demand_no_mood_gate(void) {
+  if (!test_names_txt()) {
+    return TR_SKIP;
+  }
+  Ai152eFixture f;
+  ColonizeUnit* brave = NULL;
+  ColonizeUnit* wag = NULL;
+  if (wagon_visit_fixture(&f, "wagon-no-mood-gate", 1, &brave, &wag) != 0) {
+    return 1;
+  }
+  ai_contact_visit_mood_publish(&f.ctx, 4, 1, brave->id, 1);
+  const int r = ai_contact_try_wagon_reparations(&f.ctx, 4, 1, brave, wag);
+  const int hold = wag->hold_goods_amount[0];
+  ai_152e_fixture_free(&f);
+  fprintf(stderr, "wagon-no-mood-gate: returned %d hold %d\n", r, hold);
+  return (r == 1 && hold == 0) ? 0 : 1;
+}
+
+/* Answer the waiting @INDIANCITY as the game does: close it, apply the row. */
+static void answer_city_demand(Ai152eFixture* f, AiPopupState* pop, int choice_id) {
+  ai_popup_clear(pop);
+  pop->has_result = true;
+  pop->result_cancelled = false;
+  pop->result_tag = AI_POPUP_TAG_CONTACT_REPARATIONS;
+  pop->result_nation_a = 0;
+  pop->result_nation_b = 4;
+  pop->result_payload = AI_CONTACT_REPARATIONS_CITY;
+  pop->result_choice_id = choice_id;
+  ai_contact_apply_popup_result(&f->ctx, pop);
+  ai_popup_clear(pop);
+}
+
+static int count_city_demands(const AiPopupState* pop) {
+  int n = 0;
+  for (int i = 0; i < pop->queue_count; ++i) {
+    n += pop->queue[i].tag == AI_POPUP_TAG_CONTACT_REPARATIONS;
+  }
+  return n;
+}
+
+/*
+ * Two Braves of one tribe each run 022e's @INDIANCITY demand on the same
+ * human colony in one 1816 pulse. DOS answers each inside 022e
+ * (FUN_291f_019c, raw 96882), so the second demand's cargo scan (raw
+ * 96843-96874) reads the stores the first answer handed over, and the first
+ * answer applies before the second Brave acts. Island: colony (14,10), Braves
+ * at (13,10) and (15,10) carrying the pending-encounter bit, water all round,
+ * so 021a stays and runs 3180 at the Brave's own tile (021a:13cc).
+ * The caller owns f (init'd here), game_txt and pop; returns the colony.
+ */
+static ColonizeColony* two_demand_scene(
+  Ai152eFixture* f, ColonizeMsgCatalog* game_txt, AiPopupState* pop, int bid[2]
+) {
+  if (!assets_msg_load_file(game_txt, "COLONIZE/GAME.TXT") || !f->map.layer2 || !f->map.layer3) {
+    fprintf(stderr, "two-demands: GAME.TXT / map layers missing\n");
+    return NULL;
+  }
+  f->ctx.messages = game_txt;
+  f->ctx.ai_popups = pop;
+  ai_contact_reset();
+  ai_native_reset();
+  for (int i = 0; i < 32 * 32; ++i) {
+    f->map.layer3[i] |= 0xf0u; /* unowned */
+  }
+  for (int y = 9; y <= 11; ++y) {
+    for (int x = 12; x <= 16; ++x) {
+      f->map.terrain[y * 32 + x] = (y == 10 && x >= 13 && x <= 15) ? 2 : 25;
+    }
+  }
+  map_set_owner_nibble(&f->map, 14, 10, 0);
+  f->map.layer2[10 * 32 + 14] |= 0x02u; /* settlement: 021a skips the colony tile */
+  ColonizeColony* col = &f->colonies.colonies[0];
+  col->active = true;
+  col->id = 0;
+  col->nation_id = 0;
+  col->x = 14;
+  col->y = 10;
+  col->stock[3] = 50; /* price 10: 500 beats cargo 4's 400, until demand 1 takes it */
+  col->stock[4] = 40;
+  snprintf(col->name, sizeof(col->name), "Testtown");
+  const int brave_ti = units_find_type(&f->units, "Brave");
+  bid[0] = units_spawn_allow_stack(&f->units, brave_ti, 13, 10);
+  bid[1] = units_spawn_allow_stack(&f->units, brave_ti, 15, 10);
+  for (int k = 0; k < 2; ++k) {
+    ColonizeUnit* b = units_get(&f->units, bid[k]);
+    if (!b) {
+      fprintf(stderr, "two-demands: spawn failed\n");
+      return NULL;
+    }
+    b->nation_id = 4;
+    b->home_tribe_index = 0;
+    b->col1_flags15 = 0x08u;
+    b->moves = 0;
+  }
+  f->col1.nation[0].trade.euro_price[3] = 11;
+  f->col1.nation[0].trade.euro_price[4] = 11;
+  f->col1.indian[0].euro_diplo[0] = (uint8_t)COL1_INDIAN_MET_BIT;
+  f->col1.indian[0].alarm_by_player[0] = 20;
+  f->col1.indian[0].contact_state[0] = 1; /* local_10: never generous */
+  col1_tribe_attitude_set(&f->tribes[0], 0, 5);
+  return col;
+}
+
+static int run_two_demands_one_pulse(void) {
+  if (!test_names_txt() || !test_game_txt()) {
+    return TR_SKIP;
+  }
+  Ai152eFixture f;
+  if (ai_152e_fixture_init(&f, "two-demands", 777u) != 0) {
+    return 1;
+  }
+  ColonizeMsgCatalog game_txt;
+  assets_msg_init(&game_txt);
+  AiPopupState pop;
+  ai_popup_init(&pop);
+  int rc = 1;
+  int bid[2];
+  ColonizeColony* col = two_demand_scene(&f, &game_txt, &pop, bid);
+  if (!col) {
+    goto done;
+  }
+
+  /* Demand 1: the pulse stops on it. */
+  ai_indian_nation_turn(&f.ctx, 4);
+  if (!ai_native_pulse_suspended() || count_city_demands(&pop) != 1) {
+    fprintf(stderr, "two-demands: first demand suspended %d popups %d (want 1 1)\n",
+            ai_native_pulse_suspended(), count_city_demands(&pop));
+    goto done;
+  }
+  const int qty1 = ai_contact_s_reparations[0].qty;
+  if (ai_contact_s_reparations[0].cargo != 3 || ai_contact_s_reparations[0].brave_id != bid[0]) {
+    fprintf(stderr, "two-demands: first demand cargo %d brave %d\n",
+            ai_contact_s_reparations[0].cargo, ai_contact_s_reparations[0].brave_id);
+    goto done;
+  }
+  answer_city_demand(&f, &pop, AI_CONTACT_REPARATIONS_ROW2); /* "Hand them over." */
+  const int stock1 = col->stock[3];
+  if (qty1 <= 0 || stock1 != 50 - qty1 || col1_tribe_attitude(&f.tribes[0], 0) != 0) {
+    fprintf(stderr, "two-demands: accept qty %d stock %d word %d\n", qty1, stock1,
+            col1_tribe_attitude(&f.tribes[0], 0));
+    goto done;
+  }
+
+  /* Demand 2: the second Brave. With at most 25 Tobacco left the scan must
+   * now pick cargo 4: it reads the stores after demand 1's answer. */
+  ai_indian_nation_turn(&f.ctx, 4);
+  const int qty2 = ai_contact_s_reparations[0].qty;
+  if (!ai_native_pulse_suspended() || count_city_demands(&pop) != 1 ||
+      ai_contact_s_reparations[0].brave_id != bid[1] || ai_contact_s_reparations[0].cargo != 4 ||
+      (qty2 != 40 && qty2 != 20)) {
+    fprintf(stderr,
+            "two-demands: second demand suspended %d popups %d brave %d cargo %d qty %d\n",
+            ai_native_pulse_suspended(), count_city_demands(&pop),
+            ai_contact_s_reparations[0].brave_id, ai_contact_s_reparations[0].cargo, qty2);
+    goto done;
+  }
+  answer_city_demand(&f, &pop, AI_CONTACT_REPARATIONS_ROW1); /* "Man the stockade." */
+  if (col->stock[3] != stock1 || col->stock[4] != 40 ||
+      col1_tribe_attitude(&f.tribes[0], 0) != 0x80) {
+    fprintf(stderr, "two-demands: refuse stock %d/%d word %d\n", col->stock[3], col->stock[4],
+            col1_tribe_attitude(&f.tribes[0], 0));
+    goto done;
+  }
+
+  /* The rest of the pulse: nothing left to ask, both Braves spent. */
+  ai_indian_nation_turn(&f.ctx, 4);
+  if (ai_native_pulse_suspended() || count_city_demands(&pop) != 0) {
+    fprintf(stderr, "two-demands: pulse did not finish\n");
+    goto done;
+  }
+  for (int k = 0; k < 2; ++k) {
+    const ColonizeUnit* b = units_get(&f.units, bid[k]);
+    if (b->moves < units_max_mp(&f.units, b->id)) {
+      fprintf(stderr, "two-demands: Brave %d not exhausted (%d)\n", k, b->moves);
+      goto done;
+    }
+  }
+  fprintf(stderr, "two demands one pulse ok (Tobacco %d, then cargo 4 %d)\n", qty1, qty2);
+  rc = 0;
+done:
+  ai_native_reset();
+  ai_contact_reset();
+  assets_msg_free(&game_txt);
+  ai_152e_fixture_free(&f);
+  return rc;
+}
+
+/*
+ * The same scene through turn_processor_advance (turn_step_indian): a
+ * stopped pulse keeps the slot (step INDIAN, cursor 4), and its resume slices
+ * skip the day top (raw 6353-6363: +0x3149 = 0 for every unit) that already
+ * ran. After the last answer the cursor walks on, and FUN_4d56_1b3a phase 3
+ * (the worked-tile claim) runs after tribe 11, not before.
+ */
+static int run_two_demands_turn_processor(void) {
+  if (!test_names_txt() || !test_game_txt()) {
+    return TR_SKIP;
+  }
+  Ai152eFixture f;
+  if (ai_152e_fixture_init(&f, "two-demands-proc", 777u) != 0) {
+    return 1;
+  }
+  ColonizeMsgCatalog game_txt;
+  assets_msg_init(&game_txt);
+  AiPopupState pop;
+  ai_popup_init(&pop);
+  int rc = 1;
+  int bid[2];
+  ColonizeColony* col = two_demand_scene(&f, &game_txt, &pop, bid);
+  if (!col) {
+    goto done;
+  }
+  ColonizeTurnProcessor proc;
+  turn_processor_start(&proc);
+  proc.step = TURN_PROC_INDIAN; /* SETUP and the calendar slice already ran */
+  proc.nation_cursor = 4;
+  proc.day_advanced = true;
+  const uint16_t year0 = f.year;
+
+  /* Slice 1: day top + tribe 4, stops on demand 1. */
+  if (!turn_processor_advance(&proc, &f.ctx) || proc.step != TURN_PROC_INDIAN ||
+      proc.nation_cursor != 4 || !ai_native_pulse_suspended() || count_city_demands(&pop) != 1) {
+    fprintf(stderr, "two-demands-proc: slice 1 step %d cursor %d suspended %d popups %d\n",
+            (int)proc.step, proc.nation_cursor, ai_native_pulse_suspended(),
+            count_city_demands(&pop));
+    goto done;
+  }
+  /* Sentinel: a Euro unit with no moves. A second day top would refill it. */
+  const int sid = units_spawn_allow_stack(&f.units, units_find_type(&f.units, "Soldier"), 2, 2);
+  ColonizeUnit* s = units_get(&f.units, sid);
+  if (!s) {
+    fprintf(stderr, "two-demands-proc: sentinel spawn failed\n");
+    goto done;
+  }
+  s->nation_id = 0;
+  s->moves = 0;
+  answer_city_demand(&f, &pop, AI_CONTACT_REPARATIONS_ROW2);
+
+  /* Slice 2: the resume runs into demand 2 (the second Brave). */
+  if (!turn_processor_advance(&proc, &f.ctx) || proc.step != TURN_PROC_INDIAN ||
+      proc.nation_cursor != 4 || !ai_native_pulse_suspended() || count_city_demands(&pop) != 1 ||
+      ai_contact_s_reparations[0].brave_id != bid[1] || units_get(&f.units, sid)->moves != 0 ||
+      f.year != year0) {
+    fprintf(stderr,
+            "two-demands-proc: slice 2 step %d cursor %d suspended %d popups %d brave %d "
+            "sentinel moves %d year %d\n",
+            (int)proc.step, proc.nation_cursor, ai_native_pulse_suspended(),
+            count_city_demands(&pop), ai_contact_s_reparations[0].brave_id,
+            units_get(&f.units, sid)->moves, (int)f.year);
+    goto done;
+  }
+  answer_city_demand(&f, &pop, AI_CONTACT_REPARATIONS_ROW1);
+
+  /* Slice 3: the pulse ends, the cursor moves to tribe 5. */
+  if (!turn_processor_advance(&proc, &f.ctx) || proc.step != TURN_PROC_INDIAN ||
+      proc.nation_cursor != 5 || ai_native_pulse_suspended() || count_city_demands(&pop) != 0 ||
+      units_get(&f.units, sid)->moves != 0) {
+    fprintf(stderr, "two-demands-proc: slice 3 step %d cursor %d suspended %d sentinel %d\n",
+            (int)proc.step, proc.nation_cursor, ai_native_pulse_suspended(),
+            units_get(&f.units, sid)->moves);
+    goto done;
+  }
+
+  /* Phase 3 marker: the colony works (14,9), still tribal land. */
+  for (int i = 0; i < COLONIZE_COLONY_FIELD_TILES_MAX; ++i) {
+    int dx = 0;
+    int dy = 0;
+    if (colonies_field_tile_delta(i, &dx, &dy) && dx == 0 && dy == -1) {
+      col->tiles[i] = 0;
+    }
+  }
+  map_set_owner_nibble(&f.map, 14, 9, 4);
+  for (int n = 5; n <= 11; ++n) {
+    if (proc.step != TURN_PROC_INDIAN || proc.nation_cursor != n ||
+        ai_owner_nibble(&f.map, 14, 9) != 4) {
+      fprintf(stderr, "two-demands-proc: before tribe %d step %d cursor %d owner %d\n", n,
+              (int)proc.step, proc.nation_cursor, ai_owner_nibble(&f.map, 14, 9));
+      goto done;
+    }
+    (void)turn_processor_advance(&proc, &f.ctx);
+  }
+  if (proc.step == TURN_PROC_INDIAN || ai_owner_nibble(&f.map, 14, 9) != 0) {
+    fprintf(stderr, "two-demands-proc: after tribe 11 step %d owner %d\n", (int)proc.step,
+            ai_owner_nibble(&f.map, 14, 9));
+    goto done;
+  }
+  fprintf(stderr, "two demands through the turn processor ok\n");
+  rc = 0;
+done:
+  ai_native_reset();
+  ai_contact_reset();
+  assets_msg_free(&game_txt);
+  ai_152e_fixture_free(&f);
+  return rc;
+}
+
+static int count_popups(const AiPopupState* pop, AiPopupTag tag) {
+  int n = 0;
+  for (int i = 0; i < pop->queue_count; ++i) {
+    n += pop->queue[i].tag == tag;
+  }
+  return n;
+}
+
+/*
+ * The same scene, but the colony holds 100 food and tundra rings the village,
+ * so 022e's beg (raw 96753-96756) can ask: @INDIANBEGFOOD waits for the human
+ * like @INDIANCITY, and the pulse stops on it before the second Brave acts.
+ */
+static int run_beg_food_stops_pulse(void) {
+  if (!test_names_txt() || !test_game_txt()) {
+    return TR_SKIP;
+  }
+  for (uint32_t k = 1; k <= 64; ++k) {
+    Ai152eFixture f;
+    if (ai_152e_fixture_init(&f, "beg-food-stops", 777u) != 0) {
+      return 1;
+    }
+    f.ctx.rng_seed = k; /* the pulse reseeds from it (ai_nation_reseed) */
+    f.ctx.rng_seed_set = true;
+    ColonizeMsgCatalog game_txt;
+    assets_msg_init(&game_txt);
+    AiPopupState pop;
+    ai_popup_init(&pop);
+    int bid[2];
+    ColonizeColony* col = two_demand_scene(&f, &game_txt, &pop, bid);
+    int begs = -1;
+    int demands = -1;
+    int suspended = 0;
+    int second_moves = -1;
+    if (col) {
+      col->stock[COLONIZE_CARGO_FOOD] = 100;
+      for (int y = 8; y <= 12; ++y) {
+        for (int x = 8; x <= 11; ++x) {
+          f.map.terrain[y * 32 + x] = 0;
+        }
+      }
+      ai_indian_nation_turn(&f.ctx, 4);
+      begs = count_popups(&pop, AI_POPUP_TAG_CONTACT_BEGFOOD);
+      demands = count_city_demands(&pop);
+      suspended = ai_native_pulse_suspended();
+      second_moves = units_get(&f.units, bid[1])->moves;
+    }
+    ai_native_reset();
+    ai_contact_reset();
+    assets_msg_free(&game_txt);
+    ai_152e_fixture_free(&f);
+    if (!col) {
+      return 1;
+    }
+    if (begs == 0) {
+      continue;
+    }
+    fprintf(stderr,
+            "beg-food-stops: seed %u suspended %d begs %d demands %d second Brave moves %d "
+            "(want 1 1 0 0)\n",
+            k, suspended, begs, demands, second_moves);
+    return (suspended && begs == 1 && demands == 0 && second_moves == 0) ? 0 : 1;
+  }
+  fprintf(stderr, "beg-food-stops: no seed begged\n");
+  return 1;
+}
+
+/*
+ * The resumed 3180 scan keeps aiStack_20 (raw 98649): the first Brave's
+ * demand closed the human, so its Soldier S of the Brave (d 4, after the
+ * colony at d 2) is not turned, while an AI Soldier SW (d 5) still is.
+ */
+static int run_resume_keeps_scan_latch(void) {
+  if (!test_names_txt() || !test_game_txt()) {
+    return TR_SKIP;
+  }
+  Ai152eFixture f;
+  if (ai_152e_fixture_init(&f, "resume-latch", 777u) != 0) {
+    return 1;
+  }
+  ColonizeMsgCatalog game_txt;
+  assets_msg_init(&game_txt);
+  AiPopupState pop;
+  ai_popup_init(&pop);
+  int rc = 1;
+  int bid[2];
+  if (!two_demand_scene(&f, &game_txt, &pop, bid)) {
+    goto done;
+  }
+  const int soldier_ti = units_find_type(&f.units, "Soldier");
+  f.map.terrain[11 * 32 + 13] = 2;
+  f.map.terrain[11 * 32 + 12] = 2;
+  ColonizeUnit* human = units_get(&f.units, units_spawn_allow_stack(&f.units, soldier_ti, 13, 11));
+  ColonizeUnit* ai = units_get(&f.units, units_spawn_allow_stack(&f.units, soldier_ti, 12, 11));
+  if (!human || !ai) {
+    fprintf(stderr, "resume-latch: spawn failed\n");
+    goto done;
+  }
+  human->nation_id = 0;
+  ai->nation_id = 1;
+  human->last_dir = -1;
+  ai->last_dir = -1;
+  f.col1.indian[0].euro_diplo[1] = (uint8_t)COL1_INDIAN_MET_BIT;
+  ai_indian_nation_turn(&f.ctx, 4);
+  if (!ai_native_pulse_suspended() || ai_contact_s_reparations[0].brave_id != bid[0]) {
+    fprintf(stderr, "resume-latch: first demand suspended %d brave %d\n",
+            ai_native_pulse_suspended(), ai_contact_s_reparations[0].brave_id);
+    goto done;
+  }
+  answer_city_demand(&f, &pop, AI_CONTACT_REPARATIONS_ROW2);
+  ai_indian_nation_turn(&f.ctx, 4);
+  fprintf(stderr, "resume-latch: human Soldier dir %d, AI Soldier dir %d (want -1 5)\n",
+          human->last_dir, ai->last_dir);
+  rc = (human->last_dir == -1 && ai->last_dir == 5) ? 0 : 1;
+done:
+  ai_native_reset();
+  ai_contact_reset();
+  assets_msg_free(&game_txt);
+  ai_152e_fixture_free(&f);
+  return rc;
+}
+
+/*
+ * A step-tail scan (ai_native_brave_step after the commit) that stops on a
+ * demand leaves the mover's LAB_5bfb_1005 exhaust (raw 97094-97095) to the
+ * resume. A Mounted Brave (4 MP) steps from (12,10) onto (13,10) next to the
+ * colony; after the answer it must be spent and must not act again.
+ */
+static int run_resume_exhausts_step_mover(void) {
+  if (!test_names_txt() || !test_game_txt()) {
+    return TR_SKIP;
+  }
+  Ai152eFixture f;
+  if (ai_152e_fixture_init(&f, "resume-exhaust", 777u) != 0) {
+    return 1;
+  }
+  ColonizeMsgCatalog game_txt;
+  assets_msg_init(&game_txt);
+  AiPopupState pop;
+  ai_popup_init(&pop);
+  int bid[2];
+  int rc = 1;
+  if (!two_demand_scene(&f, &game_txt, &pop, bid)) {
+    goto done;
+  }
+  ColonizeUnit* m = units_get(&f.units, bid[0]);
+  m->type_index = units_find_type(&f.units, "Mtd. Braves");
+  m->x = 12;
+  m->col1_flags15 = 0;
+  f.map.terrain[10 * 32 + 12] = 2;
+  for (int y = 9; y <= 11; ++y) {
+    f.map.terrain[y * 32 + 11] = 25; /* (12,10)'s only land exit is E */
+  }
+  /* Without the settlement bit 021a's visit scorer misses the colony, so the
+   * step carries no 0x80 visit (that would defer 022e to the next act's
+   * 021a:13d7 resolve, which exhausts on its own); 3180 still finds the
+   * colony in the pool. */
+  f.map.layer2[10 * 32 + 14] &= (uint8_t)~0x02u;
+  const int max_mp = units_max_mp(&f.units, m->id);
+  ai_indian_nation_turn(&f.ctx, 4);
+  const int moves_at_stop = m->moves;
+  if (!ai_native_pulse_suspended() || ai_contact_s_reparations[0].brave_id != bid[0] ||
+      m->x != 13 || m->y != 10 || moves_at_stop >= max_mp) {
+    fprintf(stderr, "resume-exhaust: stop suspended %d brave %d at (%d,%d) moves %d of %d\n",
+            ai_native_pulse_suspended(), ai_contact_s_reparations[0].brave_id, m->x, m->y,
+            moves_at_stop, max_mp);
+    goto done;
+  }
+  const int acts_at_stop = m->col1_counter16; /* 1816's per-act counter */
+  answer_city_demand(&f, &pop, AI_CONTACT_REPARATIONS_ROW2);
+  ai_indian_nation_turn(&f.ctx, 4);
+  fprintf(stderr,
+          "resume-exhaust: moves at stop %d, after resume %d of %d at (%d,%d), acts %d -> %d, "
+          "next demand brave %d (want %d at (13,10), no new act, %d)\n",
+          moves_at_stop, m->moves, max_mp, m->x, m->y, acts_at_stop, m->col1_counter16,
+          ai_contact_s_reparations[0].brave_id, max_mp, bid[1]);
+  rc = (m->moves == max_mp && m->x == 13 && m->y == 10 && m->col1_counter16 == acts_at_stop &&
+        ai_contact_s_reparations[0].brave_id == bid[1])
+         ? 0
+         : 1;
+done:
+  ai_native_reset();
+  ai_contact_reset();
+  assets_msg_free(&game_txt);
+  ai_152e_fixture_free(&f);
+  return rc;
+}
+
+/* A new turn processor drops a pulse record a loaded game or an earlier
+ * session left behind. */
+static int run_processor_start_drops_resume(void) {
+  if (!test_names_txt() || !test_game_txt()) {
+    return TR_SKIP;
+  }
+  Ai152eFixture f;
+  if (ai_152e_fixture_init(&f, "resume-stale", 777u) != 0) {
+    return 1;
+  }
+  ColonizeMsgCatalog game_txt;
+  assets_msg_init(&game_txt);
+  AiPopupState pop;
+  ai_popup_init(&pop);
+  int bid[2];
+  int before = -1;
+  int after = -1;
+  if (two_demand_scene(&f, &game_txt, &pop, bid)) {
+    ai_indian_nation_turn(&f.ctx, 4);
+    before = ai_native_pulse_suspended();
+    ColonizeTurnProcessor proc;
+    turn_processor_start(&proc);
+    after = ai_native_pulse_suspended();
+  }
+  ai_native_reset();
+  ai_contact_reset();
+  assets_msg_free(&game_txt);
+  ai_152e_fixture_free(&f);
+  fprintf(stderr, "resume-stale: suspended before %d after start %d (want 1 0)\n", before, after);
+  return (before == 1 && after == 0) ? 0 : 1;
+}
+
+/*
+ * A conceded food beg forces bVar6 on (FUN_5bfb_022e raw 96797-96805) and
+ * runs the gift half (raw 96989 onward) with no second alarm test; the 0x31
+ * flip (raw 96729-96731) belongs to the mood roll before the beg. The visit's
+ * mood was not generous, alarm sits at 0x3c, difficulty 0 makes the
+ * rng(0, difficulty) abandon draw 0: the village gifts goods (bVar7 vetoes
+ * food, so @INDIANGIVESTUFF).
+ */
+static int run_conceded_beg_gifts_above_0x31(void) {
+  if (!test_names_txt()) {
+    return TR_SKIP;
+  }
+  Ai152eFixture f;
+  if (ai_152e_fixture_init(&f, "conceded-beg-gifts", 777u) != 0) {
+    return 1;
+  }
+  ai_contact_reset();
+  f.col1.head.difficulty = 0;
+  ColonizeColony* col = &f.colonies.colonies[0];
+  col->active = true;
+  col->id = 0;
+  col->nation_id = 1;
+  col->x = 14;
+  col->y = 10;
+  col->stock[COLONIZE_CARGO_FOOD] = 100;
+  snprintf(col->name, sizeof(col->name), "Testtown");
+  const int brave_ti = units_find_type(&f.units, "Brave");
+  const int bid = brave_ti >= 0 ? units_spawn_allow_stack(&f.units, brave_ti, 13, 10) : -1;
+  ColonizeUnit* brave = units_get(&f.units, bid);
+  if (!brave) {
+    fprintf(stderr, "conceded-beg-gifts: spawn failed\n");
+    ai_152e_fixture_free(&f);
+    return 1;
+  }
+  brave->nation_id = 4;
+  brave->home_tribe_index = 0;
+  f.col1.indian[0].euro_diplo[1] = (uint8_t)COL1_INDIAN_MET_BIT;
+  f.col1.indian[0].alarm_by_player[1] = 0x3c;
+  ai_contact_visit_mood_publish(&f.ctx, 4, 1, bid, 0);
+
+  ai_contact_apply_beg_food(&f.ctx, &f.col1.indian[0], 4, 1, 0, 0, 1);
+
+  const int alarm = ai_diplo_indian_alarm(&f.col1, 4, 1);
+  int goods = 0;
+  for (int g = 0; g < COLONIZE_CARGO_COUNT; ++g) {
+    goods += g == COLONIZE_CARGO_FOOD ? 0 : col->stock[g];
+  }
+  const int food = col->stock[COLONIZE_CARGO_FOOD];
+  ai_152e_fixture_free(&f);
+  fprintf(stderr, "conceded-beg-gifts: alarm %d food %d gifted goods %d\n", alarm, food, goods);
+  return (alarm > 0x31 && food == 50 && goods > 0) ? 0 : 1;
+}
+
+/*
+ * FUN_5bfb_022e raw 96851-96861. The best cargo has a stock of 1; the
+ * rng(0, difficulty + 1) == 0 draw halves it to 0 and DOS still presents
+ * @INDIANCITY (local_1a = 1 at LAB_5bfb_1000). Spread seeds so some halve.
+ */
+static int run_zero_qty_demand_presented(void) {
+  if (!test_names_txt()) {
+    return TR_SKIP;
+  }
+  int halved = 0;
+  int unresolved = 0;
+  for (uint32_t k = 1; k <= 16; ++k) {
+    Ai152eFixture f;
+    if (ai_152e_fixture_init(&f, "zero-qty-demand", k * 12345u) != 0) {
+      return 1;
+    }
+    ai_contact_reset();
+    f.col1.head.difficulty = 0; /* rng(0, 1): half the seeds halve */
+    ColonizeColony* col = &f.colonies.colonies[0];
+    col->active = true;
+    col->id = 0;
+    col->nation_id = 1;
+    col->x = 14;
+    col->y = 10;
+    col->stock[3] = 1;
+    snprintf(col->name, sizeof(col->name), "Testtown");
+    const int brave_ti = units_find_type(&f.units, "Brave");
+    const int bid = brave_ti >= 0 ? units_spawn_allow_stack(&f.units, brave_ti, 13, 10) : -1;
+    ColonizeUnit* brave = units_get(&f.units, bid);
+    if (!brave) {
+      fprintf(stderr, "zero-qty-demand: spawn failed\n");
+      ai_152e_fixture_free(&f);
+      return 1;
+    }
+    brave->nation_id = 4;
+    brave->home_tribe_index = 0;
+    brave->col1_flags15 = 0;
+    f.col1.nation[1].trade.euro_price[3] = 11;
+    f.col1.indian[0].euro_diplo[1] = (uint8_t)COL1_INDIAN_MET_BIT;
+    f.col1.indian[0].alarm_by_player[1] = 20;
+    f.col1.indian[0].contact_state[1] = 1; /* local_10: never generous */
+    col1_tribe_attitude_set(&f.tribes[0], 1, 5);
+
+    ai_s_native_colonies = &f.colonies;
+    ai_native_bind_step_ctx(&f.ctx);
+    const int resolved = ai_native_step_first_contact(&f.units, &f.map, &f.col1, brave, 4);
+    ai_native_bind_step_ctx(NULL);
+    ai_s_native_colonies = NULL;
+    const int stock = col->stock[3];
+    ai_152e_fixture_free(&f);
+    unresolved += resolved != 1;
+    halved += stock == 1; /* the AI handed over 0 */
+  }
+  fprintf(stderr, "zero-qty-demand: 16 seeds, %d unresolved, %d halved to 0\n", unresolved,
+          halved);
+  return (unresolved == 0 && halved > 0) ? 0 : 1;
+}
+
+/*
+ * @INDIANSCONVERT whose spawn fails. FUN_5bfb_022e raw 97011-97012:
+ * `iVar9 = FUN_281f_095c(...); if (iVar9 < 0) goto LAB_5bfb_1005;` with
+ * local_1a still 0, so the visit does not resolve and the Brave keeps its MP.
+ * The AI colony's nation is at the 0xc9 census cap (FUN_1427_06b4 refuses).
+ */
+static int run_convert_spawn_failure_unresolved(void) {
+  if (!test_names_txt()) {
+    return TR_SKIP;
+  }
+  Ai152eFixture f;
+  if (ai_152e_fixture_init(&f, "convert-spawn-fail", 777u) != 0) {
+    return 1;
+  }
+  ai_contact_reset();
+  ColonizeColony* col = &f.colonies.colonies[0];
+  col->active = true;
+  col->id = 0;
+  col->nation_id = 1;
+  col->x = 14;
+  col->y = 10;
+  snprintf(col->name, sizeof(col->name), "Testtown");
+  const int brave_ti = units_find_type(&f.units, "Brave");
+  const int bid = brave_ti >= 0 ? units_spawn_allow_stack(&f.units, brave_ti, 13, 10) : -1;
+  ColonizeUnit* brave = units_get(&f.units, bid);
+  if (!brave) {
+    fprintf(stderr, "convert-spawn-fail: spawn failed\n");
+    ai_152e_fixture_free(&f);
+    return 1;
+  }
+  brave->nation_id = 4;
+  brave->home_tribe_index = 0;
+  brave->col1_flags15 = 0;
+  brave->moves = 0;
+  f.tribes[0].mission = 1;          /* mission owned by nation 1 */
+  f.col1.indian[0].tech = 14;       /* tech + 2 = 16 > any rng(0, 0xf) */
+  f.col1.indian[0].euro_diplo[1] = (uint8_t)COL1_INDIAN_MET_BIT;
+  f.col1.indian[0].alarm_by_player[1] = 0; /* generous: 0 <= rng(1, 0x148) */
+  f.col1.player[1].control = 1;
+  f.col1.stuff.all_unit_counts[1] = 0xc9;
+  units_set_ff_col1(&f.col1);
+
+  ai_s_native_colonies = &f.colonies;
+  ai_native_bind_step_ctx(&f.ctx);
+  const int resolved = ai_native_step_first_contact(&f.units, &f.map, &f.col1, brave, 4);
+  ai_native_bind_step_ctx(NULL);
+  ai_s_native_colonies = NULL;
+  units_set_ff_col1(NULL);
+
+  const int state = f.col1.indian[0].contact_state[1];
+  const int moves = brave->moves;
+  const int units_now = units_active_count(&f.units);
+  ai_152e_fixture_free(&f);
+  fprintf(stderr, "convert-spawn-fail: resolved %d moves %d state %d units %d\n", resolved,
+          moves, state, units_now);
+  return (resolved == 0 && moves == 0 && state == 2 && units_now == 1) ? 0 : 1;
+}
+
+/*
+ * FUN_5bfb_3180 closes a nation only through aiStack_20[nation] (raw
+ * 98649, 98674); a first contact on an earlier tile does not stop the scan
+ * for other nations. The Brave first meets the human's Soldier to the north
+ * (d 0), then visits the met AI colony to the east (d 2) with a !bVar6 mood
+ * (contact_state 1): the @INDIANCITY demand runs and the AI hands over.
+ */
+static int run_visit_after_first_contact(void) {
+  if (!test_names_txt()) {
+    return TR_SKIP;
+  }
+  Ai152eFixture f;
+  if (ai_152e_fixture_init(&f, "visit-after-first-contact", 777u) != 0) {
+    return 1;
+  }
+  ai_contact_reset();
+  ColonizeColony* col = &f.colonies.colonies[0];
+  col->active = true;
+  col->id = 0;
+  col->nation_id = 1;
+  col->x = 14;
+  col->y = 10;
+  col->stock[3] = 50;
+  snprintf(col->name, sizeof(col->name), "Testtown");
+  const int brave_ti = units_find_type(&f.units, "Brave");
+  const int soldier_ti = units_find_type(&f.units, "Soldier");
+  const int bid = brave_ti >= 0 ? units_spawn_allow_stack(&f.units, brave_ti, 13, 10) : -1;
+  const int sid = soldier_ti >= 0 ? units_spawn_allow_stack(&f.units, soldier_ti, 13, 9) : -1;
+  ColonizeUnit* brave = units_get(&f.units, bid);
+  ColonizeUnit* sol = units_get(&f.units, sid);
+  if (!brave || !sol) {
+    fprintf(stderr, "visit-after-first-contact: spawn failed\n");
+    ai_152e_fixture_free(&f);
+    return 1;
+  }
+  brave->nation_id = 4;
+  brave->home_tribe_index = 0;
+  brave->col1_flags15 = 0;
+  sol->nation_id = 0; /* human, not met yet */
+  f.col1.nation[1].trade.euro_price[3] = 11;
+  f.col1.indian[0].euro_diplo[1] = (uint8_t)COL1_INDIAN_MET_BIT;
+  f.col1.indian[0].alarm_by_player[1] = 20;
+  f.col1.indian[0].contact_state[1] = 1; /* local_10: never generous */
+  col1_tribe_attitude_set(&f.tribes[0], 1, 5);
+
+  ai_s_native_colonies = &f.colonies;
+  ai_native_bind_step_ctx(&f.ctx);
+  (void)ai_native_step_first_contact(&f.units, &f.map, &f.col1, brave, 4);
+  ai_native_bind_step_ctx(NULL);
+  ai_s_native_colonies = NULL;
+
+  const int met_human = f.col1.indian[0].euro_diplo[0] != 0;
+  const int stock = col->stock[3];
+  ai_152e_fixture_free(&f);
+  fprintf(stderr, "visit-after-first-contact: met human %d, AI colony stock %d\n", met_human,
+          stock);
+  return (met_human && stock < 50) ? 0 : 1;
+}
+
+/*
+ * FUN_5bfb_3180 closes a nation (aiStack_20[e]) only when 022e returns
+ * non-zero. An AI colony east of the Brave with empty stores and no wagon
+ * leaves the visit unresolved, so the next tile of the same nation, a
+ * Soldier south of the Brave, still gets its turn: raw 98649-98651 stamps
+ * its facing with the scan direction (4) before its own 022e.
+ */
+static int run_unresolved_visit_keeps_nation_open(void) {
+  if (!test_names_txt()) {
+    return TR_SKIP;
+  }
+  Ai152eFixture f;
+  if (ai_152e_fixture_init(&f, "visit-keeps-open", 778u) != 0) {
+    return 1;
+  }
+  ai_contact_reset();
+  const int e = 1;
+  ColonizeColony* col = &f.colonies.colonies[0];
+  col->active = true;
+  col->id = 0;
+  col->nation_id = e;
+  col->x = 14;
+  col->y = 10;
+  snprintf(col->name, sizeof(col->name), "Testtown");
+  const int brave_ti = units_find_type(&f.units, "Brave");
+  const int soldier_ti = units_find_type(&f.units, "Soldier");
+  const int bid = brave_ti >= 0 ? units_spawn_allow_stack(&f.units, brave_ti, 13, 10) : -1;
+  const int sid = soldier_ti >= 0 ? units_spawn_allow_stack(&f.units, soldier_ti, 13, 11) : -1;
+  ColonizeUnit* brave = units_get(&f.units, bid);
+  ColonizeUnit* soldier = units_get(&f.units, sid);
+  if (!brave || !soldier) {
+    fprintf(stderr, "visit-keeps-open: spawn failed\n");
+    ai_152e_fixture_free(&f);
+    return 1;
+  }
+  brave->nation_id = 4;
+  brave->home_tribe_index = 0;
+  brave->col1_flags15 = 0;
+  brave->moves = 0;
+  soldier->nation_id = e;
+  soldier->last_dir = -1;
+  f.col1.indian[0].euro_diplo[e] = (uint8_t)COL1_INDIAN_MET_BIT;
+  f.col1.indian[0].alarm_by_player[e] = 20;
+  f.col1.indian[0].contact_state[e] = 1;
+  col1_tribe_attitude_set(&f.tribes[0], e, 5);
+
+  ai_s_native_colonies = &f.colonies;
+  ai_native_bind_step_ctx(&f.ctx);
+  const int resolved = ai_native_step_first_contact(&f.units, &f.map, &f.col1, brave, 4);
+  ai_native_bind_step_ctx(NULL);
+  ai_s_native_colonies = NULL;
+  fprintf(stderr, "visit-keeps-open: resolved %d soldier facing %d moves %d\n", resolved,
+          (int)soldier->last_dir, (int)brave->moves);
+  const int ok = resolved == 0 && soldier->last_dir == 4 && brave->moves == 0;
+  ai_152e_fixture_free(&f);
+  return ok ? 0 : 1;
+}
+
 static int case_coarse_fog_reset(void) {
   static ColonizeUnitPool units;
   memset(&units, 0, sizeof(units));
@@ -1643,6 +3017,455 @@ static int case_021a_adjacent_foreign_medium_fixed(void) {
   return 0;
 }
 
+/* ---- FUN_6a09_0006 TRIBE.TXT branch (ai_place_tribes_from_txt) ---- */
+typedef struct {
+  ColonizeMsgCatalog names;
+  ColonizeMsgCatalog txt;
+  ColonizeWorldMap map;
+  ColonizeCol1Save col1;
+  AiNewGameParams p;
+  ColonizeCol1Tribe* tribes;
+  int count;
+  int cap;
+} TribeTxtFx;
+
+static void tribe_txt_fx_close(TribeTxtFx* fx) {
+  free(fx->tribes);
+  map_free(&fx->map);
+  col1_save_free(&fx->col1);
+  assets_msg_free(&fx->names);
+  assets_msg_free(&fx->txt);
+}
+
+static int tribe_txt_fx_open(TribeTxtFx* fx) {
+  memset(fx, 0, sizeof(*fx));
+  assets_msg_init(&fx->names);
+  assets_msg_init(&fx->txt);
+  col1_save_init(&fx->col1);
+  char err[256];
+  if (!assets_msg_load_file(&fx->names, "COLONIZE/NAMES.TXT") ||
+      !assets_msg_load_file(&fx->txt, "COLONIZE/TRIBE.TXT") ||
+      !map_load_mp("COLONIZE/AMER2.MP", &fx->map, err, sizeof(err)) || !fx->map.layer2 ||
+      !fx->map.layer3) {
+    fprintf(stderr, "tribe_txt fixture: data load failed\n");
+    return 1;
+  }
+  map_gen_finalize_border_and_forest(fx->map.terrain, (int)fx->map.width, (int)fx->map.height);
+  for (int t = 0; t < 8; ++t) {
+    fx->col1.indian[t].capitol_x = 1;
+    fx->col1.indian[t].capitol_y = 1;
+  }
+  fx->p.col1 = &fx->col1;
+  fx->p.map = &fx->map;
+  fx->p.names = &fx->names;
+  fx->p.data_dir = "COLONIZE";
+  fx->p.use_tribe_txt = true;
+  return 0;
+}
+
+static bool file_present(const char* path) {
+  FILE* f = fopen(path, "rb");
+  if (f) {
+    fclose(f);
+  }
+  return f != NULL;
+}
+
+/* NAMES.TXT, TRIBE.TXT and AMER2.MP: the game data under COLONIZE/. */
+static bool tribe_txt_data(void) {
+  return test_names_txt() && file_present("COLONIZE/TRIBE.TXT") &&
+         file_present("COLONIZE/AMER2.MP");
+}
+
+/* Entry reseed + the 32 init draws (ai_init_new_game), then the branch. */
+static int tribe_txt_place(TribeTxtFx* fx, uint32_t seed) {
+  ColonizeDosRng rng;
+  dos_rng_seed(&rng, seed);
+  for (int i = 0; i < 32; ++i) {
+    (void)dos_rng_range(&rng, 0, 14);
+  }
+  return ai_place_tribes_from_txt(&fx->p, &fx->tribes, &fx->count, &fx->cap, &rng) ? 0 : 1;
+}
+
+/* The tribe's TRIBE.TXT section: @TRIBES column 2, upper-cased (data, not code). */
+static const ColonizeMsgSection* tribe_txt_section(const TribeTxtFx* fx, int indian) {
+  char name[COLONIZE_MSG_LINE_LEN];
+  if (!assets_msg_row_field(&fx->names, "TRIBES", indian, 1, name, sizeof(name))) {
+    return NULL;
+  }
+  for (char* c = name; *c; ++c) {
+    *c = (char)toupper((unsigned char)*c);
+  }
+  return assets_msg_find(&fx->txt, name);
+}
+
+/* Every village is within +-2 of one of its own tribe's points, on a legal
+ * tile, more than 1 from every other village; tribes come in index order and
+ * the first village of each is its only capital; capitol bytes untouched. */
+static int tribe_txt_check(const TribeTxtFx* fx, const char* label) {
+  int prev_nation = 4;
+  for (int i = 0; i < fx->count; ++i) {
+    const ColonizeCol1Tribe* t = &fx->tribes[i];
+    const int x = t->x;
+    const int y = t->y;
+    if (t->nation_id < prev_nation || t->nation_id > 11) {
+      fprintf(stderr, "%s: village %d nation %u after %d (not index order)\n", label, i,
+              t->nation_id, prev_nation);
+      return 1;
+    }
+    const bool first_of_tribe = i == 0 || fx->tribes[i - 1].nation_id != t->nation_id;
+    if ((t->state.capital != 0) != first_of_tribe) {
+      fprintf(stderr, "%s: village %d capital=%d, first of tribe=%d\n", label, i,
+              t->state.capital, first_of_tribe);
+      return 1;
+    }
+    prev_nation = t->nation_id;
+    const ColonizeMsgSection* sec = tribe_txt_section(fx, t->nation_id - 4);
+    bool near_point = false;
+    for (int l = 0; sec && l < sec->line_count; ++l) {
+      int px = 0, py = 0;
+      if (sscanf(sec->lines[l], "%d,%d", &px, &py) == 2 && abs(px - x) <= 2 && abs(py - y) <= 2) {
+        near_point = true;
+      }
+    }
+    const int cls = map_dos_terr_class_at(&fx->map, x, y);
+    const int base = cls & 7;
+    if (!near_point || !map_coords_inset(&fx->map, x, y) || cls >= 0x18 ||
+        !(base == 0 || (base >= 2 && base <= 6))) {
+      fprintf(stderr, "%s: village %d (%d,%d) near_point=%d class=%d\n", label, i, x, y,
+              near_point, cls);
+      return 1;
+    }
+    for (int j = 0; j < i; ++j) {
+      if (map_dos_dist(x - fx->tribes[j].x, y - fx->tribes[j].y) <= 1) {
+        fprintf(stderr, "%s: villages %d (%d,%d) and %d (%d,%d) too close\n", label, i, x, y,
+                j, fx->tribes[j].x, fx->tribes[j].y);
+        return 1;
+      }
+    }
+  }
+  for (int t = 0; t < 8; ++t) {
+    if (fx->col1.indian[t].capitol_x != 1 || fx->col1.indian[t].capitol_y != 1) {
+      fprintf(stderr, "%s: tribe %d capitol bytes written\n", label, t);
+      return 1;
+    }
+  }
+  return 0;
+}
+
+static int case_tribe_txt_jitter_rules(void) {
+  if (!tribe_txt_data()) {
+    return TR_SKIP;
+  }
+  diag_init(0, NULL);
+  int moved = 0;
+  for (uint32_t s = 1; s <= 8; ++s) {
+    TribeTxtFx fx;
+    char label[32];
+    snprintf(label, sizeof(label), "seed %u", s * 12345u);
+    if (tribe_txt_fx_open(&fx) || tribe_txt_place(&fx, s * 12345u) ||
+        fx.count < 40 || fx.tribes[0].nation_id != 4 || tribe_txt_check(&fx, label)) {
+      fprintf(stderr, "%s: count=%d\n", label, fx.count);
+      tribe_txt_fx_close(&fx);
+      return 1;
+    }
+    /* The jitter is live: not every village sits on its listed point. */
+    const ColonizeMsgSection* inca = tribe_txt_section(&fx, 0);
+    int px = 0, py = 0;
+    if (inca && sscanf(inca->lines[0], "%d,%d", &px, &py) == 2 &&
+        (fx.tribes[0].x != px || fx.tribes[0].y != py)) {
+      moved++;
+    }
+    tribe_txt_fx_close(&fx);
+  }
+  if (moved == 0) {
+    fprintf(stderr, "tribe_txt: Inca capital sat on its listed point for all 8 seeds\n");
+    return 1;
+  }
+  return 0;
+}
+
+/* No passing try (ocean over the whole +-2 box of the first Inca point):
+ * that village is dropped and the next Inca village becomes the capital. */
+static int case_tribe_txt_impossible_spot_dropped(void) {
+  if (!tribe_txt_data()) {
+    return TR_SKIP;
+  }
+  diag_init(0, NULL);
+  TribeTxtFx base;
+  TribeTxtFx fx;
+  if (tribe_txt_fx_open(&base) || tribe_txt_place(&base, 100) || tribe_txt_fx_open(&fx)) {
+    tribe_txt_fx_close(&base);
+    return 1;
+  }
+  const ColonizeMsgSection* inca = tribe_txt_section(&fx, 0);
+  int px = 0, py = 0;
+  if (!inca || sscanf(inca->lines[0], "%d,%d", &px, &py) != 2) {
+    tribe_txt_fx_close(&base);
+    tribe_txt_fx_close(&fx);
+    return 1;
+  }
+  for (int y = py - 2; y <= py + 2; ++y) {
+    for (int x = px - 2; x <= px + 2; ++x) {
+      fx.map.terrain[y * fx.map.width + x] = 0x19;
+    }
+  }
+  int rc = tribe_txt_place(&fx, 100) || tribe_txt_check(&fx, "ocean box");
+  int base_inca = 0, inca_n = 0;
+  for (int i = 0; i < base.count; ++i) {
+    base_inca += base.tribes[i].nation_id == 4;
+  }
+  for (int i = 0; i < fx.count; ++i) {
+    inca_n += fx.tribes[i].nation_id == 4;
+    if (abs(fx.tribes[i].x - px) <= 2 && abs(fx.tribes[i].y - py) <= 2) {
+      rc = 1;
+    }
+  }
+  if (rc || inca_n != base_inca - 1) {
+    fprintf(stderr, "impossible spot: inca %d (base %d), count %d (base %d)\n", inca_n,
+            base_inca, fx.count, base.count);
+    rc = 1;
+  }
+  tribe_txt_fx_close(&base);
+  tribe_txt_fx_close(&fx);
+  return rc;
+}
+
+/* Third spacing tier (raw 107832: tries >= 0x42 need distance > 1 only). The
+ * first Inca point's box is ocean but its centre, and a village already
+ * stands 2 east of the centre: only a try from 0x42 on may place there. */
+static int case_tribe_txt_third_spacing_tier(void) {
+  if (!tribe_txt_data()) {
+    return TR_SKIP;
+  }
+  diag_init(0, NULL);
+  TribeTxtFx fx;
+  if (tribe_txt_fx_open(&fx)) {
+    tribe_txt_fx_close(&fx);
+    return 1;
+  }
+  const ColonizeMsgSection* inca = tribe_txt_section(&fx, 0);
+  int px = 0, py = 0;
+  if (!inca || sscanf(inca->lines[0], "%d,%d", &px, &py) != 2) {
+    tribe_txt_fx_close(&fx);
+    return 1;
+  }
+  const uint8_t centre = fx.map.terrain[py * fx.map.width + px];
+  for (int y = py - 2; y <= py + 2; ++y) {
+    for (int x = px - 2; x <= px + 2; ++x) {
+      fx.map.terrain[y * fx.map.width + x] = 0x19;
+    }
+  }
+  fx.map.terrain[py * fx.map.width + px] = centre;
+  fx.tribes = calloc(1, sizeof(*fx.tribes));
+  if (!fx.tribes) {
+    tribe_txt_fx_close(&fx);
+    return 1;
+  }
+  fx.cap = 1;
+  fx.count = 1;
+  fx.tribes[0].x = (uint8_t)(px + 2);
+  fx.tribes[0].y = (uint8_t)py;
+  fx.tribes[0].nation_id = 11;
+  int placed = -1;
+  int rc = tribe_txt_place(&fx, 100);
+  for (int i = 1; rc == 0 && i < fx.count; ++i) {
+    if (fx.tribes[i].x == px && fx.tribes[i].y == py) {
+      placed = i;
+    }
+  }
+  fprintf(stderr, "third tier: centre (%d,%d) village slot %d nation %d (want an Inca capital)\n",
+          px, py, placed, placed > 0 ? fx.tribes[placed].nation_id : -1);
+  rc = rc || placed < 0 || fx.tribes[placed].nation_id != 4 || !fx.tribes[placed].state.capital;
+  tribe_txt_fx_close(&fx);
+  return rc;
+}
+
+/* The VR_SOUND.EXE run pins every 04ca reseed at 100, so seed 100 + 32 draws
+ * on AMER2 must give 000001.SAV's village rows (branch alone). */
+static int case_tribe_txt_seed100_matches_dos(void) {
+  if (!tribe_txt_data()) {
+    return TR_SKIP;
+  }
+  diag_init(0, NULL);
+  TribeTxtFx fx;
+  ColonizeCol1Save dos;
+  col1_save_init(&dos);
+  char err[256];
+  if (tribe_txt_fx_open(&fx) || tribe_txt_place(&fx, 100) ||
+      !col1_save_read_file("original_saves/golden_idle_america_seed-100/000001.SAV", &dos, err,
+                           sizeof(err))) {
+    tribe_txt_fx_close(&fx);
+    col1_save_free(&dos);
+    return 1;
+  }
+  int rc = fx.count != (int)dos.head.tribe_count;
+  const int n = fx.count < (int)dos.head.tribe_count ? fx.count : (int)dos.head.tribe_count;
+  for (int i = 0; i < n; ++i) {
+    const ColonizeCol1Tribe* a = &fx.tribes[i];
+    const ColonizeCol1Tribe* b = &dos.tribe[i];
+    if (a->x != b->x || a->y != b->y || a->nation_id != b->nation_id ||
+        a->state.capital != b->state.capital) {
+      fprintf(stderr, "village %d: port (%u,%u) n%u cap%u, DOS (%u,%u) n%u cap%u\n", i, a->x, a->y,
+              a->nation_id, a->state.capital, b->x, b->y, b->nation_id, b->state.capital);
+      rc = 1;
+    }
+  }
+  fprintf(stderr, "seed100 TRIBE.TXT: port %d villages, DOS %u\n", fx.count, dos.head.tribe_count);
+  tribe_txt_fx_close(&fx);
+  col1_save_free(&dos);
+  return rc;
+}
+
+/* DOS evidence through the real entry: ai_init_new_game on AMER2 with seed
+ * 100 (FUN_6a09_0006's own entry reseed + 32 init draws) must give the
+ * village rows of original_saves/golden_idle_america_seed-100/000001.SAV.
+ * params->rng arrives advanced, so only the entry reseed can put the
+ * placement on DOS's stream. */
+static int case_tribe_txt_init_new_game_matches_dos(void) {
+  if (!tribe_txt_data()) {
+    return TR_SKIP;
+  }
+  diag_init(0, NULL);
+  const int human = 2; /* the recorded run plays Spain */
+  char err[256];
+  static ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  static ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
+  units_reset(&units);
+  units_set_occupancy_map(NULL);
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  ColonizeCol1Save dos;
+  col1_save_init(&dos);
+  int rc = 1;
+  if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT") || !units_load_types(&units, &names) ||
+      !map_load_mp("COLONIZE/AMER2.MP", &map, err, sizeof(err)) ||
+      !col1_save_read_file("original_saves/golden_idle_america_seed-100/000001.SAV", &dos, err,
+                           sizeof(err))) {
+    fprintf(stderr, "init_new_game tribe_txt: data load failed\n");
+    goto done;
+  }
+  map_gen_finalize_border_and_forest(map.terrain, (int)map.width, (int)map.height);
+  ColonizeDosRng stream;
+  dos_rng_seed(&stream, 100);
+  for (int i = 0; i < 57; ++i) {
+    (void)dos_rng_range(&stream, 1, 0x7fff);
+  }
+  int sx = 39, sy = 10;
+  new_game_scenario_start(&names, "AMER2", human, &sx, &sy);
+  units_set_occupancy_map(&map);
+  colonies_set_occupancy_map(&map);
+  units_new_world_start(&units, &map, sx, sy, human, 0);
+  bool col1_ok = false;
+  colonies_set_col1_context(NULL);
+  colonies_set_units_context(NULL);
+  EuropeScreen europe;
+  memset(&europe, 0, sizeof(europe));
+  AiNewGameParams ai;
+  memset(&ai, 0, sizeof(ai));
+  ai.col1 = &col1;
+  ai.col1_ok = &col1_ok;
+  ai.map = &map;
+  ai.units = &units;
+  ai.europe = &europe;
+  ai.names = &names;
+  ai.data_dir = "COLONIZE";
+  ai.human_nation = human;
+  ai.difficulty = dos.head.difficulty; /* the recorded run is Viceroy (4) */
+  ai.leader_name = "Test Governor";
+  ai.use_tribe_txt = true;
+  ai.map_stem = "AMER2";
+  ai.human_start_x = sx;
+  ai.human_start_y = sy;
+  ai.rng_seed = 100;
+  ai.rng_seed_set = true;
+  ai.rng = &stream;
+  if (!ai_init_new_game(&ai, err, sizeof(err))) {
+    fprintf(stderr, "init_new_game tribe_txt: %s\n", err);
+    goto done;
+  }
+  rc = col1.head.tribe_count != dos.head.tribe_count;
+  int same = 0;
+  const int n = col1.head.tribe_count < dos.head.tribe_count ? col1.head.tribe_count
+                                                             : dos.head.tribe_count;
+  for (int i = 0; i < n; ++i) {
+    const ColonizeCol1Tribe* a = &col1.tribe[i];
+    const ColonizeCol1Tribe* b = &dos.tribe[i];
+    if (a->x != b->x || a->y != b->y || a->nation_id != b->nation_id ||
+        a->state.capital != b->state.capital) {
+      rc = 1;
+    } else {
+      same++;
+    }
+  }
+  fprintf(stderr, "init_new_game tribe_txt: port %u villages, DOS %u, rows equal %d\n",
+          col1.head.tribe_count, dos.head.tribe_count, same);
+  /* FUN_4d56_0038 raw 81282-81285: +7/+8/+9 = 0xff. DOS still has them at
+   * 0xff at turn 9 (an idle run never trades). */
+  int bytes_ok = 0;
+  for (int i = 0; i < n; ++i) {
+    const ColonizeCol1Tribe* a = &col1.tribe[i];
+    const ColonizeCol1Tribe* b = &dos.tribe[i];
+    if (a->sticky_trade_good != 0xff || a->last_bought != 0xff || a->last_sold != 0xff ||
+        a->sticky_trade_good != b->sticky_trade_good || a->last_bought != b->last_bought ||
+        a->last_sold != b->last_sold) {
+      rc = 1;
+    } else {
+      bytes_ok++;
+    }
+  }
+  /* FUN_6a09_0006 raw 108006-108020: the Mountains Silver bonus also runs on
+   * the TRIBE.TXT path. Set once at new game, so turn 9 still holds it. */
+  int silver_ok = 0;
+  for (int t = 0; t < 8; ++t) {
+    if (col1.indian[t].hill_silver_bid_bonus != dos.indian[t].hill_silver_bid_bonus) {
+      fprintf(stderr, "tribe %d silver bonus: port %d, DOS %d\n", t,
+              col1.indian[t].hill_silver_bid_bonus, dos.indian[t].hill_silver_bid_bonus);
+      rc = 1;
+    } else {
+      silver_ok++;
+    }
+  }
+  /* FUN_6a09_0006 raw 107756-107767: alarm = r(0,14) + (human ? 2*diff : 0)
+   * on the shared stream. 000001.SAV is turn 9 (the run's first save), so
+   * three non-human pairs have moved by play: Arawak/England, Tupi/France and
+   * Tupi/Dutch. Those three are checked against the same seed's TURN1.SAV. */
+  ColonizeCol1Save turn1;
+  col1_save_init(&turn1);
+  if (!col1_save_read_file("original_saves/early-game-seed-100/TURN1.SAV", &turn1, err,
+                           sizeof(err))) {
+    fprintf(stderr, "init_new_game tribe_txt: TURN1.SAV load failed\n");
+    rc = 1;
+  }
+  int alarm_ok = 0;
+  for (int t = 0; t < 8; ++t) {
+    for (int e = 0; e < 4; ++e) {
+      const bool moved_by_play = (t == 2 && e == 0) || (t == 7 && (e == 1 || e == 3));
+      const ColonizeCol1Save* want = moved_by_play ? &turn1 : &dos;
+      if (col1.indian[t].alarm_by_player[e] != want->indian[t].alarm_by_player[e]) {
+        rc = 1;
+      } else {
+        alarm_ok++;
+      }
+    }
+  }
+  col1_save_free(&turn1);
+  fprintf(stderr, "init_new_game tribe_txt: +7..+9 ok %d/%d, silver ok %d/8, alarms ok %d/32\n",
+          bytes_ok, n, silver_ok, alarm_ok);
+done:
+  units_set_occupancy_map(NULL);
+  colonies_set_occupancy_map(NULL);
+  map_free(&map);
+  col1_save_free(&col1);
+  col1_save_free(&dos);
+  assets_msg_free(&names);
+  return rc;
+}
+
 static int case_new_world(void) {
   diag_init(0, NULL);
   return run_init_and_turns("COLONIZE", false, 0, "NEW_WORLD");
@@ -1657,11 +3480,38 @@ static const TestCase k_cases[] = {
     {"case_new_world", case_new_world},
     {"case_america", case_america},
     {"coarse_fog_reset", case_coarse_fog_reset},
+    {"tribe_txt_jitter_rules", case_tribe_txt_jitter_rules},
+    {"tribe_txt_impossible_spot_dropped", case_tribe_txt_impossible_spot_dropped},
+    {"tribe_txt_third_spacing_tier", case_tribe_txt_third_spacing_tier},
+    {"tribe_txt_seed100_matches_dos", case_tribe_txt_seed100_matches_dos},
+    {"tribe_txt_init_new_game_matches_dos", case_tribe_txt_init_new_game_matches_dos},
     {"021a_stayed_facing_fixed", case_021a_stayed_facing_fixed},
     {"021a_adjacent_foreign_medium_fixed", case_021a_adjacent_foreign_medium_fixed},
     {"run_village_threat_alarm", run_village_threat_alarm},
     {"run_152e_mission_attitude_word", run_152e_mission_attitude_word},
     {"run_152e_alarm_escalation", run_152e_alarm_escalation},
     {"run_152e_mission_nibble_out_of_domain", run_152e_mission_nibble_out_of_domain},
+    {"run_visit_empty_colony", run_visit_empty_colony},
+    {"run_unresolved_visit_keeps_nation_open", run_unresolved_visit_keeps_nation_open},
+    {"run_reparations_scan_past_empty_colony", run_reparations_scan_past_empty_colony},
+    {"run_visit_after_first_contact", run_visit_after_first_contact},
+    {"run_convert_spawn_failure_unresolved", run_convert_spawn_failure_unresolved},
+    {"run_zero_qty_demand_presented", run_zero_qty_demand_presented},
+    {"run_conceded_beg_gifts_above_0x31", run_conceded_beg_gifts_above_0x31},
+    {"run_wagon_demand_no_mood_gate", run_wagon_demand_no_mood_gate},
+    {"run_conceded_beg_gifts_begged_colony", run_conceded_beg_gifts_begged_colony},
+    {"run_step_visit_serves_encounter_colony", run_step_visit_serves_encounter_colony},
+    {"run_pinned_colony_skips_open_field_wagon", run_pinned_colony_skips_open_field_wagon},
+    {"run_refused_beg_demands_begged_colony", run_refused_beg_demands_begged_colony},
+    {"run_wagon_reparations_open_field", run_wagon_reparations_open_field},
+    {"run_wagon_demand_busy_slot_no_comment", run_wagon_demand_busy_slot_no_comment},
+    {"run_wagon_state2_takes_comment", run_wagon_state2_takes_comment},
+    {"run_wagon_demand_closes_nation", run_wagon_demand_closes_nation},
+    {"run_two_demands_one_pulse", run_two_demands_one_pulse},
+    {"run_two_demands_turn_processor", run_two_demands_turn_processor},
+    {"run_beg_food_stops_pulse", run_beg_food_stops_pulse},
+    {"run_resume_keeps_scan_latch", run_resume_keeps_scan_latch},
+    {"run_resume_exhausts_step_mover", run_resume_exhausts_step_mover},
+    {"run_processor_start_drops_resume", run_processor_start_drops_resume},
 };
 TEST_MAIN(k_cases)

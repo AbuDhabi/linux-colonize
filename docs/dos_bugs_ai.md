@@ -188,17 +188,16 @@ steal Horses the colony barely has and miss a large herd.
 Horses pile. [Tests](archive/dos_bugs_evidence_2026-10-23.md#db-49).
 **Status:** done (2026-10-23). Came from dos_bug_candidates_2026-10-22.md C-75.
 
-### DB-50 — Raid burn destroys the lowest owned tier
-**DOS:** after picking an owned building, the raid burn of FUN_5fef_0f14 (raw
-99856-99863) walks the predecessor column down to the lowest tier the colony owns and
-clears that bit: a Church burns and its Cathedral stays, leaving an upper tier without
-its base (original saves show such lone tiers). Warehouse and Capitol are counted
-(colony +0x95 / +0x96), so the walk down to their base row already takes one level off.
-
-**Port:** `ai_contact_pick_raid_kind` (`src/core/ai_contact_raid.c`) keeps the walk
-down, then for every other chain moves back up to the top owned tier, so the Cathedral
-burns and the Church stays. [Tests](archive/dos_bugs_evidence_2026-10-23.md#db-50).
-**Status:** done (2026-10-23). Came from dos_bug_candidates_2026-10-22.md C-76.
+### DB-50 — withdrawn: raid burn destroys the lowest owned tier
+The premise was a misread. FUN_5fef_0f14 kind 2 (raw 99857-99864) walks byte
+`row*0xc-0x707a`, which is the SUCCESSOR column (FUN_15eb_039e raw 9561-9577 counts
+tiers along it; the predecessor is `-0x707b`, which FUN_15eb_14aa raw 11444-11455
+follows down to the chain root). So DOS already burns the top owned tier: the
+Cathedral burns and the Church stays. Warehouse Expansion and Capitol Expansion have no
+building bit in DOS (FUN_364b_0114 raw 56911-56923), so a roll on them re-rolls and the
+walk stops at the Warehouse / Capitol, whose arm takes one level off +0x95 / +0x96.
+`ai_contact_pick_raid_kind` (`src/core/ai_contact_raid.c`) ports the walk literally
+(2026-11-04). Was dos_bug_candidates_2026-10-22.md C-76.
 
 ### DB-51 — Refusing an AI's cash offer always reads as meek
 **DOS:** FUN_5bfb_153e copies "MEEK" into the tone buffer `local_80` when it

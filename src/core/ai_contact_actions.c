@@ -1143,14 +1143,18 @@ static void ai_contact_speak_with_chief(
  * thunk_FUN_1000_a5f4 — "Demand Tribute". euro = exposed land combat on the
  * unit's continent + (land combat total >> 1); Spanish ×1.5; Cortes (FF 10)
  * ×1.5. indian = (Brave combat on continent + (Brave total >> 1)) * 2 +
- * alarm/2. win = rand(0,indian) < rand(0,euro) && an own colony exists on
+ * alarm/2. All four strengths are the census rows (viceroy_overlays.c
+ * 77385-77396): 0x95b2[e*16+cont] and the 0x941c word [e] from the Euro
+ * census, 0x91cc[slot*16+cont] and 0x9184[slot] from the Indian census,
+ * slot = DS:0x8d52 (tribe - 4). A unit that moved since its owner's last
+ * census does not count. win = rand(0,indian) < rand(0,euro) && an own colony exists on
  * the continent. alarm bump = human ? difficulty+1 : 1. (win || indian <
  * euro) && alarm < 75: (win || alarm < 50): village not yet extorted && win →
  * bit 0x10, bump ×2, @EXTORTSTUFF: 10 of the village's top bid[] good into
  * the nearest colony; else @EXTORTPOOR, bump 0. alarm 50..74 → @EXTORTNO.
  * Otherwise @EXTORTLAUGH. Ends with FUN_4cc6_00f2(+bump).
  */
-static void ai_contact_demand_tribute(
+COLONIZE_INTERNAL void ai_contact_demand_tribute(
   ColonizeTurnContext* ctx,
   int e,
   int nation_id,
@@ -1168,8 +1172,13 @@ static void ai_contact_demand_tribute(
   const int alarm = ai_diplo_indian_alarm(col1, nation_id, e);
   const char* tribe = ai_contact_tribe_name(nation_id);
 
-  int euro = ai_contact_land_combat_sum(ctx, e, continent, 1, 255) +
-             (ai_contact_land_combat_sum(ctx, e, -1, 0, 0xffff) >> 1);
+  const ColonizeCol1Stuff* st = &col1->stuff;
+  const int e_ok = e >= 0 && e < 4;
+  const int slot = nation_id - 4;
+  const int slot_ok = slot >= 0 && slot < 8;
+  const int cont_ok = continent >= 0 && continent < 16;
+  int euro = (e_ok && cont_ok ? (int)st->field_combat_strength_by_continent[e * 16 + continent] : 0) +
+             (e_ok ? (int)(st->land_combat_strength[e] >> 1) : 0);
   if (e == 2) {
     euro += euro >> 1;
   }
@@ -1177,14 +1186,13 @@ static void ai_contact_demand_tribute(
     euro += euro >> 1;
   }
   const int indian =
-    (ai_contact_land_combat_sum(ctx, nation_id, continent, 0, 255) +
-     (ai_contact_land_combat_sum(ctx, nation_id, -1, 0, 255) >> 1)) * 2 + (alarm >> 1);
+    ((slot_ok && cont_ok ? (int)st->tribe_dwellings_91cc[slot * 16 + continent] : 0) +
+     (slot_ok ? (int)(st->tribe_data_9184[slot] >> 1) : 0)) * 2 + (alarm >> 1);
   int bump = human ? (int)col1->head.difficulty + 1 : 1;
   const int r_e = dos_rng_range(rng, 0, euro);
   const int r_i = dos_rng_range(rng, 0, indian);
   const int cid = ai_contact_nearest_own_colony(ctx, e, u->x, u->y, continent);
   const int win = cid >= 0 && r_i < r_e;
-
   PopupMsgTokens tok;
   memset(&tok, 0, sizeof(tok));
   char body[AI_POPUP_BODY_LEN];
@@ -1261,148 +1269,58 @@ static void ai_contact_demand_tribute(
   }
 }
 
-/*
- * FUN_4cc6_03f8 — strongest nearby Euro presence for a village: returns the
- * owning nation of the best-scoring colony within DOS distance < 7 (or -1)
- * and its score. Ring pass: for the 20 work-ring tiles, sum the attack
- * column of that tile's land units with attack > 1 into threat[owner];
- * halved when the tile holds a Euro settlement, halved again on the outer
- * ring (|dx| ≥ 2 or |dy| ≥ 2). Colony pass: human owner → (building weight,
- * divisor) by difficulty {1/2, 3/4, 1/1, 3/2, 2/1}, AI → (1,1);
- * built = Σ built-building bits × weight / divisor; pop6 = min(6, pop);
- * score = ((2*max(0,pop-6) + min(tech, pop>>1) + pop6 + difficulty +
- * ((built-8)>>2)) * 2 - dist - 1) / (dist + 4); halved if the colony sits
- * on another continent; += threat[owner]; halved for the French; halved
- * when the owner has Pocahontas. Tail: with a mission in the village, the
- * best score is scaled by who owns it: same nation → Jesuit ×1/2, plain
- * ×3/4; other nation → Jesuit ×2, plain ×3/2.
- */
-static int ai_contact_4cc6_03f8(
+/* The village loop of thunk_FUN_1000_a594: per village of the tribe, the
+ * FUN_4cc6_03f8 lean and the mission weight (see the comment below). */
+COLONIZE_INTERNAL void ai_contact_heresy_weights(
   ColonizeTurnContext* ctx,
+  int e,
   int nation_id,
-  const ColonizeCol1Tribe* v,
-  int* out_score
+  int foreign,
+  int* out_mine,
+  int* out_pro_me
 ) {
-  *out_score = 0;
-  if (!ctx || !ctx->col1 || !v) {
-    return -1;
-  }
+  int mine = 0;
+  int pro_me = 0;
   const ColonizeCol1Save* col1 = ctx->col1;
-  const int vx = (int)v->x;
-  const int vy = (int)v->y;
-  const int vcont = ctx->map ? map_continent_id_at(ctx->map, vx, vy) : -1;
-  const int tech = (int)col1->indian[nation_id - 4].tech;
-  int threat[4] = {0, 0, 0, 0};
-  if (ctx->units && ctx->map) {
-    for (int k = 0; k < 20; ++k) {
-      const int tx = vx + MAP_RING20_DX[k];
-      const int ty = vy + MAP_RING20_DY[k];
-      if (!map_coords_inset(ctx->map, tx, ty) || map_tile_is_water(ctx->map, tx, ty)) {
+  if (col1->tribe) {
+    for (uint16_t ti = 0; ti < col1->head.tribe_count; ++ti) {
+      const ColonizeCol1Tribe* v = &col1->tribe[ti];
+      if ((int)v->nation_id != nation_id) {
         continue;
       }
-      int owner = -1;
-      int sum = 0;
-      /* Slot walk (DOS record order, and `i` is not a unit id) — see
-       * ai_contact_land_combat_sum's note. Fixed 2026-09-10. */
-      for (int i = 0; i < units_slot_end(ctx->units); ++i) {
-        const ColonizeUnit* u = &ctx->units->units[i];
-        if (!u->active || u->x != tx || u->y != ty || u->aboard_ship_id >= 0) {
-          continue;
-        }
-        if (owner < 0) {
-          owner = u->nation_id;
-        }
-        /* DOS-LITERAL FUN_4cc6_03f8 raw 81047-81057: the owner is read from the
-         * FIRST unit of the tile chain only; the sum then walks the whole chain
-         * with no per-unit nation re-test — only the 0xd..0x12 hull-range test
-         * (units_is_sea) and attack > 1. Port-side nation re-filter removed
-         * 2026-09-23 (port_bugs.md #768); differs only on a mixed-nation stack. */
-        if (units_is_sea(ctx->units, u->id)) {
-          continue;
-        }
-        const ColonizeUnitType* t = units_type(ctx->units, u->type_index);
-        if (t && t->attack > 1) {
-          sum += t->attack;
-        }
+      int village_pull = 0;
+      int sc = 0;
+      /* FUN_4cc6_03f8, the shared copy (max + min/2 distance, no Warehouse /
+       * Capitol Expansion bits, sign-tested mission byte). */
+      const ColonizeWorld tw = world_from_turn_ctx(ctx);
+      const int leaning_nation = ai_indian_village_threat_w(&tw, ctx->human_nation, (int)ti, &sc);
+      if (leaning_nation == foreign) {
+        pro_me += sc;
+      } else if (leaning_nation == e) {
+        mine += sc;
+      } else {
+        village_pull = sc;
       }
-      if (owner < 0 || owner > 3) {
+      if (v->mission == COL1_TRIBE_MISSION_NONE) {
         continue;
       }
-      if (ctx->colonies && colonies_id_at(ctx->colonies, tx, ty) >= 0) {
-        sum >>= 1;
+      village_pull += (int)v->population;
+      if (v->mission & COL1_TRIBE_MISSION_JESUIT_BIT) {
+        village_pull *= 2;
       }
-      if (abs(MAP_RING20_DX[k]) >= 2 || abs(MAP_RING20_DY[k]) >= 2) {
-        sum >>= 1;
+      if (v->state.capital) {
+        village_pull <<= 1;
       }
-      threat[owner] += sum;
-    }
-  }
-  int best = -1;
-  int best_score = 0;
-  if (ctx->colonies) {
-    for (int ci = 0; ci < COLONIZE_COLONIES_MAX; ++ci) {
-      const ColonizeColony* c = &ctx->colonies->colonies[ci];
-      if (!c->active || c->nation_id < 0 || c->nation_id > 3) {
-        continue;
-      }
-      const int d = map_chebyshev(vx, vy, c->x, c->y);
-      if (d >= 7) {
-        continue;
-      }
-      const int owner = c->nation_id;
-      int weight = 1;
-      int divisor = 1;
-      int diff = 0;
-      if (ai_contact_euro_is_human(ctx, owner)) {
-        diff = (int)col1->head.difficulty;
-        static const int k_w[5] = {1, 3, 1, 3, 2};
-        static const int k_d[5] = {2, 4, 1, 2, 1};
-        if (diff >= 0 && diff <= 4) {
-          weight = k_w[diff];
-          divisor = k_d[diff];
-        }
-      }
-      int built = 0;
-      for (int b = 0; b < COLONIZE_BUILDING_TYPES_MAX && b < 48; ++b) {
-        if (c->has_building[b]) {
-          built += weight;
-        }
-      }
-      built /= divisor;
-      const int pop = c->population;
-      const int pop6 = pop < 6 ? pop : 6;
-      int half = pop >> 1;
-      if (tech < half) {
-        half = tech;
-      }
-      int score = (((pop6 - pop) * -2 + half + pop6 + diff + ((built - 8) >> 2)) * 2 - d - 1) / (d + 4);
-      if (ctx->map && map_continent_id_at(ctx->map, c->x, c->y) != vcont) {
-        score >>= 1;
-      }
-      score += threat[owner];
-      if (owner == 1) {
-        score >>= 1;
-      }
-      if (founding_fathers_nation_has(col1, owner, FF_POCAHONTAS)) {
-        score >>= 1;
-      }
-      if (best_score < score) {
-        best_score = score;
-        best = owner;
+      /* Per-village owner; DOS compares two loop invariants: dos_bugs.md DB-69. */
+      if ((int)(v->mission & COL1_TRIBE_MISSION_NATION_MASK) == e) {
+        mine += village_pull;
+      } else {
+        pro_me += village_pull;
       }
     }
   }
-  if (best_score > 0 && best >= 0 && v->mission != COL1_TRIBE_MISSION_NONE) {
-    const int owner = (int)(v->mission & COL1_TRIBE_MISSION_NATION_MASK);
-    const int jesuit = (v->mission & COL1_TRIBE_MISSION_JESUIT_BIT) != 0;
-    if (owner == best) {
-      best_score = jesuit ? (best_score >> 1) : (best_score - (best_score >> 2));
-    } else {
-      best_score = jesuit ? (best_score << 1) : (best_score + (best_score >> 1));
-    }
-  }
-  *out_score = best_score;
-  return best;
+  *out_mine = mine;
+  *out_pro_me = pro_me;
 }
 
 /*
@@ -1437,40 +1355,7 @@ static void ai_contact_denounce_heresy(
   }
   int mine = 0;
   int pro_me = 0;
-  if (col1->tribe) {
-    for (uint16_t ti = 0; ti < col1->head.tribe_count; ++ti) {
-      const ColonizeCol1Tribe* v = &col1->tribe[ti];
-      if ((int)v->nation_id != nation_id) {
-        continue;
-      }
-      int village_pull = 0;
-      int sc = 0;
-      const int leaning_nation = ai_contact_4cc6_03f8(ctx, nation_id, v, &sc);
-      if (leaning_nation == foreign) {
-        pro_me += sc;
-      } else if (leaning_nation == e) {
-        mine += sc;
-      } else {
-        village_pull = sc;
-      }
-      if (v->mission == COL1_TRIBE_MISSION_NONE) {
-        continue;
-      }
-      village_pull += (int)v->population;
-      if (v->mission & COL1_TRIBE_MISSION_JESUIT_BIT) {
-        village_pull *= 2;
-      }
-      if (v->state.capital) {
-        village_pull <<= 1;
-      }
-      /* Per-village owner; DOS compares two loop invariants: dos_bugs.md DB-69. */
-      if ((int)(v->mission & COL1_TRIBE_MISSION_NATION_MASK) == e) {
-        mine += village_pull;
-      } else {
-        pro_me += village_pull;
-      }
-    }
-  }
+  ai_contact_heresy_weights(ctx, e, nation_id, foreign, &mine, &pro_me);
   /*
    * thunk_FUN_1000_a594 viceroy_overlays.asm 126507:
    * IMUL BX,[BP+6],0x1c / CMP byte ptr [BX+0x315b],0x3 / MOV AX,1 —
@@ -1762,23 +1647,19 @@ static AiContactPopupStatus ai_contact_apply_popup_result_tags(
    * flavor because the two GAME.TXT sections print their rows in opposite
    * order (DOS reads `local_c != 2` at 0x1866 and `local_c == 1` at 0x1871).
    * Refusing runs LAB_5bfb_0ff2: village attitude word += 0x80, no goods.
-   * A dismissal (Esc) is neither — it drops the offer without moving goods
-   * and without the 0x80, so an accidental Esc cannot latch a village
-   * hostile; it only clears the pending record.
+   * Esc is a refusal too: FUN_6f74_2580 returns -1 on key 0x1b (raw
+   * 116780-116782), which fails both `local_c != 2` (raw 96896) and
+   * `local_c == 1` (raw 96964), so DOS takes LAB_5bfb_0ff2. A cancel carries
+   * choice id -1, which never equals accept_row.
    */
   if (popup->result_tag == AI_POPUP_TAG_CONTACT_REPARATIONS) {
     const int flavor = popup->result_payload;
-    if (popup->result_cancelled) {
-      if (e >= 0 && e <= 3) {
-        ai_contact_s_reparations[e].active = 0;
-      }
-      return AI_CONTACT_POPUP_DONE;
-    }
     const int accept_row = (flavor == AI_CONTACT_REPARATIONS_WAGONS)
                              ? AI_CONTACT_REPARATIONS_ROW1
                              : AI_CONTACT_REPARATIONS_ROW2;
     ai_contact_apply_reparations(
-      ctx, ind, nation_id, e, flavor, popup->result_choice_id == accept_row
+      ctx, ind, nation_id, e, flavor,
+      !popup->result_cancelled && popup->result_choice_id == accept_row
     );
     return AI_CONTACT_POPUP_DONE;
   }
@@ -1789,9 +1670,16 @@ static AiContactPopupStatus ai_contact_apply_popup_result_tags(
    * dispatch (OVL13:0x4bd2 `DEC AX; CMP AX,8; JA default`) sends -1 to the
    * switch default exactly like the Cancel row (id 10) — default keeps the
    * return code 1, so the 0x4c0a tail forfeits the unit's moves. A cancelled
-   * MEET therefore falls through to the menu arm as a Leave.
+   * MEET therefore falls through to the menu arm as a Leave. A cancelled
+   * BEGFOOD falls through as a Refuse: FUN_5bfb_022e raw 96774-96782 gives
+   * food only on `local_c == 2`, so -1 runs the refuse arm (raw
+   * 96807-96823). A cancelled @LEARNSTAY is a No (OVL13
+   * thunk_FUN_1000_a618: `DEC AX; JZ` on 019c's result, so -1 shows
+   * @LEARNLATER).
    */
-  if (popup->result_cancelled && popup->result_tag != AI_POPUP_TAG_CONTACT_MEET) {
+  if (popup->result_cancelled && popup->result_tag != AI_POPUP_TAG_CONTACT_MEET &&
+      popup->result_tag != AI_POPUP_TAG_CONTACT_BEGFOOD &&
+      popup->result_tag != AI_POPUP_TAG_CONTACT_LEARNSTAY) {
     return AI_CONTACT_POPUP_DONE;
   }
 
@@ -1843,7 +1731,8 @@ static AiContactPopupStatus ai_contact_apply_popup_result_tags(
   if (popup->result_tag == AI_POPUP_TAG_CONTACT_BEGFOOD) {
     ai_contact_apply_beg_food(
       ctx, ind, nation_id, e, popup->result_payload & 0xffff,
-      ((popup->result_payload >> 16) & 0xffff) - 1, popup->result_choice_id == 2
+      ((popup->result_payload >> 16) & 0xffff) - 1,
+      !popup->result_cancelled && popup->result_choice_id == 2
     );
     return AI_CONTACT_POPUP_DONE;
   }

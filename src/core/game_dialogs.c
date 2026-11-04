@@ -247,7 +247,7 @@ bool game_try_enter_europe(ColonizeGameState* game) {
 /*
  * DOS encroachment CHOICE kinds -- the three GAME.TXT sections that share one
  * dialog shape ("respect" / "offer {N} gold" / "take it"): @INDIANLAND (the
- * colony-screen plot drop, FUN_2f2b_2f3e raw ~82264-82487 -- NOT Build Colony,
+ * colony-screen plot drop, FUN_2f2b_2f3e raw 50355-50381 -- NOT Build Colony,
  * which founds free on tribal land), @INDIANFOREST (pioneer clear order,
  * thunk_FUN_1000_91fc), @INDIANROAD (pioneer road order, thunk_FUN_1000_9304).
  * Cite: original_sources_annotated/ai/indian_actions_menu.md §encroachment.
@@ -324,7 +324,7 @@ bool game_request_indian_land_choice(
   }
   int tribe_i;
   if (kind == GAME_INDIAN_LAND_PLOT) {
-    /* FUN_2f2b_2f3e raw 82272: the 8d9e claim-table entry for the plot. */
+    /* FUN_2f2b_2f3e raw 50355: the claim-table entry for the plot. */
     const ColonizeColony* viewed = colonies_get(&game->colonies, game->colony_view_id);
     if (!viewed) {
       return false;
@@ -2964,13 +2964,23 @@ static bool game_apply_popup_contact(ColonizeGameState* game) {
     const int x = game->ai_popups.result_payload & 0xff;
     const int y = (game->ai_popups.result_payload >> 8) & 0xff;
     const int tribe_nation = (game->ai_popups.result_payload >> 16) & 0xff;
-    const int choice = game->ai_popups.result_cancelled ? GAME_INDIAN_LAND_RESPECT
+    /*
+     * Esc is not "respect". FUN_291f_016a (= FUN_6f74_2580) returns -1 on key
+     * 0x1b (raw 116780-116782); FUN_2b5a_123e raw 42493/42498 (FUN_2b5a_1454
+     * raw 42584/42589) test only `== 1` (respect) and `== 2` (pay), so -1 falls
+     * to the tail `unit+0x314c = 8; FUN_291f_01c2` (raw 42511-42512) or
+     * `unit+0x314c = 9; FUN_291f_0216` (raw 42602-42603) and
+     * the order goes ahead unpaid: the "take" arm. The plot drop has the same
+     * shape: FUN_2f2b_2f3e raw 50372-50373 tests only `== 1` / `== 2`, so -1
+     * carries on into the seat (raw 50382+) unpaid.
+     */
+    const int choice = game->ai_popups.result_cancelled ? GAME_INDIAN_LAND_TAKE
                                                         : game->ai_popups.result_choice_id;
     ai_popup_consume_result(&game->ai_popups);
     if (choice == GAME_INDIAN_LAND_RESPECT) {
       if (kind == GAME_INDIAN_LAND_PLOT) {
-        /* FUN_2f2b_2f3e raw 82344-82487: respect jumps to the exit
-         * (`0xbb8 = 0`) before any write -- the drop is simply aborted. */
+        /* FUN_2f2b_2f3e raw 50372: respect jumps to LAB_2f2b_347e
+         * (`0xbb8 = 0`, raw 50410-50411) before any write -- the drop is aborted. */
         return true;
       }
       /*

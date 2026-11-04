@@ -532,7 +532,7 @@ Deliberate, already documented: TB-41/42/49 fixes (fisherman cascade, major rive
 double pay — the pedia's "Fisherman 4", "Plow/River +1" and trapper "+2" are therefore off by one
 in the opencol binary), DB-7 (Denounce Jesuit; port also grades Brebeuf's Denounce mission as
 Jesuit), DB-12 (Artillery price on cancel), DB-13 (de Witt trade debits the colony), DB-15, DB-34
-(1-ton spoilage), DB-36, DB-40 (Magellan dead RNG draw), DB-43, DB-46 (pioneer counter), DB-50,
+(1-ton spoilage), DB-36, DB-40 (Magellan dead RNG draw), DB-43, DB-46 (pioneer counter),
 TB-47 (birth at unit cap), DB-9, DB-32, DB-47/48 (rumour counters, scout alarm), known_divergences
 #1018 (now ported: a short treasury refuses the whole buy).
 
@@ -546,10 +546,9 @@ Candidates verified 2026-10-30 against the decomp and filed:
    is REFUTED as a bug: 0x35c is set only while `FUN_2f2b_348c` trial-admits every job for its
    production preview (raw 50590, cleared 50842 before the real assignment), and the port has
    no trial admits.
-4. **One-bit vs tier tests**: the repair-port test is port_bugs.md #1330 (FIXED). In DOS a lone
-   Shipyard arises in normal play because the raid burn walks down to the lowest owned tier
-   (Docks, then Drydock, leaving Shipyard); the port burns the top tier (DB-50), so there it
-   comes only from DOS saves. The Stockade pop rule and the shore-fire probe are REFUTED in practice:
+4. **One-bit vs tier tests**: the repair-port test is port_bugs.md #1330 (FIXED). The raid
+   burn takes the top owned tier in DOS and in the port (DB-50 withdrawn: the walk follows the
+   successor column), so a lone Shipyard comes only from saves. The Stockade pop rule and the shore-fire probe are REFUTED in practice:
    the raid picker rejects rows 0-2 (raw 99849-99853) and nothing else clears a fortification
    bit, so a Fort/Fortress without the lower bit needs a hand-edited save.
 5. **@MERCENARIES**: REFUTED, DOS behaviour. `FUN_43f7_2022` (raw 74976-75070) builds the popup

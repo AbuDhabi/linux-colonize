@@ -209,7 +209,9 @@ void units_seize_noncombat_at(
  * repair port (GAME.TXT @RAIDSHIP: "{ship} damaged."). Returns 1 if the ship
  * survived damaged, 0 if it went down (0352's WoI no-port sink).
  */
-int units_raid_damage_ship(ColonizeUnitPool* pool, int ship_id, const ColonizeCol1Save* col1);
+int units_raid_damage_ship(
+  ColonizeUnitPool* pool, int ship_id, const ColonizeCol1Save* col1, ColonizeDosRng* rng
+);
 
 /*
  * Land combat (FUN_157e / FUN_5fef_1b0e peel): attacker base×8 (004a mode 1);

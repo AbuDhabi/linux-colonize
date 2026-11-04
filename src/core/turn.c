@@ -510,6 +510,7 @@ void turn_processor_start(ColonizeTurnProcessor* proc) {
   }
   memset(proc, 0, sizeof(*proc));
   proc->step = TURN_PROC_SETUP;
+  ai_native_pulse_abandon(); /* a stopped native pulse lives inside one run */
 }
 
 bool turn_processor_active(const ColonizeTurnProcessor* proc) {
@@ -727,10 +728,37 @@ COLONIZE_INTERNAL void turn_step_euro(ColonizeTurnProcessor* proc, ColonizeTurnC
       }
 }
 
+/* The native slot after `n`: next tribe, or phase 3 and the Euro slots below the human. */
+static void turn_indian_next_slot(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx, int n) {
+      if (n < 11) {
+        proc->nation_cursor = n + 1;
+      } else {
+        /* FUN_4d56_1b3a phase 3 — once, after the eight 1816 calls. */
+        ai_indian_midpass_claim_worked_tiles(ctx);
+        const int next = turn_next_euro_ai_below_human(ctx, 0);
+        if (next >= 0) {
+          turn_enter_slot(proc, ctx, next);
+        } else {
+          proc->step = TURN_PROC_FINISH;
+        }
+      }
+}
+
 COLONIZE_INTERNAL void turn_step_indian(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx) {
       const int n = proc->nation_cursor;
       diag_info("TURN native nation %d", n);
       proc->show_indicator = true;
+      if (ai_native_pulse_suspended()) {
+        /* This tribe's Brave pulse stopped on a human demand answer (DOS
+         * answers inside 022e). The answer is in; finish the pulse without
+         * the day top, the MP refresh or the 1816 prelude again. */
+        turn_set_active_nation(ctx, n);
+        ai_indian_nation_turn(ctx, n);
+        if (!ai_native_pulse_suspended()) {
+          turn_indian_next_slot(proc, ctx, n);
+        }
+        return;
+      }
       if (n == 4 && !proc->day_advanced) {
         const int popups_before = ctx->ai_popups ? ctx->ai_popups->queue_count : 0;
         turn_advance_day(proc, ctx);
@@ -808,19 +836,11 @@ COLONIZE_INTERNAL void turn_step_indian(ColonizeTurnProcessor* proc, ColonizeTur
         ctx->col1->indian[n - 4].extinct != 0;
       if (!extinct) {
         ai_indian_nation_turn(ctx, n);
-      }
-      if (n < 11) {
-        proc->nation_cursor = n + 1;
-      } else {
-        /* FUN_4d56_1b3a phase 3 — once, after the eight 1816 calls. */
-        ai_indian_midpass_claim_worked_tiles(ctx);
-        const int next = turn_next_euro_ai_below_human(ctx, 0);
-        if (next >= 0) {
-          turn_enter_slot(proc, ctx, next);
-        } else {
-          proc->step = TURN_PROC_FINISH;
+        if (ai_native_pulse_suspended()) {
+          return; /* same tribe next slice, after the answer */
         }
       }
+      turn_indian_next_slot(proc, ctx, n);
 }
 
 /* FUN_130d_0172: exactly one slot — decade Spring (year%10==0, autumn==0,

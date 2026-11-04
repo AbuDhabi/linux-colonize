@@ -65,5 +65,7 @@
 {"type":"key_up","t_ms":11928,"frame":683,"keycode":13,"mod":0}
 {"type":"key_down","t_ms":12264,"frame":704,"keycode":13,"mod":0}
 {"type":"key_up","t_ms":12312,"frame":707,"keycode":13,"mod":0}
-{"type":"key_down","t_ms":12648,"frame":728,"keycode":1073741893,"mod":0}
-{"type":"key_up","t_ms":12664,"frame":729,"keycode":1073741893,"mod":0}
+{"type":"key_down","t_ms":12648,"frame":728,"keycode":13,"mod":0}
+{"type":"key_up","t_ms":12696,"frame":731,"keycode":13,"mod":0}
+{"type":"key_down","t_ms":13032,"frame":752,"keycode":1073741893,"mod":0}
+{"type":"key_up","t_ms":13048,"frame":753,"keycode":1073741893,"mod":0}

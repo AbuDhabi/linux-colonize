@@ -282,6 +282,9 @@ int ai_contact_try_village_gifts(ColonizeTurnContext* ctx, int nation_id) {
       if (!c->active || c->nation_id != e) {
         continue;
       }
+      if (ai_contact_s_visit_colony >= 0 && ci != ai_contact_s_visit_colony) {
+        continue; /* 022e local_4c (raw 96699): the encounter colony */
+      }
       /* Slot walk — `ui` is not a unit id; see ai_contact_land_combat_sum. */
       for (int ui = 0; ui < units_slot_end(ctx->units); ++ui) {
         const ColonizeUnit* bu = &ctx->units->units[ui];
@@ -357,13 +360,19 @@ int ai_contact_try_village_gifts(ColonizeTurnContext* ctx, int nation_id) {
         continue;
       }
     }
-    ai_contact_visit_mood_publish(ctx, nation_id, e, brave ? brave->id : -1, 1);
-  gifts_generous:
+    /* raw 96729-96731: bVar6 flips off and contact_state is stamped 2 as part
+     * of the mood roll, before the beg block (ai_contact_visit_step_roll does
+     * the same on the step). It is not a gate of the gift half: a conceded beg
+     * forces bVar6 back on (raw 96797-96805) and reaches LAB_5bfb_096c with
+     * no second alarm test, so gifts_generous below has none. */
     if (alarm > 0x31) {
-      ind->contact_state[e] = 2; /* DOS: bVar6 flips off, state stamped */
+      ind->contact_state[e] = 2;
+      ai_contact_visit_mood_publish(ctx, nation_id, e, brave->id, 0);
       ai_contact_mark_visit_brave(ctx, nation_id, brave->id);
       continue;
     }
+    ai_contact_visit_mood_publish(ctx, nation_id, e, brave ? brave->id : -1, 1);
+  gifts_generous:
     /*
      * DOS stamps state 2 and discharges this village's alarm word toward the
      * visited nation before the convert/gift split (both halves get it).
@@ -413,10 +422,17 @@ int ai_contact_try_village_gifts(ColonizeTurnContext* ctx, int nation_id) {
           );
         }
         const int convert_type = units_kind_type_index(ctx->units, UNITS_KIND_COLONIST);
-        if (convert_type >= 0 && units_spawn_room(ctx->units, c->nation_id)) {
-          const int cid = units_spawn_allow_stack(ctx->units, convert_type, c->x, c->y);
+        {
+          const int cid = convert_type >= 0 && units_spawn_room(ctx->units, c->nation_id)
+                            ? units_spawn_allow_stack(ctx->units, convert_type, c->x, c->y) : -1;
           ColonizeUnit* convert = cid >= 0 ? units_get(ctx->units, cid) : NULL;
-          if (convert) {
+          if (!convert) {
+            /* raw 97012: `if (iVar9 < 0) goto LAB_5bfb_1005;` with local_1a
+             * still 0, so 3180 leaves this nation open and the Brave keeps
+             * its MP. The popup, contact_state 2 and the word zero stay. */
+            return 0;
+          }
+          {
             /*
              * DOS FUN_281f_095c(0, colony_owner, x, y) stamps the owner nibble
              * through the shared spawn helper (FUN_1427_02ca restamps tile
@@ -958,13 +974,38 @@ static void ai_contact_reparations_present(
    * COLONIZE .TXT section); the invented English narration is gone. */
 }
 
-void ai_contact_try_village_reparations(ColonizeTurnContext* ctx, int nation_id) {
-  if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->colonies || !ctx->col1->tribe ||
-      !ctx->rng || !ctx->units) {
+void ai_contact_indian_comment(
+  ColonizeTurnContext* ctx, int nation_id, int e, const ColonizeUnit* brave
+) {
+  if (!ctx || !ctx->col1 || nation_id < 4 || nation_id > 11 || e < 0 || e > 3) {
     return;
   }
+  if (ai_contact_euro_is_human(ctx, e)) {
+    /* raw 96979-96984: STRING0 = FUN_281f_09a4(tribe), STRING1 =
+     * FUN_281f_0a1a(euro), FUN_291f_019c(0x1858), a chief audience. */
+    ai_contact_bind_names(ctx);
+    PopupMsgTokens tok;
+    memset(&tok, 0, sizeof(tok));
+    tok.string0 = ai_contact_tribe_name(nation_id);
+    tok.string1 = ai_contact_euro_plural(ctx->col1, e);
+    char body[AI_POPUP_BODY_LEN];
+    popup_msg_fill(ctx->messages, "INDIANCOMMENT", &tok, "", body, sizeof(body));
+    ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, body);
+  }
+  /* raw 96986: the word of the village FUN_281f_0a4c bound (the Brave's home). */
+  if (brave && ctx->col1->tribe && brave->home_tribe_index >= 0 &&
+      brave->home_tribe_index < (int)ctx->col1->head.tribe_count) {
+    col1_tribe_attitude_set(&ctx->col1->tribe[brave->home_tribe_index], e, 0);
+  }
+}
+
+int ai_contact_try_village_reparations(ColonizeTurnContext* ctx, int nation_id) {
+  if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->colonies || !ctx->col1->tribe ||
+      !ctx->rng || !ctx->units) {
+    return 0;
+  }
   if (nation_id < 4 || nation_id > 11) {
-    return;
+    return 0;
   }
   /* No popup queue (golden harness): the arm still runs — its cargo scan
    * draws (Muskets rand(1,4), the half-quantity rand(0,diff+1)) are DOS
@@ -980,23 +1021,22 @@ void ai_contact_try_village_reparations(ColonizeTurnContext* ctx, int nation_id)
       continue; /* unmet — first contact runs its own arm */
     }
     if (ai_contact_s_reparations[e].active) {
-      continue; /* an offer of ours is still on the queue */
+      continue; /* unanswered offer: never in play, see ai_contact_try_wagon_reparations */
     }
     /* 022e's own ceiling on the whole visit (`if (0x4a < iVar9) return;`). */
     if (ai_diplo_indian_alarm(ctx->col1, nation_id, e) > 0x4a) {
       continue;
     }
     /* LAB_5bfb_0def's gate: a resolved generous visit latches this off. DOS
-     * then takes the `!= 2` else-limb (FUN_5bfb_022e raw 96981-96986): the
-     * visiting Brave's village word toward e is zeroed (@INDIANCOMMENT is
-     * human-only) before the visit exits. Only a !bVar6 visit gets here
-     * (America seed-100 turn 22->23: tribe 51 after tribe 50's gift). */
+     * then takes the `!= 2` else-limb (FUN_5bfb_022e raw 96978-96987,
+     * ai_contact_indian_comment). Only a !bVar6 visit gets here (America
+     * seed-100 turn 22->23: tribe 51 after tribe 50's gift). */
     if (ind->contact_state[e] == 2) {
       const AiContactVisitMood* m = ai_contact_visit_mood_this_turn(ctx, nation_id, e);
       const ColonizeUnit* v = (m && !m->generous_visit)
                                 ? units_get_const(ctx->units, m->brave_id) : NULL;
-      if (v && v->home_tribe_index >= 0 && v->home_tribe_index < (int)ctx->col1->head.tribe_count) {
-        col1_tribe_attitude_set(&ctx->col1->tribe[v->home_tribe_index], e, 0);
+      if (v) {
+        ai_contact_indian_comment(ctx, nation_id, e, v);
       }
       continue;
     }
@@ -1008,6 +1048,9 @@ void ai_contact_try_village_reparations(ColonizeTurnContext* ctx, int nation_id)
       const ColonizeColony* c = &ctx->colonies->colonies[ci];
       if (!c->active || c->nation_id != e) {
         continue;
+      }
+      if (ai_contact_s_visit_colony >= 0 && ci != ai_contact_s_visit_colony) {
+        continue; /* 022e local_4c (raw 96699, read at 96833): the encounter colony */
       }
       ColonizeUnit* v = ai_contact_reparations_visitor(ctx, nation_id, e, c->x, c->y);
       if (!v) {
@@ -1058,14 +1101,29 @@ void ai_contact_try_village_reparations(ColonizeTurnContext* ctx, int nation_id)
         }
       }
       if (best_cargo < 0) {
-        continue; /* DOS `if (local_40 < 0) goto LAB_5bfb_0dea;` */
+        /* raw 96857 `goto LAB_5bfb_0dea`: local_4c = -1 and back to
+         * LAB_5bfb_0def, now with local_42 only, the encounter (colony)
+         * tile's head when it is a Wagon Train (raw 96696). Neither: the
+         * @INDIANCOMMENT else-limb (raw 96978-96987). Unresolved arms
+         * `continue`: the one production caller (ai_brave.c, 022e param_1)
+         * always pins visit_euro to one European, so the loop ends here and
+         * returns 0 as DOS does; the -1 "every European" mode (tests only)
+         * keeps scanning the others. */
+        ColonizeUnit* head = units_get(ctx->units, units_tile_head_id_at(ctx->units, c->x, c->y));
+        if (head && units_type_is_wagon(units_type(ctx->units, head->type_index))) {
+          if (ai_contact_try_wagon_reparations(ctx, nation_id, e, brave, head) > 0) {
+            return 1; /* LAB_5bfb_1000: the visit resolved */
+          }
+          continue;
+        }
+        ai_contact_indian_comment(ctx, nation_id, e, brave);
+        continue;
       }
       ind->contact_state[e] = 1;
+      /* raw 96859-96861: a stock of 1 halves to 0 and DOS presents the demand
+       * anyway (no quantity test before @INDIANCITY). */
       if (dos_rng_range(ctx->rng, 0, (int)ctx->col1->head.difficulty + 1) == 0) {
         best_qty >>= 1;
-      }
-      if (best_qty <= 0) {
-        continue;
       }
       AiContactReparations* s = &ai_contact_s_reparations[e];
       s->active = 1;
@@ -1118,12 +1176,18 @@ void ai_contact_try_village_reparations(ColonizeTurnContext* ctx, int nation_id)
         "",
         ai_accept
       );
-      return; /* one reparations demand per Indian nation per turn */
+      return 1; /* LAB_5bfb_1000: the visit resolved */
     }
 
+    /* A pinned local_4c never reaches the open-field walk: with a colony on
+     * the encounter tile DOS takes the colony arm, and reaches the wagon arm
+     * only through LAB_5bfb_0dea (raw 96857 -> 97098-97100: local_4c = -1,
+     * back to LAB_5bfb_0def) with local_42 = that tile's head, handled above. */
+    if (ai_contact_s_visit_colony >= 0) {
+      continue;
+    }
     /* `local_42` — no colony, but a Wagon Train (DOS type 0x0c) with cargo. */
     ColonizeUnit* wag = NULL;
-    int hold = -1;
     /* Slot walk — `ui` is not a unit id; see ai_contact_land_combat_sum. */
     for (int ui = 0; ui < units_slot_end(ctx->units) && !wag; ++ui) {
       ColonizeUnit* u = &ctx->units->units[ui];
@@ -1146,21 +1210,60 @@ void ai_contact_try_village_reparations(ColonizeTurnContext* ctx, int nation_id)
         continue;
       }
       wag = u;
-      hold = 0;
     }
     if (!wag) {
       continue;
     }
     brave = ai_contact_reparations_visitor(ctx, nation_id, e, wag->x, wag->y);
-    const int tribe_index = ai_contact_visit_home_tribe(ctx, nation_id, brave ? brave->home_tribe_index : -1);
-    if (tribe_index < 0) {
-      continue;
+    {
+      /* LAB_5bfb_0def is reached only with !bVar6 (raw 96828). */
+      const int tribe_index =
+        ai_contact_visit_home_tribe(ctx, nation_id, brave ? brave->home_tribe_index : -1);
+      if (tribe_index < 0 ||
+          !ai_contact_visit_demand_allowed(
+            ctx, ind, &ctx->col1->tribe[tribe_index], nation_id, e, brave ? brave->id : -1,
+            ai_diplo_indian_alarm(ctx->col1, nation_id, e)
+          )) {
+        continue;
+      }
     }
-    if (!ai_contact_visit_demand_allowed(
-          ctx, ind, &ctx->col1->tribe[tribe_index], nation_id, e,
-          brave ? brave->id : -1, ai_diplo_indian_alarm(ctx->col1, nation_id, e)
-        )) {
-      continue; /* bVar6 — generous encounter; DOS never reaches @INDIANWAGONS */
+    if (ai_contact_try_wagon_reparations(ctx, nation_id, e, brave, wag) > 0) {
+      return 1; /* LAB_5bfb_1000: the visit resolved */
+    }
+  }
+  return 0;
+}
+
+/*
+ * FUN_5bfb_022e wagon arm (raw 96933-96976) for one encounter: `wag` is the
+ * encounter tile's head (local_42, FUN_281f_07e0 type 0x0c), `brave` the
+ * visiting mover. Caller has checked met, alarm <= 0x4a, contact_state != 2
+ * and !bVar6 (the arm sits inside LAB_5bfb_0def). DOS always resolves here.
+ * Returns 1 when the demand ran (LAB_5bfb_1000, local_1a = 1), -1 when the
+ * port's one pending-offer slot for e is still waiting on the human's answer.
+ */
+int ai_contact_try_wagon_reparations(
+  ColonizeTurnContext* ctx, int nation_id, int e, ColonizeUnit* brave, ColonizeUnit* wag
+) {
+  if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->col1->tribe || !ctx->units || !wag ||
+      nation_id < 4 || nation_id > 11 || e < 0 || e > 3) {
+    return 0;
+  }
+  if (ai_contact_s_reparations[e].active) {
+    /* Port-only guard for the one offer slot. In play it never fires: the
+     * native pulse stops on a human demand until it is answered
+     * (ai_native_scan_suspend). Only a caller that never answers (turn_end
+     * with an undrained queue) still reaches it; overwriting the waiting
+     * offer would apply the wrong goods to its answer. */
+    return -1;
+  }
+  ColonizeCol1Indian* ind = &ctx->col1->indian[nation_id - 4];
+  const int hold = 0;
+  {
+    const int tribe_index =
+      ai_contact_visit_home_tribe(ctx, nation_id, brave ? brave->home_tribe_index : -1);
+    if (tribe_index < 0) {
+      return 0;
     }
     ind->contact_state[e] = 1;
     AiContactReparations* s = &ai_contact_s_reparations[e];
@@ -1192,7 +1295,7 @@ void ai_contact_try_village_reparations(ColonizeTurnContext* ctx, int nation_id)
       "",
       1
     );
-    return; /* one reparations demand per Indian nation per turn */
+    return 1;
   }
 }
 /* ===================== Village trade haggle/buy-sell mechanics (2820/2e92) & wagon trade dispatch (ai_contact_2820_prepare .. ai_contact_find_adjacent_euro) ===================== */

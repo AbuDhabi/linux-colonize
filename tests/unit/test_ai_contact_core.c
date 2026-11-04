@@ -1716,9 +1716,8 @@ static int sp_23(void) {
     c_burn->stock[COLONIZE_CARGO_LUMBER] = 6;
     /*
      * port_bugs.md #924: the burn arm has no DOS lumber/construction step — it
-     * rolls an owned @BUILDING row; DOS then walks the chain DOWN to the
-     * lowest owned tier (FUN_5fef_0f14 raw 99832-99863), the port burns the
-     * top owned tier (dos_bugs_ai.md DB-50). Church (0x25) / Cathedral
+     * rolls an owned @BUILDING row, then walks the successor column UP to the
+     * top owned tier (FUN_5fef_0f14 raw 99832-99864). Church (0x25) / Cathedral
      * (0x26) are legal targets, the Town Hall chain (root 9) never is.
      */
     colonies.building_type_count = 3;
@@ -1757,7 +1756,7 @@ static int sp_23(void) {
     if (!c_burn->has_building[0]) {
       return fail("BURN must never burn the Town Hall chain (0a88 root 9)");
     }
-    /* dos_bugs_ai.md DB-50: the top owned tier burns (DOS: the Church). */
+    /* The top owned tier burns (raw 99857-99864). */
     if (c_burn->has_building[2]) {
       return fail("BURN should clear the Cathedral, the chain's top owned tier");
     }
@@ -4654,6 +4653,25 @@ static int sp_44(void) {
         spill_before < 100) {
       return fail("BEGFOOD decline adds into the flat alarm table at index 4");
     }
+    /* Esc is a Refuse: FUN_6f74_2580 returns -1 (raw 116780-116782) and
+     * FUN_5bfb_022e gives food only on `local_c == 2` (raw 96782). */
+    colonies.colonies[0].stock[COLONIZE_CARGO_FOOD] = 100;
+    col1.tribe[0].alarm[0].friction = 20;
+    ai_popup_clear(&pop);
+    pop.has_result = true;
+    pop.result_cancelled = true;
+    pop.result_choice_id = -1;
+    pop.result_tag = AI_POPUP_TAG_CONTACT_BEGFOOD;
+    pop.result_nation_a = 0;
+    pop.result_nation_b = 4;
+    pop.result_payload = 1 << 16;
+    ai_contact_apply_popup_result(&ctx, &pop);
+    if (colonies.colonies[0].stock[COLONIZE_CARGO_FOOD] != 100 ||
+        col1.tribe[0].alarm[0].friction != 30) {
+      fprintf(stderr, "unit_ai_contact: BEGFOOD Esc food %d word %d\n",
+              colonies.colonies[0].stock[COLONIZE_CARGO_FOOD], col1.tribe[0].alarm[0].friction);
+      return fail("Esc on BEGFOOD must refuse (no food, attitude word x1.5)");
+    }
     /* TB-12 fixed (dos_buggy_behavior off): the refuser's own alarm word rises. */
     col1.tribe[0].alarm[0].friction = 20;
     col1.indian[0].alarm_by_player[0] = 50;
@@ -4812,6 +4830,50 @@ static int sp_45(void) {
       );
       ctx.rng = saved_rng;
       return fail("LAB_5bfb_0ff2: a refused demand adds 0x80 to the attitude word");
+    }
+
+    /* --- Esc on @INDIANCITY is a refusal. FUN_6f74_2580 returns -1
+     * (raw 116780-116782); raw 96896 `local_c != 2` -> LAB_5bfb_0ff2 (+0x80). --- */
+    col1.tribe[0].alarm[0].friction = 20;
+    col1.tribe[0].alarm[0].attacks = 0;
+    col1.indian[0].contact_state[0] = 0;
+    ai_popup_clear(&rp);
+    dos_rng_seed(&rep_rng, 7u);
+    ai_contact_try_village_beg_food(&ctx, 4);
+    rq = -1;
+    for (int i = 0; i < rp.queue_count; ++i) {
+      if (rp.queue[i].tag == AI_POPUP_TAG_CONTACT_REPARATIONS &&
+          rp.queue[i].kind == AI_POPUP_KIND_CHOICE) {
+        rq = i;
+        break;
+      }
+    }
+    if (rq < 0) {
+      ctx.rng = saved_rng;
+      return fail("reparations demand should re-offer for the Esc case");
+    }
+    {
+      const int stock_before_esc = colonies.colonies[0].stock[COLONIZE_CARGO_TOOLS];
+      ai_popup_clear(&rp);
+      rp.has_result = true;
+      rp.result_cancelled = true; /* what ai_popup_cancel_current answers: id -1 */
+      rp.result_tag = AI_POPUP_TAG_CONTACT_REPARATIONS;
+      rp.result_nation_a = 0;
+      rp.result_nation_b = 4;
+      rp.result_payload = 0;
+      rp.result_choice_id = -1;
+      ai_contact_apply_popup_result(&ctx, &rp);
+      if (colonies.colonies[0].stock[COLONIZE_CARGO_TOOLS] != stock_before_esc) {
+        ctx.rng = saved_rng;
+        return fail("Esc on @INDIANCITY must not move the colony stores");
+      }
+      if (col1_tribe_attitude(&col1.tribe[0], 0) != 20 + 0x80) {
+        fprintf(
+          stderr, "unit_ai_contact: Esc attitude word %d\n", col1_tribe_attitude(&col1.tribe[0], 0)
+        );
+        ctx.rng = saved_rng;
+        return fail("Esc on @INDIANCITY is a refusal (attitude word += 0x80)");
+      }
     }
 
     /* --- @INDIANCITY accept: word zeroed, alarm eased, goods handed over. --- */
@@ -5635,6 +5697,36 @@ static int sp_49(void) {
     if (paid_plain != paid_jesuit + 1500u) {
       return fail("417e -1500 discount must apply only to profession 0x18 (Jesuit)");
     }
+    /* raw 83538-83540 price the tribe's census bytes (0x962a villages,
+     * 0x9184 brave value), not a live recount: live map and units stay
+     * fixed, only the census rows move. */
+    {
+      const uint8_t vc_save = col1.stuff.tribe_village_counts[0];
+      const uint8_t bv_save = col1.stuff.tribe_data_9184[0];
+      uint32_t paid[3];
+      const uint8_t vcs[3] = {0, 10, 0};
+      const uint8_t bvs[3] = {0, 0, 40};
+      for (int k = 0; k < 3; ++k) {
+        col1.stuff.tribe_village_counts[0] = vcs[k];
+        col1.stuff.tribe_data_9184[0] = bvs[k];
+        col1.nation[1].gold = 100000;
+        ind->alarm_by_player[0] = 20;
+        col1.tribe[0].mission = COL1_TRIBE_MISSION_NONE;
+        if (!ai_contact_ai_incite_human(&ictx, ind, &col1.tribe[0], 4, 1, 0)) {
+          return fail("census incite should fire");
+        }
+        paid[k] = 100000u - col1.nation[1].gold;
+      }
+      /* base: villages*8 - 2*villages = +60, ((40>>2)&0xfe) = +10; times
+       * (alarm toward the inciter 0 + 75) * 2/3 (inciter 1 = French) = 50. */
+      if (paid[1] != paid[0] + 60u * 50u || paid[2] != paid[0] + 10u * 50u) {
+        fprintf(stderr, "census incite paid %u/%u/%u\n", (unsigned)paid[0], (unsigned)paid[1],
+                (unsigned)paid[2]);
+        return fail("incite price must read the census village/brave rows");
+      }
+      col1.stuff.tribe_village_counts[0] = vc_save;
+      col1.stuff.tribe_data_9184[0] = bv_save;
+    }
     ind->muskets = muskets_save;
     ind->horse_herds = horses_save;
     ind->alarm_by_player[0] = 20;
@@ -5909,6 +6001,8 @@ static int sp_53(void) {
     col1.tribe[0].alarm[0].attacks = 0;
     col1.indian[0].tech = 0;
     ind->euro_diplo[0] = (uint8_t)(COL1_INDIAN_MET_BIT | COL1_INDIAN_PEACE_BIT);
+    /* The @ACTIONS peace gate reads the Euro-side byte (FUN_1000_8c28(e, tribe+4)). */
+    col1.nation[0].relation_by_indian[0] = (uint8_t)(COL1_INDIAN_MET_BIT | COL1_INDIAN_PEACE_BIT);
     ind->alarm_by_player[0] = 10;
     col1.nation[0].gold = 0;
     /* Unit types: 0 Brave, 1 Free Colonist (existing); add Scout / Soldier / Wagon / Missionary. */
@@ -6250,7 +6344,9 @@ static int sp_54(void) {
        * jumps past rows 3-8 to the row-9 add) — no invented raid warn. */
       {
         const uint8_t saved_diplo = ind->euro_diplo[0];
+        const uint8_t saved_rel = col1.nation[0].relation_by_indian[0];
         ind->euro_diplo[0] = 0;
+        col1.nation[0].relation_by_indian[0] = 0;
         ai_popup_clear(&pop_menu);
         if (!ai_contact_try_village_meet_unit(&ctx, 0, 4, 0, 0, sold_id)) {
           return fail("menu: unmet soldier should still get the @ACTIONS menu");
@@ -6261,6 +6357,99 @@ static int sp_54(void) {
           return fail("menu: unmet soldier rows should be Attack / Cancel");
         }
         ind->euro_diplo[0] = saved_diplo;
+        col1.nation[0].relation_by_indian[0] = saved_rel;
+      }
+      /*
+       * The OVL13::00492d gate is PEACE 0x40 of the Euro-side byte
+       * (FUN_1000_8c28(e, tribe+4) = nation[e].relation_by_indian[tribe]), not
+       * "met". Euro side MET only, Indian side MET|PEACE: rows 3/4/5/7/8 drop.
+       * Soldier -> Attack/Cancel, scout -> Chief/Attack/Cancel, missionary ->
+       * Cancel.
+       */
+      {
+        const uint8_t saved_diplo = ind->euro_diplo[0];
+        const uint8_t saved_rel = col1.nation[0].relation_by_indian[0];
+        const uint8_t saved_mission = col1.tribe[0].mission;
+        ind->euro_diplo[0] = (uint8_t)(COL1_INDIAN_MET_BIT | COL1_INDIAN_PEACE_BIT);
+        col1.nation[0].relation_by_indian[0] = (uint8_t)COL1_INDIAN_MET_BIT;
+        col1.tribe[0].mission = 0xff;
+        ai_popup_clear(&pop_menu);
+        if (!ai_contact_try_village_meet_unit(&ctx, 0, 4, 0, 0, sold_id)) {
+          return fail("menu: met-no-peace soldier should get the @ACTIONS menu");
+        }
+        if (pop_menu.queue[0].choice_count != 2 ||
+            pop_menu.queue[0].choice_ids[0] != AI_CONTACT_CHOICE_ATTACK ||
+            pop_menu.queue[0].choice_ids[1] != 5 /* Cancel */) {
+          fprintf(stderr, "unit_ai_contact: met-no-peace soldier rows %d first %d\n",
+                  pop_menu.queue[0].choice_count, pop_menu.queue[0].choice_ids[0]);
+          return fail("menu: met-no-peace soldier rows should be Attack / Cancel (no Demand)");
+        }
+        const int f_sid = units_spawn_allow_stack(&units, 2, 6, 5);
+        ColonizeUnit* f_scout = units_get(&units, f_sid);
+        if (!f_scout) {
+          return fail("menu: spawn scout");
+        }
+        f_scout->nation_id = 0;
+        f_scout->profession = UNITS_JOB_NONE;
+        ai_popup_clear(&pop_menu);
+        if (!ai_contact_try_village_meet_unit(&ctx, 0, 4, 0, 0, f_sid)) {
+          return fail("menu: met-no-peace scout should get the @ACTIONS menu");
+        }
+        if (pop_menu.queue[0].choice_count != 3 || pop_menu.queue[0].choice_ids[0] != 9 /* Chief */ ||
+            pop_menu.queue[0].choice_ids[1] != AI_CONTACT_CHOICE_ATTACK ||
+            pop_menu.queue[0].choice_ids[2] != 5 /* Cancel */) {
+          return fail("menu: met-no-peace scout rows should be Chief / Attack / Cancel");
+        }
+        units_despawn(&units, f_sid);
+        const int f_mid = units_spawn_allow_stack(&units, 5, 6, 5);
+        ColonizeUnit* f_mis = units_get(&units, f_mid);
+        if (!f_mis) {
+          return fail("menu: spawn missionary");
+        }
+        f_mis->nation_id = 0;
+        f_mis->profession = UNITS_JOB_NONE;
+        ai_popup_clear(&pop_menu);
+        if (!ai_contact_try_village_meet_unit(&ctx, 0, 4, 1, 0, f_mid)) {
+          return fail("menu: met-no-peace missionary should get the @ACTIONS menu");
+        }
+        if (pop_menu.queue[0].choice_count != 1 || pop_menu.queue[0].choice_ids[0] != 5 /* Cancel */) {
+          return fail("menu: met-no-peace missionary rows should be Cancel only (no Mission / Incite)");
+        }
+        /* A rival's mission in the village: row 4 (Heresy) is peace-gated too. */
+        col1.tribe[0].mission = 1;
+        ai_popup_clear(&pop_menu);
+        if (!ai_contact_try_village_meet_unit(&ctx, 0, 4, 1, 0, f_mid)) {
+          return fail("menu: met-no-peace missionary (rival mission) should get the @ACTIONS menu");
+        }
+        if (pop_menu.queue[0].choice_count != 1 || pop_menu.queue[0].choice_ids[0] != 5 /* Cancel */) {
+          fprintf(stderr, "unit_ai_contact: met-no-peace heresy rows %d first %d\n",
+                  pop_menu.queue[0].choice_count, pop_menu.queue[0].choice_ids[0]);
+          return fail("menu: met-no-peace missionary rows should be Cancel only (no Heresy)");
+        }
+        col1.tribe[0].mission = 0xff;
+        units_despawn(&units, f_mid);
+        /* A free colonist: row 5 (Live Among) is peace-gated. */
+        const int f_cid = units_spawn_allow_stack(&units, 1, 6, 5);
+        ColonizeUnit* f_col = units_get(&units, f_cid);
+        if (!f_col) {
+          return fail("menu: spawn colonist");
+        }
+        f_col->nation_id = 0;
+        f_col->profession = UNITS_JOB_NONE;
+        ai_popup_clear(&pop_menu);
+        if (!ai_contact_try_village_meet_unit(&ctx, 0, 4, 0, 0, f_cid)) {
+          return fail("menu: met-no-peace colonist should get the @ACTIONS menu");
+        }
+        if (pop_menu.queue[0].choice_count != 1 || pop_menu.queue[0].choice_ids[0] != 5 /* Cancel */) {
+          fprintf(stderr, "unit_ai_contact: met-no-peace colonist rows %d first %d\n",
+                  pop_menu.queue[0].choice_count, pop_menu.queue[0].choice_ids[0]);
+          return fail("menu: met-no-peace colonist rows should be Cancel only (no Live Among)");
+        }
+        units_despawn(&units, f_cid);
+        ai_popup_clear(&pop_menu);
+        ind->euro_diplo[0] = saved_diplo;
+        col1.nation[0].relation_by_indian[0] = saved_rel;
+        col1.tribe[0].mission = saved_mission;
       }
       ai_popup_clear(&pop_menu);
       units_despawn(&units, sold_id);
@@ -6338,6 +6527,18 @@ static int sp_55(void) {
         fprintf(stderr, "unit_ai_contact: learnlater status '%s'\n", st_menu);
         return fail("live among: No → @LEARNLATER, nothing applied");
       }
+      /* Esc (id -1) is a No too: OVL13 thunk_FUN_1000_a618 runs `DEC AX; JZ`
+       * on 019c's result, so -1 takes the @LEARNLATER arm. */
+      ans.result_cancelled = true;
+      ans.result_choice_id = -1;
+      st_menu[0] = '\0';
+      ai_contact_apply_popup_result(&ctx, &ans);
+      if (colonist->profession != UNITS_JOB_NONE || col1.tribe[0].state.learned ||
+          strstr(st_menu, "another time") == NULL) {
+        fprintf(stderr, "unit_ai_contact: esc learnlater status '%s'\n", st_menu);
+        return fail("live among: Esc → @LEARNLATER, nothing applied");
+      }
+      ans.result_cancelled = false;
       /* Yes → DONE: profession = village skill, learned latch, @LEARNDONE. */
       ans.result_choice_id = 1; /* AI_CONTACT_LEARNSTAY_YES */
       st_menu[0] = '\0';

@@ -1707,8 +1707,8 @@ const ColonizeColony* units_nearest_own_drydock_colony(
     return NULL;
   }
   /* DOS tests colony feature bit 7 (Drydock) only (FUN_5fef_0352 raw 99590):
-   * a lone Shipyard without its Drydock bit (DOS saves; DOS raids burn the
-   * lowest tier, DB-50) is no repair port (port_bugs.md #1330). Completed
+   * a lone Shipyard without its Drydock bit (only from saves) is no repair
+   * port (port_bugs.md #1330). Completed
    * tiers stay set, so a normal Shipyard colony still has the Drydock bit. */
   const int drydock = colonies_building_row(colonies, COLONY_BUILDING_DRYDOCK);
   if (drydock < 0 || drydock >= COLONIZE_BUILDING_TYPES_MAX) {
@@ -2147,7 +2147,7 @@ int units_apply_naval_loss_outcome(
 }
 
 /*
- * FUN_5fef_0f14 kind 3 (raw 99989-100004): the Indian colony raid's "unit"
+ * FUN_5fef_0f14 kind 3 (pick raw 99866-99874, apply raw 99995-100004): the Indian colony raid's "unit"
  * outcome picks a SHIP lying in the colony's port — `FUN_281f_07e0`
  * (unit_index_on_tile of the colony tile), abort unless `FUN_281f_088a`
  * (stack_has_ship), then walk the stack down with `FUN_281f_02e4` until the
@@ -2172,16 +2172,25 @@ int units_apply_naval_loss_outcome(
  *
  * Returns 1 if the ship limped off damaged, 0 if it went down.
  */
-int units_raid_damage_ship(ColonizeUnitPool* pool, int ship_id, const ColonizeCol1Save* col1) {
+int units_raid_damage_ship(
+  ColonizeUnitPool* pool, int ship_id, const ColonizeCol1Save* col1, ColonizeDosRng* rng
+) {
   ColonizeUnit* lose = units_get(pool, ship_id);
   if (!lose || !lose->active || !units_is_sea(pool, ship_id)) {
     return 0;
   }
   const ColonizeUnitType* lt = units_type(pool, lose->type_index);
   const int human = units_combat_human_involved(col1, lose->nation_id, -1);
+  /* The raid arm has no winner unit: local_4 = 0x10, the Privateer row. */
+  const int pi = units_kind_type_index(pool, UNITS_KIND_PRIVATEER);
+  const ColonizeUnitType* pt = pi >= 0 ? units_type(pool, pi) : NULL;
 
   units_ship_lose_holds(pool, ship_id);
 
+  /* DOS-LITERAL FUN_5fef_0352 raw 99527-99529: the Privateer row has guns,
+   * so DOS still makes the damage-vs-sink draw FUN_281f_04d4(1, guns +
+   * loser hull) before raw 99567 throws the result away. */
+  (void)units_ship_damage_vs_sink(rng, pt ? pt->guns : 0, lt ? lt->hull : 0);
   int damaged = 1; /* raw 99567: param_2 < 0 → bVar11 = true */
   const ColonizeColony* home = units_nearest_own_drydock_colony(
     g_units_combat_colonies, lose->nation_id, lose->x, lose->y
@@ -2214,13 +2223,9 @@ int units_raid_damage_ship(ColonizeUnitPool* pool, int ship_id, const ColonizeCo
     return 0;
   }
 
-  {
-    /* The raid arm has no winner unit: DOS bills the repair against the
-     * Privateer's defense column (the raider stand-in). */
-    const int pi = units_kind_type_index(pool, UNITS_KIND_PRIVATEER);
-    const ColonizeUnitType* pt = pi >= 0 ? units_type(pool, pi) : NULL;
-    units_ship_enter_repair(pool, lose, pt ? pt->defense : 0, home, col1, human, -1);
-  }
+  /* DOS bills the repair against the Privateer's defense column (the raider
+   * stand-in). */
+  units_ship_enter_repair(pool, lose, pt ? pt->defense : 0, home, col1, human, -1);
   return 1;
 }
 
@@ -3856,15 +3861,14 @@ bool units_resolve_lcr_rumour_w(
        * crosses word untouched (64763 is `param_1 == 0` only) and no +6 recruit
        * bump (64771). Tail order (64767-64774): create the unit, then refill the
        * emptied slot with 46d4(0) off the shared stream — and only on success.
-       * port_bugs.md #496.
+       * A refused create still costs its type roll and the caller runs all
+       * eight (raw 103729-103731 has no early exit). port_bugs.md #496.
        */
       for (int i = 0; i < 8; ++i) {
         const int profession = (int)col1->nation[nation].recruit[1];
-        const int id = europe_nation_harbor_spawn(w, nation, profession);
-        if (id < 0) {
-          break;
+        if (europe_nation_harbor_spawn(w, nation, profession) >= 0) {
+          europe_nation_refill_pool_slot(col1, nation, 1, false, rng);
         }
-        europe_nation_refill_pool_slot(col1, nation, 1, false, rng);
       }
     }
     break;
@@ -3924,6 +3928,9 @@ bool units_resolve_lcr_rumour_w(
       ColonizeUnit* nu = units_get(pool, nid);
       if (nu) {
         units_set_nation(nu, nation);
+        /* raw 103722 FUN_281f_089e(explorer) -> FUN_1427_0362: the explorer is
+         * relinked to the chain head, back on top of the survivor. */
+        units_tile_stack_arrive(pool, unit_id);
       }
     }
     tok.string0 = (nation >= 0 && nation <= 3) ? reports_nation_country_name(nation)

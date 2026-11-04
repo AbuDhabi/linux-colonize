@@ -194,6 +194,17 @@ DOS reads `local_c != 2 → refuse` at `0x1866` and `local_c == 1 → accept` at
 `@INDIANWAGONS` is "Hand them over." / "Circle the wagons.". That text settles
 the accept/decline polarity.
 
+**Several demands in one pulse.** DOS shows `@INDIANBEGFOOD` /
+`@INDIANCITY` / `@INDIANWAGONS` with a blocking `FUN_291f_019c` inside `022e`,
+inside the `3180` direction loop, inside the `1816` act loop, so each answer
+applies before the next direction or Brave rolls. The port's popups are
+answered between turn slices: `ai_native_scan_suspend` (`ai_brave.c`) stops
+the pulse right after the `022e` that queued a human demand, and
+`turn_step_indian` resumes it from the next `3180` direction after the answer.
+The one-offer guards (`ai_contact_s_reparations[e].active`, the pending-beg
+test) only fire for a caller that never answers between slices (`turn_end`
+with an undrained queue).
+
 Read and write the word through `col1_tribe_attitude` /
 `col1_tribe_attitude_set` (`col1_save.h`), which sign-extend / re-split the
 two bytes the way DOS's signed `int` accesses do. The word rides the tribe record,

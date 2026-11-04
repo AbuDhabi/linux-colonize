@@ -448,6 +448,13 @@ int map_resource_type_at(const ColonizeWorldMap* map, int x, int y);
  * settlement ownership (sprites stay hidden; yields still use the resource).
  */
 int map_resource_type_for_yield(const ColonizeWorldMap* map, int x, int y);
+/*
+ * FUN_137f_04b0 (via FUN_281f_0718): the sim's resource read. Hidden only on
+ * a native settlement tile (FUN_137f_0392: interior, layer2 bit 1, owner
+ * nibble 4..14); a European colony tile still reports its special. The
+ * class comes from map_dos_terr_class_at (FUN_13e4_003a).
+ */
+int map_dos_resource_at(const ColonizeWorldMap* map, int x, int y);
 bool map_tile_has_rumour(const ColonizeWorldMap* map, int x, int y);
 /* FUN_137f_0598: DOS rumour-tile test used by the Indian move scorer (owner nibble unset + hash). */
 bool map_dos_0598_rumour_tile(const ColonizeWorldMap* map, int x, int y);

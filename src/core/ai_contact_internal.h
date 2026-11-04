@@ -40,6 +40,12 @@ int ai_contact_try_ship_village(ColonizeTurnContext* ctx, int euro_nation, int x
 int ai_contact_auto_buy_2e92(
   ColonizeTurnContext* ctx, ColonizeCol1Indian* ind, int nation_id, int e, ColonizeUnit* unit
 );
+/* FUN_4962_06b6 Indian census (ai_contact_demand.c): 0x9184 / 0x91cc rows. */
+void ai_contact_indian_census_4962_06b6(ColonizeTurnContext* ctx, int nation_id);
+/* thunk_FUN_1000_a5f4 Demand Tribute (ai_contact_actions.c). */
+void ai_contact_demand_tribute(
+  ColonizeTurnContext* ctx, int e, int nation_id, ColonizeUnit* u, ColonizeCol1Tribe* t
+);
 #endif /* COLONIZE_TESTING */
 
 /* ===== Cross-file seams of the ai_contact.c split (2026-09-23) =====
@@ -213,6 +219,10 @@ extern int ai_contact_s_raid_cargo; /* DOS local_20; STORES arm's picked cargo *
 extern int ai_contact_s_last_raid_kind;
 extern int ai_contact_s_visit_euro; /* ai_contact_set_visit_euro: the 022e encounter European, -1 = all */
 extern int ai_contact_s_visit_unit; /* ai_contact_set_visit_unit: the 022e mover (#1133), -1 = any */
+/* 022e local_4c (raw 96699) pinned by the Brave's step (and the beg
+ * re-entries): the beg, gift and demand colony scans serve only this colony.
+ * -1 = first adjacent colony. */
+extern int ai_contact_s_visit_colony;
 extern char ai_contact_s_last_burn_building[48];
 extern char ai_contact_s_last_stores_cargo[48];
 extern char ai_contact_s_last_ship_type[48];
@@ -274,9 +284,12 @@ void ai_contact_local_rng(ColonizeTurnContext* ctx, int nation_id, ColonizeDosRn
 int ai_contact_village_bgm_cue(ColonizeDosRng* rng, int nation_id);
 void ai_contact_mark_visit_brave( const ColonizeTurnContext* ctx, int nation_id, int brave_id );
 void ai_contact_set_status(ColonizeTurnContext* ctx, const char* msg);
-void ai_contact_try_village_reparations(ColonizeTurnContext* ctx, int nation_id);
+int ai_contact_try_village_reparations(ColonizeTurnContext* ctx, int nation_id);
 void ai_contact_visit_mood_clear(int nation_id, int e);
 const AiContactVisitMood* ai_contact_visit_mood_this_turn( const ColonizeTurnContext* ctx, int nation_id, int e );
 void ai_contact_visit_mood_publish( const ColonizeTurnContext* ctx, int nation_id, int e, int brave_id, int generous_visit );
+/* Denounce Heresy's per-village weights (thunk_FUN_1000_a594 village loop):
+ * the denouncer e's side (mine) and the rival `foreign`'s (pro_me). */
+COLONIZE_INTERNAL void ai_contact_heresy_weights( ColonizeTurnContext* ctx, int e, int nation_id, int foreign, int* out_mine, int* out_pro_me );
 
 #endif /* COLONIZE_CORE_AI_CONTACT_INTERNAL_H */

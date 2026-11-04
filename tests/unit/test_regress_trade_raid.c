@@ -8,6 +8,7 @@
 #include "core/col1_save.h"
 #include "core/colony.h"
 #include "core/dos_rng.h"
+#include "core/map.h"
 #include "core/turn.h"
 #include "core/units.h"
 
@@ -346,7 +347,503 @@ static int case_805_haggle_reask_needs_met_bit(void) {
   return 0;
 }
 
+/*
+ * The heresy weights read FUN_4cc6_03f8's leaning nation. DOS (raw
+ * 81111-81113) gates colonies on FUN_281f_037a = max + min/2 < 7, and (raw
+ * 81146-81155) counts only the +0x84 building bits, which Warehouse Expansion
+ * does not have. One village of tribe 4 at (10,10), no mission; one Dutch (2)
+ * colony; foreign = 2, so its score lands on pro_me. human_diff >= 0 makes the
+ * Dutch human at that difficulty (raw 81120-81140 scaling).
+ */
+static int heresy_weights_ex(
+  int cx, int cy, int pop, int plain_buildings, bool whe, int human_diff,
+  const ColonizeUnitPool* units, int e, int foreign, uint8_t mission, int* out_mine
+) {
+  static ColonizeCol1Save col1;
+  static ColonizeCol1Tribe tribe;
+  static ColonizeColonyPool pool;
+  ColonizeWorldMap map;
+  char err[128];
+  memset(&map, 0, sizeof(map));
+  if (!map_alloc(&map, 20, 20, err, sizeof(err))) {
+    return -1000;
+  }
+  for (int i = 0; i < 20 * 20; ++i) {
+    map.terrain[i] = 1;
+    map.layer3[i] = 0xf1;
+  }
+  col1_save_init(&col1);
+  memset(&tribe, 0, sizeof(tribe));
+  tribe.nation_id = 4;
+  tribe.x = 10;
+  tribe.y = 10;
+  tribe.mission = mission;
+  tribe.population = 4;
+  col1.tribe = &tribe;
+  col1.head.tribe_count = 1;
+  col1.indian[0].tech = 0;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  pool.building_types[plain_buildings].row_plus1 = COLONY_BUILDING_WAREHOUSE_EXPANSION + 1;
+  pool.building_type_count = plain_buildings + 1;
+  ColonizeColony* c = &pool.colonies[0];
+  c->id = 0;
+  c->active = true;
+  c->nation_id = 2;
+  c->x = (uint8_t)cx;
+  c->y = (uint8_t)cy;
+  c->population = (uint8_t)pop;
+  c->building_in_production = -1;
+  for (int b = 0; b < plain_buildings; ++b) {
+    c->has_building[b] = true;
+  }
+  c->has_building[plain_buildings] = whe;
+  pool.colony_count = 1;
+  pool.next_id = 1;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.map = &map;
+  ctx.colonies = &pool;
+  ctx.units = (ColonizeUnitPool*)units;
+  ctx.human_nation = human_diff >= 0 ? 2 : 0;
+  col1.head.difficulty = (uint8_t)(human_diff >= 0 ? human_diff : 0);
+  int mine = 0;
+  int pro_me = 0;
+  ai_contact_heresy_weights(&ctx, e, 4, foreign, &mine, &pro_me);
+  map_free(&map);
+  if (out_mine) {
+    *out_mine = mine;
+  }
+  return pro_me;
+}
+
+static int heresy_presence_ex(
+  int cx, int cy, int pop, int plain_buildings, bool whe, int human_diff,
+  const ColonizeUnitPool* units
+) {
+  return heresy_weights_ex(cx, cy, pop, plain_buildings, whe, human_diff, units, 0, 2,
+                           COL1_TRIBE_MISSION_NONE, NULL);
+}
+
+static int heresy_presence(int cx, int cy, int pop, int plain_buildings, bool whe) {
+  return heresy_presence_ex(cx, cy, pop, plain_buildings, whe, -1, NULL);
+}
+
+static int case_heresy_presence_dos_distance(void) {
+  /* (16,12): Chebyshev 6 but DOS 6 + 2/2 = 7, outside the < 7 gate. */
+  const int far = heresy_presence(16, 12, 20, 0, false);  if (far != 0) {
+    fprintf(stderr, "heresy: far colony pro_me=%d\n", far);
+    return fail("a colony at DOS distance 7 must not lean the village");
+  }
+  /* Control: the same colony at DOS 6 does lean it. */
+  if (heresy_presence(16, 10, 20, 0, false) <= 0) {
+    return fail("a colony at DOS distance 6 must lean the village");
+  }
+  /* (12,10), pop 10, 7 plain buildings: base 13 -> 3; one more counted
+   * building would make base 14 -> 4. Warehouse Expansion has no bit. */
+  const int without = heresy_presence(12, 10, 10, 7, false);
+  const int with = heresy_presence(12, 10, 10, 7, true);
+  if (without != 3 || with != 3) {
+    fprintf(stderr, "heresy: whe off=%d on=%d\n", without, with);
+    return fail("Warehouse Expansion must not count as a FUN_4cc6_03f8 building");
+  }
+  return 0;
+}
+
+/*
+ * FUN_4cc6_03f8 human scaling (raw 81120-81140): a human colony's building
+ * bits count {1/2, 3/4, 1/1, 3/2, 2/1} by difficulty, and the difficulty
+ * itself joins the base. Colony at (11,10) (d = 1), pop 10, 16 buildings: AI
+ * base 6+8+((16-8)>>2) = 16 -> 30/5 = 6; human at difficulty 0: 8 -> 14 ->
+ * 26/5 = 5; at difficulty 4: 32 -> 6+8+4+6 = 24 -> 46/5 = 9.
+ */
+static int case_heresy_human_difficulty(void) {
+  const int ai = heresy_presence_ex(11, 10, 10, 16, false, -1, NULL);
+  const int d0 = heresy_presence_ex(11, 10, 10, 16, false, 0, NULL);
+  const int d4 = heresy_presence_ex(11, 10, 10, 16, false, 4, NULL);
+  if (ai != 6 || d0 != 5 || d4 != 9) {
+    fprintf(stderr, "heresy human: ai=%d d0=%d d4=%d\n", ai, d0, d4);
+    return fail("a human colony's threat must scale with difficulty (FUN_4cc6_03f8)");
+  }
+  return 0;
+}
+
+/*
+ * thunk_FUN_1000_a594: a village leaning toward a third nation seeds its
+ * mission weight with that lean. The denouncer is 0 and the rival 1; the
+ * (12,10) Dutch colony scores 3, and 4 with a mission that is not Dutch
+ * (FUN_4cc6_03f8 adds half). The mission is the denouncer's (byte 0,
+ * population 4): mine = 4 + 4 = 8, pro_me 0.
+ */
+static int case_heresy_third_nation_seeds_mission(void) {
+  int mine = 0;
+  const int pro_me = heresy_weights_ex(12, 10, 10, 7, false, -1, NULL, 0, 1, 0, &mine);
+  if (mine != 8 || pro_me != 0) {
+    fprintf(stderr, "heresy third nation: mine=%d pro_me=%d (want 8 0)\n", mine, pro_me);
+    return fail("a third nation's lean must seed the village's mission weight");
+  }
+  return 0;
+}
+
+/*
+ * FUN_4cc6_03f8 ring pass (raw 81045-81057): the tile belongs to its chain
+ * head's nation (FUN_281f_07e0, newest arrival) and the sum then takes every
+ * armed unit in the chain, whatever its nation. Base: the (12,10) Dutch
+ * colony, pop 10, 7 buildings, scores 3. Two attack-2 units on ring tile
+ * (11,11); the second to arrive is the head.
+ */
+static ColonizeUnitPool s_threat_units;
+
+static int heresy_with_stack(int first_nation, int second_nation) {
+  memset(&s_threat_units, 0, sizeof(s_threat_units));
+  units_reset(&s_threat_units);
+  units_set_occupancy_map(NULL);
+  s_threat_units.type_count = 1;
+  memset(s_threat_units.types, 0, sizeof(s_threat_units.types[0]));
+  s_threat_units.types[0].attack = 2;
+  const int nations[2] = {first_nation, second_nation};
+  for (int k = 0; k < 2; ++k) {
+    const int id = units_spawn_allow_stack(&s_threat_units, 0, 11, 11);
+    ColonizeUnit* u = units_get(&s_threat_units, id);
+    if (!u) {
+      return -1000;
+    }
+    u->nation_id = nations[k];
+    units_tile_stack_arrive(&s_threat_units, id);
+  }
+  return heresy_presence_ex(12, 10, 10, 7, false, -1, &s_threat_units);
+}
+
+static int case_threat_ring_mixed_stack(void) {
+  /* Brave below a Dutch head: Dutch tile, both units sum -> 3 + 4. */
+  const int dutch_head = heresy_with_stack(4, 2);
+  /* Dutch unit in the lowest slot under a Brave head: tile abandoned -> 3. */
+  const int brave_head = heresy_with_stack(2, 4);
+  if (dutch_head != 7 || brave_head != 3) {
+    fprintf(stderr, "threat ring: dutch_head=%d brave_head=%d\n", dutch_head, brave_head);
+    return fail("ring owner is the chain head; the sum takes every armed unit (#768)");
+  }
+  return 0;
+}
+
+/*
+ * FUN_4d56_2154 phase 2 (raw 81956-81959) gates every tribe +-2 tile on
+ * FUN_281f_0302 (FUN_137f_000a, 1 <= x < width-1, 1 <= y < height-1).
+ * A village at (1,1) has 7 tiles of its +-2 window on row 0 / column 0.
+ * DOS never reads them, so turning them from mountains (no bucket at
+ * tech 0) into plains must not move any bid or ask.
+ */
+static int meet_econ_rim(int rim_terrain, AiContactMeetEcon2154* out) {
+  const int vx = 1;
+  static ColonizeCol1Save col1;
+  static ColonizeCol1Tribe tribe;
+  ColonizeWorldMap map;
+  char err[128];
+  memset(&map, 0, sizeof(map));
+  if (!map_alloc(&map, 8, 8, err, sizeof(err))) {
+    return 0;
+  }
+  for (int y = 0; y < 8; ++y) {
+    for (int x = 0; x < 8; ++x) {
+      const int inner = x >= vx && x <= vx + 2 && y >= vx && y <= vx + 2;
+      const int rim = x == 0 || y == 0;
+      map.terrain[y * 8 + x] = rim ? rim_terrain : inner ? 3 : 0xa0; /* 0xa0 = mountains */
+      map.layer3[y * 8 + x] = 0xf1;
+    }
+  }
+  col1_save_init(&col1);
+  memset(&tribe, 0, sizeof(tribe));
+  tribe.nation_id = 4;
+  tribe.x = (uint8_t)vx;
+  tribe.y = (uint8_t)vx;
+  tribe.population = 4;
+  col1.indian[0].tech = 0;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.map = &map;
+  const int ok = ai_contact_meet_economics_2154(&ctx, 4, &tribe, out);
+  map_free(&map);
+  return ok;
+}
+
+static int case_meet_econ_skips_map_rim(void) {
+  AiContactMeetEcon2154 a;
+  AiContactMeetEcon2154 b;
+  if (!meet_econ_rim(0xa0, &a) || !meet_econ_rim(3, &b)) {
+    return fail("2154 rim fixture did not run");
+  }
+  if (a.bid[0] <= 0 || memcmp(a.bid, b.bid, sizeof(a.bid)) != 0 ||
+      memcmp(a.ask, b.ask, sizeof(a.ask)) != 0) {
+    fprintf(stderr, "2154 rim: mountain rim bid0=%d bid3=%d, plains rim bid0=%d bid3=%d\n",
+            a.bid[0], a.bid[3], b.bid[0], b.bid[3]);
+    return fail("2154 phase 2 must skip the map rim (FUN_281f_0302)");
+  }
+  return 0;
+}
+
+/*
+ * FUN_5fef_0f14 kind 2. The picker reseeds from DS:0x83a6 when that word is
+ * set (raw 99773), so these cases park it at -1 and let each seed drive the
+ * stream.
+ */
+static ColonizeColonyPool s_burn_pool;
+
+static void burn_pool_types(ColonizeBuildingRow lo, ColonizeBuildingRow hi) {
+  colonies_init(&s_burn_pool);
+  colonies_set_occupancy_map(NULL);
+  s_burn_pool.building_types[0].row_plus1 = (int)lo + 1;
+  s_burn_pool.building_types[1].row_plus1 = (int)hi + 1;
+  s_burn_pool.building_type_count = 2;
+}
+
+/* Pool colony 0 owning type 0 and (when hi_owned) type 1, levels at 2, one
+ * colonist working in type 1. */
+static ColonizeColony* burn_colony(ColonizeBuildingRow lo, ColonizeBuildingRow hi, bool hi_owned) {
+  burn_pool_types(lo, hi);
+  ColonizeColony* c = &s_burn_pool.colonies[0];
+  memset(c, 0, sizeof(*c));
+  c->active = true;
+  c->building_in_production = -1;
+  c->population = 1;
+  c->colonist_count = 1;
+  c->colonists[0].active = true;
+  c->colonists[0].building_type = 1;
+  c->warehouse_level = 2;
+  c->capitol_level = 2;
+  c->has_building[0] = true;
+  c->has_building[1] = hi_owned;
+  s_burn_pool.colony_count = 1;
+  return c;
+}
+
+static void burn_ctx(ColonizeTurnContext* ctx, ColonizeCol1Save* col1, ColonizeDosRng* rng) {
+  memset(ctx, 0, sizeof(*ctx));
+  ctx->rng = rng;
+  ctx->colonies = &s_burn_pool;
+  ctx->col1 = col1;
+  ctx->col1_ok = true;
+}
+
+static AiRaidKind burn_pick(ColonizeColony* c, ColonizeCol1Save* col1, ColonizeDosRng* rng) {
+  ColonizeTurnContext ctx;
+  burn_ctx(&ctx, col1, rng);
+  return ai_contact_pick_raid_kind(&ctx, c, 4, 0, rng, 1);
+}
+
+static ColonizeCol1Save* burn_col1(void) {
+  static ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  col1.head.tribe_count = 0;
+  return &col1;
+}
+
+/* Warehouse Expansion has no DOS bit (FUN_364b_0114 raw 56911-56923), so the
+ * port's has_building mirror must not change the pick: a colony with the
+ * mirror and one without draw the same stream. */
+static int case_burn_ignores_expansion_mirror(void) {
+  ColonizeCol1Save* col1 = burn_col1();
+  const int32_t saved_83a6 = dos_rng_get_83a6();
+  dos_rng_set_83a6(-1);
+  int burns = 0;
+  int bad_seed = 0;
+  int bad_with = 0;
+  int bad_without = 0;
+  for (uint32_t seed = 1; seed < 300 && !bad_seed; ++seed) {
+    ColonizeDosRng ra;
+    ColonizeDosRng rb;
+    dos_rng_seed(&ra, seed * 12345u);
+    dos_rng_seed(&rb, seed * 12345u);
+    ColonizeColony* c =
+      burn_colony(COLONY_BUILDING_WAREHOUSE, COLONY_BUILDING_WAREHOUSE_EXPANSION, true);
+    const AiRaidKind ka = burn_pick(c, col1, &ra);
+    c = burn_colony(COLONY_BUILDING_WAREHOUSE, COLONY_BUILDING_WAREHOUSE_EXPANSION, false);
+    const AiRaidKind kb = burn_pick(c, col1, &rb);
+    burns += ka == AI_RAID_BURN;
+    if (ka != kb || dos_rng_range(&ra, 0, 0x7fff) != dos_rng_range(&rb, 0, 0x7fff)) {
+      bad_seed = (int)seed;
+      bad_with = (int)ka;
+      bad_without = (int)kb;
+    }
+  }
+  dos_rng_set_83a6(saved_83a6);
+  if (bad_seed) {
+    fprintf(stderr, "burn mirror: seed %d kind %d vs %d\n", bad_seed, bad_with, bad_without);
+    return fail("Warehouse Expansion mirror changed the burn pick (DOS has no 0x10 bit)");
+  }
+  return burns > 0 ? 0 : fail("burn mirror: no BURN sampled");
+}
+
+/* Seeds until a BURN, then applies it. Returns 0 when no BURN was sampled. */
+static int burn_apply(ColonizeBuildingRow lo, ColonizeBuildingRow hi, ColonizeColony** out) {
+  ColonizeCol1Save* col1 = burn_col1();
+  const int32_t saved_83a6 = dos_rng_get_83a6();
+  dos_rng_set_83a6(-1);
+  int found = 0;
+  for (uint32_t seed = 1; seed < 300 && !found; ++seed) {
+    ColonizeColony* c = burn_colony(lo, hi, true);
+    ColonizeDosRng rng;
+    dos_rng_seed(&rng, seed * 12345u);
+    if (burn_pick(c, col1, &rng) != AI_RAID_BURN) {
+      continue;
+    }
+    ColonizeTurnContext ctx;
+    burn_ctx(&ctx, col1, &rng);
+    ai_contact_apply_raid_loot(&ctx, c, 4, 0, AI_RAID_BURN);
+    *out = c;
+    found = 1;
+  }
+  dos_rng_set_83a6(saved_83a6);
+  return found;
+}
+
+/* raw 99951-99973: a Warehouse / Capitol burn at level 2 leaves level 1; the
+ * port's Expansion mirror (no DOS bit) must go with it. */
+static int case_burn_clears_expansion_mirror(void) {
+  ColonizeColony* c = NULL;
+  if (!burn_apply(COLONY_BUILDING_WAREHOUSE, COLONY_BUILDING_WAREHOUSE_EXPANSION, &c)) {
+    return fail("burn mirror: no Warehouse BURN sampled");
+  }
+  const int wh_level = c->warehouse_level;
+  const int wh = c->has_building[0];
+  const int whe = c->has_building[1];
+  if (!burn_apply(COLONY_BUILDING_CAPITOL, COLONY_BUILDING_CAPITOL_EXPANSION, &c)) {
+    return fail("burn mirror: no Capitol BURN sampled");
+  }
+  if (wh_level != 1 || !wh || whe || c->capitol_level != 1 || !c->has_building[0] ||
+      c->has_building[1]) {
+    fprintf(stderr, "burn mirror: wh level %d wh %d whe %d, cap level %d cap %d cpe %d\n",
+            wh_level, wh, whe, c->capitol_level, c->has_building[0], c->has_building[1]);
+    return fail("a 2->1 burn must drop the Expansion mirror and keep the base building");
+  }
+  return 0;
+}
+
+/* raw 99857-99864 walks up to the Cathedral; raw 99975-99983 evicts the crew
+ * only for a chain root, so the Cathedral's preacher keeps working, now in
+ * the Church. */
+static int case_upper_tier_burn_keeps_crew(void) {
+  ColonizeColony* c = NULL;
+  if (!burn_apply(COLONY_BUILDING_CHURCH, COLONY_BUILDING_CATHEDRAL, &c)) {
+    return fail("burn crew: no BURN sampled");
+  }
+  if (c->has_building[1] || !c->has_building[0] || c->colonists[0].building_type != 0) {
+    fprintf(stderr, "burn crew: church %d cathedral %d crew %d\n", c->has_building[0],
+            c->has_building[1], c->colonists[0].building_type);
+    return fail("Cathedral burn must keep its crew working in the Church");
+  }
+  return 0;
+}
+
+/* raw 99975-99985 never touches the project: a burn of the building the
+ * colony is producing leaves building_in_production as it was. */
+static int case_burn_keeps_project(void) {
+  ColonizeColony* c = burn_colony(COLONY_BUILDING_CHURCH, COLONY_BUILDING_CATHEDRAL, true);
+  c->building_in_production = 1;
+  const bool burned = colonies_destroy_building(&s_burn_pool, c->id, 1);
+  if (!burned || c->has_building[1] || c->building_in_production != 1) {
+    fprintf(stderr, "burn project: burned %d cathedral %d project %d (want 1 0 1)\n", burned,
+            c->has_building[1], c->building_in_production);
+    return fail("a burn must leave the colony's project alone");
+  }
+  return 0;
+}
+
+/* FUN_5fef_0f14 kind 3 (raw 99868-99874) takes the first hull in the
+ * tile's chain (07e0 head, 02e4 next), not the lowest unit slot. */
+static ColonizeUnitPool s_ship_units;
+
+static void ship_setup(void) {
+  memset(&s_ship_units, 0, sizeof(s_ship_units));
+  units_reset(&s_ship_units);
+  units_set_occupancy_map(NULL);
+  s_ship_units.type_count = 2;
+  memset(s_ship_units.types, 0, 2 * sizeof(s_ship_units.types[0]));
+  /* @UNIT Privateer / Frigate combat, guns, hull (NAMES.TXT). */
+  s_ship_units.types[0].kind_plus1 = UNITS_KIND_PRIVATEER + 1;
+  s_ship_units.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  s_ship_units.types[0].defense = 8;
+  s_ship_units.types[0].guns = 4;
+  s_ship_units.types[0].hull = 4;
+  s_ship_units.types[1].kind_plus1 = UNITS_KIND_FRIGATE + 1;
+  s_ship_units.types[1].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  s_ship_units.types[1].defense = 16;
+  s_ship_units.types[1].guns = 6;
+  s_ship_units.types[1].hull = 6;
+}
+
+static int case_raid_ship_is_chain_head(void) {
+  ship_setup();
+  const int older = units_spawn_allow_stack(&s_ship_units, 1, 5, 5);
+  const int newer = units_spawn_allow_stack(&s_ship_units, 1, 5, 5);
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.units = &s_ship_units;
+  ColonizeColony c;
+  memset(&c, 0, sizeof(c));
+  c.x = 5;
+  c.y = 5;
+  if (older < 0 || newer < 0 || units_tile_head_id_at(&s_ship_units, 5, 5) != newer) {
+    return fail("raid ship: fixture chain head is not the newer ship");
+  }
+  const int got = ai_contact_raid_port_ship(&ctx, &c);
+  if (got != newer) {
+    fprintf(stderr, "raid ship: older %d newer %d picked %d\n", older, newer, got);
+    return fail("raid ship must be the first hull in the tile chain, not the lowest slot");
+  }
+  return 0;
+}
+
+/* FUN_5fef_0352 raw 99527-99529: the stand-in Privateer row (local_4 = 0x10)
+ * has guns, so the raid makes the damage-vs-sink draw rand(1, guns + loser
+ * hull) before raw 99567 forces the damage anyway. */
+static int case_raid_ship_draws_once(void) {
+  ship_setup();
+  const int id = units_spawn_allow_stack(&s_ship_units, 1, 5, 5);
+  ColonizeDosRng ra;
+  ColonizeDosRng rb;
+  dos_rng_seed(&ra, 4242u * 12345u);
+  dos_rng_seed(&rb, 4242u * 12345u);
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.units = &s_ship_units;
+  ctx.rng = &ra;
+  ColonizeColony c;
+  memset(&c, 0, sizeof(c));
+  c.active = true;
+  c.x = 5;
+  c.y = 5;
+  if (id < 0) {
+    return fail("raid ship: spawn failed");
+  }
+  ai_contact_apply_raid_loot(&ctx, &c, 4, 0, AI_RAID_SHIP);
+  const ColonizeUnit* u = units_get(&s_ship_units, id);
+  (void)dos_rng_range(&rb, 1, 4 + 6); /* Privateer guns + Frigate hull */
+  const int got = dos_rng_range(&ra, 0, 0x7fff);
+  const int want = dos_rng_range(&rb, 0, 0x7fff);
+  if (!u || !u->active || got != want) {
+    fprintf(stderr, "raid ship draw: next %d, one-draw stream %d, alive %d\n", got, want,
+            u && u->active);
+    return fail("raid ship damage must make exactly one rand(1, guns+hull) draw");
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+    {"case_raid_ship_draws_once", case_raid_ship_draws_once},
+    {"case_raid_ship_is_chain_head", case_raid_ship_is_chain_head},
+    {"case_burn_ignores_expansion_mirror", case_burn_ignores_expansion_mirror},
+    {"case_burn_clears_expansion_mirror", case_burn_clears_expansion_mirror},
+    {"case_upper_tier_burn_keeps_crew", case_upper_tier_burn_keeps_crew},
+    {"case_burn_keeps_project", case_burn_keeps_project},
+    {"case_meet_econ_skips_map_rim", case_meet_econ_skips_map_rim},
+    {"case_threat_ring_mixed_stack", case_threat_ring_mixed_stack},
+    {"case_heresy_presence_dos_distance", case_heresy_presence_dos_distance},
+    {"case_heresy_human_difficulty", case_heresy_human_difficulty},
+    {"case_heresy_third_nation_seeds_mission", case_heresy_third_nation_seeds_mission},
     {"case_830_stores_amount_is_a_roll", case_830_stores_amount_is_a_roll},
     {"case_832_stores_cargo_retry_loop", case_832_stores_cargo_retry_loop},
     {"case_795_buy_candidate_uses_sorted_slot", case_795_buy_candidate_uses_sorted_slot},

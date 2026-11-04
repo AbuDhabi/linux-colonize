@@ -650,16 +650,34 @@ bool colonies_destroy_building(ColonizeColonyPool* pool, int colony_id, int buil
     return false;
   }
   col->has_building[building_type] = false;
-  if (col->building_in_production == building_type) {
-    col->building_in_production = -1;
+  /*
+   * DOS-LITERAL FUN_5fef_0f14 kind 2, raw 99975-99985 (its only caller):
+   * the project is never touched, and the crew is evicted (job 0xd) only when
+   * the row is a chain root (`byte[row*0xc-0x707b] < 0`). Under a burned
+   * upper tier DOS keeps the job, so the port re-binds the crew to the best
+   * tier still owned (colonist building_type names a tier).
+   */
+  const int chain = colonies_building_row_chain(destroyed_row);
+  const int* rows = chain >= 0 ? colonies_building_chain_rows(chain) : NULL;
+  const bool root = !rows || rows[0] == destroyed_row;
+  int keep = -1;
+  for (int t = 0; !root && t < 4 && rows[t] >= 0 && rows[t] != destroyed_row; ++t) {
+    const int bt = colonies_building_row(pool, (ColonizeBuildingRow)rows[t]);
+    if (bt >= 0 && bt < COLONIZE_BUILDING_TYPES_MAX && col->has_building[bt]) {
+      keep = bt;
+    }
   }
   for (int i = 0; i < col->colonist_count; ++i) {
     ColonizeColonist* c = &col->colonists[i];
-    if (!c->active) {
+    if (!c->active || c->building_type != building_type) {
       continue;
     }
-    if (c->building_type == building_type) {
+    /* A non-root tier with nothing owned below it (a lone tier from a save)
+     * keeps its building_type, as DOS keeps the job. */
+    if (root) {
       c->building_type = -1;
+    } else if (keep >= 0) {
+      c->building_type = keep;
     }
   }
   return true;
