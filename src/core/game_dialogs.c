@@ -901,9 +901,6 @@ static void game_do_disband(ColonizeGameState* game, int uid) {
     }
     return;
   }
-  /* Seed from the live record in the slot before the disbanded one, any
-   * nation (slot order, not id order: ids recycle and do not track slots). */
-  const int seed_id = turn_disband_rotation_seed(&game->units, uid);
   /* DOS prints nothing for a disband (FUN_2b5a_199e). */
   set_status(game, "", NULL);
   if (uid < 0 || !units_disband(&game->units, uid)) {
@@ -915,9 +912,8 @@ static void game_do_disband(ColonizeGameState* game, int uid) {
    * only runs for slot 0), and the map loop FUN_2b5a_3b68 / FUN_2b5a_0e52
    * re-tests that unit with FUN_1427_1410 (= turn_unit_in_rotation); only if it
    * fails does FUN_1427_14a0 scan forward from the slot after it, wrapping.
-   * See turn_disband_rotation_seed.
+   * units_despawn records that step (rotation_retest_id).
    */
-  game->units.selected_id = seed_id;
   game_wait_next_unit(game);
 }
 

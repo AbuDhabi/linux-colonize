@@ -361,6 +361,20 @@ static void units_census_count_destroy(const ColonizeUnit* unit) {
   }
 }
 
+/* FUN_1427_0824 raw 7834-7836 `if (0x5392 != 0 && deleted <= 0x5392) 0x5392--`:
+ * only the delete of the active record (or of the record it already stepped
+ * back to) moves what the next scan re-tests; ids keep every other case
+ * stable. Slot 0 needs nothing: prev is -1 and the scan from slot 0 reaches
+ * the unit that took its place. Call while the unit is still live. */
+static void units_despawn_rotation_step(ColonizeUnitPool* pool, int id) {
+  if (pool->selected_id == id) {
+    pool->selected_id = -1;
+    pool->rotation_retest_id = units_prev_live_id(pool, id);
+  } else if (pool->rotation_retest_id == id) {
+    pool->rotation_retest_id = units_prev_live_id(pool, id);
+  }
+}
+
 bool units_despawn(ColonizeUnitPool* pool, int unit_id) {
   ColonizeUnit* unit = units_get(pool, unit_id);
   if (!unit) {
@@ -375,12 +389,10 @@ bool units_despawn(ColonizeUnitPool* pool, int unit_id) {
       ColonizeUnit* pax = units_get(pool, unit->cargo_ids[i]);
       if (pax) {
         units_census_count_destroy(pax);
+        units_despawn_rotation_step(pool, pax->id);
         units_clear_slot(pool, pax);
         if (pool->unit_count > 0) {
           pool->unit_count--;
-        }
-        if (pool->selected_id == unit->cargo_ids[i]) {
-          pool->selected_id = -1;
         }
       }
     }
@@ -420,12 +432,10 @@ bool units_despawn(ColonizeUnitPool* pool, int unit_id) {
     g_units_fallout_col1->tribe[unit->home_tribe_index].state.needs_colonist = 1;
   }
   units_census_count_destroy(unit);
+  units_despawn_rotation_step(pool, unit_id);
   units_clear_slot(pool, unit);
   if (pool->unit_count > 0) {
     pool->unit_count--;
-  }
-  if (pool->selected_id == unit_id) {
-    pool->selected_id = -1;
   }
   if (was_on_map) {
     units_occupancy_refresh_tile(pool, ox, oy, unit_id);

@@ -1180,7 +1180,23 @@ bool units_despawn_ship_with_cargo(
       out_hold_goods_amount[i] = 0;
     }
   }
-  return units_despawn(pool, ship_id);
+  const bool was_selected = pool->selected_id == ship_id;
+  const int slot = (int)(ship - pool->units);
+  if (!units_despawn(pool, ship_id)) {
+    return false;
+  }
+  if (was_selected) {
+    /* Sailing is no delete: FUN_48d3_007a relinks the hull onto the lane and
+     * DS:0x5392 stays on it, so the scan resumes at the slot after it. */
+    pool->rotation_retest_id = -1;
+    for (int i = slot + 1; i < units_slot_end(pool); ++i) {
+      if (pool->units[i].active) {
+        pool->rotation_retest_id = pool->units[i].id;
+        break;
+      }
+    }
+  }
+  return true;
 }
 
 static int units_spawn_aboard_impl(

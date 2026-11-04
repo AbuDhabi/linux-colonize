@@ -255,6 +255,7 @@ void units_reset(ColonizeUnitPool* pool) {
   pool->slot_end = 0;
   pool->unit_count = 0;
   pool->selected_id = -1;
+  pool->rotation_retest_id = -1;
   pool->board_first_slot = -1;
   pool->next_id = 1;
   pool->id_recycle_cursor = 0;

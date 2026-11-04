@@ -2030,6 +2030,46 @@ static int test_activate_ignores_foreign_unit(void) {
   return rc;
 }
 
+/* game_select_tile keeps the despawn step-back (FUN_1427_0824 raw
+ * 7834-7836) when the selection just died, and drops it when the player
+ * leaves a live selection. */
+static int test_select_tile_rotation_retest(void) {
+  static ColonizeGameState game;
+  memset(&game, 0, sizeof(game));
+  if (!fx_map_alloc(&game.world_map, 8, 8, /*terrain_fill=*/3, /*with_seen=*/true)) {
+    return fail("select tile retest map alloc");
+  }
+  game.world_map_ok = true;
+  fx_units_init(&game.units);
+  game.units_ok = true;
+  game.units.type_count = 1;
+  game.units.types[0].movement = 1;
+  game.units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units_set_occupancy_map(&game.world_map);
+  const int a = units_spawn(&game.units, 0, 2, 2);
+  const int b = units_spawn(&game.units, 0, 3, 3);
+  const int c = units_spawn(&game.units, 0, 4, 4);
+  int rc = 0;
+  game.units.selected_id = b;
+  if (!units_despawn(&game.units, b) || game.units.rotation_retest_id != a) {
+    rc = fail("despawn of the selection should step back to the previous unit");
+  } else {
+    game_select_tile(&game, 3, 3);
+    if (game.units.rotation_retest_id != a) {
+      rc = fail("select tile after a death must keep the step-back");
+    } else {
+      game.units.selected_id = c;
+      game_select_tile(&game, 4, 4);
+      if (game.units.rotation_retest_id != -1 || game.units.selected_id != -1) {
+        rc = fail("select tile from a live selection must drop the step-back");
+      }
+    }
+  }
+  units_set_occupancy_map(NULL);
+  fx_map_free(&game.world_map);
+  return rc;
+}
+
 /* Edge-scroll fixture: 60x60 land, one land type (1 tile a turn), human
  * France, zoom 0, view centred on (30,30); *ox = the view's left column. No
  * rumour on row 30 columns ox..ox+2. Free with edge_scroll_free. */
@@ -4240,6 +4280,7 @@ static const TestCase k_cases[] = {
     {"test_game_world_view", test_game_world_view},
     {"test_goto_place_opens_travelplace_list", test_goto_place_opens_travelplace_list},
     {"test_activate_ignores_foreign_unit", test_activate_ignores_foreign_unit},
+    {"test_select_tile_rotation_retest", test_select_tile_rotation_retest},
     {"test_move_edge_scroll_uses_departure_tile", test_move_edge_scroll_uses_departure_tile},
     {"test_board_step_watch_and_ship_margin", test_board_step_watch_and_ship_margin},
     {"test_phantom_lunge_edge_scroll_uses_colony_tile",

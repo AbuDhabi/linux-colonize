@@ -211,14 +211,23 @@ bool turn_unit_in_rotation(const ColonizeUnitPool* pool, const ColonizeUnit* u, 
 
 /* DOS FUN_1427_14a0 (raw 8817-8843): walk the SLOTS after the active one,
  * wrapping, back to it inclusive; an unknown active unit scans from slot 0.
- * Slot order, not id order: ids recycle and do not track slots. */
+ * Slot order, not id order: ids recycle and do not track slots.
+ * After a despawn of the active unit the scan starts AT rotation_retest_id
+ * (FUN_1427_0824 raw 7834-7836 step-back, re-tested by FUN_1427_1410). */
 bool turn_select_next_unit(ColonizeUnitPool* pool, int human_nation) {
   if (!pool) {
     return false;
   }
   const int end = units_slot_end(pool);
   const ColonizeUnit* cur = units_get_const(pool, pool->selected_id);
-  const int start = cur ? (int)(cur - pool->units) : -1;
+  int start = cur ? (int)(cur - pool->units) : -1;
+  if (!cur && pool->rotation_retest_id > 0) { /* units_alloc_id starts at 1: 0 = none */
+    const ColonizeUnit* retest = units_get_const(pool, pool->rotation_retest_id);
+    if (retest) {
+      start = (int)(retest - pool->units) - 1;
+    }
+  }
+  pool->rotation_retest_id = -1;
   for (int k = 1; k <= end; ++k) {
     const int i = start < 0 ? k - 1 : (start + k) % end;
     if (turn_unit_in_rotation(pool, &pool->units[i], human_nation)) {
@@ -227,11 +236,6 @@ bool turn_select_next_unit(ColonizeUnitPool* pool, int human_nation) {
     }
   }
   return false;
-}
-
-int turn_disband_rotation_seed(const ColonizeUnitPool* pool, int unit_id) {
-  const int prev_id = units_prev_live_id(pool, unit_id);
-  return prev_id >= 0 ? units_prev_live_id(pool, prev_id) : -1;
 }
 
 bool turn_select_next_unit_awaiting_orders(ColonizeUnitPool* pool, int human_nation) {

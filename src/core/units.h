@@ -180,6 +180,14 @@ typedef struct ColonizeUnitPool {
   ColonizeUnit units[COLONIZE_UNITS_MAX];
   int unit_count;
   int selected_id;
+  /* FUN_1427_0824 raw 7834-7836: deleting the active record steps DS:0x5392
+   * back one record, and the map loop re-tests that record before scanning
+   * on. units_despawn clears selected_id (nothing acts on a stand-in unit)
+   * and keeps that record's id here; the next turn_select_next_unit starts
+   * AT it and clears it (<= 0 / dead id = scan from slot 0; ids start at 1,
+   * so a zeroed pool reads as none). An id, so it survives units_pool_compact.
+   * game_select_tile drops it when the player leaves a live selection. */
+  int rotation_retest_id;
   /* port_bugs.md "Move to front": the unit in this pool SLOT (units[i], NOT a
    * unit id) boards departing ships first and heads the colony rosters
    * (-1 = none; DOS reorders its unit chain). Was board_first_id. */

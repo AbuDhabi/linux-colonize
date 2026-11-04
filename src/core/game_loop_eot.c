@@ -921,6 +921,7 @@ void game_move_pieces_entry(ColonizeGameState* game) {
     return;
   }
   game->units.selected_id = -1;
+  game->units.rotation_retest_id = -1;
   game->player_had_control = false; /* raw 46834: 0x97b0 = 0 */
   if (game_select_next_unit_awaiting_orders(game)) {
     game->view_pieces_mode = false;

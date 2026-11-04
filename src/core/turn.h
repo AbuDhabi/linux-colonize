@@ -307,13 +307,6 @@ void turn_refresh_moves_for_nation_w(const ColonizeWorld* w, int nation_id);
 /* FUN_1427_1410 eligibility: the rotation filter turn_select_next_unit applies. */
 bool turn_unit_in_rotation(const ColonizeUnitPool* pool, const ColonizeUnit* u, int human_nation);
 bool turn_select_next_unit(ColonizeUnitPool* pool, int human_nation);
-/* Disband (FUN_1427_0824 raw 7834-7836): DOS steps 0x5392 back to the
- * previous record, re-tests it, then scans on (FUN_1427_14a0). Returns the
- * selected_id seed (taken BEFORE the disband) that makes turn_select_next_unit
- * reach that previous live unit first: the live unit before it, or -1 (scan
- * from slot 0, which also covers disbanding slot 0, where the next unit slid
- * in and 0x5392 stays 0). */
-int turn_disband_rotation_seed(const ColonizeUnitPool* pool, int unit_id);
 
 /*
  * turn_select_next_unit plus the standing-order skip every hand-off site

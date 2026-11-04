@@ -4188,16 +4188,97 @@ static int case_rotation_slot_order_and_disband_seed(void) {
     fprintf(stderr, "rotation: after id 3 picked %d (want slot-next 7)\n", pool.selected_id);
     return 1;
   }
-  /* Disband id 3 (slot 2): prev is 9 (slot 1), tested first. */
-  pool.selected_id = turn_disband_rotation_seed(&pool, 3);
-  if (!units_despawn(&pool, 3) || !turn_select_next_unit(&pool, 0) || pool.selected_id != 9) {
+  /* Despawn the active id 3 (slot 2): prev is 9 (slot 1), tested first. */
+  pool.selected_id = 3;
+  if (!units_despawn(&pool, 3) || pool.selected_id != -1 || !turn_select_next_unit(&pool, 0) ||
+      pool.selected_id != 9) {
     fprintf(stderr, "disband: picked %d (want prev 9)\n", pool.selected_id);
     return 1;
   }
-  /* Disband slot 0 (id 5): 0x5392 stays 0, the unit after it is first. */
-  pool.selected_id = turn_disband_rotation_seed(&pool, 5);
+  /* Despawn the active slot 0 (id 5): 0x5392 stays 0, the unit after it is first. */
+  pool.selected_id = 5;
   if (!units_despawn(&pool, 5) || !turn_select_next_unit(&pool, 0) || pool.selected_id != 9) {
     fprintf(stderr, "disband slot 0: picked %d (want 9)\n", pool.selected_id);
+    return 1;
+  }
+  return 0;
+}
+
+/* Every despawn of the active unit (death, join, found, disband) steps the
+ * rotation back one record (FUN_1427_0824 raw 7834-7836); a hull sailing to
+ * Europe is no delete, so the scan resumes after it. Slots hold ids 5, 9,
+ * 3, 7; id 3 can be made a ship. */
+static ColonizeUnitPool* despawn_rotation_pool(void) {
+  static ColonizeUnitPool pool;
+  units_set_occupancy_map(NULL);
+  units_reset(&pool);
+  pool.type_count = 2;
+  snprintf(pool.types[0].name, sizeof(pool.types[0].name), "Colonists");
+  pool.types[0].movement = 1;
+  snprintf(pool.types[1].name, sizeof(pool.types[1].name), "Caravel");
+  pool.types[1].movement = 4;
+  pool.types[1].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  const int ids[4] = {5, 9, 3, 7};
+  for (int i = 0; i < 4; ++i) {
+    ColonizeUnit* u = &pool.units[i];
+    u->active = true;
+    u->id = ids[i];
+    u->nation_id = 0;
+    u->x = 5 + i;
+    u->y = 5;
+    u->moves = 3;
+    u->aboard_ship_id = -1;
+  }
+  units_pool_sync(&pool);
+  return &pool;
+}
+
+static int case_despawn_rotation_step_back(void) {
+  /* Chain: active 7 dies (retest 3), then 3 dies before the scan (retest 9). */
+  ColonizeUnitPool* pool = despawn_rotation_pool();
+  pool->selected_id = 7;
+  if (!units_despawn(pool, 7) || !units_despawn(pool, 3) || !turn_select_next_unit(pool, 0) ||
+      pool->selected_id != 9) {
+    fprintf(stderr, "despawn chain: picked %d (want 9)\n", pool->selected_id);
+    return 1;
+  }
+  /* The re-tested record fails 1410 (no moves): the scan goes on after it. */
+  pool = despawn_rotation_pool();
+  pool->units[1].moves = 0; /* id 9 */
+  pool->selected_id = 3;
+  if (!units_despawn(pool, 3) || !turn_select_next_unit(pool, 0) || pool->selected_id != 7) {
+    fprintf(stderr, "despawn retest fails: picked %d (want 7)\n", pool->selected_id);
+    return 1;
+  }
+  /* The step-back survives a pool pack (ids, not slots). */
+  pool = despawn_rotation_pool();
+  pool->selected_id = 7;
+  if (!units_despawn(pool, 9) || !units_despawn(pool, 7)) {
+    return 1;
+  }
+  units_pool_compact(pool);
+  if (!turn_select_next_unit(pool, 0) || pool->selected_id != 3) {
+    fprintf(stderr, "despawn compact: picked %d (want 3)\n", pool->selected_id);
+    return 1;
+  }
+  /* One use only: a later scan with no active unit starts at slot 0. */
+  pool = despawn_rotation_pool();
+  pool->selected_id = 3;
+  if (!units_despawn(pool, 3) || !turn_select_next_unit(pool, 0) || pool->selected_id != 9) {
+    return 1;
+  }
+  pool->selected_id = -1;
+  if (!turn_select_next_unit(pool, 0) || pool->selected_id != 5) {
+    fprintf(stderr, "despawn one use: picked %d (want slot-0 5)\n", pool->selected_id);
+    return 1;
+  }
+  /* Sail: the selected ship (id 3, slot 2) leaves; the scan resumes at 7. */
+  pool = despawn_rotation_pool();
+  pool->units[2].type_index = 1;
+  pool->selected_id = 3;
+  if (!units_despawn_ship_with_cargo(pool, 3, NULL, NULL, 0, NULL, NULL, 0, NULL, NULL, 0) ||
+      !turn_select_next_unit(pool, 0) || pool->selected_id != 7) {
+    fprintf(stderr, "despawn sail: picked %d (want 7)\n", pool->selected_id);
     return 1;
   }
   return 0;
@@ -7393,5 +7474,6 @@ static const TestCase k_cases[] = {
   {"produce_seam_lumber", case_produce_seam_lumber},
   {"processor_packs_unit_pool", case_processor_packs_unit_pool},
   {"rotation_slot_order_and_disband_seed", case_rotation_slot_order_and_disband_seed},
+  {"despawn_rotation_step_back", case_despawn_rotation_step_back},
 };
 TEST_MAIN(k_cases)

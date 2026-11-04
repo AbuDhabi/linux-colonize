@@ -110,6 +110,12 @@ void game_select_tile(ColonizeGameState* game, int x, int y) {
     map_clamp_coords_inset(&game->world_map, &x, &y);
   }
   if (game->units_ok) {
+    /* A live selection here means the player moved on since any despawn
+     * step-back: it no longer applies. With no live selection (the unit just
+     * died / joined) the step-back stays for the next scan. */
+    if (units_get_const(&game->units, game->units.selected_id)) {
+      game->units.rotation_retest_id = -1;
+    }
     game->units.selected_id = -1;
   }
   game->map_cursor_x = x;
@@ -1161,8 +1167,9 @@ void game_after_unit_action(ColonizeGameState* game) {
      * damaged hull sent to Europe). DOS's Move Pieces pass (FUN_2b5a_3b68
      * raw 46840-46848) re-tests the active unit, finds it ineligible and
      * scans on from its slot (FUN_1427_14a0) — the same hand-off as an
-     * exhausted unit below, not View Pieces. The stale selected_id is the
-     * scan start. */
+     * exhausted unit below, not View Pieces. FUN_1427_0824 (raw 7834-7836)
+     * stepped DS:0x5392 back one record on the delete; units_despawn kept
+     * that record in rotation_retest_id, so the scan re-tests it first. */
     if (game->view_pieces_mode) {
       game_select_tile(game, game->map_cursor_x, game->map_cursor_y);
     } else {
