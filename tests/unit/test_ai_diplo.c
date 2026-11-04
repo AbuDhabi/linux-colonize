@@ -2005,7 +2005,22 @@ static int case_2b5a_1112_fortify_break_treaty(void) {
   return rc;
 }
 
+/* FUN_5bfb_00f8 raw 96518-96522 keeps each score in a 16-bit word (sorted
+ * unsigned), so 6.6M gold (gold/100 = 66000) wraps to 464 and ranks below
+ * 100k gold (1000). */
+static int case_00f8_score_wraps_16bit(void) {
+  static ColonizeCol1Save c;
+  memset(&c, 0, sizeof(c));
+  c.nation[2].gold = 6600000u;
+  c.nation[3].gold = 100000u;
+  if (ai_diplo_00f8_top_ranked_nation(&c) != 3) {
+    return fail("00f8: a score past 65535 must wrap in 16 bits");
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+    {"case_00f8_score_wraps_16bit", case_00f8_score_wraps_16bit},
     {"case_2b5a_1112_fortify_break_treaty", case_2b5a_1112_fortify_break_treaty},
     {"case_153e_peacemenu_withdraw_dominance", case_153e_peacemenu_withdraw_dominance},
     {"case_relation_writes_preserve_player_bytes", case_relation_writes_preserve_player_bytes},

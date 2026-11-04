@@ -815,13 +815,16 @@ int ai_diplo_00f8_top_ranked_nation(const ColonizeCol1Save* col1) {
     return -1;
   }
   int idx[4] = {0, 1, 2, 3};
-  long score[4];
+  /* DOS-LITERAL raw 96518-96522: `int local_a[4]`, gold/100 taken as the low
+   * word, compared unsigned by FUN_1cf8_000a (as turn_rank_euro_nations). */
+  uint16_t score[4];
   for (int n = 0; n < 4; ++n) {
     /* Live purse for the human (eu->gold via the registered live screen),
      * record for the rest — port_bugs.md #1095. */
-    score[n] = (long)(europe_nation_gold(NULL, col1, n) / 100u) +
-               (long)col1->stuff.colony_counts[n] * 2 + (long)col1->stuff.census_pop_proxy[n] +
-               (long)col1->stuff.land_combat_strength[n];
+    score[n] = (uint16_t)((unsigned)(europe_nation_gold(NULL, col1, n) / 100u) +
+                          (unsigned)col1->stuff.colony_counts[n] * 2u +
+                          (unsigned)col1->stuff.census_pop_proxy[n] +
+                          (unsigned)col1->stuff.land_combat_strength[n]);
   }
   for (int i = 1; i < 4; ++i) { /* insertion sort, stable */
     const int v = idx[i];
