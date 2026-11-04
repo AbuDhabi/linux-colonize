@@ -609,6 +609,69 @@ static int case_tb38_land_ignores_stale_nibble(void) {
   return 0;
 }
 
+/* FUN_43f7_06a6 Tory uprising fixture: one human colony at (2,10) with live
+ * population 8 and a stale col1 mirror record of population 0 (SoL 0), no
+ * REF pools left, crown 1, difficulty 0. Runs the wave until the uprising
+ * fires and returns the crown units spawned. */
+static int tory_fx_run(TbInvFx* f, ColonizeCol1Save* col1, ColonizeCol1Colony* mirror) {
+  if (!tb_inv_fx_init(f)) {
+    return -1;
+  }
+  f->units.type_count = 2;
+  memset(f->units.types, 0, 2 * sizeof(f->units.types[0]));
+  f->units.types[0].kind_plus1 = UNITS_KIND_SOLDIER + 1;
+  f->units.types[0].movement = 1;
+  f->units.types[0].attack = 2;
+  f->units.types[1].kind_plus1 = UNITS_KIND_DRAGOON + 1;
+  f->units.types[1].movement = 4;
+  f->units.types[1].attack = 3;
+  tb_inv_add_colony(f, 2, 10, 8);
+  memset(col1, 0, sizeof(*col1));
+  memset(mirror, 0, sizeof(*mirror));
+  mirror->nation_id = 0;
+  mirror->x = 2;
+  mirror->y = 10;
+  mirror->population = 0; /* stale: the colony grew since the last capture */
+  mirror->rebel_divisor = 100;
+  col1->colony = mirror;
+  col1->head.colony_count = 1;
+  col1->head.crown_nation_id = 1;
+  ai_king_set_independence(col1, 1);
+  f->ctx.col1 = col1;
+  f->ctx.col1_ok = true;
+  ColonizeDosRng rng;
+  dos_rng_seed(&rng, 7u * 12345u);
+  f->ctx.rng = &rng;
+  int spawned = 0;
+  for (int t = 0; t < 32 && spawned == 0; ++t) {
+    ai_king_ref_wave(&f->ctx);
+    for (int i = 0; i < units_slot_end(&f->units); ++i) {
+      spawned += f->units.units[i].active && f->units.units[i].nation_id == 1;
+    }
+  }
+  f->ctx.rng = NULL;
+  return spawned;
+}
+
+/* raw 73850-73856 walks the live colony array: the size is the live +0x1f
+ * population (8 * 100 * 2 / 100 + 0 + 1 = 17), and the +0x1c bit 0 latch
+ * (raw 73889) lands on the live colony, which the save capture copies. */
+static int case_tory_uprising_reads_live_colony(void) {
+  static TbInvFx f;
+  static ColonizeCol1Save col1;
+  static ColonizeCol1Colony mirror;
+  const int spawned = tory_fx_run(&f, &col1, &mirror);
+  int rc = 0;
+  if (spawned != 17 ||
+      (f.colonies.colonies[0].colony_flags & COLONIZE_COLONY_FLAG_REF_LANDING) == 0) {
+    fprintf(stderr, "tory: spawned %d (want 17) live latch %d\n", spawned,
+            (f.colonies.colonies[0].colony_flags & COLONIZE_COLONY_FLAG_REF_LANDING) != 0);
+    rc = fail("tory uprising must size and latch on the live colony");
+  }
+  map_free(&f.map);
+  return rc;
+}
+
 /* ===== divergences.hard_king (docs/settings.md) ===== */
 
 static void hard_king_set(bool on) {
@@ -960,6 +1023,7 @@ static int case_succession_reruns_census(void) {
 }
 
 static const TestCase k_cases[] = {
+    {"case_tory_uprising_reads_live_colony", case_tory_uprising_reads_live_colony},
     {"case_succession_reruns_census", case_succession_reruns_census},
     {"case_succession_moves_missions", case_succession_moves_missions},
     {"case_succession_rewrites_owner_map", case_succession_rewrites_owner_map},

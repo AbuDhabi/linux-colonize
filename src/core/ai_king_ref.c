@@ -463,7 +463,7 @@ static void ai_king_ref_tory_uprising(ColonizeTurnContext* ctx, int crown, int h
    * 73829-73932), replacing the old one-Regular-at-(hx,hy+1) stand-in
    * that could drop Regulars on a WATER tile:
    *   - roll(0, difficulty+1) != 0 to fire at all;
-   *   - per human colony without the +0x1c bit1 latch (flags.ref_landing):
+   *   - per human colony without the +0x1c bit 0 latch (colony_flags):
    *     score = pop*(100-SoL)*2/100 + difficulty+1, minus the attack
    *     strength of every unit on the colony tile; a crown unit on any
    *     adjacent land tile, or no free adjacent LAND tile, disqualifies;
@@ -477,16 +477,23 @@ static void ai_king_ref_tory_uprising(ColonizeTurnContext* ctx, int crown, int h
   }
   static const int dx8[8] = {-1, 0, 1, 1, 1, 0, -1, -1};
   static const int dy8[8] = {-1, -1, -1, 0, 1, 1, 1, 0};
+  if (!ctx->colonies) {
+    return;
+  }
+  /* raw 73850-73855 walks the live colony array: population +0x1f and the
+   * +0x1c latch live on the colony. The col1 mirror copies them only at the
+   * next save capture, and that capture rewrites the mirror's +0x1c from
+   * colony_flags, so a latch set on the mirror alone is lost. */
   int best_ci = -1;
   int best_score = 0;
-  for (uint16_t ci = 0; ci < ctx->col1->head.colony_count; ++ci) {
-    ColonizeCol1Colony* c = ctx->col1->colony ? &ctx->col1->colony[ci] : NULL;
-    if (!c || (int)c->nation_id != human || c->flags.ref_landing) {
+  for (int ci = 0; ci < COLONIZE_COLONIES_MAX; ++ci) {
+    const ColonizeColony* c = &ctx->colonies->colonies[ci];
+    if (!c->active || c->nation_id != human ||
+        (c->colony_flags & COLONIZE_COLONY_FLAG_REF_LANDING) != 0) {
       continue;
     }
-    const int sol_p = ai_king_colony_sol_at(ctx, human, (int)c->x, (int)c->y);
-    int score = ((int)c->population * (100 - sol_p) * 2) / 100 +
-                (int)ctx->col1->head.difficulty + 1;
+    const int sol_p = ai_king_colony_sol_at(ctx, human, c->x, c->y);
+    int score = (c->population * (100 - sol_p) * 2) / 100 + (int)ctx->col1->head.difficulty + 1;
     for (int i = 0; i < units_slot_end(ctx->units); ++i) {
       const ColonizeUnit* u = &ctx->units->units[i];
       if (u->active && u->aboard_ship_id < 0 && u->x == (int)c->x && u->y == (int)c->y) {
@@ -522,8 +529,8 @@ static void ai_king_ref_tory_uprising(ColonizeTurnContext* ctx, int crown, int h
   if (best_ci < 0 || best_score <= 0) {
     return;
   }
-  ColonizeCol1Colony* c = &ctx->col1->colony[best_ci];
-  c->flags.ref_landing = 1;
+  ColonizeColony* c = &ctx->colonies->colonies[best_ci];
+  c->colony_flags |= COLONIZE_COLONY_FLAG_REF_LANDING;
   const int soldier_ty = units_kind_type_index(ctx->units, UNITS_KIND_SOLDIER);
   const int dragoon_ty = units_kind_type_index(ctx->units, UNITS_KIND_DRAGOON);
   /* DOS bug not reproduced (docs/dos_bugs.md DB-41): raw 73891 spawns
@@ -579,7 +586,7 @@ static void ai_king_ref_tory_uprising(ColonizeTurnContext* ctx, int crown, int h
     }
   }
   if (spawned == 0) {
-    c->flags.ref_landing = 0;
+    c->colony_flags &= (uint8_t)~COLONIZE_COLONY_FLAG_REF_LANDING;
     return;
   }
   if (ai_king_human_popups(ctx)) {
