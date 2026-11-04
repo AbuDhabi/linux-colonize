@@ -77,6 +77,19 @@ static int case_scout(void) {
   CHECK(u->automated && u->orders == UNITS_ORDER_GOTO);
   CHECK(map_dos_dist(u->goto_x - units_get(&s_pool, fid)->x, u->goto_y - units_get(&s_pool, fid)->y) > 1);
 
+  /* A signed treaty is not hostile, even with WAR 0x02 kept through it
+   * (FUN_5bfb_153e raw 98003): the nearest target comes back. */
+  {
+    static ColonizeCol1Save peace;
+    memset(&peace, 0, sizeof(peace));
+    peace.nation[0].euro_relation[1] = 0x62; /* MET | PEACE | WAR */
+    peace.nation[1].euro_relation[0] = 0x62;
+    const ColonizeWorld wp = {.units = &s_pool, .colonies = &s_colonies, .map = &s_map, .col1 = &peace};
+    u->orders = UNITS_ORDER_NONE;
+    explore_auto_step(&wp, u);
+    CHECK(u->automated && u->orders == UNITS_ORDER_GOTO && u->goto_x == gx && u->goto_y == gy);
+  }
+
   /* Campaign 16: a Go To that swings between two tiles without getting closer is
    * dropped after EXPLORE_AUTO_STALL_STEPS steps and its target is not chosen again. */
   units_get(&s_pool, fid)->x = 11;

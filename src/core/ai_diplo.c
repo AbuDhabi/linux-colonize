@@ -2171,7 +2171,10 @@ static void ai_talk_resume(ColonizeTurnContext* ctx, int stage, int choice) {
       return;
     case AI_TALK_ST_WORTHY:
       if (choice == 1) {
-        ai_diplo_clear_both(col1, h, t, AI_DIPLO_WAR); /* port_bugs.md #465: PEACE and the OpenCol WAR bit must not coexist */
+        /* FUN_5bfb_153e raw 98003: caseD_10(h, t, 0x40) only. WAR 0x02
+         * survives the treaty and drives the next audience (raw 97509). The
+         * fort (FUN_364b_03f6 raw 57082) and move gates read PEACE, so
+         * port_bugs.md #465 needs no clear here. */
         ai_diplo_or_both(col1, h, t, (uint8_t)(AI_DIPLO_PEACE | AI_DIPLO_MET));
         col1->head.nation_relation[t] = (int16_t)(col1->head.turn + 0x10);
         k->stage = AI_TALK_ST_PEACEMENU;
@@ -2182,7 +2185,8 @@ static void ai_talk_resume(ColonizeTurnContext* ctx, int stage, int choice) {
       return;
     case AI_TALK_ST_GIVECASH:
       if (choice == 1) {
-        ai_diplo_clear_both(col1, h, t, AI_DIPLO_WAR); /* port_bugs.md #465 */
+        /* FUN_5bfb_153e raw 98023-98025: PUSH 0x40 before caseD_10, PEACE
+         * only; 0x02 untouched. */
         ai_diplo_or_both(col1, h, t, (uint8_t)(AI_DIPLO_PEACE | AI_DIPLO_MET));
         ai_talk_gold(ctx, t, h, k->pending_gold);
       } else if (!ai_talk_peace(ctx, h, t)) {
@@ -2831,7 +2835,8 @@ static void ai_diplo_13b0_treaty_tick(ColonizeTurnContext* ctx, int a, int b) {
   if (!worthy) {
     if ((rel_ab & AI_DIPLO_PEACE) == 0) {
       popup_msg_fill(ctx->messages, "SIGNTREATY", &tok, "", body, sizeof(body));
-      ai_diplo_clear_both(col1, a, b, AI_DIPLO_WAR); /* port_bugs.md #465: a signed treaty ends the war */
+      /* FUN_5bfb_13b0 raw 97288: caseD_10(a, b, 0x40) only; the WAR gate
+       * above (raw 97278) already guarantees 0x02 is clear both ways. */
       ai_diplo_or_both(col1, a, b, AI_DIPLO_PEACE);
       ai_diplo_wake_border_garrisons(ctx, a, b);
       ai_diplo_wake_border_garrisons(ctx, b, a);

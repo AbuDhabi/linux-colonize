@@ -1044,22 +1044,6 @@ void ai_euro_6d8e_wagon_flags(ColonizeTurnContext* ctx, int nation_id) {
  */
 
 
-/* True if nation_id is at war with any other European peer (0..3). */
-int ai_euro_at_war_any_peer(const ColonizeCol1Save* col1, int nation_id) {
-  if (!col1 || nation_id < 0 || nation_id >= 4) {
-    return 0;
-  }
-  for (int peer = 0; peer < 4; ++peer) {
-    if (peer == nation_id) {
-      continue;
-    }
-    if (ai_diplo_at_war(col1, nation_id, peer)) {
-      return 1;
-    }
-  }
-  return 0;
-}
-
 /*
  * Military land unit by @UNIT row: Soldiers, Dragoons, Regulars, Cavalry,
  * Cont. Cav., Cont. Army. Also the peace colony garrison set — audit AE-6:

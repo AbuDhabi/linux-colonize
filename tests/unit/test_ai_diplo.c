@@ -1387,6 +1387,203 @@ static int case_153e_phases_2_4_encounter(void) {
   return 0;
 }
 
+/* Human England (0) beside computer France (1) on continent 1, turn 30,
+ * difficulty 2, both 1000 gold, no colonies. */
+typedef struct {
+  ColonizeWorldMap map;
+  ColonizeUnitPool units;
+  ColonizeColonyPool cols;
+  ColonizeCol1Save col1;
+  AiPopupState pop;
+  ColonizeDosRng rng;
+  ColonizeTurnContext ctx;
+  int unit_id;
+} TreatyFx;
+
+static int treaty_fx_init(TreatyFx* f) {
+  memset(&f->map, 0, sizeof(f->map));
+  if (!fx_map_alloc(&f->map, 16, 16, 0, false)) {
+    return fail("treaty fixture: alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    f->map.terrain[i] = 1;
+    f->map.layer3[i] = 1;
+  }
+  units_reset(&f->units);
+  units_set_occupancy_map(NULL);
+  f->units.type_count = 1;
+  snprintf(f->units.types[0].name, sizeof(f->units.types[0].name), "Scouts");
+  f->units.types[0].movement = 4;
+  f->units.types[0].attack = 1;
+  f->units.types[0].defense = 1;
+  f->units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  const int ha = units_spawn(&f->units, 0, 5, 5);
+  const int hb = units_spawn(&f->units, 0, 6, 5);
+  ColonizeUnit* pa = units_get(&f->units, ha);
+  ColonizeUnit* pb = units_get(&f->units, hb);
+  if (!pa || !pb) {
+    fx_map_free(&f->map);
+    return fail("treaty fixture: spawn");
+  }
+  pa->nation_id = 0;
+  pb->nation_id = 1;
+  f->unit_id = pa->id;
+  colonies_init(&f->cols);
+  colonies_set_occupancy_map(NULL);
+  col1_save_init(&f->col1);
+  memset(f->col1.nation, 0, sizeof(f->col1.nation));
+  memset(f->col1.head.nation_relation, 0, sizeof(f->col1.head.nation_relation));
+  f->col1.head.turn = 30;
+  f->col1.head.difficulty = 2;
+  f->col1.head.human_player = 0;
+  f->col1.player[0].control = 0;
+  f->col1.player[1].control = 1;
+  f->col1.nation[0].gold = 1000;
+  f->col1.nation[1].gold = 1000;
+  snprintf(f->col1.player[0].country_name, sizeof(f->col1.player[0].country_name), "England");
+  snprintf(f->col1.player[1].country_name, sizeof(f->col1.player[1].country_name), "France");
+  snprintf(f->col1.player[0].name, sizeof(f->col1.player[0].name), "Tsterson");
+  ai_popup_init(&f->pop);
+  dos_rng_seed(&f->rng, 5);
+  memset(&f->ctx, 0, sizeof(f->ctx));
+  f->ctx.messages = test_game_txt();
+  f->ctx.col1 = &f->col1;
+  f->ctx.col1_ok = true;
+  f->ctx.map = &f->map;
+  f->ctx.units = &f->units;
+  f->ctx.colonies = &f->cols;
+  f->ctx.human_nation = 0;
+  f->ctx.ai_popups = &f->pop;
+  f->ctx.rng = &f->rng;
+  return 0;
+}
+
+/* Drain the talk queue; `pick(body)` returns the choice id for each CHOICE. */
+static void treaty_fx_drain(TreatyFx* f, int (*pick)(const char* body)) {
+  for (int guard = 0; guard < 12 && f->pop.queue_count > 0; ++guard) {
+    AiPopupRequest front = f->pop.queue[0];
+    memmove(&f->pop.queue[0], &f->pop.queue[1],
+            sizeof(f->pop.queue[0]) * (size_t)(f->pop.queue_count - 1));
+    f->pop.queue_count--;
+    if (front.kind != AI_POPUP_KIND_CHOICE) {
+      continue;
+    }
+    f->pop.has_result = true;
+    f->pop.result_cancelled = false;
+    f->pop.result_tag = AI_POPUP_TAG_DIPLO_TALK;
+    f->pop.result_choice_id = pick(front.body);
+    f->pop.result_nation_a = 0;
+    f->pop.result_nation_b = 1;
+    f->pop.result_payload = front.payload;
+    ai_diplo_apply_popup_result(&f->ctx, &f->pop);
+    f->pop.has_result = false;
+  }
+}
+
+static int treaty_pick_first(const char* body) {
+  (void)body;
+  return 1;
+}
+
+/* The @GIVECASH offer is the only CHOICE carrying the 500$ amount. */
+static int treaty_pick_cash_only(const char* body) {
+  return strstr(body, "500") ? 1 : 2;
+}
+
+/*
+ * DOS keeps WAR 0x02 through a @WORTHY peace: the accept only ORs PEACE 0x40
+ * (FUN_5bfb_153e raw 98003). The 465b band sets 0x02 on a human attack under
+ * PEACE; the next 153e audience reads it (raw 97509): no early-game grace and
+ * forced hostility.
+ */
+static int case_153e_war_bit_survives_worthy_peace(void) {
+  static TreatyFx f;
+  if (treaty_fx_init(&f) != 0) {
+    return 1;
+  }
+  ColonizeCol1Save* e = &f.col1;
+  ai_diplo_write(e, 0, 1, AI_DIPLO_MET | AI_DIPLO_PEACE);
+  ai_diplo_write(e, 1, 0, AI_DIPLO_MET | AI_DIPLO_PEACE);
+  (void)ai_diplo_465b_band_ctx(&f.ctx, 0, 1);
+  ai_popup_init(&f.pop); /* drop the @CANCELPEACE notice */
+  if ((e->nation[1].euro_relation[0] & AI_DIPLO_WAR) == 0) {
+    fx_map_free(&f.map);
+    return fail("war bit: human attack under PEACE must set 0x02 in the AI's byte");
+  }
+  if (!ai_diplo_153e_encounter(&f.ctx, 0, 1, f.unit_id)) {
+    fx_map_free(&f.map);
+    return fail("war bit: the audience must open");
+  }
+  treaty_fx_drain(&f, treaty_pick_first); /* WORTHY: Yes */
+  const bool peace = (e->nation[0].euro_relation[1] & AI_DIPLO_PEACE) &&
+                     (e->nation[1].euro_relation[0] & AI_DIPLO_PEACE);
+  const bool kept = (e->nation[1].euro_relation[0] & AI_DIPLO_WAR) != 0;
+  if (!peace || !kept) {
+    fprintf(stderr, "war bit: human=0x%02x ai=0x%02x\n", e->nation[0].euro_relation[1],
+            e->nation[1].euro_relation[0]);
+    fx_map_free(&f.map);
+    return fail("war bit: @WORTHY peace must sign PEACE and keep the AI's 0x02");
+  }
+  /* Next audience scoring. Equal field totals make the AI weaker than 3x the
+   * human, so 0x02 forces hostility (raw 97511-97517); difficulty 0 keeps the
+   * clamped 100 clear of the 16-bit wrap in the scaling. */
+  e->head.difficulty = 0;
+  e->stuff.field_combat_totals[0] = 1;
+  e->stuff.field_combat_totals[1] = 1;
+  const int16_t stamp = e->head.nation_relation[1];
+  const Ai153eWorthinessScore hostile = ai_diplo_153e_worthiness_score(&f.ctx, 0, 1, -1, 1);
+  e->head.nation_relation[1] = stamp;
+  e->nation[1].euro_relation[0] &= (uint8_t)~AI_DIPLO_WAR;
+  const Ai153eWorthinessScore control = ai_diplo_153e_worthiness_score(&f.ctx, 0, 1, -1, 1);
+  fx_map_free(&f.map);
+  if (!hostile.at_war || !hostile.worthy || hostile.score <= 0) {
+    fprintf(stderr, "war bit: at_war=%d worthy=%d score=%d\n", hostile.at_war, hostile.worthy,
+            hostile.score);
+    return fail("war bit: 0x02 under PEACE must make the next 153e scoring hostile");
+  }
+  if (control.at_war || control.worthy) {
+    return fail("war bit control: without 0x02, turn 30 is inside the early-game grace");
+  }
+  return 0;
+}
+
+/*
+ * @GIVECASH accept (FUN_5bfb_153e raw 98025) also ORs PEACE 0x40 only. The
+ * census gives France a colony and no land units on continent 1 against 10 of
+ * English field strength: dominance (10 / 1) << 1 = 20, so "No" to @WORTHY
+ * brings the (20 - 2) * 2 offer, capped at France's 500 gold / 100. England's
+ * 0x02 toward France survives the accepted cash peace.
+ */
+static int case_153e_war_bit_survives_givecash_peace(void) {
+  static TreatyFx f;
+  if (treaty_fx_init(&f) != 0) {
+    return 1;
+  }
+  ColonizeCol1Save* e = &f.col1;
+  e->nation[1].gold = 500;
+  e->stuff.colony_counts[1] = 1;
+  e->stuff.colony_counts_by_continent[1 * 16 + 1] = 1;
+  e->stuff.field_combat_strength_by_continent[0 * 16 + 1] = 10;
+  ai_diplo_write(e, 0, 1, AI_DIPLO_MET | AI_DIPLO_WAR);
+  ai_diplo_write(e, 1, 0, AI_DIPLO_MET);
+  if (!ai_diplo_153e_encounter(&f.ctx, 0, 1, f.unit_id)) {
+    fx_map_free(&f.map);
+    return fail("cash peace: the audience must open");
+  }
+  treaty_fx_drain(&f, treaty_pick_cash_only); /* WORTHY: No, GIVECASH: Yes */
+  const bool peace = (e->nation[0].euro_relation[1] & AI_DIPLO_PEACE) &&
+                     (e->nation[1].euro_relation[0] & AI_DIPLO_PEACE);
+  const bool paid = e->nation[0].gold == 1500;
+  const bool kept = (e->nation[0].euro_relation[1] & AI_DIPLO_WAR) != 0;
+  fx_map_free(&f.map);
+  if (!peace || !paid || !kept) {
+    fprintf(stderr, "cash peace: human=0x%02x ai=0x%02x gold=%ld\n", e->nation[0].euro_relation[1],
+            e->nation[1].euro_relation[0], (long)e->nation[0].gold);
+    return fail("cash peace: @GIVECASH must pay, sign PEACE and keep 0x02");
+  }
+  return 0;
+}
+
 /* `tie`: a second AI colony at (5,10), DOS distance 4 from the unit at (5,6)
  * like the first at (8,8) (Chebyshev 4 vs 3). FUN_15eb_0142 (raw 9380-9421,
  * max + min/2, `<=`) picks the later one; a Chebyshev `<` pick took (8,8). */
@@ -2298,6 +2495,8 @@ static const TestCase k_cases[] = {
     {"case_153e_wantstuff_receiver_dos_distance", case_153e_wantstuff_receiver_dos_distance},
     {"case_153e_woi_encounter_rearms_timer", case_153e_woi_encounter_rearms_timer},
     {"case_153e_reads_census_rows", case_153e_reads_census_rows},
+    {"case_153e_war_bit_survives_worthy_peace", case_153e_war_bit_survives_worthy_peace},
+    {"case_153e_war_bit_survives_givecash_peace", case_153e_war_bit_survives_givecash_peace},
     {"case_153e_sieges_takes_passengers", case_153e_sieges_takes_passengers},
     {"case_relation_writes_preserve_player_bytes", case_relation_writes_preserve_player_bytes},
     {"case_153e_talk_tokens_474", case_153e_talk_tokens_474},

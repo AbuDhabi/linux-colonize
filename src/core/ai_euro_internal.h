@@ -160,7 +160,6 @@ void ai_euro_refresh_colony_ai_flags(
   int nation_id,
   ColonizeColony* c
 );
-int ai_euro_at_war_any_peer(const ColonizeCol1Save* col1, int nation_id);
 int ai_euro_is_military_kind(ColonizeUnitKind k);
 int ai_euro_is_artillery_kind(ColonizeUnitKind kind);
 int ai_euro_land_is_fortified(const ColonizeUnit* u);

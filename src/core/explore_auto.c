@@ -106,7 +106,11 @@ static bool explore_auto_hostile(const ColonizeWorld* w, int nation, int other) 
   if (other >= 4 && other <= 11) {
     return ai_diplo_indian_at_war(w->col1, nation, other - 4) != 0;
   }
-  return other < 0 || other > 3 || ai_diplo_at_war(w->col1, nation, other) != 0;
+  /* WAR 0x02 survives a signed treaty (FUN_5bfb_153e raw 98003), so PEACE
+   * 0x40 wins. */
+  return other < 0 || other > 3 ||
+         (ai_diplo_at_war(w->col1, nation, other) != 0 &&
+          (ai_diplo_read(w->col1, nation, other) & AI_DIPLO_PEACE) == 0);
 }
 
 /* A foreign unit or colony on (x,y), or a hostile unit next to it. A tribe's

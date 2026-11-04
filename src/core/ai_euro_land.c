@@ -4188,7 +4188,9 @@ void ai_euro_try_attack(ColonizeTurnContext* ctx, ColonizeUnit* u, int tx, int t
     /* 465b skips the whole treaty/declare band when either side is a
      * Privateer (units_privateer_attack) — the attack still happens, it just
      * opens no war. */
-    if (!ai_diplo_at_war(ctx->col1, u->nation_id, f->nation_id)) {
+    /* No WAR 0x02 test: 465b reads only PEACE 0x40 here (raw 75553-75593),
+     * and 0x02 survives a signed treaty (FUN_5bfb_153e raw 98003/98025). */
+    {
       /*
        * port_bugs.md #472 + FUN_465b_0000 raw 75553-75557: under a treaty the
        * attack aborts while the attacker's encounter cooldown (nation
