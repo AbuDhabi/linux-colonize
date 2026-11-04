@@ -1272,17 +1272,30 @@ static void game_after_unit_tail(ColonizeGameState* game, bool stepped) {
    * Cibola, treasure, burial mounds, …); de Soto keeps outcomes positive.
    * FUN_465b_0000 raw 75450 / 75792: an LCR that changed the unit count
    * (DS:0x539c) jumps to LAB_465b_0bd1, so none of the FUN_5bfb_3180 contact
-   * work below runs on this move. Pickers the port defers behind a popup
-   * (Fountain of Youth recruits, the burial search) have not changed the
-   * count yet. */
+   * work below runs on this move. The burial search waits behind the
+   * player's answer, so its outcome has not changed the count yet
+   * (docs/known_divergences.md). */
   bool lcr_count_changed = false;
   if (game->world_map_ok && units_is_on_map(u) && map_tile_has_rumour(&game->world_map, u->x, u->y)) {
     const ColonizeWorld w = game_world(game);
     const int lcr_x = u->x;
     const int lcr_y = u->y;
     const int units_before = units_active_count(&game->units);
+    const bool foy_before = ai_popup_pending(
+      &game->ai_popups, AI_POPUP_TAG_FOUNTAIN_YOUTH, -1, AI_POPUP_KEY_ANY, 0, 0
+    );
     (void)units_resolve_lcr_rumour_w(&w, u->id, game->human_nation);
     lcr_count_changed = units_active_count(&game->units) != units_before;
+    /* Fountain of Youth: DOS's eight FUN_291f_0d2c picks (raw 103729-103731)
+     * create dock records through FUN_38fd_0718 -> FUN_281f_095c inside the
+     * LCR, so the count has changed by raw 75792 unless the create is
+     * refused. The port's picks wait behind the popup, and its dock
+     * immigrants are not pool units: decide it from the queued pick. */
+    if (!foy_before &&
+        ai_popup_pending(&game->ai_popups, AI_POPUP_TAG_FOUNTAIN_YOUTH, -1, AI_POPUP_KEY_ANY, 0, 0) &&
+        units_spawn_room_quiet(&game->units, game->human_nation)) {
+      lcr_count_changed = true;
+    }
     if (!u->active) {
       /* @LOSTCITY5: the explorer vanished (its slot is cleared, x/y 0) —
        * keep the view on its tile (port_bugs.md #1377) and hand on. */
@@ -1297,8 +1310,8 @@ static void game_after_unit_tail(ColonizeGameState* game, bool stepped) {
   }
   /* The step's 3180 sentry wake, held back by units_move_finish until the LCR
    * above has run; a count change skips it (raw 75792). Same gap as the 3180
-   * arm below: an outcome deferred behind a popup has not changed the count
-   * yet, so the wake runs where DOS skips it. */
+   * arm below: a burial search's outcome has not changed the count yet, so
+   * the wake runs where DOS may skip it. */
   units_465b_deferred_wake(
     &game->units, game->world_map_ok ? &game->world_map : NULL,
     game->colonies_ok ? &game->colonies : NULL, u->id, !lcr_count_changed

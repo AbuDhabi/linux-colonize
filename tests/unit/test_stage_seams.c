@@ -1025,8 +1025,9 @@ static int test_goto_treasure_gets_king_galleon_offer(void) {
 /* FUN_465b_0000 raw 75450 / 75792: a human explorer whose rumour changes the
  * unit count (survivors join) skips the FUN_5bfb_3180 contact work, so neither
  * the unmet village next door (FUN_5bfb_022e MET bit) nor the Dutch unit on
- * the other side (FUN_5bfb_153e MET bit) is met on this move. Control: an
- * outcome that leaves the count alone meets both. */
+ * the other side (FUN_5bfb_153e MET bit) is met on this move. A Fountain of
+ * Youth counts as a change: DOS creates its eight dock records inside the LCR.
+ * Control: an outcome that leaves the count alone meets both. */
 static int test_human_lcr_count_change_skips_contact(void) {
   ColonizeGameState game;
   memset(&game, 0, sizeof(game));
@@ -1044,6 +1045,7 @@ static int test_human_lcr_count_change_skips_contact(void) {
   game.units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
   fx_colonies_init(&game.colonies);
   game.colonies_ok = true;
+  game.europe_ok = true; /* a Fountain of Youth queues its picks */
   units_set_occupancy_map(&game.world_map);
   colonies_set_occupancy_map(&game.world_map);
   game.col1.player[0].named_new_world = 1;
@@ -1064,11 +1066,17 @@ static int test_human_lcr_count_change_skips_contact(void) {
    * neighbour read (FUN_281f_06be -> FUN_137f_03e4) resolves. */
   game.world_map.layer2[3 * 8 + 4] |= 0x02u;
   game.world_map.layer3[3 * 8 + 4] = (uint8_t)((game.world_map.layer3[3 * 8 + 4] & 0x0fu) | 0x40u);
+  /* The Fountain wants terrain class & 7 > 3 and four rumours explored. */
+  game.world_map.terrain[3 * 8 + 3] = 4;
+  uint8_t saved_lcr_counters[2];
+  units_lcr_counters_export(saved_lcr_counters);
+  units_lcr_counters_import((const uint8_t[2]){4, 0});
   int seen_changed = 0;
   int seen_same = 0;
+  int seen_foy = 0;
   const int32_t saved_83a6 = dos_rng_get_83a6();
   int rc = map_tile_has_rumour(&game.world_map, 3, 3) ? 0 : fail("no rumour at (3,3)");
-  for (int seed = 1; seed < 400 && rc == 0 && (!seen_changed || !seen_same); ++seed) {
+  for (int seed = 1; seed < 400 && rc == 0 && (!seen_changed || !seen_same || !seen_foy); ++seed) {
     game.world_map.layer2[3 * 8 + 3] &= (uint8_t)~MAP_LAYER2_LCR_CONSUMED;
     memset(&game.col1.indian[0], 0, sizeof(game.col1.indian[0]));
     ai_popup_init(&game.ai_popups);
@@ -1106,7 +1114,11 @@ static int test_human_lcr_count_change_skips_contact(void) {
     u = units_get(&game.units, uid);
     dutch = units_get(&game.units, dutch_id);
     const bool alive = u && u->active && u->x == 3 && u->y == 3;
-    const bool changed = units_active_count(&game.units) != before;
+    const bool foy = ai_popup_pending(
+      &game.ai_popups, AI_POPUP_TAG_FOUNTAIN_YOUTH, -1, AI_POPUP_KEY_ANY, 0, 0
+    );
+    seen_foy += alive && foy;
+    const bool changed = units_active_count(&game.units) != before || foy;
     const bool met = (game.col1.indian[0].euro_diplo[0] & COL1_INDIAN_MET_BIT) != 0;
     const bool euro_met = (ai_diplo_read(&game.col1, 0, 1) & COL1_INDIAN_MET_BIT) != 0;
     const bool faced = dutch && dutch->last_dir >= 0;
@@ -1136,9 +1148,9 @@ static int test_human_lcr_count_change_skips_contact(void) {
       }
     }
   }
-  if (rc == 0 && (!seen_changed || !seen_same)) {
-    fprintf(stderr, "human lcr: outcomes not reached (changed %d same %d)\n", seen_changed,
-            seen_same);
+  if (rc == 0 && (!seen_changed || !seen_same || !seen_foy)) {
+    fprintf(stderr, "human lcr: outcomes not reached (changed %d same %d fountain %d)\n",
+            seen_changed, seen_same, seen_foy);
     rc = 1;
   }
   /* A tail that commits no step (combat, village or colony entry, fortify)
@@ -1168,6 +1180,7 @@ static int test_human_lcr_count_change_skips_contact(void) {
     }
   }
   dos_rng_set_83a6(saved_83a6);
+  units_lcr_counters_import(saved_lcr_counters);
   game.col1.tribe = NULL;
   game.col1.head.tribe_count = 0;
   colonies_set_occupancy_map(NULL);

@@ -773,6 +773,11 @@ bool units_spawn_room(const ColonizeUnitPool* pool, int nation) {
   return false;
 }
 
+bool units_spawn_room_quiet(const ColonizeUnitPool* pool, int nation) {
+  bool human = true;
+  return pool && (s_unlimited || units_spawn_room_test(pool, nation, &human));
+}
+
 void units_set_nation(ColonizeUnit* unit, int nation_id) {
   if (!unit) {
     return;

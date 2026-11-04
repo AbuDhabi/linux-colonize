@@ -302,6 +302,8 @@ void units_set_spawn_refused_hook(ColonizeUnitsSpawnRefusedFn fn);
  * DOS unit CREATE (FUN_281f_095c) site calls this before spawning; a refusal
  * for a human nation fires the refused hook. */
 bool units_spawn_room(const ColonizeUnitPool* pool, int nation);
+/* Same gate without the refused hook: would a create succeed now? */
+bool units_spawn_room_quiet(const ColonizeUnitPool* pool, int nation);
 /* Mark an on-map arrival at the tail of the DOS tile chain. */
 void units_tile_stack_arrive(ColonizeUnitPool* pool, int unit_id);
 /* DOS FUN_1427_03a0: relink a unit at the oldest end of its tile chain. */
