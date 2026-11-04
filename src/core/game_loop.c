@@ -399,7 +399,11 @@ COLONIZE_INTERNAL bool game_move_is_near_human(
   if (game->human_nation < 0 || game->human_nation > 3) {
     return false;
   }
-  const uint8_t mask = units_vis_mask_for_tile(map, x, y, mover->nation_id);
+  /* Raw 75662-75668 tests the mover's own vis byte after FUN_281f_07fe
+   * (= FUN_1427_0c72, an OR) folded the destination's FUN_281f_0826 mask in,
+   * so a mover the human already saw stays shown wherever it steps. */
+  const uint8_t mask = (uint8_t)(units_move_watch_vis_before() |
+                                 units_vis_mask_for_tile(map, x, y, mover->nation_id));
   return (mask & (1u << game->human_nation)) != 0;
 }
 

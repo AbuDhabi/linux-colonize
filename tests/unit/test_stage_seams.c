@@ -1790,6 +1790,178 @@ static int test_phantom_lunge_edge_scroll_uses_colony_tile(void) {
   return rc;
 }
 
+static int s_near_human = -1;
+
+static void near_human_watch(
+  void* user, const ColonizeUnitPool* pool, const ColonizeWorldMap* map,
+  const ColonizeColonyPool* colonies, int unit_id, int from_x, int from_y, int to_x, int to_y
+) {
+  (void)colonies;
+  (void)from_x;
+  (void)from_y;
+  s_near_human = game_move_is_near_human(
+    (const ColonizeGameState*)user, units_get_const(pool, unit_id), map, to_x, to_y
+  );
+}
+
+/* FUN_465b_0000 raw 75662-75668: the foreign-move show test reads the mover's
+ * own vis byte after FUN_281f_07fe (= FUN_1427_0c72, an OR) folded the
+ * destination's FUN_281f_0826 mask in. An English unit stepping onto a tile no
+ * French unit watches is shown only when France already saw it. */
+static int test_foreign_move_shown_by_prior_sighting(void) {
+  static ColonizeGameState game;
+  int ox = 0;
+  edge_scroll_init(&game, &ox);
+  const int y = 30;
+  ColonizeWorldMap* m = &game.world_map;
+  for (int ty = 0; ty < m->height; ++ty) {
+    for (int tx = 0; tx < m->width; ++tx) {
+      map_set_owner_nibble(m, tx, ty, 0x0f); /* no unit anywhere */
+    }
+  }
+  ColonizeUnit* e = units_get(&game.units, units_spawn(&game.units, 0, ox + 2, y));
+  int rc = (!e || !m->layer3) ? fail("foreign show: fixture") : 0;
+  if (rc == 0) {
+    e->nation_id = 1;
+    map_set_owner_nibble(m, ox + 2, y, 1);
+    if ((units_vis_mask_for_tile(m, ox + 2, y, 1) & 0x01u) != 0) {
+      rc = fail("foreign show: destination must be unwatched by France");
+    }
+  }
+  units_set_move_watch(near_human_watch, &game);
+  if (rc == 0) {
+    e->col1_vis_mask = 0;
+    s_near_human = -1;
+    units_move_watch_notify(&game.units, m, &game.colonies, e->id, ox + 1, y);
+    if (s_near_human != 0) {
+      fprintf(stderr, "  unseen mover: near_human %d\n", s_near_human);
+      rc = fail("foreign show: a unit France never saw must not be shown");
+    }
+  }
+  if (rc == 0) {
+    e->col1_vis_mask = 0x01u;
+    s_near_human = -1;
+    units_move_watch_notify(&game.units, m, &game.colonies, e->id, ox + 1, y);
+    if (s_near_human != 1) {
+      fprintf(stderr, "  seen mover: near_human %d\n", s_near_human);
+      rc = fail("foreign show: a unit France already saw stays shown");
+    }
+  }
+  /* The same step through units_try_move_w: the entry byte is captured
+   * before the commit recomputes it, and is gone once the watch returns. */
+  if (rc == 0) {
+    e->col1_vis_mask = 0x01u;
+    e->moves = 9;
+    s_near_human = -1;
+    const ColonizeWorld w =
+      world_make(&game.units, &game.colonies, m, &game.col1, true, NULL, NULL);
+    (void)units_try_move_w(&w, e->id, ox + 3, y);
+    if (e->x != ox + 3) {
+      rc = fail("foreign show: the step did not land");
+    } else if (s_near_human != 1) {
+      fprintf(stderr, "  stepped seen mover: near_human %d\n", s_near_human);
+      rc = fail("foreign show: units_try_move_w shows a unit France already saw");
+    } else if (units_move_watch_vis_before() != 0) {
+      rc = fail("foreign show: the entry byte must not outlive the watch");
+    }
+  }
+  edge_scroll_free(&game);
+  return rc;
+}
+
+static int s_brave_watch_calls;
+static uint8_t s_brave_watch_vis;
+
+static void brave_vis_watch(
+  void* user, const ColonizeUnitPool* pool, const ColonizeWorldMap* map,
+  const ColonizeColonyPool* colonies, int unit_id, int from_x, int from_y, int to_x, int to_y
+) {
+  (void)user;
+  (void)pool;
+  (void)map;
+  (void)colonies;
+  (void)unit_id;
+  (void)from_x;
+  (void)from_y;
+  (void)to_x;
+  (void)to_y;
+  ++s_brave_watch_calls;
+  s_brave_watch_vis = units_move_watch_vis_before();
+}
+
+/* The native step commits inline (ai_native_brave_step), so it hands the
+ * watch the Brave's vis byte from before units_vis_mask_after_move, the
+ * raw 75665 read. On an open map no French unit watches the destination. */
+static int test_brave_step_watch_sees_entry_vis(void) {
+  int rc = 0;
+  int saw_move = 0;
+  for (int k = 0; k < 24 && rc == 0 && !saw_move; ++k) {
+    ColonizeWorldMap map;
+    if (!fx_map_alloc(&map, 12, 12, /*terrain_fill=*/0, /*with_seen=*/true)) {
+      return fail("brave vis: map alloc");
+    }
+    for (size_t i = 0; i < map.tile_count; ++i) {
+      map.layer3[i] = 0xf0;
+    }
+    ColonizeUnitPool units;
+    fx_units_init(&units);
+    units.type_count = UNITS_KIND_MTD_BRAVE + 2;
+    for (int t = 0; t < units.type_count; ++t) {
+      units.types[t].movement = 1;
+      units.types[t].domain = COLONIZE_UNIT_DOMAIN_LAND;
+    }
+    ColonizeCol1Save col1;
+    memset(&col1, 0, sizeof(col1));
+    ColonizeCol1Tribe tribe;
+    memset(&tribe, 0, sizeof(tribe));
+    tribe.x = 5;
+    tribe.y = 5;
+    tribe.nation_id = 4;
+    tribe.population = 3;
+    col1.tribe = &tribe;
+    col1.head.tribe_count = 1;
+    ColonizeUnit* b = &units.units[0];
+    b->id = 1;
+    b->active = true;
+    b->nation_id = 4;
+    b->type_index = UNITS_KIND_BRAVE;
+    b->x = 5;
+    b->y = 5;
+    b->aboard_ship_id = -1;
+    b->home_tribe_index = 0;
+    b->last_dir = 8;
+    b->col1_vis_mask = 0x01u;
+    units.next_id = 2;
+    units_pool_sync(&units);
+    ColonizeDosRng rng;
+    dos_rng_seed(&rng, (uint32_t)(k * 12345 + 7));
+    s_brave_watch_calls = 0;
+    s_brave_watch_vis = 0;
+    units_set_move_watch(brave_vis_watch, NULL);
+    int steps = 0;
+    (void)ai_native_brave_step(
+      &units, &map, &col1, &rng, /*nation_id=*/4, /*seed100_init_burns=*/false, b,
+      /*max_mp=*/3, /*brave_index=*/0, &steps
+    );
+    units_set_move_watch(NULL, NULL);
+    if (steps > 0 && (b->x != 5 || b->y != 5)) {
+      saw_move = 1;
+      if (s_brave_watch_calls != 1 || s_brave_watch_vis != 0x01u) {
+        fprintf(stderr, "  seed %d: watch calls %d, vis_before 0x%02x (want 0x01)\n", k,
+                s_brave_watch_calls, (unsigned)s_brave_watch_vis);
+        rc = fail("brave vis: the watch reads the Brave's vis byte from before the step");
+      } else if (units_move_watch_vis_before() != 0) {
+        rc = fail("brave vis: the entry byte must not outlive the watch");
+      }
+    }
+    fx_map_free(&map);
+  }
+  if (rc == 0 && !saw_move) {
+    return fail("brave vis: no seed made the Brave step — test proved nothing");
+  }
+  return rc;
+}
+
 /* FUN_5fef_1b0e's lunge is the FUN_112b_0eb6 slide from the attacker's tile
  * (raw 100566-100610), so the view edge-scrolls on the attacker's tile and
  * never centres on the defender. */
@@ -2770,6 +2942,8 @@ static const TestCase k_cases[] = {
     {"test_phantom_lunge_edge_scroll_uses_colony_tile",
      test_phantom_lunge_edge_scroll_uses_colony_tile},
     {"test_combat_edge_scroll_uses_attacker_tile", test_combat_edge_scroll_uses_attacker_tile},
+    {"test_foreign_move_shown_by_prior_sighting", test_foreign_move_shown_by_prior_sighting},
+    {"test_brave_step_watch_sees_entry_vis", test_brave_step_watch_sees_entry_vis},
     {"test_colony_list_keys_wrap", test_colony_list_keys_wrap},
     {"test_colony_custom_house_keys", test_colony_custom_house_keys},
     {"test_screen_f1_focus_article", test_screen_f1_focus_article},

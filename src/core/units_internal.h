@@ -92,6 +92,9 @@ extern int g_units_last_combat;
 extern ColonizeEnterReason g_units_last_enter_reason;
 extern ColonizeUnitsMoveWatchFn g_units_move_watch;
 extern void* g_units_move_watch_user;
+/* Calls the move watch, if any, with units_move_watch_vis_before() = vis_before
+ * (the mover's col1_vis_mask before the step) for the length of the call. */
+void units_move_watch_fire( const ColonizeUnitPool* pool, const ColonizeWorldMap* map, const ColonizeColonyPool* colonies, int unit_id, int from_x, int from_y, int to_x, int to_y, uint8_t vis_before );
 extern int g_units_native_gear_armed;
 extern int g_units_native_gear_mounted;
 /* 0 while units_apply_land_loss_outcome runs for a beaten ATTACKER (1b0e raw 100731). */
@@ -198,6 +201,7 @@ typedef struct units_move_ctx {
   bool dest_rumour;           /* FUN_281f_075e read before arrival */
   int ox;                     /* origin tile, captured at the step commit */
   int oy;
+  uint8_t vis_before;         /* mover's col1_vis_mask at entry, for the watch */
 } units_move_ctx;
 
 #ifdef COLONIZE_TESTING

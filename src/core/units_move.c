@@ -282,11 +282,7 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_board(units_move_ctx* c) {
   /* No boarding branch in DOS, so the step also takes the raw 75704 slide
    * (FUN_112b_0eb6) and its departure-tile edge scroll. The passenger is off
    * the map now, so units_move_watch_notify would skip it; call the watch. */
-  if (g_units_move_watch) {
-    g_units_move_watch(
-      g_units_move_watch_user, pool, map, colonies, unit_id, ox, oy, dest_x, dest_y
-    );
-  }
+  units_move_watch_fire(pool, map, colonies, unit_id, ox, oy, dest_x, dest_y, c->vis_before);
   g_units_last_enter_reason = COLONIZE_ENTER_BOARD;
   return UNITS_MOVE_RETURN_TRUE;
 }
@@ -1174,9 +1170,8 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_finish(units_move_ctx* c) {
   /* No named_new_world write here: FUN_4720_049e raw 76126-76135 is the
    * human UI move handler; AI moves (FUN_465b_0000) never set player+0x30
    * bit 0x80 (port_bugs.md #1057a, reversed by the seed-100 idle campaign). */
-  if (g_units_move_watch && units_is_on_map(c->unit)) {
-    g_units_move_watch(
-      g_units_move_watch_user,
+  if (units_is_on_map(c->unit)) {
+    units_move_watch_fire(
       pool,
       map,
       colonies,
@@ -1184,7 +1179,8 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_finish(units_move_ctx* c) {
       c->ox,
       c->oy,
       c->unit->x,
-      c->unit->y
+      c->unit->y,
+      c->vis_before
     );
   }
   g_units_465b_settled = !c->combat_attack_entry && !c->foreign_colony_entry &&
@@ -1238,6 +1234,12 @@ bool units_try_move_w(
     .village_nation = -1,
     .foe = -1,
   };
+  /* Raw 75665 reads the mover's vis byte after LAB_465b_0673's OR, i.e. its
+   * entry value plus the destination mask; the watch adds the latter. */
+  {
+    const ColonizeUnit* entry = units_get_const(w->units, unit_id);
+    c.vis_before = entry ? entry->col1_vis_mask : 0;
+  }
   UnitsMoveStatus st = units_move_validate(&c);
   if (st == UNITS_MOVE_CONTINUE) {
     st = units_move_probe(&c);
