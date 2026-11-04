@@ -1252,10 +1252,11 @@ COLONIZE_INTERNAL void ai_euro_5952_indoor_expert_pass(
     }
   }
   /* BP-0x4c / BP-0x46 = aiStack_68[0x0d] / [0x10], the tick-top census
-   * (memset at OVL15 0xbb8, `INC [BP+SI-0x66]` at 0xc0b), decremented here. */
+   * (memset at OVL15 0xbb8, `INC [BP+SI-0x66]` at 0xc0b), decremented here.
+   * The preacher cell is decremented in place: the build cascade's Church
+   * arm reads it later in the same tick (OVL15 0x2453 `CMP [BP-0x46],0`). */
   const int cid_ok = col->id >= 0 && col->id < COLONIZE_COLONIES_MAX;
   int carpenters = cid_ok ? ai_euro_s_5952_census_carpenter[col->id] : 0;
-  int preachers = cid_ok ? ai_euro_s_5952_census_preacher[col->id] : 0;
   for (int s = 0; s < n; ++s) {
     ColonizeColonist* c = &col->colonists[s];
     if (placed[s] || !c->active) {
@@ -1285,7 +1286,9 @@ COLONIZE_INTERNAL void ai_euro_5952_indoor_expert_pass(
     } else if (prof == COLONIZE_PROF_PREACHER) {
       if (woi) {
         c->profession = COLONIZE_PROF_FREE_COLONIST;
-        --preachers;
+        if (cid_ok) {
+          --ai_euro_s_5952_census_preacher[col->id]; /* OVL15 `DEC word ptr [BP-0x46]` */
+        }
         continue;
       }
       ok = true;
@@ -2614,7 +2617,14 @@ COLONIZE_INTERNAL AiEuro5952CascadeStatus ai_euro_5952_cascade_town(AiEuro5952Ca
       return AI_EURO_5952_CASCADE_RETURN;
     }
   }
-  if (prof_count[COLONIZE_PROF_PREACHER] != 0) {
+  /* 2453: `CMP [BP-0x46],0` reads the tick-top Firebrand Preacher census
+   * cell (aiStack_68[0x10]) after the indoor-expert pass decremented it, not
+   * a live recount: a Preacher retyped or ejected since the census still
+   * counts, and one demoted in the War of Independence does not. */
+  const int census_preachers = (col->id >= 0 && col->id < COLONIZE_COLONIES_MAX)
+                                 ? ai_euro_s_5952_census_preacher[col->id]
+                                 : 0;
+  if (census_preachers != 0) {
     if (ai_euro_5952_try_build(s, 0x25) == 0) { /* 2453: Church */
       return AI_EURO_5952_CASCADE_RETURN;
     }

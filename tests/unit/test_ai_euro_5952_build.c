@@ -280,6 +280,48 @@ static int case_wagon_train_blocked_by_ring1_threat(void) {
   return 0;
 }
 
+/*
+ * asm 2453: the Church arm tests `[BP-0x46]`, the tick-top Firebrand Preacher
+ * census cell (aiStack_68[0x10]) the indoor-expert pass decrements, not a
+ * recount of the colony's current Preachers.
+ */
+static int church_pick(int census_preachers, int live_preacher) {
+  Fx f;
+  if (fx_build(&f, 5) != 0) {
+    return -2;
+  }
+  own_all_before_naval(&f);
+  const int church = bld(&f, "Church");
+  if (church >= 0) {
+    f.col->has_building[church] = false;
+  }
+  if (live_preacher) {
+    f.col->colonists[0].active = true;
+    f.col->colonists[0].profession = COLONIZE_PROF_PREACHER;
+  }
+  ai_euro_5952_set_expert_census(f.col->id, 0, census_preachers);
+  ai_euro_5952_build_cascade(&f.ctx, f.col);
+  const int got = f.col->building_in_production;
+  ai_euro_5952_set_expert_census(f.col->id, 0, 0);
+  fx_done(&f);
+  return church >= 0 && got == church;
+}
+
+static int case_church_gate_reads_preacher_census(void) {
+  const int counted = church_pick(1, 0);
+  const int live_only = church_pick(0, 1);
+  if (counted < 0 || live_only < 0) {
+    return 1;
+  }
+  if (!counted) {
+    return fail("census preacher (BP-0x46) must open the Church arm (asm 2453)");
+  }
+  if (live_only) {
+    return fail("a live Preacher missing from the census must not open the Church arm");
+  }
+  return 0;
+}
+
 /* Common setup for the naval band: coastal, pop >= 8, a finished craft chain
  * and a Shipyard, with everything the cascade asks for first already owned. */
 static int naval_fx(Fx* f) {
@@ -1504,6 +1546,7 @@ static const TestCase k_cases[] = {
   {"case_try_build_recurses_to_parent", case_try_build_recurses_to_parent},
   {"case_wagon_train_pick", case_wagon_train_pick},
   {"case_wagon_train_blocked_by_ring1_threat", case_wagon_train_blocked_by_ring1_threat},
+  {"case_church_gate_reads_preacher_census", case_church_gate_reads_preacher_census},
   {"case_galleon_pick", case_galleon_pick},
   {"case_privateer_pick", case_privateer_pick},
   {"case_frigate_pick", case_frigate_pick},
