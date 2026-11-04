@@ -3197,8 +3197,11 @@ static GameUpdateStep game_map_mouse_click(
     }
 
     if (input->mouse_right_clicked) {
-      /* Right-click: unselect unit (if any) and select the tile. */
-      game_select_tile(game, mx, my);
+      /* Right-click: FUN_2b5a_3462 raw 46005-46007 enters View Pieces through
+       * FUN_291f_006c -> FUN_2b5a_0902, which leaves 0x5392 on the active
+       * unit for the next re-test, then raw 46021-46030 puts the cursor on
+       * the clicked tile. */
+      game_enter_view_pieces(game, mx, my);
       return GAME_UPDATE_RETURN_TRUE;
     }
 

@@ -403,6 +403,9 @@ void game_refresh_orders_menu(ColonizeGameState* game);
 void game_retire_after_score(ColonizeGameState* game);
 bool game_screen_owns_display(const ColonizeGameState* game);
 void game_select_tile(ColonizeGameState* game, int x, int y);
+/* The View Pieces command (FUN_2b5a_0902): tile select that keeps the left
+ * unit as the next scan's re-test (rotation_retest_id). */
+void game_enter_view_pieces(ColonizeGameState* game, int x, int y);
 void game_status_from_menu_row(
   ColonizeGameState* game,
   const char* section,

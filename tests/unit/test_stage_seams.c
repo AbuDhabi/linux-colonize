@@ -2070,6 +2070,124 @@ static int test_select_tile_rotation_retest(void) {
   return rc;
 }
 
+/* View Pieces (FUN_2b5a_0902 raw 42112) leaves 0x5392 on the active unit;
+ * the next FUN_2b5a_0e52 re-tests it first (FUN_1427_1410, raw 42291), so
+ * Move Pieces returns to it rather than to the first slot. */
+static int test_view_pieces_keeps_active_unit(void) {
+  static ColonizeGameState game;
+  memset(&game, 0, sizeof(game));
+  if (!fx_map_alloc(&game.world_map, 8, 8, /*terrain_fill=*/3, /*with_seen=*/true)) {
+    return fail("view pieces map alloc");
+  }
+  game.world_map_ok = true;
+  fx_units_init(&game.units);
+  game.units_ok = true;
+  game.units.type_count = 1;
+  game.units.types[0].movement = 1;
+  game.units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units_set_occupancy_map(&game.world_map);
+  int ids[3];
+  int rc = 0;
+  for (int k = 0; k < 3; ++k) {
+    ids[k] = units_spawn(&game.units, 0, 2 + k, 2 + k);
+    ColonizeUnit* u = units_get(&game.units, ids[k]);
+    if (!u) {
+      rc = fail("view pieces spawn");
+      break;
+    }
+    u->nation_id = 0;
+    u->moves = 3;
+  }
+  if (rc == 0) {
+    game.units.selected_id = ids[1];
+    game.map_cursor_x = 3;
+    game.map_cursor_y = 3;
+    game_apply_map_menu_action(&game, MAP_MENU_ACTION_VIEW_PIECES);
+    if (game.units.selected_id != -1 || !game.view_pieces_mode) {
+      rc = fail("View Pieces must drop the selection");
+    } else {
+      game_apply_map_menu_action(&game, MAP_MENU_ACTION_MOVE_PIECES);
+      if (game.units.selected_id != ids[1]) {
+        fprintf(stderr, "  selected %d want %d\n", game.units.selected_id, ids[1]);
+        rc = fail("Move Pieces after View Pieces must re-test the unit it left");
+      }
+    }
+  }
+  units_set_occupancy_map(NULL);
+  fx_map_free(&game.world_map);
+  return rc;
+}
+
+/* The other FUN_291f_006c -> FUN_2b5a_0902 paths keep 0x5392 too: the map
+ * right-click (FUN_2b5a_3462 raw 46005-46007) and Find Colony, so Move
+ * Pieces re-tests the unit they left. */
+static int test_right_click_and_find_colony_keep_active_unit(void) {
+  static ColonizeGameState game;
+  memset(&game, 0, sizeof(game));
+  if (!fx_map_alloc(&game.world_map, 8, 8, /*terrain_fill=*/3, /*with_seen=*/true)) {
+    return fail("right click map alloc");
+  }
+  game.world_map_ok = true;
+  game.map_menu.open_index = -1;
+  fx_units_init(&game.units);
+  game.units_ok = true;
+  game.units.type_count = 1;
+  game.units.types[0].movement = 1;
+  game.units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units_set_occupancy_map(&game.world_map);
+  int ids[3];
+  int rc = 0;
+  for (int k = 0; k < 3; ++k) {
+    ids[k] = units_spawn(&game.units, 0, 2 + k, 2 + k);
+    ColonizeUnit* u = units_get(&game.units, ids[k]);
+    if (!u) {
+      rc = fail("right click spawn");
+      break;
+    }
+    u->nation_id = 0;
+    u->moves = 3;
+  }
+  if (rc == 0) {
+    game.units.selected_id = ids[1];
+    const int tw = game_map_zoom_tile_px(game.map_zoom);
+    ColonizeInputState in;
+    memset(&in, 0, sizeof(in));
+    in.mouse_right_clicked = true;
+    in.mouse_x = 5 * tw + 1;
+    in.mouse_y = MAP_VIEW_ORIGIN_Y + 5 * tw + 1;
+    (void)game_update_map_menu_bar(&game, &in);
+    if (game.units.selected_id != -1 || !game.view_pieces_mode) {
+      rc = fail("right-click must enter View Pieces");
+    } else {
+      game_apply_map_menu_action(&game, MAP_MENU_ACTION_MOVE_PIECES);
+      if (game.units.selected_id != ids[1]) {
+        rc = fail("Move Pieces after a right-click must re-test the unit it left");
+      }
+    }
+  }
+  if (rc == 0) {
+    ColonizeColony* c = &game.colonies.colonies[0];
+    c->active = true;
+    c->x = 5;
+    c->y = 5;
+    snprintf(c->name, sizeof(c->name), "Fort");
+    game.col1.head.curr_nation_map_view = 4;
+    game.units.selected_id = ids[2];
+    game_find_colony(&game, "fort");
+    if (game.units.selected_id != -1 || !game.view_pieces_mode || game.map_cursor_x != 5) {
+      rc = fail("Find Colony must enter View Pieces on the colony");
+    } else {
+      game_apply_map_menu_action(&game, MAP_MENU_ACTION_MOVE_PIECES);
+      if (game.units.selected_id != ids[2]) {
+        rc = fail("Move Pieces after Find Colony must re-test the unit it left");
+      }
+    }
+  }
+  units_set_occupancy_map(NULL);
+  fx_map_free(&game.world_map);
+  return rc;
+}
+
 /* Edge-scroll fixture: 60x60 land, one land type (1 tile a turn), human
  * France, zoom 0, view centred on (30,30); *ox = the view's left column. No
  * rumour on row 30 columns ox..ox+2. Free with edge_scroll_free. */
@@ -4281,6 +4399,9 @@ static const TestCase k_cases[] = {
     {"test_goto_place_opens_travelplace_list", test_goto_place_opens_travelplace_list},
     {"test_activate_ignores_foreign_unit", test_activate_ignores_foreign_unit},
     {"test_select_tile_rotation_retest", test_select_tile_rotation_retest},
+    {"test_view_pieces_keeps_active_unit", test_view_pieces_keeps_active_unit},
+    {"test_right_click_and_find_colony_keep_active_unit",
+     test_right_click_and_find_colony_keep_active_unit},
     {"test_move_edge_scroll_uses_departure_tile", test_move_edge_scroll_uses_departure_tile},
     {"test_board_step_watch_and_ship_margin", test_board_step_watch_and_ship_margin},
     {"test_phantom_lunge_edge_scroll_uses_colony_tile",

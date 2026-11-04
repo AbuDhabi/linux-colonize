@@ -124,6 +124,24 @@ void game_select_tile(ColonizeGameState* game, int x, int y) {
   game->view_pieces_mode = true;
 }
 
+/*
+ * FUN_2b5a_0902 (raw 42112) sets 0x5390 = 1 and leaves 0x5392 on the active
+ * unit, so the next FUN_2b5a_0e52 re-tests that unit first (FUN_281f_07f4 ->
+ * FUN_1427_1410, raw 42291) and only then scans on from it (FUN_1427_14a0).
+ * The port's View mode clears selected_id, so the unit rides in
+ * rotation_retest_id, which turn_select_next_unit tests first.
+ */
+void game_enter_view_pieces(ColonizeGameState* game, int x, int y) {
+  const int left = game && game->units_ok &&
+                       units_get_const(&game->units, game->units.selected_id)
+                     ? game->units.selected_id
+                     : -1;
+  game_select_tile(game, x, y);
+  if (left > 0) {
+    game->units.rotation_retest_id = left;
+  }
+}
+
 /* On-map, or awake passenger (orders cleared) with moves remaining. */
 bool game_unit_selectable(const ColonizeGameState* game, const ColonizeUnit* u) {
   if (!game || !u || !u->active || u->nation_id != game->human_nation || u->moves <= 0) {

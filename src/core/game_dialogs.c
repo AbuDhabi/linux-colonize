@@ -1772,7 +1772,8 @@ void game_find_colony(ColonizeGameState* game, const char* typed) {
     /* A negative view shifts the bit out (0x10 << 0xff = 0): only show_entire_map passes. */
     if (view >= 4 || (view >= 0 && map_tile_seen_by(&game->world_map, c->x, c->y, view)) ||
         game->col1.head.show_entire_map) {
-      game_select_tile(game, c->x, c->y);
+      /* 0902 leaves 0x5392 on the active unit: it is re-tested first. */
+      game_enter_view_pieces(game, c->x, c->y);
       return;
     }
   }
