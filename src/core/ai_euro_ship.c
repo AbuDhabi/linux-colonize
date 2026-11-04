@@ -1649,9 +1649,10 @@ void ai_euro_ship_leave_europe(ColonizeTurnContext* ctx, ColonizeUnit* ship) {
   if (!ctx || !ctx->units || !ship) {
     return;
   }
-  int lx = 0;
-  int ly = 0;
-  ai_euro_resolve_landfall_goto(ctx, ship, &lx, &ly);
+  /* raw 77742: the crossing is rolled against the hull's own +0x314d/e
+   * (goto_x/y); DOS has no fallback (sail_to_europe and the 5c3c purchase
+   * both write it). */
+  const int lx = ship->goto_x;
   const int n = ship->nation_id;
   ship->col1_counter16 = ai_euro_lane_voyage_turns(ctx, n, lx);
   /* 0346's 02ee/02e4 walk: every passenger takes the voyage turns. */
@@ -1691,9 +1692,9 @@ void ai_euro_ship_leave_europe(ColonizeTurnContext* ctx, ColonizeUnit* ship) {
  * (raw 77880-77884); the hull just stays in the lane.
  */
 static void ai_euro_europe_place_arrival(ColonizeTurnContext* ctx, ColonizeUnit* u) {
-  int lx = 0;
-  int ly = 0;
-  ai_euro_resolve_landfall_goto(ctx, u, &lx, &ly);
+  /* raw 77832-77833: the ring centre is the hull's own +0x314d/e, no fallback. */
+  const int lx = u->goto_x;
+  const int ly = u->goto_y;
   int hx = lx;
   int hy = ly;
   if (!units_spiral_place_hs_near(ctx->units, ctx->map, lx, ly, u->nation_id, &hx, &hy)) {

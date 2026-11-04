@@ -344,48 +344,6 @@ void ai_euro_sync_aboard_cargo_xy(ColonizeUnitPool* units, ColonizeUnit* ship) {
   }
 }
 
-/*
- * Resolve landfall goto for Europe exit (never Europe sentinel y~229).
- * Prefer ship goto when on-map; else first passenger goto; else map mid-east.
- */
-void ai_euro_resolve_landfall_goto(
-  ColonizeTurnContext* ctx,
-  ColonizeUnit* ship,
-  int* out_x,
-  int* out_y
-) {
-  const int w = ctx && ctx->map ? (int)ctx->map->width : 0;
-  const int h = ctx && ctx->map ? (int)ctx->map->height : 0;
-  int lx = -1;
-  int ly = -1;
-  if (ship && w > 0 && h > 0) {
-    if (ship->goto_x >= 0 && ship->goto_y >= 0 && ship->goto_x < 255 && ship->goto_y < 255 &&
-        ship->goto_x < w && ship->goto_y < h) {
-      lx = ship->goto_x;
-      ly = ship->goto_y;
-    } else {
-      for (int i = 0; i < ship->cargo_count && i < COLONIZE_UNIT_CARGO_MAX; ++i) {
-        const ColonizeUnit* pax = units_get_const(ctx->units, ship->cargo_ids[i]);
-        if (!pax) {
-          continue;
-        }
-        if (pax->goto_x >= 0 && pax->goto_y >= 0 && pax->goto_x < 255 && pax->goto_y < 255 &&
-            pax->goto_x < w && pax->goto_y < h) {
-          lx = pax->goto_x;
-          ly = pax->goto_y;
-          break;
-        }
-      }
-    }
-  }
-  if (lx < 0 || ly < 0) {
-    lx = w > 2 ? w - 2 : 0;
-    ly = h > 0 ? h / 2 : 0;
-  }
-  *out_x = lx;
-  *out_y = ly;
-}
-
 /* FUN_5bfb_3180 for an AI Euro mover (465b commit tail -> 0984 -> 0192 ->
  * 3180): one direction loop (raw 98506-98693) that, per land neighbour of
  * another nation still open in aiStack_20, stamps the tile head's facing and

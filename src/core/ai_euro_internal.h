@@ -122,12 +122,6 @@ int ai_euro_in_europe(int x, int y);
 int ai_euro_europe_lane(int nation_id, int x, int y);
 int ai_euro_at_europe_dock(int nation_id, int x, int y);
 void ai_euro_sync_aboard_cargo_xy(ColonizeUnitPool* units, ColonizeUnit* ship);
-void ai_euro_resolve_landfall_goto(
-  ColonizeTurnContext* ctx,
-  ColonizeUnit* ship,
-  int* out_x,
-  int* out_y
-);
 int ai_euro_unload_pax_at(
   ColonizeTurnContext* ctx,
   ColonizeUnit* ship,

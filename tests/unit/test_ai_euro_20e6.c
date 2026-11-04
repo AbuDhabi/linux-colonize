@@ -1184,6 +1184,48 @@ static int unit_europe_lane_shared_arrival_transfers_passenger(void) {
 }
 
 /*
+ * FUN_48d3_048e rings around the hull's own +0x314d/e (raw 77832-77833) with
+ * no fallback. The hull's saved tile is (16,4), one past the east edge; a
+ * passenger's goto (14,4) is not consulted. Column 14 is High Seas: the
+ * first ring tile is (14,2) at distance 2 (y - e row first).
+ */
+static int unit_europe_lane_arrival_uses_hull_tile(void) {
+  const int nation = 1;
+  Fixture f;
+  if (fixture_init(&f, nation) != 0) return 1;
+  for (int y = 0; y < 16; ++y) {
+    f.map.terrain[y * 16 + 14] = 26;
+  }
+  const int hull_id = units_spawn_allow_stack(&f.units, 2, 224 + nation, 224 + nation);
+  const int pax_id = units_spawn_allow_stack(&f.units, 0, 224 + nation, 224 + nation);
+  ColonizeUnit* hull = units_get(&f.units, hull_id);
+  ColonizeUnit* pax = units_get(&f.units, pax_id);
+  if (!hull || !pax) {
+    fixture_free(&f);
+    return fail("hull-tile arrival spawn");
+  }
+  hull->nation_id = nation;
+  pax->nation_id = nation;
+  hull->goto_x = 16;
+  hull->goto_y = 4;
+  hull->col1_counter16 = 0;
+  pax->orders = UNITS_ORDER_SENTRY;
+  pax->goto_x = 14;
+  pax->goto_y = 4;
+  if (!units_board_stacked_restore(&f.units, pax_id, hull_id)) {
+    fixture_free(&f);
+    return fail("hull-tile arrival board");
+  }
+  ai_euro_europe_lane_tick(&f.ctx, nation);
+  const int ok = hull->x == 14 && hull->y == 2;
+  if (!ok) {
+    fprintf(stderr, "hull-tile arrival: hull at (%d,%d), want (14,2)\n", hull->x, hull->y);
+  }
+  fixture_free(&f);
+  return ok ? 0 : fail("048e must ring around the hull's own saved tile");
+}
+
+/*
  * Hold-cargo colony-delivery matrix (raw 2047-2139): a Caravel holding TOOLS
  * with two own coastal colonies in reach. The near one already PRODUCES tools
  * (+0x90 cargo_produced_mask) and sits on 150 of them (> 99), so the raw
@@ -3720,6 +3762,7 @@ static const TestCase k_cases[] = {
     {"unit_europe_dock_demand_throttled_by_lane", unit_europe_dock_demand_throttled_by_lane},
     {"unit_europe_lane_crossing_ticks", unit_europe_lane_crossing_ticks},
     {"unit_europe_lane_shared_arrival_transfers_passenger", unit_europe_lane_shared_arrival_transfers_passenger},
+    {"unit_europe_lane_arrival_uses_hull_tile", unit_europe_lane_arrival_uses_hull_tile},
     {"unit_delivery_matrix_skips_full_producer", unit_delivery_matrix_skips_full_producer},
     {"unit_delivery_sell_tail_dumps_cargo", unit_delivery_sell_tail_dumps_cargo},
     {"unit_load_matrix_picks_priced_cargo", unit_load_matrix_picks_priced_cargo},
