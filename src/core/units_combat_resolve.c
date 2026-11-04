@@ -1015,7 +1015,8 @@ bool units_fort_vs_ship(
   ColonizeDosRng* rng,
   const ColonizeCol1Save* col1,
   const char* atk_label,
-  const char* fort_name
+  const char* fort_name,
+  bool show
 ) {
   ColonizeUnit* def = units_get(pool, defender_id);
   if (!def || !def->active || !units_is_sea(pool, defender_id) || attack_str <= 0) {
@@ -1115,8 +1116,10 @@ bool units_fort_vs_ship(
    * removed by FUN_291f_0a06 after the fight. The port has no row 0x17 and
    * never puts the phantom in the pool (a spawn could hit @TOOMANYUNITS and
    * the destroy touches the census / settlement bits), so the UI draws the
-   * Artillery row's lunge from the colony tile directly. */
-  if (g_units_combat_watch && units_combat_human_involved(col1, def->nation_id, fort_nation)) {
+   * Artillery row's lunge from the colony tile directly. 03f6 passes its
+   * local_8 as 1b0e's show flag (raw 57109), the same test that gates
+   * @FORTFIRE, so the caller hands it in as `show`. */
+  if (g_units_combat_watch && show) {
     const int ati = units_kind_type_index(pool, UNITS_KIND_ARTILLERY);
     if (g_units_phantom_lunge && ati >= 0) {
       g_units_phantom_lunge(
@@ -1615,10 +1618,17 @@ static int units_coastal_fort_fire_impl(
       for (int t = 0; t < target_count; ++t) {
         const ColonizeUnit* before = units_get(units, targets[t]);
         const int ship_nation = before ? before->nation_id : -1;
-        const int human_chrome =
-          col->nation_id == human_nation || ship_nation == human_nation;
+        /* FUN_364b_03f6 local_8 (raw 57085-57092): the human watches the
+         * colony tile (FUN_281f_0970 = FUN_1427_0bfe, map_nation_watches_tile)
+         * or the ship carries the human's visibility bit (0x10 << DS:0x5396 on
+         * +0x3147). It alone gates the scroll and @FORTFIRE (raw 57100-57108);
+         * owning the fort or the ship does not. */
+        const bool human_chrome =
+          human_nation >= 0 && human_nation <= 3 &&
+          (map_nation_watches_tile(map, col->x, col->y, human_nation) ||
+           (before && (before->col1_vis_mask & (1u << human_nation)) != 0));
         if (human_chrome) {
-          /* FUN_364b_03f6 raw 57100: FUN_281f_0352(colony, colony) = edge-test
+          /* FUN_364b_03f6 raw 57101: FUN_281f_0352(colony, colony) = edge-test
            * camera scroll onto the firing colony, before the dialog. */
           if (g_units_camera_edge) {
             g_units_camera_edge(g_units_camera_edge_user, col->x, col->y);
@@ -1638,9 +1648,9 @@ static int units_coastal_fort_fire_impl(
           );
           /*
            * port_bugs.md #535: DOS announces and THEN resolves, one fort at a
-           * time - raw 57104-57105 fires the blocking @FORTFIRE dialog
+           * time - raw 57107 fires the blocking @FORTFIRE dialog
            * (FUN_281f_0652, tag 0xd7f) and only once it is answered calls
-           * FUN_291f_0a14 (= FUN_5fef_1b0e), which draws the Combat
+           * FUN_291f_0a14 (= FUN_5fef_1b0e, raw 57109), which draws the Combat
            * Analysis and rolls. The port's announcement goes to the
            * deferred ai_popup queue while the analysis is a nested modal,
            * so with several forts firing the two channels batched apart.
@@ -1649,7 +1659,8 @@ static int units_coastal_fort_fire_impl(
            */
           units_combat_pump_popups();
         }
-        if (units_fort_vs_ship(units, atk, col->nation_id, col->x, col->y, targets[t], rng, col1, fort_label, bname)) {
+        if (units_fort_vs_ship(units, atk, col->nation_id, col->x, col->y, targets[t], rng, col1, fort_label, bname,
+                               human_chrome)) {
           sunk++;
         }
         /* Drain this fort's own outcome chrome (@SHIPSUNK / repair notice)

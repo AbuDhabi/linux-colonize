@@ -152,7 +152,7 @@ int units_tribe_nation_at(const ColonizeCol1Save* col1, int x, int y);
 bool units_at_war_for_move(const ColonizeCol1Save* col1, int nation_a, int nation_b);
 void units_capture_claim_ring(ColonizeWorldMap* map, int x, int y, int new_owner);
 int units_colony_plunder_stock_sum(const ColonizeColony* col);
-bool units_fort_vs_ship( ColonizeUnitPool* pool, int attack_str, int fort_nation, int fort_x, int fort_y, int defender_id, ColonizeDosRng* rng, const ColonizeCol1Save* col1, const char* atk_label, const char* fort_name );
+bool units_fort_vs_ship( ColonizeUnitPool* pool, int attack_str, int fort_nation, int fort_x, int fort_y, int defender_id, ColonizeDosRng* rng, const ColonizeCol1Save* col1, const char* atk_label, const char* fort_name, bool show );
 bool units_native_village_grudge(
   const ColonizeCol1Save* col1, const ColonizeUnit* mover, int euro_nation
 );

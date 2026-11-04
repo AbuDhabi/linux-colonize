@@ -110,8 +110,10 @@ static int unit_fort_fire_dissolve_and_europe(void) {
     map_free(&map);
     return 1;
   }
-  units_get(&pool, s1)->nation_id = 1;
-  units_get(&pool, s2)->nation_id = 1;
+  /* units_set_nation stamps the owner's visibility bit, which 03f6's
+   * local_8 reads (the human owns the ships). */
+  units_set_nation(units_get(&pool, s1), 1);
+  units_set_nation(units_get(&pool, s2), 1);
 
   EuropeScreen eu;
   memset(&eu, 0, sizeof(eu));
@@ -201,7 +203,7 @@ static int unit_fort_fire_dissolve_and_europe(void) {
     col->has_building[1] = false;
     map.terrain[6 * 8 + 6] = 2;
     const int s3 = units_spawn_allow_stack(&pool, 0, 3, 2);
-    units_get(&pool, s3)->nation_id = 1;
+    units_set_nation(units_get(&pool, s3), 1);
     units_despawn(&pool, s1);
     (void)units_coastal_fort_fire_pulse_w(
       &(ColonizeWorld){.units = &pool, .colonies = &colonies, .map = &map,
@@ -314,6 +316,126 @@ static int unit_fort_fire_aims_chain_head(void) {
     units_set_combat_dissolve(NULL, NULL);
     units_set_combat_europe(NULL);
     units_set_combat_colonies(NULL);
+    map_free(&map);
+  }
+  return rc;
+}
+
+/*
+ * FUN_364b_03f6 local_8 (raw 57085-57092) gates the colony-tile scroll and
+ * @FORTFIRE (raw 57100-57108), and is 1b0e's show flag for the phantom's
+ * lunge (raw 57109): the human watches the colony tile (FUN_1427_0bfe, the 8
+ * neighbours only) or the ship carries the human's visibility bit. Owning the
+ * fort or the ship is not enough by itself.
+ */
+static int unit_fort_fire_fortfire_gate(void) {
+  if (!test_game_txt()) {
+    return TR_SKIP;
+  }
+  /* human, ship vis bits, human unit beside the colony, want scroll + @FORTFIRE + lunge */
+  static const struct { int human; uint8_t vis; int watch; int want; } k[] = {
+    {1, 0x02, 0, 1}, /* the ship's owner, own bit set */
+    {1, 0x00, 0, 0}, /* the ship's owner without its own bit */
+    {2, 0x00, 0, 0}, /* a bystander who sees neither */
+    {2, 0x04, 0, 1}, /* the bystander's bit on the ship */
+    {2, 0x00, 1, 1}, /* the bystander has a unit next to the colony */
+    {0, 0x00, 0, 0}, /* the fort's owner: the colony tile itself is not tested */
+    {0, 0x01, 0, 1},
+  };
+  int rc = 0;
+  for (size_t c = 0; c < sizeof(k) / sizeof(k[0]) && rc == 0; ++c) {
+    ColonizeUnitPool pool;
+    memset(&pool, 0, sizeof(pool));
+    pool.type_count = 1;
+    pool.types[0].movement = 5;
+    pool.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
+    pool.types[0].defense = 2;
+    pool.types[0].hull = 10;
+
+    ColonizeWorldMap map;
+    memset(&map, 0, sizeof(map));
+    char err[128];
+    if (!map_alloc(&map, 8, 8, err, sizeof(err))) {
+      fprintf(stderr, "fortgate: map_alloc failed: %s\n", err);
+      return 1;
+    }
+    for (int i = 0; i < 8 * 8; ++i) {
+      map.terrain[i] = 25;
+    }
+    map.terrain[2 * 8 + 2] = 2;
+    if (k[c].watch) {
+      map.terrain[1 * 8 + 1] = 2;
+      map_occupancy_set_layer2(&map, 1, 1, MAP_OCCUPANCY_HAS_UNIT, true);
+      map_set_owner_nibble(&map, 1, 1, k[c].human);
+    }
+
+    ColonizeColonyPool colonies;
+    colonies_init(&colonies);
+    colonies_set_occupancy_map(NULL);
+    snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Fort");
+    colonies.building_type_count = 1;
+    ColonizeColony* col = &colonies.colonies[0];
+    col->active = true;
+    col->nation_id = 0;
+    col->x = 2;
+    col->y = 2;
+    col->population = 3;
+    col->has_building[0] = true;
+    colonies.colony_count = 1;
+
+    ColonizeCol1Save c1;
+    memset(&c1, 0, sizeof(c1));
+    for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
+      c1.head.founding_father[i] = -1;
+    }
+    ai_diplo_declare_war(&c1, 0, 1);
+
+    const int foe = units_spawn_allow_stack(&pool, 0, 3, 2);
+    units_get(&pool, foe)->nation_id = 1;
+    units_get(&pool, foe)->col1_vis_mask = k[c].vis;
+    pool.type_count = 2;
+    pool.types[1].kind_plus1 = (int)UNITS_KIND_ARTILLERY + 1; /* the lunge body */
+
+    EuropeScreen eu;
+    memset(&eu, 0, sizeof(eu));
+    units_set_combat_colonies(&colonies);
+    units_set_combat_human_nation(k[c].human);
+    units_set_combat_europe(&eu);
+    AiPopupState pops;
+    ai_popup_init(&pops);
+    units_set_combat_popups(&pops, test_game_txt());
+    s_cam_n = 0;
+    s_lunge_n = 0;
+    s_watch_n = 0;
+    units_set_camera_edge_hook(unit_test_camera_hook, NULL);
+    units_set_combat_watch(unit_test_watch_hook, NULL);
+    units_set_phantom_lunge_hook(unit_test_phantom_lunge_hook, NULL);
+    (void)units_coastal_fort_fire_pulse_w(
+      &(ColonizeWorld){.units = &pool, .colonies = &colonies, .map = &map,
+                       .col1 = &c1, .col1_ok = true, .rng = NULL},
+      k[c].human
+    );
+    int fortfire = 0;
+    for (int q = 0; q < pops.queue_count; ++q) {
+      fortfire += test_body_is_section(pops.queue[q].body, "FORTFIRE");
+    }
+    if (fortfire != k[c].want || s_cam_n != k[c].want ||
+        (k[c].want && (s_cam[0] != 2 || s_cam[1] != 2))) {
+      fprintf(stderr, "fortgate case %zu: @FORTFIRE %d scrolls %d at (%d,%d), want %d\n", c,
+              fortfire, s_cam_n, s_cam[0], s_cam[1], k[c].want);
+      rc = 1;
+    } else if (s_lunge_n != k[c].want || s_watch_n != 0) {
+      fprintf(stderr, "fortgate case %zu: lunges %d (watch %d), want %d\n", c, s_lunge_n,
+              s_watch_n, k[c].want);
+      rc = 1;
+    }
+    units_set_phantom_lunge_hook(NULL, NULL);
+    units_set_combat_watch(NULL, NULL);
+    units_set_camera_edge_hook(NULL, NULL);
+    units_set_combat_popups(NULL, NULL);
+    units_set_combat_europe(NULL);
+    units_set_combat_colonies(NULL);
+    units_set_combat_human_nation(-1);
     map_free(&map);
   }
   return rc;
@@ -2473,7 +2595,7 @@ static int unit_fort_fire_difficulty_handicaps(void) {
     c1.player[1].control = k == 0 ? 0 : 1;
     const int s = units_spawn_allow_stack(&pool, 0, 3, 2);
     units_get(&pool, s)->nation_id = 1;
-    (void)units_fort_vs_ship(&pool, 1, 0, 2, 2, s, NULL, &c1, "Fort", "");
+    (void)units_fort_vs_ship(&pool, 1, 0, 2, 2, s, NULL, &c1, "Fort", "", false);
     const ColonizeUnit* u = units_get_const(&pool, s);
     const int hit = !(u && u->active && u->x == 3 && u->y == 2);
     const int want_hit = k == 1;
@@ -2594,6 +2716,7 @@ static const TestCase k_cases[] = {
   {"unit_combat_music_sting", unit_combat_music_sting},
   {"unit_fort_fire_dissolve_and_europe", unit_fort_fire_dissolve_and_europe},
   {"unit_fort_fire_aims_chain_head", unit_fort_fire_aims_chain_head},
+  {"unit_fort_fire_fortfire_gate", unit_fort_fire_fortfire_gate},
   {"unit_combat_sfx_visibility", unit_combat_sfx_visibility},
   {"unit_native_tile_attack_alarm", unit_native_tile_attack_alarm},
   {"unit_capture_ring_and_alarm_vent", unit_capture_ring_and_alarm_vent},
