@@ -168,10 +168,13 @@ int ai_euro_hauler_free_holds(const ColonizeUnitPool* units, const ColonizeUnit*
  * `0a60`'s own "hull full" test is literally `0x5237[type] == +0x3150` after
  * that round trip (decomp 87511-87514).
  *
- * This port keeps passengers in `cargo_ids`/`aboard_ship_id` instead, so the
- * mark scan's `aboard_ship_id >= 0` skip never re-marks them and the
- * reservation DOS renews each act has to be charged here. Without it a 2-slot
- * Caravel ends its turn carrying 2 passengers AND a goods hold.
+ * This port keeps passengers in `cargo_ids`/`aboard_ship_id` instead. At a
+ * colony berth the arrival block puts them ashore first, so the mark scan
+ * re-marks and re-debits them as DOS does and `cargo_ids` is empty here. The
+ * AI_20E6_SHIP_DUMP=0 fallback load block skips that arrival block, so its
+ * passengers stay aboard, the scan's `aboard_ship_id >= 0` skip never sees
+ * them, and this loop charges the reservation DOS renews each act. Without it
+ * a 2-slot Caravel ends its turn carrying 2 passengers AND a goods hold.
  */
 int ai_euro_20e6_ship_hold_budget(
   const ColonizeUnitPool* units, const ColonizeUnit* ship

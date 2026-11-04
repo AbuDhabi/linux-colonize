@@ -702,11 +702,9 @@ int ai_euro_20e6_wagon_village_errand(
  *
  * So +0x314c only ever carries 0/1 in this sweep.
  *
- * OpenCol tile substitution: DOS ships berth ON the colony tile, so 10be's own
- * tile stack already holds the marked land units. This port berths ships on
- * adjacent water, so the sweep covers the ship's tile plus a loose unit
- * standing on an own-colony tile the ship also sits on (exact tile compares,
- * as in the arrival block and the 06e load block).
+ * Ships berth ON the colony tile, as in DOS (exact ship-tile == colony-tile
+ * compares in the arrival block and the 06e load block), so the sweep is the
+ * ship's own tile: the loose units standing there are 10be's tile stack.
  */
 /*
  * Raw 2991-2997 (asm 0x30a7-0x30d5) stale board-mark clear, shared by the
@@ -717,8 +715,8 @@ int ai_euro_20e6_wagon_village_errand(
  * nation-turn top; without this clear on the unload path a passenger dropped
  * ashore this turn still carries that stamp and 10be re-boards it (the
  * load/unload oscillation the -O3 unit_ai_euro_war failure exposed). Sweep =
- * ship tile + adjacent own colony tile, the same berth substitution 10be
- * makes.
+ * the ship's tile (the berth colony tile); the own-colony arm below only
+ * matches units on that same tile.
  */
 static void ai_euro_20e6_clear_stale_board_marks(
   ColonizeTurnContext* ctx,
@@ -1058,11 +1056,21 @@ static int ai_euro_20e6_ship_berth_arrival(
   /*
    * Raw 2991-2997 (asm 0x30a7-0x30d5): before anything else, walk the berth
    * tile's stack and clear every stale act_state == 1 board mark, so this
-   * act's scan re-decides from scratch. DOS iterates the ship's own tile
-   * (ships berth ON the colony tile); this port berths on adjacent water, so
-   * the colony tile the ship is berthed at is the equivalent stack.
+   * act's scan re-decides from scratch. DOS iterates the ship's own tile; the
+   * ship berths ON the colony tile (exact compare above), so it is the same
+   * stack.
    */
   ai_euro_20e6_clear_stale_board_marks(ctx, nation_id, ship);
+  /* Raw 90230-90238: DOS's riders are members of the berth tile's chain, so
+   * the same walk clears their act 1 too; only the units the mark scan below
+   * picks again are re-boarded by FUN_1427_10be (raw 8658-8676: act 0 on a
+   * land tile stays put). The port keeps riders in cargo_ids, so put them on
+   * the colony tile first; the scan and transport_assemble then treat them
+   * like any other unit standing there. */
+  if (ship->cargo_count > 0) {
+    /* No occupancy refresh: the hull already marks this tile occupied. */
+    (void)units_disembark_all(ctx->units, ship->id, ship->x, ship->y);
+  }
 
   /* md:3002-3007: dump every hold into the colony, unconditionally. */
   int dumped = 0;
@@ -1124,10 +1132,9 @@ static int ai_euro_20e6_ship_berth_arrival(
   }
 
   /* md:3012-3016 + 3052-3131: free = capacity − holds_occupied, then the
-   * DOS LOAD matrix one cargo per free hold. Passengers already aboard are
-   * charged here (ai_euro_20e6_ship_hold_budget) because the port's cargo_ids
-   * substitution stops the scan below from re-reserving them the way DOS's
-   * clear+re-mark round trip does. */
+   * DOS LOAD matrix one cargo per free hold. The riders were put ashore
+   * above, so the budget charges none; the scan below re-debits the ones it
+   * re-marks, as DOS's clear+re-mark round trip does. */
   int loaded = 0;
   int free_holds = ai_euro_20e6_ship_hold_budget(ctx->units, ship);
 

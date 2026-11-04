@@ -1905,6 +1905,107 @@ static int unit_berth_marks_then_assembles_passenger(void) {
 }
 
 /*
+ * At an own-colony berth DOS's stale-mark walk covers the riders too (raw
+ * 90230-90238), and 10be re-boards only the units the mark scan picks again
+ * (raw 8658-8676). A Free Colonist is never re-marked, so it is left on the
+ * colony tile; a Pioneer (DOS type 2) is re-marked and rides on.
+ * `cower`: the colony is flagged NEARBY_FRIGATE, so the Caravel cowers (raw
+ * 3018-3023) after the riders are ashore and the park skips boarding: both
+ * stay on the colony tile.
+ */
+static int berth_riders_run(bool cower) {
+  const int nation = 1;
+  Fixture f;
+  if (fixture_init(&f, nation) != 0) {
+    return 1;
+  }
+  for (int y = 0; y < 16; ++y) {
+    for (int x = 12; x < 16; ++x) {
+      f.map.terrain[y * 16 + x] = 25; /* MAP_OCEAN_INDEX */
+    }
+  }
+  f.units.type_count = 5;
+  snprintf(f.units.types[4].name, sizeof(f.units.types[4].name), "Pioneer");
+  f.units.types[4].movement = 1;
+  f.units.types[4].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  f.units.types[4].space = 1;
+  f.units.types[0].space = 1;
+  f.units.types[2].cargo = 3;
+
+  ColonizeColony* c = &f.colonies.colonies[0];
+  c->id = 0;
+  c->active = true;
+  c->nation_id = nation;
+  c->x = 11;
+  c->y = 4;
+  c->population = 3;
+  c->colonist_count = 3;
+  c->building_in_production = -1;
+  if (cower) {
+    c->ai_flags |= COLONIZE_COLONY_AI_NEARBY_FRIGATE;
+  }
+  f.colonies.colony_count = 1;
+  f.colonies.next_id = 1;
+
+  const int ship_id = units_spawn(&f.units, 2, 11, 4); /* on colony tile (DOS berth) */
+  const int col_id = units_spawn_allow_stack(&f.units, 0, 11, 4);
+  const int pio_id = units_spawn_allow_stack(&f.units, 4, 11, 4);
+  ColonizeUnit* ship = units_get(&f.units, ship_id);
+  ColonizeUnit* col = units_get(&f.units, col_id);
+  ColonizeUnit* pio = units_get(&f.units, pio_id);
+  if (!ship || !col || !pio) {
+    fixture_free(&f);
+    return fail("spawn berth rider units");
+  }
+  ship->nation_id = nation;
+  col->nation_id = nation;
+  pio->nation_id = nation;
+  if (!units_board_stacked(&f.units, col_id, ship_id) ||
+      !units_board_stacked(&f.units, pio_id, ship_id)) {
+    fixture_free(&f);
+    return fail("board berth riders");
+  }
+  if (units_load_goods(&f.units, ship_id, COLONIZE_CARGO_ORE, 10) <= 0) {
+    fixture_free(&f);
+    return fail("load berth hull");
+  }
+
+  ship->col1_counter16 = 0;
+  (void)ai_euro_20e6_tasked_ship_berth_arrival(&f.ctx, nation, ship, NULL, NULL);
+
+  col = units_get(&f.units, col_id);
+  pio = units_get(&f.units, pio_id);
+  ship = units_get(&f.units, ship_id);
+  const int col_ashore = col && col->active && col->aboard_ship_id < 0 && col->x == 11 &&
+                         col->y == 4 && col->orders == UNITS_ORDER_NONE;
+  const int pio_ashore = pio && pio->active && pio->aboard_ship_id < 0 && pio->x == 11 &&
+                         pio->y == 4;
+  const int ok = cower ? col_ashore && pio_ashore && ship && ship->col1_counter16 == 1 &&
+                           ship->cargo_count == 0
+                       : col_ashore && pio && pio->aboard_ship_id == ship_id;
+  if (!ok) {
+    fprintf(stderr, "cower %d: colonist aboard=%d orders=%d at (%d,%d); pioneer aboard=%d "
+            "(ship %d); counter %d\n", cower, col ? col->aboard_ship_id : -9,
+            col ? col->orders : -9, col ? col->x : -9, col ? col->y : -9,
+            pio ? pio->aboard_ship_id : -9, ship_id, ship ? ship->col1_counter16 : -9);
+  }
+  fixture_free(&f);
+  return ok ? 0 : 1;
+}
+
+static int unit_berth_puts_unmarked_riders_ashore(void) {
+  return berth_riders_run(false) == 0
+           ? 0
+           : fail("berth must leave the unmarked colonist ashore and re-board the pioneer");
+}
+
+static int unit_berth_cower_leaves_riders_ashore(void) {
+  return berth_riders_run(true) == 0
+           ? 0
+           : fail("a cowering hull must still put its riders ashore and board none");
+}
+
+/*
  * 0a60 registration gate = DOS's `bVar5` (raw viceroy_unpacked.c:87622 /
  * :87633 / :87663) and the queue it feeds is a PICKUP queue: the 4393 tip
  * aims a hauler at the colony that HAS goods, not at one that is short.
@@ -3920,6 +4021,8 @@ static const TestCase k_cases[] = {
     {"unit_europe_dock_demand_throttled_by_lane", unit_europe_dock_demand_throttled_by_lane},
     {"unit_europe_lane_crossing_ticks", unit_europe_lane_crossing_ticks},
     {"unit_europe_lane_shared_arrival_transfers_passenger", unit_europe_lane_shared_arrival_transfers_passenger},
+    {"unit_berth_puts_unmarked_riders_ashore", unit_berth_puts_unmarked_riders_ashore},
+    {"unit_berth_cower_leaves_riders_ashore", unit_berth_cower_leaves_riders_ashore},
     {"unit_europe_lane_arrival_uses_hull_tile", unit_europe_lane_arrival_uses_hull_tile},
     {"unit_europe_lane_arrivals_place_in_chain_order", unit_europe_lane_arrivals_place_in_chain_order},
     {"unit_europe_lane_hop_appends_at_chain_tail", unit_europe_lane_hop_appends_at_chain_tail},
