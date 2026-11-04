@@ -14,6 +14,7 @@
 #include "core/ai_goals.h"
 #include "core/ai_king.h"
 #include "core/col1_bridge.h"
+#include "core/col1_post_map.h"
 #include "core/colony.h"
 #include "core/colony_production.h"
 #include "core/ai_internal.h"
@@ -1346,6 +1347,10 @@ bool ai_init_new_game(const AiNewGameParams* params, char* err, size_t err_size)
     diag_warn("ai: no tribes placed");
   }
   free(tribes);
+  /* FUN_75c2_235c raw 121594: FUN_2a1f_07ea -> FUN_67f4_0088 fills the
+   * connectivity planes and continent tallies (raw 105112-105140) at new
+   * game, not only at the first save capture. */
+  col1_post_map_rebuild_connectivity(&params->col1->post_map, params->map);
   /* FUN_75c2_235c raw 121595: FUN_2a1f_07f8 -> FUN_682a_000c site scores. */
   ai_goals_write_site_scores(params->map, params->names);
 

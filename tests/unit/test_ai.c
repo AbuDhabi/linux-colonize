@@ -595,6 +595,21 @@ static int run_init_and_turns(
       return 1;
     }
   }
+  {
+    /* FUN_67f4_0088 (raw 105112-105140) fills the DS:0x85c8 continent
+     * land-tile tallies at new game; zero until the first save was the bug. */
+    unsigned land = 0;
+    for (int c = 0; c < 16; ++c) {
+      land += col1.post_map.continent_tally_b[c];
+    }
+    if (land == 0) {
+      fprintf(stderr, "%s: continent tallies empty after new game\n", label);
+      map_free(&map);
+      col1_save_free(&col1);
+      assets_msg_free(&names);
+      return 1;
+    }
+  }
   if (count_braves(&units) <= 0) {
     fprintf(stderr, "%s: expected Braves\n", label);
     map_free(&map);
