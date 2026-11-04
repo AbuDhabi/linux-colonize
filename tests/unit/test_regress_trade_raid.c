@@ -752,7 +752,53 @@ static int case_burn_keeps_project(void) {
   return 0;
 }
 
+/* FUN_5fef_0f14 kind 3 (raw 99868-99874) takes the first hull in the
+ * tile's chain (07e0 head, 02e4 next), not the lowest unit slot. */
+static ColonizeUnitPool s_ship_units;
+
+static void ship_setup(void) {
+  memset(&s_ship_units, 0, sizeof(s_ship_units));
+  units_reset(&s_ship_units);
+  units_set_occupancy_map(NULL);
+  s_ship_units.type_count = 2;
+  memset(s_ship_units.types, 0, 2 * sizeof(s_ship_units.types[0]));
+  /* @UNIT Privateer / Frigate combat, guns, hull (NAMES.TXT). */
+  s_ship_units.types[0].kind_plus1 = UNITS_KIND_PRIVATEER + 1;
+  s_ship_units.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  s_ship_units.types[0].defense = 8;
+  s_ship_units.types[0].guns = 4;
+  s_ship_units.types[0].hull = 4;
+  s_ship_units.types[1].kind_plus1 = UNITS_KIND_FRIGATE + 1;
+  s_ship_units.types[1].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  s_ship_units.types[1].defense = 16;
+  s_ship_units.types[1].guns = 6;
+  s_ship_units.types[1].hull = 6;
+}
+
+static int case_raid_ship_is_chain_head(void) {
+  ship_setup();
+  const int older = units_spawn_allow_stack(&s_ship_units, 1, 5, 5);
+  const int newer = units_spawn_allow_stack(&s_ship_units, 1, 5, 5);
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.units = &s_ship_units;
+  ColonizeColony c;
+  memset(&c, 0, sizeof(c));
+  c.x = 5;
+  c.y = 5;
+  if (older < 0 || newer < 0 || units_tile_head_id_at(&s_ship_units, 5, 5) != newer) {
+    return fail("raid ship: fixture chain head is not the newer ship");
+  }
+  const int got = ai_contact_raid_port_ship(&ctx, &c);
+  if (got != newer) {
+    fprintf(stderr, "raid ship: older %d newer %d picked %d\n", older, newer, got);
+    return fail("raid ship must be the first hull in the tile chain, not the lowest slot");
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+    {"case_raid_ship_is_chain_head", case_raid_ship_is_chain_head},
     {"case_burn_ignores_expansion_mirror", case_burn_ignores_expansion_mirror},
     {"case_burn_clears_expansion_mirror", case_burn_clears_expansion_mirror},
     {"case_upper_tier_burn_keeps_crew", case_upper_tier_burn_keeps_crew},

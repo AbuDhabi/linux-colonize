@@ -87,29 +87,24 @@ static int ai_contact_raid_next_row(int row) {
 
 /* Non-lumber lootable warehouse cargo (STORES still preferred over BURN). */
 /*
- * FUN_5fef_0f14 kind 3's victim pick (raw 99989-99997): `FUN_281f_07e0`
+ * FUN_5fef_0f14 kind 3's victim pick (raw 99868-99874): `FUN_281f_07e0`
  * (unit_index_on_tile) on the raided colony's own tile, abort unless
  * `FUN_281f_088a` (stack_has_ship) says a ship is in that stack, then walk
  * down with `FUN_281f_02e4` until the unit's type byte is 0xd..0x12 (the six
  * ship types, docs/indian_alarm.md (ship → village)). DOS filters on type only — any hull in
- * the port is fair game. Returns the unit id, or −1 when the port is empty
- * (DOS's `goto LAB_5fef_123a`, which collapses the raid to kind 0).
+ * the port is fair game, and the FIRST hull in the tile's chain order is the
+ * victim, not the lowest unit slot. Returns the unit id, or −1 when the port
+ * is empty (DOS's `goto LAB_5fef_123a`, which collapses the raid to kind 0).
  */
 COLONIZE_INTERNAL int ai_contact_raid_port_ship(ColonizeTurnContext* ctx, const ColonizeColony* c) {
   if (!ctx || !ctx->units || !c) {
     return -1;
   }
-  for (int i = 0; i < units_slot_end(ctx->units); ++i) {
-    ColonizeUnit* u = &ctx->units->units[i];
-    if (!units_is_on_map(u) || u->x != c->x || u->y != c->y) {
-      continue;
-    }
-    if (!units_is_sea(ctx->units, u->id)) {
-      continue;
-    }
-    return u->id;
+  int id = units_tile_head_id_at(ctx->units, c->x, c->y);
+  while (id >= 0 && !units_is_sea(ctx->units, id)) {
+    id = units_tile_chain_next_id(ctx->units, id);
   }
-  return -1;
+  return id;
 }
 
 /*
