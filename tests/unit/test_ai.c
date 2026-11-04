@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "core/ai.h"
+#include "core/ai_contact.h"
 #include "core/ai_euro.h"
 #include "core/assets.h"
 #include "core/col1_save.h"
@@ -1513,6 +1514,163 @@ static int run_152e_mission_nibble_out_of_domain(void) {
 
 /* port_bugs.md #1103: ai_coarse_fog_reset wipes the DS:0x9faa plane that the 0a60
  * restamp (and mapgen) leave behind, as ai_init_new_game / load need. */
+/*
+ * A !bVar6 visit (contact_state 1) to a colony whose stores price to nothing.
+ * FUN_5bfb_022e raw 96857: local_40 < 0 -> LAB_5bfb_0dea, local_4c = -1,
+ * back to LAB_5bfb_0def. Half 0: the colony tile's head is an AI Wagon
+ * Train (local_42), so the wagon arm runs (raw 96933-96976), the visit
+ * resolves and LAB_5bfb_1005 exhausts the Brave. Half 1: no wagon, human
+ * colony: the else-limb shows @INDIANCOMMENT (raw 96978-96985), zeroes the
+ * village word (raw 96986) and returns 0; the Brave keeps its MP.
+ */
+static int run_visit_empty_colony(void) {
+  if (!test_names_txt() || !test_game_txt()) {
+    return TR_SKIP;
+  }
+  for (int half = 0; half < 2; ++half) {
+    Ai152eFixture f;
+    if (ai_152e_fixture_init(&f, "visit-empty-colony", 777u) != 0) {
+      return 1;
+    }
+    ColonizeMsgCatalog game_txt;
+    assets_msg_init(&game_txt);
+    if (!assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT")) {
+      fprintf(stderr, "visit-empty-colony: GAME.TXT load failed\n");
+      ai_152e_fixture_free(&f);
+      return 1;
+    }
+    AiPopupState pop;
+    ai_popup_init(&pop);
+    f.ctx.messages = &game_txt;
+    f.ctx.ai_popups = &pop;
+    ai_contact_reset();
+    const int e = half == 0 ? 1 : 0; /* 1 = AI, 0 = human */
+    ColonizeColony* col = &f.colonies.colonies[0];
+    col->active = true;
+    col->id = 0;
+    col->nation_id = e;
+    col->x = 14;
+    col->y = 10;
+    snprintf(col->name, sizeof(col->name), "Testtown");
+    const int brave_ti = units_find_type(&f.units, "Brave");
+    const int wagon_ti = units_find_type(&f.units, "Wagon Train");
+    const int bid = brave_ti >= 0 ? units_spawn_allow_stack(&f.units, brave_ti, 13, 10) : -1;
+    const int wid =
+      (half == 0 && wagon_ti >= 0) ? units_spawn_allow_stack(&f.units, wagon_ti, 14, 10) : -1;
+    ColonizeUnit* brave = units_get(&f.units, bid);
+    ColonizeUnit* wag = units_get(&f.units, wid);
+    if (!brave || (half == 0 && !wag)) {
+      fprintf(stderr, "visit-empty-colony: spawn failed\n");
+      assets_msg_free(&game_txt);
+      ai_152e_fixture_free(&f);
+      return 1;
+    }
+    brave->nation_id = 4;
+    brave->home_tribe_index = 0;
+    brave->col1_flags15 = 0;
+    brave->moves = 0; /* MP spent so far: a fresh step */
+    if (wag) {
+      wag->nation_id = e;
+      wag->hold_goods_type[0] = 3;
+      wag->hold_goods_amount[0] = 100;
+    }
+    f.col1.nation[e].trade.euro_price[3] = 11;
+    f.col1.indian[0].euro_diplo[e] = (uint8_t)COL1_INDIAN_MET_BIT;
+    f.col1.indian[0].alarm_by_player[e] = 20;
+    f.col1.indian[0].contact_state[e] = 1; /* local_10: never generous */
+    col1_tribe_attitude_set(&f.tribes[0], e, 5);
+
+    ai_s_native_colonies = &f.colonies;
+    ai_native_bind_step_ctx(&f.ctx);
+    const int resolved = ai_native_step_first_contact(&f.units, &f.map, &f.col1, brave, 4);
+    ai_native_bind_step_ctx(NULL);
+    ai_s_native_colonies = NULL;
+    const int exhausted = brave->moves != 0;
+
+    int ok = 1;
+    if (half == 0) {
+      ok = resolved == 1 && exhausted && wag->hold_goods_amount[0] == 0 &&
+           col1_tribe_attitude(&f.tribes[0], e) == 0;
+      fprintf(stderr, "visit-empty-colony wagon: resolved %d exhausted %d hold %d word %d\n",
+              resolved, exhausted, wag->hold_goods_amount[0], col1_tribe_attitude(&f.tribes[0], e));
+    } else {
+      int comment = 0;
+      for (int i = 0; i < pop.queue_count; ++i) {
+        if (pop.queue[i].tag == AI_POPUP_TAG_CONTACT_MEET && pop.queue[i].body[0]) {
+          comment = 1;
+        }
+      }
+      ok = resolved == 0 && !exhausted && comment && col1_tribe_attitude(&f.tribes[0], e) == 0;
+      fprintf(stderr, "visit-empty-colony comment: resolved %d exhausted %d popup %d word %d\n",
+              resolved, exhausted, comment, col1_tribe_attitude(&f.tribes[0], e));
+    }
+    assets_msg_free(&game_txt);
+    ai_152e_fixture_free(&f);
+    if (!ok) {
+      return 1;
+    }
+  }
+  return 0;
+}
+
+/*
+ * FUN_5bfb_3180 closes a nation (aiStack_20[e]) only when 022e returns
+ * non-zero. An AI colony east of the Brave with empty stores and no wagon
+ * leaves the visit unresolved, so the next tile of the same nation, a
+ * Soldier south of the Brave, still gets its turn: raw 98649-98651 stamps
+ * its facing with the scan direction (4) before its own 022e.
+ */
+static int run_unresolved_visit_keeps_nation_open(void) {
+  if (!test_names_txt()) {
+    return TR_SKIP;
+  }
+  Ai152eFixture f;
+  if (ai_152e_fixture_init(&f, "visit-keeps-open", 778u) != 0) {
+    return 1;
+  }
+  ai_contact_reset();
+  const int e = 1;
+  ColonizeColony* col = &f.colonies.colonies[0];
+  col->active = true;
+  col->id = 0;
+  col->nation_id = e;
+  col->x = 14;
+  col->y = 10;
+  snprintf(col->name, sizeof(col->name), "Testtown");
+  const int brave_ti = units_find_type(&f.units, "Brave");
+  const int soldier_ti = units_find_type(&f.units, "Soldier");
+  const int bid = brave_ti >= 0 ? units_spawn_allow_stack(&f.units, brave_ti, 13, 10) : -1;
+  const int sid = soldier_ti >= 0 ? units_spawn_allow_stack(&f.units, soldier_ti, 13, 11) : -1;
+  ColonizeUnit* brave = units_get(&f.units, bid);
+  ColonizeUnit* soldier = units_get(&f.units, sid);
+  if (!brave || !soldier) {
+    fprintf(stderr, "visit-keeps-open: spawn failed\n");
+    ai_152e_fixture_free(&f);
+    return 1;
+  }
+  brave->nation_id = 4;
+  brave->home_tribe_index = 0;
+  brave->col1_flags15 = 0;
+  brave->moves = 0;
+  soldier->nation_id = e;
+  soldier->last_dir = -1;
+  f.col1.indian[0].euro_diplo[e] = (uint8_t)COL1_INDIAN_MET_BIT;
+  f.col1.indian[0].alarm_by_player[e] = 20;
+  f.col1.indian[0].contact_state[e] = 1;
+  col1_tribe_attitude_set(&f.tribes[0], e, 5);
+
+  ai_s_native_colonies = &f.colonies;
+  ai_native_bind_step_ctx(&f.ctx);
+  const int resolved = ai_native_step_first_contact(&f.units, &f.map, &f.col1, brave, 4);
+  ai_native_bind_step_ctx(NULL);
+  ai_s_native_colonies = NULL;
+  fprintf(stderr, "visit-keeps-open: resolved %d soldier facing %d moves %d\n", resolved,
+          (int)soldier->last_dir, (int)brave->moves);
+  const int ok = resolved == 0 && soldier->last_dir == 4 && brave->moves == 0;
+  ai_152e_fixture_free(&f);
+  return ok ? 0 : 1;
+}
+
 static int case_coarse_fog_reset(void) {
   static ColonizeUnitPool units;
   memset(&units, 0, sizeof(units));
@@ -2065,5 +2223,7 @@ static const TestCase k_cases[] = {
     {"run_152e_mission_attitude_word", run_152e_mission_attitude_word},
     {"run_152e_alarm_escalation", run_152e_alarm_escalation},
     {"run_152e_mission_nibble_out_of_domain", run_152e_mission_nibble_out_of_domain},
+    {"run_visit_empty_colony", run_visit_empty_colony},
+    {"run_unresolved_visit_keeps_nation_open", run_unresolved_visit_keeps_nation_open},
 };
 TEST_MAIN(k_cases)

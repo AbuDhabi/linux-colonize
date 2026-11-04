@@ -121,6 +121,9 @@ int ai_native_step_first_contact(
   ColonizeUnitPool* units, const ColonizeWorldMap* map, ColonizeCol1Save* col1,
   ColonizeUnit* u, int nation_id
 );
+/* Test seam: the turn context ai_native_step_first_contact reads (set by
+ * ai_indian_nation_turn around the pulse). NULL unbinds. */
+COLONIZE_INTERNAL void ai_native_bind_step_ctx(ColonizeTurnContext* ctx);
 
 int ai_native_021a_tail(
   ColonizeUnitPool* units,

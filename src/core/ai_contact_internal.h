@@ -280,7 +280,7 @@ void ai_contact_local_rng(ColonizeTurnContext* ctx, int nation_id, ColonizeDosRn
 int ai_contact_village_bgm_cue(ColonizeDosRng* rng, int nation_id);
 void ai_contact_mark_visit_brave( const ColonizeTurnContext* ctx, int nation_id, int brave_id );
 void ai_contact_set_status(ColonizeTurnContext* ctx, const char* msg);
-void ai_contact_try_village_reparations(ColonizeTurnContext* ctx, int nation_id);
+int ai_contact_try_village_reparations(ColonizeTurnContext* ctx, int nation_id);
 void ai_contact_visit_mood_clear(int nation_id, int e);
 const AiContactVisitMood* ai_contact_visit_mood_this_turn( const ColonizeTurnContext* ctx, int nation_id, int e );
 void ai_contact_visit_mood_publish( const ColonizeTurnContext* ctx, int nation_id, int e, int brave_id, int generous_visit );

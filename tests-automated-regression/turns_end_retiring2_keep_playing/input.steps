@@ -60,6 +60,8 @@ key Return               # Rebel colonists CAPTURED by the Tory (nested pump)
 wait 10
 key Return               # Tories defeat Rebel Colonists near Guadeloupe (nested pump)
 wait 10
+key Return               # Tupi @INDIANCOMMENT ("pleased to see the prosperity ..."): a !bVar6 visit with no demand
+wait 10
 key Return               # Tupi ask Quebec for food: row 0 "I'm sorry, we gave at the office."
 wait 10
 key Return               # SoL in Port au Prince 71%: Continue turn

@@ -204,9 +204,13 @@ int ai_native_first_contact_this_turn(int nation_id, int euro_nation) {
   return s_ai_first_contact_this_turn[nation_id - 4][euro_nation] != 0;
 }
 
+COLONIZE_INTERNAL void ai_native_bind_step_ctx(ColonizeTurnContext* ctx) {
+  s_ai_native_ctx = ctx;
+}
+
 /* FUN_5bfb_3180 encounter scan around the unit's tile: from the step commit
- * tail and from 021a:13d7's pending-encounter resolve. Returns 1 when a first
- * contact fired (MP exhausted by the step caller). */
+ * tail and from 021a:13d7's pending-encounter resolve. Returns 1 when any
+ * 022e resolved (first contact or visit); the mover's MP is then exhausted. */
 int ai_native_step_first_contact(
   ColonizeUnitPool* units, const ColonizeWorldMap* map, ColonizeCol1Save* col1,
   ColonizeUnit* u, int nation_id
@@ -216,6 +220,7 @@ int ai_native_step_first_contact(
   }
   ColonizeCol1Indian* ind = &col1->indian[nation_id - 4];
   int fired = 0;
+  int resolved = 0;
   int done[4] = {0, 0, 0, 0};
   for (int d = 0; d < 8; ++d) {
     const int nx = u->x + k_ai_dir8_dx[d];
@@ -254,6 +259,7 @@ int ai_native_step_first_contact(
       (void)ai_contact_try_first_welcome(s_ai_native_ctx, e, nation_id);
       s_ai_first_contact_this_turn[nation_id - 4][e] = 1;
       fired = 1;
+      resolved = 1;
       done[e] = 1;
       continue;
     }
@@ -301,33 +307,48 @@ int ai_native_step_first_contact(
      * LAB_5bfb_0def fall-out), so 3180 leaves aiStack_20[e] open and the next
      * tile of e turns its head and rolls again. DOSBox 1591: a Brave at
      * (25,6) faces both French Dragoons at (25,7) and (24,7). The !bVar6
-     * fall-out also clears the home village's attitude word toward e
-     * (LAB_5bfb_0def tail, after @INDIANCOMMENT).
+     * fall-out is the LAB_5bfb_0def else-limb: @INDIANCOMMENT to a human,
+     * then the home village's attitude word toward e is cleared.
+     * The open-field Wagon Train head still only closes e here; its
+     * @INDIANWAGONS arm is not wired on this path yet.
      */
-    if (!colony_here && !(o && o->type_index == 0x0c)) {
-      if (mood == 1 && u->home_tribe_index < (int)col1->head.tribe_count && col1->tribe) {
-        col1_tribe_attitude_set(&col1->tribe[u->home_tribe_index], e, 0);
+    if (!colony_here) {
+      if (o && o->type_index == 0x0c) {
+        done[e] = 1;
+        continue;
+      }
+      if (mood == 1) {
+        ai_contact_indian_comment(s_ai_native_ctx, nation_id, e, u);
       }
       continue;
     }
-    done[e] = 1;
     /* DOS 3180's aiStack_20 is local to this encounter scan, not the
      * whole nation turn. Fresh 1553: Braves 15 and 25 each give Quebec
-     * six Tobacco through 022e:0b0a. `done[e]` above is the scan latch. */
-    if (colony_here) {
-      /* 5bfb:0683 tests the food-beg arm before the 096c gift arm even for a
-       * generous visit. A conceded beg falls through to 096c itself. */
-      /* 022e(param_1 = e): this encounter's European only. */
-      ai_contact_set_visit_euro(e);
-      ai_contact_set_visit_unit(u->id);
-      if (!ai_contact_try_village_beg_food(s_ai_native_ctx, nation_id)) {
-        ai_contact_try_village_gifts(s_ai_native_ctx, nation_id);
-      }
-      ai_contact_set_visit_unit(-1);
-      ai_contact_set_visit_euro(-1);
+     * six Tobacco through 022e:0b0a. `done[e]` is the scan latch, set only
+     * when 022e returns local_1a != 0. */
+    /* 5bfb:0683 tests the food-beg arm before the 096c gift arm even for a
+     * generous visit. A conceded beg falls through to 096c itself. */
+    /* 022e(param_1 = e): this encounter's European only. */
+    ai_contact_set_visit_euro(e);
+    ai_contact_set_visit_unit(u->id);
+    int visit = ai_contact_try_village_beg_food(s_ai_native_ctx, nation_id);
+    if (!visit) {
+      visit = ai_contact_try_village_gifts(s_ai_native_ctx, nation_id);
+    }
+    ai_contact_set_visit_unit(-1);
+    ai_contact_set_visit_euro(-1);
+    if (visit) {
+      done[e] = 1;
+      resolved = 1;
     }
   }
-  return fired;
+  /* LAB_5bfb_1005 (raw 97094-97095): every resolved 022e (local_1a != 0)
+   * exhausts the Indian mover (FUN_281f_0934), first contact or visit
+   * alike, from either caller (step tail or 021a:13d7). */
+  if (resolved) {
+    units_mp_exhaust(units, u);
+  }
+  return resolved;
 }
 
 void ai_native_note_brave_turn_origin(int unit_id, int x, int y) {
@@ -702,7 +723,7 @@ COLONIZE_INTERNAL AiNativeStepStatus ai_native_brave_step(
   }
   ai_set_owner_nibble_move(map, nx, ny, nation_id);
   if (!seed100_init_burns && ai_native_step_first_contact(units, map, col1, u, nation_id)) {
-    units_mp_exhaust(units, u); /* LAB_5bfb_1005: FUN_281f_0934 on the Indian mover */
+    /* MP already exhausted at LAB_5bfb_1005 inside the scan. */
     (*steps)++;
     return AI_NATIVE_STEP_STOP;
   }

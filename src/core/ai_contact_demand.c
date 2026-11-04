@@ -1306,7 +1306,7 @@ static int ai_contact_beg_food_pending(const AiPopupState* st) {
  * when that block did not resolve the visit, which is why the port hangs
  * it off this function's tail rather than off a new ai.c call site.
  */
-void ai_contact_try_village_reparations(ColonizeTurnContext* ctx, int nation_id);
+int ai_contact_try_village_reparations(ColonizeTurnContext* ctx, int nation_id);
 
 /*
  * Trigger side of the above — once per Indian nation's §9 (post-pulse,
@@ -1516,8 +1516,7 @@ int ai_contact_try_village_beg_food(ColonizeTurnContext* ctx, int nation_id) {
    * Nothing begged this visit → LAB_5bfb_0def, the demand half's remaining
    * two sites (@INDIANCITY / @INDIANWAGONS reparations).
    */
-  ai_contact_try_village_reparations(ctx, nation_id);
-  return 0;
+  return ai_contact_try_village_reparations(ctx, nation_id);
 }
 /* ===================== Human incite response, missionary convert/flee, WoI defect, prelude & relation tick (ai_contact_ai_incite_human .. ai_contact_indian_relation_tick) ===================== */
 
@@ -1882,8 +1881,9 @@ void ai_contact_indian_prelude(ColonizeTurnContext* ctx, int nation_id) {
    * DISCRETE charge, not a drip — FUN_0000_6582, the shared colony tiles[]
    * writer, bills 10..60 the first time a colonist is seated on tribal land
    * (now colonies_assign_field_w). That is what moves early-game alarm in the
-   * DOS seed-100 saves; nothing here needs to drip. The @INDIANCOMMENT
-   * land-use chrome still has no located DOS trigger and stays retired.
+   * DOS seed-100 saves; nothing here needs to drip. @INDIANCOMMENT is the
+   * FUN_5bfb_022e else-limb (raw 96978-96987, ai_contact_indian_comment),
+   * not a tick here.
    */
 
   /*

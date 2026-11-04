@@ -1183,7 +1183,7 @@ int ai_native_021a_tail(
      * makes the arrival step's own 3180 skip 022e, so the visit fires on the
      * Brave's next act. */
     u->col1_flags15 &= (uint8_t)~0x08u;
-    (void)ai_native_step_first_contact(units, map, col1, u, nation_id);
+    (void)ai_native_step_first_contact(units, map, col1, u, nation_id); /* exhausts on resolve */
     return 8;
   }
   if (flags & 0x80) {
