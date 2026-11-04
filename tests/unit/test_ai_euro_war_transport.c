@@ -1271,7 +1271,83 @@ static int unit_nearest_port_mode_m2_later_tie_wins(void) {
   return 0;
 }
 
+/*
+ * FUN_521d_6d8e's sticky bookkeeping (raw 93247-93257, DS:0x2d12/0x2d14)
+ * runs for every acted unit; 13b0 has no aboard test, so a rider acted in a
+ * hold becomes DS:0x2d12 too.
+ */
+static int unit_aboard_rider_takes_sticky_slot(void) {
+  const int nation = 1;
+  ColonizeWorldMap map;
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
+    return fail("sticky alloc map");
+  }
+  for (size_t i = 0; i < map.tile_count; ++i) {
+    map.terrain[i] = 25; /* open ocean: no landfall for the rider */
+  }
+  ColonizeUnitPool units;
+  fx_units_init(&units);
+  units.type_count = 2;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Free Colonist");
+  units.types[0].movement = 1;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[0].defense = 1;
+  snprintf(units.types[1].name, sizeof(units.types[1].name), "Galleon");
+  units.types[1].movement = 4;
+  units.types[1].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  units.types[1].cargo = 6;
+  units.types[1].defense = 2;
+  ColonizeColonyPool colonies;
+  fx_colonies_init(&colonies);
+  map.terrain[8 * 16 + 7] = 0; /* boarding shore, flooded again below */
+  const int sid = units_spawn(&units, 1, 8, 8);
+  const int pid = units_spawn(&units, 0, 7, 8);
+  ColonizeUnit* ship = units_get(&units, sid);
+  ColonizeUnit* pax = units_get(&units, pid);
+  if (!ship || !pax || !units_board(&units, pid, sid)) {
+    fx_map_free(&map);
+    return fail("sticky spawn/board");
+  }
+  map.terrain[8 * 16 + 7] = 25;
+  ship->nation_id = nation;
+  ship->orders = 0;
+  ship->moves = 0; /* the hull is not acted */
+  pax->nation_id = nation;
+  pax->orders = UNITS_ORDER_SENTRY;
+  pax->moves = 0;
+  pax->aboard_moves = -1; /* full allotment: 13b0 acts it */
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+  }
+  col1.stuff.ship_counts[nation] = 1;
+  ai_goals_reset();
+  uint32_t turn = 28;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng_seed = 42;
+  ai_euro_dispatcher_turn(&ctx, nation);
+  int sticky = -2;
+  int count = -2;
+  ai_euro_sticky_get(&sticky, &count);
+  fx_map_free(&map);
+  col1_save_free(&col1);
+  if (sticky != pid || count != 0) {
+    fprintf(stderr, "sticky unit=%d count=%d (rider %d)\n", sticky, count, pid);
+    return fail("an acted rider must take DS:0x2d12 (raw 93255)");
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+    {"unit_aboard_rider_takes_sticky_slot", unit_aboard_rider_takes_sticky_slot},
     {"unit_nearest_port_mode_m2_later_tie_wins", unit_nearest_port_mode_m2_later_tie_wins},
     {"unit_colony_sail_inland_retargets_to_port", unit_colony_sail_inland_retargets_to_port},
     {"unit_3180_human_talk_answered_before_next_act",

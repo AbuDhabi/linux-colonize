@@ -64,6 +64,21 @@ void ai_euro_set_watch(AiEuroWatchFn fn, void* user) {
 /* Sticky anti-spin stand-ins for DS:0x2d12 / DS:0x2d14. */
 static int s_sticky_unit = -1;
 static int s_sticky_count = 0;
+
+/* Raw 93247-93257: same id as DS:0x2d12 -> ++DS:0x2d14; past 0x14
+ * FUN_281f_0934 exhausts MP (the act still runs) so the has-MP test ends
+ * this unit's drain. 0x2d14 resets only on a new unit id. Runs for every
+ * acted unit, passengers included (13b0 has no aboard test). */
+static void ai_euro_sticky_note(ColonizeTurnContext* ctx, const ColonizeUnit* u) {
+  if (u->id == s_sticky_unit) {
+    if (++s_sticky_count > 0x14) {
+      units_mp_exhaust_unit(ctx->units, u->id);
+    }
+  } else {
+    s_sticky_unit = u->id;
+    s_sticky_count = 0;
+  }
+}
 /*
  * DS:0x9870 (−0x6790) nation×continent stance ∈ {0,3,4,6}:
  * 0 none / 3 expand / 4 military / 6 develop. Written by
@@ -1532,6 +1547,7 @@ static void ai_euro_dispatcher_turn_unit_waves(ColonizeTurnContext* ctx, int nat
          * so Artillery 114 reaches the Port Royal surplus recall before
          * Dragoon 142). */
         if (u->aboard_ship_id >= 0) {
+          ai_euro_sticky_note(ctx, u);
           u->moves = 0;
           u->aboard_moves = 0;
           wave_acted = 1;
@@ -1553,17 +1569,7 @@ static void ai_euro_dispatcher_turn_unit_waves(ColonizeTurnContext* ctx, int nat
         const int before_x = u->x;
         const int before_y = u->y;
         const int before_orders = u->orders;
-        /* Raw 93247-93257: same id as DS:0x2d12 -> ++DS:0x2d14; past 0x14
-         * FUN_281f_0934 exhausts MP (the act still runs) so the has-MP test
-         * ends this unit's drain. 0x2d14 resets only on a new unit id. */
-        if (u->id == s_sticky_unit) {
-          if (++s_sticky_count > 0x14) {
-            units_mp_exhaust_unit(ctx->units, u->id);
-          }
-        } else {
-          s_sticky_unit = u->id;
-          s_sticky_count = 0;
-        }
+        ai_euro_sticky_note(ctx, u);
 
         if (getenv("PICKCTX"))
           fprintf(stderr, "ACT n%d u%d i%d t%d @%d,%d o%d p%d mp%d draw %lu\n", nation_id, u->id, (int)(u - ctx->units->units), u->type_index, u->x, u->y, u->orders, u->col1_ai_plan, u->moves, dos_rng_draw_count());
