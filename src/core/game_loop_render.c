@@ -2516,9 +2516,17 @@ void game_commit_new_campaign(ColonizeGameState* game) {
   sound_play(0x39); /* FUN_75c2_235c new-game init: Hornpipe first (75c2:2474) */
   const uint8_t human_mask = ng->human_mask;
   new_game_cancel(ng);
+  /* Drop the unit hand-off and colony open the previous campaign left
+   * parked, as game_apply_col1_save does. */
+  game->turn_flow_deferred = false;
+  game->found_open_colony_id = -1;
   game->in_menu = false;
   game->view_pieces_mode = false;
   game->player_had_control = false;
+  /* The year loop starts afresh, as on a load: a lost war's throne audience
+   * is answered while the end of turn is parked, and its retire chain reaches
+   * the title menu through the Hall of Fame without game_end_to_title. */
+  memset(&game->turn_proc, 0, sizeof(game->turn_proc));
   /* Hot-seat: the year loop opens at slot 0, so the lowest human moves
    * first, with its @MULTINEXT (FUN_130d_0290 raw 6366-6390). */
   if (game->col1_ok && col1_save_hotseat(&game->col1)) {

@@ -2929,6 +2929,37 @@ static int test_crossing_stamps_nation_return_tile(void) {
   return rc;
 }
 
+/* A new campaign drops the unit hand-off and colony open the previous game
+ * left parked, as game_apply_col1_save does. */
+static int test_new_campaign_drops_parked_flow(void) {
+  ColonizeGameConfig cfg = {.data_dir = "./COLONIZE", .save_dir = "./build/debug"};
+  ColonizeGameState* game = game_create(&cfg);
+  if (!game || !game_assets_ok(game)) {
+    fprintf(stderr, "SKIP: no COLONIZE/ assets\n");
+    if (game) {
+      game_destroy(game);
+    }
+    return TR_SKIP;
+  }
+  game->turn_flow_deferred = true;
+  game->found_open_colony_id = 3;
+  /* An end of turn parked when a lost war's retire chain reached the title. */
+  game->turn_proc.step = TURN_PROC_FINISH;
+  game->turn_proc.day_advanced = true;
+  game->new_game.generate_map = false;
+  snprintf(game->new_game.map_file, sizeof(game->new_game.map_file), "%s", "AMER2.MP");
+  game_commit_new_campaign(game);
+  int rc = 0;
+  if (game->turn_flow_deferred || game->found_open_colony_id != -1) {
+    rc = fail("new campaign must drop the parked turn flow");
+  }
+  if (turn_processor_active(&game->turn_proc) || game->turn_proc.day_advanced) {
+    rc = fail("new campaign must drop the parked end of turn");
+  }
+  game_destroy(game);
+  return rc;
+}
+
 /*
  * Brewster's @RECRUITCHOOSE %STRING0 is the nation's home port: FUN_38fd_4884 raw 64708
  * (param_2 != 0) passes DS:(nation*2 - 0x7c74), the NAMES @HOMEPORT row, to FUN_281f_0438.
@@ -4125,6 +4156,7 @@ static const TestCase k_cases[] = {
     {"test_europe_dock_menu_on_release", test_europe_dock_menu_on_release},
     {"test_brewster_pick_names_home_port", test_brewster_pick_names_home_port},
     {"test_crossing_stamps_nation_return_tile", test_crossing_stamps_nation_return_tile},
+    {"test_new_campaign_drops_parked_flow", test_new_campaign_drops_parked_flow},
     {"test_europe_repaints_reset_harbor_selection", test_europe_repaints_reset_harbor_selection},
     {"test_click_spent_unit_hands_off", test_click_spent_unit_hands_off},
     {"test_eot_off_unit_used_up_ends_turn", test_eot_off_unit_used_up_ends_turn},
