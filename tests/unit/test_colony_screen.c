@@ -3732,7 +3732,79 @@ static int unit_minimap_draws_adjacent_village(void) {
   return 0;
 }
 
+/* Pixels of ink `c` on the outline of the w x h box at (x, y). */
+static int box_ink(const uint8_t* px, int x, int y, int w, int h, uint8_t c) {
+  int n = 0;
+  for (int i = 0; i < w; ++i) {
+    n += px[y * 320 + x + i] == c;
+    n += px[(y + h - 1) * 320 + x + i] == c;
+  }
+  for (int j = 1; j < h - 1; ++j) {
+    n += px[(y + j) * 320 + x] == c;
+    n += px[(y + j) * 320 + x + w - 1] == c;
+  }
+  return n;
+}
+
+/*
+ * The spy view (DS:0xb98, FUN_5f7a_000e raw 98856) draws no selection boxes: the warehouse
+ * slot box (FUN_2f2b_289e raw 49068) and the area cursor (FUN_2f2b_0d89 raw 47779) are
+ * drawn only while DS:0xb98 is 0.
+ */
+static int unit_spy_view_draws_no_selection_boxes(void) {
+  char err[256];
+  static ColonyScreenView view;
+  if (!colony_screen_load(&view, "COLONIZE", err, sizeof(err))) {
+    fprintf(stderr, "colony_screen_load failed: %s\n", err);
+    return 1;
+  }
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  if (!map_load_mp("COLONIZE/AMER2.MP", &map, err, sizeof(err))) {
+    fprintf(stderr, "load failed: %s\n", err);
+    colony_screen_free(&view);
+    return 1;
+  }
+  static ColonizeColonyPool pool;
+  static ColonizeColony colony;
+  colonies_init(&pool);
+  memset(&colony, 0, sizeof(colony));
+  colony.active = true;
+  colony.x = 30;
+  colony.y = 30;
+  view.selected_cargo = 0;
+  view.focus = COLONY_FOCUS_AREA;
+  view.area_dx = 0;
+  view.area_dy = 0;
+  view.mouse_held = true;
+  int ox = 0;
+  int oy = 0;
+  colony_screen_minimap_origin(&ox, &oy);
+  const int t = COLONY_MINIMAP_TILE;
+  static uint8_t px[320 * 200];
+  ColonizeFramebuffer8 fb = {.width = 320, .height = 200, .pixels = px};
+  int counts[2][2];
+  for (int spy = 0; spy < 2; ++spy) {
+    view.spy_view = spy != 0;
+    memset(px, 0, sizeof(px));
+    colony_screen_draw_cargo_strip(&view, &pool, &colony, NULL, &fb);
+    counts[spy][0] = box_ink(px, 0, 0xb3, 20, 21, 10);
+    memset(px, 0, sizeof(px));
+    colony_screen_draw_area_overlays(&view, &pool, &colony, NULL, &map, NULL, NULL, &fb);
+    counts[spy][1] = box_ink(px, ox + t, oy + t, t, t, 15);
+  }
+  map_free(&map);
+  colony_screen_free(&view);
+  if (counts[0][0] == 0 || counts[0][1] == 0 || counts[1][0] != 0 || counts[1][1] != 0) {
+    fprintf(stderr, "warehouse box %d -> %d, area cursor %d -> %d\n", counts[0][0], counts[1][0],
+            counts[0][1], counts[1][1]);
+    return 1;
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+    {"unit_spy_view_draws_no_selection_boxes", unit_spy_view_draws_no_selection_boxes},
     {"unit_minimap_draws_adjacent_village", unit_minimap_draws_adjacent_village},
     {"unit_sub_dialogs_are_dos", unit_sub_dialogs_are_dos},
     {"unit_sub_dialog_pages_are_dos", unit_sub_dialog_pages_are_dos},

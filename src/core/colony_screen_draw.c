@@ -940,7 +940,8 @@ void colony_screen_draw_area_overlays(
         const int ix = tile_x + 14;
         const int iy = tile_y + 6;
         colony_screen_blit_icon_shadowed(view, sprite, framebuffer, ix, iy, 0);
-        if (view->selected_colonist == w.colonist_index) {
+        /* FUN_2f2b_0d89 raw 47779: no box in the spy view (DS:0xb98). */
+        if (!view->spy_view && view->selected_colonist == w.colonist_index) {
           colony_screen_draw_selection_box(framebuffer, tile_x, tile_y, tile, tile, 10);
         }
       }
@@ -953,9 +954,10 @@ void colony_screen_draw_area_overlays(
    * area has the focus (DS:0x32e == 0) and either a mouse button is held
    * (DS:0x7ee) or the blink phase DS:0x334 is on (colony_screen_blink_on).
    * The press-on-the-People-band arm needs DOS region 0, which a port press
-   * never keeps: every People-band press starts a drag (region 6).
+   * never keeps: every People-band press starts a drag (region 6). The spy view
+   * (DS:0xb98, raw 47779) draws neither box.
    */
-  if (view->focus == COLONY_FOCUS_AREA && abs(view->area_dx) <= half &&
+  if (!view->spy_view && view->focus == COLONY_FOCUS_AREA && abs(view->area_dx) <= half &&
       abs(view->area_dy) <= half && (view->mouse_held || colony_screen_blink_on(view))) {
     colony_screen_draw_selection_box(
       framebuffer, origin_x + (view->area_dx + half) * tile,
