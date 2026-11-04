@@ -140,6 +140,7 @@ typedef struct TurnProduceCtx {
   int lumber_before_hammers;
   int hammers_paid;
   int ch_sold[COLONIZE_CARGO_COUNT];
+  int spoil_e4[COLONIZE_CARGO_COUNT]; /* aiStack_e4: Phase B share of the overflow */
   /* birth (Phase I) */
   int birth_food_debit;
   int was_starving;

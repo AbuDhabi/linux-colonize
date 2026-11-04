@@ -7073,6 +7073,56 @@ static int case_produce_seam_lumber(void) {
   return 0;
 }
 
+/* @SPOIL counts against aiStack_e4, the Phase B share of
+ * the overflow (FUN_364b_0688 raw 57337-57340 / 57486-57501), not a delta of
+ * the stock after Phase L. 110 tools, cap 100, +5 made, 8 spent later: DOS
+ * keeps the 5 as this turn's share and reports 2 spoiled (the port reported 7). */
+static int case_produce_seam_spoil_share(void) {
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  ColonizeColony* col = &pool.colonies[0];
+  memset(col, 0, sizeof(*col));
+  col->active = true;
+  col->id = 1;
+  col->nation_id = 0;
+  snprintf(col->name, sizeof(col->name), "Roanoke");
+  col->stock[COLONIZE_CARGO_TOOLS] = 115; /* 110 + Phase B's +5 */
+  pool.colony_count = 1;
+  EuropeScreen eu;
+  memset(&eu, 0, sizeof(eu));
+  eu.cargo_count = COLONIZE_CARGO_COUNT;
+  snprintf(eu.cargo[COLONIZE_CARGO_TOOLS].name, sizeof(eu.cargo[0].name), "Tools");
+  TurnProduceCtx pc;
+  memset(&pc, 0, sizeof(pc));
+  pc.pool = &pool;
+  pc.colony = col;
+  pc.app = col;
+  pc.delta = &pc.local_delta;
+  pc.local_delta.goods[COLONIZE_CARGO_TOOLS] = 5;
+  pc.stock_before[COLONIZE_CARGO_TOOLS] = 110;
+  turn_produce_custom_house(&pc); /* europe NULL: no sale, only the e4 snapshot */
+  col->stock[COLONIZE_CARGO_TOOLS] -= 8; /* Phase L construction spend */
+  pc.europe = &eu;
+  ColonizeMsgCatalog game_txt;
+  assets_msg_init(&game_txt);
+  (void)assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT");
+  pc.messages = &game_txt;
+  AiPopupState pops;
+  ai_popup_init(&pops);
+  pc.ai_popups = &pops;
+  turn_produce_spoilage(&pc);
+  assets_msg_free(&game_txt);
+  const char* body = pops.queue_count > 0 ? pops.queue[0].body : "";
+  const bool ok = col->stock[COLONIZE_CARGO_TOOLS] == 100 && strstr(body, "{2} tons of {Tools}") != NULL;
+  if (!ok) {
+    fprintf(stderr, "seam spoil share: tools %d body '%s' want 100 / 2 tons of Tools\n",
+            col->stock[COLONIZE_CARGO_TOOLS], body);
+  }
+  ai_popup_clear(&pops);
+  return ok ? 0 : 1;
+}
+
 /*
  * FUN_3844_00f2 raw 58326-58373: one loop walks the unit records from the last down and
  * shows each @REFIT as the hull completes. The save writes the harbor hulls after the map
@@ -7475,5 +7525,6 @@ static const TestCase k_cases[] = {
   {"processor_packs_unit_pool", case_processor_packs_unit_pool},
   {"rotation_slot_order_and_disband_seed", case_rotation_slot_order_and_disband_seed},
   {"despawn_rotation_step_back", case_despawn_rotation_step_back},
+  {"produce_seam_spoil_share", case_produce_seam_spoil_share},
 };
 TEST_MAIN(k_cases)

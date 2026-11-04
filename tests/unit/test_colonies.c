@@ -1896,13 +1896,11 @@ static int case_colonies_core(void) {
      * (FUN_364b_0688 only reports the part that predates production).
      */
     {
-      int before_prod[COLONIZE_CARGO_COUNT];
-      for (int ci = 0; ci < COLONIZE_CARGO_COUNT; ++ci) {
-        before_prod[ci] = c->stock[ci];
-      }
+      int share[COLONIZE_CARGO_COUNT] = {0}; /* aiStack_e4: +50 produced this turn */
+      share[COLONIZE_CARGO_TOOLS] = 50;
       c->stock[COLONIZE_CARGO_TOOLS] = 150;
       CHECK(
-        colonies_apply_warehouse_spoilage(&pool, c, before_prod, NULL, NULL) == 0,
+        colonies_apply_warehouse_spoilage(&pool, c, share, NULL, NULL) == 0,
         "production overflow does not spoil"
       );
       CHECK(c->stock[COLONIZE_CARGO_TOOLS] == 100, "production overflow still clamped");

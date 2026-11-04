@@ -1052,6 +1052,23 @@ COLONIZE_INTERNAL void turn_produce_custom_house(TurnProduceCtx* pc) {
       }
     }
   }
+  /* DOS-LITERAL FUN_364b_0688 raw 57337-57340: at the Phase B point, after the
+   * Custom House sale (local_86 -= sold, raw 57275), aiStack_e4[c] =
+   * FUN_281f_035c -> FUN_124c_000c(stock - cap, 0, local_86) = clamp to [0, net];
+   * raw 57489-57498 then re-clamps it to [0, stock - cap] (stock and cap do
+   * not move in between). Spoilage reads this, not a later stock delta. */
+  for (int c = 1; c < COLONIZE_CARGO_COUNT; ++c) {
+    const int over = colony->stock[c] - colonies_warehouse_capacity(pool, colony, c);
+    const int net = delta->goods[c] - ch_sold[c];
+    int e4 = over > 0 ? over : 0;
+    if (net < e4) {
+      e4 = net;
+    }
+    if (over < e4) {
+      e4 = over;
+    }
+    pc->spoil_e4[c] = e4 < 0 ? 0 : e4;
+  }
 }
 
 /* Phases F / G: school graduation (run only with a pool). */
@@ -1965,7 +1982,6 @@ COLONIZE_INTERNAL void turn_produce_spoilage(TurnProduceCtx* pc) {
   const int human_nation = pc->human_nation;
   AiPopupState* const ai_popups = pc->ai_popups;
   const ColonizeMsgCatalog* const messages = pc->messages;
-  int* const stock_before = pc->stock_before;
   if (europe) {
     /* Phase O: AI dump-sell surplus for gold before spoilage clamp. */
     const ColonizeWorld sw = world_make(NULL, pool, NULL, col1, col1 != NULL, NULL, europe);
@@ -1976,7 +1992,7 @@ COLONIZE_INTERNAL void turn_produce_spoilage(TurnProduceCtx* pc) {
     int first_spoil = -1;
     int spoil_types = 0;
     const int spoiled =
-      colonies_apply_warehouse_spoilage(pool, colony, stock_before, &first_spoil, &spoil_types);
+      colonies_apply_warehouse_spoilage(pool, colony, pc->spoil_e4, &first_spoil, &spoil_types);
     /* Phase P: human spoilage chrome; multi-type → goods phrasing. */
     if (spoiled > 0 && europe && colony->nation_id == human_nation) {
       const char* where = (colony->name[0]) ? colony->name : NULL;
