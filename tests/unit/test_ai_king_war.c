@@ -827,7 +827,122 @@ static int case_rank_nations_tie_order(void) {
   return 0;
 }
 
+/* Succession fixture: nation 3 (weakest) merges into 2. One colony of 3 at
+ * (4,4), one unit of 3 at (2,2) on a tile owned by tribe nibble 5, the (6,6)
+ * tile owned and seen by 3, and two villages: a Jesuit mission of 3 and a
+ * mission of 1. */
+typedef struct SuccFx {
+  ColonizeCol1Save c;
+  ColonizeColonyPool colonies;
+  ColonizeUnitPool units;
+  ColonizeWorldMap map;
+  ColonizeCol1Tribe tribes[2];
+} SuccFx;
+
+static int succ_fx_run(SuccFx* f) {
+  col1_save_init(&f->c);
+  memset(&f->c.stuff, 0, sizeof(f->c.stuff));
+  f->c.head.crown_nation_id = -1;
+  for (int n = 1; n < 4; ++n) {
+    f->c.player[n].control = 1;
+  }
+  const uint8_t pop[4] = {50, 40, 20, 10};
+  for (int n = 0; n < 4; ++n) {
+    f->c.stuff.census_pop_proxy[n] = pop[n];
+  }
+  memset(f->tribes, 0, sizeof(f->tribes));
+  f->tribes[0].mission = (uint8_t)(COL1_TRIBE_MISSION_JESUIT_BIT | 3u);
+  f->tribes[1].mission = 1u;
+  f->c.tribe = f->tribes;
+  f->c.head.tribe_count = 2;
+  if (!fx_map_alloc(&f->map, 8, 8, 2, true)) {
+    return fail("succession: alloc map");
+  }
+  for (int i = 0; i < 64; ++i) {
+    f->map.layer3[i] = 0xf1u; /* unowned, continent 1 */
+  }
+  f->map.layer3[6 * 8 + 6] = 0x31u;
+  f->map.seen[6 * 8 + 6] = (uint8_t)(0x10u << 3);
+  f->map.layer3[2 * 8 + 2] = 0x51u;
+  colonies_init(&f->colonies);
+  colonies_set_occupancy_map(NULL);
+  ColonizeColony* col = &f->colonies.colonies[0];
+  col->active = true;
+  col->nation_id = 3;
+  col->x = 4;
+  col->y = 4;
+  f->colonies.colony_count = 1;
+  memset(&f->units, 0, sizeof(f->units));
+  units_reset(&f->units);
+  units_set_occupancy_map(NULL);
+  f->units.type_count = 1;
+  snprintf(f->units.types[0].name, sizeof(f->units.types[0].name), "Free Colonist");
+  f->units.types[0].movement = 1;
+  ColonizeUnit* u = units_get(&f->units, units_spawn_allow_stack(&f->units, 0, 2, 2));
+  if (!u) {
+    map_free(&f->map);
+    return fail("succession: spawn unit");
+  }
+  units_set_nation(u, 3);
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.colonies = &f->colonies;
+  ctx.units = &f->units;
+  ctx.map = &f->map;
+  ctx.col1 = &f->c;
+  ctx.col1_ok = true;
+  ctx.human_nation = 0;
+  ai_king_succession(&ctx);
+  if (f->c.head.crown_nation_id != 3 || col->nation_id != 2) {
+    map_free(&f->map);
+    return fail("succession: setup should merge 3 into 2");
+  }
+  return 0;
+}
+
+/* FUN_43f7_0218 raw 73699-73705 hands the merged nation's missions to the
+ * heir (low nibble only; the high nibble stays, other nations' untouched). */
+static int case_succession_moves_missions(void) {
+  static SuccFx f;
+  if (succ_fx_run(&f) != 0) {
+    return 1;
+  }
+  int rc = 0;
+  if (f.tribes[0].mission != (uint8_t)(COL1_TRIBE_MISSION_JESUIT_BIT | 2u) ||
+      f.tribes[1].mission != 1u) {
+    fprintf(stderr, "missions %#x %#x\n", f.tribes[0].mission, f.tribes[1].mission);
+    rc = fail("succession: the merged nation's mission must pass to the heir");
+  }
+  map_free(&f.map);
+  return rc;
+}
+
+/* raw 73658-73672 pass the merged nation's seen bits and layer3 owner nibbles
+ * to the heir; raw 73684 / 73696 FUN_281f_0704 stamp the heir on every
+ * transferred unit's and colony's tile. */
+static int case_succession_rewrites_owner_map(void) {
+  static SuccFx f;
+  if (succ_fx_run(&f) != 0) {
+    return 1;
+  }
+  const uint8_t own_far = f.map.layer3[6 * 8 + 6];
+  const uint8_t own_unit = f.map.layer3[2 * 8 + 2];
+  const uint8_t own_col = f.map.layer3[4 * 8 + 4];
+  const uint8_t seen_far = f.map.seen[6 * 8 + 6];
+  int rc = 0;
+  if (own_far != 0x21u || own_unit != 0x21u || own_col != 0x21u ||
+      !(seen_far & (0x10u << 2))) {
+    fprintf(stderr, "layer3 far %#x unit %#x colony %#x seen %#x\n", own_far, own_unit, own_col,
+            seen_far);
+    rc = fail("succession: owner nibbles and seen bits must pass to the heir");
+  }
+  map_free(&f.map);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
+    {"case_succession_moves_missions", case_succession_moves_missions},
+    {"case_succession_rewrites_owner_map", case_succession_rewrites_owner_map},
     {"case_rank_nations_tie_order", case_rank_nations_tie_order},
     {"case_newwar_counts_fallback_crown", case_newwar_counts_fallback_crown},
     {"test_king_new_war_event", test_king_new_war_event},

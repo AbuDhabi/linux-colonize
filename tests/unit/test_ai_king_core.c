@@ -3641,7 +3641,9 @@ static int case_tb40_audience_own_sol(void) {
 }
 
 /* TB-36 fixed (flag off): the declaration sweep clears the crown's own seen
- * bit (crown 1 = 0x20) and keeps the low nibble. */
+ * bit (crown 1 = 0x20) and keeps the low nibble. The succession that picks
+ * crown 1 first hands its seen tiles to heir 2 (FUN_43f7_0218 raw
+ * 73658-73663), so the crown-only tile ends as 0x40. */
 static int case_tb36_declare_seen_mask(void) {
   int rc = fx_prefix(11);
   if (rc == 0) {
@@ -3656,8 +3658,8 @@ static int case_tb36_declare_seen_mask(void) {
       dos_buggy_behavior_set(true);
       if (col1.head.crown_nation_id != 1) {
         rc = fail("tb36: fixture crown is not 1");
-      } else if (map.seen[15 * 16 + 15] != 0x00 || map.seen[15 * 16 + 13] != 0x33) {
-        fprintf(stderr, "unit_ai_king: tb36 seen %02x %02x (want 00 33)\n",
+      } else if (map.seen[15 * 16 + 15] != 0x40 || map.seen[15 * 16 + 13] != 0x33) {
+        fprintf(stderr, "unit_ai_king: tb36 seen %02x %02x (want 40 33)\n",
                 map.seen[15 * 16 + 15], map.seen[15 * 16 + 13]);
         rc = fail("tb36: fixed declaration must mask with ~(0x10 << crown)");
       }
