@@ -826,10 +826,17 @@ COLONIZE_INTERNAL void ai_king_0982_invasion(struct ai_king_0982_ctx* w) {
     n++;
     last_tile_head_id = units_tile_head_id_at(ctx->units, c->x, c->y);
   }
-  for (int a = 1; a < n; ++a) {
-    for (int b = a; b > 0 && score[b] < score[b - 1]; --b) {
-      int t = score[b]; score[b] = score[b - 1]; score[b - 1] = t;
-      t = cidx[b]; cidx[b] = cidx[b - 1]; cidx[b - 1] = t;
+  /* FUN_43f7_0982 raw 74022-74024: FUN_291f_0ed0 = FUN_1cf8_000a, the
+   * unstable insertion sort over the word scores (a moved key lands ahead of
+   * earlier equal keys). Scores are >= inv >= 0, so the uint16 key is exact. */
+  {
+    uint16_t key[COLONIZE_COLONIES_MAX];
+    for (int i = 0; i < n; ++i) {
+      key[i] = (uint16_t)score[i];
+    }
+    units_dos_sort_1cf8(key, cidx, n);
+    for (int i = 0; i < n; ++i) {
+      score[i] = (int)key[i];
     }
   }
   int garrison[COLONIZE_COLONIES_MAX];

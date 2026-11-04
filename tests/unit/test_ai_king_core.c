@@ -3405,6 +3405,80 @@ static int case_0982_land_crown_tile_first(void) {
   return 0;
 }
 
+/* FUN_43f7_0982 raw 74022-74024 ranks targets with FUN_1cf8_000a, which is
+ * not stable: scores [A=125, B=375, C=125] sort to [C, A, B]. B (top) is too
+ * well garrisoned for pass 0, so the picker's next candidate is A in DOS (a
+ * stable sort gives [A, C, B] and picks C). */
+static int case_0982_target_tie_unstable_sort(void) {
+  fx_begin();
+  ColonizeUnitPool up;
+  memset(&up, 0, sizeof(up));
+  units_reset(&up);
+  units_set_occupancy_map(NULL);
+  up.type_count = 2;
+  up.types[0].kind_plus1 = UNITS_KIND_REGULAR + 1;
+  up.types[0].movement = 1;
+  up.types[0].attack = 3;
+  up.types[0].defense = 2;
+  up.types[1].kind_plus1 = UNITS_KIND_MAN_O_WAR + 1;
+  up.types[1].movement = 6;
+  up.types[1].domain = 1;
+  up.types[1].cargo = 6;
+  ColonizeWorldMap m;
+  memset(&m, 0, sizeof(m));
+  char err[128];
+  if (!map_alloc(&m, 13, 4, err, sizeof(err))) {
+    return fail("0982_tie: map_alloc");
+  }
+  for (int i = 0; i < 13 * 4; ++i) {
+    m.terrain[i] = i < 13 ? 25 : 1; /* row 0 ocean, rest land */
+    m.layer3[i] = 1;
+  }
+  ColonizeColonyPool cp;
+  colonies_init(&cp);
+  colonies_set_occupancy_map(NULL);
+  const int xs[3] = {2, 6, 10};
+  const int pop[3] = {1, 3, 1};
+  for (int i = 0; i < 3; ++i) {
+    ColonizeColony* col = &cp.colonies[i];
+    col->id = i;
+    col->active = true;
+    col->nation_id = 0;
+    col->x = xs[i];
+    col->y = 1;
+    col->colonist_count = pop[i];
+    col->colony_flags |= COLONIZE_COLONY_FLAG_COASTAL;
+  }
+  cp.colonies[1].stock[COLONIZE_CARGO_MUSKETS] = 3000; /* garrison need 31 */
+  ColonizeTurnContext tc;
+  memset(&tc, 0, sizeof(tc));
+  tc.units = &up;
+  tc.map = &m;
+  tc.colonies = &cp;
+  uint16_t force[4] = {3, 0, 1, 0};
+  struct ai_king_0982_ctx w;
+  memset(&w, 0, sizeof(w));
+  w.ctx = &tc;
+  w.crown = 1;
+  w.human = 0;
+  w.force = force;
+  ai_king_0982_invasion(&w);
+  int ship_x = -1;
+  for (int i = 0; i < units_slot_end(&up); ++i) {
+    const ColonizeUnit* u = &up.units[i];
+    if (u->active && u->type_index == 1) {
+      ship_x = u->x;
+    }
+  }
+  units_set_occupancy_map(NULL);
+  map_free(&m);
+  if (ship_x < 1 || ship_x > 3) {
+    fprintf(stderr, "0982_tie: Man-O-War at x=%d (want next to A at x=2)\n", ship_x);
+    return fail("0982_tie: equal scores rank through FUN_1cf8_000a (A before C)");
+  }
+  return 0;
+}
+
 typedef int (*SpineFn)(void);
 
 static const SpineFn k_spine[] = {
@@ -3771,6 +3845,7 @@ static const TestCase k_cases[] = {
   {"dump_goods_pick_api", case_dump_goods_pick_api},
   {"purge_tile_seize_notice_793", case_purge_tile_seize_notice_793},
   {"0982_land_crown_tile_first", case_0982_land_crown_tile_first},
+  {"0982_target_tie_unstable_sort", case_0982_target_tie_unstable_sort},
   {"sol_no_bells_fallback", case_sol_no_bells_fallback},
   {"audience_interval_and_tax_gates", case_audience_interval_and_tax_gates},
   {"audience_cut_branch_1d42", case_audience_cut_branch_1d42},
