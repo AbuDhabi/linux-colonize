@@ -2607,6 +2607,100 @@ static int unit_gunless_winner_never_sinks(void) {
 }
 
 /*
+ * A Brave burning a 1-pop colony first runs FUN_5fef_0ec0 over the square (FUN_5fef_1b0e raw
+ * 100693-100696): 0352 with a native winner never captures (raw 99393), so an unarmed bystander
+ * dies, and a gunless winner never sinks (raw 99527), so the berthed Caravel is damaged and
+ * parked for repair (AI hull, no Drydock: 236+n). The Brave gets no colony-raid latch.
+ */
+static int unit_native_burn_sweeps_square(void) {
+  int rc = 0;
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  if (!fx_map_alloc(&map, 8, 8, 0, false)) {
+    return 1;
+  }
+  for (int i = 0; i < 64; ++i) {
+    map.terrain[i] = 2;
+    map.layer3[i] = 0xf0u;
+  }
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  pool.type_count = 3;
+  snprintf(pool.types[0].name, sizeof(pool.types[0].name), "Braves");
+  pool.types[0].attack = 1;
+  pool.types[0].defense = 1;
+  pool.types[0].movement = 1;
+  pool.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  snprintf(pool.types[1].name, sizeof(pool.types[1].name), "Colonists");
+  pool.types[1].kind_plus1 = UNITS_KIND_COLONIST + 1;
+  pool.types[1].defense = 1;
+  pool.types[1].movement = 1;
+  pool.types[1].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  snprintf(pool.types[2].name, sizeof(pool.types[2].name), "Caravel");
+  pool.types[2].kind_plus1 = UNITS_KIND_CARAVEL + 1;
+  pool.types[2].defense = 2;
+  pool.types[2].hull = 2;
+  pool.types[2].cargo = 2;
+  pool.types[2].movement = 4;
+  pool.types[2].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  units_set_occupancy_map(&map);
+  colonies_set_occupancy_map(&map);
+  ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  memset(col1.head.founding_father, 0xff, sizeof(col1.head.founding_father));
+  for (int n = 0; n < 4; ++n) {
+    col1.player[n].control = 1; /* all AI: no woodcut, no colony zoom */
+  }
+  units_set_ff_col1(&col1);
+  units_set_combat_colonies(&colonies);
+  units_set_combat_human_nation(-1);
+  units_set_combat_popups(NULL, NULL);
+  const int cid = colonies_found(&colonies, &map, 4, 4, 1, -1, UNITS_JOB_NONE, 0, 0, 0);
+  if (cid < 0) {
+    fprintf(stderr, "native burn: colonies_found failed\n");
+    rc = 1;
+  } else {
+    ColonizeColony* col = colonies_get_mut(&colonies, cid);
+    col->population = 1;
+    col->colonist_count = 1;
+    col->colonists[0].active = true;
+    const int brave = units_spawn_allow_stack(&pool, 0, 3, 4);
+    const int civ = units_spawn_allow_stack(&pool, 1, 4, 4);
+    const int hull = units_spawn_allow_stack(&pool, 2, 4, 4);
+    units_set_nation(units_get(&pool, brave), 4);
+    units_set_nation(units_get(&pool, civ), 1);
+    units_set_nation(units_get(&pool, hull), 1);
+    units_try_capture_foreign_colony_at(&pool, &colonies, brave, 4, 4);
+    const ColonizeColony* after = colonies_get(&colonies, cid);
+    const ColonizeUnit* c = units_get_const(&pool, civ);
+    const ColonizeUnit* h = units_get_const(&pool, hull);
+    const ColonizeUnit* b = units_get_const(&pool, brave);
+    if (after && after->active) {
+      fprintf(stderr, "native burn: colony not burned\n");
+      rc = 1;
+    } else if (c && c->active) {
+      fprintf(stderr, "native burn: bystander colonist survived (nat=%d)\n", c->nation_id);
+      rc = 1;
+    } else if (!h || !h->active || (h->col1_flags15 & 0x80u) == 0 || h->x != 237) {
+      fprintf(stderr, "native burn: berthed Caravel must be damaged and sent for repair (x=%d)\n",
+              h ? h->x : -1);
+      rc = 1;
+    } else if (!b || (b->col1_flags15 & 0x10u) != 0) {
+      fprintf(stderr, "native burn: the burning Brave must not get the raid latch\n");
+      rc = 1;
+    }
+  }
+  units_set_combat_colonies(NULL);
+  units_set_ff_col1(NULL);
+  colonies_set_occupancy_map(NULL);
+  units_set_occupancy_map(NULL);
+  fx_map_free(&map);
+  return rc;
+}
+
+/*
  * Fort fire runs the FUN_5fef_1b0e difficulty handicaps (raw 100535-100556). rng NULL: the fort
  * wins iff atk >= def.
  *   Explorer (1), human ship, AI fort, fort strength 1, ship defense 1:
@@ -2920,6 +3014,7 @@ static const TestCase k_cases[] = {
   {"unit_1b0e_defender_bonus_live", unit_1b0e_defender_bonus_live},
   {"unit_naval_stack_sweep", unit_naval_stack_sweep},
   {"unit_gunless_winner_never_sinks", unit_gunless_winner_never_sinks},
+  {"unit_native_burn_sweeps_square", unit_native_burn_sweeps_square},
   {"unit_naval_win_cue_ships_only", unit_naval_win_cue_ships_only},
   {"unit_fort_fire_difficulty_handicaps", unit_fort_fire_difficulty_handicaps},
   {"unit_fort_fire_sweep_census", unit_fort_fire_sweep_census},

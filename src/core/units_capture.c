@@ -80,6 +80,20 @@ void units_try_capture_foreign_colony_at(
    * treasury share, and never looks at the unit array except for the WoI
    * neighbour re-home below.
    */
+  /* Raw 100693-100696 (asm 5fef:2660-2687): before a 1-pop burn, 07e0(x,y)
+   * head and caseD_14 = FUN_5fef_0ec0 run 0352 on every unit on the square
+   * with the Brave as winner (no capture: raw 99393 needs a Euro winner), so
+   * unarmed bystanders die and berthed hulls are damaged. It runs ahead of the
+   * blocker gate: the bystanders are attack-0 units FUN_5fef_0000 never lets
+   * defend a colony (raw 99181), so DOS burns with them standing there. The
+   * land loss arm latches the Brave's colony-raid bit (+0x3148 |= 0x10, raw
+   * 100642-100646) on a colony tile, but DOS's `(pop > 1 || !bVar28)` term is
+   * false on a burn, so the bit is put back to its pre-sweep value. */
+  if (u->nation_id > 3 && col->population <= 1 && !g_units_colony_autodefender) {
+    const uint8_t latch = (uint8_t)(u->col1_flags15 & 0x10u);
+    units_sweep_stack_after_loss(pool, cx, cy, col->nation_id, unit_id, -1, col1);
+    u->col1_flags15 = (uint8_t)((u->col1_flags15 & ~0x10u) | latch);
+  }
   /* During 1b0e's bVar28 win limb the scratch militia still occupies the
    * destination; DOS applies the colony loss before removing that row. */
   if (!g_units_colony_autodefender &&
