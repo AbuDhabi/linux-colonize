@@ -24,7 +24,7 @@ static uint8_t s_visited[256 * 256];
  * swung between (26,32) and (27,31) for 70 turns aiming at (26,46)). */
 #define EXPLORE_AUTO_STALL_STEPS 12
 
-/* Per pool slot: the current target's progress and the one target given up on.
+/* Per unit id: the current target's progress and the one target given up on.
  * ponytail: one banned target per unit, not saved; a ring if two stalls alternate. */
 typedef struct ExploreAutoTrack {
   int id;
@@ -211,7 +211,8 @@ void explore_auto_step(const ColonizeWorld* w, ColonizeUnit* u) {
   const int sight = ship ? units_sight_radius(pool, u, w->col1) : 0;
   const int nation = u->nation_id;
   const int continent = map_continent_id_at(map, u->x, u->y);
-  ExploreAutoTrack* tr = &s_track[u - pool->units];
+  /* Keyed by id: units_pool_compact moves units down between turn slices. */
+  ExploreAutoTrack* tr = &s_track[(unsigned)u->id % COLONIZE_UNITS_MAX];
   if (tr->id != u->id + 1) { /* id + 1: a zeroed slot matches no unit */
     memset(tr, 0, sizeof(*tr));
     tr->id = u->id + 1;

@@ -8099,6 +8099,82 @@ static int case_unit_ids_recycle_below_max(void) {
   return 0;
 }
 
+/*
+ * DOS FUN_1427_0824 (raw 7776-7839) packs the unit array and FUN_1427_06b4
+ * appends, so a new unit always follows every older one. A full pool with
+ * holes must not hand out the first hole; after units_pool_compact the spawn
+ * lands after all live units and ids resolve.
+ */
+static int case_pool_full_spawn_appends_after_compact(void) {
+  static ColonizeUnitPool p;
+  memset(&p, 0, sizeof(p));
+  units_set_occupancy_map(NULL);
+  units_reset_state();
+  units_reset(&p);
+  p.type_count = 1;
+  snprintf(p.types[0].name, sizeof(p.types[0].name), "Soldier");
+  p.types[0].movement = 1;
+  p.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  /* Ids live in 1..MAX-1, so fill to MAX-1, punch holes low in the pool (the
+   * top slot stays live), then one more spawn reaches slot_end == MAX. */
+  for (int n = 0; n < COLONIZE_UNITS_MAX - 1; ++n) {
+    if (units_spawn_allow_stack(&p, 0, 1, 1) < 0) {
+      fprintf(stderr, "pool_full: fill spawn %d refused\n", n);
+      return 1;
+    }
+  }
+  const int holes[] = {0, 7, 100, 2000};
+  for (size_t h = 0; h < sizeof(holes) / sizeof(holes[0]); ++h) {
+    if (!units_despawn(&p, p.units[holes[h]].id)) {
+      return 1;
+    }
+  }
+  if (units_spawn_allow_stack(&p, 0, 1, 1) < 0) {
+    return 1;
+  }
+  const int bf_id = p.units[3000].id;
+  p.board_first_slot = 3000;
+  if (units_slot_end(&p) != COLONIZE_UNITS_MAX) {
+    fprintf(stderr, "pool_full: slot_end %d\n", units_slot_end(&p));
+    return 1;
+  }
+  if (units_spawn_allow_stack(&p, 0, 2, 2) >= 0) {
+    fprintf(stderr, "pool_full: spawn took a hole ahead of older units\n");
+    return 1;
+  }
+  static int old_ids[COLONIZE_UNITS_MAX];
+  int old_n = 0;
+  for (int i = 0; i < units_slot_end(&p); ++i) {
+    if (p.units[i].active) {
+      old_ids[old_n++] = p.units[i].id;
+    }
+  }
+  units_pool_compact(&p);
+  const int id = units_spawn_allow_stack(&p, 0, 2, 2);
+  if (id < 0) {
+    fprintf(stderr, "pool_full: spawn after compact refused\n");
+    return 1;
+  }
+  int k = 0;
+  for (int i = 0; i < units_slot_end(&p); ++i) {
+    if (!p.units[i].active) {
+      continue;
+    }
+    const int want = k < old_n ? old_ids[k] : id;
+    if (p.units[i].id != want || units_get_const(&p, want) != &p.units[i]) {
+      fprintf(stderr, "pool_full: walk pos %d slot %d id %d want %d\n", k, i, p.units[i].id, want);
+      return 1;
+    }
+    k++;
+  }
+  if (k != old_n + 1 || p.board_first_slot < 0 || p.units[p.board_first_slot].id != bf_id) {
+    fprintf(stderr, "pool_full: walked %d of %d, board_first_slot %d\n", k, old_n + 1,
+            p.board_first_slot);
+    return 1;
+  }
+  return 0;
+}
+
 static int case_fountain_of_youth(void) {
   if (fx_open() != 0 || fx_stage2() != 0) {
     return 1;
@@ -8327,5 +8403,6 @@ static const TestCase k_cases[] = {
   {"landfall_spent_gate", case_landfall_spent_gate},
   {"fountain_of_youth", case_fountain_of_youth},
   {"unit_ids_recycle_below_max", case_unit_ids_recycle_below_max},
+  {"pool_full_spawn_appends_after_compact", case_pool_full_spawn_appends_after_compact},
 };
 TEST_MAIN(k_cases)

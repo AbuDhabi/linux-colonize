@@ -4161,6 +4161,58 @@ static int case_euro_power_rank(void) {
 
 /* port_bugs.md #1103: turn_reset drops the LABELS catalog pointer and the
  * FUN_43f7_1528 last-walked colony, both of which index the outgoing world. */
+/* Each processor slice but SETUP packs the unit pool the way DOS
+ * FUN_1427_0824 keeps its array packed; ids and live order survive. SETUP,
+ * then the France (1) EURO slice, both real advances. */
+static int case_processor_packs_unit_pool(void) {
+  static ColonizeUnitPool pool;
+  units_set_occupancy_map(NULL);
+  units_reset(&pool);
+  for (int i = 0; i < 3; ++i) {
+    pool.units[i].active = true;
+    pool.units[i].id = 10 + i;
+  }
+  pool.board_first_slot = 2;
+  units_pool_sync(&pool);
+  if (!units_despawn(&pool, 11) || pool.slot_end != 3) {
+    return 1;
+  }
+  fx_begin();
+  uint32_t turn = 1;
+  uint16_t year = 1492;
+  uint16_t autumn = 0;
+  int active = 0;
+  static ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.messages = test_game_txt();
+  ctx.names = test_names_txt();
+  ctx.turn_number = &turn;
+  ctx.game_year = &year;
+  ctx.game_autumn = &autumn;
+  ctx.human_nation = 0;
+  ctx.active_turn_nation = &active;
+  ctx.units = &pool;
+  ColonizeTurnProcessor proc;
+  turn_processor_start(&proc);
+  if (!turn_processor_advance(&proc, &ctx) || pool.slot_end != 3) {
+    fprintf(stderr, "processor_packs: SETUP slice packed the pool (slot_end %d)\n",
+            pool.slot_end);
+    return 1;
+  }
+  if (proc.step != TURN_PROC_EURO) {
+    fprintf(stderr, "processor_packs: after SETUP step %d, want EURO\n", (int)proc.step);
+    return 1;
+  }
+  (void)turn_processor_advance(&proc, &ctx);
+  if (active != 1 || pool.slot_end != 2 || pool.units[0].id != 10 || pool.units[1].id != 12 ||
+      units_get_const(&pool, 12) != &pool.units[1] || pool.board_first_slot != 1) {
+    fprintf(stderr, "processor_packs: slot_end %d ids %d,%d bf %d\n", pool.slot_end,
+            pool.units[0].id, pool.units[1].id, pool.board_first_slot);
+    return 1;
+  }
+  return 0;
+}
+
 static int case_turn_reset_pointers(void) {
   static ColonizeMsgCatalog labels;
   static ColonizeColony col;
@@ -7064,5 +7116,6 @@ static const TestCase k_cases[] = {
   {"phase_k_build_advisory", case_phase_k_build_advisory},
   {"produce_seam_begin", case_produce_seam_begin},
   {"produce_seam_lumber", case_produce_seam_lumber},
+  {"processor_packs_unit_pool", case_processor_packs_unit_pool},
 };
 TEST_MAIN(k_cases)

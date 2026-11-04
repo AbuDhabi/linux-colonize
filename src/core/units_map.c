@@ -174,6 +174,37 @@ void units_pool_sync(ColonizeUnitPool* pool) {
   }
 }
 
+/*
+ * FUN_1427_0824 (raw 7776-7839) shifts every record above a deleted one down,
+ * so the DOS array has no holes and FUN_1427_06b4 always appends at
+ * DS:0x539c. units_despawn leaves holes; this closes them, keeping the live
+ * units' relative order, so slot_end == unit_count again. Ids do not change.
+ * Not called on delete: callers hold ColonizeUnit* and slot indices across a
+ * spawn (units_spawn_aboard's ship, the 5d04 slot walk, AiEuroCtx->u), so
+ * only turn_processor_advance, between slices, calls it.
+ */
+void units_pool_compact(ColonizeUnitPool* pool) {
+  if (!pool || pool->slot_end == pool->unit_count) {
+    return;
+  }
+  const int bf = pool->board_first_slot;
+  const int first_id = (bf >= 0 && bf < pool->slot_end && units_slot_in_use(&pool->units[bf]))
+    ? pool->units[bf].id : -1;
+  int w = 0;
+  for (int i = 0; i < pool->slot_end; ++i) {
+    if (units_slot_in_use(&pool->units[i])) {
+      if (w != i) {
+        pool->units[w] = pool->units[i];
+      }
+      w++;
+    }
+  }
+  memset(&pool->units[w], 0, sizeof(pool->units[0]) * (size_t)(pool->slot_end - w));
+  units_pool_sync(pool);
+  const ColonizeUnit* f = first_id >= 0 ? units_get_const(pool, first_id) : NULL;
+  pool->board_first_slot = f ? (int)(f - pool->units) : -1;
+}
+
 /* COLONIZE_UNITS_STRICT=1 (set for every ctest run): verify the bookkeeping
  * and abort on a pool filled by hand without units_pool_sync. The allocator
  * runs the full check; units_slot_end and units_get an O(1) one (the slot

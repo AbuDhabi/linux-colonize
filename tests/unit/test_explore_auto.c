@@ -173,6 +173,66 @@ static int case_scout(void) {
   return 0;
 }
 
+/* The stall count survives units_pool_compact (run between turn slices): the
+ * Scout moves down into a freed slot and its track still follows it. */
+static int case_stall_survives_compact(void) {
+  ColonizeSettings s;
+  settings_defaults(&s);
+  s.scout_autoexplore = true;
+  settings_set(&s);
+  explore_auto_reset();
+  assets_msg_init(&s_names);
+  if (!assets_msg_load_file(&s_names, "COLONIZE/NAMES.TXT")) {
+    return TR_SKIP;
+  }
+  memset(&s_pool, 0, sizeof(s_pool));
+  CHECK(units_load_types(&s_pool, &s_names));
+  memset(&s_map, 0, sizeof(s_map));
+  char err[128];
+  CHECK(map_alloc(&s_map, 12, 12, err, sizeof(err)));
+  for (int y = 0; y < 12; ++y) {
+    for (int x = 0; x < 12; ++x) {
+      s_map.terrain[y * 12 + x] = 2;
+      s_map.seen[y * 12 + x] = (x < 5 && y < 5) ? 0x10 : 0;
+      s_map.layer3[y * 12 + x] = 0xf1;
+      (void)map_clear_rumour(&s_map, x, y);
+    }
+  }
+  colonies_init(&s_colonies);
+  colonies_set_occupancy_map(NULL);
+  const ColonizeWorld w = {.units = &s_pool, .colonies = &s_colonies, .map = &s_map};
+  const int did = units_spawn(&s_pool, units_kind_type_index(&s_pool, UNITS_KIND_SOLDIER), 11, 11);
+  const int sid = units_spawn(&s_pool, units_kind_type_index(&s_pool, UNITS_KIND_SCOUT), 1, 1);
+  ColonizeUnit* u = units_get(&s_pool, sid);
+  CHECK(did >= 0 && u == &s_pool.units[1]);
+  units_get(&s_pool, did)->nation_id = 0;
+  u->nation_id = 0;
+  u->moves = units_max_mp(&s_pool, sid);
+  CHECK(explore_auto_automate(&w, u));
+  const int sx = u->goto_x;
+  const int sy = u->goto_y;
+  int kept = 0;
+  for (int i = 0; i < 14; ++i) {
+    if (i == 6) {
+      CHECK(units_despawn(&s_pool, did));
+      units_pool_compact(&s_pool);
+      u = units_get(&s_pool, sid);
+      CHECK(u == &s_pool.units[0]);
+    }
+    u->x = u->y = (i % 2 == 0) ? 0 : 1; /* (0,0) is never closer than (1,1) */
+    explore_auto_step(&w, u);
+    if (u->goto_x == sx && u->goto_y == sy) {
+      ++kept;
+    }
+  }
+  CHECK(kept == 12);
+  CHECK(u->automated && u->orders == UNITS_ORDER_GOTO);
+  CHECK(u->goto_x != sx || u->goto_y != sy);
+  map_free(&s_map);
+  assets_msg_free(&s_names);
+  return 0;
+}
+
 /* 12x12 ocean (region 1); nation 0 has seen the 5x5 corner. A ship explores
  * the unseen ocean, and stops once only unseen lake water is left. */
 static int case_ship(void) {
@@ -289,6 +349,7 @@ static int case_ship(void) {
 
 static const TestCase k_cases[] = {
   {"scout", case_scout},
+  {"stall_survives_compact", case_stall_survives_compact},
   {"ship", case_ship},
 };
 TEST_MAIN_WRAPPED(k_cases, diag_init(0, NULL), diag_shutdown())

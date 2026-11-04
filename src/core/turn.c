@@ -1089,6 +1089,14 @@ COLONIZE_INTERNAL void turn_step_king(ColonizeTurnProcessor* proc, ColonizeTurnC
 }
 
 bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx) {
+  /* FUN_1427_0824 (raw 7776-7839) keeps the DOS unit array packed. Between
+   * slices nothing holds a unit pointer or slot index, so pack here, before
+   * any slice spawns. Not on SETUP: game_do_end_turn runs it inline from
+   * input handlers that may still hold a ColonizeUnit*. Spawns append at
+   * slot_end either way, so order never depends on when we pack. */
+  if (proc && ctx && ctx->units && proc->step != TURN_PROC_SETUP) {
+    units_pool_compact(ctx->units);
+  }
   if (!proc || !ctx || proc->step == TURN_PROC_IDLE) {
     return false;
   }
