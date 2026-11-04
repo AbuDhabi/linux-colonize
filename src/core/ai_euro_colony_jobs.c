@@ -133,6 +133,11 @@ typedef struct AiEuro28c8Env {
   int unmet[COLONIZE_CARGO_COUNT];     /* DS:0x8e5a */
 } AiEuro28c8Env;
 
+static int ai_euro_5952_tools_supply(
+  const ColonizeColony* col, const int gross[AI_EURO_5952_LEDGER_SLOTS],
+  const int demand[AI_EURO_5952_LEDGER_SLOTS]
+);
+
 static void ai_euro_28c8_env(
   const ColonizeTurnContext* ctx, const ColonizeColony* col, int colonist_slot,
   int in_ai_tick,
@@ -164,8 +169,11 @@ static void ai_euro_28c8_env(
   env->lumber_gross = gross[COLONIZE_CARGO_LUMBER];
   for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
     /* DS:0x8e32 production shortfall and DS:0x8e5a unmet-after-stock,
-     * FUN_15eb_0b52's own rule (colony_craft.c header). */
-    const int miss = demand[c] - gross[c];
+     * FUN_15eb_0b52's own rule (colony_craft.c header); the tools row's
+     * supply is net of unmet ore (FUN_15eb_0b96). */
+    const int supply =
+      c == COLONIZE_CARGO_TOOLS ? ai_euro_5952_tools_supply(col, gross, demand) : gross[c];
+    const int miss = demand[c] - supply;
     env->shortfall[c] = miss > 0 ? miss : 0;
     const int after = miss - col->stock[c];
     env->unmet[c] = after > 0 ? after : 0;
@@ -1159,8 +1167,17 @@ void ai_euro_5952_ledgers(
     );
   }
 
-  /* Craft workers: uncapped worker capacity out, tier-scaled input in — the
-   * FUN_15eb_0bd4 ledger rows. */
+  /* Craft workers: uncapped worker capacity out per worker. The input row is
+   * FUN_15eb_0bd4's ONE divide over the colony's total gross[out] (raw
+   * 10168-10175: `(G << 1) / 3` at the factory tier), exactly as the tick's
+   * craft pass does (colony_craft.c, port_bugs.md #851); the muskets pair
+   * stays flat (raw 12689, colony_prod_chain_input_is_flat). */
+  int craft_row[COLONIZE_CARGO_COUNT];
+  int craft_in[COLONIZE_CARGO_COUNT];
+  for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
+    craft_row[c] = -1;
+    craft_in[c] = -1;
+  }
   for (int s = 0; s < COLONIZE_COLONY_POP_MAX; ++s) {
     const ColonizeColonist* c = &col->colonists[s];
     if (!c->active || c->building_type < 0 ||
@@ -1174,20 +1191,23 @@ void ai_euro_5952_ledgers(
     }
     gross[r->out_cargo] +=
       colony_prod_manufacturing_output_row(row, c->profession, r->craft_profession, sol_bonus);
-    demand[r->in_cargo] +=
-      colony_prod_manufacturing_input_row(row, c->profession, r->craft_profession, sol_bonus);
+    craft_row[r->out_cargo] = row;
+    craft_in[r->out_cargo] = r->in_cargo;
+  }
+  for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
+    if (craft_row[c] >= 0 && craft_in[c] >= 0) {
+      demand[craft_in[c]] += colony_prod_chain_input_for_total_output(craft_row[c], gross[c]);
+    }
   }
 
   /* FUN_15eb_1f72 tail: the UNCAPPED herd potential lands in the horse gross
    * (DS:0x8dd8), same figure turn_production applies to an AI colony. */
-  {
-    const ColonyProdHorseBreed hb = colony_prod_horse_breed(
-      col->stock[COLONIZE_CARGO_HORSES], col->population, gross[COLONIZE_CARGO_FOOD],
-      colonies_warehouse_capacity(pool, col, COLONIZE_CARGO_HORSES),
-      colonies_has_building_row(pool, col, COLONY_BUILDING_STABLE)
-    );
-    gross[COLONIZE_CARGO_HORSES] += hb.bred + hb.shortfall;
-  }
+  const ColonyProdHorseBreed hb = colony_prod_horse_breed(
+    col->stock[COLONIZE_CARGO_HORSES], col->population, gross[COLONIZE_CARGO_FOOD],
+    colonies_warehouse_capacity(pool, col, COLONIZE_CARGO_HORSES),
+    colonies_has_building_row(pool, col, COLONY_BUILDING_STABLE)
+  );
+  gross[COLONIZE_CARGO_HORSES] += hb.bred + hb.shortfall;
 
   /* FUN_15eb_1f72's own three rows: hammers (lumber demand), crosses, bells. */
   int lumber_use = 0;
@@ -1204,7 +1224,33 @@ void ai_euro_5952_ledgers(
   gross[AI_EURO_5952_BELLS] =
     col1 ? colony_prod_colony_bells_nation(pool, col, col1, sol_bonus)
          : colony_prod_colony_bells_ff(pool, col, 0, 0, true, sol_bonus);
-  demand[COLONIZE_CARGO_FOOD] = col->population * 2;
+  /* raw 12662-12682: local_6 = pop*2 + local_22, the births food and
+   * warehouse room allow (hb.bred), then FUN_15eb_0b96(0, local_6). */
+  demand[COLONIZE_CARGO_FOOD] = col->population * 2 + hb.bred;
+}
+
+/*
+ * FUN_15eb_0b96 raw 10149-10152: the tools row's supply is gross[tools] minus
+ * DS:0x8e66 (unmet ore) when that is non-zero. 1f72 computes unmet ore first
+ * (raw 12684 FUN_15eb_0bd4(6, 0xe)): FUN_15eb_0b52's `demand - stock -
+ * supply` (raw 10135-10136), then 0bd4's rescale (raw 10176-10180) when the
+ * Iron Works divide moved the demand off gross[tools]: x3/2, or gross[tools]
+ * itself when the unmet equals the whole demand.
+ */
+static int ai_euro_5952_tools_supply(
+  const ColonizeColony* col, const int gross[AI_EURO_5952_LEDGER_SLOTS],
+  const int demand[AI_EURO_5952_LEDGER_SLOTS]
+) {
+  const int ore = COLONIZE_CARGO_ORE;
+  const int tools = gross[COLONIZE_CARGO_TOOLS];
+  int unmet = demand[ore] - col->stock[ore] - gross[ore];
+  if (unmet <= 0) {
+    return tools;
+  }
+  if (tools != demand[ore]) {
+    unmet = unmet != demand[ore] ? (unmet * 3) / 2 : tools;
+  }
+  return tools - unmet;
 }
 
 /*
@@ -1299,7 +1345,10 @@ COLONIZE_INTERNAL void ai_euro_5952_indoor_expert_pass(
       const int in =
         prof == COLONIZE_PROF_GUNSMITH ? COLONIZE_CARGO_TOOLS : (int)k_ai_euro_5952_job_input[prof];
       if (in >= 0 && in < COLONIZE_CARGO_COUNT) {
-        const int unmet = demand[in] - gross[in] - col->stock[in];
+        /* DS:0x8e5a[in]: the tools row nets out unmet ore (FUN_15eb_0b96). */
+        const int supply =
+          in == COLONIZE_CARGO_TOOLS ? ai_euro_5952_tools_supply(col, gross, demand) : gross[in];
+        const int unmet = demand[in] - supply - col->stock[in];
         ok = unmet <= 0 && (col->stock[in] > 0 || gross[in] != 0);
       }
     }
