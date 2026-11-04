@@ -2418,25 +2418,29 @@ int ai_euro_20e6_wander_step(
       }
       score += diff * diff * -2;
     }
-    /* Neighbours of the destination: −10 per hostile combat unit when the
-     * mover has combat byte 0 (Treasure). */
+    /* Neighbours of the destination (raw 88789-88805): when the mover has
+     * combat byte 0 (Treasure) and FUN_281f_0682 names a hostile owner, walk
+     * that tile's whole chain (07e0 / 02e4): −10 per unit whose combat byte
+     * is nonzero. No per-unit nation test. */
     for (int n = 0; n < 8; ++n) {
       const int ax = nx + MAP_DIR8_DX[n];
       const int ay = ny + MAP_DIR8_DY[n];
       if (ax < 0 || ay < 0 || ax >= ctx->map->width || ay >= ctx->map->height) {
         continue;
       }
-      const int po = map_tile_tribe_or_presence(ctx->map, ax, ay);
+      const int po = map_tile_owner_or_presence(ctx->map, ax, ay);
       if (po < 0 || po == nation || s->combat != 0) {
         continue;
       }
       if ((ai_euro_20e6_diplo(ctx->col1, nation, po) & 0x60) != 0x20) {
         continue;
       }
-      const int oid = units_id_at(ctx->units, ax, ay);
-      const ColonizeUnit* ou = oid >= 0 ? units_get_const(ctx->units, oid) : NULL;
-      if (ou && ai_euro_20e6_type_combat(ai_euro_20e6_dos_type(ctx->units, ou)) != 0) {
-        score -= 10;
+      for (int oid = units_tile_head_id_at(ctx->units, ax, ay); oid >= 0;
+           oid = units_tile_chain_next_id(ctx->units, oid)) {
+        const ColonizeUnit* ou = units_get_const(ctx->units, oid);
+        if (ou && ai_euro_20e6_type_combat(ai_euro_20e6_dos_type(ctx->units, ou)) != 0) {
+          score -= 10;
+        }
       }
     }
     /*

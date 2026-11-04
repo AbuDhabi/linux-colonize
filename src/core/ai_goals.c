@@ -1519,9 +1519,10 @@ int ai_goals_probe_adjacent_contact_claim_w(
     }
     const int owner = map_tile_layer2_owner(map, nx, ny, MAP_OCCUPANCY_HAS_UNIT);
     if (owner >= 0 && owner != nation_id) {
-      /* Tribe owners key 0896's tension lookup off the tile's top unit. */
+      /* Tribe owners key 0896's tension lookup off the tile's chain head
+       * (raw 87373: FUN_281f_07e0, the newest arrival). */
       const int unit_filter =
-        (owner >= 4 && units) ? units_id_at(units, nx, ny) : -1;
+        (owner >= 4 && units) ? units_tile_head_id_at(units, nx, ny) : -1;
       claim = ai_goals_filter_profession_by_distance_wealth(
         col1, units, nation_id, owner, profession, unit_filter
       );

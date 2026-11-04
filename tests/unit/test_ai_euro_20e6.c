@@ -3130,6 +3130,96 @@ static int unit_ship_far_roam_uses_band_snapshot(void) {
   return 0;
 }
 
+/* Raw 88789-88805: for an unarmed mover the wander scorer walks the WHOLE
+ * hostile neighbour stack (07e0 / 02e4) and takes -10 per armed unit. A
+ * colonist at (8,8) beside a war-hostile stack at (10,8). Stack 0 = one
+ * unarmed colonist; 1 = colonist, then a newer Soldier (chain head); 2 =
+ * Soldier, then a newer colonist (head). An armed member must cost -10
+ * wherever it sits in the chain, so both 1 and 2 must change some pick
+ * versus 0 (a lowest-slot read misses 1, a head-only read misses 2). */
+static int wander_pick_beside_stack(int stack, uint32_t seed) {
+  Fixture f;
+  if (fixture_init(&f, 1) != 0) return -1;
+  dos_rng_seed(&f.rng, seed);
+  const int id = units_spawn(&f.units, 0, 8, 8);
+  ColonizeUnit* u = units_get(&f.units, id);
+  const int types[3][2] = {{0, -1}, {0, 1}, {1, 0}};
+  for (int k = 0; k < 2 && types[stack][k] >= 0; ++k) {
+    const int fid = units_spawn_allow_stack(&f.units, types[stack][k], 10, 8);
+    ColonizeUnit* foe = units_get(&f.units, fid);
+    if (!foe) { fixture_free(&f); return -1; }
+    foe->nation_id = 2;
+    units_tile_stack_arrive(&f.units, fid);
+  }
+  if (!u) { fixture_free(&f); return -1; }
+  u->nation_id = 1;
+  u->last_dir = 2; /* facing east, toward the stack: the -2*diff^2 term favours it */
+  f.map.layer3[8 * 16 + 10] = (uint8_t)((2 << 4) | (f.map.layer3[8 * 16 + 10] & 0x0f));
+  f.map.layer2[8 * 16 + 10] = MAP_OCCUPANCY_HAS_UNIT;
+  ai_diplo_write(&f.col1, 1, 2, AI_DIPLO_MET | AI_DIPLO_WAR);
+  Ai20e6Unit s;
+  ai_euro_20e6_prologue(&f.ctx, u, 1, &s);
+  const int dir = s.combat == 0 ? ai_euro_20e6_wander_step(&f.ctx, u, &s, NULL, NULL) : -2;
+  fixture_free(&f);
+  return dir;
+}
+
+static int unit_wander_hostile_stack_counts_every_unit(void) {
+  int differs_head = 0;
+  int differs_tail = 0;
+  for (uint32_t seed = 1; seed <= 64; ++seed) {
+    const int none = wander_pick_beside_stack(0, seed * 12345u);
+    const int head = wander_pick_beside_stack(1, seed * 12345u);
+    const int tail = wander_pick_beside_stack(2, seed * 12345u);
+    if (none < 0 || head < 0 || tail < 0) {
+      return fail("wander stack fixture (mover must be unarmed)");
+    }
+    differs_head += none != head;
+    differs_tail += none != tail;
+  }
+  if (!differs_head) {
+    return fail("an armed chain head in the hostile stack must cost -10");
+  }
+  return differs_tail > 0 ? 0 : fail("an armed unit below the chain head must cost -10");
+}
+
+/* FUN_521d_0906 raw 87373: a tribe-owned neighbour keys 0896's grudge read
+ * off the tile's chain head (07e0, newest arrival), not the lowest pool
+ * slot. Two Braves on (9,8): the older one (slot 0) from a calm village, the
+ * newer one from a village with attitude > 0x7f. */
+static int unit_contact_claim_reads_chain_head(void) {
+  static ColonizeCol1Tribe tribes[2];
+  Fixture f;
+  if (fixture_init(&f, 0) != 0) return 1;
+  memset(tribes, 0, sizeof(tribes));
+  tribes[0].nation_id = 4;
+  tribes[1].nation_id = 4;
+  tribes[1].alarm[0].friction = 0x90;
+  f.col1.tribe = tribes;
+  f.col1.head.tribe_count = 2;
+  const int me = units_spawn(&f.units, 0, 8, 8);
+  const int calm = units_spawn(&f.units, 0, 9, 8);
+  const int angry = units_spawn_allow_stack(&f.units, 0, 9, 8);
+  ColonizeUnit* uc = units_get(&f.units, calm);
+  ColonizeUnit* ua = units_get(&f.units, angry);
+  if (me < 0 || !uc || !ua) { fixture_free(&f); return fail("contact claim spawn"); }
+  uc->nation_id = ua->nation_id = 4;
+  uc->home_tribe_index = 0;
+  ua->home_tribe_index = 1;
+  units_tile_stack_arrive(&f.units, calm);
+  units_tile_stack_arrive(&f.units, angry);
+  f.map.layer3[8 * 16 + 9] = (uint8_t)((4 << 4) | (f.map.layer3[8 * 16 + 9] & 0x0f));
+  f.map.layer2[8 * 16 + 9] = MAP_OCCUPANCY_HAS_UNIT;
+  const ColonizeWorld w = world_from_turn_ctx(&f.ctx);
+  const int claim = ai_goals_probe_adjacent_contact_claim_w(&w, 8, 8, 0, 1, NULL);
+  const int head = units_tile_head_id_at(&f.units, 9, 8);
+  fixture_free(&f);
+  if (head != angry) {
+    return fail("contact claim fixture: the newer Brave must head the chain");
+  }
+  return claim == 4 ? 0 : fail("contact claim must read the chain head's village grudge");
+}
+
 static int unit_ship_index_gates_skip_deleted_slots(void) {
   for (int turn = 31; turn <= 32; ++turn) {
     Fixture f;
@@ -3519,6 +3609,8 @@ static const TestCase k_cases[] = {
      unit_border_park_inherits_previous_flood_stack_word},
     {"unit_ship_step_leaves_12f6_stack_word", unit_ship_step_leaves_12f6_stack_word},
     {"unit_ship_index_gates_skip_deleted_slots", unit_ship_index_gates_skip_deleted_slots},
+    {"unit_wander_hostile_stack_counts_every_unit", unit_wander_hostile_stack_counts_every_unit},
+    {"unit_contact_claim_reads_chain_head", unit_contact_claim_reads_chain_head},
     {"unit_ship_far_roam_uses_band_snapshot", unit_ship_far_roam_uses_band_snapshot},
     {"unit_ship_band_keeps_counts_after_unload", unit_ship_band_keeps_counts_after_unload},
     {"unit_ship_work_queue_uses_entry_stack", unit_ship_work_queue_uses_entry_stack},
