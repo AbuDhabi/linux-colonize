@@ -40,6 +40,12 @@ int ai_contact_try_ship_village(ColonizeTurnContext* ctx, int euro_nation, int x
 int ai_contact_auto_buy_2e92(
   ColonizeTurnContext* ctx, ColonizeCol1Indian* ind, int nation_id, int e, ColonizeUnit* unit
 );
+/* FUN_4962_06b6 Indian census (ai_contact_demand.c): 0x9184 / 0x91cc rows. */
+void ai_contact_indian_census_4962_06b6(ColonizeTurnContext* ctx, int nation_id);
+/* thunk_FUN_1000_a5f4 Demand Tribute (ai_contact_actions.c). */
+void ai_contact_demand_tribute(
+  ColonizeTurnContext* ctx, int e, int nation_id, ColonizeUnit* u, ColonizeCol1Tribe* t
+);
 #endif /* COLONIZE_TESTING */
 
 /* ===== Cross-file seams of the ai_contact.c split (2026-09-23) =====

@@ -1956,7 +1956,7 @@ void ai_contact_indian_prelude(ColonizeTurnContext* ctx, int nation_id) {
  * last surviving tribe type's villages only. FUN_4962_0018 (the Euro census)
  * is the array's other writer.
  */
-static void ai_contact_indian_census_4962_06b6(ColonizeTurnContext* ctx, int nation_id) {
+COLONIZE_INTERNAL void ai_contact_indian_census_4962_06b6(ColonizeTurnContext* ctx, int nation_id) {
   if (!ctx || !ctx->col1_ok || !ctx->col1) {
     return;
   }

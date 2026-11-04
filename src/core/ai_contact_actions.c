@@ -1143,14 +1143,18 @@ static void ai_contact_speak_with_chief(
  * thunk_FUN_1000_a5f4 — "Demand Tribute". euro = exposed land combat on the
  * unit's continent + (land combat total >> 1); Spanish ×1.5; Cortes (FF 10)
  * ×1.5. indian = (Brave combat on continent + (Brave total >> 1)) * 2 +
- * alarm/2. win = rand(0,indian) < rand(0,euro) && an own colony exists on
+ * alarm/2. All four strengths are the census rows (viceroy_overlays.c
+ * 77385-77396): 0x95b2[e*16+cont] and the 0x941c word [e] from the Euro
+ * census, 0x91cc[slot*16+cont] and 0x9184[slot] from the Indian census,
+ * slot = DS:0x8d52 (tribe - 4). A unit that moved since its owner's last
+ * census does not count. win = rand(0,indian) < rand(0,euro) && an own colony exists on
  * the continent. alarm bump = human ? difficulty+1 : 1. (win || indian <
  * euro) && alarm < 75: (win || alarm < 50): village not yet extorted && win →
  * bit 0x10, bump ×2, @EXTORTSTUFF: 10 of the village's top bid[] good into
  * the nearest colony; else @EXTORTPOOR, bump 0. alarm 50..74 → @EXTORTNO.
  * Otherwise @EXTORTLAUGH. Ends with FUN_4cc6_00f2(+bump).
  */
-static void ai_contact_demand_tribute(
+COLONIZE_INTERNAL void ai_contact_demand_tribute(
   ColonizeTurnContext* ctx,
   int e,
   int nation_id,
@@ -1168,8 +1172,13 @@ static void ai_contact_demand_tribute(
   const int alarm = ai_diplo_indian_alarm(col1, nation_id, e);
   const char* tribe = ai_contact_tribe_name(nation_id);
 
-  int euro = ai_contact_land_combat_sum(ctx, e, continent, 1, 255) +
-             (ai_contact_land_combat_sum(ctx, e, -1, 0, 0xffff) >> 1);
+  const ColonizeCol1Stuff* st = &col1->stuff;
+  const int e_ok = e >= 0 && e < 4;
+  const int slot = nation_id - 4;
+  const int slot_ok = slot >= 0 && slot < 8;
+  const int cont_ok = continent >= 0 && continent < 16;
+  int euro = (e_ok && cont_ok ? (int)st->field_combat_strength_by_continent[e * 16 + continent] : 0) +
+             (e_ok ? (int)(st->land_combat_strength[e] >> 1) : 0);
   if (e == 2) {
     euro += euro >> 1;
   }
@@ -1177,14 +1186,13 @@ static void ai_contact_demand_tribute(
     euro += euro >> 1;
   }
   const int indian =
-    (ai_contact_land_combat_sum(ctx, nation_id, continent, 0, 255) +
-     (ai_contact_land_combat_sum(ctx, nation_id, -1, 0, 255) >> 1)) * 2 + (alarm >> 1);
+    ((slot_ok && cont_ok ? (int)st->tribe_dwellings_91cc[slot * 16 + continent] : 0) +
+     (slot_ok ? (int)(st->tribe_data_9184[slot] >> 1) : 0)) * 2 + (alarm >> 1);
   int bump = human ? (int)col1->head.difficulty + 1 : 1;
   const int r_e = dos_rng_range(rng, 0, euro);
   const int r_i = dos_rng_range(rng, 0, indian);
   const int cid = ai_contact_nearest_own_colony(ctx, e, u->x, u->y, continent);
   const int win = cid >= 0 && r_i < r_e;
-
   PopupMsgTokens tok;
   memset(&tok, 0, sizeof(tok));
   char body[AI_POPUP_BODY_LEN];

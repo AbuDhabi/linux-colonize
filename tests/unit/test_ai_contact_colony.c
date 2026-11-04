@@ -6,6 +6,16 @@
 #include "core/dos_buggy.h"
 
 #include "../common/ai_fixture.h"
+#include "core/col1_stuff_census.h"
+
+/* Demand Tribute reads the census rows (0x95b2, 0x941c, 0x9184, 0x91cc), so
+ * a fixture runs both censuses before the call, as the Euro EOT tail and the
+ * Indian turn do in the game. */
+static void census_euro_and_tribe(ColonizeTurnContext* ctx, int euro, int tribe_nation) {
+  const ColonizeWorld w = world_from_turn_ctx(ctx);
+  col1_stuff_census_4962_w(&w, &ctx->col1->stuff, euro);
+  ai_contact_indian_census_4962_06b6(ctx, tribe_nation);
+}
 
 /*
  * FUN_5952_035e war-declare block (ai_contact_colony_tick_war_5952) — the AI
@@ -1038,7 +1048,183 @@ static int test_found_claim_stamp_1ba8(void) {
   return 0;
 }
 
+/* Demand Tribute fixture: one village of tribe 4 at (5,5), Euro nation 0 an
+ * AI (bump 1, no human chrome), no colonies, a 16x16 land map whose
+ * continent byte (layer3) is 1 for x < 8 and 2 for x >= 8 when split. */
+typedef struct TributeFixture {
+  ColonizeCol1Save col1;
+  ColonizeWorldMap map;
+  ColonizeTurnContext ctx;
+  uint32_t turn;
+} TributeFixture;
+
+static ColonizeUnitPool s_tribute_units;
+static ColonizeColonyPool s_tribute_colonies;
+
+static int tribute_fixture(TributeFixture* f, bool split) {
+  memset(f, 0, sizeof(*f));
+  col1_save_init(&f->col1);
+  f->col1.head.difficulty = 0;
+  for (int ffi = 0; ffi < (int)COLONIZE_COL1_FF_COUNT; ++ffi) {
+    f->col1.head.founding_father[ffi] = -1;
+  }
+  f->col1.head.tribe_count = 1;
+  f->col1.tribe = calloc(1, sizeof(ColonizeCol1Tribe));
+  f->map.width = 16;
+  f->map.height = 16;
+  f->map.tile_count = 256;
+  f->map.terrain = calloc(256, 1);
+  f->map.layer2 = calloc(256, 1);
+  f->map.layer3 = calloc(256, 1);
+  if (!f->col1.tribe || !f->map.terrain || !f->map.layer2 || !f->map.layer3) {
+    return 0;
+  }
+  for (int i = 0; i < 256; ++i) {
+    f->map.terrain[i] = 1;
+    f->map.layer3[i] = split ? ((i % 16) < 8 ? 1 : 2) : 0;
+  }
+  f->col1.tribe[0].x = 5;
+  f->col1.tribe[0].y = 5;
+  f->col1.tribe[0].nation_id = 4;
+  f->col1.tribe[0].mission = 0xff;
+  f->col1.tribe[0].population = 4;
+  memset(&f->col1.indian[0], 0, sizeof(f->col1.indian[0]));
+  f->col1.indian[0].euro_diplo[0] = COL1_INDIAN_MET_BIT;
+  f->col1.player[0].control = 1;
+
+  memset(&s_tribute_units, 0, sizeof(s_tribute_units));
+  units_reset(&s_tribute_units);
+  units_set_occupancy_map(NULL);
+  s_tribute_units.type_count = 1;
+  snprintf(s_tribute_units.types[0].name, sizeof(s_tribute_units.types[0].name), "Soldier");
+  s_tribute_units.types[0].movement = 1;
+  s_tribute_units.types[0].attack = 2; /* combat 16 */
+  s_tribute_units.types[0].defense = 2;
+  colonies_init(&s_tribute_colonies);
+  colonies_set_occupancy_map(NULL);
+
+  f->turn = 1;
+  f->ctx.messages = test_game_txt();
+  f->ctx.names = test_names_txt();
+  f->ctx.turn_number = &f->turn;
+  f->ctx.units = &s_tribute_units;
+  f->ctx.colonies = &s_tribute_colonies;
+  f->ctx.map = &f->map;
+  f->ctx.col1 = &f->col1;
+  f->ctx.col1_ok = true;
+  f->ctx.rng_seed = 42;
+  f->ctx.human_nation = 1;
+  return 1;
+}
+
+static void tribute_fixture_free(TributeFixture* f) {
+  free(f->map.terrain);
+  free(f->map.layer2);
+  free(f->map.layer3);
+  free(f->col1.tribe);
+  f->col1.tribe = NULL;
+  col1_save_free(&f->col1);
+}
+
+static ColonizeUnit* tribute_spawn(int nation, int x, int y) {
+  ColonizeUnit* u = units_get(&s_tribute_units, units_spawn_allow_stack(&s_tribute_units, 0, x, y));
+  if (u) {
+    u->nation_id = nation;
+  }
+  return u;
+}
+
+/* No own colony, so `win` is false and `indian < euro` alone picks
+ * @EXTORTPOOR (alarm unchanged) over @EXTORTLAUGH (alarm +1). */
+static int tribute_laughs(TributeFixture* f, ColonizeUnit* sol, int alarm, bool census) {
+  f->col1.indian[0].alarm_by_player[0] = (uint16_t)alarm;
+  if (census) {
+    census_euro_and_tribe(&f->ctx, 0, 4);
+  }
+  const int before = ai_diplo_indian_alarm(&f->col1, 4, 0);
+  ai_contact_demand_tribute(&f->ctx, 0, 4, sol, &f->col1.tribe[0]);
+  return ai_diplo_indian_alarm(&f->col1, 4, 0) > before;
+}
+
+/*
+ * thunk_FUN_1000_a5f4 (viceroy_overlays.c 77385-77396) weighs the census
+ * rows, not live sums. A Soldier that arrived after its nation's census adds
+ * nothing: euro = indian = 0, so the tribe laughs. A live recount sees the
+ * Soldier, takes `indian < euro` and answers @EXTORTPOOR.
+ */
+static int test_demand_tribute_reads_census(void) {
+  TributeFixture f;
+  int rc = 1;
+  if (!tribute_fixture(&f, false)) {
+    fail("tribute census: alloc");
+    goto done;
+  }
+  census_euro_and_tribe(&f.ctx, 0, 4); /* both censuses see no units */
+  ColonizeUnit* sol = tribute_spawn(0, 6, 5);
+  if (!sol) {
+    fail("tribute census: spawn soldier");
+    goto done;
+  }
+  if (!tribute_laughs(&f, sol, 0, false)) {
+    fail("tribute census: a Soldier that arrived after the census must not count");
+    goto done;
+  }
+  rc = 0;
+done:
+  tribute_fixture_free(&f);
+  return rc;
+}
+
+/*
+ * The indian side, (0x91cc[slot*16+cont] + (0x9184[slot] >> 1)) * 2 +
+ * alarm/2 (viceroy_overlays.c 77395-77396), at the indian == euro boundary.
+ * euro = one field Soldier = 16 + (16 >> 1) = 24 throughout. The village and
+ * the Soldier are on continent 1.
+ */
+static int test_demand_tribute_indian_side(void) {
+  TributeFixture f;
+  int rc = 1;
+  if (!tribute_fixture(&f, true)) {
+    fail("tribute indian: alloc");
+    goto done;
+  }
+  ColonizeUnit* sol = tribute_spawn(0, 6, 5);
+  if (!sol) {
+    fail("tribute indian: spawn soldier");
+    goto done;
+  }
+  /* Alarm term alone: 48/2 = 24 is not < 24 -> laugh; 46/2 = 23 -> poor. */
+  if (!tribute_laughs(&f, sol, 48, true) || tribute_laughs(&f, sol, 46, true)) {
+    fail("tribute indian: indian 24 vs euro 24 must laugh, 23 must not");
+    goto done;
+  }
+  /* 0x9184: a Brave on continent 2 is in the tribe total (16 >> 1 = 8) but
+   * not in continent 1's 0x91cc row: (0 + 8) * 2 + 20/2 = 26 -> laugh. */
+  ColonizeUnit* far = tribute_spawn(4, 12, 5);
+  if (!far || !tribute_laughs(&f, sol, 20, true)) {
+    fprintf(stderr, "tribute indian: 9184=%d 91cc[1]=%d\n", (int)f.col1.stuff.tribe_data_9184[0],
+            (int)f.col1.stuff.tribe_dwellings_91cc[1]);
+    fail("tribute indian: the 0x9184 tribe total must count (26 >= 24)");
+    goto done;
+  }
+  units_despawn(&s_tribute_units, far->id);
+  /* 0x91cc at the unit's continent: a Brave on continent 1 gives
+   * (16 + 8) * 2 = 48 -> laugh; read at another continent, 16 -> poor. */
+  if (!tribute_spawn(4, 4, 5) || !tribute_laughs(&f, sol, 0, true)) {
+    fprintf(stderr, "tribute indian: 9184=%d 91cc[1]=%d\n", (int)f.col1.stuff.tribe_data_9184[0],
+            (int)f.col1.stuff.tribe_dwellings_91cc[1]);
+    fail("tribute indian: the 0x91cc row at the unit's continent must count (48 >= 24)");
+    goto done;
+  }
+  rc = 0;
+done:
+  tribute_fixture_free(&f);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
+    {"test_demand_tribute_reads_census", test_demand_tribute_reads_census},
+    {"test_demand_tribute_indian_side", test_demand_tribute_indian_side},
     {"test_found_claim_stamp_1ba8", test_found_claim_stamp_1ba8},
     {"test_colony_tick_war_5952", test_colony_tick_war_5952},
     {"test_land_work_alarm_6582", test_land_work_alarm_6582},
