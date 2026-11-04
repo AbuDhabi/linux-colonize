@@ -1666,6 +1666,64 @@ static int run_reparations_scan_past_empty_colony(void) {
 }
 
 /*
+ * FUN_5bfb_022e raw 96851-96861. The best cargo has a stock of 1; the
+ * rng(0, difficulty + 1) == 0 draw halves it to 0 and DOS still presents
+ * @INDIANCITY (local_1a = 1 at LAB_5bfb_1000). Spread seeds so some halve.
+ */
+static int run_zero_qty_demand_presented(void) {
+  if (!test_names_txt()) {
+    return TR_SKIP;
+  }
+  int halved = 0;
+  int unresolved = 0;
+  for (uint32_t k = 1; k <= 16; ++k) {
+    Ai152eFixture f;
+    if (ai_152e_fixture_init(&f, "zero-qty-demand", k * 12345u) != 0) {
+      return 1;
+    }
+    ai_contact_reset();
+    f.col1.head.difficulty = 0; /* rng(0, 1): half the seeds halve */
+    ColonizeColony* col = &f.colonies.colonies[0];
+    col->active = true;
+    col->id = 0;
+    col->nation_id = 1;
+    col->x = 14;
+    col->y = 10;
+    col->stock[3] = 1;
+    snprintf(col->name, sizeof(col->name), "Testtown");
+    const int brave_ti = units_find_type(&f.units, "Brave");
+    const int bid = brave_ti >= 0 ? units_spawn_allow_stack(&f.units, brave_ti, 13, 10) : -1;
+    ColonizeUnit* brave = units_get(&f.units, bid);
+    if (!brave) {
+      fprintf(stderr, "zero-qty-demand: spawn failed\n");
+      ai_152e_fixture_free(&f);
+      return 1;
+    }
+    brave->nation_id = 4;
+    brave->home_tribe_index = 0;
+    brave->col1_flags15 = 0;
+    f.col1.nation[1].trade.euro_price[3] = 11;
+    f.col1.indian[0].euro_diplo[1] = (uint8_t)COL1_INDIAN_MET_BIT;
+    f.col1.indian[0].alarm_by_player[1] = 20;
+    f.col1.indian[0].contact_state[1] = 1; /* local_10: never generous */
+    col1_tribe_attitude_set(&f.tribes[0], 1, 5);
+
+    ai_s_native_colonies = &f.colonies;
+    ai_native_bind_step_ctx(&f.ctx);
+    const int resolved = ai_native_step_first_contact(&f.units, &f.map, &f.col1, brave, 4);
+    ai_native_bind_step_ctx(NULL);
+    ai_s_native_colonies = NULL;
+    const int stock = col->stock[3];
+    ai_152e_fixture_free(&f);
+    unresolved += resolved != 1;
+    halved += stock == 1; /* the AI handed over 0 */
+  }
+  fprintf(stderr, "zero-qty-demand: 16 seeds, %d unresolved, %d halved to 0\n", unresolved,
+          halved);
+  return (unresolved == 0 && halved > 0) ? 0 : 1;
+}
+
+/*
  * @INDIANSCONVERT whose spawn fails. FUN_5bfb_022e raw 97011-97012:
  * `iVar9 = FUN_281f_095c(...); if (iVar9 < 0) goto LAB_5bfb_1005;` with
  * local_1a still 0, so the visit does not resolve and the Brave keeps its MP.
@@ -2397,5 +2455,6 @@ static const TestCase k_cases[] = {
     {"run_reparations_scan_past_empty_colony", run_reparations_scan_past_empty_colony},
     {"run_visit_after_first_contact", run_visit_after_first_contact},
     {"run_convert_spawn_failure_unresolved", run_convert_spawn_failure_unresolved},
+    {"run_zero_qty_demand_presented", run_zero_qty_demand_presented},
 };
 TEST_MAIN(k_cases)

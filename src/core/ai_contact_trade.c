@@ -1108,11 +1108,10 @@ int ai_contact_try_village_reparations(ColonizeTurnContext* ctx, int nation_id) 
         continue;
       }
       ind->contact_state[e] = 1;
+      /* raw 96859-96861: a stock of 1 halves to 0 and DOS presents the demand
+       * anyway (no quantity test before @INDIANCITY). */
       if (dos_rng_range(ctx->rng, 0, (int)ctx->col1->head.difficulty + 1) == 0) {
         best_qty >>= 1;
-      }
-      if (best_qty <= 0) {
-        continue;
       }
       AiContactReparations* s = &ai_contact_s_reparations[e];
       s->active = 1;
