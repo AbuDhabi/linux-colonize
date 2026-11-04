@@ -4146,6 +4146,61 @@ static int test_indian_land_esc_takes(void) {
 }
 
 /*
+ * FUN_2b5a_1454 (road, raw 42536-42604) and FUN_2b5a_123e (forest, raw 42443-42512) read
+ * neither tools nor the current orders, so a Pioneer with under 20 tools already on the order
+ * over unbought native land is asked again. Same fixture (Pioneer on Tupi forest (45,22)).
+ */
+static int indian_land_asks_again(GameIndianLandKind kind, int orders) {
+  ColonizeGameConfig cfg = {.data_dir = "./COLONIZE", .save_dir = "./build/debug"};
+  ColonizeGameState* game = game_create(&cfg);
+  if (!game || !game_assets_ok(game)) {
+    fprintf(stderr, "SKIP: no COLONIZE/ assets\n");
+    if (game) {
+      game_destroy(game);
+    }
+    return TR_SKIP;
+  }
+  char err[256];
+  if (!game_load_col1_file(
+        game, "tests-automated-regression/map_pioneer_native_forest_offer/input.sav", err,
+        sizeof(err)
+      )) {
+    fprintf(stderr, "  %s\n", err);
+    game_destroy(game);
+    return fail("fixture save load");
+  }
+  ai_popup_clear(&game->ai_popups);
+  ColonizeUnit* pu = NULL;
+  for (int i = 0; i < units_slot_end(&game->units); ++i) {
+    ColonizeUnit* u = &game->units.units[i];
+    if (u->active && u->x == 45 && u->y == 22 && units_is_pioneer(&game->units, u->id)) {
+      pu = u;
+    }
+  }
+  int rc = 0;
+  if (!pu) {
+    rc = fail("fixture Pioneer at (45,22)");
+  } else {
+    game->units.selected_id = pu->id;
+    pu->orders = orders;
+    pu->tools = 0;
+    if (!game_pioneer_land_gate(game, kind) || game->ai_popups.queue_count != 1) {
+      rc = fail("the native-land question is asked again (no tools / orders gate)");
+    }
+  }
+  game_destroy(game);
+  return rc;
+}
+
+static int test_indian_road_asks_when_already_building(void) {
+  return indian_land_asks_again(GAME_INDIAN_LAND_ROAD, UNITS_ORDER_BUILD_ROAD);
+}
+
+static int test_indian_forest_asks_when_already_clearing(void) {
+  return indian_land_asks_again(GAME_INDIAN_LAND_FOREST, UNITS_ORDER_CLEAR_PLOW);
+}
+
+/*
  * Esc on the @INDIANLAND plot drop seats the worker unpaid. FUN_2f2b_2f3e raw 50372-50373 acts
  * only on 1 (respect, abort) / 2 (pay); -1 carries on into the seat. Fixture:
  * colony_tile_native_land (Quebec (45,24), plot S Tupi-claimed, Tupi at peace).
@@ -4999,6 +5054,8 @@ static const TestCase k_cases[] = {
     {"test_colony_construction_two_pages_live", test_colony_construction_two_pages_live},
     {"test_indian_land_offer_row_greyed", test_indian_land_offer_row_greyed},
     {"test_indian_land_esc_takes", test_indian_land_esc_takes},
+    {"test_indian_road_asks_when_already_building", test_indian_road_asks_when_already_building},
+    {"test_indian_forest_asks_when_already_clearing", test_indian_forest_asks_when_already_clearing},
     {"test_indian_land_plot_esc_takes", test_indian_land_plot_esc_takes},
     {"test_europe_buy_prompt_names_hull_type", test_europe_buy_prompt_names_hull_type},
     {"test_europe_repairing_hull_press_no_pickup", test_europe_repairing_hull_press_no_pickup},

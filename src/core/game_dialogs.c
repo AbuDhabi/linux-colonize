@@ -416,16 +416,17 @@ bool game_pioneer_land_gate(ColonizeGameState* game, GameIndianLandKind kind) {
   }
   const int sid = game->units.selected_id;
   const ColonizeUnit* pu = units_get_const(&game->units, sid);
-  if (!pu || !pu->active || !units_is_pioneer(&game->units, sid) || pu->tools < 20) {
+  if (!pu || !pu->active || !units_is_pioneer(&game->units, sid)) {
     return false;
   }
+  /* FUN_2b5a_123e raw 42443-42512 and FUN_2b5a_1454 raw 42536-42604 read
+   * neither tools nor the current orders: a Pioneer already on the order is
+   * asked again. */
   if (kind == GAME_INDIAN_LAND_FOREST) {
-    if (map_tile_is_plowed(&game->world_map, pu->x, pu->y) ||
-        pu->orders == UNITS_ORDER_CLEAR_PLOW) {
+    if (map_tile_is_plowed(&game->world_map, pu->x, pu->y)) {
       return false;
     }
-  } else if (map_tile_has_road(&game->world_map, pu->x, pu->y) ||
-             pu->orders == UNITS_ORDER_BUILD_ROAD) {
+  } else if (map_tile_has_road(&game->world_map, pu->x, pu->y)) {
     return false;
   }
   return game_request_indian_land_choice(game, kind, sid, pu->x, pu->y);
