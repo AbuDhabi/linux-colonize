@@ -2010,6 +2010,7 @@ int ai_euro_s_5952_census_nonexpert[COLONIZE_COLONIES_MAX]; /* aiStack_68[0x13] 
 int ai_euro_s_5952_census_vet_soldier[COLONIZE_COLONIES_MAX]; /* aiStack_68[0x15] */
 int ai_euro_s_5952_census_carpenter[COLONIZE_COLONIES_MAX];   /* aiStack_68[0x0d] = BP-0x4c */
 int ai_euro_s_5952_census_preacher[COLONIZE_COLONIES_MAX];    /* aiStack_68[0x10] = BP-0x46 */
+int ai_euro_s_5952_census_gunsmith[COLONIZE_COLONIES_MAX];    /* aiStack_68[0x0f] = BP-0x48 */
 
 /* The same tick-top census (raw 94219-94229), two more cells: the carpenter
  * arm's `local_4e == 0` and the indoor-expert pass's Master Carpenter /
@@ -2018,10 +2019,13 @@ int ai_euro_s_5952_census_preacher[COLONIZE_COLONIES_MAX];    /* aiStack_68[0x10
  * seed-100 pair 182: Fort Nassau's only Master Carpenter, armed as a Soldier
  * and refused at the unit cap, stays a Free Colonist in DOS; the port's live
  * recount saw no Master Carpenter and re-promoted him (raw 94719-94726). */
-COLONIZE_INTERNAL void ai_euro_5952_set_expert_census(int colony_id, int carpenters, int preachers) {
+COLONIZE_INTERNAL void ai_euro_5952_set_expert_census(
+  int colony_id, int carpenters, int preachers, int gunsmiths
+) {
   if (colony_id >= 0 && colony_id < COLONIZE_COLONIES_MAX) {
     ai_euro_s_5952_census_carpenter[colony_id] = carpenters;
     ai_euro_s_5952_census_preacher[colony_id] = preachers;
+    ai_euro_s_5952_census_gunsmith[colony_id] = gunsmiths;
   }
 }
 
@@ -2359,8 +2363,6 @@ COLONIZE_INTERNAL void ai_euro_5952_cascade_census(AiEuro5952Cascade* s) {
 
   /* asm 5952:21d4 — iVar12 = colonists working @JOB 0 (Farmer) + 8 (Fisherman). */
   int food_workers = 0;
-  int* prof_count = s->prof_count;
-  memset(s->prof_count, 0, sizeof s->prof_count);
   for (int i = 0; i < col->colonist_count && i < COLONIZE_COLONY_POP_MAX; ++i) {
     const ColonizeColonist* c = &col->colonists[i];
     if (!c->active) {
@@ -2368,9 +2370,6 @@ COLONIZE_INTERNAL void ai_euro_5952_cascade_census(AiEuro5952Cascade* s) {
     }
     if (c->field_job == COLONIZE_JOB_FARMER || c->field_job == COLONIZE_JOB_FISHERMAN) {
       ++food_workers;
-    }
-    if (c->profession >= 0 && c->profession < 28) {
-      ++prof_count[c->profession];
     }
   }
 
@@ -2545,7 +2544,6 @@ COLONIZE_INTERNAL AiEuro5952CascadeStatus ai_euro_5952_cascade_town(AiEuro5952Ca
   const int tier_max = s->tier_max;
   const int musket_price = s->musket_price;
   const int* gross = s->gross;
-  const int* prof_count = s->prof_count;
 
   const int wl_want = pop / 6; /* iStack_16c */
   if (col->warehouse_level < (unsigned)wl_want && col->warehouse_level == 0) {
@@ -2610,7 +2608,12 @@ COLONIZE_INTERNAL AiEuro5952CascadeStatus ai_euro_5952_cascade_town(AiEuro5952Ca
         want_armory = 1;
       }
     }
-    if (!want_armory && prof_count[COLONIZE_PROF_GUNSMITH] != 0) {
+    /* asm 243f `CMP [BP-0x48],0` reads the tick-top Master
+     * Gunsmith census cell (aiStack_68[0x0f]), not a live recount. */
+    const int census_gunsmiths = (col->id >= 0 && col->id < COLONIZE_COLONIES_MAX)
+                                   ? ai_euro_s_5952_census_gunsmith[col->id]
+                                   : 0;
+    if (!want_armory && census_gunsmiths != 0) {
       want_armory = 1;
     }
     if (want_armory && ai_euro_5952_try_build(s, 0x03) == 0) {

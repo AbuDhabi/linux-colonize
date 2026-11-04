@@ -299,12 +299,54 @@ static int church_pick(int census_preachers, int live_preacher) {
     f.col->colonists[0].active = true;
     f.col->colonists[0].profession = COLONIZE_PROF_PREACHER;
   }
-  ai_euro_5952_set_expert_census(f.col->id, 0, census_preachers);
+  ai_euro_5952_set_expert_census(f.col->id, 0, census_preachers, 0);
   ai_euro_5952_build_cascade(&f.ctx, f.col);
   const int got = f.col->building_in_production;
-  ai_euro_5952_set_expert_census(f.col->id, 0, 0);
+  ai_euro_5952_set_expert_census(f.col->id, 0, 0, 0);
   fx_done(&f);
   return church >= 0 && got == church;
+}
+
+/*
+ * asm 243f, the Armory arm's fallback `CMP [BP-0x48],0` reads
+ * the tick-top Master Gunsmith census cell (aiStack_68[0x0f]), not a recount.
+ * Early year, cheap muskets: the price/turn band stays shut.
+ */
+static int armory_pick(int census_gunsmiths, int live_gunsmith) {
+  Fx f;
+  if (fx_build(&f, 5) != 0) {
+    return -2;
+  }
+  own_all_before_naval(&f);
+  const int armory = bld(&f, "Armory");
+  if (armory >= 0) {
+    f.col->has_building[armory] = false;
+  }
+  if (live_gunsmith) {
+    f.col->colonists[0].active = true;
+    f.col->colonists[0].profession = COLONIZE_PROF_GUNSMITH;
+  }
+  ai_euro_5952_set_expert_census(f.col->id, 0, 0, census_gunsmiths);
+  ai_euro_5952_build_cascade(&f.ctx, f.col);
+  const int got = f.col->building_in_production;
+  ai_euro_5952_set_expert_census(f.col->id, 0, 0, 0);
+  fx_done(&f);
+  return armory >= 0 && got == armory;
+}
+
+static int case_armory_gate_reads_gunsmith_census(void) {
+  const int counted = armory_pick(1, 0);
+  const int live_only = armory_pick(0, 1);
+  if (counted < 0 || live_only < 0) {
+    return 1;
+  }
+  if (!counted) {
+    return fail("census gunsmith (BP-0x48) must open the Armory arm (asm 243f)");
+  }
+  if (live_only) {
+    return fail("a live Gunsmith missing from the census must not open the Armory arm");
+  }
+  return 0;
 }
 
 static int case_church_gate_reads_preacher_census(void) {
@@ -1547,6 +1589,7 @@ static const TestCase k_cases[] = {
   {"case_wagon_train_pick", case_wagon_train_pick},
   {"case_wagon_train_blocked_by_ring1_threat", case_wagon_train_blocked_by_ring1_threat},
   {"case_church_gate_reads_preacher_census", case_church_gate_reads_preacher_census},
+  {"case_armory_gate_reads_gunsmith_census", case_armory_gate_reads_gunsmith_census},
   {"case_galleon_pick", case_galleon_pick},
   {"case_privateer_pick", case_privateer_pick},
   {"case_frigate_pick", case_frigate_pick},

@@ -1725,6 +1725,7 @@ void ai_euro_reset(void) {
   memset(ai_euro_s_5952_census_vet_soldier, 0, sizeof(ai_euro_s_5952_census_vet_soldier));
   memset(ai_euro_s_5952_census_carpenter, 0, sizeof(ai_euro_s_5952_census_carpenter));
   memset(ai_euro_s_5952_census_preacher, 0, sizeof(ai_euro_s_5952_census_preacher));
+  memset(ai_euro_s_5952_census_gunsmith, 0, sizeof(ai_euro_s_5952_census_gunsmith));
   ai_euro_s_20e6_type_cache_valid = 0; /* port_bugs.md #655: refreshed next dispatcher_turn */
   memset(s_euro_continent_stance, 0, sizeof(s_euro_continent_stance));
   memset(s_euro_rival_strength, 0, sizeof(s_euro_rival_strength));

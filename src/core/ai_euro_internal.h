@@ -197,7 +197,10 @@ extern int ai_euro_s_5952_arty_plot[COLONIZE_COLONIES_MAX];
 extern int ai_euro_s_5952_census_nonexpert[COLONIZE_COLONIES_MAX]; /* aiStack_68[0x13] */
 extern int ai_euro_s_5952_census_carpenter[COLONIZE_COLONIES_MAX]; /* aiStack_68[0x0d] */
 extern int ai_euro_s_5952_census_preacher[COLONIZE_COLONIES_MAX];  /* aiStack_68[0x10] */
-COLONIZE_INTERNAL void ai_euro_5952_set_expert_census(int colony_id, int carpenters, int preachers);
+extern int ai_euro_s_5952_census_gunsmith[COLONIZE_COLONIES_MAX];  /* aiStack_68[0x0f] */
+COLONIZE_INTERNAL void ai_euro_5952_set_expert_census(
+  int colony_id, int carpenters, int preachers, int gunsmiths
+);
 /* local_1b0 = the tick's improvement-arm owner (DS index of the per-nation reads). */
 void ai_euro_5952_build_cascade_for_owner(
   ColonizeTurnContext* ctx, ColonizeColony* col, int improvement_owner
@@ -486,7 +489,6 @@ typedef struct AiEuro5952Cascade {
   int armed_count_for_nation; /* DS:0x9424 + local_1b0 */
   int ring1;
   int food_workers;           /* iVar12 */
-  int prof_count[28];
   int experts;
   int tier_max;
   int arty_on_tile;           /* iStack_92 */
