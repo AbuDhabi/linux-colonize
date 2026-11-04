@@ -1184,6 +1184,100 @@ static int unit_europe_lane_shared_arrival_transfers_passenger(void) {
 }
 
 /*
+ * FUN_48d3_03d0 appends each hopped hull at the 224+n chain tail in walk
+ * order (0880 then 08c6, raw 7535-7561), and 064e places head-first (raw
+ * 77905-77939). Lower-slot `early` heads the 228+n chain, so it is placed
+ * first and its 10be peel takes the loose sentried colonist; a
+ * descending-slot walk would hand it to `late`.
+ */
+static int unit_europe_lane_arrivals_place_in_chain_order(void) {
+  const int nation = 1;
+  Fixture f;
+  if (fixture_init(&f, nation) != 0) return 1;
+  f.map.terrain[4 * 16 + 14] = 26; /* interior: FUN_48d3_0434 skips the rim */
+  const int early_id = units_spawn_allow_stack(&f.units, 2, 228 + nation, 228 + nation);
+  const int late_id = units_spawn_allow_stack(&f.units, 2, 228 + nation, 228 + nation);
+  const int pax_id = units_spawn_allow_stack(&f.units, 0, 224 + nation, 224 + nation);
+  ColonizeUnit* early = units_get(&f.units, early_id);
+  ColonizeUnit* late = units_get(&f.units, late_id);
+  ColonizeUnit* pax = units_get(&f.units, pax_id);
+  if (!early || !late || !pax || early_id > late_id) {
+    fixture_free(&f);
+    return fail("chain-order arrival spawn");
+  }
+  early->nation_id = nation;
+  late->nation_id = nation;
+  pax->nation_id = nation;
+  early->goto_x = 14;
+  late->goto_x = 14;
+  early->goto_y = 4;
+  late->goto_y = 4;
+  early->col1_counter16 = 0;
+  late->col1_counter16 = 0;
+  pax->orders = UNITS_ORDER_SENTRY;
+  units_tile_stack_sink(&f.units, late_id); /* `early` heads the 228+n chain */
+  if (units_tile_head_id_at(&f.units, 228 + nation, 228 + nation) != early_id) {
+    fixture_free(&f);
+    return fail("chain-order arrival: early must head the 228+n chain");
+  }
+  ai_euro_europe_lane_tick(&f.ctx, nation);
+  const int ok = early->x == 14 && early->y == 4 && late->x == 14 && late->y == 4 &&
+    pax->aboard_ship_id == early_id && late->cargo_count == 0;
+  if (!ok) {
+    fprintf(stderr, "chain-order arrival: pax aboard %d (early %d late %d)\n",
+            pax->aboard_ship_id, early_id, late_id);
+  }
+  fixture_free(&f);
+  return ok ? 0 : fail("064e must place the 224+n chain head first");
+}
+
+/*
+ * FUN_48d3_03d0's 08c6 (raw 7535-7561) appends a hopped hull after the
+ * destination chain tail, below the units already there. Hull X waits on
+ * 228+n (counter 2); hull Y, spawned later, hops 232+n -> 228+n on the first
+ * tick and lands under X. On the second tick both hop to 224+n in chain
+ * order X, Y, so 064e places X first and its 10be peel takes the loose
+ * sentried colonist. Left at the head, Y would go first.
+ */
+static int unit_europe_lane_hop_appends_at_chain_tail(void) {
+  const int nation = 1;
+  Fixture f;
+  if (fixture_init(&f, nation) != 0) return 1;
+  f.map.terrain[4 * 16 + 14] = 26; /* interior: FUN_48d3_0434 skips the rim */
+  const int pax_id = units_spawn_allow_stack(&f.units, 0, 224 + nation, 224 + nation);
+  const int x_id = units_spawn_allow_stack(&f.units, 2, 228 + nation, 228 + nation);
+  const int y_id = units_spawn_allow_stack(&f.units, 2, 232 + nation, 232 + nation);
+  ColonizeUnit* pax = units_get(&f.units, pax_id);
+  ColonizeUnit* hx = units_get(&f.units, x_id);
+  ColonizeUnit* hy = units_get(&f.units, y_id);
+  if (!pax || !hx || !hy) {
+    fixture_free(&f);
+    return fail("chain-tail hop spawn");
+  }
+  pax->nation_id = nation;
+  hx->nation_id = nation;
+  hy->nation_id = nation;
+  pax->orders = UNITS_ORDER_SENTRY;
+  hx->goto_x = 14;
+  hy->goto_x = 14;
+  hx->goto_y = 4;
+  hy->goto_y = 4;
+  hx->col1_counter16 = 2;
+  hy->col1_counter16 = 1;
+  ai_euro_europe_lane_tick(&f.ctx, nation);
+  const int head_after_first = units_tile_head_id_at(&f.units, 228 + nation, 228 + nation);
+  ai_euro_europe_lane_tick(&f.ctx, nation);
+  const int ok = head_after_first == x_id && hx->x == 14 && hy->x == 14 &&
+                 pax->aboard_ship_id == x_id && hy->cargo_count == 0;
+  if (!ok) {
+    fprintf(stderr, "chain-tail hop: 228 head %d (X %d Y %d), pax aboard %d, X (%d,%d) Y (%d,%d)\n",
+            head_after_first, x_id, y_id, pax->aboard_ship_id, hx->x, hx->y, hy->x, hy->y);
+  }
+  fixture_free(&f);
+  return ok ? 0 : fail("03d0 must append the hopped hull after the chain tail");
+}
+
+/*
  * FUN_48d3_048e rings around the hull's own +0x314d/e (raw 77832-77833) with
  * no fallback. The hull's saved tile is (16,4), one past the east edge; a
  * passenger's goto (14,4) is not consulted. Column 14 is High Seas: the
@@ -3763,6 +3857,8 @@ static const TestCase k_cases[] = {
     {"unit_europe_lane_crossing_ticks", unit_europe_lane_crossing_ticks},
     {"unit_europe_lane_shared_arrival_transfers_passenger", unit_europe_lane_shared_arrival_transfers_passenger},
     {"unit_europe_lane_arrival_uses_hull_tile", unit_europe_lane_arrival_uses_hull_tile},
+    {"unit_europe_lane_arrivals_place_in_chain_order", unit_europe_lane_arrivals_place_in_chain_order},
+    {"unit_europe_lane_hop_appends_at_chain_tail", unit_europe_lane_hop_appends_at_chain_tail},
     {"unit_delivery_matrix_skips_full_producer", unit_delivery_matrix_skips_full_producer},
     {"unit_delivery_sell_tail_dumps_cargo", unit_delivery_sell_tail_dumps_cargo},
     {"unit_load_matrix_picks_priced_cargo", unit_load_matrix_picks_priced_cargo},

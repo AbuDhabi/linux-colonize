@@ -1747,21 +1747,40 @@ void ai_euro_europe_lane_tick(ColonizeTurnContext* ctx, int nation_id) {
       ai_euro_lane_move(ctx, u, hops[h][1] + nation_id, hops[h][1] + nation_id);
       if (hops[h][1] == 236) {
         units_lane_dock_arrival(ctx->units, u->id);
+      } else {
+        /* FUN_281f_0880 (link at head) then FUN_281f_08c6 = FUN_1427_03a0
+         * (raw 7535-7561): unlink and append after the chain tail, so the
+         * destination chain reads old units first, then arrivals in walk
+         * order (raw 77761-77782). */
+        units_tile_stack_sink(ctx->units, u->id);
       }
     }
   }
-  /* FUN_48d3_06ba tail -> FUN_48d3_064e: every hull (type 0x0d..0x12) on
-   * the arrival lane 224+n is placed. 07e0 starts at the chain terminal;
-   * on a shared lane this is the last slot, so walk descending. */
+  /* FUN_48d3_06ba tail -> FUN_48d3_064e (raw 77905-77939): from the 224+n
+   * chain head (07e0) take the first hull (type 0x0d..0x12, 02e4 skips the
+   * rest), place it (0920 peel, 2a1f_0262 -> 048e), restart from the head. */
   if (!ctx->map) {
     return;
   }
-  for (int i = units_slot_end(ctx->units) - 1; i >= 0; --i) {
-    ColonizeUnit* u = &ctx->units->units[i];
-    if (u->active && u->nation_id == nation_id && u->aboard_ship_id < 0 &&
-        u->x == 224 + nation_id && u->y == 224 + nation_id && units_is_sea(ctx->units, u->id)) {
-      ai_euro_europe_place_arrival(ctx, u);
+  const int lane = 224 + nation_id;
+  bool tried[COLONIZE_UNITS_MAX] = {false};
+  for (;;) {
+    int pick = -1;
+    for (int id = units_tile_head_id_at(ctx->units, lane, lane); id >= 0;
+         id = units_tile_chain_next_id(ctx->units, id)) {
+      if (id < COLONIZE_UNITS_MAX && !tried[id] && units_is_sea(ctx->units, id)) {
+        pick = id;
+        break;
+      }
     }
+    if (pick < 0) {
+      break;
+    }
+    /* DOS 048e always moves the hull off the lane (raw 77884-77890); the
+     * port's no-ring-tile case leaves it there, so it is marked tried to
+     * end the restart loop. */
+    tried[pick] = true;
+    ai_euro_europe_place_arrival(ctx, units_get(ctx->units, pick));
   }
 }
 
