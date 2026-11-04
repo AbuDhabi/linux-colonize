@@ -1291,7 +1291,7 @@ void game_after_unit_action(ColonizeGameState* game) {
       }
       ColonizeTurnContext ctx;
       game_fill_turn_context(game, &ctx);
-      if (ai_diplo_153e_encounter(&ctx, u->nation_id, other, u->id)) {
+      if (ai_diplo_153e_encounter(&ctx, u->nation_id, other, u->id, d)) {
         break;
       }
     }

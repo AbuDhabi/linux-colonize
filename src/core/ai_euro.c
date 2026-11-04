@@ -415,29 +415,36 @@ static void ai_euro_3180_euro_side(ColonizeTurnContext* ctx, ColonizeUnit* u, in
   if (moved && u->active && units_is_on_map(u) &&
       !col1_nation_is_human(ctx->col1, nation_id, ctx->human_nation) &&
       ctx->map && !map_tile_is_water(ctx->map, u->x, u->y)) {
-    unsigned near_human = 0; /* bit per human neighbour nation */
-    for (int ady = -1; ady <= 1; ++ady) {
-      for (int adx = -1; adx <= 1; ++adx) {
-        if ((adx == 0 && ady == 0) ||
-            map_tile_is_water(ctx->map, u->x + adx, u->y + ady)) {
-          continue;
-        }
-        const int oid = units_id_at(ctx->units, u->x + adx, u->y + ady);
-        const ColonizeUnit* o = oid >= 0 ? units_get_const(ctx->units, oid) : NULL;
-        if (o && o->active && col1_nation_is_human(ctx->col1, o->nation_id, ctx->human_nation)) {
-          near_human |= 1u << o->nation_id;
-        }
-        if (ctx->colonies) {
-          const int ccid = colonies_id_at(ctx->colonies, u->x + adx, u->y + ady);
-          const ColonizeColony* cc = ccid >= 0 ? colonies_get(ctx->colonies, ccid) : NULL;
-          if (cc && cc->active && col1_nation_is_human(ctx->col1, cc->nation_id, ctx->human_nation)) {
-            near_human |= 1u << cc->nation_id;
-          }
+    /* 3180's direction loop, local_30 0..7 in DS:0xb4/0xbe order (=
+     * MAP_DIR8); the first index at which a human nation neighbours is
+     * that talk's 153e param_5 (raw 98667), the @WANTSTUFF source tile. */
+    int human_dir[4] = {-1, -1, -1, -1};
+    for (int d = 0; d < 8; ++d) {
+      const int ax = u->x + MAP_DIR8_DX[d];
+      const int ay = u->y + MAP_DIR8_DY[d];
+      if (map_tile_is_water(ctx->map, ax, ay)) {
+        continue;
+      }
+      const int oid = units_id_at(ctx->units, ax, ay);
+      const ColonizeUnit* o = oid >= 0 ? units_get_const(ctx->units, oid) : NULL;
+      if (o && o->active && o->nation_id >= 0 && o->nation_id < 4 &&
+          human_dir[o->nation_id] < 0 &&
+          col1_nation_is_human(ctx->col1, o->nation_id, ctx->human_nation)) {
+        human_dir[o->nation_id] = d;
+      }
+      if (ctx->colonies) {
+        const int ccid = colonies_id_at(ctx->colonies, ax, ay);
+        const ColonizeColony* cc = ccid >= 0 ? colonies_get(ctx->colonies, ccid) : NULL;
+        if (cc && cc->active && cc->nation_id >= 0 && cc->nation_id < 4 &&
+            human_dir[cc->nation_id] < 0 &&
+            col1_nation_is_human(ctx->col1, cc->nation_id, ctx->human_nation)) {
+          human_dir[cc->nation_id] = d;
         }
       }
     }
     for (int hn = 0; hn < 4; ++hn) {
-      if ((near_human & (1u << hn)) && ai_diplo_153e_encounter(ctx, hn, nation_id, u->id) &&
+      if (human_dir[hn] >= 0 &&
+          ai_diplo_153e_encounter(ctx, hn, nation_id, u->id, human_dir[hn]) &&
           ctx->ai_popups) {
         /* 3180 -> thunk_FUN_2a1f_05fc -> FUN_5bfb_153e (raw 98667) is a blocking
          * dialog inside this step: the treaty it signs (raw 98003, 0x40 both

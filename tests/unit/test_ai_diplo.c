@@ -1203,7 +1203,7 @@ static int case_153e_phases_2_4_encounter(void) {
     ectx.human_nation = 0;
     ectx.ai_popups = &epop;
     ectx.rng = &erng;
-    const int started = ai_diplo_153e_encounter(&ectx, 0, 1, pa->id);
+    const int started = ai_diplo_153e_encounter(&ectx, 0, 1, pa->id, -1);
     if (!started || epop.queue_count < 2) {
       fprintf(stderr, "unit_ai_diplo: 153e talk started=%d queued=%d\n", started, epop.queue_count);
       fx_map_free(&emap);
@@ -1267,11 +1267,11 @@ static int case_153e_phases_2_4_encounter(void) {
     const bool peace_ok = (e.nation[0].euro_relation[1] & AI_DIPLO_PEACE) &&
                           (e.nation[1].euro_relation[0] & AI_DIPLO_PEACE);
     const bool stamp_ok = e.head.nation_relation[1] == 30 + 0x10;
-    const int second = ai_diplo_153e_encounter(&ectx, 0, 1, pa->id);
+    const int second = ai_diplo_153e_encounter(&ectx, 0, 1, pa->id, -1);
     /* port_bugs.md #453: FUN_5f7a_000e Meet With Mayor pushes param_6 = 1, so the
      * scout's audience opens even inside the cooldown and the same turn. */
     ai_popup_init(&epop);
-    const int forced = second ? 0 : ai_diplo_153e_encounter_forced(&ectx, 0, 1, pa->id);
+    const int forced = second ? 0 : ai_diplo_153e_encounter_forced(&ectx, 0, 1, pa->id, -1);
     const int forced_queued = epop.queue_count;
     /* Drain it so the talk machine is idle for the next block. */
     for (int guard = 0; guard < 12 && epop.queue_count > 0; ++guard) {
@@ -1430,7 +1430,7 @@ static int case_153e_war_bit_survives_worthy_peace(void) {
     fx_map_free(&f.map);
     return fail("war bit: human attack under PEACE must set 0x02 in the AI's byte");
   }
-  if (!ai_diplo_153e_encounter(&f.ctx, 0, 1, f.unit_id)) {
+  if (!ai_diplo_153e_encounter(&f.ctx, 0, 1, f.unit_id, -1)) {
     fx_map_free(&f.map);
     return fail("war bit: the audience must open");
   }
@@ -1486,7 +1486,7 @@ static int case_153e_war_bit_survives_givecash_peace(void) {
   e->stuff.field_combat_strength_by_continent[0 * 16 + 1] = 10;
   ai_diplo_write(e, 0, 1, AI_DIPLO_MET | AI_DIPLO_WAR);
   ai_diplo_write(e, 1, 0, AI_DIPLO_MET);
-  if (!ai_diplo_153e_encounter(&f.ctx, 0, 1, f.unit_id)) {
+  if (!ai_diplo_153e_encounter(&f.ctx, 0, 1, f.unit_id, -1)) {
     fx_map_free(&f.map);
     return fail("cash peace: the audience must open");
   }
@@ -1506,8 +1506,12 @@ static int case_153e_war_bit_survives_givecash_peace(void) {
 
 /* `tie`: a second AI colony at (5,10), DOS distance 4 from the unit at (5,6)
  * like the first at (8,8) (Chebyshev 4 vs 3). FUN_15eb_0142 (raw 9380-9421,
- * max + min/2, `<=`) picks the later one; a Chebyshev `<` pick took (8,8). */
-static int wantstuff_run(int tie) {
+ * max + min/2, `<=`) picks the later one; a Chebyshev `<` pick took (8,8).
+ * no_demand 1: the 3180 direction (S) points away from the human colony,
+ * so raw 97601 FUN_281f_07be finds none there and no demand is made.
+ * no_demand 2: euro_price 1 -> DS:0x84bc byte 0 (raw 6316-6320), so every
+ * value is 0 and misses the threshold. */
+static int wantstuff_run(int tie, int no_demand) {
     ColonizeWorldMap qmap;
     memset(&qmap, 0, sizeof(qmap));
     if (!fx_map_alloc(&qmap, 16, 16, 0, false)) {
@@ -1580,7 +1584,8 @@ static int wantstuff_run(int tie) {
     q.stuff.field_combat_totals[1] = 10; /* target×3 >= self keeps worthy */
     q.stuff.colony_pop_totals[1] = 8;    /* quarter=2 > own_border(0) → SIEGES skipped */
     q.stuff.census_pop_proxy[0] = 8;     /* skip the small-nation score halving */
-    q.nation[1].trade.euro_price[COLONIZE_CARGO_MUSKETS] = 200; /* -0x7b44 weight */
+    q.nation[1].trade.euro_price[COLONIZE_CARGO_MUSKETS] =
+      no_demand == 2 ? 1 : 200; /* -0x7b44 weight */
     snprintf(q.player[0].country_name, sizeof(q.player[0].country_name), "England");
     snprintf(q.player[1].country_name, sizeof(q.player[1].country_name), "France");
     AiPopupState qpop;
@@ -1598,7 +1603,8 @@ static int wantstuff_run(int tie) {
     qctx.human_nation = 0;
     qctx.ai_popups = &qpop;
     qctx.rng = &qrng;
-    const int started = ai_diplo_153e_encounter(&qctx, 0, 1, pai->id);
+    const int started =
+      ai_diplo_153e_encounter(&qctx, 0, 1, pai->id, no_demand == 1 ? 4 : 0); /* 0 = N */
     fx_map_free(&qmap);
     if (!started) {
       return fail("153e wantstuff: AI unit next to human colony must open the talk");
@@ -1633,6 +1639,13 @@ static int wantstuff_run(int tie) {
       ai_diplo_apply_popup_result(&qctx, &qpop);
       qpop.has_result = false;
     }
+    if (no_demand) {
+      if (saw_wantstuff || qcol.colonies[0].stock[COLONIZE_CARGO_MUSKETS] != 60) {
+        return fail(no_demand == 1 ? "153e wantstuff: only the 3180-direction tile is a source"
+                                   : "153e wantstuff: value weight is the 0x84bc byte (price-1)");
+      }
+      return 0;
+    }
     if (!saw_wantstuff) {
       return fail("153e wantstuff: the goods demand CHOICE must be queued");
     }
@@ -1654,14 +1667,22 @@ static int wantstuff_run(int tie) {
 }
 
 static int case_153e_wantstuff_demand(void) {
-  return wantstuff_run(0);
+  return wantstuff_run(0, 0);
 }
 
 static int case_153e_wantstuff_receiver_dos_distance(void) {
   if (!test_game_txt()) {
     return TR_SKIP;
   }
-  return wantstuff_run(1);
+  return wantstuff_run(1, 0);
+}
+
+static int case_153e_wantstuff_source_is_encounter_dir(void) {
+  return wantstuff_run(0, 1);
+}
+
+static int case_153e_wantstuff_weight_is_84bc_byte(void) {
+  return wantstuff_run(0, 2);
 }
 
 static int case_153e_worthy_cascade(void) {
@@ -1747,7 +1768,7 @@ static int case_153e_worthy_cascade(void) {
 
     int saw_rid = 0;
     int saw_warmanly_run1 = 0;
-    if (!ai_diplo_153e_encounter(&rctx, 0, 1, rai->id)) {
+    if (!ai_diplo_153e_encounter(&rctx, 0, 1, rai->id, 0)) {
       fx_map_free(&rmap);
       return fail("153e rid: the encounter must open");
     }
@@ -1794,7 +1815,7 @@ static int case_153e_worthy_cascade(void) {
     int saw_tribute = 0;
     int saw_warmanly = 0;
     int saw_rid_run2 = 0;
-    if (!ai_diplo_153e_encounter(&rctx, 0, 1, rai->id)) {
+    if (!ai_diplo_153e_encounter(&rctx, 0, 1, rai->id, 0)) {
       fx_map_free(&rmap);
       return fail("153e warmanly: the second encounter must open on a later turn");
     }
@@ -1972,7 +1993,7 @@ static int case_153e_talk_tokens_474(void) {
   }
   int saw_worthy = 0;
   int saw_wise = 0;
-  (void)ai_diplo_153e_encounter(&ectx, 0, 1, pa->id);
+  (void)ai_diplo_153e_encounter(&ectx, 0, 1, pa->id, -1);
   if (talk474_drain(&ectx, &epop, &saw_worthy, &saw_wise) != 0) {
     return 1;
   }
@@ -1981,7 +2002,7 @@ static int case_153e_talk_tokens_474(void) {
   s_talk474_saw_piracy = 0;
   ai_diplo_write(&e, 1, 0, (uint8_t)(ai_diplo_read(&e, 1, 0) | AI_DIPLO_PRIVATEER_SIGHTED));
   e.stuff.unit_type_counts[0][16] = 1;
-  (void)ai_diplo_153e_encounter_forced(&ectx, 0, 1, pa->id);
+  (void)ai_diplo_153e_encounter_forced(&ectx, 0, 1, pa->id, -1);
   if (talk474_drain(&ectx, &epop, &saw_worthy, &saw_wise) != 0) {
     return 1;
   }
@@ -2058,7 +2079,7 @@ static int case_153e_usa_greeting(void) {
   if (!ectx.messages) {
     return 0; /* no shipped GAME.TXT */
   }
-  (void)ai_diplo_153e_encounter(&ectx, 0, 2, pa->id);
+  (void)ai_diplo_153e_encounter(&ectx, 0, 2, pa->id, -1);
   int saw = 0;
   for (int i = 0; i < epop.queue_count; ++i) {
     char flat[AI_POPUP_BODY_LEN];
@@ -2315,7 +2336,7 @@ static int case_153e_woi_encounter_rearms_timer(void) {
   ai_diplo_make_peace(&fx.col1, 0, 1);
   fx.col1.nation[1].treaty_timer[0] = 0;
   const int uid = withdraw_fx_spawn(&fx, 1, 5, 6, 1, 0);
-  const int started = ai_diplo_153e_encounter(&fx.ctx, 0, 1, uid);
+  const int started = ai_diplo_153e_encounter(&fx.ctx, 0, 1, uid, 0);
   const int timer = fx.col1.nation[1].treaty_timer[0];
   ai_diplo_talk_reset();
   fx_map_free(&fx.map);
@@ -2436,6 +2457,8 @@ static const TestCase k_cases[] = {
     {"case_153e_phase1_border_probe", case_153e_phase1_border_probe},
     {"case_153e_phases_2_4_encounter", case_153e_phases_2_4_encounter},
     {"case_153e_wantstuff_demand", case_153e_wantstuff_demand},
+    {"case_153e_wantstuff_source_is_encounter_dir", case_153e_wantstuff_source_is_encounter_dir},
+    {"case_153e_wantstuff_weight_is_84bc_byte", case_153e_wantstuff_weight_is_84bc_byte},
     {"case_153e_worthy_cascade", case_153e_worthy_cascade},
     {"case_153e_usa_greeting", case_153e_usa_greeting}, /* last: leaves the static talk open */
 };

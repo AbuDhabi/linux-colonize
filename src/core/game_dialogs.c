@@ -3291,7 +3291,9 @@ static bool game_apply_popup_diplo_and_scout(ColonizeGameState* game) {
       } else {
         ColonizeTurnContext ctx;
         game_fill_turn_context(game, &ctx);
-        (void)ai_diplo_153e_encounter_forced(&ctx, u->nation_id, col->nation_id, unit_id);
+        /* dir -1: DOS passes 6662_0086's direction, but it only feeds the
+         * @WANTSTUFF source, which needs an AI-owned unit (raw 97595). */
+        (void)ai_diplo_153e_encounter_forced(&ctx, u->nation_id, col->nation_id, unit_id, -1);
       }
       game_after_unit_action(game);
       return true;

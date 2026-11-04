@@ -1346,7 +1346,172 @@ static int unit_aboard_rider_takes_sticky_slot(void) {
   return 0;
 }
 
+typedef struct WantPump {
+  ColonizeTurnContext* ctx;
+  AiPopupState* pop;
+  int saw_wantstuff;
+} WantPump;
+
+static void want_pump_answer_first(void* user) {
+  WantPump* p = (WantPump*)user;
+  while (p->pop->queue_count > 0) {
+    const AiPopupRequest front = p->pop->queue[0];
+    memmove(&p->pop->queue[0], &p->pop->queue[1],
+            sizeof(p->pop->queue[0]) * (size_t)(p->pop->queue_count - 1));
+    p->pop->queue_count--;
+    if (front.kind != AI_POPUP_KIND_CHOICE) {
+      continue;
+    }
+    if (test_body_is_section(front.body, "WANTSTUFF")) {
+      p->saw_wantstuff = 1;
+    }
+    p->pop->has_result = true;
+    p->pop->result_cancelled = false;
+    p->pop->result_tag = front.tag;
+    p->pop->result_choice_id = 1;
+    p->pop->result_payload = front.payload;
+    ai_diplo_apply_popup_result(p->ctx, p->pop);
+    p->pop->has_result = false;
+  }
+}
+
+/* One unload to (3,4) beside a human colony at (4,4) (direction 2, E).
+ * human_unit_north puts a human unit at (3,3) (direction 0, N), which
+ * FUN_5bfb_3180's direction loop meets first, so 153e's param_5 points at a
+ * tile without a colony and raw 97601 finds no @WANTSTUFF source. */
+static int wantstuff_unload_run(int human_unit_north, int* saw_wantstuff) {
+  ai_diplo_talk_reset();
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  col1.head.turn = 100;
+  col1.head.difficulty = 1;
+  col1.head.human_player = 0;
+  col1.stuff.colony_counts[0] = 1;
+  col1.stuff.colony_counts[1] = 1;
+  col1.stuff.field_combat_totals[1] = 10;
+  col1.stuff.colony_pop_totals[1] = 8;
+  col1.stuff.census_pop_proxy[0] = 8;
+  col1.nation[1].trade.euro_price[COLONIZE_CARGO_MUSKETS] = 200;
+  snprintf(col1.player[0].country_name, sizeof(col1.player[0].country_name), "England");
+  snprintf(col1.player[1].country_name, sizeof(col1.player[1].country_name), "France");
+  ColonizeWorldMap map;
+  if (!fx_map_alloc(&map, 8, 8, 1, false)) {
+    return fail("wantstuff unload alloc map");
+  }
+  for (int i = 0; i < 64; ++i) {
+    map.layer3[i] = 1;
+  }
+  map.terrain[4 * 8 + 2] = 25; /* ship tile at sea */
+  map.layer3[4 * 8 + 2] = 0;
+  ColonizeUnitPool units;
+  fx_units_init(&units);
+  units.type_count = 2;
+  units.types[0].movement = 1;
+  units.types[0].attack = 3; /* armed mover: the border probe value feeds the score */
+  units.types[0].defense = 3;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[1].movement = 4;
+  units.types[1].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  units.types[1].cargo = 2;
+  ColonizeColonyPool colonies;
+  fx_colonies_init(&colonies);
+  ColonizeColony* hc = &colonies.colonies[0];
+  hc->id = 0;
+  hc->active = true;
+  hc->nation_id = 0;
+  hc->x = 4;
+  hc->y = 4;
+  hc->population = 2;
+  hc->colonist_count = 2;
+  hc->building_in_production = -1;
+  hc->stock[COLONIZE_CARGO_MUSKETS] = 60;
+  ColonizeColony* ac = &colonies.colonies[1];
+  ac->id = 1;
+  ac->active = true;
+  ac->nation_id = 1;
+  ac->x = 6;
+  ac->y = 7;
+  ac->population = 2;
+  ac->colonist_count = 2;
+  ac->building_in_production = -1;
+  colonies.colony_count = 2;
+  colonies.next_id = 2;
+  const int sid = units_spawn(&units, 1, 2, 4);
+  const int pid = units_spawn(&units, 0, 1, 4);
+  ColonizeUnit* ship = units_get(&units, sid);
+  ColonizeUnit* pax = units_get(&units, pid);
+  if (!ship || !pax || !units_board(&units, pid, sid)) {
+    fx_map_free(&map);
+    col1_save_free(&col1);
+    return fail("wantstuff unload spawn/board");
+  }
+  ship->nation_id = 1;
+  pax->nation_id = 1;
+  if (human_unit_north) {
+    ColonizeUnit* hu = units_get(&units, units_spawn(&units, 0, 3, 3));
+    if (!hu) {
+      fx_map_free(&map);
+      col1_save_free(&col1);
+      return fail("wantstuff unload human unit");
+    }
+    hu->nation_id = 0;
+  }
+  AiPopupState pop;
+  ai_popup_init(&pop);
+  ColonizeDosRng rng;
+  dos_rng_seed(&rng, 7);
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.messages = test_game_txt();
+  ctx.units = &units;
+  ctx.map = &map;
+  ctx.colonies = &colonies;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.human_nation = 0;
+  ctx.ai_popups = &pop;
+  ctx.rng = &rng;
+  WantPump pump = {&ctx, &pop, 0};
+  units_set_combat_popup_pump(want_pump_answer_first, &pump);
+  const int ok = ai_euro_unload_pax_at(&ctx, units_get(&units, sid), units_get(&units, pid), 3, 4,
+                                       UNITS_ORDER_NONE, -1, -1);
+  units_set_combat_popup_pump(NULL, NULL);
+  fx_map_free(&map);
+  const int met = (col1.nation[0].euro_relation[1] & AI_DIPLO_MET) != 0;
+  col1_save_free(&col1);
+  if (!ok || !met) {
+    fprintf(stderr, "ok=%d met=%d\n", ok, met);
+    return fail("the unload beside the human must open the 153e talk");
+  }
+  *saw_wantstuff = pump.saw_wantstuff;
+  return 0;
+}
+
+static int unit_3180_wantstuff_source_is_first_human_direction(void) {
+  if (!test_game_txt()) {
+    return TR_SKIP;
+  }
+  int saw = 0;
+  if (wantstuff_unload_run(0, &saw) != 0) {
+    return 1;
+  }
+  if (!saw) {
+    return fail("the colony is the first human neighbour: @WANTSTUFF must be asked");
+  }
+  if (wantstuff_unload_run(1, &saw) != 0) {
+    return 1;
+  }
+  if (saw) {
+    return fail("a human unit met first in 3180's loop leaves no source (raw 97601)");
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+    {"unit_3180_wantstuff_source_is_first_human_direction",
+     unit_3180_wantstuff_source_is_first_human_direction},
     {"unit_aboard_rider_takes_sticky_slot", unit_aboard_rider_takes_sticky_slot},
     {"unit_nearest_port_mode_m2_later_tie_wins", unit_nearest_port_mode_m2_later_tie_wins},
     {"unit_colony_sail_inland_retargets_to_port", unit_colony_sail_inland_retargets_to_port},

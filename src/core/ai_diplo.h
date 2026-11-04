@@ -198,9 +198,13 @@ int ai_diplo_leader_trait(const ColonizeTurnContext* ctx, int nation, int column
  * unit `unit_id` stands next to a unit of AI nation `target`. Runs phase 1
  * (unmet pair / 16-turn cooldown gate) and, when it opens, drives the
  * encounter dialog through ctx->ai_popups (AI_POPUP_TAG_DIPLO_TALK).
- * Returns 1 when a talk started.
+ * Returns 1 when a talk started. `dir` = DOS param_5, the 3180 direction
+ * index (MAP_DIR8 order) from unit_id to the encountered tile; the @WANTSTUFF
+ * source colony is read only there (raw 97598-97601). -1 = none.
  */
-int ai_diplo_153e_encounter(ColonizeTurnContext* ctx, int human, int target, int unit_id);
+int ai_diplo_153e_encounter(
+  ColonizeTurnContext* ctx, int human, int target, int unit_id, int dir
+);
 
 /*
  * Same talk with DOS param_6 = 1: FUN_5f7a_000e's Meet With Mayor pushes 1
@@ -208,7 +212,9 @@ int ai_diplo_153e_encounter(ColonizeTurnContext* ctx, int human, int target, int
  * 16-turn cooldown gate always opens and the port's per-turn pair latch is
  * skipped. port_bugs.md #453.
  */
-int ai_diplo_153e_encounter_forced(ColonizeTurnContext* ctx, int human, int target, int unit_id);
+int ai_diplo_153e_encounter_forced(
+  ColonizeTurnContext* ctx, int human, int target, int unit_id, int dir
+);
 
 /*
  * FUN_15b3_0004 / 0032 / 0066 / 00d0 (decomp 9056-9117). Byte-audited

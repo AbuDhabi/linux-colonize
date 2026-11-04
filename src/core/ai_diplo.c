@@ -2418,21 +2418,25 @@ int ai_diplo_leader_trait(const ColonizeTurnContext* ctx, int nation, int column
 }
 
 static int ai_diplo_153e_encounter_gated(
-  ColonizeTurnContext* ctx, int human, int target, int unit_id, int forced_gate
+  ColonizeTurnContext* ctx, int human, int target, int unit_id, int dir, int forced_gate
 );
 
-int ai_diplo_153e_encounter(ColonizeTurnContext* ctx, int human, int target, int unit_id) {
+int ai_diplo_153e_encounter(
+  ColonizeTurnContext* ctx, int human, int target, int unit_id, int dir
+) {
   turn_refresh_euro_rank(ctx);
-  return ai_diplo_153e_encounter_gated(ctx, human, target, unit_id, 0);
+  return ai_diplo_153e_encounter_gated(ctx, human, target, unit_id, dir, 0);
 }
 
-int ai_diplo_153e_encounter_forced(ColonizeTurnContext* ctx, int human, int target, int unit_id) {
+int ai_diplo_153e_encounter_forced(
+  ColonizeTurnContext* ctx, int human, int target, int unit_id, int dir
+) {
   turn_refresh_euro_rank(ctx);
-  return ai_diplo_153e_encounter_gated(ctx, human, target, unit_id, 1);
+  return ai_diplo_153e_encounter_gated(ctx, human, target, unit_id, dir, 1);
 }
 
 static int ai_diplo_153e_encounter_gated(
-  ColonizeTurnContext* ctx, int human, int target, int unit_id, int forced_gate
+  ColonizeTurnContext* ctx, int human, int target, int unit_id, int dir, int forced_gate
 ) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->units || !ctx->map ||
       !ctx->colonies || human < 0 || human > 3 || target < 0 || target > 3 || human == target ||
@@ -2485,11 +2489,9 @@ static int ai_diplo_153e_encounter_gated(
    * moving unit (DOS param_4, from FUN_5bfb_3180) belongs to `target` — an
    * AI unit walked up to the human side. Receiver = target's nearest colony
    * (FUN_15eb_0142: max + min/2, last colony wins a tie); source =
-   * the colony on the encounter tile (FUN_1000_89ae at unit+dir; the OpenCol
-   * encounter has no direction, so the first adjacent colony stands in —
-   * identical whenever one adjacent colony exists, which is the DOS case).
+   * the colony on the encounter tile (unit + dir[param_5], `dir` here).
    * value = min(warehouse-capacity deficit at receiver, source stock) ×
-   * euro_price[target][cargo] (-0x7b44), kept when >= (score/10)*(diff-2)
+   * DS:0x84bc[target][cargo] (-0x7b44), kept when >= (score/10)*(diff-2)
    * + score/2 and >= the running best.
    */
   {
@@ -2500,10 +2502,12 @@ static int ai_diplo_153e_encounter_gated(
       const ColonizeColony* near =
         units_nearest_colony_dos(ctx->colonies, eu->x, eu->y, target, NULL);
       const int dst = near ? (int)(near - ctx->colonies->colonies) : -1;
-      int src = -1;
-      for (int d = 0; d < 8 && src < 0; ++d) {
-        src = colonies_id_at(ctx->colonies, eu->x + MAP_DIR8_DX[d], eu->y + MAP_DIR8_DY[d]);
-      }
+      /* raw 97598-97601: source = FUN_281f_07be at unit + DS:0xb4/0xbe
+       * [param_5], the 3180 direction; no colony there = no demand. */
+      const int src = (dir >= 0 && dir < 8)
+                        ? colonies_id_at(ctx->colonies, eu->x + MAP_DIR8_DX[dir],
+                                         eu->y + MAP_DIR8_DY[dir])
+                        : -1;
       const ColonizeColony* cd = dst >= 0 ? colonies_get(ctx->colonies, dst) : NULL;
       const ColonizeColony* cs = src >= 0 ? colonies_get(ctx->colonies, src) : NULL;
       if (cd && cs && cd->active && cs->active) {
@@ -2515,7 +2519,10 @@ static int ai_diplo_153e_encounter_gated(
           if (cs->stock[c] < amount) {
             amount = cs->stock[c];
           }
-          const int v = amount * (int)col1->nation[target].trade.euro_price[c];
+          /* raw 97615 byte[-0x7b44] = DS:0x84bc, whose writers (raw
+           * 6316-6320) store euro_price - 1 floored at 0. */
+          const int price = (int)col1->nation[target].trade.euro_price[c] - 1;
+          const int v = amount * (price > 0 ? price : 0);
           if (v >= thr && v >= best_v) {
             best_v = v;
             k->want_cargo = c;
