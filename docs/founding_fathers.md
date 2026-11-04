@@ -12,7 +12,7 @@ comments. The `@FATHERS` type and century-weight columns are read from
 `COLONIZE/NAMES.TXT` (`founding_fathers_category` /
 `founding_fathers_century_weight`), as DOS `FUN_75c2_1770` loads them into
 the DS:-0x69ae records (raw 121229-121246). A missing row or field gives
-type -1 and weight 0, so that Father is never offered. `unit_founding_fathers`
+type -1 and weight 0 (logged once per field), so that Father is never offered. `unit_founding_fathers`
 checks the shipped rows against the values the port used to compile in.
 
 **PEDIA is not mechanics evidence.** The Effect column quotes PEDIA/manual

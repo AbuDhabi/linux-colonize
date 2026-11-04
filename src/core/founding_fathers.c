@@ -357,12 +357,18 @@ static int ff_names_number(int idx, int col, int miss) {
     return miss;
   }
   const char* field = reports_names_field("FATHERS", idx, col);
-  if (!field) {
+  char* end = NULL;
+  const long v = field ? strtol(field, &end, 10) : 0;
+  if (!field || end == field) {
+    /* Once per row and column: the roll reads these every turn. */
+    static uint8_t s_warned[COLONIZE_COL1_FF_COUNT];
+    if (!(s_warned[idx] & (1u << col))) {
+      s_warned[idx] |= (uint8_t)(1u << col);
+      diag_warn("NAMES.TXT @FATHERS row %d column %d missing or not a number", idx, col);
+    }
     return miss;
   }
-  char* end = NULL;
-  const long v = strtol(field, &end, 10);
-  return end == field ? miss : (int)v;
+  return (int)v;
 }
 
 int founding_fathers_category(int ff_index) {
