@@ -297,6 +297,7 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_board(units_move_ctx* c) {
    * shares; the boarded passenger is off the map. */
   units_sentry_wake_scan(pool, map, colonies, ship_id);
   g_units_last_enter_reason = COLONIZE_ENTER_BOARD;
+  g_units_last_board_pax_id = unit_id;
   return UNITS_MOVE_RETURN_TRUE;
 }
 
@@ -2524,6 +2525,7 @@ void units_reset_state(void) {
    * (dos_bugs.md DB-47). A port save's RTST chunk restores them after this. */
   units_lcr_counters_import((const uint8_t[2]){0, 0});
   g_units_wake_deferred_id = -1; /* a held 3180 wake never outlives its game */
+  g_units_last_board_pax_id = -1; /* nor does a board record */
 }
 
 static uint8_t* path_w32(uint8_t* p, uint32_t v) {

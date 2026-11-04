@@ -1234,12 +1234,37 @@ static void game_after_unit_tail(ColonizeGameState* game, bool stepped) {
    * scan sits in the 2a1f_01ae != 0 arm (raw 76123-76141, destination =
    * 0x5392 x/y + delta, raw 76117-76118); fortify, sentry, combat and the
    * other non-step tails never reach it. */
+  /* A board step: the focus is on the ship or, when the ship fails
+   * FUN_1427_1330, on the sentried passenger (units_465b_board_wake_focus,
+   * raw 75711-75722). Either way 465b's mover is the passenger: 07a0 reveals
+   * with param_1 (raw 75783, asm 465b:0aca), so the radius is the
+   * passenger's type, at the ship's tile; 3180 gets param_1 too (raw 75797).
+   * The port's passenger is off the map, so reveal through an on-map view of
+   * it standing on the ship's tile. Every board path (walk-on, ship-to-ship,
+   * a Go To step) records its passenger in the sim; it is this tail's mover
+   * only if the focus is that passenger or the ship it now rides. */
+  ColonizeUnit* mover = u;
+  ColonizeUnit board_view;
+  const ColonizeUnit* reveal_unit = u;
+  const int board_pax_id = units_take_board_passenger();
+  ColonizeUnit* pax = stepped ? units_get(&game->units, board_pax_id) : NULL;
+  const ColonizeUnit* pax_ship =
+    pax && pax->active ? units_get_const(&game->units, pax->aboard_ship_id) : NULL;
+  if (pax_ship && (pax == u || pax_ship == u)) {
+    mover = pax;
+    board_view = *pax;
+    board_view.aboard_ship_id = -1;
+    board_view.x = pax_ship->x;
+    board_view.y = pax_ship->y;
+    reveal_unit = &board_view;
+  }
   bool landho_scan = false;
-  const int landho_x = u->x;
-  const int landho_y = u->y;
-  if (game->world_map_ok && u->nation_id >= 0 && u->nation_id <= 3 && units_is_on_map(u)) {
-    game_reveal_sight_for_unit(game, u);
-    landho_scan = stepped && u->nation_id == game->human_nation;
+  const int landho_x = reveal_unit->x;
+  const int landho_y = reveal_unit->y;
+  if (game->world_map_ok && reveal_unit->nation_id >= 0 && reveal_unit->nation_id <= 3 &&
+      units_is_on_map(reveal_unit)) {
+    game_reveal_sight_for_unit(game, reveal_unit);
+    landho_scan = stepped && reveal_unit->nation_id == game->human_nation;
   }
   /* LCR: Scout on rumour clears + rolls a manual outcome (Fountain of Youth,
    * Cibola, treasure, burial mounds, …); de Soto keeps outcomes positive.
@@ -1284,18 +1309,20 @@ static void game_after_unit_tail(ColonizeGameState* game, bool stepped) {
    * with an AI European (05fc, WoI-gated), one resolved encounter per nation
    * (aiStack_20). Only after a real step: combat, village and colony entries
    * jump to LAB_465b_0bd1 (raw 75489-75526, 75686-75693) and a fortify or
-   * build commits no move.
+   * build commits no move. A board step's mover is the off-map passenger:
+   * its 3180 already ran in the board path (the sentry-wake arm, the only
+   * one a land mover on water reaches), so the ship must not stand in for it.
    */
   if (stepped && !lcr_count_changed && game->col1_ok && game->world_map_ok &&
-      u->nation_id >= 0 && u->nation_id <= 3 && units_is_on_map(u)) {
+      mover->nation_id >= 0 && mover->nation_id <= 3 && units_is_on_map(mover)) {
     ColonizeTurnContext sctx;
     game_fill_turn_context(game, &sctx);
-    ai_euro_3180_after_step(&sctx, u);
+    ai_euro_3180_after_step(&sctx, mover);
   }
   /* FUN_465b_0000 raw 75800-75816: the King's Galleon offer follows 3180 in
    * the same plain-step arm, behind the same raw-75792 count test. */
   if (stepped && !lcr_count_changed) {
-    game_treasure_step_offer(game, u);
+    game_treasure_step_offer(game, mover);
   }
   if (landho_scan) {
     game_try_prompt_landho(game, landho_x, landho_y);

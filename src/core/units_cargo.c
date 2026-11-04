@@ -947,6 +947,7 @@ bool units_transfer_passenger_w(
    * arm (raw 98628-98646) around the receiving ship's tile. */
   units_sentry_wake_scan(pool, w->map, w->colonies, target);
   g_units_last_enter_reason = COLONIZE_ENTER_BOARD;
+  g_units_last_board_pax_id = pax_id;
   return true;
 }
 

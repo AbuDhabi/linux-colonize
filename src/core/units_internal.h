@@ -90,6 +90,7 @@ static inline ColonizeCol1Save* units_world_col1(const ColonizeWorld* w) {
 }
 extern int g_units_last_combat;
 extern ColonizeEnterReason g_units_last_enter_reason;
+extern int g_units_last_board_pax_id; /* set with every COLONIZE_ENTER_BOARD */
 extern ColonizeUnitsMoveWatchFn g_units_move_watch;
 extern void* g_units_move_watch_user;
 /* Calls the move watch, if any, with units_move_watch_vis_before() = vis_before

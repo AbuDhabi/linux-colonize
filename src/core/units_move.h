@@ -73,6 +73,10 @@ ColonizeEnterReason units_enter_probe_w(
 );
 /* Last reason from units_enter_probe / units_try_move (0 if none). */
 ColonizeEnterReason units_last_enter_reason(void);
+/* The passenger of the last 465b board step (walk-on or ship-to-ship), -1
+ * unless units_last_enter_reason() is COLONIZE_ENTER_BOARD. Reading it clears
+ * the record (the step tail consumes it). */
+int units_take_board_passenger(void);
 
 bool units_can_enter_w(
   const ColonizeWorld* w,

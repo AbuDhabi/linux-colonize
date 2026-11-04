@@ -1344,6 +1344,14 @@ ColonizeEnterReason units_last_enter_reason(void) {
   return g_units_last_enter_reason;
 }
 
+int g_units_last_board_pax_id = -1;
+
+int units_take_board_passenger(void) {
+  const int id = g_units_last_enter_reason == COLONIZE_ENTER_BOARD ? g_units_last_board_pax_id : -1;
+  g_units_last_board_pax_id = -1;
+  return id;
+}
+
 
 /* ===================== Viewer sight for foreign units (units_seen_reset .. units_shown_to) ===================== */
 

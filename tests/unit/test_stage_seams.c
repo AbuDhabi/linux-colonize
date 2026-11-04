@@ -1289,6 +1289,162 @@ static int test_human_passenger_ship_to_ship(void) {
   return rc;
 }
 
+/* A board step's 07a0 reveal is the passenger's (raw 75783, asm 465b:0aca;
+ * radius by mover type) at the ship's tile, whichever unit takes the focus.
+ * A colonist (radius 1) boarding a Galleon (radius 2) at (2,3) sees (1,3)
+ * but not (2,5). Branch 0: the ship has MP, wakes and takes the focus
+ * (FUN_1427_1330 passes, raw 75719-75721). Branch 1: the ship is spent and
+ * the focus stays off it. */
+static int test_human_board_reveals_with_passenger(void) {
+  int rc = 0;
+  for (int spent = 0; spent < 2 && rc == 0; ++spent) {
+    ColonizeGameState game;
+    ColonizeCol1Tribe tribe;
+    const int fr_id = step3180_fixture(&game, &tribe);
+    rc = fr_id < 0 ? fail("board reveal fixture") : 0;
+    game.units.types[1].kind_plus1 = UNITS_KIND_GALLEON + 1;
+    /* A ship's second ring shows water only, so make the far probe water. */
+    game.world_map.terrain[5 * 8 + 2] = T_OCEAN;
+    ColonizeUnit* ship = rc ? NULL : units_get(&game.units, units_spawn(&game.units, 1, 2, 3));
+    ColonizeUnit* col = ship ? units_get(&game.units, units_spawn(&game.units, 0, 3, 3)) : NULL;
+    if (rc == 0 && (!ship || !col)) {
+      rc = fail("board reveal: spawn");
+    }
+    if (rc == 0 && (map_tile_seen_by(&game.world_map, 1, 3, 0) ||
+                    map_tile_seen_by(&game.world_map, 2, 5, 0))) {
+      rc = fail("board reveal: (1,3) and (2,5) must start unseen");
+    }
+    if (rc == 0) {
+      ship->nation_id = 0;
+      ship->moves = spent ? 0 : 12;
+      ship->orders = UNITS_ORDER_SENTRY;
+      col->nation_id = 0;
+      col->moves = 3;
+      game.units.selected_id = col->id;
+      (void)game_try_unit_move(&game, 2, 3);
+      if (col->aboard_ship_id != ship->id) {
+        rc = fail("board reveal: the colonist must board");
+      } else if (ship->orders != UNITS_ORDER_NONE) {
+        rc = fail("board reveal: the sentried ship must wake");
+      } else if ((game.units.selected_id == ship->id) != (spent == 0)) {
+        fprintf(stderr, "board reveal: spent=%d focus=%d ship=%d\n", spent,
+                game.units.selected_id, ship->id);
+        rc = fail("board reveal: only a ship with MP takes the focus");
+      } else if (!map_tile_seen_by(&game.world_map, 1, 3, 0)) {
+        fprintf(stderr, "board reveal: spent=%d\n", spent);
+        rc = fail("board reveal: the passenger's radius 1 must reveal (1,3)");
+      } else if (map_tile_seen_by(&game.world_map, 2, 5, 0)) {
+        fprintf(stderr, "board reveal: spent=%d\n", spent);
+        rc = fail("board reveal: the Galleon's radius 2 must not stand in for the passenger");
+      }
+    }
+    step3180_free(&game);
+  }
+  return rc;
+}
+
+/* The ship-to-ship transfer is the same 465b board step (FUN_4720_015c ->
+ * 465b), so it reveals with the passenger's radius at the receiving ship's
+ * tile too (raw 75783), with MP on the receiving ship (focus moves to it)
+ * and without (focus stays on the passenger, who is off the map). */
+static int test_human_transfer_reveals_with_passenger(void) {
+  int rc = 0;
+  for (int spent = 0; spent < 2 && rc == 0; ++spent) {
+    ColonizeGameState game;
+    ColonizeCol1Tribe tribe;
+    const int fr_id = step3180_fixture(&game, &tribe);
+    rc = fr_id < 0 ? fail("transfer reveal fixture") : 0;
+    game.units.types[1].kind_plus1 = UNITS_KIND_GALLEON + 1;
+    game.world_map.terrain[5 * 8 + 2] = T_OCEAN;
+    ColonizeUnit* ship = rc ? NULL : units_get(&game.units, units_spawn(&game.units, 1, 2, 3));
+    ColonizeUnit* host = ship ? units_get(&game.units, units_spawn(&game.units, 1, 2, 4)) : NULL;
+    ColonizeUnit* col = host ? units_get(&game.units, units_spawn(&game.units, 0, 3, 3)) : NULL;
+    if (rc == 0 && (!ship || !host || !col || !units_board(&game.units, col->id, host->id))) {
+      rc = fail("transfer reveal: spawn / board host");
+    }
+    if (rc == 0 && (map_tile_seen_by(&game.world_map, 1, 3, 0) ||
+                    map_tile_seen_by(&game.world_map, 2, 5, 0))) {
+      rc = fail("transfer reveal: (1,3) and (2,5) must start unseen");
+    }
+    if (rc == 0) {
+      ship->nation_id = host->nation_id = col->nation_id = 0;
+      ship->moves = spent ? 0 : 12;
+      ship->orders = UNITS_ORDER_SENTRY;
+      col->orders = UNITS_ORDER_NONE;
+      col->moves = 3;
+      game.units.selected_id = col->id;
+      (void)game_try_unit_move(&game, 2, 3);
+      if (col->aboard_ship_id != ship->id) {
+        rc = fail("transfer reveal: the passenger must move to the ship");
+      } else if ((game.units.selected_id == ship->id) != (spent == 0)) {
+        fprintf(stderr, "transfer reveal: spent=%d focus=%d ship=%d\n", spent,
+                game.units.selected_id, ship->id);
+        rc = fail("transfer reveal: only a ship with MP takes the focus");
+      } else if (!map_tile_seen_by(&game.world_map, 1, 3, 0)) {
+        fprintf(stderr, "transfer reveal: spent=%d\n", spent);
+        rc = fail("transfer reveal: the passenger's radius 1 must reveal (1,3)");
+      } else if (map_tile_seen_by(&game.world_map, 2, 5, 0)) {
+        fprintf(stderr, "transfer reveal: spent=%d\n", spent);
+        rc = fail("transfer reveal: the Galleon's radius 2 must not stand in for the passenger");
+      }
+    }
+    step3180_free(&game);
+  }
+  return rc;
+}
+
+/* A Go To step onto an own ship's tile is the same 465b board step
+ * (units_advance_goto_one_step_w -> units_try_move_w -> units_move_board),
+ * and the pacer runs the plain game_after_unit_step tail, so the reveal must
+ * still be the passenger's (raw 75783), with or without ship MP, and the
+ * tail consumes the board record. */
+static int test_goto_board_reveals_with_passenger(void) {
+  int rc = 0;
+  for (int spent = 0; spent < 2 && rc == 0; ++spent) {
+    ColonizeGameState game;
+    ColonizeCol1Tribe tribe;
+    const int fr_id = step3180_fixture(&game, &tribe);
+    rc = fr_id < 0 ? fail("goto board fixture") : 0;
+    game.units.types[1].kind_plus1 = UNITS_KIND_GALLEON + 1;
+    game.world_map.terrain[5 * 8 + 2] = T_OCEAN;
+    ColonizeUnit* ship = rc ? NULL : units_get(&game.units, units_spawn(&game.units, 1, 2, 3));
+    ColonizeUnit* col = ship ? units_get(&game.units, units_spawn(&game.units, 0, 3, 3)) : NULL;
+    if (rc == 0 && (!ship || !col)) {
+      rc = fail("goto board: spawn");
+    }
+    if (rc == 0) {
+      ship->nation_id = 0;
+      ship->moves = spent ? 0 : 12;
+      ship->orders = UNITS_ORDER_SENTRY;
+      col->nation_id = 0;
+      col->moves = 3;
+      col->orders = UNITS_ORDER_GOTO;
+      col->goto_x = 2;
+      col->goto_y = 3;
+      game.units.selected_id = col->id;
+      ColonizeInputState input;
+      memset(&input, 0, sizeof(input));
+      (void)game_update_unit_pacer(&game, &input, 100);
+      if (col->aboard_ship_id != ship->id) {
+        fprintf(stderr, "goto board: spent=%d pos=(%d,%d) aboard=%d orders=%d\n", spent,
+                col->x, col->y, col->aboard_ship_id, col->orders);
+        rc = fail("goto board: the Go To step must board the ship");
+      } else if (!map_tile_seen_by(&game.world_map, 1, 3, 0)) {
+        fprintf(stderr, "goto board: spent=%d\n", spent);
+        rc = fail("goto board: the passenger's radius 1 must reveal (1,3)");
+      } else if (map_tile_seen_by(&game.world_map, 2, 5, 0)) {
+        fprintf(stderr, "goto board: spent=%d\n", spent);
+        rc = fail("goto board: the Galleon's radius 2 must not stand in for the passenger");
+      } else if (units_last_enter_reason() == COLONIZE_ENTER_BOARD &&
+                 units_take_board_passenger() != -1) {
+        rc = fail("goto board: the step tail must consume the board record");
+      }
+    }
+    step3180_free(&game);
+  }
+  return rc;
+}
+
 /* @LANDFALL "Make landfall" makes the passenger active (FUN_281f_086c ->
  * FUN_1427_08ea sets DS:0x5392) and jumps to LAB_4720_061c (ndisasm
  * 0x3FE56-0x3FEA3 -> 0xff5c), the FUN_2a1f_0142 commit: the passenger's step
@@ -4758,6 +4914,9 @@ static const TestCase k_cases[] = {
     {"test_human_lcr_count_change_skips_contact", test_human_lcr_count_change_skips_contact},
     {"test_deferred_wake_does_not_leak", test_deferred_wake_does_not_leak},
     {"test_human_passenger_ship_to_ship", test_human_passenger_ship_to_ship},
+    {"test_human_board_reveals_with_passenger", test_human_board_reveals_with_passenger},
+    {"test_human_transfer_reveals_with_passenger", test_human_transfer_reveals_with_passenger},
+    {"test_goto_board_reveals_with_passenger", test_goto_board_reveals_with_passenger},
     {"test_human_landfall_runs_3180", test_human_landfall_runs_3180},
     {"test_human_village_visit_no_3180", test_human_village_visit_no_3180},
     {"test_human_landho_after_3180", test_human_landho_after_3180},
