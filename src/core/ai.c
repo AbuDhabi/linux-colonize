@@ -2,10 +2,10 @@
 #include "core/ai.h"
 #include "core/combat_strength.h"
 
+#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <strings.h>
 
 #include "core/ai_contact.h"
 #include "core/ai_diplo.h"
@@ -75,21 +75,6 @@ uint32_t ai_turn_seed(const ColonizeTurnContext* ctx) {
   }
   return dos_rng_04ca_word(ctx->rng_seed ? ctx->rng_seed : 100u);
 }
-
-/* TRIBE.TXT section → Col1 nation_id (4..11) via @TRIBES order. */
-static const struct {
-  const char* section;
-  int nation_id;
-} k_tribe_txt_nations[] = {
-  {"INCA", 4},
-  {"AZTEC", 5},
-  {"ARAWAK", 6},
-  {"IROQUOIS", 7},
-  {"CHEROKEE", 8},
-  {"APACHE", 9},
-  {"SIOUX", 10},
-  {"TUPI", 11},
-};
 
 /*
  * DOS coarse fog / tribe-region plane (DS:0x9faa, size 0x10e).
@@ -605,49 +590,6 @@ int ai_tribe_initial_pop(uint8_t tech) {
   return 3 + 2 * (int)tech;
 }
 
-static bool ai_find_land_near(
-  const ColonizeWorldMap* map,
-  int x,
-  int y,
-  int* out_x,
-  int* out_y
-) {
-  if (!map || !out_x || !out_y) {
-    return false;
-  }
-  if (map_tile_is_land(map, x, y)) {
-    *out_x = x;
-    *out_y = y;
-    return true;
-  }
-  for (int r = 1; r < 12; ++r) {
-    for (int dy = -r; dy <= r; ++dy) {
-      for (int dx = -r; dx <= r; ++dx) {
-        if (abs(dx) != r && abs(dy) != r) {
-          continue;
-        }
-        const int nx = x + dx;
-        const int ny = y + dy;
-        if (map_tile_is_land(map, nx, ny)) {
-          *out_x = nx;
-          *out_y = ny;
-          return true;
-        }
-      }
-    }
-  }
-  return false;
-}
-
-static bool ai_tile_has_tribe(const ColonizeCol1Tribe* tribes, int count, int x, int y) {
-  for (int i = 0; i < count; ++i) {
-    if ((int)tribes[i].x == x && (int)tribes[i].y == y) {
-      return true;
-    }
-  }
-  return false;
-}
-
 static bool ai_append_tribe(
   ColonizeCol1Tribe** tribes,
   int* count,
@@ -901,88 +843,93 @@ static void ai_spawn_brave_near(
   }
 }
 
-static int ai_tribe_txt_nation(const char* section) {
-  for (size_t i = 0; i < sizeof(k_tribe_txt_nations) / sizeof(k_tribe_txt_nations[0]); ++i) {
-    if (strcasecmp(section, k_tribe_txt_nations[i].section) == 0) {
-      return k_tribe_txt_nations[i].nation_id;
-    }
-  }
-  return -1;
-}
-
-static bool ai_place_tribes_from_txt(
+/*
+ * DOS-LITERAL FUN_6a09_0006 TRIBE.TXT branch (raw 107796-107858). Tribes in
+ * index order 0..7; each opens the TRIBE.TXT section named by its @TRIBES
+ * column 2 upper-cased (*(i*6-0x72ec), filled by
+ * FUN_75c2_1770 raw 121202-121218; FUN_1d1d_1118 = strupr). No section = no
+ * villages for that tribe. Per line x,y (stop at x < 1), up to 100 tries of
+ * x+r(-1,1)+r(-1,1), then y the same; a try passes 0302 inset, 0754&3 == 0,
+ * 078c < 0x18 with (&7) in {0,2..6} (ai_terrain_ok_for_village), then 0d84's
+ * nearest-village distance must exceed 3 / 2 / 1 for tries < 0x21 / < 0x42 /
+ * later. No passing try drops the line. FUN_2a1f_0440 = FUN_4d56_0038 creates
+ * (layer2 |= 2, owner nibble); the first village created per tribe gets
+ * +3 |= 4 (capital). Unlike the procedural branch this one writes neither the
+ * DS:0x9faa tribe marks nor the indian capitol bytes (left at the (1,1) of
+ * ai_setup_col1_template). Returns false only when the file or NAMES @TRIBES
+ * is missing (DOS FUN_281f_0e90 file test -> procedural branch).
+ */
+COLONIZE_INTERNAL bool ai_place_tribes_from_txt(
   const AiNewGameParams* p,
   ColonizeCol1Tribe** tribes,
   int* count,
   int* capacity,
   AiRng* rng
 ) {
+  if (!p || !p->map || !p->col1 || !p->names) {
+    return false;
+  }
   char path[640];
   if (!dos_compat_normalize_asset_path(p->data_dir, "TRIBE.TXT", path, sizeof(path))) {
     snprintf(path, sizeof(path), "%s/TRIBE.TXT", p->data_dir ? p->data_dir : ".");
   }
-  FILE* f = fopen(path, "rb");
-  if (!f) {
-    diag_warn("ai: cannot open %s", path);
+  ColonizeMsgCatalog txt;
+  assets_msg_init(&txt);
+  if (!assets_msg_load_file(&txt, path)) {
+    assets_msg_free(&txt);
     return false;
   }
-
-  char line[256];
-  int cur_nation = -1;
-  bool first_of_nation[8];
-  memset(first_of_nation, 1, sizeof(first_of_nation));
   ai_coarse_fog_reset();
 
-  while (fgets(line, sizeof(line), f)) {
-    char* s = line;
-    while (*s == ' ' || *s == '\t') {
-      s++;
-    }
-    size_t n = strlen(s);
-    while (n > 0 && (s[n - 1] == '\n' || s[n - 1] == '\r' || s[n - 1] == ' ')) {
-      s[--n] = '\0';
-    }
-    if (n == 0 || s[0] == ';') {
+  for (int indian = 0; indian < 8; ++indian) {
+    char section[COLONIZE_MSG_LINE_LEN];
+    if (!assets_msg_row_field(p->names, "TRIBES", indian, 1, section, sizeof(section))) {
       continue;
     }
-    if (s[0] == '@') {
-      if (strcasecmp(s, "@STOP") == 0) {
-        cur_nation = -1;
+    for (char* c = section; *c; ++c) {
+      *c = (char)toupper((unsigned char)*c);
+    }
+    const ColonizeMsgSection* sec = assets_msg_find(&txt, section);
+    if (!sec) {
+      continue;
+    }
+    const int nation = indian + 4;
+    bool first = true;
+    for (int line = 0; line < sec->line_count; ++line) {
+      int x = 0;
+      int y = 0;
+      if (sscanf(sec->lines[line], "%d,%d", &x, &y) < 1 || x < 1) {
+        break;
+      }
+      int tx = 0;
+      int ty = 0;
+      bool ok = false;
+      for (int attempt = 1; !ok && attempt <= 100; ++attempt) {
+        tx = x + ai_rng_range(rng, -1, 1);
+        tx += ai_rng_range(rng, -1, 1);
+        ty = y + ai_rng_range(rng, -1, 1);
+        ty += ai_rng_range(rng, -1, 1);
+        if (!ai_terrain_ok_for_village(p->map, tx, ty)) {
+          continue;
+        }
+        int dist = 9999;
+        ai_nearest_tribe(*tribes, *count, tx, ty, &dist);
+        const int need = attempt < 0x21 ? 3 : (attempt < 0x42 ? 2 : 1);
+        ok = need < dist;
+      }
+      if (!ok) {
         continue;
       }
-      cur_nation = ai_tribe_txt_nation(s + 1);
-      continue;
-    }
-    if (cur_nation < 4 || cur_nation > 11) {
-      continue;
-    }
-    int x = 0, y = 0;
-    if (sscanf(s, "%d,%d", &x, &y) != 2) {
-      continue;
-    }
-    int lx = x, ly = y;
-    if (!ai_find_land_near(p->map, x, y, &lx, &ly)) {
-      continue;
-    }
-    if (ai_tile_has_tribe(*tribes, *count, lx, ly)) {
-      continue;
-    }
-    const int indian = cur_nation - 4;
-    const bool capital = first_of_nation[indian];
-    const uint8_t tech = p->col1->indian[indian].tech;
-    if (!ai_append_tribe(tribes, count, capacity, lx, ly, cur_nation, capital, tech)) {
-      break;
-    }
-    ai_coarse_fog_mark_tribe(lx, ly);
-    if (capital) {
-      first_of_nation[indian] = false;
-      p->col1->indian[indian].capitol_x = (uint8_t)lx;
-      p->col1->indian[indian].capitol_y = (uint8_t)ly;
+      const uint8_t tech = p->col1->indian[indian].tech;
+      if (ai_append_tribe(tribes, count, capacity, tx, ty, nation, first, tech)) {
+        ai_layer2_or(p->map, tx, ty, 2);
+        map_set_owner_nibble(p->map, tx, ty, nation);
+      }
+      first = false;
     }
   }
-  fclose(f);
-  (void)rng;
-  return *count > 0;
+  assets_msg_free(&txt);
+  return true;
 }
 
 /*
@@ -1011,17 +958,6 @@ static bool ai_place_tribes_procedural(
   ai_coarse_fog_reset();
   uint8_t nation_tribe_count[8];
   memset(nation_tribe_count, 0, sizeof(nation_tribe_count));
-
-  /* Per-indian init: 4× range(0,14) cargo seeds (stream sync). */
-  for (int indian = 0; indian < 8; ++indian) {
-    for (int slot = 0; slot < 4; ++slot) {
-      int bonus = 0;
-      if (slot < 4 && p->col1->player[slot].control == 0) {
-        bonus = (p->difficulty & 0xff) << 1;
-      }
-      (void)(ai_rng_range(rng, 0, 14) + bonus);
-    }
-  }
 
   int regions_marked = 0;
 
@@ -1343,11 +1279,23 @@ bool ai_init_new_game(const AiNewGameParams* params, char* err, size_t err_size)
   int capacity = 0;
   bool placed = false;
   /*
-   * FUN_6a09 reseeds from the BIOS tick at entry (VR_SEED → 100). Not the
-   * post-mapgen stream and not post-axes replay.
+   * FUN_6a09_0006 entry (raw 107729): FUN_281f_04ca always reseeds from the
+   * BIOS tick (VR_SEED → 100), before either placement path. The port
+   * reseeds only a seeded game (rng_seed or rng_seed_set); an unseeded one
+   * keeps the stream it arrives with. Not the post-mapgen stream and not
+   * post-axes replay.
    */
-  if (!params->use_tribe_txt && (params->rng_seed || params->rng_seed_set)) {
-    dos_rng_seed(rng, params->rng_seed);
+  if (params->rng_seed || params->rng_seed_set) {
+    dos_rng_seed(rng, dos_rng_04ca_word(params->rng_seed));
+  }
+  /* Per-tribe init loop (raw 107745-107767): 4 × FUN_281f_04d4(0, 0xe) per
+   * tribe, before either branch. The values are DOS's starting alarms; the
+   * port still takes those from ai_setup_col1_template's side stream, so here
+   * they only keep the shared stream in step. */
+  for (int indian = 0; indian < 8; ++indian) {
+    for (int slot = 0; slot < 4; ++slot) {
+      (void)ai_rng_range(rng, 0, 14);
+    }
   }
   /* FUN_6ba1_10be: mark every tile unowned (high nibble 0xf) before villages. */
   if (params->map && params->map->layer3) {

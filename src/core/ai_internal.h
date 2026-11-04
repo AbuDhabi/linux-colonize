@@ -58,6 +58,11 @@ void ai_021a_score_dir(struct ai_021a_ctx* c);
 int ai_465b_dest_owner(
   const ColonizeWorldMap* map, const ColonizeUnitPool* units, int x, int y
 );
+/* FUN_6a09_0006 TRIBE.TXT branch (ai.c); the caller does the entry reseed and
+ * the 32 init draws first. */
+bool ai_place_tribes_from_txt(
+  const AiNewGameParams* p, ColonizeCol1Tribe** tribes, int* count, int* capacity, AiRng* rng
+);
 #endif /* COLONIZE_TESTING */
 
 /* ===== Cross-file seams of the ai.c split (2026-09-23) =====

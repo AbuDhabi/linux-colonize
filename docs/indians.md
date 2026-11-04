@@ -194,7 +194,7 @@ playable nations — cosmetic / scenario pool, not additional `indian[8]` slots.
 
 | Mode | Source |
 |------|--------|
-| AMERICA | [`TRIBE.TXT`](../COLONIZE/TRIBE.TXT) `@INCA`…`@TUPI` coordinates |
+| AMERICA | `FUN_6a09_0006` TRIBE.TXT branch → `ai_place_tribes_from_txt`: each tribe's [`TRIBE.TXT`](../COLONIZE/TRIBE.TXT) section (named by `@TRIBES` column 2), every point jittered ±2 up to 100 tries; the first placed village is the capital |
 | NEW WORLD | Procedural `FUN_6a09_0006` → `ai_place_tribes_procedural` (capitals then satellites) |
 
 `FUN_1427_02ca` (raw 7497-7506) marks a newly spawned Brave's tile occupied,

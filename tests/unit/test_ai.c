@@ -1,3 +1,4 @@
+#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -19,6 +20,7 @@
 #include "platform/platform.h"
 #include "../common/test_runner.h"
 #include "../common/ai_fixture.h"
+#include "../common/test_catalogs.h"
 #include "core/ai_internal.h"
 #include "core/dos_buggy.h"
 
@@ -1588,6 +1590,403 @@ static int case_021a_adjacent_foreign_medium_fixed(void) {
   return 0;
 }
 
+/* ---- FUN_6a09_0006 TRIBE.TXT branch (ai_place_tribes_from_txt) ---- */
+typedef struct {
+  ColonizeMsgCatalog names;
+  ColonizeMsgCatalog txt;
+  ColonizeWorldMap map;
+  ColonizeCol1Save col1;
+  AiNewGameParams p;
+  ColonizeCol1Tribe* tribes;
+  int count;
+  int cap;
+} TribeTxtFx;
+
+static void tribe_txt_fx_close(TribeTxtFx* fx) {
+  free(fx->tribes);
+  map_free(&fx->map);
+  col1_save_free(&fx->col1);
+  assets_msg_free(&fx->names);
+  assets_msg_free(&fx->txt);
+}
+
+static int tribe_txt_fx_open(TribeTxtFx* fx) {
+  memset(fx, 0, sizeof(*fx));
+  assets_msg_init(&fx->names);
+  assets_msg_init(&fx->txt);
+  col1_save_init(&fx->col1);
+  char err[256];
+  if (!assets_msg_load_file(&fx->names, "COLONIZE/NAMES.TXT") ||
+      !assets_msg_load_file(&fx->txt, "COLONIZE/TRIBE.TXT") ||
+      !map_load_mp("COLONIZE/AMER2.MP", &fx->map, err, sizeof(err)) || !fx->map.layer2 ||
+      !fx->map.layer3) {
+    fprintf(stderr, "tribe_txt fixture: data load failed\n");
+    return 1;
+  }
+  map_gen_finalize_border_and_forest(fx->map.terrain, (int)fx->map.width, (int)fx->map.height);
+  for (int t = 0; t < 8; ++t) {
+    fx->col1.indian[t].capitol_x = 1;
+    fx->col1.indian[t].capitol_y = 1;
+  }
+  fx->p.col1 = &fx->col1;
+  fx->p.map = &fx->map;
+  fx->p.names = &fx->names;
+  fx->p.data_dir = "COLONIZE";
+  fx->p.use_tribe_txt = true;
+  return 0;
+}
+
+static bool file_present(const char* path) {
+  FILE* f = fopen(path, "rb");
+  if (f) {
+    fclose(f);
+  }
+  return f != NULL;
+}
+
+/* NAMES.TXT, TRIBE.TXT and AMER2.MP: the game data under COLONIZE/. */
+static bool tribe_txt_data(void) {
+  return test_names_txt() && file_present("COLONIZE/TRIBE.TXT") &&
+         file_present("COLONIZE/AMER2.MP");
+}
+
+/* Entry reseed + the 32 init draws (ai_init_new_game), then the branch. */
+static int tribe_txt_place(TribeTxtFx* fx, uint32_t seed) {
+  ColonizeDosRng rng;
+  dos_rng_seed(&rng, seed);
+  for (int i = 0; i < 32; ++i) {
+    (void)dos_rng_range(&rng, 0, 14);
+  }
+  return ai_place_tribes_from_txt(&fx->p, &fx->tribes, &fx->count, &fx->cap, &rng) ? 0 : 1;
+}
+
+/* The tribe's TRIBE.TXT section: @TRIBES column 2, upper-cased (data, not code). */
+static const ColonizeMsgSection* tribe_txt_section(const TribeTxtFx* fx, int indian) {
+  char name[COLONIZE_MSG_LINE_LEN];
+  if (!assets_msg_row_field(&fx->names, "TRIBES", indian, 1, name, sizeof(name))) {
+    return NULL;
+  }
+  for (char* c = name; *c; ++c) {
+    *c = (char)toupper((unsigned char)*c);
+  }
+  return assets_msg_find(&fx->txt, name);
+}
+
+/* Every village is within +-2 of one of its own tribe's points, on a legal
+ * tile, more than 1 from every other village; tribes come in index order and
+ * the first village of each is its only capital; capitol bytes untouched. */
+static int tribe_txt_check(const TribeTxtFx* fx, const char* label) {
+  int prev_nation = 4;
+  for (int i = 0; i < fx->count; ++i) {
+    const ColonizeCol1Tribe* t = &fx->tribes[i];
+    const int x = t->x;
+    const int y = t->y;
+    if (t->nation_id < prev_nation || t->nation_id > 11) {
+      fprintf(stderr, "%s: village %d nation %u after %d (not index order)\n", label, i,
+              t->nation_id, prev_nation);
+      return 1;
+    }
+    const bool first_of_tribe = i == 0 || fx->tribes[i - 1].nation_id != t->nation_id;
+    if ((t->state.capital != 0) != first_of_tribe) {
+      fprintf(stderr, "%s: village %d capital=%d, first of tribe=%d\n", label, i,
+              t->state.capital, first_of_tribe);
+      return 1;
+    }
+    prev_nation = t->nation_id;
+    const ColonizeMsgSection* sec = tribe_txt_section(fx, t->nation_id - 4);
+    bool near_point = false;
+    for (int l = 0; sec && l < sec->line_count; ++l) {
+      int px = 0, py = 0;
+      if (sscanf(sec->lines[l], "%d,%d", &px, &py) == 2 && abs(px - x) <= 2 && abs(py - y) <= 2) {
+        near_point = true;
+      }
+    }
+    const int cls = map_dos_terr_class_at(&fx->map, x, y);
+    const int base = cls & 7;
+    if (!near_point || !map_coords_inset(&fx->map, x, y) || cls >= 0x18 ||
+        !(base == 0 || (base >= 2 && base <= 6))) {
+      fprintf(stderr, "%s: village %d (%d,%d) near_point=%d class=%d\n", label, i, x, y,
+              near_point, cls);
+      return 1;
+    }
+    for (int j = 0; j < i; ++j) {
+      if (map_dos_dist(x - fx->tribes[j].x, y - fx->tribes[j].y) <= 1) {
+        fprintf(stderr, "%s: villages %d (%d,%d) and %d (%d,%d) too close\n", label, i, x, y,
+                j, fx->tribes[j].x, fx->tribes[j].y);
+        return 1;
+      }
+    }
+  }
+  for (int t = 0; t < 8; ++t) {
+    if (fx->col1.indian[t].capitol_x != 1 || fx->col1.indian[t].capitol_y != 1) {
+      fprintf(stderr, "%s: tribe %d capitol bytes written\n", label, t);
+      return 1;
+    }
+  }
+  return 0;
+}
+
+static int case_tribe_txt_jitter_rules(void) {
+  if (!tribe_txt_data()) {
+    return TR_SKIP;
+  }
+  diag_init(0, NULL);
+  int moved = 0;
+  for (uint32_t s = 1; s <= 8; ++s) {
+    TribeTxtFx fx;
+    char label[32];
+    snprintf(label, sizeof(label), "seed %u", s * 12345u);
+    if (tribe_txt_fx_open(&fx) || tribe_txt_place(&fx, s * 12345u) ||
+        fx.count < 40 || fx.tribes[0].nation_id != 4 || tribe_txt_check(&fx, label)) {
+      fprintf(stderr, "%s: count=%d\n", label, fx.count);
+      tribe_txt_fx_close(&fx);
+      return 1;
+    }
+    /* The jitter is live: not every village sits on its listed point. */
+    const ColonizeMsgSection* inca = tribe_txt_section(&fx, 0);
+    int px = 0, py = 0;
+    if (inca && sscanf(inca->lines[0], "%d,%d", &px, &py) == 2 &&
+        (fx.tribes[0].x != px || fx.tribes[0].y != py)) {
+      moved++;
+    }
+    tribe_txt_fx_close(&fx);
+  }
+  if (moved == 0) {
+    fprintf(stderr, "tribe_txt: Inca capital sat on its listed point for all 8 seeds\n");
+    return 1;
+  }
+  return 0;
+}
+
+/* No passing try (ocean over the whole +-2 box of the first Inca point):
+ * that village is dropped and the next Inca village becomes the capital. */
+static int case_tribe_txt_impossible_spot_dropped(void) {
+  if (!tribe_txt_data()) {
+    return TR_SKIP;
+  }
+  diag_init(0, NULL);
+  TribeTxtFx base;
+  TribeTxtFx fx;
+  if (tribe_txt_fx_open(&base) || tribe_txt_place(&base, 100) || tribe_txt_fx_open(&fx)) {
+    tribe_txt_fx_close(&base);
+    return 1;
+  }
+  const ColonizeMsgSection* inca = tribe_txt_section(&fx, 0);
+  int px = 0, py = 0;
+  if (!inca || sscanf(inca->lines[0], "%d,%d", &px, &py) != 2) {
+    tribe_txt_fx_close(&base);
+    tribe_txt_fx_close(&fx);
+    return 1;
+  }
+  for (int y = py - 2; y <= py + 2; ++y) {
+    for (int x = px - 2; x <= px + 2; ++x) {
+      fx.map.terrain[y * fx.map.width + x] = 0x19;
+    }
+  }
+  int rc = tribe_txt_place(&fx, 100) || tribe_txt_check(&fx, "ocean box");
+  int base_inca = 0, inca_n = 0;
+  for (int i = 0; i < base.count; ++i) {
+    base_inca += base.tribes[i].nation_id == 4;
+  }
+  for (int i = 0; i < fx.count; ++i) {
+    inca_n += fx.tribes[i].nation_id == 4;
+    if (abs(fx.tribes[i].x - px) <= 2 && abs(fx.tribes[i].y - py) <= 2) {
+      rc = 1;
+    }
+  }
+  if (rc || inca_n != base_inca - 1) {
+    fprintf(stderr, "impossible spot: inca %d (base %d), count %d (base %d)\n", inca_n,
+            base_inca, fx.count, base.count);
+    rc = 1;
+  }
+  tribe_txt_fx_close(&base);
+  tribe_txt_fx_close(&fx);
+  return rc;
+}
+
+/* Third spacing tier (raw 107832: tries >= 0x42 need distance > 1 only). The
+ * first Inca point's box is ocean but its centre, and a village already
+ * stands 2 east of the centre: only a try from 0x42 on may place there. */
+static int case_tribe_txt_third_spacing_tier(void) {
+  if (!tribe_txt_data()) {
+    return TR_SKIP;
+  }
+  diag_init(0, NULL);
+  TribeTxtFx fx;
+  if (tribe_txt_fx_open(&fx)) {
+    tribe_txt_fx_close(&fx);
+    return 1;
+  }
+  const ColonizeMsgSection* inca = tribe_txt_section(&fx, 0);
+  int px = 0, py = 0;
+  if (!inca || sscanf(inca->lines[0], "%d,%d", &px, &py) != 2) {
+    tribe_txt_fx_close(&fx);
+    return 1;
+  }
+  const uint8_t centre = fx.map.terrain[py * fx.map.width + px];
+  for (int y = py - 2; y <= py + 2; ++y) {
+    for (int x = px - 2; x <= px + 2; ++x) {
+      fx.map.terrain[y * fx.map.width + x] = 0x19;
+    }
+  }
+  fx.map.terrain[py * fx.map.width + px] = centre;
+  fx.tribes = calloc(1, sizeof(*fx.tribes));
+  if (!fx.tribes) {
+    tribe_txt_fx_close(&fx);
+    return 1;
+  }
+  fx.cap = 1;
+  fx.count = 1;
+  fx.tribes[0].x = (uint8_t)(px + 2);
+  fx.tribes[0].y = (uint8_t)py;
+  fx.tribes[0].nation_id = 11;
+  int placed = -1;
+  int rc = tribe_txt_place(&fx, 100);
+  for (int i = 1; rc == 0 && i < fx.count; ++i) {
+    if (fx.tribes[i].x == px && fx.tribes[i].y == py) {
+      placed = i;
+    }
+  }
+  fprintf(stderr, "third tier: centre (%d,%d) village slot %d nation %d (want an Inca capital)\n",
+          px, py, placed, placed > 0 ? fx.tribes[placed].nation_id : -1);
+  rc = rc || placed < 0 || fx.tribes[placed].nation_id != 4 || !fx.tribes[placed].state.capital;
+  tribe_txt_fx_close(&fx);
+  return rc;
+}
+
+/* The VR_SOUND.EXE run pins every 04ca reseed at 100, so seed 100 + 32 draws
+ * on AMER2 must give 000001.SAV's village rows (branch alone). */
+static int case_tribe_txt_seed100_matches_dos(void) {
+  if (!tribe_txt_data()) {
+    return TR_SKIP;
+  }
+  diag_init(0, NULL);
+  TribeTxtFx fx;
+  ColonizeCol1Save dos;
+  col1_save_init(&dos);
+  char err[256];
+  if (tribe_txt_fx_open(&fx) || tribe_txt_place(&fx, 100) ||
+      !col1_save_read_file("original_saves/golden_idle_america_seed-100/000001.SAV", &dos, err,
+                           sizeof(err))) {
+    tribe_txt_fx_close(&fx);
+    col1_save_free(&dos);
+    return 1;
+  }
+  int rc = fx.count != (int)dos.head.tribe_count;
+  const int n = fx.count < (int)dos.head.tribe_count ? fx.count : (int)dos.head.tribe_count;
+  for (int i = 0; i < n; ++i) {
+    const ColonizeCol1Tribe* a = &fx.tribes[i];
+    const ColonizeCol1Tribe* b = &dos.tribe[i];
+    if (a->x != b->x || a->y != b->y || a->nation_id != b->nation_id ||
+        a->state.capital != b->state.capital) {
+      fprintf(stderr, "village %d: port (%u,%u) n%u cap%u, DOS (%u,%u) n%u cap%u\n", i, a->x, a->y,
+              a->nation_id, a->state.capital, b->x, b->y, b->nation_id, b->state.capital);
+      rc = 1;
+    }
+  }
+  fprintf(stderr, "seed100 TRIBE.TXT: port %d villages, DOS %u\n", fx.count, dos.head.tribe_count);
+  tribe_txt_fx_close(&fx);
+  col1_save_free(&dos);
+  return rc;
+}
+
+/* DOS evidence through the real entry: ai_init_new_game on AMER2 with seed
+ * 100 (FUN_6a09_0006's own entry reseed + 32 init draws) must give the
+ * village rows of original_saves/golden_idle_america_seed-100/000001.SAV.
+ * params->rng arrives advanced, so only the entry reseed can put the
+ * placement on DOS's stream. */
+static int case_tribe_txt_init_new_game_matches_dos(void) {
+  if (!tribe_txt_data()) {
+    return TR_SKIP;
+  }
+  diag_init(0, NULL);
+  const int human = 2; /* the recorded run plays Spain */
+  char err[256];
+  static ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  static ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
+  units_reset(&units);
+  units_set_occupancy_map(NULL);
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  ColonizeCol1Save dos;
+  col1_save_init(&dos);
+  int rc = 1;
+  if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT") || !units_load_types(&units, &names) ||
+      !map_load_mp("COLONIZE/AMER2.MP", &map, err, sizeof(err)) ||
+      !col1_save_read_file("original_saves/golden_idle_america_seed-100/000001.SAV", &dos, err,
+                           sizeof(err))) {
+    fprintf(stderr, "init_new_game tribe_txt: data load failed\n");
+    goto done;
+  }
+  map_gen_finalize_border_and_forest(map.terrain, (int)map.width, (int)map.height);
+  ColonizeDosRng stream;
+  dos_rng_seed(&stream, 100);
+  for (int i = 0; i < 57; ++i) {
+    (void)dos_rng_range(&stream, 1, 0x7fff);
+  }
+  int sx = 39, sy = 10;
+  new_game_scenario_start(&names, "AMER2", human, &sx, &sy);
+  units_set_occupancy_map(&map);
+  colonies_set_occupancy_map(&map);
+  units_new_world_start(&units, &map, sx, sy, human, 0);
+  bool col1_ok = false;
+  colonies_set_col1_context(NULL);
+  colonies_set_units_context(NULL);
+  EuropeScreen europe;
+  memset(&europe, 0, sizeof(europe));
+  AiNewGameParams ai;
+  memset(&ai, 0, sizeof(ai));
+  ai.col1 = &col1;
+  ai.col1_ok = &col1_ok;
+  ai.map = &map;
+  ai.units = &units;
+  ai.europe = &europe;
+  ai.names = &names;
+  ai.data_dir = "COLONIZE";
+  ai.human_nation = human;
+  ai.difficulty = 0;
+  ai.leader_name = "Test Governor";
+  ai.use_tribe_txt = true;
+  ai.map_stem = "AMER2";
+  ai.human_start_x = sx;
+  ai.human_start_y = sy;
+  ai.rng_seed = 100;
+  ai.rng_seed_set = true;
+  ai.rng = &stream;
+  if (!ai_init_new_game(&ai, err, sizeof(err))) {
+    fprintf(stderr, "init_new_game tribe_txt: %s\n", err);
+    goto done;
+  }
+  rc = col1.head.tribe_count != dos.head.tribe_count;
+  int same = 0;
+  const int n = col1.head.tribe_count < dos.head.tribe_count ? col1.head.tribe_count
+                                                             : dos.head.tribe_count;
+  for (int i = 0; i < n; ++i) {
+    const ColonizeCol1Tribe* a = &col1.tribe[i];
+    const ColonizeCol1Tribe* b = &dos.tribe[i];
+    if (a->x != b->x || a->y != b->y || a->nation_id != b->nation_id ||
+        a->state.capital != b->state.capital) {
+      rc = 1;
+    } else {
+      same++;
+    }
+  }
+  fprintf(stderr, "init_new_game tribe_txt: port %u villages, DOS %u, rows equal %d\n",
+          col1.head.tribe_count, dos.head.tribe_count, same);
+done:
+  units_set_occupancy_map(NULL);
+  colonies_set_occupancy_map(NULL);
+  map_free(&map);
+  col1_save_free(&col1);
+  col1_save_free(&dos);
+  assets_msg_free(&names);
+  return rc;
+}
+
 static int case_new_world(void) {
   diag_init(0, NULL);
   return run_init_and_turns("COLONIZE", false, 0, "NEW_WORLD");
@@ -1602,6 +2001,11 @@ static const TestCase k_cases[] = {
     {"case_new_world", case_new_world},
     {"case_america", case_america},
     {"coarse_fog_reset", case_coarse_fog_reset},
+    {"tribe_txt_jitter_rules", case_tribe_txt_jitter_rules},
+    {"tribe_txt_impossible_spot_dropped", case_tribe_txt_impossible_spot_dropped},
+    {"tribe_txt_third_spacing_tier", case_tribe_txt_third_spacing_tier},
+    {"tribe_txt_seed100_matches_dos", case_tribe_txt_seed100_matches_dos},
+    {"tribe_txt_init_new_game_matches_dos", case_tribe_txt_init_new_game_matches_dos},
     {"021a_stayed_facing_fixed", case_021a_stayed_facing_fixed},
     {"021a_adjacent_foreign_medium_fixed", case_021a_adjacent_foreign_medium_fixed},
     {"run_village_threat_alarm", run_village_threat_alarm},
