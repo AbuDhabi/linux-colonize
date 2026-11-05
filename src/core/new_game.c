@@ -1815,7 +1815,7 @@ int new_game_render_throne_buttons(
     return 1;
   }
   /* The colony screen's BUY / CHANGE button (FUN_2f2b_208c): 9 tall, a bevel and
-   * no fill, label at +3/+2, recoloured for the light scroll (dark ink, brown
+   * no fill, label at +4/+2, recoloured for the light scroll (dark ink, brown
    * bevel; the selected one filled), each sized to its label and centred. A
    * label too wide for w wraps to a second line; every row then gets the
    * pitch of the tallest so the hit test stays list_y0 + k * pitch. */
@@ -1825,7 +1825,7 @@ int new_game_render_throne_buttons(
   int lines_max = 1;
   for (int r = 0; r < count; ++r) {
     char out[MAX_LINES][COLONIZE_MSG_LINE_LEN];
-    const int n = new_game_throne_wrap(font, labels[r], w - 5, out, MAX_LINES);
+    const int n = new_game_throne_wrap(font, labels[r], w - 7, out, MAX_LINES);
     lines_max = n > lines_max ? n : lines_max;
   }
   const int pitch = 9 + (lines_max - 1) * line_h + GAP;
@@ -1835,13 +1835,15 @@ int new_game_render_throne_buttons(
   const uint8_t edge_dark = new_game_throne_rgb(pal, 110, 70, 30);
   for (int r = 0; r < count; ++r) {
     char out[MAX_LINES][COLONIZE_MSG_LINE_LEN];
-    const int n = new_game_throne_wrap(font, labels[r], w - 5, out, MAX_LINES);
+    const int n = new_game_throne_wrap(font, labels[r], w - 7, out, MAX_LINES);
     int lw = 0;
     for (int i = 0; i < n; ++i) {
       const int tw = font_text_width(font, out[i]);
       lw = tw > lw ? tw : lw;
     }
-    const int bw = lw + 5 > w ? w : lw + 5;
+    /* 4 px before the label and 3 after: the glyphs carry their own trailing
+     * column, so this reads as the same margin on both sides. */
+    const int bw = lw + 7 > w ? w : lw + 7;
     const int bh = 9 + (n - 1) * line_h;
     const int bx = x + (w - bw) / 2;
     const int by = y + r * pitch;
@@ -1851,7 +1853,7 @@ int new_game_render_throne_buttons(
     ui_button_draw_frame(fb, bx, by, bw, bh, edge_light, edge_dark);
     for (int i = 0; i < n; ++i) {
       const int tw = font_text_width(font, out[i]);
-      font_draw_text(font, fb, bx + (bw - tw) / 2, by + 2 + i * line_h, out[i], ink);
+      font_draw_text(font, fb, bx + 4 + (lw - tw) / 2, by + 2 + i * line_h, out[i], ink);
     }
   }
   return pitch;
