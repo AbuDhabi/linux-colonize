@@ -441,6 +441,30 @@ bool units_despawn(ColonizeUnitPool* pool, int unit_id) {
   return true;
 }
 
+bool units_despawn_to_europe(ColonizeUnitPool* pool, int unit_id) {
+  ColonizeUnit* unit = units_get(pool, unit_id);
+  if (!unit) {
+    return false;
+  }
+  const bool was_selected = pool->selected_id == unit_id;
+  const int slot = (int)(unit - pool->units);
+  if (!units_despawn(pool, unit_id)) {
+    return false;
+  }
+  if (was_selected) {
+    /* Sailing is no delete: FUN_48d3_007a relinks the hull onto the lane and
+     * DS:0x5392 stays on it, so the scan resumes at the slot after it. */
+    pool->rotation_retest_id = -1;
+    for (int i = slot + 1; i < units_slot_end(pool); ++i) {
+      if (pool->units[i].active) {
+        pool->rotation_retest_id = pool->units[i].id;
+        break;
+      }
+    }
+  }
+  return true;
+}
+
 bool units_is_sea(const ColonizeUnitPool* pool, int unit_id) {
   const ColonizeUnit* unit = units_get_const(pool, unit_id);
   if (!unit) {

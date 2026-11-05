@@ -3008,6 +3008,26 @@ static int test_select_tile_rotation_retest(void) {
   return rc;
 }
 
+/* A hull leaving for Europe (lane or damaged repair) is no FUN_1427_0824
+ * delete: DS:0x5392 stays on it, so the rotation scans on to the next slot
+ * instead of stepping back to the previous one. */
+static int test_despawn_to_europe_rotation(void) {
+  static ColonizeUnitPool pool;
+  fx_units_init(&pool);
+  pool.type_count = 1;
+  pool.types[0].movement = 1;
+  pool.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  const int a = units_spawn(&pool, 0, 2, 2);
+  const int b = units_spawn(&pool, 0, 3, 3);
+  const int c = units_spawn(&pool, 0, 4, 4);
+  pool.selected_id = b;
+  if (!units_despawn_to_europe(&pool, b) || pool.rotation_retest_id != c ||
+      pool.selected_id != -1 || a < 0) {
+    return fail("hull to Europe should hand the rotation to the next slot");
+  }
+  return 0;
+}
+
 /* FUN_2b5a_1b5a raw 42779-42783: a left click on a lone own ship at sea makes it
  * the active unit, away from the ship the rotation had picked. */
 static int test_click_selects_ship(void) {
@@ -5447,6 +5467,7 @@ static const TestCase k_cases[] = {
     {"test_goto_place_opens_travelplace_list", test_goto_place_opens_travelplace_list},
     {"test_activate_ignores_foreign_unit", test_activate_ignores_foreign_unit},
     {"test_select_tile_rotation_retest", test_select_tile_rotation_retest},
+    {"test_despawn_to_europe_rotation", test_despawn_to_europe_rotation},
     {"test_click_selects_ship", test_click_selects_ship},
     {"test_view_pieces_keeps_active_unit", test_view_pieces_keeps_active_unit},
     {"test_right_click_and_find_colony_keep_active_unit",

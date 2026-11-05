@@ -1217,7 +1217,9 @@ static void game_after_unit_tail(ColonizeGameState* game, bool stepped) {
      * scans on from its slot (FUN_1427_14a0) — the same hand-off as an
      * exhausted unit below, not View Pieces. FUN_1427_0824 (raw 7834-7836)
      * stepped DS:0x5392 back one record on the delete; units_despawn kept
-     * that record in rotation_retest_id, so the scan re-tests it first. */
+     * that record in rotation_retest_id, so the scan re-tests it first. A
+     * hull sent to Europe is no delete (units_despawn_to_europe): the
+     * re-test is the slot after it. */
     g_units_wake_deferred_id = -1; /* the mover is gone; drop its held wake */
     if (game->view_pieces_mode) {
       game_select_tile(game, game->map_cursor_x, game->map_cursor_y);

@@ -1815,7 +1815,7 @@ static void units_ship_damaged_to_europe(ColonizeUnitPool* pool, ColonizeUnit* l
    * threshold minus the preset, not the preset. */
   const bool east = europe_exit_east_of(g_units_fallout_map, lose->goto_x);
   if (europe_harbor_push_damaged(eu, lose, lt && lt->name[0] ? lt->name : "", east)) {
-    units_despawn(pool, lose->id);
+    units_despawn_to_europe(pool, lose->id); /* the record stays at (237,237) */
   }
 }
 

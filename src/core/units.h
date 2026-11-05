@@ -323,6 +323,9 @@ void units_set_nation(ColonizeUnit* unit, int nation_id);
 
 
 bool units_despawn(ColonizeUnitPool* pool, int unit_id);
+/* units_despawn for a hull that leaves for Europe (its DOS record stays, no
+ * FUN_1427_0824 delete): an active hull hands the rotation to the next slot. */
+bool units_despawn_to_europe(ColonizeUnitPool* pool, int unit_id);
 int units_id_at(const ColonizeUnitPool* pool, int x, int y);
 /* The unit's DOS record index (rank among active slots, the save order), -1 if none. */
 int units_dos_index(const ColonizeUnitPool* pool, int unit_id);
