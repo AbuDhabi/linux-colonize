@@ -648,3 +648,23 @@ surplus). AI colonies never sell tools (FUN_364b_0636), so only the human arm
 changes. Goldens and idle campaigns pass unchanged, so no `dos_buggy_behavior()`
 gate. Test: `unit_turn_core` (`custom_house_autosell` case).
 **Status:** done (user 2026-11-05).
+
+### DB-76 — Any foreign warship nearby shuts the human's Custom House
+**DOS:** `FUN_4962_0018` (raw 78259-78289) sets the colony blockade pair
+`+0x1b` bits 0x01/0x02 for every foreign ship with a non-zero combat byte
+within the 11x11 box and a sea route of cost 0..5, without reading diplomacy.
+`FUN_364b_0688` then skips the whole Custom House sale of a human colony while
+`+0x1b & 3` is set. A friendly or neutral frigate parked off the colony stops
+all exports. Seen 2026-11-05: port_saves/discard COLONY09.SAV, Barbados
+(45,38), four Dutch frigates at peace with France (relation 0xe2).
+
+**Port:** `ai_euro_colony_ship_probe_4962` (`src/core/ai_euro.c`) counts a
+ship for a human colony only when its nation is at war with the owner (MET
+without PEACE in either relation row, the Foreign Affairs report's test; WAR
+0x02 survives a treaty), it belongs to the Crown after the declaration, or it
+is another nation's Privateer. The filter runs after the 0906 flood, so the
+shared flood grid sees the same calls. AI colonies keep the DOS count (their
+Custom House ignores the bits; the ship-pressure tallies feed the AI). Goldens
+and idle campaigns pass unchanged, so no `dos_buggy_behavior()` gate. Test:
+`unit_ai_euro_expand_labor` (`unit_human_census_ship_pressure_refresh`).
+**Status:** done (user 2026-11-05).

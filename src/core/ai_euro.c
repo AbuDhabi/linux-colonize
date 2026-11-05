@@ -747,6 +747,24 @@ static void ai_euro_colony_ship_probe_4962(
         if (cost < 0 || cost > 5) {
           continue;
         }
+        /* dos_bugs.md DB-76: DOS counts any foreign warship, so a peaceful
+         * frigate shuts the human's Custom House. Count only enemies at war
+         * (or the Crown after the declaration) and other nations' privateers.
+         * At war = MET without PEACE in either row, the Foreign Affairs
+         * report's test (WAR 0x02 survives a treaty). Filtered after the
+         * flood so the shared 0906 grid sees the same calls. Human colonies
+         * only: the AI tallies keep DOS. */
+        const uint8_t rel_ab = ctx->col1 ? ai_diplo_read(ctx->col1, nation_id, u->nation_id) : 0;
+        const uint8_t rel_ba = ctx->col1 ? ai_diplo_read(ctx->col1, u->nation_id, nation_id) : 0;
+        const bool at_war = (rel_ab & (AI_DIPLO_MET | AI_DIPLO_PEACE)) == AI_DIPLO_MET ||
+                            (rel_ba & (AI_DIPLO_MET | AI_DIPLO_PEACE)) == AI_DIPLO_MET;
+        if (ctx->col1_ok && ctx->col1 &&
+            col1_nation_is_human(ctx->col1, nation_id, ctx->human_nation) &&
+            t != UNITS_KIND_PRIVATEER && !at_war &&
+            !(ai_king_independence_declared(ctx->col1) &&
+              u->nation_id == ai_king_crown_nation_col1(ctx->col1, ctx->human_nation))) {
+          continue;
+        }
         if (t == 0x11) {
           c->ai_flags |= COLONIZE_COLONY_AI_NEARBY_FRIGATE; /* raw 78276-78282 */
         } else {

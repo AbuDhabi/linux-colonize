@@ -667,7 +667,26 @@ static int unit_human_census_ship_pressure_refresh(void) {
   ctx.col1_ok = true;
   ctx.rng_seed = 42;
 
-  /* (a) Frigate present: the probe raises bit 0x02 for the human nation. */
+  /* dos_bugs.md DB-76: at peace the human's probe ignores the Frigate. */
+  ai_euro_census_ship_pressure_refresh(&ctx, human);
+  c = &colonies.colonies[0];
+  if ((c->ai_flags & (COLONIZE_COLONY_AI_NEARBY_ARMED_SHIP |
+                      COLONIZE_COLONY_AI_NEARBY_FRIGATE)) != 0) {
+    fx_map_free(&map);
+    return fail("peaceful Frigate set the human blockade bits");
+  }
+  /* ...but a foreign Privateer counts at peace (armed-ship bit). */
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Privateer");
+  ai_euro_census_ship_pressure_refresh(&ctx, human);
+  c = &colonies.colonies[0];
+  if ((c->ai_flags & COLONIZE_COLONY_AI_NEARBY_ARMED_SHIP) == 0) {
+    fx_map_free(&map);
+    return fail("peaceful foreign Privateer did not set the armed-ship bit");
+  }
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Frigate");
+
+  /* (a) Frigate of a nation at war: the probe raises bit 0x02. */
+  ai_diplo_declare_war(&col1, human, foe);
   ai_euro_census_ship_pressure_refresh(&ctx, human);
   c = &colonies.colonies[0];
   if ((c->ai_flags & COLONIZE_COLONY_AI_NEARBY_FRIGATE) == 0) {
@@ -675,6 +694,16 @@ static int unit_human_census_ship_pressure_refresh(void) {
             (unsigned)c->ai_flags);
     fx_map_free(&map);
     return fail("expected human nearby_frigate ai_flags bit");
+  }
+  /* A treaty after that war leaves WAR 0x02 set (0xe2, as in real saves):
+   * PEACE wins, the Frigate no longer counts. */
+  col1.nation[human].euro_relation[foe] = 0xe2;
+  col1.nation[foe].euro_relation[human] = 0xe2;
+  ai_euro_census_ship_pressure_refresh(&ctx, human);
+  c = &colonies.colonies[0];
+  if ((c->ai_flags & COLONIZE_COLONY_AI_NEARBY_FRIGATE) != 0) {
+    fx_map_free(&map);
+    return fail("Frigate under a treaty (0xe2) still set the frigate bit");
   }
 
   /* (b) Ship gone: the next refresh must clear BOTH blockade bits. Seed the
