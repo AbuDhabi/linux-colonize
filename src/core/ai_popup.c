@@ -136,6 +136,7 @@ static bool ai_popup_enqueue_bar_message_kind(
   window_log_push(text);
   st->bar_msg_kind[st->bar_msg_count] = (uint8_t)(kind < 0 ? 0 : kind);
   st->bar_msg_sale[st->bar_msg_count] = false;
+  st->bar_msg_passive[st->bar_msg_count] = false;
   st->bar_msg_count++;
   return true;
 }
@@ -193,6 +194,16 @@ uint8_t ai_popup_bar_message_color(const AiPopupState* st) {
   }
 }
 
+void ai_popup_bar_mark_passive(AiPopupState* st) {
+  for (int i = 0; st && i < st->bar_msg_count; ++i) {
+    st->bar_msg_passive[i] = true;
+  }
+}
+
+bool ai_popup_bar_blocks(const AiPopupState* st) {
+  return st && st->bar_msg_count > 0 && !st->bar_msg_passive[0];
+}
+
 bool ai_popup_bar_service(AiPopupState* st, uint32_t now_ms, bool dismiss) {
   if (!st || st->bar_msg_count <= 0) {
     if (st) {
@@ -229,6 +240,7 @@ bool ai_popup_bar_service(AiPopupState* st, uint32_t now_ms, bool dismiss) {
     memcpy(st->bar_msg[i - 1], st->bar_msg[i], AI_POPUP_BAR_MSG_LEN);
     st->bar_msg_kind[i - 1] = st->bar_msg_kind[i];
     st->bar_msg_sale[i - 1] = st->bar_msg_sale[i];
+    st->bar_msg_passive[i - 1] = st->bar_msg_passive[i];
   }
   st->bar_msg_count--;
   st->bar_msg_until_ms = 0;

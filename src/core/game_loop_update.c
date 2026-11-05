@@ -171,7 +171,7 @@ static bool game_service_bar_message(
     ai_popup_bar_message(&game->ai_popups),
     ai_popup_bar_message_color(&game->ai_popups)
   );
-  return hold && ai_popup_bar_message(&game->ai_popups) != NULL;
+  return hold && ai_popup_bar_blocks(&game->ai_popups);
 }
 
 static bool game_service_closing(

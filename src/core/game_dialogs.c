@@ -179,6 +179,7 @@ void game_service_europe_bar(ColonizeGameState* game) {
     eu->bar_event_red[i] = false;
   }
   eu->bar_event_count = 0;
+  ai_popup_bar_mark_passive(&game->ai_popups);
   if (ai_popup_bar_message(&game->ai_popups)) {
     (void)ai_popup_bar_service(&game->ai_popups, game->elapsed_ms, false);
   }
@@ -197,6 +198,7 @@ void game_service_colony_bar(ColonizeGameState* game) {
   }
   ColonyScreenView* csv = &game->colony_screen;
   csv->bar_text[0] = '\0';
+  ai_popup_bar_mark_passive(&game->ai_popups);
   if (ai_popup_bar_message(&game->ai_popups)) {
     (void)ai_popup_bar_service(&game->ai_popups, game->elapsed_ms, false);
   }

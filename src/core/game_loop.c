@@ -1649,8 +1649,9 @@ static bool game_map_blink_running(const ColonizeGameState* game) {
   if (game->combat_dissolve_freeze) {
     return false;
   }
-  /* Status line up: FUN_1009_00b4's blocking dwell. */
-  if (ai_popup_bar_message(&game->ai_popups)) {
+  /* Status line up: FUN_1009_00b4's blocking dwell. A line left over from
+   * the colony / Europe screen only finishes its dwell on the strip. */
+  if (ai_popup_bar_blocks(&game->ai_popups)) {
     return false;
   }
   /* End-of-turn pipeline, or anything modal over the map. */

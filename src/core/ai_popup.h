@@ -384,6 +384,10 @@ typedef struct AiPopupState {
   uint8_t bar_msg_kind[AI_POPUP_BAR_MSG_MAX];
   /* Line queued by ai_popup_enqueue_bar_sale: AI_POPUP_BAR_SALE_SPEEDUP. */
   bool bar_msg_sale[AI_POPUP_BAR_MSG_MAX];
+  /* Line already shown by a non-blocking screen (colony / Europe): if it
+   * outlives that screen the map strip still shows it, but it is no blocking
+   * FUN_1009_00b4 wait there (ai_popup_bar_blocks). */
+  bool bar_msg_passive[AI_POPUP_BAR_MSG_MAX];
   int bar_msg_count;       /* [0] is the one on screen */
   uint32_t bar_msg_until_ms; /* dwell deadline; 0 = not started yet */
 
@@ -420,6 +424,11 @@ uint8_t ai_popup_bar_message_color(const AiPopupState* st);
  * pipeline for exactly that long, the way DOS's blocking wait does.
  */
 bool ai_popup_bar_service(AiPopupState* st, uint32_t now_ms, bool dismiss);
+/* Mark every queued line passive (bar_msg_passive): the colony and Europe
+ * screens call this as they service the strip. */
+void ai_popup_bar_mark_passive(AiPopupState* st);
+/* A line owns the strip AND is a blocking wait (not passive). */
+bool ai_popup_bar_blocks(const AiPopupState* st);
 
 void ai_popup_init(AiPopupState* st);
 void ai_popup_clear(AiPopupState* st);

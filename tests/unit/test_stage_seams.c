@@ -3436,6 +3436,31 @@ static int test_bar_sale_speedup_only_on_sales(void) {
   return rc;
 }
 
+/* A cargo line shown on the colony screen is no blocking FUN_1009_00b4 wait
+ * once the player is back on the map: it may finish its dwell on the strip,
+ * but the active unit keeps blinking. A line queued on the map still blocks. */
+static int test_bar_screen_lines_do_not_block_map(void) {
+  static AiPopupState st;
+  ai_popup_clear(&st);
+  (void)ai_popup_enqueue_bar_message(&st, "100 Horses moved to Wagon Train");
+  int rc = 0;
+  if (!ai_popup_bar_blocks(&st)) {
+    rc = fail("bar passive: a fresh line blocks");
+  }
+  ai_popup_bar_mark_passive(&st);
+  (void)ai_popup_enqueue_bar_message(&st, "Map line");
+  if (rc == 0 && (ai_popup_bar_blocks(&st) || ai_popup_bar_message(&st) == NULL)) {
+    rc = fail("bar passive: the colony line still shows but does not block");
+  }
+  (void)ai_popup_bar_service(&st, 1000, false);
+  (void)ai_popup_bar_service(&st, 1000, true);
+  if (rc == 0 && !ai_popup_bar_blocks(&st)) {
+    rc = fail("bar passive: the map line behind it blocks");
+  }
+  ai_popup_clear(&st);
+  return rc;
+}
+
 static int s_near_human = -1;
 
 static void near_human_watch(
@@ -5482,6 +5507,7 @@ static const TestCase k_cases[] = {
     {"test_brave_step_watch_sees_entry_vis", test_brave_step_watch_sees_entry_vis},
     {"test_player_pick_keeps_view", test_player_pick_keeps_view},
     {"test_bar_sale_speedup_only_on_sales", test_bar_sale_speedup_only_on_sales},
+    {"test_bar_screen_lines_do_not_block_map", test_bar_screen_lines_do_not_block_map},
     {"test_colony_list_keys_wrap", test_colony_list_keys_wrap},
     {"test_colony_custom_house_keys", test_colony_custom_house_keys},
     {"test_screen_f1_focus_article", test_screen_f1_focus_article},

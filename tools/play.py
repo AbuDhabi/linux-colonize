@@ -31,7 +31,7 @@ def convert(ppm):
 def wait_marker(out, marker, timeout):
     end = time.time() + timeout
     while time.time() < end:
-        text = open(out).read() if os.path.exists(out) else ''
+        text = open(out, errors='replace').read() if os.path.exists(out) else ''
         if marker in text:
             return text
         time.sleep(0.05)
@@ -78,7 +78,7 @@ def main():
     seq = int(open(seq_file).read() or 0) + 1
     with open(seq_file, 'w') as f:
         f.write(str(seq))
-    start = len(open(out).read())
+    start = len(open(out, errors='replace').read())
     marker = f'@@ b{seq}\n'
     with open(cmd, 'a') as f:
         f.write(''.join(l + '\n' for l in lines) + f'sync b{seq}\n')
