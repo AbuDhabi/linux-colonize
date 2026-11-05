@@ -8,6 +8,7 @@
  * Sections:
  *   Audience rolls & tax/tea-party dialogs (ai_king_msg_list_entry .. ai_king_tax_hike_apply)
  *   Succession & Declare Independence (ai_king_succession .. ai_king_menu_declare_independence)
+ *   mods.kings_audience: King's audience chamber (ai_king_grant_amount .. ai_king_audience_specialist)
  */
 
 #include "core/internal.h"
@@ -18,6 +19,8 @@
 
 #include "core/assets.h"
 #include "core/colony.h"
+#include "core/colony_production.h"
+#include "core/mods.h"
 #include "core/combat_strength.h"
 #include "core/col1_save.h"
 #include "core/col1_stuff_census.h"
@@ -1377,4 +1380,263 @@ void ai_king_menu_declare_independence(ColonizeTurnContext* ctx) {
     return;
   }
   ai_king_show_declare_choice(ctx, human, sol);
+}
+
+/* ===== mods.kings_audience: King's audience chamber (ai_king_grant_amount .. ai_king_audience_specialist) ===== */
+/*
+ * The cut 38fd:4668 chamber: DOS ships the whole menu and its three handlers
+ * but no caller and no @AUDIENCE / @KINGGOAWAY text. The mod adds the caller
+ * (VIEW menu row, K) and the text (data/mods/GAME.TXT). Human only: 44a4's AI
+ * arm stays unreachable, as in DOS. Every entry returns at once with the mod
+ * off.
+ */
+
+/* DOS-LITERAL FUN_38fd_44a4 raw 64455-64512, human arm:
+ * max(1, 6 - (hikes+1)/2 - difficulty) * 100. */
+int ai_king_grant_amount(int hike_count, int difficulty) {
+  const int n = 6 - ((hike_count + 1) >> 1) - difficulty;
+  return (n < 1 ? 1 : n) * 100;
+}
+
+/* FUN_38fd_4590 (asm UA 102871-102939; Ghidra swaps the tag and delta
+ * arguments): T = ((difficulty & 0xfe) * 2 + 4) * (turn / 400 + 1), signed char. */
+int ai_king_petition_threshold(int difficulty, int turn) {
+  return (int)(int8_t)((((difficulty & 0xfe) * 2) + 4) * (turn / 400 + 1));
+}
+
+/* One of the chamber's plain King messages, "%STRING0 %STRING1" = difficulty
+ * title + player name (38fd:462e), drawn on the throne-room scroll. False when
+ * nothing was queued (no popups, a GAME.TXT without the section, queue full). */
+static bool ai_king_audience_notice(ColonizeTurnContext* ctx, int human, const char* section, int number0) {
+  if (!ai_king_human_popups(ctx)) {
+    return false;
+  }
+  const int difficulty = (int)ctx->col1->head.difficulty;
+  PopupMsgTokens tok;
+  memset(&tok, 0, sizeof(tok));
+  tok.string0 = reports_difficulty_title(difficulty >= 0 && difficulty < 5 ? difficulty : 0);
+  tok.string1 = ctx->col1->player[human].name;
+  tok.number0 = number0;
+  tok.has_number0 = true;
+  char body[AI_POPUP_BODY_LEN];
+  popup_msg_fill(ctx->messages, section, &tok, "", body, sizeof(body));
+  return body[0] && ai_popup_enqueue_ok_ctx(ctx->ai_popups, AI_POPUP_TAG_KING_CHAMBER_MSG, human,
+                                            ai_king_crown_nation_col1(ctx->col1, human), 0, NULL, body);
+}
+
+/* A chamber CHOICE: body and rows from one GAME.TXT section, ids 1..n (DOS's
+ * 1-based FUN_281f_0998 result; Esc = 0 = leave). */
+static void ai_king_audience_choice_popup(
+  ColonizeTurnContext* ctx, int human, AiPopupTag tag, const char* section, int number0, int payload
+) {
+  PopupMsgTokens tok;
+  memset(&tok, 0, sizeof(tok));
+  tok.number0 = number0;
+  tok.has_number0 = true;
+  char body[AI_POPUP_BODY_LEN];
+  popup_msg_fill(ctx->messages, section, &tok, "", body, sizeof(body));
+  char choice_buf[AI_POPUP_CHOICE_MAX][AI_POPUP_CHOICE_LEN];
+  const int n =
+    popup_msg_choices(assets_msg_find(ctx->messages, section), choice_buf, AI_POPUP_CHOICE_MAX);
+  const char* labels[AI_POPUP_CHOICE_MAX];
+  int ids[AI_POPUP_CHOICE_MAX];
+  for (int i = 0; i < n; ++i) {
+    labels[i] = choice_buf[i];
+    ids[i] = i + 1;
+  }
+  if (n > 0) {
+    (void)ai_popup_enqueue_choice_ctx(ctx->ai_popups, tag, human,
+                                      ai_king_crown_nation_col1(ctx->col1, human), payload,
+                                      NULL, body, labels, ids, n);
+  }
+}
+
+static bool ai_king_audience_ready(const ColonizeTurnContext* ctx, int human) {
+  return mods_on(MOD_KINGS_AUDIENCE) && ctx && ctx->col1_ok && ctx->col1 && human >= 0 && human < 4;
+}
+
+/* 38fd:4668: the once-per-turn latch, the 462e greeting, then @AUDIENCE. */
+void ai_king_menu_audience(ColonizeTurnContext* ctx) {
+  if (!ctx || !ai_king_audience_ready(ctx, ctx->human_nation) || !ai_king_human_popups(ctx)) {
+    return;
+  }
+  const int human = ctx->human_nation;
+  if (ai_king_independence_declared(ctx->col1)) {
+    /* Port decision: DOS never had to choose (the chamber is dead code). The
+     * Crown does not receive rebels, like Europe during the war; no GAME.TXT
+     * text exists for it, so nothing is shown. */
+    return;
+  }
+  ColonizeCol1Nation* nat = &ctx->col1->nation[human];
+  /* 38fd:4668-4682; FUN_38fd_5e52 clears bit 0x20 every turn (europe_harbor.c). */
+  if (nat->nation_flags & 0x20u) {
+    (void)ai_king_audience_notice(ctx, human, "KINGGOAWAY", 0);
+    return;
+  }
+  /* DOS sets the latch before the greeting; the port sets it only once the
+   * greeting is queued, so a full queue does not eat the turn's audience. */
+  if (ai_king_audience_notice(ctx, human, "KINGWELCOME0", 0)) {
+    nat->nation_flags = (uint8_t)(nat->nation_flags | 0x20u);
+    ai_king_audience_choice_popup(ctx, human, AI_POPUP_TAG_KING_CHAMBER, "AUDIENCE", 0, 0);
+  }
+}
+
+/* FUN_38fd_4590: ask for lower taxes. */
+static void ai_king_audience_petition(ColonizeTurnContext* ctx, int human) {
+  const int d = (int)ctx->col1->head.difficulty;
+  const int tax = (int)ctx->col1->nation[human].tax_rate;
+  const int t = ai_king_petition_threshold(d, (int)ctx->col1->head.turn);
+  AiKingAudienceFlavor flavor;
+  memset(&flavor, 0, sizeof(flavor));
+  if (tax <= 1 || tax <= t + 5) {
+    /* Asking while taxes are already low is punished: +2 * RNG(1, d). */
+    flavor.section = "KINGRAISE";
+    ai_king_tax_hike_apply(ctx, human, 2 * dos_rng_range(ctx->rng, 1, d), &flavor);
+  } else if (dos_rng_range(ctx->rng, 1, d + 1) == 1) {
+    flavor.section = "KINGLOWER";
+    ai_king_tax_hike_apply(ctx, human, -dos_rng_range(ctx->rng, 1, 5 - d), &flavor);
+  } else {
+    ai_king_audience_notice(ctx, human, "KINGNOTHING", 0);
+  }
+}
+
+static void ai_king_audience_specialist_offer(ColonizeTurnContext* ctx, int human);
+
+/* @AUDIENCE answer. Row 2 is DOS's Train dialog (38fd:6372 -> FUN_38fd_41ce);
+ * the mod offers the King's own specialists instead. */
+void ai_king_audience_choice(ColonizeTurnContext* ctx, int human, int choice) {
+  if (!ai_king_audience_ready(ctx, human)) {
+    return;
+  }
+  const ColonizeCol1Nation* nat = &ctx->col1->nation[human];
+  switch (choice) {
+    case 1:
+      ai_king_audience_notice(ctx, human, "KINGBLESS", 0);
+      break;
+    case 2:
+      ai_king_audience_specialist_offer(ctx, human);
+      break;
+    case 3:
+      /* FUN_38fd_44a4: refused at 60% tax or more. */
+      if (nat->tax_rate >= 60) {
+        ai_king_audience_notice(ctx, human, "KINGNO", 0);
+      } else {
+        const int grant =
+          ai_king_grant_amount(nat->tax_hike_count, (int)ctx->col1->head.difficulty);
+        ai_king_audience_choice_popup(ctx, human, AI_POPUP_TAG_KING_GRANT, "KINGFUND", grant, grant);
+      }
+      break;
+    case 4:
+      ai_king_audience_petition(ctx, human);
+      break;
+    case 5:
+      ai_king_audience_notice(ctx, human, "KINGLAUGH", 0);
+      break;
+    default:
+      break;
+  }
+}
+
+/* FUN_38fd_44a4 accept: gold first, then 3dc8(@KINGTAX, hike), then the hike
+ * counter (nation +5, written only here). DOS's hike is hikes + d/2 + 5; the
+ * mod uses + 1, the + 5 being too steep for the small grants. */
+void ai_king_audience_grant_accept(ColonizeTurnContext* ctx, int human, int grant) {
+  if (!ai_king_audience_ready(ctx, human) || grant <= 0) {
+    return;
+  }
+  ColonizeCol1Nation* nat = &ctx->col1->nation[human];
+  europe_nation_gold_add(ctx->europe, ctx->col1, human, grant);
+  const int hike = (int)nat->tax_hike_count + (int)ctx->col1->head.difficulty / 2 + 1;
+  ai_king_tax_hike_apply(ctx, human, hike, NULL);
+  nat->tax_hike_count = (uint8_t)(nat->tax_hike_count + 1);
+}
+
+/* 1% for the first specialist, doubled for each one after. */
+int ai_king_specialist_rise(int earlier) {
+  return 1 << (earlier < 0 ? 0 : earlier > 7 ? 7 : earlier);
+}
+
+/* @AUDIENCE row 2: the Masters and the Firebrand Preacher (@JOB rows;
+ * soldiers, pioneers, plain experts and statesmen are not the King's to give),
+ * from Europe's Train list, paid by a tax rise instead of gold. Refused
+ * (@KINGNO) when the rise would pass the 75% tax cap. */
+static void ai_king_audience_specialist_offer(ColonizeTurnContext* ctx, int human) {
+  static const int k_jobs[] = {
+    COLONIZE_PROF_DISTILLER, COLONIZE_PROF_TOBACCONIST, COLONIZE_PROF_WEAVER,
+    COLONIZE_PROF_FUR_TRADER, COLONIZE_PROF_CARPENTER, COLONIZE_PROF_BLACKSMITH,
+    COLONIZE_PROF_GUNSMITH, COLONIZE_PROF_PREACHER,
+  };
+  const EuropeScreen* eu = ctx->europe;
+  if (!eu || !ai_king_human_popups(ctx)) {
+    return;
+  }
+  const int rise = ai_king_specialist_rise(ctx->col1->nation[human].unknown23_pad[2]);
+  if ((int)ctx->col1->nation[human].tax_rate + rise > 75) {
+    ai_king_audience_notice(ctx, human, "KINGNO", 0);
+    return;
+  }
+  const char* labels[AI_POPUP_CHOICE_MAX];
+  int ids[AI_POPUP_CHOICE_MAX];
+  int n = 0;
+  for (int i = 0; i < eu->train_count && n < AI_POPUP_CHOICE_MAX; ++i) {
+    for (size_t k = 0; k < sizeof(k_jobs) / sizeof(k_jobs[0]); ++k) {
+      if (eu->train[i].job_index == k_jobs[k]) {
+        labels[n] = eu->train[i].expert_name;
+        ids[n++] = k_jobs[k];
+      }
+    }
+  }
+  if (n == 0) {
+    return;
+  }
+  PopupMsgTokens tok;
+  memset(&tok, 0, sizeof(tok));
+  tok.number0 = rise;
+  tok.has_number0 = true;
+  char body[AI_POPUP_BODY_LEN];
+  popup_msg_fill(ctx->messages, "KINGSPECIAL", &tok, "", body, sizeof(body));
+  (void)ai_popup_enqueue_choice_ctx(ctx->ai_popups, AI_POPUP_TAG_KING_SPECIALIST, human,
+                                    ai_king_crown_nation_col1(ctx->col1, human), rise, NULL,
+                                    body, labels, ids, n);
+}
+
+/* A @KINGSPECIAL pick: the expert on the docks, the tax up by `rise` (no
+ * refusal: the price was on the offer), the counter up. */
+void ai_king_audience_specialist(ColonizeTurnContext* ctx, int human, int job, int rise) {
+  if (!ai_king_audience_ready(ctx, human) || !ctx->europe) {
+    return;
+  }
+  EuropeScreen* eu = ctx->europe;
+  int row = -1;
+  for (int i = 0; i < eu->train_count; ++i) {
+    if (eu->train[i].job_index == job) {
+      row = i;
+    }
+  }
+  if (row < 0 || !europe_train_place(eu, row, ctx->rng)) {
+    return;
+  }
+  ColonizeCol1Nation* nat = &ctx->col1->nation[human];
+  ai_king_audience_apply_delta(nat, rise, NULL);
+  eu->tax_percent = (int)nat->tax_rate;
+  /* The audience's own nation (hot-seat: the human at the controls), the same
+   * nation whose tax and 0x20 latch the chamber uses. */
+  uint8_t* count = &nat->unknown23_pad[2];
+  if (*count < 255) {
+    ++*count;
+  }
+  /* The @UNREST immigrant notice's shape (turn_colony.c): %STRING0 = home
+   * port, %STRING1 = the expert. */
+  if (ctx->ai_popups && ctx->messages) {
+    PopupMsgTokens tok;
+    memset(&tok, 0, sizeof(tok));
+    tok.country = eu->nation_name;
+    tok.string0 = eu->port_city;
+    tok.string1 = eu->train[row].expert_name;
+    char body[AI_POPUP_BODY_LEN];
+    popup_msg_fill(ctx->messages, "KINGSPECIALOK", &tok, "", body, sizeof(body));
+    if (body[0]) {
+      ai_popup_enqueue_ok(ctx->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+    }
+  }
 }

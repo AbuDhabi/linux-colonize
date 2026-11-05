@@ -1712,6 +1712,12 @@ static GameMenuActionStatus game_menu_action_view(ColonizeGameState* game, MapMe
     case MAP_MENU_ACTION_FIND_COLONY:
       game_open_find_colony(game);
       return GAME_MENU_ACTION_DONE;
+    case MAP_MENU_ACTION_KING_AUDIENCE: { /* mods.kings_audience */
+      ColonizeTurnContext ctx;
+      game_fill_turn_context(game, &ctx);
+      ai_king_menu_audience(&ctx);
+      return GAME_MENU_ACTION_DONE;
+    }
     case MAP_MENU_ACTION_ZOOM_IN:
       /* In = toward 15×12 (level 0, most detail); Out = toward 120×96. */
       game_map_zoom_set(game, game->map_zoom - 1);

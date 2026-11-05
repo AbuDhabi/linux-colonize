@@ -72,6 +72,7 @@ const char* key_name(ColonizeKey key) {
     case COLONIZE_KEY_RIGHT: return "RIGHT";
     case COLONIZE_KEY_S: return "S";
     case COLONIZE_KEY_F: return "F";
+    case COLONIZE_KEY_K: return "K";
     case COLONIZE_KEY_L: return "L";
     case COLONIZE_KEY_M: return "M";
     case COLONIZE_KEY_Q: return "Q";

@@ -1,6 +1,7 @@
 #include <SDL2/SDL_keycode.h>
 
 #include "platform/platform.h"
+#include "core/mods.h"
 
 /* SDL keycode -> game key. Split out of sdl_runtime.c so the input-replay
  * regression harness (tests/regression) folds logged key_down records through
@@ -40,6 +41,11 @@ ColonizeKey platform_key_from_sdl(int32_t key) {
     case SDLK_u: return COLONIZE_KEY_U;
     case SDLK_w: return COLONIZE_KEY_W;
     case SDLK_i: return COLONIZE_KEY_I;
+    /* Unmapped (as in DOS and the stock port) unless the running campaign has
+     * mods.kings_audience on. This is the only SDL keycode -> ColonizeKey
+     * mapping (live input and input replay both call it), so every consumer
+     * sees K only with the mod on. */
+    case SDLK_k: return mods_on(MOD_KINGS_AUDIENCE) ? COLONIZE_KEY_K : COLONIZE_KEY_NONE;
     case SDLK_n: return COLONIZE_KEY_N;
     case SDLK_a: return COLONIZE_KEY_A;
     case SDLK_g: return COLONIZE_KEY_G;

@@ -55,6 +55,7 @@
 #include "core/game_loop.h"
 #include "core/game_loop_internal.h"
 #include "core/map_panel.h"
+#include "core/mods.h"
 #include "core/units.h"
 #include "core/units_move.h"
 #include "core/window_log.h"
@@ -944,6 +945,18 @@ static int run_isolated(const char* name) {
 
 int main(int argc, char** argv) {
   (void)argc;
+  /* mods.kings_audience: K stays unmapped (no key, as before) unless the
+   * running campaign has the mod on; sdl_runtime keeps last_key as it was on
+   * an unmapped key. */
+  mods_campaign_set(0);
+  const ColonizeKey k_off = platform_key_from_sdl(SDLK_k);
+  mods_campaign_set(1u << MOD_KINGS_AUDIENCE);
+  const ColonizeKey k_on = platform_key_from_sdl(SDLK_k);
+  mods_campaign_set(0);
+  if (k_off != COLONIZE_KEY_NONE || k_on != COLONIZE_KEY_K) {
+    fprintf(stderr, "K key gate: off %d (want NONE), on %d (want K)\n", (int)k_off, (int)k_on);
+    return 1;
+  }
   /* Failure artefacts go next to the binary: build/debug/regression_out. */
   static char out_root[512];
   const char* slash = strrchr(argv[0], '/');

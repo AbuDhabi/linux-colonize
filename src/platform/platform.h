@@ -65,7 +65,8 @@ typedef enum ColonizeKey {
   COLONIZE_KEY_END,
   COLONIZE_KEY_TAB,
   COLONIZE_KEY_PAGEUP,
-  COLONIZE_KEY_PAGEDOWN
+  COLONIZE_KEY_PAGEDOWN,
+  COLONIZE_KEY_K /* mods.kings_audience hotkey (no DOS map key) */
 } ColonizeKey;
 
 #define COLONIZE_TEXT_INPUT_MAX 16

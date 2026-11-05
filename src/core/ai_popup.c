@@ -670,6 +670,14 @@ static const char* ai_popup_tag_name(AiPopupTag tag) {
       return "PLUNDER_PICK";
     case AI_POPUP_TAG_MULTINEXT:
       return "MULTINEXT";
+    case AI_POPUP_TAG_KING_CHAMBER:
+      return "KING_CHAMBER";
+    case AI_POPUP_TAG_KING_GRANT:
+      return "KING_GRANT";
+    case AI_POPUP_TAG_KING_CHAMBER_MSG:
+      return "KING_CHAMBER_MSG";
+    case AI_POPUP_TAG_KING_SPECIALIST:
+      return "KING_SPECIALIST";
   }
   return "UNKNOWN";
 }

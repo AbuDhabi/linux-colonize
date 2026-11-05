@@ -336,6 +336,8 @@ static const PopupMsgGraphicRow k_popup_msg_mss[] = {
   {"LOSTOURSCOUTS", 3}, {"WELLSEASONED", 3}, {"DEPLETION", 3},
   /* MSS4 — friar: religion, converts, unrest. */
   {"TUTORIAL19", 4},  {"DEADCONVERTS", 4}, {"UNREST", 4},
+  /* mods.kings_audience: the King's specialist arrives like an @UNREST immigrant. */
+  {"KINGSPECIALOK", 4},
   /* #1220 scan; "MISSION0" + n is digit-patched (ndisasm 0x48b53-0x48c4f); @NEWCOLONIST is
    * FUN_364b_0000 param_6. */
   {"HERESY0", 4},     {"HERESY1", 4},     {"MISSION0", 4},   {"MISSION1", 4},

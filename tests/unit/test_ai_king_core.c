@@ -6,8 +6,11 @@
 
 #include "core/ai.h"
 #include "core/ai_euro.h"
+#include "core/colony_production.h"
 #include "core/dos_buggy.h"
+#include "core/mods.h"
 #include "core/reports.h"
+#include "core/units.h"
 
 static int count_active(const ColonizeUnitPool* units) {
   int n = 0;
@@ -3841,7 +3844,191 @@ static int case_king_frigate_sails_from_europe(void) {
   return 0;
 }
 
+/* mods.kings_audience: FUN_38fd_44a4 grant and FUN_38fd_4590 threshold
+ * arithmetic. */
+static int case_audience_grant_and_threshold(void) {
+  static const int discoverer[] = {600, 500, 500, 400, 400, 300};
+  static const int viceroy[] = {200, 100, 100, 100};
+  for (int k = 0; k < 6; ++k) {
+    if (ai_king_grant_amount(k, 0) != discoverer[k]) {
+      fprintf(stderr, "grant(%d, Discoverer) = %d, want %d\n", k, ai_king_grant_amount(k, 0), discoverer[k]);
+      return 1;
+    }
+  }
+  for (int k = 0; k < 4; ++k) {
+    if (ai_king_grant_amount(k, 4) != viceroy[k]) {
+      fprintf(stderr, "grant(%d, Viceroy) = %d, want %d\n", k, ai_king_grant_amount(k, 4), viceroy[k]);
+      return 1;
+    }
+  }
+  if (ai_king_petition_threshold(0, 0) != 4 || ai_king_petition_threshold(1, 399) != 4 ||
+      ai_king_petition_threshold(2, 0) != 8 || ai_king_petition_threshold(4, 0) != 12 ||
+      ai_king_petition_threshold(4, 400) != 24) {
+    fprintf(stderr, "petition threshold off\n");
+    return 1;
+  }
+  return 0;
+}
+
+/* mods.kings_audience flow: off = every entry a no-op; once per turn (latch
+ * 0x20); 60% refusal; grant order gold -> @KINGTAX hike (hikes + d/2 + 1; DOS
+ * + 5) -> hike counter; specialists; no audience after the declaration.
+ * @AUDIENCE / @KINGGOAWAY / @KINGSPECIAL come from the tracked data/mods
+ * overlay, loaded as the game loads it. */
+static int case_audience_flow(void) {
+  static ColonizeMsgCatalog mod_game;
+  if (mod_game.section_count == 0) {
+    assets_msg_init(&mod_game);
+    assets_set_mod_data_dir("./data/mods");
+    (void)assets_msg_load_file(&mod_game, "COLONIZE/GAME.TXT");
+    assets_set_mod_data_dir("");
+  }
+  if (!assets_msg_find(&mod_game, "AUDIENCE") || !assets_msg_find(&mod_game, "KINGGOAWAY") ||
+      !assets_msg_find(&mod_game, "KINGSPECIAL")) {
+    return fail("audience: GAME.TXT + data/mods must carry @AUDIENCE, @KINGGOAWAY, @KINGSPECIAL");
+  }
+  static ColonizeCol1Save c;
+  col1_save_init(&c);
+  c.head.difficulty = 0;
+  for (int i = 0; i < 4; ++i) {
+    c.player[i].control = 0;
+    memset(&c.nation[i], 0, sizeof(c.nation[i]));
+  }
+  static AiPopupState pops;
+  ai_popup_clear(&pops);
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.messages = &mod_game;
+  ctx.names = test_names_txt();
+  ctx.col1 = &c;
+  ctx.col1_ok = true;
+  ctx.human_nation = 0;
+  ctx.ai_popups = &pops;
+
+  /* Mod off: nothing queued, nothing written. */
+  mods_campaign_set(0);
+  c.nation[0].gold = 100;
+  ai_king_menu_audience(&ctx);
+  ai_king_audience_choice(&ctx, 0, 1);
+  ai_king_audience_grant_accept(&ctx, 0, 600);
+  if (pops.queue_count != 0 || (c.nation[0].nation_flags & 0x20u) || c.nation[0].gold != 100 ||
+      c.nation[0].tax_rate != 0 || c.nation[0].tax_hike_count != 0) {
+    return fail("audience: mod off must be a no-op");
+  }
+
+  mods_campaign_set(1u << MOD_KINGS_AUDIENCE);
+  ai_king_menu_audience(&ctx);
+  const int first = pops.queue_count;
+  if (!(c.nation[0].nation_flags & 0x20u) || first != 2 ||
+      pops.queue[0].tag != AI_POPUP_TAG_KING_CHAMBER_MSG ||
+      pops.queue[1].tag != AI_POPUP_TAG_KING_CHAMBER || pops.queue[1].choice_count != 5) {
+    mods_campaign_set(0);
+    return fail("audience: first visit = latch + greeting + @AUDIENCE choice");
+  }
+  ai_king_menu_audience(&ctx);
+  if (pops.queue_count != first + 1) {
+    mods_campaign_set(0);
+    return fail("audience: second visit the same turn must only get @KINGGOAWAY");
+  }
+
+  ai_popup_clear(&pops);
+  c.nation[0].tax_rate = 60;
+  ai_king_audience_choice(&ctx, 0, 3);
+  if (pops.queue_count != 1 || pops.queue[0].tag != AI_POPUP_TAG_KING_CHAMBER_MSG) {
+    mods_campaign_set(0);
+    return fail("audience: 60% tax must refuse the grant (@KINGNO)");
+  }
+  ai_popup_clear(&pops);
+  c.nation[0].tax_rate = 0;
+  ai_king_audience_grant_accept(&ctx, 0, ai_king_grant_amount(0, 0));
+  if (c.nation[0].gold != 700 || c.nation[0].tax_rate != 1 || c.nation[0].tax_hike_count != 1) {
+    fprintf(stderr, "gold %u tax %u hikes %u\n", (unsigned)c.nation[0].gold,
+            (unsigned)c.nation[0].tax_rate, (unsigned)c.nation[0].tax_hike_count);
+    mods_campaign_set(0);
+    return fail("audience: grant = +600 gold, +1% tax, hike counter 1");
+  }
+
+  /* Specialist: only the Masters / Preacher rows of the Train list, paid by
+   * a tax rise of 1%, then 2%, 4%, ... */
+  static EuropeScreen eu;
+  memset(&eu, 0, sizeof(eu));
+  eu.train_count = 2;
+  snprintf(eu.train[0].expert_name, sizeof(eu.train[0].expert_name), "S");
+  eu.train[0].job_index = UNITS_JOB_SOLDIER;
+  snprintf(eu.train[1].expert_name, sizeof(eu.train[1].expert_name), "G");
+  eu.train[1].job_index = COLONIZE_PROF_GUNSMITH;
+  ctx.europe = &eu;
+  ai_popup_clear(&pops);
+  c.nation[0].tax_rate = 0;
+  ai_king_audience_choice(&ctx, 0, 2);
+  if (pops.queue_count != 1 || pops.queue[0].tag != AI_POPUP_TAG_KING_SPECIALIST ||
+      pops.queue[0].choice_count != 1 || pops.queue[0].choice_ids[0] != COLONIZE_PROF_GUNSMITH ||
+      pops.queue[0].payload != 1) {
+    mods_campaign_set(0);
+    return fail("audience: specialist offer = Gunsmith only, +1% tax");
+  }
+  for (int i = 0; i < 3; ++i) {
+    ai_king_audience_specialist(&ctx, 0, COLONIZE_PROF_GUNSMITH, ai_king_specialist_rise(i));
+  }
+  if (c.nation[0].tax_rate != 7 || eu.dock_count != 3 ||
+      eu.dock[0].profession != COLONIZE_PROF_GUNSMITH || c.nation[0].gold != 700 ||
+      c.nation[0].unknown23_pad[2] != 3) {
+    mods_campaign_set(0);
+    return fail("audience: three specialists = 3 Gunsmiths on the docks, tax 1+2+4, gold kept");
+  }
+
+  /* 75% cap: the fourth costs 8%, so at 67% it is offered (75%) and at 70% refused. */
+  ai_popup_clear(&pops);
+  c.nation[0].tax_rate = 67;
+  ai_king_audience_choice(&ctx, 0, 2);
+  const bool at_cap_offered = pops.queue_count == 1 && pops.queue[0].tag == AI_POPUP_TAG_KING_SPECIALIST &&
+                              pops.queue[0].payload == 8;
+  ai_popup_clear(&pops);
+  c.nation[0].tax_rate = 70;
+  ai_king_audience_choice(&ctx, 0, 2);
+  if (!at_cap_offered || pops.queue_count != 1 || pops.queue[0].tag != AI_POPUP_TAG_KING_CHAMBER_MSG) {
+    mods_campaign_set(0);
+    return fail("audience: a specialist rise past 75% tax must be refused (@KINGNO), up to 75% offered");
+  }
+
+  /* Hot-seat: a second human (nation 1) at the controls, head.human_player
+   * still 0. Latch, tax and specialist count all land on nation 1. */
+  ai_popup_clear(&pops);
+  c.nation[0].tax_rate = 7;
+  c.nation[0].nation_flags = 0;
+  c.nation[1].tax_rate = 0;
+  ctx.human_nation = 1;
+  ai_king_menu_audience(&ctx);
+  ai_popup_clear(&pops);
+  ai_king_audience_choice(&ctx, 1, 2);
+  const bool seat_offer = pops.queue_count == 1 && pops.queue[0].tag == AI_POPUP_TAG_KING_SPECIALIST &&
+                          pops.queue[0].payload == 1;
+  ai_king_audience_specialist(&ctx, 1, COLONIZE_PROF_GUNSMITH, ai_king_specialist_rise(0));
+  ctx.human_nation = 0;
+  if (!seat_offer || !(c.nation[1].nation_flags & 0x20u) || (c.nation[0].nation_flags & 0x20u) ||
+      c.nation[1].unknown23_pad[2] != 1 || c.nation[1].tax_rate != 1 ||
+      c.nation[0].unknown23_pad[2] != 3 || c.nation[0].tax_rate != 7) {
+    mods_campaign_set(0);
+    return fail("audience: hot-seat latch, tax and specialist count must use the seated human");
+  }
+
+  /* Port decision: no audience once independence is declared. */
+  ai_popup_clear(&pops);
+  c.nation[0].nation_flags = 0;
+  ai_king_set_independence(&c, 1);
+  ai_king_menu_audience(&ctx);
+  const bool silent = pops.queue_count == 0 && !(c.nation[0].nation_flags & 0x20u);
+  ai_king_set_independence(&c, 0);
+  mods_campaign_set(0);
+  if (!silent) {
+    return fail("audience: the Crown must not receive rebels");
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+  {"audience_grant_and_threshold", case_audience_grant_and_threshold},
+  {"audience_flow", case_audience_flow},
   {"king_frigate_gate_counts_europe", case_king_frigate_gate_counts_europe},
   {"king_frigate_sails_from_europe", case_king_frigate_sails_from_europe},
   {"dump_goods_pick_api", case_dump_goods_pick_api},

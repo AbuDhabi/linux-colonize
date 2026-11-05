@@ -18,6 +18,7 @@
 #include "core/fb.h"
 #include "core/font.h"
 #include "core/map_panel.h"
+#include "core/mods.h"
 #include "core/screen_geom.h"
 #include "core/ss.h"
 #include "core/strutil.h"
@@ -165,7 +166,8 @@ static const MapMenuAction k_menu_rows_view[] = {
   MAP_MENU_ACTION_FIND_COLONY, MAP_MENU_ACTION_ZOOM_IN, MAP_MENU_ACTION_ZOOM_OUT,
   MAP_MENU_ACTION_ZOOM_LEVEL_120X96, MAP_MENU_ACTION_ZOOM_LEVEL_60X48,
   MAP_MENU_ACTION_ZOOM_LEVEL_30X24, MAP_MENU_ACTION_ZOOM_LEVEL_15X12,
-  MAP_MENU_ACTION_VIEW_HIDDEN_TERRAIN, MAP_MENU_ACTION_CENTER_VIEW
+  MAP_MENU_ACTION_VIEW_HIDDEN_TERRAIN, MAP_MENU_ACTION_CENTER_VIEW,
+  MAP_MENU_ACTION_KING_AUDIENCE /* mods.kings_audience: stock stops at row 12; data/mods appends 13 */
 };
 /* Rows 3 and 4 are both "Fortify" (land 0x302, ship 0x303): the second is
  * the ship's anchor order. */
@@ -312,10 +314,17 @@ static bool map_menu_action_enabled(MapMenuAction action) {
     case MAP_MENU_ACTION_CHEAT_TEST_ROUTINE:
     case MAP_MENU_ACTION_PLAN_PIONEER:
     case MAP_MENU_ACTION_AUTOMATE:
+    case MAP_MENU_ACTION_KING_AUDIENCE:
       return true;
     default:
       return false;
   }
+}
+
+/* The mods.kings_audience row is hidden (so its K hotkey is dead too) unless
+ * the running campaign has the mod on. */
+static bool map_menu_action_visible(MapMenuAction action) {
+  return action != MAP_MENU_ACTION_KING_AUDIENCE || mods_on(MOD_KINGS_AUDIENCE);
 }
 
 void map_menu_init(MapMenuBar* bar) {
@@ -343,7 +352,7 @@ static void map_menu_append_item(
   snprintf(item->label, sizeof(item->label), "%s", label_raw);
   item->action = action;
   item->separator = (action == MAP_MENU_ACTION_SEPARATOR);
-  item->visible = true;
+  item->visible = map_menu_action_visible(action);
   item->enabled = !item->separator && map_menu_action_enabled(action);
   if (item->separator) {
     item->hotkey = 0;
@@ -1031,7 +1040,7 @@ void map_menu_refresh(MapMenuBar* bar, const MapMenuOrdersContext* ctx) {
         it->enabled = false;
         continue;
       }
-      it->visible = true;
+      it->visible = map_menu_action_visible(it->action);
       it->enabled = map_menu_action_enabled(it->action);
       if (it->action == MAP_MENU_ACTION_PLAN_PIONEER) {
         it->visible = ctx && ctx->pioneer_plan;
@@ -1600,6 +1609,8 @@ const char* map_menu_action_name(MapMenuAction action) {
       return "center_view";
     case MAP_MENU_ACTION_PLAN_PIONEER:
       return "plan_pioneer";
+    case MAP_MENU_ACTION_KING_AUDIENCE:
+      return "king_audience";
     case MAP_MENU_ACTION_AUTOMATE:
       return "automate";
     case MAP_MENU_ACTION_VIEW_HIDDEN_TERRAIN:

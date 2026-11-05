@@ -7,6 +7,7 @@
 #include "core/colony.h"
 #include "core/map_menu.h"
 #include "core/map_panel.h"
+#include "core/mods.h"
 #include "core/units.h"
 #include "platform/diagnostics.h"
 
@@ -316,6 +317,47 @@ static int case_mods_menu_overlay(void) {
   if (rc || stock_row != -1 || mods_row != stock_items + 1 || mods_items != stock_items + 2) {
     fprintf(stderr, "mods menu: stock row %d items %d; overlay row %d items %d\n", stock_row,
             stock_items, mods_row, mods_items);
+    return 1;
+  }
+  return 0;
+}
+
+/* mods.kings_audience: the overlay's VIEW row 13 exists but stays hidden (its
+ * K hotkey dead) until the running campaign has the mod on. */
+static int case_kings_audience_row(void) {
+  assets_set_mod_data_dir("./data/mods");
+  Fixture fx;
+  const int rc = fixture_init(&fx);
+  assets_set_mod_data_dir("");
+  if (rc != 0) {
+    return 1;
+  }
+  MapMenuBar* bar = &fx.bar;
+  const MapMenuPulldown* view = &bar->menus[find_section(bar, "VIEW")];
+  const MapMenuItem* row = NULL;
+  for (int i = 0; i < view->item_count; ++i) {
+    if (view->items[i].action == MAP_MENU_ACTION_KING_AUDIENCE) {
+      row = &view->items[i];
+    }
+  }
+  mods_campaign_set(0);
+  MapMenuOrdersContext octx;
+  memset(&octx, 0, sizeof(octx));
+  octx.selected_id = -1;
+  map_menu_refresh(bar, &octx);
+  const bool off_hidden = row && !row->visible && map_menu_view_hotkey(bar, 'K') == MAP_MENU_ACTION_NONE;
+  mods_campaign_set(1u << MOD_KINGS_AUDIENCE);
+  map_menu_refresh(bar, &octx);
+  const bool on_shown =
+    row && row->visible && map_menu_view_hotkey(bar, 'K') == MAP_MENU_ACTION_KING_AUDIENCE;
+  mods_campaign_set(0);
+  fixture_free(&fx);
+  if (!row) {
+    fprintf(stderr, "kings audience: overlay VIEW row 13 missing\n");
+    return 1;
+  }
+  if (!off_hidden || !on_shown) {
+    fprintf(stderr, "kings audience row: off hidden %d, on shown %d\n", off_hidden, on_shown);
     return 1;
   }
   return 0;
@@ -1073,6 +1115,7 @@ static int case_tile_rect_screen_phase(void) {
 
 static const TestCase k_cases[] = {
   {"case_mods_menu_overlay", case_mods_menu_overlay},
+  {"case_kings_audience_row", case_kings_audience_row},
   {"case_mods_overlay_refuses_stock_rows", case_mods_overlay_refuses_stock_rows},
   {"menu_counts_and_titles", case_menu_counts_and_titles},
   {"cheat_items", case_cheat_items},

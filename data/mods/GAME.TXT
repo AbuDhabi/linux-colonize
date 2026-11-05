@@ -49,3 +49,33 @@ with its buildings.
 @VILLAGECROWD
 @width=190
 ^%STRING0 colonies crowd its lands.
+
+;       mods.kings_audience: the cut 38fd:4668 chamber's menu and refusal,
+;       missing from every stock GAME.TXT, plus the King's specialist offer
+;       (%NUMBER0 = the tax rise; the rows are the Train list's Masters and
+;       Firebrand Preacher) and its arrival notice in @UNREST's shape
+;       (%STRING0 = home port, %STRING1 = the expert).
+@AUDIENCE
+@width=190
+"What is it you desire of us?"
+
+Your royal blessing.
+A specialist.
+A royal grant.
+Lower taxes.
+Independence.
+
+@KINGGOAWAY
+@width=190
+"We have already granted you an audience.  Do not
+try our royal patience.  Come back another time."
+
+@KINGSPECIAL
+@width=190
+"Our Royal University shall train one of its masters
+for you.  In return, your tax rate rises by {%NUMBER0%%}."
+
+@KINGSPECIALOK
+@width=190
+By royal decree, the Royal University has trained
+colonists ({%STRING1}), now available in %STRING0.

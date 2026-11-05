@@ -59,6 +59,7 @@ typedef enum MapMenuAction {
   MAP_MENU_ACTION_VIEW_HIDDEN_TERRAIN, /* Show ~Hidden Terrain — H hotkey */
   MAP_MENU_ACTION_CENTER_VIEW,
   MAP_MENU_ACTION_PLAN_PIONEER, /* port-only, divergences.pioneer_plan: toggles the plan overlay */
+  MAP_MENU_ACTION_KING_AUDIENCE, /* mods.kings_audience row 13 (data/mods/MENU.TXT), K hotkey */
 
   /* ORDERS */
   MAP_MENU_ACTION_ACTIVATE_UNIT,

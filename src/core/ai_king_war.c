@@ -1426,6 +1426,19 @@ void ai_king_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState* po
         ai_king_ref_wave(ctx);
       }
       break;
+    case AI_POPUP_TAG_KING_CHAMBER: /* mods.kings_audience */
+      ai_king_audience_choice(ctx, human, popup->result_choice_id);
+      break;
+    case AI_POPUP_TAG_KING_GRANT:
+      if (popup->result_choice_id == AI_KING_CHOICE_ACCEPT) {
+        ai_king_audience_grant_accept(ctx, human, popup->result_payload);
+      }
+      break;
+    case AI_POPUP_TAG_KING_SPECIALIST:
+      if (popup->result_choice_id >= 0) {
+        ai_king_audience_specialist(ctx, human, popup->result_choice_id, popup->result_payload);
+      }
+      break;
     default:
       break;
   }

@@ -56,8 +56,11 @@
  * intervention-announce latch (bit 0x02) use their real 0x5382 bits; the port-only latches pack into the human nation's
  * unknown23_pad[3] (nation+0x1b..+0x1d), confirmed never touched by DOS.
  * Only pad[0] (endgame 0x03, ref-wave-wait 0x04, port REF-present 0x08) and
- * pad[1] (the bit latches below) are in use; pad[2] is reserved — never read
- * or written — so a new latch byte can claim it without a save-format change.
+ * pad[1] (the bit latches below) are DOS-port latches; pad[2] is not a latch:
+ * mods.kings_audience keeps each human nation's count of specialists the King
+ * has trained in that nation's own unknown23_pad[2] (ai_king_audience_specialist,
+ * saturating at 255; hot-seat humans count separately), never touched with
+ * the mod off.
  */
 /* The pad's nation is the power the King follows: DS:0x5398 in hot-seat
  * (col1_fixed_human), else the control-table human — raw head.human_player
@@ -241,6 +244,23 @@ static inline void ai_king_ref_seed_floor(int diff, uint16_t out[4]) {
  * (FUN_43f7_2564). No-op once already at war (status message only).
  */
 void ai_king_menu_declare_independence(ColonizeTurnContext* ctx);
+
+/*
+ * mods.kings_audience: the cut 38fd:4668 King's audience.
+ * ai_king_menu_audience = VIEW menu row / K; ai_king_audience_choice = the
+ * @AUDIENCE answer (rows 1-5); ai_king_audience_grant_accept = @KINGFUND
+ * Accept; ai_king_audience_specialist = a @KINGSPECIAL pick (not DOS: DOS row
+ * 2 opened the normal Train dialog). The amount / threshold helpers are
+ * FUN_38fd_44a4 / FUN_38fd_4590 arithmetic; the specialist's tax rise is 1%
+ * doubled per earlier specialist. Every entry is a no-op with the mod off.
+ */
+void ai_king_menu_audience(ColonizeTurnContext* ctx);
+void ai_king_audience_choice(ColonizeTurnContext* ctx, int human, int choice);
+void ai_king_audience_grant_accept(ColonizeTurnContext* ctx, int human, int grant);
+void ai_king_audience_specialist(ColonizeTurnContext* ctx, int human, int job, int rise);
+int ai_king_specialist_rise(int earlier);
+int ai_king_grant_amount(int hike_count, int difficulty);
+int ai_king_petition_threshold(int difficulty, int turn);
 
 /*
  * CHEAT Advance Revolution Status (Shift-F7, DOS dispatcher case 0x68, ND

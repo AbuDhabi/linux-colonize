@@ -1431,6 +1431,7 @@ char game_key_letter(ColonizeKey key) {
     case COLONIZE_KEY_G: return 'G';
     case COLONIZE_KEY_H: return 'H';
     case COLONIZE_KEY_I: return 'I';
+    case COLONIZE_KEY_K: return 'K';
     case COLONIZE_KEY_L: return 'L';
     case COLONIZE_KEY_M: return 'M';
     case COLONIZE_KEY_N: return 'N';
@@ -1676,6 +1677,15 @@ static bool game_map_blink_running(const ColonizeGameState* game) {
  * game_render_screen paints one of the full-screen views and reports
  * whether it did, and game_render_map paints the overland map otherwise.
  */
+/* The open popup is one of the mods.kings_audience throne-room screens
+ * game_render_fullscreen_takeover draws. */
+static bool game_ai_popup_is_chamber(const ColonizeGameState* game) {
+  const int tag = game->ai_popups.current.tag;
+  return game->ai_popups.open &&
+         (tag == AI_POPUP_TAG_KING_CHAMBER || tag == AI_POPUP_TAG_KING_GRANT ||
+          tag == AI_POPUP_TAG_KING_CHAMBER_MSG);
+}
+
 COLONIZE_INTERNAL bool game_render_fullscreen_takeover(
   const ColonizeGameState* game, ColonizeFramebuffer8* framebuffer, ColonizePalette* palette
 ) {
@@ -1720,6 +1730,50 @@ COLONIZE_INTERNAL bool game_render_fullscreen_takeover(
       framebuffer,
       palette
     );
+    return true;
+  }
+  /* mods.kings_audience: the King's audience chamber happens in the throne
+   * room of the new-game audience (KINGLSS1 + banners + KING1.SS). Port layout
+   * on its scroll (no DOS screen to copy), in the colony screen's FONTTINY: a
+   * choice's question centred on the rolled top (ROLL_*), any plain message on
+   * the sheet below, the answers as buttons under it. The popup's hit box is
+   * the button column, so mouse rows match what is drawn. */
+  if (game_ai_popup_is_chamber(game)) {
+    enum { ROLL_X = 216, ROLL_Y = 9, ROLL_W = 78, SHEET_X = 226, SHEET_Y = 42, SHEET_W = 78 };
+    AiPopupState* st = (AiPopupState*)&game->ai_popups;
+    const ColonizeFont* font = game->colony_font_ok ? &game->colony_font : game_popup_font(game);
+    new_game_render_throne_audience(
+      (NewGameWizard*)&game->new_game, game->resolved_data_dir, game->human_nation, "KING1.SS",
+      NULL, SHEET_X, SHEET_Y, SHEET_W, framebuffer, palette
+    );
+    /* Only the @AUDIENCE question is short enough for the roll; @KINGFUND's
+     * offer stays on the sheet with its two answers below it. */
+    const bool on_roll = st->current.tag == AI_POPUP_TAG_KING_CHAMBER;
+    int text_end = SHEET_Y;
+    if (on_roll) {
+      (void)new_game_render_throne_text(
+        font, palette, st->current.body, ROLL_X, ROLL_Y, ROLL_W, true, framebuffer
+      );
+    } else {
+      text_end = new_game_render_throne_text(
+                   font, palette, st->current.body, SHEET_X, SHEET_Y, SHEET_W, true, framebuffer
+                 ) + 6;
+    }
+    st->dialog_x = SHEET_X;
+    st->dialog_y = text_end;
+    st->dialog_w = SHEET_W;
+    st->dialog_h = framebuffer->height - text_end;
+    if (st->current.choice_count > 0) {
+      const char* labels[AI_POPUP_CHOICE_MAX];
+      for (int i = 0; i < st->current.choice_count && i < AI_POPUP_CHOICE_MAX; ++i) {
+        labels[i] = st->current.choices[i];
+      }
+      st->list_y0 = text_end;
+      st->line_h = new_game_render_throne_buttons(
+        font, palette, labels, st->current.choice_count, st->selection, SHEET_X, text_end, SHEET_W,
+        framebuffer
+      );
+    }
     return true;
   }
   return false;
@@ -2873,7 +2927,10 @@ static void game_render_map_popups(
       /* FUN_130d_0290 raw 6370-6371: the screen is blanked under @MULTINEXT. */
       fb_fill_rect(framebuffer, 0, 0, framebuffer->width, framebuffer->height, 0);
     }
-    if (game->ai_popups.open) {
+    /* A mods.kings_audience throne-room popup is drawn by the takeover; laying
+     * it out here too (the map under an oversize window) would overwrite its
+     * hit box. */
+    if (game->ai_popups.open && !game_ai_popup_is_chamber(game)) {
       ColonizePopupColors popup_cols;
       popup_colors_from_ui(&popup_cols);
       /* Map dialogs use FONTINTR (nation-explanation size), not FONTTINY HUD. */
