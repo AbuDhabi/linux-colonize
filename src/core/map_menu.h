@@ -43,8 +43,6 @@ typedef enum MapMenuAction {
   MAP_MENU_ACTION_DECLARE_INDEPENDENCE,
   MAP_MENU_ACTION_RETIRE,
   MAP_MENU_ACTION_EXIT,
-  MAP_MENU_ACTION_MODS, /* port-only row 10, appended by data/mods/MENU.TXT */
-  MAP_MENU_ACTION_MODS_MORE, /* port-only row 11: the second mods page */
 
   /* VIEW */
   MAP_MENU_ACTION_MOVE_PIECES, /* ~Move Pieces — M hotkey */

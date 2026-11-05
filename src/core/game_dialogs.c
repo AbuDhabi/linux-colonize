@@ -2170,7 +2170,7 @@ static void game_apply_options_result(ColonizeGameState* game) {
         game_settings_commit(&prefs);
         set_status(game, "", NULL);
         /* Title menu row: OK on page 1 goes on to page 2; each page saves on its own OK. */
-        if (game->in_menu && game->options_dlg.mods_first == 0) {
+        if (game->options_dlg.mods_first == 0) {
           (void)options_dialog_open_mods(&game->options_dlg, &game->messages, mask, 1);
         }
       }

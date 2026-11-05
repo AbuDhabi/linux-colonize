@@ -158,9 +158,7 @@ static int map_menu_visible_row_from_item(const MapMenuPulldown* menu, int item_
 static const MapMenuAction k_menu_rows_game[] = {
   U, MAP_MENU_ACTION_OPTIONS, MAP_MENU_ACTION_COLONY_OPTIONS, MAP_MENU_ACTION_SOUND_OPTIONS,
   MAP_MENU_ACTION_PICK_MUSIC, MAP_MENU_ACTION_SAVE, MAP_MENU_ACTION_LOAD,
-  MAP_MENU_ACTION_DECLARE_INDEPENDENCE, MAP_MENU_ACTION_RETIRE, MAP_MENU_ACTION_EXIT,
-  MAP_MENU_ACTION_MODS, /* port-only: stock MENU.TXT stops at row 9; data/mods appends 10, 11 */
-  MAP_MENU_ACTION_MODS_MORE
+  MAP_MENU_ACTION_DECLARE_INDEPENDENCE, MAP_MENU_ACTION_RETIRE, MAP_MENU_ACTION_EXIT
 };
 static const MapMenuAction k_menu_rows_view[] = {
   U, MAP_MENU_ACTION_MOVE_PIECES, MAP_MENU_ACTION_VIEW_PIECES, MAP_MENU_ACTION_EUROPE,
@@ -241,8 +239,6 @@ static bool map_menu_action_enabled(MapMenuAction action) {
     case MAP_MENU_ACTION_DECLARE_INDEPENDENCE:
     case MAP_MENU_ACTION_RETIRE:
     case MAP_MENU_ACTION_EXIT:
-    case MAP_MENU_ACTION_MODS:
-    case MAP_MENU_ACTION_MODS_MORE:
     case MAP_MENU_ACTION_PICK_MUSIC:
     case MAP_MENU_ACTION_OPTIONS:
     case MAP_MENU_ACTION_COLONY_OPTIONS:
@@ -459,13 +455,6 @@ static void map_menu_insert_dos_separators(MapMenuPulldown* menu) {
       const int retire = map_menu_find_action_index(menu, MAP_MENU_ACTION_RETIRE, 0);
       if (retire >= 1) {
         map_menu_insert_separator_at(menu, retire - 1); /* after DECLARE */
-      }
-    }
-    {
-      /* Port-only Mods row: set off below Exit, only when data/mods added it. */
-      const int mods = map_menu_find_action_index(menu, MAP_MENU_ACTION_MODS, 0);
-      if (mods >= 1) {
-        map_menu_insert_separator_at(menu, mods - 1);
       }
     }
     return;
@@ -1585,10 +1574,6 @@ const char* map_menu_action_name(MapMenuAction action) {
       return "retire";
     case MAP_MENU_ACTION_EXIT:
       return "exit";
-    case MAP_MENU_ACTION_MODS:
-      return "mods";
-    case MAP_MENU_ACTION_MODS_MORE:
-      return "mods_more";
     case MAP_MENU_ACTION_PICK_MUSIC:
       return "pick_music";
     case MAP_MENU_ACTION_OPTIONS:

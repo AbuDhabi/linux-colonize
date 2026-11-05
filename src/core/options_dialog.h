@@ -76,7 +76,7 @@ bool options_dialog_open_sound(
 
 /* Mod toggle defaults as a ModId bit mask (mods.h), one row per ModId. The
  * toggles do not fit one 200 px dialog, so they are split over pages: page 0 =
- * GAME row 10 / @MODOPTIONS, page 1 = GAME row 11 / @MODOPTIONS2. */
+ * @MODOPTIONS (the title menu row), page 1 = @MODOPTIONS2 (after OK on page 0). */
 #define OPTIONS_MODS_PAGE_COUNT 2
 bool options_dialog_open_mods(
   OptionsDialog* dlg, const ColonizeMsgCatalog* game_txt, uint32_t mask, int page

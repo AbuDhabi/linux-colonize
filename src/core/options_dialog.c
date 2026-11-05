@@ -184,9 +184,9 @@ bool options_dialog_open_sound(
 }
 
 /*
- * One GAME row and one data/mods @MODOPTIONS* section per page, rows in ModId
- * order. With FONTINTR (glyph_h 9) a row advances 12 px and the prompt wraps to
- * two 10 px lines, so popup_dos_list_height is 35 + 12 * rows: 13 rows is the
+ * One data/mods @MODOPTIONS* section per page, rows in ModId order. With
+ * FONTINTR (glyph_h 9) a row advances 12 px and a prompt of up to two 10 px
+ * lines, so popup_dos_list_height is 35 + 12 * rows: 13 rows is the
  * most that fits the 200 px screen (all 17 would need 239).
  */
 #define OPTIONS_MODS_PAGE_ROWS_MAX 13

@@ -4,12 +4,6 @@
 ;       "N=text" appends row N, which must equal the stock row count.
 ;
 
-;       GAME pulldown rows 10 and 11: the two Mods dialogs (defaults for
-;       new games; @MODOPTIONS and @MODOPTIONS2 in data/mods/GAME.TXT)
-@GAME
-10=  Mods for New Games
-11=  More Mods for New Games
-
 ;       mods.kings_audience: VIEW pulldown row 13 (K), hidden unless the
 ;       running campaign has the mod on.
 @VIEW

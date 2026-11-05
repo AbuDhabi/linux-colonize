@@ -140,17 +140,14 @@ touches a running campaign. A save without the record (DOS, older port saves)
 loads with every mod off; leaving to the title clears the mask. With
 `dos_buggy_behavior()` on (every test binary) a new game gets mask 0.
 
-GAME > Mods for New Games and GAME > More Mods for New Games (rows 10 and 11,
-appended by `data/mods/MENU.TXT`) open two checklists (`data/mods/GAME.TXT`
-`@MODOPTIONS` for ids 0-11, `@MODOPTIONS2` for ids 12 on) that edit these
-defaults and flush the file. Two dialogs because a FONTINTR checklist row is
-12 px: with the two-line prompt at most 13 rows fit the 200 px screen
-(`options_dialog.c` `k_mods_pages`). The title menu reaches the same defaults
-before any game: `data/mods/GAME.TXT` `@MODBEGINMENU` adds one row after every
+The defaults are edited on the title menu only (the in-game GAME pulldown stays
+stock): `data/mods/GAME.TXT` `@MODBEGINMENU` adds one row after every
 `@BEGINMENU` row (after a data dir's quit row too, so stock rows keep their
-numbers); it opens `@MODOPTIONS`, and OK there goes on to `@MODOPTIONS2`. Each
-page saves on its own OK; Esc on page 2 keeps page 1's changes. No overlay, no
-row. `data/mods/*.TXT` is a text overlay that opencol loads from
+numbers). It opens the checklist `@MODOPTIONS` (ids 0-11), and OK there goes on
+to `@MODOPTIONS2` (ids 12 on); each page saves on its own OK and flushes the
+file, Esc on page 2 keeps page 1's changes. No overlay, no row. Two pages
+because a FONTINTR checklist row is 12 px: with a prompt of up to two lines at
+most 13 rows fit the 200 px screen (`options_dialog.c` `k_mods_pages`). `data/mods/*.TXT` is a text overlay that opencol loads from
 `<exe>/data/mods` or `./data/mods`: it may add whole sections or append the next
 row of a stock section, never replace a stock row (refused with a warning).
 

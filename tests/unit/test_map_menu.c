@@ -288,44 +288,34 @@ static int case_reports_and_game_options(void) {
   return 0;
 }
 
-/* data/mods/MENU.TXT appends the Mods row to @GAME only when the mod data dir
- * is set (opencol sets it; tests leave it empty), and the stock rows stay. */
-static int game_menu_shape(int* mods_row, int* more_row, int* items) {
-  Fixture fx;
-  if (fixture_init(&fx) != 0) {
-    return 1;
-  }
-  const int game_i = find_section(&fx.bar, "GAME");
-  *mods_row = -1;
-  *more_row = -1;
-  *items = fx.bar.menus[game_i].item_count;
-  for (int i = 0; i < *items; ++i) {
-    const MapMenuItem* it = &fx.bar.menus[game_i].items[i];
-    if (it->action == MAP_MENU_ACTION_MODS && it->enabled) {
-      *mods_row = i;
-    }
-    if (it->action == MAP_MENU_ACTION_MODS_MORE && it->enabled) {
-      *more_row = i;
-    }
-  }
-  fixture_free(&fx);
-  return 0;
-}
-
+/* The mods checklist lives on the title menu only: with the data/mods overlay
+ * the GAME pulldown is item for item the stock one. */
 static int case_mods_menu_overlay(void) {
-  int stock_row = 0, stock_more = 0, stock_items = 0, mods_row = 0, more_row = 0, mods_items = 0;
-  int rc = game_menu_shape(&stock_row, &stock_more, &stock_items);
-  assets_set_mod_data_dir("./data/mods");
-  rc |= game_menu_shape(&mods_row, &more_row, &mods_items);
-  assets_set_mod_data_dir("");
-  /* Overlay adds a separator, then the two Mods page rows. */
-  if (rc || stock_row != -1 || stock_more != -1 || mods_row != stock_items + 1 ||
-      more_row != stock_items + 2 || mods_items != stock_items + 3) {
-    fprintf(stderr, "mods menu: stock rows %d/%d items %d; overlay rows %d/%d items %d\n",
-            stock_row, stock_more, stock_items, mods_row, more_row, mods_items);
+  static Fixture stock, mods;
+  if (fixture_init(&stock) != 0) {
     return 1;
   }
-  return 0;
+  assets_set_mod_data_dir("./data/mods");
+  const int rc = fixture_init(&mods);
+  assets_set_mod_data_dir("");
+  if (rc != 0) {
+    fixture_free(&stock);
+    return 1;
+  }
+  const MapMenuPulldown* a = &stock.bar.menus[find_section(&stock.bar, "GAME")];
+  const MapMenuPulldown* b = &mods.bar.menus[find_section(&mods.bar, "GAME")];
+  int same = a->item_count == b->item_count;
+  for (int i = 0; same && i < a->item_count; ++i) {
+    same = a->items[i].action == b->items[i].action &&
+           a->items[i].separator == b->items[i].separator &&
+           strcmp(a->items[i].label, b->items[i].label) == 0;
+  }
+  if (!same) {
+    fprintf(stderr, "mods menu: GAME items stock %d, overlay %d\n", a->item_count, b->item_count);
+  }
+  fixture_free(&mods);
+  fixture_free(&stock);
+  return same ? 0 : 1;
 }
 
 /* mods.kings_audience: the overlay's VIEW row 13 exists but stays hidden (its

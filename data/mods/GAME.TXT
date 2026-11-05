@@ -10,13 +10,13 @@
 @options
 MODS for New Games
 
-;       GAME > Mods for New Games: one @options row per toggle, in ModId
-;       order (src/core/mods.h), ModId 0-11. Edits settings.json; a game in
-;       progress keeps the toggles it started with.
+;       Title menu page 1: one @options row per toggle, in ModId order
+;       (src/core/mods.h), ModId 0-11. Edits settings.json; a saved game
+;       keeps the toggles it started with.
 @MODOPTIONS
 @width=220
 @checkbox
-Mods for New Games (this game keeps its own)
+Mods for New Games
 @options
 Natives ~Loot Wagon Trains
 ~Go To Waits at Natives (DOS bug fix)
@@ -31,13 +31,13 @@ Tribe ~Mood Reports
 Scout Es~pionage
 Treaty Cancel ~Notice
 
-;       GAME > More Mods for New Games: ModId 12 on, same rules (all of
-;       them do not fit one 200 px dialog). Hotkeys differ from the rows
-;       above.
+;       Title menu page 2 (after OK on page 1): ModId 12 on, same rules
+;       (all of them do not fit one 200 px dialog). Hotkeys differ from
+;       the rows above.
 @MODOPTIONS2
 @width=220
 @checkbox
-More Mods for New Games (this game keeps its own)
+More Mods for New Games
 @options
 Plan Pi~oneer, Pioneer Automate
 Scouts Auto-~Explore

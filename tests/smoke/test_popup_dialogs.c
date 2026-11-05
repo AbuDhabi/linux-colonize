@@ -1141,7 +1141,7 @@ static int case_save_load_is_fonttiny(void) {
   return rc;
 }
 
-/* GAME > Mods for New Games: the toggles are split over OPTIONS_MODS_PAGE_COUNT
+/* Title menu Mods for New Games: the toggles are split over OPTIONS_MODS_PAGE_COUNT
  * dialogs (data/mods @MODOPTIONS, @MODOPTIONS2) because all of them do not fit
  * 200 px in FONTINTR. Every ModId has exactly one row, every page fits the
  * screen, every row has its own hotkey, and a page only writes its own bits. */
