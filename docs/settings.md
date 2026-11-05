@@ -59,6 +59,7 @@ defaults no matter what file is sitting in the build directory.
     "trace_autosaves": false, "input_logger": false, "input_logger_directory": "./input_logs"
   },
   "divergences": { "unlimited_units": false, "modern_prng": false, "pioneer_plan": false, "current_vision": false, "scout_autoexplore": false, "ship_autoexplore": false, "hard_king": false },
+  "mods": { "wagon_loot": false, "goto_native_wait": true },
   "data_dir": "./COLONIZE",
   "save_dir": "",
   "no_sound": false,
@@ -138,6 +139,28 @@ The veil covers explored tiles plus a 1-tile ring into the unexplored. Layering,
 top first: colony names, fog (pixels the terrain pass left as fog are re-stamped,
 `s_fog_mask`), the veil (`game_render_current_vision`), everything else.
 Render-only, nothing saved.
+
+### Mods
+
+`mods` holds per-feature toggles (`src/core/mods.h`, one `ModId` bit each; ids
+are stable and append-only). DOS bug fixes default on, gameplay changes default
+off. The file holds only the defaults for *new* games: `game_commit_new_campaign`
+snapshots them into the campaign mask (`mods_campaign_set`), the mask rides the
+save in RTST record 17, and code asks `mods_on(id)`. Changing the defaults never
+touches a running campaign. A save without the record (DOS, older port saves)
+loads with every mod off; leaving to the title clears the mask. With
+`dos_buggy_behavior()` on (every test binary) a new game gets mask 0.
+
+GAME > Mods for New Games (row 10, appended by `data/mods/MENU.TXT`) opens a
+checklist (`data/mods/GAME.TXT` `@MODOPTIONS`) that edits these defaults and
+flushes the file. `data/mods/*.TXT` is a text overlay that opencol loads from
+`<exe>/data/mods` or `./data/mods`: it may add whole sections or append the next
+row of a stock section, never replace a stock row (refused with a warning).
+
+| Key | Default | Effect |
+|-----|---------|--------|
+| `wagon_loot` | off | Natives beating a loaded wagon train roll 1..10: 1-2 destroy it (DOS), 3-6 take every hold of one random good (`data/mods` `@MODWAGONLOOT1`), 7-10 take all goods (stock `@LOOTWAGONS`); the wagon survives. Off, or empty wagon: no extra RNG draw. |
+| `goto_native_wait` | on | DOS bug fix (dos_bugs.md DB-75): a human Go To whose goal tile holds a native unit (not a village) stops next to it with the order kept instead of attacking. |
 
 Port-only keys, no DOS bit, no head bridge.
 `save_dir` empty means the platform default (`<exe>/COLONIZE`). `seed` is
