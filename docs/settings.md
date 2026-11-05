@@ -59,7 +59,11 @@ defaults no matter what file is sitting in the build directory.
     "trace_autosaves": false, "input_logger": false, "input_logger_directory": "./input_logs"
   },
   "divergences": { "unlimited_units": false, "modern_prng": false, "pioneer_plan": false, "current_vision": false, "scout_autoexplore": false, "ship_autoexplore": false, "hard_king": false },
-  "mods": { "wagon_loot": false, "goto_native_wait": true },
+  "mods": {
+    "wagon_loot": false, "goto_native_wait": true, "population_floor": false, "raid_scalps": false,
+    "royal_mercy": false, "late_fathers": false, "town_hall_tiers": false, "building_upkeep": false,
+    "kings_audience": false, "tribe_mood": false, "scout_spying": false, "treaty_cancel_popup": false
+  },
   "data_dir": "./COLONIZE",
   "save_dir": "",
   "no_sound": false,
