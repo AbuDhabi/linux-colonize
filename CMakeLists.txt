@@ -90,6 +90,7 @@ add_library(colonize_sim STATIC
   src/core/travel_dest.c
   src/core/dos_rng.c
   src/core/dos_buggy.c
+  src/core/mods.c
   src/core/units.c
   src/core/units_map.c
   src/core/units_combat.c
@@ -810,6 +811,7 @@ set(COLONIZE_SLIM_SOURCES
   src/core/map.c
   src/core/dos_rng.c
   src/core/dos_buggy.c
+  src/core/mods.c
   src/core/strutil.c
   src/core/col1_save.c
   src/core/assets.c
