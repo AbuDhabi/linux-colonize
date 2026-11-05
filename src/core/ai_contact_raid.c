@@ -27,11 +27,13 @@
 #include "core/europe.h"
 #include "core/founding_fathers.h"
 #include "core/map.h"
+#include "core/mods.h"
 #include "core/popup_msg.h"
 #include "core/reports.h"
 #include "core/strutil.h"
 #include "core/units.h"
 #include "core/village_trade_intel.h"
+#include "core/woodcut.h"
 
 #include <stdint.h>
 #include <stdio.h>
@@ -48,6 +50,9 @@
 int ai_contact_s_raid_cargo = -1;  /* DOS local_20 */
 static int ai_contact_s_raid_burn_row = -1;  /* DOS local_a (@BUILDING row 0..0x29) */
 static long ai_contact_s_raid_gold = 0;   /* DOS local_12/local_10 */
+/* MOD_RAID_SCALPS kind 5: the victim the picker rolled (one of the two is >= 0). */
+static int ai_contact_s_scalp_unit = -1;     /* civilian unit id on the colony tile */
+static int ai_contact_s_scalp_colonist = -1; /* colonists[] index */
 
 /* ===================== Raid-kind selection, loot, alarm tail, 1b0e handoff & human-victim chrome (ai_contact_raid_0a88 .. ai_contact_raid_human_chrome) ===================== */
 
@@ -135,6 +140,52 @@ static int ai_contact_raid_09fc(
   return c->has_building[b] ? 1 : 0;
 }
 
+/* MOD_RAID_SCALPS: an unarmed unit of the owner standing on the colony tile
+ * (not aboard): no muskets, attack 0, not a wagon, treasure or ship. */
+static bool ai_contact_scalp_civilian(
+  const ColonizeTurnContext* ctx, const ColonizeColony* c, const ColonizeUnit* u
+) {
+  if (!u->active || u->aboard_ship_id >= 0 || u->x != c->x || u->y != c->y ||
+      u->nation_id != c->nation_id || u->muskets > 0) {
+    return false;
+  }
+  const ColonizeUnitType* t = units_type(ctx->units, u->type_index);
+  return t && t->attack <= 0 && !units_type_is_wagon(t) && !units_type_is_treasure(t) &&
+         !units_type_is_ship(t);
+}
+
+/* MOD_RAID_SCALPS victim pick. Fortress: nobody. Fort: civilians outside the
+ * fence only. Otherwise any colonist (the last one included) or civilian. */
+static bool ai_contact_raid_pick_scalp(
+  ColonizeTurnContext* ctx, ColonizeColony* c, ColonizeDosRng* rng
+) {
+  if (!ctx->units || ai_contact_raid_09fc(ctx, c, COLONY_BUILDING_FORTRESS)) {
+    return false;
+  }
+  const int inside = ai_contact_raid_09fc(ctx, c, COLONY_BUILDING_FORT) ? 0 : c->colonist_count;
+  int outside = 0;
+  for (int i = 0; i < units_slot_end(ctx->units); ++i) {
+    outside += ai_contact_scalp_civilian(ctx, c, &ctx->units->units[i]) ? 1 : 0;
+  }
+  if (inside + outside <= 0) {
+    return false;
+  }
+  int pick = dos_rng_range(rng, 0, inside + outside - 1);
+  if (pick < inside) {
+    ai_contact_s_scalp_colonist = pick;
+    return true;
+  }
+  pick -= inside;
+  for (int i = 0; i < units_slot_end(ctx->units); ++i) {
+    const ColonizeUnit* u = &ctx->units->units[i];
+    if (ai_contact_scalp_civilian(ctx, c, u) && pick-- == 0) {
+      ai_contact_s_scalp_unit = u->id;
+      return true;
+    }
+  }
+  return false;
+}
+
 /*
  * DOS-LITERAL FUN_5fef_0f14 raw 99819-99833 — the kind-1 (goods) cargo pick.
  * A retry loop, NOT a value sort: roll a cargo 0..0xf, retry while the colony
@@ -201,6 +252,8 @@ COLONIZE_INTERNAL AiRaidKind ai_contact_pick_raid_kind(
   ai_contact_s_raid_cargo = -1;
   ai_contact_s_raid_burn_row = -1;
   ai_contact_s_raid_gold = 0;
+  ai_contact_s_scalp_unit = -1;
+  ai_contact_s_scalp_colonist = -1;
   if (!ctx || !c || !rng) {
     return AI_RAID_NOTHING;
   }
@@ -234,18 +287,22 @@ COLONIZE_INTERNAL AiRaidKind ai_contact_pick_raid_kind(
     }
   }
 
-  AiRaidKind kind = (AiRaidKind)dos_rng_range(rng, 1, 4); /* raw 99790 */
+  /* raw 99790. MOD_RAID_SCALPS widens the roll to rand(1,5) (kind 5 = scalp);
+   * off, the same single rand(1,4) draw. */
+  AiRaidKind kind =
+    (AiRaidKind)dos_rng_range(rng, 1, mods_on(MOD_RAID_SCALPS) ? 5 : 4);
 
   /*
    * raw 99791-99795: on Discoverer/Explorer, before turn (difficulty-2)*-0x28
    * (turn 40 / 80), the building and ship kinds collapse to nothing. DS:0x538e
-   * is the turn counter (the 1b0e handoff passes the save's turn).
+   * is the turn counter (the 1b0e handoff passes the save's turn). The mod's
+   * scalp kind gets the same grace.
    */
   if (ctx->turn_number) {
     const int early_raid_cutoff_turn = (difficulty - 2) * -0x28;
     const int turn = (int)*ctx->turn_number;
     if (turn <= early_raid_cutoff_turn && turn != early_raid_cutoff_turn && difficulty < 2 &&
-        (kind == AI_RAID_BURN || kind == AI_RAID_SHIP)) {
+        (kind == AI_RAID_BURN || kind == AI_RAID_SHIP || kind == AI_RAID_SCALP)) {
       kind = AI_RAID_NOTHING;
     }
   }
@@ -365,6 +422,8 @@ COLONIZE_INTERNAL AiRaidKind ai_contact_pick_raid_kind(
     } else {
       ai_contact_s_raid_gold = amt;
     }
+  } else if (kind == AI_RAID_SCALP && !ai_contact_raid_pick_scalp(ctx, c, rng)) {
+    kind = AI_RAID_NOTHING;
   }
   return kind;
 }
@@ -601,6 +660,14 @@ void ai_contact_apply_raid_loot(
     }
     break;
   }
+  case AI_RAID_SCALP:
+    /* MOD_RAID_SCALPS. An emptied colony is abandoned by the caller, after the chrome. */
+    if (ctx && ai_contact_s_scalp_unit >= 0) {
+      (void)units_despawn(ctx->units, ai_contact_s_scalp_unit);
+    } else if (ctx && ai_contact_s_scalp_colonist >= 0) {
+      colonies_kill_colonist(ctx->colonies, ctx->col1, c, ai_contact_s_scalp_colonist);
+    }
+    break;
   default:
     break;
   }
@@ -657,6 +724,7 @@ void ai_contact_apply_raid_loot(
  * AiRaidKind now carries DOS's own `local_6` values, so this is a straight
  * 1:1 table (the port's invented SCALP/WREAK kinds, which used to share the
  * −16 and −12 rows, were deleted 2026-09-23: port_bugs.md #828/#829).
+ * MOD_RAID_SCALPS brings SCALP back as kind 5, mod-on only, on the −16 row.
  */
 COLONIZE_INTERNAL int ai_contact_raid_alarm_delta(AiRaidKind kind) {
   switch (kind) {
@@ -665,6 +733,7 @@ COLONIZE_INTERNAL int ai_contact_raid_alarm_delta(AiRaidKind kind) {
     case AI_RAID_BURN:
       return -12;
     case AI_RAID_SHIP:
+    case AI_RAID_SCALP: /* mod: DOS's own "unit killed" row */
       return -16;
     case AI_RAID_GOLD:
       return -8;
@@ -780,6 +849,15 @@ int ai_contact_colony_raid_repelled_w(
     /* DOS zeroes the WHOLE word, i.e. both friction and attacks. */
     col1_tribe_attitude_set(&col1->tribe[home_tribe_index], euro_nation, 0);
   }
+  /* MOD_RAID_SCALPS took the last colonist: the colony is wiped out. A human
+   * victim gets woodcut 11 the first time, sharing DOS's once-only bit with
+   * the native colony-burn site (units_capture.c). */
+  if (kind == AI_RAID_SCALP && c->colonist_count <= 0) {
+    (void)colonies_abandon(colonies, colony_id);
+    if (ai_contact_euro_is_human(&ctx, euro_nation)) {
+      (void)woodcut_fire(col1, WOODCUT_COLONY_BURNING);
+    }
+  }
   return (int)kind;
 }
 
@@ -798,7 +876,9 @@ static const AiRaidChrome k_raid_chrome[] = {
   {AI_RAID_GOLD, "RAIDGOLD", "", 0x4e, -1, AI_RAID_TOK_GOLD},
   /* @RAIDSTORES; 0x4f = loot goods. */
   {AI_RAID_STORES, "RAIDSTORES", "", 0x4f, -1,
-   AI_RAID_TOK_STORES}
+   AI_RAID_TOK_STORES},
+  /* MOD_RAID_SCALPS @RAIDSCALP (STRING0 tribe, STRING1 colony); only the shared 0x32 cue. */
+  {AI_RAID_SCALP, "RAIDSCALP", "", -1, -1, AI_RAID_TOK_NONE}
   /* @RAIDBURN thin/named rows live below (they depend on the burned building). */
 };
 

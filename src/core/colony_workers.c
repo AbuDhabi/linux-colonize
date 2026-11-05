@@ -1226,6 +1226,30 @@ int colonies_abandon_walk_out(ColonizeColonyPool* pool, int colony_id, ColonizeU
   return walked;
 }
 
+void colonies_kill_colonist(
+  const ColonizeColonyPool* pool, ColonizeCol1Save* col1, ColonizeColony* col, int kill_i
+) {
+  if (!col || kill_i < 0 || kill_i >= col->colonist_count) {
+    return;
+  }
+  for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES_MAX; ++ti) {
+    if ((int)col->tiles[ti] == kill_i) {
+      col->tiles[ti] = (int8_t)-1;
+    } else if ((int)col->tiles[ti] > kill_i) {
+      col->tiles[ti] = (int8_t)((int)col->tiles[ti] - 1);
+    }
+  }
+  colonies_colonist_tail_stash(pool, col);
+  for (int i = kill_i; i < col->colonist_count - 1; ++i) {
+    col->colonists[i] = col->colonists[i + 1];
+  }
+  memset(&col->colonists[col->colonist_count - 1], 0, sizeof(col->colonists[0]));
+  col->colonist_count--;
+  col->population = col->colonist_count;
+  /* FUN_15eb_0d04 also takes 100 off the +0xc6 divisor. */
+  colonies_col1_rebel_divisor_adjust(col1, col->x, col->y, -100);
+}
+
 static int colonies_eject_colonist_impl(
   ColonizeColonyPool* pool,
   int colony_id,

@@ -1569,24 +1569,8 @@ COLONIZE_INTERNAL TurnProduceStatus turn_produce_starve(TurnProduceCtx* pc) {
      * colonist 0 on rand(0, 17)). */
     const int kill_i = rng ? dos_rng_range(rng, 0, colony->colonist_count - 1)
                            : colony->colonist_count - 1;
-    for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES_MAX; ++ti) {
-      if ((int)colony->tiles[ti] == kill_i) {
-        colony->tiles[ti] = (int8_t)-1;
-      } else if ((int)colony->tiles[ti] > kill_i) {
-        colony->tiles[ti] = (int8_t)((int)colony->tiles[ti] - 1);
-      }
-    }
-    colonies_colonist_tail_stash(pool, colony);
-    for (int i = kill_i; i < colony->colonist_count - 1; ++i) {
-      colony->colonists[i] = colony->colonists[i + 1];
-    }
-    memset(
-      &colony->colonists[colony->colonist_count - 1], 0, sizeof(colony->colonists[0])
-    );
-    colony->colonist_count--;
-    colony->population = colony->colonist_count;
     /* 0a9c = FUN_15eb_0d04, which also takes 100 off the +0xc6 divisor. */
-    colonies_col1_rebel_divisor_adjust(col1, colony->x, colony->y, -100);
+    colonies_kill_colonist(pool, col1, colony, kill_i);
     starved_this_tick = 1;
     if (colony->colonist_count <= 0) {
       if (europe && colony->nation_id == human_nation) {

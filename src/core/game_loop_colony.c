@@ -322,9 +322,11 @@ void game_colony_select_colonist(ColonizeGameState* game, int colonist_index);
 void game_colony_select_outside(ColonizeGameState* game, int unit_id);
 
 /* Mod (not DOS): abandoning a colony shows woodcut 12, art and caption DOS
- * ships with no call site, the first time only (DOS's once-only bit). */
+ * ships with no call site, the first time only (DOS's once-only bit). Either
+ * mod that documents it (population floor's ABANDON, raid scalps' abandon
+ * woodcut) turns it on. */
 static void game_colony_abandon_woodcut(ColonizeGameState* game) {
-  if (mods_on(MOD_POPULATION_FLOOR)) {
+  if (mods_on(MOD_POPULATION_FLOOR) || mods_on(MOD_RAID_SCALPS)) {
     (void)woodcut_fire(&game->col1, WOODCUT_COLONY_DESTROYED);
   }
 }

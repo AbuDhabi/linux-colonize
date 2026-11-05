@@ -672,6 +672,11 @@ bool colonies_eject_allowed(const ColonizeColonyPool* pool, const ColonizeColony
  * the tile (floor ignored), then colonies_abandon. Returns units placed, or -1
  * if a spawn was refused (colony kept, minus whoever already left). */
 int colonies_abandon_walk_out(ColonizeColonyPool* pool, int colony_id, ColonizeUnitPool* units);
+/* Remove colonists[kill_i] for good (starve-kill bookkeeping, FUN_15eb_0d04;
+ * also the MOD_RAID_SCALPS victim); the caller abandons an emptied colony. */
+void colonies_kill_colonist(
+  const ColonizeColonyPool* pool, ColonizeCol1Save* col1, ColonizeColony* col, int kill_i
+);
 
 /* True if Stockade, Fort, or Fortress is built (voluntary eject must leave ≥3 pop). */
 bool colonies_has_fortification(const ColonizeColonyPool* pool, const ColonizeColony* colony);

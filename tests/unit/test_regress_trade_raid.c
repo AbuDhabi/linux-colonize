@@ -9,8 +9,10 @@
 #include "core/colony.h"
 #include "core/dos_rng.h"
 #include "core/map.h"
+#include "core/mods.h"
 #include "core/turn.h"
 #include "core/units.h"
+#include "core/world.h"
 
 #include "../common/test_runner.h"
 
@@ -832,7 +834,207 @@ static int case_raid_ship_draws_once(void) {
   return 0;
 }
 
+/*
+ * mods.h MOD_RAID_SCALPS: kind 5 kills one civilian. No Fort: a colonist (the
+ * last one too) or an unarmed unit on the tile; Fort: only the unit outside;
+ * Fortress or mod off: never. A soldier on the tile is never the victim.
+ */
+static ColonizeColonyPool s_scalp_pool;
+static ColonizeUnitPool s_scalp_units;
+static ColonizeCol1Save s_scalp_col1;
+static int s_scalp_excluded[5]; /* soldier, armed, wagon, aboard, foreign */
+
+static void scalp_setup(int walls, int* civ_id, int* sol_id) {
+  colonies_init(&s_scalp_pool);
+  colonies_set_occupancy_map(NULL);
+  s_scalp_pool.building_types[0].row_plus1 = COLONY_BUILDING_FORT + 1;
+  s_scalp_pool.building_types[1].row_plus1 = COLONY_BUILDING_FORTRESS + 1;
+  s_scalp_pool.building_type_count = 2;
+  ColonizeColony* c = &s_scalp_pool.colonies[0];
+  memset(c, 0, sizeof(*c));
+  c->active = true;
+  c->x = 5;
+  c->y = 5;
+  c->building_in_production = -1;
+  c->colonist_count = 1;
+  c->population = 1;
+  c->colonists[0].active = true;
+  memset(c->tiles, -1, sizeof(c->tiles));
+  c->has_building[0] = walls >= 1;
+  c->has_building[1] = walls >= 2;
+  s_scalp_pool.colony_count = 1;
+
+  memset(&s_scalp_units, 0, sizeof(s_scalp_units));
+  units_reset(&s_scalp_units);
+  units_set_occupancy_map(NULL);
+  s_scalp_units.type_count = 3;
+  memset(s_scalp_units.types, 0, 3 * sizeof(s_scalp_units.types[0]));
+  s_scalp_units.types[1].attack = 2;
+  s_scalp_units.types[2].kind_plus1 = UNITS_KIND_WAGON + 1;
+  *civ_id = units_spawn_allow_stack(&s_scalp_units, 0, 5, 5);
+  *sol_id = units_spawn_allow_stack(&s_scalp_units, 1, 5, 5);
+  /* Never victims: armed colonist, wagon, unit aboard a ship, foreign unit. */
+  const int armed = units_spawn_allow_stack(&s_scalp_units, 0, 5, 5);
+  const int wagon = units_spawn_allow_stack(&s_scalp_units, 2, 5, 5);
+  const int aboard = units_spawn_allow_stack(&s_scalp_units, 0, 5, 5);
+  const int foreign = units_spawn_allow_stack(&s_scalp_units, 0, 5, 5);
+  if (armed < 0 || wagon < 0 || aboard < 0 || foreign < 0) {
+    *civ_id = -1;
+    return;
+  }
+  s_scalp_excluded[0] = *sol_id;
+  s_scalp_excluded[1] = armed;
+  s_scalp_excluded[2] = wagon;
+  s_scalp_excluded[3] = aboard;
+  s_scalp_excluded[4] = foreign;
+  units_get(&s_scalp_units, armed)->muskets = 50;
+  units_get(&s_scalp_units, aboard)->aboard_ship_id = wagon;
+  units_get(&s_scalp_units, foreign)->nation_id = 1;
+
+  col1_save_init(&s_scalp_col1);
+  for (int ffi = 0; ffi < (int)COLONIZE_COL1_FF_COUNT; ++ffi) {
+    s_scalp_col1.head.founding_father[ffi] = -1;
+  }
+  s_scalp_col1.head.tribe_count = 0;
+}
+
+/* Over many seeds: counts of {colonist killed, civilian killed, excluded killed};
+ * *kinds5 counts kind-5 results. */
+static void scalp_run(int walls, bool mod, int out[3], int* kinds5) {
+  out[0] = out[1] = out[2] = 0;
+  *kinds5 = 0;
+  mods_campaign_set(mod ? 1u << MOD_RAID_SCALPS : 0u);
+  for (uint32_t seed = 1; seed < 300; ++seed) {
+    int civ = -1;
+    int sol = -1;
+    scalp_setup(walls, &civ, &sol);
+    if (civ < 0 || sol < 0) {
+      out[2] = -1000; /* fixture broken: fail loudly */
+      break;
+    }
+    ColonizeTurnContext ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    ColonizeDosRng rng;
+    dos_rng_seed(&rng, seed * 12345u);
+    ctx.rng = &rng;
+    ctx.units = &s_scalp_units;
+    ctx.colonies = &s_scalp_pool;
+    ctx.col1 = &s_scalp_col1;
+    ctx.col1_ok = true;
+    ColonizeColony* c = &s_scalp_pool.colonies[0];
+    const AiRaidKind k = ai_contact_pick_raid_kind(&ctx, c, 4, 0, &rng, 1);
+    if (k != AI_RAID_SCALP) {
+      continue;
+    }
+    ++*kinds5;
+    ai_contact_apply_raid_loot(&ctx, c, 4, 0, k);
+    out[0] += c->colonist_count == 0;
+    out[1] += !units_get(&s_scalp_units, civ);
+    for (int i = 0; i < 5; ++i) {
+      out[2] += !units_get(&s_scalp_units, s_scalp_excluded[i]);
+    }
+  }
+  mods_campaign_set(0);
+}
+
+static int case_mod_scalp_victims(void) {
+  int n[3];
+  int k5 = 0;
+  scalp_run(0, true, n, &k5);
+  if (n[0] == 0 || n[1] == 0 || n[2] != 0) {
+    fprintf(stderr, "no walls: colonist %d civilian %d excluded %d\n", n[0], n[1], n[2]);
+    return 1;
+  }
+  scalp_run(1, true, n, &k5);
+  if (n[0] != 0 || n[1] == 0 || n[2] != 0) {
+    fprintf(stderr, "fort: colonist %d civilian %d excluded %d\n", n[0], n[1], n[2]);
+    return 1;
+  }
+  scalp_run(2, true, n, &k5);
+  if (k5 != 0) {
+    return fail("fortress: scalp must not happen");
+  }
+  scalp_run(0, false, n, &k5);
+  if (k5 != 0) {
+    return fail("mod off: scalp must not happen");
+  }
+  return 0;
+}
+
+/* Through the real raid entry: no scalps in the Discoverer early-game grace
+ * (turn 0); afterwards, scalping the last colonist wipes the colony. */
+static int case_mod_scalp_wipes_colony(void) {
+  int wiped = 0;
+  mods_campaign_set(1u << MOD_RAID_SCALPS);
+  for (uint32_t seed = 1; seed < 600 && !wiped; ++seed) {
+    const int grace = seed < 300;
+    int civ = -1;
+    int sol = -1;
+    scalp_setup(0, &civ, &sol);
+    s_scalp_col1.player[0].control = 1; /* AI victim: no chrome needed */
+    s_scalp_col1.head.difficulty = grace ? 0 : 2;
+    ColonizeDosRng rng;
+    dos_rng_seed(&rng, seed * 12345u);
+    ColonizeWorld w = world_make(
+      &s_scalp_units, &s_scalp_pool, NULL, &s_scalp_col1, true, &rng, NULL
+    );
+    const int k =
+      ai_contact_colony_raid_repelled_w(&w, 4, 0, s_scalp_pool.colonies[0].id, -1, 1, -1);
+    const ColonizeColony* c = colonies_get(&s_scalp_pool, s_scalp_pool.colonies[0].id);
+    if (grace && k == AI_RAID_SCALP) {
+      mods_campaign_set(0);
+      return fail("scalp during the early-game grace");
+    }
+    if (k == AI_RAID_SCALP && units_get(&s_scalp_units, civ)) {
+      wiped = !c || !c->active;
+      if (!wiped) {
+        mods_campaign_set(0);
+        return fail("last colonist scalped but the colony survived");
+      }
+    }
+  }
+  mods_campaign_set(0);
+  return wiped ? 0 : fail("no seed scalped the last colonist");
+}
+
+/* MOD_RAID_SCALPS off: the kind roll is exactly one rand(1,4) after the walls
+ * roll. Bare context (no colonies, units or save), so the ship and gold kinds
+ * draw nothing more: the stream after the pick equals a hand-replayed
+ * reseed + rand(0,12) + rand(1,4). */
+static int case_mod_scalp_off_one_kind_draw(void) {
+  int checked = 0;
+  for (uint32_t seed = 1; seed < 200; ++seed) {
+    ColonizeDosRng rb;
+    dos_rng_seed(&rb, seed * 12345u);
+    dos_rng_reseed_83a6(&rb);
+    (void)dos_rng_range(&rb, 0, 12);
+    const int want_kind = dos_rng_range(&rb, 1, 4);
+    if (want_kind != AI_RAID_SHIP && want_kind != AI_RAID_GOLD) {
+      continue;
+    }
+    ColonizeDosRng ra;
+    dos_rng_seed(&ra, seed * 12345u);
+    ColonizeTurnContext ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    ColonizeColony c;
+    memset(&c, 0, sizeof(c));
+    c.active = true;
+    c.x = 5;
+    c.y = 5;
+    (void)ai_contact_pick_raid_kind(&ctx, &c, 4, 0, &ra, 1);
+    if (dos_rng_range(&ra, 0, 0x7fff) != dos_rng_range(&rb, 0, 0x7fff)) {
+      fprintf(stderr, "seed %u: stream diverged after the kind roll\n", seed);
+      return fail("mod off: the raid kind roll must be one rand(1,4) draw");
+    }
+    ++checked;
+  }
+  return checked > 0 ? 0 : fail("no seed reached the ship or gold kind");
+}
+
 static const TestCase k_cases[] = {
+    {"case_mod_scalp_off_one_kind_draw", case_mod_scalp_off_one_kind_draw},
+    {"case_mod_scalp_victims", case_mod_scalp_victims},
+    {"case_mod_scalp_wipes_colony", case_mod_scalp_wipes_colony},
     {"case_raid_ship_draws_once", case_raid_ship_draws_once},
     {"case_raid_ship_is_chain_head", case_raid_ship_is_chain_head},
     {"case_burn_ignores_expansion_mirror", case_burn_ignores_expansion_mirror},

@@ -190,7 +190,7 @@ Continue / Zoom rows, MSS figure; popups.md "Colony-event choices"). The
 | `@RAIDWREAK` | Done | Third-party news bulletin, not a loot kind: `FUN_5fef_0f14` raw 99895-99899 `FUN_281f_0652(0x1b8a, 3)` once per successful raid on a non-human colony, %STRING3 = victim @NATIONALITY (`ai_contact_raid_wreak_bulletin`, `ai_contact_raid.c`; port_bugs.md #829) |
 | `@RAIDSTORES` | Done | real GAME.TXT body incl. drained cargo name via `popup_msg_fill` (re-verified 2026-09-16) |
 | `@RAIDBURN` | Done | real GAME.TXT body when a building was actually destroyed (named via `s_last_burn_building`); construction-cleared/lumber-drained sub-cases keep the thin paraphrase (no object to name) |
-| `@RAIDSCALP` | Done | real GAME.TXT body via `popup_msg_fill` (re-verified 2026-09-16) |
+| `@RAIDSCALP` | Mod only | dead in DOS (no DS string, port_bugs.md #828); raised by the `mods.raid_scalps` raid kind 5 (`ai_contact_raid.c`) |
 | `@RAIDSHIP` | Done | real GAME.TXT body incl. `units_display_name` via `popup_msg_fill` (re-verified 2026-09-16) |
 | `@RAIDGOLD` | Done | real GAME.TXT body incl. drained amount (`%NUMBER0`) via `popup_msg_fill` (re-verified 2026-09-16) |
 | `@MISSION0` | Done | `ai_contact_establish_mission` picks the band (`MISSION` + 0-3, exactly DOS's digit patch of the DS `"MISSION0"` stem) and fills the real GAME.TXT body — nation / colony / season / year / tribe tokens |

@@ -50,13 +50,16 @@ void ai_contact_reset(void);
  * is no fifth kind: @RAIDSCALP is dead GAME.TXT text with no DS string in
  * VICEROY.EXE (port_bugs.md #828), and @RAIDWREAK (0x1b8a) is the third-party
  * "Spies report" bulletin, not a loot kind (raw 99897-99899, port_bugs.md #829).
+ * AI_RAID_SCALP is mods.h MOD_RAID_SCALPS only: the roll widens to rand(1,5)
+ * and kind 5 kills one civilian, using the dead @RAIDSCALP text.
  */
 typedef enum AiRaidKind {
   AI_RAID_NOTHING = 0,
   AI_RAID_STORES = 1,  /* @RAIDSTORES 0x1b94 — warehouse cargo */
   AI_RAID_BURN = 2,    /* @RAIDBURN   0x1b9f — a building */
   AI_RAID_SHIP = 3,    /* @RAIDSHIP   0x1ba8 — a ship in the port */
-  AI_RAID_GOLD = 4     /* @RAIDGOLD   0x1bb1 — treasury */
+  AI_RAID_GOLD = 4,    /* @RAIDGOLD   0x1bb1 — treasury */
+  AI_RAID_SCALP = 5    /* mod: @RAIDSCALP — one colonist or civilian killed */
 } AiRaidKind;
 
 /*
