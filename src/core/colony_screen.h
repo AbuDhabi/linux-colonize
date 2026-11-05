@@ -345,6 +345,8 @@ typedef struct ColonyScreenView {
    * raw 51373-51376). 0,0 = the colony tile, DOS's static 2,2. */
   int area_dx;
   int area_dy;
+  /* MOD_TOWN_HALL_TIERS: first appended BDARK sprite in `buildings`, 0 = none. */
+  int town_hall_art;
 
   bool construction_open;
   int construction_selection; /* entry (0 = the clear row) */
@@ -581,6 +583,13 @@ void colony_screen_close_dock_orders(ColonyScreenView* view);
 void colony_screen_close_message(ColonyScreenView* view);
 
 void colony_screen_minimap_origin(int* out_x, int* out_y);
+/* Area panel side in cells: 3 (DOS), 5 with MOD_TOWN_HALL_TIERS on. */
+int colony_screen_minimap_grid(void);
+/* MOD_TOWN_HALL_TIERS art (colony_screen.c): append BDARK 9/11 to a
+ * BUILDING.SS sheet (returns their first index, 0 = none) and map a Town Hall
+ * tier row to its sprite. */
+int colony_screen_splice_town_hall_art(ColonizeSpriteSheet* buildings, const char* data_dir);
+int colony_screen_town_hall_sprite(int art_base, int row);
 
 void colony_screen_refresh_transports(
   ColonyScreenView* view,

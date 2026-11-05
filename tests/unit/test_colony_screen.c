@@ -9,6 +9,7 @@
 #include "core/cheat_list_dialog.h"
 #include "core/font_file.h"
 #include "core/map.h"
+#include "core/mods.h"
 #include "core/popup.h"
 #include "core/popup_msg.h"
 #include "core/reports.h"
@@ -2979,6 +2980,110 @@ static int unit_keyboard_focus_is_dos(void) {
   return view.focus == COLONY_FOCUS_SHIPS ? 0 : 1;
 }
 
+/*
+ * MOD_TOWN_HALL_TIERS area view: the keyboard cursor wraps over the 5x5 and
+ * moves from an outer plot to its neighbour; a corner click is swallowed (no
+ * plot, no centre toggle); outer plots hit as plots 8..19. Off: the DOS 3x3
+ * wrap and hit are unchanged. The tier sprite helper returns the stock row
+ * when the mod is off or the art is missing.
+ */
+static int area_hit(int cx, int cy, ColonyScreenHitResult* out) {
+  int ox = 0;
+  int oy = 0;
+  colony_screen_minimap_origin(&ox, &oy);
+  ColonyScreenHitCtx a;
+  memset(&a, 0, sizeof(a));
+  a.mx = ox + cx * COLONY_MINIMAP_TILE + 1;
+  a.my = oy + cy * COLONY_MINIMAP_TILE + 1;
+  const bool owned = colony_screen_hit_area_tiles(&a);
+  *out = a.hit;
+  return owned ? 1 : 0;
+}
+
+static int unit_town_hall_tiers_area_view(void) {
+  ColonyScreenView view;
+  memset(&view, 0, sizeof(view));
+  ColonizeColony colony;
+  memset(&colony, 0, sizeof(colony));
+  colony.active = true;
+  view.focus = COLONY_FOCUS_AREA;
+  ColonyScreenHitResult hit;
+  int rc = 0;
+  /* Off: 3x3 wrap, top-left cell is plot (-1,-1). */
+  view.area_dx = 1;
+  view.area_dy = 0;
+  (void)colony_screen_focus_key(&view, &colony, NULL, COLONIZE_KEY_RIGHT);
+  if (view.area_dx != -1 || view.area_dy != 0) {
+    fprintf(stderr, "tiers off: right from 1 -> %d (want -1)\n", view.area_dx);
+    rc = 1;
+  }
+  if (!area_hit(0, 0, &hit) || hit.kind != COLONY_HIT_AREA_TILE ||
+      hit.index != colonies_field_tile_index(-1, -1)) {
+    fprintf(stderr, "tiers off: top-left hit kind %d index %d\n", (int)hit.kind, hit.index);
+    rc = 1;
+  }
+  if (colony_screen_town_hall_sprite(50, COLONY_BUILDING_TOWN_HALL) != COLONY_BUILDING_TOWN_HALL ||
+      colony_screen_town_hall_sprite(50, COLONY_BUILDING_TOWN_HALL_3) != COLONY_BUILDING_TOWN_HALL_3) {
+    fprintf(stderr, "tiers off: tier sprite must be the stock row\n");
+    rc = 1;
+  }
+
+  mods_campaign_set(1u << MOD_TOWN_HALL_TIERS);
+  view.area_dx = 1;
+  view.area_dy = 0;
+  (void)colony_screen_focus_key(&view, &colony, NULL, COLONIZE_KEY_RIGHT);
+  if (view.area_dx != 2) {
+    fprintf(stderr, "tiers on: right from 1 -> %d (want 2)\n", view.area_dx);
+    rc = 1;
+  }
+  (void)colony_screen_focus_key(&view, &colony, NULL, COLONIZE_KEY_RIGHT);
+  if (view.area_dx != -2) {
+    fprintf(stderr, "tiers on: right from 2 -> %d (want wrap to -2)\n", view.area_dx);
+    rc = 1;
+  }
+  /* A mouse-picked outer plot: arrows step to the neighbour, not a 3x3 cell. */
+  view.area_dx = -2;
+  view.area_dy = 2;
+  (void)colony_screen_focus_key(&view, &colony, NULL, COLONIZE_KEY_UP);
+  if (view.area_dx != -2 || view.area_dy != 1) {
+    fprintf(stderr, "tiers on: up from (-2,2) -> (%d,%d)\n", view.area_dx, view.area_dy);
+    rc = 1;
+  }
+  view.area_dx = 2;
+  view.area_dy = -1;
+  (void)colony_screen_focus_key(&view, &colony, NULL, COLONIZE_KEY_LEFT);
+  if (view.area_dx != 1 || view.area_dy != -1) {
+    fprintf(stderr, "tiers on: left from (2,-1) -> (%d,%d)\n", view.area_dx, view.area_dy);
+    rc = 1;
+  }
+  if (!area_hit(0, 0, &hit) || hit.kind != COLONY_HIT_NONE) {
+    fprintf(stderr, "tiers on: corner hit kind %d (want swallowed)\n", (int)hit.kind);
+    rc = 1;
+  }
+  if (!area_hit(4, 4, &hit) || hit.kind != COLONY_HIT_NONE) {
+    fprintf(stderr, "tiers on: far corner hit kind %d (want swallowed)\n", (int)hit.kind);
+    rc = 1;
+  }
+  if (!area_hit(2, 0, &hit) || hit.kind != COLONY_HIT_AREA_TILE ||
+      hit.index != colonies_field_tile_index(0, -2) || hit.index < COLONIZE_COLONY_FIELD_TILES) {
+    fprintf(stderr, "tiers on: (0,-2) hit kind %d index %d\n", (int)hit.kind, hit.index);
+    rc = 1;
+  }
+  if (!area_hit(2, 2, &hit) || hit.kind != COLONY_HIT_AREA_INTERIOR) {
+    fprintf(stderr, "tiers on: centre hit kind %d\n", (int)hit.kind);
+    rc = 1;
+  }
+  if (colony_screen_town_hall_sprite(0, COLONY_BUILDING_TOWN_HALL) != COLONY_BUILDING_TOWN_HALL ||
+      colony_screen_town_hall_sprite(50, COLONY_BUILDING_TOWN_HALL) != 50 ||
+      colony_screen_town_hall_sprite(50, COLONY_BUILDING_TOWN_HALL_2) != COLONY_BUILDING_TOWN_HALL ||
+      colony_screen_town_hall_sprite(50, COLONY_BUILDING_TOWN_HALL_3) != 51) {
+    fprintf(stderr, "tiers on: tier sprite mapping\n");
+    rc = 1;
+  }
+  mods_campaign_set(0);
+  return rc;
+}
+
 static int unit_plot_eviction_1080(void) {
   ColonizeMsgCatalog names;
   assets_msg_init(&names);
@@ -3805,6 +3910,7 @@ static int unit_spy_view_draws_no_selection_boxes(void) {
 
 static const TestCase k_cases[] = {
     {"unit_spy_view_draws_no_selection_boxes", unit_spy_view_draws_no_selection_boxes},
+    {"unit_town_hall_tiers_area_view", unit_town_hall_tiers_area_view},
     {"unit_minimap_draws_adjacent_village", unit_minimap_draws_adjacent_village},
     {"unit_sub_dialogs_are_dos", unit_sub_dialogs_are_dos},
     {"unit_sub_dialog_pages_are_dos", unit_sub_dialog_pages_are_dos},

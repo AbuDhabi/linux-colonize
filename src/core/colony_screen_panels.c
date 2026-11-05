@@ -761,7 +761,7 @@ void colony_screen_draw_multifunction(
     }
     if (font) {
       if (bt) {
-        snprintf(line, sizeof(line), "%s", bt->name);
+        snprintf(line, sizeof(line), "%s", colonies_building_name(pool, colony->building_in_production));
       } else if (unit_name) {
         snprintf(line, sizeof(line), "%s", unit_name);
       } else {

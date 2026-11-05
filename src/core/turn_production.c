@@ -348,7 +348,7 @@ static bool turn_emit_needtools_notice(
     if (bip < COLONIZE_BUILDING_TYPES_MAX && colony->has_building[bip]) {
       return false;
     }
-    pname = bt->name;
+    pname = colonies_building_name(pool, bip);
     hammers_need = bt->hammers;
     tools_cost = bt->tools_cost;
   }
@@ -1735,7 +1735,7 @@ COLONIZE_INTERNAL void turn_produce_hammers(TurnProduceCtx* pc) {
       if (colony->building_in_production >= 0) {
         const int bip = colony->building_in_production;
         const ColonizeBuildingType* bt = colonies_building_type(pool, bip);
-        const char* bname = bt ? bt->name : NULL;
+        const char* bname = bt ? colonies_building_name(pool, bip) : NULL;
         if (colonies_try_complete_building(pool, colony->id)) {
           if (delta) {
             delta->building_completed = true;
@@ -1790,7 +1790,7 @@ COLONIZE_INTERNAL void turn_produce_hammers(TurnProduceCtx* pc) {
         PopupMsgTokens tok;
         memset(&tok, 0, sizeof(tok));
         tok.string0 = colony->name[0] ? colony->name : "";
-        tok.string1 = bt->name[0] ? bt->name : "";
+        tok.string1 = colonies_building_name(pool, bip);
         /* Popup only — DOS does not replace the Phase K status line here.
          * GAME.TXT @ALREADYHAVE; catalog miss = "" (port_bugs.md #1100). */
         popup_msg_fill(messages, "ALREADYHAVE", &tok, "", body, sizeof(body));

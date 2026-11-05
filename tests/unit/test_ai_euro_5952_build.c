@@ -228,6 +228,52 @@ static int case_try_build_recurses_to_parent(void) {
   return 0;
 }
 
+/*
+ * MOD_TOWN_HALL_TIERS makes @BUILDING rows 10/11 buildable, but the cascade
+ * names fixed DOS ids only and its table has no Town Hall rows, so it never
+ * picks them: the tiers are a player choice. Checked across populations and
+ * with the head of the cascade already built.
+ */
+static int case_cascade_never_names_town_hall_tiers(void) {
+  static const int pops[] = {4, 8, 12, 20};
+  int rc = 0;
+  mods_campaign_set(1u << MOD_TOWN_HALL_TIERS);
+  for (int full = 0; full < 2 && rc == 0; ++full) {
+    for (size_t p = 0; p < sizeof pops / sizeof pops[0] && rc == 0; ++p) {
+      Fx f;
+      if (fx_build(&f, pops[p]) != 0) {
+        rc = 1;
+        break;
+      }
+      const int row9 = colonies_building_row(&f.colonies, COLONY_BUILDING_TOWN_HALL);
+      const int row10 = colonies_building_row(&f.colonies, COLONY_BUILDING_TOWN_HALL_2);
+      const int row11 = colonies_building_row(&f.colonies, COLONY_BUILDING_TOWN_HALL_3);
+      f.col->has_building[row9] = true;
+      if (full) {
+        own_all_before_naval(&f);
+        own_full_weaver_chain(&f);
+        f.col->has_building[row10] = pops[p] >= 8; /* row 11 then buildable */
+      }
+      int ids[COLONIZE_BUILDING_TYPES_MAX];
+      const int n = colonies_list_buildable(&f.colonies, f.col->id, ids, COLONIZE_BUILDING_TYPES_MAX, NULL);
+      bool tier_offered = false;
+      for (int i = 0; i < n; ++i) {
+        tier_offered |= ids[i] == row10 || ids[i] == row11;
+      }
+      ai_euro_5952_build_cascade(&f.ctx, f.col);
+      const int got = f.col->building_in_production;
+      fx_done(&f);
+      if (!tier_offered) {
+        rc = fail("tier row not buildable: the case proves nothing");
+      } else if (got == row10 || got == row11) {
+        rc = fail("cascade named a Town Hall tier");
+      }
+    }
+  }
+  mods_campaign_set(0);
+  return rc;
+}
+
 /* ---- the five unit projects ------------------------------------------ */
 
 /*
@@ -1845,6 +1891,7 @@ static const TestCase k_cases[] = {
   {"case_docks_when_ring_worked_out", case_docks_when_ring_worked_out},
   {"case_small_colony_wants_construction", case_small_colony_wants_construction},
   {"case_try_build_recurses_to_parent", case_try_build_recurses_to_parent},
+  {"case_cascade_never_names_town_hall_tiers", case_cascade_never_names_town_hall_tiers},
   {"case_wagon_train_pick", case_wagon_train_pick},
   {"case_wagon_train_blocked_by_ring1_threat", case_wagon_train_blocked_by_ring1_threat},
   {"case_church_gate_reads_preacher_census", case_church_gate_reads_preacher_census},

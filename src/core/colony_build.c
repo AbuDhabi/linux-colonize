@@ -24,6 +24,7 @@
 #include "core/colony_production.h"
 #include "core/colony_yield.h"
 #include "core/europe.h"
+#include "core/mods.h"
 #include "core/ss.h"
 #include "core/strutil.h"
 #include "core/units_cargo.h"
@@ -1193,6 +1194,14 @@ static bool colonies_building_is_buildable(
      * is not, but its predecessor is the Capitol. */
     case COLONY_BUILDING_TOWN_HALL_2:
     case COLONY_BUILDING_TOWN_HALL_3:
+      /* MOD_TOWN_HALL_TIERS (not DOS): the cut upgrades, each on the tier
+       * below it (DOS's predecessor byte; the port's Town Hall chain stops at
+       * row 9, see k_chain_rows). */
+      if (mods_on(MOD_TOWN_HALL_TIERS)) {
+        return pop_ok && colonies_has_building_row(pool, col, (ColonizeBuildingRow)(row - 1)) &&
+               !colonies_has_building_row(pool, col, (ColonizeBuildingRow)row);
+      }
+      return false;
     case COLONY_BUILDING_CAPITOL:
       return false;
     default:

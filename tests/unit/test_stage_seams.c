@@ -2976,6 +2976,109 @@ static int test_join_colony_recomputes_plots(void) {
 }
 
 /*
+ * MOD_TOWN_HALL_TIERS: a colony owning @BUILDING rows 0x0a/0x0b works plots 8..19
+ * (colonies_work_plot_count). With the mod on, a click on the selected colonist's own outer
+ * plot opens the jobs menu for that plot, and a pick keeps him seated there on the new job.
+ * With the mod off the screen keeps DOS's 3x3: plot 8 opens nothing even with both rows.
+ */
+static int test_colony_jobs_menu_outer_plot_tiers(void) {
+  static ColonizeGameState game;
+  ColonizeMsgCatalog names;
+  if (!jobs_menu_fixture(&game, &names)) {
+    return fail("jobs fixture");
+  }
+  ColonizeColony* col = &game.colonies.colonies[0];
+  ColonizeColonist* c = &col->colonists[0];
+  ColonyScreenView* csv = &game.colony_screen;
+  col->has_building[colonies_building_row(&game.colonies, COLONY_BUILDING_TOWN_HALL_2)] = true;
+  col->has_building[colonies_building_row(&game.colonies, COLONY_BUILDING_TOWN_HALL_3)] = true;
+  int rc = 0;
+  colony_screen_open_jobs(csv, &game.colonies, &game.world_map, &game.units, col,
+                          COLONIZE_COLONY_FIELD_TILES);
+  if (csv->jobs_open) {
+    rc = fail("mod off: plot 8 must not open the jobs menu");
+  }
+  mods_campaign_set(1u << MOD_TOWN_HALL_TIERS);
+  for (int tile = COLONIZE_COLONY_FIELD_TILES; tile < COLONIZE_COLONY_FIELD_TILES_MAX && !rc;
+       ++tile) {
+    int dx = 0;
+    int dy = 0;
+    colonies_field_tile_delta(tile, &dx, &dy);
+    game.world_map.terrain[(8 + dy) * 16 + 8 + dx] = 3;
+    game.world_map.layer3[(8 + dy) * 16 + 8 + dx] = 0xf0;
+    for (int i = 0; i < COLONIZE_COLONY_FIELD_TILES_MAX; ++i) {
+      col->tiles[i] = -1;
+    }
+    col->tiles[tile] = 0;
+    c->building_type = -1;
+    c->field_job = COLONIZE_JOB_FARMER;
+    colony_screen_close_jobs(csv);
+    game_colony_area_tile_drop(&game, col, &game.world_map, tile);
+    if (!csv->jobs_open || csv->jobs_tile_index != tile || csv->job_count <= 0) {
+      fprintf(stderr, "  tile %d: open=%d tile_index=%d rows=%d\n", tile, (int)csv->jobs_open,
+              csv->jobs_tile_index, csv->job_count);
+      rc = fail("mod on: a click on the selected colonist's outer plot must open its jobs menu");
+      break;
+    }
+    game_colony_commit_job(&game, col, COLONIZE_JOB_LUMBERJACK);
+    if (csv->jobs_open || col->tiles[tile] != 0 || c->field_job != COLONIZE_JOB_LUMBERJACK) {
+      fprintf(stderr, "  tile %d: tiles=%d job=%d\n", tile, col->tiles[tile], c->field_job);
+      rc = fail("mod on: an outer-plot job pick must keep the colonist on that plot");
+    }
+  }
+  /* Row 10 only (radius |dx|+|dy| < 3): a shaded outer plot refuses the colonist, an
+   * unshaded one takes him. */
+  col->has_building[colonies_building_row(&game.colonies, COLONY_BUILDING_TOWN_HALL_3)] = false;
+  {
+    int shaded = -1;
+    int open = -1;
+    for (int tile = COLONIZE_COLONY_FIELD_TILES; tile < COLONIZE_COLONY_FIELD_TILES_MAX; ++tile) {
+      int dx = 0;
+      int dy = 0;
+      colonies_field_tile_delta(tile, &dx, &dy);
+      if (abs(dx) + abs(dy) >= 3) {
+        shaded = shaded < 0 ? tile : shaded;
+      } else if (tile != COLONIZE_COLONY_FIELD_TILES) {
+        open = open < 0 ? tile : open;
+      }
+    }
+    for (int i = 0; i < COLONIZE_COLONY_FIELD_TILES_MAX; ++i) {
+      col->tiles[i] = -1;
+    }
+    col->tiles[COLONIZE_COLONY_FIELD_TILES] = 0;
+    c->building_type = -1;
+    c->field_job = COLONIZE_JOB_FARMER;
+    colony_screen_close_jobs(csv);
+    const ColonizeWorld w = game_world(&game);
+    if (!rc && (shaded < 0 || open < 0 || colonies_plot_blocked_mask(&w, col, shaded) == 0)) {
+      rc = fail("row 10 only: expected a shaded outer plot and an open one");
+    }
+    game_colony_area_tile_drop(&game, col, &game.world_map, shaded);
+    if (!rc && (col->tiles[shaded] != -1 || col->tiles[COLONIZE_COLONY_FIELD_TILES] != 0 || csv->jobs_open)) {
+      rc = fail("row 10 only: a shaded outer plot must refuse the colonist");
+    }
+    game_colony_area_tile_drop(&game, col, &game.world_map, open);
+    if (!rc && col->tiles[open] != 0) {
+      fprintf(stderr, "  open tile %d: tiles=%d\n", open, col->tiles[open]);
+      rc = fail("row 10 only: an unshaded outer plot must take the colonist");
+    }
+  }
+  /* Without the upgrades the colony works only the 3x3: an outer plot opens nothing. */
+  col->has_building[colonies_building_row(&game.colonies, COLONY_BUILDING_TOWN_HALL_2)] = false;
+  col->has_building[colonies_building_row(&game.colonies, COLONY_BUILDING_TOWN_HALL_3)] = false;
+  colony_screen_close_jobs(csv);
+  colony_screen_open_jobs(csv, &game.colonies, &game.world_map, &game.units, col,
+                          COLONIZE_COLONY_FIELD_TILES);
+  if (!rc && csv->jobs_open) {
+    rc = fail("mod on, no upgrades: plot 8 must not open the jobs menu");
+  }
+  mods_campaign_set(0);
+  fx_map_free(&game.world_map);
+  assets_msg_free(&names);
+  return rc;
+}
+
+/*
  * docs/dos_bugs.md DB-54 (port_bugs.md #1205): DOS's jobs menu stamps each elected plot and
  * zeroes the job counter just by opening; the port's opening changes nothing.
  */
@@ -5714,6 +5817,7 @@ static const TestCase k_cases[] = {
     {"test_colony_fence_unit_jobs_list", test_colony_fence_unit_jobs_list},
     {"test_colony_fence_unit_jobs_extras", test_colony_fence_unit_jobs_extras},
     {"test_colony_jobs_menu_open_has_no_side_effects", test_colony_jobs_menu_open_has_no_side_effects},
+    {"test_colony_jobs_menu_outer_plot_tiers", test_colony_jobs_menu_outer_plot_tiers},
     {"test_join_colony_recomputes_plots", test_join_colony_recomputes_plots},
     {"test_game_world_view", test_game_world_view},
     {"test_goto_place_opens_travelplace_list", test_goto_place_opens_travelplace_list},

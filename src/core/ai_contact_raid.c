@@ -64,6 +64,13 @@ static int ai_contact_s_scalp_colonist = -1; /* colonists[] index */
  * chain (a row in no chain is its own root).
  */
 static int ai_contact_raid_0a88(int row) {
+  /* DOS's parent column runs 0x0b -> 0x0a -> 9 (FUN_15eb_14aa); the port's
+   * Town Hall chain stops at row 9, so the Town Hall tiers mod names the root
+   * here. Off keeps the chain-table walk unchanged. */
+  if (mods_on(MOD_TOWN_HALL_TIERS) &&
+      (row == COLONY_BUILDING_TOWN_HALL_2 || row == COLONY_BUILDING_TOWN_HALL_3)) {
+    return COLONY_BUILDING_TOWN_HALL;
+  }
   const int chain = colonies_building_row_chain(row);
   const int* rows = (chain >= 0) ? colonies_building_chain_rows(chain) : NULL;
   return (rows && rows[0] >= 0) ? rows[0] : row;

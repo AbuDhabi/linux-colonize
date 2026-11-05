@@ -342,6 +342,7 @@ struct ColonizeGameState {
   bool pedia_wood_ok;
   ColonizeSpriteSheet pedia_buildings;
   bool pedia_buildings_ok;
+  int pedia_town_hall_art; /* MOD_TOWN_HALL_TIERS art base in pedia_buildings, 0 = none */
   ColonizeReportsView reports;
   bool reports_ok;
   bool in_report;

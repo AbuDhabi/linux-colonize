@@ -778,7 +778,7 @@ void colony_screen_draw_area_overlays(
   int origin_x = 0;
   int origin_y = 0;
   colony_screen_minimap_origin(&origin_x, &origin_y);
-  const int half = COLONY_MINIMAP_GRID / 2;
+  const int half = colony_screen_minimap_grid() / 2;
   const int tile = COLONY_MINIMAP_TILE;
 
   /* Field-yield SoL bonus/latch bits — same inputs colony_preview.c folds in
@@ -986,6 +986,12 @@ void colony_screen_draw_area_overlays(
           }
         }
         const ColonizeWorld cw = world_make(NULL, (ColonizeColonyPool*)pool, (ColonizeWorldMap*)map, (ColonizeCol1Save*)col1, col1 != NULL, NULL, NULL);
+        /* MOD_TOWN_HALL_TIERS 5x5: FUN_15eb_26e4 never claims a corner or an
+         * out-of-radius plot. */
+        if (half > COLONY_MINIMAP_GRID / 2 &&
+            (ti < 0 || (colonies_plot_blocked_mask(&cw, colony, ti) & 0x10u) != 0)) {
+          continue;
+        }
         if (colonies_indian_claim_tribe_from_w(&cw, colony->nation_id, colony->x, colony->y, colony->x + dx, colony->y + dy) < 0) {
           continue;
         }
@@ -996,6 +1002,30 @@ void colony_screen_draw_area_overlays(
           const int ix = tx + (tile - sp->width) / 2;
           const int iy = ty + tile - sp->height - 1;
           colony_screen_blit_icon_shadowed(view, COLONY_ICON_TOTEM, framebuffer, ix, iy, 0);
+        }
+      }
+    }
+  }
+
+  /* MOD_TOWN_HALL_TIERS: the 5x5 shows the plots the colony cannot work (the
+   * four corners, and every plot FUN_15eb_23f2 marks 0x10: outside the Town
+   * Hall radius, off-map or unseen) under a black checkerboard; the same bit
+   * refuses a colonist dropped there. */
+  if (half > COLONY_MINIMAP_GRID / 2) {
+    const ColonizeWorld cw = world_make(NULL, (ColonizeColonyPool*)pool, (ColonizeWorldMap*)map, (ColonizeCol1Save*)col1, col1 != NULL, NULL, NULL);
+    for (int dy = -half; dy <= half; ++dy) {
+      for (int dx = -half; dx <= half; ++dx) {
+        const int ti = colonies_field_tile_index(dx, dy);
+        if ((dx == 0 && dy == 0) ||
+            (ti >= 0 && (colonies_plot_blocked_mask(&cw, colony, ti) & 0x10u) == 0)) {
+          continue;
+        }
+        const int tx = origin_x + (dx + half) * tile;
+        const int ty = origin_y + (dy + half) * tile;
+        for (int py = ty; py < ty + tile && py < framebuffer->height; ++py) {
+          for (int px = tx + (py & 1); px < tx + tile && px < framebuffer->width; px += 2) {
+            framebuffer->pixels[py * framebuffer->width + px] = 0;
+          }
         }
       }
     }
@@ -1061,17 +1091,22 @@ void colony_screen_render_minimap(
       DOS_GRID, 16, 16, 0, 0, fog, icons_palette
     );
   }
+  /* MOD_TOWN_HALL_TIERS shows the whole 5x5 block (pad 0); stock clips it to
+   * the inner 3x3 (pad DOS_HALF_PX). */
+  const int grid = colony_screen_minimap_grid();
+  const int pad = (DOS_GRID - grid) / 2 * tile;
   colony_screen_scale15_dither(
-    pixels, SCRATCH, SCRATCH, framebuffer, origin_x - DOS_HALF_PX, origin_y - DOS_HALF_PX, origin_x,
-    origin_y, COLONY_MINIMAP_GRID * tile, COLONY_MINIMAP_GRID * tile
+    pixels, SCRATCH, SCRATCH, framebuffer, origin_x - pad, origin_y - pad, origin_x,
+    origin_y, grid * tile, grid * tile
   );
 
   /* Black 1px frame one pixel outside the 3x3 tile grid — golden-measured
    * (new_amsterdam_production.png: frame at x 223/296, y 31/104 around tiles
    * 224..295 x 32..103). The cursor and selection boxes and the unit/badge
-   * overlays are drawn after this call (colony_screen_draw_area_overlays). */
+   * overlays are drawn after this call (colony_screen_draw_area_overlays).
+   * The mod's 5x5 fills the section, so its frame sits on the grid's edge. */
+  const int out = grid == COLONY_MINIMAP_GRID ? 1 : 0;
   colony_screen_draw_selection_box(
-    framebuffer, origin_x - 1, origin_y - 1, COLONY_MINIMAP_GRID * tile + 2,
-    COLONY_MINIMAP_GRID * tile + 2, 0
+    framebuffer, origin_x - out, origin_y - out, grid * tile + 2 * out, grid * tile + 2 * out, 0
   );
 }

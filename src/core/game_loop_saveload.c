@@ -1187,6 +1187,7 @@ void render_pedia_screen(const ColonizeGameState* game, ColonizeFramebuffer8* fr
                                                                      : NULL,
     /* FUN_6cb2_07e6 raw 110471 tints the unit icon with DS:0x5398. */
     .human_nation = game_fixed_human(game),
+    .town_hall_art = game->pedia_buildings_ok ? game->pedia_town_hall_art : 0,
   };
   pedia_article_render(&assets, game->pedia_category, game->pedia_index, framebuffer);
 

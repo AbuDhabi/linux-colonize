@@ -3,7 +3,9 @@
 
 #include "../common/test_catalogs.h"
 #include "core/assets.h"
+#include "core/colony.h"
 #include "core/font_file.h"
+#include "core/mods.h"
 #include "core/font.h"
 #include "core/pedia.h"
 #include "core/pik.h"
@@ -128,6 +130,55 @@ static int fixture_ensure(void) {
 
 static int case_load_catalogs(void) {
   return fixture_ensure();
+}
+
+/* MOD_TOWN_HALL_TIERS: @BUILDING 10/11 articles read PEDIA @MODBUILDING10/11 and the
+ * NAMES @MODBUILDING names (data/mods) only while the mod is on; off = stock pages. */
+static int case_town_hall_tier_pages(void) {
+  if (fixture_ensure() != 0) {
+    return 1;
+  }
+  static ColonizeMsgCatalog pedia;
+  static ColonizeMsgCatalog names;
+  static ColonizeColonyPool pool;
+  assets_msg_init(&pedia);
+  assets_msg_init(&names);
+  assets_set_mod_data_dir("./data/mods");
+  const bool ok = assets_msg_load_file(&pedia, "COLONIZE/PEDIA.TXT") &&
+                  assets_msg_load_file(&names, "COLONIZE/NAMES.TXT");
+  assets_set_mod_data_dir("");
+  colonies_init(&pool);
+  int rc = 0;
+  if (!ok || !colonies_load_buildings(&pool, &names)) {
+    fprintf(stderr, "tier pages: catalogs failed to load\n");
+    rc = 1;
+  }
+  PediaPage stock;
+  PediaPage page;
+  for (int row = 9; row <= 11 && !rc; ++row) {
+    pedia_page(&s_catalog, &s_names, PEDIA_CAT_BUILDING, row, &stock);
+    pedia_page(&pedia, &names, PEDIA_CAT_BUILDING, row, &page);
+    if (strcmp(page.title, stock.title) != 0 || page.body_line_count != stock.body_line_count) {
+      fprintf(stderr, "tier pages off: row %d '%s' differs from stock '%s'\n", row, page.title, stock.title);
+      rc = 1;
+    }
+    mods_campaign_set(1u << MOD_TOWN_HALL_TIERS);
+    pedia_page(&pedia, &names, PEDIA_CAT_BUILDING, row, &page);
+    mods_campaign_set(0);
+    /* Row 9 stays stock; rows 10/11 gain the mod body (the stock 10/11 are stubs). */
+    const bool bad = row == 9 ? (strcmp(page.title, stock.title) != 0 ||
+                                 page.body_line_count != stock.body_line_count)
+                              : (page.title[0] == '\0' || page.body_line_count <= stock.body_line_count);
+    if (bad) {
+      fprintf(stderr, "tier pages on: row %d title '%s' (stock '%s') body %d\n", row, page.title,
+              stock.title, page.body_line_count);
+      rc = 1;
+    }
+  }
+  assets_msg_free(&pedia);
+  assets_msg_free(&names);
+  colonies_load_buildings(&pool, &s_names); /* drop the mod names again */
+  return rc;
 }
 
 static int case_terrain_pages(void) {
@@ -501,6 +552,7 @@ static int case_article_body_wrap_is_dos(void) {
 static const TestCase k_cases[] = {
     {"case_terrain_preview_sprites", case_terrain_preview_sprites},
     {"case_load_catalogs", case_load_catalogs},
+    {"case_town_hall_tier_pages", case_town_hall_tier_pages},
     {"case_terrain_pages", case_terrain_pages},
     {"case_cargo_page", case_cargo_page},
     {"case_job_page", case_job_page},

@@ -1624,7 +1624,9 @@ void game_request_buy_construction_confirm(ColonizeGameState* game) {
   if (!bt) {
     colonies_unit_build_info(colony->building_in_production, &uname, NULL, NULL);
   }
-  const char* bname = (bt && bt->name[0]) ? bt->name : (uname ? uname : "");
+  const char* bname = (bt && bt->name[0])
+                        ? colonies_building_name(&game->colonies, colony->building_in_production)
+                        : (uname ? uname : "");
   /* One uniform Buy, whether or not tools are short — DOS's own
    * FUN_2f2b_5e44 formula (colonies_construction_gold_cost) already sums
    * hammers+tools into one gold figure; the popup never differs by cause,

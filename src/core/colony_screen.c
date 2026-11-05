@@ -17,6 +17,7 @@
 #include "core/founding_fathers.h"
 #include "core/map_menu.h"
 #include "core/map_panel.h"
+#include "core/mods.h"
 #include "core/popup.h"
 #include "core/popup_msg.h"
 #include "core/reports.h"
@@ -612,12 +613,16 @@ void colony_screen_open_jobs(
    * panel is a 3x3 grid (FUN_2f2b_0a74, raw ~47500, walks the full
    * DS:0x329 count yet the panel geometry never grew), and no save stock DOS
    * can write ever carries those rows. So the port draws and clicks the 3x3
-   * and does not invent an outer-plot UI.
+   * and does not invent an outer-plot UI. MOD_TOWN_HALL_TIERS (not DOS) draws a
+   * 5x5 (colony_screen_minimap_grid), so its outer plots 8..19 are clicked here
+   * too, up to the colony's own ring (colonies_work_plot_count).
    */
   /* tile_index -1 = the colonist works no plot (Enter on him, or a click on him in his
    * building: FUN_2f2b_6372 / FUN_2f2b_44d4 raw 51280-51286); a field pick then takes the
    * plot FUN_15eb_28c8 elects (port_bugs.md #1204). */
-  if (!view || !colony || tile_index < -1 || tile_index >= COLONIZE_COLONY_FIELD_TILES) {
+  const int plots = mods_on(MOD_TOWN_HALL_TIERS) ? colonies_work_plot_count(pool, colony)
+                                                 : COLONIZE_COLONY_FIELD_TILES;
+  if (!view || !colony || tile_index < -1 || tile_index >= plots) {
     return;
   }
   colony_screen_close_subpanels(view);
@@ -873,11 +878,76 @@ void colony_screen_minimap_origin(int* out_x, int* out_y) {
    * golden-measured too (tiles 224..295 x 32..103, black frame one pixel
    * outside at 223/296 x 31/104). The old 23px-margin origin (223,31) was
    * one pixel up-left; the section is 120x120, so this is a 24px margin. */
+  /* MOD_TOWN_HALL_TIERS: the 5x5 is 120 px and fills the section (margin 0). */
+  const int margin = (5 - colony_screen_minimap_grid()) / 2 * COLONY_MINIMAP_TILE;
   if (out_x) {
-    *out_x = COLONY_MINIMAP_SECTION_X + COLONY_MINIMAP_TILE;
+    *out_x = COLONY_MINIMAP_SECTION_X + margin;
   }
   if (out_y) {
-    *out_y = COLONY_MINIMAP_SECTION_Y + COLONY_MINIMAP_TILE;
+    *out_y = COLONY_MINIMAP_SECTION_Y + margin;
+  }
+}
+
+/* MOD_TOWN_HALL_TIERS (not DOS): the area panel grows to 5x5 so the 12/20-plot
+ * radius (DS:0x329 via FUN_15eb_0470) is visible; stock stays the DOS 3x3. */
+int colony_screen_minimap_grid(void) {
+  return mods_on(MOD_TOWN_HALL_TIERS) ? 5 : COLONY_MINIMAP_GRID;
+}
+
+/*
+ * MOD_TOWN_HALL_TIERS art: append BDARK.SS 9 (low hall) and 11 (domed hall) to
+ * the end of a BUILDING.SS sheet. Done at every load (the mod mask is per
+ * campaign); stock slots are untouched and only read through
+ * colony_screen_town_hall_sprite while the mod is on. Returns the index of the
+ * first appended sprite, or 0 when the art is missing.
+ */
+int colony_screen_splice_town_hall_art(ColonizeSpriteSheet* buildings, const char* data_dir) {
+  char path[512];
+  char err[128];
+  ColonizeSpriteSheet bdark;
+  memset(&bdark, 0, sizeof(bdark));
+  if (!buildings || buildings->sprite_count <= COLONY_BUILDING_TOWN_HALL_3 || !data_dir ||
+      !dos_compat_normalize_asset_path(data_dir, "BDARK.SS", path, sizeof(path)) ||
+      !ss_load(path, &bdark, err, sizeof(err))) {
+    return 0;
+  }
+  ColonizeSprite* grown = bdark.sprite_count > COLONY_BUILDING_TOWN_HALL_3
+                            ? realloc(buildings->sprites, sizeof(ColonizeSprite) * (size_t)(buildings->sprite_count + 2))
+                            : NULL;
+  if (!grown) {
+    ss_free(&bdark);
+    return 0;
+  }
+  if (buildings->has_palette) {
+    assets_sheet_remap_to_palette(&bdark, &buildings->palette);
+  }
+  const int base = buildings->sprite_count;
+  buildings->sprites = grown;
+  grown[base] = bdark.sprites[COLONY_BUILDING_TOWN_HALL];
+  grown[base + 1] = bdark.sprites[COLONY_BUILDING_TOWN_HALL_3];
+  bdark.sprites[COLONY_BUILDING_TOWN_HALL].pixels = NULL; /* ownership moved */
+  bdark.sprites[COLONY_BUILDING_TOWN_HALL_3].pixels = NULL;
+  buildings->sprite_count = base + 2;
+  ss_free(&bdark);
+  return base;
+}
+
+/* Sprite of Town Hall tier `row` (9/10/11). With the mod on and the art
+ * spliced: Town Hall = BDARK 9, Expansion = the stock towered Town Hall
+ * (reads as the low hall grown), Colonial Assembly = BDARK 11. Else `row`. */
+int colony_screen_town_hall_sprite(int art_base, int row) {
+  if (art_base <= 0 || !mods_on(MOD_TOWN_HALL_TIERS)) {
+    return row;
+  }
+  switch (row) {
+    case COLONY_BUILDING_TOWN_HALL:
+      return art_base;
+    case COLONY_BUILDING_TOWN_HALL_2:
+      return COLONY_BUILDING_TOWN_HALL;
+    case COLONY_BUILDING_TOWN_HALL_3:
+      return art_base + 1;
+    default:
+      return row;
   }
 }
 
@@ -981,6 +1051,7 @@ bool colony_screen_load(ColonyScreenView* view, const char* data_dir, char* err,
     colony_screen_free(view);
     return false;
   }
+  view->town_hall_art = colony_screen_splice_town_hall_art(&view->buildings, data_dir);
   assets_sheet_remap_to_palette(&view->buildings, &view->frame.palette);
   view->buildings_ok = true;
 
@@ -1129,8 +1200,12 @@ ColonyFocusKeyResult colony_screen_focus_key(
     if (dx == 0 && dy == 0) {
       return r;
     }
-    view->area_dx = colony_screen_focus_wrap(view->area_dx + 2 + dx - 1, 3) + 1 - 2;
-    view->area_dy = colony_screen_focus_wrap(view->area_dy + 2 + dy - 1, 3) + 1 - 2;
+    {
+      /* Same wrap over the 5x5 view of the Town Hall tiers mod (grid 3 off). */
+      const int half = colony_screen_minimap_grid() / 2;
+      view->area_dx = colony_screen_focus_wrap(view->area_dx + half + dx, 2 * half + 1) - half;
+      view->area_dy = colony_screen_focus_wrap(view->area_dy + half + dy, 2 * half + 1) - half;
+    }
     view->blink_epoch_ms = view->blink_ms;
     r.action = COLONY_FOCUS_KEY_REDRAW;
     return r;

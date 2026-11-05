@@ -326,7 +326,7 @@ COLONIZE_INTERNAL void colony_screen_construction_row_text(
     snprintf(queue_prefix, prefix_cap, "%d ", qpos);
   }
   const ColonizeBuildingType* bt = colonies_building_type(pool, bid);
-  const char* name = bt ? bt->name : NULL;
+  const char* name = bt ? colonies_building_name(pool, bid) : NULL;
   int hammers = bt ? bt->hammers : 0;
   int tools = bt ? bt->tools_cost : 0;
   if (!bt && !colonies_unit_build_info(bid, &name, &hammers, &tools)) {
@@ -1392,11 +1392,12 @@ COLONIZE_INTERNAL bool colony_screen_hit_area_tiles(ColonyScreenHitCtx* a) {
   int origin_x = 0;
   int origin_y = 0;
   colony_screen_minimap_origin(&origin_x, &origin_y);
-  const int grid_px = COLONY_MINIMAP_GRID * COLONY_MINIMAP_TILE;
+  const int grid = colony_screen_minimap_grid();
+  const int grid_px = grid * COLONY_MINIMAP_TILE;
   if (mx >= origin_x && my >= origin_y && mx < origin_x + grid_px && my < origin_y + grid_px) {
     const int col = (mx - origin_x) / COLONY_MINIMAP_TILE;
     const int row = (my - origin_y) / COLONY_MINIMAP_TILE;
-    const int half = COLONY_MINIMAP_GRID / 2;
+    const int half = grid / 2;
     const int dx = col - half;
     const int dy = row - half;
     const int ti = colonies_field_tile_index(dx, dy);
@@ -1404,6 +1405,9 @@ COLONIZE_INTERNAL bool colony_screen_hit_area_tiles(ColonyScreenHitCtx* a) {
       a->hit.kind = COLONY_HIT_AREA_TILE;
       a->hit.index = ti;
       return true;
+    }
+    if (dx != 0 || dy != 0) {
+      return true; /* MOD_TOWN_HALL_TIERS 5x5 corner: never a plot, swallow the click */
     }
     /* Centre tile (not assignable): DOS's click-to-toggle-numbers spot
      * (2f2b:609e flips DS:0x336 and refreshes; port_bugs.md). */

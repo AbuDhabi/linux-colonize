@@ -3161,6 +3161,50 @@ static int unit_plot_blocked_mask(void) {
   return 1;
 }
 
+/* MOD_TOWN_HALL_TIERS names: rows 10/11 read NAMES @MODBUILDING (data/mods)
+ * only while the mod is on; the stock "Town Hall" row name never changes. */
+static int unit_town_hall_tier_names(void) {
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  assets_set_mod_data_dir("./data/mods");
+  const bool loaded = assets_msg_load_file(&names, "COLONIZE/NAMES.TXT");
+  assets_set_mod_data_dir("");
+  if (!loaded) {
+    fprintf(stderr, "tier names: load NAMES.TXT failed\n");
+    return 1;
+  }
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  int failures = 0;
+  CHECK(colonies_load_buildings(&pool, &names), "tier names: @BUILDING loaded");
+  const ColonizeMsgSection* mod = assets_msg_find(&names, "MODBUILDING");
+  CHECK(mod && mod->line_count >= 2, "tier names: @MODBUILDING merged from data/mods");
+  const int row9 = colonies_building_row(&pool, COLONY_BUILDING_TOWN_HALL);
+  const int row10 = colonies_building_row(&pool, COLONY_BUILDING_TOWN_HALL_2);
+  const int row11 = colonies_building_row(&pool, COLONY_BUILDING_TOWN_HALL_3);
+  CHECK(row9 >= 0 && row10 >= 0 && row11 >= 0, "tier names: rows 9-11 loaded");
+  if (failures == 0) {
+    const char* stock10 = pool.building_types[row10].name;
+    CHECK(colonies_building_mod_name(COLONY_BUILDING_TOWN_HALL_2) == NULL, "tier names off: no mod name");
+    CHECK(strcmp(colonies_building_name(&pool, row10), stock10) == 0, "tier names off: row 10 stock name");
+    CHECK(strcmp(colonies_building_name(&pool, row11), pool.building_types[row11].name) == 0,
+          "tier names off: row 11 stock name");
+    mods_campaign_set(1u << MOD_TOWN_HALL_TIERS);
+    CHECK(strcmp(colonies_building_name(&pool, row10), mod->lines[0]) == 0, "tier names on: row 10 = @MODBUILDING 0");
+    CHECK(strcmp(colonies_building_name(&pool, row11), mod->lines[1]) == 0, "tier names on: row 11 = @MODBUILDING 1");
+    CHECK(strcmp(colonies_building_name(&pool, row9), pool.building_types[row9].name) == 0,
+          "tier names on: row 9 keeps its stock name");
+    CHECK(strcmp(pool.building_types[row10].name, stock10) == 0, "tier names on: stock name untouched");
+    mods_campaign_set(0);
+  }
+  assets_msg_free(&names);
+  if (failures == 0) {
+    printf("unit_colonies: town hall tier names ok\n");
+    return 0;
+  }
+  return 1;
+}
+
 /*
  * port_bugs.md #593 — the work-plot ring is per colony:
  * `DS:0x329[FUN_15eb_0470()]` over {0,4,8,12,20} with
@@ -3228,6 +3272,60 @@ static int unit_work_plot_ring_593(void) {
       }
     }
     CHECK(!offered, "#593: rows 10/11 are never offered by the build list");
+  }
+  /* MOD_TOWN_HALL_TIERS: row 10 needs the Town Hall, row 11 needs row 10,
+   * both need their @BUILDING population; off (above) neither is offered. */
+  {
+    const int row9 = colonies_building_row(&pool, COLONY_BUILDING_TOWN_HALL);
+    CHECK(row9 >= 0, "tiers: Town Hall row loaded");
+    int ids[64];
+    bool has10 = false;
+    bool has11 = false;
+#define TIERS_SCAN()                                                    \
+  do {                                                                  \
+    const int n_ = colonies_list_buildable(&pool, c->id, ids, 64, NULL); \
+    has10 = has11 = false;                                              \
+    for (int i = 0; i < n_; ++i) {                                      \
+      has10 |= ids[i] == row10;                                         \
+      has11 |= ids[i] == row11;                                         \
+    }                                                                   \
+  } while (0)
+    c->population = 30;
+    c->has_building[row9] = true;
+    TIERS_SCAN();
+    CHECK(!has10 && !has11, "tiers off: Town Hall owned, rows 10/11 still refused");
+    c->has_building[row10] = true;
+    TIERS_SCAN();
+    CHECK(!has11, "tiers off: row 10 owned, row 11 still refused");
+    c->has_building[row10] = false;
+    mods_campaign_set(1u << MOD_TOWN_HALL_TIERS);
+    c->population = 0;
+    TIERS_SCAN();
+    CHECK(!has10 && !has11, "tiers on: population 0 -> neither offered");
+    /* @BUILDING population: row 10 at 4, row 11 at 8. */
+    c->population = 3;
+    TIERS_SCAN();
+    CHECK(!has10, "tiers on: population 3 -> row 10 refused");
+    c->population = 4;
+    TIERS_SCAN();
+    CHECK(has10 && !has11, "tiers on: population 4 -> row 10 offered, row 11 not");
+    c->population = 30;
+    TIERS_SCAN();
+    CHECK(has10 && !has11, "tiers on: no row 10 -> row 11 refused at any population");
+    c->has_building[row10] = true;
+    c->population = 7;
+    TIERS_SCAN();
+    CHECK(!has10 && !has11, "tiers on: row 10 owned, population 7 -> row 11 refused");
+    c->population = 8;
+    TIERS_SCAN();
+    CHECK(!has10 && has11, "tiers on: row 10 owned, population 8 -> row 11 offered");
+    c->has_building[row11] = true;
+    TIERS_SCAN();
+    CHECK(!has10 && !has11, "tiers on: both owned -> neither offered");
+    mods_campaign_set(0);
+    c->has_building[row10] = c->has_building[row11] = c->has_building[row9] = false;
+    c->population = 0;
+#undef TIERS_SCAN
   }
   c->has_building[row10] = true;
   CHECK(colonies_work_plot_count(&pool, c) == 12, "#593: row 10 -> ring 12");
@@ -3984,6 +4082,7 @@ static const TestCase k_cases[] = {
     {"unit_auto_assign_idle_town_hall_cap", unit_auto_assign_idle_town_hall_cap},
     {"unit_plot_blocked_mask", unit_plot_blocked_mask},
     {"unit_work_plot_ring_593", unit_work_plot_ring_593},
+    {"unit_town_hall_tier_names", unit_town_hall_tier_names},
     {"unit_settlement_count_and_name_peek", unit_settlement_count_and_name_peek},
     {"unit_buildable_blank_name_tier", unit_buildable_blank_name_tier},
     {"unit_colony_cheat_helpers", unit_colony_cheat_helpers},

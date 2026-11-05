@@ -471,6 +471,11 @@ const int* colonies_building_chain_rows(int chain);
 int colonies_building_row_chain(int row);
 
 const ColonizeBuildingType* colonies_building_type(const ColonizeColonyPool* pool, int type_index);
+/* MOD_TOWN_HALL_TIERS: NAMES @MODBUILDING name of row 10/11 while the mod is
+ * on, else NULL. */
+const char* colonies_building_mod_name(int row);
+/* Display name of a pool slot: the mod name above, else the stock name ("" when none). */
+const char* colonies_building_name(const ColonizeColonyPool* pool, int type_index);
 
 /* Manual ch. 6 "Colonies" / building_production.md: at most 3 colonists per
  * building (schools: teachers + students share the cap). GAME.TXT @MORETHANTHREE. */

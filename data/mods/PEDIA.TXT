@@ -1,0 +1,27 @@
+;
+;       OpenCol mod text merged into PEDIA.TXT (docs/settings.md "mods").
+;       Additive only: a new section is added whole; in a stock section
+;       "N=text" appends row N, which must equal the stock row count.
+;
+
+;       mods.town_hall_tiers: articles of @BUILDING rows 10 and 11, read
+;       instead of the stock @BUILDING10/@BUILDING11 stubs while the mod is on.
+@MODBUILDING10
+@width=300
+^{TOWN HALL EXPANSION}
+As a colony grows, its town hall grows with it. The expanded hall gives
+the colonial government reach over more of the surrounding land. It can
+be built when your population is 4 and the colony has a town hall. {The
+colony can work 12 plots: the 8 around it plus the 4 plots two squares
+away to the north, south, east and west.}
+
+@;
+@MODBUILDING11
+@width=300
+^{COLONIAL ASSEMBLY}
+A colonial assembly is an elected body that governs the colony and the
+country around it. It can be built when your population is 8 and the
+colony has a town hall expansion. {The colony can work 20 plots: every
+plot within two squares except the four corners.}
+
+@;

@@ -2083,6 +2083,8 @@ static void game_create_load_screens(ColonizeGameState* game) {
         ) &&
         ss_load(ss_path, &game->pedia_buildings, ss_err, sizeof(ss_err))) {
       game->pedia_buildings_ok = true;
+      game->pedia_town_hall_art =
+        colony_screen_splice_town_hall_art(&game->pedia_buildings, game->resolved_data_dir);
       diag_info(
         "Loaded BUILDING.SS for Colonizopedia (%d sprites)",
         game->pedia_buildings.sprite_count
