@@ -1125,7 +1125,7 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_colony_arrival(units_move_ctx* c) {
   if (colony_enter_gate) {
     units_mp_exhaust(pool, unit);
     /* DOS raw 75731-75741: +0x315a = 0 on arrival, then wake (clear Sentry
-     * orders on) the arriving group only (port_bugs.md #1432, which supersedes
+     * orders on) the arriving group only (port_bugs.md #1433, which supersedes
      * #792's destination-stack reading).
      *
      * Runtime trade routes unpack DOS's separate +0x315b profession-byte

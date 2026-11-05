@@ -860,6 +860,12 @@ colonize_add_test(NAME unit_combat_analysis_pixels
   INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
+colonize_add_test(NAME unit_reports_dos_pixels
+  SOURCES tests/unit/test_reports_dos_pixels.c tools/render_common.c tests/common/golden_fixture.c
+  LIBS colonize_core
+  INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
 colonize_add_test(NAME unit_map_menu
   SOURCES tests/unit/test_map_menu.c
   LIBS colonize_core

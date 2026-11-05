@@ -35,6 +35,30 @@ needs". Congress page 2 draws all 25 FF
 portraits from CC-xx.SS sprite anchors (the old 10/25 slot table is gone —
 port_bugs.md Revere/Drake).
 
+## DOS check on dutch-campaign/COLONY00.SAV (2026-11-05)
+
+Every F2-F10 page (Congress 1-2, Labor grid + the Free Colonist and Expert
+Farmer detail pages, Economic 1-2, Colony 1-4, Naval, Foreign, Indian,
+Score) was opened in VICEROY.EXE under DOSBox-X after loading this save
+(`tools/dosbox_trace.py`: F-key, Enter per page, the virtual mouse for the
+labor cells) and compared pixel by pixel with `render_report` on the same
+save. All pages match now, apart from the DOS mouse cursor and the CYCLE.DAT
+water ramp (DAC 120..127, which the rebel flag's blue on Congress page 1
+and the SoL flags use, rotated at capture time). Fixed by this pass:
+
+- F5 page 2: the column rules are drawn after the cargo icons
+  (`FUN_3f41_1438`), so a rule cuts the Horses icon.
+- F6 Garrisons: the row walks the tile chain from its head (top-first),
+  so ties after the `04d6` re-sort keep top-of-stack order, not pool
+  order; the orders badge is the unit's own (the old raw-record lookup
+  by type swapped badges between same-type units).
+- F9: "1 Mission" (@MISC 27) for a count of 1, @MISC 28 otherwise; the
+  Sioux (nation 10) line is drawn in DAC 0xc, not @TRIBES colour 118.
+
+Guard: `unit_reports_dos_pixels` (DOS-sampled probes at each fixed spot).
+Not exercised by the save: `FUN_3f41_1550` prints a stock over 999 as
+"<n/1000>" + @MISC 57 ("K") in ink 0xe; the port prints the plain number.
+
 ## Proportional fill bars are a DOS routine, not a spread
 
 Every "row of little icons that fills as a resource accumulates" on a report
@@ -430,9 +454,14 @@ independently golden-confirmed.
     a centered "(Withdrawn from New World)" (@MISC 190) and nothing else.
     This, not `player[n].control`, is DOS's gate; `dutch-reports.SAV` has
     Spain as both, which is why the old control-based reading fit.
+  - **Header:** two strings (3f41:29c6): "<Leader>" + @MISC 94 ("'s") in
+    ink 0x92, then "[Free ]<Adjective>:" in ink 0x61. The leader is
+    `player[n].name` (DS:0x540e); DOS fills all four from NAMES.TXT
+    @LEADERNAME at new game, AI slots included.
   - **"Free":** `nation[n].nation_flags` bit `0x04` splices @MISC 191
-    ("Free") into the header between the leader's name and the adjective,
-    and drops that block's Rebels/Tories line.
+    ("Free") into the header between the leader's name and the adjective
+    (in the adjective's cream, not the leader's yellow), and drops that
+    block's Rebels/Tories line.
   - **War/peace + met:** one byte, one direction —
     `nation[a].euro_relation[b]` (DOS `FUN_281f_0a38(a, b)`): bit `0x20`
     = met (an unmet peer is not listed at all), bit `0x40` = at peace,
@@ -502,6 +531,8 @@ independently golden-confirmed.
   up front leaves both pointing at the last one ("Peace" in the War colour).
   Use `reports_misc_word`'s caller-owned buffer.
 - Port status: Done (golden `foreign.png`) — `reports_render_foreign`.
+  DOS-verified pixel-exact 2026-11-05 under DOSBox-X (`tools/dosbox_trace.py`,
+  F8 after load) on dutch-campaign/COLONY00.SAV.
 
 ## F9 - Indian Adviser
 
@@ -530,7 +561,7 @@ independently golden-confirmed.
 - Strings: title "INDIAN ADVISER REPORT"; tribe names from NAMES.TXT
   @TRIBES col 0 (plural, not the singular/adjective col 1 used elsewhere);
   tribe-level words live from `@LEVELS` (`reports_tribe_level_display_name`, 2026-08-26);
-  "Missions"/"Horse Herds" from `@MISC` 28/45, "Muskets" from `@CARGO`. The
+  "Mission"/"Missions"/"Horse Herds" from `@MISC` 27 (count 1)/28/45, "Muskets" from `@CARGO`. The
   settlement noun is **not** a hardcoded "Villages": DOS-LITERAL
   `FUN_3f41_010a` raw 69557-69564 takes the tribe's own `NAMES.TXT @LEVELS`
   row (indexed by `indian.tech`), column 1 when the count is exactly 1

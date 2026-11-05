@@ -306,11 +306,13 @@ static bool ai_setup_col1_template(const AiNewGameParams* p, char* err, size_t e
   const int leader_nation = p->human_mask ? 0 : p->human_nation;
   for (int i = 0; i < (int)COLONIZE_COL1_NATION_COUNT; ++i) {
     const bool human = (humans >> i) & 1u;
-    /* Every other human keeps its NAMES.TXT @LEADERNAME default (DS:0x540e load,
-     * raw 120960-120977). AI powers stay "" as before. */
+    /* Every other power, human or AI, keeps its NAMES.TXT @LEADERNAME default:
+     * the DS:0x540e load (raw 120960-120977) fills all four slots before the
+     * typed name lands. Leaving AI slots "" showed "'s English:" in DOS's
+     * Foreign Affairs report on a port save. */
     char def_leader[24];
     def_leader[0] = '\0';
-    if (human && i != leader_nation) {
+    if (i != leader_nation) {
       (void)assets_msg_row_field(p->names, "LEADERNAME", i, 0, def_leader, sizeof(def_leader));
     }
     const char* leader = (i == leader_nation) ? p->leader_name : def_leader;

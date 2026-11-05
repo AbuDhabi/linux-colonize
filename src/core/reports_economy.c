@@ -246,6 +246,16 @@ void reports_render_economic_cargo(
       fb, REPORTS_ECON2_RULE_X0, REPORTS_ECON2_RULE_X1, REPORTS_ECON2_ROW0_Y + i * REPORTS_ECON2_ROW_STEP, REPORTS_ECON_LINE_COLOR
     );
   }
+  for (int c = 0; c < REPORTS_ECON2_COLS; ++c) {
+    const int icon = 22 + c;
+    if (icons && icon < icons->sprite_count) {
+      const int col_left = REPORTS_ECON2_DIVIDER_X + c * REPORTS_ECON2_COL_STEP;
+      ss_blit_sprite(icons, icon, fb, col_left + REPORTS_ECON2_ICON_DX, REPORTS_ECON2_ICON_Y);
+    }
+  }
+
+  /* FUN_3f41_1438: the column rules (FUN_291f_08bc x 0x12) come after the icon loop, so
+   * a rule overdraws an icon that reaches it (Horses). */
   for (int c = 0; c <= REPORTS_ECON2_COLS; ++c) {
     reports_draw_vline(
       fb,
@@ -254,14 +264,6 @@ void reports_render_economic_cargo(
       table_bottom,
       REPORTS_ECON_LINE_COLOR
     );
-  }
-
-  for (int c = 0; c < REPORTS_ECON2_COLS; ++c) {
-    const int icon = 22 + c;
-    if (icons && icon < icons->sprite_count) {
-      const int col_left = REPORTS_ECON2_DIVIDER_X + c * REPORTS_ECON2_COL_STEP;
-      ss_blit_sprite(icons, icon, fb, col_left + REPORTS_ECON2_ICON_DX, REPORTS_ECON2_ICON_Y);
-    }
   }
 
   if (!col1) {
@@ -555,17 +557,6 @@ void reports_render_colony_garrisons(
      * (allegiance/orders chrome + real map sprite — unit_chrome_blit_unit,
      * same call shape as colony_screen.c's docked-transport row). */
     if (units && icons) {
-      /* col1_bridge_apply's transport_chain walk (col1_find_ship_root)
-       * conflates "linked to a ship elsewhere in this tile's stacking
-       * chain" with "actually boarded" — a land unit merely standing next
-       * to a docked ship on a colony tile gets u->orders forced to Sentry
-       * (aboard_ship_id set) even though the raw save's own orders byte is
-       * untouched (verified: Fortified=6 in save, Sentry=1 in the bridged
-       * pool). Read the *raw* orders straight from col1 here instead of
-       * trusting the pool's, so the drawn letter matches the golden
-       * (colony_p1.png: garrisoned units show 'F', not 'S'). Sprite/type
-       * selection is unaffected by this bug and still comes from the pool. */
-      bool* raw_used = col1->head.unit_count > 0 ? calloc(col1->head.unit_count, sizeof(bool)) : NULL;
       const ColonizePalette* active_palette =
         (view && view->background_ok[COLONIZE_REPORT_COLONY] &&
          view->backgrounds[COLONIZE_REPORT_COLONY].has_palette)
@@ -642,9 +633,17 @@ void reports_render_colony_garrisons(
         if (units_map_sprite(units, unit->id) < 0) {
           continue;
         }
-        stack_ids[stack_count++] = unit->id;
+        /* FUN_3f41_1ed8 walks the tile chain from its head (the top), so list
+         * the stack top-first: tile_stack_order descending. */
+        int at = stack_count++;
+        while (at > 0 && units_get_const(units, stack_ids[at - 1])->tile_stack_order < unit->tile_stack_order) {
+          stack_ids[at] = stack_ids[at - 1];
+          --at;
+        }
+        stack_ids[at] = unit->id;
       }
-      /* Stable insertion sort, pseudo-size DESCENDING (ties keep pool order). */
+      /* Stable insertion sort, pseudo-size DESCENDING (ties keep the top-first chain order:
+       * 04d6 leaves each bucket in its old bottom-to-top order, walked from the top). */
       for (int i = 1; i < stack_count; ++i) {
         const int id = stack_ids[i];
         const int rank = reports_garrison_rank(units, id);
@@ -668,43 +667,23 @@ void reports_render_colony_garrisons(
         const int sprite = units_map_sprite(units, unit->id);
         /*
          * WARNING — pool index used as a DOS @UNIT id. units_display_type_index
-         * returns an OpenCol POOL INDEX; `ru->type` below is the col1 save's raw
-         * DOS type byte, and unit_chrome_corner_for_type's argument is a DOS
-         * @UNIT id. The three only agree because of the NAMES.TXT ordering
+         * returns an OpenCol POOL INDEX and unit_chrome_corner_for_type's argument
+         * is a DOS @UNIT id. They only agree because of the NAMES.TXT ordering
          * invariant documented at unit_chrome.c's unit_chrome_corner_for_type
          * (units_load_types appends the @UNIT rows in file order, and the
-         * shipped section is exactly Colonists 0 … Mtd. Warriors 0x16). This is
-         * the third consumer of that invariant (chrome corner, europe.c's dock
-         * display type, this row match); it is cosmetic here — a mismatch picks
-         * the wrong raw record's orders letter or the wrong badge corner — so
-         * the numeric compare is kept rather than pushed through a name lookup.
-         * Do NOT copy this pattern into a rules path (units.c:5117).
+         * shipped section is exactly Colonists 0 … Mtd. Warriors 0x16). It is
+         * cosmetic here — a mismatch picks the wrong badge corner. Do NOT copy
+         * this pattern into a rules path (units.c:5117).
          */
         const int dos_unit_type_id = units_display_type_index(units, unit->id);
-        int orders = unit->orders;
-        if (raw_used) {
-          for (uint16_t ri = 0; ri < col1->head.unit_count; ++ri) {
-            if (raw_used[ri]) {
-              continue;
-            }
-            const ColonizeCol1Unit* ru = &col1->unit[ri];
-            if (ru->nation_id == (uint8_t)human && ru->x == c->x && ru->y == c->y &&
-                ru->type == (uint8_t)dos_unit_type_id) {
-              orders = ru->orders;
-              raw_used[ri] = true;
-              break;
-            }
-          }
-        }
         unit_chrome_blit_unit_for_palette(
-          fb, font, icons, sprite, x, row_top - 7, dos_unit_type_id, unit->nation_id, orders,
+          fb, font, icons, sprite, x, row_top - 7, dos_unit_type_id, unit->nation_id, unit->orders,
           false,
           /* Badge arm 4 = Artillery + damaged (+0x3148 bit7), not aboard. */
           (unit->col1_flags15 & 0x80u) != 0, active_palette
         );
         x += pitch;
       }
-      free(raw_used);
     }
   }
 }

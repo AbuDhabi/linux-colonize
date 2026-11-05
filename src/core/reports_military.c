@@ -437,7 +437,7 @@ void reports_render_naval(
 /*
  * Foreign Affairs report (F8) — one block per Euro nation, fixed English/
  * French/Spanish/Dutch order (golden: foreign.png). Each block: a header
- * rule, "<Leader>'s <Adjective>:" (leader name yellow, adjective cream —
+ * rule, "<Leader>'s <Adjective>:" (leader + @MISC 94 yellow, "[Free ]adjective:" cream —
  * two draw calls split at the leader segment's measured width, same idiom
  * as a two-color same-line label elsewhere in this file), then either a
  * centered "(Withdrawn from New World)" (LABELS.TXT @MISC index 190,
@@ -473,7 +473,8 @@ void reports_render_naval(
  * golden; the DOS gate is the crown one.
  *
  * "Free": when nation_flags bit 0x04 is set DOS splices @MISC 191 ("Free")
- * into the header between the leader's name and the adjective, and drops
+ * into the header between the leader's name and the adjective (drawn in the
+ * adjective's string and ink, 0x61), and drops
  * that block's Rebels/Tories line. Neutral on the golden (no nation has the
  * bit) but ported so a post-independence report reads as DOS does.
  *
@@ -647,7 +648,7 @@ static int reports_foreign_build_rows(
     ForeignRow* r = &rows[n++];
     memset(r, 0, sizeof(*r));
     const ColonizeCol1Player* p = &col1->player[i];
-    r->leader = p->name[0] ? p->name : reports_nation_adjective_display_name(i);
+    r->leader = p->name; /* DS:0x540e verbatim: an empty slot prints "'s French:" in DOS */
     r->adjective = reports_nation_adjective_woi(col1, i); /* OVL06 asm 105176: 09a4 */
     r->is_crown = (crown == i);
     if (r->is_crown) {
@@ -710,15 +711,17 @@ void reports_render_foreign(
     reports_draw_hline(fb, 0, fb->width, block_top, REPORTS_FOREIGN_RULE_COLOR);
 
     const int header_y = block_top + REPORTS_FOREIGN_HEADER_DY;
-    snprintf(line, sizeof(line), "%s's", r->leader);
+    /* 3f41:29c6: name + @MISC 94 ("'s") in 0x92, then a second string
+     * [@MISC 191 "Free" ]<adjective>: in 0x61 — "Free" is in the cream half. */
+    char poss[16];
+    snprintf(line, sizeof(line), "%s%s", r->leader, reports_misc_word(94, "", poss, sizeof(poss)));
     reports_draw_line(font, fb, REPORTS_FOREIGN_COL1_X, header_y, line, REPORTS_FOREIGN_LEADER_COLOR);
     int leader_w = font ? font_text_width(font, line) : 0;
     if (r->free_nation) {
-      /* @MISC 191 "Free", spliced between the name and the adjective. */
       const char* live = reports_labels_field("MISC", 191);
       snprintf(line, sizeof(line), " %s", live ? live : "");
       reports_draw_line(
-        font, fb, REPORTS_FOREIGN_COL1_X + leader_w, header_y, line, REPORTS_FOREIGN_LEADER_COLOR
+        font, fb, REPORTS_FOREIGN_COL1_X + leader_w, header_y, line, REPORTS_FOREIGN_ADJ_COLOR
       );
       leader_w += font ? font_text_width(font, line) : 0;
     }
@@ -976,7 +979,9 @@ static int reports_indian_build_rows(
     IndianRow* r = &rows[n++];
     r->nation_id = nation_id;
     r->name = reports_tribe_display_name(t);
-    r->color = k_indian_tribe_colors[t];
+    /* FUN_3f41_010a raw 69498: nation 10 (Sioux) is drawn in DAC 0xc (pure red), not its
+     * @TRIBES colour 118. */
+    r->color = nation_id == 10 ? 0xc : k_indian_tribe_colors[t];
     r->level = reports_tribe_level_display_name(ind->tech);
     r->tech = ind->tech > 3 ? 3 : ind->tech;
     r->villages = villages;
@@ -1107,7 +1112,8 @@ void reports_render_indian(
     }
     reports_draw_line(font, fb, REPORTS_INDIAN_VILLAGES_X, stats_y, buf, REPORTS_INDIAN_TEXT_COLOR);
     if (r->missions > 0) {
-      const char* missions_w = reports_labels_field("MISC", 28);
+      /* FUN_3f41_010a: DS:0x2df0 (@MISC 27 "Mission") when exactly 1, else DS:0x2df2 (#28). */
+      const char* missions_w = reports_labels_field("MISC", r->missions == 1 ? 27 : 28);
       snprintf(buf, sizeof(buf), "%d %s", r->missions, missions_w ? missions_w : "");
       reports_draw_line(font, fb, REPORTS_INDIAN_MISSIONS_X, stats_y, buf, REPORTS_INDIAN_TEXT_COLOR);
     }

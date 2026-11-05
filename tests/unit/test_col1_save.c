@@ -562,8 +562,10 @@ static bool build_synthetic(ColonizeCol1Save* save, char* err, size_t err_size) 
  * slot probe flags the file, and removing the last chunk drops the tail
  * again. Also covers the 'VTIN' payload (village Buys/Sells sidebar intel).
  */
-/* More than 300 units: DOS section keeps 300 (links into the rest cut), the
- * remainder rides in 'UNXT' and comes back on read. */
+/* More than 300 units: DOS section keeps 300, the remainder rides in 'UNXT'
+ * and comes back on read. DOS links splice past the overflow records (one
+ * chain per tile) and a tile held only by overflow records loses its unit
+ * flag, else DOS raises @UNITFLAG (FUN_1427_005c). */
 static bool test_unit_overflow(char* err, size_t err_size) {
   ColonizeCol1Save save;
   if (!build_synthetic(&save, err, err_size)) {
@@ -581,9 +583,18 @@ static bool test_unit_overflow(char* err, size_t err_size) {
     units[i].transport_chain.next_unit_idx = -1;
     units[i].transport_chain.prev_unit_idx = -1;
   }
+  /* Tile (40,1): chain 299 -> 300 (overflow) -> 298. (41,1): overflow 301 alone. */
+  const size_t w = save.map.width;
+  units[298].x = units[299].x = units[300].x = 40;
+  units[298].y = units[299].y = units[300].y = units[301].y = 1;
   units[299].transport_chain.next_unit_idx = 300;
   units[300].transport_chain.prev_unit_idx = 299;
+  units[300].transport_chain.next_unit_idx = 298;
+  units[298].transport_chain.prev_unit_idx = 300;
+  units[301].x = 41;
   units[n - 1].x = 77;
+  save.map.mask[w + 40] |= 0x01u;
+  save.map.mask[w + 41] |= 0x01u;
   free(save.unit);
   save.unit = units;
   save.head.unit_count = n;
@@ -596,11 +607,20 @@ static bool test_unit_overflow(char* err, size_t err_size) {
   col1_save_init(&back);
   if (ok) {
     memcpy(&dos_head, data, sizeof(dos_head));
-    ok = dos_head.unit_count == COLONIZE_COL1_DOS_UNIT_MAX && dos_head.active_unit == 0xffffu &&
+    const size_t units_at = sizeof(ColonizeCol1Head) + sizeof(save.player) + sizeof(save.other) +
+                            (size_t)save.head.colony_count * sizeof(ColonizeCol1Colony);
+    ColonizeCol1Unit dos298, dos299;
+    memcpy(&dos298, data + units_at + 298 * sizeof(ColonizeCol1Unit), sizeof(dos298));
+    memcpy(&dos299, data + units_at + 299 * sizeof(ColonizeCol1Unit), sizeof(dos299));
+    ok = dos299.transport_chain.next_unit_idx == 298 &&
+         dos298.transport_chain.prev_unit_idx == 299;
+    ok = ok && dos_head.unit_count == COLONIZE_COL1_DOS_UNIT_MAX && dos_head.active_unit == 0xffffu &&
          col1_save_read_memory(data, size, &back, err, err_size) &&
          back.head.unit_count == n && back.unit[n - 1].x == 77 &&
-         back.head.active_unit == n - 1 && back.unit[299].transport_chain.next_unit_idx == -1 &&
-         back.unit[300].transport_chain.prev_unit_idx == 299 &&
+         back.head.active_unit == n - 1 && back.unit[299].transport_chain.next_unit_idx == 300 &&
+         back.unit[298].transport_chain.prev_unit_idx == 300 &&
+         (back.map.mask[w + 40] & 0x01u) && !(back.map.mask[w + 41] & 0x01u) &&
+         (save.map.mask[w + 41] & 0x01u) &&
          !col1_save_ext_find(&back, COLONIZE_COL1_EXT_TAG_UNIT_OVERFLOW, NULL, NULL);
   }
   if (!ok) {

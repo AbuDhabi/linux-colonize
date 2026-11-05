@@ -463,7 +463,7 @@ fragment. Related sections are listed in the first column.
 | Construction CHANGE | CHANGE / **C** | Done | [`colony_screen.c`](../src/core/colony_screen.c); the built project's "(COMPLETE)" row is kept silently, `@ALREADYHAVE` / `@NOMOREWAREHOUSE` are EOT only (port_bugs.md #1223) |
 | Field jobs | Assign colonist to field | Done | Job list popup |
 | Leave-as (eject) | Fence with colonist | Done | Role list |
-| Fence unit jobs | Second click or Enter on the selected fence unit | Done | `FUN_2f2b_44d4` / `FUN_2f2b_6372` push 0 open `FUN_2f2b_348c` param 0: the full jobs list (colony jobs, then the leave-as roles); a colony of 32 keeps the leave-as list (port_bugs.md #1434) |
+| Fence unit jobs | Second click or Enter on the selected fence unit | Done | `FUN_2f2b_44d4` / `FUN_2f2b_6372` push 0 open `FUN_2f2b_348c` param 0: the full jobs list (colony jobs, then the leave-as roles); a colony of 32 keeps the leave-as list (port_bugs.md #1435) |
 | `@ABANDON` / `@ABANDON2` | Last colonist leave | Done | Yes/No confirm from GAME.TXT |
 | `@KEEPSTOCKADE` | Stockade min pop | Done | OK from `@KEEPSTOCKADE` |
 | `@MORETHANTHREE` | Assign 4th colonist to a full building | Done | `colonies_assign_workplace` caps at `COLONIZE_BUILDING_MAX_WORKERS` (3); `colonies_emit_more_than_three_chrome` OK. Was previously misdocumented as a `@KEEPSTOCKADE` alias — the two sections are unrelated |

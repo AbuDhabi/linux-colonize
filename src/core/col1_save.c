@@ -414,6 +414,53 @@ static uint16_t col1_save_dos_unit_count(const ColonizeCol1Save* save) {
            : save->head.unit_count;
 }
 
+/* A tile-chain link as DOS sees it: past any 'UNXT' records (>= the DOS
+ * count), following the same direction, to the next DOS record or -1. */
+static int16_t col1_save_dos_link(const ColonizeCol1Save* save, int16_t link, bool next) {
+  const uint16_t dos = col1_save_dos_unit_count(save);
+  for (uint16_t guard = 0; link >= (int16_t)dos && guard < save->head.unit_count; ++guard) {
+    if (link >= (int16_t)save->head.unit_count) {
+      return -1;
+    }
+    const ColonizeCol1Unit* u = &save->unit[link];
+    link = next ? u->transport_chain.next_unit_idx : u->transport_chain.prev_unit_idx;
+  }
+  return link >= (int16_t)dos ? (int16_t)-1 : link;
+}
+
+/*
+ * The mask as DOS sees it: a map tile held only by 'UNXT' records loses its
+ * unit flag (bit 0). DOS has no record there, and FUN_1427_005c raises
+ * @UNITFLAG on the first lookup of a flagged tile without one. NULL when no
+ * record spills (caller frees).
+ */
+static uint8_t* col1_save_dos_mask(const ColonizeCol1Save* save, uint16_t dos) {
+  if (save->head.unit_count <= dos || !save->unit || !save->map.mask) {
+    return NULL;
+  }
+  uint8_t* mask = malloc(save->map.tile_count);
+  if (!mask) {
+    return NULL;
+  }
+  memcpy(mask, save->map.mask, save->map.tile_count);
+  const size_t w = save->map.width;
+  for (uint16_t pass = 0; pass < 2; ++pass) {
+    for (uint16_t i = pass ? 0 : dos; i < (pass ? dos : save->head.unit_count); ++i) {
+      const ColonizeCol1Unit* u = &save->unit[i];
+      if (u->x >= save->map.width || u->y >= save->map.height) {
+        continue;
+      }
+      const size_t t = (size_t)u->y * w + u->x;
+      if (pass == 0) {
+        mask[t] &= (uint8_t)~0x01u; /* overflow tiles first, */
+      } else {
+        mask[t] |= (uint8_t)(save->map.mask[t] & 0x01u); /* then back where DOS has a record */
+      }
+    }
+  }
+  return mask;
+}
+
 /*
  * The ext block as it goes to disk: save->ext, plus an 'UNXT' chunk carrying
  * records 300.. when the save holds more units than DOS can load. `*owned`
@@ -481,6 +528,18 @@ static void col1_save_unspill_units(ColonizeCol1Save* save) {
     return;
   }
   memcpy(grown + save->head.unit_count, payload + 4, size - 4u);
+  /* The DOS records' links were spliced past these (col1_save_dos_link);
+   * the overflow records kept theirs, so point the neighbours back. */
+  for (size_t i = save->head.unit_count; i < total; ++i) {
+    const int16_t next = grown[i].transport_chain.next_unit_idx;
+    const int16_t prev = grown[i].transport_chain.prev_unit_idx;
+    if (next >= 0 && (size_t)next < total) {
+      grown[next].transport_chain.prev_unit_idx = (int16_t)i;
+    }
+    if (prev >= 0 && (size_t)prev < total) {
+      grown[prev].transport_chain.next_unit_idx = (int16_t)i;
+    }
+  }
   const uint16_t active = (uint16_t)(payload[0] | (payload[1] << 8));
   save->unit = grown;
   save->head.unit_count = (uint16_t)total;
@@ -836,14 +895,12 @@ static bool emit_to_stream(
     return false;
   }
   for (uint16_t i = 0; i < dos_units; ++i) {
-    /* DOS's tile chain must not lead into the 'UNXT' records. */
+    /* DOS's tile chain must not lead into the 'UNXT' records: splice past
+     * them, so a tile's DOS records stay one chain (a cut left two, and
+     * FUN_1427_005c only walks the one holding the lowest record). */
     ColonizeCol1Unit u = save->unit[i];
-    if (u.transport_chain.next_unit_idx >= (int16_t)dos_units) {
-      u.transport_chain.next_unit_idx = -1;
-    }
-    if (u.transport_chain.prev_unit_idx >= (int16_t)dos_units) {
-      u.transport_chain.prev_unit_idx = -1;
-    }
+    u.transport_chain.next_unit_idx = col1_save_dos_link(save, u.transport_chain.next_unit_idx, true);
+    u.transport_chain.prev_unit_idx = col1_save_dos_link(save, u.transport_chain.prev_unit_idx, false);
     if (!put(ctx, &u, sizeof(u), err, err_size, "units")) {
       return false;
     }
@@ -862,14 +919,21 @@ static bool emit_to_stream(
       )) {
     return false;
   }
-  if (!put(ctx, save->indian, sizeof(save->indian), err, err_size, "indians") ||
-      !put(ctx, &save->stuff, sizeof(save->stuff), err, err_size, "stuff") ||
-      !put(ctx, save->map.tile, save->map.tile_count, err, err_size, "map.tile") ||
-      !put(ctx, save->map.mask, save->map.tile_count, err, err_size, "map.mask") ||
-      !put(ctx, save->map.path, save->map.tile_count, err, err_size, "map.path") ||
-      !put(ctx, save->map.seen, save->map.tile_count, err, err_size, "map.seen") ||
-      !put(ctx, &save->post_map, sizeof(save->post_map), err, err_size, "post_map") ||
-      !put(ctx, save->trade_route, sizeof(save->trade_route), err, err_size, "trade_routes")) {
+  uint8_t* dos_mask = col1_save_dos_mask(save, dos_units);
+  if (!dos_mask && save->head.unit_count > dos_units) {
+    COL1_FAIL(err, err_size, "oom building the DOS unit mask");
+  }
+  const bool map_ok =
+    put(ctx, save->indian, sizeof(save->indian), err, err_size, "indians") &&
+    put(ctx, &save->stuff, sizeof(save->stuff), err, err_size, "stuff") &&
+    put(ctx, save->map.tile, save->map.tile_count, err, err_size, "map.tile") &&
+    put(ctx, dos_mask ? dos_mask : save->map.mask, save->map.tile_count, err, err_size, "map.mask") &&
+    put(ctx, save->map.path, save->map.tile_count, err, err_size, "map.path") &&
+    put(ctx, save->map.seen, save->map.tile_count, err, err_size, "map.seen") &&
+    put(ctx, &save->post_map, sizeof(save->post_map), err, err_size, "post_map") &&
+    put(ctx, save->trade_route, sizeof(save->trade_route), err, err_size, "trade_routes");
+  free(dos_mask);
+  if (!map_ok) {
     return false;
   }
   /* Port extension block last, so DOS's section-by-section read never sees it. */
