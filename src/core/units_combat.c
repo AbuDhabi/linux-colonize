@@ -4071,6 +4071,10 @@ void units_set_tax_change_hook(ColonizeTaxChangeFn fn, void* user) {
  * 0b/0d/0e/0f/10/11 with cut bytes 2/2/4/6/3/8 and the byte after the table is
  * 0. So Caravel reads 4, Merchantman 6, Galleon 3, Privateer 8, Frigate 0
  * (no cut). Ported verbatim, off-by-one included.
+ *
+ * MOD_ROYAL_MERCY (not DOS): read the matched row's own cut (the King's
+ * Frigate cuts 8) and show the cut @KINGMERCY to a human loser, in the King's
+ * portrait like @KINGNEWWAR. Off = the DOS path above.
  */
 int units_royal_loss_tax_cut(
   ColonizeCol1Save* col1, const ColonizeUnitPool* pool, const ColonizeUnit* lose
@@ -4095,13 +4099,15 @@ int units_royal_loss_tax_cut(
       k = i;
     }
   }
-  if (k <= 0) {
+  const bool mercy = mods_on(MOD_ROYAL_MERCY);
+  if (mercy ? k < 0 : k <= 0) {
     return 0;
   }
+  const int row_cut = mercy ? k_cut_byte[k] : k_cut_byte[i];
   ColonizeCol1Nation* nat = &col1->nation[nation];
   int cut = (int)(int8_t)nat->tax_rate;
-  if (k_cut_byte[i] < cut) {
-    cut = k_cut_byte[i];
+  if (row_cut < cut) {
+    cut = row_cut;
   }
   if (cut <= 0) {
     return 0;
@@ -4109,6 +4115,26 @@ int units_royal_loss_tax_cut(
   nat->tax_rate = (uint8_t)((int)nat->tax_rate - cut);
   if (g_units_tax_change) {
     g_units_tax_change(g_units_tax_change_user, nation, (int)nat->tax_rate);
+  }
+  if (mercy && g_units_combat_popups && g_units_combat_game_txt &&
+      nation == col1_save_human_nation(col1)) {
+    const int d = (int)col1->head.difficulty;
+    PopupMsgTokens tok;
+    memset(&tok, 0, sizeof(tok));
+    tok.string0 = reports_difficulty_title(d >= 0 && d < 5 ? d : 0);
+    tok.string1 = col1->player[nation].name;
+    tok.string2 = pool->types[lose->type_index].name;
+    tok.number0 = cut;
+    tok.has_number0 = true;
+    tok.number1 = (int)nat->tax_rate;
+    tok.has_number1 = true;
+    char body[AI_POPUP_BODY_LEN];
+    popup_msg_fill(g_units_combat_game_txt, "KINGMERCY", &tok, "", body, sizeof(body));
+    if (body[0] && ai_popup_enqueue_ok_ctx(
+          g_units_combat_popups, AI_POPUP_TAG_KING_TAX, nation, -1, cut, NULL, body
+        )) {
+      ai_popup_set_last_portrait(g_units_combat_popups, 8, 0);
+    }
   }
   return cut;
 }
