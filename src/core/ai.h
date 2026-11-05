@@ -127,6 +127,13 @@ int ai_indian_village_threat_w(
   int* out_score
 );
 
+/* FUN_112b_0790's mark colour tier for this settlement toward `nation`:
+ * village alarm >> 5 clamped 0..3, forced to 3 once the tribe's alarm with
+ * that nation reaches 0x4b. 0 green, 1 cyan, 2 yellow, 3 red. */
+int ai_indian_village_alarm_tier(
+  const ColonizeCol1Save* col1, const ColonizeCol1Tribe* village, int nation
+);
+
 /* FUN_521d_0a60 entry: wipe + restamp the DS:0x9faa coarse plane for this Euro nation. */
 void ai_coarse_fog_euro_restamp(
   const ColonizeUnitPool* units, const ColonizeColonyPool* colonies, int nation_id

@@ -653,6 +653,7 @@ AiContactReparations ai_contact_s_reparations[4];
  * resolves against col1->tribe[] of a different world (smell #58).
  */
 void ai_contact_reset(void) {
+  ai_contact_mood_reset(); /* MOD_TRIBE_MOOD tally belongs to one campaign */
   memset(ai_contact_s_reparations, 0, sizeof(ai_contact_s_reparations));
   memset(ai_contact_s_visit_mood, 0, sizeof(ai_contact_s_visit_mood));
   /* Audit AC-37: these two carry indices into the PREVIOUS game as well —

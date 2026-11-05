@@ -30,6 +30,7 @@
 #include "core/europe.h"
 #include "core/founding_fathers.h"
 #include "core/map.h"
+#include "core/mods.h"
 #include "core/popup_msg.h"
 #include "core/reports.h"
 #include "core/reports_names.h"
@@ -871,6 +872,68 @@ static void ai_contact_live_among_natives_body(
   char body[AI_POPUP_BODY_LEN];
   popup_msg_fill(ctx->messages, section, &tok, "", body, sizeof(body));
   ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_TEACH, nation_id, body);
+}
+
+/*
+ * MOD_TRIBE_MOOD (not DOS): after a chief visit the scout survives, the cut
+ * @PISS<cause> line tells how the tribe stands and why: the cause with the
+ * largest tally since the last report (ai_contact_mood_take). Slots as
+ * FUN_4cc6_00f2 prepared them (raw 80870-80873): %STRING0 the European
+ * adjective, %STRING1 the tribe; %STRING2/%STRING3 = NAMES.TXT @ATTITUDINAL /
+ * @ATTITUDE. Player-chosen scale: level = alarm quartile (Content, Uneasy,
+ * Restless, Angry), modifier = the 5-point step inside it, Content running
+ * Extremely -> Slightly, the hostile levels Slightly -> Extremely.
+ */
+/* Append a one-line caret section as its own row of a non-empty body. */
+static void ai_contact_mood_append(
+  ColonizeTurnContext* ctx, const char* section, const PopupMsgTokens* tok, char* body,
+  size_t body_size
+) {
+  char line[128];
+  popup_msg_fill(ctx->messages, section, tok, "", line, sizeof(line));
+  if (body[0] && line[0]) {
+    line[strcspn(line, "\n")] = '\0'; /* the caret line's own trailing break */
+    const size_t used = strlen(body);
+    snprintf(body + used, body_size - used, "\n%s", line);
+  }
+}
+
+static void ai_contact_mood_report(
+  ColonizeTurnContext* ctx, int e, int nation_id, const ColonizeCol1Tribe* village
+) {
+  if (!mods_on(MOD_TRIBE_MOOD) || !ctx || !ctx->col1 || !ai_contact_euro_is_human(ctx, e)) {
+    return;
+  }
+  const int reason = ai_contact_mood_take(nation_id, e);
+  int alarm = ai_diplo_indian_alarm(ctx->col1, nation_id, e);
+  alarm = alarm < 0 ? 0 : alarm > 99 ? 99 : alarm;
+  const int level = alarm / 25;
+  const int step = (alarm % 25) / 5;
+  PopupMsgTokens tok;
+  memset(&tok, 0, sizeof(tok));
+  tok.string0 = reports_nation_adjective_woi(ctx->col1, e);
+  tok.string1 = ai_contact_tribe_name(nation_id);
+  tok.string2 = assets_msg_line_or(ctx->names, "ATTITUDINAL", level == 0 ? step : 4 - step, "");
+  tok.string3 = assets_msg_line_or(ctx->names, "ATTITUDE", level, "");
+  char section[8];
+  snprintf(section, sizeof(section), "PISS%d", reason);
+  char body[AI_POPUP_BODY_LEN];
+  popup_msg_fill(ctx->messages, section, &tok, "", body, sizeof(body));
+  /* This village's own level, the colour of its map marks. */
+  tok.string3 = assets_msg_line_or(
+    ctx->names, "ATTITUDE", ai_indian_village_alarm_tier(ctx->col1, village, e), ""
+  );
+  ai_contact_mood_append(ctx, "VILLAGEMOOD", &tok, body, sizeof(body));
+  /* Whose colonies put the marks over this village (FUN_281f_0316's winner). */
+  const ColonizeWorld rw = world_from_turn_ctx(ctx);
+  const int crowd = ai_indian_village_threat_w(&rw, e, (int)(village - ctx->col1->tribe), NULL);
+  if (crowd >= 0) {
+    tok.string0 = reports_nation_adjective_woi(ctx->col1, crowd);
+    ai_contact_mood_append(ctx, "VILLAGECROWD", &tok, body, sizeof(body));
+  }
+  if (body[0]) {
+    ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, body);
+  }
 }
 
 /*
@@ -1833,7 +1896,11 @@ static void ai_contact_apply_popup_result_menu(
     break;
   case AI_CONTACT_CHOICE_CHIEF:
     if (menu_unit && menu_village) {
+      const int scout_id = menu_unit->id;
       ai_contact_speak_with_chief(ctx, e, nation_id, menu_unit, menu_village);
+      if (units_get(ctx->units, scout_id)) { /* not tied up for target practice */
+        ai_contact_mood_report(ctx, e, nation_id, menu_village);
+      }
     }
     break;
   case AI_CONTACT_CHOICE_HERESY:

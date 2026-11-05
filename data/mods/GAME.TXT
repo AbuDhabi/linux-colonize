@@ -37,3 +37,15 @@ Treaty Cancel ~Notice
 @width=220
 We cannot voluntarily reduce below {%NUMBER0} the population of a colony
 with its buildings.
+
+;       mods.tribe_mood: two lines appended to the chief's @PISS<cause>
+;       report. @VILLAGEMOOD: %STRING3 = this village's @ATTITUDE (the colour
+;       of its map marks). @VILLAGECROWD: %STRING0 = the nation whose colonies
+;       put the marks there.
+@VILLAGEMOOD
+@width=190
+^This village is {%STRING3}.
+
+@VILLAGECROWD
+@width=190
+^%STRING0 colonies crowd its lands.

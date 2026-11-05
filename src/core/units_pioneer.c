@@ -151,7 +151,8 @@ ColonizeColony* units_nearest_colony_dos(
  * the WHOLE of 00f2, escalation tail included (port_bugs.md #1004): a clear/plow/
  * road charge that lands on alarm 100 rolls DOS's mission burn.
  * The 4th argument DOS passes 0d6c (2 for clear, 1 for road) is not read by
- * 00f2's body — recorded, not modelled.
+ * 00f2's body; MOD_TRIBE_MOOD tallies it (ai_contact_mood_note) for the
+ * chief's mood report. The two callers pass base 3 (road) and 5 (clear).
  */
 static void units_pioneer_native_land_tail(
   const ColonizeWorld* w,
@@ -210,6 +211,7 @@ static void units_pioneer_native_land_tail(
   aw.ai_popups = ai_popups;
   aw.messages = messages;
   ai_contact_alarm_delta_00f2_w(&aw, (int)col1->tribe[ti].nation_id, nation, amount);
+  ai_contact_mood_note((int)col1->tribe[ti].nation_id, nation, base_add == 3 ? 1 : 2, amount);
 }
 
 bool units_pioneer_tile_can_clear_or_plow(

@@ -740,12 +740,14 @@ static void ai_indian_152e_village_growth(
       while (ind->euro_relation_accum[mission_nation] > 7) {
         ind->euro_relation_accum[mission_nation] -= 8;
         ai_contact_alarm_delta_00f2(ctx, nation_id, mission_nation, -1); /* 4cc6_00f2 */
+        ai_contact_mood_note(nation_id, mission_nation, 3, -1); /* raw 81511 PUSH 3 */
       }
     }
     if (threat_nation >= 0) {
       while (ind->euro_relation_accum[threat_nation] < -7) {
         ind->euro_relation_accum[threat_nation] += 8;
         ai_contact_alarm_delta_00f2(ctx, nation_id, threat_nation, 1);
+        ai_contact_mood_note(nation_id, threat_nation, 5, 1); /* raw 81518 PUSH 5 */
       }
     }
   }
@@ -756,6 +758,17 @@ static void ai_indian_152e_village_growth(
       ai_contact_alarm_delta_00f2(ctx, nation_id, e, -1);
     }
   }
+}
+
+int ai_indian_village_alarm_tier(
+  const ColonizeCol1Save* col1, const ColonizeCol1Tribe* village, int nation
+) {
+  int tier = ((int)village->alarm[nation].friction | ((int)village->alarm[nation].attacks << 8)) >> 5;
+  tier = tier < 0 ? 0 : tier > 3 ? 3 : tier;
+  if ((int)col1->indian[village->nation_id - 4].alarm_by_player[nation] >= 0x4b) {
+    tier = 3;
+  }
+  return tier;
 }
 
 /* ===================== Village growth tick, tile/owner helpers & native pull scoring (ai_grow_villages .. ai_s_native_colonies) ===================== */

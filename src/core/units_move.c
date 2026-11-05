@@ -584,7 +584,14 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_combat_pre(units_move_ctx* c) {
       ColonizeWorld aw = *c->w;
       aw.col1 = col1;
       aw.col1_ok = true;
+      /* MOD_TRIBE_MOOD: DOS passes reason 0 here (raw 75626); an attack on a
+       * tribe still below alarm 0x4b (the @WHACKINDIANS band) is tallied as
+       * @PISS4. The alarm read draws nothing. */
+      const bool unprovoked = ai_diplo_indian_alarm(col1, foe_nation, unit->nation_id) < 0x4b;
       ai_contact_alarm_delta_00f2_w(&aw, foe_nation, unit->nation_id, delta);
+      if (unprovoked) {
+        ai_contact_mood_note(foe_nation, unit->nation_id, 4, delta);
+      }
     }
   }
   /*
