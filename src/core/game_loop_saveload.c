@@ -253,6 +253,16 @@ static bool game_apply_col1_save(ColonizeGameState* game, ColonizeCol1Save* load
         );
       }
     }
+    /* Port saves made before ai.c stamped AI leaders (FUN_75c2_10ae raw 120960-120977
+     * fills all four slots) carry "" there, and Foreign Affairs printed "'s French:". */
+    for (int n = 0; n < (int)COLONIZE_COL1_NATION_COUNT; ++n) {
+      if (n != hn && game->col1.player[n].name[0] == '\0') {
+        new_game_default_leader_name(
+          game->names_ok ? &game->names : NULL, n, game->col1.player[n].name,
+          sizeof(game->col1.player[n].name)
+        );
+      }
+    }
   }
   /*
    * port_bugs.md ("French expeditionary force missing on report"): in DOS the
