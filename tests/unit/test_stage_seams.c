@@ -20,8 +20,10 @@
 #include "core/dos_buggy.h"
 #include "core/game_loop_internal.h"
 #include "core/map_panel.h"
+#include "core/mods.h"
 #include "core/popup.h"
 #include "core/reports.h"
+#include "core/settings.h"
 #include "core/turn_internal.h"
 #include "core/woodcut.h"
 
@@ -4235,6 +4237,50 @@ static int test_new_campaign_drops_parked_flow(void) {
   return rc;
 }
 
+/* A new campaign copies the settings.json "mods" defaults into its mask (none
+ * under dos_buggy, i.e. every test and golden); editing the defaults later
+ * leaves the running campaign alone; the game ending clears it. */
+static int test_new_campaign_snapshots_mods(void) {
+  ColonizeGameConfig cfg = {.data_dir = "./COLONIZE", .save_dir = "./build/debug"};
+  ColonizeGameState* game = game_create(&cfg);
+  if (!game || !game_assets_ok(game)) {
+    fprintf(stderr, "SKIP: no COLONIZE/ assets\n");
+    if (game) {
+      game_destroy(game);
+    }
+    return TR_SKIP;
+  }
+  const ColonizeSettings saved = *settings_get();
+  ColonizeSettings prefs = saved;
+  settings_mods_set_mask(&prefs, 1u << MOD_WAGON_LOOT);
+  settings_set(&prefs);
+  game->new_game.generate_map = false;
+  snprintf(game->new_game.map_file, sizeof(game->new_game.map_file), "%s", "AMER2.MP");
+  int rc = 0;
+  game_commit_new_campaign(game);
+  if (mods_campaign_mask() != 0) {
+    rc = fail("dos_buggy on: a new campaign starts with every mod off");
+  }
+  dos_buggy_behavior_set(false);
+  game_commit_new_campaign(game);
+  dos_buggy_behavior_set(true);
+  if (mods_campaign_mask() != 1u << MOD_WAGON_LOOT) {
+    rc = fail("a new campaign snapshots the mods defaults");
+  }
+  settings_mods_set_mask(&prefs, 1u << MOD_GOTO_NATIVE_WAIT);
+  settings_set(&prefs);
+  if (mods_campaign_mask() != 1u << MOD_WAGON_LOOT) {
+    rc = fail("editing the defaults must not touch the running campaign");
+  }
+  game_end_to_title(game);
+  if (mods_campaign_mask() != 0) {
+    rc = fail("returning to the title clears the campaign mask");
+  }
+  settings_set(&saved);
+  game_destroy(game);
+  return rc;
+}
+
 /* An Americas (AMER2) start with seed 100 runs the FUN_684c_08c0 band pick on
  * the loaded map. DOS seed-100 save original_saves/golden_idle_america_seed-100
  * /000001.SAV: 0x190 = 365, England +0x32/+0x33 (47,28), idle human Spain
@@ -5626,6 +5672,7 @@ static const TestCase k_cases[] = {
     {"test_brewster_pick_names_home_port", test_brewster_pick_names_home_port},
     {"test_crossing_stamps_nation_return_tile", test_crossing_stamps_nation_return_tile},
     {"test_new_campaign_drops_parked_flow", test_new_campaign_drops_parked_flow},
+    {"test_new_campaign_snapshots_mods", test_new_campaign_snapshots_mods},
     {"test_new_campaign_amer2_seed100_landfall", test_new_campaign_amer2_seed100_landfall},
     {"test_europe_repaints_reset_harbor_selection", test_europe_repaints_reset_harbor_selection},
     {"test_click_spent_unit_hands_off", test_click_spent_unit_hands_off},

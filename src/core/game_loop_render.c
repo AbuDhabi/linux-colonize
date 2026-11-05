@@ -2217,6 +2217,10 @@ void game_commit_new_campaign(ColonizeGameState* game) {
   }
   NewGameWizard* ng = &game->new_game;
 
+  /* The campaign keeps the mod toggles the defaults hold now; the save
+   * carries them, later edits of the defaults never reach this game. */
+  mods_campaign_set(settings_mods_new_campaign_mask());
+
   game->difficulty = ng->difficulty;
   game->human_nation = ng->nation;
   game->active_turn_nation = ng->nation;

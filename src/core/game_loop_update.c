@@ -3853,6 +3853,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
         game->scored_after_hof = false;
         game_enqueue_war_scored_choice(game);
       } else {
+        mods_campaign_set(0); /* retired or title-menu visit: no campaign runs from here */
         game->in_menu = true;
         sound_set_bgm(SOUND_TITLE_BGM_POOL);
         set_status(game, "OpenCol", NULL);

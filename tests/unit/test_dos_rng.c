@@ -6,6 +6,7 @@
 
 #include "../common/test_runner.h"
 #include "core/dos_rng.h"
+#include "core/mods.h"
 #include "core/runtime_ext.h"
 #include "core/units.h"
 #include "third_party/xoshiro256starstar.h"
@@ -126,6 +127,47 @@ static void test_rtst_repair_pending(void) {
   check(pool.units[1].repair_pending == 1, "RT_REPAIR restores repair_pending");
 }
 
+/* RTST RT_MODS: the campaign mod mask rides the save; a mask of 0 writes no
+ * record (mod-free saves stay byte-identical); no record = every mod off. */
+static void test_rtst_mods_mask(void) {
+  size_t n_off = 0;
+  mods_campaign_set(0);
+  uint8_t* blob_off = runtime_ext_serialize(NULL, NULL, &n_off);
+
+  const uint32_t mask = 1u << MOD_WAGON_LOOT | 1u << MOD_GOTO_NATIVE_WAIT;
+  mods_campaign_set(mask);
+  size_t n = 0;
+  uint8_t* blob = runtime_ext_serialize(NULL, NULL, &n);
+  check(n == n_off + 12, "RT_MODS is one 8-byte head + u32 when a mod is on");
+
+  mods_campaign_set(0);
+  runtime_ext_deserialize(NULL, NULL, NULL, blob, n);
+  check(mods_campaign_mask() == mask, "RT_MODS restores the campaign mask");
+  check(mods_on(MOD_WAGON_LOOT) && mods_on(MOD_GOTO_NATIVE_WAIT), "mods_on reads it");
+
+  runtime_ext_deserialize(NULL, NULL, NULL, blob_off, n_off);
+  check(mods_campaign_mask() == 0, "a block without RT_MODS loads every mod off");
+  mods_campaign_set(mask);
+  runtime_ext_deserialize(NULL, NULL, NULL, NULL, 0);
+  check(mods_campaign_mask() == 0, "a save without RTST (DOS) loads every mod off");
+  free(blob);
+  free(blob_off);
+
+  /* Hand-built records: id 17, version, len, payload (little-endian). */
+  const uint8_t all_bits[] = {17, 0, 1, 0, 4, 0, 0, 0, 0xff, 0xff, 0xff, 0xff};
+  runtime_ext_deserialize(NULL, NULL, NULL, all_bits, sizeof all_bits);
+  check(mods_campaign_mask() == (1u << MOD_COUNT) - 1u, "unknown high bits are dropped");
+  const uint8_t short_rec[] = {17, 0, 1, 0, 2, 0, 0, 0, 0xff, 0xff};
+  mods_campaign_set(mask);
+  runtime_ext_deserialize(NULL, NULL, NULL, short_rec, sizeof short_rec);
+  check(mods_campaign_mask() == 0, "RT_MODS with len != 4 loads every mod off");
+  const uint8_t ver2[] = {17, 0, 2, 0, 4, 0, 0, 0, 0xff, 0xff, 0xff, 0xff};
+  mods_campaign_set(mask);
+  runtime_ext_deserialize(NULL, NULL, NULL, ver2, sizeof ver2);
+  check(mods_campaign_mask() == 0, "RT_MODS of an unknown version loads every mod off");
+  mods_campaign_set(0);
+}
+
 #define CASE_(fn) \
   static int tc_##fn(void) { \
     g_failures = 0; \
@@ -137,6 +179,7 @@ CASE_(test_modern_stream)
 CASE_(test_04ca_live_tick)
 CASE_(test_04ca_synth_tick)
 CASE_(test_rtst_repair_pending)
+CASE_(test_rtst_mods_mask)
 #undef CASE_
 
 static const TestCase k_cases[] = {
@@ -145,6 +188,7 @@ static const TestCase k_cases[] = {
   {"test_04ca_live_tick", tc_test_04ca_live_tick},
   {"test_04ca_synth_tick", tc_test_04ca_synth_tick},
   {"test_rtst_repair_pending", tc_test_rtst_repair_pending},
+  {"test_rtst_mods_mask", tc_test_rtst_mods_mask},
 };
 
 TEST_MAIN(k_cases)
