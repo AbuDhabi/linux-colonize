@@ -5,6 +5,7 @@
 
 #include "core/ai.h"
 #include "core/ai_contact.h"
+#include "core/ai_euro.h"
 #include "core/bytes.h"
 #include "core/ai_euro_internal.h"
 #include "core/ai_goals.h"
@@ -34,7 +35,7 @@ enum {
   RT_XOSHIRO = 13,     /* v1: 4x u64 xoshiro256** state; written only under divergences.modern_prng */
   RT_REPAIR = 14,      /* v1: per damaged ship {u8 x, u8 y, u8 nation, u8 type_index, u8 repair_pending} */
   RT_TRIBE_MOOD = 15,  /* v1: MOD_TRIBE_MOOD per-cause alarm tally (ai_contact_mood_export); written only when non-zero */
-  RT_RESERVED_16 = 16, /* reserved: scout intel (not written yet) */
+  RT_SCOUT_INTEL = 16, /* v1: MOD_SCOUT_SPYING 8-byte {nation, x, y, 0, i16 strength, u16 turn} entries; written only when non-empty */
   RT_MODS = 17,        /* v1: u32 campaign mod mask (mods.h); written only when non-zero */
 };
 
@@ -248,6 +249,13 @@ uint8_t* runtime_ext_serialize(
       rt_record(&b, RT_TRIBE_MOOD, 1, p, sizeof p);
     }
   }
+  {
+    uint8_t p[AI_EURO_SPY_EXPORT_MAX];
+    const size_t n = ai_euro_spy_export(p);
+    if (n) { /* absent = no intel (mod-off saves unchanged) */
+      rt_record(&b, RT_SCOUT_INTEL, 1, p, n);
+    }
+  }
   if (mods_campaign_mask()) {
     /* Absent = every toggle off, which keeps mod-free saves byte-identical. */
     uint8_t p[4];
@@ -364,6 +372,9 @@ void runtime_ext_deserialize(
         break;
       case RT_TRIBE_MOOD:
         if (len == AI_CONTACT_MOOD_SIZE) ai_contact_mood_import(p);
+        break;
+      case RT_SCOUT_INTEL:
+        if (len % 8 == 0) ai_euro_spy_import(p, len, colonies);
         break;
       case RT_MODS:
         if (len == 4) mods_campaign_set(rd_u32_le(p));

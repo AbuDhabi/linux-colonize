@@ -138,6 +138,7 @@ add_library(colonize_sim STATIC
   src/core/ai_euro_europe.c
   src/core/ai_euro_goals.c
   src/core/ai_euro_land.c
+  src/core/ai_euro_spy.c
   src/core/ai_euro_ship.c
   src/core/ai_euro_act.c
   src/core/ai_diplo.c

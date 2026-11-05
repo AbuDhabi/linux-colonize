@@ -734,10 +734,14 @@ void ai_euro_goal_walk_479b(ColonizeTurnContext* ctx, ColonizeUnit* u) {
   u->last_dir = dir;
   if (!ok) {
     u->orders = UNITS_ORDER_NONE; /* FUN_2a1f_0210 found no direction */
+    /* mods.scout_spying: no path to its colony, so a spy Scout drops 'S'
+     * instead of being re-aimed at it every turn (the kept course). */
+    ai_euro_spy_drop(u);
     return;
   }
   const int units_before = units_active_count(ctx->units);
-  if (ai_euro_4528_ai_village_entry(ctx, u, px, py)) {
+  if (ai_euro_4528_ai_village_entry(ctx, u, px, py) ||
+      ai_euro_spy_try_infiltrate(ctx, u, px, py)) { /* mods.scout_spying */
     /* 465b's common exit: the unit did not move into the village tile, so
      * LAB_465b_0bd1 clears +0x314c and bumps +0x315a (raw 75832-75840). */
     units_465b_0bd1_tail(ctx->units, id, units_before, false);

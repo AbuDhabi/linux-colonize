@@ -183,4 +183,11 @@ int ai_euro_5d04_dos_type_space(const ColonizeUnitPool* pool, int dos_code);
  */
 void ai_euro_reset(void);
 
+/* mods.scout_spying (ai_euro_spy.c): computer Scouts infiltrate the human's
+ * colonies. Intel persists in runtime_ext keyed by colony tile. */
+void ai_euro_spy_reset(void);
+#define AI_EURO_SPY_EXPORT_MAX (4 * COLONIZE_COLONIES_MAX * 8)
+size_t ai_euro_spy_export(uint8_t out[AI_EURO_SPY_EXPORT_MAX]); /* bytes written, 0 = none */
+void ai_euro_spy_import(const uint8_t* in, size_t len, const ColonizeColonyPool* colonies);
+
 #endif

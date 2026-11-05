@@ -6,6 +6,7 @@
 #include "../common/test_catalogs.h"
 #include "../common/ai_fixture.h"
 #include "core/ai.h"
+#include "core/ai_contact.h"
 #include "core/ai_diplo.h"
 #include "core/ai_euro.h"
 #include "core/ai_euro_internal.h"
@@ -18,6 +19,8 @@
 #include "core/dos_rng.h"
 #include "core/dos_buggy.h"
 #include "core/map.h"
+#include "core/mods.h"
+#include "core/runtime_ext.h"
 #include "core/turn.h"
 #include "core/units.h"
 
@@ -3306,6 +3309,334 @@ static int unit_foreign_colony_military_goal_gates(void) {
   return 0;
 }
 
+/* mods.scout_spying: human colony at (9,8) slot 0, AI nation 1 Scout at (5,8). */
+static int spy_setup(Fixture* f) {
+  if (fixture_init(f, 1) != 0) return 1;
+  f->units.type_count = 6;
+  snprintf(f->units.types[5].name, sizeof(f->units.types[5].name), "Scout");
+  f->units.types[5].movement = 4;
+  f->units.types[5].attack = 1;
+  f->units.types[5].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  treasure_add_colony(f, 0, 0, 9, 8);
+  f->map.layer3[8 * 16 + 9] = 3;
+  f->map.layer3[8 * 16 + 5] = 3;
+  f->col1.player[1].control = 1;
+  return 0;
+}
+
+/* Mod off: every hook hands back the DOS value and leaves the unit alone. */
+static int unit_spy_mod_off(void) {
+  Fixture f;
+  if (spy_setup(&f) != 0) return 1;
+  ai_euro_spy_reset();
+  mods_campaign_set(0);
+  Ai20e6Unit s;
+  memset(&s, 0, sizeof(s));
+  s.nation = 1;
+  s.dos_type = UNITS_KIND_SCOUT;
+  s.cid = 3;
+  int err = 0;
+  for (int t = 0; t < 40 && !err; ++t) {
+    f.col1.head.turn = (uint16_t)t;
+    const int id = units_spawn(&f.units, 5, 8, 8);
+    ColonizeUnit* u = units_get(&f.units, id);
+    u->nation_id = 1;
+    u->col1_ai_plan = AI_EURO_SPY_PLAN;
+    err = ai_euro_spy_seen_strength(&f.ctx, 1, 9, 8, 1000) != 1000 ||
+          ai_euro_spy_dispatch_arm(&f.ctx, u, &s) || ai_euro_spy_try_infiltrate(&f.ctx, u, 9, 8) ||
+          ai_euro_spy_keeps_course(&f.ctx, u) || u->col1_ai_plan != AI_EURO_SPY_PLAN ||
+          !units_get(&f.units, id);
+    units_despawn(&f.units, id);
+  }
+  uint8_t buf[AI_EURO_SPY_EXPORT_MAX];
+  const size_t n = ai_euro_spy_export(buf);
+  fixture_free(&f);
+  if (err) return fail("mod off must leave every hook at the DOS value");
+  if (n != 0) return fail("mod off must keep no intel");
+  return 0;
+}
+
+static int unit_spy_fog(void) {
+  Fixture f;
+  if (spy_setup(&f) != 0) return 1;
+  ai_euro_spy_reset();
+  mods_campaign_set(1u << MOD_SCOUT_SPYING);
+  int varied = 0;
+  for (int t = 0; t < 40; ++t) {
+    f.col1.head.turn = (uint16_t)t;
+    const int seen = ai_euro_spy_seen_strength(&f.ctx, 1, 9, 8, 1000);
+    if (seen < 500 || seen > 1500 || seen != ai_euro_spy_seen_strength(&f.ctx, 1, 9, 8, 1000)) {
+      mods_campaign_set(0);
+      fixture_free(&f);
+      return fail("fog must stay within +-50% and hold for the turn");
+    }
+    varied |= seen != 1000;
+  }
+  /* The human's own view is never fogged. */
+  const int own = ai_euro_spy_seen_strength(&f.ctx, 0, 9, 8, 1000);
+  mods_campaign_set(0);
+  fixture_free(&f);
+  if (!varied) return fail("fog never moved the strength");
+  if (own != 1000) return fail("the human nation must not be fogged");
+  return 0;
+}
+
+static int unit_spy_dispatch_infiltrate_intel(void) {
+  Fixture f;
+  if (spy_setup(&f) != 0) return 1;
+  ai_euro_spy_reset();
+  mods_campaign_set(1u << MOD_SCOUT_SPYING);
+  const ColonizeDosRng rng_before = f.rng;
+  Ai20e6Unit s;
+  memset(&s, 0, sizeof(s));
+  s.nation = 1;
+  s.dos_type = UNITS_KIND_SCOUT;
+  s.cid = 3;
+  int sent_turn = -1;
+  int err = 0;
+  for (int t = 0; t < 2000 && sent_turn < 0 && !err; ++t) {
+    f.col1.head.turn = (uint16_t)t;
+    const int id = units_spawn(&f.units, 5, 5, 8);
+    ColonizeUnit* u = units_get(&f.units, id);
+    u->nation_id = 1;
+    if (ai_euro_spy_dispatch_arm(&f.ctx, u, &s)) {
+      sent_turn = t;
+      err = t % 10 != 0 || u->col1_ai_plan != AI_EURO_SPY_PLAN || u->goto_x != 9 || u->goto_y != 8;
+    } else {
+      units_despawn(&f.units, id);
+    }
+  }
+  if (err || sent_turn < 0) {
+    mods_campaign_set(0);
+    fixture_free(&f);
+    return fail(err ? "dispatch must fire on a 10-turn beat and aim at the colony" : "no dispatch in 2000 turns");
+  }
+  /* Arrival: walk both outcomes over successive attempts. */
+  int caught = 0;
+  int infiltrated = -1;
+  for (int t = 0; t < 400 && (!caught || infiltrated < 0); ++t) {
+    f.col1.head.turn = (uint16_t)(1000 + t);
+    const int id = units_spawn(&f.units, 5, 8, 8);
+    ColonizeUnit* u = units_get(&f.units, id);
+    u->nation_id = 1;
+    u->col1_ai_plan = AI_EURO_SPY_PLAN;
+    const int horses = f.colonies.colonies[0].stock[COLONIZE_CARGO_HORSES];
+    if (!ai_euro_spy_try_infiltrate(&f.ctx, u, 9, 8)) {
+      err = 1;
+      break;
+    }
+    if (units_get(&f.units, id)) {
+      infiltrated = 1000 + t; /* the latest success owns the intel stamp */
+      units_despawn(&f.units, id);
+    } else {
+      caught = 1;
+      err = f.colonies.colonies[0].stock[COLONIZE_CARGO_HORSES] != horses + 100;
+      if (err) break;
+    }
+  }
+  if (err || !caught || infiltrated < 0) {
+    mods_campaign_set(0);
+    fixture_free(&f);
+    return fail(err ? "an attempt must resolve; capture adds 100 horses" : "both outcomes must occur");
+  }
+  /* Fresh intel = the snapshot (no defenders: 0) for 10 turns, then fog. */
+  f.col1.head.turn = (uint16_t)(infiltrated + 9);
+  const int fresh = ai_euro_spy_seen_strength(&f.ctx, 1, 9, 8, 1000);
+  /* A Soldier beside the colony outweighs a 0 snapshot: prio-8 target. */
+  const int sold = units_spawn(&f.units, 1, 8, 8);
+  units_get(&f.units, sold)->nation_id = 1;
+  ai_goals_reset();
+  ai_euro_spy_prime_target(&f.ctx, 1, 0, 3);
+  const int prio = ai_goals_max_primary_prio(1, 9, 8, AI_GOAL_MILITARY);
+  /* Save round trip moves the colony to a new slot; intel follows the tile. */
+  uint8_t buf[AI_EURO_SPY_EXPORT_MAX];
+  const size_t n = ai_euro_spy_export(buf);
+  f.colonies.colonies[3] = f.colonies.colonies[0];
+  f.colonies.colonies[0].active = false;
+  ai_euro_spy_import(buf, n, &f.colonies);
+  const int moved = ai_euro_spy_seen_strength(&f.ctx, 1, 9, 8, 1000);
+  f.col1.head.turn = (uint16_t)(infiltrated + 10);
+  const int stale = ai_euro_spy_seen_strength(&f.ctx, 1, 9, 8, 1000);
+  const int rng_same = memcmp(&rng_before, &f.rng, sizeof(rng_before)) == 0;
+  mods_campaign_set(0);
+  ai_euro_spy_reset();
+  fixture_free(&f);
+  if (fresh != 0) return fail("fresh intel must return the snapshot");
+  if (prio != 8) return fail("weak scouted colony must become a prio-8 military goal");
+  if (n == 0 || moved != 0) return fail("intel must survive export/import keyed by tile");
+  if (stale < 500) return fail("intel must expire after 10 turns");
+  if (!rng_same) return fail("spy rolls must not draw from the DOS RNG");
+  return 0;
+}
+
+/* A spy course outlives the nation-turn housekeeping (0a60 clears every
+ * other >= 10 course): a Scout 13 tiles out still heads for the colony. */
+static int unit_spy_course_survives_turn(void) {
+  Fixture f;
+  if (spy_setup(&f) != 0) return 1;
+  for (int x = 0; x < 16; ++x) f.map.layer3[8 * 16 + x] = 3;
+  f.colonies.colonies[0].x = 14;
+  quiet_5d04_planner(&f, 1);
+  ai_euro_spy_reset();
+  mods_campaign_set(1u << MOD_SCOUT_SPYING);
+  const int id = units_spawn(&f.units, 5, 1, 8);
+  ColonizeUnit* u = units_get(&f.units, id);
+  u->nation_id = 1;
+  u->moves = 4 * UNITS_MP_PER_TILE;
+  u->col1_ai_plan = AI_EURO_SPY_PLAN;
+  ai_euro_set_goto(u, AI_EURO_ACT_GOAL, 14, 8);
+  f.col1.head.turn = 7; /* not a dispatch beat: only the kept course can aim it */
+  ai_euro_dispatcher_turn(&f.ctx, 1);
+  u = units_get(&f.units, id);
+  const int ok = u && u->col1_ai_plan == AI_EURO_SPY_PLAN && u->goto_x == 14 && u->goto_y == 8;
+  if (!ok) {
+    fprintf(stderr, "scout plan=%d orders=%d at (%d,%d) goto (%d,%d)\n", u ? u->col1_ai_plan : -1,
+            u ? u->orders : -1, u ? u->x : -1, u ? u->y : -1, u ? u->goto_x : -1, u ? u->goto_y : -1);
+  }
+  mods_campaign_set(0);
+  ai_euro_spy_reset();
+  fixture_free(&f);
+  return ok ? 0 : fail("spy course must survive the nation-turn housekeeping");
+}
+
+/* No spying during the War of Independence: no fog, no attempt, no target,
+ * and a Scout sent before the war drops 'S'. */
+static int unit_spy_stops_in_war(void) {
+  Fixture f;
+  if (spy_setup(&f) != 0) return 1;
+  ai_euro_spy_reset();
+  mods_campaign_set(1u << MOD_SCOUT_SPYING);
+  f.col1.head.game_options.woi = 1;
+  const int id = units_spawn(&f.units, 5, 8, 8);
+  ColonizeUnit* u = units_get(&f.units, id);
+  u->nation_id = 1;
+  u->col1_ai_plan = AI_EURO_SPY_PLAN;
+  const bool keeps = ai_euro_spy_keeps_course(&f.ctx, u);
+  int fogged = 0;
+  for (int t = 0; t < 20; ++t) {
+    f.col1.head.turn = (uint16_t)t;
+    fogged |= ai_euro_spy_seen_strength(&f.ctx, 1, 9, 8, 1000) != 1000;
+  }
+  const int horses = f.colonies.colonies[0].stock[COLONIZE_CARGO_HORSES];
+  const bool ended = ai_euro_spy_try_infiltrate(&f.ctx, u, 9, 8);
+  const bool dropped = units_get(&f.units, id) && u->col1_ai_plan == 0 &&
+                       f.colonies.colonies[0].stock[COLONIZE_CARGO_HORSES] == horses;
+  u->col1_ai_plan = AI_EURO_SPY_PLAN;
+  Ai20e6Unit s;
+  memset(&s, 0, sizeof(s));
+  s.nation = 1;
+  s.dos_type = UNITS_KIND_SCOUT;
+  s.cid = 3;
+  s.woi = 1;
+  const int armed = ai_euro_spy_dispatch_arm(&f.ctx, u, &s);
+  const bool arm_dropped = u->col1_ai_plan == 0;
+  ai_goals_reset();
+  ai_euro_spy_prime_target(&f.ctx, 1, 0, 3);
+  const int prio = ai_goals_max_primary_prio(1, 9, 8, AI_GOAL_MILITARY);
+  mods_campaign_set(0);
+  fixture_free(&f);
+  if (keeps) return fail("war: the spy course must not survive housekeeping");
+  if (fogged) return fail("war: no fog");
+  if (!ended || !dropped) return fail("war: the arrival ends the step, drops 'S', no attempt");
+  if (armed || !arm_dropped) return fail("war: dispatch drops 'S' and sends nobody");
+  if (prio != 0) return fail("war: no spy military goal");
+  return 0;
+}
+
+static size_t rt_put(uint8_t* b, size_t off, int id, int ver, const uint8_t* p, uint32_t len) {
+  b[off] = (uint8_t)id;
+  b[off + 1] = 0;
+  b[off + 2] = (uint8_t)ver;
+  b[off + 3] = 0;
+  b[off + 4] = (uint8_t)(len & 0xff);
+  b[off + 5] = (uint8_t)(len >> 8);
+  b[off + 6] = 0;
+  b[off + 7] = 0;
+  if (p) memcpy(b + off + 8, p, len);
+  return off + 8 + len;
+}
+
+/* RTST 15 (tribe mood) and 16 (scout intel): short, odd-sized, unknown-version,
+ * out-of-range and truncated records load without importing anything; a
+ * well-formed intel record does import (control). */
+static int unit_spy_mood_records_load_safely(void) {
+  Fixture f;
+  if (spy_setup(&f) != 0) return 1;
+  static uint8_t buf[2048];
+  uint8_t junk[AI_CONTACT_MOOD_SIZE];
+  memset(junk, 0x11, sizeof(junk));
+  const uint8_t good[8] = {1, 9, 8, 0, 0x34, 0x12, 5, 0};
+  const uint8_t bad_nation[8] = {7, 9, 8, 0, 1, 0, 5, 0};
+  const uint8_t no_colony[8] = {1, 3, 3, 0, 1, 0, 5, 0};
+  size_t n = 0;
+  n = rt_put(buf, n, 15, 1, junk, AI_CONTACT_MOOD_SIZE - 1); /* short */
+  n = rt_put(buf, n, 15, 1, junk, 5);                        /* odd */
+  n = rt_put(buf, n, 15, 2, junk, AI_CONTACT_MOOD_SIZE);     /* unknown version */
+  n = rt_put(buf, n, 16, 1, good, 4);                        /* short */
+  n = rt_put(buf, n, 16, 1, junk, 12);                       /* odd */
+  n = rt_put(buf, n, 16, 2, good, 8);                        /* unknown version */
+  n = rt_put(buf, n, 16, 1, bad_nation, 8);
+  n = rt_put(buf, n, 16, 1, no_colony, 8);
+  const size_t trunc = rt_put(buf, n, 16, 1, good, 8) - 3; /* last record cut short */
+  ai_contact_mood_reset();
+  ai_euro_spy_reset();
+  runtime_ext_deserialize(NULL, &f.colonies, NULL, buf, trunc);
+  uint8_t mood[AI_CONTACT_MOOD_SIZE];
+  uint8_t intel[AI_EURO_SPY_EXPORT_MAX];
+  const bool mood_any = ai_contact_mood_export(mood);
+  const size_t intel_n = ai_euro_spy_export(intel);
+  /* Control: the same well-formed record, complete, imports. */
+  const size_t full = rt_put(buf, 0, 16, 1, good, 8);
+  runtime_ext_deserialize(NULL, &f.colonies, NULL, buf, full);
+  const size_t control_n = ai_euro_spy_export(intel);
+  ai_euro_spy_reset();
+  ai_contact_mood_reset();
+  mods_campaign_set(0);
+  fixture_free(&f);
+  if (mood_any) return fail("bad RTST 15 records must import no mood tally");
+  if (intel_n != 0) return fail("bad RTST 16 records must import no intel");
+  if (control_n != 8) return fail("a well-formed RTST 16 record must import");
+  return 0;
+}
+
+/* A spy Scout whose colony has no path (FUN_2a1f_0210 finds no direction)
+ * drops 'S'; with the mod off the same walk leaves the plan byte alone. */
+static int unit_spy_unreachable_drops_plan(void) {
+  int plan_after[2] = {-1, -1};
+  for (int on = 0; on < 2; ++on) {
+    Fixture f;
+    if (spy_setup(&f) != 0) return 1;
+    for (int y = 0; y < 16; ++y) {
+      f.map.terrain[y * 16 + 7] = 25; /* ocean wall between Scout and colony */
+      f.map.layer3[y * 16 + 7] = 1;
+    }
+    f.colonies.colonies[0].x = 14;
+    ai_euro_spy_reset();
+    mods_campaign_set(on ? 1u << MOD_SCOUT_SPYING : 0);
+    const int id = units_spawn(&f.units, 5, 1, 8);
+    ColonizeUnit* u = units_get(&f.units, id);
+    u->nation_id = 1;
+    u->moves = 4 * UNITS_MP_PER_TILE;
+    u->col1_ai_plan = AI_EURO_SPY_PLAN;
+    ai_euro_set_goto(u, AI_EURO_ACT_GOAL, 14, 8);
+    for (int step = 0; step < 8 && u->col1_ai_plan == AI_EURO_SPY_PLAN && u->moves > 0; ++step) {
+      u->orders = AI_EURO_ACT_GOAL;
+      ai_euro_goal_walk_479b(&f.ctx, u);
+      u = units_get(&f.units, id);
+      if (!u) break;
+    }
+    plan_after[on] = u ? u->col1_ai_plan : -1;
+    mods_campaign_set(0);
+    fixture_free(&f);
+  }
+  if (plan_after[1] != 0) {
+    fprintf(stderr, "unreachable spy: plan %d with the mod on\n", plan_after[1]);
+    return fail("an unreachable spy target must drop 'S'");
+  }
+  if (plan_after[0] != AI_EURO_SPY_PLAN) return fail("mod off: the walk must not touch the plan byte");
+  return 0;
+}
+
 /* DOS attack scoring is gated by PEACE, including before formal war. */
 static int unit_border_hold_uses_treaty_gate(void) {
   const uint8_t relations[] = {0, AI_DIPLO_MET, AI_DIPLO_PEACE};
@@ -4069,6 +4400,13 @@ static const TestCase k_cases[] = {
     {"unit_ship_work_queue_uses_entry_stack", unit_ship_work_queue_uses_entry_stack},
     {"unit_border_hold_uses_treaty_gate", unit_border_hold_uses_treaty_gate},
     {"unit_foreign_colony_military_goal_gates", unit_foreign_colony_military_goal_gates},
+    {"unit_spy_mod_off", unit_spy_mod_off},
+    {"unit_spy_fog", unit_spy_fog},
+    {"unit_spy_dispatch_infiltrate_intel", unit_spy_dispatch_infiltrate_intel},
+    {"unit_spy_course_survives_turn", unit_spy_course_survives_turn},
+    {"unit_spy_stops_in_war", unit_spy_stops_in_war},
+    {"unit_spy_unreachable_drops_plan", unit_spy_unreachable_drops_plan},
+    {"unit_spy_mood_records_load_safely", unit_spy_mood_records_load_safely},
     {"unit_land_contact_does_not_create_goal", unit_land_contact_does_not_create_goal},
     {"unit_spare_ship_uses_census", unit_spare_ship_uses_census},
     {"unit_europe_departure_runs_during_planning", unit_europe_departure_runs_during_planning},

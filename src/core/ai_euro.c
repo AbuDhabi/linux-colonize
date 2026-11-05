@@ -1697,6 +1697,7 @@ void ai_euro_dispatcher_turn(ColonizeTurnContext* ctx, int nation_id) {
 void ai_euro_reset(void) {
   s_sticky_unit = -1;
   s_sticky_count = 0;
+  ai_euro_spy_reset(); /* mods.scout_spying intel belongs to one campaign */
   memset(ai_euro_s_5952_ring1, 0, sizeof(ai_euro_s_5952_ring1));
   memset(ai_euro_s_5952_docks_started, 0, sizeof(ai_euro_s_5952_docks_started));
   memset(ai_euro_s_5952_arty_plot, 0, sizeof(ai_euro_s_5952_arty_plot)); /* port_bugs.md #1103 */
