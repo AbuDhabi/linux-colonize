@@ -9,8 +9,12 @@ wait 2
 click 160 136              # accept: Crown share 26% of 1000 = 260, 740 added (gold 429 -> 1169)
 wait 2                    # @LOOTCASH popup
 key Return
-wait 3                    # the next unit with moves comes up: the Colonist #88 riding the Caravel at sea
-key s                      # sentry it (the hand-off used to skip it, port_bugs.md #1175a); Treasure #95 is selected
+wait 3                    # the delete steps the active index back one record (FUN_1427_0824 raw 7834-7836); that sentried
+                           # unit fails the re-test, so the cycle goes on from the treasure's slot: the units in Quebec first
+key w                      # skip #136
+key w                      # skip #144
+key w                      # skip #147; the cycle wraps to the Colonist #88 riding the Caravel at sea
+key s                    # sentry it (the hand-off used to skip it, port_bugs.md #1175a); Treasure #95 is selected
 wait 1
 key KP_3                   # SE into Quebec: offered again although France owns a Galleon
 wait 2

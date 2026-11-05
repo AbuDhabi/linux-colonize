@@ -66,17 +66,8 @@ wait 3
 shot
 key space                # end turn 108
 wait 30
-# 54 presses: five landings again, Tories take Montreal, Port au Prince and Quebec, combat, captures, two Caravels sunk
-key Return
-wait 10
-key Return
-wait 10
-key Return
-wait 10
-key Return
-wait 10
-key Return
-wait 10
+# 49 presses: five landings again, Tories take Montreal, Port au Prince and Quebec, combat, captures, two Caravels sunk
+# (20e6 reads the crown's census rows, not a live recount of the colonies it took this turn)
 key Return
 wait 10
 key Return

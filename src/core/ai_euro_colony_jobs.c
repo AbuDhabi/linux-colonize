@@ -133,6 +133,11 @@ typedef struct AiEuro28c8Env {
   int unmet[COLONIZE_CARGO_COUNT];     /* DS:0x8e5a */
 } AiEuro28c8Env;
 
+static int ai_euro_5952_tools_supply(
+  const ColonizeColony* col, const int gross[AI_EURO_5952_LEDGER_SLOTS],
+  const int demand[AI_EURO_5952_LEDGER_SLOTS]
+);
+
 static void ai_euro_28c8_env(
   const ColonizeTurnContext* ctx, const ColonizeColony* col, int colonist_slot,
   int in_ai_tick,
@@ -164,8 +169,11 @@ static void ai_euro_28c8_env(
   env->lumber_gross = gross[COLONIZE_CARGO_LUMBER];
   for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
     /* DS:0x8e32 production shortfall and DS:0x8e5a unmet-after-stock,
-     * FUN_15eb_0b52's own rule (colony_craft.c header). */
-    const int miss = demand[c] - gross[c];
+     * FUN_15eb_0b52's own rule (colony_craft.c header); the tools row's
+     * supply is net of unmet ore (FUN_15eb_0b96). */
+    const int supply =
+      c == COLONIZE_CARGO_TOOLS ? ai_euro_5952_tools_supply(col, gross, demand) : gross[c];
+    const int miss = demand[c] - supply;
     env->shortfall[c] = miss > 0 ? miss : 0;
     const int after = miss - col->stock[c];
     env->unmet[c] = after > 0 ? after : 0;
@@ -313,6 +321,19 @@ static int ai_euro_28c8_score_full(
   out_best->tile = -1;
   out_best->score = 0; /* local_12 = 0: DOS elects only a strictly positive score */
   out_best->yield = 0;
+
+  /* FUN_15eb_28c8 raw 12982-12984 / 13151-13153: a human colony of
+   * pop >= 3 with a project set, no Carpenter (1376(0xd), self already idle
+   * at raw 12972) and no food emergency makes this colonist a Carpenter
+   * without walking any plot. Reported as tile -1; the caller seats him. */
+  if (env.human && restrict_job < 0 && !env.food_emerg && col->population >= 3 &&
+      col->building_in_production >= 0 &&
+      colonies_occupation_worker_count(
+        ctx->colonies, col, COLONIZE_PROF_CARPENTER, colonist_slot
+      ) == 0) {
+    out_best->job = COLONIZE_PROF_CARPENTER;
+    return 1;
+  }
 
   /* DOS-LITERAL FUN_15eb_28c8 raw 12987-12996: the plot walk is over the
    * DS:0xc8/0xde delta tables (N,E,S,W,NW,NE,SE,SW), and since the election at
@@ -644,8 +665,8 @@ COLONIZE_INTERNAL int ai_euro_28c8_colonist_job_score_structural(
  * recompute FUN_15eb_3930 (`268e(); 287e(); 2ea0();`), run for HUMAN colonies
  * too (port_bugs.md #562). Every colonist not standing on a plot whose occupation
  * is a field job (FUN_15eb_0e18 < 9) is put through 28c8; when that finds
- * nothing the colonist becomes a Carpenter (`FUN_15eb_1068(slot, 0xd)`),
- * never a bell-ringer.
+ * nothing (or 28c8's own human Carpenter gate fires) the colonist
+ * becomes a Carpenter (`FUN_15eb_1068(slot, 0xd)`), never a bell-ringer.
  *
  * `colonist_slot` >= 0 restricts the pass to one colonist — the join path
  * (colonies_admit / ORDERS Join Colony), which is the caller port_bugs.md #562 is
@@ -678,7 +699,7 @@ void ai_euro_28c8_auto_assign_plots(ColonizeTurnContext* ctx, int colony_id, int
     AiEuro28c8JobCandidate best;
     const int ok =
       ai_euro_28c8_score_full(ctx, col, s, c->profession, -1, 0, &best);
-    if (ok && colonies_assign_field_w(&world, colony_id, s, best.tile, best.job)) {
+    if (ok && best.tile >= 0 && colonies_assign_field_w(&world, colony_id, s, best.tile, best.job)) {
       continue;
     }
     colonies_assign_carpenter_fallback(ctx->colonies, colony_id, s);
@@ -1159,8 +1180,17 @@ void ai_euro_5952_ledgers(
     );
   }
 
-  /* Craft workers: uncapped worker capacity out, tier-scaled input in — the
-   * FUN_15eb_0bd4 ledger rows. */
+  /* Craft workers: uncapped worker capacity out per worker. The input row is
+   * FUN_15eb_0bd4's ONE divide over the colony's total gross[out] (raw
+   * 10168-10175: `(G << 1) / 3` at the factory tier), exactly as the tick's
+   * craft pass does (colony_craft.c, port_bugs.md #851); the muskets pair
+   * stays flat (raw 12689, colony_prod_chain_input_is_flat). */
+  int craft_row[COLONIZE_CARGO_COUNT];
+  int craft_in[COLONIZE_CARGO_COUNT];
+  for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
+    craft_row[c] = -1;
+    craft_in[c] = -1;
+  }
   for (int s = 0; s < COLONIZE_COLONY_POP_MAX; ++s) {
     const ColonizeColonist* c = &col->colonists[s];
     if (!c->active || c->building_type < 0 ||
@@ -1174,20 +1204,25 @@ void ai_euro_5952_ledgers(
     }
     gross[r->out_cargo] +=
       colony_prod_manufacturing_output_row(row, c->profession, r->craft_profession, sol_bonus);
-    demand[r->in_cargo] +=
-      colony_prod_manufacturing_input_row(row, c->profession, r->craft_profession, sol_bonus);
+    craft_row[r->out_cargo] = row;
+    craft_in[r->out_cargo] = r->in_cargo;
+  }
+  for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
+    if (craft_row[c] >= 0 && craft_in[c] >= 0) {
+      demand[craft_in[c]] += colony_prod_chain_input_for_total_output(
+        pool, col, colonies_building_row_chain(craft_row[c]), gross[c]
+      );
+    }
   }
 
   /* FUN_15eb_1f72 tail: the UNCAPPED herd potential lands in the horse gross
    * (DS:0x8dd8), same figure turn_production applies to an AI colony. */
-  {
-    const ColonyProdHorseBreed hb = colony_prod_horse_breed(
-      col->stock[COLONIZE_CARGO_HORSES], col->population, gross[COLONIZE_CARGO_FOOD],
-      colonies_warehouse_capacity(pool, col, COLONIZE_CARGO_HORSES),
-      colonies_has_building_row(pool, col, COLONY_BUILDING_STABLE)
-    );
-    gross[COLONIZE_CARGO_HORSES] += hb.bred + hb.shortfall;
-  }
+  const ColonyProdHorseBreed hb = colony_prod_horse_breed(
+    col->stock[COLONIZE_CARGO_HORSES], col->population, gross[COLONIZE_CARGO_FOOD],
+    colonies_warehouse_capacity(pool, col, COLONIZE_CARGO_HORSES),
+    colonies_has_building_row(pool, col, COLONY_BUILDING_STABLE)
+  );
+  gross[COLONIZE_CARGO_HORSES] += hb.bred + hb.shortfall;
 
   /* FUN_15eb_1f72's own three rows: hammers (lumber demand), crosses, bells. */
   int lumber_use = 0;
@@ -1204,7 +1239,33 @@ void ai_euro_5952_ledgers(
   gross[AI_EURO_5952_BELLS] =
     col1 ? colony_prod_colony_bells_nation(pool, col, col1, sol_bonus)
          : colony_prod_colony_bells_ff(pool, col, 0, 0, true, sol_bonus);
-  demand[COLONIZE_CARGO_FOOD] = col->population * 2;
+  /* raw 12662-12682: local_6 = pop*2 + local_22, the births food and
+   * warehouse room allow (hb.bred), then FUN_15eb_0b96(0, local_6). */
+  demand[COLONIZE_CARGO_FOOD] = col->population * 2 + hb.bred;
+}
+
+/*
+ * FUN_15eb_0b96 raw 10149-10152: the tools row's supply is gross[tools] minus
+ * DS:0x8e66 (unmet ore) when that is non-zero. 1f72 computes unmet ore first
+ * (raw 12684 FUN_15eb_0bd4(6, 0xe)): FUN_15eb_0b52's `demand - stock -
+ * supply` (raw 10135-10136), then 0bd4's rescale (raw 10176-10180) when the
+ * Iron Works divide moved the demand off gross[tools]: x3/2, or gross[tools]
+ * itself when the unmet equals the whole demand.
+ */
+static int ai_euro_5952_tools_supply(
+  const ColonizeColony* col, const int gross[AI_EURO_5952_LEDGER_SLOTS],
+  const int demand[AI_EURO_5952_LEDGER_SLOTS]
+) {
+  const int ore = COLONIZE_CARGO_ORE;
+  const int tools = gross[COLONIZE_CARGO_TOOLS];
+  int unmet = demand[ore] - col->stock[ore] - gross[ore];
+  if (unmet <= 0) {
+    return tools;
+  }
+  if (tools != demand[ore]) {
+    unmet = unmet != demand[ore] ? (unmet * 3) / 2 : tools;
+  }
+  return tools - unmet;
 }
 
 /*
@@ -1252,10 +1313,11 @@ COLONIZE_INTERNAL void ai_euro_5952_indoor_expert_pass(
     }
   }
   /* BP-0x4c / BP-0x46 = aiStack_68[0x0d] / [0x10], the tick-top census
-   * (memset at OVL15 0xbb8, `INC [BP+SI-0x66]` at 0xc0b), decremented here. */
+   * (memset at OVL15 0xbb8, `INC [BP+SI-0x66]` at 0xc0b), decremented here.
+   * The preacher cell is decremented in place: the build cascade's Church
+   * arm reads it later in the same tick (OVL15 0x2453 `CMP [BP-0x46],0`). */
   const int cid_ok = col->id >= 0 && col->id < COLONIZE_COLONIES_MAX;
   int carpenters = cid_ok ? ai_euro_s_5952_census_carpenter[col->id] : 0;
-  int preachers = cid_ok ? ai_euro_s_5952_census_preacher[col->id] : 0;
   for (int s = 0; s < n; ++s) {
     ColonizeColonist* c = &col->colonists[s];
     if (placed[s] || !c->active) {
@@ -1285,7 +1347,9 @@ COLONIZE_INTERNAL void ai_euro_5952_indoor_expert_pass(
     } else if (prof == COLONIZE_PROF_PREACHER) {
       if (woi) {
         c->profession = COLONIZE_PROF_FREE_COLONIST;
-        --preachers;
+        if (cid_ok) {
+          --ai_euro_s_5952_census_preacher[col->id]; /* OVL15 `DEC word ptr [BP-0x46]` */
+        }
         continue;
       }
       ok = true;
@@ -1296,7 +1360,10 @@ COLONIZE_INTERNAL void ai_euro_5952_indoor_expert_pass(
       const int in =
         prof == COLONIZE_PROF_GUNSMITH ? COLONIZE_CARGO_TOOLS : (int)k_ai_euro_5952_job_input[prof];
       if (in >= 0 && in < COLONIZE_CARGO_COUNT) {
-        const int unmet = demand[in] - gross[in] - col->stock[in];
+        /* DS:0x8e5a[in]: the tools row nets out unmet ore (FUN_15eb_0b96). */
+        const int supply =
+          in == COLONIZE_CARGO_TOOLS ? ai_euro_5952_tools_supply(col, gross, demand) : gross[in];
+        const int unmet = demand[in] - supply - col->stock[in];
         ok = unmet <= 0 && (col->stock[in] > 0 || gross[in] != 0);
       }
     }
@@ -2003,10 +2070,25 @@ COLONIZE_INTERNAL int ai_euro_5952_docks_started(int colony_id) {
            : 0;
 }
 
+/* aiStack_12e: FUN_5952_035e caches every pop slot's profession once, at the
+ * unseat-all loop (raw 94552-94555 `aiStack_12e[local_ac] = FUN_281f_0c54()`),
+ * and the cascade census reads that cache for pop slots (raw 95719-95720
+ * `local_1a._2_2_ = aiStack_12e[local_ac]`), so promotions made in between
+ * (the carpenter arm's FUN_281f_0cae, raw 94723-94730) are not seen. NULL
+ * colony = no tick in progress (standalone cascade calls read live). */
+static const ColonizeColony* s_5952_prof_cache_col;
+static int s_5952_prof_cache_n;
+static int s_5952_prof_cache[COLONIZE_COLONY_POP_MAX];
+
+COLONIZE_INTERNAL void ai_euro_colony_tick_prof_cache_clear(void) {
+  s_5952_prof_cache_col = NULL;
+}
+
 int ai_euro_s_5952_census_nonexpert[COLONIZE_COLONIES_MAX]; /* aiStack_68[0x13] */
 int ai_euro_s_5952_census_vet_soldier[COLONIZE_COLONIES_MAX]; /* aiStack_68[0x15] */
 int ai_euro_s_5952_census_carpenter[COLONIZE_COLONIES_MAX];   /* aiStack_68[0x0d] = BP-0x4c */
 int ai_euro_s_5952_census_preacher[COLONIZE_COLONIES_MAX];    /* aiStack_68[0x10] = BP-0x46 */
+int ai_euro_s_5952_census_gunsmith[COLONIZE_COLONIES_MAX];    /* aiStack_68[0x0f] = BP-0x48 */
 
 /* The same tick-top census (raw 94219-94229), two more cells: the carpenter
  * arm's `local_4e == 0` and the indoor-expert pass's Master Carpenter /
@@ -2015,10 +2097,13 @@ int ai_euro_s_5952_census_preacher[COLONIZE_COLONIES_MAX];    /* aiStack_68[0x10
  * seed-100 pair 182: Fort Nassau's only Master Carpenter, armed as a Soldier
  * and refused at the unit cap, stays a Free Colonist in DOS; the port's live
  * recount saw no Master Carpenter and re-promoted him (raw 94719-94726). */
-COLONIZE_INTERNAL void ai_euro_5952_set_expert_census(int colony_id, int carpenters, int preachers) {
+COLONIZE_INTERNAL void ai_euro_5952_set_expert_census(
+  int colony_id, int carpenters, int preachers, int gunsmiths
+) {
   if (colony_id >= 0 && colony_id < COLONIZE_COLONIES_MAX) {
     ai_euro_s_5952_census_carpenter[colony_id] = carpenters;
     ai_euro_s_5952_census_preacher[colony_id] = preachers;
+    ai_euro_s_5952_census_gunsmith[colony_id] = gunsmiths;
   }
 }
 
@@ -2356,8 +2441,6 @@ COLONIZE_INTERNAL void ai_euro_5952_cascade_census(AiEuro5952Cascade* s) {
 
   /* asm 5952:21d4 — iVar12 = colonists working @JOB 0 (Farmer) + 8 (Fisherman). */
   int food_workers = 0;
-  int* prof_count = s->prof_count;
-  memset(s->prof_count, 0, sizeof s->prof_count);
   for (int i = 0; i < col->colonist_count && i < COLONIZE_COLONY_POP_MAX; ++i) {
     const ColonizeColonist* c = &col->colonists[i];
     if (!c->active) {
@@ -2365,9 +2448,6 @@ COLONIZE_INTERNAL void ai_euro_5952_cascade_census(AiEuro5952Cascade* s) {
     }
     if (c->field_job == COLONIZE_JOB_FARMER || c->field_job == COLONIZE_JOB_FISHERMAN) {
       ++food_workers;
-    }
-    if (c->profession >= 0 && c->profession < 28) {
-      ++prof_count[c->profession];
     }
   }
 
@@ -2381,13 +2461,16 @@ COLONIZE_INTERNAL void ai_euro_5952_cascade_census(AiEuro5952Cascade* s) {
    * (DS:0x8d72), counting experts and the deepest @JOB class among them. */
   int experts = 0;
   int tier_max = 0;
+  const bool cached = s_5952_prof_cache_col == col;
   for (int i = 0; i < col->colonist_count && i < COLONIZE_COLONY_POP_MAX; ++i) {
     const ColonizeColonist* c = &col->colonists[i];
-    if (!c->active || !ai_euro_5952_job_is_expert(c->profession)) {
+    /* raw 95719-95720: pop slots read aiStack_12e, not the live byte. */
+    const int prof = (cached && i < s_5952_prof_cache_n) ? s_5952_prof_cache[i] : c->profession;
+    if (!c->active || !ai_euro_5952_job_is_expert(prof)) {
       continue;
     }
     ++experts;
-    const int t = ai_euro_5952_job_class(c->profession) % 4;
+    const int t = ai_euro_5952_job_class(prof) % 4;
     if (t > tier_max) {
       tier_max = t;
     }
@@ -2419,20 +2502,15 @@ COLONIZE_INTERNAL void ai_euro_5952_cascade_census(AiEuro5952Cascade* s) {
       }
     }
   }
-  if (ctx->units) {
-    for (int i = 0; i < units_slot_end(ctx->units); ++i) {
-      const ColonizeUnit* u = &ctx->units->units[i];
-      if (!u->active || !units_is_on_map(u) || u->x != col->x || u->y != col->y) {
-        continue;
-      }
-      if (u->nation_id != col->nation_id) {
-        continue;
-      }
-      const int dtype = ai_euro_20e6_dos_type(ctx->units, u);
-      if (dtype >= 0x0d && dtype <= 0x12) {
-        continue; /* ships are not colony slots */
-      }
-      if (ai_euro_5952_job_is_expert(u->profession)) {
+  {
+    /* raw 95718/95723: slots past pop are the DS:0x8d72 list (FUN_15eb_0924,
+     * DS:0x30e[type] >= 0, no nation test), so a Wagon Train's profession 0
+     * is never counted. */
+    int ids[COLONIZE_UNITS_MAX];
+    const int nt = ai_euro_5952_tile_stack(ctx, col, ids, COLONIZE_UNITS_MAX);
+    for (int k = 0; k < nt; ++k) {
+      const ColonizeUnit* u = units_get_const(ctx->units, ids[k]);
+      if (u && ai_euro_5952_job_is_expert(u->profession)) {
         ++experts;
         const int t = ai_euro_5952_job_class(u->profession) % 4;
         if (t > tier_max) {
@@ -2542,7 +2620,6 @@ COLONIZE_INTERNAL AiEuro5952CascadeStatus ai_euro_5952_cascade_town(AiEuro5952Ca
   const int tier_max = s->tier_max;
   const int musket_price = s->musket_price;
   const int* gross = s->gross;
-  const int* prof_count = s->prof_count;
 
   const int wl_want = pop / 6; /* iStack_16c */
   if (col->warehouse_level < (unsigned)wl_want && col->warehouse_level == 0) {
@@ -2607,14 +2684,26 @@ COLONIZE_INTERNAL AiEuro5952CascadeStatus ai_euro_5952_cascade_town(AiEuro5952Ca
         want_armory = 1;
       }
     }
-    if (!want_armory && prof_count[COLONIZE_PROF_GUNSMITH] != 0) {
+    /* asm 243f `CMP [BP-0x48],0` reads the tick-top Master
+     * Gunsmith census cell (aiStack_68[0x0f]), not a live recount. */
+    const int census_gunsmiths = (col->id >= 0 && col->id < COLONIZE_COLONIES_MAX)
+                                   ? ai_euro_s_5952_census_gunsmith[col->id]
+                                   : 0;
+    if (!want_armory && census_gunsmiths != 0) {
       want_armory = 1;
     }
     if (want_armory && ai_euro_5952_try_build(s, 0x03) == 0) {
       return AI_EURO_5952_CASCADE_RETURN;
     }
   }
-  if (prof_count[COLONIZE_PROF_PREACHER] != 0) {
+  /* 2453: `CMP [BP-0x46],0` reads the tick-top Firebrand Preacher census
+   * cell (aiStack_68[0x10]) after the indoor-expert pass decremented it, not
+   * a live recount: a Preacher retyped or ejected since the census still
+   * counts, and one demoted in the War of Independence does not. */
+  const int census_preachers = (col->id >= 0 && col->id < COLONIZE_COLONIES_MAX)
+                                 ? ai_euro_s_5952_census_preacher[col->id]
+                                 : 0;
+  if (census_preachers != 0) {
     if (ai_euro_5952_try_build(s, 0x25) == 0) { /* 2453: Church */
       return AI_EURO_5952_CASCADE_RETURN;
     }
@@ -2704,8 +2793,11 @@ COLONIZE_INTERNAL AiEuro5952CascadeStatus ai_euro_5952_cascade_military(AiEuro59
     }
   }
 
-  /* 262c */
-  if (factory == 0 || (s->arty_on_tile != 0 && col->labor_shortage != 0)) {
+  /* 262c — FUN_5952_035e raw 95827, asm 5952:265d-266e: `CMP [BP+local_76],0`
+   * reads the tick's running garrison shortfall local_76 (after the on-tile
+   * military walk and the absorption ++), not the +0x8e byte stored before
+   * them (raw 94045). */
+  if (factory == 0 || (s->arty_on_tile != 0 && s->labor_running != 0)) {
     return AI_EURO_5952_CASCADE_NEXT; /* chain_upgrades */
   }
   if (col->stock[COLONIZE_CARGO_TOOLS] != 0) { /* 2670 */
@@ -2798,6 +2890,7 @@ void ai_euro_5952_build_cascade_for_owner(
   s.col1 = (ctx->col1_ok && ctx->col1) ? ctx->col1 : NULL;
   s.nation = (col->nation_id >= 0 && col->nation_id < 4) ? col->nation_id : 0;
   s.improvement_owner = improvement_owner;
+  s.labor_running = ai_euro_5952_labor_running;
 
   ai_euro_5952_cascade_setup(&s);
   ai_euro_5952_cascade_census(&s);
@@ -3324,9 +3417,12 @@ COLONIZE_INTERNAL void ai_euro_colony_tick_unseat_all(AiEuroColonyTick* t) {
   t->n = col->colonist_count < COLONIZE_COLONY_POP_MAX ? col->colonist_count
                                                        : COLONIZE_COLONY_POP_MAX;
   const int n = t->n;
+  s_5952_prof_cache_col = col;
+  s_5952_prof_cache_n = n;
   for (int s = 0; s < n; ++s) {
     const ColonizeColonist* c = &col->colonists[s];
     prev_job[s] = c->field_job;
+    s_5952_prof_cache[s] = c->profession; /* aiStack_12e, raw 94555 */
     /*
      * DOS-LITERAL FUN_5952_035e raw 94551-94564 (clean body
      * colony_tick_5952_035e.md:1030-1043): the tick idles EVERY colonist
@@ -3651,7 +3747,6 @@ COLONIZE_INTERNAL void ai_euro_colony_tick_specialist_restore(AiEuroColonyTick* 
 }
 
 int8_t ai_euro_s_6d8e_need[4][16];
-int8_t ai_euro_s_6d8e_wanting[4];
 
 /*
  * FUN_521d_6d8e raw 93122-93142, after each own colony's FUN_5952_035e: the
@@ -3680,7 +3775,7 @@ static void ai_euro_6d8e_prelude_read(int nation_id, ColonizeColony* col) {
     need[COLONIZE_CARGO_TOOLS]++;
   }
   if ((col->ai_flags & COLONIZE_COLONY_AI_NEEDS_COLONISTS) != 0) {
-    ai_euro_s_6d8e_wanting[nation_id]++;
+    ai_goals_colonies_wanting_bump(nation_id); /* raw 93139-93141 */
   }
   col->colony_flags = (uint8_t)(col->colony_flags & (uint8_t)~COLONIZE_COLONY_FLAG_WAGON_TRAIN);
 }
@@ -3700,11 +3795,14 @@ static void ai_euro_colony_tick_run(
   t.whole_tick = whole_tick;
   if (whole_tick) {
     memset(ai_euro_s_6d8e_need[nation_id], 0, sizeof ai_euro_s_6d8e_need[nation_id]);
-    ai_euro_s_6d8e_wanting[nation_id] = 0;
+    /* raw 93109: DS:0xa0b8 restarts at 0, so 03d0 in the first colony's
+     * tick (raw 94211) sees 0 and returns 8. */
+    ai_goals_colonies_wanting_reset(nation_id);
   }
   for (int ci = 0; ci < COLONIZE_COLONIES_MAX; ++ci) {
     g_colonies_plot_cache_colony = NULL;
     colonies_claim_snapshot_clear();
+    ai_euro_colony_tick_prof_cache_clear(); /* aiStack_12e lives one colony tick */
     ColonizeColony* col = &ctx->colonies->colonies[ci];
     if (!col->active || col->nation_id != nation_id) {
       continue;
@@ -3756,6 +3854,7 @@ static void ai_euro_colony_tick_run(
       ai_euro_6d8e_prelude_read(nation_id, col);
     }
   }
+  ai_euro_colony_tick_prof_cache_clear();
   s_28c8_l32 = AI_28C8_L32_OFF;
 }
 

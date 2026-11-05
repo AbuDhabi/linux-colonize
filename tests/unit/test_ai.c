@@ -425,6 +425,13 @@ static int run_init_and_turns(
       assets_msg_free(&names);
       return 1;
     }
+    /* As the new-game path does: the FUN_684c_08c0 loaded-map tail and its
+     * band pick (0x190 draw first) give AMER2 its HS-rim landfalls. */
+    map_gen_finalize_border_and_forest(map.terrain, (int)map.width, (int)map.height);
+    ColonizeDosRng lf_rng;
+    dos_rng_seed(&lf_rng, 100);
+    (void)dos_rng_range(&lf_rng, 1, 0x7fff);
+    map_gen_assign_euro_landfalls(&map, &lf_rng, human_nation, true);
   } else {
     MapGenParams params;
     memset(&params, 0, sizeof(params));
@@ -443,9 +450,7 @@ static int run_init_and_turns(
   }
 
   int sx = 39, sy = 10;
-  if (america) {
-    new_game_scenario_start(&names, "AMER2", human_nation, &sx, &sy);
-  } else if (!map_gen_euro_landfall(&map, human_nation, &sx, &sy)) {
+  if (!map_gen_euro_landfall(&map, human_nation, &sx, &sy)) {
     map_gen_pick_start(&map, human_nation, -1, -1, 0, &sx, &sy);
   }
   units_new_world_start(&units, &map, sx, sy, human_nation, 0);
@@ -687,8 +692,8 @@ static int run_init_and_turns(
    * port_bugs.md #490: FUN_75c2_235c is path-independent — an AMERICA / TRIBE.TXT
    * start must look exactly like a generated one: fleet on the westbound
    * sentinel (228+n, 228+n), voyage counter 0, goto = the nation's landfall
-   * tile (@SCENARIO raw 121035: AMER2 = (34,20) (39,10) (47,61) (50,33)), and
-   * the first Atlantic tick lands it on the ring around that tile.
+   * tile (the LAB_684c_1b4c HS-rim walk on AMER2 too), and the first
+   * Atlantic tick lands it on the ring around that tile.
    */
   int ai_landfall_x[4];
   int ai_landfall_y[4];
@@ -701,9 +706,7 @@ static int run_init_and_turns(
       }
       int lx = -1;
       int ly = -1;
-      if (america) {
-        new_game_scenario_start(&names, "AMER2", n, &lx, &ly);
-      } else if (!map_gen_euro_landfall(&map, n, &lx, &ly)) {
+      if (!map_gen_euro_landfall(&map, n, &lx, &ly)) {
         continue; /* generated-map fallback pick — no fixed expectation */
       }
       ai_landfall_x[n] = lx;

@@ -85,6 +85,8 @@ static int fx_build(Fx* f, int pop) {
   f->ctx.col1_ok = true;
   f->ctx.human_nation = 0;
   ai_euro_5952_set_ring1_threat(f->col->id, 0);
+  ai_euro_5952_labor_running = 0; /* local_76: garrison covered */
+  ai_euro_colony_tick_prof_cache_clear(); /* no colony tick in progress */
   return 0;
 }
 
@@ -280,6 +282,90 @@ static int case_wagon_train_blocked_by_ring1_threat(void) {
   return 0;
 }
 
+/*
+ * asm 2453: the Church arm tests `[BP-0x46]`, the tick-top Firebrand Preacher
+ * census cell (aiStack_68[0x10]) the indoor-expert pass decrements, not a
+ * recount of the colony's current Preachers.
+ */
+static int church_pick(int census_preachers, int live_preacher) {
+  Fx f;
+  if (fx_build(&f, 5) != 0) {
+    return -2;
+  }
+  own_all_before_naval(&f);
+  const int church = bld(&f, "Church");
+  if (church >= 0) {
+    f.col->has_building[church] = false;
+  }
+  if (live_preacher) {
+    f.col->colonists[0].active = true;
+    f.col->colonists[0].profession = COLONIZE_PROF_PREACHER;
+  }
+  ai_euro_5952_set_expert_census(f.col->id, 0, census_preachers, 0);
+  ai_euro_5952_build_cascade(&f.ctx, f.col);
+  const int got = f.col->building_in_production;
+  ai_euro_5952_set_expert_census(f.col->id, 0, 0, 0);
+  fx_done(&f);
+  return church >= 0 && got == church;
+}
+
+/*
+ * asm 243f, the Armory arm's fallback `CMP [BP-0x48],0` reads
+ * the tick-top Master Gunsmith census cell (aiStack_68[0x0f]), not a recount.
+ * Early year, cheap muskets: the price/turn band stays shut.
+ */
+static int armory_pick(int census_gunsmiths, int live_gunsmith) {
+  Fx f;
+  if (fx_build(&f, 5) != 0) {
+    return -2;
+  }
+  own_all_before_naval(&f);
+  const int armory = bld(&f, "Armory");
+  if (armory >= 0) {
+    f.col->has_building[armory] = false;
+  }
+  if (live_gunsmith) {
+    f.col->colonists[0].active = true;
+    f.col->colonists[0].profession = COLONIZE_PROF_GUNSMITH;
+  }
+  ai_euro_5952_set_expert_census(f.col->id, 0, 0, census_gunsmiths);
+  ai_euro_5952_build_cascade(&f.ctx, f.col);
+  const int got = f.col->building_in_production;
+  ai_euro_5952_set_expert_census(f.col->id, 0, 0, 0);
+  fx_done(&f);
+  return armory >= 0 && got == armory;
+}
+
+static int case_armory_gate_reads_gunsmith_census(void) {
+  const int counted = armory_pick(1, 0);
+  const int live_only = armory_pick(0, 1);
+  if (counted < 0 || live_only < 0) {
+    return 1;
+  }
+  if (!counted) {
+    return fail("census gunsmith (BP-0x48) must open the Armory arm (asm 243f)");
+  }
+  if (live_only) {
+    return fail("a live Gunsmith missing from the census must not open the Armory arm");
+  }
+  return 0;
+}
+
+static int case_church_gate_reads_preacher_census(void) {
+  const int counted = church_pick(1, 0);
+  const int live_only = church_pick(0, 1);
+  if (counted < 0 || live_only < 0) {
+    return 1;
+  }
+  if (!counted) {
+    return fail("census preacher (BP-0x46) must open the Church arm (asm 2453)");
+  }
+  if (live_only) {
+    return fail("a live Preacher missing from the census must not open the Church arm");
+  }
+  return 0;
+}
+
 /* Common setup for the naval band: coastal, pop >= 8, a finished craft chain
  * and a Shipyard, with everything the cascade asks for first already owned. */
 static int naval_fx(Fx* f) {
@@ -401,7 +487,7 @@ static int case_artillery_capped_at_three_on_tile(void) {
   f.col->colony_flags =
     (uint8_t)(f.col->colony_flags & (uint8_t)~COLONIZE_COLONY_FLAG_COASTAL);
   f.col->stock[COLONIZE_CARGO_TOOLS] = 100;
-  f.col->labor_shortage = 1; /* asm 265b: sends 262c down the 268e arm */
+  ai_euro_5952_labor_running = 1; /* asm 266a local_76: sends 262c down the 268e arm */
   const int arty = units_find_type(&f.units, "Artillery");
   if (arty < 0) {
     fx_done(&f);
@@ -435,6 +521,123 @@ static int case_artillery_capped_at_three_on_tile(void) {
 }
 
 /*
+ * The 262c gate reads the frame local local_76 (raw
+ * 95827, asm 5952:266a), the garrison shortfall left after the on-tile
+ * military walk (raw 94054-94056) and the absorption ++ (raw 94245), not the
+ * +0x8e byte stored before them (raw 94045). One Artillery on the scanned
+ * tile: a covered garrison (local_76 0) still builds Artillery (2689) even
+ * though +0x8e says 2; a short one (local_76 1) skips to 268e, where the open
+ * 26e4 ship arm picks a Frigate (48) even though +0x8e says 0.
+ */
+static int case_artillery_gate_reads_running_shortfall(void) {
+  for (int pass = 0; pass < 2; ++pass) {
+    Fx f;
+    if (naval_fx(&f) != 0) {
+      return 1;
+    }
+    f.col->colony_flags =
+      (uint8_t)(f.col->colony_flags & (uint8_t)~COLONIZE_COLONY_FLAG_COASTAL);
+    f.col->stock[COLONIZE_CARGO_TOOLS] = 100;
+    f.col->labor_shortage = pass == 0 ? 2 : 0;
+    ai_euro_5952_labor_running = pass == 0 ? 0 : 1;
+    const int arty = units_find_type(&f.units, "Artillery");
+    const int id = arty >= 0 ? units_spawn(&f.units, arty, f.col->x, f.col->y) : -1;
+    ColonizeUnit* u = id >= 0 ? units_get(&f.units, id) : NULL;
+    if (!u) {
+      fx_done(&f);
+      return fail("artillery spawn");
+    }
+    u->nation_id = NATION;
+    ai_euro_5952_build_cascade(&f.ctx, f.col);
+    const int got = f.col->building_in_production;
+    fx_done(&f);
+    if (pass == 0 && got != 42) {
+      return fail("local_76 0, +0x8e 2: expected Artillery 42 (asm 2689)");
+    }
+    if (pass == 1 && got != 48) {
+      return fail("local_76 1, +0x8e 0: expected 268e Frigate 48 (asm 26e4)");
+    }
+  }
+  return 0;
+}
+
+/*
+ * The prelude hands the cascade local_76 as it stands after the
+ * on-tile military walk (raw 94054-94056), one below the +0x8e byte when an
+ * Artillery (attack > 1) stands in the colony.
+ */
+static int case_prelude_leaves_running_shortfall(void) {
+  Fx f;
+  if (naval_fx(&f) != 0) {
+    return 1;
+  }
+  const int arty = units_find_type(&f.units, "Artillery");
+  const int id = arty >= 0 ? units_spawn(&f.units, arty, f.col->x, f.col->y) : -1;
+  ColonizeUnit* u = id >= 0 ? units_get(&f.units, id) : NULL;
+  if (!u) {
+    fx_done(&f);
+    return fail("artillery spawn");
+  }
+  u->nation_id = NATION;
+  ai_euro_5952_labor_running = -99;
+  ai_euro_5952_colony_prelude(&f.ctx, NATION, f.col);
+  const int shortage = f.col->labor_shortage;
+  const int running = ai_euro_5952_labor_running;
+  fx_done(&f);
+  if (shortage < 1 || running != shortage - 1) {
+    fprintf(stderr, "  +0x8e %d running %d\n", shortage, running);
+    return fail("prelude must leave local_76 = +0x8e - 1 (raw 94054-94056)");
+  }
+  return 0;
+}
+
+/*
+ * The stored local_76 includes the absorption ++ (raw 94245). An
+ * Artillery and a Soldier stand in the colony: the tile walk takes both off
+ * (raw 94054-94056), then the Soldier case of the absorption arm (raw 94239,
+ * outer gate +0x1b & 0x10 from the +0x1c bit 0x10 hand-off at raw 94143,
+ * take via the sticky +0x1b & 4 at raw 94243) admits the Soldier and adds
+ * one back: running = +0x8e - 2 + 1.
+ */
+static int case_prelude_running_includes_absorption(void) {
+  Fx f;
+  if (naval_fx(&f) != 0) {
+    return 1;
+  }
+  f.col->colony_flags |= COLONIZE_COLONY_FLAG_SMALL_AI;            /* -> +0x1b 0x10 */
+  f.col->ai_flags |= COLONIZE_COLONY_AI_MILITARY_SURPLUS;          /* +0x1b 0x04 */
+  const char* const types[2] = {"Artillery", "Soldiers"};
+  for (int i = 0; i < 2; ++i) {
+    const int ti = units_find_type(&f.units, types[i]);
+    /* The arm walks the tile chain (15eb_09c0), so stack them properly. */
+    const int id = ti >= 0 ? units_spawn_allow_stack(&f.units, ti, f.col->x, f.col->y) : -1;
+    ColonizeUnit* u = id >= 0 ? units_get(&f.units, id) : NULL;
+    if (!u) {
+      fx_done(&f);
+      return fail("unit spawn");
+    }
+    u->nation_id = NATION;
+  }
+  ai_euro_5952_labor_running = -99;
+  ai_euro_5952_colony_prelude(&f.ctx, NATION, f.col);
+  const int shortage = f.col->labor_shortage;
+  const int running = ai_euro_5952_labor_running;
+  const unsigned flags = f.col->ai_flags;
+  fx_done(&f);
+  /* Population is no witness: the equip arm right after (raw 94276-94352,
+   * +0x1b & 0x40 with the refunded 50 Muskets) re-arms one colonist. The
+   * absorption's own `+0x1b &= 0xfb` (raw 94247) is. */
+  if ((flags & COLONIZE_COLONY_AI_MILITARY_SURPLUS) != 0) {
+    return fail("absorption arm must take the Soldier and clear +0x1b 4 (raw 94247)");
+  }
+  if (shortage < 2 || running != shortage - 2 + 1) {
+    fprintf(stderr, "  +0x8e %d running %d\n", shortage, running);
+    return fail("prelude must leave local_76 = +0x8e - 2 + 1 (raw 94056, 94245)");
+  }
+  return 0;
+}
+
+/*
  * asm 270d — the SMALL_AI writer: a colony under pop 10 that reaches the
  * chain-upgrade tail raises `+0x1c` bit 0x10.
  */
@@ -447,8 +650,8 @@ static int case_small_ai_flag_written(void) {
   f.col->colonist_count = 9;
   f.col->colony_flags =
     (uint8_t)(f.col->colony_flags & (uint8_t)~COLONIZE_COLONY_FLAG_COASTAL);
-  f.col->labor_shortage = 1;
-  /* asm 265b: `factory && arty_on_tile && labor_shortage` is what sends 262c
+  ai_euro_5952_labor_running = 1;
+  /* asm 265d-266e: `factory && arty_on_tile && local_76` is what sends 262c
    * down the 268e chain-upgrade arm where the SMALL_AI writer lives. */
   {
     const int arty = units_find_type(&f.units, "Artillery");
@@ -777,6 +980,8 @@ static int case_road_connect_links_two_colonies(void) {
   fx_wake_colonists(&f, 3);
   fx_enable_road_arms(&f, 12345u, 10000);
   fx_colony_add(&f.colonies, NATION, 12, 8, 3);
+  /* Raw 93613 reads the census row, which counts both colonies. */
+  f.col1.stuff.colony_counts_by_continent[NATION * 16 + map_continent_id_at(&f.map, 12, 8)] = 2;
   f.col1.head.turn = 98; /* 98 % 7 == 0 */
   f.turn = 98;
   f.col->stock[COLONIZE_CARGO_TOOLS] = 50;
@@ -1149,6 +1354,8 @@ static int tb14_tick_open_run(bool buggy, int* out_stayed, int* out_owner, int* 
   fx_enable_road_arms(&f, 12345u, 10000);
   fx_colony_add(&f.colonies, NATION, 12, 8, 3);
   fx_colony_add(&f.colonies, 2, 10, 6, 1);
+  /* Raw 93613 reads the census row, which counts both own colonies. */
+  f.col1.stuff.colony_counts_by_continent[NATION * 16 + map_continent_id_at(&f.map, 12, 8)] = 2;
   f.col1.player[2].control = 1; /* AI-controlled: DB-64 keeps the rebind */
   f.col1.head.turn = 98; /* 98 % 7 == 0 */
   f.turn = 98;
@@ -1493,7 +1700,92 @@ static int case_tb16_fixed_forest_penalty_follows_tile(void) {
            ? 0 : fail("TB-16 fixed: the unpenalised Prairie plot wins");
 }
 
+/* Census stages only (asm 5952:21d4-2294), Free Colonists in every pop slot. */
+static int census_experts(Fx* f) {
+  AiEuro5952Cascade s;
+  memset(&s, 0, sizeof s);
+  s.ctx = &f->ctx;
+  s.pool = &f->colonies;
+  s.col = f->col;
+  s.col1 = &f->col1;
+  s.nation = NATION;
+  s.improvement_owner = NATION;
+  ai_euro_5952_cascade_census(&s);
+  return s.experts;
+}
+
+static void free_colonists(Fx* f) {
+  memset(f->col->tiles, -1, sizeof f->col->tiles);
+  for (int i = 0; i < f->col->colonist_count; ++i) {
+    f->col->colonists[i].active = true;
+    f->col->colonists[i].profession = COLONIZE_PROF_FREE_COLONIST;
+    f->col->colonists[i].field_job = -1;
+    f->col->colonists[i].building_type = -1;
+  }
+}
+
+/*
+ * The census's tile slots are the DS:0x8d72 list (FUN_15eb_0924 raw 9959,
+ * which keeps DS:0x30e[type] >= 0 via FUN_15eb_08e6 raw 9926-9935). A parked Wagon Train (profession 0 =
+ * Expert Farmer byte, DS:0x30e = -1) is not on it.
+ */
+static int case_census_skips_wagon_on_tile(void) {
+  Fx f;
+  if (fx_build(&f, 3) != 0) {
+    return 1;
+  }
+  free_colonists(&f);
+  const int wt = units_kind_type_index(&f.units, UNITS_KIND_WAGON);
+  const int id = wt < 0 ? -1
+                        : units_spawn_allow_stack_nation(&f.units, wt, f.col->x, f.col->y, NATION);
+  const ColonizeUnit* u = id >= 0 ? units_get_const(&f.units, id) : NULL;
+  if (!u || u->profession != 0) {
+    fx_done(&f);
+    return fail("spawn wagon with profession 0");
+  }
+  const int experts = census_experts(&f);
+  fx_done(&f);
+  if (experts != 0) {
+    return fail("census counted a Wagon Train as an expert (raw 95718 / 15eb_0924)");
+  }
+  return 0;
+}
+
+/*
+ * Pop slots read aiStack_12e, filled at the unseat-all loop (raw
+ * 94552-94555); a promotion after it (carpenter arm, raw 94723-94730) is
+ * invisible to the census (raw 95719-95720).
+ */
+static int case_census_reads_unseat_profession_cache(void) {
+  Fx f;
+  if (fx_build(&f, 3) != 0) {
+    return 1;
+  }
+  free_colonists(&f);
+  AiEuroColonyTick t;
+  memset(&t, 0, sizeof t);
+  t.ctx = &f.ctx;
+  t.world = world_from_turn_ctx(&f.ctx);
+  t.nation_id = NATION;
+  t.col = f.col;
+  ai_euro_colony_tick_unseat_all(&t);
+  f.col->colonists[0].profession = COLONIZE_PROF_CARPENTER;
+  const int during = census_experts(&f);
+  ai_euro_colony_tick_prof_cache_clear();
+  const int after = census_experts(&f);
+  fx_done(&f);
+  if (during != 0) {
+    return fail("census saw a promotion made after the aiStack_12e snapshot");
+  }
+  if (after != 1) {
+    return fail("outside a tick the census reads the live profession");
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+  {"case_census_skips_wagon_on_tile", case_census_skips_wagon_on_tile},
+  {"case_census_reads_unseat_profession_cache", case_census_reads_unseat_profession_cache},
   {"case_seam_cascade_head_stage", case_seam_cascade_head_stage},
   {"case_seam_colony_tick_unseat_all", case_seam_colony_tick_unseat_all},
   {"case_blacksmith_gate_reads_local_1b0", case_blacksmith_gate_reads_local_1b0},
@@ -1504,11 +1796,16 @@ static const TestCase k_cases[] = {
   {"case_try_build_recurses_to_parent", case_try_build_recurses_to_parent},
   {"case_wagon_train_pick", case_wagon_train_pick},
   {"case_wagon_train_blocked_by_ring1_threat", case_wagon_train_blocked_by_ring1_threat},
+  {"case_church_gate_reads_preacher_census", case_church_gate_reads_preacher_census},
+  {"case_armory_gate_reads_gunsmith_census", case_armory_gate_reads_gunsmith_census},
   {"case_galleon_pick", case_galleon_pick},
   {"case_privateer_pick", case_privateer_pick},
   {"case_frigate_pick", case_frigate_pick},
   {"case_artillery_pick", case_artillery_pick},
   {"case_artillery_capped_at_three_on_tile", case_artillery_capped_at_three_on_tile},
+  {"case_artillery_gate_reads_running_shortfall", case_artillery_gate_reads_running_shortfall},
+  {"case_prelude_leaves_running_shortfall", case_prelude_leaves_running_shortfall},
+  {"case_prelude_running_includes_absorption", case_prelude_running_includes_absorption},
   {"case_small_ai_flag_written", case_small_ai_flag_written},
   {"case_docks_commit_suppresses_expert_purchase", case_docks_commit_suppresses_expert_purchase},
   {"case_food_pass_skips_unplaceable_colonist", case_food_pass_skips_unplaceable_colonist},

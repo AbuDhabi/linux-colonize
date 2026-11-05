@@ -1091,9 +1091,10 @@ static int unit_europe_lane_crossing_ticks(void) {
     for (int x = 12; x < 16; ++x) {
       f.map.terrain[y * 16 + x] = 25;
     }
-    f.map.terrain[y * 16 + 15] = 26;
+    /* x = 14: FUN_48d3_0434 never places on the x = 15 rim (FUN_137f_000a). */
+    f.map.terrain[y * 16 + 14] = 26;
   }
-  const int ship_id = units_spawn(&f.units, 2, 15, 4);
+  const int ship_id = units_spawn(&f.units, 2, 14, 4);
   ColonizeUnit* ship = units_get(&f.units, ship_id);
   if (!ship) {
     fixture_free(&f);
@@ -1107,7 +1108,7 @@ static int unit_europe_lane_crossing_ticks(void) {
   }
   const int east_turns = ship->col1_counter16;
   if (ship->x != 244 + nation || ship->y != 244 + nation || east_turns < 1 || east_turns > 2 ||
-      ship->goto_x != 15 || ship->goto_y != 4) {
+      ship->goto_x != 14 || ship->goto_y != 4) {
     fixture_free(&f);
     return fail("007a: lane 244+n, roll 1-2, landfall = the High Seas tile");
   }
@@ -1141,7 +1142,7 @@ static int unit_europe_lane_crossing_ticks(void) {
   }
   /* The 06ba tail (064e -> 048e) places the hull in the same tick that
    * brings it to 224+n: on the landfall High Seas tile itself here. */
-  if (ticks != west_turns + 1 || ship->x != 15 || ship->y != 4) {
+  if (ticks != west_turns + 1 || ship->x != 14 || ship->y != 4) {
     fixture_free(&f);
     return fail("westbound: roll T is placed at the landfall after T+1 ticks");
   }
@@ -1155,7 +1156,7 @@ static int unit_europe_lane_shared_arrival_transfers_passenger(void) {
   const int nation = 1;
   Fixture f;
   if (fixture_init(&f, nation) != 0) return 1;
-  f.map.terrain[4 * 16 + 15] = 26;
+  f.map.terrain[4 * 16 + 14] = 26; /* interior: FUN_48d3_0434 skips the rim */
   const int first_id = units_spawn_allow_stack(&f.units, 2, 224 + nation, 224 + nation);
   const int last_id = units_spawn_allow_stack(&f.units, 2, 224 + nation, 224 + nation);
   const int pax_id = units_spawn_allow_stack(&f.units, 0, 224 + nation, 224 + nation);
@@ -1167,7 +1168,7 @@ static int unit_europe_lane_shared_arrival_transfers_passenger(void) {
     return fail("shared arrival spawn");
   }
   first->nation_id = last->nation_id = pax->nation_id = nation;
-  first->goto_x = last->goto_x = 15;
+  first->goto_x = last->goto_x = 14;
   first->goto_y = last->goto_y = 4;
   first->col1_counter16 = last->col1_counter16 = 0;
   pax->orders = UNITS_ORDER_SENTRY;
@@ -1176,11 +1177,211 @@ static int unit_europe_lane_shared_arrival_transfers_passenger(void) {
     return fail("shared arrival board");
   }
   ai_euro_europe_lane_tick(&f.ctx, nation);
-  const int ok = first->x == 15 && first->y == 4 && last->x == 15 && last->y == 4 &&
+  const int ok = first->x == 14 && first->y == 4 && last->x == 14 && last->y == 4 &&
     first->cargo_count == 0 && last->cargo_count == 1 &&
     last->cargo_ids[0] == pax_id && pax->aboard_ship_id == last_id;
   fixture_free(&f);
   return ok ? 0 : fail("terminal arrival hull must pick up the shared-lane passenger");
+}
+
+/*
+ * FUN_48d3_03d0 appends each hopped hull at the 224+n chain tail in walk
+ * order (0880 then 08c6, raw 7535-7561), and 064e places head-first (raw
+ * 77905-77939). Lower-slot `early` heads the 228+n chain, so it is placed
+ * first and its 10be peel takes the loose sentried colonist; a
+ * descending-slot walk would hand it to `late`.
+ */
+static int unit_europe_lane_arrivals_place_in_chain_order(void) {
+  const int nation = 1;
+  Fixture f;
+  if (fixture_init(&f, nation) != 0) return 1;
+  f.map.terrain[4 * 16 + 14] = 26; /* interior: FUN_48d3_0434 skips the rim */
+  const int early_id = units_spawn_allow_stack(&f.units, 2, 228 + nation, 228 + nation);
+  const int late_id = units_spawn_allow_stack(&f.units, 2, 228 + nation, 228 + nation);
+  const int pax_id = units_spawn_allow_stack(&f.units, 0, 224 + nation, 224 + nation);
+  ColonizeUnit* early = units_get(&f.units, early_id);
+  ColonizeUnit* late = units_get(&f.units, late_id);
+  ColonizeUnit* pax = units_get(&f.units, pax_id);
+  if (!early || !late || !pax || early_id > late_id) {
+    fixture_free(&f);
+    return fail("chain-order arrival spawn");
+  }
+  early->nation_id = nation;
+  late->nation_id = nation;
+  pax->nation_id = nation;
+  early->goto_x = 14;
+  late->goto_x = 14;
+  early->goto_y = 4;
+  late->goto_y = 4;
+  early->col1_counter16 = 0;
+  late->col1_counter16 = 0;
+  pax->orders = UNITS_ORDER_SENTRY;
+  units_tile_stack_sink(&f.units, late_id); /* `early` heads the 228+n chain */
+  if (units_tile_head_id_at(&f.units, 228 + nation, 228 + nation) != early_id) {
+    fixture_free(&f);
+    return fail("chain-order arrival: early must head the 228+n chain");
+  }
+  ai_euro_europe_lane_tick(&f.ctx, nation);
+  const int ok = early->x == 14 && early->y == 4 && late->x == 14 && late->y == 4 &&
+    pax->aboard_ship_id == early_id && late->cargo_count == 0;
+  if (!ok) {
+    fprintf(stderr, "chain-order arrival: pax aboard %d (early %d late %d)\n",
+            pax->aboard_ship_id, early_id, late_id);
+  }
+  fixture_free(&f);
+  return ok ? 0 : fail("064e must place the 224+n chain head first");
+}
+
+/*
+ * FUN_48d3_03d0's 08c6 (raw 7535-7561) appends a hopped hull after the
+ * destination chain tail, below the units already there. Hull X waits on
+ * 228+n (counter 2); hull Y, spawned later, hops 232+n -> 228+n on the first
+ * tick and lands under X. On the second tick both hop to 224+n in chain
+ * order X, Y, so 064e places X first and its 10be peel takes the loose
+ * sentried colonist. Left at the head, Y would go first.
+ */
+static int unit_europe_lane_hop_appends_at_chain_tail(void) {
+  const int nation = 1;
+  Fixture f;
+  if (fixture_init(&f, nation) != 0) return 1;
+  f.map.terrain[4 * 16 + 14] = 26; /* interior: FUN_48d3_0434 skips the rim */
+  const int pax_id = units_spawn_allow_stack(&f.units, 0, 224 + nation, 224 + nation);
+  const int x_id = units_spawn_allow_stack(&f.units, 2, 228 + nation, 228 + nation);
+  const int y_id = units_spawn_allow_stack(&f.units, 2, 232 + nation, 232 + nation);
+  ColonizeUnit* pax = units_get(&f.units, pax_id);
+  ColonizeUnit* hx = units_get(&f.units, x_id);
+  ColonizeUnit* hy = units_get(&f.units, y_id);
+  if (!pax || !hx || !hy) {
+    fixture_free(&f);
+    return fail("chain-tail hop spawn");
+  }
+  pax->nation_id = nation;
+  hx->nation_id = nation;
+  hy->nation_id = nation;
+  pax->orders = UNITS_ORDER_SENTRY;
+  hx->goto_x = 14;
+  hy->goto_x = 14;
+  hx->goto_y = 4;
+  hy->goto_y = 4;
+  hx->col1_counter16 = 2;
+  hy->col1_counter16 = 1;
+  ai_euro_europe_lane_tick(&f.ctx, nation);
+  const int head_after_first = units_tile_head_id_at(&f.units, 228 + nation, 228 + nation);
+  ai_euro_europe_lane_tick(&f.ctx, nation);
+  const int ok = head_after_first == x_id && hx->x == 14 && hy->x == 14 &&
+                 pax->aboard_ship_id == x_id && hy->cargo_count == 0;
+  if (!ok) {
+    fprintf(stderr, "chain-tail hop: 228 head %d (X %d Y %d), pax aboard %d, X (%d,%d) Y (%d,%d)\n",
+            head_after_first, x_id, y_id, pax->aboard_ship_id, hx->x, hx->y, hy->x, hy->y);
+  }
+  fixture_free(&f);
+  return ok ? 0 : fail("03d0 must append the hopped hull after the chain tail");
+}
+
+/*
+ * FUN_48d3_007a calls FUN_281f_0916 -> FUN_1427_12f6 -> 10be (raw 77608,
+ * 8722-8737) before stamping the riders, so the hull that sails for Europe
+ * rebuilds its load from the High Seas tile. A loose sentried colonist on
+ * the tile boards in both modes; the rider of the other hull transfers only
+ * under dos_buggy_behavior (TB-2).
+ */
+static int europe_entry_bucket_run(int buggy) {
+  const int nation = 1;
+  Fixture f;
+  if (fixture_init(&f, nation) != 0) return 1;
+  for (int y = 0; y < 16; ++y) {
+    for (int x = 12; x < 16; ++x) {
+      f.map.terrain[y * 16 + x] = 26;
+    }
+  }
+  const int other_id = units_spawn_allow_stack(&f.units, 2, 14, 4);
+  const int ship_id = units_spawn_allow_stack(&f.units, 2, 14, 4);
+  const int rider_id = units_spawn_allow_stack(&f.units, 0, 14, 4);
+  const int loose_id = units_spawn_allow_stack(&f.units, 0, 14, 4);
+  ColonizeUnit* other = units_get(&f.units, other_id);
+  ColonizeUnit* ship = units_get(&f.units, ship_id);
+  ColonizeUnit* rider = units_get(&f.units, rider_id);
+  ColonizeUnit* loose = units_get(&f.units, loose_id);
+  if (!other || !ship || !rider || !loose) {
+    fixture_free(&f);
+    return fail("bucket entry spawn");
+  }
+  other->nation_id = nation;
+  ship->nation_id = nation;
+  rider->nation_id = nation;
+  loose->nation_id = nation;
+  rider->orders = UNITS_ORDER_SENTRY;
+  loose->orders = UNITS_ORDER_SENTRY;
+  if (!units_board_stacked_restore(&f.units, rider_id, other_id)) {
+    fixture_free(&f);
+    return fail("bucket entry board");
+  }
+  dos_buggy_behavior_set(buggy != 0);
+  const int entered = ai_euro_ship_enter_europe(&f.ctx, ship);
+  dos_buggy_behavior_set(true);
+  if (!entered) {
+    fixture_free(&f);
+    return fail("bucket entry: hull on High Seas must enter the lane");
+  }
+  const int rider_ok = buggy ? rider->aboard_ship_id == ship_id && other->cargo_count == 0
+                             : rider->aboard_ship_id == other_id && other->cargo_count == 1;
+  const int ok = rider_ok && loose->aboard_ship_id == ship_id && loose->x == 244 + nation &&
+                 loose->col1_counter16 == ship->col1_counter16;
+  if (!ok) {
+    fprintf(stderr, "bucket entry (buggy %d): rider aboard %d, loose aboard %d at %d (ship %d other %d)\n",
+            buggy, rider->aboard_ship_id, loose->aboard_ship_id, loose->x, ship_id, other_id);
+  }
+  fixture_free(&f);
+  return ok ? 0 : fail("007a's 10be must rebuild the hull load from the tile");
+}
+
+static int unit_europe_entry_rebuilds_load_from_bucket(void) {
+  if (europe_entry_bucket_run(1) != 0) {
+    return 1;
+  }
+  return europe_entry_bucket_run(0);
+}
+
+/*
+ * FUN_48d3_048e rings around the hull's own +0x314d/e (raw 77832-77833) with
+ * no fallback. The hull's saved tile is (16,4), one past the east edge; a
+ * passenger's goto (14,4) is not consulted. Column 14 is High Seas: the
+ * first ring tile is (14,2) at distance 2 (y - e row first).
+ */
+static int unit_europe_lane_arrival_uses_hull_tile(void) {
+  const int nation = 1;
+  Fixture f;
+  if (fixture_init(&f, nation) != 0) return 1;
+  for (int y = 0; y < 16; ++y) {
+    f.map.terrain[y * 16 + 14] = 26;
+  }
+  const int hull_id = units_spawn_allow_stack(&f.units, 2, 224 + nation, 224 + nation);
+  const int pax_id = units_spawn_allow_stack(&f.units, 0, 224 + nation, 224 + nation);
+  ColonizeUnit* hull = units_get(&f.units, hull_id);
+  ColonizeUnit* pax = units_get(&f.units, pax_id);
+  if (!hull || !pax) {
+    fixture_free(&f);
+    return fail("hull-tile arrival spawn");
+  }
+  hull->nation_id = nation;
+  pax->nation_id = nation;
+  hull->goto_x = 16;
+  hull->goto_y = 4;
+  hull->col1_counter16 = 0;
+  pax->orders = UNITS_ORDER_SENTRY;
+  pax->goto_x = 14;
+  pax->goto_y = 4;
+  if (!units_board_stacked_restore(&f.units, pax_id, hull_id)) {
+    fixture_free(&f);
+    return fail("hull-tile arrival board");
+  }
+  ai_euro_europe_lane_tick(&f.ctx, nation);
+  const int ok = hull->x == 14 && hull->y == 2;
+  if (!ok) {
+    fprintf(stderr, "hull-tile arrival: hull at (%d,%d), want (14,2)\n", hull->x, hull->y);
+  }
+  fixture_free(&f);
+  return ok ? 0 : fail("048e must ring around the hull's own saved tile");
 }
 
 /*
@@ -1702,6 +1903,107 @@ static int unit_berth_marks_then_assembles_passenger(void) {
   }
   fixture_free(&f);
   return 0;
+}
+
+/*
+ * At an own-colony berth DOS's stale-mark walk covers the riders too (raw
+ * 90230-90238), and 10be re-boards only the units the mark scan picks again
+ * (raw 8658-8676). A Free Colonist is never re-marked, so it is left on the
+ * colony tile; a Pioneer (DOS type 2) is re-marked and rides on.
+ * `cower`: the colony is flagged NEARBY_FRIGATE, so the Caravel cowers (raw
+ * 3018-3023) after the riders are ashore and the park skips boarding: both
+ * stay on the colony tile.
+ */
+static int berth_riders_run(bool cower) {
+  const int nation = 1;
+  Fixture f;
+  if (fixture_init(&f, nation) != 0) {
+    return 1;
+  }
+  for (int y = 0; y < 16; ++y) {
+    for (int x = 12; x < 16; ++x) {
+      f.map.terrain[y * 16 + x] = 25; /* MAP_OCEAN_INDEX */
+    }
+  }
+  f.units.type_count = 5;
+  snprintf(f.units.types[4].name, sizeof(f.units.types[4].name), "Pioneer");
+  f.units.types[4].movement = 1;
+  f.units.types[4].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  f.units.types[4].space = 1;
+  f.units.types[0].space = 1;
+  f.units.types[2].cargo = 3;
+
+  ColonizeColony* c = &f.colonies.colonies[0];
+  c->id = 0;
+  c->active = true;
+  c->nation_id = nation;
+  c->x = 11;
+  c->y = 4;
+  c->population = 3;
+  c->colonist_count = 3;
+  c->building_in_production = -1;
+  if (cower) {
+    c->ai_flags |= COLONIZE_COLONY_AI_NEARBY_FRIGATE;
+  }
+  f.colonies.colony_count = 1;
+  f.colonies.next_id = 1;
+
+  const int ship_id = units_spawn(&f.units, 2, 11, 4); /* on colony tile (DOS berth) */
+  const int col_id = units_spawn_allow_stack(&f.units, 0, 11, 4);
+  const int pio_id = units_spawn_allow_stack(&f.units, 4, 11, 4);
+  ColonizeUnit* ship = units_get(&f.units, ship_id);
+  ColonizeUnit* col = units_get(&f.units, col_id);
+  ColonizeUnit* pio = units_get(&f.units, pio_id);
+  if (!ship || !col || !pio) {
+    fixture_free(&f);
+    return fail("spawn berth rider units");
+  }
+  ship->nation_id = nation;
+  col->nation_id = nation;
+  pio->nation_id = nation;
+  if (!units_board_stacked(&f.units, col_id, ship_id) ||
+      !units_board_stacked(&f.units, pio_id, ship_id)) {
+    fixture_free(&f);
+    return fail("board berth riders");
+  }
+  if (units_load_goods(&f.units, ship_id, COLONIZE_CARGO_ORE, 10) <= 0) {
+    fixture_free(&f);
+    return fail("load berth hull");
+  }
+
+  ship->col1_counter16 = 0;
+  (void)ai_euro_20e6_tasked_ship_berth_arrival(&f.ctx, nation, ship, NULL, NULL);
+
+  col = units_get(&f.units, col_id);
+  pio = units_get(&f.units, pio_id);
+  ship = units_get(&f.units, ship_id);
+  const int col_ashore = col && col->active && col->aboard_ship_id < 0 && col->x == 11 &&
+                         col->y == 4 && col->orders == UNITS_ORDER_NONE;
+  const int pio_ashore = pio && pio->active && pio->aboard_ship_id < 0 && pio->x == 11 &&
+                         pio->y == 4;
+  const int ok = cower ? col_ashore && pio_ashore && ship && ship->col1_counter16 == 1 &&
+                           ship->cargo_count == 0
+                       : col_ashore && pio && pio->aboard_ship_id == ship_id;
+  if (!ok) {
+    fprintf(stderr, "cower %d: colonist aboard=%d orders=%d at (%d,%d); pioneer aboard=%d "
+            "(ship %d); counter %d\n", cower, col ? col->aboard_ship_id : -9,
+            col ? col->orders : -9, col ? col->x : -9, col ? col->y : -9,
+            pio ? pio->aboard_ship_id : -9, ship_id, ship ? ship->col1_counter16 : -9);
+  }
+  fixture_free(&f);
+  return ok ? 0 : 1;
+}
+
+static int unit_berth_puts_unmarked_riders_ashore(void) {
+  return berth_riders_run(false) == 0
+           ? 0
+           : fail("berth must leave the unmarked colonist ashore and re-board the pioneer");
+}
+
+static int unit_berth_cower_leaves_riders_ashore(void) {
+  return berth_riders_run(true) == 0
+           ? 0
+           : fail("a cowering hull must still put its riders ashore and board none");
 }
 
 /*
@@ -2508,6 +2810,7 @@ static int goalwalk_binding_after_turn(int subject_orders, int* out_gx, int* out
    * the removed low-population LABOR heuristic. Pin the 0a60 binding stage. */
   f.map.terrain[2 * f.map.width + 3] = 25;
   f.colonies.colonies[0].labor_shortage = 2;
+  seed_census(&f, nation); /* the 0a60 goal tables read the census rows */
   ai_euro_colony_goals(&f.ctx, nation);
   ai_euro_0a60_goal_orders_structural(&f.ctx, nation);
   const ColonizeUnit* u = units_get_const(&f.units, uid);
@@ -3129,6 +3432,161 @@ static int unit_ship_far_roam_uses_band_snapshot(void) {
   return 0;
 }
 
+/* Raw 88789-88805: for an unarmed mover the wander scorer walks the WHOLE
+ * hostile neighbour stack (07e0 / 02e4) and takes -10 per armed unit. A
+ * colonist at (8,8) beside a war-hostile stack at (10,8). Stack 0 = one
+ * unarmed colonist; 1 = colonist, then a newer Soldier (chain head); 2 =
+ * Soldier, then a newer colonist (head). An armed member must cost -10
+ * wherever it sits in the chain, so both 1 and 2 must change some pick
+ * versus 0 (a lowest-slot read misses 1, a head-only read misses 2). */
+static int wander_pick_beside_stack(int stack, uint32_t seed) {
+  Fixture f;
+  if (fixture_init(&f, 1) != 0) return -1;
+  dos_rng_seed(&f.rng, seed);
+  const int id = units_spawn(&f.units, 0, 8, 8);
+  ColonizeUnit* u = units_get(&f.units, id);
+  const int types[3][2] = {{0, -1}, {0, 1}, {1, 0}};
+  for (int k = 0; k < 2 && types[stack][k] >= 0; ++k) {
+    const int fid = units_spawn_allow_stack(&f.units, types[stack][k], 10, 8);
+    ColonizeUnit* foe = units_get(&f.units, fid);
+    if (!foe) { fixture_free(&f); return -1; }
+    foe->nation_id = 2;
+    units_tile_stack_arrive(&f.units, fid);
+  }
+  if (!u) { fixture_free(&f); return -1; }
+  u->nation_id = 1;
+  u->last_dir = 2; /* facing east, toward the stack: the -2*diff^2 term favours it */
+  f.map.layer3[8 * 16 + 10] = (uint8_t)((2 << 4) | (f.map.layer3[8 * 16 + 10] & 0x0f));
+  f.map.layer2[8 * 16 + 10] = MAP_OCCUPANCY_HAS_UNIT;
+  ai_diplo_write(&f.col1, 1, 2, AI_DIPLO_MET | AI_DIPLO_WAR);
+  Ai20e6Unit s;
+  ai_euro_20e6_prologue(&f.ctx, u, 1, &s);
+  const int dir = s.combat == 0 ? ai_euro_20e6_wander_step(&f.ctx, u, &s, NULL, NULL) : -2;
+  fixture_free(&f);
+  return dir;
+}
+
+static int unit_wander_hostile_stack_counts_every_unit(void) {
+  int differs_head = 0;
+  int differs_tail = 0;
+  for (uint32_t seed = 1; seed <= 64; ++seed) {
+    const int none = wander_pick_beside_stack(0, seed * 12345u);
+    const int head = wander_pick_beside_stack(1, seed * 12345u);
+    const int tail = wander_pick_beside_stack(2, seed * 12345u);
+    if (none < 0 || head < 0 || tail < 0) {
+      return fail("wander stack fixture (mover must be unarmed)");
+    }
+    differs_head += none != head;
+    differs_tail += none != tail;
+  }
+  if (!differs_head) {
+    return fail("an armed chain head in the hostile stack must cost -10");
+  }
+  return differs_tail > 0 ? 0 : fail("an armed unit below the chain head must cost -10");
+}
+
+/* Raw 88813-88820: a loaded hull's hostile-colony battery term is 0x14 per
+ * hold with a Fort (building bit 1) and 0x28 with a Fortress (bit 2); a
+ * Stockade alone (bit 0) costs nothing. Hull at (8,8) with one goods hold,
+ * met-not-at-peace colony at (10,8): dirs 1..3 border it. Returns the pick,
+ * -1 on fixture failure. */
+static int ship_fort_term_pick(int row, uint32_t seed) {
+  Fixture f;
+  if (fixture_init(&f, 1) != 0) return -1;
+  for (int i = 0; i < 16 * 16; ++i) {
+    f.map.terrain[i] = 25;
+    f.map.layer3[i] = 0xf1;
+  }
+  f.map.terrain[8 * 16 + 10] = 1;
+  f.map.layer3[8 * 16 + 10] = 0x21;
+  f.colonies.building_type_count = 3;
+  for (int b = 0; b < 3; ++b) {
+    f.colonies.building_types[b].row_plus1 = b + 1;
+  }
+  ColonizeColony* c = &f.colonies.colonies[0];
+  c->id = 0;
+  c->active = true;
+  c->nation_id = 2;
+  c->x = 10;
+  c->y = 8;
+  c->population = 1;
+  c->colonist_count = 1;
+  c->building_in_production = -1;
+  c->has_building[row] = true;
+  f.colonies.colony_count = 1;
+  f.colonies.next_id = 1;
+  ai_diplo_write(&f.col1, 1, 2, AI_DIPLO_MET);
+  dos_rng_seed(&f.rng, seed);
+  const int id = units_spawn(&f.units, 2, 8, 8);
+  ColonizeUnit* ship = units_get(&f.units, id);
+  if (!ship || units_load_goods(&f.units, id, COLONIZE_CARGO_TOOLS, 100) <= 0) {
+    fixture_free(&f);
+    return -1;
+  }
+  ship->nation_id = 1;
+  ship->last_dir = 8; /* no facing term */
+  Ai20e6Unit s;
+  ai_euro_20e6_prologue(&f.ctx, ship, 1, &s);
+  const int dir = ai_euro_20e6_wander_step(&f.ctx, ship, &s, NULL, NULL);
+  fixture_free(&f);
+  return dir;
+}
+
+static int unit_ship_fort_term_reads_fort_and_fortress_bits(void) {
+  int stockade_beside = 0;
+  int fort_beside = 0;
+  for (uint32_t seed = 1; seed <= 64; ++seed) {
+    const int st = ship_fort_term_pick(COLONY_BUILDING_STOCKADE, seed * 12345u);
+    const int fo = ship_fort_term_pick(COLONY_BUILDING_FORT, seed * 12345u);
+    if (st < 0 || fo < 0) {
+      return fail("ship fort term fixture");
+    }
+    stockade_beside += st >= 1 && st <= 3;
+    fort_beside += fo >= 1 && fo <= 3;
+  }
+  if (stockade_beside == 0) {
+    return fail("a Stockade alone must not charge the hull's battery term");
+  }
+  return fort_beside == 0 ? 0 : fail("a Fort must charge 0x14 per goods hold");
+}
+
+/* FUN_521d_0906 raw 87373: a tribe-owned neighbour keys 0896's grudge read
+ * off the tile's chain head (07e0, newest arrival), not the lowest pool
+ * slot. Two Braves on (9,8): the older one (slot 0) from a calm village, the
+ * newer one from a village with attitude > 0x7f. */
+static int unit_contact_claim_reads_chain_head(void) {
+  static ColonizeCol1Tribe tribes[2];
+  Fixture f;
+  if (fixture_init(&f, 0) != 0) return 1;
+  memset(tribes, 0, sizeof(tribes));
+  tribes[0].nation_id = 4;
+  tribes[1].nation_id = 4;
+  tribes[1].alarm[0].friction = 0x90;
+  f.col1.tribe = tribes;
+  f.col1.head.tribe_count = 2;
+  const int me = units_spawn(&f.units, 0, 8, 8);
+  const int calm = units_spawn(&f.units, 0, 9, 8);
+  const int angry = units_spawn_allow_stack(&f.units, 0, 9, 8);
+  ColonizeUnit* uc = units_get(&f.units, calm);
+  ColonizeUnit* ua = units_get(&f.units, angry);
+  if (me < 0 || !uc || !ua) { fixture_free(&f); return fail("contact claim spawn"); }
+  uc->nation_id = ua->nation_id = 4;
+  uc->home_tribe_index = 0;
+  ua->home_tribe_index = 1;
+  units_tile_stack_arrive(&f.units, calm);
+  units_tile_stack_arrive(&f.units, angry);
+  f.map.layer3[8 * 16 + 9] = (uint8_t)((4 << 4) | (f.map.layer3[8 * 16 + 9] & 0x0f));
+  f.map.layer2[8 * 16 + 9] = MAP_OCCUPANCY_HAS_UNIT;
+  const ColonizeWorld w = world_from_turn_ctx(&f.ctx);
+  const int claim = ai_goals_probe_adjacent_contact_claim_w(&w, 8, 8, 0, 1, NULL);
+  const int head = units_tile_head_id_at(&f.units, 9, 8);
+  fixture_free(&f);
+  if (head != angry) {
+    return fail("contact claim fixture: the newer Brave must head the chain");
+  }
+  return claim == 4 ? 0 : fail("contact claim must read the chain head's village grudge");
+}
+
 static int unit_ship_index_gates_skip_deleted_slots(void) {
   for (int turn = 31; turn <= 32; ++turn) {
     Fixture f;
@@ -3470,7 +3928,39 @@ static int unit_spent_step_burns_465b_roll(void) {
   return ok ? 0 : fail("spent unit's step must reseed and burn the 465b roll, and not move");
 }
 
+/*
+ * The 20e6 per-continent counts (raw 88506, 88521, 89475-89535; FUN_5952_0000
+ * raw 93613) read the FUN_4962_0018 census: the land row includes a hull
+ * docked in a colony (asm 4962:0171), and a colony founded after the census is
+ * not in the colony row until the next census.
+ */
+static int unit_20e6_counts_read_census_snapshot(void) {
+  const int nation = 1;
+  Fixture f;
+  if (fixture_init(&f, nation) != 0) return 1;
+  treasure_add_colony(&f, 0, nation, 4, 4);
+  const int sid = units_spawn(&f.units, 1, 6, 4);
+  const int hid = units_spawn(&f.units, 2, 4, 4);
+  ColonizeUnit* s = units_get(&f.units, sid);
+  ColonizeUnit* h = units_get(&f.units, hid);
+  if (!s || !h) { fixture_free(&f); return fail("20e6 census spawn"); }
+  s->nation_id = nation;
+  h->nation_id = nation;
+  seed_census(&f, nation);
+  treasure_add_colony(&f, 1, nation, 8, 8); /* founded after the census */
+  const int cid = map_continent_id_at(&f.map, 4, 4);
+  const int cols = ai_euro_20e6_own_colonies_on(&f.ctx, nation, cid);
+  const int land = ai_euro_10ec_land_units_on(&f.ctx, nation, cid);
+  fixture_free(&f);
+  if (cid < 0 || cols != 1 || land != 2) {
+    fprintf(stderr, "20e6 census: colonies %d (want 1) land %d (want 2)\n", cols, land);
+    return fail("20e6 counts must read the census rows, not live walks");
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+    {"unit_20e6_counts_read_census_snapshot", unit_20e6_counts_read_census_snapshot},
     {"unit_spent_step_burns_465b_roll", unit_spent_step_burns_465b_roll},
     {"unit_10ec_skips_while_human_tops_rank", unit_10ec_skips_while_human_tops_rank},
     {"unit_garrison_soldier_counts_explorer_cap", unit_garrison_soldier_counts_explorer_cap},
@@ -3486,6 +3976,10 @@ static const TestCase k_cases[] = {
      unit_border_park_inherits_previous_flood_stack_word},
     {"unit_ship_step_leaves_12f6_stack_word", unit_ship_step_leaves_12f6_stack_word},
     {"unit_ship_index_gates_skip_deleted_slots", unit_ship_index_gates_skip_deleted_slots},
+    {"unit_wander_hostile_stack_counts_every_unit", unit_wander_hostile_stack_counts_every_unit},
+    {"unit_contact_claim_reads_chain_head", unit_contact_claim_reads_chain_head},
+    {"unit_ship_fort_term_reads_fort_and_fortress_bits",
+     unit_ship_fort_term_reads_fort_and_fortress_bits},
     {"unit_ship_far_roam_uses_band_snapshot", unit_ship_far_roam_uses_band_snapshot},
     {"unit_ship_band_keeps_counts_after_unload", unit_ship_band_keeps_counts_after_unload},
     {"unit_ship_work_queue_uses_entry_stack", unit_ship_work_queue_uses_entry_stack},
@@ -3528,6 +4022,12 @@ static const TestCase k_cases[] = {
     {"unit_europe_dock_demand_throttled_by_lane", unit_europe_dock_demand_throttled_by_lane},
     {"unit_europe_lane_crossing_ticks", unit_europe_lane_crossing_ticks},
     {"unit_europe_lane_shared_arrival_transfers_passenger", unit_europe_lane_shared_arrival_transfers_passenger},
+    {"unit_berth_puts_unmarked_riders_ashore", unit_berth_puts_unmarked_riders_ashore},
+    {"unit_berth_cower_leaves_riders_ashore", unit_berth_cower_leaves_riders_ashore},
+    {"unit_europe_lane_arrival_uses_hull_tile", unit_europe_lane_arrival_uses_hull_tile},
+    {"unit_europe_lane_arrivals_place_in_chain_order", unit_europe_lane_arrivals_place_in_chain_order},
+    {"unit_europe_lane_hop_appends_at_chain_tail", unit_europe_lane_hop_appends_at_chain_tail},
+    {"unit_europe_entry_rebuilds_load_from_bucket", unit_europe_entry_rebuilds_load_from_bucket},
     {"unit_delivery_matrix_skips_full_producer", unit_delivery_matrix_skips_full_producer},
     {"unit_delivery_sell_tail_dumps_cargo", unit_delivery_sell_tail_dumps_cargo},
     {"unit_load_matrix_picks_priced_cargo", unit_load_matrix_picks_priced_cargo},

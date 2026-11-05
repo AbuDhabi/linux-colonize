@@ -7714,7 +7714,7 @@ static int case_ship_switch_quirk(void) {
       sB->cargo_ids[sB->cargo_count++] = pu->id;
     }
     /* Ship A departs first: takes both of B's sentried passengers. */
-    if (units_ship_departure_pickup(&pool, shipA, wx, wy) != 2) {
+    if (units_ship_departure_pickup(&pool, &map, shipA, wx, wy) != 2) {
       fprintf(stderr, "ship-switch: departing ship should scoop both passengers\n");
       return 1;
     }
@@ -7735,7 +7735,7 @@ static int case_ship_switch_quirk(void) {
     }
     /* Awake passenger stays with its own ship. */
     units_get(&pool, pax1)->orders = UNITS_ORDER_NONE;
-    if (units_ship_departure_pickup(&pool, shipB, wx, wy) != 1 ||
+    if (units_ship_departure_pickup(&pool, &map, shipB, wx, wy) != 1 ||
         units_get(&pool, pax1)->aboard_ship_id != shipA ||
         units_get(&pool, pax2)->aboard_ship_id != shipB) {
       fprintf(stderr, "ship-switch: awake passenger must not transfer\n");
@@ -7746,6 +7746,125 @@ static int case_ship_switch_quirk(void) {
     units_despawn(&pool, shipA);
     units_despawn(&pool, shipB);
     fprintf(stderr, "unit_units: ship-switch departure pickup ok\n");
+  fx_close();
+  return 0;
+}
+
+/* FUN_1427_10be raw 8630-8644: a Trade Route hull leaving a settlement tile
+ * has budget 0, so no sentried unit boards and its own rider stays ashore.
+ * The same hull without the route boards both (control). */
+static int case_trade_route_departure_no_pickup(void) {
+  if (fx_open() != 0 || fx_stage2() != 0) {
+    return 1;
+  }
+  int tx = -1, ty = -1;
+  for (int y = 5; y < (int)map.height - 5 && tx < 0; ++y) {
+    for (int x = 5; x < (int)map.width - 5; ++x) {
+      if (!map_tile_is_water(&map, x, y)) {
+        tx = x;
+        ty = y;
+        break;
+      }
+    }
+  }
+  if (tx < 0) {
+    fprintf(stderr, "trade-route pickup: no land tile\n");
+    return 1;
+  }
+  map_occupancy_set_layer2(&map, tx, ty, MAP_OCCUPANCY_HAS_CITY, true);
+  const int caravel = units_find_type(&pool, "Caravel");
+  const int ship = units_spawn_allow_stack(&pool, caravel, tx, ty);
+  const int ashore = units_spawn_allow_stack(&pool, pioneer, tx, ty);
+  const int rider = units_spawn_allow_stack(&pool, pioneer, tx, ty);
+  ColonizeUnit* s = units_get(&pool, ship);
+  units_get(&pool, ashore)->orders = UNITS_ORDER_SENTRY;
+  if (!units_board_stacked(&pool, rider, ship)) {
+    fprintf(stderr, "trade-route pickup: rider did not board\n");
+    return 1;
+  }
+  s->orders = UNITS_ORDER_TRADE_ROUTE;
+  if (units_ship_departure_pickup(&pool, &map, ship, tx, ty) != 0 || s->cargo_count != 0 ||
+      units_get(&pool, ashore)->aboard_ship_id >= 0 ||
+      units_get(&pool, rider)->aboard_ship_id >= 0) {
+    fprintf(stderr, "trade-route pickup: route hull must take no one (cargo %d)\n",
+            s->cargo_count);
+    return 1;
+  }
+  s->orders = UNITS_ORDER_NONE;
+  units_get(&pool, rider)->orders = UNITS_ORDER_SENTRY;
+  if (units_ship_departure_pickup(&pool, &map, ship, tx, ty) != 2 || s->cargo_count != 2) {
+    fprintf(stderr, "trade-route pickup: plain hull should board both sentries\n");
+    return 1;
+  }
+  map_occupancy_set_layer2(&map, tx, ty, MAP_OCCUPANCY_HAS_CITY, false);
+  units_despawn(&pool, ashore);
+  units_despawn(&pool, rider);
+  units_despawn(&pool, ship);
+  fprintf(stderr, "unit_units: trade-route departure pickup ok\n");
+  fx_close();
+  return 0;
+}
+
+/* "Move to front" is a unit id (DOS DS:0x8d78): after units_pool_compact moves
+ * the marked sentry down a slot, the departing hull still boards it first, ahead
+ * of the two later arrivals it would otherwise take. */
+static int case_board_first_survives_compact(void) {
+  if (fx_open() != 0 || fx_stage2() != 0) {
+    return 1;
+  }
+  int tx = -1, ty = -1;
+  for (int y = 5; y < (int)map.height - 5 && tx < 0; ++y) {
+    for (int x = 5; x < (int)map.width - 5; ++x) {
+      if (!map_tile_is_water(&map, x, y)) {
+        tx = x;
+        ty = y;
+        break;
+      }
+    }
+  }
+  if (tx < 0) {
+    fprintf(stderr, "board-first compact: no land tile\n");
+    return 1;
+  }
+  map_occupancy_set_layer2(&map, tx, ty, MAP_OCCUPANCY_HAS_CITY, true);
+  const int ship = units_spawn_allow_stack(&pool, units_find_type(&pool, "Caravel"), tx, ty);
+  const int filler = units_spawn_allow_stack(&pool, pioneer, tx, ty);
+  const int marked = units_spawn_allow_stack(&pool, pioneer, tx, ty);
+  const int later1 = units_spawn_allow_stack(&pool, pioneer, tx, ty);
+  const int later2 = units_spawn_allow_stack(&pool, pioneer, tx, ty);
+  ColonizeUnit* s = units_get(&pool, ship);
+  if (!s || units_ship_capacity(&pool, ship) != 2 || later2 < 0) {
+    fprintf(stderr, "board-first compact: fixture\n");
+    return 1;
+  }
+  units_get(&pool, marked)->orders = UNITS_ORDER_SENTRY;
+  units_get(&pool, later1)->orders = UNITS_ORDER_SENTRY;
+  units_get(&pool, later2)->orders = UNITS_ORDER_SENTRY;
+  pool.board_first_id = marked;
+  const ColonizeUnit* before = units_get_const(&pool, marked);
+  const int slot_before = (int)(before - pool.units);
+  units_despawn(&pool, filler);
+  units_pool_compact(&pool);
+  const ColonizeUnit* after = units_get_const(&pool, marked);
+  if (!after || (int)(after - pool.units) >= slot_before || pool.board_first_id != marked) {
+    fprintf(stderr, "board-first compact: the marked unit did not move down (slot %d -> %d)\n",
+            slot_before, after ? (int)(after - pool.units) : -1);
+    return 1;
+  }
+  if (units_ship_departure_pickup(&pool, &map, ship, tx, ty) != 2 ||
+      units_get(&pool, marked)->aboard_ship_id != ship ||
+      units_get(&pool, later2)->aboard_ship_id != ship ||
+      units_get(&pool, later1)->aboard_ship_id >= 0) {
+    fprintf(stderr, "board-first compact: the marked sentry must board first (cargo %d)\n",
+            s->cargo_count);
+    return 1;
+  }
+  map_occupancy_set_layer2(&map, tx, ty, MAP_OCCUPANCY_HAS_CITY, false);
+  units_despawn(&pool, marked);
+  units_despawn(&pool, later1);
+  units_despawn(&pool, later2);
+  units_despawn(&pool, ship);
+  pool.board_first_id = -1;
   fx_close();
   return 0;
 }
@@ -8099,6 +8218,140 @@ static int case_unit_ids_recycle_below_max(void) {
   return 0;
 }
 
+/* The disband predecessor (FUN_1427_0824 raw 7834-7836 steps back one
+ * record) is the previous live SLOT, not the next-lower id. */
+static int case_prev_live_id_is_slot_order(void) {
+  static ColonizeUnitPool p;
+  memset(&p, 0, sizeof(p));
+  units_set_occupancy_map(NULL);
+  units_reset(&p);
+  const int ids[] = {5, 3, 0, 9}; /* slot 2 is a hole */
+  for (int i = 0; i < 4; ++i) {
+    p.units[i].active = ids[i] > 0;
+    p.units[i].id = ids[i];
+  }
+  units_pool_sync(&p);
+  if (units_prev_live_id(&p, 9) != 3 || units_prev_live_id(&p, 3) != 5 ||
+      units_prev_live_id(&p, 5) != -1 || units_prev_live_id(&p, 42) != -1) {
+    fprintf(stderr, "prev_live_id: 9->%d 3->%d 5->%d 42->%d\n", units_prev_live_id(&p, 9),
+            units_prev_live_id(&p, 3), units_prev_live_id(&p, 5), units_prev_live_id(&p, 42));
+    return 1;
+  }
+  return 0;
+}
+
+/* "Move to front" is a unit id. Despawning the front unit in the top
+ * slot trims slot_end, so the next spawn reuses that slot; the mark must not
+ * pass to the newcomer. */
+static int case_board_first_not_inherited_by_slot_reuse(void) {
+  static ColonizeUnitPool p;
+  memset(&p, 0, sizeof(p));
+  units_set_occupancy_map(NULL);
+  units_reset_state();
+  units_reset(&p);
+  p.type_count = 1;
+  snprintf(p.types[0].name, sizeof(p.types[0].name), "Soldier");
+  p.types[0].movement = 1;
+  p.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  const int a = units_spawn_allow_stack(&p, 0, 1, 1);
+  const int b = units_spawn_allow_stack(&p, 0, 1, 1);
+  if (a < 0 || b < 0) {
+    return 1;
+  }
+  const int b_slot = (int)(units_get_const(&p, b) - p.units);
+  p.board_first_id = b;
+  if (!units_despawn(&p, b)) {
+    return 1;
+  }
+  const int c = units_spawn_allow_stack(&p, 0, 1, 1);
+  const ColonizeUnit* cu = c >= 0 ? units_get_const(&p, c) : NULL;
+  if (!cu || (int)(cu - p.units) != b_slot) {
+    fprintf(stderr, "board_first: newcomer did not reuse the slot (setup)\n");
+    return 1;
+  }
+  if (p.board_first_id != -1) {
+    fprintf(stderr, "board_first: front mark %d survived its unit's despawn\n", p.board_first_id);
+    return 1;
+  }
+  return 0;
+}
+
+/*
+ * DOS FUN_1427_0824 (raw 7776-7839) packs the unit array and FUN_1427_06b4
+ * appends, so a new unit always follows every older one. A full pool with
+ * holes must not hand out the first hole; after units_pool_compact the spawn
+ * lands after all live units and ids resolve.
+ */
+static int case_pool_full_spawn_appends_after_compact(void) {
+  static ColonizeUnitPool p;
+  memset(&p, 0, sizeof(p));
+  units_set_occupancy_map(NULL);
+  units_reset_state();
+  units_reset(&p);
+  p.type_count = 1;
+  snprintf(p.types[0].name, sizeof(p.types[0].name), "Soldier");
+  p.types[0].movement = 1;
+  p.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  /* Ids live in 1..MAX-1, so fill to MAX-1, punch holes low in the pool (the
+   * top slot stays live), then one more spawn reaches slot_end == MAX. */
+  for (int n = 0; n < COLONIZE_UNITS_MAX - 1; ++n) {
+    if (units_spawn_allow_stack(&p, 0, 1, 1) < 0) {
+      fprintf(stderr, "pool_full: fill spawn %d refused\n", n);
+      return 1;
+    }
+  }
+  const int holes[] = {0, 7, 100, 2000};
+  for (size_t h = 0; h < sizeof(holes) / sizeof(holes[0]); ++h) {
+    if (!units_despawn(&p, p.units[holes[h]].id)) {
+      return 1;
+    }
+  }
+  if (units_spawn_allow_stack(&p, 0, 1, 1) < 0) {
+    return 1;
+  }
+  const int bf_id = p.units[3000].id;
+  p.board_first_id = bf_id;
+  if (units_slot_end(&p) != COLONIZE_UNITS_MAX) {
+    fprintf(stderr, "pool_full: slot_end %d\n", units_slot_end(&p));
+    return 1;
+  }
+  if (units_spawn_allow_stack(&p, 0, 2, 2) >= 0) {
+    fprintf(stderr, "pool_full: spawn took a hole ahead of older units\n");
+    return 1;
+  }
+  static int old_ids[COLONIZE_UNITS_MAX];
+  int old_n = 0;
+  for (int i = 0; i < units_slot_end(&p); ++i) {
+    if (p.units[i].active) {
+      old_ids[old_n++] = p.units[i].id;
+    }
+  }
+  units_pool_compact(&p);
+  const int id = units_spawn_allow_stack(&p, 0, 2, 2);
+  if (id < 0) {
+    fprintf(stderr, "pool_full: spawn after compact refused\n");
+    return 1;
+  }
+  int k = 0;
+  for (int i = 0; i < units_slot_end(&p); ++i) {
+    if (!p.units[i].active) {
+      continue;
+    }
+    const int want = k < old_n ? old_ids[k] : id;
+    if (p.units[i].id != want || units_get_const(&p, want) != &p.units[i]) {
+      fprintf(stderr, "pool_full: walk pos %d slot %d id %d want %d\n", k, i, p.units[i].id, want);
+      return 1;
+    }
+    k++;
+  }
+  if (k != old_n + 1 || p.board_first_id != bf_id || !units_get_const(&p, bf_id)) {
+    fprintf(stderr, "pool_full: walked %d of %d, board_first_id %d\n", k, old_n + 1,
+            p.board_first_id);
+    return 1;
+  }
+  return 0;
+}
+
 static int case_fountain_of_youth(void) {
   if (fx_open() != 0 || fx_stage2() != 0) {
     return 1;
@@ -8253,8 +8506,225 @@ static int case_ship_arrival_sorts_existing_passenger_chain(void) {
   return ok ? 0 : 1;
 }
 
+/* FUN_4720_015c raw 75988-75995: an awake passenger at sea steps onto an
+ * adjacent own ship with room, paying the ocean step (465b raw 75638-75651). */
+static int case_passenger_ship_to_ship(void) {
+  ColonizeUnitPool p;
+  memset(&p, 0, sizeof(p));
+  units_reset_state();
+  units_reset(&p);
+  units_set_occupancy_map(NULL);
+  p.type_count = 2;
+  snprintf(p.types[0].name, sizeof(p.types[0].name), "Caravel");
+  p.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  p.types[0].cargo = 2;
+  p.types[0].space = 99;
+  p.types[0].movement = 4;
+  snprintf(p.types[1].name, sizeof(p.types[1].name), "Colonists");
+  p.types[1].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  p.types[1].space = 1;
+  p.types[1].movement = 2;
+  ColonizeWorldMap m;
+  memset(&m, 0, sizeof(m));
+  if (!map_alloc(&m, 8, 8, err, sizeof(err))) return 1;
+  memset(m.terrain, T_OCEAN, 64);
+  const int host = units_spawn_allow_stack(&p, 0, 4, 4);
+  const int pax = units_spawn_allow_stack(&p, 1, 4, 4);
+  const int other = units_spawn_allow_stack(&p, 0, 5, 4);
+  if (!units_board_stacked(&p, pax, host)) { map_free(&m); return 1; }
+  ColonizeUnit* u = units_get(&p, pax);
+  u->orders = UNITS_ORDER_NONE; /* awake */
+  u->moves = 2 * UNITS_MP_PER_TILE;
+  p.selected_id = pax;
+  ColonizeWorld w = {.units = &p, .map = &m};
+  const bool moved = units_transfer_passenger_w(&w, host, pax, 5, 4);
+  const ColonizeUnit* a = units_get_const(&p, pax);
+  const ColonizeUnit* h = units_get_const(&p, host);
+  const ColonizeUnit* o = units_get_const(&p, other);
+  const bool ok = moved && a && h && o && a->aboard_ship_id == other && a->x == 5 && a->y == 4 &&
+    h->cargo_count == 0 && o->cargo_count == 1 && a->orders == UNITS_ORDER_SENTRY &&
+    a->aboard_moves == UNITS_MP_PER_TILE && p.selected_id == other;
+  map_free(&m);
+  units_set_occupancy_map(NULL);
+  if (!ok) fprintf(stderr, "awake passenger must step onto the adjacent own ship\n");
+  return ok ? 0 : 1;
+}
+
+/* 1/3 MP left vs the ocean's 3 with no roll granted (FUN_465b_0000 raw
+ * 75649-75651): the step is refused but still charged. */
+static int case_passenger_ship_to_ship_lost_roll(void) {
+  ColonizeUnitPool p;
+  memset(&p, 0, sizeof(p));
+  units_reset_state();
+  units_reset(&p);
+  units_set_occupancy_map(NULL);
+  p.type_count = 2;
+  snprintf(p.types[0].name, sizeof(p.types[0].name), "Caravel");
+  p.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  p.types[0].cargo = 2;
+  p.types[0].space = 99;
+  p.types[0].movement = 4;
+  snprintf(p.types[1].name, sizeof(p.types[1].name), "Colonists");
+  p.types[1].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  p.types[1].space = 1;
+  p.types[1].movement = 2;
+  ColonizeWorldMap m;
+  memset(&m, 0, sizeof(m));
+  if (!map_alloc(&m, 8, 8, err, sizeof(err))) return 1;
+  memset(m.terrain, T_OCEAN, 64);
+  const int host = units_spawn_allow_stack(&p, 0, 4, 4);
+  const int pax = units_spawn_allow_stack(&p, 1, 4, 4);
+  const int other = units_spawn_allow_stack(&p, 0, 5, 4);
+  if (!units_board_stacked(&p, pax, host)) { map_free(&m); return 1; }
+  ColonizeUnit* u = units_get(&p, pax);
+  u->orders = UNITS_ORDER_NONE;
+  u->moves = 1;
+  ColonizeWorld w = {.units = &p, .map = &m}; /* rng NULL: the roll never passes */
+  const bool moved = units_transfer_passenger_w(&w, host, pax, 5, 4);
+  const ColonizeUnit* a = units_get_const(&p, pax);
+  const ColonizeUnit* h = units_get_const(&p, host);
+  const ColonizeUnit* o = units_get_const(&p, other);
+  const bool ok = !moved && a && h && o && a->aboard_ship_id == host && a->x == 4 &&
+    h->cargo_count == 1 && o->cargo_count == 0 && a->moves == 0 && a->aboard_moves == 0 &&
+    a->mp_spent_turn && units_last_enter_reason() == COLONIZE_ENTER_NO_MP;
+  map_free(&m);
+  units_set_occupancy_map(NULL);
+  if (!ok) fprintf(stderr, "lost roll must leave the passenger spent on its ship with NO_MP\n");
+  return ok ? 0 : 1;
+}
+
+/* FUN_465b_0000 raw 75711-75722: boarding wakes a sentried receiving ship,
+ * and the focus goes to it only if FUN_1427_1330 passes (MP left, raw
+ * 8741-8762). A spent ship leaves the passenger active. Both 465b board
+ * paths: a walk-on from land and a ship-to-ship transfer. */
+static int case_board_wakes_sentried_spent_ship(void) {
+  ColonizeUnitPool p;
+  memset(&p, 0, sizeof(p));
+  units_reset_state();
+  units_reset(&p);
+  units_set_occupancy_map(NULL);
+  p.type_count = 2;
+  snprintf(p.types[0].name, sizeof(p.types[0].name), "Caravel");
+  p.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  p.types[0].cargo = 2;
+  p.types[0].space = 99;
+  p.types[0].movement = 4;
+  snprintf(p.types[1].name, sizeof(p.types[1].name), "Colonists");
+  p.types[1].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  p.types[1].space = 1;
+  p.types[1].movement = 2;
+  ColonizeWorldMap m;
+  memset(&m, 0, sizeof(m));
+  if (!map_alloc(&m, 8, 8, err, sizeof(err))) return 1;
+  memset(m.terrain, T_OCEAN, 64);
+  memset(m.layer3, 1, 64);
+  m.terrain[4 * 8 + 3] = T_GRASSLAND;
+  ColonizeWorld w = {.units = &p, .map = &m};
+  int bad = 0;
+  /* Walk-on: colonist at (3,4) onto the sentried, spent Caravel at (4,4). */
+  {
+    const int ship = units_spawn_allow_stack(&p, 0, 4, 4);
+    const int land = units_spawn_allow_stack(&p, 1, 3, 4);
+    units_get(&p, ship)->orders = UNITS_ORDER_SENTRY;
+    units_get(&p, ship)->moves = 0;
+    units_get(&p, land)->moves = 2 * UNITS_MP_PER_TILE;
+    p.selected_id = land;
+    const bool moved = units_try_move_w(&w, land, 4, 4);
+    const ColonizeUnit* s = units_get_const(&p, ship);
+    if (!moved || !s || units_get_const(&p, land)->aboard_ship_id != ship ||
+        s->orders != UNITS_ORDER_NONE || p.selected_id != land) {
+      fprintf(stderr, "walk-on: moved=%d orders=%d selected=%d (want ship awake, focus on pax)\n",
+              (int)moved, s ? s->orders : -1, p.selected_id);
+      bad = 1;
+    }
+  }
+  /* Ship to ship: an awake passenger aboard the Caravel at (1,2) steps onto
+   * the sentried, spent Caravel at (1,3). */
+  {
+    const int host = units_spawn_allow_stack(&p, 0, 1, 2);
+    const int pax = units_spawn_allow_stack(&p, 1, 1, 2);
+    const int other = units_spawn_allow_stack(&p, 0, 1, 3);
+    if (!units_board_stacked(&p, pax, host)) { map_free(&m); return 1; }
+    units_get(&p, pax)->orders = UNITS_ORDER_NONE;
+    units_get(&p, pax)->moves = 2 * UNITS_MP_PER_TILE;
+    units_get(&p, other)->orders = UNITS_ORDER_SENTRY;
+    units_get(&p, other)->moves = 0;
+    p.selected_id = pax;
+    const bool moved = units_transfer_passenger_w(&w, host, pax, 1, 3);
+    const ColonizeUnit* o = units_get_const(&p, other);
+    if (!moved || !o || units_get_const(&p, pax)->aboard_ship_id != other ||
+        o->orders != UNITS_ORDER_NONE || p.selected_id != pax) {
+      fprintf(stderr, "transfer: moved=%d orders=%d selected=%d (want ship awake, focus on pax)\n",
+              (int)moved, o ? o->orders : -1, p.selected_id);
+      bad = 1;
+    }
+  }
+  map_free(&m);
+  units_set_occupancy_map(NULL);
+  return bad;
+}
+
+/* FUN_465b_0000 raw 75711-75722: with two own hulls on the water tile, 07e0
+ * -> 08e4 wakes and activates the tile head (the newer arrival), not the
+ * lower-slot hull units_find_boardable_ship files the passenger under. */
+static int case_board_wakes_tile_head_hull(void) {
+  ColonizeUnitPool p;
+  memset(&p, 0, sizeof(p));
+  units_reset_state();
+  units_reset(&p);
+  units_set_occupancy_map(NULL);
+  p.type_count = 2;
+  snprintf(p.types[0].name, sizeof(p.types[0].name), "Caravel");
+  p.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  p.types[0].cargo = 2;
+  p.types[0].space = 99;
+  p.types[0].movement = 4;
+  snprintf(p.types[1].name, sizeof(p.types[1].name), "Colonists");
+  p.types[1].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  p.types[1].space = 1;
+  p.types[1].movement = 2;
+  ColonizeWorldMap m;
+  memset(&m, 0, sizeof(m));
+  if (!map_alloc(&m, 8, 8, err, sizeof(err))) return 1;
+  memset(m.terrain, T_OCEAN, 64);
+  memset(m.layer3, 1, 64);
+  m.terrain[4 * 8 + 3] = T_GRASSLAND;
+  ColonizeWorld w = {.units = &p, .map = &m};
+  const int low = units_spawn_allow_stack(&p, 0, 4, 4);
+  const int top = units_spawn_allow_stack(&p, 0, 4, 4);
+  const int land = units_spawn_allow_stack(&p, 1, 3, 4);
+  for (int id = low; id <= top; ++id) {
+    units_get(&p, id)->orders = UNITS_ORDER_SENTRY;
+    units_get(&p, id)->moves = 4 * UNITS_MP_PER_TILE;
+  }
+  units_get(&p, land)->moves = 2 * UNITS_MP_PER_TILE;
+  p.selected_id = land;
+  int bad = 0;
+  if (units_tile_head_id_at(&p, 4, 4) != top ||
+      units_find_boardable_ship(&p, 4, 4, units_get_const(&p, low)->nation_id, 1) != low) {
+    fprintf(stderr, "fixture: head=%d boardable pick wanted %d\n",
+            units_tile_head_id_at(&p, 4, 4), low);
+    bad = 1;
+  }
+  const bool moved = units_try_move_w(&w, land, 4, 4);
+  if (!moved || units_get_const(&p, top)->orders != UNITS_ORDER_NONE ||
+      units_get_const(&p, low)->orders != UNITS_ORDER_SENTRY || p.selected_id != top) {
+    fprintf(stderr, "head: moved=%d top=%d low=%d selected=%d (want top awake + focused)\n",
+            (int)moved, units_get_const(&p, top)->orders, units_get_const(&p, low)->orders,
+            p.selected_id);
+    bad = 1;
+  }
+  map_free(&m);
+  units_set_occupancy_map(NULL);
+  return bad;
+}
+
 static const TestCase k_cases[] = {
   {"ship_arrival_sorts_existing_passenger_chain", case_ship_arrival_sorts_existing_passenger_chain},
+  {"passenger_ship_to_ship", case_passenger_ship_to_ship},
+  {"passenger_ship_to_ship_lost_roll", case_passenger_ship_to_ship_lost_roll},
+  {"board_wakes_sentried_spent_ship", case_board_wakes_sentried_spent_ship},
+  {"board_wakes_tile_head_hull", case_board_wakes_tile_head_hull},
   {"starter_fleet", case_starter_fleet},
   {"tile_stack_head_arrival", case_tile_stack_head_tracks_movement},
   {"tile_stack_sink_oldest_end", case_tile_stack_sink_oldest_end},
@@ -8321,11 +8791,16 @@ static const TestCase k_cases[] = {
   {"colony_tile_visibility", case_colony_tile_visibility},
   {"selected_passenger_blink", case_selected_passenger_blink},
   {"ship_switch_quirk", case_ship_switch_quirk},
+  {"trade_route_departure_no_pickup", case_trade_route_departure_no_pickup},
   {"goto_fogged_square", case_goto_fogged_square},
   {"goto_hidden_foreign_unit", case_goto_hidden_foreign_unit},
   {"goto_into_village", case_goto_into_village},
   {"landfall_spent_gate", case_landfall_spent_gate},
   {"fountain_of_youth", case_fountain_of_youth},
   {"unit_ids_recycle_below_max", case_unit_ids_recycle_below_max},
+  {"pool_full_spawn_appends_after_compact", case_pool_full_spawn_appends_after_compact},
+  {"prev_live_id_is_slot_order", case_prev_live_id_is_slot_order},
+  {"board_first_not_inherited_by_slot_reuse", case_board_first_not_inherited_by_slot_reuse},
+  {"board_first_survives_compact", case_board_first_survives_compact},
 };
 TEST_MAIN(k_cases)

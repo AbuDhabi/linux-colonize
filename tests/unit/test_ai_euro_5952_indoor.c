@@ -8,8 +8,11 @@
 #include "core/ai_euro_internal.h"
 #include "core/colony.h"
 #include "core/colony_production.h"
+#include "core/world.h"
 
 #include <string.h>
+
+#include "../common/ai_fixture.h"
 
 #define TEST_NAME "unit_ai_euro_5952_indoor"
 #include "../common/test_fail.h"
@@ -309,6 +312,125 @@ static int case_expert_pass_seats_master_carpenter(void) {
   return 0;
 }
 
+/* ---- FUN_15eb_1f72 ledger rows --------------------------------------- */
+
+/* A pool whose slots are the @BUILDING rows, and colony 0 at (4,4). */
+static ColonizeColony* ledger_colony(ColonizeColonyPool* pool, int pop) {
+  colonies_init(pool);
+  colonies_set_occupancy_map(NULL);
+  pool->building_type_count = COLONY_BUILDING_IRON_WORKS + 1;
+  for (int b = 0; b < pool->building_type_count; ++b) {
+    pool->building_types[b].row_plus1 = b + 1;
+  }
+  ColonizeColony* c = &pool->colonies[0];
+  c->id = 0;
+  c->active = true;
+  c->nation_id = 1;
+  c->x = 4;
+  c->y = 4;
+  c->population = pop;
+  c->colonist_count = pop;
+  c->building_in_production = -1;
+  for (int s = 0; s < pop; ++s) {
+    c->colonists[s].active = true;
+    c->colonists[s].profession = COLONIZE_PROF_FREE_COLONIST;
+    c->colonists[s].building_type = -1;
+    c->colonists[s].field_job = -1;
+  }
+  pool->colony_count = 1;
+  pool->next_id = 1;
+  return c;
+}
+
+/* FUN_15eb_0bd4 raw 10168-10175: the factory divide runs ONCE on the colony
+ * total. Two Free Colonists in a Rum Factory at the SoL-50 latch make 10 rum
+ * each: DOS demands (20*2)/3 = 13 sugar, a per-worker sum gives 6+6 = 12. */
+static int case_ledger_factory_input_divides_total(void) {
+  static ColonizeColonyPool pool;
+  ColonizeColony* c = ledger_colony(&pool, 2);
+  c->has_building[COLONY_BUILDING_RUM_DISTILLERS_HOUSE] = true;
+  c->has_building[COLONY_BUILDING_RUM_DISTILLERY] = true;
+  c->has_building[COLONY_BUILDING_RUM_FACTORY] = true;
+  c->colony_flags |= COLONIZE_COLONY_FLAG_SOL_50;
+  c->colonists[0].building_type = COLONY_BUILDING_RUM_FACTORY;
+  c->colonists[1].building_type = COLONY_BUILDING_RUM_FACTORY;
+  ColonizeWorld w;
+  memset(&w, 0, sizeof w);
+  int gross[AI_EURO_5952_LEDGER_SLOTS];
+  int demand[AI_EURO_5952_LEDGER_SLOTS];
+  ai_euro_5952_ledgers(&w, &pool, c, NULL, gross, demand);
+  if (gross[COLONIZE_CARGO_RUM] != 20) {
+    return fail("ledger fixture: two factory distillers at SoL+1 make 20 rum");
+  }
+  return demand[COLONIZE_CARGO_SUGAR] == 13 ? 0
+                                             : fail("factory sugar demand must be (20*2)/3 = 13");
+}
+
+/* FUN_15eb_1f72 raw 12662-12682: food demand = pop*2 + the horse births food
+ * surplus and warehouse room allow (local_22). One colonist, 50 horses, no
+ * Stable: potential 2 births. */
+static int case_ledger_food_demand_counts_horse_births(void) {
+  static ColonizeColonyPool pool;
+  ColonizeColony* c = ledger_colony(&pool, 1);
+  c->stock[COLONIZE_CARGO_HORSES] = 50;
+  for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES_MAX; ++ti) {
+    c->tiles[ti] = -1;
+  }
+  c->tiles[0] = 0; /* the colonist farms plot 0 */
+  c->colonists[0].field_job = COLONIZE_JOB_FARMER;
+  ColonizeWorldMap map;
+  if (!fx_map_alloc(&map, 9, 9, 2, false)) {
+    return fail("ledger food map alloc");
+  }
+  ColonizeWorld w;
+  memset(&w, 0, sizeof w);
+  w.map = &map;
+  int gross[AI_EURO_5952_LEDGER_SLOTS];
+  int demand[AI_EURO_5952_LEDGER_SLOTS];
+  ai_euro_5952_ledgers(&w, &pool, c, NULL, gross, demand);
+  fx_map_free(&map);
+  const int food = gross[COLONIZE_CARGO_FOOD];
+  if (food < 2 + 3) {
+    return fail("ledger food fixture: the town commons must leave a surplus of 3+");
+  }
+  int births = (food - 2 + 1) / 2; /* local_24 */
+  if (births > 2) {
+    births = 2; /* local_e: ceil(50/50)*2 */
+  }
+  return demand[COLONIZE_CARGO_FOOD] == 2 + births
+           ? 0 : fail("food demand must add the affordable horse births");
+}
+
+/* FUN_15eb_0b96 raw 10149-10152: the tools row's supply is gross[tools] minus
+ * the unmet ore (DS:0x8e66). A Blacksmith's House worker makes 3 tools from
+ * ore the colony does not have, an Armory worker needs 3 tools: DOS reads
+ * tools as unmet, so the idle Master Gunsmith is NOT seated by the expert
+ * pass (OVL15 0x1d46 `CMP [BX+0x8e5a],0`). With ore in stock he is. */
+static int case_expert_pass_tools_supply_nets_unmet_ore(void) {
+  static ColonizeColonyPool pool;
+  for (int ore = 0; ore <= 10; ore += 10) {
+    ColonizeColony* c = ledger_colony(&pool, 3);
+    c->has_building[COLONY_BUILDING_ARMORY] = true;
+    c->has_building[COLONY_BUILDING_BLACKSMITHS_HOUSE] = true;
+    c->stock[COLONIZE_CARGO_ORE] = ore;
+    c->colonists[0].profession = COLONIZE_PROF_GUNSMITH;
+    c->colonists[1].building_type = COLONY_BUILDING_ARMORY;
+    c->colonists[2].building_type = COLONY_BUILDING_BLACKSMITHS_HOUSE;
+    ColonizeTurnContext ctx;
+    memset(&ctx, 0, sizeof ctx);
+    ctx.colonies = &pool;
+    bool placed[3] = {false, true, true};
+    ai_euro_5952_indoor_expert_pass(&ctx, c, placed, 3);
+    if (ore == 0 && placed[0]) {
+      return fail("ore-starved tools supply must keep the Gunsmith out of the Armory");
+    }
+    if (ore != 0 && !placed[0]) {
+      return fail("with ore in stock the Gunsmith must be seated");
+    }
+  }
+  return 0;
+}
+
 /* local_1b0 can be clobbered by the improvement scan (raw 94482); the election
  * then reads byte[local_1b0 + 0x917c] past the rank table (asm 5952:2047).
  * Fresh 1566 two-turn: -1 reads DS:0x917b = 0, so Isabella's statesman weight
@@ -357,6 +479,9 @@ static const TestCase k_cases[] = {
   {"crosses_arm", case_crosses_arm},
   {"default_weight_three", case_default_weight_three},
   {"rank_byte_unchecked_index", case_rank_byte_unchecked_index},
+  {"ledger_factory_input_divides_total", case_ledger_factory_input_divides_total},
+  {"ledger_food_demand_counts_horse_births", case_ledger_food_demand_counts_horse_births},
+  {"expert_pass_tools_supply_nets_unmet_ore", case_expert_pass_tools_supply_nets_unmet_ore},
 };
 
 TEST_MAIN(k_cases)

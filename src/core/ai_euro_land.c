@@ -980,57 +980,39 @@ void ai_euro_20e6_prologue(ColonizeTurnContext* ctx, const ColonizeUnit* u, int 
 }
 
 
-/* Per-nation, per-continent DOS −0x6b1a / −0x6a8e / −0x6a0e reads. */
-int ai_euro_20e6_own_colonies_on(const ColonizeTurnContext* ctx, int nation, int cid) {
-  int n = 0;
-  if (ctx->colonies && cid >= 0) {
-    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-      const ColonizeColony* c = &ctx->colonies->colonies[i];
-      if (c->active && c->nation_id == nation && map_continent_id_at(ctx->map, c->x, c->y) == cid) {
-        n++;
-      }
-    }
-  }
-  return n;
-}
-
-static int ai_euro_20e6_combat_value_on(const ColonizeTurnContext* ctx, int nation, int cid) {
-  int sum = 0;
-  if (cid < 0) {
+/* FUN_4962_0018 census rows (nation*0x10 + continent), frozen since that
+ * nation's last EOT census, never live recounts. Every DOS read these helpers
+ * stand in for is the census: FUN_521d_20e6 raw 88506, 88521, 88966, 89160,
+ * 89475-89535, FUN_5952_0000 raw 93613. The census counts hulls too (asm
+ * 4962:0171), which the old live walks skipped. */
+static int ai_euro_20e6_census_row(
+  const ColonizeTurnContext* ctx, const uint8_t* table, int nation, int cid
+) {
+  if (!ctx->col1_ok || !ctx->col1 || nation < 0 || nation > 3 || cid < 0 || cid > 15) {
     return 0;
   }
-  ColonizeCombatStrengthCtx sctx = combat_strength_ctx_from_turn(ctx);
-  /* Slot walk (Leads 2, 2026-09-10): `i` is an array index, not a unit id. */
-  for (int i = 0; i < units_slot_end(ctx->units); ++i) {
-    const ColonizeUnit* o = &ctx->units->units[i];
-    if (!o->active || o->nation_id != nation || units_is_sea(ctx->units, o->id)) {
-      continue;
-    }
-    if (map_continent_id_at(ctx->map, o->x, o->y) != cid) {
-      continue;
-    }
-    sum += combat_unit_base_x8(&sctx, o->id, 1, NULL);
-    if (sum > 255) {
-      return 255; /* DOS byte table */
-    }
-  }
-  return sum;
+  return table[nation * 16 + cid];
 }
 
-/* DS:0x95f2 continent_presence_flags bit 0x04: a foreign colony sits on cid. */
+/* −0x6b1a colony_counts_by_continent (writer raw 78255). */
+int ai_euro_20e6_own_colonies_on(const ColonizeTurnContext* ctx, int nation, int cid) {
+  return ai_euro_20e6_census_row(
+    ctx, ctx->col1 ? ctx->col1->stuff.colony_counts_by_continent : NULL, nation, cid
+  );
+}
+
+/* −0x6a8e combat_value_sum_by_continent (09c8(u,1), asm `ADD BX,0x9572`). */
+static int ai_euro_20e6_combat_value_on(const ColonizeTurnContext* ctx, int nation, int cid) {
+  return ai_euro_20e6_census_row(
+    ctx, ctx->col1 ? ctx->col1->stuff.combat_value_sum_by_continent : NULL, nation, cid
+  );
+}
+
+/* −0x6b5a land_unit_counts_by_continent (writer raw 78201). */
 int ai_euro_10ec_land_units_on(const ColonizeTurnContext* ctx, int nation, int cid) {
-  int n = 0;
-  /* Slot walk (Leads 2, 2026-09-10): `i` is an array index, not a unit id. */
-  for (int i = 0; i < units_slot_end(ctx->units); ++i) {
-    const ColonizeUnit* o = &ctx->units->units[i];
-    if (!o->active || o->nation_id != nation || units_is_sea(ctx->units, o->id)) {
-      continue;
-    }
-    if (map_continent_id_at(ctx->map, o->x, o->y) == cid) {
-      n++;
-    }
-  }
-  return n > 255 ? 255 : n; /* −0x6b5a byte table */
+  return ai_euro_20e6_census_row(
+    ctx, ctx->col1 ? ctx->col1->stuff.land_unit_counts_by_continent : NULL, nation, cid
+  );
 }
 
 /* DOS-LITERAL FUN_5bfb_10ec raw ~97148-97211 (bug #1034e: faithful port, name cited here). */
@@ -2436,33 +2418,39 @@ int ai_euro_20e6_wander_step(
       }
       score += diff * diff * -2;
     }
-    /* Neighbours of the destination: −10 per hostile combat unit when the
-     * mover has combat byte 0 (Treasure). */
+    /* Neighbours of the destination (raw 88789-88805): when the mover has
+     * combat byte 0 (Treasure) and FUN_281f_0682 names a hostile owner, walk
+     * that tile's whole chain (07e0 / 02e4): −10 per unit whose combat byte
+     * is nonzero. No per-unit nation test. */
     for (int n = 0; n < 8; ++n) {
       const int ax = nx + MAP_DIR8_DX[n];
       const int ay = ny + MAP_DIR8_DY[n];
       if (ax < 0 || ay < 0 || ax >= ctx->map->width || ay >= ctx->map->height) {
         continue;
       }
-      const int po = map_tile_tribe_or_presence(ctx->map, ax, ay);
+      const int po = map_tile_owner_or_presence(ctx->map, ax, ay);
       if (po < 0 || po == nation || s->combat != 0) {
         continue;
       }
       if ((ai_euro_20e6_diplo(ctx->col1, nation, po) & 0x60) != 0x20) {
         continue;
       }
-      const int oid = units_id_at(ctx->units, ax, ay);
-      const ColonizeUnit* ou = oid >= 0 ? units_get_const(ctx->units, oid) : NULL;
-      if (ou && ai_euro_20e6_type_combat(ai_euro_20e6_dos_type(ctx->units, ou)) != 0) {
-        score -= 10;
+      for (int oid = units_tile_head_id_at(ctx->units, ax, ay); oid >= 0;
+           oid = units_tile_chain_next_id(ctx->units, oid)) {
+        const ColonizeUnit* ou = units_get_const(ctx->units, oid);
+        if (ou && ai_euro_20e6_type_combat(ai_euro_20e6_dos_type(ctx->units, ou)) != 0) {
+          score -= 10;
+        }
       }
     }
     /*
      * Ship-only (raw 88808-88830): a hostile Euro colony (diplo & 0x60 ==
-     * 0x20) next to the destination costs 0x14 with a Stockade, 0x28 with a
-     * Fort (FUN_281f_0322 feature bits 1 / 2), plus 0x1e per Artillery in
-     * its stack, all multiplied by the ship's occupied goods holds — an
-     * empty hull ignores the batteries entirely.
+     * 0x20) next to the destination costs 0x14 with a Fort, 0x28 with a
+     * Fortress, plus 0x1e per Artillery in its stack, all multiplied by the
+     * ship's occupied goods holds — an empty hull ignores the batteries
+     * entirely. Raw 88813-88820: FUN_281f_0322(colony, 1) / (colony, 2) ->
+     * FUN_15eb_035e tests colony +0x84 building bit 1 (Fort) / bit 2
+     * (Fortress), each on its own; a Stockade alone (bit 0) costs nothing.
      */
     if (s->is_ship && goods_holds > 0) {
       for (int n = 0; n < 8; ++n) {
@@ -2476,12 +2464,11 @@ int ai_euro_20e6_wander_step(
         if ((ai_euro_20e6_diplo(ctx->col1, nation, fc->nation_id) & 0x60) != 0x20) {
           continue;
         }
-        const int bonus = colonies_fortification_defense_bonus_percent(ctx->colonies, fc);
         int pen = 0;
-        if (bonus >= 100) {
+        if (colonies_has_building_row(ctx->colonies, fc, COLONY_BUILDING_FORT)) {
           pen = 0x14;
         }
-        if (bonus >= 150) {
+        if (colonies_has_building_row(ctx->colonies, fc, COLONY_BUILDING_FORTRESS)) {
           pen = 0x28;
         }
         for (int i = 0; i < units_slot_end(ctx->units); ++i) {
@@ -4206,7 +4193,9 @@ void ai_euro_try_attack(ColonizeTurnContext* ctx, ColonizeUnit* u, int tx, int t
     /* 465b skips the whole treaty/declare band when either side is a
      * Privateer (units_privateer_attack) — the attack still happens, it just
      * opens no war. */
-    if (!ai_diplo_at_war(ctx->col1, u->nation_id, f->nation_id)) {
+    /* No WAR 0x02 test: 465b reads only PEACE 0x40 here (raw 75553-75593),
+     * and 0x02 survives a signed treaty (FUN_5bfb_153e raw 98003/98025). */
+    {
       /*
        * port_bugs.md #472 + FUN_465b_0000 raw 75553-75557: under a treaty the
        * attack aborts while the attacker's encounter cooldown (nation

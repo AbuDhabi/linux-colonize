@@ -919,6 +919,8 @@ static int road_connect_far_x_tools(int buggy) {
   }
   ColonizeColony* a = fx_colony_add(&f.colonies, 1, 2, 8, 3);
   fx_colony_add(&f.colonies, 1, 9, 8, 3);
+  /* Raw 93613 reads the census row, which counts both colonies. */
+  f.col1.stuff.colony_counts_by_continent[1 * 16 + 1] = 2;
   a->stock[COLONIZE_CARGO_TOOLS] = 50;
   a->improve_timer = 100;
   f.turn = 98; /* 98 % 7 == 0 */

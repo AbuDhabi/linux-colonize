@@ -416,16 +416,17 @@ bool game_pioneer_land_gate(ColonizeGameState* game, GameIndianLandKind kind) {
   }
   const int sid = game->units.selected_id;
   const ColonizeUnit* pu = units_get_const(&game->units, sid);
-  if (!pu || !pu->active || !units_is_pioneer(&game->units, sid) || pu->tools < 20) {
+  if (!pu || !pu->active || !units_is_pioneer(&game->units, sid)) {
     return false;
   }
+  /* FUN_2b5a_123e raw 42443-42512 and FUN_2b5a_1454 raw 42536-42604 read
+   * neither tools nor the current orders: a Pioneer already on the order is
+   * asked again. */
   if (kind == GAME_INDIAN_LAND_FOREST) {
-    if (map_tile_is_plowed(&game->world_map, pu->x, pu->y) ||
-        pu->orders == UNITS_ORDER_CLEAR_PLOW) {
+    if (map_tile_is_plowed(&game->world_map, pu->x, pu->y)) {
       return false;
     }
-  } else if (map_tile_has_road(&game->world_map, pu->x, pu->y) ||
-             pu->orders == UNITS_ORDER_BUILD_ROAD) {
+  } else if (map_tile_has_road(&game->world_map, pu->x, pu->y)) {
     return false;
   }
   return game_request_indian_land_choice(game, kind, sid, pu->x, pu->y);
@@ -901,14 +902,6 @@ static void game_do_disband(ColonizeGameState* game, int uid) {
     }
     return;
   }
-  /* The nearest unit before the disbanded one in pool (= id) order, any nation. */
-  int prev_id = -1;
-  for (int i = 0; i < units_slot_end(&game->units); ++i) {
-    const ColonizeUnit* p = &game->units.units[i];
-    if (p->active && p->id < uid && p->id > prev_id) {
-      prev_id = p->id;
-    }
-  }
   /* DOS prints nothing for a disband (FUN_2b5a_199e). */
   set_status(game, "", NULL);
   if (uid < 0 || !units_disband(&game->units, uid)) {
@@ -920,11 +913,8 @@ static void game_do_disband(ColonizeGameState* game, int uid) {
    * only runs for slot 0), and the map loop FUN_2b5a_3b68 / FUN_2b5a_0e52
    * re-tests that unit with FUN_1427_1410 (= turn_unit_in_rotation); only if it
    * fails does FUN_1427_14a0 scan forward from the slot after it, wrapping.
-   * turn_select_next_unit starts strictly after selected_id, so seed it one
-   * below the previous unit to put that unit itself into the search. No
-   * previous unit (slot 0) = scan from the top, as DOS does.
+   * units_despawn records that step (rotation_retest_id).
    */
-  game->units.selected_id = prev_id > 0 ? prev_id - 1 : -1;
   game_wait_next_unit(game);
 }
 
@@ -1290,7 +1280,7 @@ static void game_do_buy_construction(ColonizeGameState* game, int colony_id) {
    * the completion threshold (colonies_buy_construction, DOS's
    * FUN_2f2b_5e44 formula). Actual completion happens next turn's
    * construction processing (turn_run_colony_building_completion /
-   * turn_run_colony_unit_construction), same as a colony that reached the
+   * turn_colony_unit_construction_one), same as a colony that reached the
    * threshold through ordinary Carpenter production. */
   ColonizeCol1Save* col1 = game->col1_ok ? &game->col1 : NULL;
   const int gold_cost = colonies_construction_gold_cost_ex(&game->colonies, colony, col1);
@@ -1783,7 +1773,8 @@ void game_find_colony(ColonizeGameState* game, const char* typed) {
     /* A negative view shifts the bit out (0x10 << 0xff = 0): only show_entire_map passes. */
     if (view >= 4 || (view >= 0 && map_tile_seen_by(&game->world_map, c->x, c->y, view)) ||
         game->col1.head.show_entire_map) {
-      game_select_tile(game, c->x, c->y);
+      /* 0902 leaves 0x5392 on the active unit: it is re-tested first. */
+      game_enter_view_pieces(game, c->x, c->y);
       return;
     }
   }
@@ -2056,6 +2047,14 @@ void game_try_prompt_landho(ColonizeGameState* game, int dest_x, int dest_y) {
   if (game->col1.player[game->human_nation].named_new_world) {
     return;
   }
+  /* The step's own popups (@INDIANWELCOME, the Galleon offer) are blocking in
+   * DOS and answered before this scan runs (raw 76124 returns first). */
+  if (!game_turn_flow_allowed(game)) {
+    game->landho_deferred = true;
+    game->landho_x = dest_x;
+    game->landho_y = dest_y;
+    return;
+  }
   /*
    * DOS-LITERAL FUN_4720_049e tail (viceroy_unpacked.c 76122-76142, asm
    * 4720:061c-06b2), run after FUN_2a1f_0142 committed the human's move: while
@@ -2077,6 +2076,13 @@ void game_try_prompt_landho(ColonizeGameState* game, int dest_x, int dest_y) {
   }
   (void)woodcut_fire(&game->col1, WOODCUT_DISCOVERY_OF_THE_NEW_WORLD);
   game_open_landho_name_entry(game);
+}
+
+void game_landho_service(ColonizeGameState* game) {
+  if (game && game->landho_deferred && game_turn_flow_allowed(game)) {
+    game->landho_deferred = false;
+    game_try_prompt_landho(game, game->landho_x, game->landho_y);
+  }
 }
 
 /* ===================== Settings, debug HUD & trade-service screen requests (game_persist_debug_hud .. game_trade_service_screen_request) ===================== */
@@ -2862,11 +2868,19 @@ static bool game_apply_popup_map_and_colony(ColonizeGameState* game) {
     /* @LOBOTOMIZE: only choice 1 clears — FUN_281f_0cae(colonist, 0x1c). */
     const bool go = !game->ai_popups.result_cancelled && game->ai_popups.result_choice_id == 1;
     const int who = game->ai_popups.result_nation_a;
+    const int unit_id = game->ai_popups.result_nation_b;
     ai_popup_consume_result(&game->ai_popups);
     if (go && game->in_colony) {
       ColonizeColony* col = colonies_get_mut(&game->colonies, game->colony_view_id);
       if (col && who >= 0 && who < col->colonist_count) {
         col->colonists[who].profession = COLONIZE_PROF_FREE_COLONIST;
+      } else if (who < 0 && game->units_ok) {
+        /* A fence unit (nation_a -1, nation_b = unit id): 0cae -> FUN_15eb_0e8c
+         * writes the unit's +0x315b specialty byte. */
+        ColonizeUnit* u = units_get(&game->units, unit_id);
+        if (u) {
+          u->profession = COLONIZE_PROF_FREE_COLONIST;
+        }
       }
     }
   return true;
@@ -2904,7 +2918,9 @@ static bool game_apply_popup_voyage(ColonizeGameState* game) {
             }
           }
           game->units.selected_id = pax_id;
-          game_after_unit_action(game);
+          /* ndisasm 0x3FE56 -> jmp 0xff5c: the passenger's step commits via
+           * 2a1f_0142 -> 465b_0000, 3180 tail included. */
+          game_after_unit_step(game);
         }
       }
     }
@@ -2940,7 +2956,7 @@ static bool game_apply_popup_voyage(ColonizeGameState* game) {
         /* No, remain in these waters — the DOS reason-5 tail still commits
          * the eastward step (sea lanes are traversable). */
         if (game_commit_sea_lane_step(game, ship_id, dest_x, dest_y)) {
-          game_after_unit_action(game);
+          game_after_unit_step(game); /* 0x3FEEA -> jmp 0xff5c (2a1f_0142) */
         }
       }
     }
@@ -3291,7 +3307,9 @@ static bool game_apply_popup_diplo_and_scout(ColonizeGameState* game) {
       } else {
         ColonizeTurnContext ctx;
         game_fill_turn_context(game, &ctx);
-        (void)ai_diplo_153e_encounter_forced(&ctx, u->nation_id, col->nation_id, unit_id);
+        /* dir -1: DOS passes 6662_0086's direction, but it only feeds the
+         * @WANTSTUFF source, which needs an AI-owned unit (raw 97595). */
+        (void)ai_diplo_153e_encounter_forced(&ctx, u->nation_id, col->nation_id, unit_id, -1);
       }
       game_after_unit_action(game);
       return true;

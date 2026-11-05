@@ -663,8 +663,8 @@ threshold and tools up to the requirement (deducting colonies_construction_
 gold_cost's formula from *gold), same as DOS's FUN_2f2b_5e44 — it does
 NOT complete the project. Completion only happens through the normal
 per-turn checks (turn_run_colony_building_completion /
-turn_run_colony_unit_construction, both unconditional once-per-turn
-passes), matching DOS: rushing a project just fills the tank, and the
+turn_colony_unit_construction_one, both unconditional once per turn),
+matching DOS: rushing a project just fills the tank, and the
 next turn's construction processing notices it's full and finishes the
 job. Fails if no project or insufficient gold. Updates *gold on success.
 

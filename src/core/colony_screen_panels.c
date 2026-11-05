@@ -190,12 +190,13 @@ void colony_screen_draw_people(
       /* port_bugs.md: the People line-up uses the plain colonist chrome — no
        * drop shadow. */
       colony_screen_blit_icon(view, ent[i].sprite, framebuffer, ent[i].px, y_people);
-      if ((ent[i].sel_colonist >= 0 && view->selected_colonist == ent[i].sel_colonist) ||
-          (ent[i].sel_unit >= 0 && view->selected_outside_unit == ent[i].sel_unit)) {
+      if (!view->spy_view &&
+          ((ent[i].sel_colonist >= 0 && view->selected_colonist == ent[i].sel_colonist) ||
+           (ent[i].sel_unit >= 0 && view->selected_outside_unit == ent[i].sel_unit))) {
         /* FUN_2f2b_17d0 raw 48444-48461 (asm 2f2b:188b-194b): box (x-1, y+1) to
          * (x+w, y+h); green unless the band has the focus, then white in the on
          * phase and none in the off phase; green again while a button is held.
-         * port_bugs.md #1284. */
+         * port_bugs.md #1284. None in the spy view (DS:0xb98, raw 48442). */
         uint8_t ink = 10;
         if (view->focus == COLONY_FOCUS_COLONISTS && !view->mouse_held) {
           ink = colony_screen_blink_on(view) ? 15 : 0;
@@ -696,7 +697,7 @@ void colony_screen_draw_multifunction(
         colony_screen_blit_mini_unit(
           view, framebuffer, sprite, slots[i].x, slots[i].y, COLONY_MULTI_UNITS_MINI_H
         );
-        if (view->multi_unit_selected_id == u->id) {
+        if (!view->spy_view && view->multi_unit_selected_id == u->id) { /* raw 48676 */
           colony_screen_draw_selection_box(
             framebuffer, slots[i].x - 1, slots[i].y - 2, COLONY_MULTI_UNITS_MINI_W + 2,
             COLONY_MULTI_UNITS_MINI_H + 3, sel_ink
@@ -719,7 +720,8 @@ void colony_screen_draw_multifunction(
         (u->col1_flags15 & 0x80u) != 0,
         (view->frame_ok && view->frame.has_palette) ? &view->frame.palette : NULL
       );
-      if (view->multi_unit_selected_id == u->id) {
+      /* FUN_2f2b_1e46 raw 48676: no box in the spy view (DS:0xb98). */
+      if (!view->spy_view && view->multi_unit_selected_id == u->id) {
         colony_screen_draw_chrome_selection(view, framebuffer, sprite, slots[i].x, slots[i].y, sel_ink);
       }
     }

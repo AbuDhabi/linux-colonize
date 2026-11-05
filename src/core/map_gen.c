@@ -1267,11 +1267,6 @@ static void paint_terrain(
 }
 
 static void map_gen_assign_continents(ColonizeWorldMap* map);
-static void map_gen_assign_euro_landfalls(
-  ColonizeWorldMap* map,
-  MapGenRng* rng,
-  int focus_nation
-);
 
 bool map_generate(ColonizeWorldMap* out, const MapGenParams* params, char* err, size_t err_size) {
   if (!out || !params) {
@@ -1330,7 +1325,7 @@ bool map_generate(ColonizeWorldMap* out, const MapGenParams* params, char* err, 
   map_gen_assign_continents(out);
 
   /* LAB_684c_1b4c: shuffle nations into HS-rim landfall bands. */
-  map_gen_assign_euro_landfalls(out, rng, p.focus_nation);
+  map_gen_assign_euro_landfalls(out, rng, p.focus_nation, false);
 
   const int land = count_land(mask, n);
   diag_info(
@@ -1355,10 +1350,11 @@ bool map_generate(ColonizeWorldMap* out, const MapGenParams* params, char* err, 
  * Slot s → y = (height/5)*(s+1); x walks west through continuous HS from
  * width-2, then one step east onto the rim.
  */
-static void map_gen_assign_euro_landfalls(
+void map_gen_assign_euro_landfalls(
   ColonizeWorldMap* map,
   MapGenRng* rng,
-  int focus_nation
+  int focus_nation,
+  bool loaded_map
 ) {
   if (!map || !map->terrain || !rng || map->width < 4 || map->height < 5) {
     if (map) {
@@ -1376,8 +1372,11 @@ static void map_gen_assign_euro_landfalls(
     const int nation = (i + focus_nation) % 4;
     int picked = -1;
     do {
-      /* FUN_281f_04d4(0,3): empty slot index. */
-      picked = dos_rng_range(rng, 0, 3);
+      /* FUN_281f_04d4 empty slot index (raw 113529-113536, asm 684c:1b3a-1b4a;
+       * Ghidra drops the arguments at raw 107136): the focus nation (i == 0) on
+       * a generated map (param_1 == 0) draws range(1,2), a middle band; every
+       * other draw is range(0,3). */
+      picked = (i == 0 && !loaded_map) ? dos_rng_range(rng, 1, 2) : dos_rng_range(rng, 0, 3);
     } while (slots[picked] >= 0);
     slots[picked] = (signed char)nation;
   }

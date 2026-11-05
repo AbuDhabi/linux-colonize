@@ -963,17 +963,64 @@ static void game_lunge_frames(
   platform_present(game->platform, &fb, &pal);
 }
 
+/* A nation the 0x543f control byte marks as human-played. */
+static bool game_nation_is_human_played(const ColonizeGameState* game, int nation) {
+  if (nation < 0 || nation > 3) {
+    return false;
+  }
+  return game->col1_ok ? game->col1.player[nation].control == 0 : nation == game->human_nation;
+}
+
+/*
+ * FUN_5fef_1b0e plays the lunge on its param_4. Its resolving caller
+ * FUN_465b_0000 passes local_1c (raw 75660-75692): show_entire_map
+ * (DS:0x53a2); or, for a mover that is not the viewer, its vis byte after the
+ * 07fe OR of 0826(dest) carries the viewer's bit, or 0970(dest, viewer); or
+ * the mover is the viewer (raw 75682); or the mover or the destination owner
+ * local_4 (the stack head's nation) is human-played (raw 75687-75689). There
+ * is no tile-explored test.
+ */
+static bool game_combat_lunge_shown(
+  const ColonizeGameState* game, const ColonizeUnitPool* pool, const ColonizeUnit* atk,
+  int def_x, int def_y
+) {
+  if (game->col1_ok && game->col1.head.show_entire_map) {
+    return true;
+  }
+  const int hn = game->human_nation;
+  if (atk->nation_id == hn || game_nation_is_human_played(game, atk->nation_id)) {
+    return true;
+  }
+  const ColonizeUnit* head = units_get_const(pool, units_tile_head_id_at(pool, def_x, def_y));
+  if (head && game_nation_is_human_played(game, head->nation_id)) {
+    return true;
+  }
+  if (hn < 0 || hn > 3) {
+    return false;
+  }
+  const uint8_t mask = (uint8_t)(atk->col1_vis_mask |
+                                 units_vis_mask_for_tile(&game->world_map, def_x, def_y,
+                                                         atk->nation_id));
+  return (mask & (1u << hn)) != 0;
+}
+
 void game_combat_watch(
-  void* user, const ColonizeUnitPool* pool, int attacker_id, int def_x, int def_y
+  void* user, const ColonizeUnitPool* pool, int attacker_id, int def_x, int def_y,
+  bool lunge_1b0e
 ) {
   ColonizeGameState* game = (ColonizeGameState*)user;
   const ColonizeUnit* atk = pool ? units_get_const(pool, attacker_id) : NULL;
   if (!game || !game->world_map_ok || (!atk && attacker_id >= 0)) {
     return;
   }
-  /* Only when the human can see the fight (live sight of either tile). */
-  if (!game_tile_live_seen(game, def_x, def_y) &&
-      (!atk || !game_tile_live_seen(game, atk->x, atk->y))) {
+  if (lunge_1b0e && atk) {
+    if (!game_combat_lunge_shown(game, pool, atk, def_x, def_y)) {
+      return;
+    }
+  } else if (!game_tile_live_seen(game, def_x, def_y) &&
+             (!atk || !game_tile_live_seen(game, atk->x, atk->y))) {
+    /* The visiting-Brave slide (FUN_5bfb_022e) and the fort centre-only
+     * fallback keep the live-sight test of either tile. */
     return;
   }
   if (!atk) {

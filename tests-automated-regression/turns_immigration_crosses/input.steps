@@ -4,7 +4,9 @@
 # crosses the threshold on this turn end), recruit pool [1, 9 (Master Distiller), 28 (Free Colonist)];
 # every French map unit fortified (orders 6), Caravel #148 (bound for Europe) parked in Quebec, France and England at peace.
 # Brewster: slot 0 is shown as Free Colonists (europe_apply_brewster purge) in the @RECRUITCHOOSE pick; the picked Master Distiller lands on the
-# dock (unit #149 at 237,237, profession 9), crosses reset to 0, the slot refills.
+# dock (unit #149 at 237,237, profession 9), crosses reset to 0 (FUN_38fd_4884 raw 64766, inside 5e52), the slot
+# refills; this turn's 5 colony crosses land after the pick (00f2 raw 58386), so the turn ends at 5. The 4962_0018
+# census after the colony loop (raw 58390) counts the Distiller.
 key space                  # end turn 108
 wait 30
 key Return                 # Colonization Help: Time Scale

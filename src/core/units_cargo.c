@@ -463,6 +463,39 @@ bool units_board(ColonizeUnitPool* pool, int land_unit_id, int ship_id) {
   return true;
 }
 
+/*
+ * FUN_465b_0000 raw 75711-75722: after a land mover steps onto water, the
+ * destination chain's head, the receiving ship, is woken if sentried
+ * (+0x314c 1 -> 0) and made active (FUN_281f_086c) only when FUN_281f_0966 =
+ * FUN_1427_1330 passes (raw 8741-8762: on the map, the moving nation's, not
+ * sentried or fortified, MP left). units_board hands the focus over
+ * unconditionally (`handed`: the mover had it), so give it back to the
+ * passenger when the gate fails; DOS leaves the sentried mover active and
+ * moves on from it.
+ * The woken hull is the tile head (FUN_281f_07e0 -> FUN_281f_08e4 =
+ * FUN_1427_0644: 04d6 puts hulls on top, then 0002 walks to the top), not the
+ * hull the port files the passenger under: DOS has no per-hull manifest until
+ * FUN_1427_10be picks riders up at departure.
+ */
+void units_465b_board_wake_focus(
+  ColonizeUnitPool* pool, int land_unit_id, int ship_id, bool handed
+) {
+  const ColonizeUnit* boarded = units_get_const(pool, ship_id);
+  if (!boarded) {
+    return;
+  }
+  const int head_id = units_tile_head_id_at(pool, boarded->x, boarded->y);
+  ColonizeUnit* ship = units_get(pool, head_id >= 0 ? head_id : ship_id);
+  if (ship->orders == UNITS_ORDER_SENTRY) {
+    ship->orders = UNITS_ORDER_NONE;
+  }
+  if (handed && pool->selected_id == ship_id) {
+    const bool gate =
+      units_is_on_map(ship) && ship->orders != UNITS_ORDER_FORTIFIED && ship->moves > 0;
+    pool->selected_id = gate ? ship->id : land_unit_id;
+  }
+}
+
 int units_find_boardable_ship(
   const ColonizeUnitPool* pool, int x, int y, int nation_id, int need_space
 ) {
@@ -554,7 +587,9 @@ static int units_pickup_rank_04d6(const ColonizeUnitPool* pool, const ColonizeUn
   return t && t->space >= 1 && t->space <= 6 ? t->space : 0;
 }
 
-int units_ship_departure_pickup(ColonizeUnitPool* pool, int ship_id, int x, int y) {
+int units_ship_departure_pickup(
+  ColonizeUnitPool* pool, const ColonizeWorldMap* map, int ship_id, int x, int y
+) {
   ColonizeUnit* ship = units_get(pool, ship_id);
   if (!pool || !ship || !units_is_sea(pool, ship_id)) {
     return 0;
@@ -562,8 +597,9 @@ int units_ship_departure_pickup(ColonizeUnitPool* pool, int ship_id, int x, int 
   /* "Move to front" (port_bugs.md): the flagged unit is first in line. */
   int order[COLONIZE_UNITS_MAX];
   int on = 0;
-  const int first = pool->board_first_slot;
-  if (first >= 0 && first < COLONIZE_UNITS_MAX) {
+  const ColonizeUnit* front = pool->board_first_id >= 0 ? units_get_const(pool, pool->board_first_id) : NULL;
+  const int first = front ? (int)(front - pool->units) : -1;
+  if (first >= 0) {
     order[on++] = first;
   }
   /*
@@ -631,6 +667,14 @@ int units_ship_departure_pickup(ColonizeUnitPool* pool, int ship_id, int x, int 
     }
   }
   int room = units_ship_capacity(pool, ship_id) - goods;
+  /* FUN_1427_10be raw 8630-8644: a Trade Route hull (+0x314c == 2) on a
+   * settlement tile (FUN_137f_03e4 >= 0) keeps budget 0, so it takes no one
+   * and its own riders stay ashore. Not ported: the at-sea arm (the
+   * FUN_1427_101c pre-pass, where other hulls pick first; the port has no
+   * tile chain to replay). */
+  if (ship->orders == UNITS_ORDER_TRADE_ROUTE && map && map_tile_has_city(map, x, y)) {
+    room = 0;
+  }
   int chosen[COLONIZE_UNIT_CARGO_MAX];
   int nc = 0;
   /* TB-2: DOS boards any own-nation rider on the tile, other hulls' too;
@@ -847,6 +891,81 @@ bool units_unload_passenger_w(
   if (ship->x != dest_x || ship->y != dest_y) {
     units_sentry_wake_scan(pool, map, colonies, pax_id);
   }
+  return true;
+}
+
+bool units_transfer_passenger_w(
+  const ColonizeWorld* w,
+  int ship_id,
+  int pax_id,
+  int dest_x,
+  int dest_y
+) {
+  ColonizeUnitPool* pool = w->units;
+  ColonizeUnit* ship = units_get(pool, ship_id);
+  ColonizeUnit* pax = units_get(pool, pax_id);
+  g_units_last_enter_reason = COLONIZE_ENTER_BLOCKED; /* NO_MP below = passenger spent */
+  if (!ship || !pax || !w->map || pax->aboard_ship_id != ship_id ||
+      !units_adjacent(ship->x, ship->y, dest_x, dest_y) ||
+      !map_tile_is_water(w->map, dest_x, dest_y)) {
+    return false;
+  }
+  /*
+   * FUN_4720_015c raw 75988-75995: a land mover onto a water tile is refused
+   * only when the dest head is missing or foreign or thunk_FUN_2a1f_01a0
+   * finds no room; there is no source-terrain test, so an awake passenger
+   * steps onto an adjacent own ship like a unit walking aboard from shore.
+   */
+  const ColonizeUnitType* t = units_type(pool, pax->type_index);
+  const int target =
+    units_find_boardable_ship(pool, dest_x, dest_y, pax->nation_id, t && t->space > 0 ? t->space : 1);
+  if (target < 0) {
+    return false;
+  }
+  /* FUN_465b_0000 raw 75638-75651: same cost/allow gate as units_move_board. */
+  const int max = units_max_mp(pool, pax_id);
+  const int left = pax->moves > 0 ? pax->moves : (pax->aboard_moves >= 0 ? pax->aboard_moves : max);
+  int cost = map_move_spent_thirds(w->map, ship->x, ship->y, dest_x, dest_y);
+  if (cost < 1) {
+    cost = 1;
+  }
+  bool allow = left > 0 && (cost <= left || left >= max);
+  if (!allow && left > 0 && w->rng) {
+    allow = dos_rng_range(w->rng, 1, cost) <= left;
+  }
+  if (!allow) {
+    pax->moves = 0;
+    pax->aboard_moves = 0;
+    pax->mp_spent_turn = 1;
+    g_units_last_enter_reason = COLONIZE_ENTER_NO_MP;
+    return false;
+  }
+  const int saved_moves = pax->moves;
+  const int saved_aboard_moves = pax->aboard_moves;
+  const bool had_focus = pool->selected_id == pax_id;
+  units_remove_from_cargo(ship, pax_id);
+  pax->aboard_ship_id = -1;
+  pax->moves = left > cost ? left - cost : 0;
+  /* units_board = the port's walk-on board: passenger sentried, selection to
+   * the ship; units_465b_board_wake_focus below applies raw 75711-75722. */
+  if (!units_board(pool, pax_id, target)) {
+    ship->cargo_ids[ship->cargo_count++] = pax_id;
+    pax->aboard_ship_id = ship_id;
+    pax->moves = saved_moves;
+    pax->aboard_moves = saved_aboard_moves;
+    return false;
+  }
+  if (pax->aboard_moves == 0) {
+    pax->mp_spent_turn = 1;
+  }
+  units_465b_board_wake_focus(pool, pax_id, target, had_focus);
+  units_occupancy_refresh_tile(pool, ship->x, ship->y, -1);
+  units_occupancy_refresh_tile(pool, dest_x, dest_y, -1);
+  /* Same 465b board step as units_move_board: FUN_5bfb_3180's sentry-wake
+   * arm (raw 98628-98646) around the receiving ship's tile. */
+  units_sentry_wake_scan(pool, w->map, w->colonies, target);
+  g_units_last_enter_reason = COLONIZE_ENTER_BOARD;
+  g_units_last_board_pax_id = pax_id;
   return true;
 }
 
@@ -1180,7 +1299,23 @@ bool units_despawn_ship_with_cargo(
       out_hold_goods_amount[i] = 0;
     }
   }
-  return units_despawn(pool, ship_id);
+  const bool was_selected = pool->selected_id == ship_id;
+  const int slot = (int)(ship - pool->units);
+  if (!units_despawn(pool, ship_id)) {
+    return false;
+  }
+  if (was_selected) {
+    /* Sailing is no delete: FUN_48d3_007a relinks the hull onto the lane and
+     * DS:0x5392 stays on it, so the scan resumes at the slot after it. */
+    pool->rotation_retest_id = -1;
+    for (int i = slot + 1; i < units_slot_end(pool); ++i) {
+      if (pool->units[i].active) {
+        pool->rotation_retest_id = pool->units[i].id;
+        break;
+      }
+    }
+  }
+  return true;
 }
 
 static int units_spawn_aboard_impl(
@@ -1873,7 +2008,8 @@ bool units_find_high_seas_tile(
 }
 
 /*
- * FUN_48d3_0434: HS (0x1a) + empty or own nation.
+ * FUN_48d3_0434 (raw 77786-77806): interior tile (FUN_281f_0302 ->
+ * FUN_137f_000a, raw 77795), HS (0x1a) + empty or own nation.
  * FUN_48d3_048e: expand radius; for each ring scan horizontal then vertical
  * edges with ±radius offsets (decomp ~77836–77876).
  */
@@ -1884,7 +2020,7 @@ static bool units_hs_place_tile_ok(
   int x,
   int y
 ) {
-  if (!map || x < 0 || y < 0 || x >= (int)map->width || y >= (int)map->height) {
+  if (!map || !map_coords_inset(map, x, y)) {
     return false;
   }
   if (!map_tile_is_high_seas(map, x, y)) {
@@ -1961,13 +2097,9 @@ bool units_015e_hs_course(
   if (!map || !out_x || !out_y) {
     return false;
   }
-  /* FUN_281f_078c -> FUN_13e4_003a: a tile outside FUN_137f_000a's interior
-   * (x or y on the map border) reads class 0x19, never High Seas. */
+  /* units_hs_place_tile_ok carries FUN_137f_000a's interior test. */
   const int w = (int)map->width;
-  const int h = (int)map->height;
-#define HS015E_OK(x, y) \
-  ((x) >= 1 && (y) >= 1 && (x) < w - 1 && (y) < h - 1 && \
-   units_hs_place_tile_ok(pool, map, nation_id, (x), (y)))
+#define HS015E_OK(x, y) units_hs_place_tile_ok(pool, map, nation_id, (x), (y))
   for (int r = 1; r < w; ++r) {
     for (int x = start_x - r; x < start_x + r; ++x) {
       for (int y = start_y - r; y <= start_y + r; y += 2 * r) {
@@ -2002,7 +2134,7 @@ bool units_015e_hs_course(
  * nation's landfall tile (nation record `-0x77c6/-0x77c5`) or from where the
  * ship itself left the map (FUN_48d3_007a, raw 77604-77607 — every departure
  * restamps the nation tile, so "no saved exit tile" only happens at new-game
- * time, where @SCENARIO / LAB_684c_1b4c seeds it). REF Man-O-Wars and Europe
+ * time, where LAB_684c_1b4c seeds it). REF Man-O-Wars and Europe
  * purchases inherit the same nation tile (raw 99622, 107547, 112448, 114391).
  * So this function survives only as a *navigation target* helper — "which
  * Atlantic tile should a ship steer for to reach Europe" — where DOS has no
@@ -2111,14 +2243,13 @@ void units_new_world_start(
   /*
    * DOS-LITERAL FUN_48d3_048e (raw 77810-77896) + FUN_48d3_0434 (raw 77779).
    * DOS never scans the eastern half of the map for a starting tile: the
-   * nation's landfall tile (nation record `-0x77c6/-0x77c5`, seeded from
-   * @SCENARIO at raw 121035 or from LAB_684c_1b4c's HS-rim walk on generated
-   * maps) is copied into the new ship's `+0x314d/+0x314e` (raw 121627), and the
-   * Atlantic arrival tick runs the 048e expanding-ring hunt from exactly that
-   * tile, taking the first High Seas tile that is empty or holds our own unit.
-   * The @SCENARIO tiles are themselves High Seas, so the ring hits at e=0 and
-   * the fleet starts on the scenario tile. The old eastern-half scan put the
-   * Spanish AMER2 fleet on (29,61) instead of (47,61). (port_bugs.md #487)
+   * nation's landfall tile (nation record `-0x77c6/-0x77c5`, seeded by
+   * LAB_684c_1b4c's HS-rim walk on generated and loaded maps alike) is copied
+   * into the new ship's `+0x314d/+0x314e` (raw 121627), and the Atlantic
+   * arrival tick runs the 048e expanding-ring hunt from exactly that tile,
+   * taking the first High Seas tile that is empty or holds our own unit. The
+   * rim tiles are themselves High Seas, so the ring hits at e=0 and the fleet
+   * starts on the landfall tile. (port_bugs.md #487)
    */
   int sx = start_x;
   int sy = start_y;

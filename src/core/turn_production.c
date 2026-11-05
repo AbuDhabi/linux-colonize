@@ -242,7 +242,7 @@ void turn_compose_colony_bells_crosses(
 /*
  * DOS @BUILT — "%STRING0 colony produces {%STRING1}." One emitter for the
  * three completion paths (audit CO-11): turn_produce_one_colony's in-tick
- * building completion, turn_run_colony_unit_construction and
+ * building completion, turn_colony_unit_construction_one and
  * turn_run_colony_building_completion. Callers pass only the human's own
  * colony (DS:0xa897). building_row is the ColonizeBuildingRow, -1 for a unit.
  */
@@ -407,6 +407,14 @@ static bool turn_emit_needtools_notice(
  * unrelated per-nation flag block. port_bugs.md #563.)
  */
 uint8_t turn_prof_census[COLONIZE_COL1_NATION_COUNT][32];
+
+void turn_take_prof_census(ColonizeTurnContext* ctx, int nation_id) {
+  if (!ctx || nation_id < 0 || nation_id > 3) {
+    return;
+  }
+  const ColonizeWorld w = world_from_turn_ctx(ctx);
+  turn_tally_professions_w(&w, nation_id, turn_prof_census[nation_id]);
+}
 
 /*
  * DOS-LITERAL FUN_364b_033a (raw 56977-57012), reached from Phase Q's
@@ -1050,6 +1058,23 @@ COLONIZE_INTERNAL void turn_produce_custom_house(TurnProduceCtx* pc) {
         ai_popup_enqueue_bar_sale(ai_popups, line);
       }
     }
+  }
+  /* DOS-LITERAL FUN_364b_0688 raw 57337-57340: at the Phase B point, after the
+   * Custom House sale (local_86 -= sold, raw 57275), aiStack_e4[c] =
+   * FUN_281f_035c -> FUN_124c_000c(stock - cap, 0, local_86) = clamp to [0, net];
+   * raw 57489-57498 then re-clamps it to [0, stock - cap] (stock and cap do
+   * not move in between). Spoilage reads this, not a later stock delta. */
+  for (int c = 1; c < COLONIZE_CARGO_COUNT; ++c) {
+    const int over = colony->stock[c] - colonies_warehouse_capacity(pool, colony, c);
+    const int net = delta->goods[c] - ch_sold[c];
+    int e4 = over > 0 ? over : 0;
+    if (net < e4) {
+      e4 = net;
+    }
+    if (over < e4) {
+      e4 = over;
+    }
+    pc->spoil_e4[c] = e4 < 0 ? 0 : e4;
   }
 }
 
@@ -1964,7 +1989,6 @@ COLONIZE_INTERNAL void turn_produce_spoilage(TurnProduceCtx* pc) {
   const int human_nation = pc->human_nation;
   AiPopupState* const ai_popups = pc->ai_popups;
   const ColonizeMsgCatalog* const messages = pc->messages;
-  int* const stock_before = pc->stock_before;
   if (europe) {
     /* Phase O: AI dump-sell surplus for gold before spoilage clamp. */
     const ColonizeWorld sw = world_make(NULL, pool, NULL, col1, col1 != NULL, NULL, europe);
@@ -1975,7 +1999,7 @@ COLONIZE_INTERNAL void turn_produce_spoilage(TurnProduceCtx* pc) {
     int first_spoil = -1;
     int spoil_types = 0;
     const int spoiled =
-      colonies_apply_warehouse_spoilage(pool, colony, stock_before, &first_spoil, &spoil_types);
+      colonies_apply_warehouse_spoilage(pool, colony, pc->spoil_e4, &first_spoil, &spoil_types);
     /* Phase P: human spoilage chrome; multi-type → goods phrasing. */
     if (spoiled > 0 && europe && colony->nation_id == human_nation) {
       const char* where = (colony->name[0]) ? colony->name : NULL;
@@ -2130,7 +2154,8 @@ void turn_produce_one_colony(
   ColonizeColonyProdDelta* delta,
   AiPopupState* ai_popups,
   const ColonizeMsgCatalog* messages,
-  ColonizeDosRng* rng
+  ColonizeDosRng* rng,
+  const ColonizeWorld* world
 ) {
   /* Stage order = FUN_364b_0688's DOS order (port_bugs.md #1107 split). */
   TurnProduceCtx ctx;
@@ -2156,6 +2181,7 @@ void turn_produce_one_colony(
   ctx.ai_popups = ai_popups;
   ctx.messages = messages;
   ctx.rng = rng;
+  ctx.world = world;
   if (turn_produce_begin(&ctx) == TURN_PRODUCE_RETURN) {
     return;
   }
@@ -2175,6 +2201,10 @@ void turn_produce_one_colony(
   }
   turn_produce_hammers(&ctx);
   turn_produce_crumbs(&ctx);
+  /* FUN_364b_0688 raw 57771-57774: a unit project's tools are spent
+   * and FUN_364b_0114 builds it here, before the cap re-read (raw 57743) and
+   * the spoilage / AI-sell loop (raw 57807). */
+  turn_colony_unit_construction_one(ctx.world, ctx.colony);
   turn_produce_produced_mask(&ctx);
   turn_produce_spoilage(&ctx);
   turn_produce_cargo_ready(&ctx);
@@ -2347,7 +2377,7 @@ void turn_run_one_colony_production_w(
     stock_before[c] = colony->stock[c];
   }
   turn_produce_one_colony(
-    pool, colony, map, col1, europe, human_nation, out, NULL, ai_popups, messages, rng
+    pool, colony, map, col1, europe, human_nation, out, NULL, ai_popups, messages, rng, w
   );
   turn_log_colony_production(
     pool, colony, col1, europe, stock_before, hammers_before, project_before
@@ -2368,11 +2398,11 @@ void turn_run_colony_production_with_w(
   if (!pool) {
     return;
   }
-  /* FUN_4962_0606 via FUN_3844_00f2 (raw 58374): the per-nation specialty
-   * census is recomputed before the colony production loop. One production
-   * pass = one turn here, so refresh all four Euro nations up front. */
-  for (int n = 0; n < (int)COLONIZE_COL1_NATION_COUNT && n < 4; ++n) {
-    turn_tally_professions(pool, w->units, n, turn_prof_census[n]);
+  /* FUN_4962_0606 via FUN_3844_00f2 (raw 58374): a slot's scoped pass reads
+   * the census its 00f2 took before 5e52 (turn_take_prof_census); an
+   * unscoped pass (tests, tools) refreshes all four Euro nations here. */
+  for (int n = 0; !turn_prod_only_set && n < (int)COLONIZE_COL1_NATION_COUNT && n < 4; ++n) {
+    turn_tally_professions_w(w, n, turn_prof_census[n]);
   }
   /* FUN_3844_00f2 raw 58384 walks colony indices from count - 1 down. */
   for (int i = COLONIZE_COLONIES_MAX - 1; i >= 0; --i) {

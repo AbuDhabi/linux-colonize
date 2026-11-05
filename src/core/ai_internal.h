@@ -158,10 +158,6 @@ AiNativeStepStatus ai_native_brave_step(
   int* steps
 );
 /* Test-only ai_diplo.c externs (port_bugs.md #1106), no production caller. */
-/* Military strength = the DS:0x941c census mirror stuff.land_combat_strength[]
- * (Σ FUN_281f_09c8(u,1) over land units; combat byte ×8). The invented
- * attack+defense / pop / gold / rank blend was retired 2026-09-09 (#51). */
-int ai_diplo_military_score(const ColonizeTurnContext* ctx, int nation_id);
 /* True if any of 8 Indian slots is at war (ai_diplo_indian_at_war: WAR bit
  * or relation < 26). */
 int ai_diplo_indian_any_at_war(const ColonizeCol1Save* col1, int euro_nation);

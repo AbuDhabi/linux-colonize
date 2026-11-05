@@ -697,16 +697,15 @@ int ai_euro_20e6_wagon_village_errand(
  *     head, and 10be uses only that: a trade-route ship at sea (`03e4`
  *     tile_tribe_owner < 0, not in its own Europe slot) gets `free = 0` unless
  *     loose units remain after every other transport on the tile has claimed
- *     its own. Nothing here has a port counterpart — the port has no tile-stack
- *     chain, passengers live in `cargo_ids`.
+ *     its own. Only the settlement-tile budget 0 is ported
+ *     (units_ship_departure_pickup); the at-sea pre-pass has no counterpart —
+ *     the port has no tile-stack chain, passengers live in `cargo_ids`.
  *
  * So +0x314c only ever carries 0/1 in this sweep.
  *
- * OpenCol tile substitution: DOS ships berth ON the colony tile, so 10be's own
- * tile stack already holds the marked land units. This port berths ships on
- * adjacent water, so the sweep covers the ship's tile plus a loose unit
- * standing on an own-colony tile the ship also sits on (exact tile compares,
- * as in the arrival block and the 06e load block).
+ * Ships berth ON the colony tile, as in DOS (exact ship-tile == colony-tile
+ * compares in the arrival block and the 06e load block), so the sweep is the
+ * ship's own tile: the loose units standing there are 10be's tile stack.
  */
 /*
  * Raw 2991-2997 (asm 0x30a7-0x30d5) stale board-mark clear, shared by the
@@ -717,8 +716,8 @@ int ai_euro_20e6_wagon_village_errand(
  * nation-turn top; without this clear on the unload path a passenger dropped
  * ashore this turn still carries that stamp and 10be re-boards it (the
  * load/unload oscillation the -O3 unit_ai_euro_war failure exposed). Sweep =
- * ship tile + adjacent own colony tile, the same berth substitution 10be
- * makes.
+ * the ship's tile (the berth colony tile); the own-colony arm below only
+ * matches units on that same tile.
  */
 static void ai_euro_20e6_clear_stale_board_marks(
   ColonizeTurnContext* ctx,
@@ -1058,11 +1057,21 @@ static int ai_euro_20e6_ship_berth_arrival(
   /*
    * Raw 2991-2997 (asm 0x30a7-0x30d5): before anything else, walk the berth
    * tile's stack and clear every stale act_state == 1 board mark, so this
-   * act's scan re-decides from scratch. DOS iterates the ship's own tile
-   * (ships berth ON the colony tile); this port berths on adjacent water, so
-   * the colony tile the ship is berthed at is the equivalent stack.
+   * act's scan re-decides from scratch. DOS iterates the ship's own tile; the
+   * ship berths ON the colony tile (exact compare above), so it is the same
+   * stack.
    */
   ai_euro_20e6_clear_stale_board_marks(ctx, nation_id, ship);
+  /* Raw 90230-90238: DOS's riders are members of the berth tile's chain, so
+   * the same walk clears their act 1 too; only the units the mark scan below
+   * picks again are re-boarded by FUN_1427_10be (raw 8658-8676: act 0 on a
+   * land tile stays put). The port keeps riders in cargo_ids, so put them on
+   * the colony tile first; the scan and transport_assemble then treat them
+   * like any other unit standing there. */
+  if (ship->cargo_count > 0) {
+    /* No occupancy refresh: the hull already marks this tile occupied. */
+    (void)units_disembark_all(ctx->units, ship->id, ship->x, ship->y);
+  }
 
   /* md:3002-3007: dump every hold into the colony, unconditionally. */
   int dumped = 0;
@@ -1124,10 +1133,9 @@ static int ai_euro_20e6_ship_berth_arrival(
   }
 
   /* md:3012-3016 + 3052-3131: free = capacity − holds_occupied, then the
-   * DOS LOAD matrix one cargo per free hold. Passengers already aboard are
-   * charged here (ai_euro_20e6_ship_hold_budget) because the port's cargo_ids
-   * substitution stops the scan below from re-reserving them the way DOS's
-   * clear+re-mark round trip does. */
+   * DOS LOAD matrix one cargo per free hold. The riders were put ashore
+   * above, so the budget charges none; the scan below re-debits the ones it
+   * re-marks, as DOS's clear+re-mark round trip does. */
   int loaded = 0;
   int free_holds = ai_euro_20e6_ship_hold_budget(ctx->units, ship);
 
@@ -1609,6 +1617,10 @@ int ai_euro_ship_enter_europe(ColonizeTurnContext* ctx, ColonizeUnit* ship) {
     ctx->col1->nation[n].return_from_europe_x = (uint8_t)ox; /* -0x77c6 */
     ctx->col1->nation[n].return_from_europe_y = (uint8_t)oy;
   }
+  /* raw 77608 FUN_281f_0916 -> FUN_1427_12f6 -> 10be (raw 8722-8737): the
+   * hull rebuilds its load from the High Seas tile before the 02ee stamp
+   * walk (TB-2 under dos_buggy_behavior: other hulls' riders too). */
+  (void)units_ship_departure_pickup(ctx->units, ctx->map,ship->id, ox, oy);
   ship->col1_counter16 = ai_euro_lane_voyage_turns(ctx, n, ox);
   /* 08da -> FUN_1427_0968 clears the visibility nibble of the hull's whole
    * chain; off the map 0ce6 adds nothing back. A hull 5fef_0352 parked for
@@ -1649,9 +1661,10 @@ void ai_euro_ship_leave_europe(ColonizeTurnContext* ctx, ColonizeUnit* ship) {
   if (!ctx || !ctx->units || !ship) {
     return;
   }
-  int lx = 0;
-  int ly = 0;
-  ai_euro_resolve_landfall_goto(ctx, ship, &lx, &ly);
+  /* raw 77742: the crossing is rolled against the hull's own +0x314d/e
+   * (goto_x/y); DOS has no fallback (sail_to_europe and the 5c3c purchase
+   * both write it). */
+  const int lx = ship->goto_x;
   const int n = ship->nation_id;
   ship->col1_counter16 = ai_euro_lane_voyage_turns(ctx, n, lx);
   /* 0346's 02ee/02e4 walk: every passenger takes the voyage turns. */
@@ -1691,9 +1704,9 @@ void ai_euro_ship_leave_europe(ColonizeTurnContext* ctx, ColonizeUnit* ship) {
  * (raw 77880-77884); the hull just stays in the lane.
  */
 static void ai_euro_europe_place_arrival(ColonizeTurnContext* ctx, ColonizeUnit* u) {
-  int lx = 0;
-  int ly = 0;
-  ai_euro_resolve_landfall_goto(ctx, u, &lx, &ly);
+  /* raw 77832-77833: the ring centre is the hull's own +0x314d/e, no fallback. */
+  const int lx = u->goto_x;
+  const int ly = u->goto_y;
   int hx = lx;
   int hy = ly;
   if (!units_spiral_place_hs_near(ctx->units, ctx->map, lx, ly, u->nation_id, &hx, &hy)) {
@@ -1704,7 +1717,7 @@ static void ai_euro_europe_place_arrival(ColonizeTurnContext* ctx, ColonizeUnit*
   /* 064e: FUN_281f_0920 (10be) then 048e's 0948 (040c), no 0644. */
   /* 064e's 10be peels the whole shared lane before 048e places this hull.
    * A sentried land unit may transfer from a later hull on that lane. */
-  (void)units_ship_departure_pickup(ctx->units, u->id, ox, oy);
+  (void)units_ship_departure_pickup(ctx->units, ctx->map,u->id, ox, oy);
   units_tile_stack_ship_relink(ctx->units, u->id, false);
   u->x = hx;
   u->y = hy;
@@ -1746,21 +1759,40 @@ void ai_euro_europe_lane_tick(ColonizeTurnContext* ctx, int nation_id) {
       ai_euro_lane_move(ctx, u, hops[h][1] + nation_id, hops[h][1] + nation_id);
       if (hops[h][1] == 236) {
         units_lane_dock_arrival(ctx->units, u->id);
+      } else {
+        /* FUN_281f_0880 (link at head) then FUN_281f_08c6 = FUN_1427_03a0
+         * (raw 7535-7561): unlink and append after the chain tail, so the
+         * destination chain reads old units first, then arrivals in walk
+         * order (raw 77761-77782). */
+        units_tile_stack_sink(ctx->units, u->id);
       }
     }
   }
-  /* FUN_48d3_06ba tail -> FUN_48d3_064e: every hull (type 0x0d..0x12) on
-   * the arrival lane 224+n is placed. 07e0 starts at the chain terminal;
-   * on a shared lane this is the last slot, so walk descending. */
+  /* FUN_48d3_06ba tail -> FUN_48d3_064e (raw 77905-77939): from the 224+n
+   * chain head (07e0) take the first hull (type 0x0d..0x12, 02e4 skips the
+   * rest), place it (0920 peel, 2a1f_0262 -> 048e), restart from the head. */
   if (!ctx->map) {
     return;
   }
-  for (int i = units_slot_end(ctx->units) - 1; i >= 0; --i) {
-    ColonizeUnit* u = &ctx->units->units[i];
-    if (u->active && u->nation_id == nation_id && u->aboard_ship_id < 0 &&
-        u->x == 224 + nation_id && u->y == 224 + nation_id && units_is_sea(ctx->units, u->id)) {
-      ai_euro_europe_place_arrival(ctx, u);
+  const int lane = 224 + nation_id;
+  bool tried[COLONIZE_UNITS_MAX] = {false};
+  for (;;) {
+    int pick = -1;
+    for (int id = units_tile_head_id_at(ctx->units, lane, lane); id >= 0;
+         id = units_tile_chain_next_id(ctx->units, id)) {
+      if (id < COLONIZE_UNITS_MAX && !tried[id] && units_is_sea(ctx->units, id)) {
+        pick = id;
+        break;
+      }
     }
+    if (pick < 0) {
+      break;
+    }
+    /* DOS 048e always moves the hull off the lane (raw 77884-77890); the
+     * port's no-ring-tile case leaves it there, so it is marked tried to
+     * end the restart loop. */
+    tried[pick] = true;
+    ai_euro_europe_place_arrival(ctx, units_get(ctx->units, pick));
   }
 }
 
@@ -2106,7 +2138,7 @@ int ai_euro_20e6_unload_mask_snapshot(
    * riders by that order, not by the port's aboard links (DOSBox
    * 2026-10-16, independence 1->2: French Galleons 58/109 at (1,53)). */
   if (map_tile_is_water(ctx->map, ship->x, ship->y)) {
-    (void)units_ship_departure_pickup(ctx->units, ship->id, ship->x, ship->y);
+    (void)units_ship_departure_pickup(ctx->units, ctx->map,ship->id, ship->x, ship->y);
   }
   (void)ai_euro_20e6_transport_assemble(ctx, nation, ship);
   /* asm 0x3693: FUN_1000_8b38 (040c) relinks the -2 chain on the ship's own tile. */
@@ -2457,12 +2489,9 @@ int ai_euro_20e6_unit_col5(const ColonizeUnitPool* pool, int dos_type) {
  *   (NEARBY_FRIGATE) ∧ ship != Frigate → −0x32; else bit 0x01
  *   (NEARBY_ARMED_SHIP) ∧ ship type < 0x11 → +(col5 − 10)*2;
  *   − ((dist >> 1) + 1); later ties win (DOS <=).
- * Non-coastal colonies are skipped (the `FUN_1000_8804(...,0xfffe)`
- * reachability probe for the +0x1c bit-0x40-clear case — a ship can't
- * reach them; re-anchored 2026-09-24 to move_scoring_20e6_full.md:2013 —
- * FUN_1000_8804 is an out-of-segment callee with no body in
- * viceroy_unpacked.c/_2.c, so "raw 8804" is the call-site's decompiled
- * function offset, not a viceroy_unpacked.c line number).
+ * A colony without +0x1c bit 0x40 is still scored, then retargeted to the
+ * nearest own bit-0x40 colony on its continent (FUN_281f_0614 -> FUN_15eb_0142
+ * mode -2, raw 89692-89706); skipped only when there is none.
  * Commit threshold (md:2031): peace best > −999, war-cargo best > 0.
  * +0x1b bit 0x08 (SHORT_DEFENDERS) is written by ai_euro_colony_threat_seed_5952;
  * bit 0x04 (MILITARY_SURPLUS) is the opposite side of that pair.
@@ -2499,9 +2528,6 @@ int ai_euro_20e6_colony_sail_pick(
     const int cid = map_continent_id_at(ctx->map, c->x, c->y);
     if (pioneers_b4 != 0 && (cid < 0 || ai_euro_continent_stance_at(nation, cid) == 0)) {
       continue; /* md:1946: Pioneer cargo only sails at nonzero stance */
-    }
-    if (!map_tile_is_coastal(ctx->map, c->x, c->y)) {
-      continue; /* 8804(...,0xfffe) reachability substitution */
     }
     int wanted = ai_euro_colony_wanted_size(ctx->colonies, c); /* FUN_1000_8e6c */
     if (wanted > 0xc) {
@@ -2560,13 +2586,30 @@ int ai_euro_20e6_colony_sail_pick(
     } else if ((c->ai_flags & COLONIZE_COLONY_AI_NEARBY_ARMED_SHIP) && ship_type < 0x11) {
       score += (ai_euro_20e6_unit_col5(ctx->units, ship_type) - 10) * 2;
     }
-    const int dist = map_dos_dist(ship->x - c->x, ship->y - c->y);
+    /*
+     * Raw 89692-89706: a colony without +0x1c bit 0x40 keeps its score but
+     * FUN_281f_0614(x, y, nation, -2) rebinds the target to the nearest own
+     * bit-0x40 colony on its continent (FUN_15eb_0142, later tie wins); none
+     * leaves 0x8dc6 = -1 and the candidate is skipped. Distance and the
+     * picked x,y come from the rebound colony.
+     */
+    const ColonizeColony* dest = c;
+    if ((c->colony_flags & COLONIZE_COLONY_FLAG_COASTAL) == 0) {
+      const int port = ai_goals_nearest_colony_15eb_0142(
+        ctx->map, ctx->colonies, c->x, c->y, nation, -2, NULL
+      );
+      if (port < 0) {
+        continue;
+      }
+      dest = &ctx->colonies->colonies[port];
+    }
+    const int dist = map_dos_dist(ship->x - dest->x, ship->y - dest->y);
     score -= (dist >> 1) + 1; /* iStack_b2 == 1 */
     if (score >= best) { /* DOS later-ties-win */
       best = score;
       have = 1;
-      bx = c->x;
-      by = c->y;
+      bx = dest->x;
+      by = dest->y;
     }
   }
   if (!have || best <= (mil == 0 ? -999 : 0)) {

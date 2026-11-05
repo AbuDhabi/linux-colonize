@@ -206,6 +206,23 @@ int main(void) {
     return 1;
   }
 
+  /* LAB_684c_1b4c landfall bands vs the DOS nation record +0x32/+0x33. */
+  for (int nn = 0; nn < 4; ++nn) {
+    int lx = -1, ly = -1;
+    if (!map_gen_euro_landfall(&map, nn, &lx, &ly) ||
+        lx != golden.nation[nn].return_from_europe_x ||
+        ly != golden.nation[nn].return_from_europe_y) {
+      fprintf(
+        stderr, "nation %d landfall (%d,%d) expected (%u,%u)\n", nn, lx, ly,
+        golden.nation[nn].return_from_europe_x, golden.nation[nn].return_from_europe_y
+      );
+      map_free(&map);
+      map_free(&golden_map);
+      col1_save_free(&golden);
+      return 1;
+    }
+  }
+
   const char* data_dir = "COLONIZE";
   ColonizeMsgCatalog names;
   assets_msg_init(&names);

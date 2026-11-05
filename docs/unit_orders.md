@@ -144,7 +144,7 @@ stateDiagram-v2
 | Anchor (ship) | 2nd Fortify menu / `@SHIPOPTIONS` | Sea unit at own colony or adjacent sea → fortify path | `MAP_MENU_ACTION_ANCHOR` → `game_order_fortify` (same handler as the land row) | Done |
 | Fortified | Overnight | Skip selection until woken; combat defense context-dependent | Skip via `units_orders_skip_turn` (bonus → [combat.md](combat.md)) | Done |
 | Sentry | ORDERS / **S** | Order 1; exhaust MP; skip until wake | `units_order_sentry` | Done |
-| Sentry auto-board | Ship leaves tile | Same-tile Sentry land board to capacity | `units_ship_departure_pickup` | Done |
+| Sentry auto-board | Ship leaves tile | Same-tile Sentry land board to capacity; none for a Trade Route ship leaving a colony or Europe (`FUN_1427_10be` budget 0, its riders stay ashore); the at-sea `FUN_1427_101c` pre-pass arm is not ported | `units_ship_departure_pickup`; Europe route leg `europe_set_sail_from_harbor_ex(..., false)` | Done |
 | Wake | Activate / stack / replace | Clear order; restore MP | `units_wake` | Done |
 | Sentry wake on enemy | A foreign unit steps onto an adjacent tile | `FUN_5bfb_3180` move tail (raw 98628-98646): for each of the 8 neighbours of the mover's destination whose stack is another nation's (no war/treaty gate), every **order 1** unit in that stack is cleared. Gated on mover-in-colony **or** settlement on the neighbour tile **or** neighbour water-ness == destination water-ness; a non-ship on a water tile (in a hold) is left asleep | `units_sentry_wake_scan` (units.c), called from `units_try_move` beside `units_ship_slow_scan_w` | Done |
 
@@ -178,7 +178,7 @@ stateDiagram-v2
 |---------|------|----------------|-------|--------|
 | Build Colony (**B**) | Land founder off colony | `479b_076e` found body; name `@COLONY` | Immediate found; `@SEACOLONY` on water; `@TOOMOUNTAIN` on mountains; `@NOPORT` CHOICE inland; order 7 unused | Done |
 | Join Colony (**B**) | On own colony tile | Admit / open colony | Admit selected land unit; `@FULL` if at POP_MAX; else open colony | Done |
-| Load / Unload Cargo | Transport on Euro settlement | Board/unload cargo UI | ORDERS + **O**/**U**; gated off-settlement | Done |
+| Load / Unload Cargo | Transport on Euro settlement | Board/unload cargo UI | ORDERS + **U** (no O key: DOS has none); gated off-settlement | Done |
 | Return to Europe | Ship on High Seas | Sail home lane | Despawn → Europe Expected | Done |
 | Dump Cargo Overboard | Transport with goods | `@OVERBOARD` picker; dump the chosen hold | Same (rows = occupied holds + @MISC[32] cancel) | Done |
 | Disband | Shift+D / ORDERS | `@SUREDISBAND` confirm; `@DISBANDSHIP` OK when `FUN_1427_10be` would gather a unit onto the ship (sentried unit on its tile that fits cargo minus goods holds, or any rider). Silent, no status text. Active unit steps back to the previous pool slot (`FUN_1427_0824` tail), kept while in rotation, else scan forward | Confirm then `units_disband`; refusal = rider aboard (port-only for an awake one) or `units_ship_has_sentry_boarder`; hand-off seeded at the previous unit in id order (`game_do_disband`). No orders==2 budget-0 quirk (dos_bugs.md DB-44). port_bugs.md #1168. View mode (`FUN_2b5a_199e`): the stack head at the cursor, gated on CHEAT or the tile's owner nibble == viewpoint; CHEAT + no unit = colony confirm (`GAME_MAP_CONFIRM_DISBAND_COLONY`) or village raze without confirm; no re-selection, no DB-45 double step (`game_request_disband_confirm`, port_bugs.md #1173) | Done |

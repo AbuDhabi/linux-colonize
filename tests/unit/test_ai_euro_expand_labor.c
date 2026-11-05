@@ -1,6 +1,7 @@
 /* Slice of the former tests/unit/test_ai_euro_expand.c (split by feature 2026-09-23):
  * colony labor binding, food emergency, colony AI flags, 0a60 work plan gate. */
 #include "test_ai_euro_expand_common.h"
+#include "core/ai_euro_internal.h"
 
 static int unit_labor_shortage_join(void) {
   const int nation = 1;
@@ -994,7 +995,63 @@ static int unit_tools_short_pioneer_labor(void) {
   return 0;
 }
 
+/* FUN_521d_0a60 raw 87601 runs the whole own-colony block (CONTACT
+ * ship-threat goal, work-queue row + 0x1734 bump, garrison LABOR) only when
+ * colony +0x1c bit 0x40 is set. Pass 0 inland, pass 1 coastal. */
+static int unit_0a60_own_colony_block_coastal_gate(void) {
+  const int nation = 1;
+  ColonizeWorldMap map;
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
+    return fail("coastal gate map");
+  }
+  ColonizeUnitPool units;
+  fx_units_init(&units);
+  ColonizeColonyPool colonies;
+  fx_colonies_init(&colonies);
+  ColonizeColony* c = fx_colony_add(&colonies, nation, 8, 8, 1);
+  uint32_t turn = 30;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  int rc = 0;
+  for (int pass = 0; pass < 2 && rc == 0; ++pass) {
+    c->colony_flags = pass ? COLONIZE_COLONY_FLAG_COASTAL : 0;
+    c->ai_flags = COLONIZE_COLONY_AI_NEARBY_ARMED_SHIP;
+    c->labor_shortage = 2;
+    c->stock[COLONIZE_CARGO_FURS] = 200; /* > 0x4a arms bVar5 (raw 87663) */
+    ai_goals_reset();
+    const int bumps = ai_euro_0a60_work_registered(nation);
+    ai_euro_colony_goals_producers(&ctx, nation, NULL, 0);
+    const int contact = ai_goals_max_primary_prio(nation, 8, 8, AI_GOAL_CONTACT);
+    const int labor = ai_goals_max_primary_prio(nation, 8, 8, AI_GOAL_LABOR);
+    int row = 0;
+    for (int i = 0; i < AI_WORK_SLOTS; ++i) {
+      const AiWorkSlot* w = ai_goals_work(i);
+      if (w && w->id == c->id && w->loads > 0) {
+        row = 1;
+      }
+    }
+    const int bumped = ai_euro_0a60_work_registered(nation) != bumps;
+    if (pass == 0 && (contact || labor || row || bumped)) {
+      fprintf(stderr, "coastal gate inland: contact=%d labor=%d row=%d bump=%d\n",
+              contact, labor, row, bumped);
+      rc = fail("inland colony must skip the whole 0a60 own-colony block");
+    }
+    if (pass == 1 && !(contact == 5 && labor == 4 && row && bumped)) {
+      fprintf(stderr, "coastal gate coastal: contact=%d labor=%d row=%d bump=%d\n",
+              contact, labor, row, bumped);
+      rc = fail("coastal colony must run the 0a60 own-colony block");
+    }
+  }
+  fx_map_free(&map);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
+    {"unit_0a60_own_colony_block_coastal_gate", unit_0a60_own_colony_block_coastal_gate},
     {"unit_labor_shortage_join", unit_labor_shortage_join},
     {"unit_food_shortage_no_labor_goal", unit_food_shortage_no_labor_goal},
     {"unit_expert_farmer_no_food_labor_goal", unit_expert_farmer_no_food_labor_goal},

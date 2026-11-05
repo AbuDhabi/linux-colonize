@@ -57,7 +57,7 @@ Status: **Done** / **Partial** / **Missing** / **PARKED**.
 | Ship | Foreign ship | Naval fight path | Naval `157e_004a` + analysis | Done |
 | Ship | Foreign land | Block / landfall | Block / landfall | Done |
 | Any | Empty | Enter | Enter | Done |
-| Ship leaves tile | Same-tile Sentry land | Auto-board to capacity | `units_ship_departure_pickup` on ship move | Done |
+| Ship leaves tile | Same-tile Sentry land | Auto-board to capacity (none for a Trade Route ship leaving a colony, `FUN_1427_10be` budget 0) | `units_ship_departure_pickup` on ship move | Done |
 
 ---
 

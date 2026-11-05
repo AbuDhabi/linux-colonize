@@ -276,10 +276,16 @@ void game_join_colony_order(ColonizeGameState* game) {
   if (!col || col->nation_id != game->human_nation) {
     return; /* asm 0x227be: wrong owner (or no colony) = silent return */
   }
+  const ColonizeWorld w = game_world(game);
+  /* DOS-LITERAL FUN_291f_01ec = JMPF FUN_364b_1aec (raw 57955-57966): the
+   * claim stamp (FUN_281f_0c72 -> 15eb_26e4) and the plot recompute
+   * (FUN_281f_0c22 -> 15eb_3956 -> 3930) run before the joiner is placed
+   * (FUN_291f_054c -> 2f2b_2f3e, which holds the cap test below). */
+  colonies_26e4_claim_stamp(&w, col);
+  colonies_recompute_plots_w(&w, cid);
   if (col->colonist_count >= COLONIZE_COLONY_POP_MAX) {
     return; /* overlays.c:10252-10255 bails without a word */
   }
-  const ColonizeWorld w = game_world(game);
   const int ci = colonies_admit_unit_w(&w, cid, sid);
   if (ci < 0) {
     return;
@@ -565,16 +571,6 @@ bool game_colony_cheat_produce(ColonizeGameState* game, ColonizeColony* colony) 
   return true;
 }
 
-static int game_colony_list_outside_roles(
-  const ColonizeColonyPool* pool,
-  const ColonizeUnitPool* units,
-  const ColonizeColony* colony,
-  const ColonizeUnit* unit,
-  int* out_roles,
-  bool* out_enabled,
-  int out_max
-);
-
 void game_ui_drag_clear(ColonizeGameState* game) {
   if (game) {
     ui_drag_clear(&game->ui_drag);
@@ -723,66 +719,99 @@ static void game_colony_assign_building_sound(
 }
 
 /*
- * Shared refusal chrome for a colonies_assign_workplace() that said no —
- * a click on the building itself and an indoor row of the jobs menu
- * (port_bugs.md #900) must answer with the same popup, in the same DOS validator
- * order (thunk_FUN_1000_9808).
+ * Mirror of colonies_assign_workplace's DOS validator order (thunk_FUN_1000_9808): occupation
+ * caps first, then the school ones, all keyed on the school tier the colony OWNS
+ * (port_bugs.md #580/#589/#590). A click on the building itself and an indoor row of the
+ * jobs menu (port_bugs.md #900) answer with the same popup. `exclude` is the body's own slot,
+ * -1 for a fence unit the validator sees as the colonist it would become. Raises the refusal
+ * popup and returns true when DOS refuses.
  */
+static bool game_colony_workplace_refuses(
+  ColonizeGameState* game, const ColonizeColony* col, int profession, int exclude,
+  int building_index
+) {
+  const int occupation = colonies_building_occupation(&game->colonies, building_index);
+  const int school_tier = colonies_school_owned_tier(&game->colonies, col);
+  const bool teaching = (occupation == COLONIES_JOB_TEACHER);
+  const int need =
+    teaching ? colonies_school_tier_shortfall(&game->colonies, col, profession) : 0;
+  bool refused = true;
+  if (teaching && school_tier > 0 &&
+      colonies_occupation_worker_count(&game->colonies, col, COLONIES_JOB_TEACHER, -1) >=
+        school_tier) {
+    colonies_emit_school_faculty_chrome(school_tier, &game->ai_popups, &game->messages);
+  } else if (teaching && !colonies_profession_may_teach(profession)) {
+    colonies_emit_noteacher_chrome(&game->ai_popups, &game->messages);
+  } else if (need != 0) {
+    colonies_emit_need_school_chrome(profession, need, &game->ai_popups, &game->messages);
+  } else if (occupation > 8 &&
+             colonies_occupation_worker_count(&game->colonies, col, occupation, exclude) > 2) {
+    /* `> 8` as colonies_assign_workplace: DOS's `9 < param_2` (Rum Distiller uncapped) is
+     * not reproduced (docs/dos_bugs.md DB-15). */
+    colonies_emit_more_than_three_chrome(col, &game->ai_popups, &game->messages);
+  } else {
+    refused = false;
+  }
+  return refused;
+}
+
+/* Shared refusal chrome for a colonies_assign_workplace() that said no. */
 static void game_colony_workplace_refusal(
   ColonizeGameState* game, int ci, int building_index
 ) {
-    const ColonizeColony* col = colonies_get(&game->colonies, game->colony_view_id);
-    const ColonizeColonist* c =
-      (col && ci >= 0 && ci < col->colonist_count) ? &col->colonists[ci] : NULL;
-    /* Mirror of colonies_assign_workplace's DOS validator order
-     * (thunk_FUN_1000_9808): occupation caps first, then the school ones,
-     * all keyed on the school tier the colony OWNS. port_bugs.md #580/#589/#590. */
-    const int occupation = colonies_building_occupation(&game->colonies, building_index);
-    const int school_tier = colonies_school_owned_tier(&game->colonies, col);
-    const bool teaching = (occupation == COLONIES_JOB_TEACHER);
-    if (c && teaching && school_tier > 0 &&
-        colonies_occupation_worker_count(
-          &game->colonies, col, COLONIES_JOB_TEACHER, -1
-        ) >= school_tier) {
-      colonies_emit_school_faculty_chrome(school_tier, &game->ai_popups, &game->messages);
-    } else if (c && teaching && !colonies_profession_may_teach(c->profession)) {
-      colonies_emit_noteacher_chrome(&game->ai_popups, &game->messages);
-    } else if (
-      c && teaching &&
-      colonies_school_tier_shortfall(&game->colonies, col, c->profession) != 0
-    ) {
-      const int need = colonies_school_tier_shortfall(&game->colonies, col, c->profession);
-      colonies_emit_need_school_chrome(
-        c->profession, need, &game->ai_popups, &game->messages
-      );
-    } else if (c && occupation > 8 &&
-               colonies_occupation_worker_count(
-                 &game->colonies, col, occupation, ci
-               ) > 2) {
-      colonies_emit_more_than_three_chrome(col, &game->ai_popups, &game->messages);
-    }
-    /* Player-initiated refusal: DOS runs it as a nested dialog from the colony
-     * screen's own loop, so it must show now, not behind queued chrome. */
-    (void)ai_popup_present_now(&game->ai_popups, AI_POPUP_TAG_INFO);
+  const ColonizeColony* col = colonies_get(&game->colonies, game->colony_view_id);
+  if (col && ci >= 0 && ci < col->colonist_count) {
+    (void)game_colony_workplace_refuses(
+      game, col, col->colonists[ci].profession, ci, building_index
+    );
+  }
+  /* Player-initiated refusal: DOS runs it as a nested dialog from the colony
+   * screen's own loop, so it must show now, not behind queued chrome. */
+  (void)ai_popup_present_now(&game->ai_popups, AI_POPUP_TAG_INFO);
+}
+
+/* FUN_2f2b_2f3e runs the validator before FUN_281f_0c36 admits a fence unit, so a
+ * refused seat leaves it outside. The unit's specialty as 0e8c would store it (Dragoon
+ * folded to Soldier). True when the seat is refused (popup raised). */
+static bool game_colony_fence_seat_refused(
+  ColonizeGameState* game, const ColonizeColony* col, const ColonizeUnit* u, int building_index
+) {
+  if (building_index < 0 || !col->has_building[building_index]) {
+    return true;
+  }
+  const int profession = u->profession == UNITS_JOB_DRAGOON ? UNITS_JOB_SOLDIER : u->profession;
+  if (!game_colony_workplace_refuses(game, col, profession, -1, building_index)) {
+    return false;
+  }
+  (void)ai_popup_present_now(&game->ai_popups, AI_POPUP_TAG_INFO);
+  return true;
 }
 
 void game_colony_assign_building_drop(ColonizeGameState* game, int building_index) {
-  /* port_bugs.md: refuse an unbuilt / unworkable target BEFORE resolving the
-   * colonist — the resolver admits an outside unit into the colony as a side
-   * effect, and a failing drop onto e.g. the Printing Press was consuming it
-   * as an invisible unassigned colonist ("vanishes the colonist"). */
-  if (building_index >= 0 && colonies_building_workable(&game->colonies, building_index)) {
-    const int ci = game_colony_selected_colonist(game);
-    if (ci < 0) {
-      /* nothing selected */
-    } else if (colonies_assign_workplace(
-                 &game->colonies, game->colony_view_id, ci, building_index
-               )) {
-      game_colony_assign_building_sound(&game->colonies, building_index);
-      game_tutorial_colony_assigned(game);
-    } else {
-      game_colony_workplace_refusal(game, ci, building_index);
+  /* port_bugs.md: refuse BEFORE resolving the colonist — the resolver admits an
+   * outside unit into the colony as a side effect, and a failing drop onto
+   * e.g. the Printing Press was consuming it as an invisible unassigned
+   * colonist ("vanishes the colonist"). */
+  if (building_index < 0 || !colonies_building_workable(&game->colonies, building_index)) {
+    return;
+  }
+  const ColonyScreenView* csv = &game->colony_screen;
+  if (csv->selected_colonist < 0 && csv->selected_outside_unit >= 0 && game->units_ok) {
+    const ColonizeColony* col = colonies_get(&game->colonies, game->colony_view_id);
+    const ColonizeUnit* u = units_get_const(&game->units, csv->selected_outside_unit);
+    if (!col || !u || game_colony_fence_seat_refused(game, col, u, building_index)) {
+      return;
     }
+  }
+  const int ci = game_colony_selected_colonist(game);
+  if (ci < 0) {
+    return;
+  }
+  if (colonies_assign_workplace(&game->colonies, game->colony_view_id, ci, building_index)) {
+    game_colony_assign_building_sound(&game->colonies, building_index);
+    game_tutorial_colony_assigned(game);
+  } else {
+    game_colony_workplace_refusal(game, ci, building_index);
   }
 }
 
@@ -1037,7 +1066,26 @@ void game_colony_commit_construction(ColonizeGameState* game, int bid) {
 void game_colony_open_jobs(
   ColonizeGameState* game, ColonizeColony* colony, const ColonizeWorldMap* cmap, int tile_index
 ) {
-  colony_screen_open_jobs(&game->colony_screen, &game->colonies, cmap, colony, tile_index);
+  const ColonyScreenView* csv = &game->colony_screen;
+  if (csv->selected_colonist < 0 && csv->selected_outside_unit >= 0) {
+    /* A fence unit. FUN_2f2b_348c prologue 2f2b:349f-34be: `pop <= sel && pop >= 0x20`
+     * forces param 1, the leave-as list, in a full colony. A type with no DS:0x30e job
+     * (no profession slot) cannot be admitted either; it keeps the leave-as list. */
+    const ColonizeUnit* u =
+      game->units_ok ? units_get_const(&game->units, csv->selected_outside_unit) : NULL;
+    if (!u || !colony) {
+      return;
+    }
+    if (colony->colonist_count >= COLONIZE_COLONY_POP_MAX ||
+        !units_type_has_profession_slot(u->type_index)) {
+      game_colony_fence_drop(game, colony);
+      return;
+    }
+  }
+  colony_screen_open_jobs(
+    &game->colony_screen, &game->colonies, cmap, game->units_ok ? &game->units : NULL, colony,
+    tile_index
+  );
 }
 
 /*
@@ -1053,33 +1101,89 @@ void game_colony_open_jobs(
  * Closes the jobs popup on every path. The @LOBOTOMIZE arm leaves the status
  * line alone (the confirm popup is the feedback); every other arm publishes it.
  */
+/* FUN_2f2b_348c row 0x61 -> FUN_281f_0652(@LOBOTOMIZE): confirm, then FUN_281f_0cae writes
+ * profession 0x1c (Free Colonist). ctx: colonist index, or -1 and the fence unit's id. */
+static void game_colony_ask_clear_specialty(
+  ColonizeGameState* game, int profession, int colonist_index, int unit_id
+) {
+  PopupMsgTokens tok;
+  memset(&tok, 0, sizeof(tok));
+  tok.string0 = colonies_profession_name(profession);
+  char body[AI_POPUP_BODY_LEN];
+  popup_msg_fill(&game->messages, "LOBOTOMIZE", &tok, "", body, sizeof(body));
+  char choice_buf[2][POPUP_MSG_CHOICE_LEN];
+  const char* labels[2];
+  popup_msg_section_labels(&game->messages, "LOBOTOMIZE", &tok, "", "", choice_buf, labels);
+  const int ids[2] = {1, 2};
+  if (ai_popup_enqueue_choice_ctx(
+        &game->ai_popups, AI_POPUP_TAG_COLONY_CLEARSPEC, colonist_index, unit_id, 0, NULL, body,
+        labels, ids, 2
+      )) {
+    (void)ai_popup_present_now(&game->ai_popups, AI_POPUP_TAG_COLONY_CLEARSPEC);
+  }
+}
+
+/*
+ * A jobs-list pick for a fence unit (FUN_2f2b_348c param 0 with sel >= pop). The pick
+ * goes through FUN_15eb_0fea's arms:
+ *  - a role row (>= 0x13) is arm 1: FUN_15eb_1068 re-equips the unit where it stands;
+ *  - a colony job is arm 3: FUN_2f2b_2f3e first runs the validator thunk_FUN_1000_9808, and
+ *    only then FUN_281f_0c36 admits the unit idle (no seat, no plot) and selects it
+ *    (2f2b:3460-3466). The caller then commits the job as for any colonist: a field job gets
+ *    the plot FUN_15eb_28c8 elects (raw 50860-50863), a building job its seat.
+ * Returns true once the unit is a colonist and selected; false when the pick is fully handled.
+ */
+static bool game_colony_commit_fence_job(ColonizeGameState* game, ColonizeColony* colony, int job) {
+  ColonyScreenView* csv = &game->colony_screen;
+  const int uid = csv->jobs_unit_id;
+  const ColonizeUnit* u = game->units_ok ? units_get_const(&game->units, uid) : NULL;
+  if (!u || !colony) {
+    return false;
+  }
+  if (job == COLONY_JOB_CLEAR_SPECIALTY) {
+    game_colony_ask_clear_specialty(game, u->profession, -1, uid);
+    return false;
+  }
+  if (job >= UNITS_JOB_COLONIST) {
+    if (game_colony_apply_outside_role(
+          &game->colonies, colony, &game->units, uid, job - UNITS_JOB_COLONIST
+        )) {
+      game_colony_select_outside(game, uid);
+    }
+    return false;
+  }
+  if (game_colony_refuse_nodocks(game, colony, job)) {
+    return false;
+  }
+  if (job >= COLONIZE_FIELD_JOB_COUNT &&
+      game_colony_fence_seat_refused(
+        game, colony, u, colonies_job_workplace_building(&game->colonies, colony, job)
+      )) {
+    return false;
+  }
+  const ColonizeWorld w = game_world(game);
+  const int ci = colonies_admit_unit_idle_w(&w, game->colony_view_id, uid);
+  if (ci < 0) {
+    return false;
+  }
+  csv->selected_outside_unit = -1;
+  csv->selected_colonist = ci;
+  csv->jobs_unit_id = -1;
+  csv->jobs_tile_index = -1;
+  return true;
+}
+
 void game_colony_commit_job(ColonizeGameState* game, ColonizeColony* colony, int job) {
   ColonyScreenView* csv = &game->colony_screen;
+  if (csv->jobs_unit_id >= 0 && csv->selected_colonist < 0 &&
+      !game_colony_commit_fence_job(game, colony, job)) {
+    colony_screen_close_jobs(csv);
+    return;
+  }
   const int ci = game_colony_selected_colonist(game);
   if (job == COLONY_JOB_CLEAR_SPECIALTY) {
-    /* FUN_2f2b_348c row 0x61 -> FUN_281f_0652(@LOBOTOMIZE): confirm, then
-     * FUN_281f_0cae writes profession 0x1c (Free Colonist). */
     if (ci >= 0 && colony && ci < colony->colonist_count) {
-      PopupMsgTokens tok;
-      memset(&tok, 0, sizeof(tok));
-      tok.string0 = colonies_profession_name(colony->colonists[ci].profession);
-      char body[AI_POPUP_BODY_LEN];
-      popup_msg_fill(
-        &game->messages, "LOBOTOMIZE", &tok,
-        "",
-        body, sizeof(body)
-      );
-      char choice_buf[2][POPUP_MSG_CHOICE_LEN];
-      const char* labels[2];
-      popup_msg_section_labels(
-        &game->messages, "LOBOTOMIZE", &tok, "", "", choice_buf, labels
-      );
-      const int ids[2] = {1, 2};
-      if (ai_popup_enqueue_choice_ctx(
-            &game->ai_popups, AI_POPUP_TAG_COLONY_CLEARSPEC, ci, 0, 0, NULL, body, labels, ids, 2
-          )) {
-        (void)ai_popup_present_now(&game->ai_popups, AI_POPUP_TAG_COLONY_CLEARSPEC);
-      }
+      game_colony_ask_clear_specialty(game, colony->colonists[ci].profession, ci, -1);
     }
     colony_screen_close_jobs(csv);
     return;
@@ -1148,7 +1252,7 @@ void game_colony_fence_drop(ColonizeGameState* game, ColonizeColony* colony) {
         for (int ri = 0; ri < COLONIZE_EJECT_ROLE_COUNT; ++ri) {
           csv->eject_role_enabled[ri] = true;
         }
-        csv->eject_role_count = game_colony_list_outside_roles(
+        csv->eject_role_count = colony_screen_list_outside_roles(
           &game->colonies,
           &game->units,
           colony,
@@ -1177,6 +1281,20 @@ void game_colony_fence_drop(ColonizeGameState* game, ColonizeColony* colony) {
   } else {
     colony_screen_open_eject(csv, &game->colonies, game->colony_view_id, csv->selected_colonist);
   }
+}
+
+/* A body dropped on the stockade (mode-6 drag). 2f2b:4684-4693 `FUN_281f_0c0e(sel) <
+ * 0x13` gates the leave-as list on the body's occupation. A fence unit's (unit_id >= 0) is its
+ * type's DS:0x30e job, a role (>= 0x13) for every type with one, so dropping it back on the
+ * stockade does nothing; a colonist (unit_id -1) always works a colony job. */
+void game_colony_stockade_drop(ColonizeGameState* game, ColonizeColony* colony, int unit_id) {
+  if (unit_id >= 0) {
+    const ColonizeUnit* u = game->units_ok ? units_get_const(&game->units, unit_id) : NULL;
+    if (!u || units_type_default_job(u->type_index) >= UNITS_JOB_COLONIST) {
+      return;
+    }
+  }
+  game_colony_fence_drop(game, colony);
 }
 
 bool game_colony_drag_drop(
@@ -1356,10 +1474,11 @@ bool game_colony_drag_drop(
     } else if (kind == UI_DRAG_COLONY_OUTSIDE && hit.kind == COLONY_HIT_OUTSIDE_UNIT &&
                hit.index >= 0 && hit.index < csv->outside_unit_count &&
                csv->outside_unit_ids[hit.index] == drag->unit_id) {
-      /* Put back on itself: the plain click. On the already-selected fence
-       * unit that opens the role popup, the list the fence drop offers. */
+      /* Put back on itself: the plain click. FUN_2f2b_44d4 2f2b:4728-4733 pushes 0
+       * for the already-selected person, fence units included, so this is the full jobs
+       * list (348c param 0), not the leave-as list. */
       if (csv->drag_from_selected) {
-        game_colony_fence_drop(game, colony);
+        game_colony_open_jobs(game, colony, cmap, -1);
       }
     } else if (hit.kind == COLONY_HIT_BUILDING) {
       game_colony_assign_building_drop(game, hit.index);
@@ -1370,7 +1489,7 @@ bool game_colony_drag_drop(
                 my < COLONY_BOTTOM_PANEL_Y)) {
       /* DOS FUN_2f2b_44d4 hit-tests the whole stockade slot rect, so the
        * units standing on the fence never cover the leave-colony target. */
-      game_colony_fence_drop(game, colony);
+      game_colony_stockade_drop(game, colony, kind == UI_DRAG_COLONY_OUTSIDE ? drag->unit_id : -1);
     }
   }
 
@@ -1562,72 +1681,6 @@ bool game_europe_drag_drop(ColonizeGameState* game, int mx, int my, bool shift) 
  * bridged save that carries only the upgrade.
  */
 
-/*
- * The "Leave as" row list for a unit standing on the fence.
- *
- * DOS builds this and the inside-colonist list in ONE function,
- * FUN_2f2b_348c: `param_1 != 0` selects the 6-row leave-as mode (rows =
- * professions 0x13..0x18 = Colonist / Pioneer / Soldier / Scout / Dragoon /
- * Missionary; `local_fa = 0x13, local_146 = 6`), and a band index at or past
- * the colony's colonist count — i.e. an OUTSIDE unit — forces that mode. Rows
- * are gated one by one through FUN_281f_0bb4 → FUN_15eb_3454, whose >= 0x13
- * arm is profession-indexed and knows nothing about where the body stands:
- * the gear rows test colony stock against FUN_15eb_0d8e's cargo list (tools
- * 0x14 = 20, muskets/horses 0x32 = 50) and row 0x18 tests the Church bit. So
- * the outside list is the inside list, Missionary included, and this copy
- * must stay row-for-row identical to colonies_list_eject_roles (colony.c) —
- * it dropped the Missionary row until 2026-09-10, which let a colonist be
- * blessed inside the colony but not one pixel outside it.
- */
-/* The body's tools as FUN_15eb_1068 (raw 11232-11243) and FUN_2f2b_348c
- * (raw 50553-50569) bank them: the +0x3159 byte goes in only through the
- * tools (0x0e) entry of the body's current job cargo list (FUN_15eb_0d8e),
- * which only a Pioneer has. On any other type the byte is residue (a Pioneer
- * stripped of tools in Europe keeps 100) and banking it gave free tools. */
-static int game_colony_body_tools(const ColonizeUnitPool* units, const ColonizeUnit* u) {
-  return u->tools > 0 && units_type_kind(units_type(units, u->type_index)) == UNITS_KIND_PIONEER
-    ? u->tools
-    : 0;
-}
-
-static int game_colony_list_outside_roles(
-  const ColonizeColonyPool* pool,
-  const ColonizeUnitPool* units,
-  const ColonizeColony* colony,
-  const ColonizeUnit* unit,
-  int* out_roles,
-  bool* out_enabled,
-  int out_max
-) {
-  if (!colony || !unit || !out_roles || out_max <= 0) {
-    return 0;
-  }
-  /* port_bugs.md #972 (reverses #649): FUN_15eb_3454's >= 0x13 arm (raw 13583)
-   * does read DS:0x8542 warehouse stock alone, but its CALLER has already put
-   * the standing body's own gear there. FUN_2f2b_348c raw 50553-50569, before
-   * the row loop at raw 50576, takes the body's current @JOB
-   * (FUN_281f_0c0e -> FUN_15eb_0e18), asks FUN_15eb_0d8e for that job's cargo
-   * list and adds 0x32 per muskets/horses entry (and the body's own tool byte
-   * at +0x3159 for the tools entry) into stock[cargo] for the whole dialog.
-   * So a Soldier on the fence is gated on muskets + 50, a Dragoon on
-   * muskets + 50 and horses + 50. #649 removed that and a Soldier could not be
-   * mounted into a Dragoon unless the warehouse held 50 spare muskets on top
-   * of his own — while Soldier -> Scout -> Dragoon worked, because the Scout
-   * step banked the muskets. Amounts are flat 0x32 in DOS, which is what a
-   * body's muskets/horses field always holds; tools are per-body in both. */
-  return colonies_list_eject_roles_gear(
-    pool,
-    colony,
-    game_colony_body_tools(units, unit),
-    unit->muskets > 0 ? UNITS_EQUIP_MUSKETS : 0,
-    unit->horses > 0 ? UNITS_EQUIP_HORSES : 0,
-    unit->profession,
-    out_roles,
-    out_enabled,
-    out_max
-  );
-}
-
 bool game_colony_apply_outside_role(
   const ColonizeColonyPool* pool,
   ColonizeColony* colony,
@@ -1642,7 +1695,7 @@ bool game_colony_apply_outside_role(
   if (!u) {
     return false;
   }
-  int stock_tools = colony->stock[COLONIZE_CARGO_TOOLS] + game_colony_body_tools(units, u);
+  int stock_tools = colony->stock[COLONIZE_CARGO_TOOLS] + colony_screen_unit_body_tools(units, u);
   int stock_muskets = colony->stock[COLONIZE_CARGO_MUSKETS] + (u->muskets > 0 ? u->muskets : 0);
   int stock_horses = colony->stock[COLONIZE_CARGO_HORSES] + (u->horses > 0 ? u->horses : 0);
 
@@ -1903,21 +1956,10 @@ void game_colony_apply_dock_order(
        * it now heads the queue: first pick for a departing ship and the
        * Units-pane selection.
        *
-       * Audit 2026-09-14 (section 3 incidental): pool->board_first_slot
-       * (then named board_first_id) is CONSUMED as a pool SLOT, not a unit id —
-       * units_ship_departure_pickup seeds its walk order with it and then
-       * skips `i == board_first_slot` while indexing pool->units[i] directly.
-       * Unit ids are handed out from pool->next_id and do not track slots
-       * (units_get scans for a matching u->id), so writing uid here put a
-       * random OTHER unit at the head of the boarding queue and left the
-       * flagged one in ordinary chain order. Write the slot. */
-      game->units.board_first_slot = -1;
-      for (int bi = 0; bi < units_slot_end(&game->units); ++bi) {
-        if (game->units.units[bi].active && game->units.units[bi].id == uid) {
-          game->units.board_first_slot = bi;
-          break;
-        }
-      }
+       * The pool stores the unit ID; a slot went stale when despawn
+       * trimmed it and the next spawn reused it. Consumers resolve the slot
+       * with units_get_const. */
+      game->units.board_first_id = uid;
       csv->multi_unit_selected_id = uid;
     }
     break;

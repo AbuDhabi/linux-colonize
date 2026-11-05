@@ -133,7 +133,8 @@ int ai_goals_max_primary_prio(int nation_id, int x, int y, int code);
  * FUN_281f_0614 -> FUN_15eb_0142: nearest colony of `nation` (< 0 = any) on
  * `continent` (< 0 = any) by the FUN_124c_0040 octile metric; DOS `<=` so the
  * LAST tie wins. Returns the colony index or -1; *out_dist = distance (9999
- * on a miss). Shared with ai_euro (duplication audit AE-39).
+ * on a miss). Shared with ai_euro (duplication audit AE-39). continent == -2
+ * is DOS mode -2: continent of (x, y), colonies with +0x1c bit 0x40 only.
  */
 int ai_goals_nearest_colony_15eb_0142(
   const ColonizeWorldMap* map,
@@ -245,6 +246,15 @@ void ai_goals_plan_scratch_refresh(
   int nation_id,
   int leader_trait1
 );
+
+/*
+ * DS:0xa0b8 (colonies_wanting_colonists): FUN_521d_6d8e zeroes it at turn
+ * entry (raw 93109) and bumps it after each own colony's 5952 tick (raw
+ * 93139-93141); 03d0 and 5d04 read it live.
+ */
+void ai_goals_colonies_wanting_reset(int nation_id);
+void ai_goals_colonies_wanting_bump(int nation_id);
+int ai_goals_colonies_wanting(int nation_id);
 
 /* FUN_479b_076e's `-0x77b2` stamp: call when nation_id founds a colony. */
 void ai_goals_note_colony_founded(ColonizeCol1Save* col1, int nation_id, int turn);

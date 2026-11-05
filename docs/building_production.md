@@ -351,7 +351,8 @@ Port map: `units_build_code_to_index` / `units_build_project_info`
 `colonies_nation_colony_count_census` / `colonies_unit_project_available` /
 `colonies_list_buildable` / `colonies_set_construction_ex` /
 `colonies_try_complete_unit_construction` (`colony_build.c`),
-`turn_run_colony_unit_construction` (`turn_colony.c`). `ColoniesBuildableOpts.col1`
+`turn_colony_unit_construction_one` (`turn_colony.c`, called inside the
+colony's production tick before spoilage, FUN_364b_0688 raw 57771-57774). `ColoniesBuildableOpts.col1`
 carries the census to the gate. Tests: `unit_colonies` cases
 `unit_ship_construction`, `unit_wagon_cap_and_armory_gate`.
 

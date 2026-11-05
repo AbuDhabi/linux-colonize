@@ -2,6 +2,7 @@
  * first contact / encounter scan / popup chain ordering. */
 #include "test_ai_contact_common.h"
 #include "core/ai_contact_internal.h"
+#include "core/ai_euro_internal.h" /* ai_euro_3180_euro_side */
 #include "core/dos_buggy.h"
 #include "../common/ai_fixture.h"
 
@@ -120,7 +121,7 @@ static int test_ai_only_meet_is_silent_for_human(void) {
  * FUN_1427_02ca repaints the nibble of every tile a unit steps onto and
  * FUN_1427_023a leaves it behind when the unit leaves, so a Brave that crossed
  * a foreign village left that tile reading as its own nation. The
- * FUN_5bfb_3180 contact scan (ai_contact_encounter_scan) reads exactly that
+ * FUN_5bfb_3180 contact scan (ai_euro_3180_euro_side) reads exactly that
  * nibble on `layer2 & 2` tiles, so the stale stamp opened first contact with a
  * tribe that has no settlement anywhere near.
  */
@@ -196,7 +197,15 @@ static int test_encounter_scan_ignores_stale_owner_stamp(void) {
 
   /* A French unit steps to (6,5) — beside the Cherokee village, nowhere near
    * any Aztec settlement. */
-  (void)ai_contact_encounter_scan(&ctx, 1, 6, 5);
+  units.type_count = 1;
+  units.types[0].movement = 1;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  ColonizeUnit* mover = units_get(&units, units_spawn(&units, 0, 6, 5));
+  if (!mover) {
+    return fail("stale stamp: spawn mover");
+  }
+  mover->nation_id = 1;
+  ai_euro_3180_euro_side(&ctx, mover, 1, 1, 1);
 
   int rc = 0;
   if (met_before) {

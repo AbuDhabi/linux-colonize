@@ -274,6 +274,12 @@ int units_dump_cargo_overboard(
 
 /* Board a land unit onto an adjacent ship. Returns false if capacity/adjacency fails. */
 bool units_board(ColonizeUnitPool* pool, int land_unit_id, int ship_id);
+/* FUN_465b_0000 raw 75711-75722 after a 465b board: wake a sentried receiving
+ * ship; keep the focus on it only if FUN_1427_1330 passes (`handed` = the
+ * mover had the focus before units_board). */
+void units_465b_board_wake_focus(
+  ColonizeUnitPool* pool, int land_unit_id, int ship_id, bool handed
+);
 /* Board without adjacency check (COL1 import; passenger already stacked on ship tile). */
 bool units_board_stacked(ColonizeUnitPool* pool, int land_unit_id, int ship_id);
 /*
@@ -302,13 +308,26 @@ int units_find_boardable_ship(
  * first-served sweep boarding sentried land units on (x,y) AND passengers
  * riding other own ships still on (x,y), until the departing ship is full.
  * Each rider is charged its @UNIT size column, so a Treasure only transfers
- * to a hull with six free holds. Returns units taken.
+ * to a hull with six free holds. A Trade Route hull leaving a settlement
+ * takes nothing (map: settlement test; NULL = none). Returns units taken.
  */
-int units_ship_departure_pickup(ColonizeUnitPool* pool, int ship_id, int x, int y);
+int units_ship_departure_pickup(
+  ColonizeUnitPool* pool, const ColonizeWorldMap* map, int ship_id, int x, int y
+);
 /* Unload oldest passenger from ship onto dest (must be enterable land). */
 bool units_unload_w(
   const ColonizeWorld* w,
   int ship_id,
+  int dest_x,
+  int dest_y
+);
+/* Awake passenger steps onto an adjacent own ship with room (FUN_4720_015c).
+ * False = not that case or refused (a lost MP roll still spends the
+ * passenger, as in FUN_465b_0000, and leaves COLONIZE_ENTER_NO_MP). */
+bool units_transfer_passenger_w(
+  const ColonizeWorld* w,
+  int ship_id,
+  int pax_id,
   int dest_x,
   int dest_y
 );

@@ -1072,8 +1072,9 @@ void colony_screen_draw_cargo_strip(
   /* FUN_2f2b_28d6 raw 49139-49149 (FUN_2f2b_289e): the selected warehouse slot
    * (DS:0x33a, static 0 = Food) always has a box from (slot*19, 179) to
    * (slot*19 + 19, 199): yellow (14) in the focused strip's on phase or while
-   * a press on the strip is held, else green. port_bugs.md #1284. */
-  if (view) {
+   * a press on the strip is held, else green. port_bugs.md #1284. The spy view
+   * (DS:0xb98) draws none (raw 49068). */
+  if (view && !view->spy_view) {
     const int sc = (view->selected_cargo >= 0 && view->selected_cargo < COLONIZE_CARGO_COUNT)
                      ? view->selected_cargo
                      : 0;
@@ -1120,7 +1121,8 @@ void colony_screen_draw_transports(
     if (!type || type->icon_sprite < 0 || !view->icons_ok) {
       continue;
     }
-    const bool selected = view->transport_unit_id == u->id;
+    /* raw 48986: no box in the spy view (DS:0xb98). */
+    const bool selected = !view->spy_view && view->transport_unit_id == u->id;
     if (i >= COLONY_TRANSPORT_ROW0_N) {
       const int x = COLONY_TRANSPORT_MINI_X + (i - COLONY_TRANSPORT_ROW0_N) * COLONY_TRANSPORT_MINI_STEP;
       colony_screen_blit_mini_unit(

@@ -1,8 +1,9 @@
 # Start: turns_school_training's input.sav verbatim (France, Spring 1600, turn 108; England at peace,
 # the Europe-bound Caravel held at sea, French units fortified, Quebec Schoolhouse + teacher).
 # Covers: turn 109's King tax raise (+1% to 27%) refused through @TAXOPTIONS row 2 ("Hold 'Quebec
-# Tobacco Party'"): @TEAPARTY dumps Quebec's 16 Tobacco, the tax stays at 26%, Tobacco is boycotted
-# (nations[1].boycott_bitmap bit 2). Everything else as turns_school_training (Fisherman graduates).
+# Tobacco Party'"): @TEAPARTY dumps Quebec's 12 Tobacco (the stock before this turn's colony production:
+# 3dc8 answers inside 5e52, before the 00f2 colony loop), the tax stays at 26%, Tobacco is boycotted
+# (nations[1].boycott_bitmap bit 2); production then adds 4 more. Everything else as turns_school_training (Fisherman graduates).
 key space                  # end turn 108
 wait 30
 key Return                 # Help: Time Scale (two turns per year from 1600)
@@ -20,7 +21,7 @@ wait 6
 key Down                   # @TAXOPTIONS row 2: Hold 'Quebec Tobacco Party'
 key Return
 wait 6
-key Return                 # @TEAPARTY: 16 tons of Tobacco into the sea at Quebec, Tobacco boycotted
+key Return                 # @TEAPARTY: 12 tons of Tobacco into the sea at Quebec, Tobacco boycotted
 wait 6
 key Return                 # SoL in Port au Prince 12%: Continue turn
 wait 6

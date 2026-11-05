@@ -280,6 +280,17 @@ bool europe_set_sail_from_harbor(
   ColonizeUnitPool* units,
   int nation_id
 ) {
+  return europe_set_sail_from_harbor_ex(eu, harbor_index, voyage_turns, units, nation_id, true);
+}
+
+bool europe_set_sail_from_harbor_ex(
+  EuropeScreen* eu,
+  int harbor_index,
+  int voyage_turns,
+  ColonizeUnitPool* units,
+  int nation_id,
+  bool board_dockers
+) {
   if (!eu || harbor_index < 0 || harbor_index >= eu->harbor_ships) {
     return false;
   }
@@ -293,8 +304,17 @@ bool europe_set_sail_from_harbor(
   }
   EuropeHarborShip ship;
   europe_copy_ship(&ship, &eu->harbor[harbor_index]);
-  const int cargo_cap = europe_ship_cargo_cap(&ship, units);
-  europe_board_sentry_dockers(eu, &ship, units, nation_id, cargo_cap);
+  /* FUN_1427_10be raw 8630-8632: on the Europe dock ((nation - x) == 0x14) a
+   * Trade Route hull (+0x314c == 2) keeps budget 0. The route leg
+   * (FUN_48d3_0346 raw 77741) runs 10be with orders 2; the Sail click
+   * (FUN_38fd_2a92 raw 60741-60743) zeroes them first and boards. Riders are
+   * sentried dock-tile units in DOS, so with budget 0 they stay behind:
+   * 0346's 0948 moves the hull alone (raw 77754-77755). */
+  if (board_dockers) {
+    europe_board_sentry_dockers(eu, &ship, units, nation_id, europe_ship_cargo_cap(&ship, units));
+  } else {
+    europe_disembark_passengers_to_dock(eu, &ship, units);
+  }
   /*
    * DOS FUN_48d3_0346 sails from the ship's own +0x314d/+0x314e (stamped
    * per ship at landfall by FUN_48d3_007a). The nation tile +0x32/+0x33

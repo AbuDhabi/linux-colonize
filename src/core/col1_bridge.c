@@ -4208,64 +4208,11 @@ bool col1_bridge_capture_w(
 }
 
 
-/* ===================== New-world discovery & adjacent-tribe contact (col1_bridge_mark_new_world_discovered .. col1_contact_adjacent_tribe) ===================== */
+/* ===================== New-world discovery (col1_bridge_mark_new_world_discovered) ===================== */
 void col1_bridge_mark_new_world_discovered(ColonizeCol1Save* save, int human_nation) {
   if (!save || human_nation < 0 || human_nation > 3) {
     return;
   }
   save->head.event.discovery_of_the_new_world = 1;
   save->player[human_nation].named_new_world = 1;
-}
-
-bool col1_contact_adjacent_tribe(
-  ColonizeCol1Save* save,
-  int x,
-  int y,
-  int european_nation,
-  int* out_first_indian_nation
-) {
-  if (out_first_indian_nation) {
-    *out_first_indian_nation = -1;
-  }
-  if (!save || !save->tribe || european_nation < 0 || european_nation > 3) {
-    return false;
-  }
-  bool any = false;
-  const char* first_name = NULL;
-  for (uint16_t i = 0; i < save->head.tribe_count; ++i) {
-    ColonizeCol1Tribe* tr = &save->tribe[i];
-    const int dx = (int)tr->x - x;
-    const int dy = (int)tr->y - y;
-    if (dx < -1 || dx > 1 || dy < -1 || dy > 1) {
-      continue;
-    }
-    /*
-     * No alarm here. This was the fourth per-step drip of the fandom class
-     * port_bugs.md #289/297 retired: DOS grows Indian alarm only through the
-     * FUN_4d56_152e threat accumulator (plus the discrete bumps — working
-     * claimed land, raids, trade, first contact). The DOS move tail that
-     * actually runs on this step, FUN_5bfb_3180 (ported as
-     * ai_contact_encounter_scan, called right after this helper), scans the
-     * eight neighbours and opens contact / the 153e encounter — it never
-     * touches a tribe's attitude word or indian[].alarm_by_player.
-     * The bumps also wrote nonsense: alarm[].friction is the LOW BYTE of the
-     * signed int16 attitude word (col1_tribe_attitude), so a `< 11` test on
-     * that byte alone is incoherent once the word passes 255.
-     */
-    const int indian = (int)tr->nation_id - 4;
-    if (indian >= 0 && indian < 8) {
-      if (save->indian[indian].euro_diplo[european_nation] == 0) {
-        if (!first_name) {
-          first_name = reports_tribe_singular_name(indian);
-          if (out_first_indian_nation) {
-            *out_first_indian_nation = 4 + indian;
-          }
-        }
-      }
-    }
-    any = true;
-  }
-  /* No status line: DOS first contact speaks through the @WELCOME chain
-   * (ai_contact_try_first_welcome). */
-  return any;
 }

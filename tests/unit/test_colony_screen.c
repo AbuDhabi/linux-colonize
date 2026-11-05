@@ -248,16 +248,16 @@ static int unit_dock_orders_menu(void) {
       fprintf(stderr, "dock_orders: Artillery expected [Move, Sentry, Fortify, No changes.] got %d\n", n);
       rc = 1;
     }
-    /* 5746 row 1: unit != DS:0x8d78 (board_first_slot). */
-    units.board_first_slot = 2;
-    if (rc == 0 && units.units[2].id == artillery_id) {
+    /* 5746 row 1: unit != DS:0x8d78 (board_first_id). */
+    units.board_first_id = artillery_id;
+    if (rc == 0) {
       colony_screen_open_dock_orders(&view, &units, &game_txt, artillery_id);
       if (view.dock_orders_count != 3 || view.dock_orders_actions[0] == COLONY_DOCK_ORDER_ACTIVATE) {
         fprintf(stderr, "dock_orders: front Artillery must not offer Move to front\n");
         rc = 1;
       }
     }
-    units.board_first_slot = -1;
+    units.board_first_id = -1;
   }
 
   /* port_bugs.md #1395 %STRING1: " (" + @JOB column 1 + ")" for a colonist
@@ -2598,7 +2598,7 @@ static int unit_tile_jobs_menu_lists_all_field_jobs(void) {
       continue;
     }
     view.jobs_open = false;
-    colony_screen_open_jobs(&view, NULL, NULL, &col, tile);
+    colony_screen_open_jobs(&view, NULL, NULL, NULL, &col, tile);
     if (!view.jobs_open || view.job_count != COLONIZE_FIELD_JOB_COUNT) {
       fprintf(
         stderr,
@@ -2662,7 +2662,7 @@ static int unit_tile_jobs_menu_lists_indoor_jobs(void) {
   /* No buildings at all -> the nine field jobs, then the leave-as rows 0x13..0x17
    * (port_bugs.md #1224); with no stock, Pioneer..Dragoon are FUN_15eb_3454's greyed 0xffff
    * rows, and no Church / Jesuit means no Missionary row. */
-  colony_screen_open_jobs(&view, &pool, NULL, col, tile);
+  colony_screen_open_jobs(&view, &pool, NULL, NULL, col, tile);
   if (view.job_count != COLONIZE_FIELD_JOB_COUNT + 5 ||
       view.jobs_greyed != (0xfu << (COLONIZE_FIELD_JOB_COUNT + 1))) {
     fprintf(stderr, "jobs_indoor: bare colony rows=%d greyed=%#x want %d / %#x\n",
@@ -2685,7 +2685,7 @@ static int unit_tile_jobs_menu_lists_indoor_jobs(void) {
     return 1;
   }
   col->has_building[rum] = true;
-  colony_screen_open_jobs(&view, &pool, NULL, col, tile);
+  colony_screen_open_jobs(&view, &pool, NULL, NULL, col, tile);
   bool saw_distiller = false;
   for (int i = 0; i < view.job_count; ++i) {
     if (view.job_ids[i] == COLONIZE_PROF_DISTILLER) {
@@ -2711,7 +2711,7 @@ static int unit_tile_jobs_menu_lists_indoor_jobs(void) {
   const int school = colonies_building_row(&pool, COLONY_BUILDING_SCHOOLHOUSE);
   const int college = colonies_building_row(&pool, COLONY_BUILDING_COLLEGE);
   col->has_building[school] = true;
-  colony_screen_open_jobs(&view, &pool, NULL, col, tile);
+  colony_screen_open_jobs(&view, &pool, NULL, NULL, col, tile);
   for (int i = 0; i < view.job_count; ++i) {
     if (view.job_ids[i] == COLONIES_JOB_TEACHER) {
       fprintf(stderr, "jobs_indoor: Teacher listed for a Free Colonist\n");
@@ -2719,7 +2719,7 @@ static int unit_tile_jobs_menu_lists_indoor_jobs(void) {
     }
   }
   col->colonists[0].profession = COLONIZE_PROF_DISTILLER; /* @JOB level 2 */
-  colony_screen_open_jobs(&view, &pool, NULL, col, tile);
+  colony_screen_open_jobs(&view, &pool, NULL, NULL, col, tile);
   for (int i = 0; i < view.job_count; ++i) {
     if (view.job_ids[i] == COLONIES_JOB_TEACHER) {
       fprintf(stderr, "jobs_indoor: Teacher listed with a Schoolhouse only\n");
@@ -2727,7 +2727,7 @@ static int unit_tile_jobs_menu_lists_indoor_jobs(void) {
     }
   }
   col->has_building[college] = true;
-  colony_screen_open_jobs(&view, &pool, NULL, col, tile);
+  colony_screen_open_jobs(&view, &pool, NULL, NULL, col, tile);
   bool saw_teacher = false;
   for (int i = 0; i < view.job_count; ++i) {
     if (view.job_ids[i] == COLONIES_JOB_TEACHER) {
@@ -2792,7 +2792,7 @@ static int unit_jobs_more_flips_to_leave_as_rows(void) {
   static ColonyScreenView view;
   memset(&view, 0, sizeof(view));
   view.selected_colonist = 0;
-  colony_screen_open_jobs(&view, &pool, NULL, &colony, 0);
+  colony_screen_open_jobs(&view, &pool, NULL, NULL, &colony, 0);
   int rc = 0;
 #define EXPECT(cond, ...)                                                                          \
   do {                                                                                             \
@@ -3732,7 +3732,79 @@ static int unit_minimap_draws_adjacent_village(void) {
   return 0;
 }
 
+/* Pixels of ink `c` on the outline of the w x h box at (x, y). */
+static int box_ink(const uint8_t* px, int x, int y, int w, int h, uint8_t c) {
+  int n = 0;
+  for (int i = 0; i < w; ++i) {
+    n += px[y * 320 + x + i] == c;
+    n += px[(y + h - 1) * 320 + x + i] == c;
+  }
+  for (int j = 1; j < h - 1; ++j) {
+    n += px[(y + j) * 320 + x] == c;
+    n += px[(y + j) * 320 + x + w - 1] == c;
+  }
+  return n;
+}
+
+/*
+ * The spy view (DS:0xb98, FUN_5f7a_000e raw 98856) draws no selection boxes: the warehouse
+ * slot box (FUN_2f2b_289e raw 49068) and the area cursor (FUN_2f2b_0d89 raw 47779) are
+ * drawn only while DS:0xb98 is 0.
+ */
+static int unit_spy_view_draws_no_selection_boxes(void) {
+  char err[256];
+  static ColonyScreenView view;
+  if (!colony_screen_load(&view, "COLONIZE", err, sizeof(err))) {
+    fprintf(stderr, "colony_screen_load failed: %s\n", err);
+    return 1;
+  }
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  if (!map_load_mp("COLONIZE/AMER2.MP", &map, err, sizeof(err))) {
+    fprintf(stderr, "load failed: %s\n", err);
+    colony_screen_free(&view);
+    return 1;
+  }
+  static ColonizeColonyPool pool;
+  static ColonizeColony colony;
+  colonies_init(&pool);
+  memset(&colony, 0, sizeof(colony));
+  colony.active = true;
+  colony.x = 30;
+  colony.y = 30;
+  view.selected_cargo = 0;
+  view.focus = COLONY_FOCUS_AREA;
+  view.area_dx = 0;
+  view.area_dy = 0;
+  view.mouse_held = true;
+  int ox = 0;
+  int oy = 0;
+  colony_screen_minimap_origin(&ox, &oy);
+  const int t = COLONY_MINIMAP_TILE;
+  static uint8_t px[320 * 200];
+  ColonizeFramebuffer8 fb = {.width = 320, .height = 200, .pixels = px};
+  int counts[2][2];
+  for (int spy = 0; spy < 2; ++spy) {
+    view.spy_view = spy != 0;
+    memset(px, 0, sizeof(px));
+    colony_screen_draw_cargo_strip(&view, &pool, &colony, NULL, &fb);
+    counts[spy][0] = box_ink(px, 0, 0xb3, 20, 21, 10);
+    memset(px, 0, sizeof(px));
+    colony_screen_draw_area_overlays(&view, &pool, &colony, NULL, &map, NULL, NULL, &fb);
+    counts[spy][1] = box_ink(px, ox + t, oy + t, t, t, 15);
+  }
+  map_free(&map);
+  colony_screen_free(&view);
+  if (counts[0][0] == 0 || counts[0][1] == 0 || counts[1][0] != 0 || counts[1][1] != 0) {
+    fprintf(stderr, "warehouse box %d -> %d, area cursor %d -> %d\n", counts[0][0], counts[1][0],
+            counts[0][1], counts[1][1]);
+    return 1;
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+    {"unit_spy_view_draws_no_selection_boxes", unit_spy_view_draws_no_selection_boxes},
     {"unit_minimap_draws_adjacent_village", unit_minimap_draws_adjacent_village},
     {"unit_sub_dialogs_are_dos", unit_sub_dialogs_are_dos},
     {"unit_sub_dialog_pages_are_dos", unit_sub_dialog_pages_are_dos},

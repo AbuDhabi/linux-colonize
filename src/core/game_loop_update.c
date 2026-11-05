@@ -942,7 +942,7 @@ static GameUpdateStep game_pacer_goto_step(
           game->view_pieces_mode = false;
         }
       } else if (stepped) {
-        game_after_unit_action(game);
+        game_after_unit_step(game);
       }
     } else if (stepped) {
       /* FUN_465b_0000 tail runs inside the step, before the route logic. */
@@ -950,10 +950,12 @@ static GameUpdateStep game_pacer_goto_step(
       if (again && again->orders == UNITS_ORDER_TRADE_ROUTE) {
         game_trade_route_retarget(game, again);
       }
-      /* game_after_unit_action already does fog reveal / Land Ho! /
-       * LCR / first-contact / view centering / next-unit-when-
-       * exhausted — the same tail a player-driven move gets. */
-      game_after_unit_action(game);
+      /* game_after_unit_step does fog reveal / LCR / 3180 / the treasure
+       * arm / Land Ho! / view centering / next-unit-when-
+       * exhausted — the same tail a player-driven move gets (FUN_479b_0972
+       * raw 77077 walks a human goto step through FUN_291f_044e, the
+       * arrow-key executor). */
+      game_after_unit_step(game);
     } else {
       /* Arrived (orders cleared), ran out of moves this step, or
        * genuinely stuck (blocked path) — none of those should freeze
@@ -1454,7 +1456,7 @@ static GameUpdateStep game_colony_screen_mouse_click(
         const int ouid = csv->outside_unit_ids[hit.index];
         /* 44d4: a fence unit is colonist pop+n, so it presses like a worker
          * (raw 51248-51286): the press may start a drag, and only a release
-         * back on the already-selected unit opens the role popup
+         * back on the already-selected unit opens the jobs list
          * (game_colony_drag_drop). */
         const bool was_selected = csv->selected_outside_unit == ouid;
         /* In the People band (DOS region 0) FUN_2f2b_4310 takes the focus on
@@ -1811,13 +1813,14 @@ static GameUpdateStep game_colony_focus_key(
     }
     break;
   case COLONY_FOCUS_KEY_COLONIST_ENTER:
-    /* FUN_2f2b_348c(0): the jobs menu, or a fence unit's role list (the press twin). */
+    /* FUN_2f2b_348c(0): the jobs menu, for a selected fence unit too (2f2b:69b0 pushes
+     * 0, the press twin). */
     if (csv->selected_colonist >= 0) {
       game_colony_open_jobs(
         game, colony, cmap, colonies_colonist_tile(colony, csv->selected_colonist)
       );
     } else if (csv->selected_outside_unit >= 0) {
-      game_colony_fence_drop(game, colony);
+      game_colony_open_jobs(game, colony, cmap, -1);
     }
     break;
   case COLONY_FOCUS_KEY_SHIP_ENTER:
@@ -1923,8 +1926,8 @@ static void game_colony_list_help(
     }
     job = csv->job_ids[i];
     colony_screen_open_jobs(
-      csv, &game->colonies, game->world_map_ok ? &game->world_map : NULL, colony,
-      csv->jobs_tile_index
+      csv, &game->colonies, game->world_map_ok ? &game->world_map : NULL,
+      game->units_ok ? &game->units : NULL, colony, csv->jobs_tile_index
     );
   } else {
     const int i = input->mouse_right_clicked
@@ -3197,8 +3200,11 @@ static GameUpdateStep game_map_mouse_click(
     }
 
     if (input->mouse_right_clicked) {
-      /* Right-click: unselect unit (if any) and select the tile. */
-      game_select_tile(game, mx, my);
+      /* Right-click: FUN_2b5a_3462 raw 46005-46007 enters View Pieces through
+       * FUN_291f_006c -> FUN_2b5a_0902, which leaves 0x5392 on the active
+       * unit for the next re-test, then raw 46021-46030 puts the cursor on
+       * the clicked tile. */
+      game_enter_view_pieces(game, mx, my);
       return GAME_UPDATE_RETURN_TRUE;
     }
 
@@ -3574,11 +3580,6 @@ COLONIZE_INTERNAL GameUpdateStep game_update_map_keys(ColonizeGameState* game, c
     game_order_return_europe(game);
   }
 
-  /* O: board land unit onto adjacent ship (selected land↔cursor ship, or vice versa). */
-  if (input->last_key == COLONIZE_KEY_O && game->world_map_ok && game->units_ok) {
-    game_order_board(game);
-  }
-
   /* U: unload oldest passenger from selected ship onto cursor land tile. */
   if (input->last_key == COLONIZE_KEY_U && game->world_map_ok && game->units_ok) {
     game_order_unload(game);
@@ -3749,6 +3750,10 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
   if (step != GAME_UPDATE_CONTINUE) {
     return step == GAME_UPDATE_RETURN_TRUE;
   }
+
+  /* A parked Land Ho scan runs before any further step or hand-off, as the
+   * DOS dialog would have (game_try_prompt_landho). */
+  game_landho_service(game);
 
   step = game_update_unit_pacer(game, input, dt_ms);
   if (step != GAME_UPDATE_CONTINUE) {
