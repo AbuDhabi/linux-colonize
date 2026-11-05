@@ -668,3 +668,24 @@ Custom House ignores the bits; the ship-pressure tallies feed the AI). Goldens
 and idle campaigns pass unchanged, so no `dos_buggy_behavior()` gate. Test:
 `unit_ai_euro_expand_labor` (`unit_human_census_ship_pressure_refresh`).
 **Status:** done (user 2026-11-05).
+
+### DB-77 — A military unit on Go To attacks a native unit on its goal
+**DOS:** FUN_479b_0972 (raw 77052-77122) takes each Go To step from FUN_6662_0f74 and
+hands it to FUN_291f_044e → FUN_4720_049e → FUN_465b_0000. When the goal is adjacent,
+0f74 returns the plain sign step FUN_6662_0086 (raw 104556-104565) with no occupancy
+test, so a native unit on the goal is attacked: the @WHACKINDIANS confirm at peace,
+none once the tribe is hostile. A non-zero 049e return (Cancel) makes 0972 clear
++0x314c (raw 77075-77080). Seen in DOS by the user: the Soldier attacked the Brave and
+Cancel cleared the Go To. A native short of the goal is pathed around: the flood's
+DS:0x1dd6 owner term (raw 103955-103957, 104044-104046) and the scored fallback's
+FUN_281f_06d2 test (raw 104680-104681) reject a tile held by another nation.
+
+**Port:** fixed behind the `mods.goto_native_wait` toggle (settings.md "Mods"; on by
+default for new games, off for DOS saves and under `dos_buggy_behavior()`). On, a human
+unit whose Go To goal holds a native unit (not a village) walks up to it and stops next
+to it: no attack, no prompt, the Go To is kept, and the pacer parks the unit for the
+turn (moves 0); it retries every turn. Off = DOS. One test for both paths:
+`units_goto_waits_for_native` (`units_move.c`), called from `game_pacer_goto_step`
+(`game_loop_update.c`) and `units_advance_goto_one_step_w`. AI units are unchanged.
+Test: `unit_units_movement` `unit_goto_native_wait_mod`.
+**Status:** done (user-approved toggle, default on).

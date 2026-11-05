@@ -1559,6 +1559,56 @@ static int test_goto_board_reveals_with_passenger(void) {
   return rc;
 }
 
+/* mods.h MOD_GOTO_NATIVE_WAIT through game_pacer_goto_step: a human Go To
+ * whose goal holds a Brave parks next to it (moves 0, order kept) and goes on
+ * next turn once the tile is free. */
+static int test_goto_waits_at_native_pacer(void) {
+  ColonizeGameState game;
+  ColonizeCol1Tribe tribe;
+  int rc = step3180_fixture(&game, &tribe) < 0 ? fail("native wait fixture") : 0;
+  ColonizeUnit* col = rc ? NULL : units_get(&game.units, units_spawn(&game.units, 0, 3, 3));
+  ColonizeUnit* brave = col ? units_get(&game.units, units_spawn(&game.units, 0, 3, 4)) : NULL;
+  if (rc == 0 && (!col || !brave)) {
+    rc = fail("native wait: spawn");
+  }
+  if (rc == 0) {
+    units_set_combat_human_nation(0);
+    mods_campaign_set(1u << MOD_GOTO_NATIVE_WAIT);
+    brave->nation_id = 4;
+    col->nation_id = 0;
+    col->moves = 3;
+    col->orders = UNITS_ORDER_GOTO;
+    col->goto_x = 3;
+    col->goto_y = 4;
+    game.units.selected_id = col->id;
+    ColonizeInputState input;
+    memset(&input, 0, sizeof(input));
+    (void)game_update_unit_pacer(&game, &input, 100);
+    if (col->x != 3 || col->y != 3 || col->moves != 0 || col->orders != UNITS_ORDER_GOTO ||
+        !brave->active) {
+      fprintf(stderr, "native wait: pos=(%d,%d) moves=%d orders=%d brave=%d\n", col->x, col->y,
+              col->moves, col->orders, brave->active);
+      rc = fail("native wait: the Go To must park next to the Brave and keep its order");
+    }
+  }
+  if (rc == 0) {
+    units_despawn(&game.units, brave->id); /* next turn: the Brave has left */
+    col->moves = 3;
+    game.units.selected_id = col->id;
+    ColonizeInputState input;
+    memset(&input, 0, sizeof(input));
+    (void)game_update_unit_pacer(&game, &input, 100);
+    if (col->x != 3 || col->y != 4) {
+      fprintf(stderr, "native wait retry: pos=(%d,%d) orders=%d\n", col->x, col->y, col->orders);
+      rc = fail("native wait: the kept Go To must go on once the goal is free");
+    }
+  }
+  mods_campaign_set(0);
+  units_set_combat_human_nation(-1);
+  step3180_free(&game);
+  return rc;
+}
+
 /* @LANDFALL "Make landfall" makes the passenger active (FUN_281f_086c ->
  * FUN_1427_08ea sets DS:0x5392) and jumps to LAB_4720_061c (ndisasm
  * 0x3FE56-0x3FEA3 -> 0xff5c), the FUN_2a1f_0142 commit: the passenger's step
@@ -5501,6 +5551,33 @@ static int test_parked_eot_dropped_on_load_and_title(void) {
   return rc;
 }
 
+/* An in-game load of a save without the RTST mods record clears the running
+ * campaign's mask (no mod leaks from the outgoing game). */
+static int test_load_clears_mod_mask(void) {
+  ColonizeGameConfig cfg = {.data_dir = "./COLONIZE", .save_dir = "./build/debug"};
+  ColonizeGameState* game = game_create(&cfg);
+  if (!game || !game_assets_ok(game)) {
+    fprintf(stderr, "SKIP: no COLONIZE/ assets\n");
+    if (game) {
+      game_destroy(game);
+    }
+    return TR_SKIP;
+  }
+  char err[256];
+  int rc = 0;
+  mods_campaign_set(1u << MOD_WAGON_LOOT | 1u << MOD_GOTO_NATIVE_WAIT);
+  if (!game_load_col1_file(game, "tests-save-misc/tb55_near_tier_wagon.sav", err, sizeof(err))) {
+    fprintf(stderr, "  %s\n", err);
+    rc = fail("fixture save load");
+  }
+  if (rc == 0 && mods_campaign_mask() != 0) {
+    rc = fail("a load without the mods record must turn every mod off");
+  }
+  mods_campaign_set(0);
+  game_destroy(game);
+  return rc;
+}
+
 /* 8x8 land map, a human unit with attack at (3,3), a nation-1 unit at (4,3),
  * nations 1-3 computer-run. Free with edge_scroll_free. */
 static int treaty_fixture(ColonizeGameState* game, int* uid) {
@@ -5583,6 +5660,7 @@ static const TestCase k_cases[] = {
     {"test_human_peace_war_asks_havetreaty", test_human_peace_war_asks_havetreaty},
     {"test_fortify_break_treaty_answer", test_fortify_break_treaty_answer},
     {"test_parked_eot_dropped_on_load_and_title", test_parked_eot_dropped_on_load_and_title},
+    {"test_load_clears_mod_mask", test_load_clears_mod_mask},
     {"test_dos_buggy_default_off_tests_on", test_dos_buggy_default_off_tests_on},
     {"test_saveload_reseeds_from_tick", test_saveload_reseeds_from_tick},
     {"test_goto_near_tier_boundary_tb55", test_goto_near_tier_boundary_tb55},
@@ -5617,6 +5695,7 @@ static const TestCase k_cases[] = {
      test_human_board_two_hulls_reveals_with_passenger},
     {"test_human_transfer_reveals_with_passenger", test_human_transfer_reveals_with_passenger},
     {"test_goto_board_reveals_with_passenger", test_goto_board_reveals_with_passenger},
+    {"test_goto_waits_at_native_pacer", test_goto_waits_at_native_pacer},
     {"test_human_landfall_runs_3180", test_human_landfall_runs_3180},
     {"test_human_village_visit_no_3180", test_human_village_visit_no_3180},
     {"test_human_landho_after_3180", test_human_landho_after_3180},

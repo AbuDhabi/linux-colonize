@@ -844,6 +844,13 @@ static GameUpdateStep game_pacer_goto_step(
     const ColonizeUnit* foe =
       foe_id >= 0 ? units_get_const(&game->units, foe_id) : NULL;
     bool hostile = foe && foe->nation_id != active->nation_id;
+    /* MOD_GOTO_NATIVE_WAIT (dos_bugs.md DB-75): a native unit on the goal is
+     * waited out, not attacked; the raw pacer below keeps the order and
+     * parks the unit. */
+    if (hostile &&
+        units_goto_waits_for_native(game->col1_ok ? &game->col1 : NULL, active, foe, gx, gy)) {
+      hostile = false;
+    }
     if (!hostile && !units_is_sea(&game->units, active->id)) {
       const int cid = colonies_id_at(&game->colonies, gx, gy);
       const ColonizeColony* col = colonies_get(&game->colonies, cid);
