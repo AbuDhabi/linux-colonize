@@ -2522,7 +2522,9 @@ COLONIZE_INTERNAL void game_render_map_composite(
     );
   }
 
-  if (game->terrain_peel_phase == 0 && game->units_ok && game->unit_icons_ok) {
+  /* Plan Pioneer view hides units: they cover the plan marks. */
+  if (game->terrain_peel_phase == 0 && !game->pioneer_plan_view && game->units_ok &&
+      game->unit_icons_ok) {
     /* Half-period 500ms → full blink cycle 1s (was 250ms / 500ms cycle).
      * Frozen on while the map's input loop is not the thing running. */
     const bool blink_on =

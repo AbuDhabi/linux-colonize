@@ -23,7 +23,8 @@ per-test `settings.json`).
 - Overlay, in a cyan remap of the map palette: plowed-field art (PHYS0 149) for
   Plow, road art (PHYS0 80 / 81+d) for Road joined to real and planned roads (real
   roads get cyan stubs toward planned ones; outside the view nothing changes), the
-  Tools cargo icon centred for Clear.
+  Tools cargo icon centred for Clear. Units are not drawn while the overlay is on
+  (colonies and villages still are).
 - Reconcile: every frame, tiles the player has in sight (own units' sight radius,
   own colonies radius 1) drop plan bits that are done or impossible (a cleared
   forest keeps its Plow). Tiles out of sight keep a stale plan until seen.
