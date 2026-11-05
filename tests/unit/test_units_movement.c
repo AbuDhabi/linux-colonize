@@ -1333,7 +1333,105 @@ static int unit_colony_entry_bvar4_reseed_1323(void) {
   return rc;
 }
 
+/*
+ * FUN_465b_0000 raw 75505-75508 and 75527-75595: a computer Euro mover
+ * entering a foreign colony with no armed defender takes the same entry head
+ * as an attack on a unit. Under 3 thirds left it stands down (spent, no band);
+ * with full moves the relation band runs on the settlement owner (PEACE
+ * cleared both ways). Both the plain entry (units_move_colony_entry) and the
+ * combat-reason entry (units_move_combat_no_foe) are covered. The move gate
+ * reads only the attacker's PEACE bit (raw 75545-75557), never WAR.
+ */
+static int unit_ai_undefended_colony_band(void) {
+  units_set_occupancy_map(NULL);
+  static ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  pool.type_count = 1;
+  pool.types[0].movement = 1;
+  pool.types[0].attack = 2;
+  pool.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  char err[128];
+  if (!map_alloc(&map, 8, 8, err, sizeof(err))) {
+    fprintf(stderr, "undefended_band: map_alloc failed: %s\n", err);
+    return 1;
+  }
+  static ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
+  ColonizeColony* col = &colonies.colonies[0];
+  col->active = true;
+  col->id = 0;
+  col->nation_id = 0;
+  col->x = 4;
+  col->y = 3;
+  colonies.colony_count = 1;
+  static ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  col1.player[0].control = 0;
+  col1.player[1].control = 1;
+  units_set_combat_human_nation(0);
+  ColonizeDosRng rng;
+  dos_rng_seed(&rng, 77);
+  ColonizeWorld w = {.units = &pool, .map = &map, .colonies = &colonies, .rng = &rng};
+  int rc = 0;
+  for (int pass = 0; pass < 4 && rc == 0; ++pass) {
+    const bool short_mp = (pass & 1) == 0;
+    const bool no_foe = pass >= 2;
+    ai_diplo_write(&col1, 0, 1, AI_DIPLO_MET | AI_DIPLO_PEACE);
+    ai_diplo_write(&col1, 1, 0, AI_DIPLO_MET | AI_DIPLO_PEACE);
+    /* A fresh mover each pass: the full-MP passes fight the militia. */
+    const int id = units_spawn_allow_stack(&pool, 0, 3, 3);
+    ColonizeUnit* u = units_get(&pool, id);
+    units_set_nation(u, 1);
+    u->moves = short_mp ? 2 : UNITS_MP_PER_TILE;
+    units_move_ctx c = {
+      .w = &w, .pool = &pool, .map = &map, .colonies = &colonies, .rng = &rng,
+      .col1 = &col1, .unit_id = id, .unit = u, .dest_x = 4, .dest_y = 3,
+      .reason = no_foe ? COLONIZE_ENTER_COMBAT_LAND : COLONIZE_ENTER_OK,
+      .village_temp = -1, .village_nation = -1, .foe = -1,
+    };
+    const UnitsMoveStatus st =
+      no_foe ? units_move_combat_no_foe(&c) : units_move_colony_entry(&c);
+    const bool peace_kept = (ai_diplo_read(&col1, 0, 1) & AI_DIPLO_PEACE) != 0 &&
+                            (ai_diplo_read(&col1, 1, 0) & AI_DIPLO_PEACE) != 0;
+    if (short_mp) {
+      if (st != UNITS_MOVE_RETURN_FALSE || units_remaining_mp(&pool, id) != 0 || !peace_kept) {
+        fprintf(stderr, "undefended_band: pass %d stand-down st=%d mp=%d peace=%d\n", pass,
+                (int)st, units_remaining_mp(&pool, id), (int)peace_kept);
+        rc = 1;
+      }
+    } else if (peace_kept) {
+      fprintf(stderr, "undefended_band: pass %d band must clear PEACE both ways\n", pass);
+      rc = 1;
+    }
+  }
+  /* Move gate: computer under PEACE with a running cooldown aborts even
+   * when WAR is also set; a human under PEACE|WAR is not let through here.
+   * The @HAVETREATY prompt itself is unit_stage_seams
+   * test_human_peace_war_asks_havetreaty. */
+  if (rc == 0) {
+    ai_diplo_write(&col1, 1, 0, AI_DIPLO_MET | AI_DIPLO_PEACE | AI_DIPLO_WAR);
+    col1.nation[1].treaty_timer[0] = 3;
+    ai_diplo_write(&col1, 0, 1, AI_DIPLO_MET | AI_DIPLO_PEACE | AI_DIPLO_WAR);
+    if (units_at_war_for_move(&col1, 1, 0) || units_at_war_for_move(&col1, 0, 1)) {
+      fprintf(stderr, "undefended_band: move gate must not read WAR under PEACE\n");
+      rc = 1;
+    }
+    col1.nation[1].treaty_timer[0] = 0;
+    if (rc == 0 && !units_at_war_for_move(&col1, 1, 0)) {
+      fprintf(stderr, "undefended_band: expired cooldown must let the computer attack\n");
+      rc = 1;
+    }
+  }
+  units_set_combat_human_nation(-1);
+  map_free(&map);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
+  {"unit_ai_undefended_colony_band", unit_ai_undefended_colony_band},
   {"unit_colony_entry_bvar4_reseed_1323", unit_colony_entry_bvar4_reseed_1323},
   {"unit_tb44_flood_key_rules", unit_tb44_flood_key_rules},
   {"unit_tb1_coarse_ne_link", unit_tb1_coarse_ne_link},

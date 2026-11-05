@@ -901,8 +901,9 @@ COLONIZE_INTERNAL GameMoveStep game_move_colony_prompts(
         target_nation = col->nation_id;
       }
     }
-    if (target_nation >= 0 &&
-        !ai_diplo_at_war(&game->col1, selected->nation_id, target_nation)) {
+    /* FUN_465b_0000 raw 75545: the prompt and the band key on the
+     * attacker's PEACE bit, never on WAR (a PEACE|WAR pair is still asked). */
+    if (target_nation >= 0) {
       ColonizeTurnContext ctx;
       game_fill_turn_context(game, &ctx);
       if (ai_contact_try_euro_attack_confirm(

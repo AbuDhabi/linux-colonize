@@ -20,6 +20,7 @@
 
 #include "core/ai_popup.h"
 #include "core/colony.h"
+#include "core/combat_analysis.h"
 #include "core/combat_strength.h"
 #include "core/dos_buggy.h"
 #include "core/europe.h"
@@ -30,6 +31,7 @@
 #include "core/reports_names.h"
 #include "core/strutil.h"
 #include "core/units.h"
+#include "core/units_internal.h"
 #include "core/woodcut.h"
 
 #include <stddef.h>
@@ -432,6 +434,28 @@ int ai_diplo_465b_band(ColonizeCol1Save* col1, int attacker, int defender) {
   return treaty;
 }
 
+/*
+ * DOS-LITERAL FUN_2b5a_1112 raw 42410-42413: the fortify @HAVETREATY prompt
+ * (tag 0x932) answered 2 ORs WAR into the PARTNER's byte toward the
+ * fortifier, unconditionally, then clears PEACE both ways (FUN_281f_0a10).
+ * No 0x01 clear, no DS:0x53c8 write, no message. The one-row WAR is
+ * tolerated_dos_bugs.md TB-54; fixed (WAR both ways) under
+ * !dos_buggy_behavior().
+ */
+void ai_diplo_2b5a_1112_break_treaty(ColonizeCol1Save* col1, int self, int partner) {
+  if (!col1 || self < 0 || self > 3 || partner < 0 || partner > 3 || self == partner) {
+    return;
+  }
+  if (dos_buggy_behavior()) {
+    ai_diplo_write(
+      col1, partner, self, (uint8_t)(ai_diplo_read(col1, partner, self) | AI_DIPLO_WAR)
+    );
+  } else {
+    ai_diplo_or_both(col1, self, partner, AI_DIPLO_WAR); /* TB-54 */
+  }
+  ai_diplo_clear_both(col1, self, partner, AI_DIPLO_PEACE);
+}
+
 int ai_diplo_at_war(const ColonizeCol1Save* col1, int nation_a, int nation_b) {
   return (ai_diplo_read(col1, nation_a, nation_b) & AI_DIPLO_WAR) != 0;
 }
@@ -514,35 +538,6 @@ static void ai_diplo_popup_ok(
   (void)ai_popup_enqueue_ok_ctx(
     ctx->ai_popups, tag, nation_a, nation_b, 0, NULL, body
   );
-}
-
-/*
- * @DECLAREWAR base line ("The {%STRING0} and {%STRING1} are now at war.") —
- * authentic GAME.TXT text for the war-declared OK popup body (full FA 3f41
- * dialog remains PARKED).
- */
-static void ai_diplo_status_pair_line(
-  ColonizeTurnContext* ctx,
-  int nation_a,
-  int nation_b,
-  const char* tag,
-  const char* fallback
-) {
-  if (!ctx || !ctx->col1 || !ctx->status || ctx->status_size == 0) {
-    return;
-  }
-  if (!ai_diplo_involves_human(ctx, nation_a, nation_b)) {
-    return;
-  }
-  PopupMsgTokens tok = {0};
-  tok.string0 = ai_diplo_rival_name(ctx->col1, nation_a);
-  tok.string1 = ai_diplo_rival_name(ctx->col1, nation_b);
-  popup_msg_fill(ctx->messages, tag, &tok, fallback, ctx->status, ctx->status_size);
-  popup_msg_strip_markup(ctx->status); /* status line: no {} coloring */
-}
-
-static void ai_diplo_status_declare_war(ColonizeTurnContext* ctx, int nation_a, int nation_b) {
-  ai_diplo_status_pair_line(ctx, nation_a, nation_b, "DECLAREWAR", "");
 }
 
 /* One 465b band message: OK popup + status line (port convention: only when
@@ -634,39 +629,6 @@ int ai_diplo_465b_band_ctx(ColonizeTurnContext* ctx, int attacker, int defender)
   }
   (void)ai_diplo_465b_band(col1, attacker, defender);
   return music;
-}
-
-/* Sound hook (unit tests build ai_diplo.c without sound.c). */
-static void (*g_ai_diplo_sound_play)(int id) = NULL;
-void ai_diplo_set_sound_hook(void (*play_fn)(int id)) {
-  g_ai_diplo_sound_play = play_fn;
-}
-
-void ai_diplo_declare_war_ctx(ColonizeTurnContext* ctx, int nation_a, int nation_b) {
-  if (!ctx || !ctx->col1) {
-    return;
-  }
-  const int already = ai_diplo_at_war(ctx->col1, nation_a, nation_b);
-  const int human = ai_diplo_involves_human(ctx, nation_a, nation_b);
-  ai_diplo_declare_war(ctx->col1, nation_a, nation_b);
-  /* Chrome only on a fresh WAR (no Franklin gate, port_bugs.md #472). */
-  const int now_war = ai_diplo_at_war(ctx->col1, nation_a, nation_b);
-  if (!already && now_war) {
-    if (human) {
-      if (g_ai_diplo_sound_play) {
-        g_ai_diplo_sound_play(0x8020); /* FUN_5bfb_153e 5bfb:2c7c: war-declaration chord sting */
-      }
-    }
-    ai_diplo_status_declare_war(ctx, nation_a, nation_b);
-    /*
-     * The OK popup is the real @DECLAREWAR body (FUN_15b3 / 5bfb). The old
-     * "<cargo> boycott imposed." and "Natives grow hostile." overrides were
-     * port chrome and are gone (port_bugs.md #1104).
-     */
-    if (human && ctx->status && ctx->status_size > 0) {
-      ai_diplo_popup_ok(ctx, AI_POPUP_TAG_DIPLO_WAR, nation_a, nation_b, ctx->status);
-    }
-  }
 }
 
 /*
@@ -855,13 +817,16 @@ int ai_diplo_00f8_top_ranked_nation(const ColonizeCol1Save* col1) {
     return -1;
   }
   int idx[4] = {0, 1, 2, 3};
-  long score[4];
+  /* DOS-LITERAL raw 96518-96522: `int local_a[4]`, gold/100 taken as the low
+   * word, compared unsigned by FUN_1cf8_000a (as turn_rank_euro_nations). */
+  uint16_t score[4];
   for (int n = 0; n < 4; ++n) {
     /* Live purse for the human (eu->gold via the registered live screen),
      * record for the rest — port_bugs.md #1095. */
-    score[n] = (long)(europe_nation_gold(NULL, col1, n) / 100u) +
-               (long)col1->stuff.colony_counts[n] * 2 + (long)col1->stuff.census_pop_proxy[n] +
-               (long)col1->stuff.land_combat_strength[n];
+    score[n] = (uint16_t)((unsigned)(europe_nation_gold(NULL, col1, n) / 100u) +
+                          (unsigned)col1->stuff.colony_counts[n] * 2u +
+                          (unsigned)col1->stuff.census_pop_proxy[n] +
+                          (unsigned)col1->stuff.land_combat_strength[n]);
   }
   for (int i = 1; i < 4; ++i) { /* insertion sort, stable */
     const int v = idx[i];
@@ -1351,7 +1316,6 @@ typedef struct Ai153eTalk {
   int want_amount; /* raw iStack_8a: demanded amount (deficit capped to source stock) */
   int want_src;    /* raw iStack_88: colony on the encounter tile (the human's) */
   int want_dst;    /* raw iStack_64: target's nearest colony (the receiver) */
-  int last_talk_turn[4][4];
   int pending; /* stage the last queued talk popup answers (0 = an OK) */
 } Ai153eTalk;
 static Ai153eTalk s_talk;
@@ -1493,27 +1457,48 @@ static void ai_talk_unit_to_europe(ColonizeTurnContext* ctx, int unit_id) {
     }
     return;
   }
-  u->x = 200;
-  u->y = 100;
-  u->orders = UNITS_ORDER_NONE;
-  u->goto_x = UNITS_GOTO_NONE;
-  u->goto_y = UNITS_GOTO_NONE;
-  u->moves = 0;
+  /* DOS-LITERAL FUN_5bfb_153e raw 98203-98207 (asm 5bfb:2bfa-2c10):
+   * FUN_281f_0880(unit, n - 0x14, n - 0x14) relinks it as the newest record
+   * on the nation's Europe dock (236+n), then +0x314d/e = the nation's
+   * landfall (-0x77c6/-0x77c5). Orders and MP are left alone. A passenger
+   * leaves its hull first (DOS unlinks it from the hull's tile chain). */
+  if (u->aboard_ship_id >= 0) {
+    (void)units_unboard(ctx->units, unit_id);
+  }
+  const int ox = u->x;
+  const int oy = u->y;
+  u->x = EUROPE_PARK_XY + u->nation_id;
+  u->y = EUROPE_PARK_XY + u->nation_id;
+  if (ctx->col1 && u->nation_id >= 0 && u->nation_id < 4) {
+    u->goto_x = (int)ctx->col1->nation[u->nation_id].return_from_europe_x;
+    u->goto_y = (int)ctx->col1->nation[u->nation_id].return_from_europe_y;
+  }
+  units_tile_stack_arrive(ctx->units, unit_id);
+  units_occupancy_notify_placed(ctx->units, ox, oy, u->x, u->y);
 }
 
-/* raw :98001-98032 / :98328-98358: military land units of `who` adjacent to
- * a colony of `near` are sent to Europe. Returns the count moved. */
-static int ai_talk_withdraw(ColonizeTurnContext* ctx, int who, int near_nation) {
+/* Land units of `who` adjacent to a colony of `near` go to Europe. Returns
+ * the count moved. FUN_5bfb_153e has two such loops:
+ *   SIEGES  raw 97857-97884 (human units): only attack byte > 1 (raw 97862);
+ *   peace-menu withdraw raw 98181-98212 (AI units, asm 5bfb:2c17-2c40): any
+ *   non-ship type, no attack test (`armed_only` = 0).
+ * Both gate on FUN_281f_0302 (on-map) at the unit's own x/y; a passenger
+ * shares its hull's tile in DOS, so it passes in both loops (neither tests
+ * the chain). */
+static int ai_talk_withdraw(ColonizeTurnContext* ctx, int who, int near_nation, int armed_only) {
   int moved = 0;
   /* Slot walk, `u->id` to units_is_sea — see ai_diplo_wake_border_garrisons. */
   for (int i = 0; i < units_slot_end(ctx->units); ++i) {
     const ColonizeUnit* u = &ctx->units->units[i];
-    if (!u->active || u->nation_id != who || u->aboard_ship_id >= 0 || u->x >= 200 ||
-        units_is_sea(ctx->units, u->id)) {
+    if (!u->active || u->nation_id != who || units_is_sea(ctx->units, u->id)) {
+      continue;
+    }
+    /* A passenger's x/y mirror its hull's (units_move.c), as in DOS. */
+    if (u->x >= 200 || u->y >= 200) {
       continue;
     }
     const ColonizeUnitType* t = units_type(ctx->units, u->type_index);
-    if (!t || t->attack <= 1) {
+    if (!t || (armed_only && t->attack <= 1)) {
       continue;
     }
     int adjacent = 0;
@@ -2196,7 +2181,7 @@ static void ai_talk_resume(ColonizeTurnContext* ctx, int stage, int choice) {
         }
         k->sieges_paid = 1;
         k->worthy = 0;
-        (void)ai_talk_withdraw(ctx, h, t);
+        (void)ai_talk_withdraw(ctx, h, t, 1);
       }
       break;
     case AI_TALK_ST_TRIBUTE:
@@ -2305,7 +2290,7 @@ static void ai_talk_resume(ColonizeTurnContext* ctx, int stage, int choice) {
           }
         } else {
           ai_talk_ok(ctx, "WITHDRAW", &tok);
-          (void)ai_talk_withdraw(ctx, t, h);
+          (void)ai_talk_withdraw(ctx, t, h, 0);
         }
       } else if (choice == 3) {
         /* tribute demand by the human (raw :98360-98395) */
@@ -2345,7 +2330,7 @@ static void ai_talk_resume(ColonizeTurnContext* ctx, int stage, int choice) {
     case AI_TALK_ST_WITHDRAW:
       if (choice == 1) {
         ai_talk_gold(ctx, h, t, k->withdraw_cost);
-        (void)ai_talk_withdraw(ctx, t, h);
+        (void)ai_talk_withdraw(ctx, t, h, 0);
       } else if (choice == 2) {
         int span = (int)col1->stuff.field_combat_totals[t] + (int)col1->stuff.field_combat_totals[h];
         if (k->at_war) {
@@ -2356,7 +2341,7 @@ static void ai_talk_resume(ColonizeTurnContext* ctx, int stage, int choice) {
          * (Was inverted here before 2026-09-06.) */
         if (ai_talk_rng(ctx, 0, span) <= (int)col1->stuff.field_combat_totals[h]) {
           ai_talk_ok(ctx, "WITHDRAW", &tok);
-          (void)ai_talk_withdraw(ctx, t, h);
+          (void)ai_talk_withdraw(ctx, t, h, 0);
         } else {
           ai_talk_ok(ctx, "WARMANLY", &tok);
           ai_diplo_clear_both(col1, h, t, AI_DIPLO_PEACE);
@@ -2504,22 +2489,20 @@ static int ai_diplo_153e_encounter_gated(
   if (s_talk.active) {
     return 0;
   }
-  if (!forced_gate && s_talk.last_talk_turn[human][target] == (int)col1->head.turn + 1) {
-    return 0; /* one talk per pair per turn (3180 fires per move) */
-  }
+  /* No per-pair/per-turn latch: FUN_5bfb_153e has none (raw 97411-97426). A
+   * repeat encounter in the same turn finds the gate closed (MET, fresh
+   * stamp) and takes the shared exit below like any other closed gate. */
   Ai153eWorthinessScore w =
     ai_diplo_153e_worthiness_score(ctx, human, target, unit_id, forced_gate);
   if (!w.handled) {
-    /* A closed gate (met, stamp under 16 turns old) jumps to LAB_34de, the
-     * shared exit, which still re-arms the treaty cooldown when at peace
+    /* A closed gate (met, stamp under 16 turns old) jumps to LAB_5bfb_30de,
+     * the shared exit, which still re-arms the treaty cooldown when at peace
      * (DOSBox independence-seed-100: Spain's timer toward the Dutch reads 4
-     * after every turn while the stamp stays 264). */
-    if (!col1->head.game_options.woi) {
-      ai_diplo_153e_finish_timer(ctx, human, target);
-    }
+     * after every turn while the stamp stays 264). WoI (0x5382 & 1) jumps
+     * there too (raw 97411), so the re-arm runs under WoI as well. */
+    ai_diplo_153e_finish_timer(ctx, human, target);
     return 0;
   }
-  s_talk.last_talk_turn[human][target] = (int)col1->head.turn + 1;
   memset(&s_talk.self, 0, sizeof(s_talk) - offsetof(Ai153eTalk, self));
   Ai153eTalk* k = &s_talk;
   k->active = 1;
@@ -2547,7 +2530,7 @@ static int ai_diplo_153e_encounter_gated(
    * @WANTSTUFF demand pick (raw :97562-97593): only when the encounter's
    * moving unit (DOS param_4, from FUN_5bfb_3180) belongs to `target` — an
    * AI unit walked up to the human side. Receiver = target's nearest colony
-   * (FUN_1000_8804, nearest-by-distance approximated Chebyshev); source =
+   * (FUN_15eb_0142: max + min/2, last colony wins a tie); source =
    * the colony on the encounter tile (FUN_1000_89ae at unit+dir; the OpenCol
    * encounter has no direction, so the first adjacent colony stands in —
    * identical whenever one adjacent colony exists, which is the DOS case).
@@ -2558,23 +2541,11 @@ static int ai_diplo_153e_encounter_gated(
   {
     const ColonizeUnit* eu = units_get_const(ctx->units, unit_id);
     if (eu && eu->active && eu->nation_id == target && ctx->colonies) {
-      int dst = -1;
-      int best_d = 0x7fff;
-      for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-        const ColonizeColony* c = &ctx->colonies->colonies[i];
-        if (!c->active || c->nation_id != target) {
-          continue;
-        }
-        int dx0 = c->x - eu->x;
-        int dy0 = c->y - eu->y;
-        if (dx0 < 0) dx0 = -dx0;
-        if (dy0 < 0) dy0 = -dy0;
-        const int d = dx0 > dy0 ? dx0 : dy0;
-        if (d < best_d) {
-          best_d = d;
-          dst = i;
-        }
-      }
+      /* raw 97596: FUN_281f_0614 = FUN_15eb_0142(x, y, target, -1) (raw
+       * 9380-9421): max + min/2, `<=` so the last colony wins a tie. */
+      const ColonizeColony* near =
+        units_nearest_colony_dos(ctx->colonies, eu->x, eu->y, target, NULL);
+      const int dst = near ? (int)(near - ctx->colonies->colonies) : -1;
       int src = -1;
       for (int d = 0; d < 8 && src < 0; ++d) {
         src = colonies_id_at(ctx->colonies, eu->x + MAP_DIR8_DX[d], eu->y + MAP_DIR8_DY[d]);
@@ -3202,6 +3173,20 @@ COLONIZE_INTERNAL void ai_diplo_153e_test_peacemenu(
   s_talk.want_cargo = -1;
   s_talk.stage = AI_TALK_ST_PEACEMENU;
   ai_talk_resume(ctx, AI_TALK_ST_PEACEMENU, choice);
+}
+
+COLONIZE_INTERNAL void ai_diplo_153e_test_sieges(
+  ColonizeTurnContext* ctx, int human, int target, int choice
+) {
+  memset(&s_talk.self, 0, sizeof(s_talk) - offsetof(Ai153eTalk, self));
+  s_talk.active = 1;
+  s_talk.self = human;
+  s_talk.target = target;
+  s_talk.third = -1;
+  s_talk.ally_pick = -1;
+  s_talk.want_cargo = -1;
+  s_talk.stage = AI_TALK_ST_SIEGES;
+  ai_talk_resume(ctx, AI_TALK_ST_SIEGES, choice);
 }
 
 void ai_diplo_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState* popup) {

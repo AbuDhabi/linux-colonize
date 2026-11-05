@@ -1340,7 +1340,6 @@ void game_bind_combat_analysis(ColonizeGameState* game) {
   units_set_combat_music_hooks(sound_play, sound_active_song_id);
   units_set_bgm_hook(sound_set_bgm);
   units_set_tax_change_hook(game_tax_change_mirror, game);
-  ai_diplo_set_sound_hook(sound_play);
   europe_set_sound_hook(sound_play);
   europe_set_bgm_hook(sound_set_bgm);
   woodcut_set_sound_hooks(sound_play, sound_set_bgm);

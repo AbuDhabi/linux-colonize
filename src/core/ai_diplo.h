@@ -230,6 +230,8 @@ int ai_diplo_465b_band(ColonizeCol1Save* col1, int attacker, int defender);
 /* The same band with its @SNEAK / @CANCELPEACE / @DECLAREWAR chrome (human a
  * party); returns 1 when the caller must set BGM pool 4 (FUN_281f_04ac(4)). */
 int ai_diplo_465b_band_ctx(ColonizeTurnContext* ctx, int attacker, int defender);
+/* FUN_2b5a_1112 raw 42410-42413: fortify Break Treaty relation writes. */
+void ai_diplo_2b5a_1112_break_treaty(ColonizeCol1Save* col1, int self, int partner);
 
 int ai_diplo_at_war(const ColonizeCol1Save* col1, int nation_a, int nation_b);
 /* Declare: clear PEACE, or WAR|MET both ways, zero DS:0x53c8 for Euro pairs.
@@ -238,11 +240,6 @@ void ai_diplo_declare_war(ColonizeCol1Save* col1, int nation_a, int nation_b);
 /* Test fixture helper: clear WAR both ways, set PEACE|MET (no production
  * caller; DOS treaties are signed by FUN_5bfb_13b0). */
 void ai_diplo_make_peace(ColonizeCol1Save* col1, int nation_a, int nation_b);
-
-/* declare_war + ctx->status (@DECLAREWAR) and an OK popup when the human is a
- * party (FUN_15b3 / 5bfb). FA 3f41 full UI PARKED. */
-void ai_diplo_set_sound_hook(void (*play_fn)(int id));
-void ai_diplo_declare_war_ctx(ColonizeTurnContext* ctx, int nation_a, int nation_b);
 
 /* NAMES.TXT @NATIONALITY adjective (WoI-aware); else Col1 country_name; else "". */
 const char* ai_diplo_rival_name(const ColonizeCol1Save* col1, int nation);

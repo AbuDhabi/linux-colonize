@@ -169,6 +169,8 @@ int ai_diplo_indian_any_at_war(const ColonizeCol1Save* col1, int euro_nation);
 void ai_diplo_153e_test_peacemenu(
   ColonizeTurnContext* ctx, int human, int target, int dominance, int manly, int latch, int choice
 );
+/* Answer the FUN_5bfb_153e @SIEGES question with `choice` (2 = withdraw). */
+void ai_diplo_153e_test_sieges(ColonizeTurnContext* ctx, int human, int target, int choice);
 #endif
 
 void ai_native_nation_pulse(

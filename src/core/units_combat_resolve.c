@@ -1818,11 +1818,10 @@ static bool units_at_war_for_move_target(
    * confirm chain (ai_contact_try_euro_attack_confirm, @HAVETREATY + the
    * 465b band) runs before the probe and is what clears it, so no treaty
    * partner is ever hit unasked. No WAR bit is needed (port_bugs.md #1256:
-   * DOS writes none for a no-treaty attack).
+   * DOS writes none for a no-treaty attack), and none is read: raw
+   * 75545-75557 test only the attacker's PEACE bit, so a pair carrying
+   * PEACE|WAR still asks @HAVETREATY / waits out the cooldown.
    */
-  if (ai_diplo_at_war(col1, nation_a, nation_b)) {
-    return true;
-  }
   if (col1_nation_is_human(col1, nation_a, g_units_combat_human_nation)) { /* raw 75545 control byte */
     return (ai_diplo_read(col1, nation_a, nation_b) & AI_DIPLO_PEACE) == 0;
   }

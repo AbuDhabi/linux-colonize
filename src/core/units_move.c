@@ -362,6 +362,31 @@ static void units_465b_05ca_bvar4_reseed(const units_move_ctx* c) {
   }
 }
 
+/* FUN_465b_0000 raw 75527-75595: the Euro relation band for a computer Euro
+ * mover whose bVar4 target (the occupant's nation, else the settlement
+ * owner, raw 75467-75478) is another Euro nation. A Privateer on either side
+ * skips it (raw 75528-75529); foe_id < 0 = an undefended colony. The human
+ * attacker's band runs in its confirm chain (ai_contact_try_euro_attack_confirm). */
+static void units_465b_ai_euro_band(units_move_ctx* c, int defender_nation, int foe_id) {
+  ColonizeCol1Save* const col1 = c->col1;
+  const int att = c->unit->nation_id;
+  if (!col1 || att < 0 || att > 3 || col1->player[att].control == 0 || defender_nation < 0 ||
+      defender_nation > 3 || defender_nation == att) {
+    return;
+  }
+  if (foe_id >= 0 && units_privateer_attack(c->pool, c->unit_id, foe_id)) {
+    return;
+  }
+  ColonizeTurnContext dctx = {0};
+  dctx.col1 = col1;
+  dctx.human_nation = g_units_combat_human_nation;
+  dctx.ai_popups = g_units_combat_popups;
+  dctx.messages = g_units_combat_game_txt;
+  if (ai_diplo_465b_band_ctx(&dctx, att, defender_nation)) {
+    units_set_bgm_pool(4); /* FUN_281f_04ac(4) */
+  }
+}
+
 /* Combat reason but no armed map defender: fight the colony itself.
  * CONTINUE = proceed to the shared step gate (old `goto combat_entry_resolved`). */
 /* A lost attack's charge: 1b0e's entry FUN_281f_0934 spent the whole
@@ -411,6 +436,17 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_combat_no_foe(units_move_ctx* c) {
    * pre-combat chain, 0948 advance with the mask kept, no reveal
    * (DOSBox independence 8->9: the crown Regular taking Fort Nassau
    * keeps vis 9). */
+  /* FUN_465b_0000 raw 75505-75508: a computer or native mover with fewer
+   * than 3 thirds left stops at LAB_465b_01ce (FUN_281f_0934) before the
+   * band and the fight, as in units_move_colony_entry. */
+  if (col1 && units_remaining_mp(pool, unit_id) < UNITS_MP_PER_TILE &&
+      (c->unit->nation_id > 3 ||
+       (c->unit->nation_id >= 0 && col1->player[c->unit->nation_id].control != 0))) {
+    units_mp_exhaust(pool, c->unit);
+    g_units_last_enter_reason = COLONIZE_ENTER_NO_MP;
+    return UNITS_MOVE_RETURN_FALSE;
+  }
+  units_465b_ai_euro_band(c, nc->nation_id, -1);
   if (c->unit->nation_id != g_units_combat_human_nation) {
     c->foreign_colony_entry = true;
     units_465b_0673_vis_or(pool, c->map, c->unit, dest_x, dest_y);
@@ -479,19 +515,10 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_combat_pre(units_move_ctx* c) {
    * @SNEAK / @DECLAREWAR. The popups live in the shared mover, so the AI
    * path-step mover (FUN_479b_0972) raises them too, not only
    * ai_euro_try_attack (campaign8 CN8-O17: French took Roanoke unannounced). */
-  if (col1 && unit->nation_id >= 0 && unit->nation_id <= 3 &&
-      col1->player[unit->nation_id].control != 0) {
+  {
     const ColonizeUnit* tu = units_get_const(pool, foe);
-    if (tu && tu->nation_id >= 0 && tu->nation_id <= 3 && tu->nation_id != unit->nation_id &&
-        !units_privateer_attack(pool, unit_id, foe)) {
-      ColonizeTurnContext dctx = {0};
-      dctx.col1 = col1;
-      dctx.human_nation = g_units_combat_human_nation;
-      dctx.ai_popups = g_units_combat_popups;
-      dctx.messages = g_units_combat_game_txt;
-      if (ai_diplo_465b_band_ctx(&dctx, unit->nation_id, tu->nation_id)) {
-        units_set_bgm_pool(4); /* FUN_281f_04ac(4) */
-      }
+    if (tu) {
+      units_465b_ai_euro_band(c, tu->nation_id, foe);
     }
   }
   /* FUN_465b_0000 raw 75527-75545: Privateer-sighting relation bit,
@@ -780,6 +807,8 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_colony_entry(units_move_ctx* c) {
     const ColonizeColony* fc =
       colonies_get(colonies, colonies_id_at(colonies, dest_x, dest_y));
     if (fc && fc->active && fc->nation_id != c->unit->nation_id) {
+      /* Raw 75527-75595: the band runs on the settlement owner too. */
+      units_465b_ai_euro_band(c, fc->nation_id, -1);
       units_465b_05ca_bvar4_reseed(c);
     }
   }
