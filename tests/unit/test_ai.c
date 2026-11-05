@@ -487,6 +487,18 @@ static int run_init_and_turns(
     return 1;
   }
 
+  /* FUN_75c2_10ae raw 120960-120977: every slot gets its @LEADERNAME, AI powers included
+   * (an empty AI name prints "'s French:" in DOS's Foreign Affairs report). */
+  for (int n = 0; n < 4; ++n) {
+    if (n != human_nation && col1.player[n].name[0] == '\0') {
+      fprintf(stderr, "%s: nation %d has no leader name\n", label, n);
+      map_free(&map);
+      col1_save_free(&col1);
+      assets_msg_free(&names);
+      return 1;
+    }
+  }
+
   {
     /* FUN_75c2_2778 raw 121786-121795: menu choices 1-2 (NEW WORLD, AMERICA) make five
      * RNG(0,3) axis draws off the boot seed before 235c's 16 market-pool draws; only

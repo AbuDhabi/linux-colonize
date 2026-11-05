@@ -430,9 +430,14 @@ independently golden-confirmed.
     a centered "(Withdrawn from New World)" (@MISC 190) and nothing else.
     This, not `player[n].control`, is DOS's gate; `dutch-reports.SAV` has
     Spain as both, which is why the old control-based reading fit.
+  - **Header:** two strings (3f41:29c6): "<Leader>" + @MISC 94 ("'s") in
+    ink 0x92, then "[Free ]<Adjective>:" in ink 0x61. The leader is
+    `player[n].name` (DS:0x540e); DOS fills all four from NAMES.TXT
+    @LEADERNAME at new game, AI slots included.
   - **"Free":** `nation[n].nation_flags` bit `0x04` splices @MISC 191
-    ("Free") into the header between the leader's name and the adjective,
-    and drops that block's Rebels/Tories line.
+    ("Free") into the header between the leader's name and the adjective
+    (in the adjective's cream, not the leader's yellow), and drops that
+    block's Rebels/Tories line.
   - **War/peace + met:** one byte, one direction —
     `nation[a].euro_relation[b]` (DOS `FUN_281f_0a38(a, b)`): bit `0x20`
     = met (an unmet peer is not listed at all), bit `0x40` = at peace,
@@ -502,6 +507,8 @@ independently golden-confirmed.
   up front leaves both pointing at the last one ("Peace" in the War colour).
   Use `reports_misc_word`'s caller-owned buffer.
 - Port status: Done (golden `foreign.png`) — `reports_render_foreign`.
+  DOS-verified pixel-exact 2026-11-05 under DOSBox-X (`tools/dosbox_trace.py`,
+  F8 after load) on dutch-campaign/COLONY00.SAV.
 
 ## F9 - Indian Adviser
 
