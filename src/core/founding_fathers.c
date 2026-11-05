@@ -7,6 +7,7 @@
 #include "core/colony_production.h"
 #include "core/dos_buggy.h"
 #include "core/dos_rng.h"
+#include "core/mods.h"
 #include "core/popup_msg.h"
 #include "core/reports.h"
 #include "core/reports_names.h"
@@ -382,21 +383,168 @@ static int ff_names_number(int idx, int col, int miss) {
   return (int)v;
 }
 
-int founding_fathers_category(int ff_index) {
-  const int v = ff_names_number(ff_index, 1, -1);
-  return v < 0 ? -1 : (int)(int8_t)v;
+/* ===== MOD_LATE_FATHERS: data/mods NAMES.TXT @MODFATHERS ===== */
+/*
+ * Not DOS (docs/settings.md "mods"). With the mod on, category and weights
+ * come from @MODFATHERS when NAMES.TXT has a well-formed one. Its optional
+ * first line `YEARS, y1, ..., yN` gives the band start years (ascending):
+ * band 0 is before y1, band k is year >= yk, so each row carries N+1 weights.
+ * Without a YEARS line the bands are DOS's (1600, 1700, three weights). A bad
+ * YEARS line (not ascending, a year outside 1..9999) or any row with the
+ * wrong weight count, a weight outside 0..255 or a category outside
+ * 0..FF_CATEGORY_COUNT-1 leaves the whole section unused (@FATHERS, one
+ * warning per NAMES.TXT load), never half of it. Off = @FATHERS below.
+ */
+#define FF_MOD_MAX_YEARS 15
+
+/* The five @FATHERS categories FUN_4345_015a loops over (raw 72928). */
+#define FF_CATEGORY_COUNT 5
+
+static struct {
+  bool parsed;
+  bool ok;
+  unsigned generation;
+  int n_years;
+  int years[FF_MOD_MAX_YEARS];
+  int type[COLONIZE_COL1_FF_COUNT];
+  uint8_t weight[COLONIZE_COL1_FF_COUNT][FF_MOD_MAX_YEARS + 1];
+} s_ff_mod;
+static int s_ff_mod_warnings;
+
+/* A whole field as an integer; a trailing `; comment` is allowed. */
+static bool ff_parse_int(const char* field, long* out) {
+  if (!field) {
+    return false;
+  }
+  char* end = NULL;
+  const long v = strtol(field, &end, 10);
+  if (end == field) {
+    return false;
+  }
+  while (*end == ' ' || *end == '\t') {
+    ++end;
+  }
+  if (*end != '\0' && *end != ';') {
+    return false;
+  }
+  *out = v;
+  return true;
 }
 
-int founding_fathers_century_weight(int ff_index, int band) {
+static bool ff_mod_reject(const char* what, int row) {
+  s_ff_mod_warnings++;
+  diag_warn("NAMES.TXT @MODFATHERS %s (data row %d) unreadable; using @FATHERS", what, row);
+  return false;
+}
+
+static bool ff_mod_parse(void) {
+  long v = 0;
+  int row0 = 0;
+  s_ff_mod.n_years = 2;
+  s_ff_mod.years[0] = 1600;
+  s_ff_mod.years[1] = 1700;
+  const char* first = reports_names_field("MODFATHERS", 0, 0);
+  if (first && strncmp(first, "YEARS", 5) == 0 && strchr(" \t;", first[5])) {
+    row0 = 1;
+    int n = 0;
+    for (int c = 1;; ++c) {
+      const char* f = reports_names_field("MODFATHERS", 0, c);
+      if (!f) {
+        break;
+      }
+      if (n == FF_MOD_MAX_YEARS || !ff_parse_int(f, &v) || v < 1 || v > 9999 ||
+          (n > 0 && v <= s_ff_mod.years[n - 1])) {
+        return ff_mod_reject("YEARS line", 0);
+      }
+      s_ff_mod.years[n++] = (int)v;
+      if (strchr(f, ';')) {
+        break;
+      }
+    }
+    if (n == 0) {
+      return ff_mod_reject("YEARS line", 0);
+    }
+    s_ff_mod.n_years = n;
+  }
+  const int last = 2 + s_ff_mod.n_years;
+  for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
+    const int row = row0 + i;
+    bool comment = false;
+    for (int c = 1; c <= last; ++c) {
+      const char* f = reports_names_field("MODFATHERS", row, c);
+      if (!ff_parse_int(f, &v) || (c == 1 && (v < 0 || v >= FF_CATEGORY_COUNT)) ||
+          (c > 1 && (v < 0 || v > 255))) {
+        return ff_mod_reject("Father row", row);
+      }
+      comment = strchr(f, ';') != NULL;
+      if (c == 1) {
+        s_ff_mod.type[i] = (int)v;
+      } else {
+        s_ff_mod.weight[i][c - 2] = (uint8_t)v; /* a byte, as in DOS; range checked above */
+      }
+    }
+    if (!comment && reports_names_field("MODFATHERS", row, last + 1)) {
+      return ff_mod_reject("Father row", row);
+    }
+  }
+  return true;
+}
+
+/* True when the mod is on and NAMES.TXT has a well-formed @MODFATHERS. */
+static bool ff_mod_active(void) {
+  if (!mods_on(MOD_LATE_FATHERS) || !reports_names_has_section("MODFATHERS")) {
+    return false;
+  }
+  const unsigned gen = reports_names_generation();
+  if (!s_ff_mod.parsed || s_ff_mod.generation != gen) {
+    s_ff_mod.parsed = true;
+    s_ff_mod.generation = gen;
+    s_ff_mod.ok = ff_mod_parse();
+  }
+  return s_ff_mod.ok;
+}
+
+#ifdef COLONIZE_TESTING
+int founding_fathers_mod_warnings(void) {
+  return s_ff_mod_warnings;
+}
+#endif
+/* ===== end MOD_LATE_FATHERS parse ===== */
+
+/* DOS stores the weight as a byte (FUN_2a1f_088a into -0x69ab + band). */
+static int ff_stock_weight(int ff_index, int band) {
   if (band < 0 || band > 2) {
     return 0;
   }
   return (int)(uint8_t)ff_names_number(ff_index, 2 + band, 0);
 }
 
+int founding_fathers_category(int ff_index) {
+  if (ff_mod_active()) {
+    return ff_index >= 0 && ff_index < (int)COLONIZE_COL1_FF_COUNT ? s_ff_mod.type[ff_index] : -1;
+  }
+  const int v = ff_names_number(ff_index, 1, -1);
+  return v < 0 ? -1 : (int)(int8_t)v;
+}
+
+int founding_fathers_century_weight(int ff_index, int band) {
+  if (ff_mod_active()) {
+    if (ff_index < 0 || ff_index >= (int)COLONIZE_COL1_FF_COUNT || band < 0 ||
+        band > s_ff_mod.n_years) {
+      return 0;
+    }
+    return s_ff_mod.weight[ff_index][band];
+  }
+  return ff_stock_weight(ff_index, band);
+}
+
+static unsigned ff_year(const ColonizeCol1Save* col1) {
+  return col1 ? (unsigned)col1->head.year : 1600u;
+}
+
 /* FUN_4345_005a: century band for @FATHERS weight column. */
 static int ff_century_band(const ColonizeCol1Save* col1) {
-  const unsigned year = col1 ? (unsigned)col1->head.year : 1600u;
+  const unsigned year = ff_year(col1);
   if (year <= 1599u) {
     return 0;
   }
@@ -404,6 +552,36 @@ static int ff_century_band(const ColonizeCol1Save* col1) {
     return 1;
   }
   return 2;
+}
+
+/* @MODFATHERS band: how many YEARS boundaries this year has reached. */
+static int ff_mod_band(const ColonizeCol1Save* col1) {
+  const long year = (long)ff_year(col1);
+  int band = 0;
+  while (band < s_ff_mod.n_years && year >= s_ff_mod.years[band]) {
+    band++;
+  }
+  return band;
+}
+
+/* Weight column for this year in the table founding_fathers_century_weight reads. */
+static int ff_band(const ColonizeCol1Save* col1) {
+  return ff_mod_active() ? ff_mod_band(col1) : ff_century_band(col1);
+}
+
+/*
+ * MOD_LATE_FATHERS: a candidate locked in earlier (save, earlier band, stored
+ * slate) must not join while the mod zeroes him: @MODFATHERS weight 0 in
+ * this year's mod band where @FATHERS has a weight in this year's DOS band.
+ * A stock zero (Minuit or Hudson after 1699) keeps DOS's rule: a locked-in
+ * candidate stays. Mod off = never.
+ */
+static bool ff_mod_blocks(const ColonizeCol1Save* col1, int idx) {
+  if (!ff_mod_active()) {
+    return false;
+  }
+  return founding_fathers_century_weight(idx, ff_mod_band(col1)) == 0 &&
+         ff_stock_weight(idx, ff_century_band(col1)) > 0;
 }
 
 /*
@@ -423,7 +601,7 @@ static int ff_eligible_weight(
 
 /* FUN_4345_0080: count unclaimed FFs of type with non-zero weight this century. */
 static int ff_count_eligible_of_type(const ColonizeCol1Save* col1, int nation, int type) {
-  const int band = ff_century_band(col1);
+  const int band = ff_band(col1);
   int count = 0;
   for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
     if (ff_eligible_weight(col1, nation, i, type, band) > 0) {
@@ -443,7 +621,7 @@ static int ff_pick_weighted_of_type(
   int type,
   ColonizeDosRng* rng
 ) {
-  const int band = ff_century_band(col1);
+  const int band = ff_band(col1);
   int total = 0;
   for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
     total += ff_eligible_weight(col1, nation, i, type, band);
@@ -562,6 +740,14 @@ static bool ff_enqueue_debate_from_slate(
   if (!ctx || !ctx->col1 || !popups || s_ff_debate_slate_nation != nation_id) {
     return false;
   }
+  /* MOD_LATE_FATHERS: a slate holding a blocked Father is discarded and re-rolled. */
+  for (int i = 0; i < s_ff_debate_slate_n; ++i) {
+    if (ff_mod_blocks(ctx->col1, s_ff_debate_slate[i])) {
+      s_ff_debate_slate_n = 0;
+      s_ff_debate_slate_nation = -1;
+      return false;
+    }
+  }
   char labels[AI_POPUP_CHOICE_MAX][AI_POPUP_CHOICE_LEN];
   const char* choice_ptrs[AI_POPUP_CHOICE_MAX];
   int ids[AI_POPUP_CHOICE_MAX];
@@ -615,7 +801,7 @@ static void ensure_next_candidate(ColonizeTurnContext* ctx, int nation_id) {
   ColonizeCol1Nation* nat = &col1->nation[nation_id];
   const int next = (int)nat->next_founding_father;
   if (next >= 0 && next < (int)COLONIZE_COL1_FF_COUNT &&
-      ff_available_to(col1, nation_id, next)) {
+      ff_available_to(col1, nation_id, next) && !ff_mod_blocks(col1, next)) {
     return;
   }
   nat->next_founding_father = -1;

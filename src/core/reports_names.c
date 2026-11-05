@@ -533,10 +533,23 @@ const char* reports_nation_plural_woi(const ColonizeCol1Save* col1, int nation) 
   return reports_nation_woi_word(col1, nation, 86, 87);
 }
 
+/* True when the live NAMES.TXT has `@section`. */
+bool reports_names_has_section(const char* section) {
+  return g_reports_names_ok && assets_msg_find(&g_reports_names, section) != NULL;
+}
+
+/* Bumped on every NAMES.TXT load/free, so a reader's parsed copy knows to re-read. */
+static unsigned g_reports_names_generation;
+
+unsigned reports_names_generation(void) {
+  return g_reports_names_generation;
+}
+
 void reports_names_load_catalogs(const char* data_dir) {
   if (!data_dir) {
     return;
   }
+  g_reports_names_generation++;
   /* NAMES.TXT @FATHERS live names (reports_ff_display_name) — best-effort, falls back
    * to the hand-typed k_ff_names table when missing (tests, old data dirs). */
   if (g_reports_names_ok) {
@@ -568,6 +581,7 @@ void reports_names_load_catalogs(const char* data_dir) {
   }}
 
 void reports_names_free_catalogs(void) {
+  g_reports_names_generation++;
   if (g_reports_names_ok) {
     assets_msg_free(&g_reports_names);
     g_reports_names_ok = false;
