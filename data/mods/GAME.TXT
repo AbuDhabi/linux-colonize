@@ -4,6 +4,12 @@
 ;       "N=text" appends row N, which must equal the stock row count.
 ;
 
+;       Title menu: one row appended after every @BEGINMENU row; it opens
+;       @MODOPTIONS, then @MODOPTIONS2 (each page saves on its own OK).
+@MODBEGINMENU
+@options
+MODS for New Games
+
 ;       GAME > Mods for New Games: one @options row per toggle, in ModId
 ;       order (src/core/mods.h), ModId 0-11. Edits settings.json; a game in
 ;       progress keeps the toggles it started with.

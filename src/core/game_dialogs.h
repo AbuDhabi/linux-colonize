@@ -468,6 +468,7 @@ struct ColonizeGameState {
   DebugAtlas debug_atlas;
   char menu_options[MENU_MAX_OPTIONS][COLONIZE_MSG_LINE_LEN];
   int menu_option_count;
+  int menu_mods_row; /* data/mods @MODBEGINMENU row after the stock rows, -1 = none */
   int menu_selection;
   int menu_dialog_width; /* @BEGINMENU @width (default 160) */
   int menu_dialog_y; /* @BEGINMENU @y (default 91) */

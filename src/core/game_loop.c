@@ -2053,7 +2053,7 @@ COLONIZE_INTERNAL bool game_render_screen(
       }
     }
     game_render_begin_menu(game, framebuffer);
-    if (game->save_load.open || game->ai_popups.open) {
+    if (game->save_load.open || game->ai_popups.open || game->options_dlg.open) {
       const ColonizeFont* font = game_popup_font(game);
       const ColonizeSpriteSheet* wood =
         game->menu_opentile_ok ? &game->menu_opentile :
@@ -2069,6 +2069,18 @@ COLONIZE_INTERNAL bool game_render_screen(
           wood,
           &game->menu_popup_colors,
           game->menu_col_basic,
+          game->menu_col_select,
+          framebuffer
+        );
+      }
+      if (game->options_dlg.open) { /* data/mods @MODBEGINMENU row */
+        options_dialog_render(
+          (OptionsDialog*)&game->options_dlg,
+          font,
+          wood,
+          &game->menu_popup_colors,
+          game->menu_col_basic,
+          game->menu_col_hilite,
           game->menu_col_select,
           framebuffer
         );

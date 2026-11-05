@@ -1470,6 +1470,7 @@ void set_status_menu_row(ColonizeGameState* game, const char* section, int row, 
 
 void load_begin_menu(ColonizeGameState* game) {
   game->menu_option_count = 0;
+  game->menu_mods_row = -1;
   game->menu_selection = 0;
   game->menu_dialog_width = 160;
   game->menu_dialog_y = 91;
@@ -1535,6 +1536,22 @@ void load_begin_menu(ColonizeGameState* game) {
     );
     strip_hotkey_markers(game->menu_options[game->menu_option_count]);
     game->menu_option_count++;
+  }
+
+  /* Mods for New Games: a data/mods row after every stock row (the quit row
+   * included), so stock row numbers keep their meaning. No overlay, no row. */
+  const ColonizeMsgSection* mods = assets_msg_find(&game->messages, "MODBEGINMENU");
+  for (int i = 0; mods && i < mods->line_count && game->menu_option_count < MENU_MAX_OPTIONS; ++i) {
+    const char* line = mods->lines[i];
+    if (line[0] == '@' || line[0] == '\0') {
+      continue;
+    }
+    snprintf(
+      game->menu_options[game->menu_option_count], sizeof(game->menu_options[0]), "%s", line
+    );
+    strip_hotkey_markers(game->menu_options[game->menu_option_count]);
+    game->menu_mods_row = game->menu_option_count++;
+    break;
   }
 
   diag_info(
