@@ -20,7 +20,6 @@
 
 #include "core/ai_popup.h"
 #include "core/colony.h"
-#include "core/combat_analysis.h"
 #include "core/combat_strength.h"
 #include "core/dos_buggy.h"
 #include "core/europe.h"

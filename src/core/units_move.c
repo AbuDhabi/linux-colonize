@@ -291,6 +291,14 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_board(units_move_ctx* c) {
   return UNITS_MOVE_RETURN_TRUE;
 }
 
+/* FUN_465b_0000 raw 75505-75508 test: a computer (control != 0) or native
+ * mover with fewer than 3 thirds left, the set LAB_465b_01ce stops. */
+static bool units_465b_01ce_low_mp_ai(const units_move_ctx* c) {
+  const int n = c->unit->nation_id;
+  return c->col1 && units_remaining_mp(c->pool, c->unit_id) < UNITS_MP_PER_TILE &&
+         (n > 3 || (n >= 0 && c->col1->player[n].control != 0));
+}
+
 /* Probe reasons that abort the move with no fight and no charge. */
 COLONIZE_INTERNAL UnitsMoveStatus units_move_denied(units_move_ctx* c) {
   const ColonizeEnterReason reason = c->reason;
@@ -327,10 +335,7 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_denied(units_move_ctx* c) {
    * drained again (America seed-100 save 63: a Dutch Dragoon with 1 third
    * beside Barbados border-parked 'F' where DOS leaves it on '1'). */
   if ((reason == COLONIZE_ENTER_BOUNCE_FOREIGN || reason == COLONIZE_ENTER_BOUNCE_PEACE) &&
-      c->col1 && units_remaining_mp(c->pool, c->unit_id) < UNITS_MP_PER_TILE &&
-      (c->unit->nation_id > 3 ||
-       (c->unit->nation_id >= 0 && c->unit->nation_id <= 3 &&
-        c->col1->player[c->unit->nation_id].control != 0))) {
+      units_465b_01ce_low_mp_ai(c)) {
     units_mp_exhaust(c->pool, c->unit);
   }
   if (reason == COLONIZE_ENTER_BOUNCE_FOREIGN || reason == COLONIZE_ENTER_BOUNCE_PEACE ||
@@ -439,9 +444,7 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_combat_no_foe(units_move_ctx* c) {
   /* FUN_465b_0000 raw 75505-75508: a computer or native mover with fewer
    * than 3 thirds left stops at LAB_465b_01ce (FUN_281f_0934) before the
    * band and the fight, as in units_move_colony_entry. */
-  if (col1 && units_remaining_mp(pool, unit_id) < UNITS_MP_PER_TILE &&
-      (c->unit->nation_id > 3 ||
-       (c->unit->nation_id >= 0 && col1->player[c->unit->nation_id].control != 0))) {
+  if (units_465b_01ce_low_mp_ai(c)) {
     units_mp_exhaust(pool, c->unit);
     g_units_last_enter_reason = COLONIZE_ENTER_NO_MP;
     return UNITS_MOVE_RETURN_FALSE;
@@ -495,20 +498,14 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_combat_pre(units_move_ctx* c) {
    * and the Indian alarm slam below (America seed-100 save 43: a Dutch
    * Soldier with 1 third left beside capital (47,47) slammed alarm 80->100).
    * The FUN_5fef_1b0e entry gate (raw 100359-100372) refuses the same set. */
-  if (col1 && units_remaining_mp(pool, unit_id) < UNITS_MP_PER_TILE) {
-    const bool ai_controlled =
-      unit->nation_id > 3 ||
-      (unit->nation_id >= 0 && unit->nation_id <= 3 &&
-       col1->player[unit->nation_id].control != 0);
-    if (ai_controlled) {
-      if (c->village_temp >= 0) {
-        units_despawn(pool, c->village_temp);
-        c->village_temp = -1;
-      }
-      units_mp_exhaust(pool, unit);
-      g_units_last_enter_reason = COLONIZE_ENTER_NO_MP;
-      return UNITS_MOVE_RETURN_FALSE;
+  if (units_465b_01ce_low_mp_ai(c)) {
+    if (c->village_temp >= 0) {
+      units_despawn(pool, c->village_temp);
+      c->village_temp = -1;
     }
+    units_mp_exhaust(pool, unit);
+    g_units_last_enter_reason = COLONIZE_ENTER_NO_MP;
+    return UNITS_MOVE_RETURN_FALSE;
   }
   /* FUN_465b_0000 raw 75553-75595: a computer Euro attacker that got past
    * the cooldown gate (units_at_war_for_move_target) breaks the treaty, with
@@ -793,9 +790,7 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_colony_entry(units_move_ctx* c) {
   }
   /* The LAB_465b_01ce stop below (raw 75577-75578) runs BEFORE the bVar4
    * fight: an AI with under 3 thirds left never attacks the militia. */
-  if (c->foreign_colony_entry && c->col1 &&
-      units_remaining_mp(pool, unit_id) < UNITS_MP_PER_TILE &&
-      (c->unit->nation_id > 3 || c->col1->player[c->unit->nation_id].control != 0)) {
+  if (c->foreign_colony_entry && units_465b_01ce_low_mp_ai(c)) {
     units_mp_exhaust(pool, c->unit);
     g_units_last_enter_reason = COLONIZE_ENTER_NO_MP;
     return UNITS_MOVE_RETURN_FALSE;
