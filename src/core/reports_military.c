@@ -979,7 +979,9 @@ static int reports_indian_build_rows(
     IndianRow* r = &rows[n++];
     r->nation_id = nation_id;
     r->name = reports_tribe_display_name(t);
-    r->color = k_indian_tribe_colors[t];
+    /* FUN_3f41_010a raw 69498: nation 10 (Sioux) is drawn in DAC 0xc (pure red), not its
+     * @TRIBES colour 118. */
+    r->color = nation_id == 10 ? 0xc : k_indian_tribe_colors[t];
     r->level = reports_tribe_level_display_name(ind->tech);
     r->tech = ind->tech > 3 ? 3 : ind->tech;
     r->villages = villages;
@@ -1110,7 +1112,8 @@ void reports_render_indian(
     }
     reports_draw_line(font, fb, REPORTS_INDIAN_VILLAGES_X, stats_y, buf, REPORTS_INDIAN_TEXT_COLOR);
     if (r->missions > 0) {
-      const char* missions_w = reports_labels_field("MISC", 28);
+      /* FUN_3f41_010a: DS:0x2df0 (@MISC 27 "Mission") when exactly 1, else DS:0x2df2 (#28). */
+      const char* missions_w = reports_labels_field("MISC", r->missions == 1 ? 27 : 28);
       snprintf(buf, sizeof(buf), "%d %s", r->missions, missions_w ? missions_w : "");
       reports_draw_line(font, fb, REPORTS_INDIAN_MISSIONS_X, stats_y, buf, REPORTS_INDIAN_TEXT_COLOR);
     }
