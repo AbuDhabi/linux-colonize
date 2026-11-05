@@ -1,7 +1,8 @@
 # Scout and ship Automate (port-only)
 
-Divergences, off by default: `settings.json` `divergences.scout_autoexplore` (Scouts)
-and `divergences.ship_autoexplore` (ships) (docs/settings.md). Nothing here exists in DOS. Code: `src/core/explore_auto.c`; UI
+Per-campaign mods, off by default: `mods_on(MOD_SCOUT_AUTOEXPLORE)` (Scouts) and
+`mods_on(MOD_SHIP_AUTOEXPLORE)` (ships); new-game defaults `settings.json`
+`mods.scout_autoexplore` / `mods.ship_autoexplore` (docs/settings.md "Mods"). Nothing here exists in DOS. Code: `src/core/explore_auto.c`; UI
 hooks shared with Pioneer Automate (docs/pioneer_plan.md): `game_loop_eot.c`
 (ORDERS action, rotation), `game_loop_update.c` (pacer, village note, no-attack
 guard, no sail-for-Europe), `map_menu.c` (row). Test: `unit_explore_auto`.
