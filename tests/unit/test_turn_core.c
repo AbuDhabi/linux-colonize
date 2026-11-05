@@ -2262,6 +2262,31 @@ static int case_custom_house_autosell(void) {
     );
     return 1;
   }
+
+  /* dos_bugs.md DB-75: Tools checked while the project needs 100. DOS
+   * (Phase B before Phase L) sells down to 50; the port hides the project's
+   * 100 from the house and sells only the surplus over 100 + 50 (bid 10 - 1,
+   * tax 0). The warehouse cap then trims what is left to 100. */
+  pool.building_types[1].hammers = 200;
+  pool.building_types[1].tools_cost = 100;
+  pool.building_type_count = 2;
+  col->building_in_production = 1;
+  col->custom_house_bits = (uint16_t)(1u << COLONIZE_CARGO_TOOLS);
+  const int tools_in[2] = {160, 260};
+  const int gold_want[2] = {0, 110 * 9};
+  for (int k = 0; k < 2; ++k) {
+    col->stock[COLONIZE_CARGO_TOOLS] = tools_in[k];
+    col->hammers = 0;
+    col->stock[COLONIZE_CARGO_FOOD] = 10;
+    eu.gold = 0;
+    col1.nation[0].gold = 0;
+    memset(&prod, 0, sizeof(prod));
+    turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .europe=(EuropeScreen*)(&eu)}, 0, &prod, NULL, NULL);
+    if (eu.gold != gold_want[k] || col->stock[COLONIZE_CARGO_TOOLS] != 100) {
+      fprintf(stderr, "CH tools case %d: gold=%d tools=%d want %d/100\n", k, eu.gold, col->stock[COLONIZE_CARGO_TOOLS], gold_want[k]);
+      return 1;
+    }
+  }
   fprintf(stderr, "custom house autosell ok\n");
   return 0;
 }

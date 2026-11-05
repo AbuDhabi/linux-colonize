@@ -633,3 +633,18 @@ first and refuses with nothing charged when the dock is full (same order as the
 recruit and training paths, port_bugs.md #1416). Test: `unit_units_core`
 (fountain full-dock case).
 **Status:** done (user 2026-11-03, PR #1 from UncleTawnos).
+
+### DB-75 — Custom House sells the tools the queued project needs
+**DOS:** `FUN_364b_0688` runs the Custom House sale inside the Phase B cargo
+loop (raw 57257-57330: stock > 99 sells down to 50) and only later, in Phase L
+(raw 57748-57774), spends `colony+0xb6` tools on the finished project. A colony
+with Tools checked ships the tools it was stocking for its build, and the
+project then stalls on @NEEDTOOLS.
+
+**Port:** `turn_produce_custom_house` (`src/core/turn_production.c`) hides the
+current project's tools cost (`turn_project_tools_cost`) from the house for the
+sale, so only the surplus above it sells (same > 99 / leave 50 rule on that
+surplus). AI colonies never sell tools (FUN_364b_0636), so only the human arm
+changes. Goldens and idle campaigns pass unchanged, so no `dos_buggy_behavior()`
+gate. Test: `unit_turn_core` (`custom_house_autosell` case).
+**Status:** done (user 2026-11-05).

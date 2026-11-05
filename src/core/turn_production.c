@@ -956,6 +956,23 @@ COLONIZE_INTERNAL void turn_produce_lumber(TurnProduceCtx* pc) {
   pc->hammers_paid = hammers_paid;
 }
 
+/* Tools the queued project needs (0: none, or a building already owned). */
+static int turn_project_tools_cost(const ColonizeColonyPool* pool, const ColonizeColony* colony) {
+  const int bip = colony->building_in_production;
+  int tools_cost = 0;
+  if (bip < 0) {
+    return 0;
+  }
+  if (!colonies_unit_build_info(bip, NULL, NULL, &tools_cost)) {
+    const ColonizeBuildingType* bt = colonies_building_type(pool, bip);
+    if (!bt || (bip < COLONIZE_BUILDING_TYPES_MAX && colony->has_building[bip])) {
+      return 0;
+    }
+    tools_cost = bt->tools_cost;
+  }
+  return tools_cost > 0 ? tools_cost : 0;
+}
+
 /* Phase B application switch to the 1528 record + Custom House sales. */
 COLONIZE_INTERNAL void turn_produce_custom_house(TurnProduceCtx* pc) {
   ColonizeColonyPool* const pool = pc->pool;
@@ -1006,7 +1023,16 @@ COLONIZE_INTERNAL void turn_produce_custom_house(TurnProduceCtx* pc) {
     EuropeCustomHouseSale ch_sales[COLONIZE_CARGO_COUNT];
     int ch_sale_count = 0;
     const ColonizeWorld cw = world_make(NULL, pool, NULL, col1, col1 != NULL, NULL, europe);
+    /* dos_bugs.md DB-75: this Phase B sale runs before Phase L spends the
+     * project's tools (raw 57748), so DOS's Tools-checked house ships the
+     * tools the queued project waits for. The port hides them from the house. */
+    int ch_tools_held = turn_project_tools_cost(pool, colony);
+    if (ch_tools_held > colony->stock[COLONIZE_CARGO_TOOLS]) {
+      ch_tools_held = colony->stock[COLONIZE_CARGO_TOOLS];
+    }
+    colony->stock[COLONIZE_CARGO_TOOLS] -= ch_tools_held;
     const int ch_total = europe_custom_house_autosell_ex_w(&cw, colony, human_nation, ch_sales, COLONIZE_CARGO_COUNT, &ch_sale_count, ch_ore_denied);
+    colony->stock[COLONIZE_CARGO_TOOLS] += ch_tools_held;
     for (int si = 0; si < ch_sale_count; ++si) {
       if (ch_sales[si].cargo >= 0 && ch_sales[si].cargo < COLONIZE_CARGO_COUNT) {
         ch_sold[ch_sales[si].cargo] += ch_sales[si].amount;
