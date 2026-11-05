@@ -14,3 +14,9 @@ Mods for New Games (this game keeps its own)
 @options
 Natives ~Loot Wagon Trains
 ~Go To Waits at Natives (DOS bug fix)
+
+;       mods.wagon_loot, roll 3-6: natives take every hold of one good.
+;       %STRING0 tribe, %STRING1 good. Roll 7-10 uses stock @LOOTWAGONS.
+@MODWAGONLOOT1
+@width=190
+{%STRING0} braves seize the {%STRING1} from your wagon train!

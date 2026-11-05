@@ -21,6 +21,7 @@
 #include "core/dos_buggy.h"
 #include "core/europe.h"
 #include "core/founding_fathers.h"
+#include "core/mods.h"
 #include "core/popup_msg.h"
 #include "core/reports.h"
 #include "core/reports_names.h"
@@ -1411,6 +1412,52 @@ int units_apply_land_loss_outcome(
           0,
           &tok,
           "");
+      }
+      return 1;
+    }
+  }
+
+  /*
+   * MOD_WAGON_LOOT (not DOS): natives beating a loaded wagon train roll 1..10:
+   * 1-2 destroy it (the DOS outcome below), 3-6 take every hold of one random
+   * good (data/mods @MODWAGONLOOT1), 7-10 take every hold (stock @LOOTWAGONS). The goods vanish;
+   * the wagon keeps its owner. Off, or an empty wagon: no draw at all, so the
+   * DOS stream is unchanged.
+   */
+  if (mods_on(MOD_WAGON_LOOT) && lt && units_type_is_wagon(lt) && win->nation_id >= 4 &&
+      !on_water) {
+    int loaded[COLONIZE_UNIT_CARGO_MAX];
+    int n = 0;
+    for (int h = 0; h < COLONIZE_UNIT_CARGO_MAX; ++h) {
+      if (units_unit_hold_amount(lose, h) > 0) {
+        loaded[n++] = h;
+      }
+    }
+    const int roll = n > 0 ? dos_rng_range(rng, 1, 10) : 1;
+    if (roll >= 3) {
+      PopupMsgTokens tok;
+      memset(&tok, 0, sizeof(tok));
+      if (roll <= 6) {
+        const int cargo = lose->hold_goods_type[loaded[dos_rng_range(rng, 0, n - 1)]];
+        for (int i = 0; i < n; ++i) {
+          if (lose->hold_goods_type[loaded[i]] == cargo) {
+            (void)units_unload_goods_hold(pool, loser_id, loaded[i], NULL, NULL);
+          }
+        }
+        tok.string0 = units_combat_nation_label(col1, win->nation_id);
+        tok.string1 = reports_cargo_display_name(cargo);
+      } else {
+        for (int i = n - 1; i >= 0; --i) {
+          (void)units_unload_goods_hold(pool, loser_id, loaded[i], NULL, NULL);
+        }
+        tok.string0 = units_combat_nation_label_plural(col1, win->nation_id);
+        tok.string3 = units_combat_place_label(lose->x, lose->y);
+      }
+      if (human) {
+        units_combat_enqueue_tok(
+          AI_POPUP_TAG_COMBAT_AMBUSH, roll <= 6 ? "MODWAGONLOOT1" : "LOOTWAGONS",
+          win->nation_id, lose->nation_id, 0, &tok, ""
+        );
       }
       return 1;
     }
