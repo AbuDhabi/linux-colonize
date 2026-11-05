@@ -37,7 +37,9 @@ static bool woodcut_load_sheet(
   return ss_load_asset(data_dir, name, out, "Woodcut");
 }
 
-/* WOODCUT.TXT @WOODCUT line `id` (line 0 is id 0's "A NEW WORLD"). */
+/* WOODCUT.TXT @WOODCUT line `id` (line 0 is id 0's "A NEW WORLD").
+ * Id 12 has no DOS call site; only the abandon / raid mods fire it, and they
+ * caption it from the data/mods section @MODWOODCUT12 when present. */
 static void woodcut_load_caption(const char* data_dir, int id, char* out, size_t out_size) {
   out[0] = '\0';
   char path[512];
@@ -48,8 +50,12 @@ static void woodcut_load_caption(const char* data_dir, int id, char* out, size_t
   ColonizeMsgCatalog cat;
   assets_msg_init(&cat);
   if (assets_msg_load_file(&cat, path)) {
+    const ColonizeMsgSection* mod =
+      id == WOODCUT_COLONY_DESTROYED ? assets_msg_find(&cat, "MODWOODCUT12") : NULL;
     const ColonizeMsgSection* sec = assets_msg_find(&cat, "WOODCUT");
-    if (sec && id >= 0 && id < sec->line_count) {
+    if (mod && mod->line_count > 0) {
+      snprintf(out, out_size, "%s", mod->lines[0]);
+    } else if (sec && id >= 0 && id < sec->line_count) {
       snprintf(out, out_size, "%s", sec->lines[id]);
     }
   }

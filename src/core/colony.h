@@ -661,6 +661,17 @@ int colonies_eject_colonist(
   ColonizeUnitPool* units,
   int role
 );
+/* MOD_POPULATION_FLOOR: the largest NAMES.TXT min population of the colony's
+ * built buildings (1 with none). With the mod on, colonies_eject_colonist
+ * refuses an eject that would drop the colony below it. */
+int colonies_min_population_floor(const ColonizeColonyPool* pool, const ColonizeColony* colony);
+/* False when MOD_POPULATION_FLOOR would refuse a voluntary eject from colony;
+ * always true with the mod off. */
+bool colonies_eject_allowed(const ColonizeColonyPool* pool, const ColonizeColony* colony);
+/* MOD_POPULATION_FLOOR ABANDON button: every colonist leaves as a Colonist on
+ * the tile (floor ignored), then colonies_abandon. Returns units placed, or -1
+ * if a spawn was refused (colony kept, minus whoever already left). */
+int colonies_abandon_walk_out(ColonizeColonyPool* pool, int colony_id, ColonizeUnitPool* units);
 
 /* True if Stockade, Fort, or Fortress is built (voluntary eject must leave ≥3 pop). */
 bool colonies_has_fortification(const ColonizeColonyPool* pool, const ColonizeColony* colony);

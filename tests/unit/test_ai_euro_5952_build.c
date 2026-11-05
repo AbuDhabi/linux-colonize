@@ -20,6 +20,7 @@
 #include "core/colony_production.h"
 #include "core/colony_yield.h"
 #include "core/map.h"
+#include "core/mods.h"
 #include "core/turn.h"
 #include "core/units.h"
 
@@ -1526,6 +1527,56 @@ static int case_tb23_fixed_strip_tests_picked_colonist(void) {
   return prof == UNITS_JOB_SOLDIER ? 0 : fail("TB-23 fixed: the veteran keeps its profession");
 }
 
+/*
+ * MOD_POPULATION_FLOOR: the TB-23 fixture (DOS strip of the veteran) in a
+ * two-colonist colony with a Stockade (floor 3). Off: the veteran leaves
+ * stripped, as before. On: the colony is at its floor, so nobody is stripped
+ * and nothing leaves.
+ */
+static int floor_equip_run(bool mod, int* out_units, int* out_prof0) {
+  Fx f;
+  if (fx_build(&f, 2) != 0) {
+    return 1;
+  }
+  ai_euro_reset();
+  fx_wake_colonists(&f, 2);
+  f.col->colonists[0].profession = UNITS_JOB_SOLDIER;
+  f.col->colonists[1].profession = COLONIZE_PROF_FARMER;
+  f.col->stock[COLONIZE_CARGO_MUSKETS] = 100;
+  f.col->ai_flags = COLONIZE_COLONY_AI_NEEDS_GARRISON;
+  f.col->has_building[COLONY_BUILDING_STOCKADE] = true;
+  mods_campaign_set(mod ? 1u << MOD_POPULATION_FLOOR : 0u);
+  ai_euro_5952_colony_prelude(&f.ctx, NATION, f.col);
+  mods_campaign_set(0);
+  *out_units = 0;
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* u = &f.units.units[i];
+    *out_units += u->active && u->x == f.col->x && u->y == f.col->y;
+  }
+  *out_prof0 = f.col->colonists[0].profession;
+  const int count = f.col->colonist_count;
+  fx_done(&f);
+  return count == 2 - *out_units ? 0 : fail("population floor: colonist count off");
+}
+
+static int case_population_floor_mod_ai_equip(void) {
+  int units = 0;
+  int prof0 = -1;
+  if (floor_equip_run(false, &units, &prof0) != 0) {
+    return 1;
+  }
+  if (units != 1) {
+    return fail("population floor off: the AI equip arm must still eject (DOS)");
+  }
+  if (floor_equip_run(true, &units, &prof0) != 0) {
+    return 1;
+  }
+  if (units != 0 || prof0 != UNITS_JOB_SOLDIER) {
+    return fail("population floor on: a colony at its floor keeps its expert, nobody leaves");
+  }
+  return 0;
+}
+
 /* TB-19 fixed: the expert purchase charges the trained job's price (Expert
  * Farmer 1100), not the colonist slot's row (slot 7 = Silver Miner 900). */
 static int tb19_gold_spent(bool buggy, long* out_spent) {
@@ -1824,6 +1875,7 @@ static const TestCase k_cases[] = {
   {"case_tb13_fixed_improvement_owner_is_own_nation", case_tb13_fixed_improvement_owner_is_own_nation},
   {"case_tb24_fixed_water_counted_once", case_tb24_fixed_water_counted_once},
   {"case_tb23_fixed_strip_tests_picked_colonist", case_tb23_fixed_strip_tests_picked_colonist},
+  {"case_population_floor_mod_ai_equip", case_population_floor_mod_ai_equip},
   {"case_tb19_fixed_expert_price_is_trained_job", case_tb19_fixed_expert_price_is_trained_job},
   {"case_tb18_fixed_school_elects_craft_job", case_tb18_fixed_school_elects_craft_job},
   {"case_tb17_fixed_statesman_not_clamped", case_tb17_fixed_statesman_not_clamped},

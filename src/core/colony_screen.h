@@ -221,7 +221,8 @@ typedef enum ColonyScreenHit {
   COLONY_HIT_MESSAGE_OUTSIDE,
   COLONY_HIT_CUSTOM_HOUSE_ROW,
   COLONY_HIT_CUSTOM_HOUSE_OUTSIDE,
-  COLONY_HIT_TITLE /* name bar (0,0)-(320,7): DOS zone 10, @RENAMECOLONY */
+  COLONY_HIT_TITLE, /* name bar (0,0)-(320,7): DOS zone 10, @RENAMECOLONY */
+  COLONY_HIT_MULTI_ABANDON /* MOD_POPULATION_FLOOR ABANDON button, Units tab */
 } ColonyScreenHit;
 
 typedef enum ColonyMessageKind {
@@ -443,7 +444,14 @@ typedef struct ColonyScreenView {
    * 98856-98859). Look only: the screen's click/key handlers skip their work
    * while it is set (port_bugs.md #1382). Set by game_enter_colony_view. */
   bool spy_view;
+  /* MOD_POPULATION_FLOOR ABANDON button on the Units tab, bottom-right: the
+   * width the renderer last drew it at, 0 = not drawn. */
+  int abandon_btn_w;
 } ColonyScreenView;
+
+#define COLONY_ABANDON_BTN_H 9
+#define COLONY_ABANDON_BTN_RIGHT (COLONY_MULTI_X + 2 + COLONY_MULTI_W - 19)
+#define COLONY_ABANDON_BTN_Y (COLONY_PANEL_CONTENT_Y + COLONY_PANEL_CONTENT_H - COLONY_ABANDON_BTN_H)
 
 /* DS:0x334 blink phase: 0x14 ticks of the 60.877 Hz DS:0x92e8 clock (~328 ms)
  * per phase, on first after each full redraw (FUN_2f2b_6cd4 raw 56094-56097). */

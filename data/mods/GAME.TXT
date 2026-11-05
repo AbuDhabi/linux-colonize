@@ -30,3 +30,10 @@ Treaty Cancel ~Notice
 @MODWAGONLOOT1
 @width=190
 {%STRING0} braves seize the {%STRING1} from your wagon train!
+
+;       mods.population_floor: read instead of stock @KEEPSTOCKADE.
+;       %NUMBER0 = the colony's building population floor.
+@MODKEEPSTOCKADE
+@width=220
+We cannot voluntarily reduce below {%NUMBER0} the population of a colony
+with its buildings.

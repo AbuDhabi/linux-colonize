@@ -1796,7 +1796,9 @@ static void ai_euro_5952_equip_arm(
   /* raw 94314-94317: local_1b4 = local_8e, with 0x17 mapped to 0x15. */
   const int target = (equip_target_job == UNITS_JOB_DRAGOON) ? UNITS_JOB_SOLDIER : equip_target_job;
   const int pick = ai_euro_5952_equip_pick(c, target);
-  if (pick < 0) {
+  /* MOD_POPULATION_FLOOR (not DOS): a colony at its floor neither strips nor
+   * ejects; always allowed with the mod off. */
+  if (pick < 0 || !colonies_eject_allowed(ctx->colonies, c)) {
     return;
   }
   /* DOS bug, reproduced for now (docs/tolerated_dos_bugs_ai.md TB-23). */

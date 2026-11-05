@@ -1163,6 +1163,14 @@ COLONIZE_INTERNAL bool colony_screen_hit_multifunction(ColonyScreenHitCtx* a) {
     }
   }
 
+  /* MOD_POPULATION_FLOOR ABANDON button (drawn over the corner unit icons). */
+  if (view->multi_mode == COLONY_MULTI_UNITS && view->abandon_btn_w > 0 &&
+      mx >= COLONY_ABANDON_BTN_RIGHT - view->abandon_btn_w && mx < COLONY_ABANDON_BTN_RIGHT &&
+      my >= COLONY_ABANDON_BTN_Y && my < COLONY_ABANDON_BTN_Y + COLONY_ABANDON_BTN_H) {
+    a->hit.kind = COLONY_HIT_MULTI_ABANDON;
+    return true;
+  }
+
   /* Units-tab unit icons (checked before the generic multi-pane catch-all
    * below; hit.index is the unit id, not an array index — callers act on it
    * directly without recomputing the layout). */

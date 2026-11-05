@@ -1,0 +1,11 @@
+;
+;       OpenCol mod text merged into WOODCUT.TXT (docs/settings.md "mods").
+;       Additive only: a new section is added whole; in a stock section
+;       "N=text" appends row N, which must equal the stock row count.
+;
+
+;       mods.population_floor / mods.raid_scalps: caption of woodcut 12
+;       (no DOS call site) when a colony is abandoned; read instead of
+;       stock @WOODCUT row 12 "COLONY DESTROYED".
+@MODWOODCUT12
+COLONY ABANDONED

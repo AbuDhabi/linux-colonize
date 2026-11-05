@@ -14,6 +14,7 @@
 #include "core/europe.h"
 #include "core/founding_fathers.h"
 #include "core/map.h"
+#include "core/mods.h"
 #include "core/popup_msg.h"
 #include "core/ss.h"
 #include "core/units_cargo.h"
@@ -3781,9 +3782,183 @@ static int unit_trade_route_stop_load_order_and_boycott(void) {
   return failures != failures_before;
 }
 
+/* mods.h MOD_POPULATION_FLOOR: every built building's min population floors
+ * ejects (off: no floor in the eject); the ABANDON walk-out ignores it and
+ * puts everyone on the tile. */
+static int unit_population_floor_mod(void) {
+  const int failures_before = failures;
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
+    fprintf(stderr, "population floor: load NAMES.TXT failed\n");
+    return 1;
+  }
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  static ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
+  CHECK(colonies_load_buildings(&pool, &names), "floor: load @BUILDING");
+  CHECK(units_load_types(&units, &names), "floor: load unit types");
+  assets_msg_free(&names);
+  const int free_col = units_find_type(&units, "Colonists");
+  const int cathedral = colonies_find_building(&pool, "Cathedral");
+  CHECK(free_col >= 0 && cathedral >= 0, "floor: rows exist");
+  if (failures != failures_before) {
+    return 1;
+  }
+
+  ColonizeColony* c = &pool.colonies[0];
+  memset(c, 0, sizeof(*c));
+  c->id = 0;
+  c->active = true;
+  c->nation_id = 1;
+  c->x = 5;
+  c->y = 5;
+  c->building_in_production = -1;
+  memset(c->tiles, -1, sizeof(c->tiles));
+  for (int i = 0; i < 10; ++i) {
+    c->colonists[i].active = true;
+    c->colonists[i].unit_type_index = free_col;
+    c->colonists[i].building_type = -1;
+    c->colonists[i].field_job = -1;
+  }
+  c->colonist_count = 10;
+  c->population = 10;
+  pool.colony_count = 1;
+
+  CHECK(colonies_min_population_floor(&pool, c) == 1, "floor: no buildings, floor 1");
+  c->has_building[cathedral] = true;
+  CHECK(colonies_min_population_floor(&pool, c) == 8, "floor: Cathedral, floor 8");
+
+  /* Off: DOS, no floor in the eject itself. */
+  CHECK(colonies_eject_colonist(&pool, 0, 0, &units, COLONIZE_EJECT_COLONIST) >= 0,
+        "floor off: 10 -> 9 allowed");
+  mods_campaign_set(1u << MOD_POPULATION_FLOOR);
+  CHECK(colonies_eject_colonist(&pool, 0, 0, &units, COLONIZE_EJECT_COLONIST) >= 0,
+        "floor on: 9 -> 8 allowed");
+  CHECK(colonies_eject_colonist(&pool, 0, 0, &units, COLONIZE_EJECT_COLONIST) < 0,
+        "floor on: 8 -> 7 refused");
+  CHECK(c->colonist_count == 8, "floor on: pop stays 8");
+  mods_campaign_set(0);
+  CHECK(colonies_eject_colonist(&pool, 0, 0, &units, COLONIZE_EJECT_COLONIST) >= 0,
+        "floor off: 8 -> 7 allowed");
+  mods_campaign_set(1u << MOD_POPULATION_FLOOR);
+
+  int on_tile_before = 0;
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* u = units_get_const(&units, i);
+    on_tile_before += u && u->active && u->x == 5 && u->y == 5;
+  }
+  CHECK(colonies_abandon_walk_out(&pool, 0, &units) == 7, "walk-out ignores the floor, 7 leave");
+  CHECK(colonies_get(&pool, 0) == NULL, "walk-out: colony gone");
+  int on_tile = 0;
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* u = units_get_const(&units, i);
+    on_tile += u && u->active && u->x == 5 && u->y == 5;
+  }
+  CHECK(on_tile == on_tile_before + 7, "walk-out: 7 units on the tile");
+  mods_campaign_set(0);
+  return failures != failures_before;
+}
+
+/* ABANDON with a ship in port and a wagon on the tile: both stay put and
+ * stay valid, their binding to the dead colony is cleared (as for every
+ * colonies_abandon). A unit pool that fills mid walk-out keeps the colony
+ * with the rest: nobody is lost. */
+static int unit_population_floor_abandon_edges(void) {
+  const int failures_before = failures;
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
+    fprintf(stderr, "abandon edges: load NAMES.TXT failed\n");
+    return 1;
+  }
+  static ColonizeColonyPool pool;
+  static ColonizeUnitPool units;
+  for (int pass = 0; pass < 2; ++pass) {
+    colonies_init(&pool);
+    colonies_set_occupancy_map(NULL);
+    memset(&units, 0, sizeof(units));
+    CHECK(colonies_load_buildings(&pool, &names), "abandon: load @BUILDING");
+    CHECK(units_load_types(&units, &names), "abandon: load unit types");
+    const int free_col = units_find_type(&units, "Colonists");
+    const int caravel = units_find_type(&units, "Caravel");
+    const int wagon = units_find_type(&units, "Wagon Train");
+    CHECK(free_col >= 0 && caravel >= 0 && wagon >= 0, "abandon: rows exist");
+    if (failures != failures_before) {
+      break;
+    }
+    ColonizeColony* c = &pool.colonies[0];
+    memset(c, 0, sizeof(*c));
+    c->active = true;
+    c->nation_id = 1;
+    c->x = 5;
+    c->y = 5;
+    c->building_in_production = -1;
+    memset(c->tiles, -1, sizeof(c->tiles));
+    for (int i = 0; i < 4; ++i) {
+      c->colonists[i].active = true;
+      c->colonists[i].unit_type_index = free_col;
+      c->colonists[i].building_type = -1;
+      c->colonists[i].field_job = -1;
+    }
+    c->colonist_count = 4;
+    c->population = 4;
+    pool.colony_count = 1;
+    mods_campaign_set(1u << MOD_POPULATION_FLOOR);
+
+    if (pass == 0) {
+      const int ship = units_spawn_allow_stack_nation(&units, caravel, 5, 5, 1);
+      const int cart = units_spawn_allow_stack_nation(&units, wagon, 5, 5, 1);
+      CHECK(ship >= 0 && cart >= 0, "abandon: ship and wagon spawned");
+      ColonizeUnit* su = units_get(&units, ship);
+      ColonizeUnit* wu = units_get(&units, cart);
+      if (!su || !wu) {
+        mods_campaign_set(0);
+        break;
+      }
+      su->col1_origin = 0;
+      wu->col1_origin = 0;
+      colonies_set_units_context(&units);
+      CHECK(colonies_abandon_walk_out(&pool, 0, &units) == 4, "abandon: 4 colonists leave");
+      colonies_set_units_context(NULL);
+      CHECK(colonies_get(&pool, 0) == NULL && pool.colony_count == 0, "abandon: colony gone");
+      CHECK(su->active && su->x == 5 && su->y == 5 && su->nation_id == 1 &&
+              su->type_index == caravel, "abandon: ship stays in place, valid");
+      CHECK(wu->active && wu->x == 5 && wu->y == 5 && wu->nation_id == 1 &&
+              wu->type_index == wagon, "abandon: wagon stays in place, valid");
+      CHECK(su->col1_origin == 0xff && wu->col1_origin == 0xff,
+            "abandon: no unit stays bound to the dead colony");
+    } else {
+      /* Room for exactly two more units in the DOS pool. */
+      for (int i = 0; i < COLONIZE_UNITS_DOS_MAX - 2; ++i) {
+        units.units[i].active = true;
+        units.units[i].id = units.next_id++;
+        units.units[i].nation_id = 2;
+      }
+      units_pool_sync(&units);
+      CHECK(colonies_abandon_walk_out(&pool, 0, &units) < 0, "pool full: walk-out stops");
+      const ColonizeColony* left = colonies_get(&pool, 0);
+      int out = 0;
+      for (int i = COLONIZE_UNITS_DOS_MAX - 2; i < COLONIZE_UNITS_MAX; ++i) {
+        const ColonizeUnit* u = &units.units[i];
+        out += u->active && u->x == 5 && u->y == 5 && u->nation_id == 1;
+      }
+      CHECK(left != NULL, "pool full: colony kept");
+      CHECK(left && left->colonist_count + out == 4 && out == 2,
+            "pool full: 2 out, 2 kept, nobody lost");
+    }
+    mods_campaign_set(0);
+  }
+  assets_msg_free(&names);
+  return failures != failures_before;
+}
+
 static const TestCase k_cases[] = {
   {"unit_tb32_capture_keeps_war", unit_tb32_capture_keeps_war},
     {"unit_colonies_core", case_colonies_core},
+    {"unit_population_floor_abandon_edges", unit_population_floor_abandon_edges},
     {"colony_delete_appends_next", case_colony_delete_appends_next},
     {"colony_delete_remaps_trade_stops", case_colony_delete_remaps_trade_stops},
     {"unit_found_chrome", unit_found_chrome},
@@ -3813,5 +3988,6 @@ static const TestCase k_cases[] = {
     {"unit_buildable_blank_name_tier", unit_buildable_blank_name_tier},
     {"unit_colony_cheat_helpers", unit_colony_cheat_helpers},
     {"unit_trade_route_stop_load_order_and_boycott", unit_trade_route_stop_load_order_and_boycott},
+    {"unit_population_floor_mod", unit_population_floor_mod},
 };
 TEST_MAIN(k_cases)

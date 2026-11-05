@@ -1,0 +1,10 @@
+;
+;       OpenCol mod text merged into LABELS.TXT (docs/settings.md "mods").
+;       Additive only: a new section is added whole; in a stock section
+;       "N=text" appends row N, which must equal the stock row count.
+;
+
+;       mods.population_floor: the colony screen's Units-tab button that
+;       abandons the colony (no MicroProse string exists for it).
+@MODABANDON
+ABANDON

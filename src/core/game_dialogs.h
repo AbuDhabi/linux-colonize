@@ -535,6 +535,9 @@ void game_apply_save_load_result(ColonizeGameState* game);
 void game_apply_trade_dest(ColonizeGameState* game, int id);
 void game_begin_win_closing_or_score(ColonizeGameState* game);
 void game_click_activate_unit(ColonizeGameState* game, int unit_id);
+/* colonist_index of the MOD_POPULATION_FLOOR ABANDON button: everyone walks
+ * out (colonies_abandon_walk_out). */
+#define GAME_COLONY_ABANDON_ALL (-2)
 void game_colony_finish_eject(
   ColonizeGameState* game,
   int colonist_index,

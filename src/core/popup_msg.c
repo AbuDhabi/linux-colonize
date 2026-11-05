@@ -350,6 +350,8 @@ static const PopupMsgGraphicRow k_popup_msg_mss[] = {
   {"UNIV3", 5},       {"COLLEGE2", 5},    {"SCHOOL1", 5},    {"NOTEACHER", 5},
   {"NEEDCOLLEGE", 5}, {"NEEDUNIVERSITY", 5}, {"ASSEMBLY", 5}, {"TOWNHALL", 5},
   {"MEETINGHALL", 5}, {"KEEPSTOCKADE", 5},
+  /* MOD_POPULATION_FLOOR's data/mods stand-in for @KEEPSTOCKADE: same figure. */
+  {"MODKEEPSTOCKADE", 5},
   /* FUN_364b_0000 param_6 (see MSS1); @NEEDTOOLS / "0", @SPOIL1 / 2 and "CARGOREADY0" + n
    * are built in a stack buffer (ndisasm 0x2e648, 0x2e8b8, 0x2e96c). */
   {"NOMOREWAREHOUSE", 5}, {"NOMOREWAGONS", 5}, {"BUILT", 5}, {"INEFFICIENT", 5},
