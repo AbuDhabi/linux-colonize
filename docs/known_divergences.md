@@ -115,6 +115,18 @@ slot down. Exact for a game the port saved; after loading a DOS save, a turn in
 which a harbor hull and a map hull with a higher DOS record index both finish
 repairs shows the two popups in swapped order. Same data-model cost as #974.
 
+### Burial search treasure and the move tail's count test
+DOS asks @LOSTCITY4 modally inside `FUN_65dd_0004` (65dd:04eb), so a "search"
+whose roll lands on @BURIAL3 has created its Treasure (`FUN_281f_095c`, raw 103685) before
+`FUN_465b_0000` tests the unit count at raw 75792; that move then skips the
+`FUN_5bfb_3180` contact work and its sentry wake. The port queues the question
+(`units_lcr_burial_enqueue_choice`) and pays out after the move tail has run,
+so on that move it meets the neighbours and wakes the sentries that DOS leaves
+alone. The roll's `gate` is known at queue time but the player's answer is not,
+so the count change cannot be settled before the tail without moving the tail
+behind the popup. The Fountain of Youth picks, also queued, are counted at
+queue time (`game_loop_orders.c`) because they do not depend on an answer.
+
 ### Hot-seat edge cases (ported 2026-10-26 as port_bugs.md #1290)
 Two narrow differences after a hot-seat `@MULTIREV` "Yes" are listed in
 [hotseat.md](hotseat.md) "Divergences".

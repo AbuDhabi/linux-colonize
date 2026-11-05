@@ -23,6 +23,7 @@
 #include "core/popup.h"
 #include "core/reports.h"
 #include "core/turn_internal.h"
+#include "core/woodcut.h"
 
 #include "../common/ai_fixture.h"
 #include "../common/test_runner.h"
@@ -1024,8 +1025,9 @@ static int test_goto_treasure_gets_king_galleon_offer(void) {
 /* FUN_465b_0000 raw 75450 / 75792: a human explorer whose rumour changes the
  * unit count (survivors join) skips the FUN_5bfb_3180 contact work, so neither
  * the unmet village next door (FUN_5bfb_022e MET bit) nor the Dutch unit on
- * the other side (FUN_5bfb_153e MET bit) is met on this move. Control: an
- * outcome that leaves the count alone meets both. */
+ * the other side (FUN_5bfb_153e MET bit) is met on this move. A Fountain of
+ * Youth counts as a change: DOS creates its eight dock records inside the LCR.
+ * Control: an outcome that leaves the count alone meets both. */
 static int test_human_lcr_count_change_skips_contact(void) {
   ColonizeGameState game;
   memset(&game, 0, sizeof(game));
@@ -1043,6 +1045,7 @@ static int test_human_lcr_count_change_skips_contact(void) {
   game.units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
   fx_colonies_init(&game.colonies);
   game.colonies_ok = true;
+  game.europe_ok = true; /* a Fountain of Youth queues its picks */
   units_set_occupancy_map(&game.world_map);
   colonies_set_occupancy_map(&game.world_map);
   game.col1.player[0].named_new_world = 1;
@@ -1059,15 +1062,27 @@ static int test_human_lcr_count_change_skips_contact(void) {
   tribe.y = 3;
   game.col1.tribe = &tribe;
   game.col1.head.tribe_count = 1;
+  /* The village tile carries the settlement bit and owner nibble that 3180's
+   * neighbour read (FUN_281f_06be -> FUN_137f_03e4) resolves. */
+  game.world_map.layer2[3 * 8 + 4] |= 0x02u;
+  game.world_map.layer3[3 * 8 + 4] = (uint8_t)((game.world_map.layer3[3 * 8 + 4] & 0x0fu) | 0x40u);
+  /* The Fountain wants terrain class & 7 > 3 and four rumours explored. */
+  game.world_map.terrain[3 * 8 + 3] = 4;
+  uint8_t saved_lcr_counters[2];
+  units_lcr_counters_export(saved_lcr_counters);
+  units_lcr_counters_import((const uint8_t[2]){4, 0});
   int seen_changed = 0;
   int seen_same = 0;
+  int seen_foy = 0;
   const int32_t saved_83a6 = dos_rng_get_83a6();
   int rc = map_tile_has_rumour(&game.world_map, 3, 3) ? 0 : fail("no rumour at (3,3)");
-  for (int seed = 1; seed < 400 && rc == 0 && (!seen_changed || !seen_same); ++seed) {
+  for (int seed = 1; seed < 400 && rc == 0 && (!seen_changed || !seen_same || !seen_foy); ++seed) {
     game.world_map.layer2[3 * 8 + 3] &= (uint8_t)~MAP_LAYER2_LCR_CONSUMED;
     memset(&game.col1.indian[0], 0, sizeof(game.col1.indian[0]));
     ai_popup_init(&game.ai_popups);
-    ColonizeUnit* u = units_get(&game.units, units_spawn(&game.units, 0, 3, 3));
+    /* The explorer walks onto the rumour, so the move's own 3180 halves
+     * (units_sentry_wake_scan) run too. */
+    ColonizeUnit* u = units_get(&game.units, units_spawn(&game.units, 0, 3, 4));
     if (!u) {
       rc = fail("human lcr spawn");
       break;
@@ -1082,6 +1097,11 @@ static int test_human_lcr_count_change_skips_contact(void) {
       break;
     }
     dutch->nation_id = 1;
+    /* 3180's facing stamp (raw 98648-98651) is skipped with the rest of 3180. */
+    dutch->last_dir = -1;
+    /* So is its sentry wake (raw 98628-98646). */
+    dutch->orders = UNITS_ORDER_SENTRY;
+    const int dutch_id = dutch->id;
     game.col1.head.turn = (uint16_t)seed; /* 153e talks once per pair per turn */
     ai_diplo_talk_reset();
     ai_diplo_write(&game.col1, 0, 1, 0);
@@ -1090,24 +1110,35 @@ static int test_human_lcr_count_change_skips_contact(void) {
     dos_rng_set_83a6((int32_t)seed * 12345);
     dos_rng_seed(&game.move_rng, (uint32_t)seed * 12345u);
     const int before = units_active_count(&game.units);
-    game_after_unit_action(&game);
+    (void)game_try_unit_move(&game, 3, 3);
     u = units_get(&game.units, uid);
-    const bool alive = u && u->active;
-    const bool changed = units_active_count(&game.units) != before;
+    dutch = units_get(&game.units, dutch_id);
+    const bool alive = u && u->active && u->x == 3 && u->y == 3;
+    const bool foy = ai_popup_pending(
+      &game.ai_popups, AI_POPUP_TAG_FOUNTAIN_YOUTH, -1, AI_POPUP_KEY_ANY, 0, 0
+    );
+    seen_foy += alive && foy;
+    const bool changed = units_active_count(&game.units) != before || foy;
     const bool met = (game.col1.indian[0].euro_diplo[0] & COL1_INDIAN_MET_BIT) != 0;
     const bool euro_met = (ai_diplo_read(&game.col1, 0, 1) & COL1_INDIAN_MET_BIT) != 0;
+    const bool faced = dutch && dutch->last_dir >= 0;
+    const bool woke = dutch && dutch->orders != UNITS_ORDER_SENTRY;
     if (alive && changed) {
       seen_changed++;
-      if (met || euro_met) {
-        fprintf(stderr, "human lcr: count change (seed %d) still ran contact (tribe %d euro %d)\n",
-                seed, met, euro_met);
+      if (met || euro_met || faced || woke) {
+        fprintf(stderr,
+                "human lcr: count change (seed %d) still ran contact (tribe %d euro %d faced %d "
+                "woke %d)\n",
+                seed, met, euro_met, faced, woke);
         rc = 1;
       }
     } else if (alive && !changed) {
       seen_same++;
-      if (!met || !euro_met) {
-        fprintf(stderr, "human lcr: unchanged count (seed %d) skipped contact (tribe %d euro %d)\n",
-                seed, met, euro_met);
+      if (!met || !euro_met || !faced || !woke) {
+        fprintf(stderr,
+                "human lcr: unchanged count (seed %d) skipped contact (tribe %d euro %d faced %d "
+                "woke %d)\n",
+                seed, met, euro_met, faced, woke);
         rc = 1;
       }
     }
@@ -1117,17 +1148,591 @@ static int test_human_lcr_count_change_skips_contact(void) {
       }
     }
   }
-  if (rc == 0 && (!seen_changed || !seen_same)) {
-    fprintf(stderr, "human lcr: outcomes not reached (changed %d same %d)\n", seen_changed,
-            seen_same);
+  if (rc == 0 && (!seen_changed || !seen_same || !seen_foy)) {
+    fprintf(stderr, "human lcr: outcomes not reached (changed %d same %d fountain %d)\n",
+            seen_changed, seen_same, seen_foy);
     rc = 1;
   }
+  /* A tail that commits no step (combat, village or colony entry, fortify)
+   * jumps to LAB_465b_0bd1 past 3180 (raw 75797): same neighbours, no contact. */
+  if (rc == 0) {
+    game.world_map.layer2[3 * 8 + 3] |= MAP_LAYER2_LCR_CONSUMED;
+    memset(&game.col1.indian[0], 0, sizeof(game.col1.indian[0]));
+    ai_popup_init(&game.ai_popups);
+    ColonizeUnit* u = units_get(&game.units, units_spawn(&game.units, 0, 3, 3));
+    ColonizeUnit* dutch = units_get(&game.units, units_spawn_allow_stack(&game.units, 0, 2, 3));
+    if (!u || !dutch) {
+      rc = fail("human non-step spawn");
+    } else {
+      u->nation_id = 0;
+      u->moves = 6;
+      dutch->nation_id = 1;
+      game.units.selected_id = u->id;
+      game.col1.head.turn = 1000;
+      ai_diplo_talk_reset();
+      ai_diplo_write(&game.col1, 0, 1, 0);
+      ai_diplo_write(&game.col1, 1, 0, 0);
+      game_after_unit_action(&game);
+      if ((game.col1.indian[0].euro_diplo[0] & COL1_INDIAN_MET_BIT) != 0 ||
+          (ai_diplo_read(&game.col1, 0, 1) & COL1_INDIAN_MET_BIT) != 0) {
+        rc = fail("human non-step tail: no 3180 contact without a committed step");
+      }
+    }
+  }
   dos_rng_set_83a6(saved_83a6);
+  units_lcr_counters_import(saved_lcr_counters);
   game.col1.tribe = NULL;
   game.col1.head.tribe_count = 0;
   colonies_set_occupancy_map(NULL);
   units_set_occupancy_map(NULL);
   fx_map_free(&game.world_map);
+  return rc;
+}
+
+/* Step-tail fixture: land everywhere but the ocean column x=2 rows 3..4; an
+ * unmet village at (4,3); an AI French unit at (3,2) facing -1. Type 0 =
+ * colonist, type 1 = caravel. A FUN_5bfb_3180 run from (3,3) stamps the
+ * French unit's facing and meets the village. */
+static int step3180_fixture(ColonizeGameState* game, ColonizeCol1Tribe* tribe) {
+  trade_seam_init(game, 2, false);
+  game->units.type_count = 2;
+  game->units.types[0].kind_plus1 = UNITS_KIND_COLONIST + 1;
+  game->units.types[0].cargo = 0;
+  game->units.types[0].movement = 1;
+  game->units.types[1].kind_plus1 = UNITS_KIND_CARAVEL + 1;
+  game->units.types[1].movement = 4;
+  game->units.types[1].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  game->units.types[1].cargo = 2;
+  game->col1.player[0].named_new_world = 1;
+  for (int n = 1; n < 4; ++n) {
+    game->col1.player[n].control = 1;
+  }
+  for (uint16_t s = 1; s < 512 && map_tile_has_rumour(&game->world_map, 3, 3); ++s) {
+    game->world_map.prime_resource_seed = s;
+  }
+  game->world_map.terrain[3 * 8 + 2] = 25; /* ocean */
+  game->world_map.terrain[4 * 8 + 2] = 25;
+  memset(tribe, 0, sizeof(*tribe));
+  tribe->nation_id = 4;
+  tribe->x = 4;
+  tribe->y = 3;
+  game->col1.tribe = tribe;
+  game->col1.head.tribe_count = 1;
+  game->world_map.layer2[3 * 8 + 4] |= 0x02u;
+  game->world_map.layer3[3 * 8 + 4] = (uint8_t)((game->world_map.layer3[3 * 8 + 4] & 0x0fu) | 0x40u);
+  ColonizeUnit* fr = units_get(&game->units, units_spawn(&game->units, 0, 3, 2));
+  if (!fr || map_tile_has_rumour(&game->world_map, 3, 3) ||
+      !map_tile_is_water(&game->world_map, 2, 3)) {
+    return -1;
+  }
+  fr->nation_id = 1;
+  fr->last_dir = -1;
+  return fr->id;
+}
+
+static void step3180_free(ColonizeGameState* game) {
+  game->col1.tribe = NULL;
+  game->col1.head.tribe_count = 0;
+  trade_seam_free(game);
+}
+
+/* DOS has no plain O board key: MENU.TXT's only ~O row is Dump Cargo
+ * Overboard. O on the map must not board a land unit onto the ship at the
+ * cursor. */
+static int test_map_o_key_does_not_board(void) {
+  ColonizeGameState game;
+  ColonizeCol1Tribe tribe;
+  int rc = step3180_fixture(&game, &tribe) < 0 ? fail("o key fixture") : 0;
+  ColonizeUnit* ship = rc ? NULL : units_get(&game.units, units_spawn(&game.units, 1, 2, 3));
+  ColonizeUnit* land = ship ? units_get(&game.units, units_spawn(&game.units, 0, 3, 3)) : NULL;
+  if (rc == 0 && (!ship || !land)) {
+    rc = fail("o key: spawn");
+  }
+  if (rc == 0) {
+    ship->nation_id = 0;
+    land->nation_id = 0;
+    land->moves = 3;
+    game.units.selected_id = land->id;
+    game.map_cursor_x = 2;
+    game.map_cursor_y = 3;
+    ColonizeInputState in;
+    memset(&in, 0, sizeof(in));
+    in.last_key = COLONIZE_KEY_O;
+    (void)game_update_map_keys(&game, &in);
+    if (units_get_const(&game.units, land->id)->aboard_ship_id >= 0) {
+      rc = fail("O must not board the land unit onto the ship");
+    }
+  }
+  step3180_free(&game);
+  return rc;
+}
+
+/* A held 3180 wake dies with its tail. The early return (no selected unit)
+ * drops it, so a later non-step tail of the same unit wakes nobody, and
+ * units_reset_state (load / new game) clears it too. */
+static int test_deferred_wake_does_not_leak(void) {
+  ColonizeGameState game;
+  ColonizeCol1Tribe tribe;
+  const int fr_id = step3180_fixture(&game, &tribe);
+  int rc = fr_id < 0 ? fail("wake leak fixture") : 0;
+  ColonizeUnit* a = rc ? NULL : units_get(&game.units, units_spawn(&game.units, 0, 3, 3));
+  if (rc == 0 && !a) {
+    rc = fail("wake leak: spawn");
+  }
+  if (rc == 0) {
+    a->nation_id = 0;
+    a->moves = 0;
+    const int aid = a->id;
+    units_get(&game.units, fr_id)->orders = UNITS_ORDER_SENTRY;
+    g_units_wake_deferred_id = aid;
+    game.units.selected_id = -1;
+    game_after_unit_action(&game);
+    game.units.selected_id = aid;
+    game_after_unit_action(&game);
+    if (units_get_const(&game.units, fr_id)->orders != UNITS_ORDER_SENTRY) {
+      rc = fail("wake leak: a held wake survived the early return and fired later");
+    }
+    g_units_wake_deferred_id = aid;
+    units_reset_state();
+    if (g_units_wake_deferred_id != -1) {
+      rc = fail("wake leak: units_reset_state kept the held wake");
+    }
+  }
+  step3180_free(&game);
+  return rc;
+}
+
+/* FUN_4720_015c raw 75988-75995: an awake passenger's arrow step onto an
+ * adjacent own ship boards that ship instead of being refused as a landfall. */
+static int test_human_passenger_ship_to_ship(void) {
+  ColonizeGameState game;
+  ColonizeCol1Tribe tribe;
+  const int fr_id = step3180_fixture(&game, &tribe);
+  int rc = fr_id < 0 ? fail("ship-to-ship fixture") : 0;
+  ColonizeUnit* a = rc ? NULL : units_get(&game.units, units_spawn(&game.units, 1, 2, 3));
+  const int b_id = a ? units_spawn_allow_stack(&game.units, 1, 2, 4) : -1;
+  const int pax_id = a ? units_spawn(&game.units, 0, 1, 3) : -1;
+  if (rc == 0 && (!a || b_id < 0 || pax_id < 0 || !units_board(&game.units, pax_id, a->id))) {
+    rc = fail("ship-to-ship: ships / passenger");
+  }
+  if (rc == 0) {
+    a->nation_id = 0;
+    units_get(&game.units, b_id)->nation_id = 0;
+    ColonizeUnit* pax = units_get(&game.units, pax_id);
+    pax->nation_id = 0;
+    pax->orders = UNITS_ORDER_NONE;
+    pax->moves = UNITS_MP_PER_TILE;
+    game.units.selected_id = pax_id;
+    (void)game_try_unit_move(&game, 2, 4);
+    pax = units_get(&game.units, pax_id);
+    if (!pax || pax->aboard_ship_id != b_id) {
+      rc = fail("ship-to-ship: the awake passenger must board the adjacent own ship");
+    }
+  }
+  step3180_free(&game);
+  return rc;
+}
+
+/* A board step's 07a0 reveal is the passenger's (raw 75783, asm 465b:0aca;
+ * radius by mover type) at the ship's tile, whichever unit takes the focus.
+ * A colonist (radius 1) boarding a Galleon (radius 2) at (2,3) sees (1,3)
+ * but not (2,5). Branch 0: the ship has MP, wakes and takes the focus
+ * (FUN_1427_1330 passes, raw 75719-75721). Branch 1: the ship is spent and
+ * the focus stays off it. */
+static int test_human_board_reveals_with_passenger(void) {
+  int rc = 0;
+  for (int spent = 0; spent < 2 && rc == 0; ++spent) {
+    ColonizeGameState game;
+    ColonizeCol1Tribe tribe;
+    const int fr_id = step3180_fixture(&game, &tribe);
+    rc = fr_id < 0 ? fail("board reveal fixture") : 0;
+    game.units.types[1].kind_plus1 = UNITS_KIND_GALLEON + 1;
+    /* A ship's second ring shows water only, so make the far probe water. */
+    game.world_map.terrain[5 * 8 + 2] = T_OCEAN;
+    ColonizeUnit* ship = rc ? NULL : units_get(&game.units, units_spawn(&game.units, 1, 2, 3));
+    ColonizeUnit* col = ship ? units_get(&game.units, units_spawn(&game.units, 0, 3, 3)) : NULL;
+    if (rc == 0 && (!ship || !col)) {
+      rc = fail("board reveal: spawn");
+    }
+    if (rc == 0 && (map_tile_seen_by(&game.world_map, 1, 3, 0) ||
+                    map_tile_seen_by(&game.world_map, 2, 5, 0))) {
+      rc = fail("board reveal: (1,3) and (2,5) must start unseen");
+    }
+    if (rc == 0) {
+      ship->nation_id = 0;
+      ship->moves = spent ? 0 : 12;
+      ship->orders = UNITS_ORDER_SENTRY;
+      col->nation_id = 0;
+      col->moves = 3;
+      game.units.selected_id = col->id;
+      (void)game_try_unit_move(&game, 2, 3);
+      if (col->aboard_ship_id != ship->id) {
+        rc = fail("board reveal: the colonist must board");
+      } else if (ship->orders != UNITS_ORDER_NONE) {
+        rc = fail("board reveal: the sentried ship must wake");
+      } else if ((game.units.selected_id == ship->id) != (spent == 0)) {
+        fprintf(stderr, "board reveal: spent=%d focus=%d ship=%d\n", spent,
+                game.units.selected_id, ship->id);
+        rc = fail("board reveal: only a ship with MP takes the focus");
+      } else if (!map_tile_seen_by(&game.world_map, 1, 3, 0)) {
+        fprintf(stderr, "board reveal: spent=%d\n", spent);
+        rc = fail("board reveal: the passenger's radius 1 must reveal (1,3)");
+      } else if (map_tile_seen_by(&game.world_map, 2, 5, 0)) {
+        fprintf(stderr, "board reveal: spent=%d\n", spent);
+        rc = fail("board reveal: the Galleon's radius 2 must not stand in for the passenger");
+      }
+    }
+    step3180_free(&game);
+  }
+  return rc;
+}
+
+/* With two own hulls on the water tile the focus goes to the tile head
+ * (units_465b_board_wake_focus), which need not be the hull the passenger is
+ * filed under; the reveal is still the passenger's (raw 75783). */
+static int test_human_board_two_hulls_reveals_with_passenger(void) {
+  ColonizeGameState game;
+  ColonizeCol1Tribe tribe;
+  const int fr_id = step3180_fixture(&game, &tribe);
+  int rc = fr_id < 0 ? fail("two hulls fixture") : 0;
+  game.units.types[1].kind_plus1 = UNITS_KIND_GALLEON + 1;
+  game.world_map.terrain[5 * 8 + 2] = T_OCEAN;
+  ColonizeUnit* low = rc ? NULL : units_get(&game.units, units_spawn(&game.units, 1, 2, 3));
+  const int top_id = low ? units_spawn_allow_stack(&game.units, 1, 2, 3) : -1;
+  ColonizeUnit* col = top_id >= 0 ? units_get(&game.units, units_spawn(&game.units, 0, 3, 3)) : NULL;
+  if (rc == 0 && (!low || top_id < 0 || !col)) {
+    rc = fail("two hulls: spawn");
+  }
+  if (rc == 0) {
+    low->nation_id = 0;
+    low->moves = 12;
+    units_get(&game.units, top_id)->nation_id = 0;
+    units_get(&game.units, top_id)->moves = 12;
+    col->nation_id = 0;
+    col->moves = 3;
+    game.units.selected_id = col->id;
+    (void)game_try_unit_move(&game, 2, 3);
+    if (col->aboard_ship_id < 0) {
+      rc = fail("two hulls: the colonist must board");
+    } else if (game.units.selected_id == col->aboard_ship_id) {
+      fprintf(stderr, "two hulls: focus %d, filed under %d, head %d\n", game.units.selected_id,
+              col->aboard_ship_id, top_id);
+      rc = fail("two hulls: the fixture must put the focus on the other hull");
+    } else if (!map_tile_seen_by(&game.world_map, 1, 3, 0) ||
+               map_tile_seen_by(&game.world_map, 2, 5, 0)) {
+      rc = fail("two hulls: the reveal must be the passenger's radius 1");
+    }
+  }
+  step3180_free(&game);
+  return rc;
+}
+
+/* The ship-to-ship transfer is the same 465b board step (FUN_4720_015c ->
+ * 465b), so it reveals with the passenger's radius at the receiving ship's
+ * tile too (raw 75783), with MP on the receiving ship (focus moves to it)
+ * and without (focus stays on the passenger, who is off the map). */
+static int test_human_transfer_reveals_with_passenger(void) {
+  int rc = 0;
+  for (int spent = 0; spent < 2 && rc == 0; ++spent) {
+    ColonizeGameState game;
+    ColonizeCol1Tribe tribe;
+    const int fr_id = step3180_fixture(&game, &tribe);
+    rc = fr_id < 0 ? fail("transfer reveal fixture") : 0;
+    game.units.types[1].kind_plus1 = UNITS_KIND_GALLEON + 1;
+    game.world_map.terrain[5 * 8 + 2] = T_OCEAN;
+    ColonizeUnit* ship = rc ? NULL : units_get(&game.units, units_spawn(&game.units, 1, 2, 3));
+    ColonizeUnit* host = ship ? units_get(&game.units, units_spawn(&game.units, 1, 2, 4)) : NULL;
+    ColonizeUnit* col = host ? units_get(&game.units, units_spawn(&game.units, 0, 3, 3)) : NULL;
+    if (rc == 0 && (!ship || !host || !col || !units_board(&game.units, col->id, host->id))) {
+      rc = fail("transfer reveal: spawn / board host");
+    }
+    if (rc == 0 && (map_tile_seen_by(&game.world_map, 1, 3, 0) ||
+                    map_tile_seen_by(&game.world_map, 2, 5, 0))) {
+      rc = fail("transfer reveal: (1,3) and (2,5) must start unseen");
+    }
+    if (rc == 0) {
+      ship->nation_id = host->nation_id = col->nation_id = 0;
+      ship->moves = spent ? 0 : 12;
+      ship->orders = UNITS_ORDER_SENTRY;
+      col->orders = UNITS_ORDER_NONE;
+      col->moves = 3;
+      game.units.selected_id = col->id;
+      (void)game_try_unit_move(&game, 2, 3);
+      if (col->aboard_ship_id != ship->id) {
+        rc = fail("transfer reveal: the passenger must move to the ship");
+      } else if ((game.units.selected_id == ship->id) != (spent == 0)) {
+        fprintf(stderr, "transfer reveal: spent=%d focus=%d ship=%d\n", spent,
+                game.units.selected_id, ship->id);
+        rc = fail("transfer reveal: only a ship with MP takes the focus");
+      } else if (!map_tile_seen_by(&game.world_map, 1, 3, 0)) {
+        fprintf(stderr, "transfer reveal: spent=%d\n", spent);
+        rc = fail("transfer reveal: the passenger's radius 1 must reveal (1,3)");
+      } else if (map_tile_seen_by(&game.world_map, 2, 5, 0)) {
+        fprintf(stderr, "transfer reveal: spent=%d\n", spent);
+        rc = fail("transfer reveal: the Galleon's radius 2 must not stand in for the passenger");
+      }
+    }
+    step3180_free(&game);
+  }
+  return rc;
+}
+
+/* A Go To step onto an own ship's tile is the same 465b board step
+ * (units_advance_goto_one_step_w -> units_try_move_w -> units_move_board),
+ * and the pacer runs the plain game_after_unit_step tail, so the reveal must
+ * still be the passenger's (raw 75783), with or without ship MP, and the
+ * tail consumes the board record. */
+static int test_goto_board_reveals_with_passenger(void) {
+  int rc = 0;
+  for (int spent = 0; spent < 2 && rc == 0; ++spent) {
+    ColonizeGameState game;
+    ColonizeCol1Tribe tribe;
+    const int fr_id = step3180_fixture(&game, &tribe);
+    rc = fr_id < 0 ? fail("goto board fixture") : 0;
+    game.units.types[1].kind_plus1 = UNITS_KIND_GALLEON + 1;
+    game.world_map.terrain[5 * 8 + 2] = T_OCEAN;
+    ColonizeUnit* ship = rc ? NULL : units_get(&game.units, units_spawn(&game.units, 1, 2, 3));
+    ColonizeUnit* col = ship ? units_get(&game.units, units_spawn(&game.units, 0, 3, 3)) : NULL;
+    if (rc == 0 && (!ship || !col)) {
+      rc = fail("goto board: spawn");
+    }
+    if (rc == 0) {
+      ship->nation_id = 0;
+      ship->moves = spent ? 0 : 12;
+      ship->orders = UNITS_ORDER_SENTRY;
+      col->nation_id = 0;
+      col->moves = 3;
+      col->orders = UNITS_ORDER_GOTO;
+      col->goto_x = 2;
+      col->goto_y = 3;
+      game.units.selected_id = col->id;
+      ColonizeInputState input;
+      memset(&input, 0, sizeof(input));
+      (void)game_update_unit_pacer(&game, &input, 100);
+      if (col->aboard_ship_id != ship->id) {
+        fprintf(stderr, "goto board: spent=%d pos=(%d,%d) aboard=%d orders=%d\n", spent,
+                col->x, col->y, col->aboard_ship_id, col->orders);
+        rc = fail("goto board: the Go To step must board the ship");
+      } else if (!map_tile_seen_by(&game.world_map, 1, 3, 0)) {
+        fprintf(stderr, "goto board: spent=%d\n", spent);
+        rc = fail("goto board: the passenger's radius 1 must reveal (1,3)");
+      } else if (map_tile_seen_by(&game.world_map, 2, 5, 0)) {
+        fprintf(stderr, "goto board: spent=%d\n", spent);
+        rc = fail("goto board: the Galleon's radius 2 must not stand in for the passenger");
+      } else if (units_last_enter_reason() == COLONIZE_ENTER_BOARD &&
+                 units_take_board_passenger() != -1) {
+        rc = fail("goto board: the step tail must consume the board record");
+      }
+    }
+    step3180_free(&game);
+  }
+  return rc;
+}
+
+/* @LANDFALL "Make landfall" makes the passenger active (FUN_281f_086c ->
+ * FUN_1427_08ea sets DS:0x5392) and jumps to LAB_4720_061c (ndisasm
+ * 0x3FE56-0x3FEA3 -> 0xff5c), the FUN_2a1f_0142 commit: the passenger's step
+ * runs the FUN_465b_0000 tail, FUN_5bfb_3180 included. */
+static int test_human_landfall_runs_3180(void) {
+  ColonizeGameState game;
+  ColonizeCol1Tribe tribe;
+  const int fr_id = step3180_fixture(&game, &tribe);
+  int rc = fr_id < 0 ? fail("landfall 3180 fixture") : 0;
+  ColonizeUnit* ship = rc ? NULL : units_get(&game.units, units_spawn(&game.units, 1, 2, 3));
+  const int pax_id = ship ? units_spawn(&game.units, 0, 1, 3) : -1; /* boards from beside */
+  if (rc == 0 && (!ship || pax_id < 0 || !units_board(&game.units, pax_id, ship->id))) {
+    rc = fail("landfall 3180: ship / passenger");
+  }
+  if (rc == 0) {
+    ship->nation_id = 0;
+    ship->moves = 12;
+    units_get(&game.units, pax_id)->nation_id = 0;
+    game.units.selected_id = ship->id;
+    (void)game_try_unit_move(&game, 3, 3);
+    if (units_get_const(&game.units, pax_id)->aboard_ship_id != ship->id) {
+      rc = fail("landfall 3180: the step must ask @LANDFALL first");
+    }
+    game.ai_popups.has_result = true;
+    game.ai_popups.result_tag = AI_POPUP_TAG_LANDFALL;
+    game.ai_popups.result_cancelled = false;
+    game.ai_popups.result_nation_a = ship->id;
+    game.ai_popups.result_nation_b = 3;
+    game.ai_popups.result_payload = 3;
+    game.ai_popups.result_choice_id = 1;
+    game_apply_ai_popup_result(&game);
+    const ColonizeUnit* pax = units_get_const(&game.units, pax_id);
+    if (rc == 0 && (!pax || pax->x != 3 || pax->y != 3)) {
+      rc = fail("landfall 3180: passenger did not land at (3,3)");
+    } else if (rc == 0 && (game.col1.indian[0].euro_diplo[0] & COL1_INDIAN_MET_BIT) == 0) {
+      rc = fail("landfall 3180: the passenger's landfall step must run FUN_5bfb_3180");
+    }
+  }
+  step3180_free(&game);
+  return rc;
+}
+
+/* A village visit from the next tile is FUN_465b_0000's dwelling dispatch (raw
+ * 75486-75490 -> 2a1f_016c, goto LAB_465b_0bd1), past the 3180 tail at raw
+ * 75797: the French unit beside the visitor keeps its facing. */
+static int test_human_village_visit_no_3180(void) {
+  ColonizeGameState game;
+  ColonizeCol1Tribe tribe;
+  const int fr_id = step3180_fixture(&game, &tribe);
+  int rc = fr_id < 0 ? fail("visit 3180 fixture") : 0;
+  ColonizeUnit* v = rc ? NULL : units_get(&game.units, units_spawn(&game.units, 0, 3, 3));
+  if (rc == 0 && !v) {
+    rc = fail("visit 3180: spawn");
+  }
+  if (rc == 0) {
+    v->nation_id = 0;
+    v->moves = 3;
+    game.units.selected_id = v->id;
+    (void)game_try_unit_move(&game, 4, 3);
+    const ColonizeUnit* fr = units_get_const(&game.units, fr_id);
+    if (v->x != 3 || v->y != 3 || !ai_contact_meet_pending_for_unit(&game.ai_popups, v->id)) {
+      rc = fail("visit 3180: the step must open the village menu, not enter");
+    } else if (!fr || fr->last_dir >= 0) {
+      rc = fail("visit 3180: a village visit must not run FUN_5bfb_3180");
+    }
+  }
+  step3180_free(&game);
+  return rc;
+}
+
+/* Position of woodcut `id` in the drained FIFO, -1 if absent. */
+static int drained_woodcut_index(const int* ids, int n, int id) {
+  for (int i = 0; i < n; ++i) {
+    if (ids[i] == id) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+/* FUN_4720_049e runs its @LANDHO scan (raw 76124-76141) only after
+ * FUN_2a1f_0142 returned, i.e. after FUN_465b_0000's 3180 tail (raw
+ * 75794-75797). A first landing beside an unmet village arms the first-contact
+ * woodcut (FUN_5bfb_022e) before the New World one. */
+static int test_human_landho_after_3180(void) {
+  ColonizeGameState game;
+  ColonizeCol1Tribe tribe;
+  const int fr_id = step3180_fixture(&game, &tribe);
+  int rc = fr_id < 0 ? fail("landho order fixture") : 0;
+  ColonizeUnit* m = rc ? NULL : units_get(&game.units, units_spawn(&game.units, 0, 3, 4));
+  if (rc == 0 && !m) {
+    rc = fail("landho order: spawn");
+  }
+  if (rc == 0) {
+    game.col1.player[0].named_new_world = 0;
+    m->nation_id = 0;
+    m->moves = 3;
+    game.units.selected_id = m->id;
+    woodcut_clear_pending();
+    (void)game_try_unit_move(&game, 3, 3);
+    int ids[8];
+    int n = 0;
+    while (n < 8 && woodcut_has_pending()) {
+      ids[n++] = woodcut_take_pending();
+    }
+    const int meet = drained_woodcut_index(ids, n, WOODCUT_THE_INCA_NATION);
+    const int early = drained_woodcut_index(ids, n, WOODCUT_DISCOVERY_OF_THE_NEW_WORLD);
+    const bool queued = ai_popup_busy(&game.ai_popups);
+    /* The meet popup is blocking in DOS, so the scan (and its woodcut and
+     * name dialog) waits until it is answered. */
+    ai_popup_init(&game.ai_popups);
+    game_landho_service(&game);
+    n = 0;
+    while (n < 8 && woodcut_has_pending()) {
+      ids[n++] = woodcut_take_pending();
+    }
+    const int land = drained_woodcut_index(ids, n, WOODCUT_DISCOVERY_OF_THE_NEW_WORLD);
+    if (m->x != 3 || m->y != 3) {
+      rc = fail("landho order: the colonist did not step to (3,3)");
+    } else if (meet < 0 || !queued) {
+      fprintf(stderr, "landho order: meet woodcut at %d, popup queued %d\n", meet, (int)queued);
+      rc = fail("landho order: the step must run FUN_5bfb_3180 and queue its popup");
+    } else if (early >= 0 || land < 0) {
+      fprintf(stderr, "landho order: new world before answer %d, after %d\n", early, land);
+      rc = fail("landho order: the Land Ho scan must wait for the queued 3180 popup");
+    }
+  }
+  woodcut_clear_pending();
+  step3180_free(&game);
+  return rc;
+}
+
+/* The Land Ho scan sits in FUN_4720_049e's committed-step arm (raw
+ * 76123-76141); a non-step tail (fortify, sentry, combat) never scans. */
+static int test_human_nonstep_no_landho(void) {
+  ColonizeGameState game;
+  ColonizeCol1Tribe tribe;
+  const int fr_id = step3180_fixture(&game, &tribe);
+  int rc = fr_id < 0 ? fail("nonstep landho fixture") : 0;
+  ColonizeUnit* m = rc ? NULL : units_get(&game.units, units_spawn(&game.units, 0, 3, 4));
+  if (rc == 0 && !m) {
+    rc = fail("nonstep landho: spawn");
+  }
+  if (rc == 0) {
+    game.col1.player[0].named_new_world = 0;
+    m->nation_id = 0;
+    m->moves = 0;
+    game.units.selected_id = m->id;
+    woodcut_clear_pending();
+    game_after_unit_action(&game);
+    game_landho_service(&game);
+    if (woodcut_has_pending() || game.name_entry.open || game.col1.player[0].named_new_world ||
+        game.landho_deferred) {
+      rc = fail("nonstep landho: a non-step tail must not run the Land Ho scan");
+    }
+  }
+  woodcut_clear_pending();
+  step3180_free(&game);
+  return rc;
+}
+
+/* FUN_465b_0000 runs 0984 -> FUN_5bfb_3180 (raw 75794-75797) before the
+ * Treasure arm (raw 75800-75816), so a Treasure stepping into its own coastal
+ * colony beside an unmet village queues @INDIANWELCOME ahead of the King's
+ * Galleon offer. */
+static int test_human_treasure_offer_after_3180(void) {
+  ColonizeGameState game;
+  ColonizeCol1Tribe tribe;
+  const int fr_id = step3180_fixture(&game, &tribe);
+  int rc = fr_id < 0 ? fail("treasure order fixture") : 0;
+  game.units.type_count = 3;
+  game.units.types[2].kind_plus1 = UNITS_KIND_TREASURE + 1;
+  game.units.types[2].movement = 1;
+  game.units.types[2].cargo = 0;
+  ColonizeColony* port = rc ? NULL : fx_colony_add(&game.colonies, 0, 3, 3, 1);
+  ColonizeUnit* t = port ? units_get(&game.units, units_spawn(&game.units, 2, 3, 4)) : NULL;
+  if (rc == 0 && (!port || !t)) {
+    rc = fail("treasure order: colony / treasure");
+  }
+  if (rc == 0) {
+    port->colony_flags |= COLONIZE_COLONY_FLAG_COASTAL;
+    t->nation_id = 0;
+    t->profession = 10; /* +0x315b = gold/100 */
+    t->moves = 3;
+    game.units.selected_id = t->id;
+    (void)game_try_unit_move(&game, 3, 3);
+    int welcome = -1;
+    int galleon = -1;
+    for (int q = 0; q < game.ai_popups.queue_count; ++q) {
+      const int tag = game.ai_popups.queue[q].tag;
+      if (tag == AI_POPUP_TAG_CONTACT_WELCOME && welcome < 0) {
+        welcome = q;
+      } else if (tag == AI_POPUP_TAG_KING_GALLEON && galleon < 0) {
+        galleon = q;
+      }
+    }
+    if (t->x != 3 || t->y != 3) {
+      rc = fail("treasure order: the Treasure did not enter the colony");
+    } else if (welcome < 0 || galleon < 0 || welcome > galleon) {
+      fprintf(stderr, "treasure order: welcome at %d, galleon at %d\n", welcome, galleon);
+      rc = fail("treasure order: the King's Galleon offer must follow FUN_5bfb_3180");
+    }
+  }
+  step3180_free(&game);
   return rc;
 }
 
@@ -1170,6 +1775,9 @@ static int test_ship_in_colony_meets_tribe(void) {
   tribe.y = 3;
   game.col1.tribe = &tribe;
   game.col1.head.tribe_count = 1;
+  /* Settlement bit and owner nibble for 3180's neighbour read (FUN_137f_03e4). */
+  game.world_map.layer2[3 * 8 + 4] |= 0x02u;
+  game.world_map.layer3[3 * 8 + 4] = (uint8_t)((game.world_map.layer3[3 * 8 + 4] & 0x0fu) | 0x40u);
   ColonizeColony* port = fx_colony_add(&game.colonies, 0, 3, 3, 1);
   ColonizeUnit* ship = units_get(&game.units, units_spawn(&game.units, 0, 2, 3));
   int rc = 0;
@@ -1903,7 +2511,7 @@ static int test_colony_jobs_menu_seats_indoor_worker(void) {
   ColonizeColonist* c = &col->colonists[0];
   ColonyScreenView* csv = &game.colony_screen;
   int rc = 0;
-  colony_screen_open_jobs(csv, &game.colonies, &game.world_map, col, -1);
+  colony_screen_open_jobs(csv, &game.colonies, &game.world_map, &game.units, col, -1);
   if (!csv->jobs_open || csv->jobs_tile_index != -1) {
     rc = fail("Enter / a building-worker click must open the jobs menu with no plot");
   } else {
@@ -1914,6 +2522,262 @@ static int test_colony_jobs_menu_seats_indoor_worker(void) {
               col->tiles[3], c->field_job, c->building_type);
       rc = fail("a building worker's field pick must take the plot 28c8 elects");
     }
+  }
+  fx_map_free(&game.world_map);
+  assets_msg_free(&names);
+  return rc;
+}
+
+/* jobs_menu_fixture plus a Master Distiller (@JOB 9 specialty) standing on the fence, selected.
+ * Returns the unit id, or -1 on a fixture failure. */
+static int fence_jobs_fixture(ColonizeGameState* game, ColonizeMsgCatalog* names) {
+  if (!jobs_menu_fixture(game, names)) {
+    return -1;
+  }
+  if (!units_load_types(&game->units, names)) {
+    return -1;
+  }
+  game->units_ok = game->colonies_ok = true;
+  const int colonist_t = units_kind_type_index(&game->units, UNITS_KIND_COLONIST);
+  ColonizeUnit* u = units_get(&game->units, units_spawn_allow_stack(&game->units, colonist_t, 8, 8));
+  if (!u) {
+    return -1;
+  }
+  u->nation_id = 1;
+  u->profession = 9; /* @JOB 9, Master Distiller */
+  game->colony_screen.selected_colonist = -1;
+  game->colony_screen.selected_outside_unit = u->id;
+  return u->id;
+}
+
+/*
+ * A second click (or Enter) on a selected fence unit is FUN_2f2b_44d4 2f2b:4728-4733
+ * push 0 -> FUN_2f2b_348c(0), the full jobs list with the leave-as roles after the colony
+ * jobs; a field pick admits the unit (FUN_15eb_0fea arm 3) and seats it on the plot 28c8
+ * elects, a building pick seats it after the validator, a role pick re-equips it outside,
+ * and a full colony (pop 32, 2f2b:349f-34be) gets the leave-as list instead.
+ */
+static int test_colony_fence_unit_jobs_list(void) {
+  static ColonizeGameState game;
+  ColonizeMsgCatalog names;
+  int rc = 0;
+  /* 1. The list and 2. a field pick. */
+  int uid = fence_jobs_fixture(&game, &names);
+  if (uid < 0) {
+    return fail("fence jobs fixture");
+  }
+  ColonizeColony* col = &game.colonies.colonies[0];
+  ColonyScreenView* csv = &game.colony_screen;
+  game_colony_open_jobs(&game, col, &game.world_map, -1);
+  bool has_farmer = false;
+  bool has_role = false;
+  for (int i = 0; i < csv->job_count; ++i) {
+    has_farmer = has_farmer || csv->job_ids[i] == COLONIZE_JOB_FARMER;
+    has_role = has_role || csv->job_ids[i] == UNITS_JOB_COLONIST;
+  }
+  if (!csv->jobs_open || csv->eject_open || csv->jobs_unit_id != uid || !has_farmer || !has_role) {
+    fprintf(stderr, "  jobs_open=%d eject_open=%d unit=%d farmer=%d role=%d\n", csv->jobs_open,
+            csv->eject_open, csv->jobs_unit_id, has_farmer, has_role);
+    rc = fail("a selected fence unit must open the full jobs list (jobs + roles)");
+  } else {
+    /* 2f3e's validator (code 0xd, @NODOCKS) runs before 0c36 admits the unit: a Fisherman
+     * pick in this dockless colony leaves it outside. */
+    game_colony_commit_job(&game, col, COLONIZE_JOB_FISHERMAN);
+    if (col->colonist_count != 1 || !units_get_const(&game.units, uid)) {
+      rc = fail("a refused field pick (@NODOCKS) must leave the fence unit outside");
+    }
+    game_colony_open_jobs(&game, col, &game.world_map, -1);
+    game_colony_commit_job(&game, col, COLONIZE_JOB_FARMER);
+    const ColonizeColonist* c = &col->colonists[1];
+    if (col->colonist_count != 2 || units_get_const(&game.units, uid) || col->tiles[3] != 1 ||
+        c->field_job != COLONIZE_JOB_FARMER || c->profession != 9 ||
+        csv->selected_colonist != 1 || csv->jobs_open) {
+      fprintf(stderr, "  pop=%d unit=%p tiles[3]=%d job=%d prof=%d sel=%d\n",
+              col->colonist_count, (const void*)units_get_const(&game.units, uid), col->tiles[3],
+              c->field_job, c->profession, csv->selected_colonist);
+      rc = fail("a fence unit's field pick must admit it onto the plot 28c8 elects");
+    }
+  }
+  fx_map_free(&game.world_map);
+  assets_msg_free(&names);
+
+  /* 3. A building pick, first refused by @MORETHANTHREE, then seated. */
+  uid = fence_jobs_fixture(&game, &names);
+  if (uid < 0) {
+    return fail("fence jobs fixture");
+  }
+  col = &game.colonies.colonies[0];
+  const int shop = colonies_building_row(&game.colonies, COLONY_BUILDING_CARPENTERS_SHOP);
+  const int carpenter = colonies_building_occupation(&game.colonies, shop);
+  col->colonists[1] = col->colonists[0];
+  col->colonists[2] = col->colonists[0];
+  col->colonist_count = col->population = 3;
+  game_colony_open_jobs(&game, col, &game.world_map, -1);
+  game_colony_commit_job(&game, col, carpenter);
+  if (col->colonist_count != 3 || !units_get_const(&game.units, uid) ||
+      col->colonists[3].active) {
+    rc = fail("a refused building pick must leave the fence unit outside");
+  }
+  col->colonist_count = col->population = 1;
+  memset(&col->colonists[1], 0, 2 * sizeof(col->colonists[1]));
+  game_colony_open_jobs(&game, col, &game.world_map, -1);
+  game_colony_commit_job(&game, col, carpenter);
+  if (col->colonist_count != 2 || units_get_const(&game.units, uid) ||
+      col->colonists[1].building_type != shop) {
+    fprintf(stderr, "  pop=%d building=%d\n", col->colonist_count, col->colonists[1].building_type);
+    rc = fail("a fence unit's building pick must admit and seat it");
+  }
+  fx_map_free(&game.world_map);
+  assets_msg_free(&names);
+
+  /* 4. A role pick re-equips the unit where it stands. */
+  uid = fence_jobs_fixture(&game, &names);
+  if (uid < 0) {
+    return fail("fence jobs fixture");
+  }
+  col = &game.colonies.colonies[0];
+  col->stock[COLONIZE_CARGO_MUSKETS] = 50;
+  game_colony_open_jobs(&game, col, &game.world_map, -1);
+  game_colony_commit_job(&game, col, UNITS_JOB_COLONIST + COLONIZE_EJECT_SOLDIER);
+  const ColonizeUnit* u = units_get_const(&game.units, uid);
+  if (col->colonist_count != 1 || !u ||
+      u->type_index != units_kind_type_index(&game.units, UNITS_KIND_SOLDIER) ||
+      col->stock[COLONIZE_CARGO_MUSKETS] != 0) {
+    rc = fail("a fence unit's role pick must arm it outside the colony");
+  }
+  fx_map_free(&game.world_map);
+  assets_msg_free(&names);
+
+  /* 5. A full colony gets the leave-as list. */
+  uid = fence_jobs_fixture(&game, &names);
+  if (uid < 0) {
+    return fail("fence jobs fixture");
+  }
+  col = &game.colonies.colonies[0];
+  for (int i = 1; i < COLONIZE_COLONY_POP_MAX; ++i) {
+    col->colonists[i] = col->colonists[0];
+  }
+  col->colonist_count = col->population = COLONIZE_COLONY_POP_MAX;
+  game_colony_open_jobs(&game, col, &game.world_map, -1);
+  if (csv->jobs_open || !csv->eject_open || csv->eject_unit_id != uid) {
+    rc = fail("a fence unit in a colony of 32 must get the leave-as list");
+  }
+  fx_map_free(&game.world_map);
+  assets_msg_free(&names);
+  return rc;
+}
+
+/* The open popup is GAME.TXT @MORETHANTHREE (colonies_emit_more_than_three_chrome). */
+static bool popup_is_morethanthree(ColonizeGameState* game) {
+  char want[AI_POPUP_BODY_LEN];
+  popup_msg_fill(&game->messages, "MORETHANTHREE", NULL, "", want, sizeof(want));
+  return want[0] != '\0' && game->ai_popups.open &&
+         game->ai_popups.current.tag == AI_POPUP_TAG_INFO &&
+         strcmp(game->ai_popups.current.body, want) == 0;
+}
+
+/*
+ * Fence-unit jobs list extras: Clear Specialty on a fence unit (0cae -> 0e8c writes the
+ * unit's +0x315b); the own-role row is listed and enabled (348c `local_132 == local_8` -> -2)
+ * even where its gate fails; a building drop validates before admitting (2f3e).
+ */
+static int test_colony_fence_unit_jobs_extras(void) {
+  static ColonizeGameState game;
+  ColonizeMsgCatalog names;
+  int rc = 0;
+  /* 1. Clear Specialty. */
+  int uid = fence_jobs_fixture(&game, &names);
+  if (uid < 0) {
+    return fail("fence jobs fixture");
+  }
+  ColonizeColony* col = &game.colonies.colonies[0];
+  game_colony_open_jobs(&game, col, &game.world_map, -1);
+  game_colony_commit_job(&game, col, COLONY_JOB_CLEAR_SPECIALTY);
+  const AiPopupRequest* cur = &game.ai_popups.current;
+  if (!game.ai_popups.open || cur->tag != AI_POPUP_TAG_COLONY_CLEARSPEC || cur->nation_a != -1 ||
+      cur->nation_b != uid) {
+    rc = fail("Clear Specialty on a fence unit must ask @LOBOTOMIZE for that unit");
+  } else {
+    game.ai_popups.open = false;
+    game.ai_popups.has_result = true;
+    game.ai_popups.result_tag = AI_POPUP_TAG_COLONY_CLEARSPEC;
+    game.ai_popups.result_cancelled = false;
+    game.ai_popups.result_choice_id = 1;
+    game.ai_popups.result_nation_a = cur->nation_a;
+    game.ai_popups.result_nation_b = cur->nation_b;
+    game_apply_ai_popup_result(&game);
+    const ColonizeUnit* u = units_get_const(&game.units, uid);
+    if (!u || u->profession != COLONIZE_PROF_FREE_COLONIST || col->colonist_count != 1) {
+      rc = fail("@LOBOTOMIZE 'yes' must clear the fence unit's specialty");
+    }
+  }
+  fx_map_free(&game.world_map);
+  assets_msg_free(&names);
+
+  /* 2. A blessed Free Colonist (Missionary type) in a churchless colony: the Church gate
+   * fails, but the row of its own DS:0x30e job is forced listed and enabled. */
+  uid = fence_jobs_fixture(&game, &names);
+  if (uid < 0) {
+    return fail("fence jobs fixture");
+  }
+  col = &game.colonies.colonies[0];
+  ColonizeUnit* mu = units_get(&game.units, uid);
+  mu->type_index = units_kind_type_index(&game.units, UNITS_KIND_MISSIONARY);
+  mu->profession = COLONIZE_PROF_FREE_COLONIST;
+  const int own = UNITS_JOB_COLONIST + COLONIZE_EJECT_MISSIONARY;
+  if (units_type_default_job(mu->type_index) != own) {
+    rc = fail("fixture: the Missionary type's DS:0x30e job must be 0x18");
+  }
+  game_colony_open_jobs(&game, col, &game.world_map, -1);
+  const ColonyScreenView* csv = &game.colony_screen;
+  int row = -1;
+  for (int i = 0; i < csv->job_count; ++i) {
+    if (csv->job_ids[i] == own) {
+      row = i;
+    }
+  }
+  if (!csv->jobs_open || row < 0 || (csv->jobs_greyed & (1u << row)) != 0) {
+    fprintf(stderr, "  open=%d row=%d greyed=0x%x\n", csv->jobs_open, row,
+            (unsigned)csv->jobs_greyed);
+    rc = fail("a fence unit's own role row must be listed and enabled");
+  }
+  fx_map_free(&game.world_map);
+  assets_msg_free(&names);
+
+  /* 3. A fence unit dropped on a full Carpenter's Shop stays outside. */
+  uid = fence_jobs_fixture(&game, &names);
+  if (uid < 0) {
+    return fail("fence jobs fixture");
+  }
+  col = &game.colonies.colonies[0];
+  const int shop = colonies_building_row(&game.colonies, COLONY_BUILDING_CARPENTERS_SHOP);
+  col->colonists[1] = col->colonists[0];
+  col->colonists[2] = col->colonists[0];
+  col->colonist_count = col->population = 3;
+  game_colony_assign_building_drop(&game, shop);
+  if (col->colonist_count != 3 || !units_get_const(&game.units, uid) ||
+      !popup_is_morethanthree(&game)) {
+    rc = fail("a refused building drop must leave the fence unit outside, with @MORETHANTHREE");
+  }
+  fx_map_free(&game.world_map);
+  assets_msg_free(&names);
+
+  /* 4. Stockade drop (2f2b:4684-4693): a fence unit whose occupation is a role gets
+   * nothing; a colonist still gets the leave-as list. */
+  uid = fence_jobs_fixture(&game, &names);
+  if (uid < 0) {
+    return fail("fence jobs fixture");
+  }
+  col = &game.colonies.colonies[0];
+  game_colony_stockade_drop(&game, col, uid);
+  if (game.colony_screen.eject_open) {
+    rc = fail("a fence unit dropped on the stockade must open nothing");
+  }
+  game.colony_screen.selected_outside_unit = -1;
+  game.colony_screen.selected_colonist = 0;
+  game_colony_stockade_drop(&game, col, -1);
+  if (!game.colony_screen.eject_open) {
+    rc = fail("a colonist dropped on the stockade must open the leave-as list");
   }
   fx_map_free(&game.world_map);
   assets_msg_free(&names);
@@ -1947,13 +2811,87 @@ static int test_colony_rum_distiller_refusal_popup(void) {
   game_colony_assign_building_drop(&game, rum);
   if (col->colonists[0].building_type != shop) {
     rc = fail("the validator must refuse a fourth Rum Distiller");
-  } else if (!game.ai_popups.open || game.ai_popups.current.tag != AI_POPUP_TAG_INFO) {
+  } else if (!popup_is_morethanthree(&game)) {
     fprintf(stderr, "  popup open=%d tag=%d\n", game.ai_popups.open,
             (int)game.ai_popups.current.tag);
     rc = fail("a refused fourth Rum Distiller must raise @MORETHANTHREE");
   }
   fx_map_free(&game.world_map);
   assets_msg_free(&names);
+  return rc;
+}
+
+/*
+ * ORDERS Join Colony = FUN_291f_01ec -> FUN_364b_1aec (raw 57955-57966): the
+ * claim stamp and the FUN_15eb_3930 plot recompute run before the joiner is
+ * seated, so a worker whose plot an enemy now holds is moved off it.
+ */
+static int test_join_colony_recomputes_plots(void) {
+  static ColonizeGameState game;
+  memset(&game, 0, sizeof(game));
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
+    return fail("join: NAMES.TXT");
+  }
+  fx_colonies_init(&game.colonies);
+  const bool loaded = colonies_load_buildings(&game.colonies, &names) &&
+                      units_load_types(&game.units, &names);
+  assets_msg_free(&names);
+  if (!loaded || !fx_map_alloc(&game.world_map, 24, 24, 2 /* plains */, false)) {
+    return fail("join: fixture");
+  }
+  game.world_map_ok = game.units_ok = game.colonies_ok = true;
+  for (size_t i = 0; i < game.world_map.tile_count; ++i) {
+    game.world_map.layer3[i] = 0xf1u;
+  }
+  map_reveal_all(&game.world_map, 0);
+  const int soldier_t = units_kind_type_index(&game.units, UNITS_KIND_SOLDIER);
+  const int colonist_t = units_kind_type_index(&game.units, UNITS_KIND_COLONIST);
+  ColonizeColony* col = &game.colonies.colonies[0];
+  col->id = 0;
+  col->active = true;
+  col->nation_id = 0;
+  col->x = 10;
+  col->y = 10;
+  col->colonist_count = col->population = 1;
+  col->building_in_production = -1;
+  for (int i = 0; i < COLONIZE_COLONY_FIELD_TILES_MAX; ++i) {
+    col->tiles[i] = -1;
+  }
+  col->colonists[0].active = true;
+  col->colonists[0].unit_type_index = colonist_t;
+  col->colonists[0].profession = COLONIZE_PROF_FREE_COLONIST;
+  col->colonists[0].building_type = -1;
+  col->colonists[0].field_job = COLONIZE_JOB_FARMER;
+  const int north = colonies_field_tile_index(0, -1);
+  col->tiles[north] = 0;
+  game.colonies.colony_count = 1;
+  /* Fortified enemy Soldier on the worked N plot (10,9). */
+  ColonizeUnit* foe = units_get(&game.units, units_spawn_allow_stack(&game.units, soldier_t, 10, 9));
+  ColonizeUnit* joiner =
+    units_get(&game.units, units_spawn_allow_stack(&game.units, colonist_t, 10, 10));
+  if (!foe || !joiner) {
+    fx_map_free(&game.world_map);
+    return fail("join: spawn");
+  }
+  foe->nation_id = 1;
+  foe->orders = UNITS_ORDER_FORTIFIED;
+  game.world_map.layer2[9 * 24 + 10] |= MAP_OCCUPANCY_HAS_UNIT;
+  game.world_map.layer3[9 * 24 + 10] = (uint8_t)((1u << MAP_L3_OWNER_SHIFT) | 1u);
+  joiner->nation_id = 0;
+  game.human_nation = 0;
+  game.units.selected_id = joiner->id;
+  game_join_colony_order(&game);
+  int rc = 0;
+  if (col->colonist_count != 2 || colonies_colonist_tile(col, 0) == north) {
+    fprintf(stderr, "  pop %d, worker 0 tile %d (N=%d)\n", col->colonist_count,
+            colonies_colonist_tile(col, 0), north);
+    rc = fail("Join must recompute plots first: the worker leaves the enemy-held plot");
+  }
+  units_set_occupancy_map(NULL);
+  colonies_set_occupancy_map(NULL);
+  fx_map_free(&game.world_map);
   return rc;
 }
 
@@ -2023,6 +2961,199 @@ static int test_activate_ignores_foreign_unit(void) {
     if (u->orders != UNITS_ORDER_FORTIFIED || game.units.selected_id != -1) {
       fprintf(stderr, "  orders %d selected %d\n", u->orders, game.units.selected_id);
       rc = fail("Activate on a foreign unit must not wake or select it");
+    }
+  }
+  units_set_occupancy_map(NULL);
+  fx_map_free(&game.world_map);
+  return rc;
+}
+
+/* game_select_tile keeps the despawn step-back (FUN_1427_0824 raw
+ * 7834-7836) when the selection just died, and drops it when the player
+ * leaves a live selection. */
+static int test_select_tile_rotation_retest(void) {
+  static ColonizeGameState game;
+  memset(&game, 0, sizeof(game));
+  if (!fx_map_alloc(&game.world_map, 8, 8, /*terrain_fill=*/3, /*with_seen=*/true)) {
+    return fail("select tile retest map alloc");
+  }
+  game.world_map_ok = true;
+  fx_units_init(&game.units);
+  game.units_ok = true;
+  game.units.type_count = 1;
+  game.units.types[0].movement = 1;
+  game.units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units_set_occupancy_map(&game.world_map);
+  const int a = units_spawn(&game.units, 0, 2, 2);
+  const int b = units_spawn(&game.units, 0, 3, 3);
+  const int c = units_spawn(&game.units, 0, 4, 4);
+  int rc = 0;
+  game.units.selected_id = b;
+  if (!units_despawn(&game.units, b) || game.units.rotation_retest_id != a) {
+    rc = fail("despawn of the selection should step back to the previous unit");
+  } else {
+    game_select_tile(&game, 3, 3);
+    if (game.units.rotation_retest_id != a) {
+      rc = fail("select tile after a death must keep the step-back");
+    } else {
+      game.units.selected_id = c;
+      game_select_tile(&game, 4, 4);
+      if (game.units.rotation_retest_id != -1 || game.units.selected_id != -1) {
+        rc = fail("select tile from a live selection must drop the step-back");
+      }
+    }
+  }
+  units_set_occupancy_map(NULL);
+  fx_map_free(&game.world_map);
+  return rc;
+}
+
+/* FUN_2b5a_1b5a raw 42779-42783: a left click on a lone own ship at sea makes it
+ * the active unit, away from the ship the rotation had picked. */
+static int test_click_selects_ship(void) {
+  static ColonizeGameState game;
+  memset(&game, 0, sizeof(game));
+  if (!fx_map_alloc(&game.world_map, 8, 8, /*terrain_fill=*/25, /*with_seen=*/true)) {
+    return fail("click ship map alloc");
+  }
+  game.world_map_ok = true;
+  fx_units_init(&game.units);
+  game.units_ok = true;
+  game.units.type_count = 1;
+  game.units.types[0].movement = 4;
+  game.units.types[0].cargo = 2;
+  game.units.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  fx_colonies_init(&game.colonies);
+  game.colonies_ok = true;
+  units_set_occupancy_map(NULL);
+  const int b = units_spawn(&game.units, 0, 2, 2);
+  const int c = units_spawn(&game.units, 0, 5, 5);
+  int rc = (b < 0 || c < 0) ? fail("click ship fixture") : 0;
+  if (rc == 0) {
+    units_get(&game.units, b)->moves = 12;
+    units_get(&game.units, c)->moves = 12;
+    game.units.selected_id = c;
+    game_map_click_dispatch(&game, 2, 2);
+    if (game.units.selected_id != b || game.view_pieces_mode) {
+      fprintf(stderr, "  selected %d, want %d\n", game.units.selected_id, b);
+      rc = fail("a click on a lone own ship must select it");
+    }
+  }
+  fx_map_free(&game.world_map);
+  return rc;
+}
+
+/* View Pieces (FUN_2b5a_0902 raw 42112) leaves 0x5392 on the active unit;
+ * the next FUN_2b5a_0e52 re-tests it first (FUN_1427_1410, raw 42291), so
+ * Move Pieces returns to it rather than to the first slot. */
+static int test_view_pieces_keeps_active_unit(void) {
+  static ColonizeGameState game;
+  memset(&game, 0, sizeof(game));
+  if (!fx_map_alloc(&game.world_map, 8, 8, /*terrain_fill=*/3, /*with_seen=*/true)) {
+    return fail("view pieces map alloc");
+  }
+  game.world_map_ok = true;
+  fx_units_init(&game.units);
+  game.units_ok = true;
+  game.units.type_count = 1;
+  game.units.types[0].movement = 1;
+  game.units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units_set_occupancy_map(&game.world_map);
+  int ids[3];
+  int rc = 0;
+  for (int k = 0; k < 3; ++k) {
+    ids[k] = units_spawn(&game.units, 0, 2 + k, 2 + k);
+    ColonizeUnit* u = units_get(&game.units, ids[k]);
+    if (!u) {
+      rc = fail("view pieces spawn");
+      break;
+    }
+    u->nation_id = 0;
+    u->moves = 3;
+  }
+  if (rc == 0) {
+    game.units.selected_id = ids[1];
+    game.map_cursor_x = 3;
+    game.map_cursor_y = 3;
+    game_apply_map_menu_action(&game, MAP_MENU_ACTION_VIEW_PIECES);
+    if (game.units.selected_id != -1 || !game.view_pieces_mode) {
+      rc = fail("View Pieces must drop the selection");
+    } else {
+      game_apply_map_menu_action(&game, MAP_MENU_ACTION_MOVE_PIECES);
+      if (game.units.selected_id != ids[1]) {
+        fprintf(stderr, "  selected %d want %d\n", game.units.selected_id, ids[1]);
+        rc = fail("Move Pieces after View Pieces must re-test the unit it left");
+      }
+    }
+  }
+  units_set_occupancy_map(NULL);
+  fx_map_free(&game.world_map);
+  return rc;
+}
+
+/* The other FUN_291f_006c -> FUN_2b5a_0902 paths keep 0x5392 too: the map
+ * right-click (FUN_2b5a_3462 raw 46005-46007) and Find Colony, so Move
+ * Pieces re-tests the unit they left. */
+static int test_right_click_and_find_colony_keep_active_unit(void) {
+  static ColonizeGameState game;
+  memset(&game, 0, sizeof(game));
+  if (!fx_map_alloc(&game.world_map, 8, 8, /*terrain_fill=*/3, /*with_seen=*/true)) {
+    return fail("right click map alloc");
+  }
+  game.world_map_ok = true;
+  game.map_menu.open_index = -1;
+  fx_units_init(&game.units);
+  game.units_ok = true;
+  game.units.type_count = 1;
+  game.units.types[0].movement = 1;
+  game.units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units_set_occupancy_map(&game.world_map);
+  int ids[3];
+  int rc = 0;
+  for (int k = 0; k < 3; ++k) {
+    ids[k] = units_spawn(&game.units, 0, 2 + k, 2 + k);
+    ColonizeUnit* u = units_get(&game.units, ids[k]);
+    if (!u) {
+      rc = fail("right click spawn");
+      break;
+    }
+    u->nation_id = 0;
+    u->moves = 3;
+  }
+  if (rc == 0) {
+    game.units.selected_id = ids[1];
+    const int tw = game_map_zoom_tile_px(game.map_zoom);
+    ColonizeInputState in;
+    memset(&in, 0, sizeof(in));
+    in.mouse_right_clicked = true;
+    in.mouse_x = 5 * tw + 1;
+    in.mouse_y = MAP_VIEW_ORIGIN_Y + 5 * tw + 1;
+    (void)game_update_map_menu_bar(&game, &in);
+    if (game.units.selected_id != -1 || !game.view_pieces_mode) {
+      rc = fail("right-click must enter View Pieces");
+    } else {
+      game_apply_map_menu_action(&game, MAP_MENU_ACTION_MOVE_PIECES);
+      if (game.units.selected_id != ids[1]) {
+        rc = fail("Move Pieces after a right-click must re-test the unit it left");
+      }
+    }
+  }
+  if (rc == 0) {
+    ColonizeColony* c = &game.colonies.colonies[0];
+    c->active = true;
+    c->x = 5;
+    c->y = 5;
+    snprintf(c->name, sizeof(c->name), "Fort");
+    game.col1.head.curr_nation_map_view = 4;
+    game.units.selected_id = ids[2];
+    game_find_colony(&game, "fort");
+    if (game.units.selected_id != -1 || !game.view_pieces_mode || game.map_cursor_x != 5) {
+      rc = fail("Find Colony must enter View Pieces on the colony");
+    } else {
+      game_apply_map_menu_action(&game, MAP_MENU_ACTION_MOVE_PIECES);
+      if (game.units.selected_id != ids[2]) {
+        rc = fail("Move Pieces after Find Colony must re-test the unit it left");
+      }
     }
   }
   units_set_occupancy_map(NULL);
@@ -2169,8 +3300,12 @@ static int test_board_step_watch_and_ship_margin(void) {
     units_set_move_watch(board_watch, &game);
     (void)game_try_unit_move(&game, ox + 1, y);
     p = units_get(&game.units, pid);
-    if (!p || p->aboard_ship_id != sid || game.units.selected_id != sid) {
-      rc = fail("board: the step must board and hand the focus to the ship");
+    /* FUN_465b_0000 raw 75719-75721: the ship becomes active only when
+     * FUN_1427_1330 passes (MP left, raw 8741-8762). */
+    if (!p || p->aboard_ship_id != sid || (game.units.selected_id == sid) != (ship_mp > 0)) {
+      fprintf(stderr, "  ship MP %d: aboard %d, selected %d (ship %d)\n", ship_mp,
+              p ? p->aboard_ship_id : -2, game.units.selected_id, sid);
+      rc = fail("board: the step must board and hand the focus to a ship with MP left");
     } else if (s_board_watch_calls != 1 || s_board_watch_to_x != ox + 1 ||
                !s_board_watch_aboard || s_board_watch_sprite < 0) {
       fprintf(stderr, "  watch calls %d, to_x %d (want %d), aboard %d, sprite %d\n",
@@ -2465,7 +3600,7 @@ static int test_combat_edge_scroll_uses_attacker_tile(void) {
   int rc = (ox <= 1 || !a) ? fail("combat scroll: fixture") : 0;
   if (rc == 0) {
     a->nation_id = 0;
-    game_combat_watch(&game, &game.units, a->id, ox + 1, y);
+    game_combat_watch(&game, &game.units, a->id, ox + 1, y, true);
     if (game.map_view_x != 30 || game.map_view_y != 30) {
       fprintf(stderr, "  view (%d,%d) after the first fight\n", game.map_view_x, game.map_view_y);
       rc = fail("combat scroll: a defender in the margin must not scroll (attacker is outside it)");
@@ -2473,11 +3608,78 @@ static int test_combat_edge_scroll_uses_attacker_tile(void) {
   }
   if (rc == 0) {
     a->x = ox + 1;
-    game_combat_watch(&game, &game.units, a->id, ox, y);
+    game_combat_watch(&game, &game.units, a->id, ox, y, true);
     if (game.map_view_x != ox + 1 || game.map_view_y != y) {
       fprintf(stderr, "  view (%d,%d), want (%d,%d)\n", game.map_view_x, game.map_view_y,
               ox + 1, y);
       rc = fail("combat scroll: an attacker in the margin centres on the attacker's tile");
+    }
+  }
+  edge_scroll_free(&game);
+  return rc;
+}
+
+/* FUN_5fef_1b0e lunges on its param_4, which FUN_465b_0000 passes as local_1c
+ * (raw 75660-75692): a rival-vs-rival fight on ground France has explored but
+ * nobody French watches is not shown; the same fight by an attacker France
+ * already saw is. */
+static int test_combat_lunge_reads_465b_local_1c(void) {
+  static ColonizeGameState game;
+  int ox = 0;
+  edge_scroll_init(&game, &ox);
+  const int y = 30;
+  ColonizeWorldMap* m = &game.world_map;
+  game.col1.player[1].control = 1;
+  game.col1.player[2].control = 1;
+  ColonizeUnit* a = units_get(&game.units, units_spawn(&game.units, 0, ox + 1, y));
+  ColonizeUnit* d = units_get(&game.units, units_spawn(&game.units, 0, ox, y));
+  int rc = (ox <= 1 || !a || !d || !m->layer3) ? fail("lunge show: fixture") : 0;
+  if (rc == 0) {
+    for (int ty = 0; ty < m->height; ++ty) {
+      for (int tx = 0; tx < m->width; ++tx) {
+        map_set_owner_nibble(m, tx, ty, 0x0f); /* nobody French anywhere */
+      }
+    }
+    map_set_owner_nibble(m, ox + 1, y, 1);
+    map_set_owner_nibble(m, ox, y, 2);
+    a->nation_id = 1;
+    d->nation_id = 2;
+    a->col1_vis_mask = 0;
+    if ((units_vis_mask_for_tile(m, ox, y, 1) & 0x01u) != 0) {
+      rc = fail("lunge show: defender tile must be unwatched by France");
+    }
+  }
+  if (rc == 0) {
+    map_reveal_tile(m, ox + 1, y, 0);
+    map_reveal_tile(m, ox, y, 0);
+    game_combat_watch(&game, &game.units, a->id, ox, y, true);
+    if (game.map_view_x != 30 || game.map_view_y != 30) {
+      rc = fail("lunge show: an unwatched rival fight must not play (explored is not enough)");
+    }
+  }
+  if (rc == 0) {
+    a->col1_vis_mask = 0x01u;
+    game_combat_watch(&game, &game.units, a->id, ox, y, true);
+    if (game.map_view_x != ox + 1 || game.map_view_y != y) {
+      fprintf(stderr, "  view (%d,%d), want (%d,%d)\n", game.map_view_x, game.map_view_y,
+              ox + 1, y);
+      rc = fail("lunge show: an attacker carrying France's bit plays the lunge");
+    }
+  }
+  /* The other local_1c arms, each from the unshown state: show_entire_map
+   * (DS:0x53a2), a human-played attacker, a human-played destination head
+   * (raw 75687-75689). */
+  for (int arm = 0; arm < 3 && rc == 0; ++arm) {
+    a->col1_vis_mask = 0;
+    game.map_view_x = 30;
+    game.map_view_y = 30;
+    game.col1.head.show_entire_map = arm == 0;
+    game.col1.player[1].control = arm == 1 ? 0 : 1;
+    game.col1.player[2].control = arm == 2 ? 0 : 1;
+    game_combat_watch(&game, &game.units, a->id, ox, y, true);
+    if (game.map_view_x != ox + 1 || game.map_view_y != y) {
+      fprintf(stderr, "  arm %d: view (%d,%d)\n", arm, game.map_view_x, game.map_view_y);
+      rc = fail("lunge show: show_entire_map, a human-played attacker or head plays the lunge");
     }
   }
   edge_scroll_free(&game);
@@ -2929,6 +4131,76 @@ static int test_crossing_stamps_nation_return_tile(void) {
   return rc;
 }
 
+/* A new campaign drops the unit hand-off and colony open the previous game
+ * left parked, as game_apply_col1_save does. */
+static int test_new_campaign_drops_parked_flow(void) {
+  ColonizeGameConfig cfg = {.data_dir = "./COLONIZE", .save_dir = "./build/debug"};
+  ColonizeGameState* game = game_create(&cfg);
+  if (!game || !game_assets_ok(game)) {
+    fprintf(stderr, "SKIP: no COLONIZE/ assets\n");
+    if (game) {
+      game_destroy(game);
+    }
+    return TR_SKIP;
+  }
+  game->turn_flow_deferred = true;
+  game->found_open_colony_id = 3;
+  /* An end of turn parked when a lost war's retire chain reached the title. */
+  game->turn_proc.step = TURN_PROC_FINISH;
+  game->turn_proc.day_advanced = true;
+  game->new_game.generate_map = false;
+  snprintf(game->new_game.map_file, sizeof(game->new_game.map_file), "%s", "AMER2.MP");
+  game_commit_new_campaign(game);
+  int rc = 0;
+  if (game->turn_flow_deferred || game->found_open_colony_id != -1) {
+    rc = fail("new campaign must drop the parked turn flow");
+  }
+  if (turn_processor_active(&game->turn_proc) || game->turn_proc.day_advanced) {
+    rc = fail("new campaign must drop the parked end of turn");
+  }
+  game_destroy(game);
+  return rc;
+}
+
+/* An Americas (AMER2) start with seed 100 runs the FUN_684c_08c0 band pick on
+ * the loaded map. DOS seed-100 save original_saves/golden_idle_america_seed-100
+ * /000001.SAV: 0x190 = 365, England +0x32/+0x33 (47,28), idle human Spain
+ * (37,14). */
+static int test_new_campaign_amer2_seed100_landfall(void) {
+  ColonizeGameConfig cfg = {
+    .data_dir = "./COLONIZE", .save_dir = "./build/debug", .rng_seed = 100, .rng_seed_set = true
+  };
+  ColonizeGameState* game = game_create(&cfg);
+  if (!game || !game_assets_ok(game)) {
+    fprintf(stderr, "SKIP: no COLONIZE/ assets\n");
+    if (game) {
+      game_destroy(game);
+    }
+    return TR_SKIP;
+  }
+  game->new_game.path = NEW_GAME_PATH_AMERICA;
+  game->new_game.generate_map = false;
+  game->new_game.nation = 2;
+  game->new_game.difficulty = 4;
+  snprintf(game->new_game.map_file, sizeof(game->new_game.map_file), "%s", "AMER2.MP");
+  game_commit_new_campaign(game);
+  int rc = 0;
+  const ColonizeUnit* ship = units_get_const(&game->units, game->units.selected_id);
+  if (!game->col1_ok || game->world_map.prime_resource_seed != 365 ||
+      game->col1.nation[0].return_from_europe_x != 47 ||
+      game->col1.nation[0].return_from_europe_y != 28 ||
+      game->col1.nation[2].return_from_europe_x != 37 ||
+      game->col1.nation[2].return_from_europe_y != 14 || !ship || ship->x != 37 || ship->y != 14) {
+    fprintf(stderr, "  prime %u England (%u,%u) Spain (%u,%u) ship (%d,%d)\n",
+            game->world_map.prime_resource_seed, game->col1.nation[0].return_from_europe_x,
+            game->col1.nation[0].return_from_europe_y, game->col1.nation[2].return_from_europe_x,
+            game->col1.nation[2].return_from_europe_y, ship ? ship->x : -1, ship ? ship->y : -1);
+    rc = fail("AMER2 seed-100 landfall through game_commit_new_campaign");
+  }
+  game_destroy(game);
+  return rc;
+}
+
 /*
  * Brewster's @RECRUITCHOOSE %STRING0 is the nation's home port: FUN_38fd_4884 raw 64708
  * (param_2 != 0) passes DS:(nation*2 - 0x7c74), the NAMES @HOMEPORT row, to FUN_281f_0438.
@@ -3280,6 +4552,61 @@ static int test_indian_land_esc_takes(void) {
   }
   game_destroy(game);
   return rc;
+}
+
+/*
+ * FUN_2b5a_1454 (road, raw 42536-42604) and FUN_2b5a_123e (forest, raw 42443-42512) read
+ * neither tools nor the current orders, so a Pioneer with under 20 tools already on the order
+ * over unbought native land is asked again. Same fixture (Pioneer on Tupi forest (45,22)).
+ */
+static int indian_land_asks_again(GameIndianLandKind kind, int orders) {
+  ColonizeGameConfig cfg = {.data_dir = "./COLONIZE", .save_dir = "./build/debug"};
+  ColonizeGameState* game = game_create(&cfg);
+  if (!game || !game_assets_ok(game)) {
+    fprintf(stderr, "SKIP: no COLONIZE/ assets\n");
+    if (game) {
+      game_destroy(game);
+    }
+    return TR_SKIP;
+  }
+  char err[256];
+  if (!game_load_col1_file(
+        game, "tests-automated-regression/map_pioneer_native_forest_offer/input.sav", err,
+        sizeof(err)
+      )) {
+    fprintf(stderr, "  %s\n", err);
+    game_destroy(game);
+    return fail("fixture save load");
+  }
+  ai_popup_clear(&game->ai_popups);
+  ColonizeUnit* pu = NULL;
+  for (int i = 0; i < units_slot_end(&game->units); ++i) {
+    ColonizeUnit* u = &game->units.units[i];
+    if (u->active && u->x == 45 && u->y == 22 && units_is_pioneer(&game->units, u->id)) {
+      pu = u;
+    }
+  }
+  int rc = 0;
+  if (!pu) {
+    rc = fail("fixture Pioneer at (45,22)");
+  } else {
+    game->units.selected_id = pu->id;
+    pu->orders = orders;
+    pu->tools = 0;
+    if (!game_pioneer_land_gate(game, kind) || game->ai_popups.queue_count != 1) {
+      rc = fail("the native-land question is asked again (no tools / orders gate)");
+    }
+  }
+  game_destroy(game);
+  return rc;
+}
+
+static int test_indian_road_asks_when_already_building(void) {
+  return indian_land_asks_again(GAME_INDIAN_LAND_ROAD, UNITS_ORDER_BUILD_ROAD);
+}
+
+static int test_indian_forest_asks_when_already_clearing(void) {
+  return indian_land_asks_again(GAME_INDIAN_LAND_FOREST, UNITS_ORDER_CLEAR_PLOW);
 }
 
 /*
@@ -4089,6 +5416,19 @@ static const TestCase k_cases[] = {
     {"test_trade_route_begin_moves_wagon_to_selected_stop", test_trade_route_begin_moves_wagon_to_selected_stop},
     {"test_goto_treasure_gets_king_galleon_offer", test_goto_treasure_gets_king_galleon_offer},
     {"test_human_lcr_count_change_skips_contact", test_human_lcr_count_change_skips_contact},
+    {"test_map_o_key_does_not_board", test_map_o_key_does_not_board},
+    {"test_deferred_wake_does_not_leak", test_deferred_wake_does_not_leak},
+    {"test_human_passenger_ship_to_ship", test_human_passenger_ship_to_ship},
+    {"test_human_board_reveals_with_passenger", test_human_board_reveals_with_passenger},
+    {"test_human_board_two_hulls_reveals_with_passenger",
+     test_human_board_two_hulls_reveals_with_passenger},
+    {"test_human_transfer_reveals_with_passenger", test_human_transfer_reveals_with_passenger},
+    {"test_goto_board_reveals_with_passenger", test_goto_board_reveals_with_passenger},
+    {"test_human_landfall_runs_3180", test_human_landfall_runs_3180},
+    {"test_human_village_visit_no_3180", test_human_village_visit_no_3180},
+    {"test_human_landho_after_3180", test_human_landho_after_3180},
+    {"test_human_nonstep_no_landho", test_human_nonstep_no_landho},
+    {"test_human_treasure_offer_after_3180", test_human_treasure_offer_after_3180},
     {"test_ship_in_colony_meets_tribe", test_ship_in_colony_meets_tribe},
     {"test_ship_bumps_foreign_colony_trade_arm", test_ship_bumps_foreign_colony_trade_arm},
     {"test_trade_route_ship_aims_colony_tile", test_trade_route_ship_aims_colony_tile},
@@ -4099,15 +5439,24 @@ static const TestCase k_cases[] = {
     {"test_colony_shift_pick_moves_highlight", test_colony_shift_pick_moves_highlight},
     {"test_colony_jobs_menu_seats_indoor_worker", test_colony_jobs_menu_seats_indoor_worker},
     {"test_colony_rum_distiller_refusal_popup", test_colony_rum_distiller_refusal_popup},
+    {"test_colony_fence_unit_jobs_list", test_colony_fence_unit_jobs_list},
+    {"test_colony_fence_unit_jobs_extras", test_colony_fence_unit_jobs_extras},
     {"test_colony_jobs_menu_open_has_no_side_effects", test_colony_jobs_menu_open_has_no_side_effects},
+    {"test_join_colony_recomputes_plots", test_join_colony_recomputes_plots},
     {"test_game_world_view", test_game_world_view},
     {"test_goto_place_opens_travelplace_list", test_goto_place_opens_travelplace_list},
     {"test_activate_ignores_foreign_unit", test_activate_ignores_foreign_unit},
+    {"test_select_tile_rotation_retest", test_select_tile_rotation_retest},
+    {"test_click_selects_ship", test_click_selects_ship},
+    {"test_view_pieces_keeps_active_unit", test_view_pieces_keeps_active_unit},
+    {"test_right_click_and_find_colony_keep_active_unit",
+     test_right_click_and_find_colony_keep_active_unit},
     {"test_move_edge_scroll_uses_departure_tile", test_move_edge_scroll_uses_departure_tile},
     {"test_board_step_watch_and_ship_margin", test_board_step_watch_and_ship_margin},
     {"test_phantom_lunge_edge_scroll_uses_colony_tile",
      test_phantom_lunge_edge_scroll_uses_colony_tile},
     {"test_combat_edge_scroll_uses_attacker_tile", test_combat_edge_scroll_uses_attacker_tile},
+    {"test_combat_lunge_reads_465b_local_1c", test_combat_lunge_reads_465b_local_1c},
     {"test_foreign_move_shown_by_prior_sighting", test_foreign_move_shown_by_prior_sighting},
     {"test_brave_step_watch_sees_entry_vis", test_brave_step_watch_sees_entry_vis},
     {"test_player_pick_keeps_view", test_player_pick_keeps_view},
@@ -4119,12 +5468,16 @@ static const TestCase k_cases[] = {
     {"test_colony_construction_two_pages_live", test_colony_construction_two_pages_live},
     {"test_indian_land_offer_row_greyed", test_indian_land_offer_row_greyed},
     {"test_indian_land_esc_takes", test_indian_land_esc_takes},
+    {"test_indian_road_asks_when_already_building", test_indian_road_asks_when_already_building},
+    {"test_indian_forest_asks_when_already_clearing", test_indian_forest_asks_when_already_clearing},
     {"test_indian_land_plot_esc_takes", test_indian_land_plot_esc_takes},
     {"test_europe_buy_prompt_names_hull_type", test_europe_buy_prompt_names_hull_type},
     {"test_europe_repairing_hull_press_no_pickup", test_europe_repairing_hull_press_no_pickup},
     {"test_europe_dock_menu_on_release", test_europe_dock_menu_on_release},
     {"test_brewster_pick_names_home_port", test_brewster_pick_names_home_port},
     {"test_crossing_stamps_nation_return_tile", test_crossing_stamps_nation_return_tile},
+    {"test_new_campaign_drops_parked_flow", test_new_campaign_drops_parked_flow},
+    {"test_new_campaign_amer2_seed100_landfall", test_new_campaign_amer2_seed100_landfall},
     {"test_europe_repaints_reset_harbor_selection", test_europe_repaints_reset_harbor_selection},
     {"test_click_spent_unit_hands_off", test_click_spent_unit_hands_off},
     {"test_eot_off_unit_used_up_ends_turn", test_eot_off_unit_used_up_ends_turn},

@@ -759,8 +759,9 @@ void colonies_assign_carpenter_fallback(ColonizeColonyPool* pool, int colony_id,
 
 /*
  * port_bugs.md #562: DOS's join path is FUN_15eb_3930 -> FUN_15eb_2ea0 ->
- * FUN_15eb_28c8 — the newcomer takes the best-scoring WORK PLOT, and only when
- * nothing scores does he become a Carpenter (`1068(slot, 0xd)`). The port used
+ * FUN_15eb_28c8 — the newcomer takes the best-scoring WORK PLOT, and when
+ * nothing scores (or 28c8's human Carpenter gate fires) he becomes a
+ * Carpenter (`1068(slot, 0xd)`). The port used
  * to seat every joiner in the Town Hall, which has no DOS counterpart at all,
  * so an Expert Farmer joining a colony with a free Plains plot made 0 food.
  */

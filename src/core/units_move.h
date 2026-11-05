@@ -73,6 +73,10 @@ ColonizeEnterReason units_enter_probe_w(
 );
 /* Last reason from units_enter_probe / units_try_move (0 if none). */
 ColonizeEnterReason units_last_enter_reason(void);
+/* The passenger of the last 465b board step (walk-on or ship-to-ship), -1
+ * unless units_last_enter_reason() is COLONIZE_ENTER_BOARD. Reading it clears
+ * the record (the step tail consumes it). */
+int units_take_board_passenger(void);
 
 bool units_can_enter_w(
   const ColonizeWorld* w,
@@ -122,6 +126,15 @@ bool units_try_move_w(
 /* FUN_465b_0000's bVar5 for the last units_try_move_w: true only when a
  * non-attack step either moved or lost the MP gamble (raw 75830). */
 extern bool g_units_465b_settled;
+/* The last units_try_move_w was a human step onto an unrolled rumour, so its
+ * FUN_5bfb_3180 sentry wake (raw 98628-98646) waits for the LCR (-1 = none).
+ * units_465b_deferred_wake runs it when `run` (the LCR left the unit count
+ * alone, raw 75792) and always clears it. */
+extern int g_units_wake_deferred_id;
+void units_465b_deferred_wake(
+  ColonizeUnitPool* pool, const ColonizeWorldMap* map, const ColonizeColonyPool* colonies,
+  int unit_id, bool run
+);
 /*
  * FUN_465b_0000 LAB_0bd1 (raw 75831-75842), for a mover whose 465b call ended
  * unsettled: if the unit count is unchanged (`units_before` = DS:0x539c at

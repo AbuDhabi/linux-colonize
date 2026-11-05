@@ -81,26 +81,6 @@ bool col1_bridge_init_template(
 );
 
 /*
- * After a European unit steps onto (x,y): report whether a tribe village is
- * adjacent, for european_nation (0..3). Alarm-free — the per-step friction /
- * alarm_by_player bumps were the fourth drip of the fandom class port_bugs.md
- * 295/297 retired (a bare map step grows no alarm: FUN_5bfb_3180, the real
- * move tail, touches neither word. DOS's two growers are the FUN_4d56_152e
- * accumulator and FUN_0000_6582's land-work charge — port_bugs.md #1002).
- * Does NOT set euro_diplo — first contact is ai_contact_try_first_welcome.
- * If out_first_indian_nation is non-NULL, writes Col1 nation id 4..11 for the
- * first unmet tribe this call (else -1).
- * Returns true if any village was contacted this call.
- */
-bool col1_contact_adjacent_tribe(
-  ColonizeCol1Save* save,
-  int x,
-  int y,
-  int european_nation,
-  int* out_first_indian_nation
-);
-
-/*
  * FUN_4720_049e / head.event: mark New World discovery + named_new_world once
  * the @LANDHO name is answered (game_try_prompt_landho opens it after a human
  * move reveals land; capture and load never set these).

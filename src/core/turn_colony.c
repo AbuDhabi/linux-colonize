@@ -36,9 +36,10 @@ ColonizeColony* g_turn_1528_last_walked_colony = NULL;
  *  - Nation tick: bells/crosses tally, immigrants, ship repair/routing
  */
 
-/* ===================== Colony construction & building completion (turn_run_colony_unit_construction .. turn_colony_free_production) ===================== */
-static void turn_colony_unit_construction_one(ColonizeTurnContext* ctx, ColonizeColony* col) {
-  if (!col->active || col->building_in_production < 0) {
+/* ===================== Colony construction & building completion (turn_colony_unit_construction_one .. turn_colony_free_production) ===================== */
+/* Called from turn_produce_one_colony between Phase K and spoilage. */
+void turn_colony_unit_construction_one(const ColonizeWorld* ctx, ColonizeColony* col) {
+  if (!ctx || !ctx->units || !col->active || col->building_in_production < 0) {
     return;
   }
   const char* name = NULL;
@@ -111,18 +112,6 @@ static void turn_colony_unit_construction_one(ColonizeTurnContext* ctx, Colonize
   }
 }
 
-static void turn_run_colony_unit_construction(ColonizeTurnContext* ctx) {
-  if (!ctx || !ctx->colonies || !ctx->units) {
-    return;
-  }
-  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-    ColonizeColony* col = &ctx->colonies->colonies[i];
-    if (turn_prod_nation_in_scope(col->nation_id)) {
-      turn_colony_unit_construction_one(ctx, col);
-    }
-  }
-}
-
 /*
  * Player-requested: BUY only tops hammers/tools up to the completion
  * threshold — it must NOT complete the project itself (colonies_buy_construction
@@ -131,9 +120,7 @@ static void turn_run_colony_unit_construction(ColonizeTurnContext* ctx) {
  * change this tick" gate — turn_produce_one_colony's own inline complete
  * check only fires when the colony *produces* new hammers that tick, which
  * misses a colony already sitting at/above threshold from a BUY with an
- * idle Carpenter or on a frozen Autumn tick). Sibling to
- * turn_run_colony_unit_construction above — same one-pass-per-turn shape,
- * real buildings instead of units. colonies_try_complete_building's own
+ * idle Carpenter or on a frozen Autumn tick). colonies_try_complete_building's own
  * has_building[] guard makes this safe to also run on a turn where the
  * inline per-colony-production path in turn_produce_one_colony already
  * completed the same project (second call just returns false).
@@ -180,14 +167,12 @@ static void turn_run_colony_building_completion(ColonizeTurnContext* ctx) {
 }
 
 /*
- * The colony end-of-turn trio, in DOS's order (audit CO-10): production,
- * then the two completion sweeps production itself cannot do.
- * turn_run_colony_production has no ColonizeUnitPool access
- * (colonies_try_complete_building never needed one; spawning a unit does),
- * so unit construction is its own pass; and BUY-topped-up (or otherwise
- * carpenter-idle / Autumn-frozen) real buildings sitting at or above the
- * hammer threshold need theirs, because turn_produce_one_colony's inline
- * complete check only fires on a tick that adds new hammers.
+ * The colony end-of-turn pass (audit CO-10): production, which also finishes
+ * unit projects inline (FUN_364b_0688 raw 57771-57774), then the
+ * building-completion sweep: BUY-topped-up (or otherwise carpenter-idle /
+ * Autumn-frozen) real buildings sitting at or above the hammer threshold need
+ * it, because turn_produce_one_colony's inline complete check only fires on a
+ * tick that adds new hammers.
  * The nation scoping (turn_prod_skip_* / turn_prod_only_*) stays at the call
  * sites: TURN_PROC_SETUP runs every AI nation, TURN_PROC_FINISH the human.
  */
@@ -202,7 +187,6 @@ static void turn_run_colony_eot_with(
   turn_run_colony_production_with_w(&pw, ctx->human_nation, out, ctx->ai_popups, ctx->messages, before, before_user);
   g_turn_1528_last_walked_colony = NULL;
   turn_set_birth_units_pool(NULL);
-  turn_run_colony_unit_construction(ctx);
   turn_run_colony_building_completion(ctx);
 }
 
@@ -220,7 +204,7 @@ void turn_colony_free_production(
   ColonizeTurnResult local;
   memset(&local, 0, sizeof(local));
   turn_produce_one_colony(
-    pool, colony, map, NULL, NULL, -1, out ? out : &local, out_delta, NULL, NULL, NULL
+    pool, colony, map, NULL, NULL, -1, out ? out : &local, out_delta, NULL, NULL, NULL, NULL
   );
 }
 
@@ -517,8 +501,8 @@ void turn_run_human_colony_eot(ColonizeTurnContext* ctx, ColonizeTurnResult* out
  * Colony-screen Space cheat (FUN_2f2b_6372 2f2b:6950 -> FUN_364b_0688 on the
  * viewed colony, with the 0648 redraw after it): ONE colony's production tick
  * outside the turn. It is the colony pass of turn_run_colony_eot_with for a
- * single colony: the same bell step, FUN_364b_0688 body and the two completion
- * sweeps, and none of the nation-level steps around the loop (specialty
+ * single colony: the same bell step, FUN_364b_0688 body and the building
+ * completion sweep, and none of the nation-level steps around the loop (specialty
  * census, last-turn bell reset, colony crosses). Pressing it twice produces
  * twice, as in DOS. The caller leaves the colony screen when the colony died.
  */
@@ -550,9 +534,6 @@ void turn_cheat_colony_tick(ColonizeTurnContext* ctx, ColonizeTurnResult* out, i
   );
   g_turn_1528_last_walked_colony = NULL;
   turn_set_birth_units_pool(NULL);
-  if (ctx->units) {
-    turn_colony_unit_construction_one(ctx, col);
-  }
   turn_colony_building_completion_one(ctx, col);
   if (nat && ctx->europe && n == ctx->human_nation) {
     ctx->europe->liberty_bells_pool = nat->liberty_bells_pool;
@@ -568,6 +549,7 @@ void turn_run_ai_nation_eot(ColonizeTurnContext* ctx, ColonizeTurnResult* out, i
     return;
   }
   if (!ctx->col1_ok || !ctx->col1) {
+    turn_take_prof_census(ctx, n); /* 00f2 raw 58374, before the lane tick */
     ai_euro_europe_lane_tick(ctx, n);
     turn_prod_only_nation = n;
     turn_prod_only_set = true;
@@ -581,6 +563,10 @@ void turn_run_ai_nation_eot(ColonizeTurnContext* ctx, ColonizeTurnResult* out, i
     return; /* withdrawn: no 00f2 */
   }
   ColonizeCol1Nation* nat = &ctx->col1->nation[n];
+  /* 00f2 raw 58374 FUN_291f_0a9e -> FUN_4962_0606, before 5e52 (58375) and
+   * the lane tick (58377): an expert who lands on the dock or is bought this
+   * turn does not count until next turn. */
+  turn_take_prof_census(ctx, n);
   if (!ctx->col1->head.game_options.woi) {
     ai_nation_reseed(ctx); /* 5e52 entry: FUN_281f_04ca(DS:0x83a6), raw 68542 */
     /* raw 68557: FUN_38fd_0058(0, -1), this nation's own price track. */
@@ -645,6 +631,14 @@ void turn_run_human_europe_pass(ColonizeTurnContext* ctx) {
 }
 
 void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
+  turn_run_nation_ticks_immigration(ctx, out);
+  turn_run_nation_ticks_tail(ctx, out);
+}
+
+/* The human 5e52 immigration tick (FUN_3844_00f2 raw 58375). The interactive
+ * EOT yields after it when a dialog is queued, so a Brewster pick is answered
+ * before the 5be8 tax roll and this turn's colony crosses, as in DOS. */
+void turn_run_nation_ticks_immigration(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
   if (!ctx) {
     return;
   }
@@ -704,7 +698,10 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
     const int imm = woi_now ? 0 : europe_tick_immigration_pressure_w(&iw, ctx->human_nation);
     if (imm == 2) {
       /* Brewster: player picks from the pool (@RECRUITCHOOSE); applied via
-       * units_brewster_apply_popup_ex_w in game_loop, crosses kept until then. */
+       * units_brewster_apply_popup_ex_w in game_loop. DOS 4884 is a blocking
+       * pick inside 5e52 (raw 68607): the EOT yields after this tick, so the
+       * answer zeroes the crosses (raw 64766) before this turn's colony
+       * crosses land in turn_run_nation_ticks_tail. */
       if (ctx->ai_popups) {
         units_brewster_enqueue_pick(ctx->europe, ctx->ai_popups, ctx->messages, ctx->human_nation);
       } else {
@@ -762,6 +759,23 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
         turn_notify_dock_immigrant(ctx, out, name);
       }
     }
+  }
+}
+
+void turn_run_nation_ticks_tail(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
+  (void)out;
+  if (!ctx) {
+    return;
+  }
+  int bells = 0;
+  int crosses = 0;
+  turn_count_bells_and_crosses_for_nation(
+    ctx->colonies, ctx->human_nation, ctx->col1_ok ? ctx->col1 : NULL, &bells, &crosses
+  );
+  (void)bells;
+  const bool human_bells_per_colony = ctx->col1_ok && ctx->col1 && ctx->human_nation >= 0 &&
+                                      ctx->human_nation < 4;
+  if (ctx->europe) {
     /*
      * port_bugs.md #923 / DOS FUN_3844_00f2: the immigration tick FUN_291f_0a90
      * (= FUN_38fd_5e52) runs at raw 58375, BEFORE the per-colony tick
@@ -945,12 +959,15 @@ int turn_rank_euro_nations(
   return 0;
 }
 
-void turn_tally_professions(
-  const ColonizeColonyPool* colonies,
-  const ColonizeUnitPool* units,
-  int nation_id,
-  uint8_t out_hist[32]
-) {
+static void turn_tally_record(void* user, int type_index, int profession, bool is_hull) {
+  uint8_t* hist = user;
+  if (!is_hull && units_type_has_profession_slot(type_index) && profession >= 0 &&
+      profession < 32 && hist[profession] < 255u) {
+    hist[profession]++;
+  }
+}
+
+void turn_tally_professions_w(const ColonizeWorld* w, int nation_id, uint8_t out_hist[32]) {
   /*
    * FUN_4962_0606 (raw 78332-78372): zero hist[0x1d]; then count the
    * nation's units by profession — but ONLY those whose @UNIT type carries
@@ -961,29 +978,36 @@ void turn_tally_professions(
    * by its SPECIALTY (`FUN_281f_0c54`) — never by the field job it is
    * standing in, so a Free Colonist working a wheat plot is not an Expert
    * Farmer. 32 slots here (covers the whole @JOB range).
+   *
+   * The unit walk (raw 78351-78362) has no position test: every record of
+   * the nation counts, Europe docks and lanes included. The human's
+   * Europe-side units live only in the EuropeScreen here, so they are added
+   * from it, and the pool's (236,236) dock mirrors are skipped for their rows.
    */
   if (!out_hist) {
     return;
   }
   memset(out_hist, 0, 32);
-  if (nation_id < 0 || nation_id > 3) {
+  if (!w || nation_id < 0 || nation_id > 3) {
     return;
   }
+  const ColonizeUnitPool* units = w->units;
+  const ColonizeColonyPool* colonies = w->colonies;
+  const EuropeScreen* eu =
+    (w->europe && (int)w->europe->bound_nation == nation_id) ? w->europe : NULL;
   if (units) {
     for (int i = 0; i < units_slot_end(units); ++i) {
       const ColonizeUnit* u = &units->units[i];
       if (!u->active || u->nation_id != nation_id) {
         continue;
       }
-      if (!units_type_has_profession_slot(u->type_index)) {
+      if (eu && europe_is_dock_mirror(units, u, nation_id)) {
         continue;
       }
-      const int p = u->profession;
-      if (p >= 0 && p < 32 && out_hist[p] < 255u) {
-        out_hist[p]++;
-      }
+      turn_tally_record(out_hist, u->type_index, u->profession, false);
     }
   }
+  europe_for_each_offpool_record(eu, units, turn_tally_record, out_hist);
   if (colonies) {
     for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
       const ColonizeColony* c = &colonies->colonies[i];

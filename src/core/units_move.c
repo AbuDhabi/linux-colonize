@@ -241,6 +241,7 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_board(units_move_ctx* c) {
   }
   const int ox = unit->x;
   const int oy = unit->y;
+  const bool had_focus = pool->selected_id == unit_id;
   if (!units_board(pool, unit_id, ship_id)) {
     g_units_last_enter_reason = COLONIZE_ENTER_BLOCKED;
     return UNITS_MOVE_RETURN_FALSE;
@@ -281,13 +282,22 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_board(units_move_ctx* c) {
       }
     }
   }
+  units_465b_board_wake_focus(pool, unit_id, ship_id, had_focus);
   units_occupancy_refresh_tile(pool, ox, oy, unit_id);
   units_occupancy_refresh_tile(pool, dest_x, dest_y, -1);
   /* No boarding branch in DOS, so the step also takes the raw 75704 slide
    * (FUN_112b_0eb6) and its departure-tile edge scroll. The passenger is off
    * the map now, so units_move_watch_notify would skip it; call the watch. */
   units_move_watch_fire(pool, map, colonies, unit_id, ox, oy, dest_x, dest_y, c->vis_before);
+  /* The board is 465b's plain step (raw 75711-75723), so its tail still runs
+   * 0984 -> FUN_5bfb_3180 (raw 75794-75797). With a land mover on water only
+   * the sentry-wake arm applies (raw 98628-98646; the naval arms need a hull,
+   * the facing and encounter arms a land tile). 3180 reads the mover's
+   * nation and the destination (param_2/3), which the receiving ship
+   * shares; the boarded passenger is off the map. */
+  units_sentry_wake_scan(pool, map, colonies, ship_id);
   g_units_last_enter_reason = COLONIZE_ENTER_BOARD;
+  g_units_last_board_pax_id = unit_id;
   return UNITS_MOVE_RETURN_TRUE;
 }
 
@@ -977,7 +987,7 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_commit_step(units_move_ctx* c) {
    * group: sentried units there and riders of other own hulls (DOS
    * ship-switch bug, docs/tolerated_dos_bugs.md TB-2). */
   if (ship) {
-    (void)units_ship_departure_pickup(pool, unit_id, ox, oy);
+    (void)units_ship_departure_pickup(pool, map, unit_id, ox, oy);
   }
   /* FUN_281f_07e0 + 08e4 sorts the destination's existing chain for
    * ships too (FUN_465b_0000 raw 75709-75710), before 0948 relinks arrival. */
@@ -1083,7 +1093,7 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_colony_arrival(units_move_ctx* c) {
   /*
    * DOS-LITERAL FUN_465b_0bd1 raw 75721: `FUN_281f_088a(unit) != 0 ||
    * type == 0x0c` gates the whole colony-enter arm (MP exhaust, the
-   * col1_counter16 reset and the destination-stack sentry wake below).
+   * col1_counter16 reset and the arriving-group sentry wake below).
    * FUN_281f_088a (== FUN_1427_1284, raw 8684-8702) walks the mover's tile
    * stack — evaluated before FUN_281f_0934 relinks it into the destination
    * stack, i.e. it still reads the ORIGIN tile's stack at this point even
@@ -1114,8 +1124,9 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_colony_arrival(units_move_ctx* c) {
   }
   if (colony_enter_gate) {
     units_mp_exhaust(pool, unit);
-    /* DOS raw 75731-75740: port_bugs.md #792 — +0x315a = 0 on arrival, then
-     * wake (clear Sentry orders on) every unit on the destination stack.
+    /* DOS raw 75731-75741: +0x315a = 0 on arrival, then wake (clear Sentry
+     * orders on) the arriving group only (port_bugs.md #1433, which supersedes
+     * #792's destination-stack reading).
      *
      * Runtime trade routes unpack DOS's separate +0x315b profession-byte
      * cursor into col1_counter16 (see col1_bridge.c). Preserve that cursor:
@@ -1124,12 +1135,18 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_colony_arrival(units_move_ctx* c) {
     if (unit->orders != UNITS_ORDER_TRADE_ROUTE) {
       unit->col1_counter16 = 0;
     }
-    int dslot = 0;
-    for (ColonizeUnit* stacked = units_next_on_tile(pool, dest_x, dest_y, &dslot);
-         stacked != NULL;
-         stacked = units_next_on_tile(pool, dest_x, dest_y, &dslot)) {
-      if (stacked->orders == UNITS_ORDER_SENTRY) {
-        stacked->orders = UNITS_ORDER_NONE;
+    /* FUN_465b_0000 raw 75735-75741: the walk is FUN_281f_02ee =
+     * FUN_1427_0002 with AX = param_1 (the call at 465b:0912), the mover's own
+     * chain (hull + riders from FUN_1427_10be); the relink onto the
+     * destination comes later (FUN_281f_0948, raw 75768). Residents of the
+     * colony tile keep their Sentry. */
+    if (unit->orders == UNITS_ORDER_SENTRY) {
+      unit->orders = UNITS_ORDER_NONE;
+    }
+    for (int i = 0; i < unit->cargo_count && i < COLONIZE_UNIT_CARGO_MAX; ++i) {
+      ColonizeUnit* rider = units_get(pool, unit->cargo_ids[i]);
+      if (rider && rider->orders == UNITS_ORDER_SENTRY) {
+        rider->orders = UNITS_ORDER_NONE;
       }
     }
   }
@@ -1184,6 +1201,7 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_finish(units_move_ctx* c) {
   const int unit_id = c->unit_id;
   const ColonizeEnterReason reason = c->reason;
 
+  g_units_wake_deferred_id = -1;
   if (colonies) {
     units_try_capture_foreign_colony(pool, colonies, unit_id);
   }
@@ -1204,8 +1222,16 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_finish(units_move_ctx* c) {
      * may eat the mover's remaining MP (see units_ship_slow_scan). */
     units_ship_slow_scan_w(c->w, unit_id);
     /* FUN_5bfb_3180 sentry half: a foreign unit now adjacent wakes that stack's
-     * Sentry units (raw 98628-98646). Runs for every mover, land or sea. */
-    units_sentry_wake_scan(pool, map, colonies, unit_id);
+     * Sentry units (raw 98628-98646). Runs for every mover, land or sea.
+     * A human mover's LCR (raw 75788-75792) is still unrolled here
+     * (game_after_unit_tail resolves it behind its popups); a count change
+     * skips 3180, so the wake waits for units_465b_deferred_wake. */
+    if (c->unit && units_combat_human_involved(c->col1, c->unit->nation_id, -1) &&
+        map_tile_has_rumour(map, c->unit->x, c->unit->y)) {
+      g_units_wake_deferred_id = unit_id;
+    } else {
+      units_sentry_wake_scan(pool, map, colonies, unit_id);
+    }
   }
   c->unit = units_get(pool, unit_id);
   /* No named_new_world write here: FUN_4720_049e raw 76126-76135 is the
@@ -1327,6 +1353,18 @@ bool units_try_move_w(
 }
 
 bool g_units_465b_settled = false;
+int g_units_wake_deferred_id = -1;
+
+void units_465b_deferred_wake(
+  ColonizeUnitPool* pool, const ColonizeWorldMap* map, const ColonizeColonyPool* colonies,
+  int unit_id, bool run
+) {
+  const bool due = unit_id >= 0 && unit_id == g_units_wake_deferred_id;
+  g_units_wake_deferred_id = -1;
+  if (due && run) {
+    units_sentry_wake_scan(pool, map, colonies, unit_id);
+  }
+}
 
 int units_active_count(const ColonizeUnitPool* pool) {
   int n = 0;
@@ -2493,6 +2531,8 @@ void units_reset_state(void) {
   /* DS:0x1dc6/0x1dc7 are process-wide in DOS; the port keeps them per game
    * (dos_bugs.md DB-47). A port save's RTST chunk restores them after this. */
   units_lcr_counters_import((const uint8_t[2]){0, 0});
+  g_units_wake_deferred_id = -1; /* a held 3180 wake never outlives its game */
+  g_units_last_board_pax_id = -1; /* nor does a board record */
 }
 
 static uint8_t* path_w32(uint8_t* p, uint32_t v) {
@@ -3249,7 +3289,7 @@ static bool units_goto_director(
               mu->goto_y < UNITS_GOTO_NONE) {
             const int ox = mu->x;
             const int oy = mu->y;
-            (void)units_ship_departure_pickup(mp, unit_id, ox, oy);
+            (void)units_ship_departure_pickup(mp, map, unit_id, ox, oy);
             units_tile_stack_ship_relink(mp, unit_id, false);
             mu->x = (uint8_t)mu->goto_x;
             mu->y = (uint8_t)mu->goto_y;

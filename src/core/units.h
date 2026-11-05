@@ -180,10 +180,19 @@ typedef struct ColonizeUnitPool {
   ColonizeUnit units[COLONIZE_UNITS_MAX];
   int unit_count;
   int selected_id;
-  /* port_bugs.md "Move to front": the unit in this pool SLOT (units[i], NOT a
-   * unit id) boards departing ships first and heads the colony rosters
-   * (-1 = none; DOS reorders its unit chain). Was board_first_id. */
-  int board_first_slot;
+  /* FUN_1427_0824 raw 7834-7836: deleting the active record steps DS:0x5392
+   * back one record, and the map loop re-tests that record before scanning
+   * on. units_despawn clears selected_id (nothing acts on a stand-in unit)
+   * and keeps that record's id here; the next turn_select_next_unit starts
+   * AT it and clears it (<= 0 / dead id = scan from slot 0; ids start at 1,
+   * so a zeroed pool reads as none). An id, so it survives units_pool_compact.
+   * game_select_tile drops it when the player leaves a live selection. */
+  int rotation_retest_id;
+  /* port_bugs.md "Move to front": this unit ID boards departing ships first
+   * and heads the colony rosters (-1 = none; DOS reorders its unit chain).
+   * An id, not a slot: despawn trims and reuses slots, so a slot could pass
+   * the mark to a newcomer; cleared when the unit is despawned. */
+  int board_first_id;
   int next_id;
   /* Once next_id reaches COLONIZE_UNITS_MAX, ids are recycled round-robin
    * from here (units_alloc_id, port_bugs.md #1094); 0 = start at id 1. */
@@ -232,6 +241,12 @@ static inline int units_slot_end(const ColonizeUnitPool* pool) {
 /* Rebuild slot_end, unit_count and the id index from the slots' active/id
  * fields after filling pool->units by hand. */
 void units_pool_sync(ColonizeUnitPool* pool);
+/* Close the holes despawns left, keeping live order (DOS FUN_1427_0824's
+ * packed array); see docs/units.md. Only at a turn-slice boundary. */
+void units_pool_compact(ColonizeUnitPool* pool);
+/* Id of the nearest live unit in a slot BEFORE unit_id's slot (DOS: the
+ * record before it in the packed FUN_1427_0824 array); -1 if none. */
+int units_prev_live_id(const ColonizeUnitPool* pool, int unit_id);
 
 bool units_load_types(ColonizeUnitPool* pool, const ColonizeMsgCatalog* names);
 void units_reset(ColonizeUnitPool* pool);
@@ -287,6 +302,8 @@ void units_set_spawn_refused_hook(ColonizeUnitsSpawnRefusedFn fn);
  * DOS unit CREATE (FUN_281f_095c) site calls this before spawning; a refusal
  * for a human nation fires the refused hook. */
 bool units_spawn_room(const ColonizeUnitPool* pool, int nation);
+/* Same gate without the refused hook: would a create succeed now? */
+bool units_spawn_room_quiet(const ColonizeUnitPool* pool, int nation);
 /* Mark an on-map arrival at the tail of the DOS tile chain. */
 void units_tile_stack_arrive(ColonizeUnitPool* pool, int unit_id);
 /* DOS FUN_1427_03a0: relink a unit at the oldest end of its tile chain. */
@@ -558,7 +575,7 @@ void units_path_state_import(const uint8_t in[UNITS_PATH_STATE_SIZE], const stru
 
 /*
  * Human starter: Caravel (Dutch Merchantman) with Pioneer+Soldier, placed by the
- * FUN_48d3_048e ring hunt from the nation's @SCENARIO / mapgen landfall tile.
+ * FUN_48d3_048e ring hunt from the nation's HS-rim landfall tile (FUN_684c_08c0).
  */
 void units_new_world_start(
   ColonizeUnitPool* pool,

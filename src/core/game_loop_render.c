@@ -2300,12 +2300,16 @@ void game_commit_new_campaign(ColonizeGameState* game) {
     }
     /* FUN_684c_08c0 draws DS:0x190 before the loaded-map JMP (684c:08e2), so
      * a loaded map gets a seed too. DOS seed-100 Americas saves 365, the first
-     * range(1,0x7fff) after seeding 100. ponytail: own LCG; the port's Americas
-     * stream past this point is not DOS-aligned anyway. */
+     * range(1,0x7fff) after seeding 100. The loaded map then falls through to
+     * the same HS-rim band pick as a generated one (684c:08e2 -> 17f1 -> 1ad5,
+     * raw 107131-107154) with no draws in between; the startup-only @SCENARIO
+     * write (raw 121035) is overwritten. Seed 100 gives England (47,28) and
+     * Spain (37,14), as the DOS save golden_idle_america_seed-100/000001.SAV. */
     if (game->world_map_ok) {
       ColonizeDosRng seed_rng;
       dos_rng_seed(&seed_rng, game_pick_rng_seed(game, game->elapsed_ms));
       game->world_map.prime_resource_seed = (uint16_t)dos_rng_range(&seed_rng, 1, 0x7fff);
+      map_gen_assign_euro_landfalls(&game->world_map, &seed_rng, game->human_nation, true);
     }
     snprintf(map_label, sizeof(map_label), "%s", ng->map_file[0] ? ng->map_file : "AMER2.MP");
   }
@@ -2355,7 +2359,7 @@ void game_commit_new_campaign(ColonizeGameState* game) {
         sy = game->world_map.height / 2;
       }
     }
-  } else {
+  } else if (!map_gen_euro_landfall(&game->world_map, game->human_nation, &sx, &sy)) {
     char stem[64];
     snprintf(stem, sizeof(stem), "%s", ng->map_file);
     char* dot = strrchr(stem, '.');
@@ -2516,9 +2520,18 @@ void game_commit_new_campaign(ColonizeGameState* game) {
   sound_play(0x39); /* FUN_75c2_235c new-game init: Hornpipe first (75c2:2474) */
   const uint8_t human_mask = ng->human_mask;
   new_game_cancel(ng);
+  /* Drop the unit hand-off, Land Ho scan and colony open the previous
+   * campaign left parked, as game_apply_col1_save does. */
+  game->turn_flow_deferred = false;
+  game->landho_deferred = false;
+  game->found_open_colony_id = -1;
   game->in_menu = false;
   game->view_pieces_mode = false;
   game->player_had_control = false;
+  /* The year loop starts afresh, as on a load: a lost war's throne audience
+   * is answered while the end of turn is parked, and its retire chain reaches
+   * the title menu through the Hall of Fame without game_end_to_title. */
+  memset(&game->turn_proc, 0, sizeof(game->turn_proc));
   /* Hot-seat: the year loop opens at slot 0, so the lowest human moves
    * first, with its @MULTINEXT (FUN_130d_0290 raw 6366-6390). */
   if (game->col1_ok && col1_save_hotseat(&game->col1)) {

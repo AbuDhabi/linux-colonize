@@ -808,7 +808,84 @@ static int unit_tb10_fixed_claim_reads_tribe_row(void) {
   return fixed > buggy ? 0 : fail("TB-10 fixed: a calm-index tribe row must not add reluctance");
 }
 
+/*
+ * FUN_15eb_28c8 raw 12982-12984 / 13151-13153: in a human colony of pop >= 3
+ * with a project set, no Carpenter and no food emergency, 28c8 makes the
+ * plotless colonist a Carpenter without walking the plots. All-Plains ring.
+ * Variant 1 is the gate firing; every other variant breaks one term (no
+ * project, pop 2, a Carpenter already seated, an AI colony) and the joiner
+ * walks to a plot.
+ */
+static int unit_human_project_makes_carpenter(void) {
+  uint8_t terrain[MAP_W * MAP_H];
+  uint8_t layer2[MAP_W * MAP_H];
+  uint8_t layer3[MAP_W * MAP_H];
+  ColonizeWorldMap map;
+  map_init(&map, terrain, layer2, layer3);
+  const int cx = 8, cy = 8;
+  memset(terrain, 2, sizeof(terrain)); /* Plains */
+  suppress_field_tile_resources(&map, cx, cy);
+
+  memset(colony_building_row_names, 0, sizeof(colony_building_row_names));
+  colony_building_row_name_count = COLONY_BUILDING_CARPENTERS_SHOP + 1;
+  snprintf(colony_building_row_names[COLONY_BUILDING_CARPENTERS_SHOP],
+           sizeof(colony_building_row_names[0]), "Carpenter's Shop");
+
+  static const char* const k_variant[] = {
+    "no project", "gate fires", "pop 2", "Carpenter seated", "AI colony"
+  };
+  for (int v = 0; v < 5; ++v) {
+    ColonizeColonyPool colonies;
+    colonies_init(&colonies);
+    colonies_set_occupancy_map(NULL);
+    colonies.building_type_count = 1;
+    snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name),
+             "Carpenter's Shop");
+    colonies.building_types[0].row_plus1 = COLONY_BUILDING_CARPENTERS_SHOP + 1;
+    ColonizeColony* col = &colonies.colonies[0];
+    colony_init_common(col, /*nation=*/1, cx, cy);
+    colonies.colony_count = 1;
+    const int pop = v == 2 ? 2 : 3;
+    const int slot = pop - 1; /* the plotless joiner */
+    col->population = col->colonist_count = pop;
+    for (int s = 0; s < pop; ++s) {
+      col->colonists[s] = col->colonists[0];
+    }
+    col->colonists[0].field_job = COLONIZE_JOB_FARMER;
+    col->tiles[0] = 0;
+    if (v == 3) {
+      col->tiles[0] = -1;
+      col->colonists[0].field_job = -1;
+      col->colonists[0].building_type = 0; /* the seated Carpenter */
+    }
+    if (pop == 3) {
+      col->colonists[1].field_job = COLONIZE_JOB_FARMER;
+      col->tiles[2] = 1;
+    }
+    col->building_in_production = v == 0 ? -1 : 0;
+
+    ColonizeTurnContext ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.human_nation = v == 4 ? 2 : 1;
+    ctx.colonies = &colonies;
+    ctx.map = &map;
+    ai_euro_28c8_auto_assign_plots(&ctx, 0, slot);
+
+    const int tile = colonies_colonist_tile(col, slot);
+    const int bt = col->colonists[slot].building_type;
+    const bool carpenter = v == 1;
+    if (carpenter ? (tile >= 0 || bt != 0) : (tile < 0 || bt >= 0)) {
+      fprintf(stderr, "unit_ai_euro_28c8_job_score: %s tile=%d building=%d\n", k_variant[v],
+              tile, bt);
+      return fail(carpenter ? "project set, no Carpenter -> the joiner must be the Carpenter"
+                            : "gate term false -> the joiner must walk to a plot");
+    }
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+    {"unit_human_project_makes_carpenter", unit_human_project_makes_carpenter},
     {"unit_distance_term_breaks_ties", unit_distance_term_breaks_ties},
     {"unit_full_matrix_sticky_doubling", unit_full_matrix_sticky_doubling},
     {"unit_join_seats_on_work_plot", unit_join_seats_on_work_plot},

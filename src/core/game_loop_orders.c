@@ -98,6 +98,7 @@ void game_set_view_center(ColonizeGameState* game, int x, int y) {
 void game_do_end_turn(ColonizeGameState* game);
 void game_center_on_selected_unit(ColonizeGameState* game);
 void game_after_unit_action(ColonizeGameState* game);
+void game_after_unit_step(ColonizeGameState* game);
 bool game_units_pending_orders(const ColonizeGameState* game);
 bool game_select_next_unit_awaiting_orders(ColonizeGameState* game);
 
@@ -110,12 +111,36 @@ void game_select_tile(ColonizeGameState* game, int x, int y) {
     map_clamp_coords_inset(&game->world_map, &x, &y);
   }
   if (game->units_ok) {
+    /* A live selection here means the player moved on since any despawn
+     * step-back: it no longer applies. With no live selection (the unit just
+     * died / joined) the step-back stays for the next scan. */
+    if (units_get_const(&game->units, game->units.selected_id)) {
+      game->units.rotation_retest_id = -1;
+    }
     game->units.selected_id = -1;
   }
   game->map_cursor_x = x;
   game->map_cursor_y = y;
   game_set_view_center(game, x, y);
   game->view_pieces_mode = true;
+}
+
+/*
+ * FUN_2b5a_0902 (raw 42112) sets 0x5390 = 1 and leaves 0x5392 on the active
+ * unit, so the next FUN_2b5a_0e52 re-tests that unit first (FUN_281f_07f4 ->
+ * FUN_1427_1410, raw 42291) and only then scans on from it (FUN_1427_14a0).
+ * The port's View mode clears selected_id, so the unit rides in
+ * rotation_retest_id, which turn_select_next_unit tests first.
+ */
+void game_enter_view_pieces(ColonizeGameState* game, int x, int y) {
+  const int left = game && game->units_ok &&
+                       units_get_const(&game->units, game->units.selected_id)
+                     ? game->units.selected_id
+                     : -1;
+  game_select_tile(game, x, y);
+  if (left > 0) {
+    game->units.rotation_retest_id = left;
+  }
 }
 
 /* On-map, or awake passenger (orders cleared) with moves remaining. */
@@ -265,6 +290,24 @@ COLONIZE_INTERNAL GameMoveStep game_move_passenger_unload(
     }
     const int ship_id = selected->aboard_ship_id;
     const ColonizeWorld w = game_world(game);
+    /* Onto an adjacent own ship with room (FUN_4720_015c raw 75988-75995):
+     * the same 465b step as walking aboard from shore, and the same focus
+     * hand-off to the receiving ship (game_move_land_unit's board arm). */
+    if (units_transfer_passenger_w(&w, ship_id, sid, dest_x, dest_y)) {
+      const int to_id = game->units.selected_id;
+      game_after_unit_step(game);
+      const ColonizeUnit* to = units_get_const(&game->units, to_id);
+      if (to && to->active && units_is_on_map(to) && to->moves > 0 &&
+          game->units.selected_id == to_id) {
+        game_camera_edge_center(game, to->x, to->y);
+      }
+      return GAME_MOVE_RETURN_TRUE;
+    }
+    /* A lost MP roll already spent the passenger: report it, no unload probe. */
+    if (units_last_enter_reason() == COLONIZE_ENTER_NO_MP) {
+      game_report_enter_reason(game, sid, COLONIZE_ENTER_NO_MP);
+      return GAME_MOVE_RETURN_FALSE;
+    }
     if (!units_unload_passenger_w(&w, ship_id, sid, dest_x, dest_y)) {
       /*
        * port_bugs.md #721: DOS FUN_4720_015c reason 9 (viceroy_unpacked_2.c raw
@@ -279,7 +322,7 @@ COLONIZE_INTERNAL GameMoveStep game_move_passenger_unload(
       return GAME_MOVE_RETURN_FALSE;
     }
     game->units.selected_id = sid;
-    game_after_unit_action(game);
+    game_after_unit_step(game);
     return GAME_MOVE_RETURN_TRUE;
   }
   return GAME_MOVE_CONTINUE;
@@ -330,7 +373,7 @@ COLONIZE_INTERNAL GameMoveStep game_move_sea_unit(
         if (!game_commit_sea_lane_step(game, sid, dest_x, dest_y)) {
           return GAME_MOVE_RETURN_FALSE;
         }
-        game_after_unit_action(game);
+        game_after_unit_step(game);
         return GAME_MOVE_RETURN_TRUE;
       }
       if (game->europe_ok) {
@@ -359,7 +402,7 @@ COLONIZE_INTERNAL GameMoveStep game_move_sea_unit(
       if (!game_commit_sea_lane_step(game, sid, dest_x, dest_y)) {
         return GAME_MOVE_RETURN_FALSE;
       }
-      game_after_unit_action(game);
+      game_after_unit_step(game);
       return GAME_MOVE_RETURN_TRUE;
     }
     if (dest_land && game_friendly_colony_at(game, dest_x, dest_y)) {
@@ -369,7 +412,7 @@ COLONIZE_INTERNAL GameMoveStep game_move_sea_unit(
         return GAME_MOVE_RETURN_FALSE;
       }
       game->units.selected_id = sid;
-      game_after_unit_action(game);
+      game_after_unit_step(game);
       return GAME_MOVE_RETURN_TRUE;
     }
     if (dest_land && !dest_water) {
@@ -468,7 +511,9 @@ COLONIZE_INTERNAL GameMoveStep game_move_sea_unit(
             }
           }
           game->units.selected_id = pax_ready;
-          game_after_unit_action(game);
+          /* ndisasm 0x3FE56-0x3FEA3: 086c makes the passenger active, then
+           * jmp 0xff5c (LAB_4720_061c) commits its step via 2a1f_0142. */
+          game_after_unit_step(game);
           return GAME_MOVE_RETURN_TRUE;
         }
       }
@@ -971,18 +1016,20 @@ COLONIZE_INTERNAL GameMoveStep game_move_commit(
       return GAME_MOVE_RETURN_FALSE;
     }
     if (units_last_enter_reason() == COLONIZE_ENTER_BOARD) {
-      /* units_board handed the focus to the ship. FUN_465b_0000 raw
-       * 75711-75721: a land mover arriving on water makes the destination
+      /* units_465b_board_wake_focus left the focus on the ship only if it
+       * passes FUN_1427_1330, else on the sentried passenger. FUN_465b_0000
+       * raw 75711-75721: a land mover arriving on water makes the destination
        * chain's head, the ship, active through FUN_281f_086c = FUN_1427_08ea,
        * which runs FUN_1984_02fc on its tile (raw 7856), but only when
        * FUN_281f_0966 = FUN_1427_1330 (raw 8741) passes: the ship still has
-       * MP. The hand-off below can move the focus on when the ship is spent,
-       * so read its id first and test it only if it kept the focus with MP
+       * MP. The hand-off below can move the focus on, so read the focused id
+       * first and test it only if a ship on the map kept the focus with MP
        * left. */
       const int ship_id = game->units.selected_id;
-      game_after_unit_action(game);
+      game_after_unit_step(game);
       const ColonizeUnit* ship = units_get_const(&game->units, ship_id);
-      if (ship && ship->active && ship->moves > 0 && game->units.selected_id == ship_id) {
+      if (ship && ship->active && units_is_on_map(ship) && ship->moves > 0 &&
+          game->units.selected_id == ship_id) {
         game_camera_edge_center(game, ship->x, ship->y);
       }
       return GAME_MOVE_RETURN_TRUE;
@@ -996,11 +1043,12 @@ COLONIZE_INTERNAL GameMoveStep game_move_commit(
 }
 
 /*
- * FUN_465b_0000's human-only commit tail. DOS walks a human Go To through the
- * arrow-key executor (FUN_479b_0972 raw 77074-77080 -> FUN_291f_044e ->
- * FUN_4720_049e raw 76122-76124 -> FUN_2a1f_0142 -> FUN_465b_0000), so both
- * game_try_unit_move and the goto pacer run it after a committed step
- * (playtest C2-B2: a Treasure arriving by Go To got no King's Galleon offer).
+ * The wagon's colony-arrival sound of a committed human step. DOS walks a
+ * human Go To through the arrow-key executor (FUN_479b_0972 raw 77074-77080
+ * -> FUN_291f_044e -> FUN_4720_049e raw 76122-76124 -> FUN_2a1f_0142 ->
+ * FUN_465b_0000), so both game_try_unit_move and the goto pacer run it. The
+ * King's Galleon offer runs later, after 3180, in game_after_unit_tail
+ * (playtest C2-B2: a Treasure arriving by Go To got no offer).
  */
 void game_move_arrival_tail(ColonizeGameState* game, ColonizeUnit* u) {
   if (!game || !u || !u->active) {
@@ -1016,15 +1064,19 @@ void game_move_arrival_tail(ColonizeGameState* game, ColonizeUnit* u) {
       sound_play(0x52);
     }
   }
-  /*
-   * FUN_465b_0000 tail (viceroy_unpacked.c ~75800): a Treasure Train (type
-   * 0xa) of a human-controlled nation entering a colony tile whose record
-   * has the coastal bit (+0x1c & 0x40) fires FUN_5fef_1908 — the King's
-   * Galleon offer — for the unit that just moved, and nowhere else: this
-   * is DOS's only trigger (the end-of-turn sweep turn.c used to run was a
-   * port invention). All remaining gates live in the callee.
-   */
-  if (game->col1_ok && u->nation_id == game->human_nation &&
+}
+
+/*
+ * FUN_465b_0000 tail (raw 75800-75816): a Treasure Train (type 0xa) of a
+ * human-controlled nation entering a colony tile whose record has the
+ * coastal bit (+0x1c & 0x40) fires FUN_2a1f_0186 -> FUN_5fef_1908, the King's
+ * Galleon offer, for the unit that just moved, and nowhere else: this is
+ * DOS's only trigger (the end-of-turn sweep turn.c used to run was a port
+ * invention). game_after_unit_tail runs it after 3180 for every committed
+ * step, arrow key and Go To alike. All remaining gates live in the callee.
+ */
+static void game_treasure_step_offer(ColonizeGameState* game, const ColonizeUnit* u) {
+  if (game->col1_ok && u && u->active && u->nation_id == game->human_nation &&
       units_type_is_treasure(units_type(&game->units, u->type_index))) {
     const ColonizeWorld w = game_world(game);
     (void)units_king_galleon_offer_for_unit_w(&w, u->nation_id, u->id, &game->ai_popups, &game->messages);
@@ -1079,7 +1131,7 @@ bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y) {
   }
 
   game_move_arrival_tail(game, selected);
-  game_after_unit_action(game);
+  game_after_unit_step(game);
   return true;
 }
 
@@ -1146,8 +1198,10 @@ void game_reveal_sight_for_unit(ColonizeGameState* game, const ColonizeUnit* u) 
   }
 }
 
-/* After spending moves: keep unit, advance to next with moves, or tile-select. */
-void game_after_unit_action(ColonizeGameState* game) {
+/* After spending moves: keep unit, advance to next with moves, or tile-select.
+ * `stepped`: the selected unit's action was a committed step (see
+ * game_after_unit_step). */
+static void game_after_unit_tail(ColonizeGameState* game, bool stepped) {
   if (!game || !game->units_ok) {
     return;
   }
@@ -1161,8 +1215,10 @@ void game_after_unit_action(ColonizeGameState* game) {
      * damaged hull sent to Europe). DOS's Move Pieces pass (FUN_2b5a_3b68
      * raw 46840-46848) re-tests the active unit, finds it ineligible and
      * scans on from its slot (FUN_1427_14a0) — the same hand-off as an
-     * exhausted unit below, not View Pieces. The stale selected_id is the
-     * scan start. */
+     * exhausted unit below, not View Pieces. FUN_1427_0824 (raw 7834-7836)
+     * stepped DS:0x5392 back one record on the delete; units_despawn kept
+     * that record in rotation_retest_id, so the scan re-tests it first. */
+    g_units_wake_deferred_id = -1; /* the mover is gone; drop its held wake */
     if (game->view_pieces_mode) {
       game_select_tile(game, game->map_cursor_x, game->map_cursor_y);
     } else {
@@ -1170,61 +1226,125 @@ void game_after_unit_action(ColonizeGameState* game) {
     }
     return;
   }
-  if (game->world_map_ok && u->nation_id >= 0 && u->nation_id <= 3 && units_is_on_map(u)) {
-    game_reveal_sight_for_unit(game, u);
-    /* @LANDHO belongs to the human move executor's tail (FUN_4720_049e), not to
-     * the reveal: it runs after a move, at the unit's new tile (port_bugs.md #1178). */
-    if (u->nation_id == game->human_nation) {
-      game_try_prompt_landho(game, u->x, u->y);
-    }
+  /* @LANDHO belongs to the human move executor's tail (FUN_4720_049e), not to
+   * the reveal: it scans the destination only after FUN_2a1f_0142 has returned
+   * (raw 76124-76141), i.e. after 465b's LCR, 3180 and treasure arms below
+   * (port_bugs.md #1178). DOS scans the destination even when the LCR took the
+   * unit, so the tile is captured here. Only a committed step scans: the
+   * scan sits in the 2a1f_01ae != 0 arm (raw 76123-76141, destination =
+   * 0x5392 x/y + delta, raw 76117-76118); fortify, sentry, combat and the
+   * other non-step tails never reach it. */
+  /* A board step: the focus is on the ship or, when the ship fails
+   * FUN_1427_1330, on the sentried passenger (units_465b_board_wake_focus,
+   * raw 75711-75722). Either way 465b's mover is the passenger: 07a0 reveals
+   * with param_1 (raw 75783, asm 465b:0aca), so the radius is the
+   * passenger's type, at the ship's tile; 3180 gets param_1 too (raw 75797).
+   * The port's passenger is off the map, so reveal through an on-map view of
+   * it standing on the ship's tile. Every board path (walk-on, ship-to-ship,
+   * a Go To step) records its passenger in the sim; it is this tail's mover
+   * only if the focus is that passenger or a ship on its tile (the woken
+   * tile head need not be the hull it is filed under). */
+  ColonizeUnit* mover = u;
+  ColonizeUnit board_view;
+  const ColonizeUnit* reveal_unit = u;
+  const int board_pax_id = units_take_board_passenger();
+  ColonizeUnit* pax = stepped ? units_get(&game->units, board_pax_id) : NULL;
+  const ColonizeUnit* pax_ship =
+    pax && pax->active ? units_get_const(&game->units, pax->aboard_ship_id) : NULL;
+  if (pax_ship && (pax == u || (units_is_on_map(u) && units_is_sea(&game->units, u->id) &&
+                                u->x == pax_ship->x && u->y == pax_ship->y))) {
+    mover = pax;
+    board_view = *pax;
+    board_view.aboard_ship_id = -1;
+    board_view.x = pax_ship->x;
+    board_view.y = pax_ship->y;
+    reveal_unit = &board_view;
+  }
+  bool landho_scan = false;
+  const int landho_x = reveal_unit->x;
+  const int landho_y = reveal_unit->y;
+  if (game->world_map_ok && reveal_unit->nation_id >= 0 && reveal_unit->nation_id <= 3 &&
+      units_is_on_map(reveal_unit)) {
+    game_reveal_sight_for_unit(game, reveal_unit);
+    landho_scan = stepped && reveal_unit->nation_id == game->human_nation;
   }
   /* LCR: Scout on rumour clears + rolls a manual outcome (Fountain of Youth,
    * Cibola, treasure, burial mounds, …); de Soto keeps outcomes positive.
    * FUN_465b_0000 raw 75450 / 75792: an LCR that changed the unit count
    * (DS:0x539c) jumps to LAB_465b_0bd1, so none of the FUN_5bfb_3180 contact
-   * work below runs on this move. Pickers the port defers behind a popup
-   * (Fountain of Youth recruits, the burial search) have not changed the
-   * count yet. */
+   * work below runs on this move. The burial search waits behind the
+   * player's answer, so its outcome has not changed the count yet
+   * (docs/known_divergences.md). */
   bool lcr_count_changed = false;
   if (game->world_map_ok && units_is_on_map(u) && map_tile_has_rumour(&game->world_map, u->x, u->y)) {
     const ColonizeWorld w = game_world(game);
     const int lcr_x = u->x;
     const int lcr_y = u->y;
     const int units_before = units_active_count(&game->units);
+    const bool foy_before = ai_popup_pending(
+      &game->ai_popups, AI_POPUP_TAG_FOUNTAIN_YOUTH, -1, AI_POPUP_KEY_ANY, 0, 0
+    );
     (void)units_resolve_lcr_rumour_w(&w, u->id, game->human_nation);
     lcr_count_changed = units_active_count(&game->units) != units_before;
+    /* Fountain of Youth: DOS's eight FUN_291f_0d2c picks (raw 103729-103731)
+     * create dock records through FUN_38fd_0718 -> FUN_281f_095c inside the
+     * LCR, so the count has changed by raw 75792 unless the create is
+     * refused. The port's picks wait behind the popup, and its dock
+     * immigrants are not pool units: decide it from the queued pick. */
+    if (!foy_before &&
+        ai_popup_pending(&game->ai_popups, AI_POPUP_TAG_FOUNTAIN_YOUTH, -1, AI_POPUP_KEY_ANY, 0, 0) &&
+        units_spawn_room_quiet(&game->units, game->human_nation)) {
+      lcr_count_changed = true;
+    }
     if (!u->active) {
       /* @LOSTCITY5: the explorer vanished (its slot is cleared, x/y 0) —
        * keep the view on its tile (port_bugs.md #1377) and hand on. */
       game->map_cursor_x = lcr_x;
       game->map_cursor_y = lcr_y;
+      if (landho_scan) {
+        game_try_prompt_landho(game, landho_x, landho_y);
+      }
       game_after_unit_action(game);
       return;
     }
   }
+  /* The step's 3180 sentry wake, held back by units_move_finish until the LCR
+   * above has run; a count change skips it (raw 75792). Same gap as the 3180
+   * arm below: a burial search's outcome has not changed the count yet, so
+   * the wake runs where DOS may skip it. */
+  units_465b_deferred_wake(
+    &game->units, game->world_map_ok ? &game->world_map : NULL,
+    game->colonies_ok ? &game->colonies : NULL, u->id, !lcr_count_changed
+  );
   /*
-   * First contact / village friction. FUN_5bfb_3180 raw 98648-98672 gates
-   * the 066c Indian arm on the mover's tile being land (local_36 == 0) and
-   * the neighbour being land, with no unit-type test: a ship at sea never
-   * meets, a hull berthed in a colony does.
+   * FUN_5bfb_3180 (raw 98457-98695): the human's move commits through the same
+   * FUN_465b_0000 tail as an AI move (FUN_4720_049e -> 2a1f_0142, raw 76124;
+   * 0984 -> 0192 -> 3180, raw 75794-75797), so it runs the same single
+   * direction loop: facing stamp, Indian first contact (066c -> 022e), 153e
+   * with an AI European (05fc, WoI-gated), one resolved encounter per nation
+   * (aiStack_20). Only after a real step: combat, village and colony entries
+   * jump to LAB_465b_0bd1 (raw 75489-75526, 75686-75693) and a fortify or
+   * build commits no move. A board step's mover is the off-map passenger:
+   * its 3180 already ran in the board path (the sentry-wake arm, the only
+   * one a land mover on water reaches), so the ship must not stand in for it.
    */
+  if (stepped && !lcr_count_changed && game->col1_ok && game->world_map_ok &&
+      mover->nation_id >= 0 && mover->nation_id <= 3 && units_is_on_map(mover)) {
+    ColonizeTurnContext sctx;
+    game_fill_turn_context(game, &sctx);
+    ai_euro_3180_after_step(&sctx, mover);
+  }
+  /* FUN_465b_0000 raw 75800-75816: the King's Galleon offer follows 3180 in
+   * the same plain-step arm, behind the same raw-75792 count test. */
+  if (stepped && !lcr_count_changed) {
+    game_treasure_step_offer(game, mover);
+  }
+  if (landho_scan) {
+    game_try_prompt_landho(game, landho_x, landho_y);
+  }
   if (!lcr_count_changed && game->col1_ok && game->world_map_ok && u->nation_id >= 0 &&
       u->nation_id <= 3 && units_is_on_map(u) &&
       !map_tile_is_water(&game->world_map, u->x, u->y)) {
-    int first_indian = -1;
-    if (col1_contact_adjacent_tribe(&game->col1, u->x, u->y, u->nation_id, &first_indian)) {
-      if (first_indian >= 4) {
-        ColonizeTurnContext ctx;
-        game_fill_turn_context(game, &ctx);
-        (void)ai_contact_try_first_welcome(&ctx, u->nation_id, first_indian);
-      }
-    }
-    /* FUN_5bfb_3180: adjacent Brave or tribe-owned land also opens contact. */
-    {
-      ColonizeTurnContext sctx;
-      game_fill_turn_context(game, &sctx);
-      (void)ai_contact_encounter_scan(&sctx, u->nation_id, u->x, u->y);
-    }
     /*
      * Already-met village Meet is enqueued from adjacent step (no enter).
      * Exact-tile Meet kept only if a unit somehow stands on the dwelling.
@@ -1254,48 +1374,6 @@ void game_after_unit_action(ColonizeGameState* game) {
       }
     }
   }
-  /*
-   * FUN_5bfb_3180 Euro x Euro branch (raw 98457-98713, 5bfb:3180): for each
-   * of the 8 neighbours, the "other" nation is the owner of the unit on that
-   * tile (FUN_281f_07e0) or else the settlement owner (FUN_281f_06be) — so an
-   * ungarrisoned foreign colony counts too. The branch only runs when BOTH
-   * the mover's tile and the neighbour tile are land (FUN_281f_0768 == 0,
-   * local_36 / raw 98614) — a ship berthed in a colony qualifies (that is
-   * the @HELLOAHOY case), a ship at sea never does. Euro target + WoI clear
-   * (DS:0x5382 bit0) -> FUN_5bfb_153e via thunk_FUN_2a1f_05fc; a nonzero
-   * return stamps MET (0x20) both ways (port_bugs.md #545).
-   */
-  if (!lcr_count_changed && game->col1_ok && game->world_map_ok && u->nation_id >= 0 &&
-      u->nation_id <= 3 && units_is_on_map(u) && !game->col1.head.game_options.woi &&
-      !map_tile_is_water(&game->world_map, u->x, u->y)) {
-    for (int d = 0; d < 8; ++d) {
-      const int nx = u->x + MAP_DIR8_DX[d];
-      const int ny = u->y + MAP_DIR8_DY[d];
-      if (map_tile_is_water(&game->world_map, nx, ny)) {
-        continue;
-      }
-      int other = -1;
-      const int oid = units_id_at(&game->units, nx, ny);
-      const ColonizeUnit* o = oid >= 0 ? units_get_const(&game->units, oid) : NULL;
-      if (o && o->active) {
-        other = o->nation_id;
-      } else if (game->colonies_ok) {
-        const int ocid = colonies_id_at(&game->colonies, nx, ny);
-        const ColonizeColony* oc = ocid >= 0 ? colonies_get(&game->colonies, ocid) : NULL;
-        if (oc && oc->active) {
-          other = oc->nation_id;
-        }
-      }
-      if (other < 0 || other > 3 || other == u->nation_id) {
-        continue;
-      }
-      ColonizeTurnContext ctx;
-      game_fill_turn_context(game, &ctx);
-      if (ai_diplo_153e_encounter(&ctx, u->nation_id, other, u->id)) {
-        break;
-      }
-    }
-  }
   game->map_cursor_x = u->x;
   game->map_cursor_y = u->y;
   if (u->moves > 0) {
@@ -1319,6 +1397,14 @@ void game_after_unit_action(ColonizeGameState* game) {
     return;
   }
   game_no_unit_left(game, exhausted_x, exhausted_y);
+}
+
+void game_after_unit_action(ColonizeGameState* game) {
+  game_after_unit_tail(game, false);
+}
+
+void game_after_unit_step(ColonizeGameState* game) {
+  game_after_unit_tail(game, true);
 }
 
 bool game_key_move_delta(ColonizeKey key, int* out_dx, int* out_dy) {

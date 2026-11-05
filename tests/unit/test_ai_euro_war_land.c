@@ -2,6 +2,7 @@
  * land hunts, adjacent-combat chain and defender preference ladder. */
 #include "test_ai_euro_war_common.h"
 #include "core/ai_internal.h"
+#include "core/col1_stuff_census.h"
 
 /*
  * Indian×Euro war: Soldier hunts toward capital tribe over nearer non-capital.
@@ -215,6 +216,13 @@ static int unit_sticky_contact_rehunt(void) {
   ctx.col1_ok = true;
   ctx.rng = &rng;
   ctx.rng_seed = 42;
+  /* FUN_521d_20e6 reads the FUN_4962_0018 census rows (raw 88506), which
+   * each nation's EOT census fills before the AI turn. */
+  {
+    const ColonizeWorld cw = world_from_turn_ctx(&ctx);
+    col1_stuff_census_4962_w(&cw, &col1.stuff, foe);
+    col1_stuff_census_4962_w(&cw, &col1.stuff, nation);
+  }
 
   ai_euro_dispatcher_turn(&ctx, nation);
 
@@ -1080,7 +1088,79 @@ static int unit_land_adjacent_foe_prefer_non_veteran(void) {
  * handled by the type-agnostic LAB_5899 garrison arm (raw 88584-88612).
  */
 
+/*
+ * FUN_465b_0000 raw 75553-75557: under PEACE with the attacker's treaty
+ * cooldown running, the attack aborts. WAR 0x02 kept through a signed treaty
+ * (FUN_5bfb_153e raw 98003) does not lift that: 465b reads only PEACE.
+ */
+static int unit_try_attack_treaty_cooldown_ignores_war_bit(void) {
+  const int nation = 1;
+  const int foe = 2;
+  ColonizeWorldMap map;
+  if (!fx_map_alloc(&map, 16, 16, 25, false)) {
+    return fail("cooldown alloc map");
+  }
+  ColonizeUnitPool units;
+  fx_units_init(&units);
+  units.type_count = 1;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Frigate");
+  units.types[0].movement = 4;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  units.types[0].attack = 8;
+  units.types[0].defense = 1;
+  ColonizeColonyPool colonies;
+  fx_colonies_init(&colonies);
+  const int own_id = units_spawn(&units, 0, 5, 5);
+  const int foe_id = units_spawn(&units, 0, 6, 5);
+  ColonizeUnit* soldier = units_get(&units, own_id);
+  ColonizeUnit* foe_u = units_get(&units, foe_id);
+  if (!soldier || !foe_u) {
+    fx_map_free(&map);
+    return fail("cooldown spawn");
+  }
+  soldier->nation_id = nation;
+  soldier->moves = UNITS_MP_PER_TILE;
+  foe_u->nation_id = foe;
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 1;
+  }
+  const uint8_t rel = AI_DIPLO_MET | AI_DIPLO_PEACE | AI_DIPLO_WAR;
+  ai_diplo_write(&col1, nation, foe, rel);
+  ai_diplo_write(&col1, foe, nation, rel);
+  col1.nation[nation].treaty_timer[foe] = 3;
+  ColonizeDosRng rng;
+  dos_rng_seed(&rng, 7);
+  uint32_t turn = 40;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng = &rng;
+  ctx.human_nation = -1;
+  if (units_best_defender_at(&units, &col1, 6, 5, own_id, own_id) != foe_id) {
+    fx_map_free(&map);
+    return fail("cooldown fixture: the foe must defend (6,5)");
+  }
+  ai_euro_try_attack(&ctx, soldier, 6, 5);
+  soldier = units_get(&units, own_id);
+  foe_u = units_get(&units, foe_id);
+  const bool untouched = soldier && soldier->active && soldier->moves == UNITS_MP_PER_TILE &&
+                         foe_u && foe_u->active &&
+                         ai_diplo_read(&col1, nation, foe) == rel &&
+                         ai_diplo_read(&col1, foe, nation) == rel;
+  fx_map_free(&map);
+  return untouched ? 0 : fail("treaty cooldown must abort the attack even with WAR 0x02 set");
+}
+
 static const TestCase k_cases[] = {
+    {"unit_try_attack_treaty_cooldown_ignores_war_bit", unit_try_attack_treaty_cooldown_ignores_war_bit},
     {"unit_indian_war_capital_hunt", unit_indian_war_capital_hunt},
     {"unit_sticky_contact_rehunt", unit_sticky_contact_rehunt},
     {"unit_land_adjacent_combat_chain", unit_land_adjacent_combat_chain},

@@ -81,17 +81,12 @@ static void colony_craft_pair_totals(
   const ColonizeColony* colony,
   const ColonizeCraftRecipe* rec,
   int sol_bonus,
-  int* out_total_out,
-  int* out_building_row
+  int* out_total_out
 ) {
   int total_out = 0;
-  int building_row = -1;
   if (!pool || !colony || !rec) {
     if (out_total_out) {
       *out_total_out = 0;
-    }
-    if (out_building_row) {
-      *out_building_row = -1;
     }
     return;
   }
@@ -112,16 +107,11 @@ static void colony_craft_pair_totals(
       colony_prod_manufacturing_output_row(row, c->profession, rec->craft_profession, sol_bonus);
     /* The raw-good requirement is NOT summed per worker: DOS FUN_15eb_0bd4
      * raw 10168-10172 floor-divides the colony's summed gross for the
-     * finished good ONCE. Only the tier is per-building, and a colony holds
-     * at most one building per chain, so remember the row and let the caller
-     * derive the requirement from the total (port_bugs.md #851). */
-    building_row = row;
+     * finished good ONCE; the caller derives it from the total (port_bugs.md
+     * #851) and the chain's owned buildings (039e). */
   }
   if (out_total_out) {
     *out_total_out = total_out;
-  }
-  if (out_building_row) {
-    *out_building_row = building_row;
   }
 }
 
@@ -161,29 +151,26 @@ static bool colony_craft_pairs_next(
       continue;
     }
     int total_out = 0;
-    int building_row = -1;
     for (size_t r2 = 0; r2 < n; ++r2) {
       const ColonizeCraftRecipe* rec2 = &k_recipes[r2];
       if (rec2->in_cargo != rec->in_cargo || rec2->out_cargo != rec->out_cargo) {
         continue;
       }
       int pair_out = 0;
-      int pair_row = -1;
-      colony_craft_pair_totals(pool, colony, rec2, sol_bonus, &pair_out, &pair_row);
+      colony_craft_pair_totals(pool, colony, rec2, sol_bonus, &pair_out);
       total_out += pair_out;
-      if (pair_row >= 0) {
-        building_row = pair_row;
-      }
     }
     /* One floor divide over the colony total, exactly where DOS does it
-     * (FUN_15eb_0bd4 raw 10168-10172): factory tier `(total << 1) / 3`,
-     * lower tiers 1:1. port_bugs.md #851.
+     * (FUN_15eb_0bd4 raw 10168-10172): `(total << 1) / 3` when the colony
+     * owns all three buildings of the chain (039e > 2), else 1:1.
+     * port_bugs.md #851.
      *
      * Flat-input chains (tools -> muskets) never reach 0bd4 at all —
      * FUN_15eb_1f72 raw 12689 hands the muskets gross straight to
      * FUN_15eb_0b96 as the tools demand — so the helper keeps them 1:1 even
      * at the Arsenal's factory tier. port_bugs.md #910. */
-    const int total_in = colony_prod_chain_input_for_total_output(building_row, total_out);
+    const int total_in =
+      colony_prod_chain_input_for_total_output(pool, colony, rec->chain, total_out);
     it->done_pair[rec->in_cargo][rec->out_cargo] = true;
     *out_rec = rec;
     *out_total_out = total_out;

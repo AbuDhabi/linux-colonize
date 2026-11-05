@@ -4161,6 +4161,181 @@ static int case_euro_power_rank(void) {
 
 /* port_bugs.md #1103: turn_reset drops the LABELS catalog pointer and the
  * FUN_43f7_1528 last-walked colony, both of which index the outgoing world. */
+/* The rotation walks SLOTS (FUN_1427_14a0 raw 8817-8843), and a disband
+ * re-tests the previous record first (FUN_1427_0824 raw 7834-7836). Slots
+ * hold recycled ids 5, 9, 3, 7. */
+static int case_rotation_slot_order_and_disband_seed(void) {
+  static ColonizeUnitPool pool;
+  units_set_occupancy_map(NULL);
+  units_reset(&pool);
+  pool.type_count = 1;
+  snprintf(pool.types[0].name, sizeof(pool.types[0].name), "Colonists");
+  pool.types[0].movement = 1;
+  const int ids[4] = {5, 9, 3, 7};
+  for (int i = 0; i < 4; ++i) {
+    ColonizeUnit* u = &pool.units[i];
+    u->active = true;
+    u->id = ids[i];
+    u->nation_id = 0;
+    u->x = 5 + i;
+    u->y = 5;
+    u->moves = 3;
+    u->aboard_ship_id = -1;
+  }
+  units_pool_sync(&pool);
+  pool.selected_id = 3;
+  if (!turn_select_next_unit(&pool, 0) || pool.selected_id != 7) {
+    fprintf(stderr, "rotation: after id 3 picked %d (want slot-next 7)\n", pool.selected_id);
+    return 1;
+  }
+  /* Despawn the active id 3 (slot 2): prev is 9 (slot 1), tested first. */
+  pool.selected_id = 3;
+  if (!units_despawn(&pool, 3) || pool.selected_id != -1 || !turn_select_next_unit(&pool, 0) ||
+      pool.selected_id != 9) {
+    fprintf(stderr, "disband: picked %d (want prev 9)\n", pool.selected_id);
+    return 1;
+  }
+  /* Despawn the active slot 0 (id 5): 0x5392 stays 0, the unit after it is first. */
+  pool.selected_id = 5;
+  if (!units_despawn(&pool, 5) || !turn_select_next_unit(&pool, 0) || pool.selected_id != 9) {
+    fprintf(stderr, "disband slot 0: picked %d (want 9)\n", pool.selected_id);
+    return 1;
+  }
+  return 0;
+}
+
+/* Every despawn of the active unit (death, join, found, disband) steps the
+ * rotation back one record (FUN_1427_0824 raw 7834-7836); a hull sailing to
+ * Europe is no delete, so the scan resumes after it. Slots hold ids 5, 9,
+ * 3, 7; id 3 can be made a ship. */
+static ColonizeUnitPool* despawn_rotation_pool(void) {
+  static ColonizeUnitPool pool;
+  units_set_occupancy_map(NULL);
+  units_reset(&pool);
+  pool.type_count = 2;
+  snprintf(pool.types[0].name, sizeof(pool.types[0].name), "Colonists");
+  pool.types[0].movement = 1;
+  snprintf(pool.types[1].name, sizeof(pool.types[1].name), "Caravel");
+  pool.types[1].movement = 4;
+  pool.types[1].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  const int ids[4] = {5, 9, 3, 7};
+  for (int i = 0; i < 4; ++i) {
+    ColonizeUnit* u = &pool.units[i];
+    u->active = true;
+    u->id = ids[i];
+    u->nation_id = 0;
+    u->x = 5 + i;
+    u->y = 5;
+    u->moves = 3;
+    u->aboard_ship_id = -1;
+  }
+  units_pool_sync(&pool);
+  return &pool;
+}
+
+static int case_despawn_rotation_step_back(void) {
+  /* Chain: active 7 dies (retest 3), then 3 dies before the scan (retest 9). */
+  ColonizeUnitPool* pool = despawn_rotation_pool();
+  pool->selected_id = 7;
+  if (!units_despawn(pool, 7) || !units_despawn(pool, 3) || !turn_select_next_unit(pool, 0) ||
+      pool->selected_id != 9) {
+    fprintf(stderr, "despawn chain: picked %d (want 9)\n", pool->selected_id);
+    return 1;
+  }
+  /* The re-tested record fails 1410 (no moves): the scan goes on after it. */
+  pool = despawn_rotation_pool();
+  pool->units[1].moves = 0; /* id 9 */
+  pool->selected_id = 3;
+  if (!units_despawn(pool, 3) || !turn_select_next_unit(pool, 0) || pool->selected_id != 7) {
+    fprintf(stderr, "despawn retest fails: picked %d (want 7)\n", pool->selected_id);
+    return 1;
+  }
+  /* The step-back survives a pool pack (ids, not slots). */
+  pool = despawn_rotation_pool();
+  pool->selected_id = 7;
+  if (!units_despawn(pool, 9) || !units_despawn(pool, 7)) {
+    return 1;
+  }
+  units_pool_compact(pool);
+  if (!turn_select_next_unit(pool, 0) || pool->selected_id != 3) {
+    fprintf(stderr, "despawn compact: picked %d (want 3)\n", pool->selected_id);
+    return 1;
+  }
+  /* One use only: a later scan with no active unit starts at slot 0. */
+  pool = despawn_rotation_pool();
+  pool->selected_id = 3;
+  if (!units_despawn(pool, 3) || !turn_select_next_unit(pool, 0) || pool->selected_id != 9) {
+    return 1;
+  }
+  pool->selected_id = -1;
+  if (!turn_select_next_unit(pool, 0) || pool->selected_id != 5) {
+    fprintf(stderr, "despawn one use: picked %d (want slot-0 5)\n", pool->selected_id);
+    return 1;
+  }
+  /* Sail: the selected ship (id 3, slot 2) leaves; the scan resumes at 7. */
+  pool = despawn_rotation_pool();
+  pool->units[2].type_index = 1;
+  pool->selected_id = 3;
+  if (!units_despawn_ship_with_cargo(pool, 3, NULL, NULL, 0, NULL, NULL, 0, NULL, NULL, 0) ||
+      !turn_select_next_unit(pool, 0) || pool->selected_id != 7) {
+    fprintf(stderr, "despawn sail: picked %d (want 7)\n", pool->selected_id);
+    return 1;
+  }
+  return 0;
+}
+
+/* Each processor slice but SETUP packs the unit pool the way DOS
+ * FUN_1427_0824 keeps its array packed; ids and live order survive. SETUP,
+ * then the France (1) EURO slice, both real advances. */
+static int case_processor_packs_unit_pool(void) {
+  static ColonizeUnitPool pool;
+  units_set_occupancy_map(NULL);
+  units_reset(&pool);
+  for (int i = 0; i < 3; ++i) {
+    pool.units[i].active = true;
+    pool.units[i].id = 10 + i;
+  }
+  pool.board_first_id = 12;
+  units_pool_sync(&pool);
+  if (!units_despawn(&pool, 11) || pool.slot_end != 3) {
+    return 1;
+  }
+  fx_begin();
+  uint32_t turn = 1;
+  uint16_t year = 1492;
+  uint16_t autumn = 0;
+  int active = 0;
+  static ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.messages = test_game_txt();
+  ctx.names = test_names_txt();
+  ctx.turn_number = &turn;
+  ctx.game_year = &year;
+  ctx.game_autumn = &autumn;
+  ctx.human_nation = 0;
+  ctx.active_turn_nation = &active;
+  ctx.units = &pool;
+  ColonizeTurnProcessor proc;
+  turn_processor_start(&proc);
+  if (!turn_processor_advance(&proc, &ctx) || pool.slot_end != 3) {
+    fprintf(stderr, "processor_packs: SETUP slice packed the pool (slot_end %d)\n",
+            pool.slot_end);
+    return 1;
+  }
+  if (proc.step != TURN_PROC_EURO) {
+    fprintf(stderr, "processor_packs: after SETUP step %d, want EURO\n", (int)proc.step);
+    return 1;
+  }
+  (void)turn_processor_advance(&proc, &ctx);
+  if (active != 1 || pool.slot_end != 2 || pool.units[0].id != 10 || pool.units[1].id != 12 ||
+      units_get_const(&pool, 12) != &pool.units[1] || pool.board_first_id != 12) {
+    fprintf(stderr, "processor_packs: slot_end %d ids %d,%d bf %d\n", pool.slot_end,
+            pool.units[0].id, pool.units[1].id, pool.board_first_id);
+    return 1;
+  }
+  return 0;
+}
+
 static int case_turn_reset_pointers(void) {
   static ColonizeMsgCatalog labels;
   static ColonizeColony col;
@@ -5705,7 +5880,7 @@ static int case_census_profession_tally(void) {
   col->population = 3;
 
   uint8_t hist[32];
-  turn_tally_professions(&pool, &units, 0, hist);
+  turn_tally_professions_w(&(ColonizeWorld){.units = &units, .colonies = &pool}, 0, hist);
   if (hist[COLONIZE_PROF_STATESMAN] != 2) {
     fprintf(stderr, "tally statesman want 2 got %u\n", (unsigned)hist[COLONIZE_PROF_STATESMAN]);
     return 1;
@@ -5726,6 +5901,120 @@ static int case_census_profession_tally(void) {
 }
 
 /* Live census peel: colony counts + unit/combat tallies. */
+/*
+ * FUN_4962_0606 raw 78351-78362: the specialty census walks every unit record
+ * of the nation, Europe docks and lanes included. The human's Europe side
+ * lives in the EuropeScreen here: a dock row with no mirror (recruit, train,
+ * purchase), a dock row with its (236,236) mirror (counted once), and a
+ * harbor hull with one passenger.
+ */
+static int case_tally_counts_europe_side(void) {
+  fx_begin();
+  static ColonizeUnitPool units;
+  static EuropeScreen eu;
+  memset(&units, 0, sizeof(units));
+  units_reset(&units);
+  units_set_occupancy_map(NULL);
+  units.type_count = 14;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Colonists");
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  snprintf(units.types[13].name, sizeof(units.types[13].name), "Caravel");
+  units.types[13].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  units.types[13].cargo = 2;
+  const int mid = units_spawn(&units, 0, EUROPE_PARK_XY, EUROPE_PARK_XY);
+  ColonizeUnit* mirror = units_get(&units, mid);
+  if (!mirror) {
+    fprintf(stderr, "tally europe: mirror spawn failed\n");
+    return 1;
+  }
+  units_set_nation(mirror, 0);
+  mirror->profession = COLONIZE_PROF_TOBACCO_PLANTER;
+  memset(&eu, 0, sizeof(eu));
+  eu.bound_nation = 0;
+  snprintf(eu.dock[0].name, sizeof(eu.dock[0].name), "Colonists");
+  eu.dock[0].profession = COLONIZE_PROF_SUGAR_PLANTER; /* trained: no mirror */
+  eu.dock[0].present = true;
+  snprintf(eu.dock[1].name, sizeof(eu.dock[1].name), "Colonists");
+  eu.dock[1].profession = COLONIZE_PROF_TOBACCO_PLANTER;
+  eu.dock[1].present = true;
+  eu.dock[1].mirror_unit_id = mid;
+  eu.dock_count = 2;
+  eu.harbor[0].type_index = 13;
+  eu.harbor[0].cargo_count = 1;
+  eu.harbor[0].cargo_types[0] = 0;
+  eu.harbor[0].cargo_professions[0] = COLONIZE_PROF_COTTON_PLANTER;
+  eu.harbor_ships = 1;
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  uint8_t hist[32];
+  turn_tally_professions_w(
+    &(ColonizeWorld){.units = &units, .colonies = &pool, .europe = &eu}, 0, hist
+  );
+  if (hist[COLONIZE_PROF_SUGAR_PLANTER] != 1 || hist[COLONIZE_PROF_TOBACCO_PLANTER] != 1 ||
+      hist[COLONIZE_PROF_COTTON_PLANTER] != 1) {
+    fprintf(stderr, "tally europe: sugar %u tobacco %u cotton %u (want 1/1/1)\n",
+            (unsigned)hist[COLONIZE_PROF_SUGAR_PLANTER],
+            (unsigned)hist[COLONIZE_PROF_TOBACCO_PLANTER],
+            (unsigned)hist[COLONIZE_PROF_COTTON_PLANTER]);
+    return 1;
+  }
+  return 0;
+}
+
+/* FUN_3844_00f2 raw 58374: an AI nation's 0606 census runs at the head of its
+ * 00f2, before the 5e52 immigration (58375): this turn's immigrant expert does
+ * not count until next turn. */
+static int case_ai_census_before_immigration(void) {
+  fx_begin();
+  static ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
+  units_reset(&units);
+  units_set_occupancy_map(NULL);
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Colonists");
+  units.type_count = 1;
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  static ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  col1.player[0].control = 0;
+  col1.player[1].control = 1;
+  col1.nation[1].current_crosses = 8;
+  col1.nation[1].needed_crosses = 8;
+  for (int i = 0; i < 3; ++i) {
+    col1.nation[1].recruit[i] = COLONIZE_PROF_SUGAR_PLANTER;
+  }
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.messages = test_game_txt();
+  ctx.names = test_names_txt();
+  ctx.human_nation = 0;
+  ctx.units = &units;
+  ctx.colonies = &pool;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ColonizeTurnResult out;
+  memset(&out, 0, sizeof(out));
+  turn_prof_census[1][COLONIZE_PROF_SUGAR_PLANTER] = 7; /* must be retaken */
+  turn_run_ai_nation_eot(&ctx, &out, 1);
+  int experts = 0;
+  for (int i = 0; i < units_slot_end(&units); ++i) {
+    const ColonizeUnit* u = &units.units[i];
+    experts += u->active && u->nation_id == 1 && u->profession == COLONIZE_PROF_SUGAR_PLANTER;
+  }
+  if (experts != 1) {
+    fprintf(stderr, "ai census: setup wants one immigrant expert, got %d\n", experts);
+    return 1;
+  }
+  if (turn_prof_census[1][COLONIZE_PROF_SUGAR_PLANTER] != 0) {
+    fprintf(stderr, "ai census: immigrant counted the turn he arrived (%u)\n",
+            (unsigned)turn_prof_census[1][COLONIZE_PROF_SUGAR_PLANTER]);
+    return 1;
+  }
+  return 0;
+}
+
 static int case_census_live_peel(void) {
   fx_begin();
   ColonizeCol1Save col1;
@@ -6671,19 +6960,23 @@ static int case_phase_k_build_advisory(void) {
  *       furs, the old per-worker `(10*6+8)/9` wanted 7.
  *   (2) two criminals at sol_bonus 1 -> out 4 each, total 8; DOS wants
  *       (8*2)/3 = 5, the old per-worker round-up wanted 3+3 = 6.
+ *   (3) the worker sits in the Fur Factory but the colony owns only
+ *       that one building of the chain: 039e counts 1, so 10 coats need 10.
  */
 static int case_factory_input_colony_total(void) {
   ColonizeColonyPool pool;
   colonies_init(&pool);
   colonies_set_occupancy_map(NULL);
   snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Fur Factory");
-  pool.building_types[0].hammers = 0;
-  pool.building_type_count = 1;
+  snprintf(pool.building_types[1].name, sizeof(pool.building_types[1].name), "Fur Trader's House");
+  snprintf(pool.building_types[2].name, sizeof(pool.building_types[2].name), "Fur Trading Post");
+  pool.building_type_count = 3;
 
   /* Scenario 1: one free colonist, sol_bonus 1. */
   ColonizeColony* c = &pool.colonies[0];
   memset(c, 0, sizeof(*c));
   c->id = 0;
+  c->has_building[0] = c->has_building[1] = c->has_building[2] = true; /* 039e == 3 */
   c->active = true;
   c->population = 1;
   c->colonist_count = 1;
@@ -6711,6 +7004,7 @@ static int case_factory_input_colony_total(void) {
   /* Scenario 2: two criminals, sol_bonus 1 — 4 + 4 = 8 coats, 5 furs. */
   memset(c, 0, sizeof(*c));
   c->id = 0;
+  c->has_building[0] = c->has_building[1] = c->has_building[2] = true;
   c->active = true;
   c->population = 2;
   c->colonist_count = 2;
@@ -6728,6 +7022,31 @@ static int case_factory_input_colony_total(void) {
     fprintf(
       stderr,
       "factory two workers: coats=%d furs=%d expected +8/-5\n",
+      delta.goods[COLONIZE_CARGO_COATS],
+      delta.goods[COLONIZE_CARGO_FURS]
+    );
+    return 1;
+  }
+
+  /* Scenario 3: scenario 1's worker, only the factory owned. */
+  memset(c, 0, sizeof(*c));
+  c->id = 0;
+  c->has_building[0] = true; /* 039e == 1: no discount */
+  c->active = true;
+  c->population = 1;
+  c->colonist_count = 1;
+  c->building_in_production = -1;
+  c->colonists[0].active = true;
+  c->colonists[0].field_job = -1;
+  c->colonists[0].building_type = 0;
+  c->colonists[0].profession = COLONIZE_PROF_FREE_COLONIST;
+  c->stock[COLONIZE_CARGO_FURS] = 100;
+  memset(&delta, 0, sizeof(delta));
+  colony_craft_one_colony(&pool, c, &delta, 1);
+  if (delta.goods[COLONIZE_CARGO_COATS] != 10 || delta.goods[COLONIZE_CARGO_FURS] != -10) {
+    fprintf(
+      stderr,
+      "factory without the chain: coats=%d furs=%d expected +10/-10 (039e <= 2)\n",
       delta.goods[COLONIZE_CARGO_COATS],
       delta.goods[COLONIZE_CARGO_FURS]
     );
@@ -6752,7 +7071,9 @@ static int case_armory_flat_input(void) {
   pool.building_types[0].hammers = 0;
   snprintf(pool.building_types[1].name, sizeof(pool.building_types[1].name), "Iron Works");
   pool.building_types[1].hammers = 0;
-  pool.building_type_count = 2;
+  snprintf(pool.building_types[2].name, sizeof(pool.building_types[2].name), "Blacksmith's House");
+  snprintf(pool.building_types[3].name, sizeof(pool.building_types[3].name), "Blacksmith's Shop");
+  pool.building_type_count = 4;
 
   /* Scenario 1: one Master Gunsmith at an Arsenal (18 muskets), ample tools
    * — input is 1:1, not the factory (18*2)/3 = 12. */
@@ -6816,6 +7137,7 @@ static int case_armory_flat_input(void) {
    * free with an empty ore warehouse. */
   memset(c, 0, sizeof(*c));
   c->id = 0;
+  c->has_building[1] = c->has_building[2] = c->has_building[3] = true; /* 039e == 3 */
   c->active = true;
   c->population = 1;
   c->colonist_count = 1;
@@ -6896,6 +7218,56 @@ static int case_produce_seam_lumber(void) {
     return 1;
   }
   return 0;
+}
+
+/* @SPOIL counts against aiStack_e4, the Phase B share of
+ * the overflow (FUN_364b_0688 raw 57337-57340 / 57486-57501), not a delta of
+ * the stock after Phase L. 110 tools, cap 100, +5 made, 8 spent later: DOS
+ * keeps the 5 as this turn's share and reports 2 spoiled (the port reported 7). */
+static int case_produce_seam_spoil_share(void) {
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  ColonizeColony* col = &pool.colonies[0];
+  memset(col, 0, sizeof(*col));
+  col->active = true;
+  col->id = 1;
+  col->nation_id = 0;
+  snprintf(col->name, sizeof(col->name), "Roanoke");
+  col->stock[COLONIZE_CARGO_TOOLS] = 115; /* 110 + Phase B's +5 */
+  pool.colony_count = 1;
+  EuropeScreen eu;
+  memset(&eu, 0, sizeof(eu));
+  eu.cargo_count = COLONIZE_CARGO_COUNT;
+  snprintf(eu.cargo[COLONIZE_CARGO_TOOLS].name, sizeof(eu.cargo[0].name), "Tools");
+  TurnProduceCtx pc;
+  memset(&pc, 0, sizeof(pc));
+  pc.pool = &pool;
+  pc.colony = col;
+  pc.app = col;
+  pc.delta = &pc.local_delta;
+  pc.local_delta.goods[COLONIZE_CARGO_TOOLS] = 5;
+  pc.stock_before[COLONIZE_CARGO_TOOLS] = 110;
+  turn_produce_custom_house(&pc); /* europe NULL: no sale, only the e4 snapshot */
+  col->stock[COLONIZE_CARGO_TOOLS] -= 8; /* Phase L construction spend */
+  pc.europe = &eu;
+  ColonizeMsgCatalog game_txt;
+  assets_msg_init(&game_txt);
+  (void)assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT");
+  pc.messages = &game_txt;
+  AiPopupState pops;
+  ai_popup_init(&pops);
+  pc.ai_popups = &pops;
+  turn_produce_spoilage(&pc);
+  assets_msg_free(&game_txt);
+  const char* body = pops.queue_count > 0 ? pops.queue[0].body : "";
+  const bool ok = col->stock[COLONIZE_CARGO_TOOLS] == 100 && strstr(body, "{2} tons of {Tools}") != NULL;
+  if (!ok) {
+    fprintf(stderr, "seam spoil share: tools %d body '%s' want 100 / 2 tons of Tools\n",
+            col->stock[COLONIZE_CARGO_TOOLS], body);
+  }
+  ai_popup_clear(&pops);
+  return ok ? 0 : 1;
 }
 
 /*
@@ -6986,7 +7358,241 @@ static int case_refit_unit_order(void) {
   return 0;
 }
 
+/*
+ * The human 00f2 dialogs DOS shows as blocking calls (the 4884 Brewster pick
+ * and the 3dc8 audience inside 5e52, before the colony loop; @KINGFRIGATE at
+ * the 00f2 tail, before the 2244 merc roll) must be answered before the EOT
+ * moves past them. The driver answers a dialog the way the game does: between
+ * slices.
+ */
+typedef struct EotDialogFx {
+  ColonizeUnitPool units;
+  ColonizeColonyPool pool;
+  ColonizeCol1Save col1;
+  EuropeScreen eu;
+  AiPopupState pop;
+  ColonizeDosRng rng;
+  uint16_t year;
+  uint16_t autumn;
+  uint32_t turn;
+  char status[128];
+  ColonizeTurnContext ctx;
+  ColonizeTurnProcessor proc;
+  /* dos_rng_draw_count() around the first answer of the watched dialog. */
+  unsigned long draws_before_answer;
+  unsigned long draws_after_answer;
+} EotDialogFx;
+static EotDialogFx g_eotd;
+
+static ColonizeColony* eotd_setup(ColonizeTurnProcStep start, uint16_t year, uint32_t turn) {
+  fx_begin();
+  EotDialogFx* g = &g_eotd;
+  memset(g, 0, sizeof(*g));
+  units_reset(&g->units);
+  units_set_occupancy_map(NULL);
+  snprintf(g->units.types[0].name, sizeof(g->units.types[0].name), "Colonists");
+  g->units.types[0].movement = 1;
+  g->units.type_count = 1;
+  colonies_init(&g->pool);
+  colonies_set_occupancy_map(NULL);
+  ColonizeColony* col = &g->pool.colonies[0];
+  col->active = true;
+  col->nation_id = 0;
+  col->x = 5;
+  col->y = 5;
+  col->colonist_count = 4;
+  col->population = 4;
+  snprintf(col->name, sizeof(col->name), "Jamestown");
+  g->pool.colony_count = 1;
+  g->col1.player[0].control = 0;
+  for (int n = 1; n < 4; ++n) {
+    g->col1.player[n].control = 1;
+  }
+  g->col1.head.turn = (uint16_t)turn;
+  g->col1.head.difficulty = 2;
+  ai_popup_init(&g->pop);
+  dos_rng_seed(&g->rng, 12345u);
+  g->year = year;
+  g->turn = turn;
+  ColonizeTurnContext* ctx = &g->ctx;
+  ctx->messages = test_game_txt();
+  ctx->names = test_names_txt();
+  ctx->human_nation = 0;
+  ctx->units = &g->units;
+  ctx->colonies = &g->pool;
+  ctx->col1 = &g->col1;
+  ctx->col1_ok = true;
+  ctx->europe = &g->eu;
+  ctx->ai_popups = &g->pop;
+  ctx->rng = &g->rng;
+  ctx->game_year = &g->year;
+  ctx->game_autumn = &g->autumn;
+  ctx->turn_number = &g->turn;
+  ctx->status = g->status;
+  ctx->status_size = sizeof(g->status);
+  g->proc.step = start;
+  return col;
+}
+
+/* Run the EOT to idle, answering `tag` with `choice` whenever it is queued.
+ * Reports the produced-colony count and whether the EOT was still running at
+ * the first moment the dialog was pending. */
+static bool eotd_run(AiPopupTag tag, int choice, int* produced_at, bool* active_at) {
+  EotDialogFx* g = &g_eotd;
+  bool seen = false;
+  for (int i = 0; i < 64; ++i) {
+    const bool active = turn_processor_advance(&g->proc, &g->ctx);
+    int qi = -1;
+    for (int q = 0; q < g->pop.queue_count; ++q) {
+      if (g->pop.queue[q].tag == tag) {
+        qi = q;
+        break;
+      }
+    }
+    if (qi >= 0) {
+      const bool first = !seen;
+      if (first) {
+        seen = true;
+        *produced_at = g->proc.result.colonies_produced;
+        *active_at = active;
+        g->draws_before_answer = dos_rng_draw_count();
+      }
+      g->pop.has_result = true;
+      g->pop.result_tag = tag;
+      g->pop.result_nation_a = 0;
+      g->pop.result_cancelled = false;
+      g->pop.result_choice_id = choice;
+      g->pop.result_payload = g->pop.queue[qi].payload;
+      if (tag == AI_POPUP_TAG_BREWSTER_PICK) {
+        const ColonizeWorld w = {.units = &g->units, .europe = &g->eu, .rng = &g->rng};
+        (void)units_brewster_apply_popup_ex_w(&w, &g->pop);
+      } else {
+        ai_king_apply_popup_result(&g->ctx, &g->pop);
+      }
+      if (first) {
+        g->draws_after_answer = dos_rng_draw_count();
+      }
+    }
+    ai_popup_clear(&g->pop); /* every other dialog: dismissed */
+    if (!active) {
+      break;
+    }
+  }
+  return seen;
+}
+
+/* FUN_38fd_4884 raw 64766 zeroes the crosses inside 5e52 (raw 68607); this
+ * turn's colony crosses land after it (00f2 raw 58386). */
+static int case_brewster_pick_before_colony_crosses(void) {
+  ColonizeColony* col = eotd_setup(TURN_PROC_FINISH, 1600, 36);
+  EotDialogFx* g = &g_eotd;
+  col->prod_compose_stamp = (uint32_t)g->col1.head.turn + 1u;
+  col->prod_crosses_phase_a = 3;
+  g->col1.nation[0].founding_fathers[FF_WILLIAM_BREWSTER / 8] |=
+    (uint8_t)(1u << (FF_WILLIAM_BREWSTER % 8));
+  g->eu.current_crosses = 30000; /* well past any 584a threshold */
+  uint8_t census_before[32];
+  const ColonizeWorld cw = {.units = &g->units, .colonies = &g->pool, .europe = &g->eu};
+  turn_tally_professions_w(&cw, 0, census_before);
+  int produced = -1;
+  bool active = false;
+  if (!eotd_run(AI_POPUP_TAG_BREWSTER_PICK, 0, &produced, &active)) {
+    fprintf(stderr, "brewster: no @RECRUITCHOOSE pick was queued\n");
+    return 1;
+  }
+  if (g->eu.dock_count != 1 || g->eu.current_crosses != 3) {
+    fprintf(stderr, "brewster: dock %d crosses %u (want 1 / this turn's 3)\n", g->eu.dock_count,
+            (unsigned)g->eu.current_crosses);
+    return 1;
+  }
+  /* The 0a9e specialty census (raw 58374) precedes 5e52: the recruit is not in it. */
+  uint8_t census_after[32];
+  turn_tally_professions_w(&cw, 0, census_after);
+  if (memcmp(turn_prof_census[0], census_before, sizeof census_before) != 0 ||
+      memcmp(census_after, census_before, sizeof census_before) == 0) {
+    fprintf(stderr, "brewster: census holds the recruit (or the pick spawned no unit)\n");
+    return 1;
+  }
+  return 0;
+}
+
+/* The 5be8 audience (FUN_38fd_3dc8 inside 5e52, raw 68617) is answered before
+ * the human colony loop (00f2 raw 58384-58389). */
+static int case_tax_audience_before_colony_eot(void) {
+  ColonizeColony* col = eotd_setup(TURN_PROC_FINISH, 1600, 36);
+  EotDialogFx* g = &g_eotd;
+  col->colony_flags |= COLONIZE_COLONY_FLAG_COASTAL;
+  col->stock[3] = 150;
+  g->col1.nation[0].trade.tons[3] = 10000;
+  g->eu.gold = 200000; /* 5be8 score far past 949: a raise */
+  int produced = -1;
+  bool active = false;
+  if (!eotd_run(AI_POPUP_TAG_KING_AUDIENCE, 1 /* AI_KING_CHOICE_ACCEPT */, &produced, &active)) {
+    fprintf(stderr, "audience: no kiss-the-ring / party choice was queued\n");
+    return 1;
+  }
+  if (produced != 0 || !active || g->col1.nation[0].tax_rate == 0) {
+    fprintf(stderr, "audience: colonies produced %d active %d tax %u at the dialog\n", produced,
+            (int)active, (unsigned)g->col1.nation[0].tax_rate);
+    return 1;
+  }
+  return 0;
+}
+
+/* @KINGFRIGATE (00f2 raw 58403) and its answer are settled before the year
+ * loop's 2244 merc roll (raw 6418): the EOT is still running. */
+static int case_frigate_before_merc_roll(void) {
+  ColonizeColony* col = eotd_setup(TURN_PROC_KING, 1600, 8);
+  col->ai_flags |= COLONIZE_COLONY_AI_NEARBY_FRIGATE;
+  int produced = -1;
+  bool active = false;
+  if (!eotd_run(AI_POPUP_TAG_KING_FRIGATE, 2 /* decline */, &produced, &active)) {
+    fprintf(stderr, "frigate: no @KINGFRIGATE offer was queued\n");
+    return 1;
+  }
+  if (!active || turn_processor_active(&g_eotd.proc)) {
+    fprintf(stderr, "frigate: EOT active %d at the offer, %d at the end\n", (int)active,
+            (int)turn_processor_active(&g_eotd.proc));
+    return 1;
+  }
+  return 0;
+}
+
+/* The accept arm's draws (the FUN_291f_0aee voyage roll, raw 58419, and the
+ * 3dc8 tea-party roulette, raw 64176) come before the 2244 merc roll (raw
+ * 6418, its 1-in-21 draw always taken): the EOT still draws after the answer. */
+static int case_frigate_accept_draws_before_merc_roll(void) {
+  ColonizeColony* col = eotd_setup(TURN_PROC_KING, 1600, 8);
+  EotDialogFx* g = &g_eotd;
+  col->ai_flags |= COLONIZE_COLONY_AI_NEARBY_FRIGATE;
+  col->colony_flags |= COLONIZE_COLONY_FLAG_COASTAL;
+  col->stock[3] = 150; /* a tea-party cargo for the roulette */
+  snprintf(g->units.types[1].name, sizeof(g->units.types[1].name), "Frigate");
+  g->units.types[1].kind_plus1 = UNITS_KIND_FRIGATE + 1;
+  g->units.types[1].movement = 6;
+  g->units.types[1].cargo = 4;
+  g->units.type_count = 2;
+  int produced = -1;
+  bool active = false;
+  if (!eotd_run(AI_POPUP_TAG_KING_FRIGATE, 1 /* AI_KING_CHOICE_ACCEPT */, &produced, &active)) {
+    fprintf(stderr, "frigate accept: no @KINGFRIGATE offer was queued\n");
+    return 1;
+  }
+  const unsigned long end = dos_rng_draw_count();
+  if (g->eu.bound_ships != 1 || !g->eu.bound[0].royal_gift ||
+      g->draws_after_answer <= g->draws_before_answer || end <= g->draws_after_answer) {
+    fprintf(stderr, "frigate accept: bound %d draws %lu -> %lu (answer) -> %lu (end)\n",
+            g->eu.bound_ships, g->draws_before_answer, g->draws_after_answer, end);
+    return 1;
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+  {"brewster_pick_before_colony_crosses", case_brewster_pick_before_colony_crosses},
+  {"tax_audience_before_colony_eot", case_tax_audience_before_colony_eot},
+  {"frigate_before_merc_roll", case_frigate_before_merc_roll},
+  {"frigate_accept_draws_before_merc_roll", case_frigate_accept_draws_before_merc_roll},
   {"refit_unit_order", case_refit_unit_order},
   {"calendar", case_calendar},
   {"hotseat_slot_order", case_hotseat_slot_order},
@@ -7056,6 +7662,8 @@ static const TestCase k_cases[] = {
   {"war_lost_stops_day", case_war_lost_stops_day},
   {"year_end_section_d", case_year_end_section_d},
   {"census_profession_tally", case_census_profession_tally},
+  {"tally_counts_europe_side", case_tally_counts_europe_side},
+  {"ai_census_before_immigration", case_ai_census_before_immigration},
   {"census_live_peel", case_census_live_peel},
   {"spoilage_spoil1", case_spoilage_spoil1},
   {"spoilage_spoil2", case_spoilage_spoil2},
@@ -7064,5 +7672,9 @@ static const TestCase k_cases[] = {
   {"phase_k_build_advisory", case_phase_k_build_advisory},
   {"produce_seam_begin", case_produce_seam_begin},
   {"produce_seam_lumber", case_produce_seam_lumber},
+  {"processor_packs_unit_pool", case_processor_packs_unit_pool},
+  {"rotation_slot_order_and_disband_seed", case_rotation_slot_order_and_disband_seed},
+  {"despawn_rotation_step_back", case_despawn_rotation_step_back},
+  {"produce_seam_spoil_share", case_produce_seam_spoil_share},
 };
 TEST_MAIN(k_cases)

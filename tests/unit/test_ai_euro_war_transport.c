@@ -2,6 +2,7 @@
  * threatened-colony unload and war transport (MoW / frigate). */
 #include "test_ai_euro_war_common.h"
 #include "../common/test_catalogs.h"
+#include "core/ai_contact.h"
 #include "core/ai_popup.h"
 
 /*
@@ -1172,7 +1173,722 @@ static int unit_3180_human_talk_answered_before_next_act(void) {
   return 0;
 }
 
+/*
+ * FUN_521d_20e6 raw 89692-89706: an own colony without +0x1c bit 0x40 keeps
+ * its colony-sail score, but the ship is sent to the nearest own bit-0x40
+ * colony on its continent (FUN_15eb_0142 mode -2). Inland I (pop 1, wants
+ * colonists) outscores coastal Q on the other island, so the pick is I's
+ * port P. With no port on I's island, I is skipped and Q wins.
+ */
+static int unit_colony_sail_inland_retargets_to_port(void) {
+  const int nation = 1;
+  ColonizeWorldMap map;
+  if (!fx_map_alloc(&map, 32, 16, 25, false)) {
+    return fail("sail-inland map");
+  }
+  for (int y = 4; y <= 8; ++y) {
+    for (int x = 2; x <= 8; ++x) {
+      map.terrain[y * 32 + x] = 1;
+      map.layer3[y * 32 + x] = 0xf1; /* continent 1 */
+      map.terrain[y * 32 + x + 18] = 1;
+      map.layer3[y * 32 + x + 18] = 0xf2; /* continent 2 */
+    }
+  }
+  ColonizeUnitPool units;
+  fx_units_init(&units);
+  units.type_count = 1;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Caravel");
+  units.types[0].movement = 4;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  units.types[0].cargo = 2;
+  const int sid = units_spawn(&units, 0, 14, 6);
+  ColonizeUnit* ship = units_get(&units, sid);
+  if (!ship) {
+    fx_map_free(&map);
+    return fail("sail-inland ship");
+  }
+  ship->nation_id = nation;
+  ColonizeColonyPool colonies;
+  fx_colonies_init(&colonies);
+  ColonizeColony* p = fx_colony_add(&colonies, nation, 2, 6, 8);
+  ColonizeColony* in = fx_colony_add(&colonies, nation, 6, 6, 1);
+  ColonizeColony* q = fx_colony_add(&colonies, nation, 20, 6, 4);
+  p->colony_flags = q->colony_flags = COLONIZE_COLONY_FLAG_COASTAL;
+  in->ai_flags = COLONIZE_COLONY_AI_NEEDS_COLONISTS;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.human_nation = 3;
+  int x = -1;
+  int y = -1;
+  int rc = 0;
+  if (!ai_euro_20e6_colony_sail_pick(&ctx, ship, nation, 0, 0, 0, &x, &y) || x != 2 || y != 6) {
+    fprintf(stderr, "sail-inland with port: pick (%d,%d), want (2,6)\n", x, y);
+    rc = fail("inland colony must be scored and sent to its continent's port");
+  }
+  p->active = false;
+  x = y = -1;
+  if (rc == 0 &&
+      (!ai_euro_20e6_colony_sail_pick(&ctx, ship, nation, 0, 0, 0, &x, &y) || x != 20 || y != 6)) {
+    fprintf(stderr, "sail-inland no port: pick (%d,%d), want (20,6)\n", x, y);
+    rc = fail("inland colony with no port on its continent must be skipped");
+  }
+  fx_map_free(&map);
+  return rc;
+}
+
+/*
+ * FUN_15eb_0142 mode -2 (raw 9392-9409) keeps the nearest own bit-0x40
+ * colony on the probe tile's continent with `iVar1 <= local_4`, so of two
+ * equidistant ports the later colony index wins.
+ */
+static int unit_nearest_port_mode_m2_later_tie_wins(void) {
+  const int nation = 1;
+  ColonizeWorldMap map;
+  if (!fx_map_alloc(&map, 16, 16, 25, false)) {
+    return fail("tie map");
+  }
+  for (int y = 4; y <= 8; ++y) {
+    for (int x = 2; x <= 8; ++x) {
+      map.terrain[y * 16 + x] = 1;
+      map.layer3[y * 16 + x] = 0xf1;
+    }
+  }
+  ColonizeColonyPool colonies;
+  fx_colonies_init(&colonies);
+  ColonizeColony* first = fx_colony_add(&colonies, nation, 2, 6, 1);
+  (void)fx_colony_add(&colonies, nation, 5, 6, 1); /* inland probe colony */
+  ColonizeColony* later = fx_colony_add(&colonies, nation, 8, 6, 1);
+  first->colony_flags = later->colony_flags = COLONIZE_COLONY_FLAG_COASTAL;
+  int d = -1;
+  const int got = ai_goals_nearest_colony_15eb_0142(&map, &colonies, 5, 6, nation, -2, &d);
+  fx_map_free(&map);
+  if (got != 2 || d != 3) {
+    fprintf(stderr, "mode -2 tie: got %d dist %d, want 2 dist 3\n", got, d);
+    return fail("equidistant ports: the later colony index must win");
+  }
+  return 0;
+}
+
+/*
+ * FUN_521d_6d8e's sticky bookkeeping (raw 93247-93257, DS:0x2d12/0x2d14)
+ * runs for every acted unit; 13b0 has no aboard test, so a rider acted in a
+ * hold becomes DS:0x2d12 too.
+ */
+static int unit_aboard_rider_takes_sticky_slot(void) {
+  const int nation = 1;
+  ColonizeWorldMap map;
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
+    return fail("sticky alloc map");
+  }
+  for (size_t i = 0; i < map.tile_count; ++i) {
+    map.terrain[i] = 25; /* open ocean: no landfall for the rider */
+  }
+  ColonizeUnitPool units;
+  fx_units_init(&units);
+  units.type_count = 2;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Free Colonist");
+  units.types[0].movement = 1;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[0].defense = 1;
+  snprintf(units.types[1].name, sizeof(units.types[1].name), "Galleon");
+  units.types[1].movement = 4;
+  units.types[1].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  units.types[1].cargo = 6;
+  units.types[1].defense = 2;
+  ColonizeColonyPool colonies;
+  fx_colonies_init(&colonies);
+  map.terrain[8 * 16 + 7] = 0; /* boarding shore, flooded again below */
+  const int sid = units_spawn(&units, 1, 8, 8);
+  const int pid = units_spawn(&units, 0, 7, 8);
+  ColonizeUnit* ship = units_get(&units, sid);
+  ColonizeUnit* pax = units_get(&units, pid);
+  if (!ship || !pax || !units_board(&units, pid, sid)) {
+    fx_map_free(&map);
+    return fail("sticky spawn/board");
+  }
+  map.terrain[8 * 16 + 7] = 25;
+  ship->nation_id = nation;
+  ship->orders = 0;
+  ship->moves = 0; /* the hull is not acted */
+  pax->nation_id = nation;
+  pax->orders = UNITS_ORDER_SENTRY;
+  pax->moves = 0;
+  pax->aboard_moves = -1; /* full allotment: 13b0 acts it */
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+  }
+  col1.stuff.ship_counts[nation] = 1;
+  ai_goals_reset();
+  uint32_t turn = 28;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng_seed = 42;
+  ai_euro_dispatcher_turn(&ctx, nation);
+  int sticky = -2;
+  int count = -2;
+  ai_euro_sticky_get(&sticky, &count);
+  fx_map_free(&map);
+  col1_save_free(&col1);
+  if (sticky != pid || count != 0) {
+    fprintf(stderr, "sticky unit=%d count=%d (rider %d)\n", sticky, count, pid);
+    return fail("an acted rider must take DS:0x2d12 (raw 93255)");
+  }
+  return 0;
+}
+
+typedef struct WantPump {
+  ColonizeTurnContext* ctx;
+  AiPopupState* pop;
+  int saw_wantstuff;
+} WantPump;
+
+static void want_pump_answer_first(void* user) {
+  WantPump* p = (WantPump*)user;
+  while (p->pop->queue_count > 0) {
+    const AiPopupRequest front = p->pop->queue[0];
+    memmove(&p->pop->queue[0], &p->pop->queue[1],
+            sizeof(p->pop->queue[0]) * (size_t)(p->pop->queue_count - 1));
+    p->pop->queue_count--;
+    if (front.kind != AI_POPUP_KIND_CHOICE) {
+      continue;
+    }
+    if (test_body_is_section(front.body, "WANTSTUFF")) {
+      p->saw_wantstuff = 1;
+    }
+    p->pop->has_result = true;
+    p->pop->result_cancelled = false;
+    p->pop->result_tag = front.tag;
+    p->pop->result_choice_id = 1;
+    p->pop->result_payload = front.payload;
+    ai_diplo_apply_popup_result(p->ctx, p->pop);
+    p->pop->has_result = false;
+  }
+}
+
+/* One unload to (3,4) beside a human colony at (4,4) (direction 2, E).
+ * human_unit_north puts a human unit at (3,3) (direction 0, N), which
+ * FUN_5bfb_3180's direction loop meets first, so 153e's param_5 points at a
+ * tile without a colony and raw 97601 finds no @WANTSTUFF source. */
+static int wantstuff_unload_run(int human_unit_north, int* saw_wantstuff) {
+  ai_diplo_talk_reset();
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  col1.head.turn = 100;
+  col1.head.difficulty = 1;
+  col1.head.human_player = 0;
+  col1.stuff.colony_counts[0] = 1;
+  col1.stuff.colony_counts[1] = 1;
+  col1.stuff.field_combat_totals[1] = 10;
+  col1.stuff.colony_pop_totals[1] = 8;
+  col1.stuff.census_pop_proxy[0] = 8;
+  col1.nation[1].trade.euro_price[COLONIZE_CARGO_MUSKETS] = 200;
+  snprintf(col1.player[0].country_name, sizeof(col1.player[0].country_name), "England");
+  snprintf(col1.player[1].country_name, sizeof(col1.player[1].country_name), "France");
+  ColonizeWorldMap map;
+  if (!fx_map_alloc(&map, 8, 8, 1, false)) {
+    return fail("wantstuff unload alloc map");
+  }
+  for (int i = 0; i < 64; ++i) {
+    map.layer3[i] = 1;
+  }
+  map.terrain[4 * 8 + 2] = 25; /* ship tile at sea */
+  map.layer3[4 * 8 + 2] = 0;
+  ColonizeUnitPool units;
+  fx_units_init(&units);
+  units.type_count = 2;
+  units.types[0].movement = 1;
+  units.types[0].attack = 3; /* armed mover: the border probe value feeds the score */
+  units.types[0].defense = 3;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[1].movement = 4;
+  units.types[1].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  units.types[1].cargo = 2;
+  ColonizeColonyPool colonies;
+  fx_colonies_init(&colonies);
+  ColonizeColony* hc = &colonies.colonies[0];
+  hc->id = 0;
+  hc->active = true;
+  hc->nation_id = 0;
+  hc->x = 4;
+  hc->y = 4;
+  hc->population = 2;
+  hc->colonist_count = 2;
+  hc->building_in_production = -1;
+  hc->stock[COLONIZE_CARGO_MUSKETS] = 60;
+  ColonizeColony* ac = &colonies.colonies[1];
+  ac->id = 1;
+  ac->active = true;
+  ac->nation_id = 1;
+  ac->x = 6;
+  ac->y = 7;
+  ac->population = 2;
+  ac->colonist_count = 2;
+  ac->building_in_production = -1;
+  colonies.colony_count = 2;
+  colonies.next_id = 2;
+  const int sid = units_spawn(&units, 1, 2, 4);
+  const int pid = units_spawn(&units, 0, 1, 4);
+  ColonizeUnit* ship = units_get(&units, sid);
+  ColonizeUnit* pax = units_get(&units, pid);
+  if (!ship || !pax || !units_board(&units, pid, sid)) {
+    fx_map_free(&map);
+    col1_save_free(&col1);
+    return fail("wantstuff unload spawn/board");
+  }
+  ship->nation_id = 1;
+  pax->nation_id = 1;
+  if (human_unit_north) {
+    ColonizeUnit* hu = units_get(&units, units_spawn(&units, 0, 3, 3));
+    if (!hu) {
+      fx_map_free(&map);
+      col1_save_free(&col1);
+      return fail("wantstuff unload human unit");
+    }
+    hu->nation_id = 0;
+  }
+  AiPopupState pop;
+  ai_popup_init(&pop);
+  ColonizeDosRng rng;
+  dos_rng_seed(&rng, 7);
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.messages = test_game_txt();
+  ctx.units = &units;
+  ctx.map = &map;
+  ctx.colonies = &colonies;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.human_nation = 0;
+  ctx.ai_popups = &pop;
+  ctx.rng = &rng;
+  WantPump pump = {&ctx, &pop, 0};
+  units_set_combat_popup_pump(want_pump_answer_first, &pump);
+  const int ok = ai_euro_unload_pax_at(&ctx, units_get(&units, sid), units_get(&units, pid), 3, 4,
+                                       UNITS_ORDER_NONE, -1, -1);
+  units_set_combat_popup_pump(NULL, NULL);
+  fx_map_free(&map);
+  const int met = (col1.nation[0].euro_relation[1] & AI_DIPLO_MET) != 0;
+  col1_save_free(&col1);
+  if (!ok || !met) {
+    fprintf(stderr, "ok=%d met=%d\n", ok, met);
+    return fail("the unload beside the human must open the 153e talk");
+  }
+  *saw_wantstuff = pump.saw_wantstuff;
+  return 0;
+}
+
+static int unit_3180_wantstuff_source_is_first_human_direction(void) {
+  if (!test_game_txt()) {
+    return TR_SKIP;
+  }
+  int saw = 0;
+  if (wantstuff_unload_run(0, &saw) != 0) {
+    return 1;
+  }
+  if (!saw) {
+    return fail("the colony is the first human neighbour: @WANTSTUFF must be asked");
+  }
+  if (wantstuff_unload_run(1, &saw) != 0) {
+    return 1;
+  }
+  if (saw) {
+    return fail("a human unit met first in 3180's loop leaves no source (raw 97601)");
+  }
+  return 0;
+}
+
+/*
+ * FUN_5bfb_3180 stores 153e's return in aiStack_20[human] (raw 98674) and
+ * gates the call on it (raw 98649), so a 0 ("nothing to say", raw 97679,
+ * after its talk RNG draw) lets the next human neighbour tile run 153e
+ * again. Scene: AI Dragoon at (5,6), human units N (5,5) and S (5,7);
+ * dominance != 0 (census), peace, one tribe hostile to the AI (ba 1).
+ * Mode 0 runs the 3180 Euro side; mode n > 0 calls 153e n times directly.
+ * Returns the RNG state through *out.
+ */
+static int retry_3180_run(int mode, ColonizeDosRng* out) {
+  ai_diplo_talk_reset();
+  ColonizeWorldMap m;
+  if (!fx_map_alloc(&m, 16, 16, 1, false)) {
+    return fail("3180 retry alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    m.layer3[i] = 1;
+  }
+  static ColonizeUnitPool pool;
+  fx_units_init(&pool);
+  pool.type_count = 1;
+  pool.types[0].movement = 4;
+  pool.types[0].attack = 3;
+  pool.types[0].defense = 3;
+  pool.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  ColonizeUnit* ai = units_get(&pool, units_spawn(&pool, 0, 5, 6));
+  ColonizeUnit* h1 = units_get(&pool, units_spawn(&pool, 0, 5, 5));
+  ColonizeUnit* h2 = units_get(&pool, units_spawn(&pool, 0, 5, 7));
+  if (!ai || !h1 || !h2) {
+    fx_map_free(&m);
+    return fail("3180 retry spawn");
+  }
+  ai->nation_id = 1;
+  h1->nation_id = 0;
+  h2->nation_id = 0;
+  static ColonizeColonyPool cols;
+  fx_colonies_init(&cols);
+  static ColonizeCol1Save q;
+  col1_save_init(&q);
+  memset(q.nation, 0, sizeof(q.nation));
+  memset(q.head.nation_relation, 0, sizeof(q.head.nation_relation));
+  q.head.turn = 100;
+  q.head.difficulty = 1;
+  q.head.human_player = 0;
+  q.stuff.colony_counts[1] = 1;
+  q.stuff.colony_counts_by_continent[1 * 16 + 1] = 1;
+  q.stuff.field_combat_strength_by_continent[0 * 16 + 1] = 10; /* dominance 20 */
+  q.nation[0].euro_relation[1] |= AI_DIPLO_PEACE;
+  q.nation[1].euro_relation[0] |= AI_DIPLO_PEACE;
+  q.indian[0].alarm_by_player[1] = 0x50; /* ba 1 */
+  ColonizeDosRng rng;
+  dos_rng_seed(&rng, 11);
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.col1 = &q;
+  ctx.col1_ok = true;
+  ctx.map = &m;
+  ctx.units = &pool;
+  ctx.colonies = &cols;
+  ctx.human_nation = 0;
+  ctx.rng = &rng;
+  int rc = 0;
+  if (mode == 0) {
+    ai_euro_3180_euro_side(&ctx, ai, 1, 1, 1);
+  } else {
+    for (int i = 0; i < mode && rc == 0; ++i) {
+      if (ai_diplo_153e_encounter(&ctx, 0, 1, ai->id, i == 0 ? 0 : 4) != 0) {
+        rc = fail("3180 retry: the fixture's 153e must have nothing to say");
+      }
+    }
+  }
+  *out = rng;
+  fx_map_free(&m);
+  col1_save_free(&q);
+  return rc;
+}
+
+static int unit_3180_retries_next_human_tile(void) {
+  ColonizeDosRng side;
+  ColonizeDosRng one;
+  ColonizeDosRng two;
+  if (retry_3180_run(0, &side) || retry_3180_run(1, &one) || retry_3180_run(2, &two)) {
+    return 1;
+  }
+  if (memcmp(&one, &two, sizeof(one)) == 0) {
+    return fail("3180 retry: the fixture's 153e must draw (ba > 0) before its 0 return");
+  }
+  if (memcmp(&side, &two, sizeof(side)) != 0) {
+    return fail("a 0 from 153e must let 3180 try the next human tile (raw 98649/98674)");
+  }
+  return 0;
+}
+
+/*
+ * FUN_5bfb_3180 runs all limbs in one direction loop (raw 98506-98693).
+ * Same scene as the retry case, but the north tile holds an unmet tribe-4
+ * Brave (d 0) and only the south tile (d 4) is human. In DOS order the first
+ * contact (022e, alarm clamped to 20, raw 96620-96624) comes before 153e,
+ * which then sees no hostile tribe. Mode 0 runs the 3180 side, mode 1 calls
+ * the limbs in DOS order, mode 2 in the old split order. Also returns the
+ * Brave's facing byte (+0x314f, raw 98650-98652).
+ */
+static int order_3180_run(int mode, ColonizeDosRng* out, int* brave_dir) {
+  ai_diplo_talk_reset();
+  ColonizeWorldMap m;
+  if (!fx_map_alloc(&m, 16, 16, 1, false)) {
+    return fail("3180 order alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    m.layer3[i] = 1;
+  }
+  static ColonizeUnitPool pool;
+  fx_units_init(&pool);
+  pool.type_count = 1;
+  pool.types[0].movement = 4;
+  pool.types[0].attack = 3;
+  pool.types[0].defense = 3;
+  pool.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  ColonizeUnit* ai = units_get(&pool, units_spawn(&pool, 0, 5, 6));
+  ColonizeUnit* brave = units_get(&pool, units_spawn(&pool, 0, 5, 5));
+  ColonizeUnit* h = units_get(&pool, units_spawn(&pool, 0, 5, 7));
+  if (!ai || !brave || !h) {
+    fx_map_free(&m);
+    return fail("3180 order spawn");
+  }
+  ai->nation_id = 1;
+  brave->nation_id = 4;
+  brave->last_dir = -1;
+  h->nation_id = 0;
+  static ColonizeColonyPool cols;
+  fx_colonies_init(&cols);
+  static ColonizeCol1Save q;
+  col1_save_init(&q);
+  memset(q.nation, 0, sizeof(q.nation));
+  memset(q.head.nation_relation, 0, sizeof(q.head.nation_relation));
+  q.head.turn = 100;
+  q.head.difficulty = 1;
+  q.head.human_player = 0;
+  q.stuff.colony_counts[1] = 1;
+  q.stuff.colony_counts_by_continent[1 * 16 + 1] = 1;
+  q.stuff.field_combat_strength_by_continent[0 * 16 + 1] = 10; /* dominance 20 */
+  q.nation[0].euro_relation[1] |= AI_DIPLO_PEACE;
+  q.nation[1].euro_relation[0] |= AI_DIPLO_PEACE;
+  q.indian[0].alarm_by_player[1] = 0x50; /* ba 1 until first contact */
+  ColonizeDosRng rng;
+  dos_rng_seed(&rng, 11);
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.col1 = &q;
+  ctx.col1_ok = true;
+  ctx.map = &m;
+  ctx.units = &pool;
+  ctx.colonies = &cols;
+  ctx.human_nation = 0;
+  ctx.rng = &rng;
+  if (mode == 0) {
+    ai_euro_3180_euro_side(&ctx, ai, 1, 1, 1);
+  } else if (mode == 1) {
+    (void)ai_contact_try_first_welcome(&ctx, 1, 4);
+    (void)ai_diplo_153e_encounter(&ctx, 0, 1, ai->id, 4);
+  } else {
+    (void)ai_diplo_153e_encounter(&ctx, 0, 1, ai->id, 4);
+    (void)ai_contact_try_first_welcome(&ctx, 1, 4);
+  }
+  *out = rng;
+  *brave_dir = brave->last_dir;
+  fx_map_free(&m);
+  col1_save_free(&q);
+  return 0;
+}
+
+static int unit_3180_one_direction_loop(void) {
+  ColonizeDosRng side;
+  ColonizeDosRng dos;
+  ColonizeDosRng split;
+  int side_dir = -1;
+  int dir = -1;
+  if (order_3180_run(0, &side, &side_dir) || order_3180_run(1, &dos, &dir) ||
+      order_3180_run(2, &split, &dir)) {
+    return 1;
+  }
+  if (memcmp(&dos, &split, sizeof(dos)) == 0) {
+    return fail("3180 order: the fixture must tell the two orders apart");
+  }
+  if (memcmp(&side, &dos, sizeof(side)) != 0) {
+    return fail("3180 order: the Indian first contact (d 0) must precede 153e (d 4)");
+  }
+  if (side_dir != 0) {
+    fprintf(stderr, "3180 order: Brave facing %d, want 0\n", side_dir);
+    return fail("3180 order: +0x314f of the neighbour head = local_30");
+  }
+  return 0;
+}
+
+/*
+ * FUN_5bfb_3180 raw 98664-98666 calls 05fc for a European neighbour only
+ * while `(DS:0x5382 & 1) == 0`. An AI Dragoon (1) at (5,6) steps beside an
+ * AI unit (2) at (5,7): at peace time 153e -> 13b0 runs and 3180 stamps MET
+ * (raw 98676-98678); under the War of Independence nothing runs, so no MET
+ * and no LAB_5bfb_30de timer re-arm. The neighbour still gets its facing.
+ */
+static int unit_3180_woi_skips_euro_limb(void) {
+  for (int woi = 0; woi < 2; ++woi) {
+    ai_diplo_talk_reset();
+    ColonizeWorldMap m;
+    if (!fx_map_alloc(&m, 16, 16, 1, false)) {
+      return fail("3180 woi alloc map");
+    }
+    for (int i = 0; i < 256; ++i) {
+      m.layer3[i] = 1;
+    }
+    static ColonizeUnitPool pool;
+    fx_units_init(&pool);
+    pool.type_count = 1;
+    pool.types[0].movement = 4;
+    pool.types[0].attack = 3;
+    pool.types[0].defense = 3;
+    pool.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+    ColonizeUnit* ai = units_get(&pool, units_spawn(&pool, 0, 5, 6));
+    ColonizeUnit* other = units_get(&pool, units_spawn(&pool, 0, 5, 7));
+    if (!ai || !other) {
+      fx_map_free(&m);
+      return fail("3180 woi spawn");
+    }
+    ai->nation_id = 1;
+    other->nation_id = 2;
+    other->last_dir = -1;
+    static ColonizeColonyPool cols;
+    fx_colonies_init(&cols);
+    static ColonizeCol1Save q;
+    col1_save_init(&q);
+    memset(q.nation, 0, sizeof(q.nation));
+    memset(q.head.nation_relation, 0, sizeof(q.head.nation_relation));
+    q.head.turn = 100;
+    q.head.difficulty = 1;
+    q.head.human_player = 0;
+    q.head.game_options.woi = (unsigned)woi;
+    q.nation[1].treaty_timer[2] = 7;
+    uint32_t turn = 100;
+    ColonizeDosRng rng;
+    dos_rng_seed(&rng, 11);
+    ColonizeTurnContext ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.col1 = &q;
+    ctx.col1_ok = true;
+    ctx.map = &m;
+    ctx.units = &pool;
+    ctx.colonies = &cols;
+    ctx.human_nation = 0;
+    ctx.rng = &rng;
+    ctx.turn_number = &turn;
+    ai_euro_3180_euro_side(&ctx, ai, 1, 1, 1);
+    const int met = (ai_diplo_read(&q, 1, 2) & AI_DIPLO_MET) != 0;
+    const int timer = q.nation[1].treaty_timer[2];
+    const int facing = other->last_dir;
+    fx_map_free(&m);
+    col1_save_free(&q);
+    if (facing != 4) {
+      return fail("3180 woi: the neighbour head still takes the facing (raw 98650)");
+    }
+    if (!woi && !met) {
+      return fail("3180 woi: at peace time the AI x AI limb stamps MET");
+    }
+    if (woi && (met || timer != 7)) {
+      fprintf(stderr, "3180 woi: met %d timer %d\n", met, timer);
+      return fail("3180 woi: under WoI the European limb must not run (raw 98665)");
+    }
+  }
+  return 0;
+}
+
+/*
+ * The human's move commits through FUN_465b_0000 too (FUN_4720_049e ->
+ * 2a1f_0142, raw 76124), so it runs the same 3180 loop. A human Dragoon (0)
+ * at (5,6) steps beside an AI unit (1) at (5,7); the hostile tribe makes 153e
+ * draw. Mode 0 runs the shared loop with the human mover, mode 1 the DOS limb
+ * (05fc -> 153e(human, AI, mover, d 4), raw 98654-98667), mode 2 the AI x AI
+ * limb an AI mover takes. Returns the RNG and the AI head's facing.
+ */
+static int human_3180_run(int mode, ColonizeDosRng* out, int* ai_dir) {
+  ai_diplo_talk_reset();
+  ColonizeWorldMap m;
+  if (!fx_map_alloc(&m, 16, 16, 1, false)) {
+    return fail("human 3180 alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    m.layer3[i] = 1;
+  }
+  static ColonizeUnitPool pool;
+  fx_units_init(&pool);
+  pool.type_count = 1;
+  pool.types[0].movement = 4;
+  pool.types[0].attack = 3;
+  pool.types[0].defense = 3;
+  pool.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  ColonizeUnit* h = units_get(&pool, units_spawn(&pool, 0, 5, 6));
+  ColonizeUnit* ai = units_get(&pool, units_spawn(&pool, 0, 5, 7));
+  if (!h || !ai) {
+    fx_map_free(&m);
+    return fail("human 3180 spawn");
+  }
+  h->nation_id = 0;
+  ai->nation_id = 1;
+  ai->last_dir = -1;
+  static ColonizeColonyPool cols;
+  fx_colonies_init(&cols);
+  static ColonizeCol1Save q;
+  col1_save_init(&q);
+  memset(q.nation, 0, sizeof(q.nation));
+  memset(q.head.nation_relation, 0, sizeof(q.head.nation_relation));
+  q.head.turn = 100;
+  q.head.difficulty = 1;
+  q.head.human_player = 0;
+  q.stuff.colony_counts[1] = 1;
+  q.stuff.colony_counts_by_continent[1 * 16 + 1] = 1;
+  q.stuff.field_combat_strength_by_continent[0 * 16 + 1] = 10; /* dominance 20 */
+  q.nation[0].euro_relation[1] |= AI_DIPLO_PEACE;
+  q.nation[1].euro_relation[0] |= AI_DIPLO_PEACE;
+  q.indian[0].alarm_by_player[1] = 0x50; /* ba 1 */
+  uint32_t turn = 100;
+  ColonizeDosRng rng;
+  dos_rng_seed(&rng, 11);
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.col1 = &q;
+  ctx.col1_ok = true;
+  ctx.map = &m;
+  ctx.units = &pool;
+  ctx.colonies = &cols;
+  ctx.human_nation = 0;
+  ctx.rng = &rng;
+  ctx.turn_number = &turn;
+  if (mode == 0) {
+    ai_euro_3180_after_step(&ctx, h);
+  } else if (mode == 1) {
+    (void)ai_diplo_153e_encounter(&ctx, 0, 1, h->id, 4);
+  } else {
+    ai_diplo_13b0_encounter(&ctx, 0, 1);
+  }
+  *out = rng;
+  *ai_dir = ai->last_dir;
+  fx_map_free(&m);
+  col1_save_free(&q);
+  return 0;
+}
+
+static int unit_3180_human_mover_opens_153e(void) {
+  ColonizeDosRng side;
+  ColonizeDosRng dos;
+  ColonizeDosRng ai_limb;
+  int side_dir = -1;
+  int dir = -1;
+  if (human_3180_run(0, &side, &side_dir) || human_3180_run(1, &dos, &dir) ||
+      human_3180_run(2, &ai_limb, &dir)) {
+    return 1;
+  }
+  if (memcmp(&dos, &ai_limb, sizeof(dos)) == 0) {
+    return fail("human 3180: the fixture must tell 153e from 13b0 (153e draws)");
+  }
+  if (memcmp(&side, &dos, sizeof(side)) != 0) {
+    return fail("human 3180: a human mover beside an AI European opens 153e (raw 98667)");
+  }
+  if (side_dir != 4) {
+    fprintf(stderr, "human 3180: AI facing %d, want 4\n", side_dir);
+    return fail("human 3180: +0x314f of the neighbour head = local_30 (raw 98650)");
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+    {"unit_3180_human_mover_opens_153e", unit_3180_human_mover_opens_153e},
+    {"unit_3180_woi_skips_euro_limb", unit_3180_woi_skips_euro_limb},
+    {"unit_3180_one_direction_loop", unit_3180_one_direction_loop},
+    {"unit_3180_retries_next_human_tile", unit_3180_retries_next_human_tile},
+    {"unit_3180_wantstuff_source_is_first_human_direction",
+     unit_3180_wantstuff_source_is_first_human_direction},
+    {"unit_aboard_rider_takes_sticky_slot", unit_aboard_rider_takes_sticky_slot},
+    {"unit_nearest_port_mode_m2_later_tie_wins", unit_nearest_port_mode_m2_later_tie_wins},
+    {"unit_colony_sail_inland_retargets_to_port", unit_colony_sail_inland_retargets_to_port},
     {"unit_3180_human_talk_answered_before_next_act",
      unit_3180_human_talk_answered_before_next_act},
     {"unit_unload_runs_3180_ai_encounter", unit_unload_runs_3180_ai_encounter},

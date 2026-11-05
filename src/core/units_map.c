@@ -174,6 +174,45 @@ void units_pool_sync(ColonizeUnitPool* pool) {
   }
 }
 
+/*
+ * FUN_1427_0824 (raw 7776-7839) shifts every record above a deleted one down,
+ * so the DOS array has no holes and FUN_1427_06b4 always appends at
+ * DS:0x539c. units_despawn leaves holes; this closes them, keeping the live
+ * units' relative order, so slot_end == unit_count again. Ids do not change.
+ * Not called on delete: callers hold ColonizeUnit* and slot indices across a
+ * spawn (units_spawn_aboard's ship, the 5d04 slot walk, AiEuroCtx->u), so
+ * only turn_processor_advance, between slices, calls it.
+ */
+void units_pool_compact(ColonizeUnitPool* pool) {
+  if (!pool || pool->slot_end == pool->unit_count) {
+    return;
+  }
+  int w = 0;
+  for (int i = 0; i < pool->slot_end; ++i) {
+    if (units_slot_in_use(&pool->units[i])) {
+      if (w != i) {
+        pool->units[w] = pool->units[i];
+      }
+      w++;
+    }
+  }
+  memset(&pool->units[w], 0, sizeof(pool->units[0]) * (size_t)(pool->slot_end - w));
+  units_pool_sync(pool);
+}
+
+int units_prev_live_id(const ColonizeUnitPool* pool, int unit_id) {
+  const ColonizeUnit* u = pool ? units_get_const(pool, unit_id) : NULL;
+  if (!u) {
+    return -1;
+  }
+  for (int i = (int)(u - pool->units) - 1; i >= 0; --i) {
+    if (pool->units[i].active) {
+      return pool->units[i].id;
+    }
+  }
+  return -1;
+}
+
 /* COLONIZE_UNITS_STRICT=1 (set for every ctest run): verify the bookkeeping
  * and abort on a pool filled by hand without units_pool_sync. The allocator
  * runs the full check; units_slot_end and units_get an O(1) one (the slot
@@ -264,6 +303,9 @@ const ColonizeUnit* units_last_active(const ColonizeUnitPool* pool) {
 }
 
 static void units_clear_slot(ColonizeUnitPool* pool, ColonizeUnit* unit) {
+  if (pool->board_first_id == unit->id) {
+    pool->board_first_id = -1; /* ids recycle (#1094): never hand "front" on */
+  }
   const int n = pool->unit_count; /* still counts this unit */
   if (n > 0 && n <= COLONIZE_UNITS_DOS_MAX) {
     units_dos_tail_stash(pool, n - 1, units_last_active(pool));
@@ -317,6 +359,20 @@ static void units_census_count_destroy(const ColonizeUnit* unit) {
   }
 }
 
+/* FUN_1427_0824 raw 7834-7836 `if (0x5392 != 0 && deleted <= 0x5392) 0x5392--`:
+ * only the delete of the active record (or of the record it already stepped
+ * back to) moves what the next scan re-tests; ids keep every other case
+ * stable. Slot 0 needs nothing: prev is -1 and the scan from slot 0 reaches
+ * the unit that took its place. Call while the unit is still live. */
+static void units_despawn_rotation_step(ColonizeUnitPool* pool, int id) {
+  if (pool->selected_id == id) {
+    pool->selected_id = -1;
+    pool->rotation_retest_id = units_prev_live_id(pool, id);
+  } else if (pool->rotation_retest_id == id) {
+    pool->rotation_retest_id = units_prev_live_id(pool, id);
+  }
+}
+
 bool units_despawn(ColonizeUnitPool* pool, int unit_id) {
   ColonizeUnit* unit = units_get(pool, unit_id);
   if (!unit) {
@@ -331,12 +387,10 @@ bool units_despawn(ColonizeUnitPool* pool, int unit_id) {
       ColonizeUnit* pax = units_get(pool, unit->cargo_ids[i]);
       if (pax) {
         units_census_count_destroy(pax);
+        units_despawn_rotation_step(pool, pax->id);
         units_clear_slot(pool, pax);
         if (pool->unit_count > 0) {
           pool->unit_count--;
-        }
-        if (pool->selected_id == unit->cargo_ids[i]) {
-          pool->selected_id = -1;
         }
       }
     }
@@ -376,12 +430,10 @@ bool units_despawn(ColonizeUnitPool* pool, int unit_id) {
     g_units_fallout_col1->tribe[unit->home_tribe_index].state.needs_colonist = 1;
   }
   units_census_count_destroy(unit);
+  units_despawn_rotation_step(pool, unit_id);
   units_clear_slot(pool, unit);
   if (pool->unit_count > 0) {
     pool->unit_count--;
-  }
-  if (pool->selected_id == unit_id) {
-    pool->selected_id = -1;
   }
   if (was_on_map) {
     units_occupancy_refresh_tile(pool, ox, oy, unit_id);
@@ -950,7 +1002,7 @@ void units_set_phantom_lunge_hook(ColonizeUnitsPhantomLungeFn fn, void* user) {
 
 void units_combat_watch_notify(const ColonizeUnitPool* pool, int unit_id, int x, int y) {
   if (g_units_combat_watch && pool) {
-    g_units_combat_watch(g_units_combat_watch_user, pool, unit_id, x, y);
+    g_units_combat_watch(g_units_combat_watch_user, pool, unit_id, x, y, false);
   }
 }
 
@@ -1288,6 +1340,14 @@ int units_last_combat_outcome(void) {
 
 ColonizeEnterReason units_last_enter_reason(void) {
   return g_units_last_enter_reason;
+}
+
+int g_units_last_board_pax_id = -1;
+
+int units_take_board_passenger(void) {
+  const int id = g_units_last_enter_reason == COLONIZE_ENTER_BOARD ? g_units_last_board_pax_id : -1;
+  g_units_last_board_pax_id = -1;
+  return id;
 }
 
 

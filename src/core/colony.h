@@ -919,11 +919,13 @@ void colonies_specialty_cargo_update(
   int already_produced
 );
 
-/* EOT spoilage clamp / reporting rules (see docs/colony_goods.md#colonies_apply_warehouse_spoilage) */
+/* EOT spoilage clamp / reporting rules (see docs/colony_goods.md#colonies_apply_warehouse_spoilage).
+ * produced_share[c] = DOS aiStack_e4[c], the Phase B part of the overflow
+ * (>= 0); NULL = none. */
 int colonies_apply_warehouse_spoilage(
   ColonizeColonyPool* pool,
   ColonizeColony* colony,
-  const int* stock_before,
+  const int* produced_share,
   int* out_first_cargo,
   int* out_type_count
 );

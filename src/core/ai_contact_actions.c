@@ -221,61 +221,6 @@ int ai_contact_unit_counts_as_field(
   return 1;
 }
 
-int ai_contact_land_combat_sum(
-  const ColonizeTurnContext* ctx,
-  int nation,
-  int continent,
-  int exposed_only,
-  int cap
-) {
-  if (!ctx || !ctx->units) {
-    return 0;
-  }
-  const ColonizeCombatStrengthCtx sctx = combat_strength_ctx_from_turn(ctx);
-  int sum = 0;
-  /*
-   * Slot walk, `u->id` to every id-taking accessor. `units_get_const`,
-   * `units_is_sea` and `combat_unit_base_x8` all take a unit ID; ids are
-   * handed out monotonically from 1 and never recycled (units.c:337,
-   * `units_reset` next_id = 1), so an `i`-as-id walk over
-   * COLONIZE_UNITS_MAX silently dropped every unit with id >= 256 in a long
-   * game plus the highest slot in a short one. DOS walks the unit ARRAY in
-   * record order (raw 78159: `for (local_1a = 0; local_1a < *(int *)0x539c;
-   * ++local_1a)` indexing `0x3144 + local_1a * 0x1c`), which is exactly a
-   * slot walk. Same idiom as col1_stuff_census's tally (ai_diplo's own copy
-   * was folded onto this helper by the 2026-09-14 audit, AC-10). Fixed
-   * 2026-09-10 (audit Leads item 1).
-   */
-  for (int i = 0; i < units_slot_end(ctx->units); ++i) {
-    const ColonizeUnit* u = &ctx->units->units[i];
-    if (!u->active || u->nation_id != nation || units_is_sea(ctx->units, u->id)) {
-      continue;
-    }
-    /* DOS parks a ship's passengers off-map at (−2,−2), where FUN_281f_081c
-     * reports no continent: they reach the nation-wide word (-0x6be4) but no
-     * per-continent row. The port rides passengers at the ship's own tile, so
-     * the exclusion has to be explicit — and only for continent rows. */
-    if (u->aboard_ship_id >= 0 && continent >= 0) {
-      continue;
-    }
-    if (continent >= 0 && ctx->map && map_continent_id_at(ctx->map, u->x, u->y) != continent) {
-      continue;
-    }
-    /* Shared 4962:022f-026e garrison gate; see ai_contact_unit_counts_as_field. */
-    if (exposed_only &&
-        !ai_contact_unit_counts_as_field(
-          ctx->colonies, ctx->col1_ok ? ctx->col1 : NULL, u
-        )) {
-      continue;
-    }
-    sum += combat_unit_base_x8(&sctx, u->id, 1, NULL);
-    if (sum >= cap) {
-      return cap;
-    }
-  }
-  return sum;
-}
-
 /*
  * DS:0x95f2[cont] `continent_presence_flags` — the single port of
  * FUN_4962_0018's presence writer (raw 78149-78312), shared by BOTH halves of
@@ -547,10 +492,10 @@ int ai_contact_continent_war_count_a89c(const ColonizeTurnContext* ctx, int nati
  * foreign-presence gate and the alarm floor, the same `nation == 2`
  * special-casing the surrounding block carries.
  *
- * The four census tables (-0x6a4e / -0x6be4 / -0x6e34 / -0x6e7c) are
- * recomputed live through ai_contact_land_combat_sum, exactly as the
- * Demand-Tribute roll below does: the port never refreshes the DS:0x95b2 /
- * 0x91cc mirrors for an OpenCol-started game.
+ * The four census tables (-0x6a4e / -0x6be4 / -0x6e34 / -0x6e7c, raw
+ * 94172-94184) are read from col1->stuff as the last FUN_4962_0018 (Euro EOT
+ * tail) and FUN_4962_06b6 (Indian turn) left them, as the Demand-Tribute roll
+ * below does: a unit that moved since its owner's census does not count.
  */
 void ai_contact_colony_tick_war_5952(ColonizeTurnContext* ctx, int nation_id, int cx, int cy) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->map || nation_id < 0 || nation_id > 3) {
@@ -573,11 +518,12 @@ void ai_contact_colony_tick_war_5952(ColonizeTurnContext* ctx, int nation_id, in
   if (nation_id != 2 && (presence & 6) != 0) {
     return;
   }
-  const int exposed = ai_contact_land_combat_sum(ctx, nation_id, cont, 1, 255);
+  const ColonizeCol1Stuff* st = &col1->stuff;
+  const int exposed = st->field_combat_strength_by_continent[nation_id * 16 + cont]; /* -0x6a4e */
   if (exposed <= 1) {
     return;
   }
-  const int total = ai_contact_land_combat_sum(ctx, nation_id, -1, 0, 0xffff);
+  const int total = st->land_combat_strength[nation_id]; /* -0x6be4 word */
   const int lim_a = nation_id == 2 ? (total << 2) : (total << 1);
   const int lim_b = nation_id == 2 ? (exposed << 3) : (exposed << 2);
   /* FUN_4cc6_0356(cx, cy, -1, cont): nearest village on the colony's own
@@ -603,10 +549,11 @@ void ai_contact_colony_tick_war_5952(ColonizeTurnContext* ctx, int nation_id, in
   if (tribe_nation < 4 || tribe_nation > 11) {
     return;
   }
-  if (ai_contact_land_combat_sum(ctx, tribe_nation, -1, 0, 255) > lim_a) {
+  const int slot = tribe_nation - 4; /* DS:0x8d52 */
+  if ((int)st->tribe_data_9184[slot] > lim_a) { /* -0x6e7c */
     return;
   }
-  if (ai_contact_land_combat_sum(ctx, tribe_nation, cont, 0, 255) >= lim_b) {
+  if ((int)st->tribe_dwellings_91cc[slot * 16 + cont] >= lim_b) { /* -0x6e34 */
     return;
   }
   if (nation_id != 2 && ai_diplo_indian_alarm(col1, tribe_nation, nation_id) <= 0x19) {

@@ -801,9 +801,14 @@ static void ai_euro_0a60_foreign_colony_producers(
     ++rec;
     if (c->nation_id == nation_id) {
       ColonizeColony* own = &ctx->colonies->colonies[i];
-      ai_euro_colony_goals_colony_labor(ctx, nation_id, own, inv, urgency);
-      ai_euro_colony_goals_colony_work(ctx, nation_id, own);
-      ai_euro_colony_goals_colony_garrison(ctx, nation_id, own);
+      /* FUN_521d_0a60 raw 87601: the whole own-colony block (ship-threat
+       * goal, work-queue row and 0x1734 bump, garrison loop, raw
+       * 87602-87759) runs only when colony +0x1c bit 0x40 is set. */
+      if (own->colony_flags & COLONIZE_COLONY_FLAG_COASTAL) {
+        ai_euro_colony_goals_colony_labor(ctx, nation_id, own, inv, urgency);
+        ai_euro_colony_goals_colony_work(ctx, nation_id, own);
+        ai_euro_colony_goals_colony_garrison(ctx, nation_id, own);
+      }
       continue;
     }
     if (c->nation_id < 0 || c->nation_id > 3) {
@@ -2147,6 +2152,7 @@ static void ai_euro_colony_threat_seed_5952(
     int vet_soldier = 0;
     int carpenters = 0;
     int preachers = 0;
+    int gunsmiths = 0;
     const int pop = (int)c->population;
     for (int i = 0; i < pop && i < COLONIZE_COLONY_POP_MAX; ++i) {
       const int prof = (int)c->colonists[i].profession;
@@ -2158,10 +2164,12 @@ static void ai_euro_colony_threat_seed_5952(
         carpenters++;
       } else if (prof == COLONIZE_PROF_PREACHER) {
         preachers++;
+      } else if (prof == COLONIZE_PROF_GUNSMITH) {
+        gunsmiths++;
       }
     }
     ai_euro_5952_set_absorb_census(c->id, nonexpert, vet_soldier);
-    ai_euro_5952_set_expert_census(c->id, carpenters, preachers);
+    ai_euro_5952_set_expert_census(c->id, carpenters, preachers, gunsmiths);
   }
 
   /*
@@ -2180,6 +2188,7 @@ static void ai_euro_colony_threat_seed_5952(
 }
 
 int ai_euro_5952_tools_latch = 0;
+int ai_euro_5952_labor_running = 0;
 
 /* FUN_5952_035e raw 94097-94352: per-colony state before placement.
  * Keep iStack_76 local to this whole prelude, including absorption. */
@@ -2215,6 +2224,10 @@ void ai_euro_5952_colony_prelude(
    * census, before the build-preference / construction cascade.
    */
   ai_euro_5952_absorb_equip(ctx, nation_id, c, &labor_running);
+  /* local_76 has no write between the raw 94245 ++ and the cascade's read at
+   * raw 95827 (asm 5952:266a). A frame local: on a road-connect rebind
+   * (TB-14) the cascade runs on the other record with this colony's value. */
+  ai_euro_5952_labor_running = labor_running;
 }
 
 /* --- 0a60 colony goals: stage helpers ---------------------------------- */
@@ -2234,19 +2247,19 @@ COLONIZE_INTERNAL void ai_euro_colony_goals_colony_labor(
    * ported below. Construction/stock/low-population LABOR goals were a
    * duplicate port heuristic (1555 fresh DOS goal-table trace). */
   /*
-   * DOS-LITERAL FUN_521d_0a60 raw 87600-87606: inside the own-colony block,
-   * which is itself gated on the colony's coastal bit (raw 87600,
-   * `colony[i] +0x1c & 0x40`; live map_tile_is_coastal, as the garrison
-   * loop below), a colony whose +0x1b ai_flags carry bit0 (nearby armed
-   * ship) or bit1 (nearby Man-O-War) posts a goal of CODE 0 (CONTACT) at
-   * its own tile, prio 8 with bit1 else 5:
+   * DOS-LITERAL FUN_521d_0a60 raw 87602-87606: inside the own-colony block,
+   * which is itself gated on the colony's coastal bit (raw 87601,
+   * `colony[i] +0x1c & 0x40`, tested by the caller), a colony whose +0x1b
+   * ai_flags carry bit0 (nearby armed ship) or bit1 (nearby Man-O-War)
+   * posts a goal of CODE 0 (CONTACT) at its own tile, prio 8 with bit1
+   * else 5:
    *   thunk_FUN_2a1f_0470(nation, x, y, 0, (-(bit1 == 0) & 0xfffd) + 8)
    * (The port used to post COLONY/COLONY_ALT here; DOS has no such code at
    * this site.)
    */
-  if ((c->ai_flags & (COLONIZE_COLONY_AI_NEARBY_ARMED_SHIP |
-                      COLONIZE_COLONY_AI_NEARBY_FRIGATE)) &&
-      map_tile_is_coastal(ctx->map, c->x, c->y)) {
+  (void)ctx;
+  if (c->ai_flags & (COLONIZE_COLONY_AI_NEARBY_ARMED_SHIP |
+                     COLONIZE_COLONY_AI_NEARBY_FRIGATE)) {
     const int mow = (c->ai_flags & COLONIZE_COLONY_AI_NEARBY_FRIGATE) != 0;
     ai_goals_upsert_primary(nation_id, c->x, c->y, AI_GOAL_CONTACT, mow ? 8 : 5);
   }
@@ -2563,9 +2576,8 @@ COLONIZE_INTERNAL void ai_euro_colony_goals_colony_garrison(
    * preference order — Artillery(0x0b), non-veteran Soldier(0x01),
    * veteran Soldier (profession 0x15), non-veteran Dragoon(0x04),
    * veteran Dragoon — decrementing +0x8e and +0x1e (garrison_quota)
-   * per admission. Gated, like DOS's whole own-colony block, on the
-   * colony being coastal (+0x1c bit 0x40; live map_tile_is_coastal
-   * here rather than the thin-latched colony_flags bit).
+   * per admission. The coastal gate (+0x1c bit 0x40, raw 87601) wraps
+   * the whole own-colony block and is tested by the caller.
    * The "already garrisoned" count is DOS `FUN_1000_8aac(unit,10)` =
    * 0d38 case 0xa: # non-ship units with @UNIT combat (0x5236) > 1 in
    * the colony-tile stack — REWIRED 2026-09-06b to that real count
@@ -2575,8 +2587,7 @@ COLONIZE_INTERNAL void ai_euro_colony_goals_colony_garrison(
    * (DOS-identical effect); deeper 'A' labor handling stays with the
    * existing colony-join paths.
    */
-  if (c->labor_shortage > 0 && ctx->units &&
-      map_tile_is_coastal(ctx->map, c->x, c->y)) {
+  if (c->labor_shortage > 0 && ctx->units) {
     Ai0a60StackCounts gsc;
     ai_euro_0a60_stack_counts(ctx->units, c->x, c->y, &gsc);
     const int garrisoned = gsc.armed;

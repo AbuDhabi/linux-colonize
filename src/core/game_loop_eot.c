@@ -871,8 +871,8 @@ bool game_select_next_unit_awaiting_orders(ColonizeGameState* game) {
    * 42300) classes orders {5,6,8,9} as "lasting" — the unit still becomes
    * the active one, it just never waits for player input (order 5 is
    * promoted to Fortified there, below) — so a pioneer
-   * with order 8/9 is ticked exactly when its turn in the ascending-id
-   * rotation comes up, not in a burst at turn start.
+   * with order 8/9 is ticked exactly when its turn in the slot-order
+   * (FUN_1427_14a0) rotation comes up, not in a burst at turn start.
    *
    * This loop is that rotation: every hand-off site in the port funnels
    * through here, so the dispatch happens at the same point DOS's does.
@@ -921,6 +921,7 @@ void game_move_pieces_entry(ColonizeGameState* game) {
     return;
   }
   game->units.selected_id = -1;
+  game->units.rotation_retest_id = -1;
   game->player_had_control = false; /* raw 46834: 0x97b0 = 0 */
   if (game_select_next_unit_awaiting_orders(game)) {
     game->view_pieces_mode = false;
@@ -1429,8 +1430,10 @@ void game_europe_service_trade_harbor(ColonizeGameState* game) {
       ship->exit_east = europe_exit_east_of(&game->world_map, nc->x);
     }
     const int bound_before = eu->bound_ships;
-    if (!europe_set_sail_from_harbor(
-          eu, i, game_voyage_turns(game, ship->exit_x), &game->units, game->human_nation
+    /* The route leg sails with orders 2, so FUN_1427_10be boards nobody
+     * (raw 8630-8632; europe_set_sail_from_harbor_ex). */
+    if (!europe_set_sail_from_harbor_ex(
+          eu, i, game_voyage_turns(game, ship->exit_x), &game->units, game->human_nation, false
         )) {
       ++i; /* outbound lane full — stay docked, retry next EOT */
       continue;
@@ -1447,11 +1450,13 @@ void game_europe_service_trade_harbor(ColonizeGameState* game) {
 
 /*
  * Board / unload / sail-home, shared by the MENU.TXT ORDERS rows and by the
- * keyboard keys O, U and H (audit GL-19: the menu arms re-implemented the key
+ * keyboard keys U and H (audit GL-19: the menu arms re-implemented the key
  * handlers line for line, fortified guard and status strings included). Each
  * caller keeps its own asset-availability prefix, which is the only thing that
  * differed: the menu rows answer "Cannot load cargo" / "Cannot return to
- * Europe" when the pools are not up, the keys simply do not fire.
+ * Europe" when the pools are not up, the keys simply do not fire. There is no
+ * plain O board key: DOS has none (MENU.TXT's only ~O row is Dump Cargo
+ * Overboard), so boarding is the Load Cargo row only.
  */
 void game_order_board(ColonizeGameState* game) {
   const int sid = game->units.selected_id;
@@ -1725,7 +1730,7 @@ static GameMenuActionStatus game_menu_action_view(ColonizeGameState* game, MapMe
       /* Deselect whatever's controlled (if anything) and drop into the
        * blinking tile cursor at its current spot — matches a right-click,
        * just without needing a target tile. */
-      game_select_tile(game, game->map_cursor_x, game->map_cursor_y);
+      game_enter_view_pieces(game, game->map_cursor_x, game->map_cursor_y);
       return GAME_MENU_ACTION_DONE;
     case MAP_MENU_ACTION_MOVE_PIECES: {
       /* Hand control to the control-queue unit at/after the current

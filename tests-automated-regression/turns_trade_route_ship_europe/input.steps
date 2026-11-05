@@ -5,7 +5,8 @@
 # every other French map unit fortified (orders 6), Caravel #148 (bound for Europe) parked in Quebec, France and England
 # at peace (euro_relation 0x60 both ways, else English raids capture units).
 # Turn 109 the route sails the Caravel for Europe; turn 111 it docks (no Europe screen for a route hull) with both holds sold
-# (gold 429 -> 745) and 100 Tools bought (-> 145), it sails west with a dock colonist aboard; turn 113 it reappears at
+# (gold 429 -> 745) and 100 Tools bought (-> 145), it sails west with no colonist aboard (a route hull boards nobody leaving Europe: FUN_1427_10be raw 8630-8632 keeps
+# its budget 0 on the dock, the leg FUN_48d3_0346 moves the hull alone, raw 77741 + 77754-77755); turn 113 it reappears at
 # (50,29) and heads for Quebec; turn 114 it unloads the Tools in Quebec (stock 0 -> 100) and aims at the Europe stop again.
 key space                  # end turn 108 (every unit has orders)
 wait 60
@@ -63,5 +64,5 @@ key Return                 # rebel sentiment 61%
 wait 12
 key Return                 # price of Cloth rises to 13
 wait 12
-key Return                 # price of Coats falls to 10; the Caravel enters Quebec and unloads the Tools, its passenger waits for orders
+key Return                 # price of Coats falls to 10; the Caravel enters Quebec and unloads the Tools (no passenger: the route leg boards nobody)
 wait 12

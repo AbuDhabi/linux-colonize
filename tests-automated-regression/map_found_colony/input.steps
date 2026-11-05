@@ -2,4 +2,6 @@
 # orders, full moves, selected (head.active_unit, cursor stuff.x/y); not adjacent to any colony.
 key b                      # Build colony: name prompt, default "Trois Rivieres"
 key Return                 # accept: colony founded, its screen opens
-key Escape                 # back to the map
+key Escape                 # back to the map. The founder left the unit list (FUN_1427_0824 raw 7834-7836 steps the active
+                           # index back one record), so the re-test picks #130, the goto Colonist at (42,25): it finishes
+                           # its go-to at (41,24) and waits there

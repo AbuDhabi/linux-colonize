@@ -313,6 +313,8 @@ bool game_colony_drag_drop(
   bool shift
 );
 void game_colony_fence_drop(ColonizeGameState* game, ColonizeColony* colony);
+/* The drag-drop stockade arm; unit_id = the dragged fence unit, -1 for a colonist. */
+void game_colony_stockade_drop(ColonizeGameState* game, ColonizeColony* colony, int unit_id);
 bool game_colony_request_eject(
   ColonizeGameState* game,
   int colonist_index,
@@ -403,6 +405,9 @@ void game_refresh_orders_menu(ColonizeGameState* game);
 void game_retire_after_score(ColonizeGameState* game);
 bool game_screen_owns_display(const ColonizeGameState* game);
 void game_select_tile(ColonizeGameState* game, int x, int y);
+/* The View Pieces command (FUN_2b5a_0902): tile select that keeps the left
+ * unit as the next scan's re-test (rotation_retest_id). */
+void game_enter_view_pieces(ColonizeGameState* game, int x, int y);
 void game_status_from_menu_row(
   ColonizeGameState* game,
   const char* section,
@@ -433,7 +438,8 @@ void game_phantom_lunge(
   int from_x, int from_y, int def_x, int def_y
 );
 void game_combat_watch(
-  void* user, const ColonizeUnitPool* pool, int attacker_id, int def_x, int def_y
+  void* user, const ColonizeUnitPool* pool, int attacker_id, int def_x, int def_y,
+  bool lunge_1b0e
 );
 void game_combat_dissolve(void* user, int phase);
 /* DOS FUN_281f_03ea fizzle present, shared by combat outcomes and the two

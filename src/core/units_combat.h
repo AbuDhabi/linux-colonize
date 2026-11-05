@@ -105,13 +105,16 @@ bool units_try_native_settlement_fallout_w(
 
 /* port_bugs.md: combat "bump" animation hook — called once as an engagement is
  * about to resolve (attacker still on its tile, defender at (def_x,def_y)).
- * The game loop renders the attacker nudged toward the defender. */
+ * The game loop renders the attacker nudged toward the defender. `lunge_1b0e`:
+ * true from FUN_5fef_1b0e (the hook decides its param_4 show flag), false
+ * from units_combat_watch_notify and the fort centre-only fallback. */
 typedef void (*ColonizeUnitsCombatWatchFn)(
   void* user,
   const ColonizeUnitPool* pool,
   int attacker_id,
   int def_x,
-  int def_y
+  int def_y,
+  bool lunge_1b0e
 );
 void units_set_combat_watch(ColonizeUnitsCombatWatchFn fn, void* user);
 

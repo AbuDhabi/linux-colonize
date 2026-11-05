@@ -243,7 +243,7 @@ void colonies_specialty_cargo_update(
 int colonies_apply_warehouse_spoilage(
   ColonizeColonyPool* pool,
   ColonizeColony* colony,
-  const int* stock_before,
+  const int* produced_share,
   int* out_first_cargo,
   int* out_type_count
 ) {
@@ -276,8 +276,7 @@ int colonies_apply_warehouse_spoilage(
      * (DOS `if (local_74 < 2) local_74 = 0`, see DB-34 below).
      *
      * DOS-LITERAL FUN_364b_0688 raw 57847-57868. The DOS branch test is
-     * `aiStack_e4[c] < overflow`, i.e. (stock_now - before) < (stock_now -
-     * cap), i.e. `before > cap`. In that branch DOS first backs this turn's
+     * `aiStack_e4[c] < overflow`. In that branch DOS first backs this turn's
      * production off the stock (`stock -= aiStack_e4[c]`, leaving `before`)
      * and only then subtracts local_74.
      * DOS bug not reproduced (docs/dos_bugs.md DB-34): DOS zeroes local_74
@@ -285,16 +284,11 @@ int colonies_apply_warehouse_spoilage(
      * overflow sat in the warehouse forever. The port subtracts the real loss
      * and suppresses only the @SPOIL count when it is under 2.
      */
-    const int before = stock_before ? stock_before[c] : colony->stock[c];
     const int surplus = colony->stock[c] - cap;
-    /* DOS's `aiStack_e4[c]` = clamp(min(this turn's net, surplus), 0) — the
-     * part of the overflow this turn's production put there (raw 57332-57346,
-     * re-clamped at 57486-57501). */
-    const int net = colony->stock[c] - before;
-    int net_capped = net < surplus ? net : surplus;
-    if (net_capped < 0) {
-      net_capped = 0;
-    }
+    /* DOS's `aiStack_e4[c]`, taken at the Phase B point (raw 57337-57340,
+     * re-clamped at 57486-57501) by the caller — NOT re-derived here from the
+     * stock now, which Phase L tools / unit charges have already moved. */
+    const int net_capped = produced_share ? produced_share[c] : 0;
     if (net_capped >= surplus) {
       /* Overflow is entirely this turn's production: silent clamp. */
       colony->stock[c] = cap;

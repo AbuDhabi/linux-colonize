@@ -611,6 +611,7 @@ static void colony_screen_draw_jobs_popup(
   ColonyScreenView* view,
   const ColonizeColonyPool* pool,
   const ColonizeWorldMap* map,
+  const ColonizeUnitPool* units,
   const ColonizeColony* colony,
   const ColonizeCol1Save* col1,
   const ColonizeFont* font,
@@ -630,10 +631,37 @@ static void colony_screen_draw_jobs_popup(
    * the same, game_loop.c's two assign paths), so colony_screen_open_jobs
    * deliberately keeps building the row list ungated. */
   const bool has_docks = colony_yield_colony_has_docks(pool, colony);
-  const int slot = view->selected_colonist;
+  int slot = view->selected_colonist;
   int profession = COLONIZE_PROF_FREE_COLONIST;
   int occ = -1;
   colony_screen_colonist_spec_occ(pool, colony, slot, &profession, &occ);
+  /* A fence unit: FUN_2f2b_348c raw 50599-50665 fills the estimates with the body
+   * trial-admitted as colonist `pop` (FUN_281f_0c36 = FUN_15eb_1068 arm 3: pop + 1, specialty
+   * FUN_15eb_0e8c, no plot) and set to each job. The port leaves the colony alone on open
+   * (docs/dos_bugs.md DB-54) and scores that colonist on a copy; he has no plot of his own
+   * (FUN_281f_0d30 is 0, so no "here/" part). Header occupation: the type's DS:0x30e job. */
+  const ColonizeUnit* fence = view->jobs_unit_id >= 0 && units
+                                ? units_get_const(units, view->jobs_unit_id)
+                                : NULL;
+  int stock_tools = colony ? colony->stock[COLONIZE_CARGO_TOOLS] : 0;
+  ColonizeColony trial;
+  const ColonizeColony* est_colony = colony;
+  if (fence && colony && colony->colonist_count < COLONIZE_COLONY_POP_MAX) {
+    profession = fence->profession;
+    occ = units_type_default_job(fence->type_index);
+    stock_tools += colony_screen_unit_body_tools(units, fence);
+    trial = *colony;
+    ColonizeColonist* c = &trial.colonists[trial.colonist_count];
+    memset(c, 0, sizeof(*c));
+    c->active = true;
+    c->unit_type_index = units_kind_type_index(units, UNITS_KIND_COLONIST);
+    c->profession = profession == UNITS_JOB_DRAGOON ? UNITS_JOB_SOLDIER : profession;
+    c->building_type = -1;
+    c->field_job = -1;
+    slot = trial.colonist_count++;
+    trial.population = trial.colonist_count;
+    est_colony = &trial;
+  }
   /* raw 50600-50609: the colonist's own plot (FUN_281f_0d30 -> FUN_15eb_1646), local_ee. */
   const int plot = (colony && slot >= 0 && slot < colony->colonist_count)
                      ? colonies_colonist_tile(colony, slot)
@@ -660,13 +688,14 @@ static void colony_screen_draw_jobs_popup(
       snprintf(labels[k], sizeof(labels[k]), "%s", reports_misc_display_word(44, ""));
     } else if (job >= UNITS_JOB_COLONIST) {
       /* A leave-as row (port_bugs.md #1224): the same raw 50758-50794 text as leave-as mode;
-       * never the occupation here (he works inside), so the gear part always shows. */
+       * the gear part shows on every row but the occupation's (raw 50782 `local_132 !=
+       * local_8`), which only a fence unit lists here. */
       colony_screen_eject_row_text(labels[k], sizeof(labels[k]), job - UNITS_JOB_COLONIST, occ,
-                                   true, colony ? colony->stock[COLONIZE_CARGO_TOOLS] : 0);
+                                   job != occ, stock_tools);
     } else {
       int cargo = -1;
       const int estimate =
-        ai_euro_jobs_menu_estimate(pool, map, col1, colony, slot, job, &cargo);
+        ai_euro_jobs_menu_estimate(pool, map, col1, est_colony, slot, job, &cargo);
       /* Henry Hudson folds into the pipeline (smell audit #60) — same
        * gap/fix as colony_screen_draw_area_overlays above. */
       const int here =
@@ -824,7 +853,9 @@ static void colony_screen_draw_eject_popup(
   const ColonizeUnit* fence_unit =
     view->eject_unit_id >= 0 ? units_get_const(units, view->eject_unit_id) : NULL;
   if (fence_unit) {
+    /* raw 50702-50707: the occupation in "(...)" is FUN_281f_0c0e = the type's DS:0x30e job. */
     spec = fence_unit->profession;
+    occ = units_type_default_job(fence_unit->type_index);
   } else {
     colony_screen_colonist_spec_occ(pool, colony, view->eject_colonist_index, &spec, &occ);
   }
@@ -1646,7 +1677,7 @@ void colony_screen_render_w(
     colony_screen_draw_construction_popup(view, pool, colony, font, framebuffer);
   }
   if (view && view->jobs_open) {
-    colony_screen_draw_jobs_popup(view, pool, map, colony, col1, font, framebuffer);
+    colony_screen_draw_jobs_popup(view, pool, map, units, colony, col1, font, framebuffer);
   }
   if (view && view->eject_open) {
     colony_screen_draw_eject_popup(view, pool, colony, units, font, framebuffer);

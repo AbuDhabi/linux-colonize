@@ -30,11 +30,14 @@ EOT spoilage: clamp each stock (Food excepted) to warehouse capacity
 (FUN_364b_0688's cargo loop). Call after production + Custom House (wiki:
 auto-sell before spoilage).
 
-`stock_before` is this colony's per-cargo stock as it stood *before* this
-turn's production, COLONIZE_CARGO_COUNT entries, or NULL to treat the whole
-overflow as pre-existing. DOS only *reports* the part of the overflow that
-predates production — goods a colony simply out-produced its warehouse for
-are clamped silently. Returns the reportable total (0 when nothing but
+`produced_share` is DOS's `aiStack_e4`, COLONIZE_CARGO_COUNT entries, or
+NULL to treat the whole overflow as pre-existing: the part of each cargo's
+overflow this turn's production put there, clamped to [0, net after the
+Custom House] at the Phase B point (raw 57337-57340, re-clamped at
+57486-57501). It is not re-derived from the stock at spoilage time, which
+the Phase L tools spend has already moved. DOS only *reports* the part of
+the overflow that predates production — goods a colony simply out-produced
+its warehouse for are clamped silently. Returns the reportable total (0 when nothing but
 production overflowed, or when the loss is under 2 tons).
 
 A pre-existing overflow of exactly 1 ton is removed but not reported. DOS

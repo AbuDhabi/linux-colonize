@@ -70,7 +70,7 @@ Deep mechanics (expected vs OpenCol by context): [unit_orders.md](unit_orders.md
 | Fortify (F), Sentry (S), Disband, Goto (G) | Done | One **Fortify** (land or ship-in-harbor); **Go-To** drag / **G** Place (land) or Port (ship); **Sentry** / **Disband** (Shift+D with Yes/No). ORDERS items enable/hide from selected unit (Clear↔Plow, Port↔Place). Plain letter hotkeys match menu `~` markers; Alt+letter opens bar menus |
 | Orders box letters on units | Done | `unit_chrome.c` (FUN_112b_01ba): black silhouette (−2px) + nation fill + order letter + stack under-rect; map, sidebar, Europe, colony Units/transport, Colonizopedia, F6 Garrisons (`reports_economy.c`, `FUN_3f41_1ed8`) and F7 Naval (`reports_military.c`, `FUN_3f41_20b4`/`220c`) icon rows. England fill palette 112 |
 | Pioneer clear / plow / road (P / R) | Done | Multi-turn FUN_479b: clear/plow = `terr_cost+2`, road = `terr_cost`, Hardy halves; −20 tools on complete; clear and plow are separate jobs |
-| Board / unload passengers | Done | **O** / **U**; hold icons; land→ocean with room auto-boards (`BOARD`); a zero amount means unload the whole selected hold |
+| Board / unload passengers | Done | Load Cargo row / **U** (DOS has no O board key); hold icons; land→ocean with room auto-boards (`BOARD`); a zero amount means unload the whole selected hold |
 | Dump cargo overboard | Done | ORDERS Dump Cargo Overboard → first goods hold |
 | Pillage | Done | DOS hides ORDERS Pillage (`0x317`) unconditionally (`FUN_2b5a_0b34`) and the port does too; there is no improvement-destroying pillage in DOS (port_bugs.md #631). The manual describes a feature the shipped game never exposes. The port's invented, unreachable colony-loot arm was deleted 2026-10-26 |
 | Colony auto-disembark when ship enters settlement | Done | Dock + `units_disembark_all` |
@@ -158,7 +158,7 @@ Topic hub (graphics, units, settlements, contact): [indians.md](indians.md); ala
 
 | Manual feature | Status | Notes |
 |----------------|--------|-------|
-| Rival starter fleets + sail to landfall | Done | Path-independent `FUN_75c2_235c`: all four fleets at sentinel `228+n`, counter 0, goto = landfall — `FUN_684c` HS-rim on generated maps, `@SCENARIO` on AMERICA/TRIBE.TXT (port_bugs.md #490) — then Europe exit via `48d3_048e` / `ai_euro_act_*` dispatcher; seed-100 early fixture still gated — [port_plan.md](port_plan.md) |
+| Rival starter fleets + sail to landfall | Done | Path-independent `FUN_75c2_235c`: all four fleets at sentinel `228+n`, counter 0, goto = landfall — `FUN_684c` HS-rim on generated and AMERICA maps alike (port_bugs.md #490; DOS overwrites the startup `@SCENARIO` tiles) — then Europe exit via `48d3_048e` / `ai_euro_act_*` dispatcher; seed-100 early fixture still gated — [port_plan.md](port_plan.md) |
 | Unload, found colonies, combat, colony AI | Done | Not claimed 1:1. Rival-Euro AI closed at logic level 2026-09-07g (D1): `0a60` goals, `5d04` hire ladder (the invented OpenCol matrix is deleted), `20e6` land arms with the `3558` cargo matrices, colony tick and Col1 colony flags/SoL latches, BUY `hammers_purchased`, `depletion_counter` wrap, `warehouse_level`/`capitol_level`. Gates: the four DOSBox idle campaigns ([idle_campaign.md](idle_campaign.md)) plus `golden_ai_turns`, `smoke_ai_mid01`/`late01`. The Treasure/Missionary/Wagon band tail closed 2026-10-26 (port_bugs.md #1291) — [ai_euro_logic_map.yaml](ai_euro_logic_map.yaml) |
 
 ### Win / end sequences

@@ -40,6 +40,11 @@ extern ColonizeUnitPool* turn_birth_units;
 /* --- owned by turn_production.c --- */
 extern const ColonizeMsgCatalog* turn_labels;
 extern uint8_t turn_prof_census[COLONIZE_COL1_NATION_COUNT][32];
+/* FUN_291f_0a9e -> FUN_4962_0606 into turn_prof_census[n], at the head of
+ * nation n's 00f2 (raw 58374: before 5e52 and the lane tick). A production
+ * pass scoped to one nation (turn_prod_only_set) reads that snapshot; an
+ * unscoped pass takes all four itself. */
+void turn_take_prof_census(ColonizeTurnContext* ctx, int nation_id);
 extern int turn_prod_only_nation;
 extern bool turn_prod_only_set;
 extern int turn_prod_skip_nation;
@@ -112,6 +117,7 @@ typedef struct TurnProduceCtx {
   AiPopupState* ai_popups;
   const ColonizeMsgCatalog* messages;
   ColonizeDosRng* rng;
+  const ColonizeWorld* world; /* unit-project completion; NULL = skip it */
   ColonizeColonyProdDelta local_delta; /* delta when the caller passes NULL */
   /* begin */
   uint16_t mask_before_a;
@@ -136,6 +142,7 @@ typedef struct TurnProduceCtx {
   int lumber_before_hammers;
   int hammers_paid;
   int ch_sold[COLONIZE_CARGO_COUNT];
+  int spoil_e4[COLONIZE_CARGO_COUNT]; /* aiStack_e4: Phase B share of the overflow */
   /* birth (Phase I) */
   int birth_food_debit;
   int was_starving;
@@ -151,10 +158,13 @@ void turn_produce_one_colony(
   ColonizeColonyProdDelta* delta,
   AiPopupState* ai_popups,
   const ColonizeMsgCatalog* messages,
-  ColonizeDosRng* rng
+  ColonizeDosRng* rng,
+  const ColonizeWorld* world
 );
 
 /* --- owned by turn_colony.c --- */
+/* FUN_364b_0688 Phase L unit-project completion (FUN_364b_0114 unit arm). */
+void turn_colony_unit_construction_one(const ColonizeWorld* w, ColonizeColony* col);
 void turn_run_colony_eot(ColonizeTurnContext* ctx, ColonizeTurnResult* out);
 void turn_run_human_colony_eot(ColonizeTurnContext* ctx, ColonizeTurnResult* out);
 /* FUN_48d3_06ba, the human's Europe pass (lane hops, arrival, treasure, woodcut 9):
@@ -190,7 +200,10 @@ void turn_step_setup(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx);
 void turn_step_euro(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx);
 void turn_step_indian(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx);
 void turn_step_finish(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx);
+void turn_step_finish_5e52(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx);
+void turn_step_finish_colony(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx);
 void turn_step_king(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx);
+void turn_step_king_tail(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx);
 void turn_human_ship_repairs(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx);
 /* turn_produce_one_colony stages, DOS order (turn_production.c). */
 TurnProduceStatus turn_produce_begin(TurnProduceCtx* pc);

@@ -8,9 +8,13 @@ key KP_6                   # east into Quebec: the King's offer popup (rows: acc
 wait 2
 click 160 136              # "Very well, and let the Crown claim its rightful share": Crown share = max((4+10)*5, 26*2) = 70%
 wait 2                    # @LOOTCASH: "... 1000 arrives safely in La Rochelle! Crown takes 70% share, 300 added"
-key Return                 # dismiss: the treasure is gone, gold 429 -> 729; the next unit with moves comes up: the Colonist #88 riding the Caravel at sea
-wait 3
-key s                      # sentry it (the hand-off used to skip it, port_bugs.md #1175a); Treasure #95 is selected
+key Return                 # dismiss: the treasure is gone, gold 429 -> 729
+wait 3                     # the delete steps the active index back one record (FUN_1427_0824 raw 7834-7836); that sentried
+                           # unit fails the re-test, so the cycle goes on from the treasure's slot: the units in Quebec first
+key w                      # skip #136
+key w                      # skip #144
+key w                      # skip #147; the cycle wraps to the Colonist #88 riding the Caravel at sea
+key s                    # sentry it (the hand-off used to skip it, port_bugs.md #1175a); Treasure #95 is selected
 wait 1
 key KP_3                   # SE into Quebec: the offer again
 wait 2

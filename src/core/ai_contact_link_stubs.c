@@ -43,19 +43,6 @@ void ai_contact_alarm_delta_00f2_w(
   ai_diplo_indian_alarm_delta(w->col1, nation_id, euro, delta);
 }
 
-/* No units visible to the exposure walk; slim targets never run the
- * Euro-vs-Euro 153e war tick. */
-int ai_contact_land_combat_sum(
-  const ColonizeTurnContext* ctx, int nation, int continent, int exposed_only, int cap
-) {
-  (void)ctx;
-  (void)nation;
-  (void)continent;
-  (void)exposed_only;
-  (void)cap;
-  return 0;
-}
-
 /* Never war-worthy without ai_euro.c. */
 int ai_euro_10ec_war_worthy(const ColonizeTurnContext* ctx, int a, int b) {
   (void)ctx;

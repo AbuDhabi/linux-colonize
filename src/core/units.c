@@ -49,15 +49,13 @@ ColonizeUnit* units_slot_transfer(ColonizeUnitPool* pool) {
   /* DOS FUN_1427_0824 compacts the array on delete and FUN_1427_06b4 appends,
    * so a new unit lands after every live one: take slot_end, not the first
    * hole (holes are invisible to the saved order). Seed-100 1497: Quebec's
-   * ejected soldier is record 42, not the absorbed pioneer's old slot. */
+   * ejected soldier is record 42, not the absorbed pioneer's old slot.
+   * Never fall back to a hole: that puts the new unit ahead of older ones in
+   * every slot walk. units_pool_compact closes the holes at each turn slice,
+   * so a full pool refuses only after ~3700 spawn/despawn pairs in one slice. */
   const int end = units_slot_end(pool);
   if (end < COLONIZE_UNITS_MAX && !pool->units[end].active) {
     return &pool->units[end];
-  }
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-    if (!pool->units[i].active) {
-      return &pool->units[i];
-    }
   }
   return NULL;
 }
@@ -257,7 +255,8 @@ void units_reset(ColonizeUnitPool* pool) {
   pool->slot_end = 0;
   pool->unit_count = 0;
   pool->selected_id = -1;
-  pool->board_first_slot = -1;
+  pool->rotation_retest_id = -1;
+  pool->board_first_id = -1;
   pool->next_id = 1;
   pool->id_recycle_cursor = 0;
   pool->next_tile_stack_order = 1;
@@ -772,6 +771,11 @@ bool units_spawn_room(const ColonizeUnitPool* pool, int nation) {
     s_spawn_refused_fn(s_spawn_gate_user, nation);
   }
   return false;
+}
+
+bool units_spawn_room_quiet(const ColonizeUnitPool* pool, int nation) {
+  bool human = true;
+  return pool && (s_unlimited || units_spawn_room_test(pool, nation, &human));
 }
 
 void units_set_nation(ColonizeUnit* unit, int nation_id) {

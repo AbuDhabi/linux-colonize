@@ -64,6 +64,21 @@ void ai_euro_set_watch(AiEuroWatchFn fn, void* user) {
 /* Sticky anti-spin stand-ins for DS:0x2d12 / DS:0x2d14. */
 static int s_sticky_unit = -1;
 static int s_sticky_count = 0;
+
+/* Raw 93247-93257: same id as DS:0x2d12 -> ++DS:0x2d14; past 0x14
+ * FUN_281f_0934 exhausts MP (the act still runs) so the has-MP test ends
+ * this unit's drain. 0x2d14 resets only on a new unit id. Runs for every
+ * acted unit, passengers included (13b0 has no aboard test). */
+static void ai_euro_sticky_note(ColonizeTurnContext* ctx, const ColonizeUnit* u) {
+  if (u->id == s_sticky_unit) {
+    if (++s_sticky_count > 0x14) {
+      units_mp_exhaust_unit(ctx->units, u->id);
+    }
+  } else {
+    s_sticky_unit = u->id;
+    s_sticky_count = 0;
+  }
+}
 /*
  * DS:0x9870 (−0x6790) nation×continent stance ∈ {0,3,4,6}:
  * 0 none / 3 expand / 4 military / 6 develop. Written by
@@ -329,55 +344,17 @@ void ai_euro_sync_aboard_cargo_xy(ColonizeUnitPool* units, ColonizeUnit* ship) {
   }
 }
 
-/*
- * Resolve landfall goto for Europe exit (never Europe sentinel y~229).
- * Prefer ship goto when on-map; else first passenger goto; else map mid-east.
- */
-void ai_euro_resolve_landfall_goto(
-  ColonizeTurnContext* ctx,
-  ColonizeUnit* ship,
-  int* out_x,
-  int* out_y
-) {
-  const int w = ctx && ctx->map ? (int)ctx->map->width : 0;
-  const int h = ctx && ctx->map ? (int)ctx->map->height : 0;
-  int lx = -1;
-  int ly = -1;
-  if (ship && w > 0 && h > 0) {
-    if (ship->goto_x >= 0 && ship->goto_y >= 0 && ship->goto_x < 255 && ship->goto_y < 255 &&
-        ship->goto_x < w && ship->goto_y < h) {
-      lx = ship->goto_x;
-      ly = ship->goto_y;
-    } else {
-      for (int i = 0; i < ship->cargo_count && i < COLONIZE_UNIT_CARGO_MAX; ++i) {
-        const ColonizeUnit* pax = units_get_const(ctx->units, ship->cargo_ids[i]);
-        if (!pax) {
-          continue;
-        }
-        if (pax->goto_x >= 0 && pax->goto_y >= 0 && pax->goto_x < 255 && pax->goto_y < 255 &&
-            pax->goto_x < w && pax->goto_y < h) {
-          lx = pax->goto_x;
-          ly = pax->goto_y;
-          break;
-        }
-      }
-    }
-  }
-  if (lx < 0 || ly < 0) {
-    lx = w > 2 ? w - 2 : 0;
-    ly = h > 0 ? h / 2 : 0;
-  }
-  *out_x = lx;
-  *out_y = ly;
-}
-
-/* FUN_5bfb_3180's Euro halves for an AI mover (465b commit tail -> 0984 ->
- * 0192 -> 3180): the human audience (153e) on any progress, the AI x AI
- * 13b0 limb on a tile change. Runs from the act drain and from AI unloads,
- * which land through FUN_465b_0000 too (DOSBox 1591: a Dutch Dragoon
- * unloaded beside French units signs with France). */
-static void ai_euro_3180_euro_side(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id,
-                                   int progressed, int moved) {
+/* FUN_5bfb_3180 for a European mover, AI or human (465b commit tail -> 0984
+ * -> 0192 -> 3180): one direction loop (raw 98506-98693) that, per land
+ * neighbour of another nation still open in aiStack_20, stamps the tile
+ * head's facing and opens the human audience (153e), the AI x AI limb
+ * (05fc -> 13b0) or the Indian first contact (066c -> 022e). Runs from the
+ * act drain and from AI unloads, which land through FUN_465b_0000 too
+ * (DOSBox 1591: a Dutch Dragoon unloaded beside French units signs with
+ * France), and from the human's own steps through ai_euro_3180_after_step:
+ * FUN_4720_049e commits through 2a1f_0142 -> 465b_0000 (raw 76124). */
+COLONIZE_INTERNAL void ai_euro_3180_euro_side(ColonizeTurnContext* ctx, ColonizeUnit* u,
+                                              int nation_id, int progressed, int moved) {
   /*
    * FUN_5bfb_3180 runs on the MOVING unit's step for AI units too: an
    * AI unit that ends its act adjacent to the human's units or colonies
@@ -397,33 +374,64 @@ static void ai_euro_3180_euro_side(ColonizeTurnContext* ctx, ColonizeUnit* u, in
   /* Raw 98654-98667: the neighbour side counts as human by its own control
    * byte (DS:0x543f), so in hot-seat any human neighbour gets the audience,
    * not only the power at the controls. */
-  if (moved && u->active && units_is_on_map(u) &&
-      !col1_nation_is_human(ctx->col1, nation_id, ctx->human_nation) &&
-      ctx->map && !map_tile_is_water(ctx->map, u->x, u->y)) {
-    unsigned near_human = 0; /* bit per human neighbour nation */
-    for (int ady = -1; ady <= 1; ++ady) {
-      for (int adx = -1; adx <= 1; ++adx) {
-        if ((adx == 0 && ady == 0) ||
-            map_tile_is_water(ctx->map, u->x + adx, u->y + ady)) {
-          continue;
-        }
-        const int oid = units_id_at(ctx->units, u->x + adx, u->y + ady);
-        const ColonizeUnit* o = oid >= 0 ? units_get_const(ctx->units, oid) : NULL;
-        if (o && o->active && col1_nation_is_human(ctx->col1, o->nation_id, ctx->human_nation)) {
-          near_human |= 1u << o->nation_id;
-        }
-        if (ctx->colonies) {
-          const int ccid = colonies_id_at(ctx->colonies, u->x + adx, u->y + ady);
-          const ColonizeColony* cc = ccid >= 0 ? colonies_get(ctx->colonies, ccid) : NULL;
-          if (cc && cc->active && col1_nation_is_human(ctx->col1, cc->nation_id, ctx->human_nation)) {
-            near_human |= 1u << cc->nation_id;
-          }
-        }
-      }
+  (void)progressed;
+  if (!moved || !u->active || !units_is_on_map(u) || !ctx->map ||
+      map_tile_is_water(ctx->map, u->x, u->y)) {
+    return;
+  }
+  const int mover_human = col1_nation_is_human(ctx->col1, nation_id, ctx->human_nation);
+  /* 066c -> 022e is gated on the mover's tile being land (raw 98648-98672,
+   * no unit-type test), so a hull berthed in a colony meets too; a rider
+   * still aboard does not. */
+  const int indian_arm = ctx->col1_ok && ctx->col1 && u->aboard_ship_id < 0;
+  int done[12] = {0}; /* aiStack_20 */
+  /* One direction loop, local_30 0..7 in DS:0xb4/0xbe order (= MAP_DIR8). */
+  for (int d = 0; d < 8; ++d) {
+    const int ax = u->x + MAP_DIR8_DX[d];
+    const int ay = u->y + MAP_DIR8_DY[d];
+    if (!map_coords_inset(ctx->map, ax, ay) || map_tile_is_water(ctx->map, ax, ay)) {
+      continue;
     }
-    for (int hn = 0; hn < 4; ++hn) {
-      if ((near_human & (1u << hn)) && ai_diplo_153e_encounter(ctx, hn, nation_id, u->id) &&
-          ctx->ai_popups) {
+    /* local_4 (raw 98512-98518): the tile head's nation (07e0), else the
+     * settlement owner (06be: colony, else village). */
+    ColonizeUnit* head = units_get(ctx->units, units_tile_head_id_at(ctx->units, ax, ay));
+    int on = head ? head->nation_id : -1;
+    if (on < 0 && ctx->colonies) {
+      const int ccid = colonies_id_at(ctx->colonies, ax, ay);
+      const ColonizeColony* cc = ccid >= 0 ? colonies_get(ctx->colonies, ccid) : NULL;
+      on = cc && cc->active ? cc->nation_id : -1;
+    }
+    if (on < 0 && ctx->col1_ok && ctx->col1) {
+      on = ai_contact_neighbour_nation(ctx, ax, ay);
+    }
+    /* raw 98648-98649: an open aiStack_20 slot for another nation. */
+    if (on < 0 || on > 11 || on == nation_id || done[on]) {
+      continue;
+    }
+    /* raw 98650-98652: `+0x314f = local_30` on the head, before the limb. */
+    if (head) {
+      head->last_dir = d;
+    }
+    /* raw 98664-98666: a European neighbour runs 05fc only while
+     * `(DS:0x5382 & 1) == 0`. Under the War of Independence nothing runs and
+     * aiStack_20 stays 0: no 153e, no 13b0, no LAB_5bfb_30de timer re-arm,
+     * no MET stamp. */
+    if (on < 4 && ctx->col1_ok && ctx->col1 && ctx->col1->head.game_options.woi) {
+      continue;
+    }
+    const int on_human = on < 4 && col1_nation_is_human(ctx->col1, on, ctx->human_nation);
+    if (on < 4 && (on_human || mover_human)) {
+      if (on_human && mover_human) {
+        continue;
+      }
+      /* 153e's param_5 is this direction (raw 98667), the @WANTSTUFF source
+       * tile; its return goes to aiStack_20 (raw 98674), so a 0 lets that
+       * human's next tile try again. Its self is always the human: a human
+       * mover takes the first local_3a arm unswapped (raw 98654-98655), a
+       * human neighbour is swapped in by FUN_281f_0366 (raw 98658-98662). */
+      done[on] = on_human ? ai_diplo_153e_encounter(ctx, on, nation_id, u->id, d)
+                          : ai_diplo_153e_encounter(ctx, nation_id, on, u->id, d);
+      if (done[on] && ctx->ai_popups && !mover_human) {
         /* 3180 -> thunk_FUN_2a1f_05fc -> FUN_5bfb_153e (raw 98667) is a blocking
          * dialog inside this step: the treaty it signs (raw 98003, 0x40 both
          * ways) is live before 6d8e re-acts the unit, whose next 20e6 reads
@@ -431,35 +439,24 @@ static void ai_euro_3180_euro_side(ColonizeTurnContext* ctx, ColonizeUnit* u, in
          * mover attacks on the pre-treaty byte (campaign3 C3-B1). */
         units_pump_combat_popups();
       }
+    } else if (on < 4) {
+      /* AI x AI: 05fc -> 153e -> 13b0, once per neighbour nation. */
+      done[on] = 1;
+      ai_diplo_13b0_encounter(ctx, nation_id, on);
+    } else if (indian_arm) {
+      /* 066c -> 022e with an AI Euro mover: first contact, in the Euro phase
+       * BEFORE that tribe's own 021a act loop reads the MET bit (Cite:
+       * FUN_5bfb_022e raw 96618-96675; seed-100 Dutch TURN2->3: a Soldier
+       * lands (48,14) next to Aztec-owned ground -> relation 96; TURN2: the
+       * Sioux Brave at (48,56) scores the Spanish soldier as already met). */
+      done[on] = ai_contact_try_first_welcome(ctx, nation_id, on) > 0;
     }
   }
-  /* 3180's AI x AI limb: land mover, land neighbour whose stack head
-   * (07e0) or settlement (06be) is another AI Euro -> 153e -> 13b0,
-   * once per neighbour nation (aiStack_20). DOS 465b raw 75797 calls
-   * this after movement; changing orders while parked is no encounter. */
-  if (moved && u->active && units_is_on_map(u) && ctx->map &&
-      !map_tile_is_water(ctx->map, u->x, u->y)) {
-    int seen[4] = {0};
-    for (int d = 0; d < 8; ++d) {
-      const int ax = u->x + MAP_DIR8_DX[d];
-      const int ay = u->y + MAP_DIR8_DY[d];
-      if (!map_coords_inset(ctx->map, ax, ay) || map_tile_is_water(ctx->map, ax, ay)) {
-        continue;
-      }
-      const int oid = units_tile_head_id_at(ctx->units, ax, ay);
-      const ColonizeUnit* o = oid >= 0 ? units_get_const(ctx->units, oid) : NULL;
-      int on = o ? o->nation_id : -1;
-      if (on < 0 && ctx->colonies) {
-        const int ccid = colonies_id_at(ctx->colonies, ax, ay);
-        const ColonizeColony* cc = ccid >= 0 ? colonies_get(ctx->colonies, ccid) : NULL;
-        on = cc && cc->active ? cc->nation_id : -1;
-      }
-      if (on >= 0 && on < 4 && on != nation_id &&
-          !col1_nation_is_human(ctx->col1, on, ctx->human_nation) && !seen[on]) {
-        seen[on] = 1;
-        ai_diplo_13b0_encounter(ctx, nation_id, on);
-      }
-    }
+}
+
+void ai_euro_3180_after_step(ColonizeTurnContext* ctx, ColonizeUnit* u) {
+  if (ctx && u) {
+    ai_euro_3180_euro_side(ctx, u, u->nation_id, 1, 1);
   }
 }
 
@@ -512,17 +509,8 @@ int ai_euro_unload_pax_at(
     }
     pax = units_get(ctx->units, pax->id);
   }
-  /*
-   * FUN_5bfb_3180 after landfall: Indian first contact from an adjacent
-   * Brave or tribe-owned land (seed-100 Dutch TURN2→3: Soldier lands (48,14)
-   * next to Aztec-owned ground → relation 96). Cite: FUN_5bfb_022e.
-   */
+  /* FUN_5bfb_3180 after landfall, Indian first contact included. */
   ai_euro_3180_euro_side(ctx, pax, pax->nation_id, 1, 1);
-  pax = units_get(ctx->units, pax->id);
-  if (!pax || !pax->active) {
-    return 1;
-  }
-  (void)ai_contact_encounter_scan(ctx, pax->nation_id, pax->x, pax->y);
   return 1;
 }
 
@@ -1044,22 +1032,6 @@ void ai_euro_6d8e_wagon_flags(ColonizeTurnContext* ctx, int nation_id) {
  */
 
 
-/* True if nation_id is at war with any other European peer (0..3). */
-int ai_euro_at_war_any_peer(const ColonizeCol1Save* col1, int nation_id) {
-  if (!col1 || nation_id < 0 || nation_id >= 4) {
-    return 0;
-  }
-  for (int peer = 0; peer < 4; ++peer) {
-    if (peer == nation_id) {
-      continue;
-    }
-    if (ai_diplo_at_war(col1, nation_id, peer)) {
-      return 1;
-    }
-  }
-  return 0;
-}
-
 /*
  * Military land unit by @UNIT row: Soldiers, Dragoons, Regulars, Cavalry,
  * Cont. Cav., Cont. Army. Also the peace colony garrison set — audit AE-6:
@@ -1548,6 +1520,7 @@ static void ai_euro_dispatcher_turn_unit_waves(ColonizeTurnContext* ctx, int nat
          * so Artillery 114 reaches the Port Royal surplus recall before
          * Dragoon 142). */
         if (u->aboard_ship_id >= 0) {
+          ai_euro_sticky_note(ctx, u);
           u->moves = 0;
           u->aboard_moves = 0;
           wave_acted = 1;
@@ -1569,17 +1542,7 @@ static void ai_euro_dispatcher_turn_unit_waves(ColonizeTurnContext* ctx, int nat
         const int before_x = u->x;
         const int before_y = u->y;
         const int before_orders = u->orders;
-        /* Raw 93247-93257: same id as DS:0x2d12 -> ++DS:0x2d14; past 0x14
-         * FUN_281f_0934 exhausts MP (the act still runs) so the has-MP test
-         * ends this unit's drain. 0x2d14 resets only on a new unit id. */
-        if (u->id == s_sticky_unit) {
-          if (++s_sticky_count > 0x14) {
-            units_mp_exhaust_unit(ctx->units, u->id);
-          }
-        } else {
-          s_sticky_unit = u->id;
-          s_sticky_count = 0;
-        }
+        ai_euro_sticky_note(ctx, u);
 
         if (getenv("PICKCTX"))
           fprintf(stderr, "ACT n%d u%d i%d t%d @%d,%d o%d p%d mp%d draw %lu\n", nation_id, u->id, (int)(u - ctx->units->units), u->type_index, u->x, u->y, u->orders, u->col1_ai_plan, u->moves, dos_rng_draw_count());
@@ -1604,31 +1567,21 @@ static void ai_euro_dispatcher_turn_unit_waves(ColonizeTurnContext* ctx, int nat
         /* 3180 rides 465b's plain-move tail only (see units_try_move_w):
          * a colony capture or combat advance leaves through LAB_0bd1. */
         const int moved_3180 = (u->x != before_x || u->y != before_y) && g_units_465b_settled;
-        ai_euro_3180_euro_side(ctx, u, nation_id, progressed, moved_3180);
-        /*
-         * FUN_5bfb_3180's Indian-side half runs on the AI mover's own step as
-         * well (465b commit tail -> 0984 -> 0192 -> 3180 -> 022e): a land unit
-         * that ends beside a tribe's unit or village opens first contact
-         * right there, in the Euro phase — BEFORE that tribe's own 021a act
-         * loop reads the MET bit (seed-100 TURN2: the Sioux Brave at (48,56)
-         * scores the Spanish soldier next to it as already met). The arm
-         * is gated on the mover's tile being land (raw 98648-98672, no
-         * unit-type test), so a hull berthed in a colony meets too. The human
-         * is handled in game_loop, landings in ai_euro_unload_pax_at.
-         */
+        /* 022e's met arm (5bfb:0422) parks the mover's x at its BP-0x2c, the
+         * next 20e6's local_ea (SS:e7c4). Fresh 1565: a Spanish Dragoon beside
+         * a met tribe border-parks on that 49. Read before the 3180 loop: a
+         * tribe first met in the loop is closed in aiStack_20 and never
+         * reaches the met arm. */
         if (progressed && u->active && units_is_on_map(u) && u->aboard_ship_id < 0 &&
-            ctx->map && !map_tile_is_water(ctx->map, u->x, u->y) && moved_3180) {
-          /* 022e's met arm (5bfb:0422) parks the mover's x at its BP-0x2c,
-           * the next 20e6's local_ea (SS:e7c4). Fresh 1565: a Spanish
-           * Dragoon beside a met tribe border-parks on that 49. */
-          if (ai_contact_met_tribe_adjacent(ctx, nation_id, u->x, u->y)) {
-            ctx->ai_euro_wander_stack_word = u->x;
-            if (getenv("AI_EA_TRACE")) {
-              fprintf(stderr, "[ea-w] 022e u%d (%d,%d) n%d -> %d\n", u->id, u->x, u->y, nation_id, u->x);
-            }
+            ctx->map && !map_tile_is_water(ctx->map, u->x, u->y) && moved_3180 &&
+            ai_contact_met_tribe_adjacent(ctx, nation_id, u->x, u->y)) {
+          ctx->ai_euro_wander_stack_word = u->x;
+          if (getenv("AI_EA_TRACE")) {
+            fprintf(stderr, "[ea-w] 022e u%d (%d,%d) n%d -> %d\n", u->id, u->x, u->y, nation_id, u->x);
           }
-          (void)ai_contact_encounter_scan(ctx, nation_id, u->x, u->y);
         }
+        /* The human is handled in game_loop, landings in ai_euro_unload_pax_at. */
+        ai_euro_3180_euro_side(ctx, u, nation_id, progressed, moved_3180);
         /* port_bugs.md #1134: no port-only spin guard. DOS raw 93247-93257
          * re-acts a no-progress unit in this same drain until the >0x14
          * sticky clear (FUN_281f_0934) exhausts it; breaking out with MP
@@ -1725,6 +1678,7 @@ void ai_euro_reset(void) {
   memset(ai_euro_s_5952_census_vet_soldier, 0, sizeof(ai_euro_s_5952_census_vet_soldier));
   memset(ai_euro_s_5952_census_carpenter, 0, sizeof(ai_euro_s_5952_census_carpenter));
   memset(ai_euro_s_5952_census_preacher, 0, sizeof(ai_euro_s_5952_census_preacher));
+  memset(ai_euro_s_5952_census_gunsmith, 0, sizeof(ai_euro_s_5952_census_gunsmith));
   ai_euro_s_20e6_type_cache_valid = 0; /* port_bugs.md #655: refreshed next dispatcher_turn */
   memset(s_euro_continent_stance, 0, sizeof(s_euro_continent_stance));
   memset(s_euro_rival_strength, 0, sizeof(s_euro_rival_strength));

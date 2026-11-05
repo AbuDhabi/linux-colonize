@@ -1424,7 +1424,7 @@ int ai_contact_try_village_beg_food(ColonizeTurnContext* ctx, int nation_id) {
         continue;
       }
       bool brave_adjacent = false;
-      /* Slot walk — `ui` is not a unit id; see ai_contact_land_combat_sum. */
+      /* Slot walk — `ui` is not a unit id; see docs/conventions.md (id-walk). */
       for (int ui = 0; ui < units_slot_end(ctx->units) && !brave_adjacent; ++ui) {
         const ColonizeUnit* bu = &ctx->units->units[ui];
         if (!bu->active || bu->nation_id != nation_id || !units_is_on_map(bu)) {
@@ -2046,7 +2046,7 @@ COLONIZE_INTERNAL void ai_contact_indian_census_4962_06b6(ColonizeTurnContext* c
   }
   const ColonizeCombatStrengthCtx sctx = combat_strength_ctx_from_turn(ctx);
   /* Slot walk, `u->id` to the id-taking accessors — see
-   * ai_contact_land_combat_sum's note. Fixed 2026-09-10. */
+   * docs/conventions.md (id-walk). Fixed 2026-09-10. */
   for (int i = 0; i < units_slot_end(ctx->units); ++i) {
     const ColonizeUnit* u = &ctx->units->units[i];
     if (!u->active || u->nation_id != nation_id) {

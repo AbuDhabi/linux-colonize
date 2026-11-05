@@ -122,12 +122,6 @@ int ai_euro_in_europe(int x, int y);
 int ai_euro_europe_lane(int nation_id, int x, int y);
 int ai_euro_at_europe_dock(int nation_id, int x, int y);
 void ai_euro_sync_aboard_cargo_xy(ColonizeUnitPool* units, ColonizeUnit* ship);
-void ai_euro_resolve_landfall_goto(
-  ColonizeTurnContext* ctx,
-  ColonizeUnit* ship,
-  int* out_x,
-  int* out_y
-);
 int ai_euro_unload_pax_at(
   ColonizeTurnContext* ctx,
   ColonizeUnit* ship,
@@ -160,7 +154,6 @@ void ai_euro_refresh_colony_ai_flags(
   int nation_id,
   ColonizeColony* c
 );
-int ai_euro_at_war_any_peer(const ColonizeCol1Save* col1, int nation_id);
 int ai_euro_is_military_kind(ColonizeUnitKind k);
 int ai_euro_is_artillery_kind(ColonizeUnitKind kind);
 int ai_euro_land_is_fortified(const ColonizeUnit* u);
@@ -197,18 +190,20 @@ extern int ai_euro_s_5952_arty_plot[COLONIZE_COLONIES_MAX];
 extern int ai_euro_s_5952_census_nonexpert[COLONIZE_COLONIES_MAX]; /* aiStack_68[0x13] */
 extern int ai_euro_s_5952_census_carpenter[COLONIZE_COLONIES_MAX]; /* aiStack_68[0x0d] */
 extern int ai_euro_s_5952_census_preacher[COLONIZE_COLONIES_MAX];  /* aiStack_68[0x10] */
-COLONIZE_INTERNAL void ai_euro_5952_set_expert_census(int colony_id, int carpenters, int preachers);
+extern int ai_euro_s_5952_census_gunsmith[COLONIZE_COLONIES_MAX];  /* aiStack_68[0x0f] */
+COLONIZE_INTERNAL void ai_euro_5952_set_expert_census(
+  int colony_id, int carpenters, int preachers, int gunsmiths
+);
 /* local_1b0 = the tick's improvement-arm owner (DS index of the per-nation reads). */
 void ai_euro_5952_build_cascade_for_owner(
   ColonizeTurnContext* ctx, ColonizeColony* col, int improvement_owner
 );
 void ai_euro_colony_tick_5952(ColonizeTurnContext* ctx, int nation_id);
 /* FUN_521d_6d8e prelude colony loop (raw 93118-93142), filled by
- * ai_euro_colony_tick_5952: DS:0xa0cc[16] before the hull pass and the
- * DS:0xa0b8 wanting-colonists count, both read from the record each tick
- * left in DS:0x8542. */
+ * ai_euro_colony_tick_5952: DS:0xa0cc[16] before the hull pass, read from
+ * the record each tick left in DS:0x8542. The DS:0xa0b8 wanting-colonists
+ * count from the same loop lives in ai_goals (ai_goals_colonies_wanting). */
 extern int8_t ai_euro_s_6d8e_need[4][16];
-extern int8_t ai_euro_s_6d8e_wanting[4];
 void ai_euro_5952_colony_counters(
   ColonizeTurnContext* ctx, int nation_id, ColonizeColony* c
 );
@@ -270,6 +265,10 @@ void ai_euro_5952_improve_best_plot(
 /* FUN_5952_035e local_16: seeded from +0xb6 > 0x13 at the tick top, set by a
  * Pioneer join (raw 94261), read by the 20-tool purchase (raw 94370). */
 extern int ai_euro_5952_tools_latch;
+/* FUN_5952_035e frame local local_76 (iStack_76) as it stands after the
+ * absorption arm (raw 94031-94056 + the raw 94245 ++), left by the prelude for
+ * the build cascade's Artillery gate (raw 95827). Not colony +0x8e. */
+extern int ai_euro_5952_labor_running;
 ColonizeColony* ai_euro_5952_tools_supply_and_connect(
   ColonizeTurnContext* ctx, ColonizeColony* col
 );
@@ -486,10 +485,10 @@ typedef struct AiEuro5952Cascade {
   int armed_count_for_nation; /* DS:0x9424 + local_1b0 */
   int ring1;
   int food_workers;           /* iVar12 */
-  int prof_count[28];
   int experts;
   int tier_max;
   int arty_on_tile;           /* iStack_92 */
+  int labor_running;          /* local_76 (ai_euro_5952_labor_running) */
   int hungry;                 /* iStack_a0 */
   int ring;                   /* uStack_a2 */
   int ring_nonland;           /* iStack_142 */
@@ -623,6 +622,9 @@ int ai_euro_5d04_dos_type_code(const ColonizeUnitPool* pool, int type_index);
 uint32_t ai_euro_5d04_artillery_price(const ColonizeCol1Nation* nat);
 int ai_euro_5d04_cb_list_iter_first(int list_id);
 int ai_euro_5d04_cb_list_iter_next(int prev);
+/* FUN_5bfb_3180's Euro halves for an AI mover (ai_euro.c). */
+void ai_euro_3180_euro_side(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id,
+                            int progressed, int moved);
 /* Live-tally wrapper of ai_euro_20e6_457e_hs_cadence_snapshot. */
 int ai_euro_20e6_457e_hs_cadence(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id);
 /* Test-only ai_goals.c externs (port_bugs.md #1106). */
@@ -644,6 +646,8 @@ AiEuro5952CascadeStatus ai_euro_5952_cascade_military(AiEuro5952Cascade* s);
 AiEuro5952CascadeStatus ai_euro_5952_cascade_chain_upgrades(AiEuro5952Cascade* s);
 void ai_euro_colony_tick_open(AiEuroColonyTick* t);
 void ai_euro_colony_tick_unseat_all(AiEuroColonyTick* t);
+/* Drops unseat_all's aiStack_12e profession cache (end of a colony tick). */
+void ai_euro_colony_tick_prof_cache_clear(void);
 void ai_euro_colony_tick_food_pass(AiEuroColonyTick* t);
 void ai_euro_colony_tick_pass2(AiEuroColonyTick* t);
 void ai_euro_colony_tick_specialist_restore(AiEuroColonyTick* t);

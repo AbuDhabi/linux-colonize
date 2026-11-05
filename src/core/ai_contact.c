@@ -694,12 +694,12 @@ int ai_contact_try_first_welcome(ColonizeTurnContext* ctx, int euro_nation, int 
   ai_contact_apply_welcome_accept(ctx, ind, indian_nation, euro_nation);
   return 1;
 }
-/* ===================== Encounter/meet scans, village-meet dialogs & attack/raid confirmations (ai_contact_encounter_scan .. ai_contact_try_tired_attack_confirm) ===================== */
+/* ===================== Encounter/meet scans, village-meet dialogs & attack/raid confirmations (ai_contact_neighbour_nation .. ai_contact_try_tired_attack_confirm) ===================== */
 
 
 /* 3180's "other nation" for neighbour (nx,ny): the unit standing there, else
  * the tile's settlement owner; -1 off map or none. */
-static int ai_contact_neighbour_nation(const ColonizeTurnContext* ctx, int nx, int ny) {
+int ai_contact_neighbour_nation(const ColonizeTurnContext* ctx, int nx, int ny) {
   if (nx < 0 || ny < 0 || nx >= ctx->map->width || ny >= ctx->map->height) {
     return -1;
   }
@@ -748,22 +748,6 @@ static int ai_contact_neighbour_nation(const ColonizeTurnContext* ctx, int nx, i
     }
     return other;
   }
-}
-
-int ai_contact_encounter_scan(ColonizeTurnContext* ctx, int euro_nation, int x, int y) {
-  if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->map || euro_nation < 0 || euro_nation > 3) {
-    return 0;
-  }
-  /* DOS DS:0xb4 / DS:0xbe direction tables (N, NE, E, SE, S, SW, W, NW). */
-  int opened = 0;
-  for (int d = 0; d < 8; ++d) {
-    const int other = ai_contact_neighbour_nation(ctx, x + MAP_DIR8_DX[d], y + MAP_DIR8_DY[d]);
-    if (other < 4 || other > 11) {
-      continue;
-    }
-    opened += ai_contact_try_first_welcome(ctx, euro_nation, other);
-  }
-  return opened;
 }
 
 int ai_contact_met_tribe_adjacent(const ColonizeTurnContext* ctx, int euro_nation, int x, int y) {

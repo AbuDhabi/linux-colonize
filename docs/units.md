@@ -23,11 +23,19 @@ each is a DOS record.
 `COLONIZE_UNITS_DOS_MAX` (300) is that DOS limit; `COLONIZE_UNITS_MAX`
 (4096) is only the physical pool. Its size costs nothing per scan: every
 walk over `pool->units` is bounded by `units_slot_end(pool)` (one past the
-highest slot in use; new units take the lowest free slot, and despawning the
-top slot trims it), and `units_get` resolves ids through the `id_slot`
-open-addressing hash (linear probing, backward-shift delete), both kept by
-`units_slot_reset_defaults` / `units_despawn`. `units_pool_sync` rebuilds
-them after hand edits (docs/conventions.md "Hand-filled unit pools"). `units_slot` applies the DOS cap only while
+highest slot in use; new units take slot `slot_end` and never a hole, as
+FUN_1427_06b4 appends at DS:0x539c, and despawning the top slot trims it), and
+`units_get` resolves ids through the `id_slot` open-addressing hash (linear
+probing, backward-shift delete), both kept by `units_slot_reset_defaults` /
+`units_despawn`. `units_pool_sync` rebuilds them after hand edits
+(docs/conventions.md "Hand-filled unit pools"). DOS FUN_1427_0824 (raw
+7776-7839) packs its array on every delete; the port leaves holes and
+`units_pool_compact` closes them (live order kept, ids unchanged; the
+"Move to front" mark is a unit id, `board_first_id`) at the top of each `turn_processor_advance`
+slice except SETUP. It cannot run on delete or spawn: callers hold
+`ColonizeUnit*` and slot indices across a spawn (`units_spawn_aboard`'s ship,
+the 5d04 slot walk, `AiEuroCtx->u`). With `slot_end` at
+`COLONIZE_UNITS_MAX` a spawn is refused until the next slice packs. `units_slot` applies the DOS cap only while
 the game's reservation hook is set (not during save load or in headless
 harnesses) and `settings.json` `divergences.unlimited_units` is off
 (`units_set_unlimited`); with the flag on `units_spawn_room` always answers

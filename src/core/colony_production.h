@@ -84,13 +84,13 @@ int colony_prod_manufacturing_output_row(
  * Colony-total raw-good requirement for one chain's SUMMED finished-good
  * output. This is DOS's shape: FUN_15eb_0bd4 raw 10168-10172 takes the
  * colony's gross output word for the finished good and floor-divides it ONCE
- * ((gross << 1) / 3) when the chain holds more than two buildings (factory
- * tier); every lower tier requires the gross 1:1. Summing the per-worker
- * requirement instead over-charges on odd totals (port_bugs.md #851).
- * `building_row` is any staffed building of the chain — a colony holds at most
- * one, so it names the tier.
+ * ((gross << 1) / 3) when the colony owns more than two of `chain`'s
+ * buildings (FUN_15eb_039e); otherwise the gross 1:1. Summing the
+ * per-worker requirement instead over-charges on odd totals (port_bugs.md #851).
  */
-int colony_prod_chain_input_for_total_output(int building_row, int total_output);
+int colony_prod_chain_input_for_total_output(
+  const ColonizeColonyPool* pool, const ColonizeColony* colony, int chain, int total_output
+);
 
 /*
  * True for the one craft chain DOS emits through FUN_15eb_0b96 instead of

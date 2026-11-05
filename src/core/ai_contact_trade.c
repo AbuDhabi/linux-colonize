@@ -285,7 +285,7 @@ int ai_contact_try_village_gifts(ColonizeTurnContext* ctx, int nation_id) {
       if (ai_contact_s_visit_colony >= 0 && ci != ai_contact_s_visit_colony) {
         continue; /* 022e local_4c (raw 96699): the encounter colony */
       }
-      /* Slot walk — `ui` is not a unit id; see ai_contact_land_combat_sum. */
+      /* Slot walk — `ui` is not a unit id; see docs/conventions.md (id-walk). */
       for (int ui = 0; ui < units_slot_end(ctx->units); ++ui) {
         const ColonizeUnit* bu = &ctx->units->units[ui];
         if (!bu->active || bu->nation_id != nation_id || !units_is_on_map(bu)) {
@@ -872,7 +872,7 @@ static ColonizeUnit* ai_contact_reparations_visitor(
   if (!ctx || !ctx->units) {
     return NULL;
   }
-  /* Slot walk — `ui` is not a unit id; see ai_contact_land_combat_sum. */
+  /* Slot walk — `ui` is not a unit id; see docs/conventions.md (id-walk). */
   for (int ui = 0; ui < units_slot_end(ctx->units); ++ui) {
     ColonizeUnit* bu = &ctx->units->units[ui];
     if (!bu->active || bu->nation_id != nation_id || !units_is_on_map(bu)) {
@@ -1188,7 +1188,7 @@ int ai_contact_try_village_reparations(ColonizeTurnContext* ctx, int nation_id) 
     }
     /* `local_42` — no colony, but a Wagon Train (DOS type 0x0c) with cargo. */
     ColonizeUnit* wag = NULL;
-    /* Slot walk — `ui` is not a unit id; see ai_contact_land_combat_sum. */
+    /* Slot walk — `ui` is not a unit id; see docs/conventions.md (id-walk). */
     for (int ui = 0; ui < units_slot_end(ctx->units) && !wag; ++ui) {
       ColonizeUnit* u = &ctx->units->units[ui];
       if (!u->active || u->nation_id != e || !units_is_on_map(u)) {

@@ -1006,7 +1006,6 @@ void ai_goals_plan_scratch_refresh(
     p->ship_cargo_total = 0;
     p->avg_colony_pop = 0;
   }
-  int wanting = 0;
   int live_colonies = 0;
   if (colonies) {
     for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
@@ -1015,9 +1014,6 @@ void ai_goals_plan_scratch_refresh(
         continue;
       }
       live_colonies++;
-      if (c->ai_flags & COLONIZE_COLONY_AI_NEEDS_COLONISTS) {
-        wanting++;
-      }
     }
     /*
      * The census byte is only as fresh as the last between-turns refresh;
@@ -1028,7 +1024,29 @@ void ai_goals_plan_scratch_refresh(
      */
     p->colony_count = (uint8_t)(live_colonies > 255 ? 255 : live_colonies);
   }
-  p->colonies_wanting_colonists = (uint8_t)(wanting > 255 ? 255 : wanting);
+}
+
+/* FUN_521d_6d8e raw 93109: `byte[nation + 0xa0b8] = 0` at turn entry. */
+void ai_goals_colonies_wanting_reset(int nation_id) {
+  if (nation_id >= 0 && nation_id < 4) {
+    s_plan[nation_id].colonies_wanting_colonists = 0;
+  }
+}
+
+/* FUN_521d_6d8e raw 93139-93141: `++` after an own colony's 5952 tick when
+ * the colony record DS:0x8542 points at has +0x1b & 0x10. Byte, wraps. */
+void ai_goals_colonies_wanting_bump(int nation_id) {
+  if (nation_id >= 0 && nation_id < 4) {
+    s_plan[nation_id].colonies_wanting_colonists++;
+  }
+}
+
+/* DS:0xa0b8 as DOS reads it in 5d04 (raw 92595, `(int)*(char *)`). */
+int ai_goals_colonies_wanting(int nation_id) {
+  if (nation_id < 0 || nation_id >= 4) {
+    return 0;
+  }
+  return (int)(int8_t)s_plan[nation_id].colonies_wanting_colonists;
 }
 
 /*
@@ -1111,9 +1129,9 @@ int ai_goals_founding_expansion_urgency(int nation_id, int total_colony_count) {
  * `nation` (nation < 0 = any) restricted to `continent` (continent < 0 =
  * any), by the FUN_124c_0040 metric. Returns the colony index, -1 when
  * none, and writes the winning distance out through `out_dist` (DOS parks
- * it in DS:0x8db8; 9999 on a miss). DOS's `param_4 == -2` mode (derive the
- * continent from the probe tile and require colony flag 0x40) has no caller
- * in this segment and is not modelled.
+ * it in DS:0x8db8; 9999 on a miss). `continent == -2` is DOS's param_4 == -2
+ * mode (raw 9392-9394, 9409): the continent comes from the probe tile and
+ * only colonies with +0x1c bit 0x40 count (FUN_521d_20e6 raw 89692-89694).
  */
 int ai_goals_nearest_colony_15eb_0142(
   const ColonizeWorldMap* map,
@@ -1126,6 +1144,10 @@ int ai_goals_nearest_colony_15eb_0142(
 ) {
   int best = -1;
   int best_d = 9999;
+  const int coastal_only = continent == -2;
+  if (coastal_only) {
+    continent = map ? map_continent_id_at(map, x, y) : -1;
+  }
   if (colonies) {
     for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
       const ColonizeColony* c = &colonies->colonies[i];
@@ -1133,6 +1155,9 @@ int ai_goals_nearest_colony_15eb_0142(
         continue;
       }
       if (nation >= 0 && c->nation_id != nation) {
+        continue;
+      }
+      if (coastal_only && (c->colony_flags & COLONIZE_COLONY_FLAG_COASTAL) == 0) {
         continue;
       }
       if (continent >= 0) {
@@ -1494,9 +1519,10 @@ int ai_goals_probe_adjacent_contact_claim_w(
     }
     const int owner = map_tile_layer2_owner(map, nx, ny, MAP_OCCUPANCY_HAS_UNIT);
     if (owner >= 0 && owner != nation_id) {
-      /* Tribe owners key 0896's tension lookup off the tile's top unit. */
+      /* Tribe owners key 0896's tension lookup off the tile's chain head
+       * (raw 87373: FUN_281f_07e0, the newest arrival). */
       const int unit_filter =
-        (owner >= 4 && units) ? units_id_at(units, nx, ny) : -1;
+        (owner >= 4 && units) ? units_tile_head_id_at(units, nx, ny) : -1;
       claim = ai_goals_filter_profession_by_distance_wealth(
         col1, units, nation_id, owner, profession, unit_filter
       );

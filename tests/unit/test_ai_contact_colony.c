@@ -17,6 +17,12 @@ static void census_euro_and_tribe(ColonizeTurnContext* ctx, int euro, int tribe_
   ai_contact_indian_census_4962_06b6(ctx, tribe_nation);
 }
 
+/* The 5952 war tick reads the same rows; run both censuses first. */
+static void tick_5952_censused(ColonizeTurnContext* ctx, int nation, int x, int y) {
+  census_euro_and_tribe(ctx, nation, 4);
+  ai_contact_colony_tick_war_5952(ctx, nation, x, y);
+}
+
 /*
  * FUN_5952_035e war-declare block (ai_contact_colony_tick_war_5952) — the AI
  * colony tick's `or_both(nation, tribe + 4, 2)` (raw viceroy_unpacked.c:94170-
@@ -118,7 +124,7 @@ static int test_colony_tick_war_5952(void) {
   /* exposed = 32 (two soldiers outside the colony), total = 32 →
    * lim_a = 64, lim_b = 128; the tribe's single Brave is 16 on both counts,
    * alarm 40 > 0x19 → DOS declares. */
-  ai_contact_colony_tick_war_5952(&ctx, 0, c->x, c->y);
+  tick_5952_censused(&ctx,0, c->x, c->y);
   if ((col1.indian[0].euro_diplo[0] & COL1_INDIAN_WAR_BIT) == 0) {
     return fail("5952 war: or_both must set indian[].euro_diplo WAR bit");
   }
@@ -133,7 +139,7 @@ static int test_colony_tick_war_5952(void) {
   col1.indian[0].euro_diplo[0] = COL1_INDIAN_MET_BIT;
   col1.nation[0].relation_by_indian[0] = COL1_INDIAN_MET_BIT;
   col1.indian[0].alarm_by_player[0] = 0x19;
-  ai_contact_colony_tick_war_5952(&ctx, 0, c->x, c->y);
+  tick_5952_censused(&ctx,0, c->x, c->y);
   if ((col1.indian[0].euro_diplo[0] & COL1_INDIAN_WAR_BIT) != 0) {
     return fail("5952 war: alarm <= 0x19 must not declare (non-Spain)");
   }
@@ -145,7 +151,7 @@ static int test_colony_tick_war_5952(void) {
     ub->nation_id = 2;
     col1.indian[0].euro_diplo[2] = COL1_INDIAN_MET_BIT;
     col1.indian[0].alarm_by_player[2] = 0;
-    ai_contact_colony_tick_war_5952(&ctx, 2, c->x, c->y);
+    tick_5952_censused(&ctx,2, c->x, c->y);
     if ((col1.indian[0].euro_diplo[2] & COL1_INDIAN_WAR_BIT) == 0) {
       return fail("5952 war: Spain declares with no alarm floor");
     }
@@ -167,7 +173,7 @@ static int test_colony_tick_war_5952(void) {
     }
     b->nation_id = 4;
   }
-  ai_contact_colony_tick_war_5952(&ctx, 0, c->x, c->y);
+  tick_5952_censused(&ctx,0, c->x, c->y);
   if ((col1.indian[0].euro_diplo[0] & COL1_INDIAN_WAR_BIT) != 0) {
     return fail("5952 war: brave total > land_combat_strength<<1 must not declare");
   }
@@ -184,7 +190,7 @@ static int test_colony_tick_war_5952(void) {
       return fail("5952 war: spawn rival");
     }
     r->nation_id = 1;
-    ai_contact_colony_tick_war_5952(&ctx, 0, c->x, c->y);
+    tick_5952_censused(&ctx,0, c->x, c->y);
     if ((col1.indian[0].euro_diplo[0] & COL1_INDIAN_WAR_BIT) != 0) {
       return fail("5952 war: foreign Euro unit on the continent must block the declare");
     }
@@ -192,7 +198,7 @@ static int test_colony_tick_war_5952(void) {
   }
 
   /* Sanity: with the rival gone the same call declares again. */
-  ai_contact_colony_tick_war_5952(&ctx, 0, c->x, c->y);
+  tick_5952_censused(&ctx,0, c->x, c->y);
   if ((col1.indian[0].euro_diplo[0] & COL1_INDIAN_WAR_BIT) == 0) {
     return fail("5952 war: declare should resume once the continent is clear");
   }
@@ -218,7 +224,7 @@ static int test_colony_tick_war_5952(void) {
     ub->orders = UNITS_ORDER_FORTIFY;
     ua->col1_ai_plan = 0;
     ub->col1_ai_plan = 0;
-    ai_contact_colony_tick_war_5952(&ctx, 0, c->x, c->y);
+    tick_5952_censused(&ctx,0, c->x, c->y);
     if ((col1.indian[0].euro_diplo[0] & COL1_INDIAN_WAR_BIT) == 0) {
       return fail("5952 war: fortify ORDERS must not empty the exposed row");
     }
@@ -233,7 +239,7 @@ static int test_colony_tick_war_5952(void) {
     ua->y = c->y;
     ub->x = c->x;
     ub->y = c->y;
-    ai_contact_colony_tick_war_5952(&ctx, 0, c->x, c->y);
+    tick_5952_censused(&ctx,0, c->x, c->y);
     if ((col1.indian[0].euro_diplo[0] & COL1_INDIAN_WAR_BIT) == 0) {
       return fail("5952 war: an AI unit inside a colony is still exposed in DOS");
     }
@@ -244,7 +250,7 @@ static int test_colony_tick_war_5952(void) {
     col1.indian[0].alarm_by_player[0] = 40;
     ua->col1_ai_plan = 0x41u; /* 'A' */
     ub->col1_ai_plan = 0x47u; /* 'G' */
-    ai_contact_colony_tick_war_5952(&ctx, 0, c->x, c->y);
+    tick_5952_censused(&ctx,0, c->x, c->y);
     if ((col1.indian[0].euro_diplo[0] & COL1_INDIAN_WAR_BIT) != 0) {
       return fail("5952 war: garrison ai_plan 'A'/'G' must leave the exposed row");
     }
@@ -256,7 +262,7 @@ static int test_colony_tick_war_5952(void) {
     col1.indian[0].euro_diplo[0] = COL1_INDIAN_MET_BIT;
     col1.nation[0].relation_by_indian[0] = COL1_INDIAN_MET_BIT;
     col1.indian[0].alarm_by_player[0] = 40;
-    ai_contact_colony_tick_war_5952(&ctx, 0, c->x, c->y);
+    tick_5952_censused(&ctx,0, c->x, c->y);
     if ((col1.indian[0].euro_diplo[0] & COL1_INDIAN_WAR_BIT) != 0) {
       return fail("5952 war: a human nation's in-colony units never count as exposed");
     }
@@ -266,6 +272,112 @@ static int test_colony_tick_war_5952(void) {
     ua->y = 12;
     ub->x = 13;
     ub->y = 12;
+  }
+
+  /*
+   * Both tribe-strength gates (raw 94183-94184): `0x9184[slot] > local_84`
+   * skips, so equal still declares; `0x91cc[slot*16+cont] < local_9c` is
+   * needed, so equal blocks. The continent is 3, so a row read at the wrong
+   * continent index reads 0. Each Brave and Soldier is worth 16.
+   */
+  {
+    for (int i = 0; i < 256; ++i) {
+      map.layer3[i] = 3;
+    }
+    /* Village Brave + 3: tribe total 64 == lim_a (32 << 1) → declare. */
+    int extra_b[7];
+    for (int i = 0; i < 3; ++i) {
+      extra_b[i] = units_spawn_allow_stack(&units, 0, 5 + i, 7);
+      ColonizeUnit* b = units_get(&units, extra_b[i]);
+      if (!b) {
+        return fail("5952 gates: spawn brave");
+      }
+      b->nation_id = 4;
+    }
+    col1.indian[0].euro_diplo[0] = COL1_INDIAN_MET_BIT;
+    col1.nation[0].relation_by_indian[0] = COL1_INDIAN_MET_BIT;
+    col1.indian[0].alarm_by_player[0] = 40;
+    tick_5952_censused(&ctx, 0, c->x, c->y);
+    if ((col1.indian[0].euro_diplo[0] & COL1_INDIAN_WAR_BIT) == 0) {
+      fprintf(stderr, "5952 gates: 9184=%d land=%d exposed=%d\n", (int)col1.stuff.tribe_data_9184[0],
+              (int)col1.stuff.land_combat_strength[0], (int)col1.stuff.field_combat_strength_by_continent[3]);
+      return fail("5952 gates: tribe total == lim_a must still declare");
+    }
+
+    /* Two 'A' garrisons in the colony join the 0x941c total but not the
+     * exposed row: lim_a = 128, lim_b = 32 << 2 = 128. 8 Braves = 128 on the
+     * continent: only the dwellings row blocks. */
+    const int g1 = units_spawn_allow_stack(&units, 1, c->x, c->y);
+    const int g2 = units_spawn_allow_stack(&units, 1, c->x, c->y);
+    ColonizeUnit* ug1 = units_get(&units, g1);
+    ColonizeUnit* ug2 = units_get(&units, g2);
+    if (!ug1 || !ug2) {
+      return fail("5952 gates: spawn garrison");
+    }
+    ug1->nation_id = 0;
+    ug2->nation_id = 0;
+    ug1->col1_ai_plan = 0x41u;
+    ug2->col1_ai_plan = 0x41u;
+    for (int i = 3; i < 7; ++i) {
+      extra_b[i] = units_spawn_allow_stack(&units, 0, 2 + i, 8);
+      ColonizeUnit* b = units_get(&units, extra_b[i]);
+      if (!b) {
+        return fail("5952 gates: spawn brave");
+      }
+      b->nation_id = 4;
+    }
+    col1.indian[0].euro_diplo[0] = COL1_INDIAN_MET_BIT;
+    col1.nation[0].relation_by_indian[0] = COL1_INDIAN_MET_BIT;
+    tick_5952_censused(&ctx, 0, c->x, c->y);
+    if ((col1.indian[0].euro_diplo[0] & COL1_INDIAN_WAR_BIT) != 0) {
+      fprintf(stderr, "5952 gates: 91cc=%d 9184=%d land=%d exposed=%d\n",
+              (int)col1.stuff.tribe_dwellings_91cc[3], (int)col1.stuff.tribe_data_9184[0],
+              (int)col1.stuff.land_combat_strength[0], (int)col1.stuff.field_combat_strength_by_continent[3]);
+      return fail("5952 gates: dwellings row == lim_b must block");
+    }
+    /* One Brave fewer (112 < 128): the same scene declares. */
+    units_despawn(&units, extra_b[6]);
+    tick_5952_censused(&ctx, 0, c->x, c->y);
+    if ((col1.indian[0].euro_diplo[0] & COL1_INDIAN_WAR_BIT) == 0) {
+      fprintf(stderr, "5952 gates: 91cc=%d 9184=%d land=%d exposed=%d\n",
+              (int)col1.stuff.tribe_dwellings_91cc[3], (int)col1.stuff.tribe_data_9184[0],
+              (int)col1.stuff.land_combat_strength[0], (int)col1.stuff.field_combat_strength_by_continent[3]);
+      return fail("5952 gates: dwellings row below lim_b must declare");
+    }
+
+    /* Units that appear or leave after the censuses change nothing until the
+     * next census. 4 Braves arrive after the Indian census: 0x9184 still
+     * reads 112 <= 128 (a live count would be 176), so the tick declares. */
+    col1.indian[0].euro_diplo[0] = COL1_INDIAN_MET_BIT;
+    col1.nation[0].relation_by_indian[0] = COL1_INDIAN_MET_BIT;
+    census_euro_and_tribe(&ctx, 0, 4);
+    int late[4];
+    for (int i = 0; i < 4; ++i) {
+      late[i] = units_spawn_allow_stack(&units, 0, 5 + i, 9);
+      ColonizeUnit* b = units_get(&units, late[i]);
+      if (!b) {
+        return fail("5952 war: spawn late brave");
+      }
+      b->nation_id = 4;
+    }
+    ai_contact_colony_tick_war_5952(&ctx, 0, c->x, c->y);
+    if ((col1.indian[0].euro_diplo[0] & COL1_INDIAN_WAR_BIT) == 0) {
+      return fail("5952 war: Braves that arrived after the Indian census must not count");
+    }
+    for (int i = 0; i < 4; ++i) {
+      units_despawn(&units, late[i]);
+    }
+
+    /* Both field soldiers leave after the Euro census: 0x95b2 still reads 32. */
+    col1.indian[0].euro_diplo[0] = COL1_INDIAN_MET_BIT;
+    col1.nation[0].relation_by_indian[0] = COL1_INDIAN_MET_BIT;
+    census_euro_and_tribe(&ctx, 0, 4);
+    units_despawn(&units, sol_a);
+    units_despawn(&units, sol_b);
+    ai_contact_colony_tick_war_5952(&ctx, 0, c->x, c->y);
+    if ((col1.indian[0].euro_diplo[0] & COL1_INDIAN_WAR_BIT) == 0) {
+      return fail("5952 war: soldiers that left after the Euro census still count");
+    }
   }
 
   free(map.terrain);
