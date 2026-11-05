@@ -4,10 +4,12 @@
 #include <string.h>
 
 #include "core/map_menu.h"
+#include "core/mods.h"
 #include "core/popup.h"
 #include "core/popup_msg.h"
 #include "core/strutil.h"
 #include "core/ui_button.h"
+#include "platform/diagnostics.h"
 
 void options_dialog_init(OptionsDialog* dlg) {
   if (!dlg) {
@@ -179,6 +181,39 @@ bool options_dialog_open_sound(
     3,
     190
   );
+}
+
+_Static_assert(MOD_COUNT <= OPTIONS_DIALOG_MAX, "one Mods dialog row per ModId");
+
+bool options_dialog_open_mods(OptionsDialog* dlg, const ColonizeMsgCatalog* game_txt, uint32_t mask) {
+  uint8_t vals[MOD_COUNT];
+  for (int i = 0; i < MOD_COUNT; ++i) {
+    vals[i] = (uint8_t)(mask >> i & 1u);
+  }
+  if (!options_load_section(dlg, OPTIONS_KIND_MODS, game_txt, "MODOPTIONS", vals, MOD_COUNT, 220)) {
+    return false;
+  }
+  if (dlg->option_count != MOD_COUNT) {
+    diag_warn("@MODOPTIONS has %d rows, expected %d (one per mods.h ModId)", dlg->option_count,
+              MOD_COUNT);
+  }
+  /* Rows past MOD_COUNT (a newer data file) would toggle nothing. */
+  if (dlg->option_count > MOD_COUNT) {
+    dlg->option_count = MOD_COUNT;
+  }
+  return true;
+}
+
+bool options_dialog_apply_mods(const OptionsDialog* dlg, uint32_t* mask) {
+  if (!dlg || !mask || dlg->result_cancelled || dlg->result_kind != OPTIONS_KIND_MODS) {
+    return false;
+  }
+  uint32_t m = *mask;
+  for (int i = 0; i < dlg->result_count && i < MOD_COUNT; ++i) {
+    m = dlg->result_values[i] ? (m | 1u << i) : (m & ~(1u << i));
+  }
+  *mask = m;
+  return true;
 }
 
 void options_dialog_apply_game(const OptionsDialog* dlg, ColonizeCol1GameOptions* opts) {

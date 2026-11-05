@@ -2159,6 +2159,14 @@ static void game_apply_options_result(ColonizeGameState* game) {
         }
         set_status(game, "", NULL);
       }
+    } else if (game->options_dlg.result_kind == OPTIONS_KIND_MODS) {
+      ColonizeSettings prefs = *settings_get();
+      uint32_t mask = settings_mods_mask(&prefs);
+      if (options_dialog_apply_mods(&game->options_dlg, &mask)) {
+        settings_mods_set_mask(&prefs, mask);
+        game_settings_commit(&prefs);
+        set_status(game, "", NULL);
+      }
     }
   }
   game->options_dlg.has_result = false;

@@ -286,6 +286,77 @@ static int case_reports_and_game_options(void) {
   return 0;
 }
 
+/* data/mods/MENU.TXT appends the Mods row to @GAME only when the mod data dir
+ * is set (opencol sets it; tests leave it empty), and the stock rows stay. */
+static int game_menu_shape(int* mods_row, int* items) {
+  Fixture fx;
+  if (fixture_init(&fx) != 0) {
+    return 1;
+  }
+  const int game_i = find_section(&fx.bar, "GAME");
+  *mods_row = -1;
+  *items = fx.bar.menus[game_i].item_count;
+  for (int i = 0; i < *items; ++i) {
+    if (fx.bar.menus[game_i].items[i].action == MAP_MENU_ACTION_MODS &&
+        fx.bar.menus[game_i].items[i].enabled) {
+      *mods_row = i;
+    }
+  }
+  fixture_free(&fx);
+  return 0;
+}
+
+static int case_mods_menu_overlay(void) {
+  int stock_row = 0, stock_items = 0, mods_row = 0, mods_items = 0;
+  int rc = game_menu_shape(&stock_row, &stock_items);
+  assets_set_mod_data_dir("./data/mods");
+  rc |= game_menu_shape(&mods_row, &mods_items);
+  assets_set_mod_data_dir("");
+  /* Overlay adds the Mods row plus the separator before it. */
+  if (rc || stock_row != -1 || mods_row != stock_items + 1 || mods_items != stock_items + 2) {
+    fprintf(stderr, "mods menu: stock row %d items %d; overlay row %d items %d\n", stock_row,
+            stock_items, mods_row, mods_items);
+    return 1;
+  }
+  return 0;
+}
+
+/* The overlay never replaces a stock row: `0=`, an out-of-range N and an
+ * unnumbered line are refused; a missing folder loads stock untouched. */
+static int game_section_matches(const ColonizeMsgCatalog* stock, const char* dir) {
+  ColonizeMsgCatalog cat;
+  assets_msg_init(&cat);
+  assets_set_mod_data_dir(dir);
+  const bool ok = assets_msg_load_file(&cat, "COLONIZE/MENU.TXT");
+  assets_set_mod_data_dir("");
+  const ColonizeMsgSection* a = assets_msg_find(stock, "GAME");
+  const ColonizeMsgSection* b = ok ? assets_msg_find(&cat, "GAME") : NULL;
+  int same = a && b && a->line_count == b->line_count &&
+             stock->section_count == cat.section_count;
+  for (int i = 0; same && i < a->line_count; ++i) {
+    same = strcmp(a->lines[i], b->lines[i]) == 0;
+  }
+  assets_msg_free(&cat);
+  return same;
+}
+
+static int case_mods_overlay_refuses_stock_rows(void) {
+  ColonizeMsgCatalog stock;
+  assets_msg_init(&stock);
+  if (!assets_msg_load_file(&stock, "COLONIZE/MENU.TXT")) {
+    return 1;
+  }
+  const int refused = game_section_matches(&stock, "tests/unit/mods_overlay_bad");
+  const int absent = game_section_matches(&stock, "tests/unit/no_such_mods_dir");
+  assets_msg_free(&stock);
+  if (!refused || !absent) {
+    fprintf(stderr, "mods overlay: stock rows changed (bad file %d, missing dir %d)\n", refused,
+            absent);
+    return 1;
+  }
+  return 0;
+}
+
 static int case_pedia_categories(void) {
   Fixture fx;
   if (fixture_init(&fx) != 0) {
@@ -1001,6 +1072,8 @@ static int case_tile_rect_screen_phase(void) {
 }
 
 static const TestCase k_cases[] = {
+  {"case_mods_menu_overlay", case_mods_menu_overlay},
+  {"case_mods_overlay_refuses_stock_rows", case_mods_overlay_refuses_stock_rows},
   {"menu_counts_and_titles", case_menu_counts_and_titles},
   {"cheat_items", case_cheat_items},
   {"view_pieces_hotkeys", case_view_pieces_hotkeys},

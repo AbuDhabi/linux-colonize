@@ -24,7 +24,8 @@ typedef enum OptionsDialogKind {
   OPTIONS_KIND_NONE = 0,
   OPTIONS_KIND_GAME = 1,
   OPTIONS_KIND_COLONY = 2,
-  OPTIONS_KIND_SOUND = 3
+  OPTIONS_KIND_SOUND = 3,
+  OPTIONS_KIND_MODS = 4 /* port-only: data/mods GAME.TXT @MODOPTIONS, settings.json "mods" */
 } OptionsDialogKind;
 
 typedef struct OptionsDialog {
@@ -71,6 +72,11 @@ bool options_dialog_open_sound(
   bool event_music,
   bool sound_effects
 );
+
+/* Mod toggle defaults as a ModId bit mask (mods.h), one row per ModId. */
+bool options_dialog_open_mods(OptionsDialog* dlg, const ColonizeMsgCatalog* game_txt, uint32_t mask);
+/* True and *mask written when a MODS result was confirmed. */
+bool options_dialog_apply_mods(const OptionsDialog* dlg, uint32_t* mask);
 
 /* Apply confirmed GAME bits into Col1 options (no-op if cancelled/wrong kind). */
 void options_dialog_apply_game(const OptionsDialog* dlg, ColonizeCol1GameOptions* opts);

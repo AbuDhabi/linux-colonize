@@ -67,6 +67,11 @@ uint8_t assets_palette_nearest_rgb(const ColonizePalette* pal, int r, int g, int
 void assets_msg_init(ColonizeMsgCatalog* catalog);
 void assets_msg_free(ColonizeMsgCatalog* catalog);
 bool assets_msg_load_file(ColonizeMsgCatalog* catalog, const char* path);
+/* Folder of the port's tracked mod text (data/mods); every later
+ * assets_msg_load_file merges the same-named file from it, additively (new
+ * sections, appended rows; stock rows are never replaced). NULL/"" = off,
+ * the default, so tests load stock catalogs untouched. */
+void assets_set_mod_data_dir(const char* dir);
 const ColonizeMsgSection* assets_msg_find(const ColonizeMsgCatalog* catalog, const char* section_name);
 
 /*

@@ -1688,6 +1688,14 @@ static GameMenuActionStatus game_menu_action_system(ColonizeGameState* game, Map
       }
       return GAME_MENU_ACTION_DONE;
     }
+    case MAP_MENU_ACTION_MODS:
+      /* Edits the settings.json defaults only; the running campaign keeps its mask. */
+      if (!options_dialog_open_mods(
+            &game->options_dlg, &game->messages, settings_mods_mask(settings_get())
+          )) {
+        set_status(game, "", NULL); /* no @MODOPTIONS: no typed fallback */
+      }
+      return GAME_MENU_ACTION_DONE;
     default:
       break;
   }

@@ -1,0 +1,16 @@
+;
+;       OpenCol mod text merged into GAME.TXT (docs/settings.md "mods").
+;       Additive only: a new section is added whole; in a stock section
+;       "N=text" appends row N, which must equal the stock row count.
+;
+
+;       GAME > Mods for New Games: one @options row per toggle, in ModId
+;       order (src/core/mods.h). Edits settings.json; a game in progress
+;       keeps the toggles it started with.
+@MODOPTIONS
+@width=220
+@checkbox
+Mods for New Games (this game keeps its own)
+@options
+Natives ~Loot Wagon Trains
+~Go To Waits at Natives (DOS bug fix)

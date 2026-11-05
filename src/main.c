@@ -4,8 +4,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+#include <sys/stat.h>
 #include <time.h>
 
+#include "core/assets.h"
 #include "core/dos_rng.h"
 #include "core/game_loop.h"
 #include "core/new_game.h"
@@ -157,6 +159,26 @@ int main(int argc, char** argv) {
   char settings_err[256];
   if (!settings_init(NULL, settings_err, sizeof(settings_err))) {
     fprintf(stderr, "Warning: %s; using default options.\n", settings_err);
+  }
+  {
+    /* Mod text (data/mods): next to the executable (release packages), else in
+     * the working directory (a dev run from the repo root). Before game_create
+     * loads the catalogs. Missing = the Mods menu row and dialog have no text. */
+    char mods_dir[1024] = "";
+    struct stat mods_st;
+    const char* exe_dir = diag_exe_dir();
+    if (exe_dir && exe_dir[0]) {
+      snprintf(mods_dir, sizeof(mods_dir), "%s/data/mods", exe_dir);
+    }
+    if (!mods_dir[0] || stat(mods_dir, &mods_st) != 0 || !S_ISDIR(mods_st.st_mode)) {
+      snprintf(mods_dir, sizeof(mods_dir), "%s", "./data/mods");
+    }
+    if (stat(mods_dir, &mods_st) == 0 && S_ISDIR(mods_st.st_mode)) {
+      assets_set_mod_data_dir(mods_dir);
+      diag_info("Mod data folder: %s", mods_dir);
+    } else {
+      diag_warn("No data/mods folder next to the executable or in the working directory");
+    }
   }
   {
     const ColonizeSettings* prefs = settings_get();

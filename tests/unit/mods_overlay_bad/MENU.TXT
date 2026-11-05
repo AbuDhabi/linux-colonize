@@ -1,0 +1,8 @@
+;
+;       test_map_menu case_mods_overlay_refuses_stock_rows: every line below
+;       tries to change a stock @GAME row and must be refused.
+;
+@GAME
+0=  Replaced Title
+99=  Out Of Range
+Unnumbered Row

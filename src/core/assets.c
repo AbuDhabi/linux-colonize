@@ -369,7 +369,28 @@ static ColonizeMsgSection* msg_add_section(ColonizeMsgCatalog* catalog, const ch
   return section;
 }
 
-bool assets_msg_load_file(ColonizeMsgCatalog* catalog, const char* path) {
+static bool msg_push_line(ColonizeMsgSection* section, const char* line, bool blank_before) {
+  if (section->line_count >= section->line_capacity) {
+    const int next = section->line_capacity == 0 ? 16 : section->line_capacity * 2;
+    char (*grown)[COLONIZE_MSG_LINE_LEN] = realloc(section->lines, (size_t)next * sizeof(*grown));
+    if (!grown) {
+      return false;
+    }
+    section->lines = grown;
+    uint8_t* grown_bb = realloc(section->blank_before, (size_t)next * sizeof(uint8_t));
+    if (!grown_bb) {
+      return false;
+    }
+    section->blank_before = grown_bb;
+    section->line_capacity = next;
+  }
+  str_copy_trunc(section->lines[section->line_count], COLONIZE_MSG_LINE_LEN, line);
+  section->blank_before[section->line_count] = blank_before ? 1 : 0;
+  section->line_count++;
+  return true;
+}
+
+static bool msg_load_raw(ColonizeMsgCatalog* catalog, const char* path) {
   if (!catalog || !path) {
     return false;
   }
@@ -426,30 +447,88 @@ bool assets_msg_load_file(ColonizeMsgCatalog* catalog, const char* path) {
     if (!current) {
       continue;
     }
-    if (current->line_count >= current->line_capacity) {
-      const int next = current->line_capacity == 0 ? 16 : current->line_capacity * 2;
-      char (*grown)[COLONIZE_MSG_LINE_LEN] =
-        realloc(current->lines, (size_t)next * sizeof(*grown));
-      if (!grown) {
-        fclose(f);
-        return false;
-      }
-      current->lines = grown;
-      uint8_t* grown_bb = realloc(current->blank_before, (size_t)next * sizeof(uint8_t));
-      if (!grown_bb) {
-        fclose(f);
-        return false;
-      }
-      current->blank_before = grown_bb;
-      current->line_capacity = next;
+    if (!msg_push_line(current, line, pending_blank)) {
+      fclose(f);
+      return false;
     }
-    str_copy_trunc(current->lines[current->line_count], COLONIZE_MSG_LINE_LEN, line);
-    current->blank_before[current->line_count] = pending_blank ? 1 : 0;
     pending_blank = false;
-    current->line_count++;
   }
   fclose(f);
   diag_info("Loaded message catalog %s (%d sections)", path, catalog->section_count);
+  return true;
+}
+
+/*
+ * Port mod data (docs/settings.md "mods"): tracked text files under data/mods/,
+ * one per stock catalog name, merged into that catalog on load. Additive only:
+ * a section the stock file lacks is added whole; a section it has takes
+ * "N=text" lines where N must equal its row count (append). Any other N would
+ * overwrite a stock row and is refused. Empty dir = nothing merged (tests).
+ */
+static char s_mod_data_dir[1024];
+
+void assets_set_mod_data_dir(const char* dir) {
+  snprintf(s_mod_data_dir, sizeof(s_mod_data_dir), "%s", dir ? dir : "");
+}
+
+static void msg_apply_mod_data(ColonizeMsgCatalog* catalog, const char* path) {
+  if (!s_mod_data_dir[0]) {
+    return;
+  }
+  const char* base = path;
+  for (const char* p = path; *p; ++p) {
+    if (*p == '/' || *p == '\\') {
+      base = p + 1;
+    }
+  }
+  char ov_path[1200];
+  if (!dos_compat_normalize_asset_path(s_mod_data_dir, base, ov_path, sizeof(ov_path))) {
+    return; /* no mod data for this catalog */
+  }
+  ColonizeMsgCatalog ov;
+  assets_msg_init(&ov);
+  if (!msg_load_raw(&ov, ov_path)) {
+    diag_warn("Mod data %s unreadable; %s loaded without it", ov_path, path);
+    assets_msg_free(&ov);
+    return;
+  }
+  for (int i = 0; i < ov.section_count; ++i) {
+    ColonizeMsgSection* src = &ov.sections[i];
+    ColonizeMsgSection* dst = (ColonizeMsgSection*)assets_msg_find(catalog, src->name);
+    if (!dst) {
+      ColonizeMsgSection* added = msg_add_section(catalog, src->name);
+      if (!added) {
+        break;
+      }
+      *added = *src; /* take the lines over; ov no longer owns them */
+      memset(&ov.sections[i], 0, sizeof(ov.sections[i]));
+      continue;
+    }
+    for (int k = 0; k < src->line_count; ++k) {
+      const char* line = src->lines[k];
+      char* eq = NULL;
+      const long row = strtol(line, &eq, 10);
+      if (eq == line || *eq != '=' || row != dst->line_count) {
+        diag_warn(
+          "Mod data %s @%s: '%s' is not %d=text (stock rows are never replaced); skipped",
+          ov_path, src->name, line, dst->line_count
+        );
+        continue;
+      }
+      if (!msg_push_line(dst, eq + 1, false)) {
+        break;
+      }
+    }
+  }
+  assets_msg_free(&ov);
+  diag_info("Applied mod data %s", ov_path);
+}
+
+bool assets_msg_load_file(ColonizeMsgCatalog* catalog, const char* path) {
+  if (!msg_load_raw(catalog, path)) {
+    return false;
+  }
+  msg_apply_mod_data(catalog, path);
   return true;
 }
 

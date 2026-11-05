@@ -1,0 +1,9 @@
+;
+;       OpenCol mod text merged into MENU.TXT (docs/settings.md "mods").
+;       Additive only: a new section is added whole; in a stock section
+;       "N=text" appends row N, which must equal the stock row count.
+;
+
+;       GAME pulldown row 10: the Mods dialog (defaults for new games)
+@GAME
+10=  Mods for New Games
