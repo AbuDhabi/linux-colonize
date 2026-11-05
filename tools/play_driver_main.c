@@ -109,7 +109,7 @@
  *                               grouped by 8x8 block ("FOG x0,y0 n"), to aim scouts at; the first
  *                               40 tiles also print as "FOGTILE x,y"
  *   rumours                     list seen rumour tiles with terrain (h hill, m mountain)
- *   plan X Y clear|plow|road    VIEW Plan Pioneer toggle on tile X,Y (divergences.pioneer_plan;
+ *   plan X Y clear|plow|road    VIEW Plan Pioneer toggle on tile X,Y (mods.pioneer_plan;
  *                               clear cycles Clear -> Clear+Plow -> none); ORDERS Automate (`key q`)
  *                               then walks a Pioneer through the plan
  *   activate ID                 wake and select unit ID (the stack-list pick by id;
@@ -2116,7 +2116,7 @@ static bool command(char* line) {
                       : strcmp(argv[3], "plow") == 0 ? PIONEER_PLAN_PLOW : PIONEER_PLAN_ROAD;
     const ColonizeWorld w = game_world(g_game);
     if (!pioneer_plan_enabled()) {
-      printf("ERR plan: divergences.pioneer_plan is off\n");
+      printf("ERR plan: mods.pioneer_plan is off\n");
     } else if (!pioneer_plan_toggle(&w, g_game->human_nation, a1, a2, bit)) {
       printf("ERR plan (%d,%d) %s refused\n", a1, a2, argv[3]);
     } else {

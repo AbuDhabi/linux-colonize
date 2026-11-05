@@ -28,7 +28,7 @@
 #include "core/popup_msg.h"
 #include "core/reports.h"
 #include "core/dos_buggy.h"
-#include "core/settings.h"
+#include "core/mods.h"
 #include "core/strutil.h"
 #include "core/units.h"
 
@@ -247,7 +247,7 @@ static bool ai_king_10f0_pick_spawn(const ColonizeTurnContext* ctx, int human, i
  */
 /* ===== REF garrison scoring & invasion mechanics (ai_king_0982_garrison_score .. ai_king_ref_wave) ===== */
 /*
- * Port divergence (settings.json divergences.hard_king, docs/settings.md): the
+ * Port mod (mods_on(MOD_HARD_KING), docs/settings.md "Mods"): the
  * colony owner's land units with attack > 1 standing within Chebyshev 2 of
  * the colony but off its tile, i.e. the 5x5 reinforcements DOS ignores.
  * Returns the count; *x16 (if set) gets their summed 004a strength >> 4.
@@ -295,7 +295,7 @@ COLONIZE_INTERNAL int ai_king_0982_garrison_score(const ColonizeTurnContext* ctx
   } else if (fort >= 0 && c->has_building[fort]) {
     g = (g * 3) >> 1;
   }
-  if (settings_get()->hard_king) {
+  if (mods_on(MOD_HARD_KING)) {
     int area = 0;
     (void)ai_king_hard_area_military(ctx, c, &area);
     g += area; /* outside the walls: no Fort/Fortress multiplier */
@@ -712,9 +712,9 @@ COLONIZE_INTERNAL void ai_king_0982_land_troops(
             k = 3;
           }
         } else {
-          /* divergences.hard_king: the target's own units do not count, so
+          /* mods.hard_king: the target's own units do not count, so
            * their tiles tie with empty ones and get seized (0512). */
-          const bool hard = settings_get()->hard_king;
+          const bool hard = mods_on(MOD_HARD_KING);
           int stack = 0;
           for (int i = 0; i < units_slot_end(ctx->units); ++i) {
             const ColonizeUnit* u = &ctx->units->units[i];
@@ -804,7 +804,7 @@ COLONIZE_INTERNAL void ai_king_0982_invasion(struct ai_king_0982_ctx* w) {
   int cidx[COLONIZE_COLONIES_MAX];
   int n = 0;
   int last_tile_head_id = -1; /* DOS local_4c: 07e0 of the last scored colony tile */
-  /* divergences.hard_king: later waves of a turn skip colonies already
+  /* mods.hard_king: later waves of a turn skip colonies already
    * invaded this turn (w->targeted) unless no other port is left. */
   for (int skip_pass = w->targeted ? 0 : 1; skip_pass < 2 && n == 0; ++skip_pass)
   for (int i = 0; i < COLONIZE_COLONIES_MAX && n < max_targets; ++i) {
@@ -820,7 +820,7 @@ COLONIZE_INTERNAL void ai_king_0982_invasion(struct ai_king_0982_ctx* w) {
     }
     const int inv = 100 - ai_king_colony_sol_at(ctx, human, c->x, c->y);
     int strength = ai_king_0982_tile_strength(ctx, c->x, c->y);
-    if (settings_get()->hard_king) {
+    if (mods_on(MOD_HARD_KING)) {
       strength += ai_king_hard_area_military(ctx, c, NULL);
     }
     int sc = c->colonist_count * (inv + 25) - 75 * strength;
@@ -1107,12 +1107,12 @@ void ai_king_ref_wave(ColonizeTurnContext* ctx) {
     exhaust = true;
   }
   /*
-   * divergences.hard_king: up to difficulty + 1 waves a turn (Discoverer 1 ..
+   * mods.hard_king: up to difficulty + 1 waves a turn (Discoverer 1 ..
    * Viceroy 5), each spending one hull from force[2]; an empty MoW pool or
    * land pools ends the turn's waves early. Later waves prefer colonies not
    * yet invaded this turn. Only the first wave can trigger the exhaust wipe.
    */
-  const int max_waves = settings_get()->hard_king ? (int)ctx->col1->head.difficulty + 1 : 1;
+  const int max_waves = mods_on(MOD_HARD_KING) ? (int)ctx->col1->head.difficulty + 1 : 1;
   bool targeted[COLONIZE_COLONIES_MAX];
   memset(targeted, 0, sizeof(targeted));
   for (int wave = 0; wave < max_waves && ctx->colonies; ++wave) {

@@ -859,7 +859,7 @@ static int run_test(const char* name) {
   }
   char act_sav[700];
   snprintf(act_sav, sizeof(act_sav), "%s/actual.sav", out_dir);
-  /* Render-only divergences (current_vision) never reach the save: the
+  /* Render-only mods (current_vision) change no game state in the save: the
    * test's optional output.frame pins the final frame's pixel hash. */
   uint64_t frame_hash = 14695981039346656037ull;
   for (int i = 0; i < fb.width * fb.height; ++i) {

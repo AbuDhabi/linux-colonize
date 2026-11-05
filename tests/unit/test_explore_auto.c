@@ -1,5 +1,5 @@
-/* divergences.scout_autoexplore / ship_autoexplore: target choice, hostile avoidance,
- * autostop, SAUT round trip. */
+/* mods.scout_autoexplore / ship_autoexplore: target choice, hostile avoidance,
+ * autostop, SAUT round trip, off = no Automate. */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -9,9 +9,9 @@
 #include "core/col1_save.h"
 #include "core/colony.h"
 #include "core/map.h"
+#include "core/mods.h"
 #include "core/pioneer_plan.h"
 #include "core/explore_auto.h"
-#include "core/settings.h"
 #include "core/units.h"
 #include "core/units_move.h"
 #include "platform/diagnostics.h"
@@ -30,10 +30,7 @@ static ColonizeWorldMap s_map;
 static ColonizeColonyPool s_colonies;
 
 static int case_scout(void) {
-  ColonizeSettings s;
-  settings_defaults(&s);
-  s.scout_autoexplore = true;
-  settings_set(&s);
+  mods_campaign_set(1u << MOD_SCOUT_AUTOEXPLORE);
   explore_auto_reset();
   assets_msg_init(&s_names);
   if (!assets_msg_load_file(&s_names, "COLONIZE/NAMES.TXT")) {
@@ -163,11 +160,15 @@ static int case_scout(void) {
   explore_auto_step(&w, u);
   CHECK(!u->automated && u->orders == UNITS_ORDER_NONE);
 
-  /* Off: no SAUT chunk. */
-  s.scout_autoexplore = false;
-  settings_set(&s);
+  /* Off: no SAUT chunk, no Automate, and an automated Scout drops it. */
+  mods_campaign_set(0);
   u->automated = true;
   CHECK(!explore_auto_serialize(&s_pool, &n) && n == 0);
+  CHECK(!explore_auto_allowed(&s_pool, u));
+  u->orders = UNITS_ORDER_NONE;
+  explore_auto_step(&w, u);
+  CHECK(!u->automated && u->orders == UNITS_ORDER_NONE);
+  CHECK(!explore_auto_automate(&w, u) && !u->automated);
   map_free(&s_map);
   assets_msg_free(&s_names);
   return 0;
@@ -176,10 +177,7 @@ static int case_scout(void) {
 /* The stall count survives units_pool_compact (run between turn slices): the
  * Scout moves down into a freed slot and its track still follows it. */
 static int case_stall_survives_compact(void) {
-  ColonizeSettings s;
-  settings_defaults(&s);
-  s.scout_autoexplore = true;
-  settings_set(&s);
+  mods_campaign_set(1u << MOD_SCOUT_AUTOEXPLORE);
   explore_auto_reset();
   assets_msg_init(&s_names);
   if (!assets_msg_load_file(&s_names, "COLONIZE/NAMES.TXT")) {
@@ -228,6 +226,7 @@ static int case_stall_survives_compact(void) {
   CHECK(kept == 12);
   CHECK(u->automated && u->orders == UNITS_ORDER_GOTO);
   CHECK(u->goto_x != sx || u->goto_y != sy);
+  mods_campaign_set(0);
   map_free(&s_map);
   assets_msg_free(&s_names);
   return 0;
@@ -236,10 +235,7 @@ static int case_stall_survives_compact(void) {
 /* 12x12 ocean (region 1); nation 0 has seen the 5x5 corner. A ship explores
  * the unseen ocean, and stops once only unseen lake water is left. */
 static int case_ship(void) {
-  ColonizeSettings s;
-  settings_defaults(&s);
-  s.ship_autoexplore = true;
-  settings_set(&s);
+  mods_campaign_set(1u << MOD_SHIP_AUTOEXPLORE);
   explore_auto_reset();
   assets_msg_init(&s_names);
   if (!assets_msg_load_file(&s_names, "COLONIZE/NAMES.TXT")) {
@@ -337,11 +333,10 @@ static int case_ship(void) {
   explore_auto_step(&w, u);
   CHECK(u->automated && u->orders == UNITS_ORDER_GOTO && u->goto_x == 7 && u->goto_y == 10);
 
-  /* A Scout setting does not automate ships. */
-  s.ship_autoexplore = false;
-  s.scout_autoexplore = true;
-  settings_set(&s);
+  /* The Scout mod does not automate ships. */
+  mods_campaign_set(1u << MOD_SCOUT_AUTOEXPLORE);
   CHECK(!explore_auto_automate(&w, u));
+  mods_campaign_set(0);
   map_free(&s_map);
   assets_msg_free(&s_names);
   return 0;

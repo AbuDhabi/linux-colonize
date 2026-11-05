@@ -260,7 +260,7 @@ static bool units_pioneer_wear_tools(ColonizeUnitPool* pool, ColonizeUnit* u) {
   u->tools = (u->tools - UNITS_PIONEER_TOOL_COST) & 0xff;
   if (u->tools < UNITS_PIONEER_TOOL_COST) {
     u->tools = 0;
-    /* divergences.pioneer_plan: out of tools ends Automate now, so the unit
+    /* mods.pioneer_plan: out of tools ends Automate now, so the unit
      * asks for orders this turn instead of after the next auto step. */
     u->automated = false;
     /* DOS-LITERAL FUN_479b_0158 raw 76696-76718: tools-out writes only

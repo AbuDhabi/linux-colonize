@@ -1,4 +1,4 @@
-# divergences.hard_king (settings.json): turns_declare_independence_ref's start and declaration, with up to difficulty + 1 REF waves a turn.
+# mod hard_king (RTST record 17 in input.sav): turns_declare_independence_ref's start and declaration, with up to difficulty + 1 REF waves a turn.
 # Start: map_declare_independence's input.sav (France, Spring 1599, turn 107; every French colony at 59% SoL)
 # with every French unit that had no orders / go-to / pioneer job put on sentry (orders 1), so only
 # units the war wakes need attention. The declaration steps are map_declare_independence's.

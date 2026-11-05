@@ -323,10 +323,14 @@ static bool map_menu_action_enabled(MapMenuAction action) {
   }
 }
 
-/* The mods.kings_audience row is hidden (so its K hotkey is dead too) unless
- * the running campaign has the mod on. */
+/* The mods.kings_audience and mods.pioneer_plan rows are hidden (so their
+ * hotkeys are dead too) unless the running campaign has the mod on. */
 static bool map_menu_action_visible(MapMenuAction action) {
-  return action != MAP_MENU_ACTION_KING_AUDIENCE || mods_on(MOD_KINGS_AUDIENCE);
+  switch (action) {
+    case MAP_MENU_ACTION_KING_AUDIENCE: return mods_on(MOD_KINGS_AUDIENCE);
+    case MAP_MENU_ACTION_PLAN_PIONEER: return mods_on(MOD_PIONEER_PLAN);
+    default: return true;
+  }
 }
 
 void map_menu_init(MapMenuBar* bar) {
@@ -563,7 +567,7 @@ static bool map_menu_load_section(
     map_menu_append_item(menu, label, action);
   }
   map_menu_insert_dos_separators(menu);
-  /* Port-only rows (divergences.pioneer_plan); map_menu_refresh hides them while off. */
+  /* Port-only rows (mods.pioneer_plan etc.); map_menu_refresh hides them while off. */
   if (strcmp(section_name, "VIEW") == 0) {
     map_menu_insert_port_item(menu, MAP_MENU_ACTION_VIEW_PIECES, "Pla~n Pioneer", MAP_MENU_ACTION_PLAN_PIONEER);
   } else if (strcmp(section_name, "ORDERS") == 0) {
@@ -942,14 +946,15 @@ static void map_menu_refresh_orders_dos(
     }
   }
 
-  /* Automate: Pioneers (divergences.pioneer_plan), Scouts / ships
-   * (divergences.scout_autoexplore / ship_autoexplore). */
+  /* Automate: Pioneers (mods.pioneer_plan), Scouts / ships
+   * (mods.scout_autoexplore / ship_autoexplore), per the running campaign. */
   const bool scout = land && units_type_is_scout(units_type(ctx->units, u->type_index));
   for (int i = 0; i < orders->item_count; ++i) {
     MapMenuItem* it = &orders->items[i];
     if (it->action == MAP_MENU_ACTION_AUTOMATE) {
-      it->visible = (ctx->pioneer_plan && pioneer) || (ctx->scout_auto && scout) ||
-                    (ctx->ship_auto && sea);
+      it->visible = (mods_on(MOD_PIONEER_PLAN) && pioneer) ||
+                    (mods_on(MOD_SCOUT_AUTOEXPLORE) && scout) ||
+                    (mods_on(MOD_SHIP_AUTOEXPLORE) && sea);
       it->enabled = it->visible && (!pioneer || u->tools >= 20);
     }
   }
@@ -1045,7 +1050,6 @@ void map_menu_refresh(MapMenuBar* bar, const MapMenuOrdersContext* ctx) {
       it->visible = map_menu_action_visible(it->action);
       it->enabled = map_menu_action_enabled(it->action);
       if (it->action == MAP_MENU_ACTION_PLAN_PIONEER) {
-        it->visible = ctx && ctx->pioneer_plan;
         snprintf(
           it->label, sizeof(it->label), "Pla~n Pioneer: %s", ctx && ctx->plan_view ? "On" : "Off"
         );

@@ -818,7 +818,7 @@ static GameUpdateStep game_pacer_goto_step(
     const int gx = active->goto_x;
     const int gy = active->goto_y;
     if (active->automated) {
-      explore_auto_note_village(active->nation_id, gx, gy); /* divergences.scout_autoexplore */
+      explore_auto_note_village(active->nation_id, gx, gy); /* mods.scout_autoexplore */
     }
     units_clear_orders(&game->units, aid);
     game->units.selected_id = aid;
@@ -940,7 +940,7 @@ static GameUpdateStep game_pacer_goto_step(
      * closest analogue: the destination tile is the sail intent. */
     const int goto_dest_x = (int)active->goto_x;
     const int goto_dest_y = (int)active->goto_y;
-    /* Automated exploring ships (divergences.ship_autoexplore) aim at lane
+    /* Automated exploring ships (mods.ship_autoexplore) aim at lane
      * tiles to see past them, never to sail. */
     const bool goto_ship_to_lane = active->orders == UNITS_ORDER_GOTO && !active->automated &&
       units_is_sea(&game->units, active_id) && game->europe_ok &&
@@ -1088,9 +1088,10 @@ COLONIZE_INTERNAL GameUpdateStep game_update_unit_pacer(ColonizeGameState* game,
   /* No power at the controls: no unit is the player's (a resumed save's
    * selected unit would otherwise run its goto here, outside the AI). */
   const bool all_ai = game->col1_ok && col1_all_ai_fixed_nation(&game->col1) >= 0;
-  /* divergences.pioneer_plan: Plan Pioneer lives inside View Pieces only, and
-   * the plan forgets what the player can see is done or impossible. */
-  if (!game->view_pieces_mode || game->units.selected_id >= 0) {
+  /* mods.pioneer_plan: Plan Pioneer lives inside View Pieces only (and only in
+   * a campaign with the mod), and the plan forgets what the player can see is
+   * done or impossible. */
+  if (!game->view_pieces_mode || game->units.selected_id >= 0 || !pioneer_plan_enabled()) {
     game->pioneer_plan_view = false;
   }
   if (game->world_map_ok && pioneer_plan_enabled()) {

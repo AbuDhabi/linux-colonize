@@ -111,7 +111,7 @@
 #include "core/save_load_dialog.h"
 #include "core/savegame.h"
 #include "core/screen_geom.h"
-#include "core/settings.h"
+#include "core/mods.h"
 #include "core/sound.h"
 #include "core/ss.h"
 #include "core/strutil.h"
@@ -1408,9 +1408,6 @@ void game_refresh_orders_menu(ColonizeGameState* game) {
   ctx.cursor_y = game->map_cursor_y;
   ctx.human_nation = game->human_nation;
   ctx.europe_ok = game->europe_ok;
-  ctx.pioneer_plan = pioneer_plan_enabled();
-  ctx.scout_auto = settings_get()->scout_autoexplore;
-  ctx.ship_auto = settings_get()->ship_autoexplore;
   ctx.plan_view = game->pioneer_plan_view;
   if (ctx.plan_view) {
     const ColonizeWorld w = game_world_const(game);
@@ -2109,7 +2106,7 @@ static bool game_plan_road(const ColonizeWorldMap* map, int x, int y) {
 }
 
 /*
- * VIEW Plan Pioneer overlay (divergences.pioneer_plan), drawn over the terrain
+ * VIEW Plan Pioneer overlay (mods.pioneer_plan), drawn over the terrain
  * in cyan: the plowed-field art for a planned Plow, road art for a planned Road
  * (joined to real and planned roads; real roads get cyan stubs toward planned
  * ones), and the Tools cargo icon centred for a planned Clear.
@@ -2172,7 +2169,7 @@ static void game_render_pioneer_plan(
   }
 }
 
-/* divergences.current_vision: mark a tile as live-seen. */
+/* mods.current_vision: mark a tile as live-seen. */
 typedef struct GameVisionGrid {
   const ColonizeWorldMap* map;
   uint8_t* lit;
@@ -2185,14 +2182,14 @@ static void game_vision_mark(void* ctx, int x, int y, bool outer) {
 }
 
 /*
- * divergences.current_vision (port-only): checkerboard of a 1/4 fog-blue tint on every seen tile that
+ * mods.current_vision (port-only): checkerboard of a 1/4 fog-blue tint on every seen tile that
  * no unit (units_sight_radius, map_sight_each domain gate) or colony (radius
  * 1, the FUN_1427_0bfe live-sight ring) of the viewed nation currently sees.
  * Layering, top first: colony names, fog, this veil, everything else.
  */
-static bool game_current_vision_on(const ColonizeGameState* game) {
+bool game_current_vision_on(const ColonizeGameState* game) {
   const int nation = game_fog_nation(game);
-  return settings_get()->current_vision && game->world_map_ok && game->map_palette_ok &&
+  return mods_on(MOD_CURRENT_VISION) && game->world_map_ok && game->map_palette_ok &&
          game->terrain_peel_phase == 0 && nation >= 0 && nation <= 3;
 }
 
@@ -2326,7 +2323,7 @@ static void game_render_current_vision(
 }
 
 /*
- * divergences.current_vision fog layer: s_fog_mask[p] = 1 where the terrain
+ * mods.current_vision fog layer: s_fog_mask[p] = 1 where the terrain
  * pass left a fog pixel (PHYS0 148 noise, a dither mask's non-zero ink), 0
  * where terrain shows (a mask's colour-0 holes take the fill). The fog pixels
  * are re-stamped over the veil and the pieces afterwards.

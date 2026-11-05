@@ -48,8 +48,8 @@ static void test_missing_file_defaults(void) {
         "default input logger off, ./input_logs");
   check(!s.unlimited_units, "default divergences.unlimited_units off (DOS limits)");
   check(!s.modern_prng, "default divergences.modern_prng off (DOS LCG)");
-  check(!s.pioneer_plan, "default divergences.pioneer_plan off");
-  check(!s.current_vision, "default divergences.current_vision off");
+  check(!s.mods[MOD_PIONEER_PLAN], "default mods.pioneer_plan off");
+  check(!s.mods[MOD_CURRENT_VISION], "default mods.current_vision off");
 }
 
 static void test_roundtrip(void) {
@@ -418,6 +418,57 @@ static void test_mods_group(void) {
   settings_set(&saved);
 }
 
+/* pioneer_plan, scout_autoexplore, ship_autoexplore, hard_king and
+ * current_vision moved from "divergences" to "mods": a legacy key seeds the
+ * new-game default only when "mods" has no value for it, and a rewrite keeps
+ * the value under "mods" alone. */
+static void test_legacy_divergence_keys(void) {
+  FILE* f = fopen(k_path, "wb");
+  check(f != NULL, "write legacy divergences file");
+  if (!f) {
+    return;
+  }
+  fputs("{ \"divergences\": { \"hard_king\": true, \"pioneer_plan\": true, "
+        "\"current_vision\": true, \"scout_autoexplore\": true, \"unlimited_units\": true },\n"
+        "  \"mods\": { \"pioneer_plan\": false, \"current_vision\": \"yes\" } }\n",
+        f);
+  fclose(f);
+  ColonizeSettings s;
+  char err[256] = {0};
+  check(settings_load_file(k_path, &s, err, sizeof(err)), "legacy file loads");
+  check(s.mods[MOD_HARD_KING], "legacy divergences.hard_king seeds mods.hard_king");
+  check(s.mods[MOD_SCOUT_AUTOEXPLORE], "legacy scout_autoexplore seeds the mod");
+  check(!s.mods[MOD_SHIP_AUTOEXPLORE], "absent legacy key keeps the mod default");
+  check(!s.mods[MOD_PIONEER_PLAN], "a mods key wins over the legacy key");
+  check(s.mods[MOD_CURRENT_VISION], "a non-bool mods key falls back to the legacy key");
+  check(s.unlimited_units, "unlimited_units stays a divergence");
+
+  check(settings_save_file(k_path, &s, err, sizeof(err)), "legacy file rewrites");
+  f = fopen(k_path, "rb");
+  char buf[4096] = {0};
+  if (f) {
+    const size_t n = fread(buf, 1, sizeof(buf) - 1, f);
+    buf[n] = '\0';
+    fclose(f);
+  }
+  const char* div = strstr(buf, "\"divergences\"");
+  const char* mods = strstr(buf, "\"mods\"");
+  const char* hk = strstr(buf, "\"hard_king\": true");
+  check(div && mods && hk && hk > mods, "rewritten file has hard_king under mods");
+  const char* div_end = div ? strchr(div, '}') : NULL;
+  bool legacy_left = false;
+  for (int id = MOD_PIONEER_PLAN; id <= MOD_CURRENT_VISION && div && div_end; ++id) {
+    const char* keys[] = {"pioneer_plan", "scout_autoexplore", "ship_autoexplore", "hard_king",
+                          "current_vision"};
+    const char* hit = strstr(div, keys[id - MOD_PIONEER_PLAN]);
+    legacy_left = legacy_left || (hit && hit < div_end);
+  }
+  check(!legacy_left, "rewritten divergences object drops the five legacy keys");
+  ColonizeSettings back;
+  check(settings_load_file(k_path, &back, err, sizeof(err)), "rewritten file reloads");
+  check(memcmp(&back, &s, sizeof(s)) == 0, "rewritten file keeps every value");
+}
+
 /* Void cases report through check(); a case fails if it added a failure. */
 #define CASE_(fn) \
   static int tc_##fn(void) { \
@@ -435,6 +486,7 @@ CASE_(test_seed_null_omitted_and_zero)
 CASE_(test_bad_file_is_an_error)
 CASE_(test_head_bridge_preserves_state)
 CASE_(test_mods_group)
+CASE_(test_legacy_divergence_keys)
 CASE_(test_init_creates_file)
 CASE_(test_init_keeps_corrupt_file)
 #undef CASE_
@@ -450,6 +502,7 @@ static const TestCase k_cases[] = {
   {"test_bad_file_is_an_error", tc_test_bad_file_is_an_error},
   {"test_head_bridge_preserves_state", tc_test_head_bridge_preserves_state},
   {"test_mods_group", tc_test_mods_group},
+  {"test_legacy_divergence_keys", tc_test_legacy_divergence_keys},
   /* Keep the settings_init cases last: they latch the process-wide state. */
   {"test_init_creates_file", tc_test_init_creates_file},
   {"test_init_keeps_corrupt_file", tc_test_init_keeps_corrupt_file},

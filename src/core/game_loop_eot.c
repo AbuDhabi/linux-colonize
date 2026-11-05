@@ -894,11 +894,11 @@ bool game_select_next_unit_awaiting_orders(ColonizeGameState* game) {
     /* No rng here (as before #1110): a stream would arm the FUN_4cc6_00f2
      * mission-burn roll inside the pioneer work tick, a behaviour change. */
     w.rng = NULL;
-    /* divergences.pioneer_plan Automate: a started job spends the turn. */
+    /* mods.pioneer_plan Automate: a started job spends the turn. */
     if (pioneer_plan_auto_step(&w, u, &game->ai_popups, &game->messages)) {
       continue;
     }
-    explore_auto_step(&w, u); /* divergences.scout/ship_autoexplore: next Go To */
+    explore_auto_step(&w, u); /* mods.scout/ship_autoexplore: next Go To */
     if (turn_rotation_lasting_step_w(&w, u, &game->ai_popups, &game->messages)) {
       /* The rotation's pick is DOS's FUN_2b5a_0e52 activation, which runs the
        * piece-selected tutorial chain (raw 42330-42332). */
@@ -1765,7 +1765,7 @@ static GameMenuActionStatus game_menu_action_view(ColonizeGameState* game, MapMe
       return GAME_MENU_ACTION_DONE;
     }
     case MAP_MENU_ACTION_PLAN_PIONEER:
-      /* divergences.pioneer_plan: the overlay is a View Pieces sub-mode. */
+      /* mods.pioneer_plan: the overlay is a View Pieces sub-mode. */
       if (game->pioneer_plan_view) {
         game->pioneer_plan_view = false;
       } else {

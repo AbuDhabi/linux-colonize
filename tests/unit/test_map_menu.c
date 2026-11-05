@@ -8,6 +8,7 @@
 #include "core/map_menu.h"
 #include "core/map_panel.h"
 #include "core/mods.h"
+#include "core/runtime_ext.h"
 #include "core/units.h"
 #include "platform/diagnostics.h"
 
@@ -366,6 +367,110 @@ static int case_kings_audience_row(void) {
     return 1;
   }
   return 0;
+}
+
+/* mods.pioneer_plan / scout_autoexplore / ship_autoexplore: VIEW Plan Pioneer
+ * and ORDERS Automate follow the campaign mask a load restores (RTST record
+ * 17), not settings.json; a save without the record hides them. */
+static bool row_visible(const MapMenuBar* bar, const char* section, MapMenuAction action) {
+  const MapMenuPulldown* m = &bar->menus[find_section(bar, section)];
+  for (int i = 0; i < m->item_count; ++i) {
+    if (m->items[i].action == action) {
+      return m->items[i].visible;
+    }
+  }
+  return false;
+}
+
+static void load_mask(uint32_t mask) {
+  uint8_t rec[12] = {17, 0, 1, 0, 4, 0, 0, 0};
+  for (int i = 0; i < 4; ++i) {
+    rec[8 + i] = (uint8_t)(mask >> (8 * i));
+  }
+  runtime_ext_deserialize(NULL, NULL, NULL, mask ? rec : NULL, mask ? sizeof rec : 0);
+}
+
+static int case_port_rows_follow_mods(void) {
+  Fixture fx;
+  if (fixture_init(&fx) != 0) {
+    return 1;
+  }
+  MapMenuBar* bar = &fx.bar;
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  static ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  ColonizeWorldMap omap;
+  memset(&omap, 0, sizeof(omap));
+  char oerr[128];
+  if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT") || !units_load_types(&pool, &names) ||
+      !map_alloc(&omap, 8, 8, oerr, sizeof(oerr))) {
+    assets_msg_free(&names);
+    fixture_free(&fx);
+    return 1;
+  }
+  for (int i = 0; i < 8 * 8; ++i) {
+    omap.terrain[i] = 2; /* plains */
+  }
+  ColonizeColonyPool ocol;
+  colonies_init(&ocol);
+  colonies_set_occupancy_map(NULL);
+  const int ids[3] = {
+    units_spawn(&pool, units_kind_type_index(&pool, UNITS_KIND_PIONEER), 3, 3),
+    units_spawn(&pool, units_kind_type_index(&pool, UNITS_KIND_SCOUT), 4, 4),
+    units_spawn(&pool, units_kind_type_index(&pool, UNITS_KIND_CARAVEL), 5, 5),
+  };
+  const ModId mods[3] = {MOD_PIONEER_PLAN, MOD_SCOUT_AUTOEXPLORE, MOD_SHIP_AUTOEXPLORE};
+  int rc = 0;
+  for (int k = 0; k < 3; ++k) {
+    ColonizeUnit* u = units_get(&pool, ids[k]);
+    if (!u) {
+      rc = 1;
+      break;
+    }
+    u->nation_id = 0;
+    u->tools = 100;
+    MapMenuOrdersContext octx;
+    memset(&octx, 0, sizeof(octx));
+    octx.units = &pool;
+    octx.map = &omap;
+    octx.colonies = &ocol;
+    octx.selected_id = ids[k];
+    octx.cursor_x = u->x;
+    octx.cursor_y = u->y;
+    load_mask(0);
+    map_menu_refresh(bar, &octx);
+    const bool off = row_visible(bar, "ORDERS", MAP_MENU_ACTION_AUTOMATE);
+    load_mask(1u << mods[(k + 1) % 3]);
+    map_menu_refresh(bar, &octx);
+    const bool other = row_visible(bar, "ORDERS", MAP_MENU_ACTION_AUTOMATE);
+    load_mask(1u << mods[k]);
+    map_menu_refresh(bar, &octx);
+    const bool on = row_visible(bar, "ORDERS", MAP_MENU_ACTION_AUTOMATE);
+    if (off || other || !on) {
+      fprintf(stderr, "Automate for unit %d: off %d, other mod %d, own mod %d\n", k, off, other,
+              on);
+      rc = 1;
+    }
+  }
+  MapMenuOrdersContext vctx;
+  memset(&vctx, 0, sizeof(vctx));
+  vctx.selected_id = -1;
+  load_mask(0);
+  map_menu_refresh(bar, &vctx);
+  const bool plan_off = row_visible(bar, "VIEW", MAP_MENU_ACTION_PLAN_PIONEER);
+  load_mask(1u << MOD_PIONEER_PLAN);
+  map_menu_refresh(bar, &vctx);
+  const bool plan_on = row_visible(bar, "VIEW", MAP_MENU_ACTION_PLAN_PIONEER);
+  load_mask(0);
+  if (plan_off || !plan_on) {
+    fprintf(stderr, "Plan Pioneer row: off %d, on %d\n", plan_off, plan_on);
+    rc = 1;
+  }
+  map_free(&omap);
+  assets_msg_free(&names);
+  fixture_free(&fx);
+  return rc;
 }
 
 /* The overlay never replaces a stock row: `0=`, an out-of-range N and an
@@ -1121,6 +1226,7 @@ static int case_tile_rect_screen_phase(void) {
 static const TestCase k_cases[] = {
   {"case_mods_menu_overlay", case_mods_menu_overlay},
   {"case_kings_audience_row", case_kings_audience_row},
+  {"case_port_rows_follow_mods", case_port_rows_follow_mods},
   {"case_mods_overlay_refuses_stock_rows", case_mods_overlay_refuses_stock_rows},
   {"menu_counts_and_titles", case_menu_counts_and_titles},
   {"cheat_items", case_cheat_items},

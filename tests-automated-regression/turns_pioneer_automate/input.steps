@@ -1,4 +1,4 @@
-# divergences.pioneer_plan (settings.json, as pioneer_auto_start_work).
+# mod pioneer_plan (RTST record 17 in input.sav, as pioneer_auto_start_work).
 # From turns_spring_1600_events' output (France, Spring 1600, turn 108). Fixture edits (sav_json):
 # England <-> France at peace (euro_relation 96 both ways), the Caravel sailing to Europe (unit 148)
 # given 15 turns left, every idle / sentried / go-to French unit on the map Fortified (order 6), then

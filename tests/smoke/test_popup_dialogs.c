@@ -1230,8 +1230,33 @@ static int case_mods_dialog_pages(void) {
   return rc;
 }
 
+/* mods.current_vision: the veil follows the campaign mask, nothing else. */
+static int case_current_vision_follows_mods(void) {
+  ColonizeGameState* game = calloc(1, sizeof(*game));
+  if (!game) {
+    return fail("calloc game");
+  }
+  game->world_map_ok = true;
+  game->map_palette_ok = true;
+  game->human_nation = 0;
+  mods_campaign_set(0);
+  const bool off = game_current_vision_on(game);
+  mods_campaign_set(~(1u << MOD_CURRENT_VISION) & ((1u << MOD_COUNT) - 1u));
+  const bool others = game_current_vision_on(game);
+  mods_campaign_set(1u << MOD_CURRENT_VISION);
+  const bool on = game_current_vision_on(game);
+  mods_campaign_set(0);
+  free(game);
+  if (off || others || !on) {
+    fprintf(stderr, "current_vision: off %d, other mods %d, on %d\n", off, others, on);
+    return 1;
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
     {"mods_dialog_pages", case_mods_dialog_pages},
+    {"current_vision_follows_mods", case_current_vision_follows_mods},
     {"token_apply", case_token_apply},
     {"save_load_is_fonttiny", case_save_load_is_fonttiny},
     {"howmuch", case_howmuch},

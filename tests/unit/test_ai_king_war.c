@@ -2,7 +2,7 @@
  * King war events, non-combat gate, 43f7_0082 spawn types. */
 #include "test_ai_king_common.h"
 #include "core/dos_buggy.h"
-#include "core/settings.h"
+#include "core/mods.h"
 
 /* FUN_38fd_5930 @KINGNEWWAR: Crown cancels peace with a random peer, grants gold + vets. */
 static int test_king_new_war_event(void) {
@@ -701,12 +701,10 @@ static int case_tory_uprising_full_moves(void) {
   return rc;
 }
 
-/* ===== divergences.hard_king (docs/settings.md) ===== */
+/* ===== mods.hard_king (docs/settings.md "Mods") ===== */
 
 static void hard_king_set(bool on) {
-  ColonizeSettings st = *settings_get();
-  st.hard_king = on;
-  settings_set(&st);
+  mods_campaign_set(on ? 1u << MOD_HARD_KING : 0u);
 }
 
 static int count_crown(const TbInvFx* f, int type_index, int* ys, int ys_cap) {

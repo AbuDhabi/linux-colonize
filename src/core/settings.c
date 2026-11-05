@@ -104,11 +104,6 @@ static const SettingsBoolOpt k_debug_opts[] = {
 static const SettingsBoolOpt k_divergence_opts[] = {
   SETTINGS_BOOL(unlimited_units, false),
   SETTINGS_BOOL(modern_prng, false),
-  SETTINGS_BOOL(pioneer_plan, false),
-  SETTINGS_BOOL(current_vision, false),
-  SETTINGS_BOOL(scout_autoexplore, false),
-  SETTINGS_BOOL(ship_autoexplore, false),
-  SETTINGS_BOOL(hard_king, false),
 };
 
 /* "mods": one row per ModId, in ModId order. DOS bug fixes default on,
@@ -456,7 +451,17 @@ bool settings_load_file(const char* path, ColonizeSettings* out, char* err, size
     json_obj_get(root, "divergences"), out, k_divergence_opts,
     SETTINGS_OPT_COUNT(k_divergence_opts)
   );
-  rb_group(json_obj_get(root, "mods"), out, k_mod_opts, SETTINGS_OPT_COUNT(k_mod_opts));
+  const JsonValue* mods = json_obj_get(root, "mods");
+  rb_group(mods, out, k_mod_opts, SETTINGS_OPT_COUNT(k_mod_opts));
+  /* These toggles were "divergences" keys before they became mods: a legacy
+   * key seeds the new-game default when "mods" has no value for it. The next
+   * write drops the legacy key. */
+  for (int id = MOD_PIONEER_PLAN; id <= MOD_CURRENT_VISION; ++id) {
+    bool v;
+    if (!json_get_bool(mods, k_mod_opts[id].key, &v)) {
+      rb(json_obj_get(root, "divergences"), k_mod_opts[id].key, &out->mods[id]);
+    }
+  }
 
   const char* data_dir = json_get_str(root, "data_dir");
   if (data_dir && data_dir[0]) {
