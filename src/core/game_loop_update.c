@@ -140,9 +140,12 @@ static bool game_service_woodcut(ColonizeGameState* game, const ColonizeInputSta
  * anything, then clears the strip and lets the next one through. Same shape
  * here — while a line is up, the map's top strip shows it instead of the
  * pull-down titles and the turn pipeline does not advance. Returns true while
- * the strip is owned.
+ * the strip is owned and `hold` is set; without `hold` the line just plays
+ * out on its dwell and input is left alone.
  */
-static bool game_service_bar_message(ColonizeGameState* game, const ColonizeInputState* input) {
+static bool game_service_bar_message(
+  ColonizeGameState* game, const ColonizeInputState* input, bool hold
+) {
   if (!game) {
     return false;
   }
@@ -160,15 +163,15 @@ static bool game_service_bar_message(ColonizeGameState* game, const ColonizeInpu
     map_menu_set_message(&game->map_menu, NULL, 0);
     return false;
   }
-  const bool dismiss = input && (input->last_key != COLONIZE_KEY_NONE ||
-                                 input->mouse_left_clicked || input->mouse_right_clicked);
+  const bool dismiss = hold && input && (input->last_key != COLONIZE_KEY_NONE ||
+                                         input->mouse_left_clicked || input->mouse_right_clicked);
   (void)ai_popup_bar_service(&game->ai_popups, game->elapsed_ms, dismiss);
   map_menu_set_message(
     &game->map_menu,
     ai_popup_bar_message(&game->ai_popups),
     ai_popup_bar_message_color(&game->ai_popups)
   );
-  return ai_popup_bar_message(&game->ai_popups) != NULL;
+  return hold && ai_popup_bar_message(&game->ai_popups) != NULL;
 }
 
 static bool game_service_closing(
@@ -604,7 +607,7 @@ COLONIZE_INTERNAL GameUpdateStep game_update_services(ColonizeGameState* game, c
       return GAME_UPDATE_RETURN_TRUE;
     }
     /* Status line holds the pipeline exactly as DOS's FUN_1009_00b4 does. */
-    if (game_service_bar_message(game, input)) {
+    if (game_service_bar_message(game, input, true)) {
       return GAME_UPDATE_RETURN_TRUE;
     }
     /* Hot-seat: the outgoing power's popups are all answered by now. */
@@ -676,11 +679,12 @@ COLONIZE_INTERNAL GameUpdateStep game_update_services(ColonizeGameState* game, c
     }
   }
 
-  /* Same status-line hold once the turn processor is idle (a line queued by
-   * the last colony still has to be seen). */
-  if (game_service_bar_message(game, input)) {
-    return GAME_UPDATE_RETURN_TRUE;
-  }
+  /* Once the turn processor is idle the line still plays out on the strip,
+   * but it no longer holds the player's input (explicit user preference,
+   * NOT DOS's blocking FUN_1009_00b4: the colony `U` / unload lines are
+   * harmless info). Keys and clicks go to the map; the dwell runs out on
+   * its own. */
+  (void)game_service_bar_message(game, input, false);
 
   /* port_bugs.md: an endgame latch must actually END the game. Whatever path
    * latched it (popup chain, zero-colony crush, a loaded save, the silent

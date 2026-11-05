@@ -7960,6 +7960,25 @@ static int case_goto_hidden_foreign_unit(void) {
     fprintf(stderr, "goto-hidden: a visible foreign unit must still refuse\n");
     return 1;
   }
+  /* An armed mover may Go To a visible foreign unit: it is an attack target
+   * (the final step goes through the manual move and its confirms). */
+  const int soldier = units_find_type(&pool, "Soldiers");
+  const int armed = soldier >= 0 ? units_spawn_allow_stack(&pool, soldier, ux, uy) : -1;
+  ColonizeUnit* au = units_get(&pool, armed);
+  if (!au) {
+    fprintf(stderr, "goto-hidden: soldier spawn failed\n");
+    return 1;
+  }
+  au->nation_id = 0;
+  au->moves = 3;
+  int nx = -1, ny = -1;
+  if (!units_set_goto_w(&w, armed, ux + 2, uy) ||
+      !units_next_goto_step_w(&w, armed, &nx, &ny) ||
+      map_chebyshev(nx, ny, ux + 2, uy) != 1) {
+    fprintf(stderr, "goto-hidden: armed Go To onto a foreign unit must be accepted and pathed\n");
+    return 1;
+  }
+  units_despawn(&pool, armed);
   units_despawn(&pool, other);
   units_despawn(&pool, walker);
   fx_close();

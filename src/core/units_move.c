@@ -1783,7 +1783,17 @@ bool units_set_goto_w(
      */
     const bool village_dest = map_tile_has_city(map, dest_x, dest_y) &&
       (!colonies || colonies_id_at(colonies, dest_x, dest_y) < 0);
-    if (!village_dest) {
+    /*
+     * An attack target is a legal destination too: the pacer hands the
+     * final step to the manual-move handler (game_pacer_goto_step, smell
+     * #105), which asks @HAVETREATY / @WHACKINDIANS before any fight, so
+     * a peace bounce counts as a target here.
+     */
+    const ColonizeEnterReason why =
+      units_enter_probe_w(w, u->type_index, dest_x, dest_y, unit_id);
+    const bool attack_dest = why == COLONIZE_ENTER_COMBAT_LAND ||
+      why == COLONIZE_ENTER_COMBAT_NAVAL || why == COLONIZE_ENTER_BOUNCE_PEACE;
+    if (!village_dest && !attack_dest) {
       return false;
     }
   }
