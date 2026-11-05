@@ -147,6 +147,10 @@ typedef enum ColonizeTurnProcStep {
    */
   TURN_PROC_FINISH_5E52,
   TURN_PROC_FINISH_COLONY,
+  /* The human colony loop resumes here after each colony whose messages it
+   * queued: DOS FUN_364b_0688 shows them (and opens an elected "Zoom to
+   * colony.") as blocking calls before the next colony's coastal fort fires. */
+  TURN_PROC_FINISH_COLONY_LOOP,
   /*
    * port_bugs.md #394/404/407: king (REF) + year-end + market + human refresh moved
    * out of FINISH into their own slice, so every colony popup FINISH queued is
@@ -174,6 +178,7 @@ typedef struct ColonizeTurnProcessor {
   int handoff_nation;
   /* The calendar step + FUN_3844_0442 ran; the day top waits for its dialogs. */
   bool day_advanced;
+  int colony_cursor; /* next colony index of the human 00f2 loop (FINISH_COLONY_LOOP) */
 } ColonizeTurnProcessor;
 
 /* Advance year / autumn / turn counter per @TIMECHANGE. */

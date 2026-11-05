@@ -491,6 +491,8 @@ void ai_popup_colony_zoom_elect(AiPopupState* st, int colony_id);
  * bit; -1 = none ready.
  */
 int ai_popup_take_colony_zoom(AiPopupState* st);
+/* A colony-event message for colony_id is open, answered-unapplied or queued. */
+bool ai_popup_colony_has_pending(const AiPopupState* st, int colony_id);
 
 /*
  * Stable-reorder the queue: entries tagged `promote` that sit behind the first

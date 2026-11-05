@@ -71,6 +71,18 @@ void turn_run_colony_production_with_w(
   TurnColonyBeforeProduction before,
   void* before_user
 );
+/* Resumable walk: starts at colony index *cursor, stops after a human colony
+ * that queued a colony message and leaves *cursor at the next index (-1 = done). */
+void turn_run_colony_production_from_w(
+  const ColonizeWorld* w,
+  int human_nation,
+  ColonizeTurnResult* out,
+  AiPopupState* ai_popups,
+  const ColonizeMsgCatalog* messages,
+  TurnColonyBeforeProduction before,
+  void* before_user,
+  int* cursor
+);
 void turn_emit_built_chrome(
   const ColonizeMsgCatalog* messages,
   AiPopupState* ai_popups,
@@ -167,6 +179,10 @@ void turn_produce_one_colony(
 void turn_colony_unit_construction_one(const ColonizeWorld* w, ColonizeColony* col);
 void turn_run_colony_eot(ColonizeTurnContext* ctx, ColonizeTurnResult* out);
 void turn_run_human_colony_eot(ColonizeTurnContext* ctx, ColonizeTurnResult* out);
+/* turn_run_human_colony_eot in slices: begin once, then resume until it
+ * returns true; *cursor yields after a colony that queued its messages. */
+void turn_human_colony_eot_begin(ColonizeTurnContext* ctx, int* cursor);
+bool turn_human_colony_eot_resume(ColonizeTurnContext* ctx, ColonizeTurnResult* out, int* cursor);
 /* FUN_48d3_06ba, the human's Europe pass (lane hops, arrival, treasure, woodcut 9):
  * after the human 5e52 and its tax audience, before the colony loop (00f2 raw 58377). */
 void turn_run_human_europe_pass(ColonizeTurnContext* ctx);
@@ -202,6 +218,7 @@ void turn_step_indian(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx);
 void turn_step_finish(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx);
 void turn_step_finish_5e52(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx);
 void turn_step_finish_colony(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx);
+void turn_step_finish_colony_loop(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx);
 void turn_step_king(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx);
 void turn_step_king_tail(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx);
 void turn_human_ship_repairs(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx);

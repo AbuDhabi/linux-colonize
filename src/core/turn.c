@@ -883,6 +883,7 @@ static void turn_step_all_ai_anchor(ColonizeTurnProcessor* proc, ColonizeTurnCon
 
 COLONIZE_INTERNAL void turn_step_finish_5e52(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx);
 COLONIZE_INTERNAL void turn_step_finish_colony(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx);
+COLONIZE_INTERNAL void turn_step_finish_colony_loop(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx);
 COLONIZE_INTERNAL void turn_step_king_tail(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx);
 
 /* Body of TURN_PROC_FINISH (part 1: up to the human 5e52 immigration tick). */
@@ -962,9 +963,24 @@ COLONIZE_INTERNAL void turn_step_finish_colony(ColonizeTurnProcessor* proc, Colo
       proc->show_indicator = true;
       /* 0a82 = 48d3_06ba (raw 58377): after the 3dc8 answer, before the colony loop. */
       turn_run_human_europe_pass(ctx);
+      turn_human_colony_eot_begin(ctx, &proc->colony_cursor);
+      turn_step_finish_colony_loop(proc, ctx);
+}
+
+/* FINISH, part 4: the human 00f2 colony loop, one message batch per slice. */
+COLONIZE_INTERNAL void turn_step_finish_colony_loop(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx) {
+      turn_set_active_nation(ctx, ctx->human_nation);
+      proc->show_indicator = true;
       turn_prod_only_nation = ctx->human_nation;
       turn_prod_only_set = true;
-      turn_run_human_colony_eot(ctx, &proc->result);
+      if (!turn_human_colony_eot_resume(ctx, &proc->result, &proc->colony_cursor)) {
+        /* A colony queued its messages: answer them (and take its zoom) before
+         * the next colony's coastal battery fires (turn.h). */
+        turn_prod_only_nation = -1;
+        turn_prod_only_set = false;
+        proc->step = TURN_PROC_FINISH_COLONY_LOOP;
+        return;
+      }
       /*
        * FUN_3844_00f2 census AFTER the colony-EOT loop (viceroy_unpacked.c
        * :58390 → FUN_291f_0a74 → FUN_4962_0018): refresh the human colonies'
@@ -1194,6 +1210,9 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
       break;
     case TURN_PROC_FINISH_COLONY:
       turn_step_finish_colony(proc, ctx);
+      break;
+    case TURN_PROC_FINISH_COLONY_LOOP:
+      turn_step_finish_colony_loop(proc, ctx);
       break;
     case TURN_PROC_KING:
       turn_step_king(proc, ctx);

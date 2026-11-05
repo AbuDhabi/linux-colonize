@@ -404,7 +404,10 @@ void ai_popup_colony_zoom_elect(AiPopupState* st, int colony_id) {
   st->colony_zoom_elected |= (uint64_t)1u << colony_id;
 }
 
-static bool ai_popup_colony_has_pending(const AiPopupState* st, int colony_id) {
+bool ai_popup_colony_has_pending(const AiPopupState* st, int colony_id) {
+  if (!st) {
+    return false;
+  }
   if (st->open && st->current.tag == AI_POPUP_TAG_COLONY_EVENT &&
       st->current.payload == colony_id) {
     return true;

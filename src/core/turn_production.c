@@ -2393,24 +2393,57 @@ void turn_run_colony_production_with_w(
   TurnColonyBeforeProduction before,
   void* before_user
 ) {
+  turn_run_colony_production_from_w(
+    w, human_nation, out, ai_popups, messages, before, before_user, NULL
+  );
+}
+
+void turn_run_colony_production_from_w(
+  const ColonizeWorld* w,
+  int human_nation,
+  ColonizeTurnResult* out,
+  AiPopupState* ai_popups,
+  const ColonizeMsgCatalog* messages,
+  TurnColonyBeforeProduction before,
+  void* before_user,
+  int* cursor
+) {
   ColonizeColonyPool* pool = w->colonies;
 
   if (!pool) {
+    if (cursor) {
+      *cursor = -1;
+    }
     return;
   }
   /* FUN_4962_0606 via FUN_3844_00f2 (raw 58374): a slot's scoped pass reads
    * the census its 00f2 took before 5e52 (turn_take_prof_census); an
    * unscoped pass (tests, tools) refreshes all four Euro nations here. */
-  for (int n = 0; !turn_prod_only_set && n < (int)COLONIZE_COL1_NATION_COUNT && n < 4; ++n) {
+  const int start = cursor ? *cursor : COLONIZE_COLONIES_MAX - 1;
+  for (int n = 0; !turn_prod_only_set && start == COLONIZE_COLONIES_MAX - 1 &&
+                  n < (int)COLONIZE_COL1_NATION_COUNT && n < 4; ++n) {
     turn_tally_professions_w(w, n, turn_prof_census[n]);
   }
   /* FUN_3844_00f2 raw 58384 walks colony indices from count - 1 down. */
-  for (int i = COLONIZE_COLONIES_MAX - 1; i >= 0; --i) {
-    if (pool->colonies[i].active && turn_prod_nation_in_scope(pool->colonies[i].nation_id)) {
+  for (int i = start; i >= 0 && i < COLONIZE_COLONIES_MAX; --i) {
+    ColonizeColony* col = &pool->colonies[i];
+    if (col->active && turn_prod_nation_in_scope(col->nation_id)) {
       turn_run_one_colony_production_w(
-        w, &pool->colonies[i], human_nation, out, ai_popups, messages, before, before_user
+        w, col, human_nation, out, ai_popups, messages, before, before_user
       );
+      /* FUN_364b_0688's colony messages (FUN_364b_0000) are blocking, and
+       * "Zoom to colony." opens the screen at its tail (FUN_281f_0608), all
+       * before the next colony's coastal battery fires. Yield so the player
+       * answers this colony's batch (and takes its zoom) first. */
+      if (cursor && col->nation_id == human_nation &&
+          ai_popup_colony_has_pending(ai_popups, col->id)) {
+        *cursor = i - 1;
+        return;
+      }
     }
+  }
+  if (cursor) {
+    *cursor = -1;
   }
 }
 

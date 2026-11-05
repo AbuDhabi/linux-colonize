@@ -7539,6 +7539,39 @@ static int case_tax_audience_before_colony_eot(void) {
   return 0;
 }
 
+/* FUN_364b_0688's colony messages are blocking and an elected zoom opens at
+ * their tail, so the human loop yields after a colony that queued a message:
+ * the next colony (its coastal fort fire included) runs only after that. */
+static int case_colony_messages_yield_colony_loop(void) {
+  eotd_setup(TURN_PROC_FINISH_COLONY, 1600, 36);
+  EotDialogFx* g = &g_eotd;
+  ColonizeColony* first = &g->pool.colonies[1]; /* 00f2 walks indices downwards */
+  first->active = true;
+  first->id = 1;
+  first->nation_id = 0;
+  first->x = 9;
+  first->y = 9;
+  first->colonist_count = 12; /* 12 tories >= 10 - difficulty: @INEFFICIENT */
+  first->population = 12;
+  snprintf(first->name, sizeof(first->name), "Plymouth");
+  g->pool.colony_count = 2;
+  (void)turn_processor_advance(&g->proc, &g->ctx);
+  if (g->proc.step != TURN_PROC_FINISH_COLONY_LOOP || g->proc.result.colonies_produced != 1 ||
+      !ai_popup_colony_has_pending(&g->pop, first->id)) {
+    fprintf(stderr, "yield: step %d produced %d pending %d\n", (int)g->proc.step,
+            g->proc.result.colonies_produced, (int)ai_popup_colony_has_pending(&g->pop, 1));
+    return 1;
+  }
+  ai_popup_clear(&g->pop);
+  (void)turn_processor_advance(&g->proc, &g->ctx);
+  if (g->proc.step == TURN_PROC_FINISH_COLONY_LOOP || g->proc.result.colonies_produced != 2) {
+    fprintf(stderr, "resume: step %d produced %d\n", (int)g->proc.step,
+            g->proc.result.colonies_produced);
+    return 1;
+  }
+  return 0;
+}
+
 /* @KINGFRIGATE (00f2 raw 58403) and its answer are settled before the year
  * loop's 2244 merc roll (raw 6418): the EOT is still running. */
 static int case_frigate_before_merc_roll(void) {
@@ -7591,6 +7624,7 @@ static int case_frigate_accept_draws_before_merc_roll(void) {
 static const TestCase k_cases[] = {
   {"brewster_pick_before_colony_crosses", case_brewster_pick_before_colony_crosses},
   {"tax_audience_before_colony_eot", case_tax_audience_before_colony_eot},
+  {"colony_messages_yield_colony_loop", case_colony_messages_yield_colony_loop},
   {"frigate_before_merc_roll", case_frigate_before_merc_roll},
   {"frigate_accept_draws_before_merc_roll", case_frigate_accept_draws_before_merc_roll},
   {"refit_unit_order", case_refit_unit_order},

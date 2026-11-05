@@ -473,11 +473,22 @@ static void turn_ai_colony_bell_step(void* user, ColonizeColony* colony) {
  * screen mirrors the human's bell words.
  */
 void turn_run_human_colony_eot(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
-  const int n = ctx ? ctx->human_nation : -1;
-  if (!ctx || !ctx->col1_ok || !ctx->col1 || n < 0 || n >= 4) {
-    turn_run_colony_eot(ctx, out);
+  int cursor = COLONIZE_COLONIES_MAX - 1;
+  turn_human_colony_eot_begin(ctx, &cursor);
+  while (!turn_human_colony_eot_resume(ctx, out, &cursor)) {
+  }
+}
+
+static bool turn_human_colony_eot_has_col1(const ColonizeTurnContext* ctx) {
+  return ctx && ctx->col1_ok && ctx->col1 && ctx->human_nation >= 0 && ctx->human_nation < 4;
+}
+
+void turn_human_colony_eot_begin(ColonizeTurnContext* ctx, int* cursor) {
+  *cursor = COLONIZE_COLONIES_MAX - 1;
+  if (!turn_human_colony_eot_has_col1(ctx)) {
     return;
   }
+  const int n = ctx->human_nation;
   if (ctx->col1->head.game_options.woi) {
     /* FUN_3844_00f2 raw 58382 `*(DS:0x84fc + 0xe) = 0` runs in the human
      * slot while DS:0x84fc still holds the crown's record during the war
@@ -485,16 +496,36 @@ void turn_run_human_colony_eot(ColonizeTurnContext* ctx, ColonizeTurnResult* out
      * crown's last-turn bells read 0 at every autosave. */
     ctx->col1->nation[ai_king_crown_nation_col1(ctx->col1, n)].liberty_bells_last_turn = 0;
   }
+  ctx->col1->nation[n].liberty_bells_last_turn = 0;
+}
+
+bool turn_human_colony_eot_resume(ColonizeTurnContext* ctx, ColonizeTurnResult* out, int* cursor) {
+  if (!turn_human_colony_eot_has_col1(ctx)) {
+    turn_run_colony_eot(ctx, out);
+    *cursor = -1;
+    return true;
+  }
+  const int n = ctx->human_nation;
   ColonizeCol1Nation* nat = &ctx->col1->nation[n];
+  /* .crosses is a per-call tally the human path never reads. */
   AiNationColonyBellStep bell_step = {
     .ctx = ctx, .nat = nat, .nation = n, .control = ctx->col1->player[n].control, .crosses = 0
   };
-  nat->liberty_bells_last_turn = 0;
-  turn_run_colony_eot_with(ctx, out, turn_ai_colony_bell_step, &bell_step);
+  turn_set_birth_units_pool(ctx->units);
+  const ColonizeWorld pw = world_from_turn_ctx(ctx);
+  turn_run_colony_production_from_w(
+    &pw, n, out, ctx->ai_popups, ctx->messages, turn_ai_colony_bell_step, &bell_step, cursor
+  );
+  g_turn_1528_last_walked_colony = NULL;
+  turn_set_birth_units_pool(NULL);
+  if (*cursor < 0) {
+    turn_run_colony_building_completion(ctx);
+  }
   if (ctx->europe) {
     ctx->europe->liberty_bells_pool = nat->liberty_bells_pool;
     ctx->europe->liberty_bells_last_turn = nat->liberty_bells_last_turn;
   }
+  return *cursor < 0;
 }
 
 /*
