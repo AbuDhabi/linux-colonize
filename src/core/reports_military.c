@@ -173,6 +173,16 @@ static int reports_naval_build_rows(
         r->ship_type = units_display_type_index(units, u->id);
         r->ship_nation = u->nation_id;
         r->ship_orders = u->orders;
+        /* FUN_3f41_220c draws the hull through FUN_281f_02bc -> FUN_112b_01ba at scale 100:
+         * a damaged hull shows its repair countdown and the red X, as on the map
+         * (units_render.c, port_bugs.md #705). */
+        const int repair_badge = unit_chrome_repair_badge_index(
+          r->ship_type, (u->col1_flags15 & 0x80u) != 0, t ? t->defense : 0, (int)u->col1_counter16,
+          map && u->x >= 1 && u->y >= 1 && u->x < (int)map->width - 1 && u->y < (int)map->height - 1
+        );
+        if (repair_badge >= 0) {
+          r->ship_orders = repair_badge;
+        }
         r->ship_name = name;
       } else {
         r->has_passenger = true;
@@ -208,9 +218,16 @@ static int reports_naval_build_rows(
                             u->orders == UNITS_ORDER_AI_SAIL ||
                             u->orders == UNITS_ORDER_TRADE_ROUTE;
       if (has_goto && u->goto_x != UNITS_GOTO_NONE && u->goto_y != UNITS_GOTO_NONE) {
-        reports_naval_location(
-          colonies, u->goto_x, u->goto_y, r->destination, sizeof(r->destination)
-        );
+        /* FUN_49dd_02d0 called with param_5 = 1: a goto onto a Sea Lane tile
+         * (terrain 0x1a) names the nation's European port [DS:-0x7c74 + n*2]
+         * instead of the coordinates (campaign7 turn 334 Galleon -> London). */
+        if (europe && map_tile_is_high_seas(map, u->goto_x, u->goto_y)) {
+          snprintf(r->destination, sizeof(r->destination), "%s", europe->port_city);
+        } else {
+          reports_naval_location(
+            colonies, u->goto_x, u->goto_y, r->destination, sizeof(r->destination)
+          );
+        }
       }
     }
   }
@@ -238,22 +255,10 @@ static int reports_naval_build_rows(
     for (int lane = 0; lane < 3; ++lane) {
       for (int i = 0; i < lanes[lane].count && n < max_rows; ++i) {
         const EuropeHarborShip* s = &lanes[lane].list[i];
-        for (int c = 0; c < s->cargo_count && c < EUROPE_SHIP_CARGO_MAX && n < max_rows; ++c) {
-          NavalRow* r = &rows[n++];
-          memset(r, 0, sizeof(*r));
-          r->has_passenger = true;
-          const ColonizeUnitType* pt = units ? units_type(units, s->cargo_types[c]) : NULL;
-          r->pass_sprite = pt ? europe_passenger_icon_sprite(units, s->cargo_types[c], s->cargo_professions[c]) : -1;
-          r->pass_type = s->cargo_types[c];
-          r->pass_nation = human;
-          r->pass_orders = 1; /* Sentry — aboard, matching the docked/undirected passenger look */
-          /* @UNIT name, like every other row (asm 0026ea). */
-          r->pass_label = (pt && pt->name[0]) ? pt->name : "";
-          snprintf(r->location, sizeof(r->location), "%s", lanes[lane].loc);
-        }
-        if (n >= max_rows) {
-          break;
-        }
+        /* No passenger rows: a land unit gets a row only when FUN_281f_0768
+         * says its tile is water, and the off-map lane x is not
+         * (campaign7 turn 109 under DOS: two Colonists aboard a lane Caravel,
+         * no Colonists rows). */
         NavalRow* r = &rows[n++];
         memset(r, 0, sizeof(*r));
         r->has_ship = true;
@@ -261,7 +266,10 @@ static int reports_naval_build_rows(
         r->ship_sprite = st ? st->icon_sprite : -1;
         r->ship_type = s->type_index;
         r->ship_nation = human;
-        r->ship_orders = 1;
+        /* DOS draws the lane unit's own orders byte; a lane ship carries 0
+         * unless it is on a trade route (col1_bridge's lane writer, 3940). */
+        const bool on_route = s->trade_route_plus1 > 0;
+        r->ship_orders = on_route ? UNITS_ORDER_TRADE_ROUTE : UNITS_ORDER_NONE;
         r->ship_name = (st && st->name[0]) ? st->name : (s->name[0] ? s->name : "");
         for (int h = 0; h < EUROPE_SHIP_CARGO_MAX && r->goods_count < COLONIZE_UNIT_CARGO_MAX; ++h) {
           const int amt = s->hold_goods_amount[h];
@@ -272,7 +280,18 @@ static int reports_naval_build_rows(
           }
         }
         snprintf(r->location, sizeof(r->location), "%s", lanes[lane].loc);
-        snprintf(r->destination, sizeof(r->destination), "%s", lanes[lane].dest);
+        if (on_route && s->exit_x > 0 && s->exit_y > 0) {
+          /* Orders 2 takes the goto branch (FUN_49dd_02d0 on the goto, which
+           * the lane writer stores as the exit tile): a Sea Lane exit names
+           * the port (campaign7 turn 109: High Seas -> London). */
+          if (map_tile_is_high_seas(map, s->exit_x, s->exit_y)) {
+            snprintf(r->destination, sizeof(r->destination), "%s", europe->port_city);
+          } else {
+            reports_naval_location(colonies, s->exit_x, s->exit_y, r->destination, sizeof(r->destination));
+          }
+        } else {
+          snprintf(r->destination, sizeof(r->destination), "%s", lanes[lane].dest);
+        }
       }
     }
   }
@@ -285,7 +304,7 @@ int reports_naval_page_count_w(
 ) {
   const ColonizeUnitPool* units = w->units;
   const ColonizeColonyPool* colonies = w->colonies;
-  const EuropeScreen* europe = w->europe;
+  const EuropeScreen* europe = reports_europe_for(w, human_nation);
 
   NavalRow rows[REPORTS_NAVAL_ROWS_MAX];
   const int n =

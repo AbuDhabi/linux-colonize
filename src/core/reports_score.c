@@ -658,14 +658,18 @@ void reports_render_score(
   }
 
   /*
-   * Component lines in DOS block order (FUN_41f2_0092), each printed only
-   * when its gate holds — the golden (score.png) has exactly Gold / Rebel
-   * Sentiment / Total Score because that save has >= 1000 gold, a non-zero
-   * 0x53d0 and nothing else. Gold's y=150 is the golden's; extra lines push
-   * the block up so Total Score never runs into the y=186 bar.
+   * Component lines in DOS block order (FUN_41f2_0092 41f2:0546-0a46), laid
+   * out in three rows of up to two items each, x flowing from 0x10 by the
+   * drawn width + 0x14: row 1 Gold + Villages (always advances, even empty),
+   * row 2 Rebel Sentiment + early revolution (advances when 0x53d0 != 0 or
+   * 0x5382 bit 8 before 1780), row 3 Liberty Bells + Independence (advances
+   * on 0x5382 bit 2 or bit 8), then Total Score. Row 1 sits at 0x96 when the
+   * Congress line is at or above 0x90, else one font row below it.
+   * french-campaign/COLONY00 (no gold, no villages): Rebel at 157, Total 164.
    */
   char lines[8][96];
   uint8_t colors[8];
+  int rows[8];
   int n_lines = 0;
   const uint32_t score_gold = europe_nation_gold(europe, col1, human); /* audit G3 */
   if (sc.treasury > 0 || score_gold >= 1000u) {
@@ -679,6 +683,7 @@ void reports_render_score(
       (unsigned)score_gold,
       sc.treasury
     );
+    rows[n_lines] = 0;
     colors[n_lines++] = REPORTS_SCORE_GREEN_COLOR;
   }
   if (sc.villages_burned != 0) {
@@ -690,6 +695,7 @@ void reports_render_score(
       reports_misc_word(117, "", w1, sizeof(w1)),
       sc.villages_penalty
     );
+    rows[n_lines] = 0;
     colors[n_lines++] = REPORTS_SCORE_GREEN_COLOR;
   }
   if (sc.rebel_sentiment != 0) {
@@ -701,6 +707,7 @@ void reports_render_score(
       reports_misc_word(71, "", w2, sizeof(w2)),
       sc.rebel_sentiment
     );
+    rows[n_lines] = 1;
     colors[n_lines++] = REPORTS_SCORE_GREEN_COLOR;
   }
   if (sc.independence_achieved && sc.declare_year < 1780) {
@@ -715,6 +722,7 @@ void reports_render_score(
       sc.year,
       sc.early_revolution_pts
     );
+    rows[n_lines] = 1;
     colors[n_lines++] = REPORTS_SCORE_GREEN_COLOR;
   }
   if (col1->head.game_options.intervention_announced && col1->nation[human].liberty_bells_pool >= 100) {
@@ -723,6 +731,7 @@ void reports_render_score(
      * stride) at row 18, "Liberty Bells". */
     const char* bells = reports_names_field("CARGO", 18, 0);
     snprintf(lines[n_lines], sizeof(lines[0]), "%s: +%d", bells ? bells : "", sc.bells_pts);
+    rows[n_lines] = 2;
     colors[n_lines++] = REPORTS_SCORE_GREEN_COLOR;
   }
   if (sc.independence_achieved) {
@@ -746,21 +755,31 @@ void reports_render_score(
       prior,
       sc.foreign_recognition_pct
     );
+    rows[n_lines] = 2;
     colors[n_lines++] = REPORTS_SCORE_GREEN_COLOR;
   }
   snprintf(
     lines[n_lines], sizeof(lines[0]), "%s: %d", reports_misc_word(121, "", w1, sizeof(w1)), sc.total
   );
+  rows[n_lines] = 3;
   colors[n_lines++] = REPORTS_SCORE_TITLE_COLOR;
   {
-    const int step = REPORTS_SCORE_REBEL_Y - REPORTS_SCORE_GOLD_Y;
-    int y0 = REPORTS_SCORE_GOLD_Y;
-    const int last_max = REPORTS_SCORE_BAR_Y - 8;
-    if (y0 + step * (n_lines - 1) > last_max) {
-      y0 = last_max - step * (n_lines - 1);
-    }
+    const int step = REPORTS_SCORE_REBEL_Y - REPORTS_SCORE_GOLD_Y; /* font height + 1 */
+    const bool row_advances[3] = {
+      true,
+      sc.rebel_sentiment != 0 || (sc.independence_achieved && sc.declare_year < 1780),
+      col1->head.game_options.intervention_announced || sc.independence_achieved,
+    };
+    int y = congress_y <= 0x90 ? REPORTS_SCORE_GOLD_Y : congress_y + step;
+    int x = REPORTS_SCORE_LEFT_X;
+    int row = 0;
     for (int i = 0; i < n_lines; ++i) {
-      reports_draw_line(body_font, fb, REPORTS_SCORE_LEFT_X, y0 + i * step, lines[i], colors[i]);
+      for (; row < rows[i]; ++row) {
+        y += row_advances[row] ? step : 0;
+        x = REPORTS_SCORE_LEFT_X;
+      }
+      reports_draw_line(body_font, fb, x, y, lines[i], colors[i]);
+      x += (body_font ? font_text_width(body_font, lines[i]) : 0) + 0x14;
     }
   }
 

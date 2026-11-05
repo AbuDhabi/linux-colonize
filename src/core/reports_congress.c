@@ -297,15 +297,13 @@ void reports_render_congress_page1(
    */
   line[0] = '\0';
   if (!woi) {
-    snprintf(
-      line,
-      line_sz,
-      "%s: (%s)",
-      reports_misc_word(112, "", w1, sizeof(w1)),
-      nat->next_founding_father >= 0
-        ? reports_ff_display_name(nat->next_founding_father)
-        : reports_misc_display_word(3, "")
-    );
+    /* raw 69676: no " (name)" tail at all when head+0x12 < 0 (every father
+     * elected; campaign7 turn 334 under DOS), not a "(None)" word. */
+    snprintf(line, line_sz, "%s: ", reports_misc_word(112, "", w1, sizeof(w1))); /* FUN_281f_01be ": " */
+    if (nat->next_founding_father >= 0) {
+      const size_t at = strlen(line);
+      snprintf(line + at, line_sz - at, "(%s)", reports_ff_display_name(nat->next_founding_father));
+    }
   } else if (!ref_arrived) {
     /* port_bugs.md #229/257: after declaring, FF elections are over — the bell bar
      * counts toward the foreign intervention instead. DOS's top header is
@@ -382,11 +380,14 @@ void reports_render_congress_page1(
     }
   }
 
-  const unsigned rebel_pct = nat->rebel_sentiment > 100 ? 100 : nat->rebel_sentiment;
+  /* FUN_3f41_06d0 raw 69723-69741: the line and the flag bar read DS:0x53d0
+   * (rebel_sentiment_report), not nation+0x19 — a hot-seat save keeps the
+   * mover's value there (hotseat_1522: DOS 0% for France at +0x19 = 7). */
+  const int rebel_pct = col1->head.rebel_sentiment_report;
   snprintf(
     line,
     line_sz,
-    "%s %s: %u%%   %s %s: %u%%",
+    "%s %s: %d%%   %s %s: %d%%",
     reports_misc_word(69, "", w1, sizeof(w1)),
     reports_misc_word(71, "", w3, sizeof(w3)),
     rebel_pct,
@@ -401,7 +402,7 @@ void reports_render_congress_page1(
      * slots * rebel% / 100 (FUN_1d1d_0ec6, floor), crowns = the rest; bar at x 4, y = text y +
      * FONTTINY[0] + 2, w 0x12c, gap 4. */
     const int slots = col1->stuff.census_pop_proxy[human & 3] > 0 ? col1->stuff.census_pop_proxy[human & 3] : 1;
-    const int flags = (int)((unsigned)slots * rebel_pct / 100u);
+    const int flags = (int)((long)slots * rebel_pct / 100);
     const ReportsCongressSlot sent[2] = {
       {REPORTS_CONGRESS_FLAG_ICON, flags}, {REPORTS_CONGRESS_CROWN_ICON, slots - flags}
     };

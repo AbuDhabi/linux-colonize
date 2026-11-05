@@ -1193,7 +1193,7 @@ static void game_request_disband_unit(ColonizeGameState* game, int uid) {
 
 /* DS:0x5396, the viewpoint nation: a fixed SETVIEW nation, else the human
  * (FUN_43f7 turn pass; Complete Map leaves it alone; port_bugs.md #1170). */
-static int game_viewpoint_nation(const ColonizeGameState* game) {
+int game_viewpoint_nation(const ColonizeGameState* game) {
   if (game->col1_ok && game->col1.head.fixed_nation_map_view <= 3) {
     return (int)game->col1.head.fixed_nation_map_view;
   }

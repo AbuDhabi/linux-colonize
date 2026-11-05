@@ -364,6 +364,7 @@ void game_hotseat_begin_turn(ColonizeGameState* game, int n);
 bool game_fortify_treaty_confirm(ColonizeGameState* game, int uid);
 void game_handle_report_fkey(ColonizeGameState* game, ColonizeKey key);
 void game_open_score_report(ColonizeGameState* game);
+void game_apply_set_report(ColonizeGameState* game, int nation);
 const ColonizeSpriteSheet* game_icons(const ColonizeGameState* game);
 int game_issue_goto(ColonizeGameState* game, int uid, int dest_x, int dest_y);
 void game_join_colony_order(ColonizeGameState* game);

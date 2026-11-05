@@ -102,7 +102,14 @@ statically 2026-11-03:
   port name, 0x14 (in port) → empty (asm OVL06_L0040 0027d4-00283c).
 
 The port's harbor (port_city / empty), expected (High Seas / port_city) and
-bound (High Seas / colony_region) rows are exactly those strings. Re-plumbing
+bound (High Seas / colony_region) rows are exactly those strings; a lane ship
+on a trade route (orders 2) takes the goto branch on its exit tile instead,
+and passengers aboard a lane ship get no row (land unit off the map). The
+orders badge is drawn from the lane writer's byte (0, or 2 on a route): the
+EuropeScreen does not keep the DOS byte, so a DOS save's lane hull with
+orders 1 (original_saves/hotseat/hotseat_1522, French Caravel) shows "-"
+where DOS shows "S". A nation other than the human (@SETREPORT) gets no
+lane rows at all. Re-plumbing
 the lanes into the unit pool just to reproduce the interleaving is not worth it.
 
 ### @REFIT order across harbor and map hulls

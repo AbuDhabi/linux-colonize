@@ -384,14 +384,15 @@ static int reports_colony_fort_icon(unsigned bits) {
 
 /* Map population-digit color (docs/sons_of_liberty.md: "white <50 / green
  * >=50 / blue 100") superimposed on the colony's fortification icon. */
-static uint8_t reports_colony_pop_color(int sol_pct) {
-  if (sol_pct >= 100) {
-    return REPORTS_COLONY_DIGIT_BLUE;
+/* FUN_3f41_1ed8 draws the sidebar icon through FUN_281f_02a8 -> FUN_112b_0c64, the map's
+ * colony chrome: the digit ink is the SoL latch (+0x1c bits 2/1), not the live percent (a
+ * colony that fell back below 100% keeps its cyan). Same rule as colony_chrome.c. */
+static uint8_t reports_colony_pop_color(const ColonizeColony* colony) {
+  const unsigned flags = colony ? colony->colony_flags : 0u;
+  if ((flags & COLONIZE_COLONY_FLAG_SOL_50) == 0) {
+    return REPORTS_COLONY_DIGIT_WHITE;
   }
-  if (sol_pct >= 50) {
-    return REPORTS_COLONY_DIGIT_GREEN;
-  }
-  return REPORTS_COLONY_DIGIT_WHITE;
+  return (flags & COLONIZE_COLONY_FLAG_SOL_100) != 0 ? REPORTS_COLONY_DIGIT_BLUE : REPORTS_COLONY_DIGIT_GREEN;
 }
 
 /*
@@ -487,7 +488,6 @@ static void reports_render_colony_sidebar(
       icons, icon, fb, REPORTS_COLONY_ICON_X, row_top - 7, c->nation_id, active_palette
     );
   }
-  const int sol_pct = colony ? colony_prod_sol_percent(col1, colony) : reports_colony_rebel_pct(c);
   snprintf(line, line_sz, "%u", (unsigned)c->population);
   /* Golden: population digits sit at a fixed x regardless of digit count
    * (measured: every single-digit row's ink starts at the same native x,
@@ -495,7 +495,7 @@ static void reports_render_colony_sidebar(
    * own cell) — left-aligned on the icon, not centered in its width. */
   reports_draw_line(
     font, fb, REPORTS_COLONY_ICON_X + REPORTS_COLONY_POP_DX, row_top,
-    line, reports_colony_pop_color(sol_pct)
+    line, reports_colony_pop_color(colony)
   );
   reports_draw_line(font, fb, REPORTS_COLONY_NAME_X, row_top, c->name, REPORTS_COLONY_LABEL_COLOR);
 }

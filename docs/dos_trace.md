@@ -238,7 +238,7 @@ instruction. On one byte it is fine. It found the 3180 facing writer.
   FUN_479b_0972 goto mover = OVL09 `0x40e22` (trap 0x972); FUN_6662_0f74 pathfinder = OVL20
   `0x62d84` (trap 0xf74; its flood FUN_6662_00f2 is a near call in the same CS, so `BP cs:00f2`
   works without a patch; `[bp-0x1a]` = the returned direction at the 1599 exit, `[bp-0x48]` the
-  unit); FUN_465b_0000 = OVL08 `0x3ecf0`; FUN_5952_035e = OVL15 `0x53b7e`. Resident routines
+  unit); FUN_465b_0000 = OVL08 `0x3ecf0`; FUN_5952_035e = OVL15 `0x53b7e`; FUN_41f2_0092 (F10 Score) = OVL06 `0x39ee2`, entry IP 0x92, so `41f2:xxxx` is `cs:xxxx` (#1436). Resident routines
   need no patch: FUN_15eb_28c8 is `BP 0e0f:28c8`, its plot election `0e0f:2d14` (AX = score,
   `[bp-0x22]` job, `[bp-0x36]` local_38).
 - Overlays move: with EMS off RTLink reloads them often and each reload re-traps. DOSBox-X

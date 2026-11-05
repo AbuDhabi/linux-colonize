@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "core/ai_king.h"
 #include "core/cinematic.h"
 #include "core/font_file.h"
 #include "core/unit_chrome.h"
@@ -45,6 +46,11 @@ bool render_load_save(const char* data_dir, const char* save_path, RenderSaveBun
     fprintf(stderr, "col1_save_read_file failed: %s\n", err);
     return false;
   }
+  /* Same hot-seat load resume as game_loop_saveload.c: DOS picks the game up
+   * at slot DS:0x5398, whichever human saved. */
+  if (col1_save_hotseat(&out->save) && out->save.head.human_player < COLONIZE_COL1_NATION_COUNT) {
+    out->save.head.nation_turn = out->save.head.human_player;
+  }
   out->human = col1_save_human_nation(&out->save);
 
   if (!render_load_msg(data_dir, "NAMES.TXT", &out->names)) {
@@ -62,6 +68,11 @@ bool render_load_save(const char* data_dir, const char* save_path, RenderSaveBun
     fprintf(stderr, "save load failed: %s\n", err);
     return false;
   }
+  /* The per-frame WoI chrome game_loop_update.c sets: REF in white, rebel colonies fly
+   * the rebel flag. */
+  const bool woi = ai_king_independence_declared(&out->save) != 0;
+  unit_chrome_set_crown_nation(woi ? ai_king_crown_nation_col1(&out->save, out->human) : -1);
+  unit_chrome_set_rebel_nation(woi ? out->human : -1);
   return true;
 }
 

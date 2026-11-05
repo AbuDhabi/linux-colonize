@@ -1232,7 +1232,7 @@ COLONIZE_INTERNAL GameUpdateStep game_update_report_screen(ColonizeGameState* ga
        * the next page, or leaves the report from the last one. */
       if (game->report_id == COLONIZE_REPORT_ECONOMIC) {
         const int page_count = reports_economic_page_count(
-          game->col1_ok ? &game->col1 : NULL, game->human_nation
+          game->col1_ok ? &game->col1 : NULL, game->report_nation
         );
         if (game->economic_page + 1 < page_count) {
           game->economic_page++;
@@ -1245,7 +1245,7 @@ COLONIZE_INTERNAL GameUpdateStep game_update_report_screen(ColonizeGameState* ga
        * page-advance shape as Economic above. */
       if (game->report_id == COLONIZE_REPORT_COLONY) {
         const int page_count = reports_colony_page_count(
-          game->col1_ok ? &game->col1 : NULL, game->human_nation
+          game->col1_ok ? &game->col1 : NULL, game->report_nation
         );
         if (game->colony_page + 1 < page_count) {
           game->colony_page++;
@@ -1257,7 +1257,7 @@ COLONIZE_INTERNAL GameUpdateStep game_update_report_screen(ColonizeGameState* ga
        * OK/Esc/Enter page-advance shape as Economic/Colony above. */
       if (game->report_id == COLONIZE_REPORT_NAVAL) {
         const ColonizeWorld w = game_world(game);
-        const int page_count = reports_naval_page_count_w(&w, game->human_nation);
+        const int page_count = reports_naval_page_count_w(&w, game->report_nation);
         if (game->naval_page + 1 < page_count) {
           game->naval_page++;
           return GAME_UPDATE_RETURN_TRUE;

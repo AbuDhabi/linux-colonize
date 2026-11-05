@@ -41,7 +41,9 @@ typedef enum CheatListKind {
   CHEAT_LIST_KIND_DEBUG_FLAGS,
   /* Unit ORDERS "Go to Port" (@SAILPORT, DOS FUN_647e_01c6 unit>=0 branch):
    * ids = colony id, 999 = Europe. */
-  CHEAT_LIST_KIND_GOTO_PORT
+  CHEAT_LIST_KIND_GOTO_PORT,
+  /* REPORTS under Complete Map (@SETREPORT): ids = nation 0..3. */
+  CHEAT_LIST_KIND_SET_REPORT
 } CheatListKind;
 
 /* A FUN_647e_01c6 destination row's "at colony" state (647e:03c4-0436): the unit stands on
@@ -206,6 +208,9 @@ bool cheat_list_open_create_unit(
 /*
  * CHEAT Set Human Player (@SETHUMAN). option_ids: 0..3 nation, -1 = None.
  */
+/* @SETREPORT "View Whose Report?", preselecting `nation` (FUN_281f_0998 DX = DS:0x5396 + 1). */
+bool cheat_list_open_set_report(CheatListDialog* dlg, const ColonizeMsgCatalog* debug_txt, int nation);
+
 bool cheat_list_open_set_human(CheatListDialog* dlg, const ColonizeMsgCatalog* debug_txt);
 /* DEBUG.TXT @SETAUTO "Automate game?" (FUN_2b5a dispatcher case 0x66, ND 0x23D68-0x23D7D):
  * FUN_1000_8b88's row, 1 = Yes. No section, no dialog. */

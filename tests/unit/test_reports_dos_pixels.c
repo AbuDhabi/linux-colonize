@@ -1,8 +1,8 @@
 /*
- * Report plates against real DOS pixels: original_saves/dutch-campaign/COLONY00.SAV,
- * F5/F6/F9 opened in VICEROY.EXE under DOSBox-X (tools/dosbox_trace.py, 2026-11-05).
- * Each probe is a pixel the port once drew differently; the RGB is read off the DOS
- * screenshot (docs/reports.md "DOS check on dutch-campaign/COLONY00.SAV").
+ * Report plates against real DOS pixels: saves opened in VICEROY.EXE under DOSBox-X
+ * (tools/dosbox_trace.py, 2026-11-05). Each probe is a pixel the port once drew
+ * differently; the RGB is read off the DOS screenshot (docs/reports.md "DOS check on
+ * dutch-campaign/COLONY00.SAV" and "DOS check across 24 saves").
  */
 #include <stdio.h>
 #include <string.h>
@@ -25,7 +25,7 @@ typedef struct Page {
   Probe probes[3];
 } Page;
 
-static const Page k_pages[] = {
+static const Page k_dutch_00[] = {
   {COLONIZE_REPORT_ECONOMIC, 1, 0, {{213, 30, 134, 0, 0, "column rule over the Horses icon"}}},
   {COLONIZE_REPORT_COLONY, 0, 0, {
     {118, 39, 0, 0, 0, "New Amsterdam badge = that unit's own orders"},
@@ -38,9 +38,18 @@ static const Page k_pages[] = {
   }},
 };
 
-static int case_dutch_campaign_00(void) {
+/* No gold and no villages: DOS still spends score row 1, so Rebel Sentiment sits on
+ * row 2 (y 157) and Total Score on y 164 (FUN_41f2_0092). */
+static const Page k_french_00[] = {
+  {COLONIZE_REPORT_SCORE, 0, 0, {
+    {16, 157, 85, 150, 52, "Rebel Sentiment on score row 2"},
+    {17, 165, 199, 162, 32, "Total Score below an empty row 1"},
+  }},
+};
+
+static int check_pages(const char* save, const Page* pages, size_t n_pages) {
   RenderSaveBundle rs;
-  if (!render_load_save("COLONIZE", "original_saves/dutch-campaign/COLONY00.SAV", &rs)) {
+  if (!render_load_save("COLONIZE", save, &rs)) {
     return 1;
   }
   ColonizeReportsView view;
@@ -53,8 +62,8 @@ static int case_dutch_campaign_00(void) {
   }
   int bad = 0;
   const ColonizeWorld w = world_make(&rs.units, &rs.colonies, &rs.map, &rs.save, true, NULL, &rs.europe);
-  for (size_t i = 0; i < sizeof(k_pages) / sizeof(k_pages[0]); ++i) {
-    const Page* pg = &k_pages[i];
+  for (size_t i = 0; i < n_pages; ++i) {
+    const Page* pg = &pages[i];
     uint8_t pixels[320 * 200];
     ColonizeFramebuffer8 fb;
     render_fb_init(&fb, pixels);
@@ -79,8 +88,17 @@ static int case_dutch_campaign_00(void) {
   return bad != 0;
 }
 
+static int case_dutch_campaign_00(void) {
+  return check_pages("original_saves/dutch-campaign/COLONY00.SAV", k_dutch_00, sizeof(k_dutch_00) / sizeof(k_dutch_00[0]));
+}
+
+static int case_french_campaign_00(void) {
+  return check_pages("original_saves/french-campaign/COLONY00.SAV", k_french_00, sizeof(k_french_00) / sizeof(k_french_00[0]));
+}
+
 static const TestCase k_cases[] = {
   {"dutch_campaign_00", case_dutch_campaign_00},
+  {"french_campaign_00", case_french_campaign_00},
 };
 
 TEST_MAIN(k_cases)

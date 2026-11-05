@@ -59,6 +59,49 @@ Guard: `unit_reports_dos_pixels` (DOS-sampled probes at each fixed spot).
 Not exercised by the save: `FUN_3f41_1550` prints a stock over 999 as
 "<n/1000>" + @MISC 57 ("K") in ink 0xe; the port prints the plain number.
 
+## DOS check across 24 saves (2026-11-05)
+
+Same method over the saves in original_saves/ (campaign, golden-idle,
+report-golden, colony-prod, independence), test-saves-play/,
+tests-save-misc/ and the campaign7 port saves: every F2-F10 page,
+compared pixel by pixel with `render_report` (two port saves never reached
+the load list in the capture job and were skipped). Fixed:
+
+- F10: the component lines are three rows of up to two items, and row 1
+  (Gold + villages) is spent even when empty (reports_score.md F10).
+- F3: with every father elected (head+0x12 < 0) the header is just "Next
+  Continental Congress Session: " (label + `FUN_281f_01be` ": "), with no
+  "(None)" (raw 69676). The Rebel/Tory line and the flag bar read DS:0x53d0
+  (`rebel_sentiment_report`), not nation+0x19 (raw 69723-69741).
+- F5/F7 for a nation that is not the human (@SETREPORT, a fixed CHEAT
+  view): the human's EuropeScreen is not used (`reports_europe_for`), so
+  prices come from that nation's own col1 record.
+- F7: a goto onto a Sea Lane tile names the European port
+  (`FUN_49dd_02d0` with param_5 = 1), not the coordinates. Lane ships draw
+  their own orders badge (0, or trade route), not Sentry. Passengers aboard
+  a lane ship get no row (the off-map tile fails `FUN_281f_0768`). A lane
+  ship on a trade route takes its Destination from its goto, not the lane.
+- F7: a damaged hull shows the repair countdown and the red X at the
+  silhouette x + 4 (`112b:075d-0785`).
+- F6 sidebar: the colony's population digit takes its colour from the
+  colony's SoL 50 / SoL 100 flag bits (white, green, blue), not from a
+  computed SoL percent.
+- `render_report` (tool only) sets the crown and rebel nations after a
+  declaration, resumes a hot-seat save at DS:0x5398, and reports the
+  viewpoint nation (`fixed_nation_map_view`), as the game does.
+
+Not port bugs: DOS runs goto and trade-route ships right after the load,
+before the F-key is read, so those rows move in the capture. A save taken
+mid year-loop (`turn_loop_running`) lets DOS finish the AI slots first
+(campaign2/missing_merchantman: England trades, a Dutch FF is elected).
+port_saves/carpentry.SAV is a legacy port save that parked harbor ships on
+228+n, which the import reads back as harbor and DOS as Bound. A hand-built
+save with unlinked tile chains (colony-prod-tests/COLONY00_no-transports)
+shows only each stack head in F6. Lane ships still sort after the map rows
+(known_divergences.md #974). F10 Citizens on campaign5 turn 38 (DOS +48,
+port +42) is the same load-time effect: DOS has finished a pioneer's work and
+turned it into a Colonist (#1436, REFUTED by a trace).
+
 ## Proportional fill bars are a DOS routine, not a spread
 
 Every "row of little icons that fills as a resource accumulates" on a report
@@ -410,7 +453,8 @@ independently golden-confirmed.
   and, when that is 0, a Europe-lane arm keyed on `nation - x`: 0x18/0x1c →
   `DS:0x5426 + nation*0x34`, 0x0c/0x10 → `DS:0x838c + nation*2`, anything
   else → empty. `FUN_291f_0f82` = `FUN_49dd_02d0` = colony name at the tile
-  else the `(x, y)` pair — `naval.png` shows both forms.
+  else the `(x, y)` pair — `naval.png` shows both forms; as a Destination
+  (param_5 = 1) a Sea Lane (terrain 0x1a) tile names the European port.
 - Columns/layout: 4-column table — Ship (icon+class) / Cargo (goods icons,
   100-unit stacks colored, partial grey) / Location / Destination. DOS row0
   y is `0x2a` = 42, step `0x14` = 20, unit sprite at row_y, cargo icons at

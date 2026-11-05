@@ -259,6 +259,10 @@ const char* reports_unavailable_tag(ColonizeReportId id) {
 }
 
 /* ===================== Shared draw primitives & report-common helpers (reports_draw_line .. reports_draw_icon_bar_pair) ===================== */
+const EuropeScreen* reports_europe_for(const ColonizeWorld* w, int nation) {
+  return (!w->col1 || col1_save_human_nation(w->col1) == nation) ? w->europe : NULL;
+}
+
 void reports_draw_line(
   const ColonizeFont* font,
   ColonizeFramebuffer8* fb,
@@ -766,7 +770,7 @@ void reports_render_w(
   const ColonizeColonyPool* colonies = w->colonies;
   const ColonizeUnitPool* units = w->units;
   const ColonizeWorldMap* map = w->map;
-  const EuropeScreen* europe = w->europe;
+  const EuropeScreen* europe = reports_europe_for(w, human_nation);
   const ColonizeCol1Save* col1 = w->col1;
 
   (void)map;

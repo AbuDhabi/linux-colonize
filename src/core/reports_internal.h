@@ -49,6 +49,9 @@ void reports_draw_dos_centered(
   const char* text,
   uint8_t color
 );
+/* The EuropeScreen is the human's own: a report for another nation (@SETREPORT,
+ * a fixed CHEAT view) reads that nation's col1 record instead. */
+const EuropeScreen* reports_europe_for(const ColonizeWorld* w, int nation);
 void reports_draw_line(
   const ColonizeFont* font,
   ColonizeFramebuffer8* fb,

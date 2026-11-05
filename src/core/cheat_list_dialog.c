@@ -436,6 +436,26 @@ bool cheat_list_open_set_human(CheatListDialog* dlg, const ColonizeMsgCatalog* d
   return cheat_list_fill_from_section(dlg, section, k_fallback_ids, 5);
 }
 
+bool cheat_list_open_set_report(CheatListDialog* dlg, const ColonizeMsgCatalog* debug_txt, int nation) {
+  static const int k_ids[] = {0, 1, 2, 3};
+  const ColonizeMsgSection* section = debug_txt ? assets_msg_find(debug_txt, "SETREPORT") : NULL;
+  if (!dlg || !section) {
+    return false;
+  }
+  cheat_list_init(dlg);
+  dlg->has_result = false;
+  dlg->kind = CHEAT_LIST_KIND_SET_REPORT;
+  dlg->mss = 5; /* FUN_2b5a_2866 `MOV word [0x1f5e],5` before @SETREPORT (ndisasm 0x2381d) */
+  dlg->width = 190;
+  if (!cheat_list_fill_from_section(dlg, section, k_ids, 4)) {
+    return false;
+  }
+  if (nation >= 0 && nation < dlg->option_count) {
+    dlg->selection = nation;
+  }
+  return true;
+}
+
 bool cheat_list_open_set_auto(CheatListDialog* dlg, const ColonizeMsgCatalog* debug_txt) {
   static const int k_ids[] = {1, 2};
   const ColonizeMsgSection* section = debug_txt ? assets_msg_find(debug_txt, "SETAUTO") : NULL;

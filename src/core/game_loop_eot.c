@@ -2071,31 +2071,31 @@ static GameMenuActionStatus game_menu_action_pedia_and_reports(ColonizeGameState
       game_open_terrain_pedia_at_cursor(game);
       return GAME_MENU_ACTION_DONE;
     case MAP_MENU_ACTION_REPORT_RELIGIOUS:
-      game_open_report(game, COLONIZE_REPORT_RELIGIOUS);
+      game_report_command(game, COLONIZE_REPORT_RELIGIOUS);
       return GAME_MENU_ACTION_DONE;
     case MAP_MENU_ACTION_REPORT_CONGRESS:
-      game_open_report(game, COLONIZE_REPORT_CONGRESS);
+      game_report_command(game, COLONIZE_REPORT_CONGRESS);
       return GAME_MENU_ACTION_DONE;
     case MAP_MENU_ACTION_REPORT_LABOR:
-      game_open_report(game, COLONIZE_REPORT_LABOR);
+      game_report_command(game, COLONIZE_REPORT_LABOR);
       return GAME_MENU_ACTION_DONE;
     case MAP_MENU_ACTION_REPORT_ECONOMIC:
-      game_open_report(game, COLONIZE_REPORT_ECONOMIC);
+      game_report_command(game, COLONIZE_REPORT_ECONOMIC);
       return GAME_MENU_ACTION_DONE;
     case MAP_MENU_ACTION_REPORT_COLONY:
-      game_open_report(game, COLONIZE_REPORT_COLONY);
+      game_report_command(game, COLONIZE_REPORT_COLONY);
       return GAME_MENU_ACTION_DONE;
     case MAP_MENU_ACTION_REPORT_NAVAL:
-      game_open_report(game, COLONIZE_REPORT_NAVAL);
+      game_report_command(game, COLONIZE_REPORT_NAVAL);
       return GAME_MENU_ACTION_DONE;
     case MAP_MENU_ACTION_REPORT_FOREIGN:
-      game_open_report(game, COLONIZE_REPORT_FOREIGN);
+      game_report_command(game, COLONIZE_REPORT_FOREIGN);
       return GAME_MENU_ACTION_DONE;
     case MAP_MENU_ACTION_REPORT_INDIAN:
-      game_open_report(game, COLONIZE_REPORT_INDIAN);
+      game_report_command(game, COLONIZE_REPORT_INDIAN);
       return GAME_MENU_ACTION_DONE;
     case MAP_MENU_ACTION_REPORT_SCORE:
-      game_open_score_report(game);
+      game_report_command(game, COLONIZE_REPORT_SCORE);
       return GAME_MENU_ACTION_DONE;
     default:
       break;

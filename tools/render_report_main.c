@@ -76,7 +76,8 @@ int main(int argc, char** argv) {
   if (!render_load_save(data_dir, save_path, &rs)) {
     return 1;
   }
-  const int human = rs.human;
+  /* Reports show the viewpoint nation DS:0x5396, as game_viewpoint_nation does. */
+  const int human = rs.save.head.fixed_nation_map_view <= 3 ? (int)rs.save.head.fixed_nation_map_view : rs.human;
 
   fprintf(
     stderr,

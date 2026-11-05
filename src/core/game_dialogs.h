@@ -347,6 +347,8 @@ struct ColonizeGameState {
   int economic_page; /* 0 = European Trade; >=1 = Cargo in Port page N */
   int colony_page; /* 0..k-1 = Military Garrisons; k..2k-1 = Sons of Liberty */
   int naval_page; /* Naval report (F7) page index — reports_naval_page_count */
+  int report_nation; /* whose report is up: DS:0x5396 viewpoint, or the @SETREPORT pick */
+  int report_pick_id; /* ColonizeReportId waiting on the @SETREPORT box */
   ColonizeHofEntry hof_entries[COLONIZE_HOF_MAX]; /* HALLFAME.DAT slots, ranked desc */
   char hof_path[640]; /* "" = <data dir>/HALLFAME.DAT; regression_replay points it at its out dir */
   int hof_inserted; /* slot the Retire entry took (FUN_41f2_0f56 local_156), -1 = title-menu view */
@@ -542,6 +544,9 @@ bool game_load_col1_slot(ColonizeGameState* game, int slot, char* err, size_t er
 /* Same load from an arbitrary file (input-replay regressions). */
 bool game_load_col1_file(ColonizeGameState* game, const char* path, char* err, size_t err_size);
 void game_open_report(ColonizeGameState* game, ColonizeReportId id);
+/* A REPORTS command (F2-F10, the REPORTS menu): @SETREPORT first under Complete Map. */
+void game_report_command(ColonizeGameState* game, ColonizeReportId id);
+int game_viewpoint_nation(const ColonizeGameState* game);
 void game_open_retire_score(ColonizeGameState* game);
 void game_end_to_title(ColonizeGameState* game);
 void game_end_after_loss(ColonizeGameState* game);

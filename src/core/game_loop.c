@@ -1871,7 +1871,7 @@ COLONIZE_INTERNAL bool game_render_screen(
   if (game->in_report) {
     const ColonizeFont* font = game->menu_font_ok ? &game->menu_font : NULL;
     const ColonizeWorld w = game_world_const(game);
-    reports_render_w(&w, game->reports_ok ? &game->reports : NULL, game->report_id, game->congress_page2, game->labor_detail_job, game->economic_page, game->colony_page, game->naval_page, game->human_nation, game->map_cursor_x, game->map_cursor_y, game->turn_number, font, framebuffer);
+    reports_render_w(&w, game->reports_ok ? &game->reports : NULL, game->report_id, game->congress_page2, game->labor_detail_job, game->economic_page, game->colony_page, game->naval_page, game->report_nation, game->map_cursor_x, game->map_cursor_y, game->turn_number, font, framebuffer);
     return true;
   }
 

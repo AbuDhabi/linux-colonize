@@ -76,12 +76,15 @@ Hall of Fame / Exploits). Shared chrome, fill bars and F2-F9 stay in
   wrapping citizen-portrait icon strip (y=32, 8px pitch, wraps at 37
   icons/row with alternating half-icon row offset), "<Nation> Continental
   Congress: +N" (y=60) + 4-col x 3-row FF name grid (x=16/88/160/232,
-  y=67 step=7), large blank gap, then the gated component lines in DOS
-  order at a 7px pitch starting y=150 ("Gold: (N$) +N" / villages / "Rebel
-  Sentiment: +N" / early revolution / bells / independence) ending in
-  "Total Score: N" (golden: exactly Gold/Rebel/Total at 150/157/164); when
-  more than 5 lines qualify the block shifts up so Total stays clear of the
-  bar (DOS y for the extra lines unconfirmed — no golden with them), then a
+  y=67 step=7), large blank gap, then the gated component lines as three
+  rows of up to two items (`FUN_41f2_0092` 41f2:0546-0a46; the second item
+  starts at the first's end x + 0x14): row 1 "Gold: (N$) +N" + villages,
+  always spent even when both are gated off; row 2 "Rebel Sentiment: +N" +
+  early revolution, spent when 0x53d0 != 0 or 0x5382 bit 8 before 1780;
+  row 3 bells + independence, spent on 0x5382 bit 2 or bit 8; then "Total
+  Score: N". Row 1 is y=0x96 (150) when the Congress line is at or above
+  0x90, else one 7px row below it (golden: Gold/Rebel/Total at 150/157/164;
+  french-campaign/COLONY00 with no gold line: Rebel 157, Total 164), then a
   plain two-tone fill-rect progress bar (x=35..285, y=186,
   fill=min(total,1000)/1000).
 - Ordering: fixed layout, no rows to order.

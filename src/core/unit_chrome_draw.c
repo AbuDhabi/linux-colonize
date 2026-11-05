@@ -290,9 +290,10 @@ static void unit_chrome_blit_unit_colored_shadow(
   );
   /* FUN_112b_01ba 112b:075d-0785 (the decompile drops the args): with the
    * repair digit up (local_1a) at full scale, ICONS 0x38 — the red X — at
-   * (sprite x + 4, y + 4). Seen on the DOS Europe harbor, port_bugs.md #1381c. */
+   * (local_6 + 4, y + 4), local_6 being the silhouette x (DOS F7 Naval report pixels,
+   * dutch-campaign/COLONY01.SAV, 2026-11-05). Seen on the Europe harbor, port_bugs.md #1381c. */
   if (unit_chrome_is_repair_badge(orders_index) && UNIT_CHROME_REPAIR_X_SPRITE < sheet->sprite_count) {
-    ss_blit_sprite(sheet, UNIT_CHROME_REPAIR_X_SPRITE, fb, sx + 4, y + 4);
+    ss_blit_sprite(sheet, UNIT_CHROME_REPAIR_X_SPRITE, fb, shadow_x + 4, y + 4);
   }
 }
 

@@ -700,6 +700,7 @@ void game_open_report(ColonizeGameState* game, ColonizeReportId id) {
   }
   game->in_report = true;
   game->report_id = id;
+  game->report_nation = game_viewpoint_nation(game);
   game->report_exits_to_menu = false;
   game->congress_page2 = false;
   game->labor_detail_job = -1;
@@ -1087,6 +1088,41 @@ void game_open_score_report(ColonizeGameState* game) {
   }
 }
 
+/* REPORTS commands 0x41-0x49 (F2-F10 and the REPORTS menu), FUN_2b5a_2866 asm 0x23810: the
+ * report is drawn for the viewpoint nation DS:0x5396; with Complete Map (DS:0x53a2) the
+ * @SETREPORT box picks it first and Esc drops the command. Score (0x49) keeps its own
+ * dispatch, which ignores the pick (`push 1`). */
+static void game_report_command_for(ColonizeGameState* game, ColonizeReportId id, int nation) {
+  if (id == COLONIZE_REPORT_SCORE) {
+    game_open_score_report(game);
+    return;
+  }
+  game_open_report(game, id);
+  if (game->in_report && game->report_id == id) {
+    game->report_nation = nation;
+  }
+}
+
+void game_report_command(ColonizeGameState* game, ColonizeReportId id) {
+  if (!game) {
+    return;
+  }
+  if (game->col1_ok && game->col1.head.show_entire_map &&
+      cheat_list_open_set_report(
+        &game->cheat_list, game->debug_txt_ok ? &game->debug_txt : NULL, game_viewpoint_nation(game)
+      )) {
+    game->report_pick_id = id;
+    return;
+  }
+  game_report_command_for(game, id, game_viewpoint_nation(game));
+}
+
+void game_apply_set_report(ColonizeGameState* game, int nation) {
+  if (nation >= 0 && nation < 4) {
+    game_report_command_for(game, (ColonizeReportId)game->report_pick_id, nation);
+  }
+}
+
 void game_handle_report_fkey(ColonizeGameState* game, ColonizeKey key) {
   if (!game || key < COLONIZE_KEY_F1 || key > COLONIZE_KEY_F10) {
     return;
@@ -1098,11 +1134,7 @@ void game_handle_report_fkey(ColonizeGameState* game, ColonizeKey key) {
   }
   ColonizeReportId id;
   if (reports_id_from_fkey(fnum, &id)) {
-    if (id == COLONIZE_REPORT_SCORE) {
-      game_open_score_report(game);
-    } else {
-      game_open_report(game, id);
-    }
+    game_report_command(game, id);
   }
 }
 
