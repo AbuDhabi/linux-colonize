@@ -13,6 +13,7 @@
 #include "core/ai_goals.h"
 #include "core/ai_internal.h"
 #include "core/ai_popup.h"
+#include "core/assets.h"
 #include "core/col1_save.h"
 #include "core/col1_stuff_census.h"
 #include "core/colony.h"
@@ -4372,7 +4373,84 @@ static int unit_20e6_counts_read_census_snapshot(void) {
   return 0;
 }
 
+/* One FUN_5bfb_13b0 cancel (raw 97260-97316): the French (1, AI, top rank,
+ * war-worthy as in unit_10ec_skips_while_human_tops_rank) meet the human (0)
+ * they hold a treaty with. Returns the popup queue it left. */
+static int treaty_cancel_run(const ColonizeMsgCatalog* msgs, uint32_t mask, AiPopupState* pops) {
+  Fixture f;
+  if (fixture_init(&f, 1)) return 1;
+  f.turn = 0x50; /* (1 + 0x50 + 0) % 3 == 0: the cadence gate passes */
+  f.col1.stuff.colony_pop_totals[1] = 8;
+  f.col1.nation[1].gold = 100000;
+  ai_diplo_write(&f.col1, 1, 0, AI_DIPLO_MET | AI_DIPLO_PEACE);
+  ai_diplo_write(&f.col1, 0, 1, AI_DIPLO_MET | AI_DIPLO_PEACE);
+  ColonizeUnit* ai = units_get(&f.units, units_spawn(&f.units, 1, 8, 8));
+  ColonizeUnit* me = units_get(&f.units, units_spawn(&f.units, 1, 9, 8));
+  if (!ai || !me) { fixture_free(&f); return fail("treaty cancel: spawn"); }
+  ai->nation_id = 1;
+  me->nation_id = 0;
+  ai_popup_clear(pops);
+  f.ctx.ai_popups = pops;
+  f.ctx.messages = msgs;
+  mods_campaign_set(mask);
+  ai_diplo_13b0_encounter(&f.ctx, 1, 0);
+  mods_campaign_set(0);
+  const int cancelled = (ai_diplo_read(&f.col1, 1, 0) & AI_DIPLO_PEACE) == 0;
+  fixture_free(&f);
+  return cancelled ? 0 : fail("treaty cancel: 13b0 must take the cancel arm");
+}
+
+/* mods.treaty_cancel_popup: on = data/mods @MODCANCELTREATY with @DECLAREWAR's
+ * MSS2 courtier; off, or on without the section = the plain notice as before. */
+static int unit_13b0_treaty_cancel_popup_mod(void) {
+  static ColonizeMsgCatalog mod_game;
+  if (mod_game.section_count == 0) {
+    assets_msg_init(&mod_game);
+    assets_set_mod_data_dir("./data/mods");
+    (void)assets_msg_load_file(&mod_game, "COLONIZE/GAME.TXT");
+    assets_set_mod_data_dir("");
+  }
+  if (!assets_msg_find(&mod_game, "MODCANCELTREATY")) {
+    return fail("treaty cancel: GAME.TXT + data/mods must carry @MODCANCELTREATY");
+  }
+  static AiPopupState pops;
+  char plain[AI_POPUP_BODY_LEN];
+  char modded[AI_POPUP_BODY_LEN];
+  {
+    Fixture f;
+    if (fixture_init(&f, 1)) return 1;
+    const char* na = ai_diplo_rival_name(&f.col1, 1);
+    const char* nb = ai_diplo_rival_name(&f.col1, 0);
+    snprintf(plain, sizeof(plain), "The %s cancel their treaty with the %s.", na, nb);
+    snprintf(modded, sizeof(modded), "The {%s} cancel their peace treaty with the {%s}.", na, nb);
+    fixture_free(&f);
+  }
+  const struct {
+    const ColonizeMsgCatalog* msgs;
+    uint32_t mask;
+    const char* body;
+    int mss;
+    const char* what;
+  } k_rows[] = {
+      {&mod_game, 1u << MOD_TREATY_CANCEL_POPUP, modded, 2, "on"},
+      {&mod_game, 0u, plain, -1, "off"},
+      {test_game_txt(), 1u << MOD_TREATY_CANCEL_POPUP, plain, -1, "on, no section"},
+  };
+  for (size_t i = 0; i < sizeof(k_rows) / sizeof(k_rows[0]); ++i) {
+    if (treaty_cancel_run(k_rows[i].msgs, k_rows[i].mask, &pops)) return 1;
+    const AiPopupRequest* q = &pops.queue[0];
+    if (pops.queue_count != 1 || q->tag != AI_POPUP_TAG_DIPLO_BREAK ||
+        q->graphic_mss != k_rows[i].mss || strcmp(q->body, k_rows[i].body) != 0) {
+      fprintf(stderr, "treaty cancel %s: count %d tag %d mss %d body '%s'\n", k_rows[i].what,
+              pops.queue_count, (int)q->tag, q->graphic_mss, q->body);
+      return fail("treaty cancel: wrong notice for the mod state");
+    }
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+    {"unit_13b0_treaty_cancel_popup_mod", unit_13b0_treaty_cancel_popup_mod},
     {"unit_20e6_counts_read_census_snapshot", unit_20e6_counts_read_census_snapshot},
     {"unit_spent_step_burns_465b_roll", unit_spent_step_burns_465b_roll},
     {"unit_spent_step_onto_foreign_skips_465b_roll", unit_spent_step_onto_foreign_skips_465b_roll},

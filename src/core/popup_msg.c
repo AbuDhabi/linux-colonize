@@ -317,6 +317,8 @@ static const PopupMsgGraphicRow k_popup_msg_mss[] = {
   {"REALLYBUY", 2},   {"SUCCESSION", 2},  {"LOOTCASH", 2},   {"LOOTFOREIGN", 2},
   {"SIGNTREATY", 2},  {"CASHTREASURE", 2}, {"DECLAREWAR", 2}, {"BURNED3", 2},
   {"CAPTURED2", 2},   {"CANCELTREATY", 2},
+  /* mods.treaty_cancel_popup's data/mods stand-in for @CANCELTREATY: same figure. */
+  {"MODCANCELTREATY", 2},
   /* FUN_364b_0000 param_6 (see MSS1). */
   {"TRAINPROFESSION", 2}, {"TRAINFAIL", 2},
   /* #1397: shared tail LAB_364b_0fdb (ndisasm 0x2DF15 / 0x2DF49, PUSH 2). */
