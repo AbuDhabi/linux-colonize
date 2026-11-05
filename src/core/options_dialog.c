@@ -183,23 +183,50 @@ bool options_dialog_open_sound(
   );
 }
 
-_Static_assert(MOD_COUNT <= OPTIONS_DIALOG_MAX, "one Mods dialog row per ModId");
+/*
+ * One GAME row and one data/mods @MODOPTIONS* section per page, rows in ModId
+ * order. With FONTINTR (glyph_h 9) a row advances 12 px and the prompt wraps to
+ * two 10 px lines, so popup_dos_list_height is 35 + 12 * rows: 13 rows is the
+ * most that fits the 200 px screen (all 17 would need 239).
+ */
+#define OPTIONS_MODS_PAGE_ROWS_MAX 13
+static const struct {
+  const char* section;
+  int first;
+  int count;
+} k_mods_pages[OPTIONS_MODS_PAGE_COUNT] = {
+  {"MODOPTIONS", 0, MOD_PIONEER_PLAN},
+  {"MODOPTIONS2", MOD_PIONEER_PLAN, MOD_COUNT - MOD_PIONEER_PLAN},
+};
+_Static_assert(OPTIONS_MODS_PAGE_ROWS_MAX <= OPTIONS_DIALOG_MAX, "a mods page fits the dialog");
+_Static_assert(MOD_PIONEER_PLAN <= OPTIONS_MODS_PAGE_ROWS_MAX, "mods page 1 fits 200 px");
+_Static_assert(MOD_COUNT - MOD_PIONEER_PLAN <= OPTIONS_MODS_PAGE_ROWS_MAX, "mods page 2 fits 200 px");
 
-bool options_dialog_open_mods(OptionsDialog* dlg, const ColonizeMsgCatalog* game_txt, uint32_t mask) {
-  uint8_t vals[MOD_COUNT];
-  for (int i = 0; i < MOD_COUNT; ++i) {
-    vals[i] = (uint8_t)(mask >> i & 1u);
-  }
-  if (!options_load_section(dlg, OPTIONS_KIND_MODS, game_txt, "MODOPTIONS", vals, MOD_COUNT, 220)) {
+bool options_dialog_open_mods(
+  OptionsDialog* dlg, const ColonizeMsgCatalog* game_txt, uint32_t mask, int page
+) {
+  if (page < 0 || page >= OPTIONS_MODS_PAGE_COUNT) {
     return false;
   }
-  if (dlg->option_count != MOD_COUNT) {
-    diag_warn("@MODOPTIONS has %d rows, expected %d (one per mods.h ModId)", dlg->option_count,
-              MOD_COUNT);
+  const int first = k_mods_pages[page].first;
+  const int count = k_mods_pages[page].count;
+  uint8_t vals[OPTIONS_DIALOG_MAX];
+  for (int i = 0; i < count; ++i) {
+    vals[i] = (uint8_t)(mask >> (first + i) & 1u);
   }
-  /* Rows past MOD_COUNT (a newer data file) would toggle nothing. */
-  if (dlg->option_count > MOD_COUNT) {
-    dlg->option_count = MOD_COUNT;
+  if (!options_load_section(
+        dlg, OPTIONS_KIND_MODS, game_txt, k_mods_pages[page].section, vals, count, 220
+      )) {
+    return false;
+  }
+  dlg->mods_first = first;
+  if (dlg->option_count != count) {
+    diag_warn("@%s has %d rows, expected %d (mods.h ModId %d..%d)", k_mods_pages[page].section,
+              dlg->option_count, count, first, first + count - 1);
+  }
+  /* Rows past the page (a newer data file) would toggle nothing. */
+  if (dlg->option_count > count) {
+    dlg->option_count = count;
   }
   return true;
 }
@@ -209,8 +236,9 @@ bool options_dialog_apply_mods(const OptionsDialog* dlg, uint32_t* mask) {
     return false;
   }
   uint32_t m = *mask;
-  for (int i = 0; i < dlg->result_count && i < MOD_COUNT; ++i) {
-    m = dlg->result_values[i] ? (m | 1u << i) : (m & ~(1u << i));
+  for (int i = 0; i < dlg->result_count && dlg->mods_first + i < MOD_COUNT; ++i) {
+    const uint32_t bit = 1u << (dlg->mods_first + i);
+    m = dlg->result_values[i] ? (m | bit) : (m & ~bit);
   }
   *mask = m;
   return true;

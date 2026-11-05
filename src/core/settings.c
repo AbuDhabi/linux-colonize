@@ -128,6 +128,11 @@ static const SettingsBoolOpt k_mod_opts[] = {
   SETTINGS_MOD("tribe_mood", MOD_TRIBE_MOOD, false),
   SETTINGS_MOD("scout_spying", MOD_SCOUT_SPYING, false),
   SETTINGS_MOD("treaty_cancel_popup", MOD_TREATY_CANCEL_POPUP, false),
+  SETTINGS_MOD("pioneer_plan", MOD_PIONEER_PLAN, false),
+  SETTINGS_MOD("scout_autoexplore", MOD_SCOUT_AUTOEXPLORE, false),
+  SETTINGS_MOD("ship_autoexplore", MOD_SHIP_AUTOEXPLORE, false),
+  SETTINGS_MOD("hard_king", MOD_HARD_KING, false),
+  SETTINGS_MOD("current_vision", MOD_CURRENT_VISION, false),
 };
 
 #define SETTINGS_OPT_COUNT(t) ((int)(sizeof(t) / sizeof((t)[0])))

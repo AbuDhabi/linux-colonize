@@ -289,18 +289,22 @@ static int case_reports_and_game_options(void) {
 
 /* data/mods/MENU.TXT appends the Mods row to @GAME only when the mod data dir
  * is set (opencol sets it; tests leave it empty), and the stock rows stay. */
-static int game_menu_shape(int* mods_row, int* items) {
+static int game_menu_shape(int* mods_row, int* more_row, int* items) {
   Fixture fx;
   if (fixture_init(&fx) != 0) {
     return 1;
   }
   const int game_i = find_section(&fx.bar, "GAME");
   *mods_row = -1;
+  *more_row = -1;
   *items = fx.bar.menus[game_i].item_count;
   for (int i = 0; i < *items; ++i) {
-    if (fx.bar.menus[game_i].items[i].action == MAP_MENU_ACTION_MODS &&
-        fx.bar.menus[game_i].items[i].enabled) {
+    const MapMenuItem* it = &fx.bar.menus[game_i].items[i];
+    if (it->action == MAP_MENU_ACTION_MODS && it->enabled) {
       *mods_row = i;
+    }
+    if (it->action == MAP_MENU_ACTION_MODS_MORE && it->enabled) {
+      *more_row = i;
     }
   }
   fixture_free(&fx);
@@ -308,15 +312,16 @@ static int game_menu_shape(int* mods_row, int* items) {
 }
 
 static int case_mods_menu_overlay(void) {
-  int stock_row = 0, stock_items = 0, mods_row = 0, mods_items = 0;
-  int rc = game_menu_shape(&stock_row, &stock_items);
+  int stock_row = 0, stock_more = 0, stock_items = 0, mods_row = 0, more_row = 0, mods_items = 0;
+  int rc = game_menu_shape(&stock_row, &stock_more, &stock_items);
   assets_set_mod_data_dir("./data/mods");
-  rc |= game_menu_shape(&mods_row, &mods_items);
+  rc |= game_menu_shape(&mods_row, &more_row, &mods_items);
   assets_set_mod_data_dir("");
-  /* Overlay adds the Mods row plus the separator before it. */
-  if (rc || stock_row != -1 || mods_row != stock_items + 1 || mods_items != stock_items + 2) {
-    fprintf(stderr, "mods menu: stock row %d items %d; overlay row %d items %d\n", stock_row,
-            stock_items, mods_row, mods_items);
+  /* Overlay adds a separator, then the two Mods page rows. */
+  if (rc || stock_row != -1 || stock_more != -1 || mods_row != stock_items + 1 ||
+      more_row != stock_items + 2 || mods_items != stock_items + 3) {
+    fprintf(stderr, "mods menu: stock rows %d/%d items %d; overlay rows %d/%d items %d\n",
+            stock_row, stock_more, stock_items, mods_row, more_row, mods_items);
     return 1;
   }
   return 0;

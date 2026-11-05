@@ -5,8 +5,8 @@
 ;
 
 ;       GAME > Mods for New Games: one @options row per toggle, in ModId
-;       order (src/core/mods.h). Edits settings.json; a game in progress
-;       keeps the toggles it started with.
+;       order (src/core/mods.h), ModId 0-11. Edits settings.json; a game in
+;       progress keeps the toggles it started with.
 @MODOPTIONS
 @width=220
 @checkbox
@@ -24,6 +24,20 @@ Building ~Upkeep
 Tribe ~Mood Reports
 Scout Es~pionage
 Treaty Cancel ~Notice
+
+;       GAME > More Mods for New Games: ModId 12 on, same rules (all of
+;       them do not fit one 200 px dialog). Hotkeys differ from the rows
+;       above.
+@MODOPTIONS2
+@width=220
+@checkbox
+More Mods for New Games (this game keeps its own)
+@options
+Plan Pi~oneer, Pioneer Automate
+Scouts Auto-~Explore
+S~hips Auto-Explore
+Har~d King, Tougher REF
+Current ~Vision Veil
 
 ;       mods.wagon_loot, roll 3-6: natives take every hold of one good.
 ;       %STRING0 tribe, %STRING1 good. Roll 7-10 uses stock @LOOTWAGONS.

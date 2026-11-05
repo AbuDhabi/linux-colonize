@@ -43,6 +43,16 @@ typedef enum ModId {
   /* New feature: an AI cancelling its treaty is announced in a Foreign Affairs
    * advisor popup. */
   MOD_TREATY_CANCEL_POPUP = 11,
+  /* New feature: VIEW Plan Pioneer and ORDERS Automate for Pioneers (pioneer_plan.h). */
+  MOD_PIONEER_PLAN = 12,
+  /* New feature: ORDERS Automate on a Scout explores (explore_auto.h). */
+  MOD_SCOUT_AUTOEXPLORE = 13,
+  /* New feature: ORDERS Automate on a ship explores the ocean (explore_auto.h). */
+  MOD_SHIP_AUTOEXPLORE = 14,
+  /* Gameplay: a tougher REF (more waves a turn, seize-landings, nearby garrison counted). */
+  MOD_HARD_KING = 15,
+  /* New feature: seen tiles outside live unit/colony sight get a fog-blue veil. */
+  MOD_CURRENT_VISION = 16,
   MOD_COUNT
 } ModId;
 

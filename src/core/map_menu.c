@@ -159,7 +159,8 @@ static const MapMenuAction k_menu_rows_game[] = {
   U, MAP_MENU_ACTION_OPTIONS, MAP_MENU_ACTION_COLONY_OPTIONS, MAP_MENU_ACTION_SOUND_OPTIONS,
   MAP_MENU_ACTION_PICK_MUSIC, MAP_MENU_ACTION_SAVE, MAP_MENU_ACTION_LOAD,
   MAP_MENU_ACTION_DECLARE_INDEPENDENCE, MAP_MENU_ACTION_RETIRE, MAP_MENU_ACTION_EXIT,
-  MAP_MENU_ACTION_MODS /* port-only: stock MENU.TXT stops at row 9; data/mods appends 10 */
+  MAP_MENU_ACTION_MODS, /* port-only: stock MENU.TXT stops at row 9; data/mods appends 10, 11 */
+  MAP_MENU_ACTION_MODS_MORE
 };
 static const MapMenuAction k_menu_rows_view[] = {
   U, MAP_MENU_ACTION_MOVE_PIECES, MAP_MENU_ACTION_VIEW_PIECES, MAP_MENU_ACTION_EUROPE,
@@ -241,6 +242,7 @@ static bool map_menu_action_enabled(MapMenuAction action) {
     case MAP_MENU_ACTION_RETIRE:
     case MAP_MENU_ACTION_EXIT:
     case MAP_MENU_ACTION_MODS:
+    case MAP_MENU_ACTION_MODS_MORE:
     case MAP_MENU_ACTION_PICK_MUSIC:
     case MAP_MENU_ACTION_OPTIONS:
     case MAP_MENU_ACTION_COLONY_OPTIONS:
@@ -1581,6 +1583,8 @@ const char* map_menu_action_name(MapMenuAction action) {
       return "exit";
     case MAP_MENU_ACTION_MODS:
       return "mods";
+    case MAP_MENU_ACTION_MODS_MORE:
+      return "mods_more";
     case MAP_MENU_ACTION_PICK_MUSIC:
       return "pick_music";
     case MAP_MENU_ACTION_OPTIONS:

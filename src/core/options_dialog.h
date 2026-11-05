@@ -37,6 +37,7 @@ typedef struct OptionsDialog {
   char labels[OPTIONS_DIALOG_MAX][OPTIONS_DIALOG_LABEL_LEN];
   uint8_t values[OPTIONS_DIALOG_MAX]; /* 0/1 */
   int option_count;
+  int mods_first; /* OPTIONS_KIND_MODS: the ModId of row 0 */
 
   bool has_result;
   bool result_cancelled;
@@ -73,9 +74,15 @@ bool options_dialog_open_sound(
   bool sound_effects
 );
 
-/* Mod toggle defaults as a ModId bit mask (mods.h), one row per ModId. */
-bool options_dialog_open_mods(OptionsDialog* dlg, const ColonizeMsgCatalog* game_txt, uint32_t mask);
-/* True and *mask written when a MODS result was confirmed. */
+/* Mod toggle defaults as a ModId bit mask (mods.h), one row per ModId. The
+ * toggles do not fit one 200 px dialog, so they are split over pages: page 0 =
+ * GAME row 10 / @MODOPTIONS, page 1 = GAME row 11 / @MODOPTIONS2. */
+#define OPTIONS_MODS_PAGE_COUNT 2
+bool options_dialog_open_mods(
+  OptionsDialog* dlg, const ColonizeMsgCatalog* game_txt, uint32_t mask, int page
+);
+/* True and *mask written when a MODS result was confirmed; only the shown
+ * page's bits change. */
 bool options_dialog_apply_mods(const OptionsDialog* dlg, uint32_t* mask);
 
 /* Apply confirmed GAME bits into Col1 options (no-op if cancelled/wrong kind). */

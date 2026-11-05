@@ -4,6 +4,7 @@
 #include "core/font_file.h"
 #include "core/game_loop_internal.h"
 #include "core/howmuch_dialog.h"
+#include "core/mods.h"
 #include "core/name_entry_dialog.h"
 #include "core/options_dialog.h"
 #include "core/popup_msg.h"
@@ -1139,7 +1140,98 @@ static int case_save_load_is_fonttiny(void) {
   return rc;
 }
 
+/* GAME > Mods for New Games: the toggles are split over OPTIONS_MODS_PAGE_COUNT
+ * dialogs (data/mods @MODOPTIONS, @MODOPTIONS2) because all of them do not fit
+ * 200 px in FONTINTR. Every ModId has exactly one row, every page fits the
+ * screen, every row has its own hotkey, and a page only writes its own bits. */
+static int case_mods_dialog_pages(void) {
+  ColonizeFont font;
+  char err[128];
+  if (!font_file_load("COLONIZE/FONTINTR.FF", &font, err, sizeof(err))) {
+    return TR_SKIP;
+  }
+  ColonizeMsgCatalog cat;
+  assets_msg_init(&cat);
+  assets_set_mod_data_dir("./data/mods");
+  const bool loaded = assets_msg_load_file(&cat, "COLONIZE/GAME.TXT");
+  assets_set_mod_data_dir("");
+  if (!loaded) {
+    font_file_free(&font);
+    return TR_SKIP;
+  }
+  int rc = 0;
+  int total = 0;
+  int hotkeys[OPTIONS_MODS_PAGE_COUNT * OPTIONS_DIALOG_MAX];
+  const uint32_t mask = 1u << MOD_WAGON_LOOT | 1u << MOD_HARD_KING;
+  static uint8_t px[320 * 200];
+  ColonizeFramebuffer8 fb = {.width = 320, .height = 200, .pixels = px};
+  for (int page = 0; page < OPTIONS_MODS_PAGE_COUNT; ++page) {
+    OptionsDialog od;
+    if (!options_dialog_open_mods(&od, &cat, mask, page) || od.option_count <= 0) {
+      fprintf(stderr, "mods page %d did not open\n", page);
+      rc = 1;
+      continue;
+    }
+    if (od.mods_first != total) {
+      fprintf(stderr, "mods page %d starts at ModId %d, want %d\n", page, od.mods_first, total);
+      rc = 1;
+    }
+    for (int i = 0; i < od.option_count; ++i) {
+      if (od.values[i] != (mask >> (od.mods_first + i) & 1u)) {
+        fprintf(stderr, "mods page %d row %d shows %d\n", page, i, od.values[i]);
+        rc = 1;
+      }
+      hotkeys[total + i] = popup_hotkey_of(od.labels[i]);
+    }
+    total += od.option_count;
+    memset(px, 0, sizeof(px));
+    options_dialog_render(&od, &font, NULL, NULL, 68, 149, 138, &fb);
+    const int rows_end = od.list_y0 + od.option_count * od.line_h;
+    if (od.dialog_y < 0 || od.dialog_y + od.dialog_h > 200 || rows_end > od.dialog_y + od.dialog_h) {
+      fprintf(stderr, "mods page %d: frame y %d h %d, rows end at %d (screen 200)\n", page,
+              od.dialog_y, od.dialog_h, rows_end);
+      rc = 1;
+    }
+  }
+  if (total != MOD_COUNT) {
+    fprintf(stderr, "mods pages hold %d rows, want MOD_COUNT %d\n", total, MOD_COUNT);
+    rc = 1;
+  }
+  for (int i = 0; i < total && i < MOD_COUNT; ++i) {
+    for (int j = -1; j < i; ++j) {
+      if (hotkeys[i] == 0 || (j >= 0 && hotkeys[i] == hotkeys[j])) {
+        fprintf(stderr, "mods rows %d and %d: hotkey %d not unique\n", j, i, hotkeys[i]);
+        rc = 1;
+      }
+    }
+  }
+  /* Page 2, row 0 (pioneer_plan) toggled and confirmed: only that bit moves. */
+  OptionsDialog od;
+  if (options_dialog_open_mods(&od, &cat, mask, 1)) {
+    ColonizeInputState in;
+    memset(&in, 0, sizeof(in));
+    od.selection = 0;
+    in.last_key = COLONIZE_KEY_SPACE;
+    options_dialog_handle_input(&od, &in);
+    in.last_key = COLONIZE_KEY_ENTER;
+    options_dialog_handle_input(&od, &in);
+    uint32_t out = mask;
+    if (!options_dialog_apply_mods(&od, &out) || out != (mask | 1u << MOD_PIONEER_PLAN)) {
+      fprintf(stderr, "mods page 2 apply: mask %#x\n", (unsigned)out);
+      rc = 1;
+    }
+  }
+  if (options_dialog_open_mods(&od, &cat, mask, OPTIONS_MODS_PAGE_COUNT)) {
+    fprintf(stderr, "a mods page past the last opened\n");
+    rc = 1;
+  }
+  assets_msg_free(&cat);
+  font_file_free(&font);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
+    {"mods_dialog_pages", case_mods_dialog_pages},
     {"token_apply", case_token_apply},
     {"save_load_is_fonttiny", case_save_load_is_fonttiny},
     {"howmuch", case_howmuch},
