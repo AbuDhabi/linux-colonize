@@ -642,8 +642,11 @@ int colony_prod_colony_crosses_ff(
     if (colonies_building_row_chain(row) != COLONIES_CHAIN_CHURCH) {
       continue;
     }
-    crosses +=
-      colony_prod_crosses_worker_row(row, c->profession, sol_bonus, colony_has_cathedral, nation_has_penn);
+    /* MOD_BUILDING_UPKEEP: half per worker on an unpaid upkeep turn; passives stay. */
+    crosses += colonies_upkeep_halve(
+      colony,
+      colony_prod_crosses_worker_row(row, c->profession, sol_bonus, colony_has_cathedral, nation_has_penn)
+    );
   }
   /* port_bugs.md (player-recalled, matches the asm): the SoL bonus folds in
    * per-WORKER only (FUN_15eb_1d4c) — the base/passive composer
@@ -701,7 +704,9 @@ int colony_prod_colony_bells_ff(
      * v <<= 1`, nothing else; no Jefferson/Press/Paine call anywhere in
      * Statesman's own per-worker body. Those three apply once, colony-wide,
      * below — see the comment there. */
-    bells += colony_prod_bells_worker_row(row, c->profession, sol_bonus);
+    /* MOD_BUILDING_UPKEEP: half per worker on an unpaid upkeep turn; the
+     * passive +1 and the FF/Press multipliers below are not workers. */
+    bells += colonies_upkeep_halve(colony, colony_prod_bells_worker_row(row, c->profession, sol_bonus));
   }
   /* port_bugs.md smell #19 (user-confirmed vs DOS): the SoL bonus folds in
    * per-WORKER only (FUN_15eb_1d4c Statesman body) — the base/passive
@@ -834,8 +839,11 @@ int colony_prod_colony_hammers(
     }
     const int row = colonies_building_type_row(pool, c->building_type);
     lumber_total += colony_prod_hammers_worker_row(row, c->profession, 0, colony_has_lumber_mill);
-    hammers_total +=
-      colony_prod_hammers_worker_row(row, c->profession, sol_bonus, colony_has_lumber_mill);
+    /* MOD_BUILDING_UPKEEP: half per worker on an unpaid upkeep turn (the
+     * lumber debit follows the hammers 1:1). The sol 0 probe above is AI-only. */
+    hammers_total += colonies_upkeep_halve(
+      colony, colony_prod_hammers_worker_row(row, c->profession, sol_bonus, colony_has_lumber_mill)
+    );
   }
   if (out_lumber_use && lumber_total > 0) {
     *out_lumber_use = lumber_total;
@@ -955,13 +963,20 @@ int colony_prod_building_display_output_sol(
   } else if (chain == COLONIES_CHAIN_CHURCH) {
     amount += colony_prod_church_passive_crosses_row(row);
   }
+  const bool short_upkeep = colonies_upkeep_short(pool, col1, NULL, colony->nation_id);
   for (int p = 0; p < colony->colonist_count; ++p) {
     const ColonizeColonist* c = &colony->colonists[p];
     if (!c->active || c->building_type != building_type) {
       continue;
     }
-    amount += colony_prod_worker_building_output_ctx(
+    /* MOD_BUILDING_UPKEEP: the badge shows next turn's halved figure while the
+     * human treasury cannot cover the upkeep (colonies_upkeep_short, live). */
+    int v = colony_prod_worker_building_output_ctx(
       pool, colony, col1, building_type, c->profession, sol_bonus);
+    if (short_upkeep) {
+      v >>= 1;
+    }
+    amount += v;
   }
   return amount;
 }

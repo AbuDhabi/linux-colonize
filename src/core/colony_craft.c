@@ -103,8 +103,11 @@ static void colony_craft_pair_totals(
      * pass the signed value through, not just a positive-only bump; a Tory
      * penalty (negative) reduces output here exactly like it already does
      * for field yields in turn.c, not just SoL bonuses increasing it. */
-    total_out +=
-      colony_prod_manufacturing_output_row(row, c->profession, rec->craft_profession, sol_bonus);
+    /* MOD_BUILDING_UPKEEP: half per worker on an unpaid upkeep turn (no-op otherwise). */
+    total_out += colonies_upkeep_halve(
+      colony,
+      colony_prod_manufacturing_output_row(row, c->profession, rec->craft_profession, sol_bonus)
+    );
     /* The raw-good requirement is NOT summed per worker: DOS FUN_15eb_0bd4
      * raw 10168-10172 floor-divides the colony's summed gross for the
      * finished good ONCE; the caller derives it from the total (port_bugs.md

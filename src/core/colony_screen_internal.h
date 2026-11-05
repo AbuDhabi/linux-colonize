@@ -210,6 +210,7 @@ void colony_screen_draw_outlined_number(
 );
 void colony_screen_draw_people(
   ColonyScreenView* view,
+  const ColonizeColonyPool* pool,
   const ColonizeColony* colony,
   const ColonizeUnitPool* units,
   const ColonizeCol1Save* col1,

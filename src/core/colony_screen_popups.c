@@ -1667,7 +1667,7 @@ void colony_screen_render_w(
   );
 
   if (view) {
-    colony_screen_draw_people(view, colony, units, col1, font, framebuffer);
+    colony_screen_draw_people(view, pool, colony, units, col1, font, framebuffer);
     colony_screen_draw_transports(view, units, font, labels, framebuffer);
     colony_screen_draw_multifunction(view, pool, colony, units, font, labels, framebuffer);
   }

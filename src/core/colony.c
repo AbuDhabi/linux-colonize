@@ -330,7 +330,6 @@ bool colonies_load_buildings(ColonizeColonyPool* pool, const ColonizeMsgCatalog*
     int upkeep = 0;
     /* NAMES.TXT: name, cost, tools(*10), size, min_colony, upkeep */
     sscanf(p, " %d , %d , %d , %d , %d", &hammers, &tools_cost, &size, &min_pop, &upkeep);
-    (void)upkeep;
 
     ColonizeBuildingType* t = &pool->building_types[pool->building_type_count++];
     t->row_plus1 = pool->building_type_count; /* @BUILDING row = identity */
@@ -347,6 +346,7 @@ bool colonies_load_buildings(ColonizeColonyPool* pool, const ColonizeMsgCatalog*
     t->tools_cost = tools_cost * 10;
     t->min_population = min_pop;
     t->size_class = size;
+    t->upkeep = upkeep;
   }
 
   /* MOD_TOWN_HALL_TIERS (not DOS): mod names of rows 10/11 from the mod-only

@@ -125,6 +125,7 @@ int colony_screen_people_layout(
 
 void colony_screen_draw_people(
   ColonyScreenView* view,
+  const ColonizeColonyPool* pool,
   const ColonizeColony* colony,
   const ColonizeUnitPool* units,
   const ColonizeCol1Save* col1,
@@ -154,6 +155,11 @@ void colony_screen_draw_people(
   }
   if (tory_count >= 2 * thr) {
     ink = 12;
+  }
+  /* MOD_BUILDING_UPKEEP: brown 6 (EGA brown in WOODPANL) wins while the nation
+   * cannot pay building upkeep this turn. */
+  if (colonies_upkeep_short(pool, col1, NULL, owner)) {
+    ink = 6;
   }
   const int sol_y = COLONY_PANEL_CONTENT_Y + 1;
   char buf[32];

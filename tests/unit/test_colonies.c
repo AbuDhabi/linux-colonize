@@ -3161,6 +3161,93 @@ static int unit_plot_blocked_mask(void) {
   return 1;
 }
 
+/* MOD_BUILDING_UPKEEP: each chain pays its top owned tier only (NAMES.TXT
+ * @BUILDING column 6), Warehouse Expansion by warehouse_level, the Town Hall
+ * tier rows top the Town Hall chain only with MOD_TOWN_HALL_TIERS on; other
+ * nations' colonies don't count; mod off is never short. */
+static int unit_building_upkeep_total(void) {
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
+    fprintf(stderr, "upkeep: load NAMES.TXT failed\n");
+    return 1;
+  }
+  static ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  if (!colonies_load_buildings(&pool, &names)) {
+    fprintf(stderr, "upkeep: load @BUILDING failed\n");
+    assets_msg_free(&names);
+    return 1;
+  }
+  assets_msg_free(&names);
+  int failures = 0;
+#define SLOT(r) colonies_building_row(&pool, COLONY_BUILDING_##r)
+  CHECK(pool.building_types[SLOT(FORTRESS)].upkeep == 15 &&
+          pool.building_types[SLOT(DOCKS)].upkeep == 5,
+        "upkeep: @BUILDING column 6 loaded");
+  ColonizeColony* a = &pool.colonies[0];
+  ColonizeColony* b = &pool.colonies[1];
+  ColonizeColony* f = &pool.colonies[2];
+  memset(a, 0, 3 * sizeof(*a));
+  a->active = b->active = f->active = true;
+  a->id = 1;
+  b->id = 2;
+  f->id = 3;
+  a->nation_id = b->nation_id = 0;
+  f->nation_id = 1;
+  /* Shipyard colony: Docks 5 + Drydock 10 + Shipyard 15 owned -> 15. */
+  a->has_building[SLOT(DOCKS)] = a->has_building[SLOT(DRYDOCK)] = a->has_building[SLOT(SHIPYARD)] = true;
+  CHECK(colonies_upkeep_colony(&pool, a) == 15, "upkeep: Shipyard colony pays 15, not 30");
+  /* Warehouse tier is the level byte: both bits without a level -> 0;
+   * level 2 -> the Expansion's 5, not Warehouse + Expansion. */
+  a->has_building[SLOT(WAREHOUSE)] = a->has_building[SLOT(WAREHOUSE_EXPANSION)] = true;
+  CHECK(colonies_upkeep_colony(&pool, a) == 15, "upkeep: warehouse bits alone pay nothing");
+  a->warehouse_level = 2;
+  CHECK(colonies_upkeep_colony(&pool, a) == 20, "upkeep: warehouse level 2 pays 5");
+  /* Fortress colony: Stockade 0 + Fort 10 + Fortress 15 -> 15; Town Hall
+   * rows 9/10/11 (0/10/15) -> 0 with the tiers mod off, else the top tier. */
+  b->has_building[SLOT(STOCKADE)] = b->has_building[SLOT(FORT)] = b->has_building[SLOT(FORTRESS)] = true;
+  b->has_building[SLOT(TOWN_HALL)] = b->has_building[SLOT(TOWN_HALL_2)] = true;
+  CHECK(colonies_upkeep_colony(&pool, b) == 15, "upkeep: tiers mod off -> Town Hall chain stops at row 9");
+  mods_campaign_set(1u << MOD_TOWN_HALL_TIERS);
+  CHECK(colonies_upkeep_colony(&pool, b) == 25, "upkeep: Fortress 15 + Town Hall Expansion 10");
+  b->has_building[SLOT(TOWN_HALL_3)] = true;
+  CHECK(colonies_upkeep_colony(&pool, b) == 30, "upkeep: Colonial Assembly tops the Town Hall chain");
+  f->has_building[SLOT(FORTRESS)] = true;
+  CHECK(colonies_upkeep_total(&pool, 0) == 50, "upkeep: nation 0 total = 20 + 30");
+  CHECK(colonies_upkeep_total(&pool, 1) == 15, "upkeep: nation 1 counts only its own colony");
+  /* Shortfall: mod on, human, treasury < total. An explicit screen bound to
+   * nation 0 holds the purse, so no live Europe screen can leak in. */
+  static EuropeScreen eu;
+  memset(&eu, 0, sizeof(eu));
+  eu.bound_nation = 0;
+  static ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  eu.gold = 49;
+  CHECK(!colonies_upkeep_short(&pool, &col1, &eu, 0), "upkeep: mod off is never short");
+  CHECK(colonies_upkeep_set_halved(1u) == 0u && !colonies_upkeep_halved(a),
+        "upkeep: mod off never arms the halved mask");
+  mods_campaign_set(1u << MOD_TOWN_HALL_TIERS | 1u << MOD_BUILDING_UPKEEP);
+  CHECK(colonies_upkeep_short(&pool, &col1, &eu, 0), "upkeep: 49 < 50 is short");
+  eu.gold = 50;
+  CHECK(!colonies_upkeep_short(&pool, &col1, &eu, 0), "upkeep: 50 covers 50");
+  (void)colonies_upkeep_set_halved(1u);
+  CHECK(colonies_upkeep_halved(a) && colonies_upkeep_halve(a, 7) == 3 && !colonies_upkeep_halved(f),
+        "upkeep: the halved mask halves nation 0 only (floor)");
+  (void)colonies_upkeep_set_halved(0u);
+  col1.player[0].control = 1;
+  eu.gold = 0;
+  CHECK(!colonies_upkeep_short(&pool, &col1, &eu, 0), "upkeep: AI nations never short");
+  mods_campaign_set(0);
+#undef SLOT
+  if (failures == 0) {
+    printf("unit_colonies: building upkeep total ok\n");
+    return 0;
+  }
+  return 1;
+}
+
 /* MOD_TOWN_HALL_TIERS names: rows 10/11 read NAMES @MODBUILDING (data/mods)
  * only while the mod is on; the stock "Town Hall" row name never changes. */
 static int unit_town_hall_tier_names(void) {
@@ -4083,6 +4170,7 @@ static const TestCase k_cases[] = {
     {"unit_plot_blocked_mask", unit_plot_blocked_mask},
     {"unit_work_plot_ring_593", unit_work_plot_ring_593},
     {"unit_town_hall_tier_names", unit_town_hall_tier_names},
+    {"unit_building_upkeep_total", unit_building_upkeep_total},
     {"unit_settlement_count_and_name_peek", unit_settlement_count_and_name_peek},
     {"unit_buildable_blank_name_tier", unit_buildable_blank_name_tier},
     {"unit_colony_cheat_helpers", unit_colony_cheat_helpers},

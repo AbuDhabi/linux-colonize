@@ -24,6 +24,7 @@
 #include "core/dos_rng.h"
 #include "core/europe.h"
 #include "core/founding_fathers.h"
+#include "core/mods.h"
 #include "core/reports.h"
 #include "core/reports_names.h"
 #include "core/sound.h"
@@ -1185,11 +1186,18 @@ COLONIZE_INTERNAL void turn_produce_education(TurnProduceCtx* pc) {
     }
     /* DOS 0d1c/0a7e (raw 57505-57538): the +0x60 counter ticks for every
      * colonist; the writer FUN_15eb_0cbc clamps at 15 (raw 10231-10233),
-     * so it saturates there instead of running on. */
-    if (c->turns_in_job < 15) {
+     * so it saturates there instead of running on. MOD_BUILDING_UPKEEP: on an
+     * unpaid-upkeep turn a teacher (school seat, level 1..3 specialty, as the
+     * teacher test below) does not advance; the counter has no half step. */
+    const int prof = c->profession;
+    const bool upkeep_paused =
+      colonies_upkeep_halved(colony) && c->building_type >= 0 &&
+      c->building_type < pool->building_type_count &&
+      colonies_school_building_tier(pool, c->building_type) > 0 &&
+      colonies_job_school_tier(prof) >= 1 && colonies_job_school_tier(prof) <= 3;
+    if (c->turns_in_job < 15 && !upkeep_paused) {
       c->turns_in_job++;
     }
-    const int prof = c->profession;
     /* Student whitelist is exactly {0x1a,0x19,0x1c,0x13} (FUN_364b_0688 raw
      * 57510); no `prof < 0` arm in DOS. */
     if (prof == COLONIZE_PROF_FREE_COLONIST || prof == UNITS_JOB_COLONIST ||
@@ -2349,6 +2357,43 @@ bool turn_prod_nation_in_scope(int nation_id) {
 }
 
 /*
+ * MOD_BUILDING_UPKEEP (not DOS; docs/settings.md "mods"): before a production
+ * pass, each human nation in scope pays its colonies' building upkeep from the
+ * treasury, or, short, pays nothing and gets @UPKEEP (GAME.TXT text DOS never
+ * shows). Returns the nations whose building workers produce at half this
+ * pass. Mod off: no-op, no RNG. The colony-screen Space cheat calls
+ * turn_run_one_colony_production_w directly: it neither charges nor halves.
+ */
+static unsigned turn_charge_building_upkeep(
+  const ColonizeWorld* w, AiPopupState* ai_popups, const ColonizeMsgCatalog* messages
+) {
+  unsigned halved = 0u;
+  if (!mods_on(MOD_BUILDING_UPKEEP) || !w->col1) {
+    return 0u;
+  }
+  for (int n = 0; n < 4; ++n) {
+    if (w->col1->player[n].control != 0 || !turn_prod_nation_in_scope(n)) {
+      continue;
+    }
+    const int total = colonies_upkeep_total(w->colonies, n);
+    if (total <= 0) {
+      continue;
+    }
+    if (!colonies_upkeep_short(w->colonies, w->col1, w->europe, n)) {
+      europe_nation_gold_add(w->europe, w->col1, n, -(long)total);
+      continue;
+    }
+    halved |= 1u << n;
+    PopupMsgTokens tok;
+    memset(&tok, 0, sizeof(tok));
+    tok.number0 = total;
+    tok.has_number0 = true;
+    popup_chrome_ok(ai_popups, messages, "UPKEEP", &tok, "");
+  }
+  return halved;
+}
+
+/*
  * One colony of the FUN_3844_00f2 colony loop = the head of FUN_364b_0688
  * (raw 57224-57229) plus its production body. Shared by the EOT loop below and
  * the colony-screen Space cheat (FUN_2f2b_6372 2f2b:6950 -> FUN_364b_0688).
@@ -2442,6 +2487,11 @@ void turn_run_colony_production_from_w(
                   n < (int)COLONIZE_COL1_NATION_COUNT && n < 4; ++n) {
     turn_tally_professions_w(w, n, turn_prof_census[n]);
   }
+  /* Upkeep is charged once per pass: a pass resumed after a colony's messages
+   * (cursor) keeps the halved mask the fresh start set. */
+  if (start == COLONIZE_COLONIES_MAX - 1) {
+    (void)colonies_upkeep_set_halved(turn_charge_building_upkeep(w, ai_popups, messages));
+  }
   /* FUN_3844_00f2 raw 58384 walks colony indices from count - 1 down. */
   for (int i = start; i >= 0 && i < COLONIZE_COLONIES_MAX; --i) {
     ColonizeColony* col = &pool->colonies[i];
@@ -2463,6 +2513,7 @@ void turn_run_colony_production_from_w(
   if (cursor) {
     *cursor = -1;
   }
+  (void)colonies_upkeep_set_halved(0u);
 }
 
 void turn_run_colony_production_w(

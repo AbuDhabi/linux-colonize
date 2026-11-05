@@ -73,6 +73,9 @@ typedef struct ColonizeBuildingType {
    * 0..4, indexing the per-class box tables at DS:0x230 (width) / DS:0x236
    * (height) that FUN_2f2b_14d4 centers level badges in. */
   int size_class;
+  /* NAMES.TXT @BUILDING column 6 (upkeep, 0..15). DOS's loader stores it and
+   * nothing reads it; only MOD_BUILDING_UPKEEP does (colonies_upkeep_colony). */
+  int upkeep;
 } ColonizeBuildingType;
 
 /* One person living in a colony (disbanded map unit). */
@@ -476,6 +479,25 @@ const ColonizeBuildingType* colonies_building_type(const ColonizeColonyPool* poo
 const char* colonies_building_mod_name(int row);
 /* Display name of a pool slot: the mod name above, else the stock name ("" when none). */
 const char* colonies_building_name(const ColonizeColonyPool* pool, int type_index);
+
+/* MOD_BUILDING_UPKEEP (docs/settings.md "mods"; colony_build.c). Upkeep of one
+ * colony: the top owned tier of each building chain. */
+int colonies_upkeep_colony(const ColonizeColonyPool* pool, const ColonizeColony* col);
+/* Sum of colonies_upkeep_colony over the nation's active colonies. */
+int colonies_upkeep_total(const ColonizeColonyPool* pool, int nation_id);
+/* Mod on, `nation_id` human (control 0), total > 0 and treasury < total. */
+struct EuropeScreen;
+bool colonies_upkeep_short(
+  const ColonizeColonyPool* pool, const ColonizeCol1Save* col1, const struct EuropeScreen* eu,
+  int nation_id
+);
+/* Nations (bit per nation) whose building workers produce at half during the
+ * current production pass; returns the previous mask. 0 = none. */
+unsigned colonies_upkeep_set_halved(unsigned mask);
+/* True while the colony's owner is in the halved mask (also pauses teachers). */
+bool colonies_upkeep_halved(const ColonizeColony* col);
+/* One building worker's output: v >> 1 while the colony's owner is halved. */
+int colonies_upkeep_halve(const ColonizeColony* col, int v);
 
 /* Manual ch. 6 "Colonies" / building_production.md: at most 3 colonists per
  * building (schools: teachers + students share the cap). GAME.TXT @MORETHANTHREE. */

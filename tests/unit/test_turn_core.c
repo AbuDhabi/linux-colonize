@@ -5,6 +5,8 @@
 #include "core/founding_fathers.h"
 #include "core/colony_craft.h"
 #include "core/dos_buggy.h"
+#include "core/dos_rng.h"
+#include "core/mods.h"
 
 static int expect_date(uint16_t year, uint16_t autumn, const char* want) {
   char got[32];
@@ -7719,7 +7721,235 @@ static int case_frigate_accept_draws_before_merc_roll(void) {
   return 0;
 }
 
+/*
+ * MOD_BUILDING_UPKEEP at EOT. One colony of nation 0: a Lumberjack on a plot
+ * (field), a Carpenter, a Weaver, a Statesman and a Preacher (one free colonist
+ * each), a Farmer teaching in the Schoolhouse, Docks for upkeep. Paid: gold
+ * drops by the total, output is full. Short: no deduction, @UPKEEP queued,
+ * each building worker makes half (floor), the field worker and the passives do
+ * not change, the teacher's counter pauses while the Carpenter's still
+ * advances; the colony screen preview shows the same halves. The halved mask
+ * is off after the pass and after the preview. AI owner and mod off:
+ * untouched. No run draws a different number of RNG values.
+ */
+static EuropeScreen s_upkeep_eu;
+
+typedef struct UpkeepRun {
+  int hammers;
+  int cloth;
+  int bells;
+  int lumber;
+  int crosses;
+  int teacher_turns; /* colonists[5], Schoolhouse teacher */
+  int other_turns;   /* colonists[1], the Carpenter */
+  uint32_t gold;
+  bool popup;
+  bool mask_left; /* halved mask still armed after the pass */
+  unsigned long draws;
+} UpkeepRun;
+
+static UpkeepRun upkeep_run(
+  ColonizeColonyPool* pool, ColonizeColony* col, const ColonizeColony* base, ColonizeWorldMap* map,
+  ColonizeCol1Save* col1, const ColonizeMsgCatalog* game_txt, int gold, uint8_t control
+) {
+  fx_begin();
+  *col = *base;
+  col1->player[0].control = control;
+  col1->nation[0].gold = (uint32_t)gold;
+  memset(&s_upkeep_eu, 0, sizeof(s_upkeep_eu));
+  s_upkeep_eu.bound_nation = 0;
+  s_upkeep_eu.gold = gold;
+  AiPopupState popups;
+  ai_popup_init(&popups);
+  ColonizeTurnResult prod;
+  memset(&prod, 0, sizeof(prod));
+  const unsigned long draws_before = dos_rng_draw_count();
+  turn_run_colony_production_w(
+    &(ColonizeWorld){.colonies = pool, .map = map, .col1 = col1, .col1_ok = true, .europe = &s_upkeep_eu},
+    0, &prod, &popups, game_txt
+  );
+  UpkeepRun r = {
+    col->hammers, col->stock[COLONIZE_CARGO_CLOTH], col->prod_bells_phase_a,
+    col->stock[COLONIZE_CARGO_LUMBER], col->prod_crosses_phase_a,
+    col->colonists[5].turns_in_job, col->colonists[1].turns_in_job,
+    europe_nation_gold(&s_upkeep_eu, col1, 0), ai_popup_busy(&popups),
+    colonies_upkeep_halved(col), dos_rng_draw_count() - draws_before
+  };
+  ai_popup_clear(&popups);
+  return r;
+}
+
+static int case_building_upkeep_eot(void) {
+  fx_begin();
+  int rc = 1;
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  char err[256];
+  err[0] = '\0';
+  ColonizeMsgCatalog names;
+  ColonizeMsgCatalog game_txt;
+  assets_msg_init(&names);
+  assets_msg_init(&game_txt);
+  static ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  if (!map_load_mp("COLONIZE/AMER2.MP", &map, err, sizeof(err)) ||
+      !assets_msg_load_file(&names, "COLONIZE/NAMES.TXT") ||
+      !assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT") ||
+      !colonies_load_buildings(&pool, &names) || !colonies_load_names(&pool, "COLONIZE/COLONY.TXT")) {
+    fprintf(stderr, "upkeep eot: fixture load failed %s\n", err);
+    goto done;
+  }
+  int ftile = -1, cx = -1, cy = -1;
+  for (int y = 1; y < (int)map.height - 1 && ftile < 0; ++y) {
+    for (int x = 1; x < (int)map.width - 1 && ftile < 0; ++x) {
+      if (!map_tile_is_land(&map, x, y) || !colonies_can_found(&pool, &map, x, y)) {
+        continue;
+      }
+      for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES; ++ti) {
+        int dx = 0, dy = 0;
+        colonies_field_tile_delta(ti, &dx, &dy);
+        if (colony_yield_for_tile(&map, x + dx, y + dy, COLONIZE_JOB_LUMBERJACK) > 0) {
+          cx = x;
+          cy = y;
+          ftile = ti;
+          break;
+        }
+      }
+    }
+  }
+  const int cid = ftile >= 0 ? colonies_found(&pool, &map, cx, cy, 0, 0, UNITS_JOB_NONE, 0, 0, 0) : -1;
+  ColonizeColony* col = colonies_get_mut(&pool, cid);
+  if (!col || !colonies_assign_field_w(&(ColonizeWorld){.colonies = &pool}, cid, 0, ftile, COLONIZE_JOB_LUMBERJACK)) {
+    fprintf(stderr, "upkeep eot: no lumberjack colony\n");
+    goto done;
+  }
+  col->nation_id = 0;
+  col->building_in_production = -1;
+  col->hammers = 0;
+  col->stock[COLONIZE_CARGO_FOOD] = 100;
+  col->stock[COLONIZE_CARGO_LUMBER] = 50;
+  col->stock[COLONIZE_CARGO_COTTON] = 50;
+  /* colonists[1..5]: Carpenter, Weaver, Statesman, Preacher (free colonists)
+   * and a Farmer teaching in the Schoolhouse (level 1, needs 4 turns). */
+  const ColonizeBuildingRow rows[5] = {
+    COLONY_BUILDING_CARPENTERS_SHOP, COLONY_BUILDING_WEAVERS_HOUSE, COLONY_BUILDING_TOWN_HALL,
+    COLONY_BUILDING_CHURCH, COLONY_BUILDING_SCHOOLHOUSE
+  };
+  for (int i = 0; i < 5; ++i) {
+    const int slot = colonies_building_row(&pool, rows[i]);
+    col->has_building[slot] = true;
+    col->colonists[i + 1] = col->colonists[0];
+    col->colonists[i + 1].field_job = -1;
+    col->colonists[i + 1].building_type = slot;
+    col->colonists[i + 1].profession = COLONIZE_PROF_FREE_COLONIST;
+    col->colonists[i + 1].turns_in_job = 1;
+  }
+  col->colonists[5].profession = COLONIZE_JOB_FARMER;
+  col->colonist_count = 6;
+  col->population = 6;
+  const int preacher = colony_prod_crosses_worker_row(
+    COLONY_BUILDING_CHURCH, COLONIZE_PROF_FREE_COLONIST, 0, false, false
+  );
+  if (colonies_job_school_tier(COLONIZE_JOB_FARMER) != 1 || preacher <= 1) {
+    fprintf(stderr, "upkeep eot: weak fixture (farmer tier %d, preacher %d)\n",
+            colonies_job_school_tier(COLONIZE_JOB_FARMER), preacher);
+    goto done;
+  }
+  col->has_building[colonies_building_row(&pool, COLONY_BUILDING_DOCKS)] = true;
+  const int total = colonies_upkeep_total(&pool, 0);
+  const ColonizeColony base = *col;
+  static ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
+    col1.head.founding_father[i] = -1;
+  }
+  if (total <= 0) {
+    fprintf(stderr, "upkeep eot: total %d, want > 0\n", total);
+    goto done;
+  }
+
+  /* Mod off, treasury short: nothing changes. */
+  const UpkeepRun full = upkeep_run(&pool, col, &base, &map, &col1, &game_txt, total - 1, 0);
+  ColonizeColonyPreview prev_full;
+  *col = base;
+  colony_preview_compute_w(
+    &(ColonizeWorld){.colonies = &pool, .map = &map, .col1 = &col1, .col1_ok = true, .europe = &s_upkeep_eu},
+    col, &prev_full
+  );
+  if (full.gold != (uint32_t)(total - 1) || full.popup || full.hammers <= 1 || full.cloth <= 1 ||
+      full.bells <= 2 || full.teacher_turns != 2) {
+    fprintf(stderr, "upkeep eot: mod off moved gold %u popup %d / weak fixture h%d c%d b%d\n",
+            full.gold, full.popup, full.hammers, full.cloth, full.bells);
+    goto done;
+  }
+
+  mods_campaign_set(1u << MOD_BUILDING_UPKEEP);
+  const UpkeepRun paid = upkeep_run(&pool, col, &base, &map, &col1, &game_txt, total + 7, 0);
+  if (paid.gold != 7u || paid.popup || paid.hammers != full.hammers || paid.cloth != full.cloth ||
+      paid.bells != full.bells || paid.crosses != full.crosses || paid.teacher_turns != 2 ||
+      paid.other_turns != 2 || paid.mask_left || paid.draws != full.draws) {
+    fprintf(stderr, "upkeep eot paid: gold %u popup %d h%d/%d c%d/%d b%d/%d x%d/%d teach %d other %d mask %d draws %lu/%lu\n",
+            paid.gold, paid.popup, paid.hammers, full.hammers, paid.cloth, full.cloth, paid.bells,
+            full.bells, paid.crosses, full.crosses, paid.teacher_turns, paid.other_turns,
+            paid.mask_left, paid.draws, full.draws);
+    goto done_mod;
+  }
+
+  const UpkeepRun shortr = upkeep_run(&pool, col, &base, &map, &col1, &game_txt, total - 1, 0);
+  /* One worker each: hammers and cloth halve; bells = worker/2 + passive 1.
+   * Lumber: same field harvest, only the halved Carpenter's debit differs. */
+  const int want_h = full.hammers >> 1;
+  if (shortr.gold != (uint32_t)(total - 1) || !shortr.popup || shortr.hammers != want_h ||
+      shortr.cloth != full.cloth >> 1 || shortr.bells != ((full.bells - 1) >> 1) + 1 ||
+      shortr.lumber - full.lumber != full.hammers - want_h ||
+      shortr.crosses != full.crosses - preacher + (preacher >> 1) ||
+      shortr.teacher_turns != 1 || shortr.other_turns != 2 || shortr.mask_left ||
+      shortr.draws != full.draws) {
+    fprintf(stderr, "upkeep eot short: gold %u popup %d h%d c%d b%d lumber %d (full %d) x%d/%d teach %d other %d mask %d draws %lu/%lu\n",
+            shortr.gold, shortr.popup, shortr.hammers, shortr.cloth, shortr.bells, shortr.lumber,
+            full.lumber, shortr.crosses, full.crosses, shortr.teacher_turns, shortr.other_turns,
+            shortr.mask_left, shortr.draws, full.draws);
+    goto done_mod;
+  }
+  /* Colony screen preview while short: same halves, field untouched. */
+  ColonizeColonyPreview prev;
+  *col = base;
+  colony_preview_compute_w(
+    &(ColonizeWorld){.colonies = &pool, .map = &map, .col1 = &col1, .col1_ok = true, .europe = &s_upkeep_eu},
+    col, &prev
+  );
+  if (prev.hammers_capacity != prev_full.hammers_capacity >> 1 ||
+      prev.craft_capacity[COLONIZE_CARGO_CLOTH] != prev_full.craft_capacity[COLONIZE_CARGO_CLOTH] >> 1 ||
+      prev.bells != ((prev_full.bells - 1) >> 1) + 1 ||
+      prev.field_gross[COLONIZE_CARGO_LUMBER] != prev_full.field_gross[COLONIZE_CARGO_LUMBER] ||
+      prev.field_gross[COLONIZE_CARGO_LUMBER] <= 0 || colonies_upkeep_halved(col)) {
+    fprintf(stderr, "upkeep preview short: h%d/%d c%d/%d b%d/%d field %d/%d\n",
+            prev.hammers_capacity, prev_full.hammers_capacity,
+            prev.craft_capacity[COLONIZE_CARGO_CLOTH], prev_full.craft_capacity[COLONIZE_CARGO_CLOTH],
+            prev.bells, prev_full.bells, prev.field_gross[COLONIZE_CARGO_LUMBER],
+            prev_full.field_gross[COLONIZE_CARGO_LUMBER]);
+    goto done_mod;
+  }
+
+  const UpkeepRun ai = upkeep_run(&pool, col, &base, &map, &col1, &game_txt, 0, 1);
+  if (ai.gold != 0u || ai.popup || ai.hammers != full.hammers || ai.cloth != full.cloth) {
+    fprintf(stderr, "upkeep eot AI: gold %u popup %d h%d c%d\n", ai.gold, ai.popup, ai.hammers,
+            ai.cloth);
+    goto done_mod;
+  }
+  rc = 0;
+done_mod:
+  mods_campaign_set(0);
+done:
+  assets_msg_free(&names);
+  assets_msg_free(&game_txt);
+  map_free(&map);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
+  {"building_upkeep_eot", case_building_upkeep_eot},
   {"brewster_pick_before_colony_crosses", case_brewster_pick_before_colony_crosses},
   {"tax_audience_before_colony_eot", case_tax_audience_before_colony_eot},
   {"colony_messages_yield_colony_loop", case_colony_messages_yield_colony_loop},
