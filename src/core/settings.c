@@ -118,6 +118,16 @@ static const SettingsBoolOpt k_divergence_opts[] = {
 static const SettingsBoolOpt k_mod_opts[] = {
   SETTINGS_MOD("wagon_loot", MOD_WAGON_LOOT, false),
   SETTINGS_MOD("goto_native_wait", MOD_GOTO_NATIVE_WAIT, true),
+  SETTINGS_MOD("population_floor", MOD_POPULATION_FLOOR, false),
+  SETTINGS_MOD("raid_scalps", MOD_RAID_SCALPS, false),
+  SETTINGS_MOD("royal_mercy", MOD_ROYAL_MERCY, false),
+  SETTINGS_MOD("late_fathers", MOD_LATE_FATHERS, false),
+  SETTINGS_MOD("town_hall_tiers", MOD_TOWN_HALL_TIERS, false),
+  SETTINGS_MOD("building_upkeep", MOD_BUILDING_UPKEEP, false),
+  SETTINGS_MOD("kings_audience", MOD_KINGS_AUDIENCE, false),
+  SETTINGS_MOD("tribe_mood", MOD_TRIBE_MOOD, false),
+  SETTINGS_MOD("scout_spying", MOD_SCOUT_SPYING, false),
+  SETTINGS_MOD("treaty_cancel_popup", MOD_TREATY_CANCEL_POPUP, false),
 };
 
 #define SETTINGS_OPT_COUNT(t) ((int)(sizeof(t) / sizeof((t)[0])))
