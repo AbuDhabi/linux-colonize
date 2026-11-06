@@ -12,6 +12,9 @@
 #include <sys/wait.h>
 #include <unistd.h>
 #endif
+#ifdef __APPLE__
+#include <mach-o/dyld.h> /* _NSGetExecutablePath: macOS has no /proc/self/exe */
+#endif
 
 
 /*
@@ -1907,7 +1910,15 @@ static int unit_far_bfs_next_step(void) {
     setenv("COLONIZE_TEST_ONLY", "unit_far_bfs_next_step", 1);
     unsetenv("COLONIZE_TEST_REVERSE");
     unsetenv("COLONIZE_TEST_SHUFFLE");
+#ifdef __APPLE__
+    char self[4096];
+    uint32_t self_size = sizeof(self);
+    if (_NSGetExecutablePath(self, &self_size) == 0) {
+      execl(self, "unit_units_movement", (char*)NULL);
+    }
+#else
     execl("/proc/self/exe", "unit_units_movement", (char*)NULL);
+#endif
     _exit(127);
   }
   int status = 0;
