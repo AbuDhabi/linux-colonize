@@ -20,7 +20,10 @@ typedef struct UnitStackPopup {
   int tile_x;
   int tile_y;
   int ids[UNITS_TILE_STACK_MAX];
-  int count;
+  int total; /* units collected at the tile (ids[0..total)) */
+  int count; /* rows shown: ids[0..count), column-major */
+  int rows;  /* rows per column (DOS: 10) */
+  int cols;  /* columns shown (DOS: 1); render grows it */
   int selection;
   int dialog_x;
   int dialog_y;
@@ -28,9 +31,12 @@ typedef struct UnitStackPopup {
   int dialog_h;
   int list_y0; /* top of row 0's icon row */
   int line_h; /* icon row pitch (16) */
+  int list_x0; /* left edge of column 0 */
+  int col_w;   /* column pitch */
 } UnitStackPopup;
 
-/* Collect human units at (x,y); opens only when count > 1. */
+/* Collect human units at (x,y); opens only when count > 1. Shows one column until
+ * unit_stack_render lays out more (port-only, screens over 320x200). */
 bool unit_stack_try_open(
   UnitStackPopup* dlg,
   const ColonizeUnitPool* pool,

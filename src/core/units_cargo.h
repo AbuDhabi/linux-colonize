@@ -369,7 +369,9 @@ int units_disembark_all(
 );
 
 /* Collect on-map units at tile plus cargo of ships there (for stack popup). */
-#define UNITS_TILE_STACK_MAX 32
+/* 1024 covers the stack picker on a SCREEN_MAX (1920x1200) screen: 72 rows of
+ * 10 + 1000 / 16, in as many columns as fit across. */
+#define UNITS_TILE_STACK_MAX 1024
 int units_collect_tile_stack(
   const ColonizeUnitPool* pool,
   int x,

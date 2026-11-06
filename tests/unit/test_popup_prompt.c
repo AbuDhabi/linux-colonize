@@ -14,6 +14,7 @@
 #include "core/font_file.h"
 #include "core/popup.h"
 #include "core/reports.h"
+#include "core/screen_geom.h"
 #include "core/ss.h"
 #include "core/trade_screen.h"
 #include "core/ui_colors.h"
@@ -703,6 +704,83 @@ static int case_units_present_is_dos(void) {
     fprintf(stderr, "units present: keys moved the selection to %d, want 3\n", dlg.selection);
     rc = 1;
   }
+  /* Port-only: 32 lines over DOS's 200 buy two more rows, so all 12 units list. */
+  screen_geom_set(320, 232);
+  memset(&dlg, 0, sizeof(dlg));
+  if (!unit_stack_try_open(&dlg, &pool, 3, 3, 0) || dlg.count != 12) {
+    fprintf(stderr, "units present: %d rows on a 232-line screen, want all 12\n", dlg.count);
+    rc = 1;
+  }
+  screen_geom_set(SCREEN_BASE_W, SCREEN_BASE_H);
+  font_file_free(&font);
+  return rc;
+}
+
+/*
+ * Port-only: on a 640x232 screen (12 rows) 30 units fill three columns, column-major;
+ * Left / Right step a column and a click in column 1 picks that column's row.
+ */
+static int case_units_present_columns(void) {
+  ColonizeFont font;
+  if (!load_font(&font)) {
+    return TR_SKIP;
+  }
+  static ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  pool.type_count = 1;
+  snprintf(pool.types[0].name, sizeof(pool.types[0].name), "Colonists");
+  pool.types[0].movement = 1;
+  pool.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  for (int i = 0; i < 30; ++i) {
+    const int id = units_spawn_allow_stack(&pool, 0, 3, 3);
+    units_get(&pool, id)->nation_id = 0;
+  }
+  enum { CW = 640, CH = 232 };
+  screen_geom_set(CW, CH);
+  UnitStackPopup dlg;
+  memset(&dlg, 0, sizeof(dlg));
+  int rc = 0;
+  if (!unit_stack_try_open(&dlg, &pool, 3, 3, 0) || dlg.total != 30 || dlg.count != 12) {
+    fprintf(stderr, "columns: total %d count %d before render, want 30 / 12\n", dlg.total,
+            dlg.count);
+    rc = 1;
+  }
+  static uint8_t px[CW * CH];
+  memset(px, 0x11, sizeof(px));
+  ColonizeFramebuffer8 fb = {.width = CW, .height = CH, .pixels = px};
+  unit_stack_render(&dlg, &pool, NULL, NULL, &font, &font, NULL, NULL, 1, NULL, NULL, &fb);
+  if (dlg.count != 30 || dlg.cols != 3 || dlg.rows != 12 || dlg.dialog_h != 12 + 16 * 12) {
+    fprintf(stderr, "columns: count %d cols %d rows %d h %d, want 30 / 3 / 12 / %d\n",
+            dlg.count, dlg.cols, dlg.rows, dlg.dialog_h, 12 + 16 * 12);
+    rc = 1;
+  }
+  ColonizeInputState in;
+  memset(&in, 0, sizeof(in));
+  const int want_sel[] = {12, 24, 24, 12};
+  const ColonizeKey keys[] = {COLONIZE_KEY_RIGHT, COLONIZE_KEY_RIGHT, COLONIZE_KEY_RIGHT,
+                              COLONIZE_KEY_LEFT};
+  for (int k = 0; k < 4; ++k) {
+    in.last_key = keys[k];
+    unit_stack_handle_input(&dlg, &pool, &in, NULL);
+    if (dlg.selection != want_sel[k]) {
+      fprintf(stderr, "columns: key %d selection %d, want %d\n", k, dlg.selection,
+              want_sel[k]);
+      rc = 1;
+    }
+  }
+  /* Click column 1, row 3 (index 15). */
+  units_get(&pool, dlg.ids[15])->orders = UNITS_ORDER_SENTRY;
+  memset(&in, 0, sizeof(in));
+  in.mouse_left_clicked = true;
+  in.mouse_x = dlg.list_x0 + dlg.col_w + 8;
+  in.mouse_y = dlg.list_y0 + 16 * 3 + 8;
+  int out = -1;
+  unit_stack_handle_input(&dlg, &pool, &in, &out);
+  if (!dlg.open || dlg.selection != 15) {
+    fprintf(stderr, "columns: click picked %d (open %d), want 15\n", dlg.selection, dlg.open);
+    rc = 1;
+  }
+  screen_geom_set(SCREEN_BASE_W, SCREEN_BASE_H);
   font_file_free(&font);
   return rc;
 }
@@ -795,5 +873,6 @@ static const TestCase k_cases[] = {
   {"center_frame_is_dos", case_center_frame_is_dos},
   {"units_present_is_dos", case_units_present_is_dos},
   {"units_present_chrome_is_fonttiny", case_units_present_chrome_is_fonttiny},
+  {"units_present_columns", case_units_present_columns},
 };
 TEST_MAIN_WRAPPED(k_cases, diag_init(0, NULL), diag_shutdown())
