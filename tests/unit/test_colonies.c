@@ -313,6 +313,18 @@ static int unit_hammer_carryover(void) {
   c->hammers = 70;
   CHECK(colonies_try_complete_building(&pool, 0), "Stable completes");
   CHECK(c->building_in_production == 1 && c->hammers == 6, "surplus banked on the owned Stable");
+  /* A project stalled on tools keeps banking; the surplus survives the
+   * completion once the tools arrive. */
+  c->has_building[0] = false;
+  pool.building_types[0].tools_cost = 20;
+  CHECK(colonies_set_construction(&pool, 0, 0), "Docks reselected");
+  c->hammers = 200;
+  CHECK(!colonies_try_complete_building(&pool, 0), "Docks stalls without tools");
+  CHECK(c->hammers == 200, "stalled project keeps its bank");
+  c->stock[COLONIZE_CARGO_TOOLS] = 20;
+  CHECK(colonies_try_complete_building(&pool, 0), "Docks completes with tools");
+  CHECK(c->hammers == 148 && c->stock[COLONIZE_CARGO_TOOLS] == 0, "stall surplus carries over");
+  pool.building_types[0].tools_cost = 0;
 
   dos_buggy_behavior_set(true);
   c->has_building[0] = false;
