@@ -1922,8 +1922,51 @@ COLONIZE_INTERNAL void map_panel_render_village_row(MapPanelRenderCtx* c) {
   }
 }
 
+/* The stack listing's overflow row: @CTITLE line 6. */
+static void map_panel_draw_more(MapPanelRenderCtx* c) {
+  const char* more = "";
+  if (c->labels) {
+    const ColonizeMsgSection* ct = assets_msg_find(c->labels, "CTITLE");
+    if (ct && ct->line_count > 6) {
+      more = ct->lines[6];
+    }
+  }
+  font_draw_text(c->font, c->framebuffer, c->text_x, c->text_y, more, MAP_PANEL_COL_TEXT);
+  c->text_y += c->line_h;
+}
+
+static bool map_panel_stack_full(const MapPanelRenderCtx* c) {
+  return c->text_y >= MAP_PANEL_STACK_Y_LIMIT || c->text_y + MAP_PANEL_ROW_H > c->y_limit;
+}
+
+/* Port-only: the Shift-pick unit group, one stack row per member. Port UI text,
+ * not a MicroProse string (no catalog row exists for it). */
+static void map_panel_render_group(MapPanelRenderCtx* c) {
+  font_draw_text(c->font, c->framebuffer, c->text_x, c->text_y, "Selected:", MAP_PANEL_COL_TEXT);
+  c->text_y += c->line_h;
+  for (int i = 0; i < c->panel->group_count; ++i) {
+    const ColonizeUnit* u = units_get_const(c->units, c->panel->group_ids[i]);
+    if (!u || !u->active) {
+      continue;
+    }
+    if (map_panel_stack_full(c)) {
+      map_panel_draw_more(c);
+      break;
+    }
+    map_panel_draw_stack_row(
+      c->units, u, c->colonies, c->map, c->col1, c->icons, c->font, c->names, c->labels,
+      c->active_palette, c->framebuffer, c->panel->group_count,
+      map_panel_cheat_index(c->col1, c->units, u->id), &c->text_y
+    );
+  }
+}
+
 /* Tile stack rows (seen tile). */
 COLONIZE_INTERNAL void map_panel_render_stack(MapPanelRenderCtx* c) {
+  if (c->units && c->panel && c->panel->group_count > 0) {
+    map_panel_render_group(c);
+    return;
+  }
   const ColonizeWorldMap* map = c->map;
   const ColonizeUnitPool* units = c->units;
   const ColonizeColonyPool* colonies = c->colonies;
@@ -1937,7 +1980,6 @@ COLONIZE_INTERNAL void map_panel_render_stack(MapPanelRenderCtx* c) {
   ColonizeFramebuffer8* framebuffer = c->framebuffer;
   const int text_x = c->text_x;
   const int indent_x = c->indent_x;
-  const int line_h = c->line_h;
   const int y_limit = c->y_limit;
   const ColonizeUnit* selected = c->selected;
   const int info_x = c->info_x;
@@ -2008,16 +2050,8 @@ COLONIZE_INTERNAL void map_panel_render_stack(MapPanelRenderCtx* c) {
         if (selected && u->id == selected->id) {
           continue; /* already shown as the selected-unit block */
         }
-        if (c->text_y >= MAP_PANEL_STACK_Y_LIMIT || c->text_y + MAP_PANEL_ROW_H > y_limit) {
-          const char* more = "";
-          if (labels) {
-            const ColonizeMsgSection* ct = assets_msg_find(labels, "CTITLE");
-            if (ct && ct->line_count > 6) {
-              more = ct->lines[6];
-            }
-          }
-          font_draw_text(font, framebuffer, text_x, c->text_y, more, MAP_PANEL_COL_TEXT);
-          c->text_y += line_h;
+        if (map_panel_stack_full(c)) {
+          map_panel_draw_more(c);
           break;
         }
         map_panel_draw_stack_row(

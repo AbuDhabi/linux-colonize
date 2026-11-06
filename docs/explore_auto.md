@@ -45,6 +45,10 @@ guard, no sail-for-Europe), `map_menu.c` (row). Test: `unit_explore_auto`.
   nation at war with the Scout's (natives: `ai_diplo_indian_at_war`). Go To never
   attacks en route; if the destination turns hostile before arrival, the pacer drops
   the order instead of attacking and the next decision retargets.
+- A target the pathfinder cannot reach (same continent id, but only through a
+  settlement or fog) is skipped for the next one, up to 8 per decision. The probe is
+  free: a pathfinder miss spends the whole allotment (`units_goto_director`, FUN_6662_0f74
+  raw 104623-104647), so `explore_auto_step` puts the moves back (campaign 20).
 - Cancels on: nothing left to explore on its continent, waking or clicking the unit, or any other
   ORDERS command given to it. Aboard a ship it waits and resumes once landed.
 - Saved in `SAUT` (docs/savegame.md) with the entered-settlement set; a DOS load keeps

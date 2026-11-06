@@ -262,6 +262,19 @@ bool europe_menu_layout(
 int europe_menu_row_at(const ColonizeGameState* game, int mx, int my);
 int europe_ship_icon_sprite(const ColonizeUnitPool* units, const EuropeHarborShip* ship);
 bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction action);
+/* Port-only Shift-pick unit group (game_loop_orders.c): an order given while the
+ * group's lead is active is replayed to each member in turn. */
+typedef enum GameUnitGroupOrder {
+  GAME_GROUP_ORDER_NONE = 0,
+  GAME_GROUP_ORDER_ACTION, /* a = MapMenuAction (ORDERS row or hotkey) */
+  GAME_GROUP_ORDER_MOVE,   /* a, b = direction key delta */
+  GAME_GROUP_ORDER_GOTO    /* a, b = go-to drag target tile */
+} GameUnitGroupOrder;
+void game_unit_group_set(ColonizeGameState* game, const int* ids, int n);
+void game_unit_group_clear(ColonizeGameState* game);
+/* False: no group order (the caller issues it to the selected unit alone). */
+bool game_unit_group_order(ColonizeGameState* game, GameUnitGroupOrder kind, int a, int b);
+void game_unit_group_service(ColonizeGameState* game);
 void game_bind_combat_analysis(ColonizeGameState* game);
 void game_center_on_selected_unit(ColonizeGameState* game);
 void game_cheat_advance_revolution(ColonizeGameState* game);

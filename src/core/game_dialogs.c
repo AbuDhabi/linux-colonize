@@ -2391,7 +2391,10 @@ bool game_handle_modal_input(ColonizeGameState* game, const ColonizeInputState* 
   if (game->unit_stack.open) {
     int select_id = -1;
     unit_stack_handle_input(&game->unit_stack, &game->units, input, &select_id);
-    if (select_id >= 0) {
+    if (game->unit_stack.group_count > 0) {
+      game_unit_group_set(game, game->unit_stack.ids, game->unit_stack.group_count);
+      game->unit_stack.group_count = 0;
+    } else if (select_id >= 0) {
       /* Picking a row out of the tile stack is the same activation DOS
        * clears the orders byte on (2b5a:1dd0). */
       game_click_activate_unit(game, select_id);

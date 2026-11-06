@@ -767,6 +767,57 @@ static int unit_landfall_mp_gate(void) {
   return rc;
 }
 
+/* Port-only Shift-pick: Shift+click marks rows with moves left, letting go of
+ * Shift closes with the marked ids packed at the front. */
+static int unit_stack_shift_pick_group(void) {
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  pool.type_count = 1;
+  pool.types[0].movement = 1;
+  pool.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  int ids[3];
+  for (int i = 0; i < 3; ++i) {
+    ids[i] = units_spawn_allow_stack(&pool, 0, 3, 3);
+    units_get(&pool, ids[i])->nation_id = 0;
+  }
+  UnitStackPopup dlg;
+  memset(&dlg, 0, sizeof(dlg));
+  if (!unit_stack_try_open(&dlg, &pool, 3, 3, 0) || dlg.count != 3) {
+    fprintf(stderr, "shift_pick: popup should open with three units\n");
+    return 1;
+  }
+  units_get(&pool, dlg.ids[1])->moves = 0; /* spent: not pickable */
+  dlg.dialog_w = dlg.dialog_h = 100;
+  dlg.line_h = 16;
+  dlg.col_w = 100;
+  const int want0 = dlg.ids[0];
+  const int want2 = dlg.ids[2];
+  ColonizeInputState in;
+  memset(&in, 0, sizeof(in));
+  in.shift_held = true;
+  in.mouse_left_clicked = true;
+  for (int row = 0; row < 3; ++row) {
+    in.mouse_y = 16 * row + 8;
+    unit_stack_handle_input(&dlg, &pool, &in, NULL);
+  }
+  in.mouse_left_clicked = false;
+  unit_stack_handle_input(&dlg, &pool, &in, NULL);
+  if (!dlg.open || dlg.group_count != 0) {
+    fprintf(stderr, "shift_pick: stays open while Shift is held\n");
+    return 1;
+  }
+  in.shift_held = false;
+  int sel = -1;
+  unit_stack_handle_input(&dlg, &pool, &in, &sel);
+  if (dlg.open || dlg.group_count != 2 || dlg.ids[0] != want0 || dlg.ids[1] != want2 ||
+      sel != -1) {
+    fprintf(stderr, "shift_pick: release must close with the two units that have moves\n");
+    return 1;
+  }
+  fprintf(stderr, "unit_units: stack picker Shift group ok\n");
+  return 0;
+}
+
 /*
  * port_bugs.md: the tile-stack picker must work like DOS FUN_2b5a_1b5a — ONE pick
  * wakes a sentried passenger AND hands it back for selection, closing the
@@ -1749,6 +1800,7 @@ static const TestCase k_cases[] = {
   {"unit_wake_passenger_can_land", unit_wake_passenger_can_land},
   {"unit_landfall_mp_gate", unit_landfall_mp_gate},
   {"unit_stack_one_click_wakes_and_selects", unit_stack_one_click_wakes_and_selects},
+  {"unit_stack_shift_pick_group", unit_stack_shift_pick_group},
   {"unit_fog_vis_mask_and_snapshot", unit_fog_vis_mask_and_snapshot},
   {"unit_colony_enter_hull_stack_gate_791_792", unit_colony_enter_hull_stack_gate_791_792},
   {"unit_move_stage_seam_1107", unit_move_stage_seam_1107},

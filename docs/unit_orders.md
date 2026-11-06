@@ -135,6 +135,7 @@ stateDiagram-v2
 | No Orders (Space) | ORDERS / Space | End turn when exhausted / option | Full turn pipeline | Done |
 | Activate unit | ORDERS / stack | `FUN_2b5a_2866` -> `FUN_2b5a_1b5a`: "Units Present" picker for the focus tile (colony tiles too); pick clears orders | Two or more own units: the `unit_stack` picker (port_bugs.md #1241); one: wake + select | Done |
 | Arrow / click move | Map | Immediate step (not an order byte); may wake sentry/fortify | `game_try_unit_move` | Done |
+| Unit group (port-only) | Stack picker, Shift held | None (QoL) | Shift+click marks rows with moves left (bright green frame); releasing Shift closes the picker, wakes the marked units and makes them the group, which the sidebar lists under "Selected:" in place of the tile stack. Every order row / hotkey that acts on the active unit (Build Colony .. Automate, not Activate / Wait / trade-route editing), direction keys, P / R and a go-to drag is replayed to each member as if issued by hand, the next member waiting until the last one's popups and Go To finish (`game_unit_group_*`, `game_loop_orders.c`). Members drop out when spent, given standing orders or dead; any plain pick, View Pieces, end of turn or load ends the group. Runtime only, nothing saved. | Done |
 
 ### Fortify / Anchor / Sentry
 

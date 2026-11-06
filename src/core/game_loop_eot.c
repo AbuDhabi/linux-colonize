@@ -2201,6 +2201,9 @@ bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction action) {
       diag_info("COMMAND %s", map_menu_action_name(action));
     }
   }
+  if (game_unit_group_order(game, GAME_GROUP_ORDER_ACTION, (int)action, 0)) {
+    return true;
+  }
   if (game_menu_action_system(game, action) == GAME_MENU_ACTION_DONE) {
     return true;
   }
@@ -2236,6 +2239,9 @@ bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction action) {
 void game_click_activate_unit(ColonizeGameState* game, int unit_id) {
   if (!game || !game->units_ok) {
     return;
+  }
+  if (!game->unit_group_dispatching) {
+    game_unit_group_clear(game); /* a plain pick replaces the Shift-pick group */
   }
   /*
    * units_wake is overnight-safe now (port_bugs.md): it refills the allotment

@@ -412,7 +412,8 @@ typedef bool (*GamePioneerOrderFn)(
 static bool game_key_pioneer_order(
   ColonizeGameState* game,
   GamePioneerOrderFn fn,
-  GameIndianLandKind land_kind
+  GameIndianLandKind land_kind,
+  MapMenuAction group_action /* the ORDERS row a Shift-pick group replays */
 ) {
   if (game_screen_owns_display(game) || !game->world_map_ok || !game->units_ok) {
     return false;
@@ -421,6 +422,9 @@ static bool game_key_pioneer_order(
   const ColonizeUnit* su = units_get_const(&game->units, sid);
   if (!su || !units_is_pioneer(&game->units, sid) || su->moves <= 0) {
     return false;
+  }
+  if (game_unit_group_order(game, GAME_GROUP_ORDER_ACTION, (int)group_action, 0)) {
+    return true;
   }
   /* Same command id as the Orders menu item, so the same encroachment CHOICE
    * (port_bugs.md #1174); the CHOICE answer issues the order itself. */
@@ -3209,6 +3213,9 @@ static GameUpdateStep game_map_mouse_click(
         if (mx == u->x && my == u->y) {
           return GAME_UPDATE_RETURN_TRUE;
         }
+        if (game_unit_group_order(game, GAME_GROUP_ORDER_GOTO, mx, my)) {
+          return GAME_UPDATE_RETURN_TRUE;
+        }
         const int rc = game_issue_goto(game, uid, mx, my);
         if (rc == 0) {
           /* Movement is paced in game_update (10 steps/sec). */
@@ -3639,9 +3646,9 @@ COLONIZE_INTERNAL GameUpdateStep game_update_map_keys(ColonizeGameState* game, c
       if (game->units.selected_id >= 0 && game->world_map_ok && game->units_ok) {
         ColonizeUnit* selected = units_get(&game->units, game->units.selected_id);
         if (selected && selected->moves > 0) {
-          const int dest_x = selected->x + dx;
-          const int dest_y = selected->y + dy;
-          game_try_unit_move(game, dest_x, dest_y);
+          if (!game_unit_group_order(game, GAME_GROUP_ORDER_MOVE, dx, dy)) {
+            game_try_unit_move(game, selected->x + dx, selected->y + dy);
+          }
         } else if (selected) {
           /* Safety: exhausted selection → tile mode. */
           game_select_tile(game, selected->x, selected->y);
@@ -3813,6 +3820,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
     game->turn_flow_deferred = false;
     game_wait_next_unit(game);
   }
+  game_unit_group_service(game);
 
   /*
    * port_bugs.md #1091: an open map pull-down is DOS's blocking menu loop. Only
@@ -3901,13 +3909,17 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
   }
 
   if (input->last_key == COLONIZE_KEY_P) {
-    if (game_key_pioneer_order(game, units_pioneer_plow_w, GAME_INDIAN_LAND_FOREST)) {
+    if (game_key_pioneer_order(
+          game, units_pioneer_plow_w, GAME_INDIAN_LAND_FOREST, MAP_MENU_ACTION_PLOW_FIELDS
+        )) {
       return true;
     }
   }
 
   if (input->last_key == COLONIZE_KEY_R) {
-    if (game_key_pioneer_order(game, units_pioneer_road_w, GAME_INDIAN_LAND_ROAD)) {
+    if (game_key_pioneer_order(
+          game, units_pioneer_road_w, GAME_INDIAN_LAND_ROAD, MAP_MENU_ACTION_BUILD_ROAD
+        )) {
       return true;
     }
   }

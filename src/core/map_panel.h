@@ -61,6 +61,10 @@ typedef struct MapPanel {
   char label_moves[32];
   char label_locat[32];
   char label_with[32];
+  /* Port-only Shift-pick unit group: listed under "Selected:" in place of the
+   * tile stack while group_count > 0 (set per frame by game_render_map_panel). */
+  const int* group_ids;
+  int group_count;
 } MapPanel;
 
 bool map_panel_load(MapPanel* panel, const char* data_dir, const ColonizeMsgCatalog* labels);

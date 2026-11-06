@@ -312,6 +312,16 @@ struct ColonizeGameState {
   AiPopupState ai_popups;
   SaveLoadDialog save_load;
   UnitStackPopup unit_stack;
+  /* Port-only Shift-pick unit group (unit_stack.c, game_unit_group_* in
+   * game_loop_orders.c). Runtime only: every order is replayed to each member
+   * as if the player had issued it to them one at a time, so nothing is saved. */
+  int unit_group[UNITS_TILE_STACK_MAX];
+  int unit_group_count;
+  int unit_group_order; /* GameUnitGroupOrder being fanned out; 0 = none */
+  int unit_group_arg0;
+  int unit_group_arg1;
+  int unit_group_next; /* next unit_group[] slot the pending order goes to */
+  bool unit_group_dispatching;
   ColonizeMsgCatalog labels;
   bool labels_ok;
   ColonizeMsgCatalog debug_txt;

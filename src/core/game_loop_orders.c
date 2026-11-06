@@ -7,6 +7,7 @@
  * Sections:
  *  - Unit selection & movement dispatch
  *  - Foreign-colony trade (FUN_5f7a_020e)
+ *  - Port-only unit group (Shift-pick in the tile stack picker)
  *
  * Cross-file seams are declared in core/game_loop_internal.h.
  */
@@ -1455,4 +1456,151 @@ bool game_key_move_delta(ColonizeKey key, int* out_dx, int* out_dy) {
     *out_dy = dy;
   }
   return true;
+}
+
+/* ===== Port-only unit group (Shift-pick in the tile stack picker) ===== */
+
+static bool game_unit_group_member_ok(const ColonizeGameState* game, const ColonizeUnit* u) {
+  return game_unit_selectable(game, u) && u->orders == UNITS_ORDER_NONE && !u->automated;
+}
+
+static bool game_unit_group_has(const ColonizeGameState* game, int uid) {
+  for (int i = 0; i < game->unit_group_count; ++i) {
+    if (game->unit_group[i] == uid) {
+      return true;
+    }
+  }
+  return false;
+}
+
+void game_unit_group_clear(ColonizeGameState* game) {
+  game->unit_group_count = 0;
+  game->unit_group_order = GAME_GROUP_ORDER_NONE;
+  game->unit_group_next = 0;
+}
+
+/* Drop members that a single order could no longer reach (dead, out of moves,
+ * standing orders, Go To under way). */
+static void game_unit_group_prune(ColonizeGameState* game) {
+  int n = 0;
+  for (int i = 0; i < game->unit_group_count; ++i) {
+    if (game_unit_group_member_ok(game, units_get_const(&game->units, game->unit_group[i]))) {
+      game->unit_group[n++] = game->unit_group[i];
+    }
+  }
+  game->unit_group_count = n;
+}
+
+/* The picker's units wake the way a plain pick wakes one (game_click_activate_unit). */
+void game_unit_group_set(ColonizeGameState* game, const int* ids, int n) {
+  game_unit_group_clear(game);
+  if (!game->units_ok) {
+    return;
+  }
+  for (int i = 0; i < n && i < UNITS_TILE_STACK_MAX; ++i) {
+    units_wake(&game->units, ids[i]);
+    game->unit_group[game->unit_group_count++] = ids[i];
+  }
+  game_unit_group_prune(game);
+  if (game->unit_group_count > 0) {
+    game_select_unit(game, game->unit_group[0]);
+  }
+}
+
+/* The next member waits until the previous one's order has played out: its
+ * popups answered, its Go To walked, no screen or end of turn in the way. */
+static bool game_unit_group_can_step(const ColonizeGameState* game) {
+  if (game_modal_open(game) || ai_popup_busy(&game->ai_popups) || game_screen_owns_display(game) ||
+      turn_processor_active(&game->turn_proc) || game->turn_flow_deferred) {
+    return false;
+  }
+  const ColonizeUnit* sel = units_get_const(&game->units, game->units.selected_id);
+  return !(sel && sel->active && sel->moves > 0 && units_orders_follow_goto(sel->orders));
+}
+
+static void game_unit_group_step(ColonizeGameState* game) {
+  while (game->unit_group_order != GAME_GROUP_ORDER_NONE) {
+    if (!game_unit_group_can_step(game)) {
+      return;
+    }
+    if (game->unit_group_next >= game->unit_group_count) {
+      game->unit_group_order = GAME_GROUP_ORDER_NONE;
+      break;
+    }
+    const int uid = game->unit_group[game->unit_group_next++];
+    const ColonizeUnit* u = units_get_const(&game->units, uid);
+    if (!game_unit_group_member_ok(game, u)) {
+      continue;
+    }
+    const int ux = u->x;
+    const int uy = u->y;
+    game->units.selected_id = uid;
+    game->view_pieces_mode = false;
+    game->map_cursor_x = ux;
+    game->map_cursor_y = uy;
+    game->unit_group_dispatching = true;
+    switch (game->unit_group_order) {
+      case GAME_GROUP_ORDER_ACTION:
+        (void)game_apply_map_menu_action(game, (MapMenuAction)game->unit_group_arg0);
+        break;
+      case GAME_GROUP_ORDER_MOVE:
+        (void)game_try_unit_move(game, ux + game->unit_group_arg0, uy + game->unit_group_arg1);
+        break;
+      case GAME_GROUP_ORDER_GOTO:
+        if (ux != game->unit_group_arg0 || uy != game->unit_group_arg1) {
+          (void)game_issue_goto(game, uid, game->unit_group_arg0, game->unit_group_arg1);
+        }
+        break;
+      default:
+        break;
+    }
+    game->unit_group_dispatching = false;
+  }
+  game_unit_group_prune(game);
+  if (game->unit_group_count > 0) {
+    game_select_unit(game, game->unit_group[0]);
+  }
+}
+
+/* ORDERS rows that act on the selected unit; Activate / Wait and the trade-route
+ * editors do not, and Plan Pioneer turns the improvement rows into plan edits. */
+static bool game_unit_group_action_fans_out(const ColonizeGameState* game, int action) {
+  return !game->pioneer_plan_view && action >= MAP_MENU_ACTION_BUILD_COLONY &&
+    action <= MAP_MENU_ACTION_AUTOMATE && action != MAP_MENU_ACTION_TRADE_CREATE &&
+    action != MAP_MENU_ACTION_TRADE_EDIT && action != MAP_MENU_ACTION_TRADE_DELETE;
+}
+
+bool game_unit_group_order(ColonizeGameState* game, GameUnitGroupOrder kind, int a, int b) {
+  if (!game || game->unit_group_count <= 0 || game->unit_group_dispatching ||
+      game->unit_group_order != GAME_GROUP_ORDER_NONE ||
+      !game_unit_group_has(game, game->units.selected_id) ||
+      (kind == GAME_GROUP_ORDER_ACTION && !game_unit_group_action_fans_out(game, a))) {
+    return false;
+  }
+  game->unit_group_order = kind;
+  game->unit_group_arg0 = a;
+  game->unit_group_arg1 = b;
+  game->unit_group_next = 0;
+  game_unit_group_step(game);
+  return true;
+}
+
+/* Per frame: finish a fan-out parked behind a popup / Go To, else keep the group
+ * only while its lead is the active unit (any other pick or View Pieces ends it). */
+void game_unit_group_service(ColonizeGameState* game) {
+  if (!game || game->unit_group_count <= 0) {
+    return;
+  }
+  if (!game->units_ok || turn_processor_active(&game->turn_proc)) {
+    game_unit_group_clear(game);
+    return;
+  }
+  if (game->unit_group_order != GAME_GROUP_ORDER_NONE) {
+    game_unit_group_step(game);
+    return;
+  }
+  game_unit_group_prune(game);
+  if (!game_unit_group_has(game, game->units.selected_id)) {
+    game_unit_group_clear(game);
+  }
 }

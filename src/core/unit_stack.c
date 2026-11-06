@@ -53,6 +53,8 @@ bool unit_stack_try_open(
   dlg->rows = rows;
   dlg->cols = 1;
   dlg->count = n < rows ? n : rows;
+  memset(dlg->picked, 0, sizeof(dlg->picked));
+  dlg->group_count = 0;
   /* DOS opens the picker with the currently active unit's row (the ship you
    * clicked) highlighted, not row 0 (port_bugs.md loaded-unit activation flow). */
   dlg->selection = 0;
@@ -210,6 +212,30 @@ bool unit_stack_handle_input(
     *out_select_id = -1;
   }
 
+  /* Port-only group pick: Shift+click toggles a row that has moves left; letting
+   * go of Shift with rows marked closes with them packed into ids[]. */
+  if (!input->shift_held) {
+    int n = 0;
+    for (int i = 0; i < dlg->count; ++i) {
+      if (dlg->picked[i]) {
+        dlg->ids[n++] = dlg->ids[i];
+      }
+    }
+    if (n > 0) {
+      unit_stack_close(dlg);
+      dlg->group_count = n;
+      return true;
+    }
+  } else if (input->mouse_left_clicked &&
+             ui_rect_hit(dlg->dialog_x, dlg->dialog_y, dlg->dialog_w, dlg->dialog_h,
+                         input->mouse_x, input->mouse_y)) {
+    const int idx = unit_stack_row_at(dlg, input->mouse_x, input->mouse_y);
+    if (idx >= 0 && units_remaining_mp(pool, dlg->ids[idx]) > 0) {
+      dlg->picked[idx] = !dlg->picked[idx];
+    }
+    return true;
+  }
+
   if (input->last_key == COLONIZE_KEY_ESCAPE) {
     unit_stack_close(dlg);
     return true;
@@ -358,7 +384,9 @@ void unit_stack_render(
   for (int i = 0; i < dlg->count; ++i) {
     const int row_y = fr.y + 3 + 2 + 16 * (i % dlg->rows); /* y + 3 + e */
     const int col_x = fr.x + col_w * (i / dlg->rows);
-    if (i == dlg->selection) {
+    if (dlg->picked[i]) {
+      fb_rect_outline(framebuffer, col_x + 4, row_y - 1, 18, 18, 10, 10); /* bright green */
+    } else if (i == dlg->selection) {
       fb_rect_outline(framebuffer, col_x + 4, row_y - 1, 18, 18, 15, 15);
     }
     const ColonizeUnit* u = units_get_const(pool, dlg->ids[i]);

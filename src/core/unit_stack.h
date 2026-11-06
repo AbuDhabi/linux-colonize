@@ -14,6 +14,9 @@ typedef struct ColonizeFont ColonizeFont;
 /*
  * Tile stack picker: on-map units plus ship cargo at one tile.
  * Click sentry cargo once to wake (orders=0); click again (or any non-sentry) to select.
+ * Port-only: Shift+click marks rows with moves left (green frame); letting go of
+ * Shift closes the picker with ids[0..group_count) = the marked units, for the
+ * caller to take as a unit group (game_unit_group_set) and zero.
  */
 typedef struct UnitStackPopup {
   bool open;
@@ -33,6 +36,8 @@ typedef struct UnitStackPopup {
   int line_h; /* icon row pitch (16) */
   int list_x0; /* left edge of column 0 */
   int col_w;   /* column pitch */
+  bool picked[UNITS_TILE_STACK_MAX]; /* Shift-marked rows, by ids[] slot */
+  int group_count;
 } UnitStackPopup;
 
 /* Collect human units at (x,y); opens only when count > 1. Shows one column until

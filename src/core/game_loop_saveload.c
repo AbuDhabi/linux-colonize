@@ -348,6 +348,7 @@ static bool game_load_col1_loaded(
     col1_save_free(loaded);
     return false;
   }
+  game_unit_group_clear(game); /* its ids named the outgoing game's units */
   /* DOS resumes a loaded game at the human's Move Pieces entry, which picks
    * the first unit awaiting orders (a Go-To unit included) even when the
    * save was taken in View Pieces (every autosave is). DOS re-picks over a

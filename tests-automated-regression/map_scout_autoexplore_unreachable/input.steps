@@ -1,0 +1,7 @@
+# divergences.scout_autoexplore (settings.json). Start: campaign 20 (England 1595, port save), Scout #54
+# selected on (21,29) with full moves. The nearest point of interest, the (18,26) rumour, lies past the
+# Arawak village (18,27): the Go To probe misses it, and that miss spends the whole allotment
+# (units_goto_director, FUN_6662_0f74 raw 104623-104647) unless explore_auto_step puts the moves back.
+key q        # ORDERS Automate: the rumour misses, the next pick (18,28) takes the Go To
+wait 60      # the pacer walks (21,30), (20,30), (19,29), (18,28) on the same turn
+shot

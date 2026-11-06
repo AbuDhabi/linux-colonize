@@ -4813,6 +4813,79 @@ static int test_click_spent_unit_hands_off(void) {
   return rc;
 }
 
+/* Port-only Shift-pick group: an ORDERS row given while the group's lead is
+ * active reaches every member as if issued one at a time, and nobody else; a
+ * plain pick ends the group. */
+static int test_unit_group_fans_out_order(void) {
+  ColonizeGameConfig cfg = {.data_dir = "./COLONIZE", .save_dir = "./build/debug"};
+  ColonizeGameState* game = game_create(&cfg);
+  if (!game || !game_assets_ok(game)) {
+    fprintf(stderr, "SKIP: no COLONIZE/ assets\n");
+    if (game) {
+      game_destroy(game);
+    }
+    return TR_SKIP;
+  }
+  char err[256];
+  int rc = 0;
+  if (!game_load_col1_file(
+        game, "tests-automated-regression/map_pioneer_native_forest_offer/input.sav", err,
+        sizeof(err)
+      )) {
+    fprintf(stderr, "  %s\n", err);
+    game_destroy(game);
+    return fail("fixture save load");
+  }
+  ai_popup_clear(&game->ai_popups);
+  int ids[2];
+  int n = 0;
+  for (int i = 0; i < units_slot_end(&game->units) && n < 2; ++i) {
+    const ColonizeUnit* u = &game->units.units[i];
+    if (turn_unit_in_rotation(&game->units, u, game->human_nation) &&
+        !units_orders_skip_turn(u) && units_is_on_map(u)) {
+      ids[n++] = u->id;
+    }
+  }
+  if (n < 2) {
+    game_destroy(game);
+    return fail("fixture has two human units awaiting orders");
+  }
+  int sentried_before = 0;
+  for (int i = 0; i < units_slot_end(&game->units); ++i) {
+    sentried_before += game->units.units[i].active &&
+      game->units.units[i].orders == UNITS_ORDER_SENTRY;
+  }
+  game_unit_group_set(game, ids, 2);
+  if (game->unit_group_count != 2 || game->units.selected_id != ids[0]) {
+    rc = fail("group set selects its lead");
+  }
+  game_apply_map_menu_action(game, MAP_MENU_ACTION_SENTRY);
+  game_unit_group_service(game);
+  int sentried_after = 0;
+  for (int i = 0; i < units_slot_end(&game->units); ++i) {
+    sentried_after += game->units.units[i].active &&
+      game->units.units[i].orders == UNITS_ORDER_SENTRY;
+  }
+  if (units_get_const(&game->units, ids[0])->orders != UNITS_ORDER_SENTRY ||
+      units_get_const(&game->units, ids[1])->orders != UNITS_ORDER_SENTRY ||
+      sentried_after != sentried_before + 2) {
+    rc = fail("Sentry reaches both members and only them");
+  }
+  if (game->unit_group_count != 0) {
+    rc = fail("sentried members leave the group");
+  }
+  units_wake(&game->units, ids[0]);
+  units_wake(&game->units, ids[1]);
+  game_unit_group_set(game, ids, 2);
+  game_click_activate_unit(game, ids[1]);
+  game_unit_group_service(game);
+  if (game->unit_group_count != 0) {
+    rc = fail("a plain pick ends the group");
+  }
+  game_destroy(game);
+  return rc;
+}
+
 /*
  * port_bugs.md #1302: with Game Options End of Turn off, the last unit awaiting orders used up
  * without a hand-off (a colony-screen fence drop despawns it) must still end the turn on the
@@ -5556,6 +5629,7 @@ static const TestCase k_cases[] = {
     {"test_new_campaign_amer2_seed100_landfall", test_new_campaign_amer2_seed100_landfall},
     {"test_europe_repaints_reset_harbor_selection", test_europe_repaints_reset_harbor_selection},
     {"test_click_spent_unit_hands_off", test_click_spent_unit_hands_off},
+    {"test_unit_group_fans_out_order", test_unit_group_fans_out_order},
     {"test_eot_off_unit_used_up_ends_turn", test_eot_off_unit_used_up_ends_turn},
     {"test_hotseat_dos_save_round_trip", test_hotseat_dos_save_round_trip},
     {"test_europe_unload_all_boycott_any_slot", test_europe_unload_all_boycott_any_slot},

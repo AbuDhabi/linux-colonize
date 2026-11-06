@@ -2736,7 +2736,10 @@ COLONIZE_INTERNAL void game_render_map_panel(
     const ColonizeFont* panel_font = game->colony_font_ok ? &game->colony_font :
                                      (game->menu_font_ok ? &game->menu_font : NULL);
     const ColonizeWorld w = game_world_const(game);
-    map_panel_render_w(&w, &game->map_panel, game->unit_icons_ok ? &game->unit_icons : NULL, panel_font, game->names_ok ? &game->names : NULL, game->labels_ok ? &game->labels : NULL, view_x, view_y, view_cols, view_rows, game->map_cursor_x, game->map_cursor_y, game->units.selected_id, game_fog_nation(game), game->game_year, game->game_autumn, game->europe.gold, game->europe.tax_percent, game->europe.nation_name, game->map_palette_ok ? &game->map_palette : NULL, game_end_turn_prompt_active(game), !game_map_blink_running(game) || (game->elapsed_ms / 250u) % 2u == 0u, framebuffer);
+    MapPanel panel = game->map_panel;
+    panel.group_ids = game->unit_group;
+    panel.group_count = game->unit_group_count;
+    map_panel_render_w(&w, &panel, game->unit_icons_ok ? &game->unit_icons : NULL, panel_font, game->names_ok ? &game->names : NULL, game->labels_ok ? &game->labels : NULL, view_x, view_y, view_cols, view_rows, game->map_cursor_x, game->map_cursor_y, game->units.selected_id, game_fog_nation(game), game->game_year, game->game_autumn, game->europe.gold, game->europe.tax_percent, game->europe.nation_name, game->map_palette_ok ? &game->map_palette : NULL, game_end_turn_prompt_active(game), !game_map_blink_running(game) || (game->elapsed_ms / 250u) % 2u == 0u, framebuffer);
   }
 }
 
