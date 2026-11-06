@@ -133,7 +133,7 @@ static int unit_fort_fire_dissolve_and_europe(void) {
   units_set_combat_europe(&eu);
   s_dissolve_count = 0;
   units_set_combat_dissolve(unit_test_dissolve_hook, NULL);
-  s_cam_n = s_watch_n = 0;
+  s_cam_n = s_watch_n = s_lunge_n = 0;
   units_set_camera_edge_hook(unit_test_camera_hook, NULL);
   units_set_combat_watch(unit_test_watch_hook, NULL);
   units_set_phantom_lunge_hook(unit_test_phantom_lunge_hook, NULL);

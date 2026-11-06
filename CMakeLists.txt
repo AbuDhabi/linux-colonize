@@ -560,6 +560,17 @@ colonize_add_test(NAME smoke_game_flow
   INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
+# Autoplay / demo (game_loop_demo.c) on real COLONIZE/ assets; brings its own
+# scripted poll / present, so the stubs drop theirs (COLONIZE_REPLAY_PLATFORM).
+colonize_add_test(NAME unit_game_loop_demo
+  SOURCES
+    tests/unit/test_game_loop_demo.c
+    tests/common/platform_cursor_stubs.c
+  LIBS colonize_core
+  INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}
+  COMPILE_DEFS COLONIZE_REPLAY_PLATFORM=1
+)
+
 colonize_add_test(NAME unit_new_game
   SOURCES
     tests/unit/test_new_game.c

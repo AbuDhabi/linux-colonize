@@ -1146,6 +1146,7 @@ static int case_153e_reads_census_rows(void) {
 }
 
 static int case_153e_phases_2_4_encounter(void) {
+  ai_diplo_talk_reset(); /* a talk left open by an earlier case refuses this one */
     ColonizeWorldMap emap;
     memset(&emap, 0, sizeof(emap));
     if (!fx_map_alloc(&emap, 16, 16, 0, false)) {
@@ -1417,6 +1418,7 @@ static int treaty_pick_cash_only(const char* body) {
  * forced hostility.
  */
 static int case_153e_war_bit_survives_worthy_peace(void) {
+  ai_diplo_talk_reset(); /* a talk left open by an earlier case refuses this one */
   static TreatyFx f;
   if (treaty_fx_init(&f) != 0) {
     return 1;
@@ -1475,6 +1477,7 @@ static int case_153e_war_bit_survives_worthy_peace(void) {
  * 0x02 toward France survives the accepted cash peace.
  */
 static int case_153e_war_bit_survives_givecash_peace(void) {
+  ai_diplo_talk_reset(); /* a talk left open by an earlier case refuses this one */
   static TreatyFx f;
   if (treaty_fx_init(&f) != 0) {
     return 1;
@@ -1512,6 +1515,7 @@ static int case_153e_war_bit_survives_givecash_peace(void) {
  * no_demand 2: euro_price 1 -> DS:0x84bc byte 0 (raw 6316-6320), so every
  * value is 0 and misses the threshold. */
 static int wantstuff_run(int tie, int no_demand) {
+  ai_diplo_talk_reset(); /* a talk left open by an earlier case refuses this one */
     ColonizeWorldMap qmap;
     memset(&qmap, 0, sizeof(qmap));
     if (!fx_map_alloc(&qmap, 16, 16, 0, false)) {
@@ -1686,6 +1690,7 @@ static int case_153e_wantstuff_weight_is_84bc_byte(void) {
 }
 
 static int case_153e_worthy_cascade(void) {
+  ai_diplo_talk_reset(); /* a talk left open by an earlier case refuses this one */
     ColonizeWorldMap rmap;
     memset(&rmap, 0, sizeof(rmap));
     if (!fx_map_alloc(&rmap, 16, 16, 0, false)) {
@@ -1928,6 +1933,7 @@ static int talk474_drain(ColonizeTurnContext* ctx, AiPopupState* pop, int* saw_w
 }
 
 static int case_153e_talk_tokens_474(void) {
+  ai_diplo_talk_reset(); /* a talk left open by an earlier case refuses this one */
   ColonizeWorldMap emap;
   memset(&emap, 0, sizeof(emap));
   emap.width = 16;
@@ -2017,6 +2023,7 @@ static int case_153e_talk_tokens_474(void) {
 /* raw :97431/:97720: a target that won its own independence (nation_flags 0x04)
  * greets with @HELLOUSA, not @HELLOFIRST's "in the name of our Queen" (playtest C10). */
 static int case_153e_usa_greeting(void) {
+  ai_diplo_talk_reset(); /* a talk left open by an earlier case refuses this one */
   ColonizeWorldMap emap;
   memset(&emap, 0, sizeof(emap));
   emap.width = 16;
@@ -2328,6 +2335,7 @@ static int case_153e_peacemenu_withdraw_all_land(void) {
  * cooldown at peace: nation[target].treaty_timer[self] = (6 - difficulty) * 2.
  */
 static int case_153e_woi_encounter_rearms_timer(void) {
+  ai_diplo_talk_reset(); /* a talk left open by an earlier case refuses this one */
   static WithdrawFx fx;
   if (!withdraw_fx_init(&fx, 0)) {
     return fail("woi timer: alloc map");
@@ -2428,7 +2436,170 @@ static int case_00f8_score_wraps_16bit(void) {
   return 0;
 }
 
+/*
+ * Pop the talk queue: OK bodies go to `oks` (last one kept); the first CHOICE
+ * is answered with `choice` (0 = leave it queued and stop). Returns the
+ * answered CHOICE's body in `asked`.
+ */
+static void ally_fx_answer(TreatyFx* f, int choice, char* oks, char* asked) {
+  if (oks) oks[0] = '\0';
+  if (asked) asked[0] = '\0';
+  while (f->pop.queue_count > 0) {
+    AiPopupRequest front = f->pop.queue[0];
+    if (front.kind == AI_POPUP_KIND_CHOICE && choice == 0) {
+      if (asked) snprintf(asked, AI_POPUP_BODY_LEN, "%s", front.body);
+      return;
+    }
+    memmove(&f->pop.queue[0], &f->pop.queue[1],
+            sizeof(f->pop.queue[0]) * (size_t)(f->pop.queue_count - 1));
+    f->pop.queue_count--;
+    if (front.kind != AI_POPUP_KIND_CHOICE) {
+      if (oks) snprintf(oks, AI_POPUP_BODY_LEN, "%s", front.body);
+      continue;
+    }
+    if (asked) snprintf(asked, AI_POPUP_BODY_LEN, "%s", front.body);
+    f->pop.has_result = true;
+    f->pop.result_cancelled = false;
+    f->pop.result_tag = AI_POPUP_TAG_DIPLO_TALK;
+    f->pop.result_choice_id = choice;
+    f->pop.result_nation_a = 0;
+    f->pop.result_nation_b = 1;
+    f->pop.result_payload = front.payload;
+    ai_diplo_apply_popup_result(&f->ctx, &f->pop);
+    f->pop.has_result = false;
+    return;
+  }
+}
+
+/*
+ * FUN_5bfb_153e Military Assistance (5bfb:2d59 @MILITARY list, then the
+ * raw 98340-98393 pay leg = ai_talk_stage_ally_pay): England (0) asks France
+ * (1) to smite pick p. France has no contact with p -> @NOCONTACT; no treaty
+ * with p -> @ALREADYSMITE; else the price = clamp((field + land strength of
+ * p) * (gold/50) / 50, 10, 200) * 50 (tribe: tribe_data_9184 * gold/50 * 3 /
+ * 50), Franklin halves it, @SMITEEUROPE / @SMITEINDIANS asks; "Yes" pays and
+ * clears France's PEACE with p (WAR both ways), short gold -> @UNFORTUNATE.
+ */
+static int case_153e_ally_pay(void) {
+  static TreatyFx f;
+  static ColonizeCol1Tribe tribe[1];
+  static char oks[AI_POPUP_BODY_LEN];
+  static char asked[AI_POPUP_BODY_LEN];
+  if (treaty_fx_init(&f) != 0) {
+    return 1;
+  }
+  ColonizeCol1Save* e = &f.col1;
+  snprintf(e->player[2].country_name, sizeof(e->player[2].country_name), "Spain");
+  e->tribe = tribe;
+  e->head.tribe_count = 1;
+  e->indian[0].euro_diplo[0] = COL1_INDIAN_MET_BIT; /* England met tribe slot 4 */
+  ai_diplo_write(e, 0, 1, AI_DIPLO_MET | AI_DIPLO_PEACE);
+  ai_diplo_write(e, 1, 0, AI_DIPLO_MET | AI_DIPLO_PEACE);
+  ai_diplo_write(e, 0, 2, AI_DIPLO_MET);
+  e->stuff.field_combat_totals[2] = 30;
+  e->stuff.land_combat_strength[2] = 20;
+  e->stuff.tribe_data_9184[0] = 5;
+  int rc = 0;
+
+  /* 1: France never met Spain. */
+  ai_diplo_153e_test_peacemenu(&f.ctx, 0, 1, 2, 0, 0, 4);
+  if (f.pop.queue_count != 1 || f.pop.queue[0].kind != AI_POPUP_KIND_CHOICE ||
+      !test_body_is_section(f.pop.queue[0].body, "MILITARY")) {
+    rc = fail("ally: peace-menu row 4 must open the @MILITARY list");
+  } else {
+    /* Rows: Spain (value 3) and the met tribe (value 5); France/England absent. */
+    const AiPopupRequest* q = &f.pop.queue[0];
+    if (q->choice_count != 2 || q->choice_ids[0] != 3 || q->choice_ids[1] != 5) {
+      fprintf(stderr, "ally: %d rows ids %d %d\n", q->choice_count, q->choice_ids[0],
+              q->choice_ids[1]);
+      rc = fail("ally: @MILITARY rows = met nations / tribes, value p+1");
+    }
+  }
+  if (rc == 0) {
+    ally_fx_answer(&f, 3, oks, asked);
+    ally_fx_answer(&f, 0, oks, asked);
+    if (!test_body_is_section(oks, "NOCONTACT") || f.pop.queue_count != 0) {
+      fprintf(stderr, "ally nocontact: ok '%s' queued %d\n", oks, f.pop.queue_count);
+      rc = fail("ally: target without contact with the pick -> @NOCONTACT");
+    }
+  }
+  /* 2: France met Spain, no treaty. */
+  if (rc == 0) {
+    ai_diplo_write(e, 1, 2, AI_DIPLO_MET);
+    ai_popup_init(&f.pop);
+    ai_diplo_153e_test_peacemenu(&f.ctx, 0, 1, 2, 0, 0, 4);
+    ally_fx_answer(&f, 3, oks, asked);
+    ally_fx_answer(&f, 0, oks, asked);
+    if (!test_body_is_section(oks, "ALREADYSMITE") || f.pop.queue_count != 0) {
+      rc = fail("ally: target already at odds with the pick -> @ALREADYSMITE");
+    }
+  }
+  /* 3: treaty: (30 + 20) * (1000 / 50) / 50 = 20 -> 1000; decline, then pay. */
+  if (rc == 0) {
+    ai_diplo_write(e, 1, 2, AI_DIPLO_MET | AI_DIPLO_PEACE);
+    ai_diplo_write(e, 2, 1, AI_DIPLO_MET | AI_DIPLO_PEACE);
+    ai_popup_init(&f.pop);
+    ai_diplo_153e_test_peacemenu(&f.ctx, 0, 1, 2, 0, 0, 4);
+    ally_fx_answer(&f, 3, oks, asked);
+    ally_fx_answer(&f, 0, oks, asked);
+    if (!test_body_is_section(asked, "SMITEEUROPE") || !strstr(asked, "1000")) {
+      fprintf(stderr, "ally smite: '%s'\n", asked);
+      rc = fail("ally: Euro pick under treaty asks @SMITEEUROPE for 1000");
+    } else {
+      ally_fx_answer(&f, 2, oks, asked); /* No */
+      if (e->nation[0].gold != 1000 || (ai_diplo_read(e, 1, 2) & AI_DIPLO_PEACE) == 0) {
+        rc = fail("ally: declining the price changes nothing");
+      }
+    }
+  }
+  if (rc == 0) {
+    ai_popup_init(&f.pop);
+    ai_diplo_153e_test_peacemenu(&f.ctx, 0, 1, 2, 0, 0, 4);
+    ally_fx_answer(&f, 3, oks, asked);
+    ally_fx_answer(&f, 1, oks, asked); /* Yes */
+    ally_fx_answer(&f, 0, oks, asked);
+    if (e->nation[0].gold != 0 || e->nation[1].gold != 2000 ||
+        (ai_diplo_read(e, 1, 2) & AI_DIPLO_PEACE) != 0 ||
+        (ai_diplo_read(e, 2, 1) & AI_DIPLO_PEACE) != 0 ||
+        (ai_diplo_read(e, 2, 1) & AI_DIPLO_WAR) == 0 || !test_body_is_section(oks, "MERCENARY")) {
+      fprintf(stderr, "ally pay: gold %u/%u rel 1->2 0x%02x 2->1 0x%02x ok '%s'\n",
+              (unsigned)e->nation[0].gold, (unsigned)e->nation[1].gold, ai_diplo_read(e, 1, 2),
+              ai_diplo_read(e, 2, 1), oks);
+      rc = fail("ally: paying hands 1000 to France, breaks its treaty with Spain (@MERCENARY)");
+    }
+  }
+  /* 4: tribe pick, Franklin: 5 * 20 * 3 / 50 = 6 -> floor 10 -> 500 -> 250;
+   * England now has 0 gold -> @UNFORTUNATE. */
+  if (rc == 0) {
+    e->indian[0].euro_diplo[1] = (uint8_t)(COL1_INDIAN_MET_BIT | COL1_INDIAN_PEACE_BIT);
+    e->nation[0].founding_fathers[FF_BENJAMIN_FRANKLIN / 8] |=
+      (uint8_t)(1u << (FF_BENJAMIN_FRANKLIN % 8));
+    e->nation[0].gold = 1000; /* gold/50 = 20 for the price */
+    ai_popup_init(&f.pop);
+    ai_diplo_153e_test_peacemenu(&f.ctx, 0, 1, 2, 0, 0, 4);
+    ally_fx_answer(&f, 5, oks, asked);
+    ally_fx_answer(&f, 0, oks, asked);
+    if (!test_body_is_section(asked, "SMITEINDIANS") || !strstr(asked, "250")) {
+      fprintf(stderr, "ally tribe: '%s'\n", asked);
+      rc = fail("ally: tribe pick asks @SMITEINDIANS for 250 (floor 500, Franklin half)");
+    } else {
+      e->nation[0].gold = 100;
+      ally_fx_answer(&f, 1, oks, asked);
+      ally_fx_answer(&f, 0, oks, asked);
+      if (!test_body_is_section(oks, "UNFORTUNATE") || e->nation[0].gold != 100 ||
+          (e->indian[0].euro_diplo[1] & COL1_INDIAN_PEACE_BIT) == 0) {
+        rc = fail("ally: short of the price -> @UNFORTUNATE, nothing paid or broken");
+      }
+    }
+  }
+  ai_diplo_talk_reset();
+  e->tribe = NULL;
+  fx_map_free(&f.map);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
+  {"case_153e_ally_pay", case_153e_ally_pay},
     {"case_00f8_score_wraps_16bit", case_00f8_score_wraps_16bit},
     {"case_2b5a_1112_fortify_break_treaty", case_2b5a_1112_fortify_break_treaty},
     {"case_153e_peacemenu_withdraw_dominance", case_153e_peacemenu_withdraw_dominance},

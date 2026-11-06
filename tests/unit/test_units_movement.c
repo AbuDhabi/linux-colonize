@@ -1,7 +1,16 @@
+/* setenv/unsetenv/fork (the UNITS_FAR_BFS re-exec case) are POSIX. */
+#ifndef _POSIX_C_SOURCE
+#define _POSIX_C_SOURCE 200809L
+#endif
 #include "test_units_common.h"
 #include "../common/test_runner.h"
 #include "core/units_internal.h"
 #include "core/dos_buggy.h"
+
+#if !defined(_WIN32)
+#include <sys/wait.h>
+#include <unistd.h>
+#endif
 
 
 /*
@@ -1784,7 +1793,134 @@ static int unit_board_gate_reseed_1443(void) {
   return rc;
 }
 
+/*
+ * units_order_name: the @ORDERS byte (unit +0x314c, FUN_479b_0972's switch
+ * key) to its debug-log name; port-only (no DOS text), unknown bytes = "?".
+ */
+static int unit_order_name_table(void) {
+  static const struct {
+    int orders;
+    const char* name;
+  } k_rows[] = {
+    {UNITS_ORDER_NONE, "none"},          {UNITS_ORDER_SENTRY, "sentry"},
+    {UNITS_ORDER_TRADE_ROUTE, "trade route"}, {UNITS_ORDER_GOTO, "goto"},
+    {UNITS_ORDER_FORTIFY, "fortify"},    {UNITS_ORDER_FORTIFIED, "fortified"},
+    {UNITS_ORDER_BUILD_COLONY, "build colony"}, {UNITS_ORDER_CLEAR_PLOW, "clear/plow"},
+    {UNITS_ORDER_BUILD_ROAD, "build road"}, {UNITS_ORDER_AI_SAIL, "ai sail"},
+    {UNITS_ORDER_AI_MOVE, "ai move"},    {UNITS_ORDER_FOLLOW, "follow"},
+    {4, "?"}, {10, "?"}, {-1, "?"}, {255, "?"},
+  };
+  for (size_t i = 0; i < sizeof(k_rows) / sizeof(k_rows[0]); ++i) {
+    const char* got = units_order_name(k_rows[i].orders);
+    if (!got || strcmp(got, k_rows[i].name) != 0) {
+      fprintf(stderr, "order name %d: want '%s' got '%s'\n", k_rows[i].orders, k_rows[i].name,
+              got ? got : "(null)");
+      return 1;
+    }
+  }
+  return 0;
+}
+
+/*
+ * Far-BFS fixture: 20x20 plains split by an ocean column x=10 open only at
+ * y=1; a Colonist at (5,10) bound for (15,10) (far tier, |dx| = 10).
+ */
+static bool far_bfs_fixture_step(int* sx, int* sy) {
+  units_set_occupancy_map(NULL);
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  units_reset(&pool);
+  pool.type_count = 1;
+  pool.types[0].movement = 1;
+  pool.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  char err[128];
+  if (!map_alloc(&map, 20, 20, err, sizeof(err))) {
+    return false;
+  }
+  for (int i = 0; i < 20 * 20; ++i) {
+    map.terrain[i] = 2;
+    map.layer3[i] = 0xf1;
+  }
+  for (int y = 0; y < 20; ++y) {
+    if (y != 1) {
+      map.terrain[y * 20 + 10] = 25;
+    }
+  }
+  const int id = units_spawn_allow_stack(&pool, 0, 5, 10);
+  ColonizeUnit* u = units_get(&pool, id);
+  bool ok = false;
+  if (u) {
+    units_reset_state();
+    u->nation_id = 0;
+    u->orders = UNITS_ORDER_GOTO;
+    u->goto_x = 15;
+    u->goto_y = 10;
+    ColonizeWorld w = {.units = &pool, .map = &map};
+    ok = units_next_goto_step_w(&w, id, sx, sy);
+  }
+  map_free(&map);
+  units_reset_state();
+  return ok;
+}
+
+/*
+ * units_bfs_next_step: the UNITS_FAR_BFS=1 diagnostic whole-map BFS tier of
+ * the FUN_6662_0f74 goto director (port-only fallback, pre-2026-08-27). The
+ * env switch is latched once per process, so the case re-execs itself with
+ * UNITS_FAR_BFS=1 and COLONIZE_TEST_ONLY set; the parent runs the same
+ * fixture on the default DOS tiers. The BFS first step heads up toward the
+ * gap at (10,1): (4,9), the first-discovered tile of a shortest 8-way path
+ * (dy = -1 row scanned dx = -1 first). Pinned 2026-11-06.
+ */
+static int unit_far_bfs_next_step(void) {
+#if defined(_WIN32)
+  return TR_SKIP;
+#else
+  int sx = -1;
+  int sy = -1;
+  const char* e = getenv("UNITS_FAR_BFS");
+  if (e && e[0] == '1') {
+    if (!far_bfs_fixture_step(&sx, &sy) || sx != 4 || sy != 9) {
+      fprintf(stderr, "far BFS: step (%d,%d) want (4,9)\n", sx, sy);
+      return 1;
+    }
+    return 0;
+  }
+  if (!far_bfs_fixture_step(&sx, &sy)) {
+    fprintf(stderr, "far BFS: default tiers found no step\n");
+    return 1;
+  }
+  if (sx == 4 && sy == 9) {
+    fprintf(stderr, "far BFS: default tiers already step (4,9); fixture proves nothing\n");
+    return 1;
+  }
+  fflush(NULL);
+  const pid_t pid = fork();
+  if (pid < 0) {
+    return 1;
+  }
+  if (pid == 0) {
+    setenv("UNITS_FAR_BFS", "1", 1);
+    setenv("COLONIZE_TEST_ONLY", "unit_far_bfs_next_step", 1);
+    unsetenv("COLONIZE_TEST_REVERSE");
+    unsetenv("COLONIZE_TEST_SHUFFLE");
+    execl("/proc/self/exe", "unit_units_movement", (char*)NULL);
+    _exit(127);
+  }
+  int status = 0;
+  if (waitpid(pid, &status, 0) != pid || !WIFEXITED(status) || WEXITSTATUS(status) != 0) {
+    fprintf(stderr, "far BFS: UNITS_FAR_BFS=1 child failed (status 0x%x)\n", status);
+    return 1;
+  }
+  return 0;
+#endif
+}
+
 static const TestCase k_cases[] = {
+  {"unit_order_name_table", unit_order_name_table},
+  {"unit_far_bfs_next_step", unit_far_bfs_next_step},
   {"unit_board_gate_reseed_1443", unit_board_gate_reseed_1443},
   {"unit_ai_undefended_colony_band", unit_ai_undefended_colony_band},
   {"unit_colony_entry_bvar4_reseed_1323", unit_colony_entry_bvar4_reseed_1323},

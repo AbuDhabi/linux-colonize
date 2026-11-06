@@ -957,7 +957,56 @@ static int case_dos_resource_settlement_gate(void) {
   return 0;
 }
 
+/*
+ * map_phys0_overlay_kind_at (the VIEW ~Hidden Terrain peel identity): walks the
+ * same layer order as map_phys0_overlay_sprite_at (coast, hill/mountain, river,
+ * MAPEDIT FUN_12ab_0458 resource, FUN_12ab_0540 rumour, estuary). Pinned on
+ * AMER2: RESOURCE/RUMOUR layers are exactly the 89..102 / 103 sprites that
+ * case_resources_rumours counts (425 / 38); layers past the count are WATER;
+ * the mountain/hill/river/water layer totals are pinned as of 2026-11-06.
+ */
+static int case_overlay_kind_matches_sprites(void) {
+  if (ensure_map() != 0) {
+    return 1;
+  }
+  if (map_phys0_overlay_kind_at(NULL, 0, 0, 0) != MAP_OVERLAY_KIND_WATER ||
+      map_phys0_overlay_kind_at(&g_map, 0, 0, -1) != MAP_OVERLAY_KIND_WATER) {
+    fprintf(stderr, "overlay kind: NULL map / negative layer must read WATER\n");
+    return 1;
+  }
+  int kinds[6] = {0};
+  int mismatch = 0;
+  for (int y = 0; y < (int)g_map.height; ++y) {
+    for (int x = 0; x < (int)g_map.width; ++x) {
+      const int n = map_phys0_overlay_count(&g_map, x, y);
+      for (int i = 0; i < n; ++i) {
+        const ColonizeMapOverlayKind k = map_phys0_overlay_kind_at(&g_map, x, y, i);
+        const int s = map_phys0_overlay_sprite_at(&g_map, x, y, i);
+        kinds[k]++;
+        if ((k == MAP_OVERLAY_KIND_RESOURCE) != (s >= 89 && s <= 102) ||
+            (k == MAP_OVERLAY_KIND_RUMOUR) != (s == 103)) {
+          ++mismatch;
+        }
+      }
+      if (map_phys0_overlay_kind_at(&g_map, x, y, n) != MAP_OVERLAY_KIND_WATER) {
+        ++mismatch;
+      }
+    }
+  }
+  if (mismatch != 0 || kinds[MAP_OVERLAY_KIND_RESOURCE] != 425 ||
+      kinds[MAP_OVERLAY_KIND_RUMOUR] != 38 || kinds[MAP_OVERLAY_KIND_MOUNTAIN] != 170 ||
+      kinds[MAP_OVERLAY_KIND_HILL] != 57 || kinds[MAP_OVERLAY_KIND_RIVER] != 196 ||
+      kinds[MAP_OVERLAY_KIND_WATER] != 1807) {
+    fprintf(stderr, "overlay kind: %d mismatches; water %d mountain %d hill %d river %d "
+            "resource %d rumour %d\n", mismatch, kinds[0], kinds[1], kinds[2], kinds[3],
+            kinds[4], kinds[5]);
+    return 1;
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+  {"overlay_kind_matches_sprites", case_overlay_kind_matches_sprites},
   {"dos_resource_settlement_gate", case_dos_resource_settlement_gate},
   {"map_load_and_ocean", case_map_load_and_ocean},
   {"amer2_fixtures", case_amer2_fixtures},

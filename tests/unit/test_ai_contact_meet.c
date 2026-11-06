@@ -385,7 +385,86 @@ static int test_2154_cover_mask_fixed_tb29(void) {
   return rc;
 }
 
+/*
+ * FUN_5fef_1b0e @HALF gate (viceroy_unpacked.c ~100359), ported as
+ * ai_contact_try_tired_attack_confirm: only a human Euro attacker with
+ * 0 < remaining thirds < 3 is asked; the CHOICE (Charge = 1 / rest = 0) is
+ * keyed on the unit id, carries the thirds as nation_b and dest x|y<<8 as
+ * payload, and is not queued twice while one is pending.
+ */
+static int test_tired_attack_confirm_half(void) {
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
+  units_reset(&units);
+  units_set_occupancy_map(NULL);
+  units.type_count = 1;
+  units.types[0].movement = 1;
+  units.types[0].attack = 2;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  const int hid = units_spawn(&units, 0, 4, 4);
+  const int aid = units_spawn(&units, 0, 8, 8);
+  ColonizeUnit* hu = units_get(&units, hid);
+  ColonizeUnit* au = units_get(&units, aid);
+  if (!hu || !au) {
+    return fail("tired: spawn");
+  }
+  hu->nation_id = 0;
+  au->nation_id = 1;
+  AiPopupState pop;
+  ai_popup_init(&pop);
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.messages = test_game_txt();
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.units = &units;
+  ctx.ai_popups = &pop;
+  ctx.human_nation = 0;
+
+  au->moves = 2;
+  hu->moves = UNITS_MP_PER_TILE;
+  if (ai_contact_try_tired_attack_confirm(&ctx, aid, 5, 4) || pop.queue_count != 0) {
+    return fail("tired: an AI attacker takes the penalty silently");
+  }
+  if (ai_contact_try_tired_attack_confirm(&ctx, hid, 5, 4) || pop.queue_count != 0) {
+    return fail("tired: a rested attacker (3 thirds) is not asked");
+  }
+  hu->moves = 0;
+  if (ai_contact_try_tired_attack_confirm(&ctx, hid, 5, 4) || pop.queue_count != 0) {
+    return fail("tired: an exhausted attacker (0 thirds) is not asked");
+  }
+  hu->moves = 2;
+  if (ai_contact_try_tired_attack_confirm(&ctx, hid, 300, 4) ||
+      ai_contact_try_tired_attack_confirm(&ctx, hid, 5, -1) ||
+      ai_contact_try_tired_attack_confirm(&ctx, -1, 5, 4) || pop.queue_count != 0) {
+    return fail("tired: off-range destination / unit id is rejected");
+  }
+  if (!ai_contact_try_tired_attack_confirm(&ctx, hid, 5, 4) || pop.queue_count != 1) {
+    return fail("tired: 2 thirds left must queue @HALF");
+  }
+  const AiPopupRequest* q = &pop.queue[0];
+  if (q->tag != AI_POPUP_TAG_COMBAT_HALF || q->kind != AI_POPUP_KIND_CHOICE ||
+      q->nation_a != hid || q->nation_b != 2 || q->payload != (5 | (4 << 8)) ||
+      q->choice_count != 2 || q->choice_ids[0] != 1 || q->choice_ids[1] != 0 ||
+      !q->choices[0][0] || !q->choices[1][0] || !test_body_is_section(q->body, "HALF")) {
+    fprintf(stderr, "tired: tag %d kind %d a %d b %d payload 0x%x n %d body '%s'\n", q->tag,
+            q->kind, q->nation_a, q->nation_b, q->payload, q->choice_count, q->body);
+    return fail("tired: @HALF CHOICE fields");
+  }
+  if (!ai_contact_try_tired_attack_confirm(&ctx, hid, 5, 4) || pop.queue_count != 1) {
+    return fail("tired: a pending @HALF gates the move without a second popup");
+  }
+  ctx.ai_popups = NULL;
+  if (ai_contact_try_tired_attack_confirm(&ctx, hid, 5, 4)) {
+    return fail("tired: no popup queue -> the move proceeds");
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+    {"test_tired_attack_confirm_half", test_tired_attack_confirm_half},
     {"test_2154_cover_mask_fixed_tb29", test_2154_cover_mask_fixed_tb29},
     {"test_ai_only_meet_is_silent_for_human", test_ai_only_meet_is_silent_for_human},
     {"test_encounter_scan_ignores_stale_owner_stamp", test_encounter_scan_ignores_stale_owner_stamp},

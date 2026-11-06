@@ -923,7 +923,7 @@ static int run_isolated(const char* name) {
   if (pid == 0) {
     const int rc = run_test(name);
     fflush(stdout);
-    _exit(rc);
+    exit(rc); /* not _exit: --coverage builds flush gcov counters at exit */
   }
   int status = 0;
   if (pid < 0 || waitpid(pid, &status, 0) < 0) {

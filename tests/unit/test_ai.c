@@ -3506,8 +3506,20 @@ static int case_america(void) {
   return run_init_and_turns("COLONIZE", true, 2, "AMERICA");
 }
 
+/* Two worlds, one process: the second must not path on the first's coarse
+ * walkability grid (units_coarse keyed on map pointer + size, both equal
+ * here; ai_init_new_game -> units_reset_state drops it). */
+static int case_new_world_after_america(void) {
+  diag_init(0, NULL);
+  if (run_init_and_turns("COLONIZE", true, 2, "AMERICA") != 0) {
+    return 1;
+  }
+  return run_init_and_turns("COLONIZE", false, 0, "NEW_WORLD after AMERICA");
+}
+
 static const TestCase k_cases[] = {
     {"case_new_world", case_new_world},
+    {"case_new_world_after_america", case_new_world_after_america},
     {"case_america", case_america},
     {"coarse_fog_reset", case_coarse_fog_reset},
     {"tribe_txt_jitter_rules", case_tribe_txt_jitter_rules},

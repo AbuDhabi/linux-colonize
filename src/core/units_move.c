@@ -2540,10 +2540,11 @@ static int units_goto_last_dir_reverse(const ColonizeUnit* u) {
   return u && u->last_dir >= 0 ? (u->last_dir ^ 4) : -1;
 }
 
-/* units_coarse (below) is deliberately NOT reset: it caches walkability by map
- * pointer and size, and the world map's land/water layout never changes. */
+static void units_coarse_invalidate(void);
+
 void units_reset_state(void) {
   units_flood_cache_invalidate();
+  units_coarse_invalidate();
   units_last_hold_amount = 0; /* DS:0x8dc4: not in the save; RTST carries it */
   /* DS:0x1dc6/0x1dc7 are process-wide in DOS; the port keeps them per game
    * (dos_bugs.md DB-47). A port save's RTST chunk restores them after this. */
@@ -2857,6 +2858,13 @@ typedef struct UnitsCoarseGrid {
   uint8_t walk[2][UNITS_COARSE_ROWS][UNITS_COARSE_COLS];
 } UnitsCoarseGrid;
 static UnitsCoarseGrid s_units_coarse;
+
+/* Not a DOS act (DOS populates once per map setup): units_coarse_build keys
+ * the cache on map pointer + size, and a New Game / Load reuses the same
+ * world_map struct at the same size with a different land/water layout. */
+static void units_coarse_invalidate(void) {
+  s_units_coarse.map = NULL;
+}
 /* ===================== Coarse-grid route caching & goto step advancement (units_coarse_domain_tile .. units_advance_goto) ===================== */
 
 

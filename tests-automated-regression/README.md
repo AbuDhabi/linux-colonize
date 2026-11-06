@@ -87,6 +87,7 @@ the port, with fixture edits through `sav_json` where a test needs them
 | `map_game_options_enable_all` | GAME > Game Options with every option off: all eight rows turned on (mouse and keyboard), reopened |
 | `map_game_options_disable_all` | Base save: all eight rows turned off, reopened, closed by an outside click |
 | `game_retire` | Base save: GAME menu Retire, @RETIRE Yes, F10 score, exploits screen, Hall of Fame, title menu (`ends_on_title`; `output.hallfame` pins the record) |
+| `save_slot_roundtrip` | `map_found_colony`'s start: GAME > Save Game cancelled with Esc, then saved to slot 2 (@SAVEGOOD); the Preacher walks east; GAME > Load Game: a click on an empty row does nothing, COLONY02 loads (@LOADGOOD), the Preacher is back and the end save is byte-identical to input.sav. Writes only to the harness out dir |
 
 The `europe_*` tests were recorded live and start from `port_saves/carpentry.SAV`. The `europe_*` ones use a copy
 edited with `sav_json` to 60000 gold and a recruit pool of Fishermen /

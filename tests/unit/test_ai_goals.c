@@ -472,7 +472,63 @@ static int case_06ae_lands_beside_colony(void) {
   return 0;
 }
 
+/*
+ * ai_goals_best_found_tile_near: port-side FOUND/MIL_EXPAND pick (no DOS body;
+ * distance = the FUN_124c_0040 metric FUN_521d_0a60's goal scan uses). Order:
+ * same landmass as `from`, then priority, then distance. Its only production
+ * caller is ai_goals_best_found_tile (CHEAT colony-site overlay: no map, no
+ * `from`), which takes the first FOUND/MIL_EXPAND slot in priority order.
+ */
+static int case_best_found_tile_near(void) {
+  ai_goals_reset();
+  ColonizeWorldMap map;
+  if (!fx_map_alloc(&map, 16, 16, 1, false)) {
+    return fail("best found: map alloc");
+  }
+  for (int y = 0; y < 16; ++y) {
+    for (int x = 0; x < 16; ++x) {
+      map.layer3[y * 16 + x] = (uint8_t)(x < 8 ? 1 : 2); /* continents 1 | 2 */
+    }
+  }
+  map.terrain[15 * 16 + 0] = 25; /* (0,15) ocean */
+  ai_goals_upsert_primary(1, 1, 1, AI_GOAL_LABOR, 9);       /* not a site code */
+  ai_goals_upsert_primary(1, 12, 2, AI_GOAL_FOUND, 5);      /* A: continent 2 */
+  ai_goals_upsert_primary(1, 3, 3, AI_GOAL_FOUND, 3);       /* B: continent 1 */
+  ai_goals_upsert_primary(1, 6, 6, AI_GOAL_MIL_EXPAND, 3);  /* C: continent 1 */
+  int x = -1;
+  int y = -1;
+  int rc = 0;
+  if (!ai_goals_best_found_tile(1, &x, &y) || x != 12 || y != 2) {
+    rc = fail("best found: position-free query takes the top-priority site (A)");
+  } else if (!ai_goals_best_found_tile_near(&map, 1, 5, 5, &x, &y) || x != 6 || y != 6) {
+    rc = fail("best found: own landmass beats priority, then nearest of the tie (C)");
+  } else if (!ai_goals_best_found_tile_near(&map, 1, 2, 2, &x, &y) || x != 3 || y != 3) {
+    rc = fail("best found: equal priority on the landmass -> nearer site (B)");
+  } else if (!ai_goals_best_found_tile_near(&map, 1, 13, 13, &x, &y) || x != 12 || y != 2) {
+    rc = fail("best found: from continent 2 -> A");
+  } else if (!ai_goals_best_found_tile_near(NULL, 1, 5, 5, &x, &y) || x != 12 || y != 2) {
+    rc = fail("best found: no map -> priority first (A)");
+  } else if (!ai_goals_best_found_tile_near(&map, 1, 0, 15, &x, &y) || x != 12 || y != 2) {
+    rc = fail("best found: from a water tile (no continent) -> priority first (A)");
+  }
+  x = 77;
+  y = 77;
+  if (rc == 0 && (ai_goals_best_found_tile_near(&map, 2, 5, 5, &x, &y) != 0 ||
+                  ai_goals_best_found_tile(2, &x, &y) != 0 || x != 77 || y != 77)) {
+    rc = fail("best found: a nation with no site goal returns 0, outputs untouched");
+  }
+  if (rc == 0 && (ai_goals_best_found_tile_near(&map, 4, 5, 5, &x, &y) != 0 ||
+                  ai_goals_best_found_tile_near(&map, -1, 5, 5, &x, &y) != 0 ||
+                  ai_goals_best_found_tile_near(&map, 1, 5, 5, NULL, &y) != 0)) {
+    rc = fail("best found: non-Euro nation / NULL out returns 0");
+  }
+  ai_goals_reset();
+  fx_map_free(&map);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
+    {"case_best_found_tile_near", case_best_found_tile_near},
     {"case_upsert_priority_promote", case_upsert_priority_promote},
     {"case_work_queue_score_order", case_work_queue_score_order},
     {"case_work_consume_4393_tail", case_work_consume_4393_tail},
