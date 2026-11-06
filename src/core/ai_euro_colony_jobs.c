@@ -947,7 +947,9 @@ int ai_euro_jobs_menu_estimate(
       v += v >> 1;
     }
     if (founding_fathers_nation_has(col1, col->nation_id, FF_THOMAS_PAINE)) {
-      v += (int)(int8_t)col1->nation[col->nation_id].tax_rate * v / 100;
+      /* DOS reads the tax as a signed char (a tax of 128+ turns the bonus into a
+       * penalty); read unsigned, like every other port reader. */
+      v += (int)col1->nation[col->nation_id].tax_rate * v / 100;
     }
     if (colonies_has_building_row(pool, col, COLONY_BUILDING_NEWSPAPER)) {
       v <<= 1;

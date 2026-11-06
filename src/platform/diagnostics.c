@@ -22,6 +22,9 @@
 #else
 #include <unistd.h>
 #endif
+#ifdef __APPLE__
+#include <mach-o/dyld.h> /* _NSGetExecutablePath */
+#endif
 
 static FILE* g_log = NULL;
 static char g_log_path[1024];
@@ -125,9 +128,18 @@ static bool resolve_exe_dir(char* out_dir, size_t out_dir_size) {
       }
     }
   }
-#elif defined(__linux__)
+#elif defined(__linux__) || defined(__APPLE__)
   char exe_path[4096];
+#if defined(__APPLE__)
+  char raw_path[4096];
+  uint32_t raw_size = sizeof(raw_path);
+  ssize_t len = -1;
+  if (_NSGetExecutablePath(raw_path, &raw_size) == 0 && realpath(raw_path, exe_path)) {
+    len = (ssize_t)strlen(exe_path);
+  }
+#else
   ssize_t len = readlink("/proc/self/exe", exe_path, sizeof(exe_path) - 1);
+#endif
   if (len > 0) {
     exe_path[len] = '\0';
     const char* slash = strrchr(exe_path, '/');

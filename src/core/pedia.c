@@ -37,7 +37,8 @@ static const int k_category_counts[] = {
  * "MISCELLANEOUS")); a catalog miss yields the empty string, never a
  * compiled-in MicroProse title. Bodies: DOS looks up @MISC<n>, which PEDIA.TXT
  * does not have, so the Game Concept pages are title-only (port_bugs.md #1331;
- * the port's own blurbs are gone). */
+ * the port's own blurbs are gone). Rows data/mods appends past the stock 12
+ * read their bodies from @MODMISC<n>. */
 
 /* ICONS.SS indices for cargo (colony warehouse strip). */
 static const int k_cargo_icons[PEDIA_CARGO_COUNT] = {
@@ -101,11 +102,22 @@ void pedia_set_chrome_catalogs(
   g_pedia_menu_txt = menu;
 }
 
+static int g_pedia_misc_count = PEDIA_MISC_COUNT;
+
+void pedia_set_misc_catalog(const ColonizeMsgCatalog* pedia) {
+  /* @MISCELLANEOUS row 0 is the stock count; the mod rows follow the stock titles. */
+  const ColonizeMsgSection* misc = pedia ? assets_msg_find(pedia, "MISCELLANEOUS") : NULL;
+  const int rows = misc ? misc->line_count - 1 : 0;
+  g_pedia_misc_count = rows < PEDIA_MISC_COUNT ? PEDIA_MISC_COUNT
+                       : rows > PEDIA_MISC_MAX ? PEDIA_MISC_MAX
+                                               : rows;
+}
+
 int pedia_category_count(PediaCategory category) {
   if (category < 0 || category >= PEDIA_CAT_COUNT) {
     return 0;
   }
-  return k_category_counts[category];
+  return category == PEDIA_CAT_MISC ? g_pedia_misc_count : k_category_counts[category];
 }
 
 /*
@@ -428,7 +440,7 @@ bool pedia_page(
   fallback[0] = '\0';
 
   if (category == PEDIA_CAT_MISC) {
-    if (index >= 0 && index < PEDIA_MISC_COUNT) {
+    if (index >= 0 && index < pedia_category_count(PEDIA_CAT_MISC)) {
       /* PEDIA.TXT @MISCELLANEOUS line 0 is the count; titles follow (same
        * live-catalog check as pedia_article_render below, ~line 1835). */
       const ColonizeMsgSection* misc =
@@ -1652,6 +1664,11 @@ void pedia_article_render(
     /* MOD_TOWN_HALL_TIERS: rows 10/11 read PEDIA @MODBUILDING10/11. */
     const bool mod_body = category == PEDIA_CAT_BUILDING && colonies_building_mod_name(index);
     snprintf(tag, sizeof(tag), "%s%d", mod_body ? "MODBUILDING" : prefix, index);
+    pedia_body_render_section(a->pedia, tag, a->font, fb, body_y);
+  } else if (category == PEDIA_CAT_MISC && index >= PEDIA_MISC_COUNT) {
+    /* The data/mods Game Concept rows: one article per mods group. */
+    char tag[32];
+    snprintf(tag, sizeof(tag), "MODMISC%d", index);
     pedia_body_render_section(a->pedia, tag, a->font, fb, body_y);
   }
 }

@@ -168,6 +168,11 @@ up to two lines that is what fits the 200 px screen. `data/mods/*.TXT` is a text
 `<exe>/data/mods` or `./data/mods`: it may add whole sections or append the next
 row of a stock section, never replace a stock row (refused with a warning).
 
+The Colonizopedia's Game Concept list gets one article per checklist page:
+`data/mods/PEDIA.TXT` appends rows 13-15 to `@MISCELLANEOUS` ("Mods: Restored",
+"Mods: New Rules", "Mods: Bug Fixes"), bodies `@MODMISC12`-`@MODMISC14`
+(`pedia_set_misc_catalog`). The stock 12 Game Concept pages stay title-only, as in DOS.
+
 | Key | Default | Effect |
 |-----|---------|--------|
 | `wagon_loot` | off | Natives beating a loaded wagon train roll 1..10: 1-2 destroy it (DOS), 3-6 take every hold of one random good (`data/mods` `@MODWAGONLOOT1`), 7-10 take all goods (stock `@LOOTWAGONS`); the wagon survives. Off, or empty wagon: no extra RNG draw. |

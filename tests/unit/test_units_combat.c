@@ -2065,6 +2065,7 @@ static int unit_royal_loss_tax_cut(void) {
     {"Caravel", 30, 4, 1},   {"Merchantman", 30, 6, 1}, {"Galleon", 30, 3, 1},
     {"Privateer", 30, 8, 1}, {"Frigate", 30, 0, 0},     {"Artillery", 30, 0, 0},
     {"Caravel", 3, 3, 1},    {"Caravel", 0, 0, 0},
+    {"Caravel", 200, 4, 1}, /* dos_bugs.md DB-78: read unsigned, DOS cuts nothing */
   };
   for (size_t i = 0; i < sizeof(k) / sizeof(k[0]); ++i) {
     ColonizeUnitPool pool;
