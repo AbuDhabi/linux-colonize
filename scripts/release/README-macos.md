@@ -55,7 +55,7 @@ files downloaded from the internet. Do one of these:
 - `-D` — self-running demo; a key quits.
 - `settings.json` `sound_options.soundfont` — override the bundled soundfont.
 - `settings.json` `divergences` — opt-in non-DOS extras (`pioneer_plan`,
-  `scout_autoexplore`, `ship_autoexplore`, `current_vision`, ...); all off by
+  `scout_autoexplore`, `ship_autoexplore`, `current_vision`, `hard_king`, ...); all off by
   default.
 
 `opencol.command` passes its arguments on to `opencol`.

@@ -3,6 +3,60 @@
 Player-facing changes. Bracketed numbers are [docs/port_bugs.md](docs/port_bugs.md) row ids (closed
 rows live in [docs/archive/bugs_closed.md](docs/archive/bugs_closed.md)).
 
+## 1.1 — 2026-11-06
+
+Covers `1.0` (2026-11-01) to 2026-11-06: 247 commits, 85 bug rows
+resolved. Not exhaustive.
+
+### New
+
+- macOS (Apple Silicon) release build.
+- Unit groups (QoL): hold Shift in the stack picker and click units; orders
+  then go to every marked unit.
+- Stack picker grows to fit at high resolutions.
+- `divergences.hard_king` (off by default): REF lands several waves a turn
+  by difficulty, seizes occupied landing tiles, weighs nearby defenders.
+
+### Divergences (DOS bugs no longer reproduced)
+
+- Surplus hammers, liberty bells and crosses carry over instead of being
+  thrown away.
+- Custom House keeps tools the queued project needs and is not shut by any
+  passing foreign warship; a failed Europe purchase refunds the gold.
+- Assorted AI fixes: Military Assistance tribe pick, int16 overflows in
+  diplomacy, missionary revisit gate, Brave despawn walk, early AI Artillery
+  price.
+
+### Gameplay
+
+- Large DOS-fidelity pass on movement, boarding, sentries and wake-ups,
+  Indian visits and demands, native raids, Europe arrivals, trade routes,
+  fort fire, succession, Tory uprisings and the REF. [1433]-[1448]
+- Attacking a colony's militia and losing now costs the attacker. [1375]
+- Ship passengers no longer leave with the wrong ship. [1370]
+- Units running a Go To no longer take other orders; a refused Go To keeps
+  its moves; Sentry no longer spends moves. [1414] [1439] [1447]
+- A ship bumping a garrisoned foreign colony gets the trade menu. [1415]
+- Ship-to-ship partial transfers keep the rest of the hold; gunless winners
+  cannot sink ships. [1417] [1418]
+- Europe buy with too little gold is refused, not partly filled; full dock
+  no longer crashes. [1018] [1416]
+- King's retirement and war warnings fire at the DOS point of the turn and
+  repeat each turn; losing the WoI with no colonies shows the defeat. [1387]
+  [1389] [1391] [1392]
+- Score (F10) counts live units and colonists. [1431]
+- Automated Scouts no longer stall or loop. [1369] [1385] [1449] [1450]
+- Saves: connectivity planes, damaged-ship state and DOS bytes written
+  correctly; Col1 lane hulls round-trip. [1368] [1381] [1409] [1429]
+
+### User Interface
+
+- Colony events and war popups scroll the map to the scene; missing music
+  switches added. [1393] [1394] [1401] [1402]
+- Indian alarm marks during the WoI show the crown in white.
+- More invented English replaced by DOS text or removed. [1405] [1410] [1413]
+- Europe buy keys and colony dock orders follow DOS. [1395] [1412]
+
 ## 1.0 — 2026-11-01
 
 Covers `0.9-beta` (2026-10-27) to 2026-11-01: 66 commits, 60 bug rows
