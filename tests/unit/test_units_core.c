@@ -5341,8 +5341,11 @@ static int case_board_from_land_sentry(void) {
     }
     fprintf(stderr, "board-enter spent pax stays aboard ok\n");
     /* Next turn (DOS day top clears the spent byte): unload onto land for
-     * the sentry auto-board test. */
+     * the sentry auto-board test. Same reset as turn_clear_mp_spent_all_nations
+     * (not linked here): the #1440 unload gate reads aboard_moves/moves too. */
     land->mp_spent_turn = 0;
+    land->aboard_moves = -1;
+    land->moves = units_max_mp(&pool, land_id);
     if (units_first_landfall_cargo(&pool, ship_id) != land_id) {
       fprintf(stderr, "board-enter: fresh parked pax must be landfall-eligible\n");
       return 1;
