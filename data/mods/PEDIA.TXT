@@ -25,3 +25,50 @@ colony has a town hall expansion. {The colony can work 20 plots: every
 plot within two squares except the four corners.}
 
 @;
+;       Game Concept rows 12-14, one per page of the title menu MODS for
+;       New Games checklist; bodies @MODMISC12-14 (src/core/pedia.c).
+@MISCELLANEOUS
+13=Mods: Restored
+14=Mods: New Rules
+15=Mods: Bug Fixes
+
+@;
+@MODMISC12
+@width=300
+^{RESTORED CUT CONTENT}
+Features the original game planned but left unfinished. Choose them on
+the title menu (MODS for New Games); each new game keeps its own choice.
+^{King's Audience}: ask the King for an audience from the VIEW menu.
+^{Royal Mercy}: a lost Royal unit lowers the tax.
+^{Town Hall Expansion, Assembly}: larger colonies work more land.
+^{Tribe Mood}: chiefs tell you what angers their tribe.
+^{Treaty Cancel Notice}: your advisor reports a cancelled treaty.
+^{Loot Wagon Trains}: natives may seize a beaten wagon's goods.
+^{Raid Scalps}: a native raid may kill a colonist.
+^{Scout Espionage}: rival scouts spy on your colonies.
+
+@;
+@MODMISC13
+@width=300
+^{NEW RULES AND FEATURES}
+Changes to the rules and new orders. Choose them on the title menu (MODS
+for New Games); each new game keeps its own choice.
+^{Abandon Colonies}: buildings need a minimum population, and a colony
+^can be abandoned.
+^{Late Founding Fathers}: five Fathers wait until 1650, Smith until 1600.
+^{Building Upkeep}: buildings cost gold each turn, or work at half.
+^{Hard King}: a tougher Royal Expeditionary Force.
+^{Plan Pioneer}: plan a pioneer's work, then let it automate.
+^{Scouts and Ships Auto-Explore}: they explore on their own.
+^{Current Vision}: land no unit or colony sees now is veiled.
+
+@;
+@MODMISC14
+@width=300
+^{DOS BUG FIXES}
+Fixes for mistakes in the original game. They are on by default; switch
+one off on the title menu (MODS for New Games) to play as the original.
+^{Go To Waits at Natives}: a unit sent to a tile held by a native unit
+^waits next to it instead of attacking.
+
+@;

@@ -45,7 +45,10 @@ typedef enum PediaViewMode {
 #define PEDIA_JOB_COUNT 28
 #define PEDIA_BUILDING_COUNT 42
 #define PEDIA_FATHER_COUNT 25
-#define PEDIA_MISC_COUNT 12
+#define PEDIA_MISC_COUNT 12 /* stock Game Concept rows */
+/* Stock rows plus the ones data/mods PEDIA.TXT appends to @MISCELLANEOUS
+ * (bodies @MODMISC<n>); see pedia_set_misc_catalog. */
+#define PEDIA_MISC_MAX 16
 
 #define PEDIA_PREVIEW_PHYS0_MAX 4
 #define PEDIA_TITLE_LEN 48
@@ -101,6 +104,10 @@ typedef struct PediaListHit {
 void pedia_set_chrome_catalogs(
   const struct ColonizeMsgCatalog* labels, const struct ColonizeMsgCatalog* menu
 );
+
+/* Count the Game Concept rows from the loaded PEDIA.TXT: the 12 stock rows,
+ * plus any data/mods appends after them (up to PEDIA_MISC_MAX). NULL = stock. */
+void pedia_set_misc_catalog(const struct ColonizeMsgCatalog* pedia);
 
 int pedia_category_count(PediaCategory category);
 const char* pedia_category_label(PediaCategory category);

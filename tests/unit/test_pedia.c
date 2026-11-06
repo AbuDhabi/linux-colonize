@@ -6,6 +6,7 @@
 #include "core/colony.h"
 #include "core/font_file.h"
 #include "core/mods.h"
+#include "core/options_dialog.h"
 #include "core/font.h"
 #include "core/pedia.h"
 #include "core/pik.h"
@@ -312,6 +313,46 @@ static int case_misc_page(void) {
   return 0;
 }
 
+/* data/mods PEDIA.TXT appends one Game Concept row per mods checklist page
+ * (titles after the stock 12, bodies @MODMISC<n>); stock data keeps 12. */
+static int case_misc_mod_rows(void) {
+  if (fixture_ensure() != 0) {
+    return 1;
+  }
+  static ColonizeMsgCatalog pedia;
+  assets_msg_init(&pedia);
+  assets_set_mod_data_dir("./data/mods");
+  const bool ok = assets_msg_load_file(&pedia, "COLONIZE/PEDIA.TXT");
+  assets_set_mod_data_dir("");
+  int rc = 0;
+  pedia_set_misc_catalog(&s_catalog);
+  if (pedia_category_count(PEDIA_CAT_MISC) != PEDIA_MISC_COUNT) {
+    fprintf(stderr, "misc mod rows: stock count %d\n", pedia_category_count(PEDIA_CAT_MISC));
+    rc = 1;
+  }
+  pedia_set_misc_catalog(&pedia);
+  const int want = PEDIA_MISC_COUNT + OPTIONS_MODS_PAGE_COUNT;
+  if (!ok || pedia_category_count(PEDIA_CAT_MISC) != want) {
+    fprintf(stderr, "misc mod rows: count %d, want %d\n", pedia_category_count(PEDIA_CAT_MISC), want);
+    rc = 1;
+  }
+  for (int i = PEDIA_MISC_COUNT; rc == 0 && i < want; ++i) {
+    PediaPage page;
+    char tag[16];
+    snprintf(tag, sizeof(tag), "MODMISC%d", i);
+    const ColonizeMsgSection* body = assets_msg_find(&pedia, tag);
+    if (!pedia_page(&pedia, &s_names, PEDIA_CAT_MISC, i, &page) || page.title[0] == '\0' ||
+        !body || body->line_count < 3) {
+      fprintf(stderr, "misc mod rows: row %d title '%s', @%s %s\n", i, page.title, tag,
+              body ? "short" : "missing");
+      rc = 1;
+    }
+  }
+  pedia_set_misc_catalog(NULL);
+  assets_msg_free(&pedia);
+  return rc;
+}
+
 static int case_caret_flags(void) {
   if (fixture_ensure() != 0) {
     return 1;
@@ -560,6 +601,7 @@ static const TestCase k_cases[] = {
     {"case_father_page", case_father_page},
     {"case_article_body_wrap_is_dos", case_article_body_wrap_is_dos},
     {"case_misc_page", case_misc_page},
+    {"case_misc_mod_rows", case_misc_mod_rows},
     {"case_caret_flags", case_caret_flags},
     {"case_entry_title", case_entry_title},
     {"case_list_render_and_hits", case_list_render_and_hits},
