@@ -4,10 +4,12 @@
 #include <string.h>
 
 #include "core/map_menu.h"
+#include "core/mods.h"
 #include "core/popup.h"
 #include "core/popup_msg.h"
 #include "core/strutil.h"
 #include "core/ui_button.h"
+#include "platform/diagnostics.h"
 
 void options_dialog_init(OptionsDialog* dlg) {
   if (!dlg) {
@@ -181,6 +183,106 @@ bool options_dialog_open_sound(
   );
 }
 
+/*
+ * One data/mods @MODOPTIONS* section per page, grouped by kind of change; the
+ * section's rows follow its id list here. With FONTINTR (glyph_h 9) a row
+ * advances 12 px and a prompt of up to two 10 px lines, so
+ * popup_dos_list_height is 35 + 12 * rows: 13 rows is the most that fits the
+ * 200 px screen (all 17 would need 239), and the OK button takes the last two
+ * (OPTIONS_MODS_OK_ROWS). Every ModId sits on exactly one page (checked by the
+ * popup dialog tests).
+ */
+#define OPTIONS_MODS_OK_ROWS 2
+#define OPTIONS_MODS_PAGE_ROWS_MAX (13 - OPTIONS_MODS_OK_ROWS)
+static const ModId k_mods_restored[] = {
+  MOD_KINGS_AUDIENCE, MOD_ROYAL_MERCY, MOD_TOWN_HALL_TIERS, MOD_TRIBE_MOOD,
+  MOD_TREATY_CANCEL_POPUP, MOD_WAGON_LOOT,      MOD_RAID_SCALPS,     MOD_SCOUT_SPYING,
+};
+static const ModId k_mods_rules[] = {
+  MOD_POPULATION_FLOOR,  MOD_LATE_FATHERS,     MOD_BUILDING_UPKEEP, MOD_HARD_KING,
+  MOD_PIONEER_PLAN,      MOD_SCOUT_AUTOEXPLORE, MOD_SHIP_AUTOEXPLORE, MOD_CURRENT_VISION,
+};
+static const ModId k_mods_fixes[] = {MOD_GOTO_NATIVE_WAIT};
+#define MODS_PAGE_LEN(a) ((int)(sizeof(a) / sizeof((a)[0])))
+static const struct {
+  const char* section;
+  const ModId* ids;
+  int count;
+} k_mods_pages[OPTIONS_MODS_PAGE_COUNT] = {
+  {"MODOPTIONS", k_mods_restored, MODS_PAGE_LEN(k_mods_restored)},
+  {"MODOPTIONS2", k_mods_rules, MODS_PAGE_LEN(k_mods_rules)},
+  {"MODOPTIONS3", k_mods_fixes, MODS_PAGE_LEN(k_mods_fixes)},
+};
+_Static_assert(OPTIONS_MODS_PAGE_ROWS_MAX <= OPTIONS_DIALOG_MAX, "a mods page fits the dialog");
+_Static_assert(MODS_PAGE_LEN(k_mods_restored) <= OPTIONS_MODS_PAGE_ROWS_MAX, "mods page 1 fits 200 px");
+_Static_assert(MODS_PAGE_LEN(k_mods_rules) <= OPTIONS_MODS_PAGE_ROWS_MAX, "mods page 2 fits 200 px");
+_Static_assert(MODS_PAGE_LEN(k_mods_fixes) <= OPTIONS_MODS_PAGE_ROWS_MAX, "mods page 3 fits 200 px");
+_Static_assert(
+  MODS_PAGE_LEN(k_mods_restored) + MODS_PAGE_LEN(k_mods_rules) + MODS_PAGE_LEN(k_mods_fixes) ==
+    MOD_COUNT,
+  "the mods pages hold MOD_COUNT rows"
+);
+
+int options_dialog_mods_page_id(int page, int row) {
+  if (page < 0 || page >= OPTIONS_MODS_PAGE_COUNT || row < 0 || row >= k_mods_pages[page].count) {
+    return -1;
+  }
+  return (int)k_mods_pages[page].ids[row];
+}
+
+bool options_dialog_open_mods(
+  OptionsDialog* dlg, const ColonizeMsgCatalog* game_txt, uint32_t mask, int page
+) {
+  if (page < 0 || page >= OPTIONS_MODS_PAGE_COUNT) {
+    return false;
+  }
+  const ModId* ids = k_mods_pages[page].ids;
+  const int count = k_mods_pages[page].count;
+  uint8_t vals[OPTIONS_DIALOG_MAX];
+  for (int i = 0; i < count; ++i) {
+    vals[i] = (uint8_t)(mask >> ids[i] & 1u);
+  }
+  if (!options_load_section(
+        dlg, OPTIONS_KIND_MODS, game_txt, k_mods_pages[page].section, vals, count, 220
+      )) {
+    return false;
+  }
+  dlg->mods_page = page;
+  for (int i = 0; i < count; ++i) {
+    dlg->mods_ids[i] = (uint8_t)ids[i];
+  }
+  if (dlg->option_count != count) {
+    diag_warn("@%s has %d rows, expected %d (options_dialog.c k_mods_pages)",
+              k_mods_pages[page].section, dlg->option_count, count);
+  }
+  /* Rows past the page (a newer data file) would toggle nothing. */
+  if (dlg->option_count > count) {
+    dlg->option_count = count;
+  }
+  str_copy_trunc(
+    dlg->ok_label, sizeof(dlg->ok_label),
+    assets_msg_line_or(game_txt, "MODOPTIONSDONE", page + 1 < OPTIONS_MODS_PAGE_COUNT ? 0 : 1, "")
+  );
+  return true;
+}
+
+bool options_dialog_apply_mods(const OptionsDialog* dlg, uint32_t* mask) {
+  if (!dlg || !mask || dlg->result_cancelled || dlg->result_kind != OPTIONS_KIND_MODS) {
+    return false;
+  }
+  uint32_t m = *mask;
+  if (dlg->mods_page < 0 || dlg->mods_page >= OPTIONS_MODS_PAGE_COUNT) {
+    return false;
+  }
+  const int count = k_mods_pages[dlg->mods_page].count;
+  for (int i = 0; i < dlg->result_count && i < count; ++i) {
+    const uint32_t bit = 1u << dlg->mods_ids[i];
+    m = dlg->result_values[i] ? (m | bit) : (m & ~bit);
+  }
+  *mask = m;
+  return true;
+}
+
 void options_dialog_apply_game(const OptionsDialog* dlg, ColonizeCol1GameOptions* opts) {
   if (!dlg || !opts || dlg->result_cancelled || dlg->result_kind != OPTIONS_KIND_GAME) {
     return;
@@ -302,6 +404,11 @@ bool options_dialog_handle_input(OptionsDialog* dlg, const ColonizeInputState* i
       options_finish(dlg, false);
       return true;
     }
+    if (dlg->ok_label[0] &&
+        ui_rect_hit(dlg->ok_x, dlg->ok_y, dlg->ok_w, dlg->ok_h, input->mouse_x, input->mouse_y)) {
+      options_finish(dlg, false);
+      return true;
+    }
     const int idx = options_option_at_y(dlg, input->mouse_y);
     if (idx >= 0) {
       dlg->selection = idx;
@@ -325,6 +432,9 @@ bool options_dialog_handle_input(OptionsDialog* dlg, const ColonizeInputState* i
 static const char* options_row_label(void* user, int index) {
   static char buf[OPTIONS_DIALOG_LABEL_LEN + 3];
   const OptionsDialog* dlg = (const OptionsDialog*)user;
+  if (index >= dlg->option_count) {
+    return NULL; /* the rows kept free for the OK button */
+  }
   snprintf(buf, sizeof(buf), "~%c %s", dlg->values[index] ? ']' : '[', dlg->labels[index]);
   return buf;
 }
@@ -347,6 +457,7 @@ void options_dialog_render(
   PopupListMetrics metrics;
   popup_list_metrics_dos6f74(font, &metrics);
   PopupListGeom geom;
+  const int ok_rows = dlg->ok_label[0] ? OPTIONS_MODS_OK_ROWS : 0;
   popup_list_render(
     framebuffer,
     font,
@@ -355,7 +466,7 @@ void options_dialog_render(
     &metrics,
     dlg->width,
     dlg->prompt,
-    dlg->option_count,
+    dlg->option_count + ok_rows,
     dlg->selection,
     options_row_label,
     dlg,
@@ -370,4 +481,24 @@ void options_dialog_render(
   dlg->dialog_h = geom.frame.h;
   dlg->line_h = geom.line_h;
   dlg->list_y0 = geom.list_y0;
+  if (ok_rows) {
+    /* Centred in the free rows: a small copy of the dialog's own frame (wood,
+     * three outline layers), the label drawn like a row (its edge shades). */
+    const int tw = popup_markup_text_width(font, dlg->ok_label);
+    const int th = popup_dos_glyph_h(font);
+    dlg->ok_w = tw + 2 * POPUP_FRAME_INSET + 16;
+    dlg->ok_h = th + 2 * POPUP_FRAME_INSET + 4;
+    dlg->ok_x = geom.frame.x + (geom.frame.w - dlg->ok_w) / 2;
+    dlg->ok_y = geom.list_y0 + dlg->option_count * geom.line_h +
+                (ok_rows * geom.line_h - dlg->ok_h) / 2;
+    int ix = 0, iy = 0, iw = 0, ih = 0;
+    popup_draw(
+      framebuffer, dlg->ok_x, dlg->ok_y, dlg->ok_w, dlg->ok_h, wood_tile, colors, &ix, &iy, &iw,
+      &ih
+    );
+    (void)popup_draw_text_markup(
+      font, framebuffer, ix + (iw - tw) / 2, iy + (ih - th) / 2, dlg->ok_label, text_color,
+      hilite_color, colors, NULL
+    );
+  }
 }

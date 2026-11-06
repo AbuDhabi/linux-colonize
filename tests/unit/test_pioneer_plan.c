@@ -1,4 +1,4 @@
-/* divergences.pioneer_plan: plan editing, reconcile, Automate, PPLN round trip. */
+/* mods.pioneer_plan: plan editing, reconcile, Automate, PPLN round trip, off. */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -8,7 +8,7 @@
 #include "core/colony.h"
 #include "core/map.h"
 #include "core/pioneer_plan.h"
-#include "core/settings.h"
+#include "core/mods.h"
 #include "core/units.h"
 #include "core/units_move.h"
 #include "platform/diagnostics.h"
@@ -28,10 +28,7 @@ static ColonizeColonyPool s_colonies;
 
 /* 8x8 plains, one continent, all seen by nation 0; forest at (3,3); pioneer at (1,1). */
 static int setup(int* out_pid) {
-  ColonizeSettings s;
-  settings_defaults(&s);
-  s.pioneer_plan = true;
-  settings_set(&s);
+  mods_campaign_set(1u << MOD_PIONEER_PLAN);
   pioneer_plan_reset();
 
   assets_msg_init(&s_names);
@@ -62,6 +59,7 @@ static int setup(int* out_pid) {
 }
 
 static void teardown(void) {
+  mods_campaign_set(0);
   map_free(&s_map);
   assets_msg_free(&s_names);
 }
@@ -148,6 +146,17 @@ static int case_automate(void) {
   u->tools = 0;
   CHECK(!pioneer_plan_auto_step(&w, u, NULL, NULL));
   CHECK(!u->automated);
+  /* Mod off (a campaign without it): no Automate, an automated Pioneer drops
+   * it on its next step, no PPLN chunk. */
+  mods_campaign_set(0);
+  u->tools = 100;
+  CHECK(!pioneer_plan_enabled());
+  CHECK(!pioneer_plan_automate(&w, u, NULL, NULL) && !u->automated);
+  u->automated = true;
+  CHECK(!pioneer_plan_auto_step(&w, u, NULL, NULL));
+  CHECK(!u->automated && u->orders == UNITS_ORDER_NONE);
+  n = 0;
+  CHECK(!pioneer_plan_serialize(&s_map, &s_pool, &n) && n == 0);
   teardown();
   return 0;
 }

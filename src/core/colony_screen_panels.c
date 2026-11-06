@@ -17,6 +17,7 @@
 #include "core/founding_fathers.h"
 #include "core/map_menu.h"
 #include "core/map_panel.h"
+#include "core/mods.h"
 #include "core/popup.h"
 #include "core/popup_msg.h"
 #include "core/reports.h"
@@ -124,6 +125,7 @@ int colony_screen_people_layout(
 
 void colony_screen_draw_people(
   ColonyScreenView* view,
+  const ColonizeColonyPool* pool,
   const ColonizeColony* colony,
   const ColonizeUnitPool* units,
   const ColonizeCol1Save* col1,
@@ -153,6 +155,11 @@ void colony_screen_draw_people(
   }
   if (tory_count >= 2 * thr) {
     ink = 12;
+  }
+  /* MOD_BUILDING_UPKEEP: brown 6 (EGA brown in WOODPANL) wins while the nation
+   * cannot pay building upkeep this turn. */
+  if (colonies_upkeep_short(pool, col1, NULL, owner)) {
+    ink = 6;
   }
   const int sol_y = COLONY_PANEL_CONTENT_Y + 1;
   char buf[32];
@@ -574,6 +581,7 @@ void colony_screen_draw_multifunction(
   const int pane_w = COLONY_MULTI_W - 19; /* keep 15px clear before mode buttons */
   const int py = COLONY_PANEL_CONTENT_Y;
   const int pane_h = COLONY_PANEL_CONTENT_H;
+  view->abandon_btn_w = 0;
   if (view->multi_mode == COLONY_MULTI_PRODUCTION && view->preview_valid) {
     /* Cargo goods + shortfalls + hammers (not crosses/bells). One slot per
      * cargo type — player-reported (New Amsterdam golden, pixel-checked):
@@ -725,6 +733,18 @@ void colony_screen_draw_multifunction(
         colony_screen_draw_chrome_selection(view, framebuffer, sprite, slots[i].x, slots[i].y, sel_ink);
       }
     }
+    /* MOD_POPULATION_FLOOR (not DOS): the ABANDON button. No MicroProse
+     * string exists for it, so the label is data/mods LABELS.TXT @MODABANDON;
+     * a missing label draws no button. It covers unit icons in that corner
+     * when the pane is full. */
+    const char* abandon_lbl = assets_msg_line_or(labels, "MODABANDON", 0, "");
+    if (font && !view->spy_view && abandon_lbl[0] && mods_on(MOD_POPULATION_FLOOR)) {
+      view->abandon_btn_w = font_text_width(font, abandon_lbl) + 5;
+      colony_screen_dos_button(
+        framebuffer, font, COLONY_ABANDON_BTN_RIGHT - view->abandon_btn_w, COLONY_ABANDON_BTN_Y,
+        abandon_lbl, false
+      );
+    }
   } else if (view->multi_mode == COLONY_MULTI_CONSTRUCTION && colony && pool) {
     char line[64];
     const ColonizeBuildingType* bt =
@@ -747,7 +767,7 @@ void colony_screen_draw_multifunction(
     }
     if (font) {
       if (bt) {
-        snprintf(line, sizeof(line), "%s", bt->name);
+        snprintf(line, sizeof(line), "%s", colonies_building_name(pool, colony->building_in_production));
       } else if (unit_name) {
         snprintf(line, sizeof(line), "%s", unit_name);
       } else {

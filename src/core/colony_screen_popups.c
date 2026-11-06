@@ -326,7 +326,7 @@ COLONIZE_INTERNAL void colony_screen_construction_row_text(
     snprintf(queue_prefix, prefix_cap, "%d ", qpos);
   }
   const ColonizeBuildingType* bt = colonies_building_type(pool, bid);
-  const char* name = bt ? bt->name : NULL;
+  const char* name = bt ? colonies_building_name(pool, bid) : NULL;
   int hammers = bt ? bt->hammers : 0;
   int tools = bt ? bt->tools_cost : 0;
   if (!bt && !colonies_unit_build_info(bid, &name, &hammers, &tools)) {
@@ -1163,6 +1163,14 @@ COLONIZE_INTERNAL bool colony_screen_hit_multifunction(ColonyScreenHitCtx* a) {
     }
   }
 
+  /* MOD_POPULATION_FLOOR ABANDON button (drawn over the corner unit icons). */
+  if (view->multi_mode == COLONY_MULTI_UNITS && view->abandon_btn_w > 0 &&
+      mx >= COLONY_ABANDON_BTN_RIGHT - view->abandon_btn_w && mx < COLONY_ABANDON_BTN_RIGHT &&
+      my >= COLONY_ABANDON_BTN_Y && my < COLONY_ABANDON_BTN_Y + COLONY_ABANDON_BTN_H) {
+    a->hit.kind = COLONY_HIT_MULTI_ABANDON;
+    return true;
+  }
+
   /* Units-tab unit icons (checked before the generic multi-pane catch-all
    * below; hit.index is the unit id, not an array index — callers act on it
    * directly without recomputing the layout). */
@@ -1384,11 +1392,12 @@ COLONIZE_INTERNAL bool colony_screen_hit_area_tiles(ColonyScreenHitCtx* a) {
   int origin_x = 0;
   int origin_y = 0;
   colony_screen_minimap_origin(&origin_x, &origin_y);
-  const int grid_px = COLONY_MINIMAP_GRID * COLONY_MINIMAP_TILE;
+  const int grid = colony_screen_minimap_grid();
+  const int grid_px = grid * COLONY_MINIMAP_TILE;
   if (mx >= origin_x && my >= origin_y && mx < origin_x + grid_px && my < origin_y + grid_px) {
     const int col = (mx - origin_x) / COLONY_MINIMAP_TILE;
     const int row = (my - origin_y) / COLONY_MINIMAP_TILE;
-    const int half = COLONY_MINIMAP_GRID / 2;
+    const int half = grid / 2;
     const int dx = col - half;
     const int dy = row - half;
     const int ti = colonies_field_tile_index(dx, dy);
@@ -1396,6 +1405,9 @@ COLONIZE_INTERNAL bool colony_screen_hit_area_tiles(ColonyScreenHitCtx* a) {
       a->hit.kind = COLONY_HIT_AREA_TILE;
       a->hit.index = ti;
       return true;
+    }
+    if (dx != 0 || dy != 0) {
+      return true; /* MOD_TOWN_HALL_TIERS 5x5 corner: never a plot, swallow the click */
     }
     /* Centre tile (not assignable): DOS's click-to-toggle-numbers spot
      * (2f2b:609e flips DS:0x336 and refreshes; port_bugs.md). */
@@ -1655,7 +1667,7 @@ void colony_screen_render_w(
   );
 
   if (view) {
-    colony_screen_draw_people(view, colony, units, col1, font, framebuffer);
+    colony_screen_draw_people(view, pool, colony, units, col1, font, framebuffer);
     colony_screen_draw_transports(view, units, font, labels, framebuffer);
     colony_screen_draw_multifunction(view, pool, colony, units, font, labels, framebuffer);
   }

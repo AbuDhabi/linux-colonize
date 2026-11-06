@@ -1,6 +1,8 @@
 /* Smoke: liberty-bell threshold elects FF with manual/wiki-aligned effects. */
 #include "../common/ai_fixture.h"
 #include "core/ai_diplo.h"
+#include "core/assets.h"
+#include "core/mods.h"
 #include "../common/test_runner.h"
 #include "core/col1_bridge.h"
 #include "core/col1_save.h"
@@ -186,6 +188,584 @@ static int ff_case_fathers_from_names(void) {
     fprintf(stderr, "Adam Smith weighted 0: next %d, want an Exploration Father\n", edited_pick);
     rc = 1;
   }
+  return rc;
+}
+
+/* ===== MOD_LATE_FATHERS: @MODFATHERS ===== */
+
+static void ff_mod_set(bool on) {
+  mods_campaign_set(on ? 1u << MOD_LATE_FATHERS : 0u);
+}
+
+/* The Fathers the @MODFATHERS fixtures keep out before 1700. */
+static bool ff_is_early_mod_father(int i) {
+  return i == FF_PETER_STUYVESANT || i == FF_GEORGE_WASHINGTON || i == FF_JOHN_PAUL_JONES ||
+         i == FF_THOMAS_JEFFERSON || i == FF_BENJAMIN_FRANKLIN;
+}
+
+/* Fixture NAMES.TXT in a private temp dir; ff_fixture_load makes it the live catalog. */
+static FILE* ff_fixture_open(char* dir, size_t dir_size, char* path, size_t path_size) {
+  snprintf(dir, dir_size, "/tmp/colonize-ff-mod-%ld", (long)getpid());
+  snprintf(path, path_size, "%s/NAMES.TXT", dir);
+  FILE* f = mkdir(dir, 0700) == 0 ? fopen(path, "wb") : NULL;
+  if (!f) {
+    rmdir(dir);
+  }
+  return f;
+}
+
+static bool ff_fixture_load(FILE* f, const char* dir, const char* path) {
+  fclose(f);
+  reports_names_load_catalogs(dir);
+  unlink(path);
+  rmdir(dir);
+  return reports_names_field("FATHERS", 0, 0) != NULL;
+}
+
+/*
+ * @FATHERS = k_ff_stock with weight [edit_row][edit_band] replaced when
+ * edit_row >= 0, plus @MODFATHERS (the five early Fathers zeroed in bands
+ * 0/1, no YEARS line) when asked.
+ */
+static bool ff_load_fixture_names(int edit_row, int edit_band, int edit_value, bool with_mod) {
+  char dir[128];
+  char path[160];
+  FILE* f = ff_fixture_open(dir, sizeof(dir), path, sizeof(path));
+  if (!f) {
+    return false;
+  }
+  for (int s = 0; s < (with_mod ? 2 : 1); ++s) {
+    fputs(s == 0 ? "@FATHERS\r\n" : "@MODFATHERS\r\n", f);
+    for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
+      int w[3] = {k_ff_stock[i][1], k_ff_stock[i][2], k_ff_stock[i][3]};
+      if (s == 0 && i == edit_row) {
+        w[edit_band] = edit_value;
+      }
+      if (s == 1 && ff_is_early_mod_father(i)) {
+        w[0] = 0;
+        w[1] = 0;
+      }
+      fprintf(f, "Father %c, %d, %d, %d, %d\r\n", 'A' + i, k_ff_stock[i][0], w[0], w[1], w[2]);
+    }
+    fputs("\r\n", f);
+  }
+  return ff_fixture_load(f, dir, path);
+}
+
+/*
+ * Four-band fixture layout: before 1600, 1600-1649, 1650-1699, from 1700;
+ * both 1600s bands copy DOS band 1, the five early Fathers are 0 before 1700.
+ */
+static int ff_band_fixture_weight(int i, int b) {
+  static const int dos_band[4] = {0, 1, 1, 2};
+  return (ff_is_early_mod_father(i) && b < 3) ? 0 : k_ff_stock[i][1 + dos_band[b]];
+}
+
+/*
+ * @FATHERS = k_ff_stock, then @MODFATHERS with `years` as its first line
+ * (NULL = no YEARS line and three weights) and rows ff_band_fixture_weight.
+ * Row edit_row gets edit_value in band edit_band (edit_band -1: as its
+ * category); row bad_row gets bad_delta weights more/less.
+ */
+static bool ff_load_fixture_bands(
+  const char* years, int edit_row, int edit_band, int edit_value, int bad_row, int bad_delta
+) {
+  char dir[128];
+  char path[160];
+  FILE* f = ff_fixture_open(dir, sizeof(dir), path, sizeof(path));
+  if (!f) {
+    return false;
+  }
+  fputs("@FATHERS\r\n", f);
+  for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
+    fprintf(f, "Father %c, %d, %d, %d, %d\r\n", 'A' + i, k_ff_stock[i][0], k_ff_stock[i][1],
+            k_ff_stock[i][2], k_ff_stock[i][3]);
+  }
+  fputs("\r\n@MODFATHERS\r\n", f);
+  if (years) {
+    fprintf(f, "%s\r\n", years);
+  }
+  for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
+    int w[5] = {0};
+    int n = 4;
+    for (int b = 0; b < 4; ++b) {
+      w[b] = ff_band_fixture_weight(i, b);
+    }
+    if (!years) {
+      w[2] = w[3];
+      n = 3;
+    }
+    int type = k_ff_stock[i][0];
+    if (i == edit_row && edit_band < 0) {
+      type = edit_value;
+    } else if (i == edit_row) {
+      w[edit_band] = edit_value;
+    }
+    if (i == bad_row) {
+      n += bad_delta;
+    }
+    fprintf(f, "Father %c, %d", 'A' + i, type);
+    for (int b = 0; b < n; ++b) {
+      fprintf(f, ", %d", w[b]);
+    }
+    fputs(i == 0 ? " ; comment\r\n" : "\r\n", f);
+  }
+  return ff_fixture_load(f, dir, path);
+}
+
+/*
+ * The human Congress slate (FUN_4345_06d2: one weighted roll per category,
+ * category order) for nation 0 at `year`, with `granted` already elected.
+ * Returns the row count; ids receive the Father indices.
+ */
+static int ff_debate_slate(int year, const int* granted, int n_granted, unsigned seed, int* ids) {
+  founding_fathers_reset();
+  ColonizeCol1Save c;
+  col1_save_init(&c);
+  seed_unclaimed(&c);
+  ff_test_calendar(&c);
+  c.head.year = (uint16_t)year;
+  ColonizeCol1Nation* n = &c.nation[0];
+  memset(n, 0, sizeof(*n));
+  n->liberty_bells_pool = 10;
+  n->next_founding_father = -1;
+  for (int g = 0; g < n_granted; ++g) {
+    n->founding_fathers[granted[g] / 8] |= (uint8_t)(1u << (granted[g] % 8));
+  }
+  AiPopupState pop;
+  ai_popup_init(&pop);
+  ColonizeDosRng rng;
+  dos_rng_seed(&rng, seed);
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.human_nation = 0;
+  ctx.col1 = &c;
+  ctx.col1_ok = true;
+  ctx.ai_popups = &pop;
+  ctx.rng = &rng;
+  ff_tick(&ctx);
+  if (pop.queue_count < 1 || pop.queue[0].kind != AI_POPUP_KIND_CHOICE) {
+    return 0;
+  }
+  const int count = pop.queue[0].choice_count;
+  for (int i = 0; i < count; ++i) {
+    ids[i] = pop.queue[0].choice_ids[i];
+  }
+  return count;
+}
+
+static bool ff_slate_has_category(const int* ids, int n, int type) {
+  for (int i = 0; i < n; ++i) {
+    if (k_ff_stock[ids[i]][0] == type) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/* Everyone but Stuyvesant (Trade), Washington + Jones (Military), Jefferson +
+ * Franklin (Political) elected in those categories. */
+static const int k_ff_granted_but_early[] = {
+  FF_ADAM_SMITH, FF_JAKOB_FUGGER, FF_PETER_MINUIT, FF_JAN_DE_WITT,
+  FF_HERNAN_CORTES, FF_PAUL_REVERE, FF_FRANCIS_DRAKE,
+  FF_POCAHONTAS, FF_THOMAS_PAINE, FF_SIMON_BOLIVAR
+};
+#define FF_GRANTED_BUT_EARLY_N ((int)(sizeof(k_ff_granted_but_early) / sizeof(k_ff_granted_but_early[0])))
+
+/* Mod on: @MODFATHERS keeps the five out before 1700; off: DOS @FATHERS. */
+static int ff_case_early_fathers_mod(void) {
+  int rc = 0;
+  int ids[AI_POPUP_CHOICE_MAX];
+  if (!ff_load_fixture_names(-1, 0, 0, true)) {
+    rc = fail("fixture NAMES.TXT with @MODFATHERS did not load");
+  }
+  ff_mod_set(true);
+  for (int i = 0; rc == 0 && i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
+    for (int b = 0; b < 3; ++b) {
+      const int want = (ff_is_early_mod_father(i) && b < 2) ? 0 : k_ff_stock[i][1 + b];
+      if (founding_fathers_century_weight(i, b) != want) {
+        rc = fail("mod on must read the @MODFATHERS weights");
+        break;
+      }
+    }
+  }
+  const int before[] = {1550, 1699};
+  for (int y = 0; rc == 0 && y < 2; ++y) {
+    for (unsigned s = 1; rc == 0 && s <= 8; ++s) {
+      const int n =
+        ff_debate_slate(before[y], k_ff_granted_but_early, FF_GRANTED_BUT_EARLY_N, s * 12345u, ids);
+      if (n < 1) {
+        rc = fail("mod on, Exploration/Religious rows must remain");
+      }
+      for (int i = 0; rc == 0 && i < n; ++i) {
+        if (ff_is_early_mod_father(ids[i])) {
+          rc = fail("mod on, none of the five may be rolled before 1700");
+        }
+      }
+    }
+  }
+  if (rc == 0) {
+    const int n =
+      ff_debate_slate(1700, k_ff_granted_but_early, FF_GRANTED_BUT_EARLY_N, 12345u, ids);
+    if (!ff_slate_has_category(ids, n, 0) || !ff_slate_has_category(ids, n, 2) ||
+        !ff_slate_has_category(ids, n, 3)) {
+      rc = fail("mod on, from 1700 the five must be nominated again");
+    }
+  }
+  ff_mod_set(false);
+  if (rc == 0) {
+    const int n =
+      ff_debate_slate(1699, k_ff_granted_but_early, FF_GRANTED_BUT_EARLY_N, 12345u, ids);
+    if (!ff_slate_has_category(ids, n, 0) || !ff_slate_has_category(ids, n, 2) ||
+        !ff_slate_has_category(ids, n, 3)) {
+      rc = fail("mod off, 1699 must nominate them (DOS @FATHERS)");
+    }
+  }
+  /* The shipped data/mods @MODFATHERS over the stock file: present and
+   * well-formed (values are tuning; behaviour is checked on fixtures). */
+  assets_set_mod_data_dir("./data/mods");
+  reports_names_load_catalogs("COLONIZE");
+  assets_set_mod_data_dir("");
+  if (rc == 0 && !reports_names_has_section("MODFATHERS")) {
+    rc = fail("COLONIZE + data/mods must carry @MODFATHERS");
+  }
+  if (rc == 0) {
+    const int warn0 = founding_fathers_mod_warnings();
+    ff_mod_set(true);
+    if (founding_fathers_category(FF_PETER_STUYVESANT) != 0 ||
+        founding_fathers_century_weight(FF_PETER_STUYVESANT, 1) != 0 ||
+        founding_fathers_century_weight(FF_PETER_STUYVESANT, 3) != 8 ||
+        founding_fathers_mod_warnings() != warn0) {
+      rc = fail("data/mods @MODFATHERS must parse without a warning");
+    }
+    ff_mod_set(false);
+  }
+  reports_names_load_catalogs("COLONIZE"); /* back to the stock catalogs */
+  return rc;
+}
+
+/* Mod on: a Father locked in before the mod applied (next_founding_father,
+ * stored debate slate) is dropped and re-rolled when the mod zeroes him;
+ * mod off keeps him (DOS). */
+static int ff_case_locked_candidate_mod(void) {
+  int rc = 0;
+  if (!ff_load_fixture_names(-1, 0, 0, true)) {
+    rc = fail("fixture NAMES.TXT with @MODFATHERS did not load");
+  }
+  for (int mod = 0; rc == 0 && mod < 2; ++mod) {
+    ff_mod_set(mod == 1);
+
+    /* Locked-in Washington in 1650, human (0) and AI (1). */
+    founding_fathers_reset();
+    ColonizeCol1Save c;
+    col1_save_init(&c);
+    seed_unclaimed(&c);
+    ff_test_calendar(&c);
+    c.head.year = 1650;
+    c.player[1].control = 1;
+    for (int n = 0; n < 2; ++n) {
+      ColonizeCol1Nation* nat = &c.nation[n];
+      memset(nat, 0, sizeof(*nat));
+      nat->liberty_bells_pool = 10;
+      nat->next_founding_father = FF_GEORGE_WASHINGTON;
+      for (int g = 0; g < FF_GRANTED_BUT_EARLY_N; ++g) {
+        const int id = k_ff_granted_but_early[g];
+        nat->founding_fathers[id / 8] |= (uint8_t)(1u << (id % 8));
+      }
+    }
+    AiPopupState pop;
+    ai_popup_init(&pop);
+    ColonizeDosRng rng;
+    dos_rng_seed(&rng, 12345u);
+    ColonizeTurnContext ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.human_nation = 0;
+    ctx.col1 = &c;
+    ctx.col1_ok = true;
+    ctx.ai_popups = &pop;
+    ctx.rng = &rng;
+    ff_tick(&ctx);
+    for (int n = 0; n < 2; ++n) {
+      const int next = c.nation[n].next_founding_father;
+      if (mod == 0 && next != FF_GEORGE_WASHINGTON) {
+        rc = fail("mod off must keep a locked-in candidate (DOS)");
+      }
+      if (mod == 1 && next >= 0 && ff_is_early_mod_father(next)) {
+        rc = fail("mod on must drop a locked-in Father the mod zeroes");
+      }
+    }
+    if (rc == 0 && mod == 1) {
+      if (pop.queue_count < 1 || pop.queue[0].kind != AI_POPUP_KIND_CHOICE) {
+        rc = fail("mod on, the dropped human candidate must re-open the debate");
+      }
+      for (int i = 0; rc == 0 && i < pop.queue[0].choice_count; ++i) {
+        if (ff_is_early_mod_father(pop.queue[0].choice_ids[i])) {
+          rc = fail("mod on, the re-rolled debate must not list the five");
+        }
+      }
+    }
+
+    /* Slate rolled in 1700 (lists the five), still undecided in 1650. */
+    founding_fathers_reset();
+    c.head.year = 1700;
+    c.nation[0].next_founding_father = -1;
+    AiPopupState pop1;
+    ai_popup_init(&pop1);
+    ctx.ai_popups = &pop1;
+    ff_tick(&ctx);
+    if (rc == 0 && (pop1.queue_count < 1 || pop1.queue[0].kind != AI_POPUP_KIND_CHOICE)) {
+      rc = fail("1700 debate must open");
+    }
+    c.head.year = 1650;
+    AiPopupState pop2;
+    ai_popup_init(&pop2);
+    ctx.ai_popups = &pop2;
+    ff_tick(&ctx);
+    if (rc == 0 && (pop2.queue_count < 1 || pop2.queue[0].kind != AI_POPUP_KIND_CHOICE)) {
+      rc = fail("the stored slate must be presented again");
+    }
+    if (rc == 0 && mod == 0) {
+      bool same = pop2.queue[0].choice_count == pop1.queue[0].choice_count;
+      for (int i = 0; same && i < pop1.queue[0].choice_count; ++i) {
+        same = pop2.queue[0].choice_ids[i] == pop1.queue[0].choice_ids[i];
+      }
+      if (!same) {
+        rc = fail("mod off must re-present the stored slate verbatim");
+      }
+    }
+    for (int i = 0; rc == 0 && mod == 1 && i < pop2.queue[0].choice_count; ++i) {
+      if (ff_is_early_mod_father(pop2.queue[0].choice_ids[i])) {
+        rc = fail("mod on must discard a stored slate listing the five");
+      }
+    }
+  }
+  ff_mod_set(false);
+  founding_fathers_reset();
+  reports_names_load_catalogs("COLONIZE");
+  return rc;
+}
+
+/* The Trade category with everyone but Adam Smith elected. */
+static const int k_ff_trade_but_smith[] = {
+  FF_JAKOB_FUGGER, FF_PETER_MINUIT, FF_PETER_STUYVESANT, FF_JAN_DE_WITT
+};
+
+/* YEARS line + four weights; a band-1 zero never rolls, band 2 can. */
+static int ff_case_mod_years(void) {
+  int rc = 0;
+  const int warn0 = founding_fathers_mod_warnings();
+  if (!ff_load_fixture_bands("YEARS, 1600, 1650, 1700", -1, 0, 0, -1, 0)) {
+    rc = fail("four-band fixture NAMES.TXT did not load");
+  }
+  ff_mod_set(true);
+  for (int i = 0; rc == 0 && i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
+    if (founding_fathers_category(i) != k_ff_stock[i][0]) {
+      rc = fail("four-band @MODFATHERS type must parse");
+    }
+    for (int b = 0; rc == 0 && b < 4; ++b) {
+      if (founding_fathers_century_weight(i, b) != ff_band_fixture_weight(i, b)) {
+        rc = fail("four-band @MODFATHERS weights must parse");
+      }
+    }
+  }
+  if (rc == 0 && founding_fathers_mod_warnings() != warn0) {
+    rc = fail("a well-formed four-band @MODFATHERS must not warn");
+  }
+  /* Adam Smith 0 in 1600-1649, 8 in 1650-1699; the only Trade candidate. */
+  if (rc == 0 && !ff_load_fixture_bands("YEARS, 1600, 1650, 1700", FF_ADAM_SMITH, 1, 0, -1, 0)) {
+    rc = fail("edited four-band fixture did not load");
+  }
+  int ids[AI_POPUP_CHOICE_MAX];
+  const int never[] = {1600, 1625, 1649};
+  for (int y = 0; rc == 0 && y < 3; ++y) {
+    for (unsigned s = 1; rc == 0 && s <= 8; ++s) {
+      const int n = ff_debate_slate(never[y], k_ff_trade_but_smith, 4, s * 12345u, ids);
+      if (n < 1 || ff_slate_has_category(ids, n, 0)) {
+        rc = fail("a 1600-1649 weight of 0 must never be rolled in 1600-1649");
+      }
+    }
+  }
+  const int can[] = {1650, 1675};
+  for (int y = 0; rc == 0 && y < 2; ++y) {
+    const int n = ff_debate_slate(can[y], k_ff_trade_but_smith, 4, 12345u, ids);
+    bool has = false;
+    for (int i = 0; i < n; ++i) {
+      has = has || ids[i] == FF_ADAM_SMITH;
+    }
+    if (!has) {
+      rc = fail("a 1650-1699 weight of 8 must be rolled in 1650-1699");
+    }
+  }
+  ff_mod_set(false);
+  reports_names_load_catalogs("COLONIZE");
+  return rc;
+}
+
+/* No YEARS line = DOS bands; a malformed table = @FATHERS + one warning;
+ * mod off ignores @MODFATHERS entirely (same slates, same draws). */
+static int ff_case_mod_fallbacks(void) {
+  int rc = 0;
+  const int warn0 = founding_fathers_mod_warnings();
+  if (!ff_load_fixture_bands(NULL, -1, 0, 0, -1, 0)) {
+    rc = fail("no-YEARS fixture did not load");
+  }
+  ff_mod_set(true);
+  for (int i = 0; rc == 0 && i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
+    for (int b = 0; rc == 0 && b < 3; ++b) {
+      const int want = (ff_is_early_mod_father(i) && b < 2) ? 0 : k_ff_stock[i][1 + b];
+      if (founding_fathers_century_weight(i, b) != want) {
+        rc = fail("no YEARS line must read three weights");
+      }
+    }
+  }
+  if (rc == 0 && founding_fathers_mod_warnings() != warn0) {
+    rc = fail("no YEARS line must not warn");
+  }
+  /* DOS boundaries: Stuyvesant (0 before 1700) is Trade's only candidate. */
+  {
+    const int trade_but_stuyvesant[] = {
+      FF_ADAM_SMITH, FF_JAKOB_FUGGER, FF_PETER_MINUIT, FF_JAN_DE_WITT
+    };
+    const int years[3] = {1650, 1699, 1700};
+    for (int y = 0; rc == 0 && y < 3; ++y) {
+      int ids[AI_POPUP_CHOICE_MAX];
+      const int n = ff_debate_slate(years[y], trade_but_stuyvesant, 4, 12345u, ids);
+      if (ff_slate_has_category(ids, n, 0) != (years[y] >= 1700)) {
+        rc = fail("no YEARS line must use the DOS bands (1600, 1700)");
+      }
+    }
+  }
+  /* Short row, long row, YEARS not ascending, weight 256 (no byte wrap to 0),
+   * year out of 1..9999, YEARS with no years, category 7: the whole table
+   * falls back, one warning each. */
+  static const char* const k_years[7] = {
+    "YEARS, 1600, 1650, 1700", "YEARS, 1600, 1650, 1700", "YEARS, 1650, 1600, 1700",
+    "YEARS, 1600, 1650, 1700", "YEARS, 1600, 1650, 99999999999", "YEARS ; no years",
+    "YEARS, 1600, 1650, 1700"
+  };
+  static const int k_delta[7] = {-1, 1, 0, 0, 0, 0, 0};
+  static const int k_edit[7] = {0, 0, 0, 256, 0, 0, 7};
+  static const int k_edit_band[7] = {1, 1, 1, 1, 1, 1, -1};
+  for (int t = 0; rc == 0 && t < 7; ++t) {
+    if (!ff_load_fixture_bands(k_years[t], k_edit[t] ? FF_ADAM_SMITH : -1, k_edit_band[t],
+                               k_edit[t], FF_JAN_DE_WITT, k_delta[t])) {
+      rc = fail("malformed fixture did not load");
+    }
+    for (int pass = 0; rc == 0 && pass < 2; ++pass) {
+      for (int i = 0; rc == 0 && i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
+        if (founding_fathers_category(i) != k_ff_stock[i][0]) {
+          rc = fail("malformed @MODFATHERS must fall back to @FATHERS types");
+        }
+        for (int b = 0; rc == 0 && b < 3; ++b) {
+          if (founding_fathers_century_weight(i, b) != k_ff_stock[i][1 + b]) {
+            rc = fail("malformed @MODFATHERS must fall back to @FATHERS weights");
+          }
+        }
+      }
+    }
+    if (rc == 0 && founding_fathers_mod_warnings() != warn0 + 1 + t) {
+      rc = fail("a malformed @MODFATHERS must warn exactly once per load");
+    }
+  }
+  /* Mod off: @FATHERS weights and the same slates as a NAMES.TXT without the section. */
+  ff_mod_set(false);
+  int with_mod[8][AI_POPUP_CHOICE_MAX];
+  int with_n[8];
+  if (rc == 0 && !ff_load_fixture_bands("YEARS, 1600, 1650, 1700", FF_ADAM_SMITH, 1, 0, -1, 0)) {
+    rc = fail("edited four-band fixture did not load");
+  }
+  for (int i = 0; rc == 0 && i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
+    for (int b = 0; rc == 0 && b < 3; ++b) {
+      if (founding_fathers_century_weight(i, b) != k_ff_stock[i][1 + b]) {
+        rc = fail("mod off must read @FATHERS");
+      }
+    }
+  }
+  for (int s = 0; rc == 0 && s < 8; ++s) {
+    with_n[s] = ff_debate_slate(1625, k_ff_trade_but_smith, 4, (unsigned)(s + 1) * 12345u,
+                                with_mod[s]);
+  }
+  if (rc == 0 && !ff_load_fixture_names(-1, 0, 0, false)) {
+    rc = fail("plain fixture did not load");
+  }
+  for (int s = 0; rc == 0 && s < 8; ++s) {
+    int ids[AI_POPUP_CHOICE_MAX];
+    const int n =
+      ff_debate_slate(1625, k_ff_trade_but_smith, 4, (unsigned)(s + 1) * 12345u, ids);
+    bool same = n == with_n[s] && n > 0;
+    for (int i = 0; same && i < n; ++i) {
+      same = ids[i] == with_mod[s][i];
+    }
+    if (!same || !ff_slate_has_category(ids, n, 0)) {
+      rc = fail("mod off must roll the same slate with or without @MODFATHERS");
+    }
+  }
+  reports_names_load_catalogs("COLONIZE");
+  return rc;
+}
+
+/* Tick one locked-in candidate per nation (0 human, 1 AI) at `year`. */
+static void ff_tick_locked(int year, int locked0, int locked1, int* next0, int* next1) {
+  founding_fathers_reset();
+  ColonizeCol1Save c;
+  col1_save_init(&c);
+  seed_unclaimed(&c);
+  ff_test_calendar(&c);
+  c.head.year = (uint16_t)year;
+  c.player[1].control = 1;
+  for (int n = 0; n < 2; ++n) {
+    memset(&c.nation[n], 0, sizeof(c.nation[n]));
+    c.nation[n].liberty_bells_pool = 10;
+    c.nation[n].next_founding_father = n == 0 ? locked0 : locked1;
+  }
+  AiPopupState pop;
+  ai_popup_init(&pop);
+  ColonizeDosRng rng;
+  dos_rng_seed(&rng, 12345u);
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.human_nation = 0;
+  ctx.col1 = &c;
+  ctx.col1_ok = true;
+  ctx.ai_popups = &pop;
+  ctx.rng = &rng;
+  ff_tick(&ctx);
+  *next0 = c.nation[0].next_founding_father;
+  *next1 = c.nation[1].next_founding_father;
+}
+
+/* The locked-candidate drop compares this year's mod band with this year's
+ * DOS band, across a mod-only boundary (1649 -> 1650); a stock zero keeps
+ * DOS's rule (the locked-in candidate stays). */
+static int ff_case_mod_blocks_boundary(void) {
+  int rc = 0;
+  if (!ff_load_fixture_bands("YEARS, 1600, 1650, 1700", FF_ADAM_SMITH, 1, 0, -1, 0)) {
+    rc = fail("edited four-band fixture did not load");
+  }
+  ff_mod_set(true);
+  int a = 0;
+  int b = 0;
+  if (rc == 0) {
+    ff_tick_locked(1649, FF_ADAM_SMITH, FF_ADAM_SMITH, &a, &b);
+    if (a == FF_ADAM_SMITH || b == FF_ADAM_SMITH) {
+      rc = fail("1649, a mod 0 (DOS weight 8) locked-in Father must be dropped");
+    }
+  }
+  if (rc == 0) {
+    ff_tick_locked(1650, FF_ADAM_SMITH, FF_ADAM_SMITH, &a, &b);
+    if (a != FF_ADAM_SMITH || b != FF_ADAM_SMITH) {
+      rc = fail("1650, a mod-weighted locked-in Father must stay");
+    }
+  }
+  if (rc == 0) {
+    ff_tick_locked(1700, FF_PETER_MINUIT, FF_HENRY_HUDSON, &a, &b);
+    if (a != FF_PETER_MINUIT || b != FF_HENRY_HUDSON) {
+      rc = fail("a locked-in Father with a stock 0 must stay");
+    }
+  }
+  ff_mod_set(false);
+  founding_fathers_reset();
+  reports_names_load_catalogs("COLONIZE");
   return rc;
 }
 
@@ -3115,6 +3695,15 @@ int main(void) {
     } else {
       fprintf(stderr, "unit_founding_fathers: @FATHERS from NAMES.TXT ok\n");
     }
+  }
+
+  if (ff_have_catalog("@MODFATHERS mod")) {
+    if (ff_case_early_fathers_mod() != 0 || ff_case_locked_candidate_mod() != 0 ||
+        ff_case_mod_years() != 0 || ff_case_mod_fallbacks() != 0 ||
+        ff_case_mod_blocks_boundary() != 0) {
+      return 1;
+    }
+    fprintf(stderr, "unit_founding_fathers: @MODFATHERS mod on/off ok\n");
   }
 
   if (ff_catalog_skips > 0) {

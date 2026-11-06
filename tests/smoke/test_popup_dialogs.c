@@ -4,10 +4,12 @@
 #include "core/font_file.h"
 #include "core/game_loop_internal.h"
 #include "core/howmuch_dialog.h"
+#include "core/mods.h"
 #include "core/name_entry_dialog.h"
 #include "core/options_dialog.h"
 #include "core/popup_msg.h"
 #include "core/save_load_dialog.h"
+#include "core/settings.h"
 #include "core/units_internal.h"
 
 #include <stdio.h>
@@ -1139,7 +1141,324 @@ static int case_save_load_is_fonttiny(void) {
   return rc;
 }
 
+/* Title menu Mods for New Games: the toggles are grouped by kind of change over
+ * OPTIONS_MODS_PAGE_COUNT dialogs (data/mods @MODOPTIONS, @MODOPTIONS2,
+ * @MODOPTIONS3; all of them would not fit 200 px in FONTINTR anyway). Every
+ * ModId has exactly one row, every page fits the screen, every row has its own
+ * hotkey within its page, and a page only writes its own bits. */
+static int case_mods_dialog_pages(void) {
+  ColonizeFont font;
+  char err[128];
+  if (!font_file_load("COLONIZE/FONTINTR.FF", &font, err, sizeof(err))) {
+    return TR_SKIP;
+  }
+  ColonizeMsgCatalog cat;
+  assets_msg_init(&cat);
+  assets_set_mod_data_dir("./data/mods");
+  const bool loaded = assets_msg_load_file(&cat, "COLONIZE/GAME.TXT");
+  assets_set_mod_data_dir("");
+  if (!loaded) {
+    font_file_free(&font);
+    return TR_SKIP;
+  }
+  int rc = 0;
+  uint32_t seen = 0;
+  const uint32_t mask = 1u << MOD_WAGON_LOOT | 1u << MOD_HARD_KING | 1u << MOD_GOTO_NATIVE_WAIT;
+  static uint8_t px[320 * 200];
+  ColonizeFramebuffer8 fb = {.width = 320, .height = 200, .pixels = px};
+  for (int page = 0; page < OPTIONS_MODS_PAGE_COUNT; ++page) {
+    OptionsDialog od;
+    if (!options_dialog_open_mods(&od, &cat, mask, page) || od.option_count <= 0 ||
+        od.ok_label[0] == '\0') {
+      fprintf(stderr, "mods page %d did not open\n", page);
+      rc = 1;
+      continue;
+    }
+    int rows = 0;
+    while (options_dialog_mods_page_id(page, rows) >= 0) {
+      const int id = options_dialog_mods_page_id(page, rows);
+      if (id >= MOD_COUNT || (seen >> id & 1u)) {
+        fprintf(stderr, "mods page %d row %d: ModId %d out of range or on two rows\n", page,
+                rows, id);
+        rc = 1;
+      } else {
+        seen |= 1u << id;
+      }
+      ++rows;
+    }
+    if (od.mods_page != page || od.option_count != rows) {
+      fprintf(stderr, "mods page %d: dialog page %d, %d rows, want %d\n", page, od.mods_page,
+              od.option_count, rows);
+      rc = 1;
+    }
+    for (int i = 0; i < od.option_count; ++i) {
+      if (od.mods_ids[i] != options_dialog_mods_page_id(page, i) ||
+          od.values[i] != (mask >> od.mods_ids[i] & 1u)) {
+        fprintf(stderr, "mods page %d row %d: ModId %d shows %d\n", page, i, od.mods_ids[i],
+                od.values[i]);
+        rc = 1;
+      }
+      const int key = popup_hotkey_of(od.labels[i]);
+      for (int j = -1; j < i; ++j) {
+        if (key == 0 || (j >= 0 && key == popup_hotkey_of(od.labels[j]))) {
+          fprintf(stderr, "mods page %d rows %d and %d: hotkey %d not unique\n", page, j, i, key);
+          rc = 1;
+        }
+      }
+    }
+    memset(px, 0, sizeof(px));
+    options_dialog_render(&od, &font, NULL, NULL, 68, 149, 138, &fb);
+    const int rows_end = od.list_y0 + od.option_count * od.line_h;
+    if (od.dialog_y < 0 || od.dialog_y + od.dialog_h > 200 || rows_end > od.dialog_y + od.dialog_h) {
+      fprintf(stderr, "mods page %d: frame y %d h %d, rows end at %d (screen 200)\n", page,
+              od.dialog_y, od.dialog_h, rows_end);
+      rc = 1;
+    }
+    /* Next on the pages before the last, Done on the last. */
+    const bool last = page == OPTIONS_MODS_PAGE_COUNT - 1;
+    if (strcmp(od.ok_label, last ? "Done" : "Next") != 0) {
+      fprintf(stderr, "mods page %d: button \"%s\"\n", page, od.ok_label);
+      rc = 1;
+    }
+    /* The button sits under the rows, inside the frame. */
+    if (od.ok_y < rows_end || od.ok_x < od.dialog_x || od.ok_y + od.ok_h > od.dialog_y + od.dialog_h ||
+        od.ok_x + od.ok_w > od.dialog_x + od.dialog_w) {
+      fprintf(stderr, "mods page %d: OK at %d,%d %dx%d outside frame or over rows\n", page, od.ok_x,
+              od.ok_y, od.ok_w, od.ok_h);
+      rc = 1;
+    }
+  }
+  if (seen != (1u << MOD_COUNT) - 1u) {
+    fprintf(stderr, "mods pages cover ModIds %#x, want every one of %d\n", (unsigned)seen,
+            MOD_COUNT);
+    rc = 1;
+  }
+  /* Row 1 toggled and confirmed on each page (Enter, then a click on Done): only
+   * that row's bit moves. */
+  for (int k = 0; k < 2 * OPTIONS_MODS_PAGE_COUNT; ++k) {
+    const int page = k / 2;
+    OptionsDialog od;
+    if (!options_dialog_open_mods(&od, &cat, mask, page)) {
+      continue;
+    }
+    options_dialog_render(&od, &font, NULL, NULL, 68, 149, 138, &fb);
+    const int row = od.option_count > 1 ? 1 : 0;
+    ColonizeInputState in;
+    memset(&in, 0, sizeof(in));
+    od.selection = row;
+    in.last_key = COLONIZE_KEY_SPACE;
+    options_dialog_handle_input(&od, &in);
+    memset(&in, 0, sizeof(in));
+    if (k % 2 == 0) {
+      in.last_key = COLONIZE_KEY_ENTER;
+    } else {
+      in.mouse_left_clicked = true;
+      in.mouse_x = od.ok_x + od.ok_w / 2;
+      in.mouse_y = od.ok_y + od.ok_h / 2;
+    }
+    options_dialog_handle_input(&od, &in);
+    uint32_t out = mask;
+    const uint32_t want = mask ^ 1u << options_dialog_mods_page_id(page, row);
+    if (!options_dialog_apply_mods(&od, &out) || out != want) {
+      fprintf(stderr, "mods page %d apply: mask %#x, want %#x\n", page, (unsigned)out,
+              (unsigned)want);
+      rc = 1;
+    }
+  }
+  OptionsDialog od;
+  if (options_dialog_open_mods(&od, &cat, mask, OPTIONS_MODS_PAGE_COUNT)) {
+    fprintf(stderr, "a mods page past the last opened\n");
+    rc = 1;
+  }
+  assets_msg_free(&cat);
+  font_file_free(&font);
+  return rc;
+}
+
+/* Load `path` into game->messages (with or without the data/mods overlay) and
+ * build the title menu from it. */
+static bool title_menu_from(ColonizeGameState* game, const char* path, bool overlay) {
+  assets_msg_free(&game->messages);
+  assets_msg_init(&game->messages);
+  assets_set_mod_data_dir(overlay ? "./data/mods" : "");
+  const bool ok = assets_msg_load_file(&game->messages, path);
+  assets_set_mod_data_dir("");
+  load_begin_menu(game);
+  return ok;
+}
+
+/* Feed one key through the modal gate, as game_update does on the title. */
+static void title_modal_key(ColonizeGameState* game, ColonizeKey key) {
+  ColonizeInputState in;
+  memset(&in, 0, sizeof(in));
+  in.last_key = key;
+  (void)game_handle_modal_input(game, &in);
+}
+
+/* data/mods @MODBEGINMENU: one title row after every stock row, opening the
+ * mods checklist; OK on a page chains the next, each page commits its own bits to
+ * the settings.json defaults, and the campaign mask is never touched. */
+static int case_title_menu_mods_row(void) {
+  ColonizeGameState* game = calloc(1, sizeof(*game));
+  if (!game) {
+    return fail("calloc game");
+  }
+  assets_msg_init(&game->messages);
+  int rc = 0;
+  if (!title_menu_from(game, "COLONIZE/GAME.TXT", false)) {
+    assets_msg_free(&game->messages);
+    free(game);
+    return TR_SKIP;
+  }
+  const int stock = game->menu_option_count;
+  if (stock != 5 || game->menu_mods_row != -1) {
+    fprintf(stderr, "no overlay: %d rows, mods row %d\n", stock, game->menu_mods_row);
+    rc = 1;
+  }
+  (void)title_menu_from(game, "COLONIZE/GAME.TXT", true);
+  if (game->menu_option_count != stock + 1 || game->menu_mods_row != stock ||
+      game->menu_options[stock][0] == '\0') {
+    fprintf(stderr, "overlay: %d rows, mods row %d\n", game->menu_option_count,
+            game->menu_mods_row);
+    rc = 1;
+  }
+
+  /* A data dir with a sixth (quit) row keeps it at 5; Mods moves to 6. */
+  const char* six = "build/test_title_mods_GAME.TXT";
+  FILE* f = fopen(six, "wb");
+  if (f) {
+    fputs("@BEGINMENU\n@width=160\n@y=91\n@options\nA\nB\nC\nD\nE\nQUIT\n\n"
+          "@MODBEGINMENU\n@options\nMODS\n\n", f);
+    fclose(f);
+    if (!title_menu_from(game, six, false) || game->menu_option_count != 7 ||
+        game->menu_mods_row != 6 || strcmp(game->menu_options[5], "QUIT") != 0) {
+      fprintf(stderr, "six rows: %d rows, mods row %d\n", game->menu_option_count,
+              game->menu_mods_row);
+      rc = 1;
+    }
+    game->menu_selection = 6;
+    activate_menu_selection(game);
+    if (!game->options_dlg.open || game->options_dlg.kind != OPTIONS_KIND_MODS ||
+        game->options_dlg.mods_page != 0) {
+      rc = fail("six rows: row 6 did not open mods page 1");
+    }
+    options_dialog_close(&game->options_dlg);
+    remove(six);
+  } else {
+    rc = fail("write six-row GAME.TXT");
+  }
+
+  /* The chained dialog on the title, against a scratch settings file. */
+  const char* settings_file = "build/test_title_mods_settings.json";
+  remove(settings_file);
+  char err[256];
+  if (!settings_init(settings_file, err, sizeof(err))) {
+    fprintf(stderr, "settings_init: %s\n", err);
+    rc = 1;
+  }
+  (void)title_menu_from(game, "COLONIZE/GAME.TXT", true);
+  game->in_menu = true;
+  mods_campaign_set(0);
+  const uint32_t base = settings_mods_mask(settings_get());
+  /* Space toggles row 0 of each page. */
+  uint32_t page_bit[OPTIONS_MODS_PAGE_COUNT];
+  uint32_t all_bits = 0;
+  for (int page = 0; page < OPTIONS_MODS_PAGE_COUNT; ++page) {
+    page_bit[page] = 1u << options_dialog_mods_page_id(page, 0);
+    all_bits |= page_bit[page];
+  }
+  ColonizeSettings prefs = *settings_get();
+  settings_mods_set_mask(&prefs, base & ~all_bits);
+  settings_set(&prefs);
+  const uint32_t start = settings_mods_mask(settings_get());
+
+  /* Esc on page 1: nothing saved, no page 2. */
+  game->menu_selection = game->menu_mods_row;
+  activate_menu_selection(game);
+  title_modal_key(game, COLONIZE_KEY_SPACE);
+  title_modal_key(game, COLONIZE_KEY_ESCAPE);
+  if (game->options_dlg.open || settings_mods_mask(settings_get()) != start) {
+    rc = fail("Esc on title mods page 1 saved or chained");
+  }
+
+  /* OK on every page: each commits its own bit and chains the next; the last closes. */
+  activate_menu_selection(game);
+  uint32_t want = start;
+  for (int page = 0; page < OPTIONS_MODS_PAGE_COUNT; ++page) {
+    if (!game->options_dlg.open || game->options_dlg.mods_page != page) {
+      fprintf(stderr, "title mods: page %d not open (open %d page %d)\n", page,
+              game->options_dlg.open, game->options_dlg.mods_page);
+      rc = 1;
+      break;
+    }
+    title_modal_key(game, COLONIZE_KEY_SPACE);
+    title_modal_key(game, COLONIZE_KEY_ENTER);
+    want |= page_bit[page];
+    if (settings_mods_mask(settings_get()) != want) {
+      fprintf(stderr, "title mods page %d OK: mask %#x, want %#x\n", page,
+              (unsigned)settings_mods_mask(settings_get()), (unsigned)want);
+      rc = 1;
+    }
+  }
+  if (game->options_dlg.open) {
+    rc = fail("title mods dialog still open after OK on the last page");
+  }
+
+  /* OK, OK, Esc: pages 1 and 2 stay saved, page 3 discarded. */
+  activate_menu_selection(game);
+  for (int page = 0; page < OPTIONS_MODS_PAGE_COUNT; ++page) {
+    title_modal_key(game, COLONIZE_KEY_SPACE);
+    title_modal_key(
+      game, page == OPTIONS_MODS_PAGE_COUNT - 1 ? COLONIZE_KEY_ESCAPE : COLONIZE_KEY_ENTER
+    );
+  }
+  want = start | page_bit[OPTIONS_MODS_PAGE_COUNT - 1];
+  if (game->options_dlg.open || settings_mods_mask(settings_get()) != want) {
+    fprintf(stderr, "title mods Esc on last page: open %d mask %#x, want %#x\n",
+            game->options_dlg.open, (unsigned)settings_mods_mask(settings_get()),
+            (unsigned)want);
+    rc = 1;
+  }
+  if (mods_campaign_mask() != 0) {
+    rc = fail("title mods dialog touched the campaign mask");
+  }
+
+  settings_mods_set_mask(&prefs, base);
+  settings_set(&prefs);
+  remove(settings_file);
+  assets_msg_free(&game->messages);
+  free(game);
+  return rc;
+}
+
+/* mods.current_vision: the veil follows the campaign mask, nothing else. */
+static int case_current_vision_follows_mods(void) {
+  ColonizeGameState* game = calloc(1, sizeof(*game));
+  if (!game) {
+    return fail("calloc game");
+  }
+  game->world_map_ok = true;
+  game->map_palette_ok = true;
+  game->human_nation = 0;
+  mods_campaign_set(0);
+  const bool off = game_current_vision_on(game);
+  mods_campaign_set(~(1u << MOD_CURRENT_VISION) & ((1u << MOD_COUNT) - 1u));
+  const bool others = game_current_vision_on(game);
+  mods_campaign_set(1u << MOD_CURRENT_VISION);
+  const bool on = game_current_vision_on(game);
+  mods_campaign_set(0);
+  free(game);
+  if (off || others || !on) {
+    fprintf(stderr, "current_vision: off %d, other mods %d, on %d\n", off, others, on);
+    return 1;
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+    {"mods_dialog_pages", case_mods_dialog_pages},
+    {"title_menu_mods_row", case_title_menu_mods_row},
+    {"current_vision_follows_mods", case_current_vision_follows_mods},
     {"token_apply", case_token_apply},
     {"save_load_is_fonttiny", case_save_load_is_fonttiny},
     {"howmuch", case_howmuch},

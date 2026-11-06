@@ -369,6 +369,18 @@ int ai_euro_20e6_delivery_tallies(
  * reads it. */
 #define AI_EURO_PLAN_EUROPE_BOUND 0x45
 
+/* mods.scout_spying hooks (ai_euro_spy.c). 'S' marks a Scout sent to
+ * infiltrate a human colony; no DOS reader of +0x314b compares against it.
+ * Each hook returns the DOS value untouched with the mod off. */
+#define AI_EURO_SPY_PLAN 0x53
+int ai_euro_20e6_stack_combat_0b(ColonizeTurnContext* ctx, int x, int y);
+bool ai_euro_spy_keeps_course(const ColonizeTurnContext* ctx, const ColonizeUnit* u);
+void ai_euro_spy_drop(ColonizeUnit* u);
+int ai_euro_spy_dispatch_arm(ColonizeTurnContext* ctx, ColonizeUnit* u, const Ai20e6Unit* s);
+bool ai_euro_spy_try_infiltrate(ColonizeTurnContext* ctx, ColonizeUnit* u, int tx, int ty);
+int ai_euro_spy_seen_strength(ColonizeTurnContext* ctx, int nation, int x, int y, int def);
+void ai_euro_spy_prime_target(ColonizeTurnContext* ctx, int nation, int cid, int cont);
+
 /* DS:0x945a[n] / DS:0x9456[n] census tallies and the LAB_521d_3fa6 sail-home
  * course setter — bodies carry the prose (ai_euro_land.c). */
 int ai_euro_europe_dock_land_units(const ColonizeUnitPool* units, int nation_id);

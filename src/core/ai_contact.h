@@ -50,13 +50,16 @@ void ai_contact_reset(void);
  * is no fifth kind: @RAIDSCALP is dead GAME.TXT text with no DS string in
  * VICEROY.EXE (port_bugs.md #828), and @RAIDWREAK (0x1b8a) is the third-party
  * "Spies report" bulletin, not a loot kind (raw 99897-99899, port_bugs.md #829).
+ * AI_RAID_SCALP is mods.h MOD_RAID_SCALPS only: the roll widens to rand(1,5)
+ * and kind 5 kills one civilian, using the dead @RAIDSCALP text.
  */
 typedef enum AiRaidKind {
   AI_RAID_NOTHING = 0,
   AI_RAID_STORES = 1,  /* @RAIDSTORES 0x1b94 — warehouse cargo */
   AI_RAID_BURN = 2,    /* @RAIDBURN   0x1b9f — a building */
   AI_RAID_SHIP = 3,    /* @RAIDSHIP   0x1ba8 — a ship in the port */
-  AI_RAID_GOLD = 4     /* @RAIDGOLD   0x1bb1 — treasury */
+  AI_RAID_GOLD = 4,    /* @RAIDGOLD   0x1bb1 — treasury */
+  AI_RAID_SCALP = 5    /* mod: @RAIDSCALP — one colonist or civilian killed */
 } AiRaidKind;
 
 /*
@@ -346,6 +349,21 @@ void ai_contact_alarm_delta_00f2(ColonizeTurnContext* ctx, int nation_id, int eu
  * missions intact forever (port_bugs.md #1004).
  */
 void ai_contact_alarm_delta_00f2_w(const ColonizeWorld* w, int nation_id, int euro, int delta);
+/*
+ * MOD_TRIBE_MOOD (not DOS): the cause DOS passes FUN_281f_0d6c as its unread
+ * 4th argument (1 roads, 2 forest clearing, 3 missionaries, 5 population
+ * pressure; 4 unprovoked attack, wired by the mod) is tallied per tribe x
+ * euro since the last report. ai_contact_mood_take returns the cause with the
+ * largest |tally| (0 = none) and clears that pair. Tallied only while the mod
+ * is on; persisted in runtime_ext (AI_CONTACT_MOOD_SIZE bytes) only when
+ * non-zero, so mod-off saves keep their exact bytes.
+ */
+void ai_contact_mood_note(int nation_id, int euro, int reason, int delta);
+int ai_contact_mood_take(int nation_id, int euro);
+void ai_contact_mood_reset(void);
+#define AI_CONTACT_MOOD_SIZE (8 * 4 * 6 * 2)
+bool ai_contact_mood_export(uint8_t out[AI_CONTACT_MOOD_SIZE]); /* false = all zero */
+void ai_contact_mood_import(const uint8_t in[AI_CONTACT_MOOD_SIZE]);
 /* Tribe display name for Indian nation ids 4..11. */
 const char* ai_contact_tribe_name(int nation_id);
 

@@ -27,6 +27,11 @@ void colony_preview_compute_w(
 
   const int pop = colonies_headcount(colony);
   const int sol_b = colony_prod_sol_bonus(col1, colony);
+  /* MOD_BUILDING_UPKEEP: preview next turn's halved building output while the
+   * human treasury cannot cover the upkeep (live; restored on the way out). */
+  const unsigned upkeep_prev = colonies_upkeep_set_halved(
+    colonies_upkeep_short(pool, col1, w->europe, colony->nation_id) ? 1u << colony->nation_id : 0u
+  );
 
   /* Town commons + worked plots: the tick's own Phase A field composition
    * (turn_compose_colony_fields), not a copy of it (port_bugs.md #1111).
@@ -161,5 +166,6 @@ void colony_preview_compute_w(
       }
     }
   }
+  (void)colonies_upkeep_set_halved(upkeep_prev);
 }
 

@@ -24,7 +24,8 @@ typedef enum OptionsDialogKind {
   OPTIONS_KIND_NONE = 0,
   OPTIONS_KIND_GAME = 1,
   OPTIONS_KIND_COLONY = 2,
-  OPTIONS_KIND_SOUND = 3
+  OPTIONS_KIND_SOUND = 3,
+  OPTIONS_KIND_MODS = 4 /* port-only: data/mods GAME.TXT @MODOPTIONS, settings.json "mods" */
 } OptionsDialogKind;
 
 typedef struct OptionsDialog {
@@ -36,6 +37,12 @@ typedef struct OptionsDialog {
   char labels[OPTIONS_DIALOG_MAX][OPTIONS_DIALOG_LABEL_LEN];
   uint8_t values[OPTIONS_DIALOG_MAX]; /* 0/1 */
   int option_count;
+  int mods_page;                       /* OPTIONS_KIND_MODS: the page shown */
+  uint8_t mods_ids[OPTIONS_DIALOG_MAX]; /* OPTIONS_KIND_MODS: the ModId of each row */
+  /* OPTIONS_KIND_MODS: data/mods GAME.TXT @MODOPTIONSDONE Next / Done (last page) under the rows ("" =
+   * none; the stock checklists have none in DOS) and its last drawn rect. */
+  char ok_label[OPTIONS_DIALOG_LABEL_LEN];
+  int ok_x, ok_y, ok_w, ok_h;
 
   bool has_result;
   bool result_cancelled;
@@ -71,6 +78,20 @@ bool options_dialog_open_sound(
   bool event_music,
   bool sound_effects
 );
+
+/* Mod toggle defaults as a ModId bit mask (mods.h), one row per ModId. The
+ * toggles are grouped by kind of change, one page per group (they do not fit
+ * one 200 px dialog anyway): page 0 = @MODOPTIONS (the title menu row), then
+ * @MODOPTIONS2 and @MODOPTIONS3, each opened by OK on the page before. */
+#define OPTIONS_MODS_PAGE_COUNT 3
+/* The ModId on `row` of mods page `page`, or -1 past the page. */
+int options_dialog_mods_page_id(int page, int row);
+bool options_dialog_open_mods(
+  OptionsDialog* dlg, const ColonizeMsgCatalog* game_txt, uint32_t mask, int page
+);
+/* True and *mask written when a MODS result was confirmed; only the shown
+ * page's bits change. */
+bool options_dialog_apply_mods(const OptionsDialog* dlg, uint32_t* mask);
 
 /* Apply confirmed GAME bits into Col1 options (no-op if cancelled/wrong kind). */
 void options_dialog_apply_game(const OptionsDialog* dlg, ColonizeCol1GameOptions* opts);

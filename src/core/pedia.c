@@ -3,9 +3,12 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "core/colony.h"
 #include "core/colony_production.h"
+#include "core/colony_screen.h"
 #include "core/fb.h"
 #include "core/map.h"
+#include "core/mods.h"
 #include "core/strutil.h"
 #include "core/unit_chrome.h"
 #include "core/units_move.h"
@@ -480,6 +483,13 @@ bool pedia_page(
   }
 
   const char* prefix = pedia_category_section_prefix(category);
+  /* MOD_TOWN_HALL_TIERS: rows 10/11 read the mod-only PEDIA @MODBUILDING10/11
+   * and NAMES @MODBUILDING names (data/mods) instead of the stock stubs. */
+  const char* mod_name = category == PEDIA_CAT_BUILDING ? colonies_building_mod_name(index) : NULL;
+  if (mod_name) {
+    snprintf(fallback, sizeof(fallback), "%s", mod_name);
+    prefix = "MODBUILDING";
+  }
   const ColonizeMsgSection* section = pedia_find_indexed(pedia, prefix, index);
   pedia_fill_from_section(section, out, fallback);
   pedia_set_preview(out, category, index, names);
@@ -1363,6 +1373,16 @@ static int pedia_article_terrain(
   return y > min_body ? y : min_body;
 }
 
+/* @BUILDING row name; MOD_TOWN_HALL_TIERS names rows 10/11 from NAMES @MODBUILDING. */
+static void pedia_building_name(const ColonizeMsgCatalog* names, int row, char* out, size_t out_size) {
+  const char* m = colonies_building_mod_name(row);
+  if (m) {
+    snprintf(out, out_size, "%s", m);
+  } else {
+    assets_msg_row_field(names, "BUILDING", row, 0, out, out_size);
+  }
+}
+
 /* FUN_6cb2_1820 skill article content; returns body y. */
 static int pedia_article_job(
   const PediaArticleAssets* a, ColonizeFramebuffer8* fb, int job, int y
@@ -1395,13 +1415,14 @@ static int pedia_article_job(
   while (chain >= 0) {
     int w = 0;
     int h = 24;
-    if (a->buildings && chain < a->buildings->sprite_count) {
-      pedia_blit(a->buildings, chain, fb, bx, y);
-      w = a->buildings->sprites[chain].width;
-      h = a->buildings->sprites[chain].height;
+    const int sprite = colony_screen_town_hall_sprite(a->town_hall_art, chain);
+    if (a->buildings && sprite < a->buildings->sprite_count) {
+      pedia_blit(a->buildings, sprite, fb, bx, y);
+      w = a->buildings->sprites[sprite].width;
+      h = a->buildings->sprites[sprite].height;
     }
     char bname[64];
-    assets_msg_row_field(a->names, "BUILDING", chain, 0, bname, sizeof(bname));
+    pedia_building_name(a->names, chain, bname, sizeof(bname));
     int ty = y + h / 2 - 7;
     if (ty < y) {
       ty = y;
@@ -1412,7 +1433,8 @@ static int pedia_article_job(
       first = false;
     }
     y += h + 4;
-    chain = k_pedia_building_next[chain];
+    /* MOD_TOWN_HALL_TIERS: the Statesman's chain goes on to rows 10/11. */
+    chain = (chain == 9 && mods_on(MOD_TOWN_HALL_TIERS)) ? 10 : k_pedia_building_next[chain];
   }
 
   if (job < 19) {
@@ -1454,7 +1476,8 @@ static int pedia_article_building(
   int w = 0;
   int h = 24;
   if (building_id != 16 && building_id != 31) {
-    int disp = (building_id == 17) ? 46 : building_id; /* Stable uses dedicated art */
+    /* Stable uses dedicated art; MOD_TOWN_HALL_TIERS maps the Town Hall tiers. */
+    int disp = (building_id == 17) ? 46 : colony_screen_town_hall_sprite(a->town_hall_art, building_id);
     if (a->buildings && disp < a->buildings->sprite_count) {
       pedia_blit(a->buildings, disp, fb, 10, top);
       w = a->buildings->sprites[disp].width;
@@ -1470,7 +1493,7 @@ static int pedia_article_building(
   const int icon_y = top + dy;
 
   char bname[64];
-  assets_msg_row_field(a->names, "BUILDING", building_id, 0, bname, sizeof(bname));
+  pedia_building_name(a->names, building_id, bname, sizeof(bname));
   font_draw_text(a->font, fb, 10 + w + 3, icon_y + 6, bname, PEDIA_COL_LINK_HOVER);
   int x = 10 + w + 3 + font_text_width_skip(a->font, bname, FONT_SKIP_NONE) + 24;
 
@@ -1510,7 +1533,7 @@ static int pedia_article_building(
   if (prereq >= 0) {
     char pname[64];
     char buf[128];
-    assets_msg_row_field(a->names, "BUILDING", prereq, 0, pname, sizeof(pname));
+    pedia_building_name(a->names, prereq, pname, sizeof(pname));
     snprintf(
       buf, sizeof(buf), "%s: %s", pedia_label(a->labels, 188, ""), pname
     );
@@ -1570,7 +1593,7 @@ void pedia_article_render(
       pedia_job_display_name(a->names, index, name, sizeof(name));
       break;
     case PEDIA_CAT_BUILDING:
-      assets_msg_row_field(a->names, "BUILDING", index, 0, name, sizeof(name));
+      pedia_building_name(a->names, index, name, sizeof(name));
       break;
     case PEDIA_CAT_FATHER:
       assets_msg_row_field(a->names, "FATHERS", index, 0, name, sizeof(name));
@@ -1626,7 +1649,9 @@ void pedia_article_render(
   const char* prefix = pedia_category_section_prefix(category);
   if (prefix) {
     char tag[32];
-    snprintf(tag, sizeof(tag), "%s%d", prefix, index);
+    /* MOD_TOWN_HALL_TIERS: rows 10/11 read PEDIA @MODBUILDING10/11. */
+    const bool mod_body = category == PEDIA_CAT_BUILDING && colonies_building_mod_name(index);
+    snprintf(tag, sizeof(tag), "%s%d", mod_body ? "MODBUILDING" : prefix, index);
     pedia_body_render_section(a->pedia, tag, a->font, fb, body_y);
   }
 }

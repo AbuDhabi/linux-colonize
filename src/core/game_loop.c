@@ -111,7 +111,7 @@
 #include "core/save_load_dialog.h"
 #include "core/savegame.h"
 #include "core/screen_geom.h"
-#include "core/settings.h"
+#include "core/mods.h"
 #include "core/sound.h"
 #include "core/ss.h"
 #include "core/strutil.h"
@@ -607,6 +607,24 @@ static void game_native_score_plot(
 static int s_vision_slide_unit = -1;
 static bool game_tile_live_seen(const ColonizeGameState* game, int x, int y);
 
+/* FUN_112b_0eb6 pacing (raw 2648-2713), shared by the move slide and the
+ * combat lunge: 0x10 >> zoom one-pixel steps with a wait of (fast ? 8 : 10)
+ * << zoom ticks of the 608.77 Hz DS:0x8338 clock between steps and none after
+ * the last, i.e. 15 waits, ~197 / ~246 ms a tile. Frames are placed by elapsed
+ * time, so a slow present never stretches the slide. */
+COLONIZE_INTERNAL uint32_t game_slide_total_ms(const ColonizeGameState* game) {
+  const bool fast = game->col1_ok && game->col1.head.game_options.fast_piece_slide;
+  return (GAME_SLIDE_STEPS - 1) * (fast ? 8u : 10u) * 100000u / 60877u;
+}
+
+COLONIZE_INTERNAL int game_slide_wait_next(uint32_t t0, uint32_t total_ms, int f) {
+  int next;
+  while ((next = 1 + (int)((platform_ticks_ms() - t0) * (GAME_SLIDE_STEPS - 1) / total_ms)) <= f) {
+    platform_sleep_ms(1);
+  }
+  return next < GAME_SLIDE_STEPS ? next : GAME_SLIDE_STEPS;
+}
+
 COLONIZE_INTERNAL void game_move_watch_w(
   const ColonizeWorld* w,
   void* user,
@@ -663,8 +681,8 @@ COLONIZE_INTERNAL void game_move_watch_w(
    * port_bugs.md: the sprite must visibly travel from the old tile to the new one
    * — for the player's own units too (a jump-cut reads as "no animation").
    * Zoom 0 only (16px tiles); the unit is hidden from the base frame and a
-   * chrome'd copy is blitted along the interpolated pixel path at an
-   * eyeball-visible ~25 fps.
+   * chrome'd copy is blitted along the interpolated pixel path, paced as DOS
+   * (game_slide_wait_next).
    */
   bool slid = false;
   if (game->map_zoom == 0 && game->unit_icons_ok) {
@@ -732,13 +750,13 @@ COLONIZE_INTERNAL void game_move_watch_w(
         const int y0 = MAP_MENU_BAR_H + fyl * 16 - shy;
         const int x1 = txl * 16 - shx;
         const int y1 = MAP_MENU_BAR_H + tyl * 16 - shy;
-        /* port_bugs.md: doubled once more ("can barely register they moved"). */
-        const int steps = fast ? 2 : 4;
-        const uint32_t delay_ms = fast ? 60u : 80u;
+        const int steps = GAME_SLIDE_STEPS;
+        const uint32_t total_ms = game_slide_total_ms(game);
         const bool was_active = mu->active;
         mu->active = false; /* keep the base frame from drawing it at `to` */
         s_vision_slide_unit = unit_id; /* its sight already lifted the fog at `to` */
-        for (int f = 1; f <= steps; ++f) {
+        const uint32_t t0 = platform_ticks_ms();
+        for (int f = 1;;) {
           game_render(game, &fb, &pal);
           const int px = x0 + (x1 - x0) * f / steps;
           const int py = y0 + (y1 - y0) * f / steps;
@@ -763,10 +781,10 @@ COLONIZE_INTERNAL void game_move_watch_w(
              * moving). Use the frame's real palette like the static draw. */
             &pal
           );
-          if (!platform_present(game->platform, &fb, &pal)) {
+          if (!platform_present(game->platform, &fb, &pal) || f >= steps) {
             break;
           }
-          platform_sleep_ms(delay_ms);
+          f = game_slide_wait_next(t0, total_ms, f);
         }
         mu->active = was_active;
         s_vision_slide_unit = -1;
@@ -907,8 +925,10 @@ static void game_lunge_frames(
   const int ddx = (def_x > from_x) - (def_x < from_x);
   const int ddy = (def_y > from_y) - (def_y < from_y);
   /* Outbound only, ending one full tile out (16px at zoom 0) as DOS's
-   * pixel-step loop does; the snap home below is a single frame. */
-  static const int k_step[3] = {6, 11, 16};
+   * pixel-step loop does; the snap home below is a single frame. The steps
+   * are FUN_112b_0eb6's, paced as the move slide (game_slide_wait_next). */
+  const int steps = GAME_SLIDE_STEPS;
+  const uint32_t total_ms = game_slide_total_ms(game);
   static uint8_t* s_lunge_fb;
   static size_t s_lunge_fb_cap;
   ColonizeFramebuffer8 fb;
@@ -924,15 +944,16 @@ static void game_lunge_frames(
     mu->active = false;
     s_vision_slide_unit = mu->id; /* keep its sight in the vision grid */
   }
-  for (int f = 0; f < 3; ++f) {
+  const uint32_t t0 = platform_ticks_ms();
+  for (int f = 1;;) {
     game_render(game, &fb, &pal);
     game_blit_unit_in_viewport(
       &fb,
       game_chrome_font(game),
       &game->unit_icons,
       sprite,
-      sxp + ddx * k_step[f],
-      syp + ddy * k_step[f],
+      sxp + ddx * 16 * f / steps,
+      syp + ddy * 16 * f / steps,
       dtype,
       nation_id,
       badge,
@@ -942,13 +963,10 @@ static void game_lunge_frames(
       /* port_bugs.md: same palette rule as the move slide — raw index went pink. */
       &pal
     );
-    if (!platform_present(game->platform, &fb, &pal)) {
+    if (!platform_present(game->platform, &fb, &pal) || f >= steps) {
       break;
     }
-    /* port_bugs.md: 3x slower with fast piece slide on, 6x slower without. */
-    platform_sleep_ms(
-      game->col1_ok && game->col1.head.game_options.fast_piece_slide ? 90u : 270u
-    );
+    f = game_slide_wait_next(t0, total_ms, f);
   }
   if (mu) {
     mu->active = was_active;
@@ -1408,9 +1426,6 @@ void game_refresh_orders_menu(ColonizeGameState* game) {
   ctx.cursor_y = game->map_cursor_y;
   ctx.human_nation = game->human_nation;
   ctx.europe_ok = game->europe_ok;
-  ctx.pioneer_plan = pioneer_plan_enabled();
-  ctx.scout_auto = settings_get()->scout_autoexplore;
-  ctx.ship_auto = settings_get()->ship_autoexplore;
   ctx.plan_view = game->pioneer_plan_view;
   if (ctx.plan_view) {
     const ColonizeWorld w = game_world_const(game);
@@ -1431,6 +1446,7 @@ char game_key_letter(ColonizeKey key) {
     case COLONIZE_KEY_G: return 'G';
     case COLONIZE_KEY_H: return 'H';
     case COLONIZE_KEY_I: return 'I';
+    case COLONIZE_KEY_K: return 'K';
     case COLONIZE_KEY_L: return 'L';
     case COLONIZE_KEY_M: return 'M';
     case COLONIZE_KEY_N: return 'N';
@@ -1676,6 +1692,15 @@ static bool game_map_blink_running(const ColonizeGameState* game) {
  * game_render_screen paints one of the full-screen views and reports
  * whether it did, and game_render_map paints the overland map otherwise.
  */
+/* The open popup is one of the mods.kings_audience throne-room screens
+ * game_render_fullscreen_takeover draws. */
+static bool game_ai_popup_is_chamber(const ColonizeGameState* game) {
+  const int tag = game->ai_popups.current.tag;
+  return game->ai_popups.open &&
+         (tag == AI_POPUP_TAG_KING_CHAMBER || tag == AI_POPUP_TAG_KING_GRANT ||
+          tag == AI_POPUP_TAG_KING_CHAMBER_MSG);
+}
+
 COLONIZE_INTERNAL bool game_render_fullscreen_takeover(
   const ColonizeGameState* game, ColonizeFramebuffer8* framebuffer, ColonizePalette* palette
 ) {
@@ -1720,6 +1745,50 @@ COLONIZE_INTERNAL bool game_render_fullscreen_takeover(
       framebuffer,
       palette
     );
+    return true;
+  }
+  /* mods.kings_audience: the King's audience chamber happens in the throne
+   * room of the new-game audience (KINGLSS1 + banners + KING1.SS). Port layout
+   * on its scroll (no DOS screen to copy), in the colony screen's FONTTINY: a
+   * choice's question centred on the rolled top (ROLL_*), any plain message on
+   * the sheet below, the answers as buttons under it. The popup's hit box is
+   * the button column, so mouse rows match what is drawn. */
+  if (game_ai_popup_is_chamber(game)) {
+    enum { ROLL_X = 216, ROLL_Y = 9, ROLL_W = 78, SHEET_X = 226, SHEET_Y = 42, SHEET_W = 78 };
+    AiPopupState* st = (AiPopupState*)&game->ai_popups;
+    const ColonizeFont* font = game->colony_font_ok ? &game->colony_font : game_popup_font(game);
+    new_game_render_throne_audience(
+      (NewGameWizard*)&game->new_game, game->resolved_data_dir, game->human_nation, "KING1.SS",
+      NULL, SHEET_X, SHEET_Y, SHEET_W, framebuffer, palette
+    );
+    /* Only the @AUDIENCE question is short enough for the roll; @KINGFUND's
+     * offer stays on the sheet with its two answers below it. */
+    const bool on_roll = st->current.tag == AI_POPUP_TAG_KING_CHAMBER;
+    int text_end = SHEET_Y;
+    if (on_roll) {
+      (void)new_game_render_throne_text(
+        font, palette, st->current.body, ROLL_X, ROLL_Y, ROLL_W, true, framebuffer
+      );
+    } else {
+      text_end = new_game_render_throne_text(
+                   font, palette, st->current.body, SHEET_X, SHEET_Y, SHEET_W, true, framebuffer
+                 ) + 6;
+    }
+    st->dialog_x = SHEET_X;
+    st->dialog_y = text_end;
+    st->dialog_w = SHEET_W;
+    st->dialog_h = framebuffer->height - text_end;
+    if (st->current.choice_count > 0) {
+      const char* labels[AI_POPUP_CHOICE_MAX];
+      for (int i = 0; i < st->current.choice_count && i < AI_POPUP_CHOICE_MAX; ++i) {
+        labels[i] = st->current.choices[i];
+      }
+      st->list_y0 = text_end;
+      st->line_h = new_game_render_throne_buttons(
+        font, palette, labels, st->current.choice_count, st->selection, SHEET_X, text_end, SHEET_W,
+        framebuffer
+      );
+    }
     return true;
   }
   return false;
@@ -2002,7 +2071,7 @@ COLONIZE_INTERNAL bool game_render_screen(
       }
     }
     game_render_begin_menu(game, framebuffer);
-    if (game->save_load.open || game->ai_popups.open) {
+    if (game->save_load.open || game->ai_popups.open || game->options_dlg.open) {
       const ColonizeFont* font = game_popup_font(game);
       const ColonizeSpriteSheet* wood =
         game->menu_opentile_ok ? &game->menu_opentile :
@@ -2018,6 +2087,18 @@ COLONIZE_INTERNAL bool game_render_screen(
           wood,
           &game->menu_popup_colors,
           game->menu_col_basic,
+          game->menu_col_select,
+          framebuffer
+        );
+      }
+      if (game->options_dlg.open) { /* data/mods @MODBEGINMENU row */
+        options_dialog_render(
+          (OptionsDialog*)&game->options_dlg,
+          font,
+          wood,
+          &game->menu_popup_colors,
+          game->menu_col_basic,
+          game->menu_col_hilite,
           game->menu_col_select,
           framebuffer
         );
@@ -2055,7 +2136,7 @@ static bool game_plan_road(const ColonizeWorldMap* map, int x, int y) {
 }
 
 /*
- * VIEW Plan Pioneer overlay (divergences.pioneer_plan), drawn over the terrain
+ * VIEW Plan Pioneer overlay (mods.pioneer_plan), drawn over the terrain
  * in cyan: the plowed-field art for a planned Plow, road art for a planned Road
  * (joined to real and planned roads; real roads get cyan stubs toward planned
  * ones), and the Tools cargo icon centred for a planned Clear.
@@ -2118,7 +2199,7 @@ static void game_render_pioneer_plan(
   }
 }
 
-/* divergences.current_vision: mark a tile as live-seen. */
+/* mods.current_vision: mark a tile as live-seen. */
 typedef struct GameVisionGrid {
   const ColonizeWorldMap* map;
   uint8_t* lit;
@@ -2131,14 +2212,14 @@ static void game_vision_mark(void* ctx, int x, int y, bool outer) {
 }
 
 /*
- * divergences.current_vision (port-only): checkerboard of a 1/4 fog-blue tint on every seen tile that
+ * mods.current_vision (port-only): checkerboard of a 1/4 fog-blue tint on every seen tile that
  * no unit (units_sight_radius, map_sight_each domain gate) or colony (radius
  * 1, the FUN_1427_0bfe live-sight ring) of the viewed nation currently sees.
  * Layering, top first: colony names, fog, this veil, everything else.
  */
-static bool game_current_vision_on(const ColonizeGameState* game) {
+bool game_current_vision_on(const ColonizeGameState* game) {
   const int nation = game_fog_nation(game);
-  return settings_get()->current_vision && game->world_map_ok && game->map_palette_ok &&
+  return mods_on(MOD_CURRENT_VISION) && game->world_map_ok && game->map_palette_ok &&
          game->terrain_peel_phase == 0 && nation >= 0 && nation <= 3;
 }
 
@@ -2272,7 +2353,7 @@ static void game_render_current_vision(
 }
 
 /*
- * divergences.current_vision fog layer: s_fog_mask[p] = 1 where the terrain
+ * mods.current_vision fog layer: s_fog_mask[p] = 1 where the terrain
  * pass left a fog pixel (PHYS0 148 noise, a dither mask's non-zero ink), 0
  * where terrain shows (a mask's colour-0 holes take the fill). The fog pixels
  * are re-stamped over the veil and the pieces afterwards.
@@ -2873,7 +2954,10 @@ static void game_render_map_popups(
       /* FUN_130d_0290 raw 6370-6371: the screen is blanked under @MULTINEXT. */
       fb_fill_rect(framebuffer, 0, 0, framebuffer->width, framebuffer->height, 0);
     }
-    if (game->ai_popups.open) {
+    /* A mods.kings_audience throne-room popup is drawn by the takeover; laying
+     * it out here too (the map under an oversize window) would overwrite its
+     * hit box. */
+    if (game->ai_popups.open && !game_ai_popup_is_chamber(game)) {
       ColonizePopupColors popup_cols;
       popup_colors_from_ui(&popup_cols);
       /* Map dialogs use FONTINTR (nation-explanation size), not FONTTINY HUD. */

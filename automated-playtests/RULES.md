@@ -275,8 +275,9 @@ Cost = number of calls x context size. Output size matters much less.
   cotton, ore and silver start on: list before you toggle.
 - `sell H CARGO AMT` sells AMT tons from the first CARGO hold (the partial
   sale). Each sale runs the market step once: see "Silver" below.
-- ORDERS Automate (`key q`, settings `divergences.scout_autoexplore` /
-  `ship_autoexplore`) explores on its own; `units` prints `automated` and
+- ORDERS Automate (`key q`, campaign mods `scout_autoexplore` /
+  `ship_autoexplore`: on in `settings.json` `mods` when the campaign starts,
+  then carried in its saves) explores on its own; `units` prints `automated` and
   advise does not count those units as idle. `goto` takes a unit off
   Automate. An automated Scout walks away from a treasure it found.
 - `work N CI B` takes the same row numbers as `build` BIDs (Armory = 3,

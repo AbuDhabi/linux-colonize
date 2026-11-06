@@ -221,7 +221,8 @@ typedef enum ColonyScreenHit {
   COLONY_HIT_MESSAGE_OUTSIDE,
   COLONY_HIT_CUSTOM_HOUSE_ROW,
   COLONY_HIT_CUSTOM_HOUSE_OUTSIDE,
-  COLONY_HIT_TITLE /* name bar (0,0)-(320,7): DOS zone 10, @RENAMECOLONY */
+  COLONY_HIT_TITLE, /* name bar (0,0)-(320,7): DOS zone 10, @RENAMECOLONY */
+  COLONY_HIT_MULTI_ABANDON /* MOD_POPULATION_FLOOR ABANDON button, Units tab */
 } ColonyScreenHit;
 
 typedef enum ColonyMessageKind {
@@ -344,6 +345,8 @@ typedef struct ColonyScreenView {
    * raw 51373-51376). 0,0 = the colony tile, DOS's static 2,2. */
   int area_dx;
   int area_dy;
+  /* MOD_TOWN_HALL_TIERS: first appended BDARK sprite in `buildings`, 0 = none. */
+  int town_hall_art;
 
   bool construction_open;
   int construction_selection; /* entry (0 = the clear row) */
@@ -443,7 +446,14 @@ typedef struct ColonyScreenView {
    * 98856-98859). Look only: the screen's click/key handlers skip their work
    * while it is set (port_bugs.md #1382). Set by game_enter_colony_view. */
   bool spy_view;
+  /* MOD_POPULATION_FLOOR ABANDON button on the Units tab, bottom-right: the
+   * width the renderer last drew it at, 0 = not drawn. */
+  int abandon_btn_w;
 } ColonyScreenView;
+
+#define COLONY_ABANDON_BTN_H 9
+#define COLONY_ABANDON_BTN_RIGHT (COLONY_MULTI_X + 2 + COLONY_MULTI_W - 19)
+#define COLONY_ABANDON_BTN_Y (COLONY_PANEL_CONTENT_Y + COLONY_PANEL_CONTENT_H - COLONY_ABANDON_BTN_H)
 
 /* DS:0x334 blink phase: 0x14 ticks of the 60.877 Hz DS:0x92e8 clock (~328 ms)
  * per phase, on first after each full redraw (FUN_2f2b_6cd4 raw 56094-56097). */
@@ -573,6 +583,13 @@ void colony_screen_close_dock_orders(ColonyScreenView* view);
 void colony_screen_close_message(ColonyScreenView* view);
 
 void colony_screen_minimap_origin(int* out_x, int* out_y);
+/* Area panel side in cells: 3 (DOS), 5 with MOD_TOWN_HALL_TIERS on. */
+int colony_screen_minimap_grid(void);
+/* MOD_TOWN_HALL_TIERS art (colony_screen.c): append BDARK 9/11 to a
+ * BUILDING.SS sheet (returns their first index, 0 = none) and map a Town Hall
+ * tier row to its sprite. */
+int colony_screen_splice_town_hall_art(ColonizeSpriteSheet* buildings, const char* data_dir);
+int colony_screen_town_hall_sprite(int art_base, int row);
 
 void colony_screen_refresh_transports(
   ColonyScreenView* view,

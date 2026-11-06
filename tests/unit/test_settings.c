@@ -4,6 +4,7 @@
 
 #include "../common/test_runner.h"
 #include "core/col1_save_layout.h"
+#include "core/dos_buggy.h"
 #include "core/json_min.h"
 #include "core/screen_geom.h"
 #include "core/settings.h"
@@ -47,8 +48,8 @@ static void test_missing_file_defaults(void) {
         "default input logger off, ./input_logs");
   check(!s.unlimited_units, "default divergences.unlimited_units off (DOS limits)");
   check(!s.modern_prng, "default divergences.modern_prng off (DOS LCG)");
-  check(!s.pioneer_plan, "default divergences.pioneer_plan off");
-  check(!s.current_vision, "default divergences.current_vision off");
+  check(!s.mods[MOD_PIONEER_PLAN], "default mods.pioneer_plan off");
+  check(!s.mods[MOD_CURRENT_VISION], "default mods.current_vision off");
 }
 
 static void test_roundtrip(void) {
@@ -75,6 +76,8 @@ static void test_roundtrip(void) {
   out.skip_intro = false;
   out.unlimited_units = true;
   out.modern_prng = true;
+  out.mods[MOD_WAGON_LOOT] = true;
+  out.mods[MOD_GOTO_NATIVE_WAIT] = false;
   out.input_logger = true;
   snprintf(out.input_logger_directory, sizeof(out.input_logger_directory), "/tmp/col \"in\"");
   /* Raw CP437 0x8e + UTF-8 e-acute: bytes must survive save/load unchanged (#1086). */
@@ -381,6 +384,91 @@ static void test_init_keeps_corrupt_file(void) {
   check(strncmp(kept, "{ nope", 6) == 0, "corrupt file left untouched");
 }
 
+/* "mods": fixes default on, gameplay mods off; a partial group keeps the
+ * defaults; a new campaign copies the defaults except under dos_buggy (tests). */
+static void test_mods_group(void) {
+  ColonizeSettings s;
+  settings_defaults(&s);
+  check(!s.mods[MOD_WAGON_LOOT], "default mods.wagon_loot off (gameplay mod)");
+  check(s.mods[MOD_GOTO_NATIVE_WAIT], "default mods.goto_native_wait on (DOS bug fix)");
+  check(settings_mods_mask(&s) == 1u << MOD_GOTO_NATIVE_WAIT, "defaults as a mask");
+
+  FILE* f = fopen(k_path, "wb");
+  check(f != NULL, "write partial mods file");
+  if (f) {
+    fputs("{ \"mods\": { \"wagon_loot\": true } }\n", f);
+    fclose(f);
+  }
+  char err[256] = {0};
+  check(settings_load_file(k_path, &s, err, sizeof(err)), "partial mods file loads");
+  check(s.mods[MOD_WAGON_LOOT] && s.mods[MOD_GOTO_NATIVE_WAIT],
+        "file key read, missing key keeps its default");
+
+  settings_mods_set_mask(&s, 1u << MOD_WAGON_LOOT);
+  check(s.mods[MOD_WAGON_LOOT] && !s.mods[MOD_GOTO_NATIVE_WAIT], "mask back to the bools");
+
+  const ColonizeSettings saved = *settings_get();
+  settings_set(&s);
+  check(dos_buggy_behavior(), "test binaries run with dos_buggy on");
+  check(settings_mods_new_campaign_mask() == 0, "dos_buggy on: a new campaign gets every toggle off");
+  dos_buggy_behavior_set(false);
+  check(settings_mods_new_campaign_mask() == 1u << MOD_WAGON_LOOT,
+        "dos_buggy off: a new campaign snapshots the live defaults");
+  dos_buggy_behavior_set(true);
+  settings_set(&saved);
+}
+
+/* pioneer_plan, scout_autoexplore, ship_autoexplore, hard_king and
+ * current_vision moved from "divergences" to "mods": a legacy key seeds the
+ * new-game default only when "mods" has no value for it, and a rewrite keeps
+ * the value under "mods" alone. */
+static void test_legacy_divergence_keys(void) {
+  FILE* f = fopen(k_path, "wb");
+  check(f != NULL, "write legacy divergences file");
+  if (!f) {
+    return;
+  }
+  fputs("{ \"divergences\": { \"hard_king\": true, \"pioneer_plan\": true, "
+        "\"current_vision\": true, \"scout_autoexplore\": true, \"unlimited_units\": true },\n"
+        "  \"mods\": { \"pioneer_plan\": false, \"current_vision\": \"yes\" } }\n",
+        f);
+  fclose(f);
+  ColonizeSettings s;
+  char err[256] = {0};
+  check(settings_load_file(k_path, &s, err, sizeof(err)), "legacy file loads");
+  check(s.mods[MOD_HARD_KING], "legacy divergences.hard_king seeds mods.hard_king");
+  check(s.mods[MOD_SCOUT_AUTOEXPLORE], "legacy scout_autoexplore seeds the mod");
+  check(!s.mods[MOD_SHIP_AUTOEXPLORE], "absent legacy key keeps the mod default");
+  check(!s.mods[MOD_PIONEER_PLAN], "a mods key wins over the legacy key");
+  check(s.mods[MOD_CURRENT_VISION], "a non-bool mods key falls back to the legacy key");
+  check(s.unlimited_units, "unlimited_units stays a divergence");
+
+  check(settings_save_file(k_path, &s, err, sizeof(err)), "legacy file rewrites");
+  f = fopen(k_path, "rb");
+  char buf[4096] = {0};
+  if (f) {
+    const size_t n = fread(buf, 1, sizeof(buf) - 1, f);
+    buf[n] = '\0';
+    fclose(f);
+  }
+  const char* div = strstr(buf, "\"divergences\"");
+  const char* mods = strstr(buf, "\"mods\"");
+  const char* hk = strstr(buf, "\"hard_king\": true");
+  check(div && mods && hk && hk > mods, "rewritten file has hard_king under mods");
+  const char* div_end = div ? strchr(div, '}') : NULL;
+  bool legacy_left = false;
+  for (int id = MOD_PIONEER_PLAN; id <= MOD_CURRENT_VISION && div && div_end; ++id) {
+    const char* keys[] = {"pioneer_plan", "scout_autoexplore", "ship_autoexplore", "hard_king",
+                          "current_vision"};
+    const char* hit = strstr(div, keys[id - MOD_PIONEER_PLAN]);
+    legacy_left = legacy_left || (hit && hit < div_end);
+  }
+  check(!legacy_left, "rewritten divergences object drops the five legacy keys");
+  ColonizeSettings back;
+  check(settings_load_file(k_path, &back, err, sizeof(err)), "rewritten file reloads");
+  check(memcmp(&back, &s, sizeof(s)) == 0, "rewritten file keeps every value");
+}
+
 /* Void cases report through check(); a case fails if it added a failure. */
 #define CASE_(fn) \
   static int tc_##fn(void) { \
@@ -397,6 +485,8 @@ CASE_(test_invalid_launch_keys_keep_defaults)
 CASE_(test_seed_null_omitted_and_zero)
 CASE_(test_bad_file_is_an_error)
 CASE_(test_head_bridge_preserves_state)
+CASE_(test_mods_group)
+CASE_(test_legacy_divergence_keys)
 CASE_(test_init_creates_file)
 CASE_(test_init_keeps_corrupt_file)
 #undef CASE_
@@ -411,6 +501,8 @@ static const TestCase k_cases[] = {
   {"test_seed_null_omitted_and_zero", tc_test_seed_null_omitted_and_zero},
   {"test_bad_file_is_an_error", tc_test_bad_file_is_an_error},
   {"test_head_bridge_preserves_state", tc_test_head_bridge_preserves_state},
+  {"test_mods_group", tc_test_mods_group},
+  {"test_legacy_divergence_keys", tc_test_legacy_divergence_keys},
   /* Keep the settings_init cases last: they latch the process-wide state. */
   {"test_init_creates_file", tc_test_init_creates_file},
   {"test_init_keeps_corrupt_file", tc_test_init_keeps_corrupt_file},

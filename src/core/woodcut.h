@@ -43,7 +43,8 @@
  * event-flag bits with placeholder WOODCUT.TXT captions and no art, and ids
  * 17-25 (unknown05) are only reachable from the DOS demo-autoplay loop.
  * Id 12 (COLONY DESTROYED) has art and a caption but no call site anywhere in
- * the shipped executable — both DOS colony-loss sites push 11.
+ * the shipped executable — both DOS colony-loss sites push 11. Only the mods
+ * fire it (mods.h MOD_POPULATION_FLOOR / MOD_RAID_SCALPS, colony abandon).
  */
 typedef enum ColonizeWoodcutId {
   WOODCUT_A_NEW_WORLD = 0,

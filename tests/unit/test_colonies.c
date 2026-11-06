@@ -14,6 +14,7 @@
 #include "core/europe.h"
 #include "core/founding_fathers.h"
 #include "core/map.h"
+#include "core/mods.h"
 #include "core/popup_msg.h"
 #include "core/ss.h"
 #include "core/units_cargo.h"
@@ -3160,6 +3161,137 @@ static int unit_plot_blocked_mask(void) {
   return 1;
 }
 
+/* MOD_BUILDING_UPKEEP: each chain pays its top owned tier only (NAMES.TXT
+ * @BUILDING column 6), Warehouse Expansion by warehouse_level, the Town Hall
+ * tier rows top the Town Hall chain only with MOD_TOWN_HALL_TIERS on; other
+ * nations' colonies don't count; mod off is never short. */
+static int unit_building_upkeep_total(void) {
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
+    fprintf(stderr, "upkeep: load NAMES.TXT failed\n");
+    return 1;
+  }
+  static ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  if (!colonies_load_buildings(&pool, &names)) {
+    fprintf(stderr, "upkeep: load @BUILDING failed\n");
+    assets_msg_free(&names);
+    return 1;
+  }
+  assets_msg_free(&names);
+  int failures = 0;
+#define SLOT(r) colonies_building_row(&pool, COLONY_BUILDING_##r)
+  CHECK(pool.building_types[SLOT(FORTRESS)].upkeep == 15 &&
+          pool.building_types[SLOT(DOCKS)].upkeep == 5,
+        "upkeep: @BUILDING column 6 loaded");
+  ColonizeColony* a = &pool.colonies[0];
+  ColonizeColony* b = &pool.colonies[1];
+  ColonizeColony* f = &pool.colonies[2];
+  memset(a, 0, 3 * sizeof(*a));
+  a->active = b->active = f->active = true;
+  a->id = 1;
+  b->id = 2;
+  f->id = 3;
+  a->nation_id = b->nation_id = 0;
+  f->nation_id = 1;
+  /* Shipyard colony: Docks 5 + Drydock 10 + Shipyard 15 owned -> 15. */
+  a->has_building[SLOT(DOCKS)] = a->has_building[SLOT(DRYDOCK)] = a->has_building[SLOT(SHIPYARD)] = true;
+  CHECK(colonies_upkeep_colony(&pool, a) == 15, "upkeep: Shipyard colony pays 15, not 30");
+  /* Warehouse tier is the level byte: both bits without a level -> 0;
+   * level 2 -> the Expansion's 5, not Warehouse + Expansion. */
+  a->has_building[SLOT(WAREHOUSE)] = a->has_building[SLOT(WAREHOUSE_EXPANSION)] = true;
+  CHECK(colonies_upkeep_colony(&pool, a) == 15, "upkeep: warehouse bits alone pay nothing");
+  a->warehouse_level = 2;
+  CHECK(colonies_upkeep_colony(&pool, a) == 20, "upkeep: warehouse level 2 pays 5");
+  /* Fortress colony: Stockade 0 + Fort 10 + Fortress 15 -> 15; Town Hall
+   * rows 9/10/11 (0/10/15) -> 0 with the tiers mod off, else the top tier. */
+  b->has_building[SLOT(STOCKADE)] = b->has_building[SLOT(FORT)] = b->has_building[SLOT(FORTRESS)] = true;
+  b->has_building[SLOT(TOWN_HALL)] = b->has_building[SLOT(TOWN_HALL_2)] = true;
+  CHECK(colonies_upkeep_colony(&pool, b) == 15, "upkeep: tiers mod off -> Town Hall chain stops at row 9");
+  mods_campaign_set(1u << MOD_TOWN_HALL_TIERS);
+  CHECK(colonies_upkeep_colony(&pool, b) == 25, "upkeep: Fortress 15 + Town Hall Expansion 10");
+  b->has_building[SLOT(TOWN_HALL_3)] = true;
+  CHECK(colonies_upkeep_colony(&pool, b) == 30, "upkeep: Colonial Assembly tops the Town Hall chain");
+  f->has_building[SLOT(FORTRESS)] = true;
+  CHECK(colonies_upkeep_total(&pool, 0) == 50, "upkeep: nation 0 total = 20 + 30");
+  CHECK(colonies_upkeep_total(&pool, 1) == 15, "upkeep: nation 1 counts only its own colony");
+  /* Shortfall: mod on, human, treasury < total. An explicit screen bound to
+   * nation 0 holds the purse, so no live Europe screen can leak in. */
+  static EuropeScreen eu;
+  memset(&eu, 0, sizeof(eu));
+  eu.bound_nation = 0;
+  static ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  eu.gold = 49;
+  CHECK(!colonies_upkeep_short(&pool, &col1, &eu, 0), "upkeep: mod off is never short");
+  CHECK(colonies_upkeep_set_halved(1u) == 0u && !colonies_upkeep_halved(a),
+        "upkeep: mod off never arms the halved mask");
+  mods_campaign_set(1u << MOD_TOWN_HALL_TIERS | 1u << MOD_BUILDING_UPKEEP);
+  CHECK(colonies_upkeep_short(&pool, &col1, &eu, 0), "upkeep: 49 < 50 is short");
+  eu.gold = 50;
+  CHECK(!colonies_upkeep_short(&pool, &col1, &eu, 0), "upkeep: 50 covers 50");
+  (void)colonies_upkeep_set_halved(1u);
+  CHECK(colonies_upkeep_halved(a) && colonies_upkeep_halve(a, 7) == 3 && !colonies_upkeep_halved(f),
+        "upkeep: the halved mask halves nation 0 only (floor)");
+  (void)colonies_upkeep_set_halved(0u);
+  col1.player[0].control = 1;
+  eu.gold = 0;
+  CHECK(!colonies_upkeep_short(&pool, &col1, &eu, 0), "upkeep: AI nations never short");
+  mods_campaign_set(0);
+#undef SLOT
+  if (failures == 0) {
+    printf("unit_colonies: building upkeep total ok\n");
+    return 0;
+  }
+  return 1;
+}
+
+/* MOD_TOWN_HALL_TIERS names: rows 10/11 read NAMES @MODBUILDING (data/mods)
+ * only while the mod is on; the stock "Town Hall" row name never changes. */
+static int unit_town_hall_tier_names(void) {
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  assets_set_mod_data_dir("./data/mods");
+  const bool loaded = assets_msg_load_file(&names, "COLONIZE/NAMES.TXT");
+  assets_set_mod_data_dir("");
+  if (!loaded) {
+    fprintf(stderr, "tier names: load NAMES.TXT failed\n");
+    return 1;
+  }
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  int failures = 0;
+  CHECK(colonies_load_buildings(&pool, &names), "tier names: @BUILDING loaded");
+  const ColonizeMsgSection* mod = assets_msg_find(&names, "MODBUILDING");
+  CHECK(mod && mod->line_count >= 2, "tier names: @MODBUILDING merged from data/mods");
+  const int row9 = colonies_building_row(&pool, COLONY_BUILDING_TOWN_HALL);
+  const int row10 = colonies_building_row(&pool, COLONY_BUILDING_TOWN_HALL_2);
+  const int row11 = colonies_building_row(&pool, COLONY_BUILDING_TOWN_HALL_3);
+  CHECK(row9 >= 0 && row10 >= 0 && row11 >= 0, "tier names: rows 9-11 loaded");
+  if (failures == 0) {
+    const char* stock10 = pool.building_types[row10].name;
+    CHECK(colonies_building_mod_name(COLONY_BUILDING_TOWN_HALL_2) == NULL, "tier names off: no mod name");
+    CHECK(strcmp(colonies_building_name(&pool, row10), stock10) == 0, "tier names off: row 10 stock name");
+    CHECK(strcmp(colonies_building_name(&pool, row11), pool.building_types[row11].name) == 0,
+          "tier names off: row 11 stock name");
+    mods_campaign_set(1u << MOD_TOWN_HALL_TIERS);
+    CHECK(strcmp(colonies_building_name(&pool, row10), mod->lines[0]) == 0, "tier names on: row 10 = @MODBUILDING 0");
+    CHECK(strcmp(colonies_building_name(&pool, row11), mod->lines[1]) == 0, "tier names on: row 11 = @MODBUILDING 1");
+    CHECK(strcmp(colonies_building_name(&pool, row9), pool.building_types[row9].name) == 0,
+          "tier names on: row 9 keeps its stock name");
+    CHECK(strcmp(pool.building_types[row10].name, stock10) == 0, "tier names on: stock name untouched");
+    mods_campaign_set(0);
+  }
+  assets_msg_free(&names);
+  if (failures == 0) {
+    printf("unit_colonies: town hall tier names ok\n");
+    return 0;
+  }
+  return 1;
+}
+
 /*
  * port_bugs.md #593 — the work-plot ring is per colony:
  * `DS:0x329[FUN_15eb_0470()]` over {0,4,8,12,20} with
@@ -3227,6 +3359,60 @@ static int unit_work_plot_ring_593(void) {
       }
     }
     CHECK(!offered, "#593: rows 10/11 are never offered by the build list");
+  }
+  /* MOD_TOWN_HALL_TIERS: row 10 needs the Town Hall, row 11 needs row 10,
+   * both need their @BUILDING population; off (above) neither is offered. */
+  {
+    const int row9 = colonies_building_row(&pool, COLONY_BUILDING_TOWN_HALL);
+    CHECK(row9 >= 0, "tiers: Town Hall row loaded");
+    int ids[64];
+    bool has10 = false;
+    bool has11 = false;
+#define TIERS_SCAN()                                                    \
+  do {                                                                  \
+    const int n_ = colonies_list_buildable(&pool, c->id, ids, 64, NULL); \
+    has10 = has11 = false;                                              \
+    for (int i = 0; i < n_; ++i) {                                      \
+      has10 |= ids[i] == row10;                                         \
+      has11 |= ids[i] == row11;                                         \
+    }                                                                   \
+  } while (0)
+    c->population = 30;
+    c->has_building[row9] = true;
+    TIERS_SCAN();
+    CHECK(!has10 && !has11, "tiers off: Town Hall owned, rows 10/11 still refused");
+    c->has_building[row10] = true;
+    TIERS_SCAN();
+    CHECK(!has11, "tiers off: row 10 owned, row 11 still refused");
+    c->has_building[row10] = false;
+    mods_campaign_set(1u << MOD_TOWN_HALL_TIERS);
+    c->population = 0;
+    TIERS_SCAN();
+    CHECK(!has10 && !has11, "tiers on: population 0 -> neither offered");
+    /* @BUILDING population: row 10 at 4, row 11 at 8. */
+    c->population = 3;
+    TIERS_SCAN();
+    CHECK(!has10, "tiers on: population 3 -> row 10 refused");
+    c->population = 4;
+    TIERS_SCAN();
+    CHECK(has10 && !has11, "tiers on: population 4 -> row 10 offered, row 11 not");
+    c->population = 30;
+    TIERS_SCAN();
+    CHECK(has10 && !has11, "tiers on: no row 10 -> row 11 refused at any population");
+    c->has_building[row10] = true;
+    c->population = 7;
+    TIERS_SCAN();
+    CHECK(!has10 && !has11, "tiers on: row 10 owned, population 7 -> row 11 refused");
+    c->population = 8;
+    TIERS_SCAN();
+    CHECK(!has10 && has11, "tiers on: row 10 owned, population 8 -> row 11 offered");
+    c->has_building[row11] = true;
+    TIERS_SCAN();
+    CHECK(!has10 && !has11, "tiers on: both owned -> neither offered");
+    mods_campaign_set(0);
+    c->has_building[row10] = c->has_building[row11] = c->has_building[row9] = false;
+    c->population = 0;
+#undef TIERS_SCAN
   }
   c->has_building[row10] = true;
   CHECK(colonies_work_plot_count(&pool, c) == 12, "#593: row 10 -> ring 12");
@@ -3781,9 +3967,183 @@ static int unit_trade_route_stop_load_order_and_boycott(void) {
   return failures != failures_before;
 }
 
+/* mods.h MOD_POPULATION_FLOOR: every built building's min population floors
+ * ejects (off: no floor in the eject); the ABANDON walk-out ignores it and
+ * puts everyone on the tile. */
+static int unit_population_floor_mod(void) {
+  const int failures_before = failures;
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
+    fprintf(stderr, "population floor: load NAMES.TXT failed\n");
+    return 1;
+  }
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  static ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
+  CHECK(colonies_load_buildings(&pool, &names), "floor: load @BUILDING");
+  CHECK(units_load_types(&units, &names), "floor: load unit types");
+  assets_msg_free(&names);
+  const int free_col = units_find_type(&units, "Colonists");
+  const int cathedral = colonies_find_building(&pool, "Cathedral");
+  CHECK(free_col >= 0 && cathedral >= 0, "floor: rows exist");
+  if (failures != failures_before) {
+    return 1;
+  }
+
+  ColonizeColony* c = &pool.colonies[0];
+  memset(c, 0, sizeof(*c));
+  c->id = 0;
+  c->active = true;
+  c->nation_id = 1;
+  c->x = 5;
+  c->y = 5;
+  c->building_in_production = -1;
+  memset(c->tiles, -1, sizeof(c->tiles));
+  for (int i = 0; i < 10; ++i) {
+    c->colonists[i].active = true;
+    c->colonists[i].unit_type_index = free_col;
+    c->colonists[i].building_type = -1;
+    c->colonists[i].field_job = -1;
+  }
+  c->colonist_count = 10;
+  c->population = 10;
+  pool.colony_count = 1;
+
+  CHECK(colonies_min_population_floor(&pool, c) == 1, "floor: no buildings, floor 1");
+  c->has_building[cathedral] = true;
+  CHECK(colonies_min_population_floor(&pool, c) == 8, "floor: Cathedral, floor 8");
+
+  /* Off: DOS, no floor in the eject itself. */
+  CHECK(colonies_eject_colonist(&pool, 0, 0, &units, COLONIZE_EJECT_COLONIST) >= 0,
+        "floor off: 10 -> 9 allowed");
+  mods_campaign_set(1u << MOD_POPULATION_FLOOR);
+  CHECK(colonies_eject_colonist(&pool, 0, 0, &units, COLONIZE_EJECT_COLONIST) >= 0,
+        "floor on: 9 -> 8 allowed");
+  CHECK(colonies_eject_colonist(&pool, 0, 0, &units, COLONIZE_EJECT_COLONIST) < 0,
+        "floor on: 8 -> 7 refused");
+  CHECK(c->colonist_count == 8, "floor on: pop stays 8");
+  mods_campaign_set(0);
+  CHECK(colonies_eject_colonist(&pool, 0, 0, &units, COLONIZE_EJECT_COLONIST) >= 0,
+        "floor off: 8 -> 7 allowed");
+  mods_campaign_set(1u << MOD_POPULATION_FLOOR);
+
+  int on_tile_before = 0;
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* u = units_get_const(&units, i);
+    on_tile_before += u && u->active && u->x == 5 && u->y == 5;
+  }
+  CHECK(colonies_abandon_walk_out(&pool, 0, &units) == 7, "walk-out ignores the floor, 7 leave");
+  CHECK(colonies_get(&pool, 0) == NULL, "walk-out: colony gone");
+  int on_tile = 0;
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* u = units_get_const(&units, i);
+    on_tile += u && u->active && u->x == 5 && u->y == 5;
+  }
+  CHECK(on_tile == on_tile_before + 7, "walk-out: 7 units on the tile");
+  mods_campaign_set(0);
+  return failures != failures_before;
+}
+
+/* ABANDON with a ship in port and a wagon on the tile: both stay put and
+ * stay valid, their binding to the dead colony is cleared (as for every
+ * colonies_abandon). A unit pool that fills mid walk-out keeps the colony
+ * with the rest: nobody is lost. */
+static int unit_population_floor_abandon_edges(void) {
+  const int failures_before = failures;
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
+    fprintf(stderr, "abandon edges: load NAMES.TXT failed\n");
+    return 1;
+  }
+  static ColonizeColonyPool pool;
+  static ColonizeUnitPool units;
+  for (int pass = 0; pass < 2; ++pass) {
+    colonies_init(&pool);
+    colonies_set_occupancy_map(NULL);
+    memset(&units, 0, sizeof(units));
+    CHECK(colonies_load_buildings(&pool, &names), "abandon: load @BUILDING");
+    CHECK(units_load_types(&units, &names), "abandon: load unit types");
+    const int free_col = units_find_type(&units, "Colonists");
+    const int caravel = units_find_type(&units, "Caravel");
+    const int wagon = units_find_type(&units, "Wagon Train");
+    CHECK(free_col >= 0 && caravel >= 0 && wagon >= 0, "abandon: rows exist");
+    if (failures != failures_before) {
+      break;
+    }
+    ColonizeColony* c = &pool.colonies[0];
+    memset(c, 0, sizeof(*c));
+    c->active = true;
+    c->nation_id = 1;
+    c->x = 5;
+    c->y = 5;
+    c->building_in_production = -1;
+    memset(c->tiles, -1, sizeof(c->tiles));
+    for (int i = 0; i < 4; ++i) {
+      c->colonists[i].active = true;
+      c->colonists[i].unit_type_index = free_col;
+      c->colonists[i].building_type = -1;
+      c->colonists[i].field_job = -1;
+    }
+    c->colonist_count = 4;
+    c->population = 4;
+    pool.colony_count = 1;
+    mods_campaign_set(1u << MOD_POPULATION_FLOOR);
+
+    if (pass == 0) {
+      const int ship = units_spawn_allow_stack_nation(&units, caravel, 5, 5, 1);
+      const int cart = units_spawn_allow_stack_nation(&units, wagon, 5, 5, 1);
+      CHECK(ship >= 0 && cart >= 0, "abandon: ship and wagon spawned");
+      ColonizeUnit* su = units_get(&units, ship);
+      ColonizeUnit* wu = units_get(&units, cart);
+      if (!su || !wu) {
+        mods_campaign_set(0);
+        break;
+      }
+      su->col1_origin = 0;
+      wu->col1_origin = 0;
+      colonies_set_units_context(&units);
+      CHECK(colonies_abandon_walk_out(&pool, 0, &units) == 4, "abandon: 4 colonists leave");
+      colonies_set_units_context(NULL);
+      CHECK(colonies_get(&pool, 0) == NULL && pool.colony_count == 0, "abandon: colony gone");
+      CHECK(su->active && su->x == 5 && su->y == 5 && su->nation_id == 1 &&
+              su->type_index == caravel, "abandon: ship stays in place, valid");
+      CHECK(wu->active && wu->x == 5 && wu->y == 5 && wu->nation_id == 1 &&
+              wu->type_index == wagon, "abandon: wagon stays in place, valid");
+      CHECK(su->col1_origin == 0xff && wu->col1_origin == 0xff,
+            "abandon: no unit stays bound to the dead colony");
+    } else {
+      /* Room for exactly two more units in the DOS pool. */
+      for (int i = 0; i < COLONIZE_UNITS_DOS_MAX - 2; ++i) {
+        units.units[i].active = true;
+        units.units[i].id = units.next_id++;
+        units.units[i].nation_id = 2;
+      }
+      units_pool_sync(&units);
+      CHECK(colonies_abandon_walk_out(&pool, 0, &units) < 0, "pool full: walk-out stops");
+      const ColonizeColony* left = colonies_get(&pool, 0);
+      int out = 0;
+      for (int i = COLONIZE_UNITS_DOS_MAX - 2; i < COLONIZE_UNITS_MAX; ++i) {
+        const ColonizeUnit* u = &units.units[i];
+        out += u->active && u->x == 5 && u->y == 5 && u->nation_id == 1;
+      }
+      CHECK(left != NULL, "pool full: colony kept");
+      CHECK(left && left->colonist_count + out == 4 && out == 2,
+            "pool full: 2 out, 2 kept, nobody lost");
+    }
+    mods_campaign_set(0);
+  }
+  assets_msg_free(&names);
+  return failures != failures_before;
+}
+
 static const TestCase k_cases[] = {
   {"unit_tb32_capture_keeps_war", unit_tb32_capture_keeps_war},
     {"unit_colonies_core", case_colonies_core},
+    {"unit_population_floor_abandon_edges", unit_population_floor_abandon_edges},
     {"colony_delete_appends_next", case_colony_delete_appends_next},
     {"colony_delete_remaps_trade_stops", case_colony_delete_remaps_trade_stops},
     {"unit_found_chrome", unit_found_chrome},
@@ -3809,9 +4169,12 @@ static const TestCase k_cases[] = {
     {"unit_auto_assign_idle_town_hall_cap", unit_auto_assign_idle_town_hall_cap},
     {"unit_plot_blocked_mask", unit_plot_blocked_mask},
     {"unit_work_plot_ring_593", unit_work_plot_ring_593},
+    {"unit_town_hall_tier_names", unit_town_hall_tier_names},
+    {"unit_building_upkeep_total", unit_building_upkeep_total},
     {"unit_settlement_count_and_name_peek", unit_settlement_count_and_name_peek},
     {"unit_buildable_blank_name_tier", unit_buildable_blank_name_tier},
     {"unit_colony_cheat_helpers", unit_colony_cheat_helpers},
     {"unit_trade_route_stop_load_order_and_boycott", unit_trade_route_stop_load_order_and_boycott},
+    {"unit_population_floor_mod", unit_population_floor_mod},
 };
 TEST_MAIN(k_cases)

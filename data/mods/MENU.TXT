@@ -1,0 +1,10 @@
+;
+;       OpenCol mod text merged into MENU.TXT (docs/settings.md "mods").
+;       Additive only: a new section is added whole; in a stock section
+;       "N=text" appends row N, which must equal the stock row count.
+;
+
+;       mods.kings_audience: VIEW pulldown row 13 (K), hidden unless the
+;       running campaign has the mod on.
+@VIEW
+13=  ~King's Audience

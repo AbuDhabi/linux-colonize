@@ -182,6 +182,7 @@ typedef struct PediaArticleAssets {
   const ColonizeSpriteSheet* phys0;     /* PHYS0.SS */
   const ColonizePalette* palette;       /* active output palette (wood) */
   int human_nation;
+  int town_hall_art; /* MOD_TOWN_HALL_TIERS: first appended BDARK sprite in buildings, 0 = none */
 } PediaArticleAssets;
 
 void pedia_article_render(

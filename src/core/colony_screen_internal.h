@@ -56,6 +56,7 @@ typedef struct ColonyBuildingSlot {
 enum {
   COLONY_CAT_FORTIFICATION = 0,
   COLONY_CAT_DOCKS = 2,
+  COLONY_CAT_TOWN_HALL = 3,
   COLONY_CAT_WAREHOUSE = 5,
   COLONY_DOS_SLOT_COUNT = 15,
   COLONY_DOS_CLASS_COUNT = 5
@@ -209,6 +210,7 @@ void colony_screen_draw_outlined_number(
 );
 void colony_screen_draw_people(
   ColonyScreenView* view,
+  const ColonizeColonyPool* pool,
   const ColonizeColony* colony,
   const ColonizeUnitPool* units,
   const ColonizeCol1Save* col1,

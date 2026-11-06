@@ -8,7 +8,7 @@
 #include "core/world.h"
 
 /*
- * Port-only divergence (settings.json divergences.pioneer_plan, docs/pioneer_plan.md):
+ * Port-only per-campaign mod (mods_on(MOD_PIONEER_PLAN), docs/pioneer_plan.md):
  * a per-tile plan of terrain improvements the player paints in VIEW Plan Pioneer
  * mode, and the ORDERS Automate order that walks a Pioneer from planned tile to
  * planned tile doing the work with the ordinary Clear/Plow/Road bodies.
@@ -26,6 +26,7 @@
 
 typedef struct ColonizeUnit ColonizeUnit;
 
+/* mods_on(MOD_PIONEER_PLAN): the running campaign has the mod. */
 bool pioneer_plan_enabled(void);
 void pioneer_plan_reset(void);
 uint8_t pioneer_plan_at(int x, int y);

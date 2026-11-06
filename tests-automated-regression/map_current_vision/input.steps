@@ -1,4 +1,4 @@
-# divergences.current_vision (settings.json): render-only, so output.sav = map_move_land_tile_by_tile's
+# mod current_vision (RTST record 17 in input.sav): render-only, so output.sav = map_move_land_tile_by_tile's plus record 17
 # and output.frame pins the final frame (veil over tiles no unit or colony sees now).
 key p        # P with a non-Pioneer selected: no order, nothing opens
 key KP_4     # west onto prairie, orthogonal (-3/3)

@@ -20,8 +20,10 @@
 #include "core/dos_buggy.h"
 #include "core/game_loop_internal.h"
 #include "core/map_panel.h"
+#include "core/mods.h"
 #include "core/popup.h"
 #include "core/reports.h"
+#include "core/settings.h"
 #include "core/turn_internal.h"
 #include "core/woodcut.h"
 
@@ -1557,6 +1559,56 @@ static int test_goto_board_reveals_with_passenger(void) {
   return rc;
 }
 
+/* mods.h MOD_GOTO_NATIVE_WAIT through game_pacer_goto_step: a human Go To
+ * whose goal holds a Brave parks next to it (moves 0, order kept) and goes on
+ * next turn once the tile is free. */
+static int test_goto_waits_at_native_pacer(void) {
+  ColonizeGameState game;
+  ColonizeCol1Tribe tribe;
+  int rc = step3180_fixture(&game, &tribe) < 0 ? fail("native wait fixture") : 0;
+  ColonizeUnit* col = rc ? NULL : units_get(&game.units, units_spawn(&game.units, 0, 3, 3));
+  ColonizeUnit* brave = col ? units_get(&game.units, units_spawn(&game.units, 0, 3, 4)) : NULL;
+  if (rc == 0 && (!col || !brave)) {
+    rc = fail("native wait: spawn");
+  }
+  if (rc == 0) {
+    units_set_combat_human_nation(0);
+    mods_campaign_set(1u << MOD_GOTO_NATIVE_WAIT);
+    brave->nation_id = 4;
+    col->nation_id = 0;
+    col->moves = 3;
+    col->orders = UNITS_ORDER_GOTO;
+    col->goto_x = 3;
+    col->goto_y = 4;
+    game.units.selected_id = col->id;
+    ColonizeInputState input;
+    memset(&input, 0, sizeof(input));
+    (void)game_update_unit_pacer(&game, &input, 100);
+    if (col->x != 3 || col->y != 3 || col->moves != 0 || col->orders != UNITS_ORDER_GOTO ||
+        !brave->active) {
+      fprintf(stderr, "native wait: pos=(%d,%d) moves=%d orders=%d brave=%d\n", col->x, col->y,
+              col->moves, col->orders, brave->active);
+      rc = fail("native wait: the Go To must park next to the Brave and keep its order");
+    }
+  }
+  if (rc == 0) {
+    units_despawn(&game.units, brave->id); /* next turn: the Brave has left */
+    col->moves = 3;
+    game.units.selected_id = col->id;
+    ColonizeInputState input;
+    memset(&input, 0, sizeof(input));
+    (void)game_update_unit_pacer(&game, &input, 100);
+    if (col->x != 3 || col->y != 4) {
+      fprintf(stderr, "native wait retry: pos=(%d,%d) orders=%d\n", col->x, col->y, col->orders);
+      rc = fail("native wait: the kept Go To must go on once the goal is free");
+    }
+  }
+  mods_campaign_set(0);
+  units_set_combat_human_nation(-1);
+  step3180_free(&game);
+  return rc;
+}
+
 /* @LANDFALL "Make landfall" makes the passenger active (FUN_281f_086c ->
  * FUN_1427_08ea sets DS:0x5392) and jumps to LAB_4720_061c (ndisasm
  * 0x3FE56-0x3FEA3 -> 0xff5c), the FUN_2a1f_0142 commit: the passenger's step
@@ -2924,6 +2976,109 @@ static int test_join_colony_recomputes_plots(void) {
 }
 
 /*
+ * MOD_TOWN_HALL_TIERS: a colony owning @BUILDING rows 0x0a/0x0b works plots 8..19
+ * (colonies_work_plot_count). With the mod on, a click on the selected colonist's own outer
+ * plot opens the jobs menu for that plot, and a pick keeps him seated there on the new job.
+ * With the mod off the screen keeps DOS's 3x3: plot 8 opens nothing even with both rows.
+ */
+static int test_colony_jobs_menu_outer_plot_tiers(void) {
+  static ColonizeGameState game;
+  ColonizeMsgCatalog names;
+  if (!jobs_menu_fixture(&game, &names)) {
+    return fail("jobs fixture");
+  }
+  ColonizeColony* col = &game.colonies.colonies[0];
+  ColonizeColonist* c = &col->colonists[0];
+  ColonyScreenView* csv = &game.colony_screen;
+  col->has_building[colonies_building_row(&game.colonies, COLONY_BUILDING_TOWN_HALL_2)] = true;
+  col->has_building[colonies_building_row(&game.colonies, COLONY_BUILDING_TOWN_HALL_3)] = true;
+  int rc = 0;
+  colony_screen_open_jobs(csv, &game.colonies, &game.world_map, &game.units, col,
+                          COLONIZE_COLONY_FIELD_TILES);
+  if (csv->jobs_open) {
+    rc = fail("mod off: plot 8 must not open the jobs menu");
+  }
+  mods_campaign_set(1u << MOD_TOWN_HALL_TIERS);
+  for (int tile = COLONIZE_COLONY_FIELD_TILES; tile < COLONIZE_COLONY_FIELD_TILES_MAX && !rc;
+       ++tile) {
+    int dx = 0;
+    int dy = 0;
+    colonies_field_tile_delta(tile, &dx, &dy);
+    game.world_map.terrain[(8 + dy) * 16 + 8 + dx] = 3;
+    game.world_map.layer3[(8 + dy) * 16 + 8 + dx] = 0xf0;
+    for (int i = 0; i < COLONIZE_COLONY_FIELD_TILES_MAX; ++i) {
+      col->tiles[i] = -1;
+    }
+    col->tiles[tile] = 0;
+    c->building_type = -1;
+    c->field_job = COLONIZE_JOB_FARMER;
+    colony_screen_close_jobs(csv);
+    game_colony_area_tile_drop(&game, col, &game.world_map, tile);
+    if (!csv->jobs_open || csv->jobs_tile_index != tile || csv->job_count <= 0) {
+      fprintf(stderr, "  tile %d: open=%d tile_index=%d rows=%d\n", tile, (int)csv->jobs_open,
+              csv->jobs_tile_index, csv->job_count);
+      rc = fail("mod on: a click on the selected colonist's outer plot must open its jobs menu");
+      break;
+    }
+    game_colony_commit_job(&game, col, COLONIZE_JOB_LUMBERJACK);
+    if (csv->jobs_open || col->tiles[tile] != 0 || c->field_job != COLONIZE_JOB_LUMBERJACK) {
+      fprintf(stderr, "  tile %d: tiles=%d job=%d\n", tile, col->tiles[tile], c->field_job);
+      rc = fail("mod on: an outer-plot job pick must keep the colonist on that plot");
+    }
+  }
+  /* Row 10 only (radius |dx|+|dy| < 3): a shaded outer plot refuses the colonist, an
+   * unshaded one takes him. */
+  col->has_building[colonies_building_row(&game.colonies, COLONY_BUILDING_TOWN_HALL_3)] = false;
+  {
+    int shaded = -1;
+    int open = -1;
+    for (int tile = COLONIZE_COLONY_FIELD_TILES; tile < COLONIZE_COLONY_FIELD_TILES_MAX; ++tile) {
+      int dx = 0;
+      int dy = 0;
+      colonies_field_tile_delta(tile, &dx, &dy);
+      if (abs(dx) + abs(dy) >= 3) {
+        shaded = shaded < 0 ? tile : shaded;
+      } else if (tile != COLONIZE_COLONY_FIELD_TILES) {
+        open = open < 0 ? tile : open;
+      }
+    }
+    for (int i = 0; i < COLONIZE_COLONY_FIELD_TILES_MAX; ++i) {
+      col->tiles[i] = -1;
+    }
+    col->tiles[COLONIZE_COLONY_FIELD_TILES] = 0;
+    c->building_type = -1;
+    c->field_job = COLONIZE_JOB_FARMER;
+    colony_screen_close_jobs(csv);
+    const ColonizeWorld w = game_world(&game);
+    if (!rc && (shaded < 0 || open < 0 || colonies_plot_blocked_mask(&w, col, shaded) == 0)) {
+      rc = fail("row 10 only: expected a shaded outer plot and an open one");
+    }
+    game_colony_area_tile_drop(&game, col, &game.world_map, shaded);
+    if (!rc && (col->tiles[shaded] != -1 || col->tiles[COLONIZE_COLONY_FIELD_TILES] != 0 || csv->jobs_open)) {
+      rc = fail("row 10 only: a shaded outer plot must refuse the colonist");
+    }
+    game_colony_area_tile_drop(&game, col, &game.world_map, open);
+    if (!rc && col->tiles[open] != 0) {
+      fprintf(stderr, "  open tile %d: tiles=%d\n", open, col->tiles[open]);
+      rc = fail("row 10 only: an unshaded outer plot must take the colonist");
+    }
+  }
+  /* Without the upgrades the colony works only the 3x3: an outer plot opens nothing. */
+  col->has_building[colonies_building_row(&game.colonies, COLONY_BUILDING_TOWN_HALL_2)] = false;
+  col->has_building[colonies_building_row(&game.colonies, COLONY_BUILDING_TOWN_HALL_3)] = false;
+  colony_screen_close_jobs(csv);
+  colony_screen_open_jobs(csv, &game.colonies, &game.world_map, &game.units, col,
+                          COLONIZE_COLONY_FIELD_TILES);
+  if (!rc && csv->jobs_open) {
+    rc = fail("mod on, no upgrades: plot 8 must not open the jobs menu");
+  }
+  mods_campaign_set(0);
+  fx_map_free(&game.world_map);
+  assets_msg_free(&names);
+  return rc;
+}
+
+/*
  * docs/dos_bugs.md DB-54 (port_bugs.md #1205): DOS's jobs menu stamps each elected plot and
  * zeroes the job counter just by opening; the port's opening changes nothing.
  */
@@ -3486,6 +3641,41 @@ static int test_bar_screen_lines_do_not_block_map(void) {
     rc = fail("bar passive: the map line behind it blocks");
   }
   ai_popup_clear(&st);
+  return rc;
+}
+
+/* FUN_112b_0eb6 (raw 2648-2713): 16 one-pixel steps, 15 waits of 10 (fast: 8)
+ * ticks of the 608.77 Hz clock, none after the last. Under the stubs' virtual
+ * clock the paced loop must show every one of the 16 frames and end exactly
+ * when the last wait does. */
+static int test_slide_pacing_matches_dos(void) {
+  static ColonizeGameState game;
+  memset(&game, 0, sizeof(game));
+  game.col1_ok = true;
+  int rc = 0;
+  for (int fast = 0; fast <= 1 && rc == 0; ++fast) {
+    game.col1.head.game_options.fast_piece_slide = (uint8_t)fast;
+    const uint32_t total = game_slide_total_ms(&game);
+    const uint32_t want_total = fast ? 197u : 246u;
+    const uint32_t t0 = platform_ticks_ms();
+    int frames = 1;
+    for (int f = 1; f < GAME_SLIDE_STEPS;) {
+      const int next = game_slide_wait_next(t0, total, f);
+      if (next != f + 1) {
+        fprintf(stderr, "  fast %d: frame %d followed by %d\n", fast, f, next);
+        rc = fail("slide pacing: a frame was skipped");
+        break;
+      }
+      f = next;
+      ++frames;
+    }
+    const uint32_t elapsed = platform_ticks_ms() - t0;
+    if (rc == 0 && (total != want_total || frames != GAME_SLIDE_STEPS || elapsed != total)) {
+      fprintf(stderr, "  fast %d: total %u ms (want %u), %d frames, %u ms elapsed\n", fast,
+              (unsigned)total, (unsigned)want_total, frames, (unsigned)elapsed);
+      rc = fail("slide pacing: 16 frames over the DOS duration");
+    }
+  }
   return rc;
 }
 
@@ -4231,6 +4421,50 @@ static int test_new_campaign_drops_parked_flow(void) {
   if (turn_processor_active(&game->turn_proc) || game->turn_proc.day_advanced) {
     rc = fail("new campaign must drop the parked end of turn");
   }
+  game_destroy(game);
+  return rc;
+}
+
+/* A new campaign copies the settings.json "mods" defaults into its mask (none
+ * under dos_buggy, i.e. every test and golden); editing the defaults later
+ * leaves the running campaign alone; the game ending clears it. */
+static int test_new_campaign_snapshots_mods(void) {
+  ColonizeGameConfig cfg = {.data_dir = "./COLONIZE", .save_dir = "./build/debug"};
+  ColonizeGameState* game = game_create(&cfg);
+  if (!game || !game_assets_ok(game)) {
+    fprintf(stderr, "SKIP: no COLONIZE/ assets\n");
+    if (game) {
+      game_destroy(game);
+    }
+    return TR_SKIP;
+  }
+  const ColonizeSettings saved = *settings_get();
+  ColonizeSettings prefs = saved;
+  settings_mods_set_mask(&prefs, 1u << MOD_WAGON_LOOT);
+  settings_set(&prefs);
+  game->new_game.generate_map = false;
+  snprintf(game->new_game.map_file, sizeof(game->new_game.map_file), "%s", "AMER2.MP");
+  int rc = 0;
+  game_commit_new_campaign(game);
+  if (mods_campaign_mask() != 0) {
+    rc = fail("dos_buggy on: a new campaign starts with every mod off");
+  }
+  dos_buggy_behavior_set(false);
+  game_commit_new_campaign(game);
+  dos_buggy_behavior_set(true);
+  if (mods_campaign_mask() != 1u << MOD_WAGON_LOOT) {
+    rc = fail("a new campaign snapshots the mods defaults");
+  }
+  settings_mods_set_mask(&prefs, 1u << MOD_GOTO_NATIVE_WAIT);
+  settings_set(&prefs);
+  if (mods_campaign_mask() != 1u << MOD_WAGON_LOOT) {
+    rc = fail("editing the defaults must not touch the running campaign");
+  }
+  game_end_to_title(game);
+  if (mods_campaign_mask() != 0) {
+    rc = fail("returning to the title clears the campaign mask");
+  }
+  settings_set(&saved);
   game_destroy(game);
   return rc;
 }
@@ -5455,6 +5689,33 @@ static int test_parked_eot_dropped_on_load_and_title(void) {
   return rc;
 }
 
+/* An in-game load of a save without the RTST mods record clears the running
+ * campaign's mask (no mod leaks from the outgoing game). */
+static int test_load_clears_mod_mask(void) {
+  ColonizeGameConfig cfg = {.data_dir = "./COLONIZE", .save_dir = "./build/debug"};
+  ColonizeGameState* game = game_create(&cfg);
+  if (!game || !game_assets_ok(game)) {
+    fprintf(stderr, "SKIP: no COLONIZE/ assets\n");
+    if (game) {
+      game_destroy(game);
+    }
+    return TR_SKIP;
+  }
+  char err[256];
+  int rc = 0;
+  mods_campaign_set(1u << MOD_WAGON_LOOT | 1u << MOD_GOTO_NATIVE_WAIT);
+  if (!game_load_col1_file(game, "tests-save-misc/tb55_near_tier_wagon.sav", err, sizeof(err))) {
+    fprintf(stderr, "  %s\n", err);
+    rc = fail("fixture save load");
+  }
+  if (rc == 0 && mods_campaign_mask() != 0) {
+    rc = fail("a load without the mods record must turn every mod off");
+  }
+  mods_campaign_set(0);
+  game_destroy(game);
+  return rc;
+}
+
 /* 8x8 land map, a human unit with attack at (3,3), a nation-1 unit at (4,3),
  * nations 1-3 computer-run. Free with edge_scroll_free. */
 static int treaty_fixture(ColonizeGameState* game, int* uid) {
@@ -5537,6 +5798,7 @@ static const TestCase k_cases[] = {
     {"test_human_peace_war_asks_havetreaty", test_human_peace_war_asks_havetreaty},
     {"test_fortify_break_treaty_answer", test_fortify_break_treaty_answer},
     {"test_parked_eot_dropped_on_load_and_title", test_parked_eot_dropped_on_load_and_title},
+    {"test_load_clears_mod_mask", test_load_clears_mod_mask},
     {"test_dos_buggy_default_off_tests_on", test_dos_buggy_default_off_tests_on},
     {"test_saveload_reseeds_from_tick", test_saveload_reseeds_from_tick},
     {"test_goto_near_tier_boundary_tb55", test_goto_near_tier_boundary_tb55},
@@ -5571,6 +5833,7 @@ static const TestCase k_cases[] = {
      test_human_board_two_hulls_reveals_with_passenger},
     {"test_human_transfer_reveals_with_passenger", test_human_transfer_reveals_with_passenger},
     {"test_goto_board_reveals_with_passenger", test_goto_board_reveals_with_passenger},
+    {"test_goto_waits_at_native_pacer", test_goto_waits_at_native_pacer},
     {"test_human_landfall_runs_3180", test_human_landfall_runs_3180},
     {"test_human_village_visit_no_3180", test_human_village_visit_no_3180},
     {"test_human_landho_after_3180", test_human_landho_after_3180},
@@ -5589,6 +5852,7 @@ static const TestCase k_cases[] = {
     {"test_colony_fence_unit_jobs_list", test_colony_fence_unit_jobs_list},
     {"test_colony_fence_unit_jobs_extras", test_colony_fence_unit_jobs_extras},
     {"test_colony_jobs_menu_open_has_no_side_effects", test_colony_jobs_menu_open_has_no_side_effects},
+    {"test_colony_jobs_menu_outer_plot_tiers", test_colony_jobs_menu_outer_plot_tiers},
     {"test_join_colony_recomputes_plots", test_join_colony_recomputes_plots},
     {"test_game_world_view", test_game_world_view},
     {"test_goto_place_opens_travelplace_list", test_goto_place_opens_travelplace_list},
@@ -5610,6 +5874,7 @@ static const TestCase k_cases[] = {
     {"test_player_pick_keeps_view", test_player_pick_keeps_view},
     {"test_bar_sale_speedup_only_on_sales", test_bar_sale_speedup_only_on_sales},
     {"test_bar_screen_lines_do_not_block_map", test_bar_screen_lines_do_not_block_map},
+    {"test_slide_pacing_matches_dos", test_slide_pacing_matches_dos},
     {"test_colony_list_keys_wrap", test_colony_list_keys_wrap},
     {"test_colony_custom_house_keys", test_colony_custom_house_keys},
     {"test_screen_f1_focus_article", test_screen_f1_focus_article},
@@ -5626,6 +5891,7 @@ static const TestCase k_cases[] = {
     {"test_brewster_pick_names_home_port", test_brewster_pick_names_home_port},
     {"test_crossing_stamps_nation_return_tile", test_crossing_stamps_nation_return_tile},
     {"test_new_campaign_drops_parked_flow", test_new_campaign_drops_parked_flow},
+    {"test_new_campaign_snapshots_mods", test_new_campaign_snapshots_mods},
     {"test_new_campaign_amer2_seed100_landfall", test_new_campaign_amer2_seed100_landfall},
     {"test_europe_repaints_reset_harbor_selection", test_europe_repaints_reset_harbor_selection},
     {"test_click_spent_unit_hands_off", test_click_spent_unit_hands_off},

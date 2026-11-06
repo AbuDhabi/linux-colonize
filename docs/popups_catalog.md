@@ -190,7 +190,7 @@ Continue / Zoom rows, MSS figure; popups.md "Colony-event choices"). The
 | `@RAIDWREAK` | Done | Third-party news bulletin, not a loot kind: `FUN_5fef_0f14` raw 99895-99899 `FUN_281f_0652(0x1b8a, 3)` once per successful raid on a non-human colony, %STRING3 = victim @NATIONALITY (`ai_contact_raid_wreak_bulletin`, `ai_contact_raid.c`; port_bugs.md #829) |
 | `@RAIDSTORES` | Done | real GAME.TXT body incl. drained cargo name via `popup_msg_fill` (re-verified 2026-09-16) |
 | `@RAIDBURN` | Done | real GAME.TXT body when a building was actually destroyed (named via `s_last_burn_building`); construction-cleared/lumber-drained sub-cases keep the thin paraphrase (no object to name) |
-| `@RAIDSCALP` | Done | real GAME.TXT body via `popup_msg_fill` (re-verified 2026-09-16) |
+| `@RAIDSCALP` | Mod only | dead in DOS (no DS string, port_bugs.md #828); raised by the `mods.raid_scalps` raid kind 5 (`ai_contact_raid.c`) |
 | `@RAIDSHIP` | Done | real GAME.TXT body incl. `units_display_name` via `popup_msg_fill` (re-verified 2026-09-16) |
 | `@RAIDGOLD` | Done | real GAME.TXT body incl. drained amount (`%NUMBER0`) via `popup_msg_fill` (re-verified 2026-09-16) |
 | `@MISSION0` | Done | `ai_contact_establish_mission` picks the band (`MISSION` + 0-3, exactly DOS's digit patch of the DS `"MISSION0"` stem) and fills the real GAME.TXT body — nation / colony / season / year / tribe tokens |
@@ -316,7 +316,7 @@ Continue / Zoom rows, MSS figure; popups.md "Colony-event choices"). The
 | `@CASHTREASURE` | Done | `units_king_galleon_credit` (`units.c`, FUN_5fef_1908 else-branch, no King) — OK via `ai_popup_enqueue_ok` |
 | `@USEDUPTOOLS` | Done | pioneer tools demotion ai_popup OK; VGA PARKED |
 | `@EVASIVE` | Done | already real (`units_combat_resolve.c` `units_resolve_naval_combat_ff_w` naval evasion via `units_combat_enqueue_tok`) — verified against DOS FUN_5fef_1b0e raw ~100629 |
-| `@KINGMERCY` | n/a | dead text: no `KINGMERCY` DS string in VICEROY.EXE — the tax-cut-on-REF-loss audience is cut content |
+| `@KINGMERCY` | Mod only | dead text: no `KINGMERCY` DS string in VICEROY.EXE — the tax-cut-on-REF-loss audience is cut content; raised by `mods.royal_mercy` for a human loser of a Royal unit (`units_royal_loss_tax_cut`, King's portrait) |
 | `@KINGNEWWAR` | Done (structural) | `FUN_38fd_5930` → `ai_king_new_war_event` (2026-08-27): real gate/roll/grant formula, OK popup with title/name/peer/gold/count tokens; VGA PARKED |
 | `@KINGVICTORY` | Done | `FUN_38fd_5be8` score<100 rung (38fd:5d2d): the tax CUT, `%STRING2` = `@COUNTRIES[king_audience_last_pick-1]` (the crown's current war peer). Rendered through `popup_msg_fill` from `ai_king_tax_hike_apply` (`src/core/ai_king.c`) with `%STRING0`/`%STRING1` = difficulty title + player name, `%NUMBER0` = applied delta, `%NUMBER1` = resulting rate; the raise arm keeps the `@TAXOPTIONS` Kiss/Party rows |
 | `@KINGWIFE` | Done | `FUN_38fd_5be8` score<650 rung (38fd:5d64): +1%, bumps the King's wife counter `DS:0x53a7` and names it via `@ORDINAL`. Rendered as `@KINGVICTORY` |

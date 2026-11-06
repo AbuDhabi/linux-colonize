@@ -28,6 +28,7 @@
 #include "core/font.h"
 #include "core/map.h"
 #include "core/map_menu.h"
+#include "core/mods.h"
 #include "core/units.h"
 #include "core/units_internal.h"
 #include "core/units_move.h"
@@ -864,6 +865,74 @@ static int case_1384_native_defender_no_colony_latch(void) {
  * evade/ship-slow power term subtracts 4 per GOODS hold in use, never 4 per
  * passenger. A troop-laden Man-O-War must not be weakened by its passengers.
  */
+/*
+ * mods.h MOD_WAGON_LOOT: a Brave beating a loaded Wagon Train destroys it
+ * (rolls 1-2), takes one good (3-6) or every hold (7-10); the wagon keeps its
+ * owner. Empty wagon, or the mod off: destroyed, and no extra RNG draw.
+ */
+static int wagon_outcome(LandFixture* fx, int wagon, int brave, int loaded, uint32_t seed,
+                         int* drew) {
+  const int lid = units_spawn_allow_stack(&fx->pool, wagon, 3, 3);
+  const int wid = units_spawn_allow_stack(&fx->pool, brave, 3, 3);
+  ColonizeUnit* l = units_get(&fx->pool, lid);
+  units_get(&fx->pool, wid)->nation_id = 4;
+  l->nation_id = 0;
+  if (loaded) {
+    l->hold_goods_type[0] = COLONIZE_CARGO_FURS;
+    l->hold_goods_amount[0] = 100;
+    l->hold_goods_type[1] = COLONIZE_CARGO_CLOTH;
+    l->hold_goods_amount[1] = 50;
+  }
+  ColonizeDosRng rng;
+  dos_rng_seed(&rng, seed * 12345u);
+  const uint32_t before = rng.state;
+  units_apply_land_loss_outcome(&fx->pool, lid, wid, &fx->col1, 0, &rng);
+  *drew = rng.state != before;
+  l = units_get(&fx->pool, lid);
+  const int alive = l && l->active;
+  const int used = alive ? units_holds_used(&fx->pool, lid) : 0;
+  const int out = !alive ? 0 : (l->nation_id != 0 || used == 2) ? -1 : 2 - used;
+  if (alive) {
+    units_despawn(&fx->pool, lid);
+  }
+  units_despawn(&fx->pool, wid);
+  return out; /* 0 destroyed, 1 one good taken, 2 all taken; -1 anything else */
+}
+
+static int case_mod_wagon_loot(void) {
+  LandFixture fx;
+  if (land_fixture_init(&fx) != 0) {
+    return 1;
+  }
+  const int wagon = units_find_type(&fx.pool, "Wagon Train");
+  const int brave = units_find_type(&fx.pool, "Braves");
+  int seen[3] = {0, 0, 0};
+  int rc = wagon < 0 || brave < 0;
+  int drew = 0;
+  mods_campaign_set(1u << MOD_WAGON_LOOT);
+  for (uint32_t seed = 1; !rc && seed < 200; ++seed) {
+    const int o = wagon_outcome(&fx, wagon, brave, 1, seed, &drew);
+    if (o < 0 || o > 2 || !drew || wagon_outcome(&fx, wagon, brave, 0, seed, &drew) != 0 ||
+        drew) {
+      rc = 1;
+    } else {
+      seen[o]++;
+    }
+  }
+  rc |= !seen[0] || !seen[1] || !seen[2];
+  mods_campaign_set(0);
+  for (uint32_t seed = 1; !rc && seed < 50; ++seed) {
+    rc |= wagon_outcome(&fx, wagon, brave, 1, seed, &drew) != 0;
+    rc |= drew; /* off: no draw, the DOS stream is untouched */
+  }
+  if (rc) {
+    fprintf(stderr, "wagon loot: destroyed %d confiscated %d looted %d\n", seen[0], seen[1],
+            seen[2]);
+  }
+  land_fixture_free(&fx);
+  return rc;
+}
+
 static int case_868_naval_evade_goods_not_passengers(void) {
   ColonizeMsgCatalog names;
   assets_msg_init(&names);
@@ -925,5 +994,6 @@ static const TestCase k_cases[] = {
     {"case_834_native_winner_colony_latch", case_834_native_winner_colony_latch},
     {"case_1384_native_defender_no_colony_latch", case_1384_native_defender_no_colony_latch},
     {"case_868_naval_evade_goods_not_passengers", case_868_naval_evade_goods_not_passengers},
+    {"case_mod_wagon_loot", case_mod_wagon_loot},
 };
 TEST_MAIN(k_cases)

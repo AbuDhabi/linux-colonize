@@ -2083,6 +2083,8 @@ static void game_create_load_screens(ColonizeGameState* game) {
         ) &&
         ss_load(ss_path, &game->pedia_buildings, ss_err, sizeof(ss_err))) {
       game->pedia_buildings_ok = true;
+      game->pedia_town_hall_art =
+        colony_screen_splice_town_hall_art(&game->pedia_buildings, game->resolved_data_dir);
       diag_info(
         "Loaded BUILDING.SS for Colonizopedia (%d sprites)",
         game->pedia_buildings.sprite_count
@@ -2216,6 +2218,10 @@ void game_commit_new_campaign(ColonizeGameState* game) {
     return;
   }
   NewGameWizard* ng = &game->new_game;
+
+  /* The campaign keeps the mod toggles the defaults hold now; the save
+   * carries them, later edits of the defaults never reach this game. */
+  mods_campaign_set(settings_mods_new_campaign_mask());
 
   game->difficulty = ng->difficulty;
   game->human_nation = ng->nation;
@@ -2580,6 +2586,15 @@ void activate_menu_selection(ColonizeGameState* game) {
     return;
   }
   diag_info("Menu selected: row %d (%s)", game->menu_selection, game->menu_options[game->menu_selection]);
+
+  /* data/mods @MODBEGINMENU: settings.json mods defaults, page 1 of the mods
+   * checklist (game_apply_options_result chains the next pages). */
+  if (game->menu_selection == game->menu_mods_row) {
+    (void)options_dialog_open_mods(
+      &game->options_dlg, &game->messages, settings_mods_mask(settings_get()), 0
+    );
+    return;
+  }
 
   switch (game->menu_selection) {
     case TITLE_MENU_ROW_EXIT: {

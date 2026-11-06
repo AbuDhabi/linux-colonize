@@ -11,6 +11,7 @@
 #include "core/popup_msg.h"
 #include "core/reports.h"
 #include "core/strutil.h"
+#include "core/ui_button.h"
 #include "core/ui_colors.h"
 #include "core/turn.h"
 #include "core/unit_chrome_draw.h"
@@ -1723,6 +1724,139 @@ void new_game_render_throne_audience(
     }
     y += line_h;
   }
+}
+
+/* mods.kings_audience colours, matched in the KINGLSS palette (the @COLORS
+ * indices are not colours there). */
+static uint8_t new_game_throne_rgb(const ColonizePalette* pal, int r, int g, int b) {
+  return pal ? assets_palette_nearest_rgb(pal, r, g, b) : 0;
+}
+
+/* mods.kings_audience: narrows [*x, *x + *w) to the light parchment the
+ * KINGLSS backdrop shows on every row of [y0, y1), less a margin, so text
+ * follows the scroll's wavy edge. Scans out from the region's middle; a span
+ * under 40 px (no parchment found) leaves the region alone. */
+static void new_game_throne_fit(
+  const ColonizeFramebuffer8* fb, const ColonizePalette* pal, int y0, int y1, int* x, int* w
+) {
+  enum { MARGIN = 4, MIN_W = 40, LIGHT = 120 };
+  if (!pal || !fb || *w <= 0) {
+    return;
+  }
+  const int cx = *x + *w / 2;
+  int left = *x;
+  int right = *x + *w;
+  for (int y = y0 < 0 ? 0 : y0; y < y1 && y < fb->height; ++y) {
+    const uint8_t* row = fb->pixels + (size_t)y * (size_t)fb->width;
+#define NG_LIGHT(px) \
+  ((pal->rgb[row[px]][0] * 3 + pal->rgb[row[px]][1] * 6 + pal->rgb[row[px]][2]) / 10 >= LIGHT)
+    int l = cx;
+    while (l > 0 && NG_LIGHT(l - 1)) {
+      --l;
+    }
+    int r = cx;
+    while (r < fb->width && NG_LIGHT(r)) {
+      ++r;
+    }
+#undef NG_LIGHT
+    left = l > left ? l : left;
+    right = r < right ? r : right;
+  }
+  if (right - left - 2 * MARGIN >= MIN_W) {
+    *x = left + MARGIN;
+    *w = right - left - 2 * MARGIN;
+  }
+}
+
+/* mods.kings_audience: wraps in the caller's font, dropping the quote marks
+ * GAME.TXT puts round the King's speech. */
+static int new_game_throne_wrap(
+  const ColonizeFont* font, const char* text, int w, char out[][COLONIZE_MSG_LINE_LEN],
+  int max_lines
+) {
+  char plain[COLONIZE_MSG_LINE_LEN * 8];
+  size_t n = 0;
+  for (const char* p = text; *p && n + 1 < sizeof(plain); ++p) {
+    if (*p != '"') {
+      plain[n++] = *p;
+    }
+  }
+  plain[n] = '\0';
+  return popup_wrap_text(font, plain, out[0], sizeof(out[0]), NULL, max_lines, w);
+}
+
+int new_game_render_throne_text(
+  const ColonizeFont* font, const ColonizePalette* pal, const char* text, int text_x,
+  int text_y, int text_w, bool centred, ColonizeFramebuffer8* fb
+) {
+  if (!font || !fb || !text || !text[0]) {
+    return text_y;
+  }
+  char out[NEW_GAME_LORE_MAX_OUT][COLONIZE_MSG_LINE_LEN];
+  const int line_h = font->max_height + 1;
+  /* Fit to the scroll over the rows the text takes at full width, plus two
+   * for the extra lines the narrower wrap may add. */
+  const int n_full = new_game_throne_wrap(font, text, text_w, out, NEW_GAME_LORE_MAX_OUT);
+  new_game_throne_fit(fb, pal, text_y, text_y + (n_full + 2) * line_h, &text_x, &text_w);
+  const int n = new_game_throne_wrap(font, text, text_w, out, NEW_GAME_LORE_MAX_OUT);
+  const uint8_t ink = new_game_throne_rgb(pal, 40, 24, 8);
+  for (int i = 0; i < n; ++i) {
+    const int dx = centred ? popup_dos_center_dx(font, out[i], text_w) : 0;
+    font_draw_text(font, fb, text_x + dx, text_y + i * line_h, out[i], ink);
+  }
+  return text_y + n * line_h;
+}
+
+int new_game_render_throne_buttons(
+  const ColonizeFont* font, const ColonizePalette* pal, const char* const* labels, int count,
+  int selection, int x, int y, int w, ColonizeFramebuffer8* fb
+) {
+  if (!font || !fb || !labels || count <= 0) {
+    return 1;
+  }
+  /* The colony screen's BUY / CHANGE button (FUN_2f2b_208c): 9 tall, a bevel and
+   * no fill, label at +4/+2, recoloured for the light scroll (dark ink, brown
+   * bevel; the selected one filled), each sized to its label and centred. A
+   * label too wide for w wraps to a second line; every row then gets the
+   * pitch of the tallest so the hit test stays list_y0 + k * pitch. */
+  enum { MAX_LINES = 2, GAP = 3 };
+  const int line_h = font->max_height + 1;
+  new_game_throne_fit(fb, pal, y, y + count * (9 + GAP) + line_h, &x, &w);
+  int lines_max = 1;
+  for (int r = 0; r < count; ++r) {
+    char out[MAX_LINES][COLONIZE_MSG_LINE_LEN];
+    const int n = new_game_throne_wrap(font, labels[r], w - 7, out, MAX_LINES);
+    lines_max = n > lines_max ? n : lines_max;
+  }
+  const int pitch = 9 + (lines_max - 1) * line_h + GAP;
+  const uint8_t ink = new_game_throne_rgb(pal, 40, 24, 8);
+  const uint8_t face_sel = new_game_throne_rgb(pal, 214, 178, 120);
+  const uint8_t edge_light = new_game_throne_rgb(pal, 255, 244, 220);
+  const uint8_t edge_dark = new_game_throne_rgb(pal, 110, 70, 30);
+  for (int r = 0; r < count; ++r) {
+    char out[MAX_LINES][COLONIZE_MSG_LINE_LEN];
+    const int n = new_game_throne_wrap(font, labels[r], w - 7, out, MAX_LINES);
+    int lw = 0;
+    for (int i = 0; i < n; ++i) {
+      const int tw = font_text_width(font, out[i]);
+      lw = tw > lw ? tw : lw;
+    }
+    /* 4 px before the label and 3 after: the glyphs carry their own trailing
+     * column, so this reads as the same margin on both sides. */
+    const int bw = lw + 7 > w ? w : lw + 7;
+    const int bh = 9 + (n - 1) * line_h;
+    const int bx = x + (w - bw) / 2;
+    const int by = y + r * pitch;
+    if (r == selection) {
+      fb_fill_rect(fb, bx, by, bw, bh, face_sel);
+    }
+    ui_button_draw_frame(fb, bx, by, bw, bh, edge_light, edge_dark);
+    for (int i = 0; i < n; ++i) {
+      const int tw = font_text_width(font, out[i]);
+      font_draw_text(font, fb, bx + 4 + (lw - tw) / 2, by + 2 + i * line_h, out[i], ink);
+    }
+  }
+  return pitch;
 }
 
 static void new_game_subst_build(

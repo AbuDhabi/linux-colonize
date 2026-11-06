@@ -8,8 +8,8 @@
 #include "core/world.h"
 
 /*
- * Port-only divergences (settings.json divergences.scout_autoexplore /
- * ship_autoexplore, docs/explore_auto.md): ORDERS Automate on a Scout or a ship
+ * Port-only per-campaign mods (mods_on(MOD_SCOUT_AUTOEXPLORE) /
+ * MOD_SHIP_AUTOEXPLORE, docs/explore_auto.md): ORDERS Automate on a Scout or a ship
  * explores on its own. Each decision Goes To the best target: for a Scout, on
  * its continent, a seen Lost City Rumour or a native settlement the nation has
  * not visited, else the nearest seen tile next to unexplored ground; for a
@@ -30,7 +30,7 @@ typedef struct ColonizeUnit ColonizeUnit;
 
 /* A Scout or a ship: the units this module automates (setting aside). */
 bool explore_auto_is_explorer(const ColonizeUnitPool* pool, const ColonizeUnit* u);
-/* An explorer whose divergence is on: ORDERS Automate explores with it. */
+/* An explorer whose mod is on: ORDERS Automate explores with it. */
 bool explore_auto_allowed(const ColonizeUnitPool* pool, const ColonizeUnit* u);
 void explore_auto_reset(void);
 

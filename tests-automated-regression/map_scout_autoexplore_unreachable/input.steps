@@ -1,4 +1,4 @@
-# divergences.scout_autoexplore (settings.json). Start: campaign 20 (England 1595, port save), Scout #54
+# mod scout_autoexplore (RTST record 17 in input.sav). Start: campaign 20 (England 1595, port save), Scout #54
 # selected on (21,29) with full moves. The nearest point of interest, the (18,26) rumour, lies past the
 # Arawak village (18,27): the Go To probe misses it, and that miss spends the whole allotment
 # (units_goto_director, FUN_6662_0f74 raw 104623-104647) unless explore_auto_step puts the moves back.

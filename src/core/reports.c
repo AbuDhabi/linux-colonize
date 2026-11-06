@@ -12,6 +12,7 @@
 #include "core/colony_production.h"
 #include "core/combat_strength.h"
 #include "core/founding_fathers.h"
+#include "core/mods.h"
 #include "core/reports.h"
 #include "core/reports_names.h"
 
@@ -342,6 +343,9 @@ static void reports_render_body_start(
 #define REPORTS_OK_Y 184
 #define REPORTS_OK_W 30
 #define REPORTS_OK_H 14
+/* MOD_BUILDING_UPKEEP F6 "TOTAL UPKEEP" line (not DOS): bottom left, OK's row. */
+#define REPORTS_COLONY_UPKEEP_X 19
+#define REPORTS_COLONY_UPKEEP_COLOR 146
 
 bool reports_ok_button_hit(ColonizeReportId id, bool congress_page2, int mx, int my) {
   if (id == COLONIZE_REPORT_SCORE) {
@@ -841,6 +845,16 @@ void reports_render_w(
         reports_render_colony_sol(
           view, col1, human, colonies, font, framebuffer, y, colony_page - garrison_pages, line,
           sizeof(line)
+        );
+      }
+      /* MOD_BUILDING_UPKEEP: LABELS @MISC 92 "TOTAL UPKEEP" + the human's current
+       * total, bottom-left beside OK (below the last row on both page kinds). */
+      if (mods_on(MOD_BUILDING_UPKEEP) && colonies) {
+        const char* label = reports_labels_field("MISC", 92);
+        snprintf(line, sizeof(line), "%s %d", label ? label : "", colonies_upkeep_total(colonies, human));
+        reports_draw_line(
+          (view && view->title_font_ok) ? &view->title_font : font, framebuffer,
+          REPORTS_COLONY_UPKEEP_X, REPORTS_OK_Y + 3, line, REPORTS_COLONY_UPKEEP_COLOR
         );
       }
       break;

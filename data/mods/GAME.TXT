@@ -1,0 +1,120 @@
+;
+;       OpenCol mod text merged into GAME.TXT (docs/settings.md "mods").
+;       Additive only: a new section is added whole; in a stock section
+;       "N=text" appends row N, which must equal the stock row count.
+;
+
+;       Title menu: one row appended after every @BEGINMENU row; it opens
+;       @MODOPTIONS, then @MODOPTIONS2, then @MODOPTIONS3 (each page
+;       saves on its own OK; Esc stops the chain).
+@MODBEGINMENU
+@options
+MODS for New Games
+
+;       Title menu checklist, one page per kind of change. One @options
+;       row per toggle, in the order of the page's id list
+;       (src/core/options_dialog.c k_mods_pages); hotkeys unique within
+;       a page. Edits settings.json; a saved game keeps the toggles it
+;       started with.
+@MODOPTIONS
+@width=220
+@checkbox
+Restored Cut Content
+@options
+~King's Audience
+~Royal Mercy on Lost Frigate
+~Town Hall Expansion, Assembly
+Tribe ~Mood Reports
+Treaty Cancel ~Notice
+Natives ~Loot Wagon Trains
+Raid ~Scalps
+Scout Es~pionage
+
+@MODOPTIONS2
+@width=220
+@checkbox
+New Rules and Features
+@options
+~Abandon Colonies, Building Floor
+Late Founding ~Fathers
+Building ~Upkeep
+Har~d King, Tougher REF
+Plan Pi~oneer, Pioneer Automate
+Scouts Auto-~Explore
+S~hips Auto-Explore
+Current ~Vision Veil
+
+@MODOPTIONS3
+@width=220
+@checkbox
+DOS Bug Fixes
+@options
+~Go To Waits at Natives
+
+;       Button under every @MODOPTIONS page: saves the page, like Enter.
+;       Row 0 on the pages before the last, row 1 on the last.
+@MODOPTIONSDONE
+Next
+Done
+
+;       mods.wagon_loot, roll 3-6: natives take every hold of one good.
+;       %STRING0 tribe, %STRING1 good. Roll 7-10 uses stock @LOOTWAGONS.
+@MODWAGONLOOT1
+@width=190
+{%STRING0} braves seize the {%STRING1} from your wagon train!
+
+;       mods.population_floor: read instead of stock @KEEPSTOCKADE.
+;       %NUMBER0 = the colony's building population floor.
+@MODKEEPSTOCKADE
+@width=220
+We cannot voluntarily reduce below {%NUMBER0} the population of a colony
+with its buildings.
+
+;       mods.tribe_mood: two lines appended to the chief's @PISS<cause>
+;       report. @VILLAGEMOOD: %STRING3 = this village's @ATTITUDE (the colour
+;       of its map marks). @VILLAGECROWD: %STRING0 = the nation whose colonies
+;       put the marks there.
+@VILLAGEMOOD
+@width=190
+^This village is {%STRING3}.
+
+@VILLAGECROWD
+@width=190
+^%STRING0 colonies crowd its lands.
+
+;       mods.kings_audience: the cut 38fd:4668 chamber's menu and refusal,
+;       missing from every stock GAME.TXT, plus the King's specialist offer
+;       (%NUMBER0 = the tax rise; the rows are the Train list's Masters and
+;       Firebrand Preacher) and its arrival notice in @UNREST's shape
+;       (%STRING0 = home port, %STRING1 = the expert).
+@AUDIENCE
+@width=190
+"What is it you desire of us?"
+
+Your royal blessing.
+A specialist.
+A royal grant.
+Lower taxes.
+Independence.
+
+@KINGGOAWAY
+@width=190
+"We have already granted you an audience.  Do not
+try our royal patience.  Come back another time."
+
+@KINGSPECIAL
+@width=190
+"Our Royal University shall train one of its masters
+for you.  In return, your tax rate rises by {%NUMBER0%%}."
+
+@KINGSPECIALOK
+@width=190
+By royal decree, the Royal University has trained
+colonists ({%STRING1}), now available in %STRING0.
+
+;       mods.treaty_cancel_popup: a computer nation cancels its peace treaty
+;       with you (FUN_5bfb_13b0 pushes @CANCELTREATY, which no stock GAME.TXT
+;       ships). %STRING0 = that nation, %STRING1 = yours.
+@MODCANCELTREATY
+@width=190
+The {%STRING0} cancel their peace treaty with the {%STRING1}.

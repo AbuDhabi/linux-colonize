@@ -167,8 +167,8 @@ typedef struct ColonizeUnit {
   uint8_t repair_pending;
   /* Port-only AI first-colony landfall goto memory, not saved (see docs/units.md#colonizeunit-ai_landfall_wait). */
   bool ai_landfall_wait;
-  /* Port-only ORDERS Automate: a Pioneer works the plan (divergences.pioneer_plan,
-   * pioneer_plan.h, saved in 'PPLN'), a Scout or ship explores (divergences.scout_autoexplore /
+  /* Port-only ORDERS Automate: a Pioneer works the plan (mods.pioneer_plan,
+   * pioneer_plan.h, saved in 'PPLN'), a Scout or ship explores (mods.scout_autoexplore /
    * ship_autoexplore, explore_auto.h, saved in 'SAUT'). Survives the order byte (Go To / Clear-Plow / Road
    * it runs); units_wake cancels it. */
   bool automated;

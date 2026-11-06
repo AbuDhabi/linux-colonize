@@ -72,6 +72,7 @@ const char* key_name(ColonizeKey key) {
     case COLONIZE_KEY_RIGHT: return "RIGHT";
     case COLONIZE_KEY_S: return "S";
     case COLONIZE_KEY_F: return "F";
+    case COLONIZE_KEY_K: return "K";
     case COLONIZE_KEY_L: return "L";
     case COLONIZE_KEY_M: return "M";
     case COLONIZE_KEY_Q: return "Q";
@@ -1624,7 +1625,9 @@ void game_request_buy_construction_confirm(ColonizeGameState* game) {
   if (!bt) {
     colonies_unit_build_info(colony->building_in_production, &uname, NULL, NULL);
   }
-  const char* bname = (bt && bt->name[0]) ? bt->name : (uname ? uname : "");
+  const char* bname = (bt && bt->name[0])
+                        ? colonies_building_name(&game->colonies, colony->building_in_production)
+                        : (uname ? uname : "");
   /* One uniform Buy, whether or not tools are short — DOS's own
    * FUN_2f2b_5e44 formula (colonies_construction_gold_cost) already sums
    * hammers+tools into one gold figure; the popup never differs by cause,
@@ -2158,6 +2161,19 @@ static void game_apply_options_result(ColonizeGameState* game) {
           game_settings_commit(&prefs);
         }
         set_status(game, "", NULL);
+      }
+    } else if (game->options_dlg.result_kind == OPTIONS_KIND_MODS) {
+      ColonizeSettings prefs = *settings_get();
+      uint32_t mask = settings_mods_mask(&prefs);
+      if (options_dialog_apply_mods(&game->options_dlg, &mask)) {
+        settings_mods_set_mask(&prefs, mask);
+        game_settings_commit(&prefs);
+        set_status(game, "", NULL);
+        /* Title menu row: OK on a page goes on to the next; each page saves on its own OK. */
+        const int next = game->options_dlg.mods_page + 1;
+        if (next < OPTIONS_MODS_PAGE_COUNT) {
+          (void)options_dialog_open_mods(&game->options_dlg, &game->messages, mask, next);
+        }
       }
     }
   }

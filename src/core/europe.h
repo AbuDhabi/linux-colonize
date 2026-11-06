@@ -461,6 +461,8 @@ bool europe_recruit_affordable(const EuropeScreen* eu);
 bool europe_train_affordable(const EuropeScreen* eu, int train_index);
 bool europe_train(EuropeScreen* eu, int train_index);
 bool europe_train_ex(EuropeScreen* eu, int train_index, struct ColonizeDosRng* rng);
+/* The dock half of europe_train_ex, no gold moved (mods.kings_audience specialist). */
+bool europe_train_place(EuropeScreen* eu, int train_index, struct ColonizeDosRng* rng);
 bool europe_purchase(EuropeScreen* eu, int purchase_index);
 bool europe_purchase_ex(EuropeScreen* eu, int purchase_index, struct ColonizeDosRng* rng);
 /* Purchase row enabled? DOS greys the row when the purse is short

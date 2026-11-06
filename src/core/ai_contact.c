@@ -34,6 +34,7 @@
 #include "core/europe.h"
 #include "core/founding_fathers.h"
 #include "core/map.h"
+#include "core/mods.h"
 #include "core/popup_msg.h"
 #include "core/reports.h"
 #include "core/reports_names.h"
@@ -397,6 +398,60 @@ void ai_contact_alarm_delta_00f2_w(
   ai_popup_enqueue_ok_ctx(
     w->ai_popups, AI_POPUP_TAG_CONTACT_RAID, euro, nation_id, 0, NULL, body
   );
+}
+
+/* MOD_TRIBE_MOOD per-cause alarm tally (see ai_contact.h). Index 0 unused. */
+static int16_t s_mood_tally[8][4][6];
+
+void ai_contact_mood_note(int nation_id, int euro, int reason, int delta) {
+  const int t = nation_id - 4;
+  if (!mods_on(MOD_TRIBE_MOOD) || t < 0 || t >= 8 || euro < 0 || euro > 3 || reason < 1 ||
+      reason > 5) {
+    return;
+  }
+  int v = s_mood_tally[t][euro][reason] + delta;
+  v = v > 30000 ? 30000 : v < -30000 ? -30000 : v;
+  s_mood_tally[t][euro][reason] = (int16_t)v;
+}
+
+int ai_contact_mood_take(int nation_id, int euro) {
+  const int t = nation_id - 4;
+  if (t < 0 || t >= 8 || euro < 0 || euro > 3) {
+    return 0;
+  }
+  int best = 0;
+  int best_mag = 0;
+  for (int r = 1; r <= 5; ++r) {
+    const int mag = abs(s_mood_tally[t][euro][r]);
+    if (mag > best_mag) {
+      best_mag = mag;
+      best = r;
+    }
+  }
+  memset(s_mood_tally[t][euro], 0, sizeof(s_mood_tally[t][euro]));
+  return best;
+}
+
+void ai_contact_mood_reset(void) {
+  memset(s_mood_tally, 0, sizeof(s_mood_tally));
+}
+
+bool ai_contact_mood_export(uint8_t out[AI_CONTACT_MOOD_SIZE]) {
+  const int16_t* v = &s_mood_tally[0][0][0];
+  bool any = false;
+  for (int i = 0; i < AI_CONTACT_MOOD_SIZE / 2; ++i) {
+    out[i * 2] = (uint8_t)((uint16_t)v[i] & 0xff);
+    out[i * 2 + 1] = (uint8_t)((uint16_t)v[i] >> 8);
+    any = any || v[i] != 0;
+  }
+  return any;
+}
+
+void ai_contact_mood_import(const uint8_t in[AI_CONTACT_MOOD_SIZE]) {
+  int16_t* v = &s_mood_tally[0][0][0];
+  for (int i = 0; i < AI_CONTACT_MOOD_SIZE / 2; ++i) {
+    v[i] = (int16_t)(uint16_t)(in[i * 2] | in[i * 2 + 1] << 8);
+  }
 }
 
 int ai_contact_indian_has_peace(

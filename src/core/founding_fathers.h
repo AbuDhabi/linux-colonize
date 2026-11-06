@@ -104,10 +104,15 @@ void founding_fathers_reset(void);
 /*
  * NAMES.TXT @FATHERS type (column 1) and century weight (column 2 + band,
  * band 0/1/2 as FUN_4345_005a), as DOS FUN_75c2_1770 loads them. A miss
- * gives type -1 and weight 0.
+ * gives type -1 and weight 0. With MOD_LATE_FATHERS on and a well-formed
+ * NAMES.TXT @MODFATHERS, both read that section and its YEARS bands instead.
  */
 int founding_fathers_category(int ff_index);
 int founding_fathers_century_weight(int ff_index, int band);
+#ifdef COLONIZE_TESTING
+/* @MODFATHERS rejections (one per NAMES.TXT load that parses a bad section). */
+int founding_fathers_mod_warnings(void);
+#endif
 
 /*
  * True if nation owns FF index. Per-nation bitmask ONLY (DOS FUN_15eb_3960);

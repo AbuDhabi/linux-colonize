@@ -25,6 +25,7 @@
 #include "core/colony_production.h"
 #include "core/colony_yield.h"
 #include "core/europe.h"
+#include "core/mods.h"
 #include "core/ss.h"
 #include "core/strutil.h"
 #include "core/units_cargo.h"
@@ -1166,6 +1167,37 @@ int colonies_list_eject_roles(
   return colonies_list_eject_roles_ex(pool, colony_id, colonist_index, out_roles, NULL, out_max);
 }
 
+int colonies_min_population_floor(const ColonizeColonyPool* pool, const ColonizeColony* colony) {
+  int floor = 1;
+  if (!pool || !colony) {
+    return floor;
+  }
+  for (int i = 0; i < COLONIZE_BUILDING_TYPES_MAX; ++i) {
+    const ColonizeBuildingType* bt = colony->has_building[i] ? colonies_building_type(pool, i) : NULL;
+    if (bt && bt->min_population > floor) {
+      floor = bt->min_population;
+    }
+  }
+  return floor;
+}
+
+bool colonies_eject_allowed(const ColonizeColonyPool* pool, const ColonizeColony* colony) {
+  if (!mods_on(MOD_POPULATION_FLOOR) || !colony) {
+    return true;
+  }
+  const int floor = colonies_min_population_floor(pool, colony);
+  return floor < 2 || colony->colonist_count > floor;
+}
+
+static int colonies_eject_colonist_impl(
+  ColonizeColonyPool* pool,
+  int colony_id,
+  int colonist_index,
+  ColonizeUnitPool* units,
+  int role,
+  bool enforce_floor
+);
+
 int colonies_eject_colonist(
   ColonizeColonyPool* pool,
   int colony_id,
@@ -1173,11 +1205,70 @@ int colonies_eject_colonist(
   ColonizeUnitPool* units,
   int role
 ) {
+  return colonies_eject_colonist_impl(pool, colony_id, colonist_index, units, role, true);
+}
+
+int colonies_abandon_walk_out(ColonizeColonyPool* pool, int colony_id, ColonizeUnitPool* units) {
+  const ColonizeColony* col = colonies_get(pool, colony_id);
+  if (!col || !units) {
+    return -1;
+  }
+  int walked = 0;
+  while (col->colonist_count > 0) {
+    /* The Colonist row is always offered (DB-9), so only a full unit pool
+     * refuses; stop there rather than lose anyone with the colony. */
+    if (colonies_eject_colonist_impl(pool, colony_id, 0, units, COLONIZE_EJECT_COLONIST, false) < 0) {
+      return -1;
+    }
+    ++walked;
+  }
+  (void)colonies_abandon(pool, colony_id);
+  return walked;
+}
+
+void colonies_kill_colonist(
+  const ColonizeColonyPool* pool, ColonizeCol1Save* col1, ColonizeColony* col, int kill_i
+) {
+  if (!col || kill_i < 0 || kill_i >= col->colonist_count) {
+    return;
+  }
+  for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES_MAX; ++ti) {
+    if ((int)col->tiles[ti] == kill_i) {
+      col->tiles[ti] = (int8_t)-1;
+    } else if ((int)col->tiles[ti] > kill_i) {
+      col->tiles[ti] = (int8_t)((int)col->tiles[ti] - 1);
+    }
+  }
+  colonies_colonist_tail_stash(pool, col);
+  for (int i = kill_i; i < col->colonist_count - 1; ++i) {
+    col->colonists[i] = col->colonists[i + 1];
+  }
+  memset(&col->colonists[col->colonist_count - 1], 0, sizeof(col->colonists[0]));
+  col->colonist_count--;
+  col->population = col->colonist_count;
+  /* FUN_15eb_0d04 also takes 100 off the +0xc6 divisor. */
+  colonies_col1_rebel_divisor_adjust(col1, col->x, col->y, -100);
+}
+
+static int colonies_eject_colonist_impl(
+  ColonizeColonyPool* pool,
+  int colony_id,
+  int colonist_index,
+  ColonizeUnitPool* units,
+  int role,
+  bool enforce_floor
+) {
   ColonizeColony* col = colonies_get_mut(pool, colony_id);
   if (!col || !units) {
     return -1;
   }
   if (colonist_index < 0 || colonist_index >= col->colonist_count) {
+    return -1;
+  }
+  /* MOD_POPULATION_FLOOR (not DOS): voluntary ejects, player and AI, stop at
+   * the building floor. Off: no floor here (the colony screen keeps DOS's
+   * Stockade-at-3 refusal). */
+  if (enforce_floor && !colonies_eject_allowed(pool, col)) {
     return -1;
   }
   ColonizeColonist* c = &col->colonists[colonist_index];

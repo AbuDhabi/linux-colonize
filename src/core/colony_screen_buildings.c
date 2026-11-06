@@ -18,6 +18,7 @@
 #include "core/founding_fathers.h"
 #include "core/map_menu.h"
 #include "core/map_panel.h"
+#include "core/mods.h"
 #include "core/popup.h"
 #include "core/popup_msg.h"
 #include "core/reports.h"
@@ -307,8 +308,21 @@ int colony_screen_category_built(
  *    instead (see the badge block in colony_screen_draw_area_overlays).
  *  - anything else: its highest built tier, else the size class's filler.
  */
+/* MOD_TOWN_HALL_TIERS: the colony's top Town Hall tier row (11 > 10 > 9). */
+static int colony_screen_town_hall_tier_row(
+  const ColonizeColonyPool* pool, const ColonizeColony* colony
+) {
+  if (colonies_has_building_row(pool, colony, COLONY_BUILDING_TOWN_HALL_3)) {
+    return COLONY_BUILDING_TOWN_HALL_3;
+  }
+  if (colonies_has_building_row(pool, colony, COLONY_BUILDING_TOWN_HALL_2)) {
+    return COLONY_BUILDING_TOWN_HALL_2;
+  }
+  return COLONY_BUILDING_TOWN_HALL;
+}
+
 static int colony_screen_category_sprite(
-  const ColonizeColonyPool* pool, const ColonizeColony* colony, int cat
+  const ColonizeColonyPool* pool, const ColonizeColony* colony, int cat, int town_hall_art
 ) {
   if (cat < 0 || cat >= colony_screen_building_slot_count) {
     return -1;
@@ -326,6 +340,11 @@ static int colony_screen_category_sprite(
     return stable ? COLONY_WAREHOUSE_STABLE_SPRITE : warehouse;
   }
   const int built = colony_screen_category_built(pool, colony, cat);
+  if (built >= 0 && cat == COLONY_CAT_TOWN_HALL && mods_on(MOD_TOWN_HALL_TIERS)) {
+    /* MOD_TOWN_HALL_TIERS: each tier draws its own art (the BDARK sprites
+     * colony_screen_splice_town_hall_art appended to BUILDING.SS). */
+    return colony_screen_town_hall_sprite(town_hall_art, colony_screen_town_hall_tier_row(pool, colony));
+  }
   if (built >= 0) {
     return built;
   }
@@ -743,7 +762,7 @@ void colony_screen_blit_buildings(
    * never blit over another slot's counters (player-reported: resource
    * counters rendered under buildings). */
   for (int i = 0; i < colony_screen_building_slot_count; ++i) {
-    const int drawn_sprite = colony_screen_category_sprite(pool, colony, i);
+    const int drawn_sprite = colony_screen_category_sprite(pool, colony, i, view->town_hall_art);
     if (drawn_sprite < 0) {
       continue;
     }
@@ -757,7 +776,7 @@ void colony_screen_blit_buildings(
   for (int i = 0; i < colony_screen_building_slot_count; ++i) {
     const ColonyBuildingSlot* slot = &colony_screen_building_slots[i];
     const int built = colony_screen_category_built(pool, colony, i);
-    const int drawn_sprite = colony_screen_category_sprite(pool, colony, i);
+    const int drawn_sprite = colony_screen_category_sprite(pool, colony, i, view->town_hall_art);
     if (drawn_sprite < 0) {
       continue;
     }
@@ -968,12 +987,17 @@ void colony_screen_blit_buildings(
       if (colony_screen_category_built(pool, colony, i) != view->hover_building_row) {
         continue;
       }
-      const ColonizeBuildingType* bt = colonies_building_type(pool, view->hover_building_row);
-      if (!bt || !bt->name[0]) {
+      /* MOD_TOWN_HALL_TIERS: name the Town Hall tier actually drawn. */
+      const int name_index =
+        (i == COLONY_CAT_TOWN_HALL && mods_on(MOD_TOWN_HALL_TIERS))
+          ? colonies_building_row(pool, (ColonizeBuildingRow)colony_screen_town_hall_tier_row(pool, colony))
+          : view->hover_building_row;
+      const char* name = colonies_building_name(pool, name_index);
+      if (!name[0]) {
         break;
       }
       const int cls = colony_screen_building_slots[i].size_class;
-      const int w1 = font_text_width(font, bt->name) + 1;
+      const int w1 = font_text_width(font, name) + 1;
       const int h = 7;
       int lx = slot_x[i] + colony_screen_class_box[cls][0] / 2 - w1 / 2;
       int ly = slot_oy + slot_y[i];
@@ -991,7 +1015,7 @@ void colony_screen_blit_buildings(
        * (x AX, y DX, w BX; stack: colour = PUSH 0, height = 7, then the
        * DS:0x2da8..0x2dae target surface far ptr). Colour is literal 0. */
       fb_fill_rect(framebuffer, lx, ly, w1, h, 0);
-      font_draw_text(font, framebuffer, lx + 1, ly + 1, bt->name, 15);
+      font_draw_text(font, framebuffer, lx + 1, ly + 1, name, 15);
       break;
     }
   }

@@ -22,6 +22,7 @@
 #include "core/combat_strength.h"
 #include "core/europe.h"
 #include "core/founding_fathers.h"
+#include "core/mods.h"
 #include "core/popup_msg.h"
 #include "core/reports.h"
 #include "core/sound.h"
@@ -583,7 +584,14 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_combat_pre(units_move_ctx* c) {
       ColonizeWorld aw = *c->w;
       aw.col1 = col1;
       aw.col1_ok = true;
+      /* MOD_TRIBE_MOOD: DOS passes reason 0 here (raw 75626); an attack on a
+       * tribe still below alarm 0x4b (the @WHACKINDIANS band) is tallied as
+       * @PISS4. The alarm read draws nothing. */
+      const bool unprovoked = ai_diplo_indian_alarm(col1, foe_nation, unit->nation_id) < 0x4b;
       ai_contact_alarm_delta_00f2_w(&aw, foe_nation, unit->nation_id, delta);
+      if (unprovoked) {
+        ai_contact_mood_note(foe_nation, unit->nation_id, 4, delta);
+      }
     }
   }
   /*
@@ -1821,6 +1829,23 @@ bool units_set_goto_w(
   return true;
 }
 
+
+/*
+ * dos_bugs.md DB-77: DOS FUN_479b_0972 (raw 77052-77122) takes each Go To step
+ * from FUN_6662_0f74; with the goal adjacent that is the plain sign step
+ * FUN_6662_0086 (raw 104556-104565), no occupancy test, so a native unit on
+ * the goal is attacked. Fixed behind MOD_GOTO_NATIVE_WAIT (default on). The
+ * one human test for both the raw step and the activation pacer.
+ */
+bool units_goto_waits_for_native(
+  const ColonizeCol1Save* col1, const ColonizeUnit* mover, const ColonizeUnit* occupant, int x,
+  int y
+) {
+  return mods_on(MOD_GOTO_NATIVE_WAIT) && mover && occupant &&
+         col1_nation_is_human(col1, mover->nation_id, g_units_combat_human_nation) &&
+         occupant->nation_id >= 4 && occupant->nation_id <= 11 &&
+         units_tribe_nation_at(col1, x, y) < 4;
+}
 
 /*
  * port_bugs.md #418: is this unit's NEXT goto step the final one, onto an Indian
@@ -3488,6 +3513,13 @@ bool units_advance_goto_one_step_w(
     if ((of && of->nation_id != u->nation_id) || foreign_colony ||
         (village >= 4 && u->nation_id >= 0 && u->nation_id <= 3)) {
       if (!step_is_dest) {
+        return false;
+      }
+      /* MOD_GOTO_NATIVE_WAIT (dos_bugs.md DB-77): a human Go To waits next
+       * to a native unit on its goal, keeping the order, instead of attacking
+       * (DOS FUN_6662_0086 raw 104556-104565 hands the goal to the
+       * FUN_465b_0000 attack). Same exit as a unit in the way above. */
+      if (units_goto_waits_for_native(units_world_col1(w), u, of, nx, ny)) {
         return false;
       }
       /*

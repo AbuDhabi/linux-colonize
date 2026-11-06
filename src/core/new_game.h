@@ -201,6 +201,27 @@ void new_game_render_throne_audience(
   ColonizePalette* out_palette
 );
 
+/*
+ * mods.kings_audience: text on the throne-room scroll in `font` (FONTTINY),
+ * dark ink matched in `pal` (the KINGLSS palette), quote marks dropped,
+ * optionally centred per line. Returns the y below it.
+ */
+int new_game_render_throne_text(
+  const ColonizeFont* font, const ColonizePalette* pal, const char* text, int text_x,
+  int text_y, int text_w, bool centred, ColonizeFramebuffer8* fb
+);
+
+/*
+ * mods.kings_audience: a column of colony-screen style buttons sized to their
+ * labels (up to two lines, quote marks dropped), the selected one filled.
+ * Returns the pitch (tallest height + gap), which the caller hands to the
+ * ai_popup row hit test.
+ */
+int new_game_render_throne_buttons(
+  const ColonizeFont* font, const ColonizePalette* pal, const char* const* labels, int count,
+  int selection, int x, int y, int w, ColonizeFramebuffer8* fb
+);
+
 /* AMER2 @SCENARIO start tile for nation 0..3 (Dutch falls back if missing). */
 bool new_game_scenario_start(
   const ColonizeMsgCatalog* names_txt,

@@ -231,6 +231,22 @@ typedef enum AiPopupTag {
   AI_POPUP_TAG_MULTINEXT = 76 /* hot-seat handoff @MULTINEXT (FUN_130d_0290 raw 6372,
                                * 0x137): drawn over a blanked screen (raw 6370-6371,
                                * FUN_1b70_003a(200, 0x140, 0)). docs/hotseat.md. */
+  ,
+  AI_POPUP_TAG_KING_CHAMBER = 77 /* mods.kings_audience: the cut 38fd:4668 audience menu
+                                 * @AUDIENCE (data/mods text). Choice ids are DOS's
+                                 * 1-based rows 1..5; Esc / any other row = leave. */
+  ,
+  AI_POPUP_TAG_KING_GRANT = 78 /* mods.kings_audience: FUN_38fd_44a4 @KINGFUND Accept /
+                                * Never mind. payload = grant gold. */
+  ,
+  AI_POPUP_TAG_KING_CHAMBER_MSG = 79 /* mods.kings_audience: a plain chamber message
+                                      * (@KINGWELCOME0, @KINGGOAWAY, @KINGBLESS, ...). OK
+                                      * only; like 77/78 it is drawn on the throne-room
+                                      * scroll (game_loop.c). */
+  ,
+  AI_POPUP_TAG_KING_SPECIALIST = 80 /* mods.kings_audience: @KINGSPECIAL, the specialists
+                                     * the Crown trains for a tax rise. Choice ids = @JOB
+                                     * rows; payload = the tax rise. Esc = none. */
 } AiPopupTag;
 
 typedef struct AiPopupRequest {

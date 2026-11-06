@@ -2,6 +2,7 @@
 #include "../common/test_runner.h"
 #include "core/units_internal.h"
 #include "core/dos_buggy.h"
+#include "core/mods.h"
 #include "core/reports_names.h"
 
 
@@ -2102,7 +2103,51 @@ static int unit_royal_loss_tax_cut(void) {
       return 1;
     }
   }
+  /* MOD_ROYAL_MERCY: each type reads its own row (the King's Frigate cuts 8,
+   * Artillery 2), and the human loser gets @KINGMERCY in the King's portrait;
+   * an AI loser gets the cut but no popup. */
+  static const struct { const char* name; int want_cut; } m[] = {
+    {"Frigate", 8}, {"Caravel", 2}, {"Artillery", 2}, {"Privateer", 3},
+  };
+  mods_campaign_set(1u << MOD_ROYAL_MERCY);
+  int rc = 0;
+  for (size_t i = 0; i < sizeof(m) / sizeof(m[0]) && rc == 0; ++i) {
+    for (int human = 0; human < 2 && rc == 0; ++human) {
+      ColonizeUnitPool pool;
+      memset(&pool, 0, sizeof(pool));
+      pool.type_count = 1;
+      snprintf(pool.types[0].name, sizeof(pool.types[0].name), "%s", m[i].name);
+      ColonizeUnit u;
+      memset(&u, 0, sizeof(u));
+      u.nation_id = 1;
+      u.col1_flags15 = 0x40;
+      ColonizeCol1Save c1;
+      memset(&c1, 0, sizeof(c1));
+      c1.nation[1].tax_rate = 30;
+      for (int n = 0; n < (int)COLONIZE_COL1_NATION_COUNT; ++n) {
+        c1.player[n].control = (uint8_t)(human && n == 1 ? 0 : 1);
+      }
+      c1.head.human_player = (uint16_t)(human ? 1 : 0);
+      static AiPopupState pops;
+      ai_popup_init(&pops);
+      units_reset_hooks();
+      units_set_combat_popups(&pops, test_game_txt());
+      const int cut = units_royal_loss_tax_cut(&c1, &pool, &u);
+      const int want_pops = human && test_game_txt() ? 1 : 0;
+      if (cut != m[i].want_cut || (int)c1.nation[1].tax_rate != 30 - m[i].want_cut ||
+          pops.queue_count != want_pops ||
+          (want_pops && pops.queue[0].tag != AI_POPUP_TAG_KING_TAX)) {
+        fprintf(stderr, "royaltax mod: %s human %d: cut %d tax %d popups %d\n", m[i].name,
+                human, cut, (int)c1.nation[1].tax_rate, pops.queue_count);
+        rc = 1;
+      }
+    }
+  }
+  mods_campaign_set(0);
   units_reset_hooks();
+  if (rc != 0) {
+    return rc;
+  }
   fprintf(stderr, "unit_units: #659 royal hull loss tax cut ok\n");
   return 0;
 }

@@ -150,7 +150,7 @@ struct ColonizeGameState {
    * silently snatch control back the next frame. units.selected_id >= 0
    * always implies Move Pieces regardless of this flag. */
   bool view_pieces_mode;
-  /* Port-only VIEW Plan Pioneer overlay (divergences.pioneer_plan): a sub-mode
+  /* Port-only VIEW Plan Pioneer overlay (mods.pioneer_plan): a sub-mode
    * of View Pieces, dropped whenever Move Pieces takes over. */
   bool pioneer_plan_view;
   /* port_bugs.md #285: unit id whose off-screen auto-recentre is suspended
@@ -342,6 +342,7 @@ struct ColonizeGameState {
   bool pedia_wood_ok;
   ColonizeSpriteSheet pedia_buildings;
   bool pedia_buildings_ok;
+  int pedia_town_hall_art; /* MOD_TOWN_HALL_TIERS art base in pedia_buildings, 0 = none */
   ColonizeReportsView reports;
   bool reports_ok;
   bool in_report;
@@ -467,6 +468,7 @@ struct ColonizeGameState {
   DebugAtlas debug_atlas;
   char menu_options[MENU_MAX_OPTIONS][COLONIZE_MSG_LINE_LEN];
   int menu_option_count;
+  int menu_mods_row; /* data/mods @MODBEGINMENU row after the stock rows, -1 = none */
   int menu_selection;
   int menu_dialog_width; /* @BEGINMENU @width (default 160) */
   int menu_dialog_y; /* @BEGINMENU @y (default 91) */
@@ -535,6 +537,9 @@ void game_apply_save_load_result(ColonizeGameState* game);
 void game_apply_trade_dest(ColonizeGameState* game, int id);
 void game_begin_win_closing_or_score(ColonizeGameState* game);
 void game_click_activate_unit(ColonizeGameState* game, int unit_id);
+/* colonist_index of the MOD_POPULATION_FLOOR ABANDON button: everyone walks
+ * out (colonies_abandon_walk_out). */
+#define GAME_COLONY_ABANDON_ALL (-2)
 void game_colony_finish_eject(
   ColonizeGameState* game,
   int colonist_index,

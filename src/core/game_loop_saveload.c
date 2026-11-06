@@ -93,6 +93,10 @@ static void game_hotseat_announce(ColonizeGameState* game, int n);
 
 static bool game_apply_col1_save(ColonizeGameState* game, ColonizeCol1Save* loaded, char* err, size_t err_size) {
   ColonizeCol1BridgeResult result;
+  /* The outgoing campaign's mods go with its world; the save's RTST record
+   * (if any) sets the new mask in the bridge below, so a failed apply leaves
+   * every mod off rather than the old campaign's. */
+  mods_campaign_set(0);
   /* The outgoing world's occupancy map must not see the spawns below: every
    * spawn claims its tile's owner nibble through it, which rewrote a reloaded
    * save's tribe-owned tiles (port_bugs.md #1172 reload; the first load of a
@@ -934,6 +938,7 @@ void game_end_to_title(ColonizeGameState* game) {
   /* DOS leaves the year loop on DS:0x53c2 == 0 (FUN_130d_0290 raw 6511): an
    * end of turn parked behind FUN_3844_0442's dialogs does not resume. */
   memset(&game->turn_proc, 0, sizeof(game->turn_proc));
+  mods_campaign_set(0); /* the campaign is over; the next new game or load sets its own */
   game->in_menu = true;
   sound_set_bgm(SOUND_TITLE_BGM_POOL);
   set_status(game, "OpenCol", NULL);
@@ -1182,6 +1187,7 @@ void render_pedia_screen(const ColonizeGameState* game, ColonizeFramebuffer8* fr
                                                                      : NULL,
     /* FUN_6cb2_07e6 raw 110471 tints the unit icon with DS:0x5398. */
     .human_nation = game_fixed_human(game),
+    .town_hall_art = game->pedia_buildings_ok ? game->pedia_town_hall_art : 0,
   };
   pedia_article_render(&assets, game->pedia_category, game->pedia_index, framebuffer);
 

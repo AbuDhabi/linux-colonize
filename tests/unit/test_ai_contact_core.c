@@ -7,6 +7,8 @@
 #include "core/ai_contact_internal.h"
 #include "core/ai_internal.h"
 #include "core/dos_buggy.h"
+#include "core/mods.h"
+#include "core/runtime_ext.h"
 #include "core/sound.h"
 
 /*
@@ -6114,6 +6116,18 @@ static int sp_53(void) {
         fprintf(stderr, "unit_ai_contact: chief status '%s'\n", st_menu);
         return fail("chief: not scouted → @CHIEFBORED");
       }
+      /* mods.h MOD_TRIBE_MOOD: a second visit with the mod on ends on the
+       * chief's report, here @PISS1 (roads tallied since the last one). */
+      mods_campaign_set(1u << MOD_TRIBE_MOOD);
+      ai_contact_mood_note(4, 0, 1, 3);
+      st_menu[0] = '\0';
+      ai_contact_apply_popup_result(&ctx, &res);
+      mods_campaign_set(0);
+      if (!scout->active || strstr(st_menu, "roadbuilding") == NULL ||
+          ai_contact_mood_take(4, 0) != 0) {
+        fprintf(stderr, "unit_ai_contact: mood report '%s'\n", st_menu);
+        return fail("chief: mood mod must report @PISS1 and clear the tally");
+      }
       units_despawn(&units, scout_id);
     }
     /*
@@ -7098,7 +7112,58 @@ static int case_village_bgm_cue(void) {
   return hits > 0 && hits < 399 ? 0 : fail("village bgm: roll never varied");
 }
 
+/* True when the runtime_ext blob carries a record with this id. */
+static bool rt_has_record(int id) {
+  size_t size = 0;
+  uint8_t* blob = runtime_ext_serialize(NULL, NULL, &size);
+  bool found = false;
+  for (size_t off = 0; blob && off + 8 <= size;) {
+    const int rid = blob[off] | blob[off + 1] << 8;
+    const size_t len = (size_t)(blob[off + 4] | blob[off + 5] << 8 | blob[off + 6] << 16 |
+                                (uint32_t)blob[off + 7] << 24);
+    found = found || rid == id;
+    off += 8 + len;
+  }
+  free(blob);
+  return found;
+}
+
+/* mods.h MOD_TRIBE_MOOD: the chief names the cause with the largest |tally|
+ * since the last report; the take clears that pair; off = nothing tallied.
+ * RTST record 15 exists only while some tally is non-zero. */
+static int case_mood_tally(void) {
+  ai_contact_mood_reset();
+  mods_campaign_set(0);
+  ai_contact_mood_note(5, 0, 1, 9);
+  if (ai_contact_mood_take(5, 0) != 0 || rt_has_record(15)) {
+    return fail("mood: mod off must not tally or save");
+  }
+  mods_campaign_set(1u << MOD_TRIBE_MOOD);
+  ai_contact_mood_note(5, 0, 1, 6);  /* roads */
+  ai_contact_mood_note(5, 0, 5, 1);  /* pressure */
+  ai_contact_mood_note(5, 0, 5, 1);
+  ai_contact_mood_note(5, 0, 3, -8); /* missionaries cool more than roads heat */
+  ai_contact_mood_note(6, 1, 2, 4);  /* another pair */
+  const bool saved = rt_has_record(15);
+  uint8_t blob[AI_CONTACT_MOOD_SIZE];
+  const bool any = ai_contact_mood_export(blob);
+  ai_contact_mood_reset();
+  ai_contact_mood_import(blob);
+  const int first = ai_contact_mood_take(5, 0);
+  const int again = ai_contact_mood_take(5, 0);
+  const int other = ai_contact_mood_take(6, 1);
+  const bool empty_saved = rt_has_record(15);
+  mods_campaign_set(0);
+  if (!saved || !any || first != 3 || again != 0 || other != 2 || empty_saved) {
+    fprintf(stderr, "saved %d any %d first %d again %d other %d empty_saved %d\n", saved, any,
+            first, again, other, empty_saved);
+    return fail("mood: largest |tally| wins, take clears, saved only while non-zero");
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+  {"mood_tally", case_mood_tally},
   {"village_bgm_cue", case_village_bgm_cue},
   {"welcome_accept_come_word", case_welcome_accept_come_word},
   {"meet_first_contact", case_meet_first_contact},

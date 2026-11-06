@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "core/dos_buggy.h"
 #include "core/json_min.h"
 #include "core/screen_geom.h"
 #include "core/strutil.h"
@@ -103,14 +104,34 @@ static const SettingsBoolOpt k_debug_opts[] = {
 static const SettingsBoolOpt k_divergence_opts[] = {
   SETTINGS_BOOL(unlimited_units, false),
   SETTINGS_BOOL(modern_prng, false),
-  SETTINGS_BOOL(pioneer_plan, false),
-  SETTINGS_BOOL(current_vision, false),
-  SETTINGS_BOOL(scout_autoexplore, false),
-  SETTINGS_BOOL(ship_autoexplore, false),
-  SETTINGS_BOOL(hard_king, false),
+};
+
+/* "mods": one row per ModId, in ModId order. DOS bug fixes default on,
+ * gameplay mods and new features default off. */
+#define SETTINGS_MOD(key, id, def_value) \
+  {key, offsetof(ColonizeSettings, mods) + (size_t)(id) * sizeof(bool), (def_value)}
+static const SettingsBoolOpt k_mod_opts[] = {
+  SETTINGS_MOD("wagon_loot", MOD_WAGON_LOOT, false),
+  SETTINGS_MOD("goto_native_wait", MOD_GOTO_NATIVE_WAIT, true),
+  SETTINGS_MOD("population_floor", MOD_POPULATION_FLOOR, false),
+  SETTINGS_MOD("raid_scalps", MOD_RAID_SCALPS, false),
+  SETTINGS_MOD("royal_mercy", MOD_ROYAL_MERCY, false),
+  SETTINGS_MOD("late_fathers", MOD_LATE_FATHERS, false),
+  SETTINGS_MOD("town_hall_tiers", MOD_TOWN_HALL_TIERS, false),
+  SETTINGS_MOD("building_upkeep", MOD_BUILDING_UPKEEP, false),
+  SETTINGS_MOD("kings_audience", MOD_KINGS_AUDIENCE, false),
+  SETTINGS_MOD("tribe_mood", MOD_TRIBE_MOOD, false),
+  SETTINGS_MOD("scout_spying", MOD_SCOUT_SPYING, false),
+  SETTINGS_MOD("treaty_cancel_popup", MOD_TREATY_CANCEL_POPUP, false),
+  SETTINGS_MOD("pioneer_plan", MOD_PIONEER_PLAN, false),
+  SETTINGS_MOD("scout_autoexplore", MOD_SCOUT_AUTOEXPLORE, false),
+  SETTINGS_MOD("ship_autoexplore", MOD_SHIP_AUTOEXPLORE, false),
+  SETTINGS_MOD("hard_king", MOD_HARD_KING, false),
+  SETTINGS_MOD("current_vision", MOD_CURRENT_VISION, false),
 };
 
 #define SETTINGS_OPT_COUNT(t) ((int)(sizeof(t) / sizeof((t)[0])))
+_Static_assert(SETTINGS_OPT_COUNT(k_mod_opts) == MOD_COUNT, "one settings row per ModId");
 
 static bool* settings_bool_at(ColonizeSettings* s, const SettingsBoolOpt* opt) {
   return (bool*)((char*)s + opt->offset);
@@ -169,6 +190,9 @@ void settings_defaults(ColonizeSettings* out) {
   }
   for (int i = 0; i < SETTINGS_OPT_COUNT(k_divergence_opts); ++i) {
     *settings_bool_at(out, &k_divergence_opts[i]) = k_divergence_opts[i].def;
+  }
+  for (int i = 0; i < SETTINGS_OPT_COUNT(k_mod_opts); ++i) {
+    *settings_bool_at(out, &k_mod_opts[i]) = k_mod_opts[i].def;
   }
   out->soundfont[0] = '\0';
   out->midi_backend[0] = '\0';
@@ -256,6 +280,10 @@ bool settings_save_file(const char* path, const ColonizeSettings* in, char* err,
 
   fprintf(f, "  \"divergences\": {\n");
   wb_group(f, in, k_divergence_opts, SETTINGS_OPT_COUNT(k_divergence_opts), true);
+  fprintf(f, "  },\n");
+
+  fprintf(f, "  \"mods\": {\n");
+  wb_group(f, in, k_mod_opts, SETTINGS_OPT_COUNT(k_mod_opts), true);
   fprintf(f, "  },\n");
 
   fprintf(f, "  \"data_dir\": ");
@@ -423,6 +451,17 @@ bool settings_load_file(const char* path, ColonizeSettings* out, char* err, size
     json_obj_get(root, "divergences"), out, k_divergence_opts,
     SETTINGS_OPT_COUNT(k_divergence_opts)
   );
+  const JsonValue* mods = json_obj_get(root, "mods");
+  rb_group(mods, out, k_mod_opts, SETTINGS_OPT_COUNT(k_mod_opts));
+  /* These toggles were "divergences" keys before they became mods: a legacy
+   * key seeds the new-game default when "mods" has no value for it. The next
+   * write drops the legacy key. */
+  for (int id = MOD_PIONEER_PLAN; id <= MOD_CURRENT_VISION; ++id) {
+    bool v;
+    if (!json_get_bool(mods, k_mod_opts[id].key, &v)) {
+      rb(json_obj_get(root, "divergences"), k_mod_opts[id].key, &out->mods[id]);
+    }
+  }
 
   const char* data_dir = json_get_str(root, "data_dir");
   if (data_dir && data_dir[0]) {
@@ -602,6 +641,24 @@ void settings_capture_from_head(ColonizeSettings* s, const ColonizeCol1Head* hea
   s->background_music = head->tut2.background_music != 0;
   s->event_music = head->tut2.event_music != 0;
   s->sound_effects = head->tut2.sound_effects != 0;
+}
+
+uint32_t settings_mods_mask(const ColonizeSettings* s) {
+  uint32_t mask = 0;
+  for (int i = 0; s && i < MOD_COUNT; ++i) {
+    mask |= s->mods[i] ? 1u << i : 0u;
+  }
+  return mask;
+}
+
+void settings_mods_set_mask(ColonizeSettings* s, uint32_t mask) {
+  for (int i = 0; s && i < MOD_COUNT; ++i) {
+    s->mods[i] = (mask >> i & 1u) != 0;
+  }
+}
+
+uint32_t settings_mods_new_campaign_mask(void) {
+  return dos_buggy_behavior() ? 0u : settings_mods_mask(settings_get());
 }
 
 ColonizeSoundOptions settings_sound_options(const ColonizeSettings* s) {

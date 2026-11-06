@@ -1,4 +1,4 @@
-# divergences.scout_autoexplore (settings.json). Start: map_rumour_colonist_outcomes' input.sav (France 1599),
+# mod scout_autoexplore (RTST record 17 in input.sav). Start: map_rumour_colonist_outcomes' input.sav (France 1599),
 # Seasoned Scout #77 selected on (29,62), full moves, next to an Iroquois village and the (30,62) rumour.
 key q        # ORDERS Automate: the unvisited village wins the pick (points of interest -4, scan order), the
 wait 30      # pacer walks in: woodcut + @ACTIONS menu (Speak With Chief / Demand Tribute / Attack / Cancel)

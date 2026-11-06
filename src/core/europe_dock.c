@@ -294,18 +294,29 @@ bool europe_train_ex(EuropeScreen* eu, int train_index, ColonizeDosRng* rng) {
   }
   /* FUN_38fd_41ce raw 64432-64440: the harbor spawn comes first and the
    * purse is charged only when it succeeded. */
+  if (!europe_train_place(eu, train_index, rng)) {
+    return false;
+  }
+  europe_purse_move(eu, g_europe_live_save, europe_purse_nation(eu), -t->cost);
+  eu->status[0] = '\0';
+  diag_info("EUROPE trained %s for %d$ (gold=%d)", t->expert_name, t->cost, eu->gold);
+  return true;
+}
+
+bool europe_train_place(EuropeScreen* eu, int train_index, ColonizeDosRng* rng) {
+  if (!eu || train_index < 0 || train_index >= eu->train_count) {
+    return false;
+  }
+  const EuropeTrainOption* t = &eu->train[train_index];
   EuropeDockImmigrant* slot = europe_dock_insert_front(eu);
   if (!slot) {
     return false;
   }
-  europe_purse_move(eu, g_europe_live_save, europe_purse_nation(eu), -t->cost);
   snprintf(slot->name, sizeof(slot->name), "%s", t->expert_name);
   slot->profession = t->job_index;
   slot->present = true;
   slot->sentry = true;
   slot->dos_type = europe_dock_type_roll(eu, slot->name, slot->profession, rng);
-  eu->status[0] = '\0';
-  diag_info("EUROPE trained %s for %d$ (gold=%d)", t->expert_name, t->cost, eu->gold);
   return true;
 }
 

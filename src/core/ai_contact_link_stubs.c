@@ -43,6 +43,14 @@ void ai_contact_alarm_delta_00f2_w(
   ai_diplo_indian_alarm_delta(w->col1, nation_id, euro, delta);
 }
 
+/* MOD_TRIBE_MOOD tally: slim targets never report it. */
+void ai_contact_mood_note(int nation_id, int euro, int reason, int delta) {
+  (void)nation_id;
+  (void)euro;
+  (void)reason;
+  (void)delta;
+}
+
 /* Never war-worthy without ai_euro.c. */
 int ai_euro_10ec_war_worthy(const ColonizeTurnContext* ctx, int a, int b) {
   (void)ctx;

@@ -18,6 +18,7 @@
 #include "core/fb.h"
 #include "core/font.h"
 #include "core/map_panel.h"
+#include "core/mods.h"
 #include "core/screen_geom.h"
 #include "core/ss.h"
 #include "core/strutil.h"
@@ -164,7 +165,8 @@ static const MapMenuAction k_menu_rows_view[] = {
   MAP_MENU_ACTION_FIND_COLONY, MAP_MENU_ACTION_ZOOM_IN, MAP_MENU_ACTION_ZOOM_OUT,
   MAP_MENU_ACTION_ZOOM_LEVEL_120X96, MAP_MENU_ACTION_ZOOM_LEVEL_60X48,
   MAP_MENU_ACTION_ZOOM_LEVEL_30X24, MAP_MENU_ACTION_ZOOM_LEVEL_15X12,
-  MAP_MENU_ACTION_VIEW_HIDDEN_TERRAIN, MAP_MENU_ACTION_CENTER_VIEW
+  MAP_MENU_ACTION_VIEW_HIDDEN_TERRAIN, MAP_MENU_ACTION_CENTER_VIEW,
+  MAP_MENU_ACTION_KING_AUDIENCE /* mods.kings_audience: stock stops at row 12; data/mods appends 13 */
 };
 /* Rows 3 and 4 are both "Fortify" (land 0x302, ship 0x303): the second is
  * the ship's anchor order. */
@@ -310,9 +312,20 @@ static bool map_menu_action_enabled(MapMenuAction action) {
     case MAP_MENU_ACTION_CHEAT_TEST_ROUTINE:
     case MAP_MENU_ACTION_PLAN_PIONEER:
     case MAP_MENU_ACTION_AUTOMATE:
+    case MAP_MENU_ACTION_KING_AUDIENCE:
       return true;
     default:
       return false;
+  }
+}
+
+/* The mods.kings_audience and mods.pioneer_plan rows are hidden (so their
+ * hotkeys are dead too) unless the running campaign has the mod on. */
+static bool map_menu_action_visible(MapMenuAction action) {
+  switch (action) {
+    case MAP_MENU_ACTION_KING_AUDIENCE: return mods_on(MOD_KINGS_AUDIENCE);
+    case MAP_MENU_ACTION_PLAN_PIONEER: return mods_on(MOD_PIONEER_PLAN);
+    default: return true;
   }
 }
 
@@ -341,7 +354,7 @@ static void map_menu_append_item(
   snprintf(item->label, sizeof(item->label), "%s", label_raw);
   item->action = action;
   item->separator = (action == MAP_MENU_ACTION_SEPARATOR);
-  item->visible = true;
+  item->visible = map_menu_action_visible(action);
   item->enabled = !item->separator && map_menu_action_enabled(action);
   if (item->separator) {
     item->hotkey = 0;
@@ -543,7 +556,7 @@ static bool map_menu_load_section(
     map_menu_append_item(menu, label, action);
   }
   map_menu_insert_dos_separators(menu);
-  /* Port-only rows (divergences.pioneer_plan); map_menu_refresh hides them while off. */
+  /* Port-only rows (mods.pioneer_plan etc.); map_menu_refresh hides them while off. */
   if (strcmp(section_name, "VIEW") == 0) {
     map_menu_insert_port_item(menu, MAP_MENU_ACTION_VIEW_PIECES, "Pla~n Pioneer", MAP_MENU_ACTION_PLAN_PIONEER);
   } else if (strcmp(section_name, "ORDERS") == 0) {
@@ -922,14 +935,15 @@ static void map_menu_refresh_orders_dos(
     }
   }
 
-  /* Automate: Pioneers (divergences.pioneer_plan), Scouts / ships
-   * (divergences.scout_autoexplore / ship_autoexplore). */
+  /* Automate: Pioneers (mods.pioneer_plan), Scouts / ships
+   * (mods.scout_autoexplore / ship_autoexplore), per the running campaign. */
   const bool scout = land && units_type_is_scout(units_type(ctx->units, u->type_index));
   for (int i = 0; i < orders->item_count; ++i) {
     MapMenuItem* it = &orders->items[i];
     if (it->action == MAP_MENU_ACTION_AUTOMATE) {
-      it->visible = (ctx->pioneer_plan && pioneer) || (ctx->scout_auto && scout) ||
-                    (ctx->ship_auto && sea);
+      it->visible = (mods_on(MOD_PIONEER_PLAN) && pioneer) ||
+                    (mods_on(MOD_SCOUT_AUTOEXPLORE) && scout) ||
+                    (mods_on(MOD_SHIP_AUTOEXPLORE) && sea);
       it->enabled = it->visible && (!pioneer || u->tools >= 20);
     }
   }
@@ -1022,10 +1036,9 @@ void map_menu_refresh(MapMenuBar* bar, const MapMenuOrdersContext* ctx) {
         it->enabled = false;
         continue;
       }
-      it->visible = true;
+      it->visible = map_menu_action_visible(it->action);
       it->enabled = map_menu_action_enabled(it->action);
       if (it->action == MAP_MENU_ACTION_PLAN_PIONEER) {
-        it->visible = ctx && ctx->pioneer_plan;
         snprintf(
           it->label, sizeof(it->label), "Pla~n Pioneer: %s", ctx && ctx->plan_view ? "On" : "Off"
         );
@@ -1589,6 +1602,8 @@ const char* map_menu_action_name(MapMenuAction action) {
       return "center_view";
     case MAP_MENU_ACTION_PLAN_PIONEER:
       return "plan_pioneer";
+    case MAP_MENU_ACTION_KING_AUDIENCE:
+      return "king_audience";
     case MAP_MENU_ACTION_AUTOMATE:
       return "automate";
     case MAP_MENU_ACTION_VIEW_HIDDEN_TERRAIN:

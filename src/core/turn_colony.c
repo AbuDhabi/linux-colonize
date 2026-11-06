@@ -134,6 +134,7 @@ static void turn_colony_building_completion_one(ColonizeTurnContext* ctx, Coloni
     return;
   }
   const int built_row = colonies_building_type_row(ctx->colonies, col->building_in_production);
+  const char* bname = colonies_building_name(ctx->colonies, col->building_in_production);
   if (!colonies_try_complete_building_ex(
         ctx->colonies, col->id, ctx->col1_ok ? ctx->col1 : NULL
       )) {
@@ -148,7 +149,7 @@ static void turn_colony_building_completion_one(ColonizeTurnContext* ctx, Coloni
   }
   if (ctx->europe && col->nation_id == ctx->human_nation) {
     turn_emit_built_chrome(
-      ctx->messages, ctx->ai_popups, col, bt->name, built_row, ctx->europe->status,
+      ctx->messages, ctx->ai_popups, col, bname, built_row, ctx->europe->status,
       sizeof(ctx->europe->status)
     );
   }

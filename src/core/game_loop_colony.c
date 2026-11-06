@@ -52,6 +52,7 @@
 #include "core/map_gen.h"
 #include "core/map_menu.h"
 #include "core/map_panel.h"
+#include "core/mods.h"
 #include "core/name_entry_dialog.h"
 #include "core/new_game.h"
 #include "core/options_dialog.h"
@@ -320,11 +321,33 @@ static int game_colony_selected_colonist(ColonizeGameState* game) {
 void game_colony_select_colonist(ColonizeGameState* game, int colonist_index);
 void game_colony_select_outside(ColonizeGameState* game, int unit_id);
 
+/* Mod (not DOS): abandoning a colony shows woodcut 12, art and caption DOS
+ * ships with no call site, the first time only (DOS's once-only bit). Either
+ * mod that documents it (population floor's ABANDON, raid scalps' abandon
+ * woodcut) turns it on. */
+static void game_colony_abandon_woodcut(ColonizeGameState* game) {
+  if (mods_on(MOD_POPULATION_FLOOR) || mods_on(MOD_RAID_SCALPS)) {
+    (void)woodcut_fire(&game->col1, WOODCUT_COLONY_DESTROYED);
+  }
+}
+
 void game_colony_finish_eject(
   ColonizeGameState* game,
   int colonist_index,
   int role
 ) {
+  if (colonist_index == GAME_COLONY_ABANDON_ALL) {
+    /* A refused spawn (@TOOMANYUNITS via the spawn hook) keeps the colony
+     * with whoever is left. */
+    if (colonies_abandon_walk_out(&game->colonies, game->colony_view_id, &game->units) < 0) {
+      return;
+    }
+    game_ui_drag_clear(game);
+    game->in_colony = false;
+    game->colony_view_id = -1;
+    game_colony_abandon_woodcut(game);
+    return;
+  }
   const int uid = colonies_eject_colonist(
     &game->colonies, game->colony_view_id, colonist_index, &game->units, role
   );
@@ -337,6 +360,7 @@ void game_colony_finish_eject(
     colonies_abandon(&game->colonies, game->colony_view_id);
     game->in_colony = false;
     game->colony_view_id = -1;
+    game_colony_abandon_woodcut(game);
     return;
   }
   game_tutorial_colony_assigned(game); /* leave-as picks go through 2f3e too (291f_054c) */
@@ -355,18 +379,33 @@ bool game_colony_request_eject(
     return true;
   }
   const ColonizeColony* colony = colonies_get(&game->colonies, game->colony_view_id);
-  if (!colony || colonist_index < 0) {
+  /* MOD_POPULATION_FLOOR ABANDON button: straight to the @ABANDON confirm,
+   * past the floor and @SIEGE. */
+  const bool all =
+    colonist_index == GAME_COLONY_ABANDON_ALL && mods_on(MOD_POPULATION_FLOOR);
+  if (!colony || (colonist_index < 0 && !all)) {
     return true;
   }
   /* fandom Stockade/Colony: with Stockade/Fort/Fortress cannot voluntarily
-   * drop below 3 (port previously kept ≥2 — docs/fandom_col1994.md Conflicts). */
-  if (colonies_has_fortification(&game->colonies, colony) && colony->colonist_count <= 3) {
+   * drop below 3 (port previously kept ≥2 — docs/fandom_col1994.md Conflicts).
+   * MOD_POPULATION_FLOOR: every built building's min population is the floor
+   * (colonies_eject_colonist enforces the same), named as %NUMBER0 by the
+   * data/mods @MODKEEPSTOCKADE text. */
+  const bool floor_mod = mods_on(MOD_POPULATION_FLOOR);
+  const int floor = floor_mod ? colonies_min_population_floor(&game->colonies, colony)
+                              : (colonies_has_fortification(&game->colonies, colony) ? 3 : 1);
+  if (!all && floor >= 2 && colony->colonist_count <= floor) {
     colony_screen_close_eject(csv);
     char body[AI_POPUP_BODY_LEN];
+    PopupMsgTokens floor_tok;
+    memset(&floor_tok, 0, sizeof(floor_tok));
+    floor_tok.number0 = floor;
+    floor_tok.has_number0 = true;
+    const bool mod_text = floor_mod && assets_msg_find(&game->messages, "MODKEEPSTOCKADE");
     popup_msg_fill(
       &game->messages,
-      "KEEPSTOCKADE",
-      NULL,
+      mod_text ? "MODKEEPSTOCKADE" : "KEEPSTOCKADE",
+      mod_text ? &floor_tok : NULL,
       "",
       body,
       sizeof(body)
@@ -380,7 +419,7 @@ bool game_colony_request_eject(
   /* FUN_2f2b_011e (viceroy_overlays.c:60412) code 0x14, between the stockade
    * and abandon arms: leaving as anything but Soldier (0x15) / Dragoon (0x17)
    * is refused with @SIEGE while FUN_2f2b_0000 reports a siege. */
-  if (role != COLONIZE_EJECT_SOLDIER && role != COLONIZE_EJECT_DRAGOON) {
+  if (!all && role != COLONIZE_EJECT_SOLDIER && role != COLONIZE_EJECT_DRAGOON) {
     const ColonizeWorld w = game_world(game);
     if (colonies_siege_margin_w(&w, colony) != 0) {
       colony_screen_close_eject(csv);
@@ -391,7 +430,7 @@ bool game_colony_request_eject(
       return true;
     }
   }
-  if (colony->colonist_count <= 1) {
+  if (all || colony->colonist_count <= 1) {
     char body[AI_POPUP_BODY_LEN];
     PopupMsgTokens tok;
     memset(&tok, 0, sizeof(tok));

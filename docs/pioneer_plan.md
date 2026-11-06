@@ -1,7 +1,7 @@
 # Pioneer plan and Automate (port-only)
 
-Divergence, off by default: `settings.json` `divergences.pioneer_plan`
-(docs/settings.md). Nothing here exists in DOS. Code: `src/core/pioneer_plan.c`
+Per-campaign mod, off by default: `mods_on(MOD_PIONEER_PLAN)`, new-game default
+`settings.json` `mods.pioneer_plan` (docs/settings.md "Mods"). Nothing here exists in DOS. Code: `src/core/pioneer_plan.c`
 (sim: plan grid, validity, reconcile, Automate, `PPLN` chunk); UI hooks in
 `game_loop_eot.c` (menu actions, rotation), `game_loop_update.c` (pacer, per-frame
 reconcile), `game_loop.c` (overlay, menu context), `map_menu.c` (rows).

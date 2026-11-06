@@ -367,6 +367,8 @@ bool game_europe_menu_confirm(ColonizeGameState* game);
 void game_europe_request_sail(ColonizeGameState* game, int hidx);
 void game_finish_end_turn(ColonizeGameState* game, const ColonizeTurnResult* result);
 int game_fog_nation(const ColonizeGameState* game);
+/* mods.current_vision: the veil is drawn this frame (game_loop.c). */
+bool game_current_vision_on(const ColonizeGameState* game);
 /* CHEAT Set Human Player (DOS case 0x66), nation 0..3; see game_loop_saveload.c. */
 bool game_cheat_set_human(ColonizeGameState* game, int n, char* err, size_t err_size);
 /* Hot-seat: rebind to turn_proc.handoff_nation (docs/hotseat.md). */
@@ -446,6 +448,12 @@ void render_europe_screen(const ColonizeGameState* game, ColonizeFramebuffer8* f
 void render_pedia_screen(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffer);
 
 void game_camera_edge_center(void* user, int x, int y);
+/* FUN_112b_0eb6 pacing for the move slide and the combat lunge: 16 frames;
+ * total_ms is the time from the first to the last; wait_next waits until a
+ * frame after f is due and returns it. */
+#define GAME_SLIDE_STEPS 16
+COLONIZE_INTERNAL uint32_t game_slide_total_ms(const ColonizeGameState* game);
+COLONIZE_INTERNAL int game_slide_wait_next(uint32_t t0, uint32_t total_ms, int f);
 void game_popup_camera(void* user, const AiPopupRequest* req);
 void game_phantom_lunge(
   void* user, const ColonizeUnitPool* pool, int type_index, int nation_id,

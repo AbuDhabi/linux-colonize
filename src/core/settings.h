@@ -6,6 +6,7 @@
 #include <stdint.h>
 
 #include "core/col1_save_layout.h"
+#include "core/mods.h"
 #include "core/sound.h"
 
 /*
@@ -104,14 +105,14 @@ typedef struct ColonizeSettings {
   bool input_logger;        /* record keyboard/mouse events as JSON lines (platform input_log) */
   char input_logger_directory[512]; /* where input_<stamp>.jsonl files go */
 
-  /* "divergences": opt-in departures from DOS behaviour (default all off). */
+  /* "divergences": opt-in departures from DOS behaviour (default all off),
+   * process-wide, read at startup. Per-campaign toggles are "mods" below. */
   bool unlimited_units; /* skip the FUN_1427_06b4 unit limits (units_set_unlimited) */
   bool modern_prng;     /* xoshiro256** instead of the DOS LCG (dos_rng_modern_seed) */
-  bool pioneer_plan;    /* VIEW Plan Pioneer overlay + ORDERS Automate (pioneer_plan.h) */
-  bool current_vision;  /* fog-blue checkerboard on seen tiles outside live unit/colony sight */
-  bool scout_autoexplore; /* ORDERS Automate on a Scout explores (explore_auto.h) */
-  bool ship_autoexplore;  /* ORDERS Automate on a ship explores the ocean (explore_auto.h) */
-  bool hard_king;         /* harder REF: waves per turn by difficulty, seize-landings, 5x5 garrison */
+
+  /* "mods": per-toggle defaults a new game copies into its campaign (mods.h).
+   * Indexed by ModId. A running campaign never reads these. */
+  bool mods[MOD_COUNT];
 } ColonizeSettings;
 
 /* DOS new-game state (0x5382=0xc600, 0x5384=0, 0x5386=0x0e) plus port
@@ -155,6 +156,15 @@ bool settings_save_file(const char* path, const ColonizeSettings* in, char* err,
  */
 void settings_apply_to_head(const ColonizeSettings* s, ColonizeCol1Head* head);
 void settings_capture_from_head(ColonizeSettings* s, const ColonizeCol1Head* head);
+
+/* "mods" defaults as a ModId bit mask, and back. */
+uint32_t settings_mods_mask(const ColonizeSettings* s);
+void settings_mods_set_mask(ColonizeSettings* s, uint32_t mask);
+
+/* The mask a new campaign starts with: the live settings' "mods" defaults, or
+ * 0 under dos_buggy_behavior() (every test binary) so tests and goldens see
+ * every toggle off unless they set the campaign mask themselves. */
+uint32_t settings_mods_new_campaign_mask(void);
 
 /* Bridge to the audio mixer options. */
 ColonizeSoundOptions settings_sound_options(const ColonizeSettings* s);

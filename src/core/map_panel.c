@@ -582,20 +582,8 @@ static void map_panel_draw_tribe_chrome(
     uint8_t surround;
     int n;
     if (threat == mark_nation) {
-      const ColonizeCol1Indian* ind = &col1->indian[t->nation_id - 4];
-      int tier = ((int)t->alarm[mark_nation].friction |
-                  ((int)t->alarm[mark_nation].attacks << 8)) >> 5;
-      if (tier < 0) {
-        tier = 0;
-      }
-      if (tier > 3) {
-        tier = 3;
-      }
-      if ((int)ind->alarm_by_player[mark_nation] >= 0x4b) {
-        tier = 3;
-      }
       static const uint8_t k_tier_color[4] = {0x0au, 0x0bu, 0x0eu, 0x0cu};
-      color = k_tier_color[tier];
+      color = k_tier_color[ai_indian_village_alarm_tier(col1, t, mark_nation)];
       surround = 0u;
       n = score;
     } else {

@@ -1,4 +1,4 @@
-# divergences.ship_autoexplore (settings.json). Start: map_move_ship_tile_by_tile's input.sav (France 1599),
+# mod ship_autoexplore (RTST record 17 in input.sav). Start: map_move_ship_tile_by_tile's input.sav (France 1599),
 # Caravel at sea on (47,29) selected, 4 moves.
 key q        # ORDERS Automate: Go To (52,28), the seen ocean tile lifting the most fog per tile sailed;
 wait 30      # the pacer sails it until the moves run out (51,28), fog lifts, SAUT saved; Caravel A gets selected

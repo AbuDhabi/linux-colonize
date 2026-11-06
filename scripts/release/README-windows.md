@@ -30,9 +30,10 @@ harmless.
   picker, then tick the human powers).
 - `-D` — self-running demo; a key quits.
 - `settings.json` `sound_options.soundfont` — override the bundled soundfont.
-- `settings.json` `divergences` — opt-in non-DOS extras (`pioneer_plan`,
-  `scout_autoexplore`, `ship_autoexplore`, `current_vision`, `hard_king`, ...); all off by
-  default.
+- `settings.json` `mods` — per-feature toggles (`pioneer_plan`,
+  `scout_autoexplore`, `ship_autoexplore`, `current_vision`, `hard_king`, ...), also
+  on the title menu (MODS for New Games); each campaign keeps the set it started
+  with. Gameplay mods are off by default, DOS bug fixes on.
 
 Settings and saves are written next to the game data.
 

@@ -26,6 +26,7 @@
 #include "core/europe.h"
 #include "core/founding_fathers.h"
 #include "core/map.h"
+#include "core/mods.h"
 #include "core/popup_msg.h"
 #include "core/reports.h"
 #include "core/reports_names.h"
@@ -2818,6 +2819,11 @@ static void ai_diplo_13b0_treaty_tick(ColonizeTurnContext* ctx, int a, int b) {
     body[0] = '\0';
     if (!is_cancel) {
       popup_msg_fill(ctx->messages, "DECLAREWAR", &tok, "", body, sizeof(body));
+    } else if (mods_on(MOD_TREATY_CANCEL_POPUP) && ctx->messages &&
+               assets_msg_find(ctx->messages, "MODCANCELTREATY")) {
+      /* mods.treaty_cancel_popup: data/mods text, drawn with @DECLAREWAR's
+       * MSS2 courtier (popup_msg.c k_popup_msg_mss). */
+      popup_msg_fill(ctx->messages, "MODCANCELTREATY", &tok, NULL, body, sizeof(body));
     } else if (ctx->messages && assets_msg_find(ctx->messages, "CANCELTREATY")) {
       popup_msg_fill(ctx->messages, "CANCELTREATY", &tok, NULL, body, sizeof(body));
     } else {

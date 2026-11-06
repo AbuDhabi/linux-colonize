@@ -24,6 +24,7 @@
 #include "core/colony_production.h"
 #include "core/colony_yield.h"
 #include "core/europe.h"
+#include "core/mods.h"
 #include "core/ss.h"
 #include "core/strutil.h"
 #include "core/units_cargo.h"
@@ -77,6 +78,8 @@ int colonies_settlement_icon(const ColonizeColonyPool* pool, const ColonizeColon
 /* Names as loaded, by row — the only place a building name can be matched. */
 char colony_building_row_names[COLONIZE_BUILDING_TYPES_MAX][40];
 int colony_building_row_name_count = 0;
+/* MOD_TOWN_HALL_TIERS: NAMES @MODBUILDING rows 0/1 = names of rows 10/11. */
+static char colony_building_mod_names[2][40];
 
 static int colonies_fortification_tier(const ColonizeColonyPool* pool, const ColonizeColony* c) {
   switch (colonies_settlement_icon(pool, c)) {
@@ -327,7 +330,6 @@ bool colonies_load_buildings(ColonizeColonyPool* pool, const ColonizeMsgCatalog*
     int upkeep = 0;
     /* NAMES.TXT: name, cost, tools(*10), size, min_colony, upkeep */
     sscanf(p, " %d , %d , %d , %d , %d", &hammers, &tools_cost, &size, &min_pop, &upkeep);
-    (void)upkeep;
 
     ColonizeBuildingType* t = &pool->building_types[pool->building_type_count++];
     t->row_plus1 = pool->building_type_count; /* @BUILDING row = identity */
@@ -344,10 +346,38 @@ bool colonies_load_buildings(ColonizeColonyPool* pool, const ColonizeMsgCatalog*
     t->tools_cost = tools_cost * 10;
     t->min_population = min_pop;
     t->size_class = size;
+    t->upkeep = upkeep;
+  }
+
+  /* MOD_TOWN_HALL_TIERS (not DOS): mod names of rows 10/11 from the mod-only
+   * @MODBUILDING section (data/mods/NAMES.TXT). Loaded always; read only while
+   * the mod is on. The stock t->name stays "Town Hall". */
+  memset(colony_building_mod_names, 0, sizeof(colony_building_mod_names));
+  const ColonizeMsgSection* mod = assets_msg_find(names, "MODBUILDING");
+  for (int i = 0; mod && i < mod->line_count && i < 2; ++i) {
+    str_copy_trunc(colony_building_mod_names[i], sizeof(colony_building_mod_names[0]), mod->lines[i]);
   }
 
   diag_info("Loaded %d building types from NAMES.TXT @BUILDING", pool->building_type_count);
   return pool->building_type_count > 0;
+}
+
+const char* colonies_building_mod_name(int row) {
+  if (!mods_on(MOD_TOWN_HALL_TIERS) || row < COLONY_BUILDING_TOWN_HALL_2 ||
+      row > COLONY_BUILDING_TOWN_HALL_3) {
+    return NULL;
+  }
+  const char* s = colony_building_mod_names[row - COLONY_BUILDING_TOWN_HALL_2];
+  return s[0] ? s : NULL;
+}
+
+const char* colonies_building_name(const ColonizeColonyPool* pool, int type_index) {
+  const ColonizeBuildingType* bt = colonies_building_type(pool, type_index);
+  if (!bt) {
+    return "";
+  }
+  const char* m = colonies_building_mod_name(colonies_building_type_row(pool, type_index));
+  return m ? m : bt->name;
 }
 
 static ColoniesBuildingNameRowResolver g_building_name_row_resolver = NULL;

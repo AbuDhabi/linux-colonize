@@ -8,7 +8,7 @@
 #include "core/colony.h"
 #include "core/map.h"
 #include "core/explore_auto.h"
-#include "core/settings.h"
+#include "core/mods.h"
 #include "core/units.h"
 #include "core/units_move.h"
 
@@ -19,7 +19,7 @@ static uint8_t s_plan[256 * 256];
 #define PIONEER_PLAN_TOOLS_MIN 20
 
 bool pioneer_plan_enabled(void) {
-  return settings_get()->pioneer_plan;
+  return mods_on(MOD_PIONEER_PLAN);
 }
 
 void pioneer_plan_reset(void) {

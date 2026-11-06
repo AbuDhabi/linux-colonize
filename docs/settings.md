@@ -58,7 +58,14 @@ defaults no matter what file is sitting in the build directory.
     "menu": false, "mouse_coords": false, "building_rects": false, "logs": false,
     "trace_autosaves": false, "input_logger": false, "input_logger_directory": "./input_logs"
   },
-  "divergences": { "unlimited_units": false, "modern_prng": false, "pioneer_plan": false, "current_vision": false, "scout_autoexplore": false, "ship_autoexplore": false, "hard_king": false },
+  "divergences": { "unlimited_units": false, "modern_prng": false },
+  "mods": {
+    "wagon_loot": false, "goto_native_wait": true, "population_floor": false, "raid_scalps": false,
+    "royal_mercy": false, "late_fathers": false, "town_hall_tiers": false, "building_upkeep": false,
+    "kings_audience": false, "tribe_mood": false, "scout_spying": false, "treaty_cancel_popup": false,
+    "pioneer_plan": false, "scout_autoexplore": false, "ship_autoexplore": false, "hard_king": false,
+    "current_vision": false
+  },
   "data_dir": "./COLONIZE",
   "save_dir": "",
   "no_sound": false,
@@ -116,28 +123,66 @@ tick) then leave the stream alone, so nothing replays. Values re-derived on dema
 from a stable seed stay on the LCG (`dos_rng_range_lcg`): the colony-screen building
 layout (every frame) and a village's taught skill (@CHIEFHOWDY, then the visit). The state rides
 in RTST record 13, written only while on; off = DOS draws and saves unchanged.
-`divergences.pioneer_plan` adds VIEW Plan Pioneer and ORDERS Automate
-(docs/pioneer_plan.md); off = the rows stay hidden and no `PPLN` chunk is written.
-`divergences.scout_autoexplore` offers ORDERS Automate (`Q`) to Scouts, which then
-explore on their own (docs/explore_auto.md); `divergences.ship_autoexplore` does the same
-for ships (ocean fog only). Both off = no row for those units and no `SAUT` chunk.
-`divergences.hard_king` makes the War of Independence REF tougher (`ai_king_ref.c`):
-(1) `ai_king_ref_wave` runs up to difficulty + 1 FUN_43f7_0982 waves a turn
-(Discoverer 1 .. Viceroy 5), each spending one Man-O-War from the pool; an empty hull
-or land pool ends the turn's waves, and later waves skip colonies already invaded this
-turn while another coastal colony is left; (2) the landing sweep
-(`ai_king_0982_land_troops`) no longer counts the target's own units in a tile's stack,
-so occupied tiles tie with empty ones and get seized (FUN_43f7_0512, units destroyed);
-(3) target scoring adds the target's land units with attack > 1 within Chebyshev 2 of
-the colony (off its tile) to the tile strength and, outside the Fort/Fortress
-multiplier, to the garrison score. Off = DOS. Nothing saved.
-`divergences.current_vision` dithers (1-pixel checkerboard: 1/4 fog blue, palette 60..62, over 3/4 pixel; palette-nearest LUT) every seen
-map tile that no unit or colony of the viewed nation currently sees: unit tiles
-from `units_sight_radius` + the `map_sight_each` domain gate, colonies radius 1.
-The veil covers explored tiles plus a 1-tile ring into the unexplored. Layering,
-top first: colony names, fog (pixels the terrain pass left as fog are re-stamped,
-`s_fog_mask`), the veil (`game_render_current_vision`), everything else.
-Render-only, nothing saved.
+`pioneer_plan`, `scout_autoexplore`, `ship_autoexplore`, `hard_king` and
+`current_vision` used to be `divergences` keys; they are per-campaign `mods` now
+(below). A file that still has one of them under `divergences` and not under
+`mods` seeds that mod's new-game default from it once; the next write keeps only
+the `mods` key.
+
+### Mods
+
+`mods` holds per-feature toggles (`src/core/mods.h`, one `ModId` bit each; ids
+are stable and append-only). DOS bug fixes default on, gameplay changes default
+off. The file holds only the defaults for *new* games: `game_commit_new_campaign`
+snapshots them into the campaign mask (`mods_campaign_set`), the mask rides the
+save in RTST record 17, and code asks `mods_on(id)`. Changing the defaults never
+touches a running campaign. A save without the record (DOS, older port saves)
+loads with every mod off; leaving to the title clears the mask. With
+`dos_buggy_behavior()` on (every test binary) a new game gets mask 0.
+
+The defaults are edited on the title menu only (the in-game GAME pulldown stays
+stock): `data/mods/GAME.TXT` `@MODBEGINMENU` adds one row after every
+`@BEGINMENU` row (after a data dir's quit row too, so stock rows keep their
+numbers). It opens a checklist of three pages, one per kind of change, the
+page title naming the group:
+
+1. `@MODOPTIONS` "Restored Cut Content": `kings_audience`, `royal_mercy`,
+   `town_hall_tiers`, `tribe_mood`, `treaty_cancel_popup`, `wagon_loot`,
+   `raid_scalps`, `scout_spying`.
+2. `@MODOPTIONS2` "New Rules and Features": `population_floor`,
+   `late_fathers`, `building_upkeep`, `hard_king`, `pioneer_plan`,
+   `scout_autoexplore`, `ship_autoexplore`, `current_vision`.
+3. `@MODOPTIONS3` "DOS Bug Fixes": `goto_native_wait`.
+
+Next / Done (the button under the rows, `@MODOPTIONSDONE`, Done on the last page; or Enter) on a page saves
+that page's toggles, flushes the file and opens the next page; Esc on any page
+stops there and keeps the earlier pages' changes. The stock DOS checklists keep
+no button. No overlay, no row. Each page's rows follow its id list in
+`options_dialog.c` `k_mods_pages`; a page may hold at most 11 rows, because a
+FONTINTR checklist row is 12 px, the button takes two rows, and with a prompt of
+up to two lines that is what fits the 200 px screen. `data/mods/*.TXT` is a text overlay that opencol loads from
+`<exe>/data/mods` or `./data/mods`: it may add whole sections or append the next
+row of a stock section, never replace a stock row (refused with a warning).
+
+| Key | Default | Effect |
+|-----|---------|--------|
+| `wagon_loot` | off | Natives beating a loaded wagon train roll 1..10: 1-2 destroy it (DOS), 3-6 take every hold of one random good (`data/mods` `@MODWAGONLOOT1`), 7-10 take all goods (stock `@LOOTWAGONS`); the wagon survives. Off, or empty wagon: no extra RNG draw. |
+| `goto_native_wait` | on | DOS bug fix (dos_bugs.md DB-77): a human Go To whose goal tile holds a native unit (not a village) stops next to it with the order kept instead of attacking. |
+| `population_floor` | off | Every built building's NAMES.TXT min population (not just Stockade/Fort/Fortress at 3) floors voluntary ejects, player and AI (`colonies_eject_colonist`; the AI equip arm checks `colonies_eject_allowed` first, so a colony at its floor neither strips an expert nor ejects); the refusal reads `data/mods` `@MODKEEPSTOCKADE` with the floor as `%NUMBER0`. The Units tab gets an ABANDON button (label `data/mods` LABELS.TXT `@MODABANDON`; it covers the unit icons in that corner of a full pane): stock `@ABANDON`/`@ABANDON2` confirm, then every colonist walks out as a Colonist onto the tile and the colony is deleted; buildings and goods are lost, floor and `@SIEGE` do not apply. A refused spawn (`@TOOMANYUNITS`) stops the walk-out and keeps the colony with whoever is left. Abandoning (the button or moving the last colonist out) shows woodcut 12 the first time, captioned by `data/mods` WOODCUT.TXT `@MODWOODCUT12`. Starvation and capture ignore the floor. Off = DOS Stockade-at-3 refusal; nothing saved, no RNG. |
+| `raid_scalps` | off | The colony-raid kind roll (`FUN_5fef_0f14`) becomes rand(1,5); kind 5 kills one victim and shows the dead stock `@RAIDSCALP` (AI victims get the usual `@RAIDWREAK` bulletin). No Fort: any colonist inside or any unarmed unit of the owner on the colony tile (no muskets, attack 0, not a wagon, treasure or ship); Fort: only those units outside; Fortress: the raid does nothing. The last colonist can die: the colony is then abandoned after the popup, and a human victim gets woodcut 11 the first time (DOS's own once-only bit). Abandoning a colony by moving its last colonist out shows woodcut 12 (see `population_floor`). Same early-game grace as burn/ship; alarm -16 like DOS's "unit killed" row; every European colony. Off = the DOS rand(1,4) draw, nothing saved. |
+| `royal_mercy` | off | Losing a Royal-flagged unit (`FUN_5fef_0352`) cuts the tax by the matched DS:0x978d row's own byte instead of the next one (Caravel 2, Merchantman 4, Galleon 6, Privateer 3, Frigate 8, Artillery 2), capped at the current rate; a human loser sees the dead stock `@KINGMERCY` in the King's portrait. Off = DOS's one-row-late read (Frigate and Artillery cut nothing), no popup. Nothing saved, no RNG. |
+| `late_fathers` | off | Father category and weights (`FUN_4345_0080` / `FUN_4345_06d2`) come from `data/mods` NAMES.TXT `@MODFATHERS` instead of `@FATHERS`. Its optional first line `YEARS, 1600, 1650, 1700` lists band start years (ascending, at most 15; N years give N+1 bands, band k from year k on, by year only); each row is then `name, category, w0, ..., wN`. Without a YEARS line the bands are DOS's (`FUN_4345_005a`: 1600, 1700) with three weights. A bad YEARS line (not ascending, a year outside 1..9999) or any row with the wrong weight count, a non-number, a weight outside 0..255 or a category outside 0..4 leaves the whole section unused: one `diag_warn` per NAMES.TXT load and `@FATHERS` as usual. The shipped section is `@FATHERS` with Stuyvesant, Washington, Jones, Jefferson and Franklin weighted 0 before 1650 and Adam Smith 0 before 1600, so neither Congress nor any AI nation nominates them earlier. A candidate already chosen (save or earlier debate, human or AI) whom `@MODFATHERS` weights 0 this year while `@FATHERS` weights him above 0 in this year's DOS band is dropped and re-rolled, and a stored debate slate holding one is discarded; a stock zero keeps DOS's rule (the candidate stays). Off = DOS `@FATHERS` and bands, same draws; on, the weights and any re-roll change the draws. Nothing saved. |
+| `town_hall_tiers` | off | @BUILDING rows 10/11 (the Town Hall upgrades DOS's FUN_15eb_3650 zeroes) become buildable on the tier below (pop 4 / 8); player and AI may build them, the AI cascade never names them. Owning them grows the work radius to 12 / 20 plots through the existing DS:0x329 / FUN_137f_003c path, so production, AI plot choice and the Docks gate follow unchanged code. Colony screen: 5x5 area view, corners and plots outside the radius shaded and refusing colonists, BDARK.SS art per tier, hover label names the tier. Names and Colonizopedia articles come from `data/mods` `@MODBUILDING` (NAMES) and `@MODBUILDING10/11` (PEDIA), read only while on. |
+| `building_upkeep` | off | Human colonies pay the NAMES.TXT upkeep column for the top owned tier of each building chain (the Town Hall tiers top their chain while `town_hall_tiers` is on), once per turn before colony production. Short treasury: no payment, `@UPKEEP` popup, every building worker makes half (floor) that turn and teachers do not advance; the colony screen shows the halved figures and a brown rebel line. F6 colony report shows TOTAL UPKEEP (`@MISC` row 92 of LABELS). AI nations never pay. |
+| `kings_audience` | off | Gives the cut `38fd:4668` chamber a caller: `data/mods/MENU.TXT` appends VIEW row 13 `~King's Audience` (K, a key DOS leaves unbound on the map), hidden while the running campaign has the mod off. Once per turn (nation flag 0x20, cleared by the `FUN_38fd_5e52` tick) the King greets the player (@KINGWELCOME0) and asks @AUDIENCE: his blessing (@KINGBLESS, no effect); a specialist (not DOS, which opened Europe's Train dialog: @KINGSPECIAL offers the Train list's Master and Firebrand Preacher rows only, placed on the docks for no gold but a tax rise of 1%, doubled for every earlier one, counted in the human nation's `unknown23_pad[2]`; @KINGNO past 75%; @KINGSPECIALOK, in @UNREST's shape and portrait, announces it); a grant (`FUN_38fd_44a4`: refused at 60% tax, else `max(1, 6 - (grants+1)/2 - difficulty) x 100` and a @KINGTAX hike of `grants + difficulty/2 + 1` where DOS adds 5; the grant counter is the save's nation +5 byte); lower taxes (`FUN_38fd_4590`: punished, cut or refused); independence (@KINGLAUGH). No "take our leave" row (DOS row 6, a no-op); Esc leaves. A second visit in the same turn gets @KINGGOAWAY. @AUDIENCE, @KINGGOAWAY, @KINGSPECIAL and @KINGSPECIALOK live in `data/mods/GAME.TXT` (no stock GAME.TXT has the first two). The chamber is drawn in the new-game throne room (KINGLSS1 + banners + KING1.SS): the question on the scroll's roll, the King's replies on the sheet in FONTTINY without GAME.TXT's quote marks, the answers as colony-screen style buttons. No audience after the declaration. Human only. |
+| `tribe_mood` | off | Restores the cut @PISS0-5 lines. The alarm writers tally each delta per tribe/nation pair by DOS reason code (1 road, 2 forest clearing, 3 mission, 5 population pressure; 4 = an attack on a tribe below alarm 0x4b, wired in `units_move.c` since DOS passes 0). After a human Scout speaks with a chief and survives, the chief names the cause with the largest \|tally\| since the last report (@PISS<reason>, 0 = none) and his mood: alarm/25 picks NAMES @ATTITUDE, (alarm%25)/5 the @ATTITUDINAL modifier (reversed for Content). Two `data/mods` lines follow: @VILLAGEMOOD (this village's tier, the colour of its map marks) and, when a nation's colonies score in FUN_281f_0316, @VILLAGECROWD (that nation). The report clears the pair's tally. Tallies persist in RTST record 15, written only when non-zero. No RNG. |
+| `scout_spying` | off | Computer Scouts infiltrate human colonies (`ai_euro_spy.c`). DOS ships the logic (FUN_5f7a_000e, @LOSTTHEIRSCOUTS) but gives a computer Scout "Nothing" (raw 98829). Every 10 turns per human colony (staggered by slot) a 20% roll sends one AI Scout on its continent there (plan byte 'S', a course the turn housekeeping keeps). Arrival uses the DOS threshold without the human-only difficulty term: (Stockade/Fort/Fortress count + 6) * 2, halved for a Seasoned Scout, against 1..36. Caught: @LOSTTHEIRSCOUTS to the human, scout lost, colony +100 horses. Success: that AI knows the colony's defence for 10 turns; otherwise the Soldier/Dragoon colony gate sees it within +-50%. A scouted colony weaker than the AI's land army on its continent becomes a prio-8 MILITARY goal. Rolls hash the turn, nation and slot and never draw from the DOS RNG. Intel persists in RTST record 16, written only when non-empty. |
+| `treaty_cancel_popup` | off | A computer nation cancelling its peace treaty with you (`FUN_5bfb_13b0`, which pushes `@CANCELTREATY`; no stock GAME.TXT ships it, dos_bugs_ai.md DB-52) is announced like an AI war declaration: `data/mods` `@MODCANCELTREATY` (`%STRING0` that nation, `%STRING1` yours) in an OK popup with `@DECLAREWAR`'s MSS2 courtier figure. Without the section, or off: the plain notice (stock `@CANCELTREATY` if present, else the port's DB-52 line, no figure). Nothing saved, no RNG. |
+| `pioneer_plan` | off | Adds VIEW Plan Pioneer and ORDERS Automate for Pioneers (docs/pioneer_plan.md). Off = the rows stay hidden, an automated Pioneer drops Automate on its next step, and no `PPLN` chunk is written. |
+| `scout_autoexplore` | off | Offers ORDERS Automate (`Q`) to Scouts, which then explore on their own (docs/explore_auto.md). Off (with `ship_autoexplore` off too) = no row for those units and no `SAUT` chunk. |
+| `ship_autoexplore` | off | The same for ships (ocean fog only). |
+| `hard_king` | off | Makes the War of Independence REF tougher (`ai_king_ref.c`): (1) `ai_king_ref_wave` runs up to difficulty + 1 FUN_43f7_0982 waves a turn (Discoverer 1 .. Viceroy 5), each spending one Man-O-War from the pool; an empty hull or land pool ends the turn's waves, and later waves skip colonies already invaded this turn while another coastal colony is left; (2) the landing sweep (`ai_king_0982_land_troops`) no longer counts the target's own units in a tile's stack, so occupied tiles tie with empty ones and get seized (FUN_43f7_0512, units destroyed); (3) target scoring adds the target's land units with attack > 1 within Chebyshev 2 of the colony (off its tile) to the tile strength and, outside the Fort/Fortress multiplier, to the garrison score. Off = DOS. Nothing saved. |
+| `current_vision` | off | Dithers (1-pixel checkerboard: 1/4 fog blue, palette 60..62, over 3/4 pixel; palette-nearest LUT) every seen map tile that no unit or colony of the viewed nation currently sees: unit tiles from `units_sight_radius` + the `map_sight_each` domain gate, colonies radius 1. The veil covers explored tiles plus a 1-tile ring into the unexplored. Layering, top first: colony names, fog (pixels the terrain pass left as fog are re-stamped, `s_fog_mask`), the veil (`game_render_current_vision`), everything else. Render-only, nothing saved. |
 
 Port-only keys, no DOS bit, no head bridge.
 `save_dir` empty means the platform default (`<exe>/COLONIZE`). `seed` is

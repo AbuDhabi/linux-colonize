@@ -223,7 +223,7 @@ void map_reveal_sight(
  * inset tiles (FUN_137f_000a) are ever revealed; a rim centre reveals nothing.
  */
 typedef void (*MapRevealTileFn)(void* ctx, int x, int y, bool outer);
-/* The same walk, read-only: nothing is revealed (divergences.current_vision). */
+/* The same walk, read-only: nothing is revealed (mods.current_vision). */
 void map_sight_each(
   const ColonizeWorldMap* map, int x, int y, int radius, bool is_ship, MapRevealTileFn fn, void* ctx
 );

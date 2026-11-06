@@ -24,6 +24,7 @@
 #include "core/colony_production.h"
 #include "core/colony_yield.h"
 #include "core/europe.h"
+#include "core/mods.h"
 #include "core/ss.h"
 #include "core/strutil.h"
 #include "core/units_cargo.h"
@@ -1166,6 +1167,97 @@ bool colonies_dos_owns_row(
          colonies_has_building_row(pool, col, (ColonizeBuildingRow)row);
 }
 
+/* ===================== MOD_BUILDING_UPKEEP (colonies_upkeep_colony .. colonies_upkeep_halve) ===================== */
+/* Not DOS: DOS loads the @BUILDING upkeep column and never reads it, and never
+ * shows @UPKEEP. Nations whose building workers produce at half during the
+ * current production pass (turn_run_colony_production_with_w sets and clears it). */
+static unsigned s_upkeep_halved_mask;
+
+static int colonies_upkeep_row(const ColonizeColonyPool* pool, int row) {
+  const ColonizeBuildingType* bt =
+    colonies_building_type(pool, colonies_building_row(pool, (ColonizeBuildingRow)row));
+  return bt ? bt->upkeep : 0;
+}
+
+int colonies_upkeep_colony(const ColonizeColonyPool* pool, const ColonizeColony* col) {
+  if (!pool || !col || !col->active) {
+    return 0;
+  }
+  int total = 0;
+  for (int c = 0; c < COLONIES_BUILDING_CHAIN_COUNT; ++c) {
+    const int* rows = k_chain_rows[c];
+    int top = -1;
+    if (c == COLONIES_CHAIN_WAREHOUSE) {
+      /* Warehouse Expansion has no +0x84 bit: its tier is warehouse_level. */
+      top = col->warehouse_level >= 2u ? COLONY_BUILDING_WAREHOUSE_EXPANSION
+          : col->warehouse_level >= 1u ? COLONY_BUILDING_WAREHOUSE : -1;
+    } else {
+      /* Every other chain by building bits only; Capitol's capitol_level is
+       * not charged (Capitol and Capitol Expansion are both unbuildable). */
+      for (int t = 0; t < 4 && rows[t] >= 0; ++t) {
+        if (colonies_has_building_row(pool, col, (ColonizeBuildingRow)rows[t])) {
+          top = rows[t];
+        }
+      }
+    }
+    /* MOD_TOWN_HALL_TIERS rows 0x0a/0x0b are not in the chain table (its order
+     * is the save contract); with that mod on they top the Town Hall chain. */
+    if (c == COLONIES_CHAIN_TOWN_HALL && mods_on(MOD_TOWN_HALL_TIERS)) {
+      if (colonies_has_building_row(pool, col, COLONY_BUILDING_TOWN_HALL_2)) {
+        top = COLONY_BUILDING_TOWN_HALL_2;
+      }
+      if (colonies_has_building_row(pool, col, COLONY_BUILDING_TOWN_HALL_3)) {
+        top = COLONY_BUILDING_TOWN_HALL_3;
+      }
+    }
+    if (top >= 0) {
+      total += colonies_upkeep_row(pool, top);
+    }
+  }
+  return total;
+}
+
+int colonies_upkeep_total(const ColonizeColonyPool* pool, int nation_id) {
+  if (!pool) {
+    return 0;
+  }
+  int total = 0;
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    const ColonizeColony* col = &pool->colonies[i];
+    if (col->active && col->nation_id == nation_id) {
+      total += colonies_upkeep_colony(pool, col);
+    }
+  }
+  return total;
+}
+
+bool colonies_upkeep_short(
+  const ColonizeColonyPool* pool, const ColonizeCol1Save* col1, const EuropeScreen* eu,
+  int nation_id
+) {
+  if (!mods_on(MOD_BUILDING_UPKEEP) || !col1 || nation_id < 0 || nation_id >= 4 ||
+      col1->player[nation_id].control != 0) {
+    return false;
+  }
+  const int total = colonies_upkeep_total(pool, nation_id);
+  return total > 0 && europe_nation_gold(eu, col1, nation_id) < (uint32_t)total;
+}
+
+unsigned colonies_upkeep_set_halved(unsigned mask) {
+  const unsigned prev = s_upkeep_halved_mask;
+  s_upkeep_halved_mask = mods_on(MOD_BUILDING_UPKEEP) ? mask : 0u;
+  return prev;
+}
+
+bool colonies_upkeep_halved(const ColonizeColony* col) {
+  return s_upkeep_halved_mask != 0u && col && col->nation_id >= 0 && col->nation_id < 4 &&
+         (s_upkeep_halved_mask & (1u << col->nation_id)) != 0u;
+}
+
+int colonies_upkeep_halve(const ColonizeColony* col, int v) {
+  return colonies_upkeep_halved(col) ? v >> 1 : v;
+}
+
 /*
  * DOS-LITERAL FUN_15eb_3650 kind-1 arm (raw 13662-13712): may the colony start
  * @BUILDING row `row`? Every test only clears the answer, so they AND together.
@@ -1193,6 +1285,14 @@ static bool colonies_building_is_buildable(
      * is not, but its predecessor is the Capitol. */
     case COLONY_BUILDING_TOWN_HALL_2:
     case COLONY_BUILDING_TOWN_HALL_3:
+      /* MOD_TOWN_HALL_TIERS (not DOS): the cut upgrades, each on the tier
+       * below it (DOS's predecessor byte; the port's Town Hall chain stops at
+       * row 9, see k_chain_rows). */
+      if (mods_on(MOD_TOWN_HALL_TIERS)) {
+        return pop_ok && colonies_has_building_row(pool, col, (ColonizeBuildingRow)(row - 1)) &&
+               !colonies_has_building_row(pool, col, (ColonizeBuildingRow)row);
+      }
+      return false;
     case COLONY_BUILDING_CAPITOL:
       return false;
     default:

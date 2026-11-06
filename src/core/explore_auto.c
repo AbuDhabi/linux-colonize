@@ -7,7 +7,7 @@
 #include "core/col1_save.h"
 #include "core/colony.h"
 #include "core/map.h"
-#include "core/settings.h"
+#include "core/mods.h"
 #include "core/units.h"
 #include "core/units_move.h"
 #include "core/village_trade_intel.h"
@@ -46,9 +46,8 @@ bool explore_auto_is_explorer(const ColonizeUnitPool* pool, const ColonizeUnit* 
 }
 
 bool explore_auto_allowed(const ColonizeUnitPool* pool, const ColonizeUnit* u) {
-  const ColonizeSettings* s = settings_get();
-  return (s->scout_autoexplore && explore_auto_is_scout(pool, u)) ||
-         (s->ship_autoexplore && explore_auto_is_ship(pool, u));
+  return (mods_on(MOD_SCOUT_AUTOEXPLORE) && explore_auto_is_scout(pool, u)) ||
+         (mods_on(MOD_SHIP_AUTOEXPLORE) && explore_auto_is_ship(pool, u));
 }
 
 void explore_auto_reset(void) {
@@ -334,7 +333,7 @@ bool explore_auto_automate(const ColonizeWorld* w, ColonizeUnit* u) {
  * nation mask) per settlement tile. */
 uint8_t* explore_auto_serialize(const ColonizeUnitPool* units, size_t* out_size) {
   *out_size = 0;
-  if (!settings_get()->scout_autoexplore && !settings_get()->ship_autoexplore) {
+  if (!mods_on(MOD_SCOUT_AUTOEXPLORE) && !mods_on(MOD_SHIP_AUTOEXPLORE)) {
     return NULL;
   }
   int autos = 0;

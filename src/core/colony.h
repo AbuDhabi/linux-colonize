@@ -73,6 +73,9 @@ typedef struct ColonizeBuildingType {
    * 0..4, indexing the per-class box tables at DS:0x230 (width) / DS:0x236
    * (height) that FUN_2f2b_14d4 centers level badges in. */
   int size_class;
+  /* NAMES.TXT @BUILDING column 6 (upkeep, 0..15). DOS's loader stores it and
+   * nothing reads it; only MOD_BUILDING_UPKEEP does (colonies_upkeep_colony). */
+  int upkeep;
 } ColonizeBuildingType;
 
 /* One person living in a colony (disbanded map unit). */
@@ -471,6 +474,30 @@ const int* colonies_building_chain_rows(int chain);
 int colonies_building_row_chain(int row);
 
 const ColonizeBuildingType* colonies_building_type(const ColonizeColonyPool* pool, int type_index);
+/* MOD_TOWN_HALL_TIERS: NAMES @MODBUILDING name of row 10/11 while the mod is
+ * on, else NULL. */
+const char* colonies_building_mod_name(int row);
+/* Display name of a pool slot: the mod name above, else the stock name ("" when none). */
+const char* colonies_building_name(const ColonizeColonyPool* pool, int type_index);
+
+/* MOD_BUILDING_UPKEEP (docs/settings.md "mods"; colony_build.c). Upkeep of one
+ * colony: the top owned tier of each building chain. */
+int colonies_upkeep_colony(const ColonizeColonyPool* pool, const ColonizeColony* col);
+/* Sum of colonies_upkeep_colony over the nation's active colonies. */
+int colonies_upkeep_total(const ColonizeColonyPool* pool, int nation_id);
+/* Mod on, `nation_id` human (control 0), total > 0 and treasury < total. */
+struct EuropeScreen;
+bool colonies_upkeep_short(
+  const ColonizeColonyPool* pool, const ColonizeCol1Save* col1, const struct EuropeScreen* eu,
+  int nation_id
+);
+/* Nations (bit per nation) whose building workers produce at half during the
+ * current production pass; returns the previous mask. 0 = none. */
+unsigned colonies_upkeep_set_halved(unsigned mask);
+/* True while the colony's owner is in the halved mask (also pauses teachers). */
+bool colonies_upkeep_halved(const ColonizeColony* col);
+/* One building worker's output: v >> 1 while the colony's owner is halved. */
+int colonies_upkeep_halve(const ColonizeColony* col, int v);
 
 /* Manual ch. 6 "Colonies" / building_production.md: at most 3 colonists per
  * building (schools: teachers + students share the cap). GAME.TXT @MORETHANTHREE. */
@@ -660,6 +687,22 @@ int colonies_eject_colonist(
   int colonist_index,
   ColonizeUnitPool* units,
   int role
+);
+/* MOD_POPULATION_FLOOR: the largest NAMES.TXT min population of the colony's
+ * built buildings (1 with none). With the mod on, colonies_eject_colonist
+ * refuses an eject that would drop the colony below it. */
+int colonies_min_population_floor(const ColonizeColonyPool* pool, const ColonizeColony* colony);
+/* False when MOD_POPULATION_FLOOR would refuse a voluntary eject from colony;
+ * always true with the mod off. */
+bool colonies_eject_allowed(const ColonizeColonyPool* pool, const ColonizeColony* colony);
+/* MOD_POPULATION_FLOOR ABANDON button: every colonist leaves as a Colonist on
+ * the tile (floor ignored), then colonies_abandon. Returns units placed, or -1
+ * if a spawn was refused (colony kept, minus whoever already left). */
+int colonies_abandon_walk_out(ColonizeColonyPool* pool, int colony_id, ColonizeUnitPool* units);
+/* Remove colonists[kill_i] for good (starve-kill bookkeeping, FUN_15eb_0d04;
+ * also the MOD_RAID_SCALPS victim); the caller abandons an emptied colony. */
+void colonies_kill_colonist(
+  const ColonizeColonyPool* pool, ColonizeCol1Save* col1, ColonizeColony* col, int kill_i
 );
 
 /* True if Stockade, Fort, or Fortress is built (voluntary eject must leave ≥3 pop). */

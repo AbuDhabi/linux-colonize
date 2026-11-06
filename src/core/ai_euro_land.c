@@ -1201,7 +1201,7 @@ static int ai_euro_20e6_stack_count(const ColonizeTurnContext* ctx, int x, int y
  * here, the same read −0x6a8e sums) over stack units whose ship-ness matches
  * the tile (land tile → land units).
  */
-static int ai_euro_20e6_stack_combat_0b(ColonizeTurnContext* ctx, int x, int y) {
+int ai_euro_20e6_stack_combat_0b(ColonizeTurnContext* ctx, int x, int y) {
   ColonizeCombatStrengthCtx sctx = combat_strength_ctx_from_turn(ctx);
   const int water = map_tile_is_water(ctx->map, x, y);
   int sum = 0;
@@ -2092,7 +2092,9 @@ static int ai_euro_20e6_attack_term(
    */
   if ((s->dos_type == UNITS_KIND_SOLDIER || s->dos_type == UNITS_KIND_DRAGOON) &&
       ai_euro_20e6_colony_owner_at(ctx, nx, ny) >= 0) {
-    const int def = ai_euro_20e6_stack_combat_0b(ctx, nx, ny);
+    /* mods.scout_spying: un-scouted human colonies are judged within +-50%. */
+    const int def = ai_euro_spy_seen_strength(ctx, s->nation, nx, ny,
+                                              ai_euro_20e6_stack_combat_0b(ctx, nx, ny));
     if (def != 0) {
       int own_sum = 0;
       for (int n = 0; n < 8; ++n) {
@@ -3928,6 +3930,9 @@ int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, int nat
      * raw 88612 `goto LAB_521d_4d2e`: the own-colony surplus branch enters the
      * scorer directly, skipping LAB_277a and every arm hanging off it.
      */
+    if (!force_wander && ai_euro_spy_dispatch_arm(ctx, u, &s)) {
+      return 0; /* mods.scout_spying: Scout course set at a human colony */
+    }
     if (!force_wander && ai_euro_20e6_patrol_arm(ctx, u, &s)) {
       return 0;
     }

@@ -2473,7 +2473,7 @@ COLONIZE_INTERNAL void col1_bridge_apply_ext_chunks(Col1ApplyCtx* ctx) {
     runtime_ext_deserialize(ctx->units, ctx->colonies, ctx->map, rt, rt_size);
   }
 
-  /* 'PPLN' pioneer plan + automated Pioneers (divergences.pioneer_plan). */
+  /* 'PPLN' pioneer plan + automated Pioneers (mods.pioneer_plan). */
   {
     const uint8_t* pp = NULL;
     size_t pp_size = 0;
@@ -2484,7 +2484,7 @@ COLONIZE_INTERNAL void col1_bridge_apply_ext_chunks(Col1ApplyCtx* ctx) {
     pioneer_plan_deserialize(pp, pp_size, ctx->units);
   }
 
-  /* 'SAUT' automated Scouts + visited settlements (divergences.scout_autoexplore). */
+  /* 'SAUT' automated Scouts + visited settlements (mods.scout_autoexplore). */
   {
     const uint8_t* sa = NULL;
     size_t sa_size = 0;

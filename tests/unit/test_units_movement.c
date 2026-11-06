@@ -6,6 +6,7 @@
 #include "../common/test_runner.h"
 #include "core/units_internal.h"
 #include "core/dos_buggy.h"
+#include "core/mods.h"
 
 #if !defined(_WIN32)
 #include <sys/wait.h>
@@ -1918,10 +1919,84 @@ static int unit_far_bfs_next_step(void) {
 #endif
 }
 
+/* mods.h MOD_GOTO_NATIVE_WAIT: a human Go To whose goal holds a Brave stops
+ * next to it with the order and its moves kept. Off: the step goes on to the
+ * move/attack resolver as before. */
+static int unit_goto_native_wait_mod(void) {
+  units_reset_state();
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  pool.type_count = 2;
+  for (int t = 0; t < 2; ++t) {
+    pool.types[t].movement = 1;
+    pool.types[t].attack = (uint8_t)(2 - t);
+    pool.types[t].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  }
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  char err[128];
+  if (!map_alloc(&map, 12, 12, err, sizeof(err))) {
+    fprintf(stderr, "goto_native: map_alloc failed: %s\n", err);
+    return 1;
+  }
+  for (int i = 0; i < 12 * 12; ++i) {
+    map.terrain[i] = 2; /* plains */
+    map.layer3[i] = 0xf1;
+  }
+  const ColonizeWorld w = {.units = &pool, .colonies = NULL, .map = &map, .rng = NULL};
+  const int sid = units_spawn(&pool, 0, 4, 4);
+  const int bid = units_spawn(&pool, 1, 5, 4);
+  ColonizeUnit* s = units_get(&pool, sid);
+  ColonizeUnit* b = units_get(&pool, bid);
+  if (!s || !b) {
+    map_free(&map);
+    fprintf(stderr, "goto_native: spawn failed\n");
+    return 1;
+  }
+  s->nation_id = 0;
+  b->nation_id = 6;
+  /* Presence bits + owner nibbles, so the enter probe sees the Brave. */
+  map.layer3[4 * 12 + 4] = 0x01;
+  map.layer3[4 * 12 + 5] = 0x61;
+  units_set_occupancy_map(&map);
+  units_occupancy_rebuild(&pool);
+  units_set_combat_human_nation(0);
+  int rc = 0;
+  s->moves = UNITS_MP_PER_TILE;
+  s->orders = UNITS_ORDER_GOTO;
+  s->goto_x = 5;
+  s->goto_y = 4;
+  /* On first: the off half may kill either unit. */
+  mods_campaign_set(1u << MOD_GOTO_NATIVE_WAIT);
+  bool stepped = units_advance_goto_one_step_w(&w, sid);
+  if (stepped || s->x != 4 || s->y != 4 || s->orders != UNITS_ORDER_GOTO || !b->active ||
+      s->moves != UNITS_MP_PER_TILE) {
+    fprintf(stderr, "goto_native on: stepped %d at (%d,%d) orders %d brave %d moves %d\n",
+            stepped, s->x, s->y, s->orders, b->active, s->moves);
+    rc = 1;
+  }
+  mods_campaign_set(0);
+  if (rc == 0) {
+    stepped = units_advance_goto_one_step_w(&w, sid);
+    const ColonizeUnit* bs = units_get_const(&pool, bid);
+    const ColonizeUnit* ss = units_get_const(&pool, sid);
+    if (!stepped && bs && bs->active && ss && ss->active && ss->moves > 0) {
+      fprintf(stderr, "goto_native off: the Go To must attack, not wait\n");
+      rc = 1;
+    }
+  }
+  units_set_combat_human_nation(-1);
+  units_set_occupancy_map(NULL);
+  map_free(&map);
+  units_reset_state();
+  return rc;
+}
+
 static const TestCase k_cases[] = {
   {"unit_order_name_table", unit_order_name_table},
   {"unit_far_bfs_next_step", unit_far_bfs_next_step},
   {"unit_board_gate_reseed_1443", unit_board_gate_reseed_1443},
+  {"unit_goto_native_wait_mod", unit_goto_native_wait_mod},
   {"unit_ai_undefended_colony_band", unit_ai_undefended_colony_band},
   {"unit_colony_entry_bvar4_reseed_1323", unit_colony_entry_bvar4_reseed_1323},
   {"unit_tb44_flood_key_rules", unit_tb44_flood_key_rules},

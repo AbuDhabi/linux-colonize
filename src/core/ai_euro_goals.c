@@ -517,7 +517,9 @@ static void ai_euro_0a60_unit_housekeeping(ColonizeTurnContext* ctx, int nation_
           u->goto_x = gx;
           u->goto_y = gy;
         }
-        if ((u->orders >= AI_EURO_ACT_ADJACENT && u->col1_ai_plan != 0x31) ||
+        /* mods.scout_spying: a spy Scout's course ('S') also survives the turn. */
+        if ((u->orders >= AI_EURO_ACT_ADJACENT && u->col1_ai_plan != 0x31 &&
+             !ai_euro_spy_keeps_course(ctx, u)) ||
             (u->orders >= 1 && u->orders <= 3)) {
           u->orders = UNITS_ORDER_NONE;
         }
@@ -819,6 +821,7 @@ static void ai_euro_0a60_foreign_colony_producers(
     if (cont < 0 || cont >= 16) {
       continue;
     }
+    ai_euro_spy_prime_target(ctx, nation_id, i, cont); /* mods.scout_spying */
     const int seen = map_tile_seen_by(map, c->x, c->y, nation_id);
     const uint8_t d = have_col1 ? ai_diplo_read(ctx->col1, nation_id, owner) : 0;
     /* (d & 0x48) == 0x40 — PEACE without the amicable latch. */
@@ -1796,7 +1799,9 @@ static void ai_euro_5952_equip_arm(
   /* raw 94314-94317: local_1b4 = local_8e, with 0x17 mapped to 0x15. */
   const int target = (equip_target_job == UNITS_JOB_DRAGOON) ? UNITS_JOB_SOLDIER : equip_target_job;
   const int pick = ai_euro_5952_equip_pick(c, target);
-  if (pick < 0) {
+  /* MOD_POPULATION_FLOOR (not DOS): a colony at its floor neither strips nor
+   * ejects; always allowed with the mod off. */
+  if (pick < 0 || !colonies_eject_allowed(ctx->colonies, c)) {
     return;
   }
   /* DOS bug, reproduced for now (docs/tolerated_dos_bugs_ai.md TB-23). */
