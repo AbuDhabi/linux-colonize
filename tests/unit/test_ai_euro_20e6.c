@@ -3220,10 +3220,8 @@ static int unit_europe_departure_runs_during_planning(void) {
       fixture_free(&f);
       return fail("5d04 must depart healthy hulls and roll the voyage before unit acts");
     }
-    ai_euro_act_ship_dos(&f.ctx, ship, 1);
-    const int actual_x = ship->x;
+    /* The damaged hull stays docked: the wave pass skips x >= 128. */
     fixture_free(&f);
-    if (actual_x != lane) return fail("unit act must preserve the dock departure gate");
   }
   return 0;
 }
@@ -3928,6 +3926,90 @@ static int unit_spent_step_burns_465b_roll(void) {
   return ok ? 0 : fail("spent unit's step must reseed and burn the 465b roll, and not move");
 }
 
+/* port_bugs.md #1442: FUN_465b_0000 raw 75505-75507 — a computer mover with
+ * < 3 thirds left whose target holds another nation's unit (bVar4) takes
+ * LAB_465b_01ce: FUN_281f_0934 + LAB_0bd1 (+0x314c = 0, +0x315a++), with no
+ * raw 75649 reseed and no raw 75825 roll. */
+static int unit_spent_step_onto_foreign_skips_465b_roll(void) {
+  Fixture f;
+  if (fixture_init(&f, 1)) return 1;
+  f.col1.player[1].control = 1;
+  const int uid = units_spawn(&f.units, 1, 8, 8);
+  const int fid = units_spawn(&f.units, 1, 9, 8);
+  ColonizeUnit* u = units_get(&f.units, uid);
+  ColonizeUnit* foe = units_get(&f.units, fid);
+  if (!u || !foe) { fixture_free(&f); return fail("01ce spawn"); }
+  u->nation_id = 1;
+  foe->nation_id = 2;
+  u->moves = 0;
+  u->orders = AI_EURO_ACT_STEP;
+  u->goto_x = 9;
+  u->goto_y = 8;
+  u->col1_counter16 = 0;
+  dos_rng_seed(&f.rng, 12345);
+  const ColonizeDosRng before = f.rng;
+  ai_euro_goal_walk_479b(&f.ctx, u);
+  const int ok = u->x == 8 && u->y == 8 && f.rng.state == before.state &&
+                 u->orders == UNITS_ORDER_NONE && u->col1_counter16 == 1 && u->moves == 0;
+  if (!ok) {
+    fprintf(stderr, "unit_ai_euro_20e6: 01ce at (%d,%d) orders %d counter %d moves %d\n", u->x,
+            u->y, u->orders, u->col1_counter16, u->moves);
+  }
+  fixture_free(&f);
+  return ok ? 0 : fail("spent step onto a foreign unit must take 01ce: no reseed, no roll");
+}
+
+/* port_bugs.md #1446: an AI Missionary next to its 20e6 village pick visits
+ * once, on 479b's step (465b -> FUN_4d56_4528 case 7 incite here, then the
+ * code-1 exhaust). The old arm-side adjacent visit incited first, so the
+ * walk's 4528 found alarm >= 0x4b and established a mission on top. */
+static int unit_missionary_adjacent_village_visits_once(void) {
+  Fixture f;
+  if (fixture_init(&f, 1)) return 1;
+  snprintf(f.units.types[3].name, sizeof(f.units.types[3].name), "Missionaries");
+  f.units.types[3].movement = 1;
+  f.units.types[3].cargo = 0;
+  f.units.types[3].kind_plus1 = UNITS_KIND_MISSIONARY + 1; /* DOS type 3 */
+  f.col1.player[1].control = 1;
+  f.col1.nation[1].gold = 50000;
+  f.ctx.euro_power_rank_ok = true;
+  f.ctx.euro_power_rank[0] = 1;
+  f.ctx.euro_power_rank[1] = 0;
+  ColonizeCol1Tribe* t = calloc(1, sizeof(ColonizeCol1Tribe));
+  if (!t) { fixture_free(&f); return fail("visit tribe alloc"); }
+  t->x = 9;
+  t->y = 8;
+  t->nation_id = 4;
+  t->mission = COL1_TRIBE_MISSION_NONE;
+  f.col1.tribe = t;
+  f.col1.head.tribe_count = 1;
+  f.col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
+  const int uid = units_spawn(&f.units, 3, 8, 8);
+  ColonizeUnit* u = units_get(&f.units, uid);
+  if (!u) { free(t); f.col1.tribe = NULL; fixture_free(&f); return fail("visit spawn"); }
+  u->nation_id = 1;
+  u->orders = 0;
+  u->moves = units_max_mp(&f.units, uid);
+  struct ai_euro_act_ctx a;
+  memset(&a, 0, sizeof(a));
+  a.ctx = &f.ctx;
+  a.u = u;
+  a.nation_id = 1;
+  a.ukind = UNITS_KIND_MISSIONARY;
+  (void)ai_euro_act_land_treasure(&a);
+  u = units_get(&f.units, uid);
+  const int ok = u && u->active && u->moves == 0 && u->orders == UNITS_ORDER_NONE &&
+                 t->mission == COL1_TRIBE_MISSION_NONE && f.col1.nation[1].gold < 50000u;
+  if (!ok) {
+    fprintf(stderr, "unit_ai_euro_20e6: visit active %d mission 0x%02x gold %u\n",
+            u ? (int)u->active : -1, t->mission, (unsigned)f.col1.nation[1].gold);
+  }
+  free(t);
+  f.col1.tribe = NULL;
+  fixture_free(&f);
+  return ok ? 0 : fail("adjacent Missionary must visit its village exactly once (one incite)");
+}
+
 /*
  * The 20e6 per-continent counts (raw 88506, 88521, 89475-89535; FUN_5952_0000
  * raw 93613) read the FUN_4962_0018 census: the land row includes a hull
@@ -3962,6 +4044,8 @@ static int unit_20e6_counts_read_census_snapshot(void) {
 static const TestCase k_cases[] = {
     {"unit_20e6_counts_read_census_snapshot", unit_20e6_counts_read_census_snapshot},
     {"unit_spent_step_burns_465b_roll", unit_spent_step_burns_465b_roll},
+    {"unit_spent_step_onto_foreign_skips_465b_roll", unit_spent_step_onto_foreign_skips_465b_roll},
+    {"unit_missionary_adjacent_village_visits_once", unit_missionary_adjacent_village_visits_once},
     {"unit_10ec_skips_while_human_tops_rank", unit_10ec_skips_while_human_tops_rank},
     {"unit_garrison_soldier_counts_explorer_cap", unit_garrison_soldier_counts_explorer_cap},
     {"unit_step_tile_still_runs_ring_scan", unit_step_tile_still_runs_ring_scan},

@@ -173,6 +173,12 @@ void units_try_capture_foreign_colony_at( ColonizeUnitPool* pool, ColonizeColony
 
 /* --- owned by units_move.c --- */
 const char* units_order_name(int orders);
+/* FUN_465b_0000 LAB_465b_05ca raw 75649, third clause of
+ * `cost <= left || spent == 0 || (FUN_281f_04ca(DS:0x83a6), bVar4)`: reseed the
+ * LCG from w->rng_reseed (when set) ahead of the raw 75825 partial-MP roll.
+ * The caller tests the first two clauses: call only when cost > left and
+ * spent != 0. No-op for a NULL rng/w. port_bugs.md #842 / #1443. */
+void units_465b_04ca_reseed(const ColonizeWorld* w, ColonizeDosRng* rng);
 
 /* units_try_move_w = FUN_465b_0000 stage split (port_bugs.md #1107). Stages run in
  * DOS order; each returns CONTINUE or the dispatcher's return value. */

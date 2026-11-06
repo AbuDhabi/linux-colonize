@@ -600,6 +600,31 @@ static int unit_own_colony_dock_ignores_squatter(void) {
     fprintf(stderr, "own-colony dock: a foreign colony must not dock\n");
     rc = 1;
   }
+  /* port_bugs.md #1441: that refusal is BLOCKED_DOMAIN (land garrison vs hull),
+   * but DOS FUN_4720_015c lets the hull onto a foreign settlement, so 465b
+   * runs 015e -> 0662 -> 020e and a computer hull is spent (raw 99077-99082).
+   * The human keeps its MP here (its 020e trade popup is game_loop_orders). */
+  if (rc == 0) {
+    const ColonizeEnterReason r = units_enter_probe_w(&w, su->type_index, 4, 3, ship);
+    static ColonizeCol1Save col1;
+    for (int human = 0; human < 2 && rc == 0; ++human) {
+      memset(&col1, 0, sizeof(col1));
+      col1.player[2].control = human ? 0 : 1;
+      su->moves = 15;
+      units_move_ctx c = {
+        .w = &w, .pool = &pool, .map = &map, .colonies = &colonies, .col1 = &col1,
+        .unit_id = ship, .unit = su, .dest_x = 4, .dest_y = 3, .reason = r,
+        .village_temp = -1, .village_nation = -1, .foe = -1,
+      };
+      const UnitsMoveStatus st = units_move_denied(&c);
+      const int left = units_remaining_mp(&pool, ship);
+      if (r != COLONIZE_ENTER_BLOCKED_DOMAIN || st != UNITS_MOVE_RETURN_FALSE ||
+          (human ? left == 0 : left != 0)) {
+        fprintf(stderr, "#1441: human=%d reason %d st %d mp %d\n", human, (int)r, (int)st, left);
+        rc = 1;
+      }
+    }
+  }
   map_free(&map);
   if (rc == 0) {
     fprintf(stderr, "unit_units: own-colony dock past squatter ok\n");

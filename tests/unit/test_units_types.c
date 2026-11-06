@@ -656,8 +656,8 @@ static int unit_smell_audit_2026_09_09(void) {
       fprintf(stderr, "audit#6: fresh Brave should read a full allotment, got %d\n", full);
       rc = 1;
     }
-    if (rc == 0 && !units_set_orders(&pool, bid, UNITS_ORDER_SENTRY)) {
-      fprintf(stderr, "audit#6: Sentry refused\n");
+    if (rc == 0 && !units_set_orders(&pool, bid, UNITS_ORDER_FORTIFY)) {
+      fprintf(stderr, "audit#6: Fortify refused\n");
       rc = 1;
     }
     if (rc == 0 && units_remaining_mp(&pool, bid) != 0) {
@@ -671,6 +671,17 @@ static int unit_smell_audit_2026_09_09(void) {
       if (units_remaining_mp(&pool, bid) != full) {
         fprintf(stderr, "audit#6: woken Brave has %d MP, want %d\n",
                 units_remaining_mp(&pool, bid), full);
+        rc = 1;
+      }
+    }
+    if (rc == 0) {
+      /* #1447: Sentry is order 1 only (DOS stub 2b5a:1106); the MP stays. */
+      const int sid = units_spawn_allow_stack(&pool, 0, 7, 7);
+      units_get(&pool, sid)->nation_id = 0;
+      units_get(&pool, sid)->moves = 1;
+      if (!units_set_orders(&pool, sid, UNITS_ORDER_SENTRY) ||
+          units_get(&pool, sid)->moves != 1) {
+        fprintf(stderr, "#1447: sentried unit has %d MP, want 1\n", units_get(&pool, sid)->moves);
         rc = 1;
       }
     }

@@ -1489,19 +1489,11 @@ static int ai_euro_20e6_village_arm(ColonizeTurnContext* ctx, ColonizeUnit* u, c
     ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, (int)t->x, (int)t->y);
     return 2;
   }
-  /*
-   * FUN_4d56_4528 non-human switch caseD_3 (Missionary): incite the village
-   * against the human, else establish a mission, else denounce a foreign
-   * mission. Resolved from the adjacent tile like the two arms around it
-   * (entering a village tile is an attack in this port). port_bugs.md #557.
-   */
-  if (!latched && s->dos_type == UNITS_KIND_MISSIONARY) {
-    if (ai_contact_ai_missionary_village(ctx, s->nation, s->village_idx, u->id)) {
-      ai_euro_s_20e6_village_visited[s->village_idx] |= (uint8_t)(1u << s->nation);
-      u->moves = 0;
-      return 1;
-    }
-  }
+  /* No Missionary arm: raw 89064-89068 / 89363-89372 are the only 0x4c
+   * writers (Scout, then the colonist arm that rejects types 3 and 5), and a
+   * Missionary never reaches 20e6's move-scoring gate in this port anyway
+   * (ai_euro.c routes it to ai_euro_act_land; its visit is the 479b step,
+   * ai_euro_20e6_missionary_arm). */
   if (!(s->combat > 1 || s->dos_type == UNITS_KIND_SCOUT ||
         s->dos_type == UNITS_KIND_MISSIONARY) &&
       (u->profession == UNITS_JOB_NONE || u->profession == UNITS_JOB_SERVANT) && att < 0x40 &&
@@ -3030,14 +3022,12 @@ int ai_euro_20e6_missionary_arm(ColonizeTurnContext* ctx, ColonizeUnit* u, int n
   const int vx = (int)col1->tribe[pick].x;
   const int vy = (int)col1->tribe[pick].y;
   ai_euro_set_goto(u, AI_EURO_ACT_GOAL, vx, vy);
-  /* 27f5 -> 5b66's first step enters the village: 465b -> FUN_4d56_4528
-   * case 3. The port's pathfinder never steps onto village tiles, so an
-   * adjacent pick resolves the visit here (DOSBox 1513: the French
-   * missionary founded the Arawak mission from the next tile). */
-  if (abs(u->x - vx) <= 1 && abs(u->y - vy) <= 1 &&
-      ai_contact_ai_missionary_village(ctx, nation_id, pick, u->id)) {
-    return 1;
-  }
+  /* 27f5 -> 5b66's first step enters the village: 479b's adjacent sign step
+   * -> 465b -> FUN_4d56_4528 case 3/4/7 (ai_euro_4528_ai_village_entry, same
+   * act; DOSBox 1513: the French missionary founded the Arawak mission from
+   * the next tile). DOS has no visit here; the old one ran before the walk's
+   * own 4528, so a surviving (case 7 incite) missionary visited twice
+   * (port_bugs.md #1446). */
   return 1;
 }
 

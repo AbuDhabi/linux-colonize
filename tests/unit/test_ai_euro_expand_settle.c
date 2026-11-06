@@ -404,6 +404,37 @@ static int unit_indian_land_found(void) {
     }
   }
 
+  /*
+   * Phase 3 (#1445): the port-only colonies_can_found refusal (a tile next to
+   * Jamestown at (4,4)) still runs FUN_479b_076e's entry writes: +0x315a = 0,
+   * +0x314c = 0 (raw 76978-76979) and FUN_281f_0934 (raw 77008).
+   */
+  {
+    unit_indian_land_seed_colony(&colonies, nation);
+    units_reset(&units);
+    units_set_occupancy_map(NULL);
+    units.type_count = 1;
+    units.types[0].movement = 3;
+    units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+    const int uid = units_spawn(&units, 0, 5, 5);
+    ColonizeUnit* founder = units_get(&units, uid);
+    if (!founder || colonies_can_found(&colonies, &map, 5, 5)) {
+      fx_map_free(&map);
+      return fail("#1445 setup: (5,5) must be refused");
+    }
+    founder->nation_id = nation;
+    founder->orders = UNITS_ORDER_BUILD_COLONY;
+    founder->moves = 3 * UNITS_MP_PER_TILE;
+    founder->col1_counter16 = 2;
+    ai_euro_found_with_unit(&ctx, founder, nation);
+    founder = units_get(&units, uid);
+    if (!founder || !founder->active || founder->orders != UNITS_ORDER_NONE ||
+        founder->moves != 0 || founder->col1_counter16 != 0 || colonies.colony_count != 1) {
+      fx_map_free(&map);
+      return fail("#1445: refused founding must leave founder idle and spent");
+    }
+  }
+
   fx_map_free(&map);
   fprintf(stderr, "unit_ai_euro_expand: indian-land FOUND no-charge / full-table ok\n");
   return 0;

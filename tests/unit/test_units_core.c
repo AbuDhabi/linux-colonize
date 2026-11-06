@@ -5343,6 +5343,7 @@ static int case_board_from_land_sentry(void) {
     /* Next turn (DOS day top clears the spent byte): unload onto land for
      * the sentry auto-board test. */
     land->mp_spent_turn = 0;
+    land->aboard_moves = -1; /* turn.c refresh; a 0 left now loses the #1440 gate */
     if (units_first_landfall_cargo(&pool, ship_id) != land_id) {
       fprintf(stderr, "board-enter: fresh parked pax must be landfall-eligible\n");
       return 1;

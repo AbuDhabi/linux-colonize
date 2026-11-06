@@ -1475,10 +1475,10 @@ static void ai_contact_establish_mission(
  *   code 4 (0x46ee) — village carries a foreign mission -> Denounce Heresy
  *     (thunk_FUN_1000_a594);
  *   own mission -> nothing.
- * DOS reaches this off a real village-tile entry; entering a village tile is
- * an attack in this port, so — exactly as for the AI Scout visit and the
- * wagon errand — the entry is resolved from the adjacent tile by the caller
- * (ai_euro_20e6_village_arm). Returns 1 when an arm consumed the unit's act.
+ * DOS reaches this off a real village-tile entry (465b -> 2a1f_016c -> 4528);
+ * the port's 479b goal walk hands that step to ai_euro_4528_ai_village_entry,
+ * which calls this once (port_bugs.md #1446). Returns 1 when an arm consumed
+ * the unit's act.
  */
 int ai_contact_ai_missionary_village(
   ColonizeTurnContext* ctx, int e, int tribe_index, int unit_id

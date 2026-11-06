@@ -181,6 +181,14 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_probe(units_move_ctx* c) {
   return UNITS_MOVE_CONTINUE;
 }
 
+/* FUN_281f_04ca(DS:0x83a6) on the third clause of the LAB_465b_05ca gate
+ * (raw 75649); see units_internal.h. */
+void units_465b_04ca_reseed(const ColonizeWorld* w, ColonizeDosRng* rng) {
+  if (w && rng && w->rng_reseed_set) {
+    dos_rng_seed(rng, w->rng_reseed);
+  }
+}
+
 /* COLONIZE_ENTER_BOARD: land unit steps onto an own ship's ocean tile. */
 COLONIZE_INTERNAL UnitsMoveStatus units_move_board(units_move_ctx* c) {
   ColonizeUnitPool* const pool = c->pool;
@@ -224,6 +232,9 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_board(units_move_ctx* c) {
     const bool board_full = board_left >= units_max_mp(pool, unit_id);
     bool board_allow = board_cost <= board_left || board_full;
     if (!board_allow && rng) {
+      /* Raw 75649 reseed before the raw 75825 roll, as the step gate
+       * (port_bugs.md #842, #1443). */
+      units_465b_04ca_reseed(c->w, rng);
       board_allow = dos_rng_range(rng, 1, board_cost > 0 ? board_cost : 1) <= board_left;
     }
     if (!board_allow) {
@@ -324,8 +335,15 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_denied(units_move_ctx* c) {
    * runs the same arms through game_loop_orders. Independence seed-100
    * 7 -> 8: the crown's captured wagon bumps rebel Bahia once, counter 1,
    * and is not drained again.
+   *
+   * BLOCKED_DOMAIN too (port_bugs.md #1441): the probe gives it to a ship
+   * bumping a foreign colony that holds a land garrison, but FUN_4720_015c
+   * (raw 75940-76059) lets a hull onto a tile whose settlement owner is 0..3
+   * (local_c = 1), so DOS reaches the same 015e -> 0662 -> 0694 -> 020e
+   * hand-off and the computer hull is spent (raw 99077-99082).
    */
-  if ((reason == COLONIZE_ENTER_BOUNCE_FOREIGN || reason == COLONIZE_ENTER_BLOCKED) &&
+  if ((reason == COLONIZE_ENTER_BOUNCE_FOREIGN || reason == COLONIZE_ENTER_BLOCKED ||
+       reason == COLONIZE_ENTER_BLOCKED_DOMAIN) &&
       c->colonies && c->col1 && c->unit->nation_id >= 0 && c->unit->nation_id <= 3 &&
       c->col1->player[c->unit->nation_id].control != 0) {
     const ColonizeColony* fc =
@@ -371,9 +389,8 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_denied(units_move_ctx* c) {
 static void units_465b_05ca_bvar4_reseed(const units_move_ctx* c) {
   const int cost = units_move_cost(c->pool, c->unit_id, c->map, c->dest_x, c->dest_y);
   const int remaining = units_remaining_mp(c->pool, c->unit_id);
-  if (cost > remaining && remaining < units_max_mp(c->pool, c->unit_id) && c->rng &&
-      c->w->rng_reseed_set) {
-    dos_rng_seed(c->rng, c->w->rng_reseed);
+  if (cost > remaining && remaining < units_max_mp(c->pool, c->unit_id)) {
+    units_465b_04ca_reseed(c->w, c->rng);
   }
 }
 
@@ -794,12 +811,11 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_colony_entry(units_move_ctx* c) {
     const ColonizeColony* fc =
       colonies_get(colonies, colonies_id_at(colonies, dest_x, dest_y));
     c->foreign_colony_entry = fc && fc->active && fc->nation_id != c->unit->nation_id;
-    if (c->foreign_colony_entry) {
-      units_465b_0673_vis_or(pool, c->map, c->unit, dest_x, dest_y);
-    }
   }
-  /* The LAB_465b_01ce stop below (raw 75577-75578) runs BEFORE the bVar4
-   * fight: an AI with under 3 thirds left never attacks the militia. */
+  /* The LAB_465b_01ce stop (raw 75507-75508) runs BEFORE the bVar4 fight and
+   * before LAB_465b_0673's 07fe vis OR (01ce exits via 0bd1, never reaching
+   * 0673): an AI with under 3 thirds left never attacks the militia and gains
+   * no visibility bit. port_bugs.md #1438. */
   if (c->foreign_colony_entry && units_465b_01ce_low_mp_ai(c)) {
     units_mp_exhaust(pool, c->unit);
     g_units_last_enter_reason = COLONIZE_ENTER_NO_MP;
@@ -816,6 +832,10 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_colony_entry(units_move_ctx* c) {
       units_465b_ai_euro_band(c, fc->nation_id, -1);
       units_465b_05ca_bvar4_reseed(c);
     }
+  }
+  /* LAB_465b_0673 (raw 75661-75664) follows the band and the 05ca gate. */
+  if (c->foreign_colony_entry) {
+    units_465b_0673_vis_or(pool, c->map, c->unit, dest_x, dest_y);
   }
   /* Paul Revere: empty foreign colony tile → auto-arm from muskets + fight.
    * Cite: PEDIA / docs/fandom_col1994.md Paul Revere. */
@@ -873,7 +893,7 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_step_gate(units_move_ctx* c) {
   const bool full_mp = remaining >= max_mp;
 
   /*
-   * FUN_465b_0000 raw 75577-75578: bVar4 is set by a foreign SETTLEMENT owner
+   * FUN_465b_0000 raw 75507-75508: bVar4 is set by a foreign SETTLEMENT owner
    * too (06be, raw 75467), so an undefended foreign colony counts. An AI or
    * native mover with under 3 thirds left goes to LAB_465b_01ce: exhaust
    * (FUN_281f_0934) and stop, before any partial-MP roll. Fresh 1592
@@ -913,9 +933,7 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_step_gate(units_move_ctx* c) {
      * from the timer word before the `else` roll at raw 75825-75827
      * (`FUN_281f_04d4(1, cost) <= remaining`). Same chokepoint the Brave
      * path uses (ai_brave.c, ai_turn_seed). port_bugs.md #842. */
-    if (c->w->rng_reseed_set) {
-      dos_rng_seed(rng, c->w->rng_reseed);
-    }
+    units_465b_04ca_reseed(c->w, rng);
     const int roll = dos_rng_range(rng, 1, cost > 0 ? cost : 1);
     allow = roll <= remaining;
   } else {
@@ -1086,33 +1104,24 @@ COLONIZE_INTERNAL UnitsMoveStatus units_move_colony_arrival(units_move_ctx* c) {
   const int dest_y = c->dest_y;
 
   /*
-   * DOS-LITERAL FUN_465b_0bd1 raw 75721: `FUN_281f_088a(unit) != 0 ||
+   * DOS-LITERAL FUN_465b_0000 raw 75724-75725: `FUN_281f_088a(unit) != 0 ||
    * type == 0x0c` gates the whole colony-enter arm (MP exhaust, the
    * col1_counter16 reset and the arriving-group sentry wake below).
-   * FUN_281f_088a (== FUN_1427_1284, raw 8684-8702) walks the mover's tile
-   * stack — evaluated before FUN_281f_0934 relinks it into the destination
-   * stack, i.e. it still reads the ORIGIN tile's stack at this point even
-   * though x/y already hold the destination — and returns true if ANY unit
-   * there (including the mover itself) is a hull (type 0xd..0x12). port_bugs.md
-   * #791: was gated on `units_is_transport(mover)` (self-only, cargo-gated),
-   * so a plain land unit leaving a tile that also held a ship kept its MP
-   * when it walked into a colony, and a wagon/ship with an empty hold was
-   * wrongly exempted.
+   * FUN_281f_088a (== FUN_1427_1284, raw 8684-8702) walks the chain the mover
+   * sits in (FUN_1427_0002 to the head, FUN_1427_004a onward) for a hull
+   * (type 0xd..0x12). By then raw 75698 FUN_281f_0916 (== FUN_1427_12f6) has
+   * already pulled the mover off the origin tile: a hull via FUN_1427_10be
+   * (hull + riders together), a land unit alone via FUN_1427_0362(unit,-2,-2)
+   * (023a unlink + 02ca relink). The relink onto the destination is
+   * FUN_281f_0948 (raw 75768), later. So the chain holds only the mover's own
+   * group: the gate is "mover is a hull || mover is a wagon"; the exhaust is
+   * FUN_281f_0934 (raw 75732). A land unit stepping into a colony from a tile
+   * that holds a ship keeps its MP.
+   * port_bugs.md #1437 (supersedes #791's origin-stack reading).
    */
-  bool hull_in_origin_stack = units_is_sea(pool, unit_id);
-  if (!hull_in_origin_stack) {
-    int slot = 0;
-    for (ColonizeUnit* other = units_next_on_tile(pool, c->ox, c->oy, &slot); other != NULL;
-         other = units_next_on_tile(pool, c->ox, c->oy, &slot)) {
-      if (units_is_sea(pool, other->id)) {
-        hull_in_origin_stack = true;
-        break;
-      }
-    }
-  }
   const ColonizeUnitType* mover_type = units_type(pool, unit->type_index);
   const bool mover_is_wagon = mover_type && units_type_is_wagon(mover_type);
-  const bool colony_enter_gate = hull_in_origin_stack || mover_is_wagon;
+  const bool colony_enter_gate = units_is_sea(pool, unit_id) || mover_is_wagon;
 
   if (!colonies || colonies_id_at(colonies, dest_x, dest_y) < 0) {
     return UNITS_MOVE_CONTINUE;
@@ -1552,10 +1561,13 @@ bool units_set_orders(ColonizeUnitPool* pool, int unit_id, int orders) {
   u->follow_unit_id = -1;
   const int prev = u->orders;
   u->orders = orders;
-  if (orders == UNITS_ORDER_SENTRY || orders == UNITS_ORDER_FORTIFY ||
-      orders == UNITS_ORDER_FORTIFIED) {
+  if (orders == UNITS_ORDER_FORTIFY || orders == UNITS_ORDER_FORTIFIED) {
     /* Park = "no moves left this turn": spent-aware, since moves holds
-     * REMAINING for Euros and SPENT for natives (audit #6). */
+     * REMAINING for Euros and SPENT for natives (audit #6). Sentry spends
+     * nothing (port_bugs.md #1447): DOS's Sentry stub 2b5a:1106 is only
+     * `+0x314c = 1; retf` (ndisasm 0x21FE6); order 1 alone keeps the unit
+     * out of FUN_1427_1330's rotation, and a same-turn wake moves on with
+     * the MP it had. */
     units_mp_exhaust(pool, u);
   }
   if (diag_info_enabled() && prev != orders) {
@@ -3414,17 +3426,20 @@ bool units_advance_goto_one_step_w(
      * not a silent no-op: 0f74 itself calls FUN_281f_0934 (spend the whole
      * allotment) on both its failure exits — the "no candidate scored"
      * one (`if (local_1c != 8) goto LAB_6662_1599; FUN_281f_0934(...)`) and
-     * the reversal-reroll one — and the caller then clears +0x314c because
-     * the returned direction is < 0 or == 8. Only order 0x02 (TRADE_ROUTE)
-     * survives, and then only on the ==8 flavour. Without this the order
-     * stayed on the unit forever and the pacer re-polled it every frame.
+     * the reversal-reroll one — and the caller then clears +0x314c (raw
+     * 77118) because the returned direction is outside 0..7. 0972 spares
+     * order 0x02 (TRADE_ROUTE) only on a return of 8 (raw 77069-77070), but
+     * 0f74 never returns 8: its "no candidate scored" exit rewrites 8 to -1
+     * after the 0934 (raw 104746-104748, asm `CMP local_1c,8; JNZ; CALLF
+     * 0934; MOV local_1c,0xffff`), and 0086 / 00f2 / the 04d4 reroll yield
+     * only 0..7 or -1. So every miss clears the order, trade route included
+     * (port_bugs.md #1444). Without this the order stayed on the unit
+     * forever and the pacer re-polled it every frame.
      */
     ColonizeUnit* miss = units_get(pool, unit_id);
     if (miss) {
       units_mp_exhaust(pool, miss);
-      if (miss->orders != UNITS_ORDER_TRADE_ROUTE) {
-        units_clear_orders(pool, unit_id);
-      }
+      units_clear_orders(pool, unit_id);
     }
     return false;
   }

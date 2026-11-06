@@ -405,7 +405,7 @@ COLONIZE_INTERNAL int ai_king_0982_spawn_pool_unit(ColonizeTurnContext* ctx, int
    * arrive order-free so the euro act (5b66/20e6) decides its move next
    * turn — the old AI_MOVE+goto=self stamp read as a committed goto to its
    * own tile and froze the wave once the king-side hunt was retired (D1). */
-  /* 0982: the landed unit's moves are spent this beat (02d0 animate + 0948). */
+  /* 0982: the landed unit's moves are spent this beat (FUN_281f_0934, raw 74209). */
   u->moves = 0;
   /* Vis bit for the target nation: the caller (0982_land_troops) stamps it. */
   return uid;

@@ -424,6 +424,34 @@ static int test_game_colony_unload_whole_hold(void) {
   return 0;
 }
 
+/* port_bugs.md #1448: the colony dock popups' Fortify writes +0x314c = 5 only
+ * (FUN_2f2b_5746 raw 52419-52421): no MP exhaust, no +0x315a reset. */
+static int test_game_colony_dock_fortify_order_only(void) {
+  ColonizeGameState game;
+  memset(&game, 0, sizeof(game));
+  game.units_ok = true;
+  fx_units_init(&game.units);
+  game.units.type_count = 1;
+  game.units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  game.units.types[0].movement = 1;
+  const int uid = units_spawn(&game.units, 0, 5, 5);
+  ColonizeUnit* u = units_get(&game.units, uid);
+  if (!u) {
+    return fail("dock fortify fixture");
+  }
+  u->nation_id = 0;
+  u->moves = 2;
+  u->col1_counter16 = 7;
+  ColonyScreenView csv;
+  memset(&csv, 0, sizeof(csv));
+  csv.dock_orders_unit_id = uid;
+  game_colony_apply_dock_order(&game, &csv, COLONY_DOCK_ORDER_FORTIFY);
+  if (u->orders != UNITS_ORDER_FORTIFY || u->moves != 2 || u->col1_counter16 != 7) {
+    return fail("dock Fortify must write order 5 only");
+  }
+  return 0;
+}
+
 /* FUN_15eb_1068 raw 11232-11243: a body's tools byte is banked only through a
  * Pioneer's job cargo list. A Scout carrying the residue of a Pioneer stripped
  * in Europe must not re-equip as a Pioneer for free; a real Pioneer still
@@ -5450,6 +5478,7 @@ static const TestCase k_cases[] = {
     {"test_game_render_select_palette", test_game_render_select_palette},
     {"test_window_log_fit_line", test_window_log_fit_line},
     {"test_game_colony_unload_whole_hold", test_game_colony_unload_whole_hold},
+    {"test_game_colony_dock_fortify_order_only", test_game_colony_dock_fortify_order_only},
     {"test_game_colony_outside_role_tools_residue", test_game_colony_outside_role_tools_residue},
     {"test_colony_zoom_hold_survives_pedia_detour", test_colony_zoom_hold_survives_pedia_detour},
     {"test_trade_route_wagon_services_arrival_stop", test_trade_route_wagon_services_arrival_stop},

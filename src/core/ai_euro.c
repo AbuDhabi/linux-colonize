@@ -474,6 +474,12 @@ int ai_euro_unload_pax_at(
     return 0;
   }
   const ColonizeWorld uw = world_from_turn_ctx(ctx);
+  /* LAB_3558 (raw 89593) writes +0x3149 = 0 before the FUN_2a1f_0150 step:
+   * the AI passenger lands with a full allotment, so the 465b allow gate in
+   * units_unload_passenger_w (port_bugs.md #1440) never rolls for it. The
+   * port spells spent 0 for a parked passenger as aboard_moves -1. */
+  pax->moves = 0;
+  pax->aboard_moves = -1;
   if (!units_unload_passenger_w(&uw, ship->id, pax->id, dest_x, dest_y)) {
     return 0;
   }
@@ -1331,7 +1337,9 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
        * founder survives, and leaving act_state 7 on it would wedge it
        * forever (20e6's entry bail, raw 88404-88406, drops every act_state
        * outside {0,5,6,>=10} straight to LAB_5a78). Fall back to the
-       * courseless state 5 the LAB_5a78 tail hands out.
+       * courseless state 5 the LAB_5a78 tail hands out. Every refusal inside
+       * ai_euro_found_with_unit clears +0x314c like DOS 076e (#1445), so only
+       * its null-context bail reaches this now.
        */
       u = units_get(ctx->units, u->id);
       if (u && u->active && u->orders == UNITS_ORDER_BUILD_COLONY) {

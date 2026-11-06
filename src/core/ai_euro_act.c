@@ -671,6 +671,29 @@ static int ai_euro_4528_ai_village_entry(ColonizeTurnContext* ctx, ColonizeUnit*
   return 1;
 }
 
+/*
+ * FUN_465b_0000 raw 75466-75481 + 75505-75507: bVar4 = the destination's
+ * settlement owner (FUN_281f_06be), overridden by the nation heading its
+ * stack (FUN_281f_07e0), is someone else; a computer (DS:0x543f) or native
+ * mover with < 3 thirds left then takes LAB_465b_01ce. The village (2a1f_016c
+ * -> 4528) and foreign-colony (2a1f_015e -> 0662) hand-offs at raw 75483-
+ * 75500 sit on bVar4 tiles too and also leave through LAB_0bd1 with no roll.
+ * Same owner rule as ai_brave.c ai_465b_dest_owner (static outside tests).
+ */
+static bool ai_euro_465b_01ce_stop(const ColonizeTurnContext* ctx, const ColonizeUnit* u, int x, int y) {
+  const int n = u->nation_id;
+  if (n < 0 || (n <= 3 && ctx->col1_ok && ctx->col1 && ctx->col1->player[n].control == 0) ||
+      units_remaining_mp(ctx->units, u->id) >= UNITS_MP_PER_TILE) {
+    return false;
+  }
+  int owner = ai_021a_settle_owner(ctx->map, x, y);
+  const ColonizeUnit* head = units_get_const(ctx->units, units_tile_head_id_at(ctx->units, x, y));
+  if (head) {
+    owner = head->nation_id;
+  }
+  return owner >= 0 && owner != n;
+}
+
 void ai_euro_goal_walk_479b(ColonizeTurnContext* ctx, ColonizeUnit* u) {
   const int id = u->id;
   const int state = u->orders;
@@ -725,6 +748,13 @@ void ai_euro_goal_walk_479b(ColonizeTurnContext* ctx, ColonizeUnit* u) {
    * raw 75649 reseed and the raw 75825 roll, which can never pass at 0 left.
    * The port's mover refuses 0 MP up front, so burn the draw here. DOSBox
    * 1591: the French Merchantman's failed step drew 365. */
+  if (units_remaining_mp(ctx->units, id) <= 0 && ai_euro_465b_01ce_stop(ctx, u, px, py)) {
+    /* LAB_465b_01ce: FUN_281f_0934 then LAB_0bd1, no spent add (raw 75638),
+     * no reseed (75649), no roll (75825). port_bugs.md #1442. */
+    units_mp_exhaust(ctx->units, u);
+    units_465b_0bd1_tail(ctx->units, id, units_before, false);
+    return;
+  }
   if (units_remaining_mp(ctx->units, id) <= 0 && w.rng) {
     const int cost = units_move_cost(ctx->units, id, ctx->map, px, py);
     dos_rng_seed(w.rng, w.rng_reseed);
@@ -809,16 +839,8 @@ void ai_euro_goal_walk_479b(ColonizeTurnContext* ctx, ColonizeUnit* u) {
 /* FUN_521d_5b66 for a hull. */
 void ai_euro_act_ship_dos(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id) {
   const int id = u->id;
-  if (ai_euro_in_europe(u->x, u->y)) {
-    /* Departures run inside 5d04 before the unit waves (arrivals, lane
-     * 224+n, are placed by the FUN_48d3_06ba tail): a hull still at the dock
-     * failed that pass's departure gate (e.g. damage) and ends its act.
-     * No Europe-dock dump-sell here either: DOS's seller is the nation-level
-     * FUN_521d_5d04 pass (ai_euro_5d04_cb_sell_hold0, deleted per-unit arm
-     * 2026-09-18), and the AI never ships a treasure (#746). */
-    u->moves = 0;
-    return;
-  }
+  /* No Europe-park arm: the wave pass never acts a hull at x >= 128 (13b0's
+   * signed +0x3144 test, ai_euro.c), so a dock / lane hull never gets here. */
   const int fresh = u->moves >= units_max_mp(ctx->units, id);
   int run_20e6 = 1;
   if (!fresh && u->orders == AI_EURO_ACT_GOAL) {

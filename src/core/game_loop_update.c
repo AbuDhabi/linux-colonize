@@ -861,7 +861,13 @@ static GameUpdateStep game_pacer_goto_step(
        * INFO popup queued, and the old "no popup pending" guard then kept
        * the Go To armed — the pacer re-fired the same dialog every frame
        * and the player could never proceed. Those reasons are final for
-       * the order: park and clear regardless of the popup.
+       * the order: clear it regardless of the popup.
+       *
+       * port_bugs.md #1439: clear the order only; the unit keeps its MP.
+       * FUN_479b_0972 drops +0x314c when FUN_4720_049e returns non-zero, and
+       * 049e's @SHIPCOMBAT/@SHIPLAKE/@LANDFIRST refusals (and 465b's
+       * @CANNOTATTACK exit, whose 0934 is computer-only) spend nothing for a
+       * human: the unit comes back to the player with its moves.
        */
       const ColonizeEnterReason why = units_last_enter_reason();
       const bool dialog_refusal =
@@ -869,7 +875,6 @@ static GameUpdateStep game_pacer_goto_step(
         (why == COLONIZE_ENTER_BOUNCE_FOREIGN || why == COLONIZE_ENTER_LAKE_BLOCKED ||
          why == COLONIZE_ENTER_LANDFIRST || why == COLONIZE_ENTER_BLOCKED_DOMAIN);
       if (dialog_refusal && units_orders_follow_goto(after->orders)) {
-        after->moves = 0;
         units_clear_orders(&game->units, aid);
       } else if (after && after->active && units_orders_follow_goto(after->orders) &&
           !game->ai_popups.open && game->ai_popups.queue_count == 0) {
@@ -877,9 +882,9 @@ static GameUpdateStep game_pacer_goto_step(
           /* Arrived (capture / entry went through): plain arrival. */
           units_clear_orders(&game->units, aid);
         } else {
-          /* Refused without a prompt (cost, domain…): park like a
-           * blocked step (port_bugs.md #363) so the pacer doesn't spin. */
-          after->moves = 0;
+          /* Refused without a prompt (cost, domain…): drop the Go To so
+           * the pacer doesn't spin (port_bugs.md #363); 049e's silent
+           * `8 < reason-1` exit keeps the MP (#1439). */
           units_clear_orders(&game->units, aid);
         }
       }
@@ -981,15 +986,26 @@ static GameUpdateStep game_pacer_goto_step(
        * turn_select_next_unit keep handing it back — with no other
        * human unit left with moves it re-picked the same wagon every
        * frame, holding the cursor on a piece that never stepped.
-       * Park it for the turn instead; next turn's full allotment
-       * clears the affordability case and re-runs the block check.
-       * Arrival is untouched (orders already cleared there), so a
-       * finished Go To still hands the player its leftover MP.
+       *
+       * port_bugs.md #1439: drop the order and leave the MP, as DOS does.
+       * A pathfinder miss already exhausts in units_advance_goto_one_step_w
+       * (FUN_6662_0f74's 0934), so what still lands here is a refused step
+       * (465b's LAB_0bd1 tail clears +0x314c for every mover and exhausts
+       * only computer ones, raw 75832-75841) or the port's en-route
+       * foreign-occupant halt, whose nearest DOS analogue is that same
+       * refusal. With the order gone the pacer stops driving the unit and
+       * it comes back to the player with its leftover MP. Port-only
+       * Automate re-aims every frame, so an automated unit still parks for
+       * the turn (else it would re-pick the same stuck target forever).
        */
       ColonizeUnit* stalled = units_get(&game->units, active_id);
       if (stalled && stalled->active && units_orders_follow_goto(stalled->orders) &&
           stalled->moves > 0) {
-        stalled->moves = 0;
+        if (stalled->automated) {
+          stalled->moves = 0;
+        } else {
+          units_clear_orders(&game->units, active_id);
+        }
       }
       if (game_select_next_unit_awaiting_orders(game)) {
         game->view_pieces_mode = false;

@@ -419,7 +419,7 @@ static int unit_ship_pressure_0906_cost(void) {
  *  #701 the adjacent tier is FUN_6662_0086, a bare sign->dir8 lookup: it
  *       returns the sign step even onto a tile the unit cannot enter.
  *  #696 a pathfinder miss spends the whole allotment (FUN_281f_0934) and
- *       clears +0x314c.
+ *       clears +0x314c; #1444: TRADE_ROUTE too (0f74 never returns 8).
  *  #697 on arrival AI_MOVE (0x0c) keeps its order like TRADE_ROUTE (0x02),
  *       and AI_SAIL (0x0b) is finished on the spot.
  */
@@ -504,6 +504,24 @@ static int unit_goto_dos_tails(void) {
     } else if (u->moves != 0) {
       fprintf(stderr, "goto_tails: #696 allotment must be spent, moves=%d\n", u->moves);
       rc = 1;
+    }
+  }
+  /* #1444: 0f74 never returns 8, so TRADE_ROUTE is cleared on a miss too. */
+  if (rc == 0) {
+    const int trader = units_spawn_allow_stack(&pool, 0, 2, 2);
+    u = units_get(&pool, trader);
+    if (u) {
+      u->nation_id = 0;
+      u->moves = UNITS_MP_PER_TILE;
+      u->orders = UNITS_ORDER_TRADE_ROUTE;
+      u->goto_x = 13;
+      u->goto_y = 13;
+      if (units_advance_goto_one_step_w(&w, trader) || u->orders != UNITS_ORDER_NONE ||
+          u->moves != 0) {
+        fprintf(stderr, "goto_tails: #1444 trade-route miss must clear + spend, orders=%d\n",
+                u->orders);
+        rc = 1;
+      }
     }
   }
 
@@ -648,6 +666,104 @@ static int unit_wake_passenger_can_land(void) {
   if (rc == 0) {
     fprintf(stderr, "unit_units: wake loaded passenger -> land ok\n");
   }
+  return rc;
+}
+
+/*
+ * port_bugs.md #1440: stepping off the ship is a FUN_465b_0000 step, so it has
+ * the allow gate (raw 75649-75651 / 75825-75827): a passenger short of the
+ * cost that loses the 04d4 roll stays aboard, charged (spent); one with its
+ * full allotment always lands, no roll.
+ */
+static int unit_landfall_mp_gate(void) {
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  pool.type_count = 2;
+  pool.types[0].movement = 4;
+  pool.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  pool.types[0].cargo = 2;
+  pool.types[1].space = 1;
+  pool.types[1].movement = 1;
+  pool.types[1].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  char err[128];
+  if (!map_alloc(&map, 8, 8, err, sizeof(err))) {
+    fprintf(stderr, "landfall_gate: map_alloc failed: %s\n", err);
+    return 1;
+  }
+  for (int i = 0; i < 8 * 8; ++i) {
+    map.terrain[i] = (i % 8 == 4) ? 1 : 25; /* land column x=4, ocean elsewhere */
+  }
+  const int ship = units_spawn_allow_stack(&pool, 0, 3, 3);
+  const int pax = units_spawn_allow_stack(&pool, 1, 4, 3);
+  int rc = 0;
+  if (!units_get(&pool, ship) || !units_get(&pool, pax)) {
+    fprintf(stderr, "landfall_gate: spawn failed\n");
+    rc = 1;
+  }
+  if (rc == 0) {
+    units_get(&pool, ship)->nation_id = 0;
+    units_get(&pool, pax)->nation_id = 0;
+    units_get(&pool, pax)->moves = UNITS_MP_PER_TILE;
+    if (!units_board(&pool, pax, ship)) {
+      fprintf(stderr, "landfall_gate: board failed\n");
+      rc = 1;
+    }
+  }
+  const int cost = map_move_spent_thirds(&map, 3, 3, 4, 3);
+  if (rc == 0 && cost <= 1) {
+    fprintf(stderr, "landfall_gate: fixture needs a step cost > 1 third (got %d)\n", cost);
+    rc = 1;
+  }
+  /* A 04ca word whose 04d4(1, cost) misses 1 third left. */
+  uint32_t word = 0;
+  for (uint32_t s = 1; s < 0x8000u && word == 0; ++s) { /* tiny seeds draw low */
+    ColonizeDosRng probe;
+    dos_rng_seed(&probe, s);
+    if (dos_rng_range(&probe, 1, cost) > 1) {
+      word = s;
+    }
+  }
+  if (rc == 0 && word == 0) {
+    fprintf(stderr, "landfall_gate: no reseed word misses 1 third\n");
+    rc = 1;
+  }
+  ColonizeDosRng rng;
+  dos_rng_seed(&rng, 0);
+  const ColonizeWorld w = {
+    .units = &pool, .map = &map, .rng = &rng, .rng_reseed = word, .rng_reseed_set = true
+  };
+  ColonizeUnit* pu = units_get(&pool, pax);
+  if (rc == 0) {
+    pu->moves = 0;
+    pu->aboard_moves = 1;
+    pu->mp_spent_turn = 0;
+    if (units_unload_passenger_w(&w, ship, pax, 4, 3)) {
+      fprintf(stderr, "landfall_gate: a lost roll must refuse the step\n");
+      rc = 1;
+    } else if (pu->aboard_ship_id != ship || pu->moves != 0 || pu->aboard_moves != 0 ||
+               !pu->mp_spent_turn || units_last_enter_reason() != COLONIZE_ENTER_NO_MP) {
+      fprintf(stderr, "landfall_gate: refused pax must stay aboard, charged (aboard=%d mp=%d am=%d)\n",
+              pu->aboard_ship_id, pu->moves, pu->aboard_moves);
+      rc = 1;
+    }
+  }
+  /* Next turn (turn.c refresh): full allotment, cost <= left, no roll. */
+  if (rc == 0) {
+    pu->aboard_moves = -1;
+    pu->mp_spent_turn = 0;
+    const uint32_t before = rng.state;
+    if (!units_unload_passenger_w(&w, ship, pax, 4, 3) || pu->aboard_ship_id >= 0 ||
+        pu->x != 4 || pu->y != 3) {
+      fprintf(stderr, "landfall_gate: a full-allotment pax must land\n");
+      rc = 1;
+    } else if (rng.state != before) {
+      fprintf(stderr, "landfall_gate: a full-allotment pax must not roll\n");
+      rc = 1;
+    }
+  }
+  map_free(&map);
   return rc;
 }
 
@@ -895,19 +1011,22 @@ static int unit_mp_entry_gating_713_724(void) {
   return rc;
 }
 /*
- * port_bugs.md #791/#792 — DOS-LITERAL FUN_465b_0bd1 raw 75721: the colony-enter
- * arm (MP exhaust, col1_counter16 reset, arriving-group sentry wake) is
- * gated on "hull present in the mover's origin tile stack OR mover is a
- * wagon (type 0x0c)", not on units_is_transport(mover). A plain land unit
- * leaving a tile that also holds a ship must be exhausted on entry; a plain
- * land unit leaving a tile with no ship must NOT be exhausted. Docking resets
- * col1_counter16 and leaves Sentry units already in the colony asleep.
+ * port_bugs.md #1437 (supersedes #791) / #792 — DOS-LITERAL FUN_465b_0000 raw
+ * 75721: the colony-enter arm (MP exhaust, col1_counter16 reset, arriving-group
+ * sentry wake) is gated on `FUN_281f_088a(unit) || type == 0x0c`. 088a walks
+ * the mover's own chain after FUN_281f_0916 pulled it off the origin tile, so
+ * the gate is "mover is a hull || mover is a wagon". A land unit stepping in
+ * from a tile that holds a ship keeps its MP (minus the step); a ship and a
+ * wagon are exhausted. Docking leaves Sentry units already in the colony asleep.
  */
 static int unit_colony_enter_hull_stack_gate_791_792(void) {
   int rc = 0;
   ColonizeUnitPool pool;
   memset(&pool, 0, sizeof(pool));
-  pool.type_count = 3;
+  pool.type_count = 4;
+  pool.types[3].kind_plus1 = UNITS_KIND_WAGON + 1;
+  pool.types[3].movement = 2;
+  pool.types[3].domain = COLONIZE_UNIT_DOMAIN_LAND;
   snprintf(pool.types[0].name, sizeof(pool.types[0].name), "Colonists");
   pool.types[0].movement = 2;
   pool.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
@@ -943,8 +1062,8 @@ static int unit_colony_enter_hull_stack_gate_791_792(void) {
   col->y = 3;
   colonies.colony_count = 1;
 
-  /* #791: colonist leaves a tile that ALSO holds a ship -> MP exhausted on
-   * arrival even though the colonist itself is not a transport. */
+  /* #1437: colonist leaves a tile that ALSO holds a ship -> keeps its MP
+   * (only the step is charged) and col1_counter16 is untouched. */
   const int hull_id = units_spawn_allow_stack(&pool, 2, 3, 3);
   const int mover_id = units_spawn_allow_stack(&pool, 0, 3, 3);
   ColonizeUnit* hull = units_get(&pool, hull_id);
@@ -965,14 +1084,34 @@ static int unit_colony_enter_hull_stack_gate_791_792(void) {
     rc = 1;
   }
   mover = units_get(&pool, mover_id);
-  if (rc == 0 && mover->moves != 0) {
-    fprintf(stderr, "colony_enter_gate #791: hull-in-origin-stack should exhaust MP, moves=%d\n",
-            mover->moves);
+  if (rc == 0 && mover->moves == 0) {
+    fprintf(stderr, "colony_enter_gate #1437: land unit from a ship tile must keep MP\n");
     rc = 1;
   }
-  if (rc == 0 && mover->col1_counter16 != 0) {
-    fprintf(stderr, "colony_enter_gate #792: col1_counter16 not reset on colony arrival\n");
+  if (rc == 0 && mover->col1_counter16 != 7) {
+    fprintf(stderr, "colony_enter_gate #1437: land unit's col1_counter16 must be untouched\n");
     rc = 1;
+  }
+
+  /* Wagon (type 0x0c): exhausted on entry, col1_counter16 reset (#792). */
+  const int wagon_id = units_spawn_allow_stack(&pool, 3, 3, 4);
+  ColonizeUnit* wagon = units_get(&pool, wagon_id);
+  if (wagon) {
+    wagon->nation_id = 0;
+    wagon->moves = 6;
+    wagon->col1_counter16 = 7;
+    if (!units_try_move_w(
+          &(ColonizeWorld){.units = &pool, .colonies = &colonies, .map = &map}, wagon_id, 4, 3
+        )) {
+      fprintf(stderr, "colony_enter_gate: wagon move refused\n");
+      rc = 1;
+    }
+    wagon = units_get(&pool, wagon_id);
+    if (rc == 0 && (wagon->moves != 0 || wagon->col1_counter16 != 0)) {
+      fprintf(stderr, "colony_enter_gate: wagon must be exhausted + reset, moves=%d c16=%d\n",
+              wagon->moves, wagon->col1_counter16);
+      rc = 1;
+    }
   }
 
   /* Control: a plain colonist leaving a tile with NO hull is not exhausted. */
@@ -1018,11 +1157,17 @@ static int unit_colony_enter_hull_stack_gate_791_792(void) {
       fprintf(stderr, "colony_enter_gate: resident sentry woken by docking\n");
       rc = 1;
     }
+    mover3 = units_get(&pool, mover3_id);
+    if (rc == 0 && mover3 && mover3->moves != 0) {
+      fprintf(stderr, "colony_enter_gate: docking hull must be exhausted, moves=%d\n",
+              mover3->moves);
+      rc = 1;
+    }
   }
 
   map_free(&map);
   if (rc == 0) {
-    fprintf(stderr, "unit_units: colony-enter hull/wagon gate (#791/#792) ok\n");
+    fprintf(stderr, "unit_units: colony-enter hull/wagon gate (#1437/#792) ok\n");
   }
   return rc;
 }
@@ -1337,7 +1482,8 @@ static int unit_colony_entry_bvar4_reseed_1323(void) {
 /*
  * FUN_465b_0000 raw 75505-75508 and 75527-75595: a computer Euro mover
  * entering a foreign colony with no armed defender takes the same entry head
- * as an attack on a unit. Under 3 thirds left it stands down (spent, no band);
+ * as an attack on a unit. Under 3 thirds left it stands down (spent, no band,
+ * no 0673 vis OR: #1438);
  * with full moves the relation band runs on the settlement owner (PEACE
  * cleared both ways). Both the plain entry (units_move_colony_entry) and the
  * combat-reason entry (units_move_combat_no_foe) are covered. The move gate
@@ -1358,6 +1504,7 @@ static int unit_ai_undefended_colony_band(void) {
     fprintf(stderr, "undefended_band: map_alloc failed: %s\n", err);
     return 1;
   }
+  map.layer3[3 * 8 + 4] = 0x01; /* colony tile owner nibble 0: 07fe would OR bit 0 */
   static ColonizeColonyPool colonies;
   colonies_init(&colonies);
   colonies_set_occupancy_map(NULL);
@@ -1387,6 +1534,7 @@ static int unit_ai_undefended_colony_band(void) {
     ColonizeUnit* u = units_get(&pool, id);
     units_set_nation(u, 1);
     u->moves = short_mp ? 2 : UNITS_MP_PER_TILE;
+    u->col1_vis_mask = 0;
     units_move_ctx c = {
       .w = &w, .pool = &pool, .map = &map, .colonies = &colonies, .rng = &rng,
       .col1 = &col1, .unit_id = id, .unit = u, .dest_x = 4, .dest_y = 3,
@@ -1401,6 +1549,11 @@ static int unit_ai_undefended_colony_band(void) {
       if (st != UNITS_MOVE_RETURN_FALSE || units_remaining_mp(&pool, id) != 0 || !peace_kept) {
         fprintf(stderr, "undefended_band: pass %d stand-down st=%d mp=%d peace=%d\n", pass,
                 (int)st, units_remaining_mp(&pool, id), (int)peace_kept);
+        rc = 1;
+      }
+      /* port_bugs.md #1438: 01ce exits before LAB_465b_0673's 07fe vis OR. */
+      if (rc == 0 && (u->col1_vis_mask & 1u) != 0) {
+        fprintf(stderr, "undefended_band: pass %d stand-down must not OR the owner bit\n", pass);
         rc = 1;
       }
     } else if (peace_kept) {
@@ -1506,7 +1659,82 @@ static int unit_board_wakes_foreign_sentry(void) {
   return rc;
 }
 
+/*
+ * port_bugs.md #1443: boarding is 465b's plain step, so its LAB_465b_05ca gate
+ * reseeds (FUN_281f_04ca DS:0x83a6, raw 75649) before the raw 75825
+ * range(1, cost) roll when the mover is short of the step cost with something
+ * spent, exactly like the step gate (#842).
+ */
+static int unit_board_gate_reseed_1443(void) {
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  pool.type_count = 2;
+  pool.types[0].movement = 4;
+  pool.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  pool.types[0].cargo = 2;
+  pool.types[1].space = 1;
+  pool.types[1].movement = 1;
+  pool.types[1].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  char err[128];
+  if (!map_alloc(&map, 8, 8, err, sizeof(err))) {
+    fprintf(stderr, "board_reseed: map_alloc failed: %s\n", err);
+    return 1;
+  }
+  for (int i = 0; i < 8 * 8; ++i) {
+    map.terrain[i] = (i % 8 == 4) ? 1 : 25; /* land column x=4, ocean elsewhere */
+    map.layer3[i] = 1;
+  }
+  units_set_occupancy_map(&map);
+  static ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  const int ship = units_spawn_allow_stack(&pool, 0, 3, 3);
+  const int pax = units_spawn_allow_stack(&pool, 1, 4, 3);
+  ColonizeUnit* pu = units_get(&pool, pax);
+  int rc = 0;
+  if (!units_get(&pool, ship) || !pu) {
+    fprintf(stderr, "board_reseed: spawn failed\n");
+    rc = 1;
+  }
+  ColonizeDosRng rng;
+  ColonizeWorld w = {.units = &pool, .map = &map, .colonies = &colonies, .rng = &rng};
+  w.rng_reseed = 1234;
+  w.rng_reseed_set = true;
+  if (rc == 0) {
+    units_get(&pool, ship)->nation_id = 0;
+    pu->nation_id = 0;
+    pu->moves = 1; /* short of the ocean step, something spent */
+    const int cost = units_move_cost(&pool, pax, &map, 3, 3);
+    if (cost <= 1) {
+      fprintf(stderr, "board_reseed: fixture step cost must exceed 1\n");
+      rc = 1;
+    }
+    dos_rng_seed(&rng, 77);
+    units_move_ctx c = {
+      .w = &w, .pool = &pool, .map = &map, .colonies = &colonies, .rng = &rng,
+      .unit_id = pax, .unit = pu, .dest_x = 3, .dest_y = 3, .reason = COLONIZE_ENTER_BOARD,
+      .village_temp = -1, .village_nation = -1, .foe = -1,
+    };
+    if (rc == 0) {
+      (void)units_move_board(&c);
+      ColonizeDosRng want;
+      dos_rng_seed(&want, 1234);
+      (void)dos_rng_range(&want, 1, cost);
+      if (rng.state != want.state) {
+        fprintf(stderr, "board_reseed: rng state %u want %u (reseed + one roll)\n",
+                (unsigned)rng.state, (unsigned)want.state);
+        rc = 1;
+      }
+    }
+  }
+  units_set_occupancy_map(NULL);
+  map_free(&map);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
+  {"unit_board_gate_reseed_1443", unit_board_gate_reseed_1443},
   {"unit_ai_undefended_colony_band", unit_ai_undefended_colony_band},
   {"unit_colony_entry_bvar4_reseed_1323", unit_colony_entry_bvar4_reseed_1323},
   {"unit_tb44_flood_key_rules", unit_tb44_flood_key_rules},
@@ -1519,6 +1747,7 @@ static const TestCase k_cases[] = {
   {"unit_goto_dos_tails", unit_goto_dos_tails},
   {"unit_ship_pressure_0906_cost", unit_ship_pressure_0906_cost},
   {"unit_wake_passenger_can_land", unit_wake_passenger_can_land},
+  {"unit_landfall_mp_gate", unit_landfall_mp_gate},
   {"unit_stack_one_click_wakes_and_selects", unit_stack_one_click_wakes_and_selects},
   {"unit_fog_vis_mask_and_snapshot", unit_fog_vis_mask_and_snapshot},
   {"unit_colony_enter_hull_stack_gate_791_792", unit_colony_enter_hull_stack_gate_791_792},

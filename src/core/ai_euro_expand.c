@@ -569,6 +569,15 @@ void ai_euro_found_with_unit(ColonizeTurnContext* ctx, ColonizeUnit* founder, in
     return;
   }
   if (!colonies_can_found(ctx->colonies, ctx->map, founder->x, founder->y)) {
+    /* Port-only refusal (DOS 1ba8 checks only the 48-colony cap; colonies_found
+     * re-runs this test). It returns before the 0x77b2 stamp because the port's
+     * ai_goals_note_colony_founded also bumps the 9298 colony count, which 1ba8
+     * bumps only on success. FUN_479b_076e's entry writes still happen, as on
+     * the 09b2 = -1 path below: +0x315a = 0, +0x314c = 0 (raw 76978-76979),
+     * FUN_281f_0934 (raw 77008). port_bugs.md #1445. */
+    founder->col1_counter16 = 0;
+    founder->orders = UNITS_ORDER_NONE;
+    units_mp_exhaust_unit(ctx->units, founder->id);
     return;
   }
   int tools = 0;

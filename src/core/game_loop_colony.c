@@ -1970,12 +1970,20 @@ void game_colony_apply_dock_order(
     units_order_sentry(&game->units, uid);
     set_status(game, "", NULL);
     break;
-  case COLONY_DOCK_ORDER_FORTIFY:
-    /* Same order and the same ship/land chrome the map rows use (GL-20). The
-     * sea branch here went through units.c's anchor wrapper, whose only
-     * content over plain fortify was that sea test (GL-21). */
-    (void)game_order_fortify(game, uid);
+  case COLONY_DOCK_ORDER_FORTIFY: {
+    /* DOS-LITERAL port_bugs.md #1448: the dock popups write `+0x314c = 5` and
+     * nothing else (FUN_2f2b_2f3e raw 49948, FUN_2f2b_51ec raw 52108,
+     * FUN_2f2b_5746 raw 52419-52421): no @HAVETREATY scan, no +0x315a reset,
+     * no FUN_281f_0934 — unlike the map's FUN_2b5a_1112. The rotation spends
+     * the MP later (FUN_2b5a_3ae6 -> FUN_479b_0b6c). Only @UNITOPTIONS (5746,
+     * land units) adds `MOV AX,0x58; CALLF FUN_281f_04c0` (ndisasm 0x2B273). */
+    ColonizeUnit* fu = units_get(&game->units, uid);
+    fu->orders = UNITS_ORDER_FORTIFY;
+    if (!units_is_transport(&game->units, uid)) {
+      sound_play(0x58);
+    }
     break;
+  }
   case COLONY_DOCK_ORDER_UNLOAD_ALL:
     game_colony_unload_all_cargo(game, uid);
     break;

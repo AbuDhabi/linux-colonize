@@ -827,6 +827,43 @@ bool units_unload_passenger_w(
       !units_cargo_can_landfall(pool, pax_id)) {
     return false;
   }
+  /*
+   * remaining = max - spent (FUN_465b_0000 raw 75505). The park zero stands
+   * for what the passenger carried aboard: its own DOS spent byte, never a
+   * free refill (port_bugs.md #544); aboard_moves -1 = spent 0, full.
+   */
+  const int max_mp = units_max_mp(pool, pax_id);
+  int remaining = pax->moves;
+  if (remaining <= 0) {
+    remaining = pax->aboard_moves >= 0 ? pax->aboard_moves : max_mp;
+  }
+  int cost = map_move_spent_thirds(map, ship->x, ship->y, dest_x, dest_y);
+  if (cost < 1) {
+    cost = 1;
+  }
+  /*
+   * port_bugs.md #1440: stepping off the ship tile is an ordinary 465b step
+   * (FUN_465b_0c1e / 2a1f_0142 -> 465b_0000), so it has 465b's allow gate:
+   * `cost <= remaining || spent == 0 || (FUN_281f_04ca(DS:0x83a6), bVar4)`
+   * (raw 75649-75651), else `FUN_281f_04d4(1, cost) <= remaining` (raw
+   * 75825-75827). The charge (raw 75640, shore exhaust 75641-75648) lands
+   * before the gate, so a lost roll leaves the passenger aboard and spent:
+   * cost > remaining, so spent ends >= max. Same gate as units_move.c.
+   * A same-tile dock unload is no step and has no gate.
+   */
+  if ((ship->x != dest_x || ship->y != dest_y) && cost > remaining && remaining < max_mp) {
+    if (!w->rng) {
+      return false; /* units_move.c: no RNG, no gamble, no charge */
+    }
+    units_465b_04ca_reseed(w, w->rng); /* FUN_281f_04ca(DS:0x83a6), #842 */
+    if (dos_rng_range(w->rng, 1, cost) > remaining) {
+      pax->moves = 0;
+      pax->aboard_moves = 0;
+      pax->mp_spent_turn = 1;
+      g_units_last_enter_reason = COLONIZE_ENTER_NO_MP;
+      return false;
+    }
+  }
   if (!units_remove_from_cargo(ship, pax_id)) {
     return false;
   }
@@ -862,17 +899,7 @@ bool units_unload_passenger_w(
    * leave a free full refill. Cite: 4720_015c; move_spent.c.
    */
   {
-    int remaining = pax->moves;
-    /* The park zero stands for what the passenger carried aboard: its own
-     * DOS spent byte, never a free refill (port_bugs.md #544). */
-    if (remaining <= 0) {
-      remaining = pax->aboard_moves >= 0 ? pax->aboard_moves : units_max_mp(pool, pax_id);
-    }
     pax->aboard_moves = -1;
-    int cost = map_move_spent_thirds(map, ship->x, ship->y, dest_x, dest_y);
-    if (cost < 1) {
-      cost = 1;
-    }
     pax->moves = remaining > cost ? remaining - cost : 0;
     /*
      * port_bugs.md: a landfall onto bare coast is DOS's 465b_05ca shore crossing —
@@ -931,6 +958,9 @@ bool units_transfer_passenger_w(
   }
   bool allow = left > 0 && (cost <= left || left >= max);
   if (!allow && left > 0 && w->rng) {
+    /* raw 75649: FUN_281f_04ca(DS:0x83a6) reseeds before the raw 75825 roll,
+     * as in units_move.c (port_bugs.md #842). */
+    units_465b_04ca_reseed(w, w->rng);
     allow = dos_rng_range(w->rng, 1, cost) <= left;
   }
   if (!allow) {
@@ -1321,8 +1351,11 @@ static int units_spawn_aboard_impl(
   const ColonizeUnitType* type = &pool->types[type_index];
   units_slot_reset_defaults(pool, slot, type, type_index, ship->x, ship->y);
   /*
-   * FUN_1427_10be divergences from the on-map spawn (UN-2): a passenger has no
-   * movement of its own this turn, rides sentried, and carries no colony job.
+   * Aboard divergences from the on-map spawn (UN-2): the passenger rides
+   * sentried and carries no colony job. moves 0 is only the hold's park zero;
+   * aboard_moves stays -1 from units_slot_reset_defaults (= DOS spent 0, a
+   * fresh FUN_1427_06b4 record), so it lands with its full allotment. Not
+   * FUN_1427_10be: that is the sentry gather/board (+0x314c = 1, no MP write).
    * units_set_nation runs before aboard_ship_id is stamped, exactly as before
    * the extraction — the helper leaves that field alone so the ordering (and
    * with it whether set_nation stamps the tile owner nibble) is unchanged.

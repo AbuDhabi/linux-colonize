@@ -2,6 +2,7 @@
 # Input: output of map_board_and_ferry (Caravel #84 at (48,24) carrying a sentried Colonist #128 and a sentried
 # Preacher #131), with the ship's moves refilled and the French goto-order units sentried (orders 1), so no unit
 # auto-walks when the selection moves on. The forest tile (47,25) lies south-west of the ship.
+# Passengers carry spent 0 (Sentry spends no MP, port_bugs.md #1447); a fully spent passenger cannot land (#1440).
 key KP_1                   # sail toward the land tile: @LANDFALL popup (Stay With Ships / Make Landfall)
 click 150 146              # "Stay With Ships": popup closes, nothing moves, ship still selected
 key KP_1                   # same move again: popup again

@@ -376,7 +376,8 @@ bool units_pioneer_work_tick_w(
     }
   }
 
-  /* FUN_281f_0934 stand-in: exhaust MP for this act (spent-aware, audit A9). */
+  /* FUN_479b_01a6 raw 76751-76761 / FUN_479b_0526 raw 76884-76888: every work
+   * tick calls FUN_281f_0934 (spend the whole allotment) after the abort tests. */
   units_mp_exhaust(pool, u);
   if (u->col1_counter16 < 255) {
     u->col1_counter16++;

@@ -713,6 +713,7 @@ graphs:
         fn: ai_euro_land.c:ai_euro_20e6_missionary_arm
         dos: 20e6 Missionary arm raw 90044-90088, then raw 90094-90219
         status: dos
+        note: "No visit inside the arm (port_bugs.md #1446): the bound course is walked by 479b in the same act, and its step onto the village is 465b -> FUN_4d56_4528 case 3/4/7 + code-1 exhaust (ai_euro_4528_ai_village_entry). The old adjacent visit ran before that walk, so a surviving (incite) missionary visited twice."
       - id: wagon
         kind: step
         label: Wagon — haul (load matrix, 457e origin walk, village errand, 47b9)
@@ -725,6 +726,7 @@ graphs:
         fn: ai_euro_act.c:ai_euro_goal_walk_479b
         dos: FUN_521d_5b66 case 0x0b/0x0c -> FUN_479b_0972
         status: dos
+        note: "A spent unit's step (port mover refuses 0 MP) burns 465b's raw 75649 reseed + raw 75825 roll, except onto a bVar4 tile (another nation's settlement or stack head): a computer mover with < 3 thirds takes LAB_465b_01ce, FUN_281f_0934 + LAB_0bd1 with no reseed and no roll (raw 75505-75507, port_bugs.md #1442)."
       - id: fallthrough
         kind: step
         label: "Treasure arms declined → pre-LAB_4d2e gate: LAB_4d2e wander, else LAB_5a78 with the course kept"
@@ -820,7 +822,7 @@ graphs:
         fn: ai_euro_land.c:ai_euro_land_explore_scan_target
         dos: LAB_2912→2a59 ring scan (md:1392-1611; +0x3155 countdown md:1599-1611); raw 87555-87558 unit stamps 5 for profession-carrying types, 1 otherwise
         status: dos
-        note: "port_bugs.md #683, ported 2026-09-23: the ring scan's own commit tail is now live. Raw 89272-89275 — `if (0 < local_c) { if (local_6a != 0) { if (best != own tile) goto LAB_521d_27f5; *(param_1 * 0x1c + 0x314c) = 7; goto LAB_521d_5a78; } }` — writes act_state 7 (UNITS_ORDER_BUILD_COLONY) when the best-scoring site is the tile the unit already stands on. It is the only AI writer of act_state 7 in the image, and it is what makes the two readers of that byte live: this scan's own raw-89182 reject (a candidate ring holding another unit already committed to 7 is skipped) and the human @TOONEARBUILD scan at raw 45670. 20e6 then returns 0 (raw 90445) and FUN_521d_5b66 dispatches its switch case 7 = FUN_1000_93ea = FUN_479b_076e (found colony) in the same call — ported as the act_state-7 consumer at the move-scoring-gate exit in ai_euro_unit_act, which calls ai_euro_found_with_unit. Port-only guard: a tile that refuses the colony resets the unit to act_state 5 rather than leaving it wedged behind 20e6's entry bail (raw 88404-88406)."
+        note: "port_bugs.md #683, ported 2026-09-23: the ring scan's own commit tail is now live. Raw 89272-89275 — `if (0 < local_c) { if (local_6a != 0) { if (best != own tile) goto LAB_521d_27f5; *(param_1 * 0x1c + 0x314c) = 7; goto LAB_521d_5a78; } }` — writes act_state 7 (UNITS_ORDER_BUILD_COLONY) when the best-scoring site is the tile the unit already stands on. It is the only AI writer of act_state 7 in the image, and it is what makes the two readers of that byte live: this scan's own raw-89182 reject (a candidate ring holding another unit already committed to 7 is skipped) and the human @TOONEARBUILD scan at raw 45670. 20e6 then returns 0 (raw 90445) and FUN_521d_5b66 dispatches its switch case 7 = FUN_1000_93ea = FUN_479b_076e (found colony) in the same call — ported as the act_state-7 consumer at the move-scoring-gate exit in ai_euro_unit_act, which calls ai_euro_found_with_unit. A tile the port refuses (colonies_can_found; DOS 1ba8 checks only the 48-colony cap) still gets 076e's entry writes, +0x315a = 0, +0x314c = 0 and FUN_281f_0934 (raw 76978-77008, port_bugs.md #1445), like the 09b2 = -1 return; the act_state-5 fallback in ai_euro_unit_act only catches a null-context bail."
       - id: wander
         kind: step
         label: 8-direction wander scorer (stay = 8)
