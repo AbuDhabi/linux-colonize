@@ -147,19 +147,20 @@ numbers). It opens a checklist of three pages, one per kind of change, the
 page title naming the group:
 
 1. `@MODOPTIONS` "Restored Cut Content": `kings_audience`, `royal_mercy`,
-   `town_hall_tiers`, `tribe_mood`, `treaty_cancel_popup`.
-2. `@MODOPTIONS2` "New Rules and Features": `wagon_loot`, `population_floor`,
-   `raid_scalps`, `late_fathers`, `building_upkeep`, `scout_spying`,
-   `hard_king`, `pioneer_plan`, `scout_autoexplore`, `ship_autoexplore`,
-   `current_vision`.
+   `town_hall_tiers`, `tribe_mood`, `treaty_cancel_popup`, `wagon_loot`,
+   `raid_scalps`, `scout_spying`.
+2. `@MODOPTIONS2` "New Rules and Features": `population_floor`,
+   `late_fathers`, `building_upkeep`, `hard_king`, `pioneer_plan`,
+   `scout_autoexplore`, `ship_autoexplore`, `current_vision`.
 3. `@MODOPTIONS3` "DOS Bug Fixes": `goto_native_wait`.
 
-OK on a page saves that page's toggles, flushes the file and opens the next
-page; Esc on any page stops there and keeps the earlier pages' changes. No
-overlay, no row. Each page's rows follow its id list in `options_dialog.c`
-`k_mods_pages`; a page may hold at most 13 rows, because a FONTINTR checklist
-row is 12 px and with a prompt of up to two lines that is what fits the 200 px
-screen. `data/mods/*.TXT` is a text overlay that opencol loads from
+OK (the button under the rows, LABELS.TXT `@MISC` 46, or Enter) on a page saves
+that page's toggles, flushes the file and opens the next page; Esc on any page
+stops there and keeps the earlier pages' changes. The stock DOS checklists keep
+no button. No overlay, no row. Each page's rows follow its id list in
+`options_dialog.c` `k_mods_pages`; a page may hold at most 11 rows, because a
+FONTINTR checklist row is 12 px, the button takes two rows, and with a prompt of
+up to two lines that is what fits the 200 px screen. `data/mods/*.TXT` is a text overlay that opencol loads from
 `<exe>/data/mods` or `./data/mods`: it may add whole sections or append the next
 row of a stock section, never replace a stock row (refused with a warning).
 

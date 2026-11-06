@@ -26,18 +26,18 @@ Restored Cut Content
 ~Town Hall Expansion, Assembly
 Tribe ~Mood Reports
 Treaty Cancel ~Notice
+Natives ~Loot Wagon Trains
+Raid ~Scalps
+Scout Es~pionage
 
 @MODOPTIONS2
 @width=220
 @checkbox
 New Rules and Features
 @options
-Natives ~Loot Wagon Trains
 ~Abandon Colonies, Building Floor
-Raid ~Scalps
 Late Founding ~Fathers
 Building ~Upkeep
-Scout Es~pionage
 Har~d King, Tougher REF
 Plan Pi~oneer, Pioneer Automate
 Scouts Auto-~Explore

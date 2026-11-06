@@ -188,18 +188,19 @@ bool options_dialog_open_sound(
  * section's rows follow its id list here. With FONTINTR (glyph_h 9) a row
  * advances 12 px and a prompt of up to two 10 px lines, so
  * popup_dos_list_height is 35 + 12 * rows: 13 rows is the most that fits the
- * 200 px screen (all 17 would need 239). Every ModId sits on exactly one page
- * (checked by the popup dialog tests).
+ * 200 px screen (all 17 would need 239), and the OK button takes the last two
+ * (OPTIONS_MODS_OK_ROWS). Every ModId sits on exactly one page (checked by the
+ * popup dialog tests).
  */
-#define OPTIONS_MODS_PAGE_ROWS_MAX 13
+#define OPTIONS_MODS_OK_ROWS 2
+#define OPTIONS_MODS_PAGE_ROWS_MAX (13 - OPTIONS_MODS_OK_ROWS)
 static const ModId k_mods_restored[] = {
   MOD_KINGS_AUDIENCE, MOD_ROYAL_MERCY, MOD_TOWN_HALL_TIERS, MOD_TRIBE_MOOD,
-  MOD_TREATY_CANCEL_POPUP,
+  MOD_TREATY_CANCEL_POPUP, MOD_WAGON_LOOT,      MOD_RAID_SCALPS,     MOD_SCOUT_SPYING,
 };
 static const ModId k_mods_rules[] = {
-  MOD_WAGON_LOOT,      MOD_POPULATION_FLOOR,  MOD_RAID_SCALPS,      MOD_LATE_FATHERS,
-  MOD_BUILDING_UPKEEP, MOD_SCOUT_SPYING,      MOD_HARD_KING,        MOD_PIONEER_PLAN,
-  MOD_SCOUT_AUTOEXPLORE, MOD_SHIP_AUTOEXPLORE, MOD_CURRENT_VISION,
+  MOD_POPULATION_FLOOR,  MOD_LATE_FATHERS,     MOD_BUILDING_UPKEEP, MOD_HARD_KING,
+  MOD_PIONEER_PLAN,      MOD_SCOUT_AUTOEXPLORE, MOD_SHIP_AUTOEXPLORE, MOD_CURRENT_VISION,
 };
 static const ModId k_mods_fixes[] = {MOD_GOTO_NATIVE_WAIT};
 #define MODS_PAGE_LEN(a) ((int)(sizeof(a) / sizeof((a)[0])))
@@ -230,7 +231,11 @@ int options_dialog_mods_page_id(int page, int row) {
 }
 
 bool options_dialog_open_mods(
-  OptionsDialog* dlg, const ColonizeMsgCatalog* game_txt, uint32_t mask, int page
+  OptionsDialog* dlg,
+  const ColonizeMsgCatalog* game_txt,
+  const ColonizeMsgCatalog* labels_txt,
+  uint32_t mask,
+  int page
 ) {
   if (page < 0 || page >= OPTIONS_MODS_PAGE_COUNT) {
     return false;
@@ -258,6 +263,9 @@ bool options_dialog_open_mods(
   if (dlg->option_count > count) {
     dlg->option_count = count;
   }
+  str_copy_trunc(
+    dlg->ok_label, sizeof(dlg->ok_label), assets_msg_line_or(labels_txt, "MISC", 46, "")
+  );
   return true;
 }
 
@@ -399,6 +407,11 @@ bool options_dialog_handle_input(OptionsDialog* dlg, const ColonizeInputState* i
       options_finish(dlg, false);
       return true;
     }
+    if (dlg->ok_label[0] &&
+        ui_rect_hit(dlg->ok_x, dlg->ok_y, dlg->ok_w, dlg->ok_h, input->mouse_x, input->mouse_y)) {
+      options_finish(dlg, false);
+      return true;
+    }
     const int idx = options_option_at_y(dlg, input->mouse_y);
     if (idx >= 0) {
       dlg->selection = idx;
@@ -422,6 +435,9 @@ bool options_dialog_handle_input(OptionsDialog* dlg, const ColonizeInputState* i
 static const char* options_row_label(void* user, int index) {
   static char buf[OPTIONS_DIALOG_LABEL_LEN + 3];
   const OptionsDialog* dlg = (const OptionsDialog*)user;
+  if (index >= dlg->option_count) {
+    return NULL; /* the rows kept free for the OK button */
+  }
   snprintf(buf, sizeof(buf), "~%c %s", dlg->values[index] ? ']' : '[', dlg->labels[index]);
   return buf;
 }
@@ -444,6 +460,7 @@ void options_dialog_render(
   PopupListMetrics metrics;
   popup_list_metrics_dos6f74(font, &metrics);
   PopupListGeom geom;
+  const int ok_rows = dlg->ok_label[0] ? OPTIONS_MODS_OK_ROWS : 0;
   popup_list_render(
     framebuffer,
     font,
@@ -452,7 +469,7 @@ void options_dialog_render(
     &metrics,
     dlg->width,
     dlg->prompt,
-    dlg->option_count,
+    dlg->option_count + ok_rows,
     dlg->selection,
     options_row_label,
     dlg,
@@ -467,4 +484,19 @@ void options_dialog_render(
   dlg->dialog_h = geom.frame.h;
   dlg->line_h = geom.line_h;
   dlg->list_y0 = geom.list_y0;
+  if (ok_rows) {
+    /* Raised on the wood (light top-left), centred in the free rows. */
+    const UiButtonColors ink = {
+      colors ? colors->light : text_color, colors ? colors->dark : text_color, text_color,
+      hilite_color
+    };
+    ui_button_measure(font, dlg->ok_label, &dlg->ok_w, &dlg->ok_h);
+    dlg->ok_w += 8;
+    dlg->ok_x = geom.frame.x + (geom.frame.w - dlg->ok_w) / 2;
+    dlg->ok_y = geom.list_y0 + dlg->option_count * geom.line_h +
+                (ok_rows * geom.line_h - dlg->ok_h) / 2;
+    ui_button_draw(
+      font, framebuffer, dlg->ok_x, dlg->ok_y, dlg->ok_w, dlg->ok_h, dlg->ok_label, &ink
+    );
+  }
 }
