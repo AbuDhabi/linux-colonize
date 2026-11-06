@@ -5,6 +5,7 @@
 #include "core/ai_popup.h"
 #include "core/colony.h"
 #include "core/colony_production.h"
+#include "core/dos_buggy.h"
 #include "core/dos_rng.h"
 #include "core/popup_msg.h"
 #include "core/reports.h"
@@ -79,6 +80,16 @@ void founding_fathers_reset_bells_pool(ColonizeTurnContext* ctx, int nation_id) 
   ctx->col1->nation[nation_id].liberty_bells_pool = 0;
   if (ctx->europe && nation_id == ctx->human_nation) {
     ctx->europe->liberty_bells_pool = 0;
+  }
+}
+
+/* TB-58 fix: an election spends only the threshold; the surplus stays in the
+ * pool (and the human's Europe mirror) toward the next Father. */
+static void ff_spend_bells_pool(ColonizeTurnContext* ctx, int nation_id, unsigned needed) {
+  uint16_t* pool = &ctx->col1->nation[nation_id].liberty_bells_pool;
+  *pool = *pool > needed ? (uint16_t)(*pool - needed) : 0;
+  if (ctx->europe && nation_id == ctx->human_nation) {
+    ctx->europe->liberty_bells_pool = *pool;
   }
 }
 
@@ -1234,6 +1245,8 @@ static bool elect_commit(
   }
   ColonizeCol1Save* col1 = ctx->col1;
   ColonizeCol1Nation* nat = &col1->nation[nation_id];
+  /* Threshold of this election, read before the count bump below. */
+  const unsigned needed = founding_fathers_bells_needed(col1, nation_id);
   /* Write-once first-claimer record: DOS FUN_4345_0342 does `if (entry < 0)
    * entry = nation` (verified vs dutch-reports.SAV); smell audit #82. The
    * per-nation bitmask below is the real ownership. */
@@ -1254,7 +1267,13 @@ static bool elect_commit(
     "FF nation %d elected #%d %s (count=%u)",
     nation_id, idx, reports_ff_display_name(idx), (unsigned)nat->founding_father_count
   );
-  founding_fathers_reset_bells_pool(ctx, nation_id);
+  /* TB-58: DOS zeroes the pool (FUN_4345_0a22 raw 73370), discarding the
+   * surplus over the threshold. The declaration-time zero stays in both modes. */
+  if (dos_buggy_behavior()) {
+    founding_fathers_reset_bells_pool(ctx, nation_id);
+  } else {
+    ff_spend_bells_pool(ctx, nation_id, needed);
+  }
 
   if (ctx->ai_popups && nation_id == ctx->human_nation) {
     char body[AI_POPUP_BODY_LEN];

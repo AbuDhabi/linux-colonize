@@ -7,6 +7,7 @@
 #include "core/colony.h"
 #include "core/colony_production.h"
 #include "core/combat_strength.h"
+#include "core/dos_buggy.h"
 #include "core/dos_rng.h"
 #include "core/europe.h"
 #include "core/founding_fathers.h"
@@ -2921,6 +2922,22 @@ int main(void) {
     }
     if (zeu.liberty_bells_pool != 0) {
       return fail("elect must zero the human Europe mirror too");
+    }
+
+    /* TB-58 fix: the elect spends only the threshold; the surplus carries. */
+    znat->liberty_bells_pool = 900;
+    zeu.liberty_bells_pool = 900;
+    znat->next_founding_father = FF_PETER_MINUIT;
+    const unsigned zneed = founding_fathers_bells_needed(&zc, 0);
+    const unsigned zcount = znat->founding_father_count;
+    dos_buggy_behavior_set(false);
+    founding_fathers_tick_human_elect(&zctx);
+    dos_buggy_behavior_set(true);
+    if (znat->founding_father_count != zcount + 1u) {
+      return fail("TB-58: funded pool must elect");
+    }
+    if (znat->liberty_bells_pool != 900u - zneed || zeu.liberty_bells_pool != 900u - zneed) {
+      return fail("TB-58: elect must keep the surplus in pool and mirror");
     }
 
     /* Declare: FUN_43f7_1a26 raw 74738 zeroes +0xc. */

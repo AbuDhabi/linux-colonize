@@ -628,3 +628,21 @@ burning lumber. A DOS save banked past 512 keeps its bank until spent.
 **Blocks removal:** not tried ungated; goldens and idle campaigns bank the DOS
 zero on every completion.
 **Status:** tolerated (user, 2026-11-06). Fixed in opencol 2026-11-06, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.
+
+### TB-58 — An elected Founding Father throws the surplus bells away
+**DOS:** `FUN_4345_0a22` (raw 73370) sets the nation's bell pool (`+0xc`) to
+zero when a Father joins Congress, whatever the pool held past the threshold.
+
+**Effect:** bells above the threshold are lost, so the player is pushed to time
+statesmen and Town Hall output around each election.
+
+**Port (reproduces it):** `elect_commit` (`src/core/founding_fathers.c`) calls
+`founding_fathers_reset_bells_pool`. The fix subtracts that election's threshold
+(`founding_fathers_bells_needed`, read before the Father count bump) from the pool
+and the human's Europe mirror, so the surplus counts toward the next Father. With
+a surplus left the next debate can open in the same turn. The declaration-time
+zero (`FUN_43f7_1a26` raw 74738) and the intervention spend stay as DOS has them.
+
+**Blocks removal:** not tried ungated; goldens and idle campaigns bank the DOS
+zero on every election.
+**Status:** tolerated (user, 2026-11-06). Fixed in opencol 2026-11-06, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.
