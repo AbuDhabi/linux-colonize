@@ -5,45 +5,51 @@
 ;
 
 ;       Title menu: one row appended after every @BEGINMENU row; it opens
-;       @MODOPTIONS, then @MODOPTIONS2 (each page saves on its own OK).
+;       @MODOPTIONS, then @MODOPTIONS2, then @MODOPTIONS3 (each page
+;       saves on its own OK; Esc stops the chain).
 @MODBEGINMENU
 @options
 MODS for New Games
 
-;       Title menu page 1: one @options row per toggle, in ModId order
-;       (src/core/mods.h), ModId 0-11. Edits settings.json; a saved game
-;       keeps the toggles it started with.
+;       Title menu checklist, one page per kind of change. One @options
+;       row per toggle, in the order of the page's id list
+;       (src/core/options_dialog.c k_mods_pages); hotkeys unique within
+;       a page. Edits settings.json; a saved game keeps the toggles it
+;       started with.
 @MODOPTIONS
 @width=220
 @checkbox
-Mods for New Games
+Restored Cut Content
 @options
-Natives ~Loot Wagon Trains
-~Go To Waits at Natives (DOS bug fix)
-~Abandon Colonies, Building Floor
-Raid ~Scalps
-~Royal Mercy on Lost Frigate
-Late Founding ~Fathers
-~Town Hall Expansion, Assembly
-Building ~Upkeep
 ~King's Audience
+~Royal Mercy on Lost Frigate
+~Town Hall Expansion, Assembly
 Tribe ~Mood Reports
-Scout Es~pionage
 Treaty Cancel ~Notice
 
-;       Title menu page 2 (after OK on page 1): ModId 12 on, same rules
-;       (all of them do not fit one 200 px dialog). Hotkeys differ from
-;       the rows above.
 @MODOPTIONS2
 @width=220
 @checkbox
-More Mods for New Games
+New Rules and Features
 @options
+Natives ~Loot Wagon Trains
+~Abandon Colonies, Building Floor
+Raid ~Scalps
+Late Founding ~Fathers
+Building ~Upkeep
+Scout Es~pionage
+Har~d King, Tougher REF
 Plan Pi~oneer, Pioneer Automate
 Scouts Auto-~Explore
 S~hips Auto-Explore
-Har~d King, Tougher REF
 Current ~Vision Veil
+
+@MODOPTIONS3
+@width=220
+@checkbox
+DOS Bug Fixes
+@options
+~Go To Waits at Natives
 
 ;       mods.wagon_loot, roll 3-6: natives take every hold of one good.
 ;       %STRING0 tribe, %STRING1 good. Roll 7-10 uses stock @LOOTWAGONS.

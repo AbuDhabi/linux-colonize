@@ -143,11 +143,23 @@ loads with every mod off; leaving to the title clears the mask. With
 The defaults are edited on the title menu only (the in-game GAME pulldown stays
 stock): `data/mods/GAME.TXT` `@MODBEGINMENU` adds one row after every
 `@BEGINMENU` row (after a data dir's quit row too, so stock rows keep their
-numbers). It opens the checklist `@MODOPTIONS` (ids 0-11), and OK there goes on
-to `@MODOPTIONS2` (ids 12 on); each page saves on its own OK and flushes the
-file, Esc on page 2 keeps page 1's changes. No overlay, no row. Two pages
-because a FONTINTR checklist row is 12 px: with a prompt of up to two lines at
-most 13 rows fit the 200 px screen (`options_dialog.c` `k_mods_pages`). `data/mods/*.TXT` is a text overlay that opencol loads from
+numbers). It opens a checklist of three pages, one per kind of change, the
+page title naming the group:
+
+1. `@MODOPTIONS` "Restored Cut Content": `kings_audience`, `royal_mercy`,
+   `town_hall_tiers`, `tribe_mood`, `treaty_cancel_popup`.
+2. `@MODOPTIONS2` "New Rules and Features": `wagon_loot`, `population_floor`,
+   `raid_scalps`, `late_fathers`, `building_upkeep`, `scout_spying`,
+   `hard_king`, `pioneer_plan`, `scout_autoexplore`, `ship_autoexplore`,
+   `current_vision`.
+3. `@MODOPTIONS3` "DOS Bug Fixes": `goto_native_wait`.
+
+OK on a page saves that page's toggles, flushes the file and opens the next
+page; Esc on any page stops there and keeps the earlier pages' changes. No
+overlay, no row. Each page's rows follow its id list in `options_dialog.c`
+`k_mods_pages`; a page may hold at most 13 rows, because a FONTINTR checklist
+row is 12 px and with a prompt of up to two lines that is what fits the 200 px
+screen. `data/mods/*.TXT` is a text overlay that opencol loads from
 `<exe>/data/mods` or `./data/mods`: it may add whole sections or append the next
 row of a stock section, never replace a stock row (refused with a warning).
 

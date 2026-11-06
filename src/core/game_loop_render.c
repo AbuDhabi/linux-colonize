@@ -2588,7 +2588,7 @@ void activate_menu_selection(ColonizeGameState* game) {
   diag_info("Menu selected: row %d (%s)", game->menu_selection, game->menu_options[game->menu_selection]);
 
   /* data/mods @MODBEGINMENU: settings.json mods defaults, page 1 of the mods
-   * checklist (game_apply_options_result chains page 2). */
+   * checklist (game_apply_options_result chains the next pages). */
   if (game->menu_selection == game->menu_mods_row) {
     (void)options_dialog_open_mods(
       &game->options_dlg, &game->messages, settings_mods_mask(settings_get()), 0

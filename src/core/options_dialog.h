@@ -37,7 +37,8 @@ typedef struct OptionsDialog {
   char labels[OPTIONS_DIALOG_MAX][OPTIONS_DIALOG_LABEL_LEN];
   uint8_t values[OPTIONS_DIALOG_MAX]; /* 0/1 */
   int option_count;
-  int mods_first; /* OPTIONS_KIND_MODS: the ModId of row 0 */
+  int mods_page;                       /* OPTIONS_KIND_MODS: the page shown */
+  uint8_t mods_ids[OPTIONS_DIALOG_MAX]; /* OPTIONS_KIND_MODS: the ModId of each row */
 
   bool has_result;
   bool result_cancelled;
@@ -75,9 +76,12 @@ bool options_dialog_open_sound(
 );
 
 /* Mod toggle defaults as a ModId bit mask (mods.h), one row per ModId. The
- * toggles do not fit one 200 px dialog, so they are split over pages: page 0 =
- * @MODOPTIONS (the title menu row), page 1 = @MODOPTIONS2 (after OK on page 0). */
-#define OPTIONS_MODS_PAGE_COUNT 2
+ * toggles are grouped by kind of change, one page per group (they do not fit
+ * one 200 px dialog anyway): page 0 = @MODOPTIONS (the title menu row), then
+ * @MODOPTIONS2 and @MODOPTIONS3, each opened by OK on the page before. */
+#define OPTIONS_MODS_PAGE_COUNT 3
+/* The ModId on `row` of mods page `page`, or -1 past the page. */
+int options_dialog_mods_page_id(int page, int row);
 bool options_dialog_open_mods(
   OptionsDialog* dlg, const ColonizeMsgCatalog* game_txt, uint32_t mask, int page
 );

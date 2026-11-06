@@ -1141,10 +1141,11 @@ static int case_save_load_is_fonttiny(void) {
   return rc;
 }
 
-/* Title menu Mods for New Games: the toggles are split over OPTIONS_MODS_PAGE_COUNT
- * dialogs (data/mods @MODOPTIONS, @MODOPTIONS2) because all of them do not fit
- * 200 px in FONTINTR. Every ModId has exactly one row, every page fits the
- * screen, every row has its own hotkey, and a page only writes its own bits. */
+/* Title menu Mods for New Games: the toggles are grouped by kind of change over
+ * OPTIONS_MODS_PAGE_COUNT dialogs (data/mods @MODOPTIONS, @MODOPTIONS2,
+ * @MODOPTIONS3; all of them would not fit 200 px in FONTINTR anyway). Every
+ * ModId has exactly one row, every page fits the screen, every row has its own
+ * hotkey within its page, and a page only writes its own bits. */
 static int case_mods_dialog_pages(void) {
   ColonizeFont font;
   char err[128];
@@ -1161,9 +1162,8 @@ static int case_mods_dialog_pages(void) {
     return TR_SKIP;
   }
   int rc = 0;
-  int total = 0;
-  int hotkeys[OPTIONS_MODS_PAGE_COUNT * OPTIONS_DIALOG_MAX];
-  const uint32_t mask = 1u << MOD_WAGON_LOOT | 1u << MOD_HARD_KING;
+  uint32_t seen = 0;
+  const uint32_t mask = 1u << MOD_WAGON_LOOT | 1u << MOD_HARD_KING | 1u << MOD_GOTO_NATIVE_WAIT;
   static uint8_t px[320 * 200];
   ColonizeFramebuffer8 fb = {.width = 320, .height = 200, .pixels = px};
   for (int page = 0; page < OPTIONS_MODS_PAGE_COUNT; ++page) {
@@ -1173,18 +1173,38 @@ static int case_mods_dialog_pages(void) {
       rc = 1;
       continue;
     }
-    if (od.mods_first != total) {
-      fprintf(stderr, "mods page %d starts at ModId %d, want %d\n", page, od.mods_first, total);
+    int rows = 0;
+    while (options_dialog_mods_page_id(page, rows) >= 0) {
+      const int id = options_dialog_mods_page_id(page, rows);
+      if (id >= MOD_COUNT || (seen >> id & 1u)) {
+        fprintf(stderr, "mods page %d row %d: ModId %d out of range or on two rows\n", page,
+                rows, id);
+        rc = 1;
+      } else {
+        seen |= 1u << id;
+      }
+      ++rows;
+    }
+    if (od.mods_page != page || od.option_count != rows) {
+      fprintf(stderr, "mods page %d: dialog page %d, %d rows, want %d\n", page, od.mods_page,
+              od.option_count, rows);
       rc = 1;
     }
     for (int i = 0; i < od.option_count; ++i) {
-      if (od.values[i] != (mask >> (od.mods_first + i) & 1u)) {
-        fprintf(stderr, "mods page %d row %d shows %d\n", page, i, od.values[i]);
+      if (od.mods_ids[i] != options_dialog_mods_page_id(page, i) ||
+          od.values[i] != (mask >> od.mods_ids[i] & 1u)) {
+        fprintf(stderr, "mods page %d row %d: ModId %d shows %d\n", page, i, od.mods_ids[i],
+                od.values[i]);
         rc = 1;
       }
-      hotkeys[total + i] = popup_hotkey_of(od.labels[i]);
+      const int key = popup_hotkey_of(od.labels[i]);
+      for (int j = -1; j < i; ++j) {
+        if (key == 0 || (j >= 0 && key == popup_hotkey_of(od.labels[j]))) {
+          fprintf(stderr, "mods page %d rows %d and %d: hotkey %d not unique\n", page, j, i, key);
+          rc = 1;
+        }
+      }
     }
-    total += od.option_count;
     memset(px, 0, sizeof(px));
     options_dialog_render(&od, &font, NULL, NULL, 68, 149, 138, &fb);
     const int rows_end = od.list_y0 + od.option_count * od.line_h;
@@ -1194,34 +1214,34 @@ static int case_mods_dialog_pages(void) {
       rc = 1;
     }
   }
-  if (total != MOD_COUNT) {
-    fprintf(stderr, "mods pages hold %d rows, want MOD_COUNT %d\n", total, MOD_COUNT);
+  if (seen != (1u << MOD_COUNT) - 1u) {
+    fprintf(stderr, "mods pages cover ModIds %#x, want every one of %d\n", (unsigned)seen,
+            MOD_COUNT);
     rc = 1;
   }
-  for (int i = 0; i < total && i < MOD_COUNT; ++i) {
-    for (int j = -1; j < i; ++j) {
-      if (hotkeys[i] == 0 || (j >= 0 && hotkeys[i] == hotkeys[j])) {
-        fprintf(stderr, "mods rows %d and %d: hotkey %d not unique\n", j, i, hotkeys[i]);
-        rc = 1;
-      }
+  /* Row 1 toggled and confirmed on each page: only that row's bit moves. */
+  for (int page = 0; page < OPTIONS_MODS_PAGE_COUNT; ++page) {
+    OptionsDialog od;
+    if (!options_dialog_open_mods(&od, &cat, mask, page)) {
+      continue;
     }
-  }
-  /* Page 2, row 0 (pioneer_plan) toggled and confirmed: only that bit moves. */
-  OptionsDialog od;
-  if (options_dialog_open_mods(&od, &cat, mask, 1)) {
+    const int row = od.option_count > 1 ? 1 : 0;
     ColonizeInputState in;
     memset(&in, 0, sizeof(in));
-    od.selection = 0;
+    od.selection = row;
     in.last_key = COLONIZE_KEY_SPACE;
     options_dialog_handle_input(&od, &in);
     in.last_key = COLONIZE_KEY_ENTER;
     options_dialog_handle_input(&od, &in);
     uint32_t out = mask;
-    if (!options_dialog_apply_mods(&od, &out) || out != (mask | 1u << MOD_PIONEER_PLAN)) {
-      fprintf(stderr, "mods page 2 apply: mask %#x\n", (unsigned)out);
+    const uint32_t want = mask ^ 1u << options_dialog_mods_page_id(page, row);
+    if (!options_dialog_apply_mods(&od, &out) || out != want) {
+      fprintf(stderr, "mods page %d apply: mask %#x, want %#x\n", page, (unsigned)out,
+              (unsigned)want);
       rc = 1;
     }
   }
+  OptionsDialog od;
   if (options_dialog_open_mods(&od, &cat, mask, OPTIONS_MODS_PAGE_COUNT)) {
     fprintf(stderr, "a mods page past the last opened\n");
     rc = 1;
@@ -1252,7 +1272,7 @@ static void title_modal_key(ColonizeGameState* game, ColonizeKey key) {
 }
 
 /* data/mods @MODBEGINMENU: one title row after every stock row, opening the
- * mods checklist; OK on page 1 chains page 2, each page commits its own bits to
+ * mods checklist; OK on a page chains the next, each page commits its own bits to
  * the settings.json defaults, and the campaign mask is never touched. */
 static int case_title_menu_mods_row(void) {
   ColonizeGameState* game = calloc(1, sizeof(*game));
@@ -1295,7 +1315,7 @@ static int case_title_menu_mods_row(void) {
     game->menu_selection = 6;
     activate_menu_selection(game);
     if (!game->options_dlg.open || game->options_dlg.kind != OPTIONS_KIND_MODS ||
-        game->options_dlg.mods_first != 0) {
+        game->options_dlg.mods_page != 0) {
       rc = fail("six rows: row 6 did not open mods page 1");
     }
     options_dialog_close(&game->options_dlg);
@@ -1316,10 +1336,15 @@ static int case_title_menu_mods_row(void) {
   game->in_menu = true;
   mods_campaign_set(0);
   const uint32_t base = settings_mods_mask(settings_get());
-  const uint32_t page1_bit = 1u << MOD_WAGON_LOOT;
-  const uint32_t page2_bit = 1u << MOD_PIONEER_PLAN;
+  /* Space toggles row 0 of each page. */
+  uint32_t page_bit[OPTIONS_MODS_PAGE_COUNT];
+  uint32_t all_bits = 0;
+  for (int page = 0; page < OPTIONS_MODS_PAGE_COUNT; ++page) {
+    page_bit[page] = 1u << options_dialog_mods_page_id(page, 0);
+    all_bits |= page_bit[page];
+  }
   ColonizeSettings prefs = *settings_get();
-  settings_mods_set_mask(&prefs, base & ~(page1_bit | page2_bit));
+  settings_mods_set_mask(&prefs, base & ~all_bits);
   settings_set(&prefs);
   const uint32_t start = settings_mods_mask(settings_get());
 
@@ -1332,31 +1357,43 @@ static int case_title_menu_mods_row(void) {
     rc = fail("Esc on title mods page 1 saved or chained");
   }
 
-  /* OK, OK: both pages commit. */
+  /* OK on every page: each commits its own bit and chains the next; the last closes. */
   activate_menu_selection(game);
-  title_modal_key(game, COLONIZE_KEY_SPACE);
-  title_modal_key(game, COLONIZE_KEY_ENTER);
-  if (!game->options_dlg.open || game->options_dlg.mods_first != MOD_PIONEER_PLAN ||
-      settings_mods_mask(settings_get()) != (start | page1_bit)) {
-    rc = fail("OK on title mods page 1 did not save and chain page 2");
+  uint32_t want = start;
+  for (int page = 0; page < OPTIONS_MODS_PAGE_COUNT; ++page) {
+    if (!game->options_dlg.open || game->options_dlg.mods_page != page) {
+      fprintf(stderr, "title mods: page %d not open (open %d page %d)\n", page,
+              game->options_dlg.open, game->options_dlg.mods_page);
+      rc = 1;
+      break;
+    }
+    title_modal_key(game, COLONIZE_KEY_SPACE);
+    title_modal_key(game, COLONIZE_KEY_ENTER);
+    want |= page_bit[page];
+    if (settings_mods_mask(settings_get()) != want) {
+      fprintf(stderr, "title mods page %d OK: mask %#x, want %#x\n", page,
+              (unsigned)settings_mods_mask(settings_get()), (unsigned)want);
+      rc = 1;
+    }
   }
-  title_modal_key(game, COLONIZE_KEY_SPACE);
-  title_modal_key(game, COLONIZE_KEY_ENTER);
-  if (game->options_dlg.open ||
-      settings_mods_mask(settings_get()) != (start | page1_bit | page2_bit)) {
-    fprintf(stderr, "title mods page 2: open %d mask %#x\n", game->options_dlg.open,
-            (unsigned)settings_mods_mask(settings_get()));
-    rc = 1;
+  if (game->options_dlg.open) {
+    rc = fail("title mods dialog still open after OK on the last page");
   }
 
-  /* OK then Esc: page 1 stays saved, page 2 discarded. */
+  /* OK, OK, Esc: pages 1 and 2 stay saved, page 3 discarded. */
   activate_menu_selection(game);
-  title_modal_key(game, COLONIZE_KEY_SPACE);
-  title_modal_key(game, COLONIZE_KEY_ENTER);
-  title_modal_key(game, COLONIZE_KEY_SPACE);
-  title_modal_key(game, COLONIZE_KEY_ESCAPE);
-  if (game->options_dlg.open || settings_mods_mask(settings_get()) != (start | page2_bit)) {
-    rc = fail("Esc on title mods page 2 lost page 1 or kept page 2");
+  for (int page = 0; page < OPTIONS_MODS_PAGE_COUNT; ++page) {
+    title_modal_key(game, COLONIZE_KEY_SPACE);
+    title_modal_key(
+      game, page == OPTIONS_MODS_PAGE_COUNT - 1 ? COLONIZE_KEY_ESCAPE : COLONIZE_KEY_ENTER
+    );
+  }
+  want = start | page_bit[OPTIONS_MODS_PAGE_COUNT - 1];
+  if (game->options_dlg.open || settings_mods_mask(settings_get()) != want) {
+    fprintf(stderr, "title mods Esc on last page: open %d mask %#x, want %#x\n",
+            game->options_dlg.open, (unsigned)settings_mods_mask(settings_get()),
+            (unsigned)want);
+    rc = 1;
   }
   if (mods_campaign_mask() != 0) {
     rc = fail("title mods dialog touched the campaign mask");
