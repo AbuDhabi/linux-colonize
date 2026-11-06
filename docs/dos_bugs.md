@@ -689,3 +689,16 @@ turn (moves 0); it retries every turn. Off = DOS. One test for both paths:
 (`game_loop_update.c`) and `units_advance_goto_one_step_w`. AI units are unchanged.
 Test: `unit_units_movement` `unit_goto_native_wait_mod`.
 **Status:** done (user-approved toggle, default on).
+
+### DB-78 — A tax of 128 or more reads as negative
+**DOS:** the nation tax byte (Col1 nation +1) is read as a signed char. A tax of 128 or
+more (the `]`/`[` tax cheat, an edited save) is then negative: the Royal loss cut in
+FUN_5fef_0352 (raw 99680-99686, `min(tax, cut)` with `0 < cut`) cuts nothing, and
+Thomas Paine's statesman bonus in FUN_2f2b_348c (raw 50647) becomes a penalty.
+
+**Port:** every tax reader takes the byte unsigned. The last two signed reads,
+`units_royal_loss_tax_cut` (`units_combat.c`) and the Paine bonus in
+`ai_euro_colony_jobs.c`, read it unsigned too. Normal play keeps the tax below 128, so
+goldens and replays are unchanged and there is no `dos_buggy_behavior()` gate. Test:
+`unit_units_combat` `unit_royal_loss_tax_cut`.
+**Status:** done.

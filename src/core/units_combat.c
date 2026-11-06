@@ -4105,7 +4105,9 @@ int units_royal_loss_tax_cut(
   }
   const int row_cut = mercy ? k_cut_byte[k] : k_cut_byte[i];
   ColonizeCol1Nation* nat = &col1->nation[nation];
-  int cut = (int)(int8_t)nat->tax_rate;
+  /* DOS reads the tax as a signed char, so a tax of 128 or more (the ]/[ cheat,
+   * an edited save) cuts nothing. Read it unsigned, like every other port reader. */
+  int cut = (int)nat->tax_rate;
   if (row_cut < cut) {
     cut = row_cut;
   }
