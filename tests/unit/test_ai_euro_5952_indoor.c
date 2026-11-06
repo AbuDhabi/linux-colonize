@@ -5,8 +5,12 @@
  * expected number below is recomputed by hand from the asm, not from the
  * port's own output.
  */
+#include "core/ai_euro.h"
 #include "core/ai_euro_internal.h"
+#include "core/assets.h"
+#include "core/col1_save.h"
 #include "core/colony.h"
+#include "core/founding_fathers.h"
 #include "core/colony_production.h"
 #include "core/world.h"
 
@@ -466,6 +470,48 @@ static int case_rank_byte_unchecked_index(void) {
   return 0;
 }
 
+/* dos_bugs.md DB-78: FUN_2f2b_348c raw 50647 adds tax% of the statesman's bells
+ * for Thomas Paine, reading the tax as a signed char. The port reads it
+ * unsigned, so a tax of 200 triples the bells instead of cutting them. */
+static int case_paine_bonus_reads_tax_unsigned(void) {
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
+    return TR_SKIP;
+  }
+  static ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  const bool loaded = colonies_load_buildings(&pool, &names);
+  assets_msg_free(&names);
+  if (!loaded) {
+    return fail("load @BUILDING");
+  }
+  ColonizeColony* c = &pool.colonies[0];
+  memset(c, 0, sizeof(*c));
+  c->active = true;
+  c->nation_id = 1;
+  c->population = 1;
+  c->colonist_count = 1;
+  c->colonists[0].active = true;
+  c->colonists[0].profession = COLONIZE_PROF_FREE_COLONIST;
+  c->has_building[colonies_building_row(&pool, COLONY_BUILDING_TOWN_HALL)] = true;
+  pool.colony_count = 1;
+  static ColonizeCol1Save c1;
+  memset(&c1, 0, sizeof(c1));
+  c1.nation[1].founding_fathers[FF_THOMAS_PAINE / 8] = (uint8_t)(1u << (FF_THOMAS_PAINE % 8));
+  const int base =
+    ai_euro_jobs_menu_estimate(&pool, NULL, &c1, c, 0, COLONIZE_PROF_STATESMAN, NULL);
+  c1.nation[1].tax_rate = 200;
+  const int taxed =
+    ai_euro_jobs_menu_estimate(&pool, NULL, &c1, c, 0, COLONIZE_PROF_STATESMAN, NULL);
+  if (base <= 0 || taxed != base + 200 * base / 100) {
+    fprintf(stderr, "paine: bells %d at tax 0, %d at tax 200\n", base, taxed);
+    return fail("Paine bonus at tax 200");
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
   {"expert_pass_seats_master_carpenter", case_expert_pass_seats_master_carpenter},
   {"fallback_job", case_fallback_job},
@@ -482,6 +528,7 @@ static const TestCase k_cases[] = {
   {"ledger_factory_input_divides_total", case_ledger_factory_input_divides_total},
   {"ledger_food_demand_counts_horse_births", case_ledger_food_demand_counts_horse_births},
   {"expert_pass_tools_supply_nets_unmet_ore", case_expert_pass_tools_supply_nets_unmet_ore},
+  {"paine_bonus_reads_tax_unsigned", case_paine_bonus_reads_tax_unsigned},
 };
 
 TEST_MAIN(k_cases)

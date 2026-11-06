@@ -699,6 +699,7 @@ Thomas Paine's statesman bonus in FUN_2f2b_348c (raw 50647) becomes a penalty.
 **Port:** every tax reader takes the byte unsigned. The last two signed reads,
 `units_royal_loss_tax_cut` (`units_combat.c`) and the Paine bonus in
 `ai_euro_colony_jobs.c`, read it unsigned too. Normal play keeps the tax below 128, so
-goldens and replays are unchanged and there is no `dos_buggy_behavior()` gate. Test:
-`unit_units_combat` `unit_royal_loss_tax_cut`.
+goldens and replays are unchanged and there is no `dos_buggy_behavior()` gate. Tests:
+`unit_units_combat` `unit_royal_loss_tax_cut`, `unit_ai_euro_5952_indoor`
+`paine_bonus_reads_tax_unsigned`.
 **Status:** done.
