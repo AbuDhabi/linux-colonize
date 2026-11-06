@@ -244,9 +244,15 @@ Cost = number of calls x context size. Output size matters much less.
 - `buybuild N yes` and then `build N X` in the same turn moves the bought
   hammers to X (DOS rule): the bought building is not built. Wait a turn
   before changing the build.
-- `activate ID` that fails prints ERR and every following `key` of the same
-  batch prints `SKIP key ...` (C12: keys meant for one unit fortified and
-  moved the selected galleon). Re-send the batch after `status`.
+- `activate ID` that fails prints ERR and every following `key`, `choose`
+  and click of the same batch prints `SKIP ...` (C12: keys meant for one
+  unit fortified and moved the selected galleon; C19: a queued `choose 0`
+  picked a founding father). Once the activated unit runs out of moves or
+  boards a ship, the next map key is skipped the same way instead of moving
+  the unit the game picked next. Re-send the batch after `status`.
+- `endturn` and `auto` close an open colony screen first (nothing ends a
+  turn under it). `STATUSBAR: ...` lines carry status-bar text, such as
+  Automate's "Nothing left to explore".
 - `villages [R [X Y]]` lists the seen villages (tribe, capital, mission,
   tension, alarm): no `sav_json` scouting needed.
 - `fog [N]` counts the land tiles you have not seen yet and prints the first
@@ -254,7 +260,7 @@ Cost = number of calls x context size. Output size matters much less.
   tiles were an arctic islet, the Galapagos and a Hudson-bay shore, reached
   only by ship).
 - Trade routes have no driver command (menu only, campaign 13): `key t alt`
-  opens TRADE; `click 195 22` = Create, `click 195 13` = Edit. Destinations
+  opens TRADE (`status` prints `STATUS menu open: ~TRADE: ...`); `click 195 22` = Create, `click 195 13` = Edit. Destinations
   come as `CHOICES (list ...)`, the name entry takes `key Return`. In the
   editor row N (from 0) is y = 71 + 20*N; Unload cells x 116-198, Load cells
   x 199+: click right of the existing icons to add (a list opens), click an
@@ -401,6 +407,9 @@ Economy and natives
 - Site choice: a colony next to a native village is usually the wrong pick.
   It costs one tile to work, adds native land claims nearby, and tension
   rises fast. Choose it only to trade heavily with that village.
+- Buying from a village needs a sale first in the same visit (DOS rule):
+  an empty wagon or ship gets "you have brought no trade goods". Carry a
+  good the village wants (trade goods, rum, cigars, tools, muskets...).
 - Scouts visiting chiefs are good early money. On Viceroy the Crown takes
   70% of treasure. Under `--seed` without `--live-ticks` the chief's
   roll is the same every visit (campaign 12: 8 of 8 "tales" for a seasoned
@@ -597,4 +606,5 @@ War of Independence
   Many reported "bugs" were real DOS behaviour.
 - Save before risky moves (`save tNNN`). Keep abandoned timelines in
   `saves/branchN/`.
-- Screenshots: `shot NAME` makes `shots/NAME.png` (2x).
+- Screenshots: `shot NAME` makes `shots/NAME.png` (2x). `click` takes
+  320x200 coordinates: halve what you read off the PNG.

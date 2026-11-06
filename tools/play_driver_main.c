@@ -23,8 +23,10 @@
  *   key NAME [shift|ctrl|alt]   tap: a-z 0-9 - = [ ] ` Return Escape space Backspace
  *                               Tab Delete Up Down Left Right KP_1..KP_9 KP_Enter
  *                               F1..F10 Home End (Escape on the Europe screen with a Yes/No
- *                               up answers it No; every key after a failed `activate` is
- *                               dropped with SKIP until the next activate / status / sync)
+ *                               up answers it No; every key, `choose` and click after a failed
+ *                               `activate` is dropped with SKIP until the next activate / status /
+ *                               sync, and so is every map key once the activated unit is no longer
+ *                               selected: out of moves, boarded, the game moved on to the next one)
  *   choose N                    answer the open choice popup with row N (arrows + Return; message
  *                               popups queued in front are closed first); also a list dialog
  *                               `status` prints as CHOICES (list ...): Go To port list, trade
@@ -45,7 +47,8 @@
  *                               founding father,
  *                               until a choice popup, another screen or modal, or
  *                               the idle main map (default 5000 frames)
- *   shot NAME                   DIR/shots/NAME.ppm
+ *   shot NAME                   DIR/shots/NAME.ppm (320x200; tools/play.py turns it into a 2x PNG:
+ *                               halve PNG pixel coordinates for click)
  *   save NAME                   save into DIR/saves/NAME
  *   status | units | colonies   print state (status repeats an open popup's or list's CHOICES) (colonies: `stock GOOD N(+d)`, d = next turn's net
  *                               change before warehouse waste; food after eating)
@@ -60,7 +63,8 @@
  *   goto ID X Y                 Go To order for unit ID to tile X,Y; activates the unit first, as DOS
  *                               gives Go To only to the active unit (ERR when refused, or when
  *                               the pathfinder finds no route: the turn's moves are spent)
- *   declare                     GAME menu Declare Independence (answer its popup with `choose`)
+ *   declare                     GAME menu Declare Independence (answer its popup with `choose`); runs
+ *                               frames until the popup is up (it waits behind a Go To or animation)
  *   option eot|hints on|off     Game Options "End of Turn" (stop at turn end, no auto-end) /
  *                               "Tutorial Hints" (on in a new Discoverer game; a hint eats the next key)
  *   europe                      open the Europe screen and print gold, RECRUIT / TRAIN /
@@ -98,7 +102,8 @@
  *                               opens the colony screen, asks @ABANDON for the last one (`choose`);
  *                               a refusal (@KEEPSTOCKADE, @SIEGE) prints ERR with its text,
  *                               closes the message and the screen
- *   endturn                     confirm the End of Turn prompt (error while a unit waits)
+ *   endturn                     confirm the End of Turn prompt (error while a unit waits); like `auto`,
+ *                               closes an open colony screen first (nothing ends a turn under it)
  *   world                       whole map, one char a tile
  *   fog [N]                     land tiles not yet seen: count, then up to N (default 20) of them,
  *                               grouped by 8x8 block ("FOG x0,y0 n"), to aim scouts at; the first
@@ -120,7 +125,8 @@
  *   quit
  *
  * Every popup / ticker text the game presents is echoed as "LOG: ..." after
- * the command that triggered it. A nested modal loop inside one game_update
+ * the command that triggered it; a new status-bar line (game_status_text, e.g.
+ * Automate's "Nothing left to explore") as "STATUSBAR: ...". A nested modal loop inside one game_update
  * (Combat Analysis) gets a Return after 300 idle polls ("NESTED:" line); a nested
  * colony message takes "Continue turn."; any other nested choice popup (AI demand,
  * treaty) prints "NESTED CHOICES:" and waits for `choose N` (or a `nestedpick` match).
@@ -209,6 +215,7 @@ static void tap(int32_t code, int m, char text);
 static ColonizeGameState* g_game;
 static char g_nested_pick[256]; /* `nestedpick TEXT`: row a nested choice popup takes */
 static bool g_skip_keys; /* a failed `activate`: drop `key` until activate / status / sync */
+static int g_key_unit = -1; /* unit the last `activate` selected: map keys are meant for it */
 
 static void print_new_log(void);
 static bool print_list_choices(void);
@@ -547,6 +554,22 @@ static void print_new_log(void) {
     printf("LOG: %s\n", window_log_line(age));
   }
   g_log_seen = total;
+  /* C19-T4: Automate's "Nothing left to explore" and the like only reach the status bar
+   * (a popup's text lands there too: skip it when LOG lines were just printed). */
+  static char bar[sizeof(g_game->status)], dos_bar[sizeof(g_game->map_menu.message)];
+  const char* now = game_status_text(g_game);
+  if (strcmp(bar, now) != 0) {
+    snprintf(bar, sizeof(bar), "%s", now);
+    if (n == 0 && bar[0] && strncmp(bar, "Turn ", 5) != 0) { /* not the idle "Turn N Cursor X,Y" line */
+      printf("STATUSBAR: %s\n", bar);
+    }
+  }
+  if (strcmp(dos_bar, g_game->map_menu.message) != 0) { /* DOS top-strip line (Custom House sales) */
+    snprintf(dos_bar, sizeof(dos_bar), "%s", g_game->map_menu.message);
+    if (n == 0 && dos_bar[0]) {
+      printf("STATUSBAR: %s\n", dos_bar);
+    }
+  }
   /* Choice rows once per popup opening, not after every command. */
   static char shown[AI_POPUP_BODY_LEN + 8];
   const AiPopupState* pop = &g_game->ai_popups;
@@ -636,6 +659,17 @@ static void print_status(void) {
    * nothing: name them. */
   for (int i = 0; !g->ai_popups.open && i < g->ai_popups.queue_count; ++i) {
     printf("STATUS queued popup %d: %s\n", (int)g->ai_popups.queue[i].tag, g->ai_popups.queue[i].body);
+  }
+  /* An open pull-down showed only as "modal open" (C19: Alt+T looked dead). */
+  if (g->map_menu.open_index >= 0 && g->map_menu.open_index < g->map_menu.menu_count) {
+    const MapMenuPulldown* pd = &g->map_menu.menus[g->map_menu.open_index];
+    printf("STATUS menu open: %s:", pd->title);
+    for (int i = 0; i < pd->item_count; ++i) {
+      if (pd->items[i].visible && !pd->items[i].separator) {
+        printf(" [%s%s]", pd->items[i].label, pd->items[i].enabled ? "" : " (greyed)");
+      }
+    }
+    printf(" (click a row; key Escape closes)\n");
   }
   if (g->ai_popups.has_result) {
     printf("STATUS popup result pending (tag %d)\n", (int)g->ai_popups.result_tag);
@@ -1173,6 +1207,27 @@ static bool choose_popup_row(int a1) {
   return ok;
 }
 
+/* After a failed `activate` (or once the activated unit lost the selection) the rest of
+ * the batch was meant for that unit: a queued `choose 0` answered a tax raise and picked a
+ * founding father (C19-T1), keys moved the next unit (C12-O9, C19-T2). */
+static bool skipped(const char* op, const char* arg) {
+  if (g_skip_keys) {
+    printf("SKIP %s %s (skipping until activate/status/sync)\n", op, arg ? arg : "");
+  }
+  return g_skip_keys;
+}
+
+/* `endturn` and `auto` do nothing under a colony screen (C19-T3: a turn loop spun). */
+static bool close_colony_screen(const char* op) {
+  if (!g_game->in_colony || g_game->ai_popups.open) {
+    return true;
+  }
+  tap(SDLK_ESCAPE, -1, 0);
+  const bool ok = flush_frames(5);
+  printf("%s: closed the colony screen first%s\n", op, g_game->in_colony ? " (FAILED: still open)" : "");
+  return ok;
+}
+
 /* One command line; false = quit. */
 static bool command(char* line) {
   char* argv[8] = {0};
@@ -1232,8 +1287,15 @@ static bool command(char* line) {
     }
     /* C12-O9: after a failed `activate` the keys would go to whatever unit is selected
      * (a galleon fortified at sea, the wrong ship moved). */
-    if (g_skip_keys) {
-      printf("SKIP key %s after failed activate\n", argv[1]);
+    if (skipped(op, argv[1])) {
+      return true;
+    }
+    if (g_key_unit >= 0 && g_game->units.selected_id != g_key_unit && !g_game->ai_popups.open &&
+        !off_map_reason(g_game)) {
+      printf("SKIP key %s: activated unit %d is no longer selected (selected %d); keys SKIPPED until "
+             "activate/status/sync\n", argv[1], g_key_unit, g_game->units.selected_id);
+      g_key_unit = -1;
+      g_skip_keys = true;
       return true;
     }
     /* Escape on the Europe screen with a Yes/No up (@SAILAWAY): answer No instead of
@@ -1264,6 +1326,9 @@ static bool command(char* line) {
     tap(code, m, ch);
     ok = flush_frames(10);
   } else if (strcmp(op, "choose") == 0 && argc > 1) {
+    if (skipped(op, argv[1])) {
+      return true;
+    }
     NewGameWizard* ng = &g_game->new_game;
     if (new_game_active(ng) && ng->option_count > 0 && ng->phase >= NEW_GAME_PHASE_AMERICA_CHOICE &&
         ng->phase <= NEW_GAME_PHASE_NATION && ng->phase != NEW_GAME_PHASE_CUSTOMIZE &&
@@ -1288,9 +1353,15 @@ static bool command(char* line) {
     }
     ok = flush_frames(5);
   } else if ((strcmp(op, "click") == 0 || strcmp(op, "rclick") == 0) && argc > 2) {
+    if (skipped(op, argv[1])) {
+      return true;
+    }
     press(a1, a2, op[0] == 'r' ? 3 : 1, mod_index(argv[3]));
     ok = flush_frames(10);
   } else if (strcmp(op, "dclick") == 0 && argc > 2) {
+    if (skipped(op, argv[1])) {
+      return true;
+    }
     press(a1, a2, 1, -1);
     g_at += 2;
     press(a1, a2, 1, -1);
@@ -1322,6 +1393,9 @@ static bool command(char* line) {
   } else if (strcmp(op, "endturn") == 0) {
     /* Confirm the End of Turn prompt (what Space / the sidebar click do);
      * refuses while a unit still waits for orders. */
+    if (!close_colony_screen(op)) {
+      return false;
+    }
     if (game_end_turn_prompt_active(g_game)) {
       game_do_end_turn(g_game);
       ok = flush_frames(5);
@@ -1382,6 +1456,7 @@ static bool command(char* line) {
     const int max = a1 > 0 ? a1 : 5000;
     int settled = 0, n = 0;
     const char* why = "frame limit";
+    ok = close_colony_screen(op);
     for (; n < max && ok; ++n) {
       ok = run_frame();
       const AiPopupState* pop = &g_game->ai_popups;
@@ -1431,6 +1506,7 @@ static bool command(char* line) {
     }
   } else if (strcmp(op, "status") == 0) {
     g_skip_keys = false;
+    g_key_unit = -1;
     print_status();
     const AiPopupState* pop = &g_game->ai_popups;
     if (pop->open && pop->current.choice_count > 0) { /* repeat the open question's rows */
@@ -1462,11 +1538,13 @@ static bool command(char* line) {
              off_map_reason(g_game) ? off_map_reason(g_game) : "popup open", g_game->log_screen,
              game_ai_popup_tag(g_game));
       g_skip_keys = true;
+      g_key_unit = -1;
       return ok;
     }
     game_click_activate_unit(g_game, a1);
     ok = flush_frames(5);
     g_skip_keys = g_game->units.selected_id != a1;
+    g_key_unit = g_skip_keys ? -1 : a1;
     if (g_skip_keys) {
       const ColonizeUnit* au = units_get_const(&g_game->units, a1);
       printf("ERR activate %d: not selected (selected %d%s); keys SKIPPED until activate/status/sync\n", a1,
@@ -1517,6 +1595,16 @@ static bool command(char* line) {
     /* GAME menu "Declare Independence": its confirm comes up as a choice popup (`choose`). */
     game_apply_map_menu_action(g_game, MAP_MENU_ACTION_DECLARE_INDEPENDENCE);
     ok = flush_frames(10);
+    /* C19-T5: behind a Go To step the question came up only frames later, unseen; a blind
+     * Return answered it "Never". Run on until it is up. */
+    for (int n = 0; ok && n < 600 && !g_game->ai_popups.open && game_modal_open(g_game); ++n) {
+      ok = run_frame();
+    }
+    g_at = g_p.frame;
+    if (!g_game->ai_popups.open) {
+      printf("WARN declare: no popup up yet (%s); `status` before answering\n",
+             off_map_reason(g_game) ? off_map_reason(g_game) : "main map");
+    }
   } else if (strcmp(op, "option") == 0 && argc > 2 && (strcmp(argv[1], "eot") == 0 || strcmp(argv[1], "hints") == 0)) {
     /* Game Options "End of Turn" / "Tutorial Hints": the bits the options dialog's OK writes
      * (a Discoverer game starts with hints on; each hint eats the next key). */
@@ -2178,6 +2266,7 @@ static bool command(char* line) {
     set_nested_pick(rest);
   } else if (strcmp(op, "sync") == 0) {
     g_skip_keys = false;
+    g_key_unit = -1;
     printf("@@ %s\n", argc > 1 ? argv[1] : "");
   } else if (strcmp(op, "quit") == 0) {
     return false;
