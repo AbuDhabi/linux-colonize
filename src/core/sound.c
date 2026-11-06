@@ -819,7 +819,7 @@ static int sound_pick_next_tune_id(void) {
    * roll). The WoI arm (DS:0x5382 bit0) has no input here: sound.c is a leaf
    * module with no game state, and at the one moment the WoI default would
    * matter the port already selects the same pool explicitly via
-   * sound_set_bgm(3) (ai_king.c, FUN_43f7_10f0 43f7:145b). The demo arm
+   * sound_set_bgm_pool(3) (ai_king_ref.c, FUN_43f7_10f0 43f7:145b). The demo arm
    * reads the flag sound_set_demo stores.
    */
   int base = 1;

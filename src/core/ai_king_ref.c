@@ -1497,7 +1497,7 @@ static void ai_king_10f0_announce(
       ctx->ai_popups, AI_POPUP_TAG_KING_ARRIVAL, human, ally1, landings, NULL, body
     );
     ai_popup_set_last_camera(ctx->ai_popups, AI_POPUP_CAM_CENTRE, sx, sy); /* raw 74386 */
-    sound_set_bgm(3); /* FUN_43f7_10f0 43f7:145b: 281f_0498(3) Independence pool… */
+    sound_set_bgm_pool(3); /* FUN_43f7_10f0 43f7:145b: 281f_0498(3) Independence pool, no restart… */
     sound_play(0x3f); /* …then 43f7:1465: intervention tune after @INTERVENE */
     /* port_bugs.md #253: the arrival popup BLOCKS before the disembark slides,
      * same sequencing as the REF landing (port_bugs.md #237). */
