@@ -864,6 +864,26 @@ int colonies_list_buildable(
   const ColoniesBuildableOpts* opts
 );
 
+/*
+ * Port-only build queue: the Construction picker's list. colonies_list_buildable
+ * plus the queued rows and whatever the plan (project in production + queue)
+ * unlocks once built. `startable` = may start now (a plain pick);
+ * `plannable` = may be queued behind the plan (a Shift pick).
+ */
+int colonies_list_buildable_planned(
+  const ColonizeColonyPool* pool,
+  int colony_id,
+  int* out_ids,
+  int out_max,
+  const ColoniesBuildableOpts* opts
+);
+bool colonies_build_project_startable(
+  const ColonizeColonyPool* pool, int colony_id, int bid, const ColoniesBuildableOpts* opts
+);
+bool colonies_build_project_plannable(
+  const ColonizeColonyPool* pool, int colony_id, int bid, const ColoniesBuildableOpts* opts
+);
+
 /* DOS market-price formula; `col1` supplies the colony owner's tools quote. */
 int colonies_construction_gold_cost_ex(
   const ColonizeColonyPool* pool,

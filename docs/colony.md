@@ -638,6 +638,16 @@ plain pick or "(No Production)" wipes the queue
 (`game_colony_commit_construction`, `colonies_build_queue_clear`). Queued rows
 are drawn with their 1-based position in yellow ahead of the name.
 
+The picker lists the plan's unlocks too (`colonies_list_buildable_planned`):
+whatever `colonies_list_buildable` would list once the current project and every
+queued one were built — Drydock behind Docks, Shipyard behind a queued Drydock,
+ships behind a queued Shipyard. Each Shift pick relists. Such a row can only be
+queued (`colonies_build_project_plannable`); a plain pick on it does nothing and
+keeps the plan and the picker open (`colonies_build_project_startable`), and an
+idle Shift pick starts only a startable row. `colonies_set_construction_ex`
+does not test chain predecessors, so the queue advance drops a head whose
+predecessor is not owned (dropped earlier, burned in a raid).
+
 Both completion paths (`colonies_try_complete_building_ex`,
 `colonies_try_complete_unit_construction`) pop the head through
 `colonies_set_construction_ex`, so a queued start passes the same gates and
@@ -652,7 +662,8 @@ Persisted in the save's port extension block (`BQUE` chunk, docs/savegame.md)
 keyed by colony tile, the same way `VTIN` carries village intel: DOS never sees
 it and drops it on a re-save. Depth `COLONIZE_COLONY_BUILD_QUEUE_MAX` = 8; a
 payload from a deeper build is truncated on load. Covered by `unit_colonies`
-(`unit_build_queue`) and the input replays `colony_build_queue` (queuing in the
+(`unit_build_queue`), `unit_stage_seams`
+(`test_colony_picker_lists_planned_unlocks`) and the input replays `colony_build_queue` (queuing in the
 picker) and `colony_build_queue_complete` (BQUE load, the head starting on each
 completion through the Space cheat tick, a head dropped for population).
 

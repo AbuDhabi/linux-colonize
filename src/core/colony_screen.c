@@ -302,7 +302,9 @@ void colony_screen_open_construction(
     return;
   }
   colony_screen_close_subpanels(view);
-  view->buildable_count = colonies_list_buildable(
+  /* Port-only build queue: rows the queued plan unlocks are listed too
+   * (Shift queues them; game_colony_commit_construction refuses a plain pick). */
+  view->buildable_count = colonies_list_buildable_planned(
     pool, colony_id, view->buildable_ids, COLONY_BUILDABLE_MAX, buildable_opts
   );
   view->construction_open = true;

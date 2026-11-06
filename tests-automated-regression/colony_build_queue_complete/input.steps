@@ -3,16 +3,17 @@
 # (head.game_options.cheats_enabled). Each project is bought, then the colony-screen Space cheat
 # (turn_cheat_colony_tick: one production tick plus both completion sweeps) completes it inside the
 # turn, so the queue head starts (docs/colony.md "ColonizeColony.build_queue").
-# Picker rows: 8 px apart, row 0 "(No Production)" at y=39.
+# Picker rows: 8 px apart, row 0 "(No Production)" at y=34 (the queued plan also lists
+# Newspaper behind the Printing Press in production).
 click 120 112              # open Quebec (map tile 45,24; this save's view origin is 38,18)
 wait 1
 key 3                      # Construction tab (DOS DS:0x337 starts at 0 = Production)
 wait 1
 click 282 141              # CHANGE: the loaded queue is numbered 1-3
 wait 1
-click 150 71 shift         # Shift-click Schoolhouse (needs pop 4): queued as 4
+click 150 66 shift         # Shift-click Schoolhouse (needs pop 4): queued as 4
 wait 1
-click 150 87 shift         # Shift-click Stable: queued as 5
+click 150 82 shift         # Shift-click Stable: queued as 5
 wait 1
 key Escape                 # close the picker
 wait 1

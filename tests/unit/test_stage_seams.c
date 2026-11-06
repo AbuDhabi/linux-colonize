@@ -2421,6 +2421,15 @@ static int test_ai_brave_field_attack(void) {
  * the queued row once something is really in production. A refused pick moves
  * nothing.
  */
+static int picker_row(const ColonyScreenView* csv, int bid) {
+  for (int i = 0; i < csv->buildable_count; ++i) {
+    if (csv->buildable_ids[i] == bid) {
+      return i + 1;
+    }
+  }
+  return -1;
+}
+
 static int test_colony_shift_pick_moves_highlight(void) {
   ColonizeGameState game;
   memset(&game, 0, sizeof(game));
@@ -2464,26 +2473,14 @@ static int test_colony_shift_pick_moves_highlight(void) {
     const ColoniesBuildableOpts bopts = game_colony_buildable_opts(&game);
     colony_screen_open_construction(&game.colony_screen, &game.colonies, col->id, &bopts);
     ColonyScreenView* csv = &game.colony_screen;
-    int want_church = -1;
-    int want_stockade = -1;
-    int want_carpenter = -1;
-    for (int i = 0; i < csv->buildable_count; ++i) {
-      if (csv->buildable_ids[i] == church) {
-        want_church = i + 1;
-      } else if (csv->buildable_ids[i] == stockade) {
-        want_stockade = i + 1;
-      } else if (csv->buildable_ids[i] == carpenter) {
-        want_carpenter = i + 1;
-      }
-    }
     /* Nothing in production opens on the (no production) row; a built current
      * project stays listed (FUN_15eb_3650 tail, port_bugs.md #1218) and has the bar. */
-    if (csv->construction_selection != (pass == 0 ? 0 : want_carpenter) ||
-        (pass == 1 && want_carpenter <= 0)) {
+    if (csv->construction_selection != (pass == 0 ? 0 : picker_row(csv, carpenter)) ||
+        (pass == 1 && picker_row(csv, carpenter) <= 0)) {
       rc = fail("the picker must open on the current project's row");
       break;
     }
-    if (want_church <= 0 || want_stockade <= 0) {
+    if (picker_row(csv, church) <= 0 || picker_row(csv, stockade) <= 0) {
       rc = fail("picker fixture must list Church and Stockade");
       break;
     }
@@ -2493,7 +2490,7 @@ static int test_colony_shift_pick_moves_highlight(void) {
       rc = fail("a Shift pick on an idle colony must start the project");
       break;
     }
-    if (csv->construction_selection != want_church) {
+    if (csv->construction_selection != picker_row(csv, church)) {
       rc = fail("the highlight must follow the started project");
       break;
     }
@@ -2503,7 +2500,8 @@ static int test_colony_shift_pick_moves_highlight(void) {
       rc = fail("a Shift pick with a live project must queue it");
       break;
     }
-    if (csv->construction_selection != want_stockade) {
+    const int want_stockade = picker_row(csv, stockade);
+    if (want_stockade <= 0 || csv->construction_selection != want_stockade) {
       rc = fail("the highlight must follow the queued row");
       break;
     }
@@ -2517,6 +2515,74 @@ static int test_colony_shift_pick_moves_highlight(void) {
   }
   assets_msg_free(&names);
   return rc;
+}
+
+/*
+ * Port-only build queue: the picker also lists what the plan (project in
+ * production + queue) unlocks. Such a row can be queued with Shift, never
+ * started by a plain pick, and a queue head whose chain predecessor never got
+ * built is dropped instead of started.
+ */
+static int test_colony_picker_lists_planned_unlocks(void) {
+  ColonizeGameState game;
+  memset(&game, 0, sizeof(game));
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
+    return fail("NAMES.TXT load");
+  }
+  colonies_init(&game.colonies);
+  colonies_set_occupancy_map(NULL);
+  if (!colonies_load_buildings(&game.colonies, &names)) {
+    assets_msg_free(&names);
+    return fail("@BUILDING load");
+  }
+  ColonizeColony* col = &game.colonies.colonies[0];
+  col->id = 1;
+  col->active = true;
+  col->population = 4;
+  col->building_in_production = -1;
+  game.colonies.colony_count = 1;
+  game.colony_view_id = col->id;
+  const int carpenter = colonies_find_building(&game.colonies, "Carpenter's Shop");
+  const int mill = colonies_find_building(&game.colonies, "Lumber Mill");
+  const int church = colonies_find_building(&game.colonies, "Church");
+  assets_msg_free(&names);
+  if (carpenter < 0 || mill < 0 || church < 0) {
+    return fail("building rows");
+  }
+  ColonyScreenView* csv = &game.colony_screen;
+  const ColoniesBuildableOpts bopts = game_colony_buildable_opts(&game);
+  colony_screen_open_construction(csv, &game.colonies, col->id, &bopts);
+  if (picker_row(csv, mill) > 0) {
+    return fail("Lumber Mill listed with no Carpenter's Shop planned");
+  }
+  game_colony_commit_construction(&game, carpenter);
+  colony_screen_open_construction(csv, &game.colonies, col->id, &bopts);
+  if (col->building_in_production != carpenter || picker_row(csv, mill) <= 0) {
+    return fail("Lumber Mill must be listed behind the Carpenter's Shop in production");
+  }
+  game_colony_commit_construction(&game, mill);
+  if (col->building_in_production != carpenter || !csv->construction_open) {
+    return fail("a plain pick must not start a project only the plan unlocks");
+  }
+  game_colony_queue_construction(&game, mill);
+  if (colonies_build_queue_pos(&game.colonies, col->id, mill) != 1 ||
+      csv->construction_selection != picker_row(csv, mill)) {
+    return fail("a Shift pick must queue the unlocked project");
+  }
+  /* A head whose predecessor is not owned (here pushed past the gates) is dropped. */
+  colonies_build_queue_clear(&game.colonies, col->id);
+  col->building_in_production = church;
+  colonies_build_queue_push(&game.colonies, col->id, mill);
+  col->hammers = 500;
+  if (!colonies_try_complete_building(&game.colonies, col->id)) {
+    return fail("Church must complete");
+  }
+  if (col->build_queue_count != 0 || col->building_in_production == mill) {
+    return fail("a queue head without its predecessor must be dropped");
+  }
+  return 0;
 }
 
 /* One Prairie plot (ring 3, unowned, unbought) among ocean plots; colonist 0 works in the
@@ -5851,6 +5917,7 @@ static const TestCase k_cases[] = {
     {"test_ai_euro_5952_equip_scout", test_ai_euro_5952_equip_scout},
     {"test_ai_euro_5952_equip_pioneer", test_ai_euro_5952_equip_pioneer},
     {"test_colony_shift_pick_moves_highlight", test_colony_shift_pick_moves_highlight},
+    {"test_colony_picker_lists_planned_unlocks", test_colony_picker_lists_planned_unlocks},
     {"test_colony_jobs_menu_seats_indoor_worker", test_colony_jobs_menu_seats_indoor_worker},
     {"test_colony_rum_distiller_refusal_popup", test_colony_rum_distiller_refusal_popup},
     {"test_colony_fence_unit_jobs_list", test_colony_fence_unit_jobs_list},

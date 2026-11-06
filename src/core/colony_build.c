@@ -508,6 +508,33 @@ bool colonies_build_queue_push(ColonizeColonyPool* pool, int colony_id, int bid)
  * is where every caller — EOT sweeps and the inline production complete —
  * converges.
  */
+/*
+ * An entry may sit behind the project that unlocks it (colonies_build_plan).
+ * colonies_set_construction_ex does not test the chain predecessor, so a head
+ * whose predecessor never got built (dropped from the queue, burned in a raid)
+ * is dropped here. The map / founding-father gates were met when it was queued
+ * and cannot lapse; population and the unit gates are re-tested by
+ * colonies_set_construction_ex.
+ */
+static bool colonies_build_predecessor_owned(
+  const ColonizeColonyPool* pool, const ColonizeColony* col, int bid
+) {
+  if (units_build_code_to_index(bid) >= 0) {
+    return true;
+  }
+  const int row = colonies_building_type_row(pool, bid);
+  if (row == COLONY_BUILDING_TOWN_HALL_2 || row == COLONY_BUILDING_TOWN_HALL_3) {
+    return colonies_has_building_row(pool, col, (ColonizeBuildingRow)(row - 1));
+  }
+  const int* rows = colonies_building_chain_rows(colonies_building_row_chain(row));
+  for (int t = 1; rows && t < 4 && rows[t] >= 0; ++t) {
+    if (rows[t] == row) {
+      return colonies_has_building_row(pool, col, (ColonizeBuildingRow)rows[t - 1]);
+    }
+  }
+  return true;
+}
+
 static void colonies_build_queue_advance(
   ColonizeColonyPool* pool, ColonizeColony* col, const ColonizeCol1Save* col1
 ) {
@@ -523,7 +550,8 @@ static void colonies_build_queue_advance(
       col->build_queue[i - 1] = col->build_queue[i];
     }
     col->build_queue_count--;
-    if (colonies_set_construction_ex(pool, col->id, bid, &opts)) {
+    if (colonies_build_predecessor_owned(pool, col, bid) &&
+        colonies_set_construction_ex(pool, col->id, bid, &opts)) {
       return;
     }
   }
@@ -1382,6 +1410,95 @@ static bool colonies_building_is_buildable(
  */
 static bool colonies_build_keeps_current(const ColonizeColony* col, int bid) {
   return bid >= 0 && col->building_in_production == bid;
+}
+
+/* FUN_15eb_3650 for any project code: a @BUILDING index or a unit build code. */
+static bool colonies_project_listed(
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* col,
+  int bid,
+  const ColoniesBuildableOpts* opts
+) {
+  if (colonies_build_keeps_current(col, bid)) {
+    return true;
+  }
+  if (units_build_code_to_index(bid) >= 0) {
+    return colonies_unit_project_available(pool, col, bid, opts);
+  }
+  return colonies_building_is_buildable(pool, col, bid, opts);
+}
+
+/*
+ * Port-only build queue: `col` as it stands once its plan (the project in
+ * production, then every queued one) is built, so what that plan unlocks
+ * (Drydock behind a queued Docks, ships behind a queued Shipyard) can be
+ * listed and queued, never started.
+ */
+static void colonies_build_plan(
+  const ColonizeColonyPool* pool, const ColonizeColony* col, ColonizeColony* plan
+) {
+  *plan = *col;
+  for (int i = -1; i < col->build_queue_count; ++i) {
+    const int bid = i < 0 ? col->building_in_production : col->build_queue[i];
+    if (bid >= 0 && bid < pool->building_type_count && bid < COLONIZE_BUILDING_TYPES_MAX) {
+      plan->has_building[bid] = true;
+    }
+  }
+}
+
+bool colonies_build_project_startable(
+  const ColonizeColonyPool* pool, int colony_id, int bid, const ColoniesBuildableOpts* opts
+) {
+  const ColonizeColony* col = colonies_get(pool, colony_id);
+  return col && bid >= 0 && colonies_project_listed(pool, col, bid, opts);
+}
+
+bool colonies_build_project_plannable(
+  const ColonizeColonyPool* pool, int colony_id, int bid, const ColoniesBuildableOpts* opts
+) {
+  const ColonizeColony* col = colonies_get(pool, colony_id);
+  if (!col || bid < 0) {
+    return false;
+  }
+  ColonizeColony plan;
+  colonies_build_plan(pool, col, &plan);
+  return colonies_project_listed(pool, &plan, bid, opts);
+}
+
+int colonies_list_buildable_planned(
+  const ColonizeColonyPool* pool,
+  int colony_id,
+  int* out_ids,
+  int out_max,
+  const ColoniesBuildableOpts* opts
+) {
+  if (!pool || !out_ids || out_max <= 0) {
+    return 0;
+  }
+  const ColonizeColony* col = colonies_get(pool, colony_id);
+  if (!col) {
+    return 0;
+  }
+  ColonizeColony plan;
+  colonies_build_plan(pool, col, &plan);
+  int n = 0;
+  /* Same order as colonies_list_buildable: @BUILDING rows, then unit codes.
+   * Queued rows stay listed although the plan already owns them. */
+  for (int i = 0; i < pool->building_type_count && n < out_max; ++i) {
+    if (colonies_project_listed(pool, &plan, i, opts) ||
+        colonies_build_queue_pos(pool, colony_id, i) > 0) {
+      out_ids[n++] = i;
+    }
+  }
+  for (int code = COLONIZE_UNIT_BUILD_CODE_FIRST;
+       code < COLONIZE_UNIT_BUILD_CODE_FIRST + COLONIZE_UNIT_BUILD_CODE_COUNT && n < out_max;
+       ++code) {
+    if (colonies_project_listed(pool, &plan, code, opts) ||
+        colonies_build_queue_pos(pool, colony_id, code) > 0) {
+      out_ids[n++] = code;
+    }
+  }
+  return n;
 }
 
 int colonies_list_buildable(

@@ -1056,12 +1056,17 @@ static bool game_colony_production_idle(const ColonizeColony* col) {
 
 void game_colony_queue_construction(ColonizeGameState* game, int bid) {
   const ColonizeColony* col = colonies_get(&game->colonies, game->colony_view_id);
+  const ColoniesBuildableOpts bopts = game_colony_buildable_opts(game);
   bool acted = false;
+  /* colonies_set_construction_ex does not test chain predecessors (the list
+   * did), so a row only the plan unlocks must pass the gate first: started
+   * only when startable now, queued only when the plan unlocks it. */
   if (col && game_colony_production_idle(col)) {
-    const ColoniesBuildableOpts bopts = game_colony_buildable_opts(game);
-    acted = colonies_set_construction_ex(&game->colonies, game->colony_view_id, bid, &bopts);
+    acted = colonies_build_project_startable(&game->colonies, col->id, bid, &bopts) &&
+            colonies_set_construction_ex(&game->colonies, col->id, bid, &bopts);
   } else {
-    acted = colonies_build_queue_push(&game->colonies, game->colony_view_id, bid);
+    acted = colonies_build_project_plannable(&game->colonies, game->colony_view_id, bid, &bopts) &&
+            colonies_build_queue_push(&game->colonies, game->colony_view_id, bid);
   }
   /* The picker stays open, so its highlight follows the row the Shift pick
    * acted on — the new current project when the pick started one, the newly
@@ -1071,11 +1076,14 @@ void game_colony_queue_construction(ColonizeGameState* game, int bid) {
   if (!acted) {
     return;
   }
+  /* The plan grew: relist so the rows it unlocks appear. */
   ColonyScreenView* csv = &game->colony_screen;
+  colony_screen_open_construction(csv, &game->colonies, game->colony_view_id, &bopts);
   for (int i = 0; i < csv->buildable_count; ++i) {
     if (csv->buildable_ids[i] == bid) {
       csv->construction_selection = i + 1;
       csv->construction_page = i + 1 >= 0x10; /* ignored on a one-page list */
+      csv->more_selected = false;
       break;
     }
   }
@@ -1084,6 +1092,11 @@ void game_colony_queue_construction(ColonizeGameState* game, int bid) {
 void game_colony_commit_construction(ColonizeGameState* game, int bid) {
   ColonyScreenView* csv = &game->colony_screen;
   const ColoniesBuildableOpts bopts = game_colony_buildable_opts(game);
+  /* A row only the build plan unlocks cannot start yet: the pick does nothing
+   * and keeps the plan and the picker (Shift queues it). */
+  if (!colonies_build_project_startable(&game->colonies, game->colony_view_id, bid, &bopts)) {
+    return;
+  }
   /* A plain (non-Shift) pick replaces the whole plan, port-only build queue
    * included — Shift-click is the only way to keep one. */
   colonies_build_queue_clear(&game->colonies, game->colony_view_id);
