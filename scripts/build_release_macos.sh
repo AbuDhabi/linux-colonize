@@ -155,6 +155,8 @@ done
 
 cp "$ROOT/data/soundfonts/Roland_SC-55.sf2" "$PKG_DIR/data/soundfonts/"
 cp "$ROOT/data/soundfonts/COPYRIGHT.Roland_SC-55" "$PKG_DIR/data/soundfonts/"
+# Mod text (data/mods): opencol reads it from <exe>/data/mods (src/main.c).
+cp -r "$ROOT/data/mods" "$PKG_DIR/data/mods"
 
 touch "$PKG_DIR/COLONIZE/put original game files here"
 

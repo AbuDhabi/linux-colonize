@@ -118,6 +118,9 @@ static int case_scout(void) {
   size_t n = 0;
   uint8_t* blob = explore_auto_serialize(&s_pool, &n);
   CHECK(blob && n > 0);
+  /* A pre-mods save's SAUT proves the Scout divergence was on. */
+  CHECK(explore_auto_legacy_mods(blob, n) == 1u << MOD_SCOUT_AUTOEXPLORE);
+  CHECK(explore_auto_legacy_mods(NULL, 0) == 0u);
   u->automated = false;
   explore_auto_deserialize(blob, n, &s_pool);
   CHECK(u->automated);
@@ -269,6 +272,7 @@ static int case_ship(void) {
   size_t n = 0;
   uint8_t* blob = explore_auto_serialize(&s_pool, &n);
   CHECK(blob && n > 0);
+  CHECK(explore_auto_legacy_mods(blob, n) == 1u << MOD_SHIP_AUTOEXPLORE);
   u->automated = false;
   explore_auto_deserialize(blob, n, &s_pool);
   free(blob);

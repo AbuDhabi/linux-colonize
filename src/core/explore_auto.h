@@ -49,5 +49,9 @@ void explore_auto_step(const ColonizeWorld* w, ColonizeUnit* u);
 uint8_t* explore_auto_serialize(const ColonizeUnitPool* units, size_t* out_size);
 /* Restores the automated explorers and the visited set; NULL/0 resets. */
 void explore_auto_deserialize(const uint8_t* data, size_t size, ColonizeUnitPool* units);
+/* The mods.h bits a pre-mods 'SAUT' payload proves were on as divergences:
+ * MOD_SHIP_AUTOEXPLORE for an automated ship, MOD_SCOUT_AUTOEXPLORE for an
+ * automated Scout or a visited settlement. 0 for NULL or a bad payload. */
+uint32_t explore_auto_legacy_mods(const uint8_t* data, size_t size);
 
 #endif

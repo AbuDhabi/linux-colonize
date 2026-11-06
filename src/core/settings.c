@@ -456,10 +456,12 @@ bool settings_load_file(const char* path, ColonizeSettings* out, char* err, size
   /* These toggles were "divergences" keys before they became mods: a legacy
    * key seeds the new-game default when "mods" has no value for it. The next
    * write drops the legacy key. */
-  for (int id = MOD_PIONEER_PLAN; id <= MOD_CURRENT_VISION; ++id) {
+  for (int i = 0; i < SETTINGS_OPT_COUNT(k_mod_opts); ++i) {
+    const SettingsBoolOpt* opt = &k_mod_opts[i];
+    const size_t id = (opt->offset - offsetof(ColonizeSettings, mods)) / sizeof(bool);
     bool v;
-    if (!json_get_bool(mods, k_mod_opts[id].key, &v)) {
-      rb(json_obj_get(root, "divergences"), k_mod_opts[id].key, &out->mods[id]);
+    if (id >= MOD_PIONEER_PLAN && id <= MOD_CURRENT_VISION && !json_get_bool(mods, opt->key, &v)) {
+      rb(json_obj_get(root, "divergences"), opt->key, settings_bool_at(out, opt));
     }
   }
 

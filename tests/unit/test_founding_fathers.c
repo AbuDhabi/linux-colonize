@@ -473,7 +473,7 @@ static int ff_case_locked_candidate_mod(void) {
         nat->founding_fathers[id / 8] |= (uint8_t)(1u << (id % 8));
       }
     }
-    AiPopupState pop;
+    static AiPopupState pop; /* ~2.8 MB each: three on the stack overflow 8 MB */
     ai_popup_init(&pop);
     ColonizeDosRng rng;
     dos_rng_seed(&rng, 12345u);
@@ -509,7 +509,7 @@ static int ff_case_locked_candidate_mod(void) {
     founding_fathers_reset();
     c.head.year = 1700;
     c.nation[0].next_founding_father = -1;
-    AiPopupState pop1;
+    static AiPopupState pop1;
     ai_popup_init(&pop1);
     ctx.ai_popups = &pop1;
     ff_tick(&ctx);
@@ -517,7 +517,7 @@ static int ff_case_locked_candidate_mod(void) {
       rc = fail("1700 debate must open");
     }
     c.head.year = 1650;
-    AiPopupState pop2;
+    static AiPopupState pop2;
     ai_popup_init(&pop2);
     ctx.ai_popups = &pop2;
     ff_tick(&ctx);

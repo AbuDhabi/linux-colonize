@@ -76,6 +76,7 @@ IMAGE=registry.fedoraproject.org/fedora:40
       x86_64-w64-mingw32-strip "$PKG/$exe.exe" || true
     done
     cp data/soundfonts/Roland_SC-55.sf2 data/soundfonts/COPYRIGHT.Roland_SC-55 "$PKG/data/soundfonts/"
+    cp -r data/mods "$PKG/data/mods" # mod text, read from <exe>/data/mods (src/main.c)
     touch "$PKG/COLONIZE/put original game files here"
     cp scripts/release/README-windows.md "$PKG/README.md"
     cp LICENSE "$PKG/LICENSE"

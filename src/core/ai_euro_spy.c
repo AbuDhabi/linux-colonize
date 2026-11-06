@@ -184,6 +184,12 @@ bool ai_euro_spy_try_infiltrate(ColonizeTurnContext* ctx, ColonizeUnit* u, int t
   const int cid = spy_slot_at(ctx->colonies, tx, ty);
   ColonizeColony* c = spy_human_colony(ctx, u->nation_id, cid);
   if (!c) {
+    if (cid >= 0 && tx == u->goto_x && ty == u->goto_y) {
+      /* The goal colony changed hands since the dispatch: no attempt, and the
+       * step must not walk into (attack) the new owner's colony. */
+      ai_euro_spy_drop(u);
+      return true;
+    }
     return false;
   }
   const int nation = u->nation_id;

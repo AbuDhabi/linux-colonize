@@ -3617,10 +3617,12 @@ static int unit_spy_unreachable_drops_plan(void) {
     const int id = units_spawn(&f.units, 5, 1, 8);
     ColonizeUnit* u = units_get(&f.units, id);
     u->nation_id = 1;
-    u->moves = 4 * UNITS_MP_PER_TILE;
+    /* Enough to walk up to the wall: since the coarse grid is rebuilt per
+     * world (units_reset_state), the path search only fails there. */
+    u->moves = 12 * UNITS_MP_PER_TILE;
     u->col1_ai_plan = AI_EURO_SPY_PLAN;
     ai_euro_set_goto(u, AI_EURO_ACT_GOAL, 14, 8);
-    for (int step = 0; step < 8 && u->col1_ai_plan == AI_EURO_SPY_PLAN && u->moves > 0; ++step) {
+    for (int step = 0; step < 16 && u->col1_ai_plan == AI_EURO_SPY_PLAN && u->moves > 0; ++step) {
       u->orders = AI_EURO_ACT_GOAL;
       ai_euro_goal_walk_479b(&f.ctx, u);
       u = units_get(&f.units, id);
@@ -3635,6 +3637,27 @@ static int unit_spy_unreachable_drops_plan(void) {
     return fail("an unreachable spy target must drop 'S'");
   }
   if (plan_after[0] != AI_EURO_SPY_PLAN) return fail("mod off: the walk must not touch the plan byte");
+  return 0;
+}
+
+/* The goal colony changed hands after the dispatch: the step into it is not
+ * an attempt and not a move into the new owner's colony; 'S' is dropped. */
+static int unit_spy_goal_lost_drops_plan(void) {
+  Fixture f;
+  if (spy_setup(&f) != 0) return 1;
+  ai_euro_spy_reset();
+  mods_campaign_set(1u << MOD_SCOUT_SPYING);
+  f.colonies.colonies[0].nation_id = 2; /* no longer the human's */
+  const int id = units_spawn(&f.units, 5, 8, 8);
+  ColonizeUnit* u = units_get(&f.units, id);
+  u->nation_id = 1;
+  u->col1_ai_plan = AI_EURO_SPY_PLAN;
+  ai_euro_set_goto(u, AI_EURO_ACT_GOAL, 9, 8);
+  const bool ended = ai_euro_spy_try_infiltrate(&f.ctx, u, 9, 8);
+  const int plan = u->col1_ai_plan;
+  mods_campaign_set(0);
+  fixture_free(&f);
+  if (!ended || plan != 0) return fail("a lost goal colony must end the step and drop 'S'");
   return 0;
 }
 
@@ -4484,6 +4507,7 @@ static const TestCase k_cases[] = {
     {"unit_spy_course_survives_turn", unit_spy_course_survives_turn},
     {"unit_spy_stops_in_war", unit_spy_stops_in_war},
     {"unit_spy_unreachable_drops_plan", unit_spy_unreachable_drops_plan},
+    {"unit_spy_goal_lost_drops_plan", unit_spy_goal_lost_drops_plan},
     {"unit_spy_mood_records_load_safely", unit_spy_mood_records_load_safely},
     {"unit_land_contact_does_not_create_goal", unit_land_contact_does_not_create_goal},
     {"unit_spare_ship_uses_census", unit_spare_ship_uses_census},

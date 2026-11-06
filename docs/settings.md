@@ -137,7 +137,11 @@ off. The file holds only the defaults for *new* games: `game_commit_new_campaign
 snapshots them into the campaign mask (`mods_campaign_set`), the mask rides the
 save in RTST record 17, and code asks `mods_on(id)`. Changing the defaults never
 touches a running campaign. A save without the record (DOS, older port saves)
-loads with every mod off; leaving to the title clears the mask. With
+loads with every mod off, except that an older port save carrying a `PPLN` or
+`SAUT` chunk (written only while the old `divergences.pioneer_plan` /
+`scout_autoexplore` / `ship_autoexplore` were on) gets those mods back
+(`explore_auto_legacy_mods`, col1_bridge.c); `hard_king` and `current_vision`
+leave no trace and stay off. Leaving to the title clears the mask. With
 `dos_buggy_behavior()` on (every test binary) a new game gets mask 0.
 
 The defaults are edited on the title menu only (the in-game GAME pulldown stays

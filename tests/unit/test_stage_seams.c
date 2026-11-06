@@ -5708,8 +5708,12 @@ static int test_load_clears_mod_mask(void) {
     fprintf(stderr, "  %s\n", err);
     rc = fail("fixture save load");
   }
-  if (rc == 0 && mods_campaign_mask() != 0) {
-    rc = fail("a load without the mods record must turn every mod off");
+  /* The fixture is a pre-mods port save with PPLN and SAUT chunks: only the
+   * former divergences they prove come back (col1_bridge.c). */
+  const uint32_t legacy =
+    1u << MOD_PIONEER_PLAN | 1u << MOD_SCOUT_AUTOEXPLORE | 1u << MOD_SHIP_AUTOEXPLORE;
+  if (rc == 0 && (!mods_on(MOD_PIONEER_PLAN) || (mods_campaign_mask() & ~legacy) != 0)) {
+    rc = fail("a load without the mods record keeps only the PPLN/SAUT legacy mods");
   }
   mods_campaign_set(0);
   game_destroy(game);

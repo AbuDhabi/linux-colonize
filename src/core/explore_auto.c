@@ -402,3 +402,22 @@ void explore_auto_deserialize(const uint8_t* data, size_t size, ColonizeUnitPool
     s_visited[p[1] * 256 + p[0]] = p[2];
   }
 }
+
+uint32_t explore_auto_legacy_mods(const uint8_t* data, size_t size) {
+  if (!data || size < 6 || data[0] != EXPLORE_AUTO_PAYLOAD_VERSION || data[1] != 0) {
+    return 0u;
+  }
+  const int autos = data[2] | (data[3] << 8);
+  if (size < 4u + 3u * (size_t)autos + 2u) {
+    return 0u;
+  }
+  uint32_t mods = 0u;
+  for (int k = 0; k < autos; ++k) {
+    mods |= (data[4 + 3 * k + 2] & 0x80) ? 1u << MOD_SHIP_AUTOEXPLORE : 1u << MOD_SCOUT_AUTOEXPLORE;
+  }
+  const uint8_t* p = data + 4 + 3 * autos;
+  if ((p[0] | (p[1] << 8)) != 0) {
+    mods |= 1u << MOD_SCOUT_AUTOEXPLORE; /* only Scouts enter settlements */
+  }
+  return mods;
+}

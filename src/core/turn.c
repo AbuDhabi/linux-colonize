@@ -1259,4 +1259,7 @@ void turn_reset(void) {
   turn_prod_only_set = false;
   turn_prod_skip_nation = -1;
   turn_prod_skip_set = false;
+  /* MOD_BUILDING_UPKEEP: a pass that yielded for colony messages leaves its
+   * halved mask set; it belongs to the outgoing campaign. */
+  (void)colonies_upkeep_set_halved(0u);
 }

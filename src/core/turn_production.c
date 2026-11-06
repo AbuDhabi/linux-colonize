@@ -2379,7 +2379,7 @@ static unsigned turn_charge_building_upkeep(
     if (total <= 0) {
       continue;
     }
-    if (!colonies_upkeep_short(w->colonies, w->col1, w->europe, n)) {
+    if (europe_nation_gold(w->europe, w->col1, n) >= (uint32_t)total) {
       europe_nation_gold_add(w->europe, w->col1, n, -(long)total);
       continue;
     }

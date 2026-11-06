@@ -14,6 +14,7 @@
 #include "core/colony_production.h"
 #include "core/founding_fathers.h"
 #include "core/map.h"
+#include "core/mods.h"
 #include "core/reports.h"
 #include "core/reports_names.h"
 #include "core/strutil.h"
@@ -2474,6 +2475,7 @@ COLONIZE_INTERNAL void col1_bridge_apply_ext_chunks(Col1ApplyCtx* ctx) {
   }
 
   /* 'PPLN' pioneer plan + automated Pioneers (mods.pioneer_plan). */
+  uint32_t legacy_mods = 0u;
   {
     const uint8_t* pp = NULL;
     size_t pp_size = 0;
@@ -2482,6 +2484,7 @@ COLONIZE_INTERNAL void col1_bridge_apply_ext_chunks(Col1ApplyCtx* ctx) {
       pp_size = 0;
     }
     pioneer_plan_deserialize(pp, pp_size, ctx->units);
+    legacy_mods |= pp && pp_size > 0 ? 1u << MOD_PIONEER_PLAN : 0u;
   }
 
   /* 'SAUT' automated Scouts + visited settlements (mods.scout_autoexplore). */
@@ -2493,6 +2496,16 @@ COLONIZE_INTERNAL void col1_bridge_apply_ext_chunks(Col1ApplyCtx* ctx) {
       sa_size = 0;
     }
     explore_auto_deserialize(sa, sa_size, ctx->units);
+    legacy_mods |= explore_auto_legacy_mods(sa, sa_size);
+  }
+
+  /* A port save from before the mods (no RTST record 17) wrote PPLN / SAUT
+   * only while settings.json divergences.pioneer_plan / scout_autoexplore /
+   * ship_autoexplore were on, so those campaigns keep them. A mods-era save
+   * with these chunks always carries a non-zero record 17. hard_king and
+   * current_vision left no trace in the save and stay off. */
+  if (mods_campaign_mask() == 0u && legacy_mods != 0u) {
+    mods_campaign_set(legacy_mods);
   }
 }
 

@@ -15,6 +15,9 @@
 #include "core/europe_internal.h"
 #include "core/founding_fathers.h"
 #include "core/map.h"
+#include "core/mods.h"
+#include "core/pioneer_plan.h"
+#include "core/runtime_ext.h"
 #include "core/savegame.h"
 #include "core/units_move.h"
 #include "core/village_trade_intel.h"
@@ -1009,6 +1012,73 @@ static bool test_import_passengers_in_chain_order(char* err, size_t err_size) {
   units_set_occupancy_map(NULL);
   col1_save_free(&save);
   map_free(&map);
+  return ok;
+}
+
+/* A pre-mods port save (no RTST record 17) wrote PPLN only while the old
+ * divergences.pioneer_plan was on, so its campaign keeps MOD_PIONEER_PLAN;
+ * a record 17 in the save wins over that evidence. */
+static bool apply_ppln_save(bool with_mask_record, char* err, size_t err_size) {
+  ColonizeCol1Save save;
+  col1_save_init(&save);
+  save.head.map_size_x = 8;
+  save.head.map_size_y = 8;
+  save.head.difficulty = 2;
+  col1_save_stamp_head(&save.head);
+  if (!col1_save_alloc_sections(&save, err, err_size)) {
+    return false;
+  }
+  memset(save.map.tile, T_OCEAN, save.map.tile_count);
+  const uint8_t ppln[] = {1, 0, 0, 0, 0, 0}; /* v1, empty 0x0 plan, no automated Pioneers */
+  bool ok = col1_save_ext_put(&save, COLONIZE_COL1_EXT_TAG_PIONEER_PLAN, ppln, sizeof ppln);
+  if (ok && with_mask_record) {
+    mods_campaign_set(1u << MOD_WAGON_LOOT);
+    size_t rt_n = 0;
+    uint8_t* rt = runtime_ext_serialize(NULL, NULL, &rt_n);
+    ok = rt && col1_save_ext_put(&save, COLONIZE_COL1_EXT_TAG_RUNTIME_STATE, rt, rt_n);
+    free(rt);
+  }
+  mods_campaign_set(0);
+  ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
+  units_reset(&units);
+  units_set_occupancy_map(NULL);
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  EuropeScreen europe;
+  memset(&europe, 0, sizeof(europe));
+  ColonizeCol1BridgeResult result;
+  ok = ok && col1_bridge_apply_w(
+    &(ColonizeWorld){.units=&units, .colonies=&colonies, .map=&map, .col1=&save,
+                     .col1_ok=true, .europe=&europe},
+    &result, err, err_size
+  );
+  units_set_occupancy_map(NULL);
+  col1_save_free(&save);
+  map_free(&map);
+  return ok;
+}
+
+static bool test_legacy_ppln_keeps_pioneer_plan(char* err, size_t err_size) {
+  if (!apply_ppln_save(false, err, err_size)) {
+    return false;
+  }
+  if (mods_campaign_mask() != 1u << MOD_PIONEER_PLAN) {
+    snprintf(err, err_size, "pre-mods PPLN save: mask %#x, want pioneer_plan",
+             (unsigned)mods_campaign_mask());
+    return false;
+  }
+  if (!apply_ppln_save(true, err, err_size)) {
+    return false;
+  }
+  const bool ok = mods_campaign_mask() == 1u << MOD_WAGON_LOOT;
+  if (!ok) {
+    snprintf(err, err_size, "save with record 17: mask %#x, want only wagon_loot",
+             (unsigned)mods_campaign_mask());
+  }
+  mods_campaign_set(0);
   return ok;
 }
 
@@ -2226,6 +2296,10 @@ int main(void) {
   }
   if (!test_import_passengers_in_chain_order(err, sizeof(err))) {
     fprintf(stderr, "passenger chain order: %s\n", err);
+    return 1;
+  }
+  if (!test_legacy_ppln_keeps_pioneer_plan(err, sizeof(err))) {
+    fprintf(stderr, "legacy PPLN mods: %s\n", err);
     return 1;
   }
   if (!test_bridge_stage_seams(err, sizeof(err))) {
