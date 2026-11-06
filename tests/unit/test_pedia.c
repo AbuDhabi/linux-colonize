@@ -336,6 +336,9 @@ static int case_misc_mod_rows(void) {
     fprintf(stderr, "misc mod rows: count %d, want %d\n", pedia_category_count(PEDIA_CAT_MISC), want);
     rc = 1;
   }
+  ColonizeFont font;
+  char err[128];
+  const bool font_ok = font_file_load("COLONIZE/FONTTINY.FF", &font, err, sizeof(err));
   for (int i = PEDIA_MISC_COUNT; rc == 0 && i < want; ++i) {
     PediaPage page;
     char tag[16];
@@ -346,7 +349,31 @@ static int case_misc_mod_rows(void) {
       fprintf(stderr, "misc mod rows: row %d title '%s', @%s %s\n", i, page.title, tag,
               body ? "short" : "missing");
       rc = 1;
+      break;
     }
+    if (!font_ok) {
+      continue;
+    }
+    /* Wrapped as pedia_body_render_text does, from body y 2 * fh + 0x15: the
+     * last line must end above the wood frame's bottom edge (y 190). */
+    char raw[4096];
+    char text[4096];
+    static char lines[48][192];
+    bool centred[48];
+    popup_msg_section_body(body, raw, sizeof(raw), true);
+    popup_msg_apply_tokens(text, sizeof(text), raw, NULL);
+    const int n = popup_wrap_text(
+      &font, text, lines[0], sizeof(lines[0]), centred, 48, popup_msg_section_width(body)
+    );
+    const int fh = font.max_height;
+    const int end = 2 * fh + 0x15 + n * (fh + 1);
+    if (n <= 0 || end > 190) {
+      fprintf(stderr, "misc mod rows: @%s wraps to %d lines, ends at y %d (max 190)\n", tag, n, end);
+      rc = 1;
+    }
+  }
+  if (font_ok) {
+    font_file_free(&font);
   }
   pedia_set_misc_catalog(NULL);
   assets_msg_free(&pedia);

@@ -36,31 +36,49 @@ plot within two squares except the four corners.}
 @MODMISC12
 @width=300
 ^{RESTORED CUT CONTENT}
-Features the original game planned but left unfinished. Choose them on
-the title menu (MODS for New Games); each new game keeps its own choice.
-^{King's Audience}: ask the King for an audience from the VIEW menu.
-^{Royal Mercy}: a lost Royal unit lowers the tax.
-^{Town Hall Expansion, Assembly}: larger colonies work more land.
-^{Tribe Mood}: chiefs tell you what angers their tribe.
-^{Treaty Cancel Notice}: your advisor reports a cancelled treaty.
-^{Loot Wagon Trains}: natives may seize a beaten wagon's goods.
-^{Raid Scalps}: a native raid may kill a colonist.
-^{Scout Espionage}: rival scouts spy on your colonies.
+Features the original game planned but left unfinished. Choose them on the
+title menu (MODS for New Games); each new game keeps its own choice.
+^{King's Audience}: once a turn, VIEW King's Audience (K) lets you ask the
+King for his blessing, a specialist or a grant of gold (both raise your tax),
+lower taxes, or independence.
+^{Royal Mercy}: when you lose a ship or artillery, the King lowers your tax
+by that unit's own amount and tells you so.
+^{Town Hall Expansion, Assembly}: new buildings. The expansion (population 4)
+works 12 plots, the assembly (population 8) 20, up to two squares away.
+^{Tribe Mood}: a chief tells your scout how his people feel and what angers
+them most: roads, cleared forest, missions, crowding or attacks.
+^{Treaty Cancel Notice}: when a rival nation cancels its peace treaty with you,
+your foreign affairs advisor tells you, as for a declaration of war.
+^{Loot Wagon Trains}: natives who beat a loaded wagon train may take one kind
+of goods, or all of them, instead of destroying it. The wagon survives.
+^{Raid Scalps}: a native raid may kill a colonist or an unarmed unit in the
+colony. A fort protects those inside; a fortress stops it.
+^{Scout Espionage}: rival nations send scouts into your colonies. A caught
+spy is lost; one that gets in reports the colony's defence, and a weak colony
+may be attacked.
 
 @;
 @MODMISC13
 @width=300
 ^{NEW RULES AND FEATURES}
-Changes to the rules and new orders. Choose them on the title menu (MODS
-for New Games); each new game keeps its own choice.
-^{Abandon Colonies}: buildings need a minimum population, and a colony
-^can be abandoned.
-^{Late Founding Fathers}: five Fathers wait until 1650, Smith until 1600.
-^{Building Upkeep}: buildings cost gold each turn, or work at half.
-^{Hard King}: a tougher Royal Expeditionary Force.
-^{Plan Pioneer}: plan a pioneer's work, then let it automate.
-^{Scouts and Ships Auto-Explore}: they explore on their own.
-^{Current Vision}: land no unit or colony sees now is veiled.
+Changes to the rules and new orders. Choose them on the title menu (MODS for
+New Games); each new game keeps its own choice.
+^{Abandon Colonies}: every building needs its minimum population, so colonists
+cannot leave below it. An ABANDON button on the colony screen gives the colony
+up; its colonists walk out.
+^{Late Founding Fathers}: Stuyvesant, Washington, Jones, Jefferson and Franklin
+cannot join Congress before 1650, Adam Smith not before 1600, for any nation.
+^{Building Upkeep}: each turn your colonies pay gold for their buildings. If the
+treasury cannot pay, buildings work at half and teachers do not teach that
+turn. The colony report shows the total.
+^{Hard King}: the Royal Expeditionary Force lands more troops each turn, seizes
+occupied tiles, and aims at colonies with few soldiers nearby.
+^{Plan Pioneer}: VIEW Plan Pioneer marks roads, plowing and forest clearing on
+the map; ORDERS Automate sends the pioneer to do the work.
+^{Scouts and Ships Auto-Explore}: ORDERS Automate (Q) sends a scout to villages
+and rumours, or a ship to uncharted sea, on its own.
+^{Current Vision}: land you have explored but no unit or colony of yours sees
+now is shown veiled.
 
 @;
 @MODMISC14
@@ -68,7 +86,8 @@ for New Games); each new game keeps its own choice.
 ^{DOS BUG FIXES}
 Fixes for mistakes in the original game. They are on by default; switch
 one off on the title menu (MODS for New Games) to play as the original.
-^{Go To Waits at Natives}: a unit sent to a tile held by a native unit
-^waits next to it instead of attacking.
+^{Go To Waits at Natives}: in the original, a unit sent by Go To to a tile where
+a native unit stands attacks it. With the fix it stops next to the tile and
+waits, keeping its order, and goes on once the tile is free.
 
 @;
