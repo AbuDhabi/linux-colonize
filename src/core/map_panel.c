@@ -455,6 +455,22 @@ static uint8_t map_panel_nation_shade(
   return bright >= 0 ? (uint8_t)bright : raw;
 }
 
+/* Alarm marks name who the tribe is angry at, so during the WoI the crown
+ * slot is the REF: white/grey like its unit badges (unit_chrome_draw.c),
+ * not the borrowed peer's shade. Mission crosses keep the founder's shade. */
+static uint8_t map_panel_alarm_shade(
+  int nation_id, const ColonizePalette* active_palette, bool dim
+) {
+  if (nation_id == unit_chrome_crown_nation()) {
+    if (!active_palette) {
+      return dim ? 7u : 15u;
+    }
+    return dim ? assets_palette_nearest_rgb(active_palette, 180, 180, 180)
+               : assets_palette_nearest_rgb(active_palette, 255, 255, 255);
+  }
+  return map_panel_nation_shade(nation_id, active_palette, dim);
+}
+
 /*
  * Tribe tint dots on the low-tech village sprites — DOS FUN_112b_0790
  * (CODE_5:112b:0815..0999). ICONS.SS #10 (nomadic camp, tech 0) and #11
@@ -584,7 +600,7 @@ static void map_panel_draw_tribe_chrome(
       n = score;
     } else {
       /* Another European's mark: their nation shade, palette-adapted. */
-      color = map_panel_nation_shade(threat, active_palette, false);
+      color = map_panel_alarm_shade(threat, active_palette, false);
       surround = color;
       n = 1;
     }
@@ -593,7 +609,7 @@ static void map_panel_draw_tribe_chrome(
      * bright/dark pair unit_chrome hands back, so pick it up front. */
     const uint8_t dim_color = (threat == mark_nation)
       ? (color >= 8u ? (uint8_t)(color - 8u) : color)
-      : map_panel_nation_shade(threat, active_palette, true);
+      : map_panel_alarm_shade(threat, active_palette, true);
     const int y = tile_py + 4; /* local_6 = local_64 + 4 */
     while (n >= 0) {
       /* Only the bar dims (local_a -= 8); the surround local_9 keeps its
