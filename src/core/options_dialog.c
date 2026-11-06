@@ -482,8 +482,8 @@ void options_dialog_render(
   dlg->list_y0 = geom.list_y0;
   if (ok_rows) {
     /* Centred in the free rows: a small copy of the dialog's own frame (wood,
-     * three outline layers), the label in the row ink. */
-    const int tw = font_text_width(font, dlg->ok_label);
+     * three outline layers), the label drawn like a row (its edge shades). */
+    const int tw = popup_markup_text_width(font, dlg->ok_label);
     const int th = popup_dos_glyph_h(font);
     dlg->ok_w = tw + 2 * POPUP_FRAME_INSET + 16;
     dlg->ok_h = th + 2 * POPUP_FRAME_INSET + 4;
@@ -495,8 +495,9 @@ void options_dialog_render(
       framebuffer, dlg->ok_x, dlg->ok_y, dlg->ok_w, dlg->ok_h, wood_tile, colors, &ix, &iy, &iw,
       &ih
     );
-    font_draw_text(
-      font, framebuffer, ix + (iw - tw) / 2, iy + (ih - th) / 2, dlg->ok_label, text_color
+    (void)popup_draw_text_markup(
+      font, framebuffer, ix + (iw - tw) / 2, iy + (ih - th) / 2, dlg->ok_label, text_color,
+      hilite_color, colors, NULL
     );
   }
 }
