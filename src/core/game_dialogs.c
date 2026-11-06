@@ -2172,10 +2172,7 @@ static void game_apply_options_result(ColonizeGameState* game) {
         /* Title menu row: OK on a page goes on to the next; each page saves on its own OK. */
         const int next = game->options_dlg.mods_page + 1;
         if (next < OPTIONS_MODS_PAGE_COUNT) {
-          (void)options_dialog_open_mods(
-            &game->options_dlg, &game->messages, game->labels_ok ? &game->labels : NULL, mask,
-            next
-          );
+          (void)options_dialog_open_mods(&game->options_dlg, &game->messages, mask, next);
         }
       }
     }

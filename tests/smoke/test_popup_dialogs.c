@@ -1157,11 +1157,7 @@ static int case_mods_dialog_pages(void) {
   assets_set_mod_data_dir("./data/mods");
   const bool loaded = assets_msg_load_file(&cat, "COLONIZE/GAME.TXT");
   assets_set_mod_data_dir("");
-  ColonizeMsgCatalog labels;
-  assets_msg_init(&labels);
-  if (!loaded || !assets_msg_load_file(&labels, "COLONIZE/LABELS.TXT")) {
-    assets_msg_free(&cat);
-    assets_msg_free(&labels);
+  if (!loaded) {
     font_file_free(&font);
     return TR_SKIP;
   }
@@ -1172,7 +1168,7 @@ static int case_mods_dialog_pages(void) {
   ColonizeFramebuffer8 fb = {.width = 320, .height = 200, .pixels = px};
   for (int page = 0; page < OPTIONS_MODS_PAGE_COUNT; ++page) {
     OptionsDialog od;
-    if (!options_dialog_open_mods(&od, &cat, &labels, mask, page) || od.option_count <= 0 ||
+    if (!options_dialog_open_mods(&od, &cat, mask, page) || od.option_count <= 0 ||
         od.ok_label[0] == '\0') {
       fprintf(stderr, "mods page %d did not open\n", page);
       rc = 1;
@@ -1218,7 +1214,7 @@ static int case_mods_dialog_pages(void) {
               od.dialog_y, od.dialog_h, rows_end);
       rc = 1;
     }
-    /* OK sits under the rows, inside the frame. */
+    /* Done sits under the rows, inside the frame. */
     if (od.ok_y < rows_end || od.ok_x < od.dialog_x || od.ok_y + od.ok_h > od.dialog_y + od.dialog_h ||
         od.ok_x + od.ok_w > od.dialog_x + od.dialog_w) {
       fprintf(stderr, "mods page %d: OK at %d,%d %dx%d outside frame or over rows\n", page, od.ok_x,
@@ -1231,12 +1227,12 @@ static int case_mods_dialog_pages(void) {
             MOD_COUNT);
     rc = 1;
   }
-  /* Row 1 toggled and confirmed on each page (Enter, then a click on OK): only
+  /* Row 1 toggled and confirmed on each page (Enter, then a click on Done): only
    * that row's bit moves. */
   for (int k = 0; k < 2 * OPTIONS_MODS_PAGE_COUNT; ++k) {
     const int page = k / 2;
     OptionsDialog od;
-    if (!options_dialog_open_mods(&od, &cat, &labels, mask, page)) {
+    if (!options_dialog_open_mods(&od, &cat, mask, page)) {
       continue;
     }
     options_dialog_render(&od, &font, NULL, NULL, 68, 149, 138, &fb);
@@ -1264,11 +1260,10 @@ static int case_mods_dialog_pages(void) {
     }
   }
   OptionsDialog od;
-  if (options_dialog_open_mods(&od, &cat, &labels, mask, OPTIONS_MODS_PAGE_COUNT)) {
+  if (options_dialog_open_mods(&od, &cat, mask, OPTIONS_MODS_PAGE_COUNT)) {
     fprintf(stderr, "a mods page past the last opened\n");
     rc = 1;
   }
-  assets_msg_free(&labels);
   assets_msg_free(&cat);
   font_file_free(&font);
   return rc;

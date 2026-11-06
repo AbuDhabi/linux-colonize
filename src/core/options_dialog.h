@@ -39,8 +39,8 @@ typedef struct OptionsDialog {
   int option_count;
   int mods_page;                       /* OPTIONS_KIND_MODS: the page shown */
   uint8_t mods_ids[OPTIONS_DIALOG_MAX]; /* OPTIONS_KIND_MODS: the ModId of each row */
-  /* OPTIONS_KIND_MODS: LABELS.TXT @MISC 46 "OK" button under the rows ("" = none; the
-   * stock checklists have none in DOS) and its last drawn rect. */
+  /* OPTIONS_KIND_MODS: data/mods GAME.TXT @MODOPTIONSDONE button under the rows ("" =
+   * none; the stock checklists have none in DOS) and its last drawn rect. */
   char ok_label[OPTIONS_DIALOG_LABEL_LEN];
   int ok_x, ok_y, ok_w, ok_h;
 
@@ -87,11 +87,7 @@ bool options_dialog_open_sound(
 /* The ModId on `row` of mods page `page`, or -1 past the page. */
 int options_dialog_mods_page_id(int page, int row);
 bool options_dialog_open_mods(
-  OptionsDialog* dlg,
-  const ColonizeMsgCatalog* game_txt,
-  const ColonizeMsgCatalog* labels_txt,
-  uint32_t mask,
-  int page
+  OptionsDialog* dlg, const ColonizeMsgCatalog* game_txt, uint32_t mask, int page
 );
 /* True and *mask written when a MODS result was confirmed; only the shown
  * page's bits change. */

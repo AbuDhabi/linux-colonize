@@ -2591,8 +2591,7 @@ void activate_menu_selection(ColonizeGameState* game) {
    * checklist (game_apply_options_result chains the next pages). */
   if (game->menu_selection == game->menu_mods_row) {
     (void)options_dialog_open_mods(
-      &game->options_dlg, &game->messages, game->labels_ok ? &game->labels : NULL,
-      settings_mods_mask(settings_get()), 0
+      &game->options_dlg, &game->messages, settings_mods_mask(settings_get()), 0
     );
     return;
   }

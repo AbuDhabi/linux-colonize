@@ -154,7 +154,7 @@ page title naming the group:
    `scout_autoexplore`, `ship_autoexplore`, `current_vision`.
 3. `@MODOPTIONS3` "DOS Bug Fixes": `goto_native_wait`.
 
-OK (the button under the rows, LABELS.TXT `@MISC` 46, or Enter) on a page saves
+Done (the button under the rows, `@MODOPTIONSDONE`, or Enter) on a page saves
 that page's toggles, flushes the file and opens the next page; Esc on any page
 stops there and keeps the earlier pages' changes. The stock DOS checklists keep
 no button. No overlay, no row. Each page's rows follow its id list in

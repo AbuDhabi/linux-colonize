@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "core/fb.h"
 #include "core/map_menu.h"
 #include "core/mods.h"
 #include "core/popup.h"
@@ -231,11 +232,7 @@ int options_dialog_mods_page_id(int page, int row) {
 }
 
 bool options_dialog_open_mods(
-  OptionsDialog* dlg,
-  const ColonizeMsgCatalog* game_txt,
-  const ColonizeMsgCatalog* labels_txt,
-  uint32_t mask,
-  int page
+  OptionsDialog* dlg, const ColonizeMsgCatalog* game_txt, uint32_t mask, int page
 ) {
   if (page < 0 || page >= OPTIONS_MODS_PAGE_COUNT) {
     return false;
@@ -264,7 +261,7 @@ bool options_dialog_open_mods(
     dlg->option_count = count;
   }
   str_copy_trunc(
-    dlg->ok_label, sizeof(dlg->ok_label), assets_msg_line_or(labels_txt, "MISC", 46, "")
+    dlg->ok_label, sizeof(dlg->ok_label), assets_msg_line_or(game_txt, "MODOPTIONSDONE", 0, "")
   );
   return true;
 }
@@ -485,18 +482,24 @@ void options_dialog_render(
   dlg->line_h = geom.line_h;
   dlg->list_y0 = geom.list_y0;
   if (ok_rows) {
-    /* Raised on the wood (light top-left), centred in the free rows. */
-    const UiButtonColors ink = {
-      colors ? colors->light : text_color, colors ? colors->dark : text_color, text_color,
-      hilite_color
-    };
-    ui_button_measure(font, dlg->ok_label, &dlg->ok_w, &dlg->ok_h);
-    dlg->ok_w += 8;
+    /* Centred in the free rows: a face in the selection-bar ink, raised (light
+     * top-left, dark bottom-right), the label in the row ink. */
+    const int tw = font_text_width(font, dlg->ok_label);
+    const int th = font && font->max_height > 0 ? (int)font->max_height : 6;
+    dlg->ok_w = tw + 16;
+    dlg->ok_h = th + 5;
     dlg->ok_x = geom.frame.x + (geom.frame.w - dlg->ok_w) / 2;
     dlg->ok_y = geom.list_y0 + dlg->option_count * geom.line_h +
                 (ok_rows * geom.line_h - dlg->ok_h) / 2;
-    ui_button_draw(
-      font, framebuffer, dlg->ok_x, dlg->ok_y, dlg->ok_w, dlg->ok_h, dlg->ok_label, &ink
+    fb_fill_rect(framebuffer, dlg->ok_x, dlg->ok_y, dlg->ok_w, dlg->ok_h, select_color);
+    if (colors) {
+      ui_button_draw_frame(
+        framebuffer, dlg->ok_x, dlg->ok_y, dlg->ok_w, dlg->ok_h, colors->light, colors->dark
+      );
+    }
+    font_draw_text(
+      font, framebuffer, dlg->ok_x + (dlg->ok_w - tw) / 2, dlg->ok_y + 3, dlg->ok_label,
+      text_color
     );
   }
 }
