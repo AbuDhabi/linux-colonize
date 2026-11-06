@@ -820,7 +820,13 @@ bool colonies_try_complete_building_ex(
   }
   /* No Custom House default here: +0x8a's only writers are FUN_364b_1ba8
    * (founding), the human dialog (raw 51126) and the AI tick's clear. */
-  col->hammers = 0;
+  /* TB-57: DOS zeroes the bank (FUN_364b_0114); the fix carries the surplus
+   * to whatever is selected next. */
+  if (dos_buggy_behavior()) {
+    col->hammers = 0;
+  } else {
+    col->hammers -= bt->hammers;
+  }
   /*
    * port_bugs.md: an upgrade takes its workers with it — DOS has no per-building
    * membership at all (occupation is the @JOB; the worker always works the
@@ -959,9 +965,14 @@ int colonies_try_complete_unit_construction(
     col->stock[COLONIZE_CARGO_TOOLS] -= tools_cost;
   }
   /* Unlike colonies_try_complete_building, no has_building[]/re-fire guard
-   * needed: a unit is never "owned" by the colony, and resetting hammers to
-   * 0 here is itself the guard (next call reads hammers_need > 0 again). */
-  col->hammers = 0;
+   * needed: a unit is never "owned" by the colony, and its one caller runs
+   * once per colony per EOT. TB-57: DOS zeroes the bank; the fix carries the
+   * surplus to the next unit (or the next queued project). */
+  if (dos_buggy_behavior()) {
+    col->hammers = 0;
+  } else {
+    col->hammers -= hammers_need;
+  }
   colonies_build_queue_advance(pool, col, col1);
   return uid;
 }

@@ -4,6 +4,7 @@
 
 #include "core/founding_fathers.h"
 #include "core/colony_craft.h"
+#include "core/dos_buggy.h"
 
 static int expect_date(uint16_t year, uint16_t autumn, const char* want) {
   char got[32];
@@ -7245,6 +7246,37 @@ static int case_produce_seam_lumber(void) {
   return 0;
 }
 
+/* TB-57 fix: the Phase B lumber stage stops paying at the 512-hammer bank
+ * ceiling (no lumber spent past it); DOS-buggy mode banks without limit. */
+static int case_produce_hammer_bank_cap(void) {
+  ColonizeColony col;
+  memset(&col, 0, sizeof(col));
+  col.stock[COLONIZE_CARGO_LUMBER] = 20;
+  col.hammers = COLONIZE_HAMMER_BANK_MAX - 3;
+  TurnProduceCtx pc;
+  memset(&pc, 0, sizeof(pc));
+  pc.colony = &col;
+  pc.delta = &pc.local_delta;
+  pc.hammers_phase_a = 8;
+  dos_buggy_behavior_set(false);
+  turn_produce_lumber(&pc);
+  const int paid_near = pc.hammers_paid;
+  const int lumber_near = col.stock[COLONIZE_CARGO_LUMBER];
+  col.hammers = COLONIZE_HAMMER_BANK_MAX + 40; /* DOS save banked past the cap */
+  turn_produce_lumber(&pc);
+  const int paid_over = pc.hammers_paid;
+  dos_buggy_behavior_set(true);
+  turn_produce_lumber(&pc);
+  if (paid_near != 3 || lumber_near != 17 || paid_over != 0 || pc.hammers_paid != 8 ||
+      col.stock[COLONIZE_CARGO_LUMBER] != 9) {
+    fprintf(stderr, "hammer bank cap: near %d lumber %d over %d buggy %d lumber %d\n",
+            paid_near, lumber_near, paid_over, pc.hammers_paid,
+            col.stock[COLONIZE_CARGO_LUMBER]);
+    return 1;
+  }
+  return 0;
+}
+
 /* @SPOIL counts against aiStack_e4, the Phase B share of
  * the overflow (FUN_364b_0688 raw 57337-57340 / 57486-57501), not a delta of
  * the stock after Phase L. 110 tools, cap 100, +5 made, 8 spent later: DOS
@@ -7731,6 +7763,7 @@ static const TestCase k_cases[] = {
   {"phase_k_build_advisory", case_phase_k_build_advisory},
   {"produce_seam_begin", case_produce_seam_begin},
   {"produce_seam_lumber", case_produce_seam_lumber},
+  {"produce_hammer_bank_cap", case_produce_hammer_bank_cap},
   {"processor_packs_unit_pool", case_processor_packs_unit_pool},
   {"rotation_slot_order_and_disband_seed", case_rotation_slot_order_and_disband_seed},
   {"despawn_rotation_step_back", case_despawn_rotation_step_back},

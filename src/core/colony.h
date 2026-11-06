@@ -92,6 +92,9 @@ typedef struct ColonizeColonist {
 
 /* Port-only build-queue depth (see ColonizeColony::build_queue). */
 #define COLONIZE_COLONY_BUILD_QUEUE_MAX 8
+/* TB-57 fix: ceiling of the hammer bank — the dearest project (Frigate,
+ * @UNIT cost 16 x 32). DOS has no ceiling and zeroes the bank on completion. */
+#define COLONIZE_HAMMER_BANK_MAX 512
 
 typedef struct ColonizeColony {
   int id;
@@ -122,7 +125,7 @@ typedef struct ColonizeColony {
   uint32_t plot_was_worked_mask;
   /* Warehouse + build queue — production ticks in src/core/turn.c. */
   int stock[COLONIZE_CARGO_COUNT];
-  int hammers;
+  int hammers; /* bank; capped at COLONIZE_HAMMER_BANK_MAX outside DOS-buggy mode (TB-57) */
   int building_in_production; /* @BUILDING index, or -1 */
   /*
    * Port-only QOL build queue (docs/colony.md): projects to start, in order,

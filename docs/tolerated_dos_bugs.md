@@ -605,3 +605,26 @@ cannot alternate tiers. A near-flood miss still falls back to the far tier.
 **Blocks removal:** tried ungated 2026-10-31: fails all six idle gates
 (`golden_idle_continuous`, `_america`, `_america2` and their `_reload`s).
 **Status:** tolerated (user, 2026-10-31). Fixed in opencol 2026-10-31, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.
+
+### TB-57 — A finished project throws its surplus hammers away
+**DOS:** `FUN_364b_0114` writes the hammer bank `+0x92 = 0` on every
+construction completion, building or unit (raw 56964), whatever the bank held
+past the project's cost. With nothing to build (no project, or a building already
+owned still selected) `FUN_364b_0688` Phase L (raw 57730-57738) banks without a
+ceiling.
+
+**Effect:** every hammer above the cost is lost, so the player is pushed to
+micromanage carpenters off the job for the last turn of each project.
+
+**Port (reproduces it):** `colonies_try_complete_building_ex` and
+`colonies_try_complete_unit_construction` (`src/core/colony_build.c`) zero the
+bank. The fix subtracts the cost instead, so the surplus goes to the next
+queued project, the repeated unit project, or stays banked on the owned
+building. `turn_produce_lumber` (`src/core/turn_production.c`, Phase B) stops
+paying lumber for hammers at `COLONIZE_HAMMER_BANK_MAX` (512, the Frigate, the
+dearest project), so a bank with nothing to spend on caps there without
+burning lumber. A DOS save banked past 512 keeps its bank until spent.
+
+**Blocks removal:** not tried ungated; goldens and idle campaigns bank the DOS
+zero on every completion.
+**Status:** tolerated (user, 2026-11-06). Fixed in opencol 2026-11-06, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.

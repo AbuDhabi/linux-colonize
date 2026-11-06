@@ -283,6 +283,46 @@ static int unit_build_queue(void) {
   return 0;
 }
 
+/* TB-57 fix: a completion keeps the surplus hammers (queued next project,
+ * repeated unit project, or the still-selected owned building); DOS-buggy mode
+ * zeroes them. */
+static int unit_hammer_carryover(void) {
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Docks");
+  pool.building_types[0].hammers = 52;
+  snprintf(pool.building_types[1].name, sizeof(pool.building_types[1].name), "Stable");
+  pool.building_types[1].hammers = 64;
+  pool.building_type_count = 2;
+  ColonizeColony* c = &pool.colonies[0];
+  memset(c, 0, sizeof(*c));
+  c->active = true;
+  c->population = 1;
+  c->colonist_count = 1;
+  c->building_in_production = -1;
+  pool.colony_count = 1;
+  const int failures_before = failures;
+
+  dos_buggy_behavior_set(false);
+  CHECK(colonies_set_construction(&pool, 0, 0), "Docks selected");
+  CHECK(colonies_build_queue_push(&pool, 0, 1), "Stable queued");
+  c->hammers = 60;
+  CHECK(colonies_try_complete_building(&pool, 0), "Docks completes");
+  CHECK(c->building_in_production == 1 && c->hammers == 8, "surplus goes to the queued Stable");
+  c->hammers = 70;
+  CHECK(colonies_try_complete_building(&pool, 0), "Stable completes");
+  CHECK(c->building_in_production == 1 && c->hammers == 6, "surplus banked on the owned Stable");
+
+  dos_buggy_behavior_set(true);
+  c->has_building[0] = false;
+  CHECK(colonies_set_construction(&pool, 0, 0), "Docks reselected");
+  c->hammers = 60;
+  CHECK(colonies_try_complete_building(&pool, 0), "buggy Docks completes");
+  CHECK(c->hammers == 0, "DOS-buggy mode zeroes the bank");
+  return failures != failures_before;
+}
+
 static int unit_build_complete_latch(void) {
   ColonizeColonyPool pool;
   colonies_init(&pool);
@@ -2533,6 +2573,13 @@ static int unit_ship_construction(void) {
   CHECK(c->stock[COLONIZE_CARGO_TOOLS] == 10, "200 tools debited");
   CHECK(c->hammers == 0, "hammers reset (FUN_364b_0114 raw 56964: +0x92 = 0)");
   CHECK(c->building_in_production == 48, "DOS never clears the project on completion");
+  /* TB-57 fix: the surplus stays on the repeated unit project. */
+  dos_buggy_behavior_set(false);
+  c->hammers = 520;
+  c->stock[COLONIZE_CARGO_TOOLS] = 200;
+  CHECK(colonies_try_complete_unit_construction(&pool, 0, &units, NULL) > 0, "TB-57 Frigate completes");
+  dos_buggy_behavior_set(true);
+  CHECK(c->hammers == 8, "TB-57 fixed: 8 surplus hammers carry over");
 
   /*
    * port_bugs.md #755: FUN_364b_0688 raw 57748-57769 — short on tools, a human
@@ -3739,6 +3786,7 @@ static const TestCase k_cases[] = {
     {"unit_carpenter_fallback_ignores_shop_ownership_and_cap", unit_carpenter_fallback_ignores_shop_ownership_and_cap},
     {"unit_warehouse_capitol_levels", unit_warehouse_capitol_levels},
     {"unit_build_complete_latch", unit_build_complete_latch},
+    {"unit_hammer_carryover", unit_hammer_carryover},
     {"unit_build_queue", unit_build_queue},
     {"unit_craft_preview_clamps", unit_craft_preview_clamps},
     {"unit_foreign_colony_trade", unit_foreign_colony_trade},

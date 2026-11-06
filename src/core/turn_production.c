@@ -947,6 +947,14 @@ COLONIZE_INTERNAL void turn_produce_lumber(TurnProduceCtx* pc) {
   if (hammers_paid > lumber_before_hammers) {
     hammers_paid = lumber_before_hammers;
   }
+  /* TB-57 fix: the bank stops at COLONIZE_HAMMER_BANK_MAX (no project, or an
+   * owned building still selected); carpenters past it spend no lumber. Every
+   * project costs <= the cap, so this never delays a completion. */
+  if (!dos_buggy_behavior() && hammers_paid > COLONIZE_HAMMER_BANK_MAX - colony->hammers) {
+    hammers_paid = colony->hammers < COLONIZE_HAMMER_BANK_MAX
+                     ? COLONIZE_HAMMER_BANK_MAX - colony->hammers
+                     : 0;
+  }
   if (hammers_paid > 0) {
     colony->stock[COLONIZE_CARGO_LUMBER] -= hammers_paid;
     if (delta) {
