@@ -855,7 +855,7 @@ static void print_advise(void) {
    * always the fallback nation 1: campaign 13's REF was nation 2 and no WAR line printed. */
   const int crown = ai_king_crown_nation_col1(&g->col1, me);
   const ColonizeColonyPool* pool = &g->colonies;
-  int n_cols = 0, n_coastal = 0, dragoons = 0;
+  int n_cols = 0, dragoons = 0;
   for (int i = 0; i < g->units.slot_end; ++i) {
     const ColonizeUnit* u = &g->units.units[i];
     if (!u->active || u->nation_id != me) {
@@ -873,8 +873,8 @@ static void print_advise(void) {
          g->col1.head.expeditionary_force[0], g->col1.head.expeditionary_force[1],
          g->col1.head.expeditionary_force[3], g->col1.head.expeditionary_force[2], ref_land,
          declared ? "; independence declared" : "");
-  int coastal_guns_min = 1 << 30, guns_total = 0, horses = 0, muskets = 0;
-  bool fortress_any = false, gate_cols = true;
+  int guns_total = 0, horses = 0, muskets = 0;
+  bool fortress_any = false, gate_cols = true, gate_coastal = true;
   for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
     const ColonizeColony* c = &pool->colonies[i];
     if (!c->active || c->nation_id != me) {
@@ -942,10 +942,13 @@ static void print_advise(void) {
     const bool fortress = colonies_has_building_row(pool, c, COLONY_BUILDING_FORTRESS);
     const bool fort = fortress || colonies_has_building_row(pool, c, COLONY_BUILDING_FORT);
     fortress_any |= fortress;
+    if (!declared && (armed == 0 || sol < 50)) {
+      printf("ADVISE TODO colony %d %s: SoL %d%%, %d armed: the gate wants SoL 50%%+ and an armed unit\n", i,
+             c->name, sol, armed);
+    }
+    gate_cols &= armed > 0 && sol >= 50;
     if (coastal) {
-      ++n_coastal;
-      coastal_guns_min = guns < coastal_guns_min ? guns : coastal_guns_min;
-      gate_cols &= fort && sol >= 100;
+      gate_coastal &= fort || colonies_has_building_row(pool, c, COLONY_BUILDING_STOCKADE);
       int score = c->colonist_count * (125 - sol) - 75 * armed;
       score = score < 100 - sol ? 100 - sol : score;
       printf("ADVISE colony %d %s coastal: SoL %d%%, %s, %d artillery, %d armed, REF target score %d\n", i,
@@ -976,20 +979,21 @@ static void print_advise(void) {
   if (declared) {
     return;
   }
-  /* Gate from campaigns 1-5 (RULES.md "Before declaring"): winners held
-   * >= 0.8 artillery and >= 0.35 dragoons per REF land unit (campaign 1,
-   * Discoverer: 19 guns + 9 dragoons vs 23, won with no colony lost). */
-  const int need_guns = (ref_land * 8 + 9) / 10;
-  const int need_drag = (ref_land * 35 + 99) / 100;
-  const int per_col = n_coastal ? need_guns / n_coastal : 0;
-  const bool g1 = guns_total >= need_guns, g2 = n_coastal == 0 || coastal_guns_min >= per_col;
-  const bool g3 = dragoons >= need_drag, g4 = fortress_any, g5 = gate_cols, g6 = horses >= 100 && muskets >= 50;
-  printf("ADVISE GATE artillery %d / %d (0.8 x REF land) %s\n", guns_total, need_guns, g1 ? "MET" : "NOT MET");
-  printf("ADVISE GATE each coastal colony >= %d artillery (min %d) %s\n", per_col,
-         n_coastal ? coastal_guns_min : 0, g2 ? "MET" : "NOT MET");
-  printf("ADVISE GATE dragoons %d / %d (0.35 x REF land) %s\n", dragoons, need_drag, g3 ? "MET" : "NOT MET");
-  printf("ADVISE GATE a Fortress %s; every coastal colony Fort+ and SoL 100%% %s\n", g4 ? "MET" : "NOT MET",
-         g5 ? "MET" : "NOT MET");
+  /* Gate (RULES.md "Before declaring"): guns + mounted >= 0.55 x REF land, each
+   * >= 0.25. Calibrated on the user's Viceroy win (port_saves/campaign8: 56 guns +
+   * 53 dragoons vs 198, every colony armed at SoL 59%+, 4 Fortresses, Stockade+
+   * elsewhere); campaign 1 (19 + 9 vs 23) passes too. */
+  const int need_army = (ref_land * 55 + 99) / 100;
+  const int need_each = (ref_land * 25 + 99) / 100;
+  const bool g1 = guns_total + dragoons >= need_army, g2 = guns_total >= need_each;
+  const bool g3 = dragoons >= need_each, g4 = fortress_any, g5 = gate_cols && gate_coastal;
+  const bool g6 = horses >= 100 && muskets >= 50;
+  printf("ADVISE GATE artillery + dragoons %d / %d (0.55 x REF land) %s\n", guns_total + dragoons, need_army,
+         g1 ? "MET" : "NOT MET");
+  printf("ADVISE GATE artillery %d / %d (0.25 x REF land) %s\n", guns_total, need_each, g2 ? "MET" : "NOT MET");
+  printf("ADVISE GATE dragoons %d / %d (0.25 x REF land) %s\n", dragoons, need_each, g3 ? "MET" : "NOT MET");
+  printf("ADVISE GATE a Fortress %s; every colony armed and SoL 50%%+, every coastal colony Stockade+ %s\n",
+         g4 ? "MET" : "NOT MET", g5 ? "MET" : "NOT MET");
   printf("ADVISE GATE spare horses %d and muskets %d in stock (100 / 50) %s\n", horses, muskets,
          g6 ? "MET" : "NOT MET");
   if (g1 && g2 && g3 && g4 && g5 && g6) {

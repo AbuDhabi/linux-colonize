@@ -23,8 +23,9 @@ once are not enough. These steps make them checkable.
    They scale with the REF, which `advise` prints. Do not use any other
    number. Campaigns 6 and 7 used the Viceroy "60+ guns" figure on
    Discoverer, judged it out of reach, stopped preparing and declared with
-   2-7 guns. On Discoverer the REF was 23-30 land units: the real gate was
-   about 20-24 guns and 9-11 dragoons.
+   2-7 guns. On Discoverer the REF was 23-30 land units: the old gate wanted
+   about 20-24 guns and 9-11 dragoons, the current one about 13-17 guns +
+   dragoons with 6-8 of each.
 3. A rule beats your plan. Stop and re-check when your reasoning says "not
    realistic", "too slow", "I'll skip it", or "the stock is big, so this does
    not apply". Campaign 6 skipped the Docks rule because Jamestown's food stock
@@ -96,6 +97,55 @@ not for a big empire. Era targets (check them with `advise` and `colonies`):
    Turn veteran soldiers and colonists into dragoons. SoL 100% in both.
 5. `GATE ALL MET`: `declare`, `choose 1`. Then the War of Independence
    section below.
+
+## Playbook (Viceroy; the user's hand-played campaign won this way in 1784)
+
+The user's own France/Viceroy game (saves in `port_saves/campaign8/`, not
+the automated campaign 8 here) won the War of Independence in 17 turns
+without a reload. It is the only Viceroy win against a full REF (125
+Regulars, 42 Cavalry, 31 Artillery, 20 Men-of-War: 198 land units). What it did differently
+from the two-colony Discoverer plan:
+
+1. A wide empire. 1 colony until 1546, 7 by 1636, 9 by 1711, then 25 by
+   1754 (pop 275). Growth came from food (fishermen with Docks, farmers):
+   only 22 recruits from Europe in the whole game. Six English colonies
+   (pop 3-15) were taken by force 1710-1748; ten small inland "Fort"
+   colonies were founded 1748-1754, with pioneers clearing forest around
+   them for lumber.
+2. Every colony gets the same kit: 3 statesmen in the Town Hall, Printing
+   Press (Newspaper in the big ones), Schoolhouse, Stable, Armory, Custom
+   House, Stockade or better. SoL was 100% in most colonies, 59-79% in the
+   newest forts, at the declaration. All 25 Founding Fathers by 1739.
+3. Money from finished goods sold by the Custom House: muskets (ore miners
+   -> blacksmiths -> gunsmiths) 31k, cigars 29k, cloth 28k, rum 18k, coats
+   12k by 1775. Furs and raw goods were small. Horses were bought (17k).
+4. Taxes: almost every hike was refused with a party (boycotts covered all
+   goods but one by 1764; the Custom House sells boycotted goods anyway).
+   The rate stayed at 32% 1644-1689 and 54% 1711-1764.
+5. Before declaring, every colony was armed (2-7 artillery and 1-7 dragoons
+   each in the big ones, 2-5 soldiers in the small forts) with 50-300
+   muskets and 80-300 horses in stock. Fortress in 4 colonies, Fort in 8,
+   Stockade in the rest. Totals: 57 artillery, 56 dragoons, 15 soldiers.
+   That is 0.3 guns per REF land unit: the war was won by cavalry, not by
+   guns. The `advise` gate is calibrated on this army (one colony, Fort
+   Frontenac, had no armed unit; the gate asks for one).
+6. Declaration turn: Continental Army mobilization promoted 38 veteran
+   dragoons/soldiers to Continental status (see War of Independence). A
+   Merchantman at sea was seized, and a wagon train and pioneers outside a
+   colony were captured: bring ships into port and units inside first.
+7. The war: the REF landed mostly next to the newest, weakest forts (low
+   SoL, few guns). Stacks of 5-8 Continental cavalry plus 1-3 Continental
+   army waited on open tiles next to those forts and hit each landing the
+   turn it came. Measured from the user's log: Continental cavalry vs
+   Regulars 102 wins / 47 losses, vs artillery in the open 42 / 5, vs
+   Cavalry 20 / 11; dragoons vs Regulars 22 / 11. Crown attacks on
+   fortified artillery in a colony won 11 of 28.
+8. Three small forts fell (1777-1778) and were retaken within 1-2 turns
+   (Rebel Unrest +51-58% and, after the intervention, Bombard +50% on
+   attacks against a colony). Three mercenary offers were bought during the
+   war (7600, 6400, 6000 gold). The English intervention force landed.
+   Artillery was still bought in Europe right up to the declaration
+   (2000-2400 each), and builds were finished with gold (`buybuild`).
 
 ## Setup
 
@@ -437,11 +487,15 @@ Combat
 
 War of Independence
 
-- Before declaring: `advise` GATE lines. They need artillery >= 0.8 x REF
-  land units (split over the coastal colonies), dragoons >= 0.35 x REF land,
-  a Fortress, Fort or better and SoL 100% in every coastal colony, and 100
-  spare horses and 50 muskets. Measured (guns vs REF land units at the
-  declaration):
+- Before declaring: `advise` GATE lines (loosened 2026-11-06 after the
+  user's Viceroy win). They need artillery + dragoons >= 0.55 x REF land
+  units, artillery >= 0.25 x and dragoons (with Continental cavalry) >= 0.25 x
+  REF land, a Fortress somewhere, every colony (inland too) armed and at SoL
+  50%+, every coastal colony Stockade or better, and 100 spare horses and 50
+  muskets. Only guns on colony tiles count; dragoons count anywhere. More
+  is better: put the guns in the REF target colonies and keep SoL near 100%
+  (Tory % is added to Crown attacks). Measured (guns vs REF land units at
+  the declaration):
 
   | Campaign | Difficulty | Guns | REF land | Result |
   |---|---|---|---|---|
@@ -452,6 +506,16 @@ War of Independence
   | 5 | Viceroy | 37 | ~128 | lost |
   | 7 | Discoverer | 7 | 30 | lost 1797 |
   | 11 | Conquistador | 61 (22 damaged) + 16 dragoons | 83 | lost (one colony stripped), then won 1772 |
+  | user c8 | Viceroy | 57 + 56 dragoons + 15 soldiers, 25 colonies | 198 | won 1784, 3 forts lost and retaken |
+
+  The old gate (0.8 guns, 0.35 dragoons, Fort+ and SoL 100% in every coastal
+  colony) would have refused the user's winning army.
+- Continental Army mobilization (declaration turn, DOS FUN_43f7_2022): in
+  each colony with SoL 50% or more, up to max(1, min(pop / 2,
+  pop x (SoL - 50) / 50)) VETERAN soldiers and dragoons on the colony tile
+  become Continental Army / Continental Cavalry. Plain armed colonists do
+  not promote. Park veteran dragoons inside big 100%-SoL colonies before
+  declaring (the user got 30 Continental cavalry and 8 Continental army this way).
 
   Also keep far more horses and muskets than seems needed: on Viceroy ~130
   horses and ~200 muskets ran out within ~10 turns.
