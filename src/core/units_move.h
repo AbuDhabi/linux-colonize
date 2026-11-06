@@ -78,7 +78,7 @@ ColonizeEnterReason units_last_enter_reason(void);
  * the record (the step tail consumes it). */
 int units_take_board_passenger(void);
 
-/* mods.h MOD_GOTO_NATIVE_WAIT (dos_bugs.md DB-75): true when `mover`'s Go To
+/* mods.h MOD_GOTO_NATIVE_WAIT (dos_bugs.md DB-77): true when `mover`'s Go To
  * last step onto (x, y) must stop next to `occupant` instead of attacking it:
  * the toggle is on, the mover is human (col1_nation_is_human), the occupant is
  * a native unit and (x, y) holds no settlement (a Go To aimed at a village

@@ -844,7 +844,7 @@ static GameUpdateStep game_pacer_goto_step(
     const ColonizeUnit* foe =
       foe_id >= 0 ? units_get_const(&game->units, foe_id) : NULL;
     bool hostile = foe && foe->nation_id != active->nation_id;
-    /* MOD_GOTO_NATIVE_WAIT (dos_bugs.md DB-75): a native unit on the goal is
+    /* MOD_GOTO_NATIVE_WAIT (dos_bugs.md DB-77): a native unit on the goal is
      * waited out, not attacked; the raw pacer below keeps the order and
      * parks the unit. */
     if (hostile &&
@@ -1008,11 +1008,19 @@ static GameUpdateStep game_pacer_goto_step(
        * it comes back to the player with its leftover MP. Port-only
        * Automate re-aims every frame, so an automated unit still parks for
        * the turn (else it would re-pick the same stuck target forever).
+       * MOD_GOTO_NATIVE_WAIT (dos_bugs.md DB-77) parks too and keeps the
+       * order, so the Go To retries next turn.
        */
       ColonizeUnit* stalled = units_get(&game->units, active_id);
       if (stalled && stalled->active && units_orders_follow_goto(stalled->orders) &&
           stalled->moves > 0) {
-        if (stalled->automated) {
+        const int occ_id = units_id_at(&game->units, stalled->goto_x, stalled->goto_y);
+        const ColonizeUnit* occ = occ_id >= 0 ? units_get_const(&game->units, occ_id) : NULL;
+        if (stalled->automated ||
+            (map_tiles_adjacent(stalled->x, stalled->y, stalled->goto_x, stalled->goto_y, false) &&
+             units_goto_waits_for_native(
+               game->col1_ok ? &game->col1 : NULL, stalled, occ, stalled->goto_x, stalled->goto_y
+             ))) {
           stalled->moves = 0;
         } else {
           units_clear_orders(&game->units, active_id);

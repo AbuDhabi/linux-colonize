@@ -1831,7 +1831,7 @@ bool units_set_goto_w(
 
 
 /*
- * dos_bugs.md DB-75: DOS FUN_479b_0972 (raw 77052-77122) takes each Go To step
+ * dos_bugs.md DB-77: DOS FUN_479b_0972 (raw 77052-77122) takes each Go To step
  * from FUN_6662_0f74; with the goal adjacent that is the plain sign step
  * FUN_6662_0086 (raw 104556-104565), no occupancy test, so a native unit on
  * the goal is attacked. Fixed behind MOD_GOTO_NATIVE_WAIT (default on). The
@@ -3515,7 +3515,7 @@ bool units_advance_goto_one_step_w(
       if (!step_is_dest) {
         return false;
       }
-      /* MOD_GOTO_NATIVE_WAIT (dos_bugs.md DB-75): a human Go To waits next
+      /* MOD_GOTO_NATIVE_WAIT (dos_bugs.md DB-77): a human Go To waits next
        * to a native unit on its goal, keeping the order, instead of attacking
        * (DOS FUN_6662_0086 raw 104556-104565 hands the goal to the
        * FUN_465b_0000 attack). Same exit as a unit in the way above. */

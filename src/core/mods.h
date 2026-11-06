@@ -17,7 +17,7 @@ typedef enum ModId {
   /* Gameplay: natives beating a loaded wagon train may take its cargo
    * instead of destroying it (units_apply_land_loss_outcome). */
   MOD_WAGON_LOOT = 0,
-  /* DOS bug fix (dos_bugs.md DB-75): a human Go To whose goal holds a native unit stops next to
+  /* DOS bug fix (dos_bugs.md DB-77): a human Go To whose goal holds a native unit stops next to
    * it and waits instead of attacking it (units_goto_waits_for_native). */
   MOD_GOTO_NATIVE_WAIT = 1,
   /* Gameplay: every built building's NAMES.TXT min population floors voluntary
