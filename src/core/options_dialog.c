@@ -3,7 +3,6 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "core/fb.h"
 #include "core/map_menu.h"
 #include "core/mods.h"
 #include "core/popup.h"
@@ -482,24 +481,22 @@ void options_dialog_render(
   dlg->line_h = geom.line_h;
   dlg->list_y0 = geom.list_y0;
   if (ok_rows) {
-    /* Centred in the free rows: a face in the selection-bar ink, raised (light
-     * top-left, dark bottom-right), the label in the row ink. */
+    /* Centred in the free rows: a small copy of the dialog's own frame (wood,
+     * three outline layers), the label in the row ink. */
     const int tw = font_text_width(font, dlg->ok_label);
-    const int th = font && font->max_height > 0 ? (int)font->max_height : 6;
-    dlg->ok_w = tw + 16;
-    dlg->ok_h = th + 5;
+    const int th = popup_dos_glyph_h(font);
+    dlg->ok_w = tw + 2 * POPUP_FRAME_INSET + 16;
+    dlg->ok_h = th + 2 * POPUP_FRAME_INSET + 4;
     dlg->ok_x = geom.frame.x + (geom.frame.w - dlg->ok_w) / 2;
     dlg->ok_y = geom.list_y0 + dlg->option_count * geom.line_h +
                 (ok_rows * geom.line_h - dlg->ok_h) / 2;
-    fb_fill_rect(framebuffer, dlg->ok_x, dlg->ok_y, dlg->ok_w, dlg->ok_h, select_color);
-    if (colors) {
-      ui_button_draw_frame(
-        framebuffer, dlg->ok_x, dlg->ok_y, dlg->ok_w, dlg->ok_h, colors->light, colors->dark
-      );
-    }
+    int ix = 0, iy = 0, iw = 0, ih = 0;
+    popup_draw(
+      framebuffer, dlg->ok_x, dlg->ok_y, dlg->ok_w, dlg->ok_h, wood_tile, colors, &ix, &iy, &iw,
+      &ih
+    );
     font_draw_text(
-      font, framebuffer, dlg->ok_x + (dlg->ok_w - tw) / 2, dlg->ok_y + 3, dlg->ok_label,
-      text_color
+      font, framebuffer, ix + (iw - tw) / 2, iy + (ih - th) / 2, dlg->ok_label, text_color
     );
   }
 }
