@@ -314,7 +314,8 @@ static int case_misc_page(void) {
 }
 
 /* data/mods PEDIA.TXT appends one Game Concept row per mods checklist page
- * (titles after the stock 12, bodies @MODMISC<n>); stock data keeps 12. */
+ * (titles after the stock 12, bodies @MODMISC<n>), listed only while a mod is
+ * on; stock data, or every mod off, keeps 12. */
 static int case_misc_mod_rows(void) {
   if (fixture_ensure() != 0) {
     return 1;
@@ -324,6 +325,8 @@ static int case_misc_mod_rows(void) {
   assets_set_mod_data_dir("./data/mods");
   const bool ok = assets_msg_load_file(&pedia, "COLONIZE/PEDIA.TXT");
   assets_set_mod_data_dir("");
+  const uint32_t saved_mask = mods_campaign_mask();
+  mods_campaign_set(1u << MOD_GOTO_NATIVE_WAIT);
   int rc = 0;
   pedia_set_misc_catalog(&s_catalog);
   if (pedia_category_count(PEDIA_CAT_MISC) != PEDIA_MISC_COUNT) {
@@ -336,45 +339,56 @@ static int case_misc_mod_rows(void) {
     fprintf(stderr, "misc mod rows: count %d, want %d\n", pedia_category_count(PEDIA_CAT_MISC), want);
     rc = 1;
   }
+  mods_campaign_set(0);
+  if (pedia_category_count(PEDIA_CAT_MISC) != PEDIA_MISC_COUNT) {
+    fprintf(stderr, "misc mod rows: count %d with every mod off\n", pedia_category_count(PEDIA_CAT_MISC));
+    rc = 1;
+  }
+  mods_campaign_set(1u << MOD_GOTO_NATIVE_WAIT);
   ColonizeFont font;
   char err[128];
   const bool font_ok = font_file_load("COLONIZE/FONTTINY.FF", &font, err, sizeof(err));
   for (int i = PEDIA_MISC_COUNT; rc == 0 && i < want; ++i) {
     PediaPage page;
-    char tag[16];
-    snprintf(tag, sizeof(tag), "MODMISC%d", i);
-    const ColonizeMsgSection* body = assets_msg_find(&pedia, tag);
-    if (!pedia_page(&pedia, &s_names, PEDIA_CAT_MISC, i, &page) || page.title[0] == '\0' ||
-        !body || body->line_count < 3) {
-      fprintf(stderr, "misc mod rows: row %d title '%s', @%s %s\n", i, page.title, tag,
-              body ? "short" : "missing");
+    if (!pedia_page(&pedia, &s_names, PEDIA_CAT_MISC, i, &page) || page.title[0] == '\0') {
+      fprintf(stderr, "misc mod rows: row %d has no title\n", i);
       rc = 1;
       break;
     }
     if (!font_ok) {
       continue;
     }
-    /* Wrapped as pedia_body_render_text does, from body y 2 * fh + 0x15: the
-     * last line must end above the wood frame's bottom edge (y 190). */
-    char raw[4096];
-    char text[4096];
-    static char lines[48][192];
-    bool centred[48];
-    popup_msg_section_body(body, raw, sizeof(raw), true);
-    popup_msg_apply_tokens(text, sizeof(text), raw, NULL);
-    const int n = popup_wrap_text(
-      &font, text, lines[0], sizeof(lines[0]), centred, 48, popup_msg_section_width(body)
-    );
-    const int fh = font.max_height;
-    const int end = 2 * fh + 0x15 + n * (fh + 1);
-    if (n <= 0 || end > 190) {
-      fprintf(stderr, "misc mod rows: @%s wraps to %d lines, ends at y %d (max 190)\n", tag, n, end);
+    /* Render the real article into a frame twice the screen's height (the body
+     * renderer clips only at the framebuffer edge): body pixels must show, and
+     * none may reach the wood frame's bottom edge (y 190). */
+    static uint8_t px[320 * 400];
+    PediaArticleAssets a;
+    memset(&a, 0, sizeof(a));
+    a.pedia = &pedia;
+    a.names = &s_names;
+    a.font = &font;
+    ColonizeFramebuffer8 fb = {.width = 320, .height = 400, .pixels = px};
+    pedia_article_render(&a, PEDIA_CAT_MISC, i, &fb);
+    const int body_y = 2 * font.max_height + 0x15;
+    int body = 0;
+    int below = 0;
+    for (int y = body_y; y < 400; ++y) {
+      for (int x = 0; x < 320; ++x) {
+        if (px[y * 320 + x]) {
+          *(y < 190 ? &body : &below) += 1;
+        }
+      }
+    }
+    if (body == 0 || below != 0) {
+      fprintf(stderr, "misc mod rows: @MODMISC%d draws %d px in the body, %d px below y 190\n", i,
+              body, below);
       rc = 1;
     }
   }
   if (font_ok) {
     font_file_free(&font);
   }
+  mods_campaign_set(saved_mask);
   pedia_set_misc_catalog(NULL);
   assets_msg_free(&pedia);
   return rc;

@@ -1855,12 +1855,12 @@ static void game_create_load_text_assets(ColonizeGameState* game, const Colonize
   if (dos_compat_normalize_asset_path(game->resolved_data_dir, "PEDIA.TXT", pedia_txt, sizeof(pedia_txt))) {
     if (assets_msg_load_file(&game->pedia, pedia_txt)) {
       game->pedia_ok = true;
-      pedia_set_misc_catalog(&game->pedia); /* data/mods Game Concept rows */
       diag_info("Loaded Colonizopedia text from PEDIA.TXT");
     } else {
       diag_warn("Failed to parse PEDIA.TXT");
     }
   }
+  pedia_set_misc_catalog(game->pedia_ok ? &game->pedia : NULL); /* data/mods Game Concept rows */
 }
 
 /* OPENMENU / WOODPANL PIKs and the RGB-matched @COLORS remap for the title

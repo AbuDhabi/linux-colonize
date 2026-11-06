@@ -29,8 +29,7 @@ static const int k_category_counts[] = {
   PEDIA_TERRAIN_COUNT,
   PEDIA_JOB_COUNT,
   PEDIA_BUILDING_COUNT,
-  PEDIA_FATHER_COUNT,
-  PEDIA_MISC_COUNT
+  PEDIA_FATHER_COUNT /* PEDIA_CAT_MISC: pedia_category_count */
 };
 
 /* @MISCELLANEOUS titles live in PEDIA.TXT only (assets_msg_find(pedia,
@@ -38,7 +37,7 @@ static const int k_category_counts[] = {
  * compiled-in MicroProse title. Bodies: DOS looks up @MISC<n>, which PEDIA.TXT
  * does not have, so the Game Concept pages are title-only (port_bugs.md #1331;
  * the port's own blurbs are gone). Rows data/mods appends past the stock 12
- * read their bodies from @MODMISC<n>. */
+ * read their bodies from @MODMISC<n> and are listed only while a mod is on. */
 
 /* ICONS.SS indices for cargo (colony warehouse strip). */
 static const int k_cargo_icons[PEDIA_CARGO_COUNT] = {
@@ -117,7 +116,11 @@ int pedia_category_count(PediaCategory category) {
   if (category < 0 || category >= PEDIA_CAT_COUNT) {
     return 0;
   }
-  return category == PEDIA_CAT_MISC ? g_pedia_misc_count : k_category_counts[category];
+  if (category == PEDIA_CAT_MISC) {
+    /* The data/mods rows only while a mod is on: every mod off = the DOS list. */
+    return mods_campaign_mask() ? g_pedia_misc_count : PEDIA_MISC_COUNT;
+  }
+  return k_category_counts[category];
 }
 
 /*
@@ -440,17 +443,11 @@ bool pedia_page(
   fallback[0] = '\0';
 
   if (category == PEDIA_CAT_MISC) {
-    if (index >= 0 && index < pedia_category_count(PEDIA_CAT_MISC)) {
-      /* PEDIA.TXT @MISCELLANEOUS line 0 is the count; titles follow (same
-       * live-catalog check as pedia_article_render below, ~line 1835). */
-      const ColonizeMsgSection* misc =
-        pedia ? assets_msg_find(pedia, "MISCELLANEOUS") : NULL;
-      if (misc && index + 1 < misc->line_count) {
-        snprintf(out->title, sizeof(out->title), "%s", misc->lines[index + 1]);
-      } else {
-        out->title[0] = '\0';
-      }
-      out->body_line_count = 0;
+    /* PEDIA.TXT @MISCELLANEOUS line 0 is the count; titles follow (same
+     * live-catalog check as pedia_article_render). */
+    const ColonizeMsgSection* misc = pedia ? assets_msg_find(pedia, "MISCELLANEOUS") : NULL;
+    if (misc && index + 1 < misc->line_count) {
+      snprintf(out->title, sizeof(out->title), "%s", misc->lines[index + 1]);
     }
     pedia_set_preview(out, category, index, names);
     return true;

@@ -25,8 +25,9 @@ colony has a town hall expansion. {The colony can work 20 plots: every
 plot within two squares except the four corners.}
 
 @;
-;       Game Concept rows 12-14, one per page of the title menu MODS for
-;       New Games checklist; bodies @MODMISC12-14 (src/core/pedia.c).
+;       Game Concept articles 12-14 (keys 13-15: line 0 is the count), one
+;       per page of the title menu MODS for New Games checklist; bodies
+;       @MODMISC12-14 (src/core/pedia.c), listed only while a mod is on.
 @MISCELLANEOUS
 13=Mods: Restored
 14=Mods: New Rules

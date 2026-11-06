@@ -169,9 +169,11 @@ up to two lines that is what fits the 200 px screen. `data/mods/*.TXT` is a text
 row of a stock section, never replace a stock row (refused with a warning).
 
 The Colonizopedia's Game Concept list gets one article per checklist page:
-`data/mods/PEDIA.TXT` appends rows 13-15 to `@MISCELLANEOUS` ("Mods: Restored",
-"Mods: New Rules", "Mods: Bug Fixes"), bodies `@MODMISC12`-`@MODMISC14`
-(`pedia_set_misc_catalog`). The stock 12 Game Concept pages stay title-only, as in DOS.
+`data/mods/PEDIA.TXT` appends keys 13-15 to `@MISCELLANEOUS` (line 0 is the count,
+so these are articles 12-14: "Mods: Restored", "Mods: New Rules", "Mods: Bug Fixes"),
+bodies `@MODMISC12`-`@MODMISC14` (`pedia_set_misc_catalog`). They are listed only while
+the campaign has a mod on; with every mod off the list is the stock 12, as in DOS. The
+stock 12 Game Concept pages stay title-only, as in DOS.
 
 | Key | Default | Effect |
 |-----|---------|--------|

@@ -106,7 +106,8 @@ void pedia_set_chrome_catalogs(
 );
 
 /* Count the Game Concept rows from the loaded PEDIA.TXT: the 12 stock rows,
- * plus any data/mods appends after them (up to PEDIA_MISC_MAX). NULL = stock. */
+ * plus any data/mods appends after them (up to PEDIA_MISC_MAX), listed only
+ * while a mod is on (mods_campaign_mask). NULL = stock. */
 void pedia_set_misc_catalog(const struct ColonizeMsgCatalog* pedia);
 
 int pedia_category_count(PediaCategory category);
