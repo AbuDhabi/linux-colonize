@@ -86,6 +86,8 @@ that map), `?` (usage). Run it from this folder too.
 - **Intel Macs**: not supported by this build.
 - **No music**: check that `data/soundfonts/Roland_SC-55.sf2` is present, or
   set `sound_options.soundfont` in `settings.json`.
+- **No MODS for New Games row on the title menu**: check that the `data/mods`
+  folder is present next to `opencol`.
 - **Crash or no window at start**: read `opencol.log` in this folder.
 
 ## Licenses

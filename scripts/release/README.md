@@ -54,6 +54,8 @@ that map), `?` (usage).
   from ~2014 on) and an X11 or Wayland desktop (Wayland works via XWayland).
 - **No music**: check that `data/soundfonts/Roland_SC-55.sf2` is present, or
   set `sound_options.soundfont` in `settings.json`.
+- **No MODS for New Games row on the title menu**: check that the `data/mods`
+  folder is present next to `opencol`.
 
 ## Licenses
 

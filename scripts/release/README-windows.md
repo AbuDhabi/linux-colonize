@@ -49,6 +49,8 @@ that map), `?` (usage).
 
 - **No music**: check that `data\soundfonts\Roland_SC-55.sf2` is present, or
   set `sound_options.soundfont` in `settings.json`.
+- **No MODS for New Games row on the title menu**: check that the `data\mods`
+  folder is present next to `opencol.exe`.
 - Windows 7 or newer, 64-bit, is expected.
 
 ## Licenses
