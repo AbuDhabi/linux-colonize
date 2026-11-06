@@ -296,11 +296,18 @@ void explore_auto_step(const ColonizeWorld* w, ColonizeUnit* u) {
     probe.rng = NULL;
     int nx = 0;
     int ny = 0;
+    /* The probe shares the unit pool, and a director miss spends the whole allotment
+     * (units_goto_director: moves = 0). Undo that: campaign 20's Scout probed an
+     * unreachable rumour first every turn and never moved again. */
+    const int moves = u->moves;
+    const int last_dir = u->last_dir;
     if (units_set_goto_w(w, u->id, best_x, best_y) &&
         units_next_goto_step_w(&probe, u->id, &nx, &ny)) {
       explore_auto_track(tr, u, best_x, best_y);
       return;
     }
+    u->moves = moves;
+    u->last_dir = last_dir;
     if (u->orders == UNITS_ORDER_GOTO) {
       units_clear_orders(pool, u->id); /* no path: try the next target */
     }

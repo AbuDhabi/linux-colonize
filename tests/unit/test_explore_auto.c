@@ -233,6 +233,54 @@ static int case_stall_survives_compact(void) {
   return 0;
 }
 
+/* Campaign 20: the nearest target sits across water on the same continent id, so the
+ * path probe misses, and a miss zeroes the unit's moves (units_goto_director). The
+ * Scout must still head for the next target with its whole allotment. */
+static int case_unreachable_keeps_moves(void) {
+  ColonizeSettings s;
+  settings_defaults(&s);
+  s.scout_autoexplore = true;
+  settings_set(&s);
+  explore_auto_reset();
+  assets_msg_init(&s_names);
+  if (!assets_msg_load_file(&s_names, "COLONIZE/NAMES.TXT")) {
+    return TR_SKIP;
+  }
+  memset(&s_pool, 0, sizeof(s_pool));
+  CHECK(units_load_types(&s_pool, &s_names));
+  memset(&s_map, 0, sizeof(s_map));
+  char err[128];
+  CHECK(map_alloc(&s_map, 12, 12, err, sizeof(err)));
+  /* Seen ocean; land strip (2..5,5) and a lone land tile (7,7) in the Scout's own
+   * coarse cell, both continent 1. Unseen (1,4) makes (2,5) a frontier; unseen (8,8)
+   * makes (7,7) one, nearer. The flood misses (7,7) and the Scout stands on its cell's
+   * centre (5,5): the miss that spends the turn (FUN_6662_0f74 raw 104623-104647). */
+  for (int y = 0; y < 12; ++y) {
+    for (int x = 0; x < 12; ++x) {
+      const bool land = (y == 5 && x >= 2 && x <= 5) || (x == 7 && y == 7);
+      s_map.terrain[y * 12 + x] = land ? 2 : 25;
+      s_map.seen[y * 12 + x] = ((x == 1 && y == 4) || (x == 8 && y == 8)) ? 0 : 0x10;
+      s_map.layer3[y * 12 + x] = 0xf1;
+      (void)map_clear_rumour(&s_map, x, y);
+    }
+  }
+  colonies_init(&s_colonies);
+  colonies_set_occupancy_map(NULL);
+  const ColonizeWorld w = {.units = &s_pool, .colonies = &s_colonies, .map = &s_map};
+  const int sid = units_spawn(&s_pool, units_kind_type_index(&s_pool, UNITS_KIND_SCOUT), 5, 5);
+  ColonizeUnit* u = units_get(&s_pool, sid);
+  CHECK(u);
+  u->nation_id = 0;
+  const int max = units_max_mp(&s_pool, sid);
+  u->moves = max;
+  CHECK(explore_auto_automate(&w, u));
+  CHECK(u->orders == UNITS_ORDER_GOTO && u->goto_x == 2 && u->goto_y == 5);
+  CHECK(u->moves == max);
+  map_free(&s_map);
+  assets_msg_free(&s_names);
+  return 0;
+}
+
 /* 12x12 ocean (region 1); nation 0 has seen the 5x5 corner. A ship explores
  * the unseen ocean, and stops once only unseen lake water is left. */
 static int case_ship(void) {
@@ -350,6 +398,7 @@ static int case_ship(void) {
 static const TestCase k_cases[] = {
   {"scout", case_scout},
   {"stall_survives_compact", case_stall_survives_compact},
+  {"unreachable_keeps_moves", case_unreachable_keeps_moves},
   {"ship", case_ship},
 };
 TEST_MAIN_WRAPPED(k_cases, diag_init(0, NULL), diag_shutdown())
