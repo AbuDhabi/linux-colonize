@@ -260,7 +260,8 @@ bool options_dialog_open_mods(
     dlg->option_count = count;
   }
   str_copy_trunc(
-    dlg->ok_label, sizeof(dlg->ok_label), assets_msg_line_or(game_txt, "MODOPTIONSDONE", 0, "")
+    dlg->ok_label, sizeof(dlg->ok_label),
+    assets_msg_line_or(game_txt, "MODOPTIONSDONE", page + 1 < OPTIONS_MODS_PAGE_COUNT ? 0 : 1, "")
   );
   return true;
 }

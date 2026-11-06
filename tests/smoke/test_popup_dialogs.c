@@ -1214,7 +1214,13 @@ static int case_mods_dialog_pages(void) {
               od.dialog_y, od.dialog_h, rows_end);
       rc = 1;
     }
-    /* Done sits under the rows, inside the frame. */
+    /* Next on the pages before the last, Done on the last. */
+    const bool last = page == OPTIONS_MODS_PAGE_COUNT - 1;
+    if (strcmp(od.ok_label, last ? "Done" : "Next") != 0) {
+      fprintf(stderr, "mods page %d: button \"%s\"\n", page, od.ok_label);
+      rc = 1;
+    }
+    /* The button sits under the rows, inside the frame. */
     if (od.ok_y < rows_end || od.ok_x < od.dialog_x || od.ok_y + od.ok_h > od.dialog_y + od.dialog_h ||
         od.ok_x + od.ok_w > od.dialog_x + od.dialog_w) {
       fprintf(stderr, "mods page %d: OK at %d,%d %dx%d outside frame or over rows\n", page, od.ok_x,

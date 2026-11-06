@@ -39,7 +39,7 @@ typedef struct OptionsDialog {
   int option_count;
   int mods_page;                       /* OPTIONS_KIND_MODS: the page shown */
   uint8_t mods_ids[OPTIONS_DIALOG_MAX]; /* OPTIONS_KIND_MODS: the ModId of each row */
-  /* OPTIONS_KIND_MODS: data/mods GAME.TXT @MODOPTIONSDONE button under the rows ("" =
+  /* OPTIONS_KIND_MODS: data/mods GAME.TXT @MODOPTIONSDONE Next / Done (last page) under the rows ("" =
    * none; the stock checklists have none in DOS) and its last drawn rect. */
   char ok_label[OPTIONS_DIALOG_LABEL_LEN];
   int ok_x, ok_y, ok_w, ok_h;

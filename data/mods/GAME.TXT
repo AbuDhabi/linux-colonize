@@ -52,7 +52,9 @@ DOS Bug Fixes
 ~Go To Waits at Natives
 
 ;       Button under every @MODOPTIONS page: saves the page, like Enter.
+;       Row 0 on the pages before the last, row 1 on the last.
 @MODOPTIONSDONE
+Next
 Done
 
 ;       mods.wagon_loot, roll 3-6: natives take every hold of one good.
