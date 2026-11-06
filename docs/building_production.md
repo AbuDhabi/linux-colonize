@@ -303,7 +303,9 @@ sees popup id `0xea1`; an **AI nation simply has its tools stock set to the
 requirement**), tools are debited, then kind 2 spawns the unit via
 `FUN_281f_095c(unit_index, colony_nation, colony_x, colony_y)` — on the colony
 tile, ships included — bumps `unit_count[nation][unit_index]` (`DS:0x924c`,
-stride 0x13), raises `colony+0x1c | 0x80` and zeroes `colony+0x92` (hammers).
+stride 0x13), raises `colony+0x1c | 0x80` and zeroes `colony+0x92` (hammers;
+opencol outside DOS-buggy mode subtracts the cost and caps the bank at
+`COLONIZE_HAMMER_BANK_MAX`, tolerated_dos_bugs.md TB-57).
 DOS never clears `building_in_production` on completion.
 
 #### Building bits are cumulative — `has_building` is one bit

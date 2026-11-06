@@ -70,7 +70,7 @@ non-negative SoL.
 **Nation bell pool.** COL1 nation `+0xc` (`liberty_bells_pool`) is the live
 Founding-Father bell pool, not a lifetime total: `FUN_4345_0a22` adds each
 colony's bells to it (raw 73341) and zeroes it on a successful elect (raw
-73370); `FUN_43f7_1a26` zeroes it at the declaration of independence (raw
+73370; opencol keeps the surplus, TB-58); `FUN_43f7_1a26` zeroes it at the declaration of independence (raw
 74738). `+0xe` (`liberty_bells_last_turn`) is this turn's bells only. See
 [`founding_fathers.md`](founding_fathers.md) and port_bugs.md #933.
 

@@ -651,7 +651,9 @@ DOS runs 5e52 for every nation from the nation EOT FUN_3844_00f2 (:58375)
 and gates only the popups/sound on control == 0. Accrues the 584a tick,
 rewrites needed_crosses, and on a crossing empties one pool slot into a
 real unit record (FUN_38fd_0718), refills it (FUN_38fd_46d4) and zeroes
-the crosses. Returns 1 when an immigrant was created, else 0.
+the crosses (opencol outside DOS-buggy mode subtracts needed_crosses instead,
+keeping the surplus: tolerated_dos_bugs.md TB-59; same in
+europe_tick_immigration_pressure_w and the Brewster pick). Returns 1 when an immigrant was created, else 0.
 
 ## europe_custom_house_autosell_w
 

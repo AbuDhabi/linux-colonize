@@ -118,15 +118,15 @@ the truth is the 15-entry JMPF stub table at `4d56:4c22..4c6c`,
   Decoded there and, since 2026-09-23, **all four
   ported and audited term-by-term** (port_bugs.md #850): homeless-unit despawn
   (`021a:0337`, bad `+0x314a` → `FUN_281f_0808` + return −1) —
-  `ai_brave.c:455`, with one recorded deviation, DOS returns −1 into a
+  `ai_brave.c` (`ai_native_brave_step`), with one recorded deviation, DOS returns −1 into a
   use-after-free in `14fe` and the port STOPs the Brave instead; the
   unconditional `facing` write including the stay value 8 (`021a:11b9` →
-  `+0x314f`) — `ai_brave.c:508` (`last_dir` is the full signed byte, saved as
+  `+0x314f`) — `ai_brave.c` (`ai_native_brave_step`) (`last_dir` is the full signed byte, saved as
   facing + facing_pad; port_bugs.md #846, #1046); the `orders` cower latch on stay (5 or 6 → 6, anything else → 5) and
   0 on move (`021a:11cd-11ea`/`1272`) — `ai_brave.c`, unconditional since
   port_bugs.md #1093 deleted the raid escort that was the only source of an
   OpenCol-only Brave order (the old #826 guard); and the **in-field arm/mount upgrade**
-  (`021a:11ef..126c`) — `ai_brave.c:531`. The upgrade: a Brave that stays on its own
+  (`021a:11ef..126c`) — `ai_brave.c` (`ai_native_brave_step`). The upgrade: a Brave that stays on its own
   tribe's tile gets type `0x13`/`0x15` → +1 when `indian+7` muskets > 0 (musket
   spent on `rng_range(0, difficulty) == 0`) and += 2 when `indian+0x0a`
   horse_breeding ≥ `0x19` and max MP ≤ 3 (`-= 0x19`). This is separate from the
@@ -134,12 +134,12 @@ the truth is the 15-entry JMPF stub table at `4d56:4c22..4c6c`,
   (thresholds `0x31`/`0x32` there) and is the DOS source for the "nation stocks
   feed equipment upgrades" line above.
 - Caller-side (`1816` §7/§8) deltas, report-only because
-  `tests/golden/test_ai_turns.c:195` compares Brave `moves`/`col1_counter16`: DOS
+  `tests/golden/test_ai_turns.c` (`compare_ai_state`) compares Brave `moves`/`col1_counter16`: DOS
   increments the act counter `+0x315a` (= `col1_counter16`) once per **attempt**
   before calling `14fe` (`4d56:1af3`), caps at `0x14` then exhausts and zeroes
   it; the OpenCol pulse does the same — it bumps `col1_counter16` **before** the
   `021a` pick, with the same `> 0x14` → exhaust + zero cap
-  (`ai_brave.c:438-452`), corrected 2026-09-23 (port_bugs.md #850). Gate is
+  (`ai_brave.c` `ai_native_brave_step`), corrected 2026-09-23 (port_bugs.md #850). Gate is
   `FUN_281f_097a` → `FUN_1427_13b0` (AX-register arg): index in range, `+0x3144`
   ≥ 0, nation nibble == `DS:0x5394`, `(+0x3148 & 0x80) == 0 || type == 0x0b`,
   and `+0x3149` spent < max MP.

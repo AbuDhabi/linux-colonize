@@ -268,7 +268,9 @@ is identified:
   from `tribe.alarm[nation].{friction,attacks}`, which **is** the DS:0x54f6
   word. (DOS's RMW clamps a negative word to 0
   before `>> 5`; with `attacks < 0x80` the word is never negative, so the port
-  matches.) There is also a debug-only branch
+  matches.) The mark is drawn in the angry nation's shade; during the War of
+  Independence the crown slot is the REF and draws white/grey like its unit
+  badges (`map_panel_alarm_shade`). There is also a debug-only branch
   (`DS:0x894 & 1`) that prints the raw word via `FUN_1d1d_08fa`.
 
 **`FUN_5952_035e`'s colony threat accumulator.** `ai_euro_goals.c`'s

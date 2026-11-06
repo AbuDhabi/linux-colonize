@@ -73,7 +73,8 @@ Order EN→FR→SP→DU; skip `human_nation` and withdrawn (`player.control==2`)
 
 | Step | OpenCol | DOS |
 |------|-------|-----|
-| **Human colony production** | `turn_run_colony_production` (`turn_prod_only_nation` = human; unit projects finish inside it) + `turn_run_colony_building_completion` | `FUN_364b_0688` inside the human's own `3844_00f2`, which `130d` runs **immediately before** that nation's Move Pieces |
+| **Human Europe pass** | `turn_run_human_europe_pass` | `FUN_48d3_06ba` (`0a82`, raw 58377), after the 5e52 / tax answer, before the colony loop |
+| **Human colony production** | `turn_human_colony_eot_begin` / `turn_human_colony_eot_resume` (sliced `turn_run_human_colony_eot`: `turn_run_colony_production_from_w` with the bell step, unit projects finish inside it; `turn_run_colony_building_completion` after the last colony) | `FUN_364b_0688` inside the human's own `3844_00f2`, which `130d` runs **immediately before** that nation's Move Pieces |
 | Census / blockade probe | `ai_euro_census_ship_pressure_refresh(human)` | `FUN_291f_0a74` → `FUN_4962_0018` after the colony-EOT loop (`:58390`) |
 
 FINISH then **yields** (returns to the frame loop) so every production popup it
@@ -81,6 +82,12 @@ queued is presented and answered — and an elected colony zoom taken — before
 the king moves. That yield is the whole reason for the split; DOS's `3844_00f2`
 dialogs are blocking calls, so its production chrome can never still be pending
 when the king runs (port_bugs.md #394/404/407).
+
+Inside the loop FINISH also yields after each colony that queued messages
+(`TURN_PROC_FINISH_COLONY_LOOP`, cursor in `proc->colony_cursor`): DOS
+`FUN_364b_0688` shows a colony's messages (and an elected "Zoom to colony.") as
+blocking calls before the next colony's coastal fort fires, so they are answered
+before the loop resumes at the next colony.
 
 FINISH also yields twice *before* the colony loop when a dialog is queued
 (`TURN_PROC_FINISH_5E52` / `TURN_PROC_FINISH_COLONY`): after the 5e52

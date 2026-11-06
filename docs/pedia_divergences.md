@@ -55,7 +55,7 @@ match the DS bytes cell for cell. Everything below is about what those numbers l
   silver base is 0 (Tundra, Marsh, Swamp, Wetland, Rain). The pedia skips rows with base 0.
 - **Tundra prime resource**: the screen draws resource 0 (the Depleted Mine row,
   `k_pedia_terrain_resource[0]`) and no bonus line. In play Tundra rolls Minerals (the MAPEDIT
-  value 0 is remapped to 6, `map.c:76, 618-623`): Ore +3, Silver +1.
+  value 0 is remapped to 6, `map.c` (`mapedit_resource_type_by_terrain`, `map_resource_type_at_ex`)): Ore +3, Silver +1.
 - **Colony centre tile ignores all of it.** `FUN_15eb_1f72` / `colony_yield_town_commons`:
   centre food is a 4-way class value (Arctic 0; Desert/Scrub 1; forests, Hills, Mountains 2; other
   cleared 3), +1 if plowed, +2 for Oasis/Wheat/Game, no river term. So a Plains centre makes 3,
@@ -72,7 +72,7 @@ match the DS bytes cell for cell. Everything below is about what those numbers l
   abundance" is ore 2, same as Tundra, Desert and Swamp. Tropical 21 "some fur" and 13 "trapping
   fur" are both furs 2.
 - **Sea Lane** "move toward the east (if exiting east) or west": the @SAILHOME prompt only comes
-  from an eastward high-seas→high-seas step (`FUN_4720_015c` raw ~76048; `units_capture.c:665`);
+  from an eastward high-seas→high-seas step (`FUN_4720_015c` raw ~76048; `units_capture.c` (`units_enter_probe_w`));
   westward it only comes from stepping off the map rim. Sea Lane also fishes like Ocean (3) but
   never has a Fishery.
 - "BORREAL" is a typo in TERRAIN8 and 16. Other PEDIA typos: [dos_text_typos.md](dos_text_typos.md).
@@ -98,7 +98,7 @@ match the DS bytes cell for cell. Everything below is about what those numbers l
 - **Mine depletion**: a per-colony counter (+0x97, scaled by (difficulty+1)/(difficulty+2)) rises
   with Minerals ore (+1), Minerals silver (+2) and Silver Deposit (+1); past 50 every worked
   Minerals/Silver square depletes (Minerals vanishes, Deposit becomes Depleted Mine). The Hills Ore
-  Deposit never depletes. 18ec raw 11913-11921; `FUN_364b_033a`; `turn_production.c:433`.
+  Deposit never depletes. 18ec raw 11913-11921; `FUN_364b_033a`; `turn_production.c` (`turn_deplete_colony_mines`).
 - **Fur Trapper road/river paid twice in DOS** (TB-49), so the screen's "+2" is right for a free
   colonist in DOS; an expert's effective bonus is +4.
 - **Henry Hudson** doubles Fur Trapper output between the improvement stack and Convert/Tory steps.
@@ -132,21 +132,21 @@ Artillery adds "(Attack: +(attack−defense) Damaged: −2)". The port matches D
   converts are good at outdoor jobs. An Indian Convert is offered only the Colonist row — never
   Pioneer, Soldier, Scout, Dragoon or Missionary; Europe's buy/bless rows are disabled for him.
   Outdoor bonus is +1 on food/sugar/tobacco/cotton/furs/fish only; indoors 1/3 rate like a
-  criminal. `FUN_15eb_3454` raw 13557-13560; `colony_workers.c:1030`; `europe_dock.c:785-847`.
+  criminal. `FUN_15eb_3454` raw 13557-13560; `colony_workers.c` (`colonies_eject_row_offered`); `europe_dock.c` (`europe_arm_row_enabled`).
 - **Artillery** (@UNIT11) "very effective at … attacking fortified units and Indian settlements":
   there is no Artillery attack bonus against anything. The only rule is ×¼ strength (attacking or
   defending) when the defender's tile has no settlement — skipped when the defender is a European
   unit on Fortify/Fortified, so fortified Artillery in the open is *not* "extremely vulnerable".
   Artillery defending a settlement against natives gets ×2; a plain Brave attacking a human's
   Artillery always loses; a loss involving a ship or water destroys it outright.
-  `combat_strength.c:762-795`; `FUN_5fef_1b0e` raw 100472-100493, 100573-100577.
+  `combat_strength.c` (`combat_apply_1b0e_peels`); `FUN_5fef_1b0e` raw 100472-100493, 100573-100577.
 - **Regulars/Cavalry** (@UNIT6/8) "weakness … rough wilderness terrain": during the WoI, when the
   human attacks any European defender away from a colony, the defender's terrain bonus moves to
   the attacker, even if Fortified. Not REF-specific, and the REF are not penalised when attacking.
   Crown land attacks get +difficulty×atk/20; against a colony +50% plus a Tory share of
   (100 − SoL)%. `FUN_157e_015e` raw 9015-9037.
 - **Wagon Train** (@UNIT12): "any cargo a ship can, except colonists and artillery" — it carries
-  goods only; no unit boards a wagon, Treasure included (`units_cargo.c:350-373`). "Never more
+  goods only; no unit boards a wagon, Treasure included (`units_cargo.c` (`units_board_stacked_gated`)). "Never more
   wagon trains than colonies" limits building, not owning: the check is wagons < colonies at
   choice and at completion (failure repeats @NOMOREWAGONS every turn, hammers kept); captured
   wagons or wagons kept after losing colonies can exceed it. Not buyable in Europe. Raw
@@ -155,7 +155,7 @@ Artillery adds "(Attack: +(attack−defense) Damaged: −2)". The port matches D
   Infiltrate. No extra sight, moves or combat.
 - **Missionaries** "counteract Indian anger": establishing a mission always succeeds, alarm change
   = count×8 − {25,15,10,5} by alarm band (count = your existing missions in that tribe), so after
-  several missions it *raises* alarm. `ai_contact_actions.c:1553-1630`. "Jesuits particularly
+  several missions it *raises* alarm. `ai_contact_actions.c` (`ai_contact_establish_mission`). "Jesuits particularly
   effective": a Jesuit's own skill only matters for the −1,500 incite discount; ongoing goodwill and
   convert odds come from a Jesuit bit on the mission (also set by de Brebeuf). In DOS the Denounce
   Heresy Jesuit bonus is dead (tests Cotton Planter, DB-7).
@@ -187,7 +187,7 @@ Artillery adds "(Attack: +(attack−defense) Damaged: −2)". The port matches D
   - Rumours (`FUN_65dd_0004` raw 103450-103618): skill 0 non-scout, 1 Scout, 2 Seasoned; de Soto
     +1 and reroll only for Scouts. Vanishes/trespass survive 1 time in (skill+1). Cibola
     ((skill+2)×10+d20)×100 gold; small treasure ×(skill+2)/2. Fountain of Youth odds don't improve.
-  - Speak with Chief (`ai_contact_actions.c:941-1140`): alarm ≥ 75 certain death; from 25 up death
+  - Speak with Chief (`ai_contact_actions.c` (`ai_contact_speak_with_chief`)): alarm ≥ 75 certain death; from 25 up death
     possible (roll 0-100 Scout, 0-140 Seasoned); Arawaks add an extra death roll; Coronado turns
     every death into @CHIEFBORED. Reward only on first visit.
   - Infiltrate (`FUN_5f7a_000e` raw 98809-98881): success if 1-36 beats (fort levels + 6)×2 +
@@ -214,7 +214,7 @@ Artillery adds "(Attack: +(attack−defense) Damaged: −2)". The port matches D
 - **Braves**: "formidable in woods and hills" is the general native terrain rule (native defenders
   always get terrain; native attackers take an unfortified European's terrain in the open).
   Mounted Warriors 3/3 equal a plain Dragoon; a veteran Dragoon is better.
-- **Combat modifiers on every unit page** (`combat_strength.c:680-900`, [combat.md](combat.md)):
+- **Combat modifiers on every unit page** (`combat_strength.c` (`combat_apply_1b0e_peels`, `combat_apply_1b0e_resolve_handicaps`), [combat.md](combat.md)):
   - human side strength −(difficulty − 4) on the ×8 scale;
   - weak defender: land attacker attack > 1 and defender defense < 2 halves the defender
     (Colonists, Pioneers, Scouts, Missionaries, Wagons, plain Braves);
@@ -277,7 +277,7 @@ Artillery adds "(Attack: +(attack−defense) Damaged: −2)". The port matches D
 ## Buildings
 
 ### What the building page shows
-Both DOS (`FUN_6cb2_1ba8`) and the port (`pedia.c:1533-1601`) show sprite, name, the worker's
+Both DOS (`FUN_6cb2_1ba8`) and the port (`pedia.c` (`pedia_article_building`)) show sprite, name, the worker's
 expert job and output good, and "Prerequisite: X". No hammers, tools or population appear, so
 costs can't mismatch on screen. The sim's build numbers come from NAMES @BUILDING (min colony size
 in record +8, read by `FUN_15eb_3650` raw 13663 and `colonies_building_is_buildable`).
@@ -299,7 +299,7 @@ in record +8, read by `FUN_15eb_3650` raw 13663 and `colonies_building_is_builda
   Food, Lumber, Horses, Trade Goods, Tools or Muskets. AI colonies use a deny list (Food, Lumber,
   Horses, Tools, Muskets, plus Ore with an Armory or tools/muskets made that turn). Price = Europe
   price − 1, taxed before the WoI, untaxed during it; boycotts ignored; a human Custom House shuts
-  while an enemy warship is adjacent. `europe_market.c:296-470`.
+  while an enemy warship is adjacent. `europe_market.c` (`europe_custom_house_autosell_ex_w`).
 - **Name mismatches inside DOS data**: PEDIA "FUR TRADER'S SHOP"/"COAT FACTORY" vs NAMES "Fur
   Trading Post"/"Fur Factory"; PEDIA row 11 "COLONIAL ASSEMBLY" vs NAMES "Town Hall"; "Master Fur
   Trapper" vs NAMES "Expert Fur Trappers".
@@ -338,7 +338,7 @@ in record +8, read by `FUN_15eb_3650` raw 13663 and `colonies_building_is_builda
 - **Schools** (pedia lists only what each teaches): 4/6/8 turns by the *teacher's* level, not the
   building; the student is a random colonist anywhere in the colony (converts can't learn);
   Criminal → Servant → Free Colonist before any specialty; at most 3 graduations per colony per
-  turn. `turn_production.c:1094-1111`. No Sons of Liberty effect: `@REBELUNANIMOUS` promises
+  turn. `turn_production.c` (`turn_produce_education`). No Sons of Liberty effect: `@REBELUNANIMOUS` promises
   colonists "can also be educated more quickly" at 100%, but the DOS school pass
   (`FUN_364b_0688`, decomp 355-386) uses the fixed 4/6/8 thresholds against a +1/turn counter
   (`FUN_281f_0a7e` → `FUN_15eb_0cbc`, clamp 15) and never reads rebel %. Text kept verbatim,
@@ -374,7 +374,7 @@ itself — Custom House rules are under Buildings).
   every tier). AI too.
 - **Peter Minuit (2)** HIDDEN: besides free land, finished Pioneer clear/plow/road on native land no
   longer raises alarm (+5/+3 base, +difficulty human, ×2 within 3 tiles, ×3 within 2); the AI
-  auto-buy is skipped. `FUN_4cc6_07c2`, `FUN_15eb_26e4`, `units_pioneer.c:132-210`.
+  auto-buy is skipped. `FUN_4cc6_07c2`, `FUN_15eb_26e4`, `units_pioneer.c` (`units_pioneer_native_land_tail`).
 - **Jan de Witt (4)** HIDDEN: human only; needs peace (@TRADEATWAR); only a wagon or ship with cargo,
   never enters, loses all moves even when refused; sells one hold; price = Europe price − 1 − their
   tax − a 10-(d+1)×12% haggle, halved at war. `FUN_5f7a_020e`, [foreign_colony_trade.md](foreign_colony_trade.md).
@@ -411,7 +411,7 @@ itself — Custom House rules are under Buildings).
 - **Pocahontas (16)** HIDDEN: election drives every tribe's alarm to 0 *and* clears war/attack bits
   (peace with all natives), AI too. "Half as fast" is an integer shift, so +1 bumps become 0;
   stacks with France's own halving. Also halves mission alarm cost and lowers your threat weight in
-  Denounce Heresy and AI site scoring. `founding_fathers.c:303-332`, `ai_diplo.c:3122`.
+  Denounce Heresy and AI site scoring. `founding_fathers.c` (`effect_pocahontas_reset_alarm`), `ai_diplo.c` (`ai_diplo_indian_alarm_delta`).
 - **Simon Bolivar (18)** TEXT/HIDDEN: +20 percentage points (not +20%), capped at 100, human only
   (`FUN_15eb_0274`). For an AI elector the SoL bonus does nothing; each AI colony instead gets
   +(pop+3)/5 bells (port_bugs.md #938b, fixed). Election also adds a one-time +20 to the cached empire SoL
@@ -422,7 +422,7 @@ itself — Custom House rules are under Buildings).
   worthy/forced-conflict zeroed or halved, withdraw and alliance cost halved, tribute +100 gold 1 in
   3, treaty cooldown halved.
 - **William Brewster (20)** HIDDEN: dock colonists keep their class; AI takes slot 1; the every-4th-turn
-  forced-expert refill is skipped (`FUN_38fd_5e52` raw 68577; `europe_harbor.c:1732`).
+  forced-expert refill is skipped (`FUN_38fd_5e52` raw 68577; `europe_harbor.c` (`europe_tick_immigration_pressure_w`, `europe_nation_immigration_tick_w`)).
 - **William Penn (21)** TEXT: "+50% crosses in all colonies" — +50% per Preacher only, after the
   Cathedral ×2; base crosses (1 + Church/Cathedral) not boosted.
 - **Jean de Brebeuf (22)** HIDDEN: works through the mission Jesuit bit (existing upgraded at
@@ -448,27 +448,27 @@ profession numbers in the pedia are on the terrain pages (see Terrain SCREEN).
 - **Expert Fisherman** "twice as productive": flat +2 (plus SoL again), not ×2. Ocean free 4 →
   expert 6. Expert Farmer's "2 more food" is right (flat +2), but the expert also re-adds the
   positive SoL bonus (gap up to +4 at 100% SoL) and gets 0 on a base-0 tile. `FUN_15eb_18ec`;
-  `colony_yield.c:487-496`.
+  `colony_yield.c` (`colony_yield_pipeline`).
 - **Fisherman location** "the more land that borders the square … the more productive": DOS has
   only two outcomes, +1 with fewer than 6 ocean neighbours, −1 otherwise (TB-41). The opencol
   binary fixes TB-41 (+2/+3/+4 for sheltered water).
 - **"Twice as productive" field experts** (sugar, tobacco, cotton, fur, lumber, ore, silver): ×2
   applies to (base + positive SoL); the Tory penalty is subtracted after doubling (Hills ore with
   Tory −1: free 4, expert 9); road/river adds 2 for every Lumberjack, expert or not (Mixed + road:
-  free 8, expert 14); bare-mountain silver free 0, expert 1. `colony_yield.c:481-623`.
+  free 8, expert 14); bare-mountain silver free 0, expert 1. `colony_yield.c` (`colony_yield_pipeline`).
 - **Expert Carpenter / Firebrand Preacher** "twice as productive" / "twice the crosses": flat 6 vs 3,
   then SoL added undoubled (SoL +1: 7 vs 4; Tory −1: 5 vs 2). Lumber Mill / Cathedral ×2 is
-  colony-wide. `FUN_15eb_1d4c`; `colony_production.c:138-171`. Elder Statesman is exactly ×2 of
+  colony-wide. `FUN_15eb_1d4c`; `colony_production.c` (`colony_prod_carpenter_preacher_shape`). Elder Statesman is exactly ×2 of
   (class rate + SoL) and matches; crafts match (×2 output and input).
 - **Learning on the job** (JOB1) "works at it long enough may become a master": not time-based.
   Each turn a non-expert, non-Convert working Sugar, Tobacco, Cotton or Fur Trapper (jobs 1-4; not
   Farmer) has a fixed chance — 1/100 free colonist, 1/200 servant, 1/300 criminal — and only while
   the nation owns zero experts of that job anywhere; one success closes it. `FUN_364b_0688` raw
-  57591-57611 (TRAINPROFESSION); `turn_production.c:398-417`.
+  57591-57611 (TRAINPROFESSION); `turn_production.c` (`turn_produce_discover`, census `turn_prof_census`).
 - **"Only from the Indians"** (JOB1-4): also via learning on the job and schools (College for the
   three planters, Schoolhouse for Fur Trapper). Europe never offers them (training cost −1; the
   recruit pool remaps sugar→fisherman, tobacco→lumberjack, cotton→farmer, fur trapper→ore miner,
-  `europe_pool.c:154-190`, `FUN_38fd_46d4`).
+  `europe_pool.c` (`europe_pool_remap`), `FUN_38fd_46d4`).
 - **Servants / Criminals**: field work equals a free colonist (matches). Indoors servants 2/3,
   criminals 1/3 (house 1/2/3, shop 2/4/6, factory 3/6/9) — "almost totally ineffective" overstates
   it. The class rate also cuts bells, crosses and hammers (criminal statesman 1 bell).
@@ -479,7 +479,7 @@ profession numbers in the pedia are on the terrain pages (see Terrain SCREEN).
   Jesuit bonus (DB-7) and founding a mission has the same alarm effect. Real edges: mission goodwill
   ×4 per turn; convert chance (tech+2)/16 doubled, rolled only when a Brave from the mission village
   visits; incite −1500 gold, and Jesuit missions in the tribe discount 1000 instead of 250.
-  `ai_contact_actions.c:1475-1626`; `ai_contact_trade.c:415-420`; `ai_contact_demand.c:296-323`.
+  `ai_indian.c` (`ai_indian_152e_village_growth`, goodwill); `ai_contact_trade.c` (`ai_contact_try_village_gifts`, convert roll); `ai_contact_demand.c` (`ai_contact_incite_price`); `ai_contact_actions.c` (`ai_contact_ai_missionary_village`).
 - **Seasoned Scouts** "all the above more effectively": sight +1 is for any Scout-type unit, moves
   equal. Real edges: chief threshold rand 0-140 vs 0-100, Arawak kill range doubled, rumour skill 2.
   "Become seasoned after visiting Indian settlements": 1 in 3 of good, not-yet-scouted chief outcomes.
@@ -489,7 +489,7 @@ profession numbers in the pedia are on the terrain pages (see Terrain SCREEN).
   (Expert Teacher was cut).
 
 ### HIDDEN
-- **What natives teach** (`thunk_FUN_1000_a618`; `ai_contact_actions.c:612-930`): a weighted draw
+- **What natives teach** (`thunk_FUN_1000_a618`; `ai_contact_actions.c` (`ai_contact_a618_skill`, `ai_contact_live_among_natives`)): a weighted draw
   over Farmer, the three planters, Fur Trapper, Ore/Silver Miner, Weaver, Fur Trader, weights by
   tribe tech (Weaver, Silver and Ore need tech ≥1-2); Farmer → Fisherman on an ocean roll, Fur Trapper
   → Seasoned Scout when (x+y)%3==0. Fixed per village per game. Ordinary villages teach once in
@@ -508,7 +508,7 @@ profession numbers in the pedia are on the terrain pages (see Terrain SCREEN).
 - **Crosses / immigration**: +1 base cross per colony, Church and Cathedral +1 each; the docks meter
   gains +2 per turn but −2 per immigrant waiting on the docks. Crosses needed = 2·(colony population
   + all nation units incl. docks) + 8, capped at 4000; English ×2/3; AI ×(8−difficulty)/8.
-  `FUN_38fd_584a` / `5e52`; `europe_harbor.c:1365-1520`.
+  `FUN_38fd_584a` / `5e52`; `europe_harbor.c` (`europe_compute_immigration_score_w`, `europe_tick_immigration_pressure_w`).
 - **Liberty bells / SoL**: full SoL needs about 2 bells per colonist per turn (divisor grows by pop·2,
   both terms decay 1/64); while bells < population a colony loses SoL%/20 bells. The production
   modifier is −floor(tories/(10−difficulty)), +1 at ≥ 50%, +1 more at ≥ 100% (that latch clears
@@ -581,8 +581,8 @@ founding_fathers.md rows 9/14/19 + `founding_fathers.c` comments). Kept for the 
 - `original_sources_annotated/turn/coastal_fort_fire.md` says a fort miss slows the ship; removed as
   invented (the #249 note in `units_fort_vs_ship`).
 - [assets.md](assets.md):411 says a new colony's first project is the Stockade; code (and DOS raw
-  58113-58115) picks Docks if coastal, else Warehouse. `colony.c:1543` misreads +0x8d as the
-  project (it is the specialty cargo); the port's Stockade-first branch can't trigger.
+  58113-58115) picks Docks if coastal, else Warehouse. `colony.c` (`colonies_found`) keeps a
+  port-only Stockade-first arm that can't trigger (founding pop ≤ 1, Stockade needs 3).
 - [europe.md](europe.md) `europe_cash_treasure` omits the 50% cap; its Custom House blocked-goods
   list (~660-663) doesn't say the block is AI-only.
 - [unit_orders.md](unit_orders.md):205 says Arctic can't be plowed; it can.

@@ -46,7 +46,6 @@ from `NAMES.TXT` (fallback table in `unit_chrome.c`: `- S T G L F F B P R`).
 Helpers (`units_move.h`):
 
 - `units_orders_follow_goto` — GOTO / AI_SAIL / AI_MOVE / TRADE_ROUTE
-- `units_orders_is_follow` — FOLLOW
 - `units_orders_skip_turn` — SENTRY, **FORTIFY**, FORTIFIED, CLEAR_PLOW, BUILD_ROAD. DOS's cycle reads the order byte, not the MP: the COL1 export writes spent 0 for an exhausted land unit, so a test on MP would put a unit that fortified this turn back into the control queue after a reload.
 
 **UI commands without a lasting `@ORDERS` byte:** Wait, Activate, Disband, Dump
