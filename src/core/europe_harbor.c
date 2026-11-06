@@ -1658,8 +1658,10 @@ int europe_tick_immigration_pressure_w(
       europe_apply_brewster(eu, 1); /* port_bugs.md #224: purge stale slots BEFORE the pick */
       return 2;
     }
-    eu->current_crosses = 0;
-    eu->immigration_pressure = 0;
+    /* TB-59: DOS zeroes the meter; the fix keeps the surplus over `need`. */
+    eu->current_crosses = dos_buggy_behavior() ? 0 : (uint16_t)(eu->current_crosses - need);
+    eu->immigration_pressure =
+      (int16_t)(eu->current_crosses > 32767 ? 32767 : (int)eu->current_crosses);
     europe_refresh_recruit_passage(eu);
     if (europe_immigrant_from_pool(eu, rng)) {
       /* 5e52 raw 68588/68601: nation_flags |= 0x40 only when the 0b26 spawn
@@ -1869,7 +1871,7 @@ int europe_nation_immigration_tick_w(const ColonizeWorld* w, int nation_id) {
   } else {
     /* 68575-68583: crosses zeroed, 04d4(0,2) picks the slot, the slot is
      * refilled with 46d4((turn & 3) == 0) before the unit is created. */
-    nat->current_crosses = 0;
+    nat->current_crosses = dos_buggy_behavior() ? 0 : (uint16_t)(cur - need); /* TB-59 */
     slot = w->rng ? dos_rng_range(w->rng, 0, 2) : 0;
     force_expert = ((int)col1->head.turn & 3) == 0;
   }
@@ -1878,7 +1880,7 @@ int europe_nation_immigration_tick_w(const ColonizeWorld* w, int nation_id) {
     /* 4884 tail order (64763-64775): zero +0x2e, create the unit, and only
      * then refill the emptied slot. 5e52's own branch refills first (68581
      * before 68585), so the two paths differ in draw order — DOS-LITERAL. */
-    nat->current_crosses = 0;
+    nat->current_crosses = dos_buggy_behavior() ? 0 : (uint16_t)(cur - need); /* TB-59 */
     const int id = europe_nation_harbor_spawn(w, nation_id, profession);
     if (id < 0) {
       return 0;

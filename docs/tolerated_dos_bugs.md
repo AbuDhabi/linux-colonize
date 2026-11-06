@@ -646,3 +646,24 @@ zero (`FUN_43f7_1a26` raw 74738) and the intervention spend stay as DOS has them
 **Blocks removal:** not tried ungated; goldens and idle campaigns bank the DOS
 zero on every election.
 **Status:** tolerated (user, 2026-11-06). Fixed in opencol 2026-11-06, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.
+
+### TB-59 — An immigrant throws the surplus crosses away
+**DOS:** `FUN_38fd_5e52` zeroes the nation's crosses meter (`+0x2e`) when
+`needed < current` brings an immigrant (raw 68575-68583), and the Brewster pick
+`FUN_38fd_4884` with `param_1 == 0` zeroes it too (raw 64763-64766), whatever the
+meter held past the threshold.
+
+**Effect:** crosses above the threshold are lost, so the player is pushed to time
+preachers and churches around each arrival.
+
+**Port (reproduces it):** `europe_tick_immigration_pressure_w` (human) and
+`europe_nation_immigration_tick_w` (AI, both arms) in `src/core/europe_harbor.c`,
+and `europe_brewster_pick_from_pool_ex` (`src/core/europe_dock.c`). The fix
+subtracts the threshold (`needed_crosses`) instead, so the surplus counts toward
+the next immigrant. A paid passage (`europe_recruit_from_pool_ex`) still zeroes
+the meter, which is what walks the recruit price up; Fountain of Youth picks
+(`europe_recruit_free_from_pool_ex`) never touch it.
+
+**Blocks removal:** not tried ungated; goldens and idle campaigns bank the DOS
+zero on every arrival.
+**Status:** tolerated (user, 2026-11-06). Fixed in opencol 2026-11-06, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.

@@ -18,6 +18,7 @@
 #include "core/col1_save.h"
 #include "core/colony.h"
 #include "core/colony_production.h"
+#include "core/dos_buggy.h"
 #include "core/dos_rng.h"
 #include "core/founding_fathers.h"
 #include "core/popup_msg.h"
@@ -202,9 +203,14 @@ bool europe_brewster_pick_from_pool_ex(
   }
   /* 4884 with param_1==0: +0x2e crosses zeroed BEFORE the spawn (raw 64765-64766), so a
    * refused spawn (full dock) clears them too; no +6 recruit-count bump (param_2!=0
-   * skips it). */
-  eu->current_crosses = 0;
-  eu->immigration_pressure = 0;
+   * skips it). TB-59: the fix keeps the surplus over the threshold instead. */
+  if (dos_buggy_behavior() || eu->current_crosses <= eu->needed_crosses) {
+    eu->current_crosses = 0;
+  } else {
+    eu->current_crosses = (uint16_t)(eu->current_crosses - eu->needed_crosses);
+  }
+  eu->immigration_pressure =
+    (int16_t)(eu->current_crosses > 32767 ? 32767 : (int)eu->current_crosses);
   if (!europe_recruit_free_from_pool_ex(eu, pool_index, rng)) {
     return false;
   }

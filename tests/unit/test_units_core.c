@@ -5343,7 +5343,6 @@ static int case_board_from_land_sentry(void) {
     /* Next turn (DOS day top clears the spent byte): unload onto land for
      * the sentry auto-board test. */
     land->mp_spent_turn = 0;
-    land->aboard_moves = -1; /* turn.c refresh; a 0 left now loses the #1440 gate */
     if (units_first_landfall_cargo(&pool, ship_id) != land_id) {
       fprintf(stderr, "board-enter: fresh parked pax must be landfall-eligible\n");
       return 1;
@@ -8462,6 +8461,21 @@ static int case_fountain_of_youth(void) {
       if (paid_again || brewster_ok || paid_crosses != 0 || feu.current_crosses != 0) {
         fprintf(stderr, "full dock crosses: paid %d -> %d, brewster %d -> %d\n", paid_again,
                 paid_crosses, brewster_ok, feu.current_crosses);
+        return 1;
+      }
+      /* TB-59 fix: the Brewster pick keeps the surplus over the threshold; a paid
+       * passage still clears the meter. */
+      dos_buggy_behavior_set(false);
+      feu.needed_crosses = 30;
+      feu.current_crosses = 50;
+      (void)europe_brewster_pick_from_pool_ex(&feu, 1, NULL);
+      const int brewster_left = feu.current_crosses;
+      feu.current_crosses = 50;
+      (void)europe_recruit_from_pool_ex(&feu, 1, NULL);
+      dos_buggy_behavior_set(true);
+      if (brewster_left != 20 || feu.current_crosses != 0) {
+        fprintf(stderr, "TB-59 crosses: brewster left %d, paid left %d\n", brewster_left,
+                feu.current_crosses);
         return 1;
       }
       /* Train (FUN_38fd_41ce raw 64432-64440 charges only after the spawn) and a dock

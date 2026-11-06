@@ -4757,6 +4757,36 @@ static int case_ai_euro_crosses(void) {
   return 0;
 }
 
+/* TB-59 fix: an AI crosses immigrant spends only the threshold; the surplus
+ * stays on the meter (DOS-buggy mode zeroes it, case_ai_euro_crosses). */
+static int case_ai_euro_crosses_carryover(void) {
+  fx_begin();
+  ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
+  units_reset(&units);
+  units_set_occupancy_map(NULL);
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Colonists");
+  units.type_count = 1;
+  ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  col1.player[1].control = 1;
+  col1.nation[1].current_crosses = 20;
+  col1.nation[1].recruit[0] = UNITS_JOB_COLONIST;
+  col1.nation[1].recruit[1] = UNITS_JOB_COLONIST;
+  col1.nation[1].recruit[2] = UNITS_JOB_COLONIST;
+  const ColonizeWorld w = {.units = &units, .col1 = &col1, .col1_ok = true};
+  dos_buggy_behavior_set(false);
+  const int arrived = europe_nation_immigration_tick_w(&w, 1);
+  dos_buggy_behavior_set(true);
+  const unsigned need = col1.nation[1].needed_crosses;
+  if (arrived != 1 || need >= 22u || col1.nation[1].current_crosses != 22u - need) {
+    fprintf(stderr, "AI crosses carryover: arrived %d need %u left %u\n", arrived, need,
+            (unsigned)col1.nation[1].current_crosses);
+    return 1;
+  }
+  return 0;
+}
+
 /* FUN_3844_00f2 runs the 5e52 (raw 58375, the 5be8 tax audience included) before
  * FUN_48d3_06ba (raw 58377), whose arrival pass cashes treasure at the live rate
  * (raw 77981-78027). A rich nation with an unstocked colony gets a raise that
@@ -4989,6 +5019,17 @@ static int case_immigration_pressure(void) {
     return 1;
   }
   fprintf(stderr, "immigration pressure tick ok\n");
+  /* TB-59 fix: the arrival keeps the surplus (needed + 10, +2 this tick). */
+  eu.current_crosses = (uint16_t)(eu.needed_crosses + 10);
+  eu.dock_count = 0;
+  dos_buggy_behavior_set(false);
+  const int tb59_arrived = europe_tick_immigration_pressure_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&units), .colonies=(ColonizeColonyPool*)(&pool), .col1=(ColonizeCol1Save*)(NULL), .col1_ok=((NULL) != NULL), .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0);
+  dos_buggy_behavior_set(true);
+  if (!tb59_arrived || eu.current_crosses != 12 || eu.immigration_pressure != 12) {
+    fprintf(stderr, "TB-59 human carryover: arrived %d left %u\n", tb59_arrived,
+            (unsigned)eu.current_crosses);
+    return 1;
+  }
   /* 584a: AI nation ((8-diff)*score)>>3; English human also *2/3. */
   {
     ColonizeCol1Save icol;
@@ -7764,6 +7805,7 @@ static const TestCase k_cases[] = {
   {"produce_seam_begin", case_produce_seam_begin},
   {"produce_seam_lumber", case_produce_seam_lumber},
   {"produce_hammer_bank_cap", case_produce_hammer_bank_cap},
+  {"ai_euro_crosses_carryover", case_ai_euro_crosses_carryover},
   {"processor_packs_unit_pool", case_processor_packs_unit_pool},
   {"rotation_slot_order_and_disband_seed", case_rotation_slot_order_and_disband_seed},
   {"despawn_rotation_step_back", case_despawn_rotation_step_back},
