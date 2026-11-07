@@ -4380,6 +4380,38 @@ static int sp_42(void) {
       return fail("ship at war below the bars must not MADAT");
     }
     col1.indian[0].euro_diplo[0] &= (uint8_t)~COL1_INDIAN_WAR_BIT;
+
+    /* port_bugs.md #1574: both ship aborts reach 4528's default tail
+     * (OVL13::004c0a) with [BP-0x58] == 1 -> FUN_281f_0934 spends the whole
+     * allotment; the meet fall-through leaves MP to the menu's resolution. */
+    const int sv_id = units_spawn_allow_stack(&units, 1, 6, 5);
+    ColonizeUnit* sv = units_get(&units, sv_id);
+    if (!sv) {
+      return fail("ship forfeit unit");
+    }
+    sv->nation_id = 0;
+    sv->moves = 12;
+    ai_popup_clear(&pop);
+    col1.tribe[0].alarm[0].friction = 64; /* MADAT */
+    if (!ai_contact_try_ship_village_unit(&ctx, 0, 5, 5, sv_id) || sv->moves != 0) {
+      return fail("ship @MADATSHIPS abort must spend all MP (#1574)");
+    }
+    col1.tribe[0].alarm[0].friction = 10;
+    sv->moves = 12;
+    ai_popup_clear(&pop);
+    const uint8_t met_save = col1.indian[0].euro_diplo[0];
+    col1.indian[0].euro_diplo[0] &= (uint8_t)~COL1_INDIAN_MET_BIT; /* DONTKNOW */
+    if (!ai_contact_try_ship_village_unit(&ctx, 0, 5, 5, sv_id) || sv->moves != 0) {
+      return fail("ship @DONTKNOWSHIPS abort must spend all MP (#1574)");
+    }
+    col1.indian[0].euro_diplo[0] = met_save;
+    sv->moves = 12;
+    ai_popup_clear(&pop);
+    if (!ai_contact_try_ship_village_unit(&ctx, 0, 5, 5, sv_id) || sv->moves != 12) {
+      return fail("ship village meet must not spend MP before the menu resolves");
+    }
+    units_despawn(&units, sv_id);
+    ai_popup_clear(&pop);
     ctx.ai_popups = NULL;
   }
   return 0;

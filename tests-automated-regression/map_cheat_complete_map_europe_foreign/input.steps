@@ -1,0 +1,43 @@
+# Fixture: map_found_colony start (France 1599, human = French, 429 gold; show_indian_moves on).
+# A FOREIGN Europe visit under CHEAT Reveal Map > Complete Map (port_bugs.md #1556, #1572): E raises the DEBUG.TXT @SETEUROPE pick and
+# FUN_281f_05fa(pick-1, -1) binds that power's Europe (FUN_38fd_0000: DS:0x9e12 / DS:0x84fc), which DOS works on in place.
+# Amsterdam is only looked at (Esc): the Dutch Bound hulls (records 3 and 86, lane 231, counter 0, orders 1, plan '?') must stay where and
+# what they are. London then recruits the first immigrant (Master Distiller, 174 gold) with England's money; the new English dock unit is
+# appended as the last record (153) on England's dock chain. Saved: show_entire_map 1 / show_indian_moves off, England gold 1499 -> 1325,
+# recruit_count +1, crosses 0, the refilled pool slot, RT_RNG advanced; no record moves, no Dutch or French change.
+key w alt
+key i alt
+key n alt
+key F4 shift             # Reveal Map (@SETVIEW): English, French, Spanish, Dutch, Complete Map
+key Down
+key Down
+key Down
+key Down
+key Return               # Complete Map
+wait 2
+key e                    # @SETEUROPE pick, La Rochelle (row 2) highlighted
+wait 2
+key Down
+key Down
+key Return               # Amsterdam: the Dutch Europe
+wait 3
+shot
+key Escape               # look only, back to the map
+wait 20
+shot
+key e                    # the pick again
+wait 2
+key Up
+key Return               # London: the English Europe
+wait 3
+key r                    # Recruit
+wait 2
+shot
+key Down
+key Return               # Master Distiller
+wait 2
+shot
+key Escape               # back to the map
+wait 20
+shot
+key w alt                # cheat mode off (Complete Map stays: it is in the save)

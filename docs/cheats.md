@@ -96,9 +96,13 @@ Esc closes the checklist and keeps the ticks you changed, as Enter does.
   - Enter or a click on any colony opens its colony screen, whoever owns it.
   - View > Europe (E) first asks "View Which City" and opens that nation's Europe,
     even during the War of Independence. You act there as that nation (its gold,
-    docks and ships); leaving the screen returns you to your own nation.
+    docks and ships); leaving the screen returns you to your own nation. Just
+    looking changes nothing: that nation's ships and dock units keep their
+    place and contents in the save.
 - **No Special View** (or Esc) returns to your normal view. This row is listed
-  only while a special view is on.
+  only while a special view is on. After a nation's map, Complete Map and No
+  Special View keep that nation as the viewing nation (its fog, whose colonies
+  Enter opens, whose report F-keys draw) until your next turn begins, as in DOS.
 - The chosen view is stored in the save and stays after you turn cheats off.
 - With cheats on, the location line in the right-hand panel ends with the
   tile's region number when a unit is selected as well, not only for empty

@@ -709,6 +709,7 @@ void game_finish_end_turn(ColonizeGameState* game, const ColonizeTurnResult* res
    * Saving ahead of the arrivals would park every finished voyage in the
    * lane again, so reloading COLONY09.SAV delayed each ship a turn.
    */
+  game_viewpoint_turn_pass(game); /* raw 6410-6413, before the 6416 autosave (#1573) */
   game_apply_turn_autosave(game, result);
   /* FUN_2b5a_3b68 (raw 46831-46833), the human's Move Pieces entry, after
    * the autosave: 0x5392 = 0xffff (it may still name an AI hull that sailed
@@ -1705,7 +1706,7 @@ static GameMenuActionStatus game_menu_action_system(ColonizeGameState* game, Map
 static GameMenuActionStatus game_menu_action_view(ColonizeGameState* game, MapMenuAction action) {
   switch (action) {
     case MAP_MENU_ACTION_EUROPE:
-      (void)game_try_enter_europe(game);
+      game_europe_command(game);
       return GAME_MENU_ACTION_DONE;
     case MAP_MENU_ACTION_FIND_COLONY:
       game_open_find_colony(game);
@@ -2296,7 +2297,7 @@ void game_map_click_dispatch(ColonizeGameState* game, int mx, int my) {
   const int cid = colonies_id_at(&game->colonies, mx, my);
   if (cid >= 0) {
     const ColonizeColony* col = colonies_get(&game->colonies, cid);
-    if (col && col->nation_id == game->human_nation) {
+    if (game_colony_opens_from_map(game, col)) {
       /* FUN_2b5a_3462 raw 46100-46112: an own colony opens (FUN_281f_0608)
        * without leaving Move Pieces, so the active unit is still active when
        * the screen closes (or the cycle moves on if it joined the colony).

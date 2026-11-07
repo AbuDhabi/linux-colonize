@@ -803,6 +803,12 @@ COLONIZE_INTERNAL void turn_step_indian(ColonizeTurnProcessor* proc, ColonizeTur
          * campaign, every year). */
         turn_refresh_euro_rank(ctx);
         turn_clear_mp_spent_all_nations(ctx->units);
+        /* raw 6359-6362: DS:0x5396 = DS:0x5398, or DS:0x53a4 when one is fixed (#1573). */
+        if (ctx->col1_ok) {
+          ColonizeCol1Head* h = &ctx->col1->head;
+          h->curr_nation_map_view =
+            h->fixed_nation_map_view <= 3u ? h->fixed_nation_map_view : (uint16_t)turn_human_slot(ctx);
+        }
         /* FUN_4d56_1b3a phase 1 — once, before the eight 1816 calls. */
         ai_indian_midpass_clear_tables(ctx);
       }

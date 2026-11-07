@@ -325,7 +325,8 @@ void ai_contact_village_attack_choice(
  * landfall. Unmet (euro_diplo met bit 0x20 clear) → @DONTKNOWSHIPS; met and
  * (relation≥75 or tribe friction≥64) → @MADATSHIPS; met mid-band relation
  * 50..74 → wary status then thin village Meet; else thin village Meet.
- * Ship does not enter the tile. Returns 1 if (x,y) is a village and handled.
+ * Ship does not enter the tile; an abort spends unit_id's whole MP (#1574).
+ * Returns 1 if (x,y) is a village and handled.
  */
 int ai_contact_try_ship_village_unit(
   ColonizeTurnContext* ctx,

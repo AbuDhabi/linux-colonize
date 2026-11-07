@@ -1,0 +1,22 @@
+# Fixture: map_found_colony start (France 1599, zoom level 0 = 15 x 12).
+# VIEW zoom (FUN_2b5a_0f92, DS:0x184 = 0..3): X zooms out, Z zooms in, then Show Hidden Terrain (H) and back, ending zoomed out at
+# level 2 (60 x 48). The DOS save writer FUN_75c2_0288 stores DS:0x184 as STUFF zoom_level and FUN_75c2_0940 reads it back
+# (port_bugs.md #1575): saved zoom_level 2. output.frame pins the zoomed-out map.
+key x                    # Zoom Out: level 1
+wait 3
+shot
+key x                    # level 2
+wait 3
+shot
+key x                    # level 3 (120 x 96)
+wait 3
+shot
+key z                    # Zoom In: level 2
+wait 3
+shot
+key h                    # Show Hidden Terrain
+wait 10
+shot
+key Escape               # back to the map
+wait 5
+shot

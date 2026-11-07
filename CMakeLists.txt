@@ -952,6 +952,9 @@ colonize_add_test(NAME unit_opening
   SOURCES
     tests/unit/test_opening.c
     src/core/opening.c
+    src/core/font.c
+    src/core/font_file.c
+    src/core/fb.c
     src/core/ss.c
     src/core/pik.c
     src/core/madspack.c

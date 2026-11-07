@@ -1,5 +1,6 @@
 #include <stdbool.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "core/opening.h"
@@ -376,6 +377,88 @@ static int case_test_speed_keys(void) {
   return failures != before;
 }
 
+/* `_get_input` 0x9a3-0xa63: the skip jump writes @MESSAGES row 0 in FONTINTR
+ * at y 0xbc; Alt-Q / Alt-X and a demo keyboard skip clear to_game instead. */
+static int case_test_skip_exits(void) {
+  int before = failures;
+  OpeningCinematic o;
+  memset(&o, 0, sizeof(o));
+  if (!opening_open(&o, "COLONIZE")) {
+    fprintf(stderr, "FAIL: opening_open exits\n");
+    return 1;
+  }
+  check(o.font_ok, "FONTINTR loaded");
+  check(strcmp(o.loading_text, "Loading Game...") == 0, "@MESSAGES row 0");
+  ColonizeInputState in;
+  memset(&in, 0, sizeof(in));
+  in.last_key = COLONIZE_KEY_Q;
+  in.alt_held = true;
+  opening_handle_input(&o, &in);
+  check(!o.logo_phase && !o.quit_to_dos, "Alt-Q during the logo only ends the logo");
+  opening_update(&o, OPENING_FRAME_MS * 3);
+  uint8_t pre[320 * 200];
+  memcpy(pre, o.canvas, sizeof(pre));
+  {
+    /* Same jump without the font: the text is the only difference. */
+    OpeningCinematic* bare = malloc(sizeof(*bare));
+    memcpy(bare, &o, sizeof(*bare));
+    bare->font_ok = false;
+    in.last_key = COLONIZE_KEY_SPACE;
+    in.alt_held = false;
+    opening_handle_input(bare, &in);
+    opening_handle_input(&o, &in);
+    check(o.skip_from == 3 && !o.quit_to_dos, "Space jumps");
+    int diff = 0;
+    int miny = 200;
+    for (int i = 0; i < 320 * 200; ++i) {
+      if (bare->canvas[i] != o.canvas[i]) {
+        diff++;
+        if (i / 320 < miny) {
+          miny = i / 320;
+        }
+      }
+    }
+    check(diff > 50 && miny >= 0xbc, "loading line drawn from y 0xbc");
+    free(bare);
+  }
+  opening_close(&o);
+
+  if (!opening_open(&o, "COLONIZE")) {
+    return 1;
+  }
+  memset(&in, 0, sizeof(in));
+  in.last_key = COLONIZE_KEY_ESCAPE;
+  opening_handle_input(&o, &in);
+  in.last_key = COLONIZE_KEY_X;
+  in.alt_held = true;
+  opening_handle_input(&o, &in);
+  check(o.finished && o.quit_to_dos && o.skip_from == -1, "Alt-X in sailing: exit to DOS, no jump");
+  opening_close(&o);
+
+  if (!opening_open(&o, "COLONIZE")) {
+    return 1;
+  }
+  o.demo = true;
+  memset(&in, 0, sizeof(in));
+  in.mouse_left_clicked = true;
+  opening_handle_input(&o, &in);
+  check(!o.logo_phase && !o.quit_to_dos, "demo click ends only the logo");
+  opening_handle_input(&o, &in);
+  check(o.skip_from == 0 && !o.quit_to_dos, "demo click in sailing jumps (to_game kept)");
+  opening_close(&o);
+
+  if (!opening_open(&o, "COLONIZE")) {
+    return 1;
+  }
+  o.demo = true;
+  memset(&in, 0, sizeof(in));
+  in.last_key = COLONIZE_KEY_ENTER;
+  opening_handle_input(&o, &in);
+  check(o.finished && o.quit_to_dos, "demo key during the logo skips sailing and exits");
+  opening_close(&o);
+  return failures != before;
+}
+
 /* These cases accumulate into the shared `failures` counter via check()
  * rather than returning pass/fail directly; wrap each so the table-driven
  * runner can report per-case PASS/FAIL. */
@@ -442,6 +525,7 @@ static const TestCase k_cases[] = {
     {"test_sun_thresholds", case_test_sun_thresholds},
     {"test_camera_pan", case_test_camera_pan},
     {"test_speed_keys", case_test_speed_keys},
+    {"test_skip_exits", case_test_skip_exits},
 };
 
 int main(void) {

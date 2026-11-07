@@ -102,10 +102,7 @@ int game_fog_nation(const ColonizeGameState* game) {
     if (game->col1.head.show_entire_map) {
       return -1;
     }
-    if (game->col1.head.fixed_nation_map_view <= 3) {
-      return (int)game->col1.head.fixed_nation_map_view;
-    }
-    return game->human_nation;
+    return game_viewpoint_nation(game); /* DS:0x5396, stored (port_bugs.md #1573) */
   }
   if (game->fog_view == -1) {
     return -1; /* Complete Map */

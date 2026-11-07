@@ -245,7 +245,7 @@ out:
 }
 
 /*
- * The demo with no COLONY05.SAV: OPENING first (a key there skips it), then
+ * The demo with no COLONY05.SAV: OPENING first (a click there skips it), then
  * FUN_75c2_2778's New World (difficulty 2, the sail pages), every control byte 1,
  * the days run back to back; 'J' at a 6d8e pass ends the cycle: slot 5 is saved and
  * OPENING runs again.
@@ -260,8 +260,9 @@ static int demo_new_world_cycle_end(void) {
   /* main.c: OPENING first (or straight to the demo start without its art). */
   (void)game_try_start_intro(game);
   for (; f < DEMO_FRAME_CAP && !game->autoplay; ++f) {
+    /* A click: a demo key would exit OPENING to DOS (to_game = 0, 0x9c3 / 0x9e0). */
     if (game->opening.open && f % 20 == 19) {
-      g_plat.key = COLONIZE_KEY_ESCAPE;
+      g_plat.click = true;
     }
     CHECK(demo_frame(game));
   }

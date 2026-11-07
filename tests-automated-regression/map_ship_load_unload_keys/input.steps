@@ -1,0 +1,17 @@
+# ORDERS Load Cargo (L) / Unload Cargo (U) on the main map for a ship in a colony (port_bugs.md #1452): the colony-screen
+# bodies FUN_479b_11a4 (load) / FUN_479b_0f60 mode 0 (unload) run on the active unit and the colony under it; neither
+# writes the unit's moves-spent byte, so the ship keeps its moves and stays selected.
+# Fixture: colony_load_best_cargo's input.sav (Quebec stock Tobacco 90, Cotton 12, Ore 4, Horses 38, Coats 7, Muskets 60;
+# Caravel #84 holds Tobacco 60 + one free hold) edited through sav_json: Caravel #84 (slot 83) spent 0 (full moves),
+# head.active_unit 83, map cursor (stuff.x/y) on Quebec (45,24). No re-save noise (the no-op replay matched).
+shot
+key l        # Load: Tobacco 90 (highest key) tops the Tobacco 60 hold up to 100, the other 50 fill the free hold
+key l        # no free hold left: red "No cargo holds available!" bar, nothing moves
+key u        # Unload: the lowest (price<<4)*qty hold, Tobacco 50, goes to Quebec (stock 50)
+key u        # Tobacco 100 more would pass the 100 warehouse cap: @WAREHOUSEFULL confirm
+key Return   # "Never mind.": nothing unloaded
+key u        # ask again
+key Down
+key Return   # "Unload the Tobacco anyway.": Quebec Tobacco 150, the Caravel is empty
+key u        # empty ship: red "No cargo on board!" bar
+shot

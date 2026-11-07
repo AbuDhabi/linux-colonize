@@ -1,9 +1,10 @@
 # DOS-fidelity audit of surviving Aug/Sep 2026 code (2026-11-06)
 
-STATUS: OPEN. The ranked shortlist was adversarially re-verified (2026-11-06), filed as
+STATUS: DONE (2026-11-07). The ranked shortlist was adversarially re-verified (2026-11-06), filed as
 port_bugs.md #1452-#1482 and fixed 2026-11-07 (all FIXED, in docs/archive/bugs_fixed_pending.md).
 Wave 2 (2026-11-07) verified every remaining item: FIXED as #1483-#1555, OPEN #1556-#1557,
 capture-blocked #1558 (known_divergences.md); wave 3 fixed #1557, #1559, #1560 and follow-ups #1561-#1562 (#1563 = DOS bug DB-80), the rest NO-CHANGE (see "Wave 2" at the end).
+Wave 4 fixed #1556, #1558 (DOSBox-traced) and every lead below as #1564-#1571 (KINGWIN refuted inside #1571).
 Nothing in this file is still unchecked.
 This is an audit dump, not a spec (docs/conventions.md "Don't read archives willy-nilly").
 
@@ -386,7 +387,7 @@ return, REF latches), I-U(b) trade stop owner test, K5 (0x5394 always the owner)
 M4 (done by #1466), M-U, N12 (% gaps unreachable), N-U options/memory/status strings, F-U
 (default goods, menu-village fallback, a618 zero-sum = undefined DOS read), P-U.
 
-Leads found in passing (unfiled): cinematic +/- timing keys (OPENING/CLOSING `_get_input`
+Leads found in passing (all settled in wave 4: #1561-#1571): cinematic +/- timing keys (OPENING/CLOSING `_get_input`
 0x42a/0x430); opening camera DS:0x4aca; map Enter Complete Map arm (DS:0x53a2: open any colony);
 AI-owner colony-screen debug top line (raw 47846-47872); DEBUG.TXT `0x894 & 1` per-tribe sidebar
 list (raw 79282-79297); new-game `tribe_village_counts` (DS:0x962a) never written by the port's

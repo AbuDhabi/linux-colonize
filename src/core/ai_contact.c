@@ -1448,6 +1448,18 @@ static void ai_contact_ship_advisor_chrome(
   }
 }
 
+/*
+ * FUN_4d56_4528 switch default tail (viceroy_overlays.asm OVL13::004c0a,
+ * raw asm 130833-130838): both ship aborts jump there with [BP-0x58] still
+ * the entry value 1, so FUN_1000_8b24 = FUN_281f_0934 -> FUN_1427_155e
+ * spends the ship's whole allotment, and 4528 returns 1 (port_bugs.md #1574).
+ */
+static void ai_contact_ship_abort_forfeit(ColonizeTurnContext* ctx, int unit_id) {
+  if (ctx->units && unit_id >= 0) {
+    units_mp_exhaust_unit(ctx->units, unit_id);
+  }
+}
+
 int ai_contact_try_ship_village_unit(
   ColonizeTurnContext* ctx,
   int euro_nation,
@@ -1483,6 +1495,7 @@ int ai_contact_try_ship_village_unit(
       sizeof(body)
     );
     ai_contact_ship_advisor_chrome(ctx, euro_nation, indian_nation, body);
+    ai_contact_ship_abort_forfeit(ctx, unit_id); /* OVL13::004603 -> default tail */
     return 1;
   }
 
@@ -1513,6 +1526,7 @@ int ai_contact_try_ship_village_unit(
     if (ai_contact_euro_is_human(ctx, euro_nation)) {
       ai_contact_chief_flair(ctx, euro_nation, indian_nation);
     }
+    ai_contact_ship_abort_forfeit(ctx, unit_id); /* OVL13::004638 -> default tail */
     return 1;
   }
 

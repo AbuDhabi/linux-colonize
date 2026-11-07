@@ -223,6 +223,9 @@ static bool game_apply_col1_save(ColonizeGameState* game, ColonizeCol1Save* load
   colony_screen_set_layout_seed(&game->colony_screen, game->col1.post_map.boot_timer);
   /* DS:0x336 badge-numbers toggle rides the save (stuff.ui_toggle_336, 0 = off). */
   game->colony_screen.show_production_numbers = game->col1.stuff.ui_toggle_336 != 0;
+  /* DS:0x184 map zoom: FUN_75c2_0940 reads it back between 0x853e and 0x17c (raw
+   * 120381), port_bugs.md #1575. */
+  game_map_zoom_set(game, (int)game->col1.stuff.zoom_level);
   ai_diplo_talk_reset(); /* the outgoing game's 153e talk died with its popups */
   /* Repair invented wartime all-cargo embargo on the live save (const apply
    * cannot touch the snapshot). europe.boycott_bitmap already mapped 0xFFFF→0. */
@@ -360,6 +363,11 @@ static bool game_load_col1_loaded(
   if (s_rebinding) {
     return true;
   }
+  /* DOS resumes a load in FUN_130d_0290's human arm, which rewrites DS:0x5396
+   * (raw 6410-6413) over the value the save carried (port_bugs.md #1573). */
+  if (col1_all_ai_fixed_nation(&game->col1) < 0) {
+    game_viewpoint_turn_pass(game);
+  }
   /* A load starts the loaded world's year loop afresh: an end of turn parked
    * behind the outgoing game's FUN_3844_0442 dialogs does not resume in it. */
   memset(&game->turn_proc, 0, sizeof(game->turn_proc));
@@ -378,7 +386,7 @@ static bool game_load_col1_loaded(
 
 /* Reload the freshly captured game->col1 in place, so the one-nation Europe
  * mirror and every human_nation reader follow the save's human slot. */
-static bool game_reload_live_col1(ColonizeGameState* game, char* err, size_t err_size) {
+bool game_reload_live_col1(ColonizeGameState* game, char* err, size_t err_size) {
   ColonizeCol1Save moved = game->col1; /* the array pointers move with it */
   col1_save_init(&game->col1);
   s_rebinding = true;
@@ -436,7 +444,7 @@ bool game_load_col1_file(ColonizeGameState* game, const char* path, char* err, s
 
 /* Shared by both writers below: bring game->col1 up to date with the live
  * world (and build a template head for a never-saved new game). */
-static bool game_capture_col1(ColonizeGameState* game, char* err, size_t err_size) {
+bool game_capture_col1(ColonizeGameState* game, char* err, size_t err_size) {
   if (!game->world_map_ok) {
     snprintf(err, err_size, "no map loaded");
     return false;
@@ -506,6 +514,10 @@ static bool game_capture_col1(ColonizeGameState* game, char* err, size_t err_siz
   if (!col1_bridge_capture_w(&w, game->game_year, game->game_autumn, game->turn_number, game->human_nation, game->map_cursor_x, game->map_cursor_y, game->map_view_x, game->map_view_y, game->units.selected_id, game->view_pieces_mode, err, err_size)) {
     return false;
   }
+  /* FUN_75c2_0288 writes the DS:0x184 zoom word (FUN_2b5a_0f92) between the 0x853e
+   * focus and the 0x17c camera (raw 120089), port_bugs.md #1575. */
+  game->col1.stuff.zoom_level = (uint8_t)game_map_zoom_clamp(game->map_zoom);
+  game->col1.stuff.zoom_pad = 0;
   return true;
 }
 

@@ -65,6 +65,9 @@ typedef struct MapPanel {
    * tile stack while group_count > 0 (set per frame by game_render_map_panel). */
   const int* group_ids;
   int group_count;
+  /* DS:0x894 CHEAT Debug Info Flags (game->debug_flags_mask), set per frame
+   * by game_render_map_panel; bit 0 = the per-tribe alarm list. */
+  uint16_t debug_flags;
 } MapPanel;
 
 bool map_panel_load(MapPanel* panel, const char* data_dir, const ColonizeMsgCatalog* labels);

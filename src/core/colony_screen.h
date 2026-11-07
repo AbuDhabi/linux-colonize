@@ -321,6 +321,10 @@ typedef struct ColonyScreenView {
    * arm kind's ink (FUN_1009_0004). */
   char bar_text[96];
   uint8_t bar_ink;
+  /* FUN_2f2b_0fce raw 47846-47872: the AI-owner title line (owner not human,
+   * no spy view, no demo), built by colony_screen_ai_title_line and set each
+   * frame by render_colony_screen. Empty = the name/season/year line. */
+  char ai_title[128];
 
   int selected_colonist;
   int selected_outside_unit; /* map unit id, or -1 */
@@ -627,6 +631,10 @@ int colony_screen_multi_units_layout(
   int max
 );
 
+/* FUN_2f2b_0fce raw 47850-47876: the AI-owner colony-screen title line. */
+void colony_screen_ai_title_line(
+  const ColonizeColony* colony, const ColonizeWorldMap* map, int gold, char* out, size_t out_size
+);
 void colony_screen_render_w(
   const ColonizeWorld* w,
   ColonyScreenView* view,

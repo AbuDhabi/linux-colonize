@@ -371,6 +371,10 @@ int game_fog_nation(const ColonizeGameState* game);
 bool game_current_vision_on(const ColonizeGameState* game);
 /* CHEAT Set Human Player (DOS case 0x66), nation 0..3; see game_loop_saveload.c. */
 bool game_cheat_set_human(ColonizeGameState* game, int n, char* err, size_t err_size);
+/* Capture the live world into game->col1 / reload it in place (the Set Human and hot-seat
+ * rebind; game_loop_saveload.c). */
+bool game_capture_col1(ColonizeGameState* game, char* err, size_t err_size);
+bool game_reload_live_col1(ColonizeGameState* game, char* err, size_t err_size);
 /* Hot-seat: rebind to turn_proc.handoff_nation (docs/hotseat.md). */
 void game_hotseat_handoff(ColonizeGameState* game);
 /* Hot-seat: power n takes the controls (rebind unless already bound) and

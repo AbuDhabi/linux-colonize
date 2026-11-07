@@ -5,6 +5,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "core/col1_save_layout.h"
 #include "core/pik.h"
 #include "core/ss.h"
 #include "core/units_cargo.h"
@@ -226,6 +227,13 @@ typedef struct EuropeHarborShip {
    * 58419). DOS never clears it (only FUN_1427_06b4's creation zero, raw
    * 7728), so it crosses every lane; the map unit gets it back on arrival. */
   bool royal_gift;
+  /* Save provenance (col1_bridge, port_bugs.md #1572): DOS works on the hull's record in
+   * place, so the import keeps the save record this hull was read from (index + 1; 0 =
+   * made this session), its raw bytes and the pool unit the record followed (-1 = it was
+   * the first record, 0 = none); capture writes it back there with its unmodelled bytes. */
+  int col1_src_plus1;
+  int col1_anchor_id;
+  ColonizeCol1Unit col1_raw;
 } EuropeHarborShip;
 
 typedef enum EuropeHit {

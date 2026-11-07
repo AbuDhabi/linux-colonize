@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "core/font_file.h"
 #include "core/ss.h"
 #include "platform/platform.h"
 
@@ -32,7 +33,9 @@
  * to 0; it never follows the ship. Keys (`_get_input` 0x922): Enter / Esc /
  * Space / a click skip the MPS logo into the sailing scene; during sailing
  * one of them jumps to the OPENLOGO frame (`_jump_to_logo` 0x872) and ends
- * the intro; '+'/'=' and '-'/'_' make it faster / slower. Other keys do
+ * the intro under the @MESSAGES "loading" line; Alt-Q / Alt-X end it
+ * with quit_to_dos, and in the demo a keyboard skip (logo or sailing) does
+ * too. '+'/'=' and '-'/'_' make it faster / slower. Other keys do
  * nothing. After the last frame or the jump the still holds for
  * OPENING_HOLD_MS, then the owner goes to the title menu. Paced on the
  * 60.877 Hz clock (see OPENING_PAN_TIMING).
@@ -117,6 +120,17 @@ typedef struct OpeningCinematic {
   int skip_from; /* scene clock at the `_jump_to_logo` skip, -1 = none */
   int pan_timing;  /* DS:0x48, '+'/'-' nudge it (`_get_input` 0xa7c/0xa86) */
   int logo_timing; /* DS:0x50, nudged with pan_timing */
+  /* In: owner sets after opening_open when VICEROY runs the demo (argv -d,
+   * DS:0x88 demo). Out: DOS cleared to_game DS:0x90 (Alt-Q / Alt-X, or a
+   * demo keyboard skip), so OPENING.EXE exits to DOS instead of chaining
+   * VICEROY; finished is set too and the owner must quit the app. */
+  bool demo;
+  bool quit_to_dos;
+  /* `_get_input` 0xa15-0xa63: OPENING.TXT @MESSAGES row 0 in FONTINTR after
+   * the skip jump. */
+  char loading_text[64];
+  ColonizeFont font;
+  bool font_ok;
   ColonizeSpriteSheet sheets[OPENING_SHEET_COUNT];
   bool sheet_ok[OPENING_SHEET_COUNT];
   ColonizeSpriteSheet ship;

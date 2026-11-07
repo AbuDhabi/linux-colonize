@@ -1314,13 +1314,31 @@ static void game_request_disband_unit(ColonizeGameState* game, int uid) {
   );
 }
 
-/* DS:0x5396, the viewpoint nation: a fixed SETVIEW nation, else the human
- * (FUN_43f7 turn pass; Complete Map leaves it alone; port_bugs.md #1170). */
+/* DS:0x5396, the viewpoint nation, stored like DOS in the live head word
+ * curr_nation_map_view (port_bugs.md #1573): the CHEAT Reveal Map nation row
+ * (case 0x65, asm 0x23D58) points it at that nation and Complete Map / No Special
+ * View leave it there (asm 0x23CFF skips the store) until the next pass
+ * (game_viewpoint_turn_pass). A head without one falls back to the pass's value. */
 int game_viewpoint_nation(const ColonizeGameState* game) {
+  if (game->col1_ok && game->col1.head.curr_nation_map_view <= 3) {
+    return (int)game->col1.head.curr_nation_map_view;
+  }
   if (game->col1_ok && game->col1.head.fixed_nation_map_view <= 3) {
     return (int)game->col1.head.fixed_nation_map_view;
   }
   return game->human_nation;
+}
+
+/* FUN_130d_0290's human arm (raw 6410-6413; the turn top raw 6359-6362 and the
+ * new game FUN_75c2 raw 121604-121608 write the same): DS:0x5396 = the power at
+ * the controls, or the SETVIEW nation DS:0x53a4 when one is fixed. */
+void game_viewpoint_turn_pass(ColonizeGameState* game) {
+  if (!game || !game->col1_ok || game->human_nation < 0 || game->human_nation > 3) {
+    return;
+  }
+  ColonizeCol1Head* h = &game->col1.head;
+  h->curr_nation_map_view =
+    h->fixed_nation_map_view <= 3u ? h->fixed_nation_map_view : (uint16_t)game->human_nation;
 }
 
 /* FUN_2b5a_32ee / 3344 (raw 45879 / 45903) and FUN_2b5a_3462 (raw 46096): the colony

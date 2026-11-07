@@ -6,6 +6,7 @@
 
 #include "core/assets.h"
 #include "core/cinematic.h"
+#include "core/font.h"
 #include "core/pik.h"
 #include "platform/diagnostics.h"
 
@@ -95,6 +96,23 @@ int opening_parse_credits(const char* data_dir, OpeningCredit* out, int out_max)
   }
   assets_msg_free(&cat);
   return count;
+}
+
+/* `_get_input` 0xa15-0xa28: text_open("OPENING", "MESSAGES") + text_get, the
+ * section's first line. Empty when the TXT lacks it. */
+static void opening_load_message(const char* data_dir, char* out, size_t out_size) {
+  out[0] = '\0';
+  ColonizeMsgCatalog cat;
+  assets_msg_init(&cat);
+  char path[512];
+  if (dos_compat_normalize_asset_path(data_dir, "OPENING.TXT", path, sizeof(path)) &&
+      assets_msg_load_file(&cat, path)) {
+    const ColonizeMsgSection* sec = assets_msg_find(&cat, "MESSAGES");
+    if (sec && sec->line_count > 0) {
+      snprintf(out, out_size, "%s", sec->lines[0]);
+    }
+  }
+  assets_msg_free(&cat);
 }
 
 int opening_parse_path(const char* data_dir, int* xs, int* ys, int out_max) {
@@ -434,6 +452,13 @@ static void opening_compose(OpeningCinematic* o) {
   }
 
   opening_blit_border(o, &fb);
+  if (o->skip_from >= 0 && o->font_ok && o->loading_text[0]) {
+    /* 0xa2d-0xa63: x = 0xa0 - ((font_string_width - 1) >> 1), y = 0xbc, colours
+     * from `_opening` 0xf8e font_set_colors {skip, 0xfe, 0xfd, 0}. */
+    static const uint8_t map[4] = {0, 0xfe, 0xfd, 0};
+    const int measure = font_text_width_skip(&o->font, o->loading_text, FONT_SKIP_NONE) - 1;
+    font_draw_text_shaded(&o->font, &fb, 0xa0 - (measure >> 1), 0xbc, o->loading_text, map);
+  }
 
   for (int i = 0; i < o->credit_count; ++i) {
     const OpeningCredit* c = &o->credit_rows[i];
@@ -558,6 +583,12 @@ bool opening_open(OpeningCinematic* o, const char* data_dir) {
   }
   o->credit_count = opening_parse_credits(data_dir, o->credit_rows, OPENING_CREDIT_MAX);
   o->path_count = opening_parse_path(data_dir, o->path_x, o->path_y, OPENING_PATH_MAX);
+  opening_load_message(data_dir, o->loading_text, sizeof(o->loading_text));
+  /* `_opening` 0xf7e: font_load DS:0x112 "FONTINTR". */
+  if (dos_compat_normalize_asset_path(data_dir, "FONTINTR.FF", path, sizeof(path)) &&
+      font_file_load(path, &o->font, err, sizeof(err))) {
+    o->font_ok = true;
+  }
 
   o->clock = 0;
   o->accum = 0;
@@ -603,6 +634,9 @@ void opening_close(OpeningCinematic* o) {
     if (o->credit_ok[i]) {
       ss_free(&o->credits[i]);
     }
+  }
+  if (o->font_ok) {
+    font_file_free(&o->font);
   }
   memset(o, 0, sizeof(*o));
 }
@@ -657,13 +691,22 @@ void opening_update(OpeningCinematic* o, uint32_t dt_ms) {
   }
 }
 
-/* `_get_input` 0x977-0x9a3: Enter, Esc, Space, a mouse button (stored as
- * 0x1b), Alt-Q (0x110) or Alt-X (0x12d). Any other key is ignored. */
+static bool opening_alt_quit(const ColonizeInputState* in) {
+  return in->alt_held && (in->last_key == COLONIZE_KEY_Q || in->last_key == COLONIZE_KEY_X);
+}
+
+/* `_get_input` 0x977-0x9a3: Enter, Esc, Space, Alt-Q (0x110) or Alt-X (0x12d);
+ * any other key is ignored. */
 static bool opening_skip_key(const ColonizeInputState* in) {
   const ColonizeKey k = in->last_key;
   return k == COLONIZE_KEY_ENTER || k == COLONIZE_KEY_ESCAPE || k == COLONIZE_KEY_SPACE ||
-         in->mouse_left_clicked || in->mouse_right_clicked ||
-         (in->alt_held && (k == COLONIZE_KEY_Q || k == COLONIZE_KEY_X));
+         opening_alt_quit(in);
+}
+
+/* 0x92e-0x95b: a mouse button counts as Esc with the mouse flag set (the
+ * mouse is polled only when no key is waiting, so a key wins the flag). */
+static bool opening_skip_click(const ColonizeInputState* in) {
+  return in->mouse_left_clicked || in->mouse_right_clicked;
 }
 
 /* `_jump_to_logo` 0x872: the last OPENLOGO row's start frame, -1 = none. */
@@ -692,11 +735,19 @@ bool opening_handle_input(OpeningCinematic* o, const ColonizeInputState* input) 
     o->pan_timing += d;
     o->logo_timing += d;
   }
-  if (!opening_skip_key(input)) {
+  const bool key = opening_skip_key(input);
+  if (!key && !opening_skip_click(input)) {
     return true;
   }
   if (o->logo_phase) {
-    /* 0x9aa: logo_going = 0; outside demo mode that is all. */
+    /* 0x9aa: logo_going = 0; outside demo mode, or for a click, that is all.
+     * A demo keyboard skip (0x9c3) also clears opening_going and to_game:
+     * no sailing scene, no VICEROY. */
+    if (o->demo && key) {
+      o->quit_to_dos = true;
+      o->finished = true;
+      return true;
+    }
     opening_begin_sailing(o);
     return true;
   }
@@ -704,13 +755,17 @@ bool opening_handle_input(OpeningCinematic* o, const ColonizeInputState* input) 
     o->finished = true; /* the hold is port-only: DOS has already chained */
     return true;
   }
-  /* 0x9d4-0xa11: opening_going = 0 ends the loop. With to_game set (-g, and
-   * Alt-Q / Alt-X clear it) `_jump_to_logo` first moves to the logo frame
-   * when it is still ahead: pan_x 0, ship at the path end, one step. */
+  /* 0x9d4-0xa11: opening_going = 0 ends the loop. to_game is cleared by a
+   * demo keyboard skip (0x9e0-0x9ed) and by Alt-Q / Alt-X (0x9f3-0xa01);
+   * while it stays set `_jump_to_logo` first moves to the logo frame when it
+   * is still ahead: pan_x 0, ship at the path end, one step. */
+  if ((o->demo && key) || opening_alt_quit(input)) {
+    o->quit_to_dos = true;
+    o->finished = true;
+    return true;
+  }
   const int logo_at = opening_logo_frame(o);
-  const bool alt_quit = input->alt_held &&
-                        (input->last_key == COLONIZE_KEY_Q || input->last_key == COLONIZE_KEY_X);
-  if (alt_quit || logo_at <= o->clock) {
+  if (logo_at <= o->clock) {
     o->finished = true;
     return true;
   }

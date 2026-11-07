@@ -425,6 +425,12 @@ COLONIZE_INTERNAL GameMoveStep game_move_sea_unit(
           ColonizeTurnContext ctx;
           game_fill_turn_context(game, &ctx);
           if (ai_contact_try_ship_village_unit(&ctx, selected->nation_id, dest_x, dest_y, sid)) {
+            /* 4528 returned 1: FUN_465b_0000 LAB_465b_0bd1 (raw 75831-75834) clears
+             * the orders; an abort already spent the MP (port_bugs.md #1574). */
+            if (units_orders_follow_goto(selected->orders)) {
+              units_clear_orders(&game->units, sid);
+            }
+            game_after_unit_action(game);
             return GAME_MOVE_RETURN_TRUE;
           }
         }

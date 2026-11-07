@@ -197,6 +197,7 @@ static void game_demo_cycle_end(ColonizeGameState* game) {
     game_demo_start(game);
     return;
   }
+  game->opening.demo = true; /* "opening -od": DS:0x88 */
   game->opening_just_opened = true;
 }
 

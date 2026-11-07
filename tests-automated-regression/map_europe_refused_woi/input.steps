@@ -1,0 +1,17 @@
+# Fixture: map_declare_independence's output (France 1599, War of Independence declared this turn, View mode, show_entire_map 0).
+# View Europe during the WoI (port_bugs.md #1556, FUN_2b5a dispatcher asm 0x236B2-0x2371A): DS:0x5382 bit 0 set and show_entire_map (DS:0x53a2) 0
+# shows GAME.TXT @EUROPENOTAVAIL and opens nothing, for the E key and for VIEW > European Status alike.
+# Expected result: output.sav byte-identical to input.sav (the refusal touches no state).
+shot
+key e                    # @EUROPENOTAVAIL
+wait 2
+shot
+key Return               # OK: no Europe screen
+wait 2
+click 50 3               # VIEW menu
+click 80 29              # European Status: @EUROPENOTAVAIL again
+wait 2
+shot
+key Return               # OK
+wait 2
+shot

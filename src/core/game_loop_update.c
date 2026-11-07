@@ -194,6 +194,9 @@ static bool game_service_closing(
       closing_update(&game->closing, dt_ms);
     }
   }
+  if (game->closing.quit_to_dos) {
+    game->closing_then_score = false; /* CLOSING.EXE Alt-Q/Alt-X: no viceroy -ow, no score */
+  }
   if (!game->closing.open && game->closing_then_score) {
     game->closing_then_score = false;
     game_open_retire_score(game);
@@ -232,6 +235,7 @@ bool game_try_start_intro(ColonizeGameState* game) {
       game_demo_start(game);
       return false;
     }
+    game->opening.demo = game->demo;
     game->opening_just_opened = true;
     return true;
   }
@@ -244,6 +248,7 @@ bool game_try_start_intro(ColonizeGameState* game) {
   if (!opening_open(&game->opening, game->resolved_data_dir)) {
     return false;
   }
+  game->opening.demo = game->demo;
   game->opening_just_opened = true;
   return true;
 }
@@ -453,8 +458,10 @@ static bool game_service_opening(
   }
   game->opening_just_opened = false;
   if (game->opening.open) {
-    if (game->opening.finished) {
+    if (game->opening.finished && !game->opening.quit_to_dos) {
       game_finish_intro(game);
+    } else if (game->opening.finished) {
+      /* OPENING.EXE to_game == 0: exit to DOS, no VICEROY. */
     } else {
       opening_update(&game->opening, dt_ms);
     }
@@ -478,7 +485,7 @@ COLONIZE_INTERNAL GameUpdateStep game_update_services(ColonizeGameState* game, c
   sound_set_cinematic(game->opening.open || game->closing.open);
   sound_service();
   if (game_service_opening(game, input, dt_ms)) {
-    return GAME_UPDATE_RETURN_TRUE;
+    return game->opening.quit_to_dos ? GAME_UPDATE_RETURN_FALSE : GAME_UPDATE_RETURN_TRUE;
   }
   game_water_cycle_tick(game);
   ai_popup_set_now_ms(game->elapsed_ms); /* King flair animation clock */
@@ -605,7 +612,7 @@ COLONIZE_INTERNAL GameUpdateStep game_update_services(ColonizeGameState* game, c
       return GAME_UPDATE_RETURN_TRUE;
     }
     if (game_service_closing(game, input, dt_ms)) {
-      return GAME_UPDATE_RETURN_TRUE;
+      return game->closing.quit_to_dos ? GAME_UPDATE_RETURN_FALSE : GAME_UPDATE_RETURN_TRUE;
     }
     if (game_modal_open(game) || ai_popup_busy(&game->ai_popups)) {
       (void)game_handle_modal_input(game, input);
@@ -775,7 +782,7 @@ COLONIZE_INTERNAL GameUpdateStep game_update_services(ColonizeGameState* game, c
   }
 
   if (game_service_closing(game, input, dt_ms)) {
-    return GAME_UPDATE_RETURN_TRUE;
+    return game->closing.quit_to_dos ? GAME_UPDATE_RETURN_FALSE : GAME_UPDATE_RETURN_TRUE;
   }
   return GAME_UPDATE_CONTINUE;
 }

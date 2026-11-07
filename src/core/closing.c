@@ -280,10 +280,11 @@ bool closing_handle_input(ClosingCinematic* c, const ColonizeInputState* input) 
   /* 0x3ed-0x448: Enter, Esc, Space, a mouse button (stored as 0x1b), Alt-Q
    * (0x110) or Alt-X (0x12d) end it; any other key is ignored. */
   const ColonizeKey k = input->last_key;
+  const bool alt_quit = input->alt_held && (k == COLONIZE_KEY_Q || k == COLONIZE_KEY_X);
   if (k == COLONIZE_KEY_ENTER || k == COLONIZE_KEY_ESCAPE || k == COLONIZE_KEY_SPACE ||
-      input->mouse_left_clicked || input->mouse_right_clicked ||
-      (input->alt_held && (k == COLONIZE_KEY_Q || k == COLONIZE_KEY_X))) {
+      alt_quit || input->mouse_left_clicked || input->mouse_right_clicked) {
     closing_close(c);
+    c->quit_to_dos = alt_quit;
   }
   return true;
 }

@@ -396,7 +396,8 @@ lives in `ai_contact_trade.c` (village trade economics) and
 `FUN_4d56_4528`'s common tail (`viceroy_overlays.asm` `OVL13::004c0a`) calls
 `FUN_1000_8b24` = `FUN_281f_0934` → `FUN_1427_155e` (`spent := max MP`)
 whenever the dispatch returns code **1** — Trade, Denounce Heresy, Live Among
-The Natives, Speak With Chief, Incite, Demand Tribute and plain Leave — and
+The Natives, Speak With Chief, Incite, Demand Tribute and plain Leave, plus a ship's
+@DONTKNOWSHIPS / @MADATSHIPS abort (port_bugs.md #1574) — and
 **Esc on the menu** (the dialog `FUN_6f74_2580` returns -1, which `OVL13::004bd2`
 `DEC AX; CMP AX,8; JA default` routes to the same default as the Cancel row;
 the port treats a cancelled `CONTACT_MEET` as Leave). The same -1 makes Esc

@@ -1,0 +1,44 @@
+# Fixture: map_found_colony start (France 1599, human = French, 429 gold, tax 26%; show_indian_moves on).
+# View Europe under CHEAT Reveal Map > Complete Map (port_bugs.md #1556, asm 0x236B2-0x2371A): with show_entire_map (DS:0x53a2) set, E and VIEW > European
+# Status raise the DEBUG.TXT @SETEUROPE "View Which City" pick (MSS 4, default row = DS:0x5396 + 1 = La Rochelle) and FUN_281f_05fa(pick-1, -1) opens
+# that power's Europe; Esc drops the command. Here the own pick (La Rochelle) recruits one Free Colonist (387 gold, crosses reset), then the VIEW menu
+# and E pickers are cancelled. Saved: show_entire_map 1 and show_indian_moves off (Complete Map pick), France gold 429 -> 42, recruit_count +1,
+# crosses 0, a new French dock colonist, RT_RNG advanced (the replacement immigrant draw).
+# A FOREIGN pick (Amsterdam, London) is map_cheat_complete_map_europe_foreign.
+key w alt
+key i alt
+key n alt
+key F4 shift             # Reveal Map (@SETVIEW): English, French, Spanish, Dutch, Complete Map
+key Down
+key Down
+key Down
+key Down
+key Return               # Complete Map: show_entire_map = 1, Show Indian Moves off
+wait 2
+key e                    # @SETEUROPE pick, La Rochelle (row 2) highlighted
+wait 2
+shot
+key Return               # La Rochelle: France's own Europe
+wait 3
+key r                    # Recruit: three Free Colonists, 387 gold
+wait 2
+shot
+key Down
+key Return               # the first Free Colonists
+wait 2
+shot
+key Escape               # back to the map
+wait 20
+click 50 3               # VIEW menu
+click 80 29              # European Status: the same @SETEUROPE pick
+wait 2
+shot
+key Escape               # dropped: no Europe
+wait 3
+shot
+key e                    # E again: the pick ...
+wait 2
+key Escape               # ... dropped
+wait 3
+shot
+key w alt                # cheat mode off (Complete Map stays: it is in the save)

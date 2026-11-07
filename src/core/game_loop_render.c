@@ -2451,6 +2451,7 @@ void game_commit_new_campaign(ColonizeGameState* game) {
     if (!ai_init_new_game(&ai, ai_err, sizeof(ai_err))) {
       diag_warn("ai_init_new_game failed: %s", ai_err[0] ? ai_err : "unknown");
     }
+    game_viewpoint_turn_pass(game); /* FUN_75c2 raw 121604-121608: DS:0x5396 (#1573) */
     /* @MULTI start: FUN_75c2_10ae typed the leader name into England's
      * record (DS:0x5398 was 0 then); the fixed power carries its own. */
     if (ng->human_mask != 0 && game->col1_ok) {

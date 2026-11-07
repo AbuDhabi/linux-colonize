@@ -113,8 +113,9 @@ By royal decree, the Royal University has trained
 colonists ({%STRING1}), now available in %STRING0.
 
 ;       mods.treaty_cancel_popup: a computer nation cancels its peace treaty
-;       with you (FUN_5bfb_13b0 pushes @CANCELTREATY, which no stock GAME.TXT
-;       ships). %STRING0 = that nation, %STRING1 = yours.
+;       with another computer nation (FUN_5bfb_13b0 runs AI x AI only and pushes
+;       @CANCELTREATY, which no stock GAME.TXT ships). %STRING0 = the cancelling
+;       nation, %STRING1 = the other one.
 @MODCANCELTREATY
 @width=190
 The {%STRING0} cancel their peace treaty with the {%STRING1}.

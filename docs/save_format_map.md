@@ -266,7 +266,7 @@ RAM is scattered; the port stores one packed `ColonizeCol1Stuff` for RMW.
 | 589 | 128 | `0x91cc` | **misnamed** — `tribe_dwellings_91cc` was a placeholder guess, never confirmed by a reader before 2026-08-14. Real role: `= −0x6e34`, `FUN_4962_06b6` sums `FUN_281f_09c8(brave, mode=1)` combat value **per tribe-type×continent** (stride `0x10`, same shape as the Euro-side block above) — the G-table's Indian-side "development level" operand (`euro_g_table_0a60.md`). Not literal "dwellings"; the C field name (`col1_save.h`) is unchanged (save-format-critical, renaming needs its own careful pass) but should not be trusted as documentation of intent |
 | 717 | 2 | `0x8540` | `stuff.x` focus tile |
 | 719 | 2 | `0x853e` | `stuff.y` |
-| 721 | 2 | `0x184` | `zoom_level` + `zoom_pad` (`FUN_2b5a_0f92`) |
+| 721 | 2 | `0x184` | `zoom_level` + `zoom_pad` (`FUN_2b5a_0f92`); written by `FUN_75c2_0288`, read back by `FUN_75c2_0940` (raw 120381). Port: `game->map_zoom` (game_capture_col1 / game_apply_col1_save, port_bugs.md #1575) |
 | 723 | 2 | `0x17c` | `viewport_x` camera center |
 | 725 | 2 | `0x17e` | `viewport_y` |
 

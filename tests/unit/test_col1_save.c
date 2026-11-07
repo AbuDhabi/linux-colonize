@@ -6016,9 +6016,10 @@ int main(void) {
       }
     }
     /* Hot-seat (docs/hotseat.md): capture keeps every control-0 power and
-     * DS:0x5398, and stamps DS:0x5394 / 0x5396 with the power at the
-     * controls (a file load resets DS:0x5394 to DS:0x5398 first, in
-     * game_load_col1_loaded). */
+     * DS:0x5398, and stamps DS:0x5394 with the power at the controls (a file
+     * load resets DS:0x5394 to DS:0x5398 first, in game_load_col1_loaded).
+     * DS:0x5396 is stored (port_bugs.md #1573): the handoff writes it
+     * (game_hotseat_begin_turn) and capture keeps it. */
     {
       const int fixed = br.human_nation;
       const int mover = fixed == 0 ? 1 : 0;
@@ -6026,6 +6027,7 @@ int main(void) {
       save.player[mover].control = 0;
       save.head.human_player = (uint16_t)fixed;
       save.head.fixed_nation_map_view = 0xffffu;
+      save.head.curr_nation_map_view = (uint16_t)mover;
       if (!col1_bridge_capture_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&units), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map), .col1=(ColonizeCol1Save*)(&save), .col1_ok=true, .europe=(EuropeScreen*)(&europe)}, br.year, br.autumn, br.turn_number, mover, 11, 12, 40, 41, -1, true, err, sizeof(err))) {
         fprintf(stderr, "hot-seat capture: %s\n", err);
         goto head_stamp_fail;

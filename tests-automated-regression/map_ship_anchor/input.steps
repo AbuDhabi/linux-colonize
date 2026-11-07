@@ -1,0 +1,9 @@
+# ORDERS Anchor (F with a ship selected; MENU.TXT's second ~Fortify row, unit_orders.md "Anchor (ship)") for a ship in its
+# own colony: the land Fortify body FUN_2b5a_1112 (no treaty-partner colony next to Quebec, so no @HAVETREATY), which
+# ends (raw 42417-42419) with orders := 5, +0x315a (col1_counter16) := 0 and FUN_281f_0934 (spent := max MP), then the
+# rotation moves on (FUN_2b5a_0e52 / FUN_1427_14a0 scan forward in pool order).
+# Fixture: map_ship_load_unload_keys' input.sav (Caravel #84 in Quebec (45,24), full moves, selected).
+shot
+key f        # Anchor the Caravel: order 5, spent 12/12; next in pool order: Colonist #88 in Guadeloupe (1/3 moves left)
+key f        # Fortify the Colonist: order 5, spent 3/3, its +0x315a counter 2 -> 0; next: #95 at (24,66)
+shot

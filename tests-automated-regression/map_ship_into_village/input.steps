@@ -1,0 +1,20 @@
+# A ship ordered onto a native village never enters it (FUN_4d56_4528 ship head, OVL13::0045d6): unmet tribe (met bit
+# 0x20 clear) -> @DONTKNOWSHIPS, alarm >= 0x4b or the tribe's +10 attitude word >= 0x40 -> @MADATSHIPS. Both aborts jump
+# to the switch default tail OVL13::004c0a with [BP-0x58] still 1, so FUN_1000_8b24 = FUN_281f_0934 -> FUN_1427_155e
+# spends the ship's whole allotment and 4528 returns 1 (FUN_465b_0000 LAB_465b_0bd1: orders := 0); the rotation moves on
+# instead of leaving the ship selected at 12/12 (port_bugs.md #1574).
+# Fixture: village_trade_wagon_and_ship's input.sav, edited through sav_json and re-saved through one no-op replay:
+#  - Tupi village 69 (46,26): friction toward the Dutch = 64 (Caravel 126, slot 125, sits east of it at (47,26), active);
+#  - Caravel 2 (slot 1) moved from its sentry at (47,29) to (9,37) east of Inca village 0 (8,37), unmet by the Dutch;
+#    orders 0, full moves;
+#  - head.event.discovery_of_the_pacific_ocean preset, so the reveal around (9,37) fires no woodcut.
+# No RNG draw.
+shot
+key KP_4     # Caravel 126 west into Tupi village 69: @MADATSHIPS; the ship stays put with 0 moves
+shot
+key Return   # next unit: Caravel 2 at (9,37)
+shot
+key KP_4     # Caravel 2 west into Inca village 0: @DONTKNOWSHIPS; stays put with 0 moves
+shot
+key Return   # next unit: Wagon Train 82 at (43,24)
+shot

@@ -54,6 +54,18 @@ static void col1_unit_set_cargo_item(ColonizeCol1Unit* dst, int gi, int t) {
   }
 }
 
+static int col1_unit_cargo_item(const ColonizeCol1Unit* u, int gi) {
+  switch (gi) {
+    case 0: return u->cargo_item_0;
+    case 1: return u->cargo_item_1;
+    case 2: return u->cargo_item_2;
+    case 3: return u->cargo_item_3;
+    case 4: return u->cargo_item_4;
+    case 5: return u->cargo_item_5;
+    default: return 0;
+  }
+}
+
 static int col1_mask_is_water_mp(uint8_t mp_terrain) {
   const uint8_t t = (uint8_t)(mp_terrain & 0x1fu);
   return t == T_OCEAN || t == T_HIGH_SEAS;
@@ -662,6 +674,9 @@ bool col1_bridge_init_template(
   }
   save->head.map_size_x = map_w;
   save->head.map_size_y = map_h;
+  /* DS:0x5396 not written yet: readers and the first capture take the turn pass's
+   * value (the human), not England's 0 (port_bugs.md #1573). */
+  save->head.curr_nation_map_view = 0xffffu;
   save->head.year = 1492;
   save->head.turn = 0;
   save->head.colony_count = 0;
@@ -1610,6 +1625,7 @@ COLONIZE_INTERNAL void col1_bridge_apply_europe_lanes(Col1ApplyCtx* ctx) {
       col1_bridge_europe_ship_route_load(save, src, slot);
       slot->origin_plus1 = src->origin < 0x80 ? (int)src->origin + 1 : 0; /* +0x314a, raw like map units */
       slot->royal_gift = src->bound_in_transit != 0; /* +0x3148 0x40, never cleared */
+      slot->col1_src_plus1 = i + 1; /* #1572: col1_bridge_apply_ship_provenance */
       consumed[i] = true;
       local->skipped_europe_units++;
     }
@@ -1703,6 +1719,42 @@ static void col1_lane_rank_perm(const int* rank, const int* src, int count, int*
 }
 
 /* Unit records: Europe harbor/dock mirrors, map units, cargo/holds; tile stack order. */
+/*
+ * port_bugs.md #1572: DOS keeps a Europe hull as its unit record and edits it in place
+ * (FUN_38fd_0000 binds DS:0x9e12 / DS:0x84fc; buying, loading and sailing rewrite bytes of
+ * that record), while the port lifts the mirror nation's hulls into the Europe lists. Each
+ * hull read from a save keeps that record's raw bytes and the pool unit the record
+ * followed, so col1_bridge_capture_europe_lanes / _lane_order write it back where it was,
+ * with the bytes the lists do not model (+0x3148 scratch bits, +0x314b plan, +0x314c
+ * orders, +0x314f facing, stale holds past +0x3150).
+ */
+static void col1_bridge_apply_ship_provenance(
+  const ColonizeCol1Save* save,
+  EuropeScreen* europe,
+  const int* id_by_index
+) {
+  EuropeHarborShip* lists[3] = {europe->harbor, europe->bound, europe->expected};
+  const int counts[3] = {europe->harbor_ships, europe->bound_ships, europe->expected_ships};
+  for (int li = 0; li < 3; ++li) {
+    for (int k = 0; k < counts[li]; ++k) {
+      EuropeHarborShip* ship = &lists[li][k];
+      const int src = ship->col1_src_plus1 - 1;
+      if (src < 0 || src >= (int)save->head.unit_count) {
+        ship->col1_src_plus1 = 0;
+        continue;
+      }
+      ship->col1_raw = save->unit[src];
+      ship->col1_anchor_id = -1;
+      for (int j = src - 1; id_by_index && j >= 0; --j) {
+        if (id_by_index[j] >= 0) {
+          ship->col1_anchor_id = id_by_index[j];
+          break;
+        }
+      }
+    }
+  }
+}
+
 COLONIZE_INTERNAL Col1StageStatus col1_bridge_apply_units(Col1ApplyCtx* ctx) {
   const ColonizeCol1Save* save = ctx->save;
   ColonizeUnitPool* units = ctx->units;
@@ -1766,6 +1818,7 @@ COLONIZE_INTERNAL Col1StageStatus col1_bridge_apply_units(Col1ApplyCtx* ctx) {
               save, src, &europe->harbor[europe->harbor_ships - 1]
             );
             harbor_src[europe->harbor_ships - 1] = i;
+            europe->harbor[europe->harbor_ships - 1].col1_src_plus1 = i + 1; /* #1572 */
             europe->harbor[europe->harbor_ships - 1].origin_plus1 =
               src->origin < 0x80 ? (int)src->origin + 1 : 0;
             europe->harbor[europe->harbor_ships - 1].royal_gift = src->bound_in_transit != 0;
@@ -1866,8 +1919,12 @@ COLONIZE_INTERNAL Col1StageStatus col1_bridge_apply_units(Col1ApplyCtx* ctx) {
              * bits set; 8 = stayed last act) disable the AI facing term —
              * reconstruct them instead of collapsing to direction 0. */
             mu->last_dir = (int8_t)(src->facing | (src->facing_pad << 3));
-            mu->goto_x = 0;
-            mu->goto_y = 0;
+            /* The record's own +0x314b plan and +0x314d/e goto: DOS leaves both on a
+             * dock record (a rebind by Set Human or a foreign Europe visit re-exported
+             * them as 'X' and 0, port_bugs.md #1572). */
+            mu->col1_ai_plan = src->ai_plan;
+            mu->goto_x = (int)src->goto_x;
+            mu->goto_y = (int)src->goto_y;
             /* Same spent byte -> moves rule as the map path below. A flat 0
              * here re-saved as a full allotment spent (capture reads 0 MP as
              * exhausted), while every DOS dock record carries spent 0. */
@@ -2103,6 +2160,10 @@ COLONIZE_INTERNAL Col1StageStatus col1_bridge_apply_units(Col1ApplyCtx* ctx) {
     free(rank);
     free(perm);
     free(tmp);
+  }
+
+  if (europe) {
+    col1_bridge_apply_ship_provenance(save, europe, id_by_index);
   }
 
   if (!col1_restore_tile_stack_order(save, units, id_by_index)) {
@@ -2843,9 +2904,16 @@ COLONIZE_INTERNAL Col1StageStatus col1_bridge_capture_head(Col1CaptureCtx* ctx) 
       save->head.fixed_nation_map_view == (uint16_t)human_nation) {
     save->head.fixed_nation_map_view = 0xffffu;
   }
-  save->head.curr_nation_map_view = save->head.fixed_nation_map_view <= 3u
-                                      ? save->head.fixed_nation_map_view
-                                      : (uint16_t)human_nation;
+  /* DS:0x5396 is stored, not derived (port_bugs.md #1573): a Reveal Map nation row
+   * leaves it on that nation through Complete Map / No Special View until the next
+   * turn pass (game_viewpoint_turn_pass), and a save taken then carries it. Only a
+   * head without one (the new-game template's 0xffff, a stale head) gets the pass's
+   * value, as FUN_75c2's new game writes it (raw 121604-121608). */
+  if (stale_head || save->head.curr_nation_map_view > 3u) {
+    save->head.curr_nation_map_view = save->head.fixed_nation_map_view <= 3u
+                                        ? save->head.fixed_nation_map_view
+                                        : (uint16_t)human_nation;
+  }
   /* DS:0x53a2 show_entire_map: the Complete Map cheat / post-win reveal.
    * It is live state, not a template field — game_apply_setview stamps it on
    * SETVIEW, turn.c LAB_0b4a stamps it on victory, and it is read back as the
@@ -3798,6 +3866,127 @@ COLONIZE_INTERNAL void col1_bridge_capture_dock_rows(Col1CaptureCtx* ctx) {
   ctx->written = written; /* ctx write-back */
 }
 
+/*
+ * port_bugs.md #1572: a hull still on the lane it was read from is the same DOS record,
+ * which nothing but the Europe screen and the lane hops (FUN_48d3_03d0) rewrites, so its
+ * bytes the lists do not model come back from the save it was read from: the +0x3148
+ * scratch bits (FUN_521d_0a60), the +0x314b plan, +0x314c orders and the +0x315b byte
+ * (off a trade route), the +0x314f facing, the holds past +0x3150's count, and the +0x315a
+ * counter when it imports to the same voyage (col1_bridge_apply_europe_lanes: 0 and 1
+ * both land on the next pass; in port and on 240+n it is not read).
+ */
+static void col1_bridge_merge_lane_raw(
+  ColonizeCol1Unit* dst,
+  const ColonizeCol1Unit* raw,
+  bool on_route,
+  bool in_port,
+  uint8_t n
+) {
+  if (raw->x != dst->x || raw->y != dst->y || raw->type != dst->type ||
+      raw->nation_id != dst->nation_id) {
+    return;
+  }
+  dst->unknown15_bit0 = raw->unknown15_bit0;
+  dst->roam_reeval_pending = raw->roam_reeval_pending;
+  dst->stack_has_founders_or_military = raw->stack_has_founders_or_military;
+  dst->stack_has_military = raw->stack_has_military;
+  dst->wander_dest_chosen = raw->wander_dest_chosen;
+  dst->garrison_request_pending = raw->garrison_request_pending;
+  dst->ai_plan = raw->ai_plan;
+  dst->facing = raw->facing;
+  dst->facing_pad = raw->facing_pad;
+  if (!on_route && raw->orders != UNITS_ORDER_TRADE_ROUTE) {
+    dst->orders = raw->orders;
+    dst->profession = raw->profession;
+  }
+  for (int h = dst->holds_occupied; h < 6; ++h) {
+    col1_unit_set_cargo_item(dst, h, col1_unit_cargo_item(raw, h));
+    dst->cargo_hold[h] = raw->cargo_hold[h];
+  }
+  const bool damaged = dst->ship_damaged || raw->ship_damaged;
+  const int rc = raw->col1_counter16 > 0 ? raw->col1_counter16 : 1;
+  const int dc = dst->col1_counter16 > 0 ? dst->col1_counter16 : 1;
+  if (!damaged && (in_port || dst->x == (uint8_t)(240 + n) || rc == dc)) {
+    dst->col1_counter16 = raw->col1_counter16;
+  }
+}
+
+static uint64_t* col1_bridge_lane_order_keys(int capacity) {
+  uint64_t* key = capacity > 0 ? malloc((size_t)capacity * sizeof(uint64_t)) : NULL;
+  for (int r = 0; key && r < capacity; ++r) {
+    key[r] = (uint64_t)(r + 1) << 24;
+  }
+  return key;
+}
+
+typedef struct Col1OrderKey {
+  uint64_t key;
+  int old;
+} Col1OrderKey;
+
+static int col1_order_key_cmp(const void* a, const void* b) {
+  const uint64_t ka = ((const Col1OrderKey*)a)->key;
+  const uint64_t kb = ((const Col1OrderKey*)b)->key;
+  return ka < kb ? -1 : ka > kb ? 1 : 0;
+}
+
+/*
+ * Put each hull read from a save (and the passengers written with it) back right
+ * after the pool unit its record followed (col1_bridge_apply_ship_provenance), as DOS
+ * never moves a record; everything else keeps its order. Remaps every record index the
+ * export holds so far: the chains written by the lane pass, the stack keys and runtime
+ * map the chain pass reads, the active unit.
+ */
+static void col1_bridge_capture_apply_order(Col1CaptureCtx* ctx, const uint64_t* key, int n) {
+  bool sorted = true;
+  for (int r = 1; r < n && sorted; ++r) {
+    sorted = key[r - 1] < key[r];
+  }
+  if (sorted || n <= 1) {
+    return;
+  }
+  Col1OrderKey* ord = malloc((size_t)n * sizeof(*ord));
+  int* new_of_old = malloc((size_t)n * sizeof(int));
+  ColonizeCol1Unit* neu = malloc((size_t)n * sizeof(*neu));
+  uint64_t* so = malloc((size_t)n * sizeof(*so));
+  if (ord && new_of_old && neu && so) {
+    for (int r = 0; r < n; ++r) {
+      ord[r].key = key[r];
+      ord[r].old = r;
+    }
+    qsort(ord, (size_t)n, sizeof(*ord), col1_order_key_cmp);
+    for (int r = 0; r < n; ++r) {
+      new_of_old[ord[r].old] = r;
+    }
+    for (int r = 0; r < n; ++r) {
+      ColonizeCol1Unit u = ctx->neu[ord[r].old];
+      if (u.transport_chain.prev_unit_idx >= 0 && u.transport_chain.prev_unit_idx < n) {
+        u.transport_chain.prev_unit_idx = (int16_t)new_of_old[u.transport_chain.prev_unit_idx];
+      }
+      if (u.transport_chain.next_unit_idx >= 0 && u.transport_chain.next_unit_idx < n) {
+        u.transport_chain.next_unit_idx = (int16_t)new_of_old[u.transport_chain.next_unit_idx];
+      }
+      neu[r] = u;
+      so[r] = ctx->stack_order_by_col1[ord[r].old];
+    }
+    memcpy(ctx->neu, neu, (size_t)n * sizeof(*neu));
+    memcpy(ctx->stack_order_by_col1, so, (size_t)n * sizeof(*so));
+    for (int i = 0; i <= ctx->units->next_id; ++i) {
+      const int r = ctx->runtime_to_col1[i];
+      if (r >= 0 && r < n) {
+        ctx->runtime_to_col1[i] = new_of_old[r];
+      }
+    }
+    if (ctx->active_col1 >= 0 && ctx->active_col1 < n) {
+      ctx->active_col1 = new_of_old[ctx->active_col1];
+    }
+  }
+  free(ord);
+  free(new_of_old);
+  free(neu);
+  free(so);
+}
+
 /* Units: human Europe-screen ships (harbor/Bound/Expected lanes) + passengers. */
 COLONIZE_INTERNAL void col1_bridge_capture_europe_lanes(Col1CaptureCtx* ctx) {
   ColonizeCol1Save* save = ctx->save;
@@ -3825,6 +4014,7 @@ COLONIZE_INTERNAL void col1_bridge_capture_europe_lanes(Col1CaptureCtx* ctx) {
    */
   if (europe && human_nation >= 0 && human_nation < 4) {
     const uint8_t n = (uint8_t)human_nation;
+    uint64_t* order_key = NULL; /* #1572 record order, col1_bridge_capture_apply_order */
     const struct {
       const EuropeHarborShip* list;
       int count;
@@ -3898,6 +4088,7 @@ COLONIZE_INTERNAL void col1_bridge_capture_europe_lanes(Col1CaptureCtx* ctx) {
           col1_bridge_trade_cursor_valid(save, route_slot, /*unit_is_sea=*/true);
         const int route_stop =
           col1_bridge_trade_cursor_stop(save, route_slot, ship->trade_stop);
+        const int group0 = written;
         int last = -1;
         for (int c = 0; c < ship->cargo_count && c < EUROPE_SHIP_CARGO_MAX; ++c) {
           int pti = ship->cargo_types[c];
@@ -4009,8 +4200,27 @@ COLONIZE_INTERNAL void col1_bridge_capture_europe_lanes(Col1CaptureCtx* ctx) {
         if (in_port) {
           ctx->stack_order_by_col1[written] = UINT64_MAX - (uint64_t)EUROPE_DOCK_MAX - (uint64_t)si;
         }
+        if (ship->col1_src_plus1 > 0) {
+          col1_bridge_merge_lane_raw(dst, &ship->col1_raw, on_route, in_port, n);
+          if (!order_key) {
+            order_key = col1_bridge_lane_order_keys(capacity);
+          }
+          const int a = ship->col1_anchor_id < 0 ? -1
+                        : ship->col1_anchor_id <= units->next_id
+                          ? ctx->runtime_to_col1[ship->col1_anchor_id]
+                          : -1;
+          for (int r = group0; order_key && r <= written && (a >= 0 || ship->col1_anchor_id < 0);
+               ++r) {
+            order_key[r] = ((uint64_t)(a + 1) << 24) + ((uint64_t)ship->col1_src_plus1 << 4) +
+                           (uint64_t)(r - group0);
+          }
+        }
         written++;
       }
+    }
+    if (order_key) {
+      col1_bridge_capture_apply_order(ctx, order_key, written);
+      free(order_key);
     }
     /* FUN_48d3_007a stamps the sail-to-Europe exit as the return landfall. */
     if (europe->last_exit_valid) {

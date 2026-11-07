@@ -133,7 +133,7 @@ static void test_open_and_skip(void) {
   memset(&in, 0, sizeof(in));
   in.last_key = COLONIZE_KEY_ESCAPE;
   check(closing_handle_input(&c, &in), "open cinematic consumes input");
-  check(!c.open, "key closes");
+  check(!c.open && !c.quit_to_dos, "key closes into the score");
 
   closing_close(&skip);
 }
@@ -228,7 +228,7 @@ static int case_test_input_keys(void) {
   in.last_key = COLONIZE_KEY_X;
   in.alt_held = true;
   closing_handle_input(&c, &in);
-  check(!c.open, "Alt-X ends it");
+  check(!c.open && c.quit_to_dos, "Alt-X ends it with to_game cleared");
   closing_close(&c);
   return failures != before;
 }

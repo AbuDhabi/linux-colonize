@@ -254,7 +254,99 @@ static int case_901_occupation_2729_not_rum(void) {
   return ok ? 0 : 1;
 }
 
+/*
+ * #1572: a mirror-nation Europe hull is the same DOS record across a load/save
+ * round trip (DOS edits it in place, FUN_38fd_0000). The Bound hull at record 1
+ * (lane 228+0, counter 0, orders 1, plan '?', facing 1, the 0x3148 garrison bit,
+ * a stale hold past +0x3150's count) must come back at record 1 byte for byte,
+ * not re-appended after record 2 with those bytes defaulted.
+ */
+static int case_1572_europe_hull_in_place(void) {
+  diag_init(0, NULL);
+  ColonizeCol1Save save;
+  char err[256];
+  col1_save_init(&save);
+  col1_save_stamp_head(&save.head);
+  save.head.map_size_x = 8;
+  save.head.map_size_y = 8;
+  save.head.human_player = 0;
+  save.head.unit_count = 3;
+  if (!col1_save_alloc_sections(&save, err, sizeof(err))) {
+    fprintf(stderr, "case_1572: alloc failed: %s\n", err);
+    return 1;
+  }
+  save.player[0].control = 0;
+  for (int n = 1; n < 4; ++n) {
+    save.player[n].control = 1;
+  }
+  ColonizeCol1Unit* u = save.unit;
+  for (int i = 0; i < 3; ++i) {
+    u[i].transport_chain.prev_unit_idx = -1;
+    u[i].transport_chain.next_unit_idx = -1;
+    u[i].origin = 0xff;
+    u[i].ai_plan = 0x58;
+  }
+  u[0].x = 2; u[0].y = 2; u[0].type = 0; u[0].nation_id = 0;
+  u[1].x = 228; u[1].y = 228; u[1].type = 14; u[1].nation_id = 0;
+  u[1].orders = 1; u[1].ai_plan = 63; u[1].facing = 1; u[1].goto_x = 5; u[1].goto_y = 4;
+  u[1].garrison_request_pending = 1; u[1].cargo_item_0 = 3; u[1].cargo_hold[0] = 100;
+  u[1].col1_counter16 = 0;
+  u[2].x = 4; u[2].y = 4; u[2].type = 0; u[2].nation_id = 1;
+  const ColonizeCol1Unit want = u[1];
+
+  ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
+  units_reset(&units);
+  units.type_count = 23;
+  for (int t = 0; t < units.type_count; ++t) {
+    units.types[t].movement = 1;
+    units.types[t].domain =
+      (t >= 13 && t <= 18) ? COLONIZE_UNIT_DOMAIN_SEA : COLONIZE_UNIT_DOMAIN_LAND;
+    units.types[t].cargo = (t >= 13 && t <= 18) ? 2 : 0;
+  }
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  if (!map_alloc(&map, 8, 8, err, sizeof(err))) {
+    fprintf(stderr, "case_1572: map alloc failed: %s\n", err);
+    col1_save_free(&save);
+    return 1;
+  }
+  units_set_occupancy_map(&map);
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  EuropeScreen europe;
+  memset(&europe, 0, sizeof(europe));
+  europe.cargo_count = 16;
+  ColonizeCol1BridgeResult result;
+  ColonizeWorld w;
+  memset(&w, 0, sizeof(w));
+  w.units = &units;
+  w.colonies = &colonies;
+  w.map = &map;
+  w.col1 = &save;
+  w.col1_ok = true;
+  w.europe = &europe;
+  int ok = 1;
+  if (!col1_bridge_apply_w(&w, &result, err, sizeof(err)) || europe.bound_ships != 1 ||
+      !col1_bridge_capture_w(&w, 1600, 0, 1, 0, 2, 2, 2, 2, -1, false, err, sizeof(err))) {
+    fprintf(stderr, "case_1572: round trip failed: %s (bound %d)\n", err, europe.bound_ships);
+    ok = 0;
+  } else if (save.head.unit_count != 3 || memcmp(&save.unit[1], &want, sizeof(want)) != 0 ||
+             save.unit[2].nation_id != 1) {
+    fprintf(stderr, "case_1572: hull moved or rewritten: count %u, rec1 x %u type %u orders %u "
+            "plan %u ctr %u, rec2 nation %u\n", save.head.unit_count, save.unit[1].x,
+            save.unit[1].type, save.unit[1].orders, save.unit[1].ai_plan,
+            save.unit[1].col1_counter16, save.unit[2].nation_id);
+    ok = 0;
+  }
+  units_set_occupancy_map(NULL);
+  col1_save_free(&save);
+  map_free(&map);
+  return ok ? 0 : 1;
+}
+
 static const TestCase k_cases[] = {
+  {"1572_europe_hull_in_place", case_1572_europe_hull_in_place},
   {"865_intervention_announce_latch", case_865_intervention_announce_latch},
   {"901_occupation_2729_not_rum", case_901_occupation_2729_not_rum},
 };

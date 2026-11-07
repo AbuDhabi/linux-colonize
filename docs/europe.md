@@ -72,6 +72,23 @@ stop index the ship is travelling to service (going east: the Europe
 stop; going west after service: the next stop, re-armed as TRADE_ROUTE
 orders when the ship spawns back on the map). Zero-init = none.
 
+## EuropeHarborShip col1_src_plus1 / col1_anchor_id / col1_raw
+
+DOS keeps a Europe hull as its own unit record and edits it in place; the port
+lifts the mirror nation's hulls into the harbor / Bound / Expected lists, so a
+load and a save used to re-append them after every pool record with their
+unmodelled bytes defaulted (port_bugs.md #1572: a look-only foreign Europe
+visit or a Set Human rebind rewrote the AI's hulls). The import
+(`col1_bridge_apply_ship_provenance`) keeps the record index + 1, its raw bytes
+and the id of the pool unit the record followed (-1 = first record). Capture
+writes each such hull (and the passengers written with it) back right after
+that unit, and while the hull is still on the lane it was read from it keeps
+the record's +0x3148 scratch bits, plan, orders/+0x315b byte (off a trade
+route), facing, holds past the count and a counter that imports to the same
+voyage. A hull made this session (purchase, a map ship sailing in) has
+`col1_src_plus1` 0 and goes after every record, as a DOS new unit does.
+Passenger records keep the export's bytes.
+
 ## EuropeScreen current_crosses
 
 Crosses meter = DOS Europe +0x2e / +0x30 (same words as immigration pressure).

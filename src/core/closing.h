@@ -88,6 +88,10 @@ typedef struct ClosingCinematic {
   int end_frame;
   int clock;
   int anim_timing; /* DS:0x54, '+'/'-' nudge it */
+  /* Alt-Q / Alt-X cleared to_game DS:0x70 (`_get_input` 0x421): CLOSING.EXE
+   * exits to DOS without `viceroy -ow`, so no score. Set after the close;
+   * the owner must quit the app. */
+  bool quit_to_dos;
   uint64_t accum; /* ms * CLOSING_ACCUM_PER_MS since the last frame */
   ColonizePalette palette;
   bool palette_ok;

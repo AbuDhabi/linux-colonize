@@ -1,0 +1,17 @@
+# Wait (W) vs No Orders (Space) across the unit rotation. Fixture: map_unit_orders' input.sav unchanged (France 1599:
+# Pioneers #125 (43,25), #129 (42,25), #131 (44,25), Dragoon #136 and Artillery #144 in Quebec, Wagon Train #82 in
+# Guadeloupe have moves; everyone else is sentried, fortified, on a spent Go To, or out of moves; #125 is selected).
+# DOS rotation: FUN_2b5a_0e52 re-tests the active unit, then FUN_1427_14a0 scans forward from it in pool order and wraps;
+# FUN_1427_1410 passes a unit of the human nation on the map, orders not Sentry (1) / Fortified (6), spent < max MP.
+# Wait only moves the scan on, so the unit comes back after the wrap with its moves and orders untouched. Space (No
+# Orders) ends the unit's turn: it leaves with spent = max (the only way out of 1410's spent < max test), orders kept.
+shot
+key w        # Wait: #125 -> #129
+key w        # Wait: #129 -> #131
+key space    # No Orders: #131 spent 3/3, -> Dragoon #136
+key w        # Wait: #136 -> Artillery #144
+key space    # No Orders: #144 spent 3/3, wraps to the Wagon Train #82
+key w        # Wait: #82 -> #125 (the waited Pioneer is back, moves intact)
+key space    # No Orders: #125 spent 3/3, -> #129 (waited earlier, still has moves)
+key w        # Wait: #129 -> #136 (#131 and #144 are out of the rotation now); Dragoon #136 stays selected
+shot

@@ -107,8 +107,8 @@ SoundFont for FluidSynth is **not** in `COLONIZE/` (`data/soundfonts/`). Numeric
 |-----|---------------------|
 | **`VICEROY.EXE`** | Main game. Extract static DS tables; decomp for map gen, AI, UI, economy, combat. |
 | **`MAPEDIT.EXE`** | Authority for **static map feature art** (coasts, forests, hills, rivers, resource type-by-terrain). |
-| **`OPENING.EXE`** | Title intro — **Done** (`src/core/opening.c`). Art `OPENING.PIK` (960×132) + `OPENBORD.PIK`, `OPENSHIP.SS` + `PATH.DAT`, `OPEN{WND1,SUN,MON1,WND2,MON2,MON3,FISH,GUY,LOGO,BONK}.SS`, credits `OPENCRD1/2/3.SS`. Timeline `OPENING.TXT` `@OPENING` / `@CREDITS`. `COLONIZE.BAT` is `opening -g`. Two key/click skip. `skip_intro` in settings.json. |
-| **`CLOSING.EXE`** | Rebel-victory outro — **Done** (`src/core/closing.c`). Art `CLOS-BKG.PIK` + `CLOS-{HAT,LDY,MAN,MIL,FWK,ROC,BEL}.SS`; timeline `CLOSING.TXT` `@CLOSING`. VICEROY execs `closing -gok` after `@KINGLOSE`, then CLOSING returns via `viceroy -ow` into the score chain. |
+| **`OPENING.EXE`** | Title intro — **Done** (`src/core/opening.c`). Art `OPENING.PIK` (960×132) + `OPENBORD.PIK`, `OPENSHIP.SS` + `PATH.DAT`, `OPEN{WND1,SUN,MON1,WND2,MON2,MON3,FISH,GUY,LOGO,BONK}.SS`, credits `OPENCRD1/2/3.SS`. Timeline `OPENING.TXT` `@OPENING` / `@CREDITS`. `COLONIZE.BAT` is `opening -g`. One Enter/Esc/Space/click jumps to the `OPENLOGO` frame under the `@MESSAGES` line (FONTINTR) and ends the intro; Alt-Q/Alt-X (and a demo keyboard skip) exit to DOS; `+`/`-` change speed (`_get_input` 0x922). `skip_intro` in settings.json. |
+| **`CLOSING.EXE`** | Rebel-victory outro — **Done** (`src/core/closing.c`). Art `CLOS-BKG.PIK` + `CLOS-{HAT,LDY,MAN,MIL,FWK,ROC,BEL}.SS`; timeline `CLOSING.TXT` `@CLOSING`. VICEROY execs `closing -gok` after `@KINGLOSE`, then CLOSING returns via `viceroy -ow` into the score chain (Enter/Esc/Space/click skip to it; Alt-Q/Alt-X exit to DOS with no score; `+`/`-` change speed). |
 
 ---
 

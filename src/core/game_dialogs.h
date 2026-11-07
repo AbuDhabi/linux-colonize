@@ -567,6 +567,8 @@ void game_open_report(ColonizeGameState* game, ColonizeReportId id);
 /* A REPORTS command (F2-F10, the REPORTS menu): @SETREPORT first under Complete Map. */
 void game_report_command(ColonizeGameState* game, ColonizeReportId id);
 int game_viewpoint_nation(const ColonizeGameState* game);
+/* DOS turn-pass write of DS:0x5396 (fixed view, else the human); port_bugs.md #1573. */
+void game_viewpoint_turn_pass(ColonizeGameState* game);
 /* A map Enter / click opens `col`: the viewpoint nation owns it, or Complete Map (any owner). */
 bool game_colony_opens_from_map(const ColonizeGameState* game, const ColonizeColony* col);
 void game_open_retire_score(ColonizeGameState* game);

@@ -1,0 +1,41 @@
+# Fixture: map_found_colony start (France 1599, human = French; crosses: English 10/25, French 5/108, Spanish 4/24, Dutch 18/27).
+# The two DEBUG.TXT viewpoint pickers. @SETREPORT (asm 0x23810-0x2383A): under Complete Map (DS:0x53a2) a REPORTS command (F2 Religious Adviser)
+# first asks "View Whose Report?" (MSS 5, default row = DS:0x5396 + 1 = French) and draws that nation's report (Dutch: 18 of 27 crosses); the pick is a
+# local, nothing is stored. @SETVIEW (CHEAT Reveal Map, case 0x65, asm 0x23CB9-0x23D58): the Spanish row sets 0x53a2 = 0, 0x53a4 = 2 and 0x5396 = 2,
+# so F2 then shows Spain's report (4 of 24) with no pick. The view is left on Spain.
+# Saved: fixed_nation_map_view 2, curr_nation_map_view 2, show_entire_map 0 again, show_indian_moves off (the Complete Map pick's `and [0x5383],0x7f`
+# is not undone by a nation row). Order matters: DOS writes 0x5396 only on a nation row, so Complete Map AFTER a nation row would leave DOS's
+# 0x5396 on that nation while the port re-derives it from 0x53a4.
+key w alt
+key i alt
+key n alt                # CHEAT unlocked
+key F4 shift             # Reveal Map
+key Down
+key Down
+key Down
+key Down
+key Return               # Complete Map
+wait 2
+key F2                   # @SETREPORT, French highlighted
+wait 2
+shot
+key Down
+key Down
+key Return               # Dutch: the Dutch Religious Adviser report
+wait 20
+shot
+key Return
+wait 20
+key F4 shift             # Reveal Map
+wait 2
+key Down
+key Down
+key Return               # Spanish Map
+wait 2
+key F2                   # no pick: Spain's report
+wait 20
+shot
+key Return
+wait 20
+shot
+key w alt                # cheat mode off
