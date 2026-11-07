@@ -36,7 +36,9 @@ built with the scripts in `scripts/`:
 - `scripts/build_release.sh` — Linux tarball
 - `scripts/build_release_container.sh` — same, inside a manylinux2014
   container (glibc 2.17 baseline)
-- `scripts/build_release_windows.sh` — Windows zip (mingw cross-build)
+- `scripts/build_release_windows.sh` — Windows zip (mingw cross-build).
+  CI: `.github/workflows/release-linux-windows.yml` runs this and the
+  container script, attaching both packages to a published GitHub release.
 - `scripts/build_release_macos.sh` — macOS Apple Silicon zip. Unlike the
   others it links SDL2 / FluidSynth dynamically and bundles the dylibs in
   `lib/` (FluidSynth built from source into `deps-macos/`, the rest from
