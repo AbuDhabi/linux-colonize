@@ -427,8 +427,8 @@ Combat loss remaps **unit type** (not merely profession). Cite:
   opens (FUN_3844_00f2). DOS trace 2026-11-03 (port_bugs.md #1381c): Privateer
   beaten by a Caravel lands at (237,237) with counter 6, shows digit 2, is
   repaired two ticks later. `units_set_combat_europe` supplies the screen;
-  without it — headless — the hull stays put and `turn_route_damaged_ships`
-  makes the same harbor move at end of turn. AI hulls stay live units at
+  without it — headless — the hull stays put (no end-of-turn re-route: DOS
+  moves a hull only at damage time, #1476). AI hulls stay live units at
   236+n. WoI human keeps the DOS `goto`-to-sunk (no friendly Europe).
 - **Repair timer** (`0x5235` column): `col1_counter16` preset to
   `max(0, loser.combat - winner.combat)`, the winner's value doubled when it

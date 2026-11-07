@@ -172,10 +172,9 @@ tab's hammers bar (own block). Production-tab badge ink is white (15), not
   is nation record +0x5a; the old `difficulty + 4` approximation is retired
   (carpenter audit, port_bugs.md #917) — formula owner is
   [colony.md](colony.md) `colonies_construction_gold_cost`. BUY only tops up
-  hammers/tools — completion happens next turn via
-  `turn_run_colony_building_completion` (DOS's 5e44 has no completion
-  call either). That pass also fixed a latent gap: the inline completion
-  check only fired on ticks that added hammers. `hammers_purchased`
+  hammers/tools — completion happens next turn in Phase L of
+  `turn_produce_hammers`, every tick, before spoilage (DOS's 5e44 has no
+  completion call either; `FUN_364b_0688` raw 57730-57775, #1475). `hammers_purchased`
   (Col1 +0x98) accumulates the hammers *deficit*, not gold.
 - BUY popup on the colony screen must use `colony_screen.wood_tile`
   (colony palette), not the map's.

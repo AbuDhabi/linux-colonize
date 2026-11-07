@@ -8,8 +8,7 @@ key KP_8                 # attack north: Combat Analysis dialog (FUN_636c_0000) 
 wait 3
 key Return               # dismiss the analysis: roll lost, "{French Soldiers} routed! Unit demoted to {Colonists}" (@DEMOTE)
 wait 3
-key Return               # "{English Dragoons} defeat {French} near Quebec!"
-wait 3
+                         #  (outcome popup gone: #1464/#1465)
 key Return               # last combat popup closed; no French unit left to move (selected -1)
 wait 3
 shot

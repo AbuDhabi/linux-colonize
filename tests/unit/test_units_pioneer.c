@@ -704,6 +704,36 @@ static int unit_pioneer_dos_gates_2026_09_22(void) {
     units_despawn(&pool, pid);
   }
 
+  /* #1478: the Hills veto is the ORDERS menu's (plow_w); the work body
+   * FUN_479b_01a6 plows Hills when the order is latched (AI 5952 phantom). */
+  if (!rc) {
+    map.terrain[7 * 16 + 7] = 0x22; /* Hills over plains */
+    const int pid = units_spawn(&pool, pioneer, 7, 7);
+    ColonizeUnit* pu = units_get(&pool, pid);
+    pu->nation_id = 0;
+    pu->tools = 100;
+    const ColonizeWorld hw = {.units = &pool, .colonies = &colonies, .map = &map};
+    if (map_pedia_terrain_index_at(&map, 7, 7) != 0x1c) {
+      fprintf(stderr, "piodos #1478: fixture is not Hills\n");
+      rc = 1;
+    } else if (units_pioneer_plow_w(&hw, pid, NULL, NULL, NULL) ||
+               units_get(&pool, pid)->orders == UNITS_ORDER_CLEAR_PLOW) {
+      fprintf(stderr, "piodos #1478: menu plow accepted on Hills\n");
+      rc = 1;
+    } else {
+      units_get(&pool, pid)->orders = UNITS_ORDER_CLEAR_PLOW;
+      for (int t = 0; t < 40 && units_get(&pool, pid)->orders == UNITS_ORDER_CLEAR_PLOW; ++t) {
+        units_pioneer_work_tick_w(&hw, pid, NULL, NULL, NULL);
+      }
+      if (!map_tile_is_plowed(&map, 7, 7) || units_get(&pool, pid)->tools != 80) {
+        fprintf(stderr, "piodos #1478: work body did not plow Hills (tools %d)\n",
+                units_get(&pool, pid)->tools);
+        rc = 1;
+      }
+    }
+    units_despawn(&pool, pid);
+  }
+
   /* #617 / #618: road beside a nearer FOREIGN colony pays nobody, and a road
    * cannot be started on a settlement tile at all. */
   if (!rc) {

@@ -40,8 +40,7 @@
  *
  * europe->status is never drawn (the player sees the catalog popups): popup
  * sites copy the first sentence of their GAME.TXT section into it for unit
- * tests (catalog miss = ""; no port-written English, port_bugs.md #1405), and
- * the #397 Phase K gate keys on TurnProduceCtx.status_written, not on it.
+ * tests (catalog miss = ""; no port-written English, port_bugs.md #1405).
  */
 
 /* ===================== Colony production chrome & popups: SoL, inefficient gov, built, need-tools (turn_emit_inefficient_gov_chrome .. turn_emit_needtools_notice) ===================== */
@@ -185,8 +184,7 @@ static bool turn_emit_sol_phase_d_chrome(
   tok.string1 = reports_nation_country_phrase(colony->nation_id, 0);
   tok.number0 = sol_after;
   tok.has_number0 = true;
-  /* Port status strip (also the Phase K "message written this tick" marker):
-   * the first sentence of the same catalog section as the popup. */
+  /* Port status strip: the first sentence of the same catalog section as the popup. */
   popup_msg_fill_status(messages, section, &tok, europe->status, sizeof(europe->status));
   if (!ai_popups) {
     return true;
@@ -242,9 +240,8 @@ void turn_compose_colony_bells_crosses(
 
 /*
  * DOS @BUILT — "%STRING0 colony produces {%STRING1}." One emitter for the
- * three completion paths (audit CO-11): turn_produce_one_colony's in-tick
- * building completion, turn_colony_unit_construction_one and
- * turn_run_colony_building_completion. Callers pass only the human's own
+ * completion paths (audit CO-11): turn_produce_one_colony's Phase L
+ * building completion and turn_colony_unit_construction_one. Callers pass only the human's own
  * colony (DS:0xa897). building_row is the ColonizeBuildingRow, -1 for a unit.
  */
 void turn_emit_built_chrome(
@@ -580,14 +577,6 @@ COLONIZE_INTERNAL TurnProduceStatus turn_produce_begin(TurnProduceCtx* pc) {
   /* FUN_364b_0688: clear cargo_produced_mask (+0x90) at production start. */
   pc->mask_before_a = colony->cargo_produced_mask;
   colony->cargo_produced_mask = 0;
-  /* port_bugs.md #397: europe->status is shared across the whole colony loop, so
-   * "status empty" as the Phase K crumb gate let ANY earlier colony's
-   * message (birth, food low, cargo ready, ...) suppress every later
-   * colony's "has run out of X" popup for the rest of the EOT. The crumb
-   * yields only to a message this same colony wrote this tick (its own
-   * food/birth chrome outranks it), never to another colony's leftovers:
-   * every status write below sets status_written. */
-  pc->status_written = false;
   for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
     pc->stock_before[c] = colony->stock[c];
   }
@@ -755,8 +744,6 @@ COLONIZE_INTERNAL void turn_produce_compose(TurnProduceCtx* pc) {
 COLONIZE_INTERNAL void turn_produce_food(TurnProduceCtx* pc) {
   ColonizeColony* const colony = pc->colony;
   ColonizeCol1Save* const col1 = pc->col1;
-  EuropeScreen* const europe = pc->europe;
-  const int human_nation = pc->human_nation;
   ColonizeTurnResult* const out = pc->out;
   ColonizeColonyProdDelta* const delta = pc->delta;
   const int pop = pc->pop;
@@ -795,10 +782,6 @@ COLONIZE_INTERNAL void turn_produce_food(TurnProduceCtx* pc) {
   }
   if (pc->field_food < consumed && out) {
     out->food_shortages++;
-    /* No DOS text here (port_bugs.md #1405); only the Phase K crumb marker. */
-    if (europe && colony->nation_id == human_nation && turn_report_ok_food(col1)) {
-      pc->status_written = true;
-    }
   }
 }
 
@@ -853,7 +836,7 @@ COLONIZE_INTERNAL void turn_produce_sol(TurnProduceCtx* pc) {
     }
     const int sol_after = colony_prod_sol_percent(col1, app);
     colony_prod_refresh_sol_flags(app, col1);
-    pc->status_written |= turn_emit_sol_phase_d_chrome(
+    (void)turn_emit_sol_phase_d_chrome(
       app,
       col1,
       europe,
@@ -864,7 +847,7 @@ COLONIZE_INTERNAL void turn_produce_sol(TurnProduceCtx* pc) {
       ai_popups,
       messages
     );
-    pc->status_written |= turn_emit_inefficient_gov_chrome(
+    (void)turn_emit_inefficient_gov_chrome(
       app, col1, europe, human_nation, sol_after, ai_popups, messages
     );
   }
@@ -874,8 +857,6 @@ COLONIZE_INTERNAL void turn_produce_sol(TurnProduceCtx* pc) {
 COLONIZE_INTERNAL void turn_produce_horses(TurnProduceCtx* pc) {
   ColonizeColonyPool* const pool = pc->pool;
   ColonizeColony* const colony = pc->colony;
-  EuropeScreen* const europe = pc->europe;
-  const int human_nation = pc->human_nation;
   ColonizeColonyProdDelta* const delta = pc->delta;
   const bool colony_ai_controlled = pc->colony_ai_controlled;
   const int pop = pc->pop;
@@ -920,10 +901,6 @@ COLONIZE_INTERNAL void turn_produce_horses(TurnProduceCtx* pc) {
       if (delta) {
         delta->goods[COLONIZE_CARGO_FOOD] -= breed.bred;
         delta->goods[COLONIZE_CARGO_HORSES] += horses_gain;
-      }
-      if (europe && colony->nation_id == human_nation) {
-        /* DOS has no breeding line; keep the marker only (port_bugs.md #1405). */
-        pc->status_written = true;
       }
     }
   }
@@ -1239,7 +1216,6 @@ COLONIZE_INTERNAL void turn_produce_education(TurnProduceCtx* pc) {
        * port_bugs.md #1400), unlike the three graduation popups below. */
       if (human) {
         popup_msg_fill_status(messages, "TRAINFAIL", &tok, europe->status, sizeof(europe->status));
-        pc->status_written = true;
         if (ai_popups) {
           popup_msg_fill(messages, "TRAINFAIL", &tok, "", body, sizeof(body));
           ai_popup_enqueue_colony_event(ai_popups, colony->id, AI_POPUP_ZOOM_TAB_KEEP, body);
@@ -1282,7 +1258,6 @@ COLONIZE_INTERNAL void turn_produce_education(TurnProduceCtx* pc) {
     if (tell) {
       tok.string1 = skill_name;
       popup_msg_fill_status(messages, chrome_sec, &tok, europe->status, sizeof(europe->status));
-      pc->status_written = true;
       if (ai_popups) {
         popup_msg_fill(messages, chrome_sec, &tok, "", body, sizeof(body));
         ai_popup_enqueue_colony_event(ai_popups, colony->id, AI_POPUP_ZOOM_TAB_KEEP, body);
@@ -1491,7 +1466,6 @@ COLONIZE_INTERNAL void turn_produce_birth(TurnProduceCtx* pc) {
       memset(&tok, 0, sizeof(tok));
       tok.string0 = colony->name[0] ? colony->name : "";
       popup_msg_fill_status(messages, "NEWCOLONIST", &tok, europe->status, sizeof(europe->status));
-      pc->status_written = true;
       if (ai_popups) {
         char body[AI_POPUP_BODY_LEN];
         popup_msg_fill(
@@ -1609,7 +1583,6 @@ COLONIZE_INTERNAL TurnProduceStatus turn_produce_starve(TurnProduceCtx* pc) {
       memset(&tok, 0, sizeof(tok));
       tok.string0 = colony->name[0] ? colony->name : "";
       popup_msg_fill_status(messages, sec, &tok, europe->status, sizeof(europe->status));
-      pc->status_written = true;
       if (ai_popups) {
         char body[AI_POPUP_BODY_LEN];
         popup_msg_fill(messages, sec, &tok, "", body, sizeof(body));
@@ -1651,7 +1624,6 @@ COLONIZE_INTERNAL TurnProduceStatus turn_produce_starve(TurnProduceCtx* pc) {
       memset(&tok, 0, sizeof(tok));
       tok.string0 = colony->name[0] ? colony->name : "";
       popup_msg_fill_status(messages, sec, &tok, europe->status, sizeof(europe->status));
-      pc->status_written = true;
       if (ai_popups) {
         char body[AI_POPUP_BODY_LEN];
         popup_msg_fill(messages, sec, &tok, "", body, sizeof(body));
@@ -1669,7 +1641,6 @@ COLONIZE_INTERNAL TurnProduceStatus turn_produce_starve(TurnProduceCtx* pc) {
       tok.number0 = stock;
       tok.has_number0 = true;
       popup_msg_fill_status(messages, "FOODLOW", &tok, europe->status, sizeof(europe->status));
-      pc->status_written = true;
       if (ai_popups) {
         char body[AI_POPUP_BODY_LEN];
         popup_msg_fill(messages, "FOODLOW", &tok, "", body, sizeof(body));
@@ -1740,36 +1711,6 @@ COLONIZE_INTERNAL void turn_produce_hammers(TurnProduceCtx* pc) {
       if (delta) {
         delta->hammers_added = hammers;
       }
-      if (colony->building_in_production >= 0) {
-        const int bip = colony->building_in_production;
-        const ColonizeBuildingType* bt = colonies_building_type(pool, bip);
-        const char* bname = bt ? colonies_building_name(pool, bip) : NULL;
-        if (colonies_try_complete_building(pool, colony->id)) {
-          if (delta) {
-            delta->building_completed = true;
-          }
-          if (out) {
-            out->buildings_completed++;
-          }
-          if (europe && colony->nation_id == human_nation) {
-            pc->status_written = true;
-            turn_emit_built_chrome(
-              messages, ai_popups, colony, bname, colonies_building_type_row(pool, bip),
-              europe->status, sizeof(europe->status)
-            );
-          }
-        }
-      }
-    } else if (
-      colony->building_in_production >= 0 && colony->nation_id == human_nation && europe &&
-      turn_report_ok_raw(col1)
-    ) {
-      /*
-       * Construction queued but zero hammers this tick: DOS shows nothing here
-       * (the @LUMBER crumb is Phase K's); keep the status marker only, no typed
-       * text (port_bugs.md #1405). Gate !(5384&0x20).
-       */
-      pc->status_written = true;
     }
 
     if (hammers_add <= 0) {
@@ -1783,15 +1724,39 @@ COLONIZE_INTERNAL void turn_produce_hammers(TurnProduceCtx* pc) {
   }
 
   /* DOS Phase L resolves the threshold after adding this tick's hammers,
-   * before checking whether the selected building is already owned
-   * (FUN_364b_0688 raw 57737-57785). This arm runs even when the Phase A
-   * output is zero and leaves the selected project in place. */
+   * hammers produced or not (FUN_364b_0688 raw 57737-57785): an owned
+   * building (09fc, never set for Warehouse Expansion) gets @ALREADYHAVE and
+   * keeps the selection; otherwise FUN_364b_0114 completes it here, before
+   * the cap re-read (0d3a) and spoilage, so a BUY-topped Warehouse already
+   * holds goods this tick (port_bugs.md #1475). Unit projects complete in
+   * turn_colony_unit_construction_one. */
   if (colony->building_in_production >= 0) {
     const int bip = colony->building_in_production;
     const ColonizeBuildingType* bt = colonies_building_type(pool, bip);
-    if (bt && !colonies_unit_build_info(bip, NULL, NULL, NULL) &&
-        bip < COLONIZE_BUILDING_TYPES_MAX && colony->has_building[bip] &&
-        bt->hammers > 0 && colony->hammers >= bt->hammers) {
+    const int brow = colonies_building_type_row(pool, bip);
+    if (!bt || colonies_unit_build_info(bip, NULL, NULL, NULL) || bt->hammers <= 0 ||
+        colony->hammers < bt->hammers) {
+      /* below threshold or a unit project: nothing here */
+    } else if (!colonies_dos_owns_row(pool, colony, brow)) {
+      const char* bname = colonies_building_name(pool, bip);
+      if (colonies_try_complete_building(pool, colony->id)) {
+        if (delta) {
+          delta->building_completed = true;
+        }
+        if (out) {
+          out->buildings_completed++;
+        }
+        if (europe && colony->nation_id == human_nation) {
+          turn_emit_built_chrome(
+            messages, ai_popups, colony, bname, brow, europe->status, sizeof(europe->status)
+          );
+        }
+      } else if (colony->nation_id == human_nation &&
+                 brow == COLONY_BUILDING_WAREHOUSE_EXPANSION && colony->warehouse_level > 1u) {
+        /* FUN_364b_0114 raw 56906-56910: @NOMOREWAREHOUSE each turn it sits complete. */
+        colonies_emit_already_have_chrome(colony, bt, ai_popups, messages);
+      }
+    } else {
       colony->colony_flags |= COLONIZE_COLONY_FLAG_BUILD_COMPLETE;
       if (colony->nation_id == human_nation && europe && ai_popups) {
         char body[AI_POPUP_BODY_LEN];
@@ -1812,8 +1777,7 @@ COLONIZE_INTERNAL void turn_produce_hammers(TurnProduceCtx* pc) {
    * above because DOS runs it every EOT, hammers produced or not, and for
    * unit projects as well as buildings (port_bugs.md #537).
    */
-  pc->status_written |=
-    turn_emit_needtools_notice(pool, colony, col1, europe, human_nation, ai_popups, messages);
+  (void)turn_emit_needtools_notice(pool, colony, col1, europe, human_nation, ai_popups, messages);
 }
 
 /* Phase K: "ran out of X" demand crumbs. */
@@ -1829,9 +1793,10 @@ COLONIZE_INTERNAL void turn_produce_crumbs(TurnProduceCtx* pc) {
   int* const craft_unmet_cap = pc->craft_unmet_cap;
   int* const craft_unmet_gross = pc->craft_unmet_gross;
   int* const craft_net = pc->craft_net;
-  /* Phase K demand crumbs (hammers/tools already above): raw / craft empty. */
-  if (colony->nation_id == human_nation && europe &&
-      !pc->status_written && turn_report_ok_raw(col1)) {
+  /* Phase K demand crumbs: raw / craft empty. */
+  /* FUN_364b_0688 raw 57696: gated on DS:0x5384&0x20 only; no other popup
+   * this tick suppresses it (port_bugs.md #1461). */
+  if (colony->nation_id == human_nation && europe && turn_report_ok_raw(col1)) {
     /*
      * DOS gates each "ran out of X" msg on a demand scratch word (set by
      * FUN_15eb_0bd4/0b96 from the SAME turn's tier-scaled worker output,
@@ -2225,8 +2190,10 @@ void turn_produce_one_colony(
   if (turn_produce_starve(&ctx) == TURN_PRODUCE_RETURN) {
     return;
   }
-  turn_produce_hammers(&ctx);
+  /* FUN_364b_0688 runs Phase K (raw 57696-57728) before Phase L (raw 57730+)
+   * (port_bugs.md #1461). */
   turn_produce_crumbs(&ctx);
+  turn_produce_hammers(&ctx);
   /* FUN_364b_0688 raw 57771-57774: a unit project's tools are spent
    * and FUN_364b_0114 builds it here, before the cap re-read (raw 57743) and
    * the spoilage / AI-sell loop (raw 57807). */

@@ -2221,6 +2221,107 @@ static int unit_indian_massacre_names_victim(void) {
   return rc;
 }
 
+/* port_bugs.md #1464/#1465: FUN_5fef_1b0e outcome-popup gates.
+ * @EUROPEWIN/@EUROPELOSE (raw 100810-100811) only to a human Euro defender,
+ * never on the Euro-beats-militia arm (bVar12); a militia defender names its
+ * colonist's @JOB (raw 100813-100815). @INDIANWIN0/1/2, @INDIANLOSE (raw 101039)
+ * skip a native that loses on a colony tile (raid resolver) and the bVar28
+ * militia arm. */
+static int unit_combat_outcome_popup_gates(void) {
+  static AiPopupState pop;
+  ColonizeMsgCatalog game_txt;
+  assets_msg_init(&game_txt);
+  if (!assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT")) {
+    fprintf(stderr, "popup gates: GAME.TXT load failed\n");
+    return 1;
+  }
+  reports_names_load_catalogs("COLONIZE");
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  units_reset(&pool);
+  pool.type_count = 1;
+  pool.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  snprintf(pool.types[0].name, sizeof(pool.types[0].name), "%s", "Soldiers");
+  ColonizeColonyPool colonies;
+  memset(&colonies, 0, sizeof(colonies));
+  colonies_init(&colonies);
+  colonies.colonies[0].id = 0;
+  colonies.colonies[0].active = true;
+  colonies.colonies[0].nation_id = 0;
+  colonies.colonies[0].x = 5;
+  colonies.colonies[0].y = 5;
+  colonies.colony_count = 1;
+  ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  col1.player[0].control = 0; /* human */
+  col1.player[1].control = 1; /* AI */
+  ai_popup_init(&pop);
+  units_set_combat_popups(&pop, &game_txt);
+  units_set_combat_colonies(&colonies);
+  ColonizeUnit human = {0}, ai = {0}, brave = {0};
+  human.nation_id = 0;
+  human.x = 5;
+  human.y = 5;
+  human.profession = 2;
+  ai.nation_id = 1;
+  ai.x = 4;
+  ai.y = 5;
+  brave.nation_id = 4;
+  brave.x = 4;
+  brave.y = 5;
+  struct {
+    const ColonizeUnit* win;
+    const ColonizeUnit* lose;
+    int atk_wins, atk, def, militia, want;
+  } k[] = {
+    {&human, &ai, 1, 0, 1, 0, 0},    /* human attacker beats AI: silent */
+    {&ai, &human, 1, 1, 0, 0, 1},    /* AI beats human: @EUROPEWIN */
+    {&ai, &human, 1, 1, 0, 1, 0},    /* AI beats human militia: capture arm */
+    {&human, &ai, 0, 1, 0, 1, 1},    /* human militia repels AI: @EUROPELOSE */
+    {&human, &brave, 0, 4, 0, 0, 0}, /* brave loses on colony: raid resolver */
+    {&brave, &human, 1, 4, 0, 0, 1}, /* brave beats garrison: @INDIANWIN0 */
+    {&brave, &human, 1, 4, 0, 1, 0}, /* brave beats militia: colony rows */
+  };
+  int rc = 0;
+  for (size_t i = 0; i < sizeof(k) / sizeof(k[0]); ++i) {
+    ai_popup_clear(&pop);
+    g_units_colony_autodefender = k[i].militia != 0;
+    units_combat_outcome_popups(&pool, k[i].win, k[i].lose, k[i].atk_wins, k[i].atk, k[i].def,
+                                0, 0, &col1);
+    g_units_colony_autodefender = false;
+    if (pop.queue_count != k[i].want) {
+      fprintf(stderr, "popup gates: case %zu queued %d want %d\n", i, pop.queue_count,
+              k[i].want);
+      rc = 1;
+    }
+  }
+  /* Militia repel: %STRING2 is the colonist's @JOB, not the unit type. */
+  ai_popup_clear(&pop);
+  g_units_colony_autodefender = true;
+  units_combat_outcome_popups(&pool, &human, &ai, 0, 1, 0, 0, 0, &col1);
+  g_units_colony_autodefender = false;
+  const char* job = reports_job_short_name(2);
+  if (!job[0] || pop.queue_count != 1 || !strstr(pop.queue[0].body, job) ||
+      strstr(pop.queue[0].body, "Soldiers")) {
+    fprintf(stderr, "popup gates: militia body '%s' lacks job '%s'\n",
+            pop.queue_count ? pop.queue[0].body : "", job);
+    rc = 1;
+  }
+  /* Off a colony tile the beaten brave still gets @INDIANLOSE. */
+  ai_popup_clear(&pop);
+  human.x = 7;
+  units_combat_outcome_popups(&pool, &human, &brave, 0, 4, 0, 0, 0, &col1);
+  if (pop.queue_count != 1) {
+    fprintf(stderr, "popup gates: field @INDIANLOSE queued %d\n", pop.queue_count);
+    rc = 1;
+  }
+  units_set_combat_colonies(NULL);
+  units_set_combat_popups(NULL, NULL);
+  reports_names_free_catalogs();
+  assets_msg_free(&game_txt);
+  return rc;
+}
+
 static int s_reset_hook_calls;
 
 static void reset_test_gate(void* user, int nation, int* external, bool* human, int* census) {
@@ -3068,6 +3169,7 @@ static const TestCase k_cases[] = {
   {"unit_combat_cheat_footer_roll_before_dialog", unit_combat_cheat_footer_roll_before_dialog},
   {"unit_reset_hooks_clears_wiring", unit_reset_hooks_clears_wiring},
   {"unit_indian_massacre_names_victim", unit_indian_massacre_names_victim},
+  {"unit_combat_outcome_popup_gates", unit_combat_outcome_popup_gates},
   {"unit_tb33_spanish_tech1_bound", unit_tb33_spanish_tech1_bound},
   {"unit_tb34_sink_decrements_ship_count", unit_tb34_sink_decrements_ship_count},
   {"unit_lcr_burial3_treasure_fizzles_in", unit_lcr_burial3_treasure_fizzles_in},

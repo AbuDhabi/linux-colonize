@@ -12,8 +12,7 @@ key Return               # dismiss: roll won
 wait 3
 key Return               # "{English Soldiers} routed! Unit demoted to {Colonists}" (@DEMOTE); Cayenne not entered
 wait 3
-key Return               # "{French} defeat {English Soldiers} near Cayenne!"; #83 selected next
-wait 3
+                         #  #83 selected next (no outcome popup: #1464/#1465)
 shot
 key KP_7                 # #83 attacks Port Royal (Stockade + fortified Soldier): Combat Analysis
 wait 3
@@ -21,8 +20,7 @@ key Return               # dismiss: roll lost
 wait 3
 key Return               # "{French Dragoons} routed! Unit demoted to {Soldiers}" (@DEMOTE), moves spent
 wait 3
-key Return               # "{English Soldiers} defeat {French} near Port Royal!"; #87 selected next
-wait 3
+                         #  #87 selected next (no outcome popup: #1464/#1465)
 shot
 key KP_9                 # #87 attacks St. Louis (Fortress, local_1a 8): Combat Analysis
 wait 3
@@ -30,6 +28,5 @@ key Return               # dismiss: roll lost
 wait 3
 key Return               # "{French Dragoons} routed! Unit demoted to {Soldiers}"; the winning English
 wait 3                  #  Soldier is promoted (profession 28 -> 21 veteran, FUN_5fef_172c, no popup: AI unit)
-key Return               # "{English Soldiers} defeat {French} near St. Louis!"; no French unit left to move
-wait 3
+                         #  no French unit left to move (no outcome popup: #1464/#1465)
 shot

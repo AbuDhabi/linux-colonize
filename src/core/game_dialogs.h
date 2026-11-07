@@ -658,13 +658,14 @@ int game_colony_unload_hold_commit(
 /* game_colony_unload_ask `extra_payload` bit (bit 20 = unload-all): the answer
  * path arms the DOS `U` status line after the unload (port_bugs.md #1182). */
 #define GAME_UNLOAD_PAYLOAD_U_STATUS (1 << 21)
-/* Colony-screen `U`, FUN_479b_0f60 mode 0 (port_bugs.md #1182): unload the
- * lowest-key hold of the selected ship; red bar @MISC 22 when empty. */
-void game_colony_unload_best_hold(ColonizeGameState* game);
-/* Colony-screen `L`, FUN_479b_11a4 (port_bugs.md #1184): load the highest-key
- * warehouse cargo onto the selected ship; red bars @MISC 21 (no free hold) /
- * @MISC 20 (nothing to load). */
-void game_colony_load_best_cargo(ColonizeGameState* game);
+/* Colony-screen `U` and map ORDERS Unload Cargo, FUN_479b_0f60 mode 0
+ * (port_bugs.md #1182, #1452): unload the lowest-key hold of `unit_id` into
+ * `colony_id`; red bar @MISC 22 when empty. */
+void game_colony_unload_best_hold(ColonizeGameState* game, int unit_id, int colony_id);
+/* Colony-screen `L` and map ORDERS Load Cargo, FUN_479b_11a4 (port_bugs.md
+ * #1184, #1452): load the highest-key cargo of `colony_id` onto `unit_id`; red
+ * bars @MISC 21 (no free hold) / @MISC 20 (nothing to load). */
+void game_colony_load_best_cargo(ColonizeGameState* game, int unit_id, int colony_id);
 /* DOS thunk_FUN_1000_99b8 case 5 (port_bugs.md #785). */
 void game_colony_unload_all_cargo(ColonizeGameState* game, int unit_id);
 bool game_do_found_colony_at_unit(ColonizeGameState* game, int uid);

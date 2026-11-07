@@ -408,10 +408,8 @@ void game_open_debug_atlas(ColonizeGameState* game);
 void game_open_pedia_list(ColonizeGameState* game, PediaCategory category);
 void game_open_save_load(ColonizeGameState* game, SaveLoadMode mode);
 void game_open_terrain_pedia_at_cursor(ColonizeGameState* game);
-void game_order_board(ColonizeGameState* game);
 bool game_order_fortify(ColonizeGameState* game, int uid);
 void game_order_return_europe(ColonizeGameState* game);
-void game_order_unload(ColonizeGameState* game);
 int game_owned_unit_at(const ColonizeGameState* game, int x, int y);
 const ColonizeFont* game_pedia_font(const ColonizeGameState* game);
 const ColonizeFont* game_popup_font(const ColonizeGameState* game);
@@ -433,6 +431,7 @@ void game_status_from_menu_row(
 );
 void set_status_menu_row(ColonizeGameState* game, const char* section, int row, const char* detail);
 void game_trade_route_retarget(ColonizeGameState* game, ColonizeUnit* u);
+bool game_trade_route_lane_sail(ColonizeGameState* game, ColonizeUnit* u);
 void game_move_arrival_tail(ColonizeGameState* game, ColonizeUnit* u);
 void game_ui_drag_clear(ColonizeGameState* game);
 void game_ui_drag_set_icon(ColonizeGameState* game, int sprite);

@@ -22,6 +22,7 @@
 #include "core/dos_buggy.h"
 #include "core/dos_rng.h"
 #include "core/europe.h"
+#include "core/europe_internal.h"
 #include "core/founding_fathers.h"
 #include "core/reports.h"
 #include "core/reports_names.h"
@@ -32,11 +33,11 @@ ColonizeColony* g_turn_1528_last_walked_colony = NULL;
 
 /*
  * Sections:
- *  - Colony construction & building completion
- *  - Nation tick: bells/crosses tally, immigrants, ship repair/routing
+ *  - Colony construction
+ *  - Nation tick: bells/crosses tally, immigrants, ship repair
  */
 
-/* ===================== Colony construction & building completion (turn_colony_unit_construction_one .. turn_colony_free_production) ===================== */
+/* ===================== Colony construction (turn_colony_unit_construction_one .. turn_colony_free_production) ===================== */
 /* Called from turn_produce_one_colony between Phase K and spoilage. */
 void turn_colony_unit_construction_one(const ColonizeWorld* ctx, ColonizeColony* col) {
   if (!ctx || !ctx->units || !col->active || col->building_in_production < 0) {
@@ -113,67 +114,9 @@ void turn_colony_unit_construction_one(const ColonizeWorld* ctx, ColonizeColony*
 }
 
 /*
- * Player-requested: BUY only tops hammers/tools up to the completion
- * threshold — it must NOT complete the project itself (colonies_buy_construction
- * no longer calls colonies_try_complete_building). Completion happens here,
- * once per turn, unconditionally (no Spring/Autumn gate, no "did hammers
- * change this tick" gate — turn_produce_one_colony's own inline complete
- * check only fires when the colony *produces* new hammers that tick, which
- * misses a colony already sitting at/above threshold from a BUY with an
- * idle Carpenter or on a frozen Autumn tick). colonies_try_complete_building's own
- * has_building[] guard makes this safe to also run on a turn where the
- * inline per-colony-production path in turn_produce_one_colony already
- * completed the same project (second call just returns false).
- */
-static void turn_colony_building_completion_one(ColonizeTurnContext* ctx, ColonizeColony* col) {
-  if (!col->active || col->building_in_production < 0) {
-    return;
-  }
-  const ColonizeBuildingType* bt = colonies_building_type(ctx->colonies, col->building_in_production);
-  if (!bt || bt->hammers <= 0 || col->hammers < bt->hammers) {
-    return;
-  }
-  const int built_row = colonies_building_type_row(ctx->colonies, col->building_in_production);
-  const char* bname = colonies_building_name(ctx->colonies, col->building_in_production);
-  if (!colonies_try_complete_building_ex(
-        ctx->colonies, col->id, ctx->col1_ok ? ctx->col1 : NULL
-      )) {
-    /* FUN_364b_0114 raw 56906-56910: a Warehouse Expansion past level 1
-     * refuses with @NOMOREWAREHOUSE each turn it sits complete. */
-    if (col->nation_id == ctx->human_nation &&
-        built_row == COLONY_BUILDING_WAREHOUSE_EXPANSION &&
-        col->warehouse_level > 1u) {
-      colonies_emit_already_have_chrome(col, bt, ctx->ai_popups, ctx->messages);
-    }
-    return;
-  }
-  if (ctx->europe && col->nation_id == ctx->human_nation) {
-    turn_emit_built_chrome(
-      ctx->messages, ctx->ai_popups, col, bname, built_row, ctx->europe->status,
-      sizeof(ctx->europe->status)
-    );
-  }
-}
-
-static void turn_run_colony_building_completion(ColonizeTurnContext* ctx) {
-  if (!ctx || !ctx->colonies) {
-    return;
-  }
-  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-    ColonizeColony* col = &ctx->colonies->colonies[i];
-    if (turn_prod_nation_in_scope(col->nation_id)) {
-      turn_colony_building_completion_one(ctx, col);
-    }
-  }
-}
-
-/*
  * The colony end-of-turn pass (audit CO-10): production, which also finishes
- * unit projects inline (FUN_364b_0688 raw 57771-57774), then the
- * building-completion sweep: BUY-topped-up (or otherwise carpenter-idle /
- * Autumn-frozen) real buildings sitting at or above the hammer threshold need
- * it, because turn_produce_one_colony's inline complete check only fires on a
- * tick that adds new hammers.
+ * buildings and unit projects inline in Phase L (FUN_364b_0688 raw
+ * 57737-57775), hammers produced that tick or not (port_bugs.md #1475).
  * The nation scoping (turn_prod_skip_* / turn_prod_only_*) stays at the call
  * sites: TURN_PROC_SETUP runs every AI nation, TURN_PROC_FINISH the human.
  */
@@ -188,7 +131,6 @@ static void turn_run_colony_eot_with(
   turn_run_colony_production_with_w(&pw, ctx->human_nation, out, ctx->ai_popups, ctx->messages, before, before_user);
   g_turn_1528_last_walked_colony = NULL;
   turn_set_birth_units_pool(NULL);
-  turn_run_colony_building_completion(ctx);
 }
 
 void turn_run_colony_eot(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
@@ -209,7 +151,7 @@ void turn_colony_free_production(
   );
 }
 
-/* ===================== Nation tick: bells/crosses tally, immigrants, ship repair/routing (turn_count_bells_and_crosses_for_nation .. turn_euro_nation_is_ref) ===================== */
+/* ===================== Nation tick: bells/crosses tally, immigrants, ship repair (turn_count_bells_and_crosses_for_nation .. turn_euro_nation_is_ref) ===================== */
 /*
  * out_colony_bells / out_colony_count (both optional) hand back each active
  * colony's bells in DOS colony order: FUN_364b_0688 (raw 57231) calls
@@ -519,9 +461,6 @@ bool turn_human_colony_eot_resume(ColonizeTurnContext* ctx, ColonizeTurnResult* 
   );
   g_turn_1528_last_walked_colony = NULL;
   turn_set_birth_units_pool(NULL);
-  if (*cursor < 0) {
-    turn_run_colony_building_completion(ctx);
-  }
   if (ctx->europe) {
     ctx->europe->liberty_bells_pool = nat->liberty_bells_pool;
     ctx->europe->liberty_bells_last_turn = nat->liberty_bells_last_turn;
@@ -533,8 +472,7 @@ bool turn_human_colony_eot_resume(ColonizeTurnContext* ctx, ColonizeTurnResult* 
  * Colony-screen Space cheat (FUN_2f2b_6372 2f2b:6950 -> FUN_364b_0688 on the
  * viewed colony, with the 0648 redraw after it): ONE colony's production tick
  * outside the turn. It is the colony pass of turn_run_colony_eot_with for a
- * single colony: the same bell step, FUN_364b_0688 body and the building
- * completion sweep, and none of the nation-level steps around the loop (specialty
+ * single colony: the same bell step and FUN_364b_0688 body, and none of the nation-level steps around the loop (specialty
  * census, last-turn bell reset, colony crosses). Pressing it twice produces
  * twice, as in DOS. The caller leaves the colony screen when the colony died.
  */
@@ -566,7 +504,6 @@ void turn_cheat_colony_tick(ColonizeTurnContext* ctx, ColonizeTurnResult* out, i
   );
   g_turn_1528_last_walked_colony = NULL;
   turn_set_birth_units_pool(NULL);
-  turn_colony_building_completion_one(ctx, col);
   if (nat && ctx->europe && n == ctx->human_nation) {
     ctx->europe->liberty_bells_pool = nat->liberty_bells_pool;
     ctx->europe->liberty_bells_last_turn = nat->liberty_bells_last_turn;
@@ -748,25 +685,25 @@ void turn_run_nation_ticks_immigration(ColonizeTurnContext* ctx, ColonizeTurnRes
        * and its popup are lost (@TOOMANYUNITS instead).
        * DOS bug, reproduced for now (docs/tolerated_dos_bugs.md TB-47). */
       bool created = true;
-      if (ctx->units && ctx->europe->dock_count > 0) {
+      /* The immigrant is the newest row, at the back (raw 68588, #1477). */
+      const int row = ctx->europe->dock_count - 1;
+      if (ctx->units && row >= 0) {
         /* Gate without the new dock entry: the reservation hook counts
          * unmirrored dock colonists as records already. */
-        const EuropeDockImmigrant d = ctx->europe->dock[0];
-        europe_dock_drop_front(ctx->europe);
+        ctx->europe->dock_count--;
         created = units_spawn_room(ctx->units, ctx->human_nation);
         if (created) {
-          *europe_dock_insert_front(ctx->europe) = d;
+          ctx->europe->dock_count++;
+          EuropeDockImmigrant* d = &ctx->europe->dock[row];
           /* The row owns its mirror from the start (col1 capture writes the
-           * dock in row order through it, port_bugs.md #1158). */
-          ctx->europe->dock[0].mirror_unit_id = europe_spawn_dock_mirror_unit(
-            ctx->units, ctx->human_nation, d.profession, (int)ctx->europe->difficulty, true,
-            ctx->rng
+           * dock in row order through it, port_bugs.md #1158), typed by the
+           * row's own 0718 roll (port_bugs.md #1463). */
+          d->mirror_unit_id = europe_spawn_dock_mirror_unit_typed(
+            ctx->units, ctx->human_nation, d->profession, d->dos_type
           );
         } else {
-          (void)europe_dock_unit_dos_type(
-            d.profession, (int)ctx->europe->difficulty, true, ctx->rng
-          );
-          /* raw 68588/68601: the 0x40 latch is set only on success. */
+          /* The row's 0718 roll was the one draw (port_bugs.md #1463).
+           * raw 68588/68601: the 0x40 latch is set only on success. */
           ctx->europe->crosses_immigrant_seen = immigrant_seen_before;
           ctx->europe->status[0] = '\0';
           /* TB-47: DOS keeps the charge; fixed under !dos_buggy_behavior()
@@ -786,7 +723,7 @@ void turn_run_nation_ticks_immigration(ColonizeTurnContext* ctx, ColonizeTurnRes
         europe_notify_immigrant_sound(ctx->europe); /* FUN_38fd_5e52 38fd:5ecb: pool 2 */
         const char* name = "";
         if (ctx->europe->dock_count > 0) {
-          name = ctx->europe->dock[0].name;
+          name = ctx->europe->dock[ctx->europe->dock_count - 1].name;
         }
         turn_notify_dock_immigrant(ctx, out, name);
       }
@@ -1061,20 +998,6 @@ void turn_tally_professions_w(const ColonizeWorld* w, int nation_id, uint8_t out
 }
 
 /*
- * port_bugs.md: damaged ships have a homing system — the nearest OWN colony with
- * a Drydock; a nation with no such colony sends them to Europe when Europe
- * is friendly: the pre-WoI human's ships sail home as an Expected-Soon
- * voyage (that voyage IS the repair timeout — they arrive repaired), and a
- * damaged AI hull (crown or peer) is parked off-map in the Europe park
- * until its repair timer runs out (port_bugs.md #871). Runs each nation phase, after units_tick_drydock_repair.
- */
-/* Drydock (DOS colony feature bit 7) or its Shipyard upgrade. */
-/* Drydock bit only, as FUN_5fef_0352 raw 99590 (port_bugs.md #1330). */
-static int turn_colony_repairs_ships(const ColonizeColony* c, int drydock) {
-  return c && drydock >= 0 && drydock < COLONIZE_BUILDING_TYPES_MAX && c->has_building[drydock];
-}
-
-/*
  * The DS:0x9418[nation] hull tally FUN_48d3_0002 gates the 2-turn crossing on
  * (viceroy_unpacked.asm 48d3:003b `cmp byte [bx+0x9418],0x3`), built by
  * FUN_4962_0018 walking the WHOLE unit array and bumping 0x9418 for every
@@ -1109,118 +1032,6 @@ int turn_voyage_ship_count(const ColonizeTurnContext* ctx, int nation) {
     ships += ctx->europe->harbor_ships + ctx->europe->expected_ships + ctx->europe->bound_ships;
   }
   return ships;
-}
-
-void turn_route_damaged_ships(ColonizeTurnContext* ctx, int nation) {
-  if (!ctx || !ctx->units || !ctx->colonies || nation < 0 || nation > 3) {
-    return;
-  }
-  const int woi =
-    ctx->col1_ok && ctx->col1 && ctx->col1->head.game_options.woi != 0;
-  const int drydock = colonies_building_row(ctx->colonies, COLONY_BUILDING_DRYDOCK);
-  for (int i = 0; i < units_slot_end(ctx->units); ++i) {
-    ColonizeUnit* u = &ctx->units->units[i];
-    if (!u->active || u->nation_id != nation || u->aboard_ship_id >= 0) {
-      continue;
-    }
-    if (!units_is_sea(ctx->units, u->id) || (u->col1_flags15 & 0x80u) == 0) {
-      continue;
-    }
-    const ColonizeUnitType* ty = units_type(ctx->units, u->type_index);
-    /*
-     * bit7 is shared by "under construction" and "combat damaged"; only the
-     * latter sets repair_pending, so that — not the col1_counter16/threshold
-     * comparison — is what separates them. The old threshold test never let
-     * a damaged ship through: units_tick_drydock_repair, which runs first,
-     * clears bit7 the moment the timer completes, so the Europe fallback
-     * below was unreachable and every damaged ship stayed at whatever colony
-     * combat had parked it on (port_bugs.md).
-     */
-    if (!u->repair_pending) {
-      continue; /* construction — build tick owns bit7 */
-    }
-    /* Already sitting on an own Drydock colony: the repair tick handles it. */
-    const int cid = colonies_id_at(ctx->colonies, u->x, u->y);
-    const ColonizeColony* here = colonies_get(ctx->colonies, cid);
-    if (here && here->active && here->nation_id == nation &&
-        turn_colony_repairs_ships(here, drydock)) {
-      continue;
-    }
-    /* Nearest own Drydock colony (recomputed here: the one picked at combat
-     * time may since have been captured). */
-    const ColonizeColony* best = NULL;
-    long best_d = -1;
-    if (drydock >= 0) {
-      for (int k = 0; k < COLONIZE_COLONIES_MAX; ++k) {
-        const ColonizeColony* c = &ctx->colonies->colonies[k];
-        if (!c->active || c->nation_id != nation ||
-            !turn_colony_repairs_ships(c, drydock)) {
-          continue;
-        }
-        const long dx = c->x - u->x;
-        const long dy = c->y - u->y;
-        const long d = dx * dx + dy * dy;
-        if (best_d < 0 || d < best_d) {
-          best_d = d;
-          best = c;
-        }
-      }
-    }
-    if (best) {
-      const int ox = u->x;
-      const int oy = u->y;
-      u->x = best->x;
-      u->y = best->y;
-      units_tile_stack_arrive(ctx->units, u->id);
-      units_occupancy_notify_moved(ctx->units, ox, oy, best->x, best->y);
-      continue;
-    }
-    if (nation != ctx->human_nation) {
-      /*
-       * DOS-LITERAL FUN_5fef_0352 raw 99641-99644 (port_bugs.md #871): a damaged
-       * hull whose owner has no repair port is relocated OFF-MAP for EVERY
-       * nation — the colony scan misses (local_20 == 0x3e7) and the
-       * FUN_281f_0812 / FUN_281f_0844 unlink/place pair is handed
-       * `nation - 0x14` in both coordinates, DOS's Europe dock pseudo-tile.
-       * Only the no-port *sink* escape at raw 99604-99607 is human-only.
-       *
-       * The port's equivalent off-map slot is the Europe park
-       * (ai_euro_in_europe / ai_euro_ship_enter_europe's 236+n dock). The hull
-       * stays a LIVE unit with bit7 and its repair timer intact, exactly as
-       * in DOS, so it keeps counting:
-       *   - in the census (raw 78159-78165 walks the whole unit array and
-       *     tallies by nation and type, with no position test), and
-       *   - in ai_king_0982_crown_mow_alive, the FUN_43f7_0982 regen gate.
-       * That is what keeps the player's coastal guns from ACCELERATING the
-       * invasion: a shot-up hull is off the map but still "a Man-O-War the
-       * crown owns", so 0982 does not refill early. (The old comment here
-       * cited the retired "4d56 ship act", port_plan P5.1 2026-09-07, and
-       * left the wreck standing visibly on the invasion tile.)
-       */
-      if (!ai_euro_in_europe(u->x, u->y)) {
-        const int ox = u->x;
-        const int oy = u->y;
-        u->x = 200;
-        u->y = 100;
-        units_occupancy_notify_moved(ctx->units, ox, oy, u->x, u->y);
-        ai_euro_sync_aboard_cargo_xy(ctx->units, u);
-      }
-      /* Every turn, not just the one that parks it: the MP refresh hands the
-       * allotment back to anything in the park now (port_bugs.md #953), and a
-       * wreck waiting out its repair timer must not sail. */
-      u->moves = 0;
-      continue;
-    }
-    if (nation == ctx->human_nation && !woi && ctx->europe && u->cargo_count == 0) {
-      /* Port-only fallback (a hull damaged with no Europe screen wired, or
-       * whose repair colony fell since): the same off-map slot DOS 0352 uses,
-       * the harbor under repair, timer kept (port_bugs.md #1381c). */
-      const bool east = europe_exit_east_of(ctx->map, u->goto_x);
-      if (europe_harbor_push_damaged(ctx->europe, u, ty && ty->name[0] ? ty->name : "", east)) {
-        units_despawn(ctx->units, u->id);
-      }
-    }
-  }
 }
 
 /*

@@ -447,7 +447,7 @@ static int tb_inv_fx_init(TbInvFx* f) {
   for (int y = 0; y < 34; ++y) {
     for (int x = 0; x < 4; ++x) {
       f->map.terrain[y * 4 + x] = x == 0 ? 25 : 1;
-      f->map.layer3[y * 4 + x] = x == 0 ? 0xf0 : 0xf1;
+      f->map.layer3[y * 4 + x] = 0xf1; /* water too: 0982 raw 74104 wants 06b4 == 1, open sea (#1457) */
     }
   }
   f->ctx.units = &f->units;
@@ -845,6 +845,182 @@ static int case_hard_king_area_garrison(void) {
   return 0;
 }
 
+/* #1454: FUN_43f7_10f0 raw 74311-74326 walks the LIVE colonies. Paid hire
+ * (one Regular) against a live coastal port at (2,10) while the col1 save
+ * mirror still holds a stale port at (2,20). Returns the Regular's y, or -1
+ * when nothing landed. */
+static int intervention_10f0_landing_y(bool coastal) {
+  TbInvFx f;
+  if (!tb_inv_fx_init(&f)) {
+    return -2;
+  }
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = i == 0 ? 0 : 1;
+  }
+  col1.head.rival_nation_slot_2 = 2;
+  col1.head.colony_count = 1;
+  col1.colony = calloc(1, sizeof(ColonizeCol1Colony));
+  if (!col1.colony) {
+    map_free(&f.map);
+    return -2;
+  }
+  col1.owned = true;
+  /* 10f0 scores only inset tiles (281f_0302): move the sea to column 1. */
+  for (int y = 0; y < 34; ++y) {
+    f.map.terrain[y * 4] = 1;
+    f.map.terrain[y * 4 + 1] = 25;
+  }
+  col1.colony[0].x = 2;
+  col1.colony[0].y = 20;
+  col1.colony[0].nation_id = 0;
+  col1.colony[0].flags.coastal = 1;
+  col1.colony[0].population = 5;
+  ColonizeColony* c = tb_inv_add_colony(&f, 2, 10, 3);
+  if (!coastal) {
+    c->colony_flags &= (uint8_t)~COLONIZE_COLONY_FLAG_COASTAL;
+  }
+  f.ctx.messages = test_game_txt();
+  f.ctx.names = test_names_txt();
+  f.ctx.col1 = &col1;
+  f.ctx.col1_ok = true;
+  const int merc[4] = {1, 0, 0, 0};
+  ai_king_10f0_land(&f.ctx, 0, 1, merc);
+  int y = -1;
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* u = &f.units.units[i];
+    if (u->active && u->nation_id == 0 && u->type_index == 0) {
+      y = u->y;
+    }
+  }
+  map_free(&f.map);
+  col1_save_free(&col1);
+  return y;
+}
+
+static int case_intervention_10f0_reads_live_colonies(void) {
+  const int live = intervention_10f0_landing_y(true);
+  const int inland = intervention_10f0_landing_y(false);
+  if (live != 10 || inland != -1) {
+    fprintf(stderr, "10f0: landed y coastal=%d (want 10) inland=%d (want -1)\n", live, inland);
+    return fail("10f0 must pick from the live colony pool and land nothing without a coastal port");
+  }
+  return 0;
+}
+
+/* #1457: FUN_43f7_0982 raw 74104 lands only from a water tile whose layer3
+ * low nibble is 1 (06b4, open sea); region-2 water next to the port is skipped. */
+static int case_0982_landing_needs_open_sea(void) {
+  TbInvFx f;
+  if (!tb_inv_fx_init(&f)) {
+    return fail("0982 sea: map_alloc");
+  }
+  for (int y = 0; y < 34; ++y) {
+    f.map.layer3[y * 4] = 0xf2;
+  }
+  tb_inv_add_colony(&f, 1, 10, 4);
+  uint16_t force[4] = {6, 0, 1, 0};
+  tb_inv_run(&f, force);
+  int crown_units = 0;
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* u = &f.units.units[i];
+    crown_units += u->active && u->nation_id == 1;
+  }
+  map_free(&f.map);
+  if (crown_units != 0) {
+    fprintf(stderr, "0982 sea: %d crown units landed (want 0)\n", crown_units);
+    return fail("0982 must not land from water that is not sea region 1");
+  }
+  return 0;
+}
+
+/* #1458: at 75% a raise rung clamps to 0 and shows nothing, but 5be8 still
+ * returns 1 (raw 68531-68533), so 5e52 skips 0c84 (raw 68616-68619): the
+ * tail must draw exactly what the tax roll alone draws. */
+static uint32_t clamped_hike_rng_state(bool tail, int* out_tax, int* out_popups) {
+  ColonizeCol1Save c;
+  col1_save_init(&c);
+  c.head.difficulty = 0;
+  for (int i = 0; i < 4; ++i) {
+    c.player[i].control = (i == 0) ? 0 : 1;
+    memset(&c.nation[i], 0, sizeof(c.nation[i]));
+  }
+  memset(c.head.founding_father, -1, sizeof(c.head.founding_father));
+  ai_diplo_or_both(&c, 0, 2, (uint8_t)(AI_DIPLO_MET | AI_DIPLO_PEACE));
+  c.nation[0].tax_rate = 75;
+  c.stuff.colony_counts[0] = 1;
+  c.head.rebel_sentiment_report = 200; /* score > 949: a raise rung */
+  uint32_t turn = 418; /* 22 * 19: audience interval at difficulty 0; 2 * 418 > 799 */
+  AiPopupState pops;
+  ai_popup_clear(&pops);
+  ColonizeDosRng rng;
+  dos_rng_seed(&rng, 100u);
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.messages = test_game_txt();
+  ctx.names = test_names_txt();
+  ctx.col1 = &c;
+  ctx.col1_ok = true;
+  ctx.rng = &rng;
+  ctx.turn_number = &turn;
+  ctx.human_nation = 0;
+  ctx.ai_popups = &pops;
+  if (tail) {
+    ai_king_human_5e52_tail(&ctx);
+  } else {
+    (void)ai_king_tax_event(&ctx);
+  }
+  *out_tax = c.nation[0].tax_rate;
+  *out_popups = pops.queue_count;
+  return rng.state;
+}
+
+static int case_clamped_hike_skips_new_war(void) {
+  int tax_a = 0, tax_b = 0, pop_a = 0, pop_b = 0;
+  const uint32_t a = clamped_hike_rng_state(true, &tax_a, &pop_a);
+  const uint32_t b = clamped_hike_rng_state(false, &tax_b, &pop_b);
+  if (a != b || tax_a != 75 || pop_a != 0) {
+    fprintf(stderr, "5e52: rng tail=%u tax-only=%u tax=%d popups=%d\n", (unsigned)a,
+            (unsigned)b, tax_a, pop_a);
+    return fail("a clamped hike is still an audience: 5e52 must not run @KINGNEWWAR");
+  }
+  return 0;
+}
+
+/* #1471: FUN_43f7_2564 raw 75226 gates Declare on the cached DS:0x53d0, not a
+ * live SoL recompute (no colonies here: live SoL would read 0). */
+static int declare_first_popup_kind(int report) {
+  ColonizeCol1Save c;
+  col1_save_init(&c);
+  for (int i = 0; i < 4; ++i) {
+    c.player[i].control = (i == 0) ? 0 : 1;
+  }
+  c.head.rebel_sentiment_report = (int16_t)report;
+  AiPopupState pops;
+  ai_popup_clear(&pops);
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.messages = test_game_txt();
+  ctx.names = test_names_txt();
+  ctx.col1 = &c;
+  ctx.col1_ok = true;
+  ctx.human_nation = 0;
+  ctx.ai_popups = &pops;
+  ai_king_menu_declare_independence(&ctx);
+  return pops.queue_count > 0 ? (int)pops.queue[0].kind : -1;
+}
+
+static int case_declare_reads_cached_sentiment(void) {
+  const int high = declare_first_popup_kind(75);
+  const int low = declare_first_popup_kind(49);
+  if (high < 0 || high == (int)AI_POPUP_KIND_OK || low != (int)AI_POPUP_KIND_OK) {
+    fprintf(stderr, "2564: popup kind at 75=%d at 49=%d\n", high, low);
+    return fail("Declare must gate on rebel_sentiment_report (0x53d0 > 49)");
+  }
+  return 0;
+}
+
 /*
  * FUN_38fd_5930 raw 68340 skips self and DS:0x53d2 only. Before succession
  * 0x53d2 = -1, so nation 1 (the port's fallback crown for human 0) counts:
@@ -1067,5 +1243,9 @@ static const TestCase k_cases[] = {
     {"case_hard_king_waves_per_turn", case_hard_king_waves_per_turn},
     {"case_hard_king_lands_on_units", case_hard_king_lands_on_units},
     {"case_hard_king_area_garrison", case_hard_king_area_garrison},
+    {"case_intervention_10f0_reads_live_colonies", case_intervention_10f0_reads_live_colonies},
+    {"case_0982_landing_needs_open_sea", case_0982_landing_needs_open_sea},
+    {"case_clamped_hike_skips_new_war", case_clamped_hike_skips_new_war},
+    {"case_declare_reads_cached_sentiment", case_declare_reads_cached_sentiment},
 };
 TEST_MAIN(k_cases)

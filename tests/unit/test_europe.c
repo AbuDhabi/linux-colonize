@@ -1153,34 +1153,34 @@ static int case_europe_workflow(void) {
     return 1;
   }
   /*
-   * port_bugs.md #999: a colonist CREATED in Europe joins at slot 0 (DOS links it
-   * in as the newest unit on the dock lane), one that ARRIVES from the New
-   * World joins at the back (FUN_1427_03a0 re-links it as the oldest).
+   * port_bugs.md #999 / #1477: the crosses immigrant (5e52 raw 68588,
+   * FUN_1427_03a0) and a colonist that ARRIVES from the New World both join
+   * at the back, re-linked as the oldest unit on the dock lane.
    */
   {
     const int prof0 = eu.dock[0].profession;
     const int prof1 = eu.dock[1].profession;
     if (!europe_immigrant_from_pool(&eu, NULL) || eu.dock_count != 3 ||
-        eu.dock[1].profession != prof0 || eu.dock[2].profession != prof1) {
+        eu.dock[0].profession != prof0 || eu.dock[1].profession != prof1) {
       fprintf(
-        stderr, "created immigrant did not land on slot 0: count=%d p=%d/%d/%d\n",
+        stderr, "crosses immigrant did not land at the back: count=%d p=%d/%d/%d\n",
         eu.dock_count, eu.dock[0].profession, eu.dock[1].profession, eu.dock[2].profession
       );
       europe_free(&eu);
       return 1;
     }
-    const int created = eu.dock[0].profession;
+    const int created = eu.dock[2].profession;
     EuropeHarborShip late;
     memset(&late, 0, sizeof(late));
     late.cargo_count = 1;
     late.cargo_types[0] = -2; /* nameless colonist, no unit pool needed */
     late.cargo_professions[0] = 19;
     europe_disembark_passengers_to_dock(&eu, &late, NULL);
-    if (eu.dock_count != 4 || eu.dock[3].profession != 19 || eu.dock[0].profession != created ||
+    if (eu.dock_count != 4 || eu.dock[3].profession != 19 || eu.dock[2].profession != created ||
         late.cargo_count != 0) {
       fprintf(
-        stderr, "New World arrival did not land at the back: count=%d p0=%d p3=%d cargo=%d\n",
-        eu.dock_count, eu.dock[0].profession, eu.dock[3].profession, late.cargo_count
+        stderr, "New World arrival did not land at the back: count=%d p2=%d p3=%d cargo=%d\n",
+        eu.dock_count, eu.dock[2].profession, eu.dock[3].profession, late.cargo_count
       );
       europe_free(&eu);
       return 1;
@@ -3070,6 +3070,54 @@ done:
   return rc;
 }
 
+/* port_bugs.md #1463: a Brewster Veteran Soldier draws the FUN_38fd_0718
+ * Soldier->Dragoon roll once (raw 59117-59127); the dock row and its mirror
+ * unit share it. The second roll used to disagree ~32% of the time. */
+static int case_europe_brewster_mirror_one_roll(void) {
+  diag_init(0, NULL);
+  static EuropeScreen eu;
+  char err[256];
+  if (!test_europe_load(&eu, "COLONIZE", err, sizeof(err))) {
+    fprintf(stderr, "one roll: europe_load failed: %s\n", err);
+    return 1;
+  }
+  ColonizeMsgCatalog names;
+  static ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
+  memset(&names, 0, sizeof(names));
+  units_reset(&units);
+  units_set_occupancy_map(NULL);
+  int rc = 1;
+  if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT") || !units_load_types(&units, &names)) {
+    goto done;
+  }
+  eu.difficulty = 0; /* bound 0+4: Dragoon one time in five */
+  for (uint32_t seed = 1; seed <= 60; ++seed) {
+    eu.dock_count = 0;
+    memset(eu.dock, 0, sizeof(eu.dock));
+    eu.pool[0].filled = true;
+    eu.pool[0].profession = UNITS_JOB_SOLDIER;
+    snprintf(eu.pool[0].name, sizeof(eu.pool[0].name), "%s", "Veteran Soldier");
+    ColonizeDosRng rng;
+    dos_rng_seed(&rng, seed);
+    const ColonizeWorld w = {.units = &units, .europe = &eu, .rng = &rng};
+    (void)units_brewster_apply_slot_w(&w, 0, 0);
+    const int mid = eu.dock_count > 0 ? eu.dock[0].mirror_unit_id : -1;
+    if (mid <= 0 || dock_mirror_type(&units, mid) !=
+                      europe_dock_unit_type_index(&units, eu.dock[0].dos_type)) {
+      fprintf(stderr, "one roll: seed %u row type %d mirror type %d\n", (unsigned)seed,
+              eu.dock_count > 0 ? eu.dock[0].dos_type : -1, dock_mirror_type(&units, mid));
+      goto done;
+    }
+    (void)units_disband(&units, mid);
+  }
+  rc = 0;
+done:
+  assets_msg_free(&names);
+  europe_free(&eu);
+  return rc;
+}
+
 /* A Petty Criminal (@JOB 0x1a) shipped home lands on the dock as a row named
  * after his @UNIT type ("Colonists", europe_disembark_passengers_to_dock).
  * Blessed there, he must board as the Missionaries type, not by that name. */
@@ -4000,6 +4048,7 @@ static const TestCase k_cases[] = {
     {"case_europe_lanes_past_old_caps", case_europe_lanes_past_old_caps},
     {"case_europe_dock_continental_row", case_europe_dock_continental_row},
     {"case_europe_dock_mirror_follows_row", case_europe_dock_mirror_follows_row},
+    {"case_europe_brewster_mirror_one_roll", case_europe_brewster_mirror_one_roll},
     {"case_europe_reverse_transit_keeps_turns", case_europe_reverse_transit_keeps_turns},
     {"case_europe_tb4_tb48_fixed", case_europe_tb4_tb48_fixed},
     {"case_europe_transit_drag_db56", case_europe_transit_drag_db56},

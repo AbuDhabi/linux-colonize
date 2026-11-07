@@ -5647,7 +5647,7 @@ static int sp_49(void) {
     col1.nation[1].euro_relation[0] = AI_DIPLO_MET;
     ind->alarm_by_player[0] = 20;
     ind->euro_diplo[0] |= COL1_INDIAN_MET_BIT;
-    col1.tribe[0].mission = COL1_TRIBE_MISSION_NONE;
+    col1.tribe[0].mission = 2; /* code 7 on any roll (OVL13 0x46ba-0x46c4, #1459) */
     const int alarm0 = ind->alarm_by_player[0];
     const uint32_t gold0 = col1.nation[1].gold;
     if (!ai_contact_ai_incite_human(&ictx, ind, &col1.tribe[0], 4, 1, 1)) {
@@ -5684,14 +5684,14 @@ static int sp_49(void) {
     ind->horse_herds = 50;
     col1.nation[1].gold = 100000;
     ind->alarm_by_player[0] = 20;
-    col1.tribe[0].mission = COL1_TRIBE_MISSION_NONE;
+    col1.tribe[0].mission = 2;
     if (!ai_contact_ai_incite_human(&ictx, ind, &col1.tribe[0], 4, 1, 1)) {
       return fail("417e Mode 2 (Jesuit) should fire");
     }
     const uint32_t paid_jesuit = 100000u - col1.nation[1].gold;
     col1.nation[1].gold = 100000;
     ind->alarm_by_player[0] = 20;
-    col1.tribe[0].mission = COL1_TRIBE_MISSION_NONE;
+    col1.tribe[0].mission = 2;
     if (!ai_contact_ai_incite_human(&ictx, ind, &col1.tribe[0], 4, 1, 0)) {
       return fail("417e Mode 2 (non-Jesuit) should fire");
     }
@@ -5713,7 +5713,7 @@ static int sp_49(void) {
         col1.stuff.tribe_data_9184[0] = bvs[k];
         col1.nation[1].gold = 100000;
         ind->alarm_by_player[0] = 20;
-        col1.tribe[0].mission = COL1_TRIBE_MISSION_NONE;
+        col1.tribe[0].mission = 2;
         if (!ai_contact_ai_incite_human(&ictx, ind, &col1.tribe[0], 4, 1, 0)) {
           return fail("census incite should fire");
         }
@@ -5729,6 +5729,41 @@ static int sp_49(void) {
       col1.stuff.tribe_village_counts[0] = vc_save;
       col1.stuff.tribe_data_9184[0] = bv_save;
     }
+    /* port_bugs.md #1459 — OVL13 0x46ac-0x46c4: a rand(0,4) roll of 0 skips
+     * the incite only when the village has NO mission. */
+    {
+      uint32_t seed0 = 1u;
+      for (;; ++seed0) {
+        ColonizeDosRng probe;
+        dos_rng_seed(&probe, seed0);
+        if (dos_rng_range(&probe, 0, 4) == 0) {
+          break;
+        }
+      }
+      col1.nation[1].gold = 100000;
+      ind->alarm_by_player[0] = 20;
+      col1.tribe[0].mission = COL1_TRIBE_MISSION_NONE;
+      dos_rng_seed(&irng, seed0);
+      if (ai_contact_ai_incite_human(&ictx, ind, &col1.tribe[0], 4, 1, 0) ||
+          ind->alarm_by_player[0] != 20 || col1.nation[1].gold != 100000) {
+        return fail("#1459: roll 0 + no mission must skip the incite (code 3 path)");
+      }
+      col1.tribe[0].mission = 2;
+      dos_rng_seed(&irng, seed0);
+      if (ai_contact_ai_incite_human(&ictx, ind, &col1.tribe[0], 4, 1, 0) != 1) {
+        return fail("#1459: roll 0 + a mission must still incite (code 7)");
+      }
+    }
+    /* port_bugs.md #1460 — gates pass (gold >= 1500) but the price is out of
+     * reach: code 7 is committed, 417e returns doing nothing (2). */
+    col1.nation[1].gold = 1500;
+    ind->alarm_by_player[0] = 20;
+    col1.tribe[0].mission = 2;
+    if (ai_contact_ai_incite_human(&ictx, ind, &col1.tribe[0], 4, 1, 0) != 2 ||
+        ind->alarm_by_player[0] != 20 || col1.nation[1].gold != 1500) {
+      return fail("#1460: unaffordable incite must commit code 7 and change nothing");
+    }
+    col1.tribe[0].mission = COL1_TRIBE_MISSION_NONE;
     ind->muskets = muskets_save;
     ind->horse_herds = horses_save;
     ind->alarm_by_player[0] = 20;
@@ -5902,6 +5937,58 @@ static int sp_51(void) {
       return fail("8d4a: purchase must not touch the tribe's first village");
     }
     fprintf(stderr, "unit_ai_contact: 2820 visited-settlement binding ok\n");
+  }
+  /*
+   * port_bugs.md #1480 — FUN_4d56_4528 binds DS:0x8d4a to the ENTERED tile's
+   * village (09f0/0a4c): with two villages of one tribe touching the unit, the
+   * @ACTIONS menu carries the entered one, not the tribe's first adjacent record.
+   */
+  {
+    const ColonizeCol1Tribe* old_tribes = col1.tribe;
+    const uint16_t old_count = col1.head.tribe_count;
+    ColonizeCol1Tribe two[2];
+    two[0] = col1.tribe[0];
+    two[1] = col1.tribe[0];
+    two[0].x = 5;
+    two[0].y = 5;
+    two[1].x = 7;
+    two[1].y = 5;
+    col1.tribe = two;
+    col1.head.tribe_count = 2;
+    const int uid = units_spawn_allow_stack(&units, 0, 6, 5);
+    ColonizeUnit* u = units_get(&units, uid);
+    if (!u) {
+      col1.tribe = (ColonizeCol1Tribe*)old_tribes;
+      col1.head.tribe_count = old_count;
+      return fail("#1480: unit spawn");
+    }
+    u->nation_id = 0;
+    AiPopupState vp;
+    ai_popup_init(&vp);
+    ColonizeTurnContext vctx;
+    memset(&vctx, 0, sizeof(vctx));
+    vctx.messages = test_game_txt();
+    vctx.names = test_names_txt();
+    vctx.col1 = &col1;
+    vctx.col1_ok = true;
+    vctx.units = &units;
+    vctx.map = &map;
+    vctx.colonies = &colonies;
+    vctx.human_nation = 0;
+    vctx.ai_popups = &vp;
+    const int queued = ai_contact_try_village_meet_unit_at(&vctx, 0, 4, 0, 0, uid, 1);
+    const int vi = vp.queue_count == 1 ? ai_contact_meet_payload_village(vp.queue[0].payload) : -2;
+    const int vu = vp.queue_count == 1 ? ai_contact_meet_payload_unit(vp.queue[0].payload) : -2;
+    const ColonizeCol1Tribe* bound = ai_contact_menu_village(&vctx, 4, u, vi);
+    const ColonizeCol1Tribe* scan = ai_contact_menu_village(&vctx, 4, u, -1);
+    ai_popup_clear(&vp);
+    units_despawn(&units, uid);
+    col1.tribe = (ColonizeCol1Tribe*)old_tribes;
+    col1.head.tribe_count = old_count;
+    if (!queued || vi != 1 || vu != uid || bound != &two[1] || scan != &two[0]) {
+      fprintf(stderr, "unit_ai_contact: #1480 queued %d village %d unit %d\n", queued, vi, vu);
+      return fail("#1480: @ACTIONS must act on the entered village");
+    }
   }
   return 0;
 }
@@ -6517,7 +6604,7 @@ static int sp_55(void) {
       }
       {
         int disclosed_skill = -1;
-        const int offered_skill = pop_menu.queue[0].payload >> 16;
+        const int offered_skill = pop_menu.queue[0].payload >> 24; /* skill above uid + village (#1480) */
         if (!village_trade_intel_get_skill(0, 5, 5, &disclosed_skill) ||
             disclosed_skill != offered_skill) {
           return fail("live among: @LEARNSTAY should record the offered village skill");

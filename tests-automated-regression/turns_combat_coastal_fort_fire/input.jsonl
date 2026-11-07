@@ -27,9 +27,7 @@
 {"type":"key_up","t_ms":5480,"frame":280,"keycode":13,"mod":0}
 {"type":"key_down","t_ms":5816,"frame":301,"keycode":13,"mod":0}
 {"type":"key_up","t_ms":5864,"frame":304,"keycode":13,"mod":0}
-{"type":"key_down","t_ms":6200,"frame":325,"keycode":13,"mod":0}
-{"type":"key_up","t_ms":6248,"frame":328,"keycode":13,"mod":0}
-{"type":"key_down","t_ms":6584,"frame":349,"keycode":27,"mod":0}
-{"type":"key_up","t_ms":6632,"frame":352,"keycode":27,"mod":0}
-{"type":"key_down","t_ms":6904,"frame":369,"keycode":1073741893,"mod":0}
-{"type":"key_up","t_ms":6920,"frame":370,"keycode":1073741893,"mod":0}
+{"type":"key_down","t_ms":6200,"frame":325,"keycode":27,"mod":0}
+{"type":"key_up","t_ms":6248,"frame":328,"keycode":27,"mod":0}
+{"type":"key_down","t_ms":6520,"frame":345,"keycode":1073741893,"mod":0}
+{"type":"key_up","t_ms":6536,"frame":346,"keycode":1073741893,"mod":0}

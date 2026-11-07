@@ -459,13 +459,13 @@ void ai_king_tax_teaparty(ColonizeTurnContext* ctx, int human, int cargo) {
  * flag are still set/read for presentation and for the Fugger-clears-
  * boycotts sync, just no longer block the audience interval gate.
  */
-void ai_king_tax_event(ColonizeTurnContext* ctx) {
+bool ai_king_tax_event(ColonizeTurnContext* ctx) {
   if (!ctx || !ctx->col1_ok || !ctx->col1) {
-    return;
+    return false;
   }
   const int human = ctx->human_nation;
   if (human < 0 || human >= 4) {
-    return;
+    return false;
   }
   /* Fugger / external bitmap clear → drop the boycott presentation flag. */
   ai_king_sync_boycott_refuse(ctx->col1, human);
@@ -474,9 +474,12 @@ void ai_king_tax_event(ColonizeTurnContext* ctx) {
   AiKingAudienceFlavor flavor;
   memset(&flavor, 0, sizeof(flavor));
   if (!ai_king_audience_roll(ctx, human, &delta, &flavor)) {
-    return; /* no audience this turn: interval gate, or degenerate 0% cut */
+    return false; /* no audience this turn: interval gate, or degenerate 0% cut */
   }
   ai_king_tax_hike_apply(ctx, human, delta, &flavor);
+  /* FUN_38fd_5be8 raw 68531-68533: once a rung is rolled 5be8 returns 1,
+   * even when 3dc8 clamps the delta to 0 and shows nothing (raw 64179-64186). */
+  return true;
 }
 
 /*
@@ -1350,9 +1353,11 @@ void ai_king_menu_declare_independence(ColonizeTurnContext* ctx) {
     }
     return;
   }
-  /* FUN_43f7_2564 raw 75227 tests DS:0x53d0, the cached SoL of DS:0x5398:
-   * in hot-seat that is the fixed power's, whoever declares. */
-  const int sol = ai_king_sol_percent(ctx, col1_fixed_human(ctx->col1, human));
+  /* FUN_43f7_2564 raw 75226-75227 tests DS:0x53d0 itself (> 0x31): the SoL
+   * cached by 2424 each peacetime turn for the fixed power (hot-seat: whoever
+   * declares), plus Bolivar's +20 and cheat stage 1's 75 — not a live
+   * recompute (#1471). @TOOTORY's %NUMBER0 is the same word (raw 75245). */
+  const int sol = (int)ctx->col1->head.rebel_sentiment_report;
   if (sol < AI_KING_DECLARE_SOL_MIN) {
     if (ai_king_human_popups(ctx)) {
       PopupMsgTokens tok;

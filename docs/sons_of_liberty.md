@@ -206,7 +206,7 @@ applied in EOT field/craft/hammers/bells/crosses and preview.
 
 | Event | Gate | Port symbols |
 |-------|------|--------------|
-| Declare | Nation SoL ≥ **50%** (manual / `FUN_43f7_2564`) | `AI_KING_DECLARE_SOL_MIN`. DOS has no per-turn auto-check: declaring is menu-only (row below). The bit-`0x80`-gated first popup is a hotseat disambiguation step (set only by the new-game nation select, `FUN_75c2_10ae`) with no equivalent under the port's single `human_nation`, so the single @DECLARE Never/Yes is the complete behaviour (`ai_king_show_declare_choice` comment) |
+| Declare | Nation SoL ≥ **50%** (manual / `FUN_43f7_2564`) | `AI_KING_DECLARE_SOL_MIN`, tested against the cached DS:0x53d0 `head.rebel_sentiment_report` (2424's per-turn cache, Bolivar +20, cheat 75; raw 75226), not a live recompute (#1471). DOS has no per-turn auto-check: declaring is menu-only (row below). The bit-`0x80`-gated first popup is a hotseat disambiguation step (set only by the new-game nation select, `FUN_75c2_10ae`) with no equivalent under the port's single `human_nation`, so the single @DECLARE Never/Yes is the complete behaviour (`ai_king_show_declare_choice` comment) |
 | Declare (menu) | MENU.TXT `@GAME` "DECLARE INDEPENDENCE" (`FUN_43f7_2564`) | `ai_king_menu_declare_independence` / `MAP_MENU_ACTION_DECLARE_INDEPENDENCE` — below `AI_KING_DECLARE_SOL_MIN` shows `@TOOTORY` (`0x1386`); at/above the `@DECLARE` confirm; already-WoI is a status-only no-op. See `original_sources_annotated/ai/king_ref.md` |
 | Mercenary offer (`FUN_43f7_2022`) | No SoL gate: 1-in-3 per-turn roll while REF is not present or the Artillery backup pool is empty | `AI_KING_MERC_ROLL_CHANCE` |
 

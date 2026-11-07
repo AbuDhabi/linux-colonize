@@ -99,4 +99,10 @@ void europe_board_sentry_dockers(
   int cargo_cap
 );
 
+/* europe_spawn_dock_mirror_unit with the row's already-rolled dos_type
+ * (no second 0718 draw; port_bugs.md #1463). */
+int europe_spawn_dock_mirror_unit_typed(
+  ColonizeUnitPool* units, int nation_id, int profession, int dos_type
+);
+
 #endif /* COLONIZE_CORE_EUROPE_INTERNAL_H */

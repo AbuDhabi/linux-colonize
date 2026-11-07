@@ -74,7 +74,7 @@ Order EN→FR→SP→DU; skip `human_nation` and withdrawn (`player.control==2`)
 | Step | OpenCol | DOS |
 |------|-------|-----|
 | **Human Europe pass** | `turn_run_human_europe_pass` | `FUN_48d3_06ba` (`0a82`, raw 58377), after the 5e52 / tax answer, before the colony loop |
-| **Human colony production** | `turn_human_colony_eot_begin` / `turn_human_colony_eot_resume` (sliced `turn_run_human_colony_eot`: `turn_run_colony_production_from_w` with the bell step, unit projects finish inside it; `turn_run_colony_building_completion` after the last colony) | `FUN_364b_0688` inside the human's own `3844_00f2`, which `130d` runs **immediately before** that nation's Move Pieces |
+| **Human colony production** | `turn_human_colony_eot_begin` / `turn_human_colony_eot_resume` (sliced `turn_run_human_colony_eot`: `turn_run_colony_production_from_w` with the bell step, unit projects and buildings (Phase L, #1475) finish inside it) | `FUN_364b_0688` inside the human's own `3844_00f2`, which `130d` runs **immediately before** that nation's Move Pieces |
 | Census / blockade probe | `ai_euro_census_ship_pressure_refresh(human)` | `FUN_291f_0a74` → `FUN_4962_0018` after the colony-EOT loop (`:58390`) |
 
 FINISH then **yields** (returns to the frame loop) so every production popup it
@@ -107,7 +107,7 @@ slice, so its order is unchanged.
 | Year-end chrome | `turn_run_year_end_chrome` | `FUN_3844_0442` sections B–E |
 | Europe market | `europe_tick_market_prices` + one `@PRICEUP`/`@PRICEDOWN` OK dialog per cargo that crossed | `FUN_38fd_0058` (sibling of nation EOT `38fd_5e52`), phase 4 |
 | Human fog + MP refresh | `turn_reveal_fog_for_nation` + `turn_refresh_moves_for_nation` | Human refresh at act entry |
-| Human ticks | `units_tick_convert_outside_colony` (`@DEADCONVERTS`), `units_tick_ship_build_ready` (timer only), `units_tick_drydock_repair` (`@REFIT`), `turn_route_damaged_ships`, King's Galleon offer | Human Convert expiry inside that nation’s `00f2`; `FUN_465b_0000` → `FUN_5fef_1908` for the Galleon |
+| Human ticks | `units_tick_convert_outside_colony` (`@DEADCONVERTS`), `units_tick_ship_build_ready` (timer only), `units_tick_drydock_repair` (`@REFIT`), King's Galleon offer | Human Convert expiry inside that nation’s `00f2`; `FUN_465b_0000` → `FUN_5fef_1908` for the Galleon |
 | Select next unit | `turn_select_next_unit_awaiting_orders` (plain `turn_select_next_unit` + the Fortified/Sentry skip) | Return to Move Pieces / focus |
 | Autosave flags | decade Spring → slot 8 else 9 | `FUN_130d_0172` |
 

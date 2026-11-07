@@ -26,6 +26,7 @@
 #include "core/strutil.h"
 #include "core/turn.h"
 #include "core/ui_colors.h"
+#include "core/units_cargo.h"
 #include "core/unit_chrome.h"
 #include "core/village_trade_intel.h"
 #include "platform/diagnostics.h"
@@ -1194,6 +1195,30 @@ static bool map_panel_cheat_bit(const ColonizeCol1Save* col1) {
   return col1 && col1->head.game_options.cheats_enabled;
 }
 
+/* FUN_49dd_0424 raw 78786-78815 (#1468): the seen-land owner line reads the
+ * layer3 owner nibble (FUN_281f_06dc, 0xf = -1): "<Tribe> Land" for 4..,
+ * the country for 0..3 (FUN_281f_0a2e), "Wilderness" (LABELS.TXT @MISC 17)
+ * only when unowned. */
+COLONIZE_INTERNAL void map_panel_format_owner(
+  char* out,
+  size_t size,
+  const ColonizeCol1Save* col1,
+  const ColonizeWorldMap* map,
+  int x,
+  int y,
+  const char* nation_name,
+  int human_nation
+) {
+  const int owner = (int)((map_get_layer3(map, x, y) >> MAP_L3_OWNER_SHIFT) & MAP_L3_OWNER_MASK);
+  if (owner == 0x0f) {
+    snprintf(out, size, "%s", reports_misc_display_word(17, ""));
+  } else if (owner > 3) {
+    snprintf(out, size, "%s %s", map_panel_tribe_short(owner), reports_misc_display_word(18, ""));
+  } else {
+    snprintf(out, size, "%s", map_panel_euro_country(col1, nation_name, owner, human_nation));
+  }
+}
+
 /* "<label> (x,y)" plus the B1/B2 region suffix: `need_cheat` false = B1 (the
  * tile-only block), true = B2 (the unit block). */
 COLONIZE_INTERNAL void map_panel_format_locat(
@@ -1617,7 +1642,6 @@ COLONIZE_INTERNAL void map_panel_render_selected_block(MapPanelRenderCtx* c) {
 /* View Pieces / no selection: cursor position and tile owner. */
 COLONIZE_INTERNAL void map_panel_render_cursor_block(MapPanelRenderCtx* c) {
   const ColonizeWorldMap* map = c->map;
-  const ColonizeColonyPool* colonies = c->colonies;
   const ColonizeCol1Save* col1 = c->col1;
   const MapPanel* panel = c->panel;
   const ColonizeFont* font = c->font;
@@ -1645,26 +1669,8 @@ COLONIZE_INTERNAL void map_panel_render_cursor_block(MapPanelRenderCtx* c) {
   map_panel_draw_line(font, framebuffer, text_x, &c->text_y, line_h, y_limit, line, MAP_PANEL_COL_TEXT);
 
   if (tile_seen && map && map_tile_is_land(map, info_x, info_y)) {
-    const ColonizeColony* col_here =
-      colonies ? colonies_get(colonies, colonies_id_at(colonies, info_x, info_y)) : NULL;
-    const ColonizeCol1Tribe* tribe = col1_save_tribe_at(col1, info_x, info_y);
-    if (col_here && col_here->active) {
-      snprintf(
-        line, sizeof(line), "%s",
-        map_panel_euro_country(col1, nation_name, col_here->nation_id, resolved_human)
-      );
-      map_panel_draw_line(font, framebuffer, text_x, &c->text_y, line_h, y_limit, line, MAP_PANEL_COL_TEXT);
-    } else if (tribe) {
-      snprintf(
-        line, sizeof(line), "%s %s", map_panel_tribe_short(tribe->nation_id),
-        reports_misc_display_word(18, "")
-      );
-      map_panel_draw_line(font, framebuffer, text_x, &c->text_y, line_h, y_limit, line, MAP_PANEL_COL_TEXT);
-    } else {
-      /* LABELS.TXT @MISC row 17 "Wilderness". */
-      const char* wild = reports_misc_display_word(17, "");
-      map_panel_draw_line(font, framebuffer, text_x, &c->text_y, line_h, y_limit, wild, MAP_PANEL_COL_TEXT);
-    }
+    map_panel_format_owner(line, sizeof(line), col1, map, info_x, info_y, nation_name, resolved_human);
+    map_panel_draw_line(font, framebuffer, text_x, &c->text_y, line_h, y_limit, line, MAP_PANEL_COL_TEXT);
   }
 }
 
@@ -1783,6 +1789,45 @@ COLONIZE_INTERNAL void map_panel_render_holds(MapPanelRenderCtx* c) {
   }
 }
 
+/*
+ * FUN_49dd_0424 raw 79035-79069 (asm 49dd:0f08-0fe6, #1467): the "With:" goods
+ * strip of a colony. Key per cargo = min(stock,100) * (DS:0x84bc price << 4),
+ * Tools/Muskets weight 1, Horses 0 below 150 (colony+0xaa); FUN_291f_0ed0
+ * ascending sort over all 16, then walked from the top: up to 5 cargos with
+ * stock > 0. Returns the count written to out_cargo.
+ */
+COLONIZE_INTERNAL int map_panel_colony_goods_strip(
+  const ColonizeColony* col, const ColonizeCol1Save* col1, int out_cargo[5]
+) {
+  uint16_t key[COLONIZE_CARGO_COUNT];
+  int order[COLONIZE_CARGO_COUNT];
+  for (int g = 0; g < COLONIZE_CARGO_COUNT; ++g) {
+    order[g] = g;
+    int weight = 0;
+    if (col1 && col->nation_id >= 0 && col->nation_id < (int)COLONIZE_COL1_NATION_COUNT) {
+      /* DS:0x84bc = euro_price - 1 clamped at 0 (port_bugs.md #797). */
+      const int p = (int)col1->nation[col->nation_id].trade.euro_price[g] - 1;
+      weight = (p > 0 ? p : 0) << 4;
+    }
+    if (g == COLONIZE_CARGO_MUSKETS || g == COLONIZE_CARGO_TOOLS) {
+      weight = 1;
+    }
+    if (g == COLONIZE_CARGO_HORSES && col->stock[COLONIZE_CARGO_HORSES] < 0x96) {
+      weight = 0;
+    }
+    const int amt = col->stock[g] > 100 ? 100 : col->stock[g];
+    key[g] = (uint16_t)(amt * weight); /* 16-bit IMUL */
+  }
+  units_dos_sort_1cf8(key, order, COLONIZE_CARGO_COUNT);
+  int n = 0;
+  for (int i = COLONIZE_CARGO_COUNT - 1; i >= 0 && n < 5; --i) {
+    if (col->stock[order[i]] > 0) {
+      out_cargo[n++] = order[i];
+    }
+  }
+  return n;
+}
+
 /* Colony under the cursor (only on a seen tile). */
 COLONIZE_INTERNAL void map_panel_render_colony_row(MapPanelRenderCtx* c) {
   const ColonizeColonyPool* colonies = c->colonies;
@@ -1791,7 +1836,6 @@ COLONIZE_INTERNAL void map_panel_render_colony_row(MapPanelRenderCtx* c) {
   const ColonizePalette* active_palette = c->active_palette;
   ColonizeFramebuffer8* framebuffer = c->framebuffer;
   const int text_x = c->text_x;
-  const int indent_x = c->indent_x;
   const int y_limit = c->y_limit;
   const int info_x = c->info_x;
   const int info_y = c->info_y;
@@ -1811,21 +1855,43 @@ COLONIZE_INTERNAL void map_panel_render_colony_row(MapPanelRenderCtx* c) {
       } else if (stockade >= 0 && col->has_building[stockade]) {
         colony_icon = 0;
       }
-      int label_x = indent_x;
+      /* asm 49dd:0e82-0efa: FUN_281f_02a8 icon at (x+2, y), FUN_281f_0132 name at
+       * (x+0x14, y+10), then y += font height + 0x11 (= line_h + 0x10). */
       if (icons && icons->sprite_count > MAP_PANEL_COLONY_ICON_NONE) {
         colonies_blit_settlement_icon(
-          icons, colony_icon, framebuffer, text_x, c->text_y, col->nation_id, active_palette
+          icons, colony_icon, framebuffer, text_x + 2, c->text_y, col->nation_id, active_palette
         );
       }
       font_draw_text(
         font,
         framebuffer,
-        label_x,
-        c->text_y + 2,
+        text_x + 0x14,
+        c->text_y + 10,
         col->name[0] ? col->name : "",
         MAP_PANEL_COL_TEXT
       );
-      c->text_y += MAP_PANEL_ROW_H;
+      c->text_y += c->line_h + 0x10;
+
+      /* #1467 raw 79035-79098: the viewer's own colony (or Complete Map) gets
+       * @INFO[3] at (x, y+2) and the goods icons from its end + 1 (0x17+g at
+       * >= 100, grey 0x27+g below); the row then advances icon 0x17 height + 1. */
+      int cargo[5];
+      const int n = (c->fog_nation < 0 || col->nation_id == c->fog_nation)
+                      ? map_panel_colony_goods_strip(col, c->col1, cargo)
+                      : 0;
+      if (n > 0 && icons && icons->sprite_count > MAP_PANEL_CARGO_GREY_BASE + COLONIZE_CARGO_COUNT - 1) {
+        const char* with = map_panel_section_line(c->labels, "INFO", 3);
+        with = with ? with : "";
+        font_draw_text(font, framebuffer, text_x, c->text_y + 2, with, MAP_PANEL_COL_TEXT);
+        int x = text_x + (font ? font_text_width(font, with) : 0) + 1;
+        for (int i = 0; i < n; ++i) {
+          const int sprite =
+            (col->stock[cargo[i]] >= 100 ? MAP_PANEL_CARGO_ICON_BASE : MAP_PANEL_CARGO_GREY_BASE) + cargo[i];
+          ss_blit_sprite(icons, sprite, framebuffer, x, c->text_y);
+          x += icons->sprites[sprite].width + 1;
+        }
+        c->text_y += icons->sprites[MAP_PANEL_CARGO_ICON_BASE].height + 1;
+      }
     }
   }
 }

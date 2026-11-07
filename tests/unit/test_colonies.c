@@ -2073,6 +2073,19 @@ static int case_colonies_core(void) {
       }
       CHECK(!colonies_destroy_building(&pool, cid, town), "refuse destroy Town Hall");
       CHECK(c->has_building[town], "Town Hall remains");
+      /* #1462: FUN_5fef_0f14 raw 99975-99982 makes a burned root's crew
+       * Carpenters (job 0xd), not idle. */
+      const int school = colonies_building_row(&pool, COLONY_BUILDING_SCHOOLHOUSE);
+      const int shop = colonies_building_row(&pool, COLONY_BUILDING_CARPENTERS_SHOP);
+      CHECK(school >= 0 && shop >= 0, "Schoolhouse / Carpenter's Shop types");
+      if (school >= 0 && shop >= 0 && c->colonist_count > 0) {
+        c->has_building[school] = true;
+        c->has_building[shop] = true;
+        c->colonists[0].building_type = school;
+        c->colonists[0].field_job = -1;
+        CHECK(colonies_destroy_building(&pool, cid, school), "destroy Schoolhouse");
+        CHECK(c->colonists[0].building_type == shop, "burned root crew becomes Carpenter");
+      }
     }
   }
 

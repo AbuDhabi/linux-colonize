@@ -1,7 +1,8 @@
 # DOS-fidelity audit of surviving Aug/Sep 2026 code (2026-11-06)
 
-STATUS: OPEN. The ranked shortlist was adversarially re-verified (2026-11-06) and filed as
-port_bugs.md #1452-#1482; the remaining low/QUESTION items below are unverified and unfiled.
+STATUS: OPEN. The ranked shortlist was adversarially re-verified (2026-11-06), filed as
+port_bugs.md #1452-#1482 and fixed 2026-11-07 (all FIXED, in docs/archive/bugs_fixed_pending.md);
+the remaining low/QUESTION items below are unverified and unfiled.
 This is an audit dump, not a spec (docs/conventions.md "Don't read archives willy-nilly").
 
 ## Method

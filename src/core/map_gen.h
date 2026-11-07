@@ -91,4 +91,12 @@ void map_gen_assign_euro_landfalls(
  */
 void map_gen_finalize_border_and_forest(uint8_t* terrain, int w, int h);
 
+/*
+ * FUN_684c_08c0 raw 107083-107130, after the finalize pass: Pacific walk
+ * (layer2 0x20; cutoff W/2 generated, W-16 loaded), offshore suppress (0x04),
+ * and for a loaded non-picked map (DS:0x2174 == 0, AMER2.MP) the terrain
+ * |= 0xa0 stamp on (21,1)/(43,68). map_generate runs it itself.
+ */
+void map_gen_pacific_and_suppress(ColonizeWorldMap* map, bool loaded_map, bool picked_map);
+
 #endif

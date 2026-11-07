@@ -8,17 +8,15 @@ key KP_4                 # #131 attacks Cayenne: Combat Analysis dialog
 wait 3
 key Return               # dismiss: roll lost
 wait 3
-key Return               # @ARTILLERY "French Artillery {damaged}. Further damage will destroy it." (bit7 set, moves spent)
-wait 3
-key Return               # "{English Soldiers} defeat {French} near Cayenne!"; damaged #87 selected next
+key Return               # @ARTILLERY "French Artillery {damaged}. Further damage will destroy it." (bit7 set, moves spent);
+                         #  damaged #87 selected next (no @EUROPELOSE to a human attacker, #1465)
 wait 3
 shot
 key KP_4                 # #87 attacks Cayenne: Combat Analysis
 wait 3
 key Return               # dismiss: roll lost
 wait 3
-key Return               # "Damaged French Artillery {destroyed}" (second loss despawns it, FUN_5fef_0352)
-wait 3
-key Return               # "{English Soldiers} defeat {French} near Cayenne!"; no French unit left to move
+key Return               # "Damaged French Artillery {destroyed}" (second loss despawns it, FUN_5fef_0352);
+                         #  no French unit left to move
 wait 3
 shot

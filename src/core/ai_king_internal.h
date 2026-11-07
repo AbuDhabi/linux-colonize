@@ -195,7 +195,7 @@ void ai_king_set_ref_present(ColonizeCol1Save* col1, int on);
 void ai_king_succession(ColonizeTurnContext* ctx);
 void ai_king_sync_boycott_refuse(ColonizeCol1Save* col1, int human);
 void ai_king_tax_commit(ColonizeTurnContext* ctx, int human, int delta);
-void ai_king_tax_event(ColonizeTurnContext* ctx);
+bool ai_king_tax_event(ColonizeTurnContext* ctx); /* FUN_38fd_5be8 return */
 void ai_king_tax_hike_apply(
   ColonizeTurnContext* ctx,
   int human,

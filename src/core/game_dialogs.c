@@ -1282,7 +1282,7 @@ static void game_do_buy_construction(ColonizeGameState* game, int colony_id) {
   /* Player-corrected: Buy is NOT instant — it only tops hammers/tools up to
    * the completion threshold (colonies_buy_construction, DOS's
    * FUN_2f2b_5e44 formula). Actual completion happens next turn's
-   * construction processing (turn_run_colony_building_completion /
+   * construction processing (Phase L in turn_produce_hammers /
    * turn_colony_unit_construction_one), same as a colony that reached the
    * threshold through ordinary Carpenter production. */
   ColonizeCol1Save* col1 = game->col1_ok ? &game->col1 : NULL;
@@ -1704,7 +1704,18 @@ void game_request_overboard_confirm(ColonizeGameState* game) {
   char labels_buf[AI_POPUP_CHOICE_MAX][AI_POPUP_CHOICE_LEN];
   const char* labels[AI_POPUP_CHOICE_MAX];
   int ids[AI_POPUP_CHOICE_MAX];
-  for (int h = 0; h < holds && rows < AI_POPUP_CHOICE_MAX - 1; ++h) {
+  /* 2b5a body (ND 0x21EDE-0x21FDE, port_bugs.md #1470): the "nothing" row
+   * (LABELS @MISC[32], the same row @TRADEWHICH uses; value 0x63) goes in
+   * FIRST and DS:0x1f5e = 0 makes it the default, so Enter keeps the cargo.
+   * An empty hold list (+0x3150 == 0) opens nothing. */
+  {
+    const char* nothing_live = reports_labels_field("MISC", 32);
+    snprintf(labels_buf[0], sizeof(labels_buf[0]), "%s", nothing_live ? nothing_live : "");
+  }
+  labels[0] = labels_buf[0];
+  ids[0] = 99;
+  rows = 1;
+  for (int h = 0; h < holds && rows < AI_POPUP_CHOICE_MAX; ++h) {
     const int amt = units_hold_amount(&game->units, sid, h);
     if (amt <= 0) {
       continue;
@@ -1717,19 +1728,9 @@ void game_request_overboard_confirm(ColonizeGameState* game) {
     ids[rows] = h + 1;
     rows++;
   }
-  if (rows <= 0) {
+  if (rows <= 1) {
     return;
   }
-  /* Cancel row text = LABELS @MISC[32], the same "nothing" row @TRADEWHICH uses. */
-  {
-    const char* nothing_live = reports_labels_field("MISC", 32);
-    snprintf(
-      labels_buf[rows], sizeof(labels_buf[rows]), "%s", nothing_live ? nothing_live : ""
-    );
-  }
-  labels[rows] = labels_buf[rows];
-  ids[rows] = 99;
-  rows++;
   char body[AI_POPUP_BODY_LEN];
   popup_msg_fill(&game->messages, "OVERBOARD", NULL, "", body, sizeof(body));
   if (ai_popup_enqueue_choice_ctx(
@@ -2529,8 +2530,11 @@ void game_colony_load_hold(ColonizeGameState* game, int unit_id, int cargo, int 
  * first and leaves the hold alone on anything but answer 2, it never unloads
  * and then reports.
  */
-int game_colony_unload_hold_commit(
+/* `colony_id` is DOS DS:0x8542: the viewed colony on the colony screen, the
+ * colony under the unit for the map ORDERS rows (2b5a:1908 / 1952, FUN_281f_09e6). */
+static int game_colony_unload_hold_commit_at(
   ColonizeGameState* game,
+  int colony_id,
   int unit_id,
   int hold,
   int amount,
@@ -2541,15 +2545,27 @@ int game_colony_unload_hold_commit(
    * hold. Only @HOWMUCH2 supplies a positive partial amount (port_bugs.md #948). */
   const int moved = amount > 0
     ? colonies_transfer_from_unit_amount(
-        &game->colonies, game->colony_view_id, &game->units, unit_id, hold, amount, &full
+        &game->colonies, colony_id, &game->units, unit_id, hold, amount, &full
       )
     : colonies_transfer_from_unit(
-        &game->colonies, game->colony_view_id, &game->units, unit_id, hold, &full
+        &game->colonies, colony_id, &game->units, unit_id, hold, &full
       );
   if (moved <= 0 && empty_msg) {
     set_status(game, empty_msg, NULL);
   }
   return moved;
+}
+
+int game_colony_unload_hold_commit(
+  ColonizeGameState* game,
+  int unit_id,
+  int hold,
+  int amount,
+  const char* empty_msg
+) {
+  return game_colony_unload_hold_commit_at(
+    game, game->colony_view_id, unit_id, hold, amount, empty_msg
+  );
 }
 
 /*
@@ -2559,8 +2575,9 @@ int game_colony_unload_hold_commit(
  * on the queue and the caller must stop; the answer is applied in
  * game_apply_popup_colony.
  */
-bool game_colony_unload_ask(
+static bool game_colony_unload_ask_at(
   ColonizeGameState* game,
+  int colony_id,
   int unit_id,
   int hold,
   int amount,
@@ -2576,7 +2593,7 @@ bool game_colony_unload_ask(
     return false;
   }
   int amt = (amount > 0 && amount < held) ? amount : held;
-  const ColonizeColony* col = colonies_get(&game->colonies, game->colony_view_id);
+  const ColonizeColony* col = colonies_get(&game->colonies, colony_id);
   if (!col ||
       !colonies_warehouse_unload_needs_confirm(&game->colonies, col, ctype, amt)) {
     return false;
@@ -2593,6 +2610,16 @@ bool game_colony_unload_ask(
   }
   game_colony_present_now(game, AI_POPUP_TAG_COLONY_WAREHOUSE);
   return true;
+}
+
+bool game_colony_unload_ask(
+  ColonizeGameState* game,
+  int unit_id,
+  int hold,
+  int amount,
+  int extra_payload
+) {
+  return game_colony_unload_ask_at(game, game->colony_view_id, unit_id, hold, amount, extra_payload);
 }
 
 void game_colony_unload_hold(
@@ -2619,14 +2646,14 @@ void game_colony_unload_hold(
  *    @MISC 25 "onto", the selected ship's TYPE name (type*0xe + 0x5230).
  * Wording from LABELS only: a catalog miss leaves that word out.
  */
-static void game_colony_cargo_status(ColonizeGameState* game, bool loading, int ctype, int qty) {
+static void game_colony_cargo_status(
+  ColonizeGameState* game, bool loading, int ctype, int qty, int unit_id, int colony_id
+) {
   char line[AI_POPUP_BAR_MSG_LEN];
   size_t n = 0;
   line[0] = '\0';
-  const ColonizeColony* col = colonies_get(&game->colonies, game->colony_view_id);
-  const ColonizeUnit* ship = loading && game->colony_screen.transport_unit_id >= 0
-    ? units_get_const(&game->units, game->colony_screen.transport_unit_id)
-    : NULL;
+  const ColonizeColony* col = colonies_get(&game->colonies, colony_id);
+  const ColonizeUnit* ship = loading && unit_id >= 0 ? units_get_const(&game->units, unit_id) : NULL;
   const ColonizeUnitType* st = ship ? units_type(&game->units, ship->type_index) : NULL;
   const char* tail = loading ? (st ? st->name : "") : (col ? col->name : "");
   const char* cargo = (ctype >= 0 && ctype < COLONIZE_CARGO_COUNT) ? game->europe.cargo[ctype].name : "";
@@ -2649,19 +2676,20 @@ static void game_colony_cargo_status(ColonizeGameState* game, bool loading, int 
 /*
  * U on the colony screen: 2f2b:6694-66a3 -> FUN_479b_0f60(FUN_281f_0b32(DS:0x33e), 0)
  * (raw 77343-77431, mode 0). No ship selected (DS:0x33c == 0): nothing, no message.
+ * The map ORDERS "Unload Cargo" row (0x316, 2b5a:1952) runs the same body on the
+ * active unit (DS:0x5392) and the colony under it (port_bugs.md #1452).
  * Empty ship: the red bar @MISC 22. Else the pick is the LOWEST (price << 4) * qty
  * key (europe_dos_0f60_pick_holds, the Europe `U` pick, Muskets/Tools 0, Horses 1),
  * the @WAREHOUSEFULL confirm runs first when the warehouse would overflow
  * (answer != 2 leaves the hold alone), then the whole hold goes ashore and the
  * status line above is armed. One hold per press.
  */
-void game_colony_unload_best_hold(ColonizeGameState* game) {
-  if (!game || !game->in_colony || !game->units_ok) {
+void game_colony_unload_best_hold(ColonizeGameState* game, int unit_id, int colony_id) {
+  if (!game || !game->units_ok) {
     return;
   }
-  const int unit_id = game->colony_screen.transport_unit_id;
   const ColonizeUnit* u = unit_id >= 0 ? units_get_const(&game->units, unit_id) : NULL;
-  if (!u) {
+  if (!u || !colonies_get(&game->colonies, colony_id)) {
     return;
   }
   const int hold = europe_dos_0f60_pick_holds(
@@ -2673,18 +2701,20 @@ void game_colony_unload_best_hold(ColonizeGameState* game) {
     return;
   }
   const int ctype = u->hold_goods_type[hold];
-  if (game_colony_unload_ask(game, unit_id, hold, 0, GAME_UNLOAD_PAYLOAD_U_STATUS)) {
+  if (game_colony_unload_ask_at(game, colony_id, unit_id, hold, 0, GAME_UNLOAD_PAYLOAD_U_STATUS)) {
     return;
   }
-  const int moved = game_colony_unload_hold_commit(game, unit_id, hold, 0, NULL);
+  const int moved = game_colony_unload_hold_commit_at(game, colony_id, unit_id, hold, 0, NULL);
   if (moved > 0) {
-    game_colony_cargo_status(game, false, ctype, moved);
+    game_colony_cargo_status(game, false, ctype, moved, unit_id, colony_id);
   }
 }
 
 /*
  * L on the colony screen: 2f2b:662e -> FUN_291f_01de -> FUN_479b_11a4(selected ship)
  * (raw 77435-77509, port_bugs.md #1184). No ship selected (DS:0x33c == 0): nothing.
+ * The map ORDERS "Load Cargo" row (0x315, 2b5a:1908) runs the same body on the
+ * active unit (DS:0x5392) and the colony under it (port_bugs.md #1452).
  * Gate 1, before any pick: @UNIT cargo capacity - goods holds used (+0x3150) < 1 ->
  * red bar @MISC 21. Then europe_dos_11a4_pick (the HIGHEST key, not `U`'s lowest);
  * none -> red bar @MISC 20. Loads min(stock, 100) via the stock-debit +
@@ -2692,13 +2722,12 @@ void game_colony_unload_best_hold(ColonizeGameState* game) {
  * the rest in one new hold) and arms the "Loading ... onto <ship type>" status.
  * No confirm, no RNG, one cargo per press.
  */
-void game_colony_load_best_cargo(ColonizeGameState* game) {
-  if (!game || !game->in_colony || !game->units_ok) {
+void game_colony_load_best_cargo(ColonizeGameState* game, int unit_id, int colony_id) {
+  if (!game || !game->units_ok) {
     return;
   }
-  const int unit_id = game->colony_screen.transport_unit_id;
   const ColonizeUnit* u = unit_id >= 0 ? units_get_const(&game->units, unit_id) : NULL;
-  const ColonizeColony* col = colonies_get(&game->colonies, game->colony_view_id);
+  const ColonizeColony* col = colonies_get(&game->colonies, colony_id);
   if (!u || !col) {
     return;
   }
@@ -2715,10 +2744,10 @@ void game_colony_load_best_cargo(ColonizeGameState* game) {
   }
   const int amt = col->stock[ctype] > 100 ? 100 : col->stock[ctype];
   const int moved = colonies_transfer_to_unit(
-    &game->colonies, game->colony_view_id, &game->units, unit_id, ctype, amt
+    &game->colonies, colony_id, &game->units, unit_id, ctype, amt
   );
   if (moved > 0) {
-    game_colony_cargo_status(game, true, ctype, moved);
+    game_colony_cargo_status(game, true, ctype, moved, unit_id, colony_id);
   }
 }
 
@@ -2871,12 +2900,16 @@ static bool game_apply_popup_map_and_colony(ColonizeGameState* game) {
     ai_popup_consume_result(&game->ai_popups);
     const int amount = payload & 0xfffff;
     const bool unload_all = (payload & (1 << 20)) != 0;
-    if (go && game->in_colony) {
-      const ColonizeUnit* pu = units_get_const(&game->units, unit_id);
+    const ColonizeUnit* pu = units_get_const(&game->units, unit_id);
+    /* The map Unload Cargo row (#1452) asks off the colony screen: the colony
+     * under the unit stands in for the viewed one (DS:0x8542). */
+    const int pcid = game->in_colony ? game->colony_view_id
+                     : pu ? colonies_id_at(&game->colonies, pu->x, pu->y) : -1;
+    if (go && pcid >= 0) {
       const int pctype = (pu && hold >= 0 && hold < COLONIZE_UNIT_CARGO_MAX) ? pu->hold_goods_type[hold] : -1;
-      const int pmoved = game_colony_unload_hold_commit(game, unit_id, hold, amount, NULL);
+      const int pmoved = game_colony_unload_hold_commit_at(game, pcid, unit_id, hold, amount, NULL);
       if ((payload & GAME_UNLOAD_PAYLOAD_U_STATUS) && pmoved > 0) {
-        game_colony_cargo_status(game, false, pctype, pmoved);
+        game_colony_cargo_status(game, false, pctype, pmoved, unit_id, pcid);
       }
       if (unload_all) {
         /* 99b8 case 5 loops until a hold refuses or the unit runs dry. */
@@ -3487,7 +3520,16 @@ static bool game_apply_popup_village_attack(ColonizeGameState* game) {
     ColonizeUnit* u = unit_id >= 0 ? units_get(&game->units, unit_id) : NULL;
     int dest_x = -1;
     int dest_y = -1;
-    if (u && u->active && game->col1_ok && game->col1.tribe) {
+    /* #1480: the entered village (DS:0x8d4a) rides in the payload; the
+     * adjacency scan is only the fallback for a payload without it. */
+    const int vi = ai_contact_meet_payload_village(game->ai_popups.result_payload);
+    if (u && u->active && game->col1_ok && game->col1.tribe && vi >= 0 &&
+        vi < (int)game->col1.head.tribe_count &&
+        (int)game->col1.tribe[vi].nation_id == indian_nation) {
+      dest_x = game->col1.tribe[vi].x;
+      dest_y = game->col1.tribe[vi].y;
+    }
+    if (dest_x < 0 && u && u->active && game->col1_ok && game->col1.tribe) {
       for (uint16_t ti = 0; ti < game->col1.head.tribe_count; ++ti) {
         const ColonizeCol1Tribe* t = &game->col1.tribe[ti];
         if ((int)t->nation_id == indian_nation &&

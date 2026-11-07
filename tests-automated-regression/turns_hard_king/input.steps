@@ -2,12 +2,14 @@
 # Start: map_declare_independence's input.sav (France, Spring 1599, turn 107; every French colony at 59% SoL)
 # with every French unit that had no orders / go-to / pioneer job put on sentry (orders 1), so only
 # units the war wakes need attention. The declaration steps are map_declare_independence's.
-# Turn 107 end: the Crown's first wave lands near Montreal (@INVASION, ai_king_0982_invasion, raised
-# inside the King's beat while the AI turn runs). Turn 108 end: a second wave lands near Montreal,
-# the Tories beat the defenders, march into Montreal (captured, colony owner -> crown slot 2) and
-# defeat/capture rebels near Guadeloupe. Spring 1600: FUN_3844_0442 counts ports by the founding coastal bit
-# (+0x1c 0x40); none of the French colonies left has it, so @LOSING1, @KINGWIN and the retire chain end the
-# game on the title menu (port_bugs.md #1388); output.hallfame pins the record.
+# Turn 107 end: five Crown waves land (near Montreal, Quebec, Port au Prince, Montreal, Montreal; @INVASION,
+# ai_king_0982_invasion, raised inside the King's beat while the AI turn runs). Turn 108 end: five more waves, the
+# Tories march into Montreal and Port au Prince, capture rebels near Guadeloupe, a Man-O-War takes two cargoes and
+# sinks a Caravel; Quebec holds (port_bugs.md #1455: with no crown colony home_dist stays 9999, which moves the
+# crown's attacks). Spring 1600: FUN_3844_0442 counts ports by the founding coastal bit (+0x1c 0x40): one is left,
+# so only the warning. Turn 109 end: four waves land near Quebec, the Tories take Quebec and Guadeloupe, and the
+# over-90%-of-population capitulation, @KINGWIN and the retire chain end the game on the title menu
+# (port_bugs.md #1388); output.hallfame pins the record.
 click 22 3               # GAME menu
 click 50 85              # DECLARE INDEPENDENCE: Never / Yes confirm
 wait 1
@@ -32,14 +34,6 @@ wait 10
 key Return               # REF lands near Montreal (fourth wave) (nested in the King's beat)
 wait 10
 key Return               # REF lands near Montreal (fifth wave) (nested in the King's beat)
-wait 10
-key Return               # (nested popup) (nested in the King's beat)
-wait 10
-key Return               # Rebel cargo of 14 Sugar captured (nested in the King's beat)
-wait 10
-key Return               # Rebel cargo of 10 Furs captured (nested in the King's beat)
-wait 10
-key Return               # Rebel Caravel sunk (nested in the King's beat)
 wait 10
 key Return               # SoL Port au Prince 62% (Continue turn)
 wait 10
@@ -66,8 +60,15 @@ wait 3
 shot
 key space                # end turn 108
 wait 30
-# 49 presses: five landings again, Tories take Montreal, Port au Prince and Quebec, combat, captures, two Caravels sunk
-# (20e6 reads the crown's census rows, not a live recount of the colonies it took this turn)
+# 52 presses (nested in the AI turn): five landings again, the Tories march into Montreal and Port au Prince,
+# combat and captures near Quebec / Guadeloupe / Port au Prince, the Man-O-War takes 14 Sugar + 10 Furs and sinks a Caravel
+# (port_bugs.md #1455: with no crown colony, home_dist stays 9999, so the crown's attacks move and Quebec holds)
+key Return
+wait 10
+key Return
+wait 10
+key Return
+wait 10
 key Return
 wait 10
 key Return
@@ -168,7 +169,57 @@ key Return
 wait 10
 key Return               # Colonization Help: Time Scale (two turns per year from 1600)
 wait 10
-key Return               # @LOSING1: no French colony carries the founding coastal bit (port_bugs.md #1388)
+key Return               # the King's forces control all but 1 of the ports in New France
+wait 10
+key s                    # turn 109 (Spring 1600): sentry the Wagon Train in Guadeloupe
+wait 3
+key s                    # the six units in Quebec / Guadeloupe the war woke
+wait 3
+key s
+wait 3
+key s
+wait 3
+key s
+wait 3
+key s
+wait 3
+key s                    # last one: End of Turn
+wait 3
+key space                # end turn 109
+wait 30
+key Return               # Royal Expeditionary Force lands near Quebec (nested in the AI turn)
+wait 10
+key Return               # Royal Expeditionary Force lands near Quebec (nested in the AI turn)
+wait 10
+key Return               # Royal Expeditionary Force lands near Quebec (nested in the AI turn)
+wait 10
+key Return               # Royal Expeditionary Force lands near Quebec (nested in the AI turn)
+wait 10
+key Return               # (spare press between popups)
+wait 10
+key Return               # Rebel colonists CAPTURED (Soldiers lose Veteran status)
+wait 10
+key Return               # Rebel colonists CAPTURED
+wait 10
+key Return               # Rebel colonists CAPTURED (Soldiers lose Veteran status)
+wait 10
+key Return               # Rebel colonists CAPTURED
+wait 10
+key Return               # Rebel Caravel sunk by Tory Artillery
+wait 10
+key Return               # Rebel Caravel sunk by Tory Artillery
+wait 10
+key Return               # Tories march into Quebec
+wait 10
+key Return               # (spare press between popups)
+wait 10
+key Return               # Rebel wagon train CAPTURED
+wait 10
+key Return               # Rebel colonists CAPTURED
+wait 10
+key Return               # Tories march into Guadeloupe
+wait 10
+key Return               # King's Forces control over 90% of New France population: Congress capitulates
 wait 10
 key Return               # @KINGWIN throne audience
 wait 10

@@ -200,10 +200,10 @@ Continue / Zoom rows, MSS figure; popups.md "Colony-event choices"). The
 | `@HERESY0` | Done | `ai_contact_denounce_heresy` — real GAME.TXT body via `popup_msg_fill`, both outcomes (mission taken over / missionary burned) |
 | `@HERESY1` | Done | as `@HERESY0` |
 | `@INDIANBURN` | Done | `FUN_4cc6_0000` mission clear (`ai_contact_demand.c`) — real GAME.TXT body via `popup_msg_fill` |
-| `@INDIANWIN0` | Done | Native attacker beats a human land defender: `units_combat_outcome_popups` queues @INDIANWIN0, or @INDIANWIN1 / @INDIANWIN2 when the gear step armed / mounted the Brave (raw 101088-101095) |
+| `@INDIANWIN0` | Done | Native attacker beats a human land defender: `units_combat_outcome_popups` queues @INDIANWIN0, or @INDIANWIN1 / @INDIANWIN2 when the gear step armed / mounted the Brave (raw 101088-101095). Not in the `bVar28` undefended-colony arm (raw 101042: colony rows instead; #1464) |
 | `@INDIANWIN1` | Done | Ambush arm only (muskets seized); generic path has no native seizure, like DOS |
 | `@INDIANWIN2` | Done | Ambush arm only (horses seized) |
-| `@INDIANLOSE` | Done | Native attack repulsed; LABELS defeat/defeats by defender type (`<7`) |
+| `@INDIANLOSE` | Done | Native attack repulsed off a colony tile only (raw 101039: on a colony tile the raid resolver `FUN_5fef_0f14` speaks instead, raw 101142; #1464); LABELS defeat/defeats by defender type (`<7`) |
 | `@INDIANWINCOLONY` | Done | DOS `5fef_1b0e` colony arm (`bVar28` = undefended colony tile): native winner kills one colonist while pop>1 (`units_try_capture_foreign_colony`) |
 | `@INDIANWINCOLONY2` | Done | Human-bystander "Spies report…" twin of the above |
 | `@INDIANBURNCOLONY` | Done | Last colonist falls → colony burned (`units_combat_notify_colony_burned`, + woodcut 11). The `@BURNED` family is the both-Euro arm only |
@@ -215,8 +215,8 @@ Continue / Zoom rows, MSS figure; popups.md "Colony-event choices"). The
 | `@BURNED` | Dead (DOS) | Euro-vs-Euro colony burn arm (`5fef_1b0e` `uVar16<4 && uVar15<4`) is unreachable — static read 2026-10-26: `FUN_5fef_1b0e` sets its burn flag `local_c` in two places only, a destroyed village (raw 100661) and a last-colonist colony taken by a native attacker (raw 100712), so the both-Euro arm's `local_c != 0` test never passes. Native burns use `@INDIANBURNCOLONY` |
 | `@BURNED2` | Dead (DOS) | Same unreachable both-Euro arm as `@BURNED` |
 | `@BURNED3` | Dead (DOS) | Bystander twin of `@BURNED` (tag `0x1c37`) in the same unreachable both-Euro arm; the native bystander uses `@INDIANBURNCOLONY2` |
-| `@EUROPEWIN` | Done | `{atk_nation} defeat {def_nation def_unit} near {place}!` |
-| `@EUROPELOSE` | Done | `{def_nation def_unit} defeat(s) {atk_nation} near {place}!` |
+| `@EUROPEWIN` | Done | `{atk_nation} defeat {def_nation def_unit} near {place}!` Only to a human Euro defender attacked by a Euro, never when a Euro beats a colony militia (raw 100810-100811 gate; #1465) |
+| `@EUROPELOSE` | Done | `{def_nation def_unit} defeat(s) {atk_nation} near {place}!` Same human-Euro-defender gate; a militia defender's `def_unit` is its colonist's @JOB (raw 100813-100815; #1465) |
 | `@WAREHOUSEFULL` | Done | unload past capacity → 2-row CHOICE (MSS 5, colony/cargo/stock/cap/amount tokens); only choice 2 unloads |
 | `@EXTORTSTUFF` | Done | Demand Tribute (`thunk_FUN_1000_a5f4`, `ai_contact_demand_tribute`): won, village not yet extorted, 10 of its top good to the nearest colony |
 | `@EXTORTPOOR` | Done | same, not won (alarm < 50) or already extorted |
@@ -461,7 +461,7 @@ Continue / Zoom rows, MSS figure; popups.md "Colony-event choices"). The
 | `@EXTINCT` | Done | last village razed → `units_combat.c` `col1_destroy_tribe_at` tail (`FUN_4d56_00e0`, tag 0x14d4) — real GAME.TXT body. Confirmed 2026-09-16 |
 | `@MERCENARIES` | Done | ai_popup CHOICE structural |
 | `@MERCS` | Done | ai_popup CHOICE structural |
-| `@OVERBOARD` | Done | hold picker: rows = occupied goods holds, 99 = cancel (port_bugs.md #984) |
+| `@OVERBOARD` | Done | hold picker: @MISC 32 "nothing" row (99) first and default, then the occupied goods holds (port_bugs.md #984, #1470) |
 | `@ALREADYREVOLUTION` | Done | ai_popup CHOICE structural |
 | `@SUREDISBAND` | Done | disband Yes/No |
 | `@NEWCOLONIST` | Done | EOT Phase I birth ai_popup OK (`@NEWCOLONIST`); VGA PARKED |

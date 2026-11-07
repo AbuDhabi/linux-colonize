@@ -337,7 +337,10 @@ static int unit_building_completion_supplies_tools_only_to_ai(void) {
     col->nation_id = i == 0 ? 1 : 0;
     col->building_in_production = 0;
     col->hammers = 10;
-    col->population = 0;
+    /* Phase L completes inside FUN_364b_0688 (port_bugs.md #1475), which a
+     * colony with no one in it never reaches: one fed head. */
+    col->population = 1;
+    col->stock[COLONIZE_CARGO_FOOD] = 100;
   }
 
   ColonizeCol1Save col1;
@@ -366,6 +369,46 @@ static int unit_building_completion_supplies_tools_only_to_ai(void) {
   if (!human || human->has_building[0] || human->stock[COLONIZE_CARGO_TOOLS] != 0 ||
       human->hammers != 10) {
     fprintf(stderr, "human building completion must stay blocked without tools\n");
+    return 1;
+  }
+  return 0;
+}
+
+/* port_bugs.md #1475: a BUY-topped Warehouse in a colony with no Carpenter
+ * completes in Phase L (FUN_364b_0688 raw 57737-57775), before the cap
+ * re-read and spoilage (raw 57809), so 150 cotton survives at the new 200 cap
+ * instead of spoiling to the old 100 first. */
+static int unit_bought_warehouse_completes_before_spoilage(void) {
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Warehouse");
+  pool.building_types[0].row_plus1 = COLONY_BUILDING_WAREHOUSE + 1;
+  pool.building_types[0].hammers = 10;
+  pool.building_type_count = 1;
+  pool.colony_count = 1;
+  ColonizeColony* col = &pool.colonies[0];
+  memset(col, 0, sizeof(*col));
+  col->active = true;
+  col->id = 1;
+  col->nation_id = 0;
+  col->building_in_production = 0;
+  col->hammers = 10;
+  col->population = 1;
+  col->stock[COLONIZE_CARGO_FOOD] = 100;
+  col->stock[COLONIZE_CARGO_COTTON] = 150;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.human_nation = 0;
+  ctx.colonies = &pool;
+  ColonizeTurnResult result;
+  memset(&result, 0, sizeof(result));
+  turn_run_colony_eot(&ctx, &result);
+  if (!col->has_building[0] || col->warehouse_level != 1u ||
+      col->stock[COLONIZE_CARGO_COTTON] != 150) {
+    fprintf(stderr, "bought warehouse: built %d level %u cotton %d (want 1 1 150)\n",
+            (int)col->has_building[0], (unsigned)col->warehouse_level,
+            col->stock[COLONIZE_CARGO_COTTON]);
     return 1;
   }
   return 0;
@@ -777,6 +820,7 @@ static const TestCase k_cases[] = {
     {"unit_century_cargoready", unit_century_cargoready},
     {"unit_hammers_lumber_two_turns", unit_hammers_lumber_two_turns},
     {"unit_building_completion_supplies_tools_only_to_ai", unit_building_completion_supplies_tools_only_to_ai},
+    {"unit_bought_warehouse_completes_before_spoilage", unit_bought_warehouse_completes_before_spoilage},
     {"unit_unit_project_tools_spent_before_spoilage", unit_unit_project_tools_spent_before_spoilage},
     {"unit_eot_fog_reveal", unit_eot_fog_reveal},
     {"unit_needtools0", unit_needtools0},

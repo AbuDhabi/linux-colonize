@@ -2042,8 +2042,9 @@ int map_dos_terr_lumber_reward_byte(int terr_class) {
 }
 
 int map_dos_terr_class_at(const ColonizeWorldMap* map, int x, int y) {
-  if (!map_in_bounds(map, x, y)) {
-    return 0;
+  /* FUN_13e4_003a raw 7015-7029: class 0x19 off the FUN_137f_000a inset (#1466). */
+  if (!map_coords_inset(map, x, y)) {
+    return 0x19;
   }
   return map_resource_terrain_class(map_get_terrain(map, x, y));
 }

@@ -99,6 +99,15 @@ static int case_options(void) {
       od.values[6] != 1 || od.values[7] != 1) {
     return fail("options reopen round-trip");
   }
+  /* port_bugs.md #1474: Esc keeps the toggles (FUN_6f74_2580 LAB_6f74_3018). */
+  in.last_key = COLONIZE_KEY_SPACE;
+  options_dialog_handle_input(&od, &in);
+  in.last_key = COLONIZE_KEY_ESCAPE;
+  options_dialog_handle_input(&od, &in);
+  options_dialog_apply_game(&od, &applied);
+  if (!od.has_result || od.result_cancelled || !applied.show_indian_moves) {
+    return fail("options Esc keeps toggles");
+  }
   return 0;
 }
 

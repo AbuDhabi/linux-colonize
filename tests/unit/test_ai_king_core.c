@@ -869,6 +869,7 @@ static int sp_12(void) {
   autumn = 1;
   col1.colony[0].rebel_dividend = 60;
   col1.colony[0].rebel_divisor = 100;
+  col1.head.rebel_sentiment_report = 60; /* last turn's 2424 cache: 2564 reads it (#1471) */
   col1.nation[0].liberty_bells_pool = 200;
   col1.nation[0].gold = 0; /* 2244 cannot-afford once; hire cleared later */
   europe.gold = 0;
@@ -1430,7 +1431,9 @@ static int sp_18(void) {
    * gate and the Veteran-profession gate each independently block a
    * promote, and that a non-fortified Veteran on-tile unit still promotes.
    */
-  col1.colony[0].population = 20;
+  /* Live pool only: 1eca reads live +0x1f, the col1 mirror stays at 4 (#1472). */
+  colonies.colonies[0].population = 20;
+  colonies.colonies[0].colonist_count = 20;
   col1.colony[0].rebel_dividend = 70;
   col1.colony[0].rebel_divisor = 100;
   colonies.colonies[0].nation_id = 0;
@@ -1618,6 +1621,8 @@ static int sp_20(void) {
    * only matches base Soldier/Dragoon type ids).
    */
   col1.colony[0].population = 20;
+  colonies.colonies[0].population = 20; /* 1eca reads live +0x1f (#1472) */
+  colonies.colonies[0].colonist_count = 20;
   col1.colony[0].rebel_dividend = 50;
   col1.colony[0].rebel_divisor = 100;
   {
@@ -1725,6 +1730,8 @@ static int sp_21(void) {
     if (!grown) {
       return fail("alloc 1eca colony-SoL colonies");
     }
+    colonies.colonies[0].population = 4; /* undo sp_18/sp_20's widened live pop */
+    colonies.colonies[0].colonist_count = 4;
     grown[0] = col1.colony[0];
     free(col1.colony);
     col1.colony = grown;
@@ -2805,6 +2812,18 @@ static int sp_31(void) {
       col1.colony[1].flags.coastal = 1;
       col1.colony[1].population = 9;
       snprintf(col1.colony[1].name, sizeof(col1.colony[1].name), "Roanoke");
+      /* 1528 / 10f0 read the live pool, not the col1 mirror (#1454): the
+       * same two ports live in pool slots 1/2 (sp_21), Jamestown pop 4. */
+      {
+        static const char* const k_names[2] = {"Plymouth", "Roanoke"};
+        for (int k = 0; k < 2; ++k) {
+          ColonizeColony* pc = &colonies.colonies[1 + k];
+          pc->colony_flags |= COLONIZE_COLONY_FLAG_COASTAL;
+          pc->population = (int)col1.colony[k].population;
+          pc->colonist_count = pc->population;
+          snprintf(pc->name, sizeof(pc->name), "%s", k_names[k]);
+        }
+      }
       status[0] = '\0';
       ai_popup_clear(&pop);
       /* The @INTERVENTION announce is the bells-threshold spend (DOS 0a22 →

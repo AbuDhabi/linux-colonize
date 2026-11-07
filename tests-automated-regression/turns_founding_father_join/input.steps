@@ -11,8 +11,7 @@ key space                # end turn 108 (Spring 1600)
 wait 30
 key Return               # Colonization Help: Time Scale
 wait 65
-key Return               # English defeat French Colonists near Guadeloupe; wagon train captured
-wait 6
+                         #  wagon train captured (no outcome popup: #1464/#1465)
 key Return               # French colonists captured by the English
 wait 6
 key Return               # English march into Guadeloupe, 90 gold plundered
@@ -80,3 +79,5 @@ key Return               # SoL Martinique 51% (Continue turn)
 wait 10
 key Return               # new cargo of Horses at Montreal (Continue turn)
 wait 10
+key Return               # @LUMBER "Quebec has run out of lumber" (Continue turn): Phase K before L, no longer
+wait 10                  #  suppressed by an earlier status write in the tick (#1461)

@@ -1400,6 +1400,15 @@ COLONIZE_INTERNAL uint32_t ai_euro_5d04_artillery_price(const ColonizeCol1Nation
   return (uint32_t)(europe_purchase_price(UNITS_KIND_ARTILLERY) + (int)nat->artillery_count * 100);
 }
 
+/* DOS-LITERAL FUN_521d_5d04 asm 521d:68d3-68f3 (recruit, raw 92869-92871) and
+ * 521d:6a9c-6ab8 (horses, raw 92947-92949): `price += diff*price*10 / -100`
+ * where IMUL keeps AX only and the *10 is 16-bit SHL/ADD before CWD / IDIV, so
+ * the product wraps at int16 and past 32767 turns the discount into a
+ * surcharge (port_bugs.md #1479). */
+COLONIZE_INTERNAL int ai_euro_5d04_late_discount(int difficulty, uint32_t price) {
+  return (int16_t)(difficulty * (int16_t)price * 10) / -100;
+}
+
 static void ai_euro_5d04_hire_tail_colony_demand(Ai5d04HireTail* t) {
   ColonizeTurnContext* ctx = t->ctx;
   const int nation_id = t->nation_id;
@@ -1474,7 +1483,7 @@ static void ai_euro_5d04_hire_tail_colony_demand(Ai5d04HireTail* t) {
         recruit_price += (uint32_t)(ai_euro_5d04_cb_price(COLONIZE_CARGO_MUSKETS) * 50);
       }
       if (turn > 99) {
-        recruit_price += (uint32_t)((int)(difficulty * (int)recruit_price * 10) / -100);
+        recruit_price += (uint32_t)ai_euro_5d04_late_discount(difficulty, recruit_price);
       }
       if (nat->gold >= recruit_price) {
         const int slot = dos_rng_range(ctx->rng, 0, 2);
@@ -1531,7 +1540,7 @@ static void ai_euro_5d04_hire_tail_colony_demand(Ai5d04HireTail* t) {
         }
         uint32_t horse_stock_cost = (uint32_t)(ai_euro_5d04_cb_price(COLONIZE_CARGO_HORSES) * 50); /* DOS local_1a3 */
         if (turn > 99) {
-          horse_stock_cost += (uint32_t)((int)(difficulty * (int)horse_stock_cost * 10) / -100);
+          horse_stock_cost += (uint32_t)ai_euro_5d04_late_discount(difficulty, horse_stock_cost);
         }
         if (col1_nation_bank_4a(nat) > 0x31) {
           horse_stock_cost = 0;

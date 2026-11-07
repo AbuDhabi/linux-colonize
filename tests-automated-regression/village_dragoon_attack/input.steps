@@ -14,16 +14,14 @@ key Return   # Attack Village
 wait 3
 key Return   # combat analysis box
 wait 3
-key Return   # "French defeat Tupi Armed Braves near Guadeloupe!": village population 3 -> 2; Dragoon 131 is selected
-wait 3
+                         #  French win: population 3 -> 2; Dragoon 131 is selected (no outcome popup: #1464/#1465)
 key KP_8     # menu again, now the "frown at you suspiciously" greeting (alarm 9)
 key Down
 key Return   # Attack Village
 wait 3
 key Return   # combat analysis box
 wait 3
-key Return   # French win again: population 2 -> 1; Dragoon 136 is selected
-wait 3
+                         #  French win again: population 2 -> 1; Dragoon 136 is selected (no outcome popup: #1464/#1465)
 key KP_8
 key Down
 key Return   # Attack Village
@@ -32,5 +30,4 @@ key Return   # combat analysis box
 wait 3
 key Return   # "French Dragoons routed! Unit demoted to Soldiers status" (the defender won: no gear taken, FUN_5fef_1b0e gate)
 wait 3
-key Return   # "Tupi Armed Braves defeats French near Guadeloupe!"; no Dragoon has moves left, Colonist 88 in Guadeloupe is selected
-wait 6
+                         #  no Dragoon has moves left, Colonist 88 in Guadeloupe is selected (no outcome popup: #1464/#1465)

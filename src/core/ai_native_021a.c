@@ -533,7 +533,11 @@ COLONIZE_INTERNAL Ai021aDirStatus ai_021a_dir_occupant(struct ai_021a_ctx* c) {
           score += 10;
         }
       }
-      if (alarm <= 0x19 && !grudge) {
+      /* OVL13 0xb0e-0xb54: the lone-treasure arm that survives its
+       * rand(0,7)==0 roll jumps (0xb3c JZ 0xb54) over the 0xb42 grudge
+       * latch (port_bugs.md #1481). */
+      const int latch = !(alarm <= 0x19 && !grudge);
+      if (!latch) {
         if (!loot) {
           c->grudge = grudge; /* the grudge latch outlives the skip */
           return AI_021A_DIR_SKIP;
@@ -547,7 +551,7 @@ COLONIZE_INTERNAL Ai021aDirStatus ai_021a_dir_occupant(struct ai_021a_ctx* c) {
           return AI_021A_DIR_SKIP;
         }
       }
-      if (settle < 0 && att >= 0x20) {
+      if (latch && settle < 0 && att >= 0x20) {
         grudge = 1;
       }
       score -= 0x32 - alarm;

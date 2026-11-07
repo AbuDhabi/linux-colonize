@@ -1826,8 +1826,7 @@ const char* units_home_port_name(const ColonizeCol1Save* col1, int nation_id) {
  * repaired in port when the timer is out (europe_harbor_repair_tick).
  * Europe is the human's screen only. An AI hull (every nation, port_bugs.md
  * #871: the off-map relocation is not human-only) goes to its Europe dock
- * 236+n (DOS n - 0x14) — the same slot turn_route_damaged_ships holds it in until the
- * repair timer runs out. It used to stay on its tile showing the repair
+ * 236+n (DOS n - 0x14), where it stays until the repair timer runs out. It used to stay on its tile showing the repair
  * digit, with no dissolve.
  */
 static void units_ship_damaged_to_europe(ColonizeUnitPool* pool, ColonizeUnit* lose) {
@@ -2523,11 +2522,21 @@ void units_combat_outcome_popups(
 
   if (!is_naval) {
     /*
-     * Euro attacker (incl. vs natives): @EUROPEWIN / @EUROPELOSE.
+     * Euro attacker vs a human Euro defender: @EUROPEWIN / @EUROPELOSE.
      * Native attacker vs human: @INDIANWIN0/1/2 / @INDIANLOSE below.
      * Cite: FUN_5fef_1b0e both-euro gate; indian raid ambush fill.
      */
+    /* FUN_5fef_1b0e raw 100810-100811 (asm 0x5D974-0x5D9A8): attacker < 4,
+     * defender < 4, defender human (0x543f == 0), local_c == 0 (always so
+     * for a Euro attacker) and !bVar12 (Euro beat the colony militia: the
+     * capture arm speaks instead). A human attacker and a native defender
+     * get no outcome popup. */
     if (atk_nation < 4) {
+      if (def_nation < 0 || def_nation > 3 ||
+          !units_combat_human_involved(col1, def_nation, -1) ||
+          (atk_wins && g_units_colony_autodefender)) {
+        return;
+      }
       PopupMsgTokens tok;
       memset(&tok, 0, sizeof(tok));
       const int place_x = atk_wins ? lose->x : win->x;
@@ -2536,7 +2545,11 @@ void units_combat_outcome_popups(
       tok.string1 = units_combat_nation_label(col1, def_nation);
       {
         const ColonizeUnit* def_u = atk_wins ? lose : win;
-        tok.string2 = units_combat_unit_label(pool, def_u);
+        /* raw 100813-100815: a militia defender (bVar28) names its colonist's
+         * @JOB (FUN_281f_0c18 -> FUN_15eb_0218 reads 0x1c as 0x13). */
+        tok.string2 = g_units_colony_autodefender
+          ? reports_job_short_name(def_u->profession == 0x1c ? 0x13 : def_u->profession)
+          : units_combat_unit_label(pool, def_u);
       }
       tok.string3 = units_combat_place_label(place_x, place_y);
       if (atk_wins) {
@@ -2562,6 +2575,15 @@ void units_combat_outcome_popups(
           "");
       }
     } else if (atk_nation >= 4 && atk_nation <= 11 && def_nation >= 0 && def_nation <= 3) {
+      /* FUN_5fef_1b0e raw 101039: on a colony tile (local_10 >= 0, 0x8db8 == 0)
+       * a beaten native goes to the raid resolver FUN_5fef_0f14 (raw 101142),
+       * not @INDIANLOSE; raw 101042 bVar28 (undefended colony) plays the
+       * colony rows instead of @INDIANWIN* / @INDIANLOSE. */
+      if (g_units_colony_autodefender ||
+          (!atk_wins && g_units_combat_colonies &&
+           colonies_id_at(g_units_combat_colonies, win->x, win->y) >= 0)) {
+        return;
+      }
       /*
        * Native attacker vs the human on the generic combat path (a Brave
        * stepping onto a defended tile via units_try_move, alarm marches):

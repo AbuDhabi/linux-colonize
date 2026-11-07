@@ -1885,6 +1885,7 @@ static void talk474_flat(char* out, size_t cap, const char* body) {
 }
 
 static int s_talk474_saw_piracy;
+static int s_talk474_saw_sphere;
 
 static int talk474_drain(ColonizeTurnContext* ctx, AiPopupState* pop, int* saw_worthy,
                          int* saw_wise) {
@@ -1908,6 +1909,9 @@ static int talk474_drain(ColonizeTurnContext* ctx, AiPopupState* pop, int* saw_w
         fprintf(stderr, "unit_ai_diplo: PIRACY body='%s'\n", flat);
         return fail("@PIRACY %STRING0/2 must be @GREATLEADER[target] + target country");
       }
+    }
+    if (strstr(flat, "sphere")) {
+      s_talk474_saw_sphere = 1;
     }
     if (strstr(flat, "wise leader")) {
       *saw_wise = 1;
@@ -1999,9 +2003,17 @@ static int case_153e_talk_tokens_474(void) {
   }
   int saw_worthy = 0;
   int saw_wise = 0;
+  s_talk474_saw_sphere = 0;
   (void)ai_diplo_153e_encounter(&ectx, 0, 1, pa->id, -1);
   if (talk474_drain(&ectx, &epop, &saw_worthy, &saw_wise) != 0) {
     return 1;
+  }
+  /* port_bugs.md #1473 — raw :97985-97988/:98053-98057: a treaty signed in
+   * this audience answers with @PEACEMEEK/@PEACEMANLY (the "sphere" text);
+   * the DS:0x1984 "OLDPEACE" prefix needs the 0x40 bit set on entry, so
+   * @OLDPEACE* ("wise leader") belongs to the second, at-peace audience. */
+  if (saw_wise || (saw_worthy && !s_talk474_saw_sphere)) {
+    return fail("#1473: a first treaty must show @PEACE*, not @OLDPEACE*");
   }
   ai_popup_init(&epop);
   /* The PIRACY gate (raw 97776-97777): grievance bit, a privateer of the human's. */

@@ -18,6 +18,7 @@
 #include <time.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #ifndef _WIN32
 #include <sys/resource.h>
 #endif
@@ -2281,10 +2282,14 @@ void game_commit_new_campaign(ColonizeGameState* game) {
       str_path_join(map_path, sizeof(map_path), game->resolved_data_dir, ng->map_file);
     }
     game->world_map_ok = map_load_mp(map_path, &game->world_map, err, sizeof(err));
+    /* DS:0x2174: set by the main menu (FUN_75c2_2778 raw 121815-121818) only when
+     * the picked .MP name differs from DS:0x2166 "AMER2.MP". */
+    bool picked_map = strcasecmp(ng->map_file, "AMER2.MP") != 0;
     if (!game->world_map_ok) {
       diag_error("new game map load failed (%s): %s", ng->map_file, err);
       if (dos_compat_normalize_asset_path(game->resolved_data_dir, "AMER2.MP", map_path, sizeof(map_path))) {
         game->world_map_ok = map_load_mp(map_path, &game->world_map, err, sizeof(err));
+        picked_map = false;
       }
     }
     /*
@@ -2316,6 +2321,9 @@ void game_commit_new_campaign(ColonizeGameState* game) {
       ColonizeDosRng seed_rng;
       dos_rng_seed(&seed_rng, game_pick_rng_seed(game, game->elapsed_ms));
       game->world_map.prime_resource_seed = (uint16_t)dos_rng_range(&seed_rng, 1, 0x7fff);
+      /* #1466: raw 107083-107130 after the finalize tail: Pacific walk (W-16),
+       * offshore suppress (reads DS:0x190, hence after the seed) and AMER2 stamp. */
+      map_gen_pacific_and_suppress(&game->world_map, true, picked_map);
       map_gen_assign_euro_landfalls(&game->world_map, &seed_rng, game->human_nation, true);
     }
     snprintf(map_label, sizeof(map_label), "%s", ng->map_file[0] ? ng->map_file : "AMER2.MP");

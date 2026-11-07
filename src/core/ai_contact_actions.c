@@ -73,10 +73,18 @@ static ColonizeUnit* ai_contact_menu_unit(ColonizeTurnContext* ctx, const AiPopu
   return u;
 }
 
-/* The village the unit is acting on: adjacent (or same tile) village of the tribe. */
-ColonizeCol1Tribe* ai_contact_menu_village(ColonizeTurnContext* ctx, int nation_id, const ColonizeUnit* u) {
+/* The village the unit is acting on: the entered village the popup payload
+ * carries (`village_index`, DS:0x8d4a as FUN_4d56_4528 bound it, port_bugs.md
+ * #1480); without one, the adjacent (or same tile) village of the tribe. */
+ColonizeCol1Tribe* ai_contact_menu_village(
+  ColonizeTurnContext* ctx, int nation_id, const ColonizeUnit* u, int village_index
+) {
   if (!ctx || !ctx->col1 || !ctx->col1->tribe) {
     return NULL;
+  }
+  if (village_index >= 0 && village_index < (int)ctx->col1->head.tribe_count &&
+      (int)ctx->col1->tribe[village_index].nation_id == nation_id) {
+    return &ctx->col1->tribe[village_index];
   }
   ColonizeCol1Tribe* first = NULL;
   for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
@@ -852,7 +860,9 @@ static void ai_contact_live_among_natives_body(
           labels
         );
         const int ids[2] = {AI_CONTACT_LEARNSTAY_YES, AI_CONTACT_LEARNSTAY_NO};
-        const int payload = (u->id & 0xffff) | (skill << 16);
+        /* uid bits 0..12, entered village + 1 bits 13..23 (#1480), skill >> 24. */
+        const int payload =
+          (u->id & 0x1fff) | ((((int)(t - ctx->col1->tribe) + 1) & 0x7ff) << 13) | (skill * (1 << 24));
         if (ai_popup_enqueue_choice_ctx(
               ctx->ai_popups, AI_POPUP_TAG_CONTACT_LEARNSTAY, e, nation_id, payload, NULL, body, labels, ids, 2
             )) {
@@ -1574,7 +1584,7 @@ int ai_contact_ai_missionary_village(
   if (ai_contact_ai_incite_human(
         ctx, ind, t, nation_id, e, u->profession == UNITS_JOB_MISSIONARY
       )) {
-    return 1; /* case 7 */
+    return 1; /* case 7, fired or refused on price: no 3/4 arm (#1460) */
   }
   if (t->mission == COL1_TRIBE_MISSION_NONE) {
     ai_contact_establish_mission(ctx, e, nation_id, u, t); /* case 3 */
@@ -1783,10 +1793,11 @@ static AiContactPopupStatus ai_contact_apply_popup_result_tags(
 
   /* @LEARNSTAY (thunk_FUN_1000_a618): Yes → DONE; No → @LEARNLATER. */
   if (popup->result_tag == AI_POPUP_TAG_CONTACT_LEARNSTAY) {
-    const int uid = popup->result_payload & 0xffff;
-    const int skill = popup->result_payload >> 16;
+    const int uid = popup->result_payload & 0x1fff;
+    const int skill = popup->result_payload >> 24;
     ColonizeUnit* lu = ctx->units ? units_get(ctx->units, uid) : NULL;
-    ColonizeCol1Tribe* lt = ai_contact_menu_village(ctx, nation_id, lu);
+    ColonizeCol1Tribe* lt =
+      ai_contact_menu_village(ctx, nation_id, lu, ((popup->result_payload >> 13) & 0x7ff) - 1);
     if (popup->result_choice_id == AI_CONTACT_LEARNSTAY_YES && lu && lu->active && lt) {
       ai_contact_learnstay_apply(ctx, e, nation_id, lu, lt, skill);
     } else {
@@ -1817,7 +1828,9 @@ static void ai_contact_apply_popup_result_menu(
     return;
   }
   ColonizeUnit* menu_unit = ai_contact_menu_unit(ctx, popup, e);
-  ColonizeCol1Tribe* menu_village = ai_contact_menu_village(ctx, nation_id, menu_unit);
+  ColonizeCol1Tribe* menu_village = ai_contact_menu_village(
+    ctx, nation_id, menu_unit, ai_contact_meet_payload_village(popup->result_payload)
+  );
   int near_x = 0;
   int near_y = 0;
   ColonizeUnit* other =
@@ -1871,7 +1884,9 @@ static void ai_contact_apply_popup_result_menu(
     /* A failed begin (no adjacent unit / econ build fails) returns through
      * LAB_003582 with no popup at all — port_bugs.md #960. */
     if (other) {
-      (void)ai_contact_2820_begin(ctx, ind, nation_id, e, other);
+      (void)ai_contact_2820_begin_at(
+        ctx, ind, nation_id, e, other, menu_village ? (int)(menu_village - ctx->col1->tribe) : -1
+      );
     }
     break;
   case AI_CONTACT_CHOICE_DEMAND: {

@@ -16,8 +16,7 @@ key Return                 # Help: Time Scale (two turns per year from 1600)
 wait 10
 key Return                 # (AI turn running; nested pump, spare press)
 wait 10
-key Return                 # @INDIANLOSE: French Colonists defeat Iroquois near Port au Prince
-wait 10
+                         #  (outcome popup gone: #1464/#1465)
 key Return                 # (spare press)
 wait 10
 key Return                 # @RAIDSTORES: Iroquois raiding party attacks stores in Port au Prince, Furs stolen

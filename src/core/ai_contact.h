@@ -236,6 +236,9 @@ int ai_contact_try_village_meet_unit_at(
 /* Acting unit id packed in a CONTACT_MEET result payload (-1 if none). */
 int ai_contact_meet_payload_unit(int payload);
 
+/* Entered village index packed in a CONTACT_MEET result payload (-1 if none, #1480). */
+int ai_contact_meet_payload_village(int payload);
+
 /* True while a village menu for this unit is queued or open. */
 int ai_contact_meet_pending_for_unit(const AiPopupState* st, int unit_id);
 

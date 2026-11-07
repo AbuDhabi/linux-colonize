@@ -88,14 +88,22 @@ static void ai_contact_2e92_give_goods(ColonizeTurnContext* ctx, ColonizeUnit* u
 }
 
 /*
- * The settlement a trading unit is visiting: the `nation_id` settlement
- * standing next to it (a unit never moves onto the village tile to trade).
- * NULL when none is adjacent.
+ * The settlement a trading unit is visiting: the village the session was
+ * bound to (DS:0x8d4a, the entered tile's settlement, port_bugs.md #1480),
+ * else the first `nation_id` settlement standing next to the unit (a unit
+ * never moves onto the village tile to trade). NULL when none is adjacent.
  */
 static ColonizeCol1Tribe* ai_contact_2e92_visited_village(
-  ColonizeTurnContext* ctx, int nation_id, const ColonizeUnit* unit
+  ColonizeTurnContext* ctx, int nation_id, const ColonizeUnit* unit, const AiContact2820* s
 ) {
-  if (!ctx || !ctx->col1 || !ctx->col1->tribe || !unit) {
+  if (!ctx || !ctx->col1 || !ctx->col1->tribe) {
+    return NULL;
+  }
+  if (s && s->village_plus1 > 0 && s->village_plus1 <= (int)ctx->col1->head.tribe_count &&
+      (int)ctx->col1->tribe[s->village_plus1 - 1].nation_id == nation_id) {
+    return &ctx->col1->tribe[s->village_plus1 - 1];
+  }
+  if (!unit) {
     return NULL;
   }
   for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
@@ -1303,6 +1311,29 @@ int ai_contact_try_wagon_reparations(
 
 
 /*
+ * One stream (port_bugs.md #1482): DOS draws every haggle roll of FUN_4d56_2820
+ * on the global LCG it reseeded at raw 82130, and so do the 00f2 alarm calls in
+ * between. The session keeps that stream in s->rng across a human's popups; each
+ * entry point binds ctx->rng to it (so ctx->rng consumers draw the same stream)
+ * and hands the advanced state back to the caller's ctx->rng on exit.
+ */
+static ColonizeDosRng* ai_contact_2820_rng_enter(ColonizeTurnContext* ctx, AiContact2820* s) {
+  ColonizeDosRng* const live = ctx->rng;
+  if (live) {
+    s->rng = *live;
+    ctx->rng = &s->rng;
+  }
+  return live;
+}
+
+static void ai_contact_2820_rng_leave(ColonizeTurnContext* ctx, AiContact2820* s, ColonizeDosRng* live) {
+  if (live) {
+    *live = s->rng;
+    ctx->rng = live;
+  }
+}
+
+/*
  * Shell tables: 2154 ask/bid, then
  *   bid0 = bid[0]; bid[0] = 0; if (bid[13] < bid0) ask[0] = 0;
  *   sort by bid; top three: ask[c] = 0 (a food slot becomes cloth, 0xc).
@@ -1310,7 +1341,7 @@ int ai_contact_try_wagon_reparations(
 static int ai_contact_2820_prepare(
   ColonizeTurnContext* ctx, int nation_id, const ColonizeUnit* unit, AiContact2820* s
 ) {
-  const ColonizeCol1Tribe* t = ai_contact_2e92_visited_village(ctx, nation_id, unit);
+  const ColonizeCol1Tribe* t = ai_contact_2e92_visited_village(ctx, nation_id, unit, s);
   if (!t) {
     return 0;
   }
@@ -1734,15 +1765,16 @@ int ai_contact_2e92_haggle(int difficulty, int bid, ColonizeDosRng* rng, int* io
  * never guess the tribe's first village, the knowledge is per settlement.
  */
 static const ColonizeCol1Tribe* ai_contact_intel_village(
-  ColonizeTurnContext* ctx, int nation_id, const ColonizeUnit* unit
+  ColonizeTurnContext* ctx, int nation_id, const ColonizeUnit* unit, const AiContact2820* s
 ) {
-  return ai_contact_2e92_visited_village(ctx, nation_id, unit);
+  return ai_contact_2e92_visited_village(ctx, nation_id, unit, s);
 }
 
 static void ai_contact_intel_note_buys(
-  ColonizeTurnContext* ctx, int e, int nation_id, const ColonizeUnit* unit, const int wanted[3]
+  ColonizeTurnContext* ctx, int e, int nation_id, const ColonizeUnit* unit, const int wanted[3],
+  const AiContact2820* s
 ) {
-  const ColonizeCol1Tribe* v = ai_contact_intel_village(ctx, nation_id, unit);
+  const ColonizeCol1Tribe* v = ai_contact_intel_village(ctx, nation_id, unit, s);
   if (v) {
     village_trade_intel_note_buys(e, v->x, v->y, wanted, 3);
   }
@@ -1864,7 +1896,7 @@ static int ai_contact_enqueue_buywhich(
   /* 2820 +1217: `FUN_291f_019c(…, 0x15a0, *(0x8d52))`. */
   ai_contact_chief_flair(ctx, e, nation_id);
   {
-    const ColonizeCol1Tribe* v = ai_contact_intel_village(ctx, nation_id, unit);
+    const ColonizeCol1Tribe* v = ai_contact_intel_village(ctx, nation_id, unit, s);
     if (v) {
       village_trade_intel_note_sells(e, v->x, v->y, goods, n);
     }
@@ -1880,7 +1912,7 @@ static void ai_contact_2820_buy_phase(
   ColonizeTurnContext* ctx, ColonizeCol1Indian* ind, int nation_id, int e, ColonizeUnit* unit,
   AiContact2820* s, int human
 ) {
-  ColonizeCol1Tribe* t = ai_contact_2e92_visited_village(ctx, nation_id, unit);
+  ColonizeCol1Tribe* t = ai_contact_2e92_visited_village(ctx, nation_id, unit, s);
   if (!unit || !ai_contact_2e92_unit_can_take(ctx, unit)) {
     s->sold_ok = 0;
   }
@@ -1904,7 +1936,7 @@ static void ai_contact_2820_buy_phase(
     char body[AI_POPUP_BODY_LEN];
     popup_msg_fill(ctx->messages, "BRING", &tok, "", body, sizeof(body));
     ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, body);
-    ai_contact_intel_note_buys(ctx, e, nation_id, unit, wanted);
+    ai_contact_intel_note_buys(ctx, e, nation_id, unit, wanted, s);
   }
   if (human && t && t->sticky_trade_good == 0xfe) {
     /* DOS asm 4d56:2f7e-2f8b — `tribe[+7] == 0xfe` (this tribe already walked
@@ -1957,17 +1989,10 @@ static void ai_contact_2820_buy_phase(
         ctx, ind, t, nation_id, e, unit, goods[best], price, s->buy_qty, &s->rng
       )) {
     /* @NOTENOUGH arm. DOS has one stream: the 00f2 expel roll continues the
-     * haggle's draws. The alarm helper rolls on ctx->rng, so hand the
-     * session's copy to it and take it back (DOSBox ref 12->13: the crown
-     * wagon's trade at Bahia's village, draw 388, then the next wagon's
-     * Ore walk-down drew once in DOS and twice here). */
-    if (ctx->rng) {
-      *ctx->rng = s->rng;
-    }
+     * haggle's draws; ctx->rng is bound to s->rng here (ai_contact_2820_rng_enter;
+     * DOSBox ref 12->13: the crown wagon's trade at Bahia's village, draw 388,
+     * then the next wagon's Ore walk-down drew once in DOS and twice here). */
     ai_contact_alarm_delta_00f2(ctx, nation_id, e, 1);
-    if (ctx->rng) {
-      s->rng = *ctx->rng;
-    }
   }
   s->active = 0;
 }
@@ -2003,7 +2028,7 @@ COLONIZE_INTERNAL int ai_contact_auto_buy_2e92(
     return 0;
   }
   const int best = ai_contact_2e92_ai_pick(ctx, &s, e, goods, n);
-  ColonizeCol1Tribe* t = ai_contact_2e92_visited_village(ctx, nation_id, unit);
+  ColonizeCol1Tribe* t = ai_contact_2e92_visited_village(ctx, nation_id, unit, &s);
   const int qty = ai_contact_2820_buy_qty(ctx, unit, 0);
   const int price =
     ai_contact_2e92_price(ctx, ind, nation_id, e, goods[best], (int)s.bid[slots[best]], qty, &s.rng);
@@ -2027,7 +2052,9 @@ void ai_contact_apply_buywhich(
     if (!ai_contact_2820_prepare(ctx, nation_id, unit, s)) {
       return;
     }
-    ai_contact_local_rng(ctx, nation_id, &s->rng);
+    if (!ctx->rng) {
+      ai_contact_local_rng(ctx, nation_id, &s->rng);
+    }
     s->active = 1;
     s->nation_id = nation_id;
     s->unit_id = unit_id;
@@ -2051,18 +2078,17 @@ void ai_contact_apply_buywhich(
       }
     }
   }
+  ColonizeDosRng* const live = ai_contact_2820_rng_enter(ctx, s);
   const int price =
     ai_contact_2e92_price(ctx, ind, nation_id, e, cargo, (int)s->bid[cargo & 15], s->buy_qty, &s->rng);
+  ai_contact_2820_rng_leave(ctx, s, live);
   s->price = price;
   ai_contact_enqueue_buy0(ctx, nation_id, e, unit, cargo, price, s->buy_qty, 0);
 }
 
-void ai_contact_apply_buy0(
+static void ai_contact_apply_buy0_body(
   ColonizeTurnContext* ctx, ColonizeCol1Indian* ind, int nation_id, int e, int payload, int choice
 ) {
-  if (!ctx || !ctx->units || e < 0 || e > 3) {
-    return;
-  }
   const uint32_t bits = (uint32_t)payload; /* bit 31 = round: decode unsigned */
   const int unit_id = (int)(bits & 0xffffu);
   const int cargo = (int)((bits >> 16) & 0xfu);
@@ -2078,7 +2104,7 @@ void ai_contact_apply_buy0(
     return; /* Never mind */
   }
   ColonizeUnit* unit = units_get(ctx->units, unit_id);
-  ColonizeCol1Tribe* t = ai_contact_2e92_visited_village(ctx, nation_id, unit);
+  ColonizeCol1Tribe* t = ai_contact_2e92_visited_village(ctx, nation_id, unit, have_state ? s : NULL);
   if (!unit) {
     s->active = 0;
     return;
@@ -2145,6 +2171,17 @@ void ai_contact_apply_buy0(
   s->active = 0;
 }
 
+void ai_contact_apply_buy0(
+  ColonizeTurnContext* ctx, ColonizeCol1Indian* ind, int nation_id, int e, int payload, int choice
+) {
+  if (!ctx || !ctx->units || e < 0 || e > 3) {
+    return;
+  }
+  ColonizeDosRng* const live = ai_contact_2820_rng_enter(ctx, &ai_contact_s_2820[e]);
+  ai_contact_apply_buy0_body(ctx, ind, nation_id, e, payload, choice);
+  ai_contact_2820_rng_leave(ctx, &ai_contact_s_2820[e], live);
+}
+
 /* @TRADE0 (round 0: accept / fairer / gift / never mind) or @TRADE1 (no gift). */
 static int ai_contact_enqueue_trade_offer_round(
   ColonizeTurnContext* ctx, int nation_id, int e, const AiContact2820* s
@@ -2196,7 +2233,7 @@ static void ai_contact_2820_dispatch(
   AiContact2820* s
 ) {
   const int human = ai_contact_euro_is_human(ctx, e);
-  ColonizeCol1Tribe* t = ai_contact_2e92_visited_village(ctx, nation_id, unit);
+  ColonizeCol1Tribe* t = ai_contact_2e92_visited_village(ctx, nation_id, unit, s);
   const int alarm = ai_diplo_indian_alarm(ctx->col1, nation_id, e); /* aiStack_d6[0] */
   if (s->cargo < 0) {
     ai_contact_2820_buy_phase(ctx, ind, nation_id, e, unit, s, human);
@@ -2229,7 +2266,7 @@ static void ai_contact_2820_dispatch(
     char body[AI_POPUP_BODY_LEN];
     popup_msg_fill(ctx->messages, "BADCARGO", &tok, "", body, sizeof(body));
     ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_REFUSE, nation_id, body);
-    ai_contact_intel_note_buys(ctx, e, nation_id, unit, wanted);
+    ai_contact_intel_note_buys(ctx, e, nation_id, unit, wanted, s);
     s->active = 0;
     return;
   }
@@ -2260,12 +2297,20 @@ static void ai_contact_2820_dispatch(
 int ai_contact_2820_begin(
   ColonizeTurnContext* ctx, ColonizeCol1Indian* ind, int nation_id, int e, ColonizeUnit* unit
 ) {
+  return ai_contact_2820_begin_at(ctx, ind, nation_id, e, unit, -1);
+}
+
+int ai_contact_2820_begin_at(
+  ColonizeTurnContext* ctx, ColonizeCol1Indian* ind, int nation_id, int e, ColonizeUnit* unit,
+  int village_index
+) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || !ind || !unit || e < 0 || e > 3 ||
       unit->nation_id != e) {
     return 0;
   }
   AiContact2820* s = &ai_contact_s_2820[e];
   memset(s, 0, sizeof(*s));
+  s->village_plus1 = village_index >= 0 ? village_index + 1 : 0; /* DS:0x8d4a (#1480) */
   if (!ai_contact_2820_prepare(ctx, nation_id, unit, s)) {
     return 0;
   }
@@ -2284,10 +2329,10 @@ int ai_contact_2820_begin(
    * through here at once and hands the stream back below. */
   if (ctx->rng) {
     dos_rng_seed(ctx->rng, ai_turn_seed(ctx));
-    s->rng = *ctx->rng;
   } else {
     ai_contact_local_rng(ctx, nation_id, &s->rng);
   }
+  ColonizeDosRng* const live = ai_contact_2820_rng_enter(ctx, s);
   s->active = 1;
   s->nation_id = nation_id;
   s->unit_id = unit->id;
@@ -2339,6 +2384,7 @@ int ai_contact_2820_begin(
         /* No chief portrait: DOS shows this list through FUN_291f_016a with no
          * DS:0x1f5c write after 0182 (ndisasm 0x49762..0x49890); 0x15ce/0x15da
          * are @MADATWAGONS/@GRUDGEWAGONS, not this menu. */
+        ai_contact_2820_rng_leave(ctx, s, live);
         return 1;
       }
     }
@@ -2360,9 +2406,7 @@ int ai_contact_2820_begin(
     }
   }
   ai_contact_2820_dispatch(ctx, ind, nation_id, e, unit, s);
-  if (!human && ctx->rng) {
-    *ctx->rng = s->rng;
-  }
+  ai_contact_2820_rng_leave(ctx, s, live); /* human too (#1482) */
   return 1;
 }
 
@@ -2390,7 +2434,9 @@ void ai_contact_apply_trade_pick(
   s->slot = h;
   s->cargo = unit->hold_goods_type[h];
   s->qty = unit->hold_goods_amount[h];
+  ColonizeDosRng* const live = ai_contact_2820_rng_enter(ctx, s);
   ai_contact_2820_dispatch(ctx, ind, nation_id, e, unit, s);
+  ai_contact_2820_rng_leave(ctx, s, live);
 }
 
 /*
@@ -2431,19 +2477,15 @@ int ai_contact_ai_wagon_village_trade(
  *   3 gift (round 0) → gift_settle, then LAB_002e92
  *   else → iStack_c6 = 0 (nothing)
  */
-void ai_contact_apply_trade_offer(
-  ColonizeTurnContext* ctx, ColonizeCol1Indian* ind, int nation_id, int e, int price, int choice
+static void ai_contact_apply_trade_offer_body(
+  ColonizeTurnContext* ctx, ColonizeCol1Indian* ind, int nation_id, int e, int choice
 ) {
-  (void)price;
-  if (!ctx || !ind || e < 0 || e > 3 || !ctx->units) {
-    return;
-  }
   AiContact2820* s = &ai_contact_s_2820[e];
   if (!s->active || s->nation_id != nation_id || s->cargo < 0) {
     return;
   }
   ColonizeUnit* unit = units_get(ctx->units, s->unit_id);
-  ColonizeCol1Tribe* t = ai_contact_2e92_visited_village(ctx, nation_id, unit);
+  ColonizeCol1Tribe* t = ai_contact_2e92_visited_village(ctx, nation_id, unit, s);
   if (!unit || unit->hold_goods_amount[s->slot] <= 0 || unit->hold_goods_type[s->slot] != s->cargo) {
     s->active = 0;
     return;
@@ -2487,6 +2529,18 @@ void ai_contact_apply_trade_offer(
   }
   ai_contact_2820_sell_settle(ctx, ind, t, nation_id, e, unit, s);
   ai_contact_2820_buy_phase(ctx, ind, nation_id, e, unit, s, 1);
+}
+
+void ai_contact_apply_trade_offer(
+  ColonizeTurnContext* ctx, ColonizeCol1Indian* ind, int nation_id, int e, int price, int choice
+) {
+  (void)price;
+  if (!ctx || !ind || e < 0 || e > 3 || !ctx->units) {
+    return;
+  }
+  ColonizeDosRng* const live = ai_contact_2820_rng_enter(ctx, &ai_contact_s_2820[e]);
+  ai_contact_apply_trade_offer_body(ctx, ind, nation_id, e, choice);
+  ai_contact_2820_rng_leave(ctx, &ai_contact_s_2820[e], live);
 }
 
 /* Find Euro unit of nation e adjacent to a Brave of nation_id (meet/gift apply). */

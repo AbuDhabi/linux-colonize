@@ -769,6 +769,20 @@ static int artillery_price_escalates(void) {
   return 0;
 }
 
+/* #1479: the turn>99 discount wraps at int16 (asm 521d:68d3-68f3). */
+static int late_discount_wraps_int16(void) {
+  if (ai_euro_5d04_late_discount(4, 500) != -200) {
+    return fail("Viceroy 500 must be discounted by 200");
+  }
+  if (ai_euro_5d04_late_discount(4, 1000) != 255) {
+    return fail("Viceroy 1000: 40000 wraps to -25536, a +255 surcharge");
+  }
+  if (ai_euro_5d04_late_discount(2, 1000) != -200) {
+    return fail("Governor 1000 must be discounted by 200");
+  }
+  return 0;
+}
+
 /*
  * TB-56 (C-71): the dispatch-0 Pioneer training writes only the type in DOS
  * (raw 92770-92783), so the Pioneer keeps the record's tools byte (0 here);
@@ -1304,6 +1318,7 @@ static const TestCase k_cases[] = {
     {"pioneer_roll_miss_skips_missionary_arm", pioneer_roll_miss_skips_missionary_arm},
     {"pioneer_training_tools", pioneer_training_tools},
     {"artillery_price_escalates", artillery_price_escalates},
+    {"late_discount_wraps_int16", late_discount_wraps_int16},
     {"dock_walk_is_newest_first", dock_walk_is_newest_first},
     {"missionary_bless_roll_matches_dos_one_in_four", missionary_bless_roll_matches_dos_one_in_four},
     {"dos_type_table_is_names_txt_unit_order", dos_type_table_is_names_txt_unit_order},

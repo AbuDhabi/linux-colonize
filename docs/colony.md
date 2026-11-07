@@ -531,9 +531,11 @@ else. Thin wrapper over units_build_project_info (DOS FUN_15eb_33aa).
 ## colonies_destroy_building
 
 Destroy a built building (not Town Hall); the raid burn of FUN_5fef_0f14 kind 2
-(raw 99975-99985). Clears has_building. A chain root's workers go idle
-(building_type=-1); under an upper tier they move to the best tier still owned,
-as DOS keeps their job. The construction project is left alone. Returns false
+(raw 99975-99985). Clears has_building. Every colonist holding a chain root's
+job becomes a Carpenter (FUN_15eb_1068(slot, 0xd), port_bugs.md #1462; a
+jobless root such as the Stockade just clears the workplace); under an upper
+tier they move to the best tier still owned, as DOS keeps their job. The
+construction project is left alone. Returns false
 if missing/Town Hall/invalid.
 
 ## Colony-screen cheat keys
@@ -673,8 +675,9 @@ Rush-buy the current project: tops hammers up to the completion
 threshold and tools up to the requirement (deducting colonies_construction_
 gold_cost's formula from *gold), same as DOS's FUN_2f2b_5e44 — it does
 NOT complete the project. Completion only happens through the normal
-per-turn checks (turn_run_colony_building_completion /
-turn_colony_unit_construction_one, both unconditional once per turn),
+per-turn checks (turn_produce_hammers' Phase L completion /
+turn_colony_unit_construction_one, both unconditional once per turn,
+before spoilage, port_bugs.md #1475),
 matching DOS: rushing a project just fills the tank, and the
 next turn's construction processing notices it's full and finishes the
 job. Fails if no project or insufficient gold. Updates *gold on success.

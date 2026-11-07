@@ -1249,28 +1249,51 @@ static void game_trade_route_service_stop(
   );
 }
 
-/* If TRADE_ROUTE unit is at current stop (or has no goto), service then advance. */
-void game_trade_route_retarget(ColonizeGameState* game, ColonizeUnit* u) {
+/* The trade-route unit standing at its current stop (or with no goto): the
+ * route, and the stop record when Col1 is loaded. NULL route when it is not. */
+static const ColonizeCol1TradeRoute* game_trade_route_at_stop(
+  const ColonizeGameState* game, const ColonizeUnit* u, const ColonizeCol1TradeStop** st_out
+) {
+  *st_out = NULL;
   if (!game || !u || u->orders != UNITS_ORDER_TRADE_ROUTE) {
-    return;
+    return NULL;
   }
   const int route = u->follow_unit_id;
   if (route < 0 || route >= (int)COLONIZE_COL1_TRADE_ROUTE_COUNT) {
-    return;
+    return NULL;
   }
   const ColonizeCol1TradeRoute* r = &game->col1.trade_route[route];
   if (r->dest_count == 0) {
-    return;
+    return NULL;
   }
   const int at_dest =
     (u->goto_x >= UNITS_GOTO_NONE || u->goto_y >= UNITS_GOTO_NONE) ||
     (u->x == u->goto_x && u->y == u->goto_y);
   if (!at_dest) {
-    return;
+    return NULL;
   }
   const int si_here = u->col1_counter16;
-  const ColonizeCol1TradeStop* st =
+  *st_out =
     (game->col1_ok && si_here >= 0 && si_here < (int)r->dest_count) ? &r->stop[si_here] : NULL;
+  return r;
+}
+
+/*
+ * The arrival half of a trade-route step (FUN_479b_0972, raw 77094-77116): a
+ * ship reaching its Europe stop's lane tile sails at once, whatever MP it has
+ * left; any other arrival keeps order 2 and is NOT serviced here (port_bugs.md
+ * #1469: FUN_479b_0bd0 runs only from Begin Trade Route and FUN_2b5a_3ae6's
+ * order-2 case for the active unit, i.e. game_trade_route_retarget when the
+ * pacer next picks the unit up with MP). True when the lane arm ran.
+ */
+bool game_trade_route_lane_sail(ColonizeGameState* game, ColonizeUnit* u) {
+  const ColonizeCol1TradeStop* st = NULL;
+  const ColonizeCol1TradeRoute* r = game_trade_route_at_stop(game, u, &st);
+  if (!r) {
+    return false;
+  }
+  const int route = u->follow_unit_id;
+  const int si_here = u->col1_counter16;
   /*
    * Europe stop, ship on the sea lane: DOS actually sails the ship to
    * Europe — it crosses (voyage turns), docks, sells/buys the stop's
@@ -1289,7 +1312,7 @@ void game_trade_route_retarget(ColonizeGameState* game, ColonizeUnit* u) {
      * route keeps this stop (orders 2 kept, raw 77113-77116). No popup.
      */
     if (game_europe_blocked_by_woi(game) && !game_ship_woi_europe_exempt(game, u)) {
-      return;
+      return true;
     }
     const int uid = u->id;
     const int before = game->europe.expected_ships;
@@ -1301,8 +1324,22 @@ void game_trade_route_retarget(ColonizeGameState* game, ColonizeUnit* u) {
     }
     /* Departed (unit despawned into the Atlantic lane), or lane full: not on
      * the dock lane either way, so 0b84 is false and the stop is kept. */
+    return true;
+  }
+  return false;
+}
+
+/* If TRADE_ROUTE unit is at current stop (or has no goto), service then advance. */
+void game_trade_route_retarget(ColonizeGameState* game, ColonizeUnit* u) {
+  if (game_trade_route_lane_sail(game, u)) {
     return;
   }
+  const ColonizeCol1TradeStop* st = NULL;
+  const ColonizeCol1TradeRoute* r = game_trade_route_at_stop(game, u, &st);
+  if (!r) {
+    return;
+  }
+  const int si_here = u->col1_counter16;
   if (st && st->colony_index == 999) {
     /*
      * Any other unit on a Europe stop (a wagon, a ship off the lane, no
@@ -1449,57 +1486,26 @@ void game_europe_service_trade_harbor(ColonizeGameState* game) {
 /* Returns false if the game should quit. */
 
 /*
- * Board / unload / sail-home, shared by the MENU.TXT ORDERS rows and by the
- * keyboard keys U and H (audit GL-19: the menu arms re-implemented the key
- * handlers line for line, fortified guard and status strings included). Each
- * caller keeps its own asset-availability prefix, which is the only thing that
- * differed: the menu rows answer "Cannot load cargo" / "Cannot return to
- * Europe" when the pools are not up, the keys simply do not fire. There is no
- * plain O board key: DOS has none (MENU.TXT's only ~O row is Dump Cargo
- * Overboard), so boarding is the Load Cargo row only.
+ * Map ORDERS "Load Cargo" (0x315) / "Unload Cargo" (0x316), port_bugs.md #1452.
+ * The DOS menu table 2b5a:2fd2 sends them to 2b5a:1908 / 2b5a:1952: the active
+ * unit (DS:0x5392), FUN_281f_07be(x, y) = the colony on its tile, none -> nothing;
+ * else FUN_281f_09e6 makes it DS:0x8542 and FUN_291f_01de -> FUN_479b_11a4(unit)
+ * loads the best colony cargo, FUN_291f_01d0 -> FUN_479b_0f60(unit, 0) unloads the
+ * lowest-key hold (the colony-screen L / U bodies). Goods only: passengers board
+ * and land by moving, never through these rows. The trailing FUN_281f_055e(1, 0)
+ * is the sidebar repaint the port does every frame.
  */
-void game_order_board(ColonizeGameState* game) {
+static void game_order_colony_cargo(ColonizeGameState* game, bool load) {
   const int sid = game->units.selected_id;
-  const int at_cursor = units_id_at(&game->units, game->map_cursor_x, game->map_cursor_y);
-  int land_id = -1;
-  int ship_id = -1;
-  if (sid >= 0 && at_cursor >= 0) {
-    if (!units_is_sea(&game->units, sid) && units_is_sea(&game->units, at_cursor)) {
-      land_id = sid;
-      ship_id = at_cursor;
-    } else if (units_is_sea(&game->units, sid) && !units_is_sea(&game->units, at_cursor)) {
-      land_id = at_cursor;
-      ship_id = sid;
-    }
-  }
-  /* port_bugs.md: never grab a Fortifying/Fortified unit off the tile —
-   * fortification has no interaction with boarding in DOS, and units_board
-   * forces sentry-aboard (the "fortified soldier became sentried and vanished
-   * onto the ship" report). */
-  const ColonizeUnit* lu = land_id >= 0 ? units_get_const(&game->units, land_id) : NULL;
-  const bool fortified =
-    lu && (lu->orders == UNITS_ORDER_FORTIFY || lu->orders == UNITS_ORDER_FORTIFIED);
-  /* DOS shows no message on either outcome (no-DOS-text rule, #1405). */
-  game->status[0] = '\0';
-  if (!fortified && land_id >= 0 && ship_id >= 0) {
-    (void)units_board(&game->units, land_id, ship_id);
-  }
-}
-
-void game_order_unload(ColonizeGameState* game) {
-  const int sid = game->units.selected_id;
-  game->status[0] = '\0'; /* DOS shows no message here (#1405) */
-  if (sid < 0 || !units_is_sea(&game->units, sid)) {
+  const ColonizeUnit* u = units_get_const(&game->units, sid);
+  const int cid = u ? colonies_id_at(&game->colonies, u->x, u->y) : -1;
+  if (cid < 0) {
     return;
   }
-  const ColonizeUnit* ship = units_get_const(&game->units, sid);
-  const int pax_id = (ship && ship->cargo_count > 0) ? ship->cargo_ids[0] : -1;
-  const ColonizeWorld w = game_world(game);
-  if (!units_unload_w(&w, sid, game->map_cursor_x, game->map_cursor_y)) {
-    return;
-  }
-  if (pax_id >= 0) {
-    game->units.selected_id = pax_id;
+  if (load) {
+    game_colony_load_best_cargo(game, sid, cid);
+  } else {
+    game_colony_unload_best_hold(game, sid, cid);
   }
 }
 
@@ -2005,14 +2011,14 @@ static GameMenuActionStatus game_menu_action_goto_and_cargo(ColonizeGameState* g
       if (!game->world_map_ok || !game->units_ok) {
         return GAME_MENU_ACTION_DONE;
       }
-      game_order_board(game);
+      game_order_colony_cargo(game, true);
       return GAME_MENU_ACTION_DONE;
     }
     case MAP_MENU_ACTION_UNLOAD_CARGO: {
       if (!game->world_map_ok || !game->units_ok) {
         return GAME_MENU_ACTION_DONE;
       }
-      game_order_unload(game);
+      game_order_colony_cargo(game, false);
       return GAME_MENU_ACTION_DONE;
     }
     case MAP_MENU_ACTION_RETURN_EUROPE: {

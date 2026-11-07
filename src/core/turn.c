@@ -670,7 +670,6 @@ static void turn_euro_slot_eot(ColonizeTurnProcessor* proc, ColonizeTurnContext*
             NULL,
             0
           );
-          turn_route_damaged_ships(ctx, n);
           if (n != ctx->human_nation) {
             /* 00f2 5e52 (raw 58375), lane tick 0a82 (raw 58377) and colony
              * loop 0950 (raw 58384), in that order. */
@@ -1031,7 +1030,6 @@ COLONIZE_INTERNAL void turn_human_ship_repairs(ColonizeTurnProcessor* proc, Colo
     map_ids,
     COLONIZE_UNITS_MAX
   );
-  turn_route_damaged_ships(ctx, ctx->human_nation);
   /* FUN_3844_00f2 raw 58326-58373 shows each @REFIT as it walks the records from the last
    * down, map and harbor hulls in one loop. The save writes the harbor hulls after the map
    * units (col1_bridge_capture_europe_lanes), so their popups come first (last harbor slot

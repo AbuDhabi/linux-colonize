@@ -43,8 +43,9 @@ match the DS bytes cell for cell. Everything below is about what those numbers l
 - **Mountains "Silver Miner 1"**: without a Silver Deposit a free colonist gets 0 (1 with a road),
   an expert 1, and the road/river stack is suppressed entirely. Only a deposit tile matches the
   screen (3 / expert 6). 18ec raw 11925-11938.
-- **"Plow" bonus on Hills, Mountains and forest pages** is unreachable: Hills/Mountains cannot be
-  plowed (`FUN_2b5a_0b34` raw 42224-42227), and plowing a forest only clears it to the cleared type
+- **"Plow" bonus on Hills, Mountains and forest pages** is unreachable for the human: the ORDERS
+  menu refuses Hills/Mountains (`FUN_2b5a_0b34` raw 42224-42227; an AI pioneer's work body
+  `FUN_479b_01a6` has no such veto and can plow them, #1478), and plowing a forest only clears it to the cleared type
   without setting the plow bit (`units_pioneer.c`). Only the river half of the line applies.
 - **Rivers**: the screen shows a flat +1/+2. A major river adds its extra step only when the river
   is the sole contributor (TB-42), so a Farmer gets +1 on both kinds; a Fisherman or road-less Ore

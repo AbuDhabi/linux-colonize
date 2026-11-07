@@ -880,13 +880,21 @@ static void ai_contact_classify_unit(
   out->can_live_among = colonist_class && out->attack < 2;
 }
 
-/* Meet payload: bit0 is_missionary, bit1 is_capital, bits 2.. = unit id + 1. */
-static int ai_contact_meet_payload(int is_missionary, int is_capital, int unit_id) {
-  return (is_missionary ? 1 : 0) | (is_capital ? 2 : 0) | ((unit_id + 1) << 2);
+/* Meet payload: bit0 is_missionary, bit1 is_capital, bits 2..15 = unit id + 1,
+ * bits 16..30 = entered village index + 1 (0 = unknown). FUN_4d56_4528 binds
+ * DS:0x8d4a to the entered tile's settlement (09f0/0a4c) and every @ACTIONS arm
+ * reads that record, so the menu carries it (port_bugs.md #1480). */
+static int ai_contact_meet_payload(int is_missionary, int is_capital, int unit_id, int village_index) {
+  return (is_missionary ? 1 : 0) | (is_capital ? 2 : 0) | (((unit_id + 1) & 0x3fff) << 2) |
+         (((village_index + 1) & 0x7fff) << 16);
 }
 
 int ai_contact_meet_payload_unit(int payload) {
-  return (payload >> 2) - 1;
+  return ((payload >> 2) & 0x3fff) - 1;
+}
+
+int ai_contact_meet_payload_village(int payload) {
+  return ((payload >> 16) & 0x7fff) - 1;
 }
 
 /* NAMES.TXT @LEVELS column 1 by tribe tech (DS:0x9634 + tech*6): Camp/Village/City. */
@@ -1098,7 +1106,9 @@ void ai_contact_enqueue_village_meet(
     AI_POPUP_TAG_CONTACT_MEET,
     e,
     nation_id,
-    ai_contact_meet_payload(is_missionary, is_capital, unit_id),
+    ai_contact_meet_payload(
+      is_missionary, is_capital, unit_id, village ? (int)(village - ctx->col1->tribe) : -1
+    ),
     NULL,
     body,
     labels,

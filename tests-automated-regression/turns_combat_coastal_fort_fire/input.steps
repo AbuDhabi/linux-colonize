@@ -18,8 +18,7 @@ key Return               # @SHIPDAMAGE "{French Caravel} damaged! Ship returns t
 wait 10                 #  own Drydock; goto = return-from-Europe tile 49,30; repair bill 0 vs a doubled fort)
 key Return               # (AI turn running; presses between popups are ignored)
 wait 10
-key Return               # English defeat French Colonists near Guadeloupe; wagon train captured
-wait 10
+                         #  wagon train captured (no outcome popup: #1464/#1465)
 key Return               # French colonists captured by the English
 wait 10
 key Return               # English march into Guadeloupe, 90 gold plundered

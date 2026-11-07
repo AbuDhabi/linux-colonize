@@ -303,8 +303,8 @@ static int case_next_unit_selection(void) {
  * refresh used to read that as the human sentry order and hand it 0 thirds —
  * which froze the hull and every passenger the 5d04 hire tail loaded onto it
  * for the rest of the game, because the 6d8e dispatcher skips a ship with no
- * MP. A sentried unit ON the map still keeps 0 (it is dug in), and a crown
- * wreck parked in the same slot is held at 0 by turn_route_damaged_ships.
+ * MP. A sentried unit ON the map still keeps 0 (it is dug in); a crown
+ * wreck parked in the same slot is never acted while bit7 is set (13b0).
  */
 static int case_europe_park_refresh(void) {
   fx_begin();
@@ -6549,6 +6549,20 @@ static int case_phase_k_build_advisory(void) {
     return 1;
   }
   fprintf(stderr, "build advisory K cotton ok\n");
+  /* port_bugs.md #1461: FUN_364b_0688 raw 57696 gates K on 5384&0x20 only, so
+   * a queued project with no Carpenter (or any other chrome this tick) does
+   * not swallow the crumb. */
+  col->building_in_production = 1;
+  col->hammers = 0;
+  col->stock[COLONIZE_CARGO_COTTON] = 0;
+  eu.status[0] = '\0';
+  memset(&prod, 0, sizeof(prod));
+  turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&cloth_col), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, &pops, &game_txt);
+  col->building_in_production = -1;
+  if (strstr(eu.status, "cotton") == NULL) {
+    fprintf(stderr, "K cotton with an idle project want status got '%s'\n", eu.status);
+    return 1;
+  }
 
   /* Phase K @LUMBER / @ORE / @TOOLS chrome. */
   ColonizeCol1Save food_gate;

@@ -3819,6 +3819,83 @@ static int wander_pick_beside_stack(int stack, uint32_t seed) {
   return dir;
 }
 
+/* #1455: FUN_15eb_0142 raw 9388-9391 leaves DS:0x8db8 = 9999 on a miss. */
+static int unit_prologue_missed_colony_dist_9999(void) {
+  Fixture f;
+  if (fixture_init(&f, 1) != 0) {
+    return 1;
+  }
+  const int id = units_spawn(&f.units, 1, 8, 8);
+  ColonizeUnit* u = units_get(&f.units, id);
+  if (!u) {
+    fixture_free(&f);
+    return fail("spawn soldier");
+  }
+  u->nation_id = 1;
+  Ai20e6Unit s;
+  ai_euro_20e6_prologue(&f.ctx, u, 1, &s);
+  fixture_free(&f);
+  if (s.home_colony >= 0 || s.home_dist != 9999 || s.any_colony_dist != 9999) {
+    fprintf(stderr, "home %d home_dist %d any %d\n", s.home_colony, s.home_dist, s.any_colony_dist);
+    return fail("missed colony search must leave both distances 9999");
+  }
+  return 0;
+}
+
+/* #1456: LAB_521d_52aa raw 88888-88897 read 8aac(local_5c, 0/2) on the real
+ * tile unit, so a colony holding only a colonist still counts it in a = col9+1
+ * even though the probe falls to the militia phantom. */
+static int attack_term_colony_score(int with_colonist, int* out_score) {
+  const int nation = 1;
+  Fixture f;
+  if (fixture_init(&f, nation) != 0) {
+    return -1;
+  }
+  const int ai = park_add_artillery_type(&f);
+  f.units.types[0].cost = 3;
+  f.units.types[ai].cost = 1;
+  ai_diplo_declare_war(&f.col1, nation, 0);
+  treasure_add_colony(&f, 0, 0, 9, 8);
+  f.map.layer3[8 * f.map.width + 9] = 0;
+  int foe = -1;
+  if (with_colonist) {
+    foe = units_spawn(&f.units, 0, 9, 8);
+    ColonizeUnit* cu = units_get(&f.units, foe);
+    if (!cu) {
+      fixture_free(&f);
+      return -1;
+    }
+    cu->nation_id = 0;
+  }
+  const int uid = units_spawn(&f.units, ai, 8, 8);
+  ColonizeUnit* u = units_get(&f.units, uid);
+  if (!u) {
+    fixture_free(&f);
+    return -1;
+  }
+  u->nation_id = nation;
+  Ai20e6Unit s;
+  ai_euro_20e6_prologue(&f.ctx, u, nation, &s);
+  int score = 0;
+  const int ok = ai_euro_20e6_attack_term(&f.ctx, u, &s, 9, 8, foe, &score);
+  fixture_free(&f);
+  *out_score = score;
+  return ok ? 0 : -1;
+}
+
+static int unit_attack_term_unarmed_colony_stack_counts(void) {
+  int empty = 0;
+  int colonist = 0;
+  if (attack_term_colony_score(0, &empty) != 0 || attack_term_colony_score(1, &colonist) != 0) {
+    return fail("attack term fixture unscoreable");
+  }
+  if (colonist <= empty) {
+    fprintf(stderr, "empty colony %d, lone colonist %d\n", empty, colonist);
+    return fail("a lone colonist must raise a (8aac(local_5c, 0) + 1)");
+  }
+  return 0;
+}
+
 static int unit_wander_hostile_stack_counts_every_unit(void) {
   int differs_head = 0;
   int differs_tail = 0;
@@ -4335,7 +4412,7 @@ static int unit_missionary_adjacent_village_visits_once(void) {
   t->x = 9;
   t->y = 8;
   t->nation_id = 4;
-  t->mission = COL1_TRIBE_MISSION_NONE;
+  t->mission = 2; /* foreign mission: code 7 on any roll (OVL13 0x46ba, #1459) */
   f.col1.tribe = t;
   f.col1.head.tribe_count = 1;
   f.col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
@@ -4354,7 +4431,7 @@ static int unit_missionary_adjacent_village_visits_once(void) {
   (void)ai_euro_act_land_treasure(&a);
   u = units_get(&f.units, uid);
   const int ok = u && u->active && u->moves == 0 && u->orders == UNITS_ORDER_NONE &&
-                 t->mission == COL1_TRIBE_MISSION_NONE && f.col1.nation[1].gold < 50000u;
+                 t->mission == 2 && f.col1.nation[1].gold < 50000u;
   if (!ok) {
     fprintf(stderr, "unit_ai_euro_20e6: visit active %d mission 0x%02x gold %u\n",
             u ? (int)u->active : -1, t->mission, (unsigned)f.col1.nation[1].gold);
@@ -4493,6 +4570,8 @@ static const TestCase k_cases[] = {
     {"unit_ship_step_leaves_12f6_stack_word", unit_ship_step_leaves_12f6_stack_word},
     {"unit_ship_index_gates_skip_deleted_slots", unit_ship_index_gates_skip_deleted_slots},
     {"unit_wander_hostile_stack_counts_every_unit", unit_wander_hostile_stack_counts_every_unit},
+    {"unit_prologue_missed_colony_dist_9999", unit_prologue_missed_colony_dist_9999},
+    {"unit_attack_term_unarmed_colony_stack_counts", unit_attack_term_unarmed_colony_stack_counts},
     {"unit_contact_claim_reads_chain_head", unit_contact_claim_reads_chain_head},
     {"unit_ship_fort_term_reads_fort_and_fortress_bits",
      unit_ship_fort_term_reads_fort_and_fortress_bits},

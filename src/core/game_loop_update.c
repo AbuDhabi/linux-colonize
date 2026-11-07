@@ -967,9 +967,9 @@ static GameUpdateStep game_pacer_goto_step(
     } else if (stepped) {
       /* FUN_465b_0000 tail runs inside the step, before the route logic. */
       game_move_arrival_tail(game, again);
-      if (again && again->orders == UNITS_ORDER_TRADE_ROUTE) {
-        game_trade_route_retarget(game, again);
-      }
+      /* FUN_479b_0972 arrival: only the Europe-lane sail; the stop itself is
+       * serviced when the pacer next takes the unit with MP (#1469). */
+      (void)game_trade_route_lane_sail(game, again);
       /* game_after_unit_step does fog reveal / LCR / 3180 / the treasure
        * arm / Land Ho! / view centering / next-unit-when-
        * exhausted — the same tail a player-driven move gets (FUN_479b_0972
@@ -2226,12 +2226,12 @@ static GameUpdateStep game_colony_screen_cargo_keys(
   if (!csv->jobs_open && !csv->construction_open && colony && game->units_ok) {
     if (input->last_key == COLONIZE_KEY_L) {
       /* 2f2b:662e: FUN_291f_01de -> FUN_479b_11a4(selected ship). */
-      game_colony_load_best_cargo(game);
+      game_colony_load_best_cargo(game, csv->transport_unit_id, game->colony_view_id);
       return GAME_UPDATE_RETURN_TRUE;
     }
     if (input->last_key == COLONIZE_KEY_U) {
       /* 2f2b:6694: FUN_479b_0f60(selected ship, 0) -- the lowest-key hold. */
-      game_colony_unload_best_hold(game);
+      game_colony_unload_best_hold(game, csv->transport_unit_id, game->colony_view_id);
       return GAME_UPDATE_RETURN_TRUE;
     }
   }
@@ -3626,11 +3626,6 @@ COLONIZE_INTERNAL GameUpdateStep game_update_map_keys(ColonizeGameState* game, c
     game_order_return_europe(game);
   }
 
-  /* U: unload oldest passenger from selected ship onto cursor land tile. */
-  if (input->last_key == COLONIZE_KEY_U && game->world_map_ok && game->units_ok) {
-    game_order_unload(game);
-  }
-
   /* F: fortify the selected unit — the keyboard twin of the two MENU.TXT
    * "~Fortify" rows (see game_order_fortify). Unlike the menu rows this one
    * leaves the status line alone when the order does not take, the way it
@@ -3653,10 +3648,10 @@ COLONIZE_INTERNAL GameUpdateStep game_update_map_keys(ColonizeGameState* game, c
     return GAME_UPDATE_RETURN_TRUE;
   }
 
-  /* B: found a colony — free on tribal land (@INDIANLAND is the colony-screen plot drop, #1175). */
-  if (input->last_key == COLONIZE_KEY_B && game->world_map_ok) {
-    (void)game_try_found_colony_at_cursor(game);
-  }
+  /* No plain U / B fallback: FUN_4b58_14de (raw 80569-80623) matches a key
+   * only against enabled, visible ORDERS rows (the hotkey pass above), and an
+   * unmatched key falls to FUN_2b5a_321c's default arm, which does nothing
+   * (port_bugs.md #1452, #1453). */
 
   {
     int dx = 0;

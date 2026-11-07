@@ -632,6 +632,11 @@ static int trade_route_arrival_case(bool gap) {
   int rc = 0;
   if (!units_try_move_w(&w, uid, load->x, load->y)) {
     rc = fail("trade-route wagon could not enter load colony");
+  } else if (game_trade_route_lane_sail(&game, wagon) ||
+             load->stock[COLONIZE_CARGO_SUGAR] != 60) {
+    /* port_bugs.md #1469: the arrival step (FUN_479b_0972) keeps order 2 and
+     * services nothing; FUN_479b_0bd0 waits for the pacer's next pick-up. */
+    rc = fail("trade-route arrival step serviced the stop");
   } else {
     game_trade_route_retarget(&game, wagon);
     int sugar = 0;
@@ -656,6 +661,77 @@ static int trade_route_arrival_case(bool gap) {
 
 static int test_trade_route_wagon_services_arrival_stop(void) {
   return trade_route_arrival_case(false) || trade_route_arrival_case(true);
+}
+
+/* port_bugs.md #1452: map ORDERS Load / Unload Cargo (2b5a:1908 / 1952) move goods
+ * between the active unit and the colony under it (FUN_479b_11a4 / FUN_479b_0f60),
+ * and do nothing off a colony tile. */
+static int test_map_orders_load_unload_cargo(void) {
+  ColonizeGameState game;
+  memset(&game, 0, sizeof(game));
+  if (!fx_map_alloc(&game.world_map, 8, 8, /*terrain_fill=*/2, /*with_seen=*/true)) {
+    return fail("cargo-rows map alloc");
+  }
+  game.world_map_ok = true;
+  game.human_nation = 0;
+  game.col1_ok = true;
+  fx_units_init(&game.units);
+  game.units_ok = true;
+  game.units.type_count = 1;
+  game.units.types[0].kind_plus1 = UNITS_KIND_WAGON + 1;
+  game.units.types[0].movement = 2;
+  game.units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  game.units.types[0].cargo = 2;
+  fx_colonies_init(&game.colonies);
+  game.colonies_ok = true;
+  ColonizeColony* col = fx_colony_add(&game.colonies, 0, 5, 4, 1);
+  col->stock[COLONIZE_CARGO_SUGAR] = 60;
+  game.col1.nation[0].trade.euro_price[COLONIZE_CARGO_SUGAR] = 4;
+  units_set_occupancy_map(&game.world_map);
+  colonies_set_occupancy_map(&game.world_map);
+  int rc = 0;
+  const int uid = units_spawn(&game.units, 0, 4, 4);
+  ColonizeUnit* wagon = units_get(&game.units, uid);
+  const ColonizeWorld w = fx_world(
+    &game.units, &game.colonies, &game.world_map, &game.col1, NULL, NULL
+  );
+  if (!wagon) {
+    rc = fail("cargo-rows wagon spawn");
+  } else {
+    wagon->nation_id = 0;
+    game.units.selected_id = uid;
+    (void)game_apply_map_menu_action(&game, MAP_MENU_ACTION_LOAD_CARGO);
+    if (wagon->hold_goods_amount[0] != 0 || col->stock[COLONIZE_CARGO_SUGAR] != 60) {
+      rc = fail("Load Cargo off a colony tile moved goods");
+    } else if (!units_try_move_w(&w, uid, col->x, col->y)) {
+      rc = fail("cargo-rows wagon could not enter the colony");
+    } else {
+      (void)game_apply_map_menu_action(&game, MAP_MENU_ACTION_LOAD_CARGO);
+      if (wagon->hold_goods_type[0] != COLONIZE_CARGO_SUGAR ||
+          wagon->hold_goods_amount[0] != 60 || col->stock[COLONIZE_CARGO_SUGAR] != 0) {
+        rc = fail("Load Cargo did not load the colony's best cargo");
+      } else {
+        (void)game_apply_map_menu_action(&game, MAP_MENU_ACTION_UNLOAD_CARGO);
+        if (units_holds_used(&game.units, uid) != 0 || col->stock[COLONIZE_CARGO_SUGAR] != 60) {
+          rc = fail("Unload Cargo did not unload the hold into the colony");
+        }
+        /* port_bugs.md #1470: the @OVERBOARD picker lists "nothing" (99) first
+         * and selects it, so Enter keeps the cargo (ND 0x21EF5-0x21F2B). */
+        (void)units_load_goods(&game.units, uid, COLONIZE_CARGO_SUGAR, 30);
+        game_request_overboard_confirm(&game);
+        const AiPopupState* ap = &game.ai_popups;
+        if (rc == 0 && (!ap->open || ap->current.choice_count != 2 ||
+                        ap->current.choice_ids[0] != 99 || ap->current.choice_ids[1] != 1 ||
+                        ap->selection != 0)) {
+          rc = fail("@OVERBOARD: nothing row first and default");
+        }
+      }
+    }
+  }
+  colonies_set_occupancy_map(NULL);
+  units_set_occupancy_map(NULL);
+  fx_map_free(&game.world_map);
+  return rc;
 }
 
 /* DOS FUN_479b_0bd0 raw 77234-77238 copies the DS:0x8542 colony record's
@@ -5887,6 +5963,7 @@ static const TestCase k_cases[] = {
     {"test_game_colony_outside_role_tools_residue", test_game_colony_outside_role_tools_residue},
     {"test_colony_zoom_hold_survives_pedia_detour", test_colony_zoom_hold_survives_pedia_detour},
     {"test_trade_route_wagon_services_arrival_stop", test_trade_route_wagon_services_arrival_stop},
+    {"test_map_orders_load_unload_cargo", test_map_orders_load_unload_cargo},
     {"test_trade_route_stop_uses_dos_colony_index", test_trade_route_stop_uses_dos_colony_index},
     {"test_trade_route_off_tile_reaims_same_stop", test_trade_route_off_tile_reaims_same_stop},
     {"test_trade_route_routeloop_advances_stop", test_trade_route_routeloop_advances_stop},

@@ -422,14 +422,16 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
     const int cav = units_kind_type_index(ctx->units, UNITS_KIND_CONT_CAV);
     const int soldier_ty = units_kind_type_index(ctx->units, UNITS_KIND_SOLDIER);
     const int dragoon_ty = units_kind_type_index(ctx->units, UNITS_KIND_DRAGOON);
-    if (ctx->col1->colony && (army >= 0 || cav >= 0) &&
+    if (ctx->colonies && (army >= 0 || cav >= 0) &&
         (soldier_ty >= 0 || dragoon_ty >= 0)) {
-      for (uint16_t ci = 0; ci < ctx->col1->head.colony_count; ++ci) {
-        const ColonizeCol1Colony* c = &ctx->col1->colony[ci];
-        if ((int)c->nation_id != human) {
+      /* raw 74920-74930 walks the live colony array (09e6) and reads +0x1f
+       * live; the col1 mirror lags to the last save capture (#1472). */
+      for (int ci = 0; ci < COLONIZE_COLONIES_MAX; ++ci) {
+        const ColonizeColony* c = &ctx->colonies->colonies[ci];
+        if (!c->active || c->nation_id != human) {
           continue;
         }
-        const int sol_p = ai_king_colony_sol_at(ctx, human, (int)c->x, (int)c->y);
+        const int sol_p = ai_king_colony_sol_at(ctx, human, c->x, c->y);
         if (sol_p <= 49) {
           continue;
         }
@@ -453,7 +455,7 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
         /* DOS walks the colony tile's chain from the latest arrival (07e0,
          * then 02e4) until the cap runs out; slot order promoted different
          * units when the cap was short (independence-seed-100 save 3). */
-        for (int uid = units_tile_head_id_at(ctx->units, (int)c->x, (int)c->y);
+        for (int uid = units_tile_head_id_at(ctx->units, c->x, c->y);
              uid >= 0 && cap > 0; uid = units_tile_chain_next_id(ctx->units, uid)) {
           ColonizeUnit* u = units_get(ctx->units, uid);
           if (!u || !u->active || u->nation_id != human) {
@@ -1137,9 +1139,10 @@ void ai_king_human_5e52_tail(ColonizeTurnContext* ctx) {
   if (!ctx || ai_king_independence_declared(ctx->col1_ok ? ctx->col1 : NULL)) {
     return;
   }
-  const int popups_before = ctx->ai_popups ? ctx->ai_popups->queue_count : 0;
-  ai_king_tax_event(ctx);
-  if (!ctx->ai_popups || ctx->ai_popups->queue_count == popups_before) {
+  /* raw 68616-68619: 0c84 runs only when 5be8 (0b7a) returned 0 — not
+   * inferred from popup-queue growth (a clamped hike shows nothing yet
+   * returns 1; a queue-full enqueue adds nothing either) (#1458). */
+  if (!ai_king_tax_event(ctx)) {
     (void)ai_king_new_war_event(ctx);
   }
 }

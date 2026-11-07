@@ -3037,6 +3037,59 @@ static int case_021a_stayed_facing_fixed(void) {
   return 0;
 }
 
+/* port_bugs.md #1481 — OVL13 0xb3c JZ 0xb54: a lone treasure that passes
+ * its rand(0,7)==0 roll jumps over the 0xb42 grudge latch, so a calm
+ * (alarm <= 0x19) tribe with att >= 0x20 on an open tile stays grudge-free. */
+static int case_021a_lone_treasure_no_grudge(void) {
+  ColonizeUnitPool units;
+  fx_units_init(&units);
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  units.type_count = 1;
+  units.types[0].movement = 1;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  const int tid = units_spawn_allow_stack(&units, 0, 4, 4);
+  ColonizeUnit* t = units_get(&units, tid);
+  if (!t) {
+    col1_save_free(&col1);
+    fprintf(stderr, "#1481: treasure spawn failed\n");
+    return 1;
+  }
+  t->type_index = 0xa;
+  uint32_t seed = 1u;
+  for (;; ++seed) {
+    AiRng probe;
+    dos_rng_seed(&probe, seed);
+    if (dos_rng_range(&probe, 0, 7) == 0) {
+      break;
+    }
+  }
+  AiRng rng;
+  dos_rng_seed(&rng, seed);
+  struct ai_021a_ctx c;
+  memset(&c, 0, sizeof(c));
+  c.rng = &rng;
+  c.units = &units;
+  c.col1 = &col1;
+  c.nation_id = 4;
+  c.lone = 1;
+  c.occ = 1;
+  c.owner = 0;
+  c.presence = 0;
+  c.settle = -1;
+  c.att = 0x20;
+  c.nx = 4;
+  c.ny = 4;
+  const Ai021aDirStatus st = ai_021a_dir_occupant(&c);
+  col1_save_free(&col1);
+  if (st != AI_021A_DIR_OK || c.grudge != 0) {
+    fprintf(stderr, "#1481: lone treasure roll-0 path must skip the grudge latch (st=%d grudge=%d)\n",
+            (int)st, c.grudge);
+    return 1;
+  }
+  return 0;
+}
+
 /* TB-27: a village beside a water destination counts only with DOS's
  * overwritten medium; fixed, the land village fails the centre's water test. */
 static int case_021a_adjacent_foreign_medium_fixed(void) {
@@ -3528,6 +3581,7 @@ static const TestCase k_cases[] = {
     {"tribe_txt_seed100_matches_dos", case_tribe_txt_seed100_matches_dos},
     {"tribe_txt_init_new_game_matches_dos", case_tribe_txt_init_new_game_matches_dos},
     {"021a_stayed_facing_fixed", case_021a_stayed_facing_fixed},
+    {"021a_lone_treasure_no_grudge", case_021a_lone_treasure_no_grudge},
     {"021a_adjacent_foreign_medium_fixed", case_021a_adjacent_foreign_medium_fixed},
     {"run_village_threat_alarm", run_village_threat_alarm},
     {"run_152e_mission_attitude_word", run_152e_mission_attitude_word},

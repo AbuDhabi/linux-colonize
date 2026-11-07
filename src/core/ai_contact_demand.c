@@ -1592,13 +1592,18 @@ int ai_contact_try_village_beg_food(ColonizeTurnContext* ctx, int nation_id) {
  * FUN_4d56_417e Mode 2 (static port 2026-08-27, T4.5). Gate, all of:
  * alarm(tribe → human) < 0x4b; human has MET the tribe; wealth rank of the
  * AI nation < the human's on the FUN_5bfb_00f8 table (compared literally on
- * ctx->euro_power_rank); AI gold >= 1500; RNG(0,4) != 0 or the village has
- * no mission. Then 417e Mode 2: target = human, no menu/confirm, the
+ * ctx->euro_power_rank); AI gold >= 1500; RNG(0,4) != 0 or the village HAS
+ * a mission (OVL13 0x46ac-0x46c4: roll 0 and [0x8d4a]+5 < 0 -> code 3
+ * establish, port_bugs.md #1459). Then 417e Mode 2: target = human, no menu/confirm, the
  * tribe↔human MET/alarm gates (both redundant with the 4528 gate above),
  * affordability, then the shared LAB_4d56_4499 tail: @INDIANWARFARE
  * announce, alarm(tribe → human) += 100 via FUN_4cc6_00f2 (French/
  * Pocahontas-halved, clamped at 100 — the war-band slam), pay.
- * Returns 1 when the incite fired (the village keeps its mission state).
+ * Returns 1 when the incite fired (the village keeps its mission state),
+ * 2 when the 4528 gates committed code 7 (OVL13 0x46c6) but 417e Mode 2
+ * returned on the price check (viceroy_overlays.c 76226-76229): the switch
+ * does nothing else and the missionary survives (port_bugs.md #1460).
+ * 0 = the gates failed; the caller falls through to codes 3/4.
  */
 int ai_contact_ai_incite_human(
   ColonizeTurnContext* ctx,
@@ -1632,7 +1637,9 @@ int ai_contact_ai_incite_human(
   if (europe_nation_gold(ctx->europe, ctx->col1, e) < 1500u) {
     return 0;
   }
-  if (dos_rng_range(ctx->rng, 0, 4) == 0 && t->mission != COL1_TRIBE_MISSION_NONE) {
+  /* OVL13 0x46ac-0x46c4: FUN_1000_86c4(0,4) != 0 -> code 7; on 0, code 7
+   * only when the village byte +5 >= 0 (has a mission). #1459. */
+  if (dos_rng_range(ctx->rng, 0, 4) == 0 && t->mission == COL1_TRIBE_MISSION_NONE) {
     return 0;
   }
   /*
@@ -1648,7 +1655,7 @@ int ai_contact_ai_incite_human(
     ctx, ind, nation_id, e, human, is_missionary, t->state.capital ? 1 : 0
   );
   if (europe_nation_gold(ctx->europe, ctx->col1, e) < price) {
-    return 0;
+    return 2; /* code 7 committed; 417e returns doing nothing (#1460) */
   }
   /*
    * Shared 4499 tail: @INDIANWARFARE announce (0x16e9 — the human sees

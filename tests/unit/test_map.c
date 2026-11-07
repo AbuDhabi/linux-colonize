@@ -391,9 +391,11 @@ static int case_resources_rumours(void) {
    * FUN_12ab_0540 the identical coordinate pair, so both hashes must share
    * a coordinate space. The hash lattice is unchanged, but each lattice
    * point is now terrain-tested one tile SE of where it used to be, and two
-   * points moved onto terrain 0540 skips (ocean / high seas / arctic). */
-  if (resources != 425 || rumours != 38) {
-    fprintf(stderr, "resource/rumour count expected 425/38 got %d/%d\n", resources, rumours);
+   * points moved onto terrain 0540 skips (ocean / high seas / arctic).
+   * Rumours 38 -> 37 (2026-11-07, #1466): FUN_19b7_0032 / FUN_13e4_003a return
+   * class 0x19 off the FUN_137f_000a inset, so a border tile never holds one. */
+  if (resources != 425 || rumours != 37) {
+    fprintf(stderr, "resource/rumour count expected 425/37 got %d/%d\n", resources, rumours);
     return 1;
   }
   /* 267, not 275 — same 2026-08-18 coordinate-hash fixes as the
@@ -962,7 +964,7 @@ static int case_dos_resource_settlement_gate(void) {
  * same layer order as map_phys0_overlay_sprite_at (coast, hill/mountain, river,
  * MAPEDIT FUN_12ab_0458 resource, FUN_12ab_0540 rumour, estuary). Pinned on
  * AMER2: RESOURCE/RUMOUR layers are exactly the 89..102 / 103 sprites that
- * case_resources_rumours counts (425 / 38); layers past the count are WATER;
+ * case_resources_rumours counts (425 / 37); layers past the count are WATER;
  * the mountain/hill/river/water layer totals are pinned as of 2026-11-06.
  */
 static int case_overlay_kind_matches_sprites(void) {
@@ -994,7 +996,7 @@ static int case_overlay_kind_matches_sprites(void) {
     }
   }
   if (mismatch != 0 || kinds[MAP_OVERLAY_KIND_RESOURCE] != 425 ||
-      kinds[MAP_OVERLAY_KIND_RUMOUR] != 38 || kinds[MAP_OVERLAY_KIND_MOUNTAIN] != 170 ||
+      kinds[MAP_OVERLAY_KIND_RUMOUR] != 37 || kinds[MAP_OVERLAY_KIND_MOUNTAIN] != 170 ||
       kinds[MAP_OVERLAY_KIND_HILL] != 57 || kinds[MAP_OVERLAY_KIND_RIVER] != 196 ||
       kinds[MAP_OVERLAY_KIND_WATER] != 1807) {
     fprintf(stderr, "overlay kind: %d mismatches; water %d mountain %d hill %d river %d "

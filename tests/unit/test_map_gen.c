@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "core/col1_save.h"
 #include "core/dos_buggy.h"
 #include "core/map_gen.h"
 #include "platform/diagnostics.h"
@@ -291,7 +292,57 @@ static int test_euro_landfall_amer2_seed100_matches_dos(void) {
   return 0;
 }
 
+/* #1466: a loaded AMER2.MP runs FUN_684c_08c0's Pacific walk with the
+ * param_1 != 0 cutoff W-16, the offshore suppress pass and the (21,1)/(43,68)
+ * |= 0xa0 stamp (raw 107083-107130), after the full-byte HS/arctic finalize.
+ * DOS seed-100 000001.SAV: 1309 Pacific tiles reaching x=41; mask 0x24 and
+ * terrain must match tile for tile. */
+static int test_amer2_pacific_suppress_matches_dos(void) {
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  char err[256];
+  if (!map_load_mp("COLONIZE/AMER2.MP", &map, err, sizeof(err))) {
+    fprintf(stderr, "map_load_mp failed: %s\n", err);
+    return 1;
+  }
+  ColonizeCol1Save save;
+  memset(&save, 0, sizeof(save));
+  if (!col1_save_read_file("original_saves/golden_idle_america_seed-100/000001.SAV", &save, err,
+                           sizeof(err))) {
+    fprintf(stderr, "col1_save_read_file failed: %s\n", err);
+    map_free(&map);
+    return 1;
+  }
+  map_gen_finalize_border_and_forest(map.terrain, (int)map.width, (int)map.height);
+  map.prime_resource_seed = 365; /* DS:0x190 of the same save */
+  map_gen_pacific_and_suppress(&map, true, false);
+  int rc = 0;
+  int pacific = 0;
+  int bad_mask = 0;
+  int bad_terrain = 0;
+  for (size_t i = 0; i < map.tile_count && i < save.map.tile_count; ++i) {
+    if ((map.layer2[i] & MAP_LAYER2_PACIFIC) != 0) {
+      pacific++;
+    }
+    if ((map.layer2[i] & 0x24u) != (save.map.mask[i] & 0x24u)) {
+      bad_mask++;
+    }
+    if (map.terrain[i] != save.map.tile[i]) {
+      bad_terrain++;
+    }
+  }
+  if (pacific != 1309 || bad_mask != 0 || bad_terrain != 0) {
+    fprintf(stderr, "pacific=%d (DOS 1309) mask diffs=%d terrain diffs=%d\n", pacific, bad_mask,
+            bad_terrain);
+    rc = 1;
+  }
+  col1_save_free(&save);
+  map_free(&map);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
+    {"test_amer2_pacific_suppress_matches_dos", test_amer2_pacific_suppress_matches_dos},
     {"test_euro_landfall_focus_middle_band", test_euro_landfall_focus_middle_band},
     {"test_euro_landfall_amer2_seed100_matches_dos", test_euro_landfall_amer2_seed100_matches_dos},
     {"test_params_random_in_range", test_params_random_in_range},

@@ -1272,6 +1272,75 @@ static int case_sidebar_cheat_lines(void) {
   return rc;
 }
 
+/* #1467: colony "With:" strip order (FUN_49dd_0424 raw 79035-79069). Keys are
+ * min(stock,100) * ((euro_price-1) << 4), Tools/Muskets 1, Horses 0 under 150;
+ * the top five with stock > 0 win. */
+static int case_colony_goods_strip(void) {
+  static ColonizeCol1Save col1;
+  static ColonizeColony col;
+  memset(&col1, 0, sizeof(col1));
+  memset(&col, 0, sizeof(col));
+  col.nation_id = 0;
+  col1.nation[0].trade.euro_price[1] = 5;   /* sugar 200 -> 100*64 = 6400 */
+  col1.nation[0].trade.euro_price[2] = 10;  /* tobacco 30 -> 30*144 = 4320 */
+  col1.nation[0].trade.euro_price[11] = 12; /* cloth 80 -> 80*176 = 14080 */
+  col1.nation[0].trade.euro_price[8] = 20;  /* horses 120 < 150 -> 0 */
+  col.stock[0] = 50;                        /* food, price 0 -> 0 */
+  col.stock[1] = 200;
+  col.stock[2] = 30;
+  col.stock[8] = 120;
+  col.stock[11] = 80;
+  col.stock[14] = 500; /* tools -> 100 */
+  col.stock[15] = 10;  /* muskets -> 10 */
+  int got[5] = {-1, -1, -1, -1, -1};
+  const int want[5] = {11, 1, 2, 14, 15};
+  const int n = map_panel_colony_goods_strip(&col, &col1, got);
+  if (n != 5 || memcmp(got, want, sizeof(want)) != 0) {
+    fprintf(stderr, "strip n=%d got %d %d %d %d %d\n", n, got[0], got[1], got[2], got[3], got[4]);
+    return 1;
+  }
+  return 0;
+}
+
+/* #1468: the seen-land owner line follows the layer3 owner nibble alone
+ * (FUN_49dd_0424 raw 78786-78815): tribal land without a village is
+ * "<Tribe> Land", a Euro nibble the country, 0xf "Wilderness". */
+static int case_owner_line_nibble(void) {
+  reports_names_load_catalogs("COLONIZE");
+  char err[256];
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  if (!map_alloc(&map, 8, 8, err, sizeof(err))) {
+    return fail(err);
+  }
+  map.layer3[1 * 8 + 1] = 0x52; /* owner 5 (tribe row 1), region 2 */
+  map.layer3[2 * 8 + 2] = 0x22; /* owner 2 */
+  map.layer3[3 * 8 + 3] = 0xf2; /* unowned */
+  char want_tribe[72];
+  snprintf(want_tribe, sizeof(want_tribe), "%s %s", reports_tribe_singular_name(1),
+           reports_misc_display_word(18, ""));
+  const struct {
+    int x;
+    int y;
+    const char* want;
+  } rows[] = {
+    {1, 1, want_tribe},
+    {2, 2, reports_nation_country_name(2)},
+    {3, 3, reports_misc_display_word(17, "")},
+  };
+  int rc = 0;
+  char got[72];
+  for (size_t i = 0; i < sizeof(rows) / sizeof(rows[0]); ++i) {
+    map_panel_format_owner(got, sizeof(got), NULL, &map, rows[i].x, rows[i].y, NULL, 0);
+    if (!rows[i].want[0] || rows[i].want[0] == ' ' || strcmp(got, rows[i].want) != 0) {
+      fprintf(stderr, "owner row %zu: got '%s', want '%s'\n", i, got, rows[i].want);
+      rc = 1;
+    }
+  }
+  map_free(&map);
+  return rc;
+}
+
 /* port_bugs.md #1107 seam: the header stage starts the text cursor at 0x33 or two
  * px under the minimap rule, whichever is lower, then advances it by the date
  * and Gold/Tax lines plus a half-line gap. */
@@ -1362,6 +1431,8 @@ static int case_seen_this_turn(void) {
 }
 
 static const TestCase k_cases[] = {
+  {"owner_line_nibble", case_owner_line_nibble},
+  {"colony_goods_strip", case_colony_goods_strip},
   {"panel_geometry_constants", case_panel_geometry_constants},
   {"panel_geometry_resized", case_panel_geometry_resized},
   {"panel_load_and_labels", case_panel_load_and_labels},

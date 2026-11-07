@@ -133,7 +133,6 @@ typedef struct TurnProduceCtx {
   ColonizeColonyProdDelta local_delta; /* delta when the caller passes NULL */
   /* begin */
   uint16_t mask_before_a;
-  bool status_written; /* #397: this colony wrote europe->status this tick */
   int stock_before[COLONIZE_CARGO_COUNT]; /* aiStack_ae / local_6c */
   int pop;
   /* compose (Phase A) */
@@ -186,7 +185,6 @@ bool turn_human_colony_eot_resume(ColonizeTurnContext* ctx, ColonizeTurnResult* 
 /* FUN_48d3_06ba, the human's Europe pass (lane hops, arrival, treasure, woodcut 9):
  * after the human 5e52 and its tax audience, before the colony loop (00f2 raw 58377). */
 void turn_run_human_europe_pass(ColonizeTurnContext* ctx);
-void turn_route_damaged_ships(ColonizeTurnContext* ctx, int nation);
 /* Human hulls under repair in the Europe harbor: tick, @REFIT, count repaired. */
 int turn_europe_harbor_repairs(ColonizeTurnContext* ctx);
 bool turn_euro_nation_is_ref(const ColonizeTurnContext* ctx, int n);

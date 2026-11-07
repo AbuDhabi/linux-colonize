@@ -475,10 +475,13 @@ void ai_euro_5952_improve_best_plot(
   }
   g_units_pioneer_0614_colony = NULL;
   /* DOS calls the work bodies 01a6 / 0526 directly; the latched order keeps
-   * the human order entry from zeroing the 99 (dos_bugs.md DB-46). */
+   * the human order entry from zeroing the 99 (dos_bugs.md DB-46). The plow
+   * skips that entry: its Hills / Mountains veto is the ORDERS menu's
+   * (FUN_2b5a_0b34 raw 42224), FUN_479b_01a6 raw 76745-76816 plows them
+   * (port_bugs.md #1478). */
   if (do_plow) {
     ph->orders = UNITS_ORDER_CLEAR_PLOW;
-    worked = units_pioneer_plow_w(&pw, pid, NULL, NULL, NULL) ? 1 : 0;
+    worked = units_pioneer_work_tick_w(&pw, pid, NULL, NULL, NULL) ? 1 : 0;
   } else if (do_road) {
     ph->orders = UNITS_ORDER_BUILD_ROAD;
     worked = units_pioneer_road_w(&pw, pid, NULL, NULL, NULL) ? 1 : 0;
@@ -952,18 +955,15 @@ void ai_euro_20e6_prologue(ColonizeTurnContext* ctx, const ColonizeUnit* u, int 
   s->is_ship = (s->dos_type >= 0xd && s->dos_type <= 0x12) || units_is_sea(ctx->units, u->id);
   s->cid = map_tile_is_land(ctx->map, u->x, u->y) ? map_continent_id_at(ctx->map, u->x, u->y) : -1;
   s->home_colony = ai_euro_20e6_nearest_colony(ctx, u->x, u->y, nation, -1, &s->home_dist);
+  /* FUN_15eb_0142 raw 9388-9391 writes DS:0x8db8 = 9999 on a miss, so
+   * home_dist / any_colony_dist stay 9999 (raw 88426, 88430). */
   if (s->home_colony < 0) {
     s->home_cid = -2;
-    s->home_dist = 0; /* DS:0x8db8 untouched by a miss; DOS leaves the prior value — 0 is the
-                         common case (unit freshly landed, nothing bound yet) */
   } else {
     const ColonizeColony* hc = colonies_get(ctx->colonies, s->home_colony);
     s->home_cid = hc ? map_continent_id_at(ctx->map, hc->x, hc->y) : -2;
   }
   (void)ai_euro_20e6_nearest_colony(ctx, u->x, u->y, -1, -1, &s->any_colony_dist);
-  if (s->any_colony_dist == 9999) {
-    s->any_colony_dist = 0;
-  }
   s->stance = (s->cid < 0) ? 5 : ai_euro_continent_stance_at(nation, s->cid);
   s->village_idx = ai_euro_20e6_nearest_village(ctx, u->x, u->y, &s->village_dist);
   s->unit_river = map_tile_has_river(ctx->map, u->x, u->y) ? 1 : 0;
@@ -1920,13 +1920,16 @@ static int ai_euro_land_explore_scan_target(
  * ×3 when flags&0x10 and stance==4, clamp 0..1000, <12 → −999 else +odds×4,
  * and the Soldier/Dragoon vs colony mass gate (8aac case 0xb, below).
  */
-static int ai_euro_20e6_attack_term(
+COLONIZE_INTERNAL int ai_euro_20e6_attack_term(
   ColonizeTurnContext* ctx, const ColonizeUnit* u, const Ai20e6Unit* s, int nx, int ny, int foe_id, int* score
 ) {
   if (s->combat == 0) {
     return 0;
   }
   ColonizeCombatStrengthCtx sctx = combat_strength_ctx_from_turn(ctx);
+  /* local_5c (FUN_281f_07e0, raw 88685): the a/d stack factors below read
+   * the real tile unit even when the probe falls to the militia arm. */
+  const int tile_unit = foe_id;
   /* FUN_5fef_0000's soft tier is off on a colony tile: colonists standing
    * there are no defender, so the probe takes the militia arm below
    * (DOSBox independence 8->9: a crown Regular beside Fort Nassau draws the
@@ -2018,10 +2021,12 @@ static int ai_euro_20e6_attack_term(
     }
   }
   /* 8aac(foe, 0) + 1 and max(8aac(foe, 2), 1) over the whole foe stack at
-   * (nx, ny); case 2 = total stack size (byte-exact 0d38 decode). */
+   * (nx, ny); case 2 = total stack size (byte-exact 0d38 decode).
+   * FUN_521d_20e6 raw 88888-88897 pass local_5c, so an unarmed colony stack
+   * still counts (tile_unit, not the probe's foe_id). */
   int col9_sum = 0;
   int stack = 0;
-  if (foe_id >= 0) {
+  if (tile_unit >= 0) {
     /* Slot walk (Leads 2, 2026-09-10): `i` is an array index, not a unit id.
      * Riders count: DOS keeps them in the tile chain (DOSBox independence
      * 7->8: two Artillery aboard at a Dutch Frigate's tile make the crown
@@ -2814,8 +2819,8 @@ static int ai_euro_20e6_nearest_own_unit(
  * no coastal colony: an AI Treasure that reaches ANY own colony is money.
  *
  * Traps carried over from the 47b9 pass (see its header): iStack_2e == 0 must
- * be read as `home_colony >= 0 && home_dist == 0` because the OpenCol prologue
- * zeroes home_dist on a missed colony search, and a unit sitting in the Europe
+ * be read as `home_colony >= 0 && home_dist == 0` (a missed colony search leaves
+ * home_dist 9999, so the first test is belt and braces), and a unit sitting in the Europe
  * pool has lane-sentinel coordinates and must be excluded outright.
  *
  * Trace env: AI_20E6_TREASURE_TRACE=1. Kill switch: AI_20E6_TREASURE_CASH=0.
@@ -3095,8 +3100,7 @@ int ai_euro_20e6_47b9_dead_end(ColonizeTurnContext* ctx, ColonizeUnit* u, int na
   if (s.order_code == 't' || s.order_code == 'i') {
     return 0;
   }
-  /* iStack_2e == 0 only means "on the colony" when one was actually found —
-   * the prologue zeroes home_dist on a miss (DOS leaves DS:0x8db8 stale). */
+  /* iStack_2e == 0: on an own colony (a miss leaves home_dist 9999). */
   const int in_own_colony = (s.home_colony >= 0 && s.home_dist == 0);
   const int destroy_trace = getenv("AI_20E6_DEADEND_TRACE") != NULL;
 
@@ -3217,8 +3221,7 @@ int ai_euro_20e6_wagon_origin_walk(
     return 0; /* +0x3158 != 0 — the errand walker owns this wagon */
   }
   const int destroy_trace = getenv("AI_20E6_DEADEND_TRACE") != NULL;
-  /* iStack_2e == 0 only means "on the colony" when one was actually found —
-   * the prologue zeroes home_dist on a miss (DOS leaves DS:0x8db8 stale). */
+  /* iStack_2e == 0: on an own colony (a miss leaves home_dist 9999). */
   const int in_own_colony = (s.home_colony >= 0 && s.home_dist == 0);
   int ori = ai_euro_20e6_origin_get(u);
   if (in_own_colony) {

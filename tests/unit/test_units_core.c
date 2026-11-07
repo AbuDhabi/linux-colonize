@@ -6070,8 +6070,8 @@ static int case_combat_outcome_popups(void) {
       const int did = units_spawn_allow_stack(&pool, sol, 50, 50);
       ColonizeUnit* a = units_get(&pool, aid);
       ColonizeUnit* d = units_get(&pool, did);
-      a->nation_id = 0;
-      d->nation_id = 1;
+      a->nation_id = 1; /* #1465: AI attacker, human defender (raw 100810) */
+      d->nation_id = 0;
       pool.types[sol].attack = 8;
       pool.types[sol].defense = 1;
       ColonizeCol1Save c1;

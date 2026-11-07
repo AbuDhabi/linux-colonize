@@ -249,7 +249,11 @@ bool europe_immigrant_from_pool(EuropeScreen* eu, ColonizeDosRng* rng) {
    * off the same shared stream (port_bugs.md #671). The 4884 Recruit-click paths
    * really are spawn-then-refill and stay as they are. */
   europe_refill_pool_slot_rng(eu, slot, eu->pool_force_expert, rng);
-  EuropeDockImmigrant* d = europe_dock_insert_front(eu);
+  /* raw 68588: FUN_281f_08c6 = FUN_1427_03a0 relinks the new immigrant at the
+   * oldest end of the dock chain, behind everyone waiting (port_bugs.md
+   * #1477; the AI twin is europe_nation_immigration_tick_w). */
+  EuropeDockImmigrant* d = &eu->dock[eu->dock_count++];
+  memset(d, 0, sizeof(*d));
   snprintf(d->name, sizeof(d->name), "%s", name);
   d->profession = profession;
   d->present = true;
@@ -779,7 +783,19 @@ int europe_spawn_dock_mirror_unit(
   if (!units || nation_id < 0 || nation_id > 3) {
     return -1;
   }
-  const int dos_type = europe_dock_unit_dos_type(profession, difficulty, human, rng);
+  return europe_spawn_dock_mirror_unit_typed(
+    units, nation_id, profession, europe_dock_unit_dos_type(profession, difficulty, human, rng)
+  );
+}
+
+/* The mirror of a dock row that already drew its FUN_38fd_0718 type: one
+ * roll per spawn, shared by the row and its unit (port_bugs.md #1463). */
+int europe_spawn_dock_mirror_unit_typed(
+  ColonizeUnitPool* units, int nation_id, int profession, int dos_type
+) {
+  if (!units || nation_id < 0 || nation_id > 3) {
+    return -1;
+  }
   int ti = europe_dock_unit_type_index(units, dos_type);
   if (ti < 0) {
     ti = units_kind_type_index(units, UNITS_KIND_COLONIST);

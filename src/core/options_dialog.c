@@ -351,7 +351,11 @@ static void options_finish(OptionsDialog* dlg, bool cancelled) {
     return;
   }
   dlg->has_result = true;
-  dlg->result_cancelled = cancelled;
+  /* port_bugs.md #1474: FUN_6f74_2580 rebuilds DS:0x1f54 from the live checkboxes
+   * on every exit, Esc and right-click included (LAB_6f74_3018), and
+   * FUN_2b5a_20f6 / 223a / 23ce (raw 42934-43090) read every row from it whatever
+   * the dialog answered. Only the port-only Mods pages keep a real cancel. */
+  dlg->result_cancelled = cancelled && dlg->kind == OPTIONS_KIND_MODS;
   dlg->result_kind = dlg->kind;
   dlg->result_count = dlg->option_count;
   memcpy(dlg->result_values, dlg->values, sizeof(dlg->result_values));
@@ -399,8 +403,8 @@ bool options_dialog_handle_input(OptionsDialog* dlg, const ColonizeInputState* i
           dlg->dialog_x, dlg->dialog_y, dlg->dialog_w, dlg->dialog_h, input->mouse_x,
           input->mouse_y
         )) {
-      /* port_bugs.md: clicking away should commit, like Enter — only Esc/right-
-       * click truly discard. */
+      /* port_bugs.md: clicking away should commit, like Enter (Esc / right-click
+       * commit too, except on the Mods pages: options_finish). */
       options_finish(dlg, false);
       return true;
     }

@@ -68,6 +68,21 @@ COLONIZE_INTERNAL void map_panel_format_locat(
   int y,
   bool need_cheat
 );
+/* #1467 colony "With:" goods strip order (FUN_49dd_0424 raw 79035-79069). */
+COLONIZE_INTERNAL int map_panel_colony_goods_strip(
+  const ColonizeColony* col, const ColonizeCol1Save* col1, int out_cargo[5]
+);
+/* #1468 seen-land owner line (FUN_49dd_0424 raw 78786-78815). */
+COLONIZE_INTERNAL void map_panel_format_owner(
+  char* out,
+  size_t size,
+  const ColonizeCol1Save* col1,
+  const ColonizeWorldMap* map,
+  int x,
+  int y,
+  const char* nation_name,
+  int human_nation
+);
 COLONIZE_INTERNAL int map_panel_cheat_index(
   const ColonizeCol1Save* col1, const ColonizeUnitPool* units, int unit_id
 );

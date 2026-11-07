@@ -833,7 +833,10 @@ static void col1_bridge_sync_map_density(ColonizeCol1Save* save, const ColonizeW
    * it to the seed-100 DOS map invented suppress on 2,070 ocean tiles. */
   bool blank_density = true;
   for (size_t i = 0; i < n; ++i) {
-    if ((save->map.mask[i] & (0x04u | 0x20u)) != 0) {
+    /* #1466: map_gen_pacific_and_suppress already stamped layer2 (generated
+     * and .MP maps alike); synthesizing on top re-adds the ungated suppress. */
+    const uint8_t l2 = map->layer2 ? map->layer2[i] : 0u;
+    if (((save->map.mask[i] | l2) & (0x04u | 0x20u)) != 0) {
       blank_density = false;
       break;
     }

@@ -4,16 +4,18 @@
 # empty, orders TRADE_ROUTE (2), route 0 stop 0 (profession byte 0x00 = stop<<4 | route), goto = Guadeloupe, moves spent;
 # Guadeloupe Lumber 100 (warehouse cap); every other French map unit fortified (orders 6), Caravel #148 (bound for
 # Europe) parked in Quebec, France and England at peace (euro_relation 0x60 both ways, else English raids capture units).
-# The wagon runs on its own each turn: turn 109 Guadeloupe loads 100 Lumber -> Quebec unloads it, loads 12 Cotton -> aims
-# at Montreal; turn 110 Montreal unloads the Cotton -> aims at Guadeloupe; turn 111 back in Guadeloupe (stop 0 again),
-# nothing left to load, aims at Quebec (stop 1).
+# The wagon runs on its own each turn; a stop it reaches on its last MP is serviced next turn, after production
+# (FUN_479b_0972 keeps order 2 without service, #1469): Guadeloupe loads 100 Lumber -> Quebec unloads it, loads 12 Cotton
+# -> Montreal unloads the Cotton -> the test ends with the wagon back in Guadeloupe at stop 0, not yet serviced.
+# The Dutch Europe buy pass gates on price * DS:0x8dc4 (last hold removal anywhere, TB-25): it now sees the wagon's
+# 100-Lumber unload instead of its 12-Cotton one, so the Dutch (gold 64) no longer buy 100 Horses.
 key space                  # end turn 108 (every unit has orders)
 wait 120
 key Return                 # Colonization Help: Time Scale
 wait 24
 key Return                 # Sons of Liberty in Quebec up to 60%
 wait 24
-key Return                 # price of Cigars rises to 11 (the wagon then runs Guadeloupe -> Quebec -> toward Montreal)
+key Return                 # price of Cigars rises to 11 (the wagon then runs Guadeloupe -> Quebec)
 wait 24
 key space                  # end turn 109
 wait 120
@@ -27,7 +29,7 @@ key Return                 # Sons of Liberty in Martinique up to 51%
 wait 24
 key Return                 # Sons of Liberty in Guadeloupe up to 70%
 wait 24
-key Return                 # new cargo of Horses at Montreal (storage full); the wagon unloads Cotton in Montreal
+key Return                 # new cargo of Horses at Montreal (storage full)
 wait 24
 key space                  # end turn 110
 wait 120
@@ -35,5 +37,5 @@ key Return                 # Tupi gift (11 Furs) at Quebec
 wait 24
 key Return                 # price of Cigars falls to 11
 wait 24
-key Return                 # price of Coats rises to 11; the wagon is back in Guadeloupe, aimed at Quebec
+key Return                 # price of Coats rises to 11; the wagon is back in Guadeloupe (stop 0, serviced next turn)
 wait 24

@@ -10,7 +10,8 @@ key Escape             # cancel the starting-stop picker: still no orders
 click 88 3             # ORDERS menu again
 click 110 101          # Begin Trade Route
 click 100 108          # route 1 "Land Haul"
-click 100 108          # start at stop 2, Quebec: the wagon rides to Quebec, unloads lumber + ore, loads cotton, aims at Montreal
+click 100 108          # start at stop 2, Quebec: the wagon rides to Quebec on its last MP and keeps its lumber + ore
+                       #  (a 0-MP arrival is serviced next turn, after production: FUN_479b_0972, #1469)
 wait 24
 # Back to the next unit (88). Three Wait-for-next-unit presses reach Caravel B in Quebec (12 moves, tobacco aboard).
 key w                  # Scout

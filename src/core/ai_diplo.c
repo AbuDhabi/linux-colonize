@@ -1251,6 +1251,7 @@ typedef struct Ai153eTalk {
   int latch;       /* raw local_b0 */
   int score;       /* raw local_68 */
   int at_war;      /* raw local_ae */
+  int old_peace;   /* raw iVar17 (:98056): 0a38(h,t)&0x40 already set at the :97985 check */
   int crown_armed; /* raw local_9e */
   int usa;         /* raw local_9c: target nation_flags & 0x04 (won its independence) */
   int dominance;   /* raw iVar16 */
@@ -1829,6 +1830,9 @@ static AiTalkStepStatus ai_talk_stage_worthy(
     return AI_TALK_STEP_CONTINUE;
   }
   if (ai_talk_peace(ctx, h, t)) {
+    /* raw :97985-97988 -> LAB_5bfb_286c: the treaty predates this audience,
+     * the only path that sets the DS:0x1984 "OLDPEACE" prefix (#1473). */
+    k->old_peace = 1;
     k->stage = AI_TALK_ST_PEACEMENU;
     return AI_TALK_STEP_CONTINUE;
   }
@@ -1886,8 +1890,11 @@ static AiTalkStepStatus ai_talk_stage_peacemenu(
     ai_diplo_wake_border_garrisons(ctx, h, t);
     ai_diplo_wake_border_garrisons(ctx, t, h);
     if (!k->worthy) {
-      const char* tag = k->at_war ? (k->manly ? "PEACEMANLY" : "PEACEMEEK")
-                                 : (k->manly ? "OLDPEACEMANLY" : "OLDPEACEMEEK");
+      /* raw :98053-98057/:98075: "OLDPEACE" (0x1984) only when the treaty
+       * existed on entry, else "PEACE" (0x1964, a treaty signed this
+       * audience); the WAR bit plays no part (port_bugs.md #1473). */
+      const char* tag = !k->old_peace ? (k->manly ? "PEACEMANLY" : "PEACEMEEK")
+                                      : (k->manly ? "OLDPEACEMANLY" : "OLDPEACEMEEK");
       static const char* const lab[4] = {"", "", "", ""};
       /* raw :98071-98074: 0438(0, 09a4(self)), 0438(1, 09a4(target)) — the
        * reverse of the shared tok ("Go in peace, {target} brothers"). */
@@ -1900,7 +1907,7 @@ static AiTalkStepStatus ai_talk_stage_peacemenu(
        * player.name (param_2*0x34 + 0x540e): "their wise leader Viceroy
        * Christopher Columbus". The shared tok's target name / @MEEKNESS word
        * used to leak in ("their wise leader English request"). */
-      if (!k->at_war) {
+      if (k->old_peace) {
         const int diff = (int)ctx->col1->head.difficulty;
         tp.string2 = reports_difficulty_title((diff >= 0 && diff < 5) ? diff : 0);
         tp.string3 = ctx->col1->player[h].name;

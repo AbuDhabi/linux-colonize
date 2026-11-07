@@ -214,30 +214,15 @@ static void units_pioneer_native_land_tail(
   ai_contact_mood_note((int)col1->tribe[ti].nation_id, nation, base_add == 3 ? 1 : 2, amount);
 }
 
-bool units_pioneer_tile_can_clear_or_plow(
-  const ColonizeWorldMap* map,
-  int x,
-  int y,
-  bool* out_clearing
-) {
+/* FUN_479b_01a6 raw 76751-76756: a non-forest tile aborts on
+ * `FUN_281f_0754 & 0x40` (MAP_LAYER2_PLOWED) or class 0x19 / 0x1a (Ocean /
+ * Sea Lane: the land / high-seas tests); a forest (class 8..0x17) never
+ * aborts. No Hills / Mountains veto (port_bugs.md #1478). */
+static bool units_pioneer_tile_work_ok(const ColonizeWorldMap* map, int x, int y, bool* out_clearing) {
   if (!map_tile_is_land(map, x, y) || map_tile_is_high_seas(map, x, y)) {
     return false;
   }
-  /*
-   * port_bugs.md #619. DOS's terrain veto for Clear/Plow lives in the ORDERS menu
-   * FUN_2b5a_0b34 raw 42224-42227: it hides ids 0x312/0x313 only on classes
-   * 0x1b (Mountains) / 0x1c (Hills) on the FUN_281f_078c scale that
-   * map_pedia_terrain_index_at mirrors. Arctic (24) is plowable in DOS (its
-   * DS:0x2f76 threshold byte is 4). The work body FUN_479b_01a6 raw
-   * 76745-76755 itself aborts only on `layer2 & 0x40`, class 0x19 (Ocean)
-   * and 0x1a (Sea Lane) — covered by the land / high-seas tests above.
-   * The port had `24 || 27`, which denied Arctic and permitted Hills, so the
-   * menu offered Plow Fields on Arctic and the order then failed.
-   */
   const int pedia = map_pedia_terrain_index_at(map, x, y);
-  if (pedia == 0x1b || pedia == 0x1c) {
-    return false; /* Mountains / Hills */
-  }
   if (pedia >= 8 && pedia <= 23) {
     if (out_clearing) {
       *out_clearing = true;
@@ -251,6 +236,29 @@ bool units_pioneer_tile_can_clear_or_plow(
     *out_clearing = false;
   }
   return true;
+}
+
+bool units_pioneer_tile_can_clear_or_plow(
+  const ColonizeWorldMap* map,
+  int x,
+  int y,
+  bool* out_clearing
+) {
+  /*
+   * port_bugs.md #619. DOS's terrain veto for Clear/Plow lives in the ORDERS menu
+   * FUN_2b5a_0b34 raw 42224-42227: it hides ids 0x312/0x313 only on classes
+   * 0x1b (Mountains) / 0x1c (Hills) on the FUN_281f_078c scale that
+   * map_pedia_terrain_index_at mirrors. Arctic (24) is plowable in DOS (its
+   * DS:0x2f76 threshold byte is 4). The work body's own aborts are
+   * units_pioneer_tile_work_ok. The port had `24 || 27`, which denied Arctic
+   * and permitted Hills, so the menu offered Plow Fields on Arctic and the
+   * order then failed.
+   */
+  const int pedia = map_pedia_terrain_index_at(map, x, y);
+  if (pedia == 0x1b || pedia == 0x1c) {
+    return false; /* Mountains / Hills */
+  }
+  return units_pioneer_tile_work_ok(map, x, y, out_clearing);
 }
 
 /* FUN_479b_0158: cargo_hold[5] / tools −20; type→Colonist when <20. */
@@ -372,7 +380,9 @@ bool units_pioneer_work_tick_w(
       return false;
     }
   } else {
-    if (!units_pioneer_tile_can_clear_or_plow(map, u->x, u->y, NULL)) {
+    /* port_bugs.md #1478: the work body's own aborts only; the Hills /
+     * Mountains veto is the ORDERS menu's (units_pioneer_plow_w). */
+    if (!units_pioneer_tile_work_ok(map, u->x, u->y, NULL)) {
       u->orders = UNITS_ORDER_NONE;
       return false;
     }
@@ -426,7 +436,7 @@ bool units_pioneer_work_tick_w(
     units_pioneer_native_land_tail(w, u, map, colonies, ai_popups, messages, 3);
   } else {
     bool clearing = false;
-    (void)units_pioneer_tile_can_clear_or_plow(map, u->x, u->y, &clearing);
+    (void)units_pioneer_tile_work_ok(map, u->x, u->y, &clearing);
     if (clearing) {
       /* FUN_479b_01a6 reads the terrain class (iVar5) before the clear; the
        * +8 reward byte is the forest's (tr9 1686: Bahia +60, not +20). */

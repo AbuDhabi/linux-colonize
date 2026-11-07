@@ -51,77 +51,52 @@
 /* ===== REF landing site selection (ai_king_10f0_pick_colony .. ai_king_10f0_pick_spawn) ===== */
 static int ai_king_10f0_pick_colony(const ColonizeTurnContext* ctx, int human, int* out_x,
                                     int* out_y) {
-  if (!ctx || !out_x || !out_y || human < 0 || human >= 4) {
+  if (!ctx || !ctx->colonies || !out_x || !out_y || human < 0 || human >= 4) {
     return -1;
   }
+  /* DOS raw 74311-74326 walks the LIVE colony array (09e6 -> DS:0x8542):
+   * owner +0x1a, founding coastal bit +0x1c & 0x40, pop +0x1f. Active pool
+   * slots in order = DOS colony index order (colonies_id_at_dos_index).
+   * TB-39: DOS keeps ten candidates; fixed under !dos_buggy_behavior()
+   * to every port in the colony pool. */
+  const int max_cand = dos_buggy_behavior() ? AI_KING_10F0_CANDIDATES : COLONIZE_COLONIES_MAX;
+  int cand[COLONIZE_COLONIES_MAX];
+  int weight[COLONIZE_COLONIES_MAX];
+  int n_cand = 0;
   int total_pop = 0;
-  int best_i = -1;
-  if (ctx->col1_ok && ctx->col1 && ctx->col1->colony) {
-    /* TB-39: DOS keeps ten candidates; fixed under !dos_buggy_behavior()
-     * to every port in the colony pool. */
-    const int max_cand = dos_buggy_behavior() ? AI_KING_10F0_CANDIDATES : COLONIZE_COLONIES_MAX;
-    int cand[COLONIZE_COLONIES_MAX];
-    int weight[COLONIZE_COLONIES_MAX];
-    int n_cand = 0;
-    for (uint16_t i = 0; i < ctx->col1->head.colony_count; ++i) {
-      const ColonizeCol1Colony* c = &ctx->col1->colony[i];
-      if ((int)c->nation_id != human || !c->flags.coastal) {
-        continue;
-      }
-      if (n_cand >= max_cand) {
-        break; /* DOS keeps scanning but the `local_24 < 10` arm never takes */
-      }
-      /* +0x1f is live in DOS; the col1 mirror lags the colony pool mid-turn
-       * (tr9 1686: New Amsterdam 14 -> 13 this EOT, roulette 1..56). */
-      const ColonizeColony* live = ctx->colonies ? colonies_find_at_xy(ctx->colonies, c->x, c->y) : NULL;
-      const int pop = live ? live->population : (int)c->population;
-      cand[n_cand] = (int)i;
-      weight[n_cand] = pop;
-      total_pop += pop;
-      n_cand++;
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    const ColonizeColony* c = &ctx->colonies->colonies[i];
+    if (!c->active || c->nation_id != human || (c->colony_flags & COLONIZE_COLONY_FLAG_COASTAL) == 0) {
+      continue;
     }
-    if (n_cand > 0 && total_pop > 0) {
-      int pick = total_pop / 2 + 1;
-      if (ctx->rng) {
-        pick = dos_rng_range(ctx->rng, 1, total_pop);
-      }
-      for (int k = 0; k < n_cand; ++k) {
-        pick -= weight[k];
-        if (pick <= 0) {
-          const ColonizeCol1Colony* c = &ctx->col1->colony[cand[k]];
-          *out_x = (int)c->x;
-          *out_y = (int)c->y;
-          return cand[k];
-        }
-      }
+    if (n_cand >= max_cand) {
+      break; /* DOS keeps scanning but the `local_24 < 10` arm never takes */
     }
-    /*
-     * Weightless candidate set (every one of the first ten ports at pop 0 —
-     * unreachable in a real save): DOS's roulette leaves local_56 at -1 and
-     * 10f0 lands nothing. Fall through to the caller's weakest-port fallback
-     * instead of stalling the whole intervention.
-     */
+    cand[n_cand] = i;
+    weight[n_cand] = c->population;
+    total_pop += c->population;
+    n_cand++;
   }
-  if (ctx->colonies) {
-    int best_score = 999999;
-    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-      const ColonizeColony* c = &ctx->colonies->colonies[i];
-      if (!c->active || c->nation_id != human) {
-        continue;
-      }
-      if (ctx->map && !map_tile_is_coastal(ctx->map, c->x, c->y)) {
-        continue;
-      }
-      const int pop = c->population > 0 ? c->population : 1;
-      if (pop < best_score) {
-        best_score = pop;
-        best_i = i;
-        *out_x = c->x;
-        *out_y = c->y;
-      }
+  /* raw 74327-74334: no candidate (`local_24 == 0`) or a roulette that never
+   * goes <= 0 (every weight 0, `local_56` stays -1) lands nothing; no
+   * weakest-port fallback (#873a, #1454). */
+  if (n_cand == 0 || total_pop <= 0) {
+    return -1;
+  }
+  int pick = total_pop / 2 + 1;
+  if (ctx->rng) {
+    pick = dos_rng_range(ctx->rng, 1, total_pop);
+  }
+  for (int k = 0; k < n_cand; ++k) {
+    pick -= weight[k];
+    if (pick <= 0) {
+      const ColonizeColony* c = &ctx->colonies->colonies[cand[k]];
+      *out_x = c->x;
+      *out_y = c->y;
+      return cand[k];
     }
   }
-  return best_i;
+  return -1;
 }
 
 /*
@@ -936,7 +911,10 @@ COLONIZE_INTERNAL void ai_king_0982_invasion(struct ai_king_0982_ctx* w) {
     for (int d = 0; d < 8; ++d) {
       const int wx = c->x + MAP_DIR8_DX[d];
       const int wy = c->y + MAP_DIR8_DY[d];
-      if (!map_tile_is_water(ctx->map, wx, wy)) {
+      /* DOS-LITERAL FUN_43f7_0982 raw 74104: `0768 != 0 && 06b4 == 1` —
+       * water AND layer3 low nibble 1 (open sea), as 10f0 raw 74347 (#1457). */
+      if (!map_tile_is_water(ctx->map, wx, wy) ||
+          (int)(map_get_layer3(ctx->map, wx, wy) & MAP_L3_CONTINENT_MASK) != 1) {
         continue;
       }
       int free_land = 0;
@@ -1239,58 +1217,36 @@ COLONIZE_INTERNAL int ai_king_10f0_spawn_unit(
  * at the maximum wins, and `iVar4` is seeded to 0 — with no coastal human
  * colony at all DOS names colony index 0 whatever it is. `FUN_281f_0416(3,
  * iVar4*0xca+0x5d48)` then splices that colony's name (+2) into %STRING3.
- * Returns NULL only when there is no colony array to read at all.
+ * Reads the live pool (active slots in order = DOS colony index order), not
+ * the col1 save mirror (#1454). Returns NULL only with no colony at all.
  */
 static const char* ai_king_1528_announce_colony(const ColonizeTurnContext* ctx, int human) {
-  if (!ctx || human < 0 || human >= 4) {
+  if (!ctx || !ctx->colonies || human < 0 || human >= 4) {
     return NULL;
   }
-  if (ctx->col1_ok && ctx->col1 && ctx->col1->colony && ctx->col1->head.colony_count > 0) {
-    int best_pop = -1;
-    uint16_t best_i = 0; /* DOS seeds iVar4 = 0, not -1 */
-    for (uint16_t i = 0; i < ctx->col1->head.colony_count; ++i) {
-      const ColonizeCol1Colony* c = &ctx->col1->colony[i];
-      if ((int)c->nation_id != human || !c->flags.coastal) {
-        continue;
-      }
-      if (best_pop < (int)c->population) {
-        best_pop = (int)c->population;
-        best_i = i;
-      }
+  int best_pop = -1;
+  const ColonizeColony* best = NULL;
+  const ColonizeColony* first = NULL; /* DOS seeds iVar4 = 0: colony index 0 */
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    const ColonizeColony* c = &ctx->colonies->colonies[i];
+    if (!c->active) {
+      continue;
     }
-    if (ctx->col1->colony[best_i].name[0]) {
-      return ctx->col1->colony[best_i].name;
+    if (!first) {
+      first = c;
     }
-  }
-  /* No Col1 colony array (synthetic fixtures): same rule over the live pool. */
-  if (ctx->colonies) {
-    int best_pop = -1;
-    const ColonizeColony* best = NULL;
-    const ColonizeColony* first = NULL;
-    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-      const ColonizeColony* c = &ctx->colonies->colonies[i];
-      if (!c->active || c->nation_id != human) {
-        continue;
-      }
-      if (!first) {
-        first = c;
-      }
-      if (ctx->map && !map_tile_is_coastal(ctx->map, c->x, c->y)) {
-        continue;
-      }
-      if (best_pop < c->population) {
-        best_pop = c->population;
-        best = c;
-      }
+    if (c->nation_id != human || (c->colony_flags & COLONIZE_COLONY_FLAG_COASTAL) == 0) {
+      continue;
     }
-    if (!best) {
-      best = first;
-    }
-    if (best && best->name[0]) {
-      return best->name;
+    if (best_pop < c->population) {
+      best_pop = c->population;
+      best = c;
     }
   }
-  return NULL;
+  if (!best) {
+    best = first;
+  }
+  return best && best->name[0] ? best->name : NULL;
 }
 
 /*

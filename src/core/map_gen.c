@@ -801,18 +801,21 @@ void map_gen_finalize_border_and_forest(uint8_t* terrain, int w, int h) {
   if (!terrain || w <= 0 || h <= 0) {
     return;
   }
-  /* Final 00ce HS outlines: (0,0)–(w-1,h-1) and (1,0)–(w-2,h-1). */
-  if (h > 1) {
-    paint_rect_outline(terrain, w, h, 0, 0, w - 1, h - 1, T_HIGH_SEAS);
+  /* Final 00ce HS outlines (0,0)–(w-1,h-1), (1,0)–(w-2,h-1), then 00ba arctic
+   * on y=0 and y=h-1. Both are plane-draw primitives (FUN_1bca_0002 /
+   * FUN_1b9e_000a): they store the whole byte, feature bits cleared. AMER2.MP
+   * (1,1) = 0x30 is 0x1a in DOS seed-100 000001.SAV (#1466). */
+  for (int y = 0; y < h; ++y) {
+    terrain[idx(0, y, w)] = T_HIGH_SEAS;
+    terrain[idx(w - 1, y, w)] = T_HIGH_SEAS;
     if (w > 2) {
-      paint_rect_outline(terrain, w, h, 1, 0, w - 2, h - 1, T_HIGH_SEAS);
+      terrain[idx(1, y, w)] = T_HIGH_SEAS;
+      terrain[idx(w - 2, y, w)] = T_HIGH_SEAS;
     }
   }
-
-  /* Final 00ba: full arctic on y=0 and y=h-1. */
   for (int x = 0; x < w; ++x) {
-    set_type_keep_feat(terrain, idx(x, 0, w), T_ARCTIC);
-    set_type_keep_feat(terrain, idx(x, h - 1, w), T_ARCTIC);
+    terrain[idx(x, 0, w)] = T_ARCTIC;
+    terrain[idx(x, h - 1, w)] = T_ARCTIC;
   }
 
   /* LAB_684c_1888: demote bit4 forests (0x10..0x17 → −8); hills lose forest. */
@@ -1586,12 +1589,21 @@ static void map_gen_assign_continents(ColonizeWorldMap* map) {
   free(labels);
   free(counts);
 
+  map_gen_pacific_and_suppress(map, false, false);
+}
+
+void map_gen_pacific_and_suppress(ColonizeWorldMap* map, bool loaded_map, bool picked_map) {
+  if (!map || !map->terrain || !map->layer2) {
+    return;
+  }
+  const int w = map->width;
+  const int h = map->height;
+
   /*
-   * FUN_684c_08c0: western ocean pacific strip (mask/layer2 0x20).
+   * FUN_684c_08c0 raw 107083-107097: western ocean pacific strip (layer2 0x20).
    * param_1==0 → walk until x >= width/2 or land; else until width-16.
-   * New-world generate uses the param_1==0 cutoff.
    */
-  const int pacific_xmax = w / 2;
+  const int pacific_xmax = loaded_map ? w - 0x10 : w / 2;
   for (int y = 1; y < h - 1; ++y) {
     for (int x = 1; x < pacific_xmax; ++x) {
       if (!is_water_tile(map->terrain[y * w + x])) {
@@ -1603,12 +1615,14 @@ static void map_gen_assign_continents(ColonizeWorldMap* map) {
   }
 
   /*
-   * FUN_684c_08c0: offshore prime suppress (0x04) — ocean/HS with no in-bounds
-   * land neighbour in the DS:0xc8/0xde 20-ring (FUN_281f_0302 + 0768).
+   * FUN_684c_08c0 raw 107099-107124: offshore prime suppress (0x04) — ocean/HS
+   * carrying a prime resource (FUN_281f_0718 = FUN_137f_04b0 != -1, which reads
+   * DS:0x190, so prime_resource_seed must already be set) with no in-bounds land
+   * neighbour in the DS:0xc8/0xde 20-ring (FUN_281f_0302 + 0768).
    */
   for (int y = 0; y < h; ++y) {
     for (int x = 0; x < w; ++x) {
-      if (!is_water_tile(map->terrain[y * w + x])) {
+      if (!is_water_tile(map->terrain[y * w + x]) || map_dos_resource_at(map, x, y) == -1) {
         continue;
       }
       int has_land = 0;
@@ -1628,6 +1642,13 @@ static void map_gen_assign_continents(ColonizeWorldMap* map) {
           (uint8_t)(map->layer2[y * w + x] | MAP_LAYER2_SUPPRESS);
       }
     }
+  }
+
+  /* FUN_684c_08c0 raw 107125-107130 (684c:1aa0): a loaded map that is not a
+   * picked custom .MP (DS:0x2174 == 0) gets terrain |= 0xa0 at (21,1), (43,68). */
+  if (loaded_map && !picked_map && w > 43 && h > 68) {
+    map->terrain[1 * w + 21] = (uint8_t)(map->terrain[1 * w + 21] | 0xa0u);
+    map->terrain[68 * w + 43] = (uint8_t)(map->terrain[68 * w + 43] | 0xa0u);
   }
 }
 

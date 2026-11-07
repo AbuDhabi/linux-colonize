@@ -3,6 +3,7 @@
 #include "test_ai_contact_common.h"
 
 #include "core/ai_contact_internal.h"
+#include "core/ai_internal.h" /* ai_turn_seed */
 #include "core/dos_buggy.h"
 
 #include "../common/ai_fixture.h"
@@ -823,6 +824,9 @@ static int run_803_trade_case(int filler_units, int cargo, uint8_t* out_last_bou
   ctx.col1 = &col1;
   ctx.col1_ok = true;
   ctx.rng_seed = 42;
+  ColonizeDosRng move_rng;
+  dos_rng_seed(&move_rng, 1u);
+  ctx.rng = &move_rng;
 
   AiPopupState pop;
   ai_popup_clear(&pop);
@@ -848,6 +852,19 @@ static int run_803_trade_case(int filler_units, int cargo, uint8_t* out_last_bou
     free(map.layer3);
     col1_save_free(&col1);
     return fail("#803: Meet+Trade should queue the price CHOICE");
+  }
+  {
+    /* port_bugs.md #1482: the human session's sell-price rolls (raw 82130
+     * reseed, then RNG(1,5)/RNG(0,1)) advance the caller's stream too. */
+    ColonizeDosRng reseeded;
+    dos_rng_seed(&reseeded, ai_turn_seed(&ctx));
+    if (move_rng.state == reseeded.state) {
+      free(map.terrain);
+      free(map.layer2);
+      free(map.layer3);
+      col1_save_free(&col1);
+      return fail("#1482: human 2820 haggle draws must be written back to ctx->rng");
+    }
   }
   const int price = pop.queue[pop.queue_count - 1].payload;
   ai_popup_clear(&pop);

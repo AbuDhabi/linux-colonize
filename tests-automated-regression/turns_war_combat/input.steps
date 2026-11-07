@@ -14,8 +14,7 @@ key KP_8                 # turn 108: Dragoon attacks north (45,23)
 wait 6
 key Return               # combat popups (nested in the attack): English Dragoons routed, demoted to Soldiers
 wait 6
-key Return               # French defeat English Dragoons near Quebec
-wait 6
+                         #  (outcome popup gone: #1464/#1465)
 key Return
 wait 6
 key space                # end turn 108
@@ -26,8 +25,7 @@ key Return               # (AI turn still running; presses between popups are ig
 wait 10
 key Return
 wait 10
-key Return               # English defeat French Colonists near Guadeloupe; wagon train captured
-wait 10
+                         #  wagon train captured (no outcome popup: #1464/#1465)
 key Return               # French colonists captured by the English
 wait 10
 key Return               # English march into Guadeloupe, 90 gold plundered
@@ -60,8 +58,7 @@ key KP_8                 # the Dragoon attacks (45,23) again
 wait 6
 key Return               # English Soldiers routed, demoted to Colonists
 wait 6
-key Return               # French defeat English Soldiers near Quebec
-wait 6
+                         #  (outcome popup gone: #1464/#1465)
 key Return
 wait 6
 key s                    # sentry the last two units in Quebec: End of Turn
@@ -91,3 +88,5 @@ key Return               # SoL Martinique 51% (Continue turn)
 wait 10
 key Return               # new cargo of Horses at Montreal (Continue turn)
 wait 10
+key Return               # @LUMBER "Quebec has run out of lumber" (Continue turn): Phase K before L, no longer
+wait 10                  #  suppressed by an earlier status write in the tick (#1461)

@@ -227,7 +227,9 @@ fall back to europe.c's local LCG. Smell audit 2026-09-10 G5.
 Crosses / unrest: move one pool slot to docks; refill. DOS `5e52` phase 5
 picks the slot via `FUN_281f_04d4` RNG(0,2) before rerolling it, not
 always pool[0] — pass `rng` to match; NULL falls back to first-filled
-(fixture / no-rng callers). Cite: europe_nation_eot.md "Phase 5".
+(fixture / no-rng callers). The new row goes to the BACK of the dock: raw
+68588 relinks the immigrant at the oldest end (FUN_281f_08c6 =
+FUN_1427_03a0), port_bugs.md #1477. Cite: europe_nation_eot.md "Phase 5".
 
 ## europe_refill_pool_slot_rng
 
@@ -304,7 +306,8 @@ europe_disembark_passengers_to_dock — DOS sends an arrival from the New World
 to the oldest end of the dock lane chain (FUN_281f_08c6 = FUN_1427_03a0 after
 the FUN_48d3_03d0 lane hop), so it queues behind everyone already there.
 Colonists *created* in Europe go the other way, onto slot 0, through
-europe_dock_insert_front. port_bugs.md #999. Returns false if
+europe_dock_insert_front (port_bugs.md #999), except the crosses immigrant,
+which 5e52 relinks to the back too (#1477). Returns false if
 the dock is full.
 
 ## europe_dock_mirror_unit_of
@@ -433,6 +436,9 @@ as FUN_38fd_0718 does: right @UNIT type, orders = Sentry (DOS +0x314c = 1),
 profession stamped, and 100 Tools on a Pioneers-type unit (DOS +0x3159 =
 100) — without which a Hardy Pioneer reached the New World empty-handed
 (port_bugs.md). Returns the spawned unit id, or -1.
+`europe_spawn_dock_mirror_unit_typed` (europe_internal.h) takes the row's
+already-rolled dos_type instead: the crosses immigrant and the Brewster pick
+draw 0718's Soldier->Dragoon roll once, for the row (port_bugs.md #1463).
 
 ## europe_cash_treasure
 

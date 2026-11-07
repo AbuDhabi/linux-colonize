@@ -379,8 +379,10 @@ our continent tallies 64 + 10-byte seed/path/timer tail; seed near F+`0x47`).
 
 **No new byte map beyond what we have:** `colonization.py` is an early partial
 codec (orders/cargo/tools RE notes). The linked Google sheet is sparse (~header
-labels only). Pacific-to-column-41 claim conflicts with DOS/port `width/2`
-pacific walk — prefer `FUN_684c_08c0`.
+labels only). Its Pacific-to-column-41 claim is right for Original Americas:
+`FUN_684c_08c0` walks to `width/2` on a generated map but to `width-16` on a
+loaded .MP (param_1 != 0); seed-100 000001.SAV has 1309 Pacific tiles reaching
+x=41 (port_bugs.md #1466).
 
 ---
 

@@ -163,6 +163,7 @@ typedef struct AiContact2820 {
                  * slot in both the price and the haggle-ceiling terms — a DOS
                  * quirk, reproduced deliberately (port_bugs.md #795). */
   int buy_qty;
+  int village_plus1; /* DS:0x8d4a, the entered village's tribe index + 1 (0 = scan adjacency; #1480) */
   ColonizeDosRng rng;
 } AiContact2820;
 
@@ -235,7 +236,9 @@ extern AiContact2820 ai_contact_s_2820[4];
 extern AiContactReparations ai_contact_s_reparations[4];
 
 /* Shared helpers (were `static` in the single file). */
-ColonizeCol1Tribe* ai_contact_menu_village(ColonizeTurnContext* ctx, int nation_id, const ColonizeUnit* u);
+ColonizeCol1Tribe* ai_contact_menu_village(
+  ColonizeTurnContext* ctx, int nation_id, const ColonizeUnit* u, int village_index
+);
 ColonizeUnit* ai_contact_find_adjacent_euro( ColonizeTurnContext* ctx, int nation_id, int e, int* near_x, int* near_y );
 const char* ai_contact_cargo_name(int cargo_idx);
 const char* ai_contact_euro_name(const ColonizeCol1Save* col1, int euro_nation);
@@ -243,6 +246,10 @@ const char* ai_contact_euro_plural(const ColonizeCol1Save* col1, int euro_nation
 const char* ai_contact_learner_skill_name( const ColonizeUnitPool* units, const ColonizeUnit* u );
 const char* ai_contact_level_noun(const ColonizeTurnContext* ctx, int tech);
 int ai_contact_2820_begin( ColonizeTurnContext* ctx, ColonizeCol1Indian* ind, int nation_id, int e, ColonizeUnit* unit );
+/* begin with the entered village bound (tribe index; -1 = adjacency scan). */
+int ai_contact_2820_begin_at(
+  ColonizeTurnContext* ctx, ColonizeCol1Indian* ind, int nation_id, int e, ColonizeUnit* unit, int village_index
+);
 int ai_contact_2820_met_bit(const ColonizeTurnContext* ctx, int e, int nation_id);
 int ai_contact_2e92_candidates(const AiContact2820* s, int goods[3], int slots[3]);
 int ai_contact_2820_sell_price( const ColonizeCol1Indian* ind, int cargo, int ask, int qty, int difficulty, int alarm, AiContact2820* s );

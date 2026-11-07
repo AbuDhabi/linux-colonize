@@ -681,10 +681,12 @@ bool colonies_destroy_building(ColonizeColonyPool* pool, int colony_id, int buil
   col->has_building[building_type] = false;
   /*
    * DOS-LITERAL FUN_5fef_0f14 kind 2, raw 99975-99985 (its only caller):
-   * the project is never touched, and the crew is evicted (job 0xd) only when
-   * the row is a chain root (`byte[row*0xc-0x707b] < 0`). Under a burned
-   * upper tier DOS keeps the job, so the port re-binds the crew to the best
-   * tier still owned (colonist building_type names a tier).
+   * the project is never touched, and only when the row is a chain root
+   * (`byte[row*0xc-0x707b] < 0`) with a job (FUN_15eb_14d6 >= 0) does every
+   * colonist holding that job become a Carpenter (FUN_281f_0c36 ->
+   * FUN_15eb_1068(slot, 0xd), port_bugs.md #1462). Under a burned upper tier
+   * DOS keeps the job, so the port re-binds the crew to the best tier still
+   * owned (colonist building_type names a tier).
    */
   const int chain = colonies_building_row_chain(destroyed_row);
   const int* rows = chain >= 0 ? colonies_building_chain_rows(chain) : NULL;
@@ -696,8 +698,15 @@ bool colonies_destroy_building(ColonizeColonyPool* pool, int colony_id, int buil
       keep = bt;
     }
   }
+  const int root_job = root ? colonies_building_occupation(pool, building_type) : -1;
   for (int i = 0; i < col->colonist_count; ++i) {
     ColonizeColonist* c = &col->colonists[i];
+    if (root_job >= 0) {
+      if (c->active && colonies_colonist_occupation_job(pool, c) == root_job) {
+        colonies_assign_carpenter_fallback(pool, colony_id, i);
+      }
+      continue;
+    }
     if (!c->active || c->building_type != building_type) {
       continue;
     }

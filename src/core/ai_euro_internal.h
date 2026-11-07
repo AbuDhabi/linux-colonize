@@ -629,6 +629,12 @@ AiEuroActStatus ai_euro_act_land_treasure(struct ai_euro_act_ctx* a);
 AiEuroActStatus ai_euro_act_land_roles(struct ai_euro_act_ctx* a);
 /* Test-only externs (port_bugs.md #1106), no production caller. */
 int ai_euro_5d04_dos_type_code(const ColonizeUnitPool* pool, int type_index);
+/* turn > 99 difficulty discount, int16-wrapped like DOS (#1479). */
+int ai_euro_5d04_late_discount(int difficulty, uint32_t price);
+/* LAB_521d_52aa attack score for (nx, ny); 0 = unscoreable. */
+int ai_euro_20e6_attack_term(
+  ColonizeTurnContext* ctx, const ColonizeUnit* u, const Ai20e6Unit* s, int nx, int ny, int foe_id, int* score
+);
 /* 5d04's Europe dock walk (bound to ai_euro_s_5d04_ctx/_nation): slot indices
  * in DOS tile-chain order, newest arrival first; -1 at the end. */
 uint32_t ai_euro_5d04_artillery_price(const ColonizeCol1Nation* nat);
