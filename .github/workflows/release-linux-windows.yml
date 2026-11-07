@@ -1,0 +1,64 @@
+name: release-linux-windows
+
+# Builds the Linux tarball (manylinux2014, glibc 2.17) and the Windows zip
+# (Fedora mingw-w64 cross-build) with the existing container scripts; the
+# runner image ships podman, which both scripts prefer over docker.
+# The build jobs have read-only access; only the small release job, which runs
+# no repository code, gets contents: write.
+# Published release: the packages are attached to that release.
+# Manual run: the packages are kept as workflow artifacts only.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: opencol-linux-x86_64
+            script: scripts/build_release_container.sh
+            package: dist/*-linux-x86_64.tar.gz
+          - name: opencol-windows-x86_64
+            script: scripts/build_release_windows.sh
+            package: dist/*-windows-x86_64.zip
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Build package
+        run: bash ${{ matrix.script }}
+
+      - name: Keep package as workflow artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ${{ matrix.name }}
+          path: ${{ matrix.package }}
+          if-no-files-found: error
+
+  attach:
+    needs: build
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: opencol-*
+          merge-multiple: true
+
+      - name: Attach packages to the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: gh release upload "$TAG" ./*.tar.gz ./*.zip --clobber --repo "$GITHUB_REPOSITORY"
