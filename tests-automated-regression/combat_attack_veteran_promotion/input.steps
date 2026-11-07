@@ -9,8 +9,8 @@ key Return               # dismiss: roll won
 wait 3
 key Return               # "{English Soldiers} routed! Unit demoted to {Colonists}" (@DEMOTE)
 wait 3
-key Return               # "{French} defeat {English Soldiers} near Cayenne!"; the winner's promotion roll
-wait 3                  #  (FUN_5fef_172c) succeeds: profession 28 -> 21 Veteran Soldier
+# (no @EUROPEWIN for a human attacker, FUN_5fef_1b0e raw 100810-100836); the winner's promotion roll
+#  (FUN_5fef_172c) succeeds: profession 28 -> 21 Veteran Soldier
 key Return               # @VETERAN "Our {Soldiers} have hardened to {Veteran} status, Your Excellency!"
 wait 3                  #  attack moves spent; no French unit left to move
 shot

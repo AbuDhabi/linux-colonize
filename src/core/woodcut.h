@@ -79,6 +79,12 @@ typedef struct ColonizeWoodcutScreen {
   bool palette_ok;
   char caption[WOODCUT_CAPTION_LEN];
   uint8_t canvas[320 * 200];
+  /* FUN_6f30_0062 presents frame + plate + a colour-10 picture window first
+   * (FUN_281f_00e2), then draws the art and fizzles it in (FUN_281f_03ea(8)).
+   * `base` is that first screen; woodcut_render shows it while art_hidden, so
+   * the presenter can snapshot it and run the fizzle to `canvas`. */
+  uint8_t base[320 * 200];
+  bool art_hidden;
 } ColonizeWoodcutScreen;
 
 /*
@@ -89,6 +95,10 @@ typedef struct ColonizeWoodcutScreen {
  */
 typedef void (*ColonizeWoodcutSoundFn)(int id);
 void woodcut_set_sound_hooks(ColonizeWoodcutSoundFn play_fn, ColonizeWoodcutSoundFn set_bgm_fn);
+/* FUN_129f_0300 pool-only arm and the DS:0xa0 && !DS:0xa2 restart gate the
+ * table's case 0/1 and case 2 (FUN_129f_034c) arms test. Unset = gate closed. */
+typedef bool (*ColonizeWoodcutGateFn)(void);
+void woodcut_set_bgm_gate_hooks(ColonizeWoodcutSoundFn pool_fn, ColonizeWoodcutGateFn gate_fn);
 
 /*
  * FUN_12fd_006c: once-only gate on the DS:0x540a bit array plus the tune

@@ -634,10 +634,10 @@ int ai_contact_try_village_gifts(ColonizeTurnContext* ctx, int nation_id) {
  *
  * AI Euro targets take DOS's `else` limb: @INDIANWAGONS auto-accepts
  * (`local_c = 1`), @INDIANCITY auto-accepts unless the good demanded is
- * Muskets (`local_40 == 0xf -> local_c = 1`). DOS also has a second AI
- * refusal roll there (`FUN_281f_07e0(10)` -> `FUN_281f_08bc`, raw 96888-96892);
- * neither thunk is resolved, and inventing a draw would move every
- * downstream RNG value, so it is deliberately NOT modelled.
+ * Muskets (`local_40 == 0xf -> local_c = 1`), and for any good the
+ * `FUN_281f_07e0(10)` -> `FUN_281f_08bc` test (raw 96888-96892) also refuses
+ * when an armed land unit stands on the colony tile (no draw; see the AI
+ * answer in the @INDIANCITY arm below).
  *
  * TRIGGER: the same reconstruction @INDIANBEGFOOD and the gift arm use — a
  * unit of this nation that WALKED UP to the target this turn
@@ -1352,20 +1352,26 @@ static int ai_contact_2820_prepare(
   }
   memcpy(s->ask, econ.ask, sizeof(s->ask));
   memcpy(s->bid, econ.bid, sizeof(s->bid));
-  const int bid0 = s->bid[0];
-  s->bid[0] = 0;
-  if (s->bid[13] < bid0) {
-    s->ask[0] = 0;
+  ai_contact_2820_prepare_tables(s->ask, s->bid, s->cand);
+  return 1;
+}
+
+/* FUN_4d56_2820 table shell (overlays.c 78251-78269), shared with the
+ * a60c -> 2820(..., -1, ...) Speak With Chief prep, which returns right after. */
+void ai_contact_2820_prepare_tables(int16_t* ask, int16_t* bid, int* cand) {
+  const int bid0 = bid[0];
+  bid[0] = 0;
+  if (bid[13] < bid0) {
+    ask[0] = 0;
   }
-  ai_contact_2820_sort(s->bid, s->cand);
+  ai_contact_2820_sort(bid, cand);
   for (int i = 1; i < 4; ++i) {
-    const int c = s->cand[16 - i];
-    s->ask[c] = 0;
+    const int c = cand[16 - i];
+    ask[c] = 0;
     if (c == 0) {
-      s->cand[16 - i] = 12;
+      cand[16 - i] = 12;
     }
   }
-  return 1;
 }
 
 /*
@@ -2449,8 +2455,8 @@ void ai_contact_apply_trade_pick(
  * Returns 1 when the trade shell ran (sold, gifted or priced-out), 0 when
  * the gates refused (no contact yet / bad record).
  */
-int ai_contact_ai_wagon_village_trade(
-  ColonizeTurnContext* ctx, int indian_nation, int euro_nation, int unit_id
+int ai_contact_ai_wagon_village_trade_at(
+  ColonizeTurnContext* ctx, int indian_nation, int euro_nation, int unit_id, int tribe_index
 ) {
   if (!ctx || !ctx->units || !ctx->col1_ok || !ctx->col1 || indian_nation < 4 ||
       indian_nation > 11 || euro_nation < 0 || euro_nation > 3) {
@@ -2467,7 +2473,9 @@ int ai_contact_ai_wagon_village_trade(
   if (!ind->euro_diplo[euro_nation]) {
     return 0;
   }
-  return ai_contact_2820_begin(ctx, ind, indian_nation, euro_nation, unit);
+  /* DS:0x8d4a = the entered village (4528 AI arm binds it from the tile the
+   * wagon steps onto, OVL13 0a4c), not the tribe's first adjacent one. */
+  return ai_contact_2820_begin_at(ctx, ind, indian_nation, euro_nation, unit, tribe_index);
 }
 
 /*

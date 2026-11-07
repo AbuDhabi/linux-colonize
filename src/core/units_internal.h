@@ -153,6 +153,8 @@ int units_sweep_naval_stack_after_loss( ColonizeUnitPool* pool, int x, int y, in
 void units_sweep_stack_after_loss( ColonizeUnitPool* pool, int x, int y, int loser_nation, int winner_id, int primary_loser_id, const ColonizeCol1Save* col1 );
 int units_tribe_nation_at(const ColonizeCol1Save* col1, int x, int y);
 
+/* FUN_5fef_0000 best defender on a water tile against a unit-less attacker of atk_nation (03f6 fort shot). */
+int units_best_defender_vs_nation_at_sea( const ColonizeUnitPool* pool, const ColonizeCol1Save* col1, int x, int y, int atk_nation );
 /* --- owned by units_combat_resolve.c --- */
 /* col1: the caller's units_world_col1 (port_bugs.md #1112). */
 bool units_at_war_for_move(const ColonizeCol1Save* col1, int nation_a, int nation_b);

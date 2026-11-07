@@ -16,6 +16,12 @@ static void check(bool cond, const char* what) {
   }
 }
 
+/* Whole ms covering n sailing frames (8 ticks each of the 60.877 Hz clock). */
+static uint32_t frames_ms(int n) {
+  const uint64_t units = (uint64_t)n * OPENING_PAN_TIMING * OPENING_ACCUM_PER_TICK;
+  return (uint32_t)((units + OPENING_ACCUM_PER_MS - 1u) / OPENING_ACCUM_PER_MS);
+}
+
 static void test_timeline(void) {
   OpeningSeries rows[OPENING_SERIES_MAX];
   int end_frame = 0;
@@ -110,7 +116,7 @@ static void test_open_skip_and_motion(void) {
   uint8_t logo0[320 * 200];
   memcpy(logo0, o.canvas, sizeof(logo0));
 
-  opening_update(&o, OPENING_FRAME_MS * 2);
+  opening_update(&o, OPENING_LOGO_FRAME_MS * 2);
   check(o.logo_phase && o.logo_clock == 2, "logo ticks");
   check(memcmp(o.canvas, logo0, sizeof(logo0)) != 0, "logo spun");
 
@@ -203,12 +209,12 @@ static void test_logo_and_credit_layout(void) {
     const OpeningCredit* c = &o.credit_rows[i];
     const int pre = c->start_frame > 0 ? c->start_frame - 1 : 0;
     if (o.clock < pre) {
-      opening_update(&o, OPENING_FRAME_MS * (uint32_t)(pre - o.clock));
+      opening_update(&o, frames_ms(pre - o.clock));
     }
     memcpy(before, o.canvas, sizeof(before));
     const int at = c->start_frame + 1;
     if (o.clock < at) {
-      opening_update(&o, OPENING_FRAME_MS * (uint32_t)(at - o.clock));
+      opening_update(&o, frames_ms(at - o.clock));
     }
     int scene = 0;
     int below = 0;
@@ -267,7 +273,7 @@ static void test_guy_idle_loops(void) {
   const int loop = OPENING_GUY_LOOP_BACK + 1;
   const int guy_start = 720;
   const int first_loop = guy_start + n;
-  opening_update(&o, OPENING_FRAME_MS * (uint32_t)first_loop);
+  opening_update(&o, frames_ms(first_loop));
   check(o.clock == first_loop, "reached guy idle loop");
   uint8_t a[320 * 200];
   uint8_t b[320 * 200];
@@ -275,7 +281,7 @@ static void test_guy_idle_loops(void) {
   memcpy(a, o.canvas, sizeof(a));
   opening_update(&o, OPENING_FRAME_MS);
   memcpy(b, o.canvas, sizeof(b));
-  opening_update(&o, OPENING_FRAME_MS * (uint32_t)(loop - 1));
+  opening_update(&o, frames_ms(loop - 1));
   memcpy(c, o.canvas, sizeof(c));
   check(memcmp(a, b, sizeof(a)) != 0, "guy idle advances");
   check(memcmp(a, c, sizeof(a)) == 0, "guy idle wraps every 6 frames");
@@ -294,10 +300,14 @@ static void test_timed_run_reaches_end(void) {
     failures++;
     return;
   }
-  opening_update(&o, OPENING_FRAME_MS * (OPENING_LOGO_END_FRAME + 2));
+  opening_update(&o, OPENING_LOGO_FRAME_MS * (OPENING_LOGO_END_FRAME + 2));
   check(!o.logo_phase, "logo ends on its own");
   check(o.clock == 0, "sailing clock starts after logo");
-  opening_update(&o, OPENING_FRAME_MS * 900);
+  /* 891 frames x 8 ticks of the 60.877 Hz clock = 117.09 s (OPENING.EXE
+   * pan_timing), not 891 x 55 ms. */
+  opening_update(&o, 117000);
+  check(o.clock < o.end_frame, "sailing still running at 117.0 s");
+  opening_update(&o, 200);
   check(!o.finished, "end frame holds before the menu");
   check(o.clock == o.end_frame, "lands on end marker");
   opening_update(&o, OPENING_HOLD_MS - 1);
@@ -340,6 +350,23 @@ static int case_test_guy_idle_loops(void) {
   return failures != before;
 }
 
+/* OPENING.EXE `_do_anims` 0x462-0x4c5: OPENSUN's sprite follows the absolute
+ * anim_frame thresholds, not its own counter. Sun row: frame 40, repeats 0. */
+static int case_test_sun_thresholds(void) {
+  int before = failures;
+  const OpeningSeries sun = {.series = OPENING_SHEET_SUN, .frame = 40, .repeats = 0, .base_x = 640};
+  const int n = 8;
+  check(opening_sprite_index(&sun, -1, n) == -1, "sun not drawn before its start");
+  check(opening_sprite_index(&sun, 0, n) == 0, "sun sprite 1 at start");
+  check(opening_sprite_index(&sun, 0x86 - 40, n) == 0, "sun sprite 1 through 0x86");
+  check(opening_sprite_index(&sun, 0x87 - 40, n) == 1, "sun sprite 2 at 0x87");
+  check(opening_sprite_index(&sun, 0xc3 - 40, n) == 4, "sun sprite 5 at 0xc3");
+  check(opening_sprite_index(&sun, 0xec - 40, n) == 6, "sun sprite 7 at 0xec");
+  check(opening_sprite_index(&sun, 0xfc - 40, n) == 5, "sun back to sprite 6 at 0xfc");
+  check(opening_sprite_index(&sun, 800 - 40, n) == 5, "sun holds sprite 6");
+  return failures != before;
+}
+
 static int case_test_timed_run_reaches_end(void) {
   int before = failures;
   test_timed_run_reaches_end();
@@ -353,6 +380,7 @@ static const TestCase k_cases[] = {
     {"test_logo_and_credit_layout", case_test_logo_and_credit_layout},
     {"test_guy_idle_loops", case_test_guy_idle_loops},
     {"test_timed_run_reaches_end", case_test_timed_run_reaches_end},
+    {"test_sun_thresholds", case_test_sun_thresholds},
 };
 
 int main(void) {

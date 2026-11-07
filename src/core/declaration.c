@@ -298,7 +298,12 @@ bool declaration_handle_input(DeclarationCinematic* d, const ColonizeInputState*
     return true;
   }
   if (!d->finished) {
-    declaration_skip_to_end(d);
+    /* FUN_43f7_160a raw 74640-74687: a key or click (bVar2) only cuts the
+     * per-frame wait of the glyph being drawn — its remaining frames land at
+     * once — and bVar2 resets for the next glyph, which animates again. */
+    const int glyph = d->glyph_index;
+    while (d->glyph_index == glyph && declaration_step(d)) {
+    }
   } else {
     declaration_close(d);
   }

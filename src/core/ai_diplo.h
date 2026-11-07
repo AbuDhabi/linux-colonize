@@ -311,8 +311,9 @@ uint8_t ai_diplo_indian_read(const ColonizeCol1Save* col1, int euro_nation, int 
 int ai_diplo_indian_at_war(const ColonizeCol1Save* col1, int euro_nation, int indian_idx);
 
 /*
- * Fandom capital-destroy surrender: reset alarm/friction toward euro, set
- * indian peace bit, floor relation. Cite: docs/fandom_col1994.md Capital destroy.
+ * FUN_5fef_1b0e LAB_5fef_362a capital-razed block: alarm clamped down to 15
+ * (via the 4cc6_00f2 delta, which clears WAR) and the dwellings' friction /
+ * attack counters zeroed. No peace or capital bit write.
  */
 void ai_diplo_indian_capital_surrender(
   ColonizeCol1Save* col1,

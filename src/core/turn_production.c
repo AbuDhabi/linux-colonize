@@ -342,8 +342,10 @@ static bool turn_emit_needtools_notice(
     if (!bt) {
       return false;
     }
-    /* Already-owned project takes DOS's @ALREADYHAVE arm instead. */
-    if (bip < COLONIZE_BUILDING_TYPES_MAX && colony->has_building[bip]) {
+    /* Already-owned project takes DOS's @ALREADYHAVE arm instead (09fc bit
+     * test, never set for Warehouse Expansion). */
+    if (bip < COLONIZE_BUILDING_TYPES_MAX && colony->has_building[bip] &&
+        colonies_building_type_row(pool, bip) != COLONY_BUILDING_WAREHOUSE_EXPANSION) {
       return false;
     }
     pname = colonies_building_name(pool, bip);
@@ -1055,7 +1057,9 @@ COLONIZE_INTERNAL void turn_produce_custom_house(TurnProduceCtx* pc) {
           turn_label("MISC", 48, ""),
           sale->gross
         );
-        if (n > 0 && n < (int)sizeof(line) && sale->tax_percent > 0) {
+        /* raw 57311: the tax tail is gated on peacetime ((DS:0x5382 & 1) == 0),
+         * not on the rate, so a 0% house still prints "0% Tax: 0. Net:". */
+        if (n > 0 && n < (int)sizeof(line) && !(col1 && col1->head.game_options.woi)) {
           snprintf(
             line + n,
             sizeof(line) - (size_t)n,
@@ -1393,7 +1397,6 @@ COLONIZE_INTERNAL void turn_produce_birth(TurnProduceCtx* pc) {
    * Easy-difficulty no-kill mercy ported below. Cite: ~57623–57694.
    */
   const int need = pop * TURN_FOOD_PER_COLONIST;
-  pc->was_starving = colony->food_shortfall_latch != 0;
   /*
    * port_bugs.md (port_orange_starves.SAV): DOS's starve trigger is DS:0x8e5a =
    * max(0, consumption − stock-at-start − production) — the colony must
@@ -1409,12 +1412,14 @@ COLONIZE_INTERNAL void turn_produce_birth(TurnProduceCtx* pc) {
    * subtract 200 food (docs/building_production.md; decomp ~57615–57622).
    */
   /* TB-47: under !dos_buggy_behavior() a birth refused at the unit cap
-   * keeps its 200 food (no debit, no @NEWCOLONIST). */
+   * keeps its 200 food (no debit, no @NEWCOLONIST). DOS raw 57615-57622 has
+   * no colony-size gate (the newborn is a map unit); the colonists[] bound
+   * only guards the port-only join-the-colony fallback below. */
+  const int birth_ct =
+    turn_birth_units ? units_kind_type_index(turn_birth_units, UNITS_KIND_COLONIST) : -1;
   if (colony->stock[COLONIZE_CARGO_FOOD] >= 200 &&
-      colony->colonist_count < COLONIZE_COLONY_POP_MAX &&
-      (dos_buggy_behavior() || !turn_birth_units ||
-       units_kind_type_index(turn_birth_units, UNITS_KIND_COLONIST) < 0 ||
-       units_spawn_room(turn_birth_units, colony_nation_id))) {
+      (birth_ct >= 0 ? (dos_buggy_behavior() || units_spawn_room(turn_birth_units, colony_nation_id))
+                     : colony->colonist_count < COLONIZE_COLONY_POP_MAX)) {
     colony->stock[COLONIZE_CARGO_FOOD] =
       clamp_int(colony->stock[COLONIZE_CARGO_FOOD] - 200, 0, 65535);
     if (delta) {
@@ -1492,7 +1497,6 @@ COLONIZE_INTERNAL TurnProduceStatus turn_produce_starve(TurnProduceCtx* pc) {
   const int food_stock_before = pc->food_stock_before;
   const int consumed = pc->consumed;
   const int field_food = pc->field_food;
-  const int was_starving = pc->was_starving;
   int* const stock_before = pc->stock_before;
   const int need = pop * TURN_FOOD_PER_COLONIST;
   const int food_at_start = stock_before[COLONIZE_CARGO_FOOD];
@@ -1592,11 +1596,12 @@ COLONIZE_INTERNAL TurnProduceStatus turn_produce_starve(TurnProduceCtx* pc) {
   }
 
   /*
-   * First starvation latch (stock < need, not yet killing): @FOOD1 / @FOOD2.
-   * Else DOS 0xe5e @FOODLOW when eating into stores:
-   *   8e5a==0 (stock covers this turn) and 8e32!=0 (production < consumption)
-   *   and post-eat stock < 8e32×4. Cite: FUN_15eb_0b52; ~57626–57636.
-   * Surplus production (8e32==0) never warns — even if stock is modest.
+   * DOS-LITERAL FUN_364b_0688 raw 57626-57681: the shortfall DS:0x8e5a picks
+   * the arm. 8e5a == 0 → @FOODLOW (0xe5e) when 8e32 (production short of
+   * consumption) != 0 and the post-eat stock < 8e32*4. 8e5a != 0 without a
+   * kill (local_12e == 0: food at start, or easy-difficulty mercy) →
+   * @FOOD1/@FOOD2 (0xe3b/0xe41), every such turn: there is no latch, and a
+   * net-zero colony at 0 stores has 8e5a == 0 so it never nags (#5).
    */
   /* port_bugs.md #1400: DOS tests the food report option (0x5384 & 0x40,
    * ndisasm 0x2E321) only ahead of @FOODLOW; the @FOOD1/@FOOD2 calls
@@ -1604,19 +1609,7 @@ COLONIZE_INTERNAL TurnProduceStatus turn_produce_starve(TurnProduceCtx* pc) {
   if (!starved_this_tick && need > 0 && europe && colony->nation_id == human_nation) {
     const int stock = colony->stock[COLONIZE_CARGO_FOOD];
     const int food_shortfall = consumed - field_food; /* DOS 8e32 when >0 */
-    /*
-     * port_bugs.md #5: DOS's literal FOOD1/FOOD2 latch fires on stock<need
-     * alone, even at food_shortfall<=0 (production covers or beats
-     * consumption) — a colony merely flatlining at 0 net-zero food would
-     * re-trigger "depleted" every turn. Require actively losing food
-     * (shortfall>0) to match FOODLOW's own "surplus never warns" rule
-     * below and stop the false-positive nag.
-     *
-     * port_bugs.md #292: "depleted" additionally requires the stores to be
-     * EXACTLY 0 — merely dipping below next turn's need reads as "low",
-     * handled by the FOODLOW branch below.
-     */
-    if (stock == 0 && food_shortfall > 0 && !was_starving) {
+    if (food_shortfall_8e5a != 0) {
       /* raw 0x2E1ED: FUN_281f_04b6(1) before @FOOD1/2 (port_bugs.md #1401). */
       sound_request_bgm(1);
       const char* sec = (col1 && col1->head.autumn) ? "FOOD2" : "FOOD1";
@@ -1629,10 +1622,7 @@ COLONIZE_INTERNAL TurnProduceStatus turn_produce_starve(TurnProduceCtx* pc) {
         popup_msg_fill(messages, sec, &tok, "", body, sizeof(body));
         ai_popup_enqueue_colony_event(ai_popups, colony->id, AI_POPUP_ZOOM_TAB_PRODUCTION, body);
       }
-    } else if (
-      stock > 0 && food_shortfall > 0 && stock < food_shortfall * 4 &&
-      turn_report_ok_food(col1)
-    ) {
+    } else if (food_shortfall > 0 && stock < food_shortfall * 4 && turn_report_ok_food(col1)) {
       /* raw 0x2E328: FUN_281f_0498(1) before @FOODLOW (port_bugs.md #1401). */
       sound_set_bgm_pool(1);
       PopupMsgTokens tok;
@@ -1730,10 +1720,18 @@ COLONIZE_INTERNAL void turn_produce_hammers(TurnProduceCtx* pc) {
    * the cap re-read (0d3a) and spoilage, so a BUY-topped Warehouse already
    * holds goods this tick (port_bugs.md #1475). Unit projects complete in
    * turn_colony_unit_construction_one. */
+  /*
+   * Phase L construction tools check — outside the `hammers_add > 0` block
+   * above because DOS runs it every EOT, hammers produced or not, and for
+   * unit projects as well as buildings (port_bugs.md #537). It precedes the
+   * tools debit + FUN_364b_0114 call (raw 57748-57771).
+   */
+  (void)turn_emit_needtools_notice(pool, colony, col1, europe, human_nation, ai_popups, messages);
   if (colony->building_in_production >= 0) {
     const int bip = colony->building_in_production;
     const ColonizeBuildingType* bt = colonies_building_type(pool, bip);
     const int brow = colonies_building_type_row(pool, bip);
+    const int tools_before = colony->stock[COLONIZE_CARGO_TOOLS];
     if (!bt || colonies_unit_build_info(bip, NULL, NULL, NULL) || bt->hammers <= 0 ||
         colony->hammers < bt->hammers) {
       /* below threshold or a unit project: nothing here */
@@ -1752,8 +1750,10 @@ COLONIZE_INTERNAL void turn_produce_hammers(TurnProduceCtx* pc) {
           );
         }
       } else if (colony->nation_id == human_nation &&
-                 brow == COLONY_BUILDING_WAREHOUSE_EXPANSION && colony->warehouse_level > 1u) {
-        /* FUN_364b_0114 raw 56906-56910: @NOMOREWAREHOUSE each turn it sits complete. */
+                 brow == COLONY_BUILDING_WAREHOUSE_EXPANSION && colony->warehouse_level > 1u &&
+                 tools_before >= bt->tools_cost) {
+        /* FUN_364b_0114 raw 56906-56910: @NOMOREWAREHOUSE each turn it sits
+         * complete and the tools were there to spend (raw 57768-57771). */
         colonies_emit_already_have_chrome(colony, bt, ai_popups, messages);
       }
     } else {
@@ -1772,12 +1772,6 @@ COLONIZE_INTERNAL void turn_produce_hammers(TurnProduceCtx* pc) {
     }
   }
 
-  /*
-   * Phase L construction tools check — outside the `hammers_add > 0` block
-   * above because DOS runs it every EOT, hammers produced or not, and for
-   * unit projects as well as buildings (port_bugs.md #537).
-   */
-  (void)turn_emit_needtools_notice(pool, colony, col1, europe, human_nation, ai_popups, messages);
 }
 
 /* Phase K: "ran out of X" demand crumbs. */
@@ -2074,8 +2068,10 @@ COLONIZE_INTERNAL void turn_produce_cargo_ready(TurnProduceCtx* pc) {
       ai_popup_enqueue_colony_event(ai_popups, colony->id, AI_POPUP_ZOOM_TAB_KEEP, body);
 
       /* @TUTORIAL6, once per campaign (DS:0x5387 bit1), only with Tutorial
-       * Hints on (DS:0x5382 bit 0x80, raw 54317-54319 / 57912-57914). */
-      if (col1 && col1->head.game_options.tutorial_hints && !col1->head.tut3.nr6) {
+       * Hints on (DS:0x5382 bit 0x80, raw 54317-54319 / 57912-57914), and
+       * only in a coastal colony (colony +0x1c & 0x40, raw 57915). */
+      if (col1 && col1->head.game_options.tutorial_hints && !col1->head.tut3.nr6 &&
+          (colony->colony_flags & COLONIZE_COLONY_FLAG_COASTAL) != 0) {
         col1->head.tut3.nr6 = 1;
         PopupMsgTokens ttok;
         memset(&ttok, 0, sizeof(ttok));

@@ -337,6 +337,90 @@ static int unit_fort_fire_aims_chain_head(void) {
 }
 
 /*
+ * FUN_364b_03f6 names the first hull it meets in @FORTFIRE, but the shot is
+ * 1b0e's, which fights FUN_5fef_0000's best defender on the tile (raw
+ * 100353-100354). Head = a defense-1 hull (the fort's 48 beats its 8), older
+ * = a defense-20 hull (160): the fort must fire on the strong one and miss.
+ */
+static int unit_fort_fire_fights_best_defender(void) {
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  pool.type_count = 2;
+  for (int t = 0; t < 2; ++t) {
+    pool.types[t].movement = 5;
+    pool.types[t].domain = COLONIZE_UNIT_DOMAIN_SEA;
+    pool.types[t].hull = 10;
+  }
+  pool.types[0].defense = 1;
+  pool.types[1].defense = 20;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  char err[128];
+  if (!map_alloc(&map, 8, 8, err, sizeof(err))) {
+    fprintf(stderr, "fortbest: map_alloc failed: %s\n", err);
+    return 1;
+  }
+  for (int i = 0; i < 8 * 8; ++i) {
+    map.terrain[i] = 25;
+  }
+  map.terrain[2 * 8 + 2] = 2;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
+  snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Fort");
+  colonies.building_type_count = 1;
+  ColonizeColony* col = &colonies.colonies[0];
+  col->active = true;
+  col->nation_id = 0;
+  col->x = 2;
+  col->y = 2;
+  col->population = 3;
+  col->has_building[0] = true;
+  colonies.colony_count = 1;
+
+  ColonizeCol1Save c1;
+  memset(&c1, 0, sizeof(c1));
+  for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
+    c1.head.founding_father[i] = -1;
+  }
+  ai_diplo_declare_war(&c1, 0, 1);
+
+  const int strong = units_spawn_allow_stack(&pool, 1, 3, 2);
+  const int weak = units_spawn_allow_stack(&pool, 0, 3, 2);
+  units_get(&pool, strong)->nation_id = 1;
+  units_get(&pool, weak)->nation_id = 1;
+  units_get(&pool, strong)->col1_vis_mask = 0x01;
+  units_get(&pool, weak)->col1_vis_mask = 0x01;
+
+  EuropeScreen eu;
+  memset(&eu, 0, sizeof(eu));
+  units_set_combat_colonies(&colonies);
+  units_set_combat_human_nation(0);
+  units_set_combat_europe(&eu);
+  s_dissolve_count = 0;
+  units_set_combat_dissolve(unit_test_dissolve_hook, NULL);
+  (void)units_coastal_fort_fire_pulse_w(
+    &(ColonizeWorld){.units = &pool, .colonies = &colonies, .map = &map,
+                     .col1 = &c1, .col1_ok = true, .rng = NULL},
+    0
+  );
+  int rc = 0;
+  if (units_tile_head_id_at(&pool, 3, 2) != weak || s_dissolve_count != 0) {
+    fprintf(stderr, "fortbest: head %d (want weak %d), dissolve %d (want 0: a miss on the strong hull)\n",
+            units_tile_head_id_at(&pool, 3, 2), weak, s_dissolve_count);
+    rc = 1;
+  }
+  units_set_combat_dissolve(NULL, NULL);
+  units_set_combat_europe(NULL);
+  units_set_combat_colonies(NULL);
+  units_set_combat_human_nation(-1);
+  map_free(&map);
+  return rc;
+}
+
+/*
  * FUN_364b_03f6 local_8 (raw 57085-57092) gates the colony-tile scroll and
  * @FORTFIRE (raw 57100-57108), and is 1b0e's show flag for the phantom's
  * lunge (raw 57109): the human watches the colony tile (FUN_1427_0bfe, the 8
@@ -3149,6 +3233,7 @@ static const TestCase k_cases[] = {
   {"unit_combat_music_sting", unit_combat_music_sting},
   {"unit_fort_fire_dissolve_and_europe", unit_fort_fire_dissolve_and_europe},
   {"unit_fort_fire_aims_chain_head", unit_fort_fire_aims_chain_head},
+  {"unit_fort_fire_fights_best_defender", unit_fort_fire_fights_best_defender},
   {"unit_fort_fire_fortfire_gate", unit_fort_fire_fortfire_gate},
   {"unit_combat_sfx_visibility", unit_combat_sfx_visibility},
   {"unit_native_tile_attack_alarm", unit_native_tile_attack_alarm},

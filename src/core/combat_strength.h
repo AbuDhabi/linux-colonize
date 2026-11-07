@@ -116,6 +116,8 @@ void combat_side_flags_clear(ColonizeCombatSideFlags* f);
  */
 void combat_set_auto_defender(bool on);
 bool combat_auto_defender(void);
+/* Unit id of the colony militia phantom (DOS row 0x17, no veteran peel), -1 none. */
+void combat_set_phantom_0x17(int unit_id);
 
 /*
  * FUN_157e_004a: mode 0 → type.defense (5235); mode 1 → type.attack (5236).

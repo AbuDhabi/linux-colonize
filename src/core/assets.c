@@ -385,6 +385,12 @@ static bool msg_push_line(ColonizeMsgSection* section, const char* line, bool bl
     section->line_capacity = next;
   }
   str_copy_trunc(section->lines[section->line_count], COLONIZE_MSG_LINE_LEN, line);
+  /* FUN_7314_0106 (raw 117904-117925), DOS's reader for every line after a
+   * section header (the 7314_001a seek compares headers raw, so @OTHER_NAMES
+   * keeps its '_'): each '_' of the line becomes a space. */
+  for (char* p = section->lines[section->line_count]; (p = strchr(p, '_')) != NULL;) {
+    *p = ' ';
+  }
   section->blank_before[section->line_count] = blank_before ? 1 : 0;
   section->line_count++;
   return true;

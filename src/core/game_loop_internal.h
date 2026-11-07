@@ -479,6 +479,9 @@ bool game_modal_over_screen_open(const ColonizeGameState* game);
 bool game_fizzle_snapshot_present(ColonizeGameState* game, uint8_t** buf, size_t* cap);
 void game_fizzle_present(ColonizeGameState* game, const uint8_t* before);
 void game_congress_reveal_new_father(ColonizeGameState* game, int ff_index);
+/* FUN_6f30_0062 tail: present the frame + plate (FUN_281f_00e2), then fizzle
+ * the picture in (FUN_281f_03ea(8)). Call right after woodcut_open. */
+void game_woodcut_fizzle_in(ColonizeGameState* game);
 void game_combat_popup_pump(void* user);
 
 void game_hof_load(ColonizeGameState* game);

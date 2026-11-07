@@ -224,41 +224,12 @@ void ai_diplo_indian_capital_surrender(
         t->alarm[euro_nation].friction = 0;
         t->alarm[euro_nation].attacks = 0;
       }
-      if ((int)t->nation_id == indian_nation) {
-        /* Fandom: no new capital after capital falls. */
-        t->state.capital = 0;
-      }
     }
   }
-  /*
-   * The peace half of the DOS post-condition, in the port's own encoding.
-   * DOS's alarm-delta above has already cleared WAR (0x02) both directions;
-   * it never sets PEACE (0x40) at this site. OpenCol reads Indian<->Euro peace
-   * off COL1_INDIAN_PEACE_BIT (ai.c at_peace; the mission / trade / raid
-   * gates) rather than off the war bit, so the port states the same
-   * post-condition on the bit it actually consumes. The clear-war + set-0x60
-   * pairing is DOS's own surrender idiom: FUN_43f7_0108
-   * (viceroy_unpacked.c:73555-73557) clears the 0xb war bits and or-boths
-   * 0x60 (MET|PEACE) when a nation surrenders.
-   *
-   * relation_by_indian is the DOS 0x60 MET|PEACE flag byte, not a scalar
-   * (col1_save.h): it is already 0x60 for any met tribe — and a capital
-   * cannot be razed unmet — while 4cc6_00f2's clear-both of 0x04/0x02 is a
-   * no-op on it, so restating 0x60 reproduces DOS's post-condition exactly.
-   *
-   * 2026-09-10 (audit #16): this was a one-sided `euro_diplo |= 0x40` plus a
-   * raw `relation_by_indian = 96` ASSIGNMENT, which dropped any other bit the
-   * Euro-side row held and bypassed the 15b3 pair ops. 43f7_0108 or-boths its
-   * 0x60, so the port does too — one call, both directions, both bits.
-   *
-   * The old `alarm > 20 -> 20` line that sat here (FUN_5bfb first-contact
-   * clamp, :96624) was dead: the 5fef_1b0e clamp above always leaves alarm at
-   * <= 15. Removed 2026-09-09 (smell #77) — it belongs to first contact, not
-   * to capital razing.
-   */
-  ai_diplo_or_both(
-    col1, indian_nation, euro_nation, (uint8_t)(COL1_INDIAN_MET_BIT | COL1_INDIAN_PEACE_BIT)
-  );
+  /* Nothing else: LAB_5fef_362a (raw 101288-101309) writes no capital bit on
+   * the surviving dwellings and no PEACE/MET bit (its only other act is the
+   * @INDIANBOW popup, the caller's). The alarm clamp's 4cc6_00f2 arm clears
+   * WAR; a peace bit 4cc6_0092 broke stays broken. */
 }
 
 /* ===================== Diplomacy byte accessors, war/peace declarations & sound hook (ai_diplo_timer_byte .. ai_diplo_make_peace) ===================== */
@@ -500,16 +471,6 @@ const char* ai_diplo_rival_name(const ColonizeCol1Save* col1, int nation) {
   return ""; /* catalog miss: empty, never typed text (port_bugs.md #1100) */
 }
 
-/* True when a or b is human-controlled (DS:0x543f; human-facing chrome /
- * popup gate). */
-static int ai_diplo_involves_human(const ColonizeTurnContext* ctx, int nation_a, int nation_b) {
-  if (!ctx) {
-    return 0;
-  }
-  return col1_nation_is_human(ctx->col1, nation_a, ctx->human_nation) ||
-         col1_nation_is_human(ctx->col1, nation_b, ctx->human_nation);
-}
-
 /*
  * Also enqueue map AI OK popup (FUN_15b3 / 5bfb 102a/1092 stand-in) when
  * ctx->ai_popups is set. Status line stays; full VGA dialog PARKED.
@@ -533,23 +494,18 @@ static void ai_diplo_popup_ok(
   if (!ctx || !ctx->ai_popups || !body || body[0] == '\0') {
     return;
   }
-  if (!ai_diplo_involves_human(ctx, nation_a, nation_b)) {
-    return;
-  }
   (void)ai_popup_enqueue_ok_ctx(
     ctx->ai_popups, tag, nation_a, nation_b, 0, NULL, body
   );
 }
 
-/* One 465b band message: OK popup + status line (port convention: only when
- * the human is a party, as ai_diplo_popup_ok). */
+/* One 465b band message: OK popup + status line. No human gate: each arm's
+ * FUN_281f_0652 is ungated (raw 75576-75585), so an AI x AI @DECLAREWAR is
+ * news for the human; @SNEAK / @CANCELPEACE carry their own human tests. */
 static void ai_diplo_465b_say(
   ColonizeTurnContext* ctx, AiPopupTag tag, const char* section, int atk, int def,
   const char* s0, const char* s1
 ) {
-  if (!ai_diplo_involves_human(ctx, atk, def)) {
-    return;
-  }
   PopupMsgTokens tok = {0};
   tok.string0 = s0;
   tok.string1 = s1;
@@ -1180,12 +1136,13 @@ Ai153eWorthinessScore ai_diplo_153e_worthiness_score(
 
   /* raw 570-584: affordability clamp against self's own treasury
    * (*0x84fc = the record FUN_281f_0582(self) selected, +0x2a/+0x2c = gold):
-   * when the score exceeds the treasury but not twice it, and the treasury
-   * holds at least 300, round the score down to the treasury in 50s. */
+   * when the score exceeds the treasury but stays under twice it, and the
+   * treasury holds at least 300, round the score down to the treasury in 50s.
+   * Strict: asm 5bfb:1a52 `CMP CX,AX; JBE skip` skips when 2*gold <= score. */
   {
     const long gold = (long)europe_nation_gold(ctx->europe, col1, self); /* live purse, #1095 */
     if (gold < (long)combat_delta_sum) {
-      if ((long)combat_delta_sum <= gold * 2 && gold >= 300) {
+      if ((long)combat_delta_sum < gold * 2 && gold >= 300) {
         combat_delta_sum = (int)((gold / 50) * 50);
       }
     }
@@ -1605,6 +1562,18 @@ static void ai_talk_finish(ColonizeTurnContext* ctx) {
   k->active = 0;
 }
 
+/* @WORTHY accepted (local_a == 1, raw 97995-98004). */
+static void ai_talk_sign_worthy(ColonizeTurnContext* ctx) {
+  Ai153eTalk* k = &s_talk;
+  /* FUN_5bfb_153e raw 98003: caseD_10(h, t, 0x40) only. WAR 0x02
+   * survives the treaty and drives the next audience (raw 97509). The
+   * fort (FUN_364b_03f6 raw 57082) and move gates read PEACE, so
+   * port_bugs.md #465 needs no clear here. */
+  ai_diplo_or_both(ctx->col1, k->self, k->target, (uint8_t)(AI_DIPLO_PEACE | AI_DIPLO_MET));
+  ctx->col1->head.nation_relation[k->target] = (int16_t)(ctx->col1->head.turn + 0x10);
+  k->stage = AI_TALK_ST_PEACEMENU;
+}
+
 /* The "not worthy" peace negotiation (raw :98060-98170) after the demands. */
 static void ai_talk_peace_offer(ColonizeTurnContext* ctx) {
   Ai153eTalk* k = &s_talk;
@@ -1619,6 +1588,11 @@ static void ai_talk_peace_offer(ColonizeTurnContext* ctx) {
   tok.string2 = ai_talk_name(ctx, k->target);
   if (ai_talk_peace(ctx, k->self, k->target)) {
     k->stage = AI_TALK_ST_PEACEMENU;
+    return;
+  }
+  if (k->usa) {
+    /* raw 97991-97994: the USA leg sets local_a = 1 without the dialog. */
+    ai_talk_sign_worthy(ctx);
     return;
   }
   static const char* const no_fallback[2] = {"", ""};
@@ -1645,7 +1619,11 @@ static AiTalkStepStatus ai_talk_stage_third(
    * marker suppresses the third-party demand too. */
   if (k->third >= 0 && !k->crown_armed && ai_talk_met(ctx, h, k->third)) {
     PopupMsgTokens third_party_tokens = *tok;
-    third_party_tokens.string0 = ai_talk_name(ctx, k->third);
+    /* HEATHEN (raw 97741-97748): %STRING1 = 09a4(tribe), %STRING0 = the
+     * FUN_281f_0a1a plural ("The {Sioux} are a harmless..."); the USA leg
+     * swaps %STRING0 for the target country (ai_talk_usa_tag). */
+    third_party_tokens.string0 = k->third >= 4 ? ai_talk_plural(ctx, k->third)
+                                               : ai_talk_name(ctx, k->third);
     /* GAME.TXT @MEEKNESS: row 0 = "request", row 1 = "demand". */
     third_party_tokens.string1 = k->third >= 4
       ? ai_talk_name(ctx, k->third)
@@ -1671,6 +1649,12 @@ static PopupMsgTokens ai_talk_leader_tok(
   PopupMsgTokens lt = *tok;
   const char* leader = ai_talk_great_line(ctx, "GREATLEADER", t);
   lt.string0 = leader ? leader : "";
+  /* PIRACY / SIEGES %STRING3: thunk_FUN_2a1f_0642(3, local_d4) (asm 5bfb
+   * listing 164188 / 164329) passes the tone flag itself, where APOSTATES
+   * passes (local_d4 < 1) (164056). FUN_5bfb_1092 reads @MEEKNESS row 0
+   * for a nonzero flag, so a MANLY AI "request"s here and a MEEK one
+   * "demand"s. TRIBUTE has no %STRING3. */
+  lt.string3 = assets_msg_line_or(ctx->messages, "MEEKNESS", s_talk.manly ? 0 : 1, "");
   if (country) {
     lt.string2 = col1_player_country_name(ctx->col1, t);
   }
@@ -2060,6 +2044,18 @@ static void ai_talk_advance(ColonizeTurnContext* ctx) {
   ai_talk_finish(ctx);
 }
 
+/* FUN_5bfb_153e "WAR" + tone popup (raw 98040-98046 / 98159-98166):
+ * %STRING0 = 0618(0, "LEADER2", target), %STRING1 = 0416(1, target*0x34 +
+ * 0x5426) = target player.country_name. */
+static void ai_talk_say_war(ColonizeTurnContext* ctx, const PopupMsgTokens* tok, int t, int manly) {
+  const char* gl2 = ai_talk_great_line(ctx, "GREATLEADER2", t);
+  PopupMsgTokens tw = *tok;
+  tw.string0 = gl2 ? gl2 : ai_talk_name(ctx, t);
+  tw.string1 = (t >= 0 && t < 4 && ctx->col1) ? col1_player_country_name(ctx->col1, t)
+                                              : ai_talk_name(ctx, t);
+  ai_talk_ok(ctx, manly ? "WARMANLY" : "WARMEEK", &tw);
+}
+
 /* Popup answer for stage `stage` (choice ids are 1-based). */
 static void ai_talk_resume(ColonizeTurnContext* ctx, int stage, int choice) {
   Ai153eTalk* k = &s_talk;
@@ -2182,13 +2178,7 @@ static void ai_talk_resume(ColonizeTurnContext* ctx, int stage, int choice) {
       return;
     case AI_TALK_ST_WORTHY:
       if (choice == 1) {
-        /* FUN_5bfb_153e raw 98003: caseD_10(h, t, 0x40) only. WAR 0x02
-         * survives the treaty and drives the next audience (raw 97509). The
-         * fort (FUN_364b_03f6 raw 57082) and move gates read PEACE, so
-         * port_bugs.md #465 needs no clear here. */
-        ai_diplo_or_both(col1, h, t, (uint8_t)(AI_DIPLO_PEACE | AI_DIPLO_MET));
-        col1->head.nation_relation[t] = (int16_t)(col1->head.turn + 0x10);
-        k->stage = AI_TALK_ST_PEACEMENU;
+        ai_talk_sign_worthy(ctx);
       } else {
         k->stage = AI_TALK_ST_GIVECASH;
       }
@@ -2209,11 +2199,7 @@ static void ai_talk_resume(ColonizeTurnContext* ctx, int stage, int choice) {
          * encounter tone, as the no-offer path does (dos_bugs_ai.md DB-51).
          * %STRING0/1 per the 0618/0416 operands, as in the cascade legs.
          */
-        const char* gl2 = ai_talk_great_line(ctx, "GREATLEADER2", t);
-        PopupMsgTokens tw = tok;
-        tw.string0 = gl2 ? gl2 : ai_talk_name(ctx, t);
-        tw.string1 = (t >= 0 && t < 4 && col1) ? col1_player_country_name(col1, t) : ai_talk_name(ctx, t);
-        ai_talk_ok(ctx, k->manly ? "WARMANLY" : "WARMEEK", &tw);
+        ai_talk_say_war(ctx, &tok, t, k->manly);
       }
       k->stage = AI_TALK_ST_PEACEMENU;
       ai_talk_advance(ctx);
@@ -2308,7 +2294,11 @@ static void ai_talk_resume(ColonizeTurnContext* ctx, int stage, int choice) {
           ai_talk_ok(ctx, "WITHDRAW", &tok);
           (void)ai_talk_withdraw(ctx, t, h, 0);
         } else {
-          ai_talk_ok(ctx, "WARMANLY", &tok);
+          /* raw 98159-98168: "WAR" + the tone buffer local_80 (the USA leg
+           * strcpys "MANLY" into it first), %STRING0 = @GREATLEADER2[target],
+           * %STRING1 = target country_name; then 0a10(h, t, 0x40). The tone
+           * is the encounter's, as at the @GIVECASH refusal (DB-51). */
+          ai_talk_say_war(ctx, &tok, t, k->manly || k->usa);
           ai_diplo_clear_both(col1, h, t, AI_DIPLO_PEACE);
         }
       }
@@ -2602,9 +2592,14 @@ static int ai_diplo_153e_encounter_gated(
     }
   }
   if (!forced_gate && !k->worthy && k->dominance != 0 && peace_ht) {
+    /* raw 97676-97680: nothing to say (param_6 == 0 only, a forced Meet With
+     * Mayor encounter always talks) -> goto LAB_5bfb_30de, the shared exit:
+     * peace holds, so the treaty timer re-arms (raw 98418-98425), and
+     * local_8e is already 1 (raw 97436), so 3180 stamps MET (raw 98676). */
     k->active = 0;
-    return 0; /* raw :97679: nothing to say — param_6 == 0 only, a forced
-               * (Meet With Mayor) encounter always talks */
+    ai_diplo_153e_finish_timer(ctx, human, target);
+    ai_diplo_or_both(col1, human, target, AI_DIPLO_MET);
+    return 1;
   }
   if (k->worthy && peace_ht &&
       (k->at_war || col1->stuff.land_combat_strength[target] < col1->stuff.land_combat_strength[human])) {
@@ -2729,52 +2724,8 @@ static void ai_diplo_13b0_treaty_tick(ColonizeTurnContext* ctx, int a, int b) {
   if (col1->head.game_options.woi) {
     return;
   }
-  /*
-   * 2026-08-27: 13b0 is only reached through FUN_5bfb_153e, whose sole DOS
-   * caller is FUN_5bfb_3180 — the adjacent-unit encounter resolver. The first
-   * pass ran it every balance, which signed PEACE on unmet pairs on turn 1
-   * (golden TURN1->2 expects 0x00). Require an actual encounter: a unit of
-   * `a` within Chebyshev 1 of a unit or colony of `b`.
-   */
-  {
-    int encounter = 0;
-    if (ctx->units) {
-      /* Slot walks on both levels — `i`/`j` are not unit ids; see
-       * ai_diplo_wake_border_garrisons. */
-      for (int i = 0; i < units_slot_end(ctx->units) && !encounter; ++i) {
-        const ColonizeUnit* u = &ctx->units->units[i];
-        if (!u->active || u->nation_id != a || u->aboard_ship_id >= 0 ||
-            units_coords_in_europe_park(u->x, u->y)) {
-          continue;
-        }
-        for (int j = 0; j < units_slot_end(ctx->units) && !encounter; ++j) {
-          const ColonizeUnit* o = &ctx->units->units[j];
-          if (!o->active || o->nation_id != b || o->aboard_ship_id >= 0) {
-            continue;
-          }
-          if (abs(o->x - u->x) <= 1 && abs(o->y - u->y) <= 1) {
-            encounter = 1;
-          }
-        }
-        if (!encounter && ctx->colonies) {
-          for (int dy = -1; dy <= 1 && !encounter; ++dy) {
-            for (int dx = -1; dx <= 1 && !encounter; ++dx) {
-              const int cid = colonies_id_at(ctx->colonies, u->x + dx, u->y + dy);
-              if (cid >= 0) {
-                const ColonizeColony* c = colonies_get(ctx->colonies, cid);
-                if (c && c->active && c->nation_id == b) {
-                  encounter = 1;
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-    if (!encounter) {
-      return;
-    }
-  }
+  /* No adjacency rescan: FUN_5bfb_13b0 (raw 97260-97316) trusts its only
+   * caller, the FUN_5bfb_3180 encounter (ai_diplo_13b0_encounter). */
   const uint8_t rel_ab = col1->nation[a].euro_relation[b];
   const uint8_t rel_ba = col1->nation[b].euro_relation[a];
   if ((a + (int)*ctx->turn_number + b) % 3 != 0 && (rel_ab & AI_DIPLO_MET)) {
@@ -2783,10 +2734,9 @@ static void ai_diplo_13b0_treaty_tick(ColonizeTurnContext* ctx, int a, int b) {
   if ((rel_ab & AI_DIPLO_WAR) || (rel_ba & AI_DIPLO_WAR)) {
     return;
   }
-  /* OpenCol choice: an unmet pair still gets the bit effects (DOS does sign
-   * PEACE on unmet pairs — real saves carry 0xa0), but no notice/status, so
-   * a never-contacted nation can't narrate over the human's own status line. */
-  const int notify = ai_diplo_involves_human(ctx, a, b) && (rel_ab & AI_DIPLO_MET) != 0;
+  /* 13b0 is reached only AI x AI (153e sends a human self to the audience),
+   * and its FUN_281f_0652(tag, 2) news popups (raw 97286 / 97304) have no
+   * human or MET gate: the human reads every AI pair's treaty and war. */
   const char* na = ai_diplo_rival_name(col1, a);
   const char* nb = ai_diplo_rival_name(col1, b);
   PopupMsgTokens tok;
@@ -2805,10 +2755,10 @@ static void ai_diplo_13b0_treaty_tick(ColonizeTurnContext* ctx, int a, int b) {
       ai_diplo_wake_border_garrisons(ctx, b, a);
       col1->nation[a].treaty_timer[b] = 1;
       col1->nation[b].treaty_timer[a] = 1;
-      if (ctx->ai_popups && notify) {
+      if (ctx->ai_popups) {
         (void)ai_popup_enqueue_ok_ctx(ctx->ai_popups, AI_POPUP_TAG_DIPLO_PEACE, a, b, 0, NULL, body);
       }
-      if (ctx->status && ctx->status_size > 0 && notify) {
+      if (ctx->status && ctx->status_size > 0) {
         snprintf(ctx->status, ctx->status_size, "%s", body);
       }
     }
@@ -2841,10 +2791,10 @@ static void ai_diplo_13b0_treaty_tick(ColonizeTurnContext* ctx, int a, int b) {
     col1->nation[a].treaty_timer[b] = 0;
     col1->nation[b].treaty_timer[a] = 0;
     ai_diplo_clear_both(col1, a, b, AI_DIPLO_PEACE);
-    if (ctx->ai_popups && notify && body[0]) {
+    if (ctx->ai_popups && body[0]) {
       (void)ai_popup_enqueue_ok_ctx(ctx->ai_popups, AI_POPUP_TAG_DIPLO_BREAK, a, b, 0, NULL, body);
     }
-    if (ctx->status && ctx->status_size > 0 && notify && body[0]) {
+    if (ctx->status && ctx->status_size > 0 && body[0]) {
       snprintf(ctx->status, ctx->status_size, "%s", body);
     }
   }

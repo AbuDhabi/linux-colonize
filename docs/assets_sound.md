@@ -178,7 +178,7 @@ glancing; 18 shot; 20 animal shot; 21 pump-action; 22 gunfight; 23–34 shots (2
 | `0x55` | 20 | animal shot | The typed combat rule cannot reach it, but `OVL13:003dc9` pushes it on the human @CHIEFKILL branch (scout killed by a chief without Coronado) | `ai_contact_actions.c` before @CHIEFKILL |
 | `0x56` | 9 | cheering | `38fd_3dc8` completed tea party only | `ai_king.c` @TEAPARTY; no-cargo tax raise corrected to DOS `0x3e` |
 | `0x57` | 16 | sinking | `5fef_0352` ship sunk | `units.c` @SHIPSUNK via the combat sound hook (2026-08-29) |
-| `0x58` | 21 | pump-action | fortify / sentry (`2b5a_1112`, `2f2b_5746`); Europe dock buy muskets (`38fd`) | fortify, sentry, buy muskets |
+| `0x58` | 21 | pump-action | fortify (`2b5a_1112`, `2f2b_5746` Fortify arm; its Sentry arm raw 52416 plays none, sentry key path untraced); Europe dock buy muskets (`38fd`) | fortify, sentry, buy muskets |
 | `0x59` | — | fireworks cue | `CLOSING.EXE` cinematic frame cue | `closing.c` frame cue |
 | `0x5a` | 15 | cheering + fireworks | `CLOSING.EXE` hat-animation frame cue | `closing.c`; former King's Galleon use removed (`5fef_1908` switches to pool 2) |
 | `0x5b` | 22+31 | gunfight | `5fef_0f14` raid repelled | @RAIDNOTHING (2026-08-29) |

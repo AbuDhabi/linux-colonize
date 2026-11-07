@@ -1,8 +1,10 @@
 # DOS-fidelity audit of surviving Aug/Sep 2026 code (2026-11-06)
 
 STATUS: OPEN. The ranked shortlist was adversarially re-verified (2026-11-06), filed as
-port_bugs.md #1452-#1482 and fixed 2026-11-07 (all FIXED, in docs/archive/bugs_fixed_pending.md);
-the remaining low/QUESTION items below are unverified and unfiled.
+port_bugs.md #1452-#1482 and fixed 2026-11-07 (all FIXED, in docs/archive/bugs_fixed_pending.md).
+Wave 2 (2026-11-07) verified every remaining item: FIXED as #1483-#1555, OPEN #1556-#1557,
+capture-blocked #1558-#1560 (known_divergences.md), the rest NO-CHANGE (see "Wave 2" at the end).
+Nothing in this file is still unchecked.
 This is an audit dump, not a spec (docs/conventions.md "Don't read archives willy-nilly").
 
 ## Method
@@ -293,3 +295,101 @@ U reports_foreign crown==human -> -1 guard; sound_set_bgm(<=0) clears extra stat
 Scratch disasm of OPENING/CLOSING.EXE in scratchpad/P_ui/.
 ```
 
+## Wave 2 (2026-11-07)
+
+Nine fixer agents re-read each remaining item against the decomp/asm. None REFUTED.
+
+| Item | Row |
+|---|---|
+| A3 | #1483 |
+| A4 | #1484 |
+| A5 | #1485 |
+| A6 | #1486 |
+| A7 | #1487 |
+| A8 | #1488 |
+| A9 | #1489 |
+| B2 | #1490 |
+| B3 | #1491 |
+| B4 | #1492 |
+| B-U | #1493 |
+| C3 | #1494 |
+| C4 | #1495 |
+| C-U | #1496 |
+| D1 | #1497 |
+| D3 | #1498 |
+| H6 | #1499 |
+| H8 | #1500 |
+| E3 | #1501 |
+| E5 | #1502 |
+| E7 | #1503 |
+| E8 | #1504 |
+| E9 | #1505 |
+| E10 | #1506 |
+| E11 | #1507 |
+| E-U | #1508 |
+| E6 | #1509 |
+| E12 | #1510 |
+| F3 | #1511 |
+| F4 | #1512 |
+| F6 | #1513 |
+| F5b | #1514 |
+| J3 | #1515 |
+| J4 | #1516 |
+| J5 | #1517 |
+| J-U | #1518 |
+| J-Uc | #1519 |
+| K2 | #1520 |
+| K4 | #1521 |
+| K6 | #1522 |
+| K7 | #1523 |
+| K8 | #1524 |
+| L-U | #1525 |
+| I3 | #1526 |
+| I5 | #1527 |
+| I7 | #1528 |
+| I-U | #1529 |
+| P3 | #1530 |
+| N1 | #1531 |
+| N3 | #1532 |
+| N4 | #1533 |
+| N6 | #1534 |
+| N7 | #1535 |
+| N8 | #1536 |
+| N10 | #1537 |
+| N11 | #1538 |
+| N-U | #1539 |
+| M3 | #1540 |
+| M5 | #1541 |
+| O3 | #1542 |
+| O4 | #1543 |
+| O5 | #1544 |
+| O6 | #1545 |
+| O7 | #1546 |
+| O8 | #1547 |
+| O9 | #1548 |
+| O10 | #1549 |
+| O-U | #1550 |
+| P1 | #1551 |
+| P2 | #1552 |
+| P4 | #1553 |
+| P5 | #1554 |
+| P6 | #1555 |
+| N9 | #1556 OPEN |
+| J-U(b)/K-U | #1557 OPEN |
+| B5 | #1558 known_divergences (capture) |
+| M6 | #1559 known_divergences (capture) |
+| G2 | #1560 known_divergences (capture) |
+
+NO-CHANGE (true but inert / port-only): A-U (sweep attack==0 rail, mounted_attack_spend_all
+redundant, Revere soldier veto), B-U render top unit, H-U (intervention fallback, merc pending
+return, REF latches), I-U(b) trade stop owner test, K5 (0x5394 always the owner), L-U(a)/(b),
+M4 (done by #1466), M-U, N12 (% gaps unreachable), N-U options/memory/status strings, F-U
+(default goods, menu-village fallback, a618 zero-sum = undefined DOS read), P-U.
+
+Leads found in passing (unfiled): cinematic +/- timing keys (OPENING/CLOSING `_get_input`
+0x42a/0x430); opening camera DS:0x4aca; map Enter Complete Map arm (DS:0x53a2: open any colony);
+AI-owner colony-screen debug top line (raw 47846-47872); DEBUG.TXT `0x894 & 1` per-tribe sidebar
+list (raw 79282-79297); new-game `tribe_village_counts` (DS:0x962a) never written by the port's
+placement (`FUN_6a09_0006` raw 107892 bumps it per capital); right-click-cancel in options_dialog /
+cheat_list / ai_popup (DOS 2580 treats the right button like the left); KINGWIN "mother %STRING0"
+country phrase unchecked; docs/settings.md `treaty_cancel_popup` says "with you" but 13b0 is AI x AI.

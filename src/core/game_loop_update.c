@@ -121,6 +121,7 @@ static bool game_service_woodcut(ColonizeGameState* game, const ColonizeInputSta
       woodcut_open(&game->woodcut, game->resolved_data_dir, wid);
     if (just_opened) {
       diag_info("Woodcut %d: %s", wid, game->woodcut.caption);
+      game_woodcut_fizzle_in(game);
     }
   }
   if (game->woodcut.open) {
@@ -953,11 +954,14 @@ static GameUpdateStep game_pacer_goto_step(
       goto_ship_to_lane && again && again->active && units_is_on_map(again) &&
       again->x == goto_dest_x && again->y == goto_dest_y;
     if (sailed_for_europe) {
-      /* A refused crossing (War of Independence — the shared tail asks
-       * @EUROPENOTLEAVE) leaves the ship standing on the lane tile it
-       * was ordered to, so it still gets the ordinary arrival tail
-       * instead of an unconditional hand-off. */
-      if (game_ship_sail_to_europe(game, active_id)) {
+      /* War of Independence: FUN_479b_0972 raw 77094-77101 runs the arrival
+       * sail only if `(DS:0x5382 & 1) == 0 || (crown && type 0x12)`, and
+       * silently (no @EUROPENOTLEAVE): the ship stays on the lane tile it
+       * was ordered to and gets the ordinary arrival tail. A full lane
+       * (sail refused) takes the same tail. */
+      const bool woi_refused =
+        game_europe_blocked_by_woi(game) && !game_ship_woi_europe_exempt(game, again);
+      if (!woi_refused && game_ship_sail_to_europe(game, active_id)) {
         if (game_select_next_unit_awaiting_orders(game)) {
           game->view_pieces_mode = false;
         }
@@ -1235,26 +1239,24 @@ static void game_report_leave(ColonizeGameState* game) {
 COLONIZE_INTERNAL GameUpdateStep game_update_report_screen(ColonizeGameState* game, const ColonizeInputState* input) {
   if (game->in_report) {
     /* Labor report grid: a click on a profession cell zooms to its detail
-     * view (golden: labor_detail.png) instead of anything OK/Esc-related. */
+     * view (golden: labor_detail.png); FUN_3f41_10d8 raw 70157-70172 tests the
+     * cells only outside the OK corner (x >= 0x11e && y >= 0xb8), and a click
+     * on no cell returns (closes) like a key. */
     if (game->report_id == COLONIZE_REPORT_LABOR && game->labor_detail_job < 0 &&
-        input->mouse_left_clicked) {
+        (input->mouse_left_clicked || input->mouse_right_clicked) &&
+        (input->mouse_x < 0x11e || input->mouse_y < 0xb8)) {
       const int hit = reports_labor_cell_hit(input->mouse_x, input->mouse_y);
       if (hit >= 0) {
         game->labor_detail_job = hit;
         return GAME_UPDATE_RETURN_TRUE;
       }
     }
-    /* Congress page 2 has no OK button (golden: full-bleed photo, no chrome)
-     * — any click closes it, not just a hit on a drawn box. (The Score plate
-     * has none either; game_update closes it on any key or click first.) */
-    const bool page2_click_anywhere =
-      game->report_id == COLONIZE_REPORT_CONGRESS && game->congress_page2 &&
-      input->mouse_left_clicked;
-    const bool ok_clicked = page2_click_anywhere ||
-      (input->mouse_left_clicked &&
-       reports_ok_button_hit(game->report_id, game->congress_page2, input->mouse_x, input->mouse_y));
-    if (input->last_key == COLONIZE_KEY_ESCAPE || input->last_key == COLONIZE_KEY_ENTER ||
-        ok_clicked) {
+    /* Every F2-F9 page ends in the FUN_281f_03c0 key-or-click wait (e.g.
+     * FUN_3f41_0618 raw 69644, 06d0/0ae6, 1710/1550, 1ed8, 2548, 010a) whose
+     * result no body tests, and the main loop drops the key after the report
+     * returns (raw 55683-55690, no re-dispatch): any key (F-keys too) or
+     * either button turns the page or closes; the OK box is drawn only. */
+    if (colonize_input_any_key_or_click(input)) {
       /* Continental Congress is two pages: closing page 1 (any means — Esc,
        * click, Enter) shows page 2 instead of leaving the report. */
       if (game->report_id == COLONIZE_REPORT_CONGRESS && !game->congress_page2) {
@@ -1306,10 +1308,6 @@ COLONIZE_INTERNAL GameUpdateStep game_update_report_screen(ColonizeGameState* ga
       }
       game_report_leave(game);
       return GAME_UPDATE_RETURN_TRUE;
-    }
-    /* F-keys switch reports (F2–F10) or open terrain pedia (F1). */
-    if (input->last_key >= COLONIZE_KEY_F1 && input->last_key <= COLONIZE_KEY_F10) {
-      game_handle_report_fkey(game, input->last_key);
     }
     return GAME_UPDATE_RETURN_TRUE;
   }
@@ -3495,13 +3493,11 @@ COLONIZE_INTERNAL GameUpdateStep game_update_map_menu_bar(ColonizeGameState* gam
       }
       /*
        * Plain VIEW hotkeys (Zoom In ~Z / Zoom Out ~X, Show ~Hidden Terrain —
-       * MENU.TXT). H is contextually overloaded: with a ship selected it
-       * sails to Europe (below, unconditional on world/units/europe_ok);
-       * otherwise it opens the Hidden Terrain reveal.
+       * MENU.TXT). H is Show Hidden Terrain only, ship selected or not: the
+       * ship's sail order is ORDERS ~Return to Europe (R), and DOS has no
+       * H sail arm (FUN_2b5a_303c / 321c, raw 44914-45290).
        */
-      const bool ship_selected = game->units_ok && game->units.selected_id >= 0 &&
-        units_is_sea(&game->units, game->units.selected_id);
-      if (!space && letter && !(letter == 'H' && ship_selected)) {
+      if (!space && letter) {
         const MapMenuAction view_hk = map_menu_view_hotkey(&game->map_menu, letter);
         if (view_hk != MAP_MENU_ACTION_NONE) {
           if (!game_apply_map_menu_action(game, view_hk)) {
@@ -3578,52 +3574,21 @@ COLONIZE_INTERNAL GameUpdateStep game_update_map_keys(ColonizeGameState* game, c
   const int map_max_x = game->world_map_ok ? (int)game->world_map.width - 2 : 15;
   const int map_max_y = game->world_map_ok ? (int)game->world_map.height - 2 : 15;
 
+  /* Enter: FUN_2b5a_32ee raw 45870-45891 (Move Pieces) / FUN_2b5a_3344 raw
+   * 45894-45923 (View Pieces), reached after the menu hotkeys and 303c pass
+   * (FUN_2b5a_3802 raw 46315-46325). Both open an own colony under the
+   * cursor (DS:0x8540/0x853e); View Pieces with the End of Turn prompt up
+   * (DS:0x53c6) ends the turn. Nothing else: no unit select or move. The
+   * Complete Map arm (DS:0x53a2, any owner) is not ported. */
   if (input->last_key == COLONIZE_KEY_ENTER && game->world_map_ok) {
     const int cid = colonies_id_at(&game->colonies, game->map_cursor_x, game->map_cursor_y);
-    if (cid >= 0) {
-      const ColonizeColony* col = colonies_get(&game->colonies, cid);
-      if (col && col->nation_id == game->human_nation) {
-        game_enter_colony_at_cursor(game);
-        return GAME_UPDATE_RETURN_TRUE;
-      }
-    }
-    if (!game->units_ok) {
-      return GAME_UPDATE_RETURN_TRUE;
-    }
-    const int at_cursor = game_owned_unit_at(game, game->map_cursor_x, game->map_cursor_y);
-    if (at_cursor >= 0 && at_cursor != game->units.selected_id) {
-      game_select_unit(game, at_cursor);
-    } else if (game->units.selected_id >= 0) {
-      ColonizeUnit* selected = units_get(&game->units, game->units.selected_id);
-      if (selected &&
-          (selected->x != game->map_cursor_x || selected->y != game->map_cursor_y)) {
-        if (game_try_unit_move(game, game->map_cursor_x, game->map_cursor_y)) {
-          return GAME_UPDATE_RETURN_TRUE;
-        }
-      } else if (at_cursor >= 0) {
-        game_select_unit(game, at_cursor);
-      }
-    } else if (at_cursor >= 0) {
-      game_select_unit(game, at_cursor);
+    const ColonizeColony* col = cid >= 0 ? colonies_get(&game->colonies, cid) : NULL;
+    if (col && col->nation_id == game->human_nation) {
+      game_enter_colony_at_cursor(game);
     } else if (game_end_turn_prompt_active(game)) {
-      /* port_bugs.md: View Pieces, no own colony/unit on the tile, control queue
-       * empty (End of Turn flashing) — Enter confirms the turn, same as the
-       * sidebar click. */
       game_do_end_turn(game);
-      return GAME_UPDATE_RETURN_TRUE;
-    } else {
-      /* Enter on exhausted human unit / empty tile → tile select. */
-      const int any_id = units_id_at(&game->units, game->map_cursor_x, game->map_cursor_y);
-      const ColonizeUnit* any = units_get_const(&game->units, any_id);
-      if (any && any->nation_id == game->human_nation) {
-        game_select_tile(game, any->x, any->y);
-      }
     }
-  }
-
-  /* H: sail selected ship to Europe from high seas (passengers ride along). */
-  if (input->last_key == COLONIZE_KEY_H && game->world_map_ok && game->units_ok && game->europe_ok) {
-    game_order_return_europe(game);
+    return GAME_UPDATE_RETURN_TRUE;
   }
 
   /* F: fortify the selected unit — the keyboard twin of the two MENU.TXT

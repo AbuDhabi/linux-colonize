@@ -529,6 +529,24 @@ static void map_panel_draw_tribe_tint(
   }
 }
 
+/* DS:0x5396 viewer: the fog nation, else the save's map-view nation, else
+ * head.human_player (Complete Map hands out fog_nation -1). */
+static int map_panel_view_nation(const ColonizeCol1Save* col1, int fog_nation) {
+  int n = fog_nation;
+  if ((n < 0 || n > 3) && col1) {
+    n = (int)col1->head.curr_nation_map_view;
+  }
+  if ((n < 0 || n > 3) && col1) {
+    n = (int)col1->head.human_player;
+  }
+  return (n < 0 || n > 3) ? 0 : n;
+}
+
+/* FUN_281f_0a1a (FUN_15b3_0198): WoI-aware Euro plural, @TRIBES plural for 4.. */
+static const char* map_panel_plural_0a1a(const ColonizeCol1Save* col1, int nation) {
+  return nation > 3 ? reports_tribe_display_name(nation - 4) : reports_nation_plural_woi(col1, nation);
+}
+
 static void map_panel_draw_tribe_chrome(
   const ColonizeCol1Save* col1,
   const ColonizeWorldMap* map,
@@ -559,16 +577,7 @@ static void map_panel_draw_tribe_chrome(
    * still drew (smell_audit_2026-09-09 #100). Resolve the sentinel back to the
    * save's own map-view nation, then head.human_player (DS:0x5398).
    */
-  int mark_nation = fog_nation;
-  if (mark_nation < 0 || mark_nation > 3) {
-    mark_nation = (int)col1->head.curr_nation_map_view;
-  }
-  if (mark_nation < 0 || mark_nation > 3) {
-    mark_nation = (int)col1->head.human_player;
-  }
-  if (mark_nation < 0 || mark_nation > 3) {
-    mark_nation = 0;
-  }
+  const int mark_nation = map_panel_view_nation(col1, fog_nation);
 
   int x = tile_px + 6; /* local_4 = local_66 + 6 */
 
@@ -984,28 +993,48 @@ int map_panel_collect_stack(
   return n;
 }
 
-/*
- * DOS FUN_49dd_01aa: commodity holds only — passengers are chain entries, not
- * hold slots (FUN_15eb_2ff2 reads packed goods nibbles). Icons are sorted by
- * Europe price × amount descending, with Tools/Muskets forced to weight 0 and
- * Horses to 1 so military stores sort last, and a hold below 100 draws the
- * grey icon instead of the colored one.
- */
-static int map_panel_cargo_weight(
-  const ColonizeCol1Save* col1, int nation_id, int gtype, int amount
-) {
-  if (gtype == COLONIZE_CARGO_TOOLS || gtype == COLONIZE_CARGO_MUSKETS) {
+/* DS:0x84bc row = max(0, euro_price - 1) (port_bugs.md #797). */
+static int map_panel_84bc_price(const ColonizeCol1Save* col1, int nation_id, int cargo) {
+  if (!col1 || nation_id < 0 || nation_id >= (int)COLONIZE_COL1_NATION_COUNT || cargo < 0 ||
+      cargo >= (int)COLONIZE_COL1_CARGO_TYPES) {
     return 0;
   }
-  int price = 1;
-  if (gtype != COLONIZE_CARGO_HORSES) {
-    if (col1 && nation_id >= 0 && nation_id < 4 && gtype >= 0 &&
-        gtype < (int)COLONIZE_COL1_CARGO_TYPES) {
-      price = (int)col1->nation[nation_id].trade.euro_price[gtype];
+  const int p = (int)col1->nation[nation_id].trade.euro_price[cargo] - 1;
+  return p > 0 ? p : 0;
+}
+
+/*
+ * DOS FUN_49dd_01aa raw 78508-78562: commodity holds only — passengers are
+ * chain entries, not hold slots (FUN_15eb_2ff2 reads packed goods nibbles).
+ * Key per hold = (DS:0x84bc price << 4) * amount (16-bit), Tools/Muskets 0,
+ * Horses 1; FUN_291f_0ed0 (FUN_1cf8_000a) sorts ascending and the icons are
+ * drawn left to right from index 0 (asm 49dd:0254-02ca), so the cheapest
+ * stores lead (O9). A hold below 100 draws the grey icon.
+ */
+COLONIZE_INTERNAL int map_panel_ship_cargo_order(
+  const ColonizeUnit* carrier, const ColonizeCol1Save* col1, int out_slot[COLONIZE_UNIT_CARGO_MAX]
+) {
+  uint16_t key[COLONIZE_UNIT_CARGO_MAX];
+  int n = 0;
+  for (int i = 0; i < COLONIZE_UNIT_CARGO_MAX; ++i) {
+    const int amt = carrier->hold_goods_amount[i];
+    const int gtype = carrier->hold_goods_type[i];
+    if (amt <= 0 || amt >= 255 || gtype < 0 || gtype >= COLONIZE_CARGO_COUNT) {
+      continue;
     }
-    price <<= 4;
+    int w = map_panel_84bc_price(col1, carrier->nation_id, gtype) << 4;
+    if (gtype == COLONIZE_CARGO_MUSKETS || gtype == COLONIZE_CARGO_TOOLS) {
+      w = 0;
+    }
+    if (gtype == COLONIZE_CARGO_HORSES) {
+      w = 1;
+    }
+    key[n] = (uint16_t)(w * amt);
+    out_slot[n] = i;
+    n++;
   }
-  return price * amount;
+  units_dos_sort_1cf8(key, out_slot, n);
+  return n;
 }
 
 static int map_panel_draw_cargo_icons(
@@ -1021,30 +1050,7 @@ static int map_panel_draw_cargo_icons(
     return x;
   }
   int slot[COLONIZE_UNIT_CARGO_MAX];
-  int weight[COLONIZE_UNIT_CARGO_MAX];
-  int n = 0;
-  for (int i = 0; i < COLONIZE_UNIT_CARGO_MAX; ++i) {
-    const int amt = carrier->hold_goods_amount[i];
-    const int gtype = carrier->hold_goods_type[i];
-    if (amt <= 0 || amt >= 255 || gtype < 0 || gtype >= COLONIZE_CARGO_COUNT) {
-      continue;
-    }
-    slot[n] = i;
-    weight[n] = map_panel_cargo_weight(col1, carrier->nation_id, gtype, amt);
-    n++;
-  }
-  for (int i = 1; i < n; ++i) {
-    const int s = slot[i];
-    const int w = weight[i];
-    int j = i - 1;
-    while (j >= 0 && weight[j] < w) {
-      slot[j + 1] = slot[j];
-      weight[j + 1] = weight[j];
-      --j;
-    }
-    slot[j + 1] = s;
-    weight[j + 1] = w;
-  }
+  const int n = map_panel_ship_cargo_order(carrier, col1, slot);
 
   for (int i = 0; i < n; ++i) {
     const int amt = carrier->hold_goods_amount[slot[i]];
@@ -1709,26 +1715,29 @@ COLONIZE_INTERNAL void map_panel_render_tile_details(MapPanelRenderCtx* c) {
         map_panel_draw_line(font, framebuffer, text_x, &c->text_y, line_h, y_limit, line, MAP_PANEL_COL_TEXT);
       }
 
-      if (map_panel_tile_flag(map, col1, info_x, info_y, map_tile_is_plowed, 0x40u)) {
+      /* O3: FUN_49dd_0424 raw 78943-79017 order is terrain, river, road,
+       * plowed. River = FUN_49dd_00f6 on DS:0x2db0 @OTHER_NAMES row 2 (bit 0x80
+       * set) or row 3 "Minor" (clear); road = FUN_281f_0754 & 0x0a (road OR
+       * settlement); plowed = 0754 & 0x40. */
+      if (map_tile_has_river(map, info_x, info_y)) {
         map_panel_parenthesized(
-          line, sizeof(line), map_panel_section_line(labels, "MISC", 83)
+          line, sizeof(line),
+          map_panel_section_line(names, "OTHER_NAMES",
+                                 map_tile_has_major_river(map, info_x, info_y) ? 2 : 3)
         );
         map_panel_draw_line(font, framebuffer, text_x, &c->text_y, line_h, y_limit, line, MAP_PANEL_COL_TEXT);
       }
-      if (map_panel_tile_flag(map, col1, info_x, info_y, map_tile_has_road, 0x08u)) {
+      if ((map && map->improve) ? (map_tile_has_road(map, info_x, info_y) ||
+                                   map_tile_has_city(map, info_x, info_y))
+                                : map_panel_tile_flag(NULL, col1, info_x, info_y, NULL, 0x0au)) {
         map_panel_parenthesized(
           line, sizeof(line), map_panel_section_line(labels, "MISC", 31)
         );
         map_panel_draw_line(font, framebuffer, text_x, &c->text_y, line_h, y_limit, line, MAP_PANEL_COL_TEXT);
       }
-      if (map_tile_has_major_river(map, info_x, info_y)) {
+      if (map_panel_tile_flag(map, col1, info_x, info_y, map_tile_is_plowed, 0x40u)) {
         map_panel_parenthesized(
-          line, sizeof(line), map_panel_section_line(names, "OTHER_NAMES", 2)
-        );
-        map_panel_draw_line(font, framebuffer, text_x, &c->text_y, line_h, y_limit, line, MAP_PANEL_COL_TEXT);
-      } else if (map_tile_has_river(map, info_x, info_y)) {
-        map_panel_parenthesized(
-          line, sizeof(line), map_panel_section_line(names, "OTHER_NAMES", 1)
+          line, sizeof(line), map_panel_section_line(labels, "MISC", 83)
         );
         map_panel_draw_line(font, framebuffer, text_x, &c->text_y, line_h, y_limit, line, MAP_PANEL_COL_TEXT);
       }
@@ -1805,9 +1814,7 @@ COLONIZE_INTERNAL int map_panel_colony_goods_strip(
     order[g] = g;
     int weight = 0;
     if (col1 && col->nation_id >= 0 && col->nation_id < (int)COLONIZE_COL1_NATION_COUNT) {
-      /* DS:0x84bc = euro_price - 1 clamped at 0 (port_bugs.md #797). */
-      const int p = (int)col1->nation[col->nation_id].trade.euro_price[g] - 1;
-      weight = (p > 0 ? p : 0) << 4;
+      weight = map_panel_84bc_price(col1, col->nation_id, g) << 4;
     }
     if (g == COLONIZE_CARGO_MUSKETS || g == COLONIZE_CARGO_TOOLS) {
       weight = 1;
@@ -1876,9 +1883,8 @@ COLONIZE_INTERNAL void map_panel_render_colony_row(MapPanelRenderCtx* c) {
        * @INFO[3] at (x, y+2) and the goods icons from its end + 1 (0x17+g at
        * >= 100, grey 0x27+g below); the row then advances icon 0x17 height + 1. */
       int cargo[5];
-      const int n = (c->fog_nation < 0 || col->nation_id == c->fog_nation)
-                      ? map_panel_colony_goods_strip(col, c->col1, cargo)
-                      : 0;
+      const bool own_view = c->fog_nation < 0 || col->nation_id == c->fog_nation;
+      const int n = own_view ? map_panel_colony_goods_strip(col, c->col1, cargo) : 0;
       if (n > 0 && icons && icons->sprite_count > MAP_PANEL_CARGO_GREY_BASE + COLONIZE_CARGO_COUNT - 1) {
         const char* with = map_panel_section_line(c->labels, "INFO", 3);
         with = with ? with : "";
@@ -1890,6 +1896,23 @@ COLONIZE_INTERNAL void map_panel_render_colony_row(MapPanelRenderCtx* c) {
           ss_blit_sprite(icons, sprite, framebuffer, x, c->text_y);
           x += icons->sprites[sprite].width + 1;
         }
+        c->text_y += icons->sprites[MAP_PANEL_CARGO_ICON_BASE].height + 1;
+      }
+      /* O10 raw 79104-79117 (asm 49dd:1072-1109): Complete Map or a fixed
+       * nation view (DS:0x53a4 >= 0) and a specialty cargo (+0x8d >= 0) add
+       * "Ask:" (LABELS @MISC 68) at (x, y+2) and that cargo's 0x17 icon from
+       * its end + 1; the row then advances icon 0x17 height + 1. */
+      const ColonizeCol1Save* col1 = c->col1;
+      if (own_view && col1 &&
+          (col1->head.show_entire_map != 0 || (int16_t)col1->head.fixed_nation_map_view >= 0) &&
+          (int8_t)col->specialty_cargo >= 0 && col->specialty_cargo < COLONIZE_CARGO_COUNT &&
+          icons && icons->sprite_count > MAP_PANEL_CARGO_ICON_BASE + COLONIZE_CARGO_COUNT - 1) {
+        const char* ask = map_panel_section_line(c->labels, "MISC", 68);
+        ask = ask ? ask : "";
+        font_draw_text(font, framebuffer, text_x, c->text_y + 2, ask, MAP_PANEL_COL_TEXT);
+        const int x = text_x + (font ? font_text_width(font, ask) : 0) + 1;
+        ss_blit_sprite(icons, MAP_PANEL_CARGO_ICON_BASE + col->specialty_cargo, framebuffer, x,
+                       c->text_y);
         c->text_y += icons->sprites[MAP_PANEL_CARGO_ICON_BASE].height + 1;
       }
     }
@@ -1905,7 +1928,6 @@ COLONIZE_INTERNAL void map_panel_render_village_row(MapPanelRenderCtx* c) {
   ColonizeFramebuffer8* framebuffer = c->framebuffer;
   const int resolved_human = c->resolved_human;
   const int text_x = c->text_x;
-  const int indent_x = c->indent_x;
   const int panel_right = c->panel_right;
   const int y_limit = c->y_limit;
   const int info_x = c->info_x;
@@ -1964,10 +1986,42 @@ COLONIZE_INTERNAL void map_panel_render_village_row(MapPanelRenderCtx* c) {
           ss_blit_sprite(icons, 17, framebuffer, text_x, c->text_y);
         }
       }
+      /* O4 FUN_49dd_0424 raw 79121-79162 (asm 49dd:1123-12b7): @TRIBES col 1
+       * (DS:0x8d14) at (x+0x14, y+4), the @LEVELS col 1 row (DS:0x9634) at
+       * (x+0x14, y+10), y += font height + 0x11. Then, at x: a mission
+       * (+0x54f1 >= 0) reads "<0a1a(nation)> Mission" (LABELS @MISC 27), or
+       * "Expert Mission" (@MISC 4) for the viewer's Jesuit one; a threat
+       * (FUN_281f_0316) reads "Alarmed by <0a1a(nation)>" (@MISC 39). */
+      font_draw_text(font, framebuffer, text_x + 0x14, c->text_y + 4, tshort, MAP_PANEL_COL_TEXT);
+      font_draw_text(font, framebuffer, text_x + 0x14, c->text_y + 10, settlement,
+                     MAP_PANEL_COL_TEXT);
+      c->text_y += c->line_h + 0x10;
       char line[72];
-      snprintf(line, sizeof(line), "%s %s", tshort, settlement);
-      font_draw_text(font, framebuffer, indent_x, c->text_y + 2, line, MAP_PANEL_COL_TEXT);
-      c->text_y += MAP_PANEL_ROW_H;
+      const char* misc_mission = map_panel_section_line(c->labels, "MISC", 27);
+      const int viewer = map_panel_view_nation(col1, c->fog_nation);
+      if ((int8_t)tribe->mission >= 0) {
+        const int mnat = tribe->mission & 0x0f;
+        const char* word = (mnat == viewer && (tribe->mission & 0x10) != 0)
+                             ? map_panel_section_line(c->labels, "MISC", 4)
+                             : map_panel_plural_0a1a(col1, mnat);
+        snprintf(line, sizeof(line), "%s %s", word ? word : "", misc_mission ? misc_mission : "");
+        map_panel_draw_line(font, framebuffer, text_x, &c->text_y, c->line_h, y_limit, line,
+                            MAP_PANEL_COL_TEXT);
+      }
+      {
+        const ColonizeWorld tw = world_make(
+          (ColonizeUnitPool*)c->units, (ColonizeColonyPool*)c->colonies, (ColonizeWorldMap*)c->map,
+          (ColonizeCol1Save*)col1, col1 != NULL, NULL, NULL
+        );
+        const int threat =
+          ai_indian_village_threat_w(&tw, viewer, (int)(tribe - col1->tribe), NULL);
+        if (threat >= 0) {
+          const char* by = map_panel_section_line(c->labels, "MISC", 39);
+          snprintf(line, sizeof(line), "%s %s", by ? by : "", map_panel_plural_0a1a(col1, threat));
+          map_panel_draw_line(font, framebuffer, text_x, &c->text_y, c->line_h, y_limit, line,
+                              MAP_PANEL_COL_TEXT);
+        }
+      }
       map_panel_draw_village_trade_intel(
         font, icons, framebuffer, resolved_human, tribe->x, tribe->y, text_x, &c->text_y, y_limit,
         panel_right
@@ -1976,21 +2030,17 @@ COLONIZE_INTERNAL void map_panel_render_village_row(MapPanelRenderCtx* c) {
   }
 }
 
-/* The stack listing's overflow row: @CTITLE line 6. */
+/* The stack listing's overflow row. O8 FUN_49dd_0424 raw 79177-79180: once
+ * y > 0xb7 the row is DS:0x2e8c = LABELS @MISC 105 ("+ More +") at (x, y) and
+ * the loop breaks without advancing y (no extra bottom-of-panel stop). */
 static void map_panel_draw_more(MapPanelRenderCtx* c) {
-  const char* more = "";
-  if (c->labels) {
-    const ColonizeMsgSection* ct = assets_msg_find(c->labels, "CTITLE");
-    if (ct && ct->line_count > 6) {
-      more = ct->lines[6];
-    }
-  }
-  font_draw_text(c->font, c->framebuffer, c->text_x, c->text_y, more, MAP_PANEL_COL_TEXT);
-  c->text_y += c->line_h;
+  const char* more = map_panel_section_line(c->labels, "MISC", 105);
+  font_draw_text(c->font, c->framebuffer, c->text_x, c->text_y, more ? more : "",
+                 MAP_PANEL_COL_TEXT);
 }
 
 static bool map_panel_stack_full(const MapPanelRenderCtx* c) {
-  return c->text_y >= MAP_PANEL_STACK_Y_LIMIT || c->text_y + MAP_PANEL_ROW_H > c->y_limit;
+  return c->text_y >= MAP_PANEL_STACK_Y_LIMIT;
 }
 
 /* Port-only: the Shift-pick unit group, one stack row per member. Port UI text,
@@ -2075,24 +2125,21 @@ COLONIZE_INTERNAL void map_panel_render_stack(MapPanelRenderCtx* c) {
             active_palette
           );
         }
-        char line[72];
         /*
-         * DOS-LITERAL FUN_49dd_0424 raw 79266: the foreign-stack row skips
-         * the @NATIONALITY word when the top unit's type byte is 0x10 —
-         * a foreign Privateer flies no flag and reads just "Privateer".
-         * The @UNIT name draw that follows is unconditional.
+         * DOS-LITERAL FUN_49dd_0424 raw 79266 (asm 49dd:1606-16a9, O5): two
+         * rows at icon x + 0x12 - the FUN_281f_09a4 nationality at y + 4,
+         * skipped when the top unit's type byte is 0x10 (a foreign Privateer
+         * flies no flag), then, unconditionally, the @UNIT name at y + 10.
          */
         const bool flagless = units_type_is_privateer(
           units_type(units, units_display_type_index(units, top->id))
         );
-        snprintf(
-          line,
-          sizeof(line),
-          flagless ? "%s%s" : "%s %s",
-          flagless ? "" : map_panel_nationality(top->nation_id),
-          map_panel_unit_type_name(units, top)
-        );
-        font_draw_text(font, framebuffer, indent_x, c->text_y + 2, line, MAP_PANEL_COL_TEXT);
+        if (!flagless) {
+          font_draw_text(font, framebuffer, indent_x, c->text_y + 4,
+                         map_panel_nationality(top->nation_id), MAP_PANEL_COL_TEXT);
+        }
+        font_draw_text(font, framebuffer, indent_x, c->text_y + 10,
+                       map_panel_unit_type_name(units, top), MAP_PANEL_COL_TEXT);
         c->text_y += MAP_PANEL_ROW_H;
       }
     } else if (top) {
@@ -2143,14 +2190,16 @@ COLONIZE_INTERNAL void map_panel_render_end_of_turn(MapPanelRenderCtx* c) {
   /*
    * "End of Turn" (LABELS @MISC). DOS keeps it in the text flow rather than
    * pinned to the panel's foot: y is the running text cursor, clamped so the
-   * row never starts below 0xc6 minus one line. It alternates white / black on
+   * row never starts below 0xc6 minus the font height. It alternates white / black on
    * the same blink the map's tile cursor uses (DS:0x929c, toggled by
    * FUN_1984_010a, which redraws just this strip).
+   * O7 raw 79300-79304: the clamp is 0xc6 minus the DS:0x89e font height
+   * byte (line_h - 1), not minus a whole line.
    */
   if (end_turn_active) {
     const uint8_t flash_color = end_turn_blink_white ? 15 : 0;
     int eot_y = c->text_y;
-    const int eot_max = MAP_PANEL_EOT_Y_MAX - line_h;
+    const int eot_max = MAP_PANEL_EOT_Y_MAX - (font ? (int)font->max_height : line_h - 1);
     if (eot_y > eot_max) {
       eot_y = eot_max;
     }

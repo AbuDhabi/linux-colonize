@@ -116,6 +116,9 @@ void sound_set_bgm_pool(int track);
 /* FUN_129f_034c (thunk 281f_04b6): sound_set_bgm under the event-music gate, else
  * sound_set_bgm_pool. */
 void sound_request_bgm(int track);
+/* The FUN_129f_0318 / 034c restart gate: DS:0xa0 (Event Music) != 0 &&
+ * DS:0xa2 (Background Music) == 0. */
+bool sound_event_music_gate(void);
 /*
  * Pool 0 is not silence: DOS picks from the default pool (all 12 main tunes)
  * whenever no pool is armed (the title menu itself runs SOUND_TITLE_BGM_POOL). Set this

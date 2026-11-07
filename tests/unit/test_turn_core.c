@@ -2255,7 +2255,15 @@ static int case_custom_house_autosell(void) {
   eu.tax_percent = 0;
   ColonizeTurnResult prod;
   memset(&prod, 0, sizeof(prod));
-  turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, NULL, NULL);
+  static AiPopupState ch_pops;
+  ai_popup_init(&ch_pops);
+  turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&col1), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, &ch_pops, NULL);
+  /* FUN_364b_0688 raw 57311: peacetime line keeps the tax tail at 0%. */
+  const char* ch_line = ai_popup_bar_message(&ch_pops);
+  if (!ch_line || !strstr(ch_line, "630. 0 0 630")) {
+    fprintf(stderr, "CH 0%% tax line '%s'\n", ch_line ? ch_line : "(none)");
+    return 1;
+  }
   if (col->stock[COLONIZE_CARGO_TOBACCO] != 50 || eu.gold != 630) {
     fprintf(
       stderr,
@@ -2511,6 +2519,122 @@ static int case_colony_birth(void) {
   }
   assets_msg_free(&game_txt);
   fprintf(stderr, "colony birth food≥200 ok\n");
+  return 0;
+}
+
+/* FUN_364b_0688 Phase L raw 57748-57771 + FUN_364b_0114 raw 56906-56910: a
+ * stale Warehouse Expansion project at level 2 spends its tools every turn
+ * and shows @NOMOREWAREHOUSE; without the tools it shows only @NEEDTOOLS. */
+static int case_stale_warehouse_expansion(void) {
+  fx_begin();
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Warehouse Expansion");
+  pool.building_types[0].hammers = 80;
+  pool.building_types[0].tools_cost = 20;
+  pool.building_types[0].row_plus1 = COLONY_BUILDING_WAREHOUSE_EXPANSION + 1;
+  pool.building_type_count = 1;
+  ColonizeColony* col = &pool.colonies[0];
+  memset(col, 0, sizeof(*col));
+  col->active = true;
+  col->id = 1;
+  col->nation_id = 0;
+  snprintf(col->name, sizeof(col->name), "Salem");
+  col->warehouse_level = 2;
+  col->has_building[0] = true;
+  col->building_in_production = 0;
+  col->hammers = 80;
+  col->stock[COLONIZE_CARGO_TOOLS] = 30;
+  col->stock[COLONIZE_CARGO_FOOD] = 100;
+  col->colonists[0].active = true;
+  col->colonists[0].building_type = 0; /* seated, produces nothing */
+  col->colonists[0].field_job = -1;
+  col->colonist_count = 1;
+  col->population = 1;
+  for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
+    col->tiles[t] = -1;
+  }
+  pool.colony_count = 1;
+  EuropeScreen eu;
+  memset(&eu, 0, sizeof(eu));
+  ColonizeMsgCatalog game_txt;
+  assets_msg_init(&game_txt);
+  (void)assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT");
+  static AiPopupState pops;
+  char want[AI_POPUP_BODY_LEN];
+  PopupMsgTokens tok;
+  memset(&tok, 0, sizeof(tok));
+  tok.string0 = col->name;
+  tok.string1 = pool.building_types[0].name;
+  popup_msg_fill(&game_txt, "NOMOREWAREHOUSE", &tok, "", want, sizeof(want));
+  const int tools_want[2] = {10, 10};
+  for (int turn = 0; turn < 2; ++turn) {
+    ai_popup_init(&pops);
+    ColonizeTurnResult prod;
+    memset(&prod, 0, sizeof(prod));
+    turn_run_colony_production_w(&(ColonizeWorld){.colonies=&pool, .europe=&eu}, 0, &prod, &pops, &game_txt);
+    const bool nomore = pops.queue_count == 1 && strcmp(pops.queue[0].body, want) == 0;
+    if (col->stock[COLONIZE_CARGO_TOOLS] != tools_want[turn] || col->hammers < 80 ||
+        col->warehouse_level != 2 || pops.queue_count != 1 || nomore != (turn == 0)) {
+      fprintf(stderr, "stale WE turn %d: tools %d hammers %d q=%d nomore=%d\n", turn,
+              col->stock[COLONIZE_CARGO_TOOLS], col->hammers, pops.queue_count, (int)nomore);
+      assets_msg_free(&game_txt);
+      return 1;
+    }
+  }
+  assets_msg_free(&game_txt);
+  return 0;
+}
+
+/* FUN_364b_0688 raw 57615-57622: no colony-size gate on birth. A 32-colonist
+ * colony with 200+ food still spawns a Free Colonist on the colony tile. */
+static int case_colony_birth_full_colony(void) {
+  fx_begin();
+  static ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
+  units_reset(&units);
+  units_set_occupancy_map(NULL);
+  if (!units_load_types(&units, test_names_txt())) {
+    fprintf(stderr, "SKIP: no COLONIZE/ assets\n");
+    return TR_SKIP;
+  }
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  ColonizeColony* b = &pool.colonies[0];
+  memset(b, 0, sizeof(*b));
+  b->active = true;
+  b->id = 1;
+  b->nation_id = 0;
+  b->x = 5;
+  b->y = 5;
+  b->building_in_production = -1;
+  for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
+    b->tiles[t] = -1;
+  }
+  for (int i = 0; i < COLONIZE_COLONY_POP_MAX; ++i) {
+    b->colonists[i].active = true;
+    b->colonists[i].profession = UNITS_JOB_NONE;
+    b->colonists[i].building_type = -1;
+    b->colonists[i].field_job = -1;
+  }
+  b->colonist_count = COLONIZE_COLONY_POP_MAX;
+  b->population = COLONIZE_COLONY_POP_MAX;
+  b->stock[COLONIZE_CARGO_FOOD] = 400;
+  pool.colony_count = 1;
+  EuropeScreen eu;
+  memset(&eu, 0, sizeof(eu));
+  turn_set_birth_units_pool(&units);
+  ColonizeTurnResult br;
+  memset(&br, 0, sizeof(br));
+  turn_run_colony_production_w(&(ColonizeWorld){.colonies=&pool, .europe=&eu}, 0, &br, NULL, NULL);
+  turn_set_birth_units_pool(NULL);
+  if (units.unit_count != 1 || b->colonist_count != COLONIZE_COLONY_POP_MAX) {
+    fprintf(stderr, "full-colony birth: units %d colonists %d\n", units.unit_count,
+            b->colonist_count);
+    return 1;
+  }
   return 0;
 }
 
@@ -3588,6 +3712,55 @@ static int case_food1_latch(void) {
   }
   assets_msg_free(&game_txt);
   fprintf(stderr, "food1 chrome ok\n");
+  return 0;
+}
+
+/* FUN_364b_0688 raw 57638-57681: @FOOD1 has no latch. Under the easy-level
+ * mercy (difficulty < 2, year < 1520) a starving colony is spared and warned
+ * again every turn. */
+static int case_food1_every_mercy_turn(void) {
+  fx_begin();
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  ColonizeColony* col = &pool.colonies[0];
+  memset(col, 0, sizeof(*col));
+  col->active = true;
+  col->id = 1;
+  col->nation_id = 0;
+  col->building_in_production = -1;
+  snprintf(col->name, sizeof(col->name), "Plymouth");
+  col->colonists[0].active = true;
+  col->colonists[1].active = true;
+  col->colonist_count = 2;
+  col->population = 2;
+  for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES_MAX; ++t) {
+    col->tiles[t] = -1;
+  }
+  pool.colony_count = 1;
+  ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  col1.head.year = 1500;
+  EuropeScreen eu;
+  memset(&eu, 0, sizeof(eu));
+  AiPopupState pops;
+  ColonizeMsgCatalog game_txt;
+  assets_msg_init(&game_txt);
+  (void)assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT");
+  for (int turn = 0; turn < 2; ++turn) {
+    ai_popup_init(&pops);
+    ColonizeTurnResult prod;
+    memset(&prod, 0, sizeof(prod));
+    turn_run_colony_production_w(&(ColonizeWorld){.colonies=&pool, .col1=&col1, .col1_ok=true, .europe=&eu}, 0, &prod, &pops, &game_txt);
+    if (col->colonist_count != 2 || pops.queue_count < 1 ||
+        strstr(pops.queue[0].body, "Plymouth") == NULL) {
+      fprintf(stderr, "food1 mercy turn %d: pop %d q=%d\n", turn, col->colonist_count,
+              pops.queue_count);
+      assets_msg_free(&game_txt);
+      return 1;
+    }
+  }
+  assets_msg_free(&game_txt);
   return 0;
 }
 
@@ -4968,6 +5141,25 @@ static int case_human_crosses_order(void) {
     if (!mu || mu->x != EUROPE_PARK_XY || mu->nation_id != 0) {
       fprintf(stderr, "crosses order: immigrant row not bound to its mirror (%d)\n",
               eu.dock[0].mirror_unit_id);
+      return 1;
+    }
+  }
+  /* FUN_38fd_5e52 asm 38fd:5fdb-6013: no hull on the dock -> no DS:0x14c. */
+  if (out.request_europe_open) {
+    fprintf(stderr, "crosses order: Europe auto-open with no ship in port\n");
+    return 1;
+  }
+  /* A sound hull docked -> DS:0x14c = 1 (Europe opens at end of turn);
+   * a damaged one alone does not count (08bc mode 0xe). */
+  for (int damaged = 1; damaged >= 0; --damaged) {
+    eu.harbor_ships = 1;
+    eu.harbor[0].damaged = damaged != 0;
+    eu.current_crosses = (uint16_t)(eu.needed_crosses + 10u);
+    memset(&out, 0, sizeof(out));
+    turn_run_nation_ticks(&ctx, &out);
+    if (out.request_europe_open != (damaged == 0)) {
+      fprintf(stderr, "crosses order: damaged=%d request_europe_open=%d\n", damaged,
+              (int)out.request_europe_open);
       return 1;
     }
   }
@@ -8001,6 +8193,9 @@ static const TestCase k_cases[] = {
   {"depletion_counter", case_depletion_counter},
   {"turn_reset_pointers", case_turn_reset_pointers},
   {"colony_birth", case_colony_birth},
+  {"colony_birth_full_colony", case_colony_birth_full_colony},
+  {"stale_warehouse_expansion", case_stale_warehouse_expansion},
+  {"food1_every_mercy_turn", case_food1_every_mercy_turn},
   {"phase_b_ai_food", case_phase_b_ai_food},
   {"phase_c_rebel_tick", case_phase_c_rebel_tick},
   {"phase_d_rebel_majority", case_phase_d_rebel_majority},

@@ -1302,6 +1302,199 @@ static int case_colony_goods_strip(void) {
   return 0;
 }
 
+/* O9: ship hold strip (FUN_49dd_01aa raw 78508-78562): key = (DS:0x84bc price
+ * << 4) * amount with 0x84bc = euro_price - 1, Tools/Muskets 0, Horses 1,
+ * sorted ascending and drawn from index 0. */
+static int case_ship_cargo_order(void) {
+  static ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  col1.nation[0].trade.euro_price[1] = 2; /* sugar 100 -> 1*16*100 = 1600 */
+  col1.nation[0].trade.euro_price[2] = 3; /* tobacco 60 -> 2*16*60 = 1920 */
+  col1.nation[0].trade.euro_price[8] = 9; /* horses -> 1*50 */
+  ColonizeUnit ship;
+  memset(&ship, 0, sizeof(ship));
+  ship.nation_id = 0;
+  const int type[4] = {2, 1, 14, 8};
+  const int amt[4] = {60, 100, 100, 50};
+  for (int i = 0; i < 4; ++i) {
+    ship.hold_goods_type[i] = (uint8_t)type[i];
+    ship.hold_goods_amount[i] = (uint8_t)amt[i];
+  }
+  int got[COLONIZE_UNIT_CARGO_MAX];
+  const int want[4] = {2, 3, 1, 0}; /* tools, horses, sugar, tobacco */
+  const int n = map_panel_ship_cargo_order(&ship, &col1, got);
+  if (n != 4 || memcmp(got, want, sizeof(want)) != 0) {
+    fprintf(stderr, "ship strip n=%d got %d %d %d %d\n", n, got[0], got[1], got[2], got[3]);
+    return 1;
+  }
+  return 0;
+}
+
+/* O10: FUN_49dd_0424 raw 79104-79117 adds "Ask: <icon>" under the colony row
+ * when Complete Map or a fixed nation view is on and the colony has a
+ * specialty cargo (+0x8d >= 0): one more icon-height + 1 row. */
+static int colony_row_end_y(const ColonizeColonyPool* pool, const ColonizeSpriteSheet* icons,
+                            const ColonizeCol1Save* col1, ColonizeFramebuffer8* fb) {
+  MapPanelRenderCtx c = {
+    .colonies = pool,
+    .icons = icons,
+    .col1 = col1,
+    .labels = &g_labels,
+    .fog_nation = -1,
+    .framebuffer = fb,
+    .text_x = MAP_PANEL_X + 4,
+    .line_h = 7,
+    .y_limit = 198,
+    .text_y = 60,
+    .info_x = 5,
+    .info_y = 5,
+  };
+  map_panel_render_colony_row(&c);
+  return c.text_y;
+}
+
+static int case_colony_row_ask_line(void) {
+  if (ensure_shared() != 0) {
+    return 1;
+  }
+  static ColonizeSpriteSheet icons;
+  char err[256];
+  if (!ss_load("COLONIZE/ICONS.SS", &icons, err, sizeof(err))) {
+    return fail(err);
+  }
+  ColonizeWorldMap cmap;
+  memset(&cmap, 0, sizeof(cmap));
+  if (!map_alloc(&cmap, 16, 16, err, sizeof(err))) {
+    ss_free(&icons);
+    return fail(err);
+  }
+  for (int i = 0; i < 16 * 16; ++i) {
+    cmap.terrain[i] = 2;
+  }
+  static ColonizeColonyPool pool;
+  colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
+  ColonizeColony* col = colonies_get_mut(&pool, colonies_found(&pool, &cmap, 5, 5, 0, 0, 0, 0, 0, 0));
+  static ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  static uint8_t pixels[320 * 200];
+  ColonizeFramebuffer8 fb = {.width = 320, .height = 200, .pixels = pixels};
+  const struct {
+    uint16_t show_all;
+    uint16_t fixed;
+    uint8_t specialty;
+    bool ask;
+  } rows[] = {
+    {0, 0xffff, 3, false}, {1, 0xffff, 3, true}, {0, 2, 3, true}, {1, 0xffff, 0xff, false},
+  };
+  int rc = col ? 0 : 1;
+  int base = 0;
+  for (size_t i = 0; i < sizeof(rows) / sizeof(rows[0]) && col; ++i) {
+    col1.head.show_entire_map = rows[i].show_all;
+    col1.head.fixed_nation_map_view = rows[i].fixed;
+    col->specialty_cargo = rows[i].specialty;
+    const int y = colony_row_end_y(&pool, &icons, &col1, &fb);
+    if (i == 0) {
+      base = y;
+    }
+    const int want = base + (rows[i].ask ? icons.sprites[22].height + 1 : 0);
+    if (y != want) {
+      fprintf(stderr, "ask row %zu: text_y %d, want %d\n", i, y, want);
+      rc = 1;
+    }
+  }
+  map_free(&cmap);
+  ss_free(&icons);
+  return rc;
+}
+
+/* O3: the tile block's "(Road)" line is FUN_281f_0754 & 0x0a (raw 78966):
+ * road OR settlement, so a colony tile without a road still shows it. */
+static int case_tile_details_settlement_road(void) {
+  if (ensure_shared() != 0) {
+    return 1;
+  }
+  char err[256];
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  if (!map_alloc(&map, 8, 8, err, sizeof(err))) {
+    return fail(err);
+  }
+  for (int i = 0; i < 64; ++i) {
+    map.terrain[i] = 2;
+  }
+  map.layer2[3 * 8 + 3] |= MAP_OCCUPANCY_HAS_CITY;
+  static uint8_t pixels[320 * 200];
+  ColonizeFramebuffer8 fb = {.width = 320, .height = 200, .pixels = pixels};
+  int rc = 0;
+  for (int k = 0; k < 2; ++k) {
+    MapPanelRenderCtx c = {
+      .map = &map,
+      .labels = &g_labels,
+      .framebuffer = &fb,
+      .text_x = MAP_PANEL_X + 4,
+      .line_h = 7,
+      .y_limit = 198,
+      .text_y = 60,
+      .info_x = k == 0 ? 3 : 4,
+      .info_y = 3,
+      .tile_seen = true,
+    };
+    map_panel_render_tile_details(&c); /* names NULL: no terrain line */
+    const int want = k == 0 ? 67 : 60;
+    if (c.text_y != want) {
+      fprintf(stderr, "tile details %d: text_y %d, want %d\n", k, c.text_y, want);
+      rc = 1;
+    }
+  }
+  map_free(&map);
+  return rc;
+}
+
+/* O4: FUN_49dd_0424 raw 79121-79162: the village row is the tribe and level
+ * words on two rows (y += font height + 0x11), then "<nation> Mission" when
+ * the mission byte is >= 0. */
+static int case_village_row_lines(void) {
+  if (ensure_shared() != 0) {
+    return 1;
+  }
+  static ColonizeCol1Tribe tribe;
+  static ColonizeCol1Save col1;
+  memset(&tribe, 0, sizeof(tribe));
+  memset(&col1, 0, sizeof(col1));
+  tribe.x = 3;
+  tribe.y = 3;
+  tribe.nation_id = 5;
+  col1.head.tribe_count = 1;
+  col1.tribe = &tribe;
+  static uint8_t pixels[320 * 200];
+  ColonizeFramebuffer8 fb = {.width = 320, .height = 200, .pixels = pixels};
+  const uint8_t mission[2] = {0xff, 0x01};
+  int rc = 0;
+  for (int k = 0; k < 2; ++k) {
+    tribe.mission = mission[k];
+    MapPanelRenderCtx c = {
+      .col1 = &col1,
+      .labels = &g_labels,
+      .fog_nation = 0,
+      .framebuffer = &fb,
+      .text_x = MAP_PANEL_X + 4,
+      .line_h = 7,
+      .y_limit = 198,
+      .text_y = 60,
+      .info_x = 3,
+      .info_y = 3,
+    };
+    map_panel_render_village_row(&c);
+    const int want = 60 + 7 + 0x10 + (k == 1 ? 7 : 0);
+    if (c.text_y != want) {
+      fprintf(stderr, "village row %d: text_y %d, want %d\n", k, c.text_y, want);
+      rc = 1;
+    }
+  }
+  return rc;
+}
+
 /* #1468: the seen-land owner line follows the layer3 owner nibble alone
  * (FUN_49dd_0424 raw 78786-78815): tribal land without a village is
  * "<Tribe> Land", a Euro nibble the country, 0xf "Wilderness". */
@@ -1433,6 +1626,10 @@ static int case_seen_this_turn(void) {
 static const TestCase k_cases[] = {
   {"owner_line_nibble", case_owner_line_nibble},
   {"colony_goods_strip", case_colony_goods_strip},
+  {"ship_cargo_order", case_ship_cargo_order},
+  {"colony_row_ask_line", case_colony_row_ask_line},
+  {"tile_details_settlement_road", case_tile_details_settlement_road},
+  {"village_row_lines", case_village_row_lines},
   {"panel_geometry_constants", case_panel_geometry_constants},
   {"panel_geometry_resized", case_panel_geometry_resized},
   {"panel_load_and_labels", case_panel_load_and_labels},

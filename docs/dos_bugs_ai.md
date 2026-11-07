@@ -206,8 +206,9 @@ that buffer. A refusal after a cash offer is therefore always @WARMEEK, whatever
 the encounter tone; without an offer the greeting tone is used.
 
 **Port:** the @GIVECASH refusal (`AI_TALK_ST_GIVECASH`, `src/core/ai_diplo.c`)
-uses the encounter tone, like the no-offer path. Text only; all goldens and
-`golden_ai_joint` pass.
+uses the encounter tone, like the no-offer path; the peace-menu withdraw
+refusal (raw 98159-98168, `ai_talk_say_war`) shares the helper and keeps the
+encounter tone the same way. Text only; all goldens and `golden_ai_joint` pass.
 **Status:** done (2026-10-23). Came from dos_bug_candidates_2026-10-22.md C-78.
 
 ### DB-52 — AI treaty cancellation is silent (no CANCELTREATY text)

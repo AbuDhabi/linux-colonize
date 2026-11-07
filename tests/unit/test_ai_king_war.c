@@ -899,6 +899,52 @@ static int intervention_10f0_landing_y(bool coastal) {
   return y;
 }
 
+/* FUN_43f7_0982 raw 74006 reads FUN_15eb_0274 on the LIVE colony. A colony
+ * founded since the last save capture has no col1 record: DOS's fresh 0/0
+ * record reads 0% SoL (inv 100), not the nation's 100%. Colony A (y=5, pop 2,
+ * record SoL 100) scores 2*25 = 50; colony B (y=25, pop 1, no record) scores
+ * 1*125 = 125 and draws the wave. Returns the Man-O-War's y. */
+static int case_0982_new_colony_reads_zero_sol(void) {
+  TbInvFx f;
+  if (!tb_inv_fx_init(&f)) {
+    return fail("0982 sol: map_alloc");
+  }
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  col1.head.colony_count = 1;
+  col1.colony = calloc(1, sizeof(ColonizeCol1Colony));
+  if (!col1.colony) {
+    map_free(&f.map);
+    return fail("0982 sol: calloc");
+  }
+  col1.owned = true;
+  col1.colony[0].x = 1;
+  col1.colony[0].y = 5;
+  col1.colony[0].nation_id = 0;
+  col1.colony[0].rebel_dividend = 100;
+  col1.colony[0].rebel_divisor = 100;
+  tb_inv_add_colony(&f, 1, 5, 2);
+  tb_inv_add_colony(&f, 1, 25, 1);
+  f.ctx.col1 = &col1;
+  f.ctx.col1_ok = true;
+  uint16_t force[4] = {6, 0, 1, 0};
+  tb_inv_run(&f, force);
+  int mow_y = -1;
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* u = &f.units.units[i];
+    if (u->active && u->nation_id == 1 && u->type_index == 1) {
+      mow_y = u->y;
+    }
+  }
+  map_free(&f.map);
+  col1_save_free(&col1);
+  if (mow_y < 20) {
+    fprintf(stderr, "0982 sol: MoW y=%d (want next to the recordless colony at y=25)\n", mow_y);
+    return fail("0982 must read a recordless colony's SoL as 0, not the nation's");
+  }
+  return 0;
+}
+
 static int case_intervention_10f0_reads_live_colonies(void) {
   const int live = intervention_10f0_landing_y(true);
   const int inland = intervention_10f0_landing_y(false);
@@ -1244,6 +1290,7 @@ static const TestCase k_cases[] = {
     {"case_hard_king_lands_on_units", case_hard_king_lands_on_units},
     {"case_hard_king_area_garrison", case_hard_king_area_garrison},
     {"case_intervention_10f0_reads_live_colonies", case_intervention_10f0_reads_live_colonies},
+    {"case_0982_new_colony_reads_zero_sol", case_0982_new_colony_reads_zero_sol},
     {"case_0982_landing_needs_open_sea", case_0982_landing_needs_open_sea},
     {"case_clamped_hike_skips_new_war", case_clamped_hike_skips_new_war},
     {"case_declare_reads_cached_sentiment", case_declare_reads_cached_sentiment},

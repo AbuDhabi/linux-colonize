@@ -145,7 +145,7 @@ void ai_king_10f0_land(
  * for test_regress_ai_tables.c. */
 int ai_king_0982_max_landing(const ColonizeTurnContext* ctx);
 void ai_king_1d42_royal_purse(ColonizeTurnContext* ctx);
-int ai_king_colony_sol_at(const ColonizeTurnContext* ctx, int nation_id, int x, int y);
+int ai_king_colony_sol_at(const ColonizeTurnContext* ctx, const ColonizeColony* c);
 void ai_king_do_declare(ColonizeTurnContext* ctx, int human);
 void ai_king_multirev_accept(ColonizeTurnContext* ctx, int human, int sol);
 /* FUN_43f7_1528 @INTERVENTION announce (also CHEAT Advance Revolution stage 3). */

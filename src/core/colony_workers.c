@@ -707,17 +707,10 @@ static int colonies_admit_unit_seat_w(
    * Stockade the same moment, not next turn (see founding_fathers.h). */
   (void)founding_fathers_la_salle_check(pool, col, col1);
   /* No +0x8e / +0x1e write: DOS decrements those only in the 0a60 garrison
-   * admission (raw 87699-87753) and the 20e6/0a60 'G' marks, never on a join. */
-  /*
-   * Early Isabella TURN4→5: beachhead soldier join cancels unused Stockade
-   * auto-start (hammers still 0) → COL1 bip 0xFF. Cite: test-saves-ai/TURN5.
-   */
-  if (col->hammers == 0 && col->building_in_production >= 0) {
-    const int stockade = colonies_building_row(pool, COLONY_BUILDING_STOCKADE);
-    if (stockade >= 0 && col->building_in_production == stockade) {
-      col->building_in_production = -1;
-    }
-  }
+   * admission (raw 87699-87753) and the 20e6/0a60 'G' marks, never on a join.
+   * No +0x94 write either: its AI writers are FUN_5952_035e's prologue and
+   * cascade (raw 95711 / 95851 / 95865), which already explain the TURN4->5
+   * Stockade clear the port once faked here. */
   /* port_bugs.md #256: every admit path (AI joins, capture, save import) puts the
    * newcomer to work immediately — DOS has no idle colonists, and an idle
    * one made the head count disagree with the visible workers. */

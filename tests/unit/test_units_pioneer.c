@@ -584,6 +584,41 @@ static int unit_pioneer_case8_tail(void) {
     }
   }
 
+  /* --- arm 3c: FUN_479b_0526 raw 76935-76941: the ROAD arm buys before its
+   * Minuit test, and Minuit prices the land 0 — an AI with Minuit takes the
+   * tile for nothing (lands_bought++, mask 0x10), no alarm. */
+  map.layer2[fy * map.width + fx] &= (uint8_t)~MAP_LAYER2_PURCHASED;
+  col1.nation[1].founding_fathers[FF_PETER_MINUIT / 8] |= (uint8_t)(1u << (FF_PETER_MINUIT % 8));
+  col1.nation[1].gold = 5000;
+  col1.indian[0].alarm_by_player[1] = 0;
+  {
+    const int pid = units_spawn(&pool, pioneer, fx, fy);
+    ColonizeUnit* u = units_get(&pool, pid);
+    if (!u) {
+      fprintf(stderr, "case8: road pioneer spawn failed\n");
+      goto done;
+    }
+    u->nation_id = 1;
+    u->tools = 100;
+    u->profession = UNITS_JOB_NONE;
+    u->orders = UNITS_ORDER_BUILD_ROAD;
+    u->col1_counter16 = 0;
+    int guard = 0;
+    while (u->orders == UNITS_ORDER_BUILD_ROAD && guard++ < 24) {
+      u->moves = 1 * UNITS_MP_PER_TILE;
+      (void)units_pioneer_work_tick_w(&(ColonizeWorld){.units=(ColonizeUnitPool*)(&pool), .colonies=(ColonizeColonyPool*)(&colonies), .map=(ColonizeWorldMap*)(&map)}, pid, NULL, NULL, NULL);
+    }
+    units_despawn(&pool, pid);
+    if (col1.indian[0].lands_bought != 2 || col1.nation[1].gold != 5000 ||
+        (map.layer2[fy * map.width + fx] & MAP_LAYER2_PURCHASED) == 0 ||
+        col1.indian[0].alarm_by_player[1] != 0) {
+      fprintf(stderr, "case8: Minuit road: bought %d (want 2) gold %u alarm %d\n",
+              (int)col1.indian[0].lands_bought, col1.nation[1].gold,
+              (int)col1.indian[0].alarm_by_player[1]);
+      goto done;
+    }
+  }
+
   rc = 0;
   fprintf(stderr, "unit_units: 5b66 case-8 lumber radius + tribal-land tail ok\n");
 done:

@@ -30,7 +30,8 @@ key Return               # plays sound #5 (status line only; the test harness ha
 key c alt
 click 220 94             # Memory Check: status line only
 key c alt
-click 220 125            # Test Routine: status line only
+click 220 125            # Test Routine: @TEST popup
+key Return               # dismiss it
 key c alt
 click 220 109            # Show Strategy on
 key c alt

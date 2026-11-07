@@ -27,6 +27,11 @@ checkout (`ln -s <main-checkout>/COLONIZE COLONIZE`).
 DOS (`FUN_2f2b_0fce`) draws one centered green (`WOODPANL.PIK` idx 68,
 RGB (85,150,52)) string: `"<Name>.  <Season>, <Year>.  Gold: <N>$"` —
 periods after name and year, comma after season, double space after periods.
+`<N>` is the colony OWNER's gold (`FUN_281f_0b1e(colony+0x1a)` =
+`FUN_15eb_0544`, raw 47876), not the viewer's; `render_colony_screen` passes
+`europe_nation_gold(…, colony->nation_id)`. For a colony whose owner is an
+AI (control byte `0x543f != 0`) outside demo mode DOS builds a different,
+debug-style line instead of name/season/year (raw 47846-47872); not ported.
 Built locally in `colony_screen_draw_top_bar` (other screens keep the plain
 `turn_format_date()`). `COLONY_TOP_BAR_H` = 7 (separator native y=7);
 `COLONY_MIDDLE_Y` etc. derive from it.

@@ -56,6 +56,18 @@ bool combat_auto_defender(void) {
   return g_combat_auto_defender;
 }
 
+/*
+ * The 1b0e colony militia phantom is DOS row 0x17 (FUN_478c_002c raw
+ * 76558), whatever row the port spawns it as (Soldiers for Revere), and it
+ * carries the stand-in colonist's profession (raw 100431). Type-keyed peels
+ * must read it as 0x17: units_capture.c names it here around its fight.
+ */
+static int g_combat_phantom_0x17_id = -1;
+
+void combat_set_phantom_0x17(int unit_id) {
+  g_combat_phantom_0x17_id = unit_id;
+}
+
 void combat_side_flags_clear(ColonizeCombatSideFlags* f) {
   if (!f) {
     return;
@@ -203,7 +215,8 @@ int combat_unit_base_x8(
    * unit with profession 23 (port_bugs.md #503). The earlier "0x17 too" peel was
    * invented. Sprite/name rules for 0x17 (port_bugs.md #263/#265/#318) stay.
    */
-  if (combat_type_is_soldier_or_dragoon(t) && u->profession == UNITS_JOB_SOLDIER) {
+  if (combat_type_is_soldier_or_dragoon(t) && u->profession == UNITS_JOB_SOLDIER &&
+      unit_id != g_combat_phantom_0x17_id) {
     strength_x8 = strength_x8 + (strength_x8 >> 1);
     if (out_flags) {
       out_flags->flags |= COMBAT_FLAG_VETERAN;

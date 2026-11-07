@@ -467,7 +467,7 @@ static void ai_king_ref_tory_uprising(ColonizeTurnContext* ctx, int crown, int h
         (c->colony_flags & COLONIZE_COLONY_FLAG_REF_LANDING) != 0) {
       continue;
     }
-    const int sol_p = ai_king_colony_sol_at(ctx, human, c->x, c->y);
+    const int sol_p = ai_king_colony_sol_at(ctx, c);
     int score = (c->population * (100 - sol_p) * 2) / 100 + (int)ctx->col1->head.difficulty + 1;
     for (int i = 0; i < units_slot_end(ctx->units); ++i) {
       const ColonizeUnit* u = &ctx->units->units[i];
@@ -793,7 +793,7 @@ COLONIZE_INTERNAL void ai_king_0982_invasion(struct ai_king_0982_ctx* w) {
     if ((c->colony_flags & COLONIZE_COLONY_FLAG_COASTAL) == 0) {
       continue;
     }
-    const int inv = 100 - ai_king_colony_sol_at(ctx, human, c->x, c->y);
+    const int inv = 100 - ai_king_colony_sol_at(ctx, c);
     int strength = ai_king_0982_tile_strength(ctx, c->x, c->y);
     if (mods_on(MOD_HARD_KING)) {
       strength += ai_king_hard_area_military(ctx, c, NULL);
@@ -1338,12 +1338,13 @@ void ai_king_1528_announce(ColonizeTurnContext* ctx, int human) {
   }
 
   /* port_bugs.md #252: the declaration names the PARENT countries (1528 passes
-   * both nations through FUN_291f_0ac8's country-name form). */
+   * both nations through FUN_291f_0ac8's country-name form: raw 74485-74486,
+   * ally mode 1 at the sentence start, crown mode 0 mid-sentence). */
   const char* ally_name =
     (ally1 >= 0 && ally1 < 4) ? reports_nation_adjective_display_name(ally1) : ""; /* #878f: no typed text */
   const char* ally_country =
-    (ally1 >= 0 && ally1 < 4) ? reports_nation_country_name(ally1) : ""; /* #1405 */
-  const char* crown_country = reports_nation_country_name(human);
+    (ally1 >= 0 && ally1 < 4) ? reports_nation_country_phrase(ally1, 1) : ""; /* #1405 */
+  const char* crown_country = reports_nation_country_phrase(human, 0);
   const char* announce_colony = ai_king_1528_announce_colony(ctx, human);
   if (!announce_colony) {
     announce_colony = ""; /* #1405: no typed fallback */

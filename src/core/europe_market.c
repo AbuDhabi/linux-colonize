@@ -425,8 +425,9 @@ int europe_custom_house_autosell_ex_w(
      * nation only (col1_bridge stamps col1 → bid on load and bid → col1 on
      * capture), so it is the human's live record; every other nation's market
      * lives in col1 trade.euro_price[]. Same substitution as the dump-sell
-     * below: a game that never came from a DOS save has the AI nations' byte
-     * still 0, so fall back to the one OpenCol market. A zero price still moves
+     * below: the fallback to the one OpenCol market only covers a record byte of
+     * 0, which play no longer produces (europe_seed_campaign_prices_w stamps
+     * every nation, raw 68645-68654; #1011). A zero price still moves
      * the goods (DOS has no price gate here).
      */
     int price = europe_sell_price(eu, c);
@@ -591,9 +592,9 @@ int europe_ai_colony_dump_sell_w(
      * DS:0x84BC byte for THIS colony's nation (asm 364b:17d0
      * `MOV AL,[BX+SI+0x84bc]`, SI = nation<<4, BX = cargo) — which is that
      * nation's record price minus one, see the derivation in the block above.
-     * Substitution: a game that never came from a DOS save has the AI
-     * nations' record byte still 0 (only the bound nation's is stamped, see
-     * col1_bridge), so fall back to the one OpenCol market's sell price — the
+     * Substitution: a record byte of 0 (unreachable in play since
+     * europe_seed_campaign_prices_w stamps every nation, #1011) falls back to
+     * the one OpenCol market's sell price — the
      * same live-market-else-col1 pairing ai_euro_5d04_cb_sell_price uses.
      */
     int price;

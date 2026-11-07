@@ -206,7 +206,8 @@ void colonies_set_units_context(ColonizeUnitPool* units) {
  * @HOWTOWIN once-latch (0x5386 bit0) is left to ai_king's declare path.
  */
 static int colonies_capture_col1_effects(
-  ColonizeCol1Save* col1, const ColonizeColony* col, int old_nation, int new_nation
+  ColonizeCol1Save* col1, const ColonizeColonyPool* pool, const ColonizeColony* col,
+  int old_nation, int new_nation
 ) {
   if (!col1 || !col1->colony || old_nation < 0 || old_nation > 3 || new_nation < 0 ||
       new_nation > 3) {
@@ -236,11 +237,14 @@ static int colonies_capture_col1_effects(
   }
   int plunder = 0;
   if (!woi) {
+    /* raw 100970-100976 sums the LIVE colony records' +0x1f of the loser
+     * (the captured one already flipped at raw 100929); col1->colony[] is
+     * the save mirror, stale between saves. */
     int total = pop;
-    for (uint16_t i = 0; i < col1->head.colony_count; ++i) {
-      const ColonizeCol1Colony* c = &col1->colony[i];
-      if ((int)c->nation_id == old_nation) {
-        total += c->population;
+    for (int i = 0; pool && i < COLONIZE_COLONIES_MAX; ++i) {
+      const ColonizeColony* c = &pool->colonies[i];
+      if (c->active && c != col && c->nation_id == old_nation) {
+        total += c->colonist_count;
       }
     }
     if (total < 1) {
@@ -315,7 +319,7 @@ bool colonies_capture_ex(
         g_colonies_col1->player[new_nation_id].control == 0) {
       col->custom_house_bits = COLONIZE_CUSTOM_HOUSE_DEFAULT_MASK;
     }
-    const int plunder = colonies_capture_col1_effects(g_colonies_col1, col, old_nation, new_nation_id);
+    const int plunder = colonies_capture_col1_effects(g_colonies_col1, pool, col, old_nation, new_nation_id);
     if (plunder_gold) {
       *plunder_gold = plunder;
     }
@@ -822,12 +826,9 @@ bool colonies_try_complete_building_ex(
    * cleared below, matching DOS — see that comment). Treat as nothing to
    * complete, same as the player revisiting Construction on an
    * already-owned item (@ALREADYHAVE). */
-  if (bid >= 0 && bid < COLONIZE_BUILDING_TYPES_MAX && col->has_building[bid]) {
-    return false;
-  }
-  /* FUN_364b_0114 raw 56906-56910: Warehouse Expansion with +0x95 already
-   * > 1 completes nothing (the human caller shows @NOMOREWAREHOUSE). */
-  if (bid_row == COLONY_BUILDING_WAREHOUSE_EXPANSION && col->warehouse_level > 1u) {
+  /* DOS 09fc bit test: never set for Warehouse Expansion (colonies_dos_owns_row). */
+  if (bid_row != COLONY_BUILDING_WAREHOUSE_EXPANSION && bid >= 0 &&
+      bid < COLONIZE_BUILDING_TYPES_MAX && col->has_building[bid]) {
     return false;
   }
   if (bt->tools_cost > 0 && col->stock[COLONIZE_CARGO_TOOLS] < bt->tools_cost) {
@@ -842,9 +843,21 @@ bool colonies_try_complete_building_ex(
     }
     col->stock[COLONIZE_CARGO_TOOLS] = bt->tools_cost;
   }
-  col->pending_build_reveal = bid + 1; /* DS:0x34a — colony-screen reveal + 0x54 */
+  /* raw 57768-57770: Phase L spends the tools, then calls FUN_364b_0114. */
   if (bt->tools_cost > 0) {
     col->stock[COLONIZE_CARGO_TOOLS] -= bt->tools_cost;
+  }
+  /* FUN_364b_0114 raw 56906-56910: Warehouse Expansion with +0x95 already
+   * > 1 completes nothing (the human caller shows @NOMOREWAREHOUSE). The
+   * tools are already gone and the hammers stay, so DOS repeats this every
+   * turn the stale project stays selected. */
+  if (bid_row == COLONY_BUILDING_WAREHOUSE_EXPANSION && col->warehouse_level > 1u) {
+    return false;
+  }
+  /* DS:0x34a — colony-screen reveal + 0x54; FUN_364b_0114 raw 56965-56967
+   * skips Warehouse Expansion (0x10) and Capitol Expansion (0x1f). */
+  if (bid_row != COLONY_BUILDING_WAREHOUSE_EXPANSION && bid_row != COLONY_BUILDING_CAPITOL_EXPANSION) {
+    col->pending_build_reveal = bid + 1;
   }
   if (bid >= 0 && bid < COLONIZE_BUILDING_TYPES_MAX) {
     col->has_building[bid] = true;

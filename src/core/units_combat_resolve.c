@@ -1686,7 +1686,14 @@ static int units_coastal_fort_fire_impl(
            */
           units_combat_pump_popups();
         }
-        if (units_fort_vs_ship(units, atk, col->nation_id, col->x, col->y, targets[t], rng, col1, fort_label, bname,
+        /* The shot itself is 1b0e's: it fights FUN_5fef_0000's best defender
+         * on the tile (raw 100353-100354), not the first hull 03f6 tested
+         * and named in @FORTFIRE above. */
+        int def_id = units_best_defender_vs_nation_at_sea(units, col1, nx, ny, col->nation_id);
+        if (def_id < 0) {
+          def_id = targets[t];
+        }
+        if (units_fort_vs_ship(units, atk, col->nation_id, col->x, col->y, def_id, rng, col1, fort_label, bname,
                                human_chrome)) {
           sunk++;
         }

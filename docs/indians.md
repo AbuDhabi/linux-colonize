@@ -511,7 +511,7 @@ GAME.TXT text) and no "wreak" kind — `@RAIDWREAK` (0x1b8a) is the third-party
 else's. Alarm never gates the kind. 0f14's one caller is 1b0e's loser limb
 (`ai_contact_colony_raid_repelled_w`); there is no separate raid pulse
 (port_bugs.md #1093, [indian_alarm.md](indian_alarm.md)). Capital destroy →
-`ai_diplo_indian_capital_surrender` (reset hostility once; no new capital).
+`ai_diplo_indian_capital_surrender` (alarm clamped to 15, war cleared, friction/attacks zeroed, @INDIANBOW; no peace treaty written, no new capital; `LAB_5fef_362a` raw 101288-101309).
 Loot detail: [indian_raid_outcomes.md](../original_sources_annotated/ai/indian_raid_outcomes.md),
 [indian_raid_loot.md](../original_sources_annotated/ai/indian_raid_loot.md).
 Odds / resolve: [combat.md](combat.md).

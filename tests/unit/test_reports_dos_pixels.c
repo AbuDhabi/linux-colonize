@@ -258,7 +258,7 @@ static int case_hall_of_fame_and_exploits(void) {
   h = fnv1a(h, pixels, sizeof(pixels));
   reports_render_hall_of_fame(&view, rows, 6, 5, &rows[5], &intr, &fb);
   h = fnv1a(h, pixels, sizeof(pixels));
-  const uint32_t want_hof = 0x8a0d1835;
+  const uint32_t want_hof = 0xfb5a3c45;
 
   ColonizeSpriteSheet sheet;
   memset(&sheet, 0, sizeof(sheet));

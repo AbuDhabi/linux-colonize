@@ -429,13 +429,13 @@ static void game_apply_cheat_create_unit(ColonizeGameState* game, int id) {
     return;
   }
   if (id == 7) {
-    /* Treasure: no @HOWMUCH gold prompt in @CREATE — debug default amount. */
+    /* Treasure: no @HOWMUCH gold prompt in @CREATE. */
     const int uid =
-      /* DOS-LITERAL: the @CREATE cheat just calls FUN_281f_095c(type,owner)
-       * and FUN_1427_06b4 raw 7744-7751 leaves +0x315b at its 0x1c default
-       * for a cargo-0 type, which both value readers show as 2800 gold. No
-       * gold prompt exists in @CREATE. */
-      units_spawn_treasure_train(&game->units, x, y, owner, UNITS_JOB_NONE * 100);
+      /* DOS-LITERAL FUN_2b5a_2866 asm 0x23A62-0x23A7D: FUN_281f_095c(0xa, owner,
+       * x, y) then `mov byte [bx+0x315b],0x1` — the cheat Treasure is worth
+       * 1 * 100 gold (Ghidra dropped this block as unreachable; #737 read the
+       * 06b4 0x1c default instead). */
+      units_spawn_treasure_train(&game->units, x, y, owner, 100);
     if (uid < 0) {
       set_status(game, "Cannot create unit here", NULL);
       return;
@@ -479,6 +479,15 @@ static void game_apply_cheat_create_unit(ColonizeGameState* game, int id) {
     return;
   }
   units_set_nation(units_get(&game->units, uid), nation);
+  if (kind == UNITS_KIND_WAGON) {
+    /* FUN_2b5a_2866 asm 0x23A2A-0x23A5B: the Wagon Train's +0x314a home is
+     * FUN_281f_0614(x, y, owner, -1), the owner's nearest colony (0xff none). */
+    const int ci = ai_goals_nearest_colony_15eb_0142(
+      game->world_map_ok ? &game->world_map : NULL, &game->colonies, x, y, nation, -1, NULL
+    );
+    units_get(&game->units, uid)->col1_origin =
+      ci < 0 ? 0xff : (uint8_t)game->colonies.colonies[ci].id;
+  }
   game_cheat_mark_created_seen(game, uid);
   set_status(game, "Created", units_type(&game->units, type_idx)->name);
 }
@@ -559,10 +568,21 @@ void game_cheat_toggle_colony_sites(ColonizeGameState* game) {
   set_status(game, "", game->debug_show_colony_sites ? "on" : "off");
 }
 
-/* DEBUG.TXT @TEST's two non-directive rows, composed live from the catalog. */
+/*
+ * CHEAT Test Routine. DOS-LITERAL FUN_2b5a_08cc (asm 0x217AC-0x217E0):
+ * `and byte [0x5382],0xf4` (clears WoI 0x01, intervention-announced 0x02 and
+ * independence 0x08), then DEBUG.TXT @TEST with %NUMBER0 = DS:0x539c (unit
+ * records, the human's Europe-held ones included) and %NUMBER1 = DS:0x539e
+ * (colonies), shown by FUN_281f_0998.
+ */
 void game_cheat_test_routine(ColonizeGameState* game) {
   if (!game) {
     return;
+  }
+  if (game->col1_ok) {
+    game->col1.head.game_options.woi = 0;
+    game->col1.head.game_options.intervention_announced = 0;
+    game->col1.head.game_options.independence_chrome = 0;
   }
   int units_n = 0;
   if (game->units_ok) {
@@ -570,6 +590,9 @@ void game_cheat_test_routine(ColonizeGameState* game) {
       if (game->units.units[i].active) {
         units_n++;
       }
+    }
+    if (game->europe_ok) {
+      units_n += europe_offpool_unit_count(&game->europe, &game->units, game->human_nation);
     }
   }
   int colonies_n = 0;
@@ -580,40 +603,15 @@ void game_cheat_test_routine(ColonizeGameState* game) {
       }
     }
   }
-  char rows[2][POPUP_MSG_CHOICE_LEN];
-  const ColonizeMsgSection* section =
-    game->debug_txt_ok ? assets_msg_find(&game->debug_txt, "TEST") : NULL;
-  const int row_count = popup_msg_rows(section, rows, 2);
   PopupMsgTokens tok = {0};
   tok.has_number0 = true;
   tok.number0 = units_n;
-  const char* rest0;
-  popup_msg_caret_flags(row_count > 0 ? rows[0] : "", &rest0);
-  char row0[64] = {0};
-  popup_msg_apply_tokens(row0, sizeof(row0), rest0, &tok);
-  PopupMsgTokens tok1 = {0};
-  tok1.has_number1 = true;
-  tok1.number1 = colonies_n;
-  const char* rest1;
-  popup_msg_caret_flags(row_count > 1 ? rows[1] : "", &rest1);
-  char row1[64] = {0};
-  popup_msg_apply_tokens(row1, sizeof(row1), rest1, &tok1);
-  char line[80];
-  /* Same bytes as snprintf(line, 80, "%s; %s", row0, row1) (truncation at 79
-   * chars is DOS-observed and kept); written as bounded copies so gcc has no
-   * -Wformat-truncation to raise. */
-  {
-    size_t n = 0;
-    const char* parts[3] = { row0, "; ", row1 };
-    for (int i = 0; i < 3 && n < sizeof(line) - 1; i++) {
-      size_t l = strlen(parts[i]);
-      if (l > sizeof(line) - 1 - n) l = sizeof(line) - 1 - n;
-      memcpy(line + n, parts[i], l);
-      n += l;
-    }
-    line[n] = '\0';
-  }
-  set_status(game, line, NULL);
+  tok.has_number1 = true;
+  tok.number1 = colonies_n;
+  char body[AI_POPUP_BODY_LEN];
+  popup_msg_fill(game->debug_txt_ok ? &game->debug_txt : NULL, "TEST", &tok, "", body, sizeof(body));
+  ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+  ai_popup_present_now(&game->ai_popups, AI_POPUP_TAG_INFO);
 }
 
 /*
@@ -654,13 +652,21 @@ void game_open_cheat_sound_test(ColonizeGameState* game) {
   if (!game) {
     return;
   }
+  /* FUN_2b5a_2866 asm 0x23D86-0x23DA0: FUN_291f_0436(DEBUG, SOUND, dx 1) — the
+   * @SOUND prose as the prompt, the field seeded with 1 (6f74_3848 itoa's DX,
+   * so @default=0 is dead) — then FUN_281f_04c0(DS:0x9cc8). The 255 cap is
+   * the port's (DOS takes any 5-digit number). */
+  char prompt[AI_POPUP_BODY_LEN];
+  popup_msg_fill(
+    game->debug_txt_ok ? &game->debug_txt : NULL, "SOUND", NULL, "", prompt, sizeof(prompt)
+  );
   howmuch_open(
     &game->howmuch,
     HOWMUCH_KIND_SOUND_TEST,
-    "",
+    prompt,
     howmuch_amount_label(&game->debug_txt, "SOUND", ""),
     255,
-    0,
+    1,
     0,
     0
   );
@@ -991,7 +997,13 @@ void game_trade_default_name(
   const char* word = "";
   char word_buf[COLONIZE_MSG_LINE_LEN];
   const ColonizeMsgSection* sec = assets_msg_find(&game->messages, "TRADENAMES");
-  if (sec && sec->line_count > 1) {
+  if (!sec) {
+    /* asm 0x61157-0x61169: a failed @TRADENAMES seek jumps to the prompt
+     * (0x61240) with the bare colony name — no " ", no word, no clash scan. */
+    str_copy_trunc(out, out_size, cname);
+    return;
+  }
+  if (sec->line_count > 1) {
     /* Line 0 is the count; entries follow (Run/Ferry/Cargo/Transport/Triangle). */
     int n = atoi(sec->lines[0]);
     if (n <= 0 || n > sec->line_count - 1) {

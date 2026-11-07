@@ -647,7 +647,7 @@ static int ai_euro_4528_ai_village_entry(ColonizeTurnContext* ctx, ColonizeUnit*
      * crown wagon from Bahia walks to the village and trades in one act). */
     const int ind = (int)ctx->col1->tribe[tribe_index].nation_id;
     ai_euro_wagon_errand_set(id, 0); /* bounded (port_bugs.md #1094) */
-    (void)ai_contact_ai_wagon_village_trade(ctx, ind, e, id);
+    (void)ai_contact_ai_wagon_village_trade_at(ctx, ind, e, id, tribe_index);
     ColonizeUnit* wg = units_get(ctx->units, id);
     if (wg && wg->active) {
       wg->moves = 0; /* FUN_1000_8b24 */

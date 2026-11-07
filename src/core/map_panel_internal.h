@@ -68,6 +68,11 @@ COLONIZE_INTERNAL void map_panel_format_locat(
   int y,
   bool need_cheat
 );
+/* O9 ship cargo strip order (FUN_49dd_01aa raw 78508-78562): hold slots,
+ * ascending DS:0x84bc key. Returns the count. */
+COLONIZE_INTERNAL int map_panel_ship_cargo_order(
+  const ColonizeUnit* carrier, const ColonizeCol1Save* col1, int out_slot[COLONIZE_UNIT_CARGO_MAX]
+);
 /* #1467 colony "With:" goods strip order (FUN_49dd_0424 raw 79035-79069). */
 COLONIZE_INTERNAL int map_panel_colony_goods_strip(
   const ColonizeColony* col, const ColonizeCol1Save* col1, int out_cargo[5]

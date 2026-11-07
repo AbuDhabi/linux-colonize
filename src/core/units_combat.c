@@ -127,6 +127,17 @@ int units_domain_blocker_at(
  * FUN_5fef_0000: walk stack for highest engagement toughness vs attacker.
  * Artillery vs Indian attacker ×2; skip type.attack==0.
  */
+static int units_best_defender_pick(
+  const ColonizeUnitPool* pool,
+  const ColonizeCol1Save* col1,
+  int x,
+  int y,
+  int attacker_id,
+  int except_id,
+  int atk_nat,
+  int tile_domain
+);
+
 int units_best_defender_at(
   const ColonizeUnitPool* pool,
   const ColonizeCol1Save* col1,
@@ -140,6 +151,88 @@ int units_best_defender_at(
   }
   const ColonizeUnit* atk = units_get_const(pool, attacker_id);
   const int atk_nat = atk ? atk->nation_id : -1;
+  const ColonizeWorldMap* map = units_combat_strength_ctx(col1).map;
+  /*
+   * DOS FUN_5fef_0000 domain gate, verbatim (viceroy_unpacked.c 99137-99147
+   * + 99186-99195):
+   *
+   *   if (-1 < param_2) {
+   *     uVar1 = unit[param_2].x; uVar6 = unit[param_2].y;
+   *     local_6 = (FUN_281f_0696(uVar1,uVar6) >= 0);        // colony there?
+   *     if (FUN_281f_0302(uVar1,uVar6))                     // tile in bounds
+   *       { local_c = FUN_281f_0768(uVar1,uVar6); bVar2 = true; }
+   *   }
+   *   ...
+   *   if (bVar2) { local_16 = (0xd <= cand.type && cand.type <= 0x12);
+   *                if (local_c != local_16) skip; }
+   *
+   * `param_2` is NOT the attacker — the attacker is `param_3` (the artillery
+   * arm reads its nation nibble, and FUN_281f_09dc scores each candidate
+   * against it). `param_2` comes from the caller as
+   * `uVar17 = FUN_281f_07e0(...); FUN_5fef_0000(uVar17, ...)` at raw
+   * 100353-100354: the first unit standing on the TARGET tile. That is the
+   * same tile `local_6` reads for the artillery colony bonus below, which
+   * this port already resolves as `colonies_id_at(colonies, x, y)`.
+   *
+   * So the gate is `FUN_281f_0768(x, y)` = ocean_or_high_seas of the SCANNED
+   * TILE (SYMBOL_MAP.md): a water tile is defended by ships only, a land tile
+   * by land units only. A hull moored in a harbour therefore never defends
+   * the town (the D1 REF wedge), and a garrison never answers a naval fight.
+   *
+   * The port tested the ATTACKER's own ship-ness instead (smell audit
+   * 2026-09-09 #13). That agrees with DOS whenever the attacker's domain
+   * matches its tile — i.e. almost always — but diverged for a warship
+   * attacking out of a colony berth: it is a sea unit standing on a land
+   * tile, so the port let it engage only ships while DOS engages whatever
+   * matches the TARGET tile.
+   *
+   * When no map is wired (headless fixtures) fall back to the old
+   * attacker-ship-ness proxy — DOS's `bVar2` is false only for an absent
+   * `param_2`, never for an absent world.
+   */
+  int tile_domain = -1;
+  if (atk) {
+    if (map) {
+      tile_domain =
+        (map_tile_is_water(map, x, y) || map_tile_is_high_seas(map, x, y)) ? 1 : 0;
+    } else {
+      tile_domain = units_is_sea(pool, attacker_id) ? 1 : 0;
+    }
+  }
+  return units_best_defender_pick(pool, col1, x, y, attacker_id, except_id, atk_nat, tile_domain);
+}
+
+/*
+ * FUN_364b_03f6 coastal fort shot: 03f6 fires its FUN_478c_002c phantom
+ * (colony owner's nation) at the water tile through FUN_291f_0a14 =
+ * FUN_5fef_1b0e, and 1b0e picks the defender with thunk_FUN_2a1f_0458 =
+ * FUN_5fef_0000 (raw 100353-100354), not the first hull 03f6 found. The port
+ * keeps no phantom in the pool, so the picker gets the nation and the water
+ * domain directly.
+ */
+int units_best_defender_vs_nation_at_sea(
+  const ColonizeUnitPool* pool,
+  const ColonizeCol1Save* col1,
+  int x,
+  int y,
+  int atk_nation
+) {
+  if (!pool) {
+    return -1;
+  }
+  return units_best_defender_pick(pool, col1, x, y, -1, -1, atk_nation, 1);
+}
+
+static int units_best_defender_pick(
+  const ColonizeUnitPool* pool,
+  const ColonizeCol1Save* col1,
+  int x,
+  int y,
+  int attacker_id,
+  int except_id,
+  int atk_nat,
+  int tile_domain
+) {
   ColonizeCombatStrengthCtx sctx = units_combat_strength_ctx(col1);
   sctx.units = pool;
   /*
@@ -183,53 +276,6 @@ int units_best_defender_at(
   unsigned best_score = 0;
   const int on_colony_tile = g_units_combat_colonies &&
                              colonies_id_at(g_units_combat_colonies, x, y) >= 0;
-  /*
-   * DOS FUN_5fef_0000 domain gate, verbatim (viceroy_unpacked.c 99137-99147
-   * + 99186-99195):
-   *
-   *   if (-1 < param_2) {
-   *     uVar1 = unit[param_2].x; uVar6 = unit[param_2].y;
-   *     local_6 = (FUN_281f_0696(uVar1,uVar6) >= 0);        // colony there?
-   *     if (FUN_281f_0302(uVar1,uVar6))                     // tile in bounds
-   *       { local_c = FUN_281f_0768(uVar1,uVar6); bVar2 = true; }
-   *   }
-   *   ...
-   *   if (bVar2) { local_16 = (0xd <= cand.type && cand.type <= 0x12);
-   *                if (local_c != local_16) skip; }
-   *
-   * `param_2` is NOT the attacker — the attacker is `param_3` (the artillery
-   * arm reads its nation nibble, and FUN_281f_09dc scores each candidate
-   * against it). `param_2` comes from the caller as
-   * `uVar17 = FUN_281f_07e0(...); FUN_5fef_0000(uVar17, ...)` at raw
-   * 100353-100354: the first unit standing on the TARGET tile. That is the
-   * same tile `local_6` reads for the artillery colony bonus below, which
-   * this port already resolves as `colonies_id_at(colonies, x, y)`.
-   *
-   * So the gate is `FUN_281f_0768(x, y)` = ocean_or_high_seas of the SCANNED
-   * TILE (SYMBOL_MAP.md): a water tile is defended by ships only, a land tile
-   * by land units only. A hull moored in a harbour therefore never defends
-   * the town (the D1 REF wedge), and a garrison never answers a naval fight.
-   *
-   * The port tested the ATTACKER's own ship-ness instead (smell audit
-   * 2026-09-09 #13). That agrees with DOS whenever the attacker's domain
-   * matches its tile — i.e. almost always — but diverged for a warship
-   * attacking out of a colony berth: it is a sea unit standing on a land
-   * tile, so the port let it engage only ships while DOS engages whatever
-   * matches the TARGET tile.
-   *
-   * When no map is wired (headless fixtures) fall back to the old
-   * attacker-ship-ness proxy — DOS's `bVar2` is false only for an absent
-   * `param_2`, never for an absent world.
-   */
-  int tile_domain = -1;
-  if (atk) {
-    if (sctx.map) {
-      tile_domain =
-        (map_tile_is_water(sctx.map, x, y) || map_tile_is_high_seas(sctx.map, x, y)) ? 1 : 0;
-    } else {
-      tile_domain = units_is_sea(pool, attacker_id) ? 1 : 0;
-    }
-  }
   /* DOS walks the tile chain from its head (07e0 / 02e4: newest first), so
    * the `>=` tie goes to the oldest equal candidate (independence 5->6: two
    * fortified Artillery at (42,64), DOS damages the older). */
@@ -810,7 +856,6 @@ int units_promote_on_win(
       return 0;
     }
   }
-  const ColonizeUnitType* old_ty = ut;
   const int old_prof = winner->profession;
   const char* popup_tag = NULL;
   if (next_prof == -1) {
@@ -841,7 +886,10 @@ int units_promote_on_win(
   if (human) {
     PopupMsgTokens tok;
     memset(&tok, 0, sizeof(tok));
-    const char* base = old_ty && old_ty->name[0] ? old_ty->name : "";
+    /* FUN_5fef_172c raw 100134-100135: %STRING0 = the type name read AFTER
+     * the Continental swap (raw 100121-100126), so @CONTINENTAL names the new row. */
+    const ColonizeUnitType* now_ty = units_type(pool, winner->type_index);
+    const char* base = now_ty && now_ty->name[0] ? now_ty->name : "";
     char fb[AI_POPUP_BODY_LEN];
     if (strcmp(popup_tag, "CONTINENTAL") == 0) {
       tok.string0 = base;
@@ -1393,8 +1441,10 @@ int units_apply_land_loss_outcome(
       return 1;
     } else if (is_colonist) {
       const int from_nat = lose->nation_id;
-      /* DOS: Veteran specialty (0x15) → NONE + @COLONISTCAPTURE2. */
-      const int stripped_vet = (lose->profession == UNITS_JOB_SOLDIER);
+      /* DOS: Veteran specialty (0x15) → NONE + @COLONISTCAPTURE2. The strip
+       * sits inside the popup block (`if (param_3 != 0)`, FUN_5fef_0352 raw
+       * 99409-99418), so an unshown capture keeps the specialty. */
+      const int stripped_vet = human && (lose->profession == UNITS_JOB_SOLDIER);
       if (stripped_vet) {
         lose->profession = UNITS_JOB_NONE;
       }
@@ -2212,9 +2262,10 @@ int units_apply_naval_loss_outcome(
  * damaged bit7 (+0x3148 | 0x80), orders/MP cleared, repair timer preset,
  * ship relocated to the nearest own repair port. The repair bill's "winner
  * strength" is the no-winner stand-in type `local_4 = 0x10` (Privateer's
- * 0x5235 column). DOS's `local_6 <<= 1` non-ship doubling reads the type byte
- * of unit −1 here (an out-of-bounds read below the unit array), so it is not
- * reproduced. The only escape from `bVar11` is 0352's shared WoI
+ * 0x5235 column). DOS's `local_6 <<= 1` non-ship doubling (raw 99622-99626)
+ * reads the type byte of unit −1 here: DS:0x312a, terrain row 27's labor
+ * byte 24 (the same read as docs/tolerated_dos_bugs_ai.md TB-20), never a
+ * hull row 0x0d..0x12, so the bill is always doubled. The only escape from `bVar11` is 0352's shared WoI
  * human-with-no-repair-port sink (raw 99607).
  *
  * Returns 1 if the ship limped off damaged, 0 if it went down.
@@ -2271,8 +2322,9 @@ int units_raid_damage_ship(
   }
 
   /* DOS bills the repair against the Privateer's defense column (the raider
-   * stand-in). */
-  units_ship_enter_repair(pool, lose, pt ? pt->defense : 0, home, col1, human, -1);
+   * stand-in), doubled: unit −1's type byte (DS:0x312a = 24) is not a hull
+   * (FUN_5fef_0352 raw 99622-99626). */
+  units_ship_enter_repair(pool, lose, pt ? pt->defense << 1 : 0, home, col1, human, -1);
   return 1;
 }
 
@@ -3008,12 +3060,13 @@ static void units_village_convert_roll(
   }
   (void)units_spawn_subjugated_convert(units, x, y, attacker_nation_id);
   /* DOS announces the convert to a HUMAN conqueror (raw 101176-101181):
-   * slot 0 = the tribe's name, slot 1 = the conquering nation's adjective.
+   * slot 0 = the tribe's PLURAL name (FUN_281f_0a1a, raw 101176), slot 1 =
+   * the conquering nation's adjective (09a4).
    * Gate = the attacker's control byte (1b0e raw 101175). */
   if (col1_nation_is_human(col1, attacker_nation_id, g_units_combat_human_nation)) {
     PopupMsgTokens stok;
     memset(&stok, 0, sizeof(stok));
-    stok.string0 = units_combat_nation_label(col1, defender_nation_id);
+    stok.string0 = units_combat_nation_label_plural(col1, defender_nation_id);
     stok.string1 = units_combat_nation_label(col1, attacker_nation_id);
     units_combat_enqueue_tok(
       AI_POPUP_TAG_COMBAT_COLONY, "INDIANSLAVES", attacker_nation_id,

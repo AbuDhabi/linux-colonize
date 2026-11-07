@@ -513,7 +513,7 @@ int ai_euro_20e6_load_pick(
  *     distance, min 1; strict `<` — the earlier record wins ties;
  *   - none on this landmass → LAB_47b9 destroy;
  *   - adjacent (or on the tile) → FUN_4d56_4528 AI arm, type 0xc → case 1
- *     Trade → the 2820 shell (ai_contact_ai_wagon_village_trade). 2820
+ *     Trade → the 2820 shell (ai_contact_ai_wagon_village_trade_at). 2820
  *     clears the DOS errand byte at entry for land types
  *     (viceroy_unpacked.c:82122) — mirrored by clearing the latch on the
  *     attempt, traded or refused; the 4528 return forfeits the MP;
@@ -572,7 +572,7 @@ int ai_euro_20e6_wagon_village_errand(
       /* port_bugs.md #813: DOS clears +0x3158 inside FUN_4d56_2820 itself (raw
        * 82121-82123: `if (type < 0xd || 0x12 < type) +0x3158 = 0;`), i.e. at
        * trade entry and only when a trade is actually entered — not on bare
-       * adjacency. `ai_contact_ai_wagon_village_trade` lives in
+       * adjacency. `ai_contact_ai_wagon_village_trade_at` lives in
        * ai_contact_trade.c, so the clear sits at the call site instead, but
        * under the same gate. */
       ai_euro_wagon_errand_set(wagon->id, 0);
@@ -591,7 +591,7 @@ int ai_euro_20e6_wagon_village_errand(
       wagon->goto_x = (int)t->x;
       wagon->goto_y = (int)t->y;
       const int units_before = units_active_count(ctx->units);
-      (void)ai_contact_ai_wagon_village_trade(ctx, ind, nation_id, wagon->id);
+      (void)ai_contact_ai_wagon_village_trade_at(ctx, ind, nation_id, wagon->id, best_i);
       units_465b_0bd1_tail(ctx->units, wagon->id, units_before, false);
     }
     wagon->moves = 0; /* 4528 return-code 1 MP forfeit */
@@ -1931,7 +1931,7 @@ void ai_euro_20e6_ship_cargo_counts(
  * has no bit 8 yet, so the hull's unload mask stays 0 and its 4e2d far-roam
  * roll draws. Fixtures without a census fall back to the live recount.
  */
-static int ai_euro_20e6_presence_95f2(const ColonizeTurnContext* ctx, int nation, int cid) {
+int ai_euro_20e6_presence_95f2(const ColonizeTurnContext* ctx, int nation, int cid) {
   if (ctx->col1_ok && ctx->col1 && cid >= 0 && cid < 16) {
     return ctx->col1->stuff.continent_presence_flags[cid];
   }
@@ -2331,7 +2331,8 @@ int ai_euro_20e6_unload_mask_snapshot(
           urgency < 0x14) {
         mask &= ~0x10;
       }
-      if (own_cols == 0 && ai_euro_20e6_foreign_colony_on(ctx, nation, cid) && any_dist < 7) {
+      /* raw 89535-89536: the frozen census byte's bit 4, not a live scan. */
+      if (own_cols == 0 && (ai_euro_20e6_presence_95f2(ctx, nation, cid) & 4) && any_dist < 7) {
         mask |= 0x10; /* −0x6a0e bit4 + close colony */
       }
       /* Raw 89539-89541: `if (-0x6a0e[cont] & 8) local_9c |= 0x10` — this

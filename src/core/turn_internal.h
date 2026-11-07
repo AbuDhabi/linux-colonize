@@ -156,7 +156,6 @@ typedef struct TurnProduceCtx {
   int spoil_e4[COLONIZE_CARGO_COUNT]; /* aiStack_e4: Phase B share of the overflow */
   /* birth (Phase I) */
   int birth_food_debit;
-  int was_starving;
 } TurnProduceCtx;
 void turn_produce_one_colony(
   ColonizeColonyPool* pool,

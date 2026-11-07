@@ -198,8 +198,13 @@ static void combat_analysis_fill_mods(
   }
   if (flags->flags & COMBAT_FLAG_HOLDS) {
     const int pct = flags->holds_occupied > 0 ? (flags->holds_occupied * 100) >> 3 : 0;
-    /* LABELS.TXT @MISC row 62 "Cargo". */
-    combat_analysis_push_row(rows, count, reports_misc_display_word(62, ""), -pct);
+    /* LABELS.TXT @MISC row 62 "Cargo" (DS:0x2e36), then FUN_281f_01be
+     * DS:0x55 ": ", FUN_281f_0178 DS:0x50 " " and FUN_281f_0182 the +0x3150
+     * hold count (asm 0x5ED0D-0x5ED50). */
+    char cargo_label[48];
+    snprintf(cargo_label, sizeof(cargo_label), "%s:  %d", reports_misc_display_word(62, ""),
+             flags->holds_occupied);
+    combat_analysis_push_row(rows, count, cargo_label, -pct);
   }
   /*
    * DOS 636c fatigue rows — bit 0x100 (asm 636c:02ff, value 0x21 = 33) and

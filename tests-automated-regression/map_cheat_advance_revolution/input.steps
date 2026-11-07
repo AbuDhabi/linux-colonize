@@ -14,8 +14,7 @@ key Return               # @SUCCESSION notice
 wait 2
 key F7 shift
 wait 2
-key Return               # signing cinematic: skip the animation
-wait 2
+wait 1500               # signing cinematic: a key only finishes the glyph being drawn (FUN_43f7_160a raw 74640-74687), so let the signature run out
 key Return               # close the cinematic
 wait 2
 key Return               # @INDEPENDENCE letter OK

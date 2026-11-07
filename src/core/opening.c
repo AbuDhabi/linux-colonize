@@ -245,14 +245,31 @@ static void opening_blit_border(const OpeningCinematic* o, ColonizeFramebuffer8*
   }
 }
 
-static int opening_sprite_index(const OpeningSeries* s, int elapsed, int n) {
+int opening_sprite_index(const OpeningSeries* s, int elapsed, int n) {
   if (!s || n <= 0 || elapsed < 0) {
     return -1;
   }
-  if (s->repeats > 0) {
-    if (elapsed >= s->repeats * n) {
-      return -1;
+  if (s->repeats > 0 && elapsed >= s->repeats * n) {
+    return -1;
+  }
+  if (s->series == OPENING_SHEET_SUN) {
+    /* OPENING.EXE `_do_anims` 0x462-0x4c5: OPENSUN ignores its own counter;
+     * the 1-based sprite steps on the absolute anim_frame (DS:0x82), and the
+     * last test (>= 0xfc) drops it back to sprite 6. */
+    static const int at[] = {0x87, 0x99, 0xad, 0xc3, 0xdc, 0xec};
+    const int clock = s->frame + elapsed;
+    int spr = 1;
+    for (int i = 0; i < (int)(sizeof(at) / sizeof(at[0])); ++i) {
+      if (clock >= at[i]) {
+        spr = i + 2;
+      }
     }
+    if (clock >= 0xfc) {
+      spr = 6;
+    }
+    return (spr <= n ? spr : n) - 1;
+  }
+  if (s->repeats > 0) {
     return elapsed % n;
   }
   if (elapsed < n) {
@@ -275,7 +292,7 @@ static void opening_begin_sailing(OpeningCinematic* o) {
   }
   o->logo_phase = false;
   o->clock = 0;
-  o->accum_ms = 0;
+  o->accum = 0;
   o->skip_presses = 0;
   opening_compose(o);
 }
@@ -522,7 +539,7 @@ bool opening_open(OpeningCinematic* o, const char* data_dir) {
   o->path_count = opening_parse_path(data_dir, o->path_x, o->path_y, OPENING_PATH_MAX);
 
   o->clock = 0;
-  o->accum_ms = 0;
+  o->accum = 0;
   o->skip_presses = 0;
   o->open = true;
   o->finished = false;
@@ -571,10 +588,12 @@ void opening_update(OpeningCinematic* o, uint32_t dt_ms) {
   if (!o || !o->open || o->finished) {
     return;
   }
+  const uint64_t logo_frame = (uint64_t)OPENING_LOGO_TIMING * OPENING_ACCUM_PER_TICK;
+  const uint64_t frame = (uint64_t)OPENING_PAN_TIMING * OPENING_ACCUM_PER_TICK;
   if (o->logo_phase) {
-    o->accum_ms += dt_ms;
-    while (o->accum_ms >= OPENING_FRAME_MS) {
-      o->accum_ms -= OPENING_FRAME_MS;
+    o->accum += (uint64_t)dt_ms * OPENING_ACCUM_PER_MS;
+    while (o->accum >= logo_frame) {
+      o->accum -= logo_frame;
       if (!opening_logo_step(o)) {
         break;
       }
@@ -589,12 +608,12 @@ void opening_update(OpeningCinematic* o, uint32_t dt_ms) {
     }
     return;
   } else {
-    o->accum_ms += dt_ms;
+    o->accum += (uint64_t)dt_ms * OPENING_ACCUM_PER_MS;
   }
-  while (o->accum_ms >= OPENING_FRAME_MS) {
-    o->accum_ms -= OPENING_FRAME_MS;
+  while (o->accum >= frame) {
+    o->accum -= frame;
     if (!opening_step(o)) {
-      o->accum_ms = 0;
+      o->accum = 0;
       break;
     }
   }
@@ -644,7 +663,7 @@ bool opening_handle_input(OpeningCinematic* o, const ColonizeInputState* input) 
     if (o->skip_presses >= 2) {
       o->clock = o->end_frame;
       opening_compose(o);
-      o->accum_ms = 0;
+      o->accum = 0;
       o->hold_ms = 0;
     }
   }

@@ -23,8 +23,8 @@
  *   BaseX is added to the sprite's own FUN_6f30_002e anchor
  *   series -1, Frame N = stop when the clock reaches N (shipped: 390)
  *
- * CLOSING.EXE uses its own TIMER_SET_RATE; with the DOS default 18.2 Hz
- * PIT the 390-tick run lasts ~21 s. Any key / click skips to scoring.
+ * CLOSING.EXE paces frames on its own 60.877 Hz clock (CLOSING_ANIM_TIMING
+ * below): the 390-frame run lasts ~38.4 s. Any key / click skips to scoring.
  */
 
 #define CLOSING_SHEET_COUNT 7
@@ -38,8 +38,20 @@
 #define CLOSING_SHEET_ROCK 5
 #define CLOSING_SHEET_BELL 6
 
-/* BIOS timer tick. 390 frames × 55 ms ≈ 21 s. */
-#define CLOSING_FRAME_MS 55
+/*
+ * CLOSING.EXE timer_install (image 0x2659) programs the PIT with
+ * TIMER_SET_RATE(0x7a8) = 608.77 Hz; the IRQ0 handler (0x24e8) bumps the
+ * timer_read counter DS:0x4f4c on every 10th IRQ = 60.877 Hz. `_anim_loop`
+ * (0x211-0x232) steps one frame once now - anim_clock >= anim_timing; DS:0x54
+ * anim_timing starts at 6 ('+'/'-' in `_get_input` 0x42a/0x430 nudge it).
+ * accum counts ms * 60877: one 60.877 Hz tick = 1000000 units.
+ */
+#define CLOSING_ANIM_TIMING 6
+#define CLOSING_ACCUM_PER_MS 60877u
+#define CLOSING_ACCUM_PER_TICK 1000000u
+/* Whole ms that always covers one frame (98.56 ms -> 99). */
+#define CLOSING_FRAME_MS \
+  ((CLOSING_ANIM_TIMING * CLOSING_ACCUM_PER_TICK + CLOSING_ACCUM_PER_MS - 1u) / CLOSING_ACCUM_PER_MS)
 
 /*
  * CLOSING.EXE `call 069B:000E` (GSOUND FUN_12d8_000e):
@@ -75,7 +87,7 @@ typedef struct ClosingCinematic {
   int series_count;
   int end_frame;
   int clock;
-  uint32_t accum_ms;
+  uint64_t accum; /* ms * CLOSING_ACCUM_PER_MS since the last frame */
   ColonizePalette palette;
   bool palette_ok;
   uint8_t background[320 * 200];

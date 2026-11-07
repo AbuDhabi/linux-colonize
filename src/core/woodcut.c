@@ -20,10 +20,17 @@ _Static_assert(
 );
 static ColonizeWoodcutSoundFn g_woodcut_play;
 static ColonizeWoodcutSoundFn g_woodcut_set_bgm;
+static ColonizeWoodcutSoundFn g_woodcut_set_pool;
+static ColonizeWoodcutGateFn g_woodcut_gate;
 
 void woodcut_set_sound_hooks(ColonizeWoodcutSoundFn play_fn, ColonizeWoodcutSoundFn set_bgm_fn) {
   g_woodcut_play = play_fn;
   g_woodcut_set_bgm = set_bgm_fn;
+}
+
+void woodcut_set_bgm_gate_hooks(ColonizeWoodcutSoundFn pool_fn, ColonizeWoodcutGateFn gate_fn) {
+  g_woodcut_set_pool = pool_fn;
+  g_woodcut_gate = gate_fn;
 }
 
 /* ---------------------------------------------------------------- queue -- */
@@ -80,13 +87,25 @@ static uint8_t woodcut_bit_mask(int id) {
 }
 
 /*
- * The FUN_12fd_006c jump table: every case falls through to the presenter,
- * the only per-id work is which tune is queued first. Cases 0/1/9 hit
- * FUN_129f_0318 and case 2 FUN_129f_034c — both are "switch to tune pool 2,
- * restart if it changed" (sound_set_bgm). Cases 3-6 push an explicit event id
- * through FUN_129f_02cc (sound_play). Cases 7, 8, 10 and every id above 10
- * have no table entry and play nothing.
+ * The FUN_12fd_006c jump table (CS:0xe4, asm 12fd:009c-00d5): every case falls
+ * through to the presenter, the only per-id work is which tune is queued
+ * first. Cases 0/1 (0x9c) test [0xa0] != 0 && [0xa2] == 0 themselves and only
+ * then call FUN_129f_0318(2); case 9 (0xaa) calls FUN_129f_0318(2)
+ * unconditionally (sound_set_bgm: pool 2, restart if it changed); case 2
+ * (0xb6) calls FUN_129f_034c(2) = 0318 under that gate, else FUN_129f_0300
+ * (pool only). Cases 3-6 push an explicit event id through FUN_129f_02cc
+ * (sound_play). Cases 7, 8, 10 and every id above 10 play nothing.
  */
+static bool woodcut_gate_open(void) {
+  return g_woodcut_gate && g_woodcut_gate();
+}
+
+static void woodcut_set_bgm(int pool) {
+  if (g_woodcut_set_bgm) {
+    g_woodcut_set_bgm(pool);
+  }
+}
+
 static void woodcut_play_event(int id) {
   if (g_woodcut_play) {
     g_woodcut_play(id);
@@ -99,12 +118,18 @@ static void woodcut_play_tune(int id) {
      * id <= 0 (the once-only bitfield is 1-based), so DOS case 0 is
      * unreachable in the port and deliberately not listed. */
     case WOODCUT_DISCOVERY_OF_THE_NEW_WORLD:
-    case WOODCUT_BUILDING_A_COLONY:
-    case WOODCUT_CARGO_FROM_THE_NEW_WORLD:
-      if (g_woodcut_set_bgm) {
-        g_woodcut_set_bgm(2);
+      if (woodcut_gate_open()) {
+        woodcut_set_bgm(2);
       }
       break;
+    case WOODCUT_BUILDING_A_COLONY: /* FUN_129f_034c(2) */
+      if (woodcut_gate_open()) {
+        woodcut_set_bgm(2);
+      } else if (g_woodcut_set_pool) {
+        g_woodcut_set_pool(2);
+      }
+      break;
+    case WOODCUT_CARGO_FROM_THE_NEW_WORLD: woodcut_set_bgm(2); break;
     case WOODCUT_MEETING_THE_NATIVES: woodcut_play_event(0x33); break;
     case WOODCUT_THE_AZTEC_EMPIRE: woodcut_play_event(0x35); break;
     case WOODCUT_THE_INCA_NATION: woodcut_play_event(0x36); break;

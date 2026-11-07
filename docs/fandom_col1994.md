@@ -183,7 +183,7 @@ Port / decomp hub: [indians.md](indians.md).
 | Tribes | Semi-nomadic camps: Apache, Sioux, Tupi. Agrarian villages: Arawaks, Cherokee, Iroquois. Empires: Aztec (warlike), Inca (peaceful). Capital marked with starburst. |
 | First contact | Leader offers peace + small land grant; reject → war. Peace → visit, trade, learn skills, gifts. |
 | Alarm | Encroachment / military presence raise alarm (`!` green → red). Alarmed units may refuse trade, attack, kill scouts. French national bonus slows hostility; missions slow it; Pocahontas resets + halves future growth. |
-| Capital destroy | Hostile tribe surrenders once; hostility reset; no new capital. |
+| Capital destroy | Hostile tribe surrenders once: alarm clamped to 15 and war cleared (no peace treaty written); no new capital. |
 | Teach / trade / missions | Elder skills; sea/land trade; missionaries (expert via Brebeuf); denounce foreign mission 50/50. |
 | Nation bias | Spanish pushed toward conquest (Aztec/Inca treasure); French toward cooperation. |
 

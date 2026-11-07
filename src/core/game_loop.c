@@ -1256,6 +1256,20 @@ bool game_fizzle_snapshot_present(ColonizeGameState* game, uint8_t** buf, size_t
   return platform_present(game->platform, &fb, &pal);
 }
 
+void game_woodcut_fizzle_in(ColonizeGameState* game) {
+  if (!game || !game->woodcut.open) {
+    return;
+  }
+  static uint8_t* before;
+  static size_t before_cap;
+  game->woodcut.art_hidden = true;
+  const bool have_before = game_fizzle_snapshot_present(game, &before, &before_cap);
+  game->woodcut.art_hidden = false;
+  if (have_before) {
+    game_fizzle_present(game, before);
+  }
+}
+
 /*
  * DOS-LITERAL FUN_4345_024a raw 72982 reveal block: the Continental Congress
  * hall screen clears the just-elected father's nation bit
@@ -1366,6 +1380,9 @@ void game_combat_popup_pump(void* user) {
       const int wid = woodcut_take_pending();
       woodcut_just_opened = wid >= 0 &&
         woodcut_open(&game->woodcut, game->resolved_data_dir, wid);
+      if (woodcut_just_opened) {
+        game_woodcut_fizzle_in(game);
+      }
     }
     if (game->woodcut.open) {
       if (!woodcut_just_opened) {
@@ -1408,6 +1425,7 @@ void game_bind_combat_analysis(ColonizeGameState* game) {
   europe_set_sound_hook(sound_play);
   europe_set_bgm_hook(sound_set_bgm);
   woodcut_set_sound_hooks(sound_play, sound_set_bgm);
+  woodcut_set_bgm_gate_hooks(sound_set_bgm_pool, sound_event_music_gate);
   closing_set_sound_hooks(sound_play, sound_set_bgm, sound_stop_sfx);
   opening_set_sound_hooks(sound_play, sound_set_bgm);
 }

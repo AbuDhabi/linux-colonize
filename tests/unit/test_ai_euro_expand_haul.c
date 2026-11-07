@@ -623,7 +623,7 @@ static int unit_cargo_idle_turns_haul_prefer(void) {
     return fail("expected cargo_idle INC during inventory");
   }
 
-  /* Unload clears idle. */
+  /* A plain unload leaves +0x8f: only the 20e6 hull dump clears it (raw 90249). */
   ColonizeColony* dest = &colonies.colonies[1];
   dest->x = 4;
   dest->y = 4; /* same tile as the hauler for transfer */
@@ -636,7 +636,7 @@ static int unit_cargo_idle_turns_haul_prefer(void) {
   }
   const int moved =
     colonies_transfer_from_unit(&colonies, dest->id, &units, wid, 0, NULL);
-  if (moved <= 0 || dest->cargo_idle_turns != 0) {
+  if (moved <= 0 || dest->cargo_idle_turns != 30) {
     fprintf(
       stderr,
       "unit_ai_euro_expand: unload moved=%d idle=%u\n",
@@ -644,7 +644,7 @@ static int unit_cargo_idle_turns_haul_prefer(void) {
       (unsigned)dest->cargo_idle_turns
     );
     fx_map_free(&map);
-    return fail("expected goods unload to clear cargo_idle_turns");
+    return fail("expected a plain goods unload to keep cargo_idle_turns");
   }
 
   fx_map_free(&map);

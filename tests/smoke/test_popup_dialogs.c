@@ -589,39 +589,35 @@ static int case_debug_test_ignores_directives(void) {
   game->units.next_id = 3;
   units_pool_sync(&game->units);
   game->colonies.colonies[0].active = true;
+  ai_popup_init(&game->ai_popups);
+  game->col1_ok = true;
+  game->col1.head.game_options.woi = 1;
+  game->col1.head.game_options.intervention_announced = 1;
+  game->col1.head.game_options.woi_crosses_event = 1;
+  game->col1.head.game_options.independence_chrome = 1;
 
+  /* Audit N1: FUN_2b5a_08cc (asm 0x217AC) clears DS:0x5382 &= 0xf4 and shows
+   * DEBUG @TEST as a popup (FUN_281f_0998), not a status line. */
   game_cheat_test_routine(game);
 
-  const ColonizeMsgSection* test = assets_msg_find(&game->debug_txt, "TEST");
-  char rows[2][POPUP_MSG_CHOICE_LEN];
-  if (popup_msg_rows(test, rows, 2) != 2) {
-    assets_msg_free(&game->debug_txt);
-    free(game);
-    return fail("DEBUG @TEST content rows missing");
-  }
-  PopupMsgTokens tok0 = {.number0 = 2, .has_number0 = true};
-  PopupMsgTokens tok1 = {.number1 = 1, .has_number1 = true};
-  const char* text0;
-  const char* text1;
-  popup_msg_caret_flags(rows[0], &text0);
-  popup_msg_caret_flags(rows[1], &text1);
-  char row0[64];
-  char row1[64];
-  char expected[160];
-  popup_msg_apply_tokens(row0, sizeof(row0), text0, &tok0);
-  popup_msg_apply_tokens(row1, sizeof(row1), text1, &tok1);
-  snprintf(expected, sizeof(expected), "%s; %s", row0, row1);
-  if (strcmp(game->status, expected) != 0 || strchr(game->status, '@') != NULL) {
-    fprintf(stderr, "smoke_popup_dialogs: DEBUG @TEST got '%s' want '%s'\n",
-            game->status, expected);
-    assets_msg_free(&game->debug_txt);
-    free(game);
-    return fail("DEBUG @TEST directive shifted its text rows");
+  PopupMsgTokens tok = {.number0 = 2, .has_number0 = true, .number1 = 1, .has_number1 = true};
+  char expected[AI_POPUP_BODY_LEN];
+  popup_msg_fill(&game->debug_txt, "TEST", &tok, "", expected, sizeof(expected));
+  const char* body = game->ai_popups.current.body;
+  int rc = 0;
+  if (!game->ai_popups.open || strcmp(body, expected) != 0 || strchr(body, '@') != NULL ||
+      !strstr(body, "= 2") || !strstr(body, "= 1")) {
+    fprintf(stderr, "smoke_popup_dialogs: DEBUG @TEST got '%s' want '%s'\n", body, expected);
+    rc = fail("DEBUG @TEST popup body");
+  } else if (game->col1.head.game_options.woi || game->col1.head.game_options.intervention_announced ||
+             game->col1.head.game_options.independence_chrome ||
+             !game->col1.head.game_options.woi_crosses_event) {
+    rc = fail("Test Routine must clear DS:0x5382 bits 0x0b only");
   }
 
   assets_msg_free(&game->debug_txt);
   free(game);
-  return 0;
+  return rc;
 }
 
 /* port_bugs.md #1111: @SETVIEW and @SETHUMAN share one parser — both honour
@@ -974,6 +970,141 @@ static int case_find_colony_is_dos(void) {
     rc = fail("a negative view shows nothing");
   }
   map_free(&game->world_map);
+  assets_msg_free(&game->messages);
+  free(game);
+  return rc;
+}
+
+/*
+ * Audit N3 / N4: FUN_2b5a_2866 Create Unit. Treasure = `mov byte [bx+0x315b],1` (asm
+ * 0x23A7D, 100 gold); Wagon Train home +0x314a = FUN_281f_0614(x, y, owner, -1), the
+ * owner's nearest colony (asm 0x23A42-0x23A5B).
+ */
+static int case_cheat_create_treasure_wagon_dos(void) {
+  ColonizeGameState* game = calloc(1, sizeof(*game));
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  if (!game || !assets_msg_load_file(&names, "COLONIZE/NAMES.TXT") ||
+      !units_load_types(&game->units, &names)) {
+    assets_msg_free(&names);
+    free(game);
+    fprintf(stderr, "SKIP: NAMES.TXT\n");
+    return TR_SKIP;
+  }
+  ai_popup_init(&game->ai_popups);
+  game->units_ok = true;
+  game->colonies_ok = true;
+  game->human_nation = 0;
+  game->cheat_create_pending_nation = -1;
+  game->map_cursor_x = 5;
+  game->map_cursor_y = 5;
+  static const struct { int id, nation, x, y; } k_cols[] = {
+    {3, 0, 12, 5}, {4, 1, 6, 5}, {7, 0, 9, 5},
+  };
+  for (int i = 0; i < 3; ++i) {
+    ColonizeColony* c = &game->colonies.colonies[i];
+    c->active = true;
+    c->id = k_cols[i].id;
+    c->nation_id = k_cols[i].nation;
+    c->x = k_cols[i].x;
+    c->y = k_cols[i].y;
+  }
+  int rc = 0;
+  for (int row = 6; row <= 7 && rc == 0; ++row) {
+    const int before = units_slot_end(&game->units);
+    game->cheat_list.has_result = true;
+    game->cheat_list.result_kind = CHEAT_LIST_KIND_CREATE_UNIT;
+    game->cheat_list.result_id = row;
+    game_apply_cheat_list_result(game);
+    const ColonizeUnit* u =
+      units_slot_end(&game->units) > before ? &game->units.units[before] : NULL;
+    if (!u || !u->active) {
+      rc = fail("cheat Create Unit spawned nothing");
+    } else if (row == 6 && (units_type_kind(units_type(&game->units, u->type_index)) !=
+                                UNITS_KIND_WAGON ||
+                            u->col1_origin != 7)) {
+      fprintf(stderr, "wagon origin %d, want 7\n", u->col1_origin);
+      rc = fail("cheat Wagon Train home = owner's nearest colony");
+    } else if (row == 7 && units_treasure_value_gold(u) != 100) {
+      fprintf(stderr, "treasure %d gold, want 100\n", units_treasure_value_gold(u));
+      rc = fail("cheat Treasure is worth 100");
+    }
+  }
+  assets_msg_free(&names);
+  free(game);
+  return rc;
+}
+
+/*
+ * Audit N8 / N11 / N10 / N-U. Sound Test: FUN_291f_0436(DEBUG, SOUND, dx 1) shows the
+ * @SOUND prose seeded with 1 (asm 0x23D86). Default route name with no @TRADENAMES:
+ * the bare colony name (asm 0x61157-0x61169). Text entry: any click accepts (FUN_6f74_2580
+ * LAB_6f74_2e53, only Esc writes -1), and Land Ho stores even an emptied field
+ * (FUN_2b5a_001e strcpy, asm 0x20F26).
+ */
+static int case_cheat_prompts_and_text_entry_dos(void) {
+  ColonizeGameState* game = calloc(1, sizeof(*game));
+  if (!game) {
+    return fail("allocate game");
+  }
+  ai_popup_init(&game->ai_popups);
+  assets_msg_init(&game->debug_txt);
+  assets_msg_init(&game->messages);
+  int rc = 0;
+  if (assets_msg_load_file(&game->debug_txt, "COLONIZE/DEBUG.TXT")) {
+    game->debug_txt_ok = true;
+    game_open_cheat_sound_test(game);
+    if (!game->howmuch.open || !strstr(game->howmuch.prompt, "sound") ||
+        game->howmuch.amount != 1) {
+      fprintf(stderr, "sound prompt '%s' amount %d\n", game->howmuch.prompt,
+              game->howmuch.amount);
+      rc = fail("Sound Test prompt / seed");
+    }
+  }
+  game->colonies_ok = true;
+  game->colonies.colonies[0].active = true;
+  game->colonies.colonies[0].id = 2;
+  snprintf(game->colonies.colonies[0].name, sizeof(game->colonies.colonies[0].name), "Plymouth");
+  char def_name[NAME_ENTRY_NAME_LEN];
+  game_trade_default_name(game, 2, def_name, sizeof(def_name));
+  if (rc == 0 && strcmp(def_name, "Plymouth") != 0) {
+    fprintf(stderr, "default route name '%s'\n", def_name);
+    rc = fail("no @TRADENAMES: bare colony name");
+  }
+  ColonizeInputState in;
+  for (int pass = 0; pass < 2 && rc == 0; ++pass) {
+    NameEntryDialog ne;
+    name_entry_init(&ne);
+    (void)name_entry_open(&ne, NAME_ENTRY_KIND_FOUND, "", "Jamestown", 1);
+    ne.dialog_x = 100;
+    ne.dialog_y = 80;
+    ne.dialog_w = 120;
+    ne.dialog_h = 40;
+    memset(&in, 0, sizeof(in));
+    in.mouse_x = 10;
+    in.mouse_y = 10;
+    in.mouse_left_clicked = pass == 0;
+    in.mouse_right_clicked = pass == 1;
+    name_entry_handle_input(&ne, &in);
+    if (!ne.has_result || ne.result_cancelled || strcmp(ne.result_name, "Jamestown") != 0) {
+      rc = fail(pass == 0 ? "outside left click must accept" : "right click must accept");
+    }
+  }
+  if (rc == 0) {
+    game->col1_ok = true;
+    game->human_nation = 0;
+    snprintf(game->col1.player[0].country_name, sizeof(game->col1.player[0].country_name),
+             "New England");
+    (void)name_entry_open(&game->name_entry, NAME_ENTRY_KIND_LANDHO, "", "", -1);
+    memset(&in, 0, sizeof(in));
+    in.last_key = COLONIZE_KEY_ENTER;
+    (void)game_handle_modal_input(game, &in);
+    if (game->name_entry.open || game->col1.player[0].country_name[0] != '\0') {
+      fprintf(stderr, "country '%s'\n", game->col1.player[0].country_name);
+      rc = fail("Land Ho must store the emptied field");
+    }
+  }
+  assets_msg_free(&game->debug_txt);
   assets_msg_free(&game->messages);
   free(game);
   return rc;
@@ -1484,6 +1615,8 @@ static const TestCase k_cases[] = {
     {"debug_test_ignores_directives", case_debug_test_ignores_directives},
     {"cheat_list_shared_parser", case_cheat_list_shared_parser},
     {"cheat_create_unit_is_dos", case_cheat_create_unit_is_dos},
+    {"cheat_create_treasure_wagon_dos", case_cheat_create_treasure_wagon_dos},
+    {"cheat_prompts_and_text_entry_dos", case_cheat_prompts_and_text_entry_dos},
     {"dest_pager_is_dos", case_dest_pager_is_dos},
     {"find_colony_is_dos", case_find_colony_is_dos},
     {"trade_cargo_columns_are_dos", case_trade_cargo_columns_are_dos},

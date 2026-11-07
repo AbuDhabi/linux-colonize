@@ -2862,7 +2862,7 @@ COLONIZE_INTERNAL Col1StageStatus col1_bridge_capture_head(Col1CaptureCtx* ctx) 
    * intervention ally (0x53d4), mislabeling the intervention force "Tory".
    * Belt for campaigns declared before ai_king_do_declare stamped it. */
   if (save->head.game_options.woi && save->head.crown_nation_id < 0) {
-    save->head.crown_nation_id = (int16_t)(human_nation == 0 ? 1 : 0);
+    save->head.crown_nation_id = (int16_t)ai_king_crown_nation(human_nation);
   }
   return COL1_STAGE_OK;
 }

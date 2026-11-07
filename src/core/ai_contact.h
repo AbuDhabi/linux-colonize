@@ -173,10 +173,12 @@ int ai_contact_try_village_gifts(ColonizeTurnContext* ctx, int nation_id);
  * AI wagon village-errand trade (FUN_4d56_4528 AI arm case 1 → FUN_4d56_2820
  * on the AI-silent path). indian_nation is 4..11. Returns 1 when the 2820
  * shell ran. Caller (ai_euro 20e6 errand walker) owns the errand latch and
- * the MP forfeit.
+ * the MP forfeit. Bound to the entered village record (`tribe_index`,
+ * DS:0x8d4a, as 4528's head binds it); -1 = the tribe's first village
+ * adjacent to the wagon.
  */
-int ai_contact_ai_wagon_village_trade(
-  ColonizeTurnContext* ctx, int indian_nation, int euro_nation, int unit_id
+int ai_contact_ai_wagon_village_trade_at(
+  ColonizeTurnContext* ctx, int indian_nation, int euro_nation, int unit_id, int tribe_index
 );
 
 /*

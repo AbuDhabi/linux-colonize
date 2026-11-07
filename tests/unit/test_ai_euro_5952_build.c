@@ -299,6 +299,11 @@ static int case_wagon_train_pick(void) {
   f.col1.tribe[0].nation_id = 4;
   f.col1.tribe[0].x = 12;
   f.col1.tribe[0].y = 8;
+  /* 5952 reads DS:0x95f2 as the nation's census froze it, not a recount. */
+  const int cont = map_continent_id_at(f.ctx.map, f.col->x, f.col->y);
+  if (cont >= 0 && cont < 16) {
+    f.col1.stuff.continent_presence_flags[cont] |= 1;
+  }
   ai_euro_5952_build_cascade(&f.ctx, f.col);
   const int got = f.col->building_in_production;
   free(f.col1.tribe);

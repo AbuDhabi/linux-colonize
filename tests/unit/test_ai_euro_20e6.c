@@ -307,9 +307,10 @@ static int unit_stale_goto_rescored_at_full_mp(void) {
  * Euro peer, the village arm must still fire.
  */
 /* Returns 1 when the Scout scouted the village, 0 when not, -1 on fixture
- * failure. *entered: the arm's entry latch (an angry chief may kill the
- * Scout before it scouts). */
-static int scout_village_visit(int alarm, int* entered) {
+ * failure. *entered: the arm fired (plan 0x4c, or an angry chief killed the
+ * Scout before it scouted). revisit: clear the scouted bit after the first
+ * turn (a CHIEFBORED outcome leaves it clear) and run a second turn. */
+static int scout_village_visit_ex(int alarm, int* entered, bool revisit) {
   const int nation = 1;
   Fixture f;
   if (fixture_init(&f, nation) != 0) {
@@ -364,11 +365,21 @@ static int scout_village_visit(int alarm, int* entered) {
   s->moves = 4 * UNITS_MP_PER_TILE;
   s->orders = 0;
 
-  memset(ai_euro_s_20e6_village_visited, 0, sizeof(ai_euro_s_20e6_village_visited));
   ai_euro_dispatcher_turn(&f.ctx, nation);
+  if (revisit) {
+    tribe.state.scouted = 0;
+    s = units_get(&f.units, sid);
+    if (s) {
+      s->moves = 4 * UNITS_MP_PER_TILE;
+      s->orders = 0;
+      s->col1_ai_plan = 0;
+    }
+    ai_euro_dispatcher_turn(&f.ctx, nation);
+  }
 
   const int visited = tribe.state.scouted != 0;
-  *entered = (ai_euro_s_20e6_village_visited[0] & (1u << nation)) != 0;
+  s = units_get(&f.units, sid);
+  *entered = !s || !s->active || s->col1_ai_plan == 0x4c;
   f.col1.tribe = NULL;
   if (!visited) {
     s = units_get(&f.units, sid);
@@ -377,6 +388,47 @@ static int scout_village_visit(int alarm, int* entered) {
   }
   fixture_free(&f);
   return visited;
+}
+
+/* FUN_1427_0d38 walks the DOS tile chain, which holds a ship's passengers
+ * beside it: the 20e6 / 0a60 / 5952 stack counts include them. */
+static int unit_tile_chain_counts_passengers(void) {
+  Fixture f;
+  if (fixture_init(&f, 1) != 0) {
+    return 1;
+  }
+  const int ship_id = units_spawn(&f.units, 2, 14, 8);
+  const int pax_id = units_spawn_allow_stack(&f.units, 0, 14, 8);
+  (void)units_spawn_allow_stack(&f.units, 0, 14, 8);
+  if (ship_id < 0 || pax_id < 0 || !units_board_stacked(&f.units, pax_id, ship_id)) {
+    fixture_free(&f);
+    return fail("spawn/board");
+  }
+  const int chain = ai_euro_tile_chain_count(&f.units, 14, 8);
+  const int on_map = units_count_at(&f.units, 14, 8);
+  fixture_free(&f);
+  if (chain != 3 || on_map != 2) {
+    fprintf(stderr, "chain=%d (want 3) on_map=%d (want 2)\n", chain, on_map);
+    return fail("tile chain must count the ship's passenger");
+  }
+  return 0;
+}
+
+static int scout_village_visit(int alarm, int* entered) {
+  return scout_village_visit_ex(alarm, entered, false);
+}
+
+/* FUN_521d_20e6 raw 89064-89068 has no per-(village, nation) latch: a chief
+ * that left the scouted bit clear is asked again on the next turn. */
+static int unit_scout_revisits_unscouted_village(void) {
+  int entered = 0;
+  if (scout_village_visit_ex(0, &entered, true) < 0) {
+    return 1;
+  }
+  if (!entered) {
+    return fail("a still-unscouted village must re-fire the 0x4c arm");
+  }
+  return 0;
 }
 
 static int unit_scout_visits_village_at_war(void) {
@@ -4640,6 +4692,8 @@ static const TestCase k_cases[] = {
     {"unit_wagon_load_matrix_starts_village_errand", unit_wagon_load_matrix_starts_village_errand},
     {"unit_wagon_errand_trades_at_village", unit_wagon_errand_trades_at_village},
     {"unit_wagon_errand_dead_end_destroyed", unit_wagon_errand_dead_end_destroyed},
+    {"unit_scout_revisits_unscouted_village", unit_scout_revisits_unscouted_village},
+    {"unit_tile_chain_counts_passengers", unit_tile_chain_counts_passengers},
 };
 
 TEST_MAIN(k_cases)

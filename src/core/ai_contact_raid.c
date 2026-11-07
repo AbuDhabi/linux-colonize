@@ -471,7 +471,7 @@ static void ai_contact_raid_wreak_bulletin(
   }
   PopupMsgTokens tok;
   memset(&tok, 0, sizeof(tok));
-  tok.string0 = ai_contact_tribe_name(indian_nation);
+  tok.string0 = reports_tribe_display_name(indian_nation - 4); /* 5fef_0f14 raw 99769: 0a1a(tribe) */
   tok.string1 = c->name[0] ? c->name : "";
   /* FUN_5fef_0f14 raw 99896: %STRING3 = FUN_281f_09a4(colony owner), the
    * @NATIONALITY adjective ("Tory" under the WoI), not the country name. */
@@ -935,7 +935,7 @@ static void ai_contact_raid_human_chrome(
   char raid_line[AI_POPUP_BODY_LEN];
   PopupMsgTokens raid_tok;
   memset(&raid_tok, 0, sizeof(raid_tok));
-  raid_tok.string0 = ai_contact_tribe_name(nation_id);
+  raid_tok.string0 = reports_tribe_display_name(nation_id - 4); /* 5fef_0f14 raw 99769: 0a1a(tribe) */
   raid_tok.string1 = c->name[0] ? c->name : NULL;
   const AiRaidChrome* row =
     ai_contact_raid_chrome_row(kind, ai_contact_s_last_burn_building[0] != '\0');

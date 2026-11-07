@@ -868,7 +868,8 @@ void ai_king_succession(ColonizeTurnContext* ctx) {
   col1->head.crown_nation_id = (int16_t)merged;
   /* @SUCCESSION Treaty of Utrecht announcement. */
   if (ai_king_human_popups(ctx)) {
-    const char* ceder = reports_nation_country_name(merged);
+    /* raw 73649 FUN_291f_0ac8(0, 1, merged): sentence-start phrase form. */
+    const char* ceder = reports_nation_country_phrase(merged, 1);
     const char* domain = col1_player_country_name(col1, merged)[0]
                            ? col1_player_country_name(col1, merged)
                            : "";
@@ -889,7 +890,7 @@ void ai_king_succession(ColonizeTurnContext* ctx) {
     );
   }
   if (ctx->status && ctx->status_size && ctx->status[0] == '\0') {
-    const char* ceder = reports_nation_country_name(merged);
+    const char* ceder = reports_nation_country_phrase(merged, 1);
     const char* domain = col1_player_country_name(col1, merged)[0]
                            ? col1_player_country_name(col1, merged)
                            : "";
@@ -1243,9 +1244,11 @@ void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
 static void ai_king_show_declare_choice(ColonizeTurnContext* ctx, int human, int sol) {
   if (ai_king_human_popups(ctx)) {
     /* port_bugs.md #235: %STRING0 is the Crown nation ("England"), never the
-     * player's new-world country_name ("New England"). NAMES.TXT @COUNTRY. */
+     * player's new-world country_name ("New England"). FUN_43f7_2564 raw
+     * 75237: FUN_291f_0ac8(0, 0, 0x5398), the mid-sentence phrase form
+     * ("the Netherlands"). */
     const char* motherland =
-      (human >= 0 && human <= 3) ? reports_nation_country_name(human) : "";
+      (human >= 0 && human <= 3) ? reports_nation_country_phrase(human, 0) : "";
     PopupMsgTokens tok;
     memset(&tok, 0, sizeof(tok));
     tok.string0 = motherland;

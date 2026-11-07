@@ -1214,7 +1214,10 @@ static void render_europe_holds_and_dock(
   const ColonizeGameState* game, ColonizeFramebuffer8* framebuffer, const ColonizeFont* font,
   const EuropeScreen* eu
 ) {
-  /* Commodity holds — same closed/open cover behavior as colony transport pane. */
+  /* Commodity holds — same closed/open cover behavior as colony transport pane.
+   * FUN_38fd_0f8c raw 59552-59573: slots below the @UNIT capacity draw only
+   * the goods icon, the rest the cover; passengers live in the Loading box
+   * (FUN_291f_0df0), never in a hold slot (O-U). */
   {
     const EuropeHarborShip* ship = NULL;
     int open_holds = 0;
@@ -1236,21 +1239,6 @@ static void render_europe_holds_and_dock(
             const ColonizeSprite* sp = &game->unit_icons.sprites[sprite];
             const int ix = x + (EUROPE_HOLD_W - sp->width) / 2;
             ss_blit_sprite(&game->unit_icons, sprite, framebuffer, ix, hy);
-          }
-        }
-      }
-      for (int i = 0; i < ship->cargo_count; ++i) {
-        const int slot = open_holds + i;
-        if (slot >= EUROPE_HOLD_MAX) {
-          break;
-        }
-        const int x = EUROPE_HOLD_X + slot * EUROPE_HOLD_PITCH;
-        const int hy = EUROPE_HOLD_Y;
-        const int pax_type = ship->cargo_types[i];
-        if (game->unit_icons_ok && pax_type >= 0) {
-          const ColonizeUnitType* ut = units_type(&game->units, pax_type);
-          if (ut && ut->icon_sprite >= 0 && ut->icon_sprite < game->unit_icons.sprite_count) {
-            ss_blit_sprite(&game->unit_icons, ut->icon_sprite, framebuffer, x, hy);
           }
         }
       }
@@ -1458,7 +1446,12 @@ void render_colony_screen(const ColonizeGameState* game, ColonizeFramebuffer8* f
     ((ColonyScreenView*)&game->colony_screen)->blink_ms = game->elapsed_ms;
   }
   const ColonizeWorld w = game_world_const(game);
-  colony_screen_render_w(&w, game->colony_screen_ok ? (ColonyScreenView*)&game->colony_screen : NULL, colony, game->terrain_ok ? &game->terrain : NULL, game->phys0_ok ? &game->phys0 : NULL, game->game_year, game->game_autumn, game->europe.gold, font, game->debug_building_rects, game->labels_ok ? &game->labels : NULL, framebuffer);
+  /* O6: FUN_2f2b_0fce appends FUN_281f_0b1e(colony+0x1a) = FUN_15eb_0544, the
+   * colony OWNER's nation gold (raw 47876), not the viewer's. */
+  const int gold = colony ? (int)europe_nation_gold(&game->europe, game->col1_ok ? &game->col1 : NULL,
+                                                    colony->nation_id)
+                          : game->europe.gold;
+  colony_screen_render_w(&w, game->colony_screen_ok ? (ColonyScreenView*)&game->colony_screen : NULL, colony, game->terrain_ok ? &game->terrain : NULL, game->phys0_ok ? &game->phys0 : NULL, game->game_year, game->game_autumn, gold, font, game->debug_building_rects, game->labels_ok ? &game->labels : NULL, framebuffer);
   game_render_modal_overlays(game, framebuffer);
 }
 

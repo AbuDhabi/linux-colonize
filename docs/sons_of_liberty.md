@@ -219,7 +219,7 @@ intervention pool seed, bell trigger and landings are ported
 
 ## Continental promote (`FUN_43f7_1eca`)
 
-Uses **colony** SoL at the unit’s tile ([`ai_king_colony_sol_at`](../src/core/ai_king.c)):
+Uses the live colony's SoL (`FUN_15eb_0274` via [`ai_king_colony_sol_at`](../src/core/ai_king.c); a colony founded since the last save capture reads 0%, never the nation's SoL):
 
 | Colony SoL | Effect |
 |------------|--------|

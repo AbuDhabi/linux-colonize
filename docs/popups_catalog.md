@@ -197,7 +197,7 @@ Continue / Zoom rows, MSS figure; popups.md "Colony-event choices"). The
 | `@MISSION1` | Done | as `@MISSION0` |
 | `@MISSION2` | Done | as `@MISSION0` |
 | `@MISSION3` | Done | as `@MISSION0` |
-| `@HERESY0` | Done | `ai_contact_denounce_heresy` — real GAME.TXT body via `popup_msg_fill`, both outcomes (mission taken over / missionary burned) |
+| `@HERESY0` | Done | `ai_contact_denounce_heresy` — real GAME.TXT body via `popup_msg_fill`, both outcomes (mission taken over / missionary burned); shown to the human for an AI denouncer too (a594 has no human gate) |
 | `@HERESY1` | Done | as `@HERESY0` |
 | `@INDIANBURN` | Done | `FUN_4cc6_0000` mission clear (`ai_contact_demand.c`) — real GAME.TXT body via `popup_msg_fill` |
 | `@INDIANWIN0` | Done | Native attacker beats a human land defender: `units_combat_outcome_popups` queues @INDIANWIN0, or @INDIANWIN1 / @INDIANWIN2 when the gear step armed / mounted the Brave (raw 101088-101095). Not in the `bVar28` undefended-colony arm (raw 101042: colony rows instead; #1464) |
@@ -208,7 +208,7 @@ Continue / Zoom rows, MSS figure; popups.md "Colony-event choices"). The
 | `@INDIANWINCOLONY2` | Done | Human-bystander "Spies report…" twin of the above |
 | `@INDIANBURNCOLONY` | Done | Last colonist falls → colony burned (`units_combat_notify_colony_burned`, + woodcut 11). The `@BURNED` family is the both-Euro arm only |
 | `@INDIANBURNCOLONY2` | Done | Human-bystander twin (`units_combat_notify_colony_burned_foreign`) |
-| `@INDIANSURPRISE` | Done | brave raid on a colony while NOT at war (`ai_contact_raid.c` raid chrome) — real GAME.TXT body with DOS's three slots (tribe / colony / tribe), wired 2026-09-16; was an invented one-liner |
+| `@INDIANSURPRISE` | Not ported | DOS site is FUN_4d56_021a's tail (OVL13 0x1316-0x13ae): a Brave's attack pick (flag 8) onto land owned by a human nation that has a colony -> 281f_0652(0x14dc, 1), %STRING0 = 0a1a(tribe), %STRING1 = nearest colony (15eb_0142), %STRING2 = 09a4(tribe). Statically on every such pick, which conflicts with the user's DOS observation (#132: first attack only); the raid-chrome prefix was removed with #1093. OPEN: needs a DOSBox trace |
 | `@CAPTURED` | Done | Euro colony conquest with plunder |
 | `@CAPTURED2` | Done | spies report (AI capturer) |
 | `@CAPTURED3` | Done | conquest without plunder amount |
@@ -225,7 +225,7 @@ Continue / Zoom rows, MSS figure; popups.md "Colony-event choices"). The
 | `@TOONEAR` | Done | already real (`game_loop.c` Build Colony adjacency-to-existing-colony scan) — verified against DOS |
 | `@TOONEARBUILD` | Done | new 9-tile neighbor scan for a unit with `UNITS_ORDER_BUILD_COLONY` pending (`game_try_found_colony_at_cursor`, `game_dialogs.c`) — was entirely unported, fell through to generic "Cannot found colony here" |
 | `@DONTKNOWSHIPS` | Done | Ship→unmet village: `ai_contact_try_ship_village` OK |
-| `@MADATSHIPS` | Done | Ship→met village (rel≥75 / friction≥64): same |
+| `@MADATSHIPS` | Done | Ship→met village (alarm≥75 / signed attitude word≥64, no at-war test): same |
 | `@MADATWAGONS` | Done | Enter Hostile Village (`thunk_FUN_1000_a5e8`, `ai_contact_enter_hostile_village`): rand(0,500) <= 2 * alarm |
 | `@GRUDGEWAGONS` | Done | same, the trade then runs |
 | `@CONFISCATE` | Dead tag | GAME.TXT-only: the string does not exist in VICEROY.EXE's DS (verified by `strings` over `COLONIZE/VICEROY.EXE`), so DOS never raises it. Nothing to port. |
@@ -253,7 +253,7 @@ Continue / Zoom rows, MSS figure; popups.md "Colony-event choices"). The
 | `@LEARNMASTER` | Done | Already-expert learner refuse; `popup_msg_fill`; does not consume village one-shot |
 | `@LEARNCRIMINAL` | Done | `ai_contact_live_among_natives` real body via `popup_msg_fill`; Petty Criminal refused outright, one-shot not consumed (re-verified 2026-09-16) |
 | `@LEARNALREADY` | Done | `ai_contact_live_among_natives` real body via `popup_msg_fill`; village already taught && !capital (re-verified 2026-09-16) |
-| `@LEARNMAD` | Done | Alarm/friction ≥40 refuse (both mid and hostile bands); `popup_msg_fill` |
+| `@LEARNMAD` | Done | Alarm/friction ≥40 refuse (both mid and hostile bands); `popup_msg_fill`. Its `leave_._._._your` reads as spaces: FUN_7314_0106 turns every `_` of a content line into a space (`assets.c` msg_push_line) |
 | `@LEARNSLOW` | Done | `ai_contact_live_among_natives` real body via `popup_msg_fill`; quartile-1 slow-learner roll (re-verified 2026-09-16) |
 | `@LEARNSTAY` | Done | Yes/No CHOICE `AI_POPUP_TAG_CONTACT_LEARNSTAY` (2026-08-28) |
 | `@LEARNLATER` | Done | `ai_contact_live_among_natives` real body via `popup_msg_fill`; `@LEARNSTAY` No branch, Esc included (a618 `DEC AX; JZ`) (re-verified 2026-09-16) |

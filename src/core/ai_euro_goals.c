@@ -735,7 +735,8 @@ void ai_euro_0a60_goal_orders_structural(ColonizeTurnContext* ctx, int nation_id
  *   here, shared between the two loops exactly as DOS shares them).
  *
  * FUN_1000_8aac mode 2 — 2026-09-06b: the real 0d38 case-2 body IS the
- * plain stack count, so the plain units_count_at walk is byte-right (the old
+ * plain stack count over the whole tile chain, passengers included
+ * (ai_euro_tile_chain_count; the old
  * "4fa8 chain splice, substituted" story targeted the wrong function).
  * Mode 0xd (every-4th CONTACT-scan skip, Σ ship hold capacity in the
  * stack) is wired for real at the lurk scan — 2026-09-06b rewire.
@@ -837,7 +838,7 @@ static void ai_euro_0a60_foreign_colony_producers(
       if ((int)col_cnt[nation_id][cont] + (int)land_cnt[nation_id][cont] != 0 &&
           ((rec + turn) & 3) != 0) { /* raw 87778 */
         const int defenders =
-          units_count_at(ctx->units, c->x, c->y) + (int)c->population;
+          ai_euro_tile_chain_count(ctx->units, c->x, c->y) + (int)c->population;
         if (defenders > 6 - turn / 50) {
           ai_goals_upsert_primary(
             nation_id, c->x, c->y, AI_GOAL_MILITARY, at_peace ? 3 : 5
@@ -1003,7 +1004,7 @@ static void ai_euro_0a60_foreign_colony_producers(
     }
     /* Weakly-defended target cancels the staging goal (raw 1197-1203). */
     const int defenders =
-      units_count_at(ctx->units, c->x, c->y) + (int)c->population;
+      ai_euro_tile_chain_count(ctx->units, c->x, c->y) + (int)c->population;
     if (defenders <= 6 - turn / 50) {
       outmatched = 0;
       absent = 0;
@@ -1298,8 +1299,8 @@ static void ai_euro_5952_labor_demand(
     /* Slot walk (Leads 2, 2026-09-10): `i` is an array index, not a unit id. */
     for (int i = 0; i < units_slot_end(ctx->units); ++i) {
       const ColonizeUnit* u = &ctx->units->units[i];
-      if (!u->active || u->aboard_ship_id >= 0 || u->x != c->x || u->y != c->y) {
-        continue;
+      if (!ai_euro_in_tile_chain(ctx->units, u, c->x, c->y)) {
+        continue; /* FUN_1427_005c chain: passengers included */
       }
       if (units_type_has_profession_slot(ai_euro_20e6_dos_type(ctx->units, u))) {
         outside++;
@@ -1329,8 +1330,8 @@ static void ai_euro_5952_labor_demand(
     /* Slot walk (Leads 2, 2026-09-10): `i` is an array index, not a unit id. */
     for (int i = 0; i < units_slot_end(ctx->units); ++i) {
       ColonizeUnit* u = &ctx->units->units[i];
-      if (!u->active || u->aboard_ship_id >= 0 || u->x != c->x || u->y != c->y) {
-        continue;
+      if (!ai_euro_in_tile_chain(ctx->units, u, c->x, c->y)) {
+        continue; /* raw 94040 07e0/02e4 chain: passengers included */
       }
       const int dtype = ai_euro_20e6_dos_type(ctx->units, u);
       if (dtype >= 0x0d && dtype <= 0x12) {
@@ -1421,10 +1422,10 @@ static void ai_euro_5952_ai_flags(
   int wanted = div != 0 ? base / div : 0;
   /*
    * DS:0x95f2[cont] `continent_presence_flags` — the war-declare half of this
-   * same FUN_5952_035e body reads the identical byte ~6 lines later, so the
-   * computation lives once, in ai_contact.c, which carries the full
-   * FUN_4962_0018 citation for all three bits and the argument that the array
-   * is zeroed at the top of every per-nation call. Two copies that disagreed
+   * same FUN_5952_035e body reads the identical byte ~6 lines later. DOS reads
+   * the byte this nation's FUN_4962_0018 census (its 3844_00f2 tail, raw
+   * 58390) froze before 6d8e ran, so this is the col1->stuff copy, not a live
+   * recount (ai_contact_actions.c carries the full writer citation). Two copies that disagreed
    * about the aboard-ship filter and the owner-nibble mask were merged
    * 2026-09-10 (audit C7); the same audit refuted docs/save_format_map.md row
    * 156's "not cleared between nations, accumulates across the full per-turn
@@ -1433,7 +1434,7 @@ static void ai_euro_5952_ai_flags(
    * war-cargo scorer consumes, and is simply ignored in this arm. The local
    * rename wrapper this used to go through went with audit AE-34.
    */
-  const int presence = ai_contact_continent_presence_4962(ctx, nation_id, cont);
+  const int presence = ai_euro_20e6_presence_95f2(ctx, nation_id, cont);
   if (presence == 0 && stance != 0) {
     wanted = 0;
   }

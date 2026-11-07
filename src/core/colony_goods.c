@@ -395,9 +395,9 @@ int colonies_transfer_from_unit(
     return 0;
   }
   col->stock[ctype] += move;
-  /* Col1 +0x8f: goods unload clears cargo_idle_turns (decomp ~90249). */
+  /* No +0x8f write: its only clear is the FUN_521d_20e6 hull dump (raw
+   * 90249, ai_euro_ship.c), not every unload. */
   if (move > 0) {
-    col->cargo_idle_turns = 0;
     diag_info(
       "CARGO unit %d -> %s: cargo %d x%d (colony stock %d, cap %d)",
       unit_id, col->name[0] ? col->name : "colony", ctype, move, col->stock[ctype], cap
@@ -451,7 +451,6 @@ int colonies_transfer_from_unit_amount(
   u->hold_goods_amount[hold_index] = (uint8_t)(held - amount);
   const int cap = colonies_warehouse_capacity(pool, col, ctype);
   col->stock[ctype] += amount;
-  col->cargo_idle_turns = 0;
   /* FUN_479b_0f60 (viceroy 77396) gates the full-warehouse confirm on
    * `local_18 != 0` — cargo 0 (Food) never raises it. */
   if (out_warehouse_full && ctype != COLONIZE_CARGO_FOOD && cap > 0 &&

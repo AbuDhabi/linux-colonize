@@ -614,7 +614,8 @@ static void set_type_keep_feat(uint8_t* terrain, int i, uint8_t type_0_1f) {
 }
 
 /* FUN_1bca_0002 rectangle outline: top/bottom horizontals + left/right verticals. */
-/* FUN_281f_00ce: inclusive rectangle outline (x0,y0)–(x1,y1). */
+/* FUN_281f_00ce: inclusive rectangle outline (x0,y0)–(x1,y1). A plane-draw
+ * primitive: stores the whole byte, feature bits cleared (M3). */
 static void paint_rect_outline(
   uint8_t* terrain,
   int w,
@@ -623,7 +624,7 @@ static void paint_rect_outline(
   int y0,
   int x1,
   int y1,
-  uint8_t type_0_1f
+  uint8_t color
 ) {
   if (x1 < x0) {
     const int t = x0;
@@ -637,18 +638,18 @@ static void paint_rect_outline(
   }
   for (int x = x0; x <= x1; ++x) {
     if (map_dims_in_bounds(x, y0, w, h)) {
-      set_type_keep_feat(terrain, idx(x, y0, w), type_0_1f);
+      terrain[idx(x, y0, w)] = color;
     }
     if (y1 != y0 && map_dims_in_bounds(x, y1, w, h)) {
-      set_type_keep_feat(terrain, idx(x, y1, w), type_0_1f);
+      terrain[idx(x, y1, w)] = color;
     }
   }
   for (int y = y0; y <= y1; ++y) {
     if (map_dims_in_bounds(x0, y, w, h)) {
-      set_type_keep_feat(terrain, idx(x0, y, w), type_0_1f);
+      terrain[idx(x0, y, w)] = color;
     }
     if (x1 != x0 && map_dims_in_bounds(x1, y, w, h)) {
-      set_type_keep_feat(terrain, idx(x1, y, w), type_0_1f);
+      terrain[idx(x1, y, w)] = color;
     }
   }
 }
@@ -670,13 +671,16 @@ static void paint_arctic_and_high_seas(
     return;
   }
 
-  /* FUN_281f_00ba: local_e==0 → fill y=h-4..h-1; else fill y=0..3. */
+  /* FUN_281f_00ba: local_e==0 → fill y=h-4..h-1; else fill y=0..3.
+   * M3: the 00ba fill (FUN_1b9e_000a), the 00ce outline and the 0x28 stomps
+   * (FUN_2a1f_0872, BX=0x18) store the bare byte (raw 106956-106966); only
+   * passes 1-3 below keep the feature bits (asm: AND BX,0xe0 / ADD BX,0x1a). */
   if (h >= 4) {
     const int y0 = open_south ? (h - 4) : 0;
     const int y1 = open_south ? h : 4;
     for (int y = y0; y < y1; ++y) {
       for (int x = 0; x < w; ++x) {
-        set_type_keep_feat(terrain, idx(x, y, w), T_OCEAN);
+        terrain[idx(x, y, w)] = T_OCEAN;
       }
     }
   }
@@ -690,11 +694,11 @@ static void paint_arctic_and_high_seas(
   for (int n = 0; n < 0x28; ++n) {
     int x = dos_rng_range(rng, 1, w) - 1;
     if (x >= 0 && x < w && h > 2) {
-      set_type_keep_feat(terrain, idx(x, 1, w), T_ARCTIC);
+      terrain[idx(x, 1, w)] = T_ARCTIC;
     }
     x = dos_rng_range(rng, 1, w) - 1;
     if (x >= 0 && x < w && h > 2) {
-      set_type_keep_feat(terrain, idx(x, h - 2, w), T_ARCTIC);
+      terrain[idx(x, h - 2, w)] = T_ARCTIC;
     }
   }
 

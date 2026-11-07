@@ -34,10 +34,10 @@ static void name_entry_finish(NameEntryDialog* dlg, bool cancelled) {
   dlg->result_cancelled = cancelled;
   dlg->result_kind = dlg->kind;
   if (!cancelled) {
-    /* Empty LANDHO name: caller fills the NAMES.TXT @COLONYNAME nation default. */
     str_copy_trunc(dlg->result_name, sizeof(dlg->result_name), dlg->name);
   } else {
-    /* Cancel: keep typed/seed text for LANDHO so discovery still names the land. */
+    /* Cancel: FUN_6f74_2580 copies the field to DS:0x9820 on every exit (raw
+     * 117092), and LANDHO's strcpy ignores the answer: keep the typed text. */
     if (dlg->kind == NAME_ENTRY_KIND_LANDHO) {
       str_copy_trunc(dlg->result_name, sizeof(dlg->result_name), dlg->name);
     } else {
@@ -118,16 +118,12 @@ bool name_entry_handle_input(NameEntryDialog* dlg, const ColonizeInputState* inp
       break;
   }
 
-  if (input->mouse_right_clicked) {
-    name_entry_finish(dlg, true);
-    return true;
-  }
-  if (input->mouse_left_clicked) {
-    /* Click outside the box cancels, inside accepts. */
-    name_entry_finish(
-      dlg,
-      !ui_rect_hit(dlg->dialog_x, dlg->dialog_y, dlg->dialog_w, dlg->dialog_h, input->mouse_x, input->mouse_y)
-    );
+  if (input->mouse_left_clicked || input->mouse_right_clicked) {
+    /* FUN_6f74_2580 on a text box (no rows, no unit icons): a button release
+     * anywhere, either button, ends the loop at LAB_6f74_2e53 with *param_1
+     * still 0 (raw 117037-117054), so FUN_291f_0120 accepts; only Esc writes
+     * -1 (raw 116791). Clicks on the field itself stay the caret editor's. */
+    name_entry_finish(dlg, false);
     return true;
   }
   return true;

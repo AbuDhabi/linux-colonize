@@ -45,8 +45,11 @@ static int post_land_continent(const ColonizeWorldMap* map, int x, int y) {
 }
 
 /*
- * FUN_67f4_0008 — scan 2×2 at (ox,oy). Sea requires continent id 1.
- * Returns continent id, or -1; writes representative tile to *out_x / *out_y.
+ * FUN_67f4_0008 (raw 104967-105006) — scan 2×2 at (ox,oy). Sea requires
+ * continent id 1. Returns the id of the last cell whose water test matched
+ * (local_a), or -1 when none did; writes the representative tile to *out_x /
+ * *out_y only on accept. An all-lake sea cell therefore returns the lake id
+ * and leaves the caller's coords stale (M5).
  */
 static int post_find_rep(
   const ColonizeWorldMap* map,
@@ -56,6 +59,7 @@ static int post_find_rep(
   int* out_x,
   int* out_y
 ) {
+  int last_id = -1;
   for (int x = ox; x <= ox + 1; ++x) {
     for (int y = oy; y <= oy + 1; ++y) {
       if (x < 0 || y < 0 || x >= map->width || y >= map->height) {
@@ -64,19 +68,19 @@ static int post_find_rep(
       if (post_is_ocean_hs(map, x, y) != (sea_flag != 0)) {
         continue;
       }
-      const int cid = post_continent_id(map, x, y);
-      if (sea_flag == 0 || cid == 1) {
+      last_id = post_continent_id(map, x, y);
+      if (sea_flag == 0 || last_id == 1) {
         if (out_x) {
           *out_x = x;
         }
         if (out_y) {
           *out_y = y;
         }
-        return cid;
+        return last_id;
       }
     }
   }
-  return -1;
+  return last_id;
 }
 
 static int post_walkable(
@@ -250,17 +254,19 @@ static void post_fill_plane(
   const ColonizeWorldMap* map,
   uint8_t* plane,
   int sea_flag,
-  PostCheapCache* cache
+  PostCheapCache* cache,
+  int rep[4]
 ) {
+  /* rep = FUN_67f4_0088's local_1c (cell rep) / local_20 (neighbour rep):
+   * frame locals kept across cells and both passes, so a rep 0008 did not
+   * write stays stale (M5). */
   memset(plane, 0, COLONIZE_COL1_CONNECT_PLANE_SIZE);
   /* cx: map_x = 1,5,… while < 0x3d → 15; cy: map_y = 1,5,… while < 0x49 → 18 */
   for (int cx = 0; cx < (int)COLONIZE_COL1_CONNECT_PLANE_W; ++cx) {
     const int ox = 1 + cx * 4;
     for (int cy = 0; cy < (int)COLONIZE_COL1_CONNECT_PLANE_H; ++cy) {
       const int oy = 1 + cy * 4;
-      int rx = 0;
-      int ry = 0;
-      const int cid = post_find_rep(map, ox, oy, sea_flag, &rx, &ry);
+      const int cid = post_find_rep(map, ox, oy, sea_flag, &rep[0], &rep[1]);
       if (cid < 0) {
         continue;
       }
@@ -270,14 +276,12 @@ static void post_fill_plane(
         if (!map_coords_inset(map, fox, foy)) {
           continue;
         }
-        int fx = 0;
-        int fy = 0;
-        const int fid = post_find_rep(map, fox, foy, sea_flag, &fx, &fy);
+        const int fid = post_find_rep(map, fox, foy, sea_flag, &rep[2], &rep[3]);
         if (fid < 0 || fid != cid) {
           continue;
         }
         /* Path from current rep → neighbor rep; budget 9; cache is per dest. */
-        const int cost = post_cheap_cost(cache, map, rx, ry, fx, fy, sea_flag);
+        const int cost = post_cheap_cost(cache, map, rep[0], rep[1], rep[2], rep[3], sea_flag);
         if (cost <= 0 || cost >= 8) {
           continue;
         }
@@ -363,8 +367,9 @@ void col1_post_map_rebuild_connectivity(
   cache.ty = -1;
   cache.sea_flag = -1;
   /* Pass 0 = land @ DS:0x85e8; pass 1 = sea @ DS:0x86f6 */
-  post_fill_plane(map, out->land_connectivity, 0, &cache);
-  post_fill_plane(map, out->sea_connectivity, 1, &cache);
+  int rep[4] = {0, 0, 0, 0}; /* DOS: uninitialised stack; 0 here */
+  post_fill_plane(map, out->land_connectivity, 0, &cache, rep);
+  post_fill_plane(map, out->sea_connectivity, 1, &cache, rep);
   post_cheap_cache_reset(&cache);
   post_fill_tallies(map, out);
 

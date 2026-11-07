@@ -476,10 +476,9 @@ int ai_contact_continent_war_count_a89c(const ColonizeTurnContext* ctx, int nati
  * or_both/clear_both are the sole mutation channel, and FUN_4cc6_00f2's
  * cool-below-75 clear is the only other toucher.
  *
- * DOS body, verbatim (`presence` = DS:0x95f2[cont], computed by the shared
- * `ai_contact_continent_presence_4962` above — see its header for the
- * FUN_4962_0018 writer and for why the byte always describes the nation
- * being censused):
+ * DOS body, verbatim (`presence` = DS:0x95f2[cont] as FUN_4962_0018 left it;
+ * `ai_contact_continent_presence_4962` above documents the writer and why the
+ * byte always describes the nation being censused):
  *
  *   if ((presence & 1) == 0)  -> nothing (no natives on this continent)
  *   if ((presence & 6) != 0 && nation != 2) -> else-arm: only caps the
@@ -520,7 +519,9 @@ void ai_contact_colony_tick_war_5952(ColonizeTurnContext* ctx, int nation_id, in
    * for every nation in FUN_4962_0018 and only reads them here; the two early
    * returns below are the port's own short-circuit, not a DOS ordering.
    */
-  const int presence = ai_contact_continent_presence_4962(ctx, nation_id, cont);
+  /* DS:0x95f2 as this nation's own FUN_4962_0018 census froze it at its slot
+   * start (raw 58390), as ai_euro_20e6_presence_95f2 reads it; not a recount. */
+  const int presence = col1->stuff.continent_presence_flags[cont];
   if ((presence & 1) == 0) {
     return;
   }
@@ -800,10 +801,10 @@ static void ai_contact_live_among_natives_body(
   tok.string1 = ai_contact_job_name(skill);
   const char* section = NULL;
 
-  if (band > 1 && alarm >= 0x4b) {
-    /* DOS's high-alarm village arm consumes the visit without teaching. */
-    return;
-  }
+  /* No alarm >= 0x4b return in a618 (overlays.c 77788-77831): band > 1 is
+   * +3 alarm + @LEARNMAD at any alarm. The high-alarm "visit consumed, no
+   * teaching" arm is 4528's AI switch (OVL13::004751, alarm >= 0x4b -> default),
+   * gated by the caller (ai_euro_act.c). */
   if (band > 1) {
     ai_contact_alarm_delta_00f2(ctx, nation_id, e, 3);
     const uint8_t rel = ctx->col1->indian[nation_id - 4].euro_diplo[e];
@@ -1027,27 +1028,26 @@ static void ai_contact_speak_with_chief(
           AiContactMeetEcon2154 econ;
           int want[3] = {-1, -1, -1};
           if (ai_contact_meet_economics_2154(ctx, nation_id, t, &econ)) {
-            int ask[16];
+            /* a60c (overlays.c 77536-77547): thunk_FUN_1000_a63c = 2820(unit,
+             * 0x8d4c, -1) runs the table shell (bid[0] zeroed, top three
+             * bids' ask zeroed) and returns; then ask[last_bought/sold] = 0
+             * (signed bytes, skipped when < 0) and FUN_1000_a0c0(0x9e58)
+             * sorts ask with the unstable 1cf8_000a sort. */
+            int cand[16];
             int order[16];
-            for (int i = 0; i < 16; ++i) {
-              ask[i] = (int)econ.ask[i];
-              order[i] = i;
+            /* 2820 head: the human actor's 1-in-4 village tune roll, discarded
+             * by 2820's own 0x83a6 reseed (as in ai_contact_2820_begin_at). */
+            ColonizeDosRng howdy_bgm_rng;
+            ai_contact_local_rng(ctx, nation_id, &howdy_bgm_rng);
+            (void)ai_contact_village_bgm_cue(&howdy_bgm_rng, nation_id);
+            ai_contact_2820_prepare_tables(econ.ask, econ.bid, cand);
+            if ((int8_t)t->last_bought >= 0 && t->last_bought < 16) {
+              econ.ask[t->last_bought] = 0;
             }
-            if (t->last_bought < 16) {
-              ask[t->last_bought] = 0;
+            if ((int8_t)t->last_sold >= 0 && t->last_sold < 16) {
+              econ.ask[t->last_sold] = 0;
             }
-            if (t->last_sold < 16) {
-              ask[t->last_sold] = 0;
-            }
-            for (int i = 1; i < 16; ++i) {
-              const int v = order[i];
-              int j = i - 1;
-              while (j >= 0 && ask[order[j]] > ask[v]) {
-                order[j + 1] = order[j];
-                j--;
-              }
-              order[j + 1] = v;
-            }
+            ai_contact_2820_sort(econ.ask, order);
             want[0] = order[15];
             want[1] = order[14];
             want[2] = order[13];
@@ -1414,23 +1414,26 @@ static void ai_contact_denounce_heresy(
   char body[AI_POPUP_BODY_LEN];
   char fb[AI_POPUP_BODY_LEN];
   const int roll = dos_rng_range(rng, 1, mine + pro_me > 0 ? mine + pro_me : 1);
+  /* a594 plays the sound and shows the 281f_0652(tag, 4) report with no
+   * human-actor test (asm 126605-126626): an AI denouncing is the human's
+   * news too, so the dialog goes to the human seat. */
+  int viewer = e;
+  for (int h = 0; h < 4 && !ai_contact_euro_is_human(ctx, viewer); ++h) {
+    viewer = h;
+  }
   if (pro_me < roll) {
-    /* a594 / @HERESY1: human missionary is burned (asm 126622-126626). */
-    if (ai_contact_euro_is_human(ctx, e)) {
-      sound_play(0x53);
-    }
+    /* a594 / @HERESY1: the missionary is burned (asm 126622-126626). */
+    sound_play(0x53);
     fb[0] = '\0';
     popup_msg_fill(ctx->messages, "HERESY1", &tok, fb, body, sizeof(body));
-    ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_CONVERT, nation_id, body);
+    ai_contact_human_chrome(ctx, viewer, AI_POPUP_TAG_CONTACT_CONVERT, nation_id, body);
     d_them = -d_them;
   } else {
-    /* a594 / @HERESY0: human mission takes over (asm 126605-126609). */
-    if (ai_contact_euro_is_human(ctx, e)) {
-      sound_play(0x8024);
-    }
+    /* a594 / @HERESY0: the actor's mission takes over (asm 126605-126609). */
+    sound_play(0x8024);
     fb[0] = '\0';
     popup_msg_fill(ctx->messages, "HERESY0", &tok, fb, body, sizeof(body));
-    ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_CONVERT, nation_id, body);
+    ai_contact_human_chrome(ctx, viewer, AI_POPUP_TAG_CONTACT_CONVERT, nation_id, body);
     /*
      * DB-7 fix extended: the installed mission takes the Jesuit bit on the
      * same test as the establish body (thunk_FUN_1000_a5dc: profession 0x18

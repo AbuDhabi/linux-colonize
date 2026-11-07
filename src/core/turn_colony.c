@@ -251,7 +251,6 @@ static void turn_notify_dock_immigrant(
   }
   if (out) {
     out->immigrants_arrived++;
-    /* DOS: @UNREST dialog — do not auto-dump into Europe screen (DS:0x14c is optional). */
   }
   diag_info(
     "EUROPE immigrant on the docks: %s (crosses)",
@@ -726,6 +725,19 @@ void turn_run_nation_ticks_immigration(ColonizeTurnContext* ctx, ColonizeTurnRes
           name = ctx->europe->dock[ctx->europe->dock_count - 1].name;
         }
         turn_notify_dock_immigrant(ctx, out, name);
+      }
+    }
+    /* FUN_38fd_5e52 asm 38fd:5fdb-6013: every arm past the crosses test
+     * (Brewster pick, spawn, spawn refused at the unit limit) ends with the
+     * human's dock probe FUN_281f_08bc(head, 0xe) = the largest hold among
+     * undamaged hulls on the dock; nonzero sets DS:0x14c, and FUN_3844_00f2
+     * raw 58378 opens the Europe screen at the end of the turn. */
+    if ((imm == 1 || imm == 2) && out) {
+      for (int i = 0; i < ctx->europe->harbor_ships && i < EUROPE_HARBOR_MAX; ++i) {
+        if (!ctx->europe->harbor[i].damaged) {
+          out->request_europe_open = true;
+          break;
+        }
       }
     }
   }

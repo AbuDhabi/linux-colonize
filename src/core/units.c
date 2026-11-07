@@ -1390,7 +1390,9 @@ int units_king_galleon_offer_for_unit_w(
     tok.string0 = reports_difficulty_title(d >= 0 && d < 5 ? d : 0);
     tok.string1 = col1->player[nation_id].name[0] ? col1->player[nation_id].name
                                                   : units_combat_nation_label(col1, nation_id);
-    tok.string2 = europe && europe->port_city[0] ? europe->port_city : "";
+    /* FUN_5fef_1908 raw 100166: FUN_291f_0ac8(2, 0, nation) = the country
+     * phrase, form 0 ("home to England"), not the port city. */
+    tok.string2 = reports_nation_country_phrase(nation_id, 0);
     tok.number0 = (int)col1->nation[nation_id].tax_rate;
     tok.has_number0 = true;
     char body[AI_POPUP_BODY_LEN];
@@ -1486,9 +1488,16 @@ bool units_fountain_youth_apply_popup_ex(
     return true;
   }
   const int remaining = popups->result_payload;
-  int slot = popups->result_cancelled ? 0 : popups->result_choice_id;
-  if (slot < 0 || slot >= EUROPE_POOL_SIZE) {
-    slot = 0;
+  int slot = popups->result_choice_id;
+  if (popups->result_cancelled || slot < 0 || slot >= EUROPE_POOL_SIZE) {
+    /* FUN_38fd_4884 raw 64747-64751: local_58 < 0 jumps to LAB_38fd_4b32 —
+     * no colonist, no 46d4 refill draw; the next pick still comes. */
+    if (remaining - 1 > 0) {
+      units_fountain_youth_enqueue_pick(
+        europe, popups, game_txt, popups->result_nation_a, remaining - 1
+      );
+    }
+    return true;
   }
   /* The 4884 tail refills the emptied slot with a `46d4` roll off the shared
    * game stream — pass the real rng through (smell audit 2026-09-10 G5). */

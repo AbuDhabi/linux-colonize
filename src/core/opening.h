@@ -33,8 +33,8 @@
  * last frame (so a single accidental tap does not skip). Once OPENGUY is
  * idle-looping the intro is over: one edge finishes immediately. After
  * the last frame the still otherwise holds for OPENING_HOLD_MS, then the
- * owner goes to the title menu. Same BIOS-tick pacing as CLOSING.EXE
- * (~55 ms).
+ * owner goes to the title menu. Paced on the 60.877 Hz clock (see
+ * OPENING_PAN_TIMING).
  */
 
 #define OPENING_SHEET_COUNT 10
@@ -66,7 +66,24 @@
 /* Inner bevel of the bottom frame (OPENBORD y=156..166). Banners sit below it. */
 #define OPENING_CREDIT_BORDER 11
 
-#define OPENING_FRAME_MS 55
+/*
+ * OPENING.EXE timer_install (image 0x336d) programs TIMER_SET_RATE(0x7a8) =
+ * 608.77 Hz and the IRQ0 handler bumps the timer_read counter DS:0x5cb6 every
+ * 10th IRQ = 60.877 Hz (game_clock DS:0x4ade). The sailing steppers `_pan`
+ * 0x53e, `_ship_move` 0x5a4, `_credit_loop` 0x5fa and `_anim_loop` 0x729 all
+ * test DS:0x48 pan_timing (8; ship/credit/anim_timing are also 8 but unread
+ * there), so the scene clock advances once per 8 ticks. `_logo_loop` 0xd16
+ * tests DS:0x50 logo_timing = 6. accum counts ms * 60877: one tick = 1000000.
+ */
+#define OPENING_PAN_TIMING 8
+#define OPENING_LOGO_TIMING 6
+#define OPENING_ACCUM_PER_MS 60877u
+#define OPENING_ACCUM_PER_TICK 1000000u
+/* Whole ms that always cover one scene / logo frame (131.4 -> 132, 98.56 -> 99). */
+#define OPENING_FRAME_MS \
+  ((OPENING_PAN_TIMING * OPENING_ACCUM_PER_TICK + OPENING_ACCUM_PER_MS - 1u) / OPENING_ACCUM_PER_MS)
+#define OPENING_LOGO_FRAME_MS \
+  ((OPENING_LOGO_TIMING * OPENING_ACCUM_PER_TICK + OPENING_ACCUM_PER_MS - 1u) / OPENING_ACCUM_PER_MS)
 #define OPENING_HOLD_MS 1000
 /* MPS logo clock (OPENING.EXE [0xd2]): name from 0x5c, end when past 0xe4. */
 #define OPENING_LOGO_NAME_FRAME 0x5c
@@ -124,7 +141,7 @@ typedef struct OpeningCinematic {
   int path_count;
   int end_frame;
   int clock;
-  uint32_t accum_ms;
+  uint64_t accum; /* ms * OPENING_ACCUM_PER_MS since the last frame */
   uint32_t hold_ms;
   ColonizePalette palette;
   bool palette_ok;
@@ -134,6 +151,10 @@ typedef struct OpeningCinematic {
   bool border_ok;
   uint8_t canvas[320 * 200];
 } OpeningCinematic;
+
+/* 0-based sprite of series `s` at `elapsed` frames past its start (sheet of
+ * `n` sprites), -1 = not drawn. Exposed for the unit test. */
+int opening_sprite_index(const OpeningSeries* s, int elapsed, int n);
 
 typedef void (*ColonizeOpeningSoundFn)(int id);
 void opening_set_sound_hooks(ColonizeOpeningSoundFn play_fn, ColonizeOpeningSoundFn set_bgm_fn);

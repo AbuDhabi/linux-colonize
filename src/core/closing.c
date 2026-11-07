@@ -214,7 +214,7 @@ bool closing_open(ClosingCinematic* c, const char* data_dir) {
 
   memcpy(c->canvas, c->background, sizeof(c->canvas));
   c->clock = 0;
-  c->accum_ms = 0;
+  c->accum = 0;
   c->open = true;
   c->finished = false;
   if (g_closing_set_bgm) {
@@ -248,11 +248,12 @@ void closing_update(ClosingCinematic* c, uint32_t dt_ms) {
   if (!c || !c->open || c->finished) {
     return;
   }
-  c->accum_ms += dt_ms;
-  while (c->accum_ms >= CLOSING_FRAME_MS) {
-    c->accum_ms -= CLOSING_FRAME_MS;
+  const uint64_t frame = (uint64_t)CLOSING_ANIM_TIMING * CLOSING_ACCUM_PER_TICK;
+  c->accum += (uint64_t)dt_ms * CLOSING_ACCUM_PER_MS;
+  while (c->accum >= frame) {
+    c->accum -= frame;
     if (!closing_step(c, true)) {
-      c->accum_ms = 0;
+      c->accum = 0;
       break;
     }
   }

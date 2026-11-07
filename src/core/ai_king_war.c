@@ -431,7 +431,7 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
         if (!c->active || c->nation_id != human) {
           continue;
         }
-        const int sol_p = ai_king_colony_sol_at(ctx, human, c->x, c->y);
+        const int sol_p = ai_king_colony_sol_at(ctx, c);
         if (sol_p <= 49) {
           continue;
         }
@@ -924,7 +924,7 @@ static AiKingWoiEndStatus ai_king_woi_end_lose(struct ai_king_woi_end_ctx* w) {
    */
   const int exile_nation = ai_king_intervention_nation_slot(ctx, human, 0);
   const char* exile = (exile_nation >= 0 && exile_nation < 4)
-                        ? reports_nation_country_name(exile_nation)
+                        ? reports_nation_country_phrase(exile_nation, 0)
                         : "";
   if (colonies <= 0) {
     ai_king_emit_loss(ctx, "LOSING2", "", human, crown, country, leader, exile);
@@ -1269,7 +1269,7 @@ void ai_king_nation_turn_2424(ColonizeTurnContext* ctx) {
       const int rising = last < sol / 10;
       const int falling = !rising && last > (sol + 4) / 10;
       if (rising || falling) {
-        const char* country = reports_nation_country_name(ctx->human_nation & 3);
+        const char* country = reports_nation_country_phrase(ctx->human_nation & 3, 0);
         if (ai_king_human_popups(ctx)) {
           PopupMsgTokens tok;
           memset(&tok, 0, sizeof(tok));

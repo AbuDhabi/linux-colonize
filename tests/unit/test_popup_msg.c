@@ -342,8 +342,30 @@ static int case_choice_rows_not_truncated(void) {
   return 0;
 }
 
+/* Audit N6: FUN_7314_0106 (raw 117904-117925) turns every '_' of a content line
+ * into a space (@LEARNMAD "leave_._._._your"); section headers are matched raw by
+ * FUN_7314_001a, so NAMES.TXT @OTHER_NAMES stays findable. */
+static int case_underscore_reads_as_space(void) {
+  if (ensure_catalog() != 0) {
+    return 1;
+  }
+  char body[1024];
+  popup_msg_fill(&g_catalog, "LEARNMAD", NULL, "", body, sizeof(body));
+  if (strchr(body, '_') != NULL || !strstr(body, "leave . . . your")) {
+    fprintf(stderr, "unit_popup_msg: @LEARNMAD '%s'\n", body);
+    return fail("@LEARNMAD '_' must read as space");
+  }
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  const bool ok = assets_msg_load_file(&names, "COLONIZE/NAMES.TXT") &&
+                  assets_msg_find(&names, "OTHER_NAMES") != NULL;
+  assets_msg_free(&names);
+  return ok ? 0 : fail("NAMES.TXT @OTHER_NAMES header must keep its '_'");
+}
+
 static const TestCase k_cases[] = {
     {"case_dialog_figure_scan", case_dialog_figure_scan},
+    {"case_underscore_reads_as_space", case_underscore_reads_as_space},
     {"case_chief_portrait_sections", case_chief_portrait_sections},
     {"case_caret_rows_back_to_back", case_caret_rows_back_to_back},
     {"unit_popup_msg_token_substitution", case_token_substitution},

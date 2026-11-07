@@ -30,11 +30,11 @@ players. Save first.
 | Set Human Player | Shift-F5 | Lets you switch sides. See below. |
 | Kill Indians | Shift-F6 | Destroys a whole tribe. See below. |
 | Advance Revolution Status | Shift-F7 | Moves the War of Independence on by one step per use. See below. |
-| Sound Test | menu only | Asks for a number (0-255) and plays that sound effect. |
+| Sound Test | menu only | Asks for a sound number (the field starts at 1; OpenCol caps it at 255) and plays that sound. |
 | Memory Check | menu only | Shows memory use and how full the unit and colony tables are in the status line. DOS showed its own memory pools here; OpenCol has none, so it shows the closest equivalents. |
 | Show Strategy | Shift-F8 | Turns a map overlay on or off. For each computer-run European nation it labels the tile of that nation's current top AI goal, for example `F:FOUND` (French, found a colony). The other labels are CONTACT, LABOR, MILIT, COLONY, MILEXP and COLONY2. Your own nation is not shown. |
 | Show Colony Sites | Shift-F9 | Turns a map overlay on or off. It marks the best colony site each AI nation has found so far, for example `S*` for the Spanish. |
-| Test Routine | Shift-F10 | Shows the number of units and colonies in the game in the status line. |
+| Test Routine | Shift-F10 | Shows the number of units and colonies in a message box. It also clears the War of Independence, foreign intervention and independence-won flags, so a declared war is undone. |
 
 The two overlays and the debug flags are not stored in the save.
 
@@ -44,7 +44,8 @@ The two overlays and the debug flags are not stored in the save.
   limit still applies.
 - Rows: Colonist, Pioneer, Soldier, Missionary, Scout, Artillery, Wagon Train,
   Treasure, Ship, four Indian unit types, and Foreign Unit.
-  - **Treasure** is always worth 2800 gold. You are not asked for an amount.
+  - **Treasure** is always worth 100 gold. You are not asked for an amount.
+  - **Wagon Train** gets the owner's nearest colony as its home colony.
   - **Ship** opens a second list: Caravel, Merchantman, Galleon, Privateer,
     Frigate or Man-O-War.
   - **The Indian rows** create the unit for the tribe whose village is nearest

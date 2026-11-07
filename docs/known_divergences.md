@@ -31,14 +31,6 @@ bytes ever feed a REF display.
 DOS writes profession 0xff; the port guards the write. DOS is the buggy side,
 so the entry now lives in [dos_bugs_ai.md](dos_bugs_ai.md) DB-10 (2026-10-22).
 
-### #908 — Colonist jobs menu is narrower than FUN_2f2b_348c
-DOS's jobs menu also lists the leave-as rows @JOB 0x13..0x18 in the same list
-(the port keeps them in the eject popup only, `colonies_eject_row_offered`).
-Its two-page split therefore counts more rows in DOS (`local_a` includes
-0x13..0x18) than in the port, which pages only once its own job rows pass 0x10.
-The indoor estimates and the paging themselves are ported (port_bugs.md #1195,
-#1196).
-
 ### #1081 — Unit-stack list and map sidebar use the WoI nation words
 DOS `FUN_2b5a_1b5a` (stack list, raw 42732) and the `FUN_49dd_0424` unit
 line index the raw @NATIONALITY / @NATIONABBREV tables, so after the
@@ -46,11 +38,13 @@ declaration DOS still prints "Spanish" ("Span." on the sidebar). The port
 uses `reports_nation_adjective_woi` / `map_panel_nationality` ("Rebel" /
 "Tory") on both, so they agree with the combat and popup text that DOS
 itself routes through `FUN_281f_09a4` (user request 2026-10-06, #202).
+The divergence is the selected-unit block only (raw 78880, DS:0x97f0 nibble
+table): the sidebar's foreign-stack row already calls `09a4` in DOS
+(raw 79267), so the port matches DOS there.
 
 ### #1082 — WoI nation words in DOS texts the port has no counterpart for
 DOS names a Euro nation via `FUN_281f_09a4` / `0a1a` (so "Rebel(s)" / "Tory/Tories"
-after the declaration) in texts the port never draws: sidebar village mission-owner
-and threat lines (`FUN_49dd_0424` raw 501/516), OVL10 native-village panel
+after the declaration) in texts the port never draws: OVL10 native-village panel
 (asm 119456-119903), Euro-vs-Euro colony burn @BURNED/@BURNED2/@BURNED3
 (`FUN_5fef_1b0e` raw 100857), @CARGOCAPTURE (asm 153592), @LOSTTHEIRSCOUTS (dead in DOS too)
 (`FUN_5f7a_000e` raw 98871), Europe status line
@@ -142,6 +136,34 @@ Two narrow differences after a hot-seat `@MULTIREV` "Yes" are listed in
 
 Static reading cannot settle these. Each names exactly what to capture. Do not
 change the port's behaviour on a guess.
+
+### #1558 — Sentry sound (audit 2026-11-06 B5)
+The port plays sound 0x58 when a unit is sentried (units_move.c:1613). The DOS
+Sentry stub 2b5a:1106 (ndisasm 0x21FE6) only writes `+0x314c = 1`, and the
+`FUN_2f2b_5746` unit-menu Sentry arm (raw 52416-52418) has no `FUN_281f_04c0`
+(its Fortify arm and `FUN_2b5a_1112` do). The stub is reached through a table
+whose dispatcher is not located. Capture: press S on a unit in DOSBox and watch
+for a GSOUND event.
+
+### #1559 — River pass ring-20 reads past the terrain plane (audit 2026-11-06 M6)
+`FUN_684c_04a6`'s ring-20 loop (raw 105562-105577) has no bounds check and
+`FUN_1a4e_0008` does not clip, so a river origin at y = h-2 reads cells at y = h
+(linear offset w*h + x, past DS:0x85a8's plane); if `(b & 0x1f) < 0x10` DOS draws
+range(0,1) and may write b+8 there. The port (map_gen.c:584-596) skips those cells,
+so it misses the draw and the write. 675 such cells over 6000 port maps. Capture:
+dump the bytes after the terrain plane (offset 4176..4233 for 58x72) during a
+generated-map river pass.
+
+### #1560 — @INDIANSURPRISE frequency (audit 2026-11-06 G2)
+Static read (viceroy_overlays.asm 125245-125300): the `FUN_4d56_021a` tail shows
+`281f_0652(0x14dc, 1)` on every Brave attack pick (flag 8) whose target tile's owner
+nibble is a human nation that has a colony, if the full-move check passes
+(%STRING0 0a1a(tribe), %STRING1 nearest colony, %STRING2 09a4(tribe)). The user
+observed it on the first attack only (#132); since #1093 the port never shows it.
+Capture: after a tribe's first attack on a human colony, does a later Brave attack
+pick in that colony's land still reach OVL13:0x1386? If yes, port the tail
+literally; if not, find the gate. (One attempt from a crafted COLONY09 save hit
+"Colony Flags Error.")
 
 ### #915(c) — moved to tolerated_dos_bugs_ai.md TB-17
 The 5952 indoor pass `avail` carry-over and its unverified 0x7fff seed live in

@@ -457,6 +457,38 @@ static int test_fort_without_stockade_labels_colony(void) {
   return 0;
 }
 
+/*
+ * FUN_157e_004a raw 8942-8944: the Veteran peel needs @UNIT type 1 or 4. The
+ * 1b0e colony militia phantom is DOS row 0x17 (FUN_478c_002c raw 76558) even
+ * when the port spawns it as Soldiers (Revere) and it carries the stand-in
+ * colonist's profession (raw 100431), so a Veteran Soldier colonist must not
+ * give it +50%.
+ */
+static int test_colony_phantom_no_veteran_peel(void) {
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  units_reset(&pool);
+  units_set_occupancy_map(NULL);
+  seed_types(&pool);
+  const int id = units_spawn_allow_stack(&pool, 0, 2, 2);
+  if (id < 0) {
+    return fail("spawn");
+  }
+  units_get(&pool, id)->profession = UNITS_JOB_SOLDIER;
+  ColonizeCombatStrengthCtx ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.units = &pool;
+  const int vet = combat_unit_base_x8(&ctx, id, 0, NULL);
+  combat_set_phantom_0x17(id);
+  const int phantom = combat_unit_base_x8(&ctx, id, 0, NULL);
+  combat_set_phantom_0x17(-1);
+  if (vet != 24 || phantom != 16) {
+    fprintf(stderr, "vet %d (want 24) phantom %d (want 16)\n", vet, phantom);
+    return fail("phantom 0x17 must skip the veteran peel");
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
   {"test_fort_without_stockade_labels_colony", test_fort_without_stockade_labels_colony},
   {"test_missing_foe_keeps_terrain", test_missing_foe_keeps_terrain},
@@ -464,6 +496,7 @@ static const TestCase k_cases[] = {
   {"test_fatigue_applies_at_sea", test_fatigue_applies_at_sea},
   {"test_woi_crown_ship_bombards_colony", test_woi_crown_ship_bombards_colony},
   {"test_sol_zero_divisor_keeps_bolivar", test_sol_zero_divisor_keeps_bolivar},
+  {"test_colony_phantom_no_veteran_peel", test_colony_phantom_no_veteran_peel},
 };
 
 TEST_MAIN(k_cases)

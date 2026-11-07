@@ -93,13 +93,16 @@ as index+1 so a zeroed colony means "nothing to reveal". FUN_2f2b_6cd4
 (colony-screen bring-up) only runs the "new building appears" reveal —
 clear bit, redraw, set bit, redraw — and only then pushes event 0x54
 (COLDIG 13 hammering + cheering), when DS:0x34a >= 0. Set by
-colonies_try_complete_building, consumed on colony-screen open.
+colonies_try_complete_building (never for Warehouse Expansion or Capitol
+Expansion, FUN_364b_0114 raw 56965-56967), consumed on colony-screen open.
 
 ## ColonizeColony.food_shortfall_latch
 
 Port-only within-turn food latch: set by the production tick when this
-colony actually went negative on food, read by the same tick's starve
-kill and by the @FOOD1/@FOOD2 "depleted" nag suppressor. It used to ride
+colony actually went negative on food (the DS:0x8e5a shortfall). Nothing in
+the sim reads it any more (the starve kill and @FOOD1/@FOOD2 test the
+shortfall word itself, FUN_364b_0688 raw 57626-57681); tests use it as the
+observable. It used to ride
 in colony_flags bit3, but DOS spends that bit on the inefficient-
 government latch (FUN_364b_0688 phase D, +0x1c & 8) — see
 COLONIZE_COLONY_FLAG_INEFFICIENT_GOV — so it lives here instead. Not

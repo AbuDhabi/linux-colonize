@@ -14,6 +14,7 @@
 
 #include "core/assets.h"
 #include "core/cinematic.h"
+#include "core/fb.h"
 #include "core/font.h"
 #include "core/ss.h"
 #include "platform/diagnostics.h"
@@ -168,7 +169,12 @@ bool woodcut_open(ColonizeWoodcutScreen* w, const char* data_dir, int id) {
   if (plate_ok) {
     woodcut_draw_plate(&plate, font_ok ? &font : NULL, w->caption, &fb);
   }
-  /* DOS draws the picture last, after the plate and the palette fade-in. */
+  /* 6f30_0062 asm before 6f30:03b0: FUN_281f_00ba = FUN_1b9e_000a rect fill
+   * x 0x3f, y 0x28, w 0xc0 (AX/DX/BX), height 0x70, colour 0xa (stack), then
+   * FUN_281f_00e2 presents the whole 320x200 screen. */
+  fb_fill_rect(&fb, 0x3f, 0x28, 0xc0, 0x70, 0xa);
+  memcpy(w->base, w->canvas, sizeof(w->base));
+  /* DOS draws the picture last, then FUN_281f_03ea(8) fizzles it in. */
   ss_blit_anchored(&art, 0, &fb, 0, 0); /* FUN_6f30_002e */
 
   ss_free(&art);
@@ -214,7 +220,7 @@ void woodcut_render(
   if (!w || !w->open || !framebuffer || !framebuffer->pixels) {
     return;
   }
-  cinematic_blit_canvas320(w->canvas, framebuffer);
+  cinematic_blit_canvas320(w->art_hidden ? w->base : w->canvas, framebuffer);
   if (palette && w->palette_ok) {
     *palette = w->palette;
   }

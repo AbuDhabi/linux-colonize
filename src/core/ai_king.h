@@ -39,7 +39,8 @@
 #define AI_KING_REF_WAVE_WAIT_BYTE 11
 /* port_bugs.md #252 / #865: @INTERVENTION "declares war" announcement fires once.
  * DOS-LITERAL FUN_43f7_1528 raw 74493 `*(byte*)0x5382 |= 2` — this is the ONLY
- * writer of 0x5382 bit 0x02 in the whole EXE and it is never cleared, so the
+ * gameplay writer of 0x5382 bit 0x02 (only the cheat Test Routine FUN_2b5a_08cc
+ * clears it, `and [0x5382],0xf4`), so the
  * latch IS the save bit: head.game_options.intervention_announced (historical port label).
  * Every DOS reader of bit 0x02 means "intervention announced": combat raw
  * 100504 (colony Bombard +50%), score raw 71327/71638/... (`bit2 && bells>99`),
@@ -111,8 +112,8 @@ static inline void ai_king_latch_set(ColonizeCol1Save* col1, int which, int valu
     return;
   }
   if (which == AI_KING_INTERVENE_ANNOUNCED_BYTE) {
-    /* DOS-LITERAL: DS:0x5382 bit 0x02 (FUN_43f7_1528 raw 74493); DOS never
-     * clears it, but tests / new-game reset need the zero path. */
+    /* DOS-LITERAL: DS:0x5382 bit 0x02 (FUN_43f7_1528 raw 74493); cleared only
+     * by the cheat Test Routine (FUN_2b5a_08cc); tests / new-game reset use it too. */
     col1->head.game_options.intervention_announced = value ? 1 : 0;
     return;
   }

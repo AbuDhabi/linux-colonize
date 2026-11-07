@@ -119,6 +119,18 @@ static void test_animation_and_skip(void) {
   ColonizeInputState in;
   memset(&in, 0, sizeof(in));
   in.last_key = COLONIZE_KEY_ESCAPE;
+
+  /* FUN_43f7_160a: a key mid-run completes only the current glyph. */
+  DeclarationCinematic glyph;
+  memset(&glyph, 0, sizeof(glyph));
+  if (declaration_open(&glyph, "COLONIZE", "Free States")) {
+    declaration_update(&glyph, 30);
+    const int g0 = glyph.glyph_index;
+    check(declaration_handle_input(&glyph, &in), "running cinematic consumes input");
+    check(glyph.open && !glyph.finished, "a key mid-run does not finish the signature");
+    check(glyph.glyph_index == g0 + 1 && glyph.frame_index == 0, "a key completes one glyph");
+    declaration_close(&glyph);
+  }
   check(declaration_handle_input(&run, &in), "open cinematic consumes input");
   check(!run.open, "keypress on a finished cinematic closes it");
 

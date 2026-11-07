@@ -347,17 +347,6 @@ static void reports_render_body_start(
 #define REPORTS_COLONY_UPKEEP_X 19
 #define REPORTS_COLONY_UPKEEP_COLOR 146
 
-bool reports_ok_button_hit(ColonizeReportId id, bool congress_page2, int mx, int my) {
-  if (id == COLONIZE_REPORT_SCORE) {
-    return false;
-  }
-  if (id == COLONIZE_REPORT_CONGRESS && congress_page2) {
-    return false;
-  }
-  return mx >= REPORTS_OK_X && mx < REPORTS_OK_X + REPORTS_OK_W && my >= REPORTS_OK_Y &&
-    my < REPORTS_OK_Y + REPORTS_OK_H;
-}
-
 /* Exclusive-corner outline (x0..x1-1, y0..y1-1). */
 static void reports_draw_rect_outline(
   ColonizeFramebuffer8* fb,

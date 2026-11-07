@@ -289,7 +289,7 @@ void ai_euro_5952_improve_best_plot(
   const ColonizeWorld w = world_from_turn_ctx(ctx);
   const int wants_clear = (col->ai_flags & COLONIZE_COLONY_AI_WANTS_PIONEER_CLEAR) != 0;
   const int colony_cid = map_continent_id_at(ctx->map, col->x, col->y);
-  const int presence = ai_contact_continent_presence_4962(ctx, nation, colony_cid);
+  const int presence = ai_euro_20e6_presence_95f2(ctx, nation, colony_cid);
   const long purse = (long)(int32_t)europe_nation_gold(ctx->europe, ctx->col1, nation);
   const int ring = colonies_work_plot_count(ctx->colonies, col);
   int best = -1;      /* local_16e, signed */
@@ -1101,19 +1101,6 @@ int ai_euro_10ec_war_worthy(const ColonizeTurnContext* ctx, int a, int b) {
   return 0;
 }
 
-int ai_euro_20e6_foreign_colony_on(const ColonizeTurnContext* ctx, int nation, int cid) {
-  if (!ctx->colonies || cid < 0) {
-    return 0;
-  }
-  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-    const ColonizeColony* c = &ctx->colonies->colonies[i];
-    if (c->active && c->nation_id != nation && map_continent_id_at(ctx->map, c->x, c->y) == cid) {
-      return 1;
-    }
-  }
-  return 0;
-}
-
 /*
  * DOS local_12 = −0x6168[cid]*8 + unit+0x3154 (explore fatigue). The
  * −0x6168 table is the 0a60 per-nation-turn max-tracker (largest foreign
@@ -1189,11 +1176,33 @@ static int ai_euro_20e6_site_nibble(const ColonizeTurnContext* ctx, int x, int y
  *   1/7/8/9  return 0
  * Case 2 helper — used by the LAB_52aa odds divisor and the labor loop
  * (both call sites ndisasm-confirmed `PUSH 0x2`, viceroy_overlays.asm
- * 135593 / 139050+). Aboard units are modelled as ship cargo in OpenCol, so
- * they are excluded here and counted by the cargo-side queries instead.
+ * 135593 / 139050+).
  */
 static int ai_euro_20e6_stack_count(const ColonizeTurnContext* ctx, int x, int y) {
-  return units_count_at(ctx->units, x, y);
+  return ai_euro_tile_chain_count(ctx->units, x, y);
+}
+
+/* DOS keeps a ship's passengers in the tile chain beside it (FUN_1427_10be
+ * carries the sentried units along; 02ca links each arrival in), so every
+ * FUN_1427_0d38 walk counts them. The port parks them in the ship's cargo
+ * list, off units_is_on_map. */
+bool ai_euro_in_tile_chain(const ColonizeUnitPool* pool, const ColonizeUnit* u, int x, int y) {
+  if (!u->active) {
+    return false;
+  }
+  if (u->aboard_ship_id >= 0) {
+    const ColonizeUnit* ship = units_get_const(pool, u->aboard_ship_id);
+    return ship && units_is_on_map(ship) && ship->x == x && ship->y == y;
+  }
+  return units_is_on_map(u) && u->x == x && u->y == y;
+}
+
+int ai_euro_tile_chain_count(const ColonizeUnitPool* pool, int x, int y) {
+  int n = 0;
+  for (int i = 0; pool && i < units_slot_end(pool); ++i) {
+    n += ai_euro_in_tile_chain(pool, &pool->units[i], x, y);
+  }
+  return n;
 }
 
 /*
@@ -1208,7 +1217,7 @@ int ai_euro_20e6_stack_combat_0b(ColonizeTurnContext* ctx, int x, int y) {
   /* Slot walk (Leads 2, 2026-09-10): `i` is an array index, not a unit id. */
   for (int i = 0; i < units_slot_end(ctx->units); ++i) {
     const ColonizeUnit* o = &ctx->units->units[i];
-    if (!o->active || o->aboard_ship_id >= 0 || o->x != x || o->y != y) {
+    if (!ai_euro_in_tile_chain(ctx->units, o, x, y)) {
       continue;
     }
     if ((units_is_sea(ctx->units, o->id) ? 1 : 0) != (water ? 1 : 0)) {
@@ -1265,7 +1274,8 @@ static void ai_euro_20e6_explorer_flag(ColonizeTurnContext* ctx, ColonizeUnit* u
         ai_euro_20e6_combat_value_on(ctx, s->nation, s->cid) < 8) {
       ex = 1;
     }
-    if (t == 4 && ai_euro_20e6_foreign_colony_on(ctx, s->nation, s->cid)) {
+    /* raw 88508-88509: DS:0x95f2 bit 4 as the nation's census left it. */
+    if (t == 4 && (ai_euro_20e6_presence_95f2(ctx, s->nation, s->cid) & 4)) {
       ex = 0;
     }
   }
@@ -1426,15 +1436,15 @@ static int ai_euro_20e6_surplus_recall_arm(
  * friction — settlement_record_8d4a.md "Relationship to OpenCol", exact
  * offset match), save-backed and live. The 0x4c gates now read it for
  * real: word == 0 for the scout arm, word < 0x40 for the colonist arm.
- * What stays session-local is only the VISIT-INCREMENT writer
- * (FUN_465b_0000 attitude++ on each visit, unported): without it the
- * ==0/<0x40 gates would re-fire (and re-draw RNG) every turn when the
- * visit outcome does not set the scouted/learned latch, so the per-village
- * nation bits below stand in for that one writer.
+ * No per-(village, nation) visit latch: FUN_465b_0000 has no visit writer
+ * (its one +0xb bump, raw 75620, is the attack-natives path), so a visit
+ * that sets neither tribe.state.scouted nor .learned (a CHIEFBORED chief)
+ * leaves the gate open and DOS re-fires the arm next turn.
  */
 static int ai_euro_20e6_village_attitude(const ColonizeCol1Tribe* t, int nation) {
   return col1_tribe_attitude(t, nation);
 }
+/* Unused since the latch went (see above); runtime_ext.c's RTST still carries it. */
 uint8_t ai_euro_s_20e6_village_visited[AI_20E6_VILLAGE_MAX];
 
 /*
@@ -1444,10 +1454,10 @@ uint8_t ai_euro_s_20e6_village_visited[AI_20E6_VILLAGE_MAX];
  *   Scout (type 5): record +3 bit8 (tribe.state.scouted) clear, alarm
  *     quartile < 0x19 (quartile domain 0..3 — vacuously true, omitted; DOS
  *     bug, reproduced for now (docs/tolerated_dos_bugs_ai.md TB-26): the raw
- *     alarm was meant, raw 89065), attitude[nation] == 0 (stand-in latch above).
+ *     alarm was meant, raw 89065), attitude[nation] == 0.
  *   Colonist: profession-bearing non-combat non-Scout/Missionary type whose
  *     profession byte is 0x1c (Free/none) or 0x19 (Indentured Servant),
- *     record +3 bit2 (tribe.state.learned) clear, attitude < 0x40 (stand-in);
+ *     record +3 bit2 (tribe.state.learned) clear, attitude < 0x40;
  *     the quartile > 0x18 rejection (raw 89368) never fires, same TB-26.
  * Outcome: DOS writes orders 0x4c + a 2a1f_059c dir (enter the village);
  * OpenCol resolves the entry through the same @ACTIONS outcome functions
@@ -1463,7 +1473,6 @@ static int ai_euro_20e6_village_arm(ColonizeTurnContext* ctx, ColonizeUnit* u, c
   if (s->village_idx >= AI_20E6_VILLAGE_MAX) {
     return 0;
   }
-  const int latched = (ai_euro_s_20e6_village_visited[s->village_idx] & (1u << s->nation)) != 0;
   ColonizeCol1Tribe* t = &ctx->col1->tribe[s->village_idx];
   if (t->nation_id < 4 || t->nation_id > 11) {
     return 0;
@@ -1483,8 +1492,7 @@ static int ai_euro_20e6_village_arm(ColonizeTurnContext* ctx, ColonizeUnit* u, c
    * LAB_589e commits the step and 465b -> 4528 speaks with the chief (the
    * colonist arm's shape). DOSBox 1531 -> 1532: the Spanish Scout at
    * (47,48) ends with plan 'L', act state 0 and +0x315a = 1. */
-  if (!latched && s->dos_type == UNITS_KIND_SCOUT && !t->state.scouted && att == 0 && calm) {
-    ai_euro_s_20e6_village_visited[s->village_idx] |= (uint8_t)(1u << s->nation);
+  if (s->dos_type == UNITS_KIND_SCOUT && !t->state.scouted && att == 0 && calm) {
     u->col1_ai_plan = 0x4c;
     ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, (int)t->x, (int)t->y);
     return 2;
@@ -1503,7 +1511,6 @@ static int ai_euro_20e6_village_arm(ColonizeTurnContext* ctx, ColonizeUnit* u, c
      * 479b -> 465b -> FUN_4d56_4528 (ai_euro_4528_ai_village_entry) and
      * 465b's 0bd1 tail. DOSBox 1594: a captured Colonist learned that way,
      * ending with plan 'L', act state 0 and +0x315a bumped. */
-    ai_euro_s_20e6_village_visited[s->village_idx] |= (uint8_t)(1u << s->nation);
     u->col1_ai_plan = 0x4c;
     ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, (int)t->x, (int)t->y);
     return 2;
@@ -2233,14 +2240,11 @@ int ai_euro_20e6_wander_step(
        * FUN_281f_0696 probe with no score. */
       continue;
     }
-    int owner = ai_euro_20e6_owner_nibble(ctx->map, nx, ny);
+    /* FUN_137f_0200 only: FUN_1427_02ca stamps the nibble on water too, and
+     * so does the port (units_claim_tile_owner_from_stack). */
+    const int owner = ai_euro_20e6_owner_nibble(ctx->map, nx, ny);
     const int here = units_id_at(ctx->units, nx, ny);
     const ColonizeUnit* hu = here >= 0 ? units_get_const(ctx->units, here) : NULL;
-    if (s->is_ship && hu && owner < 0) {
-      /* DOS stamps the owner nibble from the stack on entry; the port's water
-       * tiles carry no claim, so the hull on the tile is the owner. */
-      owner = hu->nation_id;
-    }
     /* raw 88684 (asm gate before any draw): a land unit standing on water
      * (aboard, local_90) skips an occupied tile whose owner nibble is not
      * its own nation: `local_90 == 0 || local_34 || 07e0 < 0 || local_10 == nation`. */
@@ -2898,11 +2902,7 @@ int ai_euro_20e6_treasure_cash_in(
  * Returns 1 when the unit parked. */
 int ai_euro_20e6_park_arms_4d2e(ColonizeTurnContext* ctx, ColonizeUnit* u, const Ai20e6Unit* s) {
   const int flags = ai_euro_20e6_type_flags(s->dos_type);
-  int stack = 0;
-  for (int i = 0; i < units_slot_end(ctx->units); ++i) {
-    const ColonizeUnit* o = &ctx->units->units[i];
-    stack += o->active && units_is_on_map(o) && o->x == u->x && o->y == u->y;
-  }
+  const int stack = ai_euro_tile_chain_count(ctx->units, u->x, u->y);
   for (int arm = 0; arm < 2; ++arm) {
     const int bit = arm == 0 ? 1 : 4;
     const int code = arm == 0 ? 0 : 2;

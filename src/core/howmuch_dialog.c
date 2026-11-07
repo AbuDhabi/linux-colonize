@@ -233,16 +233,10 @@ bool howmuch_handle_input(HowmuchDialog* dlg, const ColonizeInputState* input) {
     return true;
   }
 
-  if (input->mouse_right_clicked) {
-    howmuch_finish(dlg, true);
-    return true;
-  }
-  if (input->mouse_left_clicked) {
-    /* Click outside the box cancels, inside accepts. */
-    howmuch_finish(
-      dlg,
-      !ui_rect_hit(dlg->dialog_x, dlg->dialog_y, dlg->dialog_w, dlg->dialog_h, input->mouse_x, input->mouse_y)
-    );
+  /* FUN_6f74_2580 raw 117037-117054: a text box exits on any press+release of
+   * either button with the field kept; only Esc cancels (raw 116791). */
+  if (input->mouse_right_clicked || input->mouse_left_clicked) {
+    howmuch_finish(dlg, false);
     return true;
   }
   return true;

@@ -1886,6 +1886,7 @@ static void talk474_flat(char* out, size_t cap, const char* body) {
 
 static int s_talk474_saw_piracy;
 static int s_talk474_saw_sphere;
+static int s_talk474_tone; /* -1 unknown, 0 HELLOMEEK, 1 HELLOMANLY */
 
 static int talk474_drain(ColonizeTurnContext* ctx, AiPopupState* pop, int* saw_worthy,
                          int* saw_wise) {
@@ -1902,12 +1903,26 @@ static int talk474_drain(ColonizeTurnContext* ctx, AiPopupState* pop, int* saw_w
         return fail("#474: @WORTHY %STRING0 must be @GREATLEADER2[target]");
       }
     }
+    if (strstr(flat, "we again welcome you")) {
+      s_talk474_tone = 0;
+    }
+    if (strstr(flat, "befoul")) {
+      s_talk474_tone = 1;
+    }
     if (strstr(flat, "most displeased")) {
       /* raw 97778-97781: %STRING0 = @GREATLEADER[target], %STRING2 = target country. */
       s_talk474_saw_piracy = 1;
       if (!strstr(flat, "Our King is most displeased") || !strstr(flat, "off the coast of France")) {
         fprintf(stderr, "unit_ai_diplo: PIRACY body='%s'\n", flat);
         return fail("@PIRACY %STRING0/2 must be @GREATLEADER[target] + target country");
+      }
+      /* %STRING3 = 0642(3, tone) (asm listing 164188): MANLY "request"s,
+       * MEEK "demand"s, the reverse of @APOSTATES. */
+      const char* want = s_talk474_tone ? "request" : "demand";
+      const char* bad = s_talk474_tone ? "demand" : "request";
+      if (s_talk474_tone < 0 || !strstr(flat, want) || strstr(flat, bad)) {
+        fprintf(stderr, "unit_ai_diplo: PIRACY tone %d body='%s'\n", s_talk474_tone, flat);
+        return fail("@PIRACY %STRING3: @MEEKNESS row 0 for a MANLY tone, row 1 for MEEK");
       }
     }
     if (strstr(flat, "sphere")) {
@@ -2018,6 +2033,7 @@ static int case_153e_talk_tokens_474(void) {
   ai_popup_init(&epop);
   /* The PIRACY gate (raw 97776-97777): grievance bit, a privateer of the human's. */
   s_talk474_saw_piracy = 0;
+  s_talk474_tone = -1;
   ai_diplo_write(&e, 1, 0, (uint8_t)(ai_diplo_read(&e, 1, 0) | AI_DIPLO_PRIVATEER_SIGHTED));
   e.stuff.unit_type_counts[0][16] = 1;
   (void)ai_diplo_153e_encounter_forced(&ectx, 0, 1, pa->id, -1);
@@ -2610,8 +2626,174 @@ static int case_153e_ally_pay(void) {
   return rc;
 }
 
+/*
+ * FUN_5bfb_153e raw 97676-97680: at peace, dominated (iVar16 != 0) and not
+ * worthy, the audience has nothing to say and jumps to LAB_5bfb_30de: the
+ * treaty timer re-arms (raw 98418-98425) and local_8e = 1 comes back (raw
+ * 97436), no popup. Census: France has a colony and no land units on
+ * continent 1 against 4 of English field strength -> dominance 8.
+ */
+static int case_153e_dominance_exit_rearms_timer(void) {
+  ai_diplo_talk_reset();
+  static WithdrawFx fx;
+  if (!withdraw_fx_init(&fx, 0)) {
+    return fail("dominance exit: alloc map");
+  }
+  ai_diplo_make_peace(&fx.col1, 0, 1);
+  fx.col1.nation[1].treaty_timer[0] = 0;
+  fx.col1.stuff.colony_counts_by_continent[1 * 16 + 1] = 1;
+  fx.col1.stuff.field_combat_strength_by_continent[0 * 16 + 1] = 4;
+  const int uid = withdraw_fx_spawn(&fx, 1, 5, 6, 1, 0);
+  const int ret = ai_diplo_153e_encounter(&fx.ctx, 0, 1, uid, 0);
+  const int timer = fx.col1.nation[1].treaty_timer[0];
+  const int queued = fx.pop.queue_count;
+  ai_diplo_talk_reset();
+  fx_map_free(&fx.map);
+  if (ret != 1 || timer != (6 - 1) * 2 || queued != 0) {
+    fprintf(stderr, "  ret %d timer %d queued %d\n", ret, timer, queued);
+    return fail("153e dominance exit: silent, returns 1, re-arms the treaty timer");
+  }
+  return 0;
+}
+
+/*
+ * Worthiness affordability clamp, asm 5bfb:1a3c-1a52: the score drops to the
+ * treasury (in 50s) only while score < 2 * gold (JBE skips at equality).
+ * Crown-armed unmet pair, no census: score = (difficulty + 1) * 500 = 1000.
+ */
+static int case_153e_treasury_clamp_strict(void) {
+  static WithdrawFx fx;
+  if (!withdraw_fx_init(&fx, 0)) {
+    return fail("clamp: alloc map");
+  }
+  ai_diplo_write(&fx.col1, 0, 1, AI_DIPLO_CROWN_ARMED);
+  ai_diplo_write(&fx.col1, 1, 0, AI_DIPLO_CROWN_ARMED);
+  int score[2];
+  for (int i = 0; i < 2; ++i) {
+    fx.col1.head.nation_relation[1] = 100; /* fresh stamp: crown bit kept */
+    fx.col1.nation[0].gold = 500 + i;
+    score[i] = ai_diplo_153e_worthiness_score(&fx.ctx, 0, 1, -1, 1).score;
+  }
+  fx_map_free(&fx.map);
+  if (score[0] != 1000 || score[1] != 500) {
+    fprintf(stderr, "  gold 500 -> %d, gold 501 -> %d\n", score[0], score[1]);
+    return fail("153e clamp: score == 2 * gold stays; score < 2 * gold rounds to gold");
+  }
+  return 0;
+}
+
+/*
+ * Peace-menu withdraw refusal (raw 98159-98168): "WAR" + the encounter tone,
+ * %STRING0 = @GREATLEADER2[target], %STRING1 = target country; PEACE cleared.
+ */
+static int case_153e_withdraw_refusal_tone(void) {
+  static TreatyFx f;
+  static char oks[AI_POPUP_BODY_LEN];
+  static char asked[AI_POPUP_BODY_LEN];
+  int rc = 0;
+  for (int manly = 0; manly < 2 && rc == 0; ++manly) {
+    if (treaty_fx_init(&f) != 0) {
+      return 1;
+    }
+    ColonizeCol1Save* e = &f.col1;
+    ai_diplo_make_peace(e, 0, 1);
+    e->stuff.field_combat_totals[0] = 0;
+    e->stuff.field_combat_totals[1] = 200; /* roll(0, 200) > 0: refuse */
+    dos_rng_seed(&f.rng, 0x2468ace1u); /* tiny seeds draw 0 first */
+    ai_diplo_153e_test_peacemenu(&f.ctx, 0, 1, 0, manly, 0, 2);
+    ally_fx_answer(&f, 0, oks, asked);
+    if (!test_body_is_section(asked, "MAYBEWITHDRAW")) {
+      fprintf(stderr, "  asked '%s'\n", asked);
+      rc = fail("withdraw refusal: fixture must reach @MAYBEWITHDRAW");
+    } else {
+      ally_fx_answer(&f, 2, oks, asked);
+      ally_fx_answer(&f, 0, oks, asked);
+      const char* want = manly ? "WARMANLY" : "WARMEEK";
+      if (!test_body_is_section(oks, want) || (!manly && !strstr(oks, "France")) ||
+          (ai_diplo_read(e, 0, 1) & AI_DIPLO_PEACE) != 0) {
+        fprintf(stderr, "  manly %d ok '%s'\n", manly, oks);
+        rc = fail("withdraw refusal: WAR + tone, target country, PEACE cleared");
+      }
+    }
+    ai_diplo_talk_reset();
+    fx_map_free(&f.map);
+  }
+  return rc;
+}
+
+/* raw 97991-97994: a USA target signs the not-worthy peace without @WORTHY. */
+static int s_usa_saw_worthy;
+static int usa_pick_first(const char* body) {
+  if (test_body_is_section(body, "WORTHY")) {
+    s_usa_saw_worthy = 1;
+  }
+  return 1;
+}
+
+static int case_153e_usa_signs_without_worthy(void) {
+  ai_diplo_talk_reset();
+  static TreatyFx f;
+  if (treaty_fx_init(&f) != 0) {
+    return 1;
+  }
+  ColonizeCol1Save* e = &f.col1;
+  e->nation[1].nation_flags |= 0x04;
+  s_usa_saw_worthy = 0;
+  const int opened = ai_diplo_153e_encounter(&f.ctx, 0, 1, f.unit_id, -1);
+  treaty_fx_drain(&f, usa_pick_first);
+  const bool peace = (e->nation[0].euro_relation[1] & AI_DIPLO_PEACE) &&
+                     (e->nation[1].euro_relation[0] & AI_DIPLO_PEACE);
+  ai_diplo_talk_reset();
+  fx_map_free(&f.map);
+  if (!opened || s_usa_saw_worthy || !peace) {
+    fprintf(stderr, "  opened %d worthy %d peace %d\n", opened, s_usa_saw_worthy, peace);
+    return fail("153e USA: peace signs with no @WORTHY dialog (local_a = 1)");
+  }
+  return 0;
+}
+
+/*
+ * AI x AI news: FUN_5bfb_13b0's @SIGNTREATY (raw 97286) and FUN_465b_0000's
+ * AI-attacker @DECLAREWAR (raw 75576-75585) go through an ungated
+ * FUN_281f_0652, so the human sees them. 13b0 runs on the 3180 encounter
+ * alone (no unit rescan).
+ */
+static int case_ai_pair_news_reaches_human(void) {
+  static TreatyFx f;
+  if (treaty_fx_init(&f) != 0) {
+    return 1;
+  }
+  ColonizeCol1Save* e = &f.col1;
+  e->player[2].control = 1;
+  snprintf(e->player[2].country_name, sizeof(e->player[2].country_name), "Spain");
+  uint32_t turn = 30;
+  f.ctx.turn_number = &turn;
+  ai_diplo_13b0_encounter(&f.ctx, 1, 2); /* unmet: no cadence skip */
+  int rc = 0;
+  if ((ai_diplo_read(e, 1, 2) & AI_DIPLO_PEACE) == 0 || f.pop.queue_count != 1 ||
+      !test_body_is_section(f.pop.queue[0].body, "SIGNTREATY")) {
+    fprintf(stderr, "  rel 0x%02x queued %d\n", ai_diplo_read(e, 1, 2), f.pop.queue_count);
+    rc = fail("13b0: AI x AI @SIGNTREATY must reach the human");
+  }
+  ai_popup_init(&f.pop);
+  if (rc == 0) {
+    (void)ai_diplo_465b_band_ctx(&f.ctx, 1, 2);
+    if (f.pop.queue_count < 1 ||
+        !test_body_is_section(f.pop.queue[f.pop.queue_count - 1].body, "DECLAREWAR")) {
+      rc = fail("465b: AI x AI @DECLAREWAR must reach the human");
+    }
+  }
+  fx_map_free(&f.map);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
   {"case_153e_ally_pay", case_153e_ally_pay},
+    {"case_153e_dominance_exit_rearms_timer", case_153e_dominance_exit_rearms_timer},
+    {"case_153e_treasury_clamp_strict", case_153e_treasury_clamp_strict},
+    {"case_153e_withdraw_refusal_tone", case_153e_withdraw_refusal_tone},
+    {"case_153e_usa_signs_without_worthy", case_153e_usa_signs_without_worthy},
+    {"case_ai_pair_news_reaches_human", case_ai_pair_news_reaches_human},
     {"case_00f8_score_wraps_16bit", case_00f8_score_wraps_16bit},
     {"case_2b5a_1112_fortify_break_treaty", case_2b5a_1112_fortify_break_treaty},
     {"case_153e_peacemenu_withdraw_dominance", case_153e_peacemenu_withdraw_dominance},

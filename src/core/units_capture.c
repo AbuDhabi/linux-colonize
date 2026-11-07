@@ -1175,11 +1175,13 @@ bool units_revere_defend_colony_tile(
   }
   g_units_colony_autodefender = true;
   combat_set_auto_defender(true);
+  combat_set_phantom_0x17(def_id);
   /* map / colonies NULL as before (the combat body falls back to
    * g_units_fallout_map for terrain). */
   const ColonizeWorld rw = world_make(pool, NULL, NULL, col1, true, rng, NULL);
   const bool won = units_resolve_land_combat_ff_w(&rw, attacker_id, def_id);
   s_militia_colonist_pick = -1;
+  combat_set_phantom_0x17(-1);
   combat_set_auto_defender(false);
   g_units_colony_autodefender = false;
   if (won && units_combat_is_visible(pool, attacker_id, def_id)) {

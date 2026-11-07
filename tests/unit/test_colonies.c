@@ -518,8 +518,14 @@ static int unit_warehouse_capitol_levels(void) {
   /* FUN_364b_0114: Expansion INCs +0x95; past level 1 it completes nothing. */
   c->building_in_production = 2;
   c->hammers = 10;
+  c->pending_build_reveal = 0;
   if (!colonies_try_complete_building(&pool, 0) || c->warehouse_level != 2) {
     fprintf(stderr, "Expansion complete warehouse_level=%u\n", (unsigned)c->warehouse_level);
+    return 1;
+  }
+  /* FUN_364b_0114 raw 56965-56967: no DS:0x34a reveal for the Expansion. */
+  if (c->pending_build_reveal != 0) {
+    fprintf(stderr, "Expansion must not set pending_build_reveal, got %d\n", c->pending_build_reveal);
     return 1;
   }
   c->has_building[2] = false;
@@ -1003,7 +1009,7 @@ static int unit_capture_col1_effects(void) {
   recs[1].x = 20;
   recs[1].y = 20;
   recs[1].nation_id = 0;
-  recs[1].population = 6;
+  recs[1].population = 16; /* stale save mirror: the divisor reads live b (6) */
   col1.nation[0].gold = 1000;
   col1.nation[1].gold = 5;
   col1.stuff.colony_counts[0] = 2;
@@ -1314,8 +1320,21 @@ static int case_colonies_core(void) {
       ou->nation_id = before->nation_id;
     }
     ColonizeWorld w_admit = world_make(&units, &pool, NULL, NULL, false, NULL, NULL);
+    ColonizeColony* mc = colonies_get_mut(&pool, cid);
+    const int bip0 = mc ? mc->building_in_production : -1;
+    const int hammers0 = mc ? mc->hammers : 0;
+    if (mc) {
+      mc->building_in_production = stockade;
+      mc->hammers = 0;
+    }
     const int admitted = colonies_admit_unit_w(&w_admit, cid, uid);
     CHECK(admitted == pop0, "admit returns new colonist index");
+    /* DOS writes +0x94 only in FUN_5952_035e (raw 95711/95851/95865), never on a join. */
+    CHECK(mc && mc->building_in_production == stockade, "join keeps a 0-hammer Stockade project");
+    if (mc) {
+      mc->building_in_production = bip0;
+      mc->hammers = hammers0;
+    }
     CHECK(colonies_get(&pool, cid)->colonist_count == pop0 + 1, "pop +1 after admit");
     {
       const ColonizeUnit* gone = units_get_const(&units, uid);

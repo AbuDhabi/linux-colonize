@@ -1564,8 +1564,9 @@ bool units_set_orders(ColonizeUnitPool* pool, int unit_id, int orders) {
       return false;
     }
   }
-  u->goto_x = UNITS_GOTO_NONE;
-  u->goto_y = UNITS_GOTO_NONE;
+  /* The goto bytes stay: the Sentry stub 2b5a:1106 writes only +0x314c, and
+   * Fortify FUN_2b5a_1112 (raw 42418-42421) only +0x314c/+0x315a; a stale
+   * +0x314d/e is what DOS saves (col1_bridge exports it whatever the orders). */
   u->follow_unit_id = -1;
   const int prev = u->orders;
   u->orders = orders;

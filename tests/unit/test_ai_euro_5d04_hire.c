@@ -1254,6 +1254,83 @@ static int tb21_tb25_fixed(void) {
 }
 
 /*
+ * FUN_38fd_1f0c (raw 60320-60339) sells hold 0 with no boycott test: the AI
+ * dock sale empties a boycotted hold too. Sugar 20 at euro_price 5 sells at
+ * 4 -> +80; the Ore buy gate (10 * 20) stays shut, so gold ends at 180.
+ */
+static int dock_sale_ignores_boycott(void) {
+  const int nation = 1;
+  Fixture f;
+  if (fixture_init(&f, nation, 5, 100) != 0) {
+    return 1;
+  }
+  fixture_ore_colony(&f, nation, 3);
+  f.col1.nation[nation].gold = 100;
+  f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_ORE] = 10;
+  f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_SUGAR] = 5;
+  f.col1.nation[nation].boycott_bitmap = (uint16_t)(1u << COLONIZE_CARGO_SUGAR);
+  const int sid = spawn_europe_ship(&f, nation);
+  if (sid < 0 || units_load_goods(&f.units, sid, COLONIZE_CARGO_SUGAR, 20) != 20) {
+    fixture_free(&f);
+    return fail("seed boycotted cargo");
+  }
+  ai_euro_dispatcher_turn(&f.ctx, nation);
+  const ColonizeUnit* ship = units_get(&f.units, sid);
+  const int left = ship ? ship_cargo_of(ship, COLONIZE_CARGO_SUGAR) : -1;
+  const unsigned gold = (unsigned)f.col1.nation[nation].gold;
+  fixture_free(&f);
+  if (left != 0 || gold != 180) {
+    fprintf(stderr, "boycott sale: sugar left %d (want 0) gold %u (want 180)\n", left, gold);
+    return fail("5d04 dock sale must not skip a boycotted hold");
+  }
+  return 0;
+}
+
+/*
+ * Recruit-purchase loop, Pioneer recruit (raw 92891-92897): the 100-tools
+ * rebate is priced with FUN_291f_09ea (SELL, euro_price - 1), not the BUY
+ * quote. Same fixture with a plain Free Colonist recruit as the baseline;
+ * tools euro_price 20 -> the Pioneer run keeps 100 * 19 more gold.
+ */
+static int recruit_gold_after(int recruit_job, unsigned* gold_out) {
+  const int nation = 1;
+  Fixture f;
+  if (fixture_init(&f, nation, 5, 101) != 0) {
+    return 1;
+  }
+  f.col1.stuff.colony_counts[nation] = 0;
+  f.col1.nation[nation].gold = 3000;
+  f.col1.nation[nation].musket_bank_lots = 1; /* no musket surcharge */
+  col1_nation_bank_4a_set(&f.col1.nation[nation], 0x32); /* no horse stock cost */
+  f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_TOOLS] = 20;
+  for (int i = 0; i < 3; ++i) {
+    f.col1.nation[nation].recruit[i] = (uint8_t)recruit_job;
+  }
+  if (spawn_europe_ship(&f, nation) < 0 || spawn_europe_colonist(&f, nation, 1, 0) < 0) {
+    fixture_free(&f);
+    return fail("recruit fixture spawn");
+  }
+  ai_euro_dispatcher_turn(&f.ctx, nation);
+  *gold_out = (unsigned)f.col1.nation[nation].gold;
+  fixture_free(&f);
+  return 0;
+}
+
+static int pioneer_recruit_rebate_uses_sell_price(void) {
+  unsigned base = 0;
+  unsigned pio = 0;
+  if (recruit_gold_after(0x1c, &base) || recruit_gold_after(UNITS_JOB_PIONEER, &pio)) {
+    return 1;
+  }
+  if ((int)pio - (int)base != 100 * 19) {
+    fprintf(stderr, "pioneer rebate: base gold %u pioneer gold %u (diff %d, want 1900)\n",
+            base, pio, (int)pio - (int)base);
+    return fail("Pioneer recruit tools rebate must use the sell quote");
+  }
+  return 0;
+}
+
+/*
  * DS:0xa0b8, the "colonies asking for colonists" count FUN_521d_03d0 reads,
  * is zeroed at FUN_521d_6d8e entry (raw 93109) and bumped after each own
  * colony's 5952 tick (raw 93139-93141). The turn-start prelude must not count
@@ -1325,6 +1402,8 @@ static const TestCase k_cases[] = {
     {"hull_budget_space_uses_translated_type", hull_budget_space_uses_translated_type},
     {"needs_colonists_latch_matches_5952", needs_colonists_latch_matches_5952},
     {"tb21_tb25_fixed", tb21_tb25_fixed},
+    {"dock_sale_ignores_boycott", dock_sale_ignores_boycott},
+    {"pioneer_recruit_rebate_uses_sell_price", pioneer_recruit_rebate_uses_sell_price},
 };
 
 TEST_MAIN(k_cases)

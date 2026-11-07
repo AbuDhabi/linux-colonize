@@ -327,7 +327,7 @@ independently golden-confirmed.
   index.
 - Click targets: the only click-to-zoom in any report — grid cell -> detail
   (`reports_labor_cell_hit`, wired via `game->labor_detail_job` in
-  `game_loop.c`). Esc/Enter/OK on the detail view returns to the grid.
+  `game_loop.c`). Any key or either mouse button on the detail view returns to the grid (`FUN_281f_03c0`).
 - Strings: title "LABOR ADVISER REPORT" resolves live (`reports_title`);
   job names (live from `NAMES.TXT @JOB`) via
   `reports_job_display_name()`; "(Click on item to zoom)" (`@MISC` #56) and the
@@ -359,7 +359,7 @@ independently golden-confirmed.
   colony order = save's colony array order, filtered to this nation.
 - Scroll/paging: 1 + ceil(colony_count/17) pages
   (`reports_economic_page_count`).
-- Click targets: none; OK/Esc/Enter advances page, wraps to map from last.
+- Click targets: none; any key or either mouse button advances page, wraps to map from last.
 - Strings: title "ECONOMIC ADVISER REPORT" resolves live (`reports_title`);
   "Tons"/"Gold"/"Bid Price"/"Ask Price" column headers from `LABELS.TXT`
   `@MISC` #58/#59/#203/#204 via `reports_labels_field`; page subtitles
@@ -417,7 +417,7 @@ independently golden-confirmed.
 - Ordering: colony array order, filtered to this nation.
 - Scroll/paging: 2*ceil(colony_count/9) pages — first half Military
   Garrisons, second half Sons of Liberty (`reports_colony_page_count`).
-- Click targets: none; OK/Esc/Enter advances page.
+- Click targets: none; any key or either mouse button advances page.
 - Strings: title "COLONY ADVISER REPORT" and the two page subtitles
   ("Military Garrisons" `@MISC` #208, "Sons of Liberty" `@MISC` #209) all
   resolve live (same `reports_labels_field` pattern as F5); colony/building
@@ -469,7 +469,7 @@ independently golden-confirmed.
   row wherever the array puts it — there is no pinning of a passenger to its
   carrier (on `naval.png`'s save the two orders coincide).
 - Scroll/paging: 7 rows/page (`reports_naval_page_count`).
-- Click targets: none; OK/Esc/Enter advances page.
+- Click targets: none; any key or either mouse button advances page.
 - Strings: title "NAVAL ADVISER REPORT" and the 4 column headers ("Ship"/
   "Cargo"/"Location"/"Destination", `@MISC` #61-64, a clean consecutive
   block) all resolve live; body needs FONTTINY not FONTSMAL (FONTSMAL

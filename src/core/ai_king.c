@@ -6,6 +6,7 @@
 
 #include "core/assets.h"
 #include "core/colony.h"
+#include "core/colony_production.h"
 #include "core/combat_strength.h"
 #include "core/col1_save.h"
 #include "core/dos_rng.h"
@@ -831,42 +832,13 @@ int ai_king_sol_percent(const ColonizeTurnContext* ctx, int nation_id) {
 }
 
 /*
- * FUN_43f7_1eca colony-SoL bias (catalog: promote when colony SoL>50%).
- * Prefer Col1 rebel_dividend/divisor at the unit tile; else nation SoL (0004).
- * King promote path only — not FF Washington mass-promote / combat upgrade.
+ * FUN_281f_0c86 -> FUN_15eb_0274 on the bound LIVE colony (1eca raw 74925,
+ * 06a6 raw 73854, 0982 raw 74006). The col1 record holds the accumulators;
+ * a colony founded since the last capture has none and reads DOS's fresh
+ * 0/0 record = 0% (+ Bolivar), never the nation-wide SoL.
  */
-int ai_king_colony_sol_at(const ColonizeTurnContext* ctx, int nation_id, int x, int y) {
-  if (!ctx || nation_id < 0 || nation_id >= 4) {
-    return 0;
-  }
-  if (ctx->col1_ok && ctx->col1 && ctx->col1->colony) {
-    for (uint16_t i = 0; i < ctx->col1->head.colony_count; ++i) {
-      const ColonizeCol1Colony* c = &ctx->col1->colony[i];
-      if ((int)c->nation_id != nation_id) {
-        continue;
-      }
-      if ((int)c->x != x || (int)c->y != y) {
-        continue;
-      }
-      /* FUN_15eb_0274: divisor 0 means nothing has accumulated = 0%. The old
-       * `div = divisor ? divisor : 1` guard turned a fresh record into
-       * `dividend * 100` instead. */
-      int sol = 0;
-      if (c->rebel_divisor > 0) {
-        sol = (int)(((uint64_t)c->rebel_dividend * 100ull) / (uint64_t)c->rebel_divisor);
-      }
-      if (sol < 0) {
-        sol = 0;
-      }
-      /* FUN_15eb_0274 Bolivar display boost (same as colony_prod_sol_percent). */
-      sol += founding_fathers_bolivar_sol_bonus(ctx->col1, nation_id);
-      if (sol > 100) {
-        sol = 100;
-      }
-      return sol;
-    }
-  }
-  return ai_king_sol_percent(ctx, nation_id);
+int ai_king_colony_sol_at(const ColonizeTurnContext* ctx, const ColonizeColony* c) {
+  return colony_prod_sol_percent(ctx && ctx->col1_ok ? ctx->col1 : NULL, c);
 }
 
 /*

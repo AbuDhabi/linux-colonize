@@ -804,6 +804,7 @@ graphs:
         fn: ai_euro_land.c:ai_euro_20e6_village_arm
         dos: 20e6 0x4c village arms; 8d4a attitude read
         status: dos
+        note: "2026-11-07: the port-only per-(village, nation) visit latch is gone; raw 89064-89068 / 89363-89372 have no latch and FUN_465b_0000 no visit writer, so a chief that leaves tribe.state.scouted clear (CHIEFBORED) is asked again next turn."
       - id: labor
         kind: decision
         label: Labor arm — under-filled colony by ring tier → join / walk; none → become Pioneer or force-explore

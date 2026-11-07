@@ -44,7 +44,7 @@ site / FF / difficulty live in [save_format_map.md](save_format_map.md).
 | King / REF | `ai_king.c` | Land / naval resolve on invasion paths |
 | Indian raid | `ai_contact.c` raid pulse | Adjacent `units_resolve_land_combat` → seize / move / abandon |
 | Paul Revere | `units_revere_defend_colony_tile` | Empty foreign colony + muskets → auto-arm → land combat |
-| Coastal fort | `units_coastal_fort_fire_colony_w`, called at the top of each colony's EOT (`FUN_364b_0688` raw 57227, in the owner's slot) | EOT battery vs adjacent ships whose PEACE bit (0x40, the byte F8 reads) is clear, or any Privateer (raw 57082, port_bugs.md #465); **one** salvo per neighbour tile, at the first ship down the tile chain, newest arrival first (`FUN_364b_03f6` raw 57073-57077), resolved between the two dissolve phases. The colony scroll and @FORTFIRE show only on 03f6's local_8 (raw 57085-57092): the human has a unit or colony beside the fort's colony, or the ship carries the human's visibility bit. A hit runs `FUN_5fef_0ec0` over that sea tile (1b0e raw 100720-100722): every hull of the target's nation there rolls its own damage-vs-sink with the battery strength as guns, and each sink leaves the census (raw 99570-99579). The repair notice and @SHIPSUNK show on the same local_8 (0352 param_3, raw 99645 / 99657) |
+| Coastal fort | `units_coastal_fort_fire_colony_w`, called at the top of each colony's EOT (`FUN_364b_0688` raw 57227, in the owner's slot) | EOT battery vs adjacent ships whose PEACE bit (0x40, the byte F8 reads) is clear, or any Privateer (raw 57082, port_bugs.md #465); **one** salvo per neighbour tile, gated and named (@FORTFIRE) by the first ship down the tile chain, newest arrival first (`FUN_364b_03f6` raw 57073-57077); the shot itself fights the tile's best defender (`FUN_5fef_0000` via 1b0e raw 100353-100354, `units_best_defender_vs_nation_at_sea`), resolved between the two dissolve phases. The colony scroll and @FORTFIRE show only on 03f6's local_8 (raw 57085-57092): the human has a unit or colony beside the fort's colony, or the ship carries the human's visibility bit. A hit runs `FUN_5fef_0ec0` over that sea tile (1b0e raw 100720-100722): every hull of the target's nation there rolls its own damage-vs-sink with the battery strength as guns, and each sink leaves the census (raw 99570-99579). The repair notice and @SHIPSUNK show on the same local_8 (0352 param_3, raw 99645 / 99657) |
 
 Globals for resolve: `units_set_ff_col1`, `units_set_combat_colonies`,
 `units_set_combat_human_nation`, `units_set_combat_popups`,
@@ -310,7 +310,7 @@ frames, so out-of-sight or in-colony fights stay instant.
     raw 99435-99436): winner not a hull AND neither tile water, else the gun is
     destroyed outright with no @ARTILLERY popup. No moves write on damage (#757).
   - **Capture** (Euro winner only, `attack>0`): Colonists / Treasure / Wagon →
-    nation flip + `@COLONISTCAPTURE*` / `@LOOTCAPTURE` / `@WAGONCAPTURE`. Veteran Colonist specialty stripped → `@COLONISTCAPTURE2`.
+    nation flip + `@COLONISTCAPTURE*` / `@LOOTCAPTURE` / `@WAGONCAPTURE`. Veteran Colonist specialty stripped → `@COLONISTCAPTURE2`, only when the capture is shown (0352 `param_3`, raw 99409-99418).
     **Natives never capture.** Disqualifiers (raw 99381-99383, port_bugs.md #663):
     a losing hull (type 0xd..0x12) or either tile ocean/high seas → destroy.
   - **Type demote** (keep nation): Dragoon→Soldier, Soldier→Colonist,

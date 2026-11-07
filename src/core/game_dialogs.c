@@ -2009,10 +2009,9 @@ static void game_apply_name_entry_result(ColonizeGameState* game) {
     return;
   }
   if (kind == NAME_ENTRY_KIND_LANDHO) {
-    char fallback[48];
-    game_landho_default_region(game, fallback, sizeof(fallback));
-    const char* name =
-      game->name_entry.result_name[0] ? game->name_entry.result_name : fallback;
+    /* FUN_2b5a_001e asm 0x20F26-0x20F32: strcpy(country_name, DS:0x9820)
+     * whatever FUN_291f_0120 returned, an emptied field included. */
+    const char* name = game->name_entry.result_name;
     str_copy_trunc(game->europe.colony_region, sizeof(game->europe.colony_region), name);
     if (game->col1_ok && game->human_nation >= 0 && game->human_nation < 4) {
       str_copy_trunc(
@@ -2828,10 +2827,7 @@ static void game_apply_howmuch_result(ColonizeGameState* game) {
     );
     game_europe_drain_price_events(game);
   } else if (kind == HOWMUCH_KIND_SOUND_TEST) {
-    sound_play(amt);
-    char line[32];
-    snprintf(line, sizeof(line), "Playing sound #%d", amt);
-    set_status(game, line, NULL);
+    sound_play(amt); /* asm 0x23D9D: FUN_281f_04c0([0x9cc8]), no status line */
   }
 }
 

@@ -26,6 +26,7 @@ static int unit_century_cargoready(void) {
   snprintf(col->name, sizeof(col->name), "Salem");
   col->building_in_production = -1;
   col->warehouse_level = 5; /* cap 300; 100 cross → CARGOREADY0 */
+  col->colony_flags = COLONIZE_COLONY_FLAG_COASTAL; /* @TUTORIAL6 needs a coastal colony */
   col->has_building[0] = true;
   col->stock[COLONIZE_CARGO_SUGAR] = 50;
   col->stock[COLONIZE_CARGO_RUM] = 99;
@@ -143,6 +144,22 @@ static int unit_century_cargoready(void) {
     return 1;
   }
   tipcol.head.game_options.tutorial_hints = 1;
+
+  /* Inland colony → @CARGOREADY* but no @TUTORIAL6 (FUN_364b_0688 raw 57915 COASTAL gate). */
+  col->colony_flags = 0;
+  col->stock[COLONIZE_CARGO_SUGAR] = 50;
+  col->stock[COLONIZE_CARGO_RUM] = 99;
+  eu.status[0] = '\0';
+  ai_popup_clear(&pops);
+  memset(&prod, 0, sizeof(prod));
+  turn_run_colony_production_w(&(ColonizeWorld){.colonies=(ColonizeColonyPool*)(&pool), .map=(ColonizeWorldMap*)(NULL), .col1=(ColonizeCol1Save*)(&tipcol), .col1_ok=true, .rng=(ColonizeDosRng*)(NULL), .europe=(EuropeScreen*)(&eu)}, 0, &prod, &pops, &game_txt);
+  if (pops.queue_count != 1 || tipcol.head.tut3.nr6) {
+    fprintf(stderr, "century tip inland: q=%d nr6=%u\n", pops.queue_count,
+            (unsigned)tipcol.head.tut3.nr6);
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  col->colony_flags = COLONIZE_COLONY_FLAG_COASTAL;
   fprintf(stderr, "warehouse century tip ok\n");
 
   /* At exact basic warehouse cap → @CARGOREADY1. */

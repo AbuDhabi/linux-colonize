@@ -86,8 +86,9 @@ void declaration_update(DeclarationCinematic* d, uint32_t dt_ms);
 void declaration_skip_to_end(DeclarationCinematic* d);
 
 /*
- * Any key or click fast-forwards; once finished it closes. Returns true
- * while the cinematic is open (input consumed).
+ * Any key or click finishes the glyph being drawn (DOS skips per glyph);
+ * once finished it closes. Returns true while the cinematic is open
+ * (input consumed).
  */
 bool declaration_handle_input(DeclarationCinematic* d, const ColonizeInputState* input);
 

@@ -1345,38 +1345,6 @@ static void game_after_unit_tail(ColonizeGameState* game, bool stepped) {
   if (landho_scan) {
     game_try_prompt_landho(game, landho_x, landho_y);
   }
-  if (!lcr_count_changed && game->col1_ok && game->world_map_ok && u->nation_id >= 0 &&
-      u->nation_id <= 3 && units_is_on_map(u) &&
-      !map_tile_is_water(&game->world_map, u->x, u->y)) {
-    /*
-     * Already-met village Meet is enqueued from adjacent step (no enter).
-     * Exact-tile Meet kept only if a unit somehow stands on the dwelling.
-     */
-    if (game->col1.tribe) {
-      for (uint16_t ti = 0; ti < game->col1.head.tribe_count; ++ti) {
-        const ColonizeCol1Tribe* t = &game->col1.tribe[ti];
-        if ((int)t->x != u->x || (int)t->y != u->y) {
-          continue;
-        }
-        if (t->nation_id < 4 || t->nation_id > 11) {
-          continue;
-        }
-        ColonizeTurnContext ctx;
-        game_fill_turn_context(game, &ctx);
-        if (ai_contact_try_village_meet_unit_at(
-              &ctx,
-              u->nation_id,
-              (int)t->nation_id,
-              u->profession == UNITS_JOB_MISSIONARY,
-              t->state.capital,
-              u->id,
-              (int)ti
-            )) {
-          break;
-        }
-      }
-    }
-  }
   game->map_cursor_x = u->x;
   game->map_cursor_y = u->y;
   if (u->moves > 0) {

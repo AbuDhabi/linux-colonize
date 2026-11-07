@@ -491,21 +491,6 @@ void ai_contact_clear_peace(ColonizeCol1Save* col1, int indian_nation, int euro_
   ai_diplo_clear_both(col1, indian_nation, euro_nation, COL1_INDIAN_PEACE_BIT);
 }
 
-/* Settlement count (villages/camps/cities), not braves — port_bugs.md #3. */
-static int ai_contact_nation_settlement_count(const ColonizeTurnContext* ctx, int nation_id) {
-  int count = 0;
-  if (!ctx || !ctx->col1 || !ctx->col1->tribe) {
-    return 0;
-  }
-  for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
-    const ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
-    if ((int)t->nation_id == nation_id) {
-      ++count;
-    }
-  }
-  return count;
-}
-
 int ai_contact_welcome_pending(const AiPopupState* st, int e, int nation_id) {
   return ai_popup_pending(
     st, AI_POPUP_TAG_CONTACT_WELCOME, -1, AI_POPUP_KEY_NATION_AB, e, nation_id
@@ -627,7 +612,7 @@ void ai_contact_apply_welcome_reject(
    */
   ai_contact_alarm_delta_00f2(ctx, nation_id, e, 100); /* DOS +100 hostility */
 
-  const char* tribe = ai_contact_tribe_name(nation_id);
+  const char* tribe = reports_tribe_display_name(nation_id - 4); /* raw 96665: 0a1a(tribe) */
   PopupMsgTokens shun_tok;
   memset(&shun_tok, 0, sizeof(shun_tok));
   shun_tok.string0 = tribe;
@@ -648,8 +633,11 @@ static void ai_contact_enqueue_welcome(ColonizeTurnContext* ctx, int e, int nati
     return;
   }
   const char* tribe = ai_contact_tribe_name(nation_id);
-  const int settlements = ai_contact_nation_settlement_count(ctx, nation_id);
-  const int shown = settlements > 0 ? settlements : 1;
+  /* FUN_5bfb_022e raw 96630: %NUMBER0 = byte DS:0x962a[slot] (tribe_village_counts,
+   * FUN_4962_06b6 census / 6a09 / 0824 upkeep), shown as is — no live
+   * recount, no 0->1 floor. */
+  const int shown = (ctx->col1 && nation_id >= 4 && nation_id <= 11)
+    ? (int)ctx->col1->stuff.tribe_village_counts[nation_id - 4] : 0;
   /* FUN_5bfb_022e 5bfb:0325: from turn 20 (DS:0x538e ≥ 0x14) the meet
    * switches the tune pool — 5 Natives, Inca → 7 (Cuzco), Aztec → 6
    * (Tenochtitlan); 04ac vs 0498 only differ in option gating.
@@ -1251,7 +1239,7 @@ int ai_contact_try_whack_confirm(
   if (ai_contact_whack_pending(ctx->ai_popups, unit_id)) {
     return 1;
   }
-  const char* tribe = ai_contact_tribe_name(indian_nation);
+  const char* tribe = reports_tribe_display_name(indian_nation - 4); /* 465b raw 75606: 0a1a(tribe) */
   PopupMsgTokens tok;
   memset(&tok, 0, sizeof(tok));
   tok.string0 = tribe;
@@ -1499,9 +1487,15 @@ int ai_contact_try_ship_village_unit(
   }
 
   const int alarm = ai_diplo_indian_alarm(ctx->col1, indian_nation, euro_nation);
-  const int friction = (int)tribe->alarm[euro_nation].friction;
-  /* ASM: FUN_1000_84fc (alarm) >= 0x4b OR friction >= 0x40 → MADAT. */
-  if (alarm >= 0x4b || friction >= 0x40 || ai_diplo_indian_at_war(ctx->col1, euro_nation, indian_nation - 4)) {
+  /*
+   * FUN_4d56_4528 OVL13::004606 (viceroy_overlays.asm 130199-130202): MADAT
+   * when FUN_1000_84fc >= 0x4b OR the signed settlement +10 attitude WORD
+   * [BP-0x64] >= 0x40 (CMP word / JL) — the whole word, so any attacks high
+   * byte also aborts. No at-war test: a tribe at war below both bars falls
+   * through to the village meet like any other.
+   */
+  const int attitude = col1_tribe_attitude(tribe, euro_nation);
+  if (alarm >= 0x4b || attitude >= 0x40) {
     char body[AI_POPUP_BODY_LEN];
     PopupMsgTokens tok;
     memset(&tok, 0, sizeof(tok));

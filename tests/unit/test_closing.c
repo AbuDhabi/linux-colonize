@@ -116,11 +116,15 @@ static void test_open_and_skip(void) {
   check(c.clock == 17, "hat start tick");
 
   /* Sound hooks are still NULL here, so running `skip` out is silent. */
-  closing_update(&skip, 30000);
+  /* 390 frames x 6 ticks of the 60.877 Hz clock = 38.44 s (CLOSING.EXE
+   * anim_timing), not 390 x 55 ms. */
+  closing_update(&skip, 38000);
+  check(!skip.finished, "run-out still playing at 38.0 s");
+  closing_update(&skip, 1000);
   check(skip.finished, "run-out finishes");
   check(skip.clock == skip.end_frame, "run-out lands on the end marker");
 
-  closing_update(&c, 30000);
+  closing_update(&c, 40000);
   check(c.finished, "timed run completes");
   check(c.clock == c.end_frame, "timed run hits the end marker");
   check(memcmp(c.canvas, skip.canvas, sizeof(c.canvas)) == 0, "both runs end on one frame");

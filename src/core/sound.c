@@ -1053,14 +1053,21 @@ void sound_set_bgm_pool(int track) {
   pthread_mutex_unlock(&g_sound.lock);
 }
 
+bool sound_event_music_gate(void) {
+  if (!g_sound.inited) {
+    return false;
+  }
+  pthread_mutex_lock(&g_sound.lock);
+  const bool gate = g_sound.opts.event_music && !g_sound.opts.background_music;
+  pthread_mutex_unlock(&g_sound.lock);
+  return gate;
+}
+
 void sound_request_bgm(int track) {
   if (!g_sound.inited || !COLONIZE_SOUND_PLAYBACK_ENABLED) {
     return;
   }
-  pthread_mutex_lock(&g_sound.lock);
-  const bool restart = g_sound.opts.event_music && !g_sound.opts.background_music;
-  pthread_mutex_unlock(&g_sound.lock);
-  if (restart) {
+  if (sound_event_music_gate()) {
     sound_set_bgm(track);
   } else {
     sound_set_bgm_pool(track);

@@ -230,6 +230,10 @@ always pool[0] — pass `rng` to match; NULL falls back to first-filled
 (fixture / no-rng callers). The new row goes to the BACK of the dock: raw
 68588 relinks the immigrant at the oldest end (FUN_281f_08c6 =
 FUN_1427_03a0), port_bugs.md #1477. Cite: europe_nation_eot.md "Phase 5".
+Every human arm past the crosses test (Brewster pick, spawn, spawn refused)
+ends at asm 38fd:5fdb: an undamaged hull on the dock (FUN_281f_08bc mode
+0xe) sets DS:0x14c and the Europe screen opens at end of turn
+(turn_run_nation_ticks_immigration -> request_europe_open).
 
 ## europe_refill_pool_slot_rng
 

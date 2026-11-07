@@ -5865,6 +5865,45 @@ static int case_combat_best_defender(void) {
   return 0;
 }
 
+/* FUN_5fef_0352 raw 99409-99418: the Veteran strip (0x15 -> 0x1c) sits inside
+ * the `param_3 != 0` popup block, so an unshown capture keeps the specialty. */
+static int case_combat_capture_vet_strip_needs_show(void) {
+  AiPopupState pops;
+  if (combat_phase2_open(&pops) != 0) {
+    return 1;
+  }
+  ColonizeCol1Save c1;
+  memset(&c1, 0, sizeof(c1));
+  c1.head.difficulty = 2;
+  const int sol = units_find_type(&pool, "Soldiers");
+  const int fc = units_find_type(&pool, "Colonists");
+  if (sol < 0 || fc < 0) {
+    fprintf(stderr, "vetstrip: types missing\n");
+    return 1;
+  }
+  int rc = 0;
+  for (int show = 0; show < 2 && rc == 0; ++show) {
+    const int aid = units_spawn_allow_stack(&pool, sol, 40, 40);
+    const int did = units_spawn_allow_stack(&pool, fc, 41, 40);
+    ColonizeUnit* d = units_get(&pool, did);
+    units_get(&pool, aid)->nation_id = 0;
+    d->nation_id = 1;
+    d->profession = UNITS_JOB_SOLDIER;
+    (void)units_apply_land_loss_outcome(&pool, did, aid, &c1, show, NULL);
+    d = units_get(&pool, did);
+    const int want = show ? UNITS_JOB_NONE : UNITS_JOB_SOLDIER;
+    if (!d || !d->active || d->nation_id != 0 || d->profession != want) {
+      fprintf(stderr, "vetstrip: show=%d profession %d (want %d)\n", show,
+              d ? d->profession : -1, want);
+      rc = 1;
+    }
+    units_despawn(&pool, aid);
+    units_despawn(&pool, did);
+  }
+  combat_phase2_close();
+  return rc;
+}
+
     /* Capture-alive Colonists. */
 static int case_combat_capture_alive_colonist(void) {
   AiPopupState pops;
@@ -8374,6 +8413,39 @@ static int case_pool_full_spawn_appends_after_compact(void) {
   return 0;
 }
 
+/* FUN_38fd_4884 raw 64747-64751: a cancelled FoY pick (local_58 < 0) jumps to
+ * LAB_38fd_4b32 — no colonist, no pool refill — and the next pick still comes. */
+static int case_fountain_of_youth_cancel_skips(void) {
+  EuropeScreen feu;
+  char eerr[256];
+  if (!europe_load(&feu, "COLONIZE", eerr, sizeof(eerr))) {
+    fprintf(stderr, "fountain cancel: europe_load failed: %s\n", eerr);
+    return 1;
+  }
+  feu.dock_count = 0;
+  char slot0[sizeof(feu.pool[0].name)];
+  snprintf(slot0, sizeof(slot0), "%s", feu.pool[0].name);
+  AiPopupState fpops;
+  ai_popup_init(&fpops);
+  fpops.has_result = true;
+  fpops.result_tag = AI_POPUP_TAG_FOUNTAIN_YOUTH;
+  fpops.result_cancelled = true;
+  fpops.result_choice_id = 0;
+  fpops.result_payload = 2;
+  fpops.result_nation_a = 0;
+  if (!units_fountain_youth_apply_popup(&feu, &fpops, NULL)) {
+    fprintf(stderr, "fountain cancel: apply rejected\n");
+    return 1;
+  }
+  ai_popup_consume_result(&fpops);
+  if (feu.dock_count != 0 || strcmp(slot0, feu.pool[0].name) != 0 || !ai_popup_busy(&fpops)) {
+    fprintf(stderr, "fountain cancel: dock %d slot0 '%s' (was '%s') next pick queued %d\n",
+            feu.dock_count, feu.pool[0].name, slot0, ai_popup_busy(&fpops));
+    return 1;
+  }
+  return 0;
+}
+
 static int case_fountain_of_youth(void) {
   if (fx_open() != 0 || fx_stage2() != 0) {
     return 1;
@@ -8811,6 +8883,7 @@ static const TestCase k_cases[] = {
   {"combat_woi_ref_support", case_combat_woi_ref_support},
   {"combat_best_defender", case_combat_best_defender},
   {"combat_capture_alive_colonist", case_combat_capture_alive_colonist},
+  {"combat_capture_vet_strip_needs_show", case_combat_capture_vet_strip_needs_show},
   {"combat_native_win_destroy_demote", case_combat_native_win_destroy_demote},
   {"combat_naval_damage_not_sink", case_combat_naval_damage_not_sink},
   {"combat_outcome_popups", case_combat_outcome_popups},
@@ -8834,6 +8907,7 @@ static const TestCase k_cases[] = {
   {"goto_into_village", case_goto_into_village},
   {"landfall_spent_gate", case_landfall_spent_gate},
   {"fountain_of_youth", case_fountain_of_youth},
+  {"fountain_of_youth_cancel_skips", case_fountain_of_youth_cancel_skips},
   {"unit_ids_recycle_below_max", case_unit_ids_recycle_below_max},
   {"pool_full_spawn_appends_after_compact", case_pool_full_spawn_appends_after_compact},
   {"prev_live_id_is_slot_order", case_prev_live_id_is_slot_order},

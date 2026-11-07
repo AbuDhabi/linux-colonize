@@ -1576,8 +1576,8 @@ static int retry_3180_run(int mode, ColonizeDosRng* out) {
     ai_euro_3180_euro_side(&ctx, ai, 1, 1, 1);
   } else {
     for (int i = 0; i < mode && rc == 0; ++i) {
-      if (ai_diplo_153e_encounter(&ctx, 0, 1, ai->id, i == 0 ? 0 : 4) != 0) {
-        rc = fail("3180 retry: the fixture's 153e must have nothing to say");
+      if (ai_diplo_153e_encounter(&ctx, 0, 1, ai->id, i == 0 ? 0 : 4) != 1) {
+        rc = fail("3180 retry: the fixture's 153e exits silently with local_8e = 1 (raw 97436)");
       }
     }
   }
@@ -1590,15 +1590,16 @@ static int retry_3180_run(int mode, ColonizeDosRng* out) {
 static int unit_3180_retries_next_human_tile(void) {
   ColonizeDosRng side;
   ColonizeDosRng one;
-  ColonizeDosRng two;
-  if (retry_3180_run(0, &side) || retry_3180_run(1, &one) || retry_3180_run(2, &two)) {
+  ColonizeDosRng none;
+  dos_rng_seed(&none, 11);
+  if (retry_3180_run(0, &side) || retry_3180_run(1, &one)) {
     return 1;
   }
-  if (memcmp(&one, &two, sizeof(one)) == 0) {
-    return fail("3180 retry: the fixture's 153e must draw (ba > 0) before its 0 return");
+  if (memcmp(&one, &none, sizeof(one)) == 0) {
+    return fail("3180 retry: the fixture's 153e must draw (ba > 0) before its silent exit");
   }
-  if (memcmp(&side, &two, sizeof(side)) != 0) {
-    return fail("a 0 from 153e must let 3180 try the next human tile (raw 98649/98674)");
+  if (memcmp(&side, &one, sizeof(side)) != 0) {
+    return fail("153e's silent exit returns 1: 3180 stops after the first human tile (raw 98649/98674)");
   }
   return 0;
 }

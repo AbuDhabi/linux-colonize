@@ -911,17 +911,8 @@ static int ai_euro_5d04_cb_sell_hold0(int idx) {
   if (!ctx || !u || units_hold_amount(ai_euro_s_5d04_ctx->units, u->id, 0) <= 0) {
     return 0;
   }
-  /* Boycotted cargo stays aboard (europe_cargo_boycotted / boycott_bitmap). */
-  {
-    const int c0 = u->hold_goods_type[0];
-    /* One accessor, one word (nation+0x20 — audit G6): the human branch used
-     * to read the render mirror, which is stale outside the Europe screen. */
-    const int boycotted =
-      europe_cargo_boycotted_ex(ctx->europe, ctx->col1, ai_euro_s_5d04_nation, c0);
-    if (boycotted) {
-      return 0;
-    }
-  }
+  /* No boycott test: FUN_38fd_1f0c (raw 60320-60339) removes hold 0 (0aec)
+   * and sells it unconditionally; nation+0x20 is never read on this path. */
   const int cargo = u->hold_goods_type[0];
   /* 0dc6 sells via 8cdc: hold 0 out, the rest shift down, so the caller's
    * `while (+0x3150)` loop reaches every hold (DOSBox 1508: both holds). */
@@ -1501,7 +1492,9 @@ static void ai_euro_5d04_hire_tail_colony_demand(Ai5d04HireTail* t) {
             nat->musket_bank_lots++;
           }
         } else if (cdisp == 2) {
-          extra_cost = ai_euro_5d04_cb_price(COLONIZE_CARGO_TOOLS) * -100;
+          /* raw 92892 `FUN_291f_09ea(0xe)`: the tools rebate is the SELL quote
+           * (FUN_38fd_0040), where the musket arm above reads 0c3e = BUY. */
+          extra_cost = ai_euro_5d04_cb_sell_price(COLONIZE_CARGO_TOOLS) * -100;
           ai_euro_5d04_cb_market_volume(COLONIZE_CARGO_TOOLS, 100, 0); /* FUN_291f_0a2e */
         } else if (cdisp == 5) {
           ai_euro_5d04_cb_set_unit_dispatch_byte(cand, 4);
@@ -1657,7 +1650,7 @@ static void ai_euro_5d04_hire_tail_departing_ships(Ai5d04HireTail* t) {
           } else {
             const int sold = ai_euro_5d04_cb_sell_hold0(idx2);
             if (sold <= 0) {
-              break; /* boycotted hold stays aboard */
+              break; /* nothing left to remove */
             }
           }
         }

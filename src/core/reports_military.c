@@ -1005,8 +1005,10 @@ static int reports_indian_build_rows(
     r->tech = ind->tech > 3 ? 3 : ind->tech;
     r->villages = villages;
     r->missions = missions;
-    r->muskets = ((int)ind->muskets + armed_units) * REPORTS_INDIAN_MUSKET_UNIT_SCALE;
-    r->horse_herds = ind->horse_herds;
+    /* FUN_3f41_010a 3f41:0334 / 3f41:04a7: both bytes are read with CBW, so a
+     * count past 127 prints negative (DOS quirk, kept). */
+    r->muskets = ((int)(int8_t)ind->muskets + armed_units) * REPORTS_INDIAN_MUSKET_UNIT_SCALE;
+    r->horse_herds = (int8_t)ind->horse_herds;
     /*
      * Chief face vs alarm, decoded from the raw asm (`3f41:0522`..`3f41:05d2`):
      * `FUN_281f_0254` is handed AX = quartile + 0x72, where the quartile is
@@ -1136,11 +1138,11 @@ void reports_render_indian(
       snprintf(buf, sizeof(buf), "%d %s", r->missions, missions_w ? missions_w : "");
       reports_draw_line(font, fb, REPORTS_INDIAN_MISSIONS_X, stats_y, buf, REPORTS_INDIAN_TEXT_COLOR);
     }
-    if (r->muskets > 0) {
+    if (r->muskets != 0) { /* 3f41:0447 CMP local,0 / JZ */
       snprintf(buf, sizeof(buf), "%d %s", r->muskets, reports_cargo_display_name(COLONIZE_CARGO_MUSKETS));
       reports_draw_line(font, fb, REPORTS_INDIAN_MUSKETS_X, stats_y, buf, REPORTS_INDIAN_TEXT_COLOR);
     }
-    if (r->horse_herds > 0) {
+    if (r->horse_herds != 0) { /* 3f41:049a CMP byte [+8],0 / JZ */
       const char* horses_w = reports_labels_field("MISC", 45);
       snprintf(buf, sizeof(buf), "%d %s", r->horse_herds, horses_w ? horses_w : "");
       reports_draw_line(font, fb, REPORTS_INDIAN_HORSES_X, stats_y, buf, REPORTS_INDIAN_TEXT_COLOR);

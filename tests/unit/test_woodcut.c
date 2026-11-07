@@ -38,6 +38,18 @@ static void fake_bgm(int pool) {
   last_bgm = pool;
 }
 
+static int pool_calls;
+static bool fake_gate_open;
+
+static void fake_pool(int pool) {
+  pool_calls++;
+  last_bgm = pool;
+}
+
+static bool fake_gate(void) {
+  return fake_gate_open;
+}
+
 /* FUN_12fd_0048 / FUN_12fd_000e address DS:0x540a 1-based from event's LSB. */
 static void test_once_only_bits(void) {
   ColonizeCol1Save save;
@@ -67,17 +79,36 @@ static void test_once_only_bits(void) {
   woodcut_clear_pending();
 }
 
-/* The FUN_12fd_006c jump table: pool 2 for 0/1/2/9, an event id for 3-6. */
+/* The FUN_12fd_006c jump table (asm 12fd:009c-00d5): pool 2 for 1/2/9 under
+ * different gates, an event id for 3-6. */
 static void test_tune_table(void) {
   ColonizeCol1Save save;
   memset(&save, 0, sizeof(save));
   woodcut_clear_pending();
   woodcut_set_sound_hooks(fake_play, fake_bgm);
+  woodcut_set_bgm_gate_hooks(fake_pool, fake_gate);
 
-  tune_calls = bgm_calls = 0;
+  /* Background Music on (gate closed): id 1 plays nothing, id 2 only arms
+   * the pool (FUN_129f_0300), id 9 still restarts (FUN_129f_0318). */
+  fake_gate_open = false;
+  tune_calls = bgm_calls = pool_calls = 0;
+  (void)woodcut_fire(&save, WOODCUT_DISCOVERY_OF_THE_NEW_WORLD);
+  check(bgm_calls == 0 && pool_calls == 0, "id 1 is silent with the gate closed");
   (void)woodcut_fire(&save, WOODCUT_BUILDING_A_COLONY);
-  check(bgm_calls == 1 && last_bgm == 2, "id 2 switches to tune pool 2");
-  check(tune_calls == 0, "id 2 pushes no event id");
+  check(bgm_calls == 0 && pool_calls == 1 && last_bgm == 2, "id 2 arms pool 2 only");
+  (void)woodcut_fire(&save, WOODCUT_CARGO_FROM_THE_NEW_WORLD);
+  check(bgm_calls == 1 && last_bgm == 2, "id 9 restarts pool 2 ungated");
+
+  /* Event Music only (gate open): ids 1 and 2 restart pool 2. */
+  memset(&save, 0, sizeof(save));
+  woodcut_clear_pending();
+  fake_gate_open = true;
+  tune_calls = bgm_calls = pool_calls = 0;
+  (void)woodcut_fire(&save, WOODCUT_DISCOVERY_OF_THE_NEW_WORLD);
+  check(bgm_calls == 1 && last_bgm == 2, "id 1 restarts pool 2 with the gate open");
+  (void)woodcut_fire(&save, WOODCUT_BUILDING_A_COLONY);
+  check(bgm_calls == 2 && pool_calls == 0, "id 2 restarts pool 2 with the gate open");
+  check(tune_calls == 0, "ids 1/2 push no event id");
 
   tune_calls = bgm_calls = 0;
   (void)woodcut_fire(&save, WOODCUT_THE_AZTEC_EMPIRE);
@@ -92,6 +123,7 @@ static void test_tune_table(void) {
   check(tune_calls == 0 && bgm_calls == 0, "id 7 has no table entry");
 
   woodcut_set_sound_hooks(NULL, NULL);
+  woodcut_set_bgm_gate_hooks(NULL, NULL);
   woodcut_clear_pending();
 }
 
@@ -115,6 +147,13 @@ static void test_screen(void) {
    */
   check(w.canvas[0] == 0, "corner outside the frame stays black");
   check(w.canvas[100 * 320 + 160] != 0, "the middle of the frame is drawn");
+
+  /* FUN_6f30_0062: frame + plate + a colour-10 window (63,40 192x112) are
+   * presented first; the art is drawn after and fizzled in. */
+  check(!w.art_hidden, "open shows the finished screen unless the presenter hides the art");
+  check(w.base[40 * 320 + 63] == 10 && w.base[151 * 320 + 254] == 10, "base fills the picture window");
+  check(w.base[100 * 320 + 160] == 10, "base has no art");
+  check(memcmp(w.base, w.canvas, sizeof(w.base)) != 0, "canvas adds the art");
 
   ColonizeInputState in;
   memset(&in, 0, sizeof(in));

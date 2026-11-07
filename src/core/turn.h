@@ -114,7 +114,7 @@ typedef struct ColonizeTurnResult {
   bool year_end_defeat; /* FUN_3844_0442 B: year≥1600, no human colonies, peacetime */
   bool year_end_victory; /* FUN_3844_0442 C1 thin: WoI + no crown colonies */
   bool year_end_war_lost; /* FUN_3844_0442 @LOSING%d (raw 58545 goto LAB_3844_04ec) */
-  bool request_europe_open; /* ship-build ready off-colony (DS:0x14c stand-in) */
+  bool request_europe_open; /* DS:0x14c: @REFIT in Europe, 5e52 immigrant + sound hull docked */
   int colonies_produced;
   int food_shortages;
   int immigrants_arrived;

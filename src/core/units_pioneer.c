@@ -179,10 +179,21 @@ static void units_pioneer_native_land_tail(
     return;
   }
   const int price = colonies_indian_land_purchase_gold(col1, map, u->x, u->y, nation);
-  if (price <= 0) {
-    return; /* already purchased/gifted (mask 0x10), or Peter Minuit */
-  }
   const int is_ai = col1->player[nation].control != 0;
+  if (price <= 0) {
+    /* Already purchased/gifted (mask 0x10), or Peter Minuit. The road arm
+     * (FUN_479b_0526 raw 76935-76941) calls the 00ca purchase BEFORE its
+     * Minuit test, and 07c2 prices Minuit land 0: an AI "buys" the tile for
+     * 0 (lands_bought++, mask 0x10). The clear arm (01a6) tests Minuit first. */
+    const size_t idx = (size_t)u->y * (size_t)map->width + (size_t)u->x;
+    const bool bought = !map->layer2 || idx >= map->tile_count ||
+                        (map->layer2[idx] & MAP_LAYER2_PURCHASED) != 0;
+    if (base_add == 3 && is_ai && !bought &&
+        founding_fathers_nation_has(col1, nation, FF_PETER_MINUIT)) {
+      colonies_indian_land_pay(col1, map, u->x, u->y, &col1->nation[nation].gold, 0);
+    }
+    return;
+  }
   if (is_ai) {
     uint32_t* gold = &col1->nation[nation].gold;
     const long have = (long)*gold;

@@ -4536,6 +4536,160 @@ static int test_crossing_stamps_nation_return_tile(void) {
   return rc;
 }
 
+/* turns_ship_europe_roundtrip's start: French Caravel on the high seas at (50,29). NULL = skip. */
+static ColonizeGameState* lane_caravel_game(int* sid_out) {
+  ColonizeGameConfig cfg = {.data_dir = "./COLONIZE", .save_dir = "./build/debug"};
+  ColonizeGameState* game = game_create(&cfg);
+  char err[256];
+  if (!game || !game_assets_ok(game) ||
+      !game_load_col1_file(
+        game, "tests-automated-regression/turns_ship_europe_roundtrip/input.sav", err,
+        sizeof(err)
+      )) {
+    if (game) {
+      game_destroy(game);
+    }
+    return NULL;
+  }
+  *sid_out = -1;
+  for (int i = 0; i < units_slot_end(&game->units); ++i) {
+    const ColonizeUnit* u = &game->units.units[i];
+    if (u->active && u->x == 50 && u->y == 29 && units_is_sea(&game->units, u->id)) {
+      *sid_out = u->id;
+    }
+  }
+  game->in_menu = false;
+  game->units.selected_id = *sid_out;
+  game->map_cursor_x = 50;
+  game->map_cursor_y = 29;
+  return game;
+}
+
+/* Audit I3 / I5: DOS Enter (FUN_2b5a_32ee / 3344) only opens an own colony or ends the turn
+ * at the End of Turn prompt; it never moves the active unit to the cursor. H is VIEW Show
+ * Hidden Terrain only: no sail-to-Europe arm with a ship selected. */
+static int test_map_enter_and_h_keys(void) {
+  int sid = -1;
+  ColonizeGameState* game = lane_caravel_game(&sid);
+  if (!game) {
+    fprintf(stderr, "SKIP: no COLONIZE/ assets or fixture save\n");
+    return TR_SKIP;
+  }
+  int rc = 0;
+  ColonizeUnit* ship = units_get(&game->units, sid);
+  if (!ship) {
+    rc = fail("enter/h: no lane caravel");
+  }
+  ColonizeInputState in;
+  memset(&in, 0, sizeof(in));
+  if (rc == 0) {
+    ship->moves = 12;
+    game->map_cursor_x = 49;
+    in.last_key = COLONIZE_KEY_ENTER;
+    (void)game_update_map_keys(game, &in);
+    if (ship->x != 50 || ship->y != 29 || !units_is_on_map(ship)) {
+      rc = fail("Enter must not move the active unit to the cursor");
+    }
+  }
+  if (rc == 0) {
+    const int expected = game->europe.expected_ships;
+    game->map_cursor_x = 50;
+    in.last_key = COLONIZE_KEY_H;
+    (void)game_update_map_keys(game, &in);
+    if (!units_is_on_map(ship) || game->europe.expected_ships != expected) {
+      rc = fail("H must not sail the selected ship to Europe");
+    }
+  }
+  game_destroy(game);
+  return rc;
+}
+
+/* Audit I7: a Go To that reaches its high-seas target during the War of Independence stays
+ * put silently (FUN_479b_0972 raw 77094-77101); no @EUROPENOTLEAVE. */
+static int test_goto_lane_woi_silent(void) {
+  int sid = -1;
+  ColonizeGameState* game = lane_caravel_game(&sid);
+  if (!game) {
+    fprintf(stderr, "SKIP: no COLONIZE/ assets or fixture save\n");
+    return TR_SKIP;
+  }
+  int rc = 0;
+  ColonizeUnit* ship = units_get(&game->units, sid);
+  int tx = -1;
+  for (int dx = -1; ship && dx <= 1 && tx < 0; dx += 2) {
+    if (map_tile_is_high_seas(&game->world_map, 50 + dx, 29) &&
+        units_id_at(&game->units, 50 + dx, 29) < 0) {
+      tx = 50 + dx;
+    }
+  }
+  if (!ship || tx < 0) {
+    rc = fail("woi goto: fixture");
+  }
+  if (rc == 0) {
+    game->col1.head.game_options.woi = 1;
+    ai_popup_clear(&game->ai_popups);
+    ship->moves = 12;
+    ship->orders = UNITS_ORDER_GOTO;
+    ship->goto_x = tx;
+    ship->goto_y = 29;
+    game->view_pieces_mode = false;
+    ColonizeInputState in;
+    memset(&in, 0, sizeof(in));
+    (void)game_update_unit_pacer(game, &in, 200);
+    if (ship->x != tx || !units_is_on_map(ship)) {
+      fprintf(stderr, "  ship at (%d,%d) on_map %d\n", ship->x, ship->y, units_is_on_map(ship));
+      rc = fail("the refused ship stays on its lane target");
+    }
+    if (rc == 0 && (game->ai_popups.open || game->ai_popups.queue_count != 0)) {
+      rc = fail("the WoI refusal of a Go To lane arrival is silent");
+    }
+  }
+  game_destroy(game);
+  return rc;
+}
+
+/* Audit P3: every F2-F9 page ends in FUN_281f_03c0 (any key or click) and the main loop drops
+ * the key (raw 55683-55690): an F-key closes the report instead of switching, and a Labor
+ * click on no cell closes it (FUN_3f41_10d8 raw 70157-70172). */
+static int test_report_any_key_closes(void) {
+  int sid = -1;
+  ColonizeGameState* game = lane_caravel_game(&sid);
+  if (!game) {
+    fprintf(stderr, "SKIP: no COLONIZE/ assets or fixture save\n");
+    return TR_SKIP;
+  }
+  int rc = 0;
+  ColonizeInputState in;
+  memset(&in, 0, sizeof(in));
+  game->in_report = true;
+  game->report_id = COLONIZE_REPORT_RELIGIOUS;
+  in.last_key = COLONIZE_KEY_F3;
+  (void)game_update_report_screen(game, &in);
+  if (game->in_report) {
+    rc = fail("F3 on the F2 plate closes it (no re-dispatch)");
+  }
+  memset(&in, 0, sizeof(in));
+  game->in_report = true;
+  game->report_id = COLONIZE_REPORT_LABOR;
+  game->labor_detail_job = -1;
+  in.mouse_left_clicked = true;
+  in.mouse_x = 4;
+  in.mouse_y = 28; /* the first grid cell */
+  (void)game_update_report_screen(game, &in);
+  if (rc == 0 && (!game->in_report || game->labor_detail_job < 0)) {
+    rc = fail("a Labor cell click zooms");
+  }
+  game->labor_detail_job = -1;
+  in.mouse_x = 1;
+  in.mouse_y = 1;
+  (void)game_update_report_screen(game, &in);
+  if (rc == 0 && game->in_report) {
+    rc = fail("a Labor click on no cell closes the report");
+  }
+  game_destroy(game);
+  return rc;
+}
+
 /* A new campaign drops the unit hand-off and colony open the previous game
  * left parked, as game_apply_col1_save does. */
 static int test_new_campaign_drops_parked_flow(void) {
@@ -5973,6 +6127,9 @@ static const TestCase k_cases[] = {
     {"test_goto_treasure_gets_king_galleon_offer", test_goto_treasure_gets_king_galleon_offer},
     {"test_human_lcr_count_change_skips_contact", test_human_lcr_count_change_skips_contact},
     {"test_map_o_key_does_not_board", test_map_o_key_does_not_board},
+    {"test_map_enter_and_h_keys", test_map_enter_and_h_keys},
+    {"test_goto_lane_woi_silent", test_goto_lane_woi_silent},
+    {"test_report_any_key_closes", test_report_any_key_closes},
     {"test_deferred_wake_does_not_leak", test_deferred_wake_does_not_leak},
     {"test_human_passenger_ship_to_ship", test_human_passenger_ship_to_ship},
     {"test_human_board_reveals_with_passenger", test_human_board_reveals_with_passenger},

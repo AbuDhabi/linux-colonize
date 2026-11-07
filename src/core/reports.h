@@ -195,12 +195,6 @@ bool reports_id_from_fkey(int fkey_number /*1..10*/, ColonizeReportId* out_id);
 bool reports_is_available(ColonizeReportId id, const ColonizeCol1Save* col1);
 const char* reports_unavailable_tag(ColonizeReportId id);
 
-/*
- * Bottom-right "OK" button every F2–F9 report shares (native 320×200 coords).
- * F10 Colonization Score has no OK button (Retire/exit is separate); neither
- * does Congress page 2 (golden: continental_p2.png — full-bleed photo, no chrome).
- */
-bool reports_ok_button_hit(ColonizeReportId id, bool congress_page2, int mx, int my);
 
 /*
  * Labor report (F4) grid-cell hit test (native 320x200 coords). Returns the

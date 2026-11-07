@@ -613,7 +613,7 @@ void ai_king_peacetime_merc_offer(ColonizeTurnContext* ctx) {
 
   PopupMsgTokens tok;
   memset(&tok, 0, sizeof(tok));
-  const char* seller_name = reports_nation_country_name(seller);
+  const char* seller_name = reports_nation_country_phrase(seller, 0); /* raw 75136 0ac8(0, 0, 0x53d6) */
   tok.string0 = seller_name;
   char body[AI_POPUP_BODY_LEN];
   char choice_buf[AI_POPUP_CHOICE_MAX][AI_POPUP_CHOICE_LEN];

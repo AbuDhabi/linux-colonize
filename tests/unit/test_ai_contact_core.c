@@ -2489,6 +2489,8 @@ static int sp_26(void) {
     ctx.col1 = &col1;
     ctx.col1_ok = true;
 
+    /* raw 96630: %NUMBER0 is the DS:0x962a census byte, not a live recount. */
+    col1.stuff.tribe_village_counts[0] = 37;
     (void)ai_contact_try_first_welcome(&ctx, 0, 4);
     if (!ind->euro_diplo[0]) {
       return fail("popup meet should set euro_diplo");
@@ -2500,6 +2502,11 @@ static int sp_26(void) {
         pop.queue[0].kind != AI_POPUP_KIND_CHOICE) {
       return fail("first queue entry should be CONTACT_WELCOME Yes/No");
     }
+    if (ctx.messages && strstr(pop.queue[0].body, "37") == NULL) {
+      fprintf(stderr, "unit_ai_contact: welcome body '%s'\n", pop.queue[0].body);
+      return fail("WELCOME %NUMBER0 should be DS:0x962a tribe_village_counts");
+    }
+    col1.stuff.tribe_village_counts[0] = 0; /* later incite prices read it */
     if (euro2->hold_goods_amount[0] != goods0) {
       return fail("WELCOME should defer auto-trade");
     }
@@ -4191,17 +4198,17 @@ static int sp_40(void) {
     if (col1.tribe[0].alarm[0].attacks != 0) {
       return fail("capital surrender should clear attack counter");
     }
-    if (!ai_contact_indian_has_peace(&col1, 4, 0)) {
-      return fail("capital surrender should set peace bit");
+    if (ai_contact_indian_has_peace(&col1, 4, 0)) {
+      return fail("capital surrender writes no peace bit (LAB_5fef_362a)");
     }
     if (ai_diplo_indian_relation(&col1, 4, 0) < 85) {
       return fail("capital surrender should land relation at 100-15");
     }
-    /* Remaining villages must not become / stay capital (fandom). */
+    /* LAB_5fef_362a writes no capital bit on the surviving dwellings. */
     col1.tribe[0].state.capital = 1;
     ai_diplo_indian_capital_surrender(&col1, 4, 0);
-    if (col1.tribe[0].state.capital != 0) {
-      return fail("capital surrender should clear capital bit on remaining tribes");
+    if (col1.tribe[0].state.capital != 1) {
+      return fail("capital surrender must leave the surviving dwellings' capital bit");
     }
   }
   return 0;
@@ -4344,6 +4351,35 @@ static int sp_42(void) {
       }
     }
     col1.tribe[0].alarm[0].friction = 10;
+
+    /* 4528 OVL13::00460d compares the whole +10 attitude WORD: an attacks
+     * high byte alone (friction 10) is >= 0x40 → MADAT. */
+    ai_popup_clear(&pop);
+    st_ship[0] = '\0';
+    col1.tribe[0].alarm[0].attacks = 1;
+    if (!ai_contact_try_ship_village(&ctx, 0, 5, 5)) {
+      return fail("ship attitude word should handle village");
+    }
+    for (int qi = 0; qi < pop.queue_count; ++qi) {
+      if (pop.queue[qi].tag == AI_POPUP_TAG_CONTACT_MEET) {
+        return fail("ship attitude word 0x10a must MADAT, not Meet");
+      }
+    }
+    if (st_ship[0] == '\0') {
+      return fail("ship attitude word 0x10a should set MADATSHIPS status");
+    }
+    col1.tribe[0].alarm[0].attacks = 0;
+
+    /* No at-war gate in 4528's ship head: WAR bit with relation and
+     * attitude below both bars is not MADAT. */
+    ai_popup_clear(&pop);
+    st_ship[0] = '\0';
+    col1.indian[0].euro_diplo[0] |= COL1_INDIAN_WAR_BIT;
+    ai_contact_try_ship_village(&ctx, 0, 5, 5);
+    if (strstr(st_ship, "trust") != NULL || strstr(st_ship, "ships") != NULL) {
+      return fail("ship at war below the bars must not MADAT");
+    }
+    col1.indian[0].euro_diplo[0] &= (uint8_t)~COL1_INDIAN_WAR_BIT;
     ctx.ai_popups = NULL;
   }
   return 0;
@@ -6191,6 +6227,31 @@ static int sp_53(void) {
         if (!village_trade_intel_get_skill(0, 5, 5, &disclosed_skill)) {
           return fail("chief: @CHIEFHOWDY should record the village skill");
         }
+        /* a60c runs 2820(-1)'s table shell first: the three top-bid goods have
+         * their ask zeroed before the ask sort (overlays.c 78251-78269). */
+        int buys[VILLAGE_TRADE_INTEL_GOODS];
+        int sells[VILLAGE_TRADE_INTEL_GOODS];
+        int nb = 0;
+        int ns = 0;
+        AiContactMeetEcon2154 econ;
+        if (village_trade_intel_get(0, 5, 5, buys, &nb, sells, &ns) && nb == 3 &&
+            ai_contact_meet_economics_2154(&ctx, 4, &col1.tribe[0], &econ)) {
+          int cand[16];
+          int16_t bid[16];
+          memcpy(bid, econ.bid, sizeof(bid));
+          bid[0] = 0;
+          ai_contact_2820_sort(bid, cand);
+          int live_asks = 0;
+          for (int g = 0; g < 16; ++g) {
+            live_asks += econ.ask[g] != 0 && g != cand[13] && g != cand[14] && g != cand[15];
+          }
+          for (int i = 0; i < 3 && live_asks >= 3; ++i) {
+            if (buys[i] == cand[13] || buys[i] == cand[14] || buys[i] == cand[15]) {
+              fprintf(stderr, "unit_ai_contact: howdy good %d is a top-3 bid\n", buys[i]);
+              return fail("chief: @CHIEFHOWDY goods must skip the 2820 shell's top-3 bids");
+            }
+          }
+        }
       }
       /* Guides / area / gift all latch scouted; bored (alarm >= roll) does not. */
       if (col1.tribe[0].state.scouted) {
@@ -6665,6 +6726,26 @@ static int sp_55(void) {
         return fail("live among: taught village → @LEARNALREADY");
       }
       col1.tribe[0].state.learned = 0;
+      /* a618 (overlays.c 77788-77831) has no alarm >= 0x4b exit: a high-alarm
+       * human visit still takes +3 alarm and @LEARNMAD. */
+      {
+        const uint8_t saved_alarm = col1.indian[0].alarm_by_player[0];
+        const uint8_t saved_diplo = col1.indian[0].euro_diplo[0];
+        col1.indian[0].alarm_by_player[0] = 80;
+        col1.indian[0].euro_diplo[0] |= (uint8_t)(COL1_INDIAN_MET_BIT | 0x40u);
+        colonist->profession = UNITS_JOB_NONE;
+        ai_popup_clear(&pop_menu);
+        st_menu[0] = '\0';
+        ai_contact_live_among_natives(&ctx, 0, 4, colonist, &col1.tribe[0]);
+        if (col1.indian[0].alarm_by_player[0] <= 80 || strstr(st_menu, "ill manners") == NULL ||
+            colonist->profession != UNITS_JOB_NONE) {
+          fprintf(stderr, "unit_ai_contact: learnmad alarm %d status '%s'\n",
+                  (int)col1.indian[0].alarm_by_player[0], st_menu);
+          return fail("live among: alarm 80 → +3 alarm + @LEARNMAD (no early exit)");
+        }
+        col1.indian[0].alarm_by_player[0] = saved_alarm;
+        col1.indian[0].euro_diplo[0] = saved_diplo;
+      }
       units_despawn(&units, col_id);
     }
   return 0;
@@ -6895,6 +6976,34 @@ static int sp_58(void) {
       }
       if (strstr(st_menu, "at the stake") != NULL && (col1.tribe[0].mission & 0x0f) != 1) {
         return fail("heresy: @HERESY1 must leave the rival mission in place");
+      }
+      /* a594 asm 126605-126626: the HERESY report has no human-actor gate — an
+       * AI (Spanish) denouncing the French mission is shown to the human. */
+      {
+        col1.tribe[0].mission = 1; /* French */
+        const uint8_t saved_ctl = col1.player[2].control;
+        col1.player[2].control = 1; /* AI */
+        const int ai_mis_id = units_spawn_allow_stack(&units, 5, 6, 5);
+        ColonizeUnit* ai_mis = units_get(&units, ai_mis_id);
+        if (!ai_mis) {
+          return fail("heresy ai: spawn missionary");
+        }
+        ai_mis->nation_id = 2;
+        ai_mis->profession = UNITS_JOB_NONE;
+        ai_popup_clear(&pop_menu);
+        st_menu[0] = '\0';
+        const bool saved_rank_ok = ctx.euro_power_rank_ok;
+        ctx.euro_power_rank_ok = false; /* no 417e incite: falls to code 4 */
+        (void)ai_contact_ai_missionary_village(&ctx, 2, 0, ai_mis_id);
+        ctx.euro_power_rank_ok = saved_rank_ok;
+        col1.player[2].control = saved_ctl;
+        if (strstr(st_menu, "denounce heresy") == NULL) {
+          fprintf(stderr, "unit_ai_contact: ai heresy status '%s'\n", st_menu);
+          return fail("heresy ai: an AI denouncer's @HERESY0/1 must reach the human");
+        }
+        if (ai_mis->active) {
+          units_despawn(&units, ai_mis_id);
+        }
       }
       /* No mission → Establish Mission row; establishing consumes the unit and sets the owner. */
       col1.tribe[0].mission = 0xff;

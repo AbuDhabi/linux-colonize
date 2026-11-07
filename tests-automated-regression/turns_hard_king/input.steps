@@ -17,8 +17,7 @@ click 150 162            # Yes!: WoI, rival slots, congress latch, backup force,
 wait 2
 key Return               # War of the Spanish Succession notice (Spain cedes New Spain to the Dutch)
 wait 2
-key Return               # signing cinematic: skip the animation to the finished signature
-wait 2
+wait 1500               # signing cinematic: a key only finishes the glyph being drawn (FUN_43f7_160a raw 74640-74687), so let the signature run out
 key Return               # close the cinematic
 wait 2
 key Return               # @INDEPENDENCE letter OK; every rebel unit's moves are spent: End of Turn

@@ -2647,7 +2647,7 @@ COLONIZE_INTERNAL AiEuro5952CascadeStatus ai_euro_5952_cascade_town(AiEuro5952Ca
   if (!(col->colony_flags & COLONIZE_COLONY_FLAG_WAGON_TRAIN) && s->year < 0x640) {
     const int cont = map_continent_id_at(ctx->map, col->x, col->y);
     const int presence =
-      cont >= 0 ? ai_contact_continent_presence_4962(ctx, s->nation, cont) : 0;
+      cont >= 0 ? ai_euro_20e6_presence_95f2(ctx, s->nation, cont) : 0;
     if (getenv("AI_5952_BUILD_TRACE")) fprintf(stderr, "[5952 wagon] colony %d cont %d presence %d ring1 %d\n", col->id, cont, presence, s->ring1);
     if ((presence & 1) != 0 && s->ring1 == 0) {
       /* asm 5952:23a1-23b1: FUN_1000_84fc(DS:0x8d52, [bp-0x1ae]) = FUN_15dc_00e0
