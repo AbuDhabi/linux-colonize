@@ -3367,11 +3367,11 @@ static bool units_goto_director(
           units_dir8_index(*out_x - u->x, *out_y - u->y) == units_goto_last_dir_reverse(u);
         const bool reversal =
           moved_this_turn && u->orders == UNITS_ORDER_AI_SAIL && u->col1_ai_plan != '9' && reverses_last;
-        /* TB-60: a mover on the edge of its coarse cell can get a waypoint whose
+        /* DB-81: a mover on the edge of its coarse cell can get a waypoint whose
          * flood leads back through the cell it just left, and the two floods
          * then alternate forever. A far-flood step that undoes the last step
          * takes the whole-map BFS step toward the goal instead. */
-        if (!dos_buggy_behavior() && reverses_last && u->nation_id <= 3 &&
+        if (reverses_last && u->nation_id <= 3 &&
             u->orders != UNITS_ORDER_AI_SAIL &&
             units_bfs_next_step(pool, unit_id, map, colonies, gx, gy, out_x, out_y)) {
           return true;

@@ -667,27 +667,3 @@ the meter, which is what walks the recruit price up; Fountain of Youth picks
 **Blocks removal:** not tried ungated; goldens and idle campaigns bank the DOS
 zero on every arrival.
 **Status:** tolerated (user, 2026-11-06). Fixed in opencol 2026-11-06, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.
-
-### TB-60 — Far-tier Go To ping-pongs between two coarse cells
-**DOS:** `FUN_6662_0f74` far tier (`LAB_6662_10e1`, raw 104590-104600) snaps the
-mover to its own 4x4 coarse cell (`FUN_6662_09ae`), takes the next cell of the
-coarse BFS (`0b4e`) and floods toward that cell's probe tile. The cell follows
-the mover's tile, so one step can cross into a neighbouring cell whose coarse
-route leads back through the cell just left. The #1040 reversal guard covers
-only AI_SAIL units.
-
-**Effect:** the unit alternates between two tiles forever, spending all its moves
-each turn. Seen 2026-11-07 (campaign 21) on a human Caravel, Go To (33,30) from
-(12,23): cell (3,5) has no coarse link to (3,6) (a land block puts the probe
-tiles 8+ steps apart), so (12,23) steps NW to (11,22) in cell (2,5), whose
-waypoint (3,6) floods back to (12,23). Open ocean led straight to the goal.
-
-**Port (reproduces it):** `units_goto_director` (`src/core/units_move.c`). The
-fix: a far-flood step that undoes the unit's last step (`last_dir ^ 4`), for a
-Euro unit not on AI_SAIL, takes the whole-map BFS step toward the goal instead
-(`units_bfs_next_step`, the `UNITS_FAR_BFS` tier; its queue now holds the
-whole map). Test: unit_units_movement `unit_tb60_far_waypoint_pingpong`.
-
-**Blocks removal:** not tried ungated; far-tier Go To feeds every AI route the
-goldens and idle campaigns compare.
-**Status:** proposed by agent 2026-11-07 (port_bugs.md #1576), awaiting user say-so. Fixed in opencol 2026-11-07, gated on `!dos_buggy_behavior()`; test binaries still reproduce DOS.

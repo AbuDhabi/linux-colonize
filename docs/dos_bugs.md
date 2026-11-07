@@ -715,3 +715,21 @@ selected (port_bugs.md #1521).
 check, so the tools stay; @NOMOREWAREHOUSE still shows each turn the tools are there and
 @NEEDTOOLS when they are not, as in DOS. Test: `unit_turn_core` `stale_warehouse_expansion`.
 **Status:** done (2026-11-07, user call).
+
+### DB-81 — Far-tier Go To ping-pongs between two coarse cells
+**DOS:** `FUN_6662_0f74` far tier (`LAB_6662_10e1`, raw 104590-104600) snaps the
+mover to its own 4x4 coarse cell (`FUN_6662_09ae`), takes the next cell of the
+coarse BFS (`0b4e`) and floods toward that cell's probe tile. One step can cross
+into a neighbouring cell whose coarse route leads back through the cell just left,
+so the unit alternates between two tiles forever, spending all its moves. The
+#1040 reversal guard covers only AI_SAIL units. Seen 2026-11-07 (campaign 21,
+port_bugs.md #1576): a human Caravel, Go To (33,30) from (12,23), cell (3,5) has
+no coarse link to (3,6), so it stepped to (11,22) in cell (2,5), whose waypoint
+flooded back to (12,23), with open ocean to the goal.
+
+**Port:** `units_goto_director` (`src/core/units_move.c`): a far-flood step that
+undoes the unit's last step (`last_dir ^ 4`), for a Euro unit not on AI_SAIL,
+takes the whole-map BFS step toward the goal instead (`units_bfs_next_step`, the
+`UNITS_FAR_BFS` tier; its queue now holds the whole map). Ungated: every golden and
+idle campaign still matches. Test: unit_units_movement `unit_db81_far_waypoint_pingpong`.
+**Status:** done (2026-11-07, user call).
