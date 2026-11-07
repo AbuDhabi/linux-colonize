@@ -1,6 +1,7 @@
 # DOS-fidelity audit of surviving Aug/Sep 2026 code (2026-11-06)
 
-STATUS: OPEN. Findings not yet verified by a second pass and not filed as port_bugs.md rows.
+STATUS: OPEN. The ranked shortlist was adversarially re-verified (2026-11-06) and filed as
+port_bugs.md #1452-#1482; the remaining low/QUESTION items below are unverified and unfiled.
 This is an audit dump, not a spec (docs/conventions.md "Don't read archives willy-nilly").
 
 ## Method
@@ -50,6 +51,29 @@ Doc fixes flagged: docs/popups_catalog.md:211 + manual_gap.md (INDIANSURPRISE "D
 (treasure 2800, Test Routine channel), docs/save_format_map.md:382 (Pacific col 41), known_divergences.md
 #1081 (jobs menu leave-as rows), closed #737 (cheat treasure) and #1076 (Warehouse Expansion) reopened by
 new evidence.
+
+## Verification (2026-11-06)
+
+Six fresh agents tried to refute each shortlist item against the decomp/asm and the docs/archives.
+30 of 31 survived; E2 was REFUTED (`ai_contact_2820_begin` already reseeds `ctx->rng` from
+`ai_turn_seed`, the FUN_281f_04ca model, as DOS raw 82130 does) but left a smaller residue (E2b).
+Severity changes: C1 high -> medium; I4 medium -> medium-high; D2, G1, F5 -> low; H2, B1, K3, J2,
+N2, E4 -> low-medium. Narrowed: G1 is +5..+15 not +50; E4's blank-label part and H2's blank-name part
+are refuted; H1/H2 are one turn stale with autosave on (fully stale with it off).
+
+| Item | Row | Item | Row | Item | Row |
+|---|---|---|---|---|---|
+| I1 | #1452 | I4 | #1453 | H1 | #1454 |
+| C1 | #1455 | C2 | #1456 | H3 | #1457 |
+| H5 | #1458 | F1 | #1459 | F2 | #1460 |
+| J1 | #1461 | K1 (=E1) | #1462 | L2 | #1463 |
+| A1 | #1464 | A2 | #1465 | M1 (+M2) | #1466 |
+| O1 | #1467 | O2 | #1468 | I2 | #1469 |
+| N5 | #1470 | H4 | #1471 | H2 | #1472 |
+| E4 | #1473 | N2 | #1474 | J2 | #1475 |
+| K3 | #1476 | L1 | #1477 | B1 | #1478 |
+| D2 | #1479 | F5 | #1480 | G1 | #1481 |
+| E2b | #1482 | E2 | REFUTED | | |
 
 ## Per-slice findings
 
