@@ -373,16 +373,24 @@ static void ss_blit_run(
   if (dst_y + y1 > framebuffer->height) {
     y1 = framebuffer->height - dst_y;
   }
+  if (x0 >= x1) {
+    return;
+  }
   for (int y = y0; y < y1; ++y) {
     const uint8_t* src = &sprite->pixels[y * sprite->width];
     /* Row base, not row base + dst_x: dst_x can be negative here and only
      * dst_x + x (x >= x0) is guaranteed in range. */
     uint8_t* dst = &framebuffer->pixels[(dst_y + y) * framebuffer->width];
+    /* SRC and WHERE_DEST store unconditionally (the old byte when the pixel
+     * is skipped) so -O3 vectorises them: the blit is half a map frame. Both
+     * pointers start at x0, so neither is formed outside its buffer. */
+    const uint8_t* s0 = src + x0;
+    uint8_t* d0 = dst + dst_x + x0;
+    const int n = x1 - x0;
     if (mode == SS_BLIT_WHERE_DEST) {
-      for (int x = x0; x < x1; ++x) {
-        if (dst[dst_x + x] == key_color && src[x] != COLONIZE_SS_TRANSPARENT) {
-          dst[dst_x + x] = src[x];
-        }
+      for (int i = 0; i < n; ++i) {
+        const uint8_t s = s0[i];
+        d0[i] = (d0[i] == key_color && s != COLONIZE_SS_TRANSPARENT) ? s : d0[i];
       }
     } else if (mode == SS_BLIT_LUT) {
       for (int x = x0; x < x1; ++x) {
@@ -397,10 +405,9 @@ static void ss_blit_run(
         }
       }
     } else {
-      for (int x = x0; x < x1; ++x) {
-        if (src[x] != COLONIZE_SS_TRANSPARENT) {
-          dst[dst_x + x] = src[x];
-        }
+      for (int i = 0; i < n; ++i) {
+        const uint8_t s = s0[i];
+        d0[i] = s != COLONIZE_SS_TRANSPARENT ? s : d0[i];
       }
     }
   }

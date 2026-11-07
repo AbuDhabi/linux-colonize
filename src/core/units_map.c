@@ -49,7 +49,8 @@ bool units_coords_in_europe_park(int x, int y) {
  * Tile-stack walk (theme M). DOS parks a boarded passenger off-map at (-2,-2)
  * (FUN_1427_10be), so an on-map test is the DOS-faithful stack filter and a
  * bare `active` test is not: the latter would let passengers answer for the
- * tile their carrier stands on.
+ * tile their carrier stands on. The tile scans test x/y first: same result,
+ * and most slots fail there (half a late-game turn is spent in these scans).
  */
 ColonizeUnit* units_next_on_tile(ColonizeUnitPool* pool, int x, int y, int* slot) {
   if (!pool || !slot) {
@@ -57,7 +58,7 @@ ColonizeUnit* units_next_on_tile(ColonizeUnitPool* pool, int x, int y, int* slot
   }
   for (int i = *slot < 0 ? 0 : *slot; i < units_slot_end(pool); ++i) {
     ColonizeUnit* u = &pool->units[i];
-    if (!units_is_on_map(u) || u->x != x || u->y != y) {
+    if (u->x != x || u->y != y || !units_is_on_map(u)) {
       continue;
     }
     *slot = i + 1;
@@ -552,7 +553,7 @@ static void units_reveal_tile_effects(void* vctx, int x, int y, bool outer) {
   const uint8_t bit = (uint8_t)(1u << (ctx->nation & 3));
   for (int i = 0; i < units_slot_end(ctx->pool); ++i) {
     ColonizeUnit* o = &ctx->pool->units[i];
-    if (!units_is_on_map(o) || o->x != x || o->y != y) {
+    if (o->x != x || o->y != y || !units_is_on_map(o)) {
       continue;
     }
     /* Outer ring only marks European units (FUN_13f1_000a `param_1 == 0 || owner < 4`). */
@@ -917,7 +918,7 @@ int units_tile_head_id_at(const ColonizeUnitPool* pool, int x, int y) {
   uint64_t head_order = 0;
   for (int i = 0; i < units_slot_end(pool); ++i) {
     const ColonizeUnit* u = &pool->units[i];
-    if (!units_is_on_map(u) || u->x != x || u->y != y) {
+    if (u->x != x || u->y != y || !units_is_on_map(u)) {
       continue;
     }
     if (head_id < 0 || u->tile_stack_order > head_order) {
@@ -938,7 +939,7 @@ int units_tile_chain_next_id(const ColonizeUnitPool* pool, int unit_id) {
   int best = -1;
   for (int i = 0; i < units_slot_end(pool); ++i) {
     const ColonizeUnit* u = &pool->units[i];
-    if (!units_is_on_map(u) || u->x != cur->x || u->y != cur->y) {
+    if (u->x != cur->x || u->y != cur->y || !units_is_on_map(u)) {
       continue;
     }
     const bool after = u->tile_stack_order < cur->tile_stack_order ||

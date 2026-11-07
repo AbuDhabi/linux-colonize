@@ -261,6 +261,12 @@ target_link_libraries(colonize_sim PUBLIC m pthread)
 # colonize_sim objects are reused by the colonize_sim_linkcheck shared probe
 # at the bottom of this section, which needs PIC.
 set_target_properties(colonize_sim PROPERTIES POSITION_INDEPENDENT_CODE ON)
+# PIC alone makes GCC assume every exported function may be interposed, so it
+# never inlines one even inside its own file (units_is_on_map in the tile
+# scans: a third of a late-game turn). The archive is only linked statically.
+if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+  target_compile_options(colonize_sim PRIVATE -fno-semantic-interposition)
+endif()
 
 # COLONIZE_TESTING flips the COLONIZE_INTERNAL macro (core/internal.h) from
 # `static` to nothing on the split-stage functions (ai_euro_act_*, game_update_*,
