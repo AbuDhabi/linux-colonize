@@ -66,16 +66,6 @@ static int units_foreign_scan_at(
   return -1;
 }
 
-int units_foreign_unit_at(
-  const ColonizeUnitPool* pool,
-  int x,
-  int y,
-  int except_unit_id,
-  int except_nation_id
-) {
-  return units_foreign_scan_at(pool, x, y, except_unit_id, except_nation_id, -1);
-}
-
 /*
  * "Is this tile still contested for `mover`?" under DOS's own definition.
  *
@@ -94,7 +84,7 @@ int units_foreign_unit_at(
  * flip. It simply stays where it is, under its old flag, inside the town
  * that just changed hands.
  *
- * The port's plain units_foreign_unit_at could not express that: an armed hull
+ * The port's old plain foreign-unit-at test could not express that: an armed hull
  * (attack > 0, so units_seize_noncombat_at leaves it) held the tile
  * "contested" forever and no land force could ever take the port.
  *

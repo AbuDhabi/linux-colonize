@@ -380,17 +380,8 @@ bool units_kind_is_military(ColonizeUnitKind k) {
          units_kind_is_royal(k) || units_kind_is_continental(k);
 }
 
-bool units_kind_is_mounted(ColonizeUnitKind k) {
-  return k == UNITS_KIND_DRAGOON || k == UNITS_KIND_SCOUT || k == UNITS_KIND_CONT_CAV ||
-         k == UNITS_KIND_CAVALRY || k == UNITS_KIND_MTD_BRAVE || k == UNITS_KIND_MTD_WARRIOR;
-}
-
 bool units_kind_is_ship(ColonizeUnitKind k) {
   return k >= UNITS_KIND_CARAVEL && k <= UNITS_KIND_MAN_O_WAR;
-}
-
-bool units_kind_is_native(ColonizeUnitKind k) {
-  return k >= UNITS_KIND_BRAVE && k <= UNITS_KIND_MTD_WARRIOR;
 }
 
 #define UNITS_TYPE_PREDICATE(fn, kindval)                  \
@@ -404,7 +395,6 @@ UNITS_TYPE_PREDICATE(units_type_is_scout, UNITS_KIND_SCOUT)
 UNITS_TYPE_PREDICATE(units_type_is_treasure, UNITS_KIND_TREASURE)
 UNITS_TYPE_PREDICATE(units_type_is_artillery, UNITS_KIND_ARTILLERY)
 UNITS_TYPE_PREDICATE(units_type_is_wagon, UNITS_KIND_WAGON)
-UNITS_TYPE_PREDICATE(units_type_is_galleon, UNITS_KIND_GALLEON)
 UNITS_TYPE_PREDICATE(units_type_is_privateer, UNITS_KIND_PRIVATEER)
 UNITS_TYPE_PREDICATE(units_type_is_frigate, UNITS_KIND_FRIGATE)
 UNITS_TYPE_PREDICATE(units_type_is_man_o_war, UNITS_KIND_MAN_O_WAR)
@@ -444,10 +434,6 @@ bool units_type_is_royal(const ColonizeUnitType* t) {
 
 bool units_type_is_ship(const ColonizeUnitType* t) {
   return units_kind_is_ship(units_type_kind(t));
-}
-
-bool units_type_is_mounted(const ColonizeUnitType* t) {
-  return units_kind_is_mounted(units_type_kind(t));
 }
 
 /*

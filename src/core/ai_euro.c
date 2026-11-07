@@ -1078,47 +1078,6 @@ int ai_euro_is_artillery_kind(ColonizeUnitKind kind) {
   return kind == UNITS_KIND_ARTILLERY;
 }
 
-int ai_euro_land_is_fortified(const ColonizeUnit* u) {
-  if (!u || (u->orders != UNITS_ORDER_FORTIFY && u->orders != UNITS_ORDER_FORTIFIED)) {
-    return 0;
-  }
-  /*
-   * port_bugs.md #529, re-derived 2026-09-22. Both halves of this check are DOS-
-   * literal, not a heuristic:
-   *
-   * - `orders ∈ {FORTIFY(5), FORTIFIED(6)}`: FUN_521d_20e6's shared exit tail
-   *   (raw 90378-90386, the LAB_521d_589e block every call of 20e6 funnels
-   *   through) forces `+0x314c` (`orders`) to 5 whenever it isn't already 5
-   *   or 6, and to 6 when the colony-admit flag bit is set — i.e. every
-   *   single 20e6 exit leaves a land unit's real order byte in the
-   *   fortify family. This is why `orders` alone (as in port_bugs.md #529's
-   *   2026-09-22 "DOS-literal" attempt, `return 1;` unconditionally) proves
-   *   nothing: idle units land here too.
-   * - `col1_ai_plan != '0'(0x30)`: LAB_5a78 (raw 90399-90404) writes the pair
-   *   `+0x314b = '0'; +0x314c = 5` ONLY when +0x314c was already invalid
-   *   (0 or 10) on entry to the tail, i.e. nothing upstream in this call
-   *   actually assigned the unit — it is DOS's "idle, re-evaluate next call"
-   *   sentinel, not a real decision. Every genuine assignment that funnels
-   *   into the same tail sets `+0x314b` to a real code BEFORE the goto
-   *   (`'A'`/0x41 standing military raw 87705 family, `'G'`/0x47 own-colony
-   *   garrison raw 87491-87492 and move_scoring_gate's admitted/armed<2
-   *   branches, `'F'`/0x46 park raw 89025, etc.), so `!= '0'` is exactly
-   *   "a branch upstream actually decided this", which matches the other
-   *   independent DOS "already assigned, don't redo" queries used elsewhere
-   *   in the game (FUN_521d_0a60's own re-decision gate, raw 88159, skips a
-   *   unit only when `+0x314b == 'A'`; the labor/combat-strength admission
-   *   gates at raw 84724 and 87632 use `!= 'G' && != 'A'`) — those never
-   *   admit '0' either, since '0' is specifically "not decided".
-   *
-   * Together: a unit reads as fortified only when it both carries a real
-   * fortify order AND was actually routed there by a DOS branch this call,
-   * not merely defaulted. Confirms the pre-existing form; the row's
-   * "DOS-literal" attempt was wrong to drop the ai_plan half rather than
-   * narrow it to exactly '0'.
-   */
-  return u->col1_ai_plan != 0x30;
-}
-
 /*
  * Removed (port_bugs.md #493/#495): ai_euro_scout_contact_ring_target,
  * ai_euro_scout_fog_explore_target and ai_euro_is_seasoned_scout_name were

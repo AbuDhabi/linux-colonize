@@ -329,17 +329,6 @@ bool units_despawn_to_europe(ColonizeUnitPool* pool, int unit_id);
 int units_id_at(const ColonizeUnitPool* pool, int x, int y);
 /* The unit's DOS record index (rank among active slots, the save order), -1 if none. */
 int units_dos_index(const ColonizeUnitPool* pool, int unit_id);
-/* First on-map unit at (x,y) that is neither except_unit_id nor
- * except_nation_id — i.e. "is this tile still contested". Colony-capture
- * call sites must check this before flipping ownership: a won combat only
- * clears the defender that fought, not every unit stacked on the tile. */
-int units_foreign_unit_at(
-  const ColonizeUnitPool* pool,
-  int x,
-  int y,
-  int except_unit_id,
-  int except_nation_id
-);
 ColonizeUnit* units_get(ColonizeUnitPool* pool, int unit_id);
 const ColonizeUnit* units_get_const(const ColonizeUnitPool* pool, int unit_id);
 const ColonizeUnitType* units_type(const ColonizeUnitPool* pool, int type_index);
@@ -401,9 +390,7 @@ int units_type_dos_code(const ColonizeUnitType* type);
 bool units_kind_is_continental(ColonizeUnitKind k); /* 7, 9 */
 bool units_kind_is_royal(ColonizeUnitKind k);       /* 6, 8 */
 bool units_kind_is_military(ColonizeUnitKind k);    /* 1, 4, 6, 7, 8, 9, 11 */
-bool units_kind_is_mounted(ColonizeUnitKind k);     /* 4, 5, 7, 8, 21, 22 */
 bool units_kind_is_ship(ColonizeUnitKind k);        /* 13..18 */
-bool units_kind_is_native(ColonizeUnitKind k);      /* 19..22 */
 
 bool units_type_is_colonist(const ColonizeUnitType* t);
 bool units_type_is_pioneer(const ColonizeUnitType* t);
@@ -414,14 +401,12 @@ bool units_type_is_royal(const ColonizeUnitType* t);
 bool units_type_is_treasure(const ColonizeUnitType* t);
 bool units_type_is_artillery(const ColonizeUnitType* t);
 bool units_type_is_wagon(const ColonizeUnitType* t);
-bool units_type_is_galleon(const ColonizeUnitType* t);
 bool units_type_is_privateer(const ColonizeUnitType* t);
 /* Either side of an attack is a Privateer: 465b skips treaty prompt + war. */
 bool units_privateer_attack(const ColonizeUnitPool* pool, int mover_id, int foe_id);
 bool units_type_is_frigate(const ColonizeUnitType* t);
 bool units_type_is_man_o_war(const ColonizeUnitType* t);
 bool units_type_is_ship(const ColonizeUnitType* t);
-bool units_type_is_mounted(const ColonizeUnitType* t);
 /* Unit-level missionary test (AC-34 / IN-45) (see docs/units.md#units_is_missionary). */
 bool units_is_missionary(const ColonizeUnitPool* pool, const ColonizeUnit* u);
 

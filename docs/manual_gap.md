@@ -140,7 +140,7 @@ Topic hub (graphics, units, settlements, contact): [indians.md](indians.md); ala
 | Manual feature | Status | Notes |
 |----------------|--------|-------|
 | Land / naval attack | Done | Playable bar + fort bit7/Drydock + the `20e6` attack term (LAB_52aa) and `−0x6790` stance table; the village arm is now the full `4528` action dispatch (P8.8 human menu incl. Attack Village, AI attack via the `20e6` village arm, `ai_euro_land.c`), not the old invented warn CHOICE. VGA chrome D4 — [combat.md](combat.md) |
-| Capture colony | Done | `colonies_capture` on player enter (empty/cleared foreign Euro) + AI / combat paths; Indian raid abandons — [combat.md](combat.md) |
+| Capture colony | Done | `colonies_capture_ex` on player enter (empty/cleared foreign Euro) + AI / combat paths; Indian raid abandons — [combat.md](combat.md) |
 | Stockade / fort / fortress defense % | Done | Live land combat via `157e` `local_1a`; coastal Fort/Fortress fire `units_coastal_fort_fire_colony_w` (colony EOT). Attack MP (full exhaust, 2026-09-10) + close-hit bit7 + Drydock repair Done — [combat.md](combat.md) |
 | Rival war / peace / privateers | Done | Euro bilateral war/ally/peace + Furs embargo + Privateer spawn (`ai_diplo_*`); Indian×Euro matrix + `153e` talk machine; the invented alliance machinery (ally-aid, FA gift, break trust) was retired 2026-09-06. The ally list carries GAME.TXT `@MILITARY` as its prompt (5bfb:2d59, fixed 2026-10-26, #1287). The F8 report is Done (`reports_render_foreign`, `FUN_3f41_2548`, [reports.md](reports.md)) |
 

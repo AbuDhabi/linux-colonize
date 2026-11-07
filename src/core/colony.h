@@ -433,8 +433,6 @@ typedef enum ColonizeBuildingRow {
 
 /* Pool slot of @BUILDING `row`, or -1 when the pool does not carry it. */
 int colonies_building_row(const ColonizeColonyPool* pool, ColonizeBuildingRow row);
-/* name-to-row resolution contract (see docs/colony.md#colonies_building_name_row) */
-int colonies_building_name_row(const char* name);
 /* True when `col` owns @BUILDING `row`. */
 bool colonies_has_building_row(
   const ColonizeColonyPool* pool, const ColonizeColony* col, ColonizeBuildingRow row
@@ -723,7 +721,6 @@ bool colonies_abandon(ColonizeColonyPool* pool, int colony_id);
 void colonies_set_occupancy_map(ColonizeWorldMap* map);
 
 /* Capture colony for a new European owner (T0 military / REF / raids). */
-bool colonies_capture(ColonizeColonyPool* pool, int colony_id, int new_nation_id);
 /* capture-tail Col1 context (see docs/colony.md#colonies_set_col1_context) */
 void colonies_set_col1_context(ColonizeCol1Save* col1);
 /* units whose +0x314a binding a colony delete clears (raw 58190-58200) */

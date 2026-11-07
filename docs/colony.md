@@ -362,14 +362,6 @@ colonies_building_row instead of colonies_find_building(pool, "Fortress"):
 the port keeps no MicroProse names in the binary, and a renamed row must
 still resolve.
 
-## colonies_building_name_row
-
-@BUILDING row for a building NAME read from the catalog (exact match against
-the names the last colonies_load_buildings call saw; a fixture-built
-pool resolves through the test-only hook below). This is how code that is
-handed a name asks "which building is this?" without the port carrying any
-building names of its own. -1 when unknown.
-
 ## colonies_toggle_custom_house_cargo
 
 Toggle `cargo_type` in this colony's Custom House per-cargo autosell mask
@@ -451,7 +443,7 @@ off. NULL unbinds.
 
 ## colonies_set_col1_context
 
-Col1 context for colonies_capture's DOS side effects (FUN_5fef_1b0e capture
+Col1 context for colonies_capture_ex's DOS side effects (FUN_5fef_1b0e capture
 tail): rebel dividend ×2/3, per-nation colony/pop tallies, treasury share
 plunder (peacetime), war-relation reset, crown-capture REF-threshold bit.
 NULL = plain owner swap (tests without a save). The game loop re-binds it every

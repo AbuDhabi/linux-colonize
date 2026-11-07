@@ -197,16 +197,8 @@ static uint8_t s_brave_origin_ok[COLONIZE_UNITS_MAX];
  * The turn context is stashed here because the pulse itself is ctx-free.
  */
 static ColonizeTurnContext* s_ai_native_ctx = NULL;
-static uint8_t s_ai_first_contact_this_turn[8][4];
 
-/* ===================== First contact, brave-turn origin & brave step/order execution (ai_native_first_contact_this_turn .. ai_native_brave_step) ===================== */
-int ai_native_first_contact_this_turn(int nation_id, int euro_nation) {
-  if (nation_id < 4 || nation_id > 11 || euro_nation < 0 || euro_nation > 3) {
-    return 0;
-  }
-  return s_ai_first_contact_this_turn[nation_id - 4][euro_nation] != 0;
-}
-
+/* ===================== First contact, brave-turn origin & brave step/order execution (ai_native_bind_step_ctx .. ai_native_brave_step) ===================== */
 COLONIZE_INTERNAL void ai_native_bind_step_ctx(ColonizeTurnContext* ctx) {
   s_ai_native_ctx = ctx;
 }
@@ -308,7 +300,6 @@ static int ai_native_3180_scan(
     }
     if (ind->euro_diplo[e] == 0) {
       (void)ai_contact_try_first_welcome(s_ai_native_ctx, e, nation_id);
-      s_ai_first_contact_this_turn[nation_id - 4][e] = 1;
       resolved = 1;
       done[e] = 1;
       continue;
@@ -978,7 +969,6 @@ void ai_native_nation_pulse(
   if (seed100_init_burns) {
     (void)ai_init_sched_apply(rng, nation_id, -1);
   }
-  memset(s_ai_first_contact_this_turn[nation_id - 4], 0, sizeof(s_ai_first_contact_this_turn[0]));
 
   /*
    * Mid-turn FUN_4d56_1816 prelude: DOS burns nothing on the shared stream
@@ -1238,7 +1228,6 @@ void ai_native_reset(void) {
   memset(s_brave_origin_y, 0, sizeof(s_brave_origin_y));
   memset(s_brave_origin_ok, 0, sizeof(s_brave_origin_ok));
   s_ai_native_ctx = NULL;
-  memset(s_ai_first_contact_this_turn, 0, sizeof(s_ai_first_contact_this_turn));
   memset(&s_pulse_resume, 0, sizeof(s_pulse_resume));
   s_pulse_may_suspend = 0;
 }

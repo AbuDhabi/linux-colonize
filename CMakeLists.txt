@@ -863,6 +863,11 @@ colonize_add_test(NAME unit_text_edit
   LIBS colonize_core
 )
 
+colonize_add_test(NAME unit_strutil
+  SOURCES tests/unit/test_strutil.c
+  LIBS colonize_core
+)
+
 colonize_add_test(NAME unit_popup_prompt
   SOURCES tests/unit/test_popup_prompt.c
   LIBS colonize_core

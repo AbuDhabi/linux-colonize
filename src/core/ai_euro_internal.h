@@ -156,7 +156,6 @@ void ai_euro_refresh_colony_ai_flags(
 );
 int ai_euro_is_military_kind(ColonizeUnitKind k);
 int ai_euro_is_artillery_kind(ColonizeUnitKind kind);
-int ai_euro_land_is_fortified(const ColonizeUnit* u);
 int ai_euro_is_treasure_kind(ColonizeUnitKind kind);
 
 bool ai_euro_5952_job_is_expert(int job);

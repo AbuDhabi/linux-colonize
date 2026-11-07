@@ -334,7 +334,7 @@ bool colonies_load_buildings(ColonizeColonyPool* pool, const ColonizeMsgCatalog*
     ColonizeBuildingType* t = &pool->building_types[pool->building_type_count++];
     t->row_plus1 = pool->building_type_count; /* @BUILDING row = identity */
     str_copy_trunc(t->name, sizeof(t->name), line);
-    /* Remember the catalog's own spelling for colonies_building_name_row. */
+    /* Remember the catalog's own spelling for colonies_building_row_name. */
     str_copy_trunc(
       colony_building_row_names[pool->building_type_count - 1],
       sizeof(colony_building_row_names[0]),
@@ -389,18 +389,6 @@ void colonies_set_building_row_name_resolver(ColoniesBuildingRowNameResolver fn)
 
 void colonies_set_building_name_row_resolver(ColoniesBuildingNameRowResolver fn) {
   g_building_name_row_resolver = fn;
-}
-
-int colonies_building_name_row(const char* name) {
-  if (!name || !name[0]) {
-    return -1;
-  }
-  for (int i = 0; i < colony_building_row_name_count; ++i) {
-    if (strcmp(colony_building_row_names[i], name) == 0) {
-      return i;
-    }
-  }
-  return g_building_name_row_resolver ? g_building_name_row_resolver(name) : -1;
 }
 
 bool colonies_has_building_row(

@@ -460,7 +460,7 @@ void colony_screen_open_custom_house(
   /* Every cargo gets a row: FUN_2f2b_4424 adds all 16 (@CARGO via DS:0x97c0, Food
    * included, raw loop `local_8 < 0x10`, 2f2b:4447-448a) with each one's bit as the
    * checkbox (FUN_281f_0cfe / FUN_291f_0262), port_bugs.md #1190. Player-reported:
-   * filtering to only europe_cargo_export_eligible()'s autosell denylist left Tools and
+   * filtering to only the FUN_364b_0636 autosell denylist left Tools and
    * Muskets (and Horses) missing from the popup. That denylist still gates
    * europe_custom_house_autosell()'s actual EOT sell — toggling one of
    * those rows on here just never has an effect (the bit exists either way). */

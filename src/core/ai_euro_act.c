@@ -185,8 +185,8 @@ COLONIZE_INTERNAL AiEuroActStatus ai_euro_act_land_roles(struct ai_euro_act_ctx*
    * sits at act_state 5/6 with +0x314b = 0x55 (the 589e stay tail), and DOS
    * runs the band again every turn from there (DOSBox independence 13 -> 14:
    * Bahia's parked wagon draws the load matrix's two rand(0,3) and re-parks
-   * at orders 6); the `!ai_euro_land_is_fortified(u)` gate skipped it for
-   * good after its first park.
+   * at orders 6); the old fortified-unit gate (since deleted) skipped it
+   * for good after its first park.
    */
   int wagon_hauled = 0;
   if (!treasure_routed && ai_euro_is_wagon_kind(ukind)) {

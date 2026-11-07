@@ -499,8 +499,6 @@ int europe_purchase_cost(const EuropeScreen* eu, int purchase_index);
  * Every colonist created in Europe goes here; arrivals from the New World use
  * europe_dock_push_load (back of the queue). See europe.c. */
 EuropeDockImmigrant* europe_dock_insert_front(EuropeScreen* eu);
-/* Remove dock slot 0 (inverse of europe_dock_insert_front). */
-void europe_dock_drop_front(EuropeScreen* eu);
 bool europe_dock_push_load(EuropeScreen* eu, const char* name, int profession);
 
 /*
@@ -554,7 +552,6 @@ int europe_dock_unit_type_index_ex(
 );
 
 /* Europe purchase table -- see docs/europe.md#europe-purchase-table */
-int europe_purchase_option_count(void);
 const EuropePurchaseOption* europe_purchase_option_at(int index);
 int europe_purchase_price(ColonizeUnitKind kind);
 
@@ -965,12 +962,6 @@ int europe_ai_colony_dump_sell_w(
   ColonizeColony* colony,
   int human_nation
 );
-
-/*
- * FUN_364b_0636 Custom House / export denylist: not Food, Lumber, Horses, Tools,
- * Muskets. Used by autosell and AI peace Europe export sail.
- */
-int europe_cargo_export_eligible(int cargo_type);
 
 /* europe_custom_house_cargo_enabled -- see docs/europe.md#europe_custom_house_cargo_enabled */
 bool europe_custom_house_cargo_enabled(uint16_t custom_house_bits, int cargo_type);

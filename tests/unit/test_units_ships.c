@@ -777,6 +777,54 @@ static int unit_hs_fallback_skips_map_rim(void) {
   return 0;
 }
 
+/* units_find_eastern_high_seas_tile (trade-route Europe stop, game_loop_eot.c):
+ * the western rim of the eastern high-seas band wins, nearest latitude first,
+ * an occupied rim tile is skipped (tie on latitude: lower y, scanned first);
+ * with no rim (high seas across the midline) the westmost eastern tile is taken. */
+static int unit_hs_eastern_rim_pick(void) {
+  static ColonizeUnitPool pool;
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  memset(&pool, 0, sizeof(pool));
+  char err[128];
+  if (!map_alloc(&map, 10, 5, err, sizeof(err))) {
+    fprintf(stderr, "hs eastern: map_alloc failed: %s\n", err);
+    return 1;
+  }
+  for (int y = 0; y < 5; ++y) {
+    for (int x = 0; x < 10; ++x) {
+      map.terrain[y * 10 + x] = x >= 7 ? 26 : 25; /* high seas east of x=7, ocean west */
+    }
+  }
+  int fails = 0;
+  int fx = -1;
+  int fy = -1;
+  if (!units_find_eastern_high_seas_tile(NULL, &map, 2, &fx, &fy) || fx != 7 || fy != 2) {
+    fprintf(stderr, "hs eastern: empty pool picked (%d,%d), want (7,2)\n", fx, fy);
+    fails++;
+  }
+  pool.units[0].active = true;
+  pool.units[0].id = 1;
+  pool.units[0].x = 7;
+  pool.units[0].y = 2;
+  pool.units[0].aboard_ship_id = -1;
+  pool.next_id = 2;
+  units_pool_sync(&pool);
+  if (!units_find_eastern_high_seas_tile(&pool, &map, 2, &fx, &fy) || fx != 7 || fy != 1) {
+    fprintf(stderr, "hs eastern: occupied rim picked (%d,%d), want (7,1)\n", fx, fy);
+    fails++;
+  }
+  for (int i = 0; i < 10 * 5; ++i) {
+    map.terrain[i] = 26;
+  }
+  if (!units_find_eastern_high_seas_tile(NULL, &map, 4, &fx, &fy) || fx != 5 || fy != 4) {
+    fprintf(stderr, "hs eastern: no-rim fallback picked (%d,%d), want (5,4)\n", fx, fy);
+    fails++;
+  }
+  map_free(&map);
+  return fails;
+}
+
 /* FUN_48d3_0434 (raw 77795) only takes interior tiles (FUN_137f_000a), so a
  * FUN_48d3_048e ring started on the map's corner lands at (1,1), never on the rim. */
 static int unit_hs_ring_skips_map_rim(void) {
@@ -1087,6 +1135,7 @@ static const TestCase k_cases[] = {
   {"unit_spawn_room_dos_gates", unit_spawn_room_dos_gates},
   {"unit_hs_fallback_skips_map_rim", unit_hs_fallback_skips_map_rim},
   {"unit_hs_ring_skips_map_rim", unit_hs_ring_skips_map_rim},
+  {"unit_hs_eastern_rim_pick", unit_hs_eastern_rim_pick},
   {"unit_tb2_departure_own_riders_only", unit_tb2_departure_own_riders_only},
   {"unit_repair_port_needs_drydock_bit", unit_repair_port_needs_drydock_bit},
 };

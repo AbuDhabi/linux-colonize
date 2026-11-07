@@ -216,6 +216,126 @@ static int case_choice_greyed_row(void) {
   return 0;
 }
 
+/* Queue bodies joined with ',' equal `want` (queue-order cases below). */
+static bool queue_order_is(const AiPopupState* st, const char* want) {
+  char got[256] = "";
+  for (int i = 0; i < st->queue_count; ++i) {
+    if (i > 0) {
+      strcat(got, ",");
+    }
+    strcat(got, st->queue[i].body);
+  }
+  if (strcmp(got, want) != 0) {
+    fprintf(stderr, "smoke_ai_popup: queue \"%s\", want \"%s\"\n", got, want);
+    return false;
+  }
+  return true;
+}
+
+/* turn.c colony-EOT Phase A: every FF_CONGRESS behind the first COLONY_EVENT
+ * moves in front of it, keeping both groups' own order; no COLONY_EVENT = no-op. */
+static int case_queue_promote_tag_before(void) {
+  AiPopupState st;
+  ai_popup_init(&st);
+  ai_popup_enqueue_ok(&st, AI_POPUP_TAG_INFO, NULL, "a");
+  ai_popup_enqueue_colony_event(&st, 1, 0, "c1");
+  ai_popup_enqueue_ok(&st, AI_POPUP_TAG_INFO, NULL, "b");
+  ai_popup_enqueue_ok(&st, AI_POPUP_TAG_FF_CONGRESS, NULL, "f1");
+  ai_popup_enqueue_colony_event(&st, 2, 0, "c2");
+  ai_popup_enqueue_ok(&st, AI_POPUP_TAG_FF_CONGRESS, NULL, "f2");
+  ai_popup_promote_tag_before(&st, AI_POPUP_TAG_FF_CONGRESS, AI_POPUP_TAG_COLONY_EVENT);
+  if (!queue_order_is(&st, "a,f1,f2,c1,b,c2")) {
+    return fail("FF_CONGRESS not promoted before the first COLONY_EVENT");
+  }
+  ai_popup_init(&st);
+  ai_popup_enqueue_ok(&st, AI_POPUP_TAG_FF_CONGRESS, NULL, "f1");
+  ai_popup_enqueue_ok(&st, AI_POPUP_TAG_INFO, NULL, "a");
+  ai_popup_enqueue_ok(&st, AI_POPUP_TAG_FF_CONGRESS, NULL, "f2");
+  ai_popup_promote_tag_before(&st, AI_POPUP_TAG_FF_CONGRESS, AI_POPUP_TAG_COLONY_EVENT);
+  if (!queue_order_is(&st, "f1,a,f2")) {
+    return fail("promote without the anchor tag must not reorder");
+  }
+  return 0;
+}
+
+/* units_combat_resolve.c @PICKACARGO bail-out: drop_tag removes the newest
+ * request of that tag only, leaving the rest in order. */
+static int case_queue_drop_tag(void) {
+  AiPopupState st;
+  ai_popup_init(&st);
+  ai_popup_enqueue_ok(&st, AI_POPUP_TAG_INFO, NULL, "a");
+  ai_popup_enqueue_ok(&st, AI_POPUP_TAG_PLUNDER_PICK, NULL, "p1");
+  ai_popup_enqueue_ok(&st, AI_POPUP_TAG_INFO, NULL, "b");
+  ai_popup_enqueue_ok(&st, AI_POPUP_TAG_PLUNDER_PICK, NULL, "p2");
+  if (!ai_popup_drop_tag(&st, AI_POPUP_TAG_PLUNDER_PICK) || !queue_order_is(&st, "a,p1,b")) {
+    return fail("drop_tag must remove the newest PLUNDER_PICK only");
+  }
+  if (ai_popup_drop_tag(&st, AI_POPUP_TAG_FF_CONGRESS) || st.queue_count != 3) {
+    return fail("drop_tag of an absent tag must report false and keep the queue");
+  }
+  return 0;
+}
+
+/* port_bugs.md #398 / #427: the nested urgent pump skips the colony-zoom hold
+ * but never presents a held COLONY_EVENT, and a live contact chain still owns
+ * the presenter; a stale chain key is dropped. */
+static int case_queue_urgent_pump(void) {
+  AiPopupState st;
+  ai_popup_init(&st);
+  ai_popup_enqueue_colony_event(&st, 5, 0, "c5");
+  ai_popup_enqueue_ok(&st, AI_POPUP_TAG_INFO, NULL, "a");
+  ai_popup_colony_zoom_elect(&st, 3);
+  if (ai_popup_try_present_next(&st)) {
+    return fail("zoom hold must block a non-elected colony's batch");
+  }
+  if (!ai_popup_try_present_next_urgent(&st) || strcmp(st.current.body, "a") != 0) {
+    return fail("urgent pump must present the non-colony popup past the zoom hold");
+  }
+  st.open = false;
+  if (ai_popup_try_present_next_urgent(&st) || st.queue_count != 1) {
+    return fail("urgent pump must keep a held COLONY_EVENT queued");
+  }
+
+  ai_popup_init(&st);
+  ai_popup_enqueue_ok(&st, AI_POPUP_TAG_INFO, NULL, "a");
+  ai_popup_enqueue_ok(&st, AI_POPUP_TAG_INFO, NULL, "b");
+  st.queue[1].chain = 7;
+  st.active_chain = 7;
+  if (!ai_popup_try_present_next_urgent(&st) || strcmp(st.current.body, "b") != 0) {
+    return fail("urgent pump must follow the active contact chain");
+  }
+  st.open = false;
+  st.active_chain = 9;
+  if (!ai_popup_try_present_next_urgent(&st) || strcmp(st.current.body, "a") != 0 ||
+      st.active_chain != 0) {
+    return fail("stale chain key must clear and fall back to the head");
+  }
+  return 0;
+}
+
+/* present_now pulls one tag to the front past a zoom hold and restores it. */
+static int case_queue_present_now(void) {
+  AiPopupState st;
+  ai_popup_init(&st);
+  ai_popup_enqueue_colony_event(&st, 1, 0, "c1");
+  ai_popup_enqueue_ok(&st, AI_POPUP_TAG_INFO, NULL, "a");
+  ai_popup_enqueue_ok(&st, AI_POPUP_TAG_KING_AUDIENCE, NULL, "k");
+  ai_popup_colony_zoom_elect(&st, 4);
+  if (ai_popup_present_now(&st, AI_POPUP_TAG_FF_CONGRESS)) {
+    return fail("present_now of an absent tag must fail");
+  }
+  if (!ai_popup_present_now(&st, AI_POPUP_TAG_KING_AUDIENCE) || strcmp(st.current.body, "k") != 0) {
+    return fail("present_now must present the asked tag");
+  }
+  if (st.colony_zoom_elected != ((uint64_t)1u << 4) || !queue_order_is(&st, "c1,a")) {
+    return fail("present_now must restore the zoom hold and keep the rest in order");
+  }
+  if (ai_popup_present_now(&st, AI_POPUP_TAG_INFO)) {
+    return fail("present_now while a popup is open must fail");
+  }
+  return 0;
+}
+
 /* Queue overflow safety: fill then one more fails. */
 static int case_queue_overflow(void) {
   AiPopupState st;
@@ -1029,6 +1149,10 @@ static const TestCase k_cases[] = {
     {"case_choice_flow", case_choice_flow},
     {"case_choice_keys_wrap", case_choice_keys_wrap},
     {"case_choice_greyed_row", case_choice_greyed_row},
+    {"case_queue_promote_tag_before", case_queue_promote_tag_before},
+    {"case_queue_drop_tag", case_queue_drop_tag},
+    {"case_queue_urgent_pump", case_queue_urgent_pump},
+    {"case_queue_present_now", case_queue_present_now},
     {"case_queue_overflow", case_queue_overflow},
     {"case_chrome_tags", case_chrome_tags},
     {"case_set_last_after_dropped_enqueue", case_set_last_after_dropped_enqueue},

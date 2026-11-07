@@ -27,7 +27,7 @@
  *
  * Deleted with the code they tested:
  *   - "REF land hunt + colony capture + fortify Regular" (hunt goto/step,
- *     colonies_capture from ai_king, capture status chrome, fortify cap-1/cap-2,
+ *     colonies_capture_ex from ai_king, capture status chrome, fortify cap-1/cap-2,
  *     REF stack extras hunt, after-capture next-colony hunt);
  *   - "REF idle fortify" (crown-colony garrison, cap-2 extras, third hunts,
  *     captured-capital garrison, already-FORTIFIED stays);

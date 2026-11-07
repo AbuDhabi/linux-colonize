@@ -525,7 +525,7 @@ move, peacetime treasury share `gold×pop/(pop+Σ loser pop)` to the captor (=
 `@CAPTURED %NUMBER0`; no plunder under WoI), `nation_relation` words zeroed,
 WAR set, crown capture under WoI sets `0x5382|0x40`. No building/fort damage in
 DOS. Indian capturer: `colonies_abandon` + `@BURNED` on raid burn paths. Also AI
-euro / king REF / raid paths (all through `colonies_capture`, same effects when
+euro / king REF / raid paths (all through `colonies_capture_ex`, same effects when
 `colonies_set_col1_context` has a save).
 
 **Ships berthed in a fallen port (2026-10-29, playtest C12-O13; reverses the

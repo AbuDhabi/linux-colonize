@@ -1,6 +1,6 @@
 /*
  * Sections:
- *  - Purchase table & pool profession rolls (europe_purchase_option_count .. europe_sort_train_by_cost)
+ *  - Purchase table & pool profession rolls (europe_purchase_option_at .. europe_sort_train_by_cost)
  *  - Cargo tables, nation setup & campaign reset (europe_cargo_burden .. europe_reset_campaign_nation)
  */
 
@@ -65,11 +65,7 @@ static const EuropePurchaseOption k_purchase_opts[] = {
 static const int k_purchase_opt_count =
   (int)(sizeof(k_purchase_opts) / sizeof(k_purchase_opts[0]));
 
-/* ===================== Purchase table & pool profession rolls (europe_purchase_option_count .. europe_sort_train_by_cost) ===================== */
-int europe_purchase_option_count(void) {
-  return k_purchase_opt_count;
-}
-
+/* ===================== Purchase table & pool profession rolls (europe_purchase_option_at .. europe_sort_train_by_cost) ===================== */
 const EuropePurchaseOption* europe_purchase_option_at(int index) {
   if (index < 0 || index >= k_purchase_opt_count) {
     return NULL;

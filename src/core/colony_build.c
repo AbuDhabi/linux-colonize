@@ -2,7 +2,7 @@
 
 /*
  * Sections:
- *  - Fortification bonus, abandon & colony capture (colonies_has_fortification .. colonies_capture)
+ *  - Fortification bonus, abandon & colony capture (colonies_has_fortification .. colonies_capture_ex)
  *  - Build queue: unit build info, wagon caps & construction set/complete/buy (colonies_unit_build_info .. colonies_buy_construction)
  *  - Building catalog, chains & buildability rules (colonies_building_chain_rows .. colonies_list_buildable)
  */
@@ -32,7 +32,7 @@
 
 #include "core/colony_internal.h"
 
-/* ===================== Fortification bonus, abandon & colony capture (colonies_has_fortification .. colonies_capture) ===================== */
+/* ===================== Fortification bonus, abandon & colony capture (colonies_has_fortification .. colonies_capture_ex) ===================== */
 bool colonies_has_fortification(const ColonizeColonyPool* pool, const ColonizeColony* colony) {
   if (!pool || !colony) {
     return false;
@@ -325,10 +325,6 @@ bool colonies_capture_ex(
     }
   }
   return true;
-}
-
-bool colonies_capture(ColonizeColonyPool* pool, int colony_id, int new_nation_id) {
-  return colonies_capture_ex(pool, colony_id, new_nation_id, NULL);
 }
 
 /* ===================== Build queue: unit build info, wagon caps & construction set/complete/buy (colonies_unit_build_info .. colonies_buy_construction) ===================== */
