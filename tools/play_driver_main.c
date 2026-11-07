@@ -146,6 +146,7 @@
 #include "core/ai_contact.h"
 #include "core/ai_king.h"
 #include "core/ai_popup.h"
+#include "core/assets.h"
 #include "core/colony_preview.h"
 #include "core/colony_screen.h"
 #include "core/colony_production.h"
@@ -2336,6 +2337,9 @@ int main(int argc, char** argv) {
                                  : (uint64_t)time(NULL) ^ ((uint64_t)(uintptr_t)&seed << 16));
   }
 
+  /* Mod text (data/mods), as opencol run from the repo root: without it every
+   * data-driven mod (late_fathers, kings_audience, ...) silently runs as off. */
+  assets_set_mod_data_dir("./data/mods");
   screen_geom_set(SCREEN_BASE_W, SCREEN_BASE_H);
   ColonizeGameConfig cfg = {
     .data_dir = "./COLONIZE", .save_dir = saves, .rng_seed = seed, .rng_seed_set = seed_set,

@@ -2432,8 +2432,6 @@ static bool units_flood_next_step(
   return true;
 }
 
-#define UNITS_BFS_MAX 2048
-
 static bool units_bfs_next_step(
   const ColonizeUnitPool* pool,
   int unit_id,
@@ -2467,8 +2465,8 @@ static bool units_bfs_next_step(
     parent[i] = -1;
   }
 
-  int* qx = (int*)malloc((size_t)UNITS_BFS_MAX * sizeof(int));
-  int* qy = (int*)malloc((size_t)UNITS_BFS_MAX * sizeof(int));
+  int* qx = (int*)malloc((size_t)cells * sizeof(int));
+  int* qy = (int*)malloc((size_t)cells * sizeof(int));
   if (!qx || !qy) {
     free(visited);
     free(parent);
@@ -2486,7 +2484,7 @@ static bool units_bfs_next_step(
   qt++;
 
   bool found = false;
-  while (qh < qt && qt < UNITS_BFS_MAX) {
+  while (qh < qt) {
     const int cx = qx[qh];
     const int cy = qy[qh];
     ++qh;
@@ -2513,11 +2511,9 @@ static bool units_bfs_next_step(
         }
         visited[ni] = 1;
         parent[ni] = cy * w + cx;
-        if (qt < UNITS_BFS_MAX) {
-          qx[qt] = nx;
-          qy[qt] = ny;
-          qt++;
-        }
+        qx[qt] = nx;
+        qy[qt] = ny;
+        qt++;
       }
     }
   }
@@ -3367,9 +3363,19 @@ static bool units_goto_director(
          */
         const bool moved_this_turn =
           units_remaining_mp(pool, unit_id) < units_max_mp(pool, unit_id);
-        const bool reversal =
-          moved_this_turn && u->orders == UNITS_ORDER_AI_SAIL && u->col1_ai_plan != '9' &&
+        const bool reverses_last =
           units_dir8_index(*out_x - u->x, *out_y - u->y) == units_goto_last_dir_reverse(u);
+        const bool reversal =
+          moved_this_turn && u->orders == UNITS_ORDER_AI_SAIL && u->col1_ai_plan != '9' && reverses_last;
+        /* TB-60: a mover on the edge of its coarse cell can get a waypoint whose
+         * flood leads back through the cell it just left, and the two floods
+         * then alternate forever. A far-flood step that undoes the last step
+         * takes the whole-map BFS step toward the goal instead. */
+        if (!dos_buggy_behavior() && reverses_last && u->nation_id <= 3 &&
+            u->orders != UNITS_ORDER_AI_SAIL &&
+            units_bfs_next_step(pool, unit_id, map, colonies, gx, gy, out_x, out_y)) {
+          return true;
+        }
         if (!reversal || u->nation_id > 3) {
           return true;
         }

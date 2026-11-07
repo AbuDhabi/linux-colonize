@@ -1479,6 +1479,79 @@ static int unit_tb1_coarse_ne_link(void) {
 }
 
 /*
+ * TB-60 / port_bugs.md #1576: campaign 21 Caravel, Go To (33,30) from (12,23)
+ * next to the land block of x12-16 y21-23 (save terrain copied). Coarse cell
+ * (3,5) has no link to (3,6), so its waypoint flood steps NW to (11,22) in
+ * cell (2,5), whose waypoint (3,6) floods back to (12,23). DOS alternates
+ * forever; the fix takes the whole-map BFS step when the far flood undoes the
+ * last step, and arrives.
+ */
+static int unit_tb60_far_waypoint_pingpong(void) {
+  static const struct { int y, x0, x1; } land[] = {
+    {18, 8, 8}, {19, 8, 9}, {20, 17, 18}, {20, 21, 22}, {21, 12, 13}, {21, 16, 23},
+    {22, 12, 16}, {22, 18, 23}, {23, 13, 15}, {23, 19, 23}, {24, 14, 14}, {24, 20, 20},
+    {24, 22, 23}, {25, 23, 23},
+  };
+  ColonizeUnitPool pool = {0};
+  pool.type_count = 2;
+  pool.types[1].movement = 4;
+  pool.types[1].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  ColonizeWorldMap m[2];
+  char err[128];
+  for (int k = 0; k < 2; ++k) {
+    memset(&m[k], 0, sizeof m[k]);
+    if (!map_alloc(&m[k], 58, 72, err, sizeof err)) {
+      return 1;
+    }
+    for (int i = 0; i < 58 * 72; ++i) {
+      m[k].terrain[i] = 25;
+      m[k].layer3[i] = 0xf1;
+    }
+    for (size_t r = 0; r < sizeof land / sizeof land[0]; ++r) {
+      for (int x = land[r].x0; x <= land[r].x1; ++x) {
+        m[k].terrain[land[r].y * 58 + x] = 2;
+      }
+    }
+  }
+  const int id = units_spawn_allow_stack(&pool, 1, 12, 23);
+  ColonizeUnit* u = units_get(&pool, id);
+  int end[2][2] = {{-1, -1}, {-1, -1}};
+  for (int k = 0; u && k < 2; ++k) {
+    dos_buggy_behavior_set(k == 0);
+    units_reset_state();
+    u->nation_id = 2;
+    u->x = 12;
+    u->y = 23;
+    u->orders = UNITS_ORDER_GOTO;
+    u->goto_x = 33;
+    u->goto_y = 30;
+    ColonizeWorld w = {.units = &pool, .map = &m[k]};
+    for (int step = 0; step < 60 && (u->x != 33 || u->y != 30); ++step) {
+      int nx = -1;
+      int ny = -1;
+      if (!units_next_goto_step_w(&w, id, &nx, &ny)) {
+        break;
+      }
+      u->x = (uint8_t)nx;
+      u->y = (uint8_t)ny;
+    }
+    end[k][0] = u->x;
+    end[k][1] = u->y;
+  }
+  dos_buggy_behavior_set(true);
+  units_reset_state();
+  map_free(&m[0]);
+  map_free(&m[1]);
+  const bool buggy_loops = end[0][0] == 12 && end[0][1] == 23;
+  if (!buggy_loops || end[1][0] != 33 || end[1][1] != 30) {
+    fprintf(stderr, "TB-60: buggy ends (%d,%d) want (12,23), fixed ends (%d,%d) want (33,30)\n",
+            end[0][0], end[0][1], end[1][0], end[1][1]);
+    return 1;
+  }
+  return 0;
+}
+
+/*
  * port_bugs.md #1323: FUN_465b_0000 LAB_465b_05ca raw 75643-75649. A move into
  * an undefended foreign colony is a bVar4 arm for a human mover too: a mover
  * short of the step cost with something spent reseeds (04ca DS:0x83a6) before
@@ -2012,6 +2085,7 @@ static const TestCase k_cases[] = {
   {"unit_colony_entry_bvar4_reseed_1323", unit_colony_entry_bvar4_reseed_1323},
   {"unit_tb44_flood_key_rules", unit_tb44_flood_key_rules},
   {"unit_tb1_coarse_ne_link", unit_tb1_coarse_ne_link},
+  {"unit_tb60_far_waypoint_pingpong", unit_tb60_far_waypoint_pingpong},
   {"unit_far_flood_keeps_probe_type", unit_far_flood_keeps_probe_type},
   {"unit_board_restore_bounded", unit_board_restore_bounded},
   {"unit_ai_move_marks_new_world", unit_ai_move_marks_new_world},
