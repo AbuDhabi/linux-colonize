@@ -703,3 +703,15 @@ goldens and replays are unchanged and there is no `dos_buggy_behavior()` gate. T
 `unit_units_combat` `unit_royal_loss_tax_cut`, `unit_ai_euro_5952_indoor`
 `paine_bonus_reads_tax_unsigned`.
 **Status:** done.
+
+### DB-79 — A finished Warehouse Expansion left selected eats 20 tools a turn
+**DOS:** FUN_364b_0688 Phase L (raw 57748-57771) checks and debits the project's 20 tools
+before it calls FUN_364b_0114, and 0114 refuses a Warehouse Expansion once +0x95 > 1
+(@NOMOREWAREHOUSE, raw 56906-56910) with the hammers and the selection kept. The
+Expansion bit is never set, so the stale project spends 20 tools every turn it stays
+selected (port_bugs.md #1521).
+
+**Port:** `colonies_try_complete_building_ex` (`colony_build.c`) refuses before the tools
+check, so the tools stay; @NOMOREWAREHOUSE still shows each turn the tools are there and
+@NEEDTOOLS when they are not, as in DOS. Test: `unit_turn_core` `stale_warehouse_expansion`.
+**Status:** done (2026-11-07, user call).

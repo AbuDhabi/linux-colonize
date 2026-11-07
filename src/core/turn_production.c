@@ -1753,7 +1753,8 @@ COLONIZE_INTERNAL void turn_produce_hammers(TurnProduceCtx* pc) {
                  brow == COLONY_BUILDING_WAREHOUSE_EXPANSION && colony->warehouse_level > 1u &&
                  tools_before >= bt->tools_cost) {
         /* FUN_364b_0114 raw 56906-56910: @NOMOREWAREHOUSE each turn it sits
-         * complete and the tools were there to spend (raw 57768-57771). */
+         * complete and the tools were there to spend (raw 57768-57771); the
+         * port does not spend them (docs/dos_bugs.md DB-79). */
         colonies_emit_already_have_chrome(colony, bt, ai_popups, messages);
       }
     } else {

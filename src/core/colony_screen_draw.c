@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "core/ai_euro_internal.h"
 #include "core/assets.h"
 #include "core/colony_craft.h"
 #include "core/colony_preview.h"
@@ -15,6 +16,7 @@
 #include "core/fb.h"
 #include "core/font_file.h"
 #include "core/founding_fathers.h"
+#include "core/map.h"
 #include "core/map_menu.h"
 #include "core/map_panel.h"
 #include "core/popup.h"
@@ -121,6 +123,15 @@ void colony_screen_draw_top_bar(
     font_draw_text(font, framebuffer, (COLONY_SCREEN_WIDTH - bw) / 2, 1, view->bar_text, view->bar_ink);
     return;
   }
+  /* FUN_2f2b_0fce raw 47846-47872: an AI owner's colony (outside the spy view
+   * and the demo) titles with the planner dump instead; same centred
+   * FUN_1009_02cc line (colony_screen_ai_title_line, set by the renderer). */
+  if (view && view->ai_title[0]) {
+    const int aw = font_text_width(font, view->ai_title);
+    font_draw_text(font, framebuffer, (COLONY_SCREEN_WIDTH - aw) / 2, 1, view->ai_title,
+                   COLONIZE_COL_BASIC);
+    return;
+  }
   /* DOS FUN_2f2b_0fce: one centered string "<Name>.  <Season>, <Year>.
    * Gold: <N>$" — not three separately-positioned fields (golden-measured:
    * single green (WOODPANL.PIK idx 68, exact RGB match) run, native width
@@ -150,6 +161,40 @@ void colony_screen_draw_top_bar(
   head[strlen(head) - 2] = '\0';
   font_draw_text(font, framebuffer, x, 1, head, COLONIZE_COL_BASIC);
   font_draw_text(font, framebuffer, tail_x, 1, line + strlen(head) + 2, COLONIZE_COL_BASIC);
+}
+
+/* FUN_2f2b_0fce raw 47850-47870 (asm 2f2b:1002-10f5), the AI-owner branch:
+ *   FUN_104b_0156 +0x1b in radix 2 padded to 8 with DS:0x6c "0", " ",
+ *   then for +0x8c..+0x8f (cbw): +0x8d indexes the DS:0x97c0 @CARGO table,
+ *   the others FUN_1d1d_08fa radix 10, each followed by " ",
+ *   DS:0x2e38 (@MISC 63) " " FUN_137f_02a0 continent ": " DS:0x9870[owner][continent],
+ *   then the shared tail (raw 47871-47876): DS:0x93a0 (@CTITLE 1) " " owner gold "$".
+ * No separator between the stance digit and @CTITLE 1 (asm 2f2b:10f5 jumps
+ * straight to the tail). specialty_cargo 0xff reads DS:0x97be, a word that is
+ * not a @CARGO row: empty here (catalog miss). */
+void colony_screen_ai_title_line(
+  const ColonizeColony* colony, const ColonizeWorldMap* map, int gold, char* out, size_t out_size
+) {
+  if (!out || out_size == 0) {
+    return;
+  }
+  out[0] = '\0';
+  if (!colony) {
+    return;
+  }
+  char bits[9];
+  for (int i = 0; i < 8; ++i) {
+    bits[i] = (char)('0' + ((colony->ai_flags >> (7 - i)) & 1));
+  }
+  bits[8] = '\0';
+  const int cargo = (int)(int8_t)colony->specialty_cargo;
+  const char* cargo_name = cargo >= 0 ? reports_names_field("CARGO", cargo, 0) : NULL;
+  const int continent = map_continent_id_at(map, colony->x, colony->y);
+  const int stance = ai_euro_continent_stance_at(colony->nation_id, continent);
+  snprintf(out, out_size, "%s %d %s %d %d %s %d: %d%s %d$", bits, (int)(int8_t)colony->improve_timer,
+           cargo_name ? cargo_name : "", (int)(int8_t)colony->labor_shortage,
+           (int)(int8_t)colony->cargo_idle_turns, reports_misc_display_word(63, ""), continent, stance,
+           reports_ctitle_word(1), gold);
 }
 
 void colony_screen_draw_selection_box(

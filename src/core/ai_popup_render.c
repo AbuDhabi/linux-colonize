@@ -81,7 +81,10 @@ bool ai_popup_handle_input(AiPopupState* st, const ColonizeInputState* input) {
     return true;
   }
 
-  if (input->mouse_left_clicked) {
+  /* FUN_6f74_2580 acts on the release of either button alike (DS:0x7f4, raw 117036-117060);
+   * the right button only adds DS:0x1f68 for a DS:0x1f66 help-armed caller (raw 117062-117065,
+   * intercepted before this: game_dialogs.c). Only Esc is a cancel (raw 116780-116782). */
+  if (input->mouse_left_clicked || input->mouse_right_clicked) {
     if (is_info) {
       /* Any click dismisses body-only dialogs (DOS message-box style). */
       ai_popup_finish(st, false, 0);
@@ -92,6 +95,8 @@ bool ai_popup_handle_input(AiPopupState* st, const ColonizeInputState* input) {
      * decision. A click anywhere else — body text, dialog chrome, or outside
      * the dialog entirely — is swallowed and changes nothing (no implicit
      * cancel, no "pick the highlighted row"). Keyboard ESC still cancels.
+     * DOS: a release off the rows leaves only when box flag bit 0 is set (raw 117052-117054),
+     * which a GAME.TXT box gets only from @checkbox (FUN_6f74_32a4 |= 5, raw 117354).
      */
     const int mx = input->mouse_x;
     const int my = input->mouse_y;
@@ -105,12 +110,9 @@ bool ai_popup_handle_input(AiPopupState* st, const ColonizeInputState* input) {
         st->selection = idx;
         ai_popup_finish(st, false, st->current.choice_ids[idx]);
       }
+    } else if (st->current.outside_leaves) {
+      ai_popup_finish(st, true, 0); /* 2580 returns 0: no row */
     }
-    return true;
-  }
-
-  if (input->mouse_right_clicked) {
-    ai_popup_finish(st, !is_info, is_info ? 0 : -1);
     return true;
   }
 

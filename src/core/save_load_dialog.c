@@ -226,7 +226,10 @@ bool save_load_handle_input(SaveLoadDialog* dlg, const ColonizeInputState* input
     return true;
   }
 
-  if (input->mouse_left_clicked) {
+  /* FUN_7562_0052's box (flags |= 1, raw 119643) through FUN_6f74_2580: either button picks
+   * the row under the pointer (release arm raw 117036-117060), and a release off the box
+   * returns 0, which FUN_7562_030a / 04e8 read as no slot (raw 119734, 119798). */
+  if (input->mouse_left_clicked || input->mouse_right_clicked) {
     const int mx = input->mouse_x;
     const int my = input->mouse_y;
     if (!ui_rect_hit(dlg->dialog_x, dlg->dialog_y, dlg->dialog_w, dlg->dialog_h, mx, my)) {
@@ -238,11 +241,6 @@ bool save_load_handle_input(SaveLoadDialog* dlg, const ColonizeInputState* input
       dlg->selection = idx;
       save_load_confirm(dlg, idx);
     }
-    return true;
-  }
-
-  if (input->mouse_right_clicked) {
-    save_load_cancel(dlg);
     return true;
   }
 

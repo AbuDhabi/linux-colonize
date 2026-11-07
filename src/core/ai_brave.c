@@ -11,6 +11,7 @@
 #include <strings.h>
 
 #include "core/ai_contact.h"
+#include "core/ai_contact_internal.h"
 #include "core/ai_diplo.h"
 #include "core/ai_euro.h"
 #include "core/founding_fathers.h"
@@ -23,6 +24,8 @@
 #include "core/dos_rng.h"
 #include "core/map_gen.h"
 #include "core/new_game.h"
+#include "core/popup_msg.h"
+#include "core/reports.h"
 #include "core/strutil.h"
 #include "core/turn.h"
 #include "platform/diagnostics.h"
@@ -440,6 +443,55 @@ int ai_native_step_first_contact(
     units_mp_exhaust(units, u);
   }
   return resolved;
+}
+
+/*
+ * DOS-LITERAL FUN_4d56_021a:1316-13ae (viceroy_overlays.asm 125245-125300),
+ * reached for every attack pick (flags & 8) that passed the 1277 contact
+ * latch and the 12f8 full-move check:
+ *   if (owner < 4 && nation[owner].control(0x543f) == 0) {
+ *     c = 281f_0614(x, y, owner, -1);            // 15eb_0142 nearest colony
+ *     if (c >= 0) { 281f_0352(x, y, x, y, 0);    // edge-scroll onto the target
+ *       %STRING0 = 0a1a(tribe); %STRING1 = c.name; %STRING2 = 09a4(tribe);
+ *       281f_0652(0x14dc, 1); } }                // @INDIANSURPRISE
+ * No first-attack latch: a DOSBox trace hit 0x13a4 on each such pick
+ * (known_divergences.md #1560). owner -1 (unclaimed) passes the signed
+ * `< 4` and reads 0x543f - 0x34 = DS:0x540b (woodcut bits 9-16), and the
+ * colony scan then takes any nation.
+ */
+void ai_native_indian_surprise(const ColonizeWorldMap* map, int nation_id, int x, int y, int owner) {
+  ColonizeTurnContext* ctx = s_ai_native_ctx;
+  if (!ctx || !ctx->col1 || !ai_s_native_colonies || owner >= 4 || nation_id < 4 || nation_id > 11) {
+    return;
+  }
+  int human = owner;
+  if (owner < 0) {
+    if (((const uint8_t*)&ctx->col1->head.event)[1] != 0) {
+      return;
+    }
+    for (human = 0; human < 4 && !ai_contact_euro_is_human(ctx, human); ++human) {
+    }
+  }
+  if (!ai_contact_euro_is_human(ctx, human)) {
+    return;
+  }
+  const int ci = ai_goals_nearest_colony_15eb_0142(map, ai_s_native_colonies, x, y, owner, -1, NULL);
+  if (ci < 0) {
+    return;
+  }
+  if (g_units_camera_edge) {
+    g_units_camera_edge(g_units_camera_edge_user, x, y);
+  }
+  PopupMsgTokens tok;
+  memset(&tok, 0, sizeof(tok));
+  tok.string0 = reports_tribe_display_name(nation_id - 4); /* 0a1a(tribe) */
+  tok.string1 = ai_s_native_colonies->colonies[ci].name;
+  tok.string2 = ai_contact_tribe_name(nation_id); /* 09a4(tribe) */
+  char body[AI_POPUP_BODY_LEN];
+  popup_msg_fill(ctx->messages, "INDIANSURPRISE", &tok, "", body, sizeof(body));
+  if (body[0]) {
+    ai_contact_human_chrome(ctx, human, AI_POPUP_TAG_CONTACT_RAID, nation_id, body);
+  }
 }
 
 void ai_native_note_brave_turn_origin(int unit_id, int x, int y) {

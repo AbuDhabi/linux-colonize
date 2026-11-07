@@ -52,24 +52,6 @@ bool units_resolve_land_combat(
 }
 
 /*
- * port_bugs.md: mounted units (Dragoons, Scouts, Cavalry, Cont. Cav., Mtd.
- * Braves/Warriors) get one attack per turn — any combat drains all their
- * remaining moves, win or lose.
- */
-static void units_mounted_attack_spend_all(ColonizeUnitPool* pool, int attacker_id) {
-  ColonizeUnit* a = units_get(pool, attacker_id);
-  if (!a || !a->active) {
-    return;
-  }
-  const ColonizeUnitType* t = units_type(pool, a->type_index);
-  const bool mounted = a->horses > 0 || units_type_is_mounted(t);
-  if (mounted) {
-    /* Natives keep the SPENT byte: drain = spent := max, not 0 (audit). */
-    units_mp_exhaust(pool, a);
-  }
-}
-
-/*
  * DOS 1b0e's `local_ca` (viceroy_unpacked.c 100573-100577, immediately after
  * the FUN_281f_04d4 roll):
  *
@@ -420,7 +402,6 @@ bool units_resolve_land_combat_ff_w(
      * (units_finish_village_temp_defender). Killing a map Brave on the tile
      * leaves the dwelling intact. Cite: FUN_5fef_1b0e bVar28 path.
      */
-    units_mounted_attack_spend_all(pool, attacker_id);
     g_units_last_combat = 1;
     units_dissolve_notify(1);
     units_combat_pump_popups();
@@ -561,7 +542,6 @@ bool units_resolve_land_combat_ff_w(
       }
     }
   }
-  units_mounted_attack_spend_all(pool, attacker_id);
   g_units_last_combat = -1;
   units_dissolve_notify(1);
   units_combat_pump_popups();

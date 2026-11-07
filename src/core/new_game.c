@@ -1110,7 +1110,8 @@ bool new_game_handle_input(NewGameWizard* ng, const ColonizeInputState* input) {
   }
 
   /* @MULTI checkbox box through FUN_6f74_2580: Up / Down wrap, Space or a click on a row
-   * toggles it (raw 116856-116862, 117050-117058), Enter, Esc or a click away closes. */
+   * toggles it (raw 116856-116862, 117050-117058), Enter, Esc or a click away closes. Either
+   * mouse button (the release arm, raw 117036-117060, does not test it). */
   if (ng->phase == NEW_GAME_PHASE_MULTI) {
     if (popup_list_key_step(input->last_key, &ng->selection, ng->option_count, 0)) {
       return true;
@@ -1121,7 +1122,7 @@ bool new_game_handle_input(NewGameWizard* ng, const ColonizeInputState* input) {
     } else if (input->last_key == COLONIZE_KEY_ENTER || input->last_key == COLONIZE_KEY_ESCAPE) {
       new_game_finish_multi(ng);
       return true;
-    } else if (input->mouse_left_clicked) {
+    } else if (input->mouse_left_clicked || input->mouse_right_clicked) {
       const int mx = input->mouse_x;
       const int my = input->mouse_y;
       if (mx < ng->dialog_x || my < ng->dialog_y || mx >= ng->dialog_x + ng->dialog_w ||
@@ -1158,7 +1159,8 @@ bool new_game_handle_input(NewGameWizard* ng, const ColonizeInputState* input) {
     new_game_activate_list(ng);
     return true;
   }
-  if (input->mouse_left_clicked && ng->option_count > 0 && ng->line_h > 0) {
+  if ((input->mouse_left_clicked || input->mouse_right_clicked) && ng->option_count > 0 &&
+      ng->line_h > 0) { /* either button: FUN_6f74_2580 raw 117036-117060 */
     const int mx = input->mouse_x;
     const int my = input->mouse_y;
     if (mx >= ng->dialog_x && my >= ng->dialog_y && mx < ng->dialog_x + ng->dialog_w &&

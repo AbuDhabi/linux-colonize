@@ -831,6 +831,14 @@ bool colonies_try_complete_building_ex(
       bid < COLONIZE_BUILDING_TYPES_MAX && col->has_building[bid]) {
     return false;
   }
+  /* FUN_364b_0114 raw 56906-56910: Warehouse Expansion with +0x95 already
+   * > 1 completes nothing (the human caller shows @NOMOREWAREHOUSE). DOS
+   * reaches it only after Phase L spent the tools (raw 57768-57771), so a
+   * stale project drains 20 tools every turn; the port refuses first and
+   * keeps them (docs/dos_bugs.md DB-79). */
+  if (bid_row == COLONY_BUILDING_WAREHOUSE_EXPANSION && col->warehouse_level > 1u) {
+    return false;
+  }
   if (bt->tools_cost > 0 && col->stock[COLONIZE_CARGO_TOOLS] < bt->tools_cost) {
     /* DOS-LITERAL FUN_364b_0688 Phase L raw 57748-57774: human colonies
      * stop for @NEEDTOOLS; AI and Crown colonies are given the missing tools
@@ -846,13 +854,6 @@ bool colonies_try_complete_building_ex(
   /* raw 57768-57770: Phase L spends the tools, then calls FUN_364b_0114. */
   if (bt->tools_cost > 0) {
     col->stock[COLONIZE_CARGO_TOOLS] -= bt->tools_cost;
-  }
-  /* FUN_364b_0114 raw 56906-56910: Warehouse Expansion with +0x95 already
-   * > 1 completes nothing (the human caller shows @NOMOREWAREHOUSE). The
-   * tools are already gone and the hammers stay, so DOS repeats this every
-   * turn the stale project stays selected. */
-  if (bid_row == COLONY_BUILDING_WAREHOUSE_EXPANSION && col->warehouse_level > 1u) {
-    return false;
   }
   /* DS:0x34a — colony-screen reveal + 0x54; FUN_364b_0114 raw 56965-56967
    * skips Warehouse Expansion (0x10) and Capitol Expansion (0x1f). */

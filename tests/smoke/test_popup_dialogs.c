@@ -190,6 +190,14 @@ static int case_checkbox_hotkeys(void) {
       strncmp(cl.options[2], "~] ", 3) != 0) {
     return fail("debug flags hotkey 's' must select and toggle row 2, box open");
   }
+  /* FUN_2b5a_268c reads the rows back whatever the box returned: Esc keeps the toggle. */
+  memset(&in, 0, sizeof(in));
+  in.last_key = COLONIZE_KEY_ESCAPE;
+  cheat_list_handle_input(&cl, &in);
+  if (cl.open || !cl.has_result || cl.result_kind != CHEAT_LIST_KIND_DEBUG_FLAGS ||
+      cl.result_mask != 0x4) {
+    return fail("debug flags: Esc must commit the toggled rows (DS:0x894 = 0x4)");
+  }
   return 0;
 }
 
@@ -253,6 +261,116 @@ static int case_list_keys_wrap(void) {
     return fail("debug flags: Down skips the disabled last row and wraps");
   }
   return 0;
+}
+
+/* FUN_6f74_2580 takes a release of either button alike (raw 117036-117060); only Esc cancels.
+ * Off the box, only a flag-bit-0 box leaves (raw 117052-117054): @checkbox, FUN_647e_*. */
+static int case_right_click_is_left_click(void) {
+  static ColonizeFont font;
+  char err[128];
+  if (!font_file_load("COLONIZE/FONTINTR.FF", &font, err, sizeof(err))) {
+    fprintf(stderr, "SKIP: assets: %s\n", err);
+    return TR_SKIP;
+  }
+  static uint8_t px[320 * 200];
+  ColonizeFramebuffer8 fb = {.width = 320, .height = 200, .pixels = px};
+  ColonizeInputState in;
+  memset(&in, 0, sizeof(in));
+  in.mouse_right_clicked = true;
+  int rc = 0;
+
+  static AiPopupState st;
+  ai_popup_init(&st);
+  const char* labels[] = {"Aaaa", "Bbbb", "Cccc"};
+  const int ids[] = {1, 2, 3};
+  for (int pass = 0; pass < 2; ++pass) {
+    ai_popup_enqueue_choice_ctx(&st, AI_POPUP_TAG_KING_AUDIENCE, 0, 1, 0, NULL, "Body", labels,
+                                ids, 3);
+  }
+  ai_popup_enqueue_ok(&st, AI_POPUP_TAG_INFO, NULL, "Body");
+  ai_popup_try_present_next(&st);
+  ai_popup_render(&st, &font, NULL, NULL, NULL, 1, 2, 3, &fb);
+  in.mouse_x = st.dialog_x + 20;
+  in.mouse_y = st.list_y0 + 2 * st.line_h + 1;
+  ai_popup_handle_input(&st, &in);
+  if (!st.has_result || st.result_cancelled || st.result_choice_id != 3) {
+    rc = fail("ai_popup: a right click on a row picks it");
+  }
+  ai_popup_consume_result(&st);
+  ai_popup_try_present_next(&st);
+  ai_popup_render(&st, &font, NULL, NULL, NULL, 1, 2, 3, &fb);
+  in.mouse_x = st.dialog_x > 4 ? 1 : 319;
+  ai_popup_handle_input(&st, &in);
+  if (st.has_result || !st.open) {
+    rc = fail("ai_popup: a right click off a choice box does nothing");
+  }
+  ai_popup_cancel_current(&st);
+  ai_popup_consume_result(&st);
+  ai_popup_try_present_next(&st);
+  ai_popup_handle_input(&st, &in);
+  if (!st.has_result || st.result_cancelled || st.result_choice_id != 0) {
+    rc = fail("ai_popup: a right click dismisses a message box");
+  }
+  ai_popup_consume_result(&st);
+  ai_popup_enqueue_choice_ctx(&st, AI_POPUP_TAG_KING_AUDIENCE, 0, 1, 0, NULL, "Body", labels, ids,
+                              3);
+  ai_popup_set_last_outside_leaves(&st); /* e.g. FUN_38fd_2bfe's box, flags |= 3 */
+  ai_popup_try_present_next(&st);
+  ai_popup_render(&st, &font, NULL, NULL, NULL, 1, 2, 3, &fb);
+  in.mouse_x = st.dialog_x > 4 ? 1 : 319;
+  ai_popup_handle_input(&st, &in);
+  if (st.open || !st.has_result || !st.result_cancelled) {
+    rc = fail("ai_popup: off a flag-bit-0 box a right click leaves with no row");
+  }
+
+  OptionsDialog od;
+  ColonizeCol1GameOptions opts;
+  memset(&opts, 0, sizeof(opts));
+  options_dialog_open_game(&od, NULL, &opts);
+  options_dialog_render(&od, &font, NULL, NULL, 68, 149, 138, &fb);
+  in.mouse_x = od.dialog_x + 20;
+  in.mouse_y = od.list_y0 + 1;
+  options_dialog_handle_input(&od, &in);
+  if (!od.open || od.values[0] != 1) {
+    rc = fail("options: a right click toggles the row, box open");
+  }
+  in.mouse_x = od.dialog_x > 4 ? 1 : 319;
+  options_dialog_handle_input(&od, &in);
+  if (!od.has_result || od.result_cancelled || od.result_values[0] != 1) {
+    rc = fail("options: a right click off the @checkbox box leaves with the toggles");
+  }
+
+  CheatListDialog cl;
+  const char* rows[] = {"One", "Two", "Three"};
+  const int row_ids[] = {10, 20, 30};
+  cheat_list_open_trade_select(&cl, "Route", rows, row_ids, 3);
+  cheat_list_render(&cl, &font, NULL, NULL, 1, 3, &fb);
+  in.mouse_x = cl.dialog_x + 20;
+  in.mouse_y = cl.list_y0 + cl.line_h + 1;
+  cheat_list_handle_input(&cl, &in);
+  if (!cl.has_result || cl.result_id != 20) {
+    rc = fail("cheat list: a right click on a row picks it");
+  }
+  cheat_list_open_trade_select(&cl, "Route", rows, row_ids, 3);
+  cheat_list_render(&cl, &font, NULL, NULL, 1, 3, &fb);
+  in.mouse_x = cl.dialog_x > 4 ? 1 : 319;
+  cheat_list_handle_input(&cl, &in);
+  if (cl.open || cl.has_result) {
+    rc = fail("cheat list: off a FUN_647e_0796 box (flag bit 0) a click leaves with no pick");
+  }
+  cheat_list_open_create_unit(&cl, "Unit", rows, row_ids, 3, -1);
+  cheat_list_render(&cl, &font, NULL, NULL, 1, 3, &fb);
+  in.mouse_x = cl.dialog_x > 4 ? 1 : 319;
+  for (int b = 0; b < 2; ++b) {
+    in.mouse_left_clicked = b == 0;
+    in.mouse_right_clicked = b == 1;
+    cheat_list_handle_input(&cl, &in);
+  }
+  if (!cl.open) {
+    rc = fail("cheat list: off a DEBUG.TXT list box a click does nothing");
+  }
+  font_file_free(&font);
+  return rc;
 }
 
 static int case_name_entry(void) {
@@ -1203,6 +1321,17 @@ static int case_trade_cargo_columns_are_dos(void) {
   if (trade_click(&ts, &col1, 0xd0 + 12, 70) != TRADE_SCREEN_REQ_CARGO_ADD || !ts.request_is_load) {
     return fail("past the load icon: append to the load list");
   }
+  /* FUN_647e_115c runs FUN_647e_10d2 on any button's release (raw 103143-103146). */
+  ColonizeInputState rin;
+  memset(&rin, 0, sizeof(rin));
+  rin.mouse_right_clicked = true;
+  rin.mouse_x = 127;
+  rin.mouse_y = 70;
+  ts.request = TRADE_SCREEN_REQ_NONE;
+  trade_screen_handle_input(&ts, &col1, NULL, &rin);
+  if (ts.request != TRADE_SCREEN_REQ_CARGO_ADD) {
+    return fail("a right click works the route table like a left one");
+  }
   ColonizeFont tiny;
   char err[128];
   if (!font_file_load("COLONIZE/FONTTINY.FF", &tiny, err, sizeof(err))) {
@@ -1606,6 +1735,7 @@ static const TestCase k_cases[] = {
     {"options", case_options},
     {"checkbox_hotkeys", case_checkbox_hotkeys},
     {"list_keys_wrap", case_list_keys_wrap},
+    {"right_click_is_left_click", case_right_click_is_left_click},
     {"name_entry", case_name_entry},
     {"game_txt_wired_sections", case_game_txt_wired_sections},
     {"recruitchoose_width", case_recruitchoose_width},

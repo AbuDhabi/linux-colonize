@@ -802,6 +802,8 @@ static void ai_king_enqueue_throne_audience(
   if (!ai_king_human_popups(ctx)) {
     return;
   }
+  /* FUN_3844_0442 raw 58542: FUN_281f_0438(0, [DS:0x8d42 + human*2]) = the
+   * bare @COUNTRY row (no FUN_15b3_0144 / FUN_291f_0ac8 article). */
   const char* motherland =
     (human >= 0 && human <= 3) ? reports_nation_country_name(human) : "";
   PopupMsgTokens tok;

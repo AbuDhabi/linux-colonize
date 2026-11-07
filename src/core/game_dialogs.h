@@ -373,6 +373,11 @@ struct ColonizeGameState {
   EuropeScreen europe;
   bool europe_ok;
   bool in_europe;
+  /* A Europe visit of another power (@SETEUROPE / DS:0x53a4, port_bugs.md #1556): the live
+   * save is rebound to it and, once the screen closes, back with this stash (game_dialogs.c). */
+  bool europe_view_active;
+  uint8_t europe_view_control[4]; /* DS:0x543f + n*0x34 */
+  uint16_t europe_view_head[4]; /* DS:0x5398, 0x5394, 0x5396, 0x53a4 */
   /* The last press reached the Europe screen itself, not a menu or popup that took it;
    * only then may its release open the dock menu or article (FUN_38fd_3c86). */
   bool europe_press_on_screen;
@@ -562,6 +567,8 @@ void game_open_report(ColonizeGameState* game, ColonizeReportId id);
 /* A REPORTS command (F2-F10, the REPORTS menu): @SETREPORT first under Complete Map. */
 void game_report_command(ColonizeGameState* game, ColonizeReportId id);
 int game_viewpoint_nation(const ColonizeGameState* game);
+/* A map Enter / click opens `col`: the viewpoint nation owns it, or Complete Map (any owner). */
+bool game_colony_opens_from_map(const ColonizeGameState* game, const ColonizeColony* col);
 void game_open_retire_score(ColonizeGameState* game);
 void game_end_to_title(ColonizeGameState* game);
 void game_end_after_loss(ColonizeGameState* game);
@@ -717,6 +724,13 @@ void game_trade_begin_at_stop(ColonizeGameState* game, int route, int stop_i);
 void game_trade_begin_route(ColonizeGameState* game, int route);
 int game_trade_route_count(const ColonizeGameState* game);
 bool game_try_enter_europe(ColonizeGameState* game);
+/* View Europe (key E / VIEW menu, FUN_2b5a asm 0x236B2): @EUROPENOTAVAIL, @SETEUROPE under
+ * Complete Map, else the SETVIEW nation's or the human's Europe (port_bugs.md #1556). */
+void game_europe_command(ColonizeGameState* game);
+/* The @SETEUROPE pick (nation 0..3): that power's Europe, rebound for the visit. */
+void game_apply_set_europe(ColonizeGameState* game, int nation);
+/* Ends a foreign Europe visit once the screen has closed: rebinds the human. Every frame. */
+void game_europe_view_service(ColonizeGameState* game);
 bool game_try_found_colony_at_cursor(ColonizeGameState* game);
 /* FUN_4720_049e tail: @LANDHO after a human move whose destination 3x3 holds land. */
 void game_try_prompt_landho(ColonizeGameState* game, int dest_x, int dest_y);

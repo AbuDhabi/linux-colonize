@@ -40,6 +40,7 @@ typedef struct MapPanelRenderCtx {
   bool end_turn_active;
   bool end_turn_blink_white;
   ColonizeFramebuffer8* framebuffer;
+  uint16_t debug_flags; /* DS:0x894 CHEAT Debug Info Flags (MapPanel.debug_flags) */
 
   int resolved_human; /* save's control==0 nation, see map_panel_render_w */
   int panel_y;
@@ -87,6 +88,11 @@ COLONIZE_INTERNAL void map_panel_format_owner(
   int y,
   const char* nation_name,
   int human_nation
+);
+/* FUN_49dd_0424 raw 79282-79297 (DS:0x894 & 1) per-tribe debug row:
+ * "<@TRIBES plural> <alarm word>". False for an extinct tribe (no row). */
+COLONIZE_INTERNAL bool map_panel_format_debug_tribe(
+  char* out, size_t size, const ColonizeCol1Save* col1, int tribe, int view_nation
 );
 COLONIZE_INTERNAL int map_panel_cheat_index(
   const ColonizeCol1Save* col1, const ColonizeUnitPool* units, int unit_id

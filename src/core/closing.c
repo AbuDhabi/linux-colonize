@@ -215,6 +215,7 @@ bool closing_open(ClosingCinematic* c, const char* data_dir) {
   memcpy(c->canvas, c->background, sizeof(c->canvas));
   c->clock = 0;
   c->accum = 0;
+  c->anim_timing = CLOSING_ANIM_TIMING;
   c->open = true;
   c->finished = false;
   if (g_closing_set_bgm) {
@@ -248,11 +249,15 @@ void closing_update(ClosingCinematic* c, uint32_t dt_ms) {
   if (!c || !c->open || c->finished) {
     return;
   }
-  const uint64_t frame = (uint64_t)CLOSING_ANIM_TIMING * CLOSING_ACCUM_PER_TICK;
+  /* `_anim_loop` 0x211-0x232 is a signed 32-bit now - anim_clock >=
+   * anim_timing test, so a timing nudged to 0 or below steps on every loop
+   * pass: one step per update here. */
+  const uint64_t frame =
+    c->anim_timing > 0 ? (uint64_t)c->anim_timing * CLOSING_ACCUM_PER_TICK : 0;
   c->accum += (uint64_t)dt_ms * CLOSING_ACCUM_PER_MS;
   while (c->accum >= frame) {
     c->accum -= frame;
-    if (!closing_step(c, true)) {
+    if (!closing_step(c, true) || frame == 0) {
       c->accum = 0;
       break;
     }
@@ -266,7 +271,18 @@ bool closing_handle_input(ClosingCinematic* c, const ColonizeInputState* input) 
   if (!input) {
     return true;
   }
-  if (colonize_input_any_key_or_click(input)) {
+  /* `_get_input` 0x42a/0x430: '-' / '_' slow down, '+' / '=' speed up, one
+   * tick on anim_timing DS:0x54, with no limit. */
+  for (int i = 0; i < input->text_input_len; ++i) {
+    const char ch = input->text_input[i];
+    c->anim_timing += (ch == '-' || ch == '_') ? 1 : (ch == '+' || ch == '=') ? -1 : 0;
+  }
+  /* 0x3ed-0x448: Enter, Esc, Space, a mouse button (stored as 0x1b), Alt-Q
+   * (0x110) or Alt-X (0x12d) end it; any other key is ignored. */
+  const ColonizeKey k = input->last_key;
+  if (k == COLONIZE_KEY_ENTER || k == COLONIZE_KEY_ESCAPE || k == COLONIZE_KEY_SPACE ||
+      input->mouse_left_clicked || input->mouse_right_clicked ||
+      (input->alt_held && (k == COLONIZE_KEY_Q || k == COLONIZE_KEY_X))) {
     closing_close(c);
   }
   return true;

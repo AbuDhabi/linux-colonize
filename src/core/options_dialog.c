@@ -352,7 +352,7 @@ static void options_finish(OptionsDialog* dlg, bool cancelled) {
   }
   dlg->has_result = true;
   /* port_bugs.md #1474: FUN_6f74_2580 rebuilds DS:0x1f54 from the live checkboxes
-   * on every exit, Esc and right-click included (LAB_6f74_3018), and
+   * on every exit, Esc included (LAB_6f74_3018), and
    * FUN_2b5a_20f6 / 223a / 23ce (raw 42934-43090) read every row from it whatever
    * the dialog answered. Only the port-only Mods pages keep a real cancel. */
   dlg->result_cancelled = cancelled && dlg->kind == OPTIONS_KIND_MODS;
@@ -398,13 +398,16 @@ bool options_dialog_handle_input(OptionsDialog* dlg, const ColonizeInputState* i
       return true;
     }
   }
-  if (input->mouse_left_clicked) {
+  /* FUN_6f74_2580 treats both buttons alike (release arm raw 117036-117060): a right click
+   * toggles a row like a left one. A @checkbox box has flag bit 0 (|= 5, raw 117354), so a
+   * release off the box leaves (raw 117052-117054). */
+  if (input->mouse_left_clicked || input->mouse_right_clicked) {
     if (!ui_rect_hit(
           dlg->dialog_x, dlg->dialog_y, dlg->dialog_w, dlg->dialog_h, input->mouse_x,
           input->mouse_y
         )) {
-      /* port_bugs.md: clicking away should commit, like Enter (Esc / right-click
-       * commit too, except on the Mods pages: options_finish). */
+      /* port_bugs.md: clicking away should commit, like Enter (Esc commits too, except on
+       * the Mods pages: options_finish). */
       options_finish(dlg, false);
       return true;
     }
@@ -418,10 +421,6 @@ bool options_dialog_handle_input(OptionsDialog* dlg, const ColonizeInputState* i
       dlg->selection = idx;
       dlg->values[idx] = dlg->values[idx] ? 0 : 1;
     }
-    return true;
-  }
-  if (input->mouse_right_clicked) {
-    options_finish(dlg, true);
     return true;
   }
   return true;

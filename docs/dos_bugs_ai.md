@@ -306,3 +306,14 @@ bumps that counter. This also replaces DOS's `(10 - difficulty) * 100` from
 turn 40 on (user decision). The King-grace arm still makes the buy free.
 Test: `unit_ai_euro_5d04_hire` `artillery_price_escalates`.
 **Status:** done (user 2026-11-03; ungated fix passes all goldens).
+
+### DB-80 — Brave contact latch on unclaimed land hits the musket count
+**DOS:** the `FUN_4d56_021a` tail (021a:1277) indexes the tribe's contact_state row with the
+target tile's owner nibble after a signed `< 4` test, so an owner of −1 (unclaimed land) reads
+and writes `contact_state[-1]`, which is the indian record's +0x2c word (tons[15], muskets).
+A Brave contact or attack pick there is cancelled when that word is 2 and otherwise sets it
+to 1, so the tribe's musket stock can be overwritten (port_bugs.md #1563).
+
+**Port:** `ai_native_021a_tail` (`src/core/ai_native_021a.c`) runs the latch only for owners
+0..3 and leaves the musket word alone. Goldens and idle campaigns pass unchanged.
+**Status:** done (user 2026-11-07; port already differed).

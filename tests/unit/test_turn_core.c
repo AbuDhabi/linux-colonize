@@ -2523,8 +2523,9 @@ static int case_colony_birth(void) {
 }
 
 /* FUN_364b_0688 Phase L raw 57748-57771 + FUN_364b_0114 raw 56906-56910: a
- * stale Warehouse Expansion project at level 2 spends its tools every turn
- * and shows @NOMOREWAREHOUSE; without the tools it shows only @NEEDTOOLS. */
+ * stale Warehouse Expansion project at level 2 shows @NOMOREWAREHOUSE each
+ * turn the tools are there; DOS also spends them each turn, the port keeps
+ * them (docs/dos_bugs.md DB-79). Without the tools only @NEEDTOOLS shows. */
 static int case_stale_warehouse_expansion(void) {
   fx_begin();
   ColonizeColonyPool pool;
@@ -2568,7 +2569,7 @@ static int case_stale_warehouse_expansion(void) {
   tok.string0 = col->name;
   tok.string1 = pool.building_types[0].name;
   popup_msg_fill(&game_txt, "NOMOREWAREHOUSE", &tok, "", want, sizeof(want));
-  const int tools_want[2] = {10, 10};
+  const int tools_want[2] = {30, 30};
   for (int turn = 0; turn < 2; ++turn) {
     ai_popup_init(&pops);
     ColonizeTurnResult prod;
@@ -2576,12 +2577,24 @@ static int case_stale_warehouse_expansion(void) {
     turn_run_colony_production_w(&(ColonizeWorld){.colonies=&pool, .europe=&eu}, 0, &prod, &pops, &game_txt);
     const bool nomore = pops.queue_count == 1 && strcmp(pops.queue[0].body, want) == 0;
     if (col->stock[COLONIZE_CARGO_TOOLS] != tools_want[turn] || col->hammers < 80 ||
-        col->warehouse_level != 2 || pops.queue_count != 1 || nomore != (turn == 0)) {
+        col->warehouse_level != 2 || pops.queue_count != 1 || !nomore) {
       fprintf(stderr, "stale WE turn %d: tools %d hammers %d q=%d nomore=%d\n", turn,
               col->stock[COLONIZE_CARGO_TOOLS], col->hammers, pops.queue_count, (int)nomore);
       assets_msg_free(&game_txt);
       return 1;
     }
+  }
+  col->stock[COLONIZE_CARGO_TOOLS] = 10;
+  ai_popup_init(&pops);
+  ColonizeTurnResult prod;
+  memset(&prod, 0, sizeof(prod));
+  turn_run_colony_production_w(&(ColonizeWorld){.colonies=&pool, .europe=&eu}, 0, &prod, &pops, &game_txt);
+  if (col->stock[COLONIZE_CARGO_TOOLS] != 10 || pops.queue_count != 1 ||
+      strcmp(pops.queue[0].body, want) == 0) {
+    fprintf(stderr, "stale WE short tools: tools %d q=%d\n", col->stock[COLONIZE_CARGO_TOOLS],
+            pops.queue_count);
+    assets_msg_free(&game_txt);
+    return 1;
   }
   assets_msg_free(&game_txt);
   return 0;

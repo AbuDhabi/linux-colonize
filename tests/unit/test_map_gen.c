@@ -4,6 +4,7 @@
 #include "core/col1_save.h"
 #include "core/dos_buggy.h"
 #include "core/map_gen.h"
+#include "core/map_gen_internal.h"
 #include "platform/diagnostics.h"
 
 #include "../common/test_runner.h"
@@ -341,6 +342,150 @@ static int test_amer2_pacific_suppress_matches_dos(void) {
   return rc;
 }
 
+/*
+ * #1559: FUN_684c_04a6's ring-20 loop and thicken walk have no bounds check.
+ * DOSBox trace 2026-11-07 (VR_SEED, NEW WORLD, at 684c:04a6 entry): this
+ * synthetic plane was written over the terrain plane (74f8:0) and the LCG
+ * (DS:0x28ee) set to 0x15de3720. Rivers then read and wrote the slack, the
+ * layer2 MCB, layer2 row 0 and the wrapped 74f8:ffxx bytes; DOS left LCG
+ * 0x3d15a05d, layer2 bytes 0 and 5 = 8, and this terrain hash.
+ */
+static int test_rivers_out_of_plane_matches_dos(void) {
+  enum { W = 58, H = 72 };
+  static uint8_t terrain[W * H];
+  static uint8_t layer2[W * H];
+  memset(terrain, 0x19, sizeof terrain);
+  memset(layer2, 0, sizeof layer2);
+  for (int y = 62; y <= 71; ++y) {
+    for (int x = 3; x <= 44; ++x) {
+      if (!(y == 71 && x >= 16 && x <= 30)) {
+        terrain[y * W + x] = 0x13;
+      }
+    }
+  }
+  for (int y = 0; y <= 9; ++y) {
+    for (int x = 3; x <= 55; ++x) {
+      if (!(y == 0 && x >= 40)) {
+        terrain[y * W + x] = 0x13;
+      }
+    }
+  }
+  ColonizeDosRng rng = {0x15de3720u};
+  map_gen_rivers_pass(terrain, layer2, W, H, &rng, 0, 0);
+
+  uint32_t hash = 0x811c9dc5u; /* FNV-1a */
+  for (int i = 0; i < W * H; ++i) {
+    hash = (hash ^ terrain[i]) * 0x01000193u;
+  }
+  int bad_layer2 = 0;
+  for (int i = 0; i < W * H; ++i) {
+    bad_layer2 += layer2[i] != ((i == 0 || i == 5) ? 8 : 0);
+  }
+  if (rng.state != 0x3d15a05du || hash != 0x23eca8d7u || bad_layer2) {
+    fprintf(stderr, "lcg %08x (DOS 3d15a05d) terrain hash %08x (DOS 23eca8d7) layer2 diffs %d\n",
+            (unsigned)rng.state, (unsigned)hash, bad_layer2);
+    return 1;
+  }
+  return 0;
+}
+
+static int read_fixture(const char* path, uint8_t* buf, size_t n) {
+  FILE* f = fopen(path, "rb");
+  if (!f) {
+    fprintf(stderr, "missing %s\n", path);
+    return 0;
+  }
+  const size_t got = fread(buf, 1, n, f);
+  fclose(f);
+  if (got != n) {
+    fprintf(stderr, "%s: %zu bytes, want %zu\n", path, got, n);
+  }
+  return got == n;
+}
+
+/*
+ * Whole NEW WORLD maps vs DOS: original_saves/mapgen/DOS_PLANES_S<seed>.bin is
+ * the tile|mask|path planes (58x72 each) at FUN_684c_08c0's epilogue (684c:1bb4),
+ * dumped under DOSBox-X from VR_SEED with the seed imm patched (2026-11-07; the
+ * same LCG and planes on Discoverer and Viceroy for seed 105). Seed 7553 hits
+ * the #1559 ring cells past the tile plane; the others vary the five params.
+ */
+static int test_generated_maps_match_dos_dumps(void) {
+  static const struct {
+    uint32_t seed;
+    uint32_t lcg; /* DS:0x28ee at the epilogue */
+  } k_runs[] = {{105, 0xa2dffd81u}, {2544, 0x29e37785u}, {5008, 0x439a32dau}, {7553, 0x8ebf01d9u}};
+  enum { N = MAP_GEN_WIDTH * MAP_GEN_HEIGHT };
+  static uint8_t dos[3 * N];
+  int rc = 0;
+  for (size_t r = 0; r < sizeof k_runs / sizeof k_runs[0]; ++r) {
+    char path[96];
+    snprintf(path, sizeof path, "original_saves/mapgen/DOS_PLANES_S%u.bin", (unsigned)k_runs[r].seed);
+    if (!read_fixture(path, dos, sizeof dos)) {
+      rc = 1;
+      continue;
+    }
+    ColonizeDosRng rng;
+    MapGenParams params;
+    memset(&params, 0, sizeof params);
+    dos_rng_seed(&rng, k_runs[r].seed);
+    params.rng = &rng;
+    map_gen_params_random(&params, k_runs[r].seed);
+    dos_rng_seed(&rng, k_runs[r].seed); /* as golden_mapgen_seed100 */
+    params.rng = &rng;
+    ColonizeWorldMap map;
+    memset(&map, 0, sizeof map);
+    char err[128];
+    if (!map_generate(&map, &params, err, sizeof err)) {
+      fprintf(stderr, "seed %u: %s\n", (unsigned)k_runs[r].seed, err);
+      rc = 1;
+      continue;
+    }
+    const uint8_t* planes[3] = {map.terrain, map.layer2, map.layer3};
+    int diffs[3] = {0, 0, 0};
+    for (int k = 0; k < 3; ++k) {
+      for (int i = 0; i < N; ++i) {
+        diffs[k] += planes[k][i] != dos[k * N + i];
+      }
+    }
+    if (rng.state != k_runs[r].lcg || diffs[0] || diffs[1] || diffs[2]) {
+      fprintf(stderr, "seed %u: lcg %08x (DOS %08x) tile/mask/path diffs %d/%d/%d\n",
+              (unsigned)k_runs[r].seed, (unsigned)rng.state, (unsigned)k_runs[r].lcg, diffs[0],
+              diffs[1], diffs[2]);
+      rc = 1;
+    }
+    map_free(&map);
+  }
+  return rc;
+}
+
+/*
+ * The river pass alone on seed 105's DOS planes at 684c:04a6 entry
+ * (original_saves/mapgen/DOS_PRERIVER_S105.bin = tile|layer2, LCG bd634cd6):
+ * DOS left LCG 3529d9f1 and these plane hashes.
+ */
+static int test_rivers_seed105_matches_dos(void) {
+  enum { N = MAP_GEN_WIDTH * MAP_GEN_HEIGHT };
+  static uint8_t pre[2 * N];
+  if (!read_fixture("original_saves/mapgen/DOS_PRERIVER_S105.bin", pre, sizeof pre)) {
+    return 1;
+  }
+  ColonizeDosRng rng = {0xbd634cd6u};
+  map_gen_rivers_pass(pre, pre + N, MAP_GEN_WIDTH, MAP_GEN_HEIGHT, &rng, 0, 0);
+  uint32_t hash[2] = {0x811c9dc5u, 0x811c9dc5u}; /* FNV-1a */
+  for (int k = 0; k < 2; ++k) {
+    for (int i = 0; i < N; ++i) {
+      hash[k] = (hash[k] ^ pre[k * N + i]) * 0x01000193u;
+    }
+  }
+  if (rng.state != 0x3529d9f1u || hash[0] != 0xf3199dcbu || hash[1] != 0x49bb1d05u) {
+    fprintf(stderr, "lcg %08x (DOS 3529d9f1) tile %08x (DOS f3199dcb) layer2 %08x (DOS 49bb1d05)\n",
+            (unsigned)rng.state, (unsigned)hash[0], (unsigned)hash[1]);
+    return 1;
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
     {"test_amer2_pacific_suppress_matches_dos", test_amer2_pacific_suppress_matches_dos},
     {"test_euro_landfall_focus_middle_band", test_euro_landfall_focus_middle_band},
@@ -352,6 +497,9 @@ static const TestCase k_cases[] = {
     {"test_pick_start_fallback_is_land", test_pick_start_fallback_is_land},
     {"test_seed_reproducibility", test_seed_reproducibility},
     {"test_tb46_latitude_single_draw", test_tb46_latitude_single_draw},
+    {"test_rivers_out_of_plane_matches_dos", test_rivers_out_of_plane_matches_dos},
+    {"test_rivers_seed105_matches_dos", test_rivers_seed105_matches_dos},
+    {"test_generated_maps_match_dos_dumps", test_generated_maps_match_dos_dumps},
 };
 
 TEST_MAIN(k_cases)

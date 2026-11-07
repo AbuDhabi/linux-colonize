@@ -2176,6 +2176,25 @@ COLONIZE_INTERNAL void map_panel_render_stack(MapPanelRenderCtx* c) {
   }
 }
 
+/* FUN_49dd_0424 raw 79285-79292 (asm 49dd:16b3-1740): FUN_15dc_0006(t) binds
+ * DS:0x8d50 = t + 4; the row is FUN_281f_0a1a plural + DS:0x50 " " +
+ * FUN_15dc_00e0(t, DS:0x5396) through FUN_1d1d_08fa (signed, radix 10). */
+COLONIZE_INTERNAL bool map_panel_format_debug_tribe(
+  char* out, size_t size, const ColonizeCol1Save* col1, int tribe, int view_nation
+) {
+  if (!out || size == 0) {
+    return false;
+  }
+  out[0] = '\0';
+  if (!col1 || tribe < 0 || tribe >= 8 || col1->indian[tribe].extinct) {
+    return false; /* raw 79285: DS:0x5ad9 + 0x4e*t & 0x80 */
+  }
+  const int view = (view_nation < 0 || view_nation > 3) ? 0 : view_nation;
+  snprintf(out, size, "%s %d", map_panel_plural_0a1a(col1, tribe + 4),
+           (int)(int16_t)col1->indian[tribe].alarm_by_player[view]);
+  return true;
+}
+
 /* Trailing line gap and the blinking "End of Turn" row. */
 COLONIZE_INTERNAL void map_panel_render_end_of_turn(MapPanelRenderCtx* c) {
   const ColonizeFont* font = c->font;
@@ -2186,6 +2205,21 @@ COLONIZE_INTERNAL void map_panel_render_end_of_turn(MapPanelRenderCtx* c) {
   const int text_x = c->text_x;
   const int line_h = c->line_h;
   c->text_y += line_h;
+
+  /* FUN_49dd_0424 raw 79282-79297: DEBUG.TXT @OPTIONS "Anger & Friction
+   * Levels" (DS:0x894 & 1, no cheat test) lists every live tribe's alarm word
+   * toward the map-view nation, one line each at x 0xf2, ahead of End of Turn.
+   * Not modelled: the DS:0x8d4e/0x8d50/0x8d52 binds FUN_15dc_0006 leaves set. */
+  if (c->debug_flags & 1u) {
+    const int view = map_panel_view_nation(c->col1, c->fog_nation);
+    for (int t = 0; t < 8; ++t) {
+      char line[64];
+      if (map_panel_format_debug_tribe(line, sizeof(line), c->col1, t, view)) {
+        font_draw_text(font, framebuffer, text_x, c->text_y, line, MAP_PANEL_COL_TEXT);
+        c->text_y += line_h;
+      }
+    }
+  }
 
   /*
    * "End of Turn" (LABELS @MISC). DOS keeps it in the text flow rather than
@@ -2269,6 +2303,7 @@ void map_panel_render_w(
     .end_turn_active = end_turn_active,
     .end_turn_blink_white = end_turn_blink_white,
     .framebuffer = framebuffer,
+    .debug_flags = panel ? panel->debug_flags : 0,
   };
   MapPanelRenderCtx* c = &ctx;
   const ColonizeWorldMap* map = c->map;

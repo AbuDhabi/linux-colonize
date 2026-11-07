@@ -1623,6 +1623,58 @@ static int case_seen_this_turn(void) {
   return 0;
 }
 
+/* FUN_49dd_0424 raw 79282-79297: DS:0x894 & 1 lists every non-extinct tribe
+ * as "<plural> <alarm word toward DS:0x5396>" (signed), one line each. */
+static int case_debug_tribe_list(void) {
+  reports_names_load_catalogs("COLONIZE");
+  static ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  col1.indian[0].alarm_by_player[2] = 37;
+  col1.indian[1].alarm_by_player[2] = (uint16_t)-5;
+  col1.indian[3].extinct = 1;
+  char line[64];
+  char want[64];
+  snprintf(want, sizeof(want), "%s 37", reports_tribe_display_name(0));
+  if (!map_panel_format_debug_tribe(line, sizeof(line), &col1, 0, 2) || strcmp(line, want) != 0) {
+    fprintf(stderr, "debug tribe 0: '%s' want '%s'\n", line, want);
+    return 1;
+  }
+  snprintf(want, sizeof(want), "%s -5", reports_tribe_display_name(1));
+  if (!map_panel_format_debug_tribe(line, sizeof(line), &col1, 1, 2) || strcmp(line, want) != 0) {
+    fprintf(stderr, "debug tribe 1: '%s' want '%s'\n", line, want);
+    return 1;
+  }
+  if (map_panel_format_debug_tribe(line, sizeof(line), &col1, 3, 2)) {
+    return fail("extinct tribe must have no row");
+  }
+  uint8_t* pixels = (uint8_t*)calloc(320 * 200, 1);
+  if (!pixels) {
+    return fail("oom");
+  }
+  ColonizeFramebuffer8 fb = {.width = 320, .height = 200, .pixels = pixels};
+  int rc = 0;
+  for (int flags = 0; flags < 2; ++flags) {
+    MapPanelRenderCtx c = {
+      .col1 = &col1,
+      .fog_nation = 2,
+      .framebuffer = &fb,
+      .text_x = MAP_PANEL_X + 4,
+      .line_h = 8,
+      .y_limit = 198,
+      .text_y = 0x40,
+      .debug_flags = (uint16_t)flags,
+    };
+    map_panel_render_end_of_turn(&c);
+    const int want_y = 0x40 + 8 + (flags ? 7 * 8 : 0); /* 7 live tribes */
+    if (c.text_y != want_y) {
+      fprintf(stderr, "debug flags %d: text_y %d, want %d\n", flags, c.text_y, want_y);
+      rc = 1;
+    }
+  }
+  free(pixels);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
   {"owner_line_nibble", case_owner_line_nibble},
   {"colony_goods_strip", case_colony_goods_strip},
@@ -1648,6 +1700,7 @@ static const TestCase k_cases[] = {
   {"sidebar_cheat_lines", case_sidebar_cheat_lines},
   {"header_stage_seam", case_header_stage_seam},
   {"seen_this_turn", case_seen_this_turn},
+  {"debug_tribe_list", case_debug_tribe_list},
 };
 
 TEST_MAIN(k_cases)

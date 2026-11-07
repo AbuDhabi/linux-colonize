@@ -208,7 +208,7 @@ Continue / Zoom rows, MSS figure; popups.md "Colony-event choices"). The
 | `@INDIANWINCOLONY2` | Done | Human-bystander "Spies report…" twin of the above |
 | `@INDIANBURNCOLONY` | Done | Last colonist falls → colony burned (`units_combat_notify_colony_burned`, + woodcut 11). The `@BURNED` family is the both-Euro arm only |
 | `@INDIANBURNCOLONY2` | Done | Human-bystander twin (`units_combat_notify_colony_burned_foreign`) |
-| `@INDIANSURPRISE` | Not ported | DOS site is FUN_4d56_021a's tail (OVL13 0x1316-0x13ae): a Brave's attack pick (flag 8) onto land owned by a human nation that has a colony -> 281f_0652(0x14dc, 1), %STRING0 = 0a1a(tribe), %STRING1 = nearest colony (15eb_0142), %STRING2 = 09a4(tribe). Statically on every such pick, which conflicts with the user's DOS observation (#132: first attack only); the raid-chrome prefix was removed with #1093. OPEN: needs a DOSBox trace |
+| `@INDIANSURPRISE` | Done | FUN_4d56_021a tail (OVL13 0x1316-0x13ae) -> `ai_native_indian_surprise` (ai_brave.c): every Brave attack pick (flag 8) that passes the 1277 contact latch and the 12f8 full-move check, onto land whose owner nibble is a human nation (0x543f == 0; owner -1 reads DS:0x540b) with a colony -> 281f_0352 edge scroll, 281f_0652(0x14dc, 1); %STRING0 = 0a1a(tribe), %STRING1 = nearest colony of the owner (15eb_0142), %STRING2 = 09a4(tribe). No first-attack latch: DOSBox trace 2026-11-07 (known_divergences.md #1560) |
 | `@CAPTURED` | Done | Euro colony conquest with plunder |
 | `@CAPTURED2` | Done | spies report (AI capturer) |
 | `@CAPTURED3` | Done | conquest without plunder amount |
@@ -532,6 +532,10 @@ The tag list, with each tag's DOS function, section and payload, is the commente
 `AiPopupTag` enum in [`ai_popup.h`](../src/core/ai_popup.h). **Kind OK** means body-only wood
 (dismiss on any key but Up/Down, `FUN_6f74_2580` with no option rows, or any click; no invent “OK” label — GAME.TXT info
 sections have no response lines). **Kind CHOICE** lists authentic labels.
+Mouse: `FUN_6f74_2580` acts on the release of either button alike (raw 117036-117060); the
+right button only sets `DS:0x1f68` for a `DS:0x1f66` help-armed caller (raw 117062-117065).
+Only Esc returns -1. Off the box a release does nothing unless the box has flag bit 0
+(`@checkbox`, `FUN_647e_*` pickers, save/load, some colony / Europe lists), which leave with 0.
 
 ---
 

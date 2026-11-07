@@ -271,7 +271,9 @@ bool unit_stack_handle_input(
     return true;
   }
 
-  if (input->mouse_left_clicked) {
+  /* FUN_6f74_2580's icon arm takes either button alike (release arm raw 117036-117051): a
+   * release on an icon activates it, one off the box leaves with 0 (raw 117049-117050). */
+  if (input->mouse_left_clicked || input->mouse_right_clicked) {
     const int mx = input->mouse_x;
     const int my = input->mouse_y;
     if (!ui_rect_hit(dlg->dialog_x, dlg->dialog_y, dlg->dialog_w, dlg->dialog_h, mx, my)) {
@@ -288,11 +290,6 @@ bool unit_stack_handle_input(
         *out_select_id = sel;
       }
     }
-    return true;
-  }
-
-  if (input->mouse_right_clicked) {
-    unit_stack_close(dlg);
     return true;
   }
 

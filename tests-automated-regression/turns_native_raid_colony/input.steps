@@ -29,4 +29,8 @@ key Return                 # SoL in Quebec up to 60%: Continue turn
 wait 10
 key Return                 # price of Cigars rises
 wait 10
+key Return                 # @INDIANSURPRISE (one per Brave attack pick, FUN_4d56_021a tail; #1560)
+wait 10
+key Return                 # @INDIANSURPRISE (second attack)
+wait 10
 shot                       # Autumn 1600: End of Turn

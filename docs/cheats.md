@@ -74,11 +74,15 @@ The checklist has seven flags. Only two of them have a visible effect in OpenCol
 Anger & Friction Levels, Supply and Demand (Indians), Close Moves, Far Moves and
 All Movement can be ticked but show nothing.
 
+Esc closes the checklist and keeps the ticks you changed, as Enter does.
+
 ### Reveal Map (Shift-F4)
 
 - **English / French / Spanish / Dutch Map:** you see the map with that nation's
   fog of war. This is a view only. Your own fog of war (what you have explored) is
   not changed.
+  View > Europe (E) opens that nation's Europe, and Enter or a click on the map
+  opens that nation's colonies instead of yours.
 - **Complete Map:** no fog at all, plus the following:
   - Rival moves are animated wherever they happen, not only near your units
     and colonies. The *Show Foreign Moves* and *Show Indian Moves* game options
@@ -89,6 +93,10 @@ All Movement can be ticked but show nothing.
   - The Foreign Affairs report shows the full detail that normally needs Jan de
     Witt.
   - Picking Complete Map switches off the *Show Indian Moves* game option.
+  - Enter or a click on any colony opens its colony screen, whoever owns it.
+  - View > Europe (E) first asks "View Which City" and opens that nation's Europe,
+    even during the War of Independence. You act there as that nation (its gold,
+    docks and ships); leaving the screen returns you to your own nation.
 - **No Special View** (or Esc) returns to your normal view. This row is listed
   only while a special view is on.
 - The chosen view is stored in the save and stays after you turn cheats off.
@@ -96,8 +104,7 @@ All Movement can be ticked but show nothing.
   tile's region number when a unit is selected as well, not only for empty
   tiles. With Complete Map and cheats on, unit lines in the panel also start
   with the unit's internal index.
-- You cannot open a foreign colony's screen from the map. To see inside
-  another nation's colonies, use Set Human Player.
+- Without Complete Map you cannot open a foreign colony's screen from the map.
 
 ### Set Human Player (Shift-F5)
 

@@ -1451,6 +1451,17 @@ void render_colony_screen(const ColonizeGameState* game, ColonizeFramebuffer8* f
   const int gold = colony ? (int)europe_nation_gold(&game->europe, game->col1_ok ? &game->col1 : NULL,
                                                     colony->nation_id)
                           : game->europe.gold;
+  /* FUN_2f2b_0fce raw 47846-47849: name/season/year only when the owner is
+   * human (< 4 && DS:0x543f control == 0), in the spy view (DS:0xb98) or in
+   * the demo (DS:0x828); any other owner gets the AI planner line. */
+  if (game->colony_screen_ok) {
+    ColonyScreenView* cv = (ColonyScreenView*)&game->colony_screen;
+    cv->ai_title[0] = '\0';
+    if (colony && !cv->spy_view && !game->demo &&
+        !col1_nation_is_human(&game->col1, colony->nation_id, game->human_nation)) {
+      colony_screen_ai_title_line(colony, w.map, gold, cv->ai_title, sizeof(cv->ai_title));
+    }
+  }
   colony_screen_render_w(&w, game->colony_screen_ok ? (ColonyScreenView*)&game->colony_screen : NULL, colony, game->terrain_ok ? &game->terrain : NULL, game->phys0_ok ? &game->phys0 : NULL, game->game_year, game->game_autumn, gold, font, game->debug_building_rects, game->labels_ok ? &game->labels : NULL, framebuffer);
   game_render_modal_overlays(game, framebuffer);
 }

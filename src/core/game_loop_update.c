@@ -1900,7 +1900,14 @@ static void game_colony_construction_help(
       csv, &game->colonies, colony, game->units_ok ? &game->units : NULL, input->mouse_x,
       input->mouse_y
     );
+    /* 5bd2's box has flag bit 0 (raw 52593): off the box the release leaves with 0, which
+     * fails the `0 < local_6` row test (raw 52647), so the list closes. Inside the box off a
+     * row FUN_6f74_2580 does nothing (raw 117052-117054). */
     if (hit.kind == COLONY_HIT_CONSTRUCTION_OUTSIDE) {
+      colony_screen_close_construction(csv);
+      return;
+    }
+    if (hit.kind == COLONY_HIT_NONE) {
       return;
     }
     more = hit.kind == COLONY_HIT_CONSTRUCTION_MORE;
@@ -1948,7 +1955,14 @@ static void game_colony_list_help(
         input->mouse_y
       )
     : (ColonyScreenHitResult){.kind = COLONY_HIT_NONE, .index = -1};
-  if (hit.kind == COLONY_HIT_JOBS_OUTSIDE || hit.kind == COLONY_HIT_EJECT_OUTSIDE) {
+  /* 348c's boxes have flag bit 0 (raw 50691): off the box the release leaves with 0, and
+   * `local_60 < 1` (raw 50835) closes the list. */
+  if (hit.kind == COLONY_HIT_JOBS_OUTSIDE) {
+    colony_screen_close_jobs(csv);
+    return;
+  }
+  if (hit.kind == COLONY_HIT_EJECT_OUTSIDE) {
+    colony_screen_close_eject(csv);
     return;
   }
   int job = -1;
@@ -2326,6 +2340,17 @@ COLONIZE_INTERNAL GameUpdateStep game_update_colony_screen(ColonizeGameState* ga
       }
     }
 
+    /* The colony's other FUN_6f74_2580 boxes (dock orders 5746 / 51ec, the @CUSTOM
+     * @checkbox box, the message boxes) take the right button as the left one (release arm
+     * raw 117036-117060). */
+    if (colony && input->mouse_right_clicked &&
+        (csv->dock_orders_open || csv->custom_house_open ||
+         csv->message_kind != COLONY_MSG_NONE)) {
+      ColonizeInputState left = *input;
+      left.mouse_left_clicked = true;
+      left.mouse_right_clicked = false;
+      return game_colony_screen_mouse_click(game, &left, colony, csv, cmap);
+    }
     if (colony && (csv->construction_open || csv->jobs_open || csv->eject_open) &&
         (input->last_key == COLONIZE_KEY_F1 || input->mouse_right_clicked)) {
       if (csv->construction_open) {
@@ -2435,24 +2460,15 @@ COLONIZE_INTERNAL GameUpdateStep game_update_colony_screen(ColonizeGameState* ga
  * the pool's 0x1c reads as 0x13, raw 64759-64761), a Purchase row the unit article of its
  * @UNIT (FUN_291f_0942, raw 64903), and the Europe screen comes back with the same list up
  * (thunk_FUN_291f_0dfe and the caller's loop). The dock list and the @REALLYBUY confirm arm
- * no help (europe_menu_layout), so there a right-click just cancels.
+ * no help (europe_menu_layout), so there a right-click is a left one (FUN_6f74_2580 raw
+ * 117036-117060).
  */
-static void game_europe_menu_help(
-  ColonizeGameState* game, const ColonizeInputState* input, EuropeScreen* eu
-) {
-  const bool armed = eu->menu == EUROPE_MENU_RECRUIT || eu->menu == EUROPE_MENU_TRAIN ||
-                     (eu->menu == EUROPE_MENU_PURCHASE && !eu->purchase_confirming);
-  if (!armed) {
-    if (input->mouse_right_clicked) {
-      europe_menu_close(eu);
-    }
-    return;
-  }
-  const int row = input->mouse_right_clicked
-                    ? europe_menu_row_at(game, input->mouse_x, input->mouse_y)
-                    : eu->menu_selection;
-  /* FUN_6f74_2580's pointer test skips greyed rows (raw 116747); off a row the port's
-   * right-click cancels, as before. */
+static bool game_europe_menu_help_armed(const EuropeScreen* eu) {
+  return eu->menu == EUROPE_MENU_RECRUIT || eu->menu == EUROPE_MENU_TRAIN ||
+         (eu->menu == EUROPE_MENU_PURCHASE && !eu->purchase_confirming);
+}
+
+static void game_europe_menu_help(ColonizeGameState* game, EuropeScreen* eu, int row) {
   PediaCategory cat = PEDIA_CAT_JOB;
   int index = -1;
   if (eu->menu == EUROPE_MENU_RECRUIT && row >= 1 && row <= EUROPE_POOL_SIZE &&
@@ -2488,28 +2504,6 @@ static GameUpdateStep game_europe_screen_menu_keys(
       europe_menu_close(eu);
       return GAME_UPDATE_RETURN_TRUE;
     }
-    /*
-     * Mouse: a click on a row picks it and confirms in one go (the same
-     * pair the keyboard needs Up/Down + Enter for), a click anywhere else
-     * inside the screen closes the menu, and a right-click cancels — the
-     * arrangement every other list in this port uses. Without this the
-     * branch swallowed the click and Recruit/Purchase/Train were
-     * keyboard-only (port_bugs.md).
-     */
-    if (input->mouse_right_clicked || input->last_key == COLONIZE_KEY_F1) {
-      game_europe_menu_help(game, input, eu);
-      return GAME_UPDATE_RETURN_TRUE;
-    }
-    if (input->mouse_left_clicked) {
-      const int row = europe_menu_row_at(game, input->mouse_x, input->mouse_y);
-      if (row >= 0) {
-        eu->menu_selection = row;
-        game_europe_menu_confirm(game);
-      } else {
-        europe_menu_close(eu);
-      }
-      return GAME_UPDATE_RETURN_TRUE;
-    }
     /* FUN_38fd_4884 / 41ce / 4b50 / 4f6e lists show through FUN_6f74_2580: Up / Down wrap
      * past the greyed rows (FUN_291f_01b6, raw 64741 / 64402 / 64857 / 66395). */
     int rows = 0;
@@ -2539,6 +2533,44 @@ static GameUpdateStep game_europe_screen_menu_keys(
         break;
       default:
         break;
+    }
+    /*
+     * Mouse, FUN_6f74_2580 (port_bugs.md): either button alike (release arm raw
+     * 117036-117060). A row under the pointer is picked and confirmed in one go; the pointer
+     * test skips greyed rows (raw 116747). Off the rows inside the box nothing happens. Off
+     * the box the list leaves with 0 = no pick where the box has flag bit 0 (raw
+     * 117052-117054): Recruit 4884 (raw 64720), Train 41ce (raw 64369), Purchase 4b50 (raw
+     * 64832), the dock list 38fd:3746 (|= 3, viceroy_unpacked.asm 101030); the @REALLYBUY
+     * confirm, a plain FUN_281f_0652 box, stays up. A right click on a help-armed list (DS:0x1f66) returns
+     * the row with DS:0x1f68 = 1 (raw 117062-117065): its article.
+     */
+    if (input->mouse_left_clicked || input->mouse_right_clicked) {
+      int row = europe_menu_row_at(game, input->mouse_x, input->mouse_y);
+      if (row >= 0 && row < 32 && (greyed >> row & 1u)) {
+        row = -1;
+      }
+      if (row < 0) {
+        EuropeMenuLayout lay;
+        const bool inside =
+          europe_menu_layout(game, 320, 200, &lay) &&
+          ui_rect_hit(lay.dialog_x, lay.dialog_y, lay.dialog_w, lay.dialog_h, input->mouse_x,
+                      input->mouse_y);
+        if (!inside && !(eu->menu == EUROPE_MENU_PURCHASE && eu->purchase_confirming)) {
+          europe_menu_close(eu);
+        }
+      } else if (input->mouse_right_clicked && game_europe_menu_help_armed(eu)) {
+        game_europe_menu_help(game, eu, row);
+      } else {
+        eu->menu_selection = row;
+        game_europe_menu_confirm(game);
+      }
+      return GAME_UPDATE_RETURN_TRUE;
+    }
+    if (input->last_key == COLONIZE_KEY_F1) {
+      if (game_europe_menu_help_armed(eu)) {
+        game_europe_menu_help(game, eu, eu->menu_selection);
+      }
+      return GAME_UPDATE_RETURN_TRUE;
     }
     if (!popup_list_key_step(input->last_key, &eu->menu_selection, rows, greyed) &&
         input->last_key == COLONIZE_KEY_ENTER) {
@@ -2597,6 +2629,7 @@ static GameUpdateStep game_europe_screen_keys(
     game_ui_drag_clear(game);
     game->in_europe = false;
     game_europe_deliver_bound_ships(game);
+    game_europe_view_service(game);
     diag_info("Left Europe screen.");
     return GAME_UPDATE_RETURN_TRUE;
   }
@@ -2798,6 +2831,7 @@ static GameUpdateStep game_europe_screen_mouse(
       game_ui_drag_clear(game);
       game->in_europe = false;
       game_europe_deliver_bound_ships(game);
+      game_europe_view_service(game);
       diag_info("Left Europe screen (Exit).");
       break;
     case EUROPE_HIT_HARBOR_SHIP:
@@ -3576,14 +3610,15 @@ COLONIZE_INTERNAL GameUpdateStep game_update_map_keys(ColonizeGameState* game, c
 
   /* Enter: FUN_2b5a_32ee raw 45870-45891 (Move Pieces) / FUN_2b5a_3344 raw
    * 45894-45923 (View Pieces), reached after the menu hotkeys and 303c pass
-   * (FUN_2b5a_3802 raw 46315-46325). Both open an own colony under the
-   * cursor (DS:0x8540/0x853e); View Pieces with the End of Turn prompt up
-   * (DS:0x53c6) ends the turn. Nothing else: no unit select or move. The
-   * Complete Map arm (DS:0x53a2, any owner) is not ported. */
+   * (FUN_2b5a_3802 raw 46315-46325). Both open the colony under the cursor
+   * (DS:0x8540/0x853e) when the viewpoint nation (DS:0x5396) owns it or
+   * Complete Map (DS:0x53a2) is on, any owner then (raw 45879 / 45903);
+   * View Pieces with the End of Turn prompt up (DS:0x53c6) ends the turn.
+   * Nothing else: no unit select or move. */
   if (input->last_key == COLONIZE_KEY_ENTER && game->world_map_ok) {
     const int cid = colonies_id_at(&game->colonies, game->map_cursor_x, game->map_cursor_y);
     const ColonizeColony* col = cid >= 0 ? colonies_get(&game->colonies, cid) : NULL;
-    if (col && col->nation_id == game->human_nation) {
+    if (game_colony_opens_from_map(game, col)) {
       game_enter_colony_at_cursor(game);
     } else if (game_end_turn_prompt_active(game)) {
       game_do_end_turn(game);
@@ -3752,6 +3787,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
     return false;
   }
 
+  game_europe_view_service(game); /* a foreign Europe visit that closed elsewhere */
   step = game_update_services(game, input, dt_ms);
   if (step != GAME_UPDATE_CONTINUE) {
     return step == GAME_UPDATE_RETURN_TRUE;
@@ -3905,9 +3941,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
   }
 
   if (input->last_key == COLONIZE_KEY_E && !game->in_menu) {
-    if (game_try_enter_europe(game)) {
-      diag_info("Entered Europe screen.");
-    }
+    game_europe_command(game);
     return true;
   }
 

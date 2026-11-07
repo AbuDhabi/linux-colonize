@@ -858,9 +858,10 @@ void colonies_recompute_plots_w(const ColonizeWorld* w, int colony_id) {
  * Stale-save sweep, NOT a DOS routine: a colonist imported with DOS
  * occupation 0x13 (@JOB row 19, plain "Colonist") is genuinely idle in DOS —
  * FUN_15eb_0e18 returns 19, so FUN_15eb_2ea0's `< 9` gate skips him, and the
- * colony_prod01 DOS capture shows he stays unproductive. The port still needs
- * him visible on the settlement grid (port_bugs.md #6/#256), so he is parked in a
- * building; new joiners go through colonies_seat_new_colonist instead.
+ * colony_prod01 DOS capture shows he stays unproductive. The import keeps his
+ * byte in idle_job1 (port_bugs.md #1557), so this sweep skips him as DOS does;
+ * it only catches port-made job-less colonists (#256). New joiners go through
+ * colonies_seat_new_colonist instead.
  */
 void colonies_auto_assign_idle(ColonizeColonyPool* pool, int colony_id) {
   ColonizeColony* col = colonies_get_mut(pool, colony_id);

@@ -932,8 +932,10 @@ static bool ai_place_tribes_procedural(
 
   /* Shared DOS plane (FUN_1d1d_0dae @ DS:0x9faa); /5 tribe index. */
   ai_coarse_fog_reset();
-  uint8_t nation_tribe_count[8];
-  memset(nation_tribe_count, 0, sizeof(nation_tribe_count));
+  /* DS:0x962a tribe_village_counts: zeroed at function entry (caller), +1 per
+   * placed capital only (raw 107892); satellites do not count. The satellite
+   * tribe pick below gates on it (raw 107904). */
+  uint8_t* village_counts = p->col1->stuff.tribe_village_counts;
 
   int regions_marked = 0;
 
@@ -995,7 +997,7 @@ static bool ai_place_tribes_procedural(
     map_set_owner_nibble(p->map, px, py, indian + 4);
     p->col1->indian[indian].capitol_x = (uint8_t)px;
     p->col1->indian[indian].capitol_y = (uint8_t)py;
-    nation_tribe_count[indian]++;
+    village_counts[indian]++; /* DOS-LITERAL FUN_6a09_0006 raw 107892 */
     ai_coarse_fog_mark_tribe(px, py);
     regions_marked++;
   }
@@ -1006,7 +1008,7 @@ static bool ai_place_tribes_procedural(
     int indian;
     do {
       indian = ai_rng_range(rng, 0, 7);
-    } while (nation_tribe_count[indian] == 0);
+    } while (village_counts[indian] == 0);
 
     int cx = (int)p->col1->indian[indian].capitol_x / 5;
     int cy = (int)p->col1->indian[indian].capitol_y / 5;
@@ -1064,9 +1066,6 @@ static bool ai_place_tribes_procedural(
       if (ai_append_tribe(tribes, count, capacity, x, y, nation, false, tech)) {
         ai_layer2_or(p->map, x, y, 2);
         map_set_owner_nibble(p->map, x, y, nation);
-        if (nation >= 4 && nation <= 11) {
-          nation_tribe_count[nation - 4]++;
-        }
       }
     }
 
@@ -1272,6 +1271,11 @@ bool ai_init_new_game(const AiNewGameParams* params, char* err, size_t err_size)
   if (params->rng_seed || params->rng_seed_set) {
     dos_rng_seed(rng, dos_rng_04ca_word(params->rng_seed));
   }
+  /* DOS-LITERAL FUN_6a09_0006 raw 107734-107736: DS:0x962a[0..7] = 0 on both
+   * placement paths (only the NEW WORLD capitals then count up; the census
+   * FUN_4962_06b6 rewrites it on each tribe's turn). */
+  memset(params->col1->stuff.tribe_village_counts, 0,
+         sizeof(params->col1->stuff.tribe_village_counts));
   /* DOS-LITERAL FUN_6a09_0006 per-tribe init loop (raw 107756-107767), before
    * either placement branch, on the shared stream right after the 04ca
    * reseed. Tribe-major, Euro-minor:

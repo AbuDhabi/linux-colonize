@@ -303,6 +303,10 @@ typedef struct AiPopupRequest {
   /* Greyed rows, bit i = choice row i (FUN_291f_01b6 -> FUN_6f74_08fa option bit 0): grey
    * ink, Up / Down step past them, clicks ignore them (port_bugs.md #1214). */
   uint32_t disabled_mask;
+  /* DOS box flag bit 0 (box+0xa): a click off the box leaves with 0 (FUN_6f74_2580 raw
+   * 117052-117054), e.g. FUN_38fd_2bfe's ship menu (|= 3, raw 60810). Unset (a GAME.TXT
+   * box without @checkbox): such a click does nothing. */
+  bool outside_leaves;
   /* Camera move made as the box presents (port_bugs.md #1393/#1394), so it lines up
    * with the box even when the request waited in the queue. AI_POPUP_CAM_*;
    * cam_x < 0 = the tile of the colony in payload (COLONY_EVENT). Skipped while
@@ -668,6 +672,8 @@ void ai_popup_set_last_graphic_mss(AiPopupState* st, int mss);
 void ai_popup_set_last_graphic_myr(AiPopupState* st, int nation);
 /* Grey choice rows of the newest queued request (bit i = row i; FUN_291f_01b6). */
 void ai_popup_set_last_disabled(AiPopupState* st, uint32_t mask);
+/* Mark the newest queued request as a DOS box-flag-bit-0 box (outside_leaves). */
+void ai_popup_set_last_outside_leaves(AiPopupState* st);
 /* Camera move for the newest queued request (AI_POPUP_CAM_*, tile x/y). */
 void ai_popup_set_last_camera(AiPopupState* st, int mode, int x, int y);
 /* Called with each request as it becomes the presented popup (game_loop moves

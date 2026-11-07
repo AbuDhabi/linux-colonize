@@ -1598,6 +1598,74 @@ static int run_152e_mission_nibble_out_of_domain(void) {
   return 0;
 }
 
+/*
+ * known_divergences.md #1560: FUN_4d56_021a:1316-13ae shows @INDIANSURPRISE
+ * on EVERY attack pick (flags & 8) onto land owned by a human nation with a
+ * colony, not only the tribe's first attack (DOSBox trace). An AI owner gets
+ * nothing (DS:0x543f != 0).
+ */
+static int run_indian_surprise_every_attack(void) {
+  if (!test_names_txt() || !test_game_txt()) {
+    return TR_SKIP;
+  }
+  for (int half = 0; half < 2; ++half) {
+    Ai152eFixture f;
+    if (ai_152e_fixture_init(&f, "indian-surprise", 777u) != 0) {
+      return 1;
+    }
+    ColonizeMsgCatalog game_txt;
+    assets_msg_init(&game_txt);
+    if (!assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT")) {
+      ai_152e_fixture_free(&f);
+      return 1;
+    }
+    AiPopupState pop;
+    ai_popup_init(&pop);
+    f.ctx.messages = &game_txt;
+    f.ctx.ai_popups = &pop;
+    const int e = half == 0 ? 0 : 1; /* 0 = human, 1 = AI */
+    ColonizeColony* col = &f.colonies.colonies[0];
+    col->active = true;
+    col->nation_id = e;
+    col->x = 14;
+    col->y = 10;
+    snprintf(col->name, sizeof(col->name), "Testtown");
+    const int dir = 2;
+    const int tx = 13 + k_ai_dir8_dx[dir];
+    const int ty = 10 + k_ai_dir8_dy[dir];
+    map_set_owner_nibble(&f.map, tx, ty, e);
+    const int bid = units_spawn_allow_stack(&f.units, units_find_type(&f.units, "Brave"), 13, 10);
+    ColonizeUnit* brave = units_get(&f.units, bid);
+    if (!brave) {
+      assets_msg_free(&game_txt);
+      ai_152e_fixture_free(&f);
+      return 1;
+    }
+    brave->nation_id = 4;
+    brave->home_tribe_index = 0;
+    ai_s_native_colonies = &f.colonies;
+    ai_native_bind_step_ctx(&f.ctx);
+    int shown = 0;
+    for (int attack = 0; attack < 2; ++attack) {
+      brave->moves = 0; /* 021a:12f8 full move left */
+      f.col1.indian[0].contact_state[e] = 0;
+      (void)ai_native_021a_tail(&f.units, &f.map, &f.col1, &f.rng, brave, 4, dir, 0x48);
+    }
+    for (int i = 0; i < pop.queue_count; ++i) {
+      shown += strstr(pop.queue[i].body, "Testtown") != NULL;
+    }
+    ai_native_bind_step_ctx(NULL);
+    ai_s_native_colonies = NULL;
+    assets_msg_free(&game_txt);
+    ai_152e_fixture_free(&f);
+    fprintf(stderr, "indian-surprise owner %d: %d popups\n", e, shown);
+    if (shown != (half == 0 ? 2 : 0)) {
+      return 1;
+    }
+  }
+  return 0;
+}
+
 /* port_bugs.md #1103: ai_coarse_fog_reset wipes the DS:0x9faa plane that the 0a60
  * restamp (and mapgen) leave behind, as ai_init_new_game / load need. */
 /*
@@ -3588,6 +3656,7 @@ static const TestCase k_cases[] = {
     {"run_152e_alarm_escalation", run_152e_alarm_escalation},
     {"run_152e_mission_nibble_out_of_domain", run_152e_mission_nibble_out_of_domain},
     {"run_visit_empty_colony", run_visit_empty_colony},
+    {"run_indian_surprise_every_attack", run_indian_surprise_every_attack},
     {"run_unresolved_visit_keeps_nation_open", run_unresolved_visit_keeps_nation_open},
     {"run_reparations_scan_past_empty_colony", run_reparations_scan_past_empty_colony},
     {"run_visit_after_first_contact", run_visit_after_first_contact},

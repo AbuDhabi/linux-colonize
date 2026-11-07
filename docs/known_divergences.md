@@ -137,34 +137,6 @@ Two narrow differences after a hot-seat `@MULTIREV` "Yes" are listed in
 Static reading cannot settle these. Each names exactly what to capture. Do not
 change the port's behaviour on a guess.
 
-### #1558 — Sentry sound (audit 2026-11-06 B5)
-The port plays sound 0x58 when a unit is sentried (units_move.c:1613). The DOS
-Sentry stub 2b5a:1106 (ndisasm 0x21FE6) only writes `+0x314c = 1`, and the
-`FUN_2f2b_5746` unit-menu Sentry arm (raw 52416-52418) has no `FUN_281f_04c0`
-(its Fortify arm and `FUN_2b5a_1112` do). The stub is reached through a table
-whose dispatcher is not located. Capture: press S on a unit in DOSBox and watch
-for a GSOUND event.
-
-### #1559 — River pass ring-20 reads past the terrain plane (audit 2026-11-06 M6)
-`FUN_684c_04a6`'s ring-20 loop (raw 105562-105577) has no bounds check and
-`FUN_1a4e_0008` does not clip, so a river origin at y = h-2 reads cells at y = h
-(linear offset w*h + x, past DS:0x85a8's plane); if `(b & 0x1f) < 0x10` DOS draws
-range(0,1) and may write b+8 there. The port (map_gen.c:584-596) skips those cells,
-so it misses the draw and the write. 675 such cells over 6000 port maps. Capture:
-dump the bytes after the terrain plane (offset 4176..4233 for 58x72) during a
-generated-map river pass.
-
-### #1560 — @INDIANSURPRISE frequency (audit 2026-11-06 G2)
-Static read (viceroy_overlays.asm 125245-125300): the `FUN_4d56_021a` tail shows
-`281f_0652(0x14dc, 1)` on every Brave attack pick (flag 8) whose target tile's owner
-nibble is a human nation that has a colony, if the full-move check passes
-(%STRING0 0a1a(tribe), %STRING1 nearest colony, %STRING2 09a4(tribe)). The user
-observed it on the first attack only (#132); since #1093 the port never shows it.
-Capture: after a tribe's first attack on a human colony, does a later Brave attack
-pick in that colony's land still reach OVL13:0x1386? If yes, port the tail
-literally; if not, find the gate. (One attempt from a crafted COLONY09 save hit
-"Colony Flags Error.")
-
 ### #915(c) — moved to tolerated_dos_bugs_ai.md TB-17
 The 5952 indoor pass `avail` carry-over and its unverified 0x7fff seed live in
 [tolerated_dos_bugs_ai.md](tolerated_dos_bugs_ai.md) TB-17.

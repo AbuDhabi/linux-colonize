@@ -2787,9 +2787,7 @@ static int col1_destroy_tribe_index(
     const int idx = nation_id - 4;
     if (idx >= 0 && idx < 8) {
       uint8_t* vc = &col1->stuff.tribe_village_counts[idx];
-      if (*vc > 0) {
-        (*vc)--;
-      }
+      (*vc)--; /* DOS-LITERAL raw 81335: unguarded byte, 0 wraps to 0xff (no EXTINCT) */
       if (*vc == 0) {
         col1->indian[idx].extinct = 1;
         PopupMsgTokens tok;

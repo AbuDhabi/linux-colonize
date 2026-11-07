@@ -28,13 +28,14 @@
  *   Repeats >0 = that many cycles then the series ends.
  *   series -1, Frame N = stop when the clock reaches N (shipped: 891)
  *
- * Camera follows the ship, clamped to [0, 640]. One key/click skips the
- * MPS logo into the sailing scene. Two edges during sailing jump to the
- * last frame (so a single accidental tap does not skip). Once OPENGUY is
- * idle-looping the intro is over: one edge finishes immediately. After
- * the last frame the still otherwise holds for OPENING_HOLD_MS, then the
- * owner goes to the title menu. Paced on the 60.877 Hz clock (see
- * OPENING_PAN_TIMING).
+ * Camera: pan_x (DS:0x4aca) starts at 640 and drops one px per scene step
+ * to 0; it never follows the ship. Keys (`_get_input` 0x922): Enter / Esc /
+ * Space / a click skip the MPS logo into the sailing scene; during sailing
+ * one of them jumps to the OPENLOGO frame (`_jump_to_logo` 0x872) and ends
+ * the intro; '+'/'=' and '-'/'_' make it faster / slower. Other keys do
+ * nothing. After the last frame or the jump the still holds for
+ * OPENING_HOLD_MS, then the owner goes to the title menu. Paced on the
+ * 60.877 Hz clock (see OPENING_PAN_TIMING).
  */
 
 #define OPENING_SHEET_COUNT 10
@@ -60,7 +61,10 @@
 #define OPENING_SCENE_H 132
 #define OPENING_WORLD_W 960
 #define OPENING_VIEW_W 320
-#define OPENING_CAMERA_MAX (OPENING_WORLD_W - OPENING_VIEW_W)
+/* `_open_loop` 0xaaf: pan_x DS:0x4aca = 0x280 before the first step. */
+#define OPENING_PAN_START 0x280
+/* `_pan` 0x57e: past anim_frame 0x1fb the series draw over the ship. */
+#define OPENING_SHIP_UNDER_FRAME 0x1fb
 /* First row below the OPENBORD window (y=24..155). */
 #define OPENING_CREDIT_TOP (OPENING_SCENE_Y + OPENING_SCENE_H)
 /* Inner bevel of the bottom frame (OPENBORD y=156..166). Banners sit below it. */
@@ -89,13 +93,6 @@
 #define OPENING_LOGO_NAME_FRAME 0x5c
 #define OPENING_LOGO_END_FRAME 0xe4
 
-/*
- * OPENSHIP.SS is 47 px wide with 14 px of transparent padding on the right,
- * so width/2 sits 3 px left of OPENBONK's last still (FUN_6f30 dest x 141
- * vs PATH 161). Added to dest x so the moving hull and the still coincide.
- */
-#define OPENING_SHIP_X_ALIGN 3
-
 /* OPENING.EXE: `mov ax,0x34` then far-call the GSOUND dispatcher (image
  * +0xfd8). 0x34 is the looping intro theme, not Pick Music / title 0x33. */
 #define OPENING_BGM_ID 0x34
@@ -117,7 +114,9 @@ typedef struct OpeningCredit {
 typedef struct OpeningCinematic {
   bool open;
   bool finished;
-  int skip_presses;
+  int skip_from; /* scene clock at the `_jump_to_logo` skip, -1 = none */
+  int pan_timing;  /* DS:0x48, '+'/'-' nudge it (`_get_input` 0xa7c/0xa86) */
+  int logo_timing; /* DS:0x50, nudged with pan_timing */
   ColonizeSpriteSheet sheets[OPENING_SHEET_COUNT];
   bool sheet_ok[OPENING_SHEET_COUNT];
   ColonizeSpriteSheet ship;
@@ -155,6 +154,8 @@ typedef struct OpeningCinematic {
 /* 0-based sprite of series `s` at `elapsed` frames past its start (sheet of
  * `n` sprites), -1 = not drawn. Exposed for the unit test. */
 int opening_sprite_index(const OpeningSeries* s, int elapsed, int n);
+/* Panorama x at the left screen edge (pan_x DS:0x4aca). Exposed for the test. */
+int opening_camera_x(const OpeningCinematic* o);
 
 typedef void (*ColonizeOpeningSoundFn)(int id);
 void opening_set_sound_hooks(ColonizeOpeningSoundFn play_fn, ColonizeOpeningSoundFn set_bgm_fn);
@@ -164,9 +165,8 @@ void opening_close(OpeningCinematic* o);
 
 void opening_update(OpeningCinematic* o, uint32_t dt_ms);
 
-/* True while still open. One key/click skips the MPS logo into the sailing
- * scene. Two edges during sailing jump to the last frame. One edge during
- * the OPENGUY idle loop (or the end hold) finishes. */
+/* True while still open. See the key list at the top of this file; a skip
+ * key during the end hold finishes. */
 bool opening_handle_input(OpeningCinematic* o, const ColonizeInputState* input);
 
 void opening_render(

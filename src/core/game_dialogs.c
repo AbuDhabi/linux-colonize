@@ -210,26 +210,16 @@ void game_service_colony_bar(ColonizeGameState* game) {
   }
 }
 
-bool game_try_enter_europe(ColonizeGameState* game) {
-  if (!game || !game->europe_ok) {
-    return false;
-  }
-  if (game_europe_blocked_by_woi(game)) {
-    /* GAME.TXT @EUROPENOTAVAIL: the European Status Screen is withdrawn for
-     * the duration of the War of Independence — same OK-popup pattern as
-     * @FOREIGNNOTAVAIL (game_open_report). */
-    char body[AI_POPUP_BODY_LEN];
-    popup_msg_fill(
-      &game->messages,
-      "EUROPENOTAVAIL",
-      NULL,
-      "",
-      body,
-      sizeof(body)
-    );
-    ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
-    return false;
-  }
+/* GAME.TXT @EUROPENOTAVAIL: the European Status Screen is withdrawn for the
+ * duration of the War of Independence — same OK-popup pattern as
+ * @FOREIGNNOTAVAIL (game_open_report). */
+static void game_europe_not_avail(ColonizeGameState* game) {
+  char body[AI_POPUP_BODY_LEN];
+  popup_msg_fill(&game->messages, "EUROPENOTAVAIL", NULL, "", body, sizeof(body));
+  ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+}
+
+static bool game_europe_open_screen(ColonizeGameState* game) {
   game->in_europe = true;
   europe_reset_harbor_selection(&game->europe); /* FUN_38fd_55b6 raw 68140 -> 0dd4 */
   game->in_pedia = false;
@@ -245,6 +235,136 @@ bool game_try_enter_europe(ColonizeGameState* game) {
     game->europe.dock_count
   );
   return true;
+}
+
+bool game_try_enter_europe(ColonizeGameState* game) {
+  if (!game || !game->europe_ok) {
+    return false;
+  }
+  if (game_europe_blocked_by_woi(game)) {
+    game_europe_not_avail(game);
+    return false;
+  }
+  return game_europe_open_screen(game);
+}
+
+/* The control bytes and DS:0x5398 / 0x5394 / 0x5396 / 0x53a4 a foreign visit leaves as DOS has
+ * them (only DS:0x9e12 moves there), written back over whatever a capture stamped. */
+static void game_europe_view_put_stash(ColonizeGameState* game) {
+  ColonizeCol1Save* c = &game->col1;
+  for (int i = 0; i < 4; ++i) {
+    c->player[i].control = game->europe_view_control[i];
+  }
+  c->head.human_player = game->europe_view_head[0];
+  c->head.nation_turn = game->europe_view_head[1];
+  c->head.curr_nation_map_view = game->europe_view_head[2];
+  c->head.fixed_nation_map_view = game->europe_view_head[3];
+}
+
+/* Reload the captured live save with power n at the controls (game_reload_live_col1, the
+ * Set Human / hot-seat rebind), so the one-nation Europe mirror is n's own record. */
+static bool game_europe_view_reload(ColonizeGameState* game, int n) {
+  char err[256];
+  ColonizeCol1Save* c = &game->col1;
+  c->player[n].control = 0;
+  c->head.human_player = (uint16_t)n;
+  c->head.nation_turn = (uint16_t)n;
+  const ColonizeTurnProcessor keep = game->turn_proc;
+  const bool ok = game_reload_live_col1(game, err, sizeof(err));
+  game->turn_proc = keep;
+  if (!ok) {
+    diag_warn("Europe view of nation %d: %s", n, err);
+  }
+  return ok;
+}
+
+/*
+ * FUN_281f_05fa(n, -1) -> FUN_38fd_55b6 (raw 68114-68136): FUN_38fd_0000 binds the Europe
+ * module to n (DS:0x9e12 = n, DS:0x84fc = n's record) and the screen runs for n — its gold,
+ * docks, ships, prices and purchases, whoever n is. The port's Europe mirror belongs to the
+ * human slot, so a foreign n is bound by reloading the live save with n there; the control
+ * bytes and the head words go straight back, and game_europe_view_service rebinds the human
+ * when the screen closes.
+ */
+static bool game_europe_open_nation(ColonizeGameState* game, int n) {
+  if (!game || !game->europe_ok || n < 0 || n > 3) {
+    return false;
+  }
+  if (n != game->human_nation && game->col1_ok && !game->europe_view_active) {
+    char err[256];
+    if (!game_capture_col1(game, err, sizeof(err))) {
+      diag_warn("Europe view of nation %d: %s", n, err);
+      return false;
+    }
+    const ColonizeCol1Save* c = &game->col1;
+    for (int i = 0; i < 4; ++i) {
+      game->europe_view_control[i] = c->player[i].control;
+    }
+    game->europe_view_head[0] = c->head.human_player;
+    game->europe_view_head[1] = c->head.nation_turn;
+    game->europe_view_head[2] = c->head.curr_nation_map_view;
+    game->europe_view_head[3] = c->head.fixed_nation_map_view;
+    if (!game_europe_view_reload(game, n)) {
+      return false;
+    }
+    game_europe_view_put_stash(game);
+    game->europe_view_active = true;
+    /* FUN_38fd_0718 raw 59120-59122: the bound nation's own control byte. */
+    game->europe.bound_human = game->col1.player[n].control == 0;
+  }
+  return game_europe_open_screen(game);
+}
+
+void game_europe_view_service(ColonizeGameState* game) {
+  if (!game || !game->europe_view_active || game->in_europe ||
+      (game->in_pedia && game->pedia_return_europe)) {
+    return;
+  }
+  game->europe_view_active = false;
+  char err[256];
+  const int n = game->human_nation;
+  /* The capture flushes n's Europe mirror onto n's record (all-AI included). */
+  game->col1.player[n].control = 0;
+  if (!game_capture_col1(game, err, sizeof(err))) {
+    diag_warn("Europe view end: %s", err);
+    return;
+  }
+  game_europe_view_put_stash(game);
+  const ColonizeTurnProcessor keep = game->turn_proc;
+  if (!game_reload_live_col1(game, err, sizeof(err))) {
+    diag_warn("Europe view end: %s", err);
+  }
+  game->turn_proc = keep;
+}
+
+/*
+ * View Europe (key E, VIEW menu): FUN_2b5a dispatcher asm 0x236B2-0x2371A. The War of
+ * Independence (DS:0x5382 bit 0) withdraws it unless Complete Map (DS:0x53a2) is on; with
+ * Complete Map the DEBUG.TXT @SETEUROPE box (MSS 4, default DS:0x5396 + 1) picks whose
+ * Europe opens and Esc drops the command; otherwise the SETVIEW nation's (DS:0x53a4 >= 0),
+ * else DS:0x5394's.
+ */
+void game_europe_command(ColonizeGameState* game) {
+  if (!game || !game->europe_ok) {
+    return;
+  }
+  const bool entire = game->col1_ok && game->col1.head.show_entire_map != 0;
+  if (game_europe_blocked_by_woi(game) && !entire) {
+    game_europe_not_avail(game);
+    return;
+  }
+  if (entire) {
+    (void)cheat_list_open_set_europe(
+      &game->cheat_list, game->debug_txt_ok ? &game->debug_txt : NULL, game_viewpoint_nation(game)
+    );
+    return;
+  }
+  const int fixed = game->col1_ok ? (int)(int16_t)game->col1.head.fixed_nation_map_view : -1;
+  (void)game_europe_open_nation(game, fixed >= 0 ? fixed : game->human_nation);
+}
+
+void game_apply_set_europe(ColonizeGameState* game, int nation) {
+  (void)game_europe_open_nation(game, nation);
 }
 
 /*
@@ -1203,6 +1323,13 @@ int game_viewpoint_nation(const ColonizeGameState* game) {
   return game->human_nation;
 }
 
+/* FUN_2b5a_32ee / 3344 (raw 45879 / 45903) and FUN_2b5a_3462 (raw 46096): the colony
+ * record's owner byte (+0x5d60) is DS:0x5396, or DS:0x53a2 (Complete Map) is set. */
+bool game_colony_opens_from_map(const ColonizeGameState* game, const ColonizeColony* col) {
+  return col && (col->nation_id == game_viewpoint_nation(game) ||
+                 (game->col1_ok && game->col1.head.show_entire_map != 0));
+}
+
 /*
  * FUN_2b5a_199e (the Shift-D handler, raw 42609-42690): the cursor tile is
  * only touched when the CHEAT bit is set or its owner nibble (FUN_281f_06dc)
@@ -1606,6 +1733,8 @@ void game_europe_open_ship_menu(ColonizeGameState* game, int hidx) {
   if (ai_popup_enqueue_choice_ctx(
         &game->ai_popups, AI_POPUP_TAG_EUROPE_SHIP_MENU, hidx, -1, 0, NULL, body, labels, ids, n
       )) {
+    /* box flags |= 3 (raw 60810): a click off the box leaves with 0 = no change. */
+    ai_popup_set_last_outside_leaves(&game->ai_popups);
     (void)ai_popup_present_now(&game->ai_popups, AI_POPUP_TAG_EUROPE_SHIP_MENU);
   }
 }

@@ -4277,6 +4277,73 @@ static int test_colony_custom_house_keys(void) {
 }
 
 /*
+ * FUN_6f74_2580 takes either button's release alike (raw 117036-117060). Inside a box off its
+ * rows nothing happens; off the box only a flag-bit-0 box leaves (raw 117052-117054): the
+ * jobs list (FUN_2f2b_348c raw 50691), Recruit (FUN_38fd_4884 raw 64720). The @REALLYBUY
+ * confirm, a plain GAME.TXT box, stays up.
+ */
+static int test_2580_right_click_off_rows(void) {
+  static ColonizeGameState game;
+  ColonizeMsgCatalog names;
+  if (!jobs_menu_fixture(&game, &names)) {
+    return fail("jobs fixture");
+  }
+  ColonizeColony* col = &game.colonies.colonies[0];
+  ColonyScreenView* csv = &game.colony_screen;
+  ColonizeInputState in;
+  memset(&in, 0, sizeof(in));
+  in.mouse_right_clicked = true;
+  int rc = 0;
+  colony_screen_open_jobs(csv, &game.colonies, &game.world_map, &game.units, col, -1);
+  csv->jobs_rect = (ColonyDialogRect){.x = 100, .y = 50, .w = 100, .h = 100, .list_y0 = 120,
+                                      .line_h = 10};
+  in.mouse_x = 150;
+  in.mouse_y = 55; /* in the box, above the rows */
+  (void)game_update_colony_screen(&game, &in);
+  if (!csv->jobs_open) {
+    rc = fail("a right click in the jobs box off its rows does nothing");
+  }
+  in.mouse_x = 10;
+  in.mouse_y = 10;
+  (void)game_update_colony_screen(&game, &in);
+  if (rc == 0 && csv->jobs_open) {
+    rc = fail("a right click off the jobs box closes it");
+  }
+  game.in_colony = false;
+
+  EuropeScreen* eu = &game.europe;
+  game.in_europe = true;
+  eu->menu = EUROPE_MENU_RECRUIT;
+  EuropeMenuLayout lay;
+  if (!europe_menu_layout(&game, 320, 200, &lay) || lay.dialog_x < 1) {
+    rc = fail("Recruit layout");
+  }
+  in.mouse_x = lay.dialog_x + 2;
+  in.mouse_y = lay.dialog_y + 2;
+  (void)game_update_europe_screen(&game, &in);
+  if (rc == 0 && eu->menu != EUROPE_MENU_RECRUIT) {
+    rc = fail("a right click on the Recruit box's frame does nothing");
+  }
+  in.mouse_x = 0;
+  in.mouse_y = 0;
+  (void)game_update_europe_screen(&game, &in);
+  if (rc == 0 && eu->menu != EUROPE_MENU_NONE) {
+    rc = fail("a right click off the Recruit box closes it");
+  }
+  eu->menu = EUROPE_MENU_PURCHASE;
+  eu->purchase_confirming = true;
+  (void)game_update_europe_screen(&game, &in);
+  if (rc == 0 && eu->menu != EUROPE_MENU_PURCHASE) {
+    rc = fail("a right click off the @REALLYBUY confirm does nothing");
+  }
+  europe_menu_close(eu);
+  game.in_europe = false;
+  fx_map_free(&game.world_map);
+  assets_msg_free(&names);
+  return rc;
+}
+
+/*
  * F1 on the bare colony screen opens the article of the DS:0x32e focus panel and comes back
  * (FUN_2f2b_6372 raw 55622-55650); on the Europe screen the DS:0xf9a panel's (FUN_38fd_4f6e
  * raw 66119-66135).
@@ -4598,6 +4665,91 @@ static int test_map_enter_and_h_keys(void) {
     (void)game_update_map_keys(game, &in);
     if (!units_is_on_map(ship) || game->europe.expected_ships != expected) {
       rc = fail("H must not sail the selected ship to Europe");
+    }
+  }
+  /* raw 45903: a foreign colony opens on Enter only under Complete Map (DS:0x53a2). */
+  const ColonizeColony* foreign = NULL;
+  for (int i = 0; rc == 0 && !foreign && i < COLONIZE_COLONIES_MAX; ++i) {
+    const ColonizeColony* c = &game->colonies.colonies[i];
+    if (c->active && c->nation_id != game->human_nation && c->nation_id < 4) {
+      foreign = c;
+    }
+  }
+  if (rc == 0 && !foreign) {
+    rc = fail("enter: fixture has no foreign colony");
+  }
+  if (rc == 0) {
+    game->map_cursor_x = foreign->x;
+    game->map_cursor_y = foreign->y;
+    in.last_key = COLONIZE_KEY_ENTER;
+    (void)game_update_map_keys(game, &in);
+    if (game->in_colony) {
+      rc = fail("Enter must not open a foreign colony without Complete Map");
+    }
+    game->col1.head.show_entire_map = 1;
+    (void)game_update_map_keys(game, &in);
+    if (!game->in_colony || game->colony_view_id != foreign->id) {
+      rc = fail("Enter under Complete Map must open the foreign colony");
+    }
+  }
+  game_destroy(game);
+  return rc;
+}
+
+/* port_bugs.md #1556: View Europe (asm 0x236B2-0x2371A). WoI without Complete Map =
+ * @EUROPENOTAVAIL; Complete Map = @SETEUROPE (MSS 4, default DS:0x5396); the pick opens that
+ * power's own Europe (FUN_38fd_0000: its record, gold, docks) and DS:0x5398 / 0x5394 / the
+ * control bytes stay as they were; closing the screen rebinds the human. */
+static int test_europe_command_set_europe(void) {
+  int sid = -1;
+  ColonizeGameState* game = lane_caravel_game(&sid);
+  if (!game) {
+    fprintf(stderr, "SKIP: no COLONIZE/ assets or fixture save\n");
+    return TR_SKIP;
+  }
+  int rc = 0;
+  const int human = game->human_nation;
+  const int other = human == 0 ? 1 : 0;
+  ColonizeCol1Save* c = &game->col1;
+  c->head.game_options.woi = 1;
+  ai_popup_clear(&game->ai_popups);
+  game_europe_command(game);
+  if (game->in_europe || game->cheat_list.open || !ai_popup_busy(&game->ai_popups)) {
+    rc = fail("WoI without Complete Map: @EUROPENOTAVAIL, no Europe");
+  }
+  ai_popup_clear(&game->ai_popups);
+  c->head.show_entire_map = 1;
+  game_europe_command(game);
+  if (rc == 0 && (!game->cheat_list.open || game->cheat_list.kind != CHEAT_LIST_KIND_SET_EUROPE ||
+                  game->cheat_list.mss != 4 || game->cheat_list.selection != human ||
+                  game->in_europe)) {
+    rc = fail("Complete Map: @SETEUROPE box, MSS 4, default = DS:0x5396");
+  }
+  cheat_list_close(&game->cheat_list);
+  const uint32_t other_gold = c->nation[other].gold;
+  const uint8_t ctrl_human = c->player[human].control;
+  const uint8_t ctrl_other = c->player[other].control;
+  if (rc == 0) {
+    game_apply_set_europe(game, other);
+    c = &game->col1;
+    if (!game->in_europe || game->human_nation != other ||
+        game->europe.bound_nation != other ||
+        europe_nation_gold(&game->europe, c, other) != other_gold) {
+      rc = fail("the pick opens that power's own Europe (its record and gold)");
+    } else if (c->head.human_player != human || c->player[human].control != ctrl_human ||
+               c->player[other].control != ctrl_other || game->europe.bound_human) {
+      rc = fail("DS:0x5398 and the control bytes stay; the AI power's 0718 test is AI");
+    }
+  }
+  if (rc == 0) {
+    europe_nation_gold_add(&game->europe, c, other, 100);
+    game->in_europe = false;
+    game_europe_view_service(game);
+    c = &game->col1;
+    if (game->europe_view_active || game->human_nation != human ||
+        game->europe.bound_nation != human || c->nation[other].gold != other_gold + 100 ||
+        c->player[other].control != ctrl_other || c->player[human].control != ctrl_human) {
+      rc = fail("closing the screen rebinds the human; the visit's purchases stay on the record");
     }
   }
   game_destroy(game);
@@ -6128,6 +6280,7 @@ static const TestCase k_cases[] = {
     {"test_human_lcr_count_change_skips_contact", test_human_lcr_count_change_skips_contact},
     {"test_map_o_key_does_not_board", test_map_o_key_does_not_board},
     {"test_map_enter_and_h_keys", test_map_enter_and_h_keys},
+    {"test_europe_command_set_europe", test_europe_command_set_europe},
     {"test_goto_lane_woi_silent", test_goto_lane_woi_silent},
     {"test_report_any_key_closes", test_report_any_key_closes},
     {"test_deferred_wake_does_not_leak", test_deferred_wake_does_not_leak},
@@ -6183,6 +6336,7 @@ static const TestCase k_cases[] = {
     {"test_colony_list_keys_wrap", test_colony_list_keys_wrap},
     {"test_colony_custom_house_keys", test_colony_custom_house_keys},
     {"test_screen_f1_focus_article", test_screen_f1_focus_article},
+    {"test_2580_right_click_off_rows", test_2580_right_click_off_rows},
     {"test_colony_construction_page_default", test_colony_construction_page_default},
     {"test_colony_construction_two_pages_live", test_colony_construction_two_pages_live},
     {"test_indian_land_offer_row_greyed", test_indian_land_offer_row_greyed},

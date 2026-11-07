@@ -1001,6 +1001,13 @@ void ai_popup_set_last_disabled(AiPopupState* st, uint32_t mask) {
   st->queue[st->queue_count - 1].disabled_mask = mask;
 }
 
+void ai_popup_set_last_outside_leaves(AiPopupState* st) {
+  if (!st || !st->last_enqueue_ok || st->queue_count <= 0) {
+    return;
+  }
+  st->queue[st->queue_count - 1].outside_leaves = true;
+}
+
 void ai_popup_set_last_camera(AiPopupState* st, int mode, int x, int y) {
   if (!st || !st->last_enqueue_ok || st->queue_count <= 0) {
     return;

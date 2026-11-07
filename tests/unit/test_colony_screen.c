@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "core/ai_euro_internal.h"
 #include "core/assets.h"
 #include "core/colony.h"
 #include "core/colony_screen.h"
@@ -3908,6 +3909,61 @@ static int unit_spy_view_draws_no_selection_boxes(void) {
   return 0;
 }
 
+/* FUN_2f2b_0fce raw 47850-47876: the AI-owner title line. +0x1b in radix 2
+ * padded to 8, signed +0x8c..+0x8f with +0x8d as the @CARGO name, @MISC 63,
+ * continent ": " DS:0x9870 stance glued to @CTITLE 1, owner gold "$". */
+static int unit_ai_owner_title_line(void) {
+  reports_names_load_catalogs("COLONIZE");
+  if (!reports_ctitle_word(1)[0]) {
+    fprintf(stderr, "SKIP: COLONIZE catalogs not found\n");
+    return TR_SKIP;
+  }
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  char err[128];
+  if (!map_alloc(&map, 8, 8, err, sizeof(err))) {
+    fprintf(stderr, "ai_title: map_alloc: %s\n", err);
+    return 1;
+  }
+  for (int i = 0; i < 8 * 8; ++i) {
+    map.terrain[i] = 2;    /* plains */
+    map.layer3[i] = 0xf4u; /* owner none, continent 4 */
+  }
+  uint8_t saved[AI_EURO_STANCE_TABLES_SIZE];
+  ai_euro_stance_tables_export(saved);
+  uint8_t tables[AI_EURO_STANCE_TABLES_SIZE];
+  memcpy(tables, saved, sizeof(tables));
+  tables[1 * 16 + 4] = 6; /* nation 1, continent 4 */
+  ai_euro_stance_tables_import(tables);
+
+  ColonizeColony c;
+  memset(&c, 0, sizeof(c));
+  c.x = 3;
+  c.y = 3;
+  c.nation_id = 1;
+  c.ai_flags = 0x05;
+  c.improve_timer = 0x80; /* cbw: -128 */
+  c.specialty_cargo = 0;  /* @CARGO row 0 */
+  c.labor_shortage = 2;
+  c.cargo_idle_turns = 1;
+  char line[128];
+  colony_screen_ai_title_line(&c, &map, 500, line, sizeof(line));
+  int rc = 0;
+  if (strcmp(line, "00000101 -128 Food 2 1 Location 4: 6Gold: 500$") != 0) {
+    fprintf(stderr, "ai_title: got '%s'\n", line);
+    rc = 1;
+  }
+  c.specialty_cargo = 0xff; /* DS:0x97be: no @CARGO row */
+  colony_screen_ai_title_line(&c, &map, 500, line, sizeof(line));
+  if (rc == 0 && strcmp(line, "00000101 -128  2 1 Location 4: 6Gold: 500$") != 0) {
+    fprintf(stderr, "ai_title none: got '%s'\n", line);
+    rc = 1;
+  }
+  ai_euro_stance_tables_import(saved);
+  map_free(&map);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
     {"unit_spy_view_draws_no_selection_boxes", unit_spy_view_draws_no_selection_boxes},
     {"unit_town_hall_tiers_area_view", unit_town_hall_tiers_area_view},
@@ -3933,6 +3989,7 @@ static const TestCase k_cases[] = {
     {"unit_building_hover_label", unit_building_hover_label},
     {"case_colony_screen_render_workflow", case_colony_screen_render_workflow},
     {"unit_hit_test_stage_seam", unit_hit_test_stage_seam},
+    {"unit_ai_owner_title_line", unit_ai_owner_title_line},
 };
 
 TEST_MAIN(k_cases)

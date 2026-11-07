@@ -158,11 +158,9 @@ bool trade_screen_handle_input(
     ts->request = TRADE_SCREEN_REQ_CLOSE;
     return true;
   }
+  /* FUN_647e_115c's loop runs the click handler FUN_647e_10d2 on any release (DS:0x7f4, raw
+   * 103143-103146), whichever button. */
   if (!input->mouse_left_clicked && !input->mouse_right_clicked) {
-    return true;
-  }
-  if (input->mouse_right_clicked) {
-    ts->request = TRADE_SCREEN_REQ_CLOSE;
     return true;
   }
   const int mx = input->mouse_x;

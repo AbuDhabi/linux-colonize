@@ -189,6 +189,50 @@ static void test_sounds(void) {
   closing_set_sound_hooks(NULL, NULL, NULL);
 }
 
+/* CLOSING.EXE `_get_input` 0x398: '+'/'=' and '-'/'_' nudge anim_timing by
+ * one, other keys are ignored, Enter/Esc/Space/click/Alt-Q/Alt-X end it. */
+static int case_test_input_keys(void) {
+  int before = failures;
+  ClosingCinematic c;
+  memset(&c, 0, sizeof(c));
+  if (!closing_open(&c, "COLONIZE")) {
+    fprintf(stderr, "FAIL: closing_open keys\n");
+    return 1;
+  }
+  check(c.anim_timing == CLOSING_ANIM_TIMING, "anim_timing starts at 6");
+  ColonizeInputState in;
+  memset(&in, 0, sizeof(in));
+  in.last_key = COLONIZE_KEY_A;
+  closing_handle_input(&c, &in);
+  check(c.open, "a plain letter does not end it");
+  memset(&in, 0, sizeof(in));
+  in.text_input_len = 2;
+  in.text_input[0] = '+';
+  in.text_input[1] = '=';
+  closing_handle_input(&c, &in);
+  check(c.open && c.anim_timing == CLOSING_ANIM_TIMING - 2, "'+' and '=' speed up");
+  in.text_input_len = 1;
+  in.text_input[0] = '_';
+  closing_handle_input(&c, &in);
+  check(c.anim_timing == CLOSING_ANIM_TIMING - 1, "'_' slows down");
+  for (int i = 0; i < 10; ++i) {
+    in.text_input[0] = '+';
+    closing_handle_input(&c, &in);
+  }
+  check(c.anim_timing == CLOSING_ANIM_TIMING - 11, "no lower limit");
+  closing_update(&c, 0);
+  check(c.clock == 1, "timing <= 0 steps once per update");
+  closing_update(&c, 0);
+  check(c.clock == 2, "and again");
+  memset(&in, 0, sizeof(in));
+  in.last_key = COLONIZE_KEY_X;
+  in.alt_held = true;
+  closing_handle_input(&c, &in);
+  check(!c.open, "Alt-X ends it");
+  closing_close(&c);
+  return failures != before;
+}
+
 /* These cases accumulate into the shared `failures` counter via check()
  * rather than returning pass/fail directly; wrap each so the table-driven
  * runner can report per-case PASS/FAIL. */
@@ -214,6 +258,7 @@ static const TestCase k_cases[] = {
     {"test_timeline", case_test_timeline},
     {"test_open_and_skip", case_test_open_and_skip},
     {"test_sounds", case_test_sounds},
+    {"test_input_keys", case_test_input_keys},
 };
 
 int main(void) {

@@ -3,7 +3,7 @@
 STATUS: OPEN. The ranked shortlist was adversarially re-verified (2026-11-06), filed as
 port_bugs.md #1452-#1482 and fixed 2026-11-07 (all FIXED, in docs/archive/bugs_fixed_pending.md).
 Wave 2 (2026-11-07) verified every remaining item: FIXED as #1483-#1555, OPEN #1556-#1557,
-capture-blocked #1558-#1560 (known_divergences.md), the rest NO-CHANGE (see "Wave 2" at the end).
+capture-blocked #1558 (known_divergences.md); wave 3 fixed #1557, #1559, #1560 and follow-ups #1561-#1562 (#1563 = DOS bug DB-80), the rest NO-CHANGE (see "Wave 2" at the end).
 Nothing in this file is still unchecked.
 This is an audit dump, not a spec (docs/conventions.md "Don't read archives willy-nilly").
 
@@ -375,10 +375,10 @@ Nine fixer agents re-read each remaining item against the decomp/asm. None REFUT
 | P5 | #1554 |
 | P6 | #1555 |
 | N9 | #1556 OPEN |
-| J-U(b)/K-U | #1557 OPEN |
+| J-U(b)/K-U | #1557 FIXED (wave 3) |
 | B5 | #1558 known_divergences (capture) |
-| M6 | #1559 known_divergences (capture) |
-| G2 | #1560 known_divergences (capture) |
+| M6 | #1559 FIXED (wave 3, DOSBox-traced) |
+| G2 | #1560 FIXED (wave 3, DOSBox-traced) |
 
 NO-CHANGE (true but inert / port-only): A-U (sweep attack==0 rail, mounted_attack_spend_all
 redundant, Revere soldier veto), B-U render top unit, H-U (intervention fallback, merc pending

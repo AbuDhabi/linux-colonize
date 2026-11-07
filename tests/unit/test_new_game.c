@@ -2,15 +2,23 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "core/ai.h"
 #include "core/assets.h"
+#include "core/col1_save.h"
+#include "core/colony.h"
+#include "core/europe.h"
+#include "core/europe_art.h"
 #include "core/fb.h"
 #include "core/font.h"
 #include "core/game_loop.h"
+#include "core/map.h"
+#include "core/map_gen.h"
 #include "core/new_game.h"
 #include "core/pik.h"
 #include "core/reports.h"
 #include "core/ss.h"
 #include "core/ui_colors.h"
+#include "core/units.h"
 
 #include "tests/common/test_assets.h"
 #include "../common/test_runner.h"
@@ -819,7 +827,86 @@ out:
   return rc;
 }
 
+/* FUN_6a09_0006 raw 107735 zeroes DS:0x962a (tribe_village_counts) and raw 107892
+ * adds 1 per NEW WORLD capital only (satellites do not count); the census
+ * FUN_4962_06b6 rewrites it later. So a fresh procedural game holds 1 per tribe
+ * that got a capital (@INDIANWELCOME %NUMBER0 reads it, port_bugs.md #1510). */
+static int case_new_world_village_counts(void) {
+  char err[256];
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
+  units_reset(&units);
+  units_set_occupancy_map(NULL);
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  bool col1_ok = false;
+  colonies_set_col1_context(NULL);
+  colonies_set_units_context(NULL);
+  EuropeScreen europe;
+  memset(&europe, 0, sizeof(europe));
+  MapGenParams mp;
+  memset(&mp, 0, sizeof(mp));
+  map_gen_params_random(&mp, 0xA1A1A1u);
+  mp.land_mass = mp.land_form = mp.temperature = mp.climate = 1;
+  mp.seed = 0xA1A1A1u;
+  int rc = 1;
+  if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT") || !units_load_types(&units, &names) ||
+      !map_generate(&map, &mp, err, sizeof(err))) {
+    fprintf(stderr, "village counts: setup failed\n");
+    goto done;
+  }
+  (void)europe_load_tables(&europe, &names);
+  int sx = 39, sy = 10;
+  if (!map_gen_euro_landfall(&map, 0, &sx, &sy)) {
+    map_gen_pick_start(&map, 0, -1, -1, 0, &sx, &sy);
+  }
+  units_new_world_start(&units, &map, sx, sy, 0, 0);
+  memset(col1.stuff.tribe_village_counts, 0xaa, sizeof(col1.stuff.tribe_village_counts));
+  AiNewGameParams ai;
+  memset(&ai, 0, sizeof(ai));
+  ai.col1 = &col1;
+  ai.col1_ok = &col1_ok;
+  ai.map = &map;
+  ai.units = &units;
+  ai.europe = &europe;
+  ai.names = &names;
+  ai.data_dir = "COLONIZE";
+  ai.leader_name = "Test Governor";
+  ai.human_start_x = sx;
+  ai.human_start_y = sy;
+  ai.rng_seed = 0xC01A71Eu;
+  if (!ai_init_new_game(&ai, err, sizeof(err)) || col1.head.tribe_count <= 8) {
+    fprintf(stderr, "village counts: ai_init_new_game failed (%s)\n", err);
+    goto done;
+  }
+  rc = 0;
+  for (int t = 0; t < 8; ++t) {
+    int capitals = 0;
+    for (int i = 0; i < (int)col1.head.tribe_count; ++i) {
+      capitals += col1.tribe[i].nation_id == t + 4 && col1.tribe[i].state.capital;
+    }
+    if (col1.stuff.tribe_village_counts[t] != capitals || capitals != 1) {
+      fprintf(stderr, "tribe %d: village count %u, capitals %d, want 1\n", t,
+              col1.stuff.tribe_village_counts[t], capitals);
+      rc = 1;
+    }
+  }
+done:
+  units_set_occupancy_map(NULL);
+  colonies_set_col1_context(NULL);
+  colonies_set_units_context(NULL);
+  map_free(&map);
+  col1_save_free(&col1);
+  assets_msg_free(&names);
+  return rc;
+}
+
 static const TestCase k_cases[] = {
+    {"new_world_village_counts", case_new_world_village_counts},
     {"scenario_start", case_scenario_start},
     {"customize_defaults", case_customize_defaults},
     {"wizard_new_world_flow", case_wizard_new_world_flow},

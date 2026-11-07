@@ -1313,6 +1313,15 @@ COLONIZE_INTERNAL void col1_bridge_apply_colonies(Col1ApplyCtx* ctx) {
         } else {
           dst->colonists[p].idle_job1 = (uint8_t)(occ + 1);
         }
+      } else if (occ == (int)UNITS_JOB_COLONIST) {
+        /* port_bugs.md #1557: occupation 0x13 off the plots is idle in DOS —
+         * FUN_15eb_0e18 raw 11058 returns the byte, FUN_15eb_2ea0 raw 13185
+         * re-seats only `< 9`, and the building draw (FUN_2f2b_14d4 raw 48302
+         * FUN_281f_0ace -> FUN_2f2b_12cc raw 47968) lists only colonists whose
+         * occupation is the building's job, so he works and shows nowhere.
+         * Keep the byte so colonies_auto_assign_idle skips him and the save
+         * round-trips 19. */
+        dst->colonists[p].idle_job1 = (uint8_t)(occ + 1);
       }
       /*
        * port_bugs.md (starvation_bug.SAV): salvage — a building occupation that

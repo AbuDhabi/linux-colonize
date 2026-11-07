@@ -1222,6 +1222,8 @@ void game_apply_cheat_list_result(ColonizeGameState* game) {
     game_apply_set_human(game, id);
   } else if (kind == CHEAT_LIST_KIND_SET_REPORT) {
     game_apply_set_report(game, id);
+  } else if (kind == CHEAT_LIST_KIND_SET_EUROPE) {
+    game_apply_set_europe(game, id);
   } else if (kind == CHEAT_LIST_KIND_SET_AUTO) {
     if (id == 1) {
       game->autoplay = true; /* DS:0x826 */

@@ -1609,11 +1609,10 @@ bool units_order_fortify(ColonizeUnitPool* pool, int unit_id) {
 }
 
 bool units_order_sentry(ColonizeUnitPool* pool, int unit_id) {
-  const bool ok = units_set_orders(pool, unit_id, UNITS_ORDER_SENTRY);
-  if (ok) {
-    units_play_event_sound(UNITS_SFX_ORDER_FORTIFY);
-  }
-  return ok;
+  /* No sound: the Sentry stub 2b5a:1106 (ndisasm 0x21FE6) has no
+   * FUN_281f_04c0, and a DOSBox trace (2026-11-07, #1558) of S saw no
+   * 04c0 call while F (FUN_2b5a_1112 raw 42417) pushed AX=0x58. */
+  return units_set_orders(pool, unit_id, UNITS_ORDER_SENTRY);
 }
 
 bool units_order_trade_route(ColonizeUnitPool* pool, int unit_id) {

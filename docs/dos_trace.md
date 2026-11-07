@@ -233,6 +233,19 @@ instruction. On one byte it is fine. It found the 3180 facing writer.
   (rand range) is `BP 2043:04d4`, FUN_281f_04ca (slot reseed) `BP 2043:04ca`; the stack holds the
   caller's ret seg:off and the args. `BPM` on a cold byte works (one stop per read/write): the
   indian record's herd byte found FUN_5bfb_3180's native-contact spread in one turn.
+- New-game map generation (#1559, 2026-11-07): `setup --patch-cc 0x64a10` traps
+  FUN_684c_08c0 (OVL21; its IPs equal the Ghidra 684c offsets, so `trap_overlay(0x8c0, 0xc8)` and
+  `BP cs:04a6` for the river pass). Pick the seed by patching the private EXE copy at file offset
+  58579 (the imm16 of VR_SEED's `mov ax,100` in FUN_1c0c_0012). From the main menu, Enter
+  (NEW WORLD), Enter (difficulty; Right moves the pick), then Enter every other poll reaches the
+  trap in about 50 polls. Planes are far pointers DS:0x15c/0x160/0x164/0x168 (74f8:0, 75ff:0,
+  7706:0, 780d:0 in that run), LCG DS:0x28ee. Pass boundaries in 08c0: 09d8 (land blobs done),
+  0b1e (diagonal cleanup), 0c7c (latitude paint), 0fc4 (humidity), 1278 (forest wander),
+  04a6 (rivers), 1bb4 (epilogue). The return address on entry is RTLink's 1931:1554, so break on
+  1bb4 instead. To test a routine on crafted input, `SM` the plane bytes and the LCG at the trap.
+  Port-side dumps need DOS-buggy mode on (`dos_buggy_behavior_set(true)`; test binaries do it in
+  tests/common/test_name_kinds.c): with it off the latitude paint draws once (TB-46) and the
+  map diverges from DOS.
 - Other traps used by the America campaign (2026-10-20; file offset = segment `codeOffset` +
   routine offset, the `tools/address_mapping.csv` "offset" column is NOT that for L0040 overlays):
   FUN_479b_0972 goto mover = OVL09 `0x40e22` (trap 0x972); FUN_6662_0f74 pathfinder = OVL20

@@ -1142,7 +1142,8 @@ int ai_native_pick_dir_021a(
 
 /*
  * FUN_4d56_021a post-loop tail (021a:1277..14e6). Returns the final dir (8 =
- * stay). Not ported: the human-colony warning chrome (021a:1329..13ae).
+ * stay). The human-colony warning chrome (021a:1316..13ae) is
+ * ai_native_indian_surprise (ai_brave.c, which holds the turn ctx).
  */
 int ai_native_021a_tail(
   ColonizeUnitPool* units,
@@ -1158,10 +1159,15 @@ int ai_native_021a_tail(
   ColonizeCol1Indian* ind = (indian >= 0 && indian < 8) ? &col1->indian[indian] : NULL;
   const int turn_w = (int)col1->head.turn;
   const int cool = turn_w + turn_w / -25;
+  /* 021a:1277: [bp-0xa]/[bp-0x18] = target tile, [bp-6] = its owner nibble
+   * (281f_06dc), set only under flags & 0x0a and read again at 1320. */
+  const int dx = (dir < 8) ? u->x + k_ai_dir8_dx[dir] : u->x;
+  const int dy = (dir < 8) ? u->y + k_ai_dir8_dy[dir] : u->y;
+  const int owner = ai_owner_nibble(map, dx, dy);
   if (flags & 0x0a) {
-    const int dx = (dir < 8) ? u->x + k_ai_dir8_dx[dir] : u->x;
-    const int dy = (dir < 8) ? u->y + k_ai_dir8_dy[dir] : u->y;
-    const int owner = ai_owner_nibble(map, dx, dy);
+    /* DOS also runs this for owner -1 (signed `< 4`): contact_state[-1] is the
+     * indian record's +0x2c word (muskets), tested == 2 and stamped 1. Not
+     * reproduced: docs/dos_bugs_ai.md DB-80. */
     if (ind && owner >= 0 && owner < 4) {
       if (ind->contact_state[owner] == 2) {
         return 8;
@@ -1175,6 +1181,11 @@ int ai_native_021a_tail(
     if (units_max_mp(units, u->id) - u->moves < 3) {
       return 8;
     }
+  }
+  if (flags & 0x08) {
+    /* 021a:1316-13ae: @INDIANSURPRISE on every attack pick (DOSBox trace,
+     * known_divergences.md #1560). */
+    ai_native_indian_surprise(map, nation_id, dx, dy, owner);
   }
   if ((flags & 0x0a) || hostile) {
     u->col1_flags15 &= (uint8_t)~0x08u;

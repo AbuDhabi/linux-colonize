@@ -124,6 +124,9 @@ int ai_native_step_first_contact(
 /* Test seam: the turn context ai_native_step_first_contact reads (set by
  * ai_indian_nation_turn around the pulse). NULL unbinds. */
 COLONIZE_INTERNAL void ai_native_bind_step_ctx(ColonizeTurnContext* ctx);
+/* FUN_4d56_021a:1316-13ae @INDIANSURPRISE for an attack pick onto (x, y),
+ * owner = that tile's owner nibble (-1 = none). Reads the bound step ctx. */
+void ai_native_indian_surprise(const ColonizeWorldMap* map, int nation_id, int x, int y, int owner);
 
 int ai_native_021a_tail(
   ColonizeUnitPool* units,

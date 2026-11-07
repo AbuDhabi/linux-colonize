@@ -436,16 +436,19 @@ bool cheat_list_open_set_human(CheatListDialog* dlg, const ColonizeMsgCatalog* d
   return cheat_list_fill_from_section(dlg, section, k_fallback_ids, 5);
 }
 
-bool cheat_list_open_set_report(CheatListDialog* dlg, const ColonizeMsgCatalog* debug_txt, int nation) {
+static bool cheat_list_open_nation_pick(
+  CheatListDialog* dlg, const ColonizeMsgCatalog* debug_txt, const char* name, CheatListKind kind,
+  int mss, int nation
+) {
   static const int k_ids[] = {0, 1, 2, 3};
-  const ColonizeMsgSection* section = debug_txt ? assets_msg_find(debug_txt, "SETREPORT") : NULL;
+  const ColonizeMsgSection* section = debug_txt ? assets_msg_find(debug_txt, name) : NULL;
   if (!dlg || !section) {
     return false;
   }
   cheat_list_init(dlg);
   dlg->has_result = false;
-  dlg->kind = CHEAT_LIST_KIND_SET_REPORT;
-  dlg->mss = 5; /* FUN_2b5a_2866 `MOV word [0x1f5e],5` before @SETREPORT (ndisasm 0x2381d) */
+  dlg->kind = kind;
+  dlg->mss = mss;
   dlg->width = 190;
   if (!cheat_list_fill_from_section(dlg, section, k_ids, 4)) {
     return false;
@@ -454,6 +457,16 @@ bool cheat_list_open_set_report(CheatListDialog* dlg, const ColonizeMsgCatalog* 
     dlg->selection = nation;
   }
   return true;
+}
+
+bool cheat_list_open_set_report(CheatListDialog* dlg, const ColonizeMsgCatalog* debug_txt, int nation) {
+  /* FUN_2b5a_2866 `MOV word [0x1f5e],5` before @SETREPORT (ndisasm 0x2381d) */
+  return cheat_list_open_nation_pick(dlg, debug_txt, "SETREPORT", CHEAT_LIST_KIND_SET_REPORT, 5, nation);
+}
+
+bool cheat_list_open_set_europe(CheatListDialog* dlg, const ColonizeMsgCatalog* debug_txt, int nation) {
+  /* `MOV word [0x1f5e],4` before @SETEUROPE (ndisasm 0x236D3) */
+  return cheat_list_open_nation_pick(dlg, debug_txt, "SETEUROPE", CHEAT_LIST_KIND_SET_EUROPE, 4, nation);
 }
 
 bool cheat_list_open_set_auto(CheatListDialog* dlg, const ColonizeMsgCatalog* debug_txt) {
@@ -619,7 +632,14 @@ bool cheat_list_handle_input(CheatListDialog* dlg, const ColonizeInputState* inp
   }
 
   if (input->last_key == COLONIZE_KEY_ESCAPE) {
-    cheat_list_cancel(dlg);
+    /* A @checkbox box (Debug Flags) has no cancel: FUN_6f74_2580 rebuilds DS:0x1f54 from the
+     * rows on every exit (LAB_6f74_3018) and FUN_2b5a_268c (asm 0x235A8-0x235D1) ignores the
+     * result and reads all seven rows back into DS:0x894 (as #1474's option lists). */
+    if (dlg->multi_select) {
+      cheat_list_confirm_multi(dlg);
+    } else {
+      cheat_list_cancel(dlg);
+    }
     return true;
   }
   /* Every kind is a FUN_6f74_2580 list: Up / Down wrap and skip disabled rows. */
@@ -658,11 +678,23 @@ bool cheat_list_handle_input(CheatListDialog* dlg, const ColonizeInputState* inp
     }
   }
 
-  if (input->mouse_left_clicked) {
+  /* FUN_6f74_2580 treats both buttons alike (release arm raw 117036-117060). */
+  if (input->mouse_left_clicked || input->mouse_right_clicked) {
     const int mx = input->mouse_x;
     const int my = input->mouse_y;
     if (!ui_rect_hit(dlg->dialog_x, dlg->dialog_y, dlg->dialog_w, dlg->dialog_h, mx, my)) {
-      cheat_list_cancel(dlg);
+      /* Off the box only a flag-bit-0 box leaves (raw 117052-117054): the FUN_647e_* pickers
+       * (|= 1: 01c6 raw 102384, 0796 raw 102707, 090a raw 102770, 0e80 raw 102957) with 0 =
+       * no pick, and a @checkbox box (|= 5, raw 117354) with its toggles kept. A DEBUG.TXT
+       * section list (FUN_281f_03fe) stays up. */
+      if (dlg->multi_select) {
+        cheat_list_confirm_multi(dlg);
+      } else if (dlg->kind == CHEAT_LIST_KIND_GOTO_PORT ||
+                 dlg->kind == CHEAT_LIST_KIND_TRADE_SELECT ||
+                 dlg->kind == CHEAT_LIST_KIND_TRADE_DEST ||
+                 dlg->kind == CHEAT_LIST_KIND_TRADE_CARGO_ONE) {
+        cheat_list_cancel(dlg);
+      }
       return true;
     }
     const int idx = cheat_list_option_at_y(dlg, my);
@@ -675,11 +707,6 @@ bool cheat_list_handle_input(CheatListDialog* dlg, const ColonizeInputState* inp
         cheat_list_confirm(dlg, idx);
       }
     }
-    return true;
-  }
-
-  if (input->mouse_right_clicked) {
-    cheat_list_cancel(dlg);
     return true;
   }
 

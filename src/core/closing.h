@@ -24,7 +24,7 @@
  *   series -1, Frame N = stop when the clock reaches N (shipped: 390)
  *
  * CLOSING.EXE paces frames on its own 60.877 Hz clock (CLOSING_ANIM_TIMING
- * below): the 390-frame run lasts ~38.4 s. Any key / click skips to scoring.
+ * below): the 390-frame run lasts ~38.4 s. A skip key / click goes to scoring.
  */
 
 #define CLOSING_SHEET_COUNT 7
@@ -87,6 +87,7 @@ typedef struct ClosingCinematic {
   int series_count;
   int end_frame;
   int clock;
+  int anim_timing; /* DS:0x54, '+'/'-' nudge it */
   uint64_t accum; /* ms * CLOSING_ACCUM_PER_MS since the last frame */
   ColonizePalette palette;
   bool palette_ok;
@@ -112,8 +113,9 @@ void closing_close(ClosingCinematic* c);
 void closing_update(ClosingCinematic* c, uint32_t dt_ms);
 
 /*
- * Enter / Esc / Space / a mouse click end the cinematic outright — there is no
- * skip-to-the-last-frame step (CLOSING.EXE image 0x398: those keys store 0 into
+ * Enter / Esc / Space / a mouse click / Alt-Q / Alt-X end the cinematic
+ * outright; other keys do nothing and '+'/'=' / '-'/'_' change the speed.
+ * There is no skip-to-the-last-frame step (CLOSING.EXE image 0x398: those keys store 0 into
  * the [0x6c] loop flag, the same word _anim_loop clears at the terminator row,
  * and the main loop at 0x471 falls straight out). True while still open.
  */

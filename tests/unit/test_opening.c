@@ -95,20 +95,20 @@ static void test_open_skip_and_motion(void) {
     const ColonizeSpriteSheet* bonk = &o.sheets[OPENING_SHEET_BONK];
     check(bonk && o.sheet_ok[OPENING_SHEET_BONK] && bonk->sprite_count > 0, "bonk sheet");
     if (ship && bonk && bonk->sprite_count > 0) {
+      /* `_do_ship` 0x37e-0x3a3: x - w/4, y - h/2 (pan_x 0 at the landfall). */
+      const ColonizeSprite* first = &bonk->sprites[0];
       const ColonizeSprite* still = &bonk->sprites[bonk->sprite_count - 1];
-      const int ship_x =
-        o.path_x[o.path_count - 1] - (ship->width >> 1) + OPENING_SHIP_X_ALIGN;
+      const int ship_x = o.path_x[o.path_count - 1] - (ship->width >> 2);
       const int ship_y = o.path_y[o.path_count - 1] - (ship->height >> 1);
-      const int still_x = still->anchor_x - (still->width >> 1);
-      const int still_y = still->anchor_y - still->height + 1;
-      check(ship_x == still_x, "landed ship lines up with bonk still in x");
-      check(ship_y == still_y, "landed ship lines up with bonk still in y");
+      check(ship_x == 150, "landed ship dest x 150");
+      check(ship_x == first->anchor_x - (first->width >> 1), "landed ship on bonk's first sprite in x");
+      check(ship_y == still->anchor_y - still->height + 1, "landed ship lines up with bonk still in y");
     }
   }
   check(o.end_frame == 891, "end_frame from TXT");
   check(o.clock == 0, "clock starts at 0");
   check(!o.finished, "starts unfinished");
-  check(o.skip_presses == 0, "no skip yet");
+  check(o.skip_from == -1, "no skip yet");
   check(o.mps_logo_ok && o.mps_logo.sprite_count == 16, "MPSLOGO.SS");
   check(o.mps_name_ok && o.mps_name.sprite_count == 29, "MPSNAME.SS");
   check(o.logo_phase, "starts on the MPS logo");
@@ -125,7 +125,7 @@ static void test_open_skip_and_motion(void) {
   in.last_key = COLONIZE_KEY_ESCAPE;
   check(opening_handle_input(&o, &in), "consumes input");
   check(o.open && !o.finished && !o.logo_phase, "one key skips logo into sailing");
-  check(o.clock == 0 && o.skip_presses == 0, "sailing skip not armed");
+  check(o.clock == 0 && o.skip_from == -1, "sailing not skipped");
 
   uint8_t first[320 * 200];
   memcpy(first, o.canvas, sizeof(first));
@@ -134,21 +134,22 @@ static void test_open_skip_and_motion(void) {
   check(o.clock == 2, "two sailing ticks");
   check(memcmp(o.canvas, first, sizeof(first)) != 0, "ship moved a pixel by tick 2");
 
-  in.last_key = COLONIZE_KEY_ESCAPE;
-  check(opening_handle_input(&o, &in), "first sailing key");
-  check(o.open && !o.finished, "first key does not skip");
-  check(o.skip_presses == 1, "one press armed");
+  in.last_key = COLONIZE_KEY_A;
+  check(opening_handle_input(&o, &in), "letter key");
+  check(o.clock == 2 && o.skip_from == -1, "a letter does not skip (_get_input 0x994)");
 
-  in.last_key = COLONIZE_KEY_ENTER;
-  check(opening_handle_input(&o, &in), "second key");
-  check(!o.finished, "second key holds the last frame");
-  check(o.clock == o.end_frame, "skip jumps to the end marker");
+  in.last_key = COLONIZE_KEY_ESCAPE;
+  check(opening_handle_input(&o, &in), "sailing skip key");
+  check(!o.finished, "skip holds the logo frame");
+  check(o.clock == 767 && o.skip_from == 2, "one key jumps to the OPENLOGO frame");
+  check(opening_camera_x(&o) == 0, "jump zeroes pan_x");
   check(o.open, "still open until the owner closes");
 
   opening_update(&o, OPENING_HOLD_MS - 1);
   check(!o.finished, "hold not done yet");
   opening_update(&o, 1);
   check(o.finished, "1s hold finishes");
+  check(o.clock == 767, "no steps after the jump");
 
   opening_close(&o);
   check(!o.open, "close");
@@ -317,6 +318,64 @@ static void test_timed_run_reaches_end(void) {
   opening_close(&o);
 }
 
+/* OPENING.EXE pan_x DS:0x4aca: 0x280 at `_open_loop`, -1 per `_pan` step
+ * down to 0, independent of the ship. */
+static int case_test_camera_pan(void) {
+  int before = failures;
+  OpeningCinematic o;
+  memset(&o, 0, sizeof(o));
+  o.skip_from = -1;
+  o.clock = 0;
+  check(opening_camera_x(&o) == 640, "pan_x starts at 0x280");
+  o.clock = 1;
+  check(opening_camera_x(&o) == 639, "one px per step");
+  o.clock = 68;
+  check(opening_camera_x(&o) == 572, "pans from the first step (no ship lag)");
+  o.clock = 640;
+  check(opening_camera_x(&o) == 0, "reaches 0 at step 640");
+  o.clock = 700;
+  check(opening_camera_x(&o) == 0, "stays at 0");
+  return failures != before;
+}
+
+/* `_get_input` 0xa7c/0xa86: '-'/'_' +1 and '+'/'=' -1 on pan_timing and
+ * logo_timing together, no limit; a timing <= 0 steps on every pass. */
+static int case_test_speed_keys(void) {
+  int before = failures;
+  OpeningCinematic o;
+  memset(&o, 0, sizeof(o));
+  if (!opening_open(&o, "COLONIZE")) {
+    fprintf(stderr, "FAIL: opening_open speed\n");
+    return 1;
+  }
+  check(o.pan_timing == 8 && o.logo_timing == 6, "DS:0x48 / DS:0x50 start values");
+  ColonizeInputState in;
+  memset(&in, 0, sizeof(in));
+  in.text_input_len = 2;
+  in.text_input[0] = '-';
+  in.text_input[1] = '_';
+  check(opening_handle_input(&o, &in), "speed keys consumed");
+  check(o.logo_phase, "speed keys do not skip the logo");
+  check(o.pan_timing == 10 && o.logo_timing == 8, "'-' and '_' slow both down");
+  for (int i = 0; i < 9; ++i) {
+    in.text_input_len = 1;
+    in.text_input[0] = (i & 1) ? '=' : '+';
+    opening_handle_input(&o, &in);
+  }
+  check(o.pan_timing == 1 && o.logo_timing == -1, "'+' / '=' speed up with no floor");
+  opening_update(&o, 0);
+  check(o.logo_clock == 1, "logo_timing <= 0 steps once per update");
+  memset(&in, 0, sizeof(in));
+  in.last_key = COLONIZE_KEY_SPACE;
+  opening_handle_input(&o, &in);
+  check(!o.logo_phase && o.pan_timing == 1, "Space skips the logo, timing kept");
+  /* pan_timing 1 = one step per 60.877 Hz tick (16.43 ms). */
+  opening_update(&o, 33);
+  check(o.clock == 2, "pan_timing 1 steps every tick");
+  opening_close(&o);
+  return failures != before;
+}
+
 /* These cases accumulate into the shared `failures` counter via check()
  * rather than returning pass/fail directly; wrap each so the table-driven
  * runner can report per-case PASS/FAIL. */
@@ -381,6 +440,8 @@ static const TestCase k_cases[] = {
     {"test_guy_idle_loops", case_test_guy_idle_loops},
     {"test_timed_run_reaches_end", case_test_timed_run_reaches_end},
     {"test_sun_thresholds", case_test_sun_thresholds},
+    {"test_camera_pan", case_test_camera_pan},
+    {"test_speed_keys", case_test_speed_keys},
 };
 
 int main(void) {

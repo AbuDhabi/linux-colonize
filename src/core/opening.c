@@ -194,17 +194,39 @@ static int opening_ship_end_clock(const OpeningCinematic* o) {
   return end;
 }
 
-static int opening_camera_x(const OpeningCinematic* o) {
-  int ship_x = 0;
-  opening_ship_at(o, &ship_x, NULL);
-  int camera = ship_x - (OPENING_VIEW_W / 2);
-  if (camera < 0) {
-    camera = 0;
+/* OPENING.EXE pan_x DS:0x4aca: `_open_loop` 0xaaf seeds 0x280, `_pan`
+ * 0x56a-0x571 decrements it once per scene step while non-zero, and
+ * `_jump_to_logo` 0x8be zeroes it. The scene clock is the step count, so
+ * pan_x = 0x280 - clock floored at 0 (the jump lands past 0x280, where that
+ * is already 0). The ship never moves it. */
+int opening_camera_x(const OpeningCinematic* o) {
+  return o->clock < OPENING_PAN_START ? OPENING_PAN_START - o->clock : 0;
+}
+
+/* Scene step the ship was last advanced on. `_jump_to_logo` leaves ship_wave
+ * DS:0x7a alone and ship_off DS:0x7c unset, so after a skip the ship keeps the
+ * sprite of the skip step (its x is the path end: ship_at = path_count - 1). */
+static int opening_ship_step(const OpeningCinematic* o) {
+  return o->skip_from >= 0 ? o->skip_from : o->clock;
+}
+
+static void opening_draw_ship(OpeningCinematic* o, ColonizeFramebuffer8* fb, int camera) {
+  const int step = opening_ship_step(o);
+  if (!o->ship_ok || o->ship.sprite_count <= 0 || step >= opening_ship_end_clock(o)) {
+    return;
   }
-  if (camera > OPENING_CAMERA_MAX) {
-    camera = OPENING_CAMERA_MAX;
-  }
-  return camera;
+  int sx = 0;
+  int sy = 0;
+  opening_ship_at(o, &sx, &sy);
+  /* ship_wave starts at 1 (DS:0x7a) and `_ship_move` 0x5c6 bumps it before
+   * the draw, wrapping past the sprite count to 1: 0-based step % count. */
+  const int spr = step % o->ship.sprite_count;
+  /* `_do_ship` 0x37e-0x3a3: dest = (x - w/4 - pan_x, y - h/2) with w/h of the
+   * sheet's first sprite (+0x4a/+0x4c). PATH.DAT's last point then puts the
+   * hull on OPENBONK's first sprite (dest x 150). OPENSHIP stops when OPENBONK
+   * starts (frame 701, ship_off at `_anim_loop` 0x78b). */
+  const ColonizeSprite* sh = &o->ship.sprites[0];
+  ss_blit_sprite(&o->ship, spr, fb, sx - (sh->width >> 2) - camera, sy - (sh->height >> 1));
 }
 
 static void opening_blit_scene(OpeningCinematic* o, ColonizeFramebuffer8* fb, int camera) {
@@ -293,7 +315,7 @@ static void opening_begin_sailing(OpeningCinematic* o) {
   o->logo_phase = false;
   o->clock = 0;
   o->accum = 0;
-  o->skip_presses = 0;
+  o->skip_from = -1;
   opening_compose(o);
 }
 
@@ -370,6 +392,12 @@ static void opening_compose(OpeningCinematic* o) {
   const int camera = opening_camera_x(o);
   opening_blit_scene(o, &fb, camera);
 
+  /* `_pan` 0x57e-0x595: anims then ship up to anim_frame 0x1fb, after it the
+   * ship first so the series cover it. */
+  const bool ship_under = o->clock > OPENING_SHIP_UNDER_FRAME;
+  if (ship_under) {
+    opening_draw_ship(o, &fb, camera);
+  }
   for (int i = 0; i < o->series_count; ++i) {
     const OpeningSeries* s = &o->series[i];
     if (s->series < 0 || s->series >= OPENING_SHEET_COUNT || !o->sheet_ok[s->series]) {
@@ -380,7 +408,20 @@ static void opening_compose(OpeningCinematic* o) {
     if (n <= 0) {
       continue;
     }
-    const int elapsed = o->clock - s->frame;
+    int elapsed = o->clock - s->frame;
+    if (o->skip_from >= 0) {
+      /* `_jump_to_logo`: a series running at the skip keeps its own counter
+       * and takes one more step; one not yet started only starts on an exact
+       * anim_frame match (`_anim_loop` 0x835), i.e. only the logo row.
+       * OPENSUN reads the absolute anim_frame, so it keeps clock - frame. */
+      if (s->frame > o->skip_from) {
+        if (s->frame != o->clock) {
+          continue;
+        }
+      } else if (s->series != OPENING_SHEET_SUN) {
+        elapsed = o->skip_from + 1 - s->frame;
+      }
+    }
     const int idx = opening_sprite_index(s, elapsed, n);
     if (idx < 0) {
       continue;
@@ -388,28 +429,8 @@ static void opening_compose(OpeningCinematic* o) {
     ss_blit_anchored(sheet, idx, &fb, s->base_x - camera, 0);
   }
 
-  if (o->ship_ok && o->ship.sprite_count > 0 && o->clock < opening_ship_end_clock(o)) {
-    int sx = 0;
-    int sy = 0;
-    opening_ship_at(o, &sx, &sy);
-    int spr = 0;
-    if (o->clock > 0) {
-      spr = (o->clock - 1) % o->ship.sprite_count;
-    }
-    const ColonizeSprite* sh = &o->ship.sprites[spr];
-    /* PATH.DAT is the sprite centre in world/screen space, not a FUN_6f30
-     * baseline. Using height-1 as a bottom anchor parked the hull ~12 px
-     * above OPENBONK's still (anchor 123 / dest y 102 vs path y 114).
-     * OPENING_SHIP_X_ALIGN parks the padded 47-wide sheet on the 33-wide
-     * still (dest x 141 vs path x 161). OPENSHIP stops when OPENBONK
-     * starts (frame 701); drawing both left two hulls for the landfall. */
-    ss_blit_sprite(
-      &o->ship,
-      spr,
-      &fb,
-      sx - camera - (sh->width >> 1) + OPENING_SHIP_X_ALIGN,
-      sy - (sh->height >> 1)
-    );
+  if (!ship_under) {
+    opening_draw_ship(o, &fb, camera);
   }
 
   opening_blit_border(o, &fb);
@@ -540,7 +561,9 @@ bool opening_open(OpeningCinematic* o, const char* data_dir) {
 
   o->clock = 0;
   o->accum = 0;
-  o->skip_presses = 0;
+  o->skip_from = -1;
+  o->pan_timing = OPENING_PAN_TIMING;
+  o->logo_timing = OPENING_LOGO_TIMING;
   o->open = true;
   o->finished = false;
   o->logo_phase = o->mps_logo_ok;
@@ -584,24 +607,38 @@ void opening_close(OpeningCinematic* o) {
   memset(o, 0, sizeof(*o));
 }
 
+/* The steppers fire once game_clock - clock >= timing (a signed 32-bit
+ * compare, e.g. `_pan` 0x53e-0x55a), so a timing nudged to 0 or below steps
+ * on every loop pass: one step per update here. 0 = that case. */
+static uint64_t opening_frame_units(int timing) {
+  return timing > 0 ? (uint64_t)timing * OPENING_ACCUM_PER_TICK : 0;
+}
+
+static bool opening_holding(const OpeningCinematic* o) {
+  return !o->logo_phase && (o->skip_from >= 0 || (o->end_frame > 0 && o->clock >= o->end_frame));
+}
+
 void opening_update(OpeningCinematic* o, uint32_t dt_ms) {
   if (!o || !o->open || o->finished) {
     return;
   }
-  const uint64_t logo_frame = (uint64_t)OPENING_LOGO_TIMING * OPENING_ACCUM_PER_TICK;
-  const uint64_t frame = (uint64_t)OPENING_PAN_TIMING * OPENING_ACCUM_PER_TICK;
   if (o->logo_phase) {
+    const uint64_t logo_frame = opening_frame_units(o->logo_timing);
     o->accum += (uint64_t)dt_ms * OPENING_ACCUM_PER_MS;
     while (o->accum >= logo_frame) {
       o->accum -= logo_frame;
       if (!opening_logo_step(o)) {
         break;
       }
+      if (logo_frame == 0) {
+        o->accum = 0;
+        break;
+      }
     }
     if (o->logo_phase) {
       return;
     }
-  } else if (o->end_frame > 0 && o->clock >= o->end_frame) {
+  } else if (opening_holding(o)) {
     o->hold_ms += dt_ms;
     if (o->hold_ms >= OPENING_HOLD_MS) {
       o->finished = true;
@@ -610,34 +647,34 @@ void opening_update(OpeningCinematic* o, uint32_t dt_ms) {
   } else {
     o->accum += (uint64_t)dt_ms * OPENING_ACCUM_PER_MS;
   }
+  const uint64_t frame = opening_frame_units(o->pan_timing);
   while (o->accum >= frame) {
     o->accum -= frame;
-    if (!opening_step(o)) {
+    if (!opening_step(o) || frame == 0) {
       o->accum = 0;
       break;
     }
   }
 }
 
-static bool opening_in_finale(const OpeningCinematic* o) {
-  if (!o || o->logo_phase) {
-    return false;
-  }
-  if (o->end_frame > 0 && o->clock >= o->end_frame) {
-    return true;
-  }
-  int guy_at = -1;
+/* `_get_input` 0x977-0x9a3: Enter, Esc, Space, a mouse button (stored as
+ * 0x1b), Alt-Q (0x110) or Alt-X (0x12d). Any other key is ignored. */
+static bool opening_skip_key(const ColonizeInputState* in) {
+  const ColonizeKey k = in->last_key;
+  return k == COLONIZE_KEY_ENTER || k == COLONIZE_KEY_ESCAPE || k == COLONIZE_KEY_SPACE ||
+         in->mouse_left_clicked || in->mouse_right_clicked ||
+         (in->alt_held && (k == COLONIZE_KEY_Q || k == COLONIZE_KEY_X));
+}
+
+/* `_jump_to_logo` 0x872: the last OPENLOGO row's start frame, -1 = none. */
+static int opening_logo_frame(const OpeningCinematic* o) {
+  int at = -1;
   for (int i = 0; i < o->series_count; ++i) {
-    if (o->series[i].series == OPENING_SHEET_GUY) {
-      guy_at = o->series[i].frame;
-      break;
+    if (o->series[i].series == OPENING_SHEET_LOGO) {
+      at = o->series[i].frame;
     }
   }
-  if (guy_at < 0 || !o->sheet_ok[OPENING_SHEET_GUY]) {
-    return false;
-  }
-  const int n = o->sheets[OPENING_SHEET_GUY].sprite_count;
-  return n > 0 && o->clock >= guy_at + n;
+  return at;
 }
 
 bool opening_handle_input(OpeningCinematic* o, const ColonizeInputState* input) {
@@ -647,26 +684,41 @@ bool opening_handle_input(OpeningCinematic* o, const ColonizeInputState* input) 
   if (!input) {
     return true;
   }
-  const bool pressed =
-    input->last_key != COLONIZE_KEY_NONE || input->mouse_left_clicked ||
-    input->mouse_right_clicked;
-  if (pressed) {
-    if (o->logo_phase) {
-      opening_begin_sailing(o);
-      return true;
-    }
-    if (opening_in_finale(o)) {
-      o->finished = true;
-      return true;
-    }
-    o->skip_presses++;
-    if (o->skip_presses >= 2) {
-      o->clock = o->end_frame;
-      opening_compose(o);
-      o->accum = 0;
-      o->hold_ms = 0;
-    }
+  /* `_get_input` 0xa7c/0xa86: '-' / '_' slow down, '+' / '=' speed up, by one
+   * tick on pan_timing and logo_timing together, with no limit. */
+  for (int i = 0; i < input->text_input_len; ++i) {
+    const char ch = input->text_input[i];
+    const int d = (ch == '-' || ch == '_') ? 1 : (ch == '+' || ch == '=') ? -1 : 0;
+    o->pan_timing += d;
+    o->logo_timing += d;
   }
+  if (!opening_skip_key(input)) {
+    return true;
+  }
+  if (o->logo_phase) {
+    /* 0x9aa: logo_going = 0; outside demo mode that is all. */
+    opening_begin_sailing(o);
+    return true;
+  }
+  if (opening_holding(o)) {
+    o->finished = true; /* the hold is port-only: DOS has already chained */
+    return true;
+  }
+  /* 0x9d4-0xa11: opening_going = 0 ends the loop. With to_game set (-g, and
+   * Alt-Q / Alt-X clear it) `_jump_to_logo` first moves to the logo frame
+   * when it is still ahead: pan_x 0, ship at the path end, one step. */
+  const int logo_at = opening_logo_frame(o);
+  const bool alt_quit = input->alt_held &&
+                        (input->last_key == COLONIZE_KEY_Q || input->last_key == COLONIZE_KEY_X);
+  if (alt_quit || logo_at <= o->clock) {
+    o->finished = true;
+    return true;
+  }
+  o->skip_from = o->clock;
+  o->clock = logo_at;
+  o->accum = 0;
+  o->hold_ms = 0;
+  opening_compose(o);
   return true;
 }
 

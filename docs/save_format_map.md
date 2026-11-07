@@ -286,6 +286,14 @@ window is non-zero. Do not freshen mid-turn lag. **Blank templates only:**
 
 ### Map layers (W×H each)
 
+In memory each plane is a far pointer (DS:0x15c tile, 0x160 mask, 0x164 path,
+0x168 the map-gen backup) to its own DOS block of `[0x180]` (= W×H) bytes; the
+descriptors DS:0x85a8/0x85b0/0x85b8/0x85c0 are `{h, w, off, seg}` and
+`FUN_1a4e_0008` addresses `off + y*w + x` unchecked. For 58×72 each block is
+0x106 paragraphs, so past the tile plane come 16 slack bytes, the mask block's
+MCB, then the mask; the river pass reads and writes there (#1559, `map_gen.c`
+`river_plane_byte`).
+
 | Plane | Status | Notes |
 |-------|--------|-------|
 | `tile` | `mapped` | Terrain bitfield |

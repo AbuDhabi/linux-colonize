@@ -1084,6 +1084,74 @@ static bool test_legacy_ppln_keeps_pioneer_plan(char* err, size_t err_size) {
 
 /* Hull-at-head chain (hull -> 2 -> 1, the 10be shape): passengers board in
  * chain order from the hull, so cargo_ids = [2, 1] (fresh 1575). */
+/* port_bugs.md #1557: a DOS colonist with occupation 0x13 and no plot is idle
+ * (FUN_15eb_2ea0 raw 13185 re-seats only `< 9`). The import keeps the byte, so
+ * the port's stale-save sweep must not seat him in the Town Hall, and the save
+ * round-trips 19. */
+static bool test_import_occ19_stays_idle(char* err, size_t err_size) {
+  ColonizeCol1Save save;
+  col1_save_init(&save);
+  save.head.map_size_x = 8;
+  save.head.map_size_y = 8;
+  save.head.colony_count = 1;
+  save.head.difficulty = 2;
+  col1_save_stamp_head(&save.head);
+  if (!col1_save_alloc_sections(&save, err, err_size)) {
+    return false;
+  }
+  save.colony[0].x = 3;
+  save.colony[0].y = 3;
+  save.colony[0].population = 1;
+  save.colony[0].occupation[0] = UNITS_JOB_COLONIST;
+  save.colony[0].buildings.town_hall = 1;
+
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
+  units_reset(&units);
+  units_set_occupancy_map(NULL);
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  EuropeScreen europe;
+  memset(&europe, 0, sizeof(europe));
+  europe.cargo_count = 16;
+  ColonizeCol1BridgeResult result;
+  bool ok = assets_msg_load_file(&names, "COLONIZE/NAMES.TXT") &&
+            colonies_load_buildings(&colonies, &names);
+  if (!ok) {
+    snprintf(err, err_size, "NAMES.TXT @BUILDING load failed");
+  }
+  ok = ok && col1_bridge_apply_w(
+    &(ColonizeWorld){.units=&units, .colonies=&colonies, .map=&map, .col1=&save,
+                     .col1_ok=true, .europe=&europe},
+    &result, err, err_size
+  );
+  const ColonizeColony* col = ok ? colonies_get(&colonies, colonies_id_at(&colonies, 3, 3)) : NULL;
+  if (ok && (!col || col->colonist_count != 1)) {
+    snprintf(err, err_size, "imported colony/colonist missing");
+    ok = false;
+  }
+  if (ok) {
+    colonies_auto_assign_idle(&colonies, col->id);
+    const ColonizeColonist* c = &col->colonists[0];
+    const int occ = colonies_colonist_occupation_job(&colonies, c);
+    if (c->building_type >= 0 || c->field_job >= 0 || occ != UNITS_JOB_COLONIST) {
+      snprintf(err, err_size, "occ 19 seated: building %d field %d occ %d", c->building_type,
+               c->field_job, occ);
+      ok = false;
+    }
+  }
+  units_set_occupancy_map(NULL);
+  colonies_set_occupancy_map(NULL);
+  assets_msg_free(&names);
+  col1_save_free(&save);
+  map_free(&map);
+  return ok;
+}
+
 static bool test_import_hull_head_chain_order(char* err, size_t err_size) {
   ColonizeCol1Save save;
   col1_save_init(&save);
@@ -2286,6 +2354,11 @@ int main(void) {
     return 1;
   }
   fprintf(stderr, "Col1 over-full ship keeps its chained passenger ok\n");
+  if (!test_import_occ19_stays_idle(err, sizeof(err))) {
+    fprintf(stderr, "occ 19 import: %s\n", err);
+    return 1;
+  }
+  fprintf(stderr, "Col1 occ 19 colonist stays idle (#1557) ok\n");
   if (!test_import_hull_head_chain_order(err, sizeof(err))) {
     fprintf(stderr, "hull-at-head chain order: %s\n", err);
     return 1;

@@ -17,6 +17,7 @@
 
 #include "core/dos_buggy.h"
 #include "core/dos_rng.h"
+#include "core/map_gen_internal.h"
 #include "core/strutil.h"
 #include "platform/diagnostics.h"
 
@@ -421,8 +422,63 @@ static int inset_bounds(int x, int y, int w, int h) {
  * and "existing river" connects read the snapshot, so the in-progress trail is
  * invisible to those tests. Failed walks restore from the snapshot.
  */
-static void rivers_pass(
+
+/*
+ * #1559: the ring-20 loop (raw 105562-105577, asm 684c:0823-0899) and the
+ * thicken walk (asm 684c:077d-081b) have no bounds check, and FUN_1a4e_0008
+ * addresses plane base + y*w + x, so a ring origin at y = h-2 (or a thicken
+ * step from row h-1) reaches offset w*h + x, and an origin at y = 1 goes
+ * negative. Each plane is its own DOS block of 0x106 paragraphs
+ * (FUN_7455_0058 -> FUN_281f_029a; DOSBox trace 2026-11-07: 15c = 74f8:0,
+ * 160 = 75ff:0). Past the terrain plane lie 16 slack bytes of its block (still
+ * LEVN0001.PIK bytes 0x1111.., a file buffer before the planes were allocated),
+ * the next block's MCB ('M', owner 0x0814, 0x0106 paragraphs, three stale PIK
+ * bytes, "VICEROY"), then layer2 (DS:0x160), which holds the land coverage
+ * counts during map gen (the port's `mask`). A negative offset wraps in the
+ * 16-bit offset to 74f8:ff80..ffff, which read zero. Same bytes on Discoverer
+ * and Viceroy (VR_SEED NEW WORLD); crafted-terrain runs with a patched LCG
+ * matched this model byte for byte (test_rivers_out_of_plane_matches_dos), as
+ * does the seed-7553 NEW WORLD map (test_generated_maps_match_dos_dumps).
+ * Writes land there too: DOS can corrupt that MCB; the port keeps a copy.
+ */
+#define RIVER_PLANE_GAP 32
+#define RIVER_PLANE_BEFORE 128
+static const uint8_t k_river_plane_gap[RIVER_PLANE_GAP] = {
+  0x9e, 0xff, 0x9d, 0x81, 0x51, 0x65, 0x5f, 0x5f, 0xfb, 0x95, 0x82, 0xee, 0xe2, 0xc0, 0xe2, 0xcb,
+  0x4d, 0x14, 0x08, 0x06, 0x01, 0x51, 0x84, 0x39, 0x56, 0x49, 0x43, 0x45, 0x52, 0x4f, 0x59, 0x00,
+};
+
+typedef struct RiverPlanes {
+  uint8_t* terrain;
+  uint8_t* layer2;
+  int n;
+  uint8_t before[RIVER_PLANE_BEFORE];
+  uint8_t gap[RIVER_PLANE_GAP];
+} RiverPlanes;
+
+/* Byte DOS reads/writes at offset `off` from the terrain plane base; NULL
+ * outside the memory the trace read (never reached from a 58x72 map). */
+static uint8_t* river_plane_byte(RiverPlanes* rp, int off) {
+  if (off < -RIVER_PLANE_BEFORE) {
+    return NULL;
+  }
+  if (off < 0) {
+    return &rp->before[RIVER_PLANE_BEFORE + off];
+  }
+  if (off < rp->n) {
+    return &rp->terrain[off];
+  }
+  off -= rp->n;
+  if (off < RIVER_PLANE_GAP) {
+    return &rp->gap[off];
+  }
+  off -= RIVER_PLANE_GAP;
+  return off < rp->n ? &rp->layer2[off] : NULL;
+}
+
+COLONIZE_INTERNAL void map_gen_rivers_pass(
   uint8_t* terrain,
+  uint8_t* layer2,
   int w,
   int h,
   MapGenRng* rng,
@@ -434,6 +490,9 @@ static void rivers_pass(
   if (!snap) {
     return;
   }
+
+  RiverPlanes rp = {terrain, layer2, n, {0}, {0}};
+  memcpy(rp.gap, k_river_plane_gap, sizeof rp.gap);
 
   int attempts = 0;
   int successes = 0;
@@ -548,14 +607,16 @@ static void rivers_pass(
           int steps = dos_rng_range(rng, 1, climate * 2 + 3);
           int mx = join_x;
           int my = join_y;
-          /* Preload join tile (DOS read before LAB_684c_077d). */
-          uint8_t cell = map_dims_in_bounds(mx, my, w, h) ? terrain[idx(mx, my, w)] : 0;
+          /* Preload join tile (DOS read before LAB_684c_077d). No bounds
+           * checks in DOS (asm 684c:077d-081b): see river_plane_byte (#1559). */
+          uint8_t cell = terrain[idx(mx, my, w)];
           while (steps-- > 0) {
-            if (!map_dims_in_bounds(mx, my, w, h)) {
+            uint8_t* at = river_plane_byte(&rp, idx(mx, my, w));
+            if (!at) {
               break;
             }
             cell = (uint8_t)(cell | F_MOUNTAIN);
-            terrain[idx(mx, my, w)] = cell;
+            *at = cell;
 
             int found = 0;
             int nx = mx;
@@ -564,10 +625,11 @@ static void rivers_pass(
             for (int c = 0; c < 4; ++c) {
               const int tx = mx + k_dir4_dx[c];
               const int ty = my + k_dir4_dy[c];
-              if (!map_dims_in_bounds(tx, ty, w, h)) {
+              const uint8_t* np = river_plane_byte(&rp, idx(tx, ty, w));
+              if (!np) {
                 continue;
               }
-              const uint8_t t = terrain[idx(tx, ty, w)];
+              const uint8_t t = *np;
               if ((t & F_RIVER) && !(t & F_MOUNTAIN)) {
                 found = 1;
                 nx = tx;
@@ -586,16 +648,18 @@ static void rivers_pass(
         }
       }
 
+      /* No bounds check in DOS: see river_plane_byte (#1559). */
       for (int c = 0; c < 0x14; ++c) {
         const int nx = origin_x + MAP_RING20_DX[c];
         const int ny = origin_y + MAP_RING20_DY[c];
-        if (!map_dims_in_bounds(nx, ny, w, h)) {
+        uint8_t* cell = river_plane_byte(&rp, idx(nx, ny, w));
+        if (!cell) {
           continue;
         }
-        uint8_t t = terrain[idx(nx, ny, w)];
+        const uint8_t t = *cell;
         if ((t & 0x1f) < 0x10) {
           if (dos_rng_range(rng, 0, 1) != 0) {
-            terrain[idx(nx, ny, w)] = (uint8_t)(t + 8);
+            *cell = (uint8_t)(t + 8);
           }
         }
       }
@@ -1325,7 +1389,7 @@ bool map_generate(ColonizeWorldMap* out, const MapGenParams* params, char* err, 
   climate_humidity_pass(out->terrain, mask, w, h, rng, p.climate);
   forest_wander_pass(out->terrain, mask, w, h, rng, p.forest_extra);
   forest_bit_pass(out->terrain, mask, w, h, rng);
-  rivers_pass(out->terrain, w, h, rng, p.climate, p.land_mass);
+  map_gen_rivers_pass(out->terrain, mask, w, h, rng, p.climate, p.land_mass);
   paint_arctic_and_high_seas(out->terrain, w, h, rng, open_south);
 
   /* FUN_684c_08c0 tail: FUN_67bf_0000 then clear flags + OR 0x20 on ocean. */
