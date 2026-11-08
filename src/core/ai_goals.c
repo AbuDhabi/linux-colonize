@@ -2,6 +2,7 @@
 #include "core/internal.h"
 
 #include "core/ai_diplo.h"
+#include "core/ai_euro_internal.h" /* test-seam prototypes of this file's externs */
 #include "core/ai_internal.h"
 #include "core/assets.h"
 #include "core/bytes.h"

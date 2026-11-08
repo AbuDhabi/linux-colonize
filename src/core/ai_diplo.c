@@ -17,6 +17,7 @@
 
 #include "core/ai_contact.h"
 #include "core/ai_euro.h"
+#include "core/ai_internal.h" /* test-seam prototypes of this file's externs */
 
 #include "core/ai_popup.h"
 #include "core/colony.h"

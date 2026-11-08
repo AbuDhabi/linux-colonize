@@ -190,15 +190,17 @@ static void units_pioneer_native_land_tail(
                         (map->layer2[idx] & MAP_LAYER2_PURCHASED) != 0;
     if (base_add == 3 && is_ai && !bought &&
         founding_fathers_nation_has(col1, nation, FF_PETER_MINUIT)) {
-      colonies_indian_land_pay(col1, map, u->x, u->y, &col1->nation[nation].gold, 0);
+      colonies_indian_land_pay(col1, map, u->x, u->y, NULL, 0); /* cost 0: gold untouched */
     }
     return;
   }
   if (is_ai) {
-    uint32_t* gold = &col1->nation[nation].gold;
-    const long have = (long)*gold;
+    /* Copy: nation[] is #pragma pack(1), so &...gold is a misaligned uint32_t*. */
+    uint32_t gold = col1->nation[nation].gold;
+    const long have = (long)gold;
     if ((long)(price >> 1) <= have - (long)price) {
-      colonies_indian_land_pay(col1, map, u->x, u->y, gold, price);
+      colonies_indian_land_pay(col1, map, u->x, u->y, &gold, price);
+      col1->nation[nation].gold = gold;
       return; /* FUN_479b_00ca returned 1 — bought, no alarm */
     }
   }

@@ -2176,6 +2176,8 @@ void game_destroy(ColonizeGameState* game) {
   units_set_spawn_refused_hook(NULL);
   ai_set_native_score_plot(NULL, NULL);
   combat_analysis_set_presenter(NULL, NULL);
+  /* pedia keeps pointers to game->labels / map_menu_txt, freed below. */
+  pedia_set_chrome_catalogs(NULL, NULL);
   combat_analysis_close(&game->combat_analysis);
   declaration_close(&game->declaration);
   opening_close(&game->opening);

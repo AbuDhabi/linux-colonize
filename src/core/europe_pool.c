@@ -5,6 +5,7 @@
  */
 
 #include "core/europe.h"
+#include "core/europe_art.h"
 #include "core/europe_internal.h"
 
 #include <limits.h>

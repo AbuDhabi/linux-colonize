@@ -120,7 +120,9 @@ static int case_mp_round_trip(void) {
     FILE* f = fopen(path, "rb");
     unsigned char hdr[6] = {0};
     if (f) {
-      (void)fread(hdr, 1, 6, f);
+      if (fread(hdr, 1, 6, f) != 6) {
+        hdr[0] = 0; /* short file: fail the header check below */
+      }
       fclose(f);
     }
     ColonizeWorldMap r;

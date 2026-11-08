@@ -2549,12 +2549,17 @@ COLONIZE_INTERNAL void ai_euro_5952_cascade_pressure(AiEuro5952Cascade* s) {
 
   /* uStack_a2 / iStack_142 — the colony's ring (DS:0x329[FUN_15eb_0470()],
    * port_bugs.md #593) and how much of it is not land (off-map, Ocean 0x19 or High
-   * Seas 0x1a), asm 5952:1150 loop. */
+   * Seas 0x1a), asm 5952:1150 loop. A ring of 12 or 20 (Town Hall tiers) walks
+   * the outer plots too, so take the deltas from the 20-slot plot table, not
+   * MAP_DIR8 (8 entries); only the count matters, not the order. */
   const int ring = colonies_work_plot_count(ctx->colonies, col);
   int ring_nonland = 0;
   for (int d = 0; d < ring; ++d) {
-    const int tx = col->x + MAP_DIR8_DX[d];
-    const int ty = col->y + MAP_DIR8_DY[d];
+    int dx = 0;
+    int dy = 0;
+    (void)colonies_field_tile_delta(d, &dx, &dy);
+    const int tx = col->x + dx;
+    const int ty = col->y + dy;
     if (tx < 0 || ty < 0 || tx >= (int)ctx->map->width || ty >= (int)ctx->map->height) {
       ++ring_nonland;
       continue;

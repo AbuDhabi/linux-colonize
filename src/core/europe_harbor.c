@@ -1138,7 +1138,7 @@ static void europe_market_phase4(const EuropeMarketTick* t, int* out_rise, int* 
      * twice as fast on odd turns (turn already incremented for this EOT). */
     int attrition = q->attrition;
     if (t->nation == 3 && (t->turn & 1u) != 0u) {
-      attrition <<= 1;
+      attrition *= 2; /* DOS SHL; attrition can be negative, where C's << is UB */
     }
     europe_market_nr_add(t, c, attrition);
     int nr = (int)t->nr[c];

@@ -351,10 +351,10 @@ void ai_euro_5952_improve_best_plot(
         if (!wants_clear) {
           continue; /* raw 94454: goto LAB_5952_122c */
         }
-        pen <<= 1;
+        pen *= 2; /* DOS SHL; pen can be negative, where C's << is UB */
       }
       if (purse < 2000) {
-        pen <<= 1;
+        pen *= 2;
       } else {
         pen >>= 1;
       }

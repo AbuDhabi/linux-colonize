@@ -8435,14 +8435,17 @@ static int case_fountain_of_youth_cancel_skips(void) {
   fpops.result_nation_a = 0;
   if (!units_fountain_youth_apply_popup(&feu, &fpops, NULL)) {
     fprintf(stderr, "fountain cancel: apply rejected\n");
+    europe_free(&feu);
     return 1;
   }
   ai_popup_consume_result(&fpops);
   if (feu.dock_count != 0 || strcmp(slot0, feu.pool[0].name) != 0 || !ai_popup_busy(&fpops)) {
     fprintf(stderr, "fountain cancel: dock %d slot0 '%s' (was '%s') next pick queued %d\n",
             feu.dock_count, feu.pool[0].name, slot0, ai_popup_busy(&fpops));
+    europe_free(&feu);
     return 1;
   }
+  europe_free(&feu);
   return 0;
 }
 

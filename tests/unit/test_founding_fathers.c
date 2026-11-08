@@ -1797,6 +1797,7 @@ int main(void) {
     /* The refresh above bound deep_col1 as the colony/unit col1 context;
      * colonies_found mints records into it, so drop it with the scope. */
     colonies_set_col1_context(NULL);
+    units_set_ff_col1(NULL);
     units_set_native_fallout_context(NULL, NULL);
   }
 
@@ -2436,6 +2437,7 @@ int main(void) {
         return fail("without FF context must not Revere-arm");
       }
       map_free(&rmap);
+      units_set_combat_colonies(NULL); /* units_try_move_w bound the scoped rcol */
     }
   }
 
