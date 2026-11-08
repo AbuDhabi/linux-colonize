@@ -40,7 +40,6 @@
 #define SOUND_TICK_HZ GSOUND_TICK_HZ
 #define SOUND_MAX_TRACK_TICKS 14400u /* 4 minutes @ ~60 Hz */
 #define SOUND_SFX_MAX 64
-#define SOUND_SFX_QUEUE 16 /* driver ring DS:1B71..1C71 = 16 slots */
 #define SOUND_SFX_GAIN 96.0 /* 8-bit PCM → s16, ~37% full scale beside the halved synth */
 
 typedef struct SoundMidiEvent {
@@ -84,7 +83,8 @@ typedef struct SoundState {
   int category;
   int category_next;
   int category_applied;
-  uint32_t pick_rng; /* DOS reseeds from DS:0x83a8 around each pick; private LCG here */
+  ColonizeDosRng pick_rng; /* FUN_19ef_002c srand(BIOS tick) at the head of each pick
+                            * (129f:0138; the PUSH [0x83a8] is a dead arg) */
   bool preview_active; /* Pick Music: selection plays immediately (FUN_281f_04c0) */
   bool cinematic; /* OPENING/CLOSING cue owns the driver (separate EXEs in DOS) */
   bool demo;      /* DS:0x828: the self-running demo (argv -D) */
@@ -92,14 +92,12 @@ typedef struct SoundState {
 
   SoundSong decoded; /* one-entry cache for the offline event API */
 
-  /* COLDIG.BIN digital samples: driver plays queued samples one after another. */
+  /* COLDIG.BIN digital samples: a new sample cuts off the playing one (FUN_1000_27b4). */
   uint8_t* sfx_data;
   size_t sfx_size;
   int sfx_count;
   uint32_t sfx_off[SOUND_SFX_MAX];
   uint32_t sfx_len[SOUND_SFX_MAX];
-  int sfx_queue[SOUND_SFX_QUEUE];
-  int sfx_queue_len;
   int sfx_playing; /* -1 = idle */
   double sfx_pos;  /* source sample position */
 
@@ -457,25 +455,23 @@ static void sound_load_coldig(const char* data_dir) {
   diag_info("sound: COLDIG.BIN %ld bytes, %d samples", sz, g_sound.sfx_count);
 }
 
-/* FUN_1000_27b4: queue a sample; rejected when the 16-slot ring is full. */
+/* FUN_1000_27b4 (gsound.asm 1000:27dd-2826): a playing sample is cut off
+ * (CALL 1f60 halt DMA, CALL 224a clears DS:1B3A), the new one goes into the
+ * 32-slot ring DS:1B71..1C71 and 241b starts it at once. The ring therefore
+ * never holds a waiting entry, so the port keeps none.
+ * The sound_effects test has no counterpart in 27b4: no song stream emits C3
+ * and 0x40..0x5c are already gated by FUN_12d8_000e, so it never fires. */
 static void sound_vm_sfx_cb(void* user, int index) {
   (void)user;
   if (index < 0 || index >= g_sound.sfx_count || !g_sound.opts.sound_effects) {
     return;
   }
-  if (g_sound.sfx_playing < 0) {
-    g_sound.sfx_playing = index;
-    g_sound.sfx_pos = 0.0;
-    return;
-  }
-  if (g_sound.sfx_queue_len < SOUND_SFX_QUEUE) {
-    g_sound.sfx_queue[g_sound.sfx_queue_len++] = index;
-  }
+  g_sound.sfx_playing = index;
+  g_sound.sfx_pos = 0.0;
 }
 
 static void sound_sfx_stop_all_unlocked(void) {
   g_sound.sfx_playing = -1;
-  g_sound.sfx_queue_len = 0;
 }
 
 /* Mix the running sample into an interleaved s16 buffer (linear resampling). */
@@ -492,11 +488,6 @@ static void sound_sfx_mix_unlocked(int16_t* dst, int frames, int channels, int s
       if (p0 + 1 >= len) {
         g_sound.sfx_playing = -1;
         g_sound.sfx_pos = 0.0;
-        if (g_sound.sfx_queue_len > 0) {
-          g_sound.sfx_playing = g_sound.sfx_queue[0];
-          memmove(g_sound.sfx_queue, g_sound.sfx_queue + 1, (size_t)(g_sound.sfx_queue_len - 1) * sizeof(int));
-          g_sound.sfx_queue_len--;
-        }
         break;
       }
       const double frac = pos - (double)p0;
@@ -597,7 +588,6 @@ bool sound_init(const char* data_dir, bool enable_audio) {
   g_sound.category = 0;
   g_sound.category_next = 0;
   g_sound.category_applied = 0;
-  g_sound.pick_rng = 0x2545u;
   g_sound.preview_active = false;
   g_sound.samples_to_tick = 0.0;
 
@@ -788,16 +778,17 @@ static int sound_tune_to_id(int tune) {
 }
 
 /*
- * DOS draws the tune with FUN_19ef_0032(lo, hi) — the ordinary game RNG
+ * DOS draws the tune with FUN_19ef_0032(0, n-1) — the ordinary game RNG
  * (FUN_1d1d_0e04) — but brackets the whole pick with FUN_19ef_002c
- * (asm 129f:0138 and 129f:0250), which ignores its argument and reseeds from
- * the BIOS tick (FUN_19ef_0008 -> FUN_1c0c_0012 -> srand). The tune is
- * wall-clock random (private LCG here), but the trailing reseed leaves the one
- * game LCG at srand(tick): sound_pump queues it via dos_rng_tick_reseed.
+ * (asm 129f:0138 PUSH [0x83a8] and 129f:0250 PUSH [0x83a6], both dead args),
+ * which reseeds from the BIOS tick (FUN_19ef_0008 -> FUN_1c0c_0012 -> srand).
+ * So the draws are srand(tick) + rand() steps: sound_pick_next_tune_id seeds
+ * pick_rng from the tick, and the detached range keeps them off the sim LCG
+ * (this runs on the audio thread). The trailing reseed leaves the game LCG
+ * at srand(tick): sound_pump queues it via dos_rng_tick_reseed.
  */
 static uint32_t sound_pick_rand(uint32_t n) {
-  g_sound.pick_rng = g_sound.pick_rng * 1103515245u + 12345u;
-  return n ? ((g_sound.pick_rng >> 16) & 0x7fffu) % n : 0;
+  return (uint32_t)dos_rng_range_detached(&g_sound.pick_rng, 0, (int)n - 1);
 }
 
 /* FUN_129f_00f6 tune-pool selection: DS:0x9a category → (first tune, count). */
@@ -822,6 +813,7 @@ static int sound_pick_next_tune_id(void) {
    * sound_set_bgm_pool(3) (ai_king_ref.c, FUN_43f7_10f0 43f7:145b). The demo arm
    * reads the flag sound_set_demo stores.
    */
+  g_sound.pick_rng.state = dos_rng_tick_word() & 0x7fffu; /* 129f:0138, FUN_1d1d_0df2 */
   int base = 1;
   int count = 12;
   if (sound_pick_rand(9) == 0) {
@@ -1098,8 +1090,10 @@ int sound_active_song_id(void) {
     return -1;
   }
   pthread_mutex_lock(&g_sound.lock);
-  /* A queued explicit id already counts for FUN_129f_02cc's "unchanged" gate. */
-  const int id = g_sound.pending_id >= 0 ? g_sound.pending_id : g_sound.current_id;
+  /* FUN_129f_02cc gates on DS:0x96 only (param_1 != [0x96]): an id queued
+   * in DS:0x94 behind a fading tune does not count, so a second combat
+   * during the fade re-sends 0x32 as DOS does. */
+  const int id = g_sound.current_id;
   pthread_mutex_unlock(&g_sound.lock);
   return id;
 }
@@ -1262,6 +1256,16 @@ void sound_play_sfx(int index) {
   pthread_mutex_lock(&g_sound.lock);
   sound_vm_sfx_cb(NULL, index);
   pthread_mutex_unlock(&g_sound.lock);
+}
+
+int sound_sfx_playing(void) {
+  if (!g_sound.inited) {
+    return -1;
+  }
+  pthread_mutex_lock(&g_sound.lock);
+  const int idx = g_sound.sfx_playing;
+  pthread_mutex_unlock(&g_sound.lock);
+  return idx;
 }
 
 void sound_stop_sfx(void) {

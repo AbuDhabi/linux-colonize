@@ -209,9 +209,12 @@ labor_detail / economic_p1 / foreign / indian / score 40 (pointer column), labor
   every screen: ship sprites are 13 wide so the top-left silhouette sits at
   `x + 14 - sw` (local_6, colour sprite 2 right of it), and the orders letter is drawn
   AFTER the colour sprite (the box edge pixel under the sprite was covered before).
-- The live game rotates the report plate's 120..127 like DOS (FUN_3f41_0000 only programs DAC
-  152..251): `game_water_cycle_tick` rotates the open report's plate palette in place when
-  cycling is on. Not golden-testable (phase depends on elapsed time).
+- Water ramp under a report: FUN_3f41_0000 only programs DAC 152..251 and restores DS:0x372, so
+  FUN_1a0a_007a keeps rotating the master palette and reprogramming the CYCLE.DAT span over the
+  plate in one continuous phase. `game_water_cycle_tick` rotates `map_palette` (also under a
+  report) and copies its cycle spans into the open plate's palette every tick (cycling off: the
+  frozen master phase). Plate 120..127 equal VICEROY.PAL's anyway, so only the phase differs.
+  Not golden-testable (phase depends on elapsed time).
 
 ## `col1_bridge_apply` transport-chain bugs (reachable outside reports)
 

@@ -47,13 +47,13 @@ bool font_file_load(const char* path, ColonizeFont* out_font, char* err, size_t 
   }
 
   out_font->char_widths[0] = 0;
-  for (int ch = 1; ch < 128; ++ch) {
+  for (int ch = 1; ch <= 128; ++ch) {
     out_font->char_widths[ch] = data[2 + (ch - 1)];
   }
 
   const uint16_t glyph_base = (uint16_t)FF_HEADER_SIZE;
   out_font->char_offsets[0] = glyph_base;
-  for (int ch = 1; ch < 128; ++ch) {
+  for (int ch = 1; ch <= 128; ++ch) {
     out_font->char_offsets[ch] = rd_u16_le(data + 2 + 128 + (ch - 1) * 2);
   }
 

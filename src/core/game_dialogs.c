@@ -573,6 +573,16 @@ bool game_woi_blocks_colony_orders(ColonizeGameState* game) {
   return true;
 }
 
+/* The name FUN_479b_0000 used up before the prompt, mirrored into the save
+ * counter like the success arm below (port_bugs.md #268, #1591). */
+static void game_found_skip_name(ColonizeGameState* game) {
+  const int hn = game->human_nation;
+  colonies_skip_next_name(&game->colonies, hn);
+  if (game->col1_ok && hn >= 0 && hn < 4) {
+    game->col1.player[hn].founded_colonies = (uint8_t)game->colonies.name_next[hn];
+  }
+}
+
 /*
  * DOS FUN_479b_076e tail, raw 77005-77045 (port_bugs.md #682): consume the unit
  * (FUN_281f_0934), create the colony (FUN_291f_09b2), stamp the name and
@@ -599,11 +609,17 @@ static bool game_found_finalize(ColonizeGameState* game, int uid, const char* ch
 
   const int hn = game->human_nation;
 
+  /* FUN_479b_076e raw 77006 (port_bugs.md #1600): the shared Build handler
+   * stamps nation +0x46 for the human too, after the accepted @COLONY prompt
+   * and before the FUN_291f_09b2 creation call. */
+  ai_goals_note_colony_founded(game->col1_ok ? &game->col1 : NULL, hn, (int)game->turn_number);
   const ColonizeWorld w = game_world(game);
   const int cid = colonies_found_with_indian_land_w(&w, NULL, cx, cy, hn, type_index, profession, tools, muskets, horses);
   if (cid < 0) {
+    game_found_skip_name(game); /* 076e consumed it before 09b2 (#1591) */
     return false;
   }
+  ai_goals_note_colony_created(hn); /* FUN_364b_1ba8 raw 58029 */
 
   units_despawn(&game->units, uid);
   /* port_bugs.md #268: DOS tracks names-consumed per nation in the SAVE (the AI
@@ -646,8 +662,9 @@ static bool game_found_finalize(ColonizeGameState* game, int uid, const char* ch
 
 /*
  * @COLONY name prompt (DOS FUN_291f_0120(0x17), raw 76999). The default name
- * comes from thunk_FUN_2a1f_01f4 at raw 76995 and is only consumed when the
- * founding actually goes through, so the seed is a non-advancing peek.
+ * comes from thunk_FUN_2a1f_01f4 at raw 76995, which consumes it before the
+ * prompt; the port peeks here and consumes at creation, or in
+ * game_found_skip_name when the prompt is cancelled or creation fails (#1591).
  */
 static void game_found_open_colony_name(ColonizeGameState* game, int uid) {
   if (!game || uid < 0) {
@@ -2151,6 +2168,7 @@ static void game_apply_name_entry_result(ColonizeGameState* game) {
     if (!cancelled) {
       (void)game_found_finalize(game, uid, game->name_entry.result_name);
     } else {
+      game_found_skip_name(game); /* FUN_479b_0000 ran before the prompt (#1591) */
       set_status(game, "", NULL);
     }
     return;

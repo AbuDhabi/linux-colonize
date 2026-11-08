@@ -265,10 +265,11 @@ bool europe_immigrant_from_pool(EuropeScreen* eu, ColonizeDosRng* rng) {
 }
 
 /*
- * FUN_38fd_41ce raw 64399-64403: the Train dialog compares the nation's
- * 32-bit purse (+0x2a low / +0x2c high) against the @JOB cost and calls
- * FUN_291f_01b6(list, row, 1) — greys the row out — when the purse is
- * short, so an unaffordable expert cannot be picked at all. port_bugs.md #566.
+ * FUN_38fd_4884 raw 64736-64741 (Recruit) and FUN_38fd_41ce raw 64399-64403
+ * (Train) compare the nation's 32-bit purse (+0x2a low / +0x2c high) against
+ * the row's price and call FUN_291f_01b6(list, row, 1) — greys the row out —
+ * when the purse is short, so an unaffordable row cannot be picked at all.
+ * port_bugs.md #566.
  */
 bool europe_recruit_affordable(const EuropeScreen* eu) {
   return eu && eu->gold >= eu->recruit_passage;

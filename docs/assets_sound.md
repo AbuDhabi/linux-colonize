@@ -148,11 +148,16 @@ regardless of those options. `sound_id_gate_allows` and `unit_sound_gate` cover 
 **`COLDIG.BIN` digital SFX.** The game pushes event ids `0x40..0x5c` with the id in **AX**
 (`mov ax,N; callf FUN_281f_04c0` → `FUN_12d8_000e`), which Ghidra's decompile drops. Each
 event handler in `GSOUND.COL` does `mov ax,N; call 0x30c4` → `FUN_1000_27b4(N)` (queue COLDIG
-sample N, 16-slot ring, played back to back) and then starts a short MIDI sting on channels
-7/8. Sample table is static in the driver image at `0x1C7B` (`offset32,len32`, 35 entries,
-exactly covering the 993 755-byte file); samples 0–4 play at 11025 Hz, 5–34 at 19050 Hz,
-unsigned 8-bit. Stream opcode `C3 n` is the same trigger. `sound.c` loads the file, the VM
-callback queues samples, and `sound_render_s16` mixes them after the synth.
+sample N) and then starts a short MIDI sting on channels 7/8. `27b4` cuts off a playing
+sample (`1f60` halt DMA, `224a` stop) before it writes the 32-slot ring `0x1B71..0x1C71` and
+starts the new one at once, so the ring never holds a waiting entry; the four handlers that
+queue two samples (`0x4f`, `0x50`, `0x51`, `0x5b`) leave only the second audible. Sample
+table is static in the driver image at `0x1C7B` (`offset32,len32`, 35 entries, exactly
+covering the 993 755-byte file); samples 0–4 play at 19050 Hz, 5–34 at 11025 Hz
+(`27ec`: `MOV CX,0x4a6a; CMP BX,5; JC; MOV CX,0x2b11`), unsigned 8-bit. Stream opcode
+`C3 n` is the same trigger, but no song `0x02..0x3f` emits it (VM scan 2026-11-08), so the
+port's Sound Effects test in the VM callback never decides anything. `sound.c` loads the
+file, the VM callback starts the sample, and `sound_render_s16` mixes it after the synth.
 
 Sample contents (user listen test 2026-08-27): 0–4 single shots/fireworks; 5–7 screaming +
 shots; 8, 19 burning; 9 cheering; 10, 15 cheering + fireworks; 11 screaming + shooting;

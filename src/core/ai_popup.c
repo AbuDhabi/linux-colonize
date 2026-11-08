@@ -211,26 +211,33 @@ bool ai_popup_bar_service(AiPopupState* st, uint32_t now_ms, bool dismiss) {
     }
     return false;
   }
-  if (st->bar_msg_until_ms == 0) {
+  /*
+   * port_bugs.md #425: the sale lines run AI_POPUP_BAR_SALE_SPEEDUP times faster
+   * than DOS at the user's explicit request: only the lines queued through
+   * ai_popup_enqueue_bar_sale (the Custom House autosell run and the
+   * European Status sell lines). Every other line keeps DOS's dwell,
+   * including the other gold kind-1 arms, the colony screen's cargo lines
+   * (FUN_281f_0dc2(1, 0x78, 0), raw 77421 / 77503).
+   */
+  const uint32_t speed = st->bar_msg_sale[0] ? AI_POPUP_BAR_SALE_SPEEDUP : 1u;
+  const bool armed = st->bar_msg_until_ms != 0;
+  if (!armed) {
+    /* First frame this line is on screen: FUN_1009_0244 arms the full 0x78 ticks. */
+    st->bar_msg_until_ms = now_ms + AI_POPUP_BAR_MSG_LAST_MS / speed;
+  }
+  if (st->bar_msg_count > 1) {
     /*
-     * First frame this line is on screen — arm its dwell (FUN_1009_0244).
-     * DOS's wait is min(armed deadline, now + 30 ticks), and only the *next*
-     * compose runs it, so a line with more behind it is cut to ~0.5 s while
-     * the last of a run lives out the full 0x78-tick arm.
+     * The next line composes: FUN_1009_0036 (asm 1009:0053-006e) waits
+     * min(armed deadline, now + 0x1e ticks), so a line is cut once something
+     * queues behind it, also on a later frame (#1584). Re-applying the min on
+     * later frames is a no-op: now + 0x1e only grows.
      */
-    uint32_t hold = st->bar_msg_count > 1 ? AI_POPUP_BAR_MSG_MS : AI_POPUP_BAR_MSG_LAST_MS;
-    /*
-     * port_bugs.md #425: the sale lines run AI_POPUP_BAR_SALE_SPEEDUP times faster
-     * than DOS at the user's explicit request: only the lines queued through
-     * ai_popup_enqueue_bar_sale (the Custom House autosell run and the
-     * European Status sell lines). Every other line keeps DOS's dwell,
-     * including the other gold kind-1 arms, the colony screen's cargo lines
-     * (FUN_281f_0dc2(1, 0x78, 0), raw 77421 / 77503).
-     */
-    if (st->bar_msg_sale[0]) {
-      hold /= AI_POPUP_BAR_SALE_SPEEDUP;
+    const uint32_t cut = now_ms + AI_POPUP_BAR_MSG_MS / speed;
+    if ((int32_t)(cut - st->bar_msg_until_ms) < 0) {
+      st->bar_msg_until_ms = cut;
     }
-    st->bar_msg_until_ms = now_ms + hold;
+  }
+  if (!armed) {
     return true;
   }
   if (!dismiss && (int32_t)(now_ms - st->bar_msg_until_ms) < 0) {

@@ -17,6 +17,6 @@ key l                    # buy on the selected boycotted Tobacco cell: @KISSUP i
 key Return               # decline: no gold spent, no cargo loaded
 click 48 189             # @KISSUP again
 click 150 168            # "Pay 3000.": gold -3000, royal_money +3000, boycott bit cleared
-drag 176 171 48 189      # Tobacco sells now: 60 @ 4 = 240, tax 14, net 226 (the first Tobacco hold, never sold, stays)
+drag 164 171 48 189      # Tobacco sells now: 60 @ 4 = 240, tax 14, net 226 (the Cotton sale compacted the holds to [Tobacco 100, Tobacco 60], port_bugs.md #1588)
 key -                    # '-' sells the whole first hold of the selected cell's good: Tobacco 100 @ 4 = 400, tax 24, net 376
 key e                    # leave Europe

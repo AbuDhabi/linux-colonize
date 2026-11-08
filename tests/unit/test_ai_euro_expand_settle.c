@@ -386,10 +386,20 @@ static int unit_indian_land_found(void) {
     founder->moves = 3 * UNITS_MP_PER_TILE;
     founder->col1_counter16 = 2;
     ctx.ai_euro_wander_stack_word = 0;
+    turn = 42;
+    col1.nation[nation].last_colony_founded_turn = 0;
+    ai_goals_plan_scratch(nation)->colony_count = 1;
     ai_euro_found_with_unit(&ctx, founder, nation);
     if (ctx.ai_euro_wander_stack_word != 0) {
       fx_map_free(&map);
       return fail("#1135: the full-table return skips both 0c22 calls");
+    }
+    /* #1600: 076e stamps +0x46 before 09b2 (#971), but 1ba8's 0x9298 bump
+     * lives in the `< 0x30` success arm only (raw 58029). */
+    if (col1.nation[nation].last_colony_founded_turn != 42 ||
+        ai_goals_plan_scratch(nation)->colony_count != 1) {
+      fx_map_free(&map);
+      return fail("#1600: full table must stamp +0x46 but not bump 0x9298");
     }
     founder = units_get(&units, uid);
     if (!founder || !founder->active || founder->orders != UNITS_ORDER_NONE ||

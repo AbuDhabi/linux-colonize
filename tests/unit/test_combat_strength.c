@@ -197,6 +197,21 @@ static int test_woi_sol_needs_a_colony_record(void) {
 
   ColonizeCombatEngageResult with_record;
   combat_land_engage(&ctx, atk, def, &with_record);
+
+  /* #1592: hot-seat leaves DS:0x53d2 = 0xffff (raw 100496-100524 compare the
+   * raw word), so nation 1 is NOT the crown: rebel share, no REF / Tory arm. */
+  col1.head.crown_nation_id = -1;
+  ColonizeCombatEngageResult no_crown;
+  combat_land_engage(&ctx, atk, def, &no_crown);
+  col1.head.crown_nation_id = 1;
+  if (no_crown.atk_flags.sol_percent != 25 ||
+      (no_crown.atk_flags.flags & COMBAT_FLAG_REF) != 0 ||
+      (no_crown.atk_flags.flags2 & COMBAT_FLAG_TORIES) != 0) {
+    fprintf(stderr, "no-crown sol_percent %d flags %#x\n", no_crown.atk_flags.sol_percent,
+            (unsigned)no_crown.atk_flags.flags);
+    map_free(&map);
+    return fail("crown_nation_id -1 must name no crown (#1592)");
+  }
   col1.colony = NULL;
   col1.head.colony_count = 0;
   map_free(&map);

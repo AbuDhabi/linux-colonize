@@ -15,6 +15,8 @@
 #include <stdbool.h>
 #include <stdio.h>
 
+#include "core/dos_rng.h"
+#include "core/gsound_vm.h"
 #include "core/sound.h"
 
 #include "../common/test_runner.h"
@@ -121,7 +123,86 @@ static int case_class_or_chain(void) {
   return g_fail;
 }
 
+/* FUN_1000_27b4 1000:27ec: CX = 0x4a6a (19050) for BX < 5, else 0x2b11 (11025). */
+static int case_sfx_rate(void) {
+  g_fail = 0;
+  check(gsound_vm_sfx_rate(0) == 19050, "sample 0 at 19050 Hz");
+  check(gsound_vm_sfx_rate(4) == 19050, "sample 4 at 19050 Hz");
+  check(gsound_vm_sfx_rate(5) == 11025, "sample 5 at 11025 Hz");
+  check(gsound_vm_sfx_rate(34) == 11025, "sample 34 at 11025 Hz");
+  return g_fail;
+}
+
+/* FUN_1000_27b4 1000:27dd: a new sample cuts off the playing one (no back-to-back
+ * queue). Needs COLONIZE/COLDIG.BIN; skips without it. */
+static int case_sfx_cuts_off(void) {
+  g_fail = 0;
+  sound_init("./COLONIZE", false);
+  if (sound_sfx_count() < 33) {
+    fprintf(stderr, "skip: no COLDIG.BIN\n");
+    sound_shutdown();
+    return 0;
+  }
+  sound_play_sfx(11);
+  check(sound_sfx_playing() == 11, "first sample starts");
+  sound_play_sfx(32);
+  check(sound_sfx_playing() == 32, "second sample cuts off the first");
+  sound_stop_sfx();
+  check(sound_sfx_playing() == -1, "stop leaves nothing playing");
+  sound_shutdown();
+  return g_fail;
+}
+
+/* #1583: FUN_129f_02cc gates on DS:0x96 only. 0x32 queued behind a still-
+ * sounding tune (no render = no fade ticks) is not the active id yet. */
+static int case_active_id_ignores_queued(void) {
+  g_fail = 0;
+  sound_init("./COLONIZE", false);
+  if (!sound_ok()) {
+    fprintf(stderr, "skip: no GSOUND.COL\n");
+    sound_shutdown();
+    return 0;
+  }
+  sound_set_bgm(5); /* title pool: Natives 0x33 (129f:01da) */
+  sound_service();
+  check(sound_active_song_id() == 0x33, "pool 5 starts 0x33");
+  sound_play(SOUND_MILITARY_BGM_ID);
+  sound_service(); /* old voices still live: the pump waits */
+  check(sound_active_song_id() == 0x33, "queued 0x32 is not the active id");
+  sound_shutdown();
+  return g_fail;
+}
+
+/* #1603: FUN_129f_00f6 srand(tick) at 129f:0138, FUN_19ef_0032(0,8) for the
+ * default arm, then FUN_19ef_0032(0,6)+1 for the map pool (tunes 1..7). */
+static int case_pick_follows_tick(void) {
+  static const int k_map_ids[8] = {0, 0x20, 0x21, 0x22, 0x23, 0x3a, 0x3b, 0x38};
+  g_fail = 0;
+  sound_init("./COLONIZE", false);
+  if (!sound_ok()) {
+    fprintf(stderr, "skip: no GSOUND.COL\n");
+    sound_shutdown();
+    return 0;
+  }
+  for (int tick = 100; tick < 110; ++tick) {
+    ColonizeDosRng r;
+    dos_rng_seed(&r, (uint32_t)tick);
+    (void)dos_rng_range(&r, 0, 8);
+    const int want = k_map_ids[1 + dos_rng_range(&r, 0, 6)];
+    dos_rng_set_tick_word(tick);
+    sound_play(0); /* silence + DS:0x96 = -1, so no redraw */
+    sound_set_bgm(1);
+    sound_service();
+    check(sound_active_song_id() == want, "map pick = srand(tick) + FUN_19ef_0032");
+  }
+  dos_rng_set_tick_word(-1);
+  sound_shutdown();
+  return g_fail;
+}
+
 static const TestCase k_cases[] = {
+    {"case_active_id_ignores_queued", case_active_id_ignores_queued},
+    {"case_pick_follows_tick", case_pick_follows_tick},
     {"case_system_ids", case_system_ids},
     {"case_song_class", case_song_class},
     {"case_event_class", case_event_class},
@@ -129,6 +210,8 @@ static const TestCase k_cases[] = {
     {"case_chord_stings", case_chord_stings},
     {"case_retire_tune", case_retire_tune},
     {"case_class_or_chain", case_class_or_chain},
+    {"case_sfx_rate", case_sfx_rate},
+    {"case_sfx_cuts_off", case_sfx_cuts_off},
 };
 
 TEST_MAIN(k_cases)

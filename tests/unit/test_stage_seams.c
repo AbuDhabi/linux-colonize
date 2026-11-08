@@ -3788,6 +3788,68 @@ static int test_bar_sale_speedup_only_on_sales(void) {
   return rc;
 }
 
+/* #1584: FUN_1009_0036 cuts the shown line to min(deadline, now + 0x1e)
+ * when the next line composes, also when that is on a later frame. */
+static int test_bar_cut_on_later_compose(void) {
+  static AiPopupState st;
+  ai_popup_clear(&st);
+  (void)ai_popup_enqueue_bar_message(&st, "A");
+  int rc = 0;
+  (void)ai_popup_bar_service(&st, 1000, false);
+  if (st.bar_msg_until_ms != 1000 + AI_POPUP_BAR_MSG_LAST_MS) {
+    rc = fail("bar cut: a lone line arms the full dwell");
+  }
+  (void)ai_popup_enqueue_bar_message(&st, "B");
+  (void)ai_popup_bar_service(&st, 1200, false);
+  if (rc == 0 && st.bar_msg_until_ms != 1200 + AI_POPUP_BAR_MSG_MS) {
+    fprintf(stderr, "  A held to %u\n", (unsigned)st.bar_msg_until_ms);
+    rc = fail("bar cut: a later compose cuts the shown line to now + 30 ticks");
+  }
+  (void)ai_popup_bar_service(&st, 1300, false);
+  if (rc == 0 && st.bar_msg_until_ms != 1200 + AI_POPUP_BAR_MSG_MS) {
+    rc = fail("bar cut: the cut must not slide on later frames");
+  }
+  (void)ai_popup_bar_service(&st, 1200 + AI_POPUP_BAR_MSG_MS, false);
+  if (rc == 0 && strcmp(ai_popup_bar_message(&st), "B") != 0) {
+    rc = fail("bar cut: B must replace A at the cut");
+  }
+  ai_popup_clear(&st);
+  return rc;
+}
+
+/* #1582: FUN_1984_00e8 / FUN_1984_03ca refuse an off-inset cursor target
+ * (FUN_137f_000a) instead of clamping it. */
+static int test_map_cursor_refuses_rim(void) {
+  static ColonizeGameState game;
+  int ox = 0;
+  edge_scroll_init(&game, &ox);
+  int rc = 0;
+  game_select_tile(&game, 1, 20);
+  game_select_tile(&game, 0, 21);
+  if (game.map_cursor_x != 1 || game.map_cursor_y != 20) {
+    rc = fail("select tile: an off-inset tile must leave the cursor put");
+  }
+  if (rc == 0) {
+    ColonizeInputState in;
+    memset(&in, 0, sizeof(in));
+    in.last_key = COLONIZE_KEY_KP7;
+    (void)game_update_map_keys(&game, &in);
+    if (game.map_cursor_x != 1 || game.map_cursor_y != 20) {
+      fprintf(stderr, "  cursor (%d,%d)\n", game.map_cursor_x, game.map_cursor_y);
+      rc = fail("View Pieces NW off the rim must refuse the whole step");
+    }
+    memset(&in, 0, sizeof(in));
+    in.last_key = COLONIZE_KEY_KP9;
+    (void)game_update_map_keys(&game, &in);
+    if (rc == 0 && (game.map_cursor_x != 2 || game.map_cursor_y != 19)) {
+      fprintf(stderr, "  cursor (%d,%d)\n", game.map_cursor_x, game.map_cursor_y);
+      rc = fail("View Pieces NE inside the map must step");
+    }
+  }
+  edge_scroll_free(&game);
+  return rc;
+}
+
 /* A cargo line shown on the colony screen is no blocking FUN_1009_00b4 wait
  * once the player is back on the map: it may finish its dwell on the strip,
  * but the active unit keeps blinking. A line queued on the map still blocks. */
@@ -6358,6 +6420,8 @@ static const TestCase k_cases[] = {
     {"test_brave_step_watch_sees_entry_vis", test_brave_step_watch_sees_entry_vis},
     {"test_player_pick_keeps_view", test_player_pick_keeps_view},
     {"test_bar_sale_speedup_only_on_sales", test_bar_sale_speedup_only_on_sales},
+    {"test_bar_cut_on_later_compose", test_bar_cut_on_later_compose},
+    {"test_map_cursor_refuses_rim", test_map_cursor_refuses_rim},
     {"test_bar_screen_lines_do_not_block_map", test_bar_screen_lines_do_not_block_map},
     {"test_slide_pacing_matches_dos", test_slide_pacing_matches_dos},
     {"test_colony_list_keys_wrap", test_colony_list_keys_wrap},

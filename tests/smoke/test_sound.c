@@ -197,7 +197,7 @@ int main(void) {
     sound_service();
   }
 
-  /* COLDIG ring plays samples back-to-back; CLOSING.EXE exit dumps it. */
+  /* COLDIG bank loads (a new sample cuts the playing one, FUN_1000_27b4); CLOSING.EXE exit dumps it. */
   {
     if (sound_sfx_count() < 16) {
       fprintf(stderr, "expected COLDIG samples, got %d\n", sound_sfx_count());

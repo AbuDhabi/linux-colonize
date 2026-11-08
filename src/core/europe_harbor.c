@@ -750,7 +750,8 @@ int europe_nation_sell_price(
       cargo_type >= (int)COLONIZE_COL1_CARGO_TYPES) {
     return 0;
   }
-  const int p = (int)col1->nation[nation].trade.euro_price[cargo_type] - 1;
+  /* 0040: MOV AL,[BX+SI+0x4c]; CBW — the price byte is signed (port_bugs.md #1587). */
+  const int p = (int)(int8_t)col1->nation[nation].trade.euro_price[cargo_type] - 1;
   return p < 0 ? 0 : p;
 }
 
@@ -767,7 +768,8 @@ int europe_nation_buy_price(
   /* The @CARGO burden column is one global table; the screen carries it. */
   const int burden = (eu && cargo_type < eu->cargo_count) ? eu->cargo[cargo_type].burden
                                                           : europe_cargo_burden(cargo_type);
-  const int p = (int)col1->nation[nation].trade.euro_price[cargo_type] + burden;
+  /* 0016: both bytes CBW-extended (signed char), port_bugs.md #1587. */
+  const int p = (int)(int8_t)col1->nation[nation].trade.euro_price[cargo_type] + burden;
   return p < 0 ? 0 : p;
 }
 
@@ -793,9 +795,11 @@ static int europe_1d44_term(int amount, int seller_is_human, int difficulty) {
    * the trading nation) being human-controlled picks the difficulty arm; an
    * AI (or a crown/indian slot ≥ 4) always gets −2. Then
    * (k · 16 · amount) / 100, C division (truncates toward zero — the AI
-   * −384/100 → −3 case is what the dutch2 pair needs). */
+   * −384/100 → −3 case is what the dutch2 pair needs). The IMUL product is
+   * cut to 16 bits: `IMUL word; MOV CX,0x64; CWD; IDIV CX` drops DX
+   * (port_bugs.md #1587). */
   const int k = seller_is_human ? (difficulty - 2) : -2;
-  return (k * 16 * amount) / 100;
+  return (int)(int16_t)((int16_t)(k * 16) * amount) / 100;
 }
 
 /* Clamp bid into @CARGO [low, high] (only when both were loaded), floor at 0,
@@ -838,13 +842,6 @@ void europe_apply_trade_volume(
     return;
   }
   EuropeCargoQuote* q = &eu->cargo[cargo_type];
-  int shift = q->volatility;
-  if (shift < 0) {
-    shift = 0;
-  }
-  if (shift > 15) {
-    shift = 15;
-  }
   int difficulty = eu->difficulty;
   if (col1) {
     difficulty = (int)col1->head.difficulty;
@@ -854,7 +851,15 @@ void europe_apply_trade_volume(
    * so a hot-seat human trades on it even when the callers' human_nation is
    * head.human_player (DS:0x5398, the fixed power). */
   const int seller_is_human = col1_nation_is_human(col1, seller_nation, human_nation);
-  const int raw_term = (amount << shift) + europe_1d44_term(amount, seller_is_human, difficulty);
+  /* 1d80/1dfa: `SHL DX,CL` by the volatility byte (CL & 0x1f on a 286+; a
+   * count of 16+ leaves 0) then `ADD` — all 16-bit, wrapping. The record
+   * writes below are plain `SUB`/`ADD word ptr [BX+0x8864]` (asm 97731 /
+   * 97789) and the Dutch damping `SHL AX,1; CWD; IDIV 3` doubles in 16 bits
+   * too, so nothing saturates (port_bugs.md #1587). */
+  const int raw_term = (int16_t)((uint32_t)amount << ((unsigned)q->volatility & 0x1fu)) +
+                       europe_1d44_term(amount, seller_is_human, difficulty);
+  const int16_t term16 = (int16_t)raw_term;
+  const int16_t dutch16 = (int16_t)((int16_t)(term16 * 2) / 3);
   /* DOS walks all four records (port_bugs.md #1047): the screen's own track lives
    * in eu->trade_nr, the other three in col1->nation[n].trade.nr. The Dutch
    * record (slot 3) takes (term·2)/3 regardless of who sold — SELL side
@@ -867,18 +872,12 @@ void europe_apply_trade_volume(
       if (n == track) {
         continue;
       }
-      const int tn = (!is_buy && n == 3) ? (raw_term * 2) / 3 : raw_term;
-      int v = (int)col1->nation[n].trade.nr[cargo_type] + (is_buy ? -tn : tn);
-      if (v < -32768) {
-        v = -32768;
-      }
-      if (v > 32767) {
-        v = 32767;
-      }
-      col1->nation[n].trade.nr[cargo_type] = (int16_t)v;
+      const int tn = (!is_buy && n == 3) ? dutch16 : term16;
+      col1->nation[n].trade.nr[cargo_type] =
+        (int16_t)(col1->nation[n].trade.nr[cargo_type] + (is_buy ? -tn : tn));
     }
   }
-  const int term = (!is_buy && track == 3) ? (raw_term * 2) / 3 : raw_term;
+  const int term = (!is_buy && track == 3) ? dutch16 : term16;
   int nr = (int)eu->trade_nr[cargo_type];
   if (is_buy) {
     nr -= term;
@@ -893,23 +892,19 @@ void europe_apply_trade_volume(
     t->tons2[cargo_type] += signed_amt;
     if (is_buy) {
       /* 1d80: gold[cargo] −= buy_price·amount. */
+      /* `IMUL word; CWD`: the product is 16-bit, sign-extended (#1587). */
       t->gold[cargo_type] -=
-        (int32_t)europe_nation_buy_price(eu, col1, seller_nation, cargo_type) * (int32_t)amount;
+        (int32_t)(int16_t)(europe_nation_buy_price(eu, col1, seller_nation, cargo_type) * amount);
     } else {
       /* 1dfa: gold[cargo] += (sell_price·amount·(100−tax))/100 — note the
        * ledger rounds the other way from the treasury credit (54 lumber @1,
        * 35% → ledger +35, treasury +36). */
       const int tax = (int)col1->nation[seller_nation].tax_rate;
+      /* `IMUL word; MOV CX,AX ... MOV AX,CX; CWD`: 16-bit product (#1587). */
       const long gross =
-        (long)europe_nation_sell_price(eu, col1, seller_nation, cargo_type) * (long)amount;
+        (long)(int16_t)(europe_nation_sell_price(eu, col1, seller_nation, cargo_type) * amount);
       t->gold[cargo_type] += (int32_t)((gross * (long)(100 - tax)) / 100L);
     }
-  }
-  if (nr < -32768) {
-    nr = -32768;
-  }
-  if (nr > 32767) {
-    nr = 32767;
   }
   eu->trade_nr[cargo_type] = (int16_t)nr;
   if (!immediate_threshold) {

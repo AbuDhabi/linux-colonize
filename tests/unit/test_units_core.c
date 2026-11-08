@@ -5584,6 +5584,7 @@ static int case_combat_terrain_stash(void) {
       /* WoI: human attacks AI Euro (REF) — same stash path. */
       {
         c1.head.game_options.woi = 1;
+        c1.head.crown_nation_id = 1; /* DOS 0218 picks an AI slot; memset 0 = the human (#1592) */
         const int aid = units_spawn_allow_stack(&pool, sol, 6, 6);
         const int did = units_spawn_allow_stack(&pool, sol, 6, 6);
         ColonizeUnit* a = units_get(&pool, aid);
@@ -5684,6 +5685,7 @@ static int case_combat_woi_ref_support(void) {
       memset(&c1, 0, sizeof(c1));
       c1.head.difficulty = 4;
       c1.head.game_options.woi = 1;
+      c1.head.crown_nation_id = 1; /* DOS 0218 picks an AI slot; memset 0 = the human (#1592) */
       c1.head.game_options.intervention_announced = 1;
       c1.player[0].control = 0;
       c1.player[1].control = 1;

@@ -289,28 +289,13 @@ static int combat_intervention_announced(const ColonizeCol1Save* col1) {
  * 0..3 there (dutch-reports.SAV = 2); the old "peer of the human Euro slot
  * (0↔1)" re-derivation could only answer 0 or 1, so the crown open-field peel
  * below graded the wrong nation's units on any save with the crown in slot
- * 2/3. ai_king_crown_nation_col1 keeps the 0↔1 formula as the no-save
- * fallback.
+ * 2/3.
  */
 static int combat_crown_nation(const ColonizeCol1Save* col1) {
-  if (!col1) {
-    return 1;
-  }
-  int human = -1;
-  for (int i = 0; i < 4; ++i) {
-    if (col1->player[i].control == 0) {
-      human = i;
-      break;
-    }
-  }
-  const int crown = (int)col1->head.crown_nation_id;
-  if (crown >= 0 && crown < 4 && crown != human) {
-    return crown;
-  }
-  if (human < 0) {
-    return 1; /* no human slot at all — prior fallback */
-  }
-  return (human == 0) ? 1 : 0;
+  /* DOS compares the attacker with the raw word (raw 100496/100503/100511/
+   * 100524): 0xffff (hot-seat, FUN_43f7_0218 never ran) matches no nation,
+   * and no fallback slot is derived. port_bugs.md #1592. */
+  return col1 ? (int)col1->head.crown_nation_id : -1;
 }
 
 static int combat_unit_on_colony(

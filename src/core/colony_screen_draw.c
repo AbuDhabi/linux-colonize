@@ -227,7 +227,8 @@ bool colony_screen_blink_on(const ColonyScreenView* view) {
 }
 
 int colony_screen_dos_region(int x, int y) {
-  /* Inclusive AABBs tested in DOS order (FUN_1262_00f6). */
+  /* Region table FUN_2f2b_40a0 (raw 50954-51004), AABBs tested in its order; each
+   * test is FUN_281f_03ca -> FUN_1262_00f6. */
   static const struct {
     int16_t x, y, w, h, id;
   } r[] = {

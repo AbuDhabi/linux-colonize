@@ -864,6 +864,9 @@ int main(void) {
   if (!founding_fathers_nation_has(&col1, 0, FF_ADAM_SMITH)) {
     return fail("nation_has Smith false");
   }
+  if (!founding_fathers_nation_has(&col1, 0, -1) || !founding_fathers_nation_has(&col1, 7, -1)) {
+    return fail("FUN_15eb_3960: negative father index must return 1");
+  }
   if (nat->gold != gold_smith) {
     return fail("Smith must not invent gold");
   }

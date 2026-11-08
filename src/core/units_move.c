@@ -1419,15 +1419,6 @@ static int units_chebyshev(int x0, int y0, int x1, int y1) {
   return dx > dy ? dx : dy;
 }
 
-/* Octile-style distance (FUN_124c_0040): max + min/2. */
-static int units_octile(int x0, int y0, int x1, int y1) {
-  const int dx = abs(x1 - x0);
-  const int dy = abs(y1 - y0);
-  const int mx = dx > dy ? dx : dy;
-  const int mn = dx < dy ? dx : dy;
-  return mx + mn / 2;
-}
-
 void units_clear_orders(ColonizeUnitPool* pool, int unit_id) {
   ColonizeUnit* u = units_get(pool, unit_id);
   if (!u) {
@@ -3149,7 +3140,7 @@ static int units_coarse_waypoint(
         cost[nx][ny] == 0) {
       continue;
     }
-    const int dist = units_octile(nx * 4 + 1, ny * 4 + 1, gx, gy);
+    const int dist = map_dos_dist(gx - (nx * 4 + 1), gy - (ny * 4 + 1));
     if (cost[nx][ny] < best_cost || (cost[nx][ny] == best_cost && dist < best_dist)) {
       best_cost = cost[nx][ny];
       best_dist = dist;

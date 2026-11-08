@@ -91,11 +91,40 @@ int units_first_goods_hold(const ColonizeUnitPool* pool, int unit_id) {
 }
 
 /*
- * DOS FUN_15eb_30b8 goods packing, on a raw (types, amounts) hold pair so the
- * Europe harbor mirror (europe.c europe_buy_cargo) and the unit pool can share
- * one implementation: top up matching partial holds to 100 first, then append
- * into free slots. The append pass is budgeted because DOS only appends while
- * `holds_occupied < cargo_cap`; pass n_holds for an unbudgeted append.
+ * DOS keeps a ship's goods holds as a dense list `0 .. +0x3150-1`: the
+ * remover FUN_15eb_317c (raw 13339-13363) shifts later holds down and 30b8
+ * appends at `holds_occupied`. The port's removers that only zero a slot
+ * (contact trade) leave gaps, so restore the DOS order here: occupied slots slide down in order, empty values ride up
+ * (a 255 sentinel is kept, just moved). Returns the occupied count, i.e. the
+ * port's `holds_occupied` (port_bugs.md #1588).
+ */
+int goods_holds_compact(int* hold_types, int* hold_amounts, int n_holds) {
+  int occ = 0;
+  for (int i = 0; i < n_holds; ++i) {
+    if (hold_amounts[i] <= 0 || hold_amounts[i] >= 255) {
+      continue;
+    }
+    if (i != occ) {
+      const int t = hold_types[occ];
+      const int a = hold_amounts[occ];
+      hold_types[occ] = hold_types[i];
+      hold_amounts[occ] = hold_amounts[i];
+      hold_types[i] = t;
+      hold_amounts[i] = a;
+    }
+    occ++;
+  }
+  return occ;
+}
+
+/*
+ * DOS FUN_15eb_30b8 goods packing (raw 13301-13335), on a raw (types,
+ * amounts) hold pair so the Europe harbor mirror (europe.c europe_buy_cargo)
+ * and the unit pool can share one implementation: top up every matching
+ * hold, then append ONE hold at `holds_occupied`. The append is budgeted
+ * because DOS only appends while `holds_occupied < cargo_cap`; pass n_holds
+ * for an unbudgeted append. Returns the amount taken from the caller (never
+ * below 0).
  */
 int goods_pack_into_holds(
   int* hold_types,
@@ -108,17 +137,20 @@ int goods_pack_into_holds(
   if (!hold_types || !hold_amounts || n_holds <= 0 || amount <= 0) {
     return 0;
   }
+  const int occ = goods_holds_compact(hold_types, hold_amounts, n_holds);
   int loaded = 0;
-  /* Prefer stacking into a matching partial hold. */
-  for (int i = 0; i < n_holds && amount > 0; ++i) {
-    if (hold_amounts[i] <= 0 || hold_amounts[i] >= 255) {
-      continue;
-    }
+  /*
+   * 30b8 top-up (asm 15eb:30d6-30f7, port_bugs.md #1589): room = 100 - amt,
+   * skipped only when room == 0, add = qty < room ? qty : room. A hold above
+   * 100 (the unclamped tail below) gets a NEGATIVE add: it clamps to 100 and
+   * the excess joins the remainder. DOS walks every hold even once qty is 0.
+   */
+  for (int i = 0; i < occ; ++i) {
     if (hold_types[i] != cargo_type) {
       continue;
     }
     const int room = 100 - hold_amounts[i];
-    if (room <= 0) {
+    if (room == 0) {
       continue;
     }
     const int add = amount < room ? amount : room;
@@ -132,23 +164,19 @@ int goods_pack_into_holds(
    *     local_4 = holds_occupied;
    *     if (local_4 < @UNIT cargo) { set type; set amount = param_3; ++occ; }
    *   }
-   * ONE new hold, carrying the WHOLE remainder — no 100 clamp and no second
-   * slot. The old loop spread a >100 load over every free slot in 100-unit
-   * chunks, which only the AI / trade-route feeds can reach (UI paths cap at
-   * 100 before calling in).
+   * ONE new hold at the END of the list (#1588), carrying the WHOLE
+   * remainder — no 100 clamp and no second slot; FUN_15eb_3054 stores the
+   * amount as a byte (#1589: 300 -> 44). Only the AI / trade-route feeds
+   * reach a remainder above 100 (UI paths cap at 100 before calling in).
    */
-  if (amount > 0 && max_new_slots > 0) {
-    for (int i = 0; i < n_holds; ++i) {
-      if (hold_amounts[i] > 0 && hold_amounts[i] < 255) {
-        continue;
-      }
-      hold_types[i] = cargo_type;
-      hold_amounts[i] = amount;
-      loaded += amount;
-      break;
-    }
+  if (amount > 0 && max_new_slots > 0 && occ < n_holds) {
+    hold_types[occ] = cargo_type;
+    hold_amounts[occ] = (uint8_t)amount;
+    loaded += amount;
   }
-  return loaded;
+  /* ponytail: with no free slot a negative top-up leaves loaded < 0 (DOS
+   * just loses the excess); floored so no caller credits goods back. */
+  return loaded > 0 ? loaded : 0;
 }
 
 int units_load_goods(ColonizeUnitPool* pool, int unit_id, int cargo_type, int amount) {
@@ -176,7 +204,7 @@ static void units_raw_hold_remove(ColonizeUnit* u, int slot) {
     return;
   }
   uint8_t* r = u->col1_hold_raw;
-  /* The live array can carry gaps (units_unload_goods_hold empties a slot
+  /* The live array can carry gaps (an in-place trade removal empties a slot
    * without shifting), DOS's never does: map the live slots onto the
    * compacted DOS slots. Counting only the leading run stopped at the first
    * gap, so a hull dumping hold after hold shifted the image once and then
@@ -257,10 +285,10 @@ int units_unload_goods_hold(
   if (out_amount) {
     *out_amount = amt;
   }
-  units_raw_hold_remove(u, hold_index);
-  u->hold_goods_amount[hold_index] = 0;
-  u->hold_goods_type[hold_index] = 0;
-  units_last_hold_amount = amt; /* 317c: DS:0x8dc4 = slot amount */
+  /* FUN_15eb_317c (raw 13339-13363): later holds shift down at once, so the
+   * dock never shows a gap (port_bugs.md #1606). Callers that keep a hold
+   * index across unloads walk high to low or re-scan. */
+  (void)units_remove_goods_slot(u, hold_index);
   return amt;
 }
 

@@ -694,6 +694,21 @@ int ai_euro_colony_needs_colonists_5952(
   return pop - tier * 2 < ring - blocked;
 }
 
+/* dos_bugs.md DB-76 / port_bugs.md #1593: the unfiltered DOS 4962 pair per
+ * colony slot, for the @KINGFRIGATE gate (FUN_3844_00f2 raw 58393 reads the
+ * DS:0xa89b/0xa89a tallies the plain census builds). Not saved: a reload
+ * falls back to the filtered +0x1b bits until the next census. */
+static uint8_t ai_euro_s_4962_dos_pair[COLONIZE_COLONIES_MAX];
+
+uint8_t ai_euro_colony_dos_blockade_pair(const ColonizeColonyPool* pool, int colony_index) {
+  if (!pool || colony_index < 0 || colony_index >= COLONIZE_COLONIES_MAX) {
+    return 0;
+  }
+  return (uint8_t)(ai_euro_s_4962_dos_pair[colony_index] |
+                   (pool->colonies[colony_index].ai_flags &
+                    (COLONIZE_COLONY_AI_NEARBY_ARMED_SHIP | COLONIZE_COLONY_AI_NEARBY_FRIGATE)));
+}
+
 /*
  * FUN_4962_0018 ship probe for ONE colony (raw 78259-78299): clear the
  * blockade pair +0x1b bits 0x01/0x02, rescan the 11×11 box, fold into the
@@ -714,6 +729,7 @@ static void ai_euro_colony_ship_probe_4962(
   if (!ctx || !c || !c->active) {
     return;
   }
+  uint8_t dos_pair = 0;
   /* Raw 78259: +0x1b &= 0xfc — only the blockade pair is cleared here. */
   c->ai_flags = (uint8_t)(c->ai_flags & (uint8_t)~(COLONIZE_COLONY_AI_NEARBY_ARMED_SHIP |
                                                     COLONIZE_COLONY_AI_NEARBY_FRIGATE));
@@ -760,6 +776,7 @@ static void ai_euro_colony_ship_probe_4962(
          * report's test (WAR 0x02 survives a treaty). Filtered after the
          * flood so the shared 0906 grid sees the same calls. Human colonies
          * only: the AI tallies keep DOS. */
+        dos_pair |= t == 0x11 ? COLONIZE_COLONY_AI_NEARBY_FRIGATE : COLONIZE_COLONY_AI_NEARBY_ARMED_SHIP;
         const uint8_t rel_ab = ctx->col1 ? ai_diplo_read(ctx->col1, nation_id, u->nation_id) : 0;
         const uint8_t rel_ba = ctx->col1 ? ai_diplo_read(ctx->col1, u->nation_id, nation_id) : 0;
         const bool at_war = (rel_ab & (AI_DIPLO_MET | AI_DIPLO_PEACE)) == AI_DIPLO_MET ||
@@ -778,6 +795,10 @@ static void ai_euro_colony_ship_probe_4962(
         }
       }
     }
+  }
+  if (ctx->colonies && c >= ctx->colonies->colonies &&
+      c < ctx->colonies->colonies + COLONIZE_COLONIES_MAX) {
+    ai_euro_s_4962_dos_pair[c - ctx->colonies->colonies] = dos_pair;
   }
   /* Raw 78291-78299: per-colony fold into the nation ship-pressure tallies. */
   if (nation_id >= 0 && nation_id < 4) {
@@ -1669,6 +1690,7 @@ void ai_euro_reset(void) {
   memset(s_euro_continent_stance, 0, sizeof(s_euro_continent_stance));
   memset(s_euro_rival_strength, 0, sizeof(s_euro_rival_strength));
   memset(ai_euro_s_ship_pressure, 0, sizeof(ai_euro_s_ship_pressure));
+  memset(ai_euro_s_4962_dos_pair, 0, sizeof(ai_euro_s_4962_dos_pair));
   /* Save-backed latch: goes through its own accessor, not a raw memset. */
   ai_euro_wagon_errand_clear_all();
   memset(ai_euro_s_0a60_work_registered, 0, sizeof(ai_euro_s_0a60_work_registered));

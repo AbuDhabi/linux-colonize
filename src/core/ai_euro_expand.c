@@ -568,9 +568,8 @@ void ai_euro_found_with_unit(ColonizeTurnContext* ctx, ColonizeUnit* founder, in
   }
   if (!colonies_can_found(ctx->colonies, ctx->map, founder->x, founder->y)) {
     /* Port-only refusal (DOS 1ba8 checks only the 48-colony cap; colonies_found
-     * re-runs this test). It returns before the 0x77b2 stamp because the port's
-     * ai_goals_note_colony_founded also bumps the 9298 colony count, which 1ba8
-     * bumps only on success. FUN_479b_076e's entry writes still happen, as on
+     * re-runs this test). It returns before the 0x77b2 stamp: no DOS founding
+     * is attempted here, so nothing is stamped. FUN_479b_076e's entry writes still happen, as on
      * the 09b2 = -1 path below: +0x315a = 0, +0x314c = 0 (raw 76978-76979),
      * FUN_281f_0934 (raw 77008). port_bugs.md #1445. */
     founder->col1_counter16 = 0;
@@ -621,11 +620,16 @@ void ai_euro_found_with_unit(ColonizeTurnContext* ctx, ColonizeUnit* founder, in
      * on the founder, then returns. The founder survives on its tile, idle
      * and out of moves.
      */
+    colonies_skip_next_name(ctx->colonies, nation_id); /* FUN_479b_0000 ran first (#1591) */
+    if (ctx->col1_ok && ctx->col1 && nation_id >= 0 && nation_id < 4) {
+      ctx->col1->player[nation_id].founded_colonies = (uint8_t)ctx->colonies->name_next[nation_id];
+    }
     founder->col1_counter16 = 0;     /* +0x315a = 0 */
     founder->orders = UNITS_ORDER_NONE; /* +0x314c = 0 */
     units_mp_exhaust_unit(ctx->units, founder->id); /* FUN_281f_0934 */
   }
   if (cid >= 0) {
+    ai_goals_note_colony_created(nation_id); /* FUN_364b_1ba8 raw 58029, #1600 */
     const ColonizeWorld rw = world_from_turn_ctx(ctx);
     colonies_reveal_founded_w(&rw, cid); /* FUN_364b_1dd6 Coronado */
     /* DOS-LITERAL FUN_364b_1ba8 raw 58089: the success path's second

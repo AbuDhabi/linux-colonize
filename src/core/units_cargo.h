@@ -405,7 +405,8 @@ int units_load_goods(ColonizeUnitPool* pool, int unit_id, int cargo_type, int am
  * alongside (equal keys keep their order). */
 void units_dos_sort_1cf8(uint16_t* k, int* order, int n);
 /*
- * Remove goods from one hold index. Writes type/amount unloaded (optional outs).
+ * Remove goods from one hold index and shift later holds down (FUN_15eb_317c).
+ * Writes type/amount unloaded (optional outs).
  * Returns amount unloaded (0 if empty/invalid).
  */
 int units_unload_goods_hold(

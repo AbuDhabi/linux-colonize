@@ -3345,6 +3345,17 @@ int main(void) {
       assets_msg_free(&names);
       return 1;
     }
+    /* FUN_75c2_235c raw 121528-121530: DS:0x53c8 stamps start at 0xffff (#1604 item 14). */
+    for (int i = 0; i < 4; ++i) {
+      if (save.head.nation_relation[i] != -1) {
+        fprintf(stderr, "newgame export: template nation_relation[%d] = %d, want -1\n", i,
+                (int)save.head.nation_relation[i]);
+        col1_save_free(&save);
+        map_free(&map);
+        assets_msg_free(&names);
+        return 1;
+      }
+    }
     /* One village so has_city is exercised. */
     save.head.tribe_count = 1;
     {
@@ -4132,11 +4143,16 @@ int main(void) {
       fprintf(stderr, "expected invalid newer reject, got '%s'\n", err);
       return 1;
     }
-    h.save_version = COLONIZE_COL1_SAVE_VERSION;
-    h.sig_eof = 0;
+    h.save_version = 0x8000; /* signed compare vs DS:0x81a -> LOADOLD */
     if (col1_save_validate_head(&h, -1, -1, err, sizeof(err)) ||
-        strstr(err, COL1_ERR_NOT_A_SAVE) == NULL) {
-      fprintf(stderr, "expected bad eof reject, got '%s'\n", err);
+        strstr(err, COL1_ERR_OBSOLETE) == NULL) {
+      fprintf(stderr, "expected 0x8000 obsolete reject, got '%s'\n", err);
+      return 1;
+    }
+    h.save_version = COLONIZE_COL1_SAVE_VERSION;
+    h.sig_eof = 0; /* FUN_1b2c_0004 discards the byte */
+    if (!col1_save_validate_head(&h, -1, -1, err, sizeof(err))) {
+      fprintf(stderr, "bad eof byte rejected: %s\n", err);
       return 1;
     }
     col1_save_stamp_head(&h);
@@ -4145,6 +4161,21 @@ int main(void) {
     if (col1_save_validate_head(&h, 40, 50, err, sizeof(err)) ||
         strstr(err, "map size") == NULL) {
       fprintf(stderr, "expected map-size reject, got '%s'\n", err);
+      return 1;
+    }
+    if (!col1_save_validate_head(&h, 72, 58, err, sizeof(err))) { /* W*H product */
+      fprintf(stderr, "swapped size rejected: %s\n", err);
+      return 1;
+    }
+    h.map_size_x = 0;
+    if (col1_save_validate_head(&h, 58, 72, err, sizeof(err)) ||
+        strstr(err, "map size") == NULL) {
+      fprintf(stderr, "expected zero-size LOADSIZE, got '%s'\n", err);
+      return 1;
+    }
+    if (col1_save_validate_head(&h, -1, -1, err, sizeof(err)) ||
+        strstr(err, COL1_ERR_NOT_A_SAVE) == NULL) {
+      fprintf(stderr, "expected zero-size guard, got '%s'\n", err);
       return 1;
     }
     fprintf(stderr, "col1 FUN_75c2_0840 validate ok\n");
@@ -6102,7 +6133,7 @@ head_stamp_fail:
      * The writer always re-stamps a valid head (emit_to_stream ->
      * col1_save_stamp_head), so the two rejects are byte-patched copies:
      * one with the version word bumped past DS:0x81a (@LOADOLD/@LOADNOT) and
-     * one with the 0x1A EOF marker cleared.
+     * one with the 0x1A EOF marker cleared (DOS ignores it: still listed).
      */
     {
       FILE* src = fopen(path0, "rb");
@@ -6160,14 +6191,15 @@ head_stamp_fail:
       fprintf(stderr, "slot probe: bad save_version should list as empty\n");
       return 1;
     }
-    if (!savegame_probe_col1_slot(dir, 2, &info) || info.occupied) {
-      fprintf(stderr, "slot probe: missing 0x1A EOF should list as empty\n");
+    /* FUN_1b2c_0004 reads and discards the byte after the NUL (#1599). */
+    if (!savegame_probe_col1_slot(dir, 2, &info) || !info.occupied) {
+      fprintf(stderr, "slot probe: missing 0x1A EOF should still list\n");
       return 1;
     }
     remove(path0);
     remove(path1);
     remove(path2);
-    fprintf(stderr, "slot probe matches FUN_75c2_0840 (sig + EOF + version) ok\n");
+    fprintf(stderr, "slot probe matches FUN_75c2_0840 (sig + version) ok\n");
   }
 
   /*

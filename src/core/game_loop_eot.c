@@ -1440,7 +1440,13 @@ void game_europe_service_trade_harbor(ColonizeGameState* game) {
       for (int h = 0; h < EUROPE_SHIP_CARGO_MAX; ++h) {
         if (ship->hold_goods_amount[h] > 0 && ship->hold_goods_amount[h] < 255 &&
             ship->hold_goods_type[h] == want) {
+          /* A sale removes the hold and shifts the later ones down
+           * (FUN_15eb_317c, #1588): look at slot h again. */
+          const int had = ship->hold_goods_amount[h];
           (void)europe_sell_hold(eu, &game->col1, game->human_nation, i, h);
+          if (ship->hold_goods_amount[h] != had || ship->hold_goods_type[h] != want) {
+            --h;
+          }
         }
       }
     }

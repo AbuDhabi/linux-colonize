@@ -634,12 +634,41 @@ static int case_unload_keeps_stale_hold_bytes(void) {
     s->hold_goods_type[1] = COLONIZE_CARGO_CLOTH;
     s->hold_goods_amount[1] = 100;
     units_unload_goods_hold(&fx.pool, sid, 0, NULL, NULL);
-    units_unload_goods_hold(&fx.pool, sid, 1, NULL, NULL);
+    units_unload_goods_hold(&fx.pool, sid, 0, NULL, NULL);
     const uint8_t* r = s->col1_hold_raw;
     rc = r[4] != 100 || r[5] != 100 || (r[1] >> 4) != COLONIZE_CARGO_CLOTH;
   }
   if (rc) {
     fprintf(stderr, "raw holds: unload must shift the DOS image, keeping hold 1\n");
+  }
+  land_fixture_free(&fx);
+  return rc;
+}
+
+/* port_bugs.md #1606: FUN_15eb_317c shifts the later live holds down at once,
+ * so the dock shows no gap and the next load appends after them. */
+static int case_unload_shifts_live_holds(void) {
+  LandFixture fx;
+  if (land_fixture_init(&fx) != 0) {
+    return 1;
+  }
+  const int sid = units_spawn_allow_stack(&fx.pool, units_find_type(&fx.pool, "Merchantman"), 3, 3);
+  ColonizeUnit* s = units_get(&fx.pool, sid);
+  int rc = !s;
+  if (!rc) {
+    s->hold_goods_type[0] = COLONIZE_CARGO_FURS;
+    s->hold_goods_amount[0] = 10;
+    s->hold_goods_type[1] = COLONIZE_CARGO_CLOTH;
+    s->hold_goods_amount[1] = 20;
+    s->hold_goods_type[2] = COLONIZE_CARGO_SUGAR;
+    s->hold_goods_amount[2] = 30;
+    rc = units_unload_goods_hold(&fx.pool, sid, 0, NULL, NULL) != 10 ||
+         s->hold_goods_type[0] != COLONIZE_CARGO_CLOTH || s->hold_goods_amount[0] != 20 ||
+         s->hold_goods_type[1] != COLONIZE_CARGO_SUGAR || s->hold_goods_amount[1] != 30 ||
+         s->hold_goods_amount[2] != 0;
+  }
+  if (rc) {
+    fprintf(stderr, "live holds: unload must shift later holds down (317c)\n");
   }
   land_fixture_free(&fx);
   return rc;
@@ -988,6 +1017,7 @@ static const TestCase k_cases[] = {
     {"case_1b0e_attacker_back_after_capture", case_1b0e_attacker_back_after_capture},
     {"case_despawn_drops_raw_record", case_despawn_drops_raw_record},
     {"case_unload_keeps_stale_hold_bytes", case_unload_keeps_stale_hold_bytes},
+    {"case_unload_shifts_live_holds", case_unload_shifts_live_holds},
     {"case_465b_low_mp_foreign_colony_exhausts", case_465b_low_mp_foreign_colony_exhausts},
     {"case_465b_0673_vis_or_behind_mover", case_465b_0673_vis_or_behind_mover},
     {"case_1b0e_relinks_attacker", case_1b0e_relinks_attacker},

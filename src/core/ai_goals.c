@@ -1041,16 +1041,23 @@ void ai_goals_note_colony_founded(ColonizeCol1Save* col1, int nation_id, int tur
     return;
   }
   s_plan[nation_id].last_colony_founded_turn = turn;
-  /* FUN_364b_1ba8 raw 58029 bumps DS:0x9298[nation] (and DS:0x539e) at the
-   * founding itself, and 03d0 (raw 87058-87095) reads that byte live, so a
-   * hull acting later in the same nation turn already sees the new colony
-   * (DOSBox america 74->75: the Dutch Pioneer hull's urgency fell to 0 after
-   * Fort Nassau was founded, and it colony-sailed instead of wandering). */
-  if (s_plan[nation_id].colony_count < 255) {
-    s_plan[nation_id].colony_count++;
-  }
   if (col1) {
     col1->nation[nation_id].last_colony_founded_turn = (int16_t)turn; /* nation +0x46 */
+  }
+}
+
+/*
+ * FUN_364b_1ba8 raw 58029-58030: `*(0x539e) < 0x30` success arm bumps
+ * DS:0x9298[nation] (and DS:0x539e) at the founding itself; the table-full
+ * return leaves it alone (port_bugs.md #1600). 03d0 (raw 87058-87095) reads
+ * that byte live, so a hull acting later in the same nation turn already
+ * sees the new colony (DOSBox america 74->75: the Dutch Pioneer hull's
+ * urgency fell to 0 after Fort Nassau was founded, and it colony-sailed
+ * instead of wandering). Call after a successful colonies_found.
+ */
+void ai_goals_note_colony_created(int nation_id) {
+  if (nation_id >= 0 && nation_id < 4 && s_plan[nation_id].colony_count < 255) {
+    s_plan[nation_id].colony_count++;
   }
 }
 

@@ -1,20 +1,20 @@
 # Fixture: Europe base (60000 gold, tax 6%, difficulty 0) with a Galleon (6 holds) in the harbor (selected), loaded
 # Tobacco 100 / Silver 30 / Cotton 50 / Rum 60 / Ore 100 / Furs 100. Silver price-pressure word set to 50 (fall step at 100) so one
-# 30-ton sale (30<<2 = 120) pushes it over and raises @PRICEDOWN. Hold i is at x = 152+12i, y 171; market cell i at x = 10+19i, y 189.
+# 30-ton sale (30<<2 = 120) pushes it over and raises @PRICEDOWN. Holds are a dense list (port_bugs.md #1588): a sale shifts later holds down. Hold i is at x = 152+12i, y 171; market cell i at x = 10+19i, y 189.
 # Sale = (bid-1)*tons gross, tax = 6% (floor) cut from it, net credited, status line "N Good sold for G. 6% Tax: T. Net: M".
 key e                    # open the European Status screen
 wait 1
 drag 152 171 100 100     # hold dropped on the sky, not the market: nothing sold
 # Drag route: a whole hold onto the market strip sells all of it.
 drag 152 171 48 189      # Tobacco 100 @ 4 = 400, tax 24, net 376
-drag 164 171 143 189     # Silver 30 @ 19 = 570, tax 34, net 536; Silver bid 20 -> 19: @PRICEDOWN
+drag 152 171 143 189     # Silver 30 (the sale compacted the holds: Silver is hold 0 now, FUN_15eb_317c) @ 19 = 570, tax 34, net 536; Silver bid 20 -> 19: @PRICEDOWN
 key Return               # OK the popup
 # Keyboard route: '-' sells the WHOLE first hold of the selected market cell's good (FUN_38fd_23c4), '_' asks the amount.
 click 67 189             # select the Cotton market cell
 key -                    # Cotton 50 @ 4 = 200, tax 12, net 188
 key -                    # no Cotton aboard now: red bar "No Cotton in cargo hold!", nothing sold
 # Shift+drag asks @HOWMUCH5 first (prompt starts at the full hold, 100).
-drag 200 171 124 189 shift
+drag 164 171 124 189 shift   # Ore is hold 1 now [Rum, Ore, Furs]; the 75 left re-joins at the end (FUN_38fd_1f0c)
 key Backspace
 key Backspace
 key Backspace

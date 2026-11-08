@@ -46,7 +46,7 @@
  */
 /* ===================== Startup RNG seeding (ai_starting_gold .. ai_turn_seed) ===================== */
 static uint32_t ai_starting_gold(int difficulty) {
-  if (difficulty <= 0) {
+  if (difficulty == 0) {
     return 1000u;
   }
   if (difficulty == 1) {
@@ -320,7 +320,6 @@ static bool ai_setup_col1_template(const AiNewGameParams* p, char* err, size_t e
     const char* country_name =
       assets_msg_line_or(p->names, "COLONYNAME", i, "");
     ai_set_nation_identity(p->col1, i, human ? 0 : 1, leader, country_name);
-    p->col1->head.nation_relation[i] = -1;
     /* FUN_38fd_6024 raw 68666-68677 keys the purse off the control byte. */
     p->col1->nation[i].gold = human ? ai_starting_gold(p->difficulty) : 0u;
     /*
@@ -552,10 +551,11 @@ static void ai_place_human_fleet(const AiNewGameParams* p, int nation, int landf
 /*
  * FUN_4d56_0000 non-capital branch: `2*indian[nation-4].tech + 3`
  * (OVL13 start; confirmed 2026-08-24). Capital branch of that same
- * helper returns `tech+1` instead — not used here because DOS clears
- * +3 flags before create finishes, then ORs capital bit 0x04 only
- * after the worth/create call returns (6a09), so founding always
- * stores the non-capital formula into settlement+4 / population.
+ * helper (settlement+3 bit 0x04) returns `3*tech + 4` (4d56:002c
+ * `ADD CX,AX; INC CX`) — not used here: create FUN_4d56_0038 calls the
+ * helper at 4d56:0086 on the fresh slot and zeroes the +3 flags only
+ * after it (4d56:00c7), then ORs capital bit 0x04 later still (6a09),
+ * so founding stores the non-capital formula into settlement+4 / population.
  */
 int ai_tribe_initial_pop(uint8_t tech) {
   return 3 + 2 * (int)tech;

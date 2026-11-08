@@ -164,8 +164,11 @@ static bool game_service_bar_message(
     map_menu_set_message(&game->map_menu, NULL, 0);
     return false;
   }
+  /* FUN_1009_0036 skips the wait while DS:0x7ee (buttons at the last poll)
+   * is set and breaks it on FUN_1a58_038b's live button state, so a held
+   * button flushes a run, not only a fresh click (#1584). */
   const bool dismiss = hold && input && (input->last_key != COLONIZE_KEY_NONE ||
-                                         input->mouse_left_clicked || input->mouse_right_clicked);
+                                         input->mouse_left_down || input->mouse_right_down);
   (void)ai_popup_bar_service(&game->ai_popups, game->elapsed_ms, dismiss);
   map_menu_set_message(
     &game->map_menu,
@@ -3610,11 +3613,6 @@ COLONIZE_INTERNAL GameUpdateStep game_update_map_keys(ColonizeGameState* game, c
     return GAME_UPDATE_RETURN_TRUE;
   }
 
-  const int map_min_x = 1;
-  const int map_min_y = 1;
-  const int map_max_x = game->world_map_ok ? (int)game->world_map.width - 2 : 15;
-  const int map_max_y = game->world_map_ok ? (int)game->world_map.height - 2 : 15;
-
   /* Enter: FUN_2b5a_32ee raw 45870-45891 (Move Pieces) / FUN_2b5a_3344 raw
    * 45894-45923 (View Pieces), reached after the menu hotkeys and 303c pass
    * (FUN_2b5a_3802 raw 46315-46325). Both open the colony under the cursor
@@ -3675,23 +3673,15 @@ COLONIZE_INTERNAL GameUpdateStep game_update_map_keys(ColonizeGameState* game, c
           game_select_tile(game, selected->x, selected->y);
         }
       } else {
-        int nx = game->map_cursor_x + dx;
-        int ny = game->map_cursor_y + dy;
-        if (nx < map_min_x) {
-          nx = map_min_x;
+        /* FUN_1984_03ca (raw 14030-14050): the whole step is refused when
+         * FUN_137f_000a rejects the target; DOS never clamps (#1582). */
+        const int nx = game->map_cursor_x + dx;
+        const int ny = game->map_cursor_y + dy;
+        if (game->world_map_ok && map_coords_inset(&game->world_map, nx, ny)) {
+          game->map_cursor_x = nx;
+          game->map_cursor_y = ny;
+          game_set_view_center(game, game->map_cursor_x, game->map_cursor_y);
         }
-        if (ny < map_min_y) {
-          ny = map_min_y;
-        }
-        if (nx > map_max_x) {
-          nx = map_max_x;
-        }
-        if (ny > map_max_y) {
-          ny = map_max_y;
-        }
-        game->map_cursor_x = nx;
-        game->map_cursor_y = ny;
-        game_set_view_center(game, game->map_cursor_x, game->map_cursor_y);
       }
     }
   }

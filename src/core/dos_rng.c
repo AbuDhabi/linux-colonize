@@ -108,10 +108,21 @@ static uint32_t dos_rng_tick_now(void) {
     x ^= x >> 12;
     return x;
   }
+  return dos_rng_tick_word();
+}
+
+uint32_t dos_rng_tick_word(void) {
   if (s_dos_rng_tick >= 0) {
     return (uint32_t)s_dos_rng_tick;
   }
   return (uint32_t)(dos_rng_wall_ms() * 182 / 10000);
+}
+
+int dos_rng_range_detached(ColonizeDosRng* rng, int lo, int hi) {
+  /* Same step and scaling as dos_rng_next (LCG arm) + dos_rng_range. */
+  rng->state = rng->state * 0x343FDu + 0x269EC3u;
+  const int32_t r = (int32_t)((rng->state >> 16) & 0x7fffu);
+  return (int)(int16_t)(lo + (((int32_t)(hi - lo + 1) * r) >> 15));
 }
 
 void dos_rng_set_synth_ticks(bool on) {

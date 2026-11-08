@@ -33,7 +33,7 @@ static void strip_crlf(char* line) {
 /*
  * DAC byte (6-bit) -> 8-bit channel, uniformly for every input.
  *
- * DOS never scales: FUN_1ade_0004 (raw 15184) and FUN_1ae3_0006 (raw 17606)
+ * DOS never scales: FUN_1ade_0004 (raw 15184) and FUN_1c2e_0022 (raw 17588-17630)
  * set the DAC write index at port 0x3c8 and then `out(byte, 0x3c9)` each
  * palette byte verbatim, as does the retrace-free variant at raw 123768 and
  * the read-back at raw 124222. The VGA DAC latches only the low 6 bits of a

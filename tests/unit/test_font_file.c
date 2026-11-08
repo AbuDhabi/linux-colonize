@@ -166,9 +166,39 @@ static int case_fonttiny(void) {
   return 0;
 }
 
+/* FUN_1c11_000c: byte 0x80 is glyph width[0x7f] (header byte 129), not a terminator. */
+static int case_glyph_0x80(void) {
+  diag_init(0, NULL);
+  static const char* const k_faces[] = {
+    "COLONIZE/FONTINTR.FF", "COLONIZE/FONTKING.FF", "COLONIZE/FONT-NP.FF",
+    "COLONIZE/FONTSMAL.FF", "COLONIZE/FONTTINY.FF",
+  };
+  int rc = 0;
+  for (size_t i = 0; i < sizeof(k_faces) / sizeof(k_faces[0]) && rc == 0; ++i) {
+    ColonizeFont font;
+    char err[256];
+    if (!font_file_load(k_faces[i], &font, err, sizeof(err))) {
+      fprintf(stderr, "ff load failed: %s\n", err);
+      rc = 1;
+      break;
+    }
+    fprintf(stderr, "%s 0x80 width=%u\n", k_faces[i], font.char_widths[0x80]);
+    if (font.char_widths[0x80] != font.section_data[129] ||
+        font_char_advance(&font, 0x80) != font.char_widths[0x80] ||
+        font_char_advance(&font, 0x81) != 0) {
+      fprintf(stderr, "%s: 0x80 must use header width byte 129\n", k_faces[i]);
+      rc = 1;
+    }
+    font_file_free(&font);
+  }
+  diag_shutdown();
+  return rc;
+}
+
 static const TestCase k_cases[] = {
     {"case_fontsmal", case_fontsmal},
     {"case_fonttiny", case_fonttiny},
+    {"case_glyph_0x80", case_glyph_0x80},
 };
 
 TEST_MAIN(k_cases)

@@ -108,9 +108,6 @@ void game_select_tile(ColonizeGameState* game, int x, int y) {
   if (!game) {
     return;
   }
-  if (game->world_map_ok) {
-    map_clamp_coords_inset(&game->world_map, &x, &y);
-  }
   if (game->units_ok) {
     /* A live selection here means the player moved on since any despawn
      * step-back: it no longer applies. With no live selection (the unit just
@@ -120,9 +117,13 @@ void game_select_tile(ColonizeGameState* game, int x, int y) {
     }
     game->units.selected_id = -1;
   }
-  game->map_cursor_x = x;
-  game->map_cursor_y = y;
-  game_set_view_center(game, x, y);
+  /* FUN_1984_00e8 (raw 13886-13896) writes 0x8540/0x853e only when
+   * FUN_137f_000a accepts the tile; DOS never clamps (#1582). */
+  if (!game->world_map_ok || map_coords_inset(&game->world_map, x, y)) {
+    game->map_cursor_x = x;
+    game->map_cursor_y = y;
+  }
+  game_set_view_center(game, game->map_cursor_x, game->map_cursor_y);
   game->view_pieces_mode = true;
 }
 

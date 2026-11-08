@@ -170,10 +170,15 @@ int founding_fathers_bolivar_sol_bonus(const ColonizeCol1Save* col1, int nation)
  * re-reveal). reports.c:717 reached the same conclusion from dutch-reports.SAV.
  */
 bool founding_fathers_nation_has(const ColonizeCol1Save* col1, int nation, int ff_index) {
-  if (!col1 || nation < 0 || nation >= (int)COLONIZE_COL1_NATION_COUNT) {
+  if (!col1) {
     return false;
   }
-  if (ff_index < 0 || ff_index >= (int)COLONIZE_COL1_FF_COUNT) {
+  /* FUN_15eb_3960 raw 13837-13839: `if (param_2 < 0) return 1`, before the nation test. */
+  if (ff_index < 0) {
+    return true;
+  }
+  if (nation < 0 || nation >= (int)COLONIZE_COL1_NATION_COUNT ||
+      ff_index >= (int)COLONIZE_COL1_FF_COUNT) {
     return false;
   }
   const uint8_t byte = col1->nation[nation].founding_fathers[ff_index / 8];

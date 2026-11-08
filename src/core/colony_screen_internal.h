@@ -114,13 +114,14 @@ void colony_screen_blit_icon(
   int x,
   int y
 );
+/* FUN_1c56_0004 percent scaler: centred on cx, bottom row on bottom_y. */
 void colony_screen_blit_mini_unit(
   const ColonyScreenView* view,
   ColonizeFramebuffer8* framebuffer,
   int sprite,
-  int x,
-  int y,
-  int h
+  int pct,
+  int cx,
+  int bottom_y
 );
 int colony_screen_building_worker_strip(
   const ColonyScreenView* view,

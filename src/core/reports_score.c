@@ -302,7 +302,11 @@ int reports_score_rating(int total, int difficulty, int* tier_out) {
   if (difficulty > 3) {
     mult++;
   }
-  const int pre = (mult * total) / 100;
+  /* DOS-LITERAL FUN_41f2_0b70 asm 41f2:0be6-0bee: IMUL word; MOV CX,0x64;
+   * CWD; IDIV CX. CWD rebuilds DX from AX, so the product is cut to signed
+   * 16 bits before the divide (Viceroy total 20000 -> 3392 -> pre 33; a
+   * negative wrap leaves tier -1 and a negative rating). */
+  const int pre = (int16_t)(mult * total) / 100;
   int tier = -1;
   for (int n = 1; n < 25; ++n) {
     if ((n * n) / 3 < pre) {

@@ -124,21 +124,21 @@ static ColonizeCol1Tribe* ai_contact_2e92_visited_village(
  * so there is no first-record fallback: the OpenCol meet-pulse stand-in that
  * needed one is gone.
  */
-/* tribe+10+e*2 (int16: friction | attacks<<8) -= sub, floor 0; qty == 100 → 0. */
+/* tribe+10+e*2 (int16: friction | attacks<<8) -= sub, floor 0; qty == 100 → 0.
+ * FUN_4d56_2820 sell/buy settles (2820 doc 539-548, 628-637): a 16-bit signed
+ * word, so a word >= 0x8000 is negative and clamps to 0 (port_bugs.md #1594). */
 static void ai_contact_2820_friction_sub(ColonizeCol1Tribe* t, int e, int sub, int qty) {
   if (!t || e < 0 || e > 3) {
     return;
   }
-  int w = (int)t->alarm[e].friction | ((int)t->alarm[e].attacks << 8);
-  w -= sub;
+  int w = (int16_t)(uint16_t)(col1_tribe_attitude(t, e) - sub); /* 16-bit sub wraps */
   if (w < 0) {
     w = 0;
   }
   if (qty == 100) {
     w = 0;
   }
-  t->alarm[e].friction = (uint8_t)(w & 0xff);
-  t->alarm[e].attacks = (uint8_t)((w >> 8) & 0xff);
+  col1_tribe_attitude_set(t, e, w);
 }
 
 /*
@@ -867,8 +867,7 @@ void ai_contact_apply_reparations(
     (ctx->units && s->unit_id >= 0) ? units_get(ctx->units, s->unit_id) : NULL;
   if (wag && wag->active && wag->nation_id == e && s->hold >= 0 &&
       s->hold < COLONIZE_UNIT_CARGO_MAX) {
-    wag->hold_goods_amount[s->hold] = 0;
-    wag->hold_goods_type[s->hold] = 0;
+    (void)units_remove_goods_slot(wag, s->hold); /* 317c shifts the later holds */
   }
   /* port_bugs.md #802: DOS writes no status line here (no such text in any
    * COLONIZE .TXT section); the invented English narration is gone. */

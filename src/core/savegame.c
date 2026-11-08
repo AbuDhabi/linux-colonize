@@ -177,7 +177,7 @@ bool savegame_probe_col1_slot(
    * DOS's own slot lister calls the full load-time header check, not a bare
    * signature compare: FUN_7562_0052 (the @SAVEGAME/@LOADGAME row builder)
    * probes each slot through FUN_2a1f_0d04 -> FUN_75c2_0840, which validates
-   * "COLONIZE"+0x1A, the version word against DS:0x81a, and (when a live map
+   * "COLONIZE" (the 0x1A after it is read and discarded), the version word against DS:0x81a, and (when a live map
    * exists) the map size, and only renders a row when that returns 0 —
    * anything else falls through to "(EMPTY)" (DS:0x20ee). Matching that here
    * stops the port listing an unloadable file as a selectable slot (smell

@@ -668,6 +668,10 @@ bool col1_bridge_init_template(
   memset(&save->head, 0, sizeof(save->head));
   col1_save_stamp_head(&save->head);
   col1_save_reset_nation_slots(&save->head);
+  /* FUN_75c2_235c raw 121528-121530: the Crown-war stamps DS:0x53c8 start at 0xffff. */
+  for (int i = 0; i < 4; ++i) {
+    save->head.nation_relation[i] = -1;
+  }
   /* Unrecruited founding fathers are -1 in DOS saves (not nation 0). */
   for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
     save->head.founding_father[i] = -1;
@@ -1673,9 +1677,10 @@ COLONIZE_INTERNAL void col1_bridge_apply_europe_lanes(Col1ApplyCtx* ctx) {
 /*
  * DOS's order on a Europe lane tile: FUN_1427_005c (raw 7295-7336) takes the
  * FIRST record on (xy, xy), FUN_1427_0002 follows +0x315c to the chain's end,
- * and the painters (FUN_38fd_15aa dock, FUN_38fd_0666 harbor) walk +0x315e
- * back from there. rank[i] = that walk's position of save record i (0 = the
- * newest, drawn first), -1 off the chain.
+ * and the painters walk +0x315e back from there: FUN_38fd_1382 (raw
+ * 59621-59650) for the 240+n / 244+n sailing lanes, FUN_38fd_15aa dock /
+ * FUN_38fd_0666 harbor for the 236+n park tile. rank[i] = that walk's
+ * position of save record i (0 = the newest, drawn first), -1 off the chain.
  */
 static void col1_lane_chain_rank(const ColonizeCol1Save* save, uint8_t xy, int* rank) {
   const int n = (int)save->head.unit_count;
@@ -3354,11 +3359,12 @@ COLONIZE_INTERNAL void col1_bridge_capture_unit_records(Col1CaptureCtx* ctx) {
       const int nat = src->nation_id & 0xF;
       /* The crown is the withdrawn slot until the declaration; after it DOS
        * sets that slot's control to 1 (AI) and withdraws the others
-       * (independence-seed-100 000003), so name it by the King's slot. */
+       * (independence-seed-100 000003), so name it by the King's slot,
+       * the raw DS:0x53d2 word (no human-peer fallback). */
       const bool crown =
         nat >= 0 && nat < 4 &&
         (ai_king_independence_declared(save)
-           ? nat == ai_king_crown_nation_col1(save, (int)save->head.human_player)
+           ? nat == (int)save->head.crown_nation_id
            : save->player[nat].control == 2);
       uint8_t vis = (uint8_t)(src->col1_vis_mask & 0x0Fu);
       if (units_coords_in_europe_park(src->x, src->y)) {

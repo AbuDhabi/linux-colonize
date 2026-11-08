@@ -1049,6 +1049,7 @@ int gsound_vm_unsupported_count(const GsoundVm* vm) {
   return vm ? vm->unsupported : 0;
 }
 
+/* FUN_1000_27b4 1000:27ec: MOV CX,0x4a6a; CMP BX,5; JC; MOV CX,0x2b11. */
 int gsound_vm_sfx_rate(int sfx_index) {
-  return sfx_index < 5 ? 11025 : 19050;
+  return sfx_index < 5 ? 19050 : 11025;
 }

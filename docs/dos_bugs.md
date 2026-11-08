@@ -664,7 +664,11 @@ without PEACE in either relation row, the Foreign Affairs report's test; WAR
 0x02 survives a treaty), it belongs to the Crown after the declaration, or it
 is another nation's Privateer. The filter runs after the 0906 flood, so the
 shared flood grid sees the same calls. AI colonies keep the DOS count (their
-Custom House ignores the bits; the ship-pressure tallies feed the AI). Goldens
+Custom House ignores the bits; the ship-pressure tallies feed the AI). The
+@KINGFRIGATE offer (`ai_king_frigate_threat_counts`, FUN_3844_00f2 raw 58393)
+keeps the DOS count: the probe also records the unfiltered pair
+(`ai_euro_colony_dos_blockade_pair`), so a peaceful frigate still earns the
+free-Frigate offer (port_bugs.md #1593). Goldens
 and idle campaigns pass unchanged, so no `dos_buggy_behavior()` gate. Test:
 `unit_ai_euro_expand_labor` (`unit_human_census_ship_pressure_refresh`).
 **Status:** done (user 2026-11-05).
@@ -733,3 +737,62 @@ takes the whole-map BFS step toward the goal instead (`units_bfs_next_step`, the
 `UNITS_FAR_BFS` tier; its queue now holds the whole map). Ungated: every golden and
 idle campaign still matches. Test: unit_units_movement `unit_db81_far_waypoint_pingpong`.
 **Status:** done (2026-11-07, user call).
+
+### DB-82 — Captured treasure of 12800 gold or more shows a negative amount
+**DOS:** `FUN_5fef_0352` (raw 99404) builds the @LOOTCAPTURE NUMBER0 from the
+treasure's value byte with `MOV AL,0x64; IMUL byte ptr [SI+0x315b]; CWD`
+(viceroy_unpacked.asm:167858), a signed byte multiply. A value byte of 0x80 or
+more (12800+ gold) prints negative: 0x96 (15000 gold) shows -10600. The other four
+`*100` sites on +0x315b use the unsigned `MUL`, so only this message is wrong and
+no gold is affected.
+
+**Port:** `units_combat.c` reads the value through `units_treasure_value_gold`
+(unsigned), so the message shows the real amount. Ungated (display only).
+**Status:** done (user 2026-11-08, port_bugs.md #1602).
+
+### DB-83 — MAPEDIT minimap on a map under 58x41 reads outside the terrain plane
+**DOS:** `FUN_1b56_00dc` clamps the minimap origin through `FUN_1865_000e`, floor 1
+first, then ceiling w-57 / h-40, so a narrower or shorter map gets a negative
+origin; `FUN_1b56_011c` then draws 56x39 bytes linearly from it with stride = map
+width (memory before the plane, wrapped rows).
+
+**Port:** `me_minimap_origin` (`src/core/mapedit.c`) applies the ceiling first, then
+the floor (origin >= 1), and `me_render_side` skips tiles past the map edge.
+**Status:** done (user 2026-11-08, port_bugs.md #1604 item 9 / #1608).
+
+### DB-84 — MAPEDIT Undo after Load or New pastes the previous map
+**DOS:** the undo-valid word DS:0x52 is only ever set to 1 (`FUN_1000_0750`, the
+snapshot) and never cleared, so Undo (`FUN_1000_077e`) after Load or New copies the
+old map's 12000-byte terrain snapshot over the new map.
+
+**Port:** `me_load` and `me_new_map` (`src/core/mapedit.c`) clear `undo_valid`, so
+Undo does nothing until the next snapshot.
+**Status:** done (user 2026-11-08, port_bugs.md #1604 item 10 / #1608).
+
+### DB-85 — Colony-screen `T` cheat has no 32-colonist cap
+**DOS:** the T arm of `FUN_2f2b_6372` (raw 55699-55705) increments the colony head
+count +0x1f with no limit. At 32, `FUN_15eb_1068` writes occupation slot 32 at +0x40
+(profession[0]) and `FUN_15eb_0e8c` writes into the turns-nibble bytes at +0x60:
+the record overruns.
+
+**Port:** `colonies_cheat_add_colonist` (`src/core/colony.c`) refuses past
+COLONIZE_COLONY_POP_MAX (32).
+**Status:** done (user 2026-11-08, port_bugs.md #1604 item 11 / #1608).
+
+### DB-86 — Colony-screen `T` cheat keeps a departed colonist's turns-in-job nibble
+**DOS:** `FUN_15eb_1068(old, 0)` resets the turns nibble (`FUN_15eb_0cbc`, raw
+10220-10244) only when the stale occupation byte at the new index (`FUN_15eb_0e18`)
+differs from 0, so a stale occupation of 0 keeps the leftover nibble at +0x60 + idx/2.
+
+**Port:** `colonies_cheat_add_colonist` zero-fills the new colonist (turns 0); like
+DB-62, the port keeps no bytes past the head count.
+**Status:** done (user 2026-11-08, port_bugs.md #1604 item 11 / #1608).
+
+### DB-87 — A save with a zero map size loads when no map is live
+**DOS:** `FUN_75c2_0840` (raw 120154-120157) compares the save's W*H only against a
+live map (DS:0x180/0x182); with none it accepts any size, including 0.
+
+**Port:** `col1_save_validate_head` (`src/core/col1_save.c`) returns NOT_A_SAVE
+(LOADNOT) for W or H 0 with no live map; the parser and the bridge refuse an empty
+map too. With a live map it gives LOADSIZE as DOS does.
+**Status:** done (user 2026-11-08, port_bugs.md #1599 / #1608).

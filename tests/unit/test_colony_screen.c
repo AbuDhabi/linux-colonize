@@ -3964,6 +3964,42 @@ static int unit_ai_owner_title_line(void) {
   return rc;
 }
 
+/* port_bugs.md #1596: FUN_1c56_0004 at 35% on a 16x15 sprite keeps columns
+ * 1,4,7,9,12,15 and rows 1,4,7,9,12 (one mask, acc 0x32), centred on cx and
+ * bottom-aligned on bottom_y. */
+static int unit_mini_unit_percent_scaler(void) {
+  static ColonyScreenView view;
+  static uint8_t pixels[16 * 15];
+  static uint8_t fb_pixels[200 * 100];
+  memset(&view, 0, sizeof(view));
+  for (int i = 0; i < 16 * 15; ++i) {
+    pixels[i] = (uint8_t)i;
+  }
+  ColonizeSprite sp = {.width = 16, .height = 15, .pixels = pixels};
+  view.icons.sprites = &sp;
+  view.icons.sprite_count = 1;
+  view.icons_ok = true;
+  memset(fb_pixels, 0xee, sizeof(fb_pixels));
+  ColonizeFramebuffer8 fb = {.width = 200, .height = 100, .pixels = fb_pixels};
+  colony_screen_blit_mini_unit(&view, &fb, 0, 0x23, 100, 50);
+  static const int cols[6] = {1, 4, 7, 9, 12, 15};
+  static const int rows[5] = {1, 4, 7, 9, 12};
+  int rc = 0;
+  for (int y = 44; y < 53; ++y) {
+    for (int x = 95; x < 105; ++x) {
+      int want = 0xee;
+      if (x >= 97 && x < 103 && y >= 46 && y <= 50) {
+        want = rows[y - 46] * 16 + cols[x - 97];
+      }
+      if (fb_pixels[y * 200 + x] != want) {
+        fprintf(stderr, "mini_scaler: (%d,%d) got %d want %d\n", x, y, fb_pixels[y * 200 + x], want);
+        rc = 1;
+      }
+    }
+  }
+  return rc;
+}
+
 static const TestCase k_cases[] = {
     {"unit_spy_view_draws_no_selection_boxes", unit_spy_view_draws_no_selection_boxes},
     {"unit_town_hall_tiers_area_view", unit_town_hall_tiers_area_view},
@@ -3990,6 +4026,7 @@ static const TestCase k_cases[] = {
     {"case_colony_screen_render_workflow", case_colony_screen_render_workflow},
     {"unit_hit_test_stage_seam", unit_hit_test_stage_seam},
     {"unit_ai_owner_title_line", unit_ai_owner_title_line},
+    {"unit_mini_unit_percent_scaler", unit_mini_unit_percent_scaler},
 };
 
 TEST_MAIN(k_cases)

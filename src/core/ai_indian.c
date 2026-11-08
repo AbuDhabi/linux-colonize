@@ -71,10 +71,10 @@
  *
  * `FUN_4d56_0000` takes `(unused_cs_word, tribe_index)`; the byte-pair
  * it reads (`DS:0x54ec` stride `0x12`, `+2` nation id / `+3 bit0x4`
- * capital flag) is a separate per-tribe worklist table mirroring the
- * settlement record's own `nation_id`/`state.capital` fields already
- * wired in this port — read those directly off `t` instead of porting
- * the redundant lookup table. DOS stores the result through a `byte`
+ * capital flag) is the settlement table itself (FUN_4d56_0038 indexes it
+ * by the new settlement slot), i.e. the record's own `nation_id` /
+ * `state.capital` fields already wired in this port — read those
+ * directly off `t`. DOS stores the result through a `byte`
  * local before comparing (`byte bVar5 = FUN_41f2_0294(...)`), so the
  * value is truncated mod 256 same as this project's established
  * "byte-truncate on port" convention elsewhere.

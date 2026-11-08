@@ -277,6 +277,8 @@ bool colonies_can_found(
 
 /* Next default colony name for a nation without consuming it (port_bugs.md #682). */
 const char* colonies_peek_next_name(const ColonizeColonyPool* pool, int nation_id);
+/* Consume that name without founding: a cancelled or failed Build (#1591). */
+void colonies_skip_next_name(ColonizeColonyPool* pool, int nation_id);
 
 
 /*

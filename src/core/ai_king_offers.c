@@ -14,6 +14,7 @@
 #include "core/ai_king.h"
 #include "core/ai_king_internal.h"
 #include "core/ai_diplo.h"
+#include "core/ai_euro.h"
 #include "core/sound.h"
 
 #include "core/assets.h"
@@ -278,10 +279,12 @@ static int ai_king_frigate_threat_counts(
     if (!c->active || c->nation_id != nation) {
       continue;
     }
-    if ((c->ai_flags & COLONIZE_COLONY_AI_NEARBY_FRIGATE) != 0) {
+    /* DOS counts, not the DB-76-filtered +0x1b bits (port_bugs.md #1593). */
+    const uint8_t pair = ai_euro_colony_dos_blockade_pair(ctx->colonies, ci);
+    if ((pair & COLONIZE_COLONY_AI_NEARBY_FRIGATE) != 0) {
       frig++;
     }
-    if ((c->ai_flags & COLONIZE_COLONY_AI_NEARBY_ARMED_SHIP) != 0) {
+    if ((pair & COLONIZE_COLONY_AI_NEARBY_ARMED_SHIP) != 0) {
       other++;
     }
   }

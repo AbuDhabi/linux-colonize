@@ -39,7 +39,7 @@ void gsound_vm_set_sfx(GsoundVm* vm, GsoundSfxFn fn, void* user);
  * (offset32, length32) pairs; the driver counts entries until one runs past
  * the file size (0x260c). Returns the count and fills up to max entries.
  */
-/* Driver FUN_1000_27b4: samples 0..4 play at 11025 Hz, the rest at 19050 Hz. */
+/* Driver FUN_1000_27b4: samples 0..4 play at 19050 Hz, the rest at 11025 Hz. */
 int gsound_vm_sfx_rate(int sfx_index);
 int gsound_vm_sfx_table(const GsoundVm* vm, size_t coldig_size, uint32_t* offs, uint32_t* lens, int max);
 

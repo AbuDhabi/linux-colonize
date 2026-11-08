@@ -813,12 +813,12 @@ static inline void col1_tribe_attitude_set(ColonizeCol1Tribe* t, int euro_nation
   if (!t || euro_nation < 0 || euro_nation > 3) {
     return;
   }
-  if (word < 0) {
-    word = 0;
-  }
-  if (word > 0xffff) {
-    word = 0xffff;
-  }
+  /*
+   * DOS stores the word with a plain 16-bit MOV: no clamp, it wraps
+   * (port_bugs.md #1594). Writers that clamp in DOS (the 2820 settles,
+   * the 152e mission relief) clamp before calling.
+   */
+  word = (int)(uint16_t)word;
   t->alarm[euro_nation].friction = (uint8_t)(word & 0xff);
   t->alarm[euro_nation].attacks = (uint8_t)((word >> 8) & 0xff);
 }

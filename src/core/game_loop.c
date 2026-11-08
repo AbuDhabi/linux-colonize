@@ -1855,7 +1855,7 @@ COLONIZE_INTERNAL void game_render_select_palette(
 
   /* Same reserved-block rule for the Europe Recruit/Purchase menus, which
    * carry the MSS2 courtier but are drawn by europe_render_menu_popup rather
-   * than ai_popup (EUROPE.PIK leaves 120..251 black; MSS2.SS fills them). */
+   * than ai_popup (EUROPE.PIK leaves 152..251 black; MSS2.SS fills them). */
   if (game->in_europe) {
     ai_popup_sheet_palette_merge(europe_menu_decoration(game), palette);
   }

@@ -495,6 +495,9 @@ void ai_euro_5952_improve_best_plot(
     ph->col1_hold_raw[9] =
       (uint8_t)(ph->col1_hold_raw[9] - 0x14u);
   }
+  /* The stash (units_dos_tail_stash) writes live tools into +0x3159; hand it
+   * the DOS byte, not the gate-passing stand-in (port_bugs.md #1601). */
+  ph->tools = ph->col1_hold_raw[9];
   units_despawn(ctx->units, pid); /* FUN_291f_0a06 */
   if (worked) {
     /* raw 94541-94549: colony+0xb6 -= min(stock, 20); colony+0x8c = 0 on
@@ -675,6 +678,7 @@ static int ai_euro_5952_road_connect_0000(ColonizeTurnContext* ctx, ColonizeColo
        * 0x14 from the physical byte even when it underflows. */
       ph->col1_hold_raw[9] = (uint8_t)(ph->col1_hold_raw[9] - 0x14u);
     }
+    ph->tools = ph->col1_hold_raw[9]; /* as above (#1601) */
     units_despawn(ctx->units, pid); /* FUN_291f_0a06 */
     if (built) {
       return 1;

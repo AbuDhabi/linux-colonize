@@ -8,7 +8,7 @@ click 148 152              # select caravel B
 wait 1
 drag 132 171 130 152       # caravel B hold 0 (tobacco) -> caravel A icon: ship to ship
 wait 1
-drag 144 171 67 188 shift  # caravel B hold 1 (furs) -> warehouse, amount prompt
+drag 132 171 67 188 shift  # caravel B hold 0 (furs, shifted down) -> warehouse, amount prompt
 wait 1
 key Backspace
 key Backspace

@@ -247,9 +247,9 @@ static void reports_congress_draw_slots(
  * it, and the drawn count is min(pool, local_56). Both compares are signed
  * int, so a pool word past 32767 reads negative.
  */
-int reports_congress_bells_scale(uint16_t pool_word, int need, bool ref_arrived) {
+int reports_congress_bells_scale(uint16_t pool_word, int need, bool intervention_announced) {
   const int pool = (int16_t)pool_word;
-  return (ref_arrived && pool > need) ? pool : need;
+  return (intervention_announced && pool > need) ? pool : need;
 }
 
 void reports_render_congress_page1(
@@ -278,7 +278,7 @@ void reports_render_congress_page1(
    * Fathers" — composed with the golden's punctuation/spacing. */
   char w1[48], w2[48], w3[48];
   const int woi = col1->head.game_options.woi != 0;
-  const int ref_arrived = col1->head.game_options.intervention_announced != 0;
+  const int intervention_announced = col1->head.game_options.intervention_announced != 0;
   /* DOS reads DS:0x53d4 raw and hands it straight to the nationality-string
    * sub (FUN_281f_09a4), both here and at the intervention lineup below
    * (viceroy_unpacked.c 69686 / 69777). No crown/self exclusion, no "pick
@@ -304,7 +304,7 @@ void reports_render_congress_page1(
       const size_t at = strlen(line);
       snprintf(line + at, line_sz - at, "(%s)", reports_ff_display_name(nat->next_founding_father));
     }
-  } else if (!ref_arrived) {
+  } else if (!intervention_announced) {
     /* port_bugs.md #229/257: after declaring, FF elections are over — the bell bar
      * counts toward the foreign intervention instead. DOS's top header is
      * just "<nation> Intervention:" (@MISC 113); "Intervention Force" (@MISC
@@ -330,7 +330,7 @@ void reports_render_congress_page1(
     const uint16_t pool_word = (uint16_t)founding_fathers_bells_pool(col1, human);
     const int pool = (int16_t)pool_word;
     const int need = reports_congress_bells_scale(
-      pool_word, (int)founding_fathers_bells_needed(col1, human), ref_arrived
+      pool_word, (int)founding_fathers_bells_needed(col1, human), intervention_announced
     );
     const int drawn = pool < need ? pool : need;
     const size_t at = strlen(line);
@@ -350,7 +350,7 @@ void reports_render_congress_page1(
     const uint16_t pool_word = (uint16_t)founding_fathers_bells_pool(col1, human);
     const int pool = (int16_t)pool_word;
     const int need = reports_congress_bells_scale(
-      pool_word, (int)founding_fathers_bells_needed(col1, human), ref_arrived
+      pool_word, (int)founding_fathers_bells_needed(col1, human), intervention_announced
     );
     if (need > 0 && pool > 0) {
       /*

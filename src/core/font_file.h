@@ -8,8 +8,9 @@
 typedef struct ColonizeFont {
   uint8_t max_height;
   uint8_t max_width;
-  uint8_t char_widths[128];
-  uint16_t char_offsets[128];
+  /* Chars 1..0x80 (FUN_1c11_000c indexes width[ch - 1] while it is >= 0). */
+  uint8_t char_widths[129];
+  uint16_t char_offsets[129];
   uint8_t* section_data;
   size_t section_size;
 } ColonizeFont;

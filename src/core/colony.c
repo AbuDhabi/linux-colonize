@@ -715,8 +715,9 @@ bool colonies_can_found(
 
 /*
  * DOS thunk_FUN_2a1f_01f4 (raw 76995) builds the nation's next default colony
- * name into a local BEFORE the name prompt runs, without consuming it — the
- * prompt may still be cancelled (port_bugs.md #682). Non-advancing peek.
+ * name into a local BEFORE the name prompt runs. It consumes it there; the
+ * port peeks here and consumes at creation, and colonies_skip_next_name
+ * covers the cancel / failure arms (port_bugs.md #682, #1591).
  *
  * FUN_479b_0000 walks the COLONY.TXT nation section up to the nation counter
  * (nation*0x34+0x5440). Row 0 is always copied; hitting @STOP before the
@@ -738,14 +739,25 @@ const char* colonies_peek_next_name(const ColonizeColonyPool* pool, int nation_i
   return pool->names[nation_id][(k >= 0 && k < pool->name_count[nation_id]) ? k : 0];
 }
 
-static const char* colonies_next_name(ColonizeColonyPool* pool, int nation_id) {
-  const char* n = colonies_peek_next_name(pool, nation_id);
+/*
+ * The FUN_479b_0000 `++` on nation*0x34+0x5440 (raw 76660), while names
+ * remain. FUN_479b_076e runs it before the name prompt and before
+ * FUN_291f_09b2, so a cancelled prompt or a failed creation still uses the
+ * name up (DOSBox 2026-11-08: Build, Esc, Build offers Plymouth;
+ * port_bugs.md #1591).
+ */
+void colonies_skip_next_name(ColonizeColonyPool* pool, int nation_id) {
   if (pool) {
     const int nid = (nation_id < 0 || nation_id > 3) ? 0 : nation_id;
     if (pool->name_next[nid] < pool->name_count[nid]) {
       pool->name_next[nid]++;
     }
   }
+}
+
+static const char* colonies_next_name(ColonizeColonyPool* pool, int nation_id) {
+  const char* n = colonies_peek_next_name(pool, nation_id);
+  colonies_skip_next_name(pool, nation_id);
   return n;
 }
 

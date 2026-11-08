@@ -79,9 +79,9 @@ ColonizeSoundOptions sound_get_options(void);
 /* Mirror FUN_12d8_000e: gate by option bits then play. */
 void sound_play(int id);
 /*
- * Id last handed to GSOUND, or -1. Unlike sound_active_song_id this ignores a
- * queued FUN_129f_02cc next-song; CLOSING.EXE 0x3d must show up here as soon
- * as sound_play runs, not after event stings go idle.
+ * Id last handed to GSOUND (DS:0x96), or -1; same value as
+ * sound_active_song_id. CLOSING.EXE 0x3d must show up here as soon as
+ * sound_play runs, not after event stings go idle.
  */
 int sound_driver_song_id(void);
 
@@ -130,7 +130,8 @@ void sound_set_cinematic(bool active);
 void sound_set_demo(bool active);
 void sound_service(void);
 
-/* Currently playing song id (BGM/event/title), or -1 if none. Ambient BGM
+/* Currently playing song id (BGM/event/title), or -1 if none: DS:0x96, not
+ * an id still queued in DS:0x94 behind a fading tune. Ambient BGM
  * (sound_set_bgm) and one-shot sound_play() share this state, matching DOS
  * FUN_129f_02cc/0318's "skip restart if id unchanged" gate. */
 int sound_active_song_id(void);
@@ -138,10 +139,12 @@ int sound_active_song_id(void);
 /* Fill interleaved S16 samples for the SDL audio callback (thread-safe). */
 void sound_render_s16(int16_t* dst, int frames, int channels, int sample_rate);
 
-/* COLDIG.BIN digital samples (driver FUN_1000_27b4 queue). */
+/* COLDIG.BIN digital samples (driver FUN_1000_27b4: a new sample cuts off the playing one). */
 int sound_sfx_count(void);
 void sound_play_sfx(int index);
-/* Drop the playing sample and the 16-slot ring. Event MIDI on 7/8 fades;
+/* Test helper: COLDIG index now playing, or -1. */
+int sound_sfx_playing(void);
+/* Drop the playing sample. Event MIDI on 7/8 fades;
  * BGM voices are left alone (CLOSING.EXE teardown of digital SFX). */
 void sound_stop_sfx(void);
 

@@ -363,7 +363,31 @@ static int case_underscore_reads_as_space(void) {
   return ok ? 0 : fail("NAMES.TXT @OTHER_NAMES header must keep its '_'");
 }
 
+/* FUN_6f74_32a4 raw 117291-117337: strupr, 5-char "WIDTH" prefix, skip
+ * non-digits, atoi, last @width wins; none = FUN_6f74_06d0 default 0x50. */
+static int case_section_width_parse(void) {
+  char lines[3][COLONIZE_MSG_LINE_LEN] = {"@width=120", "@Width 150", "body"};
+  ColonizeMsgSection sec;
+  memset(&sec, 0, sizeof(sec));
+  sec.lines = lines;
+  sec.line_count = 3;
+  if (popup_msg_section_width(&sec) != 150) {
+    return fail("last @width (any case, no '=') must win");
+  }
+  sec.line_count = 1;
+  if (popup_msg_section_width(&sec) != 120) {
+    return fail("@width=120");
+  }
+  snprintf(lines[0], sizeof(lines[0]), "@widths:=90");
+  if (popup_msg_section_width(&sec) != 90) {
+    return fail("5-char prefix then skip non-digits");
+  }
+  snprintf(lines[0], sizeof(lines[0]), "body");
+  return popup_msg_section_width(&sec) == 0x50 ? 0 : fail("no @width = 0x50");
+}
+
 static const TestCase k_cases[] = {
+    {"case_section_width_parse", case_section_width_parse},
     {"case_dialog_figure_scan", case_dialog_figure_scan},
     {"case_underscore_reads_as_space", case_underscore_reads_as_space},
     {"case_chief_portrait_sections", case_chief_portrait_sections},

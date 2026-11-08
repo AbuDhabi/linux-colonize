@@ -1004,11 +1004,70 @@ static int unit_pioneer_order_gates(void) {
   fprintf(stderr, "unit_units: pioneer order-gate popups ok\n");
   return 0;
 }
+/*
+ * port_bugs.md #1601: the record 0824 leaves in the vacated last slot carries
+ * the live Pioneer tools at +0x3159 (export rule, col1_bridge.c), not the
+ * apply-time raw byte, and 06b4 hands it to the next non-Pioneer created
+ * there. A non-Pioneer's repurposed byte (> 100) is left alone.
+ */
+static int unit_pioneer_dos_tail_tools(void) {
+  units_reset_state();
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
+    fprintf(stderr, "tail_tools: NAMES.TXT load failed\n");
+    return 1;
+  }
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  const bool loaded = units_load_types(&pool, &names);
+  assets_msg_free(&names);
+  const int pioneer = loaded ? units_find_type(&pool, "Pioneers") : -1;
+  const int colonist = loaded ? units_find_type(&pool, "Colonists") : -1;
+  if (pioneer < 0 || colonist < 0) {
+    fprintf(stderr, "tail_tools: types missing\n");
+    return 1;
+  }
+  int rc = 0;
+  const int keep = units_spawn_allow_stack(&pool, colonist, 3, 3);
+  const int pid = units_spawn_allow_stack(&pool, pioneer, 3, 3);
+  ColonizeUnit* p = units_get(&pool, pid);
+  if (keep < 0 || !p) {
+    fprintf(stderr, "tail_tools: spawn failed\n");
+    return 1;
+  }
+  p->col1_hold_raw_valid = 1;
+  p->col1_hold_raw[9] = 100; /* apply-time byte */
+  p->tools = 80;             /* worked once since */
+  units_despawn(&pool, pid);
+  if (!pool.dos_tail[1].valid || pool.dos_tail[1].raw[9] != 80) {
+    fprintf(stderr, "tail_tools: stash raw[9]=%d, want 80\n", pool.dos_tail[1].raw[9]);
+    rc = 1;
+  }
+  const int born = units_spawn_allow_stack(&pool, colonist, 3, 3);
+  ColonizeUnit* b = units_get(&pool, born);
+  if (!b || b->col1_hold_raw[9] != 80) {
+    fprintf(stderr, "tail_tools: new colonist did not inherit 80\n");
+    rc = 1;
+  }
+  if (b) {
+    b->col1_hold_raw_valid = 1;
+    b->col1_hold_raw[9] = 196; /* repurposed byte, not tools */
+    b->tools = 0;
+    units_despawn(&pool, born);
+    if (pool.dos_tail[1].raw[9] != 196) {
+      fprintf(stderr, "tail_tools: repurposed byte %d, want 196\n", pool.dos_tail[1].raw[9]);
+      rc = 1;
+    }
+  }
+  return rc;
+}
 static const TestCase k_cases[] = {
   {"unit_clearcut_lumber", unit_clearcut_lumber},
   {"unit_useduptools", unit_useduptools},
   {"unit_pioneer_order_gates", unit_pioneer_order_gates},
   {"unit_pioneer_dos_gates_2026_09_22", unit_pioneer_dos_gates_2026_09_22},
   {"unit_pioneer_case8_tail", unit_pioneer_case8_tail},
+  {"unit_pioneer_dos_tail_tools", unit_pioneer_dos_tail_tools},
 };
 TEST_MAIN_WRAPPED(k_cases, diag_init(0, NULL), diag_shutdown())

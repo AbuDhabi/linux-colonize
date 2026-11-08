@@ -844,24 +844,6 @@ bool map_coords_inset(const ColonizeWorldMap* map, int x, int y) {
          x < (int)map->width - 1 && y < (int)map->height - 1;
 }
 
-void map_clamp_coords_inset(const ColonizeWorldMap* map, int* x, int* y) {
-  if (!map || !x || !y || map->width < 3 || map->height < 3) {
-    return;
-  }
-  if (*x < 1) {
-    *x = 1;
-  }
-  if (*y < 1) {
-    *y = 1;
-  }
-  if (*x > (int)map->width - 2) {
-    *x = (int)map->width - 2;
-  }
-  if (*y > (int)map->height - 2) {
-    *y = (int)map->height - 2;
-  }
-}
-
 bool map_tile_seen_by(const ColonizeWorldMap* map, int x, int y, int nation_id) {
   if (!map_in_bounds(map, x, y) || !map->seen) {
     return true; /* no fog plane → treat as visible */

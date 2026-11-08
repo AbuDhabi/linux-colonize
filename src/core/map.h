@@ -198,8 +198,6 @@ void map_free(ColonizeWorldMap* map);
  * Standard Col1 maps are 58×72 stored; visible area is 56×70.
  */
 bool map_coords_inset(const ColonizeWorldMap* map, int x, int y);
-/* Clamp *x / *y into the inset interior (no-op if map is too small). */
-void map_clamp_coords_inset(const ColonizeWorldMap* map, int* x, int* y);
 
 /* Col1 visibility bit for European nation 0..3. */
 #define MAP_SEEN_NATION_BIT(nation) ((uint8_t)(0x10u << ((nation) & 3)))

@@ -658,7 +658,7 @@ static int case_recognition_multiplier(void) {
   return 0;
 }
 
-/* FUN_41f2_0b70 rating: mult {4,5,6,8,10}, ((mult*total)/100)>>1; tier =
+/* FUN_41f2_0b70 rating: mult {4,5,6,8,10}, ((int16)(mult*total)/100)>>1; tier =
  * largest n-1 with n*n/3 < (mult*total)/100 over n=1..24, cap 23. */
 static int case_rating_tiers(void) {
   int tier = 99;
@@ -674,8 +674,18 @@ static int case_rating_tiers(void) {
     fprintf(stderr, "rating(5) should give no exploits tier (got %d)\n", tier);
     return 1;
   }
-  if (reports_score_rating(20000, 4, &tier) != 1000 || tier != 23) {
+  if (reports_score_rating(2000, 4, &tier) != 100 || tier != 23) {
     fprintf(stderr, "rating tier cap 23 broken (got %d)\n", tier);
+    return 1;
+  }
+  /* 41f2:0be6 CWD cuts mult*total to int16: 200000 -> 3392 -> pre 33. */
+  if (reports_score_rating(20000, 4, &tier) != 16 || tier != 8) {
+    fprintf(stderr, "rating(20000, Viceroy) 16-bit truncation wrong: tier=%d\n", tier);
+    return 1;
+  }
+  /* 33000 wraps to -32536 -> pre -325: no tier, rating -325 SAR 1 = -163. */
+  if (reports_score_rating(3300, 4, &tier) != -163 || tier != -1) {
+    fprintf(stderr, "rating(3300, Viceroy) negative wrap wrong: tier=%d\n", tier);
     return 1;
   }
   return 0;
@@ -914,8 +924,9 @@ static int case_congress_page1_uses_ref_scale(void) {
 
 /*
  * Indian Adviser (F9) row gate — DOS FUN_3f41_010a:
- *   ((FUN_281f_0a38(human, tribe) & 0x20) != 0) || (([0x8d4e+3] & 0x80) != 0)
- * met OR extinct, never "euro_diplo != 0" (smell audit #85). euro_diplo also
+ *   ((FUN_281f_0a38(human, tribe + 4) & 0x20) != 0) || (([0x8d4e+3] & 0x80) != 0)
+ * met OR extinct, read from nation[human].relation_by_indian[tribe] (#1604),
+ * never "relation != 0" (smell audit #85). The byte also
  * carries 0x02 war / 0x04 attack-confirmed / 0x40 peace, and DOS can leave
  * those set on a tribe the viewing nation has never met.
  */
@@ -928,22 +939,24 @@ static int case_indian_tribe_listed_gate(void) {
   const int human = 0;
 
   /* tribe 0: met (0x20) → listed. */
-  c.indian[0].euro_diplo[human] = COL1_INDIAN_MET_BIT;
+  c.nation[human].relation_by_indian[0] = COL1_INDIAN_MET_BIT;
   /* tribe 1: met + at peace → listed. */
-  c.indian[1].euro_diplo[human] = (uint8_t)(COL1_INDIAN_MET_BIT | COL1_INDIAN_PEACE_BIT);
+  c.nation[human].relation_by_indian[1] = (uint8_t)(COL1_INDIAN_MET_BIT | COL1_INDIAN_PEACE_BIT);
   /* tribe 2: stray war bit only, never met → NOT listed. */
-  c.indian[2].euro_diplo[human] = COL1_INDIAN_WAR_BIT;
+  c.nation[human].relation_by_indian[2] = COL1_INDIAN_WAR_BIT;
   /* tribe 3: stray war + attack-confirmed, never met → NOT listed. */
-  c.indian[3].euro_diplo[human] =
+  c.nation[human].relation_by_indian[3] =
     (uint8_t)(COL1_INDIAN_WAR_BIT | COL1_INDIAN_ATTACK_CONFIRMED_BIT);
   /* tribe 4: extinct with a fully zero euro_diplo → listed anyway. */
   c.indian[4].extinct = 1;
   /* tribe 5: extinct AND met → listed. */
   c.indian[5].extinct = 1;
-  c.indian[5].euro_diplo[human] = COL1_INDIAN_MET_BIT;
-  /* tribe 6: untouched (all zero) → NOT listed. */
+  c.nation[human].relation_by_indian[5] = COL1_INDIAN_MET_BIT;
+  /* tribe 6: only the Indian-side byte says met → NOT listed (DOS reads the
+   * Euro side via FUN_15b3_0004). */
+  c.indian[6].euro_diplo[human] = COL1_INDIAN_MET_BIT;
   /* tribe 7: met by a DIFFERENT nation only → NOT listed for `human`. */
-  c.indian[7].euro_diplo[1] = COL1_INDIAN_MET_BIT;
+  c.nation[1].relation_by_indian[7] = COL1_INDIAN_MET_BIT;
 
   static const int want[COLONIZE_COL1_INDIAN_COUNT] = {1, 1, 0, 0, 1, 1, 0, 0};
   for (int t = 0; t < (int)COLONIZE_COL1_INDIAN_COUNT; ++t) {
@@ -951,11 +964,11 @@ static int case_indian_tribe_listed_gate(void) {
     if (got != want[t]) {
       fprintf(
         stderr,
-        "indian gate tribe %d: got %d want %d (euro_diplo=0x%02x extinct=%d)\n",
+        "indian gate tribe %d: got %d want %d (relation=0x%02x extinct=%d)\n",
         t,
         got,
         want[t],
-        (unsigned)c.indian[t].euro_diplo[human],
+        (unsigned)c.nation[human].relation_by_indian[t],
         (int)c.indian[t].extinct
       );
       return 1;

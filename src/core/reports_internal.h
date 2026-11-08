@@ -63,7 +63,6 @@ void reports_draw_line(
 int reports_line_step(const ColonizeFont* font);
 int reports_clamp_nation(int human_nation);
 bool reports_xy_is_own_colony(const ColonizeCol1Save* col1, int human, int x, int y);
-int reports_colony_rebel_pct(const ColonizeCol1Colony* c);
 void reports_draw_icon_bar(
   const ColonizeSpriteSheet* icons,
   const ColonizeFont* font,
@@ -123,7 +122,7 @@ void reports_draw_right_shadowed(
 /* --- owned by reports_congress.c --- */
 /* FUN_3f41_06d0 bells bar scale: the threshold, raised to the pool once the
  * intervention is announced; the pool word compares as a signed int. */
-int reports_congress_bells_scale(uint16_t pool_word, int need, bool ref_arrived);
+int reports_congress_bells_scale(uint16_t pool_word, int need, bool intervention_announced);
 void reports_render_religious(
   const ColonizeReportsView* view,
   const ColonizeCol1Save* col1,

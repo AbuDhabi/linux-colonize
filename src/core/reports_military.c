@@ -824,9 +824,10 @@ void reports_render_foreign(
  *
  *     if (((uVar1 & 0x20) != 0) || ((*(byte *)(*(int *)0x8d4e + 3) & 0x80) != 0))
  *
- * i.e. **met** (euro_diplo[human] bit 0x20, COL1_INDIAN_MET_BIT) OR **extinct**
- * (record +3 bit 0x80, ColonizeCol1Indian.extinct) — not "euro_diplo != 0".
- * The distinction is live: euro_diplo carries other bits (0x02 war,
+ * i.e. **met** (nation[human].relation_by_indian[tribe] bit 0x20,
+ * COL1_INDIAN_MET_BIT) OR **extinct** (record +3 bit 0x80,
+ * ColonizeCol1Indian.extinct) — not "relation != 0".
+ * The distinction is live: the byte carries other bits (0x02 war,
  * 0x04 attack-confirmed, 0x40 peace) that DOS itself can set without the met
  * bit, so a `!= 0` test listed never-met tribes; and it dropped extinct tribes
  * that DOS lists unconditionally (2026-09-09, smell audit #85).
@@ -941,11 +942,12 @@ bool reports_indian_tribe_listed(const ColonizeCol1Save* col1, int tribe, int hu
       human >= (int)COLONIZE_COL1_NATION_COUNT) {
     return false;
   }
-  const ColonizeCol1Indian* ind = &col1->indian[tribe];
-  /* DOS: `(FUN_281f_0a38(...) & 0x20) || ([0x8d4e+3] & 0x80)` — met OR
-   * extinct. Never "euro_diplo != 0": the war (0x02) / attack-confirmed
-   * (0x04) bits can stand alone on an unmet tribe. */
-  return (ind->euro_diplo[human] & COL1_INDIAN_MET_BIT) != 0 || ind->extinct != 0;
+  /* DOS FUN_3f41_010a asm 3f41:04f7-0522: `(FUN_281f_0a38(human, tribe + 4)
+   * & 0x20) || ([0x8d4e+3] & 0x80)` — met OR extinct. 0a38 -> FUN_15b3_0004
+   * reads the Euro side, nation[human].relation_by_indian[tribe] (as
+   * game_tutorial.c TUTORIAL8 does), not the tribe's euro_diplo byte. */
+  return (col1->nation[human].relation_by_indian[tribe] & COL1_INDIAN_MET_BIT) != 0 ||
+         col1->indian[tribe].extinct != 0;
 }
 
 /* Builds the flat contacted-tribe row list — shared shape with

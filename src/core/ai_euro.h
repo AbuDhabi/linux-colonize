@@ -38,6 +38,9 @@ void ai_euro_set_watch(AiEuroWatchFn fn, void* user);
  * human Custom House blockade gate (europe.c, ai_flags & 3) reads it.
  */
 void ai_euro_census_ship_pressure_refresh(ColonizeTurnContext* ctx, int nation_id);
+/* The colony's blockade pair as DOS 4962 counts it, before the DB-76 human
+ * filter (dos_bugs.md DB-76); the @KINGFRIGATE gate reads this. */
+uint8_t ai_euro_colony_dos_blockade_pair(const ColonizeColonyPool* pool, int colony_index);
 
 /*
  * FUN_48d3_06ba head: tick this AI nation's Europe sailing lanes (port_bugs.md

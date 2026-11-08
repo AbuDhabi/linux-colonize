@@ -533,18 +533,22 @@ int colony_screen_multi_units_layout(
 }
 
 /*
- * Overflow-row miniature: the unit sprite resampled into a 3-wide cell of
- * height h (3x5 on the Units tab, 3x4 for docked ships; DOS
- * routes these through the scaled/dithered blitter FUN_1c56_0004; nearest
- * sample keeps the unit's dominant colours at this size).
+ * DOS-LITERAL FUN_1c56_0004 raw 17810-18037 (reached via thunk FUN_281f_02f8):
+ * percent-scaled sprite blit. One keep-mask serves both axes: acc = 0x32,
+ * then per source index acc += pct, kept when acc >= 100 (acc -= 100), over
+ * max(w, h) indexes. Kept columns land centred on cx (x0 = cx - (kept_w >> 1)),
+ * kept rows bottom-aligned on bottom_y (y0 = bottom_y - kept_h + 1); 0xfd
+ * pixels are skipped, the rest clipped to the surface. DOS also mirrors on
+ * a bit-15 id; both colony callers pass plain ids (FUN_112b_0060 / the
+ * 0x5232 icon byte), so that arm is not ported.
  */
 void colony_screen_blit_mini_unit(
   const ColonyScreenView* view,
   ColonizeFramebuffer8* framebuffer,
   int sprite,
-  int x,
-  int y,
-  int h
+  int pct,
+  int cx,
+  int bottom_y
 ) {
   if (!view || !view->icons_ok || !framebuffer || sprite < 0 ||
       sprite >= view->icons.sprite_count) {
@@ -554,20 +558,42 @@ void colony_screen_blit_mini_unit(
   if (!sp || !sp->pixels || sp->width <= 0 || sp->height <= 0) {
     return;
   }
-  for (int oy = 0; oy < h; ++oy) {
-    const int sy = (oy * sp->height + sp->height / 2) / h;
-    for (int ox = 0; ox < COLONY_MULTI_UNITS_MINI_W; ++ox) {
-      const int sx = (ox * sp->width + sp->width / 2) / COLONY_MULTI_UNITS_MINI_W;
-      const uint8_t c = sp->pixels[sy * sp->width + sx];
-      if (c == COLONIZE_SS_TRANSPARENT) {
+  bool keep[320]; /* DOS local_154[320] */
+  const int n = sp->width > sp->height ? sp->width : sp->height;
+  if (n > (int)(sizeof keep / sizeof keep[0])) {
+    return;
+  }
+  int acc = 0x32;
+  int kept_w = 0;
+  int kept_h = 0;
+  for (int i = 0; i < n; ++i) {
+    acc += pct;
+    keep[i] = acc >= 100;
+    if (keep[i]) {
+      acc -= 100;
+      kept_w += i < sp->width;
+      kept_h += i < sp->height;
+    }
+  }
+  const int x0 = cx - (kept_w >> 1);
+  int fy = bottom_y - kept_h + 1;
+  for (int sy = 0; sy < sp->height; ++sy) {
+    if (!keep[sy]) {
+      continue;
+    }
+    int fx = x0;
+    for (int sx = 0; sx < sp->width; ++sx) {
+      if (!keep[sx]) {
         continue;
       }
-      const int fx = x + ox;
-      const int fy = y + oy;
-      if (fx >= 0 && fx < framebuffer->width && fy >= 0 && fy < framebuffer->height) {
+      const uint8_t c = sp->pixels[sy * sp->width + sx];
+      if (c != COLONIZE_SS_TRANSPARENT && fx >= 0 && fx < framebuffer->width && fy >= 0 &&
+          fy < framebuffer->height) {
         framebuffer->pixels[fy * framebuffer->width + fx] = c;
       }
+      fx++;
     }
+    fy++;
   }
 }
 
@@ -1149,8 +1175,10 @@ void colony_screen_draw_transports(
     const bool selected = !view->spy_view && view->transport_unit_id == u->id;
     if (i >= COLONY_TRANSPORT_ROW0_N) {
       const int x = COLONY_TRANSPORT_MINI_X + (i - COLONY_TRANSPORT_ROW0_N) * COLONY_TRANSPORT_MINI_STEP;
+      /* 2f2b:25d6: 25%, centre x + (3 >> 1), bottom y 0x8b + 4 - 1. */
       colony_screen_blit_mini_unit(
-        view, framebuffer, type->icon_sprite, x, COLONY_TRANSPORT_MINI_Y, COLONY_TRANSPORT_MINI_H
+        view, framebuffer, type->icon_sprite, 0x19, x + 1,
+        COLONY_TRANSPORT_MINI_Y + COLONY_TRANSPORT_MINI_H - 1
       );
       if (selected) {
         colony_screen_draw_selection_box(

@@ -559,11 +559,23 @@ bool game_europe_menu_confirm(ColonizeGameState* game) {
  * was drawing them in (port_bugs.md). Same getter feeds the layout and the
  * renderer so the row pitch the hit-test uses is the row pitch drawn.
  */
+static const char* europe_menu_section(int menu);
+
 static bool europe_menu_tiny(const ColonizeGameState* game) {
-  /* GAME.TXT @KINGRECRUIT (the Train dialog) carries @smallfont — DOS swaps
-   * the list dialog to FONTTINY for it (port_bugs.md: "improper fonts"); the
-   * other three stay on FONTINTR, the generic dialog font. */
-  return game && game->europe.menu == EUROPE_MENU_TRAIN && game->colony_font_ok;
+  /* FUN_6f74_32a4 (viceroy_unpacked.c:117304) swaps the list dialog to FONTTINY
+   * (DS:0x89e) when the menu's own section carries @smallfont; stock GAME.TXT
+   * has it on @KINGRECRUIT (Train) only, the other three stay on FONTINTR. */
+  if (!game || !game->colony_font_ok) {
+    return false;
+  }
+  const ColonizeMsgSection* sec =
+    assets_msg_find(&game->messages, europe_menu_section(game->europe.menu));
+  for (int i = 0; sec && i < sec->line_count; ++i) {
+    if (strcmp(sec->lines[i], "@smallfont") == 0) {
+      return true;
+    }
+  }
+  return false;
 }
 
 static const ColonizeFont* europe_menu_font(const ColonizeGameState* game) {
@@ -1589,10 +1601,13 @@ static bool game_load_ff_asset(
 }
 
 /*
- * DOS keeps rotating the ramp under a report: FUN_3f41_0000 only reprograms DAC
- * 152..251 from the plate, so the 120..127 ramp stays live (FUN_1a0a_007a). The port's
- * frame palette is a per-frame copy of the plate palette (game_loop_palette), so the
- * rotation is applied to that plate's palette in place. NULL = no report plate.
+ * DOS keeps rotating the ramp under a report: FUN_3f41_0000 clears DS:0x372 only
+ * around its own DAC write (152..251 from the plate) and restores it, so
+ * FUN_1a0a_007a keeps rotating the master palette DS:0x36e and reprogramming the
+ * cycle span (AL=[0x92a2], DX=[0x92c2], asm 1a0a:0187) over the plate: one
+ * continuous phase across map and report. The port's frame palette is a
+ * per-frame copy of the plate palette (game_loop_palette), so the map ramp is
+ * copied into that plate's palette. NULL = no report plate.
  */
 static ColonizePalette* game_water_cycle_report_palette(ColonizeGameState* game) {
   if (!game->in_report || !game->reports_ok) {
@@ -1616,27 +1631,28 @@ static ColonizePalette* game_water_cycle_report_palette(ColonizeGameState* game)
 
 void game_water_cycle_tick(ColonizeGameState* game) {
   ColonizePalette* report_pal = game_water_cycle_report_palette(game);
-  if (game->water_cycle_count == 0 || !game->map_palette_ok ||
-      ((game_screen_owns_display(game) || game_screen_on_map()) && !report_pal) ||
-      game->woodcut.open ||
-      game->declaration.open || game->opening.open || game->closing.open) {
+  if (game->water_cycle_count == 0 || !game->map_palette_ok) {
     return;
   }
-  if (game->col1.head.game_options.water_color_cycling_off != 0) {
-    return;
-  }
+  const bool live =
+    !((game_screen_owns_display(game) || game_screen_on_map()) && !report_pal) &&
+    !game->woodcut.open && !game->declaration.open && !game->opening.open &&
+    !game->closing.open && game->col1.head.game_options.water_color_cycling_off == 0;
   for (int i = 0; i < game->water_cycle_count; ++i) {
-    if (game->elapsed_ms - game->water_cycle[i].last_ms < game->water_cycle[i].step_ms) {
-      continue;
-    }
-    game->water_cycle[i].last_ms = game->elapsed_ms;
     const int start = game->water_cycle[i].start;
     const int len = game->water_cycle[i].length;
-    uint8_t (*rgb)[3] = report_pal ? report_pal->rgb : game->map_palette.rgb;
-    uint8_t top[3];
-    memcpy(top, rgb[start + len - 1], 3);
-    memmove(rgb[start + 1], rgb[start], (size_t)(len - 1) * 3);
-    memcpy(rgb[start], top, 3);
+    uint8_t (*rgb)[3] = game->map_palette.rgb;
+    if (live && game->elapsed_ms - game->water_cycle[i].last_ms >= game->water_cycle[i].step_ms) {
+      game->water_cycle[i].last_ms = game->elapsed_ms;
+      uint8_t top[3];
+      memcpy(top, rgb[start + len - 1], 3);
+      memmove(rgb[start + 1], rgb[start], (size_t)(len - 1) * 3);
+      memcpy(rgb[start], top, 3);
+    }
+    /* Cycling off still leaves the master's frozen phase in the DAC span. */
+    if (report_pal) {
+      memcpy(report_pal->rgb[start], rgb[start], (size_t)len * 3);
+    }
   }
 }
 

@@ -171,9 +171,9 @@ static int ai_popup_wrap_body(
  *
  * These sheets (and KING/KING2, MSSn, MYRn) are NOT remapped onto the host
  * screen's palette. Every screen palette DOS shows them over reserves a block
- * of DAC slots as black — TERRAIN.SS leaves 152..251 empty, EUROPE.PIK
- * 120..251 — and each popup sheet ships its own entries for exactly that
- * block, which DOS loads alongside the art. Nearest-colour remapping instead
+ * of DAC slots as black — TERRAIN.SS and EUROPE.PIK leave 152..251 empty —
+ * and each popup sheet ships its own entries for exactly that block, which
+ * DOS loads alongside the art. Nearest-colour remapping instead
  * collapsed ~100 private colours onto the ~150 the map already uses, which is
  * what wrecked the King's tax-audience flair (port_bugs.md). The sheets now blit
  * raw and ai_popup_art_palette_merge lends the host palette their block.
@@ -346,10 +346,11 @@ void ai_popup_sheet_palette_merge(const ColonizeSpriteSheet* art, ColonizePalett
    * OVL28 splash loader). The block is written unconditionally, whatever the
    * host screen had there.
    *
-   * So slots 152..251 are copied outright, and the rest of the palette is only
-   * lent the slots the host leaves black (EUROPE.PIK leaves 120..251 black and
-   * the MSS courtiers fill them) — the map's own colours, the animated water
-   * ramp at 120..127 included, are never disturbed.
+   * So slots 152..251 are copied outright and nothing else is touched (port_bugs.md
+   * #1597: the old fill-if-black loop over 1..151 / 252..255 had no DOS cite). No
+   * stock INDtAa / KING / KING2 / MSSn / MYRn pixel lands on a host-black slot outside the
+   * block: the only such slots are EUROPE.PIK's 120..127 (no sheet paints 120..127)
+   * and WOODPAN2.PIK's 86 / 113..151 (no ai_popup over the score screens).
    *
    * The unconditional block matters: TERRAIN.SS's palette carries one stray
    * non-black entry inside it, index 209 = grey (113,113,113), which nothing
@@ -360,17 +361,6 @@ void ai_popup_sheet_palette_merge(const ColonizeSpriteSheet* art, ColonizePalett
    * px of hair/shadow, so it read as flat grey patches).
    */
   for (int i = 152; i <= 251; ++i) {
-    dst->rgb[i][0] = art->palette.rgb[i][0];
-    dst->rgb[i][1] = art->palette.rgb[i][1];
-    dst->rgb[i][2] = art->palette.rgb[i][2];
-  }
-  for (int i = 1; i < 256; ++i) {
-    if (i >= 152 && i <= 251) {
-      continue;
-    }
-    if (dst->rgb[i][0] || dst->rgb[i][1] || dst->rgb[i][2]) {
-      continue;
-    }
     dst->rgb[i][0] = art->palette.rgb[i][0];
     dst->rgb[i][1] = art->palette.rgb[i][1];
     dst->rgb[i][2] = art->palette.rgb[i][2];

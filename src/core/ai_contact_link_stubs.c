@@ -59,6 +59,12 @@ int ai_euro_10ec_war_worthy(const ColonizeTurnContext* ctx, int a, int b) {
   return 0;
 }
 
+/* The wagon errand latch lives in ai_euro.c; slim targets have no wagon AI. */
+unsigned char ai_euro_wagon_errand_get(int unit_id) {
+  (void)unit_id;
+  return 0;
+}
+
 /*
  * FUN_15eb_2ea0 needs the 28c8 scorer in ai_euro.c, which the slim targets do
  * not compile. Fall back to DOS's own no-plot outcome (Carpenter) so an

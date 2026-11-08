@@ -203,22 +203,27 @@ bool col1_save_validate_head(
   if (memcmp(head->sig_colonize, COLONIZE_COL1_SIG, 8) != 0 || head->sig_colonize[8] != '\0') {
     COL1_FAIL(err, err_size, COL1_ERR_NOT_A_SAVE);
   }
-  if (head->sig_eof != COLONIZE_COL1_SIG_EOF) {
-    COL1_FAIL(err, err_size, COL1_ERR_NOT_A_SAVE);
-  }
-  if (head->save_version < COLONIZE_COL1_SAVE_VERSION) {
+  /* sig_eof: FUN_1b2c_0004 reads the byte after the NUL and discards it. */
+  /* Signed compare against DS:0x81a (raw 120146-120147): >= 0x8000 is OLD. */
+  if ((int16_t)head->save_version < (int16_t)COLONIZE_COL1_SAVE_VERSION) {
     COL1_FAIL(err, err_size, COL1_ERR_OBSOLETE);
   }
-  if (head->save_version > COLONIZE_COL1_SAVE_VERSION) {
+  if ((int16_t)head->save_version > (int16_t)COLONIZE_COL1_SAVE_VERSION) {
     COL1_FAIL(err, err_size, COL1_ERR_NOT_A_SAVE);
   }
-  if (head->map_size_x == 0 || head->map_size_y == 0) {
-    COL1_FAIL(err, err_size, COL1_ERR_NOT_A_SAVE);
-  }
+  /* W*H product vs the live map's tile count DS:0x180/0x182 (raw 120154-120157):
+   * a swapped 72x58 loads over 58x72. The port reallocates the map from the
+   * save (map_alloc), so any accepted size is held safely. */
   if (expect_map_w > 0 && expect_map_h > 0) {
-    if ((int)head->map_size_x != expect_map_w || (int)head->map_size_y != expect_map_h) {
+    if ((int32_t)(int16_t)head->map_size_x * (int16_t)head->map_size_y !=
+        (int32_t)expect_map_w * expect_map_h) {
       COL1_FAIL(err, err_size, COL1_ERR_MAP_SIZE);
     }
+  }
+  /* Port guard: with no live map DOS accepts a 0-size head; the port
+   * cannot hold an empty map (parser + bridge refuse it too). */
+  if (head->map_size_x == 0 || head->map_size_y == 0) {
+    COL1_FAIL(err, err_size, COL1_ERR_NOT_A_SAVE);
   }
   if (err && err_size > 0) {
     err[0] = '\0';

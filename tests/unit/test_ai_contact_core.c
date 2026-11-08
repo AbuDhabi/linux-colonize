@@ -2666,7 +2666,22 @@ static int sp_28(void) {
     }
     st_pop[0] = '\0';
     const uint32_t gold_before_trade = col1.nation[0].gold;
+    /* port_bugs.md #1594: the 2820 sell settle subtracts qty from the SIGNED
+     * attitude word (2820 doc 539-548); 0xC000 is negative and clamps to 0. */
+    const uint8_t fr_keep = col1.tribe[0].alarm[0].friction;
+    const uint8_t at_keep = col1.tribe[0].alarm[0].attacks;
+    col1.tribe[0].alarm[0].friction = 0x00;
+    col1.tribe[0].alarm[0].attacks = 0xC0;
+    const int patience_1594 = ai_contact_s_2820[0].haggle_patience;
     const int trade_price = apply_trade_offer_choice(&ctx, &pop, 0, 4, 1);
+    if (patience_1594 <= 0 || goods0 == 100) {
+      return fail("#1594 fixture: sell settle needs haggle patience > 0 and qty != 100");
+    }
+    if (col1_tribe_attitude(&col1.tribe[0], 0) != 0) {
+      return fail("#1594: sell settle must clamp a negative (>= 0x8000) attitude word to 0");
+    }
+    col1.tribe[0].alarm[0].friction = fr_keep;
+    col1.tribe[0].alarm[0].attacks = at_keep;
     if (trade_price <= 0) {
       return fail("Trade price CHOICE accept should carry a positive locked price");
     }

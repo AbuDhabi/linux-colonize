@@ -170,8 +170,9 @@ void reports_render_economic_trade(
        * max(euro_price − 1, 0), ask = max(euro_price + burden, 0). The ask
        * was missing its @CARGO burden term (smell audit #63) — that is the
        * whole Food 0/8 and Lumber 1/6 spread on the real Europe screen. */
-      bid = nat->trade.euro_price[c] > 0 ? nat->trade.euro_price[c] - 1 : 0;
-      ask = (int)nat->trade.euro_price[c] + europe_cargo_burden(c);
+      const int price = (int8_t)nat->trade.euro_price[c]; /* CBW: signed char (#1587) */
+      bid = price > 0 ? price - 1 : 0;
+      ask = price + europe_cargo_burden(c);
       if (ask < 0) {
         ask = 0;
       }
@@ -465,7 +466,7 @@ static int reports_colony_page_rows(
  * unavailable; passing it gets the Bolivar +20% SoL bonus folded in via
  * colony_prod_sol_percent (colony_prod_sol_percent is authoritative —
  * colony_screen.c's own SoL display uses it), matching golden exactly
- * (reports_colony_rebel_pct alone under-reports by Bolivar's +20). */
+ * (the bare dividend/divisor alone under-reports by Bolivar's +20). */
 static void reports_render_colony_sidebar(
   const ColonizeReportsView* view,
   const ColonizeCol1Save* col1,
@@ -726,7 +727,15 @@ void reports_render_colony_sol(
     const int row_top = rows[ri].row_top;
     reports_render_colony_sidebar(view, col1, c, colony, font, fb, row_top, line, line_sz);
 
-    const int sol_pct = colony ? colony_prod_sol_percent(col1, colony) : reports_colony_rebel_pct(c);
+    /* No pool colony on the tile: a stand-in carrying only the tile and owner
+     * still reads the same COL1 record + Bolivar +20 (FUN_15eb_0274 raw 9471-9501). */
+    ColonizeColony stand_in = {0};
+    if (!colony) {
+      stand_in.x = c->x;
+      stand_in.y = c->y;
+      stand_in.nation_id = c->nation_id;
+    }
+    const int sol_pct = colony_prod_sol_percent(col1, colony ? colony : &stand_in);
     if (icons) {
       ss_blit_sprite(icons, REPORTS_COLONY_FLAG_ICON, fb, REPORTS_COLONY_FLAG_X, row_top - 5);
     }

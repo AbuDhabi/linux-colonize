@@ -675,6 +675,11 @@ static int unit_human_census_ship_pressure_refresh(void) {
     fx_map_free(&map);
     return fail("peaceful Frigate set the human blockade bits");
   }
+  /* port_bugs.md #1593: the @KINGFRIGATE gate still sees the DOS count. */
+  if ((ai_euro_colony_dos_blockade_pair(&colonies, 0) & COLONIZE_COLONY_AI_NEARBY_FRIGATE) == 0) {
+    fx_map_free(&map);
+    return fail("DB-76 filter hid the peaceful Frigate from the DOS 4962 pair");
+  }
   /* ...but a foreign Privateer counts at peace (armed-ship bit). */
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Privateer");
   ai_euro_census_ship_pressure_refresh(&ctx, human);

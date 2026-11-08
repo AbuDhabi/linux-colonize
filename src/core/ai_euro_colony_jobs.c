@@ -746,6 +746,7 @@ static int ai_euro_5952_job_chain(int job) {
     case COLONIZE_PROF_GUNSMITH: return COLONIES_CHAIN_ARMORY;
     case COLONIZE_PROF_PREACHER: return COLONIES_CHAIN_CHURCH;
     case COLONIZE_PROF_STATESMAN: return COLONIES_CHAIN_TOWN_HALL;
+    case COLONIZE_PROF_TEACHER: return COLONIES_CHAIN_SCHOOL;
     default: return -1;
   }
 }
@@ -1864,8 +1865,10 @@ static void ai_euro_5952_carpenter_arm(
       if (!ai_euro_5952_job_is_expert(prof) && master_carpenters == 0 &&
           (int)col->population > 5 && ctx->rng &&
           dos_rng_range(ctx->rng, 0, 0x10 - difficulty) == 0) {
+        /* No census bump: DOS never writes local_4e (BP-0x4c) after the
+         * census at raw 94228 (read only at 5952:1b55), so a second seat in
+         * this call can roll the specialty again (port_bugs.md #1585). */
         col->colonists[s].profession = (uint8_t)COLONIZE_PROF_CARPENTER;
-        ++master_carpenters;
       }
       /* raw 94731 `FUN_1000_8e26(slot, 0x0d)` = set job Carpenter. */
       if (colonies_assign_workplace(pool, col->id, s, workplace)) {
@@ -2313,8 +2316,20 @@ int ai_euro_s_5952_arty_plot[COLONIZE_COLONIES_MAX];
  * (FUN_4962_0018's census, contiguous in DS though not in the save file).
  * DS:0x84b4..0x84bb has no writer anywhere (see price_row_minus8): 0.
  * DS:0x929e..0x92bf is CYCLE.DAT (colony_counts + n for tribes 6..11).
- * ponytail: other addresses (e.g. a tribe's price row past DS:0x84fb) read
- * 0; model them if a trace ever lands there.
+ * ponytail: other addresses read 0; model them if a trace ever lands there.
+ * What DOS holds there for tribe owners (port_bugs.md #1604 item 6):
+ *  - 0x9298 + 4 = DS:0x929c, the map-blink word (0/1, toggled by
+ *    FUN_281f_0dcc / redrawn by FUN_1984_010a only inside the human's map
+ *    wait loop, so the AI tick sees the phase that loop last left). The port
+ *    keeps that phase in the UI (game_loop.c game_map_blink_running, off
+ *    elapsed_ms) where colonize_sim cannot read it: 0, so the Galleon `>=`
+ *    at 2782 can differ by one. 0x9298 + 5 = 0x929d is its high byte, 0.
+ *  - 0x924c + owner*19 + 0x0f / 0x11: owners 6 and 7 land in DS:0x92c4..
+ *    0x92e3, eight CYCLE.DAT step-time dwords (BIOS tick FUN_1c0c_0006,
+ *    stamped by FUN_1a0a_0004 on map entry and FUN_1a0a_007a per step);
+ *    owners 8 and 9 in FUN_1a29_021b's timer block (0x92e4..0x92f6) and
+ *    FUN_1a58_008c's mouse state (0x92f8..0x9309); owners 10 and 11 at
+ *    0x9319..0x932e. All wall-clock or input state, none reproducible.
  * tr9 interval 20: crown Bahia's local_1b0 is -1, the Muskets byte DS:0x84bb
  * is 0 < 4, the Blacksmith's Shop arm is skipped and pop 7 < 8 ends at 2747.
  */

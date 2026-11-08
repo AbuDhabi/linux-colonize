@@ -249,6 +249,8 @@ int ai_goals_colonies_wanting(int nation_id);
 
 /* FUN_479b_076e's `-0x77b2` stamp: call when nation_id founds a colony. */
 void ai_goals_note_colony_founded(ColonizeCol1Save* col1, int nation_id, int turn);
+/* FUN_364b_1ba8 raw 58029 DS:0x9298 bump: call only after colonies_found succeeds. */
+void ai_goals_note_colony_created(int nation_id);
 
 /*
  * FUN_521d_03d0 — founding_expansion_urgency(nation, total_colony_count).

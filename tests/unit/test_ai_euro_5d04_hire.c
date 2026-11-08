@@ -709,12 +709,13 @@ static int pioneer_training_skipped_past_turn_99(void) {
       f.col1.nation[nation].gold = 5000;
       /* Tools training costs price(Tools) * 100 = 100 (affordable); the
        * muskets arm just above it (LAB_521d_6454, reachable past turn 99 via
-       * the 642a fall-through) costs price(Muskets) * 50 = 10000 and is
+       * the 642a fall-through) costs price(Muskets) * 50 = 6350 and is
        * therefore never `handled` — without this the late runs would skip the
        * Pioneer arm for the WRONG reason and the sweep would prove nothing.
-       * The same 10000 also prices the recruit-purchase loop out. */
+       * The same 6350 also prices the recruit-purchase loop out (127 is the
+       * ceiling: DOS reads the price byte as a signed char, #1587). */
       f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_TOOLS] = 1;
-      f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_MUSKETS] = 200;
+      f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_MUSKETS] = 127;
       if (spawn_europe_ship(&f, nation) < 0 ||
           spawn_europe_colonist(&f, nation, 0, 0x1c) < 0) {
         fixture_free(&f);
@@ -803,7 +804,7 @@ static int pioneer_training_tools(void) {
       f.col1.stuff.unit_type_counts[nation][2] = 2;
       f.col1.nation[nation].gold = 5000;
       f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_TOOLS] = 1;
-      f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_MUSKETS] = 200;
+      f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_MUSKETS] = 127;
       if (spawn_europe_ship(&f, nation) < 0 || spawn_europe_colonist(&f, nation, 0, 0x1c) < 0) {
         fixture_free(&f);
         return fail("spawn europe stack");
@@ -858,7 +859,7 @@ static int pioneer_roll_miss_skips_missionary_arm(void) {
     f.col1.stuff.unit_type_counts[nation][3] = 0; /* own Missionaries */
     f.col1.nation[nation].gold = 5000;
     f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_TOOLS] = 1;
-    f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_MUSKETS] = 200;
+    f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_MUSKETS] = 127;
     if (spawn_europe_ship(&f, nation) < 0 ||
         spawn_europe_colonist(&f, nation, 0, 0x1c) < 0) {
       fixture_free(&f);
@@ -948,8 +949,8 @@ static int missionary_bless_roll_matches_dos_one_in_four(void) {
     /* Price the earlier muskets/tools training arms out (same trick as
      * pioneer_training_skipped_past_turn_99) so a candidate never gets
      * `handled` before reaching the Missionary arm under test. */
-    f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_TOOLS] = 200;
-    f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_MUSKETS] = 200;
+    f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_TOOLS] = 127;
+    f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_MUSKETS] = 127;
     if (spawn_europe_ship(&f, nation) < 0 ||
         spawn_europe_colonist(&f, nation, 0, 0x1c) < 0) {
       fixture_free(&f);

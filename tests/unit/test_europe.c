@@ -3726,6 +3726,128 @@ static int case_europe_buy_short_gold_refuses(void) {
   return rc;
 }
 
+/* port_bugs.md #1587: the 1d80/1dfa price path is 16-bit throughout. The
+ * record update wraps (plain SUB/ADD word), 1d44's IMUL product is cut to 16
+ * bits before the /100, a volatility shift of 16+ leaves 0, and 0016/0040
+ * read the price byte as signed char. Seller 1 is AI (k = -2) throughout. */
+static int case_europe_price_path_16bit(void) {
+  EuropeScreen* eu = (EuropeScreen*)calloc(1, sizeof(*eu));
+  ColonizeCol1Save* col1 = (ColonizeCol1Save*)calloc(1, sizeof(*col1));
+  if (!eu || !col1) {
+    free(eu);
+    free(col1);
+    return 1;
+  }
+  int rc = 0;
+  const int c = COLONIZE_CARGO_FURS;
+  eu->cargo_count = COLONIZE_CARGO_COUNT;
+  /* Buy 100: term = 100 + (-32*100)/100 = 68; -32760 - 68 wraps to 32708. */
+  eu->trade_nr[c] = -32760;
+  col1->nation[1].trade.nr[c] = -32760;
+  europe_apply_trade_volume(eu, col1, 1, 0, c, 100, 1, 0);
+  if (eu->trade_nr[c] != 32708 || col1->nation[1].trade.nr[c] != 32708) {
+    fprintf(stderr, "buy wrap: nr %d / %d want 32708\n", eu->trade_nr[c], col1->nation[1].trade.nr[c]);
+    rc = 1;
+  }
+  /* Sell 2000: -32*2000 = -64000 -> 16-bit 1536 -> /100 = 15; term 2015,
+   * Dutch row (4030 / 3) = 1343. */
+  eu->trade_nr[c] = 0;
+  col1->nation[3].trade.nr[c] = 0;
+  europe_apply_trade_volume(eu, col1, 1, 0, c, 2000, 0, 0);
+  if (eu->trade_nr[c] != 2015 || col1->nation[3].trade.nr[c] != 1343) {
+    fprintf(stderr, "1d44 imul16: nr %d dutch %d want 2015/1343\n", eu->trade_nr[c],
+            col1->nation[3].trade.nr[c]);
+    rc = 1;
+  }
+  /* Volatility 16: SHL by 16 leaves 0, so only the 1d44 term (-32) moves. */
+  eu->cargo[c].volatility = 16;
+  eu->trade_nr[c] = 0;
+  europe_apply_trade_volume(eu, col1, 1, 0, c, 100, 0, 0);
+  if (eu->trade_nr[c] != -32) {
+    fprintf(stderr, "shift 16: nr %d want -32\n", eu->trade_nr[c]);
+    rc = 1;
+  }
+  /* Price byte 200 is -56 as a signed char: sell max(-57,0), buy max(-56+5,0). */
+  col1->nation[1].trade.euro_price[c] = 200;
+  eu->cargo[c].burden = 5;
+  if (europe_nation_sell_price(eu, col1, 1, c) != 0 || europe_nation_buy_price(eu, col1, 1, c) != 0) {
+    fprintf(stderr, "signed price: sell %d buy %d want 0/0\n", europe_nation_sell_price(eu, col1, 1, c),
+            europe_nation_buy_price(eu, col1, 1, c));
+    rc = 1;
+  }
+  free(col1);
+  free(eu);
+  return rc;
+}
+
+/* port_bugs.md #1588 / #1589: DOS holds are a dense list. A sale pulls the
+ * hold with FUN_15eb_317c (later holds shift down) and a partial sale re-adds
+ * the rest via FUN_15eb_30b8, which appends at holds_occupied; 30b8's top-up
+ * has no room<=0 guard and its tail stores a byte. */
+static int case_europe_hold_dense_list(void) {
+  EuropeScreen* eu = (EuropeScreen*)calloc(1, sizeof(*eu));
+  if (!eu) {
+    return 1;
+  }
+  int rc = 0;
+  int ht[EUROPE_SHIP_CARGO_MAX] = {COLONIZE_CARGO_FURS, COLONIZE_CARGO_SUGAR};
+  int ha[EUROPE_SHIP_CARGO_MAX] = {100, 100};
+  (void)europe_harbor_push_ex(eu, 0, "Caravel", NULL, NULL, 0, ht, ha);
+  eu->cargo_count = COLONIZE_CARGO_COUNT;
+  eu->cargo[COLONIZE_CARGO_FURS].bid = 5;
+  eu->gold = 1000;
+  EuropeHarborShip* sh = &eu->harbor[0];
+  /* Partial sale: [Furs 100, Sugar 100] sell 30 Furs -> [Sugar 100, Furs 70]. */
+  if (europe_sell_hold_partial(eu, NULL, -1, 0, 0, 30) <= 0 ||
+      sh->hold_goods_type[0] != COLONIZE_CARGO_SUGAR || sh->hold_goods_amount[0] != 100 ||
+      sh->hold_goods_type[1] != COLONIZE_CARGO_FURS || sh->hold_goods_amount[1] != 70) {
+    fprintf(stderr, "partial sale: h0 %d/%d h1 %d/%d\n", sh->hold_goods_type[0],
+            sh->hold_goods_amount[0], sh->hold_goods_type[1], sh->hold_goods_amount[1]);
+    rc = 1;
+  }
+  /* Row repro: sell the whole first hold, buy 100 Muskets -> [Sugar, Muskets]. */
+  sh->hold_goods_type[0] = COLONIZE_CARGO_FURS;
+  sh->hold_goods_amount[0] = 100;
+  sh->hold_goods_type[1] = COLONIZE_CARGO_SUGAR;
+  sh->hold_goods_amount[1] = 100;
+  ColonizeWorld w = world_make(NULL, NULL, NULL, NULL, false, NULL, eu);
+  const int sold = europe_sell_hold(eu, NULL, -1, 0, 0);
+  eu->cargo[COLONIZE_CARGO_MUSKETS].ask = 3; /* the sale's price move re-derives asks */
+  if (sold <= 0 || europe_buy_cargo_w(&w, -1, 0, COLONIZE_CARGO_MUSKETS, 100) != 100 ||
+      sh->hold_goods_type[0] != COLONIZE_CARGO_SUGAR ||
+      sh->hold_goods_type[1] != COLONIZE_CARGO_MUSKETS || sh->hold_goods_amount[1] != 100) {
+    fprintf(stderr, "sell+buy order: h0 %d h1 %d/%d\n", sh->hold_goods_type[0],
+            sh->hold_goods_type[1], sh->hold_goods_amount[1]);
+    rc = 1;
+  }
+  free(eu);
+  /* 30b8 on a raw pair: a gap is closed before the append. */
+  int t[6] = {0, COLONIZE_CARGO_SUGAR};
+  int a[6] = {0, 100};
+  if (goods_pack_into_holds(t, a, 6, COLONIZE_CARGO_MUSKETS, 100, 6) != 100 ||
+      t[0] != COLONIZE_CARGO_SUGAR || t[1] != COLONIZE_CARGO_MUSKETS || a[1] != 100) {
+    fprintf(stderr, "gap append: h0 %d h1 %d/%d\n", t[0], t[1], a[1]);
+    rc = 1;
+  }
+  /* #1589: hold 150 Food + 30 -> hold 100 + new hold 80 (negative add). */
+  int ft[6] = {COLONIZE_CARGO_FOOD};
+  int fa[6] = {150};
+  if (goods_pack_into_holds(ft, fa, 6, COLONIZE_CARGO_FOOD, 30, 6) != 30 || fa[0] != 100 ||
+      ft[1] != COLONIZE_CARGO_FOOD || fa[1] != 80) {
+    fprintf(stderr, "negative room: h0 %d h1 %d\n", fa[0], fa[1]);
+    rc = 1;
+  }
+  /* #1589: FUN_15eb_3054 stores a byte, 300 -> 44. */
+  int bt[6] = {0};
+  int ba[6] = {0};
+  (void)goods_pack_into_holds(bt, ba, 6, COLONIZE_CARGO_ORE, 300, 6);
+  if (ba[0] != 44 || ba[1] != 0) {
+    fprintf(stderr, "byte tail: h0 %d h1 %d\n", ba[0], ba[1]);
+    rc = 1;
+  }
+  return rc;
+}
+
 /* FUN_38fd_1fa2 raw 60399-60406: FUN_281f_0b96 finds no room for the cargo, so the red bar
  * reads @CMESSAGE 4 + the cargo name + DS:0xfcc "!" and nothing is bought. */
 static int case_europe_buy_no_room_red_bar(void) {
@@ -4043,6 +4165,8 @@ static const TestCase k_cases[] = {
     {"case_europe_immigration_counts_offpool_units", case_europe_immigration_counts_offpool_units},
     {"case_europe_buy_short_gold_refuses", case_europe_buy_short_gold_refuses},
     {"case_europe_buy_no_room_red_bar", case_europe_buy_no_room_red_bar},
+    {"case_europe_price_path_16bit", case_europe_price_path_16bit},
+    {"case_europe_hold_dense_list", case_europe_hold_dense_list},
     {"case_europe_purse_single_door", case_europe_purse_single_door},
     {"case_europe_ship_own_exit_tile", case_europe_ship_own_exit_tile},
     {"case_europe_lanes_past_old_caps", case_europe_lanes_past_old_caps},

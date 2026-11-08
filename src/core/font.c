@@ -120,7 +120,7 @@ static void draw_ff_glyph(
   bool unbold_colored,
   const uint8_t* shade_colors
 ) {
-  if (ch >= 128 || font->char_widths[ch] == 0) {
+  if (ch > 128 || font->char_widths[ch] == 0) {
     return;
   }
 
@@ -193,12 +193,12 @@ static void draw_builtin_glyph(
 /* DOS-LITERAL FUN_1c11_000c raw 17468-17471 (the glyph loop of every text writer, 6f74
  * compositor and FUN_104b_* alike): a char whose face width byte is 0 draws nothing and
  * advances 0. FONTTINY has no *<=>@\^_`{|}~, FONTSMAL no punctuation but . and #, FONTINTR
- * no \^`{|}~ (port_bugs.md #1225, #1229). Chars >= 128 (DOS: >= 0x81 end the string) are
- * treated the same. The builtin 5x7 cell stands in only when no face is loaded, or with
+ * no \^`{|}~ (port_bugs.md #1225, #1229). 0x80 is a real glyph (width
+ * byte 0x7f); chars >= 0x81 (DOS: end the string) draw nothing. The builtin 5x7 cell stands in only when no face is loaded, or with
  * port_fallback for the port-only surfaces (font_draw_text_port). */
 static int font_face_advance(const ColonizeFont* font, unsigned char ch, bool port_fallback) {
   if (font && font->section_data) {
-    const int w = ch < 128 ? font->char_widths[ch] : 0;
+    const int w = ch <= 128 ? font->char_widths[ch] : 0;
     if (w != 0 || !port_fallback) {
       return w;
     }
@@ -257,7 +257,7 @@ bool font_glyph_ink_bounds(
    * it, so the FF decode lives only in draw_ff_glyph. A face's cell is at most
    * 255x255 (uint8_t widths/height); the builtin glyph is 5x7. */
   const bool face = font && font->section_data;
-  const int w = face ? (ch < 128 ? font->char_widths[ch] : 0) : 5;
+  const int w = face ? (ch <= 128 ? font->char_widths[ch] : 0) : 5;
   const int h = face ? font->max_height : 7;
   if (w <= 0 || h <= 0) {
     return false;
@@ -318,7 +318,7 @@ static int font_draw_glyph(
   if (!framebuffer || advance == 0) {
     return advance;
   }
-  if (font && font->section_data && ch < 128 && font->char_widths[ch] != 0) {
+  if (font && font->section_data && ch <= 128 && font->char_widths[ch] != 0) {
     draw_ff_glyph(font, framebuffer, x, y, ch, color, unbold_colored, shade_colors);
   } else {
     draw_builtin_glyph(framebuffer, x, y, ch, color);

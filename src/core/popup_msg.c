@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 
 #include "core/strutil.h"
 #include "platform/diagnostics.h"
@@ -439,15 +440,21 @@ int popup_msg_section_width(const ColonizeMsgSection* section) {
   if (!section) {
     return 0;
   }
+  /* FUN_6f74_06d0 box[+0x28] default (port_bugs.md #1216); @width overrides it as given.
+   * DOS-LITERAL FUN_6f74_32a4 raw 117291-117337: strupr the '@' line, 5-char prefix
+   * "WIDTH" (DS:0x1fe9), skip non-digits, atoi, FUN_6f74_0c22 store: the last one wins. */
+  int width = 0x50;
   for (int i = 0; i < section->line_count; ++i) {
     const char* line = section->lines[i];
-    if (line && strncmp(line, "@width=", 7) == 0) {
-      const int w = atoi(line + 7);
-      return w > 0 ? w : 0;
+    if (line && line[0] == '@' && strncasecmp(line + 1, "WIDTH", 5) == 0) {
+      const char* p = line + 6;
+      while (*p && (*p < '0' || *p > '9')) {
+        ++p;
+      }
+      width = atoi(p);
     }
   }
-  /* FUN_6f74_06d0 box[+0x28] default (port_bugs.md #1216); @width overrides it as given. */
-  return 0x50;
+  return width > 0 ? width : 0;
 }
 
 int popup_msg_take_pending_width(void) {

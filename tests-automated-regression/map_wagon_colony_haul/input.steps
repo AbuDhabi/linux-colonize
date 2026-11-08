@@ -28,7 +28,7 @@ click 152 160              # open Montreal (view origin 34,18); the wagon is the
 wait 1
 drag 132 171 67 188        # wagon hold 0 (Cotton 12) -> warehouse; Horses shift down to hold 0
 wait 1
-drag 144 171 162 188 shift # Horses hold -> warehouse, amount prompt (0-25)
+drag 132 171 162 188 shift # wagon hold 0 (Horses) -> warehouse, amount prompt (0-25)
 wait 1
 key Backspace
 key Backspace

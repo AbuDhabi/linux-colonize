@@ -43,8 +43,9 @@ static int europe_sell_commit(
   EuropeScreen* eu,
   struct ColonizeCol1Save* col1,
   int seller_nation,
-  int* hold_type,
-  int* hold_amount,
+  int* hold_types,
+  int* hold_amounts,
+  int slot,
   int amt
 );
 static int europe_custom_house_cargo_eligible(int cargo_type);
@@ -148,18 +149,19 @@ static void europe_push_sale_status(EuropeScreen* eu, int cargo_type, int amount
  *      seller's own record when the purse is theirs (smell audit G3).
  *   3. europe_credit_sale_tax: DOS `nation+0x22 += tax` on every sale
  *      (smell audit #51), seller = the hold's owner.
- *   4. Clear the hold. Partial sales subtract and only reset the type word
- *      once the hold empties — the empty-hold sentinel is amount 0 / type 0
- *      everywhere else in the port, and 255 here used to be the odd one out
- *      (smell audit #64). A full sale is the amt == held case of the same
- *      rule, so all three callers share it.
+ *   4. Remove the hold the DOS way (port_bugs.md #1588): FUN_38fd_23c4 ->
+ *      thunk_FUN_291f_0dc6 -> FUN_38fd_1f0c (raw 60320-60337) pulls the
+ *      slot with FUN_281f_0aec = FUN_15eb_317c (later holds shift down) and,
+ *      on a partial sale, re-adds `held - amt` with FUN_281f_0d58 =
+ *      FUN_15eb_30b8 (tops up a matching hold, else appends at the end).
+ *      Empty slots are amount 0 / type 0 (smell audit #64).
  *   5. europe_push_sale_status BEFORE the volume move, so the printed gross
  *      is the bid the sale actually went through at (port_bugs.md #376).
  *   6. europe_apply_trade_volume: the 1dfa ledger (tons/tons2/gold) so the
  *      human's own trading feeds the long-run price pool (smell audit #50).
  *
- * `hold_type` / `hold_amount` point at the caller's own slot — an
- * EuropeHarborShip mirror hold or a ColonizeUnit hold, both int[]. Returns
+ * `hold_types` / `hold_amounts` are the caller's EuropeHarborShip mirror
+ * arrays (EUROPE_SHIP_CARGO_MAX), `slot` the hold sold from. Returns
  * the proceeds, or 0 when the boycott gate refused (nothing is mutated).
  * The caller keeps its own diag_info line: the three differ in what they
  * can name (ship name / unit id) and whether a partial shows "amt/held".
@@ -169,22 +171,25 @@ static int europe_sell_commit(
   EuropeScreen* eu,
   struct ColonizeCol1Save* col1,
   int seller_nation,
-  int* hold_type,
-  int* hold_amount,
+  int* hold_types,
+  int* hold_amounts,
+  int slot,
   int amt
 ) {
-  const int ctype = *hold_type;
-  const int held = *hold_amount;
+  const int ctype = hold_types[slot];
+  const int held = hold_amounts[slot];
   if (europe_cargo_boycotted_ex(eu, col1, seller_nation, ctype)) {
     return 0; /* human entry points raise @KISSUP first (game_europe_boycott_gate) */
   }
   const int gained = europe_sell_proceeds(eu, ctype, amt);
   europe_purse_move(eu, col1, seller_nation, gained);
   europe_credit_sale_tax(col1, seller_nation, europe_sell_price(eu, ctype) * amt, gained);
-  *hold_amount = held - amt;
-  if (*hold_amount == 0) {
-    *hold_type = 0;
-  }
+  hold_types[slot] = 0;
+  hold_amounts[slot] = 0;
+  (void)goods_holds_compact(hold_types, hold_amounts, EUROPE_SHIP_CARGO_MAX);
+  (void)goods_pack_into_holds(
+    hold_types, hold_amounts, EUROPE_SHIP_CARGO_MAX, ctype, held - amt, EUROPE_SHIP_CARGO_MAX
+  );
   europe_push_sale_status(eu, ctype, amt, gained);
   europe_apply_trade_volume(
     eu, col1, seller_nation, col1 ? (int)col1->head.human_player : seller_nation,
@@ -214,8 +219,7 @@ int europe_sell_hold(
     return 0;
   }
   const int gained = europe_sell_commit(
-    eu, col1, seller_nation, &ship->hold_goods_type[hold_index],
-    &ship->hold_goods_amount[hold_index], amt
+    eu, col1, seller_nation, ship->hold_goods_type, ship->hold_goods_amount, hold_index, amt
   );
   if (gained <= 0) {
     return 0;
@@ -252,8 +256,7 @@ int europe_sell_hold_partial(
   }
   const int amt = amount < held ? amount : held;
   const int gained = europe_sell_commit(
-    eu, col1, seller_nation, &ship->hold_goods_type[hold_index],
-    &ship->hold_goods_amount[hold_index], amt
+    eu, col1, seller_nation, ship->hold_goods_type, ship->hold_goods_amount, hold_index, amt
   );
   if (gained <= 0) {
     return 0;
@@ -269,35 +272,17 @@ int europe_sell_hold_partial(
 }
 
 /*
- * FUN_364b_0636: Custom House may auto-sell this cargo type.
- * Deny Food(0), Horses(8), Tools(0xe), Muskets(0xf).
- * Ore(6) extra DOS deny path not mapped — allow Ore (no invent).
- *
- * **2026-08-27: a same-day attempt to also deny Lumber(5) here (matching a
- * `param_1 != 5` term this function's raw decompile appears to have) was
- * reverted — both `golden_colony_prod01`/`02` (real DOS `.SAV` ground
- * truth) show Lumber genuinely auto-sold down to 50, contradicting that
- * reading. The `param_1==5` deny term is real in the decompile but must
- * gate something other than plain cargo-index-5 in this calling context
- * (`local_b6` in `FUN_364b_0688`'s loop may not be a raw cargo index the
- * way the other four terms' values are), or a second, different type-gate
- * function is the real one `0688` calls — not re-investigated this pass.
- * Golden evidence overrides the static read; leaving the deny list at its
- * original 4 entries, unchanged from before this attempt.
+ * FUN_364b_0636, the AI-only Custom House cargo gate: deny Food, Lumber,
+ * Horses, Tools and Muskets (5 cargos). FUN_364b_0688 picks the gate by
+ * controller: human colonies use FUN_281f_0cfe -> FUN_15eb_0302 (colony
+ * +0x8a bit per cargo == custom_house_bits), only AI colonies reach 0636
+ * (thunk_FUN_291f_09c0, address_mapping.csv), which is why real-DOS human
+ * saves (golden_colony_prod01/02) sell lumber. Ore has an extra deny arm
+ * (Armory = building row 3, or the tick's gross DS:0x8de4 tools / 0x8de6
+ * muskets nonzero) that the Custom House caller passes in as
+ * `ai_ore_denied`; this function is its only caller.
  */
 static int europe_custom_house_cargo_eligible(int cargo_type) {
-  /*
-   * Resolved 2026-08-28: FUN_364b_0688 picks the gate by controller —
-   * human colonies use FUN_281f_0cfe → FUN_15eb_0302 (colony +0x8a bit per
-   * cargo == custom_house_bits), and ONLY AI colonies use FUN_364b_0636
-   * (thunk_FUN_291f_09c0, confirmed via address_mapping.csv). So the
-   * Lumber deny term is real, but it never applied to the human's Custom
-   * House — which is why the real-DOS saves sold lumber. This function is
-   * now the AI-only 0636 gate: deny Food/Lumber/Horses/Tools/Muskets; Ore
-   * has an extra deny arm (Armory = building row 3, or the tick's gross
-   * DS:0x8de4 tools / 0x8de6 muskets nonzero) that the Custom House caller
-   * passes in as `ai_ore_denied`; the export-sail caller still allows Ore.
-   */
   if (cargo_type == COLONIZE_CARGO_FOOD || cargo_type == COLONIZE_CARGO_LUMBER ||
       cargo_type == COLONIZE_CARGO_HORSES || cargo_type == COLONIZE_CARGO_TOOLS ||
       cargo_type == COLONIZE_CARGO_MUSKETS) {

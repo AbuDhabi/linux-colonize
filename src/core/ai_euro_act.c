@@ -18,7 +18,6 @@
 #include "core/ai_internal.h"
 #include "core/ai_contact.h"
 #include "core/ai_diplo.h"
-#include "core/ai_king.h"
 #include "core/ai_goals.h"
 #include "core/assets.h"
 #include "core/ai_euro_internal.h"
@@ -813,13 +812,14 @@ void ai_euro_goal_walk_479b(ColonizeTurnContext* ctx, ColonizeUnit* u) {
   }
   /* FUN_479b_0972 raw 77091-77098: an AI goto that ends on High Seas
    * (class 0x1a) under plan 'E' crosses at once (FUN_291f_0208 -> 007a);
-   * after the declaration only the crown's Man-O-War on its own slot. */
+   * after the declaration only the crown's Man-O-War on its own slot
+   * (`0x5394 == 0x53d2`, the raw word: no human-peer fallback). */
   if (state != AI_EURO_ACT_STEP && u->col1_ai_plan == AI_EURO_PLAN_EUROPE_BOUND &&
       ctx->col1_ok && ctx->col1) {
     const ColonizeCol1Save* col1 = ctx->col1;
     const int mow = units_kind_type_index(ctx->units, UNITS_KIND_MAN_O_WAR);
     const bool open = !col1->head.game_options.woi ||
-      (u->nation_id == ai_king_crown_nation_col1(col1, (int)col1->head.human_player) &&
+      (u->nation_id == (int)col1->head.crown_nation_id &&
        mow >= 0 && u->type_index == mow);
     if (open && ai_euro_ship_enter_europe(ctx, u)) {
       return;

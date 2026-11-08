@@ -1388,6 +1388,9 @@ int units_apply_land_loss_outcome(
        * train (value in the profession byte, empty LE16 mirror) is not 0.
        */
       const int from_nat = lose->nation_id;
+      /* DOS raw 99404 uses a signed IMUL byte (viceroy_unpacked.asm:167858),
+       * so a treasure >= 12800 shows negative in DOS; deliberately not
+       * reproduced, see docs/dos_bugs.md DB-82. */
       const int loot_gold = units_treasure_value_gold(lose);
       units_capture_to_winner(pool, lose, win);
       if (human) {
@@ -1479,7 +1482,8 @@ int units_apply_land_loss_outcome(
       memset(&tok, 0, sizeof(tok));
       if (roll <= 6) {
         const int cargo = lose->hold_goods_type[loaded[dos_rng_range(rng, 0, n - 1)]];
-        for (int i = 0; i < n; ++i) {
+        /* High to low: each unload shifts the later holds down (317c). */
+        for (int i = n - 1; i >= 0; --i) {
           if (lose->hold_goods_type[loaded[i]] == cargo) {
             (void)units_unload_goods_hold(pool, loser_id, loaded[i], NULL, NULL);
           }
@@ -1573,19 +1577,11 @@ int units_apply_land_loss_outcome(
  * (raw 99570-99579); units_apply_naval_loss_outcome does the same right after
  * this gate.
  */
-/* DS:0x53d2 = head.crown_nation_id, the slot the succession merger vacated
- * (same rule as ai_king_crown_nation_col1; spelled locally so the slim
- * units test targets need not link ai_king.c). */
+/* DS:0x53d2 = head.crown_nation_id, the slot the succession merger vacated. */
 static int units_combat_crown_nation(const ColonizeCol1Save* col1) {
-  if (!col1) {
-    return -1;
-  }
-  const int human = (int)col1->head.human_player;
-  const int c = (int)col1->head.crown_nation_id;
-  if (c >= 0 && c < 4 && c != human) {
-    return c;
-  }
-  return (human == 0) ? 1 : 0;
+  /* FUN_5fef_0352 raw 99562 compares the raw word: 0xffff (hot-seat, never
+   * stamped by FUN_43f7_0218) matches no nation. port_bugs.md #1592. */
+  return col1 ? (int)col1->head.crown_nation_id : -1;
 }
 
 int units_naval_damage_gate(
@@ -1985,16 +1981,8 @@ void units_ship_enter_repair(
 }
 
 /* Naval: damage-not-always-sink when margin close; else plunder+despawn. */
-/*
- * Occupied holds = DOS unit +0x3150, which is the GOODS hold count only — the
- * length of the packed hold arrays, written solely by FUN_15eb_30b8 (add
- * goods, ++) and FUN_15eb_317c (remove hold, --) at viceroy 13301/13339.
- * Boarding never touches it: FUN_1427_10be parks passengers off-map at
- * (-2,-2) and debits only its own local budget. FUN_5bfb_312e (viceroy 98448)
- * reads that byte raw for the -4/hold evasion peel, so a troop-laden ship
- * evades exactly like an empty one — the same goods-only count
- * combat_strength.c's FUN_157e_004a peel (viceroy 8957-8959) uses.
- */
+/* Per-hold goods amount = DOS FUN_15eb_3040 (raw 13262): the byte at unit
+ * +0x3154 + hold. The 1..254 range guard is the port's (empty / unset slot). */
 int units_unit_hold_amount(const ColonizeUnit* u, int hold) {
   if (!u || hold < 0 || hold >= COLONIZE_UNIT_CARGO_MAX) {
     return 0;
@@ -2007,6 +1995,16 @@ int units_hold_amount(const ColonizeUnitPool* pool, int unit_id, int hold) {
   return units_unit_hold_amount(units_get_const(pool, unit_id), hold);
 }
 
+/*
+ * Occupied holds = DOS unit +0x3150, which is the GOODS hold count only — the
+ * length of the packed hold arrays, written solely by FUN_15eb_30b8 (add
+ * goods, ++) and FUN_15eb_317c (remove hold, --) at viceroy 13301/13339.
+ * Boarding never touches it: FUN_1427_10be parks passengers off-map at
+ * (-2,-2) and debits only its own local budget. FUN_5bfb_312e (viceroy 98448)
+ * reads that byte raw for the -4/hold evasion peel, so a troop-laden ship
+ * evades exactly like an empty one — the same goods-only count
+ * combat_strength.c's FUN_157e_004a peel (viceroy 8957-8959) uses.
+ */
 int units_holds_used(const ColonizeUnitPool* pool, int unit_id) {
   const ColonizeUnit* u = units_get_const(pool, unit_id);
   if (!u) {

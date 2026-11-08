@@ -48,9 +48,16 @@ void dos_rng_set_synth_ticks(bool on);
  * so each pick leaves the gameplay stream at srand(tick) at a wall-clock
  * moment. dos_rng_tick_reseed queues that reseed for the next draw (an
  * explicit dos_rng_seed first cancels it). Tick word -1 = wall clock; a fixed
- * campaign seed fixes it (VR_SEED reads DS:0x83a8 = 100). */
+ * campaign seed fixes it (VR_SEED patches FUN_1c0c_0012 to return 100). */
 void dos_rng_set_tick_word(int32_t word);
 void dos_rng_tick_reseed(void);
+/* The tick word a reseed reads (fixed word, else the wall clock at 18.2 Hz),
+ * without the synth-tick counter step: safe off the sim thread. */
+uint32_t dos_rng_tick_word(void);
+/* FUN_19ef_0032 on a private state with none of dos_rng_next's process-wide
+ * effects (draw count, queued tick reseed, modern stream, trace): for the
+ * music pick, which runs on the audio thread. Seed with rng->state = w & 0x7fff. */
+int dos_rng_range_detached(ColonizeDosRng* rng, int lo, int hi);
 /* Golden harness: replay recorded picks. Resets the draw counter; a pick lands
  * just before draw draw_index[i] (0-based from this call). The array must
  * outlive the run; n = 0 clears. */

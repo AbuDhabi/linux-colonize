@@ -680,9 +680,71 @@ static int case_europe_menu_frames_are_dos(void) {
     fprintf(stderr, "dock: h %d y %d dx %d\n", lay.dialog_h, lay.dialog_y, lay.row_dx);
     rc = 1;
   }
+  /* port_bugs.md #1604 (7): the font follows the section's @smallfont (FUN_6f74_32a4), not
+   * the menu id, so a mod dropping it from @KINGRECRUIT puts Train on FONTINTR. */
+  ColonizeMsgSection* kr = (ColonizeMsgSection*)assets_msg_find(&game->messages, "KINGRECRUIT");
+  for (int i = 0; kr && i < kr->line_count; ++i) {
+    if (strcmp(kr->lines[i], "@smallfont") == 0) {
+      kr->lines[i][1] = 'X';
+    }
+  }
+  game->europe.menu = EUROPE_MENU_TRAIN;
+  if (!europe_menu_layout(game, 320, 200, &lay) || lay.glyph_h != 9) {
+    fprintf(stderr, "train without @smallfont: glyph %d, want 9\n", lay.glyph_h);
+    rc = 1;
+  }
   font_file_free(&game->intro_font);
   font_file_free(&game->colony_font);
   assets_msg_free(&game->messages);
+  free(game);
+  return rc;
+}
+
+/*
+ * port_bugs.md #1595: under a report DOS keeps rotating the master palette (FUN_1a0a_007a)
+ * and reprograms only the cycle span over the plate, so the map ramp advances and the
+ * plate's span mirrors it, also with cycling off (frozen master phase).
+ */
+static int case_water_cycle_under_report(void) {
+  ColonizeGameState* game = calloc(1, sizeof(*game));
+  if (!game) {
+    return fail("allocate game state");
+  }
+  game->map_palette_ok = true;
+  for (int i = 0; i < 8; ++i) {
+    game->map_palette.rgb[120 + i][0] = (uint8_t)(i + 1);
+  }
+  game->water_cycle_count = 1;
+  game->water_cycle[0].start = 120;
+  game->water_cycle[0].length = 8;
+  game->water_cycle[0].step_ms = 10;
+  game->in_report = true;
+  game->reports_ok = true;
+  game->report_id = COLONIZE_REPORT_LABOR;
+  game->reports.background_ok[COLONIZE_REPORT_LABOR] = true;
+  ColonizePikImage* plate = &game->reports.backgrounds[COLONIZE_REPORT_LABOR];
+  plate->has_palette = true;
+  memset(plate->palette.rgb, 0x3f, sizeof(plate->palette.rgb));
+  int rc = 0;
+  game->elapsed_ms = 10;
+  game_water_cycle_tick(game);
+  if (game->map_palette.rgb[120][0] != 8 || game->map_palette.rgb[121][0] != 1 ||
+      memcmp(plate->palette.rgb[120], game->map_palette.rgb[120], 8 * 3) != 0 ||
+      plate->palette.rgb[119][0] != 0x3f || plate->palette.rgb[128][0] != 0x3f) {
+    fprintf(stderr, "report: map[120] %d plate[120] %d plate[128] %d\n",
+            game->map_palette.rgb[120][0], plate->palette.rgb[120][0], plate->palette.rgb[128][0]);
+    rc = 1;
+  }
+  memset(plate->palette.rgb[120], 0x3f, 8 * 3);
+  game->col1.head.game_options.water_color_cycling_off = 1;
+  game->elapsed_ms = 20;
+  game_water_cycle_tick(game);
+  if (game->map_palette.rgb[120][0] != 8 ||
+      memcmp(plate->palette.rgb[120], game->map_palette.rgb[120], 8 * 3) != 0) {
+    fprintf(stderr, "cycling off: map[120] %d plate[120] %d\n", game->map_palette.rgb[120][0],
+            plate->palette.rgb[120][0]);
+    rc = 1;
+  }
   free(game);
   return rc;
 }
@@ -1742,6 +1804,7 @@ static const TestCase k_cases[] = {
     {"game_confirmation_catalog_choices", case_game_confirmation_catalog_choices},
     {"map_confirm_second_refused", case_map_confirm_second_refused},
     {"europe_menu_frames_are_dos", case_europe_menu_frames_are_dos},
+    {"water_cycle_under_report", case_water_cycle_under_report},
     {"debug_test_ignores_directives", case_debug_test_ignores_directives},
     {"cheat_list_shared_parser", case_cheat_list_shared_parser},
     {"cheat_create_unit_is_dos", case_cheat_create_unit_is_dos},

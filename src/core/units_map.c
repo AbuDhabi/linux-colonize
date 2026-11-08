@@ -14,6 +14,7 @@
 
 #include "core/ai_contact.h"
 #include "core/ai_diplo.h"
+#include "core/ai_euro.h"
 #include "core/col1_save.h"
 #include "core/combat_analysis.h"
 #include "core/combat_strength.h"
@@ -291,6 +292,25 @@ void units_dos_tail_stash(ColonizeUnitPool* pool, int index, const ColonizeUnit*
     *nb = (gi & 1) ? (uint8_t)((*nb & 0x0f) | (t << 4)) : (uint8_t)((*nb & 0xf0) | t);
     pool->dos_tail[index].raw[4 + gi] = (uint8_t)amt;
     gi++;
+  }
+  /* +0x3159 (Pioneer tools) and +0x3158 (type-0x0c wagon errand latch) are
+   * live state too, and 06b4 leaves both unwritten except for its own type
+   * (raw 6406-6468), so mirror col1_bridge's export of them (port_bugs.md
+   * #1601: a worked Pioneer's 80 tools, not the apply-time 100). */
+  uint8_t* raw = pool->dos_tail[index].raw;
+  const ColonizeUnitType* ut = units_type(pool, last->type_index);
+  if (!units_unit_is_sea(pool, last) && !(ut && ut->cargo > 0)) {
+    const uint8_t raw5 = last->col1_hold_raw_valid ? raw[9] : 0u;
+    if (units_type_kind(ut) == UNITS_KIND_PIONEER) {
+      raw[9] = (uint8_t)last->tools;
+    } else if (raw5 <= 100u && last->tools > 0) {
+      raw[9] = (uint8_t)(last->tools <= 100 ? last->tools : 100);
+    }
+  } else if (last->tools > 0 && last->aboard_ship_id >= 0 && raw[9] == 0) {
+    raw[9] = (uint8_t)(last->tools <= 100 ? last->tools : 100);
+  }
+  if (last->type_index == 0x0c) {
+    raw[8] = (uint8_t)ai_euro_wagon_errand_get(last->id);
   }
 }
 

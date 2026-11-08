@@ -681,6 +681,10 @@ void units_render_on_map(
   const ColonizePalette* active_palette
 );
 
+/* Slide occupied goods holds down in order (DOS dense hold list, FUN_15eb_317c
+ * shape); returns the occupied count. units_cargo.c, beside goods_pack_into_holds. */
+int goods_holds_compact(int* hold_types, int* hold_amounts, int n_holds);
+
 
 /*
  * Split into three focused headers below (movement/pathing, combat, cargo);

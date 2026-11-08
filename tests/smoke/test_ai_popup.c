@@ -1142,7 +1142,27 @@ static int case_camera_on_present(void) {
   return rc;
 }
 
+/* port_bugs.md #1597: the art sheet owns DAC 152..251 only (FUN_1c2e_0022 AX=0x98 DX=0x64);
+ * a black host slot outside the block stays black. */
+static int case_sheet_palette_merge_block_only(void) {
+  ColonizeSpriteSheet art = {0};
+  art.has_palette = true;
+  memset(art.palette.rgb, 0x2a, sizeof(art.palette.rgb));
+  ColonizePalette host = {0};
+  host.rgb[200][0] = 7;
+  ai_popup_sheet_palette_merge(&art, &host);
+  for (int i = 0; i < 256; ++i) {
+    const int want = (i >= 152 && i <= 251) ? 0x2a : 0;
+    if (host.rgb[i][0] != want || host.rgb[i][2] != want) {
+      fprintf(stderr, "slot %d = %d, want %d\n", i, host.rgb[i][0], want);
+      return 1;
+    }
+  }
+  return 0;
+}
+
 static const TestCase k_cases[] = {
+    {"case_sheet_palette_merge_block_only", case_sheet_palette_merge_block_only},
     {"case_fresh_idle", case_fresh_idle},
     {"case_enqueue_and_present_info", case_enqueue_and_present_info},
     {"case_dismiss_result", case_dismiss_result},

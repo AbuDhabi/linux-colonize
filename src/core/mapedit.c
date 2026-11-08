@@ -974,7 +974,9 @@ static int me_region(int x, int y) {
 }
 
 static void me_minimap_origin(const MapEditor* ed, int* left, int* top) {
-  /* FUN_1b56_00dc. */
+  /* FUN_1b56_00dc. DOS clamps through FUN_1865_000e (floor 1, then ceiling w-57 /
+   * h-40), so a map under 58x41 gets a negative origin and FUN_1b56_011c reads before
+   * the terrain plane; ceiling-then-floor keeps the port's index in bounds (DOS bug). */
   int l = ed->view_cx - 28;
   int t = ed->view_cy - 19;
   if (l > ed->map.width - 57) l = ed->map.width - 57;

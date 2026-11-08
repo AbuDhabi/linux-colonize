@@ -702,8 +702,10 @@ void colony_screen_draw_multifunction(
       if (slots[i].mini) {
         /* Overflow rows: 3x5 miniature; selection is the small DOS box
          * (2f2b:1f7f with the row-1 params: x-1..x+3 by y-2..y+5). */
+        /* 2f2b:1f14: 35%, centre x + (3 >> 1), bottom y + 5 - 1. */
         colony_screen_blit_mini_unit(
-          view, framebuffer, sprite, slots[i].x, slots[i].y, COLONY_MULTI_UNITS_MINI_H
+          view, framebuffer, sprite, 0x23, slots[i].x + (COLONY_MULTI_UNITS_MINI_W >> 1),
+          slots[i].y + COLONY_MULTI_UNITS_MINI_H - 1
         );
         if (!view->spy_view && view->multi_unit_selected_id == u->id) { /* raw 48676 */
           colony_screen_draw_selection_box(

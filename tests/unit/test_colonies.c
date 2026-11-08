@@ -3572,6 +3572,17 @@ static int unit_settlement_count_and_name_peek(void) {
   }
   char first[64];
   snprintf(first, sizeof(first), "%s", peek1 ? peek1 : "");
+  {
+    /* port_bugs.md #1591: a cancelled Build still uses the name up. */
+    static ColonizeColonyPool skip;
+    skip = pool;
+    colonies_skip_next_name(&skip, 0);
+    const char* after = colonies_peek_next_name(&skip, 0);
+    if (skip.name_count[0] > 1 && (!after || strcmp(after, first) == 0)) {
+      fprintf(stderr, "name skip did not advance past '%s'\n", first);
+      rc = 1;
+    }
+  }
 
   const int a = colonies_found(&pool, &map, 2, 2, 0, -1, UNITS_JOB_NONE, 0, 0, 0);
   const int b = colonies_found(&pool, &map, 6, 6, 0, -1, UNITS_JOB_NONE, 0, 0, 0);
