@@ -128,6 +128,7 @@ static const SettingsBoolOpt k_mod_opts[] = {
   SETTINGS_MOD("ship_autoexplore", MOD_SHIP_AUTOEXPLORE, false),
   SETTINGS_MOD("hard_king", MOD_HARD_KING, false),
   SETTINGS_MOD("current_vision", MOD_CURRENT_VISION, false),
+  SETTINGS_MOD("construction_queue", MOD_CONSTRUCTION_QUEUE, false),
 };
 
 #define SETTINGS_OPT_COUNT(t) ((int)(sizeof(t) / sizeof((t)[0])))

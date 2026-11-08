@@ -426,7 +426,7 @@ static void colony_screen_draw_construction_popup(
                             : gi == 0 ? current < 0
                                       : view->buildable_ids[gi - 1] == current;
     colony_screen_dos_row_text(framebuffer, font, &lay, &view->construction_rect, x, row_y, 4, row,
-                               is_current, false);
+                               is_current, gi > 0 && view->buildable_queue_only[gi - 1]);
   }
 }
 

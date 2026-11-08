@@ -358,6 +358,8 @@ typedef struct ColonyScreenView {
   int construction_default_row; /* the current project's entry, -1 = not listed */
   int buildable_ids[COLONY_BUILDABLE_MAX];
   int buildable_count;
+  /* mods.construction_queue: row only the plan unlocks (queue-only, drawn grey). */
+  bool buildable_queue_only[COLONY_BUILDABLE_MAX];
   ColonyDialogRect construction_rect;
   /* The open jobs / construction page's "(More)" row has the bar (FUN_6f74_2580 box+0x4c);
    * the selection keeps an entry of that page so the page stays. */

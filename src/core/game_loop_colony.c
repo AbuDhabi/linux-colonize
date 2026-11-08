@@ -1055,6 +1055,11 @@ static bool game_colony_production_idle(const ColonizeColony* col) {
 }
 
 void game_colony_queue_construction(ColonizeGameState* game, int bid) {
+  /* Without mods.construction_queue Shift is ignored: a plain pick. */
+  if (!mods_on(MOD_CONSTRUCTION_QUEUE)) {
+    game_colony_commit_construction(game, bid);
+    return;
+  }
   const ColonizeColony* col = colonies_get(&game->colonies, game->colony_view_id);
   const ColoniesBuildableOpts bopts = game_colony_buildable_opts(game);
   bool acted = false;

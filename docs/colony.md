@@ -625,8 +625,11 @@ every colony — the same as the port's pre-#755 behaviour.
 
 ## ColonizeColony.build_queue
 
-Port-only QOL (no DOS counterpart): the projects a colony starts, in order, as
-each completion frees `building_in_production`. Shift-clicking a row in the
+Port-only QOL (no DOS counterpart), gated by
+`mods.construction_queue` (default off; docs/settings.md "Mods"): the projects a
+colony starts, in order, as each completion frees `building_in_production`.
+With the flag off, Shift picks are plain picks and the picker lists only
+`colonies_list_buildable`. Shift-clicking a row in the
 Construction picker — or Shift+Enter on the selected row — appends to it
 (`game_colony_queue_construction`) and leaves the picker open; with nothing in
 production that Shift pick starts the project instead, still without closing, so
@@ -641,7 +644,8 @@ queued one were built — Drydock behind Docks, Shipyard behind a queued Drydock
 ships behind a queued Shipyard. Each Shift pick relists. Such a row can only be
 queued (`colonies_build_project_plannable`); a plain pick on it does nothing and
 keeps the plan and the picker open (`colonies_build_project_startable`), and an
-idle Shift pick starts only a startable row. `colonies_set_construction_ex`
+idle Shift pick starts only a startable row. Queue-only rows are drawn grey
+(`ColonyScreenView.buildable_queue_only`). `colonies_set_construction_ex`
 does not test chain predecessors, so the queue advance drops a head whose
 predecessor is not owned (dropped earlier, burned in a raid).
 

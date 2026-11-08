@@ -201,6 +201,7 @@ static const ModId k_mods_restored[] = {
 static const ModId k_mods_rules[] = {
   MOD_POPULATION_FLOOR,  MOD_LATE_FATHERS,     MOD_BUILDING_UPKEEP, MOD_HARD_KING,
   MOD_PIONEER_PLAN,      MOD_SCOUT_AUTOEXPLORE, MOD_SHIP_AUTOEXPLORE, MOD_CURRENT_VISION,
+  MOD_CONSTRUCTION_QUEUE,
 };
 static const ModId k_mods_fixes[] = {MOD_GOTO_NATIVE_WAIT};
 #define MODS_PAGE_LEN(a) ((int)(sizeof(a) / sizeof((a)[0])))

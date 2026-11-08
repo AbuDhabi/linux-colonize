@@ -53,6 +53,9 @@ typedef enum ModId {
   MOD_HARD_KING = 15,
   /* New feature: seen tiles outside live unit/colony sight get a fog-blue veil. */
   MOD_CURRENT_VISION = 16,
+  /* New feature: Shift-pick Construction build queue; the picker lists, in grey,
+   * projects only the queued plan unlocks (docs/colony.md build_queue). */
+  MOD_CONSTRUCTION_QUEUE = 17,
   MOD_COUNT
 } ModId;
 

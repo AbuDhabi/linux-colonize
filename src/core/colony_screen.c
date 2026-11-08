@@ -302,11 +302,19 @@ void colony_screen_open_construction(
     return;
   }
   colony_screen_close_subpanels(view);
-  /* Port-only build queue: rows the queued plan unlocks are listed too
+  /* mods.construction_queue: rows the queued plan unlocks are listed too
    * (Shift queues them; game_colony_commit_construction refuses a plain pick). */
-  view->buildable_count = colonies_list_buildable_planned(
-    pool, colony_id, view->buildable_ids, COLONY_BUILDABLE_MAX, buildable_opts
-  );
+  const bool queue = mods_on(MOD_CONSTRUCTION_QUEUE);
+  view->buildable_count =
+    queue ? colonies_list_buildable_planned(pool, colony_id, view->buildable_ids,
+                                            COLONY_BUILDABLE_MAX, buildable_opts)
+          : colonies_list_buildable(pool, colony_id, view->buildable_ids, COLONY_BUILDABLE_MAX,
+                                    buildable_opts);
+  for (int i = 0; i < view->buildable_count; ++i) {
+    view->buildable_queue_only[i] =
+      queue && !colonies_build_project_startable(pool, colony_id, view->buildable_ids[i],
+                                                 buildable_opts);
+  }
   view->construction_open = true;
   view->construction_page = 0;
   view->more_selected = false;
