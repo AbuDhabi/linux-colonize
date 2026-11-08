@@ -6,6 +6,9 @@
 
 .PHONY: build test golden release clean
 
+# ctest parallelism (each regression_replay case is its own ctest entry).
+JOBS ?= $(shell nproc 2>/dev/null || echo 4)
+
 # One test target: `make test T=unit_font_file` (builds only that target, runs it from
 # repo root; add CASE=<name> to run a single case via COLONIZE_TEST_ONLY).
 
@@ -20,7 +23,7 @@ ifdef T
 	COLONIZE_UNITS_STRICT=1 $(if $(CASE),COLONIZE_TEST_ONLY=$(CASE)) ./build/debug/$(T)
 else
 	$(MAKE) build
-	ctest --preset debug
+	ctest --preset debug -j $(JOBS)
 endif
 
 golden: build

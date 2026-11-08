@@ -545,7 +545,24 @@ if(SDL2_FOUND)
     LIBS colonize_core ${COLONIZE_SDL2_TARGET}
     INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/tools
     COMPILE_DEFS COLONIZE_REPLAY_PLATFORM=1
+    NO_CTEST
   )
+  # One ctest entry per case, so `ctest -j` runs them in parallel (run as a
+  # single serial test it was nearly all of `make test`'s wall time). Each case
+  # writes only regression_out/<case>/. CONFIGURE_DEPENDS re-globs on build, so
+  # a new case directory is picked up without a manual reconfigure.
+  file(GLOB _regression_cases LIST_DIRECTORIES true CONFIGURE_DEPENDS
+       ${CMAKE_SOURCE_DIR}/tests-automated-regression/*)
+  foreach(_case_dir IN LISTS _regression_cases)
+    if(IS_DIRECTORY ${_case_dir})
+      get_filename_component(_case ${_case_dir} NAME)
+      add_test(NAME regression_replay.${_case} COMMAND regression_replay
+               WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+      set_tests_properties(regression_replay.${_case} PROPERTIES
+        ENVIRONMENT "COLONIZE_UNITS_STRICT=1;COLONIZE_TEST_ONLY=${_case}"
+        SKIP_RETURN_CODE 77)
+    endif()
+  endforeach()
   # Headless interactive play driver (tools/README.md): replay platform, stdin commands.
   colonize_add_test(NAME play_driver
     SOURCES

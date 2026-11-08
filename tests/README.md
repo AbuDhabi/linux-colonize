@@ -165,8 +165,9 @@ Most executables expect **repo root** as cwd (`WORKING_DIRECTORY` in CMake).
 
 ## Input-replay regressions
 
-`regression_replay` (in `ctest`) runs every subdirectory of
-`tests-automated-regression/` as one test. A test directory holds:
+`regression_replay` runs every subdirectory of
+`tests-automated-regression/` as one test; `ctest` registers each one as its
+own entry, `regression_replay.<dir name>`, so `ctest -j` runs them in parallel. A test directory holds:
 
 | File | What |
 |------|------|
@@ -289,7 +290,8 @@ On failure the test prints the reason (timeout with phase/frame/status, quit,
 load/save error, or the first differing byte plus a `sav_json` field diff) and
 leaves `actual.sav`, `expected.json`, `actual.json` in
 `build/debug/regression_out/<name>/`. One test:
-`make test T=regression_replay CASE=<dir name>`. Each test runs in a forked
+`make test T=regression_replay CASE=<dir name>` (or `ctest --preset debug -R
+'regression_replay\.<dir name>$'`). Each test runs in a forked
 child, so module statics never leak between tests.
 
 ## Running a single test
