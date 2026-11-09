@@ -886,7 +886,7 @@ void reports_render_hall_of_fame(
      * insert (local_156) took slot 5; the number is local_6 + 1 and the ink DS:0x831 when
      * local_6 == local_156, else DS:0x830. DOS still reads every field from slot local_15c (SI
      * at 12ca / 1336 / 13a4), so its 6th-place retire shows the 5th entry numbered "6."; the
-     * port shows the retired entry there (docs/dos_bugs.md DB-57). */
+     * port shows the retired entry there (docs/dos_bugs_ui.md DB-57). */
     const int num = (i == 4 && inserted == 5) ? 5 : i;
     const ColonizeHofRow* e = (num != i && retired) ? retired : &entries[i];
     const uint8_t ink = num == inserted ? COLONIZE_COL_HILITE : COLONIZE_COL_BASIC;

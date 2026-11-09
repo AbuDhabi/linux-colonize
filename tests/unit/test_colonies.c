@@ -2814,7 +2814,7 @@ static int unit_wagon_cap_and_armory_gate(void) {
 /*
  * port_bugs.md #1218 — FUN_15eb_3650's tail (raw 13741-13746) keeps the
  * colony's current project in the list (DOS's unit-record exception is
- * docs/dos_bugs.md DB-59, not reproduced). A colony with all seven unit projects and
+ * docs/dos_bugs_ui.md DB-59, not reproduced). A colony with all seven unit projects and
  * fourteen buildings open plus a built current project lists 22 entries, so the
  * CHANGE box (with its clear row) runs past 0x16 rows to two pages.
  */

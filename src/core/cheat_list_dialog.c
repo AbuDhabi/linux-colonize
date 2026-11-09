@@ -271,7 +271,7 @@ bool cheat_list_open_trade_dest(
  * slots, more is pages of 10. Slot k + e holds the k-th colony on every page (the Europe row is
  * slot 0, e = 1 when it is offered) and page p shows slots size * p .. size * p + size - 1
  * (raw 102380-102381). DOS counts (n + 9) / 10 pages, leaving slot n of Europe + 20 / 30 / 40
- * colonies on no page; the port counts the Europe slot too (docs/dos_bugs.md DB-53), which
+ * colonies on no page; the port counts the Europe slot too (docs/dos_bugs_ui.md DB-53), which
  * changes only those three cases.
  */
 void cheat_list_dest_page_math(int n, int e, int* page_size, int* page_count) {

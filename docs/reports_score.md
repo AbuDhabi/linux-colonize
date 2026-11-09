@@ -157,7 +157,7 @@ Hall of Fame / Exploits). Shared chrome, fill bars and F2-F9 stay in
   `game_hof_insert`; -1 from the title menu) draws all three lines in DS:0x831 (hilite); when it
   only took the catch-all slot 5, the 5th line is numbered "6." and hilited. DOS still reads
   that line's fields from slot 4 (asm 41f2:12b2-12ef), so its new 6th place is never shown; the
-  port shows the retired entry there (`hof_retired`, docs/dos_bugs.md DB-57; port_bugs.md
+  port shows the retired entry there (`hof_retired`, docs/dos_bugs_ui.md DB-57; port_bugs.md
   #1219, static read; test `unit_reports hall_of_fame_layout_is_dos`):
   1. `"<n>. <Difficulty> <Leader> of the [Free ]<Nation>"` (#19 "of the",
      #191 "Free" when declared)

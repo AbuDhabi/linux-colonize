@@ -1119,7 +1119,7 @@ void game_colony_commit_construction(ColonizeGameState* game, int bid) {
 }
 
 /* FUN_2f2b_348c param 0: the popup. Its build-up seats (plot stamps, job counter zeroed on
- * open) are a DOS bug not reproduced (docs/dos_bugs.md DB-54, port_bugs.md #1205). */
+ * open) are a DOS bug not reproduced (docs/dos_bugs_ui.md DB-54, port_bugs.md #1205). */
 void game_colony_open_jobs(
   ColonizeGameState* game, ColonizeColony* colony, const ColonizeWorldMap* cmap, int tile_index
 ) {

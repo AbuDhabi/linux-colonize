@@ -3248,7 +3248,7 @@ static int test_colony_jobs_menu_outer_plot_tiers(void) {
 }
 
 /*
- * docs/dos_bugs.md DB-54 (port_bugs.md #1205): DOS's jobs menu stamps each elected plot and
+ * docs/dos_bugs_ui.md DB-54 (port_bugs.md #1205): DOS's jobs menu stamps each elected plot and
  * zeroes the job counter just by opening; the port's opening changes nothing.
  */
 static int test_colony_jobs_menu_open_has_no_side_effects(void) {
@@ -5789,7 +5789,7 @@ static int test_hotseat_dos_save_round_trip(void) {
 
 /*
  * port_bugs.md #1215, FUN_2f2b_5bd2: a two-page construction list bars the current project on
- * the page that lists it, else the "(More)" row toward it (docs/dos_bugs.md DB-60 / DB-63:
+ * the page that lists it, else the "(More)" row toward it (docs/dos_bugs_ui.md DB-60 / DB-63:
  * DOS shows no bar there), on the first showing and after every page turn. The view is
  * hand-built: the port's buildable list tops out at 22 rows (port_bugs.md #1218).
  */
@@ -6010,7 +6010,7 @@ static int test_game_world_view(void) {
   return rc;
 }
 
-/* docs/dos_bugs.md DB-58: Europe ship menu row 3 (Unload all cargo, FUN_38fd_2bfe)
+/* docs/dos_bugs_ui.md DB-58: Europe ship menu row 3 (Unload all cargo, FUN_38fd_2bfe)
  * raises @SOMEBOYCOTT for a boycotted hold in any slot, not only slot 0. */
 static int unload_all_boycott_notices(int boycotted_cargo) {
   ColonizeGameState* game = calloc(1, sizeof(*game));

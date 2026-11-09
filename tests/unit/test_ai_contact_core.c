@@ -3738,7 +3738,7 @@ static int sp_35(void) {
     }
 
     /*
-     * docs/dos_bugs.md DB-55 (port_bugs.md #1157): Esc on the @INDIANWARPATH
+     * docs/dos_bugs_ui.md DB-55 (port_bugs.md #1157): Esc on the @INDIANWARPATH
      * target menu cancels. DOS clamps FUN_6f74_2580's -1 to row 1
      * (4d56:436c-437a, rows are nation + 1), so its Esc picks the English and
      * quotes @INDIANWARPATH2; the port enqueues nothing and moves no gold and

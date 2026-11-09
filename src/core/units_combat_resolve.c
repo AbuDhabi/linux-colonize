@@ -589,7 +589,7 @@ bool units_plunder_pick_apply_popup(const AiPopupState* popups) {
   if (!popups || popups->result_tag != AI_POPUP_TAG_PLUNDER_PICK) {
     return false;
   }
-  /* FUN_291f_016a = FUN_6f74_2580 returns -1 on Esc (docs/dos_bugs.md DB-55). */
+  /* FUN_291f_016a = FUN_6f74_2580 returns -1 on Esc (docs/dos_bugs_ui.md DB-55). */
   s_plunder_pick = popups->result_cancelled ? -1 : popups->result_choice_id;
   return true;
 }

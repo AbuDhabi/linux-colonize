@@ -144,7 +144,7 @@ tab's hammers bar (own block). Production-tab badge ink is white (15), not
   toward it (page 0 `08ec(0x65)` / `033c(0x65, 1)`, page 1 `08ec(100)`). DOS passes
   the More ids 0x63 / 0x62 + 2 there, ids no row has, so it shows no bar (Enter does
   nothing), and since it never resets `local_8` a turned page bars its first row
-  instead (dos_bugs.md DB-63, DB-60). A live list pages once the built current project keeps its row
+  instead (dos_bugs_ui.md DB-63, DB-60). A live list pages once the built current project keeps its row
   (FUN_15eb_3650 tail, port_bugs.md #1218; unit_stage_seams
   test_colony_construction_two_pages_live). Picking that "(COMPLETE)" row keeps the project and
   clears +0x1c bit 0x80 with no message (FUN_2f2b_5bd2 raw 52665-52667; @ALREADYHAVE stays the
@@ -268,7 +268,7 @@ field job with no plot until the next `colonies_recompute_plots_w`. An indoor
 pick goes through `colonies_assign_workplace` (port_bugs.md #1204). In DOS
 opening it is not free (348c's build-up seats stamp each elected plot and zero the
 job counter, Escape or not, port_bugs.md #1205); the port's opening changes nothing
-(docs/dos_bugs.md DB-54).
+(docs/dos_bugs_ui.md DB-54).
 
 A fence unit gets the same list. A second click on the selected fence unit
 (`FUN_2f2b_44d4` 2f2b:4728-4733) or Enter (2f2b:69b0) pushes 0, and the `jobs_unit_id` field

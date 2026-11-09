@@ -314,7 +314,7 @@ TURN7.SAV's `alarm_by_player` on all 8 tribes x 4 nations exactly.
 DOS's `*(char *)0x34d` gate is `FUN_15eb_28c8`'s trial-seat flag; the port scores
 without seating. The committing seat's tail is `colonies_plot_seat_tail_w`. DOS's
 jobs menu also runs it on opening (28c8 for each field job, a re-seat, the job counter
-zeroed; DOSBox-confirmed, port_bugs.md #1205); the port does not (docs/dos_bugs.md DB-54).
+zeroed; DOSBox-confirmed, port_bugs.md #1205); the port does not (docs/dos_bugs_ui.md DB-54).
 
 ## colonies_indian_land_pay
 
@@ -572,7 +572,7 @@ colonies_list_buildable ports FUN_15eb_3650 (raw 13641-13746) per code. Its
 tail (raw 13741-13746, port_bugs.md #1218) lists the colony's current project
 (+0x94) whatever the gates said. DOS drops it when unit record #code (its unit
 array indexed by the build code) is type 1 and the colony owns @BUILDING
-`local_e`; the port does not reproduce that (dos_bugs.md DB-59). So a just
+`local_e`; the port does not reproduce that (dos_bugs_ui.md DB-59). So a just
 built project stays in the CHANGE list as its "(COMPLETE)" row, and a colony
 with 14 buildings and all 7 unit projects open reaches 23 rows and two pages.
 The building arm is literal too: predecessor owned and the row not owned (no

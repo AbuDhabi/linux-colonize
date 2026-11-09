@@ -24,7 +24,7 @@ Col1 field atlases — those stay in their owning docs (see the
 | Accepted DOS divergences, captures still needed | [known_divergences.md](known_divergences.md) |
 | Colonizopedia text vs actual DOS behaviour | [pedia_divergences.md](pedia_divergences.md) |
 | Typos in the DOS `*.TXT` catalogs (shown verbatim) | [dos_text_typos.md](dos_text_typos.md) |
-| DOS bugs deliberately NOT reproduced | [dos_bugs.md](dos_bugs.md) (Euro/native AI: [dos_bugs_ai.md](dos_bugs_ai.md)) |
+| DOS bugs deliberately NOT reproduced | [dos_bugs.md](dos_bugs.md) (Euro/native AI: [dos_bugs_ai.md](dos_bugs_ai.md); screens, dialogs, cheats, MAPEDIT: [dos_bugs_ui.md](dos_bugs_ui.md)) |
 | Unwanted DOS bugs still reproduced for now | [tolerated_dos_bugs.md](tolerated_dos_bugs.md) (Euro/native AI: [tolerated_dos_bugs_ai.md](tolerated_dos_bugs_ai.md)) |
 | AI `FUN_*` inventory (closed track; grep by `FUN_` name) | [archive/port_plan_deferred_ai_track.md](archive/port_plan_deferred_ai_track.md) |
 | Euro AI control flow (machine-readable map + flowchart) | [ai_euro_logic_map.yaml](ai_euro_logic_map.yaml), rendered by `tools/ai_logic_map.py` to [diagrams/ai_euro_logic.html](diagrams/ai_euro_logic.html) |

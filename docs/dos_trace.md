@@ -105,7 +105,7 @@ by writing `SM 237e:92f8 01 00 <btn lo hi> <x lo hi> <y lo hi>` (x, y in 320x200
 game coordinates). FUN_1acb_0056 derives the edges each poll: DS:0x7ec press,
 DS:0x7f4 release, DS:0x7f6 held. A drag is: write the button down at the start
 point, let a few polls pass, move x/y, then write the button up. Worked example:
-the Europe ship drags of docs/dos_bugs.md DB-56 (port_bugs.md #1159).
+the Europe ship drags of docs/dos_bugs_ui.md DB-56 (port_bugs.md #1159).
 
 ## Seeing the screen
 

@@ -279,7 +279,7 @@ static bool colony_screen_construction_page_lists_current(const ColonyScreenView
  * Otherwise page 0 takes the 0x65 arm (raw 52620-52624) and page 1 the 100 arm (raw
  * 52627-52629): bar and hilite ink on the "(More)" row that leads to the project's page.
  * DOS bugs not reproduced: DOS clears local_8 once (raw 52575), not per page, so only the
- * first showing takes an arm (docs/dos_bugs.md DB-60); and the arms pass the More rows' ids
+ * first showing takes an arm (docs/dos_bugs_ui.md DB-60); and the arms pass the More rows' ids
  * 0x63 / 0x62 with the row offset + 2 added again, ids no row has, so DOS shows no bar
  * (DB-63).
  */
@@ -638,7 +638,7 @@ static void colony_screen_draw_jobs_popup(
   /* A fence unit: FUN_2f2b_348c raw 50599-50665 fills the estimates with the body
    * trial-admitted as colonist `pop` (FUN_281f_0c36 = FUN_15eb_1068 arm 3: pop + 1, specialty
    * FUN_15eb_0e8c, no plot) and set to each job. The port leaves the colony alone on open
-   * (docs/dos_bugs.md DB-54) and scores that colonist on a copy; he has no plot of his own
+   * (docs/dos_bugs_ui.md DB-54) and scores that colonist on a copy; he has no plot of his own
    * (FUN_281f_0d30 is 0, so no "here/" part). Header occupation: the type's DS:0x30e job. */
   const ColonizeUnit* fence = view->jobs_unit_id >= 0 && units
                                 ? units_get_const(units, view->jobs_unit_id)
@@ -888,7 +888,7 @@ static void colony_screen_draw_eject_popup(
     /* DOS draws a short-stock row greyed rather than dropping it (FUN_15eb_3454 -> 0xffff,
      * raw 50801 FUN_291f_01b6). The roles are @JOB 0x13 + role, DOS's 0x13..0x18 order. */
     /* The occupation row's hilite is raw 50746's `local_136 == local_8` (the specialty is
-     * the occupation). DOS bug not reproduced (docs/dos_bugs.md DB-61): DOS reads local_136
+     * the occupation). DOS bug not reproduced (docs/dos_bugs_ui.md DB-61): DOS reads local_136
      * there before its first write at raw 50799, so the first page-0 draw tests a stale stack
      * word; the port takes the value every later draw sees. */
     const int role = view->eject_roles[i];

@@ -3320,7 +3320,7 @@ done:
 }
 
 /*
- * docs/dos_bugs.md DB-56 (port_bugs.md #1159): the port acts on a Europe ship
+ * docs/dos_bugs_ui.md DB-56 (port_bugs.md #1159): the port acts on a Europe ship
  * drag only when the box changes. DOS's FUN_38fd_3228 mode 9 zeroes the hull's
  * orders (38fd:326f) before comparing the drop zone with the start zone, so a
  * release on the ship's own box drops its trade route, and mode 8 sails a

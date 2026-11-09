@@ -95,7 +95,7 @@ void ai_euro_28c8_auto_assign_plots(ColonizeTurnContext* ctx, int colony_id, int
  * 13026-13029, so the score is yld * 8 + 7 - |dx| - |dy|). An indoor job is FUN_281f_0cd6 ->
  * FUN_15eb_1d4c, the Statesman then + Jefferson / Paine / Newspaper or Printing Press.
  * *out_cargo = the @CARGO row DOS names after it (aiStack_c8; -1 = none). Reads only; DOS's
- * committing build-up seats are not reproduced (docs/dos_bugs.md DB-54).
+ * committing build-up seats are not reproduced (docs/dos_bugs_ui.md DB-54).
  */
 int ai_euro_jobs_menu_estimate(
   const ColonizeColonyPool* pool,

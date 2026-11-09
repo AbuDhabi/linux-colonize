@@ -158,7 +158,7 @@ bool cheat_list_open_dest_pages(
   const char* delete_label
 );
 
-/* FUN_647e_01c6 page math for n colonies, e = 1 with the Europe row (docs/dos_bugs.md DB-53). */
+/* FUN_647e_01c6 page math for n colonies, e = 1 with the Europe row (docs/dos_bugs_ui.md DB-53). */
 void cheat_list_dest_page_math(int n, int e, int* page_size, int* page_count);
 
 /*

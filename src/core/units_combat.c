@@ -1390,7 +1390,7 @@ int units_apply_land_loss_outcome(
       const int from_nat = lose->nation_id;
       /* DOS raw 99404 uses a signed IMUL byte (viceroy_unpacked.asm:167858),
        * so a treasure >= 12800 shows negative in DOS; deliberately not
-       * reproduced, see docs/dos_bugs.md DB-82. */
+       * reproduced, see docs/dos_bugs_ui.md DB-82. */
       const int loot_gold = units_treasure_value_gold(lose);
       units_capture_to_winner(pool, lose, win);
       if (human) {

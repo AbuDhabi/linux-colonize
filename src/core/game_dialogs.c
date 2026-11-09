@@ -1685,7 +1685,7 @@ void game_europe_sell_best_hold(ColonizeGameState* game, int hidx) {
  * whole (FUN_38fd_23c4, no amount prompt; it sells the FIRST hold of that
  * cargo, FUN_15eb_32a0). After the loop a set flag raises @SOMEBOYCOTT
  * (0x1027) as an OK modal. Price popups come before it. No summary line.
- * DOS bug not reproduced (docs/dos_bugs.md DB-58): DOS resets the flag at the
+ * DOS bug not reproduced (docs/dos_bugs_ui.md DB-58): DOS resets the flag at the
  * top of every pass (raw 60872, asm 38fd:2d8c), so only a boycotted slot 0
  * raised the notice; here any boycotted hold does.
  */

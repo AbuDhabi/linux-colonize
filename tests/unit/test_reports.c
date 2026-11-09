@@ -1445,7 +1445,7 @@ static int case_hall_of_fame_layout_is_dos(void) {
   }
   /* port_bugs.md #1219 (asm 41f2:12b2-12ef): the inserted slot draws in DS:0x831; an insert
    * into slot 5 relabels line 5 "6." and hilites it (rows are identical here; the fields of
-   * that line are the retired entry's, docs/dos_bugs.md DB-57, checked below). */
+   * that line are the retired entry's, docs/dos_bugs_ui.md DB-57, checked below). */
   ColonizeHofRow rows[6];
   for (int k = 0; k < 6; ++k) {
     rows[k] = row;
@@ -1479,7 +1479,7 @@ static int case_hall_of_fame_layout_is_dos(void) {
       return 1;
     }
   }
-  /* docs/dos_bugs.md DB-57: a 6th-place retire's line 5 ("6.") shows the retired entry's own
+  /* docs/dos_bugs_ui.md DB-57: a 6th-place retire's line 5 ("6.") shows the retired entry's own
    * fields, not slot 4's (DOS shows slot 4's). */
   ColonizeHofRow retired = row;
   snprintf(retired.leader, sizeof(retired.leader), "Hernan Cortes");

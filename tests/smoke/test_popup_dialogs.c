@@ -904,7 +904,7 @@ static int case_cheat_create_unit_is_dos(void) {
 
 /*
  * port_bugs.md #1194: the FUN_647e_01c6 pager. n <= 10 = one page of n + 1 slots, else pages of
- * 10 ((n + E + 9) / 10, dos_bugs.md DB-53); the Europe row is slot 0, colony k slot k + E; Previous
+ * 10 ((n + E + 9) / 10, dos_bugs_ui.md DB-53); the Europe row is slot 0, colony k slot k + E; Previous
  * (0x3e5) first past page 0, More (0x3e6) last before the last page, the delete row (1000)
  * only on the last page; greyed rows skipped by Up / Down, clicks ignored, never preselected.
  */

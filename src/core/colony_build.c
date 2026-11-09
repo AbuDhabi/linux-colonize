@@ -1423,7 +1423,7 @@ static bool colonies_building_is_buildable(
  * FUN_15eb_3650 tail (raw 13741-13746, asm 15eb:3889-38b4): the colony's
  * current project (+0x94 == code) is listed whatever the gates said, so a
  * just-built project shows as its "(COMPLETE)" row (FUN_2f2b_5a68).
- * DOS bug not reproduced (docs/dos_bugs.md DB-59): DOS drops it when unit
+ * DOS bug not reproduced (docs/dos_bugs_ui.md DB-59): DOS drops it when unit
  * record #code (the build code used as a unit index) is type 1 and the colony
  * owns @BUILDING local_e; the port always keeps it.
  */
